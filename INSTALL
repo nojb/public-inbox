@@ -1,0 +1,36 @@
+Note: this still needs to be documented better,
+also see the scripts/ and sa_config/ directories in the source tree
+
+standard MakeMaker installation (Perl)
+--------------------------------------
+
+	perl Makefile.PL
+	make
+	make test
+	make install # root permissions may be needed
+
+Requirements (MUA client)
+-------------------------
+* git
+* ssoma - http://ssoma.public-inbox.org/README
+* Perl and several modules:
+    - Email::LocalDelivery
+    - Email::Filter
+    - Email::Simple
+    - Digest::SHA
+
+Requirements (server MDA)
+-------------------------
+* git
+* SpamAssassin (spamc/spamd)
+* MTA - postfix is recommended
+* ssoma - http://ssoma.public-inbox.org/README
+* Perl and several modules:
+    - Email::Simple
+    - File::FcntlLock
+    - Digest::SHA
+
+Copyright
+---------
+Copyright 2013, Eric Wong <normalperson@yhbt.net> and all contributors.
+License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>

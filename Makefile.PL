@@ -21,7 +21,7 @@ WriteMakefile(
 sub MY::postamble {
   <<'EOF';
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
-docs = README COPYING $(shell git ls-files Documentation/ '*.txt')
+docs = README COPYING INSTALL $(shell git ls-files Documentation/ '*.txt')
 gz_docs = $(addsuffix .gz, $(docs))
 %.gz: %
 	gzip -9 --rsyncable < $< > $@+
