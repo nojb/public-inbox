@@ -1,0 +1,9 @@
+# public-inbox.org uses the Debian spamd installation + init and sets
+# CRON=1 in /etc/default/spamassassin for automatic rule updates
+
+# compile rules to C, sa-compile(1) must be run as the appropriate user
+# (debian-spamd on Debian).  sa-compile(1) will also be run by the cronjob
+loadplugin Mail::SpamAssassin::Plugin::Rule2XSBody
+
+# for ok_languages in user_prefs
+loadplugin Mail::SpamAssassin::Plugin::TextCat

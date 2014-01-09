@@ -1,0 +1,26 @@
+# raise or lower as needed
+required_score 5.0
+
+# do not mess with the original message body, only notify in headers
+clear_report_template
+clear_unsafe_report_template
+report_safe 0
+
+# we do not use nor support this on NFS
+lock_method flock
+
+# do not throw off Bayes
+bayes_ignore_header X-Bogosity
+bayes_ignore_header X-Spam-Flag
+bayes_ignore_header X-Spam-Status
+bayes_ignore_header X-Spam-Report
+
+# English-only for all lists on public-inbox.org
+ok_locales en
+# we have "loadplugin Mail::SpamAssassin::Plugin::TextCat" in a *.pre file
+ok_languages en
+
+# uncomment the following for importing archives:
+# dns_available no
+# skip_rbl_checks 1
+# skip_uribl_checks 1

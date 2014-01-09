@@ -1,0 +1,51 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2013, Eric Wong <normalperson@yhbt.net> and all contributors
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# One-off script to convert an slrnpull news spool from gmane
+use strict;
+use warnings;
+use Parallel::ForkManager;
+use Email::Simple;
+use PublicInbox::Filter;
+use IPC::Run qw(run);
+my $usage = "import_nntp_spool SLRNPULL_ROOT/news/foo/bar MAIN_REPO FAIL_REPO";
+my $spool = shift @ARGV or die "Usage: $usage\n";
+my $main_repo = shift @ARGV or die "Usage: $usage\n";
+my $fail_repo = shift @ARGV or die "Usage: $usage\n";
+my $nproc = `nproc 2>/dev/null` || 4;
+my $pm = Parallel::ForkManager->new($nproc);
+my @args = ('public-inbox-mda', $main_repo, $fail_repo);
+
+foreach my $n (<$spool/*>) {
+	$n =~ m{/\d+\z} or next;
+	$pm->start and next;
+	if (open my $fh, '<', $n) {
+		local $/;
+		my $s = Email::Simple->new(<$fh>);
+
+		# gmane rewrites Received headers, which increases spamminess
+		my @h = $s->header("Original-Received");
+		if (@h) {
+			$s->header_set("Received", @h);
+			$s->header_set("Original-Received");
+		}
+
+		# triggers for the SA HEADER_SPAM rule
+		foreach my $drop (qw(Approved)) { $s->header_set($drop) }
+
+		# appears to be an old gmane bug:
+		$s->header_set("connect()");
+
+		my $orig = $s->as_string;
+		close $fh or die "close failed: $!\n";
+		eval { run(\@args, \$orig) };
+		die "fail $n: $?\n" if $?;
+		die "fail $n: $@\n" if $@;
+	} else {
+		warn "Failed to open $n: $!\n";
+	}
+	$pm->finish;
+}
+
+$pm->wait_all_children;

@@ -1,0 +1,28 @@
+#!/bin/sh
+# Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
+# License: GPLv3 or later
+# Usage: report-spam /path/to/message/in/maildir
+# my incrontab(5) looks like this:
+#  /path/to/.maildir/cur IN_MOVED_TO /path/to/report-spam $@/$#
+#  /path/to/.maildir/.INBOX.good/cur IN_MOVED_TO /path/to/report-spam $@/$#
+#  /path/to/.maildir/.INBOX.spam/cur IN_MOVED_TO /path/to/report-spam $@/$#
+
+# gigantic emails tend not to be spam (but they suck anyways...)
+bytes=$(stat -c %s $1)
+if test $bytes -gt 512000
+then
+	exit
+fi
+
+# only tested with the /usr/sbin/sendmail which ships with postfix
+case $1 in
+*[/.]spam/cur/*) # non-new messages in spam get trained
+	exec /usr/sbin/sendmail -oem -oi $USER+trainspam < $1
+	;;
+*:2,*S*) # otherwise, seen messages only
+	case $1 in
+	*:2,*T*) exit 0 ;; # ignore trashed messages
+	esac
+	exec /usr/sbin/sendmail -oem -oi $USER+trainham < $1
+	;;
+esac

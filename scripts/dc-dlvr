@@ -1,0 +1,64 @@
+#!/bin/sh
+# Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
+# License: GPLv3 or later
+# to use with postfix main.cf: mailbox_command = /etc/dc-dlvr "$EXTENSION"
+DELIVER=/usr/lib/dovecot/deliver
+
+# my personal preference is to use a catchall account to avoid generating
+# backscatter, as invalid emails are usually spam
+case $USER in
+catchall) exec $DELIVER ;;
+esac
+
+# change if your spamc/spamd listens elsewhere
+spamc='spamc -U /run/spamd.sock'
+
+# allow plus addressing to train spam filters, $1 is the $EXTENSION
+# which may be "trainspam" or "trainham".  Only allow spam training
+# when $CLIENT_ADDRESS is empty (local client)
+case $1,$CLIENT_ADDRESS in
+trainspam,) exec $spamc -L spam > /dev/null 2>&1 ;;
+trainham,) exec $spamc -L ham > /dev/null 2>&1 ;;
+esac
+
+TMPMSG=$(mktemp -t dc-dlvr.orig.$USER.XXXXXX || exit 1)
+rm_list=$TMPMSG
+
+# pre-filter, for infrequently read lists which do their own spam filtering:
+if test -r ~/.dc-dlvr.pre
+then
+	set -e
+	cat > $TMPMSG
+	DEFAULT_INBOX=$(. ~/.dc-dlvr.pre)
+	if test xINBOX != x"$DEFAULT_INBOX"
+	then
+		$DELIVER -m $DEFAULT_INBOX < $TMPMSG
+		exec rm -f $rm_list
+	fi
+	PREMSG=$(mktemp -t dc-dlvr.orig.$USER.XXXXXX || exit 1)
+	rm_list="$rm_list $PREMSG"
+	set +e
+	mv -f $TMPMSG $PREMSG
+	$spamc -E --headers < $PREMSG > $TMPMSG
+else
+	$spamc -E --headers > $TMPMSG
+fi
+err=$?
+
+# normal delivery
+set -e
+
+case $err in
+1) $DELIVER -m INBOX.spam < $TMPMSG ;;
+*)
+	# users may override normal delivery and have it go elsewhere
+	if test -r ~/.dc-dlvr.rc
+	then
+		. ~/.dc-dlvr.rc
+	else
+		$DELIVER -m INBOX < $TMPMSG
+	fi
+	;;
+esac
+
+exec rm -f $rm_list

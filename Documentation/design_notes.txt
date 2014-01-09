@@ -1,0 +1,67 @@
+Design notes and philosophy
+---------------------------
+
+Challenges to running normal mailing lists
+------------------------------------------
+1) spam
+2) bounce processing of invalid/bad email addresses
+3) processing subscribe/unsubscribe requests
+
+Issues 2) and 3) are side-stepped entirely by moving reader
+subscriptions to git repository synchronization and Atom feeds.  There's
+no chance of faked subscription requests and no need to deal with
+confused users who cannot unsubscribe.
+
+Use existing infrastructure
+---------------------------
+
+* public-inbox can coexist with existing mailing lists, any subscriber
+  to the existing mailing list can begin delivering messages to
+  public-inbox-mda(1)
+
+* public-inbox uses SMTP for posting.  Posting a message to a public-inbox
+  instance is no different than sending a message to any open mailing
+  list.
+
+* readers may continue using use their choice of mail clients and
+  mailbox formats, only learning a few commands of the ssoma(1) tool
+  is required.
+
+* Atom is a reasonable feed format for casual readers and is supported
+  by a variety of feed readers.
+
+Why email?
+----------
+
+* Freedom from proprietary services, tools and APIs.  Communicating with
+  developers and users of Free Software should not rely on proprietary
+  tools or services.
+
+* Existing infrastrucuture, tools, and user familarity.
+  There is already a large variety of tools, clients, and email providers
+  available.  There are also many resources for users to run their own
+  SMTP server on a domain they control.
+
+* All public discussion mediums are affected by spam and advertising.
+  There exist several good Free Software anti-spam tools for email.
+
+* Privacy is not an issue for public discussion.  Public mailing list
+  archives are common and accepted by Free Software communities.
+  There is no need to ask the NSA for backups of your mail archives :)
+
+* git, one of the most widely-used version control systems, includes many
+  tools for for email: git-format-patch(1), git-send-email(1), git-am(1).
+  Furthermore, the development of git itself is based on the git mailing
+  list.
+
+* Email is already the de-facto form of communication in many Free Software
+  communities.
+
+* Fallback/transition to private email and other lists, in case the
+  public-inbox host becomes unavailable, users may still directly email
+  each other (or Cc: lists for related/dependent projects).
+
+Copyright
+---------
+Copyright 2013, Eric Wong <normalperson@yhbt.net> and all contributors.
+License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>

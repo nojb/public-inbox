@@ -1,0 +1,145 @@
+public-inbox - shared mailboxes via git for public discussion
+-------------------------------------------------------------
+
+public-inbox implements the sharing of an email inbox to complement or
+replace traditional mailing lists for public discussion.  public-inbox
+is primarily intended as a Free, distributed (but not yet decentralized)
+public communications tool for users and developers of Free and Open
+Source Software.  public-inbox should be easy-to-deploy and manage;
+encouraging software projects to run their own instances with minimal
+overhead.
+
+Implementation
+--------------
+public-inbox uses ssoma[1], Some Sort Of Mail Archiver which implements
+no policy of its own.  By exposing an inbox via git, readers may follow
+the mailing list without subscribing and have easy access to historical
+messages.
+
+Traditional mailing lists use the "push" model.  List servers deliver
+content via SMTP to other mail servers used by readers of the mailing
+list.  For readers, this requires commitment to subscribe to the list
+and extra effort to unsubscribe.  Readers may also have difficulty
+following discussions which started before they joined if archives do
+not expose Message-Id headers for responses.  For list server admins,
+this also burdens them with bounce/failure messages for bad/invalid
+addresses.
+
+public-inbox uses the "pull" model.  Readers import mail into an mbox,
+Maildir, or IMAP folder from the git repositories periodically.  If a
+reader loses interest, they simply stop syncing.  Since ssoma uses git,
+mirrors are easy-to-setup, and lists are easy-to-relocate to different
+mail addresses without losing/splitting archives.  Readers only need
+to install ssoma, a command-line tool[1] currently implemented in Perl.
+
+Readers may also follow the list via Atom feed.
+
+[1] http://ssoma.public-inbox.org/
+
+Features
+--------
+* stores email in git, so readers have a full history of the mailing list
+* Atom feed allows casual readers to follow via feed reader
+* Mail user-agent (MUA) users may use Maildir, mbox(5) and/or IMAP locally
+* uses only well-documented and easy-to-implement data formats
+
+Requirements (Atom, read-only client)
+-------------------------------------
+* any feed reader capable of following Atom feeds
+
+Requirements (server MDA)
+-------------------------
+* git
+* MTA - postfix is recommended
+* Perl and several modules:
+    - Email::Filter
+    - XML::Atom::SimpleFeed
+* Ssoma - currently a Perl module
+* SpamAssassin (optional, recommended)
+* any HTTP server (optional, for serving Atom feed)
+
+Hacking
+-------
+Source code is available via git:
+
+	git clone git://bogomips.org/public-inbox
+
+See below for contact info.
+
+Contact
+-------
+We are happy to see feedback of all types via plain-text email.
+public-inbox discussion is self-hosting on public-inbox.org
+Please send comments, user/developer discussion, patches, bug reports,
+and pull requests to our public-inbox.org address at:
+
+	public-inbox@public-inbox.org
+
+Please Cc: all recipients when replying as we do not require
+subscription.  This also makes it easier to rope in folks of
+tangentially related projects we depend on (e.g. git developers on
+git@vger.kernel.org).
+
+You can subscribe via ssoma(1), LISTNAME is a name of your choosing:
+
+    URL=git://git.public-inbox.org/public-inbox
+    LISTNAME=public-inbox
+
+    # to initialize a maildir (this may be a new or existing maildir,
+    # ssoma will not touch existing messages)
+    # If you prefer mbox, use "ssoma add mbox ..." instead
+    ssoma add $LISTNAME $URL maildir:/path/to/maildir/
+
+    # read with your favorite MUA (only using mutt as an example)
+    mutt -f /path/to/maildir # (or /path/to/mbox)
+
+    # to keep your mbox or maildir up-to-date, periodically run the following:
+    ssoma sync $LISTNAME
+
+    # your MUA may modify and delete messages from the maildir or mbox,
+    # this does not affect ssoma functionality at all
+
+    # to sync all your ssoma subscriptions
+    ssoma sync
+
+Anti-Spam
+---------
+The maintainer of public-inbox has found SpamAssassin a good tool for
+filtering his personal mail, and it will be the default spam filtering
+tool in public-inbox.
+
+Readers may also use a custom mail-delivery-agent for delivery to enable
+spam filtering by having ssoma deliver to a command via pipe.
+
+There is unlikely to be any tool which is 100% accurate at classifying
+spam, so it is possible to remove messages using the ssoma-rm(1) tool
+in ssoma.
+
+Content Filtering
+-----------------
+To discourage phishing, web bugs (tracking), viruses and other nuisances,
+only plain-text content is allowed by default and non-text content is
+stripped.  This saves I/O bandwidth and storage, which is important as
+entire mail archives are shared between clients.
+
+As of the 2010s, successful online social networks and forums are the
+ones which heavily restrict users formatting options; so public-inbox
+aims to preserve the focus on content, and not presentation.
+
+Copyright
+---------
+Copyright 2013, Eric Wong <normalperson@yhbt.net> and all contributors.
+License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
