@@ -1,0 +1,15 @@
+.gitignore
+COPYING
+Documentation/design_notes.txt
+Makefile.PL
+README
+lib/PublicInbox/Filter.pm
+public-inbox-mda
+sa_config/Makefile
+sa_config/README
+sa_config/root/etc/spamassassin/public-inbox.pre
+sa_config/user/.spamassassin/user_prefs
+scripts/dc-dlvr
+scripts/import_gmane_spool
+scripts/report-spam
+t/filter.t
