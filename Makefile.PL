@@ -15,6 +15,7 @@ WriteMakefile(
 		'Email::MIME' => 0,
 		'Email::MIME::ContentType' => 0,
 		'Email::Filter' => 0,
+		'Email::Address' => 0,
 	},
 );
 

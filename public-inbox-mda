@@ -4,6 +4,7 @@
 use strict;
 use warnings;
 use Email::Filter;
+use Email::Address;
 use PublicInbox::Filter;
 use IPC::Run qw(run);
 my $usage = "public-inbox-mda main_repo fail_repo < rfc2822_message";
@@ -14,6 +15,7 @@ my $max = 1024 * 500; # same as spamc
 
 my $filtered;
 if (length($filter->simple->as_string) <= $max
+    && PublicInbox->recipient_specified($filter)
     && do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
 	my $simple = Email::Simple->new($filtered);
