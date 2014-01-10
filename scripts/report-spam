@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
-# License: GPLv3 or later
+# License: GPLv3 or later <http://www.gnu.org/licenses/gpl-3.0.txt>
 # Usage: report-spam /path/to/message/in/maildir
 # my incrontab(5) looks like this:
 #  /path/to/.maildir/cur IN_MOVED_TO /path/to/report-spam $@/$#

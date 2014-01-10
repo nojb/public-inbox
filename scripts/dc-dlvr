@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
-# License: GPLv3 or later
+# License: GPLv3 or later <http://www.gnu.org/licenses/gpl-3.0.txt>
 # to use with postfix main.cf: mailbox_command = /etc/dc-dlvr "$EXTENSION"
 DELIVER=/usr/lib/dovecot/deliver
 
