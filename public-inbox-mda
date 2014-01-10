@@ -10,9 +10,11 @@ my $usage = "public-inbox-mda main_repo fail_repo < rfc2822_message";
 my $filter = Email::Filter->new(emergency => "~/emergency.mbox");
 my $main_repo = shift @ARGV or die "Usage: $usage\n";
 my $fail_repo = shift @ARGV or die "Usage: $usage\n";
+my $max = 1024 * 500; # same as spamc
 
 my $filtered;
-if (do_spamc($filter->simple, \$filtered)) {
+if (length($filter->simple->as_string) <= $max
+    && do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
 	my $simple = Email::Simple->new($filtered);
 	$filtered = undef;
