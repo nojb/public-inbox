@@ -9,7 +9,7 @@ use Parallel::ForkManager;
 use Email::Simple;
 use PublicInbox::Filter;
 use IPC::Run qw(run);
-my $usage = "import_nntp_spool SLRNPULL_ROOT/news/foo/bar MAIN_REPO FAIL_REPO";
+my $usage = "$0 SLRNPULL_ROOT/news/foo/bar MAIN_REPO FAIL_REPO";
 my $spool = shift @ARGV or die "Usage: $usage\n";
 my $main_repo = shift @ARGV or die "Usage: $usage\n";
 my $fail_repo = shift @ARGV or die "Usage: $usage\n";
