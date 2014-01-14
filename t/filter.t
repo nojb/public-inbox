@@ -259,4 +259,24 @@ sub count_body_parts {
 	like($f->simple->as_string, qr/scrubbed/, "scrubbed message");
 }
 
+{
+	my $s = Email::Simple->create(
+		header => [
+			From => 'a@example.com',
+			To => 'b@example.com',
+			'Content-Type' => 'text/plain',
+			'Mail-Followup-To' => 'c@example.com',
+			Subject => 'mfttest',
+		],
+		body => "mft\n",
+	);
+
+	is('c@example.com', $s->header("Mail-Followup-To"),
+		"mft set correctly");
+	my $f = Email::Filter->new(data => $s->as_string);
+	is(1, PublicInbox::Filter->run($f->simple), "run succeeded for mft");
+	is(undef, $f->simple->header("Mail-Followup-To"), "mft stripped");
+}
+
+
 done_testing();
