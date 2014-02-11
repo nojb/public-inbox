@@ -4,6 +4,7 @@ package PublicInbox;
 use strict;
 use warnings;
 use Email::Address;
+use constant MAX_SIZE => 1024 * 500; # same as spamc default
 
 # drop plus addressing for matching
 sub __drop_plus {
@@ -13,8 +14,15 @@ sub __drop_plus {
 }
 
 # do not allow Bcc, only Cc and To if ORIGINAL_RECIPIENT (postfix) env is set
-sub recipient_specified {
+sub precheck {
 	my ($klass, $filter) = @_;
+	return 0 unless defined($filter->from);
+	return 0 if length($filter->simple->as_string) > MAX_SIZE;
+	recipient_specified($filter);
+}
+
+sub recipient_specified {
+	my ($filter) = @_;
 	my $or = $ENV{ORIGINAL_RECIPIENT};
 	defined($or) or return 1; # for imports
 	my @or = Email::Address->parse($or);

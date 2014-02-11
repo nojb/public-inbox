@@ -14,19 +14,19 @@ sub do_checks {
 	local %ENV;
 	delete $ENV{ORIGINAL_RECIPIENT};
 
-	ok(PublicInbox->recipient_specified($f),
+	ok(PublicInbox->precheck($f),
 		"ORIGINAL_RECIPIENT unset is OK");
 
 	$ENV{ORIGINAL_RECIPIENT} = 'foo@example.com';
-	ok(!PublicInbox->recipient_specified($f),
+	ok(!PublicInbox->precheck($f),
 		"wrong ORIGINAL_RECIPIENT rejected");
 
 	$ENV{ORIGINAL_RECIPIENT} = 'b@example.com';
-	ok(PublicInbox->recipient_specified($f),
+	ok(PublicInbox->precheck($f),
 		"ORIGINAL_RECIPIENT in To: is OK");
 
 	$ENV{ORIGINAL_RECIPIENT} = 'c@example.com';
-	ok(PublicInbox->recipient_specified($f),
+	ok(PublicInbox->precheck($f),
 		"ORIGINAL_RECIPIENT in Cc: is OK");
 }
 
@@ -54,6 +54,21 @@ sub do_checks {
 		],
 		body => "hello world\n",
 	));
+}
+
+{
+	$ENV{ORIGINAL_RECIPIENT} = 'b@example.com';
+	my $s = Email::Simple->create(
+		header => [
+			To => 'b@example.com',
+			Cc => 'c@example.com',
+			'Content-Type' => 'text/plain',
+			Subject => 'this is a subject',
+		],
+		body => "hello world\n",
+	);
+	my $f = Email::Filter->new(data => $s->as_string);
+	ok(!PublicInbox->precheck($f), "missing From: is rejected");
 }
 
 done_testing();
