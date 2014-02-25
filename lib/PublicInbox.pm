@@ -16,8 +16,10 @@ sub __drop_plus {
 # do not allow Bcc, only Cc and To if ORIGINAL_RECIPIENT (postfix) env is set
 sub precheck {
 	my ($klass, $filter) = @_;
+	my $simple = $filter->simple;
+	return 0 unless $simple->header("Message-ID");
 	return 0 unless defined($filter->from);
-	return 0 if length($filter->simple->as_string) > MAX_SIZE;
+	return 0 if length($simple->as_string) > MAX_SIZE;
 	recipient_specified($filter);
 }
 

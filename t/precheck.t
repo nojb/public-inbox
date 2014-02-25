@@ -38,6 +38,7 @@ sub do_checks {
 			Cc => 'c@example.com',
 			'Content-Type' => 'text/plain',
 			Subject => 'this is a subject',
+			'Message-ID' => '<MID>',
 		],
 		body => "hello world\n",
 	));
@@ -51,6 +52,7 @@ sub do_checks {
 			Cc => 'John Doe <c@example.com>',
 			'Content-Type' => 'text/plain',
 			Subject => 'this is a subject',
+			'Message-ID' => '<MID>',
 		],
 		body => "hello world\n",
 	));
@@ -64,6 +66,7 @@ sub do_checks {
 			Cc => 'c@example.com',
 			'Content-Type' => 'text/plain',
 			Subject => 'this is a subject',
+			'Message-ID' => '<MID>',
 		],
 		body => "hello world\n",
 	);
