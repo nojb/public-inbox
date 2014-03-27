@@ -1,0 +1,12 @@
+# this usually in ~/.public-inbox/config and parseable with git-config(1)
+# update t/config.t if changing this, that test relies on this
+[publicinbox "test"]
+	address = test@public-inbox.org
+	mainrepo = /home/pi/test-main.git
+	failrepo = /home/pi/test-fail.git
+	description = test box, occasionally reset
+[publicinbox "bugs"]
+	address = bugs@public-inbox.org
+	mainrepo = /home/pi/bugs-main.git
+	failrepo = /home/pi/bugs-fail.git
+	description = development discussion
