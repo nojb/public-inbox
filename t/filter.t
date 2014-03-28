@@ -278,5 +278,40 @@ sub count_body_parts {
 	is(undef, $f->simple->header("Mail-Followup-To"), "mft stripped");
 }
 
+# multi-part with application/octet-stream
+{
+	my $os = 'application/octet-stream';
+	my $parts = [
+		Email::MIME->create(
+			attributes => { content_type => $os },
+			body => <<EOF
+#include <stdio.h>
+int main(void)
+{
+	printf("Hello world\\n");
+	return 0;
+}
+EOF
+		),
+		Email::MIME->create(
+			attributes => {
+				filename => 'zero.data',
+				encoding => 'base64',
+				content_type => $os,
+			},
+			body => ("\0" x 4096),
+		)
+	];
+	my $email = Email::MIME->create(
+		header_str => [ From => 'a@example.com', Subject => 'blah' ],
+		parts => $parts,
+	);
+	my $f = Email::Filter->new(data => $email->as_string);
+	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
+	my $parsed = Email::MIME->new($f->simple->as_string);
+	is(scalar $parsed->parts, 1, "only one remaining part");
+	like($f->simple->header("X-Content-Filtered-By"),
+		qr/PublicInbox::Filter/, "XCFB header added");
+}
 
 done_testing();

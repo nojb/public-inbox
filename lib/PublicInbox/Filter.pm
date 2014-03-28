@@ -15,6 +15,8 @@ our $VERSION = '0.0.1';
 
 # start with the same defaults as mailman
 our $BAD_EXT = qr/\.(?:exe|bat|cmd|com|pif|scr|vbs|cpl)\z/i;
+our $MIME_HTML = qr!\btext/html\b!i;
+our $MIME_TEXT_ANY = qr!\btext/[a-z0-9\+\._-]+\b!i;
 
 # this is highly opinionated delivery
 # returns 0 only if there is nothing to deliver
@@ -35,7 +37,7 @@ sub run {
 
 	if ($content_type =~ m!\btext/plain\b!i) {
 		return 1; # yay, nothing to do
-	} elsif ($content_type =~ m!\btext/html\b!i) {
+	} elsif ($content_type =~ $MIME_HTML) {
 		# HTML-only, non-multipart
 		my $body = $simple->body;
 		my $ct_parsed = parse_content_type($content_type);
@@ -129,14 +131,23 @@ sub strip_multipart {
 		my $part_type = $part->content_type;
 		if ($part_type =~ m!\btext/plain\b!i) {
 			push @keep, $part;
-		} elsif ($part_type =~ m!\btext/html\b!i) {
+		} elsif ($part_type =~ $MIME_HTML) {
 			push @html, $part;
-		} elsif ($part_type =~ m!\btext/[a-z0-9\+\._-]+\b!i) {
+		} elsif ($part_type =~ $MIME_TEXT_ANY) {
 			# Give other text attachments the benefit of the doubt,
 			# here?  Could be source code or script the user wants
 			# help with.
 
 			push @keep, $part;
+		} elsif ($part_type =~ m!\Aapplication/octet-stream\z!i) {
+			# unfortunately, some mailers don't set correct types,
+			# let messages of unknown type through but do not
+			# change the sender-specified type
+			if (recheck_type_ok($part)) {
+				push @keep, $part;
+			} else {
+				$rejected++;
+			}
 		} else {
 			# reject everything else
 			#
@@ -214,6 +225,25 @@ sub replace_body {
 		$simple->header_set("Content-Transfer-Encoding", undef);
 	}
 	mark_changed($simple);
+}
+
+# run the file(1) command to detect mime type
+# Not using File::MMagic for now since that requires extra configuration
+# Note: we do not rewrite the message with the detected mime type
+sub recheck_type_ok {
+	my ($part) = @_;
+	my $cmd = "file --mime-type -b -";
+	my $pid = open2(my $out, my $in, $cmd);
+	print $in $part->body;
+	close $in;
+	my $type = eval {
+		local $/;
+		<$out>;
+	};
+	waitpid($pid, 0);
+	chomp $type;
+
+	(($type =~ $MIME_TEXT_ANY) && ($type !~ $MIME_HTML))
 }
 
 1;
