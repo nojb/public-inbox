@@ -1,6 +1,18 @@
 Design notes and philosophy
 ---------------------------
 
+public-inbox spawned around some basic ideas
+--------------------------------------------
+
+* Public, non-real-time, archivable communication is essential to
+  Free and Open Source software development.
+
+* Contributing to Free and Open Source projects should not require the
+  use of non-Free/non-Open Source services or software.
+
+* Graphical user interfaces should not be required for text-based
+  communication.
+
 Challenges to running normal mailing lists
 ------------------------------------------
 1) spam
@@ -60,6 +72,12 @@ Why email?
 * Fallback/transition to private email and other lists, in case the
   public-inbox host becomes unavailable, users may still directly email
   each other (or Cc: lists for related/dependent projects).
+
+Notes
+-----
+
+* Expose Message-Id in HTML views to encourage replies from drive-by
+  contributors
 
 Copyright
 ---------
