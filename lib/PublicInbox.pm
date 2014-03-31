@@ -13,22 +13,21 @@ sub __drop_plus {
 	$str_addr;
 }
 
-# do not allow Bcc, only Cc and To if ORIGINAL_RECIPIENT (postfix) env is set
+# do not allow Bcc, only Cc and To if recipient is set
 sub precheck {
-	my ($klass, $filter) = @_;
+	my ($klass, $filter, $recipient) = @_;
 	my $simple = $filter->simple;
 	return 0 unless $simple->header("Message-ID");
 	return 0 unless defined($filter->from);
 	return 0 if length($simple->as_string) > MAX_SIZE;
-	recipient_specified($filter);
+	recipient_specified($filter, $recipient);
 }
 
 sub recipient_specified {
-	my ($filter) = @_;
-	my $or = $ENV{ORIGINAL_RECIPIENT};
-	defined($or) or return 1; # for imports
-	my @or = Email::Address->parse($or);
-	my $oaddr = __drop_plus($or[0]->address);
+	my ($filter, $recipient) = @_;
+	defined($recipient) or return 1; # for mass imports
+	my @recip = Email::Address->parse($recipient);
+	my $oaddr = __drop_plus($recip[0]->address);
 	$oaddr = qr/\b\Q$oaddr\E\b/i;
 	my @to = Email::Address->parse($filter->to);
 	my @cc = Email::Address->parse($filter->cc);
