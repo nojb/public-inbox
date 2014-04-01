@@ -3,12 +3,13 @@
 package PublicInbox::Config;
 use strict;
 use warnings;
+use File::Path::Expand qw/expand_filename/;
 
 # returns key-value pairs of config directives in a hash
 sub new {
 	my ($class, $file) = @_;
 
-	local $ENV{GIT_CONFIG} = $file;
+	local $ENV{GIT_CONFIG} = defined $file ? $file : default_file();
 
 	my @cfg = `git config -l`;
 	$? == 0 or die "git config -l failed: $?\n";
@@ -35,6 +36,13 @@ sub lookup {
 		$_ => $self->{"$pfx.$_"}
 	} (qw(mainrepo failrepo description address));
 	\%rv;
+}
+
+sub default_file {
+	my $f = $ENV{PI_CONFIG};
+	return $f if defined $f;
+	my $pi_dir = $ENV{PI_DIR} || expand_filename('~/.public-inbox/');
+	"$pi_dir/config";
 }
 
 1;

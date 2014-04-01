@@ -3,17 +3,37 @@
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 use strict;
 use warnings;
+my $usage = 'public-inbox-mda < rfc2822_message';
+
 use Email::Filter;
 use Email::Address;
-use PublicInbox::Filter;
+use File::Path::Expand qw/expand_filename/;
 use IPC::Run qw(run);
-my $usage = "public-inbox-mda main_repo fail_repo < rfc2822_message";
-my $filter = Email::Filter->new(emergency => "~/emergency.mbox");
-my $main_repo = shift @ARGV or die "Usage: $usage\n";
-my $fail_repo = shift @ARGV or die "Usage: $usage\n";
+use constant MDA => 'ssoma-mda';
+use PublicInbox;
+use PublicInbox::Filter;
+use PublicInbox::Config;
 
-my $filtered;
-if (PublicInbox->precheck($filter) && do_spamc($filter->simple, \$filtered)) {
+# n.b: hopefully we can setup the failbox path without bailing due to
+# user error, we really want to setup the emergency destination ASAP
+# in case there's bugs in our code or user error.
+my $failbox = $ENV{PI_FAILBOX} || '~/public-inbox-fail.mbox';
+$failbox = expand_filename($failbox);
+
+# this reads the message from stdin
+my $filter = Email::Filter->new(emergency => $failbox);
+my $config = PublicInbox::Config->new;
+
+my $recipient = $ENV{RECIPIENT};
+defined $recipient or die "RECIPIENT not defined in ENV\n";
+my $dst = $config->lookup($recipient);
+defined $dst or exit(1);
+my $main_repo = $dst->{mainrepo} or exit(1);
+my $fail_repo = $dst->{failrepo} or exit(1);
+my $filtered; # string dest
+
+if (PublicInbox->precheck($filter, $recipient) &&
+    do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
 	my $simple = Email::Simple->new($filtered);
 	$filtered = undef;
@@ -23,18 +43,18 @@ if (PublicInbox->precheck($filter) && do_spamc($filter->simple, \$filtered)) {
 		# run spamc again on the HTML-free message
 		if (do_spamc($simple, \$filtered)) {
 			$filter->simple(Email::Simple->new($filtered));
-			$filter->pipe("ssoma-mda", $main_repo);
+			$filter->pipe(MDA, $main_repo);
 		} else {
-			$filter->pipe("ssoma-mda", $fail_repo);
+			$filter->pipe(MDA, $fail_repo);
 		}
 	} else {
 		# PublicInbox::Filter nuked everything, oops :x
-		$filter->pipe("ssoma-mda", $fail_repo);
+		$filter->pipe(MDA, $fail_repo);
 	}
 } else {
 	# if SA thinks it's spam or there's an error:
 	# don't bother with our own filtering
-	$filter->pipe("ssoma-mda", $fail_repo);
+	$filter->pipe(MDA, $fail_repo);
 }
 die "Email::Filter failed to exit\n";
 
