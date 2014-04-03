@@ -148,27 +148,15 @@ sub strip_multipart {
 			} else {
 				$rejected++;
 			}
+		} elsif ($part_type =~ m!\Aapplication/pgp-signature\z!i) {
+			# PGP signatures are not huge, we may keep them.
+			# They can only be valid if it's the last element,
+			# so we keep them iff the message is unmodified:
+			if ($rejected == 0 && !@html) {
+				push @keep, $part;
+			}
 		} else {
-			# reject everything else
-			#
-			# Yes, we drop GPG/PGP signatures because:
-			# * hardly anybody bothers to verify signatures
-			# * we strip/convert HTML parts, which could invalidate
-			#   the signature
-			# * they increase the size of messages greatly
-			#   (especially short ones)
-			# * they do not compress well
-			#
-			# Instead, rely on soft verification measures:
-			# * content of the message is most important
-			# * we encourage Cc: all replies, so replies go to
-			#   the original sender
-			# * Received, User-Agent, and similar headers
-			#   (this is also to encourage using self-hosted mail
-			#   servers (using 100% Free Software, of course :)
-			#
-			# Furthermore, identity theft is uncommon in Free/Open
-			# Source, even in communities where signatures are rare.
+			# reject everything else, including non-PGP signatures
 			$rejected++;
 		}
 	});
