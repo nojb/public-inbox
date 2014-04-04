@@ -215,23 +215,13 @@ sub replace_body {
 	mark_changed($simple);
 }
 
-# run the file(1) command to detect mime type
-# Not using File::MMagic for now since that requires extra configuration
-# Note: we do not rewrite the message with the detected mime type
+# Check for display-able text, no messed up binaries
+# Note: we can not rewrite the message with the detected mime type
 sub recheck_type_ok {
 	my ($part) = @_;
-	my $cmd = "file --mime-type -b -";
-	my $pid = open2(my $out, my $in, $cmd);
-	print $in $part->body;
-	close $in;
-	my $type = eval {
-		local $/;
-		<$out>;
-	};
-	waitpid($pid, 0);
-	chomp $type;
-
-	(($type =~ $MIME_TEXT_ANY) && ($type !~ $MIME_HTML))
+	my $s = $part->body;
+	((bytes::length($s) < 0x10000) &&
+		($s =~ /\A([\P{XPosixPrint}\f\n\r\t]+)\z/))
 }
 
 1;
