@@ -22,7 +22,7 @@ use PublicInbox::View;
 	my $html = PublicInbox::View->as_html($s);
 
 	# ghetto
-	like($html, qr/<a href="hello%40/s, "MID link present");
+	like($html, qr/<a href="?hello%40/s, "MID link present");
 	like($html, qr/hello world\b/, "body present");
 }
 
@@ -42,8 +42,8 @@ use PublicInbox::View;
 		header_str => [
 			From => 'a@example.com',
 			Subject => 'blargh',
-			'Message-ID' => '<blah@xeample.com>',
-			'In-Reply-To' => '<irp@xeample.com>',
+			'Message-ID' => '<blah@example.com>',
+			'In-Reply-To' => '<irp@example.com>',
 			],
 		parts => $parts,
 	);

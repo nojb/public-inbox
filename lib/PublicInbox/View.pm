@@ -60,6 +60,15 @@ sub add_filename_line {
 	"$pad " . escapeHTML($fn) . " $pad\n";
 }
 
+sub trim_message_id {
+	my ($mid) = @_;
+	$mid =~ tr/<>//d;
+	my $html = escapeHTML($mid);
+	my $href = escapeHTML(escape($mid));
+
+	($html, $href);
+}
+
 sub headers_to_html_header {
 	my ($simple) = @_;
 
@@ -79,15 +88,18 @@ sub headers_to_html_header {
 		}
 	}
 
-	foreach my $h (qw(Message-ID In-Reply-To)) {
-		my $v = $simple->header($h);
-		defined $v or next;
-		$v =~ tr/<>//d;
-		my $html = escapeHTML($v);
-		my $href = escapeHTML(escape($v));
-		$rv .= "$h: <a href=\"$href\">$html</a>\n";
+	my $mid = $simple->header('Message-ID');
+	if (defined $mid) {
+		my ($html, $href) = trim_message_id($mid);
+		$rv .= "Message-ID: <a href=$href.html>$html</a> ";
+		$rv .= "(<a href=$href.txt>raw message</a>)\n";
 	}
 
+	my $irp = $simple->header('In-Reply-To');
+	if (defined $irp) {
+		my ($html, $href) = trim_message_id($irp);
+		$rv .= "In-Reply-To: <a href=$href.html>$html</a>\n";
+	}
 	$rv .= "\n";
 
 	return ("<html><head><title>".
