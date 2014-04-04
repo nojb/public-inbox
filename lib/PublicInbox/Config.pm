@@ -38,6 +38,12 @@ sub lookup {
 	\%rv;
 }
 
+sub get {
+	my ($self, $listname, $key) = @_;
+
+	$self->{"publicinbox.$listname.$key"};
+}
+
 sub default_file {
 	my $f = $ENV{PI_CONFIG};
 	return $f if defined $f;
