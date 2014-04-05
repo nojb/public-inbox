@@ -9,7 +9,6 @@ use Email::Address;
 use URI::Escape qw/uri_escape/;
 use Encode qw/encode decode/;
 use Encode::MIME::Header;
-use DateTime::Format::Mail;
 use CGI qw(escapeHTML);
 use POSIX qw(strftime);
 use Date::Parse qw(strptime);
