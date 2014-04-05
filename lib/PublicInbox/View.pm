@@ -9,17 +9,17 @@ use Encode::MIME::Header;
 
 # only one public function:
 sub as_html {
-	my ($class, $mime) = @_;
+	my ($class, $mime, $full_pfx) = @_;
 
 	headers_to_html_header($mime) .
-		multipart_text_as_html($mime) .
+		multipart_text_as_html($mime, $full_pfx) .
 		"</pre>\n";
 }
 
 # only private functions below.
 
 sub multipart_text_as_html {
-	my ($mime) = @_;
+	my ($mime, $full_pfx) = @_;
 	my $rv = "";
 	my $part_nr = 0;
 
@@ -33,15 +33,19 @@ sub multipart_text_as_html {
 			my $fn = $part->filename;
 
 			if ($part_nr > 0) {
-				defined($fn) or $fn = "part #$part_nr";
+				defined($fn) or $fn = "part #" . ($part_nr + 1);
 				$rv .= add_filename_line($fn);
 			}
 
-			# n.b. $part->body should already be decoded if text
-			$rv .= escapeHTML($part->body);
+			if (defined $full_pfx) {
+				$rv .= add_text_body_short($part, $part_nr,
+							$full_pfx);
+			} else {
+				$rv .= add_text_body_full($part, $part_nr);
+			}
 			$rv .= "\n" unless $rv =~ /\n\z/s;
 		} else {
-			$rv .= "-- part #$part_nr ";
+			$rv .= "-- part #" . ($part_nr + 1) . " ";
 			$rv .= escapeHTML($part_type);
 			$rv .= " skipped\n";
 		}
@@ -58,6 +62,49 @@ sub add_filename_line {
 	$len -= length($fn);
 	$pad x= ($len/2) if ($len > 0);
 	"$pad " . escapeHTML($fn) . " $pad\n";
+}
+
+sub add_text_body_short {
+	my ($part, $part_nr, $full_pfx) = @_;
+	my $n = 0;
+	my $s = escapeHTML($part->body);
+	$s =~ s!^((?:(?:&gt;[^\n]+)\n)+)!
+		my $cur = $1;
+		my @lines = split(/\n/, $cur);
+		if (@lines > 1) {
+			# show a short snippet of quoted text
+			$cur = join(' ', @lines);
+			$cur =~ s/&gt; ?//g;
+
+			my @sum = split(/\s+/, $cur);
+			$cur = '';
+			do {
+				$cur .= shift(@sum) . ' ';
+			} while (@sum && length($cur) < 68);
+			$cur=~ s/ \z/ .../;
+			"&gt; &lt;<a href=${full_pfx}#q${part_nr}_" . $n++ .
+				">$cur<\/a>&gt;";
+		} else {
+			$cur;
+		}
+	!emg;
+	$s;
+}
+
+sub add_text_body_full {
+	my ($part, $part_nr) = @_;
+	my $n = 0;
+	my $s = escapeHTML($part->body);
+	$s =~ s!^((?:(?:&gt;[^\n]+)\n)+)!
+		my $cur = $1;
+		my @lines = split(/\n/, $cur);
+		if (@lines > 1) {
+			"<a name=q${part_nr}_" . $n++ . ">$cur</a>";
+		} else {
+			$cur;
+		}
+	!emg;
+	$s;
 }
 
 sub trim_message_id {
