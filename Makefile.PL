@@ -20,6 +20,10 @@ WriteMakefile(
 		'Date::Parse' => 0,
 		'Encode::MIME::Header' => 0,
 		'XML::Atom::SimpleFeed' => 0,
+		'IPC::Open2' => 0,
+		'File::Path::Expand' => 0,
+		'CGI' => 0,
+		'URI::Escape' => 0,
 		# We have more test dependencies, but do not force
 		# users to install them
 	},
