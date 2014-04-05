@@ -12,8 +12,8 @@ use Encode::MIME::Header;
 use DateTime::Format::Mail;
 use CGI qw(escapeHTML);
 use POSIX qw(strftime);
+use Date::Parse qw(strptime);
 use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
-our $dt_parser = DateTime::Format::Mail->new(loose => 1);
 
 # main function
 # FIXME: takes too many args, cleanup
@@ -89,8 +89,9 @@ sub utf8_header {
 
 sub feed_date {
 	my ($date) = @_;
-	my $dt = $dt_parser->parse_datetime($date);
-        $dt ? $dt->strftime(DATEFMT) : 0;
+	my @t = eval { strptime($date) };
+
+	scalar(@t) ? strftime(DATEFMT, @t) : 0;
 }
 
 # returns 0 (skipped) or 1 (added)
