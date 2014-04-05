@@ -34,7 +34,7 @@ sub lookup {
 
 	my %rv = map {
 		$_ => $self->{"$pfx.$_"}
-	} (qw(mainrepo failrepo description address));
+	} (qw(mainrepo description address));
 	\%rv;
 }
 

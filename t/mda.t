@@ -14,7 +14,6 @@ my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
 my $pi_config = "$pi_home/config";
 my $maindir = "$tmpdir/main.git";
-my $faildir = "$tmpdir/fail.git";
 my $main_bin = getcwd()."/t/main-bin";
 my $main_path = "$main_bin:$ENV{PATH}"; # for spamc ham mock
 my $fail_bin = getcwd()."/t/fail-bin";
@@ -31,12 +30,10 @@ my $cfgpfx = "publicinbox.test";
 	is(1, mkdir($home, 0755), "setup ~/ for testing");
 	is(1, mkdir($pi_home, 0755), "setup ~/.public-inbox");
 	is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
-	is(0, system(qw(git init -q --bare), $faildir), "git init (fail)");
 
 	my %cfg = (
 		"$cfgpfx.address" => $addr,
 		"$cfgpfx.mainrepo" => $maindir,
-		"$cfgpfx.failrepo" => $faildir,
 	);
 	while (my ($k,$v) = each %cfg) {
 		is(0, system(qw(git config --file), $pi_config, $k, $v),
@@ -71,13 +68,14 @@ EOF
 
 	# ensure failures work
 	{
+		ok(!-e $failbox, "nothing in PI_FAILBOX before");
 		local $ENV{PATH} = $fail_path;
 		run([$mda], \$in);
-		local $ENV{GIT_DIR} = $faildir;
-		my $rev = `git rev-list HEAD`;
-		like($rev, qr/\A[a-f0-9]{40}/, "bad revision committed");
+		local $ENV{GIT_DIR} = $maindir;
+		my @revs = `git rev-list HEAD`;
+		is(scalar @revs, 1, "bad revision not committed");
+		ok(-s $failbox > 0, "PI_FAILBOX is written to");
 	}
-	ok(!-e $failbox, "nothing in PI_FAILBOX");
 }
 
 done_testing();

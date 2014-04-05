@@ -3,10 +3,11 @@
 [publicinbox "test"]
 	address = test@public-inbox.org
 	mainrepo = /home/pi/test-main.git
-	failrepo = /home/pi/test-fail.git
-	description = test box, occasionally reset
+	description = test repo, occasionally reset
+	url = http://example.com/test
 [publicinbox "bugs"]
 	address = bugs@public-inbox.org
 	mainrepo = /home/pi/bugs-main.git
-	failrepo = /home/pi/bugs-fail.git
 	description = development discussion
+	url = http://example.com/bugs
+	atomUrl = http://example.com/bugs

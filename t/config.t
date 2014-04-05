@@ -26,7 +26,6 @@ my $tmpdir = tempdir(CLEANUP => 1);
 
 	my $cfg = PublicInbox::Config->new($f);
 	is_deeply($cfg->lookup('bugs@public-inbox.org'), {
-		'failrepo' => '/home/pi/bugs-fail.git',
 		'mainrepo' => '/home/pi/bugs-main.git',
 		'address' => 'bugs@public-inbox.org',
 		'description' => 'development discussion'

@@ -29,7 +29,6 @@ defined $recipient or die "RECIPIENT not defined in ENV\n";
 my $dst = $config->lookup($recipient);
 defined $dst or exit(1);
 my $main_repo = $dst->{mainrepo} or exit(1);
-my $fail_repo = $dst->{failrepo} or exit(1);
 my $filtered; # string dest
 
 if (PublicInbox->precheck($filter, $recipient) &&
@@ -44,19 +43,10 @@ if (PublicInbox->precheck($filter, $recipient) &&
 		if (do_spamc($simple, \$filtered)) {
 			$filter->simple(Email::Simple->new($filtered));
 			$filter->pipe(MDA, $main_repo);
-		} else {
-			$filter->pipe(MDA, $fail_repo);
 		}
-	} else {
-		# PublicInbox::Filter nuked everything, oops :x
-		$filter->pipe(MDA, $fail_repo);
 	}
-} else {
-	# if SA thinks it's spam or there's an error:
-	# don't bother with our own filtering
-	$filter->pipe(MDA, $fail_repo);
 }
-die "Email::Filter failed to exit\n";
+exit 0; # goes to failbox
 
 # we depend on "report_safe 0" in /etc/spamassassin/*.cf with --headers
 # not using Email::Filter->pipe here since we want the stdout of
