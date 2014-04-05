@@ -16,22 +16,23 @@ use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
 our $dt_parser = DateTime::Format::Mail->new(loose => 1);
 
 # main function
+# FIXME: takes too many args, cleanup
 sub generate {
-	my ($class, $git_dir, $max) = @_;
+	my ($class, $git_dir, $max, $pi_config, $listname, $cgi, $top) = @_;
 	$max ||= 25;
 
 	local $ENV{GIT_DIR} = $git_dir;
-	my $feed_opts = get_feedopts();
+	my $feed_opts = get_feedopts($pi_config, $listname, $cgi);
 
 	my $feed = XML::Atom::SimpleFeed->new(
-		title => $feed_opts->{title},
+		title => $feed_opts->{description} || "unnamed feed",
 		link => $feed_opts->{url} || "http://example.com/",
 		link => {
 			rel => 'self',
-			href => $feed_opts->{atomUrl} ||
+			href => $feed_opts->{atomurl} ||
 				"http://example.com/atom",
 		},
-		id => $feed_opts->{email} || 'public-inbox@example.com',
+		id => $feed_opts->{address} || 'public-inbox@example.com',
 		updated => strftime(DATEFMT, gmtime),
 	);
 
@@ -48,12 +49,13 @@ sub generate {
 		if ($line =~ /^:000000 100644 0{40} ([a-f0-9]{40})/) {
 			my $add = $1;
 			next if $deleted{$add};
-			$nr += add_to_feed($feed_opts, $feed, $add);
+			$nr += add_to_feed($feed_opts, $feed, $add, $top);
 			last if $nr >= $max;
 		} elsif ($line =~ /^:100644 000000 ([a-f0-9]{40}) 0{40}/) {
 			$deleted{$1} = 1;
 		}
 	}
+
 	close $log;
 
 	$feed->as_string;
@@ -61,12 +63,22 @@ sub generate {
 
 # private functions below
 sub get_feedopts {
+	my ($pi_config, $listname, $cgi) = @_;
 	my %rv;
-	foreach my $key (qw(title url atomUrl email)) {
-		my $tmp = `git config publicInboxFeed.$key`;
-		chomp $tmp;
-		$rv{$key} = $tmp;
+	if ($pi_config && defined $listname && length $listname) {
+		foreach my $key (qw(description address url atomurl midurl)) {
+			$rv{$key} = $pi_config->get($listname, $key);
+		}
 	}
+	if ($cgi) {
+		my $cgi_url = $cgi->self_url;
+		my $url_base = $cgi_url;
+		$url_base =~ s!/?(?:index|all)\.atom\.xml\z!!;
+		$rv{url} ||= "$url_base/";
+		$rv{midurl} ||= "$url_base/mid/%s.html";
+		$rv{atomurl} = $cgi_url;
+	}
+
 	\%rv;
 }
 
@@ -83,7 +95,7 @@ sub feed_date {
 
 # returns 0 (skipped) or 1 (added)
 sub add_to_feed {
-	my ($feed_opts, $feed, $add) = @_;
+	my ($feed_opts, $feed, $add, $top) = @_;
 
 	# we can use git cat-file --batch if performance becomes a
 	# problem, but I doubt it...
@@ -91,10 +103,14 @@ sub add_to_feed {
 	return 0 if $? != 0;
 	my $mime = Email::MIME->new($str);
 
+	if ($top && $mime->header("In-Reply-To")) {
+		return 0;
+	}
+
 	my $content = msg_content($mime);
 	defined($content) or return 0;
 
-	my $mid_url = $feed_opts->{mid_url} || "http://example.com/mid/%s";
+	my $midurl = $feed_opts->{midurl} || "http://example.com/mid/%s.html";
 	my $mid = utf8_header($mime, "Message-ID") or return 0;
 	$mid =~ s/\A<//;
 	$mid =~ s/>\z//;
@@ -110,7 +126,7 @@ sub add_to_feed {
 	my $email = $from[0]->address;
 	defined $email or $email = "";
 
-	my $url = sprintf($mid_url, uri_escape($mid));
+	my $url = sprintf($midurl, uri_escape($mid));
 	my $date = utf8_header($mime, "Date");
 	$date or return 0;
 	$date = feed_date($date) or return 0;

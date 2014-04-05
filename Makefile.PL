@@ -8,14 +8,20 @@ WriteMakefile(
 	VERSION => '0.0.0',
 	AUTHOR => 'Eric Wong <normalperson@yhbt.net>',
 	ABSTRACT => 'public-inbox.org infrastructure',
-	EXE_FILES => [qw/public-inbox-mda/],
+	EXE_FILES => [qw/public-inbox-mda public-inbox-cgi/],
 	PREREQ_PM => {
-	        # note: we use ssoma(1) and spamc(1),
+		# note: we use ssoma(1) and spamc(1),
 		# NOT the Perl modules
+		# We also depend on git through ssoma.
 		'Email::MIME' => 0,
 		'Email::MIME::ContentType' => 0,
 		'Email::Filter' => 0,
 		'Email::Address' => 0,
+		'Date::Parse' => 0,
+		'Encode::MIME::Header' => 0,
+		'XML::Atom::SimpleFeed' => 0,
+		# We have more test dependencies, but do not force
+		# users to install them
 	},
 );
 

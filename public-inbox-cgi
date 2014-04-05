@@ -1,0 +1,92 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2014, Eric Wong <normalperson@yhbt.net> and all contributors
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# We focus on the lowest common denominators here:
+# - targeted at text-only console browsers (lynx, w3m, etc..)
+# - Only basic HTML, CSS only for line-wrapping <pre> text content for GUIs
+# - No JavaScript, graphics or icons allowed.
+# - Must not rely on static content
+# - UTF-8 is only for user-content, 7-bit US-ASCII for us
+
+use 5.008;
+use strict;
+use warnings;
+use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
+use CGI::Util qw(unescape);
+use Encode;
+use PublicInbox::Config;
+our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
+our $pi_config;
+BEGIN {
+	$pi_config = PublicInbox::Config->new;
+	# TODO: detect and reload config as needed
+	if ($ENV{MOD_PERL}) {
+		CGI->compile;
+	}
+}
+
+sub main {
+	my $cgi = CGI->new;
+	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
+		return r($cgi, "405 Method Not Allowed");
+	}
+	my $path_info = decode_utf8($ENV{PATH_INFO});
+	if ($path_info eq "/") {
+		r($cgi, "404 Not Found");
+	} elsif ($path_info =~ m!$LISTNAME_RE/?\z!o) {
+		get_list_log($cgi, $1);
+	} elsif ($path_info =~ m!$LISTNAME_RE/all\z!o) {
+		get_list_all($cgi, $1);
+	} elsif ($path_info =~ m!$LISTNAME_RE/index\.atom\.xml\z!o) {
+		get_atom_index($cgi, $1);
+	} elsif ($path_info =~ m!$LISTNAME_RE/all\.atom\.xml\z!o) {
+		get_atom_all($cgi, $1);
+	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\.txt\z!o) {
+		get_mid_txt($cgi, $1, $2);
+	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\.html\z!o) {
+		get_mid_html($cgi, $1, $2);
+	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\z!o) {
+		redirect_mid_html($cgi, $1, $2);
+	} else {
+		r($cgi, "404 Not Found");
+	}
+}
+
+binmode STDOUT, ':utf8';
+main();
+
+# simple response for errors
+sub r {
+	print $_[0]->header(-type => "text/plain",
+				-status => $_[1],
+				-charset => 'utf-8');
+}
+
+# /$LISTNAME/all.atom.xml	-> Atom feed, includes replies
+sub get_atom_all {
+	my ($cgi, $listname) = @_;
+	my $git_dir = $pi_config->get($listname, "mainrepo");
+	defined $git_dir or return r($cgi, "404 Not Found");
+
+	require PublicInbox::Feed;
+	print $cgi->header(-type => "application/xml", -charset => 'us-ascii',
+				-status => '200 OK');
+
+	print PublicInbox::Feed->generate($git_dir, undef,
+					$pi_config, $listname, $cgi);
+}
+
+# /$LISTNAME/index.atom.xml	-> Atom feed
+sub get_atom_index {
+	my ($cgi, $listname) = @_;
+	my $git_dir = $pi_config->get($listname, "mainrepo");
+	defined $git_dir or return r($cgi, "404 Not Found");
+
+	require PublicInbox::Feed;
+	print $cgi->header(-type => "application/xml", -charset => 'us-ascii',
+				-status => '200 OK');
+
+	print PublicInbox::Feed->generate($git_dir, undef,
+					$pi_config, $listname, $cgi, 1);
+}
