@@ -29,11 +29,12 @@ Message-Id: <$i\@example.com>
 Subject: zzz #$i
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
-> drop me
+> This is a long multi line quote so it should not be allowed to
+> show up in its entirty in the Atom feed.  drop me
 
 msg $i
 
-> drop me again
+> inline me here, short quote
 
 keep me
 EOF
@@ -49,7 +50,8 @@ EOF
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
 		}
-		unlike($feed, qr/drop me/, "quoted text dropped");
+		unlike($feed, qr/drop me/, "long quoted text dropped");
+		like($feed, qr/inline me here/, "short quoted text kept");
 		like($feed, qr/keep me/, "unquoted text saved");
 	}
 

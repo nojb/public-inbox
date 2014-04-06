@@ -17,6 +17,13 @@ sub as_html {
 		"</pre>\n";
 }
 
+sub as_feed_entry {
+	my ($class, $mime, $full_pfx) = @_;
+
+	"<pre>" . multipart_text_as_html($mime, $full_pfx) . "</pre>";
+}
+
+
 # only private functions below.
 
 sub multipart_text_as_html {

@@ -13,6 +13,7 @@ use CGI qw(escapeHTML);
 use POSIX qw(strftime);
 use Date::Parse qw(strptime);
 use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
+use PublicInbox::View;
 
 # main function
 # FIXME: takes too many args, cleanup
@@ -65,7 +66,7 @@ sub get_feedopts {
 	my ($pi_config, $listname, $cgi) = @_;
 	my %rv;
 	if ($pi_config && defined $listname && length $listname) {
-		foreach my $key (qw(description address url atomurl midurl)) {
+		foreach my $key (qw(description address)) {
 			$rv{$key} = $pi_config->get($listname, $key);
 		}
 	}
@@ -74,7 +75,8 @@ sub get_feedopts {
 		my $url_base = $cgi_url;
 		$url_base =~ s!/?(?:index|all)\.atom\.xml\z!!;
 		$rv{url} ||= "$url_base/";
-		$rv{midurl} ||= "$url_base/mid/%s.html";
+		$rv{midurl} = "$url_base/mid/";
+		$rv{fullurl} = "$url_base/full/";
 		$rv{atomurl} = $cgi_url;
 	}
 
@@ -107,10 +109,12 @@ sub add_to_feed {
 		return 0;
 	}
 
-	my $content = msg_content($mime);
+	my $midurl = $feed_opts->{midurl} || 'http://example.com/mid/';
+	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/full/';
+
+	my $content = PublicInbox::View->as_feed_entry($mime, $fullurl);
 	defined($content) or return 0;
 
-	my $midurl = $feed_opts->{midurl} || "http://example.com/mid/%s.html";
 	my $mid = utf8_header($mime, "Message-ID") or return 0;
 	$mid =~ s/\A<//;
 	$mid =~ s/>\z//;
@@ -126,7 +130,7 @@ sub add_to_feed {
 	my $email = $from[0]->address;
 	defined $email or $email = "";
 
-	my $url = sprintf($midurl, uri_escape($mid));
+	my $url = $midurl . uri_escape($mid);
 	my $date = utf8_header($mime, "Date");
 	$date or return 0;
 	$date = feed_date($date) or return 0;
@@ -139,64 +143,6 @@ sub add_to_feed {
 		id => $add,
 	);
 	1;
-}
-
-# returns a plain-text message body without quoted text
-# returns undef if there was nothing
-sub msg_content {
-	my ($mime) = @_;
-	my $rv;
-
-	# scan through all parts, looking for displayable text
-	$mime->walk_parts(sub {
-		return if $rv;
-		my ($part) = @_;
-		return if $part->subparts; # walk_parts already recurses
-		my $ct = $part->content_type || 'text/plain';
-		return if $ct !~ m!\btext/[a-z0-9\+\._-]+\b!i;
-		my @body;
-		my $killed_wrote; # omit "So-and-so wrote:" line
-
-		# no quoted text in Atom feed summary
-		# $part->body should already be decoded for us (no QP)
-
-		my $state = 0; # 0: beginning, 1: keep, 2: quoted
-		foreach my $l (split(/\r?\n/, $part->body)) {
-			if ($state == 0) {
-				# drop leading blank lines
-				next if $l =~ /\A\s*\z/;
-
-				$state = ($l =~ /\A>/) ? 2 : 1; # fall-through
-			}
-			if ($state == 2) { # quoted text, drop it
-				if ($l !~ /\A>/) {
-					push @body, "<quoted text snipped>";
-					if ($l =~ /\S/) {
-						push @body, $l;
-					}
-					$state = 1;
-				}
-			}
-			if ($state == 1) { # stuff we may keep
-				if ($l =~ /\A>/) {
-					# drop "So-and-so wrote:" line
-					if (@body && !$killed_wrote &&
-					    $body[-1] =~ /:\z/) {
-						$killed_wrote = 1;
-						pop @body;
-					}
-					$state = 2;
-				} else {
-					push @body, $l;
-				}
-			}
-		}
-		$rv = "<pre>" .
-			join("\n", map { escapeHTML($_) } @body) .
-			"</pre>";
-	});
-
-	$rv;
 }
 
 1;
