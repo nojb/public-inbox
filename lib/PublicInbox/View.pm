@@ -140,7 +140,7 @@ sub headers_to_html_header {
 	if (defined $mid) {
 		my ($html, $href) = trim_message_id($mid);
 		$rv .= "Message-ID: <a href=$href.html>$html</a> ";
-		$rv .= "(<a href=$href.txt>raw message</a>)\n";
+		$rv .= "(<a href=$href.txt>original</a>)\n";
 	}
 
 	my $irp = $simple->header('In-Reply-To');
