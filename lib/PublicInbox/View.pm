@@ -8,13 +8,13 @@ use CGI qw/escapeHTML/;
 use Encode qw/decode encode/;
 use Encode::MIME::Header;
 
-# only one public function:
+# public functions:
 sub as_html {
 	my ($class, $mime, $full_pfx) = @_;
 
 	headers_to_html_header($mime) .
 		multipart_text_as_html($mime, $full_pfx) .
-		"</pre>\n";
+		'</pre>';
 }
 
 sub as_feed_entry {
@@ -150,10 +150,8 @@ sub headers_to_html_header {
 	}
 	$rv .= "\n";
 
-	return ("<html><head><title>".
-		join(' - ', @title) .
-		'</title></head><body><pre style="white-space:pre-wrap">' .
-		$rv);
+	("<html><head><title>".  join(' - ', @title) .
+	 '</title></head><body><pre style="white-space:pre-wrap">' .  $rv);
 }
 
 1;
