@@ -29,27 +29,20 @@ sub multipart_text_as_html {
 		my ($part) = @_;
 		return if $part->subparts; # walk_parts already recurses
 
-		my $part_type = $part->content_type;
-		if ($part_type =~ m!\btext/[a-z0-9\+\._-]+\b!i) {
-			my $fn = $part->filename;
+		my $fn = $part->filename;
 
-			if ($part_nr > 0) {
-				defined($fn) or $fn = "part #" . ($part_nr + 1);
-				$rv .= add_filename_line($fn);
-			}
-
-			if (defined $full_pfx) {
-				$rv .= add_text_body_short($part, $part_nr,
-							$full_pfx);
-			} else {
-				$rv .= add_text_body_full($part, $part_nr);
-			}
-			$rv .= "\n" unless $rv =~ /\n\z/s;
-		} else {
-			$rv .= "-- part #" . ($part_nr + 1) . " ";
-			$rv .= escapeHTML($part_type);
-			$rv .= " skipped\n";
+		if ($part_nr > 0) {
+			defined($fn) or $fn = "part #" . ($part_nr + 1);
+			$rv .= add_filename_line($fn);
 		}
+
+		if (defined $full_pfx) {
+			$rv .= add_text_body_short($part, $part_nr,
+						$full_pfx);
+		} else {
+			$rv .= add_text_body_full($part, $part_nr);
+		}
+		$rv .= "\n" unless $rv =~ /\n\z/s;
 		++$part_nr;
 	});
 	$rv;
