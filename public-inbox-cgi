@@ -26,14 +26,33 @@ BEGIN {
 	}
 }
 
+binmode STDOUT, ':utf8';
+
+my $ret = main();
+
+my ($status, $headers, $body) = @$ret;
+if (@ARGV && $ARGV[0] eq 'static') {
+	print $body;
+} else { # CGI
+	print "Status: $status\r\n";
+	while (my ($k, $v) = each %$headers) {
+		print "$k: $v\r\n";
+	}
+	print "\r\n", $body;
+}
+
+# TODO: plack support
+
+# private functions below
+
 sub main {
 	my $cgi = CGI->new;
 	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
-		return r($cgi, "405 Method Not Allowed");
+		return r("405 Method Not Allowed");
 	}
 	my $path_info = decode_utf8($ENV{PATH_INFO});
 	if ($path_info eq "/") {
-		r($cgi, "404 Not Found");
+		r("404 Not Found");
 	} elsif ($path_info =~ m!$LISTNAME_RE/?\z!o) {
 		get_list_log($cgi, $1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/all\z!o) {
@@ -49,52 +68,46 @@ sub main {
 	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\z!o) {
 		redirect_mid_html($cgi, $1, $2);
 	} else {
-		r($cgi, "404 Not Found");
+		r("404 Not Found");
 	}
 }
 
-binmode STDOUT, ':utf8';
-main();
-
 # simple response for errors
-sub r {
-	print $_[0]->header(-type => "text/plain",
-				-status => $_[1],
-				-charset => 'utf-8');
-}
+sub r { [ $_[0], { 'Content-Type' => 'text/plain' }, '' ] }
 
 # /$LISTNAME/all.atom.xml	-> Atom feed, includes replies
 sub get_atom_all {
 	my ($cgi, $listname) = @_;
 	my $git_dir = $pi_config->get($listname, "mainrepo");
-	defined $git_dir or return r($cgi, "404 Not Found");
+	defined $git_dir or return r("404 Not Found");
 
 	require PublicInbox::Feed;
-	print $cgi->header(-type => "application/xml", -charset => 'us-ascii',
-				-status => '200 OK');
-
-	print PublicInbox::Feed->generate({
-		git_dir => $git_dir,
-		pi_config => $pi_config,
-		listname => $listname,
-		cgi => $cgi
-	});
+	[ '200 OK',
+	  { 'Content-Type' => 'application/xml; charset=us-ascii' },
+	  PublicInbox::Feed->generate({
+			git_dir => $git_dir,
+			pi_config => $pi_config,
+			listname => $listname,
+			cgi => $cgi
+		})
+	];
 }
 
 # /$LISTNAME/index.atom.xml	-> Atom feed
 sub get_atom_index {
 	my ($cgi, $listname) = @_;
 	my $git_dir = $pi_config->get($listname, "mainrepo");
-	defined $git_dir or return r($cgi, "404 Not Found");
+	defined $git_dir or return r("404 Not Found");
 
 	require PublicInbox::Feed;
-	print $cgi->header(-type => "application/xml", -charset => 'us-ascii',
-				-status => '200 OK');
-	print PublicInbox::Feed->generate({
-		git_dir => $git_dir,
-		pi_config => $pi_config,
-		listname => $listname,
-		cgi => $cgi,
-		top => 1
-	});
+	[ '200 OK',
+	  { 'Content-Type' => 'application/xml; charset=us-ascii' },
+	  PublicInbox::Feed->generate({
+			git_dir => $git_dir,
+			pi_config => $pi_config,
+			listname => $listname,
+			cgi => $cgi,
+			top => 1
+		})
+	];
 }
