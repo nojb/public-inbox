@@ -16,13 +16,13 @@ use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
 use PublicInbox::View;
 
 # main function
-# FIXME: takes too many args, cleanup
 sub generate {
-	my ($class, $git_dir, $max, $pi_config, $listname, $cgi, $top) = @_;
-	$max ||= 25;
+	my ($class, $args) = @_;
+	my $max = $args->{max} || 25;
+	my $top = $args->{top}; # bool
 
-	local $ENV{GIT_DIR} = $git_dir;
-	my $feed_opts = get_feedopts($pi_config, $listname, $cgi);
+	local $ENV{GIT_DIR} = $args->{git_dir};
+	my $feed_opts = get_feedopts($args);
 
 	my $feed = XML::Atom::SimpleFeed->new(
 		title => $feed_opts->{description} || "unnamed feed",
@@ -63,8 +63,12 @@ sub generate {
 
 # private functions below
 sub get_feedopts {
-	my ($pi_config, $listname, $cgi) = @_;
+	my ($args) = @_;
+	my $pi_config = $args->{pi_config};
+	my $listname = $args->{listname};
+	my $cgi = $args->{cgi};
 	my %rv;
+
 	if ($pi_config && defined $listname && length $listname) {
 		foreach my $key (qw(description address)) {
 			$rv{$key} = $pi_config->get($listname, $key);

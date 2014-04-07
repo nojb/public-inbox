@@ -73,8 +73,12 @@ sub get_atom_all {
 	print $cgi->header(-type => "application/xml", -charset => 'us-ascii',
 				-status => '200 OK');
 
-	print PublicInbox::Feed->generate($git_dir, undef,
-					$pi_config, $listname, $cgi);
+	print PublicInbox::Feed->generate({
+		git_dir => $git_dir,
+		pi_config => $pi_config,
+		listname => $listname,
+		cgi => $cgi
+	});
 }
 
 # /$LISTNAME/index.atom.xml	-> Atom feed
@@ -86,7 +90,11 @@ sub get_atom_index {
 	require PublicInbox::Feed;
 	print $cgi->header(-type => "application/xml", -charset => 'us-ascii',
 				-status => '200 OK');
-
-	print PublicInbox::Feed->generate($git_dir, undef,
-					$pi_config, $listname, $cgi, 1);
+	print PublicInbox::Feed->generate({
+		git_dir => $git_dir,
+		pi_config => $pi_config,
+		listname => $listname,
+		cgi => $cgi,
+		top => 1
+	});
 }

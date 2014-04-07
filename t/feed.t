@@ -44,7 +44,10 @@ EOF
 
 	# check initial feed
 	{
-		my $feed = PublicInbox::Feed->generate($git_dir, 3);
+		my $feed = PublicInbox::Feed->generate({
+			git_dir => $git_dir,
+			max => 3
+		});
 		if ($have_xml_feed) {
 			my $p = XML::Feed->parse(\$feed);
 			is($p->format, "Atom", "parsed atom feed");
@@ -78,7 +81,10 @@ EOF
 
 	# check spam shows up
 	{
-		my $spammy_feed = PublicInbox::Feed->generate($git_dir, 3);
+		my $spammy_feed = PublicInbox::Feed->generate({
+			git_dir => $git_dir,
+			max => 3
+		});
 		if ($have_xml_feed) {
 			my $p = XML::Feed->parse(\$spammy_feed);
 			is($p->format, "Atom", "parsed atom feed");
@@ -100,7 +106,10 @@ EOF
 
 	# spam no longer shows up
 	{
-		my $feed = PublicInbox::Feed->generate($git_dir, 3);
+		my $feed = PublicInbox::Feed->generate({
+			git_dir => $git_dir,
+			max => 3
+		});
 		if ($have_xml_feed) {
 			my $p = XML::Feed->parse(\$feed);
 			is($p->format, "Atom", "parsed atom feed");
