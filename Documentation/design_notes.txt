@@ -32,8 +32,9 @@ Use existing infrastructure
   public-inbox-mda(1)
 
 * public-inbox uses SMTP for posting.  Posting a message to a public-inbox
-  instance is no different than sending a message to any open mailing
-  list.
+  instance is no different than sending a message to any _open_ mailing
+  list.  Any existing spam filtering on an SMTP server is also effective
+  on public-inbox.
 
 * readers may continue using use their choice of mail clients and
   mailbox formats, only learning a few commands of the ssoma(1) tool
@@ -73,11 +74,32 @@ Why email?
   public-inbox host becomes unavailable, users may still directly email
   each other (or Cc: lists for related/dependent projects).
 
-Notes
------
+Why git?
+--------
 
-* Expose Message-ID in HTML views to encourage replies from drive-by
-  contributors
+* git is distributed and robust while being both fast and
+  space-efficient with text data.  NNTP was considered, but does not
+  support compression and places no guarantees on data/transport
+  integrity.  However, an NNTP gateway (read-only?) is possible.
+
+* As of 2014, git is widely used and known to nearly all Free Software
+  developers.  For non-developers it is packaged for all major GNU/Linux
+  and *BSD distributions.
+
+Web notes
+---------
+
+* Getting users to install/run ssoma (or any new tool) is difficult.
+  The web views must be easily read/cache/mirror-able.
+
+* There may also be a significant number of webmail users without
+  an MUA or feed reader; so a web view is necessary.
+
+* Expose Message-ID in web views to encourage replies from drive-by
+  contributors.
+
+* Raw text endpoint allows users to write client-side JS endpoints
+  without hosting the data themselves (or on a different server).
 
 Copyright
 ---------
