@@ -2,6 +2,7 @@
 # Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
 # License: GPLv3 or later <http://www.gnu.org/licenses/gpl-3.0.txt>
 # Usage: report-spam /path/to/message/in/maildir
+# This is intended to be used with incron or similar systems.
 # my incrontab(5) looks like this:
 #  /path/to/.maildir/cur IN_MOVED_TO /path/to/report-spam $@/$#
 #  /path/to/.maildir/.INBOX.good/cur IN_MOVED_TO /path/to/report-spam $@/$#
@@ -14,7 +15,16 @@ then
 	exit
 fi
 
-# only tested with the /usr/sbin/sendmail which ships with postfix
+# Only tested with the /usr/sbin/sendmail which ships with postfix
+# *** Why not call spamc directly in this script? ***
+# I route this through my MTA so it gets queued properly.
+# incrond has no concurrency limits and will fork a new process on
+# every single event, which sucks with rename storms when a client
+# commits folder changes.  The sendmail executable exits quickly and
+# queues up the message for training.  This shoudl also ensure fairness
+# to newly arriving mail.  Instead of installing/configuring
+# another queueing system, I reuse the queue in the MTA.
+# See scripts/dc-dlvr for corresponding trainspam/trainham handlers.
 case $1 in
 *[/.]spam/cur/*) # non-new messages in spam get trained
 	exec /usr/sbin/sendmail -oem -oi $USER+trainspam < $1
