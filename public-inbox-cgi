@@ -13,8 +13,7 @@ use 5.008;
 use strict;
 use warnings;
 use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
-use CGI::Util qw(unescape);
-use Encode;
+use Encode qw(decode_utf8);
 use PublicInbox::Config;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
