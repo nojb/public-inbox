@@ -9,26 +9,30 @@ standard MakeMaker installation (Perl)
 	make test
 	make install # root permissions may be needed
 
-Requirements (MUA client)
--------------------------
-* git
-* ssoma - http://ssoma.public-inbox.org/README
-* Perl and several modules:
-    - Email::LocalDelivery
-    - Email::Filter
-    - Email::Simple
-    - Digest::SHA
-
 Requirements (server MDA)
 -------------------------
 * git
+* ssoma - http://ssoma.public-inbox.org/README
 * SpamAssassin (spamc/spamd)
 * MTA - postfix is recommended
-* ssoma - http://ssoma.public-inbox.org/README
-* Perl and several modules:
-    - Email::Simple
-    - File::FcntlLock
-    - Digest::SHA
+* Perl and several modules:    (Debian package name)
+  - CGI                        perl-modules[1]
+  - Date::Parse                libtimedate-perl
+  - Email::Address             libemail-address-perl
+  - Email::Filter              libemail-filter-perl
+  - Email::MIME                libemail-mime-perl
+  - Email::MIME::ContentType   libemail-mime-contenttype-perl
+  - Encode::MIME::Header       perl
+  - File::Path::Expand         libfile-path-expand-perl
+  - IPC::Open2                 perl
+  - IPC::Run                   libipc-run-perl
+  - URI::Escape                liburi-perl
+  - XML::Atom::SimpleFeed      libxml-atom-simplefeed-perl
+
+[1] - Only required for serving/generating Atom and HTML pages.
+      Keep in mind this will be split into a separate Debian package
+      when CGI.pm is dropped from the Perl standard library.
+      Plack/PSGI, FastCGI, and mod_perl2 will all be supported.
 
 Copyright
 ---------

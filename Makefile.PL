@@ -7,7 +7,7 @@ WriteMakefile(
 	NAME => 'public-inbox',
 	VERSION => '0.0.0',
 	AUTHOR => 'Eric Wong <normalperson@yhbt.net>',
-	ABSTRACT => 'public-inbox.org infrastructure',
+	ABSTRACT => 'public-inbox server infrastructure',
 	EXE_FILES => [qw/public-inbox-mda public-inbox-cgi/],
 	PREREQ_PM => {
 		# note: we use ssoma(1) and spamc(1),
@@ -21,6 +21,7 @@ WriteMakefile(
 		'Encode::MIME::Header' => 0,
 		'XML::Atom::SimpleFeed' => 0,
 		'IPC::Open2' => 0,
+		'IPC::Run' => 0,
 		'File::Path::Expand' => 0,
 		'CGI' => 0,
 		'URI::Escape' => 0,

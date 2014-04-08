@@ -76,7 +76,7 @@ Why email?
 Notes
 -----
 
-* Expose Message-Id in HTML views to encourage replies from drive-by
+* Expose Message-ID in HTML views to encourage replies from drive-by
   contributors
 
 Copyright
