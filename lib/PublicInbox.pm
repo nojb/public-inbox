@@ -19,6 +19,7 @@ sub precheck {
 	my $simple = $filter->simple;
 	return 0 unless $simple->header("Message-ID");
 	return 0 unless defined($filter->from);
+	return 0 unless $simple->header("Subject");
 	return 0 if length($simple->as_string) > MAX_SIZE;
 	recipient_specified($filter, $recipient);
 }
