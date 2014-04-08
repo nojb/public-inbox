@@ -36,12 +36,21 @@ sub generate {
 		updated => strftime(DATEFMT, gmtime),
 	);
 
-	my @entries;
+	each_recent_blob($max, sub {
+		my ($add) = @_;
+		add_to_feed($feed_opts, $feed, $add, $top);
+	});
+	$feed->as_string;
+
+}
+
+sub each_recent_blob {
+	my ($max, $cb) = @_;
 
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my $cmd = "git log --no-color --raw -r --no-abbrev HEAD |";
+	my $cmd = "git log --no-notes --no-color --raw -r --no-abbrev HEAD |";
 	my $pid = open my $log, $cmd or die "open `$cmd' pipe failed: $!\n";
 	my %deleted;
 	my $nr = 0;
@@ -49,7 +58,7 @@ sub generate {
 		if ($line =~ /^:000000 100644 0{40} ([a-f0-9]{40})/) {
 			my $add = $1;
 			next if $deleted{$add};
-			$nr += add_to_feed($feed_opts, $feed, $add, $top);
+			$nr += $cb->($add);
 			last if $nr >= $max;
 		} elsif ($line =~ /^:100644 000000 ([a-f0-9]{40}) 0{40}/) {
 			$deleted{$1} = 1;
@@ -57,8 +66,6 @@ sub generate {
 	}
 
 	close $log;
-
-	$feed->as_string;
 }
 
 # private functions below
