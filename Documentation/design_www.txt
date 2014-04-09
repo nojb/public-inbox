@@ -5,9 +5,11 @@ URL naming
 /$LISTNAME/all.html?before=$GIT_COMMIT          -> HTML only, includes replies
 /$LISTNAME/index.atom.xml                       -> Atom feed
 /$LISTNAME/all.atom.xml                         -> Atom feed, includes replies
-/$LISTNAME/mid/$MESSAGE_ID.html                 -> HTML content (short quotes)
-/$LISTNAME/mid/$MESSAGE_ID.txt                  -> raw original
-/$LISTNAME/full/$MESSAGE_ID.html                -> HTML content (full quotes)
+/$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
+/$LISTNAME/m/$MESSAGE_ID.txt                    -> raw original
+/$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (full quotes)
+/$LISTNAME/t/$MESSAGE_ID.html                   -> HTML content of thread
+/$LISTNAME/t/$MESSAGE_ID.mbox                   -> mbox content of thread
 
 We use file name suffixes on all of these (except /) so URLs may easily
 cached/memoized using a static file server.
