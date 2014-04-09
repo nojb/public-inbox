@@ -41,7 +41,20 @@ if (PublicInbox->precheck($filter, $recipient) &&
 	if (PublicInbox::Filter->run($simple)) {
 		# run spamc again on the HTML-free message
 		if (do_spamc($simple, \$filtered)) {
-			$filter->simple(Email::Simple->new($filtered));
+			$simple = Email::Simple->new($filtered);
+			$filter->simple($simple);
+
+			my $from = $filter->from;
+			my @from = Email::Address->parse($from);
+			my $name = $from[0]->name;
+			defined $name or $name = "";
+			my $email = $from[0]->address;
+			defined $email or $email = "";
+			local $ENV{GIT_AUTHOR_NAME} = $name;
+			local $ENV{GIT_AUTHOR_EMAIL} = $email;
+			local $ENV{GIT_COMMITTER_EMAIL} = $recipient;
+			local $ENV{GIT_COMMITTER_NAME} = $dst->{listname};
+
 			$filter->pipe(MDA, '-1', $main_repo);
 		}
 	}
