@@ -28,7 +28,8 @@ my $tmpdir = tempdir(CLEANUP => 1);
 	is_deeply($cfg->lookup('bugs@public-inbox.org'), {
 		'mainrepo' => '/home/pi/bugs-main.git',
 		'address' => 'bugs@public-inbox.org',
-		'description' => 'development discussion'
+		'description' => 'development discussion',
+		'listname' => 'bugs',
 	}, "lookup matches expected output");
 
 	is($cfg->lookup('blah@example.com'), undef,

@@ -35,6 +35,9 @@ sub lookup {
 	my %rv = map {
 		$_ => $self->{"$pfx.$_"}
 	} (qw(mainrepo description address));
+	my $listname = $pfx;
+	$listname =~ s/\Apublicinbox\.//;
+	$rv{listname} = $listname;
 	\%rv;
 }
 
