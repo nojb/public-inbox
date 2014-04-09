@@ -20,6 +20,7 @@ my $fail_bin = getcwd()."/t/fail-bin";
 my $fail_path = "$fail_bin:$ENV{PATH}"; # for spamc spam mock
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
+my $failbox = "$home/fail.mbox";
 
 {
 	ok(-x "$main_bin/spamc",
@@ -42,7 +43,7 @@ my $cfgpfx = "publicinbox.test";
 }
 
 {
-	my $failbox = "$home/fail.mbox";
+	my $good_rev;
 	local $ENV{PI_FAILBOX} = $failbox;
 	local $ENV{HOME} = $home;
 	local $ENV{RECIPIENT} = $addr;
@@ -70,9 +71,10 @@ EOF
 			"author info set correctly");
 		like($cmt, qr/^committer test <test-public\@example\.com>/m,
 			"committer info set correctly");
+		$good_rev = $rev;
 	}
 
-	# ensure failures work
+	# ensure failures work, fail with bad spamc
 	{
 		ok(!-e $failbox, "nothing in PI_FAILBOX before");
 		local $ENV{PATH} = $fail_path;
@@ -82,6 +84,65 @@ EOF
 		is(scalar @revs, 1, "bad revision not committed");
 		ok(-s $failbox > 0, "PI_FAILBOX is written to");
 	}
+
+	fail_bad_header($good_rev, "bad recipient", <<"");
+From: Me <me\@example.com>
+To: You <you\@example.com>
+Message-Id: <bad-recipient\@example.com>
+Subject: hihi
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+	my $fail = fail_bad_header($good_rev, "duplicate Message-ID", <<"");
+From: Me <me\@example.com>
+To: You <you\@example.com>
+Cc: $addr
+Message-ID: <blah\@example.com>
+Subject: hihi
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+	like($fail->[2], qr/CONFLICT/, "duplicate Message-ID message");
+
+	fail_bad_header($good_rev, "missing From:", <<"");
+To: $addr
+Message-ID: <missing-from\@example.com>
+Subject: hihi
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+	fail_bad_header($good_rev, "short subject:", <<"");
+To: $addr
+From: cat\@example.com
+Message-ID: <short-subject\@example.com>
+Subject: a
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+	fail_bad_header($good_rev, "no date", <<"");
+To: $addr
+From: u\@example.com
+Message-ID: <no-date\@example.com>
+Subject: hihi
+
+	fail_bad_header($good_rev, "bad date", <<"");
+To: $addr
+From: u\@example.com
+Message-ID: <bad-date\@example.com>
+Subject: hihi
+Date: deadbeef
+
+}
+
+sub fail_bad_header {
+	my ($good_rev, $msg, $in) = @_;
+	open my $fh, '>', $failbox or die "failed to open $failbox: $!\n";
+	close $fh or die "failed to close $failbox: $!\n";
+	my ($out, $err) = ("", "");
+	local $ENV{PATH} = $main_path;
+	run([$mda], \$in, \$out, \$err);
+	local $ENV{GIT_DIR} = $maindir;
+	my $rev = `git rev-list HEAD`;
+	chomp $rev;
+	is($rev, $good_rev, "bad revision not commited ($msg)");
+	ok(-s $failbox > 0, "PI_FAILBOX is written to ($msg)");
+	[ $in, $out, $err ];
 }
 
 done_testing();
