@@ -4,6 +4,7 @@ package PublicInbox;
 use strict;
 use warnings;
 use Email::Address;
+use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default
 
 # drop plus addressing for matching
@@ -17,11 +18,23 @@ sub __drop_plus {
 sub precheck {
 	my ($klass, $filter, $recipient) = @_;
 	my $simple = $filter->simple;
-	return 0 unless $simple->header("Message-ID");
-	return 0 unless defined($filter->from);
-	return 0 unless $simple->header("Subject");
+	my $mid = $simple->header("Message-ID");
+	return 0 unless usable_str(length('<m@h>'), $mid) && $mid =~ /\@/;
+	return 0 unless usable_str(length('u@h'), $filter->from);
+	return 0 unless usable_str(length(':o'), $simple->header("Subject"));
+	return 0 unless usable_date($simple->header("Date"));
 	return 0 if length($simple->as_string) > MAX_SIZE;
 	recipient_specified($filter, $recipient);
+}
+
+sub usable_str {
+	my ($len, $str) = @_;
+	defined($str) && length($str) >= $len;
+}
+
+sub usable_date {
+	my @t = eval { strptime(@_) };
+	scalar @t;
 }
 
 sub recipient_specified {
