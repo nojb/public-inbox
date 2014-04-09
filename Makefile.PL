@@ -47,5 +47,9 @@ rsync-docs:
 	$(MAKE) gz-docs
 	rsync --chmod=Fugo=r -av $(gz_docs) $(docs) $(RSYNC_DEST)
 
+N = $(shell echo $$(( $$(nproc 2>/dev/null || echo 2) + 1)))
+check:: pure_all
+	prove -lv -j$(N)
+
 EOF
 }
