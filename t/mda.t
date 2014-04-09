@@ -64,6 +64,12 @@ EOF
 		local $ENV{GIT_DIR} = $maindir;
 		my $rev = `git rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
+		chomp $rev;
+		my $cmt = `git cat-file commit $rev`;
+		like($cmt, qr/^author Me <me\@example\.com> 0 \+0000\n/m,
+			"author info set correctly");
+		like($cmt, qr/^committer test <test-public\@example\.com>/m,
+			"committer info set correctly");
 	}
 
 	# ensure failures work
