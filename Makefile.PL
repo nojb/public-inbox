@@ -17,6 +17,7 @@ WriteMakefile(
 		'Email::MIME::ContentType' => 0,
 		'Email::Filter' => 0,
 		'Email::Address' => 0,
+		'Mail::Thread' => '2.5', # 2.5+ needed for Email::Simple compat
 		'Date::Parse' => 0,
 		'Encode::MIME::Header' => 0,
 		'XML::Atom::SimpleFeed' => 0,

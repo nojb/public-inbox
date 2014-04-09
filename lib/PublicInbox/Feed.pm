@@ -14,6 +14,7 @@ use POSIX qw(strftime);
 use Date::Parse qw(strptime);
 use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
 use PublicInbox::View;
+use Mail::Thread;
 
 # main function
 sub generate {
@@ -41,8 +42,38 @@ sub generate {
 		add_to_feed($feed_opts, $feed, $add, $top);
 	});
 	$feed->as_string;
-
 }
+
+sub generate_html_index {
+	my ($class, $args) = @_;
+	my $max = $args->{max} || 50;
+	my $top = $args->{top}; # bool
+	local $ENV{GIT_DIR} = $args->{git_dir};
+	my $feed_opts = get_feedopts($args);
+	my $title = escapeHTML($feed_opts->{description} || "");
+	my @messages;
+	each_recent_blob($max, sub {
+		my $str = `git cat-file blob $_[0]`;
+		return 0 if $? != 0;
+		my $simple = Email::Simple->new($str);
+		$simple->body_set(""); # save some memory
+		push @messages, $simple;
+		1;
+	});
+
+	my $th = Mail::Thread->new(@messages);
+	$th->thread;
+	my @args = (
+		"<html><head><title>$title</title>" .
+		'<link rel=alternate title=Atom.feed href=' .
+		$feed_opts->{atomurl} . ' type="application/atom+xml"/>' .
+		'</head><body><pre>');
+	push @args, $feed_opts->{midurl};
+	dump_html_line($_, 0, \@args) for $th->rootset;
+	$args[0] . '</pre></html>';
+}
+
+# private subs
 
 sub each_recent_blob {
 	my ($max, $cb) = @_;
@@ -78,25 +109,32 @@ sub get_feedopts {
 
 	if ($pi_config && defined $listname && length $listname) {
 		foreach my $key (qw(description address)) {
-			$rv{$key} = $pi_config->get($listname, $key);
+			$rv{$key} = $pi_config->get($listname, $key) || "";
 		}
 	}
+	my $url_base;
 	if ($cgi) {
 		my $cgi_url = $cgi->self_url;
-		my $url_base = $cgi_url;
+		$url_base = $cgi_url;
 		$url_base =~ s!/?(?:index|all)\.atom\.xml\z!!;
-		$rv{url} ||= "$url_base/";
-		$rv{midurl} = "$url_base/mid/";
-		$rv{fullurl} = "$url_base/full/";
 		$rv{atomurl} = $cgi_url;
+	} else {
+		$url_base = "http://example.com";
+		$rv{atomurl} = "$url_base/index.atom.xml";
 	}
+	$rv{url} ||= "$url_base/";
+	$rv{midurl} = "$url_base/mid/";
+	$rv{fullurl} = "$url_base/full/";
 
 	\%rv;
 }
 
 sub utf8_header {
-	my ($mime, $name) = @_;
-	encode('utf8', decode('MIME-Header', $mime->header($name)));
+	my ($simple, $name) = @_;
+	my $val = $simple->header($name);
+	return "" unless defined $val;
+	$val =~ tr/\t\r\n / /s;
+	encode('utf8', decode('MIME-Header', $val));
 }
 
 sub feed_date {
@@ -127,11 +165,10 @@ sub add_to_feed {
 	defined($content) or return 0;
 
 	my $mid = utf8_header($mime, "Message-ID") or return 0;
-	$mid =~ s/\A<//;
-	$mid =~ s/>\z//;
+	$mid =~ s/\A<//; $mid =~ s/>\z//;
 
 	my $subject = utf8_header($mime, "Subject") || "";
-	defined($subject) && length($subject) or return 0;
+	length($subject) or return 0;
 
 	my $from = utf8_header($mime, "From") or return 0;
 
@@ -154,6 +191,30 @@ sub add_to_feed {
 		id => $add,
 	);
 	1;
+}
+
+sub dump_html_line {
+	my ($self, $level, $args) = @_; # args => [ $html, $midurl ]
+	$args->[0] .= (' ' x $level);
+	if ($self->message) {
+		my $simple = $self->message;
+		my $subj = utf8_header($simple, "Subject");
+		my $mid = utf8_header($simple, "Message-ID");
+		$mid =~ s/\A<//;
+		$mid =~ s/>\z//;
+		my $url = $args->[1] . uri_escape($mid);
+		my $from = utf8_header($simple, "From");
+		my @from = Email::Address->parse($from);
+		$from = $from[0]->name;
+		(defined($from) && length($from)) or $from = $from[0]->address;
+		$from = escapeHTML($from);
+		$subj = escapeHTML($subj);
+		$args->[0] .= "<a href=$url>`-&gt; $subj</a> $from\n";
+	} else {
+		$args->[0] .= "[ Message not available ]\n";
+	}
+	dump_html_line($self->child, $level+1, $args) if $self->child;
+	dump_html_line($self->next, $level, $args) if $self->next;
 }
 
 1;
