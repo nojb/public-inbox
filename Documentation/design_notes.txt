@@ -1,17 +1,5 @@
-Design notes and philosophy
----------------------------
-
-public-inbox spawned around some basic ideas
---------------------------------------------
-
-* Public, non-real-time, archivable communication is essential to
-  Free and Open Source software development.
-
-* Contributing to Free and Open Source projects should not require the
-  use of non-Free/non-Open Source services or software.
-
-* Graphical user interfaces should not be required for text-based
-  communication.
+Design notes
+------------
 
 Challenges to running normal mailing lists
 ------------------------------------------
@@ -33,8 +21,10 @@ Use existing infrastructure
 
 * public-inbox uses SMTP for posting.  Posting a message to a public-inbox
   instance is no different than sending a message to any _open_ mailing
-  list.  Any existing spam filtering on an SMTP server is also effective
-  on public-inbox.
+  list.
+
+* Existing spam filtering on an SMTP server is also effective on
+  public-inbox.
 
 * readers may continue using use their choice of mail clients and
   mailbox formats, only learning a few commands of the ssoma(1) tool
@@ -68,7 +58,7 @@ Why email?
   list.
 
 * Email is already the de-facto form of communication in many Free Software
-  communities.
+  communities..
 
 * Fallback/transition to private email and other lists, in case the
   public-inbox host becomes unavailable, users may still directly email
@@ -79,12 +69,36 @@ Why git?
 
 * git is distributed and robust while being both fast and
   space-efficient with text data.  NNTP was considered, but does not
-  support compression and places no guarantees on data/transport
+  support delta-compression and places no guarantees on data/transport
   integrity.  However, an NNTP gateway (read-only?) is possible.
 
 * As of 2014, git is widely used and known to nearly all Free Software
   developers.  For non-developers it is packaged for all major GNU/Linux
-  and *BSD distributions.
+  and *BSD distributions.  NNTP is not as widely-used nowadays.
+
+Laziness
+--------
+
+* A list server being turned into an SMTP spam relay and being
+  blacklisted while an admin is asleep is scary.
+  Sidestep that entirely by having clients pull.
+
+* Eric has a great Maildir+inotify-based Bayes training setup
+  going back many years.  Document, integrate and publicize it for
+  public-inbox usage, encouraging other admins to use it (it works
+  as long as admins read their public-inbox).
+
+* Custom, difficult-for-Bayes requires custom anti-spam rules.
+  We may steal rules from the Debian listmasters:
+  svn://anonscm.debian.org/pkg-listmaster
+
+* Full archives are easily distributable with git, so somebody else
+  can take over the list if we give up.  Anybody may also run an SMTP
+  notifier/delivery service based on the archives.
+
+* Avoids bikeshedding about web UI decisions, GUI-lovers can write their
+  own GUI-friendly interfaces (HTML or native) based on public archives.
+  Maybe one day integrated MUAs will feature a built-in git protocol support!
 
 Web notes
 ---------
