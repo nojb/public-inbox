@@ -42,7 +42,7 @@ if (PublicInbox->precheck($filter, $recipient) &&
 		# run spamc again on the HTML-free message
 		if (do_spamc($simple, \$filtered)) {
 			$filter->simple(Email::Simple->new($filtered));
-			$filter->pipe(MDA, $main_repo);
+			$filter->pipe(MDA, '-1', $main_repo);
 		}
 	}
 }
