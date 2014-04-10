@@ -117,16 +117,9 @@ EOF
 # indices
 {
 	local $ENV{HOME} = $home;
-	my $res = cgi_run("/test/all.atom.xml");
-	like($res->{body}, qr/<title>test for public-inbox/,
-		"set title in XML feed");
-	like($res->{body},
-		qr!http://test\.example\.com/test/mid/blah%40example\.com!,
-		"link id set");
-	like($res->{body}, qr/what\?/, "reply included");
-
-	$res = cgi_run("/test/index.atom.xml");
-	unlike($res->{body}, qr/what\?/, "reply not included in index");
+	my $res = cgi_run("/test/");
+	like($res->{head}, qr/Status: 200 OK/, "index returns 200");
+	# more checks in t/feed.t
 }
 
 done_testing();

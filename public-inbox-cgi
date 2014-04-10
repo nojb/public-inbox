@@ -56,9 +56,7 @@ sub main {
 	if ($path_info eq "/") {
 		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE/?\z!o) {
-		invalid_list(\%ctx, $1) || get_list_log(\%ctx, $cgi);
-	} elsif ($path_info =~ m!$LISTNAME_RE/all\z!o) {
-		invalid_list(\%ctx, $1) || get_list_all(\%ctx, $cgi);
+		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/index\.atom\.xml\z!o) {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/all\.atom\.xml\z!o) {
@@ -106,6 +104,20 @@ sub get_atom {
 	require PublicInbox::Feed;
 	[ '200 OK', { 'Content-Type' => 'application/xml' },
 	  PublicInbox::Feed->generate({
+			git_dir => $ctx->{git_dir},
+			listname => $ctx->{listname},
+			pi_config => $pi_config,
+			cgi => $cgi,
+			top => $top,
+		})
+	];
+}
+
+sub get_index {
+	my ($ctx, $cgi, $top) = @_;
+	require PublicInbox::Feed;
+	[ '200 OK', { 'Content-Type' => 'text/html' },
+	  PublicInbox::Feed->generate_html_index({
 			git_dir => $ctx->{git_dir},
 			listname => $ctx->{listname},
 			pi_config => $pi_config,
