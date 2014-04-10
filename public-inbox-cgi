@@ -46,20 +46,25 @@ if (@ARGV && $ARGV[0] eq 'static') {
 
 sub main {
 	my $cgi = CGI->new;
+	my %ctx;
 	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
 		return r("405 Method Not Allowed");
 	}
 	my $path_info = decode_utf8($ENV{PATH_INFO});
+
+	# top-level indices and feeds
 	if ($path_info eq "/") {
-		r("404 Not Found");
+		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE/?\z!o) {
-		get_list_log($cgi, $1);
+		invalid_list(\%ctx, $1) || get_list_log(\%ctx, $cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE/all\z!o) {
-		get_list_all($cgi, $1);
+		invalid_list(\%ctx, $1) || get_list_all(\%ctx, $cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE/index\.atom\.xml\z!o) {
-		get_atom_index($cgi, $1);
+		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/all\.atom\.xml\z!o) {
-		get_atom_all($cgi, $1);
+		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 0);
+
+	# single-message pages
 	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\.txt\z!o) {
 		get_mid_txt($cgi, $1, $2);
 	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\.html\z!o) {
@@ -67,46 +72,46 @@ sub main {
 	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\z!o) {
 		redirect_mid_html($cgi, $1, $2);
 	} else {
-		r("404 Not Found");
+		r404();
 	}
 }
+
+sub r404 { r("404 Not Found") }
 
 # simple response for errors
 sub r { [ $_[0], { 'Content-Type' => 'text/plain' }, '' ] }
 
-# /$LISTNAME/all.atom.xml	-> Atom feed, includes replies
-sub get_atom_all {
-	my ($cgi, $listname) = @_;
+# returns undef if valid, array ref response if invalid
+sub invalid_list {
+	my ($ctx, $listname) = @_;
 	my $git_dir = $pi_config->get($listname, "mainrepo");
-	defined $git_dir or return r("404 Not Found");
-
-	require PublicInbox::Feed;
-	[ '200 OK',
-	  { 'Content-Type' => 'application/xml; charset=us-ascii' },
-	  PublicInbox::Feed->generate({
-			git_dir => $git_dir,
-			pi_config => $pi_config,
-			listname => $listname,
-			cgi => $cgi
-		})
-	];
+	if (defined $git_dir) {
+		$ctx->{git_dir} = $git_dir;
+		$ctx->{listname} = $listname;
+		return undef;
+	}
+	r404();
 }
 
-# /$LISTNAME/index.atom.xml	-> Atom feed
-sub get_atom_index {
-	my ($cgi, $listname) = @_;
-	my $git_dir = $pi_config->get($listname, "mainrepo");
-	defined $git_dir or return r("404 Not Found");
+# returns undef if valid, array ref response if invalid
+sub invalid_list_mid {
+	my ($ctx, $listname, $mid) = @_;
+	my $ret = invalid_list($ctx, $listname, $mid) and return $ret;
+	$ctx->{mid} = $mid;
+	undef;
+}
 
+sub get_atom {
+	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
 	[ '200 OK',
 	  { 'Content-Type' => 'application/xml; charset=us-ascii' },
 	  PublicInbox::Feed->generate({
-			git_dir => $git_dir,
+			git_dir => $ctx->{git_dir},
+			listname => $ctx->{listname},
 			pi_config => $pi_config,
-			listname => $listname,
 			cgi => $cgi,
-			top => 1
+			top => $top,
 		})
 	];
 }
