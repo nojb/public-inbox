@@ -99,6 +99,8 @@ sub invalid_list_mid {
 	undef;
 }
 
+# /$LISTNAME/index.atom.xml                     -> Atom feed
+# /$LISTNAME/all.atom.xml                       -> Atom feed, includes replies
 sub get_atom {
 	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
@@ -113,6 +115,7 @@ sub get_atom {
 	];
 }
 
+# /$LISTNAME/?before=$GIT_COMMIT                 -> HTML only
 sub get_index {
 	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
@@ -127,6 +130,7 @@ sub get_index {
 	];
 }
 
+# just returns a string ref for the blob in the current ctx
 sub mid2blob {
 	my ($ctx) = @_;
 	local $ENV{GIT_DIR} = $ctx->{git_dir};
@@ -137,12 +141,14 @@ sub mid2blob {
 	$? == 0 ? \$blob : undef;
 }
 
+# /$LISTNAME/m/$MESSAGE_ID.txt                    -> raw original
 sub get_mid_txt {
 	my ($ctx, $cgi) = @_;
 	my $x = mid2blob($ctx);
 	$x ? [ "200 OK", {'Content-Type' => 'text/plain'}, $$x ] : r404();
 }
 
+# only used for CGI and static file generation modes
 sub set_binmode {
 	my ($headers) = @_;
 	if ($headers->{'Content-Type'} eq 'text/plain') {
