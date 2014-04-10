@@ -26,6 +26,7 @@ Requirements (server MDA)
   - File::Path::Expand         libfile-path-expand-perl
   - IPC::Open2                 perl
   - IPC::Run                   libipc-run-perl
+  - Mail::Thread (2.5+)        libmail-thread-perl
   - URI::Escape                liburi-perl
   - XML::Atom::SimpleFeed      libxml-atom-simplefeed-perl
 

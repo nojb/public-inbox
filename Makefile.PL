@@ -10,22 +10,22 @@ WriteMakefile(
 	ABSTRACT => 'public-inbox server infrastructure',
 	EXE_FILES => [qw/public-inbox-mda public-inbox-cgi/],
 	PREREQ_PM => {
-		# note: we use ssoma(1) and spamc(1),
-		# NOT the Perl modules
+		# note: we use ssoma(1) and spamc(1), NOT the Perl modules
 		# We also depend on git through ssoma.
+		# Keep this sorted and synced to the INSTALL document
+		'CGI' => 0,
+		'Date::Parse' => 0,
+		'Email::Address' => 0,
+		'Email::Filter' => 0,
 		'Email::MIME' => 0,
 		'Email::MIME::ContentType' => 0,
-		'Email::Filter' => 0,
-		'Email::Address' => 0,
-		'Mail::Thread' => '2.5', # 2.5+ needed for Email::Simple compat
-		'Date::Parse' => 0,
 		'Encode::MIME::Header' => 0,
-		'XML::Atom::SimpleFeed' => 0,
+		'File::Path::Expand' => 0,
 		'IPC::Open2' => 0,
 		'IPC::Run' => 0,
-		'File::Path::Expand' => 0,
-		'CGI' => 0,
+		'Mail::Thread' => '2.5', # 2.5+ needed for Email::Simple compat
 		'URI::Escape' => 0,
+		'XML::Atom::SimpleFeed' => 0,
 		# We have more test dependencies, but do not force
 		# users to install them
 	},
