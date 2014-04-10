@@ -26,11 +26,10 @@ BEGIN {
 	}
 }
 
-binmode STDOUT, ':utf8';
-
 my $ret = main();
 
 my ($status, $headers, $body) = @$ret;
+set_binmode($headers);
 if (@ARGV && $ARGV[0] eq 'static') {
 	print $body;
 } else { # CGI
@@ -142,4 +141,14 @@ sub get_mid_txt {
 	my ($ctx, $cgi) = @_;
 	my $x = mid2blob($ctx);
 	$x ? [ "200 OK", {'Content-Type' => 'text/plain'}, $$x ] : r404();
+}
+
+sub set_binmode {
+	my ($headers) = @_;
+	if ($headers->{'Content-Type'} eq 'text/plain') {
+		# no way to validate raw messages, mixed encoding is possible.
+		binmode STDOUT;
+	} else { # strict encoding for HTML and XML
+		binmode STDOUT, ':encoding(UTF-8)';
+	}
 }
