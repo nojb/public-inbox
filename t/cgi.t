@@ -122,6 +122,16 @@ EOF
 	# more checks in t/feed.t
 }
 
+
+{
+	local $ENV{HOME} = $home;
+	my $res = cgi_run("/test/m/blahblah\@example.com.txt");
+	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
+		"mid.txt hit");
+	$res = cgi_run("/test/m/blahblah\@example.con.txt");
+	like($res->{head}, qr/Status: 404 Not Found/, "mid.txt miss");
+}
+
 done_testing();
 
 sub run_with_env {

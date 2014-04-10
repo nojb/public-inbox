@@ -15,6 +15,7 @@ use warnings;
 use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
 use Encode qw(decode_utf8);
 use PublicInbox::Config;
+use Digest::SHA qw(sha1_hex);
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
@@ -63,11 +64,11 @@ sub main {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 0);
 
 	# single-message pages
-	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\.txt\z!o) {
-		get_mid_txt($cgi, $1, $2);
-	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\.html\z!o) {
-		get_mid_html($cgi, $1, $2);
-	} elsif ($path_info =~ m!$LISTNAME_RE/mid/(\S+)\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.txt\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx, $cgi);
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.html\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx, $cgi);
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\z!o) {
 		redirect_mid_html($cgi, $1, $2);
 	} else {
 		r404();
@@ -125,4 +126,20 @@ sub get_index {
 			top => $top,
 		})
 	];
+}
+
+sub mid2blob {
+	my ($ctx) = @_;
+	local $ENV{GIT_DIR} = $ctx->{git_dir};
+	my $hex = sha1_hex($ctx->{mid});
+	$hex =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/i or
+			die "BUG: not a SHA-1 hex: $hex";
+	my $blob = `git cat-file blob HEAD:$1/$2 2>/dev/null`;
+	$? == 0 ? \$blob : undef;
+}
+
+sub get_mid_txt {
+	my ($ctx, $cgi) = @_;
+	my $x = mid2blob($ctx);
+	$x ? [ "200 OK", {'Content-Type' => 'text/plain'}, $$x ] : r404();
 }
