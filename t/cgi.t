@@ -119,9 +119,12 @@ EOF
 	local $ENV{HOME} = $home;
 	my $res = cgi_run("/test/");
 	like($res->{head}, qr/Status: 200 OK/, "index returns 200");
+
+	my $idx = cgi_run("/test/index.html");
+	is_deeply($res, $idx,
+		'/$LISTNAME/ and /$LISTNAME/index.html are identical');
 	# more checks in t/feed.t
 }
-
 
 {
 	local $ENV{HOME} = $home;

@@ -116,8 +116,12 @@ sub get_feedopts {
 	if ($cgi) {
 		my $cgi_url = $cgi->self_url;
 		$url_base = $cgi_url;
-		$url_base =~ s!/?(?:index|all)\.atom\.xml\z!!;
-		$rv{atomurl} = $cgi_url;
+		if ($url_base =~ s!/(?:|index\.html)?\z!!) {
+			$rv{atomurl} = "$url_base/index.atom.xml";
+		} else {
+			$url_base =~ s!/?(?:index|all)\.atom\.xml\z!!;
+			$rv{atomurl} = $cgi_url;
+		}
 	} else {
 		$url_base = "http://example.com";
 		$rv{atomurl} = "$url_base/index.atom.xml";

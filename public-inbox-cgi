@@ -55,7 +55,7 @@ sub main {
 	# top-level indices and feeds
 	if ($path_info eq "/") {
 		r404();
-	} elsif ($path_info =~ m!$LISTNAME_RE/?\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
 		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/index\.atom\.xml\z!o) {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 1);
