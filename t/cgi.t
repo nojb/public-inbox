@@ -133,6 +133,18 @@ EOF
 		"mid.txt hit");
 	$res = cgi_run("/test/m/blahblah\@example.con.txt");
 	like($res->{head}, qr/Status: 404 Not Found/, "mid.txt miss");
+
+	$res = cgi_run("/test/m/blahblah\@example.com.html");
+	like($res->{body}, qr/\A<html>/, "mid.html hit");
+	like($res->{head}, qr/Status: 200 OK/, "200 response");
+	$res = cgi_run("/test/m/blahblah\@example.con.html");
+	like($res->{head}, qr/Status: 404 Not Found/, "mid.html miss");
+
+	$res = cgi_run("/test/f/blahblah\@example.com.html");
+	like($res->{body}, qr/\A<html>/, "mid.html hit");
+	like($res->{head}, qr/Status: 200 OK/, "200 response");
+	$res = cgi_run("/test/f/blahblah\@example.con.html");
+	like($res->{head}, qr/Status: 404 Not Found/, "mid.html miss");
 }
 
 done_testing();

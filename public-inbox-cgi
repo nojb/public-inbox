@@ -69,6 +69,13 @@ sub main {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx, $cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\z!o) {
 		redirect_mid_html($cgi, $1, $2);
+
+	# full-message page
+	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx, $cgi);
+	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
+		redirect_mid_html($cgi, $1, $2);
+
 	} else {
 		r404();
 	}
@@ -146,6 +153,32 @@ sub get_mid_txt {
 	my ($ctx, $cgi) = @_;
 	my $x = mid2blob($ctx);
 	$x ? [ "200 OK", {'Content-Type' => 'text/plain'}, $$x ] : r404();
+}
+
+# /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
+sub get_mid_html {
+	my ($ctx, $cgi) = @_;
+	my $x = mid2blob($ctx);
+	return r404() unless $x;
+
+	my $pfx = $cgi->self_url;
+	$pfx =~ s!/m/.+\z!/!; # FIXME: this is not robust
+
+	require PublicInbox::View;
+	require Email::MIME;
+	[ "200 OK", {'Content-Type' => 'text/html'},
+		PublicInbox::View->as_html(Email::MIME->new($$x), $pfx)];
+}
+
+# /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
+sub get_full_html {
+	my ($ctx, $cgi) = @_;
+	my $x = mid2blob($ctx);
+	return r404() unless $x;
+	require PublicInbox::View;
+	require Email::MIME;
+	[ "200 OK", {'Content-Type' => 'text/html'},
+		PublicInbox::View->as_html(Email::MIME->new($$x))];
 }
 
 # only used for CGI and static file generation modes
