@@ -40,7 +40,7 @@ EOF
 		"long quoted text is anchored");
 
 	# short page
-	my $pfx = "http://example.com/test/full";
+	my $pfx = "http://example.com/test/f";
 	my $short = PublicInbox::View->as_html($s, $pfx);
 	like($short, qr/\n&gt; keep this inline/,
 		"short quoted text is inline");

@@ -127,8 +127,8 @@ sub get_feedopts {
 		$rv{atomurl} = "$url_base/index.atom.xml";
 	}
 	$rv{url} ||= "$url_base/";
-	$rv{midurl} = "$url_base/mid/";
-	$rv{fullurl} = "$url_base/full/";
+	$rv{midurl} = "$url_base/m/";
+	$rv{fullurl} = "$url_base/f/";
 
 	\%rv;
 }
@@ -162,8 +162,8 @@ sub add_to_feed {
 		return 0;
 	}
 
-	my $midurl = $feed_opts->{midurl} || 'http://example.com/mid/';
-	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/full/';
+	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
+	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
 	my $content = PublicInbox::View->as_feed_entry($mime, $fullurl);
 	defined($content) or return 0;

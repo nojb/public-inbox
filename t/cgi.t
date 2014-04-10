@@ -106,7 +106,7 @@ EOF
 	like($res->{body}, qr/<title>test for public-inbox/,
 		"set title in XML feed");
 	like($res->{body},
-		qr!http://test\.example\.com/test/mid/blah%40example\.com!,
+		qr!http://test\.example\.com/test/m/blah%40example\.com!,
 		"link id set");
 	like($res->{body}, qr/what\?/, "reply included");
 
