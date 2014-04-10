@@ -104,8 +104,7 @@ sub invalid_list_mid {
 sub get_atom {
 	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
-	[ '200 OK',
-	  { 'Content-Type' => 'application/xml; charset=us-ascii' },
+	[ '200 OK', { 'Content-Type' => 'application/xml' },
 	  PublicInbox::Feed->generate({
 			git_dir => $ctx->{git_dir},
 			listname => $ctx->{listname},
