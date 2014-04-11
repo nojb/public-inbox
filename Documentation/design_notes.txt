@@ -76,8 +76,21 @@ Why git?
   developers.  For non-developers it is packaged for all major GNU/Linux
   and *BSD distributions.  NNTP is not as widely-used nowadays.
 
+Why perl 5?
+-----------
+
+* Perl 5 is widely available on modern *nix systems with good a history
+  of backwards and forward compatibility.
+
+* git and SpamAssassin both use it, so it should be one less thing for
+  admins to install and waste disk space with.
+
 Laziness
 --------
+
+* Stick to dependencies available in Debian main, this should make it
+  easier for potential users to install, and easier for distro
+  maintainers to pick up.
 
 * A list server being turned into an SMTP spam relay and being
   blacklisted while an admin is asleep is scary.
@@ -98,7 +111,7 @@ Laziness
 
 * Avoids bikeshedding about web UI decisions, GUI-lovers can write their
   own GUI-friendly interfaces (HTML or native) based on public archives.
-  Maybe one day integrated MUAs will feature a built-in git protocol support!
+  Maybe one day integrated MUAs will feature built-in git protocol support!
 
 Web notes
 ---------
