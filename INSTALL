@@ -15,6 +15,7 @@ Requirements (server MDA)
 * ssoma - http://ssoma.public-inbox.org/README
 * SpamAssassin (spamc/spamd)
 * MTA - postfix is recommended
+* lynx (for converting HTML messages to text)
 * Perl and several modules:    (Debian package name)
   - CGI                        perl-modules[1]
   - Date::Parse                libtimedate-perl
