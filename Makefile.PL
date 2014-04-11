@@ -21,7 +21,6 @@ WriteMakefile(
 		'Email::MIME::ContentType' => 0,
 		'Encode::MIME::Header' => 0,
 		'File::Path::Expand' => 0,
-		'IPC::Open2' => 0,
 		'IPC::Run' => 0,
 		'Mail::Thread' => '2.5', # 2.5+ needed for Email::Simple compat
 		'URI::Escape' => 0,

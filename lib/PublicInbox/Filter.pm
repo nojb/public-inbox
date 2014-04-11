@@ -10,7 +10,7 @@ use warnings;
 use Email::MIME;
 use Email::MIME::ContentType qw/parse_content_type/;
 use Email::Filter;
-use IPC::Open2;
+use IPC::Run;
 our $VERSION = '0.0.1';
 
 # start with the same defaults as mailman
@@ -41,7 +41,7 @@ sub run {
 		# HTML-only, non-multipart
 		my $body = $simple->body;
 		my $ct_parsed = parse_content_type($content_type);
-		dump_html($body, $ct_parsed->{attributes}->{charset});
+		dump_html(\$body, $ct_parsed->{attributes}->{charset});
 		replace_body($simple, $body);
 		return 1;
 	} elsif ($content_type =~ m!\bmultipart/!i) {
@@ -80,28 +80,29 @@ sub html_part_to_text {
 	my ($simple, $part) = @_;
 	my $body = $part->body;
 	my $ct_parsed = parse_content_type($part->content_type);
-	dump_html($body, $ct_parsed->{attributes}->{charset});
+	dump_html(\$body, $ct_parsed->{attributes}->{charset});
 	replace_part($simple, $part, $body, 'text/plain');
 }
 
 # modifies $_[0] in place
 sub dump_html {
-	my $charset = $_[1] || 'US-ASCII';
-	my $cmd = "lynx -stdin -dump";
+	my ($body, $charset) = @_;
+	$charset ||= 'US-ASCII';
+	my @cmd = qw(lynx -stdin -stderr -dump);
+	my $out = "";
+	my $err = "";
 
 	# be careful about remote command injection!
 	if ($charset =~ /\A[A-Za-z0-9\-]+\z/) {
-		$cmd .= " -assume_charset=$charset";
+		push @cmd, "-assume_charset=$charset";
 	}
-
-	my $pid = open2(my $out, my $in, $cmd);
-	print $in $_[0];
-	close $in;
-	{
-		local $/;
-		$_[0] = <$out>;
+	if (IPC::Run::run(\@cmd, $body, \$out, \$err)) {
+		$$body = $out;
+	} else {
+		# give them an ugly version:
+		$$body = "public-inbox HTML conversion failed: $err\n" .
+			 $$body . "\n";
 	}
-	waitpid($pid, 0);
 }
 
 # this is to correct user errors and not expected to cover all corner cases

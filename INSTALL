@@ -25,7 +25,6 @@ Requirements (server MDA)
   - Email::MIME::ContentType   libemail-mime-contenttype-perl
   - Encode::MIME::Header       perl
   - File::Path::Expand         libfile-path-expand-perl
-  - IPC::Open2                 perl
   - IPC::Run                   libipc-run-perl
   - Mail::Thread (2.5+)        libmail-thread-perl
   - URI::Escape                liburi-perl
