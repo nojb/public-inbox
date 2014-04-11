@@ -110,7 +110,8 @@ sub add_text_body_full {
 
 sub trim_message_id {
 	my ($mid) = @_;
-	$mid =~ tr/<>//d;
+	$mid =~ s/\A<//;
+	$mid =~ s/>\z//;
 	my $html = escapeHTML($mid);
 	my $href = escapeHTML(uri_escape($mid));
 
