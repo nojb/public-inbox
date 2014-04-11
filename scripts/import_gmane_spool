@@ -2,27 +2,40 @@
 # Copyright (C) 2013, Eric Wong <normalperson@yhbt.net> and all contributors
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 #
-# One-off script to convert an slrnpull news spool from gmane
+# One-off script to convert an slrnpull news spool from gmane, usage:
+=begin usage
+	mkdir -p $HOME/.public-inbox
+	MAINREPO=/path/to/your/repo.git
+	export RECIPIENT='list@example.com'
+	git init --bare $MAINREPO
+	export GIT_CONFIG=$HOME/.public-inbox/config
+	git config publicinbox.$LISTNAME.address $RECIPIENT
+	git config publicinbox.$LISTNAME.mainrepo $MAINREPO
+	unset GIT_CONFIG
+	./import_gmane_spool SLRNPULL_ROOT/news/foo/bar
+=cut
 use strict;
 use warnings;
 use Parallel::ForkManager;
 use Email::Simple;
 use PublicInbox::Filter;
+use PublicInbox::Config;
 use IPC::Run qw(run);
-my $usage = "$0 SLRNPULL_ROOT/news/foo/bar MAIN_REPO FAIL_REPO";
-my $spool = shift @ARGV or die "Usage: $usage\n";
-my $main_repo = shift @ARGV or die "Usage: $usage\n";
-my $fail_repo = shift @ARGV or die "Usage: $usage\n";
+sub usage { "Usage:\n".join("",grep(/\t/, `head -n 24 $0`)) }
+my $spool = shift @ARGV or die usage();
 my $nproc = `nproc 2>/dev/null` || 4;
 my $pm = Parallel::ForkManager->new($nproc);
-my @args = ('public-inbox-mda', $main_repo, $fail_repo);
+defined $ENV{RECIPIENT} or die usage();
+my @args = ('public-inbox-mda');
 
-foreach my $n (<$spool/*>) {
+foreach my $n (glob("$spool/*")) {
 	$n =~ m{/\d+\z} or next;
 	$pm->start and next;
 	if (open my $fh, '<', $n) {
-		local $/;
-		my $s = Email::Simple->new(<$fh>);
+		my $s = eval {
+			local $/;
+			Email::Simple->new(<$fh>);
+		};
 
 		# gmane rewrites Received headers, which increases spamminess
 		my @h = $s->header("Original-Received");
