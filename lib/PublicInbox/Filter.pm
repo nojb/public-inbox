@@ -93,7 +93,7 @@ sub dump_html {
 	my $err = "";
 
 	# be careful about remote command injection!
-	if ($charset =~ /\A[A-Za-z0-9\-]+\z/) {
+	if ($charset =~ /\A([A-Za-z0-9\-]+)\z/) {
 		push @cmd, "-assume_charset=$charset";
 	}
 	if (IPC::Run::run(\@cmd, $body, \$out, \$err)) {
