@@ -6,6 +6,7 @@ use warnings;
 use File::Path::Expand qw/expand_filename/;
 
 # returns key-value pairs of config directives in a hash
+# if keys may be multi-value, the value is an array ref containing all values
 sub new {
 	my ($class, $file) = @_;
 
@@ -14,7 +15,21 @@ sub new {
 	my @cfg = `git config -l`;
 	$? == 0 or die "git config -l failed: $?\n";
 	chomp @cfg;
-	my %rv = map { split(/=/, $_, 2) } @cfg;
+	my %rv;
+	foreach my $line (@cfg) {
+		my ($k, $v) = split(/=/, $line, 2);
+		my $cur = $rv{$k};
+
+		if (defined $cur) {
+			if (ref($cur) eq "ARRAY") {
+				push @$cur, $v;
+			} else {
+				$rv{$k} = [ $cur, $v ];
+			}
+		} else {
+			$rv{$k} = $v;
+		}
+	}
 	bless \%rv, $class;
 }
 
@@ -25,16 +40,27 @@ sub lookup {
 
 	foreach my $k (keys %$self) {
 		$k =~ /\A(publicinbox\.[A-Z0-9a-z-]+)\.address\z/ or next;
-		(lc($self->{$k}) eq $addr) or next;
-		$pfx = $1;
-		last;
+		my $v = $self->{$k};
+		if (ref($v) eq "ARRAY") {
+			foreach my $alias (@$v) {
+				(lc($alias) eq $addr) or next;
+				$pfx = $1;
+				last;
+			}
+		} else {
+			(lc($v) eq $addr) or next;
+			$pfx = $1;
+			last;
+		}
 	}
 
 	defined $pfx or return;
 
-	my %rv = map {
-		$_ => $self->{"$pfx.$_"}
-	} (qw(mainrepo description address));
+	my %rv;
+	foreach my $k (qw(mainrepo description address)) {
+		my $v = $self->{"$pfx.$k"};
+		$rv{$k} = $v if defined $v;
+	}
 	my $listname = $pfx;
 	$listname =~ s/\Apublicinbox\.//;
 	$rv{listname} = $listname;

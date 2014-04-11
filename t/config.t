@@ -34,6 +34,16 @@ my $tmpdir = tempdir(CLEANUP => 1);
 
 	is($cfg->lookup('blah@example.com'), undef,
 		"non-existent lookup returns undef");
+
+	my $test = $cfg->lookup('test@public-inbox.org');
+	is_deeply($test, {
+		'address' => ['try@public-inbox.org',
+		              'sandbox@public-inbox.org',
+			      'test@public-inbox.org'],
+		'mainrepo' => '/home/pi/test-main.git',
+		'description' => 'test/sandbox area, occasionally reset',
+		'listname' => 'test',
+	}, "lookup matches expected output for test");
 }
 
 done_testing();

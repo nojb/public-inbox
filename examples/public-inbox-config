@@ -1,9 +1,11 @@
 # this usually in ~/.public-inbox/config and parseable with git-config(1)
 # update t/config.t if changing this, that test relies on this
 [publicinbox "test"]
+	address = try@public-inbox.org
+	address = sandbox@public-inbox.org
 	address = test@public-inbox.org
 	mainrepo = /home/pi/test-main.git
-	description = test repo, occasionally reset
+	description = test/sandbox area, occasionally reset
 	url = http://example.com/test
 [publicinbox "bugs"]
 	address = bugs@public-inbox.org
