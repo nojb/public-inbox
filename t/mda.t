@@ -9,6 +9,7 @@ use Cwd;
 use IPC::Run qw(run);
 
 my $mda = "blib/script/public-inbox-mda";
+my $learn = "blib/script/public-inbox-learn";
 my $tmpdir = tempdir(CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
@@ -130,6 +131,71 @@ Date: deadbeef
 
 }
 
+# spam training
+{
+	local $ENV{PI_FAILBOX} = $failbox;
+	local $ENV{HOME} = $home;
+	local $ENV{RECIPIENT} = $addr;
+	local $ENV{PATH} = $main_path;
+	my $mid = 'spam-train@example.com';
+	my $simple = Email::Simple->new(<<EOF);
+From: Spammer <spammer\@example.com>
+To: You <you\@example.com>
+Cc: $addr
+Message-ID: <$mid>
+Subject: this message will be trained as spam
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+EOF
+	my $in = $simple->as_string;
+
+	{
+		# deliver the spam message, first
+		run([$mda], \$in);
+		my $msg = `ssoma cat $mid $maindir`;
+		like($msg, qr/\Q$mid\E/, "message delivered");
+
+		# now train it
+		local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
+		local $ENV{GIT_COMMITTER_EMAIL} = 'trainer@example.com';
+		run([$learn, "spam"], \$msg);
+		is($?, 0, "no failure from learning spam");
+		run([$learn, "spam"], \$msg);
+		is($?, 0, "no failure from learning spam idempotently");
+	}
+}
+
+# train ham message
+{
+	local $ENV{PI_FAILBOX} = $failbox;
+	local $ENV{HOME} = $home;
+	local $ENV{RECIPIENT} = $addr;
+	local $ENV{PATH} = $main_path;
+	my $mid = 'ham-train@example.com';
+	my $simple = Email::Simple->new(<<EOF);
+From: False-positive <hammer\@example.com>
+To: You <you\@example.com>
+Cc: $addr
+Message-ID: <$mid>
+Subject: this message will be trained as spam
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+EOF
+	my $in = $simple->as_string;
+
+	# now train it
+	local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
+	local $ENV{GIT_COMMITTER_EMAIL} = 'trainer@example.com';
+	run([$learn, "ham"], \$in);
+	is($?, 0, "learned ham without failure");
+	my $msg = `ssoma cat $mid $maindir`;
+	like($msg, qr/\Q$mid\E/, "ham message delivered");
+	run([$learn, "ham"], \$in);
+	is($?, 0, "learned ham idempotently ");
+}
+
+done_testing();
+
 sub fail_bad_header {
 	my ($good_rev, $msg, $in) = @_;
 	open my $fh, '>', $failbox or die "failed to open $failbox: $!\n";
@@ -144,5 +210,3 @@ sub fail_bad_header {
 	ok(-s $failbox > 0, "PI_FAILBOX is written to ($msg)");
 	[ $in, $out, $err ];
 }
-
-done_testing();
