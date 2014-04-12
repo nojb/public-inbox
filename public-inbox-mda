@@ -42,6 +42,7 @@ if (PublicInbox->precheck($filter, $recipient) &&
 		# run spamc again on the HTML-free message
 		if (do_spamc($simple, \$filtered)) {
 			$simple = Email::Simple->new($filtered);
+			set_list_headers($simple, $dst);
 			$filter->simple($simple);
 
 			my $from = $filter->from;
@@ -73,4 +74,18 @@ sub do_spamc {
 	};
 
 	return ($@ || $? || !defined($$out) || length($$out) == 0) ? 0 : 1;
+}
+
+# RFC2919 and RFC2369
+sub set_list_headers {
+	my ($simple, $dst) = @_;
+	my $pa = "<$dst->{-primary_address}>";
+	$simple->header_set("List-Id", $pa);
+	$simple->header_set("List-Post", $pa);
+
+	my $url = $dst->{url};
+	if (defined $url) {
+		$simple->header_set("List-Archive", "<$url>");
+		$simple->header_set("List-Help", "<${url}help>");
+	}
 }
