@@ -39,9 +39,9 @@ my $cfgpfx = "publicinbox.test";
 	}
 }
 
+my $failbox = "$home/fail.mbox";
+local $ENV{PI_FAILBOX} = $failbox;
 {
-	my $failbox = "$home/fail.mbox";
-	local $ENV{PI_FAILBOX} = $failbox;
 	local $ENV{HOME} = $home;
 	local $ENV{RECIPIENT} = $addr;
 
@@ -126,9 +126,35 @@ EOF
 	# more checks in t/feed.t
 }
 
+# message-id pages
 {
 	local $ENV{HOME} = $home;
-	my $res = cgi_run("/test/m/blahblah\@example.com.txt");
+	my $slashy_mid = 'slashy/asdf@example.com';
+	my $reply = Email::Simple->new(<<EOF);
+From: You <you\@example.com>
+To: Me <me\@example.com>
+Cc: $addr
+In-Reply-To: <blah\@example.com>
+Message-Id: <$slashy_mid>
+Subject: Re: hihi
+Date: Thu, 01 Jan 1970 00:00:01 +0000
+
+slashy
+EOF
+	my $in = $reply->as_string;
+
+	{
+		local $ENV{HOME} = $home;
+		local $ENV{RECIPIENT} = $addr;
+		run_with_env({PATH => $main_path}, [$mda], \$in);
+	}
+	local $ENV{GIT_DIR} = $maindir;
+
+	my $res = cgi_run("/test/m/slashy%2fasdf%40example.com.txt");
+	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
+		"slashy mid.txt hit");
+
+	$res = cgi_run("/test/m/blahblah\@example.com.txt");
 	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
 		"mid.txt hit");
 
@@ -149,6 +175,13 @@ EOF
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
 	$res = cgi_run("/test/f/blahblah\@example.con.html");
 	like($res->{head}, qr/Status: 404 Not Found/, "mid.html miss");
+}
+
+{
+	local $ENV{HOME} = $home;
+	my $res = cgi_run("/test/");
+	like($res->{body}, qr/slashy%2Fasdf%40example\.com/,
+		"slashy URL generated correctly");
 }
 
 done_testing();

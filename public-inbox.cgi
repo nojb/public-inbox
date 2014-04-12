@@ -15,6 +15,7 @@ use warnings;
 use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
 use Encode qw(decode_utf8);
 use PublicInbox::Config;
+use URI::Escape qw(uri_unescape);
 use Digest::SHA qw(sha1_hex);
 our $LISTNAME_RE = qr!\A(?:/.*?)?/([\w\.\-]+)!;
 our $pi_config;
@@ -102,7 +103,7 @@ sub invalid_list {
 sub invalid_list_mid {
 	my ($ctx, $listname, $mid) = @_;
 	my $ret = invalid_list($ctx, $listname, $mid) and return $ret;
-	$ctx->{mid} = $mid;
+	$ctx->{mid} = uri_unescape($mid);
 	undef;
 }
 
