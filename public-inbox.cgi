@@ -16,7 +16,7 @@ use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
 use Encode qw(decode_utf8);
 use PublicInbox::Config;
 use Digest::SHA qw(sha1_hex);
-our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
+our $LISTNAME_RE = qr!\A(?:/.*?)?/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
 	$pi_config = PublicInbox::Config->new;
@@ -55,7 +55,7 @@ sub main {
 	# top-level indices and feeds
 	if ($path_info eq "/") {
 		r404();
-	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/(?:index\.html)?\z!o) {
 		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/index\.atom\.xml\z!o) {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 1);
