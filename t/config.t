@@ -28,6 +28,7 @@ my $tmpdir = tempdir(CLEANUP => 1);
 	is_deeply($cfg->lookup('bugs@public-inbox.org'), {
 		'mainrepo' => '/home/pi/bugs-main.git',
 		'address' => 'bugs@public-inbox.org',
+		-primary_address => 'bugs@public-inbox.org',
 		'description' => 'development discussion',
 		'listname' => 'bugs',
 	}, "lookup matches expected output");
@@ -40,6 +41,7 @@ my $tmpdir = tempdir(CLEANUP => 1);
 		'address' => ['try@public-inbox.org',
 		              'sandbox@public-inbox.org',
 			      'test@public-inbox.org'],
+		-primary_address => 'try@public-inbox.org',
 		'mainrepo' => '/home/pi/test-main.git',
 		'description' => 'test/sandbox area, occasionally reset',
 		'listname' => 'test',

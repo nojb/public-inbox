@@ -64,6 +64,8 @@ sub lookup {
 	my $listname = $pfx;
 	$listname =~ s/\Apublicinbox\.//;
 	$rv{listname} = $listname;
+	my $v = $rv{address};
+	$rv{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
 	\%rv;
 }
 
