@@ -8,7 +8,7 @@ use File::Temp qw/tempdir/;
 use Cwd;
 use IPC::Run qw/run/;
 
-use constant CGI => "blib/script/public-inbox-cgi";
+use constant CGI => "blib/script/public-inbox.cgi";
 my $mda = "blib/script/public-inbox-mda";
 my $tmpdir = tempdir(CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
