@@ -50,7 +50,7 @@ sub main {
 	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
 		return r("405 Method Not Allowed");
 	}
-	my $path_info = decode_utf8($ENV{PATH_INFO});
+	my $path_info = decode_utf8($cgi->path_info);
 
 	# top-level indices and feeds
 	if ($path_info eq "/") {
