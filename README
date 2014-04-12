@@ -76,7 +76,7 @@ public-inbox discussion is self-hosting on public-inbox.org
 Please send comments, user/developer discussion, patches, bug reports,
 and pull requests to our public-inbox address at:
 
-	bugs@public-inbox.org
+	meta@public-inbox.org
 
 Please Cc: all recipients when replying as we do not require
 subscription.  This also makes it easier to rope in folks of

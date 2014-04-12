@@ -25,12 +25,12 @@ my $tmpdir = tempdir(CLEANUP => 1);
 	ok(-r $f, "$f is readable");
 
 	my $cfg = PublicInbox::Config->new($f);
-	is_deeply($cfg->lookup('bugs@public-inbox.org'), {
-		'mainrepo' => '/home/pi/bugs-main.git',
-		'address' => 'bugs@public-inbox.org',
-		-primary_address => 'bugs@public-inbox.org',
+	is_deeply($cfg->lookup('meta@public-inbox.org'), {
+		'mainrepo' => '/home/pi/meta-main.git',
+		'address' => 'meta@public-inbox.org',
+		-primary_address => 'meta@public-inbox.org',
 		'description' => 'development discussion',
-		'listname' => 'bugs',
+		'listname' => 'meta',
 	}, "lookup matches expected output");
 
 	is($cfg->lookup('blah@example.com'), undef,

@@ -7,9 +7,9 @@
 	mainrepo = /home/pi/test-main.git
 	description = test/sandbox area, occasionally reset
 	url = http://example.com/test
-[publicinbox "bugs"]
-	address = bugs@public-inbox.org
-	mainrepo = /home/pi/bugs-main.git
+[publicinbox "meta"]
+	address = meta@public-inbox.org
+	mainrepo = /home/pi/meta-main.git
 	description = development discussion
-	url = http://example.com/bugs
-	atomUrl = http://example.com/bugs
+	url = http://example.com/meta
+	atomUrl = http://example.com/meta
