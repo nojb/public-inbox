@@ -46,6 +46,12 @@ if (@ARGV && $ARGV[0] eq 'static') {
 # private functions below
 
 sub main {
+	# some servers (Ruby webrick) include scheme://host[:port] here,
+	# which confuses CGI.pm when generating self_url.
+	# RFC 3875 does not mention REQUEST_URI at all,
+	# so nuke it since CGI.pm functions without it.
+	delete $ENV{REQUEST_URI};
+
 	my $cgi = CGI->new;
 	my %ctx;
 	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
@@ -77,6 +83,8 @@ sub main {
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
 		redirect_mid_html($cgi, $1, $2);
 
+	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
+		invalid_list(\%ctx, $1) || redirect_list_index(\%ctx, $cgi);
 	} else {
 		r404();
 	}
@@ -180,6 +188,19 @@ sub get_full_html {
 	require Email::MIME;
 	[ "200 OK", {'Content-Type' => 'text/html'},
 		PublicInbox::View->as_html(Email::MIME->new($$x))];
+}
+
+sub redirect_list_index {
+	my ($ctx, $cgi) = @_;
+	do_redirect($cgi->self_url . "/");
+}
+
+sub do_redirect {
+	my ($url) = @_;
+	[ '301 Moved Permanently',
+	  { Location => $url, 'Content-Type' => 'text/plain' },
+	  "Redirecting to $url\n"
+	]
 }
 
 # only used for CGI and static file generation modes

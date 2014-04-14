@@ -181,6 +181,14 @@ EOF
 		"slashy URL generated correctly");
 }
 
+# redirect list-name-only URLs
+{
+	local $ENV{HOME} = $home;
+	my $res = cgi_run("/test");
+	like($res->{head}, qr/Status: 301 Moved/, "redirected status");
+	like($res->{head}, qr!/test/!, "redirected with slash");
+}
+
 done_testing();
 
 sub run_with_env {
