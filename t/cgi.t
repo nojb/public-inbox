@@ -175,11 +175,8 @@ EOF
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
 	$res = cgi_run("/test/f/blahblah\@example.con.html");
 	like($res->{head}, qr/Status: 404 Not Found/, "mid.html miss");
-}
 
-{
-	local $ENV{HOME} = $home;
-	my $res = cgi_run("/test/");
+	$res = cgi_run("/test/");
 	like($res->{body}, qr/slashy%2Fasdf%40example\.com/,
 		"slashy URL generated correctly");
 }
