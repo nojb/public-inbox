@@ -56,6 +56,10 @@ sub generate_html_index {
 		my $str = `git cat-file blob $_[0]`;
 		return 0 if $? != 0;
 		my $simple = Email::Simple->new($str);
+		if ($top && ($simple->header("In-Reply-To") ||
+		             $simple->header("References"))) {
+			return 0;
+		}
 		$simple->body_set(""); # save some memory
 		push @messages, $simple;
 		1;

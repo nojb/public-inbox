@@ -134,7 +134,6 @@ EOF
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr
-In-Reply-To: <blah\@example.com>
 Message-Id: <$slashy_mid>
 Subject: Re: hihi
 Date: Thu, 01 Jan 1970 00:00:01 +0000
