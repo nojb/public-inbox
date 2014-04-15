@@ -128,6 +128,20 @@ Web notes
 * Raw text endpoint allows users to write client-side JS endpoints
   without hosting the data themselves (or on a different server).
 
+Scalability notes
+-----------------
+
+Even with shallow clone, storing the history of large/busy mailing lists
+may place much burden on subscribers and servers.  However, having a
+single (or few) refs representing the entire history of a list is good
+for small lists since it's easier to lookup a message by Message-ID, so
+we want to avoid splitting refs with independent histories.
+
+ssoma will likely grow its own builtin ref rotation system based on
+message count (not rotating at fixed time intervals).  This would
+split the histories and require O(n) lookup time based on Message-ID,
+where `n' is the number of history splits.
+
 Copyright
 ---------
 Copyright 2013, Eric Wong <normalperson@yhbt.net> and all contributors.
