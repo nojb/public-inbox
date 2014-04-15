@@ -17,7 +17,7 @@ use Encode qw(decode_utf8);
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape uri_unescape);
 use Digest::SHA qw(sha1_hex);
-our $LISTNAME_RE = qr!\A(?:/.*?)?/([\w\.\-]+)!;
+our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
 	$pi_config = PublicInbox::Config->new;
@@ -62,7 +62,9 @@ sub main {
 	# top-level indices and feeds
 	if ($path_info eq "/") {
 		r404();
-	} elsif ($path_info =~ m!$LISTNAME_RE/(?:index\.html)?\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
+		invalid_list(\%ctx, $1) || redirect_list_index(\%ctx, $cgi);
+	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
 		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:all\.html)?\z!o) {
 		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 0);
@@ -85,8 +87,6 @@ sub main {
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
 		redirect_mid_html($cgi, $1, $2);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
-		invalid_list(\%ctx, $1) || redirect_list_index(\%ctx, $cgi);
 	} else {
 		r404();
 	}

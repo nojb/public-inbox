@@ -156,10 +156,6 @@ EOF
 	$res = cgi_run("/test/m/blahblah\@example.com.txt");
 	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
 		"mid.txt hit");
-
-	my $pfx = cgi_run("/prefixed/test/m/blahblah\@example.com.txt");
-	is_deeply($pfx, $res, "we do not have to be a top-level URL");
-
 	$res = cgi_run("/test/m/blahblah\@example.con.txt");
 	like($res->{head}, qr/Status: 404 Not Found/, "mid.txt miss");
 
