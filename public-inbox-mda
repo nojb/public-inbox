@@ -7,6 +7,8 @@ my $usage = 'public-inbox-mda < rfc2822_message';
 
 use Email::Filter;
 use Email::Address;
+use Encode qw/decode encode/;
+use Encode::MIME::Header;
 use File::Path::Expand qw/expand_filename/;
 use IPC::Run qw(run);
 use constant MDA => 'ssoma-mda';
@@ -45,7 +47,8 @@ if (PublicInbox->precheck($filter, $recipient) &&
 			set_list_headers($simple, $dst);
 			$filter->simple($simple);
 
-			my $from = $filter->from;
+			my $from = decode('MIME-Header', $filter->from);
+			$from = encode("utf8", $from);
 			my @from = Email::Address->parse($from);
 			my $name = $from[0]->name;
 			defined $name or $name = "";
