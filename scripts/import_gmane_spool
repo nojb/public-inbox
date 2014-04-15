@@ -16,21 +16,18 @@
 =cut
 use strict;
 use warnings;
-use Parallel::ForkManager;
 use Email::Simple;
 use PublicInbox::Filter;
 use PublicInbox::Config;
 use IPC::Run qw(run);
 sub usage { "Usage:\n".join("",grep(/\t/, `head -n 24 $0`)) }
 my $spool = shift @ARGV or die usage();
-my $nproc = `nproc 2>/dev/null` || 4;
-my $pm = Parallel::ForkManager->new($nproc);
 defined $ENV{RECIPIENT} or die usage();
 my @args = ('public-inbox-mda');
 
-foreach my $n (glob("$spool/*")) {
-	$n =~ m{/\d+\z} or next;
-	$pm->start and next;
+chdir $spool or die "chdir $spool failed: $!\n";
+
+foreach my $n (sort { $a <=> $b } grep(/\d+\z/, glob("*"))) {
 	if (open my $fh, '<', $n) {
 		my $s = eval {
 			local $/;
@@ -58,7 +55,4 @@ foreach my $n (glob("$spool/*")) {
 	} else {
 		warn "Failed to open $n: $!\n";
 	}
-	$pm->finish;
 }
-
-$pm->wait_all_children;
