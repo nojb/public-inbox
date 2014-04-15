@@ -14,7 +14,7 @@ sub as_html {
 
 	headers_to_html_header($mime) .
 		multipart_text_as_html($mime, $full_pfx) .
-		'</pre>';
+		'</pre></body></html>';
 }
 
 sub as_feed_entry {
