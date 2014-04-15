@@ -15,7 +15,7 @@ use warnings;
 use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
 use Encode qw(decode_utf8);
 use PublicInbox::Config;
-use URI::Escape qw(uri_unescape);
+use URI::Escape qw(uri_escape uri_unescape);
 use Digest::SHA qw(sha1_hex);
 our $LISTNAME_RE = qr!\A(?:/.*?)?/([\w\.\-]+)!;
 our $pi_config;
@@ -172,9 +172,7 @@ sub get_mid_html {
 	my $x = mid2blob($ctx);
 	return r404() unless $x;
 
-	my $pfx = $cgi->self_url;
-	$pfx =~ s!/m/.+\z!/!; # FIXME: this is not robust
-
+	my $pfx = "../f/" . uri_escape($ctx->{mid}) . ".html";
 	require PublicInbox::View;
 	require Email::MIME;
 	[ "200 OK", {'Content-Type' => 'text/html'},
