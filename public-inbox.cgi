@@ -64,6 +64,8 @@ sub main {
 		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:index\.html)?\z!o) {
 		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 1);
+	} elsif ($path_info =~ m!$LISTNAME_RE/(?:all\.html)?\z!o) {
+		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 0);
 	} elsif ($path_info =~ m!$LISTNAME_RE/index\.atom\.xml\z!o) {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 1);
 	} elsif ($path_info =~ m!$LISTNAME_RE/all\.atom\.xml\z!o) {
