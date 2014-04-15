@@ -83,8 +83,8 @@ sub add_text_body_short {
 				$cur .= shift(@sum) . ' ';
 			} while (@sum && length($cur) < 68);
 			$cur=~ s/ \z/ .../;
-			"&gt; &lt;<a href=${full_pfx}#q${part_nr}_" . $n++ .
-				">$cur<\/a>&gt;";
+			"&gt; &lt;<a href=\"${full_pfx}#q${part_nr}_" . $n++ .
+				"\">$cur<\/a>&gt;";
 		} else {
 			$cur;
 		}
@@ -140,14 +140,15 @@ sub headers_to_html_header {
 	my $mid = $simple->header('Message-ID');
 	if (defined $mid) {
 		my ($html, $href) = trim_message_id($mid);
-		$rv .= "Message-ID: <a href=$href.html>$html</a> ";
-		$rv .= "(<a href=$href.txt>original</a>)\n";
+		$rv .= "Message-ID: &lt;<a href=\"$href.html\">$html</a>&gt; ";
+		$rv .= "(<a href=\"$href.txt\">original</a>)\n";
 	}
 
 	my $irp = $simple->header('In-Reply-To');
 	if (defined $irp) {
 		my ($html, $href) = trim_message_id($irp);
-		$rv .= "In-Reply-To: <a href=$href.html>$html</a>\n";
+		$rv .= "In-Reply-To: &lt;";
+		$rv .= "<a href=\"$href.html\">$html</a>&gt;\n";
 	}
 	$rv .= "\n";
 

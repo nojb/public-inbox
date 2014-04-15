@@ -69,8 +69,8 @@ sub generate_html_index {
 	$th->thread;
 	my @args = (
 		"<html><head><title>$title</title>" .
-		'<link rel=alternate title=Atom.feed href=' .
-		$feed_opts->{atomurl} . ' type="application/atom+xml"/>' .
+		'<link rel=alternate title=Atom.feed href="' .
+		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
 		'</head><body><pre>');
 	push @args, $feed_opts->{midurl};
 	dump_html_line($_, 0, \@args) for $th->rootset;
@@ -217,7 +217,7 @@ sub dump_html_line {
 		(defined($from) && length($from)) or $from = $from[0]->address;
 		$from = escapeHTML($from);
 		$subj = escapeHTML($subj);
-		$args->[0] .= "<a href=$url>`-&gt; $subj</a> $from\n";
+		$args->[0] .= "<a href=\"$url.html\">`-&gt; $subj</a> $from\n";
 	} else {
 		$args->[0] .= "[ Message not available ]\n";
 	}
