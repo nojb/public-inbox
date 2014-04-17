@@ -78,14 +78,14 @@ sub main {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx, $cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx, $cgi);
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\z!o) {
-		redirect_mid_html($cgi, $1, $2);
 
 	# full-message page
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx, $cgi);
-	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
-		redirect_mid_html($cgi, $1, $2);
+
+	# convenience redirect
+	} elsif ($path_info =~ m!$LISTNAME_RE/(?:m|f)/(\S+)\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || redirect_mid(\%ctx, $cgi);
 
 	} else {
 		r404();
@@ -193,6 +193,13 @@ sub get_full_html {
 sub redirect_list_index {
 	my ($ctx, $cgi) = @_;
 	do_redirect($cgi->self_url . "/");
+}
+
+sub redirect_mid {
+	my ($ctx, $cgi) = @_;
+	my $url = $cgi->self_url;
+	$url =~ s!/f/!/m/!;
+	do_redirect($url . '.html');
 }
 
 sub do_redirect {
