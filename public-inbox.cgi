@@ -95,7 +95,7 @@ sub main {
 sub r404 { r("404 Not Found") }
 
 # simple response for errors
-sub r { [ $_[0], { 'Content-Type' => 'text/plain' }, '' ] }
+sub r { [ $_[0], { 'Content-Type' => 'text/plain' }, $_[0]."\n" ] }
 
 # returns undef if valid, array ref response if invalid
 sub invalid_list {
