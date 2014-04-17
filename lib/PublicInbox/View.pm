@@ -173,7 +173,7 @@ sub headers_to_html_header {
 	my $mid = $simple->header('Message-ID');
 	if (defined $mid) {
 		my ($html, $href) = trim_message_id($mid);
-		$rv .= "Message-ID: &lt;<a href=\"$href.html\">$html</a>&gt; ";
+		$rv .= "Message-ID: &lt;$html&gt; ";
 		$rv .= "(<a href=\"$href.txt\">original</a>)\n";
 	}
 
