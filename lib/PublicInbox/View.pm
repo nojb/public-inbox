@@ -153,11 +153,20 @@ sub headers_to_html_header {
 		defined $v or next;
 		$v =~ tr/\n/ /s;
 		$v =~ tr/\r//d;
-		$v = ascii_html($enc_mime->decode($v));
+		my $raw = $enc_mime->decode($v);
+		$v = ascii_html($raw);
 		$rv .= "$h: $v\n";
 
-		if ($h eq "From" || $h eq "Subject") {
-			push @title, $v;
+		if ($h eq 'From') {
+			my @from = Email::Address->parse($raw);
+			$raw = $from[0]->name;
+			unless (defined($raw) && length($raw)) {
+				$raw = '<' . $from[0]->address . '>';
+			}
+			$title[1] = ascii_html($raw);
+
+		} elsif ($h eq 'Subject') {
+			$title[0] = $v;
 		}
 	}
 
