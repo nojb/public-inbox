@@ -16,6 +16,10 @@ OK
 
 > Long and wordy reply goes here and it is split across multiple lines.
 > We generate links to a separate full page where quoted-text is inline.
+> This is
+>
+> Currently 5 lines
+> See MAX_INLINE_QUOTED
 
 hello world
 EOF

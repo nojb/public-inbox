@@ -31,10 +31,15 @@ Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 > This is a long multi line quote so it should not be allowed to
 > show up in its entirty in the Atom feed.  drop me
+> I quote to much
+> I quote to much
+> I quote to much
+> I quote to much
 
 msg $i
 
-> inline me here, short quote
+> inline me here
+> this is a short quote
 
 keep me
 EOF

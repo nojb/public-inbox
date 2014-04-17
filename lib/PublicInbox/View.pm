@@ -8,6 +8,7 @@ use CGI qw/escapeHTML/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
+use constant MAX_INLINE_QUOTED => 5;
 
 my $enc_utf8 = find_encoding('utf8');
 my $enc_ascii = find_encoding('us-ascii');
@@ -88,10 +89,10 @@ sub add_text_body_short {
 	my ($enc, $part, $part_nr, $full_pfx) = @_;
 	my $n = 0;
 	my $s = ascii_html($enc->decode($part->body));
-	$s =~ s!^((?:(?:&gt;[^\n]+)\n)+)!
+	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
-		if (@lines > 1) {
+		if (@lines > MAX_INLINE_QUOTED) {
 			# show a short snippet of quoted text
 			$cur = join(' ', @lines);
 			$cur =~ s/&gt; ?//g;
@@ -100,10 +101,10 @@ sub add_text_body_short {
 			$cur = '';
 			do {
 				$cur .= shift(@sum) . ' ';
-			} while (@sum && length($cur) < 68);
+			} while (@sum && length($cur) < 64);
 			$cur=~ s/ \z/ .../;
 			"&gt; &lt;<a href=\"${full_pfx}#q${part_nr}_" . $n++ .
-				"\">$cur<\/a>&gt;";
+				"\">$cur<\/a>&gt;\n";
 		} else {
 			$cur;
 		}
@@ -115,10 +116,10 @@ sub add_text_body_full {
 	my ($enc, $part, $part_nr) = @_;
 	my $n = 0;
 	my $s = ascii_html($enc->decode($part->body));
-	$s =~ s!^((?:(?:&gt;[^\n]+)\n)+)!
+	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
-		if (@lines > 1) {
+		if (@lines > MAX_INLINE_QUOTED) {
 			"<a name=q${part_nr}_" . $n++ . ">$cur</a>";
 		} else {
 			$cur;
