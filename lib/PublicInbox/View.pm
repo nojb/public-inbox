@@ -9,6 +9,7 @@ use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use constant MAX_INLINE_QUOTED => 5;
+use constant MAX_TRUNC_LEN => 72;
 
 my $enc_utf8 = find_encoding('utf8');
 my $enc_ascii = find_encoding('us-ascii');
@@ -91,18 +92,24 @@ sub add_text_body_short {
 	my $s = ascii_html($enc->decode($part->body));
 	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
-		my @lines = split(/\n/, $cur);
+		my @lines = split(/\n(?:&gt;\s*)?/, $cur);
 		if (@lines > MAX_INLINE_QUOTED) {
 			# show a short snippet of quoted text
 			$cur = join(' ', @lines);
-			$cur =~ s/&gt; ?//g;
+			$cur =~ s/^&gt;\s*//;
 
 			my @sum = split(/\s+/, $cur);
 			$cur = '';
 			do {
-				$cur .= shift(@sum) . ' ';
-			} while (@sum && length($cur) < 64);
-			$cur=~ s/ \z/ .../;
+				my $tmp = shift(@sum);
+				my $len = length($tmp) + length($cur);
+				if ($len > MAX_TRUNC_LEN) {
+					@sum = ();
+				} else {
+					$cur .= $tmp . ' ';
+				}
+			} while (@sum && length($cur) < MAX_TRUNC_LEN);
+			$cur =~ s/ \z/ .../;
 			"&gt; &lt;<a href=\"${full_pfx}#q${part_nr}_" . $n++ .
 				"\">$cur<\/a>&gt;\n";
 		} else {
