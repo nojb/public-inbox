@@ -16,6 +16,8 @@ use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
 use PublicInbox::View;
 use Mail::Thread;
 
+# FIXME: workaround https://rt.cpan.org/Public/Bug/Display.html?id=22817
+
 # main function
 sub generate {
 	my ($class, $args) = @_;
