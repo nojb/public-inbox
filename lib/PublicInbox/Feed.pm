@@ -11,7 +11,7 @@ use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use CGI qw(escapeHTML);
 use POSIX qw(strftime);
-use Date::Parse qw(strptime);
+use Date::Parse qw(strptime str2time);
 use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
 use PublicInbox::View;
 use Mail::Thread;
@@ -66,6 +66,10 @@ sub generate_html_index {
 			return 0;
 		}
 		$simple->body_set(""); # save some memory
+
+		my $t = eval { str2time($simple->header('Date')) };
+		defined($t) or $t = 0;
+		$simple->header_set('X-PI-Date', $t);
 		push @messages, $simple;
 		1;
 	});
@@ -78,6 +82,14 @@ sub generate_html_index {
 		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
 		'</head><body><pre>');
 	push @args, $feed_opts->{midurl};
+
+	# sort by date, most recent at top
+	$th->order(sub {
+		sort {
+			$b->topmost->message->header('X-PI-Date') <=>
+			$a->topmost->message->header('X-PI-Date')
+		} @_;
+	});
 	dump_html_line($_, 0, \@args) for $th->rootset;
 	$args[0] . '</pre></html>';
 }
