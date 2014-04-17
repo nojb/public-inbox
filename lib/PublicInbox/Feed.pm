@@ -7,7 +7,7 @@ use XML::Atom::SimpleFeed;
 use Email::MIME;
 use Email::Address;
 use URI::Escape qw/uri_escape/;
-use Encode qw/encode decode/;
+use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use CGI qw(escapeHTML);
 use POSIX qw(strftime);
@@ -15,6 +15,9 @@ use Date::Parse qw(strptime);
 use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
 use PublicInbox::View;
 use Mail::Thread;
+my $enc_utf8 = find_encoding('utf8');
+my $enc_ascii = find_encoding('us-ascii');
+my $enc_mime = find_encoding('MIME-Header');
 
 # FIXME: workaround https://rt.cpan.org/Public/Bug/Display.html?id=22817
 
@@ -52,7 +55,7 @@ sub generate_html_index {
 	my $top = $args->{top}; # bool
 	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
-	my $title = escapeHTML($feed_opts->{description} || "");
+	my $title = xs_html($feed_opts->{description} || "");
 	my @messages;
 	each_recent_blob($max, sub {
 		my $str = `git cat-file blob $_[0]`;
@@ -146,8 +149,9 @@ sub utf8_header {
 	my ($simple, $name) = @_;
 	my $val = $simple->header($name);
 	return "" unless defined $val;
-	$val =~ tr/\t\r\n / /s;
-	encode('utf8', decode('MIME-Header', $val));
+	$val =~ tr/\t\n / /s;
+	$val =~ tr/\r//d;
+	$enc_utf8->encode($enc_mime->decode($val));
 }
 
 sub feed_date {
@@ -220,14 +224,19 @@ sub dump_html_line {
 		my @from = Email::Address->parse($from);
 		$from = $from[0]->name;
 		(defined($from) && length($from)) or $from = $from[0]->address;
-		$from = escapeHTML($from);
-		$subj = escapeHTML($subj);
-		$args->[0] .= "<a href=\"$url.html\">`-&gt; $subj</a> $from\n";
+		$from = xs_html($from);
+		$subj = xs_html($subj);
+		$args->[0] .= "<a href=\"$url.html\">$subj</a> $from\n";
 	} else {
 		$args->[0] .= "[ Message not available ]\n";
 	}
 	dump_html_line($self->child, $level+1, $args) if $self->child;
 	dump_html_line($self->next, $level, $args) if $self->next;
+}
+
+sub xs_html {
+	$enc_ascii->encode(escapeHTML($enc_utf8->decode($_[0])),
+			Encode::HTMLCREF);
 }
 
 1;

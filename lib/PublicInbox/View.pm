@@ -5,8 +5,13 @@ use strict;
 use warnings;
 use URI::Escape qw/uri_escape/;
 use CGI qw/escapeHTML/;
-use Encode qw/decode encode/;
+use Encode qw/find_encoding/;
 use Encode::MIME::Header;
+use Email::MIME::ContentType qw/parse_content_type/;
+
+my $enc_utf8 = find_encoding('utf8');
+my $enc_ascii = find_encoding('us-ascii');
+my $enc_mime = find_encoding('MIME-Header');
 
 # public functions:
 sub as_html {
@@ -26,28 +31,42 @@ sub as_feed_entry {
 
 # only private functions below.
 
+sub enc_for {
+	my ($ct) = @_;
+	defined $ct or return $enc_utf8;
+	my $ct_parsed = parse_content_type($ct);
+	if ($ct_parsed) {
+		if (my $charset = $ct_parsed->{attributes}->{charset}) {
+			my $enc = find_encoding($charset);
+			return $enc if $enc;
+		}
+	}
+	$enc_utf8;
+}
+
 sub multipart_text_as_html {
 	my ($mime, $full_pfx) = @_;
 	my $rv = "";
 	my $part_nr = 0;
+	my $enc_msg = enc_for($mime->header("Content-Type"));
 
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
 		return if $part->subparts; # walk_parts already recurses
-
-		my $fn = $part->filename;
+		my $enc = enc_for($part->content_type) || $enc_msg || $enc_utf8;
 
 		if ($part_nr > 0) {
+			my $fn = $part->filename;
 			defined($fn) or $fn = "part #" . ($part_nr + 1);
-			$rv .= add_filename_line($fn);
+			$rv .= add_filename_line($enc->decode($fn));
 		}
 
 		if (defined $full_pfx) {
-			$rv .= add_text_body_short($part, $part_nr,
+			$rv .= add_text_body_short($enc, $part, $part_nr,
 						$full_pfx);
 		} else {
-			$rv .= add_text_body_full($part, $part_nr);
+			$rv .= add_text_body_full($enc, $part, $part_nr);
 		}
 		$rv .= "\n" unless $rv =~ /\n\z/s;
 		++$part_nr;
@@ -62,13 +81,13 @@ sub add_filename_line {
 
 	$len -= length($fn);
 	$pad x= ($len/2) if ($len > 0);
-	"$pad " . escapeHTML($fn) . " $pad\n";
+	"$pad " . ascii_html($fn) . " $pad\n";
 }
 
 sub add_text_body_short {
-	my ($part, $part_nr, $full_pfx) = @_;
+	my ($enc, $part, $part_nr, $full_pfx) = @_;
 	my $n = 0;
-	my $s = escapeHTML($part->body);
+	my $s = ascii_html($enc->decode($part->body));
 	$s =~ s!^((?:(?:&gt;[^\n]+)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
@@ -93,9 +112,9 @@ sub add_text_body_short {
 }
 
 sub add_text_body_full {
-	my ($part, $part_nr) = @_;
+	my ($enc, $part, $part_nr) = @_;
 	my $n = 0;
-	my $s = escapeHTML($part->body);
+	my $s = ascii_html($enc->decode($part->body));
 	$s =~ s!^((?:(?:&gt;[^\n]+)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
@@ -110,12 +129,17 @@ sub add_text_body_full {
 
 sub trim_message_id {
 	my ($mid) = @_;
-	$mid =~ s/\A<//;
-	$mid =~ s/>\z//;
-	my $html = escapeHTML($mid);
-	my $href = escapeHTML(uri_escape($mid));
+	$mid = $enc_mime->decode($mid);
+	$mid =~ s/\A\s*<//;
+	$mid =~ s/>\s*\z//;
+	my $html = ascii_html($mid);
+	my $href = ascii_html(uri_escape($mid));
 
 	($html, $href);
+}
+
+sub ascii_html {
+	$enc_ascii->encode(escapeHTML($_[0]), Encode::HTMLCREF);
 }
 
 sub headers_to_html_header {
@@ -126,10 +150,9 @@ sub headers_to_html_header {
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $simple->header($h);
 		defined $v or next;
-		$v = decode("MIME-Header", $v);
-		$v = encode("utf8", $v);
-		$v = escapeHTML($v);
-		$v =~ tr/\n/ /;
+		$v =~ tr/\n/ /s;
+		$v =~ tr/\r//d;
+		$v = ascii_html($enc_mime->decode($v));
 		$rv .= "$h: $v\n";
 
 		if ($h eq "From" || $h eq "Subject") {
