@@ -92,7 +92,7 @@ sub add_text_body_short {
 	my $s = ascii_html($enc->decode($part->body));
 	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
-		my @lines = split(/\n(?:&gt;\s*)?/, $cur);
+		my @lines = split(/\n/, $cur);
 		if (@lines > MAX_INLINE_QUOTED) {
 			# show a short snippet of quoted text
 			$cur = join(' ', @lines);
