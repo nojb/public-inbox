@@ -40,7 +40,7 @@ my $cfgpfx = "publicinbox.test";
 }
 
 my $failbox = "$home/fail.mbox";
-local $ENV{PI_FAILBOX} = $failbox;
+local $ENV{PI_EMERGENCY} = $failbox;
 {
 	local $ENV{HOME} = $home;
 	local $ENV{RECIPIENT} = $addr;

@@ -13,7 +13,7 @@ Each system user may have their own public-inbox instances
 
 * RECIPIENT - the recipient email address, from Postfix
 * PI_CONFIG - config file. default: ~/.public-inbox/config
-* PI_FAILBOX - emergency destination.  default: ~/public-inbox-fail.mbox
+* PI_EMERGENCY - emergency destination.  default: ~/.public-inbox/emergency/
 
 # PI_CONFIG FILE
 

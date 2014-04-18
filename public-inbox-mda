@@ -16,14 +16,14 @@ use PublicInbox;
 use PublicInbox::Filter;
 use PublicInbox::Config;
 
-# n.b: hopefully we can setup the failbox path without bailing due to
+# n.b: hopefully we can setup the emergency path without bailing due to
 # user error, we really want to setup the emergency destination ASAP
 # in case there's bugs in our code or user error.
-my $failbox = $ENV{PI_FAILBOX} || '~/public-inbox-fail.mbox';
-$failbox = expand_filename($failbox);
+my $emergency = $ENV{PI_EMERGENCY} || '~/.public-inbox/emergency/';
+$emergency = expand_filename($emergency);
 
 # this reads the message from stdin
-my $filter = Email::Filter->new(emergency => $failbox);
+my $filter = Email::Filter->new(emergency => $emergency);
 my $config = PublicInbox::Config->new;
 
 my $recipient = $ENV{RECIPIENT};
@@ -64,7 +64,7 @@ if (PublicInbox->precheck($filter, $recipient) &&
 		}
 	}
 }
-exit 0; # goes to failbox
+exit 0; # goes to emergency
 
 # we depend on "report_safe 0" in /etc/spamassassin/*.cf with --headers
 # not using Email::Filter->pipe here since we want the stdout of

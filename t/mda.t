@@ -45,7 +45,7 @@ my $failbox = "$home/fail.mbox";
 
 {
 	my $good_rev;
-	local $ENV{PI_FAILBOX} = $failbox;
+	local $ENV{PI_EMERGENCY} = $failbox;
 	local $ENV{HOME} = $home;
 	local $ENV{RECIPIENT} = $addr;
 	my $simple = Email::Simple->new(<<EOF);
@@ -77,13 +77,13 @@ EOF
 
 	# ensure failures work, fail with bad spamc
 	{
-		ok(!-e $failbox, "nothing in PI_FAILBOX before");
+		ok(!-e $failbox, "nothing in PI_EMERGENCY before");
 		local $ENV{PATH} = $fail_path;
 		run([$mda], \$in);
 		local $ENV{GIT_DIR} = $maindir;
 		my @revs = `git rev-list HEAD`;
 		is(scalar @revs, 1, "bad revision not committed");
-		ok(-s $failbox > 0, "PI_FAILBOX is written to");
+		ok(-s $failbox > 0, "PI_EMERGENCY is written to");
 	}
 
 	fail_bad_header($good_rev, "bad recipient", <<"");
@@ -133,7 +133,7 @@ Date: deadbeef
 
 # spam training
 {
-	local $ENV{PI_FAILBOX} = $failbox;
+	local $ENV{PI_EMERGENCY} = $failbox;
 	local $ENV{HOME} = $home;
 	local $ENV{RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
@@ -167,7 +167,7 @@ EOF
 
 # train ham message
 {
-	local $ENV{PI_FAILBOX} = $failbox;
+	local $ENV{PI_EMERGENCY} = $failbox;
 	local $ENV{HOME} = $home;
 	local $ENV{RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
@@ -194,6 +194,28 @@ EOF
 	is($?, 0, "learned ham idempotently ");
 }
 
+# faildir - emergency destination is maildir
+{
+	my $faildir= "$home/faildir/";
+	local $ENV{PI_EMERGENCY} = $faildir;
+	local $ENV{HOME} = $home;
+	local $ENV{RECIPIENT} = $addr;
+	local $ENV{PATH} = $fail_path;
+	my $in = <<EOF;
+From: Faildir <faildir\@example.com>
+To: You <you\@example.com>
+Cc: $addr
+Message-ID: <faildir\@example.com>
+Subject: faildir subject
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+EOF
+	run([$mda], \$in);
+	ok(-d $faildir, "emergency exists");
+	my @new = glob("$faildir/new/*");
+	is(scalar(@new), 1, "message delivered");
+}
+
 done_testing();
 
 sub fail_bad_header {
@@ -207,6 +229,6 @@ sub fail_bad_header {
 	my $rev = `git rev-list HEAD`;
 	chomp $rev;
 	is($rev, $good_rev, "bad revision not commited ($msg)");
-	ok(-s $failbox > 0, "PI_FAILBOX is written to ($msg)");
+	ok(-s $failbox > 0, "PI_EMERGENCY is written to ($msg)");
 	[ $in, $out, $err ];
 }
