@@ -11,7 +11,6 @@ use Encode qw/decode encode/;
 use Encode::MIME::Header;
 use File::Path::Expand qw/expand_filename/;
 use IPC::Run qw(run);
-use constant MDA => 'ssoma-mda';
 use PublicInbox::MDA;
 use PublicInbox::Filter;
 use PublicInbox::Config;
@@ -44,23 +43,18 @@ if (PublicInbox::MDA->precheck($filter, $recipient) &&
 		# run spamc again on the HTML-free message
 		if (do_spamc($simple, \$filtered)) {
 			$simple = Email::Simple->new($filtered);
-			set_list_headers($simple, $dst);
+			PublicInbox::MDA->set_list_headers($simple, $dst);
 			$filter->simple($simple);
 
-			my $from = decode('MIME-Header', $filter->from);
-			$from = encode("utf8", $from);
-			my @from = Email::Address->parse($from);
-			my $name = $from[0]->name;
-			defined $name or $name = "";
-			my $email = $from[0]->address;
-			defined $email or $email = "";
+			my ($name, $email, $date) =
+					PublicInbox::MDA->author_info($simple);
 			local $ENV{GIT_AUTHOR_NAME} = $name;
 			local $ENV{GIT_AUTHOR_EMAIL} = $email;
-			local $ENV{GIT_AUTHOR_DATE} = $simple->header("Date");
+			local $ENV{GIT_AUTHOR_DATE} = $date;
 			local $ENV{GIT_COMMITTER_EMAIL} = $recipient;
 			local $ENV{GIT_COMMITTER_NAME} = $dst->{listname};
 
-			$filter->pipe(MDA, '-1', $main_repo);
+			$filter->pipe(PublicInbox::MDA->cmd, $main_repo);
 		}
 	}
 }
@@ -77,18 +71,4 @@ sub do_spamc {
 	};
 
 	return ($@ || $? || !defined($$out) || length($$out) == 0) ? 0 : 1;
-}
-
-# RFC2919 and RFC2369
-sub set_list_headers {
-	my ($simple, $dst) = @_;
-	my $pa = "<$dst->{-primary_address}>";
-	$simple->header_set("List-Id", $pa);
-	$simple->header_set("List-Post", $pa);
-
-	my $url = $dst->{url};
-	if (defined $url) {
-		$simple->header_set("List-Archive", "<$url>");
-		$simple->header_set("List-Help", "<${url}help>");
-	}
 }

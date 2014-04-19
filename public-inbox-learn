@@ -54,19 +54,22 @@ foreach my $recipient (keys %dests) {
 			}
 		}
 	} else { # $train eq "ham"
-		my $from = $simple->header("From");
-		my @from = Email::Address->parse($from);
-		my $name = $from[0]->name;
-		defined $name or $name = "";
-		my $email = $from[0]->address;
-		defined $email or $email = "";
+		require PublicInbox::MDA;
+		require PublicInbox::Filter;
+
+		# no checking for errors here, we assume the message has
+		# been reviewed by a human at this point:
+		PublicInbox::Filter->run($simple);
+
+		my ($name, $email, $date) =
+				PublicInbox::MDA->author_info($simple);
 		local $ENV{GIT_AUTHOR_NAME} = $name;
 		local $ENV{GIT_AUTHOR_EMAIL} = $email;
-		local $ENV{GIT_AUTHOR_DATE} = $simple->header("Date");
+		local $ENV{GIT_AUTHOR_DATE} = $date;
 
 		# Ham messages are trained when they're marked into
-		# a SEEN state, so this is idempotent
-		run([qw(ssoma-mda -1), $git_dir], \$in, \$out, \$err);
+		# a SEEN state, so this is idempotent:
+		run([PublicInbox::MDA->cmd, $git_dir], \$in, \$out, \$err);
 		if ($err !~ /CONFLICT/) {
 			$err = 1;
 		}
