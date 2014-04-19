@@ -1,6 +1,5 @@
 public-inbox - an "archives first" approach to mailing lists
 ------------------------------------------------------------
-
 public-inbox implements the sharing of an email inbox via git to
 complement or replace traditional mailing lists.
 
@@ -20,17 +19,14 @@ to run their own instances with minimal overhead.
 
 Features
 --------
-
 * anybody may participate via plain-text email
 * stores email in git, readers have a complete archive of the inbox
 * Atom feed allows casual readers to follow via feed reader
 * Mail user-agent (MUA) users may use Maildir, mbox(5) and/or IMAP locally
 * uses only well-documented and easy-to-implement data formats
 
-
 Implementation
 --------------
-
 public-inbox uses ssoma[1], Some Sort Of Mail Archiver which implements
 no policy of its own.  By exposing an inbox via git, readers may follow
 the inbox without subscribing via SMTP and have easy access to old
@@ -95,7 +91,7 @@ subscription.  This also makes it easier to rope in folks of
 tangentially related projects we depend on (e.g. git developers
 on git@vger.kernel.org).
 
-You can subscribe via ssoma(1), LISTNAME is a name of your choosing:
+You may subscribe via ssoma(1), LISTNAME is a name of your choosing:
 
     URL=git://git.public-inbox.org/public-inbox
     LISTNAME=public-inbox

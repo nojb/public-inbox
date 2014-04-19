@@ -1,5 +1,14 @@
-Note: this still needs to be documented better,
+public-inbox (server-side) installation
+---------------------------------------
+
+This is for folks who want to setup their own public-inbox instance.
+Clients should see http://ssoma.public-inbox.org/INSTALL instead.
+
+TODO: this still needs to be documented better,
 also see the scripts/ and sa_config/ directories in the source tree
+
+It should also be possible to use public-inbox with only IMAP
+(or even POP(!)) access to a mailbox.
 
 standard MakeMaker installation (Perl)
 --------------------------------------
@@ -17,7 +26,7 @@ Requirements (server MDA)
 * MTA - postfix is recommended
 * lynx (for converting HTML messages to text)
 * Perl and several modules:    (Debian package name)
-  - CGI                        perl-modules[1]
+  - CGI[1]                     perl-modules[2]
   - Date::Parse                libtimedate-perl
   - Email::Address             libemail-address-perl
   - Email::Filter              libemail-filter-perl
@@ -26,12 +35,12 @@ Requirements (server MDA)
   - Encode::MIME::Header       perl
   - File::Path::Expand         libfile-path-expand-perl
   - IPC::Run                   libipc-run-perl
-  - Mail::Thread (2.5+)        libmail-thread-perl
-  - URI::Escape                liburi-perl
-  - XML::Atom::SimpleFeed      libxml-atom-simplefeed-perl
+  - Mail::Thread (2.5+)[1]     libmail-thread-perl
+  - URI::Escape[1]             liburi-perl
+  - XML::Atom::SimpleFeed[1]   libxml-atom-simplefeed-perl
 
 [1] - Only required for serving/generating Atom and HTML pages.
-      Keep in mind this will be split into a separate Debian package
+[2] - Keep in mind this will be split into a separate Debian package
       when CGI.pm is dropped from the Perl standard library.
       Plack/PSGI, FastCGI, and mod_perl2 will all be supported.
 

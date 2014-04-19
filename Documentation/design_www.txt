@@ -1,15 +1,21 @@
 URL naming
 ----------
 
+### Unstable endpoints
 /$LISTNAME/?r=$GIT_COMMIT                       -> HTML only
 /$LISTNAME/index.atom.xml                       -> Atom feed
 /$LISTNAME/all.atom.xml                         -> Atom feed, includes replies
+
+### Stable endpoints
 /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
 /$LISTNAME/m/$MESSAGE_ID.txt                    -> raw original
 /$LISTNAME/m/$MESSAGE_ID                        -> 301 to .html version
 /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (full quotes)
 /$LISTNAME/f/$MESSAGE_ID                        -> 301 to .html version
 /$LISTNAME/f/$MESSAGE_ID.txt                    -> 301 to m/$MESSAGE_ID.txt
+
+TODO (these might be expensive)
+-------------------------------
 /$LISTNAME/t/$MESSAGE_ID.html                   -> HTML content of thread
 /$LISTNAME/t/$MESSAGE_ID.mbox                   -> mbox content of thread
 

@@ -33,20 +33,7 @@ WriteMakefile(
 
 sub MY::postamble {
   <<'EOF';
-RSYNC_DEST = public-inbox.org:/srv/public-inbox/
-docs = README COPYING INSTALL $(shell git ls-files Documentation/ '*.txt')
-gz_docs = $(addsuffix .gz, $(docs))
-%.gz: %
-	gzip -9 --rsyncable < $< > $@+
-	touch -r $< $@+
-	mv $@+ $@
-
-gz-docs: $(gz_docs)
-rsync-docs:
-	git set-file-times $(docs)
-	$(MAKE) gz-docs
-	rsync --chmod=Fugo=r -av $(gz_docs) $(docs) $(RSYNC_DEST)
-
+-include Documentation/include.mk
 N = $(shell echo $$(( $$(nproc 2>/dev/null || echo 2) + 1)))
 check:: pure_all
 	prove -lv -j$(N)

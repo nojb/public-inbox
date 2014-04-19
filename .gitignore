@@ -4,4 +4,8 @@
 /Makefile
 /blib
 /cover_db
+*.1
+*.5
+*.7
+*.html
 *.gz

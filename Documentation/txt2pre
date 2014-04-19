@@ -1,0 +1,26 @@
+#!/usr/bin/env perl
+# Copyright (C) 2014, Eric Wong <normalperson@yhbt.net> and all contributors
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# Stupid script to make HTML from preformatted, utf-8 text versions,
+# only generating links for http(s).  Markdown does too much
+# and requires indentation to output preformatted text.
+use strict;
+use warnings;
+use CGI qw/escapeHTML/;
+use Encode qw/encode/;
+my $str = eval { local $/; <> };
+$str = escapeHTML($str);
+$str = encode('us-ascii', $str, Encode::HTMLCREF);
+my ($title) = ($str =~ /\A([^\n]+)/);
+
+# temporarily swap &gt; for escape so our s!! to add href works.
+# there's probably a way to do this with only a single s!! ...
+$str =~ s!&gt;!\e!g;
+$str =~ s!\b(https?://[\w+\+\&\?\.\%\;/-]+)!<a\nhref="$1"\n>$1</a>!g;
+$str =~ s!\e!&gt;!g; # swap escapes back to &gt;
+
+print '<html><head>',
+  '<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />',
+  "<title>$title</title>",
+  "</head><body>\n<pre>",  $str , '</pre></body></html>';
