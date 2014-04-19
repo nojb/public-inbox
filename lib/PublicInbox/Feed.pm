@@ -12,7 +12,10 @@ use Encode::MIME::Header;
 use CGI qw(escapeHTML);
 use POSIX qw(strftime);
 use Date::Parse qw(strptime str2time);
-use constant DATEFMT => '%Y-%m-%dT%H:%M:%SZ';
+use constant {
+	DATEFMT => '%Y-%m-%dT%H:%M:%SZ',
+	MAX_PER_PAGE => 25,
+};
 use PublicInbox::View;
 use Mail::Thread;
 my $enc_utf8 = find_encoding('utf8');
@@ -24,7 +27,7 @@ my $enc_mime = find_encoding('MIME-Header');
 # main function
 sub generate {
 	my ($class, $args) = @_;
-	my $max = $args->{max} || 25;
+	my $max = $args->{max} || MAX_PER_PAGE;
 	my $top = $args->{top}; # bool
 
 	local $ENV{GIT_DIR} = $args->{git_dir};
@@ -42,7 +45,7 @@ sub generate {
 		updated => strftime(DATEFMT, gmtime),
 	);
 
-	each_recent_blob($max, sub {
+	each_recent_blob($args, sub {
 		my ($add) = @_;
 		add_to_feed($feed_opts, $feed, $add, $top);
 	});
@@ -51,13 +54,13 @@ sub generate {
 
 sub generate_html_index {
 	my ($class, $args) = @_;
-	my $max = $args->{max} || 50;
+	my $max = $args->{max} || MAX_PER_PAGE;
 	my $top = $args->{top}; # bool
 	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
 	my $title = xs_html($feed_opts->{description} || "");
 	my @messages;
-	each_recent_blob($max, sub {
+	my ($first, $last) = each_recent_blob($args, sub {
 		my $str = `git cat-file blob $_[0]`;
 		return 0 if $? != 0;
 		my $simple = Email::Simple->new($str);
@@ -76,12 +79,12 @@ sub generate_html_index {
 
 	my $th = Mail::Thread->new(@messages);
 	$th->thread;
-	my @args = (
+	my @out = (
 		"<html><head><title>$title</title>" .
 		'<link rel=alternate title=Atom.feed href="' .
 		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
 		'</head><body><pre>');
-	push @args, $feed_opts->{midurl};
+	push @out, $feed_opts->{midurl};
 
 	# sort by date, most recent at top
 	$th->order(sub {
@@ -90,34 +93,97 @@ sub generate_html_index {
 			$a->topmost->message->header('X-PI-Date')
 		} @_;
 	});
-	dump_html_line($_, 0, \@args) for $th->rootset;
-	$args[0] . '</pre></html>';
+	dump_html_line($_, 0, \@out) for $th->rootset;
+
+	my $footer = nav_footer($args->{cgi}, $first, $last);
+	$footer = "<hr /><pre>$footer</pre>" if $footer;
+	$out[0] . "</pre>$footer</html>";
 }
 
 # private subs
 
+sub nav_footer {
+	my ($cgi, $first, $last) = @_;
+	$cgi or return '';
+	my $old_r = $cgi->param('r');
+	my $prev = '    ';
+	my $next = '    ';
+	my %opts = (-path => 1, -query => 1, -relative => 1);
+
+	if ($last) {
+		$cgi->param('r', $last);
+		$next = $cgi->url(%opts);
+		$next = qq!<a href="$next">next</a>!;
+	}
+	if ($first && $old_r) {
+		$cgi->param('r', "$first..");
+		$prev = $cgi->url(%opts);
+		$prev = qq!<a href="$prev">prev</a>!;
+	}
+	"$prev $next";
+}
+
 sub each_recent_blob {
-	my ($max, $cb) = @_;
+	my ($args, $cb) = @_;
+	my $max = $args->{max} || MAX_PER_PAGE;
+	my $refhex = qr/[a-f0-9]{4,40}(?:~\d+)?/;
+	my $cgi = $args->{cgi};
+
+	# revision ranges may be specified
+	my $reverse;
+	my $range = 'HEAD';
+	my $r = $cgi->param('r') if $cgi;
+	if ($r) {
+		if ($r =~ /\A(?:$refhex\.\.)?$refhex\z/o) {
+			$range = $r;
+		} elsif ($r =~ /\A(?:$refhex\.\.)\z/o) {
+			$reverse = 1;
+			$range = $r;
+		}
+	}
 
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my $cmd = "git log --no-notes --no-color --raw -r --no-abbrev HEAD |";
-	my $pid = open my $log, $cmd or die "open `$cmd' pipe failed: $!\n";
+	my @cmd = qw/git log --no-notes --no-color --raw -r --no-abbrev/;
+	push @cmd, '--reverse' if $reverse;
+	push @cmd, $range;
+	my $first;
+
+	my $pid = open(my $log, '-|', @cmd) or
+		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
 	my %deleted;
+	my $last;
 	my $nr = 0;
-	foreach my $line (<$log>) {
+	my @commits = ();
+	while (my $line = <$log>) {
 		if ($line =~ /^:000000 100644 0{40} ([a-f0-9]{40})/) {
 			my $add = $1;
 			next if $deleted{$add};
 			$nr += $cb->($add);
-			last if $nr >= $max;
+			if ($nr >= $max) {
+				$last = 1;
+				last;
+			}
 		} elsif ($line =~ /^:100644 000000 ([a-f0-9]{40}) 0{40}/) {
 			$deleted{$1} = 1;
+		} elsif ($line =~ /^commit ([a-f0-9]{40})/) {
+			push @commits, $1;
 		}
 	}
 
-	close $log;
+	if ($last) {
+		while (my $line = <$log>) {
+			if ($line =~ /^commit ([a-f0-9]{40})/) {
+				push @commits, $1;
+				last;
+			}
+		}
+	}
+
+	close $log; # we may EPIPE here
+	# for pagination
+	$reverse ? ($commits[-1],$commits[0]) : ($commits[0],$commits[-1]);
 }
 
 # private functions below
@@ -135,12 +201,11 @@ sub get_feedopts {
 	}
 	my $url_base;
 	if ($cgi) {
-		my $cgi_url = $cgi->url(-path=>1, -query=>1, -relative=>1);
+		my $cgi_url = $cgi->url(-path=>1, -relative=>1);
 		my $base = $cgi->url(-base);
 		$url_base = $cgi_url;
-		if ($url_base =~ s!/(?:|(index|all)\.html)?\z!!) {
-			my $ia = $1 || 'index';
-			$rv{atomurl} = "$base$url_base/$ia.atom.xml";
+		if ($url_base =~ s!/(?:|index\.html)?\z!!) {
+			$rv{atomurl} = "$base$url_base/index.atom.xml";
 		} else {
 			$url_base =~ s!/?(?:index|all)\.atom\.xml\z!!;
 			$rv{atomurl} = $base . $cgi_url;

@@ -1,7 +1,7 @@
 URL naming
 ----------
 
-/$LISTNAME/?before=$GIT_COMMIT                  -> HTML only
+/$LISTNAME/?r=$GIT_COMMIT                       -> HTML only
 /$LISTNAME/index.atom.xml                       -> Atom feed
 /$LISTNAME/all.atom.xml                         -> Atom feed, includes replies
 /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
