@@ -6,7 +6,7 @@ MANIFEST
 Makefile.PL
 README
 examples/public-inbox-config
-lib/PublicInbox.pm
+lib/PublicInbox/MDA.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter.pm

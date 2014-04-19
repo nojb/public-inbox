@@ -5,26 +5,26 @@ use warnings;
 use Test::More;
 use Email::Simple;
 use Email::Filter;
-use PublicInbox;
+use PublicInbox::MDA;
 
 sub do_checks {
 	my ($s) = @_;
 
 	my $f = Email::Filter->new(data => $s->as_string);
 
-	ok(PublicInbox->precheck($f, undef),
+	ok(PublicInbox::MDA->precheck($f, undef),
 		"RECIPIENT unset is OK");
 
 	my $recipient = 'foo@example.com';
-	ok(!PublicInbox->precheck($f, $recipient),
+	ok(!PublicInbox::MDA->precheck($f, $recipient),
 		"wrong RECIPIENT rejected");
 
 	$recipient = 'b@example.com';
-	ok(PublicInbox->precheck($f, $recipient),
+	ok(PublicInbox::MDA->precheck($f, $recipient),
 		"RECIPIENT in To: is OK");
 
 	$recipient = 'c@example.com';
-	ok(PublicInbox->precheck($f, $recipient),
+	ok(PublicInbox::MDA->precheck($f, $recipient),
 		"RECIPIENT in Cc: is OK");
 }
 
@@ -72,7 +72,8 @@ sub do_checks {
 		body => "hello world\n",
 	);
 	my $f = Email::Filter->new(data => $s->as_string);
-	ok(!PublicInbox->precheck($f, $recipient), "missing From: is rejected");
+	ok(!PublicInbox::MDA->precheck($f, $recipient),
+		"missing From: is rejected");
 }
 
 done_testing();

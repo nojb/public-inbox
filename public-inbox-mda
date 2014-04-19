@@ -12,7 +12,7 @@ use Encode::MIME::Header;
 use File::Path::Expand qw/expand_filename/;
 use IPC::Run qw(run);
 use constant MDA => 'ssoma-mda';
-use PublicInbox;
+use PublicInbox::MDA;
 use PublicInbox::Filter;
 use PublicInbox::Config;
 
@@ -33,7 +33,7 @@ defined $dst or exit(1);
 my $main_repo = $dst->{mainrepo} or exit(1);
 my $filtered; # string dest
 
-if (PublicInbox->precheck($filter, $recipient) &&
+if (PublicInbox::MDA->precheck($filter, $recipient) &&
     do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
 	my $simple = Email::Simple->new($filtered);

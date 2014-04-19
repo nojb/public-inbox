@@ -1,6 +1,6 @@
 # Copyright (C) 2013, Eric Wong <normalperson@yhbt.net> and all contributors
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
-package PublicInbox;
+package PublicInbox::MDA;
 use strict;
 use warnings;
 use Email::Address;
