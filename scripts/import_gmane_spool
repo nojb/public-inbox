@@ -41,6 +41,9 @@ foreach my $n (sort { $a <=> $b } grep(/\d+\z/, glob("*"))) {
 			$s->header_set("Original-Received");
 		}
 
+		# this is needed for "git rev-list --since=..." to work
+		local $ENV{GIT_COMMITTER_DATE} = $s->header('Date');
+
 		# triggers for the SA HEADER_SPAM rule
 		foreach my $drop (qw(Approved)) { $s->header_set($drop) }
 
