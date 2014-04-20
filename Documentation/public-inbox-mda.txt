@@ -11,7 +11,7 @@ Each system user may have their own public-inbox instances
 
 # ENVIRONMENT
 
-* RECIPIENT - the recipient email address, from Postfix
+* ORIGINAL_RECIPIENT - the original recipient email address, from Postfix
 * PI_CONFIG - config file. default: ~/.public-inbox/config
 * PI_EMERGENCY - emergency destination.  default: ~/.public-inbox/emergency/
 

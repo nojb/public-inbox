@@ -13,19 +13,19 @@ sub do_checks {
 	my $f = Email::Filter->new(data => $s->as_string);
 
 	ok(PublicInbox::MDA->precheck($f, undef),
-		"RECIPIENT unset is OK");
+		"ORIGINAL_RECIPIENT unset is OK");
 
 	my $recipient = 'foo@example.com';
 	ok(!PublicInbox::MDA->precheck($f, $recipient),
-		"wrong RECIPIENT rejected");
+		"wrong ORIGINAL_RECIPIENT rejected");
 
 	$recipient = 'b@example.com';
 	ok(PublicInbox::MDA->precheck($f, $recipient),
-		"RECIPIENT in To: is OK");
+		"ORIGINAL_RECIPIENT in To: is OK");
 
 	$recipient = 'c@example.com';
 	ok(PublicInbox::MDA->precheck($f, $recipient),
-		"RECIPIENT in Cc: is OK");
+		"ORIGINAL_RECIPIENT in Cc: is OK");
 }
 
 {

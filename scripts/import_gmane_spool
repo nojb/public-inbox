@@ -6,10 +6,10 @@
 =begin usage
 	mkdir -p $HOME/.public-inbox
 	MAINREPO=/path/to/your/repo.git
-	export RECIPIENT='list@example.com'
+	export ORIGINAL_RECIPIENT='list@example.com'
 	git init --bare $MAINREPO
 	export GIT_CONFIG=$HOME/.public-inbox/config
-	git config publicinbox.$LISTNAME.address $RECIPIENT
+	git config publicinbox.$LISTNAME.address $ORIGINAL_RECIPIENT
 	git config publicinbox.$LISTNAME.mainrepo $MAINREPO
 	unset GIT_CONFIG
 	./import_gmane_spool SLRNPULL_ROOT/news/foo/bar
@@ -22,7 +22,7 @@ use PublicInbox::Config;
 use IPC::Run qw(run);
 sub usage { "Usage:\n".join("",grep(/\t/, `head -n 24 $0`)) }
 my $spool = shift @ARGV or die usage();
-defined $ENV{RECIPIENT} or die usage();
+defined $ENV{ORIGINAL_RECIPIENT} or die usage();
 my @args = ('public-inbox-mda');
 
 chdir $spool or die "chdir $spool failed: $!\n";

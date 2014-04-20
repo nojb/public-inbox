@@ -43,7 +43,7 @@ my $failbox = "$home/fail.mbox";
 local $ENV{PI_EMERGENCY} = $failbox;
 {
 	local $ENV{HOME} = $home;
-	local $ENV{RECIPIENT} = $addr;
+	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 
 	# ensure successful message delivery
 	{
@@ -145,7 +145,7 @@ EOF
 
 	{
 		local $ENV{HOME} = $home;
-		local $ENV{RECIPIENT} = $addr;
+		local $ENV{ORIGINAL_RECIPIENT} = $addr;
 		run_with_env({PATH => $main_path}, [$mda], \$in);
 	}
 	local $ENV{GIT_DIR} = $maindir;

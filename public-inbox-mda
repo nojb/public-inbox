@@ -25,8 +25,8 @@ $emergency = expand_filename($emergency);
 my $filter = Email::Filter->new(emergency => $emergency);
 my $config = PublicInbox::Config->new;
 
-my $recipient = $ENV{RECIPIENT};
-defined $recipient or die "RECIPIENT not defined in ENV\n";
+my $recipient = $ENV{ORIGINAL_RECIPIENT};
+defined $recipient or die "ORIGINAL_RECIPIENT not defined in ENV\n";
 my $dst = $config->lookup($recipient);
 defined $dst or exit(1);
 my $main_repo = $dst->{mainrepo} or exit(1);

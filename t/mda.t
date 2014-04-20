@@ -47,7 +47,7 @@ my $failbox = "$home/fail.mbox";
 	my $good_rev;
 	local $ENV{PI_EMERGENCY} = $failbox;
 	local $ENV{HOME} = $home;
-	local $ENV{RECIPIENT} = $addr;
+	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	my $simple = Email::Simple->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
@@ -135,7 +135,7 @@ Date: deadbeef
 {
 	local $ENV{PI_EMERGENCY} = $failbox;
 	local $ENV{HOME} = $home;
-	local $ENV{RECIPIENT} = $addr;
+	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
 	my $mid = 'spam-train@example.com';
 	my $simple = Email::Simple->new(<<EOF);
@@ -169,7 +169,7 @@ EOF
 {
 	local $ENV{PI_EMERGENCY} = $failbox;
 	local $ENV{HOME} = $home;
-	local $ENV{RECIPIENT} = $addr;
+	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
 	my $mid = 'ham-train@example.com';
 	my $simple = Email::Simple->new(<<EOF);
@@ -199,7 +199,7 @@ EOF
 	my $faildir= "$home/faildir/";
 	local $ENV{PI_EMERGENCY} = $faildir;
 	local $ENV{HOME} = $home;
-	local $ENV{RECIPIENT} = $addr;
+	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	local $ENV{PATH} = $fail_path;
 	my $in = <<EOF;
 From: Faildir <faildir\@example.com>
