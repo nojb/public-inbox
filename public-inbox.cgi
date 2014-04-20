@@ -16,7 +16,6 @@ use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
 use Encode qw(decode_utf8);
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape uri_unescape);
-use Digest::SHA qw(sha1_hex);
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
@@ -150,7 +149,8 @@ sub get_index {
 sub mid2blob {
 	my ($ctx) = @_;
 	local $ENV{GIT_DIR} = $ctx->{git_dir};
-	my $hex = sha1_hex($ctx->{mid});
+	require Digest::SHA;
+	my $hex = Digest::SHA::sha1_hex($ctx->{mid});
 	$hex =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/i or
 			die "BUG: not a SHA-1 hex: $hex";
 	my $blob = `git cat-file blob HEAD:$1/$2 2>/dev/null`;

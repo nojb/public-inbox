@@ -3,22 +3,17 @@
 package PublicInbox::Feed;
 use strict;
 use warnings;
-use XML::Atom::SimpleFeed;
-use Email::MIME;
 use Email::Address;
 use URI::Escape qw/uri_escape/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use CGI qw(escapeHTML);
-use POSIX qw(strftime);
 use Date::Parse qw(strptime str2time);
 eval { require Git }; # this is GPLv2+, so we are OK to use it
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ',
 	MAX_PER_PAGE => 25,
 };
-use PublicInbox::View;
-use Mail::Thread;
 my $enc_utf8 = find_encoding('utf8');
 my $enc_ascii = find_encoding('us-ascii');
 my $enc_mime = find_encoding('MIME-Header');
@@ -28,6 +23,10 @@ my $enc_mime = find_encoding('MIME-Header');
 # main function
 sub generate {
 	my ($class, $args) = @_;
+	require XML::Atom::SimpleFeed;
+	require PublicInbox::View;
+	require Email::MIME;
+	require POSIX;
 	my $max = $args->{max} || MAX_PER_PAGE;
 	my $top = $args->{top}; # bool
 
@@ -43,7 +42,7 @@ sub generate {
 				"http://example.com/atom",
 		},
 		id => $feed_opts->{address} || 'public-inbox@example.com',
-		updated => strftime(DATEFMT, gmtime),
+		updated => POSIX::strftime(DATEFMT, gmtime),
 	);
 
 	my $git = try_git_pm($args->{git_dir});
@@ -56,6 +55,8 @@ sub generate {
 
 sub generate_html_index {
 	my ($class, $args) = @_;
+	require Mail::Thread;
+
 	my $max = $args->{max} || MAX_PER_PAGE;
 	my $top = $args->{top}; # bool
 	local $ENV{GIT_DIR} = $args->{git_dir};
@@ -237,7 +238,7 @@ sub feed_date {
 	my ($date) = @_;
 	my @t = eval { strptime($date) };
 
-	scalar(@t) ? strftime(DATEFMT, @t) : 0;
+	scalar(@t) ? POSIX::strftime(DATEFMT, @t) : 0;
 }
 
 # returns 0 (skipped) or 1 (added)
