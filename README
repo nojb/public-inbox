@@ -7,10 +7,8 @@ public-inbox spawned around three main ideas:
 
 * Publically accessible and archived communication is essential to
   Free and Open Source development.
-
 * Contributing to Free and Open Source projects should not require the
   use of non-Free/non-Open Source services or software.
-
 * Graphical user interfaces should not be required for text-based
   communication.
 
@@ -51,7 +49,7 @@ Casual readers may also follow the list via Atom feed or web archives.
 _Anybody_ may also setup a delivery-only mailing list server to replay
 a public-inbox git archive to subscribers via SMTP.
 
-[1] http://ssoma.public-inbox.org/README
+[1] http://ssoma.public-inbox.org/
 
 Requirements (Atom, read-only client)
 -------------------------------------
@@ -61,13 +59,13 @@ Any basic web browser will do for the HTML archives.
 
 Requirements (participant)
 --------------------------
-* ssoma - http://ssoma.public-inbox.org/INSTALL
+* ssoma - http://ssoma.public-inbox.org/
 * any MUA which may send text-only emails ("git send-email" works!)
 * participants do not need to install public-inbox, only server admins
 
 Requirements (server)
 ---------------------
-See INSTALL
+See http://public-inbox.org/INSTALL.html
 
 Hacking
 -------
@@ -93,7 +91,7 @@ on git@vger.kernel.org).
 
 You may subscribe via ssoma(1), LISTNAME is a name of your choosing:
 
-    URL=git://git.public-inbox.org/public-inbox
+    URL=git://public-inbox.org/meta
     LISTNAME=public-inbox
 
     # to initialize a maildir (this may be a new or existing maildir,
@@ -110,8 +108,8 @@ You may subscribe via ssoma(1), LISTNAME is a name of your choosing:
     # your MUA may modify and delete messages from the maildir or mbox,
     # this does not affect ssoma functionality at all
 
-    # to sync all your ssoma subscriptions
-    ssoma sync
+    # to sync all your ssoma subscriptions via cronjob
+    ssoma sync --cron
 
 Anti-Spam
 ---------

@@ -1,8 +1,7 @@
 public-inbox (server-side) installation
 ---------------------------------------
-
 This is for folks who want to setup their own public-inbox instance.
-Clients should see http://ssoma.public-inbox.org/INSTALL instead.
+Clients should see http://ssoma.public-inbox.org/INSTALL.html instead.
 
 TODO: this still needs to be documented better,
 also see the scripts/ and sa_config/ directories in the source tree
@@ -21,7 +20,7 @@ standard MakeMaker installation (Perl)
 Requirements (server MDA)
 -------------------------
 * git
-* ssoma - http://ssoma.public-inbox.org/README
+* ssoma - http://ssoma.public-inbox.org/INSTALL.html
 * SpamAssassin (spamc/spamd)
 * MTA - postfix is recommended
 * lynx (for converting HTML messages to text)
