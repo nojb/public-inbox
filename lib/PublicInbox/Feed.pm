@@ -327,8 +327,8 @@ sub do_cat_mail {
 				die "failed to setup string handle: $!\n";
 		binmode $fh;
 		my $bytes = $git->cat_blob($sha1, $fh);
-		return if $bytes <= 0;
 		close $fh or die "failed to close string handle: $!\n";
+		return if $bytes <= 0;
 	} else {
 		$str = `git cat-file blob $sha1`;
 		return if $? != 0 || length($str) == 0;
