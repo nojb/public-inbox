@@ -12,6 +12,7 @@ use Encode::MIME::Header;
 use CGI qw(escapeHTML);
 use POSIX qw(strftime);
 use Date::Parse qw(strptime str2time);
+eval { require Git }; # this is GPLv2+, so we are OK to use it
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ',
 	MAX_PER_PAGE => 25,
@@ -45,9 +46,10 @@ sub generate {
 		updated => strftime(DATEFMT, gmtime),
 	);
 
+	my $git = try_git_pm($args->{git_dir});
 	each_recent_blob($args, sub {
 		my ($add) = @_;
-		add_to_feed($feed_opts, $feed, $add, $top);
+		add_to_feed($feed_opts, $feed, $add, $top, $git);
 	});
 	$feed->as_string;
 }
@@ -60,10 +62,10 @@ sub generate_html_index {
 	my $feed_opts = get_feedopts($args);
 	my $title = xs_html($feed_opts->{description} || "");
 	my @messages;
+	my $git = try_git_pm($args->{git_dir});
 	my ($first, $last) = each_recent_blob($args, sub {
-		my $str = `git cat-file blob $_[0]`;
-		return 0 if $? != 0;
-		my $simple = Email::Simple->new($str);
+		my $simple = do_cat_mail($git, 'Email::Simple', $_[0])
+			or return 0;
 		if ($top && ($simple->header("In-Reply-To") ||
 		             $simple->header("References"))) {
 			return 0;
@@ -240,14 +242,9 @@ sub feed_date {
 
 # returns 0 (skipped) or 1 (added)
 sub add_to_feed {
-	my ($feed_opts, $feed, $add, $top) = @_;
+	my ($feed_opts, $feed, $add, $top, $git) = @_;
 
-	# we can use git cat-file --batch if performance becomes a
-	# problem, but I doubt it...
-	my $str = `git cat-file blob $add`;
-	return 0 if $? != 0;
-	my $mime = Email::MIME->new($str);
-
+	my $mime = do_cat_mail($git, 'Email::MIME', $add) or return 0;
 	if ($top && $mime->header("In-Reply-To")) {
 		return 0;
 	}
@@ -314,6 +311,28 @@ sub dump_html_line {
 sub xs_html {
 	$enc_ascii->encode(escapeHTML($enc_utf8->decode($_[0])),
 			Encode::HTMLCREF);
+}
+
+sub try_git_pm {
+	my ($dir) = @_;
+	eval { Git->repository(Directory => $dir) };
+};
+
+sub do_cat_mail {
+	my ($git, $class, $sha1) = @_;
+	my $str;
+	if ($git) {
+		open my $fh, '>', \$str or
+				die "failed to setup string handle: $!\n";
+		binmode $fh;
+		my $bytes = $git->cat_blob($sha1, $fh);
+		return if $bytes <= 0;
+		close $fh or die "failed to close string handle: $!\n";
+	} else {
+		$str = `git cat-file blob $sha1`;
+		return if $? != 0 || length($str) == 0;
+	}
+	$class->new($str);
 }
 
 1;
