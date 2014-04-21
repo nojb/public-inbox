@@ -182,6 +182,10 @@ sub each_recent_blob {
 				last;
 			}
 		}
+	} elsif ($reverse) {
+		unshift @commits, undef
+	} else {
+		push @commits, undef;
 	}
 
 	close $log; # we may EPIPE here
