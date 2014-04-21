@@ -14,10 +14,41 @@ URL naming
 /$LISTNAME/f/$MESSAGE_ID                        -> 301 to .html version
 /$LISTNAME/f/$MESSAGE_ID.txt                    -> 301 to m/$MESSAGE_ID.txt
 
-TODO (these might be expensive)
--------------------------------
+Maybe TODO (these might be expensive)
+-------------------------------------
 /$LISTNAME/t/$MESSAGE_ID.html                   -> HTML content of thread
 /$LISTNAME/t/$MESSAGE_ID.mbox                   -> mbox content of thread
 
 We use file name suffixes on all of these (except /) so URLs may easily
 cached/memoized using a static file server.
+
+Guidelines for using limited HTML
+---------------------------------
+We mainly use HTML for linking pages together with <a>.
+We also set <title> to make window management easier.
+
+We favor <pre>-formatted text since public-inbox is intended as a place
+to share and discuss patches and code.  Unfortunately, long paragraphs
+tends to be less readable with fixed-width serif fonts which GUI
+browsers default to.  So perhaps we will add different endpoints for
+variable-width fonts.
+
+* Do not build <a> links from user-generated-content, this prevents
+  public-inbox deployments from being turned into a spam linkfarm.
+
+* No graphics, images, or icons at all.  We tolerate, but do not
+  encourage the use of GUIs.
+
+* No setting colors or font sizes, power to users to decide those.
+
+* No JavaScript. JS is historically too buggy and insecure, and we will
+  never expect our readers to do either of the following:
+  a) read and audit all our code for on every single page load
+  b) trust us and and run code without reading it
+
+* We only use CSS for one reason: wrapping pre-formatted text
+  This is necessary because unfortunate GUI browsers tend to be
+  prone to layout widening.  lynx is fine here without CSS :)
+  No other CSS is allowed, especially with scary things like:
+
+	http://thejh.net/misc/website-terminal-copy-paste

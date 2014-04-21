@@ -1,0 +1,7 @@
+hacking public-inbox
+--------------------
+
+Send all patches via to our self-hosting list at meta@public-inbox.org
+
+See design_www.txt and design_notes.txt in the Documentation/ directory
+for design decisions made during development.
