@@ -53,7 +53,8 @@ EOF
 			git_dir => $git_dir,
 			max => 3
 		});
-		if ($have_xml_feed) {
+		SKIP: {
+			skip 'XML::Feed missing', 2 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$feed);
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
@@ -90,7 +91,8 @@ EOF
 			git_dir => $git_dir,
 			max => 3
 		});
-		if ($have_xml_feed) {
+		SKIP: {
+			skip 'XML::Feed missing', 2 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$spammy_feed);
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
@@ -115,7 +117,8 @@ EOF
 			git_dir => $git_dir,
 			max => 3
 		});
-		if ($have_xml_feed) {
+		SKIP: {
+			skip 'XML::Feed missing', 2 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$feed);
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
