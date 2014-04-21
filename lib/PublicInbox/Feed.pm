@@ -39,7 +39,7 @@ sub generate {
 		link => {
 			rel => 'self',
 			href => $feed_opts->{atomurl} ||
-				"http://example.com/atom",
+				"http://example.com/atom.xml",
 		},
 		id => $feed_opts->{address} || 'public-inbox@example.com',
 		updated => POSIX::strftime(DATEFMT, gmtime),
@@ -208,15 +208,15 @@ sub get_feedopts {
 		my $base = $cgi->url(-base);
 		$url_base = $cgi_url;
 		if ($url_base =~ s!/(?:|index\.html)?\z!!) {
-			$rv{atomurl} = "$base$url_base/index.atom.xml";
+			$rv{atomurl} = "$base$url_base/atom.xml";
 		} else {
-			$url_base =~ s!/?(?:index|all)\.atom\.xml\z!!;
+			$url_base =~ s!/atom\.xml\z!!;
 			$rv{atomurl} = $base . $cgi_url;
 			$url_base = $base . $url_base; # XXX is this needed?
 		}
 	} else {
 		$url_base = "http://example.com";
-		$rv{atomurl} = "$url_base/index.atom.xml";
+		$rv{atomurl} = "$url_base/atom.xml";
 	}
 	$rv{url} ||= "$url_base/";
 	$rv{midurl} = "$url_base/m/";

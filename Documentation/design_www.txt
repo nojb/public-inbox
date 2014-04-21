@@ -3,8 +3,7 @@ URL naming
 
 ### Unstable endpoints
 /$LISTNAME/?r=$GIT_COMMIT                       -> HTML only
-/$LISTNAME/index.atom.xml                       -> Atom feed
-/$LISTNAME/all.atom.xml                         -> Atom feed, includes replies
+/$LISTNAME/atom.xml                             -> Atom feed
 
 ### Stable endpoints
 /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)

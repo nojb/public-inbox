@@ -102,16 +102,13 @@ EOF
 # atom feeds
 {
 	local $ENV{HOME} = $home;
-	my $res = cgi_run("/test/all.atom.xml");
+	my $res = cgi_run("/test/atom.xml");
 	like($res->{body}, qr/<title>test for public-inbox/,
 		"set title in XML feed");
 	like($res->{body},
 		qr!http://test\.example\.com/test/m/blah%40example\.com!,
 		"link id set");
 	like($res->{body}, qr/what\?/, "reply included");
-
-	$res = cgi_run("/test/index.atom.xml");
-	unlike($res->{body}, qr/what\?/, "reply not included in index");
 }
 
 # indices
