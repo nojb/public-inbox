@@ -1,6 +1,7 @@
 #!/bin/sh
 # Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
 # License: GPLv3 or later <http://www.gnu.org/licenses/gpl-3.0.txt>
+# This is installed as /etc/dc-dcvr on my system
 # to use with postfix main.cf: mailbox_command = /etc/dc-dlvr "$EXTENSION"
 DELIVER=/usr/lib/dovecot/deliver
 
@@ -11,7 +12,7 @@ catchall) exec $DELIVER ;;
 esac
 
 # change if your spamc/spamd listens elsewhere
-spamc='spamc -U /run/spamd.sock'
+spamc='spamc'
 
 # allow plus addressing to train spam filters, $1 is the $EXTENSION
 # which may be "trainspam" or "trainham".  Only allow spam training
@@ -30,11 +31,14 @@ then
 	set -e
 	cat > $TMPMSG
 	DEFAULT_INBOX=$(. ~/.dc-dlvr.pre)
-	if test xINBOX != x"$DEFAULT_INBOX"
-	then
+	case $DEFAULT_INBOX in
+	'') exec rm -f $rm_list ;;
+	INBOX) ;; # do nothing
+	*)
 		$DELIVER -m $DEFAULT_INBOX < $TMPMSG
 		exec rm -f $rm_list
-	fi
+		;;
+	esac
 	PREMSG=$(mktemp -t dc-dlvr.orig.$USER.XXXXXX || exit 1)
 	rm_list="$rm_list $PREMSG"
 	set +e

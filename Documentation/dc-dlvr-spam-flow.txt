@@ -1,0 +1,38 @@
+dc-dlvr spam/ham training system flow
+-------------------------------------
+
+An overview of the Maildir + inotify-based spam training system Eric
+uses on his mail server.  This idea may be implemented for kqueue-based
+systems, too.
+
+The idea is to use inotify (via incron) to watch for new files appearing
+in Maildirs.  We only want to train seen messages as ham, and old (but
+not necessarily seen) messages as spam.  The overall goal of this is to
+allow a user to train their filters without leaving his favorite mail
+user agent.
+
+Every message written to Maildir involves a rename, so we only
+have incron watch for IN_MOVED_TO events.
+
+The generic flow is as follows, all for a single Unix user account:
+
+    incron -> report-spam +-> sendmail -> MTA -> dc-dlvr -> spamc -> spamd
+                          |
+                          V
+                         ...
+
+For public-inbox, Eric uses a separate Unix account ("pi") to add a
+layer of protection from fat-fingering something.  So his report-spam
+script delivers to a second recipient for training, the "pi" user:
+                         ...
+                          |
+                          +-> sendmail -> MTA -> dc-dlvr
+                                                    |
+                                                    V
+                                            ~pi/.dc-dlvr.pre
+                                                    |
+                                                    V
+                                           public-inbox-learn
+
+public-inbox-learn will then internally handle the "spamc -> spamd"
+delivery path as well as calling ssoma-rm on falsely trained

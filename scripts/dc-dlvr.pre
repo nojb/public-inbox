@@ -1,0 +1,12 @@
+# Copyright (C) 2014, Eric Wong <e@80x24.org>
+# License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>
+# sourced by /etc/dc-dlvr in ~$PI_USER/.dc-dlvr.rc, this just exits,
+# aborting /etc/dc-dlvr
+export PATH=/usr/local/bin:/usr/bin:/bin
+exec 2>> ~/log/dc-dlvr.pre.err
+trap 'err=$?; set +e; test $err -eq 0 || rm -f $TMPMSG; exit $err' EXIT
+case $1,$CLIENT_ADDRESS in
+pispam,) exec public-inbox-learn spam < $TMPMSG ;;
+piham,) exec public-inbox-learn ham < $TMPMSG ;;
+esac
+exec public-inbox-mda < $TMPMSG

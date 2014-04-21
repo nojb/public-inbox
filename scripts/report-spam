@@ -1,12 +1,11 @@
 #!/bin/sh
-# Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
+# Copyright (C) 2008-2014, Eric Wong <e@80x24.org>
 # License: GPLv3 or later <http://www.gnu.org/licenses/gpl-3.0.txt>
 # Usage: report-spam /path/to/message/in/maildir
-# This is intended to be used with incron or similar systems.
+# This is intended for use with incron or similar systems.
 # my incrontab(5) looks like this:
-#  /path/to/.maildir/cur IN_MOVED_TO /path/to/report-spam $@/$#
-#  /path/to/.maildir/.INBOX.good/cur IN_MOVED_TO /path/to/report-spam $@/$#
-#  /path/to/.maildir/.INBOX.spam/cur IN_MOVED_TO /path/to/report-spam $@/$#
+#  /path/to/maildir/.INBOX.good/cur IN_MOVED_TO /path/to/report-spam $@/$#
+#  /path/to/maildir/.INBOX.spam/cur IN_MOVED_TO /path/to/report-spam $@/$#
 
 # gigantic emails tend not to be spam (but they suck anyways...)
 bytes=$(stat -c %s $1)
@@ -21,18 +20,26 @@ fi
 # incrond has no concurrency limits and will fork a new process on
 # every single event, which sucks with rename storms when a client
 # commits folder changes.  The sendmail executable exits quickly and
-# queues up the message for training.  This shoudl also ensure fairness
+# queues up the message for training.  This should also ensure fairness
 # to newly arriving mail.  Instead of installing/configuring
 # another queueing system, I reuse the queue in the MTA.
-# See scripts/dc-dlvr for corresponding trainspam/trainham handlers.
+# See scripts/dc-dlvr for corresponding trainspam/trainham handlers,
+# which are for my personal bayes training, and scripts/dc-dlvr.pre
+# for the pispam/piham handlers for training emails going to public-inbox
+
+DO_SENDMAIL='/usr/sbin/sendmail -oi'
+PI_USER=pi
+
 case $1 in
 *[/.]spam/cur/*) # non-new messages in spam get trained
-	exec /usr/sbin/sendmail -oem -oi $USER+trainspam < $1
+	$DO_SENDMAIL $PI_USER+pispam < $1
+	exec $DO_SENDMAIL $USER+trainspam < $1
 	;;
 *:2,*S*) # otherwise, seen messages only
 	case $1 in
 	*:2,*T*) exit 0 ;; # ignore trashed messages
 	esac
-	exec /usr/sbin/sendmail -oem -oi $USER+trainham < $1
+	$DO_SENDMAIL $PI_USER+piham < $1
+	exec $DO_SENDMAIL $USER+trainham < $1
 	;;
 esac
