@@ -23,6 +23,8 @@ Features
 * Mail user-agent (MUA) users may use Maildir, mbox(5) and/or IMAP locally
 * uses only well-documented and easy-to-implement data formats
 
+Try it out now, see http://try.public-inbox.org/
+
 Implementation
 --------------
 public-inbox uses ssoma[1], Some Sort Of Mail Archiver which implements
@@ -110,6 +112,8 @@ You may subscribe via ssoma(1), LISTNAME is a name of your choosing:
 
     # to sync all your ssoma subscriptions via cronjob
     ssoma sync --cron
+
+HTML inbox archives are available: http://public-inbox.org/meta/
 
 Anti-Spam
 ---------
