@@ -287,8 +287,8 @@ sub add_to_feed {
 
 sub dump_html_line {
 	my ($self, $level, $args) = @_; # args => [ $html, $midurl ]
-	$args->[0] .= (' ' x $level);
 	if ($self->message) {
+		$args->[0] .= (' ' x $level);
 		my $simple = $self->message;
 		my $subj = utf8_header($simple, "Subject");
 		my $mid = utf8_header($simple, "Message-ID");
@@ -302,8 +302,6 @@ sub dump_html_line {
 		$from = xs_html($from);
 		$subj = xs_html($subj);
 		$args->[0] .= "<a href=\"$url.html\">$subj</a> $from\n";
-	} else {
-		$args->[0] .= "[ Message not available ]\n";
 	}
 	dump_html_line($self->child, $level+1, $args) if $self->child;
 	dump_html_line($self->next, $level, $args) if $self->next;
