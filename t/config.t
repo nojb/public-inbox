@@ -29,7 +29,6 @@ my $tmpdir = tempdir(CLEANUP => 1);
 		'mainrepo' => '/home/pi/meta-main.git',
 		'address' => 'meta@public-inbox.org',
 		-primary_address => 'meta@public-inbox.org',
-		'description' => 'development discussion',
 		'listname' => 'meta',
 	}, "lookup matches expected output");
 
@@ -43,7 +42,6 @@ my $tmpdir = tempdir(CLEANUP => 1);
 			      'test@public-inbox.org'],
 		-primary_address => 'try@public-inbox.org',
 		'mainrepo' => '/home/pi/test-main.git',
-		'description' => 'test/sandbox area, occasionally reset',
 		'listname' => 'test',
 	}, "lookup matches expected output for test");
 }

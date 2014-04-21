@@ -200,9 +200,13 @@ sub get_feedopts {
 	my $listname = $args->{listname};
 	my $cgi = $args->{cgi};
 	my %rv;
+	if (open my $fh, '<', "$args->{git_dir}/description") {
+		chomp($rv{description} = <$fh>);
+		close $fh;
+	}
 
 	if ($pi_config && defined $listname && length $listname) {
-		foreach my $key (qw(description address)) {
+		foreach my $key (qw(address)) {
 			$rv{$key} = $pi_config->get($listname, $key) || "";
 		}
 	}

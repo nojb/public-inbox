@@ -28,10 +28,12 @@ my $cfgpfx = "publicinbox.test";
 	is(1, mkdir($pi_home, 0755), "setup ~/.public-inbox");
 	is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
 
+	open my $fh, '>', "$maindir/description" or die "open: $!\n";
+	print $fh "test for public-inbox\n";
+	close $fh or die "close: $!\n";
 	my %cfg = (
 		"$cfgpfx.address" => $addr,
 		"$cfgpfx.mainrepo" => $maindir,
-		"$cfgpfx.description" => 'test for public-inbox',
 	);
 	while (my ($k,$v) = each %cfg) {
 		is(0, system(qw(git config --file), $pi_config, $k, $v),
