@@ -1,0 +1,45 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2013, Eric Wong <normalperson@yhbt.net> and all contributors
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# One-off script to convert an slrnpull news spool to Maildir
+=begin usage
+	./slrnspool2maildir SLRNPULL_ROOT/news/foo/bar /path/to/maildir/
+=cut
+use strict;
+use warnings;
+use Email::Filter;
+use Email::LocalDelivery;
+sub usage { "Usage:\n".join('',grep(/\t/, `head -n 24 $0`)) }
+my $spool = shift @ARGV or die usage();
+my $dir = shift @ARGV or die usage();
+-d $dir or die "$dir is not a directory\n";
+$dir .= '/' unless $dir =~ m!/\z!;
+foreach my $sub (qw(cur new tmp)) {
+	-d "$dir/$sub" or mkdir $sub or die "mkdir $dir/$sub failed: $!\n";
+}
+
+foreach my $n (grep(/\d+\z/, glob("$spool/*"))) {
+	if (open my $fh, '<', $n) {
+		my $f = Email::Filter->new(data => eval { local $/; <$fh> });
+		my $s = $f->simple;
+
+		# gmane rewrites Received headers, which increases spamminess
+		my @h = $s->header('Original-Received');
+		if (@h) {
+			$s->header_set('Received', @h);
+			$s->header_set('Original-Received');
+		}
+
+		# triggers for the SA HEADER_SPAM rule
+		foreach my $drop (qw(Approved)) { $s->header_set($drop) }
+
+		# appears to be an old gmane bug:
+		$s->header_set('connect()');
+
+		$f->exit(0);
+		$f->accept($dir);
+	} else {
+		warn "Failed to open $n: $!\n";
+	}
+}

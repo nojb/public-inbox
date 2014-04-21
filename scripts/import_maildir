@@ -1,0 +1,52 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2014, Eric Wong <e@80x24.org> and all contributors
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# Script to import a Maildir into a public-inbox
+=begin usage
+	mkdir -p $HOME/.public-inbox
+	MAINREPO=/path/to/your/repo.git
+	export ORIGINAL_RECIPIENT='list@example.com'
+	git init --bare $MAINREPO
+	export GIT_CONFIG=$HOME/.public-inbox/config
+	git config publicinbox.$LISTNAME.address $ORIGINAL_RECIPIENT
+	git config publicinbox.$LISTNAME.mainrepo $MAINREPO
+	unset GIT_CONFIG
+	./import_maildir /path/to/maildir/
+=cut
+use strict;
+use warnings;
+use Email::Filter;
+use Date::Parse qw/str2time/;
+use IPC::Run qw/run/;
+sub usage { "Usage:\n".join('', grep(/\t/, `head -n 24 $0`)) }
+my $dir = shift @ARGV or die usage();
+defined $ENV{ORIGINAL_RECIPIENT} or die usage();
+my @mda = qw(public-inbox-mda);
+foreach my $sub (qw(cur new tmp)) {
+	-d "$dir/$sub" or die "$dir is not a Maildir (missing $sub)\n";
+}
+
+my @msgs;
+foreach my $sub (qw(cur new)) {
+	foreach my $fn (glob("$dir/$sub/*")) {
+		open my $fh, '<', $fn or next;
+		my $f = Email::Filter->new(data => eval { local $/; <$fh> });
+		my $date = $f->simple->header('Date');
+		my $t = eval { str2time($date) };
+		$f->exit(0);
+		$f->ignore;
+		defined $t or next;
+		my @fn = split(m!/!, $fn);
+		push @msgs, [ $t, "$sub/" . pop @fn, $date ];
+	}
+}
+
+@msgs = sort { $b->[0] <=> $a->[0] } @msgs;
+while (my $ary = pop @msgs) {
+	my $fn = "$dir/$ary->[1]";
+	local $ENV{GIT_COMMITTER_DATE} = $ary->[2]; # this preserves timezone
+	run(\@mda, '<', $fn);
+}
+
+1;
