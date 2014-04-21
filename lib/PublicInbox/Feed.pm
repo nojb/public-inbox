@@ -32,7 +32,8 @@ sub generate {
 
 	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
-
+	my $addr = $feed_opts->{address};
+	$addr = $addr->[0] if ref($addr);
 	my $feed = XML::Atom::SimpleFeed->new(
 		title => $feed_opts->{description} || "unnamed feed",
 		link => $feed_opts->{url} || "http://example.com/",
@@ -41,7 +42,7 @@ sub generate {
 			href => $feed_opts->{atomurl} ||
 				"http://example.com/atom.xml",
 		},
-		id => $feed_opts->{address} || 'public-inbox@example.com',
+		id => $addr || 'public-inbox@example.com',
 		updated => POSIX::strftime(DATEFMT, gmtime),
 	);
 
