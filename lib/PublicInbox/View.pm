@@ -137,7 +137,6 @@ sub add_text_body_full {
 
 sub trim_message_id {
 	my ($mid) = @_;
-	$mid = $enc_mime->decode($mid);
 	$mid =~ s/\A\s*<//;
 	$mid =~ s/>\s*\z//;
 	my $html = ascii_html($mid);
