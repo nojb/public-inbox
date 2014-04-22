@@ -167,8 +167,9 @@ sub get_mid_html {
 	my $x = mid2blob($ctx);
 	return r404() unless $x;
 
-	my $pfx = "../f/" . uri_escape($ctx->{mid}) . ".html";
 	require PublicInbox::View;
+	my $mid_href = PublicInbox::View::ascii_html(uri_escape($ctx->{mid}));
+	my $pfx = "../f/$mid_href.html";
 	require Email::MIME;
 	[ "200 OK", {'Content-Type' => 'text/html'},
 		PublicInbox::View->as_html(Email::MIME->new($$x), $pfx)];

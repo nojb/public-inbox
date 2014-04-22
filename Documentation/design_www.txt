@@ -13,6 +13,9 @@ URL naming
 /$LISTNAME/f/$MESSAGE_ID                        -> 301 to .html version
 /$LISTNAME/f/$MESSAGE_ID.txt                    -> 301 to m/$MESSAGE_ID.txt
 
+FIXME: we must refactor/cleanup/add tests for most of our CGI before
+adding more endpoints and features.
+
 Maybe TODO (these might be expensive)
 -------------------------------------
 /$LISTNAME/t/$MESSAGE_ID.html                   -> HTML content of thread

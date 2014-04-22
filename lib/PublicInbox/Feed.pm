@@ -262,11 +262,13 @@ sub add_to_feed {
 	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
 	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
-	my $content = PublicInbox::View->as_feed_entry($mime, $fullurl);
-	defined($content) or return 0;
-
 	my $mid = utf8_header($mime, "Message-ID") or return 0;
-	$mid =~ s/\A<//; $mid =~ s/>\z//;
+	# FIXME: refactor
+	my (undef, $href) = PublicInbox::View::trim_message_id($mid);
+
+	my $content = PublicInbox::View->as_feed_entry($mime,
+							"$fullurl$href.html");
+	defined($content) or return 0;
 
 	my $subject = utf8_header($mime, "Subject") || "";
 	length($subject) or return 0;
@@ -279,7 +281,6 @@ sub add_to_feed {
 	my $email = $from[0]->address;
 	defined $email or $email = "";
 
-	my $url = $midurl . uri_escape($mid);
 	my $date = utf8_header($mime, "Date");
 	$date or return 0;
 	$date = feed_date($date) or return 0;
@@ -288,7 +289,7 @@ sub add_to_feed {
 		title => $subject,
 		updated => $date,
 		content => { type => "html", content => $content },
-		link => $url,
+		link => $midurl . $href,
 		id => $add,
 	);
 	1;
@@ -303,7 +304,7 @@ sub dump_html_line {
 		my $mid = utf8_header($simple, "Message-ID");
 		$mid =~ s/\A<//;
 		$mid =~ s/>\z//;
-		my $url = $args->[1] . uri_escape($mid);
+		my $url = $args->[1] . xs_html(uri_escape($mid));
 		my $from = utf8_header($simple, "From");
 		my @from = Email::Address->parse($from);
 		$from = $from[0]->name;
