@@ -78,7 +78,7 @@ sub main {
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx, $cgi);
 
-	# convenience redirect
+	# convenience redirects, order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:m|f)/(\S+)\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || redirect_mid(\%ctx, $cgi);
 

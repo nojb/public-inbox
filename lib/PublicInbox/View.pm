@@ -19,7 +19,7 @@ my $enc_mime = find_encoding('MIME-Header');
 sub as_html {
 	my ($class, $mime, $full_pfx) = @_;
 
-	headers_to_html_header($mime) .
+	headers_to_html_header($mime, $full_pfx) .
 		multipart_text_as_html($mime, $full_pfx) .
 		'</pre></body></html>';
 }
@@ -150,7 +150,7 @@ sub ascii_html {
 }
 
 sub headers_to_html_header {
-	my ($simple) = @_;
+	my ($simple, $full_pfx) = @_;
 
 	my $rv = "";
 	my @title;
@@ -180,6 +180,9 @@ sub headers_to_html_header {
 	if (defined $mid) {
 		my ($html, $href) = trim_message_id($mid);
 		$rv .= "Message-ID: &lt;$html&gt; ";
+		unless ($full_pfx) {
+			$href = "../m/$href";
+		}
 		$rv .= "(<a href=\"$href.txt\">original</a>)\n";
 	}
 

@@ -36,8 +36,8 @@ EOF
 	$s = Email::MIME->new($s->as_string);
 	my $html = PublicInbox::View->as_html($s);
 
-	# ghetto
-	like($html, qr/<a href="hello%40/s, "MID link present");
+	# ghetto tests
+	like($html, qr!<a href="\.\./m/hello%40!s, "MID link present");
 	like($html, qr/hello world\b/, "body present");
 	like($html, qr/&gt; keep this inline/, "short quoted text is inline");
 	like($html, qr/<a name=[^>]+>&gt; Long and wordy/,
@@ -46,6 +46,7 @@ EOF
 	# short page
 	my $pfx = "http://example.com/test/f";
 	my $short = PublicInbox::View->as_html($s, $pfx);
+	like($short, qr!<a href="hello%40!s, "MID link present");
 	like($short, qr/\n&gt; keep this inline/,
 		"short quoted text is inline");
 	like($short, qr/<a href="\Q$pfx\E#[^>]+>Long and wordy/,
