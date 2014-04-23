@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use Email::Simple;
 use PublicInbox::Feed;
+use PublicInbox::Config;
 use File::Temp qw/tempdir/;
 my $have_xml_feed = eval { require XML::Feed; 1 };
 
@@ -46,7 +47,10 @@ EOF
 		print $pipe $simple->as_string or die "print failed: $!\n";
 		close $pipe or die "close pipe failed: $!\n";
 	}
+}
 
+# spam check
+{
 	# check initial feed
 	{
 		my $feed = PublicInbox::Feed->generate({
@@ -58,6 +62,8 @@ EOF
 			my $p = XML::Feed->parse(\$feed);
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
+			is($p->id, 'public-inbox@example.com',
+				"id is set to default");
 		}
 		unlike($feed, qr/drop me/, "long quoted text dropped");
 		like($feed, qr/inline me here/, "short quoted text kept");
@@ -124,6 +130,27 @@ EOF
 			is(scalar $p->entries, 3, "parsed three entries");
 		}
 		unlike($feed, qr/SPAM/, "spam gone :>");
+	}
+}
+
+# check pi_config
+{
+	foreach my $addr (('a@example.com'), ['a@example.com','b@localhost']) {
+		my $feed = PublicInbox::Feed->generate({
+			git_dir => $git_dir,
+			max => 3,
+			listname => 'asdf',
+			pi_config => bless({
+				'publicinbox.asdf.address' => $addr,
+			}, 'PublicInbox::Config'),
+		});
+		SKIP: {
+			skip 'XML::Feed missing', 3 unless $have_xml_feed;
+			my $p = XML::Feed->parse(\$feed);
+			is($p->id, 'a@example.com', "ID is set correctly");
+			is($p->format, "Atom", "parsed atom feed");
+			is(scalar $p->entries, 3, "parsed three entries");
+		}
 	}
 }
 
