@@ -6,6 +6,7 @@ use Test::More;
 use Email::Simple;
 use PublicInbox::Feed;
 use PublicInbox::Config;
+use IPC::Run qw/run/;
 use File::Temp qw/tempdir/;
 my $have_xml_feed = eval { require XML::Feed; 1 };
 
@@ -17,12 +18,6 @@ my $git_dir = "$tmpdir/gittest";
 	local $ENV{GIT_DIR} = $git_dir;
 
 	foreach my $i (1..6) {
-		my $pid = open(my $pipe, "|-");
-		defined $pid or die "fork/pipe failed: $!\n";
-		if ($pid == 0) {
-			exec("ssoma-mda", $git_dir);
-		}
-
 		my $simple = Email::Simple->new(<<EOF);
 From: ME <me\@example.com>
 To: U <u\@example.com>
@@ -44,8 +39,9 @@ msg $i
 
 keep me
 EOF
-		print $pipe $simple->as_string or die "print failed: $!\n";
-		close $pipe or die "close pipe failed: $!\n";
+		my $str = $simple->as_string;
+		run(['ssoma-mda', $git_dir], \$str) or
+			die "mda failed: $?\n";
 	}
 }
 
@@ -65,7 +61,10 @@ EOF
 			is($p->id, 'public-inbox@example.com',
 				"id is set to default");
 		}
+
 		unlike($feed, qr/drop me/, "long quoted text dropped");
+		like($feed, qr!/f/\d%40example\.com\.html\b!,
+			"/f/ url generated for long quoted text");
 		like($feed, qr/inline me here/, "short quoted text kept");
 		like($feed, qr/keep me/, "unquoted text saved");
 	}
@@ -108,13 +107,9 @@ EOF
 
 	# nuke spam
 	{
-		my $pid = open(my $pipe, "|-");
-		defined $pid or die "fork/pipe failed: $!\n";
-		if ($pid == 0) {
-			exec("ssoma-rm", $git_dir);
-		}
-		print $pipe $spam->as_string or die "print failed: $!\n";
-		close $pipe or die "close pipe failed: $!\n";
+		my $spam_str = $spam->as_string;
+		run(["ssoma-rm", $git_dir], \$spam_str) or
+				die "ssoma-rm failed: $?\n";
 	}
 
 	# spam no longer shows up
