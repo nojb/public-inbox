@@ -3,6 +3,7 @@
 package PublicInbox::View;
 use strict;
 use warnings;
+use PublicInbox::Hval;
 use URI::Escape qw/uri_escape/;
 use CGI qw/escapeHTML/;
 use Encode qw/find_encoding/;
@@ -135,16 +136,6 @@ sub add_text_body_full {
 	$s;
 }
 
-sub trim_message_id {
-	my ($mid) = @_;
-	$mid =~ s/\A\s*<//;
-	$mid =~ s/>\s*\z//;
-	my $html = ascii_html($mid);
-	my $href = ascii_html(uri_escape($mid));
-
-	($html, $href);
-}
-
 sub ascii_html {
 	$enc_ascii->encode(escapeHTML($_[0]), Encode::HTMLCREF);
 }
@@ -178,17 +169,18 @@ sub headers_to_html_header {
 
 	my $mid = $simple->header('Message-ID');
 	if (defined $mid) {
-		my ($html, $href) = trim_message_id($mid);
-		$rv .= "Message-ID: &lt;$html&gt; ";
-		unless ($full_pfx) {
-			$href = "../m/$href";
-		}
+		$mid = PublicInbox::Hval->new_msgid($mid);
+		$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
+		my $href = $mid->as_href;
+		$href = "../m/$href" unless $full_pfx;
 		$rv .= "(<a href=\"$href.txt\">original</a>)\n";
 	}
 
 	my $irp = $simple->header('In-Reply-To');
 	if (defined $irp) {
-		my ($html, $href) = trim_message_id($irp);
+		$irp = PublicInbox::Hval->new_msgid($irp);
+		my $html = $irp->as_html;
+		my $href = $irp->as_href;
 		$rv .= "In-Reply-To: &lt;";
 		$rv .= "<a href=\"$href.html\">$html</a>&gt;\n";
 	}

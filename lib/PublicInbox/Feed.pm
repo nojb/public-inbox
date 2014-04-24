@@ -4,11 +4,11 @@ package PublicInbox::Feed;
 use strict;
 use warnings;
 use Email::Address;
-use URI::Escape qw/uri_escape/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use CGI qw(escapeHTML);
 use Date::Parse qw(strptime str2time);
+use PublicInbox::Hval;
 eval { require Git }; # this is GPLv2+, so we are OK to use it
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ',
@@ -262,10 +262,9 @@ sub add_to_feed {
 	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
 	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
-	my $mid = utf8_header($mime, "Message-ID") or return 0;
-	# FIXME: refactor
-	my (undef, $href) = PublicInbox::View::trim_message_id($mid);
-
+	my $mid = $mime->header('Message-ID');
+	$mid = PublicInbox::Hval->new_msgid($mid);
+	my $href = $mid->as_href;
 	my $content = PublicInbox::View->as_feed_entry($mime,
 							"$fullurl$href.html");
 	defined($content) or return 0;
@@ -273,7 +272,8 @@ sub add_to_feed {
 	my $subject = utf8_header($mime, "Subject") || "";
 	length($subject) or return 0;
 
-	my $from = utf8_header($mime, "From") or return 0;
+	my $from = $mime->header('From') or return 0;
+
 
 	my @from = Email::Address->parse($from);
 	my $name = $from[0]->name;
@@ -281,9 +281,10 @@ sub add_to_feed {
 	my $email = $from[0]->address;
 	defined $email or $email = "";
 
-	my $date = utf8_header($mime, "Date");
+	my $date = $mime->header('Date');
 	$date or return 0;
-	$date = feed_date($date) or return 0;
+	$date = PublicInbox::Hval->new_oneline($date);
+	$date = feed_date($date->as_utf8) or return 0;
 	$feed->add_entry(
 		author => { name => $name, email => $email },
 		title => $subject,
@@ -300,17 +301,17 @@ sub dump_html_line {
 	if ($self->message) {
 		$args->[0] .= (' ' x $level);
 		my $simple = $self->message;
-		my $subj = utf8_header($simple, "Subject");
-		my $mid = utf8_header($simple, "Message-ID");
-		$mid =~ s/\A<//;
-		$mid =~ s/>\z//;
-		my $url = $args->[1] . xs_html(uri_escape($mid));
+		my $subj = $simple->header('Subject');
+		my $mid = $simple->header('Message-ID');
+		$mid = PublicInbox::Hval->new_msgid($mid);
+		my $url = $args->[1] . $mid->as_href;
 		my $from = utf8_header($simple, "From");
 		my @from = Email::Address->parse($from);
 		$from = $from[0]->name;
 		(defined($from) && length($from)) or $from = $from[0]->address;
 		$from = xs_html($from);
-		$subj = xs_html($subj);
+		$subj = PublicInbox::Hval->new_oneline($subj);
+		$subj = $subj->as_html;
 		$args->[0] .= "<a href=\"$url.html\">$subj</a> $from\n";
 	}
 	dump_html_line($self->child, $level+1, $args) if $self->child;
