@@ -12,7 +12,6 @@ use URI::Escape qw(uri_escape);
 
 my $enc_utf8 = find_encoding('utf8');
 my $enc_ascii = find_encoding('us-ascii');
-my $enc_mime = find_encoding('MIME-Header');
 
 sub new {
 	my ($class, $raw) = @_;

@@ -11,6 +11,7 @@ use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use constant MAX_INLINE_QUOTED => 5;
 use constant MAX_TRUNC_LEN => 72;
+*ascii_html = *PublicInbox::Hval::ascii_html;
 
 my $enc_utf8 = find_encoding('utf8');
 my $enc_ascii = find_encoding('us-ascii');
@@ -134,10 +135,6 @@ sub add_text_body_full {
 		}
 	!emg;
 	$s;
-}
-
-sub ascii_html {
-	$enc_ascii->encode(escapeHTML($_[0]), Encode::HTMLCREF);
 }
 
 sub headers_to_html_header {

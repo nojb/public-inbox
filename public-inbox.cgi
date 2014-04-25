@@ -168,7 +168,7 @@ sub get_mid_html {
 	return r404() unless $x;
 
 	require PublicInbox::View;
-	my $mid_href = PublicInbox::View::ascii_html(uri_escape($ctx->{mid}));
+	my $mid_href = PublicInbox::Hval::ascii_html(uri_escape($ctx->{mid}));
 	my $pfx = "../f/$mid_href.html";
 	require Email::MIME;
 	[ "200 OK", {'Content-Type' => 'text/html'},
