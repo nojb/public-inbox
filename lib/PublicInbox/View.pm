@@ -21,6 +21,8 @@ sub as_html {
 
 	headers_to_html_header($mime, $full_pfx) .
 		multipart_text_as_html($mime, $full_pfx) .
+		'</pre><hr /><pre>' .
+		html_footer($mime) .
 		'</pre></body></html>';
 }
 
@@ -180,6 +182,35 @@ sub headers_to_html_header {
 
 	("<html><head><title>".  join(' - ', @title) .
 	 '</title></head><body><pre style="white-space:pre-wrap">' .  $rv);
+}
+
+sub html_footer {
+	my ($mime) = @_;
+	my %cc; # everyone else
+	my $to; # this is the From address
+
+	foreach my $h (qw(From To Cc)) {
+		my $v = $mime->header($h);
+		defined($v) && length($v) or next;
+		my @addrs = Email::Address->parse($v);
+		foreach my $recip (@addrs) {
+			my $address = $recip->address;
+			my $dst = lc($address);
+			$cc{$dst} ||= $address;
+			$to ||= $dst;
+		}
+	}
+
+	my $subj = $mime->header('Subject') || '';
+	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
+	my $irp = uri_escape($mime->header_obj->header_raw('Message-ID') || '');
+	delete $cc{$to};
+	$to = uri_escape($to);
+
+	my $cc = uri_escape(join(',', values %cc));
+	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
+
+	'<a href="' . ascii_html($href) . '">reply</a>';
 }
 
 1;
