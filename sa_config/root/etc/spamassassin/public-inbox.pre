@@ -7,3 +7,5 @@ loadplugin Mail::SpamAssassin::Plugin::Rule2XSBody
 
 # for ok_languages in user_prefs
 loadplugin Mail::SpamAssassin::Plugin::TextCat
+
+allow_user_rules 1

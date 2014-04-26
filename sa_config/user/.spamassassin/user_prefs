@@ -1,5 +1,5 @@
 # raise or lower as needed
-required_score 5.0
+required_score 3.0
 
 # do not mess with the original message body, only notify in headers
 clear_report_template
@@ -15,12 +15,25 @@ bayes_ignore_header X-Spam-Flag
 bayes_ignore_header X-Spam-Status
 bayes_ignore_header X-Spam-Report
 
-# English-only for all lists on public-inbox.org
-ok_locales en
-# we have "loadplugin Mail::SpamAssassin::Plugin::TextCat" in a *.pre file
-ok_languages en
-
 # uncomment the following for importing archives:
 # dns_available no
 # skip_rbl_checks 1
 # skip_uribl_checks 1
+
+# manual rules (some stolen from debian)
+# these require "allow_user_rules 1" in the system-wide config
+
+rawbody  LOCAL_VIEWINBROWSER /View this message in a browser/
+describe LOCAL_VIEWINBROWSER "HTML mail not welcome"
+score    LOCAL_VIEWINBROWSER 2.8
+
+body MEETUPSECURELY /meetupsecurely\.com/i
+describe MEETUPSECURELY "site used by spammers"
+score MEETUPSECURELY 2.8
+
+body HELLOMYDEAR /hello my dear/i
+describe HELLOMYDEAR "spam phrase"
+score HELLOMYDEAR 2.8
+
+# we hate HTML mail
+score MIME_HTML_MOSTLY  2.0

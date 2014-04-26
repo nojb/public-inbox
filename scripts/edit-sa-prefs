@@ -1,0 +1,38 @@
+#!/bin/sh
+# Copyright (C) 2014, Eric Wong <e@80x24.org>
+# License: GPLv3 or later <http://www.gnu.org/licenses/gpl-3.0.txt>
+# edit and atomically update ~/.spamasassin/user_prefs safely
+set -e
+cd ~/.spamassassin
+cp user_prefs user_prefs.edit.$$ # don't care if we clobber old files
+
+# non-blocking lock
+if ! ln user_prefs.edit.$$ user_prefs.edit
+then
+	rm user_prefs.edit.$$
+	echo >&2 "we are already editing user_prefs.edit"
+	exit 1
+fi
+
+rm user_prefs.edit.$$
+
+${VISUAL-vi} user_prefs.edit
+
+if diff -u user_prefs user_prefs.edit
+then
+	rm -f user_prefs.edit
+	echo 'no changes'
+	exit 0
+fi
+
+# check until we're good or $EDITOR fails
+while ! spamassassin -p user_prefs.edit --lint
+do
+	echo >&2 "respawning editor, press Enter to continue"
+	read ignored_var
+	${VISUAL-vi} user_prefs.edit
+done
+
+# atomically replace user_prefs
+mv user_prefs.edit user_prefs
+echo '~/.spamassassin/user_prefs updated'
