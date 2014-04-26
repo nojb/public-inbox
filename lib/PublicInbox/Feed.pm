@@ -127,7 +127,10 @@ sub nav_footer {
 sub each_recent_blob {
 	my ($args, $cb) = @_;
 	my $max = $args->{max} || MAX_PER_PAGE;
-	my $refhex = qr/[a-f0-9]{4,40}(?:~\d+)?/;
+	my $hex = '[a-f0-9]';
+	my $addmsg = qr!^:000000 100644 \S+ \S+ A\t(${hex}{2}/${hex}{38})$!;
+	my $delmsg = qr!^:100644 000000 \S+ \S+ D\t(${hex}{2}/${hex}{38})$!;
+	my $refhex = qr/${hex}{4,40}(?:~\d+)?/;
 	my $cgi = $args->{cgi};
 
 	# revision ranges may be specified
@@ -146,7 +149,7 @@ sub each_recent_blob {
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my @cmd = qw/git log --no-notes --no-color --raw -r --no-abbrev/;
+	my @cmd = qw/git log --no-notes --no-color --raw -r/;
 	push @cmd, '--reverse' if $reverse;
 	push @cmd, $range;
 	my $first;
@@ -158,7 +161,7 @@ sub each_recent_blob {
 	my $nr = 0;
 	my @commits = ();
 	while (my $line = <$log>) {
-		if ($line =~ /^:000000 100644 0{40} ([a-f0-9]{40})/) {
+		if ($line =~ /$addmsg/o) {
 			my $add = $1;
 			next if $deleted{$add};
 			$nr += $cb->($add);
@@ -166,16 +169,16 @@ sub each_recent_blob {
 				$last = 1;
 				last;
 			}
-		} elsif ($line =~ /^:100644 000000 ([a-f0-9]{40}) 0{40}/) {
+		} elsif ($line =~ /$delmsg/o) {
 			$deleted{$1} = 1;
-		} elsif ($line =~ /^commit ([a-f0-9]{40})/) {
+		} elsif ($line =~ /^commit (${hex}{40})/) {
 			push @commits, $1;
 		}
 	}
 
 	if ($last) {
 		while (my $line = <$log>) {
-			if ($line =~ /^commit ([a-f0-9]{40})/) {
+			if ($line =~ /^commit (${hex}{40})/) {
 				push @commits, $1;
 				last;
 			}
@@ -315,17 +318,27 @@ sub try_git_pm {
 };
 
 sub do_cat_mail {
-	my ($git, $sha1) = @_;
+	my ($git, $path) = @_;
 	my $str;
 	if ($git) {
 		open my $fh, '>', \$str or
 				die "failed to setup string handle: $!\n";
 		binmode $fh;
-		my $bytes = $git->cat_blob($sha1, $fh);
+		my $err = '';
+		my $bytes;
+		{
+			local $SIG{__WARN__} = sub { $err .= $_[0] };
+			$bytes = $git->cat_blob("HEAD:$path", $fh);
+		}
 		close $fh or die "failed to close string handle: $!\n";
+
+		if ($bytes < 0 && $err &&
+				$err !~ /doesn't exist in the repository/) {
+			warn $err;
+		}
 		return if $bytes <= 0;
 	} else {
-		$str = `git cat-file blob $sha1`;
+		$str = `git cat-file blob HEAD:$path`;
 		return if $? != 0 || length($str) == 0;
 	}
 	Email::MIME->new($str);
