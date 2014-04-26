@@ -100,7 +100,7 @@ sub invalid_list {
 	if (defined $git_dir) {
 		$ctx->{git_dir} = $git_dir;
 		$ctx->{listname} = $listname;
-		return undef;
+		return;
 	}
 	r404();
 }
