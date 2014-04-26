@@ -156,7 +156,7 @@ sub each_recent_blob {
 
 	my $pid = open(my $log, '-|', @cmd) or
 		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
-	my %deleted;
+	my %deleted; # only an optimization at this point
 	my $last;
 	my $nr = 0;
 	my @commits = ();
