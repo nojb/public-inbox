@@ -172,12 +172,22 @@ sub headers_to_html_header {
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
 	if (defined $irp) {
-		$irp = PublicInbox::Hval->new_msgid($irp);
-		my $html = $irp->as_html;
-		my $href = $irp->as_href;
+		my $v = PublicInbox::Hval->new_msgid(my $tmp = $irp);
+		my $html = $v->as_html;
+		my $href = $v->as_href;
 		$rv .= "In-Reply-To: &lt;";
 		$rv .= "<a href=\"$href.html\">$html</a>&gt;\n";
 	}
+
+	my $refs = $header_obj->header_raw('References');
+	if ($refs) {
+		$refs =~ s/\s*\Q$irp\E\s*// if (defined $irp);
+		my @refs = ($refs =~ /<([^>]+)>/g);
+		if (@refs) {
+			$rv .= 'References: '. linkify_refs(@refs) . "\n";
+		}
+	}
+
 	$rv .= "\n";
 
 	("<html><head><title>".  join(' - ', @title) .
@@ -211,6 +221,15 @@ sub html_footer {
 	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
 
 	'<a href="' . ascii_html($href) . '">reply</a>';
+}
+
+sub linkify_refs {
+	join(' ', map {
+		my $v = PublicInbox::Hval->new_msgid($_);
+		my $html = $v->as_html;
+		my $href = $v->as_href;
+		"&lt;<a href=\"$href.html\">$html</a>&gt;";
+	} @_);
 }
 
 1;
