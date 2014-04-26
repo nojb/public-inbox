@@ -5,7 +5,6 @@ use strict;
 use warnings;
 use PublicInbox::Hval;
 use URI::Escape qw/uri_escape/;
-use CGI qw/escapeHTML/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
@@ -13,8 +12,7 @@ use constant MAX_INLINE_QUOTED => 5;
 use constant MAX_TRUNC_LEN => 72;
 *ascii_html = *PublicInbox::Hval::ascii_html;
 
-my $enc_utf8 = find_encoding('utf8');
-my $enc_ascii = find_encoding('us-ascii');
+my $enc_utf8 = find_encoding('UTF-8');
 my $enc_mime = find_encoding('MIME-Header');
 
 # public functions:
@@ -138,33 +136,30 @@ sub add_text_body_full {
 }
 
 sub headers_to_html_header {
-	my ($simple, $full_pfx) = @_;
+	my ($mime, $full_pfx) = @_;
 
 	my $rv = "";
 	my @title;
 	foreach my $h (qw(From To Cc Subject Date)) {
-		my $v = $simple->header($h);
-		defined $v or next;
-		$v =~ tr/\n/ /s;
-		$v =~ tr/\r//d;
-		my $raw = $enc_mime->decode($v);
-		$v = ascii_html($raw);
-		$rv .= "$h: $v\n";
+		my $v = $mime->header($h);
+		defined($v) && length($v) or next;
+		$v = PublicInbox::Hval->new_oneline($v);
+		$rv .= "$h: " . $v->as_html . "\n";
 
 		if ($h eq 'From') {
-			my @from = Email::Address->parse($raw);
-			$raw = $from[0]->name;
-			unless (defined($raw) && length($raw)) {
-				$raw = '<' . $from[0]->address . '>';
+			my @from = Email::Address->parse($v->raw);
+			$v = $from[0]->name;
+			unless (defined($v) && length($v)) {
+				$v = '<' . $from[0]->address . '>';
 			}
-			$title[1] = ascii_html($raw);
-
+			$title[1] = ascii_html($v);
 		} elsif ($h eq 'Subject') {
-			$title[0] = $v;
+			$title[0] = $v->as_html;
 		}
 	}
 
-	my $mid = $simple->header('Message-ID');
+	my $header_obj = $mime->header_obj;
+	my $mid = $header_obj->header_raw('Message-ID');
 	if (defined $mid) {
 		$mid = PublicInbox::Hval->new_msgid($mid);
 		$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
@@ -173,7 +168,7 @@ sub headers_to_html_header {
 		$rv .= "(<a href=\"$href.txt\">original</a>)\n";
 	}
 
-	my $irp = $simple->header('In-Reply-To');
+	my $irp = $header_obj->header_raw('In-Reply-To');
 	if (defined $irp) {
 		$irp = PublicInbox::Hval->new_msgid($irp);
 		my $html = $irp->as_html;

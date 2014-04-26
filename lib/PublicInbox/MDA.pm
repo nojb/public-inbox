@@ -4,7 +4,7 @@ package PublicInbox::MDA;
 use strict;
 use warnings;
 use Email::Address;
-use Encode qw/decode encode/;
+use Encode qw/decode/;
 use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default
 use constant cmd => qw/ssoma-mda -1/;
@@ -71,16 +71,15 @@ sub set_list_headers {
 
 # returns a 3-element array: name, email, date
 sub author_info {
-	my ($class, $simple) = @_;
+	my ($class, $mime) = @_;
 
-	my $from = decode('MIME-Header', $simple->header('From'));
-	$from = encode('utf8', $from);
+	my $from = $mime->header('From');
 	my @from = Email::Address->parse($from);
 	my $name = $from[0]->name;
 	defined $name or $name = '';
 	my $email = $from[0]->address;
 	defined $email or $email = '';
-	($name, $email, $simple->header('Date'));
+	($name, $email, $mime->header('Date'));
 }
 
 1;

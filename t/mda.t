@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
+use Email::Filter;
 use File::Temp qw/tempdir/;
 use Cwd;
 use IPC::Run qw(run);
@@ -42,6 +43,26 @@ my $failbox = "$home/fail.mbox";
 			"setup $k");
 	}
 }
+
+local $ENV{GIT_COMMITTER_NAME} = eval {
+	use PublicInbox::MDA;
+	use Encode qw/encode/;
+	my $mbox = 't/utf8.mbox';
+	open(my $fh, '<', $mbox) or die "failed to open mbox: $mbox\n";
+	my $str = eval { local $/; <$fh> };
+	close $fh;
+	my $msg = Email::Filter->new(data => $str);
+	$msg = Email::MIME->new($msg->simple->as_string);
+	my ($author, $email, $date) = PublicInbox::MDA->author_info($msg);
+	is('El&#233;anor',
+		encode('us-ascii', my $tmp = $author, Encode::HTMLCREF),
+		'HTML conversion is correct');
+	is($email, 'e@example.com', 'email parsed correctly');
+	is($date, 'Thu, 01 Jan 1970 00:00:00 +0000',
+		'message date parsed correctly');
+	$author;
+};
+die $@ if $@;
 
 {
 	my $good_rev;

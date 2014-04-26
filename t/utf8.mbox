@@ -1,0 +1,12 @@
+From e@yhbt.net Thu Jan 01 00:00:00 1970
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+To: =?utf-8?Q?El=C3=A9anor?= <e@example.com>
+From: =?utf-8?Q?El=C3=A9anor?= <e@example.com>
+Subject: Testing for =?utf-8?Q?El=C3=A9anor?=
+Message-ID: <testmessage@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+Content-Transfer-Encoding: 8bit
+
+This is a test message for Eléanor

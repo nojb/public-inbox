@@ -6,9 +6,8 @@ use warnings;
 my $usage = 'public-inbox-mda < rfc2822_message';
 
 use Email::Filter;
+use Email::MIME;
 use Email::Address;
-use Encode qw/decode encode/;
-use Encode::MIME::Header;
 use File::Path::Expand qw/expand_filename/;
 use IPC::Run qw(run);
 use PublicInbox::MDA;
@@ -35,19 +34,19 @@ my $filtered; # string dest
 if (PublicInbox::MDA->precheck($filter, $recipient) &&
     do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
-	my $simple = Email::Simple->new($filtered);
+	my $msg = Email::Simple->new($filtered);
 	$filtered = undef;
-	$filter->simple($simple);
+	$filter->simple($msg);
 
-	if (PublicInbox::Filter->run($simple)) {
+	if (PublicInbox::Filter->run($msg)) {
 		# run spamc again on the HTML-free message
-		if (do_spamc($simple, \$filtered)) {
-			$simple = Email::Simple->new($filtered);
-			PublicInbox::MDA->set_list_headers($simple, $dst);
-			$filter->simple($simple);
+		if (do_spamc($msg, \$filtered)) {
+			$msg = Email::MIME->new($filtered);
+			PublicInbox::MDA->set_list_headers($msg, $dst);
+			$filter->simple($msg);
 
 			my ($name, $email, $date) =
-					PublicInbox::MDA->author_info($simple);
+					PublicInbox::MDA->author_info($msg);
 			local $ENV{GIT_AUTHOR_NAME} = $name;
 			local $ENV{GIT_AUTHOR_EMAIL} = $email;
 			local $ENV{GIT_AUTHOR_DATE} = $date;
@@ -64,9 +63,9 @@ exit 0; # goes to emergency
 # not using Email::Filter->pipe here since we want the stdout of
 # the command even on failure (spamc will set $? on error).
 sub do_spamc {
-	my ($simple, $out) = @_;
+	my ($msg, $out) = @_;
 	eval {
-		my $orig = $simple->as_string;
+		my $orig = $msg->as_string;
 		run([qw/spamc -E --headers/], \$orig, $out);
 	};
 

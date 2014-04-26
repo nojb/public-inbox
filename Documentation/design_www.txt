@@ -24,6 +24,15 @@ Maybe TODO (these might be expensive)
 We use file name suffixes on all of these (except /) so URLs may easily
 cached/memoized using a static file server.
 
+Encoding notes
+--------------
+
+Raw HTML and XML should only contain us-ascii characters which render
+to UTF-8.
+
+Plain text (raw message) endpoints display in the original encoding(s)
+of the original email.
+
 Guidelines for using limited HTML
 ---------------------------------
 We mainly use HTML for linking pages together with <a>.

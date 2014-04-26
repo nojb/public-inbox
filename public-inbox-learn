@@ -5,7 +5,7 @@ my $usage = "$0 (spam|ham) < /path/to/message";
 use strict;
 use warnings;
 use PublicInbox::Config;
-use Email::Simple;
+use Email::MIME;
 use Email::Address;
 use IPC::Run qw/run/;
 my $train = shift or die "usage: $usage\n";
@@ -14,22 +14,18 @@ if ($train !~ /\A(?:ham|spam)\z/) {
 }
 
 my $pi_config = PublicInbox::Config->new;
-my $simple;
-{
-	local $/;
-	$simple = Email::Simple->new(<>);
-}
+my $mime = Email::MIME->new(eval { local $/; <> });
 
 # get all recipients
 my %dests;
 foreach my $h (qw(Cc To)) {
-	foreach my $recipient (Email::Address->parse($simple->header($h))) {
+	foreach my $recipient (Email::Address->parse($mime->header($h))) {
 		$dests{lc($recipient->address)} = 1;
 	}
 }
 
-my $in = $simple->as_string;
-$simple->body_set("");
+my $in = $mime->as_string;
+$mime->body_set('');
 
 my $err = 0;
 my @output = qw(> /dev/null > /dev/null);
@@ -59,10 +55,10 @@ foreach my $recipient (keys %dests) {
 
 		# no checking for errors here, we assume the message has
 		# been reviewed by a human at this point:
-		PublicInbox::Filter->run($simple);
+		PublicInbox::Filter->run($mime);
 
 		my ($name, $email, $date) =
-				PublicInbox::MDA->author_info($simple);
+				PublicInbox::MDA->author_info($mime);
 		local $ENV{GIT_AUTHOR_NAME} = $name;
 		local $ENV{GIT_AUTHOR_EMAIL} = $email;
 		local $ENV{GIT_AUTHOR_DATE} = $date;

@@ -5,12 +5,11 @@
 package PublicInbox::Hval;
 use strict;
 use warnings;
-use fields qw(raw -as_utf8);
+use fields qw(raw);
 use Encode qw(find_encoding);
 use CGI qw(escapeHTML);
 use URI::Escape qw(uri_escape);
 
-my $enc_utf8 = find_encoding('utf8');
 my $enc_ascii = find_encoding('us-ascii');
 
 sub new {
@@ -39,14 +38,17 @@ sub new_oneline {
 	$class->new($raw);
 }
 
-sub as_utf8 {
-	my ($self) = @_;
-	$self->{-as_utf8} ||= $enc_utf8->encode($self->{raw});
-}
-
 sub ascii_html { $enc_ascii->encode(escapeHTML($_[0]), Encode::HTMLCREF) }
 
-sub as_html { ascii_html($_[0]->as_utf8) }
-sub as_href { ascii_html(uri_escape($_[0]->as_utf8)) }
+sub as_html { ascii_html($_[0]->{raw}) }
+sub as_href { ascii_html(uri_escape($_[0]->{raw})) }
+
+sub raw {
+	if (defined $_[1]) {
+		$_[0]->{raw} = $_[1];
+	} else {
+		$_[0]->{raw};
+	}
+}
 
 1;

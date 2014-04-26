@@ -4,9 +4,7 @@ package PublicInbox::Feed;
 use strict;
 use warnings;
 use Email::Address;
-use Encode qw/find_encoding/;
-use Encode::MIME::Header;
-use CGI qw(escapeHTML);
+use Email::MIME;
 use Date::Parse qw(strptime str2time);
 use PublicInbox::Hval;
 eval { require Git }; # this is GPLv2+, so we are OK to use it
@@ -14,9 +12,6 @@ use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ',
 	MAX_PER_PAGE => 25,
 };
-my $enc_utf8 = find_encoding('utf8');
-my $enc_ascii = find_encoding('us-ascii');
-my $enc_mime = find_encoding('MIME-Header');
 
 # FIXME: workaround https://rt.cpan.org/Public/Bug/Display.html?id=22817
 
@@ -25,7 +20,6 @@ sub generate {
 	my ($class, $args) = @_;
 	require XML::Atom::SimpleFeed;
 	require PublicInbox::View;
-	require Email::MIME;
 	require POSIX;
 	my $max = $args->{max} || MAX_PER_PAGE;
 	my $top = $args->{top}; # bool
@@ -62,22 +56,25 @@ sub generate_html_index {
 	my $top = $args->{top}; # bool
 	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
-	my $title = xs_html($feed_opts->{description} || "");
+
+	my $title = $feed_opts->{description} || '';
+	$title = PublicInbox::Hval->new_oneline($title)->as_html;
+
 	my @messages;
 	my $git = try_git_pm($args->{git_dir});
 	my ($first, $last) = each_recent_blob($args, sub {
-		my $simple = do_cat_mail($git, 'Email::Simple', $_[0])
+		my $mime = do_cat_mail($git, $_[0])
 			or return 0;
-		if ($top && ($simple->header("In-Reply-To") ||
-		             $simple->header("References"))) {
+		if ($top && ($mime->header('In-Reply-To') ||
+		             $mime->header('References'))) {
 			return 0;
 		}
-		$simple->body_set(""); # save some memory
+		$mime->body_set(''); # save some memory
 
-		my $t = eval { str2time($simple->header('Date')) };
+		my $t = eval { str2time($mime->header('Date')) };
 		defined($t) or $t = 0;
-		$simple->header_set('X-PI-Date', $t);
-		push @messages, $simple;
+		$mime->header_set('X-PI-Date', $t);
+		push @messages, $mime;
 		1;
 	});
 
@@ -234,13 +231,9 @@ sub get_feedopts {
 	\%rv;
 }
 
-sub utf8_header {
-	my ($simple, $name) = @_;
-	my $val = $simple->header($name);
-	return "" unless defined $val;
-	$val =~ tr/\t\n / /s;
-	$val =~ tr/\r//d;
-	$enc_utf8->encode($enc_mime->decode($val));
+sub mime_header {
+	my ($mime, $name) = @_;
+	PublicInbox::Hval->new_oneline($mime->header($name))->raw;
 }
 
 sub feed_date {
@@ -254,27 +247,25 @@ sub feed_date {
 sub add_to_feed {
 	my ($feed_opts, $feed, $add, $top, $git) = @_;
 
-	my $mime = do_cat_mail($git, 'Email::MIME', $add) or return 0;
-	if ($top && $mime->header("In-Reply-To")) {
+	my $mime = do_cat_mail($git, $add) or return 0;
+	if ($top && $mime->header('In-Reply-To')) {
 		return 0;
 	}
 
 	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
 	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
-	my $mid = $mime->header('Message-ID');
+	my $mid = $mime->header_obj->header_raw('Message-ID');
+	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href;
 	my $content = PublicInbox::View->as_feed_entry($mime,
 							"$fullurl$href.html");
 	defined($content) or return 0;
 
-	my $subject = utf8_header($mime, "Subject") || "";
-	length($subject) or return 0;
+	my $subject = mime_header($mime, 'Subject') or return 0;
 
-	my $from = $mime->header('From') or return 0;
-
-
+	my $from = mime_header($mime, 'From') or return 0;
 	my @from = Email::Address->parse($from);
 	my $name = $from[0]->name;
 	defined $name or $name = "";
@@ -282,9 +273,8 @@ sub add_to_feed {
 	defined $email or $email = "";
 
 	my $date = $mime->header('Date');
-	$date or return 0;
 	$date = PublicInbox::Hval->new_oneline($date);
-	$date = feed_date($date->as_utf8) or return 0;
+	$date = feed_date($date->raw) or return 0;
 	$feed->add_entry(
 		author => { name => $name, email => $email },
 		title => $subject,
@@ -300,27 +290,23 @@ sub dump_html_line {
 	my ($self, $level, $args) = @_; # args => [ $html, $midurl ]
 	if ($self->message) {
 		$args->[0] .= (' ' x $level);
-		my $simple = $self->message;
-		my $subj = $simple->header('Subject');
-		my $mid = $simple->header('Message-ID');
+		my $mime = $self->message;
+		my $subj = $mime->header('Subject');
+		my $mid = $mime->header_obj->header_raw('Message-ID');
 		$mid = PublicInbox::Hval->new_msgid($mid);
 		my $url = $args->[1] . $mid->as_href;
-		my $from = utf8_header($simple, "From");
+		my $from = mime_header($mime, 'From');
+
 		my @from = Email::Address->parse($from);
 		$from = $from[0]->name;
 		(defined($from) && length($from)) or $from = $from[0]->address;
-		$from = xs_html($from);
-		$subj = PublicInbox::Hval->new_oneline($subj);
-		$subj = $subj->as_html;
+
+		$from = PublicInbox::Hval->new_oneline($from)->as_html;
+		$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
 		$args->[0] .= "<a href=\"$url.html\">$subj</a> $from\n";
 	}
 	dump_html_line($self->child, $level+1, $args) if $self->child;
 	dump_html_line($self->next, $level, $args) if $self->next;
-}
-
-sub xs_html {
-	$enc_ascii->encode(escapeHTML($enc_utf8->decode($_[0])),
-			Encode::HTMLCREF);
 }
 
 sub try_git_pm {
@@ -329,7 +315,7 @@ sub try_git_pm {
 };
 
 sub do_cat_mail {
-	my ($git, $class, $sha1) = @_;
+	my ($git, $sha1) = @_;
 	my $str;
 	if ($git) {
 		open my $fh, '>', \$str or
@@ -342,7 +328,7 @@ sub do_cat_mail {
 		$str = `git cat-file blob $sha1`;
 		return if $? != 0 || length($str) == 0;
 	}
-	$class->new($str);
+	Email::MIME->new($str);
 }
 
 1;

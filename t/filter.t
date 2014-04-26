@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-use Email::Filter;
 use PublicInbox::Filter;
 
 sub count_body_parts {
@@ -18,7 +17,7 @@ sub count_body_parts {
 
 # plain-text email is passed through unchanged
 {
-	my $s = Email::Simple->create(
+	my $s = Email::MIME->create(
 		header => [
 			From => 'a@example.com',
 			To => 'b@example.com',
@@ -27,14 +26,12 @@ sub count_body_parts {
 		],
 		body => "hello world\n",
 	);
-	my $f = Email::Filter->new(data => $s->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
-	is($s->as_string, $f->simple->as_string, "plain email unchanged");
+	is(1, PublicInbox::Filter->run($s), "run was a success");
 }
 
 # convert single-part HTML to plain-text
 {
-	my $s = Email::Simple->create(
+	my $s = Email::MIME->create(
 		header => [
 			From => 'a@example.com',
 			To => 'b@example.com',
@@ -43,13 +40,12 @@ sub count_body_parts {
 		],
 		body => "<html><body>bad body</body></html>\n",
 	);
-	my $f = Email::Filter->new(data => $s->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
-	unlike($f->simple->as_string, qr/<html>/, "HTML removed");
-	is("text/plain", $f->simple->header("Content-Type"),
+	is(1, PublicInbox::Filter->run($s), "run was a success");
+	unlike($s->as_string, qr/<html>/, "HTML removed");
+	is("text/plain", $s->header("Content-Type"),
 		"content-type changed");
-	like($f->simple->body, qr/\A\s*bad body\s*\z/, "body");
-	like($f->simple->header("X-Content-Filtered-By"),
+	like($s->body, qr/\A\s*bad body\s*\z/, "body");
+	like($s->header("X-Content-Filtered-By"),
 		qr/PublicInbox::Filter/, "XCFB header added");
 }
 
@@ -79,9 +75,8 @@ sub count_body_parts {
 		],
 		parts => $parts,
 	);
-	my $f = Email::Filter->new(data => $email->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
-	my $parsed = Email::MIME->new($f->simple->as_string);
+	is(1, PublicInbox::Filter->run($email), "run was a success");
+	my $parsed = Email::MIME->new($email->as_string);
 	is("text/plain", $parsed->header("Content-Type"));
 	is(scalar $parsed->parts, 1, "HTML part removed");
 	my %bodies;
@@ -110,9 +105,8 @@ sub count_body_parts {
 		header_str => [ From => 'a@example.com', Subject => 'blah' ],
 		parts => $parts,
 	);
-	my $f = Email::Filter->new(data => $email->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
-	my $parsed = Email::MIME->new($f->simple->as_string);
+	is(1, PublicInbox::Filter->run($email), "run was a success");
+	my $parsed = Email::MIME->new($email->as_string);
 	is(scalar $parsed->parts, 2, "still 2 parts");
 	my %bodies;
 	$parsed->walk_parts(sub {
@@ -149,9 +143,8 @@ sub count_body_parts {
 		header_str => [ From => 'a@example.com', Subject => 'blah' ],
 		parts => $parts,
 	);
-	my $f = Email::Filter->new(data => $email->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
-	my $parsed = Email::MIME->new($f->simple->as_string);
+	is(1, PublicInbox::Filter->run($email), "run was a success");
+	my $parsed = Email::MIME->new($email->as_string);
 	is(scalar $parsed->parts, 2, "still 2 parts");
 	my %bodies;
 	$parsed->walk_parts(sub {
@@ -186,9 +179,8 @@ sub count_body_parts {
 		header_str => [ From => 'a@example.com', Subject => 'blah' ],
 		parts => $parts,
 	);
-	my $f = Email::Filter->new(data => $email->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
-	my $parsed = Email::MIME->new($f->simple->as_string);
+	is(1, PublicInbox::Filter->run($email), "run was a success");
+	my $parsed = Email::MIME->new($email->as_string);
 	is(scalar $parsed->parts, 1, "image part removed");
 	my %bodies;
 	$parsed->walk_parts(sub {
@@ -226,10 +218,9 @@ sub count_body_parts {
 		header_str => [ From => 'a@example.com', Subject => 'blah' ],
 		parts => $parts,
 	);
-	my $f = Email::Filter->new(data => $email->as_string);
-	is(0, PublicInbox::Filter->run($f->simple),
+	is(0, PublicInbox::Filter->run($email),
 		"run signaled to stop delivery");
-	my $parsed = Email::MIME->new($f->simple->as_string);
+	my $parsed = Email::MIME->new($email->as_string);
 	is(scalar $parsed->parts, 1, "bad parts removed");
 	my %bodies;
 	$parsed->walk_parts(sub {
@@ -245,7 +236,7 @@ sub count_body_parts {
 }
 
 {
-	my $s = Email::Simple->create(
+	my $s = Email::MIME->create(
 		header => [
 			From => 'a@example.com',
 			To => 'b@example.com',
@@ -254,13 +245,12 @@ sub count_body_parts {
 		],
 		body => "hello world\n",
 	);
-	my $f = Email::Filter->new(data => $s->as_string);
-	is(0, PublicInbox::Filter->run($f->simple), "run was a failure");
-	like($f->simple->as_string, qr/scrubbed/, "scrubbed message");
+	is(0, PublicInbox::Filter->run($s), "run was a failure");
+	like($s->as_string, qr/scrubbed/, "scrubbed message");
 }
 
 {
-	my $s = Email::Simple->create(
+	my $s = Email::MIME->create(
 		header => [
 			From => 'a@example.com',
 			To => 'b@example.com',
@@ -273,9 +263,8 @@ sub count_body_parts {
 
 	is('c@example.com', $s->header("Mail-Followup-To"),
 		"mft set correctly");
-	my $f = Email::Filter->new(data => $s->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run succeeded for mft");
-	is(undef, $f->simple->header("Mail-Followup-To"), "mft stripped");
+	is(1, PublicInbox::Filter->run($s), "run succeeded for mft");
+	is(undef, $s->header("Mail-Followup-To"), "mft stripped");
 }
 
 # multi-part with application/octet-stream
@@ -308,11 +297,10 @@ EOF
 		header_str => [ From => 'a@example.com', Subject => 'blah' ],
 		parts => $parts,
 	);
-	my $f = Email::Filter->new(data => $email->as_string);
-	is(1, PublicInbox::Filter->run($f->simple), "run was a success");
-	my $parsed = Email::MIME->new($f->simple->as_string);
+	is(1, PublicInbox::Filter->run($email), "run was a success");
+	my $parsed = Email::MIME->new($email->as_string);
 	is(scalar $parsed->parts, 1, "only one remaining part");
-	like($f->simple->header("X-Content-Filtered-By"),
+	like($parsed->header("X-Content-Filtered-By"),
 		qr/PublicInbox::Filter/, "XCFB header added");
 }
 

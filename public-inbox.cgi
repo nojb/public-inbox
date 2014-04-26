@@ -12,10 +12,11 @@
 use 5.008;
 use strict;
 use warnings;
-use CGI qw(:cgi :escapeHTML -nosticky); # PSGI/FastCGI/mod_perl compat
-use Encode qw(decode_utf8);
+use CGI qw(:cgi -nosticky); # PSGI/FastCGI/mod_perl compat
+use Encode qw(find_encoding);
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape uri_unescape);
+my $enc_utf8 = find_encoding('UTF-8');
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
@@ -56,7 +57,7 @@ sub main {
 	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
 		return r("405 Method Not Allowed");
 	}
-	my $path_info = decode_utf8($cgi->path_info);
+	my $path_info = $enc_utf8->decode($cgi->path_info);
 
 	# top-level indices and feeds
 	if ($path_info eq "/") {
@@ -213,6 +214,6 @@ sub set_binmode {
 		# no way to validate raw messages, mixed encoding is possible.
 		binmode STDOUT;
 	} else { # strict encoding for HTML and XML
-		binmode STDOUT, ':encoding(UTF-8)';
+		binmode STDOUT, ':encoding(us-ascii)';
 	}
 }

@@ -21,9 +21,9 @@ our $MIME_TEXT_ANY = qr!\btext/[a-z0-9\+\._-]+\b!i;
 # this is highly opinionated delivery
 # returns 0 only if there is nothing to deliver
 sub run {
-	my ($class, $simple) = @_;
+	my ($class, $mime) = @_;
 
-	my $content_type = $simple->header("Content-Type") || "text/plain";
+	my $content_type = $mime->header('Content-Type') || 'text/plain';
 
 	# kill potentially bad/confusing headers
 	# Note: ssoma already does this, but since we mangle the message,
@@ -32,35 +32,35 @@ sub run {
 	# the nature of public-inbox having no real subscribers.
 	foreach my $d (qw(status lines content-length
 			mail-followup-to mail-reply-to reply-to)) {
-		$simple->header_set($d);
+		$mime->header_set($d);
 	}
 
 	if ($content_type =~ m!\btext/plain\b!i) {
 		return 1; # yay, nothing to do
 	} elsif ($content_type =~ $MIME_HTML) {
 		# HTML-only, non-multipart
-		my $body = $simple->body;
+		my $body = $mime->body;
 		my $ct_parsed = parse_content_type($content_type);
 		dump_html(\$body, $ct_parsed->{attributes}->{charset});
-		replace_body($simple, $body);
+		replace_body($mime, $body);
 		return 1;
 	} elsif ($content_type =~ m!\bmultipart/!i) {
-		return strip_multipart($simple, $content_type);
+		return strip_multipart($mime, $content_type);
 	} else {
-		replace_body($simple, "$content_type message scrubbed");
+		replace_body($mime, "$content_type message scrubbed");
 		return 0;
 	}
 }
 
 sub replace_part {
-	my ($simple, $part, $type) = ($_[0], $_[1], $_[3]);
+	my ($mime, $part, $type) = ($_[0], $_[1], $_[3]);
 	# don't copy $_[2], that's the body (it may be huge)
 
 	# Email::MIME insists on setting Date:, so just set it consistently
 	# to avoid conflicts to avoid git merge conflicts in a split brain
 	# situation.
 	unless (defined $part->header('Date')) {
-		my $date = $simple->header('Date') ||
+		my $date = $mime->header('Date') ||
 		           'Thu, 01 Jan 1970 00:00:00 +0000';
 		$part->header_set('Date', $date);
 	}
@@ -77,11 +77,11 @@ sub replace_part {
 
 # converts one part of a multipart message to text
 sub html_part_to_text {
-	my ($simple, $part) = @_;
+	my ($mime, $part) = @_;
 	my $body = $part->body;
 	my $ct_parsed = parse_content_type($part->content_type);
 	dump_html(\$body, $ct_parsed->{attributes}->{charset});
-	replace_part($simple, $part, $body, 'text/plain');
+	replace_part($mime, $part, $body, 'text/plain');
 }
 
 # modifies $_[0] in place
@@ -110,8 +110,7 @@ sub dump_html {
 # unfortunately, too many people send HTML mail and we'll attempt to convert
 # it to something safer, smaller and harder-to-track.
 sub strip_multipart {
-	my ($simple, $content_type) = @_;
-	my $mime = Email::MIME->new($simple->as_string);
+	my ($mime, $content_type) = @_;
 
 	my (@html, @keep);
 	my $rejected = 0;
@@ -164,11 +163,11 @@ sub strip_multipart {
 
 	if ($content_type =~ m!\bmultipart/alternative\b!i) {
 		if (scalar @keep == 1) {
-			return collapse($simple, $keep[0]);
+			return collapse($mime, $keep[0]);
 		}
 	} else { # convert HTML parts to plain text
 		foreach my $part (@html) {
-			html_part_to_text($simple, $part);
+			html_part_to_text($mime, $part);
 			push @keep, $part;
 		}
 	}
@@ -186,34 +185,34 @@ sub strip_multipart {
 	}
 	if (scalar(@html) || $rejected) {
 		$mime->parts_set(\@keep);
-		$simple->body_set($mime->body_raw);
-		mark_changed($simple);
+		$mime->body_set($mime->body_raw);
+		mark_changed($mime);
 	} # else: no changes
 
 	return $ok;
 }
 
 sub mark_changed {
-	my ($simple) = @_;
-	$simple->header_set("X-Content-Filtered-By", __PACKAGE__ ." $VERSION");
+	my ($mime) = @_;
+	$mime->header_set('X-Content-Filtered-By', __PACKAGE__ ." $VERSION");
 }
 
 sub collapse {
-	my ($simple, $part) = @_;
-	$simple->header_set("Content-Type", $part->content_type);
-	$simple->body_set($part->body_raw);
-	mark_changed($simple);
+	my ($mime, $part) = @_;
+	$mime->header_set('Content-Type', $part->content_type);
+	$mime->body_set($part->body_raw);
+	mark_changed($mime);
 	return 1;
 }
 
 sub replace_body {
-	my $simple = $_[0];
-	$simple->body_set($_[1]);
-	$simple->header_set("Content-Type", "text/plain");
-	if ($simple->header("Content-Transfer-Encoding")) {
-		$simple->header_set("Content-Transfer-Encoding", undef);
+	my $mime = $_[0];
+	$mime->body_set($_[1]);
+	$mime->header_set('Content-Type', 'text/plain');
+	if ($mime->header('Content-Transfer-Encoding')) {
+		$mime->header_set('Content-Transfer-Encoding', undef);
 	}
-	mark_changed($simple);
+	mark_changed($mime);
 }
 
 # Check for display-able text, no messed up binaries
