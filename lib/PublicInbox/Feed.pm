@@ -286,7 +286,7 @@ sub add_to_feed {
 		author => { name => $name, email => $email },
 		title => $subject,
 		updated => $date,
-		content => { type => "html", content => $content },
+		content => { type => 'xhtml', content => $content },
 		link => $midurl . $href,
 		id => 'urn:uuid:' . join('-', @uuid5),
 	);

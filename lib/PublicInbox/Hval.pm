@@ -7,7 +7,6 @@ use strict;
 use warnings;
 use fields qw(raw);
 use Encode qw(find_encoding);
-use CGI qw(escapeHTML);
 use URI::Escape qw(uri_escape);
 
 my $enc_ascii = find_encoding('us-ascii');
@@ -38,7 +37,19 @@ sub new_oneline {
 	$class->new($raw);
 }
 
-sub ascii_html { $enc_ascii->encode(escapeHTML($_[0]), Encode::HTMLCREF) }
+my %xhtml_map = (
+	'"' => '&#34;',
+	'&' => '&#38;',
+	"'" => '&#39;',
+	'<' => '&lt;',
+	'>' => '&gt;',
+);
+
+sub ascii_html {
+	my ($s) = @_;
+	$s =~ s/([<>&'"])/$xhtml_map{$1}/ge;
+	$enc_ascii->encode($s, Encode::HTMLCREF);
+}
 
 sub as_html { ascii_html($_[0]->{raw}) }
 sub as_href { ascii_html(uri_escape($_[0]->{raw})) }
