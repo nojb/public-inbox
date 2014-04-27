@@ -216,6 +216,7 @@ sub html_footer {
 	my $irp = uri_escape($mime->header_obj->header_raw('Message-ID') || '');
 	delete $cc{$to};
 	$to = uri_escape($to);
+	$subj = uri_escape($subj);
 
 	my $cc = uri_escape(join(',', values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
