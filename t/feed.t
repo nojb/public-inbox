@@ -58,7 +58,7 @@ EOF
 			my $p = XML::Feed->parse(\$feed);
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
-			is($p->id, 'public-inbox@example.com',
+			is($p->id, 'mailto:public-inbox@example.com',
 				"id is set to default");
 		}
 
@@ -142,7 +142,8 @@ EOF
 		SKIP: {
 			skip 'XML::Feed missing', 3 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$feed);
-			is($p->id, 'a@example.com', "ID is set correctly");
+			is($p->id, 'mailto:a@example.com',
+				"ID is set correctly");
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
 		}

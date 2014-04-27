@@ -36,7 +36,7 @@ sub generate {
 			href => $feed_opts->{atomurl} ||
 				"http://example.com/atom.xml",
 		},
-		id => $addr || 'public-inbox@example.com',
+		id => 'mailto:' . ($addr || 'public-inbox@example.com'),
 		updated => POSIX::strftime(DATEFMT, gmtime),
 	);
 
@@ -278,13 +278,17 @@ sub add_to_feed {
 	my $date = $mime->header('Date');
 	$date = PublicInbox::Hval->new_oneline($date);
 	$date = feed_date($date->raw) or return 0;
+	$add =~ tr!/!!d;
+	my $h = '[a-f0-9]';
+	my (@uuid5) = ($add =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
+
 	$feed->add_entry(
 		author => { name => $name, email => $email },
 		title => $subject,
 		updated => $date,
 		content => { type => "html", content => $content },
 		link => $midurl . $href,
-		id => $add,
+		id => 'urn:uuid:' . join('-', @uuid5),
 	);
 	1;
 }
