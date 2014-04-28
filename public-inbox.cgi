@@ -12,7 +12,6 @@
 use 5.008;
 use strict;
 use warnings;
-use CGI qw(:cgi -nosticky); # PSGI/FastCGI/mod_perl compat
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
@@ -21,6 +20,8 @@ BEGIN {
 	$pi_config = PublicInbox::Config->new;
 	# TODO: detect and reload config as needed
 	if ($ENV{MOD_PERL}) {
+		require CGI;
+		$CGI::NOSTICKY = 1;
 		CGI->compile;
 	}
 }
@@ -32,6 +33,7 @@ if ($ENV{PI_PLACKUP}) {
 	# which confuses CGI.pm when generating self_url.
 	# RFC 3875 does not mention REQUEST_URI at all,
 	# so nuke it since CGI.pm functions without it.
+	require CGI;
 	delete $ENV{REQUEST_URI};
 	my $req = CGI->new;
 	my $ret = main($req, $req->request_method);
