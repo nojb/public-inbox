@@ -182,14 +182,19 @@ sub get_full_html {
 		[ PublicInbox::View->as_html(Email::MIME->new($$x))] ];
 }
 
+sub self_url {
+	my ($cgi) = @_;
+	ref($cgi) eq 'CGI' ? $cgi->self_url : $cgi->uri->as_string;
+}
+
 sub redirect_list_index {
 	my ($ctx, $cgi) = @_;
-	do_redirect($cgi->self_url . "/");
+	do_redirect(self_url($cgi) . "/");
 }
 
 sub redirect_mid {
 	my ($ctx, $cgi) = @_;
-	my $url = $cgi->self_url;
+	my $url = self_url($cgi);
 	$url =~ s!/f/!/m/!;
 	do_redirect($url . '.html');
 }
