@@ -82,7 +82,7 @@ sub generate_html_index {
 	$th->thread;
 	my @out = (
 		"<html><head><title>$title</title>" .
-		'<link rel=alternate title=Atom.feed href="' .
+		'<link rel="alternate" title="Atom feed" href="' .
 		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
 		'</head><body><pre>');
 	push @out, $feed_opts->{midurl};
