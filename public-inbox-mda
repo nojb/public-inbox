@@ -26,12 +26,12 @@ my $config = PublicInbox::Config->new;
 
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 defined $recipient or die "ORIGINAL_RECIPIENT not defined in ENV\n";
-my $dst = $config->lookup($recipient);
+my $dst = $config->lookup($recipient); # first check
 defined $dst or exit(1);
 my $main_repo = $dst->{mainrepo} or exit(1);
 my $filtered; # string dest
 
-if (PublicInbox::MDA->precheck($filter, $recipient) &&
+if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
     do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
 	my $msg = Email::Simple->new($filtered);

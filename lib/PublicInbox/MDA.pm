@@ -18,7 +18,7 @@ sub __drop_plus {
 
 # do not allow Bcc, only Cc and To if recipient is set
 sub precheck {
-	my ($klass, $filter, $recipient) = @_;
+	my ($klass, $filter, $address) = @_;
 	my $simple = $filter->simple;
 	my $mid = $simple->header("Message-ID");
 	return 0 unless usable_str(length('<m@h>'), $mid) && $mid =~ /\@/;
@@ -26,7 +26,7 @@ sub precheck {
 	return 0 unless usable_str(length(':o'), $simple->header("Subject"));
 	return 0 unless usable_date($simple->header("Date"));
 	return 0 if length($simple->as_string) > MAX_SIZE;
-	recipient_specified($filter, $recipient);
+	alias_specified($filter, $address);
 }
 
 sub usable_str {
@@ -39,17 +39,20 @@ sub usable_date {
 	scalar @t;
 }
 
-sub recipient_specified {
-	my ($filter, $recipient) = @_;
-	defined($recipient) or return 1; # for mass imports
-	my @recip = Email::Address->parse($recipient);
-	my $oaddr = __drop_plus($recip[0]->address);
-	$oaddr = qr/\b\Q$oaddr\E\b/i;
-	my @to = Email::Address->parse($filter->to);
-	my @cc = Email::Address->parse($filter->cc);
-	foreach my $addr (@to, @cc) {
-		if (__drop_plus($addr->address) =~ $oaddr) {
-			return 1;
+sub alias_specified {
+	my ($filter, $address) = @_;
+
+	my @address = ref($address) eq 'ARRAY' ? @$address : ($address);
+	my %ok = map {
+		my @recip = Email::Address->parse($_);
+		lc(__drop_plus($recip[0]->address)) => 1;
+	} @address;
+
+	foreach my $line ($filter->cc, $filter->to) {
+		foreach my $addr (Email::Address->parse($line)) {
+			if ($ok{lc(__drop_plus($addr->address))}) {
+				return 1;
+			}
 		}
 	}
 	return 0;

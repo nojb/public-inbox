@@ -12,9 +12,6 @@ sub do_checks {
 
 	my $f = Email::Filter->new(data => $s->as_string);
 
-	ok(PublicInbox::MDA->precheck($f, undef),
-		"ORIGINAL_RECIPIENT unset is OK");
-
 	my $recipient = 'foo@example.com';
 	ok(!PublicInbox::MDA->precheck($f, $recipient),
 		"wrong ORIGINAL_RECIPIENT rejected");
@@ -26,6 +23,10 @@ sub do_checks {
 	$recipient = 'c@example.com';
 	ok(PublicInbox::MDA->precheck($f, $recipient),
 		"ORIGINAL_RECIPIENT in Cc: is OK");
+
+	$recipient = [ 'c@example.com', 'd@example.com' ];
+	ok(PublicInbox::MDA->precheck($f, $recipient),
+		"alias list is OK");
 }
 
 {
