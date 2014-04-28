@@ -15,7 +15,7 @@ use warnings;
 use CGI qw(:cgi -nosticky); # PSGI/FastCGI/mod_perl compat
 use Encode qw(find_encoding);
 use PublicInbox::Config;
-use URI::Escape qw(uri_escape uri_unescape);
+use URI::Escape qw(uri_escape_utf8 uri_unescape);
 our $enc_utf8 = find_encoding('UTF-8');
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
@@ -165,7 +165,8 @@ sub get_mid_html {
 	return r404() unless $x;
 
 	require PublicInbox::View;
-	my $mid_href = PublicInbox::Hval::ascii_html(uri_escape($ctx->{mid}));
+	my $mid_href = PublicInbox::Hval::ascii_html(
+						uri_escape_utf8($ctx->{mid}));
 	my $pfx = "../f/$mid_href.html";
 	require Email::MIME;
 	[ 200, [ 'Content-Type' => 'text/html' ],

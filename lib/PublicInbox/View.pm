@@ -4,7 +4,7 @@ package PublicInbox::View;
 use strict;
 use warnings;
 use PublicInbox::Hval;
-use URI::Escape qw/uri_escape/;
+use URI::Escape qw/uri_escape_utf8/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
@@ -213,12 +213,13 @@ sub html_footer {
 
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
-	my $irp = uri_escape($mime->header_obj->header_raw('Message-ID') || '');
+	my $irp = uri_escape_utf8(
+			$mime->header_obj->header_raw('Message-ID') || '');
 	delete $cc{$to};
-	$to = uri_escape($to);
-	$subj = uri_escape($subj);
+	$to = uri_escape_utf8($to);
+	$subj = uri_escape_utf8($subj);
 
-	my $cc = uri_escape(join(',', values %cc));
+	my $cc = uri_escape_utf8(join(',', values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
 
 	'<a href="' . ascii_html($href) . '">reply</a>';
