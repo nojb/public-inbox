@@ -16,7 +16,7 @@ use CGI qw(:cgi -nosticky); # PSGI/FastCGI/mod_perl compat
 use Encode qw(find_encoding);
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape uri_unescape);
-my $enc_utf8 = find_encoding('UTF-8');
+our $enc_utf8 = find_encoding('UTF-8');
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
@@ -27,21 +27,17 @@ BEGIN {
 	}
 }
 
-my $ret = main();
-
-my ($status, $headers, $body) = @$ret;
-set_binmode($headers);
-if (@ARGV && $ARGV[0] eq 'static') {
-	print $body;
-} else { # CGI
-	print "Status: $status\r\n";
-	while (my ($k, $v) = each %$headers) {
-		print "$k: $v\r\n";
+if ($ENV{PI_PLACKUP}) {
+	psgi_app();
+} else {
+	my $ret = main();
+	binmode STDOUT;
+	if (@ARGV && $ARGV[0] eq 'static') {
+		print $ret->[2]->[0];
+	} else { # CGI
+		cgi_print($ret);
 	}
-	print "\r\n", $body;
 }
-
-# TODO: plack support
 
 # private functions below
 
@@ -55,7 +51,7 @@ sub main {
 	my $cgi = CGI->new;
 	my %ctx;
 	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
-		return r("405 Method Not Allowed");
+		return r(405, 'Method Not Allowed');
 	}
 	my $path_info = $enc_utf8->decode($cgi->path_info);
 
@@ -88,10 +84,10 @@ sub main {
 	}
 }
 
-sub r404 { r("404 Not Found") }
+sub r404 { r(404, 'Not Found') }
 
 # simple response for errors
-sub r { [ $_[0], { 'Content-Type' => 'text/plain' }, $_[0]."\n" ] }
+sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 
 # returns undef if valid, array ref response if invalid
 sub invalid_list {
@@ -108,23 +104,23 @@ sub invalid_list {
 # returns undef if valid, array ref response if invalid
 sub invalid_list_mid {
 	my ($ctx, $listname, $mid) = @_;
-	my $ret = invalid_list($ctx, $listname, $mid) and return $ret;
-	$ctx->{mid} = uri_unescape($mid);
-	undef;
+	my $ret = invalid_list($ctx, $listname, $mid);
+	$ctx->{mid} = uri_unescape($mid) unless $ret;
+	$ret;
 }
 
 # /$LISTNAME/atom.xml                       -> Atom feed, includes replies
 sub get_atom {
 	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
-	[ '200 OK', { 'Content-Type' => 'application/xml' },
-	  PublicInbox::Feed->generate({
+	[ 200, [ 'Content-Type' => 'application/xml' ],
+	  [ PublicInbox::Feed->generate({
 			git_dir => $ctx->{git_dir},
 			listname => $ctx->{listname},
 			pi_config => $pi_config,
 			cgi => $cgi,
 			top => $top,
-		})
+		}) ]
 	];
 }
 
@@ -132,14 +128,14 @@ sub get_atom {
 sub get_index {
 	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
-	[ '200 OK', { 'Content-Type' => 'text/html' },
-	  PublicInbox::Feed->generate_html_index({
+	[ 200, [ 'Content-Type' => 'text/html' ],
+	  [ PublicInbox::Feed->generate_html_index({
 			git_dir => $ctx->{git_dir},
 			listname => $ctx->{listname},
 			pi_config => $pi_config,
 			cgi => $cgi,
 			top => $top,
-		})
+		}) ]
 	];
 }
 
@@ -159,7 +155,7 @@ sub mid2blob {
 sub get_mid_txt {
 	my ($ctx, $cgi) = @_;
 	my $x = mid2blob($ctx);
-	$x ? [ "200 OK", {'Content-Type' => 'text/plain'}, $$x ] : r404();
+	$x ? [ 200, [ 'Content-Type' => 'text/plain' ], [ $$x ] ] : r404();
 }
 
 # /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
@@ -172,8 +168,8 @@ sub get_mid_html {
 	my $mid_href = PublicInbox::Hval::ascii_html(uri_escape($ctx->{mid}));
 	my $pfx = "../f/$mid_href.html";
 	require Email::MIME;
-	[ "200 OK", {'Content-Type' => 'text/html'},
-		PublicInbox::View->as_html(Email::MIME->new($$x), $pfx)];
+	[ 200, [ 'Content-Type' => 'text/html' ],
+		[ PublicInbox::View->as_html(Email::MIME->new($$x), $pfx) ] ];
 }
 
 # /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
@@ -183,8 +179,8 @@ sub get_full_html {
 	return r404() unless $x;
 	require PublicInbox::View;
 	require Email::MIME;
-	[ "200 OK", {'Content-Type' => 'text/html'},
-		PublicInbox::View->as_html(Email::MIME->new($$x))];
+	[ 200, [ 'Content-Type' => 'text/html' ],
+		[ PublicInbox::View->as_html(Email::MIME->new($$x))] ];
 }
 
 sub redirect_list_index {
@@ -201,19 +197,44 @@ sub redirect_mid {
 
 sub do_redirect {
 	my ($url) = @_;
-	[ '301 Moved Permanently',
-	  { Location => $url, 'Content-Type' => 'text/plain' },
-	  "Redirecting to $url\n"
+	[ 301,
+	  [ Location => $url, 'Content-Type' => 'text/plain' ],
+	  [ "Redirecting to $url\n" ]
 	]
 }
 
-# only used for CGI and static file generation modes
-sub set_binmode {
-	my ($headers) = @_;
-	if ($headers->{'Content-Type'} eq 'text/plain') {
-		# no way to validate raw messages, mixed encoding is possible.
-		binmode STDOUT;
-	} else { # strict encoding for HTML and XML
-		binmode STDOUT, ':encoding(us-ascii)';
+sub psgi_app {
+	require CGI::Emulate::PSGI;
+
+	# preload so we are CoW friendly
+	require PublicInbox::Feed;
+	require PublicInbox::View;
+	require Mail::Thread;
+	require Digest::SHA;
+	require POSIX;
+	require XML::Atom::SimpleFeed;
+	eval { require Git };
+	sub {
+		my ($e) = @_;
+		local %ENV = (%ENV, CGI::Emulate::PSGI->emulate_environment($e));
+		main();
 	}
+}
+
+sub cgi_print {
+	my ($ret) = @_;
+	my ($status, $headers, $body) = @$ret;
+	my %codes = (
+		200 => 'OK',
+		301 => 'Moved Permanently',
+		404 => 'Not Found',
+		405 => 'Method Not Allowed',
+	);
+
+	print "Status: $status $codes{$status}\r\n";
+	my @tmp = @$headers;
+	while (my ($k, $v) = splice(@tmp, 0, 2)) {
+		print "$k: $v\r\n";
+	}
+	print "\r\n", $body->[0];
 }
