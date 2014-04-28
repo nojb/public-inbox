@@ -62,7 +62,7 @@ sub generate_html_index {
 
 	my @messages;
 	my $git = try_git_pm($args->{git_dir});
-	my ($first, $last) = each_recent_blob($args, sub {
+	my $last = each_recent_blob($args, sub {
 		my $mime = do_cat_mail($git, $_[0])
 			or return 0;
 		if ($top && ($mime->header('In-Reply-To') ||
@@ -96,7 +96,7 @@ sub generate_html_index {
 	});
 	dump_html_line($_, 0, \@out) for $th->rootset;
 
-	my $footer = nav_footer($args->{cgi}, $first, $last);
+	my $footer = nav_footer($args->{cgi}, $last);
 	$footer = "<hr /><pre>$footer</pre>" if $footer;
 	$out[0] . "</pre>$footer</html>";
 }
@@ -104,21 +104,21 @@ sub generate_html_index {
 # private subs
 
 sub nav_footer {
-	my ($cgi, $first, $last) = @_;
+	my ($cgi, $last) = @_;
 	$cgi or return '';
 	my $old_r = $cgi->param('r');
-	my $prev = '    ';
+	my $head = '    ';
 	my $next = '    ';
 
 	if ($last) {
 		$next = $cgi->path_info . "?r=$last";
 		$next = qq!<a href="$next">next</a>!;
 	}
-	if ($first && $old_r) {
-		$prev = $cgi->path_info . "?r=$first..";
-		$prev = qq!<a href="$prev">prev</a>!;
+	if ($old_r) {
+		$head = $cgi->path_info;
+		$head = qq!<a href="$head">head</a>!;
 	}
-	"$prev $next";
+	"$head $next";
 }
 
 sub each_recent_blob {
@@ -131,25 +131,17 @@ sub each_recent_blob {
 	my $cgi = $args->{cgi};
 
 	# revision ranges may be specified
-	my $reverse;
 	my $range = 'HEAD';
 	my $r = $cgi->param('r') if $cgi;
-	if ($r) {
-		if ($r =~ /\A(?:$refhex\.\.)?$refhex\z/o) {
-			$range = $r;
-		} elsif ($r =~ /\A(?:$refhex\.\.)\z/o) {
-			$reverse = 1;
-			$range = $r;
-		}
+	if ($r && ($r =~ /\A(?:$refhex\.\.)?$refhex\z/o)) {
+		$range = $r;
 	}
 
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
 	my @cmd = qw/git log --no-notes --no-color --raw -r/;
-	push @cmd, '--reverse' if $reverse;
 	push @cmd, $range;
-	my $first;
 
 	my $pid = open(my $log, '-|', @cmd) or
 		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
@@ -180,15 +172,13 @@ sub each_recent_blob {
 				last;
 			}
 		}
-	} elsif ($reverse) {
-		unshift @commits, undef
 	} else {
 		push @commits, undef;
 	}
 
 	close $log; # we may EPIPE here
 	# for pagination
-	$reverse ? ($commits[-1],$commits[0]) : ($commits[0],$commits[-1]);
+	$commits[-1];
 }
 
 # private functions below
