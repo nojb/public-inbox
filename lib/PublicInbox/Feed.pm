@@ -195,7 +195,7 @@ sub get_feedopts {
 		if (ref($cgi) eq 'CGI') {
 			$base = $cgi->url(-base);
 		} else {
-			$base = "${$cgi->base}";
+			$base = $cgi->base->as_string;
 			$base =~ s!/\z!!;
 		}
 		$url_base = $path_info;
