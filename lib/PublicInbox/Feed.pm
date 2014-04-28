@@ -22,7 +22,6 @@ sub generate {
 	require PublicInbox::View;
 	require POSIX;
 	my $max = $args->{max} || MAX_PER_PAGE;
-	my $top = $args->{top}; # bool
 
 	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
@@ -43,7 +42,7 @@ sub generate {
 	my $git = try_git_pm($args->{git_dir});
 	each_recent_blob($args, sub {
 		my ($add) = @_;
-		add_to_feed($feed_opts, $feed, $add, $top, $git);
+		add_to_feed($feed_opts, $feed, $add, $git);
 	});
 	$feed->as_string;
 }
@@ -53,7 +52,6 @@ sub generate_html_index {
 	require Mail::Thread;
 
 	my $max = $args->{max} || MAX_PER_PAGE;
-	my $top = $args->{top}; # bool
 	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
 
@@ -63,12 +61,7 @@ sub generate_html_index {
 	my @messages;
 	my $git = try_git_pm($args->{git_dir});
 	my $last = each_recent_blob($args, sub {
-		my $mime = do_cat_mail($git, $_[0])
-			or return 0;
-		if ($top && ($mime->header('In-Reply-To') ||
-		             $mime->header('References'))) {
-			return 0;
-		}
+		my $mime = do_cat_mail($git, $_[0]) or return 0;
 		$mime->body_set(''); # save some memory
 
 		my $t = eval { str2time($mime->header('Date')) };
@@ -241,13 +234,9 @@ sub feed_date {
 
 # returns 0 (skipped) or 1 (added)
 sub add_to_feed {
-	my ($feed_opts, $feed, $add, $top, $git) = @_;
+	my ($feed_opts, $feed, $add, $git) = @_;
 
 	my $mime = do_cat_mail($git, $add) or return 0;
-	if ($top && $mime->header('In-Reply-To')) {
-		return 0;
-	}
-
 	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
 	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
