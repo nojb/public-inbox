@@ -111,7 +111,7 @@ sub nav_footer {
 		$head = $cgi->path_info;
 		$head = qq!<a href="$head">head</a>!;
 	}
-	"$head $next";
+	"$next $head";
 }
 
 sub each_recent_blob {
