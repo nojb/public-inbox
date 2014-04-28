@@ -73,12 +73,10 @@ sub generate_html_index {
 
 	my $th = Mail::Thread->new(@messages);
 	$th->thread;
-	my @out = (
-		"<html><head><title>$title</title>" .
+	my $html = "<html><head><title>$title</title>" .
 		'<link rel="alternate" title="Atom feed" href="' .
 		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
-		'</head><body><pre>');
-	push @out, $feed_opts->{midurl};
+		'</head><body><pre>';
 
 	# sort by date, most recent at top
 	$th->order(sub {
@@ -87,11 +85,11 @@ sub generate_html_index {
 			$a->topmost->message->header('X-PI-Date')
 		} @_;
 	});
-	dump_html_line($_, 0, \@out) for $th->rootset;
+	dump_html_line($_, 0, \$html) for $th->rootset;
 
 	my $footer = nav_footer($args->{cgi}, $last);
 	$footer = "<hr /><pre>$footer</pre>" if $footer;
-	$out[0] . "</pre>$footer</html>";
+	$html . "</pre>$footer</html>";
 }
 
 # private subs
@@ -104,8 +102,7 @@ sub nav_footer {
 	my $next = '    ';
 
 	if ($last) {
-		$next = $cgi->path_info . "?r=$last";
-		$next = qq!<a href="$next">next</a>!;
+		$next = qq!<a href="?r=$last">next</a>!;
 	}
 	if ($old_r) {
 		$head = $cgi->path_info;
@@ -275,14 +272,14 @@ sub add_to_feed {
 }
 
 sub dump_html_line {
-	my ($self, $level, $args) = @_; # args => [ $html, $midurl ]
+	my ($self, $level, $html) = @_;
 	if ($self->message) {
-		$args->[0] .= (' ' x $level);
+		$$html .= (' ' x $level);
 		my $mime = $self->message;
 		my $subj = $mime->header('Subject');
 		my $mid = $mime->header_obj->header_raw('Message-ID');
 		$mid = PublicInbox::Hval->new_msgid($mid);
-		my $url = $args->[1] . $mid->as_href;
+		my $href = 'm/' . $mid->as_href . '.html';
 		my $from = mime_header($mime, 'From');
 
 		my @from = Email::Address->parse($from);
@@ -291,10 +288,10 @@ sub dump_html_line {
 
 		$from = PublicInbox::Hval->new_oneline($from)->as_html;
 		$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
-		$args->[0] .= "<a href=\"$url.html\">$subj</a> $from\n";
+		$$html .= "<a href=\"$href\">$subj</a> $from\n";
 	}
-	dump_html_line($self->child, $level+1, $args) if $self->child;
-	dump_html_line($self->next, $level, $args) if $self->next;
+	dump_html_line($self->child, $level+1, $html) if $self->child;
+	dump_html_line($self->next, $level, $html) if $self->next;
 }
 
 sub try_git_pm {
