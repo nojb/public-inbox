@@ -109,16 +109,13 @@ sub nav_footer {
 	my $old_r = $cgi->param('r');
 	my $prev = '    ';
 	my $next = '    ';
-	my %opts = (-path => 1, -query => 1, -relative => 1);
 
 	if ($last) {
-		$cgi->param('r', $last);
-		$next = $cgi->url(%opts);
+		$next = $cgi->path_info . "?r=$last";
 		$next = qq!<a href="$next">next</a>!;
 	}
 	if ($first && $old_r) {
-		$cgi->param('r', "$first..");
-		$prev = $cgi->url(%opts);
+		$prev = $cgi->path_info . "?r=$first..";
 		$prev = qq!<a href="$prev">prev</a>!;
 	}
 	"$prev $next";
@@ -213,14 +210,20 @@ sub get_feedopts {
 	}
 	my $url_base;
 	if ($cgi) {
-		my $cgi_url = $cgi->url(-path=>1, -relative=>1);
-		my $base = $cgi->url(-base);
-		$url_base = $cgi_url;
+		my $path_info = $cgi->path_info;
+		my $base;
+		if (ref($cgi) eq 'CGI') {
+			$base = $cgi->url(-base);
+		} else {
+			$base = "${$cgi->base}";
+			$base =~ s!/\z!!;
+		}
+		$url_base = $path_info;
 		if ($url_base =~ s!/(?:|index\.html)?\z!!) {
 			$rv{atomurl} = "$base$url_base/atom.xml";
 		} else {
 			$url_base =~ s!/atom\.xml\z!!;
-			$rv{atomurl} = $base . $cgi_url;
+			$rv{atomurl} = $base . $path_info;
 			$url_base = $base . $url_base; # XXX is this needed?
 		}
 	} else {

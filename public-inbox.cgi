@@ -30,7 +30,13 @@ BEGIN {
 if ($ENV{PI_PLACKUP}) {
 	psgi_app();
 } else {
-	my $ret = main();
+	# some servers (Ruby webrick) include scheme://host[:port] here,
+	# which confuses CGI.pm when generating self_url.
+	# RFC 3875 does not mention REQUEST_URI at all,
+	# so nuke it since CGI.pm functions without it.
+	delete $ENV{REQUEST_URI};
+	my $req = CGI->new;
+	my $ret = main($req, $req->request_method);
 	binmode STDOUT;
 	if (@ARGV && $ARGV[0] eq 'static') {
 		print $ret->[2]->[0];
@@ -42,15 +48,9 @@ if ($ENV{PI_PLACKUP}) {
 # private functions below
 
 sub main {
-	# some servers (Ruby webrick) include scheme://host[:port] here,
-	# which confuses CGI.pm when generating self_url.
-	# RFC 3875 does not mention REQUEST_URI at all,
-	# so nuke it since CGI.pm functions without it.
-	delete $ENV{REQUEST_URI};
-
-	my $cgi = CGI->new;
+	my ($cgi, $method) = @_;
 	my %ctx;
-	if ($cgi->request_method !~ /\AGET|HEAD\z/) {
+	if ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
 	}
 	my $path_info = $enc_utf8->decode($cgi->path_info);
@@ -205,8 +205,6 @@ sub do_redirect {
 }
 
 sub psgi_app {
-	require CGI::Emulate::PSGI;
-
 	# preload so we are CoW friendly
 	require PublicInbox::Feed;
 	require PublicInbox::View;
@@ -214,12 +212,12 @@ sub psgi_app {
 	require Digest::SHA;
 	require POSIX;
 	require XML::Atom::SimpleFeed;
-	eval { require Git };
+	require Plack::Request;
+	eval { require Git }; # optional
 	sub {
-		my ($e) = @_;
-		local %ENV = (%ENV, CGI::Emulate::PSGI->emulate_environment($e));
-		main();
-	}
+		my $req = Plack::Request->new(@_);
+		main($req, $req->method);
+	};
 }
 
 sub cgi_print {
