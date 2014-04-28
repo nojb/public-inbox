@@ -13,10 +13,8 @@ use 5.008;
 use strict;
 use warnings;
 use CGI qw(:cgi -nosticky); # PSGI/FastCGI/mod_perl compat
-use Encode qw(find_encoding);
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
-our $enc_utf8 = find_encoding('UTF-8');
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
@@ -53,10 +51,10 @@ sub main {
 	if ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
 	}
-	my $path_info = $enc_utf8->decode($cgi->path_info);
+	my $path_info = $cgi->path_info;
 
 	# top-level indices and feeds
-	if ($path_info eq "/") {
+	if ($path_info eq '/') {
 		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
 		invalid_list(\%ctx, $1) || redirect_list_index(\%ctx, $cgi);
