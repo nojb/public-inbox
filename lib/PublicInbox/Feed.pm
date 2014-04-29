@@ -7,7 +7,7 @@ use Email::Address;
 use Email::MIME;
 use Date::Parse qw(strptime str2time);
 use PublicInbox::Hval;
-eval { require Git }; # this is GPLv2+, so we are OK to use it
+use PublicInbox::GitCatFile;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ',
 	MAX_PER_PAGE => 25,
@@ -39,7 +39,7 @@ sub generate {
 		updated => POSIX::strftime(DATEFMT, gmtime),
 	);
 
-	my $git = try_git_pm($args->{git_dir});
+	my $git = PublicInbox::GitCatFile->new($args->{git_dir});
 	each_recent_blob($args, sub {
 		my ($add) = @_;
 		add_to_feed($feed_opts, $feed, $add, $git);
@@ -59,7 +59,7 @@ sub generate_html_index {
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 
 	my @messages;
-	my $git = try_git_pm($args->{git_dir});
+	my $git = PublicInbox::GitCatFile->new($args->{git_dir});
 	my $last = each_recent_blob($args, sub {
 		my $mime = do_cat_mail($git, $_[0]) or return 0;
 		$mime->body_set(''); # save some memory
@@ -294,36 +294,10 @@ sub dump_html_line {
 	dump_html_line($self->next, $level, $html) if $self->next;
 }
 
-sub try_git_pm {
-	my ($dir) = @_;
-	eval { Git->repository(Directory => $dir) };
-};
-
 sub do_cat_mail {
 	my ($git, $path) = @_;
-	my $str;
-	if ($git) {
-		open my $fh, '>', \$str or
-				die "failed to setup string handle: $!\n";
-		binmode $fh;
-		my $err = '';
-		my $bytes;
-		{
-			local $SIG{__WARN__} = sub { $err .= $_[0] };
-			$bytes = $git->cat_blob("HEAD:$path", $fh);
-		}
-		close $fh or die "failed to close string handle: $!\n";
-
-		if ($bytes < 0 && $err &&
-				$err !~ /doesn't exist in the repository/) {
-			warn $err;
-		}
-		return if $bytes <= 0;
-	} else {
-		$str = `git cat-file blob HEAD:$path`;
-		return if $? != 0 || length($str) == 0;
-	}
-	Email::MIME->new($str);
+	my $str = $git->cat_file("HEAD:$path");
+	Email::MIME->new($$str);
 }
 
 1;

@@ -218,7 +218,6 @@ sub psgi_app {
 	require POSIX;
 	require XML::Atom::SimpleFeed;
 	require Plack::Request;
-	eval { require Git }; # optional
 	sub {
 		my $req = Plack::Request->new(@_);
 		main($req, $req->method);

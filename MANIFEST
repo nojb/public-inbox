@@ -10,6 +10,7 @@ lib/PublicInbox/MDA.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter.pm
+lib/PublicInbox/GitCatFile.pm
 lib/PublicInbox/Hval.pm
 lib/PublicInbox/View.pm
 public-inbox-mda
