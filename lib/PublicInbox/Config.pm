@@ -4,19 +4,19 @@ package PublicInbox::Config;
 use strict;
 use warnings;
 use File::Path::Expand qw/expand_filename/;
+use IPC::Run;
 
 # returns key-value pairs of config directives in a hash
 # if keys may be multi-value, the value is an array ref containing all values
 sub new {
 	my ($class, $file) = @_;
+	my ($in, $out);
 
-	local $ENV{GIT_CONFIG} = defined $file ? $file : default_file();
-
-	my @cfg = `git config -l`;
-	$? == 0 or die "git config -l failed: $?\n";
-	chomp @cfg;
+	$file = default_file() unless defined($file);
+	IPC::Run::run([qw/git config --file/, $file, '-l'], \$in, \$out);
+	$? == 0 or die "git config --file $file -l failed: $?\n";
 	my %rv;
-	foreach my $line (@cfg) {
+	foreach my $line (split(/\n/, $out)) {
 		my ($k, $v) = split(/=/, $line, 2);
 		my $cur = $rv{$k};
 
