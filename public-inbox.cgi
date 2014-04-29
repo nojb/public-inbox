@@ -142,12 +142,16 @@ sub get_index {
 # just returns a string ref for the blob in the current ctx
 sub mid2blob {
 	my ($ctx) = @_;
-	local $ENV{GIT_DIR} = $ctx->{git_dir};
 	require Digest::SHA;
 	my $hex = Digest::SHA::sha1_hex($ctx->{mid});
 	$hex =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/i or
 			die "BUG: not a SHA-1 hex: $hex";
-	my $blob = `git cat-file blob HEAD:$1/$2 2>/dev/null`;
+	require IPC::Run;
+	my ($in, $blob, $err);
+	open my $null, '+<', '/dev/null' or die "open: $!\n";
+	IPC::Run::run(['git', '--git-dir', $ctx->{git_dir},
+			qw(cat-file blob), "HEAD:$1/$2"],
+			$null, \$blob, $null);
 	$? == 0 ? \$blob : undef;
 }
 
