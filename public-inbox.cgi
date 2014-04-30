@@ -15,10 +15,12 @@ use warnings;
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
+our $NO_SCRIPT_NAME; # for prettier redirects with mod_perl2
 our $pi_config;
 BEGIN {
 	$pi_config = PublicInbox::Config->new;
 	# TODO: detect and reload config as needed
+	$NO_SCRIPT_NAME = 1 if $ENV{NO_SCRIPT_NAME};
 	if ($ENV{MOD_PERL}) {
 		require CGI;
 		no warnings;
@@ -36,6 +38,7 @@ if ($ENV{PI_PLACKUP}) {
 	# so nuke it since CGI.pm functions without it.
 	require CGI;
 	delete $ENV{REQUEST_URI};
+	$ENV{SCRIPT_NAME} = '' if $NO_SCRIPT_NAME;
 	my $req = CGI->new;
 	my $ret = main($req, $req->request_method);
 	binmode STDOUT;
