@@ -23,7 +23,6 @@ sub generate {
 	require POSIX;
 	my $max = $args->{max} || MAX_PER_PAGE;
 
-	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
 	my $addr = $feed_opts->{address};
 	$addr = $addr->[0] if ref($addr);
@@ -52,7 +51,6 @@ sub generate_html_index {
 	require Mail::Thread;
 
 	my $max = $args->{max} || MAX_PER_PAGE;
-	local $ENV{GIT_DIR} = $args->{git_dir};
 	my $feed_opts = get_feedopts($args);
 
 	my $title = $feed_opts->{description} || '';
@@ -130,7 +128,8 @@ sub each_recent_blob {
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my @cmd = qw/git log --no-notes --no-color --raw -r/;
+	my @cmd = ('git', "--git-dir=$args->{git_dir}",
+			qw/log --no-notes --no-color --raw -r/);
 	push @cmd, $range;
 
 	my $pid = open(my $log, '-|', @cmd) or
