@@ -149,7 +149,7 @@ sub mid2blob {
 	require IPC::Run;
 	my ($in, $blob, $err);
 	open my $null, '+<', '/dev/null' or die "open: $!\n";
-	IPC::Run::run(['git', '--git-dir', $ctx->{git_dir},
+	IPC::Run::run(['git', "--git-dir=$ctx->{git_dir}",
 			qw(cat-file blob), "HEAD:$1/$2"],
 			$null, \$blob, $null);
 	$? == 0 ? \$blob : undef;

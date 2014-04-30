@@ -17,8 +17,8 @@ sub _cat_file_begin {
 	my ($self) = @_;
 	return if $self->{pid};
 	my ($in, $out);
-	my $pid = open2($in, $out, 'git', '--git-dir', $self->{git_dir},
-			'cat-file', '--batch');
+	my $pid = open2($in, $out, 'git', "--git-dir=$self->{git_dir}",
+			qw(cat-file --batch));
 
 	$self->{pid} = $pid;
 	$self->{in} = $in;
