@@ -21,6 +21,7 @@ BEGIN {
 	# TODO: detect and reload config as needed
 	if ($ENV{MOD_PERL}) {
 		require CGI;
+		no warnings;
 		$CGI::NOSTICKY = 1;
 		CGI->compile;
 	}
