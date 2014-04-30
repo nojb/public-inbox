@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
+# Sample configuration using WEBrick, mainly intended dev/testing
+# for folks familiar with Ruby and not various Perl webserver
+# deployment options.
 require 'webrick'
 require 'logger'
 options = {
@@ -12,8 +15,8 @@ options = {
 server = WEBrick::HTTPServer.new(options)
 server.mount("/",
              WEBrick::HTTPServlet::CGIHandler,
-            "#{Dir.pwd}/blib/script/public-inbox.cgi")
+            "/var/www/cgi-bin/public-inbox.cgi")
 ['INT', 'TERM'].each do |signal|
-  trap(signal) {exit}
+  trap(signal) {exit!(0)}
 end
 server.start

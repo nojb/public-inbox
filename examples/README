@@ -1,0 +1,20 @@
+Various example configuration files related to public-inbox
+-----------------------------------------------------------
+
+For all server admins
+---------------------
+public-inbox-config - configuration file, this maps configured inboxes
+
+For Apache2 users without Plack
+-------------------------------
+apache2_perl.conf - intended to be the basis of a production config
+
+Web server configs for quick-and-dirty demos
+--------------------------------------------
+apache2_cgi.conf - for Apache2 users who cannot install mod_perl
+cgi-webrick.rb - only for Rubyists who do not wish to install Plack or Apache
+
+Contact
+-------
+Please send any related feedback to public-inbox: meta@public-inbox.org
+Our public-inbox is: git://public-inbox.org/meta
