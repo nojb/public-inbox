@@ -155,8 +155,7 @@ sub mid2blob {
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
 		open STDERR, '>', '/dev/null'; # ignore errors
-		exec @cmd;
-		exit 1;
+		exec @cmd or die "exec failed: $!\n";
 	} else {
 		my $blob = eval { local $/; <$fh> };
 		close $fh;
