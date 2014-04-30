@@ -132,7 +132,7 @@ sub get_atom {
 sub get_index {
 	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
-	[ 200, [ 'Content-Type' => 'text/html' ],
+	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
 	  [ PublicInbox::Feed->generate_html_index({
 			git_dir => $ctx->{git_dir},
 			listname => $ctx->{listname},
@@ -184,7 +184,7 @@ sub get_mid_html {
 						uri_escape_utf8($ctx->{mid}));
 	my $pfx = "../f/$mid_href.html";
 	require Email::MIME;
-	[ 200, [ 'Content-Type' => 'text/html' ],
+	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
 		[ PublicInbox::View->as_html(Email::MIME->new($$x), $pfx) ] ];
 }
 
