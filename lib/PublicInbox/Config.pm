@@ -78,7 +78,7 @@ sub get {
 sub default_file {
 	my $f = $ENV{PI_CONFIG};
 	return $f if defined $f;
-	my $pi_dir = $ENV{PI_DIR} || expand_filename('~/.public-inbox/');
+	my $pi_dir = $ENV{PI_DIR} || expand_filename('~/.public-inbox');
 	"$pi_dir/config";
 }
 
