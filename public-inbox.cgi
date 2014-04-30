@@ -147,13 +147,21 @@ sub mid2blob {
 	my $hex = Digest::SHA::sha1_hex($ctx->{mid});
 	$hex =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/i or
 			die "BUG: not a SHA-1 hex: $hex";
-	require IPC::Run;
-	my ($in, $blob, $err);
-	open my $null, '+<', '/dev/null' or die "open: $!\n";
-	IPC::Run::run(['git', "--git-dir=$ctx->{git_dir}",
-			qw(cat-file blob), "HEAD:$1/$2"],
-			$null, \$blob, $null);
-	$? == 0 ? \$blob : undef;
+
+	my @cmd = ('git', "--git-dir=$ctx->{git_dir}",
+			qw(cat-file blob), "HEAD:$1/$2");
+	my $cmd = join(' ', @cmd);
+	my $pid = open my $fh, '-|';
+	defined $pid or die "fork failed: $!\n";
+	if ($pid == 0) {
+		open STDERR, '>', '/dev/null'; # ignore errors
+		exec @cmd;
+		exit 1;
+	} else {
+		my $blob = eval { local $/; <$fh> };
+		close $fh;
+		$? == 0 ? \$blob : undef;
+	}
 }
 
 # /$LISTNAME/m/$MESSAGE_ID.txt                    -> raw original

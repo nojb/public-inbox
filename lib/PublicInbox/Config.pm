@@ -4,7 +4,6 @@ package PublicInbox::Config;
 use strict;
 use warnings;
 use File::Path::Expand qw/expand_filename/;
-use IPC::Run;
 
 # returns key-value pairs of config directives in a hash
 # if keys may be multi-value, the value is an array ref containing all values
@@ -13,10 +12,13 @@ sub new {
 	my ($in, $out);
 
 	$file = default_file() unless defined($file);
-	IPC::Run::run([qw/git config --file/, $file, '-l'], \$in, \$out);
-	$? == 0 or die "git config --file $file -l failed: $?\n";
+	my @cmd = (qw/git config/, "--file=$file", '-l');
+	my $cmd = join(' ', @cmd);
+	my $pid = open(my $fh, '-|', @cmd);
+	defined $pid or die "$cmd failed: $!\n";
 	my %rv;
-	foreach my $line (split(/\n/, $out)) {
+	foreach my $line (<$fh>) {
+		chomp $line;
 		my ($k, $v) = split(/=/, $line, 2);
 		my $cur = $rv{$k};
 
@@ -30,6 +32,8 @@ sub new {
 			$rv{$k} = $v;
 		}
 	}
+	close $fh or die "failed to close ($cmd) pipe: $!\n";
+	$? and warn "$$ $cmd exited with: ($pid) $?\n";
 	bless \%rv, $class;
 }
 
