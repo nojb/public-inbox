@@ -6,23 +6,46 @@
 package PublicInbox::GitCatFile;
 use strict;
 use warnings;
-use IPC::Open2 qw(open2);
+use Fcntl qw(F_GETFD F_SETFD FD_CLOEXEC);
+use POSIX qw(dup2);
+require IO::Handle;
 
 sub new {
 	my ($class, $git_dir) = @_;
 	bless { git_dir => $git_dir }, $class;
 }
 
+sub set_cloexec {
+	my ($fh) = @_;
+	my $flags = fcntl($fh, F_GETFD, 0) or die "fcntl(F_GETFD): $!\n";
+	fcntl($fh, F_SETFD, $flags | FD_CLOEXEC) or die "fcntl(F_SETFD): $!\n";
+}
+
 sub _cat_file_begin {
 	my ($self) = @_;
 	return if $self->{pid};
-	my ($in, $out);
-	my $pid = open2($in, $out, 'git', "--git-dir=$self->{git_dir}",
-			qw(cat-file --batch));
+	my ($in_r, $in_w, $out_r, $out_w);
 
+	pipe($in_r, $in_w) or die "pipe failed: $!\n";
+	set_cloexec($_) foreach ($in_r, $in_w);
+	pipe($out_r, $out_w) or die "pipe failed: $!\n";
+	set_cloexec($_) foreach ($out_r, $out_w);
+
+	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file --batch));
+	my $pid = fork;
+	defined $pid or die "fork failed: $!\n";
+	if ($pid == 0) {
+		dup2(fileno($out_r), 0) or die "redirect stdin failed: $!\n";
+		dup2(fileno($in_w), 1) or die "redirect stdout failed: $!\n";
+		exec(@cmd) or die 'exec `' . join(' '). "' failed: $!\n";
+	}
+	close $out_r or die "close failed: $!\n";
+	close $in_w or die "close failed: $!\n";
+
+	$out_w->autoflush(1);
+	$self->{in} = $in_r;
+	$self->{out} = $out_w;
 	$self->{pid} = $pid;
-	$self->{in} = $in;
-	$self->{out} = $out;
 }
 
 sub cat_file {
