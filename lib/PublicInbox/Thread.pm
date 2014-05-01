@@ -7,7 +7,10 @@ package PublicInbox::Thread;
 use strict;
 use warnings;
 use base qw(Mail::Thread);
-sub _container_class { 'PublicInbox::Thread::Container' }
+
+if ($Mail::Thread::VERSION <= 2.55) {
+	eval q(sub _container_class { 'PublicInbox::Thread::Container' });
+}
 
 package PublicInbox::Thread::Container;
 use strict;
