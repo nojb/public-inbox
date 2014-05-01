@@ -25,6 +25,7 @@ lib/PublicInbox/GitCatFile.pm
 lib/PublicInbox/Hval.pm
 lib/PublicInbox/MDA.pm
 lib/PublicInbox/View.pm
+lib/PublicInbox/Thread.pm
 lib/PublicInbox/WWW.pm
 public-inbox-learn
 public-inbox-mda

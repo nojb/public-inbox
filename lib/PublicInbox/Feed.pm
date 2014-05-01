@@ -13,8 +13,6 @@ use constant {
 	MAX_PER_PAGE => 25,
 };
 
-# FIXME: workaround https://rt.cpan.org/Public/Bug/Display.html?id=22817
-
 # main function
 sub generate {
 	my ($class, $args) = @_;
@@ -50,7 +48,7 @@ sub generate {
 
 sub generate_html_index {
 	my ($class, $args) = @_;
-	require Mail::Thread;
+	require PublicInbox::Thread;
 
 	my $max = $args->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($args);
@@ -72,7 +70,7 @@ sub generate_html_index {
 	});
 	$git = undef; # destroy pipes.
 
-	my $th = Mail::Thread->new(@messages);
+	my $th = PublicInbox::Thread->new(@messages);
 	$th->thread;
 	my $html = "<html><head><title>$title</title>" .
 		'<link rel="alternate" title="Atom feed" href="' .

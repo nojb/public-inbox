@@ -60,7 +60,7 @@ sub run {
 sub preload {
 	require PublicInbox::Feed;
 	require PublicInbox::View;
-	require Mail::Thread;
+	require PublicInbox::Thread;
 	require Email::MIME;
 	require Digest::SHA;
 	require POSIX;
