@@ -210,6 +210,7 @@ sub html_footer {
 			$to ||= $dst;
 		}
 	}
+	Email::Address->purge_cache;
 
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;

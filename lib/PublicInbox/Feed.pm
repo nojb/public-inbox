@@ -43,6 +43,8 @@ sub generate {
 		my ($add) = @_;
 		add_to_feed($feed_opts, $feed, $add, $git);
 	});
+	$git = undef; # destroy pipes
+	Email::Address->purge_cache;
 	$feed->as_string;
 }
 
@@ -68,6 +70,7 @@ sub generate_html_index {
 		push @messages, $mime;
 		1;
 	});
+	$git = undef; # destroy pipes.
 
 	my $th = Mail::Thread->new(@messages);
 	$th->thread;
@@ -84,6 +87,8 @@ sub generate_html_index {
 		} @_;
 	});
 	dump_html_line($_, 0, \$html) for $th->rootset;
+
+	Email::Address->purge_cache;
 
 	my $footer = nav_footer($args->{cgi}, $last);
 	$footer = "<hr /><pre>$footer</pre>" if $footer;
