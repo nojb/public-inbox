@@ -8,7 +8,6 @@ use strict;
 use warnings;
 use Fcntl qw(F_GETFD F_SETFD FD_CLOEXEC);
 use POSIX qw(dup2);
-require IO::Handle;
 
 sub new {
 	my ($class, $git_dir) = @_;
@@ -42,7 +41,6 @@ sub _cat_file_begin {
 	close $out_r or die "close failed: $!\n";
 	close $in_w or die "close failed: $!\n";
 
-	$out_w->autoflush(1);
 	$self->{in} = $in_r;
 	$self->{out} = $out_w;
 	$self->{pid} = $pid;
@@ -51,8 +49,16 @@ sub _cat_file_begin {
 sub cat_file {
 	my ($self, $object) = @_;
 
+	$object .= "\n";
+	my $len = bytes::length($object);
+
 	$self->_cat_file_begin;
-	print { $self->{out} } $object, "\n" or die "write error: $!\n";
+	my $written = syswrite($self->{out}, $object);
+	if (!defined $written) {
+		die "pipe write error: $!\n";
+	} elsif ($written != $len) {
+		die "wrote too little to pipe ($written < $len)\n";
+	}
 
 	my $in = $self->{in};
 	my $head = <$in>;
