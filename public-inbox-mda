@@ -34,14 +34,14 @@ my $filtered; # string dest
 if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
     do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
-	my $msg = Email::Simple->new($filtered);
+	my $msg = Email::MIME->new(\$filtered);
 	$filtered = undef;
 	$filter->simple($msg);
 
 	if (PublicInbox::Filter->run($msg)) {
 		# run spamc again on the HTML-free message
 		if (do_spamc($msg, \$filtered)) {
-			$msg = Email::MIME->new($filtered);
+			$msg = Email::MIME->new(\$filtered);
 			PublicInbox::MDA->set_list_headers($msg, $dst);
 			$filter->simple($msg);
 

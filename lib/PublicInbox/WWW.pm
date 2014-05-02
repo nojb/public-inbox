@@ -166,7 +166,7 @@ sub get_mid_html {
 	my $pfx = "../f/$mid_href.html";
 	require Email::MIME;
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-		[ PublicInbox::View->as_html(Email::MIME->new($$x), $pfx) ] ];
+		[ PublicInbox::View->as_html(Email::MIME->new($x), $pfx) ] ];
 }
 
 # /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
@@ -177,7 +177,7 @@ sub get_full_html {
 	require PublicInbox::View;
 	require Email::MIME;
 	[ 200, [ 'Content-Type' => 'text/html' ],
-		[ PublicInbox::View->as_html(Email::MIME->new($$x))] ];
+		[ PublicInbox::View->as_html(Email::MIME->new($x))] ];
 }
 
 sub self_url {

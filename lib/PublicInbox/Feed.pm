@@ -299,7 +299,7 @@ sub dump_html_line {
 sub do_cat_mail {
 	my ($git, $path) = @_;
 	my $str = $git->cat_file("HEAD:$path");
-	Email::MIME->new($$str);
+	Email::MIME->new($str);
 }
 
 1;
