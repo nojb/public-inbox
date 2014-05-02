@@ -16,7 +16,7 @@ my $enc_utf8 = find_encoding('UTF-8');
 my $enc_mime = find_encoding('MIME-Header');
 
 # public functions:
-sub as_html {
+sub msg_html {
 	my ($class, $mime, $full_pfx) = @_;
 
 	headers_to_html_header($mime, $full_pfx) .
@@ -26,10 +26,10 @@ sub as_html {
 		'</pre></body></html>';
 }
 
-sub as_feed_entry {
+sub feed_entry {
 	my ($class, $mime, $full_pfx) = @_;
 
-	"<pre>" . multipart_text_as_html($mime, $full_pfx) . "</pre>";
+	'<pre>' . multipart_text_as_html($mime, $full_pfx) . '</pre>';
 }
 
 

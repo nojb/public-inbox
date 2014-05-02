@@ -243,7 +243,7 @@ sub add_to_feed {
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href . '.html';
-	my $content = PublicInbox::View->as_feed_entry($mime, $fullurl . $href);
+	my $content = PublicInbox::View->feed_entry($mime, $fullurl . $href);
 	defined($content) or return 0;
 
 	my $subject = mime_header($mime, 'Subject') or return 0;
