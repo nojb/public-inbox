@@ -9,8 +9,8 @@ use Date::Parse qw(strptime str2time);
 use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
 use constant {
-	DATEFMT => '%Y-%m-%dT%H:%M:%SZ',
-	MAX_PER_PAGE => 25,
+	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
+	MAX_PER_PAGE => 25, # this needs to be tunable
 };
 
 # main function

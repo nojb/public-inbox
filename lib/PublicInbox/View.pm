@@ -8,8 +8,11 @@ use URI::Escape qw/uri_escape_utf8/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
+
+# TODO: make these constants tunable
 use constant MAX_INLINE_QUOTED => 5;
 use constant MAX_TRUNC_LEN => 72;
+
 *ascii_html = *PublicInbox::Hval::ascii_html;
 
 my $enc_utf8 = find_encoding('UTF-8');
@@ -92,6 +95,7 @@ sub add_text_body_short {
 	my ($enc, $part, $part_nr, $full_pfx) = @_;
 	my $n = 0;
 	my $s = ascii_html($enc->decode($part->body));
+	# TODO: fold the "so-and-so wrote:" attribute line here, too:
 	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);

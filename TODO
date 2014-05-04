@@ -1,0 +1,5 @@
+* configurable constants (quote folding, index limits)
+* use tags as date-based skiplists for navigating history
+* per-message views should be able to quickly navigate do replies.
+  (n.b.: this is SMTP, we must account for out-of-order delivery)
+* NNTP server (is there demand for one?)
