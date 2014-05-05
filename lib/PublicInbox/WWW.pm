@@ -256,7 +256,7 @@ sub footer {
 			'">ssoma</a>: ' . $urls[0];
 	} else {
 		$urls = 'git archive URLs for <a href="' . SSOMA_URL .
-			"\">ssoma</a>:\n" . join('', map { "\t" . $_ } @urls);
+			"\">ssoma</a>:\n" . join("\n", map { "\t$_" } @urls);
 	}
 
 	my $addr = $pi_config->get($listname, 'address');
