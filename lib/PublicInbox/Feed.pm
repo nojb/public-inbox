@@ -88,7 +88,7 @@ sub generate_html_index {
 
 	Email::Address->purge_cache;
 
-	my $footer = nav_footer($args->{cgi}, $last);
+	my $footer = nav_footer($args->{cgi}, $last, $feed_opts);
 	my $list_footer = $args->{footer};
 	$footer .= "\n" . $list_footer if ($footer && $list_footer);
 	$footer = "<hr /><pre>$footer</pre>" if $footer;
@@ -98,7 +98,7 @@ sub generate_html_index {
 # private subs
 
 sub nav_footer {
-	my ($cgi, $last) = @_;
+	my ($cgi, $last, $feed_opts) = @_;
 	$cgi or return '';
 	my $old_r = $cgi->param('r');
 	my $head = '    ';
@@ -111,7 +111,8 @@ sub nav_footer {
 		$head = $cgi->path_info;
 		$head = qq!<a href="$head">head</a>!;
 	}
-	"$next $head";
+	my $atom = "<a href=\"$feed_opts->{atomurl}\">atom</a>";
+	"$next $head $atom";
 }
 
 sub each_recent_blob {
