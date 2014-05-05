@@ -13,6 +13,8 @@ use strict;
 use warnings;
 use PublicInbox::Config;
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
+use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
+use constant PI_URL => 'http://public-inbox.org/';
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
 BEGIN {
@@ -119,6 +121,7 @@ sub get_index {
 			listname => $ctx->{listname},
 			pi_config => $pi_config,
 			cgi => $cgi,
+			footer => footer($ctx),
 			top => $top,
 		}) ]
 	];
@@ -164,9 +167,10 @@ sub get_mid_html {
 	my $mid_href = PublicInbox::Hval::ascii_html(
 						uri_escape_utf8($ctx->{mid}));
 	my $pfx = "../f/$mid_href.html";
+	my $foot = footer($ctx);
 	require Email::MIME;
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-		[ PublicInbox::View->msg_html(Email::MIME->new($x), $pfx) ] ];
+	  [ PublicInbox::View->msg_html(Email::MIME->new($x), $pfx, $foot) ] ];
 }
 
 # /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
@@ -176,8 +180,9 @@ sub get_full_html {
 	return r404() unless $x;
 	require PublicInbox::View;
 	require Email::MIME;
+	my $foot = footer($ctx);
 	[ 200, [ 'Content-Type' => 'text/html' ],
-		[ PublicInbox::View->msg_html(Email::MIME->new($x))] ];
+	  [ PublicInbox::View->msg_html(Email::MIME->new($x), undef, $foot)] ];
 }
 
 sub self_url {
@@ -203,6 +208,71 @@ sub do_redirect {
 	  [ Location => $url, 'Content-Type' => 'text/plain' ],
 	  [ "Redirecting to $url\n" ]
 	]
+}
+
+sub ctx_get {
+	my ($ctx, $key) = @_;
+	my $val = $ctx->{$key};
+	(defined $val && length $val) or die "BUG: bad ctx, $key unusable\n";
+	$val;
+}
+
+sub try_cat {
+	my ($path) = @_;
+	my $rv;
+	if (open(my $fh, '<', $path)) {
+		local $/;
+		$rv = <$fh>;
+		close $fh;
+	}
+	$rv;
+}
+
+sub footer {
+	my ($ctx) = @_;
+	return '' unless $ctx;
+	my $git_dir = ctx_get($ctx, 'git_dir');
+
+	# favor user-supplied footer
+	my $footer = try_cat("$git_dir/public-inbox/footer.html");
+	if (defined $footer) {
+		chomp $footer;
+		return $footer;
+	}
+
+	# auto-generate a footer
+	my $listname = ctx_get($ctx, 'listname');
+	my $desc = try_cat("$git_dir/description");
+	$desc = '$GIT_DIR/description missing' unless defined $desc;
+	chomp $desc;
+
+	my $urls = try_cat("$git_dir/cloneurl");
+	my @urls = split(/\r?\n/, $urls || '');
+	my $nurls = scalar @urls;
+	if ($nurls == 0) {
+		$urls = '($GIT_DIR/cloneurl missing)';
+	} elsif ($nurls == 1) {
+		$urls = 'git archive URL for <a href="' . SSOMA_URL .
+			'">ssoma</a>: ' . $urls[0];
+	} else {
+		$urls = 'git archive URLs for <a href="' . SSOMA_URL .
+			"\">ssoma</a>:\n" . join('', map { "\t" . $_ } @urls);
+	}
+
+	my $addr = $pi_config->get($listname, 'address');
+	if (ref($addr) eq 'ARRAY') {
+		$addr = $addr->[0]; # first address is primary
+	}
+
+	$addr = "<a href=\"mailto:$addr\">$addr</a>";
+	$desc =  $desc;
+	join("\n",
+		'- ' . $desc,
+		'This is a <a href="' . PI_URL . '">public-inbox</a>, '.
+		"anybody may post:",
+		"\t$addr (text-only, no HTML please)",
+		$urls
+	);
 }
 
 1;

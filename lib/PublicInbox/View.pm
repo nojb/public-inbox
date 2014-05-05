@@ -20,12 +20,12 @@ my $enc_mime = find_encoding('MIME-Header');
 
 # public functions:
 sub msg_html {
-	my ($class, $mime, $full_pfx) = @_;
-
+	my ($class, $mime, $full_pfx, $footer) = @_;
+	$footer = '' unless defined $footer;
 	headers_to_html_header($mime, $full_pfx) .
 		multipart_text_as_html($mime, $full_pfx) .
 		'</pre><hr /><pre>' .
-		html_footer($mime) .
+		html_footer($mime) . $footer .
 		'</pre></body></html>';
 }
 

@@ -89,6 +89,8 @@ sub generate_html_index {
 	Email::Address->purge_cache;
 
 	my $footer = nav_footer($args->{cgi}, $last);
+	my $list_footer = $args->{footer};
+	$footer .= "\n" . $list_footer if ($footer && $list_footer);
 	$footer = "<hr /><pre>$footer</pre>" if $footer;
 	$html . "</pre>$footer</html>";
 }
