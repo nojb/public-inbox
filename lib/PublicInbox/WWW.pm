@@ -181,7 +181,7 @@ sub get_full_html {
 	require PublicInbox::View;
 	require Email::MIME;
 	my $foot = footer($ctx);
-	[ 200, [ 'Content-Type' => 'text/html' ],
+	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
 	  [ PublicInbox::View->msg_html(Email::MIME->new($x), undef, $foot)] ];
 }
 
