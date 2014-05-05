@@ -65,6 +65,9 @@ sub set_list_headers {
 	$simple->header_set("List-Id", $pa);
 	$simple->header_set("List-Post", $pa);
 
+	# prevent training loops
+	$simple->header_set('Delivered-To');
+
 	my $url = $dst->{url};
 	if (defined $url) {
 		$simple->header_set("List-Archive", "<$url>");
