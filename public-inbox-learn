@@ -56,6 +56,7 @@ foreach my $recipient (keys %dests) {
 		# no checking for errors here, we assume the message has
 		# been reviewed by a human at this point:
 		PublicInbox::Filter->run($mime);
+		PublicInbox::MDA->set_list_headers($mime, $dst);
 
 		my ($name, $email, $date) =
 				PublicInbox::MDA->author_info($mime);
