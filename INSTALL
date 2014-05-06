@@ -41,7 +41,7 @@ Requirements (server MDA)
 [1] - Only required for serving/generating Atom and HTML pages.
 [2] - Keep in mind this will be split into a separate Debian package
       when CGI.pm is dropped from the Perl standard library.
-      Plack/PSGI, FastCGI, and mod_perl2 will all be supported.
+      Plack/PSGI and mod_perl2 are both supported.
 
 Copyright
 ---------
