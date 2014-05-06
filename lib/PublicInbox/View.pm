@@ -12,6 +12,7 @@ use Email::MIME::ContentType qw/parse_content_type/;
 # TODO: make these constants tunable
 use constant MAX_INLINE_QUOTED => 5;
 use constant MAX_TRUNC_LEN => 72;
+use constant PRE_WRAP => '<pre style="white-space:pre-wrap">';
 
 *ascii_html = *PublicInbox::Hval::ascii_html;
 
@@ -28,7 +29,7 @@ sub msg_html {
 	}
 	headers_to_html_header($mime, $full_pfx) .
 		multipart_text_as_html($mime, $full_pfx) .
-		'</pre><hr /><pre>' .
+		'</pre><hr />' . PRE_WRAP .
 		html_footer($mime) . $footer .
 		'</pre></body></html>';
 }
@@ -36,7 +37,7 @@ sub msg_html {
 sub feed_entry {
 	my ($class, $mime, $full_pfx) = @_;
 
-	'<pre>' . multipart_text_as_html($mime, $full_pfx) . '</pre>';
+	PRE_WRAP . multipart_text_as_html($mime, $full_pfx) . '</pre>';
 }
 
 
@@ -199,7 +200,7 @@ sub headers_to_html_header {
 	$rv .= "\n";
 
 	("<html><head><title>".  join(' - ', @title) .
-	 '</title></head><body><pre style="white-space:pre-wrap">' .  $rv);
+	 '</title></head><body>' . PRE_WRAP . $rv);
 }
 
 sub html_footer {

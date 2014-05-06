@@ -11,6 +11,7 @@ use PublicInbox::GitCatFile;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
+	PRE_WRAP => '<pre style="white-space:pre-wrap">',
 };
 
 # main function
@@ -75,7 +76,7 @@ sub generate_html_index {
 	my $html = "<html><head><title>$title</title>" .
 		'<link rel="alternate" title="Atom feed" href="' .
 		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
-		'</head><body><pre>';
+		'</head><body>' . PRE_WRAP;
 
 	# sort by date, most recent at top
 	$th->order(sub {
@@ -91,7 +92,7 @@ sub generate_html_index {
 	my $footer = nav_footer($args->{cgi}, $last, $feed_opts);
 	my $list_footer = $args->{footer};
 	$footer .= "\n" . $list_footer if ($footer && $list_footer);
-	$footer = "<hr /><pre>$footer</pre>" if $footer;
+	$footer = "<hr />" . PRE_WRAP . "$footer</pre>" if $footer;
 	$html . "</pre>$footer</html>";
 }
 
