@@ -252,10 +252,10 @@ sub footer {
 	if ($nurls == 0) {
 		$urls = '($GIT_DIR/cloneurl missing)';
 	} elsif ($nurls == 1) {
-		$urls = 'git archive URL for <a href="' . SSOMA_URL .
+		$urls = 'git URL for <a href="' . SSOMA_URL .
 			'">ssoma</a>: ' . $urls[0];
 	} else {
-		$urls = 'git archive URLs for <a href="' . SSOMA_URL .
+		$urls = 'git URLs for <a href="' . SSOMA_URL .
 			"\">ssoma</a>:\n" . join("\n", map { "\t$_" } @urls);
 	}
 
@@ -268,9 +268,9 @@ sub footer {
 	$desc =  $desc;
 	join("\n",
 		'- ' . $desc,
-		'This is a <a href="' . PI_URL . '">public-inbox</a>, '.
-		"anybody may post:",
-		"\t$addr (text-only, no HTML please)",
+		'A <a href="' . PI_URL .  '">public-inbox</a>, ' .
+			'anybody may post in plain-text (not HTML):',
+		$addr,
 		$urls
 	);
 }
