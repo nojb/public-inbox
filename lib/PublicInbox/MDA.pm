@@ -58,21 +58,14 @@ sub alias_specified {
 	return 0;
 }
 
-# RFC2919 and RFC2369
+# RFC2919
 sub set_list_headers {
 	my ($class, $simple, $dst) = @_;
-	my $pa = "<$dst->{-primary_address}>";
-	$simple->header_set("List-Id", $pa);
-	$simple->header_set("List-Post", $pa);
+	my $pa = $dst->{-primary_address};
+	$simple->header_set("List-Id", "<$pa>");
 
 	# prevent training loops
 	$simple->header_set('Delivered-To');
-
-	my $url = $dst->{url};
-	if (defined $url) {
-		$simple->header_set("List-Archive", "<$url>");
-		$simple->header_set("List-Help", "<${url}help>");
-	}
 }
 
 # returns a 3-element array: name, email, date
