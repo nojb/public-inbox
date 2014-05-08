@@ -10,13 +10,15 @@ use strict;
 use warnings;
 use Email::Filter;
 use Email::LocalDelivery;
-sub usage { "Usage:\n".join('',grep(/\t/, `head -n 24 $0`)) }
+sub usage { "Usage:\n".join('',grep(/\t/, `head -n 12 $0`)) }
 my $spool = shift @ARGV or die usage();
 my $dir = shift @ARGV or die usage();
 -d $dir or die "$dir is not a directory\n";
 $dir .= '/' unless $dir =~ m!/\z!;
 foreach my $sub (qw(cur new tmp)) {
-	-d "$dir/$sub" or mkdir $sub or die "mkdir $dir/$sub failed: $!\n";
+	my $nd = "$dir/$sub";
+	-d $nd and next;
+	mkdir $nd or die "mkdir $nd failed: $!\n";
 }
 
 foreach my $n (grep(/\d+\z/, glob("$spool/*"))) {
