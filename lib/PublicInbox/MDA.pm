@@ -58,14 +58,27 @@ sub alias_specified {
 	return 0;
 }
 
-# RFC2919
 sub set_list_headers {
 	my ($class, $simple, $dst) = @_;
 	my $pa = $dst->{-primary_address};
-	$simple->header_set("List-Id", "<$pa>");
 
-	# prevent training loops
-	$simple->header_set('Delivered-To');
+	$simple->header_set("List-Id", "<$pa>"); # RFC2919
+
+	# remove Delivered-To: prevent training loops
+	# The rest are taken from Mailman 2.1.15, some may be used for phishing
+	foreach my $h (qw(delivered-to approved approve x-approved x-approve
+			urgent return-receipt-to disposition-notification-to
+			x-confirm-reading-to x-pmrqc)) {
+		$simple->header_set($h);
+	}
+
+	# Remove any "DomainKeys" (or similar) header lines.
+	# Any modifications (including List-Id) will cause a message
+	# to appear invalid
+	foreach my $h (qw(domainkey-signature dkim-signature
+			authentication-results)) {
+		$simple->header_set($h);
+	}
 }
 
 # returns a 3-element array: name, email, date
