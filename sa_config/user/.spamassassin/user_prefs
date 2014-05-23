@@ -42,3 +42,7 @@ score HELLOMYDEAR 2.8
 
 # we hate HTML mail
 score MIME_HTML_MOSTLY  2.0
+
+# trust paid whitelist services? never
+score RCVD_IN_RP_SAFE 0.0
+score RCVD_IN_RP_CERTIFIED 0.0
