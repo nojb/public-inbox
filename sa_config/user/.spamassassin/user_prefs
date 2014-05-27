@@ -41,7 +41,8 @@ describe HELLOMYDEAR "spam phrase"
 score HELLOMYDEAR 2.8
 
 # we hate HTML mail
-score MIME_HTML_MOSTLY  2.0
+score MIME_HTML_MOSTLY  3.0
+score HTML_MESSAGE 3.0
 
 # trust paid whitelist services? never
 score RCVD_IN_RP_SAFE 0.0
