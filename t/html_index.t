@@ -22,9 +22,9 @@ my $git_dir = "$tmpdir/gittest";
 			exec("ssoma-mda", $git_dir);
 		}
 		my $mid = "<$i\@example.com>";
-		my $mid_line = "Message-ID: $mid\n";
+		my $mid_line = "Message-ID: $mid";
 		if ($prev) {
-			$mid_line .= "In-Reply-To: $prev\n";
+			$mid_line .= "In-Reply-To: $prev";
 		}
 		$prev = $mid;
 		my $simple = Email::Simple->new(<<EOF);
