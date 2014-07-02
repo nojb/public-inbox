@@ -47,3 +47,6 @@ delivery path as well as calling ssoma-rm on falsely trained
 
 * report-spam / dc-dlvr - distributed with public-inbox in the scripts/
   directory: git clone git://80x24.org/public-inbox
+
+* ssoma-rm - part of ssoma: some sort of mail archiver, a dependency of
+  public-inbox: git clone git://80x24.org/ssoma
