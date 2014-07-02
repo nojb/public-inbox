@@ -47,7 +47,7 @@ INSTALL.html: INSTALL
 index.html: README
 	$(txt2pre)
 
-docs_html := index.html INSTALL.html
+docs_html := INSTALL.html
 html: $(docs_html)
 gz_docs := $(addsuffix .gz, $(docs) $(docs_html))
 rsync_docs := $(gz_docs) $(docs) $(txt) $(docs_html)
