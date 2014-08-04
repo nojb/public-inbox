@@ -110,4 +110,29 @@ EOF
 		"parts split with filename");
 }
 
+# multipart collapsed to single quoted-printable text/plain
+{
+	my $parts = [
+		Email::MIME->create(
+			attributes => {
+				content_type => 'text/plain',
+				encoding => 'quoted-printable',
+			},
+			body => 'hi = bye',
+		)
+	];
+	my $mime = Email::MIME->create(
+		header_str => [
+			From => 'qp@example.com',
+			Subject => 'QP',
+			'Message-ID' => '<qp@example.com>',
+			],
+		parts => $parts,
+	);
+
+	my $html = PublicInbox::View->msg_html($mime);
+	like($mime->body_raw, qr/hi =3D bye=/, "our test used QP correctly");
+	like($html, qr/\bhi = bye\b/, "HTML output decoded QP");
+}
+
 done_testing();
