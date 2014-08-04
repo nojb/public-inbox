@@ -15,6 +15,53 @@ sub count_body_parts {
 	$bodies->{$body}++;
 }
 
+# multipart/alternative: HTML and quoted-printable, keep the plain-text
+{
+	my $html_body = "<html><body>hi</body></html>";
+	my $parts = [
+		Email::MIME->create(
+			attributes => {
+				content_type => 'text/html; charset=UTF-8',
+				encoding => 'base64',
+			},
+			body => $html_body,
+		),
+		Email::MIME->create(
+			attributes => {
+				content_type => 'text/plain',
+				encoding => 'quoted-printable',
+			},
+			body => 'hi = "bye"',
+		)
+	];
+	my $email = Email::MIME->create(
+		header_str => [
+		  From => 'a@example.com',
+		  Subject => 'blah',
+		  'Content-Type' => 'multipart/alternative'
+		],
+		parts => $parts,
+	);
+	is(1, PublicInbox::Filter->run($email), "run was a success");
+	my $parsed = Email::MIME->new($email->as_string);
+	is("text/plain", $parsed->header("Content-Type"));
+	is(scalar $parsed->parts, 1, "HTML part removed");
+	my %bodies;
+	$parsed->walk_parts(sub {
+		my ($part) = @_;
+		return if $part->subparts; # walk_parts already recurses
+		count_body_parts(\%bodies, $part);
+	});
+	is(scalar keys %bodies, 1, "one bodies");
+	is($bodies{"hi =3D \"bye\"="}, 1, "QP text part unchanged");
+	$parsed->walk_parts(sub {
+		my ($part) = @_;
+		my $b = $part->body;
+		$b =~ s/\s*\z//;
+		is($b, "hi = \"bye\"", "decoded body matches");
+	});
+}
+
 # plain-text email is passed through unchanged
 {
 	my $s = Email::MIME->create(
