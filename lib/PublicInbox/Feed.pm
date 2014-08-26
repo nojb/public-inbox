@@ -85,7 +85,7 @@ sub generate_html_index {
 			$a->topmost->message->header('X-PI-Date')
 		} @_;
 	});
-	dump_html_line($_, 0, \$html) for $th->rootset;
+	dump_html_line($_, 0, \$html, time) for $th->rootset;
 
 	Email::Address->purge_cache;
 
@@ -278,11 +278,11 @@ sub add_to_feed {
 }
 
 sub dump_html_line {
-	my ($self, $level, $html) = @_;
+	my ($self, $level, $html, $now) = @_;
 	if ($self->message) {
-		$$html .= (' ' x $level);
 		my $mime = $self->message;
 		my $subj = $mime->header('Subject');
+		my $ts = $mime->header('X-PI-Date');
 		my $mid = $mime->header_obj->header_raw('Message-ID');
 		$mid = PublicInbox::Hval->new_msgid($mid);
 		my $href = 'm/' . $mid->as_href . '.html';
@@ -294,10 +294,17 @@ sub dump_html_line {
 
 		$from = PublicInbox::Hval->new_oneline($from)->as_html;
 		$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
+		if ($now > ($ts + (24 * 60 * 60))) {
+			$ts = POSIX::strftime('%m/%d ', gmtime($ts));
+		} else {
+			$ts = POSIX::strftime('%H:%M ', gmtime($ts));
+		}
+
+		$$html .= $ts . (' ' x $level);
 		$$html .= "<a href=\"$href\">$subj</a> $from\n";
 	}
-	dump_html_line($self->child, $level+1, $html) if $self->child;
-	dump_html_line($self->next, $level, $html) if $self->next;
+	dump_html_line($self->child, $level+1, $html, $now) if $self->child;
+	dump_html_line($self->next, $level, $html, $now) if $self->next;
 }
 
 sub do_cat_mail {
