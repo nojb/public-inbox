@@ -30,7 +30,7 @@ sub msg_html {
 	headers_to_html_header($mime, $full_pfx) .
 		multipart_text_as_html($mime, $full_pfx) .
 		'</pre><hr />' . PRE_WRAP .
-		html_footer($mime) . $footer .
+		html_footer($mime, 1) . $footer .
 		'</pre></body></html>';
 }
 
@@ -204,7 +204,7 @@ sub headers_to_html_header {
 }
 
 sub html_footer {
-	my ($mime) = @_;
+	my ($mime, $purge) = @_;
 	my %cc; # everyone else
 	my $to; # this is the From address
 
@@ -219,7 +219,7 @@ sub html_footer {
 			$to ||= $dst;
 		}
 	}
-	Email::Address->purge_cache;
+	Email::Address->purge_cache if $purge;
 
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
