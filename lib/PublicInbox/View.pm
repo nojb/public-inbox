@@ -8,6 +8,7 @@ use URI::Escape qw/uri_escape_utf8/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
+require POSIX;
 
 # TODO: make these constants tunable
 use constant MAX_INLINE_QUOTED => 5;
@@ -40,6 +41,92 @@ sub feed_entry {
 	PRE_WRAP . multipart_text_as_html($mime, $full_pfx) . '</pre>';
 }
 
+# this is already inside a <pre>
+sub index_entry {
+	my ($class, $mime, $now, $level, $seen) = @_;
+	my $rv = "";
+	my $part_nr = 0;
+	my $enc_msg = enc_for($mime->header("Content-Type"));
+	my $subj = $mime->header('Subject');
+	my $header_obj = $mime->header_obj;
+
+	my $mid_raw = $header_obj->header_raw('Message-ID');
+	my $name = anchor_for($mid_raw);
+	$seen->{$name} = "#$name"; # save the anchor for later
+
+	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
+	my $from = PublicInbox::Hval->new_oneline($mime->header('From'))->raw;
+	my @from = Email::Address->parse($from);
+	$from = $from[0]->name;
+	(defined($from) && length($from)) or $from = $from[0]->address;
+
+	$from = PublicInbox::Hval->new_oneline($from)->as_html;
+	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
+	my $pfx = ('  ' x $level);
+
+	my $ts = $mime->header('X-PI-Date');
+	my $fmt = '%H:%M';
+	if ($now > ($ts + (365 * 24 * 60 * 60))) {
+		# doesn't have to be exactly 1 year
+		$fmt = '%Y/%m/%d';
+	} elsif ($now > ($ts + (24 * 60 * 60))) {
+		$fmt = '%m/%d';
+	}
+	$ts = POSIX::strftime($fmt, gmtime($ts));
+
+	$rv .= "$pfx<a name=\"$name\"><b>$subj</b> $from - $ts</a>\n\n";
+
+	# scan through all parts, looking for displayable text
+	$mime->walk_parts(sub {
+		my ($part) = @_;
+		return if $part->subparts; # walk_parts already recurses
+		my $enc = enc_for($part->content_type) || $enc_msg || $enc_utf8;
+
+		if ($part_nr > 0) {
+			my $fn = $part->filename;
+			defined($fn) or $fn = "part #" . ($part_nr + 1);
+			$rv .= $pfx . add_filename_line($enc->decode($fn));
+		}
+
+		my $s = ascii_html($enc->decode($part->body));
+
+		# drop quotes, including the "so-and-so wrote:" line
+		$s =~ s/(?:^[^\n]*:\s*\n)?(?:^&gt;[^\n]*\n)+(?:^\s*\n)?//mg;
+
+		# Drop signatures
+		$s =~ s/\n*-- \n.*\z//s;
+
+		# kill any trailing whitespace
+		$s =~ s/\s+\z//s;
+
+		# add prefix:
+		$s =~ s/^/$pfx/sgm;
+
+		$rv .= $s . "\n";
+		++$part_nr;
+	});
+
+	my $href = 'm/' . $mid->as_href . '.html';
+	$rv .= "$pfx<a\nhref=\"$href\">more</a> ";
+	my $txt = 'm/' . $mid->as_href . '.txt';
+	$rv .= "<a\nhref=\"$txt\">raw</a> ";
+	$rv .= html_footer($mime, 0);
+
+	my $irp = $header_obj->header_raw('In-Reply-To');
+	if (defined $irp) {
+		my $anchor_idx = anchor_for($irp);
+		my $anchor = $seen->{$anchor_idx};
+		unless (defined $anchor) {
+			my $v = PublicInbox::Hval->new_msgid($irp);
+			my $html = $v->as_html;
+			$anchor = 'm/' . $v->as_href . '.html';
+			$seen->{$anchor_idx} = $anchor;
+		}
+		$rv .= " <a\nhref=\"$anchor\">parent</a>";
+	}
+
+	$rv . "\n\n";
+}
 
 # only private functions below.
 
@@ -232,7 +319,7 @@ sub html_footer {
 	my $cc = uri_escape_utf8(join(',', values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
 
-	'<a href="' . ascii_html($href) . '">reply</a>';
+	"<a\nhref=\"" . ascii_html($href) . '">reply</a>';
 }
 
 sub linkify_refs {
@@ -242,6 +329,14 @@ sub linkify_refs {
 		my $href = $v->as_href;
 		"&lt;<a href=\"$href.html\">$html</a>&gt;";
 	} @_);
+}
+
+require Digest::SHA;
+sub anchor_for {
+	my ($msgid) = @_;
+	$msgid =~ s/\A\s*<?//;
+	$msgid =~ s/>?\s*\z//;
+	Digest::SHA::sha1_hex($msgid);
 }
 
 1;

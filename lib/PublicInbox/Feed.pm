@@ -8,6 +8,7 @@ use Email::MIME;
 use Date::Parse qw(strptime str2time);
 use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
+use PublicInbox::View;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
@@ -18,7 +19,6 @@ use constant {
 sub generate {
 	my ($class, $args) = @_;
 	require XML::Atom::SimpleFeed;
-	require PublicInbox::View;
 	require POSIX;
 	my $max = $args->{max} || MAX_PER_PAGE;
 
@@ -61,7 +61,6 @@ sub generate_html_index {
 	my $git = PublicInbox::GitCatFile->new($args->{git_dir});
 	my $last = each_recent_blob($args, sub {
 		my $mime = do_cat_mail($git, $_[0]) or return 0;
-		$mime->body_set(''); # save some memory
 
 		my $t = eval { str2time($mime->header('Date')) };
 		defined($t) or $t = 0;
@@ -85,7 +84,8 @@ sub generate_html_index {
 			$a->topmost->message->header('X-PI-Date')
 		} @_;
 	});
-	dump_html_line($_, 0, \$html, time) for $th->rootset;
+	my %seen;
+	dump_msg($_, 0, \$html, time, \%seen) for $th->rootset;
 
 	Email::Address->purge_cache;
 
@@ -277,34 +277,15 @@ sub add_to_feed {
 	1;
 }
 
-sub dump_html_line {
-	my ($self, $level, $html, $now) = @_;
+sub dump_msg {
+	my ($self, $level, $html, $now, $seen) = @_;
 	if ($self->message) {
 		my $mime = $self->message;
-		my $subj = $mime->header('Subject');
-		my $ts = $mime->header('X-PI-Date');
-		my $mid = $mime->header_obj->header_raw('Message-ID');
-		$mid = PublicInbox::Hval->new_msgid($mid);
-		my $href = 'm/' . $mid->as_href . '.html';
-		my $from = mime_header($mime, 'From');
-
-		my @from = Email::Address->parse($from);
-		$from = $from[0]->name;
-		(defined($from) && length($from)) or $from = $from[0]->address;
-
-		$from = PublicInbox::Hval->new_oneline($from)->as_html;
-		$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
-		if ($now > ($ts + (24 * 60 * 60))) {
-			$ts = POSIX::strftime('%m/%d ', gmtime($ts));
-		} else {
-			$ts = POSIX::strftime('%H:%M ', gmtime($ts));
-		}
-
-		$$html .= $ts . (' ' x $level);
-		$$html .= "<a href=\"$href\">$subj</a> $from\n";
+		$$html .=
+		    PublicInbox::View->index_entry($mime, $now, $level, $seen);
 	}
-	dump_html_line($self->child, $level+1, $html, $now) if $self->child;
-	dump_html_line($self->next, $level, $html, $now) if $self->next;
+	dump_msg($self->child, $level+1, $html, $now, $seen) if $self->child;
+	dump_msg($self->next, $level, $html, $now, $seen) if $self->next;
 }
 
 sub do_cat_mail {
