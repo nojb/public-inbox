@@ -11,7 +11,7 @@ use Email::MIME::ContentType qw/parse_content_type/;
 require POSIX;
 
 # TODO: make these constants tunable
-use constant MAX_INLINE_QUOTED => 5;
+use constant MAX_INLINE_QUOTED => 12; # half an 80x24 terminal
 use constant MAX_TRUNC_LEN => 72;
 use constant PRE_WRAP => '<pre style="white-space:pre-wrap">';
 

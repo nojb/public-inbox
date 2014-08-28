@@ -18,7 +18,14 @@ OK
 > We generate links to a separate full page where quoted-text is inline.
 > This is
 >
-> Currently 5 lines
+> Currently 12 lines
+> See MAX_INLINE_QUOTED
+> See MAX_INLINE_QUOTED
+> See MAX_INLINE_QUOTED
+> See MAX_INLINE_QUOTED
+> See MAX_INLINE_QUOTED
+> See MAX_INLINE_QUOTED
+> See MAX_INLINE_QUOTED
 > See MAX_INLINE_QUOTED
 
 hello world
