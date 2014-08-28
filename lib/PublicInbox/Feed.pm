@@ -59,7 +59,7 @@ sub generate_html_index {
 
 	my @messages;
 	my $git = PublicInbox::GitCatFile->new($args->{git_dir});
-	my $last = each_recent_blob($args, sub {
+	my ($first, $last) = each_recent_blob($args, sub {
 		my $mime = do_cat_mail($git, $_[0]) or return 0;
 
 		my $t = eval { str2time($mime->header('Date')) };
@@ -89,7 +89,7 @@ sub generate_html_index {
 
 	Email::Address->purge_cache;
 
-	my $footer = nav_footer($args->{cgi}, $last, $feed_opts);
+	my $footer = nav_footer($args->{cgi}, $first, $last, $feed_opts);
 	my $list_footer = $args->{footer};
 	$footer .= "\n" . $list_footer if ($footer && $list_footer);
 	$footer = "<hr />" . PRE_WRAP . "$footer</pre>" if $footer;
@@ -99,21 +99,22 @@ sub generate_html_index {
 # private subs
 
 sub nav_footer {
-	my ($cgi, $last, $feed_opts) = @_;
+	my ($cgi, $first, $last, $feed_opts) = @_;
 	$cgi or return '';
 	my $old_r = $cgi->param('r');
 	my $head = '    ';
 	my $next = '    ';
 
 	if ($last) {
-		$next = qq!<a href="?r=$last">next</a>!;
+		$next = qq!<a\nhref="?r=$last">next</a>!;
 	}
 	if ($old_r) {
 		$head = $cgi->path_info;
-		$head = qq!<a href="$head">head</a>!;
+		$head = qq!<a\nhref="$head">head</a>!;
 	}
-	my $atom = "<a href=\"$feed_opts->{atomurl}\">atom</a>";
-	"$next $head $atom";
+	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">atom</a>";
+	my $permalink = "<a\nhref=\"?r=$first\">permalink</a>";
+	"$next $head $atom $permalink";
 }
 
 sub each_recent_blob {
@@ -174,7 +175,7 @@ sub each_recent_blob {
 
 	close $log; # we may EPIPE here
 	# for pagination
-	$commits[-1];
+	($commits[0], $commits[-1]);
 }
 
 # private functions below
