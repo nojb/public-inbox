@@ -291,8 +291,11 @@ sub dump_msg {
 
 sub do_cat_mail {
 	my ($git, $path) = @_;
-	my $str = $git->cat_file("HEAD:$path");
-	Email::MIME->new($str);
+	my $mime = eval {
+		my $str = $git->cat_file("HEAD:$path");
+		Email::MIME->new($str);
+	};
+	$@ ? undef : $mime;
 }
 
 1;
