@@ -81,6 +81,7 @@ sub index_entry {
 		my ($part) = @_;
 		return if $part->subparts; # walk_parts already recurses
 		my $enc = enc_for($part->content_type) || $enc_msg || $enc_utf8;
+		my $more = '';
 
 		if ($part_nr > 0) {
 			my $fn = $part->filename;
@@ -96,13 +97,19 @@ sub index_entry {
 		# Drop signatures
 		$s =~ s/\n*-- \n.*\z//s;
 
+		# drop the remainder of git patches, they're usually better
+		# to review when the full message is viewed
+		if ($s =~ s/\n*---\n.*\z//s) {
+			$more = "$pfx...\n";
+		}
+
 		# kill any trailing whitespace
 		$s =~ s/\s+\z//s;
 
 		# add prefix:
 		$s =~ s/^/$pfx/sgm;
 
-		$rv .= $s . "\n";
+		$rv .= $s . "\n$more";
 		++$part_nr;
 	});
 
