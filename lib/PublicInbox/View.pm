@@ -95,11 +95,11 @@ sub index_entry {
 		$s =~ s/(?:^[^\n]*:\s*\n)?(?:^&gt;[^\n]*\n)+(?:^\s*\n)?//mg;
 
 		# Drop signatures
-		$s =~ s/\n*-- \n.*\z//s;
+		$s =~ s/^-- \n.*\z//ms;
 
 		# drop the remainder of git patches, they're usually better
 		# to review when the full message is viewed
-		if ($s =~ s/\n*---\n.*\z//s) {
+		if ($s =~ s/^---\n.*\z//ms) {
 			$more = "$pfx...\n";
 		}
 
