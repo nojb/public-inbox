@@ -76,6 +76,13 @@ sub index_entry {
 
 	$rv .= "$pfx<a name=\"$name\"><b>$subj</b> $from - $ts</a>\n\n";
 
+	my $irp = $header_obj->header_raw('In-Reply-To');
+	my ($anchor_idx, $anchor);
+	if (defined $irp) {
+		$anchor_idx = anchor_for($irp);
+		$anchor = $seen->{$anchor_idx};
+	}
+
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
@@ -91,8 +98,11 @@ sub index_entry {
 
 		my $s = ascii_html($enc->decode($part->body));
 
-		# drop quotes, including the "so-and-so wrote:" line
-		$s =~ s/(?:^[^\n]*:\s*\n)?(?:^&gt;[^\n]*\n)+(?:^\s*\n)?//mg;
+		if (defined $anchor) {
+			# drop quotes, including the "so-and-so wrote:" line
+			$s =~ s/(?:^[^\n]*:\s*\n)?
+			       (?:^&gt;[^\n]*\n)+(?:^\s*\n)?//mgx;
+		}
 
 		# Drop signatures
 		$s =~ s/^-- \n.*\z//ms;
@@ -119,10 +129,7 @@ sub index_entry {
 	$rv .= "<a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0);
 
-	my $irp = $header_obj->header_raw('In-Reply-To');
 	if (defined $irp) {
-		my $anchor_idx = anchor_for($irp);
-		my $anchor = $seen->{$anchor_idx};
 		unless (defined $anchor) {
 			my $v = PublicInbox::Hval->new_msgid($irp);
 			my $html = $v->as_html;
