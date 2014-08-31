@@ -113,7 +113,8 @@ sub index_entry {
 			$more = "$pfx...\n";
 		}
 
-		# kill any trailing whitespace
+		# kill any leading or trailing whitespace
+		$s =~ s/\A\s+//s;
 		$s =~ s/\s+\z//s;
 
 		# add prefix:
