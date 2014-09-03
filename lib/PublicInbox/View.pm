@@ -82,13 +82,15 @@ sub index_entry {
 		$anchor_idx = anchor_for($irp);
 		$anchor = $seen->{$anchor_idx};
 	}
-
+	my $href = $mid->as_href;
+	my $mhref = "m/$href.html";
+	my $fhref = "f/$href.html";
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
 		return if $part->subparts; # walk_parts already recurses
 		my $enc = enc_for($part->content_type) || $enc_msg || $enc_utf8;
-		my $more = '';
+		my $more;
 
 		if ($part_nr > 0) {
 			my $fn = $part->filename;
@@ -96,22 +98,14 @@ sub index_entry {
 			$rv .= $pfx . add_filename_line($enc->decode($fn));
 		}
 
-		my $s = ascii_html($enc->decode($part->body));
+		my $s = add_text_body_short($enc, $part, $part_nr, $fhref);
 
-		if (defined $anchor) {
-			# drop quotes, including the "so-and-so wrote:" line
-			$s =~ s/(?:^[^\n]*:\s*\n)?
-			       (?:^&gt;[^\n]*\n)+(?:^\s*\n)?//mgx;
-		}
-
-		# Drop signatures
-		$s =~ s/^-- \n.*\z//ms;
+		# keep signatures for now?  They shold usually be short,
+		# and sometimes footnotes/"P.S." appear there.
 
 		# drop the remainder of git patches, they're usually better
 		# to review when the full message is viewed
-		if ($s =~ s/^---\n.*\z//ms) {
-			$more = "$pfx...\n";
-		}
+		$s =~ s!^---\n.*\z!!ms and $more = 1;
 
 		# kill any leading or trailing whitespace
 		$s =~ s/\A\s+//s;
@@ -120,13 +114,14 @@ sub index_entry {
 		# add prefix:
 		$s =~ s/^/$pfx/sgm;
 
-		$rv .= $s . "\n$more";
+		$s .= "\n$pfx<a href=\"$mhref\">(more...)</a>\n" if $more;
+
+		$rv .= $s . "\n";
 		++$part_nr;
 	});
 
-	my $href = 'm/' . $mid->as_href . '.html';
-	$rv .= "$pfx<a\nhref=\"$href\">more</a> ";
-	my $txt = 'm/' . $mid->as_href . '.txt';
+	$rv .= "$pfx<a\nhref=\"$mhref\">link</a> ";
+	my $txt = "m/$href.txt";
 	$rv .= "<a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0);
 
@@ -202,7 +197,6 @@ sub add_text_body_short {
 	my ($enc, $part, $part_nr, $full_pfx) = @_;
 	my $n = 0;
 	my $s = ascii_html($enc->decode($part->body));
-	# TODO: fold the "so-and-so wrote:" attribute line here, too:
 	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
