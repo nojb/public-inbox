@@ -85,12 +85,12 @@ sub index_entry {
 	my $href = $mid->as_href;
 	my $mhref = "m/$href.html";
 	my $fhref = "f/$href.html";
+	my $more = 'link';
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
 		return if $part->subparts; # walk_parts already recurses
 		my $enc = enc_for($part->content_type) || $enc_msg || $enc_utf8;
-		my $more;
 
 		if ($part_nr > 0) {
 			my $fn = $part->filename;
@@ -105,7 +105,7 @@ sub index_entry {
 
 		# drop the remainder of git patches, they're usually better
 		# to review when the full message is viewed
-		$s =~ s!^---\n.*\z!!ms and $more = 1;
+		$s =~ s!^---\n.*\z!!ms and $more = 'more...';
 
 		# kill any leading or trailing whitespace
 		$s =~ s/\A\s+//s;
@@ -114,13 +114,11 @@ sub index_entry {
 		# add prefix:
 		$s =~ s/^/$pfx/sgm;
 
-		$s .= "\n$pfx<a href=\"$mhref\">(more...)</a>\n" if $more;
-
 		$rv .= $s . "\n";
 		++$part_nr;
 	});
 
-	$rv .= "$pfx<a\nhref=\"$mhref\">link</a> ";
+	$rv .= "$pfx<a\nhref=\"$mhref\">$more</a> ";
 	my $txt = "m/$href.txt";
 	$rv .= "<a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0);
