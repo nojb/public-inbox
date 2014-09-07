@@ -77,15 +77,21 @@ sub generate_html_index {
 		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
 		'</head><body>' . PRE_WRAP;
 
-	# sort by date, most recent at top
+	# sort child messages in chronological order
 	$th->order(sub {
 		sort {
-			$b->topmost->message->header('X-PI-Date') <=>
-			$a->topmost->message->header('X-PI-Date')
+			$a->topmost->message->header('X-PI-Date') <=>
+			$b->topmost->message->header('X-PI-Date')
 		} @_;
 	});
+
 	my %seen;
-	dump_msg($_, 0, \$html, time, \%seen) for $th->rootset;
+	# except we sort top-level messages reverse chronologically
+	for (sort { (eval { $b->message->header('X-PI-Date') } || 0) <=>
+		    (eval { $a->message->header('X-PI-Date') } || 0)
+		  } $th->rootset) {
+		dump_msg($_, 0, \$html, time, \%seen);
+	}
 
 	Email::Address->purge_cache;
 
