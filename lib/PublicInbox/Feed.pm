@@ -286,8 +286,8 @@ sub add_to_feed {
 
 sub dump_msg {
 	my ($self, $level, $html, $now, $seen) = @_;
-	if ($self->message) {
-		my $mime = $self->message;
+	my $mime = $self->message;
+	if ($mime) {
 		$$html .=
 		    PublicInbox::View->index_entry($mime, $now, $level, $seen);
 	}
