@@ -115,7 +115,7 @@ sub index_entry {
 			# add prefix:
 			$s =~ s/^/$pfx/sgm;
 
-			$rv .= $s;
+			$rv .= $s . "\n";
 		}
 		++$part_nr;
 	});
