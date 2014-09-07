@@ -111,10 +111,12 @@ sub index_entry {
 		$s =~ s/\A\s+//s;
 		$s =~ s/\s+\z//s;
 
-		# add prefix:
-		$s =~ s/^/$pfx/sgm;
+		if (length $s) {
+			# add prefix:
+			$s =~ s/^/$pfx/sgm;
 
-		$rv .= $s . "\n";
+			$rv .= $s;
+		}
 		++$part_nr;
 	});
 
