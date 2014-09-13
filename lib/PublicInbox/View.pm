@@ -13,7 +13,7 @@ require POSIX;
 # TODO: make these constants tunable
 use constant MAX_INLINE_QUOTED => 12; # half an 80x24 terminal
 use constant MAX_TRUNC_LEN => 72;
-use constant PRE_WRAP => '<pre style="white-space:pre-wrap">';
+use constant PRE_WRAP => "<pre\nstyle=\"white-space:pre-wrap\">";
 
 *ascii_html = *PublicInbox::Hval::ascii_html;
 
@@ -74,7 +74,7 @@ sub index_entry {
 	}
 	$ts = POSIX::strftime($fmt, gmtime($ts));
 
-	$rv .= "$pfx<a name=\"$name\"><b>$subj</b> $from - $ts</a>\n\n";
+	$rv .= "$pfx<a\nname=\"$name\"><b>$subj</b> $from - $ts</a>\n\n";
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
 	my ($anchor_idx, $anchor);
@@ -217,7 +217,7 @@ sub add_text_body_short {
 				}
 			} while (@sum && length($cur) < MAX_TRUNC_LEN);
 			$cur =~ s/ \z/ .../;
-			"&gt; &lt;<a href=\"${full_pfx}#q${part_nr}_" . $n++ .
+			"&gt; &lt;<a\nhref=\"${full_pfx}#q${part_nr}_" . $n++ .
 				"\">$cur<\/a>&gt;\n";
 		} else {
 			$cur;
@@ -234,7 +234,7 @@ sub add_text_body_full {
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
 		if (@lines > MAX_INLINE_QUOTED) {
-			"<a name=q${part_nr}_" . $n++ . ">$cur</a>";
+			"<a\nname=q${part_nr}_" . $n++ . ">$cur</a>";
 		} else {
 			$cur;
 		}
@@ -272,7 +272,7 @@ sub headers_to_html_header {
 		$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
 		my $href = $mid->as_href;
 		$href = "../m/$href" unless $full_pfx;
-		$rv .= "(<a href=\"$href.txt\">original</a>)\n";
+		$rv .= "(<a\nhref=\"$href.txt\">original</a>)\n";
 	}
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
@@ -281,7 +281,7 @@ sub headers_to_html_header {
 		my $html = $v->as_html;
 		my $href = $v->as_href;
 		$rv .= "In-Reply-To: &lt;";
-		$rv .= "<a href=\"$href.html\">$html</a>&gt;\n";
+		$rv .= "<a\nhref=\"$href.html\">$html</a>&gt;\n";
 	}
 
 	my $refs = $header_obj->header_raw('References');
@@ -336,7 +336,7 @@ sub linkify_refs {
 		my $v = PublicInbox::Hval->new_msgid($_);
 		my $html = $v->as_html;
 		my $href = $v->as_href;
-		"&lt;<a href=\"$href.html\">$html</a>&gt;";
+		"&lt;<a\nhref=\"$href.html\">$html</a>&gt;";
 	} @_);
 }
 

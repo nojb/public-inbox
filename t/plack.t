@@ -98,7 +98,7 @@ EOF
 		my $res = $cb->(GET($pfx . '/atom.xml'));
 		is(200, $res->code, 'success response received for atom');
 		like($res->content,
-			qr!link href="\Q$pfx\E/m/blah%40example\.com\.html"!,
+			qr!link\s+href="\Q$pfx\E/m/blah%40example\.com\.html"!s,
 			'atom feed generated correct URL');
 	});
 }

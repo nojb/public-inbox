@@ -12,7 +12,7 @@ use PublicInbox::View;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
-	PRE_WRAP => '<pre style="white-space:pre-wrap">',
+	PRE_WRAP => "<pre\nstyle=\"white-space:pre-wrap\">",
 };
 
 # main function
@@ -73,8 +73,8 @@ sub generate_html_index {
 	my $th = PublicInbox::Thread->new(@messages);
 	$th->thread;
 	my $html = "<html><head><title>$title</title>" .
-		'<link rel="alternate" title="Atom feed" href="' .
-		$feed_opts->{atomurl} . '" type="application/atom+xml"/>' .
+		'<link rel="alternate" title="Atom feed"' . "\nhref=\"" .
+		$feed_opts->{atomurl} . "\"\ntype=\"application/atom+xml\"/>" .
 		'</head><body>' . PRE_WRAP;
 
 	# sort child messages in chronological order

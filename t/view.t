@@ -44,19 +44,19 @@ EOF
 	my $html = PublicInbox::View->msg_html($s);
 
 	# ghetto tests
-	like($html, qr!<a href="\.\./m/hello%40!s, "MID link present");
+	like($html, qr!<a\nhref="\.\./m/hello%40!s, "MID link present");
 	like($html, qr/hello world\b/, "body present");
 	like($html, qr/&gt; keep this inline/, "short quoted text is inline");
-	like($html, qr/<a name=[^>]+>&gt; Long and wordy/,
+	like($html, qr/<a\nname=[^>]+>&gt; Long and wordy/,
 		"long quoted text is anchored");
 
 	# short page
 	my $pfx = "http://example.com/test/f";
 	my $short = PublicInbox::View->msg_html($s, $pfx);
-	like($short, qr!<a href="hello%40!s, "MID link present");
+	like($short, qr!<a\nhref="hello%40!s, "MID link present");
 	like($short, qr/\n&gt; keep this inline/,
 		"short quoted text is inline");
-	like($short, qr/<a href="\Q$pfx\E#[^>]+>Long and wordy/,
+	like($short, qr/<a\nhref="\Q$pfx\E#[^>]+>Long and wordy/,
 		"long quoted text is made into a link");
 	ok(length($short) < length($html), "short page is shorter");
 }

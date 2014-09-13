@@ -252,10 +252,10 @@ sub footer {
 	if ($nurls == 0) {
 		$urls = '($GIT_DIR/cloneurl missing)';
 	} elsif ($nurls == 1) {
-		$urls = 'git URL for <a href="' . SSOMA_URL .
+		$urls = "git URL for <a\nhref=\"" . SSOMA_URL .
 			'">ssoma</a>: ' . $urls[0];
 	} else {
-		$urls = 'git URLs for <a href="' . SSOMA_URL .
+		$urls = "git URLs for <a\nhref=\"" . SSOMA_URL .
 			"\">ssoma</a>:\n" . join("\n", map { "\t$_" } @urls);
 	}
 
@@ -264,11 +264,11 @@ sub footer {
 		$addr = $addr->[0]; # first address is primary
 	}
 
-	$addr = "<a href=\"mailto:$addr\">$addr</a>";
+	$addr = "<a\nhref=\"mailto:$addr\">$addr</a>";
 	$desc =  $desc;
 	join("\n",
 		'- ' . $desc,
-		'A <a href="' . PI_URL .  '">public-inbox</a>, ' .
+		"A <a\nhref=\"" . PI_URL .  '">public-inbox</a>, ' .
 			'anybody may post in plain-text (not HTML):',
 		$addr,
 		$urls
