@@ -43,7 +43,7 @@ sub feed_entry {
 
 # this is already inside a <pre>
 sub index_entry {
-	my ($class, $mime, $now, $level, $seen) = @_;
+	my ($class, $mime, $now, $level, $seen, $first) = @_;
 	my $rv = "";
 	my $part_nr = 0;
 	my $enc_msg = enc_for($mime->header("Content-Type"));
@@ -85,7 +85,7 @@ sub index_entry {
 	my $href = $mid->as_href;
 	my $mhref = "m/$href.html";
 	my $fhref = "f/$href.html";
-	my $more = 'link';
+	my $more = 'message';
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
@@ -134,6 +134,7 @@ sub index_entry {
 		}
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
 	}
+	$rv .= " <a\nhref=\"?r=$first#$name\">permalink</a>";
 
 	$rv . "\n\n";
 }

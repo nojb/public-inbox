@@ -58,7 +58,8 @@ sub generate_html_index {
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 
 	my @messages;
-	my $git = PublicInbox::GitCatFile->new($args->{git_dir});
+	my $git_dir = $args->{git_dir};
+	my $git = PublicInbox::GitCatFile->new($git_dir);
 	my ($first, $last) = each_recent_blob($args, sub {
 		my $mime = do_cat_mail($git, $_[0]) or return 0;
 
@@ -90,7 +91,7 @@ sub generate_html_index {
 	for (sort { (eval { $b->message->header('X-PI-Date') } || 0) <=>
 		    (eval { $a->message->header('X-PI-Date') } || 0)
 		  } $th->rootset) {
-		dump_msg($_, 0, \$html, time, \%seen);
+		dump_msg($_, 0, \$html, time, \%seen, $first);
 	}
 
 	Email::Address->purge_cache;
@@ -143,7 +144,8 @@ sub each_recent_blob {
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
 	my @cmd = ('git', "--git-dir=$args->{git_dir}",
-			qw/log --no-notes --no-color --raw -r/);
+			qw/log --no-notes --no-color --raw -r
+			   --abbrev=16 --abbrev-commit/);
 	push @cmd, $range;
 
 	my $pid = open(my $log, '-|', @cmd) or
@@ -163,14 +165,14 @@ sub each_recent_blob {
 			}
 		} elsif ($line =~ /$delmsg/o) {
 			$deleted{$1} = 1;
-		} elsif ($line =~ /^commit (${hex}{40})/) {
+		} elsif ($line =~ /^commit (${hex}{7,40})/) {
 			push @commits, $1;
 		}
 	}
 
 	if ($last) {
 		while (my $line = <$log>) {
-			if ($line =~ /^commit (${hex}{40})/) {
+			if ($line =~ /^commit (${hex}{7,40})/) {
 				push @commits, $1;
 				last;
 			}
@@ -285,14 +287,14 @@ sub add_to_feed {
 }
 
 sub dump_msg {
-	my ($self, $level, $html, $now, $seen) = @_;
+	my ($self, $level, $html, $now, $seen, $first) = @_;
 	my $mime = $self->message;
 	if ($mime) {
-		$$html .=
-		    PublicInbox::View->index_entry($mime, $now, $level, $seen);
+		$$html .= PublicInbox::View->index_entry($mime, $now, $level,
+		                                         $seen, $first);
 	}
-	dump_msg($self->child, $level+1, $html, $now, $seen) if $self->child;
-	dump_msg($self->next, $level, $html, $now, $seen) if $self->next;
+	dump_msg($self->child, $level+1, $html, $now, $seen, $first) if $self->child;
+	dump_msg($self->next, $level, $html, $now, $seen, $first) if $self->next;
 }
 
 sub do_cat_mail {
