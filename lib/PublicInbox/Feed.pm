@@ -87,30 +87,33 @@ sub generate_html_index {
 	});
 
 	# except we sort top-level messages reverse chronologically
-	my $state = [ time, {}, $first ];
+	my $state = [ time, {}, $first, 0 ];
 	for (sort { (eval { $b->message->header('X-PI-Date') } || 0) <=>
 		    (eval { $a->message->header('X-PI-Date') } || 0)
 		  } $th->rootset) {
 		dump_msg($_, 0, \$html, $state);
 	}
-	$state = undef;
 	Email::Address->purge_cache;
 
-	my $footer = nav_footer($args->{cgi}, $first, $last, $feed_opts);
-	my $list_footer = $args->{footer};
-	$footer .= "\n" . $list_footer if ($footer && $list_footer);
-	$footer = "<hr />" . PRE_WRAP . "$footer</pre>" if $footer;
+	my $footer = nav_footer($args->{cgi}, $last, $feed_opts, $state);
+	if ($footer) {
+		my $list_footer = $args->{footer};
+		$footer .= "\n" . $list_footer if $list_footer;
+		$footer = "<hr />" . PRE_WRAP . "$footer</pre>";
+	}
 	$html . "</pre>$footer</html>";
 }
 
 # private subs
 
 sub nav_footer {
-	my ($cgi, $first, $last, $feed_opts) = @_;
+	my ($cgi, $last, $feed_opts, $state) = @_;
 	$cgi or return '';
 	my $old_r = $cgi->param('r');
 	my $head = '    ';
 	my $next = '    ';
+	my $first = $state->[2];
+	my $anchor = $state->[3];
 
 	if ($last) {
 		$next = qq!<a\nhref="?r=$last">next</a>!;
@@ -121,7 +124,7 @@ sub nav_footer {
 	}
 	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">atom</a>";
 	my $permalink = "<a\nhref=\"?r=$first\">permalink</a>";
-	"$next $head $atom $permalink";
+	"<a\nname=\"s$anchor\">page:</a> $next $head $atom $permalink";
 }
 
 sub each_recent_blob {

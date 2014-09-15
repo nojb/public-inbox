@@ -45,6 +45,8 @@ sub feed_entry {
 sub index_entry {
 	my ($class, $mime, $level, $state) = @_;
 	my ($now, $seen, $first) = @$state;
+	my $midx = $state->[3]++;
+	my ($prev, $next) = ($midx - 1, $midx + 1);
 	my $rv = '';
 	my $part_nr = 0;
 	my $enc_msg = enc_for($mime->header("Content-Type"));
@@ -75,7 +77,13 @@ sub index_entry {
 	}
 	$ts = POSIX::strftime($fmt, gmtime($ts));
 
-	$rv .= "$pfx<a\nname=\"$name\"><b>$subj</b> $from - $ts</a>\n\n";
+	$rv .= "$pfx<a\nname=\"$name\"></a>" .
+		"<a\nname=\"s$midx\"></a>" .
+		"<b>$subj</b> $from - $ts\n" .
+		"$pfx<a\nhref=\"#s$next\">next</a>";
+
+	$rv .= " <a\nhref=\"#s$prev\">prev</a>" if $prev >= 0;
+	$rv .= "\n";
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
 	my ($anchor_idx, $anchor);
