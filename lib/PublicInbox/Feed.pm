@@ -86,14 +86,14 @@ sub generate_html_index {
 		} @_;
 	});
 
-	my %seen;
 	# except we sort top-level messages reverse chronologically
+	my $state = [ time, {}, $first ];
 	for (sort { (eval { $b->message->header('X-PI-Date') } || 0) <=>
 		    (eval { $a->message->header('X-PI-Date') } || 0)
 		  } $th->rootset) {
-		dump_msg($_, 0, \$html, time, \%seen, $first);
+		dump_msg($_, 0, \$html, $state);
 	}
-
+	$state = undef;
 	Email::Address->purge_cache;
 
 	my $footer = nav_footer($args->{cgi}, $first, $last, $feed_opts);
@@ -287,14 +287,13 @@ sub add_to_feed {
 }
 
 sub dump_msg {
-	my ($self, $level, $html, $now, $seen, $first) = @_;
+	my ($self, $level, $html, $state) = @_;
 	my $mime = $self->message;
 	if ($mime) {
-		$$html .= PublicInbox::View->index_entry($mime, $now, $level,
-		                                         $seen, $first);
+		$$html .= PublicInbox::View->index_entry($mime, $level, $state);
 	}
-	dump_msg($self->child, $level+1, $html, $now, $seen, $first) if $self->child;
-	dump_msg($self->next, $level, $html, $now, $seen, $first) if $self->next;
+	dump_msg($self->child, $level+1, $html, $state) if $self->child;
+	dump_msg($self->next, $level, $html, $state) if $self->next;
 }
 
 sub do_cat_mail {

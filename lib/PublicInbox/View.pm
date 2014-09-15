@@ -43,8 +43,9 @@ sub feed_entry {
 
 # this is already inside a <pre>
 sub index_entry {
-	my ($class, $mime, $now, $level, $seen, $first) = @_;
-	my $rv = "";
+	my ($class, $mime, $level, $state) = @_;
+	my ($now, $seen, $first) = @$state;
+	my $rv = '';
 	my $part_nr = 0;
 	my $enc_msg = enc_for($mime->header("Content-Type"));
 	my $subj = $mime->header('Subject');
