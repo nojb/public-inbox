@@ -278,7 +278,7 @@ sub headers_to_html_header {
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
 	if (defined $irp) {
-		my $v = PublicInbox::Hval->new_msgid(my $tmp = $irp);
+		my $v = PublicInbox::Hval->new_msgid($irp);
 		my $html = $v->as_html;
 		my $href = $v->as_href;
 		$rv .= "In-Reply-To: &lt;";
