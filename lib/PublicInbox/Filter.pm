@@ -97,6 +97,7 @@ sub dump_html {
 		push @cmd, "-assume_charset=$charset";
 	}
 	if (IPC::Run::run(\@cmd, $body, \$out, \$err)) {
+		$out =~ s/\r\n/\n/sg;
 		$$body = $out;
 	} else {
 		# give them an ugly version:

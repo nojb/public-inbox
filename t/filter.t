@@ -85,13 +85,14 @@ sub count_body_parts {
 			'Content-Type' => 'text/html',
 			Subject => 'HTML only badness',
 		],
-		body => "<html><body>bad body</body></html>\n",
+		body => "<html><body>bad body\r\n</body></html>\n",
 	);
 	is(1, PublicInbox::Filter->run($s), "run was a success");
 	unlike($s->as_string, qr/<html>/, "HTML removed");
 	is("text/plain", $s->header("Content-Type"),
 		"content-type changed");
 	like($s->body, qr/\A\s*bad body\s*\z/, "body");
+	unlike($s->body, qr/\r/, "body has no cr");
 	like($s->header("X-Content-Filtered-By"),
 		qr/PublicInbox::Filter/, "XCFB header added");
 }
