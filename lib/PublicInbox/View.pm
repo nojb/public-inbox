@@ -301,7 +301,7 @@ sub headers_to_html_header {
 }
 
 sub html_footer {
-	my ($mime, $purge) = @_;
+	my ($mime, $standalone) = @_;
 	my %cc; # everyone else
 	my $to; # this is the From address
 
@@ -316,7 +316,7 @@ sub html_footer {
 			$to ||= $dst;
 		}
 	}
-	Email::Address->purge_cache if $purge;
+	Email::Address->purge_cache if $standalone;
 
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
@@ -329,7 +329,9 @@ sub html_footer {
 	my $cc = uri_escape_utf8(join(',', values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
 
-	"<a\nhref=\"" . ascii_html($href) . '">reply</a>';
+	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
+
+	"<a\nhref=\"" . ascii_html($href) . '">reply</a>' . $idx;
 }
 
 sub linkify_refs {
