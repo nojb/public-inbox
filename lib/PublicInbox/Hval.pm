@@ -5,28 +5,36 @@
 package PublicInbox::Hval;
 use strict;
 use warnings;
-use fields qw(raw);
+use fields qw(raw href);
 use Encode qw(find_encoding);
 use URI::Escape qw(uri_escape_utf8);
 
 my $enc_ascii = find_encoding('us-ascii');
 
 sub new {
-	my ($class, $raw) = @_;
+	my ($class, $raw, $href) = @_;
 	my $self = fields::new($class);
 
 	# we never care about leading/trailing whitespace
 	$raw =~ s/\A\s*//;
 	$raw =~ s/\s*\z//;
 	$self->{raw} = $raw;
+	$self->{href} = defined $href ? $href : $raw;
 	$self;
 }
 
 sub new_msgid {
-	my ($class, $raw) = @_;
-	$raw =~ s/\A<//;
-	$raw =~ s/>\z//;
-	$class->new($raw);
+	my ($class, $msgid) = @_;
+	$msgid =~ s/\A\s*<?//;
+	$msgid =~ s/>?\s*\z//;
+
+	if (length($msgid) <= 40) {
+		$class->new($msgid);
+	} else {
+		require Digest::SHA;
+		my $hex = Digest::SHA::sha1_hex($msgid);
+		$class->new($msgid, $hex);
+	}
 }
 
 sub new_oneline {
@@ -52,7 +60,7 @@ sub ascii_html {
 }
 
 sub as_html { ascii_html($_[0]->{raw}) }
-sub as_href { ascii_html(uri_escape_utf8($_[0]->{raw})) }
+sub as_href { ascii_html(uri_escape_utf8($_[0]->{href})) }
 
 sub raw {
 	if (defined $_[1]) {
