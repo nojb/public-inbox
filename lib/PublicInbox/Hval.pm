@@ -55,6 +55,7 @@ my %xhtml_map = (
 
 sub ascii_html {
 	my ($s) = @_;
+	$s =~ s/\r\n/\n/sg; # fixup bad line endings
 	$s =~ s/([<>&'"])/$xhtml_map{$1}/ge;
 	$enc_ascii->encode($s, Encode::HTMLCREF);
 }
