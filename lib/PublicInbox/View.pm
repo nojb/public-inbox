@@ -109,12 +109,12 @@ sub index_entry {
 
 		my $s = add_text_body_short($enc, $part, $part_nr, $fhref);
 
-		# keep signatures for now?  They shold usually be short,
-		# and sometimes footnotes/"P.S." appear there.
-
 		# drop the remainder of git patches, they're usually better
 		# to review when the full message is viewed
 		$s =~ s!^---\n.*\z!!ms and $more = 'more...';
+
+		# Drop signatures
+		$s =~ s/^-- \n.*\z//ms and $more = 'more...';
 
 		# kill any leading or trailing whitespace
 		$s =~ s/\A\s+//s;
