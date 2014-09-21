@@ -1,0 +1,63 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2014, all contributors (git clone git://80x24.org/public-inbox)
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+use strict;
+use warnings;
+my $usage = "public-inbox-init NAME GIT_DIR HTTP_URL ADDRESS [ADDRESS..]";
+use PublicInbox::Config;
+use File::Temp qw/tempfile/;
+use File::Basename qw/dirname/;
+use File::Path qw/mkpath/;
+use File::Path::Expand qw/expand_filename/;
+
+sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
+sub usage { print STDERR "Usage: $usage\n"; exit 1 }
+
+my $name = shift @ARGV or usage();
+my $git_dir = shift @ARGV or usage();
+my $http_url = shift @ARGV or usage();
+my (@address) = @ARGV;
+@address or usage();
+
+my $pi_config = PublicInbox::Config->default_file;
+my $dir = dirname($pi_config);
+mkpath($dir); # will croak on fatal errors
+my ($fh, $filename) = tempfile('pi-init-XXXXXXXX', DIR => $dir);
+if (-e $pi_config) {
+	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
+	local $/;
+	my $old = <$oh>;
+	print $fh $old or die "failed to write: $!\n";
+	close $oh or die "failed to close $pi_config: $!\n";
+
+	# yes, this conflict checking is racy if multiple instances of this
+	# script are run by the same $PI_DIR
+	my $cfg = PublicInbox::Config->new;
+	my $conflict;
+	foreach my $addr (@address) {
+		my $found = $cfg->lookup($addr);
+		if ($found && ($found->{listname} ne $name)) {
+			print STDERR
+				"`$addr' already defined for ",
+				"`$found->{listname}',\n",
+				"does not match intend `$name'\n";
+			$conflict = 1;
+		}
+	}
+
+	exit(1) if $conflict;
+}
+close $fh or die "failed to close $filename: $!\n";
+
+my $pfx = "publicinbox.$name";
+my @x = (qw/git config/, "--file=$filename");
+$git_dir = expand_filename($git_dir);
+x(qw(git init -q --bare), $git_dir);
+foreach my $addr (@address) {
+	x(@x, "$pfx.address", $addr);
+}
+x(@x, "$pfx.url", $http_url);
+x(@x, "$pfx.mainrepo", $git_dir);
+
+rename $filename, $pi_config or
+	die "failed to rename `$filename' to `$pi_config': $!\n";
