@@ -111,7 +111,7 @@ sub index_entry {
 
 		# drop the remainder of git patches, they're usually better
 		# to review when the full message is viewed
-		$s =~ s!^---\n.*\z!!ms and $more = 'more...';
+		$s =~ s!^---+\n.*\z!!ms and $more = 'more...';
 
 		# Drop signatures
 		$s =~ s/^-- \n.*\z//ms and $more = 'more...';
