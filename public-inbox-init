@@ -18,6 +18,7 @@ my $git_dir = shift @ARGV or usage();
 my $http_url = shift @ARGV or usage();
 my (@address) = @ARGV;
 @address or usage();
+my %seen;
 
 my $pi_config = PublicInbox::Config->default_file;
 my $dir = dirname($pi_config);
@@ -25,8 +26,11 @@ mkpath($dir); # will croak on fatal errors
 my ($fh, $filename) = tempfile('pi-init-XXXXXXXX', DIR => $dir);
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
-	local $/;
-	my $old = <$oh>;
+	my $old;
+	{
+		local $/;
+		$old = <$oh>;
+	}
 	print $fh $old or die "failed to write: $!\n";
 	close $oh or die "failed to close $pi_config: $!\n";
 
@@ -36,12 +40,16 @@ if (-e $pi_config) {
 	my $conflict;
 	foreach my $addr (@address) {
 		my $found = $cfg->lookup($addr);
-		if ($found && ($found->{listname} ne $name)) {
-			print STDERR
-				"`$addr' already defined for ",
-				"`$found->{listname}',\n",
-				"does not match intend `$name'\n";
-			$conflict = 1;
+		if ($found) {
+			if ($found->{listname} ne $name) {
+				print STDERR
+					"`$addr' already defined for ",
+					"`$found->{listname}',\n",
+					"does not match intend `$name'\n";
+				$conflict = 1;
+			} else {
+				$seen{lc($addr)} = 1;
+			}
 		}
 	}
 
@@ -54,7 +62,8 @@ my @x = (qw/git config/, "--file=$filename");
 $git_dir = expand_filename($git_dir);
 x(qw(git init -q --bare), $git_dir);
 foreach my $addr (@address) {
-	x(@x, "$pfx.address", $addr);
+	next if $seen{lc($addr)};
+	x(@x, "--add", "$pfx.address", $addr);
 }
 x(@x, "$pfx.url", $http_url);
 x(@x, "$pfx.mainrepo", $git_dir);
