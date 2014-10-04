@@ -68,7 +68,7 @@ sub index_entry {
 	my $pfx = ('  ' x $level);
 
 	my $ts = $mime->header('X-PI-Date');
-	my $fmt = '%H:%M';
+	my $fmt = '%H:%M UTC';
 	if ($now > ($ts + (365 * 24 * 60 * 60))) {
 		# doesn't have to be exactly 1 year
 		$fmt = '%Y/%m/%d';
@@ -79,11 +79,15 @@ sub index_entry {
 
 	$rv .= "$pfx<a\nname=\"$name\"></a>" .
 		"<a\nname=\"s$midx\"></a>" .
-		"<b>$subj</b> $from - $ts\n" .
+		"<b>$subj</b>\n" .
 		"$pfx<a\nhref=\"#s$next\">next</a>";
 
-	$rv .= " <a\nhref=\"#s$prev\">prev</a>" if $prev >= 0;
-	$rv .= "\n";
+	if ($prev >= 0) {
+		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
+	} else {
+		$rv .= '    ';
+	}
+	$rv .= "        by $from @ $ts\n\n";
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
 	my ($anchor_idx, $anchor);
@@ -129,7 +133,7 @@ sub index_entry {
 		++$part_nr;
 	});
 
-	$rv .= "$pfx<a\nhref=\"$mhref\">$more</a> ";
+	$rv .= "\n$pfx<a\nhref=\"$mhref\">$more</a> ";
 	my $txt = "m/$href.txt";
 	$rv .= "<a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0);
