@@ -79,15 +79,15 @@ sub index_entry {
 
 	$rv .= "$pfx<a\nname=\"$name\"></a>" .
 		"<a\nname=\"s$midx\"></a>" .
-		"<b>$subj</b>\n" .
-		"$pfx<a\nhref=\"#s$next\">next</a>";
+		"<b>$subj</b>\n$pfx";
 
+	$rv .= "- by $from @ $ts - ";
+
+	$rv .= "<a\nhref=\"#s$next\">next</a>";
 	if ($prev >= 0) {
 		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
-	} else {
-		$rv .= '    ';
 	}
-	$rv .= "        by $from @ $ts\n\n";
+	$rv .= "\n\n";
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
 	my ($anchor_idx, $anchor);
