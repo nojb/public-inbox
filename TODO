@@ -4,3 +4,5 @@
   (n.b.: this is SMTP, we must account for out-of-order delivery)
 * search, Xapian bindings are pretty common on GNU/Linux distros
 * NNTP server (is there demand for one?)
+* improve + document mlmmj integration, currently only at:
+  http://bogomips.org/unicorn-public/m/20140508084301.GA2033%40dcvr.yhbt.net
