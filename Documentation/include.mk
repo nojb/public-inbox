@@ -4,7 +4,7 @@ all::
 
 RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
-docs := README COPYING INSTALL $(shell git ls-files 'Documentation/*.txt')
+docs := README COPYING INSTALL TODO $(shell git ls-files 'Documentation/*.txt')
 INSTALL = install
 PANDOC = pandoc
 PANDOC_OPTS = -f markdown --email-obfuscation=none
