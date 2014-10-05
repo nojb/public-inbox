@@ -1,5 +1,6 @@
 * configurable constants (quote folding, index limits)
 * use tags as date-based skiplists for navigating history
-* per-message views should be able to quickly navigate do replies.
+* per-message views should be able to quickly navigate to replies.
   (n.b.: this is SMTP, we must account for out-of-order delivery)
+* search, Xapian bindings are pretty common on GNU/Linux distros
 * NNTP server (is there demand for one?)
