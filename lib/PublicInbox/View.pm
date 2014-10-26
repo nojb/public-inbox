@@ -286,7 +286,7 @@ sub headers_to_html_header {
 		$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
 		my $href = $mid->as_href;
 		$href = "../m/$href" unless $full_pfx;
-		$rv .= "(<a\nhref=\"$href.txt\">original</a>)\n";
+		$rv .= "(<a\nhref=\"$href.txt\">raw</a>)\n";
 	}
 
 	my $irp = $header_obj->header_raw('In-Reply-To');
