@@ -147,7 +147,7 @@ sub index_entry {
 		}
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
 	}
-	$rv .= " <a\nhref=\"?r=$first#$name\">permalink</a>";
+	$rv .= " <a\nhref=\"?r=$first#$name\">threadlink</a>";
 
 	$rv . "\n\n";
 }
