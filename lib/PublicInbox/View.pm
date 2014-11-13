@@ -104,7 +104,12 @@ sub index_entry {
 	$mime->walk_parts(sub {
 		my ($part) = @_;
 		return if $part->subparts; # walk_parts already recurses
-		my $enc = enc_for($part->content_type) || $enc_msg || $enc_utf8;
+		my $ct = $part->content_type;
+
+		# account for filter bugs...
+		return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
+
+		my $enc = enc_for($ct) || $enc_msg || $enc_utf8;
 
 		if ($part_nr > 0) {
 			my $fn = $part->filename;
@@ -178,7 +183,12 @@ sub multipart_text_as_html {
 	$mime->walk_parts(sub {
 		my ($part) = @_;
 		return if $part->subparts; # walk_parts already recurses
-		my $enc = enc_for($part->content_type) || $enc_msg || $enc_utf8;
+		my $ct = $part->content_type;
+
+		# account for filter bugs...
+		return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
+
+		my $enc = enc_for($ct) || $enc_msg || $enc_utf8;
 
 		if ($part_nr > 0) {
 			my $fn = $part->filename;
