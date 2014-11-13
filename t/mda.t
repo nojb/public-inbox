@@ -205,14 +205,55 @@ EOF
 	my $in = $simple->as_string;
 
 	# now train it
+	# these should be overridden
 	local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
 	local $ENV{GIT_COMMITTER_EMAIL} = 'trainer@example.com';
+
 	run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham without failure");
 	my $msg = `ssoma cat $mid $maindir`;
 	like($msg, qr/\Q$mid\E/, "ham message delivered");
 	run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham idempotently ");
+
+	# ensure trained email is filtered, too
+	my $html_body = "<html><body>hi</body></html>";
+	my $parts = [
+		Email::MIME->create(
+			attributes => {
+				content_type => 'text/html; charset=UTF-8',
+				encoding => 'base64',
+			},
+			body => $html_body,
+		),
+		Email::MIME->create(
+			attributes => {
+				content_type => 'text/plain',
+				encoding => 'quoted-printable',
+			},
+			body => 'hi = "bye"',
+		)
+	];
+	$mid = 'multipart-html-sucks@11';
+	my $mime = Email::MIME->create(
+		header_str => [
+		  From => 'a@example.com',
+		  Subject => 'blah',
+		  Cc => $addr,
+		  'Message-ID' => "<$mid>",
+		  'Content-Type' => 'multipart/alternative',
+		],
+		parts => $parts,
+	);
+
+	{
+		$in = $mime->as_string;
+		run([$learn, "ham"], \$in);
+		is($?, 0, "learned ham without failure");
+		$msg = `ssoma cat $mid $maindir`;
+		like($msg, qr/<\Q$mid\E>/, "ham message delivered");
+		unlike($msg, qr/<html>/i, '<html> filtered');
+	}
 }
 
 # faildir - emergency destination is maildir

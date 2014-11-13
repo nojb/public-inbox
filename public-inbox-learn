@@ -24,9 +24,16 @@ foreach my $h (qw(Cc To)) {
 	}
 }
 
-my $in = $mime->as_string;
-$mime->body_set('');
+my ($name, $email, $date);
 
+if ($train eq "ham") {
+	require PublicInbox::MDA;
+	require PublicInbox::Filter;
+	PublicInbox::Filter->run($mime);
+	($name, $email, $date) = PublicInbox::MDA->author_info($mime);
+}
+
+my $in = $mime->as_string;
 my $err = 0;
 my @output = qw(> /dev/null > /dev/null);
 
@@ -50,16 +57,10 @@ foreach my $recipient (keys %dests) {
 			}
 		}
 	} else { # $train eq "ham"
-		require PublicInbox::MDA;
-		require PublicInbox::Filter;
-
-		# no checking for errors here, we assume the message has
+		# no checking for spam here, we assume the message has
 		# been reviewed by a human at this point:
-		PublicInbox::Filter->run($mime);
 		PublicInbox::MDA->set_list_headers($mime, $dst);
 
-		my ($name, $email, $date) =
-				PublicInbox::MDA->author_info($mime);
 		local $ENV{GIT_AUTHOR_NAME} = $name;
 		local $ENV{GIT_AUTHOR_EMAIL} = $email;
 		local $ENV{GIT_AUTHOR_DATE} = $date;
