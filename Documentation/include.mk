@@ -42,12 +42,10 @@ install-man: man
 txt2pre = ./Documentation/txt2pre < $< > $@+ && touch -r $< $@+ && mv $@+ $@
 txt = INSTALL README COPYING
 
-INSTALL.html: INSTALL
-	$(txt2pre)
-index.html: README
+%.html: %
 	$(txt2pre)
 
-docs_html := INSTALL.html
+docs_html := $(addsuffix .html, $(txt))
 html: $(docs_html)
 gz_docs := $(addsuffix .gz, $(docs) $(docs_html))
 rsync_docs := $(gz_docs) $(docs) $(txt) $(docs_html)
