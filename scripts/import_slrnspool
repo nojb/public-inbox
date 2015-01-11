@@ -25,7 +25,7 @@ use Data::Dumper; print STDERR Dumper($cfg);
 
 sub get_min {
 	my ($cfg) = @_;
-	$cfg->{importslrnspoolstate} || 1
+	$cfg->{importslrnspoolstate} || 0;
 }
 
 sub set_min {
