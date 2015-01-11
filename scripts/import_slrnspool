@@ -31,16 +31,28 @@ if ($ENV{'FILTER'}) {
 	@mda = (qw(ssoma-mda -1), $cfg->{mainrepo});
 }
 
-sub get_min {
+sub key {
 	my ($cfg) = @_;
-	$cfg->{importslrnspoolstate} || 0;
+	"publicinbox.$cfg->{listname}.importslrnspoolstate";
+}
+
+sub get_min {
+	my $f = PublicInbox::Config->default_file;
+	my @cmd = (qw/git config/, "--file=$f", key($cfg));
+	use IPC::Run qw/run/;
+
+	my $in = '';
+	my $out = '';
+	unless (run(\@cmd, \$in, \$out)) {
+		$out = 0;
+	}
+	int($out);
 }
 
 sub set_min {
 	my ($cfg, $num) = @_;
 	my $f = PublicInbox::Config->default_file;
-	my @cmd = (qw/git config/, "--file=$f",
-		   "publicinbox.$cfg->{listname}.importslrnspoolstate", $num);
+	my @cmd = (qw/git config/, "--file=$f", key($cfg), $num);
 	system(@cmd) == 0 or die join(' ', @cmd). " failed: $?\n";
 }
 
