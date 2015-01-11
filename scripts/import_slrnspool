@@ -14,6 +14,10 @@ use PublicInbox::Config;
 use Email::Filter;
 use Email::LocalDelivery;
 sub usage { "Usage:\n".join('',grep(/\t/, `head -n 10 $0`)) }
+my $exit = 0;
+my $sighandler = sub { $exit = 1 };
+$SIG{INT} = $sighandler;
+$SIG{TERM} = $sighandler;
 my $spool = shift @ARGV or die usage();
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 defined $recipient or die usage();
@@ -45,7 +49,7 @@ my $ok;
 my $max_gap = 10000;
 my $max = $n + $max_gap;
 
-for (; $n < $max; $n++) {
+for (; $exit == 0 && $n < $max; $n++) {
 	my $fn = "$spool/$n";
 	print STDERR $fn, "\n";
 	open(my $fh, '<', $fn) or next;
