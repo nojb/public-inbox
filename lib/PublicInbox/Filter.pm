@@ -129,7 +129,7 @@ sub strip_multipart {
 			return;
 		}
 
-		my $part_type = $part->content_type;
+		my $part_type = $part->content_type || '';
 		if ($part_type =~ m!\btext/plain\b!i) {
 			push @keep, $part;
 		} elsif ($part_type =~ $MIME_HTML) {
@@ -140,7 +140,8 @@ sub strip_multipart {
 			# help with.
 
 			push @keep, $part;
-		} elsif ($part_type =~ m!\Aapplication/octet-stream\z!i) {
+		} elsif ($part_type eq '' ||
+		         $part_type =~ m!\Aapplication/octet-stream\z!i) {
 			# unfortunately, some mailers don't set correct types,
 			# let messages of unknown type through but do not
 			# change the sender-specified type
