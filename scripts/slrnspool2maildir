@@ -27,10 +27,13 @@ foreach my $n (grep(/\d+\z/, glob("$spool/*"))) {
 		my $s = $f->simple;
 
 		# gmane rewrites Received headers, which increases spamminess
-		my @h = $s->header('Original-Received');
-		if (@h) {
-			$s->header_set('Received', @h);
-			$s->header_set('Original-Received');
+		# Some older archives set Original-To
+		foreach my $x (qw(Received To)) {
+			my @h = $s->header("Original-$x");
+			if (@h) {
+				$s->header_set($x, @h);
+				$s->header_set("Original-$x");
+			}
 		}
 
 		# triggers for the SA HEADER_SPAM rule
