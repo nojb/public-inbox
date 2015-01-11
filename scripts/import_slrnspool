@@ -17,11 +17,10 @@ sub usage { "Usage:\n".join('',grep(/\t/, `head -n 10 $0`)) }
 my $spool = shift @ARGV or die usage();
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 defined $recipient or die usage();
-my @mda = qw(public-inbox-mda);
 my $config = PublicInbox::Config->new;
 my $cfg = $config->lookup($recipient);
 defined $cfg or exit(1);
-use Data::Dumper; print STDERR Dumper($cfg);
+my @mda = (qw(ssoma-mda -1), $cfg->{mainrepo});
 
 sub get_min {
 	my ($cfg) = @_;
