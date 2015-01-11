@@ -20,7 +20,12 @@ defined $recipient or die usage();
 my $config = PublicInbox::Config->new;
 my $cfg = $config->lookup($recipient);
 defined $cfg or exit(1);
-my @mda = (qw(ssoma-mda -1), $cfg->{mainrepo});
+my @mda;
+if ($ENV{'FILTER'}) {
+	@mda = qw(public-inbox-mda);
+} else {
+	@mda = (qw(ssoma-mda -1), $cfg->{mainrepo});
+}
 
 sub get_min {
 	my ($cfg) = @_;
