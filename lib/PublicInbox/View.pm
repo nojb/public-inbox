@@ -218,10 +218,17 @@ sub add_filename_line {
 	"$pad " . ascii_html($fn) . " $pad\n";
 }
 
+my $LINK_RE = qr!\b((?:ftp|https?|nntp)://[@\w\+\&\?\.\%\;/#=-]+)!;
+
+sub linkify {
+	$_[0] =~ s!$LINK_RE!<a\nhref="$1"\n>$1</a>!g;
+}
+
 sub add_text_body_short {
 	my ($enc, $part, $part_nr, $full_pfx) = @_;
 	my $n = 0;
 	my $s = ascii_html($enc->decode($part->body));
+	linkify($s);
 	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
@@ -255,6 +262,7 @@ sub add_text_body_full {
 	my ($enc, $part, $part_nr) = @_;
 	my $n = 0;
 	my $s = ascii_html($enc->decode($part->body));
+	linkify($s);
 	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
