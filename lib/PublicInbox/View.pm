@@ -221,7 +221,9 @@ sub add_filename_line {
 my $LINK_RE = qr!\b((?:ftp|https?|nntp)://[@\w\+\&\?\.\%\;/#=-]+)!;
 
 sub linkify {
-	$_[0] =~ s!$LINK_RE!<a\nhref="$1"\n>$1</a>!g;
+	# no newlines added here since it'd break the splitting we do
+	# to fold quotes
+	$_[0] =~ s!$LINK_RE!<a href="$1">$1</a>!g;
 }
 
 sub add_text_body_short {
