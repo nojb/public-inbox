@@ -56,6 +56,14 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 			$filter->pipe(PublicInbox::MDA->cmd, $main_repo);
 		}
 	}
+} else {
+	# Ensure emergency spam gets spamassassin headers.
+	# This makes it easier to prioritize obvious spam from less obvious
+	if (defined($filtered) && length($filtered)) {
+		my $drop = Email::MIME->new(\$filtered);
+		$filtered = undef;
+		$filter->simple($drop);
+	}
 }
 exit 0; # goes to emergency
 
