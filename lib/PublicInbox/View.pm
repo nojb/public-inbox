@@ -54,8 +54,8 @@ sub index_entry {
 	my $header_obj = $mime->header_obj;
 
 	my $mid_raw = $header_obj->header_raw('Message-ID');
-	my $name = anchor_for($mid_raw);
-	$seen->{$name} = "#$name"; # save the anchor for later
+	my $id = anchor_for($mid_raw);
+	$seen->{$id} = "#$id"; # save the anchor for later
 
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
 	my $from = PublicInbox::Hval->new_oneline($mime->header('From'))->raw;
@@ -78,13 +78,9 @@ sub index_entry {
 	}
 	$ts = POSIX::strftime($fmt, gmtime($ts));
 
-	$rv .= "$pfx<a\nname=\"$name\"></a>" .
-		"<a\nname=\"s$midx\"></a>" .
-		"<b>$subj</b>\n$pfx";
-
+	$rv .= "$pfx<b\nid=\"$id\">$subj</b>\n$pfx";
 	$rv .= "- by $from @ $ts - ";
-
-	$rv .= "<a\nhref=\"#s$next\">next</a>";
+	$rv .= "<a\nid=\"s$midx\"\nhref=\"#s$next\">next</a>";
 	if ($prev >= 0) {
 		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
 	}
@@ -153,7 +149,7 @@ sub index_entry {
 		}
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
 	}
-	$rv .= " <a\nhref=\"?r=$first#$name\">threadlink</a>";
+	$rv .= " <a\nhref=\"?r=$first#$id\">threadlink</a>";
 
 	$rv . "\n\n";
 }
@@ -269,7 +265,7 @@ sub add_text_body_full {
 		my $cur = $1;
 		my @lines = split(/\n/, $cur);
 		if (@lines > MAX_INLINE_QUOTED) {
-			"<a\nname=q${part_nr}_" . $n++ . ">$cur</a>";
+			"<a\nid=q${part_nr}_" . $n++ . ">$cur</a>";
 		} else {
 			$cur;
 		}
@@ -382,7 +378,7 @@ sub anchor_for {
 	my ($msgid) = @_;
 	$msgid =~ s/\A\s*<?//;
 	$msgid =~ s/>?\s*\z//;
-	Digest::SHA::sha1_hex($msgid);
+	'm' . Digest::SHA::sha1_hex($msgid);
 }
 
 1;

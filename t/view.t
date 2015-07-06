@@ -47,7 +47,7 @@ EOF
 	like($html, qr!<a\nhref="\.\./m/hello%40!s, "MID link present");
 	like($html, qr/hello world\b/, "body present");
 	like($html, qr/&gt; keep this inline/, "short quoted text is inline");
-	like($html, qr/<a\nname=[^>]+>&gt; Long and wordy/,
+	like($html, qr/<a\nid=[^>]+>&gt; Long and wordy/,
 		"long quoted text is anchored");
 
 	# short page
