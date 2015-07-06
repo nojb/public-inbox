@@ -101,7 +101,7 @@ sub generate_html_index {
 		$footer .= "\n" . $list_footer if $list_footer;
 		$footer = "<hr />" . PRE_WRAP . "$footer</pre>";
 	}
-	$html . "</pre>$footer</html>";
+	$html . "</pre>$footer</body></html>";
 }
 
 # private subs
