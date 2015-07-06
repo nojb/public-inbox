@@ -168,14 +168,14 @@ sub each_recent_blob {
 			}
 		} elsif ($line =~ /$delmsg/o) {
 			$deleted{$1} = 1;
-		} elsif ($line =~ /^commit (${hex}{7,40})/) {
+		} elsif ($line =~ /^commit (${hex}{7,40})/o) {
 			push @commits, $1;
 		}
 	}
 
 	if ($last) {
 		while (my $line = <$log>) {
-			if ($line =~ /^commit (${hex}{7,40})/) {
+			if ($line =~ /^commit (${hex}{7,40})/o) {
 				push @commits, $1;
 				last;
 			}
