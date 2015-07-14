@@ -12,6 +12,7 @@ use Email::MIME::ContentType qw/parse_content_type/;
 use Email::Filter;
 use IPC::Run;
 our $VERSION = '0.0.1';
+use constant NO_HTML => '*** We only accept plain-text email, no HTML ***';
 
 # start with the same defaults as mailman
 our $BAD_EXT = qr/\.(?:exe|bat|cmd|com|pif|scr|vbs|cpl)\z/i;
@@ -21,7 +22,7 @@ our $MIME_TEXT_ANY = qr!\btext/[a-z0-9\+\._-]+\b!i;
 # this is highly opinionated delivery
 # returns 0 only if there is nothing to deliver
 sub run {
-	my ($class, $mime) = @_;
+	my ($class, $mime, $filter) = @_;
 
 	my $content_type = $mime->header('Content-Type') || 'text/plain';
 
@@ -38,6 +39,7 @@ sub run {
 	if ($content_type =~ m!\btext/plain\b!i) {
 		return 1; # yay, nothing to do
 	} elsif ($content_type =~ $MIME_HTML) {
+		$filter->reject(NO_HTML) if $filter;
 		# HTML-only, non-multipart
 		my $body = $mime->body;
 		my $ct_parsed = parse_content_type($content_type);
@@ -45,7 +47,7 @@ sub run {
 		replace_body($mime, $body);
 		return 1;
 	} elsif ($content_type =~ m!\bmultipart/!i) {
-		return strip_multipart($mime, $content_type);
+		return strip_multipart($mime, $content_type, $filter);
 	} else {
 		replace_body($mime, "$content_type message scrubbed");
 		return 0;
@@ -109,9 +111,9 @@ sub dump_html {
 # this is to correct user errors and not expected to cover all corner cases
 # if users don't want to hit this, they should be sending text/plain messages
 # unfortunately, too many people send HTML mail and we'll attempt to convert
-# it to something safer, smaller and harder-to-track.
+# it to something safer, smaller and harder-to-spy-on-users-with.
 sub strip_multipart {
-	my ($mime, $content_type) = @_;
+	my ($mime, $content_type, $filter) = @_;
 
 	my (@html, @keep);
 	my $rejected = 0;
@@ -133,6 +135,7 @@ sub strip_multipart {
 		if ($part_type =~ m!\btext/plain\b!i) {
 			push @keep, $part;
 		} elsif ($part_type =~ $MIME_HTML) {
+			$filter->reject(NO_HTML) if $filter;
 			push @html, $part;
 		} elsif ($part_type =~ $MIME_TEXT_ANY) {
 			# Give other text attachments the benefit of the doubt,

@@ -38,7 +38,7 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 	$filtered = undef;
 	$filter->simple($msg);
 
-	if (PublicInbox::Filter->run($msg)) {
+	if (PublicInbox::Filter->run($msg, $filter)) {
 		# run spamc again on the HTML-free message
 		if (do_spamc($msg, \$filtered)) {
 			$msg = Email::MIME->new(\$filtered);

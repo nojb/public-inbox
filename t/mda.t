@@ -23,6 +23,7 @@ my $fail_path = "$fail_bin:$ENV{PATH}"; # for spamc spam mock
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
 my $failbox = "$home/fail.mbox";
+my $mime;
 
 {
 	ok(-x "$main_bin/spamc",
@@ -235,7 +236,7 @@ EOF
 		)
 	];
 	$mid = 'multipart-html-sucks@11';
-	my $mime = Email::MIME->create(
+	$mime = Email::MIME->create(
 		header_str => [
 		  From => 'a@example.com',
 		  Subject => 'blah',
@@ -276,6 +277,38 @@ EOF
 	ok(-d $faildir, "emergency exists");
 	my @new = glob("$faildir/new/*");
 	is(scalar(@new), 1, "message delivered");
+	is(unlink(@new), 1, "removed emergency message");
+
+	local $ENV{PATH} = $main_path;
+	$in = <<EOF;
+From: Faildir <faildir\@example.com>
+To: $addr
+Content-Type: text/html
+Message-ID: <faildir\@example.com>
+Subject: faildir subject
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+<html><body>bad</body></html>
+EOF
+	my $out = '';
+	my $err = '';
+	run([$mda], \$in, \$out, \$err);
+	isnt($?, 0, "mda exited with failure");
+	is(length $out, 0, 'nothing in stdout');
+	isnt(length $err, 0, 'error message in stderr');
+
+	@new = glob("$faildir/new/*");
+	is(scalar(@new), 0, "new message did not show up");
+
+	# reject multipart again
+	$in = $mime->as_string;
+	$err = '';
+	run([$mda], \$in, \$out, \$err);
+	isnt($?, 0, "mda exited with failure");
+	is(length $out, 0, 'nothing in stdout');
+	isnt(length $err, 0, 'error message in stderr');
+	@new = glob("$faildir/new/*");
+	is(scalar(@new), 0, "new message did not show up");
 }
 
 done_testing();
