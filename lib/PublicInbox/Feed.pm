@@ -61,13 +61,7 @@ sub generate_html_index {
 	my $git_dir = $args->{git_dir};
 	my $git = PublicInbox::GitCatFile->new($git_dir);
 	my ($first, $last) = each_recent_blob($args, sub {
-		my $mime = do_cat_mail($git, $_[0]) or return 0;
-
-		my $t = eval { str2time($mime->header('Date')) };
-		defined($t) or $t = 0;
-		$mime->header_set('X-PI-Date', $t);
-		push @messages, $mime;
-		1;
+		mime_load_for_sort($git, $_[0], \@messages);
 	});
 	$git = undef; # destroy pipes.
 
@@ -79,20 +73,11 @@ sub generate_html_index {
 		'</head><body>' . PRE_WRAP;
 
 	# sort child messages in chronological order
-	$th->order(sub {
-		sort {
-			$a->topmost->message->header('X-PI-Date') <=>
-			$b->topmost->message->header('X-PI-Date')
-		} @_;
-	});
+	$th->order(sub { mime_sort_children(@_) });
 
 	# except we sort top-level messages reverse chronologically
 	my $state = [ time, {}, $first, 0 ];
-	for (sort { (eval { $b->message->header('X-PI-Date') } || 0) <=>
-		    (eval { $a->message->header('X-PI-Date') } || 0)
-		  } $th->rootset) {
-		dump_msg($_, 0, \$html, $state);
-	}
+	for (mime_sort_roots($th)) { dump_msg($_, 0, \$html, $state) }
 	Email::Address->purge_cache;
 
 	my $footer = nav_footer($args->{cgi}, $last, $feed_opts, $state);
@@ -306,6 +291,34 @@ sub do_cat_mail {
 		Email::MIME->new($str);
 	};
 	$@ ? undef : $mime;
+}
+
+sub mime_load_for_sort {
+	my ($git, $path, $messages) = @_;
+	my $mime = do_cat_mail($git, $path) or return 0;
+
+	my $t = eval { str2time($mime->header('Date')) };
+	defined($t) or $t = 0;
+	$mime->header_set('X-PI-Date', $t);
+	push @$messages, $mime;
+	1;
+}
+
+# children are chronological
+sub mime_sort_children {
+	sort {
+		$a->topmost->message->header('X-PI-Date') <=>
+		$b->topmost->message->header('X-PI-Date')
+	} @_;
+}
+
+# parents are reverse chronological
+sub mime_sort_roots {
+	my ($th) = @_;
+	sort {
+		(eval { $b->message->header('X-PI-Date') } || 0) <=>
+		(eval { $a->message->header('X-PI-Date') } || 0)
+	} $th->rootset;
 }
 
 1;
