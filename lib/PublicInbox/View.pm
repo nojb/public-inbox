@@ -68,14 +68,7 @@ sub index_entry {
 	my $pfx = ('  ' x $level);
 
 	my $ts = $mime->header('X-PI-Date');
-	my $time = '%H:%M UTC';
-	my $fmt = $time;
-	if ($now > ($ts + (365 * 24 * 60 * 60))) {
-		# doesn't have to be exactly 1 year
-		$fmt = '%Y/%m/%d ' . $time;
-	} elsif ($now > ($ts + (24 * 60 * 60))) {
-		$fmt = '%m/%d ' . $time;
-	}
+	my $fmt = '%Y-%m-%d %H:%M UTC';
 	$ts = POSIX::strftime($fmt, gmtime($ts));
 
 	$rv .= "$pfx<b\nid=\"$id\">$subj</b>\n$pfx";
