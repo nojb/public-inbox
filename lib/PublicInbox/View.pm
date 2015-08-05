@@ -18,7 +18,6 @@ use constant PRE_WRAP => "<pre\nstyle=\"white-space:pre-wrap\">";
 *ascii_html = *PublicInbox::Hval::ascii_html;
 
 my $enc_utf8 = find_encoding('UTF-8');
-my $enc_mime = find_encoding('MIME-Header');
 
 # public functions:
 sub msg_html {
