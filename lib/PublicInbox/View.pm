@@ -98,7 +98,7 @@ sub index_entry {
 		# account for filter bugs...
 		return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
 
-		my $enc = enc_for($ct) || $enc_msg || $enc_utf8;
+		my $enc = enc_for($ct, $enc_msg);
 
 		if ($part_nr > 0) {
 			my $fn = $part->filename;
@@ -150,8 +150,9 @@ sub index_entry {
 # only private functions below.
 
 sub enc_for {
-	my ($ct) = @_;
-	defined $ct or return $enc_utf8;
+	my ($ct, $default) = @_;
+	$default ||= $enc_utf8;
+	defined $ct or return $default;
 	my $ct_parsed = parse_content_type($ct);
 	if ($ct_parsed) {
 		if (my $charset = $ct_parsed->{attributes}->{charset}) {
@@ -159,7 +160,7 @@ sub enc_for {
 			return $enc if $enc;
 		}
 	}
-	$enc_utf8;
+	$default;
 }
 
 sub multipart_text_as_html {
@@ -177,7 +178,7 @@ sub multipart_text_as_html {
 		# account for filter bugs...
 		return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
 
-		my $enc = enc_for($ct) || $enc_msg || $enc_utf8;
+		my $enc = enc_for($ct, $enc_msg);
 
 		if ($part_nr > 0) {
 			my $fn = $part->filename;
