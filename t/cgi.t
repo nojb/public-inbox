@@ -120,7 +120,9 @@ EOF
 	like($res->{head}, qr/Status: 200 OK/, "index returns 200");
 
 	my $idx = cgi_run("/test/index.html");
-	$idx->{body} =~ s!/index.html(\?r=)!/$1!; # dirty...
+	$idx->{body} =~ s!/index.html(\?r=)!/$1!g; # dirty...
+	$idx->{body} = [ split(/\n/, $idx->{body}) ];
+	$res->{body} = [ split(/\n/, $res->{body}) ];
 	is_deeply($res, $idx,
 		'/$LISTNAME/ and /$LISTNAME/index.html are nearly identical');
 	# more checks in t/feed.t

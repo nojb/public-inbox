@@ -349,7 +349,7 @@ sub html_footer {
 	$to = uri_escape_utf8($to);
 	$subj = uri_escape_utf8($subj);
 
-	my $cc = uri_escape_utf8(join(',', values %cc));
+	my $cc = uri_escape_utf8(join(',', sort values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
 
 	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
