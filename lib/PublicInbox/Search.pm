@@ -226,7 +226,6 @@ sub remove_message {
 	} else {
 		$db->commit_transaction;
 	}
-	$db->commit;
 	$doc_id;
 }
 
@@ -534,6 +533,44 @@ sub unindex_blob {
 sub enquire {
 	my ($self) = @_;
 	$self->{enquire} ||= Search::Xapian::Enquire->new($self->{xdb});
+}
+
+# indexes all unindexed messages
+sub index_sync {
+	my ($self, $git) = @_;
+	my $db = $self->{xdb};
+	my $latest = $db->get_metadata('last_commit');
+	my $range = length $latest ? "$latest..HEAD" : 'HEAD';
+	$latest = undef;
+
+	my $hex = '[a-f0-9]';
+	my $h40 = $hex .'{40}';
+	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
+	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
+
+	# get indexed messages
+	my @cmd = ('git', "--git-dir=$git->{git_dir}", "log",
+		    qw/--reverse --no-notes --no-color --raw -r --no-abbrev/,
+		    $range);
+
+	my $pid = open(my $log, '-|', @cmd) or
+		die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
+	my $last;
+	while (my $line = <$log>) {
+		if ($line =~ /$addmsg/o) {
+			$self->index_blob($git, $1);
+		} elsif ($line =~ /$delmsg/o) {
+			$self->unindex_blob($git, $1);
+		} elsif ($line =~ /^commit ($h40)/o) {
+			my $commit = $1;
+			if (defined $latest) {
+				$db->set_metadata('last_commit', $latest)
+			}
+			$latest = $commit;
+		}
+	}
+	close $log;
+	$db->set_metadata('last_commit', $latest) if defined $latest;
 }
 
 1;

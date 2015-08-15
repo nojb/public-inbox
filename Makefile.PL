@@ -9,7 +9,8 @@ WriteMakefile(
 	AUTHOR => 'Eric Wong <normalperson@yhbt.net>',
 	ABSTRACT => 'public-inbox server infrastructure',
 	EXE_FILES => [qw/public-inbox-mda public-inbox.cgi
-			public-inbox-learn public-inbox-init/],
+			public-inbox-learn public-inbox-init
+			public-inbox-index/],
 	PREREQ_PM => {
 		# note: we use ssoma(1) and spamc(1), NOT the Perl modules
 		# We also depend on git through ssoma.
