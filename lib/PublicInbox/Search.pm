@@ -6,24 +6,21 @@ use strict;
 use warnings;
 use PublicInbox::SearchMsg;
 use base qw/Exporter/;
-use Digest::SHA qw//;
 use Search::Xapian qw/:standard/;
 require PublicInbox::View;
 use Date::Parse qw/str2time/;
 use POSIX qw//;
 use Email::MIME;
+use PublicInbox::MID qw/mid_clean mid_compressed/;
 
-our @EXPORT = qw/xpfx mid_compressed/;
+our @EXPORT = qw/xpfx/;
 
 use constant {
 	TS => 0,
-	SHA1HEX_LEN => 40,
 	SCHEMA_VERSION => 0,
 	LANG => 'english',
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
-
-use constant MID_MAX => SHA1HEX_LEN;
 
 # setup prefixes
 my %bool_pfx_internal = (
@@ -54,13 +51,6 @@ while (my ($k, $v) = each %all_pfx) {
 
 my $mail_query = Search::Xapian::Query->new(xpfx('type') . 'mail');
 
-# this is idempotent
-sub mid_compressed {
-	my ($mid) = @_;
-	return $mid if (length($mid) <= MID_MAX);
-	Digest::SHA::sha1_hex($mid);
-}
-
 sub new {
 	my ($class, $git_dir, $writable) = @_;
 	# allow concurrent versions for easier rollback:
@@ -86,7 +76,7 @@ sub add_message {
 	my $db = $self->{xdb};
 
 	my $doc_id;
-	my $mid = clean_mid($mime->header('Message-ID'));
+	my $mid = mid_clean($mime->header('Message-ID'));
 	$mid = mid_compressed($mid);
 	my $was_ghost = 0;
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
@@ -211,7 +201,7 @@ sub remove_message {
 	my ($self, $mid) = @_;
 	my $db = $self->{xdb};
 	my $doc_id;
-	$mid = clean_mid($mid);
+	$mid = mid_clean($mid);
 	$mid = mid_compressed($mid);
 
 	$db->begin_transaction;
@@ -241,7 +231,7 @@ sub query {
 # given a message ID, get replies to a message
 sub get_replies {
 	my ($self, $mid, $opts) = @_;
-	$mid = clean_mid($mid);
+	$mid = mid_clean($mid);
 	$mid = mid_compressed($mid);
 	my $qp = $self->qp;
 	my $irt = $qp->parse_query("inreplyto:$mid", 0);
@@ -344,15 +334,6 @@ sub date_range_processor {
 	$_[0]->{drp} ||= Search::Xapian::DateValueRangeProcessor->new(TS);
 }
 
-sub clean_mid {
-	my ($mid) = @_;
-	defined($mid) or die "no Message-ID";
-	# MDA->precheck did more checking for us
-	$mid =~ s/\A\s*<?//;
-	$mid =~ s/>?\s*\z//;
-	$mid;
-}
-
 sub link_message {
 	my ($self, $smsg, $is_ghost) = @_;
 
@@ -410,7 +391,7 @@ sub link_message_to_parents {
 
 sub lookup_message {
 	my ($self, $mid) = @_;
-	$mid = clean_mid($mid);
+	$mid = mid_clean($mid);
 	$mid = mid_compressed($mid);
 
 	my $doc_id = $self->find_unique_doc_id('mid', $mid);

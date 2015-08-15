@@ -3,11 +3,12 @@
 package PublicInbox::View;
 use strict;
 use warnings;
-use PublicInbox::Hval;
 use URI::Escape qw/uri_escape_utf8/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
+use PublicInbox::Hval;
+use PublicInbox::MID qw/mid_clean mid_compressed/;
 require POSIX;
 
 # TODO: make these constants tunable
@@ -366,12 +367,9 @@ sub linkify_refs {
 	} @_);
 }
 
-require Digest::SHA;
 sub anchor_for {
 	my ($msgid) = @_;
-	$msgid =~ s/\A\s*<?//;
-	$msgid =~ s/>?\s*\z//;
-	'm' . Digest::SHA::sha1_hex($msgid);
+	'm' . mid_compressed(mid_clean($msgid));
 }
 
 1;
