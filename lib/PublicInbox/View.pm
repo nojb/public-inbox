@@ -9,6 +9,7 @@ use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval;
 use PublicInbox::MID qw/mid_clean mid_compressed/;
+use Digest::SHA;
 require POSIX;
 
 # TODO: make these constants tunable
@@ -393,37 +394,45 @@ sub anchor_for {
 
 sub simple_dump {
 	my ($dst, $root, $node, $level) = @_;
-	$$dst .= '  ' x $level;
+	my $pfx = '  ' x $level;
+	$$dst .= $pfx;
 	if (my $x = $node->message) {
 		my $mid = $x->header('Message-ID');
 		if ($root->[0] ne $mid) {
-			my $s = clean_subj($x->header('Subject'));
-			if ($root->[1] eq $s) {
-				$s = '  ';
+			my $s = $x->header('Subject');
+			my $h = hash_subj($s);
+			if ($root->[1]->{$h}) {
+				$s = '';
 			} else {
+				$root->[1]->{$h} = 1;
 				$s = PublicInbox::Hval->new($s);
-				$s = $s->as_html . ' ';
+				$s = $s->as_html;
 			}
 			my $m = PublicInbox::Hval->new_msgid($mid);
 			my $f = PublicInbox::Hval->new($x->header('X-PI-From'));
 			my $d = PublicInbox::Hval->new($x->header('X-PI-Date'));
 			$m = $m->as_href . '.html';
 			$f = $f->as_html;
-			$d = $d->as_html;
-			$$dst .= "` <a\nhref=\"$m\">$s$f @ $d UTC</a>\n";
+			$d = $d->as_html . ' UTC';
+			if (length($s) == 0) {
+				$$dst .= "` <a\nhref=\"$m\">$f @ $d</a>\n";
+			} else {
+				$$dst .= "` <a\nhref=\"$m\">$s</a>\n" .
+				     "$pfx  by $f @ $d\n";
+			}
 		}
 	}
 	simple_dump($dst, $root, $node->child, $level + 1) if $node->child;
 	simple_dump($dst, $root, $node->next, $level) if $node->next;
 }
 
-sub clean_subj {
+sub hash_subj {
 	my ($subj) = @_;
 	$subj =~ s/\A\s+//;
 	$subj =~ s/\s+\z//;
 	$subj =~ s/^(?:re|aw):\s*//i; # remove reply prefix (aw: German)
 	$subj =~ s/\s+/ /;
-	$subj;
+	Digest::SHA::sha1($subj);
 }
 
 sub thread_replies {
@@ -435,7 +444,7 @@ sub thread_replies {
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	$root = [ $root->header('Message-ID'),
-		  clean_subj($root->header('Subject')) ];
+		  { hash_subj($root->header('Subject')) => 1 } ];
 	simple_dump($dst, $root, $_, 0) for $th->rootset;
 }
 
