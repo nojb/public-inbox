@@ -73,11 +73,13 @@ sub generate_html_index {
 		'</head><body>' . PRE_WRAP;
 
 	# sort child messages in chronological order
-	$th->order(sub { mime_sort_children(@_) });
+	$th->order(*PublicInbox::Thread::sort_ts);
 
 	# except we sort top-level messages reverse chronologically
 	my $state = [ time, {}, $first, 0 ];
-	for (mime_sort_roots($th)) { dump_msg($_, 0, \$html, $state) }
+	for (PublicInbox::Thread::rsort_ts($th->rootset)) {
+		dump_msg($_, 0, \$html, $state)
+	}
 	Email::Address->purge_cache;
 
 	my $footer = nav_footer($args->{cgi}, $last, $feed_opts, $state);
@@ -299,26 +301,9 @@ sub mime_load_for_sort {
 
 	my $t = eval { str2time($mime->header('Date')) };
 	defined($t) or $t = 0;
-	$mime->header_set('X-PI-Date', $t);
+	$mime->header_set('X-PI-TS', $t);
 	push @$messages, $mime;
 	1;
-}
-
-# children are chronological
-sub mime_sort_children {
-	sort {
-		$a->topmost->message->header('X-PI-Date') <=>
-		$b->topmost->message->header('X-PI-Date')
-	} @_;
-}
-
-# parents are reverse chronological
-sub mime_sort_roots {
-	my ($th) = @_;
-	sort {
-		(eval { $b->message->header('X-PI-Date') } || 0) <=>
-		(eval { $a->message->header('X-PI-Date') } || 0)
-	} $th->rootset;
 }
 
 1;

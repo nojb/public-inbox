@@ -67,7 +67,7 @@ sub index_entry {
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
 	my $pfx = ('  ' x $level);
 
-	my $ts = $mime->header('X-PI-Date');
+	my $ts = $mime->header('X-PI-TS');
 	my $fmt = '%Y-%m-%d %H:%M UTC';
 	$ts = POSIX::strftime($fmt, gmtime($ts));
 
@@ -391,14 +391,6 @@ sub anchor_for {
 	'm' . mid_compressed(mid_clean($msgid));
 }
 
-# children are chronological
-sub simple_sort_children {
-	sort {
-		(eval { $a->topmost->message->header('X-PI-TS') } || 0) <=>
-		(eval { $b->topmost->message->header('X-PI-TS') } || 0)
-	} @_;
-}
-
 sub simple_dump {
 	my ($dst, $root, $node, $level) = @_;
 	$$dst .= '  ' x $level;
@@ -441,7 +433,7 @@ sub thread_replies {
 	$root->header_set('X-PI-TS', '0');
 	my $th = PublicInbox::Thread->new($root, @msgs);
 	$th->thread;
-	$th->order(sub { simple_sort_children(@_) });
+	$th->order(*PublicInbox::Thread::sort_ts);
 	$root = [ $root->header('Message-ID'),
 		  clean_subj($root->header('Subject')) ];
 	simple_dump($dst, $root, $_, 0) for $th->rootset;
