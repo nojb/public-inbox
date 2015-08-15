@@ -175,8 +175,10 @@ sub get_mid_html {
 	my $pfx = "../f/$mid_href.html";
 	my $foot = footer($ctx);
 	require Email::MIME;
+	my $mime = Email::MIME->new($x);
+	my $srch = searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View->msg_html(Email::MIME->new($x), $pfx, $foot) ] ];
+	  [ PublicInbox::View->msg_html($mime, $pfx, $foot, $srch) ] ];
 }
 
 # /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
@@ -185,10 +187,12 @@ sub get_full_html {
 	my $x = mid2blob($ctx);
 	return r404() unless $x;
 	require PublicInbox::View;
-	require Email::MIME;
 	my $foot = footer($ctx);
+	require Email::MIME;
+	my $mime = Email::MIME->new($x);
+	my $srch = searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View->msg_html(Email::MIME->new($x), undef, $foot)] ];
+	  [ PublicInbox::View->msg_html($mime, undef, $foot, $srch)] ];
 }
 
 sub self_url {
@@ -279,6 +283,16 @@ sub footer {
 		$addr,
 		$urls
 	);
+}
+
+# search support is optional, returns undef if Xapian is not installed
+# or not configured for the given GIT_DIR
+sub searcher {
+	my ($ctx) = @_;
+	eval {
+		require PublicInbox::Search;
+		PublicInbox::Search->new($ctx->{git_dir});
+	};
 }
 
 1;

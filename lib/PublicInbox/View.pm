@@ -22,7 +22,7 @@ my $enc_utf8 = find_encoding('UTF-8');
 
 # public functions:
 sub msg_html {
-	my ($class, $mime, $full_pfx, $footer) = @_;
+	my ($class, $mime, $full_pfx, $footer, $srch) = @_;
 	if (defined $footer) {
 		$footer = "\n" . $footer;
 	} else {
@@ -31,7 +31,7 @@ sub msg_html {
 	headers_to_html_header($mime, $full_pfx) .
 		multipart_text_as_html($mime, $full_pfx) .
 		'</pre><hr />' . PRE_WRAP .
-		html_footer($mime, 1) . $footer .
+		html_footer($mime, 1, $full_pfx, $srch) . $footer .
 		'</pre></body></html>';
 }
 
@@ -325,7 +325,7 @@ sub headers_to_html_header {
 }
 
 sub html_footer {
-	my ($mime, $standalone) = @_;
+	my ($mime, $standalone, $full_pfx, $srch) = @_;
 	my %cc; # everyone else
 	my $to; # this is the From address
 
@@ -344,8 +344,8 @@ sub html_footer {
 
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
-	my $irp = uri_escape_utf8(
-			$mime->header_obj->header_raw('Message-ID') || '');
+	my $mid = $mime->header_obj->header_raw('Message-ID');
+	my $irp = uri_escape_utf8($mid);
 	delete $cc{$to};
 	$to = uri_escape_utf8($to);
 	$subj = uri_escape_utf8($subj);
@@ -353,9 +353,28 @@ sub html_footer {
 	my $cc = uri_escape_utf8(join(',', sort values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
 
+	my $irt = '';
 	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
+	if ($idx && $srch) {
+		my $res = $srch->get_replies($mid);
+		if (my $c = $res->{count}) {
+			$c = $c == 1 ? '1 reply' : "$c replies";
+			$idx .= "\n$c:\n";
+			thread_replies(\$idx, $mime, $res);
+		} else {
+			$idx .= "\n(no replies yet)\n";
+		}
+		$irt = $mime->header_obj->header_raw('In-Reply-To');
+		if ($irt) {
+			$irt = PublicInbox::Hval->new_msgid($irt);
+			$irt = $irt->as_href;
+			$irt = "<a\nhref=\"$irt\">parent</a> ";
+		} else {
+			$irt = ' ' x length('parent ');
+		}
+	}
 
-	"<a\nhref=\"" . ascii_html($href) . '">reply</a>' . $idx;
+	"$irt<a\nhref=\"" . ascii_html($href) . '">reply</a>' . $idx;
 }
 
 sub linkify_refs {
@@ -370,6 +389,62 @@ sub linkify_refs {
 sub anchor_for {
 	my ($msgid) = @_;
 	'm' . mid_compressed(mid_clean($msgid));
+}
+
+# children are chronological
+sub simple_sort_children {
+	sort {
+		(eval { $a->topmost->message->header('X-PI-TS') } || 0) <=>
+		(eval { $b->topmost->message->header('X-PI-TS') } || 0)
+	} @_;
+}
+
+sub simple_dump {
+	my ($dst, $root, $node, $level) = @_;
+	$$dst .= '  ' x $level;
+	if (my $x = $node->message) {
+		my $mid = $x->header('Message-ID');
+		if ($root->[0] ne $mid) {
+			my $s = clean_subj($x->header('Subject'));
+			if ($root->[1] eq $s) {
+				$s = '  ';
+			} else {
+				$s = PublicInbox::Hval->new($s);
+				$s = $s->as_html . ' ';
+			}
+			my $m = PublicInbox::Hval->new_msgid($mid);
+			my $f = PublicInbox::Hval->new($x->header('X-PI-From'));
+			my $d = PublicInbox::Hval->new($x->header('X-PI-Date'));
+			$m = $m->as_href . '.html';
+			$f = $f->as_html;
+			$d = $d->as_html;
+			$$dst .= "` <a\nhref=\"$m\">$s$f @ $d UTC</a>\n";
+		}
+	}
+	simple_dump($dst, $root, $node->child, $level + 1) if $node->child;
+	simple_dump($dst, $root, $node->next, $level) if $node->next;
+}
+
+sub clean_subj {
+	my ($subj) = @_;
+	$subj =~ s/\A\s+//;
+	$subj =~ s/\s+\z//;
+	$subj =~ s/^(?:re|aw):\s*//i; # remove reply prefix (aw: German)
+	$subj =~ s/\s+/ /;
+	$subj;
+}
+
+sub thread_replies {
+	my ($dst, $root, $res) = @_;
+	my @msgs = map { $_->mini_mime } @{$res->{msgs}};
+	require PublicInbox::Thread;
+	$root->header_set('X-PI-TS', '0');
+	my $th = PublicInbox::Thread->new($root, @msgs);
+	$th->thread;
+	$th->order(sub { simple_sort_children(@_) });
+	$root = [ $root->header('Message-ID'),
+		  clean_subj($root->header('Subject')) ];
+	simple_dump($dst, $root, $_, 0) for $th->rootset;
 }
 
 1;

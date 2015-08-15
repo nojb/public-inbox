@@ -6,9 +6,12 @@ use strict;
 use warnings;
 use Search::Xapian;
 use Email::Address qw//;
+use Email::Simple qw//;
 use POSIX qw//;
 use Date::Parse qw/str2time/;
 use PublicInbox::MID qw/mid_clean mid_compressed/;
+use Encode qw/find_encoding/;
+my $enc_utf8 = find_encoding('UTF-8');
 our $PFX2TERM_RE = undef;
 
 sub new {
@@ -26,7 +29,9 @@ sub wrap {
 
 sub load_doc {
 	my ($class, $doc) = @_;
-	my ($mid, $subj, $from, $date) = split(/\n/, $doc->get_data);
+	my $data = $doc->get_data;
+	$data = $enc_utf8->decode($data);
+	my ($mid, $subj, $from, $date) = split(/\n/, $data);
 	bless {
 		doc => $doc,
 		mid => $mid,
@@ -52,11 +57,11 @@ sub from {
 	my @from;
 
 	if ($from) {
+		$from =~ tr/\n/ /;
 		@from = Email::Address->parse($from);
 		$self->{from} = $from[0];
 		$from = $from[0]->name;
 	}
-	$from =~ tr/\n/ /;
 	$self->{from_name} = $from;
 	$self->{from};
 }
@@ -120,6 +125,27 @@ sub ensure_metadata {
 			}
 		}
 	}
+}
+
+# for threading only
+sub mini_mime {
+	my ($self) = @_;
+	$self->ensure_metadata;
+	my @h = (
+		Subject => $self->subject,
+		'X-PI-From' => $self->from_name,
+		'X-PI-Date' => $self->date,
+		'X-PI-TS' => $self->ts,
+		'Message-ID' => "<$self->{mid}>",
+	);
+	if (my $refs = $self->{references}) {
+		push @h, References => '<' . join('> <', @$refs) . '>';
+	}
+	if (my $irt = $self->{inreplyto}) {
+		push @h, 'In-Reply-To' => "<$irt>";
+	}
+
+	Email::MIME->create(header_str => \@h);
 }
 
 sub mid {
