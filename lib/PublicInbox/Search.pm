@@ -8,8 +8,6 @@ use PublicInbox::SearchMsg;
 use base qw/Exporter/;
 use Search::Xapian qw/:standard/;
 require PublicInbox::View;
-use Date::Parse qw/str2time/;
-use POSIX qw//;
 use Email::MIME;
 use PublicInbox::MID qw/mid_clean mid_compressed/;
 
@@ -109,8 +107,7 @@ sub add_message {
 			$doc->add_term(xpfx('mid') . $mid);
 		}
 
-		my $subj = $mime->header('Subject');
-		$subj = '' unless defined $subj;
+		my $subj = $smsg->subject;
 
 		if (length $subj) {
 			$doc->add_term(xpfx('subject') . $subj);
@@ -119,23 +116,12 @@ sub add_message {
 			$doc->add_term(xpfx('path') . $path);
 		}
 
-		my $from = $mime->header('From') || '';
-		my @from;
-
-		if ($from) {
-			@from = Email::Address->parse($from);
-			$from = $from[0]->name;
-		}
-
-		my $ts = eval { str2time($mime->header('Date')) } || 0;
-		my $date = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
-		$ts = Search::Xapian::sortable_serialise($ts);
+		my $from = $smsg->from_name;
+		my $date = $smsg->date;
+		my $ts = Search::Xapian::sortable_serialise($smsg->ts);
 		$doc->add_value(PublicInbox::Search::TS, $ts);
 
-		# this is what we show in index results:
-		$subj =~ tr/\n/ /;
-		$from =~ tr/\n/ /;
-		$doc->set_data("$mid\n$subj\n$from\n$date");
+		$doc->set_data($smsg->to_doc_data);
 
 		my $tg = $self->term_generator;
 
@@ -145,10 +131,8 @@ sub add_message {
 		$tg->index_text($subj) if $subj;
 		$tg->increase_termpos;
 
-		if (@from) {
-			$tg->index_text($from[0]->format);
-			$tg->increase_termpos;
-		}
+		$tg->index_text($smsg->from->format);
+		$tg->increase_termpos;
 
 		$mime->walk_parts(sub {
 			my ($part) = @_;
@@ -265,7 +249,9 @@ sub do_enquire {
 	my $offset = $opts->{offset} || 0;
 	my $limit = $opts->{limit} || 50;
 	my $mset = $enquire->get_mset($offset, $limit);
-	my @msgs = map { $_->get_document->get_data } $mset->items;
+	my @msgs = map {
+		PublicInbox::SearchMsg->load_doc($_->get_document);
+	} $mset->items;
 
 	{ count => $mset->get_matches_estimated, msgs => \@msgs }
 }

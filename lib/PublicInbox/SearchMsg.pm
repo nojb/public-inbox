@@ -5,6 +5,10 @@ package PublicInbox::SearchMsg;
 use strict;
 use warnings;
 use Search::Xapian;
+use Email::Address qw//;
+use POSIX qw//;
+use Date::Parse qw/str2time/;
+use PublicInbox::MID qw/mid_clean mid_compressed/;
 our $PFX2TERM_RE = undef;
 
 sub new {
@@ -18,6 +22,78 @@ sub new {
 sub wrap {
 	my ($class, $doc, $mid) = @_;
 	bless { doc => $doc, mime => undef, mid => $mid }, $class;
+}
+
+sub load_doc {
+	my ($class, $doc) = @_;
+	my ($mid, $subj, $from, $date) = split(/\n/, $doc->get_data);
+	bless {
+		doc => $doc,
+		mid => $mid,
+		subject => $subj,
+		date => $date,
+		from_name => $from,
+	}, $class;
+}
+
+sub subject {
+	my ($self) = @_;
+	my $subj = $self->{subject};
+	return $subj if defined $subj;
+	$subj = $self->{mime}->header('Subject');
+	$subj = '' unless defined $subj;
+	$subj =~ tr/\n/ /;
+	$self->{subject} = $subj;
+}
+
+sub from {
+	my ($self) = @_;
+	my $from = $self->mime->header('From') || '';
+	my @from;
+
+	if ($from) {
+		@from = Email::Address->parse($from);
+		$self->{from} = $from[0];
+		$from = $from[0]->name;
+	}
+	$from =~ tr/\n/ /;
+	$self->{from_name} = $from;
+	$self->{from};
+}
+
+sub from_name {
+	my ($self) = @_;
+	my $from_name = $self->{from_name};
+	return $from_name if defined $from_name;
+	$self->from;
+	$self->{from_name};
+}
+
+sub ts {
+	my ($self) = @_;
+	my $ts = $self->{ts};
+	return $ts if $ts;
+	$self->{date} = undef;
+	$self->date;
+	$self->{ts};
+}
+
+sub date {
+	my ($self) = @_;
+	my $date = $self->{date};
+	return $date if $date;
+	my $ts = eval { str2time($self->mime->header('Date')) } || 0;
+	$self->{ts} = $ts;
+	$self->{date} = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+}
+
+sub to_doc_data {
+	my ($self) = @_;
+
+	$self->mid . "\n" .
+	$self->subject . "\n" .
+	$self->from_name . "\n".
+	$self->date;
 }
 
 sub ensure_metadata {
@@ -60,10 +136,7 @@ sub _extract_mid {
 	my ($self) = @_;
 
 	my $mid = $self->mime->header('Message-ID');
-	if ($mid && $mid =~ /<([^>]+)>/) {
-		return $1;
-	}
-	return $mid;
+	$mid ? mid_compressed(mid_clean($mid)) : $mid;
 }
 
 sub mime {

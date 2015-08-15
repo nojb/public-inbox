@@ -48,7 +48,7 @@ my $ro = PublicInbox::Search->new($git_dir);
 
 sub filter_mids {
 	my ($res) = @_;
-	sort(map { (split(/\n/, $_))[0] } @{$res->{msgs}});
+	sort(map { $_->mid } @{$res->{msgs}});
 }
 
 {
@@ -144,8 +144,7 @@ sub filter_mids {
 
 	# body
 	$res = $ro->query('goodbye');
-	is((split(/\n/, $res->{msgs}->[0]))[0], 'last@s',
-	   'got goodbye message body');
+	is($res->{msgs}->[0]->mid, 'last@s', 'got goodbye message body');
 }
 
 # long message-id
@@ -226,12 +225,12 @@ sub filter_mids {
 		body => "theatre\nfade\n"));
 	my $res = $rw->query("theatre");
 	is($res->{count}, 2, "got both matches");
-	like($res->{msgs}->[0], qr/\Anquote\@a/, "non-quoted scores higher");
-	like($res->{msgs}->[1], qr/\Aquote\@a/, "quoted result still returned");
+	is($res->{msgs}->[0]->mid, 'nquote@a', "non-quoted scores higher");
+	is($res->{msgs}->[1]->mid, 'quote@a', "quoted result still returned");
 
 	$res = $rw->query("illusions");
 	is($res->{count}, 1, "got a match for quoted text");
-	like($res->{msgs}->[0], qr/\Aquote\@a/,
+	is($res->{msgs}->[0]->mid, 'quote@a',
 		"quoted result returned if nothing else");
 }
 
