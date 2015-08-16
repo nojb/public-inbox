@@ -141,19 +141,10 @@ sub get_index {
 # just returns a string ref for the blob in the current ctx
 sub mid2blob {
 	my ($ctx) = @_;
-	my $hex = $ctx->{mid};
-	my ($x2, $x38) = ($hex =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
-
-	unless (defined $x38) {
-		# compatibility with old links
-		require Digest::SHA;
-		$hex = Digest::SHA::sha1_hex($hex);
-		($x2, $x38) = ($hex =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
-		defined $x38 or die "BUG: not a SHA-1 hex: $hex";
-	}
-
+	require PublicInbox::MID;
+	my $path = PublicInbox::MID::mid2path($ctx->{mid});
 	my @cmd = ('git', "--git-dir=$ctx->{git_dir}",
-			qw(cat-file blob), "HEAD:$x2/$x38");
+			qw(cat-file blob), "HEAD:$path");
 	my $cmd = join(' ', @cmd);
 	my $pid = open my $fh, '-|';
 	defined $pid or die "fork failed: $!\n";

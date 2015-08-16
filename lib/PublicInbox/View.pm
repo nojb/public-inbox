@@ -9,7 +9,7 @@ use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval;
-use PublicInbox::MID qw/mid_clean mid_compressed/;
+use PublicInbox::MID qw/mid_clean mid_compressed mid2path/;
 use Digest::SHA;
 require POSIX;
 
@@ -138,37 +138,11 @@ sub thread_html {
 	my $mid = mid_compressed($ctx->{mid});
 	my $res = $srch->get_thread($mid);
 	my $rv = '';
-	require PublicInbox::GitCatFile;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-	my $nr = scalar @{$res->{msgs}};
+	my $msgs = load_results($ctx, $res);
+	my $nr = scalar @$msgs;
 	return $rv if $nr == 0;
-	my @msgs;
-	while (my $smsg = shift @{$res->{msgs}}) {
-		my $m = $smsg->mid;
-
-		# Duplicated from WWW.pm
-		my ($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
-
-		unless (defined $x38) {
-			require Digest::SHA;
-			$m = Digest::SHA::sha1_hex($m);
-			($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
-		}
-
-		# FIXME: duplicated code from Feed.pm
-		my $mime = eval {
-			my $str = $git->cat_file("HEAD:$x2/$x38");
-			Email::MIME->new($str);
-		};
-		unless ($@) {
-			my $t = eval { str2time($mime->header('Date')) };
-			defined($t) or $t = 0;
-			$mime->header_set('X-PI-TS', $t);
-			push @msgs, $mime;
-		}
-	}
 	require PublicInbox::Thread;
-	my $th = PublicInbox::Thread->new(@msgs);
+	my $th = PublicInbox::Thread->new(@$msgs);
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	my $state = [ undef, { root_anchor => anchor_for($mid) }, undef, 0 ];
@@ -184,37 +158,11 @@ sub subject_path_html {
 	my $path = $ctx->{subject_path};
 	my $res = $srch->get_subject_path($path);
 	my $rv = '';
-	require PublicInbox::GitCatFile;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-	my $nr = scalar @{$res->{msgs}};
+	my $msgs = load_results($ctx, $res);
+	my $nr = scalar @$msgs;
 	return $rv if $nr == 0;
-	my @msgs;
-	while (my $smsg = shift @{$res->{msgs}}) {
-		my $m = $smsg->mid;
-
-		# Duplicated from WWW.pm
-		my ($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
-
-		unless (defined $x38) {
-			require Digest::SHA;
-			$m = Digest::SHA::sha1_hex($m);
-			($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
-		}
-
-		# FIXME: duplicated code from Feed.pm
-		my $mime = eval {
-			my $str = $git->cat_file("HEAD:$x2/$x38");
-			Email::MIME->new($str);
-		};
-		unless ($@) {
-			my $t = eval { str2time($mime->header('Date')) };
-			defined($t) or $t = 0;
-			$mime->header_set('X-PI-TS', $t);
-			push @msgs, $mime;
-		}
-	}
 	require PublicInbox::Thread;
-	my $th = PublicInbox::Thread->new(@msgs);
+	my $th = PublicInbox::Thread->new(@$msgs);
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	my $state = [ undef, { root_anchor => 'dummy' }, undef, 0 ];
@@ -595,6 +543,31 @@ sub thread_entry {
 	}
 	thread_entry($dst, $state, $node->child, $level + 1) if $node->child;
 	thread_entry($dst, $state, $node->next, $level) if $node->next;
+}
+
+sub load_results {
+	my ($ctx, $res) = @_;
+
+	require PublicInbox::GitCatFile;
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my @msgs;
+	while (my $smsg = shift @{$res->{msgs}}) {
+		my $m = $smsg->mid;
+		my $path = mid2path($m);
+
+		# FIXME: duplicated code from Feed.pm
+		my $mime = eval {
+			my $str = $git->cat_file("HEAD:$path");
+			Email::MIME->new($str);
+		};
+		unless ($@) {
+			my $t = eval { str2time($mime->header('Date')) };
+			defined($t) or $t = 0;
+			$mime->header_set('X-PI-TS', $t);
+			push @msgs, $mime;
+		}
+	}
+	\@msgs;
 }
 
 1;

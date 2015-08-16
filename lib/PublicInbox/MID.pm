@@ -4,7 +4,7 @@ package PublicInbox::MID;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/mid_clean mid_compressed/;
+our @EXPORT_OK = qw/mid_clean mid_compressed mid2path/;
 use Digest::SHA qw/sha1_hex/;
 use constant MID_MAX => 40; # SHA-1 hex length
 
@@ -22,6 +22,18 @@ sub mid_compressed {
 	my ($mid) = @_;
 	return $mid if (length($mid) <= MID_MAX);
 	sha1_hex($mid);
+}
+
+sub mid2path {
+	my ($mid) = @_;
+	my ($x2, $x38) = ($mid =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
+
+	unless (defined $x38) {
+		# compatibility with old links (or short Message-IDs :)
+		$mid = sha1_hex($mid);
+		($x2, $x38) = ($mid =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
+	}
+	"$x2/$x38";
 }
 
 1;
