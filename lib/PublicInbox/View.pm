@@ -142,13 +142,16 @@ sub index_walk {
 	# Drop signatures
 	$s =~ s/^-- \n.*\z//ms and $$more = 'more...';
 
-	# kill any leading or trailing whitespace
-	$s =~ s/\A\s+//s;
+	# kill any leading or trailing whitespace lines
+	$s =~ s/^[ \t]$//sgm;
 	$s =~ s/\s+\z//s;
 
 	if (length $s) {
 		# add prefix:
 		$s =~ s/^/$pfx/sgm;
+
+		# kill per-line trailing whitespace
+		$s =~ s/[ \t]+$//sgm;
 
 		$rv .= $s . "\n";
 	}
