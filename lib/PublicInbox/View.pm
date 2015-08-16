@@ -92,41 +92,9 @@ sub index_entry {
 	my $more = 'message';
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		my ($part) = @_;
-		return if $part->subparts; # walk_parts already recurses
-		my $ct = $part->content_type;
-
-		# account for filter bugs...
-		return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
-
-		my $enc = enc_for($ct, $enc_msg);
-
-		if ($part_nr > 0) {
-			my $fn = $part->filename;
-			defined($fn) or $fn = "part #" . ($part_nr + 1);
-			$rv .= $pfx . add_filename_line($enc->decode($fn));
-		}
-
-		my $s = add_text_body_short($enc, $part, $part_nr, $fhref);
-
-		# drop the remainder of git patches, they're usually better
-		# to review when the full message is viewed
-		$s =~ s!^---+\n.*\z!!ms and $more = 'more...';
-
-		# Drop signatures
-		$s =~ s/^-- \n.*\z//ms and $more = 'more...';
-
-		# kill any leading or trailing whitespace
-		$s =~ s/\A\s+//s;
-		$s =~ s/\s+\z//s;
-
-		if (length $s) {
-			# add prefix:
-			$s =~ s/^/$pfx/sgm;
-
-			$rv .= $s . "\n";
-		}
-		++$part_nr;
+		$rv .= index_walk($_[0], $pfx, $enc_msg, $part_nr, $fhref,
+				  \$more);
+		$part_nr++;
 	});
 
 	$rv .= "\n$pfx<a\nhref=\"$mhref\">$more</a> ";
@@ -149,6 +117,45 @@ sub index_entry {
 }
 
 # only private functions below.
+
+sub index_walk {
+	my ($part, $pfx, $enc_msg, $part_nr, $fhref, $more) = @_;
+	my $rv = '';
+	return $rv if $part->subparts; # walk_parts already recurses
+	my $ct = $part->content_type;
+
+	# account for filter bugs...
+	return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
+
+	my $enc = enc_for($ct, $enc_msg);
+
+	if ($part_nr > 0) {
+		my $fn = $part->filename;
+		defined($fn) or $fn = "part #" . ($part_nr + 1);
+		$rv .= $pfx . add_filename_line($enc->decode($fn));
+	}
+
+	my $s = add_text_body_short($enc, $part, $part_nr, $fhref);
+
+	# drop the remainder of git patches, they're usually better
+	# to review when the full message is viewed
+	$s =~ s!^---+\n.*\z!!ms and $$more = 'more...';
+
+	# Drop signatures
+	$s =~ s/^-- \n.*\z//ms and $$more = 'more...';
+
+	# kill any leading or trailing whitespace
+	$s =~ s/\A\s+//s;
+	$s =~ s/\s+\z//s;
+
+	if (length $s) {
+		# add prefix:
+		$s =~ s/^/$pfx/sgm;
+
+		$rv .= $s . "\n";
+	}
+	$rv;
+}
 
 sub enc_for {
 	my ($ct, $default) = @_;
