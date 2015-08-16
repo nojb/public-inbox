@@ -31,7 +31,7 @@ sub msg_html {
 	} else {
 		$footer = '';
 	}
-	headers_to_html_header($mime, $full_pfx) .
+	headers_to_html_header($mime, $full_pfx, $srch) .
 		multipart_text_as_html($mime, $full_pfx) .
 		'</pre><hr />' . PRE_WRAP .
 		html_footer($mime, 1, $full_pfx, $srch) . $footer .
@@ -179,6 +179,52 @@ sub thread_html {
 	$rv .= "</pre><hr />" . PRE_WRAP . $next . $foot . "</pre>";
 }
 
+sub subject_path_html {
+	my (undef, $ctx, $foot, $srch) = @_;
+	my $path = $ctx->{subject_path};
+	my $res = $srch->get_subject_path($path);
+	my $rv = '';
+	require PublicInbox::GitCatFile;
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $nr = scalar @{$res->{msgs}};
+	return $rv if $nr == 0;
+	my @msgs;
+	while (my $smsg = shift @{$res->{msgs}}) {
+		my $m = $smsg->mid;
+
+		# Duplicated from WWW.pm
+		my ($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
+
+		unless (defined $x38) {
+			require Digest::SHA;
+			$m = Digest::SHA::sha1_hex($m);
+			($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
+		}
+
+		# FIXME: duplicated code from Feed.pm
+		my $mime = eval {
+			my $str = $git->cat_file("HEAD:$x2/$x38");
+			Email::MIME->new($str);
+		};
+		unless ($@) {
+			my $t = eval { str2time($mime->header('Date')) };
+			defined($t) or $t = 0;
+			$mime->header_set('X-PI-TS', $t);
+			push @msgs, $mime;
+		}
+	}
+	require PublicInbox::Thread;
+	my $th = PublicInbox::Thread->new(@msgs);
+	$th->thread;
+	$th->order(*PublicInbox::Thread::sort_ts);
+	my $state = [ undef, { root_anchor => 'dummy' }, undef, 0 ];
+	thread_entry(\$rv, $state, $_, 0) for $th->rootset;
+	my $final_anchor = $state->[3];
+	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
+
+	$rv .= "</pre><hr />" . PRE_WRAP . $next . $foot . "</pre>";
+}
+
 # only private functions below.
 
 sub index_walk {
@@ -235,7 +281,7 @@ sub enc_for {
 }
 
 sub multipart_text_as_html {
-	my ($mime, $full_pfx) = @_;
+	my ($mime, $full_pfx, $srch) = @_;
 	my $rv = "";
 	my $part_nr = 0;
 	my $enc_msg = enc_for($mime->header("Content-Type"));
@@ -339,7 +385,7 @@ sub add_text_body_full {
 }
 
 sub headers_to_html_header {
-	my ($mime, $full_pfx) = @_;
+	my ($mime, $full_pfx, $srch) = @_;
 
 	my $rv = "";
 	my @title;
@@ -347,18 +393,21 @@ sub headers_to_html_header {
 		my $v = $mime->header($h);
 		defined($v) && length($v) or next;
 		$v = PublicInbox::Hval->new_oneline($v);
-		$rv .= "$h: " . $v->as_html . "\n";
 
 		if ($h eq 'From') {
 			my @from = Email::Address->parse($v->raw);
-			$v = $from[0]->name;
-			unless (defined($v) && length($v)) {
-				$v = '<' . $from[0]->address . '>';
-			}
-			$title[1] = ascii_html($v);
+			$title[1] = ascii_html($from[0]->name);
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
+			if ($srch) {
+				my $path = $srch->subject_path($v->raw);
+				$rv .= "$h: <a\nhref=\"../s/$path.html\">";
+				$rv .= $v->as_html . "</a>\n";
+				next;
+			}
 		}
+		$rv .= "$h: " . $v->as_html . "\n";
+
 	}
 
 	my $header_obj = $mime->header_obj;
@@ -510,6 +559,9 @@ sub hash_subj {
 sub thread_replies {
 	my ($dst, $root, $res) = @_;
 	my @msgs = map { $_->mini_mime } @{$res->{msgs}};
+	foreach (@{$res->{msgs}}) {
+		print STDERR "smsg->path: <", $_->path, ">\n";
+	}
 	require PublicInbox::Thread;
 	$root->header_set('X-PI-TS', '0');
 	my $th = PublicInbox::Thread->new($root, @msgs);
@@ -532,7 +584,7 @@ sub thread_entry {
 	my ($dst, $state, $node, $level) = @_;
 	# $state = [ $search_res, $seen, undef, 0 (msg_nr) ];
 	# $seen is overloaded with 3 types of fields:
-	#	1) "root" => Message-ID,
+	#	1) "root_anchor" => anchor_for(Message-ID),
 	#	2) seen subject hashes: sha1(subject) => 1
 	#	3) anchors hashes: "#$sha1_hex" (same as $seen in index_entry)
 	if (my $mime = $node->message) {

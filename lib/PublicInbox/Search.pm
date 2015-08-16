@@ -12,7 +12,10 @@ use PublicInbox::MID qw/mid_clean mid_compressed/;
 
 use constant {
 	TS => 0,
-	SCHEMA_VERSION => 0,
+	# SCHEMA_VERSION history
+	# 0 - initial
+	# 1 - subject_path is lower-cased
+	SCHEMA_VERSION => 1,
 	LANG => 'english',
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
@@ -207,6 +210,12 @@ sub query {
 
 	$query = Search::Xapian::Query->new(OP_AND, $mail_query, $query);
 	$self->do_enquire($query, $opts);
+}
+
+sub get_subject_path {
+	my ($self, $path, $opts) = @_;
+	my $query = $self->qp->parse_query("path:$path", 0);
+	$self->do_enquire($query);
 }
 
 # given a message ID, get replies to a message
@@ -461,13 +470,13 @@ sub merge_threads {
 
 # normalize subjects so they are suitable as pathnames for URLs
 sub subject_path {
-	my ($subj) = @_;
+	my $subj = pop;
 
 	$subj =~ s/\A\s+//;
 	$subj =~ s/\s+\z//;
 	$subj =~ s/^(?:re|aw):\s*//i; # remove reply prefix (aw: German)
 	$subj =~ s![^a-zA-Z0-9_\.~/\-]+!_!g;
-	$subj;
+	lc($subj);
 }
 
 sub do_cat_mail {

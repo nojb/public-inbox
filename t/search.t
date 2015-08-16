@@ -22,7 +22,7 @@ my $ro = PublicInbox::Search->new($git_dir);
 	my $root = Email::MIME->create(
 		header_str => [
 			Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-			Subject => 'hello world',
+			Subject => 'Hello world',
 			'Message-ID' => '<root@s>',
 			From => 'John Smith <js@example.com>',
 			To => 'list@example.com',
@@ -31,7 +31,7 @@ my $ro = PublicInbox::Search->new($git_dir);
 	my $last = Email::MIME->create(
 		header_str => [
 			Date => 'Sat, 02 Oct 2010 00:00:00 +0000',
-			Subject => 'Re: hello world',
+			Subject => 'Re: Hello world',
 			'In-Reply-To' => '<root@s>',
 			'Message-ID' => '<last@s>',
 			From => 'John Smith <js@example.com>',
@@ -70,19 +70,19 @@ sub filter_mids {
 		is($res->{count}, 0, "path variant `$p' does not match");
 	}
 
-	$res = $ro->query('subject:(hello world)');
+	$res = $ro->query('subject:(Hello world)');
 	@res = filter_mids($res);
 	is_deeply(\@res, \@exp, 'got expected results for subject:() match');
 
-	$res = $ro->query('subject:"hello world"');
+	$res = $ro->query('subject:"Hello world"');
 	@res = filter_mids($res);
 	is_deeply(\@res, \@exp, 'got expected results for subject:"" match');
 
-	$res = $ro->query('subject:"hello world"', {limit => 1});
+	$res = $ro->query('subject:"Hello world"', {limit => 1});
 	is(scalar @{$res->{msgs}}, 1, "limit works");
 	my $first = $res->{msgs}->[0];
 
-	$res = $ro->query('subject:"hello world"', {offset => 1});
+	$res = $ro->query('subject:"Hello world"', {offset => 1});
 	is(scalar @{$res->{msgs}}, 1, "offset works");
 	my $second = $res->{msgs}->[0];
 
@@ -207,7 +207,7 @@ sub filter_mids {
 	$rw->add_message(Email::MIME->create(
 		header_str => [
 			Date => 'Sat, 02 Oct 2010 00:00:01 +0000',
-			Subject => 'hello',
+			Subject => 'Hello',
 			'Message-ID' => '<quote@a>',
 			From => 'Quoter <quoter@example.com>',
 			To => 'list@example.com',
@@ -217,7 +217,7 @@ sub filter_mids {
 	$rw->add_message(Email::MIME->create(
 		header_str => [
 			Date => 'Sat, 02 Oct 2010 00:00:02 +0000',
-			Subject => 'hello',
+			Subject => 'Hello',
 			'Message-ID' => '<nquote@a>',
 			From => 'Non-Quoter<non-quoter@example.com>',
 			To => 'list@example.com',
