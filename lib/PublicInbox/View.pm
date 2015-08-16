@@ -4,6 +4,7 @@ package PublicInbox::View;
 use strict;
 use warnings;
 use URI::Escape qw/uri_escape_utf8/;
+use Date::Parse qw/str2time/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
@@ -16,6 +17,7 @@ require POSIX;
 use constant MAX_INLINE_QUOTED => 12; # half an 80x24 terminal
 use constant MAX_TRUNC_LEN => 72;
 use constant PRE_WRAP => "<pre\nstyle=\"white-space:pre-wrap\">";
+use constant T_ANCHOR => '#u';
 
 *ascii_html = *PublicInbox::Hval::ascii_html;
 
@@ -43,9 +45,10 @@ sub feed_entry {
 }
 
 # this is already inside a <pre>
+# state = [ time, seen = {}, first_commit, page_nr = 0 ]
 sub index_entry {
-	my ($class, $mime, $level, $state) = @_;
-	my ($now, $seen, $first) = @$state;
+	my (undef, $mime, $level, $state) = @_;
+	my (undef, $seen, $first_commit) = @$state;
 	my $midx = $state->[3]++;
 	my ($prev, $next) = ($midx - 1, $midx + 1);
 	my $rv = '';
@@ -67,6 +70,15 @@ sub index_entry {
 	$from = PublicInbox::Hval->new_oneline($from)->as_html;
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
 	my $pfx = ('  ' x $level);
+	my $root_anchor = $seen->{root_anchor};
+	my $path;
+	my $more = 'permalink';
+	if ($root_anchor) {
+		$path = '../';
+		$subj = "<u\nid=\"u\">$subj</u>" if $root_anchor eq $id;
+	} else {
+		$path = '';
+	}
 
 	my $ts = $mime->header('X-PI-TS');
 	my $fmt = '%Y-%m-%d %H:%M UTC';
@@ -80,16 +92,18 @@ sub index_entry {
 	}
 	$rv .= "\n\n";
 
-	my $irp = $header_obj->header_raw('In-Reply-To');
-	my ($anchor_idx, $anchor);
-	if (defined $irp) {
-		$anchor_idx = anchor_for($irp);
+	my $irt = $header_obj->header_raw('In-Reply-To');
+	my ($anchor_idx, $anchor, $t_anchor);
+	if (defined $irt) {
+		$anchor_idx = anchor_for($irt);
 		$anchor = $seen->{$anchor_idx};
+		$t_anchor = T_ANCHOR;
+	} else {
+		$t_anchor = '';
 	}
 	my $href = $mid->as_href;
-	my $mhref = "m/$href.html";
-	my $fhref = "f/$href.html";
-	my $more = 'message';
+	my $mhref = "${path}m/$href.html";
+	my $fhref = "${path}f/$href.html";
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		$rv .= index_walk($_[0], $pfx, $enc_msg, $part_nr, $fhref,
@@ -98,22 +112,71 @@ sub index_entry {
 	});
 
 	$rv .= "\n$pfx<a\nhref=\"$mhref\">$more</a> ";
-	my $txt = "m/$href.txt";
+	my $txt = "${path}m/$href.txt";
 	$rv .= "<a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0);
 
-	if (defined $irp) {
+	if (defined $irt) {
 		unless (defined $anchor) {
-			my $v = PublicInbox::Hval->new_msgid($irp);
-			my $html = $v->as_html;
-			$anchor = 'm/' . $v->as_href . '.html';
+			my $v = PublicInbox::Hval->new_msgid($irt);
+			$v = $v->as_href;
+			$anchor = "${path}m/$v.html";
 			$seen->{$anchor_idx} = $anchor;
 		}
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
 	}
-	$rv .= " <a\nhref=\"?r=$first#$id\">threadlink</a>";
+
+	if ($first_commit) {
+		$rv .= " <a\nhref=\"t/$href.html$t_anchor\">thread</a>";
+	}
 
 	$rv . "\n\n";
+}
+
+sub thread_html {
+	my (undef, $ctx, $foot, $srch) = @_;
+	my $mid = mid_compressed($ctx->{mid});
+	my $res = $srch->get_thread($mid);
+	my $rv = '';
+	require PublicInbox::GitCatFile;
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $nr = scalar @{$res->{msgs}};
+	return $rv if $nr == 0;
+	my @msgs;
+	while (my $smsg = shift @{$res->{msgs}}) {
+		my $m = $smsg->mid;
+
+		# Duplicated from WWW.pm
+		my ($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
+
+		unless (defined $x38) {
+			require Digest::SHA;
+			$m = Digest::SHA::sha1_hex($m);
+			($x2, $x38) = ($m =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
+		}
+
+		# FIXME: duplicated code from Feed.pm
+		my $mime = eval {
+			my $str = $git->cat_file("HEAD:$x2/$x38");
+			Email::MIME->new($str);
+		};
+		unless ($@) {
+			my $t = eval { str2time($mime->header('Date')) };
+			defined($t) or $t = 0;
+			$mime->header_set('X-PI-TS', $t);
+			push @msgs, $mime;
+		}
+	}
+	require PublicInbox::Thread;
+	my $th = PublicInbox::Thread->new(@msgs);
+	$th->thread;
+	$th->order(*PublicInbox::Thread::sort_ts);
+	my $state = [ undef, { root_anchor => anchor_for($mid) }, undef, 0 ];
+	thread_entry(\$rv, $state, $_, 0) for $th->rootset;
+	my $final_anchor = $state->[3];
+	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
+
+	$rv .= "</pre><hr />" . PRE_WRAP . $next . $foot . "</pre>";
 }
 
 # only private functions below.
@@ -300,17 +363,15 @@ sub headers_to_html_header {
 
 	my $header_obj = $mime->header_obj;
 	my $mid = $header_obj->header_raw('Message-ID');
-	if (defined $mid) {
-		$mid = PublicInbox::Hval->new_msgid($mid);
-		$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
-		my $href = $mid->as_href;
-		$href = "../m/$href" unless $full_pfx;
-		$rv .= "(<a\nhref=\"$href.txt\">raw</a>)\n";
-	}
+	$mid = PublicInbox::Hval->new_msgid($mid);
+	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
+	my $href = $mid->as_href;
+	$href = "../m/$href" unless $full_pfx;
+	$rv .= "(<a\nhref=\"$href.txt\">raw</a>)\n";
 
-	my $irp = $header_obj->header_raw('In-Reply-To');
-	if (defined $irp) {
-		my $v = PublicInbox::Hval->new_msgid($irp);
+	my $irt = $header_obj->header_raw('In-Reply-To');
+	if (defined $irt) {
+		my $v = PublicInbox::Hval->new_msgid($irt);
 		my $html = $v->as_html;
 		my $href = $v->as_href;
 		$rv .= "In-Reply-To: &lt;";
@@ -319,7 +380,7 @@ sub headers_to_html_header {
 
 	my $refs = $header_obj->header_raw('References');
 	if ($refs) {
-		$refs =~ s/\s*\Q$irp\E\s*// if (defined $irp);
+		$refs =~ s/\s*\Q$irt\E\s*// if (defined $irt);
 		my @refs = ($refs =~ /<([^>]+)>/g);
 		if (@refs) {
 			$rv .= 'References: '. linkify_refs(@refs) . "\n";
@@ -353,17 +414,20 @@ sub html_footer {
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
 	my $mid = $mime->header_obj->header_raw('Message-ID');
-	my $irp = uri_escape_utf8($mid);
+	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
 	$to = uri_escape_utf8($to);
 	$subj = uri_escape_utf8($subj);
 
 	my $cc = uri_escape_utf8(join(',', sort values %cc));
-	my $href = "mailto:$to?In-Reply-To=$irp&Cc=${cc}&Subject=$subj";
+	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
 
-	my $irt = '';
 	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
 	if ($idx && $srch) {
+		$irt = $mime->header_obj->header_raw('In-Reply-To') || '';
+		$mid = mid_compressed(mid_clean($mid));
+		my $t_anchor = length $irt ? T_ANCHOR : '';
+		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">thread</a>$idx";
 		my $res = $srch->get_replies($mid);
 		if (my $c = $res->{count}) {
 			$c = $c == 1 ? '1 reply' : "$c replies";
@@ -372,7 +436,6 @@ sub html_footer {
 		} else {
 			$idx .= "\n(no replies yet)\n";
 		}
-		$irt = $mime->header_obj->header_raw('In-Reply-To');
 		if ($irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
 			$irt = $irt->as_href;
@@ -380,6 +443,8 @@ sub html_footer {
 		} else {
 			$irt = ' ' x length('parent ');
 		}
+	} else {
+		$irt = '';
 	}
 
 	"$irt<a\nhref=\"" . ascii_html($href) . '">reply</a>' . $idx;
@@ -453,6 +518,31 @@ sub thread_replies {
 	$root = [ $root->header('Message-ID'),
 		  { hash_subj($root->header('Subject')) => 1 } ];
 	simple_dump($dst, $root, $_, 0) for $th->rootset;
+}
+
+sub thread_html_head {
+	my ($mime) = @_;
+	my $s = PublicInbox::Hval->new_oneline($mime->header('Subject'));
+	$s = $s->as_html;
+	"<html><head><title>$s</title></head><body>" . PRE_WRAP
+
+}
+
+sub thread_entry {
+	my ($dst, $state, $node, $level) = @_;
+	# $state = [ $search_res, $seen, undef, 0 (msg_nr) ];
+	# $seen is overloaded with 3 types of fields:
+	#	1) "root" => Message-ID,
+	#	2) seen subject hashes: sha1(subject) => 1
+	#	3) anchors hashes: "#$sha1_hex" (same as $seen in index_entry)
+	if (my $mime = $node->message) {
+		if (length($$dst) == 0) {
+			$$dst .= thread_html_head($mime);
+		}
+		$$dst .= index_entry(undef, $mime, $level, $state);
+	}
+	thread_entry($dst, $state, $node->child, $level + 1) if $node->child;
+	thread_entry($dst, $state, $node->next, $level) if $node->next;
 }
 
 1;

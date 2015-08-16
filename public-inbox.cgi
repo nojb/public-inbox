@@ -29,6 +29,7 @@ if (@ARGV && $ARGV[0] eq 'static') {
 		301 => 'Moved Permanently',
 		404 => 'Not Found',
 		405 => 'Method Not Allowed',
+		501 => 'Not Implemented',
 	);
 
 	print "Status: $status $codes{$status}\r\n";

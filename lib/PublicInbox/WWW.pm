@@ -49,9 +49,15 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx, $cgi);
 
+	# thread display
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx, $cgi);
+
 	# convenience redirects, order matters
-	} elsif ($path_info =~ m!$LISTNAME_RE/(?:m|f)/(\S+)\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || redirect_mid(\%ctx, $cgi);
+	} elsif ($path_info =~ m!$LISTNAME_RE/(m|f|t)/(\S+)\z!o) {
+		my $pfx = $2;
+		invalid_list_mid(\%ctx, $1, $3) ||
+			redirect_mid(\%ctx, $cgi, $2);
 
 	} else {
 		r404();
@@ -170,9 +176,7 @@ sub get_mid_html {
 	return r404() unless $x;
 
 	require PublicInbox::View;
-	my $mid_href = PublicInbox::Hval::ascii_html(
-						uri_escape_utf8($ctx->{mid}));
-	my $pfx = "../f/$mid_href.html";
+	my $pfx = msg_pfx($ctx);
 	my $foot = footer($ctx);
 	require Email::MIME;
 	my $mime = Email::MIME->new($x);
@@ -195,6 +199,18 @@ sub get_full_html {
 	  [ PublicInbox::View->msg_html($mime, undef, $foot, $srch)] ];
 }
 
+# /$LISTNAME/t/$MESSAGE_ID.html
+sub get_thread {
+	my ($ctx, $cgi) = @_;
+	my $srch = searcher($ctx) or return need_search($ctx);
+	require PublicInbox::View;
+	my $foot = footer($ctx);
+	my $body = PublicInbox::View->thread_html($ctx, $foot, $srch) or
+		return r404();
+	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
+	  [ $body ] ];
+}
+
 sub self_url {
 	my ($cgi) = @_;
 	ref($cgi) eq 'CGI' ? $cgi->self_url : $cgi->uri->as_string;
@@ -206,10 +222,13 @@ sub redirect_list_index {
 }
 
 sub redirect_mid {
-	my ($ctx, $cgi) = @_;
+	my ($ctx, $cgi, $pfx) = @_;
 	my $url = self_url($cgi);
-	$url =~ s!/f/!/m/!;
-	do_redirect($url . '.html');
+	my $anchor = '';
+	if (lc($pfx) eq 't') {
+		$anchor = '#u'; # <u id='#u'> is used to highlight in View.pm
+	}
+	do_redirect($url . ".html$anchor");
 }
 
 sub do_redirect {
@@ -293,6 +312,22 @@ sub searcher {
 		require PublicInbox::Search;
 		PublicInbox::Search->new($ctx->{git_dir});
 	};
+}
+
+sub need_search {
+	my ($ctx) = @_;
+	my $msg = <<EOF;
+<html><head><title>Search not available for this
+public-inbox</title><body><pre>Search is not available for this public-inbox
+<a href="../">Return to index</a></pre></body></html>
+EOF
+	[ 501, [ 'Content-Type' => 'text/html; charset=UTF-8' ], [ $msg ] ];
+}
+
+sub msg_pfx {
+	my ($ctx) = @_;
+	my $href = PublicInbox::Hval::ascii_html(uri_escape_utf8($ctx->{mid}));
+	"../f/$href.html";
 }
 
 1;
