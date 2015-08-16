@@ -5,13 +5,10 @@ package PublicInbox::Search;
 use strict;
 use warnings;
 use PublicInbox::SearchMsg;
-use base qw/Exporter/;
 use Search::Xapian qw/:standard/;
 require PublicInbox::View;
 use Email::MIME;
 use PublicInbox::MID qw/mid_clean mid_compressed/;
-
-our @EXPORT = qw/xpfx/;
 
 use constant {
 	TS => 0,
