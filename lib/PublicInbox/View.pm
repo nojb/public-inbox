@@ -143,7 +143,7 @@ sub index_walk {
 	$s =~ s/^-- \n.*\z//ms and $$more = 'more...';
 
 	# kill any leading or trailing whitespace lines
-	$s =~ s/^[ \t]$//sgm;
+	$s =~ s/^\s*$//sgm;
 	$s =~ s/\s+\z//s;
 
 	if (length $s) {
