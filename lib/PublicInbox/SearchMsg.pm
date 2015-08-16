@@ -152,9 +152,10 @@ sub mid {
 	my ($self, $mid) = @_;
 
 	if (defined $mid) {
-	    $self->{mid} = $mid;
+		$self->{mid} = $mid;
 	} else {
-	    $self->{mid} ||= $self->_extract_mid;
+		$self->ensure_metadata; # needed for ghosts
+		$self->{mid} ||= $self->_extract_mid;
 	}
 }
 
