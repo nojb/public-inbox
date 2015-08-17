@@ -3,8 +3,9 @@
 use strict;
 use warnings;
 use Test::More;
+eval { require PublicInbox::Search; };
+plan skip_all => "Xapian missing for search" if $@;
 use File::Temp qw/tempdir/;
-use PublicInbox::Search;
 use Email::MIME;
 use Data::Dumper;
 my $tmpdir = tempdir(CLEANUP => 1);
