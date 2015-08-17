@@ -76,7 +76,7 @@ sub generate_html_index {
 	$th->order(*PublicInbox::Thread::sort_ts);
 
 	# except we sort top-level messages reverse chronologically
-	my $state = [ time, {}, $first, 0 ];
+	my $state = [ undef, {}, $first, 0 ];
 	for (PublicInbox::Thread::rsort_ts($th->rootset)) {
 		dump_msg($_, 0, \$html, $state)
 	}
