@@ -74,7 +74,7 @@ sub add_message {
 	my $db = $self->{xdb};
 
 	my $doc_id;
-	my $mid = mid_clean($mime->header('Message-ID'));
+	my $mid = mid_clean($mime->header_obj->header_raw('Message-ID'));
 	$mid = mid_compressed($mid);
 	my $was_ghost = 0;
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
@@ -341,9 +341,9 @@ sub link_message_to_parents {
 	my $doc = $smsg->{doc};
 	my $mid = mid_compressed($smsg->mid);
 	my $mime = $smsg->mime;
-	my $refs = $mime->header('References');
+	my $refs = $mime->header_obj->header_raw('References');
 	my @refs = $refs ? ($refs =~ /<([^>]+)>/g) : ();
-	my $irt = $mime->header('In-Reply-To');
+	my $irt = $mime->header_obj->header_raw('In-Reply-To');
 	if ($irt) {
 		if ($irt =~ /<([^>]+)>/) {
 			$irt = $1;
@@ -498,7 +498,7 @@ sub index_blob {
 sub unindex_blob {
 	my ($self, $git, $blob) = @_;
 	my $mime = do_cat_mail($git, $blob) or return;
-	my $mid = $mime->header('Message-ID');
+	my $mid = $mime->header_obj->header_raw('Message-ID');
 	eval { $self->remove_message($mid) } if defined $mid;
 	warn "W: unindex_blob $blob: $@\n" if $@;
 }
