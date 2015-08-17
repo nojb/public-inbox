@@ -218,8 +218,8 @@ sub get_subject_path {
 	$self->do_enquire($query);
 }
 
-# given a message ID, get replies to a message
-sub get_replies {
+# given a message ID, get followups to a message
+sub get_followups {
 	my ($self, $mid, $opts) = @_;
 	$mid = mid_clean($mid);
 	$mid = mid_compressed($mid);

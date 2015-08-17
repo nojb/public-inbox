@@ -133,7 +133,8 @@ sub index_entry {
 	}
 
 	if ($srch) {
-		$rv .= " <a\nhref=\"${path}t/$href.html$t_anchor\">thread</a>";
+		$rv .= " <a\nhref=\"${path}t/$href.html$t_anchor\">" .
+		       "threadlink</a>";
 	}
 
 	$rv . "\n\n";
@@ -154,7 +155,14 @@ sub thread_html {
 	my $state = [ $srch, { root_anchor => anchor_for($mid) }, undef, 0 ];
 	thread_entry(\$rv, $state, $_, 0) for $th->rootset;
 	my $final_anchor = $state->[3];
-	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
+	my $next = "<a\nid=\"s$final_anchor\">";
+
+	if ($final_anchor == 1) {
+		$next .= 'only message in thread';
+	} else {
+		$next .= 'end of thread';
+	}
+	$next .= ", back to <a\nhref=\"../\">index</a>\n";
 
 	$rv .= "</pre><hr />" . PRE_WRAP . $next . $foot . "</pre>";
 }
@@ -432,14 +440,15 @@ sub html_footer {
 		$irt = $mime->header_obj->header_raw('In-Reply-To') || '';
 		$mid = mid_compressed(mid_clean($mid));
 		my $t_anchor = length $irt ? T_ANCHOR : '';
-		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">thread</a>$idx";
-		my $res = $srch->get_replies($mid);
+		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">".
+		       "threadlink</a>$idx";
+		my $res = $srch->get_followups($mid);
 		if (my $c = $res->{count}) {
-			$c = $c == 1 ? '1 reply' : "$c replies";
+			$c = $c == 1 ? '1 followup' : "$c followups";
 			$idx .= "\n$c:\n";
-			thread_replies(\$idx, $mime, $res);
+			thread_followups(\$idx, $mime, $res);
 		} else {
-			$idx .= "\n(no replies yet)\n";
+			$idx .= "\n(no followups, yet)\n";
 		}
 		if ($irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
@@ -512,12 +521,9 @@ sub hash_subj {
 	Digest::SHA::sha1($subj);
 }
 
-sub thread_replies {
+sub thread_followups {
 	my ($dst, $root, $res) = @_;
 	my @msgs = map { $_->mini_mime } @{$res->{msgs}};
-	foreach (@{$res->{msgs}}) {
-		print STDERR "smsg->path: <", $_->path, ">\n";
-	}
 	require PublicInbox::Thread;
 	$root->header_set('X-PI-TS', '0');
 	my $th = PublicInbox::Thread->new($root, @msgs);

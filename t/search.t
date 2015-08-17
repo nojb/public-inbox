@@ -175,9 +175,9 @@ sub filter_mids {
 	is_deeply(\@res, [ sort('last@s', $long_midc) ],
 		  "got expected results for references: match");
 
-	my $replies = $ro->get_replies('root@s');
-	$replies = [ filter_mids($replies) ];
-	is_deeply($replies, [ filter_mids($res) ], "get_replies matches");
+	my $followups = $ro->get_followups('root@s');
+	$followups = [ filter_mids($followups) ];
+	is_deeply($followups, [ filter_mids($res) ], "get_followups matches");
 
 	my $long_reply_mid = 'reply-to-long@1';
 	my $long_reply = Email::MIME->create(
