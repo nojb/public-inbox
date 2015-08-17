@@ -35,9 +35,9 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
 		invalid_list(\%ctx, $1) || redirect_list_index(\%ctx, $cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
-		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi, 0);
+		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE/atom\.xml\z!o) {
-		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi, 0);
+		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi);
 
 	# single-message pages
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.txt\z!o) {
@@ -109,7 +109,7 @@ sub invalid_list_mid {
 
 # /$LISTNAME/atom.xml                       -> Atom feed, includes replies
 sub get_atom {
-	my ($ctx, $cgi, $top) = @_;
+	my ($ctx, $cgi) = @_;
 	require PublicInbox::Feed;
 	[ 200, [ 'Content-Type' => 'application/xml' ],
 	  [ PublicInbox::Feed->generate({
@@ -117,14 +117,13 @@ sub get_atom {
 			listname => $ctx->{listname},
 			pi_config => $pi_config,
 			cgi => $cgi,
-			top => $top,
 		}) ]
 	];
 }
 
 # /$LISTNAME/?r=$GIT_COMMIT                 -> HTML only
 sub get_index {
-	my ($ctx, $cgi, $top) = @_;
+	my ($ctx, $cgi) = @_;
 	require PublicInbox::Feed;
 	my $srch = searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
@@ -135,7 +134,6 @@ sub get_index {
 			pi_config => $pi_config,
 			cgi => $cgi,
 			footer => footer($ctx),
-			top => $top,
 		}) ]
 	];
 }
