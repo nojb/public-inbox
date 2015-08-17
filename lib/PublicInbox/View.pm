@@ -477,7 +477,7 @@ sub linkify_refs {
 
 sub anchor_for {
 	my ($msgid) = @_;
-	'm' . mid_compressed(mid_clean($msgid));
+	'm' . mid_compressed(mid_clean($msgid), 1);
 }
 
 sub simple_dump {

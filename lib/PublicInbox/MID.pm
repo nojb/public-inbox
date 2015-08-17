@@ -19,7 +19,7 @@ sub mid_clean {
 
 # this is idempotent
 sub mid_compressed {
-	my ($mid) = @_;
+	my ($mid, $force) = @_;
 
 	# XXX dirty hack! FIXME!
 	# Some HTTP servers (apache2 2.2.22-13+deb7u5 on my system)
@@ -28,7 +28,7 @@ sub mid_compressed {
 	# or what; will need to debug...
 	return sha1_hex($mid) if (index($mid, '%') >= 0);
 
-	return $mid if (length($mid) <= MID_MAX);
+	return $mid if (!$force && length($mid) <= MID_MAX);
 	sha1_hex($mid);
 }
 
