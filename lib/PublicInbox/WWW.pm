@@ -126,8 +126,10 @@ sub get_atom {
 sub get_index {
 	my ($ctx, $cgi, $top) = @_;
 	require PublicInbox::Feed;
+	my $srch = searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
 	  [ PublicInbox::Feed->generate_html_index({
+			srch => $srch,
 			git_dir => $ctx->{git_dir},
 			listname => $ctx->{listname},
 			pi_config => $pi_config,

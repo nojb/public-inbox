@@ -48,7 +48,7 @@ sub feed_entry {
 # state = [ time, seen = {}, first_commit, page_nr = 0 ]
 sub index_entry {
 	my (undef, $mime, $level, $state) = @_;
-	my (undef, $seen, $first_commit) = @$state;
+	my ($srch, $seen, $first_commit) = @$state;
 	my $midx = $state->[3]++;
 	my ($prev, $next) = ($midx - 1, $midx + 1);
 	my $rv = '';
@@ -75,9 +75,25 @@ sub index_entry {
 	my $more = 'permalink';
 	if ($root_anchor) {
 		$path = '../';
-		$subj = "<u\nid=\"u\">$subj</u>" if $root_anchor eq $id;
 	} else {
 		$path = '';
+	}
+	my $href = $mid->as_href;
+	my $irt = $header_obj->header_raw('In-Reply-To');
+	my ($anchor_idx, $anchor, $t_anchor);
+	if (defined $irt) {
+		$anchor_idx = anchor_for($irt);
+		$anchor = $seen->{$anchor_idx};
+		$t_anchor = T_ANCHOR;
+	} else {
+		$t_anchor = '';
+	}
+
+	if (defined $srch) {
+		$subj = "<a\nhref=\"${path}t/$href.html#u\">$subj</a>";
+	}
+	if ($root_anchor && $root_anchor eq $id) {
+		$subj = "<u\nid=\"u\">$subj</u>";
 	}
 
 	my $ts = $mime->header('X-PI-TS');
@@ -92,16 +108,6 @@ sub index_entry {
 	}
 	$rv .= "\n\n";
 
-	my $irt = $header_obj->header_raw('In-Reply-To');
-	my ($anchor_idx, $anchor, $t_anchor);
-	if (defined $irt) {
-		$anchor_idx = anchor_for($irt);
-		$anchor = $seen->{$anchor_idx};
-		$t_anchor = T_ANCHOR;
-	} else {
-		$t_anchor = '';
-	}
-	my $href = $mid->as_href;
 	my $mhref = "${path}m/$href.html";
 	my $fhref = "${path}f/$href.html";
 	# scan through all parts, looking for displayable text
@@ -126,8 +132,8 @@ sub index_entry {
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
 	}
 
-	if ($first_commit) {
-		$rv .= " <a\nhref=\"t/$href.html$t_anchor\">thread</a>";
+	if ($srch) {
+		$rv .= " <a\nhref=\"${path}t/$href.html$t_anchor\">thread</a>";
 	}
 
 	$rv . "\n\n";
@@ -145,7 +151,7 @@ sub thread_html {
 	my $th = PublicInbox::Thread->new(@$msgs);
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
-	my $state = [ undef, { root_anchor => anchor_for($mid) }, undef, 0 ];
+	my $state = [ $srch, { root_anchor => anchor_for($mid) }, undef, 0 ];
 	thread_entry(\$rv, $state, $_, 0) for $th->rootset;
 	my $final_anchor = $state->[3];
 	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
@@ -165,7 +171,7 @@ sub subject_path_html {
 	my $th = PublicInbox::Thread->new(@$msgs);
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
-	my $state = [ undef, { root_anchor => 'dummy' }, undef, 0 ];
+	my $state = [ $srch, { root_anchor => 'dummy' }, undef, 0 ];
 	thread_entry(\$rv, $state, $_, 0) for $th->rootset;
 	my $final_anchor = $state->[3];
 	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
@@ -340,6 +346,10 @@ sub headers_to_html_header {
 
 	my $rv = "";
 	my @title;
+	my $header_obj = $mime->header_obj;
+	my $mid = $header_obj->header_raw('Message-ID');
+	$mid = PublicInbox::Hval->new_msgid($mid);
+	my $mid_href = $mid->as_href;
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $mime->header($h);
 		defined($v) && length($v) or next;
@@ -351,8 +361,7 @@ sub headers_to_html_header {
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
-				my $path = $srch->subject_path($v->raw);
-				$rv .= "$h: <a\nhref=\"../s/$path.html\">";
+				$rv .= "$h: <a\nhref=\"../t/$mid_href.html\">";
 				$rv .= $v->as_html . "</a>\n";
 				next;
 			}
@@ -361,13 +370,9 @@ sub headers_to_html_header {
 
 	}
 
-	my $header_obj = $mime->header_obj;
-	my $mid = $header_obj->header_raw('Message-ID');
-	$mid = PublicInbox::Hval->new_msgid($mid);
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
-	my $href = $mid->as_href;
-	$href = "../m/$href" unless $full_pfx;
-	$rv .= "(<a\nhref=\"$href.txt\">raw</a>)\n";
+	$mid_href = "../m/$mid_href" unless $full_pfx;
+	$rv .= "(<a\nhref=\"$mid_href.txt\">raw</a>)\n";
 
 	my $irt = $header_obj->header_raw('In-Reply-To');
 	if (defined $irt) {
