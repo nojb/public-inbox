@@ -20,6 +20,14 @@ sub mid_clean {
 # this is idempotent
 sub mid_compressed {
 	my ($mid) = @_;
+
+	# XXX dirty hack! FIXME!
+	# Some HTTP servers (apache2 2.2.22-13+deb7u5 on my system)
+	# apparently do not handle "%25" in the URL path component correctly.
+	# I'm not yet sure if it's something weird with my rewrite rules
+	# or what; will need to debug...
+	return sha1_hex($mid) if (index($mid, '%') >= 0);
+
 	return $mid if (length($mid) <= MID_MAX);
 	sha1_hex($mid);
 }
