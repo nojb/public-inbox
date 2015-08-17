@@ -17,12 +17,12 @@ use constant {
 
 # main function
 sub generate {
-	my ($class, $args) = @_;
+	my ($class, $ctx) = @_;
 	require XML::Atom::SimpleFeed;
 	require POSIX;
-	my $max = $args->{max} || MAX_PER_PAGE;
+	my $max = $ctx->{max} || MAX_PER_PAGE;
 
-	my $feed_opts = get_feedopts($args);
+	my $feed_opts = get_feedopts($ctx);
 	my $addr = $feed_opts->{address};
 	$addr = $addr->[0] if ref($addr);
 	my $feed = XML::Atom::SimpleFeed->new(
@@ -37,8 +37,8 @@ sub generate {
 		updated => POSIX::strftime(DATEFMT, gmtime),
 	);
 
-	my $git = PublicInbox::GitCatFile->new($args->{git_dir});
-	each_recent_blob($args, sub {
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	each_recent_blob($ctx, sub {
 		my ($add) = @_;
 		add_to_feed($feed_opts, $feed, $add, $git);
 	});
@@ -48,19 +48,19 @@ sub generate {
 }
 
 sub generate_html_index {
-	my ($class, $args) = @_;
+	my ($class, $ctx) = @_;
 	require PublicInbox::Thread;
 
-	my $max = $args->{max} || MAX_PER_PAGE;
-	my $feed_opts = get_feedopts($args);
+	my $max = $ctx->{max} || MAX_PER_PAGE;
+	my $feed_opts = get_feedopts($ctx);
 
 	my $title = $feed_opts->{description} || '';
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 
 	my @messages;
-	my $git_dir = $args->{git_dir};
+	my $git_dir = $ctx->{git_dir};
 	my $git = PublicInbox::GitCatFile->new($git_dir);
-	my ($first, $last) = each_recent_blob($args, sub {
+	my ($first, $last) = each_recent_blob($ctx, sub {
 		mime_load_for_sort($git, $_[0], \@messages);
 	});
 	$git = undef; # destroy pipes.
@@ -76,15 +76,15 @@ sub generate_html_index {
 	$th->order(*PublicInbox::Thread::sort_ts);
 
 	# except we sort top-level messages reverse chronologically
-	my $state = [ $args->{srch}, {}, $first, 0 ];
+	my $state = [ $ctx->{srch}, {}, $first, 0 ];
 	for (PublicInbox::Thread::rsort_ts($th->rootset)) {
 		dump_msg($_, 0, \$html, $state)
 	}
 	Email::Address->purge_cache;
 
-	my $footer = nav_footer($args->{cgi}, $last, $feed_opts, $state);
+	my $footer = nav_footer($ctx->{cgi}, $last, $feed_opts, $state);
 	if ($footer) {
-		my $list_footer = $args->{footer};
+		my $list_footer = $ctx->{footer};
 		$footer .= "\n" . $list_footer if $list_footer;
 		$footer = "<hr />" . PRE_WRAP . "$footer</pre>";
 	}
@@ -115,13 +115,13 @@ sub nav_footer {
 }
 
 sub each_recent_blob {
-	my ($args, $cb) = @_;
-	my $max = $args->{max} || MAX_PER_PAGE;
+	my ($ctx, $cb) = @_;
+	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $hex = '[a-f0-9]';
 	my $addmsg = qr!^:000000 100644 \S+ \S+ A\t(${hex}{2}/${hex}{38})$!;
 	my $delmsg = qr!^:100644 000000 \S+ \S+ D\t(${hex}{2}/${hex}{38})$!;
 	my $refhex = qr/${hex}{4,40}(?:~\d+)?/;
-	my $cgi = $args->{cgi};
+	my $cgi = $ctx->{cgi};
 
 	# revision ranges may be specified
 	my $range = 'HEAD';
@@ -133,7 +133,7 @@ sub each_recent_blob {
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my @cmd = ('git', "--git-dir=$args->{git_dir}",
+	my @cmd = ('git', "--git-dir=$ctx->{git_dir}",
 			qw/log --no-notes --no-color --raw -r
 			   --abbrev=16 --abbrev-commit/);
 	push @cmd, $range;
@@ -178,12 +178,12 @@ sub each_recent_blob {
 
 # private functions below
 sub get_feedopts {
-	my ($args) = @_;
-	my $pi_config = $args->{pi_config};
-	my $listname = $args->{listname};
-	my $cgi = $args->{cgi};
+	my ($ctx) = @_;
+	my $pi_config = $ctx->{pi_config};
+	my $listname = $ctx->{listname};
+	my $cgi = $ctx->{cgi};
 	my %rv;
-	if (open my $fh, '<', "$args->{git_dir}/description") {
+	if (open my $fh, '<', "$ctx->{git_dir}/description") {
 		chomp($rv{description} = <$fh>);
 		close $fh;
 	}

@@ -111,14 +111,10 @@ sub invalid_list_mid {
 sub get_atom {
 	my ($ctx, $cgi) = @_;
 	require PublicInbox::Feed;
+	$ctx->{pi_config} = $pi_config;
+	$ctx->{cgi} = $cgi;
 	[ 200, [ 'Content-Type' => 'application/xml' ],
-	  [ PublicInbox::Feed->generate({
-			git_dir => $ctx->{git_dir},
-			listname => $ctx->{listname},
-			pi_config => $pi_config,
-			cgi => $cgi,
-		}) ]
-	];
+	  [ PublicInbox::Feed->generate($ctx) ] ]
 }
 
 # /$LISTNAME/?r=$GIT_COMMIT                 -> HTML only
@@ -126,16 +122,11 @@ sub get_index {
 	my ($ctx, $cgi) = @_;
 	require PublicInbox::Feed;
 	my $srch = searcher($ctx);
+	$ctx->{pi_config} = $pi_config;
+	$ctx->{cgi} = $cgi;
+	footer($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::Feed->generate_html_index({
-			srch => $srch,
-			git_dir => $ctx->{git_dir},
-			listname => $ctx->{listname},
-			pi_config => $pi_config,
-			cgi => $cgi,
-			footer => footer($ctx),
-		}) ]
-	];
+	  [ PublicInbox::Feed->generate_html_index($ctx) ] ]
 }
 
 # just returns a string ref for the blob in the current ctx
@@ -275,6 +266,7 @@ sub footer {
 	my $footer = try_cat("$git_dir/public-inbox/footer.html");
 	if (defined $footer) {
 		chomp $footer;
+		$ctx->{footer} = $footer;
 		return $footer;
 	}
 
@@ -304,7 +296,8 @@ sub footer {
 
 	$addr = "<a\nhref=\"mailto:$addr\">$addr</a>";
 	$desc =  $desc;
-	join("\n",
+
+	$ctx->{footer} = join("\n",
 		'- ' . $desc,
 		"A <a\nhref=\"" . PI_URL .  '">public-inbox</a>, ' .
 			'anybody may post in plain-text (not HTML):',
@@ -319,7 +312,7 @@ sub searcher {
 	my ($ctx) = @_;
 	eval {
 		require PublicInbox::Search;
-		PublicInbox::Search->new($ctx->{git_dir});
+		$ctx->{srch} = PublicInbox::Search->new($ctx->{git_dir});
 	};
 }
 
