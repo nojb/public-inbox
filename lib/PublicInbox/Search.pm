@@ -15,7 +15,8 @@ use constant {
 	# SCHEMA_VERSION history
 	# 0 - initial
 	# 1 - subject_path is lower-cased
-	SCHEMA_VERSION => 1,
+	# 2 - subject_path is mid_compressed in the index, only
+	SCHEMA_VERSION => 2,
 	LANG => 'english',
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
@@ -113,7 +114,7 @@ sub add_message {
 			$doc->add_term(xpfx('subject') . $subj);
 
 			my $path = subject_path($subj);
-			$doc->add_term(xpfx('path') . $path);
+			$doc->add_term(xpfx('path') . mid_compressed($path));
 		}
 
 		my $from = $smsg->from_name;
@@ -214,7 +215,7 @@ sub query {
 
 sub get_subject_path {
 	my ($self, $path, $opts) = @_;
-	my $query = $self->qp->parse_query("path:$path", 0);
+	my $query = $self->qp->parse_query("path:".mid_compressed($path), 0);
 	$self->do_enquire($query);
 }
 
@@ -238,7 +239,7 @@ sub get_thread {
 	return { count => 0, msgs => [] } unless $smsg;
 	my $qp = $self->qp;
 	my $qtid = $qp->parse_query('thread:'.$smsg->thread_id);
-	my $qsub = $qp->parse_query('path:'.$smsg->path);
+	my $qsub = $qp->parse_query('path:'.mid_compressed($smsg->path));
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
 	$self->do_enquire($query);
 }
