@@ -47,6 +47,11 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 
 			my ($name, $email, $date) =
 					PublicInbox::MDA->author_info($msg);
+
+			END {
+				search_index_sync($main_repo) if ($? == 0);
+			};
+
 			local $ENV{GIT_AUTHOR_NAME} = $name;
 			local $ENV{GIT_AUTHOR_EMAIL} = $email;
 			local $ENV{GIT_AUTHOR_DATE} = $date;
@@ -78,4 +83,16 @@ sub do_spamc {
 	};
 
 	return ($@ || $? || !defined($$out) || length($$out) == 0) ? 0 : 1;
+}
+
+sub search_index_sync {
+	my ($git_dir) = @_;
+	eval {
+		require PublicInbox::Search;
+		require PublicInbox::GitCatFile;
+		my $git = PublicInbox::GitCatFile->new($git_dir);
+		umask 0022; # XXX FIXME use git config core.sharedRepository
+		my $s = PublicInbox::Search->new($git_dir, 1);
+		$s->index_sync($git);
+	};
 }
