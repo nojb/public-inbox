@@ -36,6 +36,7 @@ sub generate {
 		id => 'mailto:' . ($addr || 'public-inbox@example.com'),
 		updated => POSIX::strftime(DATEFMT, gmtime),
 	);
+	$feed->no_generator;
 
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 	each_recent_blob($ctx, sub {
