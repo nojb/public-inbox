@@ -8,6 +8,7 @@ use warnings;
 use fields qw(raw href);
 use Encode qw(find_encoding);
 use URI::Escape qw(uri_escape_utf8);
+use PublicInbox::MID qw/mid_clean mid_compressed/;
 
 my $enc_ascii = find_encoding('us-ascii');
 
@@ -25,16 +26,8 @@ sub new {
 
 sub new_msgid {
 	my ($class, $msgid) = @_;
-	$msgid =~ s/\A\s*<?//;
-	$msgid =~ s/>?\s*\z//;
-
-	if (length($msgid) <= 40) {
-		$class->new($msgid);
-	} else {
-		require Digest::SHA;
-		my $hex = Digest::SHA::sha1_hex($msgid);
-		$class->new($msgid, $hex);
-	}
+	$msgid = mid_clean($msgid);
+	$class->new($msgid, mid_compressed($msgid));
 }
 
 sub new_oneline {

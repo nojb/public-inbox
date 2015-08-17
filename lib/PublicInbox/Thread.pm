@@ -12,6 +12,20 @@ if ($Mail::Thread::VERSION <= 2.55) {
 	eval q(sub _container_class { 'PublicInbox::Thread::Container' });
 }
 
+sub sort_ts {
+	sort {
+		(eval { $a->topmost->message->header('X-PI-TS') } || 0) <=>
+		(eval { $b->topmost->message->header('X-PI-TS') } || 0)
+	} @_;
+}
+
+sub rsort_ts {
+	sort {
+		(eval { $b->topmost->message->header('X-PI-TS') } || 0) <=>
+		(eval { $a->topmost->message->header('X-PI-TS') } || 0)
+	} @_;
+}
+
 package PublicInbox::Thread::Container;
 use strict;
 use warnings;

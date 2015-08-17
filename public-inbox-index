@@ -1,0 +1,29 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2015, all contributors (git clone git://80x24.org/public-inbox)
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+# Basic tool to create a Xapian search index for a git repository
+# configured for public-inbox.
+# Usage with libeatmydata <https://www.flamingspork.com/projects/libeatmydata/>
+# highly recommended: eatmydata public-inbox-index GIT_DIR
+
+use strict;
+use warnings;
+my $usage = "public-inbox-index GIT_DIR";
+use PublicInbox::Config;
+use PublicInbox::Search;
+use PublicInbox::GitCatFile;
+
+sub usage { print STDERR "Usage: $usage\n"; exit 1 }
+if (@ARGV) {
+	foreach my $dir (@ARGV) {
+		index_dir($dir);
+	}
+};
+
+sub index_dir {
+	my ($git_dir) = @_;
+	-d $git_dir or die "$git_dir does not appear to be a git repository\n";
+	my $git = PublicInbox::GitCatFile->new($git_dir);
+	my $s = PublicInbox::Search->new($git_dir, 1);
+	$s->index_sync($git);
+}
