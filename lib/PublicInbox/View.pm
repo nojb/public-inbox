@@ -116,6 +116,7 @@ sub index_entry {
 				  \$more);
 		$part_nr++;
 	});
+	$mime->body_set('');
 
 	$rv .= "\n$pfx<a\nhref=\"$mhref\">$more</a> ";
 	my $txt = "${path}m/$href.txt";
@@ -277,6 +278,7 @@ sub multipart_text_as_html {
 		$rv .= "\n" unless $rv =~ /\n\z/s;
 		++$part_nr;
 	});
+	$mime->body_set('');
 	$rv;
 }
 

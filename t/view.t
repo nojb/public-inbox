@@ -39,9 +39,9 @@ EOF
 			Subject => 'this is a subject',
 		],
 		body => $body,
-	);
-	$s = Email::MIME->new($s->as_string);
-	my $html = PublicInbox::View->msg_html($s);
+	)->as_string;
+	my $mime = Email::MIME->new($s);
+	my $html = PublicInbox::View->msg_html($mime);
 
 	# ghetto tests
 	like($html, qr!<a\nhref="\.\./m/hello%40!s, "MID link present");
@@ -52,7 +52,8 @@ EOF
 
 	# short page
 	my $pfx = "http://example.com/test/f";
-	my $short = PublicInbox::View->msg_html($s, $pfx);
+	$mime = Email::MIME->new($s);
+	my $short = PublicInbox::View->msg_html($mime, $pfx);
 	like($short, qr!<a\nhref="hello%40!s, "MID link present");
 	like($short, qr/\n&gt; keep this inline/,
 		"short quoted text is inline");
@@ -137,8 +138,9 @@ EOF
 		parts => $parts,
 	);
 
+	my $orig = $mime->body_raw;
 	my $html = PublicInbox::View->msg_html($mime);
-	like($mime->body_raw, qr/hi =3D bye=/, "our test used QP correctly");
+	like($orig, qr/hi =3D bye=/, "our test used QP correctly");
 	like($html, qr/\bhi = bye\b/, "HTML output decoded QP");
 }
 

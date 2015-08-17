@@ -243,23 +243,25 @@ sub add_to_feed {
 	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
 	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
-	my $mid = $mime->header_obj->header_raw('Message-ID');
+	my $header_obj = $mime->header_obj;
+	my $mid = $header_obj->header_raw('Message-ID');
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href . '.html';
 	my $content = PublicInbox::View->feed_entry($mime, $fullurl . $href);
 	defined($content) or return 0;
+	$mime = undef;
 
-	my $subject = mime_header($mime, 'Subject') or return 0;
+	my $subject = mime_header($header_obj, 'Subject') or return 0;
 
-	my $from = mime_header($mime, 'From') or return 0;
+	my $from = mime_header($header_obj, 'From') or return 0;
 	my @from = Email::Address->parse($from);
 	my $name = $from[0]->name;
 	defined $name or $name = "";
 	my $email = $from[0]->address;
 	defined $email or $email = "";
 
-	my $date = $mime->header('Date');
+	my $date = $header_obj->header('Date');
 	$date = PublicInbox::Hval->new_oneline($date);
 	$date = feed_date($date->raw) or return 0;
 	$add =~ tr!/!!d;
