@@ -16,7 +16,8 @@ use constant {
 	# 0 - initial
 	# 1 - subject_path is lower-cased
 	# 2 - subject_path is mid_compressed in the index, only
-	SCHEMA_VERSION => 2,
+	# 3 - message-ID is compressed if it includes '%' (hack!)
+	SCHEMA_VERSION => 3,
 	LANG => 'english',
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
