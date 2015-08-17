@@ -477,7 +477,11 @@ sub linkify_refs {
 
 sub anchor_for {
 	my ($msgid) = @_;
-	'm' . mid_compressed(mid_clean($msgid), 1);
+	my $id = $msgid;
+	if ($id !~ /\A[a-f0-9]{40}\z/) {
+		$id = mid_compressed(mid_clean($id), 1);
+	}
+	'm' . $id;
 }
 
 sub simple_dump {
