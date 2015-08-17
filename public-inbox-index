@@ -10,8 +10,11 @@ use strict;
 use warnings;
 my $usage = "public-inbox-index GIT_DIR";
 use PublicInbox::Config;
-use PublicInbox::Search;
-use PublicInbox::GitCatFile;
+eval { require PublicInbox::Search };
+if ($@) {
+	print STDERR "Search::Xapian required for $0\n";
+	exit 1;
+}
 
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 if (@ARGV) {
@@ -23,7 +26,6 @@ if (@ARGV) {
 sub index_dir {
 	my ($git_dir) = @_;
 	-d $git_dir or die "$git_dir does not appear to be a git repository\n";
-	my $git = PublicInbox::GitCatFile->new($git_dir);
 	my $s = PublicInbox::Search->new($git_dir, 1);
-	$s->index_sync($git);
+	$s->index_sync;
 }

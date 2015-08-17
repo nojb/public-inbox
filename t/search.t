@@ -18,6 +18,10 @@ ok($@, "exception raised on non-existent DB");
 
 my $rw = PublicInbox::Search->new($git_dir, 1);
 my $ro = PublicInbox::Search->new($git_dir);
+my $rw_commit = sub {
+	$rw = undef;
+	$rw = PublicInbox::Search->new($git_dir, 1);
+};
 
 {
 	my $root = Email::MIME->create(
@@ -53,6 +57,7 @@ sub filter_mids {
 }
 
 {
+	$rw_commit->();
 	$ro->reopen;
 	my $found = $ro->lookup_message('<root@s>');
 	ok($found, "message found");
@@ -101,7 +106,7 @@ sub filter_mids {
 
 # ghost vivication
 {
-	$rw->reopen;
+	$rw_commit->();
 	my $rmid = '<ghost-message@s>';
 	my $reply_to_ghost = Email::MIME->create(
 		header_str => [
@@ -135,6 +140,7 @@ sub filter_mids {
 
 # search thread on ghost
 {
+	$rw_commit->();
 	$ro->reopen;
 
 	# Subject:
@@ -150,7 +156,7 @@ sub filter_mids {
 
 # long message-id
 {
-	$rw->reopen;
+	$rw_commit->();
 	$ro->reopen;
 	my $long_mid = 'last' . ('x' x 60). '@s';
 	my $long_midc = Digest::SHA::sha1_hex($long_mid);
@@ -169,6 +175,7 @@ sub filter_mids {
 	my $long_id = $rw->add_message($long);
 	is($long_id, int($long_id), "long_id is an integer: $long_id");
 
+	$rw_commit->();
 	$ro->reopen;
 	my $res = $ro->query('references:root@s');
 	my @res = filter_mids($res);
@@ -194,6 +201,7 @@ sub filter_mids {
 		body => "no References\n");
 	ok($rw->add_message($long_reply) > $long_id, "inserted long reply");
 
+	$rw_commit->();
 	$ro->reopen;
 	my $t = $ro->get_thread('root@s');
 	is($t->{count}, 4, "got all 4 mesages in thread");
@@ -204,7 +212,7 @@ sub filter_mids {
 
 # quote prioritization
 {
-	$rw->reopen;
+	$rw_commit->();
 	$rw->add_message(Email::MIME->create(
 		header_str => [
 			Date => 'Sat, 02 Oct 2010 00:00:01 +0000',

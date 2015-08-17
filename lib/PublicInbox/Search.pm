@@ -59,10 +59,13 @@ sub new {
 
 	if ($writable) { # not used by the WWW interface
 		require Search::Xapian::WritableDatabase;
-		require File::Path;
-		File::Path::mkpath($dir);
-		$db = Search::Xapian::WritableDatabase->new($dir,
-					Search::Xapian::DB_CREATE_OR_OPEN);
+		my $flag = Search::Xapian::DB_OPEN;
+		if ($writable == 1) {
+			require File::Path;
+			File::Path::mkpath($dir);
+			$flag = Search::Xapian::DB_CREATE_OR_OPEN;
+		}
+		$db = Search::Xapian::WritableDatabase->new($dir, $flag);
 	} else {
 		$db = Search::Xapian::Database->new($dir);
 	}
@@ -82,7 +85,6 @@ sub add_message {
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
 	my $enc_msg = PublicInbox::View::enc_for($ct_msg);
 
-	$db->begin_transaction;
 	eval {
 		my $smsg = $self->lookup_message($mid);
 		my $doc;
@@ -175,9 +177,7 @@ sub add_message {
 
 	if ($@) {
 		warn "failed to index message <$mid>: $@\n";
-		$db->cancel_transaction;
-	} else {
-		$db->commit_transaction;
+		return undef;
 	}
 	$doc_id;
 }
@@ -190,7 +190,6 @@ sub remove_message {
 	$mid = mid_clean($mid);
 	$mid = mid_compressed($mid);
 
-	$db->begin_transaction;
 	eval {
 		$doc_id = $self->find_unique_doc_id('mid', $mid);
 		$db->delete_document($doc_id) if defined $doc_id;
@@ -198,9 +197,7 @@ sub remove_message {
 
 	if ($@) {
 		warn "failed to remove message <$mid>: $@\n";
-		$db->cancel_transaction;
-	} else {
-		$db->commit_transaction;
+		return undef;
 	}
 	$doc_id;
 }
@@ -512,40 +509,47 @@ sub enquire {
 
 # indexes all unindexed messages
 sub index_sync {
-	my ($self, $git) = @_;
+	my ($self) = @_;
+	require PublicInbox::GitCatFile;
 	my $db = $self->{xdb};
-	my $latest = $db->get_metadata('last_commit');
-	my $range = length $latest ? "$latest..HEAD" : 'HEAD';
-	$latest = undef;
-
 	my $hex = '[a-f0-9]';
 	my $h40 = $hex .'{40}';
 	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
 
-	# get indexed messages
-	my @cmd = ('git', "--git-dir=$git->{git_dir}", "log",
-		    qw/--reverse --no-notes --no-color --raw -r --no-abbrev/,
-		    $range);
+	$db->begin_transaction;
+	eval {
+		my $git = PublicInbox::GitCatFile->new($self->{git_dir});
 
-	my $pid = open(my $log, '-|', @cmd) or
-		die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
-	my $last;
-	while (my $line = <$log>) {
-		if ($line =~ /$addmsg/o) {
-			$self->index_blob($git, $1);
-		} elsif ($line =~ /$delmsg/o) {
-			$self->unindex_blob($git, $1);
-		} elsif ($line =~ /^commit ($h40)/o) {
-			my $commit = $1;
-			if (defined $latest) {
-				$db->set_metadata('last_commit', $latest)
+		my $latest = $db->get_metadata('last_commit');
+		my $range = length $latest ? "$latest..HEAD" : 'HEAD';
+		$latest = undef;
+
+		# get indexed messages
+		my @cmd = ('git', "--git-dir=$self->{git_dir}", "log",
+			    qw/--reverse --no-notes --no-color --raw -r
+			       --no-abbrev/, $range);
+		my $pid = open(my $log, '-|', @cmd) or
+			die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
+
+		while (my $line = <$log>) {
+			if ($line =~ /$addmsg/o) {
+				$self->index_blob($git, $1);
+			} elsif ($line =~ /$delmsg/o) {
+				$self->unindex_blob($git, $1);
+			} elsif ($line =~ /^commit ($h40)/o) {
+				$latest = $1;
 			}
-			$latest = $commit;
 		}
+		close $log;
+		$db->set_metadata('last_commit', $latest) if defined $latest;
+	};
+	if ($@) {
+		warn "indexing failed: $@\n";
+		$db->cancel_transaction;
+	} else {
+		$db->commit_transaction;
 	}
-	close $log;
-	$db->set_metadata('last_commit', $latest) if defined $latest;
 }
 
 1;
