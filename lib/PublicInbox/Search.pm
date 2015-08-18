@@ -10,6 +10,10 @@ require PublicInbox::View;
 use Email::MIME;
 use PublicInbox::MID qw/mid_clean mid_compressed/;
 
+# This is English-only, everything else is non-standard and may be confused as
+# a prefix common in patch emails
+our $REPLY_RE = qr/^re:\s+/i;
+
 use constant {
 	TS => 0,
 	# SCHEMA_VERSION history
@@ -490,7 +494,7 @@ sub subject_path {
 
 	$subj =~ s/\A\s+//;
 	$subj =~ s/\s+\z//;
-	$subj =~ s/^(?:re|aw):\s*//i; # remove reply prefix (aw: German)
+	$subj =~ s/$REPLY_RE//igo; # remove reply prefix
 	$subj =~ s![^a-zA-Z0-9_\.~/\-]+!_!g;
 	lc($subj);
 }

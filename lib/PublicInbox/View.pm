@@ -457,6 +457,7 @@ sub html_footer {
 		if (my $c = $res->{count}) {
 			$c = $c == 1 ? '1 followup' : "$c followups";
 			$idx .= "\n$c:\n";
+			$res->{srch} = $srch;
 			thread_followups(\$idx, $mime, $res);
 		} else {
 			$idx .= "\n(no followups, yet)\n";
@@ -493,13 +494,14 @@ sub anchor_for {
 
 sub simple_dump {
 	my ($dst, $root, $node, $level) = @_;
+	# $root = [ Root Message-ID, \%seen, $srch ];
 	my $pfx = '  ' x $level;
 	$$dst .= $pfx;
 	if (my $x = $node->message) {
 		my $mid = $x->header('Message-ID');
 		if ($root->[0] ne $mid) {
 			my $s = $x->header('Subject');
-			my $h = hash_subj($s);
+			my $h = $root->[2]->subject_path($s);
 			if ($root->[1]->{$h}) {
 				$s = '';
 			} else {
@@ -525,15 +527,6 @@ sub simple_dump {
 	simple_dump($dst, $root, $node->next, $level) if $node->next;
 }
 
-sub hash_subj {
-	my ($subj) = @_;
-	$subj =~ s/\A\s+//;
-	$subj =~ s/\s+\z//;
-	$subj =~ s/^(?:re|aw):\s*//i; # remove reply prefix (aw: German)
-	$subj =~ s/\s+/ /;
-	Digest::SHA::sha1($subj);
-}
-
 sub thread_followups {
 	my ($dst, $root, $res) = @_;
 	my @msgs = map { $_->mini_mime } @{$res->{msgs}};
@@ -542,8 +535,10 @@ sub thread_followups {
 	my $th = PublicInbox::Thread->new($root, @msgs);
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
-	$root = [ $root->header('Message-ID'),
-		  { hash_subj($root->header('Subject')) => 1 } ];
+	my $srch = $res->{srch};
+	my $subj = $srch->subject_path($root->header('Subject'));
+	my %seen = ($subj => 1);
+	$root = [ $root->header('Message-ID'), \%seen, $srch ];
 	simple_dump($dst, $root, $_, 0) for $th->rootset;
 }
 
