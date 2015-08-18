@@ -163,7 +163,7 @@ sub thread_html {
 	} else {
 		$next .= 'end of thread';
 	}
-	$next .= ", back to <a\nhref=\"../\">index</a>\n";
+	$next .= "</a>, back to <a\nhref=\"../\">index</a>\n";
 
 	$rv .= "</pre><hr />" . PRE_WRAP . $next . $foot . "</pre>";
 }
