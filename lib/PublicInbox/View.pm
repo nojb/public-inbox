@@ -395,10 +395,19 @@ sub headers_to_html_header {
 
 	my $refs = $header_obj->header_raw('References');
 	if ($refs) {
-		$refs =~ s/\s*\Q$irt\E\s*// if (defined $irt);
-		my @refs = ($refs =~ /<([^>]+)>/g);
+		# avoid redundant URLs wasting bandwidth
+		my %seen;
+		$seen{mid_clean($irt)} = 1 if defined $irt;
+		my @refs;
+		my @raw_refs = ($refs =~ /<([^>]+)>/g);
+		foreach my $ref (@raw_refs) {
+			next if $seen{$ref};
+			$seen{$ref} = 1;
+			push @refs, linkify_ref($ref);
+		}
+
 		if (@refs) {
-			$rv .= 'References: '. linkify_refs(@refs) . "\n";
+			$rv .= 'References: '. join(' ', @refs) . "\n";
 		}
 	}
 
@@ -466,13 +475,11 @@ sub html_footer {
 	"$irt<a\nhref=\"" . ascii_html($href) . '">reply</a>' . $idx;
 }
 
-sub linkify_refs {
-	join(' ', map {
-		my $v = PublicInbox::Hval->new_msgid($_);
-		my $html = $v->as_html;
-		my $href = $v->as_href;
-		"&lt;<a\nhref=\"$href.html\">$html</a>&gt;";
-	} @_);
+sub linkify_ref {
+	my $v = PublicInbox::Hval->new_msgid($_[0]);
+	my $html = $v->as_html;
+	my $href = $v->as_href;
+	"&lt;<a\nhref=\"$href.html\">$html</a>&gt;";
 }
 
 sub anchor_for {
