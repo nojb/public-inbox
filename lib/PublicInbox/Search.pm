@@ -541,20 +541,21 @@ sub enquire {
 
 # indexes all unindexed messages
 sub index_sync {
-	my ($self) = @_;
+	my ($self, $head) = @_;
 	require PublicInbox::GitCatFile;
 	my $db = $self->{xdb};
 	my $hex = '[a-f0-9]';
 	my $h40 = $hex .'{40}';
 	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
+	$head ||= 'HEAD';
 
 	$db->begin_transaction;
 	eval {
 		my $git = PublicInbox::GitCatFile->new($self->{git_dir});
 
 		my $latest = $db->get_metadata('last_commit');
-		my $range = length $latest ? "$latest..HEAD" : 'HEAD';
+		my $range = length $latest ? "$latest..$head" : $head;
 		$latest = undef;
 
 		# get indexed messages
