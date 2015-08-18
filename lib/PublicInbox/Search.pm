@@ -13,6 +13,7 @@ use PublicInbox::MID qw/mid_clean mid_compressed/;
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
 our $REPLY_RE = qr/^re:\s+/i;
+our $LANG = 'english';
 
 use constant {
 	TS => 0,
@@ -22,7 +23,6 @@ use constant {
 	# 2 - subject_path is mid_compressed in the index, only
 	# 3 - message-ID is compressed if it includes '%' (hack!)
 	SCHEMA_VERSION => 3,
-	LANG => 'english',
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
@@ -266,7 +266,7 @@ sub do_enquire {
 }
 
 # read-write
-sub stemmer { Search::Xapian::Stem->new(LANG) }
+sub stemmer { Search::Xapian::Stem->new($LANG) }
 
 # read-only
 sub qp {
