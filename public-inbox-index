@@ -17,11 +17,11 @@ if ($@) {
 }
 
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
-if (@ARGV) {
-	foreach my $dir (@ARGV) {
-		index_dir($dir);
-	}
-};
+usage() unless @ARGV;
+
+foreach my $dir (@ARGV) {
+	index_dir($dir);
+}
 
 sub index_dir {
 	my ($git_dir) = @_;
