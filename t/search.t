@@ -243,6 +243,25 @@ sub filter_mids {
 		"quoted result returned if nothing else");
 }
 
+# circular references
+{
+	my $doc_id = $rw->add_message(Email::MIME->create(
+		header_str => [
+			Date => 'Sat, 02 Oct 2010 00:00:01 +0000',
+			Subject => 'Circle',
+			'Message-ID' => '<circle@a>',
+			'References' => '<circle@a>',
+			'In-Reply-To' => '<circle@a>',
+			From => 'Circle <circle@example.com>',
+			To => 'list@example.com',
+		],
+		body => "LOOP!\n"));
+	ok($doc_id > 0, "doc_id defined with circular reference");
+	my $smsg = $rw->lookup_message('circle@a');
+	$smsg->ensure_metadata;
+	is($smsg->{references}, undef, "no references created");
+}
+
 done_testing();
 
 1;

@@ -79,8 +79,8 @@ sub add_message {
 	my $db = $self->{xdb};
 
 	my $doc_id;
-	my $mid = mid_clean($mime->header_obj->header_raw('Message-ID'));
-	$mid = mid_compressed($mid);
+	my $mid_orig = mid_clean($mime->header_obj->header_raw('Message-ID'));
+	my $mid = mid_compressed($mid_orig);
 	my $was_ghost = 0;
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
 	my $enc_msg = PublicInbox::View::enc_for($ct_msg);
@@ -176,7 +176,7 @@ sub add_message {
 	};
 
 	if ($@) {
-		warn "failed to index message <$mid>: $@\n";
+		warn "failed to index message <$mid_orig>: $@\n";
 		return undef;
 	}
 	$doc_id;
@@ -184,11 +184,11 @@ sub add_message {
 
 # returns deleted doc_id on success, undef on missing
 sub remove_message {
-	my ($self, $mid) = @_;
+	my ($self, $mid_orig) = @_;
 	my $db = $self->{xdb};
 	my $doc_id;
-	$mid = mid_clean($mid);
-	$mid = mid_compressed($mid);
+	$mid_orig = mid_clean($mid_orig);
+	my $mid = mid_compressed($mid_orig);
 
 	eval {
 		$doc_id = $self->find_unique_doc_id('mid', $mid);
@@ -196,7 +196,7 @@ sub remove_message {
 	};
 
 	if ($@) {
-		warn "failed to remove message <$mid>: $@\n";
+		warn "failed to remove message <$mid_orig>: $@\n";
 		return undef;
 	}
 	$doc_id;
@@ -347,16 +347,33 @@ sub link_message_to_parents {
 		if ($irt =~ /<([^>]+)>/) {
 			$irt = $1;
 		}
-		push @refs, $irt;
+
+		# maybe some crazies will try to make a circular reference:
+		if ($irt eq $mid) {
+			$irt = undef;
+		} else {
+			push @refs, $irt;
+		}
 	}
 
 	my $tid;
 	if (@refs) {
-		@refs = map { mid_compressed($_) } @refs;
-		my %uniq;
-		@refs = grep { !$uniq{$_}++ } @refs; # uniq
+		my @crefs = map { mid_compressed($_) } @refs;
+		my %uniq = ($mid => 1);
 
-		$doc->add_term(xpfx('inreplyto') . $refs[-1]);
+		# prevent circular references via References: here:
+		@refs = ();
+		foreach my $ref (@crefs) {
+			next if $uniq{$ref};
+			$uniq{$ref} = 1;
+			push @refs, $ref;
+		}
+		$irt = undef if (defined $irt && !$uniq{$irt});
+	}
+	if (@refs) {
+		if (defined $irt) {
+			$doc->add_term(xpfx('inreplyto') . $irt);
+		}
 
 		my $ref_pfx = xpfx('references');
 
