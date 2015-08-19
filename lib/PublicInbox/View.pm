@@ -197,7 +197,7 @@ sub index_walk {
 	my $ct = $part->content_type;
 
 	# account for filter bugs...
-	return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
+	return '' if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
 
 	my $enc = enc_for($ct, $enc_msg);
 
