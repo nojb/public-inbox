@@ -58,6 +58,10 @@ sub run {
 		my $sp = $2;
 		invalid_list(\%ctx, $1) || get_subject_path(\%ctx, $cgi, $sp);
 
+	} elsif ($path_info =~ m!$LISTNAME_RE/f/\S+\.txt\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) ||
+			redirect_mid_txt(\%ctx, $cgi);
+
 	# convenience redirects, order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/(m|f|t|s)/(\S+)\z!o) {
 		my $pfx = $2;
@@ -229,6 +233,15 @@ sub redirect_mid {
 		$anchor = '#u'; # <u id='#u'> is used to highlight in View.pm
 	}
 	do_redirect($url . ".html$anchor");
+}
+
+# only hit when somebody tries to guess URLs manually:
+sub redirect_mid_txt {
+	my ($ctx, $cgi, $pfx) = @_;
+	my $listname = $ctx->{listname};
+	my $url = self_url($cgi);
+	$url =~ s!/$listname/f/(\S+\.txt)\z!/$listname/m/$1!;
+	do_redirect($url);
 }
 
 sub do_redirect {
