@@ -495,11 +495,11 @@ sub anchor_for {
 sub simple_dump {
 	my ($dst, $root, $node, $level) = @_;
 	# $root = [ Root Message-ID, \%seen, $srch ];
-	my $pfx = '  ' x $level;
-	$$dst .= $pfx;
 	if (my $x = $node->message) {
 		my $mid = $x->header('Message-ID');
 		if ($root->[0] ne $mid) {
+			my $pfx = '  ' x $level;
+			$$dst .= $pfx;
 			my $s = $x->header('Subject');
 			my $h = $root->[2]->subject_path($s);
 			if ($root->[1]->{$h}) {
