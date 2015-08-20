@@ -57,7 +57,7 @@ sub index_entry {
 	my $subj = $mime->header('Subject');
 	my $header_obj = $mime->header_obj;
 
-	my $mid_raw = $header_obj->header_raw('Message-ID');
+	my $mid_raw = $header_obj->header('Message-ID');
 	my $id = anchor_for($mid_raw);
 	$seen->{$id} = "#$id"; # save the anchor for later
 
@@ -73,7 +73,7 @@ sub index_entry {
 	my $more = 'permalink';
 	my $path = $root_anchor ? '../' : '';
 	my $href = $mid->as_href;
-	my $irt = $header_obj->header_raw('In-Reply-To');
+	my $irt = $header_obj->header('In-Reply-To');
 	my ($anchor_idx, $anchor, $t_anchor);
 	if (defined $irt) {
 		$anchor_idx = anchor_for($irt);
@@ -361,7 +361,7 @@ sub headers_to_html_header {
 	my $rv = "";
 	my @title;
 	my $header_obj = $mime->header_obj;
-	my $mid = $header_obj->header_raw('Message-ID');
+	my $mid = $header_obj->header('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $mid_href = $mid->as_href;
 	foreach my $h (qw(From To Cc Subject Date)) {
@@ -388,7 +388,7 @@ sub headers_to_html_header {
 	$mid_href = "../m/$mid_href" unless $full_pfx;
 	$rv .= "(<a\nhref=\"$mid_href.txt\">raw</a>)\n";
 
-	my $irt = $header_obj->header_raw('In-Reply-To');
+	my $irt = $header_obj->header('In-Reply-To');
 	if (defined $irt) {
 		my $v = PublicInbox::Hval->new_msgid($irt);
 		my $html = $v->as_html;
@@ -397,7 +397,7 @@ sub headers_to_html_header {
 		$rv .= "<a\nhref=\"$href.html\">$html</a>&gt;\n";
 	}
 
-	my $refs = $header_obj->header_raw('References');
+	my $refs = $header_obj->header('References');
 	if ($refs) {
 		# avoid redundant URLs wasting bandwidth
 		my %seen;
@@ -441,7 +441,7 @@ sub html_footer {
 
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
-	my $mid = $mime->header_obj->header_raw('Message-ID');
+	my $mid = $mime->header_obj->header('Message-ID');
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
 	$to = uri_escape_utf8($to);
@@ -452,7 +452,7 @@ sub html_footer {
 
 	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
 	if ($idx && $srch) {
-		$irt = $mime->header_obj->header_raw('In-Reply-To') || '';
+		$irt = $mime->header_obj->header('In-Reply-To') || '';
 		$mid = mid_compressed(mid_clean($mid));
 		my $t_anchor = length $irt ? T_ANCHOR : '';
 		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">".

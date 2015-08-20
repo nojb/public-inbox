@@ -254,7 +254,7 @@ sub add_to_feed {
 	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
 	my $header_obj = $mime->header_obj;
-	my $mid = $header_obj->header_raw('Message-ID');
+	my $mid = $header_obj->header('Message-ID');
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href . '.html';
@@ -318,7 +318,7 @@ sub add_topic {
 			my $mime = do_cat_mail($git, $path) or return 0;
 			$header_obj = $mime->header_obj;
 		}
-		my $mid = $header_obj->header_raw('Message-ID');
+		my $mid = $header_obj->header('Message-ID');
 		$mid = mid_compressed(mid_clean($mid));
 		$u = $enc_utf8->decode($u);
 		push @$order, [ $mid, $ts, $u, $subj ];
