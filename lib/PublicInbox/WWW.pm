@@ -308,7 +308,6 @@ sub footer {
 	}
 
 	$addr = "<a\nhref=\"mailto:$addr\">$addr</a>";
-	$desc =  $desc;
 
 	$ctx->{footer} = join("\n",
 		'- ' . $desc,
