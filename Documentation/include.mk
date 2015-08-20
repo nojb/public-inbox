@@ -1,4 +1,4 @@
-# Copyright (C) 2013, Eric Wong <normalperson@yhbt.net> and all contributors
+# Copyright (C) 2013-2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 all::
 
@@ -40,7 +40,9 @@ install-man: man
 	$(pandoc) -s -t man < $< > $@+ && mv $@+ $@
 
 txt2pre = ./Documentation/txt2pre < $< > $@+ && touch -r $< $@+ && mv $@+ $@
-txt = INSTALL README COPYING
+txt := INSTALL README COPYING
+dtxt :=  design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
+txt += $(addprefix Documentation/, $(dtxt))
 
 %.html: %
 	$(txt2pre)

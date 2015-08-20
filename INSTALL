@@ -25,7 +25,6 @@ Requirements (server MDA)
 * MTA - postfix is recommended
 * lynx (for converting HTML messages to text)
 * Perl and several modules:    (Debian package name)
-  - CGI[1]                     perl-modules[2]
   - Date::Parse                libtimedate-perl
   - Email::Address             libemail-address-perl
   - Email::Filter              libemail-filter-perl
@@ -34,16 +33,22 @@ Requirements (server MDA)
   - Encode::MIME::Header       perl
   - File::Path::Expand         libfile-path-expand-perl
   - IPC::Run                   libipc-run-perl
+
+Optional modules:
+
+  - CGI[1]                     perl-modules[2]
   - Mail::Thread (2.5+)[1]     libmail-thread-perl
   - URI::Escape[1]             liburi-perl
   - XML::Atom::SimpleFeed[1]   libxml-atom-simplefeed-perl
+  - Search::Xapian[3]          libsearch-xapian-perl
 
 [1] - Only required for serving/generating Atom and HTML pages.
 [2] - Keep in mind this will be split into a separate Debian package
       when CGI.pm is dropped from the Perl standard library.
       Plack/PSGI and mod_perl2 are both supported.
+[3] - Optional for HTML web interface
 
 Copyright
 ---------
-Copyright 2013, Eric Wong <normalperson@yhbt.net> and all contributors.
+Copyright 2013-2015, all contributors <meta@public-inbox.org>
 License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>

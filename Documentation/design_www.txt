@@ -5,20 +5,22 @@ URL naming
 /$LISTNAME/?r=$GIT_COMMIT                       -> HTML only
 /$LISTNAME/atom.xml                             -> Atom feed
 
+#### Optional, relies on Search::Xapian
+/$LISTNAME/t/$MESSAGE_ID.html                   -> HTML content of thread
+
 ### Stable endpoints
 /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
 /$LISTNAME/m/$MESSAGE_ID.txt                    -> raw original
 /$LISTNAME/m/$MESSAGE_ID                        -> 301 to .html version
 /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (full quotes)
 /$LISTNAME/f/$MESSAGE_ID                        -> 301 to .html version
-/$LISTNAME/f/$MESSAGE_ID.txt                    -> 301 to m/$MESSAGE_ID.txt
+/$LISTNAME/f/$MESSAGE_ID.txt                    -> 301 to ../m/$MESSAGE_ID.txt
 
 FIXME: we must refactor/cleanup/add tests for most of our CGI before
 adding more endpoints and features.
 
 Maybe TODO (these might be expensive)
 -------------------------------------
-/$LISTNAME/t/$MESSAGE_ID.html                   -> HTML content of thread
 /$LISTNAME/t/$MESSAGE_ID.mbox                   -> mbox content of thread
 
 We use file name suffixes on all of these (except /) so URLs may easily
