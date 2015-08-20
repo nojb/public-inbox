@@ -23,7 +23,8 @@ use constant {
 	# 3 - message-ID is compressed if it includes '%' (hack!)
 	# 4 - change "Re: " normalization, avoid circular Reference ghosts
 	# 5 - subject_path drops trailing '.'
-	SCHEMA_VERSION => 5,
+	# 6 - preserve References: order in document data
+	SCHEMA_VERSION => 6,
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
@@ -49,9 +50,9 @@ my %all_pfx = (%bool_pfx_internal, %bool_pfx_external, %prob_prefix);
 sub xpfx { $all_pfx{$_[0]} }
 
 our %PFX2TERM_RMAP;
+my %meta_pfx = (mid => 1, thread => 1, path => 1, type => 1);
 while (my ($k, $v) = each %all_pfx) {
-	next if $prob_prefix{$k};
-	$PFX2TERM_RMAP{$v} = $k;
+	$PFX2TERM_RMAP{$v} = $k if $meta_pfx{$k};
 }
 
 my $mail_query = Search::Xapian::Query->new(xpfx('type') . 'mail');
@@ -129,8 +130,6 @@ sub add_message {
 		my $ts = Search::Xapian::sortable_serialise($smsg->ts);
 		$doc->add_value(PublicInbox::Search::TS, $ts);
 
-		$doc->set_data($smsg->to_doc_data);
-
 		my $tg = $self->term_generator;
 
 		$tg->set_document($doc);
@@ -176,9 +175,11 @@ sub add_message {
 		if ($was_ghost) {
 			$doc_id = $smsg->doc_id;
 			$self->link_message($smsg, 0);
+			$doc->set_data($smsg->to_doc_data);
 			$db->replace_document($doc_id, $doc);
 		} else {
 			$self->link_message($smsg, 0);
+			$doc->set_data($smsg->to_doc_data);
 			$doc_id = $db->add_document($doc);
 		}
 	};
@@ -352,14 +353,14 @@ sub link_message_to_parents {
 	my @refs = $refs ? ($refs =~ /<([^>]+)>/g) : ();
 	my $irt = $mime->header_obj->header('In-Reply-To');
 	if ($irt) {
-		if ($irt =~ /<([^>]+)>/) {
-			$irt = $1;
-		}
+		$irt = mid_compressed(mid_clean($irt));
 
 		# maybe some crazies will try to make a circular reference:
 		if ($irt eq $mid) {
 			$irt = undef;
 		} else {
+			# last References should be $irt
+			# we will de-dupe later
 			push @refs, $irt;
 		}
 	}
@@ -376,12 +377,10 @@ sub link_message_to_parents {
 			$uniq{$ref} = 1;
 			push @refs, $ref;
 		}
-		$irt = undef if (defined $irt && !$uniq{$irt});
 	}
 	if (@refs) {
-		if (defined $irt) {
-			$doc->add_term(xpfx('inreplyto') . $irt);
-		}
+		$doc->add_term(xpfx('inreplyto') . $irt) if defined $irt;
+		$smsg->{references_sorted} = '<'.join('><', @refs).'>';
 
 		my $ref_pfx = xpfx('references');
 

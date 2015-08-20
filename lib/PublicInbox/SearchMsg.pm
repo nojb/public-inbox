@@ -31,13 +31,14 @@ sub load_doc {
 	my ($class, $doc) = @_;
 	my $data = $doc->get_data;
 	$data = $enc_utf8->decode($data);
-	my ($mid, $subj, $from, $date) = split(/\n/, $data);
+	my ($mid, $subj, $from, $date, $refs) = split(/\n/, $data);
 	bless {
 		doc => $doc,
 		mid => $mid,
 		subject => $subj,
 		date => $date,
 		from_name => $from,
+		references_sorted => $refs,
 	}, $class;
 }
 
@@ -78,17 +79,16 @@ sub ts {
 	my ($self) = @_;
 	my $ts = $self->{ts};
 	return $ts if $ts;
-	$self->{date} = undef;
-	$self->date;
-	$self->{ts};
+	$self->{ts} = eval {
+		str2time($self->date || $self->mime->header('Date'))
+	} || 0;
 }
 
 sub date {
 	my ($self) = @_;
 	my $date = $self->{date};
 	return $date if $date;
-	my $ts = eval { str2time($self->mime->header('Date')) } || 0;
-	$self->{ts} = $ts;
+	my $ts = eval { str2time($self->mime->header('Date')) };
 	$self->{date} = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
 }
 
@@ -98,7 +98,14 @@ sub to_doc_data {
 	$self->mid . "\n" .
 	$self->subject . "\n" .
 	$self->from_name . "\n".
-	$self->date;
+	$self->date . "\n" .
+	$self->references_sorted;
+}
+
+sub references_sorted {
+	my ($self) = @_;
+	my $x = $self->{references_sorted};
+	defined $x ? $x : '';
 }
 
 sub ensure_metadata {
@@ -117,12 +124,7 @@ sub ensure_metadata {
 
 		if ($val =~ s/$PFX2TERM_RE//o) {
 			my $field = $PublicInbox::Search::PFX2TERM_RMAP{$1};
-			if ($field eq 'references') {
-				my $refs = $self->{references} ||= [];
-				push @$refs, $val;
-			} else {
-				$self->{$field} = $val;
-			}
+			$self->{$field} = $val;
 		}
 	}
 }
@@ -138,14 +140,11 @@ sub mini_mime {
 		'X-PI-TS' => $self->ts,
 		'Message-ID' => "<$self->{mid}>",
 	);
-	if (my $refs = $self->{references}) {
-		push @h, References => '<' . join('> <', @$refs) . '>';
-	}
-	if (my $irt = $self->{inreplyto}) {
-		push @h, 'In-Reply-To' => "<$irt>";
-	}
 
-	Email::MIME->create(header_str => \@h);
+	my $refs = $self->{references_sorted};
+	my $mime = Email::MIME->create(header_str => \@h);
+	$mime->header_set('References', $refs) if (defined $refs);
+	$mime;
 }
 
 sub mid {
