@@ -492,12 +492,19 @@ sub merge_threads {
 # normalize subjects so they are suitable as pathnames for URLs
 sub subject_path {
 	my $subj = pop;
-
-	$subj =~ s/\A\s+//;
-	$subj =~ s/\s+\z//;
-	$subj =~ s/$REPLY_RE//igo; # remove reply prefix
+	$subj = subject_normalized($subj);
 	$subj =~ s![^a-zA-Z0-9_\.~/\-]+!_!g;
 	lc($subj);
+}
+
+sub subject_normalized {
+	my $subj = pop;
+	$subj =~ s/\A\s+//s; # no leading space
+	$subj =~ s/\s+\z//s; # no trailing space
+	$subj =~ s/\s+/ /gs; # no redundant spaces
+	$subj =~ s/\.+\z//; # no trailing '.'
+	$subj =~ s/$REPLY_RE//igo; # remove reply prefix
+	$subj;
 }
 
 sub do_cat_mail {

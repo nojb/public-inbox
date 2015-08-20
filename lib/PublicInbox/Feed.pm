@@ -9,10 +9,14 @@ use Date::Parse qw(strptime);
 use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
 use PublicInbox::View;
+use PublicInbox::MID qw/mid_clean mid_compressed/;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
 };
+
+use Encode qw/find_encoding/;
+my $enc_utf8 = find_encoding('UTF-8');
 
 # main function
 sub generate {
@@ -55,22 +59,30 @@ sub generate_html_index {
 
 	my $title = $feed_opts->{description} || '';
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
+	my $atom_url = $feed_opts->{atomurl};
 
 	my $html = "<html><head><title>$title</title>" .
-		'<link rel="alternate" title="Atom feed"' . "\nhref=\"" .
-		$feed_opts->{atomurl} . "\"\ntype=\"application/atom+xml\"/>" .
-		'</head><body>';
+		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
+		"href=\"$atom_url\"\"\ntype=\"application/atom+xml\"/>" .
+		'</head><body>' . PublicInbox::View::PRE_WRAP;
 
 	my $state;
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $topics;
+	my $srch = $ctx->{srch};
+	$srch and $topics = [ [], {} ];
 	my (undef, $last) = each_recent_blob($ctx, sub {
-		my ($path, $commit) = @_;
-		unless (defined $state) {
-			$state = [ $ctx->{srch}, {}, $commit, 0 ];
+		my ($path, $commit, $ts, $u, $subj) = @_;
+		$state ||= [ undef, {}, $commit, 0 ];
+
+		if ($srch) {
+			add_topic($git, $srch, $topics, $path, $ts, $u, $subj);
+		} else {
+			my $mime = do_cat_mail($git, $path) or return 0;
+			$html .=
+			     PublicInbox::View->index_entry($mime, 0, $state);
+			1;
 		}
-		my $mime = do_cat_mail($git, $_[0]) or return 0;
-		$html .= PublicInbox::View->index_entry($mime, 0, $state);
-		1;
 	});
 	Email::Address->purge_cache;
 	$git = undef; # destroy pipes.
@@ -81,6 +93,7 @@ sub generate_html_index {
 		$footer .= "\n" . $list_footer if $list_footer;
 		$footer = "<hr /><pre>$footer</pre>";
 	}
+	dump_topics(\$html, $topics) if $topics;
 	$html .= "$footer</body></html>";
 }
 
@@ -92,6 +105,7 @@ sub nav_footer {
 	my $old_r = $cgi->param('r');
 	my $head = '    ';
 	my $next = '    ';
+	# $state = [ undef, {}, $first_commit, $last_anchor ];
 	my $first = $state->[2];
 	my $anchor = $state->[3];
 
@@ -128,7 +142,8 @@ sub each_recent_blob {
 	# leave us with filenames with spaces in them..
 	my @cmd = ('git', "--git-dir=$ctx->{git_dir}",
 			qw/log --no-notes --no-color --raw -r
-			   --abbrev=16 --abbrev-commit/);
+			   --abbrev=16 --abbrev-commit/,
+			"--format=%h%x00%ct%x00%an%x00%s%x00");
 	push @cmd, $range;
 
 	my $pid = open(my $log, '-|', @cmd) or
@@ -137,26 +152,29 @@ sub each_recent_blob {
 	my $last;
 	my $nr = 0;
 	my ($cur_commit, $first_commit, $last_commit);
-	while (my $line = <$log>) {
+	my ($ts, $subj, $u);
+	while (defined(my $line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $add = $1;
 			next if $deleted{$add}; # optimization-only
-			$nr += $cb->($add, $cur_commit);
+			$nr += $cb->($add, $cur_commit, $ts, $u, $subj);
 			if ($nr >= $max) {
 				$last = 1;
 				last;
 			}
 		} elsif ($line =~ /$delmsg/o) {
 			$deleted{$1} = 1;
-		} elsif ($line =~ /^commit (${hex}{7,40})/o) {
-			$cur_commit = $1;
-			$first_commit = $1 unless defined $first_commit;
+		} elsif ($line =~ /^${hex}{7,40}/o) {
+			($cur_commit, $ts, $u, $subj) = split("\0", $line);
+			unless (defined $first_commit) {
+				$first_commit = $cur_commit;
+			}
 		}
 	}
 
 	if ($last) {
 		while (my $line = <$log>) {
-			if ($line =~ /^commit (${hex}{7,40})/o) {
+			if ($line =~ /^(${hex}{7,40})/o) {
 				$last_commit = $1;
 				last;
 			}
@@ -277,6 +295,59 @@ sub do_cat_mail {
 		Email::MIME->new($str);
 	};
 	$@ ? undef : $mime;
+}
+
+# accumulate recent topics if search is supported
+sub add_topic {
+	my ($git, $srch, $topics, $path, $ts, $u, $subj) = @_;
+	my ($order, $subjs) = @$topics;
+	my $header_obj;
+
+	# legacy ssoma did not set commit titles based on Subject
+	$subj = $enc_utf8->decode($subj);
+	if ($subj eq 'mda') {
+		my $mime = do_cat_mail($git, $path) or return 0;
+		$header_obj = $mime->header_obj;
+		$subj = mime_header($header_obj, 'Subject');
+	}
+
+	$subj = $srch->subject_normalized($subj);
+	if (++$subjs->{$subj} == 1) {
+		unless ($header_obj) {
+			my $mime = do_cat_mail($git, $path) or return 0;
+			$header_obj = $mime->header_obj;
+		}
+		my $mid = $header_obj->header_raw('Message-ID');
+		$mid = mid_compressed(mid_clean($mid));
+		$u = $enc_utf8->decode($u);
+		push @$order, [ $mid, $ts, $u, $subj ];
+		return 1;
+	}
+	0; # old topic, continue going
+}
+
+sub dump_topics {
+	my ($dst, $topics) = @_;
+	my ($order, $subjs) = @$topics;
+	$$dst .= '[No recent topics]' unless (scalar @$order);
+	while (defined(my $info = shift @$order)) {
+		my ($mid, $ts, $u, $subj) = @$info;
+		my $n = delete $subjs->{$subj};
+		$mid = PublicInbox::Hval->new($mid)->as_href;
+		$subj = PublicInbox::Hval->new($subj)->as_html;
+		$u = PublicInbox::Hval->new($u)->as_html;
+		$$dst .= "<a\nhref=\"t/$mid.html#u\"><b>$subj</b></a>\n- ";
+		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+		if ($n == 1) {
+			$$dst .= "created by $u @ $ts UTC\n"
+		} else {
+			# $n isn't the total number of posts on the topic,
+			# just the number of posts in the current "git log"
+			# window, so leave it unlabeled
+			$$dst .= "updated by $u @ $ts UTC ($n)\n"
+		}
+	}
+	$$dst .= '</pre>'
 }
 
 1;
