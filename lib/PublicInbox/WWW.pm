@@ -53,11 +53,6 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx, $cgi);
 
-	# subject_path display
-	} elsif ($path_info =~ m!$LISTNAME_RE/s/(\S+)\.html\z!o) {
-		my $sp = $2;
-		invalid_list(\%ctx, $1) || get_subject_path(\%ctx, $cgi, $sp);
-
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/\S+\.txt\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) ||
 			redirect_mid_txt(\%ctx, $cgi);
@@ -197,19 +192,6 @@ sub get_thread {
 	require PublicInbox::View;
 	my $foot = footer($ctx);
 	my $body = PublicInbox::View->thread_html($ctx, $foot, $srch) or
-		return r404();
-	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ $body ] ];
-}
-
-# /$LISTNAME/s/$SUBJECT_PATH.html
-sub get_subject_path {
-	my ($ctx, $cgi, $sp) = @_;
-	$ctx->{subject_path} = $sp;
-	my $srch = searcher($ctx) or return need_search($ctx);
-	require PublicInbox::View;
-	my $foot = footer($ctx);
-	my $body = PublicInbox::View->subject_path_html($ctx, $foot, $srch) or
 		return r404();
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
 	  [ $body ] ];

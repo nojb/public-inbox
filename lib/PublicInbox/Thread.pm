@@ -24,13 +24,6 @@ sub sort_ts {
 	} @_;
 }
 
-sub rsort_ts {
-	sort {
-		(eval { $b->topmost->message->header('X-PI-TS') } || 0) <=>
-		(eval { $a->topmost->message->header('X-PI-TS') } || 0)
-	} @_;
-}
-
 package PublicInbox::Thread::Container;
 use strict;
 use warnings;

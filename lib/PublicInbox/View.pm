@@ -153,10 +153,7 @@ sub thread_html {
 	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
 	return $rv if $nr == 0;
-	require PublicInbox::Thread;
-	my $th = PublicInbox::Thread->new(@$msgs);
-	$th->thread;
-	$th->order(*PublicInbox::Thread::sort_ts);
+	my $th = thread_results($msgs);
 	my $state = [ $srch, { root_anchor => anchor_for($mid) }, undef, 0 ];
 	{
 		require PublicInbox::GitCatFile;
@@ -172,30 +169,6 @@ sub thread_html {
 		$next .= 'end of thread';
 	}
 	$next .= "</a>, back to <a\nhref=\"../\">index</a>\n";
-
-	$rv .= "<hr />" . PRE_WRAP . $next . $foot . "</pre>";
-}
-
-sub subject_path_html {
-	my (undef, $ctx, $foot, $srch) = @_;
-	my $path = $ctx->{subject_path};
-	my $res = $srch->get_subject_path($path);
-	my $rv = '';
-	my $msgs = load_results($res);
-	my $nr = scalar @$msgs;
-	return $rv if $nr == 0;
-	require PublicInbox::Thread;
-	my $th = PublicInbox::Thread->new(@$msgs);
-	$th->thread;
-	$th->order(*PublicInbox::Thread::sort_ts);
-	my $state = [ $srch, { root_anchor => 'dummy' }, undef, 0 ];
-	{
-		require PublicInbox::GitCatFile;
-		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-		thread_entry(\$rv, $git, $state, $_, 0) for $th->rootset;
-	}
-	my $final_anchor = $state->[3];
-	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
 
 	$rv .= "<hr />" . PRE_WRAP . $next . $foot . "</pre>";
 }
@@ -560,12 +533,10 @@ sub simple_dump {
 
 sub thread_followups {
 	my ($dst, $root, $res) = @_;
-	my $msgs = load_results($res);
-	require PublicInbox::Thread;
 	$root->header_set('X-PI-TS', '0');
-	my $th = PublicInbox::Thread->new($root, @$msgs);
-	$th->thread;
-	$th->order(*PublicInbox::Thread::sort_ts);
+	my $msgs = load_results($res);
+	push @$msgs, $root;
+	my $th = thread_results($msgs);
 	my $srch = $res->{srch};
 	my $subj = $srch->subject_path($root->header('Subject'));
 	my %seen = ($subj => 1);
@@ -616,6 +587,15 @@ sub msg_timestamp {
 	my ($mime) = @_;
 	my $ts = eval { str2time($mime->header('Date')) };
 	defined($ts) ? $ts : 0;
+}
+
+sub thread_results {
+	my ($msgs) = @_;
+	require PublicInbox::Thread;
+	my $th = PublicInbox::Thread->new(@$msgs);
+	$th->thread;
+	$th->order(*PublicInbox::Thread::sort_ts);
+	$th
 }
 
 1;
