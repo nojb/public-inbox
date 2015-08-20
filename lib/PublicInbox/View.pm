@@ -146,7 +146,7 @@ sub thread_html {
 	my $mid = mid_compressed($ctx->{mid});
 	my $res = $srch->get_thread($mid);
 	my $rv = '';
-	my $msgs = load_results($ctx, $res);
+	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
 	return $rv if $nr == 0;
 	require PublicInbox::Thread;
@@ -154,7 +154,11 @@ sub thread_html {
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	my $state = [ $srch, { root_anchor => anchor_for($mid) }, undef, 0 ];
-	thread_entry(\$rv, $state, $_, 0) for $th->rootset;
+	{
+		require PublicInbox::GitCatFile;
+		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+		thread_entry(\$rv, $git, $state, $_, 0) for $th->rootset;
+	}
 	my $final_anchor = $state->[3];
 	my $next = "<a\nid=\"s$final_anchor\">";
 
@@ -173,7 +177,7 @@ sub subject_path_html {
 	my $path = $ctx->{subject_path};
 	my $res = $srch->get_subject_path($path);
 	my $rv = '';
-	my $msgs = load_results($ctx, $res);
+	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
 	return $rv if $nr == 0;
 	require PublicInbox::Thread;
@@ -181,7 +185,11 @@ sub subject_path_html {
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	my $state = [ $srch, { root_anchor => 'dummy' }, undef, 0 ];
-	thread_entry(\$rv, $state, $_, 0) for $th->rootset;
+	{
+		require PublicInbox::GitCatFile;
+		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+		thread_entry(\$rv, $git, $state, $_, 0) for $th->rootset;
+	}
 	my $final_anchor = $state->[3];
 	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
 
@@ -197,7 +205,10 @@ sub index_walk {
 	my $ct = $part->content_type;
 
 	# account for filter bugs...
-	return '' if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
+	if (defined $ct && $ct =~ m!\btext/[xh]+tml\b!i) {
+		$part->body_set('');
+		return '';
+	}
 
 	my $enc = enc_for($ct, $enc_msg);
 
@@ -224,7 +235,9 @@ sub index_walk {
 		# kill per-line trailing whitespace
 		$s =~ s/[ \t]+$//sgm;
 
-		$rv .= $s . "\n";
+		$rv .= $s;
+		$s = undef;
+		$rv .= "\n";
 	}
 	$rv;
 }
@@ -335,10 +348,13 @@ sub flush_quote {
 sub add_text_body {
 	my ($enc, $part, $part_nr, $full_pfx) = @_;
 	my $n = 0;
-	my $s = ascii_html($enc->decode($part->body));
+	my $nr = 0;
+	my $s = $part->body;
+	$part->body_set('');
+	$s = $enc->decode($s);
+	$s = ascii_html($s);
 	my @lines = split(/\n/, $s);
 	$s = '';
-	my $nr = 0;
 	my @quot;
 	while (defined(my $cur = shift @lines)) {
 		if ($cur !~ /^&gt;/) {
@@ -538,10 +554,10 @@ sub simple_dump {
 
 sub thread_followups {
 	my ($dst, $root, $res) = @_;
-	my @msgs = map { $_->mini_mime } @{$res->{msgs}};
+	my $msgs = load_results($res);
 	require PublicInbox::Thread;
 	$root->header_set('X-PI-TS', '0');
-	my $th = PublicInbox::Thread->new($root, @msgs);
+	my $th = PublicInbox::Thread->new($root, @$msgs);
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	my $srch = $res->{srch};
@@ -559,43 +575,35 @@ sub thread_html_head {
 }
 
 sub thread_entry {
-	my ($dst, $state, $node, $level) = @_;
+	my ($dst, $git, $state, $node, $level) = @_;
 	# $state = [ $search_res, $seen, undef, 0 (msg_nr) ];
 	# $seen is overloaded with 3 types of fields:
 	#	1) "root_anchor" => anchor_for(Message-ID),
 	#	2) seen subject hashes: sha1(subject) => 1
 	#	3) anchors hashes: "#$sha1_hex" (same as $seen in index_entry)
 	if (my $mime = $node->message) {
-		if (length($$dst) == 0) {
-			$$dst .= thread_html_head($mime);
+
+		# lazy load the full message from mini_mime:
+		my $path = mid2path(mid_clean($mime->header('Message-ID')));
+		$mime = eval { Email::MIME->new($git->cat_file("HEAD:$path")) };
+		if ($mime) {
+			if (length($$dst) == 0) {
+				$$dst .= thread_html_head($mime);
+			}
+			$$dst .= index_entry(undef, $mime, $level, $state);
 		}
-		$$dst .= index_entry(undef, $mime, $level, $state);
 	}
-	thread_entry($dst, $state, $node->child, $level + 1) if $node->child;
-	thread_entry($dst, $state, $node->next, $level) if $node->next;
+	my $cur;
+	$cur = $node->child and
+		thread_entry($dst, $git, $state, $cur, $level + 1);
+	$cur = $node->next and
+		thread_entry($dst, $git, $state, $cur, $level);
 }
 
 sub load_results {
-	my ($ctx, $res) = @_;
+	my ($res) = @_;
 
-	require PublicInbox::GitCatFile;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-	my @msgs;
-	while (my $smsg = shift @{$res->{msgs}}) {
-		my $m = $smsg->mid;
-		my $path = mid2path($m);
-
-		# FIXME: duplicated code from Feed.pm
-		my $mime = eval {
-			my $str = $git->cat_file("HEAD:$path");
-			Email::MIME->new($str);
-		};
-		unless ($@) {
-			$mime->header_set('X-PI-TS', msg_timestamp($mime));
-			push @msgs, $mime;
-		}
-	}
-	\@msgs;
+	[ map { $_->mini_mime } @{delete $res->{msgs}} ];
 }
 
 sub msg_timestamp {
