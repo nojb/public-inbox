@@ -6,7 +6,6 @@ use strict;
 use warnings;
 use PublicInbox::SearchMsg;
 use Search::Xapian qw/:standard/;
-require PublicInbox::View;
 use Email::MIME;
 use PublicInbox::MID qw/mid_clean mid_compressed/;
 
@@ -88,7 +87,6 @@ sub add_message {
 	my $mid = mid_compressed($mid_orig);
 	my $was_ghost = 0;
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
-	my $enc_msg = PublicInbox::View::enc_for($ct_msg);
 
 	eval {
 		my $smsg = $self->lookup_message($mid);
@@ -151,9 +149,11 @@ sub add_message {
 			# account for filter bugs...
 			$ct =~ m!\btext/plain\b!i or return;
 
-			my $enc = PublicInbox::View::enc_for($ct, $enc_msg);
 			my (@orig, @quot);
-			foreach my $l (split(/\n/, $enc->decode($part->body))) {
+			my $body = $part->body;
+			$part->body_set('');
+			my @lines = split(/\n/, $body);
+			while (defined(my $l = shift @lines)) {
 				if ($l =~ /^\s*>/) {
 					push @quot, $l;
 				} else {
@@ -162,10 +162,12 @@ sub add_message {
 			}
 			if (@quot) {
 				$tg->index_text(join("\n", @quot), 0);
+				@quot = ();
 				$tg->increase_termpos;
 			}
 			if (@orig) {
 				$tg->index_text(join("\n", @orig));
+				@orig = ();
 				$tg->increase_termpos;
 			}
 		});
