@@ -12,7 +12,6 @@ use PublicInbox::View;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
-	PRE_WRAP => "<pre\nstyle=\"white-space:pre-wrap\">",
 };
 
 # main function
@@ -60,7 +59,7 @@ sub generate_html_index {
 	my $html = "<html><head><title>$title</title>" .
 		'<link rel="alternate" title="Atom feed"' . "\nhref=\"" .
 		$feed_opts->{atomurl} . "\"\ntype=\"application/atom+xml\"/>" .
-		'</head><body>' . PRE_WRAP;
+		'</head><body>';
 
 	my $state;
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
@@ -80,9 +79,9 @@ sub generate_html_index {
 	if ($footer) {
 		my $list_footer = $ctx->{footer};
 		$footer .= "\n" . $list_footer if $list_footer;
-		$footer = "<hr />" . PRE_WRAP . "$footer</pre>";
+		$footer = "<hr /><pre>$footer</pre>";
 	}
-	$html . "</pre>$footer</body></html>";
+	$html .= "$footer</body></html>";
 }
 
 # private subs

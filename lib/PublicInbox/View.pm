@@ -33,8 +33,9 @@ sub msg_html {
 	}
 	headers_to_html_header($mime, $full_pfx, $srch) .
 		multipart_text_as_html($mime, $full_pfx) .
-		'</pre><hr />' . PRE_WRAP .
-		html_footer($mime, 1, $full_pfx, $srch) . $footer .
+		'</pre><hr /><pre>' .
+		html_footer($mime, 1, $full_pfx, $srch) .
+		$footer .
 		'</pre></body></html>';
 }
 
@@ -51,7 +52,6 @@ sub index_entry {
 	my ($srch, $seen, $first_commit) = @$state;
 	my $midx = $state->[3]++;
 	my ($prev, $next) = ($midx - 1, $midx + 1);
-	my $rv = '';
 	my $part_nr = 0;
 	my $enc_msg = enc_for($mime->header("Content-Type"));
 	my $subj = $mime->header('Subject');
@@ -69,15 +69,9 @@ sub index_entry {
 
 	$from = PublicInbox::Hval->new_oneline($from)->as_html;
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
-	my $pfx = ('  ' x $level);
 	my $root_anchor = $seen->{root_anchor};
-	my $path;
 	my $more = 'permalink';
-	if ($root_anchor) {
-		$path = '../';
-	} else {
-		$path = '';
-	}
+	my $path = $root_anchor ? '../' : '';
 	my $href = $mid->as_href;
 	my $irt = $header_obj->header_raw('In-Reply-To');
 	my ($anchor_idx, $anchor, $t_anchor);
@@ -88,7 +82,6 @@ sub index_entry {
 	} else {
 		$t_anchor = '';
 	}
-
 	if (defined $srch) {
 		$subj = "<a\nhref=\"${path}t/$href.html#u\">$subj</a>";
 	}
@@ -103,7 +96,12 @@ sub index_entry {
 	my $fmt = '%Y-%m-%d %H:%M';
 	$ts = POSIX::strftime($fmt, gmtime($ts));
 
-	$rv .= "$pfx<b\nid=\"$id\">$subj</b>\n$pfx";
+	my $rv = "<table\nsummary=l$level><tr>";
+	if ($level) {
+		$rv .= '<td><pre>' . ('  ' x $level) . '</pre></td>';
+	}
+	$rv .= '<td>' . PRE_WRAP;
+	$rv .= "<b\nid=\"$id\">$subj</b>\n";
 	$rv .= "- by $from @ $ts UTC - ";
 	$rv .= "<a\nid=\"s$midx\"\nhref=\"#s$next\">next</a>";
 	if ($prev >= 0) {
@@ -115,13 +113,12 @@ sub index_entry {
 	my $fhref = "${path}f/$href.html";
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		$rv .= index_walk($_[0], $pfx, $enc_msg, $part_nr, $fhref,
-				  \$more);
+		$rv .= index_walk($_[0], $enc_msg, $part_nr, $fhref, \$more);
 		$part_nr++;
 	});
 	$mime->body_set('');
 
-	$rv .= "\n$pfx<a\nhref=\"$mhref\">$more</a> ";
+	$rv .= "\n<a\nhref=\"$mhref\">$more</a> ";
 	my $txt = "${path}m/$href.txt";
 	$rv .= "<a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0);
@@ -141,7 +138,7 @@ sub index_entry {
 		       "threadlink</a>";
 	}
 
-	$rv . "\n\n";
+	$rv .= '</pre></td></tr></table>';
 }
 
 sub thread_html {
@@ -168,7 +165,7 @@ sub thread_html {
 	}
 	$next .= "</a>, back to <a\nhref=\"../\">index</a>\n";
 
-	$rv .= "</pre><hr />" . PRE_WRAP . $next . $foot . "</pre>";
+	$rv .= "<hr />" . PRE_WRAP . $next . $foot . "</pre>";
 }
 
 sub subject_path_html {
@@ -188,13 +185,13 @@ sub subject_path_html {
 	my $final_anchor = $state->[3];
 	my $next = "<a\nid=\"s$final_anchor\">end of thread</a>\n";
 
-	$rv .= "</pre><hr />" . PRE_WRAP . $next . $foot . "</pre>";
+	$rv .= "<hr />" . PRE_WRAP . $next . $foot . "</pre>";
 }
 
 # only private functions below.
 
 sub index_walk {
-	my ($part, $pfx, $enc_msg, $part_nr, $fhref, $more) = @_;
+	my ($part, $enc_msg, $part_nr, $fhref, $more) = @_;
 	my $rv = '';
 	return $rv if $part->subparts; # walk_parts already recurses
 	my $ct = $part->content_type;
@@ -207,7 +204,7 @@ sub index_walk {
 	if ($part_nr > 0) {
 		my $fn = $part->filename;
 		defined($fn) or $fn = "part #" . ($part_nr + 1);
-		$rv .= $pfx . add_filename_line($enc->decode($fn));
+		$rv .= add_filename_line($enc->decode($fn));
 	}
 
 	my $s = add_text_body_short($enc, $part, $part_nr, $fhref);
@@ -224,9 +221,6 @@ sub index_walk {
 	$s =~ s/\s+\z//s;
 
 	if (length $s) {
-		# add prefix:
-		$s =~ s/^/$pfx/sgm;
-
 		# kill per-line trailing whitespace
 		$s =~ s/[ \t]+$//sgm;
 
@@ -549,8 +543,7 @@ sub thread_html_head {
 	my ($mime) = @_;
 	my $s = PublicInbox::Hval->new_oneline($mime->header('Subject'));
 	$s = $s->as_html;
-	"<html><head><title>$s</title></head><body>" . PRE_WRAP
-
+	"<html><head><title>$s</title></head><body>";
 }
 
 sub thread_entry {
