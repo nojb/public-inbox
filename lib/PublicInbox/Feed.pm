@@ -64,7 +64,8 @@ sub generate_html_index {
 	my $html = "<html><head><title>$title</title>" .
 		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
 		"href=\"$atom_url\"\"\ntype=\"application/atom+xml\"/>" .
-		'</head><body>' . PublicInbox::View::PRE_WRAP;
+		'</head><body>' . PublicInbox::View::PRE_WRAP .
+		"<b>$title</b> (<a\nhref=\"$atom_url\">Atom feed</a>)\n";
 
 	my $state;
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
@@ -329,14 +330,14 @@ sub add_topic {
 sub dump_topics {
 	my ($dst, $topics) = @_;
 	my ($order, $subjs) = @$topics;
-	$$dst .= '[No recent topics]' unless (scalar @$order);
+	$$dst .= "\n[No recent topics]" unless (scalar @$order);
 	while (defined(my $info = shift @$order)) {
 		my ($mid, $ts, $u, $subj) = @$info;
 		my $n = delete $subjs->{$subj};
 		$mid = PublicInbox::Hval->new($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$u = PublicInbox::Hval->new($u)->as_html;
-		$$dst .= "<a\nhref=\"t/$mid.html#u\"><b>$subj</b></a>\n- ";
+		$$dst .= "\n<a\nhref=\"t/$mid.html#u\"><b>$subj</b></a>\n- ";
 		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
 		if ($n == 1) {
 			$$dst .= "created by $u @ $ts UTC\n"
