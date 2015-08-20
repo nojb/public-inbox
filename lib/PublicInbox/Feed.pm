@@ -40,7 +40,7 @@ sub generate {
 
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 	each_recent_blob($ctx, sub {
-		my ($add) = @_;
+		my ($add, undef) = @_;
 		add_to_feed($feed_opts, $feed, $add, $git);
 	});
 	$git = undef; # destroy pipes
@@ -50,7 +50,6 @@ sub generate {
 
 sub generate_html_index {
 	my ($class, $ctx) = @_;
-	require PublicInbox::Thread;
 
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($ctx);
@@ -58,30 +57,27 @@ sub generate_html_index {
 	my $title = $feed_opts->{description} || '';
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 
-	my @messages;
-	my $git_dir = $ctx->{git_dir};
-	my $git = PublicInbox::GitCatFile->new($git_dir);
-	my ($first, $last) = each_recent_blob($ctx, sub {
-		mime_load_for_sort($git, $_[0], \@messages);
-	});
-	$git = undef; # destroy pipes.
-
-	my $th = PublicInbox::Thread->new(@messages);
-	$th->thread;
 	my $html = "<html><head><title>$title</title>" .
 		'<link rel="alternate" title="Atom feed"' . "\nhref=\"" .
 		$feed_opts->{atomurl} . "\"\ntype=\"application/atom+xml\"/>" .
 		'</head><body>' . PRE_WRAP;
 
-	# sort child messages in chronological order
-	$th->order(*PublicInbox::Thread::sort_ts);
-
-	# except we sort top-level messages reverse chronologically
-	my $state = [ $ctx->{srch}, {}, $first, 0 ];
-	for (PublicInbox::Thread::rsort_ts($th->rootset)) {
-		dump_msg($_, 0, \$html, $state)
-	}
+	my $state;
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my (undef, $last) = each_recent_blob($ctx, sub {
+		my ($path, $commit) = @_;
+		unless (defined $state) {
+			$state = [ $ctx->{srch}, {}, $commit, 0 ];
+		}
+		my $mime = do_cat_mail($git, $_[0]) or return 0;
+		my $t = eval { str2time($mime->header('Date')) };
+		defined($t) or $t = 0;
+		$mime->header_set('X-PI-TS', $t);
+		$html .= PublicInbox::View->index_entry($mime, 0, $state);
+		1;
+	});
 	Email::Address->purge_cache;
+	$git = undef; # destroy pipes.
 
 	my $footer = nav_footer($ctx->{cgi}, $last, $feed_opts, $state);
 	if ($footer) {
@@ -144,12 +140,12 @@ sub each_recent_blob {
 	my %deleted; # only an optimization at this point
 	my $last;
 	my $nr = 0;
-	my @commits = ();
+	my ($cur_commit, $first_commit, $last_commit);
 	while (my $line = <$log>) {
 		if ($line =~ /$addmsg/o) {
 			my $add = $1;
-			next if $deleted{$add};
-			$nr += $cb->($add);
+			next if $deleted{$add}; # optimization-only
+			$nr += $cb->($add, $cur_commit);
 			if ($nr >= $max) {
 				$last = 1;
 				last;
@@ -157,24 +153,23 @@ sub each_recent_blob {
 		} elsif ($line =~ /$delmsg/o) {
 			$deleted{$1} = 1;
 		} elsif ($line =~ /^commit (${hex}{7,40})/o) {
-			push @commits, $1;
+			$cur_commit = $1;
+			$first_commit = $1 unless defined $first_commit;
 		}
 	}
 
 	if ($last) {
 		while (my $line = <$log>) {
 			if ($line =~ /^commit (${hex}{7,40})/o) {
-				push @commits, $1;
+				$last_commit = $1;
 				last;
 			}
 		}
-	} else {
-		push @commits, undef;
 	}
 
 	close $log; # we may EPIPE here
 	# for pagination
-	($commits[0], $commits[-1]);
+	($first_commit, $last_commit);
 }
 
 # private functions below
@@ -279,16 +274,6 @@ sub add_to_feed {
 	1;
 }
 
-sub dump_msg {
-	my ($self, $level, $html, $state) = @_;
-	my $mime = $self->message;
-	if ($mime) {
-		$$html .= PublicInbox::View->index_entry($mime, $level, $state);
-	}
-	dump_msg($self->child, $level+1, $html, $state) if $self->child;
-	dump_msg($self->next, $level, $html, $state) if $self->next;
-}
-
 sub do_cat_mail {
 	my ($git, $path) = @_;
 	my $mime = eval {
@@ -296,17 +281,6 @@ sub do_cat_mail {
 		Email::MIME->new($str);
 	};
 	$@ ? undef : $mime;
-}
-
-sub mime_load_for_sort {
-	my ($git, $path, $messages) = @_;
-	my $mime = do_cat_mail($git, $path) or return 0;
-
-	my $t = eval { str2time($mime->header('Date')) };
-	defined($t) or $t = 0;
-	$mime->header_set('X-PI-TS', $t);
-	push @$messages, $mime;
-	1;
 }
 
 1;
