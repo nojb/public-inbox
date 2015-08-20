@@ -97,11 +97,14 @@ sub index_entry {
 	}
 
 	my $ts = $mime->header('X-PI-TS');
-	my $fmt = '%Y-%m-%d %H:%M UTC';
+	unless (defined $ts) {
+		$ts = msg_timestamp($mime);
+	}
+	my $fmt = '%Y-%m-%d %H:%M';
 	$ts = POSIX::strftime($fmt, gmtime($ts));
 
 	$rv .= "$pfx<b\nid=\"$id\">$subj</b>\n$pfx";
-	$rv .= "- by $from @ $ts - ";
+	$rv .= "- by $from @ $ts UTC - ";
 	$rv .= "<a\nid=\"s$midx\"\nhref=\"#s$next\">next</a>";
 	if ($prev >= 0) {
 		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
@@ -583,13 +586,17 @@ sub load_results {
 			Email::MIME->new($str);
 		};
 		unless ($@) {
-			my $t = eval { str2time($mime->header('Date')) };
-			defined($t) or $t = 0;
-			$mime->header_set('X-PI-TS', $t);
+			$mime->header_set('X-PI-TS', msg_timestamp($mime));
 			push @msgs, $mime;
 		}
 	}
 	\@msgs;
+}
+
+sub msg_timestamp {
+	my ($mime) = @_;
+	my $ts = eval { str2time($mime->header('Date')) };
+	defined($ts) ? $ts : 0;
 }
 
 1;

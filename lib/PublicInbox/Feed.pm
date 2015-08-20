@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Email::Address;
 use Email::MIME;
-use Date::Parse qw(strptime str2time);
+use Date::Parse qw(strptime);
 use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
 use PublicInbox::View;
@@ -70,9 +70,6 @@ sub generate_html_index {
 			$state = [ $ctx->{srch}, {}, $commit, 0 ];
 		}
 		my $mime = do_cat_mail($git, $_[0]) or return 0;
-		my $t = eval { str2time($mime->header('Date')) };
-		defined($t) or $t = 0;
-		$mime->header_set('X-PI-TS', $t);
 		$html .= PublicInbox::View->index_entry($mime, 0, $state);
 		1;
 	});
