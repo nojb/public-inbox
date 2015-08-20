@@ -498,6 +498,7 @@ sub anchor_for {
 
 sub simple_dump {
 	my ($dst, $root, $node, $level) = @_;
+	return unless $node;
 	# $root = [ Root Message-ID, \%seen, $srch ];
 	if (my $x = $node->message) {
 		my $mid = $x->header('Message-ID');
@@ -527,8 +528,8 @@ sub simple_dump {
 			}
 		}
 	}
-	simple_dump($dst, $root, $node->child, $level + 1) if $node->child;
-	simple_dump($dst, $root, $node->next, $level) if $node->next;
+	simple_dump($dst, $root, $node->child, $level+1);
+	simple_dump($dst, $root, $node->next, $level);
 }
 
 sub thread_followups {
@@ -553,6 +554,7 @@ sub thread_html_head {
 
 sub thread_entry {
 	my ($dst, $git, $state, $node, $level) = @_;
+	return unless $node;
 	# $state = [ $search_res, $seen, undef, 0 (msg_nr) ];
 	# $seen is overloaded with 3 types of fields:
 	#	1) "root_anchor" => anchor_for(Message-ID),
@@ -570,11 +572,8 @@ sub thread_entry {
 			$$dst .= index_entry(undef, $mime, $level, $state);
 		}
 	}
-	my $cur;
-	$cur = $node->child and
-		thread_entry($dst, $git, $state, $cur, $level + 1);
-	$cur = $node->next and
-		thread_entry($dst, $git, $state, $cur, $level);
+	thread_entry($dst, $git, $state, $node->child, $level + 1);
+	thread_entry($dst, $git, $state, $node->next, $level);
 }
 
 sub load_results {
