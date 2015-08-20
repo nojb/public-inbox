@@ -22,7 +22,8 @@ use constant {
 	# 2 - subject_path is mid_compressed in the index, only
 	# 3 - message-ID is compressed if it includes '%' (hack!)
 	# 4 - change "Re: " normalization, avoid circular Reference ghosts
-	SCHEMA_VERSION => 4,
+	# 5 - subject_path drops trailing '.'
+	SCHEMA_VERSION => 5,
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
