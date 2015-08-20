@@ -63,7 +63,7 @@ sub generate_html_index {
 
 	my $html = "<html><head><title>$title</title>" .
 		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
-		"href=\"$atom_url\"\"\ntype=\"application/atom+xml\"/>" .
+		"href=\"$atom_url\"\ntype=\"application/atom+xml\"/>" .
 		'</head><body>' . PublicInbox::View::PRE_WRAP .
 		"<b>$title</b> (<a\nhref=\"$atom_url\">Atom feed</a>)\n";
 
