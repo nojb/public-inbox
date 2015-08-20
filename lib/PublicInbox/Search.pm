@@ -214,7 +214,6 @@ sub query {
 	my ($self, $query_string, $opts) = @_;
 	my $query = $self->qp->parse_query($query_string, QP_FLAGS);
 
-	$query = Search::Xapian::Query->new(OP_AND, $mail_query, $query);
 	$self->do_enquire($query, $opts);
 }
 
@@ -255,6 +254,7 @@ sub do_enquire {
 	my ($self, $query, $opts) = @_;
 	my $enquire = $self->enquire;
 
+	$query = Search::Xapian::Query->new(OP_AND, $query, $mail_query);
 	$enquire->set_query($query);
 	$enquire->set_sort_by_relevance_then_value(TS, 0);
 	$opts ||= {};
