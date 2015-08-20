@@ -109,11 +109,15 @@ sub index_entry {
 	}
 	$rv .= "\n\n";
 
+	my ($fhref, $more_ref);
 	my $mhref = "${path}m/$href.html";
-	my $fhref = "${path}f/$href.html";
+	if ($level > 0) {
+		$fhref = "${path}f/$href.html";
+		$more_ref = \$more;
+	}
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		$rv .= index_walk($_[0], $enc_msg, $part_nr, $fhref, \$more);
+		$rv .= index_walk($_[0], $enc_msg, $part_nr, $fhref, $more_ref);
 		$part_nr++;
 	});
 	$mime->body_set('');
@@ -220,12 +224,14 @@ sub index_walk {
 
 	my $s = add_text_body($enc, $part, $part_nr, $fhref);
 
-	# drop the remainder of git patches, they're usually better
-	# to review when the full message is viewed
-	$s =~ s!^---+\n.*\z!!ms and $$more = 'more...';
+	if ($more) {
+		# drop the remainder of git patches, they're usually better
+		# to review when the full message is viewed
+		$s =~ s!^---+\n.*\z!!ms and $$more = 'more...';
 
-	# Drop signatures
-	$s =~ s/^-- \n.*\z//ms and $$more = 'more...';
+		# Drop signatures
+		$s =~ s/^-- \n.*\z//ms and $$more = 'more...';
+	}
 
 	# kill any leading or trailing whitespace lines
 	$s =~ s/^\s*$//sgm;
