@@ -2,7 +2,7 @@
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 #
 # We focus on the lowest common denominators here:
-# - targeted at text-only console browsers (lynx, w3m, etc..)
+# - targeted at text-only console browsers (w3m, links, etc..)
 # - Only basic HTML, CSS only for line-wrapping <pre> text content for GUIs
 # - No JavaScript, graphics or icons allowed.
 # - Must not rely on static content

@@ -56,7 +56,7 @@ variable-width fonts.
 
 * We only use CSS for one reason: wrapping pre-formatted text
   This is necessary because unfortunate GUI browsers tend to be
-  prone to layout widening.  lynx is fine here without CSS :)
+  prone to layout widening.  w3m is fine here without CSS :)
   No other CSS is allowed, especially with scary things like:
 
 	http://thejh.net/misc/website-terminal-copy-paste
