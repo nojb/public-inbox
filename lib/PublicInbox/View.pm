@@ -207,7 +207,7 @@ sub index_walk {
 		$rv .= add_filename_line($enc->decode($fn));
 	}
 
-	my $s = add_text_body_short($enc, $part, $part_nr, $fhref);
+	my $s = add_text_body($enc, $part, $part_nr, $fhref);
 
 	# drop the remainder of git patches, they're usually better
 	# to review when the full message is viewed
@@ -266,12 +266,7 @@ sub multipart_text_as_html {
 			$rv .= add_filename_line($enc->decode($fn));
 		}
 
-		if (defined $full_pfx) {
-			$rv .= add_text_body_short($enc, $part, $part_nr,
-						$full_pfx);
-		} else {
-			$rv .= add_text_body_full($enc, $part, $part_nr);
-		}
+		$rv .= add_text_body($enc, $part, $part_nr, $full_pfx);
 		$rv .= "\n" unless $rv =~ /\n\z/s;
 		++$part_nr;
 	});
@@ -294,57 +289,74 @@ my $LINK_RE = qr!\b((?:ftp|https?|nntp)://[@\w\+\&\?\.\%\;/#=-]+)!;
 sub linkify {
 	# no newlines added here since it'd break the splitting we do
 	# to fold quotes
-	$_[0] =~ s!$LINK_RE!<a href="$1">$1</a>!g;
+	$_[0] =~ s!$LINK_RE!<a\nhref="$1">$1</a>!g;
 }
 
-sub add_text_body_short {
+sub flush_quote {
+	my ($quot, $n, $part_nr, $full_pfx, $final) = @_;
+
+	if ($full_pfx) {
+		if (!$final && scalar(@$quot) <= MAX_INLINE_QUOTED) {
+			# show quote inline
+			my $rv = join("\n", map { linkify($_); $_ } @$quot);
+			@$quot = ();
+			return $rv . "\n";
+		}
+
+		# show a short snippet of quoted text and link to full version:
+		@$quot = map { s/^(?:&gt;\s*)+//gm; $_ } @$quot;
+		my $cur = join(' ', @$quot);
+		@$quot = split(/\s+/, $cur);
+		$cur = '';
+		do {
+			my $tmp = shift(@$quot);
+			my $len = length($tmp) + length($cur);
+			if ($len > MAX_TRUNC_LEN) {
+				@$quot = ();
+			} else {
+				$cur .= $tmp . ' ';
+			}
+		} while (@$quot && length($cur) < MAX_TRUNC_LEN);
+		@$quot = ();
+		$cur =~ s/ \z/ .../s;
+		my $nr = ++$$n;
+		"&gt; [<a\nhref=\"$full_pfx#q${part_nr}_$nr\">$cur</a>]\n";
+	} else {
+		# show everything in the full version with anchor from
+		# short version (see above)
+		my $nr = ++$$n;
+		my $rv = "<a\nid=q${part_nr}_$nr></a>";
+		$rv .= join("\n", map { linkify($_); $_ } @$quot) . "\n";
+		@$quot = ();
+		$rv;
+	}
+}
+
+sub add_text_body {
 	my ($enc, $part, $part_nr, $full_pfx) = @_;
 	my $n = 0;
 	my $s = ascii_html($enc->decode($part->body));
-	linkify($s);
-	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
-		my $cur = $1;
-		my @lines = split(/\n/, $cur);
-		if (@lines > MAX_INLINE_QUOTED) {
-			# show a short snippet of quoted text
-			$cur = join(' ', @lines);
-			$cur =~ s/^&gt;\s*//;
+	my @lines = split(/\n/, $s);
+	$s = '';
+	my $nr = 0;
+	my @quot;
+	while (defined(my $cur = shift @lines)) {
+		if ($cur !~ /^&gt;/) {
+			# show the previously buffered quote inline
+			if (scalar @quot) {
+				$s .= flush_quote(\@quot, \$n, $part_nr,
+						  $full_pfx, 0);
+			}
 
-			my @sum = split(/\s+/, $cur);
-			$cur = '';
-			do {
-				my $tmp = shift(@sum);
-				my $len = length($tmp) + length($cur);
-				if ($len > MAX_TRUNC_LEN) {
-					@sum = ();
-				} else {
-					$cur .= $tmp . ' ';
-				}
-			} while (@sum && length($cur) < MAX_TRUNC_LEN);
-			$cur =~ s/ \z/ .../;
-			"&gt; &lt;<a\nhref=\"${full_pfx}#q${part_nr}_" . $n++ .
-				"\">$cur<\/a>&gt;\n";
+			# regular line, OK
+			linkify($cur);
+			$s .= $cur;
+			$s .= "\n";
 		} else {
-			$cur;
+			push @quot, $cur;
 		}
-	!emg;
-	$s;
-}
-
-sub add_text_body_full {
-	my ($enc, $part, $part_nr) = @_;
-	my $n = 0;
-	my $s = ascii_html($enc->decode($part->body));
-	linkify($s);
-	$s =~ s!^((?:(?:&gt;[^\n]*)\n)+)!
-		my $cur = $1;
-		my @lines = split(/\n/, $cur);
-		if (@lines > MAX_INLINE_QUOTED) {
-			"<a\nid=q${part_nr}_" . $n++ . ">$cur</a>";
-		} else {
-			$cur;
-		}
-	!emg;
+	}
+	$s .= flush_quote(\@quot, \$n, $part_nr, $full_pfx, 1) if scalar @quot;
 	$s;
 }
 
