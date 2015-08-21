@@ -53,7 +53,8 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx, $cgi);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.mbox\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.mbox\.gz!o) {
+		my $sfx = $3;
 		invalid_list_mid(\%ctx, $1, $2) || get_thread_mbox(\%ctx, $cgi);
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/\S+\.txt\z!o) {
@@ -329,7 +330,10 @@ sub msg_pfx {
 	"../f/$href.html";
 }
 
-# /$LISTNAME/t/$MESSAGE_ID.mbox                    -> search results as mbox
+# /$LISTNAME/t/$MESSAGE_ID.mbox.gz        -> search results as gzipped mbox
+# note: I'm not a big fan of other compression formats since they're
+# significantly more expensive on CPU than gzip and less-widely available,
+# especially on older systems.  Stick to zlib since that's what git uses.
 sub get_thread_mbox {
 	my ($ctx, $cgi) = @_;
 	my $srch = searcher($ctx) or return need_search($ctx);

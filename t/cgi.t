@@ -183,15 +183,20 @@ EOF
 {
 	local $ENV{HOME} = $home;
 	local $ENV{PATH} = $main_path;
-	my $path = "/test/t/blahblah%40example.com.mbox";
+	my $path = "/test/t/blahblah%40example.com.mbox.gz";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
 	my $indexed = system($index, $maindir) == 0;
 	if ($indexed) {
 		$res = cgi_run($path);
-		# use Data::Dumper; print STDERR Dumper($res);
 		like($res->{head}, qr/^Status: 200 /, "search returned mbox");
-		like($res->{body}, qr/^From /m, "From lines in mbox");
+		eval {
+			require IO::Uncompress::Gunzip;
+			my $in = $res->{body};
+			my $out;
+			IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+			like($out, qr/^From /m, "From lines in mbox");
+		};
 	} else {
 		like($res->{head}, qr/^Status: 501 /, "search not available");
 	}

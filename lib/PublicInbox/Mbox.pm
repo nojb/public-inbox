@@ -11,8 +11,7 @@ sub thread_mbox {
 	my ($ctx, $srch) = @_;
 	sub {
 		my ($response) = @_; # Plack callback
-		my $w = $response->([200, ['Content-Type' => 'text/plain']]);
-		emit_mbox($w, $ctx, $srch);
+		emit_mbox($response, $ctx, $srch);
 	}
 }
 
@@ -40,7 +39,14 @@ sub emit_msg {
 }
 
 sub emit_mbox {
-	my ($fh, $ctx, $srch) = @_;
+	my ($response, $ctx, $srch) = @_;
+	eval { require IO::Compress::Gzip };
+	return need_gzip($response) if $@;
+
+	# http://www.iana.org/assignments/media-types/application/gzip
+	# http://www.iana.org/assignments/media-types/application/mbox
+	my $fh = $response->([200, ['Content-Type' => 'application/gzip']]);
+	$fh = PublicInbox::MboxGz->new($fh);
 
 	require PublicInbox::GitCatFile;
 	require Email::Simple;
@@ -62,6 +68,58 @@ sub emit_mbox {
 
 		$opts{offset} += $nr;
 	} while ($nr > 0);
+
+	$fh->close;
+}
+
+sub need_gzip {
+	my $fh = $_[0]->([501, ['Content-Type' => 'text/html']]);
+	my $title = 'gzipped mbox not available';
+	$fh->write(<<EOF);
+<html><head><title>$title</title><body><pre>$title
+The administrator needs to install the IO::Compress::Gzip Perl module
+to support gzipped mboxes.
+<a href="../">Return to index</a></pre></body></html>
+EOF
+}
+
+1;
+
+# fh may not be a proper IO, so we wrap the write and close methods
+# to prevent IO::Compress::Gzip from complaining
+package PublicInbox::MboxGz;
+use strict;
+use warnings;
+use fields qw(gz fh buf);
+
+sub new {
+	my ($class, $fh) = @_;
+	my $self = fields::new($class);
+	my $buf;
+	$self->{buf} = \$buf;
+	$self->{gz} = IO::Compress::Gzip->new(\$buf);
+	$self->{fh} = $fh;
+	$self;
+}
+
+sub _flush_buf {
+	my ($self) = @_;
+	if (defined ${$self->{buf}}) {
+		$self->{fh}->write(${$self->{buf}});
+		${$self->{buf}} = undef;
+	}
+}
+
+sub write {
+	$_[0]->{gz}->write($_[1]);
+	_flush_buf($_[0]);
+}
+
+sub close {
+	my ($self) = @_;
+	$self->{gz}->close;
+	_flush_buf($self);
+	# do not actually close $fh
 }
 
 1;
