@@ -4,8 +4,7 @@
 package PublicInbox::Mbox;
 use strict;
 use warnings;
-use PublicInbox::MID qw/mid_clean mid_compressed mid2path/;
-use Fcntl qw(SEEK_SET);
+use PublicInbox::MID qw/mid_compressed mid2path/;
 
 sub thread_mbox {
 	my ($ctx, $srch) = @_;
