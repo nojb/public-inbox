@@ -242,7 +242,7 @@ sub get_thread {
 	my ($self, $mid, $opts) = @_;
 	my $smsg = eval { $self->lookup_message($mid) };
 
-	return { count => 0, msgs => [] } unless $smsg;
+	return { total => 0, msgs => [] } unless $smsg;
 	my $qp = $self->qp;
 	my $qtid = $qp->parse_query('thread:'.$smsg->thread_id);
 	my $qsub = $qp->parse_query('path:'.mid_compressed($smsg->path));
@@ -267,7 +267,7 @@ sub do_enquire {
 		PublicInbox::SearchMsg->load_doc($_->get_document);
 	} $mset->items;
 
-	{ count => $mset->get_matches_estimated, msgs => \@msgs }
+	{ total => $mset->get_matches_estimated, msgs => \@msgs }
 }
 
 # read-write

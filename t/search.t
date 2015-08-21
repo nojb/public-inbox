@@ -73,7 +73,7 @@ sub filter_mids {
 
 	foreach my $p (qw(hello hello_ hello_world2 hello_world_)) {
 		$res = $ro->query("path:$p");
-		is($res->{count}, 0, "path variant `$p' does not match");
+		is($res->{total}, 0, "path variant `$p' does not match");
 	}
 
 	$res = $ro->query('subject:(Hello world)');
@@ -100,7 +100,7 @@ sub filter_mids {
 		is_deeply(\@res, [ 'last@s' ],
 			  "got expected results for $f: match");
 		$res = $ro->query($f . ':root');
-		is($res->{count}, 0, "no partial mid match");
+		is($res->{total}, 0, "no partial mid match");
 	}
 }
 
@@ -204,7 +204,7 @@ sub filter_mids {
 	$rw_commit->();
 	$ro->reopen;
 	my $t = $ro->get_thread('root@s');
-	is($t->{count}, 4, "got all 4 mesages in thread");
+	is($t->{total}, 4, "got all 4 mesages in thread");
 	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_midc);
 	@res = filter_mids($t);
 	is_deeply(\@res, \@exp, "get_thread works");
@@ -233,12 +233,12 @@ sub filter_mids {
 		],
 		body => "theatre\nfade\n"));
 	my $res = $rw->query("theatre");
-	is($res->{count}, 2, "got both matches");
+	is($res->{total}, 2, "got both matches");
 	is($res->{msgs}->[0]->mid, 'nquote@a', "non-quoted scores higher");
 	is($res->{msgs}->[1]->mid, 'quote@a', "quoted result still returned");
 
 	$res = $rw->query("illusions");
-	is($res->{count}, 1, "got a match for quoted text");
+	is($res->{total}, 1, "got a match for quoted text");
 	is($res->{msgs}->[0]->mid, 'quote@a',
 		"quoted result returned if nothing else");
 }

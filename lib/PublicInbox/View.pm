@@ -438,7 +438,7 @@ sub html_footer {
 		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">".
 		       "threadlink</a>$idx";
 		my $res = $srch->get_followups($mid);
-		if (my $c = $res->{count}) {
+		if (my $c = $res->{total}) {
 			$c = $c == 1 ? '1 followup' : "$c followups";
 			$idx .= "\n$c:\n";
 			$res->{srch} = $srch;
