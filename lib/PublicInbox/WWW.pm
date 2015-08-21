@@ -53,6 +53,9 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx, $cgi);
 
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.mbox\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_thread_mbox(\%ctx, $cgi);
+
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/\S+\.txt\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) ||
 			redirect_mid_txt(\%ctx, $cgi);
@@ -324,6 +327,14 @@ sub msg_pfx {
 	my ($ctx) = @_;
 	my $href = PublicInbox::Hval::ascii_html(uri_escape_utf8($ctx->{mid}));
 	"../f/$href.html";
+}
+
+# /$LISTNAME/t/$MESSAGE_ID.mbox                    -> search results as mbox
+sub get_thread_mbox {
+	my ($ctx, $cgi) = @_;
+	my $srch = searcher($ctx) or return need_search($ctx);
+	require PublicInbox::Mbox;
+	PublicInbox::Mbox::thread_mbox($ctx, $srch);
 }
 
 1;

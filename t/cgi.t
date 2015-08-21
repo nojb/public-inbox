@@ -10,6 +10,7 @@ use IPC::Run qw/run/;
 
 use constant CGI => "blib/script/public-inbox.cgi";
 my $mda = "blib/script/public-inbox-mda";
+my $index = "blib/script/public-inbox-index";
 my $tmpdir = tempdir(CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
@@ -176,6 +177,24 @@ EOF
 	$res = cgi_run("/test/");
 	like($res->{body}, qr/slashy%2Fasdf%40example\.com/,
 		"slashy URL generated correctly");
+}
+
+# retrieve thread as an mbox
+{
+	local $ENV{HOME} = $home;
+	local $ENV{PATH} = $main_path;
+	my $path = "/test/t/blahblah%40example.com.mbox";
+	my $res = cgi_run($path);
+	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
+	my $indexed = system($index, $maindir) == 0;
+	if ($indexed) {
+		$res = cgi_run($path);
+		# use Data::Dumper; print STDERR Dumper($res);
+		like($res->{head}, qr/^Status: 200 /, "search returned mbox");
+		like($res->{body}, qr/^From /m, "From lines in mbox");
+	} else {
+		like($res->{head}, qr/^Status: 501 /, "search not available");
+	}
 }
 
 # redirect list-name-only URLs
