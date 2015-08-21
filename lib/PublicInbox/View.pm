@@ -53,7 +53,7 @@ sub index_entry {
 	my $midx = $state->[3]++;
 	my ($prev, $next) = ($midx - 1, $midx + 1);
 	my $part_nr = 0;
-	my $enc_msg = enc_for($mime->header("Content-Type"));
+	my $enc = enc_for($mime->header("Content-Type"));
 	my $subj = $mime->header('Subject');
 	my $header_obj = $mime->header_obj;
 
@@ -117,8 +117,7 @@ sub index_entry {
 	}
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		$rv .= index_walk($_[0], $enc_msg, $part_nr, $fhref, $more_ref);
-		$part_nr++;
+		$rv .= index_walk($_[0], $enc, \$part_nr, $fhref, $more_ref);
 	});
 	$mime->body_set('');
 
@@ -176,25 +175,7 @@ sub thread_html {
 # only private functions below.
 
 sub index_walk {
-	my ($part, $enc_msg, $part_nr, $fhref, $more) = @_;
-	my $rv = '';
-	return $rv if $part->subparts; # walk_parts already recurses
-	my $ct = $part->content_type;
-
-	# account for filter bugs...
-	if (defined $ct && $ct =~ m!\btext/[xh]+tml\b!i) {
-		$part->body_set('');
-		return '';
-	}
-
-	my $enc = enc_for($ct, $enc_msg);
-
-	if ($part_nr > 0) {
-		my $fn = $part->filename;
-		defined($fn) or $fn = "part #" . ($part_nr + 1);
-		$rv .= add_filename_line($enc->decode($fn));
-	}
-
+	my ($part, $enc, $part_nr, $fhref, $more) = @_;
 	my $s = add_text_body($enc, $part, $part_nr, $fhref);
 
 	if ($more) {
@@ -213,12 +194,9 @@ sub index_walk {
 	if (length $s) {
 		# kill per-line trailing whitespace
 		$s =~ s/[ \t]+$//sgm;
-
-		$rv .= $s;
-		$s = undef;
-		$rv .= "\n";
+		$s .= "\n" unless $s =~ /\n\z/s;
 	}
-	$rv;
+	$s;
 }
 
 sub enc_for {
@@ -239,38 +217,22 @@ sub multipart_text_as_html {
 	my ($mime, $full_pfx, $srch) = @_;
 	my $rv = "";
 	my $part_nr = 0;
-	my $enc_msg = enc_for($mime->header("Content-Type"));
+	my $enc = enc_for($mime->header("Content-Type"));
 
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
-		return if $part->subparts; # walk_parts already recurses
-		my $ct = $part->content_type;
-
-		# account for filter bugs...
-		return if defined $ct && $ct =~ m!\btext/[xh]+tml\b!i;
-
-		my $enc = enc_for($ct, $enc_msg);
-
-		if ($part_nr > 0) {
-			my $fn = $part->filename;
-			defined($fn) or $fn = "part #" . ($part_nr + 1);
-			$rv .= add_filename_line($enc->decode($fn));
-		}
-
-		$rv .= add_text_body($enc, $part, $part_nr, $full_pfx);
-		$rv .= "\n" unless $rv =~ /\n\z/s;
-		++$part_nr;
+		$rv .= add_text_body($enc, $part, \$part_nr, $full_pfx);
 	});
 	$mime->body_set('');
 	$rv;
 }
 
 sub add_filename_line {
-	my ($fn) = @_;
+	my ($enc, $fn) = @_;
 	my $len = 72;
 	my $pad = "-";
-
+	$fn = $enc->decode($fn);
 	$len -= length($fn);
 	$pad x= ($len/2) if ($len > 0);
 	"$pad " . ascii_html($fn) . " $pad\n";
@@ -325,7 +287,16 @@ sub flush_quote {
 }
 
 sub add_text_body {
-	my ($enc, $part, $part_nr, $full_pfx) = @_;
+	my ($enc_msg, $part, $part_nr, $full_pfx) = @_;
+	return '' if $part->subparts;
+
+	my $ct = $part->content_type;
+	# account for filter bugs...
+	if (defined $ct && $ct =~ m!\btext/[xh]+tml\b!i) {
+		$part->body_set('');
+		return '';
+	}
+	my $enc = enc_for($ct, $enc_msg);
 	my $n = 0;
 	my $nr = 0;
 	my $s = $part->body;
@@ -334,12 +305,19 @@ sub add_text_body {
 	$s = ascii_html($s);
 	my @lines = split(/\n/, $s);
 	$s = '';
+
+	if ($$part_nr > 0) {
+		my $fn = $part->filename;
+		defined($fn) or $fn = "part #" . ($$part_nr + 1);
+		$s .= add_filename_line($enc, $fn);
+	}
+
 	my @quot;
 	while (defined(my $cur = shift @lines)) {
 		if ($cur !~ /^&gt;/) {
 			# show the previously buffered quote inline
 			if (scalar @quot) {
-				$s .= flush_quote(\@quot, \$n, $part_nr,
+				$s .= flush_quote(\@quot, \$n, $$part_nr,
 						  $full_pfx, 0);
 			}
 
@@ -351,7 +329,9 @@ sub add_text_body {
 			push @quot, $cur;
 		}
 	}
-	$s .= flush_quote(\@quot, \$n, $part_nr, $full_pfx, 1) if scalar @quot;
+	$s .= flush_quote(\@quot, \$n, $$part_nr, $full_pfx, 1) if scalar @quot;
+	$s .= "\n" unless $s =~ /\n\z/s;
+	++$$part_nr;
 	$s;
 }
 
