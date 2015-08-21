@@ -100,10 +100,10 @@ sub index_entry {
 	if ($level) {
 		$rv .= '<td><pre>' . ('  ' x $level) . '</pre></td>';
 	}
-	$rv .= '<td>' . PRE_WRAP;
+	$rv .= "<td\nid=s$midx>" . PRE_WRAP;
 	$rv .= "<b\nid=\"$id\">$subj</b>\n";
 	$rv .= "- by $from @ $ts UTC - ";
-	$rv .= "<a\nid=\"s$midx\"\nhref=\"#s$next\">next</a>";
+	$rv .= "<a\nhref=\"#s$next\">next</a>";
 	if ($prev >= 0) {
 		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
 	}
