@@ -247,7 +247,7 @@ sub get_thread {
 	my $qtid = $qp->parse_query('thread:'.$smsg->thread_id);
 	my $qsub = $qp->parse_query('path:'.mid_compressed($smsg->path));
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
-	$self->do_enquire($query);
+	$self->do_enquire($query, $opts);
 }
 
 # private subs below

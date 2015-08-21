@@ -9,27 +9,14 @@ use Fcntl qw(SEEK_SET);
 
 sub thread_mbox {
 	my ($ctx, $srch) = @_;
-	my $mid = mid_compressed($ctx->{mid});
-	my $res = $srch->get_thread($mid);
-	my $msgs = delete $res->{msgs};
-	require PublicInbox::GitCatFile;
-	require Email::Simple;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-
 	sub {
-		my ($res) = @_; # Plack callback
-		my $w = $res->([200, [ 'Content-Type' => 'text/plain' ] ]);
-		while (defined(my $smsg = shift @$msgs)) {
-			my $msg = eval {
-				my $path = 'HEAD:' . mid2path($smsg->mid);
-				Email::Simple->new($git->cat_file($path));
-			};
-			emit($w, $msg) if $msg;
-		}
+		my ($response) = @_; # Plack callback
+		my $w = $response->([200, ['Content-Type' => 'text/plain']]);
+		emit_mbox($w, $ctx, $srch);
 	}
 }
 
-sub emit {
+sub emit_msg {
 	my ($fh, $simple) = @_; # Email::Simple object
 
 	# drop potentially confusing headers, ssoma already should've dropped
@@ -50,6 +37,31 @@ sub emit {
 	$buf .= "\n" unless $buf =~ /\n\z/s;
 
 	$fh->write($buf);
+}
+
+sub emit_mbox {
+	my ($fh, $ctx, $srch) = @_;
+
+	require PublicInbox::GitCatFile;
+	require Email::Simple;
+	my $mid = mid_compressed($ctx->{mid});
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my %opts = (offset => 0);
+	my $nr;
+	do {
+		my $res = $srch->get_thread($mid, \%opts);
+		my $msgs = $res->{msgs};
+		$nr = scalar @$msgs;
+		while (defined(my $smsg = shift @$msgs)) {
+			my $msg = eval {
+				my $p = 'HEAD:'.mid2path($smsg->mid);
+				Email::Simple->new($git->cat_file($p));
+			};
+			emit_msg($fh, $msg) if $msg;
+		}
+
+		$opts{offset} += $nr;
+	} while ($nr > 0);
 }
 
 1;
