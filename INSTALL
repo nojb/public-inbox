@@ -41,6 +41,7 @@ Optional modules:
   - URI::Escape[1]             liburi-perl
   - XML::Atom::SimpleFeed[1]   libxml-atom-simplefeed-perl
   - Search::Xapian[3]          libsearch-xapian-perl
+  - IO::Compress::Gzip[3]      libio-compress-perl
 
 [1] - Only required for serving/generating Atom and HTML pages.
 [2] - Keep in mind this will be split into a separate Debian package
