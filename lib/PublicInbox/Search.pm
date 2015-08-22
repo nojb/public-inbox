@@ -82,7 +82,7 @@ sub query {
 sub get_subject_path {
 	my ($self, $path, $opts) = @_;
 	my $query = $self->qp->parse_query("path:".mid_compressed($path), 0);
-	$self->do_enquire($query);
+	$self->do_enquire($query, $opts);
 }
 
 # given a message ID, get followups to a message
@@ -94,8 +94,7 @@ sub get_followups {
 	my $irt = $qp->parse_query("inreplyto:$mid", 0);
 	my $ref = $qp->parse_query("references:$mid", 0);
 	my $query = Search::Xapian::Query->new(OP_OR, $irt, $ref);
-
-	$self->do_enquire($query);
+	$self->do_enquire($query, $opts);
 }
 
 sub get_thread {
@@ -104,8 +103,8 @@ sub get_thread {
 
 	return { total => 0, msgs => [] } unless $smsg;
 	my $qp = $self->qp;
-	my $qtid = $qp->parse_query('thread:'.$smsg->thread_id);
-	my $qsub = $qp->parse_query('path:'.mid_compressed($smsg->path));
+	my $qtid = $qp->parse_query('thread:'.$smsg->thread_id, 0);
+	my $qsub = $qp->parse_query('path:'.mid_compressed($smsg->path), 0);
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
 	$self->do_enquire($query, $opts);
 }
