@@ -48,7 +48,7 @@ sub feed_entry {
 # this is already inside a <pre>
 # state = [ time, seen = {}, first_commit, page_nr = 0 ]
 sub index_entry {
-	my (undef, $mime, $level, $state) = @_;
+	my ($fh, $mime, $level, $state) = @_;
 	my ($srch, $seen, $first_commit) = @$state;
 	my $midx = $state->[3]++;
 	my ($prev, $next) = ($midx - 1, $midx + 1);
@@ -107,7 +107,7 @@ sub index_entry {
 	if ($prev >= 0) {
 		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
 	}
-	$rv .= "\n\n";
+	$fh->write($rv .= "\n\n");
 
 	my ($fhref, $more_ref);
 	my $mhref = "${path}m/$href.html";
@@ -117,13 +117,12 @@ sub index_entry {
 	}
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		$rv .= index_walk($_[0], $enc, \$part_nr, $fhref, $more_ref);
+		index_walk($fh, $_[0], $enc, \$part_nr, $fhref, $more_ref);
 	});
 	$mime->body_set('');
 
-	$rv .= "\n<a\nhref=\"$mhref\">$more</a> ";
 	my $txt = "${path}m/$href.txt";
-	$rv .= "<a\nhref=\"$txt\">raw</a> ";
+	$rv = "\n<a\nhref=\"$mhref\">$more</a> <a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0);
 
 	if (defined $irt) {
@@ -141,23 +140,30 @@ sub index_entry {
 		       "threadlink</a>";
 	}
 
-	$rv .= '</pre></td></tr></table>';
+	$fh->write($rv .= '</pre></td></tr></table>');
 }
 
 sub thread_html {
-	my (undef, $ctx, $foot, $srch) = @_;
+	my ($ctx, $foot, $srch) = @_;
+	sub { emit_thread_html($_[0], $ctx, $foot, $srch) }
+}
+
+# only private functions below.
+
+sub emit_thread_html {
+	my ($cb, $ctx, $foot, $srch) = @_;
 	my $mid = mid_compressed($ctx->{mid});
 	my $res = $srch->get_thread($mid);
-	my $rv = '';
 	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
-	return $rv if $nr == 0;
+	return missing_thread($cb) if $nr == 0;
+	my $fh = $cb->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
 	my $th = thread_results($msgs);
 	my $state = [ $srch, { root_anchor => anchor_for($mid) }, undef, 0 ];
 	{
 		require PublicInbox::GitCatFile;
 		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-		thread_entry(\$rv, $git, $state, $_, 0) for $th->rootset;
+		thread_entry($fh, $git, $state, $_, 0) for $th->rootset;
 	}
 	my $final_anchor = $state->[3];
 	my $next = "<a\nid=\"s$final_anchor\">";
@@ -169,13 +175,13 @@ sub thread_html {
 	}
 	$next .= "</a>, back to <a\nhref=\"../\">index</a>\n";
 
-	$rv .= "<hr />" . PRE_WRAP . $next . $foot . "</pre>";
+	$fh->write("<hr />" . PRE_WRAP . $next . $foot .
+		   "</pre></body></html>");
+	$fh->close;
 }
 
-# only private functions below.
-
 sub index_walk {
-	my ($part, $enc, $part_nr, $fhref, $more) = @_;
+	my ($fh, $part, $enc, $part_nr, $fhref, $more) = @_;
 	my $s = add_text_body($enc, $part, $part_nr, $fhref);
 
 	if ($more) {
@@ -196,7 +202,7 @@ sub index_walk {
 		$s =~ s/[ \t]+$//sgm;
 		$s .= "\n" unless $s =~ /\n\z/s;
 	}
-	$s;
+	$fh->write($s);
 }
 
 sub enc_for {
@@ -533,7 +539,7 @@ sub thread_html_head {
 }
 
 sub thread_entry {
-	my ($dst, $git, $state, $node, $level) = @_;
+	my ($fh, $git, $state, $node, $level) = @_;
 	return unless $node;
 	# $state = [ $search_res, $seen, undef, 0 (msg_nr) ];
 	# $seen is overloaded with 3 types of fields:
@@ -546,14 +552,14 @@ sub thread_entry {
 		my $path = mid2path(mid_clean($mime->header('Message-ID')));
 		$mime = eval { Email::MIME->new($git->cat_file("HEAD:$path")) };
 		if ($mime) {
-			if (length($$dst) == 0) {
-				$$dst .= thread_html_head($mime);
+			if ($state->[3] == 0) {
+				$fh->write(thread_html_head($mime));
 			}
-			$$dst .= index_entry(undef, $mime, $level, $state);
+			index_entry($fh, $mime, $level, $state);
 		}
 	}
-	thread_entry($dst, $git, $state, $node->child, $level + 1);
-	thread_entry($dst, $git, $state, $node->next, $level);
+	thread_entry($fh, $git, $state, $node->child, $level + 1);
+	thread_entry($fh, $git, $state, $node->next, $level);
 }
 
 sub load_results {
@@ -575,6 +581,15 @@ sub thread_results {
 	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	$th
+}
+
+sub missing_thread {
+	my ($cb) = @_;
+	my $title = 'Thread does not exist';
+	$cb->([404, ['Content-Type' => 'text/html']])->write(<<EOF);
+<html><head><title>$title</title></head><body><pre>$title
+<a href="../">Return to index</a></pre></body></html>
+EOF
 }
 
 1;

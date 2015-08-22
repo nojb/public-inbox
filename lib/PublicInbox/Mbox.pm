@@ -80,6 +80,7 @@ The administrator needs to install the IO::Compress::Gzip Perl module
 to support gzipped mboxes.
 <a href="../">Return to index</a></pre></body></html>
 EOF
+	$fh->close;
 }
 
 1;
@@ -118,7 +119,7 @@ sub close {
 	my ($self) = @_;
 	$self->{gz}->close;
 	_flush_buf($self);
-	# do not actually close $fh
+	$self->{fh}->close;
 }
 
 1;

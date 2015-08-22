@@ -128,8 +128,7 @@ sub get_index {
 	$ctx->{pi_config} = $pi_config;
 	$ctx->{cgi} = $cgi;
 	footer($ctx);
-	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::Feed->generate_html_index($ctx) ] ]
+	PublicInbox::Feed::generate_html_index($ctx);
 }
 
 # just returns a string ref for the blob in the current ctx
@@ -195,10 +194,7 @@ sub get_thread {
 	my $srch = searcher($ctx) or return need_search($ctx);
 	require PublicInbox::View;
 	my $foot = footer($ctx);
-	my $body = PublicInbox::View->thread_html($ctx, $foot, $srch) or
-		return r404();
-	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ $body ] ];
+	PublicInbox::View::thread_html($ctx, $foot, $srch);
 }
 
 sub self_url {
