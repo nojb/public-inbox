@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-eval { require PublicInbox::Search; };
+eval { require PublicInbox::SearchIdx; };
 plan skip_all => "Xapian missing for search" if $@;
 use File::Temp qw/tempdir/;
 use Email::MIME;
@@ -16,11 +16,11 @@ is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
 eval { PublicInbox::Search->new($git_dir) };
 ok($@, "exception raised on non-existent DB");
 
-my $rw = PublicInbox::Search->new($git_dir, 1);
+my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
 my $ro = PublicInbox::Search->new($git_dir);
 my $rw_commit = sub {
 	$rw = undef;
-	$rw = PublicInbox::Search->new($git_dir, 1);
+	$rw = PublicInbox::SearchIdx->new($git_dir, 1);
 };
 
 {
