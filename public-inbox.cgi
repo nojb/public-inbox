@@ -4,13 +4,16 @@
 use strict;
 use warnings;
 use IO::Handle;
-require PublicInbox::WWW;
+use PublicInbox::WWW;
 use CGI qw/-nosticky/;
 our $NO_SCRIPT_NAME;
 our %HTTP_CODES;
 BEGIN {
 	$NO_SCRIPT_NAME = 1 if $ENV{NO_SCRIPT_NAME};
-	CGI->compile if $ENV{MOD_PERL};
+	if ($ENV{MOD_PERL}) {
+		CGI->compile;
+		PublicInbox::WWW->preload;
+	}
 
 	%HTTP_CODES = (
 		200 => 'OK',

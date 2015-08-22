@@ -77,10 +77,17 @@ sub preload {
 	require PublicInbox::Feed;
 	require PublicInbox::View;
 	require PublicInbox::Thread;
+	require PublicInbox::GitCatFile;
 	require Email::MIME;
 	require Digest::SHA;
 	require POSIX;
 	require XML::Atom::SimpleFeed;
+
+	eval {
+		require PublicInbox::Search;
+		require PublicInbox::Mbox;
+		require IO::Compress::Gzip;
+	};
 }
 
 # private functions below
