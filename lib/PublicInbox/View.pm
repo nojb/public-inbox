@@ -437,7 +437,12 @@ sub html_footer {
 		       "threadlink</a>$idx";
 		my $res = $srch->get_followups($mid);
 		if (my $c = $res->{total}) {
-			$c = $c == 1 ? '1 followup' : "$c followups";
+			my $nr = scalar @{$res->{msgs}};
+			if ($nr < $c) {
+				$c = "$nr of $c followups";
+			} else {
+				$c = $c == 1 ? '1 followup' : "$c followups";
+			}
 			$idx .= "\n$c:\n";
 			$res->{srch} = $srch;
 			thread_followups(\$idx, $mime, $res);
