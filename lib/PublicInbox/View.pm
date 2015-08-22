@@ -93,8 +93,7 @@ sub index_entry {
 	unless (defined $ts) {
 		$ts = msg_timestamp($mime);
 	}
-	my $fmt = '%Y-%m-%d %H:%M';
-	$ts = POSIX::strftime($fmt, gmtime($ts));
+	$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
 
 	my $rv = "<table\nsummary=l$level><tr>";
 	if ($level) {
@@ -167,14 +166,8 @@ sub emit_thread_html {
 	}
 	my $final_anchor = $state->[3];
 	my $next = "<a\nid=\"s$final_anchor\">";
-
-	if ($final_anchor == 1) {
-		$next .= 'only message in thread';
-	} else {
-		$next .= 'end of thread';
-	}
-	$next .= "</a>, back to <a\nhref=\"../\">index</a>\n";
-
+	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
+	$next .= " thread</a>, back to <a\nhref=\"../\">index</a>\n";
 	$fh->write("<hr />" . PRE_WRAP . $next . $foot .
 		   "</pre></body></html>");
 	$fh->close;
@@ -258,9 +251,9 @@ sub flush_quote {
 	if ($full_pfx) {
 		if (!$final && scalar(@$quot) <= MAX_INLINE_QUOTED) {
 			# show quote inline
-			my $rv = join("\n", map { linkify($_); $_ } @$quot);
+			my $rv = join('', map { linkify($_); $_ } @$quot);
 			@$quot = ();
-			return $rv . "\n";
+			return $rv;
 		}
 
 		# show a short snippet of quoted text and link to full version:
@@ -286,7 +279,7 @@ sub flush_quote {
 		# short version (see above)
 		my $nr = ++$$n;
 		my $rv = "<a\nid=q${part_nr}_$nr></a>";
-		$rv .= join("\n", map { linkify($_); $_ } @$quot) . "\n";
+		$rv .= join('', map { linkify($_); $_ } @$quot);
 		@$quot = ();
 		$rv;
 	}
@@ -309,7 +302,7 @@ sub add_text_body {
 	$part->body_set('');
 	$s = $enc->decode($s);
 	$s = ascii_html($s);
-	my @lines = split(/\n/, $s);
+	my @lines = split(/^/m, $s);
 	$s = '';
 
 	if ($$part_nr > 0) {
@@ -330,7 +323,6 @@ sub add_text_body {
 			# regular line, OK
 			linkify($cur);
 			$s .= $cur;
-			$s .= "\n";
 		} else {
 			push @quot, $cur;
 		}
