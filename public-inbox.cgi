@@ -32,16 +32,13 @@ my $ret = PublicInbox::WWW::run($req, $req->request_method);
 
 my $out = select;
 $out->binmode;
-if (@ARGV && $ARGV[0] eq 'static') {
-	$out->write($ret->[2]->[0]); # only show the body
-} else { # CGI
-	if (ref($ret) eq 'CODE') {
-		$ret->(*dump_header);
-	} else {
-		my ($status, $headers, $body) = @$ret;
 
-		dump_header([$status, $headers])->write($body->[0]);
-	}
+if (ref($ret) eq 'CODE') {
+	$ret->(*dump_header);
+} else {
+	my ($status, $headers, $body) = @$ret;
+
+	dump_header([$status, $headers])->write($body->[0]);
 }
 
 sub dump_header {
