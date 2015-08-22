@@ -7,10 +7,10 @@ use warnings;
 use PublicInbox::MID qw/mid_compressed mid2path/;
 
 sub thread_mbox {
-	my ($ctx, $srch) = @_;
+	my ($ctx, $srch, $sfx) = @_;
 	sub {
 		my ($response) = @_; # Plack callback
-		emit_mbox($response, $ctx, $srch);
+		emit_mbox($response, $ctx, $srch, $sfx);
 	}
 }
 
@@ -38,14 +38,18 @@ sub emit_msg {
 }
 
 sub emit_mbox {
-	my ($response, $ctx, $srch) = @_;
-	eval { require IO::Compress::Gzip };
-	return need_gzip($response) if $@;
+	my ($response, $ctx, $srch, $sfx) = @_;
+	my $type = 'mbox';
+	if ($sfx) {
+		eval { require IO::Compress::Gzip };
+		return need_gzip($response) if $@;
+		$type = 'gzip';
+	}
 
 	# http://www.iana.org/assignments/media-types/application/gzip
 	# http://www.iana.org/assignments/media-types/application/mbox
-	my $fh = $response->([200, ['Content-Type' => 'application/gzip']]);
-	$fh = PublicInbox::MboxGz->new($fh);
+	my $fh = $response->([200, ['Content-Type' => "application/$type"]]);
+	$fh = PublicInbox::MboxGz->new($fh) if $sfx;
 
 	require PublicInbox::GitCatFile;
 	require Email::Simple;
