@@ -579,6 +579,7 @@ sub thread_results {
 	require PublicInbox::Thread;
 	my $th = PublicInbox::Thread->new(@$msgs);
 	$th->thread;
+	no warnings 'once';
 	$th->order(*PublicInbox::Thread::sort_ts);
 	$th
 }
