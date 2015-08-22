@@ -81,7 +81,6 @@ sub preload {
 	require Email::MIME;
 	require Digest::SHA;
 	require POSIX;
-	require XML::Atom::SimpleFeed;
 
 	eval {
 		require PublicInbox::Search;
@@ -120,11 +119,10 @@ sub invalid_list_mid {
 # /$LISTNAME/atom.xml                       -> Atom feed, includes replies
 sub get_atom {
 	my ($ctx, $cgi) = @_;
-	require PublicInbox::Feed;
 	$ctx->{pi_config} = $pi_config;
 	$ctx->{cgi} = $cgi;
-	[ 200, [ 'Content-Type' => 'application/xml' ],
-	  [ PublicInbox::Feed->generate($ctx) ] ]
+	require PublicInbox::Feed;
+	PublicInbox::Feed::generate($ctx);
 }
 
 # /$LISTNAME/?r=$GIT_COMMIT                 -> HTML only

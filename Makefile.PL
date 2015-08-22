@@ -26,7 +26,6 @@ WriteMakefile(
 		'IPC::Run' => 0,
 		'Mail::Thread' => '2.5', # 2.5+ needed for Email::Simple compat
 		'URI::Escape' => 0,
-		'XML::Atom::SimpleFeed' => 0,
 		# We have more test dependencies, but do not force
 		# users to install them
 	},

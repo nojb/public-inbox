@@ -55,18 +55,8 @@ EOF
 		git_dir => $git_dir,
 		max => 3
 	});
-	my $headers;
-	my $io = IO::File->new_tmpfile;
-	use POSIX qw/dup/;
-	my $dup = dup($io->fileno);
-	my $response = sub { $headers = \@_, $io };
-	$cb->($response);
-	$io = IO::File->new;
-	$io->fdopen($dup, 'r+');
-	$io->seek(0, 0);
-	$io->read(my $feed, 666666);
-	like($feed, qr/html/, "feed is valid HTML :)");
-	$io->close;
+	require 't/common.perl';
+	like(stream_to_string($cb), qr/html/, "feed is valid HTML :)");
 }
 
 done_testing();

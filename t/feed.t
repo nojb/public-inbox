@@ -9,6 +9,11 @@ use PublicInbox::Config;
 use IPC::Run qw/run/;
 use File::Temp qw/tempdir/;
 my $have_xml_feed = eval { require XML::Feed; 1 };
+require 't/common.perl';
+
+sub string_feed {
+	stream_to_string(PublicInbox::Feed::generate($_[0]));
+}
 
 my $tmpdir = tempdir(CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
@@ -58,7 +63,7 @@ EOF
 {
 	# check initial feed
 	{
-		my $feed = PublicInbox::Feed->generate({
+		my $feed = string_feed({
 			git_dir => $git_dir,
 			max => 3
 		});
@@ -101,7 +106,7 @@ EOF
 
 	# check spam shows up
 	{
-		my $spammy_feed = PublicInbox::Feed->generate({
+		my $spammy_feed = string_feed({
 			git_dir => $git_dir,
 			max => 3
 		});
@@ -123,7 +128,7 @@ EOF
 
 	# spam no longer shows up
 	{
-		my $feed = PublicInbox::Feed->generate({
+		my $feed = string_feed({
 			git_dir => $git_dir,
 			max => 3
 		});
@@ -140,7 +145,7 @@ EOF
 # check pi_config
 {
 	foreach my $addr (('a@example.com'), ['a@example.com','b@localhost']) {
-		my $feed = PublicInbox::Feed->generate({
+		my $feed = string_feed({
 			git_dir => $git_dir,
 			max => 3,
 			listname => 'asdf',

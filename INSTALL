@@ -39,7 +39,6 @@ Optional modules:
   - CGI[1]                     perl-modules[2]
   - Mail::Thread (2.5+)[1]     libmail-thread-perl
   - URI::Escape[1]             liburi-perl
-  - XML::Atom::SimpleFeed[1]   libxml-atom-simplefeed-perl
   - Search::Xapian[3]          libsearch-xapian-perl
   - IO::Compress::Gzip[3]      libio-compress-perl
 

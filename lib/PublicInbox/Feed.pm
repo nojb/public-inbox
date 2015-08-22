@@ -1,4 +1,4 @@
-# Copyright (C) 2013, Eric Wong <normalperson@yhbt.net> and all contributors
+# Copyright (C) 2013-2015, all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 package PublicInbox::Feed;
 use strict;
@@ -20,35 +20,8 @@ my $enc_utf8 = find_encoding('UTF-8');
 
 # main function
 sub generate {
-	my ($class, $ctx) = @_;
-	require XML::Atom::SimpleFeed;
-	require POSIX;
-	my $max = $ctx->{max} || MAX_PER_PAGE;
-
-	my $feed_opts = get_feedopts($ctx);
-	my $addr = $feed_opts->{address};
-	$addr = $addr->[0] if ref($addr);
-	my $feed = XML::Atom::SimpleFeed->new(
-		title => $feed_opts->{description} || "unnamed feed",
-		link => $feed_opts->{url} || "http://example.com/",
-		link => {
-			rel => 'self',
-			href => $feed_opts->{atomurl} ||
-				"http://example.com/atom.xml",
-		},
-		id => 'mailto:' . ($addr || 'public-inbox@example.com'),
-		updated => POSIX::strftime(DATEFMT, gmtime),
-	);
-	$feed->no_generator;
-
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-	each_recent_blob($ctx, sub {
-		my ($add, undef) = @_;
-		add_to_feed($feed_opts, $feed, $add, $git);
-	});
-	$git = undef; # destroy pipes
-	Email::Address->purge_cache;
-	$feed->as_string;
+	my ($ctx) = @_;
+	sub { emit_atom($_[0], $ctx) };
 }
 
 sub generate_html_index {
@@ -57,6 +30,40 @@ sub generate_html_index {
 }
 
 # private subs
+
+sub emit_atom {
+	my ($cb, $ctx) = @_;
+	require POSIX;
+	my $fh = $cb->([ 200, ['Content-Type' => 'application/xml']]);
+	my $max = $ctx->{max} || MAX_PER_PAGE;
+	my $feed_opts = get_feedopts($ctx);
+	my $addr = $feed_opts->{address};
+	$addr = $addr->[0] if ref($addr);
+	$addr ||= 'public-inbox@example.com';
+	my $title = $feed_opts->{description} || "unnamed feed";
+	$title = PublicInbox::Hval->new_oneline($title)->as_html;
+	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
+	my $url = $feed_opts->{url} || "http://example.com/";
+	my $atomurl = $feed_opts->{atomurl};
+	$fh->write(qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
+		qq{<feed\nxmlns="http://www.w3.org/2005/Atom">} .
+		qq{<title$type>$title</title>} .
+		qq{<link\nhref="$url"/>} .
+		qq{<link\nrel="self"\nhref="$atomurl"/>} .
+		qq{<id>mailto:$addr</id>} .
+		'<updated>' . POSIX::strftime(DATEFMT, gmtime) . '</updated>');
+
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	each_recent_blob($ctx, sub {
+		my ($add, undef) = @_;
+		add_to_feed($feed_opts, $fh, $add, $git);
+	});
+	$git = undef; # destroy pipes
+	Email::Address->purge_cache;
+	$fh->write("</feed>");
+	$fh->close;
+}
+
 
 sub emit_html_index {
 	my ($cb, $ctx) = @_;
@@ -253,10 +260,9 @@ sub feed_date {
 
 # returns 0 (skipped) or 1 (added)
 sub add_to_feed {
-	my ($feed_opts, $feed, $add, $git) = @_;
+	my ($feed_opts, $fh, $add, $git) = @_;
 
 	my $mime = do_cat_mail($git, $add) or return 0;
-	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
 	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
 
 	my $header_obj = $mime->header_obj;
@@ -268,30 +274,34 @@ sub add_to_feed {
 	defined($content) or return 0;
 	$mime = undef;
 
-	my $subject = mime_header($header_obj, 'Subject') or return 0;
+	my $title = mime_header($header_obj, 'Subject') or return 0;
+	$title = PublicInbox::Hval->new_oneline($title)->as_html;
+	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
 
 	my $from = mime_header($header_obj, 'From') or return 0;
 	my @from = Email::Address->parse($from);
-	my $name = $from[0]->name;
-	defined $name or $name = "";
+	my $name = PublicInbox::Hval->new_oneline($from[0]->name)->as_html;
 	my $email = $from[0]->address;
-	defined $email or $email = "";
+	$email = PublicInbox::Hval->new_oneline($email)->as_html;
 
 	my $date = $header_obj->header('Date');
 	$date = PublicInbox::Hval->new_oneline($date);
 	$date = feed_date($date->raw) or return 0;
+
+	$fh->write("<entry><author><name>$name</name><email>$email</email>" .
+		   "</author><title$type>$title</title>" .
+		   "<updated>$date</updated>" .
+		   qq{<content\ntype="xhtml">} .
+		   qq{<div\nxmlns="http://www.w3.org/1999/xhtml">});
+	$fh->write($content);
+
 	$add =~ tr!/!!d;
 	my $h = '[a-f0-9]';
 	my (@uuid5) = ($add =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
-
-	$feed->add_entry(
-		author => { name => $name, email => $email },
-		title => $subject,
-		updated => $date,
-		content => { type => 'xhtml', content => $content },
-		link => $midurl . $href,
-		id => 'urn:uuid:' . join('-', @uuid5),
-	);
+	my $id = 'urn:uuid:' . join('-', @uuid5);
+	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
+	$fh->write(qq{</div></content><link\nhref="$midurl$href"/>}.
+		   "<id>$id</id></entry>");
 	1;
 }
 
