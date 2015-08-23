@@ -483,10 +483,12 @@ sub anchor_for {
 sub simple_dump {
 	my ($dst, $root, $node, $level) = @_;
 	return unless $node;
-	# $root = [ Root Message-ID, \%seen, $srch ];
+	# $root = [ undef, \%seen, $srch ];
 	if (my $x = $node->message) {
-		my $mid = $x->header('Message-ID');
-		if ($root->[0] ne $mid) {
+		my $f = $x->header('X-PI-From');
+		my $d = $x->header('X-PI-Date');
+		if (defined $f && defined $d) {
+			my $mid = $x->header('Message-ID');
 			my $pfx = '  ' x $level;
 			$$dst .= $pfx;
 			my $s = $x->header('Subject');
@@ -499,8 +501,8 @@ sub simple_dump {
 				$s = $s->as_html;
 			}
 			my $m = PublicInbox::Hval->new_msgid($mid);
-			my $f = PublicInbox::Hval->new($x->header('X-PI-From'));
-			my $d = PublicInbox::Hval->new($x->header('X-PI-Date'));
+			$f = PublicInbox::Hval->new($f);
+			$d = PublicInbox::Hval->new($d);
 			$m = $m->as_href . '.html';
 			$f = $f->as_html;
 			$d = $d->as_html . ' UTC';
@@ -525,7 +527,7 @@ sub thread_followups {
 	my $srch = $res->{srch};
 	my $subj = $srch->subject_path($root->header('Subject'));
 	my %seen = ($subj => 1);
-	$root = [ $root->header('Message-ID'), \%seen, $srch ];
+	$root = [ undef, \%seen, $srch ];
 	simple_dump($dst, $root, $_, 0) for $th->rootset;
 }
 
