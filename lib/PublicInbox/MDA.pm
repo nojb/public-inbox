@@ -88,9 +88,7 @@ sub author_info {
 	my $from = $mime->header('From');
 	my @from = Email::Address->parse($from);
 	my $name = $from[0]->name;
-	defined $name or $name = '';
 	my $email = $from[0]->address;
-	defined $email or $email = '';
 	($name, $email, $mime->header('Date'));
 }
 

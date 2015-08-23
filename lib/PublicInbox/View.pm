@@ -65,7 +65,6 @@ sub index_entry {
 	my $from = PublicInbox::Hval->new_oneline($mime->header('From'))->raw;
 	my @from = Email::Address->parse($from);
 	$from = $from[0]->name;
-	(defined($from) && length($from)) or $from = $from[0]->address;
 
 	$from = PublicInbox::Hval->new_oneline($from)->as_html;
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;

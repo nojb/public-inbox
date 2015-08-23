@@ -279,7 +279,7 @@ sub add_to_feed {
 	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
 
 	my $from = mime_header($header_obj, 'From') or return 0;
-	my @from = Email::Address->parse($from);
+	my @from = Email::Address->parse($from) or return 0;
 	my $name = PublicInbox::Hval->new_oneline($from[0]->name)->as_html;
 	my $email = $from[0]->address;
 	$email = PublicInbox::Hval->new_oneline($email)->as_html;
