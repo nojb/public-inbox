@@ -1,6 +1,6 @@
 # Copyright (C) 2015, all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
-# Streaming interface for formatting messages as an mbox
+# Streaming interface for formatting messages as an mboxrd
 package PublicInbox::Mbox;
 use strict;
 use warnings;
@@ -36,7 +36,7 @@ sub emit_msg {
 
 	my $buf = $simple->header_obj->as_string;
 	unless ($buf =~ /\AFrom /) {
-		$fh->write("From a\@a Thu Jan  1 00:00:00 1970\n");
+		$fh->write("From mboxrd\@z Thu Jan  1 00:00:00 1970\n");
 	}
 	$fh->write($buf .= $simple->crlf);
 
