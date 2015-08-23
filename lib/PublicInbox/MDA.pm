@@ -4,7 +4,6 @@ package PublicInbox::MDA;
 use strict;
 use warnings;
 use Email::Address;
-use Encode qw/decode/;
 use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
 use constant cmd => qw/ssoma-mda -1/;
