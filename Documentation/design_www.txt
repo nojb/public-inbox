@@ -10,7 +10,7 @@ URL naming
 
 ### Stable endpoints
 /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
-/$LISTNAME/m/$MESSAGE_ID.txt                    -> raw original
+/$LISTNAME/m/$MESSAGE_ID.txt                    -> raw mbox
 /$LISTNAME/m/$MESSAGE_ID                        -> 301 to .html version
 /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (full quotes)
 /$LISTNAME/f/$MESSAGE_ID                        -> 301 to .html version

@@ -5,12 +5,23 @@ package PublicInbox::Mbox;
 use strict;
 use warnings;
 use PublicInbox::MID qw/mid_compressed mid2path/;
+require Email::Simple;
 
 sub thread_mbox {
 	my ($ctx, $srch, $sfx) = @_;
 	sub {
 		my ($response) = @_; # Plack callback
 		emit_mbox($response, $ctx, $srch, $sfx);
+	}
+}
+
+sub emit1 {
+	my $simple = Email::Simple->new(pop);
+	sub {
+		my ($response) = @_;
+		# single message should be easily renderable in browsers
+		my $fh = $response->([200, ['Content-Type'=>'text/plain']]);
+		emit_msg($fh, $simple);
 	}
 }
 
@@ -52,7 +63,6 @@ sub emit_mbox {
 	$fh = PublicInbox::MboxGz->new($fh) if $sfx;
 
 	require PublicInbox::GitCatFile;
-	require Email::Simple;
 	my $mid = mid_compressed($ctx->{mid});
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 	my %opts = (offset => 0);
