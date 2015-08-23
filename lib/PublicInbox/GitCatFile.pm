@@ -68,17 +68,17 @@ sub cat_file {
 
 	my $size = $1;
 	my $bytes_left = $size;
-	my $buf;
+	my $offset = 0;
 	my $rv = '';
 
 	while ($bytes_left) {
-		my $read = read($in, $buf, $bytes_left);
-		defined($read) or die "read pipe failed: $!\n";
-		$rv .= $buf;
+		my $read = read($in, $rv, $bytes_left, $offset);
+		defined($read) or die "sysread pipe failed: $!\n";
 		$bytes_left -= $read;
+		$offset += $read;
 	}
 
-	my $read = read($in, $buf, 1);
+	my $read = read($in, my $buf, 1);
 	defined($read) or die "read pipe failed: $!\n";
 	if ($read != 1 || $buf ne "\n") {
 		die "newline missing after blob\n";
