@@ -141,7 +141,7 @@ sub each_recent_blob {
 	my $hex = '[a-f0-9]';
 	my $addmsg = qr!^:000000 100644 \S+ \S+ A\t(${hex}{2}/${hex}{38})$!;
 	my $delmsg = qr!^:100644 000000 \S+ \S+ D\t(${hex}{2}/${hex}{38})$!;
-	my $refhex = qr/${hex}{4,40}(?:~\d+)?/;
+	my $refhex = qr/(?:HEAD|${hex}{4,40})(?:~\d+)?/;
 	my $cgi = $ctx->{cgi};
 
 	# revision ranges may be specified
