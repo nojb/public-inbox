@@ -27,14 +27,15 @@ sub emit1 {
 
 sub emit_msg {
 	my ($fh, $simple) = @_; # Email::Simple object
+	my $header_obj = $simple->header_obj;
 
 	# drop potentially confusing headers, ssoma already should've dropped
 	# Lines and Content-Length
 	foreach my $d (qw(Lines Content-Length Status)) {
-		$simple->header_set($d);
+		$header_obj->header_set($d);
 	}
 
-	my $buf = $simple->header_obj->as_string;
+	my $buf = $header_obj->as_string;
 	unless ($buf =~ /\AFrom /) {
 		$fh->write("From mboxrd\@z Thu Jan  1 00:00:00 1970\n");
 	}

@@ -420,7 +420,7 @@ sub html_footer {
 
 	my $subj = $mime->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
-	my $mid = $mime->header_obj->header('Message-ID');
+	my $mid = $mime->header('Message-ID');
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
 	$to = uri_escape_utf8($to);
@@ -431,7 +431,7 @@ sub html_footer {
 
 	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
 	if ($idx && $srch) {
-		$irt = $mime->header_obj->header('In-Reply-To') || '';
+		$irt = $mime->header('In-Reply-To') || '';
 		$mid = mid_compressed(mid_clean($mid));
 		my $t_anchor = length $irt ? T_ANCHOR : '';
 		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">".
