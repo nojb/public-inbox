@@ -42,7 +42,11 @@ sub emit_msg {
 
 	$buf = $simple->body;
 	$simple->body_set('');
-	$buf =~ s/^(From )/>$1/gm;
+
+	# mboxrd quoting style
+	# ref: http://www.qmail.org/man/man5/mbox.html
+	$buf =~ s/^(>*From )/>$1/gm;
+
 	$buf .= "\n" unless $buf =~ /\n\z/s;
 
 	$fh->write($buf);
