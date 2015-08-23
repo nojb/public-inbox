@@ -88,7 +88,7 @@ sub do_spamc {
 sub search_index_sync {
 	my ($git_dir) = @_;
 	eval {
-		require PublicInbox::Search;
+		require PublicInbox::SearchIdx;
 		PublicInbox::SearchIdx->new($git_dir, 2)->index_sync;
 	};
 }

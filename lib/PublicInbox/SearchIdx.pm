@@ -21,19 +21,18 @@ sub new {
 	my $dir = $class->xdir($git_dir);
 	require Search::Xapian::WritableDatabase;
 	my $flag = Search::Xapian::DB_OPEN;
-	if ($writable == 1) {
-		require File::Path;
-		File::Path::mkpath($dir);
-		$flag = Search::Xapian::DB_CREATE_OR_OPEN;
-	}
 	my $self = bless { git_dir => $git_dir }, $class;
-	my $umask = _umask_for($self->_git_config_perm);
-	my $old_umask = umask $umask;
-	my $db = eval { Search::Xapian::WritableDatabase->new($dir, $flag) };
-	my $err = $@;
-	umask $old_umask;
-	die $err if $err;
-	$self->{xdb} = $db;
+	my $perm = $self->_git_config_perm;
+	my $umask = _umask_for($perm);
+	$self->{umask} = $umask;
+	$self->{xdb} = $self->with_umask(sub {
+		if ($writable == 1) {
+			require File::Path;
+			File::Path::mkpath($dir);
+			$flag = Search::Xapian::DB_CREATE_OR_OPEN;
+		}
+		Search::Xapian::WritableDatabase->new($dir, $flag);
+	});
 	$self;
 }
 
@@ -288,8 +287,13 @@ sub do_cat_mail {
 	$@ ? undef : $mime;
 }
 
-# indexes all unindexed messages
 sub index_sync {
+	my ($self, $head) = @_;
+	$self->with_umask(sub { $self->_index_sync($head) });
+}
+
+# indexes all unindexed messages
+sub _index_sync {
 	my ($self, $head) = @_;
 	require PublicInbox::GitCatFile;
 	my $db = $self->{xdb};
@@ -421,6 +425,16 @@ sub _umask_for {
 	$rv |= 0010 if ($rv & 0060);
 	$rv |= 0001 if ($rv & 0006);
 	(~$rv & 0777);
+}
+
+sub with_umask {
+	my ($self, $cb) = @_;
+	my $old = umask $self->{umask};
+	my $rv = eval { $cb->() };
+	my $err = $@;
+	umask $old;
+	die $err if $@;
+	$rv;
 }
 
 1;
