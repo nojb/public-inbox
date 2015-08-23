@@ -419,7 +419,7 @@ sub html_footer {
 	Email::Address->purge_cache if $standalone;
 
 	my $subj = $mime->header('Subject') || '';
-	$subj = "Re: $subj" unless $subj =~ /\bRe:/;
+	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
 	my $mid = $mime->header('Message-ID');
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
