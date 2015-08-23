@@ -24,6 +24,31 @@ my $rw_commit = sub {
 };
 
 {
+	# git repository perms
+	is(PublicInbox::SearchIdx->_git_config_perm(undef),
+	   &PublicInbox::SearchIdx::PERM_GROUP,
+	   "undefined permission is group");
+	is(PublicInbox::SearchIdx::_umask_for(
+	     PublicInbox::SearchIdx->_git_config_perm('0644')),
+	   0022, "644 => umask(0022)");
+	is(PublicInbox::SearchIdx::_umask_for(
+	     PublicInbox::SearchIdx->_git_config_perm('0600')),
+	   0077, "600 => umask(0077)");
+	is(PublicInbox::SearchIdx::_umask_for(
+	     PublicInbox::SearchIdx->_git_config_perm('0640')),
+	   0027, "640 => umask(0027)");
+	is(PublicInbox::SearchIdx::_umask_for(
+	     PublicInbox::SearchIdx->_git_config_perm('group')),
+	   0007, 'group => umask(0007)');
+	is(PublicInbox::SearchIdx::_umask_for(
+	     PublicInbox::SearchIdx->_git_config_perm('everybody')),
+	   0002, 'everybody => umask(0002)');
+	is(PublicInbox::SearchIdx::_umask_for(
+	     PublicInbox::SearchIdx->_git_config_perm('umask')),
+	   umask, 'umask => existing umask');
+}
+
+{
 	my $root = Email::MIME->create(
 		header_str => [
 			Date => 'Fri, 02 Oct 1993 00:00:00 +0000',

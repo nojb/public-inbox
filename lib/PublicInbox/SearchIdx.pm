@@ -8,6 +8,14 @@ use base qw(PublicInbox::Search);
 use PublicInbox::MID qw/mid_clean mid_compressed/;
 *xpfx = *PublicInbox::Search::xpfx;
 
+use constant {
+	PERM_UMASK => 0,
+	OLD_PERM_GROUP => 1,
+	OLD_PERM_EVERYBODY => 2,
+	PERM_GROUP => 0660,
+	PERM_EVERYBODY => 0664,
+};
+
 sub new {
 	my ($class, $git_dir, $writable) = @_;
 	my $dir = $class->xdir($git_dir);
@@ -18,8 +26,15 @@ sub new {
 		File::Path::mkpath($dir);
 		$flag = Search::Xapian::DB_CREATE_OR_OPEN;
 	}
-	my $db = Search::Xapian::WritableDatabase->new($dir, $flag);
-	bless { xdb => $db, git_dir => $git_dir }, $class;
+	my $self = bless { git_dir => $git_dir }, $class;
+	my $umask = _umask_for($self->_git_config_perm);
+	my $old_umask = umask $umask;
+	my $db = eval { Search::Xapian::WritableDatabase->new($dir, $flag) };
+	my $err = $@;
+	umask $old_umask;
+	die $err if $err;
+	$self->{xdb} = $db;
+	$self;
 }
 
 sub add_message {
@@ -358,6 +373,54 @@ sub merge_threads {
 		$doc->add_term($thread_pfx . $winner_tid);
 		$db->replace_document($docid, $doc);
 	}
+}
+
+sub _read_git_config_perm {
+	my ($self) = @_;
+	my @cmd = ('git', "--git-dir=$self->{git_dir}",
+		   qw(config core.sharedRepository));
+	my $pid = open(my $fh, '-|', @cmd) or
+		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
+	my $perm = <$fh>;
+	close $fh;
+	chomp $perm if defined $perm;
+	$perm;
+}
+
+sub _git_config_perm {
+	my $self = shift;
+	my $perm = scalar @_ ? $_[0] : _read_git_config_perm($self);
+	return PERM_GROUP if (!defined($perm) || !length($perm));
+	return PERM_UMASK if ($perm eq 'umask');
+	return PERM_GROUP if ($perm eq 'group');
+	if ($perm =~ /\A(?:all|world|everybody)\z/) {
+		return PERM_EVERYBODY;
+	}
+	return PERM_GROUP if ($perm =~ /\A(?:true|yes|on|1)\z/);
+	return PERM_UMASK if ($perm =~ /\A(?:false|no|off|0)\z/);
+
+	my $i = oct($perm);
+	return PERM_UMASK if ($i == PERM_UMASK);
+	return PERM_GROUP if ($i == OLD_PERM_GROUP);
+	return PERM_EVERYBODY if ($i == OLD_PERM_EVERYBODY);
+
+	if (($i & 0600) != 0600) {
+		die "core.sharedRepository mode invalid: ".
+		    sprintf('%.3o', $i) . "\nOwner must have permissions\n";
+	}
+	($i & 0666);
+}
+
+sub _umask_for {
+	my ($perm) = @_; # _git_config_perm return value
+	my $rv = $perm;
+	return umask if $rv == 0;
+
+	# set +x bit if +r or +w were set
+	$rv |= 0100 if ($rv & 0600);
+	$rv |= 0010 if ($rv & 0060);
+	$rv |= 0001 if ($rv & 0006);
+	(~$rv & 0777);
 }
 
 1;

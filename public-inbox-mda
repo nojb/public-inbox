@@ -89,8 +89,6 @@ sub search_index_sync {
 	my ($git_dir) = @_;
 	eval {
 		require PublicInbox::Search;
-		umask 0022; # XXX FIXME use git config core.sharedRepository
-		my $s = PublicInbox::SearchIdx->new($git_dir, 2);
-		$s->index_sync;
+		PublicInbox::SearchIdx->new($git_dir, 2)->index_sync;
 	};
 }
