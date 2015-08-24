@@ -89,7 +89,12 @@ sub emit_html_index {
 	$srch and $topics = [ [], {} ];
 	my (undef, $last) = each_recent_blob($ctx, sub {
 		my ($path, $commit, $ts, $u, $subj) = @_;
-		$state ||= [ undef, {}, $commit, 0 ];
+		$state ||= {
+			ctx => $ctx,
+			seen => {},
+			first_commit => $commit,
+			anchor_idx => 0,
+		};
 
 		if ($srch) {
 			add_topic($git, $srch, $topics, $path, $ts, $u, $subj);
@@ -119,9 +124,8 @@ sub nav_footer {
 	my $old_r = $cgi->param('r');
 	my $head = '    ';
 	my $next = '    ';
-	# $state = [ undef, {}, $first_commit, $last_anchor ];
-	my $first = $state->[2];
-	my $anchor = $state->[3];
+	my $first = $state->{first_commit};
+	my $anchor = $state->{anchor_idx};
 
 	if ($last) {
 		$next = qq!<a\nhref="?r=$last">next</a>!;

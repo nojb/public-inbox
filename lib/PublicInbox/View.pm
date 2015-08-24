@@ -25,16 +25,17 @@ my $enc_utf8 = find_encoding('UTF-8');
 
 # public functions:
 sub msg_html {
-	my ($class, $mime, $full_pfx, $footer, $srch) = @_;
+	my ($ctx, $mime, $full_pfx, $footer) = @_;
 	if (defined $footer) {
 		$footer = "\n" . $footer;
 	} else {
 		$footer = '';
 	}
+	my $srch = $ctx->{srch} if $ctx;
 	headers_to_html_header($mime, $full_pfx, $srch) .
 		multipart_text_as_html($mime, $full_pfx) .
 		'</pre><hr /><pre>' .
-		html_footer($mime, 1, $full_pfx, $srch) .
+		html_footer($mime, 1, $full_pfx, $ctx) .
 		$footer .
 		'</pre></body></html>';
 }
@@ -46,11 +47,11 @@ sub feed_entry {
 }
 
 # this is already inside a <pre>
-# state = [ time, seen = {}, first_commit, page_nr = 0 ]
 sub index_entry {
 	my ($fh, $mime, $level, $state) = @_;
-	my ($srch, $seen, $first_commit) = @$state;
-	my $midx = $state->[3]++;
+	my $midx = $state->{anchor_idx}++;
+	my $ctx = $state->{ctx};
+	my $srch = $ctx->{srch};
 	my ($prev, $next) = ($midx - 1, $midx + 1);
 	my $part_nr = 0;
 	my $enc = enc_for($mime->header("Content-Type"));
@@ -59,6 +60,7 @@ sub index_entry {
 
 	my $mid_raw = $header_obj->header('Message-ID');
 	my $id = anchor_for($mid_raw);
+	my $seen = $state->{seen};
 	$seen->{$id} = "#$id"; # save the anchor for later
 
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
@@ -68,8 +70,8 @@ sub index_entry {
 
 	$from = PublicInbox::Hval->new_oneline($from)->as_html;
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
-	my $root_anchor = $seen->{root_anchor};
 	my $more = 'permalink';
+	my $root_anchor = $state->{root_anchor};
 	my $path = $root_anchor ? '../' : '';
 	my $href = $mid->as_href;
 	my $irt = $header_obj->header('In-Reply-To');
@@ -81,7 +83,7 @@ sub index_entry {
 	} else {
 		$t_anchor = '';
 	}
-	if (defined $srch) {
+	if ($srch) {
 		$subj = "<a\nhref=\"${path}t/$href.html#u\">$subj</a>";
 	}
 	if ($root_anchor && $root_anchor eq $id) {
@@ -121,7 +123,7 @@ sub index_entry {
 
 	my $txt = "${path}m/$href.txt";
 	$rv = "\n<a\nhref=\"$mhref\">$more</a> <a\nhref=\"$txt\">raw</a> ";
-	$rv .= html_footer($mime, 0);
+	$rv .= html_footer($mime, 0, undef, $ctx);
 
 	if (defined $irt) {
 		unless (defined $anchor) {
@@ -157,13 +159,18 @@ sub emit_thread_html {
 	return missing_thread($cb) if $nr == 0;
 	my $fh = $cb->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
 	my $th = thread_results($msgs);
-	my $state = [ $srch, { root_anchor => anchor_for($mid) }, undef, 0 ];
+	my $state = {
+		ctx => $ctx,
+		seen => {},
+		root_anchor => anchor_for($mid),
+		anchor_idx => 0,
+	};
 	{
 		require PublicInbox::GitCatFile;
 		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 		thread_entry($fh, $git, $state, $_, 0) for $th->rootset;
 	}
-	my $final_anchor = $state->[3];
+	my $final_anchor = $state->{anchor_idx};
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../\">index</a>\n";
@@ -401,7 +408,7 @@ sub headers_to_html_header {
 }
 
 sub html_footer {
-	my ($mime, $standalone, $full_pfx, $srch) = @_;
+	my ($mime, $standalone, $full_pfx, $ctx) = @_;
 	my %cc; # everyone else
 	my $to; # this is the From address
 
@@ -429,6 +436,7 @@ sub html_footer {
 	my $cc = uri_escape_utf8(join(',', sort values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
 
+	my $srch = $ctx->{srch} if $ctx;
 	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
 	if ($idx && $srch) {
 		$irt = $mime->header('In-Reply-To') || '';
@@ -541,18 +549,13 @@ sub thread_html_head {
 sub thread_entry {
 	my ($fh, $git, $state, $node, $level) = @_;
 	return unless $node;
-	# $state = [ $search_res, $seen, undef, 0 (msg_nr) ];
-	# $seen is overloaded with 3 types of fields:
-	#	1) "root_anchor" => anchor_for(Message-ID),
-	#	2) seen subject hashes: sha1(subject) => 1
-	#	3) anchors hashes: "#$sha1_hex" (same as $seen in index_entry)
 	if (my $mime = $node->message) {
 
 		# lazy load the full message from mini_mime:
 		my $path = mid2path(mid_clean($mime->header('Message-ID')));
 		$mime = eval { Email::MIME->new($git->cat_file("HEAD:$path")) };
 		if ($mime) {
-			if ($state->[3] == 0) {
+			if ($state->{anchor_idx} == 0) {
 				$fh->write(thread_html_head($mime));
 			}
 			index_entry($fh, $mime, $level, $state);

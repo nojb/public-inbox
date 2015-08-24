@@ -41,7 +41,7 @@ EOF
 		body => $body,
 	)->as_string;
 	my $mime = Email::MIME->new($s);
-	my $html = PublicInbox::View->msg_html($mime);
+	my $html = PublicInbox::View::msg_html(undef, $mime);
 
 	# ghetto tests
 	like($html, qr!<a\nhref="\.\./m/hello%40!s, "MID link present");
@@ -53,7 +53,7 @@ EOF
 	# short page
 	my $pfx = "http://example.com/test/f";
 	$mime = Email::MIME->new($s);
-	my $short = PublicInbox::View->msg_html($mime, $pfx);
+	my $short = PublicInbox::View::msg_html(undef, $mime, $pfx);
 	like($short, qr!<a\nhref="hello%40!s, "MID link present");
 	like($short, qr/\n&gt; keep this inline/,
 		"short quoted text is inline");
@@ -84,7 +84,7 @@ EOF
 		parts => $parts,
 	);
 
-	my $html = PublicInbox::View->msg_html($mime);
+	my $html = PublicInbox::View::msg_html(undef, $mime);
 	like($html, qr/hi\n-+ part #2 -+\nbye\n/, "multipart split");
 }
 
@@ -113,7 +113,7 @@ EOF
 		parts => $parts,
 	);
 
-	my $html = PublicInbox::View->msg_html($mime);
+	my $html = PublicInbox::View::msg_html(undef, $mime);
 	like($html, qr!see attached patch\n-+ foo\.patch -+\n--- a/file\n!,
 		"parts split with filename");
 }
@@ -139,7 +139,7 @@ EOF
 	);
 
 	my $orig = $mime->body_raw;
-	my $html = PublicInbox::View->msg_html($mime);
+	my $html = PublicInbox::View::msg_html(undef, $mime);
 	like($orig, qr/hi =3D bye=/, "our test used QP correctly");
 	like($html, qr/\bhi = bye\b/, "HTML output decoded QP");
 }

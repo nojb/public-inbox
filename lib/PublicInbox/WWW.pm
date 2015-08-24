@@ -176,9 +176,9 @@ sub get_mid_html {
 	my $foot = footer($ctx);
 	require Email::MIME;
 	my $mime = Email::MIME->new($x);
-	my $srch = searcher($ctx);
+	searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View->msg_html($mime, $pfx, $foot, $srch) ] ];
+	  [ PublicInbox::View::msg_html($ctx, $mime, $pfx, $foot) ] ];
 }
 
 # /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
@@ -190,9 +190,9 @@ sub get_full_html {
 	my $foot = footer($ctx);
 	require Email::MIME;
 	my $mime = Email::MIME->new($x);
-	my $srch = searcher($ctx);
+	searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View->msg_html($mime, undef, $foot, $srch)] ];
+	  [ PublicInbox::View::msg_html($ctx, $mime, undef, $foot)] ];
 }
 
 # /$LISTNAME/t/$MESSAGE_ID.html
