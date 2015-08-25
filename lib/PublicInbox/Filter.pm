@@ -144,7 +144,7 @@ sub strip_multipart {
 
 			push @keep, $part;
 		} elsif ($part_type eq '' ||
-		         $part_type =~ m!\Aapplication/octet-stream\z!i) {
+		         $part_type =~ m!\bapplication/octet-stream\b!i) {
 			# unfortunately, some mailers don't set correct types,
 			# let messages of unknown type through but do not
 			# change the sender-specified type
@@ -153,7 +153,7 @@ sub strip_multipart {
 			} else {
 				$rejected++;
 			}
-		} elsif ($part_type =~ m!\Aapplication/pgp-signature\z!i) {
+		} elsif ($part_type =~ m!\bapplication/pgp-signature\b!i) {
 			# PGP signatures are not huge, we may keep them.
 			# They can only be valid if it's the last element,
 			# so we keep them iff the message is unmodified:
