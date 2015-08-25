@@ -345,7 +345,7 @@ sub add_topic {
 		my $mid = $header_obj->header('Message-ID');
 		$mid = mid_compress(mid_clean($mid));
 		$u = $enc_utf8->decode($u);
-		push @$order, [ $mid, $ts, $u, $subj ];
+		push @$order, [ $mid, $ts, $u, $subj, $topic ];
 		return 1;
 	}
 	0; # old topic, continue going
@@ -357,8 +357,8 @@ sub dump_topics {
 	my $dst = '';
 	$dst .= "\n[No recent topics]" unless (scalar @$order);
 	while (defined(my $info = shift @$order)) {
-		my ($mid, $ts, $u, $subj) = @$info;
-		my $n = delete $subjs->{$subj};
+		my ($mid, $ts, $u, $subj, $topic) = @$info;
+		my $n = delete $subjs->{$topic};
 		$mid = PublicInbox::Hval->new($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$u = PublicInbox::Hval->new($u)->as_html;
