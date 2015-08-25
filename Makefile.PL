@@ -3,14 +3,16 @@
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 use strict;
 use ExtUtils::MakeMaker;
+my @EXE_FILES = split("\n", `git ls-files 'public-inbox*' 2>/dev/null`);
+my $PM_FILES = `git ls-files lib '*.pm' 2>/dev/null`;
+$PM_FILES =~ tr/\n/ /;
+
 WriteMakefile(
 	NAME => 'public-inbox',
 	VERSION => '0.0.0',
 	AUTHOR => 'Eric Wong <normalperson@yhbt.net>',
 	ABSTRACT => 'public-inbox server infrastructure',
-	EXE_FILES => [qw/public-inbox-mda public-inbox.cgi
-			public-inbox-learn public-inbox-init
-			public-inbox-index/],
+	EXE_FILES => \@EXE_FILES,
 	PREREQ_PM => {
 		# note: we use ssoma(1) and spamc(1), NOT the Perl modules
 		# We also depend on git through ssoma.
@@ -32,11 +34,19 @@ WriteMakefile(
 );
 
 sub MY::postamble {
-  <<'EOF';
+  <<EOF;
 -include Documentation/include.mk
-N = $(shell echo $$(( $$(nproc 2>/dev/null || echo 2) + 1)))
+my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES))
+
+N := \$(shell echo \$\$(( \$\$(nproc 2>/dev/null || echo 2) + 1)))
+
+%.syntax ::
+	@\$(PERL) -I lib -c \$(subst .syntax,,\$@)
+
+syntax:: \$(my_syntax)
+
 check:: pure_all
-	prove -lv -j$(N)
+	prove -lv -j\$(N)
 
 EOF
 }
