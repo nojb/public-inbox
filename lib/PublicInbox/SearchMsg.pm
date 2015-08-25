@@ -94,9 +94,8 @@ sub date {
 
 sub to_doc_data {
 	my ($self) = @_;
-
 	$self->mid . "\n" .
-	$self->subject . "\n" .
+	PublicInbox::Search::subject_summary($self->subject) . "\n" .
 	$self->from_name . "\n".
 	$self->date . "\n" .
 	$self->references_sorted;

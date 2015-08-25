@@ -237,6 +237,31 @@ sub subject_normalized {
 	$subj;
 }
 
+# for doc data
+sub subject_summary {
+	my $subj = pop;
+	my $max = 68;
+	if (length($subj) > $max) {
+		my @subj = split(/\s+/, $subj);
+		$subj = '';
+		my $l;
+
+		while ($l = shift @subj) {
+			my $new = $subj . $l . ' ';
+			last if length($new) >= $max;
+			$subj = $new;
+		}
+		if (length $subj) {
+			my $r = scalar @subj ? ' ...' : '';
+			$subj =~ s/ \z/$r/s;
+		} else {
+			@subj = ($l =~ /\A(.{1,72})/);
+			$subj = $subj[0] . ' ...';
+		}
+	}
+	$subj;
+}
+
 sub enquire {
 	my ($self) = @_;
 	$self->{enquire} ||= Search::Xapian::Enquire->new($self->{xdb});
