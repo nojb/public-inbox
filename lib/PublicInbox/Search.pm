@@ -76,6 +76,8 @@ sub query {
 	my ($self, $query_string, $opts) = @_;
 	my $query = $self->qp->parse_query($query_string, QP_FLAGS);
 
+	$opts ||= {};
+	$opts->{relevance} = 1;
 	$self->do_enquire($query, $opts);
 }
 
@@ -117,7 +119,11 @@ sub do_enquire {
 
 	$query = Search::Xapian::Query->new(OP_AND, $query, $mail_query);
 	$enquire->set_query($query);
-	$enquire->set_sort_by_relevance_then_value(TS, 0);
+	if ($opts->{relevance}) {
+		$enquire->set_sort_by_relevance_then_value(TS, 0);
+	} else {
+		$enquire->set_sort_by_value(TS, 0);
+	}
 	$opts ||= {};
 	my $offset = $opts->{offset} || 0;
 	my $limit = $opts->{limit} || 50;
