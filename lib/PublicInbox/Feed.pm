@@ -332,8 +332,12 @@ sub add_topic {
 		$subj = mime_header($header_obj, 'Subject');
 	}
 
-	$subj = $srch->subject_normalized($subj);
-	if (++$subjs->{$subj} == 1) {
+	my $topic = $subj = $srch->subject_normalized($subj);
+
+	# kill "[PATCH v2]" etc. for summarization
+	$topic =~ s/\A\s*\[[^\]]+\]\s*//g;
+
+	if (++$subjs->{$topic} == 1) {
 		unless ($header_obj) {
 			my $mime = do_cat_mail($git, $path) or return 0;
 			$header_obj = $mime->header_obj;
