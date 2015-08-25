@@ -5,7 +5,7 @@ package PublicInbox::SearchIdx;
 use strict;
 use warnings;
 use base qw(PublicInbox::Search);
-use PublicInbox::MID qw/mid_clean mid_compressed/;
+use PublicInbox::MID qw/mid_clean mid_compress/;
 *xpfx = *PublicInbox::Search::xpfx;
 
 use constant {
@@ -42,7 +42,7 @@ sub add_message {
 
 	my $doc_id;
 	my $mid_orig = mid_clean($mime->header('Message-ID'));
-	my $mid = mid_compressed($mid_orig);
+	my $mid = mid_compress($mid_orig);
 	my $was_ghost = 0;
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
 
@@ -78,7 +78,7 @@ sub add_message {
 			$doc->add_term(xpfx('subject') . $subj);
 
 			my $path = $self->subject_path($subj);
-			$doc->add_term(xpfx('path') . mid_compressed($path));
+			$doc->add_term(xpfx('path') . mid_compress($path));
 		}
 
 		my $from = $smsg->from_name;
@@ -153,7 +153,7 @@ sub remove_message {
 	my $db = $self->{xdb};
 	my $doc_id;
 	$mid_orig = mid_clean($mid_orig);
-	my $mid = mid_compressed($mid_orig);
+	my $mid = mid_compress($mid_orig);
 
 	eval {
 		$doc_id = $self->find_unique_doc_id('mid', $mid);
@@ -206,13 +206,13 @@ sub link_message {
 sub link_message_to_parents {
 	my ($self, $smsg) = @_;
 	my $doc = $smsg->{doc};
-	my $mid = mid_compressed($smsg->mid);
+	my $mid = mid_compress($smsg->mid);
 	my $mime = $smsg->mime;
 	my $refs = $mime->header('References');
 	my @refs = $refs ? ($refs =~ /<([^>]+)>/g) : ();
 	my $irt = $mime->header('In-Reply-To');
 	if ($irt) {
-		$irt = mid_compressed(mid_clean($irt));
+		$irt = mid_compress(mid_clean($irt));
 
 		# maybe some crazies will try to make a circular reference:
 		if ($irt eq $mid) {
@@ -226,7 +226,7 @@ sub link_message_to_parents {
 
 	my $tid;
 	if (@refs) {
-		my @crefs = map { mid_compressed($_) } @refs;
+		my @crefs = map { mid_compress($_) } @refs;
 		my %uniq = ($mid => 1);
 
 		# prevent circular references via References: here:
@@ -349,7 +349,7 @@ sub _resolve_mid_to_tid {
 sub create_ghost {
 	my ($self, $mid, $tid) = @_;
 
-	$mid = mid_compressed($mid);
+	$mid = mid_compress($mid);
 	$tid = $self->next_thread_id unless defined $tid;
 
 	my $doc = Search::Xapian::Document->new;

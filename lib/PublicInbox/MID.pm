@@ -4,7 +4,7 @@ package PublicInbox::MID;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/mid_clean mid_compressed mid2path/;
+our @EXPORT_OK = qw/mid_clean mid_compress mid2path/;
 use Digest::SHA qw/sha1_hex/;
 use constant MID_MAX => 40; # SHA-1 hex length
 
@@ -18,7 +18,7 @@ sub mid_clean {
 }
 
 # this is idempotent
-sub mid_compressed {
+sub mid_compress {
 	my ($mid, $force) = @_;
 
 	# XXX dirty hack! FIXME!

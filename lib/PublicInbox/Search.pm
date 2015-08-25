@@ -7,7 +7,7 @@ use warnings;
 use PublicInbox::SearchMsg;
 use Search::Xapian qw/:standard/;
 use Email::MIME;
-use PublicInbox::MID qw/mid_clean mid_compressed/;
+use PublicInbox::MID qw/mid_clean mid_compress/;
 
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
@@ -19,7 +19,7 @@ use constant {
 	# SCHEMA_VERSION history
 	# 0 - initial
 	# 1 - subject_path is lower-cased
-	# 2 - subject_path is mid_compressed in the index, only
+	# 2 - subject_path is mid_compress in the index, only
 	# 3 - message-ID is compressed if it includes '%' (hack!)
 	# 4 - change "Re: " normalization, avoid circular Reference ghosts
 	# 5 - subject_path drops trailing '.'
@@ -31,7 +31,7 @@ use constant {
 # setup prefixes
 my %bool_pfx_internal = (
 	type => 'T', # "mail" or "ghost"
-	mid => 'Q', # uniQue id (Message-ID or mid_compressed)
+	mid => 'Q', # uniQue id (Message-ID or mid_compress)
 );
 
 my %bool_pfx_external = (
@@ -83,7 +83,7 @@ sub query {
 
 sub get_subject_path {
 	my ($self, $path, $opts) = @_;
-	my $query = $self->qp->parse_query("path:".mid_compressed($path), 0);
+	my $query = $self->qp->parse_query("path:".mid_compress($path), 0);
 	$self->do_enquire($query, $opts);
 }
 
@@ -91,7 +91,7 @@ sub get_subject_path {
 sub get_followups {
 	my ($self, $mid, $opts) = @_;
 	$mid = mid_clean($mid);
-	$mid = mid_compressed($mid);
+	$mid = mid_compress($mid);
 	my $qp = $self->qp;
 	my $irt = $qp->parse_query("inreplyto:$mid", 0);
 	my $ref = $qp->parse_query("references:$mid", 0);
@@ -106,7 +106,7 @@ sub get_thread {
 	return { total => 0, msgs => [] } unless $smsg;
 	my $qp = $self->qp;
 	my $qtid = $qp->parse_query('thread:'.$smsg->thread_id, 0);
-	my $qsub = $qp->parse_query('path:'.mid_compressed($smsg->path), 0);
+	my $qsub = $qp->parse_query('path:'.mid_compress($smsg->path), 0);
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
 	$self->do_enquire($query, $opts);
 }
@@ -176,7 +176,7 @@ sub date_range_processor {
 sub lookup_message {
 	my ($self, $mid) = @_;
 	$mid = mid_clean($mid);
-	$mid = mid_compressed($mid);
+	$mid = mid_compress($mid);
 
 	my $doc_id = $self->find_unique_doc_id('mid', $mid);
 	my $smsg;

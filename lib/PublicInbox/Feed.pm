@@ -9,7 +9,7 @@ use Date::Parse qw(strptime);
 use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
 use PublicInbox::View;
-use PublicInbox::MID qw/mid_clean mid_compressed/;
+use PublicInbox::MID qw/mid_clean mid_compress/;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
@@ -339,7 +339,7 @@ sub add_topic {
 			$header_obj = $mime->header_obj;
 		}
 		my $mid = $header_obj->header('Message-ID');
-		$mid = mid_compressed(mid_clean($mid));
+		$mid = mid_compress(mid_clean($mid));
 		$u = $enc_utf8->decode($u);
 		push @$order, [ $mid, $ts, $u, $subj ];
 		return 1;

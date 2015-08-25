@@ -9,7 +9,7 @@ use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval;
-use PublicInbox::MID qw/mid_clean mid_compressed mid2path/;
+use PublicInbox::MID qw/mid_clean mid_compress mid2path/;
 use Digest::SHA;
 require POSIX;
 
@@ -152,7 +152,7 @@ sub thread_html {
 
 sub emit_thread_html {
 	my ($cb, $ctx, $foot, $srch) = @_;
-	my $mid = mid_compressed($ctx->{mid});
+	my $mid = mid_compress($ctx->{mid});
 	my $res = $srch->get_thread($mid);
 	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
@@ -440,7 +440,7 @@ sub html_footer {
 	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
 	if ($idx && $srch) {
 		$irt = $mime->header('In-Reply-To') || '';
-		$mid = mid_compressed(mid_clean($mid));
+		$mid = mid_compress(mid_clean($mid));
 		my $t_anchor = length $irt ? T_ANCHOR : '';
 		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">".
 		       "threadlink</a>$idx";
@@ -483,7 +483,7 @@ sub anchor_for {
 	my ($msgid) = @_;
 	my $id = $msgid;
 	if ($id !~ /\A[a-f0-9]{40}\z/) {
-		$id = mid_compressed(mid_clean($id), 1);
+		$id = mid_compress(mid_clean($id), 1);
 	}
 	'm' . $id;
 }
