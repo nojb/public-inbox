@@ -22,6 +22,7 @@ sub emit1 {
 		# single message should be easily renderable in browsers
 		my $fh = $response->([200, ['Content-Type'=>'text/plain']]);
 		emit_msg($fh, $simple);
+		$fh->close;
 	}
 }
 
