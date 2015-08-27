@@ -23,7 +23,7 @@ BEGIN {
 
 sub run {
 	my ($cgi, $method) = @_;
-	my %ctx;
+	my %ctx = (cgi => $cgi, pi_config => $pi_config);
 	if ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
 	}
@@ -33,40 +33,38 @@ sub run {
 	if ($path_info eq '/') {
 		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
-		invalid_list(\%ctx, $1) || redirect_list_index(\%ctx, $cgi);
+		invalid_list(\%ctx, $1) || redirect_list_index($cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
-		invalid_list(\%ctx, $1) || get_index(\%ctx, $cgi);
+		invalid_list(\%ctx, $1) || get_index(\%ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/atom\.xml\z!o) {
-		invalid_list(\%ctx, $1) || get_atom(\%ctx, $cgi);
+		invalid_list(\%ctx, $1) || get_atom(\%ctx);
 
 	# single-message pages
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.txt\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx, $cgi);
+		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.html\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx, $cgi);
+		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx);
 
 	# full-message page
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx, $cgi);
+		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
 
 	# thread display
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx, $cgi);
+		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.mbox(\.gz)?\z!o) {
 		my $sfx = $3;
 		invalid_list_mid(\%ctx, $1, $2) ||
-			get_thread_mbox(\%ctx, $cgi, $sfx);
+			get_thread_mbox(\%ctx, $sfx);
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/\S+\.txt\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) ||
-			redirect_mid_txt(\%ctx, $cgi);
+		invalid_list_mid(\%ctx, $1, $2) || redirect_mid_txt(\%ctx);
 
 	# convenience redirects, order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/(m|f|t|s)/(\S+)\z!o) {
 		my $pfx = $2;
-		invalid_list_mid(\%ctx, $1, $3) ||
-			redirect_mid(\%ctx, $cgi, $2);
+		invalid_list_mid(\%ctx, $1, $3) || redirect_mid(\%ctx, $2);
 
 	} else {
 		r404();
@@ -119,20 +117,16 @@ sub invalid_list_mid {
 
 # /$LISTNAME/atom.xml                       -> Atom feed, includes replies
 sub get_atom {
-	my ($ctx, $cgi) = @_;
-	$ctx->{pi_config} = $pi_config;
-	$ctx->{cgi} = $cgi;
+	my ($ctx) = @_;
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate($ctx);
 }
 
 # /$LISTNAME/?r=$GIT_COMMIT                 -> HTML only
 sub get_index {
-	my ($ctx, $cgi) = @_;
+	my ($ctx) = @_;
 	require PublicInbox::Feed;
 	my $srch = searcher($ctx);
-	$ctx->{pi_config} = $pi_config;
-	$ctx->{cgi} = $cgi;
 	footer($ctx);
 	PublicInbox::Feed::generate_html_index($ctx);
 }
@@ -159,7 +153,7 @@ sub mid2blob {
 
 # /$LISTNAME/m/$MESSAGE_ID.txt                    -> raw mbox
 sub get_mid_txt {
-	my ($ctx, $cgi) = @_;
+	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404();
 	require PublicInbox::Mbox;
 	PublicInbox::Mbox::emit1($x);
@@ -167,7 +161,7 @@ sub get_mid_txt {
 
 # /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
 sub get_mid_html {
-	my ($ctx, $cgi) = @_;
+	my ($ctx) = @_;
 	my $x = mid2blob($ctx);
 	return r404() unless $x;
 
@@ -183,7 +177,7 @@ sub get_mid_html {
 
 # /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
 sub get_full_html {
-	my ($ctx, $cgi) = @_;
+	my ($ctx) = @_;
 	my $x = mid2blob($ctx);
 	return r404() unless $x;
 	require PublicInbox::View;
@@ -197,7 +191,7 @@ sub get_full_html {
 
 # /$LISTNAME/t/$MESSAGE_ID.html
 sub get_thread {
-	my ($ctx, $cgi) = @_;
+	my ($ctx) = @_;
 	my $srch = searcher($ctx) or return need_search($ctx);
 	require PublicInbox::View;
 	my $foot = footer($ctx);
@@ -210,13 +204,13 @@ sub self_url {
 }
 
 sub redirect_list_index {
-	my ($ctx, $cgi) = @_;
+	my ($cgi) = @_;
 	do_redirect(self_url($cgi) . "/");
 }
 
 sub redirect_mid {
-	my ($ctx, $cgi, $pfx) = @_;
-	my $url = self_url($cgi);
+	my ($ctx, $pfx) = @_;
+	my $url = self_url($ctx->{cgi});
 	my $anchor = '';
 	if (lc($pfx) eq 't') {
 		$anchor = '#u'; # <u id='#u'> is used to highlight in View.pm
@@ -226,9 +220,9 @@ sub redirect_mid {
 
 # only hit when somebody tries to guess URLs manually:
 sub redirect_mid_txt {
-	my ($ctx, $cgi, $pfx) = @_;
+	my ($ctx, $pfx) = @_;
 	my $listname = $ctx->{listname};
-	my $url = self_url($cgi);
+	my $url = self_url($ctx->{cgi});
 	$url =~ s!/$listname/f/(\S+\.txt)\z!/$listname/m/$1!;
 	do_redirect($url);
 }
@@ -339,7 +333,7 @@ sub msg_pfx {
 # significantly more expensive on CPU than gzip and less-widely available,
 # especially on older systems.  Stick to zlib since that's what git uses.
 sub get_thread_mbox {
-	my ($ctx, $cgi, $sfx) = @_;
+	my ($ctx, $sfx) = @_;
 	my $srch = searcher($ctx) or return need_search($ctx);
 	require PublicInbox::Mbox;
 	PublicInbox::Mbox::thread_mbox($ctx, $srch, $sfx);
