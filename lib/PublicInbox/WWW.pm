@@ -44,37 +44,39 @@ sub run {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)/raw\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.txt\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.html\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx);
 
 	# full-message page
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)/\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
 
 	# thread display
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
-
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!ox ||
-	         $path_info =~ m!$LISTNAME_RE/t/(\S+)\.mbox(\.gz)?\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!x) {
 		my $sfx = $3;
 		invalid_list_mid(\%ctx, $1, $2) ||
 			get_thread_mbox(\%ctx, $sfx);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/f/\S+\.txt\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || redirect_mid_txt(\%ctx);
+	# legacy redirects
+	} elsif ($path_info =~ m!$LISTNAME_RE/(t|m|f)/(\S+)\.html\z!o) {
+		my $pfx = $2;
+		invalid_list_mid(\%ctx, $1, $3) ||
+			redirect_mid(\%ctx, $pfx, qr/\.html\z/, '/');
+	} elsif ($path_info =~ m!$LISTNAME_RE/(m|f)/(\S+)\.txt\z!o) {
+		my $pfx = $2;
+		invalid_list_mid(\%ctx, $1, $3) ||
+			redirect_mid(\%ctx, $pfx, qr/\.txt\z/, '/raw');
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)(\.mbox(?:\.gz)?)\z!o) {
+		my $end = $3;
+		invalid_list_mid(\%ctx, $1, $2) ||
+			redirect_mid(\%ctx, 't', $end, '/mbox.gz');
 
 	# convenience redirects, order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/(m|f|t|s)/(\S+)\z!o) {
 		my $pfx = $2;
-		invalid_list_mid(\%ctx, $1, $3) || redirect_mid(\%ctx, $2);
+		invalid_list_mid(\%ctx, $1, $3) ||
+			redirect_mid(\%ctx, $pfx, qr/\z/, '/');
 
 	} else {
 		r404();
@@ -217,13 +219,14 @@ sub redirect_list_index {
 }
 
 sub redirect_mid {
-	my ($ctx, $pfx) = @_;
+	my ($ctx, $pfx, $old, $sfx) = @_;
 	my $url = self_url($ctx->{cgi});
 	my $anchor = '';
-	if (lc($pfx) eq 't') {
+	if (lc($pfx) eq 't' && $sfx eq '/') {
 		$anchor = '#u'; # <u id='#u'> is used to highlight in View.pm
 	}
-	do_redirect($url . "/$anchor");
+	$url =~ s/$old/$sfx/;
+	do_redirect($url . $anchor);
 }
 
 # only hit when somebody tries to guess URLs manually:
