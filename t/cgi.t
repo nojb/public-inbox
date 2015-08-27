@@ -152,27 +152,27 @@ EOF
 	}
 	local $ENV{GIT_DIR} = $maindir;
 
-	my $res = cgi_run("/test/m/slashy%2fasdf%40example.com.txt");
+	my $res = cgi_run("/test/m/slashy%2fasdf%40example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
-		"slashy mid.txt hit");
+		"slashy mid raw hit");
 
-	$res = cgi_run("/test/m/blahblah\@example.com.txt");
+	$res = cgi_run("/test/m/blahblah\@example.com/raw");
 	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
-		"mid.txt hit");
-	$res = cgi_run("/test/m/blahblah\@example.con.txt");
-	like($res->{head}, qr/Status: 404 Not Found/, "mid.txt miss");
+		"mid raw hit");
+	$res = cgi_run("/test/m/blahblah\@example.con/raw");
+	like($res->{head}, qr/Status: 404 Not Found/, "mid raw miss");
 
-	$res = cgi_run("/test/m/blahblah\@example.com.html");
-	like($res->{body}, qr/\A<html>/, "mid.html hit");
+	$res = cgi_run("/test/m/blahblah\@example.com/");
+	like($res->{body}, qr/\A<html>/, "mid html hit");
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
-	$res = cgi_run("/test/m/blahblah\@example.con.html");
-	like($res->{head}, qr/Status: 404 Not Found/, "mid.html miss");
+	$res = cgi_run("/test/m/blahblah\@example.con/");
+	like($res->{head}, qr/Status: 404 Not Found/, "mid html miss");
 
-	$res = cgi_run("/test/f/blahblah\@example.com.html");
-	like($res->{body}, qr/\A<html>/, "mid.html hit");
+	$res = cgi_run("/test/f/blahblah\@example.com/");
+	like($res->{body}, qr/\A<html>/, "mid html");
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
-	$res = cgi_run("/test/f/blahblah\@example.con.html");
-	like($res->{head}, qr/Status: 404 Not Found/, "mid.html miss");
+	$res = cgi_run("/test/f/blahblah\@example.con/");
+	like($res->{head}, qr/Status: 404 Not Found/, "mid html miss");
 
 	$res = cgi_run("/test/");
 	like($res->{body}, qr/slashy%2Fasdf%40example\.com/,

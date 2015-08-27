@@ -56,6 +56,9 @@ sub run {
 		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
 
 	# thread display
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
+
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
 
@@ -220,7 +223,7 @@ sub redirect_mid {
 	if (lc($pfx) eq 't') {
 		$anchor = '#u'; # <u id='#u'> is used to highlight in View.pm
 	}
-	do_redirect($url . ".html$anchor");
+	do_redirect($url . "/$anchor");
 }
 
 # only hit when somebody tries to guess URLs manually:
@@ -329,7 +332,7 @@ EOF
 sub msg_pfx {
 	my ($ctx) = @_;
 	my $href = PublicInbox::Hval::ascii_html(uri_escape_utf8($ctx->{mid}));
-	"../f/$href.html";
+	"../../f/$href/";
 }
 
 # /$LISTNAME/t/$MESSAGE_ID/mbox           -> thread as mbox

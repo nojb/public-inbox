@@ -44,17 +44,18 @@ EOF
 	my $html = PublicInbox::View::msg_html(undef, $mime);
 
 	# ghetto tests
-	like($html, qr!<a\nhref="\.\./m/hello%40!s, "MID link present");
+	like($html, qr!<a\nhref="\.\./\.\./m/hello%40!s, "MID link present");
 	like($html, qr/hello world\b/, "body present");
 	like($html, qr/&gt; keep this inline/, "short quoted text is inline");
 	like($html, qr/<a\nid=[^>]+><\/a>&gt; Long and wordy/,
 		"long quoted text is anchored");
 
 	# short page
-	my $pfx = "http://example.com/test/f";
+	my $pfx = "../../f/hello%40example.com/";
 	$mime = Email::MIME->new($s);
 	my $short = PublicInbox::View::msg_html(undef, $mime, $pfx);
-	like($short, qr!<a\nhref="hello%40!s, "MID link present");
+	like($short, qr!<a\nhref="\.\./\.\./f/hello%40example\.com/!s,
+		"MID link present");
 	like($short, qr/\n&gt; keep this inline/,
 		"short quoted text is inline");
 	like($short, qr/<a\nhref="\Q$pfx\E#[^>]+>Long and wordy/,

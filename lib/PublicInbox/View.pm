@@ -72,7 +72,7 @@ sub index_entry {
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
 	my $more = 'permalink';
 	my $root_anchor = $state->{root_anchor};
-	my $path = $root_anchor ? '../' : '';
+	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
 	my $irt = $header_obj->header('In-Reply-To');
 	my ($anchor_idx, $anchor, $t_anchor);
@@ -84,7 +84,7 @@ sub index_entry {
 		$t_anchor = '';
 	}
 	if ($srch) {
-		$subj = "<a\nhref=\"${path}t/$href.html#u\">$subj</a>";
+		$subj = "<a\nhref=\"${path}t/$href/#u\">$subj</a>";
 	}
 	if ($root_anchor && $root_anchor eq $id) {
 		$subj = "<u\nid=\"u\">$subj</u>";
@@ -110,9 +110,9 @@ sub index_entry {
 	$fh->write($rv .= "\n\n");
 
 	my ($fhref, $more_ref);
-	my $mhref = "${path}m/$href.html";
+	my $mhref = "${path}m/$href/";
 	if ($level > 0) {
-		$fhref = "${path}f/$href.html";
+		$fhref = "${path}f/$href/";
 		$more_ref = \$more;
 	}
 	# scan through all parts, looking for displayable text
@@ -121,7 +121,7 @@ sub index_entry {
 	});
 	$mime->body_set('');
 
-	my $txt = "${path}m/$href.txt";
+	my $txt = "${path}m/$href/raw";
 	$rv = "\n<a\nhref=\"$mhref\">$more</a> <a\nhref=\"$txt\">raw</a> ";
 	$rv .= html_footer($mime, 0, undef, $ctx);
 
@@ -129,14 +129,14 @@ sub index_entry {
 		unless (defined $anchor) {
 			my $v = PublicInbox::Hval->new_msgid($irt);
 			$v = $v->as_href;
-			$anchor = "${path}m/$v.html";
+			$anchor = "${path}m/$v/";
 			$seen->{$anchor_idx} = $anchor;
 		}
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
 	}
 
 	if ($srch) {
-		$rv .= " <a\nhref=\"${path}t/$href.html$t_anchor\">" .
+		$rv .= " <a\nhref=\"${path}t/$href/$t_anchor\">" .
 		       "threadlink</a>";
 	}
 
@@ -173,9 +173,9 @@ sub emit_thread_html {
 	my $final_anchor = $state->{anchor_idx};
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
-	$next .= " thread</a>, back to <a\nhref=\"../\">index</a>\n";
-	$mid = PublicInbox::Hval->new_msgid($mid)->as_href;
-	$next .= "download: <a\nhref=\"$mid.mbox.gz\">mbox.gz</a>\n\n";
+	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>\n";
+	# $mid = PublicInbox::Hval->new_msgid($mid)->as_href;
+	$next .= "download: <a\nhref=\"mbox.gz\">mbox.gz</a>\n\n";
 	$fh->write("<hr />" . PRE_WRAP . $next . $foot .
 		   "</pre></body></html>");
 	$fh->close;
@@ -361,7 +361,7 @@ sub headers_to_html_header {
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
-				$rv .= "$h: <a\nhref=\"../t/$mid_href.html\">";
+				$rv .= "$h: <a\nhref=\"../../t/$mid_href/\">";
 				$rv .= $v->as_html . "</a>\n";
 				next;
 			}
@@ -371,8 +371,8 @@ sub headers_to_html_header {
 	}
 
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
-	$mid_href = "../m/$mid_href" unless $full_pfx;
-	$rv .= "(<a\nhref=\"$mid_href.txt\">raw</a>)\n";
+	my $raw_ref = $full_pfx ? 'raw' : "../../m/$mid_href/raw";
+	$rv .= "(<a\nhref=\"$raw_ref\">raw</a>)\n";
 
 	my $irt = $header_obj->header('In-Reply-To');
 	if (defined $irt) {
@@ -380,7 +380,7 @@ sub headers_to_html_header {
 		my $html = $v->as_html;
 		my $href = $v->as_href;
 		$rv .= "In-Reply-To: &lt;";
-		$rv .= "<a\nhref=\"$href.html\">$html</a>&gt;\n";
+		$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
 	}
 
 	my $refs = $header_obj->header('References');
@@ -437,12 +437,12 @@ sub html_footer {
 	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
 
 	my $srch = $ctx->{srch} if $ctx;
-	my $idx = $standalone ? " <a\nhref=\"../\">index</a>" : '';
+	my $idx = $standalone ? " <a\nhref=\"../../\">index</a>" : '';
 	if ($idx && $srch) {
 		$irt = $mime->header('In-Reply-To') || '';
 		$mid = mid_compress(mid_clean($mid));
 		my $t_anchor = length $irt ? T_ANCHOR : '';
-		$idx = " <a\nhref=\"../t/$mid.html$t_anchor\">".
+		$idx = " <a\nhref=\"../../t/$mid/$t_anchor\">".
 		       "threadlink</a>$idx";
 		my $res = $srch->get_followups($mid);
 		if (my $c = $res->{total}) {
@@ -461,7 +461,7 @@ sub html_footer {
 		if ($irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
 			$irt = $irt->as_href;
-			$irt = "<a\nhref=\"$irt\">parent</a> ";
+			$irt = "<a\nhref=\"../$irt/\">parent</a> ";
 		} else {
 			$irt = ' ' x length('parent ');
 		}
@@ -476,7 +476,7 @@ sub linkify_ref {
 	my $v = PublicInbox::Hval->new_msgid($_[0]);
 	my $html = $v->as_html;
 	my $href = $v->as_href;
-	"&lt;<a\nhref=\"$href.html\">$html</a>&gt;";
+	"&lt;<a\nhref=\"../$href/\">$html</a>&gt;";
 }
 
 sub anchor_for {
@@ -511,7 +511,7 @@ sub simple_dump {
 			my $m = PublicInbox::Hval->new_msgid($mid);
 			$f = PublicInbox::Hval->new($f);
 			$d = PublicInbox::Hval->new($d);
-			$m = $m->as_href . '.html';
+			$m = $m->as_href . '/';
 			$f = $f->as_html;
 			$d = $d->as_html . ' UTC';
 			if (length($s) == 0) {
@@ -592,7 +592,7 @@ sub missing_thread {
 	my $title = 'Thread does not exist';
 	$cb->([404, ['Content-Type' => 'text/html']])->write(<<EOF);
 <html><head><title>$title</title></head><body><pre>$title
-<a href="../">Return to index</a></pre></body></html>
+<a href="../../">Return to index</a></pre></body></html>
 EOF
 }
 

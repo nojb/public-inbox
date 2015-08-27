@@ -273,7 +273,7 @@ sub add_to_feed {
 	my $mid = $header_obj->header('Message-ID');
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $mid->as_href . '.html';
+	my $href = $mid->as_href . '/';
 	my $content = PublicInbox::View->feed_entry($mime, $fullurl . $href);
 	defined($content) or return 0;
 	$mime = undef;
@@ -362,7 +362,7 @@ sub dump_topics {
 		$mid = PublicInbox::Hval->new($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$u = PublicInbox::Hval->new($u)->as_html;
-		$dst .= "\n<a\nhref=\"t/$mid.html#u\"><b>$subj</b></a>\n- ";
+		$dst .= "\n<a\nhref=\"t/$mid/#u\"><b>$subj</b></a>\n- ";
 		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
 		if ($n == 1) {
 			$dst .= "created by $u @ $ts UTC\n"
