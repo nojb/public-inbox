@@ -511,7 +511,7 @@ sub simple_dump {
 			my $m = PublicInbox::Hval->new_msgid($mid);
 			$f = PublicInbox::Hval->new($f);
 			$d = PublicInbox::Hval->new($d);
-			$m = $m->as_href . '/';
+			$m = '../' . $m->as_href . '/';
 			$f = $f->as_html;
 			$d = $d->as_html . ' UTC';
 			if (length($s) == 0) {
