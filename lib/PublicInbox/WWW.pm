@@ -40,12 +40,18 @@ sub run {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx);
 
 	# single-message pages
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)/\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx);
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)/raw\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.txt\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx);
 
 	# full-message page
+	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)/\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
 
@@ -53,7 +59,8 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.mbox(\.gz)?\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!ox ||
+	         $path_info =~ m!$LISTNAME_RE/t/(\S+)\.mbox(\.gz)?\z!o) {
 		my $sfx = $3;
 		invalid_list_mid(\%ctx, $1, $2) ||
 			get_thread_mbox(\%ctx, $sfx);
@@ -325,8 +332,8 @@ sub msg_pfx {
 	"../f/$href.html";
 }
 
-# /$LISTNAME/t/$MESSAGE_ID.mbox           -> thread as mbox
-# /$LISTNAME/t/$MESSAGE_ID.mbox.gz        -> thread as gzipped mbox
+# /$LISTNAME/t/$MESSAGE_ID/mbox           -> thread as mbox
+# /$LISTNAME/t/$MESSAGE_ID/mbox.gz        -> thread as gzipped mbox
 # note: I'm not a big fan of other compression formats since they're
 # significantly more expensive on CPU than gzip and less-widely available,
 # especially on older systems.  Stick to zlib since that's what git uses.

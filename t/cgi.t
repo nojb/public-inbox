@@ -183,7 +183,7 @@ EOF
 {
 	local $ENV{HOME} = $home;
 	local $ENV{PATH} = $main_path;
-	my $path = "/test/t/blahblah%40example.com.mbox.gz";
+	my $path = "/test/t/blahblah%40example.com/mbox.gz";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
 	my $indexed = system($index, $maindir) == 0;
