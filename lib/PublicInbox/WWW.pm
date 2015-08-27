@@ -138,7 +138,6 @@ sub mid2blob {
 	my $path = PublicInbox::MID::mid2path($ctx->{mid});
 	my @cmd = ('git', "--git-dir=$ctx->{git_dir}",
 			qw(cat-file blob), "HEAD:$path");
-	my $cmd = join(' ', @cmd);
 	my $pid = open my $fh, '-|';
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
@@ -162,8 +161,7 @@ sub get_mid_txt {
 # /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
 sub get_mid_html {
 	my ($ctx) = @_;
-	my $x = mid2blob($ctx);
-	return r404() unless $x;
+	my $x = mid2blob($ctx) or return r404();
 
 	require PublicInbox::View;
 	my $pfx = msg_pfx($ctx);
@@ -178,8 +176,8 @@ sub get_mid_html {
 # /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
 sub get_full_html {
 	my ($ctx) = @_;
-	my $x = mid2blob($ctx);
-	return r404() unless $x;
+	my $x = mid2blob($ctx) or return r404();
+
 	require PublicInbox::View;
 	my $foot = footer($ctx);
 	require Email::MIME;
