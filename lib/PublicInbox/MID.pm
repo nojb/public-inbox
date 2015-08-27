@@ -12,8 +12,9 @@ sub mid_clean {
 	my ($mid) = @_;
 	defined($mid) or die "no Message-ID";
 	# MDA->precheck did more checking for us
-	$mid =~ s/\A\s*<?//;
-	$mid =~ s/>?\s*\z//;
+	if ($mid =~ /<([^>]+)>/) {
+		$mid = $1;
+	}
 	$mid;
 }
 
