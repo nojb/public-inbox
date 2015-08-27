@@ -15,7 +15,7 @@ our $VERSION = '0.0.1';
 use constant NO_HTML => '*** We only accept plain-text email, no HTML ***';
 
 # start with the same defaults as mailman
-our $BAD_EXT = qr/\.(?:exe|bat|cmd|com|pif|scr|vbs|cpl)\z/i;
+our $BAD_EXT = qr/\.(exe|bat|cmd|com|pif|scr|vbs|cpl|zip)\s*\z/i;
 our $MIME_HTML = qr!\btext/html\b!i;
 our $MIME_TEXT_ANY = qr!\btext/[a-z0-9\+\._-]+\b!i;
 
@@ -127,6 +127,7 @@ sub strip_multipart {
 		# some extensions are just bad, reject them outright
 		my $fn = $part->filename;
 		if (defined($fn) && $fn =~ $BAD_EXT) {
+			$filter->reject("Bad file type: $1") if $filter;
 			$rejected++;
 			return;
 		}
@@ -150,6 +151,8 @@ sub strip_multipart {
 			# change the sender-specified type
 			if (recheck_type_ok($part)) {
 				push @keep, $part;
+			} elsif ($filter) {
+				$filter->reject('no attachments')
 			} else {
 				$rejected++;
 			}
@@ -161,6 +164,7 @@ sub strip_multipart {
 				push @keep, $part;
 			}
 		} else {
+			$filter->reject('no attachments') if $filter;
 			# reject everything else, including non-PGP signatures
 			$rejected++;
 		}
