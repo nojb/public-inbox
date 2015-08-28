@@ -6,18 +6,11 @@
 package PublicInbox::GitCatFile;
 use strict;
 use warnings;
-use Fcntl qw(F_GETFD F_SETFD FD_CLOEXEC);
 use POSIX qw(dup2);
 
 sub new {
 	my ($class, $git_dir) = @_;
 	bless { git_dir => $git_dir }, $class;
-}
-
-sub set_cloexec {
-	my ($fh) = @_;
-	my $flags = fcntl($fh, F_GETFD, 0) or die "fcntl(F_GETFD): $!\n";
-	fcntl($fh, F_SETFD, $flags | FD_CLOEXEC) or die "fcntl(F_SETFD): $!\n";
 }
 
 sub _cat_file_begin {
@@ -26,9 +19,7 @@ sub _cat_file_begin {
 	my ($in_r, $in_w, $out_r, $out_w);
 
 	pipe($in_r, $in_w) or die "pipe failed: $!\n";
-	set_cloexec($_) foreach ($in_r, $in_w);
 	pipe($out_r, $out_w) or die "pipe failed: $!\n";
-	set_cloexec($_) foreach ($out_r, $out_w);
 
 	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file --batch));
 	my $pid = fork;
