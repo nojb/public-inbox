@@ -110,7 +110,6 @@ sub references_sorted {
 sub ensure_metadata {
 	my ($self) = @_;
 	my $doc = $self->{doc};
-	my $i = $doc->termlist_begin;
 	my $end = $doc->termlist_end;
 
 	unless (defined $PFX2TERM_RE) {
@@ -118,12 +117,17 @@ sub ensure_metadata {
 		$PFX2TERM_RE = qr/\A($or)/;
 	}
 
-	for (; $i != $end; $i->inc) {
-		my $val = $i->get_termname;
+	while (my ($pfx, $field) = each %PublicInbox::Search::PFX2TERM_RMAP) {
+		# ideally we'd move this out of the loop:
+		my $i = $doc->termlist_begin;
 
-		if ($val =~ s/$PFX2TERM_RE//o) {
-			my $field = $PublicInbox::Search::PFX2TERM_RMAP{$1};
-			$self->{$field} = $val;
+		$i->skip_to($pfx);
+		if ($i != $end) {
+			my $val = $i->get_termname;
+
+			if ($val =~ s/$PFX2TERM_RE//o) {
+				$self->{$field} = $val;
+			}
 		}
 	}
 }
