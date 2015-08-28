@@ -50,7 +50,7 @@ my %all_pfx = (%bool_pfx_internal, %bool_pfx_external, %prob_prefix);
 sub xpfx { $all_pfx{$_[0]} }
 
 our %PFX2TERM_RMAP;
-my %meta_pfx = (mid => 1, thread => 1, path => 1, type => 1);
+my %meta_pfx = (mid => 1, thread => 1, path => 1);
 while (my ($k, $v) = each %all_pfx) {
 	$PFX2TERM_RMAP{$v} = $k if $meta_pfx{$k};
 }
