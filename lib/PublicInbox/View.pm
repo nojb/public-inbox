@@ -174,7 +174,6 @@ sub emit_thread_html {
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>\n";
-	# $mid = PublicInbox::Hval->new_msgid($mid)->as_href;
 	$next .= "download: <a\nhref=\"mbox.gz\">mbox.gz</a>\n\n";
 	$fh->write("<hr />" . PRE_WRAP . $next . $foot .
 		   "</pre></body></html>");
