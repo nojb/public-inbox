@@ -64,7 +64,7 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 } else {
 	# Ensure emergency spam gets spamassassin headers.
 	# This makes it easier to prioritize obvious spam from less obvious
-	if (defined($filtered) && length($filtered)) {
+	if (defined($filtered) && $filtered ne '') {
 		my $drop = Email::MIME->new(\$filtered);
 		$filtered = undef;
 		$filter->simple($drop);
@@ -82,7 +82,7 @@ sub do_spamc {
 		run([qw/spamc -E --headers/], \$orig, $out);
 	};
 
-	return ($@ || $? || !defined($$out) || length($$out) == 0) ? 0 : 1;
+	return ($@ || $? || !defined($$out) || $$out eq '') ? 0 : 1;
 }
 
 sub search_index_sync {

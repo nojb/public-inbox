@@ -198,7 +198,7 @@ sub index_walk {
 	$s =~ s/^\s*$//sgm;
 	$s =~ s/\s+\z//s;
 
-	if (length $s) {
+	if ($s ne '') {
 		# kill per-line trailing whitespace
 		$s =~ s/[ \t]+$//sgm;
 		$s .= "\n" unless $s =~ /\n\z/s;
@@ -352,7 +352,7 @@ sub headers_to_html_header {
 	my $mid_href = $mid->as_href;
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $mime->header($h);
-		defined($v) && length($v) or next;
+		defined($v) && ($v ne '') or next;
 		$v = PublicInbox::Hval->new_oneline($v);
 
 		if ($h eq 'From') {
@@ -414,7 +414,7 @@ sub html_footer {
 
 	foreach my $h (qw(From To Cc)) {
 		my $v = $mime->header($h);
-		defined($v) && length($v) or next;
+		defined($v) && ($v ne '') or next;
 		my @addrs = Email::Address->parse($v);
 		foreach my $recip (@addrs) {
 			my $address = $recip->address;
@@ -439,9 +439,9 @@ sub html_footer {
 	my $srch = $ctx->{srch} if $ctx;
 	my $idx = $standalone ? " <a\nhref=\"../../\">index</a>" : '';
 	if ($idx && $srch) {
-		$irt = $mime->header('In-Reply-To') || '';
 		$mid = mid_compress(mid_clean($mid));
-		my $t_anchor = length $irt ? T_ANCHOR : '';
+		my $t_anchor = defined $irt ? T_ANCHOR : '';
+		$irt = $mime->header('In-Reply-To');
 		$idx = " <a\nhref=\"../../t/$mid/$t_anchor\">".
 		       "threadlink</a>$idx";
 		my $res = $srch->get_followups($mid);
@@ -458,7 +458,7 @@ sub html_footer {
 		} else {
 			$idx .= "\n(no followups, yet)\n";
 		}
-		if ($irt) {
+		if (defined $irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
 			$irt = $irt->as_href;
 			$irt = "<a\nhref=\"../$irt/\">parent</a> ";
@@ -499,10 +499,14 @@ sub simple_dump {
 			my $mid = $x->header('Message-ID');
 			my $pfx = '  ' x $level;
 			$$dst .= $pfx;
+
+			# Subject is never undef, this mail was loaded from
+			# our Xapian which would've resulted in '' if it were
+			# really missing (and Filter rejects empty subjects)
 			my $s = $x->header('Subject');
 			my $h = $root->[2]->subject_path($s);
 			if ($root->[1]->{$h}) {
-				$s = '';
+				$s = undef;
 			} else {
 				$root->[1]->{$h} = 1;
 				$s = PublicInbox::Hval->new($s);
@@ -514,11 +518,11 @@ sub simple_dump {
 			$m = '../' . $m->as_href . '/';
 			$f = $f->as_html;
 			$d = $d->as_html . ' UTC';
-			if (length($s) == 0) {
-				$$dst .= "` <a\nhref=\"$m\">$f @ $d</a>\n";
-			} else {
+			if (defined $s) {
 				$$dst .= "` <a\nhref=\"$m\">$s</a>\n" .
 				     "$pfx  by $f @ $d\n";
+			} else {
+				$$dst .= "` <a\nhref=\"$m\">$f @ $d</a>\n";
 			}
 		}
 	}

@@ -251,10 +251,11 @@ sub subject_summary {
 			last if length($new) >= $max;
 			$subj = $new;
 		}
-		if (length $subj) {
+		if ($subj ne '') {
 			my $r = scalar @subj ? ' ...' : '';
 			$subj =~ s/ \z/$r/s;
 		} else {
+			# subject has one REALLY long word, and NOT spam? wtf
 			@subj = ($l =~ /\A(.{1,72})/);
 			$subj = $subj[0] . ' ...';
 		}

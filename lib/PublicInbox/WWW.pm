@@ -249,7 +249,7 @@ sub do_redirect {
 sub ctx_get {
 	my ($ctx, $key) = @_;
 	my $val = $ctx->{$key};
-	(defined $val && length $val) or die "BUG: bad ctx, $key unusable\n";
+	(defined $val && $val ne '') or die "BUG: bad ctx, $key unusable\n";
 	$val;
 }
 

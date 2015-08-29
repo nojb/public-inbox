@@ -216,7 +216,7 @@ sub get_feedopts {
 		close $fh;
 	}
 
-	if ($pi_config && defined $listname && length $listname) {
+	if ($pi_config && defined $listname && $listname ne '') {
 		foreach my $key (qw(address)) {
 			$rv{$key} = $pi_config->get($listname, $key) || "";
 		}

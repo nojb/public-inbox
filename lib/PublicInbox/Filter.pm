@@ -211,7 +211,7 @@ sub collapse {
 	$mime->header_set('Content-Type', $part->content_type);
 	$mime->body_set($part->body_raw);
 	my $cte = $part->header('Content-Transfer-Encoding');
-	if (defined($cte) && length($cte)) {
+	if (defined($cte) && $cte ne '') {
 		$mime->header_set('Content-Transfer-Encoding', $cte);
 	}
 	mark_changed($mime);

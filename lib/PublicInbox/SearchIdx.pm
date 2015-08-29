@@ -74,7 +74,7 @@ sub add_message {
 
 		my $subj = $smsg->subject;
 
-		if (length $subj) {
+		if ($subj ne '') {
 			$doc->add_term(xpfx('subject') . $subj);
 
 			my $path = $self->subject_path($subj);
@@ -308,7 +308,7 @@ sub _index_sync {
 		my $git = PublicInbox::GitCatFile->new($self->{git_dir});
 
 		my $latest = $db->get_metadata('last_commit');
-		my $range = length $latest ? "$latest..$head" : $head;
+		my $range = $latest eq '' ? $head : "$latest..$head";
 		$latest = undef;
 
 		# get indexed messages
@@ -394,7 +394,7 @@ sub _read_git_config_perm {
 sub _git_config_perm {
 	my $self = shift;
 	my $perm = scalar @_ ? $_[0] : _read_git_config_perm($self);
-	return PERM_GROUP if (!defined($perm) || !length($perm));
+	return PERM_GROUP if (!defined($perm) || $perm eq '');
 	return PERM_UMASK if ($perm eq 'umask');
 	return PERM_GROUP if ($perm eq 'group');
 	if ($perm =~ /\A(?:all|world|everybody)\z/) {
