@@ -473,6 +473,7 @@ sub html_footer {
 	my $srch = $ctx->{srch} if $ctx;
 	my $idx = $standalone ? " <a\nhref=\"../../\">index</a>" : '';
 	if ($idx && $srch) {
+		$mid = mid_compress(mid_clean($mid));
 		my $t_anchor = defined $irt ? T_ANCHOR : '';
 		$irt = $mime->header('In-Reply-To');
 		$idx = " <a\nhref=\"../../t/$mid/$t_anchor\">".
