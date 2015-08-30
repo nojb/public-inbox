@@ -238,20 +238,15 @@ sub link_message_to_parents {
 		}
 	}
 	if (@refs) {
-		$doc->add_term(xpfx('inreplyto') . $irt) if defined $irt;
 		$smsg->{references_sorted} = '<'.join('><', @refs).'>';
-
-		my $ref_pfx = xpfx('references');
 
 		# first ref *should* be the thread root,
 		# but we can never trust clients to do the right thing
 		my $ref = shift @refs;
-		$doc->add_term($ref_pfx . $ref);
 		$tid = $self->_resolve_mid_to_tid($ref);
 
 		# the rest of the refs should point to this tid:
 		foreach $ref (@refs) {
-			$doc->add_term($ref_pfx . $ref);
 			my $ptid = $self->_resolve_mid_to_tid($ref);
 			if ($tid ne $ptid) {
 				$self->merge_threads($tid, $ptid);

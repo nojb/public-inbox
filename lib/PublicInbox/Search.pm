@@ -24,7 +24,8 @@ use constant {
 	# 4 - change "Re: " normalization, avoid circular Reference ghosts
 	# 5 - subject_path drops trailing '.'
 	# 6 - preserve References: order in document data
-	SCHEMA_VERSION => 6,
+	# 7 - remove references and inreplyto terms
+	SCHEMA_VERSION => 7,
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
@@ -37,8 +38,6 @@ my %bool_pfx_internal = (
 my %bool_pfx_external = (
 	path => 'XPATH',
 	thread => 'G', # newsGroup (or similar entity - e.g. a web forum name)
-	references => 'XREFS',
-	inreplyto => 'XIRT',
 );
 
 my %prob_prefix = (
@@ -84,18 +83,6 @@ sub query {
 sub get_subject_path {
 	my ($self, $path, $opts) = @_;
 	my $query = $self->qp->parse_query("path:".mid_compress($path), 0);
-	$self->do_enquire($query, $opts);
-}
-
-# given a message ID, get followups to a message
-sub get_followups {
-	my ($self, $mid, $opts) = @_;
-	$mid = mid_clean($mid);
-	$mid = mid_compress($mid);
-	my $qp = $self->qp;
-	my $irt = $qp->parse_query("inreplyto:$mid", 0);
-	my $ref = $qp->parse_query("references:$mid", 0);
-	my $query = Search::Xapian::Query->new(OP_OR, $irt, $ref);
 	$self->do_enquire($query, $opts);
 }
 

@@ -135,15 +135,6 @@ sub filter_mids {
 	my $second = $res->{msgs}->[0];
 
 	isnt($first, $second, "offset returned different result from limit");
-
-	foreach my $f (qw(inreplyto references)) {
-		$res = $ro->query($f . ':root@s');
-		@res = filter_mids($res);
-		is_deeply(\@res, [ 'last@s' ],
-			  "got expected results for $f: match");
-		$res = $ro->query($f . ':root');
-		is($res->{total}, 0, "no partial mid match");
-	}
 }
 
 # ghost vivication
@@ -219,14 +210,8 @@ sub filter_mids {
 
 	$rw_commit->();
 	$ro->reopen;
-	my $res = $ro->query('references:root@s');
-	my @res = filter_mids($res);
-	is_deeply(\@res, [ sort('last@s', $long_midc) ],
-		  "got expected results for references: match");
-
-	my $followups = $ro->get_followups('root@s');
-	$followups = [ filter_mids($followups) ];
-	is_deeply($followups, [ filter_mids($res) ], "get_followups matches");
+	my $res;
+	my @res;
 
 	my $long_reply_mid = 'reply-to-long@1';
 	my $long_reply = Email::MIME->create(
@@ -301,7 +286,7 @@ sub filter_mids {
 	ok($doc_id > 0, "doc_id defined with circular reference");
 	my $smsg = $rw->lookup_message('circle@a');
 	$smsg->ensure_metadata;
-	is($smsg->{references}, undef, "no references created");
+	is($smsg->references_sorted, '', "no references created");
 }
 
 done_testing();
