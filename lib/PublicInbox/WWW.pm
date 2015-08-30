@@ -17,12 +17,10 @@ use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
 use constant PI_URL => 'http://public-inbox.org/';
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $pi_config;
-BEGIN {
-	$pi_config = PublicInbox::Config->new;
-}
 
 sub run {
 	my ($cgi, $method) = @_;
+	$pi_config ||= PublicInbox::Config->new;
 	my %ctx = (cgi => $cgi, pi_config => $pi_config);
 	if ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
