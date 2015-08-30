@@ -15,11 +15,42 @@ if ($@) {
 	print STDERR "Search::Xapian required for $0\n";
 	exit 1;
 }
+my @dirs;
+
+sub resolve_git_dir {
+	my ($cd) = @_;
+	my @cmd = qw(git rev-parse --git-dir);
+	my $cmd = join(' ', @cmd);
+	my $pid = open my $fh, '-|';
+	defined $pid or die "forking $cmd failed: $!\n";
+	if ($pid == 0) {
+		if (defined $cd) {
+			chdir $cd or die "chdir $cd failed: $!\n";
+		}
+		exec @cmd;
+		die "Failed to exec $cmd: $!\n";
+	} else {
+		my $dir = eval {
+			local $/;
+			<$fh>;
+		};
+		close $fh or die "error in $cmd: $!\n";
+		chomp $dir;
+		return $cd if ($dir eq '.' && defined $cd);
+		$dir;
+	}
+}
+
+if (@ARGV) {
+	@dirs = map { resolve_git_dir($_) } @ARGV;
+} else {
+	@dirs = (resolve_git_dir());
+}
 
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
-usage() unless @ARGV;
+usage() unless @dirs;
 
-foreach my $dir (@ARGV) {
+foreach my $dir (@dirs) {
 	index_dir($dir);
 }
 
