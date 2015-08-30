@@ -244,7 +244,9 @@ sub add_filename_line {
 	"$pad " . ascii_html($fn) . " $pad\n";
 }
 
-my $LINK_RE = qr!\b((?:ftp|https?|nntp)://[@\w\+\&\?\.\%\;/#=-]+)!;
+my $LINK_RE = qr!\b((?:ftp|https?|nntp)://
+		 [\@:\w\.-]+/
+		 ?[\@\w\+\&\?\.\%\;/#=-]*)!x;
 
 sub linkify {
 	# no newlines added here since it'd break the splitting we do
