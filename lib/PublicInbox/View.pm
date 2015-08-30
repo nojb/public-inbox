@@ -31,10 +31,9 @@ sub msg_html {
 	} else {
 		$footer = '';
 	}
-	my $srch = $ctx->{srch} if $ctx;
-	headers_to_html_header($mime, $full_pfx, $srch) .
+	headers_to_html_header($mime, $full_pfx, $ctx) .
 		multipart_text_as_html($mime, $full_pfx) .
-		'</pre><hr /><pre>' .
+		'</pre><hr />' . PRE_WRAP .
 		html_footer($mime, 1, $full_pfx, $ctx) .
 		$footer .
 		'</pre></body></html>';
@@ -343,8 +342,8 @@ sub add_text_body {
 }
 
 sub headers_to_html_header {
-	my ($mime, $full_pfx, $srch) = @_;
-
+	my ($mime, $full_pfx, $ctx) = @_;
+	my $srch = $ctx->{srch} if $ctx;
 	my $rv = "";
 	my @title;
 	my $header_obj = $mime->header_obj;
@@ -362,7 +361,8 @@ sub headers_to_html_header {
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
-				$rv .= "$h: <a\nhref=\"../../t/$mid_href/\">";
+				$rv .= "$h: <a\nid=\"t\"\n" .
+					"href=\"../../t/$mid_href/\">";
 				$rv .= $v->as_html . "</a>\n";
 				next;
 			}
@@ -370,10 +370,47 @@ sub headers_to_html_header {
 		$rv .= "$h: " . $v->as_html . "\n";
 
 	}
-
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
 	my $raw_ref = $full_pfx ? 'raw' : "../../m/$mid_href/raw";
 	$rv .= "(<a\nhref=\"$raw_ref\">raw</a>)\n";
+	if ($srch) {
+		$rv .= "<a\nhref=\"#r\">References: [see below]</a>\n";
+	} else {
+		$rv .= _parent_headers_nosrch($header_obj);
+	}
+	$rv .= "\n";
+
+	("<html><head><title>".  join(' - ', @title) .
+	 '</title></head><body>' . PRE_WRAP . $rv);
+}
+
+sub thread_inline {
+	my ($dst, $ctx, $cur) = @_;
+	my $srch = $ctx->{srch};
+	my $mid = mid_compress(mid_clean($cur->header('Message-ID')));
+	my $res = $srch->get_thread($mid);
+	my $nr = $res->{total};
+	if ($nr <= 1) {
+		$$dst .= "[only message in thread]\n";
+		return;
+	}
+
+	$$dst .= "roughly $nr messages in thread:\n";
+	my $subj = $srch->subject_path($cur->header('Subject'));
+	my $state = {
+		seen => { $subj => 1 },
+		srch => $srch,
+		cur => $mid,
+	};
+	for (thread_results(load_results($res))->rootset) {
+		inline_dump($dst, $state, $_, 0);
+	}
+	$state->{next_msg};
+}
+
+sub _parent_headers_nosrch {
+	my ($header_obj) = @_;
+	my $rv = '';
 
 	my $irt = $header_obj->header('In-Reply-To');
 	if (defined $irt) {
@@ -401,11 +438,7 @@ sub headers_to_html_header {
 			$rv .= 'References: '. join(' ', @refs) . "\n";
 		}
 	}
-
-	$rv .= "\n";
-
-	("<html><head><title>".  join(' - ', @title) .
-	 '</title></head><body>' . PRE_WRAP . $rv);
+	$rv;
 }
 
 sub html_footer {
@@ -440,31 +473,22 @@ sub html_footer {
 	my $srch = $ctx->{srch} if $ctx;
 	my $idx = $standalone ? " <a\nhref=\"../../\">index</a>" : '';
 	if ($idx && $srch) {
-		$mid = mid_compress(mid_clean($mid));
 		my $t_anchor = defined $irt ? T_ANCHOR : '';
 		$irt = $mime->header('In-Reply-To');
 		$idx = " <a\nhref=\"../../t/$mid/$t_anchor\">".
-		       "threadlink</a>$idx";
-		my $res = $srch->get_followups($mid);
-		if (my $c = $res->{total}) {
-			my $nr = scalar @{$res->{msgs}};
-			if ($nr < $c) {
-				$c = "$nr of $c followups";
-			} else {
-				$c = $c == 1 ? '1 followup' : "$c followups";
-			}
-			$idx .= "\n$c:\n";
-			$res->{srch} = $srch;
-			thread_followups(\$idx, $mime, $res);
-		} else {
-			$idx .= "\n(no followups, yet)\n";
-		}
+		       "threadlink</a>$idx\n\n";
+		my $next = thread_inline(\$idx, $ctx, $mime);
 		if (defined $irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
 			$irt = $irt->as_href;
 			$irt = "<a\nhref=\"../$irt/\">parent</a> ";
 		} else {
 			$irt = ' ' x length('parent ');
+		}
+		if ($next) {
+			$irt .= "<a\nhref=\"../$next/\">next</a> ";
+		} else {
+			$irt .= '     ';
 		}
 	} else {
 		$irt = '';
@@ -487,61 +511,6 @@ sub anchor_for {
 		$id = mid_compress(mid_clean($id), 1);
 	}
 	'm' . $id;
-}
-
-sub simple_dump {
-	my ($dst, $root, $node, $level) = @_;
-	return unless $node;
-	# $root = [ undef, \%seen, $srch ];
-	if (my $x = $node->message) {
-		my $f = $x->header('X-PI-From');
-		my $d = $x->header('X-PI-Date');
-		if (defined $f && defined $d) {
-			my $mid = $x->header('Message-ID');
-			my $pfx = '  ' x $level;
-			$$dst .= $pfx;
-
-			# Subject is never undef, this mail was loaded from
-			# our Xapian which would've resulted in '' if it were
-			# really missing (and Filter rejects empty subjects)
-			my $s = $x->header('Subject');
-			my $h = $root->[2]->subject_path($s);
-			if ($root->[1]->{$h}) {
-				$s = undef;
-			} else {
-				$root->[1]->{$h} = 1;
-				$s = PublicInbox::Hval->new($s);
-				$s = $s->as_html;
-			}
-			my $m = PublicInbox::Hval->new_msgid($mid);
-			$f = PublicInbox::Hval->new($f);
-			$d = PublicInbox::Hval->new($d);
-			$m = '../' . $m->as_href . '/';
-			$f = $f->as_html;
-			$d = $d->as_html . ' UTC';
-			if (defined $s) {
-				$$dst .= "` <a\nhref=\"$m\">$s</a>\n" .
-				     "$pfx  by $f @ $d\n";
-			} else {
-				$$dst .= "` <a\nhref=\"$m\">$f @ $d</a>\n";
-			}
-		}
-	}
-	simple_dump($dst, $root, $node->child, $level+1);
-	simple_dump($dst, $root, $node->next, $level);
-}
-
-sub thread_followups {
-	my ($dst, $root, $res) = @_;
-	$root->header_set('X-PI-TS', '0');
-	my $msgs = load_results($res);
-	push @$msgs, $root;
-	my $th = thread_results($msgs);
-	my $srch = $res->{srch};
-	my $subj = $srch->subject_path($root->header('Subject'));
-	my %seen = ($subj => 1);
-	$root = [ undef, \%seen, $srch ];
-	simple_dump($dst, $root, $_, 0) for $th->rootset;
 }
 
 sub thread_html_head {
@@ -599,6 +568,64 @@ sub missing_thread {
 <html><head><title>$title</title></head><body><pre>$title
 <a href="../../">Return to index</a></pre></body></html>
 EOF
+}
+
+sub _inline_header {
+	my ($dst, $state, $mime, $level) = @_;
+	my $pfx = '  ' x $level;
+
+	my $cur = $state->{cur};
+	my $mid = $mime->header('Message-ID');
+	my $f = $mime->header('X-PI-From');
+	my $d = $mime->header('X-PI-Date');
+	$f = PublicInbox::Hval->new($f);
+	$d = PublicInbox::Hval->new($d);
+	$f = $f->as_html;
+	$d = $d->as_html . ' UTC';
+	my $midc = mid_compress(mid_clean($mid));
+	if ($cur) {
+		if ($cur eq $midc) {
+			delete $state->{cur};
+			$$dst .= "$pfx` <b><a\nid=\"r\"\nhref=\"#t\">".
+				 "[this message]</a></b> by $f @ $d\n";
+
+			return;
+		}
+	} else {
+		$state->{next_msg} ||= $midc;
+	}
+
+	# Subject is never undef, this mail was loaded from
+	# our Xapian which would've resulted in '' if it were
+	# really missing (and Filter rejects empty subjects)
+	my $s = $mime->header('Subject');
+	my $h = $state->{srch}->subject_path($s);
+	if ($state->{seen}->{$h}) {
+		$s = undef;
+	} else {
+		$state->{seen}->{$h} = 1;
+		$s = PublicInbox::Hval->new($s);
+		$s = $s->as_html;
+	}
+	my $m = PublicInbox::Hval->new_msgid($mid);
+	$m = '../' . $m->as_href . '/';
+	if (defined $s) {
+		$$dst .= "$pfx` <a\nhref=\"$m\">$s</a>\n" .
+		         "$pfx  $f @ $d\n";
+	} else {
+		$$dst .= "$pfx` <a\nhref=\"$m\">$f @ $d</a>\n";
+	}
+}
+
+sub inline_dump {
+	my ($dst, $state, $node, $level) = @_;
+	return unless $node;
+	return if $state->{stopped};
+	if (my $mime = $node->message) {
+		_inline_header($dst, $state, $mime, $level);
+	}
+	inline_dump($dst, $state, $node->child, $level+1);
+	inline_dump($dst, $state, $node->next, $level);
 }
 
 1;
