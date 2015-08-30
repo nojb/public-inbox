@@ -74,13 +74,10 @@ sub index_entry {
 	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
 	my $irt = $header_obj->header('In-Reply-To');
-	my ($anchor_idx, $anchor, $t_anchor);
+	my ($anchor_idx, $anchor);
 	if (defined $irt) {
 		$anchor_idx = anchor_for($irt);
 		$anchor = $seen->{$anchor_idx};
-		$t_anchor = T_ANCHOR;
-	} else {
-		$t_anchor = '';
 	}
 	if ($srch) {
 		$subj = "<a\nhref=\"${path}t/$href/#u\">$subj</a>";
@@ -132,11 +129,6 @@ sub index_entry {
 			$seen->{$anchor_idx} = $anchor;
 		}
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
-	}
-
-	if ($srch) {
-		$rv .= " <a\nhref=\"${path}t/$href/$t_anchor\">" .
-		       "threadlink</a>";
 	}
 
 	$fh->write($rv .= '</pre></td></tr></table>');
