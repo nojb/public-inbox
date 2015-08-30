@@ -468,6 +468,7 @@ sub html_footer {
 	my $idx = $standalone ? " <a\nhref=\"../../\">index</a>" : '';
 	if ($idx && $srch) {
 		my $next = thread_inline(\$idx, $ctx, $mime);
+		$irt = $mime->header('In-Reply-To');
 		if (defined $irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
 			$irt = $irt->as_href;
