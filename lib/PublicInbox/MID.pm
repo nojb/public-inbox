@@ -39,7 +39,7 @@ sub mid2path {
 
 	unless (defined $x38) {
 		# compatibility with old links (or short Message-IDs :)
-		$mid = sha1_hex($mid);
+		$mid = sha1_hex(mid_clean($mid));
 		($x2, $x38) = ($mid =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
 	}
 	"$x2/$x38";
