@@ -390,12 +390,14 @@ sub thread_inline {
 	my $mid = mid_compress(mid_clean($cur->header('Message-ID')));
 	my $res = $srch->get_thread($mid);
 	my $nr = $res->{total};
+
 	if ($nr <= 1) {
-		$$dst .= "[only message in thread]\n";
+		$$dst .= "\n[no followups, yet]</a>\n";
 		return;
 	}
 
-	$$dst .= "roughly $nr messages in thread:\n";
+	$$dst .= "\n\n~$nr messages in thread: ".
+		 "(<a\nhref=\"../../t/$mid/#u\">expand</a>)\n";
 	my $subj = $srch->subject_path($cur->header('Subject'));
 	my $state = {
 		seen => { $subj => 1 },
@@ -473,11 +475,6 @@ sub html_footer {
 	my $srch = $ctx->{srch} if $ctx;
 	my $idx = $standalone ? " <a\nhref=\"../../\">index</a>" : '';
 	if ($idx && $srch) {
-		$mid = mid_compress(mid_clean($mid));
-		my $t_anchor = defined $irt ? T_ANCHOR : '';
-		$irt = $mime->header('In-Reply-To');
-		$idx = " <a\nhref=\"../../t/$mid/$t_anchor\">".
-		       "threadlink</a>$idx\n\n";
 		my $next = thread_inline(\$idx, $ctx, $mime);
 		if (defined $irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
