@@ -10,7 +10,8 @@ use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval;
 use PublicInbox::MID qw/mid_clean mid_compress mid2path/;
-use Digest::SHA;
+use Digest::SHA qw/sha1_hex/;
+my $SALT = rand;
 require POSIX;
 
 # TODO: make these constants tunable
@@ -235,10 +236,35 @@ my $LINK_RE = qr!\b((?:ftp|https?|nntp)://
 		 [\@:\w\.-]+/
 		 ?[\@\w\+\&\?\.\%\;/#=-]*)!x;
 
-sub linkify {
-	# no newlines added here since it'd break the splitting we do
-	# to fold quotes
-	$_[0] =~ s!$LINK_RE!<a\nhref="$1">$1</a>!g;
+sub linkify_1 {
+	my ($link_map, $s) = @_;
+	$s =~ s!$LINK_RE!
+		my $url = $1;
+		# salt this, as this could be exploited to show
+		# links in the HTML which don't show up in the raw mail.
+		my $key = sha1_hex($url . $SALT);
+		$link_map->{$key} = $url;
+		'PI-LINK-'. $key;
+	!ge;
+	$s;
+}
+
+sub linkify_2 {
+	my ($link_map, $s) = @_;
+
+	# Added "PI-LINK-" prefix to avoid false-positives on git commits
+	$s =~ s!\bPI-LINK-([a-f0-9]{40})\b!
+		my $key = $1;
+		my $url = $link_map->{$key};
+		if (defined $url) {
+			$url = ascii_html($url);
+			"<a\nhref=\"$url\">$url</a>";
+		} else {
+			# false positive or somebody tried to mess with us
+			$key;
+		}
+	!ge;
+	$s;
 }
 
 sub flush_quote {
@@ -247,13 +273,15 @@ sub flush_quote {
 	if ($full_pfx) {
 		if (!$final && scalar(@$quot) <= MAX_INLINE_QUOTED) {
 			# show quote inline
-			my $rv = join('', map { linkify($_); $_ } @$quot);
+			my %l;
+			my $rv = join('', map { linkify_1(\%l, $_) } @$quot);
 			@$quot = ();
-			return $rv;
+			$rv = ascii_html($rv);
+			return linkify_2(\%l, $rv);
 		}
 
 		# show a short snippet of quoted text and link to full version:
-		@$quot = map { s/^(?:&gt;\s*)+//gm; $_ } @$quot;
+		@$quot = map { s/^(?:>\s*)+//gm; $_ } @$quot;
 		my $cur = join(' ', @$quot);
 		@$quot = split(/\s+/, $cur);
 		$cur = '';
@@ -268,16 +296,19 @@ sub flush_quote {
 		} while (@$quot && length($cur) < MAX_TRUNC_LEN);
 		@$quot = ();
 		$cur =~ s/ \z/ .../s;
+		$cur = ascii_html($cur);
 		my $nr = ++$$n;
 		"&gt; [<a\nhref=\"$full_pfx#q${part_nr}_$nr\">$cur</a>]\n";
 	} else {
 		# show everything in the full version with anchor from
 		# short version (see above)
 		my $nr = ++$$n;
-		my $rv = "<a\nid=q${part_nr}_$nr></a>";
-		$rv .= join('', map { linkify($_); $_ } @$quot);
+		my $rv = "";
+		my %l;
+		$rv .= join('', map { linkify_1(\%l, $_) } @$quot);
 		@$quot = ();
-		$rv;
+		$rv = ascii_html($rv);
+		"<a\nid=q${part_nr}_$nr></a>" . linkify_2(\%l, $rv);
 	}
 }
 
@@ -297,7 +328,6 @@ sub add_text_body {
 	my $s = $part->body;
 	$part->body_set('');
 	$s = $enc->decode($s);
-	$s = ascii_html($s);
 	my @lines = split(/^/m, $s);
 	$s = '';
 
@@ -309,7 +339,7 @@ sub add_text_body {
 
 	my @quot;
 	while (defined(my $cur = shift @lines)) {
-		if ($cur !~ /^&gt;/) {
+		if ($cur !~ /^>/) {
 			# show the previously buffered quote inline
 			if (scalar @quot) {
 				$s .= flush_quote(\@quot, \$n, $$part_nr,
@@ -317,8 +347,10 @@ sub add_text_body {
 			}
 
 			# regular line, OK
-			linkify($cur);
-			$s .= $cur;
+			my %l;
+			$cur = linkify_1(\%l, $cur);
+			$cur = ascii_html($cur);
+			$s .= linkify_2(\%l, $cur);
 		} else {
 			push @quot, $cur;
 		}
