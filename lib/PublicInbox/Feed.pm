@@ -158,7 +158,7 @@ sub emit_html_index {
 	my $footer = nav_footer($ctx->{cgi}, $last, $feed_opts, $state);
 	if ($footer) {
 		my $list_footer = $ctx->{footer};
-		$footer .= "\n" . $list_footer if $list_footer;
+		$footer .= "\n\n" . $list_footer if $list_footer;
 		$footer = "<hr /><pre>$footer</pre>";
 	}
 	$fh->write(dump_topics($topics)) if $topics;
