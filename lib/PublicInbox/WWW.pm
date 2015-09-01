@@ -51,7 +51,7 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!x) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!o) {
 		my $sfx = $3;
 		invalid_list_mid(\%ctx, $1, $2) ||
 			get_thread_mbox(\%ctx, $sfx);
