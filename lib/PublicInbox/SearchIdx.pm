@@ -81,8 +81,6 @@ sub add_message {
 			$doc->add_term(xpfx('path') . mid_compress($path));
 		}
 
-		my $from = $smsg->from_name;
-		my $date = $smsg->date;
 		my $ts = Search::Xapian::sortable_serialise($smsg->ts);
 		$doc->add_value(PublicInbox::Search::TS, $ts);
 

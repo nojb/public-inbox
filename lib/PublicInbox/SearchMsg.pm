@@ -13,6 +13,7 @@ use PublicInbox::MID qw/mid_clean mid_compress/;
 use Encode qw/find_encoding/;
 my $enc_utf8 = find_encoding('UTF-8');
 our $PFX2TERM_RE = undef;
+use constant EPOCH_822 => 'Thu, 01 Jan 1970 00:00:00 +0000';
 
 sub new {
 	my ($class, $mime) = @_;
@@ -30,13 +31,17 @@ sub wrap {
 sub load_doc {
 	my ($class, $doc) = @_;
 	my $data = $doc->get_data;
+	my $ts = eval {
+		no strict 'subs';
+		$doc->get_value(PublicInbox::Search::TS);
+	};
+	$ts = Search::Xapian::sortable_unserialise($ts);
 	$data = $enc_utf8->decode($data);
-	my ($mid, $subj, $from, $date, $refs) = split(/\n/, $data);
+	my ($subj, $from, $refs) = split(/\n/, $data);
 	bless {
 		doc => $doc,
-		mid => $mid,
 		subject => $subj,
-		date => $date,
+		ts => $ts,
 		from_name => $from,
 		references_sorted => $refs,
 	}, $class;
@@ -77,27 +82,13 @@ sub from_name {
 
 sub ts {
 	my ($self) = @_;
-	my $ts = $self->{ts};
-	return $ts if $ts;
-	$self->{ts} = eval {
-		str2time($self->date || $self->mime->header('Date'))
-	} || 0;
-}
-
-sub date {
-	my ($self) = @_;
-	my $date = $self->{date};
-	return $date if $date;
-	my $ts = eval { str2time($self->mime->header('Date')) };
-	$self->{date} = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+	$self->{ts} ||= eval { str2time($self->mime->header('Date')) } || 0;
 }
 
 sub to_doc_data {
 	my ($self) = @_;
-	$self->mid . "\n" .
 	PublicInbox::Search::subject_summary($self->subject) . "\n" .
 	$self->from_name . "\n".
-	$self->date . "\n" .
 	$self->references_sorted;
 }
 
@@ -139,14 +130,23 @@ sub mini_mime {
 	my @h = (
 		Subject => $self->subject,
 		'X-PI-From' => $self->from_name,
-		'X-PI-Date' => $self->date,
 		'X-PI-TS' => $self->ts,
 		'Message-ID' => "<$self->{mid}>",
+
+		# prevent Email::Simple::Creator from running,
+		# this header is useless for threading as we use X-PI-TS
+		# for sorting and display:
+		'Date' => EPOCH_822,
 	);
 
 	my $refs = $self->{references_sorted};
 	my $mime = Email::MIME->create(header_str => \@h);
-	$mime->header_set('References', $refs) if (defined $refs);
+	my $h = $mime->header_obj;
+	$h->header_set('References', $refs) if (defined $refs);
+
+	# drop useless headers Email::MIME set for us
+	$h->header_set('Date');
+	$h->header_set('MIME-Version');
 	$mime;
 }
 
@@ -155,6 +155,8 @@ sub mid {
 
 	if (defined $mid) {
 		$self->{mid} = $mid;
+	} elsif (my $rv = $self->{mid}) {
+		$rv;
 	} else {
 		$self->ensure_metadata; # needed for ghosts
 		$self->{mid} ||= $self->_extract_mid;

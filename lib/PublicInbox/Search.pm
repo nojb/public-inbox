@@ -4,8 +4,9 @@
 package PublicInbox::Search;
 use strict;
 use warnings;
-use PublicInbox::SearchMsg;
+use constant TS => 0;
 use Search::Xapian qw/:standard/;
+use PublicInbox::SearchMsg;
 use Email::MIME;
 use PublicInbox::MID qw/mid_clean mid_compress/;
 
@@ -15,7 +16,6 @@ our $REPLY_RE = qr/^re:\s+/i;
 our $LANG = 'english';
 
 use constant {
-	TS => 0,
 	# SCHEMA_VERSION history
 	# 0 - initial
 	# 1 - subject_path is lower-cased
@@ -25,7 +25,8 @@ use constant {
 	# 5 - subject_path drops trailing '.'
 	# 6 - preserve References: order in document data
 	# 7 - remove references and inreplyto terms
-	SCHEMA_VERSION => 7,
+	# 8 - remove redundant/unneeded document data
+	SCHEMA_VERSION => 8,
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 

@@ -86,12 +86,7 @@ sub index_entry {
 		$subj = "<u\nid=\"u\">$subj</u>";
 	}
 
-	my $ts = $mime->header('X-PI-TS');
-	unless (defined $ts) {
-		$ts = msg_timestamp($mime);
-	}
-	$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
-
+	my $ts = _msg_date($mime);
 	my $rv = "<table\nsummary=l$level><tr>";
 	if ($level) {
 		$rv .= '<td><pre>' . ('  ' x $level) . '</pre></td>';
@@ -561,6 +556,12 @@ sub missing_thread {
 EOF
 }
 
+sub _msg_date {
+	my ($mime) = @_;
+	my $ts = $mime->header('X-PI-TS') || msg_timestamp($mime);
+	POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+}
+
 sub _inline_header {
 	my ($dst, $state, $mime, $level) = @_;
 	my $pfx = '  ' x $level;
@@ -568,7 +569,7 @@ sub _inline_header {
 	my $cur = $state->{cur};
 	my $mid = $mime->header('Message-ID');
 	my $f = $mime->header('X-PI-From');
-	my $d = $mime->header('X-PI-Date');
+	my $d = _msg_date($mime);
 	$f = PublicInbox::Hval->new($f);
 	$d = PublicInbox::Hval->new($d);
 	$f = $f->as_html;
