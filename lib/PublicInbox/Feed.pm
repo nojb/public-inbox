@@ -10,6 +10,7 @@ use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
 use PublicInbox::View;
 use PublicInbox::MID qw/mid_clean mid_compress/;
+use POSIX qw/strftime/;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
@@ -33,7 +34,6 @@ sub generate_html_index {
 
 sub emit_atom {
 	my ($cb, $ctx) = @_;
-	require POSIX;
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/xml']]);
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($ctx);
@@ -45,18 +45,23 @@ sub emit_atom {
 	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
 	my $url = $feed_opts->{url} || "http://example.com/";
 	my $atomurl = $feed_opts->{atomurl};
-	$fh->write(qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
+	my $x = qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
 		qq{<feed\nxmlns="http://www.w3.org/2005/Atom">} .
 		qq{<title$type>$title</title>} .
 		qq{<link\nhref="$url"/>} .
 		qq{<link\nrel="self"\nhref="$atomurl"/>} .
-		qq{<id>mailto:$addr</id>} .
-		'<updated>' . POSIX::strftime(DATEFMT, gmtime) . '</updated>');
+		qq{<id>mailto:$addr</id>};
 
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 	each_recent_blob($ctx, sub {
-		my ($add, undef) = @_;
-		add_to_feed($feed_opts, $fh, $add, $git);
+		my ($path, undef, $ts) = @_;
+		if (defined $x) {
+			$fh->write($x . '<updated>'.
+					strftime(DATEFMT, gmtime($ts)) .
+					'</updated>');
+			$x = undef;
+		}
+		add_to_feed($feed_opts, $fh, $path, $git);
 	});
 	$git = undef; # destroy pipes
 	Email::Address->purge_cache;
@@ -259,7 +264,7 @@ sub feed_date {
 	my ($date) = @_;
 	my @t = eval { strptime($date) };
 
-	scalar(@t) ? POSIX::strftime(DATEFMT, @t) : 0;
+	scalar(@t) ? strftime(DATEFMT, @t) : 0;
 }
 
 # returns 0 (skipped) or 1 (added)
@@ -363,7 +368,7 @@ sub dump_topics {
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$u = PublicInbox::Hval->new($u)->as_html;
 		$dst .= "\n<a\nhref=\"t/$mid/#u\"><b>$subj</b></a>\n- ";
-		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+		$ts = strftime('%Y-%m-%d %H:%M', gmtime($ts));
 		if ($n == 1) {
 			$dst .= "created by $u @ $ts UTC\n"
 		} else {
