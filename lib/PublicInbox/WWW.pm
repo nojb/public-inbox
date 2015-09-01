@@ -16,6 +16,7 @@ use URI::Escape qw(uri_escape_utf8 uri_unescape);
 use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
 use constant PI_URL => 'http://public-inbox.org/';
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
+our $MID_RE = qr!([^/]+)!;
 our $pi_config;
 
 sub run {
@@ -31,56 +32,37 @@ sub run {
 	if ($path_info eq '/') {
 		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
-		invalid_list(\%ctx, $1) || redirect_list_index($cgi);
+		invalid_list(\%ctx, $1) || r301(\%ctx, $1);
 	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
 		invalid_list(\%ctx, $1) || get_index(\%ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:atom\.xml|new\.atom)\z!o) {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx);
 
+	# thread display
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/t/\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/t\.mbox(\.gz)?\z!o) {
+		my $sfx = $3;
+		invalid_list_mid(\%ctx, $1, $2) || get_thread_mbox(\%ctx, $sfx);
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/t\.atom\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_thread_atom(\%ctx);
+
 	# single-message pages
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)/\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)/raw\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/raw\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx);
 
 	# full-message page
-	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)/\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/f/\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
 
-	# thread display
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
-
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!o) {
-		my $sfx = $3;
-		invalid_list_mid(\%ctx, $1, $2) ||
-			get_thread_mbox(\%ctx, $sfx);
-
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/atom\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_thread_atom(\%ctx);
-
-	# legacy redirects
-	} elsif ($path_info =~ m!$LISTNAME_RE/(t|m|f)/(\S+)\.html\z!o) {
-		my $pfx = $2;
-		invalid_list_mid(\%ctx, $1, $3) ||
-			redirect_mid(\%ctx, $pfx, qr/\.html\z/, '/');
-	} elsif ($path_info =~ m!$LISTNAME_RE/(m|f)/(\S+)\.txt\z!o) {
-		my $pfx = $2;
-		invalid_list_mid(\%ctx, $1, $3) ||
-			redirect_mid(\%ctx, $pfx, qr/\.txt\z/, '/raw');
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)(\.mbox(?:\.gz)?)\z!o) {
-		my $end = $3;
-		invalid_list_mid(\%ctx, $1, $2) ||
-			redirect_mid(\%ctx, 't', $end, '/mbox.gz');
-
-	# convenience redirects, order matters
-	} elsif ($path_info =~ m!$LISTNAME_RE/(m|f|t|s)/(\S+)\z!o) {
-		my $pfx = $2;
-		invalid_list_mid(\%ctx, $1, $3) ||
-			redirect_mid(\%ctx, $pfx, qr/\z/, '/');
+	# convenience redirects order matters
+	} elsif ($path_info =~ m!$LISTNAME_RE/([^/]{2,})\z!o) {
+		r301(\%ctx, $1, $2);
 
 	} else {
-		r404();
+		legacy_redirects(\%ctx, $path_info);
 	}
 }
 
@@ -163,7 +145,7 @@ sub mid2blob {
 	}
 }
 
-# /$LISTNAME/m/$MESSAGE_ID.txt                    -> raw mbox
+# /$LISTNAME/$MESSAGE_ID/raw                    -> raw mbox
 sub get_mid_txt {
 	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404();
@@ -171,22 +153,21 @@ sub get_mid_txt {
 	PublicInbox::Mbox::emit1($x);
 }
 
-# /$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
+# /$LISTNAME/$MESSAGE_ID/                   -> HTML content (short quotes)
 sub get_mid_html {
 	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404();
 
 	require PublicInbox::View;
-	my $pfx = msg_pfx($ctx);
 	my $foot = footer($ctx);
 	require Email::MIME;
 	my $mime = Email::MIME->new($x);
 	searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View::msg_html($ctx, $mime, $pfx, $foot) ] ];
+	  [ PublicInbox::View::msg_html($ctx, $mime, 'f/', $foot) ] ];
 }
 
-# /$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (fullquotes)
+# /$LISTNAME/$MESSAGE_ID/f/                   -> HTML content (fullquotes)
 sub get_full_html {
 	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404();
@@ -200,7 +181,7 @@ sub get_full_html {
 	  [ PublicInbox::View::msg_html($ctx, $mime, undef, $foot)] ];
 }
 
-# /$LISTNAME/t/$MESSAGE_ID.html
+# /$LISTNAME/$MESSAGE_ID/t/
 sub get_thread {
 	my ($ctx) = @_;
 	my $srch = searcher($ctx) or return need_search($ctx);
@@ -212,39 +193,6 @@ sub get_thread {
 sub self_url {
 	my ($cgi) = @_;
 	ref($cgi) eq 'CGI' ? $cgi->self_url : $cgi->uri->as_string;
-}
-
-sub redirect_list_index {
-	my ($cgi) = @_;
-	do_redirect(self_url($cgi) . "/");
-}
-
-sub redirect_mid {
-	my ($ctx, $pfx, $old, $sfx) = @_;
-	my $url = self_url($ctx->{cgi});
-	my $anchor = '';
-	if (lc($pfx) eq 't' && $sfx eq '/') {
-		$anchor = '#u'; # <u id='#u'> is used to highlight in View.pm
-	}
-	$url =~ s/$old/$sfx/;
-	do_redirect($url . $anchor);
-}
-
-# only hit when somebody tries to guess URLs manually:
-sub redirect_mid_txt {
-	my ($ctx, $pfx) = @_;
-	my $listname = $ctx->{listname};
-	my $url = self_url($ctx->{cgi});
-	$url =~ s!/$listname/f/(\S+\.txt)\z!/$listname/m/$1!;
-	do_redirect($url);
-}
-
-sub do_redirect {
-	my ($url) = @_;
-	[ 301,
-	  [ Location => $url, 'Content-Type' => 'text/plain' ],
-	  [ "Redirecting to $url\n" ]
-	]
 }
 
 sub ctx_get {
@@ -333,14 +281,8 @@ EOF
 	[ 501, [ 'Content-Type' => 'text/html; charset=UTF-8' ], [ $msg ] ];
 }
 
-sub msg_pfx {
-	my ($ctx) = @_;
-	my $href = PublicInbox::Hval::ascii_html(uri_escape_utf8($ctx->{mid}));
-	"../../f/$href/";
-}
-
-# /$LISTNAME/t/$MESSAGE_ID/mbox           -> thread as mbox
-# /$LISTNAME/t/$MESSAGE_ID/mbox.gz        -> thread as gzipped mbox
+# /$LISTNAME/$MESSAGE_ID/t.mbox           -> thread as mbox
+# /$LISTNAME/$MESSAGE_ID/t.mbox.gz        -> thread as gzipped mbox
 # note: I'm not a big fan of other compression formats since they're
 # significantly more expensive on CPU than gzip and less-widely available,
 # especially on older systems.  Stick to zlib since that's what git uses.
@@ -352,13 +294,80 @@ sub get_thread_mbox {
 }
 
 
-# /$LISTNAME/t/$MESSAGE_ID/atom		  -> thread as Atom feed
+# /$LISTNAME/$MESSAGE_ID/t.atom		  -> thread as Atom feed
 sub get_thread_atom {
 	my ($ctx) = @_;
 	searcher($ctx) or return need_search($ctx);
 	$ctx->{self_url} = self_url($ctx->{cgi});
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate_thread_atom($ctx);
+}
+
+sub legacy_redirects {
+	my ($ctx, $path_info) = @_;
+
+	# single-message pages
+	if ($path_info =~ m!$LISTNAME_RE/m/(\S+)/\z!o) {
+		r301($ctx, $1, $2);
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)/raw\z!o) {
+		r301($ctx, $1, $2, 'raw');
+
+	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)/\z!o) {
+		r301($ctx, $1, $2, 'f/');
+
+	# thread display
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/\z!o) {
+		r301($ctx, $1, $2, 't/#u');
+
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!o) {
+		r301($ctx, $1, $2, "t.mbox$3");
+
+	# even older legacy redirects
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.html\z!o) {
+		r301($ctx, $1, $2);
+
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
+		r301($ctx, $1, $2, 't/#u');
+
+	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
+		r301($ctx, $1, $2, 'f/');
+
+	} elsif ($path_info =~ m!$LISTNAME_RE/(?:m|f)/(\S+)\.txt\z!o) {
+		r301($ctx, $1, $2, 'raw');
+
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)(\.mbox(?:\.gz)?)\z!o) {
+		r301($ctx, $1, $2, "t$3");
+
+	# legacy convenience redirects, order still matters
+	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\z!o) {
+		r301($ctx, $1, $2);
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\z!o) {
+		r301($ctx, $1, $2, 't/#u');
+	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
+		r301($ctx, $1, $2, 'f/');
+
+	} else {
+		r404();
+	}
+}
+
+sub r301 {
+	my ($ctx, $listname, $mid, $suffix) = @_;
+	my $cgi = $ctx->{cgi};
+	my $url;
+	if (ref($cgi) eq 'CGI') {
+		$url = $cgi->url(-base) . '/';
+	} else {
+		$url = $cgi->base->as_string;
+	}
+
+	$url .= $listname . '/';
+	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
+	$url .= $suffix if (defined $suffix);
+
+	[ 301,
+	  [ Location => $url, 'Content-Type' => 'text/plain' ],
+	  [ "Redirecting to $url\n" ] ]
 }
 
 1;

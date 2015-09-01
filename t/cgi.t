@@ -109,7 +109,7 @@ EOF
 	like($res->{body}, qr/<title>test for public-inbox/,
 		"set title in XML feed");
 	like($res->{body},
-		qr!http://test\.example\.com/test/m/blah%40example\.com!,
+		qr!http://test\.example\.com/test/blah%40example\.com/!,
 		"link id set");
 	like($res->{body}, qr/what\?/, "reply included");
 }
@@ -152,26 +152,26 @@ EOF
 	}
 	local $ENV{GIT_DIR} = $maindir;
 
-	my $res = cgi_run("/test/m/slashy%2fasdf%40example.com/raw");
+	my $res = cgi_run("/test/slashy%2fasdf%40example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
 		"slashy mid raw hit");
 
-	$res = cgi_run("/test/m/blahblah\@example.com/raw");
+	$res = cgi_run("/test/blahblah\@example.com/raw");
 	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
 		"mid raw hit");
-	$res = cgi_run("/test/m/blahblah\@example.con/raw");
+	$res = cgi_run("/test/blahblah\@example.con/raw");
 	like($res->{head}, qr/Status: 404 Not Found/, "mid raw miss");
 
-	$res = cgi_run("/test/m/blahblah\@example.com/");
+	$res = cgi_run("/test/blahblah\@example.com/");
 	like($res->{body}, qr/\A<html>/, "mid html hit");
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
-	$res = cgi_run("/test/m/blahblah\@example.con/");
+	$res = cgi_run("/test/blahblah\@example.con/");
 	like($res->{head}, qr/Status: 404 Not Found/, "mid html miss");
 
-	$res = cgi_run("/test/f/blahblah\@example.com/");
+	$res = cgi_run("/test/blahblah\@example.com/f/");
 	like($res->{body}, qr/\A<html>/, "mid html");
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
-	$res = cgi_run("/test/f/blahblah\@example.con/");
+	$res = cgi_run("/test/blahblah\@example.con/f/");
 	like($res->{head}, qr/Status: 404 Not Found/, "mid html miss");
 
 	$res = cgi_run("/test/");
@@ -183,7 +183,7 @@ EOF
 {
 	local $ENV{HOME} = $home;
 	local $ENV{PATH} = $main_path;
-	my $path = "/test/t/blahblah%40example.com/mbox.gz";
+	my $path = "/test/blahblah%40example.com/t.mbox.gz";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
 	my $indexed = system($index, $maindir) == 0;
@@ -203,7 +203,7 @@ EOF
 
 	my $have_xml_feed = eval { require XML::Feed; 1 } if $indexed;
 	if ($have_xml_feed) {
-		$path = "/test/t/blahblah%40example.com/atom";
+		$path = "/test/blahblah%40example.com/t.atom";
 		$res = cgi_run($path);
 		like($res->{head}, qr/^Status: 200 /, "atom returned 200");
 		like($res->{head}, qr!^Content-Type: application/xml!m,

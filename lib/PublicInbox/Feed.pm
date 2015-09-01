@@ -101,7 +101,7 @@ sub emit_atom_thread {
 	my $feed_opts = get_feedopts($ctx);
 
 	my $html_url = $feed_opts->{atomurl} = $ctx->{self_url};
-	$html_url =~ s!/atom\z!/!;
+	$html_url =~ s!/t\.atom\z!/!;
 	$feed_opts->{url} = $html_url;
 	$feed_opts->{emit_header} = 1;
 
@@ -285,7 +285,7 @@ sub get_feedopts {
 		}
 		$url_base = "$base/$listname";
 		if (my $mid = $ctx->{mid}) { # per-thread feed:
-			$rv{atomurl} = "$url_base/t/$mid/atom";
+			$rv{atomurl} = "$url_base/$mid/t.atom";
 		} else {
 			$rv{atomurl} = "$url_base/new.atom";
 		}
@@ -294,8 +294,7 @@ sub get_feedopts {
 		$rv{atomurl} = "$url_base/new.atom";
 	}
 	$rv{url} ||= "$url_base/";
-	$rv{midurl} = "$url_base/m/";
-	$rv{fullurl} = "$url_base/f/";
+	$rv{midurl} = "$url_base/";
 
 	\%rv;
 }
@@ -317,14 +316,15 @@ sub add_to_feed {
 	my ($feed_opts, $fh, $add, $git) = @_;
 
 	my $mime = do_cat_mail($git, $add) or return 0;
-	my $fullurl = $feed_opts->{fullurl} || 'http://example.com/f/';
+	my $url = $feed_opts->{url};
+	my $midurl = $feed_opts->{midurl};
 
 	my $header_obj = $mime->header_obj;
 	my $mid = $header_obj->header('Message-ID');
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $mid->as_href . '/';
-	my $content = PublicInbox::View->feed_entry($mime, $fullurl . $href);
+	my $href = $mid->as_href;
+	my $content = PublicInbox::View->feed_entry($mime, "$midurl$href/f/");
 	defined($content) or return 0;
 	$mime = undef;
 
@@ -355,8 +355,7 @@ sub add_to_feed {
 	my $h = '[a-f0-9]';
 	my (@uuid5) = ($add =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
 	my $id = 'urn:uuid:' . join('-', @uuid5);
-	my $midurl = $feed_opts->{midurl};
-	$fh->write(qq{</div></content><link\nhref="$midurl$href"/>}.
+	$fh->write(qq!</div></content><link\nhref="$midurl$href/"/>!.
 		   "<id>$id</id></entry>");
 	1;
 }
@@ -414,7 +413,7 @@ sub dump_topics {
 		$mid = PublicInbox::Hval->new($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$u = PublicInbox::Hval->new($u)->as_html;
-		$dst .= "\n<a\nhref=\"t/$mid/#u\"><b>$subj</b></a>\n- ";
+		$dst .= "\n<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n- ";
 		$ts = strftime('%Y-%m-%d %H:%M', gmtime($ts));
 		if ($n == 1) {
 			$dst .= "created by $u @ $ts UTC\n"
