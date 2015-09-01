@@ -157,6 +157,7 @@ sub emit_thread_html {
 		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 		thread_entry($fh, $git, $state, $_, 0) for $th->rootset;
 	}
+	Email::Address->purge_cache;
 	my $final_anchor = $state->{anchor_idx};
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
