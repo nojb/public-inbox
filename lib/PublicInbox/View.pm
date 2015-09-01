@@ -495,7 +495,7 @@ sub html_footer {
 
 	my $srch = $ctx->{srch} if $ctx;
 	my $upfx = $full_pfx ? '../' : '../../';
-	my $idx = $standalone ? "<a\nhref=\"$upfx\">index</a>" : '';
+	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 	if ($idx && $srch) {
 		my $next = thread_inline(\$idx, $ctx, $mime, $full_pfx);
 		$irt = $mime->header('In-Reply-To');
