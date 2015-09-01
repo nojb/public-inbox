@@ -331,6 +331,7 @@ sub add_to_feed {
 	my $date = $header_obj->header('Date');
 	$date = PublicInbox::Hval->new_oneline($date);
 	$date = feed_date($date->raw) or return 0;
+	$date = "<updated>$date</updated>";
 
 	my $title = mime_header($header_obj, 'Subject') or return 0;
 	$title = title_tag($title);
@@ -342,8 +343,7 @@ sub add_to_feed {
 	$email = PublicInbox::Hval->new_oneline($email)->as_html;
 
 	if (delete $feed_opts->{emit_header}) {
-		$fh->write(atom_header($feed_opts, $title) .
-			   "<updated>$date</updated>");
+		$fh->write(atom_header($feed_opts, $title) . $date);
 	}
 	$fh->write("<entry><author><name>$name</name><email>$email</email>" .
 		   "</author>$title$date" .
