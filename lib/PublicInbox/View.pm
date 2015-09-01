@@ -380,7 +380,7 @@ sub thread_inline {
 	my $nr = $res->{total};
 
 	if ($nr <= 1) {
-		$$dst .= "\n[no followups, yet]</a>\n";
+		$$dst .= "\n[no followups, yet]\n";
 		return;
 	}
 	my $upfx = $full_pfx ? '' : '../';
