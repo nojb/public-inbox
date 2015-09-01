@@ -56,6 +56,9 @@ sub run {
 		invalid_list_mid(\%ctx, $1, $2) ||
 			get_thread_mbox(\%ctx, $sfx);
 
+	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/atom\z!o) {
+		invalid_list_mid(\%ctx, $1, $2) || get_thread_atom(\%ctx);
+
 	# legacy redirects
 	} elsif ($path_info =~ m!$LISTNAME_RE/(t|m|f)/(\S+)\.html\z!o) {
 		my $pfx = $2;
@@ -346,6 +349,16 @@ sub get_thread_mbox {
 	my $srch = searcher($ctx) or return need_search($ctx);
 	require PublicInbox::Mbox;
 	PublicInbox::Mbox::thread_mbox($ctx, $srch, $sfx);
+}
+
+
+# /$LISTNAME/t/$MESSAGE_ID/atom		  -> thread as Atom feed
+sub get_thread_atom {
+	my ($ctx) = @_;
+	searcher($ctx) or return need_search($ctx);
+	$ctx->{self_url} = self_url($ctx->{cgi});
+	require PublicInbox::Feed;
+	PublicInbox::Feed::generate_thread_atom($ctx);
 }
 
 1;

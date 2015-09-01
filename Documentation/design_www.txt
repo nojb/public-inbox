@@ -6,25 +6,30 @@ URL naming
 /$LISTNAME/atom.xml                             -> Atom feed
 
 #### Optional, relies on Search::Xapian
-/$LISTNAME/t/$MESSAGE_ID.html                   -> HTML content of thread
+/$LISTNAME/t/$MESSAGE_ID/                       -> HTML content of thread
+/$LISTNAME/t/$MESSAGE_ID/atom                   -> Atom feed for thread
+/$LISTNAME/t/$MESSAGE_ID/mbox.gz                -> gzipped mbox of thread
 
 ### Stable endpoints
-/$LISTNAME/m/$MESSAGE_ID.html                   -> HTML content (short quotes)
-/$LISTNAME/m/$MESSAGE_ID.txt                    -> raw mbox
-/$LISTNAME/m/$MESSAGE_ID                        -> 301 to .html version
-/$LISTNAME/f/$MESSAGE_ID.html                   -> HTML content (full quotes)
-/$LISTNAME/f/$MESSAGE_ID                        -> 301 to .html version
-/$LISTNAME/f/$MESSAGE_ID.txt                    -> 301 to ../m/$MESSAGE_ID.txt
+/$LISTNAME/m/$MESSAGE_ID/                       -> HTML content (short quotes)
+/$LISTNAME/m/$MESSAGE_ID                        -> 301 to above
+/$LISTNAME/m/$MESSAGE_ID/raw                    -> raw mbox
+/$LISTNAME/f/$MESSAGE_ID/                       -> HTML content (full quotes)
+/$LISTNAME/f/$MESSAGE_ID                        -> 301 to above
+/$LISTNAME/f/$MESSAGE_ID/raw (*)                -> 301 to ../m/$MESSAGE_ID/raw
+
+### Legacy endpoints (may be ambiguous given Message-IDs with similar suffies)
+/$LISTNAME/m/$MESSAGE_ID.html                   -> 301 to $MESSAGE_ID/
+/$LISTNAME/m/$MESSAGE_ID.txt                    -> 301 to $MESSAGE_ID/raw
+/$LISTNAME/f/$MESSAGE_ID.html                   -> 301 to $MESSAGE_ID/
+/$LISTNAME/f/$MESSAGE_ID.txt (*)                -> 301 to ../m/$MESSAGE_ID/raw
+
 
 FIXME: we must refactor/cleanup/add tests for most of our CGI before
 adding more endpoints and features.
 
-Maybe TODO (these might be expensive)
--------------------------------------
-/$LISTNAME/t/$MESSAGE_ID.mbox                   -> mbox content of thread
-
-We use file name suffixes on all of these (except /) so URLs may easily
-cached/memoized using a static file server.
+(*) These URLs were never linked, but only exist as a convenience to folks
+    who edit existing URLs
 
 Encoding notes
 --------------

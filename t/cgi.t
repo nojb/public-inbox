@@ -200,6 +200,18 @@ EOF
 	} else {
 		like($res->{head}, qr/^Status: 501 /, "search not available");
 	}
+
+	my $have_xml_feed = eval { require XML::Feed; 1 } if $indexed;
+	if ($have_xml_feed) {
+		$path = "/test/t/blahblah%40example.com/atom";
+		$res = cgi_run($path);
+		like($res->{head}, qr/^Status: 200 /, "atom returned 200");
+		like($res->{head}, qr!^Content-Type: application/xml!m,
+			"search returned atom");
+		my $p = XML::Feed->parse(\($res->{body}));
+		is($p->format, "Atom", "parsed atom feed");
+		is(scalar $p->entries, 3, "parsed three entries");
+	}
 }
 
 # redirect list-name-only URLs

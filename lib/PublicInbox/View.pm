@@ -160,7 +160,8 @@ sub emit_thread_html {
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>\n";
-	$next .= "download: <a\nhref=\"mbox.gz\">mbox.gz</a>\n\n";
+	$next .= "download: <a\nhref=\"mbox.gz\">mbox.gz</a>";
+	$next .= " / <a\nhref=\"atom\">Atom feed</a>\n\n";
 	$fh->write("<hr />" . PRE_WRAP . $next . $foot .
 		   "</pre></body></html>");
 	$fh->close;

@@ -9,7 +9,7 @@ use Date::Parse qw(strptime);
 use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
 use PublicInbox::View;
-use PublicInbox::MID qw/mid_clean mid_compress/;
+use PublicInbox::MID qw/mid_clean mid_compress mid2path/;
 use POSIX qw/strftime/;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
@@ -25,6 +25,11 @@ sub generate {
 	sub { emit_atom($_[0], $ctx) };
 }
 
+sub generate_thread_atom {
+	my ($ctx) = @_;
+	sub { emit_atom_thread($_[0], $ctx) };
+}
+
 sub generate_html_index {
 	my ($ctx) = @_;
 	sub { emit_html_index($_[0], $ctx) };
@@ -32,15 +37,22 @@ sub generate_html_index {
 
 # private subs
 
-sub atom_header {
-	my ($feed_opts) = @_;
-	my $title = $feed_opts->{description};
+sub title_tag {
+	my ($title) = @_;
+	# try to avoid the type attribute in title:
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
+	"<title$type>$title</title>";
+}
+
+sub atom_header {
+	my ($feed_opts, $title) = @_;
+
+	$title = title_tag($feed_opts->{description}) unless (defined $title);
 
 	qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
 	qq{<feed\nxmlns="http://www.w3.org/2005/Atom">} .
-	qq{<title$type>$title</title>} .
+	qq{$title} .
 	qq(<link\nhref="$feed_opts->{url}"/>) .
 	qq(<link\nrel="self"\nhref="$feed_opts->{atomurl}"/>) .
 	qq(<id>mailto:$feed_opts->{id_addr}</id>);
@@ -56,19 +68,50 @@ sub emit_atom {
 	each_recent_blob($ctx, sub {
 		my ($path, undef, $ts) = @_;
 		if (defined $x) {
-			$fh->write($x . '<updated>'.
-					strftime(DATEFMT, gmtime($ts)) .
-					'</updated>');
+			$fh->write($x . '<updated>' .
+				   strftime(DATEFMT, gmtime($ts)) .
+				   '</updated>');
 			$x = undef;
 		}
 		add_to_feed($feed_opts, $fh, $path, $git);
 	});
 	$git = undef; # destroy pipes
-	Email::Address->purge_cache;
-	$fh->write("</feed>");
+	_end_feed($fh);
+}
+
+sub _no_thread {
+	my ($cb) = @_;
+	my $fh = $cb->([404, ['Content-Type' => 'text/plain']]);
+	$fh->write("No feed found for thread\n");
 	$fh->close;
 }
 
+sub _end_feed {
+	my ($fh) = @_;
+	Email::Address->purge_cache;
+	$fh->write('</feed>');
+	$fh->close;
+}
+
+sub emit_atom_thread {
+	my ($cb, $ctx) = @_;
+	my $res = $ctx->{srch}->get_thread($ctx->{mid});
+	return _no_thread($cb) unless $res->{total};
+	my $fh = $cb->([200, ['Content-Type' => 'application/xml']]);
+	my $feed_opts = get_feedopts($ctx);
+
+	my $html_url = $feed_opts->{atomurl} = $ctx->{self_url};
+	$html_url =~ s!/atom\z!/!;
+	$feed_opts->{url} = $html_url;
+	$feed_opts->{emit_header} = 1;
+
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	foreach my $msg (@{$res->{msgs}}) {
+		add_to_feed($feed_opts, $fh, mid2path($msg->mid), $git);
+	}
+	$git = undef; # destroy pipes
+	_end_feed($fh);
+}
 
 sub emit_html_index {
 	my ($cb, $ctx) = @_;
@@ -233,7 +276,6 @@ sub get_feedopts {
 
 	my $url_base;
 	if ($cgi) {
-		my $path_info = $cgi->path_info;
 		my $base;
 		if (ref($cgi) eq 'CGI') {
 			$base = $cgi->url(-base);
@@ -241,13 +283,11 @@ sub get_feedopts {
 			$base = $cgi->base->as_string;
 			$base =~ s!/\z!!;
 		}
-		$url_base = $path_info;
-		if ($url_base =~ s!/(?:|index\.html)?\z!!) {
-			$rv{atomurl} = "$base$url_base/atom.xml";
+		$url_base = "$base/$listname";
+		if (my $mid = $ctx->{mid}) { # per-thread feed:
+			$rv{atomurl} = "$url_base/t/$mid/atom";
 		} else {
-			$url_base =~ s!/atom\.xml\z!!;
-			$rv{atomurl} = $base . $path_info;
-			$url_base = $base . $url_base; # XXX is this needed?
+			$rv{atomurl} = "$url_base/atom.xml";
 		}
 	} else {
 		$url_base = "http://example.com";
@@ -288,9 +328,12 @@ sub add_to_feed {
 	defined($content) or return 0;
 	$mime = undef;
 
+	my $date = $header_obj->header('Date');
+	$date = PublicInbox::Hval->new_oneline($date);
+	$date = feed_date($date->raw) or return 0;
+
 	my $title = mime_header($header_obj, 'Subject') or return 0;
-	$title = PublicInbox::Hval->new_oneline($title)->as_html;
-	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
+	$title = title_tag($title);
 
 	my $from = mime_header($header_obj, 'From') or return 0;
 	my @from = Email::Address->parse($from) or return 0;
@@ -298,13 +341,12 @@ sub add_to_feed {
 	my $email = $from[0]->address;
 	$email = PublicInbox::Hval->new_oneline($email)->as_html;
 
-	my $date = $header_obj->header('Date');
-	$date = PublicInbox::Hval->new_oneline($date);
-	$date = feed_date($date->raw) or return 0;
-
+	if (delete $feed_opts->{emit_header}) {
+		$fh->write(atom_header($feed_opts, $title) .
+			   "<updated>$date</updated>");
+	}
 	$fh->write("<entry><author><name>$name</name><email>$email</email>" .
-		   "</author><title$type>$title</title>" .
-		   "<updated>$date</updated>" .
+		   "</author>$title$date" .
 		   qq{<content\ntype="xhtml">} .
 		   qq{<div\nxmlns="http://www.w3.org/1999/xhtml">});
 	$fh->write($content);
@@ -313,7 +355,7 @@ sub add_to_feed {
 	my $h = '[a-f0-9]';
 	my (@uuid5) = ($add =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
 	my $id = 'urn:uuid:' . join('-', @uuid5);
-	my $midurl = $feed_opts->{midurl} || 'http://example.com/m/';
+	my $midurl = $feed_opts->{midurl};
 	$fh->write(qq{</div></content><link\nhref="$midurl$href"/>}.
 		   "<id>$id</id></entry>");
 	1;
