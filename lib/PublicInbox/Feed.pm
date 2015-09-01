@@ -32,26 +32,26 @@ sub generate_html_index {
 
 # private subs
 
+sub atom_header {
+	my ($feed_opts) = @_;
+	my $title = $feed_opts->{description};
+	$title = PublicInbox::Hval->new_oneline($title)->as_html;
+	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
+
+	qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
+	qq{<feed\nxmlns="http://www.w3.org/2005/Atom">} .
+	qq{<title$type>$title</title>} .
+	qq(<link\nhref="$feed_opts->{url}"/>) .
+	qq(<link\nrel="self"\nhref="$feed_opts->{atomurl}"/>) .
+	qq(<id>mailto:$feed_opts->{id_addr}</id>);
+}
+
 sub emit_atom {
 	my ($cb, $ctx) = @_;
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/xml']]);
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($ctx);
-	my $addr = $feed_opts->{address};
-	$addr = $addr->[0] if ref($addr);
-	$addr ||= 'public-inbox@example.com';
-	my $title = $feed_opts->{description} || "unnamed feed";
-	$title = PublicInbox::Hval->new_oneline($title)->as_html;
-	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
-	my $url = $feed_opts->{url} || "http://example.com/";
-	my $atomurl = $feed_opts->{atomurl};
-	my $x = qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
-		qq{<feed\nxmlns="http://www.w3.org/2005/Atom">} .
-		qq{<title$type>$title</title>} .
-		qq{<link\nhref="$url"/>} .
-		qq{<link\nrel="self"\nhref="$atomurl"/>} .
-		qq{<id>mailto:$addr</id>};
-
+	my $x = atom_header($feed_opts);
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 	each_recent_blob($ctx, sub {
 		my ($path, undef, $ts) = @_;
@@ -219,13 +219,18 @@ sub get_feedopts {
 	if (open my $fh, '<', "$ctx->{git_dir}/description") {
 		chomp($rv{description} = <$fh>);
 		close $fh;
+	} else {
+		$rv{description} = '($GIT_DIR/description missing)';
 	}
 
 	if ($pi_config && defined $listname && $listname ne '') {
-		foreach my $key (qw(address)) {
-			$rv{$key} = $pi_config->get($listname, $key) || "";
-		}
+		my $addr = $pi_config->get($listname, 'address') || "";
+		$rv{address} = $addr;
+		$addr = $addr->[0] if ref($addr);
+		$rv{id_addr} = $addr;
 	}
+	$rv{id_addr} ||= 'public-inbox@example.com';
+
 	my $url_base;
 	if ($cgi) {
 		my $path_info = $cgi->path_info;
