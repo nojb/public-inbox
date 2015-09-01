@@ -34,7 +34,7 @@ sub run {
 		invalid_list(\%ctx, $1) || redirect_list_index($cgi);
 	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
 		invalid_list(\%ctx, $1) || get_index(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/atom\.xml\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/(?:atom\.xml|new\.atom)\z!o) {
 		invalid_list(\%ctx, $1) || get_atom(\%ctx);
 
 	# single-message pages
@@ -128,7 +128,7 @@ sub invalid_list_mid {
 	$ret;
 }
 
-# /$LISTNAME/atom.xml                       -> Atom feed, includes replies
+# /$LISTNAME/new.atom                     -> Atom feed, includes replies
 sub get_atom {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;

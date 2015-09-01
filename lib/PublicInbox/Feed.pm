@@ -287,11 +287,11 @@ sub get_feedopts {
 		if (my $mid = $ctx->{mid}) { # per-thread feed:
 			$rv{atomurl} = "$url_base/t/$mid/atom";
 		} else {
-			$rv{atomurl} = "$url_base/atom.xml";
+			$rv{atomurl} = "$url_base/new.atom";
 		}
 	} else {
 		$url_base = "http://example.com";
-		$rv{atomurl} = "$url_base/atom.xml";
+		$rv{atomurl} = "$url_base/new.atom";
 	}
 	$rv{url} ||= "$url_base/";
 	$rv{midurl} = "$url_base/m/";

@@ -83,7 +83,7 @@ EOF
 
 	test_psgi($app, sub {
 		my ($cb) = @_;
-		my $atomurl = 'http://example.com/test/atom.xml';
+		my $atomurl = 'http://example.com/test/new.atom';
 		my $res = $cb->(GET('http://example.com/test/'));
 		is(200, $res->code, 'success response received');
 		like($res->content, qr!href="\Q$atomurl\E"!,
