@@ -164,7 +164,7 @@ sub emit_thread_html {
 	my $res = $srch->get_thread($mid);
 	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
-	return missing_thread($cb) if $nr == 0;
+	return missing_thread($cb, $ctx) if $nr == 0;
 	my $flat = $ctx->{flat};
 	my $orig_cb = $cb;
 	my $seen = {};
@@ -189,7 +189,7 @@ sub emit_thread_html {
 
 	# there could be a race due to a message being deleted in git
 	# but still being in the Xapian index:
-	return missing_thread($cb) if ($orig_cb eq $cb);
+	return missing_thread($cb, $ctx) if ($orig_cb eq $cb);
 
 	my $final_anchor = $state->{anchor_idx};
 	my $next = "<a\nid=\"s$final_anchor\">";
@@ -637,12 +637,10 @@ sub thread_results {
 }
 
 sub missing_thread {
-	my ($cb) = @_;
-	my $title = 'Thread does not exist';
-	$cb->([404, ['Content-Type' => 'text/html']])->write(<<EOF);
-<html><head><title>$title</title></head><body><pre>$title
-<a href="../../">Return to index</a></pre></body></html>
-EOF
+	my ($cb, $ctx) = @_;
+	require PublicInbox::ExtMsg;
+
+	$cb->(PublicInbox::ExtMsg::ext_msg($ctx))
 }
 
 sub _msg_date {

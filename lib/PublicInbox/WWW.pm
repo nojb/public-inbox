@@ -88,7 +88,14 @@ sub preload {
 
 # private functions below
 
-sub r404 { r(404, 'Not Found') }
+sub r404 {
+	my ($ctx) = @_;
+	if ($ctx && $ctx->{mid}) {
+		require PublicInbox::ExtMsg;
+		return PublicInbox::ExtMsg::ext_msg($ctx);
+	}
+	r(404, 'Not Found');
+}
 
 # simple response for errors
 sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
@@ -151,7 +158,7 @@ sub mid2blob {
 # /$LISTNAME/$MESSAGE_ID/raw                    -> raw mbox
 sub get_mid_txt {
 	my ($ctx) = @_;
-	my $x = mid2blob($ctx) or return r404();
+	my $x = mid2blob($ctx) or return r404($ctx);
 	require PublicInbox::Mbox;
 	PublicInbox::Mbox::emit1($x);
 }
@@ -159,7 +166,7 @@ sub get_mid_txt {
 # /$LISTNAME/$MESSAGE_ID/                   -> HTML content (short quotes)
 sub get_mid_html {
 	my ($ctx) = @_;
-	my $x = mid2blob($ctx) or return r404();
+	my $x = mid2blob($ctx) or return r404($ctx);
 
 	require PublicInbox::View;
 	my $foot = footer($ctx);
@@ -173,7 +180,7 @@ sub get_mid_html {
 # /$LISTNAME/$MESSAGE_ID/f/                   -> HTML content (fullquotes)
 sub get_full_html {
 	my ($ctx) = @_;
-	my $x = mid2blob($ctx) or return r404();
+	my $x = mid2blob($ctx) or return r404($ctx);
 
 	require PublicInbox::View;
 	my $foot = footer($ctx);
