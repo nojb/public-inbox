@@ -74,7 +74,7 @@ sub index_entry {
 	my $mid_raw = $header_obj->header('Message-ID');
 	my $id = anchor_for($mid_raw);
 	my $seen = $state->{seen};
-	$seen->{$id} = "#$id"; # save the anchor for later
+	$seen->{$id} = "#$id"; # save the anchor for children, later
 
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
 	my $from = PublicInbox::Hval->new_oneline($mime->header('From'))->raw;
@@ -88,12 +88,8 @@ sub index_entry {
 	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
 	my $irt = in_reply_to($header_obj);
+	my $parent_anchor = $seen->{anchor_for($irt)} if defined $irt;
 
-	my ($anchor_idx, $anchor);
-	if (defined $irt) {
-		$anchor_idx = anchor_for($irt);
-		$anchor = $seen->{$anchor_idx};
-	}
 	if ($srch) {
 		my $t = $ctx->{flat} ? 'T' : 't';
 		$subj = "<a\nhref=\"${path}$href/$t/#u\">$subj</a>";
@@ -135,13 +131,12 @@ sub index_entry {
 	$rv .= html_footer($mime, 0, undef, $ctx);
 
 	if (defined $irt) {
-		unless (defined $anchor) {
+		unless (defined $parent_anchor) {
 			my $v = PublicInbox::Hval->new_msgid($irt);
 			$v = $v->as_href;
-			$anchor = "${path}$v/";
-			$seen->{$anchor_idx} = $anchor;
+			$parent_anchor = "${path}$v/";
 		}
-		$rv .= " <a\nhref=\"$anchor\">parent</a>";
+		$rv .= " <a\nhref=\"$parent_anchor\">parent</a>";
 	}
 	if ($srch) {
 		if ($ctx->{flat}) {
