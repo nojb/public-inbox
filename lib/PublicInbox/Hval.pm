@@ -25,9 +25,9 @@ sub new {
 }
 
 sub new_msgid {
-	my ($class, $msgid) = @_;
+	my ($class, $msgid, $no_compress) = @_;
 	$msgid = mid_clean($msgid);
-	$class->new($msgid, mid_compress($msgid));
+	$class->new($msgid, $no_compress ? $msgid : mid_compress($msgid));
 }
 
 sub new_oneline {

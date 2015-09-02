@@ -132,7 +132,7 @@ sub index_entry {
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
-			my $v = PublicInbox::Hval->new_msgid($irt);
+			my $v = PublicInbox::Hval->new_msgid($irt, 1);
 			$v = $v->as_href;
 			$parent_anchor = "${path}$v/";
 		}
@@ -452,22 +452,25 @@ sub thread_inline {
 
 	if ($nr <= 1) {
 		$$dst .= "\n[no followups, yet]\n";
-		return;
+		return (undef, in_reply_to($cur));
 	}
 	my $upfx = $full_pfx ? '' : '../';
 
 	$$dst .= "\n\n~$nr messages in thread: ".
 		 "(<a\nhref=\"${upfx}t/#u\">expand</a>)\n";
 	my $subj = $srch->subject_path($cur->header('Subject'));
+	my $parent = in_reply_to($cur);
 	my $state = {
 		seen => { $subj => 1 },
 		srch => $srch,
 		cur => $mid,
+		parent_cmp => $parent ? mid_compress($parent) : '',
+		parent => $parent,
 	};
 	for (thread_results(load_results($res))->rootset) {
 		inline_dump($dst, $state, $upfx, $_, 0);
 	}
-	$state->{next_msg};
+	($state->{next_msg}, $state->{parent});
 }
 
 sub _parent_headers_nosrch {
@@ -476,7 +479,7 @@ sub _parent_headers_nosrch {
 
 	my $irt = in_reply_to($header_obj);
 	if (defined $irt) {
-		my $v = PublicInbox::Hval->new_msgid($irt);
+		my $v = PublicInbox::Hval->new_msgid($irt, 1);
 		my $html = $v->as_html;
 		my $href = $v->as_href;
 		$rv .= "In-Reply-To: &lt;";
@@ -493,7 +496,7 @@ sub _parent_headers_nosrch {
 		foreach my $ref (@raw_refs) {
 			next if $seen{$ref};
 			$seen{$ref} = 1;
-			push @refs, linkify_ref($ref);
+			push @refs, linkify_ref_nosrch($ref);
 		}
 
 		if (@refs) {
@@ -536,12 +539,11 @@ sub html_footer {
 	my $upfx = $full_pfx ? '../' : '../../';
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 	if ($idx && $srch) {
-		my $next = thread_inline(\$idx, $ctx, $mime, $full_pfx);
-		$irt = in_reply_to($mime->header_obj);
-		if (defined $irt) {
-			$irt = PublicInbox::Hval->new_msgid($irt);
-			$irt = $irt->as_href;
-			$irt = "<a\nhref=\"$upfx$irt/\">parent</a> ";
+		my ($next, $p) = thread_inline(\$idx, $ctx, $mime, $full_pfx);
+		if (defined $p) {
+			$p = PublicInbox::Hval->new_oneline($p);
+			$p = $p->as_href;
+			$irt = "<a\nhref=\"$upfx$p/\">parent</a> ";
 		} else {
 			$irt = ' ' x length('parent ');
 		}
@@ -557,8 +559,8 @@ sub html_footer {
 	"$irt<a\nhref=\"" . ascii_html($href) . '">reply</a>' . $idx;
 }
 
-sub linkify_ref {
-	my $v = PublicInbox::Hval->new_msgid($_[0]);
+sub linkify_ref_nosrch {
+	my $v = PublicInbox::Hval->new_msgid($_[0], 1);
 	my $html = $v->as_html;
 	my $href = $v->as_href;
 	"&lt;<a\nhref=\"../$href/\">$html</a>&gt;";
@@ -699,8 +701,11 @@ sub _inline_header {
 sub inline_dump {
 	my ($dst, $state, $upfx, $node, $level) = @_;
 	return unless $node;
-	return if $state->{stopped};
 	if (my $mime = $node->message) {
+		my $mid = mid_clean($mime->header('Message-ID'));
+		if ($mid eq $state->{parent_cmp}) {
+			$state->{parent} = $mid;
+		}
 		_inline_header($dst, $state, $upfx, $mime, $level);
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
