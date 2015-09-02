@@ -167,9 +167,10 @@ sub emit_thread_html {
 	return missing_thread($cb) if $nr == 0;
 	my $flat = $ctx->{flat};
 	my $orig_cb = $cb;
+	my $seen = {};
 	my $state = {
 		ctx => $ctx,
-		seen => {},
+		seen => $seen,
 		root_anchor => anchor_for($mid),
 		anchor_idx => 0,
 	};
@@ -177,6 +178,7 @@ sub emit_thread_html {
 	require PublicInbox::GitCatFile;
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 	if ($flat) {
+		pre_anchor_entry($seen, $_) for (@$msgs);
 		__thread_entry(\$cb, $git, $state, $_, 0) for (@$msgs);
 	} else {
 		my $th = thread_results($msgs);
@@ -578,6 +580,12 @@ sub thread_html_head {
 	my $s = PublicInbox::Hval->new_oneline($mime->header('Subject'));
 	$s = $s->as_html;
 	$$cb->write("<html><head><title>$s</title></head><body>");
+}
+
+sub pre_anchor_entry {
+	my ($seen, $mime) = @_;
+	my $id = anchor_for($mime->header('Message-ID'));
+	$seen->{$id} = "#$id"; # save the anchor for children, later
 }
 
 sub __thread_entry {
