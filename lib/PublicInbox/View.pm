@@ -144,7 +144,7 @@ sub emit_thread_html {
 	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
 	return missing_thread($cb) if $nr == 0;
-	my $fh = $cb->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
+	my $orig_cb = $cb;
 	my $th = thread_results($msgs);
 	my $state = {
 		ctx => $ctx,
@@ -155,18 +155,23 @@ sub emit_thread_html {
 	{
 		require PublicInbox::GitCatFile;
 		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-		thread_entry($fh, $git, $state, $_, 0) for $th->rootset;
+		thread_entry(\$cb, $git, $state, $_, 0) for $th->rootset;
 	}
 	Email::Address->purge_cache;
+
+	# there could be a race due to a message being deleted in git
+	# but still being in the Xapian index:
+	return missing_thread($cb) if ($orig_cb eq $cb);
+
 	my $final_anchor = $state->{anchor_idx};
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>\n";
 	$next .= "download thread: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>\n\n";
-	$fh->write("<hr />" . PRE_WRAP . $next . $foot .
+	$cb->write("<hr />" . PRE_WRAP . $next . $foot .
 		   "</pre></body></html>");
-	$fh->close;
+	$cb->close;
 }
 
 sub index_walk {
@@ -536,14 +541,16 @@ sub anchor_for {
 }
 
 sub thread_html_head {
-	my ($mime) = @_;
+	my ($cb, $mime) = @_;
+	$$cb = $$cb->([200, ['Content-Type'=> 'text/html; charset=UTF-8']]);
+
 	my $s = PublicInbox::Hval->new_oneline($mime->header('Subject'));
 	$s = $s->as_html;
-	"<html><head><title>$s</title></head><body>";
+	$$cb->write("<html><head><title>$s</title></head><body>");
 }
 
 sub thread_entry {
-	my ($fh, $git, $state, $node, $level) = @_;
+	my ($cb, $git, $state, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
 
@@ -552,13 +559,13 @@ sub thread_entry {
 		$mime = eval { Email::MIME->new($git->cat_file("HEAD:$path")) };
 		if ($mime) {
 			if ($state->{anchor_idx} == 0) {
-				$fh->write(thread_html_head($mime));
+				thread_html_head($cb, $mime);
 			}
-			index_entry($fh, $mime, $level, $state);
+			index_entry($$cb, $mime, $level, $state);
 		}
 	}
-	thread_entry($fh, $git, $state, $node->child, $level + 1);
-	thread_entry($fh, $git, $state, $node->next, $level);
+	thread_entry($cb, $git, $state, $node->child, $level + 1);
+	thread_entry($cb, $git, $state, $node->next, $level);
 }
 
 sub load_results {
