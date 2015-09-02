@@ -46,6 +46,19 @@ sub feed_entry {
 	PRE_WRAP . multipart_text_as_html($mime, $full_pfx) . '</pre>';
 }
 
+sub in_reply_to {
+	my ($header_obj) = @_;
+	my $irt = $header_obj->header('In-Reply-To');
+
+	return mid_clean($irt) if (defined $irt);
+
+	my $refs = $header_obj->header('References');
+	if ($refs && $refs =~ /<([^>]+)>\s*\z/s) {
+		return $1;
+	}
+	undef;
+}
+
 # this is already inside a <pre>
 sub index_entry {
 	my ($fh, $mime, $level, $state) = @_;
@@ -74,7 +87,8 @@ sub index_entry {
 	my $root_anchor = $state->{root_anchor};
 	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
-	my $irt = $header_obj->header('In-Reply-To');
+	my $irt = in_reply_to($header_obj);
+
 	my ($anchor_idx, $anchor);
 	if (defined $irt) {
 		$anchor_idx = anchor_for($irt);
@@ -463,7 +477,7 @@ sub _parent_headers_nosrch {
 	my ($header_obj) = @_;
 	my $rv = '';
 
-	my $irt = $header_obj->header('In-Reply-To');
+	my $irt = in_reply_to($header_obj);
 	if (defined $irt) {
 		my $v = PublicInbox::Hval->new_msgid($irt);
 		my $html = $v->as_html;
@@ -476,7 +490,7 @@ sub _parent_headers_nosrch {
 	if ($refs) {
 		# avoid redundant URLs wasting bandwidth
 		my %seen;
-		$seen{mid_clean($irt)} = 1 if defined $irt;
+		$seen{$irt} = 1 if defined $irt;
 		my @refs;
 		my @raw_refs = ($refs =~ /<([^>]+)>/g);
 		foreach my $ref (@raw_refs) {
@@ -526,7 +540,7 @@ sub html_footer {
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 	if ($idx && $srch) {
 		my $next = thread_inline(\$idx, $ctx, $mime, $full_pfx);
-		$irt = $mime->header('In-Reply-To');
+		$irt = in_reply_to($mime->header_obj);
 		if (defined $irt) {
 			$irt = PublicInbox::Hval->new_msgid($irt);
 			$irt = $irt->as_href;
