@@ -46,6 +46,9 @@ sub run {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread_mbox(\%ctx, $sfx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/t\.atom\z!o) {
 		invalid_list_mid(\%ctx, $1, $2) || get_thread_atom(\%ctx);
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/T/\z!o) {
+		$ctx{flat} = 1;
+		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
 
 	# single-message pages
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/\z!o) {

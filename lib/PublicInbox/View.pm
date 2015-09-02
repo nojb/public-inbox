@@ -81,7 +81,8 @@ sub index_entry {
 		$anchor = $seen->{$anchor_idx};
 	}
 	if ($srch) {
-		$subj = "<a\nhref=\"${path}$href/t/#u\">$subj</a>";
+		my $t = $ctx->{flat} ? 'T' : 't';
+		$subj = "<a\nhref=\"${path}$href/$t/#u\">$subj</a>";
 	}
 	if ($root_anchor && $root_anchor eq $id) {
 		$subj = "<u\nid=\"u\">$subj</u>";
@@ -103,7 +104,9 @@ sub index_entry {
 
 	my ($fhref, $more_ref);
 	my $mhref = "${path}$href/";
-	if ($level > 0) {
+
+	# show full messages at level == 0 in threaded view
+	if ($level > 0 || ($ctx->{flat} && $root_anchor ne $id)) {
 		$fhref = "${path}$href/f/";
 		$more_ref = \$more;
 	}
@@ -126,6 +129,15 @@ sub index_entry {
 		}
 		$rv .= " <a\nhref=\"$anchor\">parent</a>";
 	}
+	if ($srch) {
+		if ($ctx->{flat}) {
+			$rv .= " [<a\nhref=\"${path}$href/t/#u\">threaded</a>" .
+				"|<b>flat</b>]";
+		} else {
+			$rv .= " [<b>threaded</b>|" .
+				"<a\nhref=\"${path}$href/T/#u\">flat</a>]";
+		}
+	}
 
 	$fh->write($rv .= '</pre></td></tr></table>');
 }
@@ -144,19 +156,24 @@ sub emit_thread_html {
 	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
 	return missing_thread($cb) if $nr == 0;
+	my $flat = $ctx->{flat};
 	my $orig_cb = $cb;
-	my $th = thread_results($msgs);
 	my $state = {
 		ctx => $ctx,
 		seen => {},
 		root_anchor => anchor_for($mid),
 		anchor_idx => 0,
 	};
-	{
-		require PublicInbox::GitCatFile;
-		my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+
+	require PublicInbox::GitCatFile;
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	if ($flat) {
+		__thread_entry(\$cb, $git, $state, $_, 0) for (@$msgs);
+	} else {
+		my $th = thread_results($msgs);
 		thread_entry(\$cb, $git, $state, $_, 0) for $th->rootset;
 	}
+	$git = undef;
 	Email::Address->purge_cache;
 
 	# there could be a race due to a message being deleted in git
@@ -166,10 +183,15 @@ sub emit_thread_html {
 	my $final_anchor = $state->{anchor_idx};
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
-	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>\n";
-	$next .= "download thread: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
-	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>\n\n";
-	$cb->write("<hr />" . PRE_WRAP . $next . $foot .
+	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>";
+	if ($flat) {
+		$next .= " [<a\nhref=\"../t/#u\">threaded</a>|<b>flat</b>]";
+	} else {
+		$next .= " [<b>threaded</b>|<a\nhref=\"../T/#u\">flat</a>]";
+	}
+	$next .= "\ndownload thread: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
+	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
+	$cb->write("<hr />" . PRE_WRAP . $next . "\n\n". $foot .
 		   "</pre></body></html>");
 	$cb->close;
 }
@@ -549,20 +571,25 @@ sub thread_html_head {
 	$$cb->write("<html><head><title>$s</title></head><body>");
 }
 
+sub __thread_entry {
+	my ($cb, $git, $state, $mime, $level) = @_;
+
+	# lazy load the full message from mini_mime:
+	my $path = mid2path(mid_clean($mime->header('Message-ID')));
+	$mime = eval { Email::MIME->new($git->cat_file("HEAD:$path")) };
+	if ($mime) {
+		if ($state->{anchor_idx} == 0) {
+			thread_html_head($cb, $mime);
+		}
+		index_entry($$cb, $mime, $level, $state);
+	}
+}
+
 sub thread_entry {
 	my ($cb, $git, $state, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
-
-		# lazy load the full message from mini_mime:
-		my $path = mid2path(mid_clean($mime->header('Message-ID')));
-		$mime = eval { Email::MIME->new($git->cat_file("HEAD:$path")) };
-		if ($mime) {
-			if ($state->{anchor_idx} == 0) {
-				thread_html_head($cb, $mime);
-			}
-			index_entry($$cb, $mime, $level, $state);
-		}
+		__thread_entry($cb, $git, $state, $mime, $level);
 	}
 	thread_entry($cb, $git, $state, $node->child, $level + 1);
 	thread_entry($cb, $git, $state, $node->next, $level);
