@@ -161,7 +161,7 @@ sub thread_html {
 
 sub emit_thread_html {
 	my ($cb, $ctx, $foot, $srch) = @_;
-	my $mid = mid_compress($ctx->{mid});
+	my $mid = $ctx->{mid};
 	my $res = $srch->get_thread($mid);
 	my $msgs = load_results($res);
 	my $nr = scalar @$msgs;
@@ -447,7 +447,7 @@ sub headers_to_html_header {
 sub thread_inline {
 	my ($dst, $ctx, $cur, $full_pfx) = @_;
 	my $srch = $ctx->{srch};
-	my $mid = mid_compress(mid_clean($cur->header('Message-ID')));
+	my $mid = mid_clean($cur->header('Message-ID'));
 	my $res = $srch->get_thread($mid);
 	my $nr = $res->{total};
 
@@ -465,7 +465,7 @@ sub thread_inline {
 		seen => { $subj => 1 },
 		srch => $srch,
 		cur => $mid,
-		parent_cmp => $parent ? mid_compress($parent) : '',
+		parent_cmp => defined $parent ? $parent : '',
 		parent => $parent,
 	};
 	for (thread_results(load_results($res))->rootset) {
@@ -683,16 +683,15 @@ sub _inline_header {
 	my $pfx = INDENT x $level;
 
 	my $cur = $state->{cur};
-	my $mid = $mime->header('Message-ID');
+	my $mid = mid_clean($mime->header('Message-ID'));
 	my $f = $mime->header('X-PI-From');
 	my $d = _msg_date($mime);
 	$f = PublicInbox::Hval->new($f);
 	$d = PublicInbox::Hval->new($d);
 	$f = $f->as_html;
 	$d = $d->as_html . ' UTC';
-	my $midc = mid_compress(mid_clean($mid));
 	if ($cur) {
-		if ($cur eq $midc) {
+		if ($cur eq $mid) {
 			delete $state->{cur};
 			$$dst .= "$pfx` <b><a\nid=\"r\"\nhref=\"#t\">".
 				 "[this message]</a></b> by $f @ $d\n";
@@ -700,7 +699,7 @@ sub _inline_header {
 			return;
 		}
 	} else {
-		$state->{next_msg} ||= $midc;
+		$state->{next_msg} ||= $mid;
 	}
 
 	# Subject is never undef, this mail was loaded from

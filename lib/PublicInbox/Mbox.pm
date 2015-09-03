@@ -4,7 +4,7 @@
 package PublicInbox::Mbox;
 use strict;
 use warnings;
-use PublicInbox::MID qw/mid_compress mid2path/;
+use PublicInbox::MID qw/mid2path/;
 require Email::Simple;
 
 sub thread_mbox {
@@ -69,7 +69,7 @@ sub emit_mbox {
 	$fh = PublicInbox::MboxGz->new($fh) if $sfx;
 
 	require PublicInbox::GitCatFile;
-	my $mid = mid_compress($ctx->{mid});
+	my $mid = $ctx->{mid};
 	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
 	my %opts = (offset => 0);
 	my $nr;

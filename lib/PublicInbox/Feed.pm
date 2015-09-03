@@ -9,7 +9,7 @@ use Date::Parse qw(strptime);
 use PublicInbox::Hval;
 use PublicInbox::GitCatFile;
 use PublicInbox::View;
-use PublicInbox::MID qw/mid_clean mid_compress mid2path/;
+use PublicInbox::MID qw/mid_clean mid2path/;
 use POSIX qw/strftime/;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
@@ -393,8 +393,7 @@ sub add_topic {
 			my $mime = do_cat_mail($git, $path) or return 0;
 			$header_obj = $mime->header_obj;
 		}
-		my $mid = $header_obj->header('Message-ID');
-		$mid = mid_compress(mid_clean($mid));
+		my $mid = mid_clean($header_obj->header('Message-ID'));
 		$u = $enc_utf8->decode($u);
 		push @$order, [ $mid, $ts, $u, $subj, $topic ];
 		return 1;

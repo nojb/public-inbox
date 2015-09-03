@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::Hval;
-use PublicInbox::MID qw/mid_compress mid2path/;
+use PublicInbox::MID qw/mid2path/;
 
 # TODO: user-configurable
 our @EXT_URL = (

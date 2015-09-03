@@ -8,7 +8,7 @@ use warnings;
 use fields qw(raw href);
 use Encode qw(find_encoding);
 use URI::Escape qw(uri_escape_utf8);
-use PublicInbox::MID qw/mid_clean mid_compress/;
+use PublicInbox::MID qw/mid_clean/;
 
 my $enc_ascii = find_encoding('us-ascii');
 
@@ -27,7 +27,7 @@ sub new {
 sub new_msgid {
 	my ($class, $msgid, $no_compress) = @_;
 	$msgid = mid_clean($msgid);
-	$class->new($msgid, $no_compress ? $msgid : mid_compress($msgid));
+	$class->new($msgid, $msgid);
 }
 
 sub new_oneline {

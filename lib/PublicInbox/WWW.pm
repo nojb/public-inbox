@@ -116,8 +116,18 @@ sub invalid_list {
 sub invalid_list_mid {
 	my ($ctx, $listname, $mid) = @_;
 	my $ret = invalid_list($ctx, $listname, $mid);
-	$ctx->{mid} = uri_unescape($mid) unless $ret;
-	$ret;
+	return $ret if $ret;
+
+	$ctx->{mid} = $mid = uri_unescape($mid);
+	if ($mid =~ /\A[a-f0-9]{40}\z/) {
+		if ($mid = mid2blob($ctx)) {
+			require Email::Simple;
+			use PublicInbox::MID qw/mid_clean/;
+			$mid = Email::Simple->new($mid);
+			$ctx->{mid} = mid_clean($mid->header('Message-ID'));
+		}
+	}
+	undef;
 }
 
 # /$LISTNAME/new.atom                     -> Atom feed, includes replies
