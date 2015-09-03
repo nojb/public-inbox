@@ -19,6 +19,7 @@ use constant MAX_INLINE_QUOTED => 12; # half an 80x24 terminal
 use constant MAX_TRUNC_LEN => 72;
 use constant PRE_WRAP => "<pre\nstyle=\"white-space:pre-wrap\">";
 use constant T_ANCHOR => '#u';
+use constant INDENT => '  ';
 
 *ascii_html = *PublicInbox::Hval::ascii_html;
 
@@ -101,7 +102,7 @@ sub index_entry {
 	my $ts = _msg_date($mime);
 	my $rv = "<table\nsummary=l$level><tr>";
 	if ($level) {
-		$rv .= '<td><pre>' . ('  ' x $level) . '</pre></td>';
+		$rv .= '<td><pre>' . (INDENT x $level) . '</pre></td>';
 	}
 	$rv .= "<td\nid=s$midx>" . PRE_WRAP;
 	$rv .= "<b\nid=\"$id\">$subj</b>\n";
@@ -594,22 +595,50 @@ sub __thread_entry {
 	my ($cb, $git, $state, $mime, $level) = @_;
 
 	# lazy load the full message from mini_mime:
-	my $path = mid2path(mid_clean($mime->header('Message-ID')));
-	$mime = eval { Email::MIME->new($git->cat_file("HEAD:$path")) };
-	if ($mime) {
-		if ($state->{anchor_idx} == 0) {
-			thread_html_head($cb, $mime);
-		}
-		index_entry($$cb, $mime, $level, $state);
+	$mime = eval {
+		my $path = mid2path(mid_clean($mime->header('Message-ID')));
+		Email::MIME->new($git->cat_file('HEAD:'.$path));
+	} or return;
+
+	if ($state->{anchor_idx} == 0) {
+		thread_html_head($cb, $mime, $state);
 	}
+
+	if (my $ghost = delete $state->{ghost}) {
+		# n.b. ghost messages may only be parents, not children
+		foreach my $g (@$ghost) {
+			my $mid = PublicInbox::Hval->new_msgid($g->[0]);
+			my $pfx = INDENT x $g->[1];
+			my $href = $mid->as_href;
+			my $html = $mid->as_html;
+			$$cb->write("<table><tr><td>$pfx</td><td>" .
+					PRE_WRAP .
+					'[parent not found: &lt;' .
+					qq{<a\nhref="../../$href/">}.
+					"$html</a>&gt;]</pre></td></table>");
+		}
+	}
+	index_entry($$cb, $mime, $level, $state);
+	1;
+}
+
+sub __ghost_entry {
+	my ($state, $node, $level) = @_;
+	my $ghost = $state->{ghost} ||= [];
+	push @$ghost, [ $node->messageid, $level ];
 }
 
 sub thread_entry {
 	my ($cb, $git, $state, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
-		__thread_entry($cb, $git, $state, $mime, $level);
+		unless (__thread_entry($cb, $git, $state, $mime, $level)) {
+			__ghost_entry($state, $node, $level);
+		}
+	} else {
+		__ghost_entry($state, $node, $level);
 	}
+
 	thread_entry($cb, $git, $state, $node->child, $level + 1);
 	thread_entry($cb, $git, $state, $node->next, $level);
 }
@@ -651,7 +680,7 @@ sub _msg_date {
 
 sub _inline_header {
 	my ($dst, $state, $upfx, $mime, $level) = @_;
-	my $pfx = '  ' x $level;
+	my $pfx = INDENT x $level;
 
 	my $cur = $state->{cur};
 	my $mid = $mime->header('Message-ID');
@@ -705,6 +734,14 @@ sub inline_dump {
 			$state->{parent} = $mid;
 		}
 		_inline_header($dst, $state, $upfx, $mime, $level);
+	} else {
+		my $pfx = INDENT x $level;
+		my $v = PublicInbox::Hval->new_msgid($node->messageid, 1);
+		my $html = $v->as_html;
+		my $href = $v->as_href;
+		$$dst .= $pfx . '` [parent not found: &lt;' .
+				qq{<a\nhref="$upfx../$href/">}.
+				"$html</a>&gt;]\n";
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
