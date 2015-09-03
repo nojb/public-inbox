@@ -42,11 +42,6 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($ctx, $1, $2, $3);
 
-	# some Message-IDs have slashes in them and the HTTP server
-	# may try to be clever and unescape them :<
-	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/$END_RE\z!o) {
-		msg_page($ctx, $1, $2, $3);
-
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/([^/]{2,})\z!o) {
 		r301($ctx, $1, $2);
@@ -353,6 +348,11 @@ sub legacy_redirects {
 		r301($ctx, $1, $2, 't/#u');
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
 		r301($ctx, $1, $2, 'f/');
+
+	# some Message-IDs have slashes in them and the HTTP server
+	# may try to be clever and unescape them :<
+	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/$END_RE\z!o) {
+		msg_page($ctx, $1, $2, $3);
 
 	} else {
 		r404();
