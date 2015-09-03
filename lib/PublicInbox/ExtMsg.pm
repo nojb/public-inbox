@@ -7,6 +7,14 @@ use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::Hval;
 use PublicInbox::MID qw/mid_compress mid2path/;
 
+# TODO: user-configurable
+our @EXT_URL = (
+	'http://mid.gmane.org/%s',
+	'https://lists.debian.org/msgid-search/%s',
+	'http://mid.mail-archive.com/%s',
+	'http://marc.info/?i=%s',
+);
+
 sub ext_msg {
 	my ($ctx) = @_;
 	my $pi_config = $ctx->{pi_config};
@@ -74,9 +82,27 @@ sub ext_msg {
 		}
 	}
 
-	# Fall back to external repos
+	my $code = 404;
+	my $h = PublicInbox::Hval->new_msgid($mid, 1);
+	my $href = $h->as_href;
+	my $html = $h->as_html;
+	my $title = "Message-ID &lt;$html&gt; not found";
 
-	[404, ['Content-Type'=>'text/plain'], ['Not found']];
+	# Fall back to external repos if configured
+	my $s = "<html><head><title>$title</title>" .
+		"</head><body><pre><b>$title</b>";
+
+	if (@EXT_URL) {
+		$code = 300;
+		$s .= "\n\nPerhaps try an external site:\n\n";
+		foreach my $u (@EXT_URL) {
+			my $r = sprintf($u, $href);
+			my $t = sprintf($u, $html);
+			$s .= qq{<a\nhref="$r">$t</a>\n};
+		}
+	}
+
+	[300, ['Content-Type'=>'text/html; charset=UTF-8'], [$s]];
 }
 
 # Redirect to another public-inbox which is mapped by $pi_config

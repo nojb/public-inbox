@@ -160,19 +160,19 @@ EOF
 	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
 		"mid raw hit");
 	$res = cgi_run("/test/blahblah\@example.con/raw");
-	like($res->{head}, qr/Status: 404 Not Found/, "mid raw miss");
+	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid raw miss");
 
 	$res = cgi_run("/test/blahblah\@example.com/");
 	like($res->{body}, qr/\A<html>/, "mid html hit");
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
 	$res = cgi_run("/test/blahblah\@example.con/");
-	like($res->{head}, qr/Status: 404 Not Found/, "mid html miss");
+	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
 	$res = cgi_run("/test/blahblah\@example.com/f/");
 	like($res->{body}, qr/\A<html>/, "mid html");
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
 	$res = cgi_run("/test/blahblah\@example.con/f/");
-	like($res->{head}, qr/Status: 404 Not Found/, "mid html miss");
+	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
 	$res = cgi_run("/test/");
 	like($res->{body}, qr/slashy%2Fasdf%40example\.com/,

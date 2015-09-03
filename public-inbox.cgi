@@ -17,6 +17,7 @@ BEGIN {
 
 	%HTTP_CODES = (
 		200 => 'OK',
+		300 => 'Multiple Choices',
 		301 => 'Moved Permanently',
 		302 => 'Found',
 		404 => 'Not Found',
