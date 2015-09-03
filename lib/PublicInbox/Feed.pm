@@ -60,7 +60,7 @@ sub atom_header {
 
 sub emit_atom {
 	my ($cb, $ctx) = @_;
-	my $fh = $cb->([ 200, ['Content-Type' => 'application/xml']]);
+	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($ctx);
 	my $x = atom_header($feed_opts);
@@ -97,7 +97,7 @@ sub emit_atom_thread {
 	my ($cb, $ctx) = @_;
 	my $res = $ctx->{srch}->get_thread($ctx->{mid});
 	return _no_thread($cb) unless $res->{total};
-	my $fh = $cb->([200, ['Content-Type' => 'application/xml']]);
+	my $fh = $cb->([200, ['Content-Type' => 'application/atom+xml']]);
 	my $feed_opts = get_feedopts($ctx);
 
 	my $html_url = $feed_opts->{atomurl} = $ctx->{self_url};

@@ -206,7 +206,7 @@ EOF
 		$path = "/test/blahblah%40example.com/t.atom";
 		$res = cgi_run($path);
 		like($res->{head}, qr/^Status: 200 /, "atom returned 200");
-		like($res->{head}, qr!^Content-Type: application/xml!m,
+		like($res->{head}, qr!^Content-Type: application/atom\+xml!m,
 			"search returned atom");
 		my $p = XML::Feed->parse(\($res->{body}));
 		is($p->format, "Atom", "parsed atom feed");
