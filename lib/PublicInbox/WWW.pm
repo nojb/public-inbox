@@ -17,12 +17,13 @@ use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
 use constant PI_URL => 'http://public-inbox.org/';
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
+our $END_RE = qr!(f/|T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 our $pi_config;
 
 sub run {
 	my ($cgi, $method) = @_;
 	$pi_config ||= PublicInbox::Config->new;
-	my %ctx = (cgi => $cgi, pi_config => $pi_config);
+	my $ctx = { cgi => $cgi, pi_config => $pi_config };
 	if ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
 	}
@@ -32,40 +33,26 @@ sub run {
 	if ($path_info eq '/') {
 		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
-		invalid_list(\%ctx, $1) || r301(\%ctx, $1);
+		invalid_list($ctx, $1) || r301($ctx, $1);
 	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
-		invalid_list(\%ctx, $1) || get_index(\%ctx);
+		invalid_list($ctx, $1) || get_index($ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:atom\.xml|new\.atom)\z!o) {
-		invalid_list(\%ctx, $1) || get_atom(\%ctx);
+		invalid_list($ctx, $1) || get_atom($ctx);
 
-	# thread display
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/t/\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/t\.mbox(\.gz)?\z!o) {
-		my $sfx = $3;
-		invalid_list_mid(\%ctx, $1, $2) || get_thread_mbox(\%ctx, $sfx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/t\.atom\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_thread_atom(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/T/\z!o) {
-		$ctx{flat} = 1;
-		invalid_list_mid(\%ctx, $1, $2) || get_thread(\%ctx);
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/$END_RE\z!o) {
+		msg_page($ctx, $1, $2, $3);
 
-	# single-message pages
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_mid_html(\%ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/raw\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_mid_txt(\%ctx);
-
-	# full-message page
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/f/\z!o) {
-		invalid_list_mid(\%ctx, $1, $2) || get_full_html(\%ctx);
+	# some Message-IDs have slashes in them and the HTTP server
+	# may try to be clever and unescape them :<
+	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/$END_RE\z!o) {
+		msg_page($ctx, $1, $2, $3);
 
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/([^/]{2,})\z!o) {
-		r301(\%ctx, $1, $2);
+		r301($ctx, $1, $2);
 
 	} else {
-		legacy_redirects(\%ctx, $path_info);
+		legacy_redirects($ctx, $path_info);
 	}
 }
 
@@ -203,10 +190,11 @@ sub get_full_html {
 
 # /$LISTNAME/$MESSAGE_ID/t/
 sub get_thread {
-	my ($ctx) = @_;
+	my ($ctx, $flat) = @_;
 	my $srch = searcher($ctx) or return need_search($ctx);
 	require PublicInbox::View;
 	my $foot = footer($ctx);
+	$ctx->{flat} = $flat;
 	PublicInbox::View::thread_html($ctx, $foot, $srch);
 }
 
@@ -388,6 +376,21 @@ sub r301 {
 	[ 301,
 	  [ Location => $url, 'Content-Type' => 'text/plain' ],
 	  [ "Redirecting to $url\n" ] ]
+}
+
+sub msg_page {
+	my ($ctx, $list, $mid, $e) = @_;
+	unless (invalid_list_mid($ctx, $list, $mid)) {
+		'' eq $e and return get_mid_html($ctx);
+		't/' eq $e and return get_thread($ctx);
+		't.atom' eq $e and return get_thread_atom($ctx);
+		't.mbox' eq $e and return get_thread_mbox($ctx);
+		't.mbox.gz' eq $e and return get_thread_mbox($ctx, '.gz');
+		'T/' eq $e and return get_thread($ctx, 1);
+		'raw' eq $e and return get_mid_txt($ctx);
+		'f/' eq $e and return get_full_html($ctx);
+	}
+	r404($ctx);
 }
 
 1;
