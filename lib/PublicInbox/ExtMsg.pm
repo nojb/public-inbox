@@ -12,7 +12,6 @@ sub ext_msg {
 	my $pi_config = $ctx->{pi_config};
 	my $listname = $ctx->{listname};
 	my $mid = $ctx->{mid};
-	my $cmid = mid_compress($mid);
 
 	eval { require PublicInbox::Search };
 	my $have_xap = $@ ? 0 : 1;
@@ -35,13 +34,13 @@ sub ext_msg {
 		if ($have_xap) {
 			my $doc_id = eval {
 				my $s = PublicInbox::Search->new($git_dir);
-				$s->find_unique_doc_id('mid', $cmid);
+				$s->find_unique_doc_id('mid', $mid);
 			};
 			if ($@) {
 				# xapian not configured for this repo
 			} else {
 				# maybe we found it!
-				return r302($url, $cmid) if (defined $doc_id);
+				return r302($url, $mid) if (defined $doc_id);
 
 				# no point in trying the fork fallback if we
 				# know Xapian is up-to-date but missing the
@@ -55,7 +54,7 @@ sub ext_msg {
 	}
 
 	# Xapian not installed or configured for some repos
-	my $path = "HEAD:" . mid2path($cmid);
+	my $path = "HEAD:" . mid2path($mid);
 
 	foreach my $n (@nox) {
 		my @cmd = ('git', "--git-dir=$n->{git_dir}", 'cat-file',
@@ -70,7 +69,7 @@ sub ext_msg {
 			my $type = eval { local $/; <$fh> };
 			close $fh;
 			if ($? == 0 && $type eq "blob\n") {
-				return r302($n->{url}, $cmid);
+				return r302($n->{url}, $mid);
 			}
 		}
 	}

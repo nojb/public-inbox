@@ -192,7 +192,6 @@ sub filter_mids {
 	$rw_commit->();
 	$ro->reopen;
 	my $long_mid = 'last' . ('x' x 60). '@s';
-	my $long_midc = Digest::SHA::sha1_hex($long_mid);
 
 	my $long = Email::MIME->create(
 		header_str => [
@@ -232,7 +231,7 @@ sub filter_mids {
 	$ro->reopen;
 	my $t = $ro->get_thread('root@s');
 	is($t->{total}, 4, "got all 4 mesages in thread");
-	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_midc);
+	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_mid);
 	@res = filter_mids($t);
 	is_deeply(\@res, \@exp, "get_thread works");
 }

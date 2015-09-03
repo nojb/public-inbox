@@ -9,7 +9,7 @@ use Email::Address qw//;
 use Email::Simple qw//;
 use POSIX qw//;
 use Date::Parse qw/str2time/;
-use PublicInbox::MID qw/mid_clean mid_compress/;
+use PublicInbox::MID qw/mid_clean/;
 use Encode qw/find_encoding/;
 my $enc_utf8 = find_encoding('UTF-8');
 our $PFX2TERM_RE = undef;
@@ -167,7 +167,7 @@ sub _extract_mid {
 	my ($self) = @_;
 
 	my $mid = $self->mime->header('Message-ID');
-	$mid ? mid_compress(mid_clean($mid)) : $mid;
+	defined $mid ? mid_clean($mid) : $mid;
 }
 
 sub mime {

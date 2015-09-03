@@ -41,8 +41,7 @@ sub add_message {
 	my $db = $self->{xdb};
 
 	my $doc_id;
-	my $mid_orig = mid_clean($mime->header('Message-ID'));
-	my $mid = mid_compress($mid_orig);
+	my $mid = mid_clean($mime->header('Message-ID'));
 	my $was_ghost = 0;
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
 
@@ -139,7 +138,7 @@ sub add_message {
 	};
 
 	if ($@) {
-		warn "failed to index message <$mid_orig>: $@\n";
+		warn "failed to index message <$mid>: $@\n";
 		return undef;
 	}
 	$doc_id;
@@ -147,11 +146,10 @@ sub add_message {
 
 # returns deleted doc_id on success, undef on missing
 sub remove_message {
-	my ($self, $mid_orig) = @_;
+	my ($self, $mid) = @_;
 	my $db = $self->{xdb};
 	my $doc_id;
-	$mid_orig = mid_clean($mid_orig);
-	my $mid = mid_compress($mid_orig);
+	$mid = mid_clean($mid);
 
 	eval {
 		$doc_id = $self->find_unique_doc_id('mid', $mid);
@@ -159,7 +157,7 @@ sub remove_message {
 	};
 
 	if ($@) {
-		warn "failed to remove message <$mid_orig>: $@\n";
+		warn "failed to remove message <$mid>: $@\n";
 		return undef;
 	}
 	$doc_id;
@@ -204,32 +202,24 @@ sub link_message {
 sub link_message_to_parents {
 	my ($self, $smsg) = @_;
 	my $doc = $smsg->{doc};
-	my $mid = mid_compress($smsg->mid);
+	my $mid = $smsg->mid;
 	my $mime = $smsg->mime;
 	my $refs = $mime->header('References');
 	my @refs = $refs ? ($refs =~ /<([^>]+)>/g) : ();
-	my $irt = $mime->header('In-Reply-To');
-	if ($irt) {
-		$irt = mid_compress(mid_clean($irt));
-
-		# maybe some crazies will try to make a circular reference:
-		if ($irt eq $mid) {
-			$irt = undef;
-		} else {
-			# last References should be $irt
-			# we will de-dupe later
-			push @refs, $irt;
-		}
+	if (my $irt = $mime->header('In-Reply-To')) {
+		# last References should be $irt
+		# we will de-dupe later
+		push @refs, mid_clean($irt);
 	}
 
 	my $tid;
 	if (@refs) {
-		my @crefs = map { mid_compress($_) } @refs;
 		my %uniq = ($mid => 1);
+		my @orig_refs = @refs;
+		@refs = ();
 
 		# prevent circular references via References: here:
-		@refs = ();
-		foreach my $ref (@crefs) {
+		foreach my $ref (@orig_refs) {
 			next if $uniq{$ref};
 			$uniq{$ref} = 1;
 			push @refs, $ref;
@@ -342,7 +332,6 @@ sub _resolve_mid_to_tid {
 sub create_ghost {
 	my ($self, $mid, $tid) = @_;
 
-	$mid = mid_compress($mid);
 	$tid = $self->next_thread_id unless defined $tid;
 
 	my $doc = Search::Xapian::Document->new;

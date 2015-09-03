@@ -26,14 +26,15 @@ use constant {
 	# 6 - preserve References: order in document data
 	# 7 - remove references and inreplyto terms
 	# 8 - remove redundant/unneeded document data
-	SCHEMA_VERSION => 8,
+	# 9 - disable Message-ID compression
+	SCHEMA_VERSION => 9,
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
 # setup prefixes
 my %bool_pfx_internal = (
 	type => 'T', # "mail" or "ghost"
-	mid => 'Q', # uniQue id (Message-ID or mid_compress)
+	mid => 'Q', # uniQue id (Message-ID)
 );
 
 my %bool_pfx_external = (
@@ -171,7 +172,6 @@ sub date_range_processor {
 sub lookup_message {
 	my ($self, $mid) = @_;
 	$mid = mid_clean($mid);
-	$mid = mid_compress($mid);
 
 	my $doc_id = $self->find_unique_doc_id('mid', $mid);
 	my $smsg;
