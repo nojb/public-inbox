@@ -5,9 +5,17 @@
 # Usage: plackup [OPTIONS] /path/to/this/file
 use strict;
 use warnings;
-require PublicInbox::WWW;
-require Plack::Request;
-sub {
-	my $req = Plack::Request->new(@_);
-	PublicInbox::WWW::run($req, $req->method);
-};
+use PublicInbox::WWW;
+PublicInbox::WWW->preload;
+use Plack::Request;
+use Plack::Builder;
+builder {
+	enable "Deflater",
+		content_type => [ 'text/html', 'text/plain',
+				'application/atom+xml' ];
+	enable "Head";
+	sub {
+		my $req = Plack::Request->new(@_);
+		PublicInbox::WWW::run($req, $req->method);
+	}
+}
