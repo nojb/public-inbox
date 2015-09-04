@@ -662,7 +662,7 @@ sub thread_results {
 	no warnings 'once';
 	$Mail::Thread::nosubject = $nosubject;
 	$th->thread;
-	$th->order(*PublicInbox::Thread::sort_ts);
+	$th->order(*sort_ts);
 	$th
 }
 
@@ -745,6 +745,13 @@ sub inline_dump {
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
+}
+
+sub sort_ts {
+	sort {
+		(eval { $a->topmost->message->header('X-PI-TS') } || 0) <=>
+		(eval { $b->topmost->message->header('X-PI-TS') } || 0)
+	} @_;
 }
 
 sub rsort_ts {
