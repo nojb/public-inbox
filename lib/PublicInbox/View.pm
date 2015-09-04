@@ -196,11 +196,6 @@ sub emit_thread_html {
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>";
-	if ($flat) {
-		$next .= " [<a\nhref=\"../t/#u\">threaded</a>|<b>flat</b>]";
-	} else {
-		$next .= " [<b>threaded</b>|<a\nhref=\"../T/#u\">flat</a>]";
-	}
 	$next .= "\ndownload thread: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
 	$cb->write("<hr />" . PRE_WRAP . $next . "\n\n". $foot .
