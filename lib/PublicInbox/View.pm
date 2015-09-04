@@ -620,7 +620,7 @@ sub __thread_entry {
 		foreach my $g (@$ghost) {
 			$$cb->write("<table\nsummary=ghost><tr><td>" .
 				(INDENT x $g->[1]) . "</td><td>" .
-				PRE_WRAP . ghost_parent('', $g->[0]) .
+				PRE_WRAP . ghost_parent('../', $g->[0]) .
 				'</pre></td></table>');
 		}
 	}
