@@ -687,7 +687,8 @@ sub _msg_date {
 
 sub _inline_header {
 	my ($dst, $state, $upfx, $mime, $level) = @_;
-	my $pfx = INDENT x $level;
+	my $pfx = INDENT x ($level - 1);
+	my $dot = $level == 0 ? '' : '` ';
 
 	my $cur = $state->{cur};
 	my $mid = mid_clean($mime->header('Message-ID'));
@@ -709,7 +710,7 @@ sub _inline_header {
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $state->{cur};
-			$$dst .= "$pfx` <b><a\nid=\"r\"\nhref=\"#t\">".
+			$$dst .= "$pfx$dot<b><a\nid=\"r\"\nhref=\"#t\">".
 				 "[this message]</a></b>$attr\n";
 
 			return;
@@ -733,9 +734,9 @@ sub _inline_header {
 	my $m = PublicInbox::Hval->new_msgid($mid);
 	$m = $upfx . '../' . $m->as_href . '/';
 	if (defined $s) {
-		$$dst .= "$pfx` <a\nhref=\"$m\">$s</a>$attr\n";
+		$$dst .= "$pfx$dot<a\nhref=\"$m\">$s</a>$attr\n";
 	} else {
-		$$dst .= "$pfx` <a\nhref=\"$m\">$f @ $d</a>\n";
+		$$dst .= "$pfx$dot<a\nhref=\"$m\">$f @ $d</a>\n";
 	}
 }
 
@@ -749,7 +750,8 @@ sub inline_dump {
 		}
 		_inline_header($dst, $state, $upfx, $mime, $level);
 	} else {
-		my $pfx = (INDENT x $level) . '` ';
+		my $dot = $level == 0 ? '' : '` ';
+		my $pfx = (INDENT x $level) . $dot;
 		$$dst .= $pfx . ghost_parent($upfx, $node->messageid) . "\n";
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
@@ -775,6 +777,7 @@ sub rsort_ts {
 sub add_topic {
 	my ($state, $node, $level) = @_;
 	return unless $node;
+	my $child_adjust = 1;
 
 	if (my $x = $node->message) {
 		$x = $x->header_obj;
@@ -797,9 +800,12 @@ sub add_topic {
 		my $u = $x->header('X-PI-From');
 		my $ts = $x->header('X-PI-TS');
 		$state->{latest}->{$topic} = [ $mid, $u, $ts ];
-	} # else { } # ghost ignored...
+	} else {
+		# ghost message, do not bump level
+		$child_adjust = 0;
+	}
 
-	add_topic($state, $node->child, $level + 1);
+	add_topic($state, $node->child, $level + $child_adjust);
 	add_topic($state, $node->next, $level);
 }
 
@@ -838,7 +844,8 @@ sub dump_topics {
 			$n = " ($n)\n";
 		}
 		if ($level == 0 || $attr ne $prev_attr) {
-			$dst .= "$pfx - ". $attr . $n;
+			$pfx .= INDENT if $level > 0;
+			$dst .= "$pfx- ". $attr . $n;
 			$prev_attr = $attr;
 		}
 	}
