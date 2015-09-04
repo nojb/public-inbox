@@ -256,7 +256,7 @@ sub multipart_text_as_html {
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
-		$rv .= add_text_body($enc, $part, \$part_nr, $full_pfx);
+		$rv .= add_text_body($enc, $part, \$part_nr, $full_pfx, 1);
 	});
 	$mime->body_set('');
 	$rv;
@@ -308,7 +308,7 @@ sub linkify_2 {
 }
 
 sub flush_quote {
-	my ($quot, $n, $part_nr, $full_pfx, $final) = @_;
+	my ($quot, $n, $part_nr, $full_pfx, $final, $do_anchor) = @_;
 
 	if ($full_pfx) {
 		if (!$final && scalar(@$quot) <= MAX_INLINE_QUOTED) {
@@ -342,18 +342,18 @@ sub flush_quote {
 	} else {
 		# show everything in the full version with anchor from
 		# short version (see above)
-		my $nr = ++$$n;
-		my $rv = "";
 		my %l;
-		$rv .= join('', map { linkify_1(\%l, $_) } @$quot);
+		my $rv .= join('', map { linkify_1(\%l, $_) } @$quot);
 		@$quot = ();
 		$rv = ascii_html($rv);
+		return linkify_2(\%l, $rv) unless $do_anchor;
+		my $nr = ++$$n;
 		"<a\nid=q${part_nr}_$nr></a>" . linkify_2(\%l, $rv);
 	}
 }
 
 sub add_text_body {
-	my ($enc_msg, $part, $part_nr, $full_pfx) = @_;
+	my ($enc_msg, $part, $part_nr, $full_pfx, $do_anchor) = @_;
 	return '' if $part->subparts;
 
 	my $ct = $part->content_type;
@@ -383,7 +383,7 @@ sub add_text_body {
 			# show the previously buffered quote inline
 			if (scalar @quot) {
 				$s .= flush_quote(\@quot, \$n, $$part_nr,
-						  $full_pfx, 0);
+						  $full_pfx, 0, $do_anchor);
 			}
 
 			# regular line, OK
@@ -395,7 +395,10 @@ sub add_text_body {
 			push @quot, $cur;
 		}
 	}
-	$s .= flush_quote(\@quot, \$n, $$part_nr, $full_pfx, 1) if scalar @quot;
+	if (scalar @quot) {
+		$s .= flush_quote(\@quot, \$n, $$part_nr, $full_pfx, 1,
+				  $do_anchor);
+	}
 	$s .= "\n" unless $s =~ /\n\z/s;
 	++$$part_nr;
 	$s;
