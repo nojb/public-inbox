@@ -101,6 +101,7 @@ sub ext_msg {
 			$s .= qq{<a\nhref="$r">$t</a>\n};
 		}
 	}
+	$s .= '</pre></body></html>';
 
 	[300, ['Content-Type'=>'text/html; charset=UTF-8'], [$s]];
 }
