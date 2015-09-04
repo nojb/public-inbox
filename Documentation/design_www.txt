@@ -59,6 +59,16 @@ variable-width fonts.
 
 * No setting colors or font sizes, power to users to decide those.
 
+* Only one font type (fixed or variable) per page.  This is for
+  accessibility, we must not blow certain elements out-of-proportion
+  when a reader increases font size.
+
+* Bold and underline elements are OK since they should render fine
+  regardless of chosen font and gracefully degrade if a display does
+  not support them.  Italics and strike-through elements must be
+  avoided as they do not render well with some displays or user-chosen
+  fonts.
+
 * No JavaScript. JS is historically too buggy and insecure, and we will
   never expect our readers to do either of the following:
   a) read and audit all our code for on every single page load
