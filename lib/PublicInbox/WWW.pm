@@ -42,6 +42,10 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($ctx, $1, $2, $3);
 
+	# in case people leave off the trailing slash:
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(f|T|t)\z!o) {
+		r301($ctx, $1, $2, $3 eq 't' ? 't/#u' : $3);
+
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/([^/]{2,})\z!o) {
 		r301($ctx, $1, $2);
@@ -354,6 +358,9 @@ sub legacy_redirects {
 	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/$END_RE\z!o) {
 		msg_page($ctx, $1, $2, $3);
 
+	# in case people leave off the trailing slash:
+	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/(f|T|t)\z!o) {
+		r301($ctx, $1, $2, $3 eq 't' ? 't/#u' : $3);
 	} else {
 		r404();
 	}
