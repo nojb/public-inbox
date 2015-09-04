@@ -738,8 +738,8 @@ sub inline_dump {
 		}
 		_inline_header($dst, $state, $upfx, $mime, $level);
 	} else {
-		my $pfx = INDENT x $level;
-		$$dst .= $pfx . '` ' . ghost_parent($upfx, $node->messageid);
+		my $pfx = (INDENT x $level) . '` ';
+		$$dst .= $pfx . ghost_parent($upfx, $node->messageid) . "\n";
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
