@@ -465,6 +465,8 @@ sub thread_inline {
 		cur => $mid,
 		parent_cmp => defined $parent ? $parent : '',
 		parent => $parent,
+		prev_attr => '',
+		prev_level => 0,
 	};
 	for (thread_results(load_results($res))->rootset) {
 		inline_dump($dst, $state, $upfx, $_, 0);
@@ -691,15 +693,24 @@ sub _inline_header {
 	my $mid = mid_clean($mime->header('Message-ID'));
 	my $f = $mime->header('X-PI-From');
 	my $d = _msg_date($mime);
-	$f = PublicInbox::Hval->new($f);
-	$d = PublicInbox::Hval->new($d);
-	$f = $f->as_html;
-	$d = $d->as_html . ' UTC';
+	$f = PublicInbox::Hval->new($f)->as_html;
+	$d = PublicInbox::Hval->new($d)->as_html;
+	my $attr = "$f @ $d";
+	$state->{first_level} ||= $level;
+	if ($attr ne $state->{prev_attr} || $state->{prev_level} > $level) {
+		$state->{prev_attr} = $attr;
+		$attr = ' - ' . $attr;
+		$attr .= ' UTC' if $level >= $state->{first_level};
+	} else {
+		$attr = '';
+	}
+	$state->{prev_level} = $level;
+
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $state->{cur};
 			$$dst .= "$pfx` <b><a\nid=\"r\"\nhref=\"#t\">".
-				 "[this message]</a></b> by $f @ $d\n";
+				 "[this message]</a></b>$attr\n";
 
 			return;
 		}
@@ -722,7 +733,7 @@ sub _inline_header {
 	my $m = PublicInbox::Hval->new_msgid($mid);
 	$m = $upfx . '../' . $m->as_href . '/';
 	if (defined $s) {
-		$$dst .= "$pfx` <a\nhref=\"$m\">$s</a> by $f @ $d\n";
+		$$dst .= "$pfx` <a\nhref=\"$m\">$s</a>$attr\n";
 	} else {
 		$$dst .= "$pfx` <a\nhref=\"$m\">$f @ $d</a>\n";
 	}
