@@ -123,6 +123,8 @@ sub emit_html_index {
 	my $title = $feed_opts->{description} || '';
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 	my $atom_url = $feed_opts->{atomurl};
+	my ($footer, $param, $last, $srch);
+	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0 };
 
 	$fh->write("<html><head><title>$title</title>" .
 		   "<link\nrel=alternate\ntitle=\"Atom feed\"\n".
@@ -130,61 +132,60 @@ sub emit_html_index {
 		   '</head><body>' . PublicInbox::View::PRE_WRAP .
 		   "<b>$title</b> (<a\nhref=\"$atom_url\">Atom feed</a>)\n");
 
-	my $state;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
-	my $topics;
-	my $srch = $ctx->{srch};
-	$srch and $topics = [ [], {} ];
-	my (undef, $last) = each_recent_blob($ctx, sub {
-		my ($path, $commit, $ts, $u, $subj) = @_;
-		$state ||= {
-			ctx => $ctx,
-			seen => {},
-			first_commit => $commit,
-			anchor_idx => 0,
-		};
-
-		if ($srch) {
-			add_topic($git, $srch, $topics, $path, $ts, $u, $subj);
-		} else {
-			my $mime = do_cat_mail($git, $path) or return 0;
-			PublicInbox::View::index_entry($fh, $mime, 0, $state);
-			1;
-		}
-	});
-	Email::Address->purge_cache;
-	$git = undef; # destroy pipes.
-
-	my $footer = nav_footer($ctx->{cgi}, $last, $feed_opts, $state);
+	# if the 'r' query parameter is given, it is a legacy permalink
+	# which we must continue supporting:
+	my $cgi = $ctx->{cgi};
+	if ($cgi && !$cgi->param('r') && ($srch = $ctx->{srch})) {
+		$state->{srch} = $srch;
+		$last = PublicInbox::View::emit_index_topics($state, $fh);
+		$param = 'o';
+	} else {
+		$last = emit_index_nosrch($ctx, $state, $fh);
+		$param = 'r';
+	}
+	$footer = nav_footer($cgi, $last, $feed_opts, $state, $param);
 	if ($footer) {
 		my $list_footer = $ctx->{footer};
 		$footer .= "\n\n" . $list_footer if $list_footer;
 		$footer = "<hr /><pre>$footer</pre>";
 	}
-	$fh->write(dump_topics($topics)) if $topics;
 	$fh->write("$footer</body></html>");
 	$fh->close;
 }
 
+sub emit_index_nosrch {
+	my ($ctx, $state, $fh) = @_;
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my (undef, $last) = each_recent_blob($ctx, sub {
+		my ($path, $commit, $ts, $u, $subj) = @_;
+		$state->{first} ||= $commit;
+
+		my $mime = do_cat_mail($git, $path) or return 0;
+		PublicInbox::View::index_entry($fh, $mime, 0, $state);
+		1;
+	});
+	Email::Address->purge_cache;
+	$last;
+}
+
 sub nav_footer {
-	my ($cgi, $last, $feed_opts, $state) = @_;
+	my ($cgi, $last, $feed_opts, $state, $param) = @_;
 	$cgi or return '';
-	my $old_r = $cgi->param('r');
+	my $old_r = $cgi->param($param);
 	my $head = '    ';
 	my $next = '    ';
-	my $first = $state->{first_commit};
+	my $first = $state->{first};
 	my $anchor = $state->{anchor_idx};
 
 	if ($last) {
-		$next = qq!<a\nhref="?r=$last">next</a>!;
+		$next = qq!<a\nhref="?$param=$last">next</a>!;
 	}
 	if ($old_r) {
 		$head = $cgi->path_info;
 		$head = qq!<a\nhref="$head">head</a>!;
 	}
 	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">atom</a>";
-	my $permalink = "<a\nhref=\"?r=$first\">permalink</a>";
-	"<a\nname=\"s$anchor\">page:</a> $next $head $atom $permalink";
+	"<a\nname=\"s$anchor\">page:</a> $next $head $atom";
 }
 
 sub each_recent_blob {
@@ -367,63 +368,6 @@ sub do_cat_mail {
 		Email::MIME->new($str);
 	};
 	$@ ? undef : $mime;
-}
-
-# accumulate recent topics if search is supported
-sub add_topic {
-	my ($git, $srch, $topics, $path, $ts, $u, $subj) = @_;
-	my ($order, $subjs) = @$topics;
-	my $header_obj;
-
-	# legacy ssoma did not set commit titles based on Subject
-	$subj = $enc_utf8->decode($subj);
-	if ($subj eq 'mda') {
-		my $mime = do_cat_mail($git, $path) or return 0;
-		$header_obj = $mime->header_obj;
-		$subj = mime_header($header_obj, 'Subject');
-	}
-
-	my $topic = $subj = $srch->subject_normalized($subj);
-
-	# kill "[PATCH v2]" etc. for summarization
-	$topic =~ s/\A\s*\[[^\]]+\]\s*//g;
-
-	if (++$subjs->{$topic} == 1) {
-		unless ($header_obj) {
-			my $mime = do_cat_mail($git, $path) or return 0;
-			$header_obj = $mime->header_obj;
-		}
-		my $mid = mid_clean($header_obj->header('Message-ID'));
-		$u = $enc_utf8->decode($u);
-		push @$order, [ $mid, $ts, $u, $subj, $topic ];
-		return 1;
-	}
-	0; # old topic, continue going
-}
-
-sub dump_topics {
-	my ($topics) = @_;
-	my ($order, $subjs) = @$topics;
-	my $dst = '';
-	$dst .= "\n[No recent topics]" unless (scalar @$order);
-	while (defined(my $info = shift @$order)) {
-		my ($mid, $ts, $u, $subj, $topic) = @$info;
-		my $n = delete $subjs->{$topic};
-		$mid = PublicInbox::Hval->new($mid)->as_href;
-		$subj = PublicInbox::Hval->new($subj)->as_html;
-		$u = PublicInbox::Hval->new($u)->as_html;
-		$dst .= "\n<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n- ";
-		$ts = strftime('%Y-%m-%d %H:%M', gmtime($ts));
-		if ($n == 1) {
-			$dst .= "created by $u @ $ts UTC\n"
-		} else {
-			# $n isn't the total number of posts on the topic,
-			# just the number of posts in the current "git log"
-			# window, so leave it unlabeled
-			$dst .= "updated by $u @ $ts UTC ($n)\n"
-		}
-	}
-	$dst .= '</pre>'
 }
 
 1;

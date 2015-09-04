@@ -656,11 +656,12 @@ sub msg_timestamp {
 }
 
 sub thread_results {
-	my ($msgs) = @_;
+	my ($msgs, $nosubject) = @_;
 	require PublicInbox::Thread;
 	my $th = PublicInbox::Thread->new(@$msgs);
-	$th->thread;
 	no warnings 'once';
+	$Mail::Thread::nosubject = $nosubject;
+	$th->thread;
 	$th->order(*PublicInbox::Thread::sort_ts);
 	$th
 }
@@ -744,6 +745,111 @@ sub inline_dump {
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
+}
+
+sub rsort_ts {
+	sort {
+		(eval { $b->topmost->message->header('X-PI-TS') } || 0) <=>
+		(eval { $a->topmost->message->header('X-PI-TS') } || 0)
+	} @_;
+}
+
+# accumulate recent topics if search is supported
+# returns 1 if done, undef if not
+sub add_topic {
+	my ($state, $node, $level) = @_;
+	return unless $node;
+
+	if (my $x = $node->message) {
+		$x = $x->header_obj;
+		my ($topic, $subj);
+
+		$subj = $x->header('Subject');
+		$subj = $state->{srch}->subject_normalized($subj);
+		$topic = $subj;
+
+		# kill "[PATCH v2]" etc. for summarization
+		$topic =~ s/\A\s*\[[^\]]+\]\s*//g;
+		$topic = substr($topic, 0, 30);
+
+		if (++$state->{subjs}->{$topic} == 1) {
+			push @{$state->{order}}, [ $level, $subj, $topic ];
+		}
+
+		my $mid = mid_clean($x->header('Message-ID'));
+
+		my $u = $x->header('X-PI-From');
+		my $ts = $x->header('X-PI-TS');
+		$state->{latest}->{$topic} = [ $mid, $u, $ts ];
+	} # else { } # ghost ignored...
+
+	add_topic($state, $node->child, $level + 1);
+	add_topic($state, $node->next, $level);
+}
+
+sub dump_topics {
+	my ($state) = @_;
+	my $order = $state->{order};
+	my $subjs = $state->{subjs};
+	my $latest = $state->{latest};
+	return "\n[No recent topics]</pre>" unless (scalar @$order);
+	my $dst = '';
+	my $pfx;
+	my $prev = 0;
+	my $prev_attr = '';
+	while (defined(my $info = shift @$order)) {
+		my ($level, $subj, $topic) = @$info;
+		my $n = delete $subjs->{$topic};
+		my ($mid, $u, $ts) = @{delete $latest->{$topic}};
+		$mid = PublicInbox::Hval->new($mid)->as_href;
+		$subj = PublicInbox::Hval->new($subj)->as_html;
+		$u = PublicInbox::Hval->new($u)->as_html;
+		$pfx = INDENT x $level;
+		my $nl = $level == $prev ? "\n" : '';
+		my $dot = $level == 0 ? '' : '`';
+		$dst .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
+
+		my $attr;
+		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+		if ($n == 1) {
+			$attr = "created by $u @ $ts UTC";
+			$n = "\n";
+		} else {
+			# $n isn't the total number of posts on the topic,
+			# just the number of posts in the current results
+			# window, so leave it unlabeled
+			$attr = "updated by $u @ $ts UTC";
+			$n = " ($n)\n";
+		}
+		if ($level == 0 || $attr ne $prev_attr) {
+			$dst .= "$pfx - ". $attr . $n;
+			$prev_attr = $attr;
+		}
+	}
+	$dst .= '</pre>';
+}
+
+sub emit_index_topics {
+	my ($state, $fh) = @_;
+	my $off = $state->{ctx}->{cgi}->param('o');
+	$off = 0 unless defined $off;
+	$state->{order} = [];
+	$state->{subjs} = {};
+	$state->{latest} = {};
+	my $max = 25;
+	my %opts = ( offset => int $off, limit => $max * 4 );
+	while (scalar @{$state->{order}} < $max) {
+		my $res = $state->{srch}->query('', \%opts);
+		my $nr = scalar @{$res->{msgs}} or last;
+
+		for (rsort_ts(thread_results(load_results($res), 1)->rootset)) {
+			add_topic($state, $_, 0);
+		}
+		$opts{offset} += $nr;
+	}
+
+	$fh->write(dump_topics($state));
+	$opts{offset};
 }
 
 1;
