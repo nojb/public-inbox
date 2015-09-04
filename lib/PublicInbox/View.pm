@@ -85,7 +85,7 @@ sub index_entry {
 	$from = PublicInbox::Hval->new_oneline($from)->as_html;
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
 	my $more = 'permalink';
-	my $root_anchor = $state->{root_anchor};
+	my $root_anchor = $state->{root_anchor} || '';
 	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
 	my $irt = in_reply_to($header_obj);
@@ -95,7 +95,7 @@ sub index_entry {
 		my $t = $ctx->{flat} ? 'T' : 't';
 		$subj = "<a\nhref=\"${path}$href/$t/#u\">$subj</a>";
 	}
-	if ($root_anchor && $root_anchor eq $id) {
+	if ($root_anchor eq $id) {
 		$subj = "<u\nid=\"u\">$subj</u>";
 	}
 
@@ -116,8 +116,8 @@ sub index_entry {
 	my ($fhref, $more_ref);
 	my $mhref = "${path}$href/";
 
-	# show full messages at level == 0 in threaded view
-	if ($level > 0 || ($ctx->{flat} && $root_anchor ne $id)) {
+	# show full message if it's our root message
+	if ($root_anchor ne $id) {
 		$fhref = "${path}$href/f/";
 		$more_ref = \$more;
 	}
