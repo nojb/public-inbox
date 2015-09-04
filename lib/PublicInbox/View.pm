@@ -722,8 +722,7 @@ sub _inline_header {
 	my $m = PublicInbox::Hval->new_msgid($mid);
 	$m = $upfx . '../' . $m->as_href . '/';
 	if (defined $s) {
-		$$dst .= "$pfx` <a\nhref=\"$m\">$s</a>\n" .
-		         "$pfx  $f @ $d\n";
+		$$dst .= "$pfx` <a\nhref=\"$m\">$s</a> by $f @ $d\n";
 	} else {
 		$$dst .= "$pfx` <a\nhref=\"$m\">$f @ $d</a>\n";
 	}
