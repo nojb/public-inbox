@@ -809,9 +809,9 @@ sub dump_topics {
 		$mid = PublicInbox::Hval->new($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$u = PublicInbox::Hval->new($u)->as_html;
-		$pfx = INDENT x $level;
+		$pfx = INDENT x ($level - 1);
 		my $nl = $level == $prev ? "\n" : '';
-		my $dot = $level == 0 ? '' : '`';
+		my $dot = $level == 0 ? '' : '` ';
 		$dst .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
 
 		my $attr;
