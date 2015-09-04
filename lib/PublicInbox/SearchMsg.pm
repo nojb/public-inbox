@@ -127,22 +127,27 @@ sub ensure_metadata {
 sub mini_mime {
 	my ($self) = @_;
 	$self->ensure_metadata;
-	my @h = (
-		Subject => $self->subject,
+	my @hs = (
+		'Subject' => $self->subject,
 		'X-PI-From' => $self->from_name,
-		'X-PI-TS' => $self->ts,
-		'Message-ID' => "<$self->{mid}>",
+	);
 
+	my @h = (
 		# prevent Email::Simple::Creator from running,
 		# this header is useless for threading as we use X-PI-TS
 		# for sorting and display:
 		'Date' => EPOCH_822,
+		'Message-ID' => "<$self->{mid}>",
+		'X-PI-TS' => $self->ts,
 	);
-
-	my $refs = $self->{references_sorted};
-	my $mime = Email::MIME->create(header_str => \@h);
+	if (my $refs = $self->{references_sorted}) {
+		push @h, References => $refs;
+	}
+	my $mime = Email::MIME->create(header_str => \@hs, header => \@h);
 	my $h = $mime->header_obj;
-	$h->header_set('References', $refs) if (defined $refs);
+
+	# set these headers manually since Encode::encode('MIME-Q', ...)
+	# will add spaces to long values when using header_str above.
 
 	# drop useless headers Email::MIME set for us
 	$h->header_set('Date');
