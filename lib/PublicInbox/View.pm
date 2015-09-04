@@ -591,6 +591,17 @@ sub pre_anchor_entry {
 	$seen->{$id} = "#$id"; # save the anchor for children, later
 }
 
+sub ghost_parent {
+	my ($upfx, $mid) = @_;
+	# 'subject dummy' is used internally by Mail::Thread
+	return '[no common parent]' if ($mid eq 'subject dummy');
+
+	$mid = PublicInbox::Hval->new_msgid($mid);
+	my $href = $mid->as_href;
+	my $html = $mid->as_html;
+	qq{[parent not found: &lt;<a\nhref="$upfx../$href/">$html</a>&gt;]};
+}
+
 sub __thread_entry {
 	my ($cb, $git, $state, $mime, $level) = @_;
 
@@ -607,15 +618,10 @@ sub __thread_entry {
 	if (my $ghost = delete $state->{ghost}) {
 		# n.b. ghost messages may only be parents, not children
 		foreach my $g (@$ghost) {
-			my $mid = PublicInbox::Hval->new_msgid($g->[0]);
-			my $pfx = INDENT x $g->[1];
-			my $href = $mid->as_href;
-			my $html = $mid->as_html;
-			$$cb->write("<table><tr><td>$pfx</td><td>" .
-					PRE_WRAP .
-					'[parent not found: &lt;' .
-					qq{<a\nhref="../../$href/">}.
-					"$html</a>&gt;]</pre></td></table>");
+			$$cb->write("<table\nsummary=ghost><tr><td>" .
+				(INDENT x $g->[1]) . "</td><td>" .
+				PRE_WRAP . ghost_parent('', $g->[0]) .
+				'</pre></td></table>');
 		}
 	}
 	index_entry($$cb, $mime, $level, $state);
@@ -736,12 +742,7 @@ sub inline_dump {
 		_inline_header($dst, $state, $upfx, $mime, $level);
 	} else {
 		my $pfx = INDENT x $level;
-		my $v = PublicInbox::Hval->new_msgid($node->messageid, 1);
-		my $html = $v->as_html;
-		my $href = $v->as_href;
-		$$dst .= $pfx . '` [parent not found: &lt;' .
-				qq{<a\nhref="$upfx../$href/">}.
-				"$html</a>&gt;]\n";
+		$$dst .= $pfx . '` ' . ghost_parent($upfx, $node->messageid);
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
