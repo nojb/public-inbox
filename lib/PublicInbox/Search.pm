@@ -118,7 +118,7 @@ sub do_enquire {
 	if ($opts->{relevance}) {
 		$enquire->set_sort_by_relevance_then_value(TS, 1);
 	} else {
-		$enquire->set_sort_by_value(TS, 1);
+		$enquire->set_sort_by_value_then_relevance(TS, 1);
 	}
 	$opts ||= {};
 	my $offset = $opts->{offset} || 0;
