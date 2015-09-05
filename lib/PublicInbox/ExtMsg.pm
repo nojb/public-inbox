@@ -95,6 +95,8 @@ sub ext_msg {
 		unshift @pfx, { srch => $ctx->{srch}, url => $url };
 		foreach my $pfx (@pfx) {
 			my $srch = delete $pfx->{srch} or next;
+
+			# FIXME we may need a proper prefix trie here...
 			if (my $res = $srch->mid_prefix($mid)) {
 				$n_partial += scalar(@$res);
 				$pfx->{res} = $res;
