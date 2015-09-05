@@ -23,7 +23,7 @@ sub ext_msg {
 
 	eval { require PublicInbox::Search };
 	my $have_xap = $@ ? 0 : 1;
-	my @nox;
+	my (@nox, @pfx);
 
 	foreach my $k (keys %$pi_config) {
 		$k =~ /\Apublicinbox\.([A-Z0-9a-z-]+)\.url\z/ or next;
@@ -40,8 +40,9 @@ sub ext_msg {
 
 		# try to find the URL with Xapian to avoid forking
 		if ($have_xap) {
+			my $s;
 			my $doc_id = eval {
-				my $s = PublicInbox::Search->new($git_dir);
+				$s = PublicInbox::Search->new($git_dir);
 				$s->find_unique_doc_id('mid', $mid);
 			};
 			if ($@) {
@@ -53,6 +54,7 @@ sub ext_msg {
 				# no point in trying the fork fallback if we
 				# know Xapian is up-to-date but missing the
 				# message in the current repo
+				push @pfx, { srch => $s, url => $url };
 				next;
 			}
 		}
@@ -82,19 +84,50 @@ sub ext_msg {
 		}
 	}
 
+	# fall back to partial MID matching
+	my $n_partial = 0;
+	my @partial;
+	if ($have_xap) {
+		my $cgi = $ctx->{cgi};
+		my $url = ref($cgi) eq 'CGI' ? $cgi->url(-base) . '/'
+					: $cgi->base->as_string;
+		$url .= $listname;
+		unshift @pfx, { srch => $ctx->{srch}, url => $url };
+		foreach my $pfx (@pfx) {
+			my $srch = delete $pfx->{srch} or next;
+			if (my $res = $srch->mid_prefix($mid)) {
+				$n_partial += scalar(@$res);
+				$pfx->{res} = $res;
+				push @partial, $pfx;
+			}
+		}
+	}
 	my $code = 404;
 	my $h = PublicInbox::Hval->new_msgid($mid, 1);
 	my $href = $h->as_href;
 	my $html = $h->as_html;
 	my $title = "Message-ID &lt;$html&gt; not found";
+	my $s = "<html><head><title>$title</title>" .
+		"</head><body><pre><b>$title</b>\n";
+
+	if ($n_partial) {
+		$code = 300;
+		$s.= "\nPartial matches found:\n\n";
+		foreach my $pfx (@partial) {
+			my $u = $pfx->{url};
+			foreach my $m (@{$pfx->{res}}) {
+				$h = PublicInbox::Hval->new($m);
+				$href = $h->as_href;
+				$html = $h->as_html;
+				$s .= qq{<a\nhref="$u/$href/">$u/$html/</a>\n};
+			}
+		}
+	}
 
 	# Fall back to external repos if configured
-	my $s = "<html><head><title>$title</title>" .
-		"</head><body><pre><b>$title</b>";
-
 	if (@EXT_URL) {
 		$code = 300;
-		$s .= "\n\nPerhaps try an external site:\n\n";
+		$s .= "\nPerhaps try an external site:\n\n";
 		foreach my $u (@EXT_URL) {
 			my $r = sprintf($u, $href);
 			my $t = sprintf($u, $html);

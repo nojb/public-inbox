@@ -79,6 +79,7 @@ sub r404 {
 	my ($ctx) = @_;
 	if ($ctx && $ctx->{mid}) {
 		require PublicInbox::ExtMsg;
+		searcher($ctx);
 		return PublicInbox::ExtMsg::ext_msg($ctx);
 	}
 	r(404, 'Not Found');
