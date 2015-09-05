@@ -7,6 +7,7 @@ use PublicInbox::SearchMsg;
 use PublicInbox::Hval;
 use PublicInbox::View;
 use POSIX qw/strftime/;
+our $LIM = 25;
 
 sub sres_top_html {
 	my ($ctx, $q) = @_;
@@ -15,7 +16,7 @@ sub sres_top_html {
 	my $o = int($cgi->param('o') || 0);
 	my $r = $cgi->param('r');
 	$r = (defined $r && $r ne '0');
-	my $opts = { offset => $o, mset => 1, relevance => $r };
+	my $opts = { limit => $LIM, offset => $o, mset => 1, relevance => $r };
 	my $mset = $ctx->{srch}->query($q, $opts);
 	my $total = $mset->get_matches_estimated;
 	my $query = PublicInbox::Hval->new_oneline($q);
@@ -29,9 +30,9 @@ sub sres_top_html {
 	$res .= qq{<input\ntype=submit\nvalue=search /></form>} .
 		  PublicInbox::View::PRE_WRAP;
 
-	my $foot = $ctx->{footer};
+	my $foot = $ctx->{footer} || '';
+	$foot = qq{Back to <a\nhref=".">index</a>.};
 	if ($total == 0) {
-		$foot ||= '';
 		$res .= "\n\n[No results found]</pre><hr /><pre>$foot";
 	} else {
 		$q = $query->as_href;
@@ -69,14 +70,23 @@ sub sres_top_html {
 		my $end = $o + $nr;
 		my $beg = $o + 1;
 		$res .= "<hr /><pre>";
-		$res .= "Results $beg-$end of $total.";
-		if ($nr < $total) {
-			$o = $o + $nr;
-			$qp = "q=$q&amp;o=$o";
+		$res .= "Results $beg-$end of $total";
+
+		my $n = $o + $LIM;
+		if ($n < $total) {
+			$qp = "q=$q&amp;o=$n";
 			$qp .= "&amp;r" if $r;
-			$res .= qq{ <a\nhref="?$qp">more</a>}
+			$res .= qq{, <a\nhref="?$qp">next</a>}
 		}
-		$res .= "\n\n".$foot if $foot;
+		if ($o > 0) {
+			$res .= $n < $total ? '/' : ',      ';
+			my $p = $o - $LIM;
+			$qp = "q=$q";
+			$qp .= "&amp;o=$p" if $p > 0;
+			$qp .= "&amp;r" if $r;
+			$res .= qq{<a\nhref="?$qp">prev</a>};
+		}
+		$res .= "\n\n".$foot;
 	}
 
 	$res .= "</pre></body></html>";
