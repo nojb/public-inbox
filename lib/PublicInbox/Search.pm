@@ -80,7 +80,7 @@ sub query {
 	$opts ||= {};
 	unless ($query_string eq '') {
 		$query = $self->qp->parse_query($query_string, QP_FLAGS);
-		$opts->{relevance} = 1;
+		$opts->{relevance} = 1 unless exists $opts->{relevance};
 	}
 
 	$self->do_enquire($query, $opts);
@@ -124,6 +124,7 @@ sub do_enquire {
 	my $offset = $opts->{offset} || 0;
 	my $limit = $opts->{limit} || 50;
 	my $mset = $enquire->get_mset($offset, $limit);
+	return $mset if $opts->{mset};
 	my @msgs = map {
 		PublicInbox::SearchMsg->load_doc($_->get_document);
 	} $mset->items;

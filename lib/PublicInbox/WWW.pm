@@ -67,6 +67,7 @@ sub preload {
 
 	eval {
 		require PublicInbox::Search;
+		require PublicInbox::SearchView;
 		require PublicInbox::Mbox;
 		require IO::Compress::Gzip;
 	};
@@ -128,8 +129,14 @@ sub get_index {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
 	my $srch = searcher($ctx);
+	my $q = $ctx->{cgi}->param('q');
 	footer($ctx);
-	PublicInbox::Feed::generate_html_index($ctx);
+	if (defined $q) {
+		require PublicInbox::SearchView;
+		PublicInbox::SearchView::sres_top_html($ctx, $q);
+	} else {
+		PublicInbox::Feed::generate_html_index($ctx);
+	}
 }
 
 # just returns a string ref for the blob in the current ctx

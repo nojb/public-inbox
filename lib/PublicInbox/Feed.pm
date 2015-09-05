@@ -123,19 +123,31 @@ sub emit_html_index {
 	my $title = $feed_opts->{description} || '';
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 	my $atom_url = $feed_opts->{atomurl};
-	my ($footer, $param, $last, $srch);
+	my ($footer, $param, $last);
 	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0 };
+	my $srch = $ctx->{srch};
+
+	my $top = "<b>$title</b> (<a\nhref=\"$atom_url\">Atom feed</a>)";
+
+	if ($srch) {
+		$top = qq{<form\naction=""><tt>$top} .
+			  qq{ <input\nname=q\ntype=text />} .
+			  qq{<input\ntype=submit\nvalue=search />} .
+			  qq{</tt></form>} .
+			  PublicInbox::View::PRE_WRAP;
+	} else {
+		$top = PublicInbox::View::PRE_WRAP . $top . "\n";
+	}
 
 	$fh->write("<html><head><title>$title</title>" .
 		   "<link\nrel=alternate\ntitle=\"Atom feed\"\n".
 		   "href=\"$atom_url\"\ntype=\"application/atom+xml\"/>" .
-		   '</head><body>' . PublicInbox::View::PRE_WRAP .
-		   "<b>$title</b> (<a\nhref=\"$atom_url\">Atom feed</a>)\n");
+		   "</head><body>$top");
 
 	# if the 'r' query parameter is given, it is a legacy permalink
 	# which we must continue supporting:
 	my $cgi = $ctx->{cgi};
-	if ($cgi && !$cgi->param('r') && ($srch = $ctx->{srch})) {
+	if ($cgi && !$cgi->param('r') && $srch) {
 		$state->{srch} = $srch;
 		$last = PublicInbox::View::emit_index_topics($state, $fh);
 		$param = 'o';
