@@ -12,13 +12,18 @@ our $LIM = 25;
 sub sres_top_html {
 	my ($ctx, $q) = @_;
 	my $cgi = $ctx->{cgi};
+	my $code = 200;
 	# $q ||= $cgi->param('q');
 	my $o = int($cgi->param('o') || 0);
 	my $r = $cgi->param('r');
 	$r = (defined $r && $r ne '0');
 	my $opts = { limit => $LIM, offset => $o, mset => 1, relevance => $r };
-	my $mset = $ctx->{srch}->query($q, $opts);
-	my $total = $mset->get_matches_estimated;
+	my ($mset, $total);
+	eval {
+		$mset = $ctx->{srch}->query($q, $opts);
+		$total = $mset->get_matches_estimated;
+	};
+	my $err = $@;
 	my $query = PublicInbox::Hval->new_oneline($q);
 	my $qh = $query->as_html;
 	my $res = "<html><head><title>$qh - search results</title></head>" .
@@ -32,7 +37,16 @@ sub sres_top_html {
 
 	my $foot = $ctx->{footer} || '';
 	$foot = qq{Back to <a\nhref=".">index</a>.};
-	if ($total == 0) {
+	if ($err) {
+		my $u = 'http://xapian.org/docs/queryparser.html';
+		$code = 400;
+		$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
+		$err = PublicInbox::Hval->new_oneline($err)->as_html;
+		$res .= "\n\nBad query: <b>$err</b>\n";
+		$res .= qq{See <a\nhref="$u">$u</a> for Xapian query syntax};
+		$res .= "</pre><hr /><pre>$foot";
+	} elsif ($total == 0) {
+		$code = 404;
 		$res .= "\n\n[No results found]</pre><hr /><pre>$foot";
 	} else {
 		$q = $query->as_href;
@@ -74,7 +88,7 @@ sub sres_top_html {
 	}
 
 	$res .= "</pre></body></html>";
-	[200, ['Content-Type'=>'text/html; charset=UTF-8'], [$res]];
+	[$code, ['Content-Type'=>'text/html; charset=UTF-8'], [$res]];
 }
 
 sub dump_mset {
