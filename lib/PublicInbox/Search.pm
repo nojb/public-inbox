@@ -37,16 +37,18 @@ use constant {
 # setup prefixes
 my %bool_pfx_internal = (
 	type => 'T', # "mail" or "ghost"
-	mid => 'Q', # uniQue id (Message-ID)
+	thread => 'G', # newsGroup (or similar entity - e.g. a web forum name)
 );
 
 my %bool_pfx_external = (
 	path => 'XPATH',
-	thread => 'G', # newsGroup (or similar entity - e.g. a web forum name)
+	mid => 'Q', # uniQue id (Message-ID)
 );
 
 my %prob_prefix = (
 	subject => 'S',
+	s => 'S', # for mairix compatibility
+	m => 'Q', # 'mid' is exact, 'm' can do partial
 );
 
 my %all_pfx = (%bool_pfx_internal, %bool_pfx_external, %prob_prefix);
@@ -91,8 +93,8 @@ sub query {
 
 sub get_subject_path {
 	my ($self, $path, $opts) = @_;
-	my $query = $self->qp->parse_query("path:".mid_compress($path), 0);
-	$self->do_enquire($query, $opts);
+	my $q = Search::Xapian::Query->new(xpfx("path").mid_compress($path));
+	$self->do_enquire($q, $opts);
 }
 
 sub get_thread {
@@ -100,9 +102,9 @@ sub get_thread {
 	my $smsg = eval { $self->lookup_message($mid) };
 
 	return { total => 0, msgs => [] } unless $smsg;
-	my $qp = $self->qp;
-	my $qtid = $qp->parse_query('thread:'.$smsg->thread_id, 0);
-	my $qsub = $qp->parse_query('path:'.mid_compress($smsg->path), 0);
+	my $qtid = Search::Xapian::Query->new(xpfx('thread').$smsg->thread_id);
+	my $path = mid_compress($smsg->path);
+	my $qsub = Search::Xapian::Query->new(xpfx('path').$path);
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
 	$self->do_enquire($query, $opts);
 }
