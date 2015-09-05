@@ -28,6 +28,9 @@ use constant {
 	# 8 - remove redundant/unneeded document data
 	# 9 - disable Message-ID compression
 	SCHEMA_VERSION => 9,
+
+	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
+	# as it could become a denial-of-service vector
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
