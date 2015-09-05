@@ -49,23 +49,7 @@ sub sres_top_html {
 		}
 		$res .= "]\n\n";
 
-		my $pad = length("$total");
-		my $pfx = ' ' x $pad;
-		foreach my $m ($mset->items) {
-			my $rank = sprintf("%${pad}d", $m->get_rank + 1);
-			my $pct = $m->get_percent;
-			my $smsg = $m->get_document;
-			$smsg = PublicInbox::SearchMsg->load_doc($smsg);
-			my $s = PublicInbox::Hval->new_oneline($smsg->subject);
-			my $f = $smsg->from_name;
-			$f = PublicInbox::Hval->new_oneline($f)->as_html;
-			my $d = strftime('%Y-%m-%d %H:%M', gmtime($smsg->ts));
-			my $mid = $smsg->mid;
-			$mid = PublicInbox::Hval->new_msgid($mid)->as_href;
-			$res .= qq{$rank. <b><a\nhref="$mid/t/#u">}.
-				$s->as_html . "</a></b>\n";
-			$res .= "$pfx  - by $f @ $d UTC [$pct%]\n\n";
-		}
+		dump_mset(\$res, $mset);
 		my $nr = scalar $mset->items;
 		my $end = $o + $nr;
 		my $beg = $o + 1;
@@ -86,17 +70,32 @@ sub sres_top_html {
 			$qp .= "&amp;r" if $r;
 			$res .= qq{<a\nhref="?$qp">prev</a>};
 		}
-		$res .= "\n\n".$foot;
+		$res .= "\n\n" . $foot;
 	}
 
 	$res .= "</pre></body></html>";
 	[200, ['Content-Type'=>'text/html; charset=UTF-8'], [$res]];
 }
 
-sub sres_top_atom {
-}
+sub dump_mset {
+	my ($res, $mset) = @_;
 
-sub sres_top_thread {
+	my $total = $mset->get_matches_estimated;
+	my $pad = length("$total");
+	my $pfx = ' ' x $pad;
+	foreach my $m ($mset->items) {
+		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
+		my $pct = $m->get_percent;
+		my $smsg = PublicInbox::SearchMsg->load_doc($m->get_document);
+		my $s = PublicInbox::Hval->new_oneline($smsg->subject);
+		my $f = $smsg->from_name;
+		$f = PublicInbox::Hval->new_oneline($f)->as_html;
+		my $d = strftime('%Y-%m-%d %H:%M', gmtime($smsg->ts));
+		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->as_href;
+		$$res .= qq{$rank. <b><a\nhref="$mid/t/#u">}.
+			$s->as_html . "</a></b>\n";
+		$$res .= "$pfx  - by $f @ $d UTC [$pct%]\n\n";
+	}
 }
 
 1;
