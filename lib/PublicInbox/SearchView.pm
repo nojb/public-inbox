@@ -106,7 +106,7 @@ sub dump_mset {
 		$f = PublicInbox::Hval->new_oneline($f)->as_html;
 		my $d = strftime('%Y-%m-%d %H:%M', gmtime($smsg->ts));
 		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->as_href;
-		$$res .= qq{$rank. <b><a\nhref="$mid/t/#u">}.
+		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s->as_html . "</a></b>\n";
 		$$res .= "$pfx  - by $f @ $d UTC [$pct%]\n\n";
 	}
