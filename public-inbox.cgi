@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2014, Eric Wong <normalperson@yhbt.net> and all contributors
+# Copyright (C) 2014-2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 use strict;
 use warnings;

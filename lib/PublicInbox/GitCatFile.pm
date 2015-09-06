@@ -1,4 +1,4 @@
-# Copyright (C) 2014, Eric Wong <normalperson@yhbt.net> and all contributors
+# Copyright (C) 2014-2015 all contributors <meta@public-inbox.org>
 # License: GPLv2 or later (https://www.gnu.org/licenses/gpl-2.0.txt)
 # This is based on code in Git.pm which is GPLv2, but modified to avoid
 # dependence on environment variables for compatibility with mod_perl.
