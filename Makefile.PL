@@ -8,7 +8,7 @@ my $PM_FILES = `git ls-files lib '*.pm' 2>/dev/null`;
 $PM_FILES =~ tr/\n/ /;
 
 WriteMakefile(
-	NAME => 'public-inbox',
+	NAME => 'PublicInbox',
 	VERSION => '0.0.0',
 	AUTHOR => 'Eric Wong <normalperson@yhbt.net>',
 	ABSTRACT => 'public-inbox server infrastructure',
