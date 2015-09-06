@@ -8,7 +8,7 @@ use PublicInbox::Config;
 use File::Temp qw/tempfile/;
 use File::Basename qw/dirname/;
 use File::Path qw/mkpath/;
-use File::Path::Expand qw/expand_filename/;
+use Cwd qw/abs_path/;
 
 sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
@@ -59,7 +59,7 @@ close $fh or die "failed to close $filename: $!\n";
 
 my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$filename");
-$git_dir = expand_filename($git_dir);
+$git_dir = abs_path($git_dir);
 x(qw(git init -q --bare), $git_dir);
 foreach my $addr (@address) {
 	next if $seen{lc($addr)};
