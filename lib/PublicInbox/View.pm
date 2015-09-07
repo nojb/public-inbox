@@ -407,7 +407,6 @@ sub headers_to_html_header {
 	my $header_obj = $mime->header_obj;
 	my $mid = $header_obj->header('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $mid_href = $mid->as_href;
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $mime->header($h);
 		defined($v) && ($v ne '') or next;
@@ -429,10 +428,10 @@ sub headers_to_html_header {
 
 	}
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
-	my $raw_ref = $full_pfx ? 'raw' : '../raw';
-	$rv .= "(<a\nhref=\"$raw_ref\">raw</a>)\n";
+	my $upfx = $full_pfx ? '' : '../';
+	$rv .= "(<a\nhref=\"${upfx}raw\">raw</a>)\n";
 	if ($srch) {
-		$rv .= "<a\nhref=\"#r\">References: [see below]</a>\n";
+		$rv .= "<a\nhref=\"${upfx}t/\">References: [expand]</a>\n";
 	} else {
 		$rv .= _parent_headers_nosrch($header_obj);
 	}
