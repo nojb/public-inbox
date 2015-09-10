@@ -16,7 +16,7 @@ use constant NO_HTML => '*** We only accept plain-text email, no HTML ***';
 
 # start with the same defaults as mailman
 our $BAD_EXT = qr/\.(exe|bat|cmd|com|pif|scr|vbs|cpl|zip)\s*\z/i;
-our $MIME_HTML = qr!\btext/html\b!i;
+our $MIME_HTML = qr!\btext/x?html\b!i;
 our $MIME_TEXT_ANY = qr!\btext/[a-z0-9\+\._-]+\b!i;
 
 # this is highly opinionated delivery

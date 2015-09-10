@@ -353,7 +353,7 @@ sub add_text_body {
 
 	my $ct = $part->content_type;
 	# account for filter bugs...
-	if (defined $ct && $ct =~ m!\btext/[xh]+tml\b!i) {
+	if (defined $ct && $ct =~ m!\btext/x?html\b!i) {
 		$part->body_set('');
 		return '';
 	}
