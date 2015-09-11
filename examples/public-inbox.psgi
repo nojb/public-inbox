@@ -9,10 +9,14 @@ use PublicInbox::WWW;
 PublicInbox::WWW->preload;
 use Plack::Request;
 use Plack::Builder;
+my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
+
 builder {
-	enable "Deflater",
-		content_type => [ 'text/html', 'text/plain',
-				'application/atom+xml' ];
+	if ($have_deflater) {
+		enable "Deflater",
+			content_type => [ 'text/html', 'text/plain',
+					'application/atom+xml' ];
+	}
 	enable "Head";
 	sub {
 		my $req = Plack::Request->new(@_);
