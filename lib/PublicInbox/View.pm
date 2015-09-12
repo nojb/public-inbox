@@ -598,7 +598,7 @@ sub ghost_parent {
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href;
 	my $html = $mid->as_html;
-	qq{[parent not found: &lt;<a\nhref="$upfx../$href/">$html</a>&gt;]};
+	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
 }
 
 sub __thread_entry {
@@ -619,7 +619,7 @@ sub __thread_entry {
 		foreach my $g (@$ghost) {
 			$$cb->write("<table\nsummary=ghost><tr><td>" .
 				(INDENT x $g->[1]) . "</td><td>" .
-				PRE_WRAP . ghost_parent('../', $g->[0]) .
+				PRE_WRAP . ghost_parent('../../', $g->[0]) .
 				'</pre></td></table>');
 		}
 	}
@@ -751,7 +751,8 @@ sub inline_dump {
 	} else {
 		my $dot = $level == 0 ? '' : '` ';
 		my $pfx = (INDENT x $level) . $dot;
-		$$dst .= $pfx . ghost_parent($upfx, $node->messageid) . "\n";
+		$$dst .= $pfx;
+		$$dst .= ghost_parent("$upfx../", $node->messageid) . "\n";
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
