@@ -38,52 +38,19 @@ sub sres_top_html {
 	my $foot = $ctx->{footer} || '';
 	$foot = qq{Back to <a\nhref=".">index</a>.};
 	if ($err) {
-		my $u = 'http://xapian.org/docs/queryparser.html';
 		$code = 400;
-		$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
-		$err = PublicInbox::Hval->new_oneline($err)->as_html;
-		$res .= "\n\nBad query: <b>$err</b>\n";
-		$res .= qq{See <a\nhref="$u">$u</a> for Xapian query syntax};
-		$res .= "</pre><hr /><pre>$foot";
+		$res .= err_txt($err) . "</pre><hr /><pre>$foot";
 	} elsif ($total == 0) {
 		$code = 404;
 		$res .= "\n\n[No results found]</pre><hr /><pre>$foot";
 	} else {
 		$q = $query->as_href;
 		$q =~ s/%20/+/g; # improve URL readability
-		my $qp = "?q=$q";
-		$qp .= "&amp;o=$o" if $o;
+		$res .= search_nav_top($q, $o, $r);
+		$res .= "\n\n";
 
-		$res .= "Search results ordered by [";
-		if ($r) {
-			$res .= qq{<a\nhref="$qp">date</a>|<b>relevance</b>};
-		} else {
-			$qp .= '&amp;r';
-			$res .= qq{<b>date</b>|<a\nhref="$qp">relevance</a>};
-		}
-		$res .= "]\n\n";
-
-		dump_mset(\$res, $mset);
-		my $nr = scalar $mset->items;
-		my $end = $o + $nr;
-		my $beg = $o + 1;
-		$res .= "<hr /><pre>";
-		$res .= "Results $beg-$end of $total";
-
-		my $n = $o + $LIM;
-		if ($n < $total) {
-			$qp = "q=$q&amp;o=$n";
-			$qp .= "&amp;r" if $r;
-			$res .= qq{, <a\nhref="?$qp">next</a>}
-		}
-		if ($o > 0) {
-			$res .= $n < $total ? '/' : ',      ';
-			my $p = $o - $LIM;
-			$qp = "q=$q";
-			$qp .= "&amp;o=$p" if $p > 0;
-			$qp .= "&amp;r" if $r;
-			$res .= qq{<a\nhref="?$qp">prev</a>};
-		}
+		dump_mset(\$res, $mset, $o);
+		$res .= search_nav_bot($mset, $q, $o, $r);
 		$res .= "\n\n" . $foot;
 	}
 
@@ -110,6 +77,56 @@ sub dump_mset {
 			$s->as_html . "</a></b>\n";
 		$$res .= "$pfx  - by $f @ $d UTC [$pct%]\n\n";
 	}
+}
+
+sub err_txt {
+	my ($err) = @_;
+	my $u = 'http://xapian.org/docs/queryparser.html';
+	$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
+	$err = PublicInbox::Hval->new_oneline($err)->as_html;
+	"\n\nBad query: <b>$err</b>\n" .
+		qq{See <a\nhref="$u">$u</a> for Xapian query syntax};
+}
+
+sub search_nav_top {
+	my ($q, $o, $r) = @_;
+	my $qs = "q=$q";
+	$qs .= "&amp;o=$o" if $o;
+
+	my $rv = "Search results ordered by [";
+	if ($r) {
+		$rv .= qq{<a\nhref="?$qs">date</a>|<b>relevance</b>};
+	} else {
+		$qs .= '&amp;r';
+		$rv .= qq{<b>date</b>|<a\nhref="?$qs">relevance</a>};
+	}
+	$rv .= ']';
+}
+
+sub search_nav_bot {
+	my ($mset, $q, $o, $r) = @_;
+	my $total = $mset->get_matches_estimated;
+	my $nr = scalar $mset->items;
+	my $end = $o + $nr;
+	my $beg = $o + 1;
+
+	my $rv = "<hr /><pre>Results $beg-$end of $total";
+
+	my $n = $o + $LIM;
+	if ($n < $total) {
+		my $qs = "q=$q&amp;o=$n";
+		$qs .= "&amp;r" if $r;
+		$rv .= qq{, <a\nhref="?$qs">next</a>}
+	}
+	if ($o > 0) {
+		$rv .= $n < $total ? '/' : ',      ';
+		my $p = $o - $LIM;
+		my $qs = "q=$q";
+		$qs .= "&amp;o=$p" if $p > 0;
+		$qs .= "&amp;r" if $r;
+		$rv .= qq{<a\nhref="?$qs">prev</a>};
+	}
+	$rv;
 }
 
 1;
