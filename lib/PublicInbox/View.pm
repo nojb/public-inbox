@@ -72,7 +72,7 @@ sub index_entry {
 	my $subj = $mime->header('Subject');
 	my $header_obj = $mime->header_obj;
 
-	my $mid_raw = $header_obj->header('Message-ID');
+	my $mid_raw = mid_clean($header_obj->header('Message-ID'));
 	my $id = anchor_for($mid_raw);
 	my $seen = $state->{seen};
 	$seen->{$id} = "#$id"; # save the anchor for children, later
@@ -139,7 +139,9 @@ sub index_entry {
 		}
 		$rv .= " <a\nhref=\"$parent_anchor\">parent</a>";
 	}
-	if ($srch) {
+	if (my $pct = $state->{pct}) {
+		$rv .= " [$pct->{$mid_raw}%]";
+	} elsif ($srch) {
 		if ($ctx->{flat}) {
 			$rv .= " [<a\nhref=\"${path}$href/t/#u\">threaded</a>" .
 				"|<b>flat</b>]";
@@ -601,6 +603,14 @@ sub ghost_parent {
 	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
 }
 
+sub ghost_table {
+	my ($upfx, $mid, $level) = @_;
+	"<table\nsummary=ghost><tr><td>" .
+		(INDENT x $level) . "</td><td>" .
+		PRE_WRAP . ghost_parent($upfx, $mid) .
+		'</pre></td></table>';
+}
+
 sub __thread_entry {
 	my ($cb, $git, $state, $mime, $level) = @_;
 
@@ -617,10 +627,7 @@ sub __thread_entry {
 	if (my $ghost = delete $state->{ghost}) {
 		# n.b. ghost messages may only be parents, not children
 		foreach my $g (@$ghost) {
-			$$cb->write("<table\nsummary=ghost><tr><td>" .
-				(INDENT x $g->[1]) . "</td><td>" .
-				PRE_WRAP . ghost_parent('../../', $g->[0]) .
-				'</pre></td></table>');
+			$$cb->write(ghost_table('../../', @$g));
 		}
 	}
 	index_entry($$cb, $mime, $level, $state);

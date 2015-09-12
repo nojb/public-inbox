@@ -130,11 +130,10 @@ sub get_index {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
 	my $srch = searcher($ctx);
-	my $q = $ctx->{cgi}->param('q');
 	footer($ctx);
-	if (defined $q) {
+	if (defined $ctx->{cgi}->param('q')) {
 		require PublicInbox::SearchView;
-		PublicInbox::SearchView::sres_top_html($ctx, $q);
+		PublicInbox::SearchView::sres_top_html($ctx);
 	} else {
 		PublicInbox::Feed::generate_html_index($ctx);
 	}
