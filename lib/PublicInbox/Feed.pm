@@ -68,9 +68,7 @@ sub emit_atom {
 	each_recent_blob($ctx, sub {
 		my ($path, undef, $ts) = @_;
 		if (defined $x) {
-			$fh->write($x . '<updated>' .
-				   strftime(DATEFMT, gmtime($ts)) .
-				   '</updated>');
+			$fh->write($x . feed_updated(undef, $ts));
 			$x = undef;
 		}
 		add_to_feed($feed_opts, $fh, $path, $git);
@@ -317,11 +315,12 @@ sub mime_header {
 	PublicInbox::Hval->new_oneline($mime->header($name))->raw;
 }
 
-sub feed_date {
-	my ($date) = @_;
-	my @t = eval { strptime($date) };
+sub feed_updated {
+	my ($date, $ts) = @_;
+	my @t = eval { strptime($date) } if defined $date;
+	@t = gmtime($ts || time) unless scalar @t;
 
-	scalar(@t) ? strftime(DATEFMT, @t) : 0;
+	'<updated>' . strftime(DATEFMT, @t) . '</updated>';
 }
 
 # returns 0 (skipped) or 1 (added)
@@ -342,9 +341,7 @@ sub add_to_feed {
 	$mime = undef;
 
 	my $date = $header_obj->header('Date');
-	$date = PublicInbox::Hval->new_oneline($date);
-	$date = feed_date($date->raw) or return 0;
-	$date = "<updated>$date</updated>";
+	my $updated = feed_updated($date);
 
 	my $title = mime_header($header_obj, 'Subject') or return 0;
 	$title = title_tag($title);
@@ -356,10 +353,10 @@ sub add_to_feed {
 	$email = PublicInbox::Hval->new_oneline($email)->as_html;
 
 	if (delete $feed_opts->{emit_header}) {
-		$fh->write(atom_header($feed_opts, $title) . $date);
+		$fh->write(atom_header($feed_opts, $title) . $updated);
 	}
 	$fh->write("<entry><author><name>$name</name><email>$email</email>" .
-		   "</author>$title$date" .
+		   "</author>$title$updated" .
 		   qq{<content\ntype="xhtml">} .
 		   qq{<div\nxmlns="http://www.w3.org/1999/xhtml">});
 	$fh->write($content);
