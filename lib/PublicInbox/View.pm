@@ -544,6 +544,10 @@ sub html_footer {
 	my $srch = $ctx->{srch} if $ctx;
 	my $upfx = $full_pfx ? '../' : '../../';
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
+
+	if ($srch && $standalone) {
+		$idx .= qq{ / follow: <a\nhref="t.atom">Atom feed</a>};
+	}
 	if ($idx && $srch) {
 		my ($next, $p) = thread_inline(\$idx, $ctx, $mime, $full_pfx);
 		if (defined $p) {
