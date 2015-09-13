@@ -436,7 +436,7 @@ sub headers_to_html_header {
 	if ($srch) {
 		if ($header_obj->header('In-Reply-To') ||
 		    $header_obj->header('References')) {
-			$rv .= "<a\nhref=\"${upfx}t/\">" .
+			$rv .= "<a\nhref=\"${upfx}t/#u\">" .
 				"References: [expand]</a>\n";
 		}
 
