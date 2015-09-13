@@ -410,7 +410,7 @@ sub headers_to_html_header {
 	my $mid = $header_obj->header('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	foreach my $h (qw(From To Cc Subject Date)) {
-		my $v = $mime->header($h);
+		my $v = $header_obj->header($h);
 		defined($v) && ($v ne '') or next;
 		$v = PublicInbox::Hval->new_oneline($v);
 
