@@ -74,7 +74,7 @@ sub emit_atom {
 		add_to_feed($feed_opts, $fh, $path, $git);
 	});
 	$git = undef; # destroy pipes
-	_end_feed($fh);
+	end_feed($fh);
 }
 
 sub _no_thread {
@@ -84,7 +84,7 @@ sub _no_thread {
 	$fh->close;
 }
 
-sub _end_feed {
+sub end_feed {
 	my ($fh) = @_;
 	Email::Address->purge_cache;
 	$fh->write('</feed>');
@@ -108,7 +108,7 @@ sub emit_atom_thread {
 		add_to_feed($feed_opts, $fh, mid2path($msg->mid), $git);
 	}
 	$git = undef; # destroy pipes
-	_end_feed($fh);
+	end_feed($fh);
 }
 
 sub emit_html_index {

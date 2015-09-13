@@ -30,7 +30,7 @@ sub sres_top_html {
 		$total = $mset->get_matches_estimated;
 	};
 	my $err = $@;
-	my $res = html_start($q) . PublicInbox::View::PRE_WRAP;
+	my $res = html_start($q, $ctx) . PublicInbox::View::PRE_WRAP;
 	if ($err) {
 		$code = 400;
 		$res .= err_txt($err) . "</pre><hr /><pre>" . foot($ctx);
@@ -39,8 +39,7 @@ sub sres_top_html {
 		$res .= "\n\n[No results found]</pre><hr /><pre>".foot($ctx);
 	} else {
 		my $x = $q->{x};
-		# TODO
-		#return sub { adump($_[0], $mset, $q, $ctx) } if ($x eq 'A');
+		return sub { adump($_[0], $mset, $q, $ctx) } if ($x eq 'A');
 
 		$res .= search_nav_top($mset, $q);
 		if ($x eq 't') {
@@ -109,8 +108,8 @@ sub search_nav_top {
 		$rv .= qq{<a\nhref="?$s">summary</a>|};
 		$rv .= qq{<b>threaded</b>};
 	}
-	# my $A = $q->qs_html(x => 'a');
-	# $rv .= qq{|<a\nhref="?$A">Atom</a>}; # TODO
+	my $A = $q->qs_html(x => 'A');
+	$rv .= qq{|<a\nhref="?$A">Atom</a>};
 	$rv .= ']';
 }
 
@@ -213,13 +212,16 @@ sub foot {
 }
 
 sub html_start {
-	my ($q) = @_;
+	my ($q, $ctx) = @_;
 	my $query = PublicInbox::Hval->new_oneline($q->{q});
 
 	my $qh = $query->as_html;
-	my $res = "<html><head><title>$qh - search results</title></head>" .
-		  qq{<body><form\naction="">} .
-		  qq{<input\nname=q\nvalue="$qh"\ntype=text />};
+	my $A = $q->qs_html(x => 'A');
+	my $res = "<html><head><title>$qh - search results</title>" .
+		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
+		qq!href="?$A"\ntype="application/atom+xml"/></head>! .
+		qq{<body><form\naction="">} .
+		qq{<input\nname=q\nvalue="$qh"\ntype=text />};
 
 	$res .= qq{<input\ntype=hidden\nname=r />} if $q->{r};
 	if (my $x = $q->{x}) {
@@ -228,6 +230,28 @@ sub html_start {
 	}
 
 	$res .= qq{<input\ntype=submit\nvalue=search /></form>};
+}
+
+sub adump {
+	my ($cb, $mset, $q, $ctx) = @_;
+	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
+	require PublicInbox::GitCatFile;
+	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $feed_opts = PublicInbox::Feed::get_feedopts($ctx);
+	my $x = PublicInbox::Hval->new_oneline($q->{q})->as_html;
+	$x = qq{$x - search results};
+	$feed_opts->{atomurl} = $feed_opts->{url} . '?'. $q->qs_html;
+	$feed_opts->{url} .= '?'. $q->qs_html(x => undef);
+	$x = PublicInbox::Feed::atom_header($feed_opts, $x);
+	$fh->write($x. PublicInbox::Feed::feed_updated());
+
+	for ($mset->items) {
+		$x = PublicInbox::SearchMsg->load_doc($_->get_document)->mid;
+		$x = mid2path($x);
+		PublicInbox::Feed::add_to_feed($feed_opts, $fh, $x, $git);
+	}
+	$git = undef;
+	PublicInbox::Feed::end_feed($fh);
 }
 
 package PublicInbox::SearchQuery;
