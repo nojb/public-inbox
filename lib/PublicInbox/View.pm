@@ -434,7 +434,12 @@ sub headers_to_html_header {
 	$rv .= "(<a\nhref=\"${upfx}raw\">raw</a>)\n";
 	my $atom;
 	if ($srch) {
-		$rv .= "<a\nhref=\"${upfx}t/\">References: [expand]</a>\n";
+		if ($header_obj->header('In-Reply-To') ||
+		    $header_obj->header('References')) {
+			$rv .= "<a\nhref=\"${upfx}t/\">" .
+				"References: [expand]</a>\n";
+		}
+
 		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 			qq!href="${upfx}t.atom"\ntype="application/atom+xml"/>!;
 	} else {
