@@ -432,15 +432,19 @@ sub headers_to_html_header {
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
 	my $upfx = $full_pfx ? '' : '../';
 	$rv .= "(<a\nhref=\"${upfx}raw\">raw</a>)\n";
+	my $atom;
 	if ($srch) {
 		$rv .= "<a\nhref=\"${upfx}t/\">References: [expand]</a>\n";
+		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
+			qq!href="${upfx}t.atom"\ntype="application/atom+xml"/>!;
 	} else {
 		$rv .= _parent_headers_nosrch($header_obj);
+		$atom = '';
 	}
 	$rv .= "\n";
 
 	("<html><head><title>".  join(' - ', @title) .
-	 '</title></head><body>' . PRE_WRAP . $rv);
+	 "</title>$atom</head><body>" . PRE_WRAP . $rv);
 }
 
 sub thread_inline {
@@ -578,12 +582,15 @@ sub anchor_for {
 }
 
 sub thread_html_head {
-	my ($cb, $mime) = @_;
+	my ($cb, $header, $state) = @_;
 	$$cb = $$cb->([200, ['Content-Type'=> 'text/html; charset=UTF-8']]);
 
-	my $s = PublicInbox::Hval->new_oneline($mime->header('Subject'));
+	my $s = PublicInbox::Hval->new_oneline($header->header('Subject'));
 	$s = $s->as_html;
-	$$cb->write("<html><head><title>$s</title></head><body>");
+	$$cb->write("<html><head><title>$s</title>".
+		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
+		qq!href="../t.atom"\ntype="application/atom+xml"/>! .
+		"</head><body>");
 }
 
 sub pre_anchor_entry {
