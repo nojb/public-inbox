@@ -108,7 +108,7 @@ sub search_nav_top {
 		$rv .= qq{<a\nhref="?$s">summary</a>|};
 		$rv .= qq{<b>threaded</b>};
 	}
-	my $A = $q->qs_html(x => 'A');
+	my $A = $q->qs_html(x => 'A', r => undef);
 	$rv .= qq{|<a\nhref="?$A">Atom</a>};
 	$rv .= ']';
 }
@@ -216,7 +216,7 @@ sub html_start {
 	my $query = PublicInbox::Hval->new_oneline($q->{q});
 
 	my $qh = $query->as_html;
-	my $A = $q->qs_html(x => 'A');
+	my $A = $q->qs_html(x => 'A', r => undef);
 	my $res = "<html><head><title>$qh - search results</title>" .
 		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 		qq!href="?$A"\ntype="application/atom+xml"/></head>! .
