@@ -275,42 +275,45 @@ sub index_sync {
 	$self->with_umask(sub { $self->_index_sync($head) });
 }
 
-# indexes all unindexed messages
-sub _index_sync {
-	my ($self, $head) = @_;
-	require PublicInbox::GitCatFile;
-	my $db = $self->{xdb};
+sub rlog {
+	my ($self, $range, $add_cb, $del_cb) = @_;
 	my $hex = '[a-f0-9]';
 	my $h40 = $hex .'{40}';
 	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
+	my $git_dir = $self->{git_dir};
+	require PublicInbox::GitCatFile;
+	my $git = PublicInbox::GitCatFile->new($git_dir);
+	my @cmd = ('git', "--git-dir=$git_dir", "log",
+		    qw/--reverse --no-notes --no-color --raw -r --no-abbrev/,
+		    $range);
+	my $latest;
+	my $pid = open(my $log, '-|', @cmd) or
+		die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
+	while (my $line = <$log>) {
+		if ($line =~ /$addmsg/o) {
+			$add_cb->($self, $git, $1);
+		} elsif ($line =~ /$delmsg/o) {
+			$del_cb->($self, $git, $1);
+		} elsif ($line =~ /^commit ($h40)/o) {
+			$latest = $1;
+		}
+	}
+	close $log;
+	$latest;
+}
+
+# indexes all unindexed messages
+sub _index_sync {
+	my ($self, $head) = @_;
+	my $db = $self->{xdb};
 	$head ||= 'HEAD';
 
 	$db->begin_transaction;
 	eval {
-		my $git = PublicInbox::GitCatFile->new($self->{git_dir});
-
 		my $latest = $db->get_metadata('last_commit');
 		my $range = $latest eq '' ? $head : "$latest..$head";
-		$latest = undef;
-
-		# get indexed messages
-		my @cmd = ('git', "--git-dir=$self->{git_dir}", "log",
-			    qw/--reverse --no-notes --no-color --raw -r
-			       --no-abbrev/, $range);
-		my $pid = open(my $log, '-|', @cmd) or
-			die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
-
-		while (my $line = <$log>) {
-			if ($line =~ /$addmsg/o) {
-				$self->index_blob($git, $1);
-			} elsif ($line =~ /$delmsg/o) {
-				$self->unindex_blob($git, $1);
-			} elsif ($line =~ /^commit ($h40)/o) {
-				$latest = $1;
-			}
-		}
-		close $log;
+		$latest = $self->rlog($range, *index_blob, *unindex_blob);
 		$db->set_metadata('last_commit', $latest) if defined $latest;
 	};
 	if ($@) {
