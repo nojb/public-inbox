@@ -54,7 +54,7 @@ sub ext_msg {
 				# no point in trying the fork fallback if we
 				# know Xapian is up-to-date but missing the
 				# message in the current repo
-				push @pfx, { srch => $s, url => $url };
+				push @pfx, { git_dir => $git_dir, url => $url };
 				next;
 			}
 		}
@@ -87,17 +87,21 @@ sub ext_msg {
 	# fall back to partial MID matching
 	my $n_partial = 0;
 	my @partial;
-	if ($have_xap) {
+
+	eval { require PublicInbox::Msgmap };
+	my $have_mm = $@ ? 0 : 1;
+	if ($have_mm) {
 		my $cgi = $ctx->{cgi};
 		my $url = ref($cgi) eq 'CGI' ? $cgi->url(-base) . '/'
 					: $cgi->base->as_string;
 		$url .= $listname;
-		unshift @pfx, { srch => $ctx->{srch}, url => $url };
+		unshift @pfx, { git_dir => $ctx->{git_dir}, url => $url };
 		foreach my $pfx (@pfx) {
-			my $srch = delete $pfx->{srch} or next;
+			my $git_dir = delete $pfx->{git_dir} or next;
+			my $mm = eval { PublicInbox::Msgmap->new($git_dir) };
 
-			# FIXME we may need a proper prefix trie here...
-			if (my $res = $srch->mid_prefix($mid)) {
+			$mm or next;
+			if (my $res = $mm->mid_prefixes($mid)) {
 				$n_partial += scalar(@$res);
 				$pfx->{res} = $res;
 				push @partial, $pfx;
@@ -114,20 +118,21 @@ sub ext_msg {
 
 	if ($n_partial) {
 		$code = 300;
-		$s.= "\nPartial matches found:\n\n";
+		my $es = $n_partial == 1 ? '' : 'es';
+		$s.= "\n$n_partial partial match$es found:\n\n";
 		foreach my $pfx (@partial) {
 			my $u = $pfx->{url};
 			foreach my $m (@{$pfx->{res}}) {
-				$h = PublicInbox::Hval->new($m);
-				$href = $h->as_href;
-				$html = $h->as_html;
-				$s .= qq{<a\nhref="$u/$href/">$u/$html/</a>\n};
+				my $p = PublicInbox::Hval->new($m);
+				my $r = $p->as_href;
+				my $t = $p->as_html;
+				$s .= qq{<a\nhref="$u/$r/">$u/$t/</a>\n};
 			}
 		}
 	}
 
 	# Fall back to external repos if configured
-	if (@EXT_URL) {
+	if (@EXT_URL && index($mid, '@') >= 0) {
 		$code = 300;
 		$s .= "\nPerhaps try an external site:\n\n";
 		foreach my $u (@EXT_URL) {

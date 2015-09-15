@@ -269,13 +269,4 @@ sub enquire {
 	$self->{enquire} ||= Search::Xapian::Enquire->new($self->{xdb});
 }
 
-sub mid_prefix {
-	my ($self, $mpfx) = @_;
-	my $query = eval { $self->qp->parse_query("m:$mpfx", FLAG_PARTIAL) };
-	return if $@;
-	my $res = $self->do_enquire($query, { relevance => 1 });
-	return unless $res->{total};
-	[ map { $_->mid } @{$res->{msgs}} ];
-}
-
 1;
