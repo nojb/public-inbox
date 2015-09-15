@@ -247,18 +247,36 @@ sub link_message_to_parents {
 }
 
 sub index_blob {
-	my ($self, $git, $blob) = @_;
-	my $mime = do_cat_mail($git, $blob) or return;
-	eval { $self->add_message($mime) };
-	warn "W: index_blob $blob: $@\n" if $@;
+	my ($self, $git, $mime) = @_;
+	$self->add_message($mime);
 }
 
 sub unindex_blob {
-	my ($self, $git, $blob) = @_;
-	my $mime = do_cat_mail($git, $blob) or return;
-	my $mid = $mime->header('Message-ID');
-	eval { $self->remove_message($mid) } if defined $mid;
-	warn "W: unindex_blob $blob: $@\n" if $@;
+	my ($self, $git, $mime) = @_;
+	my $mid = mid_clean($mime->header('Message-ID'));
+	$self->remove_message($mid) if defined $mid;
+}
+
+sub index_mm {
+	my ($self, $git, $mime) = @_;
+	$self->{mm}->mid_insert(mid_clean($mime->header('Message-ID')));
+}
+
+sub unindex_mm {
+	my ($self, $git, $mime) = @_;
+	$self->{mm}->mid_delete(mid_clean($mime->header('Message-ID')));
+}
+
+sub index_both {
+	my ($self, $git, $mime) = @_;
+	index_blob($self, $git, $mime);
+	index_mm($self, $git, $mime);
+}
+
+sub unindex_both {
+	my ($self, $git, $mime) = @_;
+	unindex_blob($self, $git, $mime);
+	unindex_mm($self, $git, $mime);
 }
 
 sub do_cat_mail {
@@ -292,9 +310,11 @@ sub rlog {
 		die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
 	while (my $line = <$log>) {
 		if ($line =~ /$addmsg/o) {
-			$add_cb->($self, $git, $1);
+			my $mime = do_cat_mail($git, $1) or next;
+			$add_cb->($self, $git, $mime);
 		} elsif ($line =~ /$delmsg/o) {
-			$del_cb->($self, $git, $1);
+			my $mime = do_cat_mail($git, $1) or next;
+			$del_cb->($self, $git, $mime);
 		} elsif ($line =~ /^commit ($h40)/o) {
 			$latest = $1;
 		}
@@ -308,17 +328,45 @@ sub _index_sync {
 	my ($self, $head) = @_;
 	my $db = $self->{xdb};
 	$head ||= 'HEAD';
+	my $mm = $self->{mm} = eval {
+		require PublicInbox::Msgmap;
+		PublicInbox::Msgmap->new($self->{git_dir}, 1);
+	};
 
 	$db->begin_transaction;
-	eval {
-		my $latest = $db->get_metadata('last_commit');
-		my $range = $latest eq '' ? $head : "$latest..$head";
-		$latest = $self->rlog($range, *index_blob, *unindex_blob);
-		$db->set_metadata('last_commit', $latest) if defined $latest;
-	};
+	my $lx = $db->get_metadata('last_commit');
+	my $range = $lx eq '' ? $head : "$lx..$head";
+	if ($mm) {
+		$mm->{dbh}->begin_work;
+		my $lm = $mm->last_commit || '';
+		if ($lm eq $lx) {
+			# Common case is the indexes are synced,
+			# we only need to run git-log once:
+			$lx = $self->rlog($range, *index_both, *unindex_both);
+			$mm->{dbh}->commit;
+			if (defined $lx) {
+				$db->set_metadata('last_commit', $lx);
+				$mm->last_commit($lx);
+			}
+		} else {
+			# dumb case, msgmap and xapian are out-of-sync
+			# do not care for performance:
+			my $r = $lm eq '' ? $head : "$lm..$head";
+			$lm = $self->rlog($r, *index_mm, *unindex_mm);
+			$mm->{dbh}->commit;
+			$mm->last_commit($lm) if defined $lm;
+
+			goto xapian_only;
+		}
+	} else {
+		# user didn't install DBD::SQLite and DBI
+xapian_only:
+		$lx = $self->rlog($range, *index_blob, *unindex_blob);
+		$db->set_metadata('last_commit', $lx) if defined $lx;
+	}
 	if ($@) {
-		warn "indexing failed: $@\n";
 		$db->cancel_transaction;
+		$mm->{dbh}->rollback if $mm;
 	} else {
 		$db->commit_transaction;
 	}
