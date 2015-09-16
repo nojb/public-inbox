@@ -117,7 +117,7 @@ sub index_entry {
 	my $mhref = "${path}$href/";
 
 	# show full message if it's our root message
-	if ($root_anchor ne $id) {
+	if ($root_anchor ne $id || ($level != 0 && !$ctx->{flat})) {
 		$fhref = "${path}$href/f/";
 		$more_ref = \$more;
 	}
