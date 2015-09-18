@@ -1,0 +1,77 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2015 all contributors <meta@public-inbox.org>
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+use strict;
+use warnings;
+require Danga::Socket;
+use IO::Socket;
+use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
+require PublicInbox::NNTP;
+require PublicInbox::NewsGroup;
+my $nntpd = PublicInbox::NNTPD->new;
+my $refresh = sub { $nntpd->refresh_groups };
+
+my %opts = (
+	LocalAddr => '127.0.0.1:1133',
+	Type => SOCK_STREAM,
+	Proto => 'tcp',
+	Blocking => 0,
+	Reuse => 1,
+	Listen => 1024,
+);
+my $s = IO::Socket::INET->new(%opts) or die "Error creating socket: $@\n";
+$s->sockopt(SO_KEEPALIVE, 1);
+$s->setsockopt(IPPROTO_TCP, TCP_NODELAY, 1);
+
+$SIG{PIPE} = 'IGNORE';
+$SIG{HUP} = $refresh;
+$refresh->();
+
+Danga::Socket->AddOtherFds(fileno($s) => sub {
+	while (my $c = $s->accept) {
+		$c->blocking(0); # no accept4 :<
+		PublicInbox::NNTP->new($c, $nntpd);
+	}
+});
+Danga::Socket->EventLoop();
+
+package PublicInbox::NNTPD;
+use strict;
+use warnings;
+use fields qw(groups err out);
+
+sub new {
+	my ($class) = @_;
+	my $self = fields::new($class);
+	$self->{groups} = {};
+	$self;
+}
+
+sub refresh_groups {
+	my ($self) = @_;
+	require PublicInbox::Config;
+	my $pi_config = PublicInbox::Config->new;
+	my $new = {};
+	foreach my $k (keys %$pi_config) {
+		$k =~ /\Apublicinbox\.([^\.]+)\.mainrepo\z/ or next;
+		my $g = $1;
+		my $git_dir = $pi_config->{$k};
+		my $address = $pi_config->{"publicinbox.$g.address"};
+		my $ng = PublicInbox::NewsGroup->new($g, $git_dir, $address);
+		my $old_ng = $self->{groups}->{$g};
+
+		# Reuse the old one if possible since it can hold references
+		# to valid mm and gcf objects
+		if ($old_ng) {
+			$old_ng->update($ng);
+			$ng = $old_ng;
+		}
+
+		# Only valid if Msgmap works
+		$new->{$g} = $ng if $ng->mm;
+	}
+	# this will destroy old groups that got deleted
+	%{$self->{groups}} = %$new;
+};
+
+1;

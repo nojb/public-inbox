@@ -4,7 +4,7 @@
 package PublicInbox::Msgmap;
 use strict;
 use warnings;
-use fields qw(dbh mid_insert mid_for num_for);
+use fields qw(dbh mid_insert mid_for num_for num_minmax);
 use DBI;
 use DBD::SQLite;
 
@@ -23,43 +23,55 @@ sub new {
 		sqlite_use_immediate_transaction => 1,
 	});
 	$dbh->do('PRAGMA case_sensitive_like = ON');
-
-	$writable and create_tables($dbh);
 	my $self = fields::new($class);
 	$self->{dbh} = $dbh;
+
+	if ($writable) {
+		create_tables($dbh);
+		$self->created_at(time) unless $self->created_at;
+	}
 	$self;
 }
 
-# accessor
-sub last_commit {
-	my ($self, $commit) = @_;
-	my $dbh = $self->{dbh};
-	my $prev;
+sub meta_accessor {
+	my ($self, $key, $value) = @_;
 	use constant {
-		key => 'last_commit',
 		meta_select => 'SELECT val FROM meta WHERE key = ? LIMIT 1',
 		meta_update => 'UPDATE meta SET val = ? WHERE key = ? LIMIT 1',
 		meta_insert => 'INSERT INTO meta (key,val) VALUES (?,?)',
 	};
 
-	defined $commit or
-		return $dbh->selectrow_array(meta_select, undef, key);
+	my $dbh = $self->{dbh};
+	my $prev;
+	defined $value or
+		return $dbh->selectrow_array(meta_select, undef, $key);
 
 	$dbh->begin_work;
 	eval {
-		$prev = $dbh->selectrow_array(meta_select, undef, key);
+		$prev = $dbh->selectrow_array(meta_select, undef, $key);
 
 		if (defined $prev) {
-			$dbh->do(meta_update, undef, $commit, key);
+			$dbh->do(meta_update, undef, $value, $key);
 		} else {
-			$dbh->do(meta_insert, undef, key, $commit);
+			$dbh->do(meta_insert, undef, $key, $value);
 		}
 		$dbh->commit;
 	};
-	return $prev unless $@;
+	my $err = $@;
+	return $prev unless $err;
 
 	$dbh->rollback;
-	die $@;
+	die $err;
+}
+
+sub last_commit {
+	my ($self, $commit) = @_;
+	$self->meta_accessor('last_commit', $commit);
+}
+
+sub created_at {
+	my ($self, $second) = @_;
+	$self->meta_accessor('created_at', $second);
 }
 
 sub mid_insert {
@@ -90,6 +102,15 @@ sub num_for {
 	$sth->bind_param(1, $mid);
 	$sth->execute;
 	$sth->fetchrow_array;
+}
+
+sub minmax {
+	my ($self) = @_;
+	my $dbh = $self->{dbh};
+	use constant NUM_MINMAX => 'SELECT MIN(num),MAX(num) FROM msgmap';
+	my $sth = $self->{num_minmax} ||= $dbh->prepare(NUM_MINMAX);
+	$sth->execute;
+        $sth->fetchrow_array;
 }
 
 sub mid_prefixes {
@@ -132,6 +153,27 @@ sub create_tables {
 	defined $e or $dbh->do('CREATE TABLE meta (' .
 			'key VARCHAR(32) PRIMARY KEY, '.
 			'val VARCHAR(255) NOT NULL)');
+}
+
+sub each_id_batch {
+	my ($self, $cb) = @_;
+	my $dbh = $self->{dbh};
+	my $n = 0;
+	my $total = 0;
+	my $nr;
+	my $sth = $dbh->prepare('SELECT num FROM msgmap WHERE num > ? '.
+				'ORDER BY num ASC LIMIT 1000');
+	while (1) {
+		$sth->execute($n);
+		my $ary = $sth->fetchall_arrayref;
+		@$ary = map { $_->[0] } @$ary;
+		$nr = scalar @$ary;
+		last if $nr == 0;
+		$total += $nr;
+		$n = $ary->[-1];
+		$cb->($ary);
+	}
+	$total;
 }
 
 1;

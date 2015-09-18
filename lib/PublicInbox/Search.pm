@@ -109,8 +109,6 @@ sub get_thread {
 	$self->do_enquire($query, $opts);
 }
 
-# private subs below
-
 sub do_enquire {
 	my ($self, $query, $opts) = @_;
 	my $enquire = $self->enquire;
@@ -120,12 +118,13 @@ sub do_enquire {
 		$query = $mail_query;
 	}
 	$enquire->set_query($query);
-	if ($opts->{relevance}) {
-		$enquire->set_sort_by_relevance_then_value(TS, 1);
-	} else {
-		$enquire->set_sort_by_value_then_relevance(TS, 1);
-	}
 	$opts ||= {};
+        my $desc = !$opts->{asc};
+	if ($opts->{relevance}) {
+		$enquire->set_sort_by_relevance_then_value(TS, $desc);
+	} else {
+		$enquire->set_sort_by_value_then_relevance(TS, $desc);
+	}
 	my $offset = $opts->{offset} || 0;
 	my $limit = $opts->{limit} || 50;
 	my $mset = $enquire->get_mset($offset, $limit);
