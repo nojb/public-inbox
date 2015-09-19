@@ -24,7 +24,7 @@ my %OVERVIEW = map { $_ => 1 } @OVERVIEW;
 # LISTGROUP could get pretty bad, too...
 my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
 
-sub new {
+sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
 	$self->SUPER::new($sock);
@@ -34,8 +34,17 @@ sub new {
 	$self;
 }
 
+sub args_ok ($$) {
+	my ($cb, $argc) = @_;
+	my $tot = prototype $cb;
+	my ($nreq, undef) = split(';', $tot);
+	$nreq = ($nreq =~ tr/$//) - 1;
+	$tot = ($tot =~ tr/$//) - 1;
+	($argc <= $tot && $argc >= $nreq);
+}
+
 # returns 1 if we can continue, 0 if not due to buffered writes or disconnect
-sub process_line {
+sub process_line ($$) {
 	my ($self, $l) = @_;
 	my ($req, @args) = split(/\s+/, $l);
 	$req = lc($req);
@@ -44,6 +53,7 @@ sub process_line {
 		$req = $DISABLED{$req} ? undef : *{'cmd_'.$req}{CODE};
 	};
 	return res($self, '500 command not recognized') unless $req;
+	return res($self, r501) unless args_ok($req, scalar @args);
 
 	my $res = eval { $req->($self, @args) };
 	my $err = $@;
@@ -56,33 +66,28 @@ sub process_line {
 	res($self, $res);
 }
 
-sub cmd_mode {
+sub cmd_mode ($$) {
 	my ($self, $arg) = @_;
-	return r501 unless defined $arg;
 	$arg = uc $arg;
 	return r501 unless $arg eq 'READER';
 	'200 reader status acknowledged';
 }
 
-sub cmd_slave {
-	my ($self, @x) = @_;
-	return r501 if @x;
-	'202 slave status noted';
-}
+sub cmd_slave ($) { '202 slave status noted' }
 
-sub cmd_xgtitle {
+sub cmd_xgtitle ($;$) {
 	my ($self, $wildmat) = @_;
 	more($self, '282 list of groups and descriptions follows');
 	list_newsgroups($self, $wildmat);
 	'.'
 }
 
-sub list_overview_fmt {
+sub list_overview_fmt ($$) {
 	my ($self) = @_;
 	more($self, $_ . ':') foreach @OVERVIEW;
 }
 
-sub list_active {
+sub list_active ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
 	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
@@ -91,7 +96,7 @@ sub list_active {
 	}
 }
 
-sub list_active_times {
+sub list_active_times ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
 	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
@@ -101,7 +106,7 @@ sub list_active_times {
 	}
 }
 
-sub list_newsgroups {
+sub list_newsgroups ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
 	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
@@ -112,20 +117,21 @@ sub list_newsgroups {
 }
 
 # LIST SUBSCRIPTIONS not supported
-sub cmd_list {
-	my ($self, $arg, $wildmat, @x) = @_;
-	if (defined $arg) {
-		$arg = lc $arg;
-		$arg =~ tr/./_/;
+sub cmd_list ($;$$) {
+	my ($self, @args) = @_;
+	if (scalar @args) {
+		my $arg = shift @args;
+		$arg =~ tr/A-Z./a-z_/;
 		$arg = "list_$arg";
 		return '503 function not performed' if $DISABLED{$arg};
+
 		$arg = eval {
 			no strict 'refs';
 			*{$arg}{CODE};
 		};
-		return r501 unless $arg;
+		return r501 unless $arg && args_ok($arg, scalar @args);
 		more($self, '215 information follows');
-		$arg->($self, $wildmat, @x);
+		$arg->($self, @args);
 	} else {
 		more($self, '215 list of newsgroups follows');
 		foreach my $ng (values %{$self->{nntpd}->{groups}}) {
@@ -135,7 +141,7 @@ sub cmd_list {
 	'.'
 }
 
-sub cmd_listgroup {
+sub cmd_listgroup ($;$) {
 	my ($self, $group) = @_;
 	if (defined $group) {
 		my $res = cmd_group($self, $group);
@@ -156,7 +162,7 @@ sub cmd_listgroup {
 	});
 }
 
-sub parse_time {
+sub parse_time ($$;$) {
 	my ($date, $time, $gmt) = @_;
 	use Time::Local qw();
 	my ($YY, $MM, $DD) = unpack('A2A2A2', $date);
@@ -178,13 +184,13 @@ sub parse_time {
 	}
 }
 
-sub group_line {
+sub group_line ($$) {
 	my ($self, $ng) = @_;
 	my ($min, $max) = $ng->mm->minmax;
 	more($self, "$ng->{name} $max $min n") if defined $min && defined $max;
 }
 
-sub cmd_newgroups {
+sub cmd_newgroups ($$$;$$) {
 	my ($self, $date, $time, $gmt, $dists) = @_;
 	my $ts = eval { parse_time($date, $time, $gmt) };
 	return r501 if $@;
@@ -199,7 +205,7 @@ sub cmd_newgroups {
 	'.'
 }
 
-sub wildmat2re {
+sub wildmat2re (;$) {
 	return $_[0] = qr/.*/ if (!defined $_[0] || $_[0] eq '*');
 	my %keep;
 	my $salt = rand;
@@ -224,14 +230,14 @@ sub wildmat2re {
 	$_[0] = qr/\A$tmp\z/;
 }
 
-sub ngpat2re {
+sub ngpat2re (;$) {
 	return $_[0] = qr/\A\z/ unless defined $_[0];
 	my %map = ('*' => '.*', ',' => '|');
 	$_[0] =~ s!(.)!$map{$1} || "\Q$1"!ge;
 	$_[0] = qr/\A(?:$_[0])\z/;
 }
 
-sub cmd_newnews {
+sub cmd_newnews ($$$$;$$) {
 	my ($self, $newsgroups, $date, $time, $gmt, $dists) = @_;
 	my $ts = eval { parse_time($date, $time, $gmt) };
 	return r501 if $@;
@@ -271,7 +277,7 @@ sub cmd_newnews {
 	});
 }
 
-sub cmd_group {
+sub cmd_group ($$) {
 	my ($self, $group) = @_;
 	my $no_such = '411 no such news group';
 	my $ng = $self->{nntpd}->{groups}->{$group} or return $no_such;
@@ -285,7 +291,7 @@ sub cmd_group {
 	"211 $est_size $min $max $group";
 }
 
-sub article_adj {
+sub article_adj ($$) {
 	my ($self, $off) = @_;
 	my $ng = $self->{ng} or return '412 no newsgroup selected';
 
@@ -302,25 +308,25 @@ sub article_adj {
 	"223 $n <$mid> article retrieved - request text separately";
 }
 
-sub cmd_next { article_adj($_[0], 1) }
-sub cmd_last { article_adj($_[0], -1) }
+sub cmd_next ($) { article_adj($_[0], 1) }
+sub cmd_last ($) { article_adj($_[0], -1) }
 
 # We want to encourage using email and CC-ing everybody involved to avoid
 # the single-point-of-failure a single server provides.
-sub cmd_post {
+sub cmd_post ($) {
 	my ($self) = @_;
 	my $ng = $self->{ng};
 	$ng ? "440 mailto:$ng->{address} to post" : '440 posting not allowed'
 }
 
-sub cmd_quit {
+sub cmd_quit ($) {
 	my ($self) = @_;
 	res($self, '205 closing connection - goodbye!');
 	$self->close;
 	undef;
 }
 
-sub art_lookup {
+sub art_lookup ($$$) {
 	my ($self, $art, $set_headers) = @_;
 	my $ng = $self->{ng} or return '412 no newsgroup has been selected';
 	my ($n, $mid);
@@ -364,7 +370,7 @@ find_mid:
 	[ $n, $mid, $s ];
 }
 
-sub simple_body_write {
+sub simple_body_write ($$) {
 	my ($self, $s) = @_;
 	my $body = $s->body;
 	$s->body_set('');
@@ -373,14 +379,14 @@ sub simple_body_write {
 	'.'
 }
 
-sub header_str {
+sub header_str ($) {
 	my ($s) = @_;
 	my $h = $s->header_obj;
 	$h->header_set('Bytes');
 	$h->as_string
 }
 
-sub cmd_article {
+sub cmd_article ($$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 1);
 	return $r unless ref $r;
@@ -391,7 +397,7 @@ sub cmd_article {
 	simple_body_write($self, $s);
 }
 
-sub cmd_head {
+sub cmd_head ($$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 2);
 	return $r unless ref $r;
@@ -401,7 +407,7 @@ sub cmd_head {
 	'.'
 }
 
-sub cmd_body {
+sub cmd_body ($$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 0);
 	return $r unless ref $r;
@@ -410,7 +416,7 @@ sub cmd_body {
 	simple_body_write($self, $s);
 }
 
-sub cmd_stat {
+sub cmd_stat ($$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 0);
 	return $r unless ref $r;
@@ -418,17 +424,17 @@ sub cmd_stat {
 	"223 $n <$mid> article retrieved - request text separately";
 }
 
-sub cmd_ihave { '435 article not wanted - do not send it' }
+sub cmd_ihave ($) { '435 article not wanted - do not send it' }
 
-sub cmd_date { '111 '.strftime('%Y%m%d%H%M%S', gmtime(time)) }
+sub cmd_date ($) { '111 '.strftime('%Y%m%d%H%M%S', gmtime(time)) }
 
-sub cmd_help {
+sub cmd_help ($) {
 	my ($self) = @_;
 	more($self, '100 help text follows');
 	'.'
 }
 
-sub get_range {
+sub get_range ($;$) {
 	my ($self, $range) = @_;
 	my $ng = $self->{ng} or return '412 no news group has been selected';
 	defined $range or return '420 No article(s) selected';
@@ -449,7 +455,7 @@ sub get_range {
 	[ $beg, $end ];
 }
 
-sub xhdr {
+sub xhdr ($$) {
 	my ($r, $header) = @_;
 	$r = $r->[2]->header_obj->header($header);
 	defined $r or return;
@@ -457,7 +463,7 @@ sub xhdr {
 	$r;
 }
 
-sub long_response {
+sub long_response ($$$$) {
 	my ($self, $beg, $end, $cb) = @_;
 	die "BUG: nested long response" if $self->{long_res};
 
@@ -499,7 +505,7 @@ sub long_response {
 	undef;
 }
 
-sub cmd_xhdr {
+sub cmd_xhdr ($$;$) {
 	my ($self, $header, $range) = @_;
 	defined $self->{ng} or return '412 no news group currently selected';
 	unless (defined $range) {
@@ -529,7 +535,7 @@ sub cmd_xhdr {
 	}
 }
 
-sub cmd_xover {
+sub cmd_xover ($;$) {
 	my ($self, $range) = @_;
 	my $r = get_range($self, $range);
 	return $r unless ref $r;
@@ -547,17 +553,17 @@ sub cmd_xover {
 	});
 }
 
-sub res {
+sub res ($$) {
 	my ($self, $line) = @_;
 	do_write($self, $line . "\r\n");
 }
 
-sub more {
+sub more ($$) {
 	my ($self, $line) = @_;
 	do_more($self, $line . "\r\n");
 }
 
-sub do_write {
+sub do_write ($$) {
 	my ($self, $data) = @_;
 	my $done = $self->write($data);
 	die if $self->{closed};
@@ -571,7 +577,7 @@ sub do_write {
 
 use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
-sub do_more {
+sub do_more ($$) {
 	my ($self, $data) = @_;
 	if (MSG_MORE && !$self->{write_buf_size}) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
