@@ -434,7 +434,7 @@ sub cmd_help ($) {
 	'.'
 }
 
-sub get_range ($;$) {
+sub get_range ($$) {
 	my ($self, $range) = @_;
 	my $ng = $self->{ng} or return '412 no news group has been selected';
 	defined $range or return '420 No article(s) selected';
@@ -508,11 +508,7 @@ sub long_response ($$$$) {
 sub cmd_xhdr ($$;$) {
 	my ($self, $header, $range) = @_;
 	defined $self->{ng} or return '412 no news group currently selected';
-	unless (defined $range) {
-		defined($range = $self->{article}) or
-			return '420 no current article has been selected';
-	}
-	if ($range =~ /\A<(.+)>\z/) { # Message-ID
+	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my $r = $self->art_lookup($range, 2);
 		return $r unless ref $r;
 		more($self, '221 Header follows');
@@ -521,6 +517,7 @@ sub cmd_xhdr ($$;$) {
 		}
 		'.';
 	} else { # numeric range
+		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
@@ -537,6 +534,7 @@ sub cmd_xhdr ($$;$) {
 
 sub cmd_xover ($;$) {
 	my ($self, $range) = @_;
+	$range = $self->{article} unless defined $range;
 	my $r = get_range($self, $range);
 	return $r unless ref $r;
 	my ($beg, $end) = @$r;
