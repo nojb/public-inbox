@@ -155,25 +155,17 @@ sub create_tables {
 			'val VARCHAR(255) NOT NULL)');
 }
 
-sub each_id_batch {
-	my ($self, $cb) = @_;
+sub id_batch {
+	my ($self, $num, $cb) = @_;
 	my $dbh = $self->{dbh};
-	my $n = 0;
-	my $total = 0;
-	my $nr;
 	my $sth = $dbh->prepare('SELECT num FROM msgmap WHERE num > ? '.
 				'ORDER BY num ASC LIMIT 1000');
-	while (1) {
-		$sth->execute($n);
-		my $ary = $sth->fetchall_arrayref;
-		@$ary = map { $_->[0] } @$ary;
-		$nr = scalar @$ary;
-		last if $nr == 0;
-		$total += $nr;
-		$n = $ary->[-1];
-		$cb->($ary);
-	}
-	$total;
+	$sth->execute($num);
+	my $ary = $sth->fetchall_arrayref;
+	@$ary = map { $_->[0] } @$ary;
+	my $nr = scalar @$ary;
+	$cb->($ary) if $nr;
+	$nr;
 }
 
 1;

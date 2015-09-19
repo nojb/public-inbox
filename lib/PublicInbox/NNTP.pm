@@ -14,6 +14,7 @@ use POSIX qw(strftime);
 use Time::HiRes qw(gettimeofday tv_interval ualarm);
 use constant {
 	r501 => '501 command syntax error',
+	long_response_limit => 0xffffffff,
 };
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Bytes Lines);
@@ -142,13 +143,17 @@ sub cmd_listgroup {
 		more($self, $res);
 	}
 
-	my $ng = $self->{ng} or return '412 no newsgroup selected';
-	# Ugh this can be silly expensive for big groups
-	$ng->mm->each_id_batch(sub {
-		my ($ary) = @_;
-		more($self, join("\r\n", @$ary));
+	$self->{ng} or return '412 no newsgroup selected';
+	$self->long_response(0, long_response_limit, sub {
+		my ($i) = @_;
+		my $nr = $self->{ng}->mm->id_batch($$i, sub {
+			my ($ary) = @_;
+			more($self, join("\r\n", @$ary));
+		});
+
+		# -1 to adjust for implicit increment in long_response
+		$$i = $nr ? $$i + $nr - 1 : long_response_limit;
 	});
-	'.'
 }
 
 sub parse_time {
@@ -245,9 +250,7 @@ sub cmd_newnews {
 
 	$ts .= '..';
 	my $opts = { asc => 1, limit => 1000, offset => 0 };
-
-	my $end = 0xffffffff; # would like to read 4 billion messages?
-	$self->long_response(0, $end, sub {
+	$self->long_response(0, long_response_limit, sub {
 		my ($i) = @_;
 		my $srch = $srch[0];
 		my $res = $srch->query($ts, $opts);
@@ -262,7 +265,7 @@ sub cmd_newnews {
 			if (@srch) { # continue onto next newsgroup
 				$opts->{offset} = 0;
 			} else { # break out of the long response.
-				$$i = $end;
+				$$i = long_response_limit;
 			}
 		}
 	});
