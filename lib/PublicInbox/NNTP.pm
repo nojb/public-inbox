@@ -330,7 +330,7 @@ sub cmd_quit ($) {
 
 sub art_lookup ($$$) {
 	my ($self, $art, $set_headers) = @_;
-	my $ng = $self->{ng} or return '412 no newsgroup has been selected';
+	my $ng = $self->{ng};
 	my ($n, $mid);
 	my $err;
 	if (defined $art) {
@@ -339,10 +339,18 @@ sub art_lookup ($$$) {
 			$n = int($art);
 			goto find_mid;
 		} elsif ($art =~ /\A<([^>]+)>\z/) {
-			$err = '430 no such article found';
 			$mid = $1;
-			$n = $ng->mm->num_for($mid);
-			defined $mid or return $err;
+			$err = '430 no such article found';
+			$n = $ng->mm->num_for($mid) if $ng;
+			goto found if defined $n;
+			foreach my $g (values %{$self->{nntpd}->{groups}}) {
+				$n = $g->mm->num_for($mid);
+				if (defined $n) {
+					$ng = $g;
+					goto found;
+				}
+			}
+			return $err;
 		} else {
 			return r501;
 		}
@@ -351,10 +359,11 @@ sub art_lookup ($$$) {
 		$n = $self->{article};
 		defined $n or return $err;
 find_mid:
+		$ng or return '412 no newsgroup has been selected';
 		$mid = $ng->mm->mid_for($n);
 		defined $mid or return $err;
 	}
-
+found:
 	my $o = 'HEAD:' . mid2path($mid);
 	my $s = eval { Email::Simple->new($ng->gcf->cat_file($o)) };
 	return $err unless $s;
