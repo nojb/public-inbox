@@ -653,6 +653,19 @@ sub cmd_xover ($;$) {
 	});
 }
 
+sub cmd_xpath ($$) {
+	my ($self, $mid) = @_;
+	return r501 unless $mid =~ /\A<(.+)>\z/;
+	$mid = $1;
+	my @paths;
+	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+		my $n = $ng->mm->num_for($mid);
+		push @paths, "$ng->{name}/$n" if defined $n;
+	}
+	return '430 no such article on server' unless @paths;
+	'223 '.join(' ', @paths);
+}
+
 sub res ($$) {
 	my ($self, $line) = @_;
 	do_write($self, $line . "\r\n");
