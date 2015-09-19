@@ -61,7 +61,7 @@ sub process_line ($$) {
 	my $err = $@;
 	if ($err && !$self->{closed}) {
 		chomp($l = Dumper(\$l));
-		warning('error from: ', $l, ' ', $err);
+		err($self, "error from: $l $err");
 		$res = '503 program fault - command not performed';
 	}
 	return 0 unless defined $res;
@@ -502,13 +502,13 @@ sub long_response ($$$$) {
 			$self->{long_res} = undef;
 
 			if ($err) {
-				warning("$err during long response[$fd] - ".
-					sprintf('%0.6', now() - $t0));
+				err($self,
+				    "$err during long response[$fd] - %0.6f",
+					now() - $t0);
 			}
 			if ($self->{closed}) {
-				printf(STDERR
-				       " deferred[$fd] aborted - %0.6f\n",
-				       now() - $t0);
+				out($self, " deferred[$fd] aborted - %0.6f",
+				           now() - $t0);
 			} else {
 				$self->watch_read(1);
 			}
@@ -522,8 +522,7 @@ sub long_response ($$$$) {
 			$self->{long_res} = undef;
 			$self->watch_read(1);
 			res($self, '.');
-			printf(STDERR " deferred[$fd] done - %0.6f\n",
-				now() - $t0);
+			out($self, " deferred[$fd] done - %0.6f", now() - $t0);
 		}
 	};
 	$self->{long_res}->(); # kick off!
@@ -713,6 +712,16 @@ sub do_write ($$) {
 	$done;
 }
 
+sub err ($$;@) {
+	my ($self, $fmt, @args) = @_;
+	printf { $self->{nntpd}->{err} } $fmt."\n", @args;
+}
+
+sub out ($$;@) {
+	my ($self, $fmt, @args) = @_;
+	printf { $self->{nntpd}->{out} } $fmt."\n", @args;
+}
+
 use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
 sub do_more ($$) {
@@ -750,14 +759,12 @@ sub event_read {
 		$r = eval { $self->process_line($line) };
 		my $d = $self->{long_res} ?
 			' deferred['.fileno($self->{sock}).']' : '';
-		printf(STDERR "$line - %0.6f$d\n", now() - $t0);
+		out($self, "$line - %0.6f$d", now() - $t0);
 	}
 	return $self->close if $r < 0;
 	my $len = bytes::length($$buf);
 	return $self->close if ($len >= LINE_MAX);
 	$self->push_back_read($buf) if ($len);
 }
-
-sub warning { print STDERR 'W: ', @_, "\n" }
 
 1;

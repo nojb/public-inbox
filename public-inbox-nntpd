@@ -44,6 +44,8 @@ sub new {
 	my ($class) = @_;
 	my $self = fields::new($class);
 	$self->{groups} = {};
+	$self->{err} = \*STDERR;
+	$self->{out} = \*STDOUT;
 	$self;
 }
 
