@@ -141,6 +141,7 @@ sub mini_mime {
 		'X-PI-TS' => $self->ts,
 	);
 	if (my $refs = $self->{references_sorted}) {
+		$refs =~ s/></> </g;
 		push @h, References => $refs;
 	}
 	my $mime = Email::MIME->create(header_str => \@hs, header => \@h);

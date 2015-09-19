@@ -528,17 +528,61 @@ sub xhdr_message_id ($$) { # optimize XHDR Message-ID [range] for slrnpull.
 	}
 }
 
+sub header_obj_for {
+	my ($srch, $mid) = @_;
+	eval {
+		my $smsg = $srch->lookup_message($mid);
+		$smsg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
+		$smsg->mini_mime->header_obj;
+	};
+};
+
+sub xhdr_searchmsg ($$$) {
+	my ($self, $sub, $range) = @_;
+	my $srch = $self->{ng}->search;
+	my $emit = ($sub eq 'date') ? sub {
+		my ($pfx, $m) = @_;
+		my @t = gmtime($m->header('X-PI-TS'));
+		more($self, "$pfx ". strftime('%a, %d %b %Y %T %z', @t));
+	} : sub {
+		my ($pfx, $m) = @_;
+		my $h = $m->header($sub);
+		more($self, "$pfx $h") if defined $h;
+	};
+
+	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
+		more($self, '221 Header follows');
+		my $m = header_obj_for($srch, $1);
+		$emit->($range, $m) if defined $m;
+		'.';
+	} else { # numeric range
+		$range = $self->{article} unless defined $range;
+		my $mm = $self->{ng}->mm;
+		my $r = get_range($self, $range);
+		return $r unless ref $r;
+		my ($beg, $end) = @$r;
+		more($self, '221 Header follows');
+		$self->long_response($beg, $end, sub {
+			my ($i) = @_;
+			my $mid = $mm->mid_for($$i) or return;
+			my $m = header_obj_for($srch, $mid) or return;
+			$emit->($$i, $m);
+		});
+	}
+}
+
 sub cmd_xhdr ($$;$) {
 	my ($self, $header, $range) = @_;
-	defined $self->{ng} or return '412 no news group currently selected';
-	my $sub = $header;
-	$sub =~ tr/A-Z-/a-z_/;
-	$sub = eval {
-		no strict 'refs';
-		$sub = *{'xhdr_'.$sub}{CODE};
-	};
-	return xhdr_slow($self, $header, $range) unless defined $sub;
-	$sub->($self, $range);
+	my $ng = $self->{ng};
+	defined $ng or return '412 no news group currently selected';
+	my $sub = lc $header;
+	if ($sub eq 'message-id') {
+		xhdr_message_id($self, $range);
+	} elsif ($sub =~ /\A(subject|references|date)\z/ && $ng->search) {
+		xhdr_searchmsg($self, $sub, $range);
+	} else {
+		xhdr_slow($self, $header, $range);
+	}
 }
 
 sub xhdr_slow ($$$) {
@@ -566,6 +610,28 @@ sub xhdr_slow ($$$) {
 			more($self, "$$i $r");
 		});
 	}
+}
+
+sub cmd_xrover ($;$) {
+	my ($self, $range) = @_;
+	my $ng = $self->{ng} or return '412 no newsgroup selected';
+	(defined $range && $range =~ /[<>]/) and
+		return '420 No article(s) selected'; # no message IDs
+
+	$range = $self->{article} unless defined $range;
+	my $r = get_range($self, $range);
+	return $r unless ref $r;
+	my ($beg, $end) = @$r;
+	my $mm = $ng->mm;
+	my $srch = $ng->search;
+	more($self, '224 Overview information follows');
+	$self->long_response($beg, $end, sub {
+		my ($i) = @_;
+		my $mid = $mm->mid_for($$i) or return;
+		my $m = header_obj_for($srch, $mid) or return;
+		my $h = $m->header('references');
+		more($self, "$$i $h") if defined $h;
+	});
 }
 
 sub cmd_xover ($;$) {
