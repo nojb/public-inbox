@@ -514,7 +514,7 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
 sub do_more {
 	my ($self, $data) = @_;
-	if (MSG_MORE && !scalar @{$self->{write_buf}}) {
+	if (MSG_MORE && !$self->{write_buf_size}) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
 		if (defined $n) {
 			my $dlen = bytes::length($data);
