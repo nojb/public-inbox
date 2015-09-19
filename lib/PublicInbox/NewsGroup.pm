@@ -36,7 +36,10 @@ sub gcf {
 }
 
 sub mm {
-	my ($self) = @_;
+	my ($self, $check_only) = @_;
+	if ($check_only) {
+		return eval { PublicInbox::Msgmap->new($self->{git_dir}) };
+	}
 	$self->{mm} ||= eval {
 		my $mm = PublicInbox::Msgmap->new($self->{git_dir});
 
