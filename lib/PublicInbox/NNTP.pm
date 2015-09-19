@@ -505,9 +505,45 @@ sub long_response ($$$$) {
 	undef;
 }
 
+sub xhdr_message_id ($$) { # optimize XHDR Message-ID [range] for slrnpull.
+	my ($self, $range) = @_;
+
+	my $mm = $self->{ng}->mm;
+	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
+		my $n = $mm->num_for($range);
+		more($self, '221 Header follows');
+		more($self, "<$range> <$range>") if defined $n;
+		'.';
+	} else { # numeric range
+		$range = $self->{article} unless defined $range;
+		my $r = get_range($self, $range);
+		return $r unless ref $r;
+		my ($beg, $end) = @$r;
+		more($self, '221 Header follows');
+		$self->long_response($beg, $end, sub {
+			my ($i) = @_;
+			my $mid = $mm->mid_for($$i);
+			more($self, "$$i <$mid>") if defined $mid;
+		});
+	}
+}
+
 sub cmd_xhdr ($$;$) {
 	my ($self, $header, $range) = @_;
 	defined $self->{ng} or return '412 no news group currently selected';
+	my $sub = $header;
+	$sub =~ tr/A-Z-/a-z_/;
+	$sub = eval {
+		no strict 'refs';
+		$sub = *{'xhdr_'.$sub}{CODE};
+	};
+	return xhdr_slow($self, $header, $range) unless defined $sub;
+	$sub->($self, $range);
+}
+
+sub xhdr_slow ($$$) {
+	my ($self, $header, $range) = @_;
+
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my $r = $self->art_lookup($range, 2);
 		return $r unless ref $r;
