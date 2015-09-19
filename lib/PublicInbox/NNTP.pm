@@ -11,11 +11,13 @@ use PublicInbox::MID qw(mid2path);
 use Email::Simple;
 use Data::Dumper qw(Dumper);
 use POSIX qw(strftime);
-use Time::HiRes qw(gettimeofday tv_interval ualarm);
+use Time::HiRes qw(clock_gettime ualarm CLOCK_MONOTONIC);
 use constant {
 	r501 => '501 command syntax error',
 	long_response_limit => 0xffffffff,
 };
+
+sub now () { clock_gettime(CLOCK_MONOTONIC) };
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Bytes Lines);
 my %OVERVIEW = map { $_ => 1 } @OVERVIEW;
@@ -471,6 +473,8 @@ sub long_response ($$$$) {
 	# clients should not be sending us stuff and making us do more
 	# work while we are stream a response to them
 	$self->watch_read(0);
+	my $fd = fileno $self->{sock};
+	my $t0 = now();
 	$self->{long_res} = sub {
 		# limit our own running time for fairness with other
 		# clients and to avoid buffering too much:
@@ -487,8 +491,18 @@ sub long_response ($$$$) {
 
 		if ($err || $self->{closed}) {
 			$self->{long_res} = undef;
-			warning("$err during long response") if $err;
-			$self->watch_read(1) unless $self->{closed};
+
+			if ($err) {
+				warning("$err during long response[$fd] - ".
+					sprintf('%0.6', now() - $t0));
+			}
+			if ($self->{closed}) {
+				printf(STDERR
+				       " deferred[$fd] aborted - %0.6f\n",
+				       now() - $t0);
+			} else {
+				$self->watch_read(1);
+			}
 		} elsif ($yield || $self->{write_buf_size}) {
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
@@ -499,6 +513,8 @@ sub long_response ($$$$) {
 			$self->{long_res} = undef;
 			$self->watch_read(1);
 			res($self, '.');
+			printf(STDERR " deferred[$fd] done - %0.6f\n",
+				now() - $t0);
 		}
 	};
 	$self->{long_res}->(); # kick off!
@@ -719,12 +735,13 @@ sub event_read {
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
 	my $r = 1;
 	my $buf = $self->read(LINE_MAX) or return $self->close;
-	while ($r > 0 && $$buf =~ s/\A([^\r\n]+)\r?\n//) {
+	while ($r > 0 && $$buf =~ s/\A\s*([^\r\n]+)\r?\n//) {
 		my $line = $1;
-		my $t0 = [ gettimeofday ];
+		my $t0 = now();
 		$r = eval { $self->process_line($line) };
-		printf(STDERR "$line %0.6f\n",
-			tv_interval($t0, [gettimeofday]));
+		my $d = $self->{long_res} ?
+			' deferred['.fileno($self->{sock}).']' : '';
+		printf(STDERR "$line - %0.6f$d\n", now() - $t0);
 	}
 	return $self->close if $r < 0;
 	my $len = bytes::length($$buf);
@@ -732,6 +749,6 @@ sub event_read {
 	$self->push_back_read($buf) if ($len);
 }
 
-sub warning { print STDERR @_, "\n" }
+sub warning { print STDERR 'W: ', @_, "\n" }
 
 1;
