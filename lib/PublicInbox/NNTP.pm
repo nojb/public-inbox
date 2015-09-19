@@ -388,41 +388,50 @@ sub header_str ($) {
 	$h->as_string
 }
 
-sub cmd_article ($$) {
+sub set_art {
+	my ($self, $art) = @_;
+	$self->{article} = $art if defined $art && $art =~ /\A\d+\z/;
+}
+
+sub cmd_article ($;$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 1);
 	return $r unless ref $r;
 	my ($n, $mid, $s) = @$r;
+	set_art($self, $art);
 	more($self, "220 $n <$mid> article retrieved - head and body follow");
 	do_more($self, header_str($s));
 	do_more($self, "\r\n");
 	simple_body_write($self, $s);
 }
 
-sub cmd_head ($$) {
+sub cmd_head ($;$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 2);
 	return $r unless ref $r;
 	my ($n, $mid, $s) = @$r;
+	set_art($self, $art);
 	more($self, "221 $n <$mid> article retrieved - head follows");
 	do_more($self, header_str($s));
 	'.'
 }
 
-sub cmd_body ($$) {
+sub cmd_body ($;$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 0);
 	return $r unless ref $r;
 	my ($n, $mid, $s) = @$r;
+	set_art($self, $art);
 	more($self, "222 $n <$mid> article retrieved - body follows");
 	simple_body_write($self, $s);
 }
 
-sub cmd_stat ($$) {
+sub cmd_stat ($;$) {
 	my ($self, $art) = @_;
 	my $r = $self->art_lookup($art, 0);
 	return $r unless ref $r;
 	my ($n, $mid, undef) = @$r;
+	set_art($self, $art);
 	"223 $n <$mid> article retrieved - request text separately";
 }
 
