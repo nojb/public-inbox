@@ -13,6 +13,7 @@ sub new {
 	my ($class, $name, $git_dir, $address) = @_;
 	my $self = fields::new($class);
 	$self->{name} = $name;
+	$address = $address->[0] if ref($address);
 	$self->{domain} = ($address =~ /\@(\S+)\z/) ? $1 : 'localhost';
 	$self->{git_dir} = $git_dir;
 	$self->{address} = $address;
