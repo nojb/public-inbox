@@ -93,7 +93,7 @@ sub list_overview_fmt ($$) {
 sub list_active ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{name} =~ $wildmat or next;
 		group_line($self, $ng);
 	}
@@ -102,7 +102,7 @@ sub list_active ($;$) {
 sub list_active_times ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{name} =~ $wildmat or next;
 		my $c = eval { $ng->mm->created_at } || time;
 		more($self, "$ng->{name} $c $ng->{address}");
@@ -112,7 +112,7 @@ sub list_active_times ($;$) {
 sub list_newsgroups ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{name} =~ $wildmat or next;
 		my $d = $ng->description;
 		more($self, "$ng->{name} $d");
@@ -137,7 +137,7 @@ sub cmd_list ($;$$) {
 		$arg->($self, @args);
 	} else {
 		more($self, '215 list of newsgroups follows');
-		foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+		foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 			group_line($self, $ng);
 		}
 	}
@@ -200,7 +200,7 @@ sub cmd_newgroups ($$$;$$) {
 
 	# TODO dists
 	more($self, '231 list of new newsgroups follows');
-	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		my $c = eval { $ng->mm->created_at } || 0;
 		next unless $c > $ts;
 		group_line($self, $ng);
@@ -249,7 +249,7 @@ sub cmd_newnews ($$$$;$$) {
 	ngpat2re($keep);
 	ngpat2re($skip);
 	my @srch;
-	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{name} =~ $keep or next;
 		$ng->{name} =~ $skip and next;
 		my $srch = $ng->search or next;
