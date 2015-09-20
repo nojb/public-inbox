@@ -754,7 +754,9 @@ sub event_err { $_[0]->close }
 sub event_write {
 	my ($self) = @_;
 	# only continue watching for readability when we are done writing:
-	$self->write(undef) == 1 and $self->watch_read(1);
+	if ($self->write(undef) == 1 && !$self->{long_res}) {
+		$self->watch_read(1);
+	}
 }
 
 sub event_read {
