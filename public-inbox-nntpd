@@ -146,7 +146,8 @@ sub worker_quit {
 		my ($dmap, undef) = @_;
 		my $n = 0;
 		foreach my $s (values %$dmap) {
-			if ($s->{write_buf_size} || @{$s->{read_push_back}}) {
+			next unless ref($s) eq 'PublicInbox::NNTP';
+			if ($s->{write_buf_size} || $s->{rbuf}) {
 				++$n;
 			} else {
 				$s->close;
