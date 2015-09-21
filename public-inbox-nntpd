@@ -172,13 +172,13 @@ sub sockname {
 	my ($s) = @_;
 	my $n = getsockname($s) or return;
 	my ($port, $addr);
-	if (bytes::length($n) >= 28) {
+	if (length($n) >= 28) {
 		require Socket6;
 		($port, $addr) = Socket6::unpack_sockaddr_in6($n);
 	} else {
 		($port, $addr) = Socket::sockaddr_in($n);
 	}
-	if (bytes::length($addr) == 4) {
+	if (length($addr) == 4) {
 		$n = Socket::inet_ntoa($addr)
 	} else {
 		$n = '['.Socket6::inet_ntop(Socket6::AF_INET6(), $addr).']';

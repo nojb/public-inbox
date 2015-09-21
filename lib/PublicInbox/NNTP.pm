@@ -771,9 +771,9 @@ sub do_more ($$) {
 	if (MSG_MORE && !$self->{write_buf_size}) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
 		if (defined $n) {
-			my $dlen = bytes::length($data);
+			my $dlen = length($data);
 			return 1 if $n == $dlen; # all done!
-			$data = bytes::substr($data, $n, $dlen - $n);
+			$data = substr($data, $n, $dlen - $n);
 		}
 	}
 	$self->do_write($data);
@@ -813,7 +813,7 @@ again:
 	}
 
 	return $self->close if $r < 0;
-	my $len = bytes::length($self->{rbuf});
+	my $len = length($self->{rbuf});
 	return $self->close if ($len >= LINE_MAX);
 }
 

@@ -41,7 +41,7 @@ sub cat_file {
 	my ($self, $object, $sizeref) = @_;
 
 	$object .= "\n";
-	my $len = bytes::length($object);
+	my $len = length($object);
 
 	$self->_cat_file_begin;
 	my $written = syswrite($self->{out}, $object);

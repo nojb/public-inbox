@@ -233,7 +233,7 @@ sub replace_body {
 sub recheck_type_ok {
 	my ($part) = @_;
 	my $s = $part->body;
-	((bytes::length($s) < 0x10000) &&
+	((length($s) < 0x10000) &&
 		($s =~ /\A([\P{XPosixPrint}\f\n\r\t]+)\z/))
 }
 
