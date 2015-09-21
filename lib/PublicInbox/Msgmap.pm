@@ -84,10 +84,10 @@ sub mid_insert {
 	$dbh->last_insert_id(undef, undef, 'msgmap', 'num');
 }
 
-use constant MID_FOR => 'SELECT mid FROM msgmap WHERE num = ? LIMIT 1';
 sub mid_for {
 	my ($self, $num) = @_;
 	my $dbh = $self->{dbh};
+	use constant MID_FOR => 'SELECT mid FROM msgmap WHERE num = ? LIMIT 1';
 	my $sth = $self->{mid_for} ||= $dbh->prepare(MID_FOR);
 	$sth->bind_param(1, $num);
 	$sth->execute;
