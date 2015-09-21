@@ -44,7 +44,6 @@ my %opts = (
 	Listen => 1024,
 );
 my $sock = IO::Socket::INET->new(%opts);
-plan skip_all => 'sock fd!=3, cannot test nntpd integration' if fileno($sock) != 3;
 my $pid;
 END { kill 'TERM', $pid if defined $pid };
 {
@@ -78,8 +77,10 @@ EOF
 	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
 	$pid = fork;
 	if ($pid == 0) {
+		use POSIX qw(dup2);
 		# pretend to be systemd
 		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
+		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
 		$ENV{LISTEN_PID} = $$;
 		$ENV{LISTEN_FDS} = 1;
 		exec $nntpd, "--stdout=$out", "--stderr=$err";
