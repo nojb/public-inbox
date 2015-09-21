@@ -366,7 +366,8 @@ find_mid:
 	}
 found:
 	my $o = 'HEAD:' . mid2path($mid);
-	my $s = eval { Email::Simple->new($ng->gcf->cat_file($o)) };
+	my $bytes;
+	my $s = eval { Email::Simple->new($ng->gcf->cat_file($o, \$bytes)) };
 	return $err unless $s;
 	if ($set_headers) {
 		$s->header_set('Newsgroups', $ng->{name});
@@ -375,7 +376,7 @@ found:
 
 		# must be last
 		if ($set_headers == 2) {
-			$s->header_set('Bytes', bytes::length($s->as_string));
+			$s->header_set('Bytes', $bytes);
 			$s->body_set('');
 		}
 	}

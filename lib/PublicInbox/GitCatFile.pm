@@ -38,7 +38,7 @@ sub _cat_file_begin {
 }
 
 sub cat_file {
-	my ($self, $object) = @_;
+	my ($self, $object, $sizeref) = @_;
 
 	$object .= "\n";
 	my $len = bytes::length($object);
@@ -58,6 +58,7 @@ sub cat_file {
 		die "Unexpected result from git cat-file: $head\n";
 
 	my $size = $1;
+	$$sizeref = $size if $sizeref;
 	my $bytes_left = $size;
 	my $offset = 0;
 	my $rv = '';
