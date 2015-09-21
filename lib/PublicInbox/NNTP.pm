@@ -371,7 +371,7 @@ found:
 	if ($set_headers) {
 		$s->header_set('Newsgroups', $ng->{name});
 		$s->header_set('Lines', $s->body =~ tr!\n!\n!);
-		$s->header_set('Xref', "$ng->{domain} $ng->{name}:$n");
+		$s->header_set('Xref', xref($ng, $n));
 
 		# must be last
 		if ($set_headers == 2) {
@@ -562,6 +562,35 @@ sub xhdr_message_id ($$) { # optimize XHDR Message-ID [range] for slrnpull.
 	}
 }
 
+sub xref ($$) {
+	my ($ng, $n) = @_;
+	"$ng->{domain} $ng->{name}:$n"
+}
+
+sub xhdr_xref ($$) { # optimize XHDR Xref [range] for rtin
+	my ($self, $range) = @_;
+
+	my $ng = $self->{ng};
+	my $mm = $ng->mm;
+	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
+		my $n = $mm->num_for($range);
+		more($self, '221 Header follows');
+		more($self, "<$range> ".xref($ng, $n)) if defined $n;
+		'.';
+	} else { # numeric range
+		$range = $self->{article} unless defined $range;
+		my $r = get_range($self, $range);
+		return $r unless ref $r;
+		my ($beg, $end) = @$r;
+		more($self, '221 Header follows');
+		$self->long_response($beg, $end, sub {
+			my ($i) = @_;
+			my $mid = $mm->mid_for($$i);
+			more($self, "$$i ".xref($ng, $$i)) if defined $mid;
+		});
+	}
+}
+
 sub header_obj_for {
 	my ($srch, $mid) = @_;
 	eval {
@@ -612,6 +641,8 @@ sub cmd_xhdr ($$;$) {
 	my $sub = lc $header;
 	if ($sub eq 'message-id') {
 		xhdr_message_id($self, $range);
+	} elsif ($sub eq 'xref') {
+		xhdr_xref($self, $range);
 	} elsif ($sub =~ /\A(subject|references|date)\z/ && $ng->search) {
 		xhdr_searchmsg($self, $sub, $range);
 	} else {
