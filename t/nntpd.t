@@ -88,8 +88,8 @@ EOF
 	}
 	ok(defined $pid, 'forked nntpd process successfully');
 	$! = 0;
-	ok(! $!, 'no error from fcntl(F_SETFD)');
 	fcntl($sock, F_SETFD, $fl |= FD_CLOEXEC);
+	ok(! $!, 'no error from fcntl(F_SETFD)');
 	my $n = Net::NNTP->new($sock->sockhost . ':' . $sock->sockport);
 	my $list = $n->list;
 	is_deeply($list, { $group => [ qw(1 1 n) ] }, 'LIST works');
