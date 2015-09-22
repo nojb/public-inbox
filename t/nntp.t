@@ -61,4 +61,33 @@ use_ok 'PublicInbox::NNTP';
 	ngpat_like('a.s.r', 'a.t,a.s.*');
 }
 
+{
+	use POSIX qw(strftime);
+	sub time_roundtrip {
+		my ($date, $time, $gmt) = @_;
+		my $m = join(' ', @_);
+		my $ts = PublicInbox::NNTP::parse_time(@_);
+		my @t = gmtime($ts);
+		my ($d, $t);
+		if (length($date) == 8) {
+			($d, $t) = split(' ', strftime('%Y%m%d %H%M%S', @t));
+		} else {
+			($d, $t) = split(' ', strftime('%g%m%d %H%M%S', @t));
+		}
+		is_deeply([$d, $t], [$date, $time], "roundtripped: $m");
+		$ts;
+	}
+	my $x1 = time_roundtrip(qw(20141109 060606 GMT));
+	my $x2 = time_roundtrip(qw(141109 060606 GMT));
+	my $x3 = time_roundtrip(qw(930724 060606 GMT));
+
+	SKIP: {
+		skip('YYMMDD test needs updating', 2) if (time > 0x7fffffff);
+		# our world probably ends in 2038, but if not we'll try to
+		# remember to update the test then
+		is($x1, $x2, 'YYYYMMDD and YYMMDD parse identically');
+		is(strftime('%Y', gmtime($x3)), '1993', '930724 was in 1993');
+	}
+}
+
 done_testing();

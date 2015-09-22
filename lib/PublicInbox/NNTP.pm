@@ -169,22 +169,26 @@ sub cmd_listgroup ($;$) {
 sub parse_time ($$;$) {
 	my ($date, $time, $gmt) = @_;
 	use Time::Local qw();
-	my ($YY, $MM, $DD) = unpack('A2A2A2', $date);
 	my ($hh, $mm, $ss) = unpack('A2A2A2', $time);
 	if (defined $gmt) {
 		$gmt =~ /\A(?:UTC|GMT)\z/i or die "GM invalid: $gmt\n";
 		$gmt = 1;
 	}
 	my @now = $gmt ? gmtime : localtime;
-	if ($YY > strftime('%y', @now)) {
-		my $cur_year = $now[5] + 1900;
-		$YY += int($cur_year / 1000) * 1000 - 100;
+	my ($YYYY, $MM, $DD);
+	if (length($date) == 8) { # RFC 3977 allows YYYYMMDD
+		($YYYY, $MM, $DD) = unpack('A4A2A2', $date);
+	} else { # legacy clients send YYMMDD
+		($YYYY, $MM, $DD) = unpack('A2A2A2', $date);
+		if ($YYYY > strftime('%y', @now)) {
+			my $cur_year = $now[5] + 1900;
+			$YYYY += int($cur_year / 1000) * 1000 - 100;
+		}
 	}
-
 	if ($gmt) {
-		Time::Local::timegm($ss, $mm, $hh, $DD, $MM - 1, $YY);
+		Time::Local::timegm($ss, $mm, $hh, $DD, $MM - 1, $YYYY);
 	} else {
-		Time::Local::timelocal($ss, $mm, $hh, $DD, $MM - 1, $YY);
+		Time::Local::timelocal($ss, $mm, $hh, $DD, $MM - 1, $YYYY);
 	}
 }
 
