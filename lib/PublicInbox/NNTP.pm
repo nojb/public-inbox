@@ -383,7 +383,7 @@ found:
 		# must be last
 		$s->body_set('') if ($set_headers == 2);
 	}
-	[ $n, $mid, $s, $bytes, $lines ];
+	[ $n, $mid, $s, $bytes, $lines, $ng ];
 }
 
 sub simple_body_write ($$) {
@@ -701,6 +701,32 @@ sub cmd_xrover ($;$) {
 	});
 }
 
+sub over_line {
+	my ($self, $r) = @_;
+
+	more($self, join("\t", $r->[0], map {
+				my $h = xhdr($r, $_);
+				defined $h ? $h : '';
+			} @OVERVIEW ));
+}
+
+sub cmd_over ($;$) {
+	my ($self, $range) = @_;
+	if ($range && $range =~ /\A<.+>\z/) {
+		my $r = $self->art_lookup($range, 2);
+		return '430 No article with that message-id' unless ref $r;
+		more($self, '224 Overview information follows (multi-line)');
+
+		# Only set article number column if it's the current group
+		my $ng = $self->{ng};
+		$r->[0] = 0 if (!$ng || $ng ne $r->[5]);
+		over_line($self, $r);
+		'.';
+	} else {
+		cmd_xover($self, $range);
+	}
+}
+
 sub cmd_xover ($;$) {
 	my ($self, $range) = @_;
 	$range = $self->{article} unless defined $range;
@@ -712,11 +738,7 @@ sub cmd_xover ($;$) {
 		my ($i) = @_;
 		my $r = $self->art_lookup($$i, 2);
 		return unless ref $r;
-		more($self, join("\t", $r->[0],
-				map {
-					my $h = xhdr($r, $_);
-					defined $h ? $h : '';
-				} @OVERVIEW ));
+		over_line($self, $r);
 	});
 }
 
