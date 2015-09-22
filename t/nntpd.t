@@ -95,6 +95,23 @@ EOF
 	is_deeply($list, { $group => [ qw(1 1 n) ] }, 'LIST works');
 	is_deeply([$n->group($group)], [ qw(0 1 1), $group ], 'GROUP works');
 
+	my $mid = '<nntp@example.com>';
+	my %xhdr = (
+		'message-id' => $mid,
+		'subject' => 'hihi',
+		'date' => 'Thu, 01 Jan 1970 00:00:00 +0000',
+		'from' => 'Me <me@example.com>',
+		'to' => 'You <you@example.com>',
+		'cc' => $addr,
+		'xref' => "example.com $group:1"
+	);
+	while (my ($k, $v) = each %xhdr) {
+		is_deeply($n->xhdr("$k $mid"), { $mid => $v },
+			  "$k by message-id works");
+		is_deeply($n->xhdr("$k 1"), { 1 => $v },
+			  "$k by article number works");
+	}
+
 	# TODO: upgrades and such
 
 	ok(kill('TERM', $pid), 'killed nntpd');

@@ -546,9 +546,10 @@ sub xhdr_message_id ($$) { # optimize XHDR Message-ID [range] for slrnpull.
 
 	my $mm = $self->{ng}->mm;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
-		my $n = $mm->num_for($range);
+		my $n = $mm->num_for($1);
+		return '430 No article with that message-id' unless $n;
 		more($self, '221 Header follows');
-		more($self, "<$range> <$range>") if defined $n;
+		more($self, "$range $range");
 		'.';
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
@@ -575,9 +576,9 @@ sub xhdr_xref ($$) { # optimize XHDR Xref [range] for rtin
 	my $ng = $self->{ng};
 	my $mm = $ng->mm;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
-		my $n = $mm->num_for($range);
+		my $n = $mm->num_for($1);
 		more($self, '221 Header follows');
-		more($self, "<$range> ".xref($ng, $n)) if defined $n;
+		more($self, "$range ".xref($ng, $n)) if defined $n;
 		'.';
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
@@ -655,12 +656,12 @@ sub cmd_xhdr ($$;$) {
 sub xhdr_slow ($$$) {
 	my ($self, $header, $range) = @_;
 
-	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
+	if (defined $range && $range =~ /\A<.+>\z/) { # Message-ID
 		my $r = $self->art_lookup($range, 2);
 		return $r unless ref $r;
 		more($self, '221 Header follows');
 		if (defined($r = xhdr($r, $header))) {
-			more($self, "<$range> $r");
+			more($self, "$range $r");
 		}
 		'.';
 	} else { # numeric range
