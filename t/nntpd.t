@@ -90,7 +90,8 @@ EOF
 	$! = 0;
 	fcntl($sock, F_SETFD, $fl |= FD_CLOEXEC);
 	ok(! $!, 'no error from fcntl(F_SETFD)');
-	my $n = Net::NNTP->new($sock->sockhost . ':' . $sock->sockport);
+	my $host_port = $sock->sockhost . ':' . $sock->sockport;
+	my $n = Net::NNTP->new($host_port);
 	my $list = $n->list;
 	is_deeply($list, { $group => [ qw(1 1 n) ] }, 'LIST works');
 	is_deeply([$n->group($group)], [ qw(0 1 1), $group ], 'GROUP works');
@@ -110,6 +111,14 @@ EOF
 			  "$k by message-id works");
 		is_deeply($n->xhdr("$k 1"), { 1 => $v },
 			  "$k by article number works");
+	}
+
+	{
+		my $nogroup = Net::NNTP->new($host_port);
+		while (my ($k, $v) = each %xhdr) {
+			is_deeply($nogroup->xhdr("$k $mid"), { $mid => $v },
+				  "$k by message-id works without group");
+		}
 	}
 
 	# TODO: upgrades and such

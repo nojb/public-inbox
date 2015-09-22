@@ -544,17 +544,18 @@ sub long_response ($$$$) {
 sub xhdr_message_id ($$) { # optimize XHDR Message-ID [range] for slrnpull.
 	my ($self, $range) = @_;
 
-	my $mm = $self->{ng}->mm;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
-		my $n = $mm->num_for($1);
+		my ($ng, $n) = mid_lookup($self, $1);
 		return '430 No article with that message-id' unless $n;
 		more($self, '221 Header follows');
+		my $self_ng = $self->{ng};
 		more($self, "$range $range");
 		'.';
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
+		my $mm = $self->{ng}->mm;
 		my ($beg, $end) = @$r;
 		more($self, '221 Header follows');
 		$self->long_response($beg, $end, sub {
@@ -570,20 +571,36 @@ sub xref ($$) {
 	"$ng->{domain} $ng->{name}:$n"
 }
 
+sub mid_lookup ($$) {
+	my ($self, $mid) = @_;
+	my $self_ng = $self->{ng};
+	if ($self_ng) {
+		my $n = $self_ng->mm->num_for($mid);
+		return ($self_ng, $n) if defined $n;
+	}
+	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
+		next if $ng eq $self_ng;
+		my $n = $ng->mm->num_for($mid);
+		return ($ng, $n) if defined $n;
+	}
+	(undef, undef);
+}
+
 sub xhdr_xref ($$) { # optimize XHDR Xref [range] for rtin
 	my ($self, $range) = @_;
 
-	my $ng = $self->{ng};
-	my $mm = $ng->mm;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
-		my $n = $mm->num_for($1);
+		my ($ng, $n) = mid_lookup($self, $1);
+		return '430 No article with that message-id' unless $n;
 		more($self, '221 Header follows');
-		more($self, "$range ".xref($ng, $n)) if defined $n;
+		more($self, "$range ".xref($ng, $n));
 		'.';
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
+		my $ng = $self->{ng};
+		my $mm = $ng->mm;
 		my ($beg, $end) = @$r;
 		more($self, '221 Header follows');
 		$self->long_response($beg, $end, sub {
@@ -605,7 +622,6 @@ sub header_obj_for {
 
 sub xhdr_searchmsg ($$$) {
 	my ($self, $sub, $range) = @_;
-	my $srch = $self->{ng}->search;
 	my $emit = ($sub eq 'date') ? sub {
 		my ($pfx, $m) = @_;
 		my @t = gmtime($m->header('X-PI-TS'));
@@ -617,12 +633,20 @@ sub xhdr_searchmsg ($$$) {
 	};
 
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
-		more($self, '221 Header follows');
-		my $m = header_obj_for($srch, $1);
-		$emit->($range, $m) if defined $m;
-		'.';
+		my ($ng, $n) = mid_lookup($self, $1);
+		return '430 No article with that message-id' unless $n;
+		if (my $srch = $ng->search) {
+			more($self, '221 Header follows');
+			my $m = header_obj_for($srch, $range);
+			$emit->($range, $m) if defined $m;
+			'.';
+		} else {
+			xhdr_slow($self, $sub, $range);
+		}
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
+		my $srch = $self->{ng}->search or
+				return xhdr_slow($self, $sub, $range);
 		my $mm = $self->{ng}->mm;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
@@ -639,14 +663,12 @@ sub xhdr_searchmsg ($$$) {
 
 sub cmd_xhdr ($$;$) {
 	my ($self, $header, $range) = @_;
-	my $ng = $self->{ng};
-	defined $ng or return '412 no news group currently selected';
 	my $sub = lc $header;
 	if ($sub eq 'message-id') {
 		xhdr_message_id($self, $range);
 	} elsif ($sub eq 'xref') {
 		xhdr_xref($self, $range);
-	} elsif ($sub =~ /\A(subject|references|date)\z/ && $ng->search) {
+	} elsif ($sub =~ /\A(subject|references|date)\z/) {
 		xhdr_searchmsg($self, $sub, $range);
 	} else {
 		xhdr_slow($self, $header, $range);
@@ -660,9 +682,8 @@ sub xhdr_slow ($$$) {
 		my $r = $self->art_lookup($range, 2);
 		return $r unless ref $r;
 		more($self, '221 Header follows');
-		if (defined($r = xhdr($r, $header))) {
-			more($self, "$range $r");
-		}
+		$r = xhdr($r, $header);
+		more($self, "$range $r") if defined $r;
 		'.';
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
