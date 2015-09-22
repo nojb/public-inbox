@@ -393,7 +393,9 @@ sub simple_body_write ($$) {
 	my $body = $s->body;
 	$s->body_set('');
 	$body =~ s/^\./../smg;
+	$body =~ s/(?<!\r)\n/\r\n/sg;
 	do_more($self, $body);
+	do_more($self, "\r\n") unless $body =~ /\r\n\z/s;
 	'.'
 }
 
