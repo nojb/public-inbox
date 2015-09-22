@@ -374,18 +374,16 @@ found:
 	my $bytes;
 	my $s = eval { Email::MIME->new($ng->gcf->cat_file($o, \$bytes)) };
 	return $err unless $s;
+	my $lines;
 	if ($set_headers) {
 		$s->header_set('Newsgroups', $ng->{name});
-		$s->header_set('Lines', $s->body =~ tr!\n!\n!);
 		$s->header_set('Xref', xref($ng, $n));
+		$lines = $s->body =~ tr!\n!\n!;
 
 		# must be last
-		if ($set_headers == 2) {
-			$s->header_set('Bytes', $bytes);
-			$s->body_set('');
-		}
+		$s->body_set('') if ($set_headers == 2);
 	}
-	[ $n, $mid, $s ];
+	[ $n, $mid, $s, $bytes, $lines ];
 }
 
 sub simple_body_write ($$) {
@@ -397,13 +395,6 @@ sub simple_body_write ($$) {
 	do_more($self, $body);
 	do_more($self, "\r\n") unless $body =~ /\r\n\z/s;
 	'.'
-}
-
-sub header_str ($) {
-	my ($s) = @_;
-	my $h = $s->header_obj;
-	$h->header_set('Bytes');
-	$h->as_string
 }
 
 sub set_art {
@@ -418,7 +409,7 @@ sub cmd_article ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "220 $n <$mid> article retrieved - head and body follow");
-	do_more($self, header_str($s));
+	do_more($self, $s->header_obj->as_string);
 	do_more($self, "\r\n");
 	simple_body_write($self, $s);
 }
@@ -430,7 +421,7 @@ sub cmd_head ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "221 $n <$mid> article retrieved - head follows");
-	do_more($self, header_str($s));
+	do_more($self, $s->header_obj->as_string);
 	'.'
 }
 
@@ -486,6 +477,9 @@ sub get_range ($$) {
 
 sub xhdr ($$) {
 	my ($r, $header) = @_;
+	$header = lc $header;
+	return $r->[3] if ($header eq 'bytes');
+	return $r->[4] if ($header eq 'lines');
 	$r = $r->[2]->header_obj->header($header);
 	defined $r or return;
 	$r =~ s/[\r\n\t]+/ /sg;
