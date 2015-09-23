@@ -59,7 +59,7 @@ To: You <you\@example.com>
 Cc: $addr
 Message-Id: <nntp\@example.com>
 Subject: hihi
-Date: Thu, 01 Jan 1970 00:00:00 +0000
+Date: Thu, 01 Jan 1970 06:06:06 +0000
 
 nntp
 EOF
@@ -96,21 +96,44 @@ EOF
 	is_deeply($list, { $group => [ qw(1 1 n) ] }, 'LIST works');
 	is_deeply([$n->group($group)], [ qw(0 1 1), $group ], 'GROUP works');
 
+	%opts = (
+		PeerAddr => $host_port,
+		Proto => 'tcp',
+		Type => SOCK_STREAM,
+		Timeout => 1,
+	);
 	my $mid = '<nntp@example.com>';
 	my %xhdr = (
 		'message-id' => $mid,
 		'subject' => 'hihi',
-		'date' => 'Thu, 01 Jan 1970 00:00:00 +0000',
+		'date' => 'Thu, 01 Jan 1970 06:06:06 +0000',
 		'from' => 'Me <me@example.com>',
 		'to' => 'You <you@example.com>',
 		'cc' => $addr,
 		'xref' => "example.com $group:1"
 	);
+
+	my $s = IO::Socket::INET->new(%opts);
+	sysread($s, my $buf, 4096);
+	is($buf, "201 server ready - post via email\r\n", 'got greeting');
+	$s->autoflush(1);
+
 	while (my ($k, $v) = each %xhdr) {
 		is_deeply($n->xhdr("$k $mid"), { $mid => $v },
-			  "$k by message-id works");
+			  "XHDR $k by message-id works");
 		is_deeply($n->xhdr("$k 1"), { 1 => $v },
 			  "$k by article number works");
+		is_deeply($n->xhdr("$k 1-"), { 1 => $v },
+			  "$k by article range works");
+		next;
+		$buf = '';
+		syswrite($s, "HDR $k $mid\r\n");
+		do {
+			sysread($s, $buf, 4096, length($buf));
+		} until ($buf =~ /^[^2]../ || $buf =~ /\r\n\.\r\n\z/);
+		my @r = split("\r\n", $buf);
+		like($r[0], qr/\A224 /, '224 response for HDR');
+		is($r[1], "0 $v", 'got expected response for HDR');
 	}
 
 	{

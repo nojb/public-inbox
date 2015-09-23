@@ -14,6 +14,9 @@ use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime ualarm CLOCK_MONOTONIC);
 use constant {
 	r501 => '501 command syntax error',
+	r221 => '221 Header follows',
+	r224 => '224 Overview information follows (multi-line)',
+	r430 => '430 No article with that message-id',
 	long_response_limit => 0xffffffff,
 };
 
@@ -346,7 +349,7 @@ sub art_lookup ($$$) {
 			goto find_mid;
 		} elsif ($art =~ /\A<([^>]+)>\z/) {
 			$mid = $1;
-			$err = '430 no such article found';
+			$err = r430;
 			$n = $ng->mm->num_for($mid) if $ng;
 			goto found if defined $n;
 			foreach my $g (values %{$self->{nntpd}->{groups}}) {
@@ -475,7 +478,7 @@ sub get_range ($$) {
 	[ $beg, $end ];
 }
 
-sub xhdr ($$) {
+sub hdr_val ($$) {
 	my ($r, $header) = @_;
 	$header = lc $header;
 	return $r->[3] if ($header eq 'bytes');
@@ -541,16 +544,13 @@ sub long_response ($$$$) {
 	undef;
 }
 
-sub xhdr_message_id ($$) { # optimize XHDR Message-ID [range] for slrnpull.
-	my ($self, $range) = @_;
+sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
+	my ($self, $xhdr, $range) = @_;
 
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my ($ng, $n) = mid_lookup($self, $1);
-		return '430 No article with that message-id' unless $n;
-		more($self, '221 Header follows');
-		my $self_ng = $self->{ng};
-		more($self, "$range $range");
-		'.';
+		return r430 unless $n;
+		hdr_mid_response($self, $xhdr, $ng, $n, $range, $range);
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
@@ -579,22 +579,20 @@ sub mid_lookup ($$) {
 		return ($self_ng, $n) if defined $n;
 	}
 	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
-		next if $ng eq $self_ng;
+		next if defined $self_ng && $ng eq $self_ng;
 		my $n = $ng->mm->num_for($mid);
 		return ($ng, $n) if defined $n;
 	}
 	(undef, undef);
 }
 
-sub xhdr_xref ($$) { # optimize XHDR Xref [range] for rtin
-	my ($self, $range) = @_;
+sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
+	my ($self, $xhdr, $range) = @_;
 
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my ($ng, $n) = mid_lookup($self, $1);
-		return '430 No article with that message-id' unless $n;
-		more($self, '221 Header follows');
-		more($self, "$range ".xref($ng, $n));
-		'.';
+		return r430 unless $n;
+		hdr_mid_response($self, $xhdr, $ng, $n, $range, xref($ng, $n));
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
@@ -620,33 +618,31 @@ sub header_obj_for {
 	};
 };
 
-sub xhdr_searchmsg ($$$) {
-	my ($self, $sub, $range) = @_;
-	my $emit = ($sub eq 'date') ? sub {
-		my ($pfx, $m) = @_;
-		my @t = gmtime($m->header('X-PI-TS'));
-		more($self, "$pfx ". strftime('%a, %d %b %Y %T %z', @t));
-	} : sub {
-		my ($pfx, $m) = @_;
-		my $h = $m->header($sub);
-		more($self, "$pfx $h") if defined $h;
-	};
+sub hdr_searchmsg ($$$$) {
+	my ($self, $xhdr, $hdr, $range) = @_;
+	my $filter;
+	if ($hdr eq 'date') {
+		$hdr = 'X-PI-TS';
+		$filter = sub ($) {
+			strftime('%a, %d %b %Y %T %z', gmtime($_[0]));
+		};
+	}
 
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my ($ng, $n) = mid_lookup($self, $1);
-		return '430 No article with that message-id' unless $n;
+		return r430 unless $n;
 		if (my $srch = $ng->search) {
-			more($self, '221 Header follows');
 			my $m = header_obj_for($srch, $range);
-			$emit->($range, $m) if defined $m;
-			'.';
+			my $v = $m->header($hdr);
+			$v = $filter->($v) if defined $v && $filter;
+			hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
 		} else {
-			xhdr_slow($self, $sub, $range);
+			hdr_slow($self, $xhdr, $hdr, $range);
 		}
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $srch = $self->{ng}->search or
-				return xhdr_slow($self, $sub, $range);
+				return hdr_slow($self, $xhdr, $hdr, $range);
 		my $mm = $self->{ng}->mm;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
@@ -656,46 +652,89 @@ sub xhdr_searchmsg ($$$) {
 			my ($i) = @_;
 			my $mid = $mm->mid_for($$i) or return;
 			my $m = header_obj_for($srch, $mid) or return;
-			$emit->($$i, $m);
+			my $v = $m->header($hdr);
+			defined $v or return;
+			$v = $filter->($v) if $filter;
+			more($self, "$$i $v");
 		});
 	}
 }
 
-sub cmd_xhdr ($$;$) {
-	my ($self, $header, $range) = @_;
+sub do_hdr ($$$;$) {
+	my ($self, $xhdr, $header, $range) = @_;
 	my $sub = lc $header;
 	if ($sub eq 'message-id') {
-		xhdr_message_id($self, $range);
+		hdr_message_id($self, $xhdr, $range);
 	} elsif ($sub eq 'xref') {
-		xhdr_xref($self, $range);
+		hdr_xref($self, $xhdr, $range);
 	} elsif ($sub =~ /\A(subject|references|date)\z/) {
-		xhdr_searchmsg($self, $sub, $range);
+		hdr_searchmsg($self, $xhdr, $sub, $range);
 	} else {
-		xhdr_slow($self, $header, $range);
+		hdr_slow($self, $xhdr, $header, $range);
 	}
 }
 
-sub xhdr_slow ($$$) {
+# RFC 3977
+sub cmd_hdr ($$;$) {
 	my ($self, $header, $range) = @_;
+	do_hdr($self, 0, $header, $range);
+}
+
+# RFC 2980
+sub cmd_xhdr ($$;$) {
+	my ($self, $header, $range) = @_;
+	do_hdr($self, 1, $header, $range);
+}
+
+sub hdr_mid_prefix ($$$$$) {
+	my ($self, $xhdr, $ng, $n, $mid) = @_;
+	return $mid if $xhdr;
+
+	# HDR for RFC 3977 users
+	if (my $self_ng = $self->{ng}) {
+		($self_ng eq $ng) ? $n : '0';
+	} else {
+		'0';
+	}
+}
+
+sub hdr_mid_response ($$$$$$) {
+	my ($self, $xhdr, $ng, $n, $mid, $v) = @_; # r: art_lookup result
+	my $res = '';
+	if ($xhdr) {
+		$res .= r221 . "\r\n";
+		$res .= "$mid $v\r\n" if defined $v;
+	} else {
+		$res .= r224 . "\r\n";
+		if (defined $v) {
+			my $pfx = hdr_mid_prefix($self, $xhdr, $ng, $n, $mid);
+			$res .= "$pfx $v\r\n";
+		}
+	}
+	res($self, $res .= '.');
+	undef;
+}
+
+sub hdr_slow ($$$$) {
+	my ($self, $xhdr, $header, $range) = @_;
 
 	if (defined $range && $range =~ /\A<.+>\z/) { # Message-ID
 		my $r = $self->art_lookup($range, 2);
 		return $r unless ref $r;
-		more($self, '221 Header follows');
-		$r = xhdr($r, $header);
-		more($self, "$range $r") if defined $r;
-		'.';
+		my ($n, $ng) = ($r->[0], $r->[5]);
+		my $v = hdr_val($r, $header);
+		hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
-		more($self, '221 Header follows');
+		more($self, $xhdr ? r221 : r224);
 		$self->long_response($beg, $end, sub {
 			my ($i) = @_;
 			$r = $self->art_lookup($$i, 2);
 			return unless ref $r;
-			defined($r = xhdr($r, $header)) or return;
+			defined($r = hdr_val($r, $header)) or return;
 			more($self, "$$i $r");
 		});
 	}
