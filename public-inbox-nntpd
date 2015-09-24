@@ -205,7 +205,7 @@ sub worker_quit {
 
 		foreach my $s (values %$dmap) {
 			next unless ref($s) eq 'PublicInbox::NNTP';
-			if ($s->{write_buf_size} || $s->{rbuf}) {
+			if ($s->busy) {
 				++$n;
 			} else {
 				$s->close;

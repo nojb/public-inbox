@@ -919,4 +919,9 @@ sub watch_read {
 	$rv;
 }
 
+sub busy () {
+	my ($self) = @_;
+	($self->{rbuf} ne '' || $self->{long_res} || $self->{write_buf_size});
+}
+
 1;
