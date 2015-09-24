@@ -99,6 +99,9 @@ if (defined $pid_file || defined $group || defined $user || $daemonize) {
 	if (defined $pid_file) {
 		my $unlink_pid = $$;
 		Net::Server::Daemonize::create_pid_file($pid_file);
+		if ($uid and !chown($uid, $gid, $pid_file)) {
+			warn "could not chown $pid_file: $!\n";
+		}
 		END { unlink_pid_file_safe_ish($unlink_pid, $pid_file) };
 	}
 }
@@ -175,14 +178,15 @@ if ($worker_processes > 0) {
 		sysread($r, my $buf, 8);
 	}
 } else {
+	$set_user->() if $set_user;
+	$SIG{USR2} = sub { worker_quit() if upgrade() };
 worker:
 	# this calls epoll_create:
-	@listeners = map { PublicInbox::Listener->new($_) } @listeners;
 	reopen_logs();
 	$SIG{QUIT} = $SIG{INT} = $SIG{TERM} = *worker_quit;
 	$SIG{USR1} = *reopen_logs;
 	$SIG{HUP} = $refresh;
-	$_->watch_read(1) for @listeners;
+	PublicInbox::Listener->new($_) for @listeners;
 	Danga::Socket->EventLoop;
 }
 
@@ -192,7 +196,6 @@ sub worker_quit {
 	# killing again terminates immediately:
 	exit unless @listeners;
 
-	$_->close for @listeners;
 	@listeners = ();
 
 	# give slow clients 30s to finish reading/writing whatever
@@ -372,7 +375,9 @@ sub new ($$) {
 	listen($s, 1024);
 	IO::Handle::blocking($s, 0);
 	my $self = fields::new($class);
-	$self->SUPER::new($s);
+	$self->SUPER::new($s); # calls epoll_create for the first socket
+	$self->watch_read(1);
+	$self
 }
 
 sub event_read {
