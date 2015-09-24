@@ -879,21 +879,17 @@ sub event_write {
 sub event_read {
 	my ($self) = @_;
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
-	my $line;
 	my $r = 1;
-again:
+
+	my $buf = $self->read(LINE_MAX) or return $self->close;
+	$self->{rbuf} .= $$buf;
 	while ($r > 0 && $self->{rbuf} =~ s/\A\s*([^\r\n]+)\r?\n//) {
-		$line = $1;
+		my $line = $1;
 		my $t0 = now();
 		$r = eval { $self->process_line($line) };
 		my $d = $self->{long_res} ?
 			' deferred['.fileno($self->{sock}).']' : '';
 		out($self, "$line - %0.6f$d", now() - $t0);
-	}
-	unless (defined $line) {
-		my $buf = $self->read(LINE_MAX) or return $self->close;
-		$self->{rbuf} .= $$buf;
-		goto again;
 	}
 
 	return $self->close if $r < 0;
