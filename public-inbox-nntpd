@@ -8,25 +8,38 @@ require Danga::Socket;
 require IO::Handle;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 require PublicInbox::NewsGroup;
+my $set_user;
 my $nntpd = PublicInbox::NNTPD->new;
 my $refresh = sub { $nntpd->refresh_groups };
 $SIG{HUP} = $SIG{USR1} = $SIG{USR2} = $SIG{PIPE} =
 	$SIG{TTIN} = $SIG{TTOU} = $SIG{WINCH} = 'IGNORE';
 
 $refresh->();
-my (@cfg_listen, $stdout, $stderr);
+my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 0;
 my %opts = (
 	'l|listen=s' => \@cfg_listen,
 	'1|stdout=s' => \$stdout,
 	'2|stderr=s' => \$stderr,
 	'W|worker-processes=i' => \$worker_processes,
+	'P|pid-file=s' => \$pid_file,
+	'u|user=s' => \$user,
+	'g|group=s' => \$group,
+	'D|daemonize' => \$daemonize,
 );
 GetOptions(%opts) or die "bad command-line args\n";
+
+if (defined $pid_file && $pid_file =~ /\.oldbin\z/) {
+	die "--pid-file cannot end with '.oldbin'\n";
+}
+
 my %pids;
 my %listener_names;
 my $reexec_pid;
 my @listeners = inherit();
+
+# ignore daemonize when inheriting
+$daemonize = undef if scalar @listeners;
 
 # default NNTP listener if no listeners
 push @cfg_listen, '0.0.0.0:119' unless (@listeners || @cfg_listen);
@@ -47,10 +60,50 @@ foreach my $l (@cfg_listen) {
 	}
 }
 die 'No listeners bound' unless @listeners;
-open(STDIN, '+<', '/dev/null');
+
+chdir '/' or die "chdir failed: $!\n";
+open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!\n";
+
+if (defined $pid_file || defined $group || defined $user || $daemonize) {
+	require Net::Server::Daemonize;
+
+	Net::Server::Daemonize::check_pid_file($pid_file) if defined $pid_file;
+	my $uid = Net::Server::Daemonize::get_uid($user) if defined $user;
+	my $gid;
+	if (defined $group) {
+		$gid = Net::Server::Daemonize::get_gid($group);
+		$gid = (split /\s+/, $gid)[0];
+	} elsif (defined $uid) {
+		$gid = (getpwuid($uid))[3];
+	}
+
+	# We change users in the worker to ensure upgradability,
+	# The upgrade will create the ".oldbin" pid file in the
+	# same directory as the given pid file.
+	$uid and $set_user = sub {
+		Net::Server::Daemonize::set_user($uid, $gid);
+	};
+
+	if ($daemonize) {
+		my ($pid, $err) = do_fork();
+		die "could not fork: $err\n" unless defined $pid;
+		exit if $pid;
+
+		open STDOUT, '>&STDIN' or die "redirect stdout failed: $!\n";
+		open STDERR, '>&STDIN' or die "redirect stderr failed: $!\n";
+		POSIX::setsid();
+		($pid, $err) = do_fork();
+		die "could not fork: $err\n" unless defined $pid;
+		exit if $pid;
+	}
+	if (defined $pid_file) {
+		my $unlink_pid = $$;
+		Net::Server::Daemonize::create_pid_file($pid_file);
+		END { unlink_pid_file_safe_ish($unlink_pid, $pid_file) };
+	}
+}
 
 if ($worker_processes > 0) {
-	# my ($p0, $p1, $r, $w);
 	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!\n";
 	my %pwatch = ( fileno($p0) => sub { kill('TERM', $$) } );
 	pipe(my ($r, $w)) or die "failed to create self-pipe: $!\n";
@@ -110,6 +163,7 @@ if ($worker_processes > 0) {
 			if (!defined $pid) {
 				warn "failed to fork worker[$i]: $err\n";
 			} elsif ($pid == 0) {
+				$set_user->() if $set_user;
 				close($_) for ($w, $r, $p1);
 				Danga::Socket->AddOtherFds(%pwatch);
 				goto worker;
@@ -209,6 +263,15 @@ sub upgrade {
 		warn "upgrade in-progress: $reexec_pid\n";
 		return;
 	}
+	if (defined $pid_file) {
+		if ($pid_file =~ /\.oldbin\z/) {
+			warn "BUG: .oldbin suffix exists: $pid_file\n";
+			return;
+		}
+		unlink_pid_file_safe_ish($$, $pid_file);
+		$pid_file .= '.oldbin';
+		Net::Server::Daemonize::create_pid_file($pid_file);
+	}
 	my ($pid, $err) = do_fork();
 	unless (defined $pid) {
 		warn "fork failed: $err\n";
@@ -250,12 +313,25 @@ sub do_fork {
 	($pid, $err);
 }
 
+sub upgrade_aborted ($) {
+	my ($p) = @_;
+	warn "reexec PID($p) died with: $?\n";
+	$reexec_pid = undef;
+	return unless $pid_file;
+
+	my $file = $pid_file;
+	$file =~ s/\.oldbin\z// or die "BUG: no '.oldbin' suffix in $file\n";
+	unlink_pid_file_safe_ish($$, $pid_file);
+	$pid_file = $file;
+	eval { Net::Server::Daemonize::create_pid_file($pid_file) };
+	warn $@, "\n" if $@;
+}
+
 sub reap_children {
 	while (1) {
 		my $p = waitpid(-1, &POSIX::WNOHANG) or return;
 		if (defined $reexec_pid && $p == $reexec_pid) {
-			$reexec_pid = undef;
-			warn "reexec PID($p) died with: $?\n";
+			upgrade_aborted($p);
 		} elsif (defined(my $id = delete $pids{$p})) {
 			warn "worker[$id] PID($p) died with: $?\n";
 		} elsif ($p > 0) {
@@ -263,6 +339,18 @@ sub reap_children {
 		} else {
 			return;
 		}
+	}
+}
+
+sub unlink_pid_file_safe_ish ($$) {
+	my ($unlink_pid, $file) = @_;
+	return unless defined $unlink_pid && $unlink_pid == $$;
+
+	open my $fh, '<', $file or return;
+	defined(my $read_pid = <$fh>) or return;
+	chomp $read_pid;
+	if ($read_pid == $unlink_pid) {
+		Net::Server::Daemonize::unlink_pid_file($file);
 	}
 }
 
