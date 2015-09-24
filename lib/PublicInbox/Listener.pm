@@ -1,0 +1,34 @@
+# Copyright (C) 2015 all contributors <meta@public-inbox.org>
+# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+package PublicInbox::Listener;
+use strict;
+use warnings;
+use base 'Danga::Socket';
+use Socket qw(SOL_SOCKET SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
+use fields qw(post_accept);
+require IO::Handle;
+
+sub new ($$$) {
+	my ($class, $s, $cb) = @_;
+	setsockopt($s, SOL_SOCKET, SO_KEEPALIVE, 1);
+	setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
+	listen($s, 1024);
+	IO::Handle::blocking($s, 0);
+	my $self = fields::new($class);
+	$self->SUPER::new($s); # calls epoll_create for the first socket
+	$self->watch_read(1);
+	$self->{post_accept} = $cb;
+	$self
+}
+
+sub event_read {
+	my ($self) = @_;
+	# no loop here, we want to fairly distribute clients
+	# between multiple processes sharing the same socket
+	if (accept(my $c, $self->{sock})) {
+		IO::Handle::blocking($c, 0); # no accept4 :<
+		$self->{post_accept}->($c);
+	}
+}
+
+1;
