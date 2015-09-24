@@ -195,10 +195,14 @@ sub worker_quit {
 	$_->close for @listeners;
 	@listeners = ();
 
+	# give slow clients 30s to finish reading/writing whatever
+	Danga::Socket->AddTimer(30, sub { exit });
+
 	# drop idle connections and try to quit gracefully
 	Danga::Socket->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
 		my $n = 0;
+
 		foreach my $s (values %$dmap) {
 			next unless ref($s) eq 'PublicInbox::NNTP';
 			if ($s->{write_buf_size} || $s->{rbuf}) {
