@@ -762,11 +762,11 @@ sub cmd_xrover ($;$) {
 	});
 }
 
-sub over_line {
+sub over_line ($$) {
 	my ($self, $r) = @_;
 
 	more($self, join("\t", $r->[0], map {
-				my $h = xhdr($r, $_);
+				my $h = hdr_val($r, $_);
 				defined $h ? $h : '';
 			} @OVERVIEW ));
 }

@@ -144,7 +144,14 @@ EOF
 		}
 	}
 
-	# TODO: upgrades and such
+	is_deeply($n->xover('1-'), {
+		'1' => ['hihi',
+			'Me <me@example.com>',
+			'Thu, 01 Jan 1970 06:06:06 +0000',
+			'<nntp@example.com>',
+			'',
+			'202',
+			'1' ] }, "XOVER works");
 
 	ok(kill('TERM', $pid), 'killed nntpd');
 	$pid = undef;
