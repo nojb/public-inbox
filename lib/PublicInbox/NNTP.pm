@@ -123,14 +123,14 @@ sub list_newsgroups ($;$) {
 	}
 }
 
-# LIST SUBSCRIPTIONS not supported
+# LIST SUBSCRIPTIONS, DISTRIB.PATS are not supported
 sub cmd_list ($;$$) {
 	my ($self, @args) = @_;
 	if (scalar @args) {
 		my $arg = shift @args;
 		$arg =~ tr/A-Z./a-z_/;
 		$arg = "list_$arg";
-		return '503 function not performed' if $DISABLED{$arg};
+		return r501 if $DISABLED{$arg};
 
 		$arg = eval {
 			no strict 'refs';
