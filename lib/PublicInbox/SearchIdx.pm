@@ -175,8 +175,6 @@ sub term_generator { # write-only
 	$self->{term_generator} = $tg;
 }
 
-sub next_doc_id { $_[0]->{xdb}->get_lastdocid + 1 }
-
 # increments last_thread_id counter
 # returns a 64-bit integer represented as a hex string
 sub next_thread_id {
