@@ -8,10 +8,13 @@ use strict;
 use warnings;
 use POSIX qw(dup2);
 require IO::Handle;
+use fields qw(git_dir pid in out);
 
 sub new {
 	my ($class, $git_dir) = @_;
-	bless { git_dir => $git_dir }, $class;
+	my $self = fields::new($class);
+	$self->{git_dir} = $git_dir;
+	$self;
 }
 
 sub _cat_file_begin {
