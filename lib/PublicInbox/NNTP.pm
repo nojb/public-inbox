@@ -480,9 +480,8 @@ sub get_range ($$) {
 
 sub hdr_val ($$) {
 	my ($r, $header) = @_;
-	$header = lc $header;
-	return $r->[3] if ($header eq 'bytes');
-	return $r->[4] if ($header eq 'lines');
+	return $r->[3] if $header =~ /\A:?bytes\z/i;
+	return $r->[4] if $header =~ /\A:?lines\z/i;
 	$r = $r->[2]->header_obj->header($header);
 	defined $r or return;
 	$r =~ s/[\r\n\t]+/ /sg;
