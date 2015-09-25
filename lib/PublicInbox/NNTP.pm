@@ -492,11 +492,12 @@ sub long_response ($$$$) {
 	my ($self, $beg, $end, $cb) = @_;
 	die "BUG: nested long response" if $self->{long_res};
 
+	my $fd = $self->{fd};
+	defined $fd or return;
 	# make sure we disable reading during a long response,
 	# clients should not be sending us stuff and making us do more
 	# work while we are stream a response to them
 	$self->watch_read(0);
-	my $fd = fileno $self->{sock};
 	my $t0 = now();
 	$self->{long_res} = sub {
 		# limit our own running time for fairness with other
@@ -885,10 +886,11 @@ sub event_read {
 	while ($r > 0 && $self->{rbuf} =~ s/\A\s*([^\r\n]+)\r?\n//) {
 		my $line = $1;
 		my $t0 = now();
+		my $fd = $self->{fd};
 		$r = eval { $self->process_line($line) };
 		my $d = $self->{long_res} ?
-			' deferred['.fileno($self->{sock}).']' : '';
-		out($self, "$line - %0.6f$d", now() - $t0);
+			" deferred[$fd]" : '';
+		out($self, "[$fd] $line - %0.6f$d", now() - $t0);
 	}
 
 	return $self->close if $r < 0;
