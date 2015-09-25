@@ -11,7 +11,7 @@ use PublicInbox::MID qw(mid2path);
 use Email::MIME;
 use Data::Dumper qw(Dumper);
 use POSIX qw(strftime);
-use Time::HiRes qw(clock_gettime ualarm CLOCK_MONOTONIC);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use constant {
 	r501 => '501 command syntax error',
 	r221 => '221 Header follows',
@@ -502,16 +502,13 @@ sub long_response ($$$$) {
 	$self->{long_res} = sub {
 		# limit our own running time for fairness with other
 		# clients and to avoid buffering too much:
-		my $yield;
-		local $SIG{ALRM} = sub { $yield = 1 };
-		ualarm(100000);
+		my $lim = 100;
 
 		my $err;
 		do {
 			eval { $cb->(\$beg) };
 		} until (($err = $@) || $self->{closed} ||
-			 ++$beg > $end || $yield || $self->{write_buf_size});
-		ualarm(0);
+			 ++$beg > $end || !--$lim || $self->{write_buf_size});
 
 		if ($err || $self->{closed}) {
 			$self->{long_res} = undef;
@@ -527,7 +524,7 @@ sub long_response ($$$$) {
 			} else {
 				$self->watch_read(1);
 			}
-		} elsif ($yield || $self->{write_buf_size}) {
+		} elsif (!$lim || $self->{write_buf_size}) {
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			Danga::Socket->AddTimer(0, sub {
