@@ -508,8 +508,8 @@ sub long_response ($$$$) {
 		my $err;
 		do {
 			eval { $cb->(\$beg) };
-		} until (($err = $@) || $self->{closed} || $yield ||
-			 $self->{write_buf_size} || ++$beg > $end);
+		} until (($err = $@) || $self->{closed} ||
+			 ++$beg > $end || $yield || $self->{write_buf_size});
 		ualarm(0);
 
 		if ($err || $self->{closed}) {
