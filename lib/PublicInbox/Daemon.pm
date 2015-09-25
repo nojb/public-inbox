@@ -14,12 +14,13 @@ require PublicInbox::Listener;
 my @CMD;
 my $set_user;
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
-my $worker_processes = 0;
+my $worker_processes = 1;
 my @listeners;
 my %pids;
 my %listener_names;
 my $reexec_pid;
 my $cleanup;
+my ($uid, $gid);
 END { $cleanup->() if $cleanup };
 
 sub daemon_prepare ($) {
@@ -76,8 +77,7 @@ sub daemonize () {
 	require Net::Server::Daemonize;
 
 	Net::Server::Daemonize::check_pid_file($pid_file) if defined $pid_file;
-	my $uid = Net::Server::Daemonize::get_uid($user) if defined $user;
-	my $gid;
+	$uid = Net::Server::Daemonize::get_uid($user) if defined $user;
 	if (defined $group) {
 		$gid = Net::Server::Daemonize::get_gid($group);
 		$gid = (split /\s+/, $gid)[0];
@@ -105,10 +105,7 @@ sub daemonize () {
 		exit if $pid;
 	}
 	if (defined $pid_file) {
-		Net::Server::Daemonize::create_pid_file($pid_file);
-		if ($uid and !chown($uid, $gid, $pid_file)) {
-			warn "could not chown $pid_file: $!\n";
-		}
+		write_pid($pid_file);
 		my $unlink_pid = $$;
 		$cleanup = sub {
 			unlink_pid_file_safe_ish($unlink_pid, $pid_file);
@@ -146,10 +143,14 @@ sub reopen_logs {
 	if ($stdout) {
 		open STDOUT, '>>', $stdout or
 			warn "failed to redirect stdout to $stdout: $!\n";
+		STDOUT->autoflush(1);
+		do_chown($stdout);
 	}
 	if ($stderr) {
 		open STDERR, '>>', $stderr or
 			warn "failed to redirect stderr to $stderr: $!\n";
+		STDERR->autoflush(1);
+		do_chown($stderr);
 	}
 }
 
@@ -201,7 +202,7 @@ sub upgrade () {
 		}
 		unlink_pid_file_safe_ish($$, $pid_file);
 		$pid_file .= '.oldbin';
-		Net::Server::Daemonize::create_pid_file($pid_file);
+		write_pid($pid_file);
 	}
 	my ($pid, $err) = do_fork();
 	unless (defined $pid) {
@@ -253,7 +254,7 @@ sub upgrade_aborted ($) {
 	$file =~ s/\.oldbin\z// or die "BUG: no '.oldbin' suffix in $file\n";
 	unlink_pid_file_safe_ish($$, $pid_file);
 	$pid_file = $file;
-	eval { Net::Server::Daemonize::create_pid_file($pid_file) };
+	eval { write_pid($pid_file) };
 	warn $@, "\n" if $@;
 }
 
@@ -284,10 +285,8 @@ sub unlink_pid_file_safe_ish ($$) {
 	}
 }
 
-sub master_loop ($) {
-	my ($refresh) = @_;
+sub master_loop {
 	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!\n";
-	my %pwatch = ( fileno($p0) => sub { kill('TERM', $$) } );
 	pipe(my ($r, $w)) or die "failed to create self-pipe: $!\n";
 	IO::Handle::blocking($w, 0);
 	my $set_workers = $worker_processes;
@@ -316,7 +315,6 @@ sub master_loop ($) {
 				$worker_processes = 0;
 			} elsif ($s eq 'HUP') {
 				$worker_processes = $set_workers;
-				$refresh->();
 				kill_workers($s);
 			} elsif ($s eq 'TTIN') {
 				if ($set_workers > $worker_processes) {
@@ -346,9 +344,7 @@ sub master_loop ($) {
 				warn "failed to fork worker[$i]: $err\n";
 			} elsif ($pid == 0) {
 				$set_user->() if $set_user;
-				close($_) for ($w, $r, $p1);
-				Danga::Socket->AddOtherFds(%pwatch);
-				return; # run normal work code
+				return $p0; # run normal work code
 			} else {
 				warn "PID=$pid is worker[$i]\n";
 				$pids{$pid} = $i;
@@ -362,27 +358,47 @@ sub master_loop ($) {
 
 sub daemon_loop ($$) {
 	my ($refresh, $post_accept) = @_;
-	$refresh->(); # load config before forking to save work
+	my $parent_pipe;
 	if ($worker_processes > 0) {
-		master_loop($refresh); # returns if in child process
+		$parent_pipe = master_loop(); # returns if in child process
+		my $fd = fileno($parent_pipe);
+		Danga::Socket->AddOtherFds($fd => sub { kill('TERM', $$) } );
 	} else {
+		reopen_logs();
 		$set_user->() if $set_user;
 		$SIG{USR2} = sub { worker_quit() if upgrade() };
 	}
+	$uid = $gid = undef;
 	reopen_logs();
+	$refresh->();
 	$SIG{QUIT} = $SIG{INT} = $SIG{TERM} = *worker_quit;
 	$SIG{USR1} = *reopen_logs;
 	$SIG{HUP} = $refresh;
 	# this calls epoll_create:
 	PublicInbox::Listener->new($_, $post_accept) for @listeners;
 	Danga::Socket->EventLoop;
+	$parent_pipe = undef;
 }
 
 
 sub daemon_run ($$$) {
 	my ($default, $refresh, $post_accept) = @_;
 	daemon_prepare($default);
+	daemonize();
 	daemon_loop($refresh, $post_accept);
+}
+
+sub do_chown ($) {
+	my ($path) = @_;
+	if (defined $uid and !chown($uid, $gid, $path)) {
+		warn "could not chown $path: $!\n";
+	}
+}
+
+sub write_pid ($) {
+	my ($path) = @_;
+	Net::Server::Daemonize::create_pid_file($path);
+	do_chown($path);
 }
 
 1;
