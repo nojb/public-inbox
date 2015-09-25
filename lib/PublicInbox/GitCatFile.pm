@@ -7,6 +7,7 @@ package PublicInbox::GitCatFile;
 use strict;
 use warnings;
 use POSIX qw(dup2);
+require IO::Handle;
 
 sub new {
 	my ($class, $git_dir) = @_;
@@ -31,6 +32,7 @@ sub _cat_file_begin {
 	}
 	close $out_r or die "close failed: $!\n";
 	close $in_w or die "close failed: $!\n";
+	$out_w->autoflush(1);
 
 	$self->{in} = $in_r;
 	$self->{out} = $out_w;
@@ -40,16 +42,8 @@ sub _cat_file_begin {
 sub cat_file {
 	my ($self, $object, $sizeref) = @_;
 
-	$object .= "\n";
-	my $len = length($object);
-
 	$self->_cat_file_begin;
-	my $written = syswrite($self->{out}, $object);
-	if (!defined $written) {
-		die "pipe write error: $!\n";
-	} elsif ($written != $len) {
-		die "wrote too little to pipe ($written < $len)\n";
-	}
+	print { $self->{out} } $object, "\n" or die "pipe write error: $!\n";
 
 	my $in = $self->{in};
 	my $head = <$in>;
