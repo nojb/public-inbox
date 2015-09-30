@@ -130,7 +130,7 @@ EOF
 		syswrite($s, "HDR $k $mid\r\n");
 		do {
 			sysread($s, $buf, 4096, length($buf));
-		} until ($buf =~ /^[^2]../ || $buf =~ /\r\n\.\r\n\z/);
+		} until ($buf =~ /\r\n\.\r\n\z/);
 		my @r = split("\r\n", $buf);
 		like($r[0], qr/\A224 /, '224 response for HDR');
 		is($r[1], "0 $v", 'got expected response for HDR');
@@ -167,7 +167,7 @@ EOF
 		$buf = '';
 		do {
 			sysread($s, $buf, 4096, length($buf));
-		} until ($buf =~ /^[^2]../ || $buf =~ /\r\n\.\r\n\z/);
+		} until ($buf =~ /\r\n\.\r\n\z/);
 		my @r = split("\r\n", $buf);
 		like($r[0], qr/^224 /, 'got 224 response for OVER');
 		is($r[1], "0\thihi\tMe <me\@example.com>\t" .
