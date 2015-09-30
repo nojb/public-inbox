@@ -24,7 +24,7 @@ use constant {
 sub now () { clock_gettime(CLOCK_MONOTONIC) };
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Bytes Lines);
-my %OVERVIEW = map { $_ => 1 } @OVERVIEW;
+my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW) . ":\r\n";
 
 # disable commands with easy DoS potential:
 # LISTGROUP could get pretty bad, too...
@@ -90,9 +90,9 @@ sub cmd_xgtitle ($;$) {
 	'.'
 }
 
-sub list_overview_fmt ($$) {
+sub list_overview_fmt ($) {
 	my ($self) = @_;
-	more($self, $_ . ':') foreach @OVERVIEW;
+	do_more($self, $OVERVIEW_FMT);
 }
 
 sub list_active ($;$) {
