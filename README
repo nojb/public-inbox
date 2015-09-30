@@ -4,7 +4,8 @@ public-inbox implements the sharing of an email inbox via git to
 complement or replace traditional mailing lists.  Readers may
 subscribe to a mailing list using ssoma[1] (a git-wrapper) to
 import email from a git repository into an IMAP folder, Maildir,
-or mbox.  Readers may also read via Atom feeds and HTML archives.
+or mbox.  Readers may also read via NNTP, Atom feeds and HTML
+archives.
 
 public-inbox spawned around three main ideas:
 
@@ -39,7 +40,8 @@ addresses without losing/splitting archives.  Dedicated readers only
 need to install ssoma, a command-line tool[1] currently implemented in
 Perl.
 
-Casual readers may also follow the list via Atom feed or web archives.
+Casual readers may also follow the list via NNTP, Atom feed or
+HTML archives.
 
 _Anybody_ may also setup a delivery-only mailing list server to replay
 a public-inbox git archive to subscribers via SMTP.
@@ -117,6 +119,8 @@ You may subscribe via ssoma(1), LISTNAME is a name of your choosing:
     ssoma sync --cron
 
 HTML inbox archives are available: http://public-inbox.org/meta/
+The archives are also readable via NNTP:
+	nntp://news.public-inbox.org/inbox.comp.mail.public-inbox.meta
 
 Anti-Spam
 ---------
