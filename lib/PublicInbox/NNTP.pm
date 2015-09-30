@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use base qw(Danga::Socket);
 use fields qw(nntpd article rbuf ng long_res);
+use PublicInbox::Search;
 use PublicInbox::Msgmap;
 use PublicInbox::GitCatFile;
 use PublicInbox::MID qw(mid2path);
@@ -23,10 +24,10 @@ use constant {
 
 sub now () { clock_gettime(CLOCK_MONOTONIC) };
 
-my @OVERVIEW = qw(Subject From Date Message-ID References Bytes Lines);
-my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW) . ":\r\n";
-my $LIST_HEADERS = join("\r\n", qw(Subject From Date Message-ID References
-				  :bytes :lines Xref To Cc)) . "\r\n";
+my @OVERVIEW = qw(Subject From Date Message-ID References);
+my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
+my $LIST_HEADERS = join("\r\n", @OVERVIEW,
+			qw(:bytes :lines Xref To Cc)) . "\r\n";
 
 # disable commands with easy DoS potential:
 # LISTGROUP could get pretty bad, too...
@@ -614,53 +615,42 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 	}
 }
 
-sub header_obj_for {
-	my ($srch, $mid) = @_;
-	eval {
-		my $smsg = $srch->lookup_message($mid);
-		$smsg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
-		$smsg->mini_mime->header_obj;
-	};
-};
+sub search_header_for {
+	my ($srch, $mid, $field) = @_;
+	my $smsg = $srch->lookup_message($mid) or return;
+	$smsg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
+	$smsg->$field;
+}
 
 sub hdr_searchmsg ($$$$) {
-	my ($self, $xhdr, $hdr, $range) = @_;
-	my $filter;
-	if ($hdr eq 'date') {
-		$hdr = 'X-PI-TS';
-		$filter = sub ($) {
-			strftime('%a, %d %b %Y %T %z', gmtime($_[0]));
-		};
-	}
-
+	my ($self, $xhdr, $field, $range) = @_;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my ($ng, $n) = mid_lookup($self, $1);
 		return r430 unless $n;
-		if (my $srch = $ng->search) {
-			my $m = header_obj_for($srch, $range);
-			my $v = $m->header($hdr);
-			$v = $filter->($v) if defined $v && $filter;
-			hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
-		} else {
-			hdr_slow($self, $xhdr, $hdr, $range);
-		}
+		my $v = search_header_for($ng->search, $range, $field);
+		hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
-		my $srch = $self->{ng}->search or
-				return hdr_slow($self, $xhdr, $hdr, $range);
+		my $srch = $self->{ng}->search;
 		my $mm = $self->{ng}->mm;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
+		my $off = 0;
 		$self->long_response($beg, $end, sub {
 			my ($i) = @_;
-			my $mid = $mm->mid_for($$i) or return;
-			my $m = header_obj_for($srch, $mid) or return;
-			my $v = $m->header($hdr);
-			defined $v or return;
-			$v = $filter->($v) if $filter;
-			more($self, "$$i $v");
+			my $res = $srch->query_xover($beg, $end, $off);
+			my $msgs = $res->{msgs};
+			my $nr = scalar @$msgs or return;
+			$off += $nr;
+			my $tmp = '';
+			foreach my $s (@$msgs) {
+				$tmp .= $s->num . ' ' . $s->$field . "\r\n";
+			}
+			do_more($self, $tmp);
+			# -1 to adjust for implicit increment in long_response
+			$$i = $nr ? $$i + $nr - 1 : long_response_limit;
 		});
 	}
 }
@@ -672,10 +662,13 @@ sub do_hdr ($$$;$) {
 		hdr_message_id($self, $xhdr, $range);
 	} elsif ($sub eq 'xref') {
 		hdr_xref($self, $xhdr, $range);
-	} elsif ($sub =~ /\A(subject|references|date)\z/) {
+	} elsif ($sub =~ /\A(?:subject|references|date|from|to|cc|
+				bytes|lines)\z/x) {
 		hdr_searchmsg($self, $xhdr, $sub, $range);
+	} elsif ($sub =~ /\A:(bytes|lines)\z/) {
+		hdr_searchmsg($self, $xhdr, $1, $range);
 	} else {
-		hdr_slow($self, $xhdr, $header, $range);
+		$xhdr ? (r221 . "\r\n.") : "503 HDR not permitted on $header";
 	}
 }
 
@@ -708,41 +701,14 @@ sub hdr_mid_response ($$$$$$) {
 	my $res = '';
 	if ($xhdr) {
 		$res .= r221 . "\r\n";
-		$res .= "$mid $v\r\n" if defined $v;
+		$res .= "$mid $v\r\n";
 	} else {
 		$res .= r225 . "\r\n";
-		if (defined $v) {
-			my $pfx = hdr_mid_prefix($self, $xhdr, $ng, $n, $mid);
-			$res .= "$pfx $v\r\n";
-		}
+		my $pfx = hdr_mid_prefix($self, $xhdr, $ng, $n, $mid);
+		$res .= "$pfx $v\r\n";
 	}
 	res($self, $res .= '.');
 	undef;
-}
-
-sub hdr_slow ($$$$) {
-	my ($self, $xhdr, $header, $range) = @_;
-
-	if (defined $range && $range =~ /\A<.+>\z/) { # Message-ID
-		my $r = $self->art_lookup($range, 2);
-		return $r unless ref $r;
-		my ($n, $ng) = ($r->[0], $r->[5]);
-		my $v = hdr_val($r, $header);
-		hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
-	} else { # numeric range
-		$range = $self->{article} unless defined $range;
-		my $r = get_range($self, $range);
-		return $r unless ref $r;
-		my ($beg, $end) = @$r;
-		more($self, $xhdr ? r221 : r225);
-		$self->long_response($beg, $end, sub {
-			my ($i) = @_;
-			$r = $self->art_lookup($$i, 2);
-			return unless ref $r;
-			defined($r = hdr_val($r, $header)) or return;
-			more($self, "$$i $r");
-		});
-	}
 }
 
 sub cmd_xrover ($;$) {
@@ -761,32 +727,38 @@ sub cmd_xrover ($;$) {
 	$self->long_response($beg, $end, sub {
 		my ($i) = @_;
 		my $mid = $mm->mid_for($$i) or return;
-		my $m = header_obj_for($srch, $mid) or return;
-		my $h = $m->header('references');
-		more($self, "$$i $h") if defined $h;
+		my $h = search_header_for($srch, $mid, 'references');
+		more($self, "$$i $h");
 	});
 }
 
 sub over_line ($$) {
-	my ($self, $r) = @_;
-
-	more($self, join("\t", $r->[0], map {
-				my $h = hdr_val($r, $_);
-				defined $h ? $h : '';
-			} @OVERVIEW ));
+	my ($num, $smsg) = @_;
+	# n.b. field access and procedural calls can be
+	# 10%-15% faster than OO method calls:
+	join("\t", $num,
+		$smsg->{subject},
+		$smsg->{from},
+		PublicInbox::SearchMsg::date($smsg),
+		'<'.PublicInbox::SearchMsg::mid($smsg).'>',
+		$smsg->{references},
+		PublicInbox::SearchMsg::bytes($smsg),
+		PublicInbox::SearchMsg::lines($smsg));
 }
 
 sub cmd_over ($;$) {
 	my ($self, $range) = @_;
-	if ($range && $range =~ /\A<.+>\z/) {
-		my $r = $self->art_lookup($range, 2);
-		return '430 No article with that message-id' unless ref $r;
+	if ($range && $range =~ /\A<(.+)>\z/) {
+		my ($ng, $n) = mid_lookup($self, $1);
+		my $smsg = $ng->search->lookup_message($range) or
+			return '430 No article with that message-id';
 		more($self, '224 Overview information follows (multi-line)');
+		$smsg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
 
 		# Only set article number column if it's the current group
-		my $ng = $self->{ng};
-		$r->[0] = 0 if (!$ng || $ng ne $r->[5]);
-		over_line($self, $r);
+		my $self_ng = $self->{ng};
+		$n = 0 if (!$self_ng || $self_ng ne $ng);
+		more($self, over_line($n, $smsg));
 		'.';
 	} else {
 		cmd_xover($self, $range);
@@ -800,11 +772,22 @@ sub cmd_xover ($;$) {
 	return $r unless ref $r;
 	my ($beg, $end) = @$r;
 	more($self, "224 Overview information follows for $beg to $end");
+	my $srch = $self->{ng}->search;
+	my $off = 0;
 	$self->long_response($beg, $end, sub {
 		my ($i) = @_;
-		my $r = $self->art_lookup($$i, 2);
-		return unless ref $r;
-		over_line($self, $r);
+		my $res = $srch->query_xover($beg, $end, $off);
+		my $msgs = $res->{msgs};
+		my $nr = scalar @$msgs or return;
+		$off += $nr;
+
+		# OVERVIEW.FMT
+		more($self, join("\r\n", map {
+			over_line(PublicInbox::SearchMsg::num($_), $_);
+			} @$msgs));
+
+		# -1 to adjust for implicit increment in long_response
+		$$i = $nr ? $$i + $nr - 1 : long_response_limit;
 	});
 }
 

@@ -285,7 +285,7 @@ sub filter_mids {
 	ok($doc_id > 0, "doc_id defined with circular reference");
 	my $smsg = $rw->lookup_message('circle@a');
 	$smsg->ensure_metadata;
-	is($smsg->references_sorted, '', "no references created");
+	is($smsg->references, '', "no references created");
 }
 
 done_testing();

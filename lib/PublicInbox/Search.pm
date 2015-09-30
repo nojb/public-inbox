@@ -4,7 +4,13 @@
 package PublicInbox::Search;
 use strict;
 use warnings;
-use constant TS => 0;
+
+# values for searching
+use constant TS => 0; # timestamp
+use constant NUM => 1; # NNTP article number
+use constant BYTES => 2; # :bytes as defined in RFC 3977
+use constant LINES => 3; # :lines as defined in RFC 3977
+
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
 use Email::MIME;
@@ -26,8 +32,9 @@ use constant {
 	# 6 - preserve References: order in document data
 	# 7 - remove references and inreplyto terms
 	# 8 - remove redundant/unneeded document data
-	# 9 - disable Message-ID compression
-	SCHEMA_VERSION => 9,
+	# 9 - disable Message-ID compression (SHA-1)
+	# 10 - optimize doc for NNTP overviews
+	SCHEMA_VERSION => 10,
 
 	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
 	# as it could become a denial-of-service vector
@@ -166,6 +173,30 @@ sub ts_range_processor {
 
 sub date_range_processor {
 	$_[0]->{drp} ||= Search::Xapian::DateValueRangeProcessor->new(TS);
+}
+
+sub num_range_processor {
+	$_[0]->{nrp} ||= Search::Xapian::NumberValueRangeProcessor->new(NUM);
+}
+
+# only used for NNTP server
+sub query_xover {
+	my ($self, $beg, $end, $offset) = @_;
+	my $enquire = $self->enquire;
+	my $qp = Search::Xapian::QueryParser->new;
+	$qp->set_database($self->{xdb});
+	$qp->add_valuerangeprocessor($self->num_range_processor);
+	my $query = $qp->parse_query("$beg..$end", QP_FLAGS);
+	$query = Search::Xapian::Query->new(OP_AND, $mail_query, $query);
+	$enquire->set_query($query);
+	$enquire->set_sort_by_value(NUM, 0);
+	my $limit = 200;
+	my $mset = $enquire->get_mset($offset, $limit);
+	my @msgs = map {
+		PublicInbox::SearchMsg->load_doc($_->get_document);
+	} $mset->items;
+
+	{ total => $mset->get_matches_estimated, msgs => \@msgs }
 }
 
 sub lookup_message {

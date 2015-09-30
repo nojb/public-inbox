@@ -6,6 +6,7 @@ use warnings;
 use Scalar::Util qw(weaken);
 require Danga::Socket;
 require PublicInbox::Msgmap;
+require PublicInbox::Search;
 require PublicInbox::GitCatFile;
 
 sub new {
@@ -36,11 +37,16 @@ sub gcf {
 	};
 }
 
+sub usable {
+	my ($self) = @_;
+	eval {
+		PublicInbox::Msgmap->new($self->{git_dir});
+		PublicInbox::Search->new($self->{git_dir});
+	};
+}
+
 sub mm {
-	my ($self, $check_only) = @_;
-	if ($check_only) {
-		return eval { PublicInbox::Msgmap->new($self->{git_dir}) };
-	}
+	my ($self) = @_;
 	$self->{mm} ||= eval {
 		my $mm = PublicInbox::Msgmap->new($self->{git_dir});
 
@@ -53,7 +59,6 @@ sub mm {
 sub search {
 	my ($self) = @_;
 	$self->{search} ||= eval {
-		require PublicInbox::Search;
 		my $search = PublicInbox::Search->new($self->{git_dir});
 
 		# may be needed if we run low on handles

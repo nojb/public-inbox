@@ -151,7 +151,30 @@ EOF
 			'<nntp@example.com>',
 			'',
 			'202',
-			'1' ] }, "XOVER works");
+			'1' ] }, "XOVER range works");
+
+	is_deeply($n->xover('1'), {
+		'1' => ['hihi',
+			'Me <me@example.com>',
+			'Thu, 01 Jan 1970 06:06:06 +0000',
+			'<nntp@example.com>',
+			'',
+			'202',
+			'1' ] }, "XOVER by article works");
+
+	{
+		syswrite($s, "OVER $mid\r\n");
+		$buf = '';
+		do {
+			sysread($s, $buf, 4096, length($buf));
+		} until ($buf =~ /^[^2]../ || $buf =~ /\r\n\.\r\n\z/);
+		my @r = split("\r\n", $buf);
+		like($r[0], qr/^224 /, 'got 224 response for OVER');
+		is($r[1], "0\thihi\tMe <me\@example.com>\t" .
+			"Thu, 01 Jan 1970 06:06:06 +0000\t" .
+			"$mid\t\t202\t1", 'OVER by Message-ID works');
+		is($r[2], '.', 'correctly terminated response');
+	}
 
 	ok(kill('TERM', $pid), 'killed nntpd');
 	$pid = undef;

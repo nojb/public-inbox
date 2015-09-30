@@ -36,8 +36,14 @@ sub new {
 	$self;
 }
 
+sub add_val {
+	my ($doc, $col, $num) = @_;
+	$num = Search::Xapian::sortable_serialise($num);
+	$doc->add_value($col, $num);
+}
+
 sub add_message {
-	my ($self, $mime) = @_; # mime = Email::MIME object
+	my ($self, $mime, $bytes, $num) = @_; # mime = Email::MIME object
 	my $db = $self->{xdb};
 
 	my $doc_id;
@@ -80,8 +86,16 @@ sub add_message {
 			$doc->add_term(xpfx('path') . mid_compress($path));
 		}
 
-		my $ts = Search::Xapian::sortable_serialise($smsg->ts);
-		$doc->add_value(PublicInbox::Search::TS, $ts);
+		add_val($doc, &PublicInbox::Search::TS, $smsg->ts);
+
+		defined($num) and
+			add_val($doc, &PublicInbox::Search::NUM, $num);
+
+		defined($bytes) and
+			add_val($doc, &PublicInbox::Search::BYTES, $bytes);
+
+		add_val($doc, &PublicInbox::Search::LINES,
+				$mime->body_raw =~ tr!\n!\n!);
 
 		my $tg = $self->term_generator;
 
@@ -91,7 +105,7 @@ sub add_message {
 		$tg->index_text($subj) if $subj;
 		$tg->increase_termpos;
 
-		$tg->index_text($smsg->from->format);
+		$tg->index_text($smsg->from);
 		$tg->increase_termpos;
 
 		$mime->walk_parts(sub {
@@ -224,7 +238,7 @@ sub link_message_to_parents {
 		}
 	}
 	if (@refs) {
-		$smsg->{references_sorted} = '<'.join('><', @refs).'>';
+		$smsg->{references} = '<'.join('> <', @refs).'>';
 
 		# first ref *should* be the thread root,
 		# but we can never trust clients to do the right thing
@@ -245,8 +259,8 @@ sub link_message_to_parents {
 }
 
 sub index_blob {
-	my ($self, $git, $mime) = @_;
-	$self->add_message($mime);
+	my ($self, $git, $mime, $bytes, $num) = @_;
+	$self->add_message($mime, $bytes, $num);
 }
 
 sub unindex_blob {
@@ -265,10 +279,22 @@ sub unindex_mm {
 	$self->{mm}->mid_delete(mid_clean($mime->header('Message-ID')));
 }
 
-sub index_both {
+sub index_mm2 {
+	my ($self, $git, $mime, $bytes) = @_;
+	my $num = $self->{mm}->num_for(mid_clean($mime->header('Message-ID')));
+	index_blob($self, $git, $mime, $bytes, $num);
+}
+
+sub unindex_mm2 {
 	my ($self, $git, $mime) = @_;
-	index_blob($self, $git, $mime);
-	index_mm($self, $git, $mime);
+	$self->{mm}->mid_delete(mid_clean($mime->header('Message-ID')));
+	unindex_blob($self, $git, $mime);
+}
+
+sub index_both {
+	my ($self, $git, $mime, $bytes) = @_;
+	my $num = index_mm($self, $git, $mime);
+	index_blob($self, $git, $mime, $bytes, $num);
 }
 
 sub unindex_both {
@@ -278,9 +304,9 @@ sub unindex_both {
 }
 
 sub do_cat_mail {
-	my ($git, $blob) = @_;
+	my ($git, $blob, $sizeref) = @_;
 	my $mime = eval {
-		my $str = $git->cat_file($blob);
+		my $str = $git->cat_file($blob, $sizeref);
 		Email::MIME->new($str);
 	};
 	$@ ? undef : $mime;
@@ -304,12 +330,13 @@ sub rlog {
 		    qw/--reverse --no-notes --no-color --raw -r --no-abbrev/,
 		    $range);
 	my $latest;
+	my $bytes;
 	my $pid = open(my $log, '-|', @cmd) or
 		die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
 	while (my $line = <$log>) {
 		if ($line =~ /$addmsg/o) {
-			my $mime = do_cat_mail($git, $1) or next;
-			$add_cb->($self, $git, $mime);
+			my $mime = do_cat_mail($git, $1, \$bytes) or next;
+			$add_cb->($self, $git, $mime, $bytes);
 		} elsif ($line =~ /$delmsg/o) {
 			my $mime = do_cat_mail($git, $1) or next;
 			$del_cb->($self, $git, $mime);
@@ -354,11 +381,11 @@ sub _index_sync {
 			$mm->{dbh}->commit;
 			$mm->last_commit($lm) if defined $lm;
 
-			goto xapian_only;
+			$lx = $self->rlog($range, *index_mm2, *unindex_mm2);
+			$db->set_metadata('last_commit', $lx) if defined $lx;
 		}
 	} else {
 		# user didn't install DBD::SQLite and DBI
-xapian_only:
 		$lx = $self->rlog($range, *index_blob, *unindex_blob);
 		$db->set_metadata('last_commit', $lx) if defined $lx;
 	}

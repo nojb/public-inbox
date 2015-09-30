@@ -52,8 +52,8 @@ sub refresh_groups () {
 			$ng = $old_ng;
 		}
 
-		# Only valid if Msgmap works
-		if ($ng->mm(1)) {
+		# Only valid if msgmap and search works
+		if ($ng->usable) {
 			$new->{$g} = $ng;
 			push @list, $ng;
 		}

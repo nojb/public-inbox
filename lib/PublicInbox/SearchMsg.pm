@@ -14,6 +14,7 @@ use Encode qw/find_encoding/;
 my $enc_utf8 = find_encoding('UTF-8');
 our $PFX2TERM_RE = undef;
 use constant EPOCH_822 => 'Thu, 01 Jan 1970 00:00:00 +0000';
+use POSIX qw(strftime);
 
 sub new {
 	my ($class, $mime) = @_;
@@ -28,48 +29,67 @@ sub wrap {
 	bless { doc => $doc, mime => undef, mid => $mid }, $class;
 }
 
+sub get_val ($$) {
+	my ($doc, $col) = @_;
+	Search::Xapian::sortable_unserialise($doc->get_value($col));
+}
+
 sub load_doc {
 	my ($class, $doc) = @_;
 	my $data = $doc->get_data;
-	my $ts = eval {
-		no strict 'subs';
-		$doc->get_value(PublicInbox::Search::TS);
-	};
-	$ts = Search::Xapian::sortable_unserialise($ts);
+	my $ts = get_val($doc, &PublicInbox::Search::TS);
 	$data = $enc_utf8->decode($data);
-	my ($subj, $from, $refs) = split(/\n/, $data);
+	my ($subj, $from, $refs, $to, $cc) = split(/\n/, $data);
 	bless {
 		doc => $doc,
 		subject => $subj,
 		ts => $ts,
-		from_name => $from,
-		references_sorted => $refs,
+		from => $from,
+		references => $refs,
+		to => $to,
+		cc => $cc,
 	}, $class;
 }
 
-sub subject {
-	my ($self) = @_;
-	my $subj = $self->{subject};
-	return $subj if defined $subj;
-	$subj = $self->{mime}->header('Subject');
-	$subj = '' unless defined $subj;
-	$subj =~ tr/\n/ /;
-	$self->{subject} = $subj;
+# :bytes and :lines metadata in RFC 3977
+sub bytes ($) { get_val($_[0]->{doc}, &PublicInbox::Search::BYTES) }
+sub lines ($) { get_val($_[0]->{doc}, &PublicInbox::Search::LINES) }
+sub num ($) { get_val($_[0]->{doc}, &PublicInbox::Search::NUM) }
+
+sub __hdr ($$) {
+	my ($self, $field) = @_;
+	my $val = $self->{$field};
+	return $val if defined $val;
+
+	my $mime = $self->{mime} or return;
+	$val = $mime->header($field);
+	$val = '' unless defined $val;
+	$val =~ tr/\t\r\n/ /;
+	$self->{$field} = $val;
 }
 
-sub from {
-	my ($self) = @_;
-	my $from = $self->mime->header('From') || '';
-	my @from;
+sub subject ($) { __hdr($_[0], 'subject') }
+sub to ($) { __hdr($_[0], 'to') }
+sub cc ($) { __hdr($_[0], 'cc') }
 
-	if ($from) {
-		$from =~ tr/\n/ /;
-		@from = Email::Address->parse($from);
-		$self->{from} = $from[0];
-		$from = $from[0]->name;
+sub date ($) {
+	my ($self) = @_;
+	my $date = __hdr($self, 'date');
+	return $date if defined $date;
+	my $ts = $self->{ts};
+	return unless defined $ts;
+	$self->{date} = strftime('%a, %d %b %Y %T %z', gmtime($ts));
+}
+
+sub from ($) {
+	my ($self) = @_;
+	my $from = __hdr($self, 'from');
+	if (defined $from && !defined $self->{from_name}) {
+		$from =~ tr/\t\r\n/ /;
+		my @from = Email::Address->parse($from);
+		$self->{from_name} = $from[0]->name;
 	}
-	$self->{from_name} = $from;
-	$self->{from};
+	$from;
 }
 
 sub from_name {
@@ -87,14 +107,13 @@ sub ts {
 
 sub to_doc_data {
 	my ($self) = @_;
-	PublicInbox::Search::subject_summary($self->subject) . "\n" .
-	$self->from_name . "\n".
-	$self->references_sorted;
+	join("\n", $self->subject, $self->from, $self->references,
+		$self->to, $self->cc);
 }
 
-sub references_sorted {
+sub references {
 	my ($self) = @_;
-	my $x = $self->{references_sorted};
+	my $x = $self->{references};
 	defined $x ? $x : '';
 }
 
@@ -140,8 +159,7 @@ sub mini_mime {
 		'Message-ID' => "<$self->{mid}>",
 		'X-PI-TS' => $self->ts,
 	);
-	if (my $refs = $self->{references_sorted}) {
-		$refs =~ s/></> </g;
+	if (my $refs = $self->{references}) {
 		push @h, References => $refs;
 	}
 	my $mime = Email::MIME->create(header_str => \@hs, header => \@h);
@@ -156,7 +174,7 @@ sub mini_mime {
 	$mime;
 }
 
-sub mid {
+sub mid ($;$) {
 	my ($self, $mid) = @_;
 
 	if (defined $mid) {
