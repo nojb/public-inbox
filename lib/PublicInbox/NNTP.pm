@@ -78,7 +78,7 @@ sub cmd_mode ($$) {
 	my ($self, $arg) = @_;
 	$arg = uc $arg;
 	return r501 unless $arg eq 'READER';
-	'200 reader status acknowledged';
+	'201 Posting prohibited';
 }
 
 sub cmd_slave ($) { '202 slave status noted' }
