@@ -91,12 +91,6 @@ sub query {
 	$self->do_enquire($query, $opts);
 }
 
-sub get_subject_path {
-	my ($self, $path, $opts) = @_;
-	my $q = Search::Xapian::Query->new(xpfx("path").mid_compress($path));
-	$self->do_enquire($q, $opts);
-}
-
 sub get_thread {
 	my ($self, $mid, $opts) = @_;
 	my $smsg = eval { $self->lookup_message($mid) };
