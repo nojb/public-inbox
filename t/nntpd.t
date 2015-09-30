@@ -176,6 +176,25 @@ EOF
 		is($r[2], '.', 'correctly terminated response');
 	}
 
+	is_deeply($n->xhdr(qw(Cc 1-)), { 1 => 'test-nntpd@example.com' },
+		 'XHDR Cc 1- works');
+	is_deeply($n->xhdr(qw(References 1-)), { 1 => '' },
+		 'XHDR References 1- works (empty string)');
+	is_deeply($n->xhdr(qw(list-id 1-)), {},
+		 'XHDR on invalid header returns empty');
+
+	{
+		syswrite($s, "HDR List-id 1-\r\n");
+		$buf = '';
+		do {
+			sysread($s, $buf, 4096, length($buf));
+		} until ($buf =~ /\r\n\z/);
+		my @r = split("\r\n", $buf);
+		like($r[0], qr/^5\d\d /,
+			'got 5xx response for unoptimized HDR');
+		is(scalar @r, 1, 'only one response line');
+	}
+
 	ok(kill('TERM', $pid), 'killed nntpd');
 	$pid = undef;
 	waitpid(-1, 0);
