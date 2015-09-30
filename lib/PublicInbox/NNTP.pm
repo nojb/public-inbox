@@ -25,6 +25,8 @@ sub now () { clock_gettime(CLOCK_MONOTONIC) };
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Bytes Lines);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW) . ":\r\n";
+my $LIST_HEADERS = join("\r\n", qw(Subject From Date Message-ID References
+				  :bytes :lines Xref To Cc)) . "\r\n";
 
 # disable commands with easy DoS potential:
 # LISTGROUP could get pretty bad, too...
@@ -93,6 +95,11 @@ sub cmd_xgtitle ($;$) {
 sub list_overview_fmt ($) {
 	my ($self) = @_;
 	do_more($self, $OVERVIEW_FMT);
+}
+
+sub list_headers ($;$) {
+	my ($self) = @_;
+	do_more($self, $LIST_HEADERS);
 }
 
 sub list_active ($;$) {
