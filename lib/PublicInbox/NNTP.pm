@@ -16,6 +16,7 @@ use constant {
 	r501 => '501 command syntax error',
 	r221 => '221 Header follows',
 	r224 => '224 Overview information follows (multi-line)',
+	r225 =>	'225 Headers follow (multi-line)',
 	r430 => '430 No article with that message-id',
 	long_response_limit => 0xffffffff,
 };
@@ -554,7 +555,7 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 		return $r unless ref $r;
 		my $mm = $self->{ng}->mm;
 		my ($beg, $end) = @$r;
-		more($self, '221 Header follows');
+		more($self, $xhdr ? r221 : r225);
 		$self->long_response($beg, $end, sub {
 			my ($i) = @_;
 			my $mid = $mm->mid_for($$i);
@@ -597,7 +598,7 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		my $ng = $self->{ng};
 		my $mm = $ng->mm;
 		my ($beg, $end) = @$r;
-		more($self, '221 Header follows');
+		more($self, $xhdr ? r221 : r225);
 		$self->long_response($beg, $end, sub {
 			my ($i) = @_;
 			my $mid = $mm->mid_for($$i);
@@ -644,7 +645,7 @@ sub hdr_searchmsg ($$$$) {
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
-		more($self, '221 Header follows');
+		more($self, $xhdr ? r221 : r225);
 		$self->long_response($beg, $end, sub {
 			my ($i) = @_;
 			my $mid = $mm->mid_for($$i) or return;
@@ -702,7 +703,7 @@ sub hdr_mid_response ($$$$$$) {
 		$res .= r221 . "\r\n";
 		$res .= "$mid $v\r\n" if defined $v;
 	} else {
-		$res .= r224 . "\r\n";
+		$res .= r225 . "\r\n";
 		if (defined $v) {
 			my $pfx = hdr_mid_prefix($self, $xhdr, $ng, $n, $mid);
 			$res .= "$pfx $v\r\n";
@@ -726,7 +727,7 @@ sub hdr_slow ($$$$) {
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
-		more($self, $xhdr ? r221 : r224);
+		more($self, $xhdr ? r221 : r225);
 		$self->long_response($beg, $end, sub {
 			my ($i) = @_;
 			$r = $self->art_lookup($$i, 2);
