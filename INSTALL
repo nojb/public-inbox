@@ -43,12 +43,14 @@ Optional modules:
   - IO::Compress::Gzip[3]      libio-compress-perl
   - DBI[3]                     libdbi-perl
   - DBD::SQLite[3]             libdbd-sqlite3-perl
+  - Danga::Socket[4]           libdanga-socket-perl
 
 [1] - Only required for serving/generating Atom and HTML pages.
 [2] - Keep in mind this will be split into a separate Debian package
       when CGI.pm is dropped from the Perl standard library.
       Plack/PSGI and mod_perl2 are both supported.
 [3] - Optional for HTML web interface and NNTP server
+[4] - Optional for NNTP server
 
 Copyright
 ---------
