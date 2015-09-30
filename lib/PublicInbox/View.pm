@@ -545,6 +545,7 @@ sub html_footer {
 
 	my $cc = uri_escape_utf8(join(',', sort values %cc));
 	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
+	$href =~ s/%20/+/g;
 
 	my $srch = $ctx->{srch} if $ctx;
 	my $upfx = $full_pfx ? '../' : '../../';
