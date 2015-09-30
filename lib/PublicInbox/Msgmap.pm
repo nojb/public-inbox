@@ -4,7 +4,6 @@
 package PublicInbox::Msgmap;
 use strict;
 use warnings;
-use fields qw(dbh mid_insert mid_for num_for num_minmax);
 use DBI;
 use DBD::SQLite;
 
@@ -23,8 +22,7 @@ sub new {
 		sqlite_use_immediate_transaction => 1,
 	});
 	$dbh->do('PRAGMA case_sensitive_like = ON');
-	my $self = fields::new($class);
-	$self->{dbh} = $dbh;
+	my $self = bless { dbh => $dbh }, $class;
 
 	if ($writable) {
 		create_tables($dbh);

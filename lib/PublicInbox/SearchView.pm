@@ -257,27 +257,24 @@ sub adump {
 package PublicInbox::SearchQuery;
 use strict;
 use warnings;
-use fields qw(q o t x r);
 use PublicInbox::Hval;
 
 sub new {
 	my ($class, $cgi) = @_;
-	my $self = fields::new($class);
-	$self->{q} = $cgi->param('q');
-	$self->{x} = $cgi->param('x') || '';
-	$self->{o} = int($cgi->param('o') || 0) || 0;
-	my $r = $cgi->param('r');
-	$self->{r} = (defined $r && $r ne '0');
-
-	$self;
+	my $r => $cgi->param('r'),
+	bless {
+		q => $cgi->param('q'),
+		x => $cgi->param('x') || '',
+		o => int($cgi->param('o') || 0) || 0,
+		r => (defined $r && $r ne '0'),
+	}, $class;
 }
 
 sub qs_html {
 	my ($self, %over) = @_;
 
 	if (keys %over) {
-		my $tmp = fields::new(ref($self));
-		%$tmp = %$self;
+		my $tmp = bless { %$self }, ref($self);
 		foreach my $k (keys %over) {
 			$tmp->{$k} = $over{$k};
 		}

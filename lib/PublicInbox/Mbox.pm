@@ -110,16 +110,15 @@ EOF
 package PublicInbox::MboxGz;
 use strict;
 use warnings;
-use fields qw(gz fh buf);
 
 sub new {
 	my ($class, $fh) = @_;
-	my $self = fields::new($class);
 	my $buf;
-	$self->{buf} = \$buf;
-	$self->{gz} = IO::Compress::Gzip->new(\$buf);
-	$self->{fh} = $fh;
-	$self;
+	bless {
+		buf => \$buf,
+		gz => IO::Compress::Gzip->new(\$buf),
+		fh => $fh,
+	}, $class;
 }
 
 sub _flush_buf {

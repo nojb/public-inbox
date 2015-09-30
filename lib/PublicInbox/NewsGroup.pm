@@ -3,7 +3,6 @@
 package PublicInbox::NewsGroup;
 use strict;
 use warnings;
-use fields qw(name git_dir address domain mm gcf search);
 use Scalar::Util qw(weaken);
 require Danga::Socket;
 require PublicInbox::Msgmap;
@@ -11,12 +10,13 @@ require PublicInbox::GitCatFile;
 
 sub new {
 	my ($class, $name, $git_dir, $address) = @_;
-	my $self = fields::new($class);
-	$self->{name} = $name;
 	$address = $address->[0] if ref($address);
+	my $self = bless {
+		name => $name,
+		git_dir => $git_dir,
+		address => $address,
+	}, $class;
 	$self->{domain} = ($address =~ /\@(\S+)\z/) ? $1 : 'localhost';
-	$self->{git_dir} = $git_dir;
-	$self->{address} = $address;
 	$self;
 }
 

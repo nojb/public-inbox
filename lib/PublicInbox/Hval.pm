@@ -5,7 +5,6 @@
 package PublicInbox::Hval;
 use strict;
 use warnings;
-use fields qw(raw href);
 use Encode qw(find_encoding);
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::MID qw/mid_clean/;
@@ -14,14 +13,14 @@ my $enc_ascii = find_encoding('us-ascii');
 
 sub new {
 	my ($class, $raw, $href) = @_;
-	my $self = fields::new($class);
 
 	# we never care about leading/trailing whitespace
 	$raw =~ s/\A\s*//;
 	$raw =~ s/\s*\z//;
-	$self->{raw} = $raw;
-	$self->{href} = defined $href ? $href : $raw;
-	$self;
+	bless {
+		raw => $raw,
+		href => defined $href ? $href : $raw,
+	}, $class;
 }
 
 sub new_msgid {

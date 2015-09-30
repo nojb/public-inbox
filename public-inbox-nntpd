@@ -15,16 +15,15 @@ daemon_run('0.0.0.0:119',
 package PublicInbox::NNTPD;
 use strict;
 use warnings;
-use fields qw(groups grouplist err out);
 
 sub new {
 	my ($class) = @_;
-	my $self = fields::new($class);
-	$self->{groups} = {};
-	$self->{err} = \*STDERR;
-	$self->{out} = \*STDOUT;
-	$self->{grouplist} = [];
-	$self;
+	bless {
+		groups => {},
+		err => \*STDERR,
+		out => \*STDOUT,
+		grouplist => [],
+	}, $class;
 }
 
 sub refresh_groups () {
