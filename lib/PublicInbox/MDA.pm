@@ -70,14 +70,6 @@ sub set_list_headers {
 			x-confirm-reading-to x-pmrqc)) {
 		$simple->header_set($h);
 	}
-
-	# Remove any "DomainKeys" (or similar) header lines.
-	# Any modifications (including List-Id) will cause a message
-	# to appear invalid
-	foreach my $h (qw(domainkey-signature dkim-signature
-			authentication-results)) {
-		$simple->header_set($h);
-	}
 }
 
 # returns a 3-element array: name, email, date
