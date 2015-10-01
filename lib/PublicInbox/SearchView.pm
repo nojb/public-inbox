@@ -261,7 +261,7 @@ use PublicInbox::Hval;
 
 sub new {
 	my ($class, $cgi) = @_;
-	my $r => $cgi->param('r'),
+	my $r = $cgi->param('r');
 	bless {
 		q => $cgi->param('q'),
 		x => $cgi->param('x') || '',
