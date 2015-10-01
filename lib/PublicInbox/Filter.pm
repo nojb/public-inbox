@@ -29,10 +29,10 @@ sub run {
 	# kill potentially bad/confusing headers
 	# Note: ssoma already does this, but since we mangle the message,
 	# we should do this before it gets to ssoma.
-	# We also kill Mail-{Followup,Reply}-To and Reply-To headers due to
+	# We also kill Mail-{Followup,Reply}-To headers due to
 	# the nature of public-inbox having no real subscribers.
 	foreach my $d (qw(status lines content-length
-			mail-followup-to mail-reply-to reply-to)) {
+			mail-followup-to mail-reply-to)) {
 		$mime->header_set($d);
 	}
 
