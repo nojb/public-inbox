@@ -80,8 +80,6 @@ sub add_message {
 		my $subj = $smsg->subject;
 
 		if ($subj ne '') {
-			$doc->add_term(xpfx('subject') . $subj);
-
 			my $path = $self->subject_path($subj);
 			$doc->add_term(xpfx('path') . mid_compress($path));
 		}
