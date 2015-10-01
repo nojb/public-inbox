@@ -13,6 +13,7 @@ use Email::Filter;
 use IPC::Run;
 our $VERSION = '0.0.1';
 use constant NO_HTML => '*** We only accept plain-text email, no HTML ***';
+use constant TEXT_ONLY => '*** We only accept plain-text email ***';
 
 # start with the same defaults as mailman
 our $BAD_EXT = qr/\.(exe|bat|cmd|com|pif|scr|vbs|cpl|zip)\s*\z/i;
@@ -49,6 +50,7 @@ sub run {
 	} elsif ($content_type =~ m!\bmultipart/!i) {
 		return strip_multipart($mime, $content_type, $filter);
 	} else {
+		$filter->reject(TEXT_ONLY) if $filter;
 		replace_body($mime, "$content_type message scrubbed");
 		return 0;
 	}
@@ -108,10 +110,7 @@ sub dump_html {
 	}
 }
 
-# this is to correct user errors and not expected to cover all corner cases
-# if users don't want to hit this, they should be sending text/plain messages
-# unfortunately, too many people send HTML mail and we'll attempt to convert
-# it to something safer, smaller and harder-to-spy-on-users-with.
+# this is to correct old archives during import.
 sub strip_multipart {
 	my ($mime, $content_type, $filter) = @_;
 
@@ -152,7 +151,7 @@ sub strip_multipart {
 			if (recheck_type_ok($part)) {
 				push @keep, $part;
 			} elsif ($filter) {
-				$filter->reject('no attachments')
+				$filter->reject(TEXT_ONLY);
 			} else {
 				$rejected++;
 			}
@@ -164,7 +163,7 @@ sub strip_multipart {
 				push @keep, $part;
 			}
 		} else {
-			$filter->reject('no attachments') if $filter;
+			$filter->reject(TEXT_ONLY) if $filter;
 			# reject everything else, including non-PGP signatures
 			$rejected++;
 		}
