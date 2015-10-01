@@ -71,7 +71,7 @@ sub expire_old () {
 		$EXPTIMER = undef;
 		# noop to kick outselves out of the loop so descriptors
 		# really get closed
-		Danga::Socket->AddTimer(0, *expire_cleanup);
+		Danga::Socket->AddTimer(0, sub {});
 	}
 }
 
