@@ -33,6 +33,48 @@ my $LIST_HEADERS = join("\r\n", @OVERVIEW,
 # LISTGROUP could get pretty bad, too...
 my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
 
+my $EXPMAP; # fd -> [ idle_time, $self ]
+my $EXPTIMER;
+our $EXPTIME = 180; # 3 minutes
+
+sub update_idle_time ($) {
+	my ($self) = @_;
+	my $tmp = $self->{sock} or return;
+	$tmp = fileno($tmp);
+	defined $tmp and $EXPMAP->{$tmp} = [ now(), $self ];
+}
+
+sub expire_old () {
+	my $now = now();
+	my $exp = $EXPTIME;
+	my $old = $now - $exp;
+	my $next = $now + $exp;
+	my $nr = 0;
+	my %new;
+	while (my ($fd, $v) = each %$EXPMAP) {
+		my ($idle_time, $nntp) = @$v;
+		if ($idle_time < $old) {
+			$nntp->close; # idempotent
+		} else {
+			my $nexp = $idle_time + $exp;
+			$next = $nexp if ($nexp < $next);
+			++$nr;
+			$new{$fd} = $v;
+		}
+	}
+	$EXPMAP = \%new;
+	if ($nr) {
+		$next -= $now;
+		$next = 0 if $next < 0;
+		$EXPTIMER = Danga::Socket->AddTimer($next, *expire_old);
+	} else {
+		$EXPTIMER = undef;
+		# noop to kick outselves out of the loop so descriptors
+		# really get closed
+		Danga::Socket->AddTimer(0, *expire_cleanup);
+	}
+}
+
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
@@ -42,6 +84,8 @@ sub new ($$$) {
 	res($self, '201 server ready - post via email');
 	$self->{rbuf} = '';
 	$self->watch_read(1);
+	update_idle_time($self);
+	$EXPTIMER ||= Danga::Socket->AddTimer($EXPTIME, *expire_old);
 	$self;
 }
 
@@ -531,11 +575,13 @@ sub long_response ($$$$) {
 				out($self, " deferred[$fd] aborted - %0.6f",
 				           now() - $t0);
 			} else {
+				update_idle_time($self);
 				$self->watch_read(1);
 			}
 		} elsif (!$lim || $self->{write_buf_size}) {
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
+			update_idle_time($self);
 			Danga::Socket->AddTimer(0, sub {
 				$self->write($self->{long_res});
 			});
@@ -858,6 +904,7 @@ sub event_err { $_[0]->close }
 
 sub event_write {
 	my ($self) = @_;
+	update_idle_time($self);
 	# only continue watching for readability when we are done writing:
 	if ($self->write(undef) == 1 && !$self->{long_res}) {
 		$self->watch_read(1);
@@ -884,6 +931,7 @@ sub event_read {
 	return $self->close if $r < 0;
 	my $len = length($self->{rbuf});
 	return $self->close if ($len >= LINE_MAX);
+	update_idle_time($self);
 }
 
 sub watch_read {
