@@ -114,7 +114,7 @@ sub process_line ($$) {
 	my $err = $@;
 	if ($err && !$self->{closed}) {
 		chomp($l = Dumper(\$l));
-		err($self, "error from: $l $err");
+		err($self, "error from: $l ($err)");
 		$res = '503 program fault - command not performed';
 	}
 	return 0 unless defined $res;
