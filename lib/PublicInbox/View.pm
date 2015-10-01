@@ -823,7 +823,10 @@ sub add_topic {
 
 		my $u = $x->header('X-PI-From');
 		my $ts = $x->header('X-PI-TS');
-		$state->{latest}->{$topic} = [ $mid, $u, $ts ];
+		my $exist = $state->{latest}->{$topic};
+		if (!$exist || $exist->[2] < $ts) {
+			$state->{latest}->{$topic} = [ $mid, $u, $ts ];
+		}
 	} else {
 		# ghost message, do not bump level
 		$child_adjust = 0;
