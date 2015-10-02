@@ -19,6 +19,7 @@ sub new {
 		AutoCommit => 1,
 		RaiseError => 1,
 		PrintError => 0,
+		ReadOnly => !$writable,
 		sqlite_use_immediate_transaction => 1,
 	});
 	$dbh->do('PRAGMA case_sensitive_like = ON');
