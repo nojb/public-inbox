@@ -145,13 +145,12 @@ EOF
 	like($html, qr/\bhi = bye\b/, "HTML output decoded QP");
 }
 
-
-{	# XXX dirty hack
-	use PublicInbox::MID qw/mid_compress/;
-	like(mid_compress('foo%bar@wtf'), qr/\A[a-f0-9]{40}\z/,
+{
+	use PublicInbox::MID qw/id_compress/;
+	like(id_compress('foo%bar@wtf'), qr/\A[a-f0-9]{40}\z/,
 		"percent always converted to sha1 to workaround buggy httpds");
-	is(mid_compress('foobar@wtf'), 'foobar@wtf',
-		'regular MID not compressed');
+	is(id_compress('foobar-wtf'), 'foobar-wtf',
+		'regular ID not compressed');
 }
 
 done_testing();

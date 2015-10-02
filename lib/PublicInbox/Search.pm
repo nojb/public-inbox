@@ -14,7 +14,7 @@ use constant LINES => 3; # :lines as defined in RFC 3977
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
 use Email::MIME;
-use PublicInbox::MID qw/mid_clean mid_compress/;
+use PublicInbox::MID qw/mid_clean id_compress/;
 
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
@@ -25,7 +25,7 @@ use constant {
 	# SCHEMA_VERSION history
 	# 0 - initial
 	# 1 - subject_path is lower-cased
-	# 2 - subject_path is mid_compress in the index, only
+	# 2 - subject_path is id_compress in the index, only
 	# 3 - message-ID is compressed if it includes '%' (hack!)
 	# 4 - change "Re: " normalization, avoid circular Reference ghosts
 	# 5 - subject_path drops trailing '.'
@@ -104,7 +104,7 @@ sub get_thread {
 
 	return { total => 0, msgs => [] } unless $smsg;
 	my $qtid = Search::Xapian::Query->new(xpfx('thread').$smsg->thread_id);
-	my $path = mid_compress($smsg->path);
+	my $path = id_compress($smsg->path);
 	my $qsub = Search::Xapian::Query->new(xpfx('path').$path);
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
 	$self->do_enquire($query, $opts);

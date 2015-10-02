@@ -5,7 +5,7 @@ package PublicInbox::SearchIdx;
 use strict;
 use warnings;
 use base qw(PublicInbox::Search);
-use PublicInbox::MID qw/mid_clean mid_compress/;
+use PublicInbox::MID qw/mid_clean id_compress/;
 *xpfx = *PublicInbox::Search::xpfx;
 
 use constant {
@@ -81,7 +81,7 @@ sub add_message {
 
 		if ($subj ne '') {
 			my $path = $self->subject_path($subj);
-			$doc->add_term(xpfx('path') . mid_compress($path));
+			$doc->add_term(xpfx('path') . id_compress($path));
 		}
 
 		add_val($doc, &PublicInbox::Search::TS, $smsg->ts);

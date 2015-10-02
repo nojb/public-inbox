@@ -9,7 +9,7 @@ use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval;
-use PublicInbox::MID qw/mid_clean mid_compress mid2path/;
+use PublicInbox::MID qw/mid_clean id_compress mid2path/;
 use Digest::SHA qw/sha1_hex/;
 my $SALT = rand;
 require POSIX;
@@ -586,7 +586,7 @@ sub anchor_for {
 	my ($msgid) = @_;
 	my $id = $msgid;
 	if ($id !~ /\A[a-f0-9]{40}\z/) {
-		$id = mid_compress(mid_clean($id), 1);
+		$id = id_compress(mid_clean($id), 1);
 	}
 	'm' . $id;
 }
