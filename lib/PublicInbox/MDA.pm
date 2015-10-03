@@ -6,6 +6,7 @@ use warnings;
 use Email::Address;
 use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
+use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 use constant cmd => qw/ssoma-mda -1/;
 
 # drop plus addressing for matching
@@ -20,6 +21,7 @@ sub precheck {
 	my ($klass, $filter, $address) = @_;
 	my $simple = $filter->simple;
 	my $mid = $simple->header("Message-ID");
+	return 0 if (length($mid) > MAX_MID_SIZE);
 	return 0 unless usable_str(length('<m@h>'), $mid) && $mid =~ /\@/;
 	return 0 unless usable_str(length('u@h'), $filter->from);
 	return 0 unless usable_str(length(':o'), $simple->header("Subject"));

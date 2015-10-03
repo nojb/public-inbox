@@ -8,6 +8,7 @@ use base qw(PublicInbox::Search);
 use PublicInbox::MID qw/mid_clean id_compress/;
 *xpfx = *PublicInbox::Search::xpfx;
 
+use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 use constant {
 	PERM_UMASK => 0,
 	OLD_PERM_GROUP => 1,
@@ -52,6 +53,7 @@ sub add_message {
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
 
 	eval {
+		die 'Message-ID too long' if length($mid) > MAX_MID_SIZE;
 		my $smsg = $self->lookup_message($mid);
 		my $doc;
 
@@ -230,6 +232,9 @@ sub link_message_to_parents {
 
 		# prevent circular references via References: here:
 		foreach my $ref (@orig_refs) {
+			if (length($ref) > MAX_MID_SIZE) {
+				warn "References: <$ref> too long, ignoring\n";
+			}
 			next if $uniq{$ref};
 			$uniq{$ref} = 1;
 			push @refs, $ref;
