@@ -61,7 +61,7 @@ sub lookup {
 	defined $pfx or return;
 
 	my %rv;
-	foreach my $k (qw(mainrepo address)) {
+	foreach my $k (qw(mainrepo address filter)) {
 		my $v = $self->{"$pfx.$k"};
 		$rv{$k} = $v if defined $v;
 	}
