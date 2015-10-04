@@ -163,7 +163,7 @@ sub get_mid_txt {
 	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404($ctx);
 	require PublicInbox::Mbox;
-	PublicInbox::Mbox::emit1($x);
+	PublicInbox::Mbox::emit1($ctx, $x);
 }
 
 # /$LISTNAME/$MESSAGE_ID/                   -> HTML content (short quotes)

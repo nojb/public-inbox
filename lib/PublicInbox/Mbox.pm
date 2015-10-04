@@ -4,7 +4,8 @@
 package PublicInbox::Mbox;
 use strict;
 use warnings;
-use PublicInbox::MID qw/mid2path/;
+use PublicInbox::MID qw/mid2path mid_clean/;
+use URI::Escape qw/uri_escape_utf8/;
 require Email::Simple;
 
 sub thread_mbox {
@@ -17,17 +18,18 @@ sub thread_mbox {
 
 sub emit1 {
 	my $simple = Email::Simple->new(pop);
+	my $ctx = pop;
 	sub {
 		my ($response) = @_;
 		# single message should be easily renderable in browsers
 		my $fh = $response->([200, ['Content-Type'=>'text/plain']]);
-		emit_msg($fh, $simple);
+		emit_msg($ctx, $fh, $simple);
 		$fh->close;
 	}
 }
 
 sub emit_msg {
-	my ($fh, $simple) = @_; # Email::Simple object
+	my ($ctx, $fh, $simple) = @_; # Email::Simple object
 	my $header_obj = $simple->header_obj;
 
 	# drop potentially confusing headers, ssoma already should've dropped
@@ -35,6 +37,20 @@ sub emit_msg {
 	foreach my $d (qw(Lines Bytes Content-Length Status)) {
 		$header_obj->header_set($d);
 	}
+	my $feed_opts = $ctx->{feed_opts};
+	unless ($feed_opts) {
+		require PublicInbox::Feed; # FIXME: gross
+		$feed_opts = PublicInbox::Feed::get_feedopts($ctx);
+		$ctx->{feed_opts} = $feed_opts;
+	}
+	my $base = $feed_opts->{url};
+	my $mid = mid_clean($header_obj->header('Message-ID'));
+	$mid = uri_escape_utf8($mid);
+	my @archived_at = $header_obj->header('Archived-At');
+	push @archived_at, "<$base$mid/>";
+	$header_obj->header_set('Archived-At', @archived_at);
+	$header_obj->header_set('List-Archive', "<$base>");
+	$header_obj->header_set('List-Post', "<mailto:$feed_opts->{id_addr}>");
 
 	my $buf = $header_obj->as_string;
 	unless ($buf =~ /\AFrom /) {
@@ -82,7 +98,7 @@ sub emit_mbox {
 				my $p = 'HEAD:'.mid2path($smsg->mid);
 				Email::Simple->new($git->cat_file($p));
 			};
-			emit_msg($fh, $msg) if $msg;
+			emit_msg($ctx, $fh, $msg) if $msg;
 		}
 
 		$opts{offset} += $nr;
