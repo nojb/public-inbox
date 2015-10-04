@@ -12,6 +12,7 @@ use PublicInbox::Hval;
 use PublicInbox::MID qw/mid_clean id_compress mid2path/;
 use Digest::SHA qw/sha1_hex/;
 my $SALT = rand;
+my $MBOX_TITLE = 'title="download thread as gzipped mbox"';
 require POSIX;
 
 # TODO: make these constants tunable
@@ -198,7 +199,8 @@ sub emit_thread_html {
 	my $next = "<a\nid=\"s$final_anchor\">";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>";
-	$next .= "\ndownload thread: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
+	$next .= "\ndownload thread: ";
+	$next .= "<a\n$MBOX_TITLE\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
 	$cb->write("<hr />" . PRE_WRAP . $next . "\n\n". $foot .
 		   "</pre></body></html>");
@@ -862,17 +864,21 @@ sub dump_topics {
 		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
 		if ($n == 1) {
 			$attr = "created by $u @ $ts UTC";
-			$n = "\n";
+			$n = "";
 		} else {
 			# $n isn't the total number of posts on the topic,
 			# just the number of posts in the current results
 			# window, so leave it unlabeled
 			$attr = "updated by $u @ $ts UTC";
-			$n = " ($n)\n";
+			$n = " ($n)";
 		}
 		if ($level == 0 || $attr ne $prev_attr) {
+			my $mbox = qq(<a\n$MBOX_TITLE\n) .
+				   qq(href="$mid/t.mbox.gz">mbox.gz</a>);
+			my $atom = qq(<a\nhref="$mid/t.atom">Atom</a>);
 			$pfx .= INDENT if $level > 0;
 			$dst .= "$pfx- ". $attr . $n;
+			$dst .= " - $mbox / $atom\n";
 			$prev_attr = $attr;
 		}
 	}
