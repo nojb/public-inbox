@@ -32,7 +32,7 @@ sub emit_msg {
 
 	# drop potentially confusing headers, ssoma already should've dropped
 	# Lines and Content-Length
-	foreach my $d (qw(Lines Content-Length Status)) {
+	foreach my $d (qw(Lines Bytes Content-Length Status)) {
 		$header_obj->header_set($d);
 	}
 
