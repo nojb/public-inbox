@@ -825,7 +825,7 @@ sub add_topic {
 
 		my $ts = $x->header('X-PI-TS');
 		my $exist = $state->{latest}->{$topic};
-		if (!$exist || $exist->[2] < $ts) {
+		if (!$exist || $exist->[1] < $ts) {
 			$state->{latest}->{$topic} = [ $mid, $ts ];
 		}
 	} else {
