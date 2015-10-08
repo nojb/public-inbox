@@ -823,11 +823,10 @@ sub add_topic {
 
 		my $mid = mid_clean($x->header('Message-ID'));
 
-		my $u = $x->header('X-PI-From');
 		my $ts = $x->header('X-PI-TS');
 		my $exist = $state->{latest}->{$topic};
 		if (!$exist || $exist->[2] < $ts) {
-			$state->{latest}->{$topic} = [ $mid, $u, $ts ];
+			$state->{latest}->{$topic} = [ $mid, $ts ];
 		}
 	} else {
 		# ghost message, do not bump level
@@ -851,10 +850,9 @@ sub dump_topics {
 	while (defined(my $info = shift @$order)) {
 		my ($level, $subj, $topic) = @$info;
 		my $n = delete $subjs->{$topic};
-		my ($mid, $u, $ts) = @{delete $latest->{$topic}};
+		my ($mid, $ts) = @{delete $latest->{$topic}};
 		$mid = PublicInbox::Hval->new($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
-		$u = PublicInbox::Hval->new($u)->as_html;
 		$pfx = INDENT x ($level - 1);
 		my $nl = $level == $prev ? "\n" : '';
 		my $dot = $level == 0 ? '' : '` ';
@@ -863,13 +861,13 @@ sub dump_topics {
 		my $attr;
 		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
 		if ($n == 1) {
-			$attr = "created by $u @ $ts UTC";
+			$attr = "created @ $ts UTC";
 			$n = "";
 		} else {
 			# $n isn't the total number of posts on the topic,
 			# just the number of posts in the current results
 			# window, so leave it unlabeled
-			$attr = "updated by $u @ $ts UTC";
+			$attr = "updated @ $ts UTC";
 			$n = " ($n)";
 		}
 		if ($level == 0 || $attr ne $prev_attr) {
