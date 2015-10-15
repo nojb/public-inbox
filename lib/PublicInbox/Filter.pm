@@ -151,7 +151,8 @@ sub strip_multipart {
 			if (recheck_type_ok($part)) {
 				push @keep, $part;
 			} elsif ($filter) {
-				$filter->reject(TEXT_ONLY);
+				$filter->reject("Bad attachment: $part_type ".
+						TEXT_ONLY);
 			} else {
 				$rejected++;
 			}
@@ -162,8 +163,10 @@ sub strip_multipart {
 			if ($rejected == 0 && !@html) {
 				push @keep, $part;
 			}
+		} elsif ($filter) {
+			$filter->reject("unacceptable mime-type: $part_type ".
+					TEXT_ONLY);
 		} else {
-			$filter->reject(TEXT_ONLY) if $filter;
 			# reject everything else, including non-PGP signatures
 			$rejected++;
 		}
@@ -232,8 +235,7 @@ sub replace_body {
 sub recheck_type_ok {
 	my ($part) = @_;
 	my $s = $part->body;
-	((length($s) < 0x10000) &&
-		($s =~ /\A([\P{XPosixPrint}\f\n\r\t]+)\z/))
+	((length($s) < 0x10000) && ($s =~ /\A([[:print:]\s]+)\z/s));
 }
 
 1;
