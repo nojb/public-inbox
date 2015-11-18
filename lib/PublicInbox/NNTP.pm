@@ -114,7 +114,7 @@ sub process_line ($$) {
 	my $err = $@;
 	if ($err && !$self->{closed}) {
 		chomp($l = Dumper(\$l));
-		err($self, "error from: $l ($err)");
+		err($self, 'error from: %s (%s)', $l, $err);
 		$res = '503 program fault - command not performed';
 	}
 	return 0 unless defined $res;
@@ -568,8 +568,8 @@ sub long_response ($$$$) {
 
 			if ($err) {
 				err($self,
-				    "$err during long response[$fd] - %0.6f",
-					now() - $t0);
+				    "%s during long response[$fd] - %0.6f",
+				    $err, now() - $t0);
 			}
 			if ($self->{closed}) {
 				out($self, " deferred[$fd] aborted - %0.6f",
@@ -925,7 +925,7 @@ sub event_read {
 		$r = eval { $self->process_line($line) };
 		my $d = $self->{long_res} ?
 			" deferred[$fd]" : '';
-		out($self, "[$fd] $line - %0.6f$d", now() - $t0);
+		out($self, "[$fd] %s - %0.6f$d", $line, now() - $t0);
 	}
 
 	return $self->close if $r < 0;
