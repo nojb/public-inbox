@@ -861,13 +861,13 @@ sub dump_topics {
 		my $attr;
 		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
 		if ($n == 1) {
-			$attr = "created @ $ts UTC";
+			$attr = "@ $ts UTC";
 			$n = "";
 		} else {
 			# $n isn't the total number of posts on the topic,
 			# just the number of posts in the current results
 			# window, so leave it unlabeled
-			$attr = "updated @ $ts UTC";
+			$attr = "@ $ts UTC";
 			$n = " ($n)";
 		}
 		if ($level == 0 || $attr ne $prev_attr) {
