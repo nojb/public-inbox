@@ -12,7 +12,7 @@ use PublicInbox::View;
 use PublicInbox::MID qw/mid_clean mid2path/;
 use POSIX qw/strftime/;
 use constant {
-	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # atom standard
+	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # Atom standard
 	MAX_PER_PAGE => 25, # this needs to be tunable
 };
 
@@ -194,7 +194,7 @@ sub nav_footer {
 		$head = $cgi->path_info;
 		$head = qq!<a\nhref="$head">head</a>!;
 	}
-	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">atom</a>";
+	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">Atom</a>";
 	"<a\nname=\"s$anchor\">page:</a> $next $head $atom";
 }
 
