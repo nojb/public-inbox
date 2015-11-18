@@ -107,7 +107,7 @@ sub index_entry {
 	}
 	$rv .= "<td\nid=s$midx>" . PRE_WRAP;
 	$rv .= "<b\nid=\"$id\">$subj</b>\n";
-	$rv .= "- by $from @ $ts UTC - ";
+	$rv .= "- $from @ $ts UTC - ";
 	$rv .= "<a\nhref=\"#s$next\">next</a>";
 	if ($prev >= 0) {
 		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
@@ -875,8 +875,7 @@ sub dump_topics {
 				   qq(href="$mid/t.mbox.gz">mbox.gz</a>);
 			my $atom = qq(<a\nhref="$mid/t.atom">Atom</a>);
 			$pfx .= INDENT if $level > 0;
-			$dst .= "$pfx- ". $attr . $n;
-			$dst .= " - $mbox / $atom\n";
+			$dst .= $pfx . $attr . $n . " - $mbox / $atom\n";
 			$prev_attr = $attr;
 		}
 	}
