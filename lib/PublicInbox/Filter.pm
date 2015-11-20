@@ -1,6 +1,7 @@
 # Copyright (C) 2013-2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 #
+# Used to filter incoming mail for -mda and importers
 # This only exposes one function: run
 # Note: the settings here are highly opinionated.  Obviously, this is
 # Free Software (AGPLv3), so you may change it if you host yourself.

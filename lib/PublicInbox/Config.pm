@@ -1,5 +1,7 @@
 # Copyright (C) 2014-2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# Used throughout the project for reading configuration
 package PublicInbox::Config;
 use strict;
 use warnings;

@@ -1,6 +1,8 @@
 # Copyright (C) 2014-2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 #
+# Main web interface for mailing list archives
+#
 # We focus on the lowest common denominators here:
 # - targeted at text-only console browsers (w3m, links, etc..)
 # - Only basic HTML, CSS only for line-wrapping <pre> text content for GUIs

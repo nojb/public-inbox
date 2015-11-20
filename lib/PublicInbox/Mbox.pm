@@ -1,6 +1,8 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
-# Streaming interface for formatting messages as an mboxrd
+
+# Streaming interface for formatting messages as an mboxrd.
+# Used by the web interface
 package PublicInbox::Mbox;
 use strict;
 use warnings;

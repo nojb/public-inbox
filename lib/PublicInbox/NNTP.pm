@@ -1,5 +1,7 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# Each instance of this represents a NNTP client socket
 package PublicInbox::NNTP;
 use strict;
 use warnings;
@@ -897,7 +899,7 @@ sub do_more ($$) {
 	$self->do_write($data);
 }
 
-# callbacks for by Danga::Socket
+# callbacks for Danga::Socket
 
 sub event_hup { $_[0]->close }
 sub event_err { $_[0]->close }

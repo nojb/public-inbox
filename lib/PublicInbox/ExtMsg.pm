@@ -1,5 +1,10 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# Used by the web interface to link to messages outside of the our
+# public-inboxes.  Mail threads may cross projects/threads; so
+# we should ensure users can find more easily find them on other
+# sites.
 package PublicInbox::ExtMsg;
 use strict;
 use warnings;

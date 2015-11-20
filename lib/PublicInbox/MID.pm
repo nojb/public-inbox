@@ -1,5 +1,7 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# Various Message-ID-related functions.
 package PublicInbox::MID;
 use strict;
 use warnings;

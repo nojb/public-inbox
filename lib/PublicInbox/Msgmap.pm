@@ -1,6 +1,12 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
-# bidirectional Message-ID <-> Article Number mapping
+
+# bidirectional Message-ID <-> Article Number mapping for the NNTP
+# and web interfaces.  This is required for implementing stable article
+# numbers for NNTP and allows prefix lookups for partial Message-IDs
+# in case URLs get truncated from copy-n-paste errors by users.
+#
+# This is maintained by ::SearchIdx
 package PublicInbox::Msgmap;
 use strict;
 use warnings;

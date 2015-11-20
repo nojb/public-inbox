@@ -1,5 +1,8 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+#
+# Used only by the NNTP server to represent a public-inbox git repository
+# as a newsgroup
 package PublicInbox::NewsGroup;
 use strict;
 use warnings;

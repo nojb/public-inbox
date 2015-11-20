@@ -1,6 +1,8 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 # based on notmuch, but with no concept of folders, files or flags
+#
+# Read-only search interface for use by the web and NNTP interfaces
 package PublicInbox::Search;
 use strict;
 use warnings;
