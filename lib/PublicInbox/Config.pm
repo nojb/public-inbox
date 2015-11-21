@@ -45,7 +45,7 @@ sub lookup {
 	my $pfx;
 
 	foreach my $k (keys %$self) {
-		$k =~ /\A(publicinbox\.[A-Z0-9a-z-]+)\.address\z/ or next;
+		$k =~ /\A(publicinbox\.[\w-]+)\.address\z/ or next;
 		my $v = $self->{$k};
 		if (ref($v) eq "ARRAY") {
 			foreach my $alias (@$v) {
