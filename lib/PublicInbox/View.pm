@@ -463,15 +463,17 @@ sub thread_inline {
 	my $mid = mid_clean($cur->header('Message-ID'));
 	my $res = $srch->get_thread($mid);
 	my $nr = $res->{total};
+	my $upfx = $full_pfx ? '' : '../';
+	my $expand = "(<a\nhref=\"${upfx}t/#u\">expand</a> " .
+			"/ <a\nhref=\"${upfx}t.mbox.gz\">mbox.gz</a>)";
 
 	if ($nr <= 1) {
-		$$dst .= "\n[no followups, yet]\n";
+		$$dst .= "\n[no followups, yet] $expand\n";
 		return (undef, in_reply_to($cur));
 	}
-	my $upfx = $full_pfx ? '' : '../';
 
-	$$dst .= "\n\n~$nr messages in thread: ".
-		 "(<a\nhref=\"${upfx}t/#u\">expand</a>)\n";
+	$$dst .= "\n\n~$nr messages in thread: $expand\n";
+
 	my $subj = $srch->subject_path($cur->header('Subject'));
 	my $parent = in_reply_to($cur);
 	my $state = {
