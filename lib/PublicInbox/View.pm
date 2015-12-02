@@ -817,7 +817,9 @@ sub add_topic {
 		$topic = $subj;
 
 		# kill "[PATCH v2]" etc. for summarization
-		$topic =~ s/\A\s*\[[^\]]+\]\s*//g;
+		unless ($level == 0) {
+			$topic =~ s/\A\s*\[[^\]]+\]\s*//g;
+		}
 		$topic = substr($topic, 0, 30);
 
 		if (++$state->{subjs}->{$topic} == 1) {
