@@ -822,7 +822,6 @@ sub add_topic {
 		unless ($level == 0) {
 			$topic =~ s/\A\s*\[[^\]]+\]\s*//g;
 		}
-		$topic = substr($topic, 0, 30);
 
 		if (++$state->{subjs}->{$topic} == 1) {
 			push @{$state->{order}}, [ $level, $subj, $topic ];
