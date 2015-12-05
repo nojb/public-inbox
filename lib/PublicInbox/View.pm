@@ -712,8 +712,10 @@ sub missing_thread {
 sub _msg_date {
 	my ($mime) = @_;
 	my $ts = $mime->header('X-PI-TS') || msg_timestamp($mime);
-	POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+	fmt_ts($ts);
 }
+
+sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _inline_header {
 	my ($dst, $state, $upfx, $mime, $level) = @_;
@@ -865,7 +867,7 @@ sub dump_topics {
 		$dst .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
 
 		my $attr;
-		$ts = POSIX::strftime('%Y-%m-%d %H:%M', gmtime($ts));
+		$ts = fmt_ts($ts);
 		if ($n == 1) {
 			$attr = "@ $ts UTC";
 			$n = "";

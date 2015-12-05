@@ -10,7 +10,6 @@ use PublicInbox::Hval;
 use PublicInbox::View;
 use PublicInbox::MID qw(mid2path mid_clean);
 use Email::MIME;
-use POSIX qw/strftime/;
 our $LIM = 50;
 
 sub sres_top_html {
@@ -69,11 +68,11 @@ sub dump_mset {
 		my $s = PublicInbox::Hval->new_oneline($smsg->subject);
 		my $f = $smsg->from_name;
 		$f = PublicInbox::Hval->new_oneline($f)->as_html;
-		my $d = strftime('%Y-%m-%d %H:%M', gmtime($smsg->ts));
+		my $ts = PublicInbox::View::fmt_ts($smsg->ts);
 		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->as_href;
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s->as_html . "</a></b>\n";
-		$$res .= "$pfx  - by $f @ $d UTC [$pct%]\n\n";
+		$$res .= "$pfx  - by $f @ $ts UTC [$pct%]\n\n";
 	}
 }
 
