@@ -88,7 +88,6 @@ sub index_entry {
 
 	$from = PublicInbox::Hval->new_oneline($from)->as_html;
 	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
-	my $more = 'permalink';
 	my $root_anchor = $state->{root_anchor} || '';
 	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
@@ -119,9 +118,11 @@ sub index_entry {
 
 	my ($fhref, $more_ref);
 	my $mhref = "${path}$href/";
+	my $more = 'permalink';
 
 	# show full message if it's our root message
-	if ($root_anchor ne $id || ($level != 0 && !$ctx->{flat})) {
+	my $neq = $root_anchor ne $id;
+	if ($neq || ($neq && $level != 0 && !$ctx->{flat})) {
 		$fhref = "${path}$href/f/";
 		$more_ref = \$more;
 	}
@@ -215,12 +216,14 @@ sub index_walk {
 	my $s = add_text_body($enc, $part, $part_nr, $fhref);
 
 	if ($more) {
+		my $m = 0;
 		# drop the remainder of git patches, they're usually better
 		# to review when the full message is viewed
-		$s =~ s!^---+\n.*\z!!ms and $$more = 'more...';
+		$s =~ s!^---+\n.*\z!!ms and $m = 1;
 
 		# Drop signatures
-		$s =~ s/^-- \n.*\z//ms and $$more = 'more...';
+		$s =~ s/^-- \n.*\z//ms and $m = 1;
+		$$more = "<b>More...</b>\n\n$$more" if $m;
 	}
 
 	# kill any leading or trailing whitespace lines
