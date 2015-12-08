@@ -96,6 +96,8 @@ sub ext_msg {
 	eval { require PublicInbox::Msgmap };
 	my $have_mm = $@ ? 0 : 1;
 	if ($have_mm) {
+		my $tmp_mid = $mid;
+again:
 		my $cgi = $ctx->{cgi};
 		my $url = ref($cgi) eq 'CGI' ? $cgi->url(-base) . '/'
 					: $cgi->base->as_string;
@@ -106,13 +108,18 @@ sub ext_msg {
 			my $mm = eval { PublicInbox::Msgmap->new($git_dir) };
 
 			$mm or next;
-			if (my $res = $mm->mid_prefixes($mid)) {
+			if (my $res = $mm->mid_prefixes($tmp_mid)) {
 				$n_partial += scalar(@$res);
 				$pfx->{res} = $res;
 				push @partial, $pfx;
 			}
 		}
+		# fixup common errors:
+		if (!$n_partial && $tmp_mid =~ s,/[tTf],,) {
+			goto again;
+		}
 	}
+
 	my $code = 404;
 	my $h = PublicInbox::Hval->new_msgid($mid, 1);
 	my $href = $h->as_href;
