@@ -13,7 +13,7 @@ package PublicInbox::WWW;
 use 5.008;
 use strict;
 use warnings;
-use PublicInbox::Config;
+use PublicInbox::Config qw(try_cat);
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
 use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
 use constant PI_URL => 'http://public-inbox.org/';
@@ -216,17 +216,6 @@ sub ctx_get {
 	my $val = $ctx->{$key};
 	(defined $val && $val ne '') or die "BUG: bad ctx, $key unusable\n";
 	$val;
-}
-
-sub try_cat {
-	my ($path) = @_;
-	my $rv;
-	if (open(my $fh, '<', $path)) {
-		local $/;
-		$rv = <$fh>;
-		close $fh;
-	}
-	$rv;
 }
 
 sub footer {
