@@ -134,9 +134,9 @@ sub emit_html_index {
 			  qq{ <input\nname=q\ntype=text />} .
 			  qq{<input\ntype=submit\nvalue=search />} .
 			  qq{</tt></form>} .
-			  PublicInbox::View::PRE_WRAP;
+			  PublicInbox::Hval::PRE;
 	} else {
-		$top = PublicInbox::View::PRE_WRAP . $top . "\n";
+		$top = PublicInbox::Hval::PRE . $top . "\n";
 	}
 
 	$fh->write("<html><head><title>$title</title>" .

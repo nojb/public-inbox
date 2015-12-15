@@ -21,7 +21,6 @@ require POSIX;
 # TODO: make these constants tunable
 use constant MAX_INLINE_QUOTED => 12; # half an 80x24 terminal
 use constant MAX_TRUNC_LEN => 72;
-use constant PRE_WRAP => "<pre\nstyle=\"white-space:pre-wrap\">";
 use constant T_ANCHOR => '#u';
 use constant INDENT => '  ';
 
@@ -39,7 +38,7 @@ sub msg_html {
 	}
 	headers_to_html_header($mime, $full_pfx, $ctx) .
 		multipart_text_as_html($mime, $full_pfx) .
-		'</pre><hr />' . PRE_WRAP .
+		'</pre><hr />' . PublicInbox::Hval::PRE .
 		html_footer($mime, 1, $full_pfx, $ctx) .
 		$footer .
 		'</pre></body></html>';
@@ -48,7 +47,8 @@ sub msg_html {
 sub feed_entry {
 	my ($class, $mime, $full_pfx) = @_;
 
-	PRE_WRAP . multipart_text_as_html($mime, $full_pfx) . '</pre>';
+	PublicInbox::Hval::PRE .
+		multipart_text_as_html($mime, $full_pfx) . '</pre>';
 }
 
 sub in_reply_to {
@@ -107,7 +107,7 @@ sub index_entry {
 	if ($level) {
 		$rv .= '<td><pre>' . (INDENT x $level) . '</pre></td>';
 	}
-	$rv .= "<td\nid=s$midx>" . PRE_WRAP;
+	$rv .= "<td\nid=s$midx>" . PublicInbox::Hval::PRE;
 	$rv .= "<b\nid=\"$id\">$subj</b>\n";
 	$rv .= "- $from @ $ts UTC - ";
 	$rv .= "<a\nhref=\"#s$next\">next</a>";
@@ -206,8 +206,8 @@ sub emit_thread_html {
 	$next .= "\ndownload thread: ";
 	$next .= "<a\n$MBOX_TITLE\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
-	$cb->write("<hr />" . PRE_WRAP . $next . "\n\n". $foot .
-		   "</pre></body></html>");
+	$cb->write("<hr />" . PublicInbox::Hval::PRE . $next . "\n\n".
+		$foot .  "</pre></body></html>");
 	$cb->close;
 }
 
@@ -457,7 +457,7 @@ sub headers_to_html_header {
 	$rv .= "\n";
 
 	("<html><head><title>".  join(' - ', @title) .
-	 "</title>$atom</head><body>" . PRE_WRAP . $rv);
+	 "</title>$atom</head><body>" . PublicInbox::Hval::PRE . $rv);
 }
 
 sub thread_inline {
@@ -634,7 +634,7 @@ sub ghost_table {
 	my ($upfx, $mid, $level) = @_;
 	"<table\nsummary=ghost><tr><td>" .
 		(INDENT x $level) . "</td><td>" .
-		PRE_WRAP . ghost_parent($upfx, $mid) .
+		PublicInbox::Hval::PRE . ghost_parent($upfx, $mid) .
 		'</pre></td></table>';
 }
 
