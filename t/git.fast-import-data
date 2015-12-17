@@ -1,0 +1,101 @@
+blob
+mark :1
+data 6
+hello
+
+reset refs/heads/header
+commit refs/heads/header
+mark :2
+author AU Thor <e@example.com> 0 +0000
+committer AU Thor <e@example.com> 0 +0000
+data 8
+initial
+M 100644 :1 foo.txt
+
+blob
+mark :3
+data 12
+hello
+world
+
+commit refs/heads/master
+mark :4
+author AU Thor <e@example.com> 0 +0000
+committer AU Thor <e@example.com> 0 +0000
+data 7
+second
+from :2
+M 100644 :3 foo.txt
+
+blob
+mark :5
+data 12
+-----
+hello
+
+commit refs/heads/header
+mark :6
+author AU Thor <e@example.com> 0 +0000
+committer AU Thor <e@example.com> 0 +0000
+data 11
+add header
+from :2
+M 100644 :5 foo.txt
+
+blob
+mark :7
+data 18
+-----
+hello
+world
+
+commit refs/heads/master
+mark :8
+author AU Thor <e@example.com> 0 +0000
+committer AU Thor <e@example.com> 0 +0000
+data 46
+Merge branch 'header'
+
+* header:
+  add header
+from :4
+merge :6
+M 100644 :7 foo.txt
+
+blob
+mark :9
+data 0
+
+blob
+mark :10
+data 16
+dir/dur/der/derp
+commit refs/heads/master
+mark :11
+author AU Thor <e@example.com> 0 +0000
+committer AU Thor <e@example.com> 0 +0000
+data 26
+add symlink and deep file
+from :8
+M 100644 :9 dir/dur/der/derp
+M 120000 :10 link
+
+blob
+mark :12
+data 78
+[submodule "git"]
+	path = git
+	url = git://git.kernel.org/pub/scm/git/git.git
+
+commit refs/heads/master
+mark :13
+author AU Thor <e@example.com> 0 +0000
+committer AU Thor <e@example.com> 0 +0000
+data 18
+add git submodule
+from :11
+M 100644 :12 .gitmodules
+M 160000 f3adf457e046f92f039353762a78dcb3afb2cb13 git
+
+reset refs/heads/master
+from :13
