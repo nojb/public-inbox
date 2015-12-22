@@ -17,6 +17,7 @@ use PublicInbox::Config qw(try_cat);
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
 use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
 use constant PI_URL => 'http://public-inbox.org/';
+require PublicInbox::Git;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(f/|T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
@@ -62,7 +63,6 @@ sub preload {
 	require PublicInbox::Feed;
 	require PublicInbox::View;
 	require PublicInbox::Thread;
-	require PublicInbox::GitCatFile;
 	require Email::MIME;
 	require Digest::SHA;
 	require POSIX;
@@ -96,6 +96,7 @@ sub invalid_list {
 	my $git_dir = $pi_config->get($listname, "mainrepo");
 	if (defined $git_dir) {
 		$ctx->{git_dir} = $git_dir;
+		$ctx->{git} = PublicInbox::Git->new($git_dir);
 		$ctx->{listname} = $listname;
 		return;
 	}
@@ -146,18 +147,7 @@ sub mid2blob {
 	my ($ctx) = @_;
 	require PublicInbox::MID;
 	my $path = PublicInbox::MID::mid2path($ctx->{mid});
-	my @cmd = ('git', "--git-dir=$ctx->{git_dir}",
-			qw(cat-file blob), "HEAD:$path");
-	my $pid = open my $fh, '-|';
-	defined $pid or die "fork failed: $!\n";
-	if ($pid == 0) {
-		open STDERR, '>', '/dev/null'; # ignore errors
-		exec @cmd or die "exec failed: $!\n";
-	} else {
-		my $blob = eval { local $/; <$fh> };
-		close $fh;
-		$? == 0 ? \$blob : undef;
-	}
+	$ctx->{git}->cat_file("HEAD:$path");
 }
 
 # /$LISTNAME/$MESSAGE_ID/raw                    -> raw mbox

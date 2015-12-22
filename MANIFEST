@@ -21,7 +21,7 @@ examples/public-inbox.psgi
 lib/PublicInbox/Config.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter.pm
-lib/PublicInbox/GitCatFile.pm
+lib/PublicInbox/Git.pm
 lib/PublicInbox/Hval.pm
 lib/PublicInbox/MDA.pm
 lib/PublicInbox/View.pm

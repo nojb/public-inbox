@@ -7,7 +7,7 @@ use File::Temp qw/tempdir/;
 my $dir = tempdir(CLEANUP => 1);
 use Cwd qw/getcwd/;
 
-use_ok 'PublicInbox::GitCatFile';
+use_ok 'PublicInbox::Git';
 {
 	is(system(qw(git init -q --bare), $dir), 0, 'created git directory');
 	my @cmd = ('git', "--git-dir=$dir", 'fast-import', '--quiet');
@@ -26,7 +26,7 @@ use_ok 'PublicInbox::GitCatFile';
 }
 
 {
-	my $gcf = PublicInbox::GitCatFile->new($dir);
+	my $gcf = PublicInbox::Git->new($dir);
 	my $f = 'HEAD:foo.txt';
 	my @x = $gcf->check($f);
 	is(scalar @x, 3, 'returned 3 element array for existing file');
@@ -95,7 +95,7 @@ if (1) {
 	is(0, $?, 'hashed object successfully');
 	chomp $buf;
 
-	my $gcf = PublicInbox::GitCatFile->new($dir);
+	my $gcf = PublicInbox::Git->new($dir);
 	my $rsize;
 	is($gcf->cat_file($buf, sub {
 		$rsize = ${$_[1]};

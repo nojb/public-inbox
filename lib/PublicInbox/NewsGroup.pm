@@ -10,7 +10,7 @@ use Scalar::Util qw(weaken);
 require Danga::Socket;
 require PublicInbox::Msgmap;
 require PublicInbox::Search;
-require PublicInbox::GitCatFile;
+require PublicInbox::Git;
 
 sub new {
 	my ($class, $name, $git_dir, $address) = @_;
@@ -32,7 +32,7 @@ sub defer_weaken {
 sub gcf {
 	my ($self) = @_;
 	$self->{gcf} ||= eval {
-		my $gcf = PublicInbox::GitCatFile->new($self->{git_dir});
+		my $gcf = PublicInbox::Git->new($self->{git_dir});
 
 		# git repos may be repacked and old packs unlinked
 		defer_weaken($self, 'gcf');

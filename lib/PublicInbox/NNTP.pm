@@ -9,7 +9,7 @@ use base qw(Danga::Socket);
 use fields qw(nntpd article rbuf ng long_res);
 use PublicInbox::Search;
 use PublicInbox::Msgmap;
-use PublicInbox::GitCatFile;
+use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use Email::MIME;
 use Data::Dumper qw(Dumper);

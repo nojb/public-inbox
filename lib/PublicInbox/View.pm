@@ -183,8 +183,8 @@ sub emit_thread_html {
 		anchor_idx => 0,
 	};
 
-	require PublicInbox::GitCatFile;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	require PublicInbox::Git;
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	if ($flat) {
 		pre_anchor_entry($seen, $_) for (@$msgs);
 		__thread_entry(\$cb, $git, $state, $_, 0) for (@$msgs);

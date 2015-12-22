@@ -6,7 +6,7 @@
 # This is based on code in Git.pm which is GPLv2, but modified to avoid
 # dependence on environment variables for compatibility with mod_perl.
 # There are also API changes to simplify our usage and data set.
-package PublicInbox::GitCatFile;
+package PublicInbox::Git;
 use strict;
 use warnings;
 use POSIX qw(dup2);
@@ -119,6 +119,16 @@ sub fail {
 	my ($self, $msg) = @_;
 	cleanup($self);
 	die $msg;
+}
+
+sub popen {
+	my ($self, @cmd) = @_;
+	my $mode = '-|';
+	$mode = shift @cmd if ($cmd[0] eq '|-');
+	@cmd = ('git', "--git-dir=$self->{git_dir}", @cmd);
+	my $pid = open my $fh, $mode, @cmd or
+		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
+	$fh;
 }
 
 sub cleanup {

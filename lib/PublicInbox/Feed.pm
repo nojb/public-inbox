@@ -9,7 +9,7 @@ use Email::Address;
 use Email::MIME;
 use Date::Parse qw(strptime);
 use PublicInbox::Hval;
-use PublicInbox::GitCatFile;
+use PublicInbox::Git;
 use PublicInbox::View;
 use PublicInbox::MID qw/mid_clean mid2path/;
 use POSIX qw/strftime/;
@@ -66,7 +66,7 @@ sub emit_atom {
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($ctx);
 	my $x = atom_header($feed_opts);
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	each_recent_blob($ctx, sub {
 		my ($path, undef, $ts) = @_;
 		if (defined $x) {
@@ -75,7 +75,6 @@ sub emit_atom {
 		}
 		add_to_feed($feed_opts, $fh, $path, $git);
 	});
-	$git = undef; # destroy pipes
 	end_feed($fh);
 }
 
@@ -105,11 +104,10 @@ sub emit_atom_thread {
 	$feed_opts->{url} = $html_url;
 	$feed_opts->{emit_header} = 1;
 
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	foreach my $msg (@{$res->{msgs}}) {
 		add_to_feed($feed_opts, $fh, mid2path($msg->mid), $git);
 	}
-	$git = undef; # destroy pipes
 	end_feed($fh);
 }
 
@@ -167,7 +165,7 @@ sub emit_html_index {
 
 sub emit_index_nosrch {
 	my ($ctx, $state, $fh) = @_;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my (undef, $last) = each_recent_blob($ctx, sub {
 		my ($path, $commit, $ts, $u, $subj) = @_;
 		$state->{first} ||= $commit;
@@ -219,14 +217,11 @@ sub each_recent_blob {
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my @cmd = ('git', "--git-dir=$ctx->{git_dir}",
-			qw/log --no-notes --no-color --raw -r
-			   --abbrev=16 --abbrev-commit/,
-			"--format=%h%x00%ct%x00%an%x00%s%x00");
-	push @cmd, $range;
-
-	my $pid = open(my $log, '-|', @cmd) or
-		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
+	my $log = $git->popen(qw/log --no-notes --no-color --raw -r
+				--abbrev=16 --abbrev-commit/,
+				"--format=%h%x00%ct%x00%an%x00%s%x00",
+				$range);
 	my %deleted; # only an optimization at this point
 	my $last;
 	my $nr = 0;

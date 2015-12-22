@@ -11,6 +11,7 @@ use strict;
 use warnings;
 use base qw(PublicInbox::Search);
 use PublicInbox::MID qw/mid_clean id_compress/;
+require PublicInbox::Git;
 *xpfx = *PublicInbox::Search::xpfx;
 
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
@@ -331,16 +332,11 @@ sub rlog {
 	my $h40 = $hex .'{40}';
 	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
-	my $git_dir = $self->{git_dir};
-	require PublicInbox::GitCatFile;
-	my $git = PublicInbox::GitCatFile->new($git_dir);
-	my @cmd = ('git', "--git-dir=$git_dir", "log",
-		    qw/--reverse --no-notes --no-color --raw -r --no-abbrev/,
-		    $range);
+	my $git = PublicInbox::Git->new($self->{git_dir});
+	my $log = $git->popen(qw/log --reverse --no-notes --no-color
+				--raw -r --no-abbrev/, $range);
 	my $latest;
 	my $bytes;
-	my $pid = open(my $log, '-|', @cmd) or
-		die('open` '.join(' ', @cmd) . " pipe failed: $!\n");
 	while (my $line = <$log>) {
 		if ($line =~ /$addmsg/o) {
 			my $mime = do_cat_mail($git, $1, \$bytes) or next;
@@ -447,10 +443,8 @@ sub merge_threads {
 
 sub _read_git_config_perm {
 	my ($self) = @_;
-	my @cmd = ('git', "--git-dir=$self->{git_dir}",
-		   qw(config core.sharedRepository));
-	my $pid = open(my $fh, '-|', @cmd) or
-		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
+	my @cmd = qw(config core.sharedRepository);
+	my $fh = PublicInbox::Git->new($self->{git_dir})->popen(@cmd);
 	my $perm = <$fh>;
 	close $fh;
 	chomp $perm if defined $perm;

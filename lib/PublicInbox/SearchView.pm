@@ -10,6 +10,7 @@ use PublicInbox::Hval;
 use PublicInbox::View;
 use PublicInbox::MID qw(mid2path mid_clean);
 use Email::MIME;
+require PublicInbox::Git;
 our $LIM = 50;
 
 sub sres_top_html {
@@ -169,12 +170,10 @@ sub tdump {
 		$th->order(*PublicInbox::View::rsort_ts);
 	}
 
-	require PublicInbox::GitCatFile;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my $state = { ctx => $ctx, anchor_idx => 0, pct => \%pct };
 	$ctx->{searchview} = 1;
 	tdump_ent($fh, $git, $state, $_, 0) for $th->rootset;
-	$git = undef;
 	Email::Address->purge_cache;
 
 	$fh->write(search_nav_bot($mset, $q). "\n\n" .
@@ -236,8 +235,7 @@ sub html_start {
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
-	require PublicInbox::GitCatFile;
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $git = $ctx->{git_dir} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my $feed_opts = PublicInbox::Feed::get_feedopts($ctx);
 	my $x = PublicInbox::Hval->new_oneline($q->{q})->as_html;
 	$x = qq{$x - search results};
@@ -251,7 +249,6 @@ sub adump {
 		$x = mid2path($x);
 		PublicInbox::Feed::add_to_feed($feed_opts, $fh, $x, $git);
 	}
-	$git = undef;
 	PublicInbox::Feed::end_feed($fh);
 }
 

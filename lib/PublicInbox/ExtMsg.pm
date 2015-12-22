@@ -72,21 +72,10 @@ sub ext_msg {
 	my $path = "HEAD:" . mid2path($mid);
 
 	foreach my $n (@nox) {
-		my @cmd = ('git', "--git-dir=$n->{git_dir}", 'cat-file',
-			   '-t', $path);
-		my $pid = open my $fh, '-|';
-		defined $pid or die "fork failed: $!\n";
-
-		if ($pid == 0) {
-			open STDERR, '>', '/dev/null'; # ignore errors
-			exec @cmd or die "exec failed: $!\n";
-		} else {
-			my $type = eval { local $/; <$fh> };
-			close $fh;
-			if ($? == 0 && $type eq "blob\n") {
-				return r302($n->{url}, $mid);
-			}
-		}
+		# TODO: reuse existing PublicInbox::Git objects to save forks
+		my $git = PublicInbox::Git->new($n->{git_dir});
+		my (undef, $type, undef) = $git->check($path);
+		return r302($n->{url}, $mid) if ($type eq 'blob');
 	}
 
 	# fall back to partial MID matching

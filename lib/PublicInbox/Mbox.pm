@@ -86,9 +86,9 @@ sub emit_mbox {
 	my $fh = $response->([200, ['Content-Type' => "application/$type"]]);
 	$fh = PublicInbox::MboxGz->new($fh) if $sfx;
 
-	require PublicInbox::GitCatFile;
+	require PublicInbox::Git;
 	my $mid = $ctx->{mid};
-	my $git = PublicInbox::GitCatFile->new($ctx->{git_dir});
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my %opts = (offset => 0);
 	my $nr;
 	do {
