@@ -853,7 +853,7 @@ sub dump_topics {
 	my $order = $state->{order};
 	my $subjs = $state->{subjs};
 	my $latest = $state->{latest};
-	return "\n[No recent topics]</pre>" unless (scalar @$order);
+	return "\n[No topics in range]</pre>" unless (scalar @$order);
 	my $dst = '';
 	my $pfx;
 	my $prev = 0;
