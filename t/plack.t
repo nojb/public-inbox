@@ -116,7 +116,7 @@ EOF
 		my ($cb) = @_;
 		my $res = $cb->(GET($pfx . '/blah%40example.com/raw'));
 		is(200, $res->code, 'success response received for /*/raw');
-		like($res->content, qr!\AFrom !, "mbox returned");
+		like($res->content, qr!^From !sm, "mbox returned");
 	});
 
 	# legacy redirects

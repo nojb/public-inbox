@@ -12,6 +12,7 @@ use Plack::Builder;
 my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
 
 builder {
+	enable 'Plack::Middleware::Chunked';
 	if ($have_deflater) {
 		enable "Deflater",
 			content_type => [ 'text/html', 'text/plain',
