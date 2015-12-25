@@ -99,7 +99,7 @@ sub index_entry {
 		$subj = "<a\nhref=\"${path}$href/$t/#u\">$subj</a>";
 	}
 	if ($root_anchor eq $id) {
-		$subj = "<u\nid=\"u\">$subj</u>";
+		$subj = "<u\nid=u>$subj</u>";
 	}
 
 	my $ts = _msg_date($mime);
@@ -108,7 +108,7 @@ sub index_entry {
 		$rv .= '<td><pre>' . (INDENT x $level) . '</pre></td>';
 	}
 	$rv .= "<td\nid=s$midx>" . PublicInbox::Hval::PRE;
-	$rv .= "<b\nid=\"$id\">$subj</b>\n";
+	$rv .= "<b\nid=$id>$subj</b>\n";
 	$rv .= "- $from @ $ts UTC - ";
 	$rv .= "<a\nhref=\"#s$next\">next</a>";
 	if ($prev >= 0) {
@@ -200,7 +200,7 @@ sub emit_thread_html {
 	return missing_thread($cb, $ctx) if ($orig_cb eq $cb);
 
 	my $final_anchor = $state->{anchor_idx};
-	my $next = "<a\nid=\"s$final_anchor\">";
+	my $next = "<a\nid=s$final_anchor>";
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>";
 	$next .= "\ndownload thread: ";
@@ -428,9 +428,8 @@ sub headers_to_html_header {
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
-				my $p = $full_pfx ? '' : '../';
-				$rv .= "$h: <a\nid=\"t\"\nhref=\"${p}t/#u\">";
-				$rv .= $v->as_html . "</a>\n";
+				$rv .= "$h: <b\nid=t>";
+				$rv .= $v->as_html . "</b>\n";
 				next;
 			}
 		}
@@ -442,11 +441,7 @@ sub headers_to_html_header {
 	$rv .= "(<a\nhref=\"${upfx}raw\">raw</a>)\n";
 	my $atom;
 	if ($srch) {
-		if ($header_obj->header('In-Reply-To') ||
-		    $header_obj->header('References')) {
-			$rv .= "<a\nhref=\"${upfx}t/#u\">" .
-				"References: [expand]</a>\n";
-		}
+		thread_inline(\$rv, $ctx, $mime, $upfx);
 
 		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 			qq!href="${upfx}t.atom"\ntype="application/atom+xml"/>!;
@@ -461,24 +456,27 @@ sub headers_to_html_header {
 }
 
 sub thread_inline {
-	my ($dst, $ctx, $cur, $full_pfx) = @_;
+	my ($dst, $ctx, $cur, $upfx) = @_;
 	my $srch = $ctx->{srch};
 	my $mid = mid_clean($cur->header('Message-ID'));
 	my $res = $srch->get_thread($mid);
 	my $nr = $res->{total};
-	my $upfx = $full_pfx ? '' : '../';
-	my $expand = "(<a\nhref=\"${upfx}t/#u\">expand</a> " .
-			"/ <a\nhref=\"${upfx}t.mbox.gz\">mbox.gz</a>)";
+	my $expand = "<a\nhref=\"${upfx}t/#u\">expand</a> " .
+			"/ <a\nhref=\"${upfx}t.mbox.gz\">mbox.gz</a>";
 
+	$$dst .= 'Thread: ';
+	my $parent = in_reply_to($cur);
 	if ($nr <= 1) {
-		$$dst .= "\n[no followups, yet] $expand\n";
-		return (undef, in_reply_to($cur));
+		$$dst .= "[no followups, yet] ($expand)\n";
+		$ctx->{next_msg} = undef;
+		$ctx->{parent_msg} = $parent;
+		return;
 	}
 
-	$$dst .= "\n\n~$nr messages in thread: $expand\n";
+	$$dst .= "~$nr messages (<a\nhref=\"#b\">skip</a> / " .
+		 $expand . ")\n";
 
 	my $subj = $srch->subject_path($cur->header('Subject'));
-	my $parent = in_reply_to($cur);
 	my $state = {
 		seen => { $subj => 1 },
 		srch => $srch,
@@ -491,7 +489,9 @@ sub thread_inline {
 	for (thread_results(load_results($res))->rootset) {
 		inline_dump($dst, $state, $upfx, $_, 0);
 	}
-	($state->{next_msg}, $state->{parent});
+	$$dst .= "<a\nid=b></a>"; # anchor for body start
+	$ctx->{next_msg} = $state->{next_msg};
+	$ctx->{parent_msg} = $state->{parent};
 }
 
 sub _parent_headers_nosrch {
@@ -562,11 +562,12 @@ sub html_footer {
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 
 	if ($srch && $standalone) {
-		$idx .= qq{ / follow: <a\nhref="t.atom">Atom feed</a>};
+		$idx .= qq{ / follow: <a\nhref="t.atom">Atom feed</a>\n};
 	}
 	if ($idx && $srch) {
-		my ($next, $p) = thread_inline(\$idx, $ctx, $mime, $full_pfx);
-		if (defined $p) {
+		my $p = $ctx->{parent_msg};
+		my $next = $ctx->{next_msg};
+		if ($p) {
 			$p = PublicInbox::Hval->new_oneline($p);
 			$p = $p->as_href;
 			$irt = "<a\nhref=\"$upfx$p/\">parent</a> ";
@@ -576,7 +577,12 @@ sub html_footer {
 		if ($next) {
 			$irt .= "<a\nhref=\"$upfx$next/\">next</a> ";
 		} else {
-			$irt .= '     ';
+			$irt .= ' ' x length('next ');
+		}
+		if ($p || $next) {
+			$irt .= "<a\nhref=\"#r\">thread</a> ";
+		} else {
+			$irt .= ' ' x length('thread ');
 		}
 	} else {
 		$irt = '';
@@ -722,7 +728,6 @@ sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _inline_header {
 	my ($dst, $state, $upfx, $mime, $level) = @_;
-	my $pfx = INDENT x ($level - 1);
 	my $dot = $level == 0 ? '' : '` ';
 
 	my $cur = $state->{cur};
@@ -731,12 +736,12 @@ sub _inline_header {
 	my $d = _msg_date($mime);
 	$f = PublicInbox::Hval->new($f)->as_html;
 	$d = PublicInbox::Hval->new($d)->as_html;
-	my $attr = "$f @ $d";
+	my $pfx = ' ' . $d . ' ' . (INDENT x $level);
+	my $attr = $f;
 	$state->{first_level} ||= $level;
+
 	if ($attr ne $state->{prev_attr} || $state->{prev_level} > $level) {
 		$state->{prev_attr} = $attr;
-		$attr = ' - ' . $attr;
-		$attr .= ' UTC' if $level >= $state->{first_level};
 	} else {
 		$attr = '';
 	}
@@ -745,8 +750,8 @@ sub _inline_header {
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $state->{cur};
-			$$dst .= "$pfx$dot<b><a\nid=\"r\"\nhref=\"#t\">".
-				 "[this message]</a></b>$attr\n";
+			$$dst .= "$pfx$dot<b><a\nid=r\nhref=\"#b\">".
+				 "$attr [this message]</a></b>\n";
 
 			return;
 		}
@@ -771,7 +776,7 @@ sub _inline_header {
 	if (defined $s) {
 		$$dst .= "$pfx$dot<a\nhref=\"$m\">$s</a>$attr\n";
 	} else {
-		$$dst .= "$pfx$dot<a\nhref=\"$m\">$f @ $d</a>\n";
+		$$dst .= "$pfx$dot<a\nhref=\"$m\">$f</a>\n";
 	}
 }
 
@@ -786,7 +791,8 @@ sub inline_dump {
 		_inline_header($dst, $state, $upfx, $mime, $level);
 	} else {
 		my $dot = $level == 0 ? '' : '` ';
-		my $pfx = (INDENT x $level) . $dot;
+		my $pfx = length(' 1970-01-01 13:37 ') .
+			(INDENT x $level) . $dot;
 		$$dst .= $pfx;
 		$$dst .= ghost_parent("$upfx../", $node->messageid) . "\n";
 	}
