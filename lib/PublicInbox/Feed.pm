@@ -128,18 +128,18 @@ sub emit_html_index {
 	my $top = "<b>$title</b> (<a\nhref=\"$atom_url\">Atom feed</a>)";
 
 	if ($srch) {
-		$top = qq{<form\naction=""><tt>$top} .
+		$top = qq{<form\naction=""><pre>$top} .
 			  qq{ <input\nname=q\ntype=text />} .
 			  qq{<input\ntype=submit\nvalue=search />} .
-			  qq{</tt></form>} .
-			  PublicInbox::Hval::PRE;
+			  q{</pre></form><pre>}
 	} else {
-		$top = PublicInbox::Hval::PRE . $top . "\n";
+		$top = '<pre>' . $top . "\n";
 	}
 
 	$fh->write("<html><head><title>$title</title>" .
 		   "<link\nrel=alternate\ntitle=\"Atom feed\"\n".
 		   "href=\"$atom_url\"\ntype=\"application/atom+xml\"/>" .
+		   PublicInbox::Hval::STYLE .
 		   "</head><body>$top");
 
 	# if the 'r' query parameter is given, it is a legacy permalink

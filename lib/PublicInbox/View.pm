@@ -38,7 +38,7 @@ sub msg_html {
 	}
 	headers_to_html_header($mime, $full_pfx, $ctx) .
 		multipart_text_as_html($mime, $full_pfx) .
-		'</pre><hr />' . PublicInbox::Hval::PRE .
+		'</pre><hr /><pre>' .
 		html_footer($mime, 1, $full_pfx, $ctx) .
 		$footer .
 		'</pre></body></html>';
@@ -47,6 +47,7 @@ sub msg_html {
 sub feed_entry {
 	my ($class, $mime, $full_pfx) = @_;
 
+	# no <head> here for <style>...
 	PublicInbox::Hval::PRE .
 		multipart_text_as_html($mime, $full_pfx) . '</pre>';
 }
@@ -107,7 +108,7 @@ sub index_entry {
 	if ($level) {
 		$rv .= '<td><pre>' . (INDENT x $level) . '</pre></td>';
 	}
-	$rv .= "<td\nid=s$midx>" . PublicInbox::Hval::PRE;
+	$rv .= "<td\nid=s$midx><pre>";
 	$rv .= "<b\nid=$id>$subj</b>\n";
 	$rv .= "- $from @ $ts UTC - ";
 	$rv .= "<a\nhref=\"#s$next\">next</a>";
@@ -206,8 +207,8 @@ sub emit_thread_html {
 	$next .= "\ndownload thread: ";
 	$next .= "<a\n$MBOX_TITLE\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
-	$cb->write("<hr />" . PublicInbox::Hval::PRE . $next . "\n\n".
-		$foot .  "</pre></body></html>");
+	$cb->write('<hr /><pre>' . $next . "\n\n".
+			$foot .  '</pre></body></html>');
 	$cb->close;
 }
 
@@ -451,8 +452,8 @@ sub headers_to_html_header {
 	}
 	$rv .= "\n";
 
-	("<html><head><title>".  join(' - ', @title) .
-	 "</title>$atom</head><body>" . PublicInbox::Hval::PRE . $rv);
+	("<html><head><title>".  join(' - ', @title) . "</title>$atom".
+	 PublicInbox::Hval::STYLE . "</head><body><pre>" . $rv);
 }
 
 sub thread_inline {
@@ -616,6 +617,7 @@ sub thread_html_head {
 	$$cb->write("<html><head><title>$s</title>".
 		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 		qq!href="../t.atom"\ntype="application/atom+xml"/>! .
+		PublicInbox::Hval::STYLE .
 		"</head><body>");
 }
 
@@ -639,8 +641,8 @@ sub ghost_parent {
 sub ghost_table {
 	my ($upfx, $mid, $level) = @_;
 	"<table\nsummary=ghost><tr><td>" .
-		(INDENT x $level) . "</td><td>" .
-		PublicInbox::Hval::PRE . ghost_parent($upfx, $mid) .
+		(INDENT x $level) . '</td><td><pre>' .
+		ghost_parent($upfx, $mid) .
 		'</pre></td></table>';
 }
 

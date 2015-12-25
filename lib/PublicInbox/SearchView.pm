@@ -32,7 +32,7 @@ sub sres_top_html {
 		$total = $mset->get_matches_estimated;
 	};
 	my $err = $@;
-	my $res = html_start($q, $ctx) . PublicInbox::Hval::PRE;
+	my $res = html_start($q, $ctx) . '<pre>'
 	if ($err) {
 		$code = 400;
 		$res .= err_txt($err) . "</pre><hr /><pre>" . foot($ctx);

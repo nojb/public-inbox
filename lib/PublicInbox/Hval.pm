@@ -13,7 +13,8 @@ use PublicInbox::MID qw/mid_clean/;
 # for user-generated content (UGC) which may have excessively long lines
 # and screw up rendering on some browsers.  This is the only CSS style
 # feature we use.
-use constant PRE => "<pre\nstyle=\"white-space:pre-wrap\">";
+use constant STYLE => '<style>pre{white-space:pre-wrap}</style>';
+use constant PRE => "<pre\nstyle=\"white-space:pre-wrap\">"; # legacy
 
 my $enc_ascii = find_encoding('us-ascii');
 
