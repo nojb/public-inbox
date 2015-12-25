@@ -774,7 +774,7 @@ sub _inline_header {
 	my $m = PublicInbox::Hval->new_msgid($mid);
 	$m = $upfx . '../' . $m->as_href . '/';
 	if (defined $s) {
-		$$dst .= "$pfx$dot<a\nhref=\"$m\">$s</a>$attr\n";
+		$$dst .= "$pfx$dot<a\nhref=\"$m\">$s</a> $attr\n";
 	} else {
 		$$dst .= "$pfx$dot<a\nhref=\"$m\">$f</a>\n";
 	}
@@ -791,7 +791,7 @@ sub inline_dump {
 		_inline_header($dst, $state, $upfx, $mime, $level);
 	} else {
 		my $dot = $level == 0 ? '' : '` ';
-		my $pfx = length(' 1970-01-01 13:37 ') .
+		my $pfx = (' ' x length(' 1970-01-01 13:37 ')).
 			(INDENT x $level) . $dot;
 		$$dst .= $pfx;
 		$$dst .= ghost_parent("$upfx../", $node->messageid) . "\n";
