@@ -75,7 +75,7 @@ sub ext_msg {
 		# TODO: reuse existing PublicInbox::Git objects to save forks
 		my $git = PublicInbox::Git->new($n->{git_dir});
 		my (undef, $type, undef) = $git->check($path);
-		return r302($n->{url}, $mid) if ($type eq 'blob');
+		return r302($n->{url}, $mid) if ($type && $type eq 'blob');
 	}
 
 	# fall back to partial MID matching
