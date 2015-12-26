@@ -15,7 +15,6 @@ use PublicInbox::Hval;
 use PublicInbox::MID qw/mid_clean id_compress mid2path/;
 use Digest::SHA qw/sha1_hex/;
 my $SALT = rand;
-my $MBOX_TITLE = 'title="download thread as gzipped mbox"';
 require POSIX;
 
 # TODO: make these constants tunable
@@ -205,7 +204,7 @@ sub emit_thread_html {
 	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
 	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>";
 	$next .= "\ndownload thread: ";
-	$next .= "<a\n$MBOX_TITLE\nhref=\"../t.mbox.gz\">mbox.gz</a>";
+	$next .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
 	$cb->write('<hr /><pre>' . $next . "\n\n".
 			$foot .  '</pre></body></html>');
@@ -879,19 +878,15 @@ sub dump_topics {
 
 		my $attr;
 		$ts = fmt_ts($ts);
-		if ($n == 1) {
-			$attr = "@ $ts UTC";
-			$n = "";
-		} else {
-			# $n isn't the total number of posts on the topic,
-			# just the number of posts in the current results
-			# window, so leave it unlabeled
-			$attr = "@ $ts UTC";
-			$n = " ($n)";
-		}
+		$attr = " $ts UTC";
+
+		# $n isn't the total number of posts on the topic,
+		# just the number of posts in the current results
+		# window, so leave it unlabeled
+		$n = $n == 1 ? '' : " ($n+ messages)";
+
 		if ($level == 0 || $attr ne $prev_attr) {
-			my $mbox = qq(<a\n$MBOX_TITLE\n) .
-				   qq(href="$mid/t.mbox.gz">mbox.gz</a>);
+			my $mbox = qq(<a\nhref="$mid/t.mbox.gz">mbox.gz</a>);
 			my $atom = qq(<a\nhref="$mid/t.atom">Atom</a>);
 			$pfx .= INDENT if $level > 0;
 			$dst .= $pfx . $attr . $n . " - $mbox / $atom\n";
