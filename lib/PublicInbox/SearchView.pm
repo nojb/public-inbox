@@ -43,13 +43,13 @@ sub sres_top_html {
 		my $x = $q->{x};
 		return sub { adump($_[0], $mset, $q, $ctx) } if ($x eq 'A');
 
-		$res .= search_nav_top($mset, $q);
+		$res .= search_nav_top($mset, $q) . "\n\n";
 		if ($x eq 't') {
 			return sub { tdump($_[0], $res, $mset, $q, $ctx) };
 		}
-		$res .= "\n\n";
 		dump_mset(\$res, $mset);
-		$res .= search_nav_bot($mset, $q) . "\n\n" . foot($ctx);
+		$res .= '</pre>' . search_nav_bot($mset, $q) .
+			"\n\n" . foot($ctx);
 	}
 
 	$res .= "</pre></body></html>";
@@ -111,8 +111,7 @@ sub search_nav_top {
 		$rv .= qq{<b>threaded</b>};
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
-	$rv .= qq{|<a\nhref="?$A">Atom</a>};
-	$rv .= ']';
+	$rv .= qq{|<a\nhref="?$A">Atom</a>]};
 }
 
 sub search_nav_bot {
