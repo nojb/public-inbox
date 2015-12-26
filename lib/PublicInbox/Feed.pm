@@ -194,7 +194,7 @@ sub nav_footer {
 		$head = $cgi->path_info;
 		$head = qq!<a\nhref="$head">head</a>!;
 	}
-	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">Atom</a>";
+	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">Atom feed</a>";
 	"<a\nname=\"s$anchor\">page:</a> $next $head $atom";
 }
 

@@ -103,15 +103,13 @@ sub search_nav_top {
 	my $x = $q->{x};
 	if ($x eq '') {
 		my $t = $q->qs_html(x => 't');
-		$rv .= qq{<b>summary</b>|};
-		$rv .= qq{<a\nhref="?$t">threaded</a>}
+		$rv .= qq{<b>summary</b>|<a\nhref="?$t">threaded</a>}
 	} elsif ($q->{x} eq 't') {
 		my $s = $q->qs_html(x => '');
-		$rv .= qq{<a\nhref="?$s">summary</a>|};
-		$rv .= qq{<b>threaded</b>};
+		$rv .= qq{<a\nhref="?$s">summary</a>|<b>threaded</b>};
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
-	$rv .= qq{|<a\nhref="?$A">Atom</a>]};
+	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
 }
 
 sub search_nav_bot {
