@@ -2,10 +2,7 @@ public-inbox - an "archives first" approach to mailing lists
 ------------------------------------------------------------
 public-inbox implements the sharing of an email inbox via git to
 complement or replace traditional mailing lists.  Readers may
-subscribe to a mailing list using ssoma[1] (a git-wrapper) to
-import email from a git repository into an IMAP folder, Maildir,
-or mbox.  Readers may also read via NNTP, Atom feeds and HTML
-archives.
+read via NNTP, Atom feeds or HTML archives.
 
 public-inbox spawned around three main ideas:
 
@@ -22,9 +19,8 @@ to run their own instances with minimal overhead.
 Implementation
 --------------
 public-inbox uses ssoma[1], Some Sort Of Mail Archiver which implements
-no policy of its own.  By exposing an inbox via git, readers may follow
-the inbox without subscribing via SMTP and have easy access to old
-messages.
+no policy of its own.  By storing (and optionally) exposing an inbox
+via git, it is fast and efficient to host and mirror public-inboxes.
 
 Traditional mailing lists use the "push" model.  For readers, this
 requires commitment to subscribe and effort to unsubscribe.  New readers
@@ -32,42 +28,46 @@ may also have difficulty following existing discussions if archives do
 not expose Message-ID headers for responses.  List server admins may be
 burdened with delivery failures.
 
-public-inbox uses the "pull" model.  Readers import mail into an mbox,
-Maildir, or IMAP folder from git repositories periodically.  If a reader
-loses interest, they simply stop syncing.  Since we use git, mirrors are
-easy-to-setup, and lists are easy-to-relocate to different mail
-addresses without losing/splitting archives.  Dedicated readers only
-need to install ssoma, a command-line tool[1] currently implemented in
-Perl.
+public-inbox uses the "pull" model.  Casual readers may also follow
+the list via NNTP, Atom feed or HTML archives.
 
-Casual readers may also follow the list via NNTP, Atom feed or
-HTML archives.
+Users of the ssoma[1] command-line tool may import mail into an mbox,
+Maildir, or IMAP folder from git repositories periodically.
 
-_Anybody_ may also setup a delivery-only mailing list server to replay
-a public-inbox git archive to subscribers via SMTP.
+If a reader loses interest, they simply stop syncing.
+
+Since we use git, mirrors are easy-to-setup, and lists are
+easy-to-relocate to different mail addresses without losing/splitting
+archives.
+
+_Anybody_ may also setup a delivery-only mailing list server to
+replay a public-inbox git archive to subscribers via SMTP.
 
 [1] http://ssoma.public-inbox.org/
 
 Features
 --------
 * anybody may participate via plain-text email
-* stores email in git, readers have a complete archive of the inbox
-* Atom feed allows casual readers to follow via feed reader
-* Mail user-agent (MUA) users may use Maildir, mbox(5) and/or IMAP locally
+* stores email in git, readers may have a complete archive of the inbox
+* Atom feed and NNTP allows casual readers to follow via feed reader
 * uses only well-documented and easy-to-implement data formats
 
 Try it out now, see http://try.public-inbox.org/
 
-Requirements (Atom, read-only client)
--------------------------------------
-* any feed reader capable of following Atom feeds
+Requirements for reading:
+
+* any software capable of NNTP or following Atom feeds
 
 Any basic web browser will do for the HTML archives.
+We primarily develop on w3m to maximize accessibility.
 
 Requirements (participant)
 --------------------------
-* ssoma - http://ssoma.public-inbox.org/
+
 * any MUA which may send text-only emails ("git send-email" works!)
+  Users are strongly encouraged to use the "reply-all" feature of
+  their mailers to reduce the impact of a public-inbox as a SPOF.
+
 * participants do not need to install public-inbox, only server admins
 
 Requirements (server)
@@ -96,31 +96,18 @@ subscription.  This also makes it easier to rope in folks of
 tangentially related projects we depend on (e.g. git developers
 on git@vger.kernel.org).
 
-You may subscribe via ssoma(1), LISTNAME is a name of your choosing:
+The archives are readable via NNTP or HTTP:
 
-    URL=git://public-inbox.org/meta
-    LISTNAME=public-inbox
-
-    # to initialize a maildir (this may be a new or existing maildir,
-    # ssoma will not touch existing messages)
-    # If you prefer mbox, use "ssoma add mbox ..." instead
-    ssoma add $LISTNAME $URL maildir:/path/to/maildir/
-
-    # read with your favorite MUA (only using mutt as an example)
-    mutt -f /path/to/maildir # (or /path/to/mbox)
-
-    # to keep your mbox or maildir up-to-date, periodically run the following:
-    ssoma sync $LISTNAME
-
-    # your MUA may modify and delete messages from the maildir or mbox,
-    # this does not affect ssoma functionality at all
-
-    # to sync all your ssoma subscriptions via cronjob
-    ssoma sync --cron
-
-HTML inbox archives are available: http://public-inbox.org/meta/
-The archives are also readable via NNTP:
 	nntp://news.public-inbox.org/inbox.comp.mail.public-inbox.meta
+	http://public-inbox.org/meta/
+
+You may also clone all messages via git:
+
+	git clone --mirror git://public-inbox.org/meta.git
+
+Or pass the same git repository URL for ssoma using the instructions at:
+
+	http://ssoma.public-inbox.org/README.html
 
 Anti-Spam
 ---------
@@ -128,12 +115,7 @@ The maintainer of public-inbox has found SpamAssassin a good tool for
 filtering his personal mail, and it will be the default spam filtering
 tool in public-inbox.
 
-Readers may also use a custom mail-delivery-agent for delivery to enable
-spam filtering by having ssoma deliver to a command via pipe.
-
-There is unlikely to be any tool which is 100% accurate at classifying
-spam, so it is possible to remove messages using the ssoma-rm(1) tool
-in ssoma.
+See http://public-inbox/dc-dlvr-spam-flow.html for more info.
 
 Content Filtering
 -----------------
