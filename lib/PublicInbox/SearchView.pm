@@ -235,7 +235,7 @@ sub html_start {
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
-	my $git = $ctx->{git_dir} ||= PublicInbox::Git->new($ctx->{git_dir});
+	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my $feed_opts = PublicInbox::Feed::get_feedopts($ctx);
 	my $x = PublicInbox::Hval->new_oneline($q->{q})->as_html;
 	$x = qq{$x - search results};
