@@ -20,13 +20,14 @@ my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
 my $failbox = "$home/fail.mbox";
 local $ENV{PI_EMERGENCY} = $failbox;
-
-foreach my $mod (qw(Plack::Test HTTP::Request::Common
-			 Mail::Thread URI::Escape)) {
+my @mods = qw(HTTP::Request::Common Plack::Request Plack::Test
+	Mail::Thread URI::Escape);
+foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for plack.t" if $@;
 }
 
+foreach my $mod (@mods) { use_ok $mod; }
 {
 	ok(-f $psgi, "psgi example file found");
 	ok(-x "$main_bin/spamc",
