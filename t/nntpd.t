@@ -3,10 +3,12 @@
 use strict;
 use warnings;
 use Test::More;
-eval { require PublicInbox::SearchIdx };
-plan skip_all => "Xapian missing for nntpd" if $@;
-eval { require PublicInbox::Msgmap };
-plan skip_all => "DBD::SQLite missing for nntpd" if $@;
+foreach my $mod (qw(DBD::SQLite Search::Xapian Danga::Socket)) {
+	eval "require $mod";
+	plan skip_all => "$mod missing for nntpd.t" if $@;
+}
+require PublicInbox::SearchIdx;
+require PublicInbox::Msgmap;
 use Cwd;
 use Email::Simple;
 use IO::Socket;

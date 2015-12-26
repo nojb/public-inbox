@@ -5,6 +5,11 @@ use warnings;
 use Test::More;
 use Data::Dumper;
 
+foreach my $mod (qw(DBD::SQLite Search::Xapian Danga::Socket)) {
+	eval "require $mod";
+	plan skip_all => "$mod missing for nntp.t" if $@;
+}
+
 use_ok 'PublicInbox::NNTP';
 
 {

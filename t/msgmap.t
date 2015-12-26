@@ -5,6 +5,11 @@ use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
 
+foreach my $mod (qw(DBD::SQLite)) {
+	eval "require $mod";
+	plan skip_all => "$mod missing for nntpd.t" if $@;
+}
+
 use_ok 'PublicInbox::Msgmap';
 my $tmpdir = tempdir(CLEANUP => 1);
 my $d = PublicInbox::Msgmap->new($tmpdir, 1);

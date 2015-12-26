@@ -21,14 +21,13 @@ my $cfgpfx = "publicinbox.test";
 my $failbox = "$home/fail.mbox";
 local $ENV{PI_EMERGENCY} = $failbox;
 
-our $have_plack;
-eval {
-	require Plack::Request;
-	eval 'use Plack::Test; use HTTP::Request::Common';
-	$have_plack = 1;
-};
-SKIP: {
-	skip 'Plack not installed', 1 unless $have_plack;
+foreach my $mod (qw(Plack::Test HTTP::Request::Common
+			 Mail::Thread URI::Escape)) {
+	eval "require $mod";
+	plan skip_all => "$mod missing for plack.t" if $@;
+}
+
+{
 	ok(-f $psgi, "psgi example file found");
 	ok(-x "$main_bin/spamc",
 		"spamc ham mock found (run in top of source tree");
