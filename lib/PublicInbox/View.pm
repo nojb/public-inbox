@@ -580,7 +580,8 @@ sub html_footer {
 			$irt .= ' ' x length('next ');
 		}
 		if ($p || $next) {
-			$irt .= "<a\nhref=\"#r\">thread</a> ";
+			my $tpfx = $full_pfx ? '' : '../';
+			$irt .= "<a\nhref=\"${tpfx}t/#u\">thread</a> ";
 		} else {
 			$irt .= ' ' x length('thread ');
 		}
