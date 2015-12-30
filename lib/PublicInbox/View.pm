@@ -684,6 +684,11 @@ sub __thread_entry {
 	1;
 }
 
+sub indent_for {
+	my ($level) = @_;
+	INDENT x ($level - 1);
+}
+
 sub __ghost_prepare {
 	my ($state, $node, $level) = @_;
 	my $ghost = $state->{ghost} ||= [];
@@ -753,7 +758,7 @@ sub _inline_header {
 	my $d = _msg_date($mime);
 	$f = PublicInbox::Hval->new($f)->as_html;
 	$d = PublicInbox::Hval->new($d)->as_html;
-	my $pfx = ' ' . $d . ' ' . (INDENT x $level);
+	my $pfx = ' ' . $d . ' ' . indent_for($level);
 	my $attr = $f;
 	$state->{first_level} ||= $level;
 
@@ -809,7 +814,7 @@ sub inline_dump {
 	} else {
 		my $dot = $level == 0 ? '' : '` ';
 		my $pfx = (' ' x length(' 1970-01-01 13:37 ')).
-			(INDENT x $level) . $dot;
+			indent_for($level) . $dot;
 		$$dst .= $pfx;
 		$$dst .= ghost_parent("$upfx../", $node->messageid) . "\n";
 	}
@@ -887,7 +892,7 @@ sub dump_topics {
 		my ($mid, $ts) = @{delete $latest->{$topic}};
 		$mid = PublicInbox::Hval->new($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
-		$pfx = INDENT x ($level - 1);
+		$pfx = indent_for($level);
 		my $nl = $level == $prev ? "\n" : '';
 		my $dot = $level == 0 ? '' : '` ';
 		$dst .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
