@@ -103,11 +103,7 @@ sub index_entry {
 	}
 
 	my $ts = _msg_date($mime);
-	my $rv = "<table\nsummary=l$level><tr>";
-	if ($level) {
-		$rv .= '<td><pre>' . (INDENT x $level) . '</pre></td>';
-	}
-	$rv .= "<td\nid=s$midx><pre>";
+	my $rv = "<pre\nid=s$midx>";
 	$rv .= "<b\nid=$id>$subj</b>\n";
 	$rv .= "- $from @ $ts UTC - ";
 	$rv .= "<a\nhref=\"#s$next\">next</a>";
@@ -155,8 +151,7 @@ sub index_entry {
 				"<a\nhref=\"${path}$href/T/#u\">flat</a>]";
 		}
 	}
-
-	$fh->write($rv .= '</pre></td></tr></table>');
+	$fh->write($rv .= '</pre>');
 }
 
 sub thread_html {
@@ -181,6 +176,7 @@ sub emit_thread_html {
 		seen => $seen,
 		root_anchor => anchor_for($mid),
 		anchor_idx => 0,
+		max_level => 0,
 	};
 
 	require PublicInbox::Git;
@@ -191,6 +187,10 @@ sub emit_thread_html {
 	} else {
 		my $th = thread_results($msgs);
 		thread_entry(\$cb, $git, $state, $_, 0) for $th->rootset;
+		if (my $max = $state->{max_level}) {
+			my $x = $max > 1 ? ('</ul></li>' x ($max-1)) : '';
+			$cb->write($x . '</ul>');
+		}
 	}
 	$git = undef;
 	Email::Address->purge_cache;
@@ -637,12 +637,25 @@ sub ghost_parent {
 	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
 }
 
-sub ghost_table {
-	my ($upfx, $mid, $level) = @_;
-	"<table\nsummary=ghost><tr><td>" .
-		(INDENT x $level) . '</td><td><pre>' .
-		ghost_parent($upfx, $mid) .
-		'</pre></td></table>';
+sub __thread_adj_level {
+	my ($cb, $state, $level) = @_;
+
+	return if $level <= 0; # flat output
+	my $max = $state->{max_level};
+	if ($level > $max) {
+		$state->{max_level} = $level;
+		$$cb->write(($max ? '<li>' : ''). '<ul><li>');
+	} else {
+		$$cb->write('<li>');
+	}
+}
+
+sub __ghost_flush {
+	my ($cb, $state, $upfx, $mid, $level) = @_;
+
+	__thread_adj_level($cb, $state, $level);
+	$$cb->write('<pre>'. ghost_parent($upfx, $mid) .  '</pre>' .
+			($level > 0 ? '</li>' : ''));
 }
 
 sub __thread_entry {
@@ -655,20 +668,23 @@ sub __thread_entry {
 	} or return;
 
 	if ($state->{anchor_idx} == 0) {
-		thread_html_head($cb, $mime, $state);
+		thread_html_head($cb, $mime, $state, $level);
 	}
 
 	if (my $ghost = delete $state->{ghost}) {
 		# n.b. ghost messages may only be parents, not children
 		foreach my $g (@$ghost) {
-			$$cb->write(ghost_table('../../', @$g));
+			__ghost_flush($cb, $state, '../../', @$g);
 		}
 	}
+	__thread_adj_level($cb, $state, $level);
 	index_entry($$cb, $mime, $level, $state);
+	$$cb->write('</li>') if $level > 0;
+
 	1;
 }
 
-sub __ghost_entry {
+sub __ghost_prepare {
 	my ($state, $node, $level) = @_;
 	my $ghost = $state->{ghost} ||= [];
 	push @$ghost, [ $node->messageid, $level ];
@@ -679,10 +695,10 @@ sub thread_entry {
 	return unless $node;
 	if (my $mime = $node->message) {
 		unless (__thread_entry($cb, $git, $state, $mime, $level)) {
-			__ghost_entry($state, $node, $level);
+			__ghost_prepare($state, $node, $level);
 		}
 	} else {
-		__ghost_entry($state, $node, $level);
+		__ghost_prepare($state, $node, $level);
 	}
 
 	thread_entry($cb, $git, $state, $node->child, $level + 1);
