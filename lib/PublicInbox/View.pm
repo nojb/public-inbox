@@ -176,7 +176,7 @@ sub emit_thread_html {
 		seen => $seen,
 		root_anchor => anchor_for($mid),
 		anchor_idx => 0,
-		max_level => 0,
+		cur_level => 0,
 	};
 
 	require PublicInbox::Git;
@@ -187,9 +187,8 @@ sub emit_thread_html {
 	} else {
 		my $th = thread_results($msgs);
 		thread_entry(\$cb, $git, $state, $_, 0) for $th->rootset;
-		if (my $max = $state->{max_level}) {
-			my $x = $max > 1 ? ('</ul></li>' x ($max-1)) : '';
-			$cb->write($x . '</ul>');
+		if (my $max = $state->{cur_level}) {
+			$cb->write(('</ul></li>' x ($max - 1)) . '</ul>');
 		}
 	}
 	$git = undef;
@@ -638,25 +637,37 @@ sub ghost_parent {
 	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
 }
 
-sub __thread_adj_level {
-	my ($cb, $state, $level) = @_;
+sub thread_adj_level {
+	my ($fh, $state, $level) = @_;
 
-	return if $level <= 0; # flat output
-	my $max = $state->{max_level};
-	if ($level > $max) {
-		$state->{max_level} = $level;
-		$$cb->write(($max ? '<li>' : ''). '<ul><li>');
-	} else {
-		$$cb->write('<li>');
+	my $max = $state->{cur_level};
+	if ($level <= 0) {
+		return '' if $max == 0; # flat output
+
+		# reset existing lists
+		my $x = $max > 1 ? ('</ul></li>' x ($max - 1)) : '';
+		$fh->write($x . '</ul>');
+		$state->{cur_level} = 0;
+		return '';
 	}
+	if ($level == $max) { # continue existing list
+		$fh->write('<li>');
+	} elsif ($level < $max) {
+		my $x = $max > 1 ? ('</ul></li>' x ($max - $level)) : '';
+		$fh->write($x .= '<li>');
+		$state->{cur_level} = $level;
+	} else { # ($level > $max) # start a new level
+		$state->{cur_level} = $level;
+		$fh->write(($max ? '<li>' : '') . '<ul><li>');
+	}
+	'</li>';
 }
 
-sub __ghost_flush {
-	my ($cb, $state, $upfx, $mid, $level) = @_;
+sub ghost_flush {
+	my ($fh, $state, $upfx, $mid, $level) = @_;
 
-	__thread_adj_level($cb, $state, $level);
-	$$cb->write('<pre>'. ghost_parent($upfx, $mid) .  '</pre>' .
-			($level > 0 ? '</li>' : ''));
+	my $end = thread_adj_level($fh, $state, $level);
+	$fh->write('<pre>'. ghost_parent($upfx, $mid) .  '</pre>' . $end);
 }
 
 sub __thread_entry {
@@ -671,16 +682,16 @@ sub __thread_entry {
 	if ($state->{anchor_idx} == 0) {
 		thread_html_head($cb, $mime, $state, $level);
 	}
-
+	my $fh = $$cb;
 	if (my $ghost = delete $state->{ghost}) {
 		# n.b. ghost messages may only be parents, not children
 		foreach my $g (@$ghost) {
-			__ghost_flush($cb, $state, '../../', @$g);
+			ghost_flush($fh, $state, '../../', @$g);
 		}
 	}
-	__thread_adj_level($cb, $state, $level);
-	index_entry($$cb, $mime, $level, $state);
-	$$cb->write('</li>') if $level > 0;
+	my $end = thread_adj_level($fh, $state, $level);
+	index_entry($fh, $mime, $level, $state);
+	$fh->write($end) if $end;
 
 	1;
 }

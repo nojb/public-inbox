@@ -138,7 +138,7 @@ sub search_nav_bot {
 sub tdump {
 	my ($cb, $res, $mset, $q, $ctx) = @_;
 	my $fh = $cb->([200, ['Content-Type'=>'text/html; charset=UTF-8']]);
-	$fh->write($res);
+	$fh->write($res .= '</pre>');
 	my %pct;
 	my @m = map {
 		my $i = $_;
@@ -168,9 +168,15 @@ sub tdump {
 	}
 
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
-	my $state = { ctx => $ctx, anchor_idx => 0, pct => \%pct };
+	my $state = {
+		ctx => $ctx,
+		anchor_idx => 0,
+		pct => \%pct,
+		cur_level => 0
+	};
 	$ctx->{searchview} = 1;
 	tdump_ent($fh, $git, $state, $_, 0) for $th->rootset;
+	PublicInbox::View::thread_adj_level($fh, $state, 0);
 	Email::Address->purge_cache;
 
 	$fh->write(search_nav_bot($mset, $q). "\n\n" .
@@ -193,10 +199,13 @@ sub tdump_ent {
 		};
 	}
 	if ($mime) {
+		my $end =
+		  PublicInbox::View::thread_adj_level($fh, $state, $level);
 		PublicInbox::View::index_entry($fh, $mime, $level, $state);
+		$fh->write($end) if $end;
 	} else {
 		my $mid = $node->messageid;
-		$fh->write(PublicInbox::View::ghost_table('', $mid, $level));
+		PublicInbox::View::ghost_flush($fh, $state, '', $mid, $level);
 	}
 	tdump_ent($fh, $git, $state, $node->child, $level + 1);
 	tdump_ent($fh, $git, $state, $node->next, $level);
@@ -214,7 +223,8 @@ sub html_start {
 
 	my $qh = $query->as_html;
 	my $A = $q->qs_html(x => 'A', r => undef);
-	my $res = "<html><head><title>$qh - search results</title>" .
+	my $res = '<html><head>' . PublicInbox::Hval::STYLE .
+		"<title>$qh - search results</title>" .
 		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 		qq!href="?$A"\ntype="application/atom+xml"/></head>! .
 		qq{<body><form\naction="">} .
