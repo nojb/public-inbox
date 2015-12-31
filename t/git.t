@@ -129,6 +129,14 @@ if (1) {
 		local $/;
 		is($all, <$fh>, 'entire read matches');
 	};
+
+	my $ref = $gcf->qx(qw(cat-file blob), $buf);
+	is($all, $ref, 'qx read giant single string');
+
+	my @ref = $gcf->qx(qw(cat-file blob), $buf);
+	is($all, join('', @ref), 'qx returned array when wanted');
+	my $nl = scalar @ref;
+	ok($nl > 1, "qx returned array length of $nl");
 }
 
 done_testing();

@@ -117,6 +117,14 @@ sub popen {
 	popen_rd(\@cmd);
 }
 
+sub qx {
+	my ($self, @cmd) = @_;
+	my $fh = $self->popen(@cmd);
+	return <$fh> if wantarray;
+	local $/;
+	<$fh>
+}
+
 sub cleanup {
 	my ($self) = @_;
 	_destroy($self, qw(in out pid));
