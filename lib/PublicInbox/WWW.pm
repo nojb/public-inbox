@@ -358,15 +358,19 @@ sub r301 {
 	my ($ctx, $listname, $mid, $suffix) = @_;
 	my $cgi = $ctx->{cgi};
 	my $url;
+	my $qs;
 	if (ref($cgi) eq 'CGI') {
 		$url = $cgi->url(-base) . '/';
+		$qs = $cgi->query_string;
 	} else {
 		$url = $cgi->base->as_string;
+		$qs = $cgi->env->{QUERY_STRING};
 	}
 
 	$url .= $listname . '/';
 	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
 	$url .= $suffix if (defined $suffix);
+	$url .= "?$qs" if $qs ne '';
 
 	[ 301,
 	  [ Location => $url, 'Content-Type' => 'text/plain' ],
