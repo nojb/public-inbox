@@ -12,13 +12,13 @@ use Plack::Builder;
 my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
 
 builder {
-	enable 'Plack::Middleware::Chunked';
+	enable 'Chunked';
 	if ($have_deflater) {
-		enable "Deflater",
+		enable 'Deflater',
 			content_type => [ 'text/html', 'text/plain',
 					'application/atom+xml' ];
 	}
-	enable "Head";
+	enable 'Head';
 	sub {
 		my $req = Plack::Request->new(@_);
 		PublicInbox::WWW::run($req, $req->method);
