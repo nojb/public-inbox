@@ -89,7 +89,7 @@ sub ext_msg {
 again:
 		my $cgi = $ctx->{cgi};
 		my $url = ref($cgi) eq 'CGI' ? $cgi->url(-base) . '/'
-					: $cgi->base->as_string;
+				: $cgi->base->as_string; # Plack::Request
 		$url .= $listname;
 		unshift @pfx, { git_dir => $ctx->{git_dir}, url => $url };
 		foreach my $pfx (@pfx) {

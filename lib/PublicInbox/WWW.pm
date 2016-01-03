@@ -198,6 +198,7 @@ sub get_thread {
 
 sub self_url {
 	my ($cgi) = @_;
+						# Plack::Request
 	ref($cgi) eq 'CGI' ? $cgi->self_url : $cgi->uri->as_string;
 }
 
@@ -362,7 +363,7 @@ sub r301 {
 	if (ref($cgi) eq 'CGI') {
 		$url = $cgi->url(-base) . '/';
 		$qs = $cgi->query_string;
-	} else {
+	} else { # Plack::Request
 		$url = $cgi->base->as_string;
 		$qs = $cgi->env->{QUERY_STRING};
 	}

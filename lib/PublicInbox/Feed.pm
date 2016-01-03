@@ -287,7 +287,7 @@ sub get_feedopts {
 		my $base;
 		if (ref($cgi) eq 'CGI') {
 			$base = $cgi->url(-base);
-		} else {
+		} else { # Plack::Request
 			$base = $cgi->base->as_string;
 			$base =~ s!/\z!!;
 		}
