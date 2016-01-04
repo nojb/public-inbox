@@ -40,7 +40,7 @@ install-man: man
 	$(pandoc) -s -t man < $< > $@+ && mv $@+ $@
 
 txt2pre = ./Documentation/txt2pre < $< > $@+ && touch -r $< $@+ && mv $@+ $@
-txt := INSTALL README COPYING
+txt := INSTALL README COPYING TODO
 dtxt :=  design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
 dtxt := $(addprefix Documentation/, $(dtxt))
 
