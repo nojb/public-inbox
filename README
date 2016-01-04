@@ -66,7 +66,8 @@ Requirements (participant)
 
 * any MUA which may send text-only emails ("git send-email" works!)
   Users are strongly encouraged to use the "reply-all" feature of
-  their mailers to reduce the impact of a public-inbox as a SPOF.
+  their mailers to reduce the impact of a public-inbox as a
+  single point of failure.
 
 * participants do not need to install public-inbox, only server admins
 

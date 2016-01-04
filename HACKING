@@ -6,10 +6,13 @@ It is archived at <http://public-inbox.org/meta/>.
 
 Please consider our goals in mind:
 
-	Accessibility, Compatibility, Performance
+	Decentralization, Accessibility, Compatibility, Performance
 
 These goals apply to everyone: users viewing over the web or NNTP,
 sysadmins running public-inbox, and other hackers working public-inbox.
+
+We will reject any feature which advocates or contributes to a particular
+instance of a public-inbox becoming a single point of failure.
 
 See design_www.txt and design_notes.txt in the Documentation/ directory
 for design decisions made during development.

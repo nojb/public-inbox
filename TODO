@@ -1,5 +1,17 @@
+TODO items for public-inbox
+
+(Not in any particular order)
+
 * implement RFC 4685 (Atom message threading)
 * configurable constants (quote folding, index limits)
 * use tags as date-based skiplists for navigating history
+  (maybe not needed with Xapian support nowadays?)
+* handle Xapian date range queries:
+  http://mid.gmane.org/20151005222157.GE5880@survex.com
+* use REQUEST_URI properly for CGI / mod_perl2 compatibility
+  with Message-IDs which include '%'
+* more test cases (use git fast-import to speed up creation)
+* large mbox/Maildir/MH/NNTP spool import (use git fast-import)
+* remove dependency on ssoma installation (inline the code)
 * improve + document mlmmj integration, currently only at:
   http://bogomips.org/unicorn-public/20140508084301.GA2033%40dcvr.yhbt.net/
