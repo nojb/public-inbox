@@ -4,7 +4,7 @@ Documentation/dc-dlvr-spam-flow.txt
 Documentation/design_notes.txt
 Documentation/design_www.txt
 Documentation/include.mk
-Documentation/public-inbox-mda.txt
+Documentation/public-inbox-mda.pod
 Documentation/txt2pre
 HACKING
 INSTALL

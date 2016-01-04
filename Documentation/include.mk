@@ -6,9 +6,12 @@ RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
 docs := README COPYING INSTALL TODO $(shell git ls-files 'Documentation/*.txt')
 INSTALL = install
-PANDOC = pandoc
-PANDOC_OPTS = -f markdown --email-obfuscation=none
-pandoc = $(PANDOC) $(PANDOC_OPTS)
+POD2MAN = pod2man
+POD2MAN_OPTS = -v --stderr -d 1994-10-02 -c 'public-inbox user manual'
+pod2man = $(POD2MAN) $(POD2MAN_OPTS)
+POD2TEXT = pod2text
+POD2TEXT_OPTS = --stderr
+pod2text = $(POD2TEXT) $(POD2TEXT_OPTS)
 
 m1 =
 m1 += public-inbox-mda
@@ -36,13 +39,22 @@ install-man: man
 	test -z "$(man1)" || $(INSTALL) -m 644 $(man1) $(DESTDIR)$(man1dir)
 	test -z "$(man5)" || $(INSTALL) -m 644 $(man5) $(DESTDIR)$(man5dir)
 	test -z "$(man7)" || $(INSTALL) -m 644 $(man7) $(DESTDIR)$(man7dir)
-%.1 %.5 %.7 : Documentation/%.txt
-	$(pandoc) -s -t man < $< > $@+ && mv $@+ $@
+
+%.1 : Documentation/%.pod
+	$(pod2man) -s 1 $< $@+ && mv $@+ $@
+
+mantxt = $(addprefix Documentation/, $(addsuffix .txt, $(m1)))
+docs += $(mantxt)
+
+all :: $(mantxt)
+
+Documentation/%.txt : Documentation/%.pod
+	$(pod2text) $< $@+ && mv $@+ $@
 
 txt2pre = ./Documentation/txt2pre < $< > $@+ && touch -r $< $@+ && mv $@+ $@
 txt := INSTALL README COPYING TODO
-dtxt :=  design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
-dtxt := $(addprefix Documentation/, $(dtxt))
+dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
+dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
 
 %.html: %.txt
 	$(txt2pre)
@@ -64,4 +76,6 @@ rsync-doc:
 	$(MAKE) gz-doc
 	$(RSYNC) --chmod=Fugo=r -av $(rsync_docs) $(RSYNC_DEST)
 clean-doc:
-	$(RM) $(man1) $(man5) $(man7) $(gz_docs) $(docs_html)
+	$(RM) $(man1) $(man5) $(man7) $(gz_docs) $(docs_html) $(mantxt)
+
+clean :: clean-doc

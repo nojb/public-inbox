@@ -1,0 +1,36 @@
+% public-inbox-mda(1) public-inbox user manual
+
+=head1 NAME
+
+public-inbox-mda - mail delivery for public-inbox
+
+=head1 SYNOPSIS
+
+B<public-inbox-mda> E<lt> message
+
+=head1 DESCRIPTION
+
+Mail Delivery Agent (MDA) for public-inbox installations.
+Each system user may have their own public-inbox instances
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item ORIGINAL_RECIPIENT
+
+the original recipient email address, from Postfix
+
+=item PI_CONFIG
+
+config file. default: ~/.public-inbox/config
+
+=item PI_EMERGENCY
+
+emergency destination.  default: ~/.public-inbox/emergency/
+
+=back
+
+=head1 PI_CONFIG FILE
+
+This is a config file parseable by L<git-config(1)>.
