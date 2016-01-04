@@ -140,8 +140,8 @@ sub index_entry {
 		}
 		$rv .= " <a\nhref=\"$parent_anchor\">parent</a>";
 	}
-	if (my $pct = $state->{pct}) {
-		$rv .= " [$pct->{$mid_raw}%]";
+	if (my $pct = $state->{pct}) { # used by SearchView.pm
+		$rv .= " [relevance $pct->{$mid_raw}%]";
 	} elsif ($srch) {
 		if ($ctx->{flat}) {
 			$rv .= " [<a\nhref=\"${path}$href/t/#u\">threaded</a>" .

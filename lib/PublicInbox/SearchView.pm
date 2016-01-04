@@ -56,6 +56,8 @@ sub sres_top_html {
 	[$code, ['Content-Type'=>'text/html; charset=UTF-8'], [$res]];
 }
 
+# display non-threaded search results similar to what users expect from
+# regular WWW search engines:
 sub dump_mset {
 	my ($res, $mset) = @_;
 
