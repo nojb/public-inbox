@@ -11,8 +11,8 @@ require PublicInbox::NNTP;
 require PublicInbox::Config;
 my $nntpd = PublicInbox::NNTPD->new;
 daemon_run('0.0.0.0:119',
-	sub { $nntpd->refresh_groups },
-	sub ($) { PublicInbox::NNTP->new($_[0], $nntpd) });
+	sub { $nntpd->refresh_groups }, # refresh
+	sub ($$) { PublicInbox::NNTP->new($_[0], $nntpd) }); # post_accept
 
 1;
 package PublicInbox::NNTPD;
