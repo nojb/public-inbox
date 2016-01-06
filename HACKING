@@ -11,8 +11,31 @@ Please consider our goals in mind:
 These goals apply to everyone: users viewing over the web or NNTP,
 sysadmins running public-inbox, and other hackers working public-inbox.
 
-We will reject any feature which advocates or contributes to a particular
-instance of a public-inbox becoming a single point of failure.
+We will reject any feature which advocates or contributes to any
+particular instance of a public-inbox becoming a single point of failure.
+Things we've considered but rejected include:
+
+* exposing article serial numbers outside of NNTP
+* allowing readers to inject metadata (e.g. votes)
+
+We care about being accessible to folks with vision problems and/or
+lack the computing resources to view so-called "modern" websites.
+This includes folks on slow connections and ancient browsers which
+may be too difficult to upgrade due to resource demands.
+
+Only depend on Free Software packages which exist in the "main"
+section of Debian 7.0 and later.  (We will bump version requirements
+as time passes, but this is current as of January 2016).
+In general, we favor mature and well-tested old things rather than
+the shiny new.
+
+Avoid relying on compiled modules too much.  Even if it is Free,
+compiled code makes packages more expensive to audit, build, and
+distribute and verify.  public-inbox itself will only be implemented
+in scripting languages (currently Perl 5).
+
+Performance should be reasonably good for server administrators, too,
+and we will sacrifice features to achieve predictable performance.
 
 See design_www.txt and design_notes.txt in the Documentation/ directory
 for design decisions made during development.
