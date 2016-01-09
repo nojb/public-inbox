@@ -768,8 +768,8 @@ sub _inline_header {
 	my $mid = mid_clean($mime->header('Message-ID'));
 	my $f = $mime->header('X-PI-From');
 	my $d = _msg_date($mime);
-	$f = PublicInbox::Hval->new($f)->as_html;
-	$d = PublicInbox::Hval->new($d)->as_html;
+	$f = PublicInbox::Hval->new_oneline($f)->as_html;
+	$d = PublicInbox::Hval->new_oneline($d)->as_html;
 	my $pfx = ' ' . $d . ' ' . indent_for($level);
 	my $attr = $f;
 	$state->{first_level} ||= $level;
@@ -902,7 +902,7 @@ sub dump_topics {
 		my ($level, $subj, $topic) = @$info;
 		my $n = delete $subjs->{$topic};
 		my ($mid, $ts) = @{delete $latest->{$topic}};
-		$mid = PublicInbox::Hval->new($mid)->as_href;
+		$mid = PublicInbox::Hval->new_msgid($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$pfx = indent_for($level);
 		my $nl = $level == $prev ? "\n" : '';

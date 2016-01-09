@@ -124,7 +124,7 @@ again:
 		foreach my $pfx (@partial) {
 			my $u = $pfx->{url};
 			foreach my $m (@{$pfx->{res}}) {
-				my $p = PublicInbox::Hval->new($m);
+				my $p = PublicInbox::Hval->new_msgid($m);
 				my $r = $p->as_href;
 				my $t = $p->as_html;
 				$s .= qq{<a\nhref="$u/$r/">$u/$t/</a>\n};

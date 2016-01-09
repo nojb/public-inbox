@@ -288,7 +288,7 @@ sub qs_html {
 		$self = $tmp;
 	}
 
-	my $q = PublicInbox::Hval->new($self->{q})->as_href;
+	my $q = PublicInbox::Hval->new_oneline($self->{q})->as_href;
 	$q =~ s/%20/+/g; # improve URL readability
 	my $qs = "q=$q";
 
