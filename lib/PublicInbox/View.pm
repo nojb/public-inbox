@@ -558,10 +558,11 @@ sub html_footer {
 
 	my $srch = $ctx->{srch} if $ctx;
 	my $upfx = $full_pfx ? '../' : '../../';
+	my $tpfx = $full_pfx ? '' : '../';
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 
 	if ($srch && $standalone) {
-		$idx .= qq{ / follow: <a\nhref="t.atom">Atom feed</a>\n};
+		$idx .= qq{ / follow: <a\nhref="${tpfx}t.atom">Atom feed</a>\n};
 	}
 	if ($idx && $srch) {
 		my $p = $ctx->{parent_msg};
@@ -579,7 +580,6 @@ sub html_footer {
 			$irt .= ' ' x length('next ');
 		}
 		if ($p || $next) {
-			my $tpfx = $full_pfx ? '' : '../';
 			$irt .= "<a\nhref=\"${tpfx}t/#u\">thread</a> ";
 		} else {
 			$irt .= ' ' x length('thread ');
