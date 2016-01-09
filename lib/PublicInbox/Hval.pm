@@ -21,8 +21,7 @@ my $enc_ascii = find_encoding('us-ascii');
 sub new {
 	my ($class, $raw, $href) = @_;
 
-	# we never care about leading/trailing whitespace
-	$raw =~ s/\A\s*//;
+	# we never care about trailing whitespace
 	$raw =~ s/\s*\z//;
 	bless {
 		raw => $raw,
