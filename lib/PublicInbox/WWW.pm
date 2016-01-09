@@ -47,7 +47,9 @@ sub run {
 
 	# in case people leave off the trailing slash:
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(f|T|t)\z!o) {
-		r301($ctx, $1, $2, $3 eq 't' ? 't/#u' : $3);
+		my ($listname, $mid, $suffix) = ($1, $2, $3);
+		$suffix .= $suffix =~ /\A[tT]\z/ ? '/#u' : '/';
+		r301($ctx, $listname, $mid, $suffix);
 
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/([^/]{2,})\z!o) {

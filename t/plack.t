@@ -81,6 +81,30 @@ EOF
 		is($to, $res->header('Location'), 'redirect location matches');
 	});
 
+	my $pfx = 'http://example.com/test';
+	foreach my $t (qw(t T)) {
+		test_psgi($app, sub {
+			my ($cb) = @_;
+			my $u = $pfx . "/blah%40example.com/$t";
+			my $res = $cb->(GET($u));
+			is(301, $res->code, "redirect for missing /");
+			my $location = $res->header('Location');
+			like($location, qr!/\Q$t\E/#u\z!,
+				'redirected with missing /');
+		});
+	}
+	foreach my $t (qw(f)) {
+		test_psgi($app, sub {
+			my ($cb) = @_;
+			my $u = $pfx . "/blah%40example.com/$t";
+			my $res = $cb->(GET($u));
+			is(301, $res->code, "redirect for missing /");
+			my $location = $res->header('Location');
+			like($location, qr!/\Q$t\E/\z!,
+				'redirected with missing /');
+		});
+	}
+
 	test_psgi($app, sub {
 		my ($cb) = @_;
 		my $atomurl = 'http://example.com/test/new.atom';
@@ -92,7 +116,6 @@ EOF
 			'index generated');
 	});
 
-	my $pfx = 'http://example.com/test';
 	test_psgi($app, sub {
 		my ($cb) = @_;
 		my $res = $cb->(GET($pfx . '/atom.xml'));
