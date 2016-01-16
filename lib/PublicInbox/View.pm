@@ -314,6 +314,9 @@ sub linkify_2 {
 sub flush_quote {
 	my ($quot, $n, $part_nr, $full_pfx, $final, $do_anchor) = @_;
 
+	# n.b.: do not use <blockquote> since it screws up alignment
+	# w.r.t. unquoted text.  Repliers may rely on pre-formatted
+	# alignment to point out a certain word in quoted text.
 	if ($full_pfx) {
 		if (!$final && scalar(@$quot) <= MAX_INLINE_QUOTED) {
 			# show quote inline
