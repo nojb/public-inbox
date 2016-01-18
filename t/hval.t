@@ -1,9 +1,9 @@
-# Copyright (C) 2017-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2017-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use warnings;
 use Test::More;
-use_ok 'PublicInbox::Hval';
+use_ok 'PublicInbox::Hval', qw(from_attr to_attr);
 
 my $ibx = {
 	-no_obfuscate_re => qr/(?:example\.com)\z/i,
@@ -46,5 +46,15 @@ is('foo.bar', PublicInbox::Hval::to_filename("foo....bar"),
 my $s = "\0\x07\n";
 PublicInbox::Hval::src_escape($s);
 is($s, "\\0\\a\n", 'src_escape works as intended');
+
+foreach my $s ('Hello/World.pm', 'Zcat', 'hello world.c', 'Eléanor', '$at') {
+	my $attr = to_attr($s);
+	is(from_attr($attr), $s, "$s => $attr => $s round trips");
+}
+
+{
+	my $bad = to_attr('foo//bar');
+	ok(!$bad, 'double-slash rejected');
+}
 
 done_testing();

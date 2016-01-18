@@ -9,8 +9,8 @@ use warnings;
 use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape/;
-
+our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape
+		to_attr from_attr/;
 my $enc_ascii = find_encoding('us-ascii');
 
 sub new {
@@ -120,6 +120,37 @@ sub to_filename ($) {
 	$s =~ s/[\.\-]+\z//;
 	$s =~ s/\A[\.\-]+//;
 	$s
+}
+
+# convert a filename (or any string) to HTML attribute
+
+my %ESCAPES = map { chr($_) => sprintf('::%02x', $_) } (0..255);
+$ESCAPES{'/'} = ':'; # common
+
+sub to_attr ($) {
+	my ($str) = @_;
+
+	# git would never do this to us:
+	return if index($str, '//') >= 0;
+
+	my $first = '';
+	if ($str =~ s/\A([^A-Ya-z])//ms) { # start with a letter
+		  $first = sprintf('Z%02x', ord($1));
+	}
+	$str =~ s/([^A-Za-z0-9_\.\-])/$ESCAPES{$1}/egms;
+	$first . $str;
+}
+
+# reverse the result of to_attr
+sub from_attr ($) {
+	my ($str) = @_;
+	my $first = '';
+	if ($str =~ s/\AZ([a-f0-9]{2})//ms) {
+		$first = chr(hex($1));
+	}
+	$str =~ s!::([a-f0-9]{2})!chr(hex($1))!egms;
+	$str =~ tr!:!/!;
+	$first . $str;
 }
 
 1;
