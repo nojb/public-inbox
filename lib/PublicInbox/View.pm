@@ -772,7 +772,6 @@ sub _inline_header {
 	my $f = $mime->header('X-PI-From');
 	my $d = _msg_date($mime);
 	$f = PublicInbox::Hval->new_oneline($f)->as_html;
-	$d = PublicInbox::Hval->new_oneline($d)->as_html;
 	my $pfx = ' ' . $d . ' ' . indent_for($level);
 	my $attr = $f;
 	$state->{first_level} ||= $level;
