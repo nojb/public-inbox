@@ -475,8 +475,11 @@ sub thread_inline {
 		return;
 	}
 
-	$$dst .= "~$nr messages (<a\nhref=\"#b\">skip</a> / " .
-		 $expand . ")\n";
+	$$dst .= "~$nr messages ($expand";
+	if ($nr > MAX_INLINE_QUOTED) {
+		$$dst .= qq! / <a\nhref="#b">[scroll down]</a>!;
+	}
+	$$dst .= ")\n";
 
 	my $subj = $srch->subject_path($cur->header('Subject'));
 	my $state = {
