@@ -16,7 +16,7 @@ URL naming
 /$LISTNAME/$MESSAGE_ID/raw                -> raw mbox
 /$LISTNAME/$MESSAGE_ID/f/                 -> HTML content (full quotes)
 
-### Legacy endpoints (may be ambiguous given Message-IDs with similar suffies)
+### Legacy endpoints (may be ambiguous given Message-IDs with similar suffixes)
 /$LISTNAME/m/$MESSAGE_ID/                 -> 301 to /$LISTNAME/$MESSAGE_ID/
 /$LISTNAME/m/$MESSAGE_ID.html             -> 301 to /$LISTNAME/$MESSAGE_ID/
 /$LISTNAME/m/$MESSAGE_ID.txt              -> 301 to /$LISTNAME/$MESSAGE_ID/raw
@@ -45,6 +45,7 @@ of the original email.
 
 Guidelines for using limited HTML
 ---------------------------------
+
 We mainly use HTML for linking pages together with <a>.
 We also set <title> to make window management easier.
 

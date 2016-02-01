@@ -1,5 +1,6 @@
 public-inbox - an "archives first" approach to mailing lists
 ------------------------------------------------------------
+
 public-inbox implements the sharing of an email inbox via git to
 complement or replace traditional mailing lists.  Readers may
 read via NNTP, Atom feeds or HTML archives.
@@ -7,9 +8,11 @@ read via NNTP, Atom feeds or HTML archives.
 public-inbox spawned around three main ideas:
 
 * Publically accessible and archived communication is essential to
-  Free and Open Source development.
-* Contributing to Free and Open Source projects should not require the
-  use of non-Free/non-Open Source services or software.
+  Free Software development.
+
+* Contributing to Free Software projects should not require the
+  use of non-Free services or software.
+
 * Graphical user interfaces should not be required for text-based
   communication.
 
@@ -18,6 +21,7 @@ to run their own instances with minimal overhead.
 
 Implementation
 --------------
+
 public-inbox uses ssoma[1], Some Sort Of Mail Archiver which implements
 no policy of its own.  By storing (and optionally) exposing an inbox
 via git, it is fast and efficient to host and mirror public-inboxes.
@@ -47,9 +51,13 @@ replay a public-inbox git archive to subscribers via SMTP.
 
 Features
 --------
+
 * anybody may participate via plain-text email
+
 * stores email in git, readers may have a complete archive of the inbox
+
 * Atom feed and NNTP allows casual readers to follow via feed reader
+
 * uses only well-documented and easy-to-implement data formats
 
 Try it out now, see http://try.public-inbox.org/
@@ -73,10 +81,12 @@ Requirements (participant)
 
 Requirements (server)
 ---------------------
+
 See http://public-inbox.org/INSTALL
 
 Hacking
 -------
+
 Source code is available via git:
 
 	git clone git://80x24.org/public-inbox
@@ -85,6 +95,7 @@ See below for contact info.
 
 Contact
 -------
+
 We are happy to see feedback of all types via plain-text email.
 public-inbox discussion is self-hosting on public-inbox.org
 Please send comments, user/developer discussion, patches, bug reports,
@@ -112,6 +123,7 @@ Or pass the same git repository URL for ssoma using the instructions at:
 
 Anti-Spam
 ---------
+
 The maintainer of public-inbox has found SpamAssassin a good tool for
 filtering his personal mail, and it will be the default spam filtering
 tool in public-inbox.
@@ -120,6 +132,7 @@ See http://public-inbox/dc-dlvr-spam-flow.html for more info.
 
 Content Filtering
 -----------------
+
 To discourage phishing, web bugs (tracking), viruses and other nuisances,
 only plain-text content is allowed and non-text content is stripped.
 This saves I/O bandwidth and storage, which is important as
@@ -131,6 +144,7 @@ aims to preserve the focus on content, and not presentation.
 
 Copyright
 ---------
+
 Copyright 2013-2015 all contributors <meta@public-inbox.org>
 License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>
 

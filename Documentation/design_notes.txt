@@ -3,6 +3,7 @@ public-inbox design notes
 
 Challenges to running normal mailing lists
 ------------------------------------------
+
 1) spam
 2) bounce processing of invalid/bad email addresses
 3) processing subscribe/unsubscribe requests
@@ -14,6 +15,7 @@ confused users who cannot unsubscribe.
 
 Use existing infrastructure
 ---------------------------
+
 * public-inbox can coexist with existing mailing lists, any subscriber
   to the existing mailing list can begin delivering messages to
   public-inbox-mda(1)
@@ -34,6 +36,7 @@ Use existing infrastructure
 
 Why email?
 ----------
+
 * Freedom from proprietary services, tools and APIs.  Communicating with
   developers and users of Free Software should not rely on proprietary
   tools or services.
@@ -64,17 +67,19 @@ Why email?
 
 Why git?
 --------
+
 * git is distributed and robust while being both fast and
   space-efficient with text data.  NNTP was considered, but does not
   support delta-compression and places no guarantees on data/transport
-  integrity.  However, an NNTP gateway (read-only?) is possible.
+  integrity.  However, a read-only NNTP gateway is implemented.
 
-* As of 2014, git is widely used and known to nearly all Free Software
+* As of 2016, git is widely used and known to nearly all Free Software
   developers.  For non-developers it is packaged for all major GNU/Linux
   and *BSD distributions.  NNTP is not as widely-used nowadays.
 
 Why perl 5?
 -----------
+
 * Perl 5 is widely available on modern *nix systems with good a history
   of backwards and forward compatibility.
 
@@ -83,6 +88,7 @@ Why perl 5?
 
 Laziness
 --------
+
 * Stick to dependencies available in Debian main, this should make it
   easier for potential users to install, and easier for distro
   maintainers to pick up.
@@ -110,6 +116,7 @@ Laziness
 
 Web notes
 ---------
+
 * Getting users to install/run ssoma (or any new tool) is difficult.
   The web views must be easily read/cache/mirror-able.
 
@@ -124,6 +131,7 @@ Web notes
 
 What sucks about public-inbox
 -----------------------------
+
 * Lack of push notification.  On the other hand, feeds seem popular.
 
 * some (mostly GUI) mail clients cannot set In-Reply-To headers
@@ -131,6 +139,7 @@ What sucks about public-inbox
 
 Scalability notes
 -----------------
+
 Even with shallow clone, storing the history of large/busy mailing lists
 may place much burden on subscribers and servers.  However, having a
 single (or few) refs representing the entire history of a list is good
@@ -144,5 +153,6 @@ where `n' is the number of history splits.
 
 Copyright
 ---------
+
 Copyright 2013-2015 all contributors <meta@public-inbox.org>
 License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>
