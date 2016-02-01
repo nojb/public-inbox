@@ -469,7 +469,12 @@ sub thread_inline {
 	$$dst .= 'Thread: ';
 	my $parent = in_reply_to($cur);
 	if ($nr <= 1) {
-		$$dst .= "[no followups, yet] ($expand)\n";
+		if (defined $parent) {
+			$$dst .= "($expand)\n ";
+			$$dst .= ghost_parent($upfx, $parent) . "\n";
+		} else {
+			$$dst .= "[no followups, yet] ($expand)\n";
+		}
 		$ctx->{next_msg} = undef;
 		$ctx->{parent_msg} = $parent;
 		return;
