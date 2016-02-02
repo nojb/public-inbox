@@ -62,7 +62,7 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 					PublicInbox::MDA->author_info($msg);
 
 			END {
-				search_index_sync($main_repo) if ($? == 0);
+				index_sync($main_repo) if ($? == 0);
 			};
 
 			local $ENV{GIT_AUTHOR_NAME} = $name;
@@ -98,8 +98,12 @@ sub do_spamc {
 	return ($@ || $? || !defined($$out) || $$out eq '') ? 0 : 1;
 }
 
-sub search_index_sync {
+sub index_sync {
 	my ($git_dir) = @_;
+
+	# potentially user-visible, ignore errors:
+	system('git', "--git-dir=$git_dir", 'update-server-info');
+
 	eval {
 		require PublicInbox::SearchIdx;
 		PublicInbox::SearchIdx->new($git_dir, 2)->index_sync;

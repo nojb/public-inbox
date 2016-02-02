@@ -18,6 +18,7 @@ use URI::Escape qw(uri_escape_utf8 uri_unescape);
 use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
 use constant PI_URL => 'http://public-inbox.org/';
 require PublicInbox::Git;
+use PublicInbox::GitHTTPDumb;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(f/|T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
@@ -42,6 +43,10 @@ sub run {
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:atom\.xml|new\.atom)\z!o) {
 		invalid_list($ctx, $1) || get_atom($ctx);
 
+	} elsif ($path_info =~ m!$LISTNAME_RE/
+				($PublicInbox::GitHTTPDumb::ANY)\z!ox) {
+		my $path = $2;
+		invalid_list($ctx, $1) || serve_git($cgi, $ctx->{git}, $path);
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($ctx, $1, $2, $3);
 
@@ -393,6 +398,11 @@ sub msg_page {
 		'f/' eq $e and return get_full_html($ctx);
 	}
 	r404($ctx);
+}
+
+sub serve_git {
+	my ($cgi, $git, $path) = @_;
+	PublicInbox::GitHTTPDumb::serve($cgi, $git, $path);
 }
 
 1;
