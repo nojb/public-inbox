@@ -104,6 +104,7 @@ EOF
 
 # dumb HTTP support
 {
+	local $ENV{HOME} = $home;
 	my $path = "/test/info/refs";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/Status:\s*200/i, "info/refs readable");
