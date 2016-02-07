@@ -25,6 +25,8 @@ URL naming
 
 /$LISTNAME/atom.xml [2]                   -> identical to /$LISTNAME/new.atom
 
+Additionally, we support "git clone" pointed to http://$HOST/$LISTNAME
+
 FIXME: we must refactor/cleanup/add tests for most of our CGI before
 adding more endpoints and features.
 

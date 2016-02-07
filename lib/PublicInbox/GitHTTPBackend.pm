@@ -2,11 +2,12 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # when no endpoints match, fallback to this and serve a static file
-# This can serve Smart HTTP in the future.
-package PublicInbox::GitHTTPDumb;
+# or smart HTTP
+package PublicInbox::GitHTTPBackend;
 use strict;
 use warnings;
 use Fcntl qw(:seek);
+use POSIX qw(dup2);
 
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
 # not cause problems.  serving "config" might...
@@ -29,6 +30,12 @@ sub r {
 
 sub serve {
 	my ($cgi, $git, $path) = @_;
+	my $service = $cgi->param('service') || '';
+	if ($service =~ /\Agit-\w+-pack\z/ || $path =~ /\Agit-\w+-pack\z/) {
+		my $ok = serve_smart($cgi, $git, $path);
+		return $ok if $ok;
+	}
+
 	my $type;
 	if ($path =~ /\A(?:$BIN)\z/o) {
 		$type = 'application/octet-stream';
@@ -116,6 +123,92 @@ sub prepare_range {
 		}
 	}
 	($code, $len);
+}
+
+# returns undef if 403 so it falls back to dumb HTTP
+sub serve_smart {
+	my ($cgi, $git, $path) = @_;
+	my $env = $cgi->{env};
+
+	my $input = $env->{'psgi.input'};
+	my $buf;
+	my $in;
+	my $err = $env->{'psgi.errors'};
+	if (fileno($input) >= 0) { # FIXME untested
+		$in = $input;
+	} else {
+		$in = IO::File->new_tmpfile;
+		while (1) {
+			my $r = $input->read($buf, 8192);
+			unless (defined $r) {
+				$err->print('error reading input: ', $!, "\n");
+				return r(500);
+			}
+			last if ($r == 0);
+			$in->write($buf);
+		}
+		$in->flush;
+		$in->sysseek(0, SEEK_SET);
+	}
+	my $out = IO::File->new_tmpfile;
+	my $pid = fork; # TODO: vfork under Linux...
+	unless (defined $pid) {
+		$err->print('error forking: ', $!, "\n");
+		return r(500);
+	}
+	if ($pid == 0) {
+		# GIT_HTTP_EXPORT_ALL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
+		# may be set in the server-process and are passed as-is
+		foreach my $name (qw(QUERY_STRING
+					REMOTE_USER REMOTE_ADDR
+					HTTP_CONTENT_ENCODING
+					CONTENT_TYPE
+					SERVER_PROTOCOL
+					REQUEST_METHOD)) {
+			my $val = $env->{$name};
+			$ENV{$name} = $val if defined $val;
+		}
+		# $ENV{GIT_PROJECT_ROOT} = $git->{git_dir};
+		$ENV{GIT_HTTP_EXPORT_ALL} = '1';
+		$ENV{PATH_TRANSLATED} = "$git->{git_dir}/$path";
+		dup2(fileno($in), 0) or die "redirect stdin failed: $!\n";
+		dup2(fileno($out), 1) or die "redirect stdout failed: $!\n";
+		my @cmd = qw(git http-backend);
+		exec(@cmd) or die 'exec `' . join(' ', @cmd). "' failed: $!\n";
+	}
+
+	if (waitpid($pid, 0) != $pid) {
+		$err->print("git http-backend ($git->{git_dir}): ", $?, "\n");
+		return r(500);
+	}
+	$in = undef;
+	$out->seek(0, SEEK_SET);
+	my @h;
+	my $code = 200;
+	{
+		local $/ = "\r\n";
+		while (defined(my $line = <$out>)) {
+			if ($line =~ /\AStatus:\s*(\d+)/) {
+				$code = $1;
+			} else {
+				chomp $line;
+				last if $line eq '';
+				push @h, split(/:\s*/, $line, 2);
+			}
+		}
+	}
+	return if $code == 403;
+	sub {
+		my ($cb) = @_;
+		my $fh = $cb->([ $code, \@h ]);
+		while (1) {
+			my $r = $out->read($buf, 8192);
+			die "$!\n" unless defined $r;
+			last if ($r == 0);
+			$fh->write($buf);
+		}
+		$fh->close;
+	}
 }
 
 1;

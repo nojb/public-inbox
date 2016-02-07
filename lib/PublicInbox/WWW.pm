@@ -18,7 +18,7 @@ use URI::Escape qw(uri_escape_utf8 uri_unescape);
 use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
 use constant PI_URL => 'http://public-inbox.org/';
 require PublicInbox::Git;
-use PublicInbox::GitHTTPDumb;
+use PublicInbox::GitHTTPBackend;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(f/|T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
@@ -28,10 +28,17 @@ sub run {
 	my ($cgi, $method) = @_;
 	$pi_config ||= PublicInbox::Config->new;
 	my $ctx = { cgi => $cgi, pi_config => $pi_config };
-	if ($method !~ /\AGET|HEAD\z/) {
+	my $path_info = $cgi->path_info;
+
+	if ($method eq 'POST' &&
+		 $path_info =~ m!$LISTNAME_RE/(git-upload-pack)\z!) {
+		my $path = $2;
+		return (invalid_list($ctx, $1) ||
+			serve_git($cgi, $ctx->{git}, $path));
+	}
+	elsif ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
 	}
-	my $path_info = $cgi->path_info;
 
 	# top-level indices and feeds
 	if ($path_info eq '/') {
@@ -44,7 +51,7 @@ sub run {
 		invalid_list($ctx, $1) || get_atom($ctx);
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/
-				($PublicInbox::GitHTTPDumb::ANY)\z!ox) {
+				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my $path = $2;
 		invalid_list($ctx, $1) || serve_git($cgi, $ctx->{git}, $path);
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/$END_RE\z!o) {
@@ -402,7 +409,7 @@ sub msg_page {
 
 sub serve_git {
 	my ($cgi, $git, $path) = @_;
-	PublicInbox::GitHTTPDumb::serve($cgi, $git, $path);
+	PublicInbox::GitHTTPBackend::serve($cgi, $git, $path);
 }
 
 1;
