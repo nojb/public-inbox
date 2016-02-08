@@ -471,7 +471,7 @@ sub thread_inline {
 	if ($nr <= 1) {
 		if (defined $parent) {
 			$$dst .= "($expand)\n ";
-			$$dst .= ghost_parent($upfx, $parent) . "\n";
+			$$dst .= ghost_parent("$upfx../", $parent) . "\n";
 		} else {
 			$$dst .= "[no followups, yet] ($expand)\n";
 		}
