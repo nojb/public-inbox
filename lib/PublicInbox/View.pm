@@ -867,27 +867,21 @@ sub add_topic {
 
 	if (my $x = $node->message) {
 		$x = $x->header_obj;
-		my ($topic, $subj);
+		my $subj;
 
 		$subj = $x->header('Subject');
 		$subj = $state->{srch}->subject_normalized($subj);
-		$topic = $subj;
 
-		# kill "[PATCH v2]" etc. for summarization
-		unless ($level == 0) {
-			$topic =~ s/\A\s*\[[^\]]+\]\s*//g;
-		}
-
-		if (++$state->{subjs}->{$topic} == 1) {
-			push @{$state->{order}}, [ $level, $subj, $topic ];
+		if (++$state->{subjs}->{$subj} == 1) {
+			push @{$state->{order}}, [ $level, $subj ];
 		}
 
 		my $mid = mid_clean($x->header('Message-ID'));
 
 		my $ts = $x->header('X-PI-TS');
-		my $exist = $state->{latest}->{$topic};
+		my $exist = $state->{latest}->{$subj};
 		if (!$exist || $exist->[1] < $ts) {
-			$state->{latest}->{$topic} = [ $mid, $ts ];
+			$state->{latest}->{$subj} = [ $mid, $ts ];
 		}
 	} else {
 		# ghost message, do not bump level
@@ -909,9 +903,9 @@ sub dump_topics {
 	my $prev = 0;
 	my $prev_attr = '';
 	while (defined(my $info = shift @$order)) {
-		my ($level, $subj, $topic) = @$info;
-		my $n = delete $subjs->{$topic};
-		my ($mid, $ts) = @{delete $latest->{$topic}};
+		my ($level, $subj) = @$info;
+		my $n = delete $subjs->{$subj};
+		my ($mid, $ts) = @{delete $latest->{$subj}};
 		$mid = PublicInbox::Hval->new_msgid($mid)->as_href;
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$pfx = indent_for($level);
