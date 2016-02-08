@@ -55,7 +55,8 @@ sub atom_header {
 	qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
 	qq{<feed\nxmlns="http://www.w3.org/2005/Atom">} .
 	qq{$title} .
-	qq(<link\nhref="$feed_opts->{url}"/>) .
+	qq(<link\nrel="alternate"\ntype="text/html") .
+		qq(\nhref="$feed_opts->{url}"/>) .
 	qq(<link\nrel="self"\nhref="$feed_opts->{atomurl}"/>) .
 	qq(<id>mailto:$feed_opts->{id_addr}</id>);
 }
