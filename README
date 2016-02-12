@@ -128,7 +128,7 @@ The maintainer of public-inbox has found SpamAssassin a good tool for
 filtering his personal mail, and it will be the default spam filtering
 tool in public-inbox.
 
-See http://public-inbox/dc-dlvr-spam-flow.html for more info.
+See http://public-inbox.org/dc-dlvr-spam-flow.html for more info.
 
 Content Filtering
 -----------------
