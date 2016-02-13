@@ -244,10 +244,12 @@ sub footer {
 
 	my $urls = try_cat("$git_dir/cloneurl");
 	my @urls = split(/\r?\n/, $urls || '');
-	my $nurls = scalar @urls;
-	if ($nurls == 0) {
-		$urls = '($GIT_DIR/cloneurl missing)';
-	} elsif ($nurls == 1) {
+	my %seen = map { $_ => 1 } @urls;
+	my $cgi = $ctx->{cgi};
+	my $http = (ref($cgi) eq 'CGI') ? $cgi->url(-base) . "/$listname" :
+			$cgi->base->as_string . $listname;
+	$seen{$http} or unshift @urls, $http;
+	if (scalar(@urls) == 1) {
 		$urls = "git URL for <a\nhref=\"" . SSOMA_URL .
 			'">ssoma</a>: ' . $urls[0];
 	} else {
