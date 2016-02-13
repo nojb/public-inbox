@@ -121,12 +121,11 @@ sub emit_html_index {
 
 	my $title = $feed_opts->{description} || '';
 	$title = PublicInbox::Hval->new_oneline($title)->as_html;
-	my $atom_url = $feed_opts->{atomurl};
 	my ($footer, $param, $last);
 	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0 };
 	my $srch = $ctx->{srch};
 
-	my $top = "<b>$title</b> (<a\nhref=\"$atom_url\">Atom feed</a>)";
+	my $top = "<b>$title</b> (<a\nhref=\"new.atom\">Atom feed</a>)";
 
 	if ($srch) {
 		$top = qq{<form\naction=""><pre>$top} .
@@ -139,7 +138,7 @@ sub emit_html_index {
 
 	$fh->write("<html><head><title>$title</title>" .
 		   "<link\nrel=alternate\ntitle=\"Atom feed\"\n".
-		   "href=\"$atom_url\"\ntype=\"application/atom+xml\"/>" .
+		   "href=\"new.atom\"\ntype=\"application/atom+xml\"/>" .
 		   PublicInbox::Hval::STYLE .
 		   "</head><body>$top");
 
