@@ -250,11 +250,13 @@ sub footer {
 			$cgi->base->as_string . $listname;
 	$seen{$http} or unshift @urls, $http;
 	if (scalar(@urls) == 1) {
-		$urls = "git URL for <a\nhref=\"" . SSOMA_URL .
-			'">ssoma</a>: ' . $urls[0];
+		$urls = "URL for <a\nhref=\"" . SSOMA_URL .
+			qq(">ssoma</a> or <b>git clone --mirror \$URL</b> :) .
+			$urls[0];
 	} else {
-		$urls = "git URLs for <a\nhref=\"" . SSOMA_URL .
-			"\">ssoma</a>:\n" . join("\n", map { "\t$_" } @urls);
+		$urls = "URLs for <a\nhref=\"" . SSOMA_URL .
+			qq(">ssoma</a> or <b>git clone --mirror \$URL</b>\n) .
+			join("\n", map { "\t$_" } @urls);
 	}
 
 	my $addr = $pi_config->get($listname, 'address');
