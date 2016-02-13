@@ -18,6 +18,12 @@ builder {
 			content_type => [ 'text/html', 'text/plain',
 					'application/atom+xml' ];
 	}
+
+	# Enable to ensure redirects and Atom feed URLs are generated
+	# properly when running behind a reverse proxy server which
+	# sets X-Forwarded-For and X-Forwarded-Proto request headers.
+	# See Plack::Middleware::ReverseProxy documentation for details
+	# enable 'ReverseProxy';
 	enable 'Head';
 	sub {
 		my $req = Plack::Request->new(@_);
