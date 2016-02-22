@@ -16,8 +16,9 @@ use PublicInbox::MID qw/mid2path/;
 our @EXT_URL = (
 	'http://mid.gmane.org/%s',
 	'https://lists.debian.org/msgid-search/%s',
-	'http://mid.mail-archive.com/%s',
-	'http://marc.info/?i=%s',
+	# leading "//" denotes protocol-relative (http:// or https://)
+	'//mid.mail-archive.com/%s',
+	'//marc.info/?i=%s',
 );
 
 sub ext_msg {
@@ -84,13 +85,21 @@ sub ext_msg {
 
 	eval { require PublicInbox::Msgmap };
 	my $have_mm = $@ ? 0 : 1;
+	my $cgi = $ctx->{cgi};
+	my $base_url;
+	my $scheme;
+	if (ref($cgi) eq 'CGI') {
+		$base_url = $cgi->url(-base) . '/';
+		$scheme = $cgi->protocol;
+	} else { # Plack::Request
+		$base_url = $cgi->base->as_string;
+		$scheme = $cgi->env->{'psgi.url_scheme'};
+	}
 	if ($have_mm) {
 		my $tmp_mid = $mid;
+		my $url;
 again:
-		my $cgi = $ctx->{cgi};
-		my $url = ref($cgi) eq 'CGI' ? $cgi->url(-base) . '/'
-				: $cgi->base->as_string; # Plack::Request
-		$url .= $listname;
+		$url = $base_url . $listname;
 		unshift @pfx, { git_dir => $ctx->{git_dir}, url => $url };
 		foreach my $pfx (@pfx) {
 			my $git_dir = delete $pfx->{git_dir} or next;
@@ -137,6 +146,7 @@ again:
 		$code = 300;
 		$s .= "\nPerhaps try an external site:\n\n";
 		foreach my $u (@EXT_URL) {
+			$u = "$scheme:$u" if $u =~ m!\A//!;
 			my $r = sprintf($u, $href);
 			my $t = sprintf($u, $html);
 			$s .= qq{<a\nhref="$r">$t</a>\n};
