@@ -21,7 +21,7 @@ require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
-our $END_RE = qr!(f/|T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
+our $END_RE = qr!(f/|T/|t/|R/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 our $pi_config;
 
 sub run {
@@ -58,7 +58,7 @@ sub run {
 		msg_page($ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(f|T|t)\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(f|T|t|R)\z!o) {
 		my ($listname, $mid, $suffix) = ($1, $2, $3);
 		$suffix .= $suffix =~ /\A[tT]\z/ ? '/#u' : '/';
 		r301($ctx, $listname, $mid, $suffix);
@@ -198,6 +198,19 @@ sub get_full_html {
 	searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
 	  [ PublicInbox::View::msg_html($ctx, $mime, undef, $foot)] ];
+}
+
+# /$LISTNAME/$MESSAGE_ID/R/                   -> HTML content (fullquotes)
+sub get_reply_html {
+	my ($ctx) = @_;
+	my $x = mid2blob($ctx) or return r404($ctx);
+
+	require PublicInbox::View;
+	my $foot = footer($ctx);
+	require Email::MIME;
+	my $hdr = Email::MIME->new($x)->header_obj;
+	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
+	  [ PublicInbox::View::msg_reply($ctx, $hdr, $foot)] ];
 }
 
 # /$LISTNAME/$MESSAGE_ID/t/
@@ -407,6 +420,7 @@ sub msg_page {
 		'T/' eq $e and return get_thread($ctx, 1);
 		'raw' eq $e and return get_mid_txt($ctx);
 		'f/' eq $e and return get_full_html($ctx);
+		'R/' eq $e and return get_reply_html($ctx);
 	}
 	r404($ctx);
 }

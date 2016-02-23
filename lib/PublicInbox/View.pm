@@ -44,6 +44,45 @@ sub msg_html {
 		'</pre></body></html>';
 }
 
+# /$LISTNAME/$MESSAGE_ID/R/
+sub msg_reply {
+	my ($ctx, $hdr, $footer) = @_;
+	my $s = $hdr->header('Subject');
+	$s = '(no subject)' if (!defined $s) || ($s eq '');
+	my $f = $hdr->header('From');
+	$f = '' unless defined $f;
+	$s = PublicInbox::Hval->new_oneline($s);
+	my $mid = $hdr->header('Message-ID');
+	$mid = PublicInbox::Hval->new_msgid($mid);
+	my $t = $s->as_html;
+	my $se_url =
+	 'https://kernel.org/pub/software/scm/git/docs/git-send-email.html';
+
+	my ($arg, $link) = mailto_arg_link($hdr);
+	push @$arg, '/path/to/YOUR_REPLY';
+
+	"<html><head><title>replying to \"$t\"</title></head><body><pre>" .
+	"replying to message:\n\n" .
+	"Subject: <b>$t</b>\n" .
+	"From: ". ascii_html($f) .
+	"\nDate: " .  ascii_html($hdr->header('Date')) .
+	"\nMessage-ID: &lt;" . $mid->as_html . "&gt;\n\n" .
+	"There are multiple ways to reply:\n\n" .
+	"* Save the following mbox file, import it into your mail client,\n" .
+	"  and reply-to-all from there: <a\nhref=../raw>mbox</a>\n\n" .
+	"* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,\n" .
+	"  and <b>--in-reply-to</b> switches of git-send-email(1):\n\n" .
+	"\tgit send-email \\\n\t\t" .
+	join(" \\ \n\t\t", @$arg ). "\n\n" .
+	qq(  <a\nhref="$se_url">$se_url</a>\n\n) .
+	"* If your mail client supports setting the <b>In-Reply-To</b>" .
+	" header\n  via mailto: links, try the " .
+	qq(<a\nhref="$link">mailto: link</a>\n) .
+	"\nFor context, the original <a\nhref=../>message</a> or " .
+	qq(<a\nhref="../t/#u">thread</a>) .
+	'</pre><hr /><pre>' . $footer .  '</pre></body></html>';
+}
+
 sub feed_entry {
 	my ($class, $mime, $full_pfx) = @_;
 
@@ -131,7 +170,7 @@ sub index_entry {
 
 	my $txt = "${path}$href/raw";
 	$rv = "\n<a\nhref=\"$mhref\">$more</a> <a\nhref=\"$txt\">raw</a> ";
-	$rv .= html_footer($hdr, 0, undef, $ctx);
+	$rv .= html_footer($hdr, 0, undef, $ctx, $mhref);
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
@@ -537,8 +576,8 @@ sub _parent_headers_nosrch {
 	$rv;
 }
 
-sub html_footer {
-	my ($hdr, $standalone, $full_pfx, $ctx) = @_;
+sub mailto_arg_link {
+	my ($hdr) = @_;
 	my %cc; # everyone else
 	my $to; # this is the From address
 
@@ -553,24 +592,35 @@ sub html_footer {
 			$to ||= $dst;
 		}
 	}
-	Email::Address->purge_cache if $standalone;
+	Email::Address->purge_cache;
+	my @arg;
 
 	my $subj = $hdr->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
 	my $mid = $hdr->header('Message-ID');
+	push @arg, "--in-reply-to='" . ascii_html($mid) . "'";
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
+	push @arg, '--to=' . ascii_html($to);
 	$to = uri_escape_utf8($to);
 	$subj = uri_escape_utf8($subj);
-
-	my $cc = uri_escape_utf8(join(',', sort values %cc));
+	my $cc = join(',', sort values %cc);
+	push @arg, '--cc=' . ascii_html($cc);
+	$cc = uri_escape_utf8($cc);
 	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
 	$href =~ s/%20/+/g;
+
+	(\@arg, $href);
+}
+
+sub html_footer {
+	my ($mime, $standalone, $full_pfx, $ctx, $mhref) = @_;
 
 	my $srch = $ctx->{srch} if $ctx;
 	my $upfx = $full_pfx ? '../' : '../../';
 	my $tpfx = $full_pfx ? '' : '../';
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
+	my $irt = '';
 
 	if ($srch && $standalone) {
 		$idx .= qq{ / follow: <a\nhref="${tpfx}t.atom">Atom feed</a>\n};
@@ -599,7 +649,8 @@ sub html_footer {
 		$irt = '';
 	}
 
-	"$irt<a\nhref=\"" . ascii_html($href) . '">reply</a>' . $idx;
+	$mhref = './' unless defined $mhref;
+	$irt . qq(<a\nhref="${mhref}R/">reply</a>) . $idx;
 }
 
 sub linkify_ref_nosrch {
