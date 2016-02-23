@@ -35,10 +35,11 @@ sub msg_html {
 	} else {
 		$footer = '';
 	}
-	headers_to_html_header($mime, $full_pfx, $ctx) .
+	my $hdr = $mime->header_obj;
+	headers_to_html_header($hdr, $full_pfx, $ctx) .
 		multipart_text_as_html($mime, $full_pfx) .
 		'</pre><hr /><pre>' .
-		html_footer($mime, 1, $full_pfx, $ctx) .
+		html_footer($hdr, 1, $full_pfx, $ctx) .
 		$footer .
 		'</pre></body></html>';
 }
@@ -52,12 +53,12 @@ sub feed_entry {
 }
 
 sub in_reply_to {
-	my ($header_obj) = @_;
-	my $irt = $header_obj->header('In-Reply-To');
+	my ($hdr) = @_;
+	my $irt = $hdr->header('In-Reply-To');
 
 	return mid_clean($irt) if (defined $irt);
 
-	my $refs = $header_obj->header('References');
+	my $refs = $hdr->header('References');
 	if ($refs && $refs =~ /<([^>]+)>\s*\z/s) {
 		return $1;
 	}
@@ -72,17 +73,17 @@ sub index_entry {
 	my $srch = $ctx->{srch};
 	my ($prev, $next) = ($midx - 1, $midx + 1);
 	my $part_nr = 0;
-	my $enc = enc_for($mime->header("Content-Type"));
-	my $subj = $mime->header('Subject');
-	my $header_obj = $mime->header_obj;
+	my $hdr = $mime->header_obj;
+	my $enc = enc_for($hdr->header("Content-Type"));
+	my $subj = $hdr->header('Subject');
 
-	my $mid_raw = mid_clean($header_obj->header('Message-ID'));
+	my $mid_raw = mid_clean($hdr->header('Message-ID'));
 	my $id = anchor_for($mid_raw);
 	my $seen = $state->{seen};
 	$seen->{$id} = "#$id"; # save the anchor for children, later
 
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
-	my $from = PublicInbox::Hval->new_oneline($mime->header('From'))->raw;
+	my $from = PublicInbox::Hval->new_oneline($hdr->header('From'))->raw;
 	my @from = Email::Address->parse($from);
 	$from = $from[0]->name;
 
@@ -91,7 +92,7 @@ sub index_entry {
 	my $root_anchor = $state->{root_anchor} || '';
 	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
-	my $irt = in_reply_to($header_obj);
+	my $irt = in_reply_to($hdr);
 	my $parent_anchor = $seen->{anchor_for($irt)} if defined $irt;
 
 	if ($srch) {
@@ -102,7 +103,7 @@ sub index_entry {
 		$subj = "<u\nid=u>$subj</u>";
 	}
 
-	my $ts = _msg_date($mime);
+	my $ts = _msg_date($hdr);
 	my $rv = "<pre\nid=s$midx>";
 	$rv .= "<b\nid=$id>$subj</b>\n";
 	$rv .= "- $from @ $ts UTC - ";
@@ -130,7 +131,7 @@ sub index_entry {
 
 	my $txt = "${path}$href/raw";
 	$rv = "\n<a\nhref=\"$mhref\">$more</a> <a\nhref=\"$txt\">raw</a> ";
-	$rv .= html_footer($mime, 0, undef, $ctx);
+	$rv .= html_footer($hdr, 0, undef, $ctx);
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
@@ -412,15 +413,14 @@ sub add_text_body {
 }
 
 sub headers_to_html_header {
-	my ($mime, $full_pfx, $ctx) = @_;
+	my ($hdr, $full_pfx, $ctx) = @_;
 	my $srch = $ctx->{srch} if $ctx;
 	my $rv = "";
 	my @title;
-	my $header_obj = $mime->header_obj;
-	my $mid = $header_obj->header('Message-ID');
+	my $mid = $hdr->header('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	foreach my $h (qw(From To Cc Subject Date)) {
-		my $v = $header_obj->header($h);
+		my $v = $hdr->header($h);
 		defined($v) && ($v ne '') or next;
 		$v = PublicInbox::Hval->new_oneline($v);
 
@@ -443,12 +443,12 @@ sub headers_to_html_header {
 	$rv .= "(<a\nhref=\"${upfx}raw\">raw</a>)\n";
 	my $atom;
 	if ($srch) {
-		thread_inline(\$rv, $ctx, $mime, $upfx);
+		thread_inline(\$rv, $ctx, $hdr, $upfx);
 
 		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 			qq!href="${upfx}t.atom"\ntype="application/atom+xml"/>!;
 	} else {
-		$rv .= _parent_headers_nosrch($header_obj);
+		$rv .= _parent_headers_nosrch($hdr);
 		$atom = '';
 	}
 	$rv .= "\n";
@@ -458,16 +458,16 @@ sub headers_to_html_header {
 }
 
 sub thread_inline {
-	my ($dst, $ctx, $cur, $upfx) = @_;
+	my ($dst, $ctx, $hdr, $upfx) = @_;
 	my $srch = $ctx->{srch};
-	my $mid = mid_clean($cur->header('Message-ID'));
+	my $mid = mid_clean($hdr->header('Message-ID'));
 	my $res = $srch->get_thread($mid);
 	my $nr = $res->{total};
 	my $expand = "<a\nhref=\"${upfx}t/#u\">expand</a> " .
 			"/ <a\nhref=\"${upfx}t.mbox.gz\">mbox.gz</a>";
 
 	$$dst .= 'Thread: ';
-	my $parent = in_reply_to($cur);
+	my $parent = in_reply_to($hdr);
 	if ($nr <= 1) {
 		if (defined $parent) {
 			$$dst .= "($expand)\n ";
@@ -486,7 +486,7 @@ sub thread_inline {
 	}
 	$$dst .= ")\n";
 
-	my $subj = $srch->subject_path($cur->header('Subject'));
+	my $subj = $srch->subject_path($hdr->header('Subject'));
 	my $state = {
 		seen => { $subj => 1 },
 		srch => $srch,
@@ -505,10 +505,10 @@ sub thread_inline {
 }
 
 sub _parent_headers_nosrch {
-	my ($header_obj) = @_;
+	my ($hdr) = @_;
 	my $rv = '';
 
-	my $irt = in_reply_to($header_obj);
+	my $irt = in_reply_to($hdr);
 	if (defined $irt) {
 		my $v = PublicInbox::Hval->new_msgid($irt, 1);
 		my $html = $v->as_html;
@@ -517,7 +517,7 @@ sub _parent_headers_nosrch {
 		$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
 	}
 
-	my $refs = $header_obj->header('References');
+	my $refs = $hdr->header('References');
 	if ($refs) {
 		# avoid redundant URLs wasting bandwidth
 		my %seen;
@@ -538,12 +538,12 @@ sub _parent_headers_nosrch {
 }
 
 sub html_footer {
-	my ($mime, $standalone, $full_pfx, $ctx) = @_;
+	my ($hdr, $standalone, $full_pfx, $ctx) = @_;
 	my %cc; # everyone else
 	my $to; # this is the From address
 
 	foreach my $h (qw(From To Cc)) {
-		my $v = $mime->header($h);
+		my $v = $hdr->header($h);
 		defined($v) && ($v ne '') or next;
 		my @addrs = Email::Address->parse($v);
 		foreach my $recip (@addrs) {
@@ -555,9 +555,9 @@ sub html_footer {
 	}
 	Email::Address->purge_cache if $standalone;
 
-	my $subj = $mime->header('Subject') || '';
+	my $subj = $hdr->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
-	my $mid = $mime->header('Message-ID');
+	my $mid = $hdr->header('Message-ID');
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
 	$to = uri_escape_utf8($to);
@@ -740,8 +740,8 @@ sub load_results {
 }
 
 sub msg_timestamp {
-	my ($mime) = @_;
-	my $ts = eval { str2time($mime->header('Date')) };
+	my ($hdr) = @_;
+	my $ts = eval { str2time($hdr->header('Date')) };
 	defined($ts) ? $ts : 0;
 }
 
@@ -764,21 +764,21 @@ sub missing_thread {
 }
 
 sub _msg_date {
-	my ($mime) = @_;
-	my $ts = $mime->header('X-PI-TS') || msg_timestamp($mime);
+	my ($hdr) = @_;
+	my $ts = $hdr->header('X-PI-TS') || msg_timestamp($hdr);
 	fmt_ts($ts);
 }
 
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _inline_header {
-	my ($dst, $state, $upfx, $mime, $level) = @_;
+	my ($dst, $state, $upfx, $hdr, $level) = @_;
 	my $dot = $level == 0 ? '' : '` ';
 
 	my $cur = $state->{cur};
-	my $mid = mid_clean($mime->header('Message-ID'));
-	my $f = $mime->header('X-PI-From');
-	my $d = _msg_date($mime);
+	my $mid = mid_clean($hdr->header('Message-ID'));
+	my $f = $hdr->header('X-PI-From');
+	my $d = _msg_date($hdr);
 	$f = PublicInbox::Hval->new_oneline($f)->as_html;
 	my $pfx = ' ' . $d . ' ' . indent_for($level);
 	my $attr = $f;
@@ -806,7 +806,7 @@ sub _inline_header {
 	# Subject is never undef, this mail was loaded from
 	# our Xapian which would've resulted in '' if it were
 	# really missing (and Filter rejects empty subjects)
-	my $s = $mime->header('Subject');
+	my $s = $hdr->header('Subject');
 	my $h = $state->{srch}->subject_path($s);
 	if ($state->{seen}->{$h}) {
 		$s = undef;
@@ -828,11 +828,12 @@ sub inline_dump {
 	my ($dst, $state, $upfx, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
-		my $mid = mid_clean($mime->header('Message-ID'));
+		my $hdr = $mime->header_obj;
+		my $mid = mid_clean($hdr->header('Message-ID'));
 		if ($mid eq $state->{parent_cmp}) {
 			$state->{parent} = $mid;
 		}
-		_inline_header($dst, $state, $upfx, $mime, $level);
+		_inline_header($dst, $state, $upfx, $hdr, $level);
 	} else {
 		my $dot = $level == 0 ? '' : '` ';
 		my $pfx = (' ' x length(' 1970-01-01 13:37 ')).
