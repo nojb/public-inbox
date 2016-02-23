@@ -1,0 +1,100 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2016 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# Standalone HTTP server for public-inbox.
+use strict;
+use warnings;
+use Plack::Util;
+use PublicInbox::Daemon;
+use PublicInbox::HTTP;
+use PublicInbox::WWW;
+use Plack::Request;
+use Plack::Builder;
+PublicInbox::WWW->preload;
+my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
+my %httpds;
+my $config;
+my $app;
+my $refresh = sub {
+	if (@ARGV) {
+		eval { $app = Plack::Util::load_psgi(@ARGV) };
+		if ($@) {
+			die $@,
+"$0 runs in /, command-line paths must be absolute\n";
+		}
+	} else {
+		$app = eval {
+			my $deflate_types = eval {
+				require Plack::Middleware::Deflater;
+				[ 'text/html', 'text/plain',
+					'application/atom+xml' ]
+			};
+			builder {
+				enable 'Chunked';
+				if ($deflate_types) {
+					enable 'Deflater',
+						content_type => $deflate_types
+				}
+				enable 'Head';
+				sub {
+					my $req = Plack::Request->new(@_);
+					PublicInbox::WWW::run($req,
+							$req->method);
+				};
+			};
+		};
+	}
+};
+
+daemon_run('0.0.0.0:8080', $refresh,
+	sub ($$$) { # post_accept
+		my ($client, $addr, $srv) = @_;
+		my $fd = fileno($srv);
+		my $h = $httpds{$fd} ||= PublicInbox::HTTPD->new($srv, $app);
+		PublicInbox::HTTP->new($client, $addr, $h),
+	});
+
+1;
+package PublicInbox::HTTPD;
+use strict;
+use warnings;
+use Plack::Util;
+
+sub new {
+	my ($class, $sock, $app) = @_;
+	my $n = getsockname($sock) or die "not a socket: $sock $!\n";
+	my ($port, $addr);
+	if (length($n) >= 28) {
+		require Socket6;
+		($port, $addr) = Socket6::unpack_sockaddr_in6($n);
+	} else {
+		($port, $addr) = Socket::unpack_sockaddr_in($n);
+	}
+
+	my %env = (
+		REMOTE_HOST => '',
+		REMOTE_PORT => 0,
+		SERVER_NAME => $addr,
+		SERVER_PORT => $port,
+		SCRIPT_NAME => '',
+		'psgi.version' => [ 1, 1 ],
+		'psgi.errors' => \*STDERR,
+		'psgi.url_scheme' => 'http',
+		'psgi.nonblocking' => Plack::Util::TRUE,
+		'psgi.streaming' => Plack::Util::TRUE,
+		'psgi.run_once'	 => Plack::Util::FALSE,
+		'psgi.multithread' => Plack::Util::FALSE,
+		'psgi.multiprocess' => Plack::Util::TRUE,
+		'psgix.harakiri'=> Plack::Util::FALSE,
+		'psgix.input.buffered' => Plack::Util::TRUE,
+	);
+	bless {
+		err => \*STDERR,
+		out => \*STDOUT,
+		app => $app,
+		env => \%env,
+	}, $class;
+}
+
+1;

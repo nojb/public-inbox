@@ -25,11 +25,12 @@ sub new ($$$) {
 
 sub event_read {
 	my ($self) = @_;
+	my $sock = $self->{sock};
 	# no loop here, we want to fairly distribute clients
 	# between multiple processes sharing the same socket
-	if (my $addr = accept(my $c, $self->{sock})) {
+	if (my $addr = accept(my $c, $sock)) {
 		IO::Handle::blocking($c, 0); # no accept4 :<
-		$self->{post_accept}->($c, $addr);
+		$self->{post_accept}->($c, $addr, $sock);
 	}
 }
 
