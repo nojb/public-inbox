@@ -16,7 +16,7 @@ use Digest::SHA qw(sha1_hex);
 use File::Temp qw/tempdir/;
 use Cwd qw/getcwd/;
 use IO::Socket;
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
+use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 my $tmpdir = tempdir(CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
@@ -81,6 +81,43 @@ my $check_self = sub {
 	like($head, qr/\r\nContent-Length: 40\r\n/s, 'got expected length');
 	is($body, sha1_hex($str), 'read expected body');
 };
+
+SKIP: {
+	use POSIX qw(dup2);
+	use IO::File;
+	my $have_curl = 0;
+	foreach my $p (split(':', $ENV{PATH})) {
+		-x "$p/curl" or next;
+		$have_curl = 1;
+		last;
+	}
+	my $ntest = 2;
+	$have_curl or skip('curl(1) missing', $ntest);
+	my $url = 'http://' . $sock->sockhost . ':' . $sock->sockport . '/sha1';
+	my ($r, $w);
+	pipe($r, $w) or die "pipe: $!";
+	my $tout = IO::File->new_tmpfile or die "new_tmpfile: $!";
+	my $pid = fork;
+	defined $pid or die "fork: $!";
+	my @cmd = (qw(curl --tcp-nodelay --no-buffer -T- -HExpect: -sS), $url);
+	if ($pid == 0) {
+		dup2(fileno($r), 0) or die "redirect stdin failed: $!\n";
+		dup2(fileno($tout), 1) or die "redirect stdout failed: $!\n";
+		exec(@cmd) or die 'exec `' . join(' '). "' failed: $!\n";
+	}
+	$w->autoflush(1);
+	foreach my $c ('a'..'z') {
+		print $w $c or die "failed to write to curl: $!";
+		delay();
+	}
+	close $w or die "close write pipe: $!";
+	close $r or die "close read pipe: $!";
+	my $kid = waitpid $pid, 0;
+	is($?, 0, 'curl exited successfully');
+	$tout->sysseek(0, SEEK_SET);
+	$tout->sysread(my $buf, 100);
+	is($buf, sha1_hex($str), 'read expected body');
+}
 
 {
 	my $conn = conn_for($sock, '1.1 pipeline together');
