@@ -178,34 +178,55 @@ sub serve_smart {
 		my @cmd = qw(git http-backend);
 		exec(@cmd) or die 'exec `' . join(' ', @cmd). "' failed: $!\n";
 	}
-	$wpipe = undef;
-	$in = undef;
-	my @h;
-	my $code = 200;
-	{
-		local $/ = "\r\n";
-		while (defined(my $line = <$rpipe>)) {
-			if ($line =~ /\AStatus:\s*(\d+)/) {
-				$code = $1;
-			} else {
-				chomp $line;
-				last if $line eq '';
-				push @h, split(/:\s*/, $line, 2);
-			}
+	$wpipe = $in = undef;
+	$rpipe->blocking(0);
+	$buf = '';
+	my $vin;
+	vec($vin, fileno($rpipe), 1) = 1;
+	my ($fh, $res);
+	my $fail = sub {
+		my ($e) = @_;
+		if ($e eq 'EAGAIN') {
+			select($vin, undef, undef, undef);
+		} else {
+			$rpipe = undef;
+			$fh->close if $fh;
+			$err->print('git http-backend error: ', $e, "\n");
 		}
-	}
-	return if $code == 403;
-	sub {
-		my ($cb) = @_;
-		my $fh = $cb->([ $code, \@h ]);
-		while (1) {
-			my $r = sysread($rpipe, $buf, 8192);
-			die "$!\n" unless defined $r;
-			last if ($r == 0);
+	};
+	my $cb = sub {
+		my $r = sysread($rpipe, $buf, 8192, length($buf));
+		return $fail->($!{EAGAIN} ? 'EAGAIN' : $!) unless defined $r;
+		if ($r == 0) { # EOF
+			$rpipe = undef;
+			$fh->close if $fh;
+			return;
+		}
+		if ($fh) { # stream body from git-http-backend to HTTP client
 			$fh->write($buf);
-		}
-		$fh->close;
-	}
+			$buf = '';
+		} elsif ($buf =~ s/\A(.*?)\r?\n\r?\n//s) { # parse headers
+			my $h = $1;
+			my $code = 200;
+			my @h;
+			foreach my $l (split(/\r?\n/, $h)) {
+				my ($k, $v) = split(/:\s*/, $l, 2);
+				if ($k =~ /\AStatus\z/i) {
+					$code = int($v);
+				} else {
+					push @h, $k, $v;
+				}
+			}
+			# write response header:
+			$fh = $res->([ $code, \@h ]);
+			$fh->write($buf);
+			$buf = '';
+		} # else { keep reading ... }
+	};
+	sub {
+		($res) = @_;
+		while ($rpipe) { $cb->() }
+	};
 }
 
 1;
