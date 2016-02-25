@@ -139,7 +139,7 @@ sub serve_smart {
 		while (1) {
 			my $r = $input->read($buf, 8192);
 			unless (defined $r) {
-				$err->print('error reading input: ', $!, "\n");
+				$err->print("error reading input: $!\n");
 				return r(500);
 			}
 			last if ($r == 0);
@@ -150,12 +150,12 @@ sub serve_smart {
 	}
 	my ($rpipe, $wpipe);
 	unless (pipe($rpipe, $wpipe)) {
-		$err->print('error creating pipe', $!, "\n");
+		$err->print("error creating pipe: $!\n");
 		return r(500);
 	}
 	my $pid = fork; # TODO: vfork under Linux...
 	unless (defined $pid) {
-		$err->print('error forking: ', $!, "\n");
+		$err->print("error forking: $!\n");
 		return r(500);
 	}
 	my $git_dir = $git->{git_dir};
