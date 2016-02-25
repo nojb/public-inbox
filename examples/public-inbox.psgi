@@ -10,7 +10,7 @@ PublicInbox::WWW->preload;
 use Plack::Request;
 use Plack::Builder;
 my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
-
+my $www = PublicInbox::WWW->new;
 builder {
 	enable 'Chunked';
 	if ($have_deflater) {
@@ -25,8 +25,5 @@ builder {
 	# See Plack::Middleware::ReverseProxy documentation for details
 	# enable 'ReverseProxy';
 	enable 'Head';
-	sub {
-		my $req = Plack::Request->new(@_);
-		PublicInbox::WWW::run($req, $req->method);
-	}
+	sub { $www->call(@_) };
 }

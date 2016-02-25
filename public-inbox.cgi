@@ -11,7 +11,7 @@ use Plack::Request;
 use Plack::Handler::CGI;
 use PublicInbox::WWW;
 BEGIN { PublicInbox::WWW->preload if $ENV{MOD_PERL} }
-
+my $www = PublicInbox::WWW->new;
 my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
 my $app = builder {
 	if ($have_deflater) {
@@ -27,9 +27,6 @@ my $app = builder {
 	# enable 'ReverseProxy';
 
 	enable 'Head';
-	sub {
-		my $req = Plack::Request->new(@_);
-		PublicInbox::WWW::run($req, $req->method);
-	}
+	sub { $www->call(@_) };
 };
 Plack::Handler::CGI->new->run($app);

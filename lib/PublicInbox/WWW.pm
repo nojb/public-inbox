@@ -22,14 +22,26 @@ use PublicInbox::GitHTTPBackend;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(f/|T/|t/|R/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
-our $pi_config;
 
-sub run {
-	my ($cgi, $method) = @_;
+sub new {
+	my ($class, $pi_config) = @_;
 	$pi_config ||= PublicInbox::Config->new;
-	my $ctx = { cgi => $cgi, pi_config => $pi_config };
+	bless { pi_config => $pi_config }, $class;
+}
+
+# backwards compatibility, do not use
+sub run {
+	my ($req, $method) = @_;
+	PublicInbox::WWW->new->call($req->env);
+}
+
+sub call {
+	my ($self, $env) = @_;
+	my $cgi = Plack::Request->new($env);
+	my $ctx = { cgi => $cgi, pi_config => $self->{pi_config} };
 	my $path_info = $cgi->path_info;
 
+	my $method = $cgi->method;
 	if ($method eq 'POST' &&
 		 $path_info =~ m!$LISTNAME_RE/(git-upload-pack)\z!) {
 		my $path = $2;
@@ -107,7 +119,7 @@ sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 # returns undef if valid, array ref response if invalid
 sub invalid_list {
 	my ($ctx, $listname) = @_;
-	my $git_dir = $pi_config->get($listname, "mainrepo");
+	my $git_dir = $ctx->{pi_config}->get($listname, "mainrepo");
 	if (defined $git_dir) {
 		$ctx->{git_dir} = $git_dir;
 		$ctx->{git} = PublicInbox::Git->new($git_dir);
@@ -264,7 +276,7 @@ sub footer {
 			join("\n", map { "\t$_" } @urls);
 	}
 
-	my $addr = $pi_config->get($listname, 'address');
+	my $addr = $ctx->{pi_config}->get($listname, 'address');
 	if (ref($addr) eq 'ARRAY') {
 		$addr = $addr->[0]; # first address is primary
 	}

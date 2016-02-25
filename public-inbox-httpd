@@ -24,6 +24,7 @@ my $refresh = sub {
 "$0 runs in /, command-line paths must be absolute\n";
 		}
 	} else {
+		my $www = PublicInbox::WWW->new;
 		$app = eval {
 			my $deflate_types = eval {
 				require Plack::Middleware::Deflater;
@@ -37,11 +38,7 @@ my $refresh = sub {
 						content_type => $deflate_types
 				}
 				enable 'Head';
-				sub {
-					my $req = Plack::Request->new(@_);
-					PublicInbox::WWW::run($req,
-							$req->method);
-				};
+				sub { $www->call(@_) };
 			};
 		};
 	}
