@@ -17,7 +17,6 @@ WriteMakefile(
 		# note: we use ssoma(1) and spamc(1), NOT the Perl modules
 		# We also depend on git through ssoma.
 		# Keep this sorted and synced to the INSTALL document
-		'CGI' => 0,
 		'Date::Parse' => 0,
 		'Email::Address' => 0,
 		'Email::Filter' => 0,
@@ -27,6 +26,7 @@ WriteMakefile(
 		'File::Path::Expand' => 0,
 		'IPC::Run' => 0,
 		'Mail::Thread' => '2.5', # 2.5+ needed for Email::Simple compat
+		'Plack' => 0,
 		'URI::Escape' => 0,
 		# We have more test dependencies, but do not force
 		# users to install them

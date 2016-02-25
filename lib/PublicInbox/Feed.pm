@@ -284,14 +284,7 @@ sub get_feedopts {
 
 	my $url_base;
 	if ($cgi) {
-		my $base;
-		if (ref($cgi) eq 'CGI') {
-			$base = $cgi->url(-base);
-		} else { # Plack::Request
-			$base = $cgi->base->as_string;
-			$base =~ s!/\z!!;
-		}
-		$url_base = "$base/$listname";
+		$url_base = $cgi->base->as_string . $listname;
 		if (my $mid = $ctx->{mid}) { # per-thread feed:
 			$rv{atomurl} = "$url_base/$mid/t.atom";
 		} else {

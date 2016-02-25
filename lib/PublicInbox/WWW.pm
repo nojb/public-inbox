@@ -223,12 +223,6 @@ sub get_thread {
 	PublicInbox::View::thread_html($ctx, $foot, $srch);
 }
 
-sub self_url {
-	my ($cgi) = @_;
-						# Plack::Request
-	ref($cgi) eq 'CGI' ? $cgi->self_url : $cgi->uri->as_string;
-}
-
 sub ctx_get {
 	my ($ctx, $key) = @_;
 	my $val = $ctx->{$key};
@@ -258,9 +252,7 @@ sub footer {
 	my $urls = try_cat("$git_dir/cloneurl");
 	my @urls = split(/\r?\n/, $urls || '');
 	my %seen = map { $_ => 1 } @urls;
-	my $cgi = $ctx->{cgi};
-	my $http = (ref($cgi) eq 'CGI') ? $cgi->url(-base) . "/$listname" :
-			$cgi->base->as_string . $listname;
+	my $http = $ctx->{cgi}->base->as_string . $listname;
 	$seen{$http} or unshift @urls, $http;
 	if (scalar(@urls) == 1) {
 		$urls = "URL for <a\nhref=\"" . SSOMA_URL .
@@ -325,7 +317,7 @@ sub get_thread_mbox {
 sub get_thread_atom {
 	my ($ctx) = @_;
 	searcher($ctx) or return need_search($ctx);
-	$ctx->{self_url} = self_url($ctx->{cgi});
+	$ctx->{self_url} = $ctx->{cgi}->uri->as_string;
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate_thread_atom($ctx);
 }
@@ -390,16 +382,8 @@ sub r301 {
 	my ($ctx, $listname, $mid, $suffix) = @_;
 	my $cgi = $ctx->{cgi};
 	my $url;
-	my $qs;
-	if (ref($cgi) eq 'CGI') {
-		$url = $cgi->url(-base) . '/';
-		$qs = $cgi->query_string;
-	} else { # Plack::Request
-		$url = $cgi->base->as_string;
-		$qs = $cgi->env->{QUERY_STRING};
-	}
-
-	$url .= $listname . '/';
+	my $qs = $cgi->env->{QUERY_STRING};
+	$url = $cgi->base->as_string . $listname . '/';
 	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
 	$url .= $suffix if (defined $suffix);
 	$url .= "?$qs" if $qs ne '';

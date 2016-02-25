@@ -55,7 +55,7 @@ sub serve {
 	my $len = $size;
 	my @h;
 
-	my $env = $cgi->{env} || \%ENV;
+	my $env = $cgi->{env};
 	my $range = $env->{HTTP_RANGE};
 	if (defined $range && $range =~ /\bbytes=(\d*)-(\d*)\z/) {
 		($code, $len) = prepare_range($cgi, $in, \@h, $1, $2, $size);
@@ -117,9 +117,7 @@ sub prepare_range {
 			push @$h, "bytes $beg-$end/$size";
 
 			# FIXME: Plack::Middleware::Deflater bug?
-			if (my $env = $cgi->{env}) {
-				$env->{'psgix.no-compress'} = 1;
-			}
+			$cgi->{env}->{'psgix.no-compress'} = 1;
 		}
 	}
 	($code, $len);

@@ -86,15 +86,7 @@ sub ext_msg {
 	eval { require PublicInbox::Msgmap };
 	my $have_mm = $@ ? 0 : 1;
 	my $cgi = $ctx->{cgi};
-	my $base_url;
-	my $scheme;
-	if (ref($cgi) eq 'CGI') {
-		$base_url = $cgi->url(-base) . '/';
-		$scheme = $cgi->protocol;
-	} else { # Plack::Request
-		$base_url = $cgi->base->as_string;
-		$scheme = $cgi->env->{'psgi.url_scheme'};
-	}
+	my $base_url = $cgi->base->as_string;
 	if ($have_mm) {
 		my $tmp_mid = $mid;
 		my $url;
@@ -145,6 +137,7 @@ again:
 	if (@EXT_URL && index($mid, '@') >= 0) {
 		$code = 300;
 		$s .= "\nPerhaps try an external site:\n\n";
+		my $scheme = $cgi->scheme;
 		foreach my $u (@EXT_URL) {
 			$u = "$scheme:$u" if $u =~ m!\A//!;
 			my $r = sprintf($u, $href);
