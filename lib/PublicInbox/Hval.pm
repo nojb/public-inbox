@@ -69,4 +69,9 @@ sub raw {
 	}
 }
 
+sub prurl {
+	my ($env, $u) = @_;
+	index($u, '//') == 0 ? "$env->{'psgi.url_scheme'}:$u" : $u;
+}
+
 1;

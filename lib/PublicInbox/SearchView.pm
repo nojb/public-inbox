@@ -35,7 +35,7 @@ sub sres_top_html {
 	my $res = html_start($q, $ctx) . '<pre>';
 	if ($err) {
 		$code = 400;
-		$res .= err_txt($err) . "</pre><hr /><pre>" . foot($ctx);
+		$res .= err_txt($ctx, $err) . "</pre><hr /><pre>" . foot($ctx);
 	} elsif ($total == 0) {
 		$code = 404;
 		$res .= "\n\n[No results found]</pre><hr /><pre>".foot($ctx);
@@ -80,8 +80,9 @@ sub dump_mset {
 }
 
 sub err_txt {
-	my ($err) = @_;
-	my $u = 'http://xapian.org/docs/queryparser.html';
+	my ($ctx, $err) = @_;
+	my $u = '//xapian.org/docs/queryparser.html';
+	$u = PublicInbox::Hval::prurl($ctx->{cgi}->{env}, $u);
 	$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
 	$err = PublicInbox::Hval->new_oneline($err)->as_html;
 	"\n\nBad query: <b>$err</b>\n" .

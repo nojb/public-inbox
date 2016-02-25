@@ -15,8 +15,8 @@ use strict;
 use warnings;
 use PublicInbox::Config qw(try_cat);
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
-use constant SSOMA_URL => 'http://ssoma.public-inbox.org/';
-use constant PI_URL => 'http://public-inbox.org/';
+use constant SSOMA_URL => '//ssoma.public-inbox.org/';
+use constant PI_URL => '//public-inbox.org/';
 require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
@@ -264,14 +264,16 @@ sub footer {
 	my $urls = try_cat("$git_dir/cloneurl");
 	my @urls = split(/\r?\n/, $urls || '');
 	my %seen = map { $_ => 1 } @urls;
-	my $http = $ctx->{cgi}->base->as_string . $listname;
+	my $cgi = $ctx->{cgi};
+	my $http = $cgi->base->as_string . $listname;
 	$seen{$http} or unshift @urls, $http;
+	my $ssoma_url = PublicInbox::Hval::prurl($cgi->{env}, SSOMA_URL);
 	if (scalar(@urls) == 1) {
-		$urls = "URL for <a\nhref=\"" . SSOMA_URL .
+		$urls = "URL for <a\nhref=\"" . $ssoma_url .
 			qq(">ssoma</a> or <b>git clone --mirror \$URL</b> :) .
 			$urls[0];
 	} else {
-		$urls = "URLs for <a\nhref=\"" . SSOMA_URL .
+		$urls = "URLs for <a\nhref=\"" . $ssoma_url .
 			qq(">ssoma</a> or <b>git clone --mirror \$URL</b>\n) .
 			join("\n", map { "\t$_" } @urls);
 	}
@@ -285,7 +287,9 @@ sub footer {
 
 	$ctx->{footer} = join("\n",
 		'- ' . $desc,
-		"A <a\nhref=\"" . PI_URL .  '">public-inbox</a>, ' .
+		"A <a\nhref=\"" .
+			PublicInbox::Hval::prurl($ctx->{cgi}->{env}, PI_URL) .
+			'">public-inbox</a>, ' .
 			'anybody may post in plain-text (not HTML):',
 		$addr,
 		$urls

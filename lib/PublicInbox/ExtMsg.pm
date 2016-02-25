@@ -137,9 +137,9 @@ again:
 	if (@EXT_URL && index($mid, '@') >= 0) {
 		$code = 300;
 		$s .= "\nPerhaps try an external site:\n\n";
-		my $scheme = $cgi->scheme;
+		my $env = $cgi->{env};
 		foreach my $u (@EXT_URL) {
-			$u = "$scheme:$u" if $u =~ m!\A//!;
+			$u = PublicInbox::Hval::prurl($env, $u);
 			my $r = sprintf($u, $href);
 			my $t = sprintf($u, $html);
 			$s .= qq{<a\nhref="$r">$t</a>\n};
