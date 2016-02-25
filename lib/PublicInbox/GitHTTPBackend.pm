@@ -158,6 +158,7 @@ sub serve_smart {
 		$err->print('error forking: ', $!, "\n");
 		return r(500);
 	}
+	my $git_dir = $git->{git_dir};
 	if ($pid == 0) {
 		# GIT_HTTP_EXPORT_ALL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
 		# may be set in the server-process and are passed as-is
@@ -172,36 +173,47 @@ sub serve_smart {
 		}
 		# $ENV{GIT_PROJECT_ROOT} = $git->{git_dir};
 		$ENV{GIT_HTTP_EXPORT_ALL} = '1';
-		$ENV{PATH_TRANSLATED} = "$git->{git_dir}/$path";
+		$ENV{PATH_TRANSLATED} = "$git_dir/$path";
 		dup2(fileno($in), 0) or die "redirect stdin failed: $!\n";
 		dup2(fileno($wpipe), 1) or die "redirect stdout failed: $!\n";
 		my @cmd = qw(git http-backend);
 		exec(@cmd) or die 'exec `' . join(' ', @cmd). "' failed: $!\n";
 	}
 	$wpipe = $in = undef;
-	$rpipe->blocking(0);
 	$buf = '';
-	my $vin;
-	vec($vin, fileno($rpipe), 1) = 1;
-	my ($fh, $res);
+	my ($vin, $fh, $res);
+	my $end = sub {
+		if ($fh) {
+			$fh->close;
+			$fh = undef;
+		} else {
+			$res->(r(500)) if $res;
+		}
+		if ($rpipe) {
+			$rpipe->close; # _may_ be Danga::Socket::close
+			$rpipe = undef;
+		}
+		if (defined $pid) {
+			my $wpid = $pid;
+			$pid = undef;
+			return if $wpid == waitpid($wpid, 0);
+			$err->print("git http-backend ($git_dir): $?\n");
+		}
+	};
 	my $fail = sub {
 		my ($e) = @_;
 		if ($e eq 'EAGAIN') {
-			select($vin, undef, undef, undef);
-		} else {
-			$rpipe = undef;
-			$fh->close if $fh;
-			$err->print('git http-backend error: ', $e, "\n");
-		}
-	};
-	my $cb = sub {
-		my $r = sysread($rpipe, $buf, 8192, length($buf));
-		return $fail->($!{EAGAIN} ? 'EAGAIN' : $!) unless defined $r;
-		if ($r == 0) { # EOF
-			$rpipe = undef;
-			$fh->close if $fh;
+			select($vin, undef, undef, undef) if defined $vin;
+			# $vin is undef on async, so this is a noop on EAGAIN
 			return;
 		}
+		$end->();
+		$err->print("git http-backend ($git_dir): $e\n");
+	};
+	my $cb = sub { # read git-http-backend output and stream to client
+		my $r = $rpipe ? $rpipe->sysread($buf, 8192, length($buf)) : 0;
+		return $fail->($!{EAGAIN} ? 'EAGAIN' : $!) unless defined $r;
+		return $end->() if $r == 0; # EOF
 		if ($fh) { # stream body from git-http-backend to HTTP client
 			$fh->write($buf);
 			$buf = '';
@@ -219,14 +231,22 @@ sub serve_smart {
 			}
 			# write response header:
 			$fh = $res->([ $code, \@h ]);
+			$res = undef;
 			$fh->write($buf);
 			$buf = '';
 		} # else { keep reading ... }
 	};
-	sub {
-		($res) = @_;
-		while ($rpipe) { $cb->() }
-	};
+	if (my $async = $env->{'pi-httpd.async'}) {
+		$rpipe = $async->($rpipe, $cb);
+		sub { ($res) = @_ } # let Danga::Socket handle the rest.
+	} else { # synchronous loop
+		$vin = '';
+		vec($vin, fileno($rpipe), 1) = 1;
+		sub {
+			($res) = @_;
+			while ($rpipe) { $cb->() }
+		}
+	}
 }
 
 1;

@@ -53,10 +53,38 @@ daemon_run('0.0.0.0:8080', $refresh,
 	});
 
 1;
+
+package PublicInbox::HTTPD::Async;
+use strict;
+use warnings;
+use base qw(Danga::Socket);
+use fields qw(cb);
+
+sub new {
+	my ($class, $io, $cb) = @_;
+	my $self = fields::new($class);
+	$io->blocking(0);
+	$self->SUPER::new($io);
+	$self->{cb} = $cb;
+	$self->watch_read(1);
+	$self;
+}
+
+sub event_read { $_[0]->{cb}->() }
+sub event_hup { $_[0]->{cb}->() }
+sub sysread { shift->{sock}->sysread(@_) }
+
+1;
+
 package PublicInbox::HTTPD;
 use strict;
 use warnings;
 use Plack::Util;
+
+sub pi_httpd_async {
+	my ($io, $cb) = @_;
+	PublicInbox::HTTPD::Async->new($io, $cb);
+}
 
 sub new {
 	my ($class, $sock, $app) = @_;
@@ -85,6 +113,10 @@ sub new {
 		'psgi.multiprocess' => Plack::Util::TRUE,
 		'psgix.harakiri'=> Plack::Util::FALSE,
 		'psgix.input.buffered' => Plack::Util::TRUE,
+		'pi-httpd.async' => do {
+			no warnings 'once';
+			*pi_httpd_async
+		},
 	);
 	bless {
 		err => \*STDERR,
