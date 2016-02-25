@@ -132,9 +132,9 @@ sub serve_smart {
 	my $buf;
 	my $in;
 	my $err = $env->{'psgi.errors'};
-	if (fileno($input) >= 0) { # FIXME untested
+	if (fileno($input) >= 0) {
 		$in = $input;
-	} else {
+	} else { # FIXME untested
 		$in = IO::File->new_tmpfile;
 		while (1) {
 			my $r = $input->read($buf, 8192);
@@ -148,7 +148,11 @@ sub serve_smart {
 		$in->flush;
 		$in->sysseek(0, SEEK_SET);
 	}
-	my $out = IO::File->new_tmpfile;
+	my ($rpipe, $wpipe);
+	unless (pipe($rpipe, $wpipe)) {
+		$err->print('error creating pipe', $!, "\n");
+		return r(500);
+	}
 	my $pid = fork; # TODO: vfork under Linux...
 	unless (defined $pid) {
 		$err->print('error forking: ', $!, "\n");
@@ -170,22 +174,17 @@ sub serve_smart {
 		$ENV{GIT_HTTP_EXPORT_ALL} = '1';
 		$ENV{PATH_TRANSLATED} = "$git->{git_dir}/$path";
 		dup2(fileno($in), 0) or die "redirect stdin failed: $!\n";
-		dup2(fileno($out), 1) or die "redirect stdout failed: $!\n";
+		dup2(fileno($wpipe), 1) or die "redirect stdout failed: $!\n";
 		my @cmd = qw(git http-backend);
 		exec(@cmd) or die 'exec `' . join(' ', @cmd). "' failed: $!\n";
 	}
-
-	if (waitpid($pid, 0) != $pid) {
-		$err->print("git http-backend ($git->{git_dir}): ", $?, "\n");
-		return r(500);
-	}
+	$wpipe = undef;
 	$in = undef;
-	$out->seek(0, SEEK_SET);
 	my @h;
 	my $code = 200;
 	{
 		local $/ = "\r\n";
-		while (defined(my $line = <$out>)) {
+		while (defined(my $line = <$rpipe>)) {
 			if ($line =~ /\AStatus:\s*(\d+)/) {
 				$code = $1;
 			} else {
@@ -200,7 +199,7 @@ sub serve_smart {
 		my ($cb) = @_;
 		my $fh = $cb->([ $code, \@h ]);
 		while (1) {
-			my $r = $out->read($buf, 8192);
+			my $r = sysread($rpipe, $buf, 8192);
 			die "$!\n" unless defined $r;
 			last if ($r == 0);
 			$fh->write($buf);
