@@ -72,6 +72,7 @@ sub new {
 
 sub event_read { $_[0]->{cb}->() }
 sub event_hup { $_[0]->{cb}->() }
+sub event_err { $_[0]->{cb}->() }
 sub sysread { shift->{sock}->sysread(@_) }
 
 1;

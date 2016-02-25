@@ -331,4 +331,9 @@ sub quit {
 	$self->close;
 }
 
+# callbacks for Danga::Socket
+
+sub event_hup { $_[0]->close }
+sub event_err { $_[0]->close }
+
 1;
