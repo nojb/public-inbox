@@ -147,7 +147,7 @@ again:
 	}
 	$s .= '</pre></body></html>';
 
-	[300, ['Content-Type'=>'text/html; charset=UTF-8'], [$s]];
+	[$code, ['Content-Type'=>'text/html; charset=UTF-8'], [$s]];
 }
 
 # Redirect to another public-inbox which is mapped by $pi_config
