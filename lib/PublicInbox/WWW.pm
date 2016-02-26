@@ -45,7 +45,7 @@ sub call {
 	if ($method eq 'POST' &&
 		 $path_info =~ m!$LISTNAME_RE/(git-upload-pack)\z!) {
 		my $path = $2;
-		return (invalid_list($ctx, $1) ||
+		return (invalid_list($self, $ctx, $1) ||
 			serve_git($cgi, $ctx->{git}, $path));
 	}
 	elsif ($method !~ /\AGET|HEAD\z/) {
@@ -56,18 +56,19 @@ sub call {
 	if ($path_info eq '/') {
 		r404();
 	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
-		invalid_list($ctx, $1) || r301($ctx, $1);
+		invalid_list($self, $ctx, $1) || r301($ctx, $1);
 	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
-		invalid_list($ctx, $1) || get_index($ctx);
+		invalid_list($self, $ctx, $1) || get_index($ctx);
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:atom\.xml|new\.atom)\z!o) {
-		invalid_list($ctx, $1) || get_atom($ctx);
+		invalid_list($self, $ctx, $1) || get_atom($ctx);
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my $path = $2;
-		invalid_list($ctx, $1) || serve_git($cgi, $ctx->{git}, $path);
+		invalid_list($self, $ctx, $1) ||
+			serve_git($cgi, $ctx->{git}, $path);
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/$END_RE\z!o) {
-		msg_page($ctx, $1, $2, $3);
+		msg_page($self, $ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
 	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(f|T|t|R)\z!o) {
@@ -80,7 +81,7 @@ sub call {
 		r301($ctx, $1, $2);
 
 	} else {
-		legacy_redirects($ctx, $path_info);
+		legacy_redirects($self, $ctx, $path_info);
 	}
 }
 
@@ -118,7 +119,7 @@ sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 
 # returns undef if valid, array ref response if invalid
 sub invalid_list {
-	my ($ctx, $listname) = @_;
+	my ($self, $ctx, $listname, $mid) = @_;
 	my $git_dir = $ctx->{pi_config}->get($listname, "mainrepo");
 	if (defined $git_dir) {
 		$ctx->{git_dir} = $git_dir;
@@ -126,17 +127,23 @@ sub invalid_list {
 		$ctx->{listname} = $listname;
 		return;
 	}
-	r404();
+
+	# sometimes linkifiers (not ours!) screw up automatic link
+	# generation and link things intended for nntp:// to https?://,
+	# so try to infer links and redirect them to the appropriate
+	# list URL.
+	$self->news_www->call($ctx->{cgi}->{env});
 }
 
 # returns undef if valid, array ref response if invalid
 sub invalid_list_mid {
-	my ($ctx, $listname, $mid) = @_;
-	my $ret = invalid_list($ctx, $listname, $mid);
+	my ($self, $ctx, $listname, $mid) = @_;
+	my $ret = invalid_list($self, $ctx, $listname, $mid);
 	return $ret if $ret;
 
 	$ctx->{mid} = $mid = uri_unescape($mid);
 	if ($mid =~ /\A[a-f0-9]{40}\z/) {
+		# this is horiffically wasteful for legacy URLs:
 		if ($mid = mid2blob($ctx)) {
 			require Email::Simple;
 			use PublicInbox::MID qw/mid_clean/;
@@ -339,7 +346,7 @@ sub get_thread_atom {
 }
 
 sub legacy_redirects {
-	my ($ctx, $path_info) = @_;
+	my ($self, $ctx, $path_info) = @_;
 
 	# single-message pages
 	if ($path_info =~ m!$LISTNAME_RE/m/(\S+)/\z!o) {
@@ -384,13 +391,13 @@ sub legacy_redirects {
 	# some Message-IDs have slashes in them and the HTTP server
 	# may try to be clever and unescape them :<
 	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/$END_RE\z!o) {
-		msg_page($ctx, $1, $2, $3);
+		msg_page($self, $ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
 	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/(f|T|t)\z!o) {
 		r301($ctx, $1, $2, $3 eq 't' ? 't/#u' : $3);
 	} else {
-		r404();
+		$self->news_www->call($ctx->{cgi}->{env});
 	}
 }
 
@@ -410,24 +417,32 @@ sub r301 {
 }
 
 sub msg_page {
-	my ($ctx, $list, $mid, $e) = @_;
-	unless (invalid_list_mid($ctx, $list, $mid)) {
-		'' eq $e and return get_mid_html($ctx);
-		't/' eq $e and return get_thread($ctx);
-		't.atom' eq $e and return get_thread_atom($ctx);
-		't.mbox' eq $e and return get_thread_mbox($ctx);
-		't.mbox.gz' eq $e and return get_thread_mbox($ctx, '.gz');
-		'T/' eq $e and return get_thread($ctx, 1);
-		'raw' eq $e and return get_mid_txt($ctx);
-		'f/' eq $e and return get_full_html($ctx);
-		'R/' eq $e and return get_reply_html($ctx);
-	}
+	my ($self, $ctx, $list, $mid, $e) = @_;
+	my $ret;
+	$ret = invalid_list_mid($self, $ctx, $list, $mid) and return $ret;
+	'' eq $e and return get_mid_html($ctx);
+	't/' eq $e and return get_thread($ctx);
+	't.atom' eq $e and return get_thread_atom($ctx);
+	't.mbox' eq $e and return get_thread_mbox($ctx);
+	't.mbox.gz' eq $e and return get_thread_mbox($ctx, '.gz');
+	'T/' eq $e and return get_thread($ctx, 1);
+	'raw' eq $e and return get_mid_txt($ctx);
+	'f/' eq $e and return get_full_html($ctx);
+	'R/' eq $e and return get_reply_html($ctx);
 	r404($ctx);
 }
 
 sub serve_git {
 	my ($cgi, $git, $path) = @_;
 	PublicInbox::GitHTTPBackend::serve($cgi, $git, $path);
+}
+
+sub news_www {
+	my ($self) = @_;
+	my $nw = $self->{news_www};
+	return $nw if $nw;
+	require PublicInbox::NewsWWW;
+	$self->{news_www} = PublicInbox::NewsWWW->new($self->{pi_config});
 }
 
 1;
