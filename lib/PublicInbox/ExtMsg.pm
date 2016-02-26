@@ -26,6 +26,8 @@ sub ext_msg {
 	my $pi_config = $ctx->{pi_config};
 	my $listname = $ctx->{listname};
 	my $mid = $ctx->{mid};
+	my $cgi = $ctx->{cgi};
+	my $env = $cgi->{env};
 
 	eval { require PublicInbox::Search };
 	my $have_xap = $@ ? 0 : 1;
@@ -43,6 +45,7 @@ sub ext_msg {
 		defined $url or next;
 
 		$url =~ s!/+\z!!;
+		$url = PublicInbox::Hval::prurl($env, $url);
 
 		# try to find the URL with Xapian to avoid forking
 		if ($have_xap) {
@@ -85,7 +88,6 @@ sub ext_msg {
 
 	eval { require PublicInbox::Msgmap };
 	my $have_mm = $@ ? 0 : 1;
-	my $cgi = $ctx->{cgi};
 	my $base_url = $cgi->base->as_string;
 	if ($have_mm) {
 		my $tmp_mid = $mid;
@@ -137,7 +139,6 @@ again:
 	if (@EXT_URL && index($mid, '@') >= 0) {
 		$code = 300;
 		$s .= "\nPerhaps try an external site:\n\n";
-		my $env = $cgi->{env};
 		foreach my $url (@EXT_URL) {
 			my $u = PublicInbox::Hval::prurl($env, $url);
 			my $r = sprintf($u, $href);
