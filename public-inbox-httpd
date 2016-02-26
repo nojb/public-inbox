@@ -8,13 +8,9 @@ use warnings;
 use Plack::Util;
 use PublicInbox::Daemon;
 use PublicInbox::HTTP;
-use PublicInbox::WWW;
 use Plack::Request;
 use Plack::Builder;
-PublicInbox::WWW->preload;
-my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
 my %httpds;
-my $config;
 my $app;
 my $refresh = sub {
 	if (@ARGV) {
@@ -24,6 +20,8 @@ my $refresh = sub {
 "$0 runs in /, command-line paths must be absolute\n";
 		}
 	} else {
+		require PublicInbox::WWW;
+		PublicInbox::WWW->preload;
 		my $www = PublicInbox::WWW->new;
 		$app = eval {
 			my $deflate_types = eval {
