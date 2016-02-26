@@ -23,7 +23,8 @@ builder {
 	# properly when running behind a reverse proxy server which
 	# sets X-Forwarded-For and X-Forwarded-Proto request headers.
 	# See Plack::Middleware::ReverseProxy documentation for details
-	# enable 'ReverseProxy';
+	enable 'ReverseProxy';
+
 	enable 'Head';
 	sub { $www->call(@_) };
 }

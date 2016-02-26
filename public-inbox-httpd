@@ -35,6 +35,7 @@ my $refresh = sub {
 					enable 'Deflater',
 						content_type => $deflate_types
 				}
+				enable 'ReverseProxy';
 				enable 'Head';
 				sub { $www->call(@_) };
 			};
