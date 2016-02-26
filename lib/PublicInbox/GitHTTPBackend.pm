@@ -135,18 +135,7 @@ sub serve_smart {
 	if (fileno($input) >= 0) {
 		$in = $input;
 	} else { # FIXME untested
-		$in = IO::File->new_tmpfile;
-		while (1) {
-			my $r = $input->read($buf, 8192);
-			unless (defined $r) {
-				$err->print("error reading input: $!\n");
-				return r(500);
-			}
-			last if ($r == 0);
-			$in->write($buf);
-		}
-		$in->flush;
-		$in->sysseek(0, SEEK_SET);
+		$in = input_to_file($env) or return r(500);
 	}
 	my ($rpipe, $wpipe);
 	unless (pipe($rpipe, $wpipe)) {
@@ -247,6 +236,27 @@ sub serve_smart {
 			while ($rpipe) { $cb->() }
 		}
 	}
+}
+
+# FIXME: untested, our -httpd _always_ gives a real file handle
+sub input_to_file {
+	my ($env) = @_;
+	my $in = IO::File->new_tmpfile;
+	my $input = $env->{'psgi.input'};
+	my $buf;
+	while (1) {
+		my $r = $input->read($buf, 8192);
+		unless (defined $r) {
+			my $err = $env->{'psgi.errors'};
+			$err->print("error reading input: $!\n");
+			return;
+		}
+		last if ($r == 0);
+		$in->write($buf);
+	}
+	$in->flush;
+	$in->sysseek(0, SEEK_SET);
+	return $in;
 }
 
 1;
