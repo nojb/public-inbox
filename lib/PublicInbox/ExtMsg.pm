@@ -138,8 +138,8 @@ again:
 		$code = 300;
 		$s .= "\nPerhaps try an external site:\n\n";
 		my $env = $cgi->{env};
-		foreach my $u (@EXT_URL) {
-			$u = PublicInbox::Hval::prurl($env, $u);
+		foreach my $url (@EXT_URL) {
+			my $u = PublicInbox::Hval::prurl($env, $url);
 			my $r = sprintf($u, $href);
 			my $t = sprintf($u, $html);
 			$s .= qq{<a\nhref="$r">$t</a>\n};
