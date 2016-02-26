@@ -2,7 +2,7 @@
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 package PublicInbox::Daemon; # empty class :p
 
-# contains common daemon code for the nntpd server.
+# contains common daemon code for the nntpd and httpd servers.
 # This may be used for read-only IMAP server if we decide to implement it.
 package main;
 use strict;
