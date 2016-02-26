@@ -94,12 +94,11 @@ sub preload {
 	require Digest::SHA;
 	require POSIX;
 
-	eval {
-		require PublicInbox::Search;
-		require PublicInbox::SearchView;
-		require PublicInbox::Mbox;
-		require IO::Compress::Gzip;
-	};
+	foreach (qw(PublicInbox::Search PublicInbox::SearchView
+			PublicInbox::Mbox IO::Compress::Gzip
+			PublicInbox::NewsWWW PublicInbox::NewsGroup)) {
+		eval "require $_;";
+	}
 }
 
 # private functions below
