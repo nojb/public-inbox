@@ -363,6 +363,7 @@ sub daemon_loop ($$) {
 	my ($refresh, $post_accept) = @_;
 	my $parent_pipe;
 	if ($worker_processes > 0) {
+		$refresh->(); # preload by default
 		$parent_pipe = master_loop(); # returns if in child process
 		my $fd = fileno($parent_pipe);
 		Danga::Socket->AddOtherFds($fd => sub { kill('TERM', $$) } );
@@ -370,10 +371,10 @@ sub daemon_loop ($$) {
 		reopen_logs();
 		$set_user->() if $set_user;
 		$SIG{USR2} = sub { worker_quit() if upgrade() };
+		$refresh->();
 	}
 	$uid = $gid = undef;
 	reopen_logs();
-	$refresh->();
 	$SIG{QUIT} = $SIG{INT} = $SIG{TERM} = *worker_quit;
 	$SIG{USR1} = *reopen_logs;
 	$SIG{HUP} = $refresh;
