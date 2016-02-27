@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::Spawn qw(which spawn);
+use PublicInbox::Spawn qw(which spawn popen_rd);
 
 {
 	my $true = which('true');
@@ -46,6 +46,40 @@ use PublicInbox::Spawn qw(which spawn);
 	ok(!defined(<$r>), 'read stdout of spawned from pipe');
 	is(waitpid($pid, 0), $pid, 'waitpid succeeds on spawned process');
 	is($?, 0, 'env(1) exited successfully');
+}
+
+{
+	my $fh = popen_rd([qw(echo hello)]);
+	ok(fileno($fh) >= 0, 'tied fileno works');
+	my $l = <$fh>;
+	is($l, "hello\n", 'tied readline works');
+	$l = <$fh>;
+	ok(!$l, 'tied readline works for EOF');
+}
+
+{
+	my $fh = popen_rd([qw(printf foo\nbar)]);
+	ok(fileno($fh) >= 0, 'tied fileno works');
+	my @line = <$fh>;
+	is_deeply(\@line, [ "foo\n", 'bar' ], 'wantarray works on readline');
+}
+
+{
+	my $fh = popen_rd([qw(echo hello)]);
+	my $buf;
+	is(sysread($fh, $buf, 6), 6, 'sysread got 6 bytes');
+	is($buf, "hello\n", 'tied gets works');
+	is(sysread($fh, $buf, 6), 0, 'sysread got EOF');
+}
+
+{
+	my ($fh, $pid) = popen_rd([qw(sleep 60)], undef, { Blocking => 0 });
+	ok(defined $pid && $pid > 0, 'returned pid when array requested');
+	is(kill(0, $pid), 1, 'child process is running');
+	ok(!defined(sysread($fh, my $buf, 1)) && $!{EAGAIN},
+	   'sysread returned quickly with EAGAIN');
+	is(kill(15, $pid), 1, 'child process killed early');
+	is(waitpid($pid, 0), $pid, 'child process reapable');
 }
 
 done_testing();

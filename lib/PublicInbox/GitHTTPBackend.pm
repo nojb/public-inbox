@@ -7,7 +7,7 @@ package PublicInbox::GitHTTPBackend;
 use strict;
 use warnings;
 use Fcntl qw(:seek);
-use POSIX qw(dup2);
+use PublicInbox::Spawn qw(spawn);
 
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
 # not cause problems.  serving "config" might...
@@ -142,31 +142,26 @@ sub serve_smart {
 		$err->print("error creating pipe: $!\n");
 		return r(500);
 	}
-	my $pid = fork; # TODO: vfork under Linux...
-	unless (defined $pid) {
-		$err->print("error forking: $!\n");
-		return r(500);
+	my %env = %ENV;
+	# GIT_HTTP_EXPORT_ALL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
+	# may be set in the server-process and are passed as-is
+	foreach my $name (qw(QUERY_STRING
+				REMOTE_USER REMOTE_ADDR
+				HTTP_CONTENT_ENCODING
+				CONTENT_TYPE
+				SERVER_PROTOCOL
+				REQUEST_METHOD)) {
+		my $val = $env->{$name};
+		$env{$name} = $val if defined $val;
 	}
 	my $git_dir = $git->{git_dir};
-	if ($pid == 0) {
-		# GIT_HTTP_EXPORT_ALL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
-		# may be set in the server-process and are passed as-is
-		foreach my $name (qw(QUERY_STRING
-					REMOTE_USER REMOTE_ADDR
-					HTTP_CONTENT_ENCODING
-					CONTENT_TYPE
-					SERVER_PROTOCOL
-					REQUEST_METHOD)) {
-			my $val = $env->{$name};
-			$ENV{$name} = $val if defined $val;
-		}
-		# $ENV{GIT_PROJECT_ROOT} = $git->{git_dir};
-		$ENV{GIT_HTTP_EXPORT_ALL} = '1';
-		$ENV{PATH_TRANSLATED} = "$git_dir/$path";
-		dup2(fileno($in), 0) or die "redirect stdin failed: $!\n";
-		dup2(fileno($wpipe), 1) or die "redirect stdout failed: $!\n";
-		my @cmd = qw(git http-backend);
-		exec(@cmd) or die 'exec `' . join(' ', @cmd). "' failed: $!\n";
+	$env{GIT_HTTP_EXPORT_ALL} = '1';
+	$env{PATH_TRANSLATED} = "$git_dir/$path";
+	my %rdr = ( 0 => fileno($in), 1 => fileno($wpipe) );
+	my $pid = spawn([qw(git http-backend)], \%env, \%rdr);
+	unless (defined $pid) {
+		$err->print("error spawning: $!\n");
+		return r(500);
 	}
 	$wpipe = $in = undef;
 	$buf = '';

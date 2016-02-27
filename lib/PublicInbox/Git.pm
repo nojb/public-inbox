@@ -11,6 +11,7 @@ use strict;
 use warnings;
 use POSIX qw(dup2);
 require IO::Handle;
+use PublicInbox::Spawn qw(spawn popen_rd);
 
 sub new {
 	my ($class, $git_dir) = @_;
@@ -26,13 +27,8 @@ sub _bidi_pipe {
 	pipe($out_r, $out_w) or fail($self, "pipe failed: $!");
 
 	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file), $batch);
-	$self->{$pid} = fork;
-	defined $self->{$pid} or fail($self, "fork failed: $!");
-	if ($self->{$pid} == 0) {
-		dup2(fileno($out_r), 0) or die "redirect stdin failed: $!\n";
-		dup2(fileno($in_w), 1) or die "redirect stdout failed: $!\n";
-		exec(@cmd) or die 'exec `' . join(' '). "' failed: $!\n";
-	}
+	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
+	$self->{$pid} = spawn(\@cmd, undef, $redir);
 	close $out_r or fail($self, "close failed: $!");
 	close $in_w or fail($self, "close failed: $!");
 	$out_w->autoflush(1);
@@ -123,12 +119,8 @@ sub fail {
 
 sub popen {
 	my ($self, @cmd) = @_;
-	my $mode = '-|';
-	$mode = shift @cmd if ($cmd[0] eq '|-');
 	@cmd = ('git', "--git-dir=$self->{git_dir}", @cmd);
-	my $pid = open my $fh, $mode, @cmd or
-		die('open `'.join(' ', @cmd) . " pipe failed: $!\n");
-	$fh;
+	popen_rd(\@cmd);
 }
 
 sub cleanup {

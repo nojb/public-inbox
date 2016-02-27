@@ -1,10 +1,22 @@
 # Copyright (C) 2016 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# This allows vfork to be used for spawning subprocesses if
+# PERL_INLINE_DIRECTORY is explicitly defined in the environment.
+# Under Linux, vfork can make a big difference in spawning performance
+# as process size increases (fork still needs to mark pages for CoW use).
+# Currently, we only use this for code intended for long running
+# daemons (inside the PSGI code (-httpd) and -nntpd).  The short-lived
+# scripts (-mda, -index, -learn, -init) either use IPC::run or standard
+# Perl routines.
+
 package PublicInbox::Spawn;
 use strict;
 use warnings;
 use base qw(Exporter);
-our @EXPORT_OK = qw/which spawn/;
+use Symbol qw(gensym);
+use PublicInbox::ProcessPipe;
+our @EXPORT_OK = qw/which spawn popen_rd/;
 
 my $vfork_spawn = <<'VFORK_SPAWN';
 #include <sys/types.h>
@@ -147,6 +159,26 @@ sub spawn ($;$$) {
 	my $out = $opts->{1} || 1;
 	my $err = $opts->{2} || 2;
 	public_inbox_fork_exec($in, $out, $err, $f, $cmd, \@env);
+}
+
+sub popen_rd {
+	my ($cmd, $env, $opts) = @_;
+	unless (wantarray || defined $vfork_spawn || defined $env) {
+		open my $fh, '-|', @$cmd or
+			die('open `'.join(' ', @$cmd) . " pipe failed: $!\n");
+		return $fh
+	}
+	pipe(my ($r, $w)) or die "pipe: $!\n";
+	$opts ||= {};
+	my $blocking = $opts->{Blocking};
+	$r->blocking($blocking) if defined $blocking;
+	$opts->{1} = fileno($w);
+	my $pid = spawn($cmd, $env, $opts);
+	close $w;
+	return ($r, $pid) if wantarray;
+	my $ret = gensym;
+	tie *$ret, 'PublicInbox::ProcessPipe', $pid, $r;
+	$ret;
 }
 
 1;
