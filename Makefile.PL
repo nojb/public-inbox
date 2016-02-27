@@ -3,7 +3,7 @@
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
 use strict;
 use ExtUtils::MakeMaker;
-my @EXE_FILES = split("\n", `git ls-files 'public-inbox*' 2>/dev/null`);
+my @EXE_FILES = split("\n", `git ls-files 'script/*' 2>/dev/null`);
 my $PM_FILES = `git ls-files lib '*.pm' 2>/dev/null`;
 $PM_FILES =~ tr/\n/ /;
 
