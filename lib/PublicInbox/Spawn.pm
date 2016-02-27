@@ -111,7 +111,9 @@ if (defined $vfork_spawn) {
 		open my $fh, '>', $f or die "failed to open $f: $!\n";
 		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
 		eval 'use Inline C => $vfork_spawn';
+		my $err = $@;
 		flock($fh, LOCK_UN) or die "LOCK_UN failed on $f: $!\n";
+		die $err if $err;
 	};
 	if ($@) {
 		warn "Inline::C failed for vfork: $@\n";
