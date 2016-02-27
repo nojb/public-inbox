@@ -40,7 +40,7 @@ sub event_read { # called by Danga::Socket
 
 	return event_read_input($self) if defined $self->{env};
 
-	my $off = $self->{rbuf} eq '' ? 0 : length($self->{rbuf});
+	my $off = length($self->{rbuf});
 	my $r = sysread($self->{sock}, $self->{rbuf}, 8192, $off);
 	if (defined $r) {
 		return $self->close if $r == 0;
