@@ -165,11 +165,6 @@ sub spawn ($;$$) {
 
 sub popen_rd {
 	my ($cmd, $env, $opts) = @_;
-	unless (wantarray || defined $vfork_spawn || defined $env) {
-		open my $fh, '-|', @$cmd or
-			die('open `'.join(' ', @$cmd) . " pipe failed: $!\n");
-		return $fh
-	}
 	pipe(my ($r, $w)) or die "pipe: $!\n";
 	$opts ||= {};
 	my $blocking = $opts->{Blocking};
