@@ -29,8 +29,6 @@ sub _bidi_pipe {
 	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file), $batch);
 	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
 	$self->{$pid} = spawn(\@cmd, undef, $redir);
-	close $out_r or fail($self, "close failed: $!");
-	close $in_w or fail($self, "close failed: $!");
 	$out_w->autoflush(1);
 	$self->{$out} = $out_w;
 	$self->{$in} = $in_r;
@@ -100,13 +98,9 @@ sub check {
 
 sub _destroy {
 	my ($self, $in, $out, $pid) = @_;
-	my $p = $self->{$pid} or return;
-	$self->{$pid} = undef;
+	my $p = delete $self->{$pid} or return;
 	foreach my $f ($in, $out) {
-		my $fh = $self->{$f};
-		defined $fh or next;
-		close $fh;
-		$self->{$f} = undef;
+		delete $self->{$f};
 	}
 	waitpid $p, 0;
 }

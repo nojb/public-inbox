@@ -255,7 +255,6 @@ sub each_recent_blob {
 		}
 	}
 
-	close $log; # we may EPIPE here
 	# for pagination
 	($first_commit, $last_commit);
 }
@@ -269,7 +268,6 @@ sub get_feedopts {
 	my %rv;
 	if (open my $fh, '<', "$ctx->{git_dir}/description") {
 		chomp($rv{description} = <$fh>);
-		close $fh;
 	} else {
 		$rv{description} = '($GIT_DIR/description missing)';
 	}

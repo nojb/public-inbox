@@ -348,7 +348,6 @@ sub rlog {
 			$latest = $1;
 		}
 	}
-	close $log;
 	$latest;
 }
 
@@ -446,7 +445,6 @@ sub _read_git_config_perm {
 	my @cmd = qw(config core.sharedRepository);
 	my $fh = PublicInbox::Git->new($self->{git_dir})->popen(@cmd);
 	my $perm = <$fh>;
-	close $fh;
 	chomp $perm if defined $perm;
 	$perm;
 }

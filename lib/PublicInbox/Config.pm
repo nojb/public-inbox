@@ -101,7 +101,6 @@ sub try_cat {
 	if (open(my $fh, '<', $path)) {
 		local $/;
 		$rv = <$fh>;
-		close $fh;
 	}
 	$rv;
 }
