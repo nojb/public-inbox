@@ -17,7 +17,6 @@ use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use File::Temp qw/tempdir/;
 use Net::NNTP;
 use IPC::Run qw(run);
-use Data::Dumper;
 
 my $tmpdir = tempdir(CLEANUP => 1);
 my $home = "$tmpdir/pi-home";

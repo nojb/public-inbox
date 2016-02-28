@@ -7,7 +7,6 @@ eval { require PublicInbox::SearchIdx; };
 plan skip_all => "Xapian missing for search" if $@;
 use File::Temp qw/tempdir/;
 use Email::MIME;
-use Data::Dumper;
 my $tmpdir = tempdir(CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
 my ($root_id, $last_id);
