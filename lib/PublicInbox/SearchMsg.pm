@@ -1,5 +1,5 @@
-# Copyright (C) 2015 all contributors <meta@public-inbox.org>
-# License: GPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+# Copyright (C) 2015-2016 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # based on notmuch, but with no concept of folders, files or flags
 #
 # Wraps a document inside our Xapian search index.
