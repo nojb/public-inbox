@@ -18,7 +18,10 @@ use Cwd qw/getcwd/;
 use IO::Socket;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
+use POSIX qw(dup2 mkfifo :sys_wait_h);
 my $tmpdir = tempdir(CLEANUP => 1);
+my $fifo = "$tmpdir/fifo";
+ok(defined mkfifo($fifo, 0777), 'created FIFO');
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $httpd = 'blib/script/public-inbox-httpd';
@@ -33,27 +36,31 @@ my %opts = (
 my $sock = IO::Socket::INET->new(%opts);
 my $pid;
 END { kill 'TERM', $pid if defined $pid };
+my $spawn_httpd = sub {
+	my (@args) = @_;
+	my $fl = fcntl($sock, F_GETFD, 0);
+	ok(! $!, 'no error from fcntl(F_GETFD)');
+	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
+	$pid = fork;
+	if ($pid == 0) {
+		# pretend to be systemd
+		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
+		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
+		$ENV{LISTEN_PID} = $$;
+		$ENV{LISTEN_FDS} = 1;
+		exec $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi;
+		die "FAIL: $!\n";
+	}
+	ok(defined $pid, 'forked httpd process successfully');
+};
+
 {
 	ok($sock, 'sock created');
 	$! = 0;
 	my $fl = fcntl($sock, F_GETFD, 0);
 	ok(! $!, 'no error from fcntl(F_GETFD)');
 	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
-	$pid = fork;
-	if ($pid == 0) {
-		use POSIX qw(dup2);
-		# pretend to be systemd
-		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
-		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 1;
-		exec $httpd, '-W0', "--stdout=$out", "--stderr=$err", $psgi;
-		die "FAIL: $!\n";
-	}
-	ok(defined $pid, 'forked httpd process successfully');
-	$! = 0;
-	fcntl($sock, F_SETFD, $fl |= FD_CLOEXEC);
-	ok(! $!, 'no error from fcntl(F_SETFD)');
+	$spawn_httpd->('-W0');
 }
 
 sub conn_for {
@@ -67,6 +74,58 @@ sub conn_for {
 	$conn->autoflush(1);
 	setsockopt($conn, IPPROTO_TCP, TCP_NODELAY, 1);
 	return $conn;
+}
+
+# graceful termination
+{
+	my $conn = conn_for($sock, 'graceful termination via slow header');
+	$conn->write("GET /slow-header HTTP/1.0\r\n" .
+			"X-Check-Fifo: $fifo\r\n\r\n");
+	open my $f, '>', $fifo or die "open $fifo: $!\n";
+	$f->autoflush(1);
+	ok(print($f "hello\n"), 'wrote something to fifo');
+	my $kpid = $pid;
+	$pid = undef;
+	is(kill('TERM', $kpid), 1, 'started graceful shutdown');
+	ok(print($f "world\n"), 'wrote else to fifo');
+	close $f or die "close fifo: $!\n";
+	$conn->read(my $buf, 8192);
+	my ($head, $body) = split(/\r\n\r\n/, $buf, 2);
+	like($head, qr!\AHTTP/1\.[01] 200 OK!, 'got 200 for slow-header');
+	is($body, "hello\nworld\n", 'read expected body');
+	is(waitpid($kpid, 0), $kpid, 'reaped httpd');
+	is($?, 0, 'no error');
+	$spawn_httpd->('-W0');
+}
+
+{
+	my $conn = conn_for($sock, 'graceful termination via slow-body');
+	$conn->write("GET /slow-body HTTP/1.0\r\n" .
+			"X-Check-Fifo: $fifo\r\n\r\n");
+	open my $f, '>', $fifo or die "open $fifo: $!\n";
+	$f->autoflush(1);
+	my $buf;
+	$conn->sysread($buf, 8192);
+	like($buf, qr!\AHTTP/1\.[01] 200 OK!, 'got 200 for slow-body');
+	like($buf, qr!\r\n\r\n!, 'finished HTTP response header');
+
+	foreach my $c ('a'..'c') {
+		$c .= "\n";
+		ok(print($f $c), 'wrote line to fifo');
+		$conn->sysread($buf, 8192);
+		is($buf, $c, 'got trickle for reading');
+	}
+	my $kpid = $pid;
+	$pid = undef;
+	is(kill('TERM', $kpid), 1, 'started graceful shutdown');
+	ok(print($f "world\n"), 'wrote else to fifo');
+	close $f or die "close fifo: $!\n";
+	$conn->sysread($buf, 8192);
+	is($buf, "world\n", 'read expected body');
+	is($conn->sysread($buf, 8192), 0, 'got EOF from server');
+	is(waitpid($kpid, 0), $kpid, 'reaped httpd');
+	is($?, 0, 'no error');
+	$spawn_httpd->('-W0');
 }
 
 sub delay { select(undef, undef, undef, shift || rand(0.02)) }
@@ -138,6 +197,28 @@ SKIP: {
 		is($hex, sha1_hex(''), "read expected body $i");
 		$i++;
 	}
+}
+
+{
+	my $conn = conn_for($sock, 'graceful termination during slow request');
+	$conn->write("PUT /sha1 HTTP/1.0\r\n");
+	delay();
+	$conn->write("Content-Length: $len\r\n");
+	delay();
+	$conn->write("\r\n");
+	my $kpid = $pid;
+	$pid = undef;
+	is(kill('TERM', $kpid), 1, 'started graceful shutdown');
+	delay();
+	my $n = 0;
+	foreach my $c ('a'..'z') {
+		$n += $conn->write($c);
+	}
+	is($n, $len, 'wrote alphabet');
+	$check_self->($conn);
+	is(waitpid($kpid, 0), $kpid, 'reaped httpd');
+	is($?, 0, 'no error');
+	$spawn_httpd->('-W0');
 }
 
 # various DoS attacks against the chunk parser:

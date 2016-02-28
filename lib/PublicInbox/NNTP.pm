@@ -954,6 +954,7 @@ sub watch_read {
 	$rv;
 }
 
+# for graceful shutdown in PublicInbox::Daemon:
 sub busy () {
 	my ($self) = @_;
 	($self->{rbuf} ne '' || $self->{long_res} || $self->{write_buf_size});

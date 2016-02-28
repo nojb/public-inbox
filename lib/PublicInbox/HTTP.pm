@@ -103,7 +103,6 @@ sub app_dispatch ($) {
 	my ($self) = @_;
 	$self->watch_read(0);
 	my $env = $self->{env};
-	$self->{env} = undef;
 	$env->{REMOTE_ADDR} = $self->peer_ip_string; # Danga::Socket
 	$env->{REMOTE_PORT} = $self->{peer_port}; # set by peer_ip_string
 	if (my $host = $env->{HTTP_HOST}) {
@@ -169,6 +168,7 @@ sub response_write {
 		} else {
 			$self->write(sub { $self->close });
 		}
+		$self->{env} = undef;
 	};
 
 	if (defined $res->[2]) {
@@ -335,5 +335,11 @@ sub quit {
 
 sub event_hup { $_[0]->close }
 sub event_err { $_[0]->close }
+
+# for graceful shutdown in PublicInbox::Daemon:
+sub busy () {
+	my ($self) = @_;
+	($self->{rbuf} ne '' || $self->{env} || $self->{write_buf_size});
+}
 
 1;

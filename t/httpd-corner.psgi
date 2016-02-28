@@ -26,7 +26,27 @@ my $app = sub {
 		}
 		$code = 200;
 		push @$body, $sha1->hexdigest;
+	} elsif (my $fifo = $env->{HTTP_X_CHECK_FIFO}) {
+		if ($path eq '/slow-header') {
+			return sub {
+				open my $f, '<', $fifo or
+						die "open $fifo: $!\n";
+				my @r = <$f>;
+				$_[0]->([200, $h, \@r ]);
+			};
+		} elsif ($path eq '/slow-body') {
+			return sub {
+				my $fh = $_[0]->([200, $h]);
+				open my $f, '<', $fifo or
+						die "open $fifo: $!\n";
+				while (defined(my $l = <$f>)) {
+					$fh->write($l);
+				}
+				$fh->close;
+			};
+		}
 	}
+
 	[ $code, $h, $body ]
 };
 
