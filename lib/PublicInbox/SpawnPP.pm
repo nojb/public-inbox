@@ -25,7 +25,7 @@ sub public_inbox_fork_exec ($$$$$$) {
 			$ENV{$k} = $v;
 		}
 		exec @$cmd;
-		exit 1;
+		die "exec $cmd->[0] failed: $!\n";
 	}
 	$pid;
 }
