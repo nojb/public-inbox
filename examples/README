@@ -5,14 +5,13 @@ For all server admins
 ---------------------
 public-inbox-config - configuration file, this maps configured inboxes
 
-For Apache2 users without Plack
--------------------------------
-apache2_perl.conf - intended to be the basis of a production config
+For PSGI/Plack (HTTP) servers
+-----------------------------
+public-inbox.psgi - starting point for PSGI/Plack users in production and dev
 
-Web server configs for quick-and-dirty demos
---------------------------------------------
-apache2_cgi.conf - for Apache2 users who cannot install mod_perl
-cgi-webrick.rb - only for Rubyists who do not wish to install Plack or Apache
+For Apache2 users
+-----------------
+apache2_perl.conf - intended to be the basis of a production config
 
 Contact
 -------
