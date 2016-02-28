@@ -17,7 +17,7 @@ sub public_inbox_fork_exec ($$$$$$) {
 			dup2($out, 1) or die "dup2 failed for stdout: $!";
 		}
 		if ($err != 2) {
-			dup2($err, 2) or die "dup2 failed for stderr$!";
+			dup2($err, 2) or die "dup2 failed for stderr: $!";
 		}
 		%ENV = ();
 		foreach my $e (@$env) {
