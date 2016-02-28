@@ -24,18 +24,24 @@ my $refresh = sub {
 		PublicInbox::WWW->preload;
 		my $www = PublicInbox::WWW->new;
 		$app = eval {
-			my $deflate_types = eval {
-				require Plack::Middleware::Deflater;
-				[ 'text/html', 'text/plain',
-					'application/atom+xml' ]
-			};
 			builder {
 				enable 'Chunked';
-				if ($deflate_types) {
+				eval {
 					enable 'Deflater',
-						content_type => $deflate_types
-				}
-				enable 'ReverseProxy';
+						content_type => [ qw(
+							text/html
+							text/plain
+							application/atom+xml
+							)]
+				};
+				$@ and warn
+"Plack::Middleware::Deflater missing, bandwidth will be wasted\n";
+
+				eval { enable 'ReverseProxy' };
+				$@ and warn
+"Plack::Middleware::ReverseProxy missing,\n",
+"URL generation for redirects may be wrong if behind a reverse proxy\n";
+
 				enable 'Head';
 				sub { $www->call(@_) };
 			};

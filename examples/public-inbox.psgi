@@ -9,21 +9,27 @@ use PublicInbox::WWW;
 PublicInbox::WWW->preload;
 use Plack::Request;
 use Plack::Builder;
-my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
 my $www = PublicInbox::WWW->new;
 builder {
 	enable 'Chunked';
-	if ($have_deflater) {
+	eval {
 		enable 'Deflater',
-			content_type => [ 'text/html', 'text/plain',
-					'application/atom+xml' ];
-	}
-
+			content_type => [ qw(
+				text/html
+				text/plain
+				application/atom+xml
+				)]
+	};
+	$@ and warn
+"Plack::Middleware::Deflater missing, bandwidth will be wasted\n";
 	# Enable to ensure redirects and Atom feed URLs are generated
 	# properly when running behind a reverse proxy server which
 	# sets X-Forwarded-For and X-Forwarded-Proto request headers.
 	# See Plack::Middleware::ReverseProxy documentation for details
-	enable 'ReverseProxy';
+	eval { enable 'ReverseProxy' };
+	$@ and warn
+"Plack::Middleware::ReverseProxy missing,\n",
+"URL generation for redirects may be wrong if behind a reverse proxy\n";
 
 	enable 'Head';
 	sub { $www->call(@_) };
