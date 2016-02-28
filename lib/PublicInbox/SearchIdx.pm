@@ -337,7 +337,7 @@ sub rlog {
 				--raw -r --no-abbrev/, $range);
 	my $latest;
 	my $bytes;
-	while (my $line = <$log>) {
+	while (defined(my $line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $mime = do_cat_mail($git, $1, \$bytes) or next;
 			$add_cb->($self, $git, $mime, $bytes);
