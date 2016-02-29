@@ -109,7 +109,7 @@ sub app_dispatch ($) {
 		$host =~ s/:(\d+)\z// and $env->{SERVER_PORT} = $1;
 		$env->{SERVER_NAME} = $host;
 	}
-	$env->{'psgi.input'}->seek(0, SEEK_SET);
+	sysseek($env->{'psgi.input'}, 0, SEEK_SET) or die "input seek failed: $!";
 	my $res = Plack::Util::run_app($self->{httpd}->{app}, $env);
 	eval {
 		if (ref($res) eq 'CODE') {
@@ -204,7 +204,7 @@ sub event_write {
 	if ($self->{rbuf} eq '') {
 		$self->watch_read(1);
 	} else {
-		# avoid recursion
+		# avoid recursion for pipelined requests
 		Danga::Socket->AddTimer(0, sub { rbuf_process($self) });
 	}
 }
