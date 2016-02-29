@@ -13,10 +13,10 @@ use constant pi_init => 'blib/script/public-inbox-init';
 	my $cfgfile = "$ENV{PI_DIR}/config";
 	my @cmd = (pi_init, 'blist', "$tmpdir/blist",
 		   qw(http://example.com/blist blist@example.com));
-	is(system(@cmd), 0, join(' ', @cmd). ' failed');
+	is(system(@cmd), 0, 'public-inbox-init failed');
 
 	ok(-e $cfgfile, "config exists, now");
-	is(system(@cmd), 0, join(' ', @cmd). ' failed (idempotent)');
+	is(system(@cmd), 0, 'public-inbox-init failed (idempotent)');
 }
 
 done_testing();
