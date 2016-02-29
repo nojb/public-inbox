@@ -201,10 +201,9 @@ sub event_write {
 	# only continue watching for readability when we are done writing:
 	return if $self->write(undef) != 1;
 
-	if ($self->{rbuf} eq '') {
+	if ($self->{rbuf} eq '') { # wait for next request
 		$self->watch_read(1);
-	} else {
-		# avoid recursion for pipelined requests
+	} else { # avoid recursion for pipelined requests
 		Danga::Socket->AddTimer(0, sub { rbuf_process($self) });
 	}
 }
