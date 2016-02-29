@@ -201,11 +201,11 @@ sub serve_smart {
 		if ($fh) { # stream body from git-http-backend to HTTP client
 			$fh->write($buf);
 			$buf = '';
-		} elsif ($buf =~ s/\A(.*?)\r?\n\r?\n//s) { # parse headers
+		} elsif ($buf =~ s/\A(.*?)\r\n\r\n//s) { # parse headers
 			my $h = $1;
 			my $code = 200;
 			my @h;
-			foreach my $l (split(/\r?\n/, $h)) {
+			foreach my $l (split(/\r\n/, $h)) {
 				my ($k, $v) = split(/:\s*/, $l, 2);
 				if ($k =~ /\AStatus\z/i) {
 					$code = int($v);
