@@ -17,13 +17,20 @@ use HTTP::Parser::XS qw(parse_http_request); # supports pure Perl fallback
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::File;
-my $null_io = IO::File->new('/dev/null', '<');
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
 	CHUNK_ZEND => -3,    # \r\n
 	CHUNK_MAX_HDR => 256,
 };
+
+my $null_io = IO::File->new('/dev/null', '<');
+my $http_date;
+my $prev = 0;
+sub http_date () {
+	my $now = time;
+	$now == $prev ? $http_date : ($http_date = time2str($prev = $now));
+}
 
 sub new ($$$) {
 	my ($class, $sock, $addr, $httpd) = @_;
@@ -148,7 +155,7 @@ sub response_header_write {
 			($conn =~ /\bkeep-alive\b/i);
 
 	$h .= 'Connection: ' . ($alive ? 'keep-alive' : 'close');
-	$h .= "\r\nDate: " . time2str(time) . "\r\n\r\n";
+	$h .= "\r\nDate: " . http_date() . "\r\n\r\n";
 
 	if (($len || $chunked) && $env->{REQUEST_METHOD} ne 'HEAD') {
 		more($self, $h);
