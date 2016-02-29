@@ -212,7 +212,7 @@ sub cmd_listgroup ($;$) {
 	}
 
 	$self->{ng} or return '412 no newsgroup selected';
-	$self->long_response(0, long_response_limit, sub {
+	long_response($self, 0, long_response_limit, sub {
 		my ($i) = @_;
 		my $nr = $self->{ng}->mm->id_batch($$i, sub {
 			my ($ary) = @_;
@@ -322,7 +322,7 @@ sub cmd_newnews ($$$$;$$) {
 
 	$ts .= '..';
 	my $opts = { asc => 1, limit => 1000, offset => 0 };
-	$self->long_response(0, long_response_limit, sub {
+	long_response($self, 0, long_response_limit, sub {
 		my ($i) = @_;
 		my $srch = $srch[0];
 		my $res = $srch->query($ts, $opts);
@@ -462,7 +462,7 @@ sub set_art {
 
 sub cmd_article ($;$) {
 	my ($self, $art) = @_;
-	my $r = $self->art_lookup($art, 1);
+	my $r = art_lookup($self, $art, 1);
 	return $r unless ref $r;
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
@@ -474,7 +474,7 @@ sub cmd_article ($;$) {
 
 sub cmd_head ($;$) {
 	my ($self, $art) = @_;
-	my $r = $self->art_lookup($art, 2);
+	my $r = art_lookup($self, $art, 2);
 	return $r unless ref $r;
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
@@ -485,7 +485,7 @@ sub cmd_head ($;$) {
 
 sub cmd_body ($;$) {
 	my ($self, $art) = @_;
-	my $r = $self->art_lookup($art, 0);
+	my $r = art_lookup($self, $art, 0);
 	return $r unless ref $r;
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
@@ -495,7 +495,7 @@ sub cmd_body ($;$) {
 
 sub cmd_stat ($;$) {
 	my ($self, $art) = @_;
-	my $r = $self->art_lookup($art, 0);
+	my $r = art_lookup($self, $art, 0);
 	return $r unless ref $r;
 	my ($n, $mid, undef) = @$r;
 	set_art($self, $art);
@@ -612,7 +612,7 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 		my $mm = $self->{ng}->mm;
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		$self->long_response($beg, $end, sub {
+		long_response($self, $beg, $end, sub {
 			my ($i) = @_;
 			my $mid = $mm->mid_for($$i);
 			more($self, "$$i <$mid>") if defined $mid;
@@ -655,7 +655,7 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		my $mm = $ng->mm;
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		$self->long_response($beg, $end, sub {
+		long_response($self, $beg, $end, sub {
 			my ($i) = @_;
 			my $mid = $mm->mid_for($$i);
 			more($self, "$$i ".xref($ng, $$i)) if defined $mid;
@@ -686,7 +686,7 @@ sub hdr_searchmsg ($$$$) {
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
 		my $off = 0;
-		$self->long_response($beg, $end, sub {
+		long_response($self, $beg, $end, sub {
 			my ($i) = @_;
 			my $res = $srch->query_xover($beg, $end, $off);
 			my $msgs = $res->{msgs};
@@ -772,7 +772,7 @@ sub cmd_xrover ($;$) {
 	my $mm = $ng->mm;
 	my $srch = $ng->search;
 	more($self, '224 Overview information follows');
-	$self->long_response($beg, $end, sub {
+	long_response($self, $beg, $end, sub {
 		my ($i) = @_;
 		my $mid = $mm->mid_for($$i) or return;
 		my $h = search_header_for($srch, $mid, 'references');
@@ -822,7 +822,7 @@ sub cmd_xover ($;$) {
 	more($self, "224 Overview information follows for $beg to $end");
 	my $srch = $self->{ng}->search;
 	my $off = 0;
-	$self->long_response($beg, $end, sub {
+	long_response($self, $beg, $end, sub {
 		my ($i) = @_;
 		my $res = $srch->query_xover($beg, $end, $off);
 		my $msgs = $res->{msgs};
@@ -896,7 +896,7 @@ sub do_more ($$) {
 			$data = substr($data, $n, $dlen - $n);
 		}
 	}
-	$self->do_write($data);
+	do_write($self, $data);
 }
 
 # callbacks for Danga::Socket
@@ -924,7 +924,7 @@ sub event_read {
 		my $line = $1;
 		my $t0 = now();
 		my $fd = $self->{fd};
-		$r = eval { $self->process_line($line) };
+		$r = eval { process_line($self, $line) };
 		my $d = $self->{long_res} ?
 			" deferred[$fd]" : '';
 		out($self, "[$fd] %s - %0.6f$d", $line, now() - $t0);
@@ -947,7 +947,7 @@ sub watch_read {
 		# another long response.
 		Danga::Socket->AddTimer(0, sub {
 			if (&Danga::Socket::POLLIN & $self->{event_watch}) {
-				$self->event_read;
+				event_read($self);
 			}
 		});
 	}

@@ -68,7 +68,7 @@ sub rbuf_process {
 
 	# We do not support Trailers in chunked requests, for now
 	# (they are rarely-used and git (as of 2.7.2) does not use them)
-	return $self->quit(400) if $r == -1 || $env{HTTP_TRAILER};
+	return quit($self, 400) if $r == -1 || $env{HTTP_TRAILER};
 	return $self->watch_read(1) if $r < 0; # incomplete
 	$self->{rbuf} = substr($self->{rbuf}, $r);
 	my $len = input_prepare($self, \%env);
@@ -90,7 +90,7 @@ sub event_read_input ($) {
 	while ($len > 0) {
 		if ($$rbuf ne '') {
 			my $w = write_in_full($input, $rbuf, $len);
-			return $self->write_err unless $w;
+			return write_err($self) unless $w;
 			$len -= $w;
 			die "BUG: $len < 0 (w=$w)" if $len < 0;
 			if ($len == 0) { # next request may be pipelined
@@ -100,7 +100,7 @@ sub event_read_input ($) {
 			$$rbuf = '';
 		}
 		my $r = sysread($sock, $$rbuf, 8192);
-		return $self->recv_err($r, $len) unless $r;
+		return recv_err($self, $r, $len) unless $r;
 		# continue looping if $r > 0;
 	}
 	app_dispatch($self);
@@ -238,7 +238,7 @@ sub write_err {
 	my $err = $self->{env}->{'psgi.errors'};
 	my $msg = $! || '(zero write)';
 	$err->print("error buffering to input: $msg\n");
-	$self->quit(500);
+	quit($self, 500);
 }
 
 sub recv_err {
@@ -250,7 +250,7 @@ sub recv_err {
 	}
 	my $err = $self->{env}->{'psgi.errors'};
 	$err->print("error reading for input: $! ($len bytes remaining)\n");
-	$self->quit(500);
+	quit($self, 500);
 }
 
 sub write_in_full {
@@ -278,20 +278,20 @@ sub event_read_input_chunked { # unlikely...
 	while (1) { # chunk start
 		if ($len == CHUNK_ZEND) {
 			return app_dispatch($self) if $$rbuf =~ s/\A\r\n//s;
-			return $self->quit(400) if length($$rbuf) > 2;
+			return quit($self, 400) if length($$rbuf) > 2;
 		}
 		if ($len == CHUNK_END) {
 			if ($$rbuf =~ s/\A\r\n//s) {
 				$len = CHUNK_START;
 			} elsif (length($$rbuf) > 2) {
-				return $self->quit(400);
+				return quit($self, 400);
 			}
 		}
 		if ($len == CHUNK_START) {
 			if ($$rbuf =~ s/\A([a-f0-9]+).*?\r\n//i) {
 				$len = hex $1;
 			} elsif (length($$rbuf) > CHUNK_MAX_HDR) {
-				return $self->quit(400);
+				return quit($self, 400);
 			}
 			# will break from loop since $len >= 0
 		}
@@ -299,7 +299,7 @@ sub event_read_input_chunked { # unlikely...
 		if ($len < 0) { # chunk header is trickled, read more
 			my $off = length($$rbuf);
 			my $r = sysread($sock, $$rbuf, 8192, $off);
-			return $self->recv_err($r, $len) unless $r;
+			return recv_err($self, $r, $len) unless $r;
 			# (implicit) goto chunk_start if $r > 0;
 		}
 		$len = CHUNK_ZEND if $len == 0;
@@ -308,7 +308,7 @@ sub event_read_input_chunked { # unlikely...
 		until ($len <= 0) {
 			if ($$rbuf ne '') {
 				my $w = write_in_full($input, $rbuf, $len);
-				return $self->write_err unless $w;
+				return write_err($self) unless $w;
 				$len -= $w;
 				if ($len == 0) {
 					# we may have leftover data to parse
@@ -324,7 +324,7 @@ sub event_read_input_chunked { # unlikely...
 			if ($$rbuf eq '') {
 				# read more of current chunk
 				my $r = sysread($sock, $$rbuf, 8192);
-				return $self->recv_err($r, $len) unless $r;
+				return recv_err($self, $r, $len) unless $r;
 			}
 		}
 	}

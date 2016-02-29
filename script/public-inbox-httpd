@@ -68,7 +68,7 @@ use fields qw(cb);
 sub new {
 	my ($class, $io, $cb) = @_;
 	my $self = fields::new($class);
-	$io->blocking(0);
+	IO::Handle::blocking($io, 0);
 	$self->SUPER::new($io);
 	$self->{cb} = $cb;
 	$self->watch_read(1);

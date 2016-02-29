@@ -15,6 +15,7 @@ use strict;
 use warnings;
 use base qw(Exporter);
 use Symbol qw(gensym);
+use IO::Handle;
 use PublicInbox::ProcessPipe;
 our @EXPORT_OK = qw/which spawn popen_rd/;
 
@@ -168,7 +169,7 @@ sub popen_rd {
 	pipe(my ($r, $w)) or die "pipe: $!\n";
 	$opts ||= {};
 	my $blocking = $opts->{Blocking};
-	$r->blocking($blocking) if defined $blocking;
+	IO::Handle::blocking($r, $blocking) if defined $blocking;
 	$opts->{1} = fileno($w);
 	my $pid = spawn($cmd, $env, $opts);
 	return ($r, $pid) if wantarray;
