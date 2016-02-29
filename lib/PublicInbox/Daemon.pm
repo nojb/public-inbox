@@ -67,12 +67,12 @@ sub daemon_prepare ($) {
 			warn "error binding $l: $!\n";
 		}
 	}
-	die 'No listeners bound' unless @listeners;
+	die "No listeners bound\n" unless @listeners;
 }
 
 sub daemonize () {
-	chdir '/' or die "chdir failed: $!\n";
-	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!\n";
+	chdir '/' or die "chdir failed: $!";
+	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!";
 
 	return unless (defined $pid_file || defined $group || defined $user
 			|| $daemonize);
@@ -238,12 +238,10 @@ sub do_fork () {
 	my $new = POSIX::SigSet->new;
 	$new->fillset;
 	my $old = POSIX::SigSet->new;
-	POSIX::sigprocmask(&POSIX::SIG_BLOCK, $new, $old) or
-				die "SIG_BLOCK: $!\n";
+	POSIX::sigprocmask(&POSIX::SIG_BLOCK, $new, $old) or die "SIG_BLOCK: $!";
 	my $pid = fork;
 	my $err = $!;
-	POSIX::sigprocmask(&POSIX::SIG_SETMASK, $old) or
-				die "SIG_SETMASK: $!\n";
+	POSIX::sigprocmask(&POSIX::SIG_SETMASK, $old) or die "SIG_SETMASK: $!";
 	($pid, $err);
 }
 
@@ -254,7 +252,7 @@ sub upgrade_aborted ($) {
 	return unless $pid_file;
 
 	my $file = $pid_file;
-	$file =~ s/\.oldbin\z// or die "BUG: no '.oldbin' suffix in $file\n";
+	$file =~ s/\.oldbin\z// or die "BUG: no '.oldbin' suffix in $file";
 	unlink_pid_file_safe_ish($$, $pid_file);
 	$pid_file = $file;
 	eval { write_pid($pid_file) };
@@ -289,8 +287,8 @@ sub unlink_pid_file_safe_ish ($$) {
 }
 
 sub master_loop {
-	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!\n";
-	pipe(my ($r, $w)) or die "failed to create self-pipe: $!\n";
+	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!";
+	pipe(my ($r, $w)) or die "failed to create self-pipe: $!";
 	IO::Handle::blocking($w, 0);
 	my $set_workers = $worker_processes;
 	my @caught;

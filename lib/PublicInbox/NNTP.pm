@@ -229,7 +229,7 @@ sub parse_time ($$;$) {
 	use Time::Local qw();
 	my ($hh, $mm, $ss) = unpack('A2A2A2', $time);
 	if (defined $gmt) {
-		$gmt =~ /\A(?:UTC|GMT)\z/i or die "GM invalid: $gmt\n";
+		$gmt =~ /\A(?:UTC|GMT)\z/i or die "GM invalid: $gmt";
 		$gmt = 1;
 	}
 	my @now = $gmt ? gmtime : localtime;

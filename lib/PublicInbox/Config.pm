@@ -73,7 +73,7 @@ sub git_config_dump {
 	my @cmd = (qw/git config/, "--file=$file", '-l');
 	my $cmd = join(' ', @cmd);
 	my $pid = open(my $fh, '-|', @cmd);
-	defined $pid or die "$cmd failed: $!\n";
+	defined $pid or die "$cmd failed: $!";
 	my %rv;
 	foreach my $line (<$fh>) {
 		chomp $line;
@@ -90,8 +90,8 @@ sub git_config_dump {
 			$rv{$k} = $v;
 		}
 	}
-	close $fh or die "failed to close ($cmd) pipe: $!\n";
-	$? and warn "$$ $cmd exited with: ($pid) $?\n";
+	close $fh or die "failed to close ($cmd) pipe: $!";
+	$? and warn "$$ $cmd exited with: ($pid) $?";
 	\%rv;
 }
 

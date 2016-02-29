@@ -244,7 +244,7 @@ sub get_thread {
 sub ctx_get {
 	my ($ctx, $key) = @_;
 	my $val = $ctx->{$key};
-	(defined $val && $val ne '') or die "BUG: bad ctx, $key unusable\n";
+	(defined $val && $val ne '') or die "BUG: bad ctx, $key unusable";
 	$val;
 }
 
