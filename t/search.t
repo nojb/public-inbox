@@ -34,9 +34,12 @@ ok($@, "exception raised on non-existent DB");
 
 my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
 my $ro = PublicInbox::Search->new($git_dir);
+$rw = undef;
 my $rw_commit = sub {
+	$rw->{xdb}->commit_transaction if $rw;
 	$rw = undef;
 	$rw = PublicInbox::SearchIdx->new($git_dir, 1);
+	$rw->{xdb}->begin_transaction;
 };
 
 {
@@ -86,6 +89,7 @@ my $rw_commit = sub {
 		body => "goodbye forever :<\n");
 
 	my $rv;
+	$rw_commit->();
 	$root_id = $rw->add_message($root);
 	is($root_id, int($root_id), "root_id is an integer: $root_id");
 	$last_id = $rw->add_message($last);
