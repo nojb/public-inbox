@@ -132,9 +132,10 @@ sub serve_smart {
 	my $buf;
 	my $in;
 	my $err = $env->{'psgi.errors'};
-	if (fileno($input) >= 0) {
+	my $fd = eval { fileno($input) };
+	if (defined $fd && $fd >= 0) {
 		$in = $input;
-	} else { # FIXME untested
+	} else {
 		$in = input_to_file($env) or return r(500);
 	}
 	my ($rpipe, $wpipe);
@@ -208,7 +209,7 @@ sub serve_smart {
 			foreach my $l (split(/\r\n/, $h)) {
 				my ($k, $v) = split(/:\s*/, $l, 2);
 				if ($k =~ /\AStatus\z/i) {
-					$code = int($v);
+					($code) = ($v =~ /\b(\d+)\b/);
 				} else {
 					push @h, $k, $v;
 				}
@@ -233,7 +234,6 @@ sub serve_smart {
 	}
 }
 
-# FIXME: untested, our -httpd _always_ gives a real file handle
 sub input_to_file {
 	my ($env) = @_;
 	my $in = IO::File->new_tmpfile;
