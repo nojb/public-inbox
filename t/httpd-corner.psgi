@@ -4,7 +4,6 @@
 # Usage: plackup [OPTIONS] /path/to/this/file
 use strict;
 use warnings;
-use Plack::Request;
 use Plack::Builder;
 require Digest::SHA;
 my $app = sub {

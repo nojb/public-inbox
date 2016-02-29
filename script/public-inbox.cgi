@@ -5,9 +5,7 @@
 # Enables using PublicInbox::WWW as a CGI script
 use strict;
 use warnings;
-use Plack::Loader;
 use Plack::Builder;
-use Plack::Request;
 use Plack::Handler::CGI;
 use PublicInbox::WWW;
 BEGIN { PublicInbox::WWW->preload if $ENV{MOD_PERL} }

@@ -13,6 +13,7 @@ package PublicInbox::WWW;
 use 5.008;
 use strict;
 use warnings;
+use Plack::Request;
 use PublicInbox::Config qw(try_cat);
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
 use constant SSOMA_URL => '//ssoma.public-inbox.org/';

@@ -9,7 +9,6 @@ use strict;
 use warnings;
 use PublicInbox::WWW;
 PublicInbox::WWW->preload;
-use Plack::Request;
 use Plack::Builder;
 my $www = PublicInbox::WWW->new;
 builder {
