@@ -129,8 +129,6 @@ sub new {
 		},
 	);
 	bless {
-		err => \*STDERR,
-		out => \*STDOUT,
 		app => $app,
 		env => \%env,
 	}, $class;
