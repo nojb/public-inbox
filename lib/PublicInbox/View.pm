@@ -254,17 +254,6 @@ sub index_walk {
 	my ($fh, $part, $enc, $part_nr, $fhref, $more) = @_;
 	my $s = add_text_body($enc, $part, $part_nr, $fhref);
 
-	if ($more) {
-		my $m = 0;
-		# drop the remainder of git patches, they're usually better
-		# to review when the full message is viewed
-		$s =~ s!^---+\n.*\z!!ms and $m = 1;
-
-		# Drop signatures
-		$s =~ s/^-- \n.*\z//ms and $m = 1;
-		$$more = "<b>More...</b>\n\n$$more" if $m;
-	}
-
 	# kill any leading or trailing whitespace lines
 	$s =~ s/^\s*$//sgm;
 	$s =~ s/\s+\z//s;
