@@ -30,6 +30,7 @@ lib/PublicInbox/Git.pm
 lib/PublicInbox/GitHTTPBackend.pm
 lib/PublicInbox/HTTP.pm
 lib/PublicInbox/Hval.pm
+lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
 lib/PublicInbox/MDA.pm
 lib/PublicInbox/MID.pm

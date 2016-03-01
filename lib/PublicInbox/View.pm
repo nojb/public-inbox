@@ -12,9 +12,8 @@ use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval;
+use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path/;
-use Digest::SHA qw/sha1_hex/;
-my $SALT = rand;
 require POSIX;
 
 # TODO: make these constants tunable
@@ -302,41 +301,6 @@ sub add_filename_line {
 	"$pad " . ascii_html($fn) . " $pad\n";
 }
 
-my $LINK_RE = qr!\b((?:ftp|https?|nntp)://
-		 [\@:\w\.-]+/
-		 ?[\@\w\+\&\?\.\%\;/#=-]*)!x;
-
-sub linkify_1 {
-	my ($link_map, $s) = @_;
-	$s =~ s!$LINK_RE!
-		my $url = $1;
-		# salt this, as this could be exploited to show
-		# links in the HTML which don't show up in the raw mail.
-		my $key = sha1_hex($url . $SALT);
-		$link_map->{$key} = $url;
-		'PI-LINK-'. $key;
-	!ge;
-	$s;
-}
-
-sub linkify_2 {
-	my ($link_map, $s) = @_;
-
-	# Added "PI-LINK-" prefix to avoid false-positives on git commits
-	$s =~ s!\bPI-LINK-([a-f0-9]{40})\b!
-		my $key = $1;
-		my $url = $link_map->{$key};
-		if (defined $url) {
-			$url = ascii_html($url);
-			"<a\nhref=\"$url\">$url</a>";
-		} else {
-			# false positive or somebody tried to mess with us
-			$key;
-		}
-	!ge;
-	$s;
-}
-
 sub flush_quote {
 	my ($quot, $n, $part_nr, $full_pfx, $final, $do_anchor) = @_;
 
@@ -346,11 +310,11 @@ sub flush_quote {
 	if ($full_pfx) {
 		if (!$final && scalar(@$quot) <= MAX_INLINE_QUOTED) {
 			# show quote inline
-			my %l;
-			my $rv = join('', map { linkify_1(\%l, $_) } @$quot);
+			my $l = PublicInbox::Linkify->new;
+			my $rv = join('', map { $l->linkify_1($_) } @$quot);
 			@$quot = ();
 			$rv = ascii_html($rv);
-			return linkify_2(\%l, $rv);
+			return $l->linkify_2($rv);
 		}
 
 		# show a short snippet of quoted text and link to full version:
@@ -375,13 +339,13 @@ sub flush_quote {
 	} else {
 		# show everything in the full version with anchor from
 		# short version (see above)
-		my %l;
-		my $rv .= join('', map { linkify_1(\%l, $_) } @$quot);
+		my $l = PublicInbox::Linkify->new;
+		my $rv .= join('', map { $l->linkify_1($_) } @$quot);
 		@$quot = ();
 		$rv = ascii_html($rv);
-		return linkify_2(\%l, $rv) unless $do_anchor;
+		return $l->linkify_2($rv) unless $do_anchor;
 		my $nr = ++$$n;
-		"<a\nid=q${part_nr}_$nr></a>" . linkify_2(\%l, $rv);
+		"<a\nid=q${part_nr}_$nr></a>" . $l->linkify_2($rv);
 	}
 }
 
@@ -420,10 +384,10 @@ sub add_text_body {
 			}
 
 			# regular line, OK
-			my %l;
-			$cur = linkify_1(\%l, $cur);
+			my $l = PublicInbox::Linkify->new;
+			$cur = $l->linkify_1($cur);
 			$cur = ascii_html($cur);
-			$s .= linkify_2(\%l, $cur);
+			$s .= $l->linkify_2($cur);
 		} else {
 			push @quot, $cur;
 		}
