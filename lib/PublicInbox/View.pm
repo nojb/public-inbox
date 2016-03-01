@@ -254,15 +254,10 @@ sub index_walk {
 	my ($fh, $part, $enc, $part_nr, $fhref, $more) = @_;
 	my $s = add_text_body($enc, $part, $part_nr, $fhref);
 
-	# kill any leading or trailing whitespace lines
-	$s =~ s/^\s*$//sgm;
-	$s =~ s/\s+\z//s;
+	return if $s eq '';
 
-	if ($s ne '') {
-		# kill per-line trailing whitespace
-		$s =~ s/[ \t]+$//sgm;
-		$s .= "\n" unless $s =~ /\n\z/s;
-	}
+	$s .= "\n"; # ensure there's a trailing newline
+
 	$fh->write($s);
 }
 
@@ -289,7 +284,9 @@ sub multipart_text_as_html {
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
-		$rv .= add_text_body($enc, $part, \$part_nr, $full_pfx, 1);
+		$part = add_text_body($enc, $part, \$part_nr, $full_pfx, 1);
+		$rv .= $part;
+		$rv .= "\n" if $part ne '';
 	});
 	$mime->body_set('');
 	$rv;
@@ -435,8 +432,11 @@ sub add_text_body {
 		$s .= flush_quote(\@quot, \$n, $$part_nr, $full_pfx, 1,
 				  $do_anchor);
 	}
-	$s .= "\n" unless $s =~ /\n\z/s;
 	++$$part_nr;
+
+	$s =~ s/[ \t]+$//sgm; # kill per-line trailing whitespace
+	$s =~ s/\A\n+//s; # kill leading blank lines
+	$s =~ s/\s+\z//s; # kill all trailing spaces (final "\n" added if ne '')
 	$s;
 }
 
