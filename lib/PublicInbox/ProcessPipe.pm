@@ -15,13 +15,22 @@ sub READ { sysread($_[0]->{fh}, $_[1], $_[2], $_[3] || 0) }
 
 sub READLINE { readline($_[0]->{fh}) }
 
-sub CLOSE { delete($_[0]->{fh}) }
+sub CLOSE {
+	my $fh = delete($_[0]->{fh});
+	my $ret = defined $fh ? close($fh) : '';
+	my $pid = delete $_[0]->{pid};
+	if (defined $pid) {
+		waitpid($pid, 0);
+		$ret = '' if $?;
+	}
+	$ret;
+}
 
 sub FILENO { fileno($_[0]->{fh}) }
 
 sub DESTROY {
-	delete($_[0]->{fh});
-	waitpid($_[0]->{pid}, 0);
+	CLOSE(@_);
+	undef;
 }
 
 sub pid { $_[0]->{pid} }
