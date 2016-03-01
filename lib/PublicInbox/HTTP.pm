@@ -71,7 +71,10 @@ sub rbuf_process {
 	return quit($self, 400) if $r == -1 || $env{HTTP_TRAILER};
 	return $self->watch_read(1) if $r < 0; # incomplete
 	$self->{rbuf} = substr($self->{rbuf}, $r);
+
 	my $len = input_prepare($self, \%env);
+	defined $len or return write_err($self); # EMFILE/ENFILE
+
 	$len ? event_read_input($self) : app_dispatch($self);
 }
 
@@ -116,7 +119,10 @@ sub app_dispatch ($) {
 		$host =~ s/:(\d+)\z// and $env->{SERVER_PORT} = $1;
 		$env->{SERVER_NAME} = $host;
 	}
-	sysseek($env->{'psgi.input'}, 0, SEEK_SET) or die "input seek failed: $!";
+
+	sysseek($env->{'psgi.input'}, 0, SEEK_SET) or
+			die "BUG: psgi.input seek failed: $!";
+
 	my $res = Plack::Util::run_app($self->{httpd}->{app}, $env);
 	eval {
 		if (ref($res) eq 'CODE') {
@@ -222,13 +228,17 @@ sub input_prepare {
 	if ($len) {
 		$input = IO::File->new_tmpfile;
 	} elsif (env_chunked($env)) {
-		$input = IO::File->new_tmpfile;
 		$len = CHUNK_START;
+		$input = IO::File->new_tmpfile;
 	}
+
+	# TODO: expire idle clients on ENFILE / EMFILE
+	return unless $input;
+
 	binmode $input;
 	$env->{'psgi.input'} = $input;
 	$self->{env} = $env;
-	$self->{input_left} = $len;
+	$self->{input_left} = $len || 0;
 }
 
 sub env_chunked { ($_[0]->{HTTP_TRANSFER_ENCODING} || '') =~ /\bchunked\b/i }
