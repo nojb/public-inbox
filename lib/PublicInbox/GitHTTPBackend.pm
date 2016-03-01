@@ -224,7 +224,7 @@ sub serve_smart {
 	if (my $async = $env->{'pi-httpd.async'}) {
 		$rpipe = $async->($rpipe, $cb);
 		sub { ($res) = @_ } # let Danga::Socket handle the rest.
-	} else { # synchronous loop
+	} else { # synchronous loop for other PSGI servers
 		$vin = '';
 		vec($vin, fileno($rpipe), 1) = 1;
 		sub {

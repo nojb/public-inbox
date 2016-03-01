@@ -59,6 +59,10 @@ daemon_run('0.0.0.0:8080', $refresh,
 
 1;
 
+# XXX This is a totally unstable API for public-inbox internal use only
+# This is exposed via the 'pi-httpd.async' key in the PSGI env hash.
+# The name of this key is not even stable!
+# Currently is is intended for use with read-only pipes.
 package PublicInbox::HTTPD::Async;
 use strict;
 use warnings;
