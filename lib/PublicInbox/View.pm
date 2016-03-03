@@ -833,7 +833,7 @@ sub inline_dump {
 	return unless $node;
 	if (my $mime = $node->message) {
 		my $hdr = $mime->header_obj;
-		my $mid = mid_clean($hdr->header_obj('Message-ID'));
+		my $mid = mid_clean($hdr->header_raw('Message-ID'));
 		if ($mid eq $state->{parent_cmp}) {
 			$state->{parent} = $mid;
 		}
