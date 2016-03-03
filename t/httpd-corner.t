@@ -16,6 +16,7 @@ use Digest::SHA qw(sha1_hex);
 use File::Temp qw/tempdir/;
 use Cwd qw/getcwd/;
 use IO::Socket;
+use IO::Socket::UNIX;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use POSIX qw(dup2 mkfifo :sys_wait_h);
@@ -34,20 +35,32 @@ my %opts = (
 	Listen => 1024,
 );
 my $sock = IO::Socket::INET->new(%opts);
+my $upath = "$tmpdir/s";
+my $unix = IO::Socket::UNIX->new(
+	Listen => 1024,
+	Type => SOCK_STREAM,
+	Local => $upath
+);
+ok($unix, 'UNIX socket created');
 my $pid;
 END { kill 'TERM', $pid if defined $pid };
 my $spawn_httpd = sub {
 	my (@args) = @_;
+	$! = 0;
 	my $fl = fcntl($sock, F_GETFD, 0);
 	ok(! $!, 'no error from fcntl(F_GETFD)');
 	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
 	$pid = fork;
 	if ($pid == 0) {
 		# pretend to be systemd
-		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
 		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
+		dup2(fileno($unix), 4) or die "dup2 failed: $!\n";
+		$sock = IO::Handle->new_from_fd(3, 'r');
+		$sock->fcntl(F_SETFD, 0);
+		$unix = IO::Handle->new_from_fd(4, 'r');
+		$unix->fcntl(F_SETFD, 0);
 		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 1;
+		$ENV{LISTEN_FDS} = 2;
 		exec $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi;
 		die "FAIL: $!\n";
 	}
@@ -61,6 +74,16 @@ my $spawn_httpd = sub {
 	ok(! $!, 'no error from fcntl(F_GETFD)');
 	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
 	$spawn_httpd->('-W0');
+}
+
+# Unix domain sockets
+{
+	my $u = IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $upath);
+	ok($u, 'unix socket connected');
+	$u->write("GET /host-port HTTP/1.0\r\n\r\n");
+	$u->read(my $buf, 4096);
+	like($buf, qr!\r\n\r\n127\.0\.0\.1:0\z!,
+		'set REMOTE_ADDR and REMOTE_PORT for Unix socket');
 }
 
 sub conn_for {

@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
+use IO::Socket;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 require Danga::Socket;
@@ -52,17 +53,35 @@ sub daemon_prepare ($) {
 
 	foreach my $l (@cfg_listen) {
 		next if $listener_names{$l}; # already inherited
-		require IO::Socket::INET6; # works for IPv4, too
-		my %o = (
-			LocalAddr => $l,
-			ReuseAddr => 1,
-			Proto => 'tcp',
-		);
-		if (my $s = IO::Socket::INET6->new(%o)) {
+		my (%o, $sock_pkg);
+		if (index($l, '/') == 0) {
+			$sock_pkg = 'IO::Socket::UNIX';
+			eval "use $sock_pkg";
+			die $@ if $@;
+			%o = (Type => SOCK_STREAM, Peer => $l);
+			if (-S $l) {
+				my $c = $sock_pkg->new(%o);
+				if (!defined($c) && $!{ECONNREFUSED}) {
+					unlink $l or die
+"failed to unlink stale socket=$l: $!\n";
+				} # else: let the bind fail
+			}
+			$o{Local} = delete $o{Peer};
+		} else {
+			$sock_pkg = 'IO::Socket::INET6'; # works for IPv4, too
+			eval "use $sock_pkg";
+			die $@ if $@;
+			%o = (LocalAddr => $l, ReuseAddr => 1, Proto => 'tcp');
+		}
+		$o{Listen} = 1024;
+		my $prev = umask 0000;
+		my $s = eval { $sock_pkg->new(%o) };
+		warn "error binding $l: $!\n" unless $s;
+		umask $prev;
+
+		if ($s) {
 			$listener_names{sockname($s)} = $s;
 			push @listeners, $s;
-		} else {
-			warn "error binding $l: $!\n";
 		}
 	}
 	die "No listeners bound\n" unless @listeners;
@@ -165,15 +184,20 @@ sub sockname ($) {
 sub host_with_port ($) {
 	my ($addr) = @_;
 	my ($port, $host);
-	if (length($addr) >= 28) {
-		require Socket6;
-		($port, $host) = Socket6::unpack_sockaddr_in6($addr);
-		$host = '['.Socket6::inet_ntop(Socket6::AF_INET6(), $host).']';
-	} else {
-		($port, $host) = Socket::sockaddr_in($addr);
-		$host = Socket::inet_ntoa($host);
-	}
-	($host, $port);
+
+	# this eval will die on Unix sockets:
+	eval {
+		if (length($addr) >= 28) {
+			require Socket6;
+			($port, $host) = Socket6::unpack_sockaddr_in6($addr);
+			$host = Socket6::inet_ntop(Socket6::AF_INET6(), $host);
+			$host = "[$host]";
+		} else {
+			($port, $host) = Socket::sockaddr_in($addr);
+			$host = Socket::inet_ntoa($host);
+		}
+	};
+	$@ ? ('127.0.0.1', 0) : ($host, $port);
 }
 
 sub inherit () {
