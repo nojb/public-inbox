@@ -5,6 +5,7 @@
 package PublicInbox::MDA;
 use strict;
 use warnings;
+use Email::Simple;
 use Email::Address;
 use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
@@ -21,7 +22,7 @@ sub __drop_plus {
 # do not allow Bcc, only Cc and To if recipient is set
 sub precheck {
 	my ($klass, $filter, $address) = @_;
-	my $simple = $filter->simple;
+	my Email::Simple $simple = $filter->simple;
 	my $mid = $simple->header("Message-ID");
 	return 0 if (length($mid) > MAX_MID_SIZE);
 	return 0 unless usable_str(length('<m@h>'), $mid) && $mid =~ /\@/;

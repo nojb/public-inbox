@@ -147,8 +147,8 @@ sub invalid_list_mid {
 		if ($mid = mid2blob($ctx)) {
 			require Email::Simple;
 			use PublicInbox::MID qw/mid_clean/;
-			$mid = Email::Simple->new($mid);
-			$ctx->{mid} = mid_clean($mid->header('Message-ID'));
+			my $s = Email::Simple->new($mid);
+			$ctx->{mid} = mid_clean($s->header('Message-ID'));
 		}
 	}
 	undef;

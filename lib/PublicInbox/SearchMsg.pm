@@ -8,7 +8,6 @@ use strict;
 use warnings;
 use Search::Xapian;
 use Email::Address qw//;
-use Email::Simple qw//;
 use POSIX qw//;
 use Date::Parse qw/str2time/;
 use PublicInbox::MID qw/mid_clean/;
@@ -189,12 +188,7 @@ sub mid ($;$) {
 	}
 }
 
-sub _extract_mid {
-	my ($self) = @_;
-
-	my $mid = $self->mime->header('Message-ID');
-	defined $mid ? mid_clean($mid) : $mid;
-}
+sub _extract_mid { mid_clean(mid_mime($_[0]->mime)) }
 
 sub mime {
 	my ($self, $mime) = @_;

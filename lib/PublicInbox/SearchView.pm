@@ -8,7 +8,7 @@ use warnings;
 use PublicInbox::SearchMsg;
 use PublicInbox::Hval;
 use PublicInbox::View;
-use PublicInbox::MID qw(mid2path mid_clean);
+use PublicInbox::MID qw(mid2path mid_clean mid_mime);
 use Email::MIME;
 require PublicInbox::Git;
 our $LIM = 50;
@@ -195,7 +195,7 @@ sub tdump_ent {
 
 	if ($mime) {
 		# lazy load the full message from mini_mime:
-		my $mid = $mime->header('Message-ID');
+		my $mid = mid_mime($mime);
 		$mime = eval {
 			my $path = mid2path(mid_clean($mid));
 			Email::MIME->new($git->cat_file('HEAD:'.$path));

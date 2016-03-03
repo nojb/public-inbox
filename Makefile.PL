@@ -22,6 +22,7 @@ WriteMakefile(
 		'Email::Filter' => 0,
 		'Email::MIME' => 0,
 		'Email::MIME::ContentType' => 0,
+		'Email::Simple' => 0,
 		'Encode::MIME::Header' => 0,
 		'File::Path::Expand' => 0,
 		'IPC::Run' => 0,

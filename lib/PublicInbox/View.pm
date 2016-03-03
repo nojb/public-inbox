@@ -13,7 +13,7 @@ use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/mid_clean id_compress mid2path/;
+use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
 require POSIX;
 
 # TODO: make these constants tunable
@@ -51,7 +51,7 @@ sub msg_reply {
 	my $f = $hdr->header('From');
 	$f = '' unless defined $f;
 	$s = PublicInbox::Hval->new_oneline($s);
-	my $mid = $hdr->header('Message-ID');
+	my $mid = $hdr->header_raw('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $t = $s->as_html;
 	my $se_url =
@@ -92,11 +92,11 @@ sub feed_entry {
 
 sub in_reply_to {
 	my ($hdr) = @_;
-	my $irt = $hdr->header('In-Reply-To');
+	my $irt = $hdr->header_raw('In-Reply-To');
 
 	return mid_clean($irt) if (defined $irt);
 
-	my $refs = $hdr->header('References');
+	my $refs = $hdr->header_raw('References');
 	if ($refs && $refs =~ /<([^>]+)>\s*\z/s) {
 		return $1;
 	}
@@ -115,7 +115,7 @@ sub index_entry {
 	my $enc = enc_for($hdr->header("Content-Type"));
 	my $subj = $hdr->header('Subject');
 
-	my $mid_raw = mid_clean($hdr->header('Message-ID'));
+	my $mid_raw = mid_clean(mid_mime($mime));
 	my $id = anchor_for($mid_raw);
 	my $seen = $state->{seen};
 	$seen->{$id} = "#$id"; # save the anchor for children, later
@@ -409,7 +409,7 @@ sub headers_to_html_header {
 	my $srch = $ctx->{srch} if $ctx;
 	my $rv = "";
 	my @title;
-	my $mid = $hdr->header('Message-ID');
+	my $mid = $hdr->header_raw('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $hdr->header($h);
@@ -452,7 +452,7 @@ sub headers_to_html_header {
 sub thread_inline {
 	my ($dst, $ctx, $hdr, $upfx) = @_;
 	my $srch = $ctx->{srch};
-	my $mid = mid_clean($hdr->header('Message-ID'));
+	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $res = $srch->get_thread($mid);
 	my $nr = $res->{total};
 	my $expand = "<a\nhref=\"${upfx}t/#u\">expand</a> " .
@@ -509,7 +509,7 @@ sub _parent_headers_nosrch {
 		$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
 	}
 
-	my $refs = $hdr->header('References');
+	my $refs = $hdr->header_raw('References');
 	if ($refs) {
 		# avoid redundant URLs wasting bandwidth
 		my %seen;
@@ -550,7 +550,7 @@ sub mailto_arg_link {
 
 	my $subj = $hdr->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
-	my $mid = $hdr->header('Message-ID');
+	my $mid = $hdr->header_raw('Message-ID');
 	push @arg, "--in-reply-to='" . ascii_html($mid) . "'";
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
@@ -637,7 +637,7 @@ sub thread_html_head {
 
 sub pre_anchor_entry {
 	my ($seen, $mime) = @_;
-	my $id = anchor_for($mime->header('Message-ID'));
+	my $id = anchor_for(mid_mime($mime));
 	$seen->{$id} = "#$id"; # save the anchor for children, later
 }
 
@@ -690,7 +690,7 @@ sub __thread_entry {
 
 	# lazy load the full message from mini_mime:
 	$mime = eval {
-		my $path = mid2path(mid_clean($mime->header('Message-ID')));
+		my $path = mid2path(mid_clean(mid_mime($mime)));
 		Email::MIME->new($git->cat_file('HEAD:'.$path));
 	} or return;
 
@@ -780,7 +780,7 @@ sub _inline_header {
 	my $dot = $level == 0 ? '' : '` ';
 
 	my $cur = $state->{cur};
-	my $mid = mid_clean($hdr->header('Message-ID'));
+	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $f = $hdr->header('X-PI-From');
 	my $d = _msg_date($hdr);
 	$f = PublicInbox::Hval->new_oneline($f)->as_html;
@@ -833,7 +833,7 @@ sub inline_dump {
 	return unless $node;
 	if (my $mime = $node->message) {
 		my $hdr = $mime->header_obj;
-		my $mid = mid_clean($hdr->header('Message-ID'));
+		my $mid = mid_clean($hdr->header_obj('Message-ID'));
 		if ($mid eq $state->{parent_cmp}) {
 			$state->{parent} = $mid;
 		}
@@ -881,7 +881,7 @@ sub add_topic {
 			push @{$state->{order}}, [ $level, $subj ];
 		}
 
-		my $mid = mid_clean($x->header('Message-ID'));
+		my $mid = mid_clean($x->header_raw('Message-ID'));
 
 		my $ts = $x->header('X-PI-TS');
 		my $exist = $state->{latest}->{$subj};

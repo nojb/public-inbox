@@ -320,7 +320,7 @@ sub add_to_feed {
 	my $midurl = $feed_opts->{midurl};
 
 	my $header_obj = $mime->header_obj;
-	my $mid = $header_obj->header('Message-ID');
+	my $mid = $header_obj->header_raw('Message-ID');
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href;

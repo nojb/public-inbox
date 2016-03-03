@@ -6,7 +6,7 @@ package PublicInbox::MID;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/mid_clean id_compress mid2path/;
+our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime/;
 use Digest::SHA qw/sha1_hex/;
 use constant MID_MAX => 40; # SHA-1 hex length
 
@@ -41,5 +41,7 @@ sub mid2path {
 	}
 	"$x2/$x38";
 }
+
+sub mid_mime ($) { $_[0]->header_obj->header_raw('Message-ID') }
 
 1;

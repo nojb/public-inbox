@@ -10,7 +10,7 @@ package PublicInbox::SearchIdx;
 use strict;
 use warnings;
 use base qw(PublicInbox::Search);
-use PublicInbox::MID qw/mid_clean id_compress/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime/;
 require PublicInbox::Git;
 *xpfx = *PublicInbox::Search::xpfx;
 
@@ -54,7 +54,7 @@ sub add_message {
 	my $db = $self->{xdb};
 
 	my $doc_id;
-	my $mid = mid_clean($mime->header('Message-ID'));
+	my $mid = mid_clean(mid_mime($mime));
 	my $was_ghost = 0;
 	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
 
@@ -222,9 +222,10 @@ sub link_message_to_parents {
 	my $doc = $smsg->{doc};
 	my $mid = $smsg->mid;
 	my $mime = $smsg->mime;
-	my $refs = $mime->header('References');
+	my $hdr = $mime->header_obj;
+	my $refs = $hdr->header_raw('References');
 	my @refs = $refs ? ($refs =~ /<([^>]+)>/g) : ();
-	if (my $irt = $mime->header('In-Reply-To')) {
+	if (my $irt = $hdr->header_raw('In-Reply-To')) {
 		# last References should be $irt
 		# we will de-dupe later
 		push @refs, mid_clean($irt);
@@ -274,29 +275,29 @@ sub index_blob {
 
 sub unindex_blob {
 	my ($self, $git, $mime) = @_;
-	my $mid = mid_clean($mime->header('Message-ID'));
+	my $mid = eval { mid_clean(mid_mime($mime)) };
 	$self->remove_message($mid) if defined $mid;
 }
 
 sub index_mm {
 	my ($self, $git, $mime) = @_;
-	$self->{mm}->mid_insert(mid_clean($mime->header('Message-ID')));
+	$self->{mm}->mid_insert(mid_clean(mid_mime($mime)));
 }
 
 sub unindex_mm {
 	my ($self, $git, $mime) = @_;
-	$self->{mm}->mid_delete(mid_clean($mime->header('Message-ID')));
+	$self->{mm}->mid_delete(mid_clean(mid_mime($mime)));
 }
 
 sub index_mm2 {
 	my ($self, $git, $mime, $bytes) = @_;
-	my $num = $self->{mm}->num_for(mid_clean($mime->header('Message-ID')));
+	my $num = $self->{mm}->num_for(mid_clean(mid_mime($mime)));
 	index_blob($self, $git, $mime, $bytes, $num);
 }
 
 sub unindex_mm2 {
 	my ($self, $git, $mime) = @_;
-	$self->{mm}->mid_delete(mid_clean($mime->header('Message-ID')));
+	$self->{mm}->mid_delete(mid_clean(mid_mime($mime)));
 	unindex_blob($self, $git, $mime);
 }
 
