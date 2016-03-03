@@ -1,10 +1,8 @@
 # Copyright (C) 2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
-package PublicInbox::Daemon; # empty class :p
-
 # contains common daemon code for the nntpd and httpd servers.
 # This may be used for read-only IMAP server if we decide to implement it.
-package main;
+package PublicInbox::Daemon;
 use strict;
 use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
@@ -383,7 +381,7 @@ sub daemon_loop ($$) {
 }
 
 
-sub daemon_run ($$$) {
+sub run ($$$) {
 	my ($default, $refresh, $post_accept) = @_;
 	daemon_prepare($default);
 	daemonize();
