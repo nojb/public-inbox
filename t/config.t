@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::Config;
 use File::Temp qw/tempdir/;
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 
 {
 	is(system(qw(git init -q --bare), $tmpdir), 0, "git init successful");

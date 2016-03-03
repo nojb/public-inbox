@@ -11,7 +11,7 @@ foreach my $mod (qw(DBD::SQLite)) {
 }
 
 use_ok 'PublicInbox::Msgmap';
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-msgmap-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $d = PublicInbox::Msgmap->new($tmpdir, 1);
 
 my %mid2num;

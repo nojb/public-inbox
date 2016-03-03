@@ -15,7 +15,7 @@ sub string_feed {
 	stream_to_string(PublicInbox::Feed::generate($_[0]));
 }
 
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-feed-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
 
 {

@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
-my $dir = tempdir(CLEANUP => 1);
+my $dir = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use Cwd qw/getcwd/;
 
 use_ok 'PublicInbox::Git';

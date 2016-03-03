@@ -9,7 +9,7 @@ use Cwd;
 use IPC::Run qw/run/;
 my $psgi = "examples/public-inbox.psgi";
 my $mda = "blib/script/public-inbox-mda";
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-plack-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
 my $pi_config = "$pi_home/config";

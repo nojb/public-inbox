@@ -17,7 +17,7 @@ use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use IPC::Run;
 
 # FIXME: too much setup
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-httpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";

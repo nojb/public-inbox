@@ -6,7 +6,7 @@ use Test::More;
 use Email::Simple;
 use PublicInbox::Feed;
 use File::Temp qw/tempdir/;
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-http-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
 
 # setup

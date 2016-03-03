@@ -18,7 +18,7 @@ use File::Temp qw/tempdir/;
 use Net::NNTP;
 use IPC::Run qw(run);
 
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";

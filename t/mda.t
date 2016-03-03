@@ -11,7 +11,7 @@ use IPC::Run qw(run);
 
 my $mda = "blib/script/public-inbox-mda";
 my $learn = "blib/script/public-inbox-learn";
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-mda-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
 my $pi_config = "$pi_home/config";

@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::Config;
 use File::Temp qw/tempdir/;
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-init-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use constant pi_init => 'blib/script/public-inbox-init';
 
 {

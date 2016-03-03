@@ -19,7 +19,7 @@ use IO::Socket;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use POSIX qw(dup2 mkfifo :sys_wait_h);
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('httpd-corner-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $fifo = "$tmpdir/fifo";
 ok(defined mkfifo($fifo, 0777), 'created FIFO');
 my $err = "$tmpdir/stderr.log";

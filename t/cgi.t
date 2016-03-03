@@ -11,7 +11,7 @@ use IPC::Run qw/run/;
 use constant CGI => "blib/script/public-inbox.cgi";
 my $mda = "blib/script/public-inbox-mda";
 my $index = "blib/script/public-inbox-index";
-my $tmpdir = tempdir(CLEANUP => 1);
+my $tmpdir = tempdir('pi-cgi-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
 my $pi_config = "$pi_home/config";
