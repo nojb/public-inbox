@@ -44,6 +44,9 @@ my $app = sub {
 				$fh->close;
 			};
 		}
+	} elsif ($path eq '/host-port') {
+		$code = 200;
+		push @$body, "$env->{REMOTE_ADDR}:$env->{REMOTE_PORT}";
 	}
 
 	[ $code, $h, $body ]

@@ -11,7 +11,7 @@ package PublicInbox::HTTP;
 use strict;
 use warnings;
 use base qw(Danga::Socket);
-use fields qw(httpd env rbuf input_left);
+use fields qw(httpd env rbuf input_left remote_addr remote_port);
 use Fcntl qw(:seek);
 use HTTP::Parser::XS qw(parse_http_request); # supports pure Perl fallback
 use HTTP::Status qw(status_message);
@@ -38,6 +38,8 @@ sub new ($$$) {
 	$self->SUPER::new($sock);
 	$self->{httpd} = $httpd;
 	$self->{rbuf} = '';
+	($self->{remote_addr}, $self->{remote_port}) =
+		PublicInbox::Daemon::host_with_port($addr);
 	$self->watch_read(1);
 	$self;
 }
@@ -113,8 +115,8 @@ sub app_dispatch ($) {
 	my ($self) = @_;
 	$self->watch_read(0);
 	my $env = $self->{env};
-	$env->{REMOTE_ADDR} = $self->peer_ip_string; # Danga::Socket
-	$env->{REMOTE_PORT} = $self->{peer_port}; # set by peer_ip_string
+	$env->{REMOTE_ADDR} = $self->{remote_addr};
+	$env->{REMOTE_PORT} = $self->{remote_port};
 	if (my $host = $env->{HTTP_HOST}) {
 		$host =~ s/:(\d+)\z// and $env->{SERVER_PORT} = $1;
 		$env->{SERVER_NAME} = $host;

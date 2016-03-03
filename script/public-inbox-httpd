@@ -99,18 +99,10 @@ sub pi_httpd_async {
 sub new {
 	my ($class, $sock, $app) = @_;
 	my $n = getsockname($sock) or die "not a socket: $sock $!\n";
-	my ($port, $addr);
-	if (length($n) >= 28) {
-		require Socket6;
-		($port, $addr) = Socket6::unpack_sockaddr_in6($n);
-	} else {
-		($port, $addr) = Socket::unpack_sockaddr_in($n);
-	}
+	my ($host, $port) = PublicInbox::Daemon::host_with_port($n);
 
 	my %env = (
-		REMOTE_HOST => '',
-		REMOTE_PORT => 0,
-		SERVER_NAME => $addr,
+		SERVER_NAME => $host,
 		SERVER_PORT => $port,
 		SCRIPT_NAME => '',
 		'psgi.version' => [ 1, 1 ],

@@ -76,6 +76,16 @@ sub conn_for {
 	return $conn;
 }
 
+{
+	my $conn = conn_for($sock, 'host-port');
+	$conn->write("GET /host-port HTTP/1.0\r\n\r\n");
+	$conn->read(my $buf, 4096);
+	my ($head, $body) = split(/\r\n\r\n/, $buf);
+	my ($addr, $port) = split(/:/, $body);
+	is($addr, $conn->sockhost, 'host matches addr');
+	is($port, $conn->sockport, 'port matches');
+}
+
 # graceful termination
 {
 	my $conn = conn_for($sock, 'graceful termination via slow header');

@@ -157,20 +157,23 @@ sub reopen_logs {
 
 sub sockname ($) {
 	my ($s) = @_;
-	my $n = getsockname($s) or return;
-	my ($port, $addr);
-	if (length($n) >= 28) {
+	my $addr = getsockname($s) or return;
+	my ($host, $port) = host_with_port($addr);
+	"$host:$port";
+}
+
+sub host_with_port ($) {
+	my ($addr) = @_;
+	my ($port, $host);
+	if (length($addr) >= 28) {
 		require Socket6;
-		($port, $addr) = Socket6::unpack_sockaddr_in6($n);
+		($port, $host) = Socket6::unpack_sockaddr_in6($addr);
+		$host = '['.Socket6::inet_ntop(Socket6::AF_INET6(), $host).']';
 	} else {
-		($port, $addr) = Socket::sockaddr_in($n);
+		($port, $host) = Socket::sockaddr_in($addr);
+		$host = Socket::inet_ntoa($host);
 	}
-	if (length($addr) == 4) {
-		$n = Socket::inet_ntoa($addr)
-	} else {
-		$n = '['.Socket6::inet_ntop(Socket6::AF_INET6(), $addr).']';
-	}
-	$n .= ":$port";
+	($host, $port);
 }
 
 sub inherit () {
