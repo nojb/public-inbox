@@ -206,8 +206,7 @@ sub inherit () {
 	my $end = $fds + 2; # LISTEN_FDS_START - 1
 	my @rv = ();
 	foreach my $fd (3..$end) {
-		my $s = IO::Handle->new;
-		$s->fdopen($fd, 'r');
+		my $s = IO::Handle->new_from_fd($fd, 'r');
 		if (my $k = sockname($s)) {
 			$listener_names{$k} = $s;
 			push @rv, $s;
