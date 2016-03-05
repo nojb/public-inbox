@@ -41,7 +41,7 @@ Why email?
   developers and users of Free Software should not rely on proprietary
   tools or services.
 
-* Existing infrastrucuture, tools, and user familarity.
+* Existing infrastructure, tools, and user familiarity.
   There is already a large variety of tools, clients, and email providers
   available.  There are also many resources for users to run their own
   SMTP server on a domain they control.
@@ -143,10 +143,10 @@ Scalability notes
 Even with shallow clone, storing the history of large/busy mailing lists
 may place much burden on subscribers and servers.  However, having a
 single (or few) refs representing the entire history of a list is good
-for small lists since it's easier to lookup a message by Message-ID, so
+for small lists since it's easier to look up a message by Message-ID, so
 we want to avoid splitting refs with independent histories.
 
-ssoma will likely grow its own builtin ref rotation system based on
+ssoma will likely grow its own built-in ref rotation system based on
 message count (not rotating at fixed time intervals).  This would
 split the histories and require O(n) lookup time based on Message-ID,
 where `n' is the number of history splits.
