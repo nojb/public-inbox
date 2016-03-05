@@ -109,6 +109,7 @@ sub daemonize () {
 	# The upgrade will create the ".oldbin" pid file in the
 	# same directory as the given pid file.
 	$uid and $set_user = sub {
+		$set_user = undef;
 		Net::Server::Daemonize::set_user($uid, $gid);
 	};
 
@@ -128,6 +129,7 @@ sub daemonize () {
 		write_pid($pid_file);
 		my $unlink_pid = $$;
 		$cleanup = sub {
+			$cleanup = undef; # avoid cyclic reference
 			unlink_pid_file_safe_ish($unlink_pid, $pid_file);
 		};
 	}
