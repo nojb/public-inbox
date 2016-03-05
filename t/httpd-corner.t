@@ -55,10 +55,10 @@ my $spawn_httpd = sub {
 		# pretend to be systemd
 		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
 		dup2(fileno($unix), 4) or die "dup2 failed: $!\n";
-		$sock = IO::Handle->new_from_fd(3, 'r');
-		$sock->fcntl(F_SETFD, 0);
-		$unix = IO::Handle->new_from_fd(4, 'r');
-		$unix->fcntl(F_SETFD, 0);
+		my $t = IO::Handle->new_from_fd(3, 'r');
+		$t->fcntl(F_SETFD, 0);
+		my $u = IO::Handle->new_from_fd(4, 'r');
+		$u->fcntl(F_SETFD, 0);
 		$ENV{LISTEN_PID} = $$;
 		$ENV{LISTEN_FDS} = 2;
 		exec $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi;
