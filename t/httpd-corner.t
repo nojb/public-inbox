@@ -76,6 +76,15 @@ my $spawn_httpd = sub {
 	$spawn_httpd->('-W0');
 }
 
+{
+	my $conn = conn_for($sock, 'streaming callback');
+	$conn->write("GET /callback HTTP/1.0\r\n\r\n");
+	ok($conn->read(my $buf, 8192), 'read response');
+	my ($head, $body) = split(/\r\n\r\n/, $buf);
+	is($body, "hello world\n", 'callback body matches expected');
+}
+
+
 # Unix domain sockets
 {
 	my $u = IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $upath);

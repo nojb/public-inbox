@@ -47,6 +47,15 @@ my $app = sub {
 	} elsif ($path eq '/host-port') {
 		$code = 200;
 		push @$body, "$env->{REMOTE_ADDR}:$env->{REMOTE_PORT}";
+	} elsif ($path eq '/callback') {
+		return sub {
+			my ($res) = @_;
+			my $buf = "hello world\n";
+			push @$h, 'Content-Length', length($buf);
+			my $fh = $res->([200, $h]);
+			$fh->write($buf);
+			$fh->close;
+		}
 	}
 
 	[ $code, $h, $body ]
