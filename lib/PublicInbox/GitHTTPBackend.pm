@@ -73,7 +73,7 @@ sub serve {
 		my $n = 8192;
 		while ($len > 0) {
 			$n = $len if $len < $n;
-			my $r = read($in, $buf, $n);
+			my $r = sysread($in, $buf, $n);
 			last if (!defined($r) || $r <= 0);
 			$len -= $r;
 			$fh->write($buf);
