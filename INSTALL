@@ -47,10 +47,11 @@ Optional modules:
   - DBI[3]                     libdbi-perl
   - DBD::SQLite[3]             libdbd-sqlite3-perl
   - Danga::Socket[4]           libdanga-socket-perl
+  - Net::Server[4]             libnet-server-perl
 
 [1] - Only required for serving/generating Atom and HTML pages.
-[3] - Optional for HTML web interface and NNTP server
-[4] - Optional for NNTP server
+[3] - Optional for HTML web interface and HTTP/NNTP servers
+[4] - Optional for HTTP and NNTP servers
 
 Copyright
 ---------

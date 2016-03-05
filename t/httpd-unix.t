@@ -81,7 +81,11 @@ check_sock($unix);
 	is($?, 0, 'existing httpd exited successfully');
 	ok(-S $unix, 'unix socket still exists');
 }
-{
+
+SKIP: {
+	eval 'require Net::Server::Daemonize';
+	skip('Net::Server missing for pid-file/daemonization test', 10) if $@;
+
 	# wait for daemonization
 	$spawn_httpd->("-l$unix", '-D', '-P', "$tmpdir/pid");
 	my $kpid = $pid;
