@@ -126,7 +126,7 @@ Web notes
 * Expose Message-ID in web views to encourage replies from drive-by
   contributors.
 
-* Raw text endpoint allows users to write client-side JS endpoints
+* Raw text endpoint allows users to write client-side endpoints
   without hosting the data themselves (or on a different server).
 
 What sucks about public-inbox
