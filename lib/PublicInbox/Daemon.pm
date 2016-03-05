@@ -185,6 +185,10 @@ sub sockname ($) {
 	my ($s) = @_;
 	my $addr = getsockname($s) or return;
 	my ($host, $port) = host_with_port($addr);
+	if ($port == 0 && $host eq '127.0.0.1') {
+		my ($path) = Socket::sockaddr_un($addr);
+		return $path;
+	}
 	"$host:$port";
 }
 

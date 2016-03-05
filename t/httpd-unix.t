@@ -35,6 +35,14 @@ my $spawn_httpd = sub {
 	ok(defined $pid, 'forked httpd process successfully');
 };
 
+{
+	require PublicInbox::Daemon;
+	my $l = "$tmpdir/named.sock";
+	my $s = IO::Socket::UNIX->new(Listen => 5, Local => $l,
+					Type => SOCK_STREAM);
+	is(PublicInbox::Daemon::sockname($s), $l, 'sockname works for UNIX');
+}
+
 ok(!-S $unix, 'UNIX socket does not exist, yet');
 $spawn_httpd->("-l$unix");
 for (1..1000) {
