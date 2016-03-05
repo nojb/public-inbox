@@ -18,9 +18,6 @@ use constant {
 	MAX_PER_PAGE => 25, # this needs to be tunable
 };
 
-use Encode qw/find_encoding/;
-my $enc_utf8 = find_encoding('UTF-8');
-
 # main function
 sub generate {
 	my ($ctx) = @_;
