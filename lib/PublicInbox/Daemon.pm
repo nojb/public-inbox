@@ -137,6 +137,7 @@ sub worker_quit () {
 	# killing again terminates immediately:
 	exit unless @listeners;
 
+	$_->close foreach @listeners; # call Danga::Socket::close
 	@listeners = ();
 
 	# give slow clients 30s to finish reading/writing whatever
@@ -401,7 +402,9 @@ sub daemon_loop ($$) {
 	$SIG{USR1} = *reopen_logs;
 	$SIG{HUP} = $refresh;
 	# this calls epoll_create:
-	PublicInbox::Listener->new($_, $post_accept) for @listeners;
+	@listeners = map {
+		PublicInbox::Listener->new($_, $post_accept)
+	} @listeners;
 	Danga::Socket->EventLoop;
 	$parent_pipe = undef;
 }
