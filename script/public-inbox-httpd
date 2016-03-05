@@ -23,28 +23,26 @@ my $refresh = sub {
 		require PublicInbox::WWW;
 		PublicInbox::WWW->preload;
 		my $www = PublicInbox::WWW->new;
-		$app = eval {
-			builder {
-				enable 'Chunked';
-				eval {
-					enable 'Deflater',
-						content_type => [ qw(
-							text/html
-							text/plain
-							application/atom+xml
-							)]
-				};
-				$@ and warn
+		$app = builder {
+			enable 'Chunked';
+			eval {
+				enable 'Deflater',
+					content_type => [ qw(
+						text/html
+						text/plain
+						application/atom+xml
+						)]
+			};
+			$@ and warn
 "Plack::Middleware::Deflater missing, bandwidth will be wasted\n";
 
-				eval { enable 'ReverseProxy' };
-				$@ and warn
+			eval { enable 'ReverseProxy' };
+			$@ and warn
 "Plack::Middleware::ReverseProxy missing,\n",
 "URL generation for redirects may be wrong if behind a reverse proxy\n";
 
-				enable 'Head';
-				sub { $www->call(@_) };
-			};
+			enable 'Head';
+			sub { $www->call(@_) };
 		};
 	}
 };
