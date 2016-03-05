@@ -391,7 +391,7 @@ sub daemon_loop ($$) {
 		$refresh->(); # preload by default
 		$parent_pipe = master_loop(); # returns if in child process
 		my $fd = fileno($parent_pipe);
-		Danga::Socket->AddOtherFds($fd => sub { kill('TERM', $$) } );
+		Danga::Socket->AddOtherFds($fd => *worker_quit);
 	} else {
 		reopen_logs();
 		$set_user->() if $set_user;
