@@ -251,7 +251,7 @@ sub env_chunked { ($_[0]->{HTTP_TRANSFER_ENCODING} || '') =~ /\bchunked\b/i }
 
 sub write_err {
 	my ($self) = @_;
-	my $err = $self->{env}->{'psgi.errors'};
+	my $err = $self->{httpd}->{env}->{'psgi.errors'};
 	my $msg = $! || '(zero write)';
 	$err->print("error buffering to input: $msg\n");
 	quit($self, 500);
@@ -264,7 +264,7 @@ sub recv_err {
 		$self->{input_left} = $len;
 		return;
 	}
-	my $err = $self->{env}->{'psgi.errors'};
+	my $err = $self->{httpd}->{env}->{'psgi.errors'};
 	$err->print("error reading for input: $! ($len bytes remaining)\n");
 	quit($self, 500);
 }
