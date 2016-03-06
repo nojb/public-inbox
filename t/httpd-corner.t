@@ -84,6 +84,18 @@ my $spawn_httpd = sub {
 	is($body, "hello world\n", 'callback body matches expected');
 }
 
+{
+	my $conn = conn_for($sock, 'excessive header');
+	$SIG{PIPE} = 'IGNORE';
+	$conn->write("GET /callback HTTP/1.0\r\n");
+	foreach my $i (1..500000) {
+		last unless $conn->write("X-xxxxxJunk-$i: omg\r\n");
+	}
+	ok(!$conn->write("\r\n"), 'broken request');
+	ok($conn->read(my $buf, 8192), 'read response');
+	my ($head, $body) = split(/\r\n\r\n/, $buf);
+	like($head, qr/\b400\b/, 'got 400 response');
+}
 
 # Unix domain sockets
 {

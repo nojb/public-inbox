@@ -70,7 +70,11 @@ sub rbuf_process {
 
 	# We do not support Trailers in chunked requests, for now
 	# (they are rarely-used and git (as of 2.7.2) does not use them)
-	return quit($self, 400) if $r == -1 || $env{HTTP_TRAILER};
+	if ($r == -1 || $env{HTTP_TRAILER} ||
+			# this length-check is necessary for PURE_PERL=1:
+			($r == -2 && length($self->{rbuf}) > 0x4000)) {
+		return quit($self, 400);
+	}
 	return $self->watch_read(1) if $r < 0; # incomplete
 	$self->{rbuf} = substr($self->{rbuf}, $r);
 
