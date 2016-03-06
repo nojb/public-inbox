@@ -24,6 +24,12 @@ use constant {
 	CHUNK_MAX_HDR => 256,
 };
 
+# Use the same configuration parameter as git since this is primarily
+# a slow-client sponge for git-http-backend
+# TODO: support per-respository http.maxRequestBuffer somehow...
+our $MAX_REQUEST_BUFFER = $ENV{GIT_HTTP_MAX_REQUEST_BUFFER} ||
+			(10 * 1024 * 1024);
+
 my $null_io = IO::File->new('/dev/null', '<');
 my $http_date;
 my $prev = 0;
@@ -232,6 +238,10 @@ sub input_prepare {
 	my $input = $null_io;
 	my $len = $env->{CONTENT_LENGTH};
 	if ($len) {
+		if ($len > $MAX_REQUEST_BUFFER) {
+			quit($self, 413);
+			return;
+		}
 		$input = IO::File->new_tmpfile;
 	} elsif (env_chunked($env)) {
 		$len = CHUNK_START;
@@ -306,6 +316,9 @@ sub event_read_input_chunked { # unlikely...
 		if ($len == CHUNK_START) {
 			if ($$rbuf =~ s/\A([a-f0-9]+).*?\r\n//i) {
 				$len = hex $1;
+				if (($len + -s $input) > $MAX_REQUEST_BUFFER) {
+					return quit($self, 413);
+				}
 			} elsif (length($$rbuf) > CHUNK_MAX_HDR) {
 				return quit($self, 400);
 			}

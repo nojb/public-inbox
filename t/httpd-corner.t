@@ -97,6 +97,27 @@ my $spawn_httpd = sub {
 	like($head, qr/\b400\b/, 'got 400 response');
 }
 
+{
+	my $conn = conn_for($sock, 'excessive body Content-Length');
+	$SIG{PIPE} = 'IGNORE';
+	my $n = (10 * 1024 * 1024) + 1;
+	$conn->write("PUT /sha1 HTTP/1.0\r\nContent-Length: $n\r\n\r\n");
+	ok($conn->read(my $buf, 8192), 'read response');
+	my ($head, $body) = split(/\r\n\r\n/, $buf);
+	like($head, qr/\b413\b/, 'got 413 response');
+}
+
+{
+	my $conn = conn_for($sock, 'excessive body chunked');
+	$SIG{PIPE} = 'IGNORE';
+	my $n = (10 * 1024 * 1024) + 1;
+	$conn->write("PUT /sha1 HTTP/1.1\r\nTransfer-Encoding: chunked\r\n");
+	$conn->write("\r\n".sprintf("%x\r\n", $n));
+	ok($conn->read(my $buf, 8192), 'read response');
+	my ($head, $body) = split(/\r\n\r\n/, $buf);
+	like($head, qr/\b413\b/, 'got 413 response');
+}
+
 # Unix domain sockets
 {
 	my $u = IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $upath);
