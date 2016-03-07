@@ -205,18 +205,18 @@ sub serve_smart {
 		ref($dumb) eq 'ARRAY' ? $res->($dumb) : $dumb->($res);
 	};
 	my $fail = sub {
-		my ($e) = @_;
-		if ($e eq 'EAGAIN') {
+		if ($!{EAGAIN} || $!{EINTR}) {
 			select($vin, undef, undef, undef) if defined $vin;
 			# $vin is undef on async, so this is a noop on EAGAIN
 			return;
 		}
+		my $e = $!;
 		$end->();
 		$err->print("git http-backend ($git_dir): $e\n");
 	};
 	my $cb = sub { # read git-http-backend output and stream to client
 		my $r = $rpipe ? $rpipe->sysread($buf, 8192, length($buf)) : 0;
-		return $fail->($!{EAGAIN} ? 'EAGAIN' : $!) unless defined $r;
+		return $fail->() unless defined $r;
 		return $end->() if $r == 0; # EOF
 		if ($fh) { # stream body from git-http-backend to HTTP client
 			$fh->write($buf);
