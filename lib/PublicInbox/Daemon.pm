@@ -68,8 +68,11 @@ sub daemon_prepare ($) {
 			}
 			$o{Local} = delete $o{Peer};
 		} else {
-			$sock_pkg = 'IO::Socket::INET6'; # works for IPv4, too
-			eval "use $sock_pkg";
+			# both work for IPv4, too
+			for $sock_pkg (qw(IO::Socket::IP IO::Socket::INET6)) {
+				eval "use $sock_pkg";
+				$@ or last;
+			}
 			die $@ if $@;
 			%o = (LocalAddr => $l, ReuseAddr => 1, Proto => 'tcp');
 		}
