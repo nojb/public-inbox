@@ -69,7 +69,8 @@ sub daemon_prepare ($) {
 			$o{Local} = delete $o{Peer};
 		} else {
 			# both work for IPv4, too
-			for $sock_pkg (qw(IO::Socket::IP IO::Socket::INET6)) {
+			for (qw(IO::Socket::IP IO::Socket::INET6)) {
+				$sock_pkg = $_;
 				eval "use $sock_pkg";
 				$@ or last;
 			}
@@ -79,7 +80,7 @@ sub daemon_prepare ($) {
 		$o{Listen} = 1024;
 		my $prev = umask 0000;
 		my $s = eval { $sock_pkg->new(%o) };
-		warn "error binding $l: $!\n" unless $s;
+		warn "error binding $l: $! ($@)\n" unless $s;
 		umask $prev;
 
 		if ($s) {
