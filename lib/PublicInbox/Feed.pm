@@ -40,7 +40,7 @@ sub title_tag {
 	my ($title) = @_;
 	$title =~ tr/\t\n / /s; # squeeze spaces
 	# try to avoid the type attribute in title:
-	$title =~ ascii_html($title);
+	$title = ascii_html($title);
 	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
 	"<title$type>$title</title>";
 }
@@ -117,7 +117,7 @@ sub emit_html_index {
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($ctx);
 
-	my $title = $feed_opts->{description} || '';
+	my $title = ascii_html($feed_opts->{description} || '');
 	my ($footer, $param, $last);
 	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0 };
 	my $srch = $ctx->{srch};
