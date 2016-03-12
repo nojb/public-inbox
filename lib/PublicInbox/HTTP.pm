@@ -13,7 +13,7 @@ use warnings;
 use base qw(Danga::Socket);
 use fields qw(httpd env rbuf input_left remote_addr remote_port);
 use Fcntl qw(:seek);
-use HTTP::Parser::XS qw(parse_http_request); # supports pure Perl fallback
+use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::File;

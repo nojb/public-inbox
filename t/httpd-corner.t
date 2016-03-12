@@ -7,7 +7,7 @@ use warnings;
 use Test::More;
 
 foreach my $mod (qw(Plack::Util Plack::Request Plack::Builder Danga::Socket
-			HTTP::Parser::XS HTTP::Date HTTP::Status)) {
+			HTTP::Date HTTP::Status)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd-corner.t" if $@;
 }
