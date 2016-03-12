@@ -371,6 +371,13 @@ sub quit {
 sub event_hup { $_[0]->close }
 sub event_err { $_[0]->close }
 
+sub write ($$) : method {
+	my PublicInbox::HTTP $self = $_[0];
+	return 1 if (defined($_[1]) && ref($_[1]) eq '' && $_[1] eq '');
+
+	$self->SUPER::write($_[1]);
+}
+
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy () {
 	my ($self) = @_;
