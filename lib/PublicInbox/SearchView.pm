@@ -6,7 +6,7 @@ package PublicInbox::SearchView;
 use strict;
 use warnings;
 use PublicInbox::SearchMsg;
-use PublicInbox::Hval;
+use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::View;
 use PublicInbox::MID qw(mid2path mid_clean mid_mime);
 use Email::MIME;
@@ -68,13 +68,12 @@ sub dump_mset {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = $m->get_percent;
 		my $smsg = PublicInbox::SearchMsg->load_doc($m->get_document);
-		my $s = PublicInbox::Hval->new_oneline($smsg->subject);
-		my $f = $smsg->from_name;
-		$f = PublicInbox::Hval->new_oneline($f)->as_html;
+		my $s = ascii_html($smsg->subject);
+		my $f = ascii_html($smsg->from_name);
 		my $ts = PublicInbox::View::fmt_ts($smsg->ts);
 		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->as_href;
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
-			$s->as_html . "</a></b>\n";
+			$s . "</a></b>\n";
 		$$res .= "$pfx  - by $f @ $ts UTC [$pct%]\n\n";
 	}
 }
@@ -84,7 +83,7 @@ sub err_txt {
 	my $u = '//xapian.org/docs/queryparser.html';
 	$u = PublicInbox::Hval::prurl($ctx->{cgi}->{env}, $u);
 	$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
-	$err = PublicInbox::Hval->new_oneline($err)->as_html;
+	$err = ascii_html($err);
 	"\n\nBad query: <b>$err</b>\n" .
 		qq{See <a\nhref="$u">$u</a> for Xapian query syntax};
 }
@@ -222,9 +221,7 @@ sub foot {
 
 sub html_start {
 	my ($q, $ctx) = @_;
-	my $query = PublicInbox::Hval->new_oneline($q->{q});
-
-	my $qh = $query->as_html;
+	my $qh = ascii_html($q->{'q'});
 	my $A = $q->qs_html(x => 'A', r => undef);
 	my $res = '<html><head>' . PublicInbox::Hval::STYLE .
 		"<title>$qh - search results</title>" .
@@ -235,8 +232,8 @@ sub html_start {
 
 	$res .= qq{<input\ntype=hidden\nname=r />} if $q->{r};
 	if (my $x = $q->{x}) {
-		my $xh = PublicInbox::Hval->new_oneline($x)->as_html;
-		$res .= qq{<input\ntype=hidden\nname=x\nvalue="$xh" />};
+		$x = ascii_html($x);
+		$res .= qq{<input\ntype=hidden\nname=x\nvalue="$x" />};
 	}
 
 	$res .= qq{<input\ntype=submit\nvalue=search /></form>};
@@ -247,7 +244,7 @@ sub adump {
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my $feed_opts = PublicInbox::Feed::get_feedopts($ctx);
-	my $x = PublicInbox::Hval->new_oneline($q->{q})->as_html;
+	my $x = ascii_html($q->{'q'});
 	$x = qq{$x - search results};
 	$feed_opts->{atomurl} = $feed_opts->{url} . '?'. $q->qs_html;
 	$feed_opts->{url} .= '?'. $q->qs_html(x => undef);
@@ -289,7 +286,7 @@ sub qs_html {
 		$self = $tmp;
 	}
 
-	my $q = PublicInbox::Hval->new_oneline($self->{q})->as_href;
+	my $q = PublicInbox::Hval->new($self->{'q'})->as_href;
 	$q =~ s/%20/+/g; # improve URL readability
 	my $qs = "q=$q";
 

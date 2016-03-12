@@ -9,6 +9,8 @@ use warnings;
 use Encode qw(find_encoding);
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::MID qw/mid_clean/;
+use base qw/Exporter/;
+our @EXPORT_OK = qw/ascii_html/;
 
 # for user-generated content (UGC) which may have excessively long lines
 # and screw up rendering on some browsers.  This is the only CSS style

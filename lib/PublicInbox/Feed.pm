@@ -8,7 +8,7 @@ use warnings;
 use Email::Address;
 use Email::MIME;
 use Date::Parse qw(strptime);
-use PublicInbox::Hval;
+use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Git;
 use PublicInbox::View;
 use PublicInbox::MID qw/mid_clean mid2path/;
@@ -38,8 +38,9 @@ sub generate_html_index {
 
 sub title_tag {
 	my ($title) = @_;
+	$title =~ tr/\t\n / /s; # squeeze spaces
 	# try to avoid the type attribute in title:
-	$title = PublicInbox::Hval->new_oneline($title)->as_html;
+	$title =~ ascii_html($title);
 	my $type = index($title, '&') >= 0 ? "\ntype=\"html\"" : '';
 	"<title$type>$title</title>";
 }
@@ -117,7 +118,6 @@ sub emit_html_index {
 	my $feed_opts = get_feedopts($ctx);
 
 	my $title = $feed_opts->{description} || '';
-	$title = PublicInbox::Hval->new_oneline($title)->as_html;
 	my ($footer, $param, $last);
 	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0 };
 	my $srch = $ctx->{srch};
@@ -295,11 +295,6 @@ sub get_feedopts {
 	\%rv;
 }
 
-sub mime_header {
-	my ($mime, $name) = @_;
-	PublicInbox::Hval->new_oneline($mime->header($name))->raw;
-}
-
 sub feed_updated {
 	my ($date, $ts) = @_;
 	my @t = eval { strptime($date) } if defined $date;
@@ -328,14 +323,15 @@ sub add_to_feed {
 	my $date = $header_obj->header('Date');
 	my $updated = feed_updated($date);
 
-	my $title = mime_header($header_obj, 'Subject') or return 0;
+	my $title = $header_obj->header('Subject');
+	defined $title or return 0;
 	$title = title_tag($title);
 
-	my $from = mime_header($header_obj, 'From') or return 0;
+	my $from = $header_obj->header('From') or return 0;
 	my @from = Email::Address->parse($from) or return 0;
-	my $name = PublicInbox::Hval->new_oneline($from[0]->name)->as_html;
+	my $name = ascii_html($from[0]->name);
 	my $email = $from[0]->address;
-	$email = PublicInbox::Hval->new_oneline($email)->as_html;
+	$email = ascii_html($email);
 
 	if (delete $feed_opts->{emit_header}) {
 		$fh->write(atom_header($feed_opts, $title) . $updated);

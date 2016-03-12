@@ -11,7 +11,7 @@ use Date::Parse qw/str2time/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
 use Email::MIME::ContentType qw/parse_content_type/;
-use PublicInbox::Hval;
+use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
 require POSIX;
@@ -21,8 +21,6 @@ use constant MAX_INLINE_QUOTED => 12; # half an 80x24 terminal
 use constant MAX_TRUNC_LEN => 72;
 use constant T_ANCHOR => '#u';
 use constant INDENT => '  ';
-
-*ascii_html = *PublicInbox::Hval::ascii_html;
 
 my $enc_utf8 = find_encoding('UTF-8');
 
@@ -50,10 +48,9 @@ sub msg_reply {
 	$s = '(no subject)' if (!defined $s) || ($s eq '');
 	my $f = $hdr->header('From');
 	$f = '' unless defined $f;
-	$s = PublicInbox::Hval->new_oneline($s);
 	my $mid = $hdr->header_raw('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $t = $s->as_html;
+	my $t = ascii_html($s);
 	my $se_url =
 	 'https://kernel.org/pub/software/scm/git/docs/git-send-email.html';
 
@@ -121,18 +118,18 @@ sub index_entry {
 	$seen->{$id} = "#$id"; # save the anchor for children, later
 
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
-	my $from = PublicInbox::Hval->new_oneline($hdr->header('From'))->raw;
+	my $from = $hdr->header('From');
 	my @from = Email::Address->parse($from);
 	$from = $from[0]->name;
 
-	$from = PublicInbox::Hval->new_oneline($from)->as_html;
-	$subj = PublicInbox::Hval->new_oneline($subj)->as_html;
 	my $root_anchor = $state->{root_anchor} || '';
 	my $path = $root_anchor ? '../../' : '';
 	my $href = $mid->as_href;
 	my $irt = in_reply_to($hdr);
 	my $parent_anchor = $seen->{anchor_for($irt)} if defined $irt;
 
+	$from = ascii_html($from);
+	$subj = ascii_html($subj);
 	if ($srch) {
 		my $t = $ctx->{flat} ? 'T' : 't';
 		$subj = "<a\nhref=\"${path}$href/$t/#u\">$subj</a>";
@@ -414,7 +411,7 @@ sub headers_to_html_header {
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $hdr->header($h);
 		defined($v) && ($v ne '') or next;
-		$v = PublicInbox::Hval->new_oneline($v);
+		$v = PublicInbox::Hval->new($v);
 
 		if ($h eq 'From') {
 			my @from = Email::Address->parse($v->raw);
@@ -582,7 +579,7 @@ sub html_footer {
 		my $p = $ctx->{parent_msg};
 		my $next = $ctx->{next_msg};
 		if ($p) {
-			$p = PublicInbox::Hval->new_oneline($p);
+			$p = PublicInbox::Hval->new_msgid($p);
 			$p = $p->as_href;
 			$irt = "<a\nhref=\"$upfx$p/\">parent</a> ";
 		} else {
@@ -626,8 +623,7 @@ sub thread_html_head {
 	my ($cb, $header, $state) = @_;
 	$$cb = $$cb->([200, ['Content-Type'=> 'text/html; charset=UTF-8']]);
 
-	my $s = PublicInbox::Hval->new_oneline($header->header('Subject'));
-	$s = $s->as_html;
+	my $s = ascii_html($header->header('Subject'));
 	$$cb->write("<html><head><title>$s</title>".
 		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 		qq!href="../t.atom"\ntype="application/atom+xml"/>! .
@@ -781,9 +777,8 @@ sub _inline_header {
 
 	my $cur = $state->{cur};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
-	my $f = $hdr->header('X-PI-From');
+	my $f = ascii_html($hdr->header('X-PI-From'));
 	my $d = _msg_date($hdr);
-	$f = PublicInbox::Hval->new_oneline($f)->as_html;
 	my $pfx = ' ' . $d . ' ' . indent_for($level);
 	my $attr = $f;
 	$state->{first_level} ||= $level;
