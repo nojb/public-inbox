@@ -12,7 +12,9 @@ PublicInbox::WWW->preload;
 use Plack::Builder;
 my $www = PublicInbox::WWW->new;
 builder {
-	enable 'Chunked';
+	# Chunked middleware conflicts with Starman:
+	# https://github.com/miyagawa/Starman/issues/23
+	# enable 'Chunked';
 	eval {
 		enable 'Deflater',
 			content_type => [ qw(
