@@ -8,6 +8,7 @@ use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
+use Cwd qw/abs_path/;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 require Danga::Socket;
@@ -91,7 +92,24 @@ sub daemon_prepare ($) {
 	die "No listeners bound\n" unless @listeners;
 }
 
+sub check_absolute ($$) {
+	my ($var, $val) = @_;
+	if (defined $val && index($val, '/') != 0) {
+		die
+"--$var must be an absolute path when using --daemonize: $val\n";
+	}
+}
+
 sub daemonize () {
+	foreach my $i (0..$#ARGV) {
+		my $arg = $ARGV[$i];
+		next unless -e $arg;
+		$ARGV[$i] = abs_path($arg);
+	}
+	check_absolute('stdout', $stdout);
+	check_absolute('stderr', $stderr);
+	check_absolute('pid-file', $pid_file);
+
 	chdir '/' or die "chdir failed: $!";
 	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!";
 
