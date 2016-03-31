@@ -82,6 +82,12 @@ sub event_hup { $_[0]->{cb}->() }
 sub event_err { $_[0]->{cb}->() }
 sub sysread { shift->{sock}->sysread(@_) }
 
+sub close {
+	my $self = shift;
+	$self->{cb} = undef;
+	$self->SUPER::close(@_);
+}
+
 1;
 
 package PublicInbox::HTTPD;
