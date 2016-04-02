@@ -27,11 +27,7 @@ my $enc_utf8 = find_encoding('UTF-8');
 # public functions:
 sub msg_html {
 	my ($ctx, $mime, $full_pfx, $footer) = @_;
-	if (defined $footer) {
-		$footer = "\n" . $footer;
-	} else {
-		$footer = '';
-	}
+	$footer = defined($footer) ? "\n$footer" : '';
 	my $hdr = $mime->header_obj;
 	headers_to_html_header($hdr, $full_pfx, $ctx) .
 		multipart_text_as_html($mime, $full_pfx) .
@@ -102,7 +98,7 @@ sub in_reply_to {
 
 # this is already inside a <pre>
 sub index_entry {
-	my ($fh, $mime, $level, $state) = @_;
+	my ($mime, $level, $state) = @_;
 	my $midx = $state->{anchor_idx}++;
 	my $ctx = $state->{ctx};
 	my $srch = $ctx->{srch};
@@ -146,6 +142,7 @@ sub index_entry {
 	if ($prev >= 0) {
 		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
 	}
+	my $fh = $state->{fh};
 	$fh->write($rv .= "\n\n");
 
 	my ($fhref, $more_ref);
@@ -192,22 +189,22 @@ sub index_entry {
 
 sub thread_html {
 	my ($ctx, $foot, $srch) = @_;
+	# $_[0] in sub is the Plack callback
 	sub { emit_thread_html($_[0], $ctx, $foot, $srch) }
 }
 
 # only private functions below.
 
 sub emit_thread_html {
-	my ($cb, $ctx, $foot, $srch) = @_;
+	my ($res, $ctx, $foot, $srch) = @_;
 	my $mid = $ctx->{mid};
-	my $res = $srch->get_thread($mid);
-	my $msgs = load_results($res);
+	my $msgs = load_results($srch->get_thread($mid));
 	my $nr = scalar @$msgs;
-	return missing_thread($cb, $ctx) if $nr == 0;
+	return missing_thread($res, $ctx) if $nr == 0;
 	my $flat = $ctx->{flat};
-	my $orig_cb = $cb;
 	my $seen = {};
 	my $state = {
+		res => $res,
 		ctx => $ctx,
 		seen => $seen,
 		root_anchor => anchor_for($mid),
@@ -216,23 +213,23 @@ sub emit_thread_html {
 	};
 
 	require PublicInbox::Git;
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
+	$ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	if ($flat) {
 		pre_anchor_entry($seen, $_) for (@$msgs);
-		__thread_entry(\$cb, $git, $state, $_, 0) for (@$msgs);
+		__thread_entry($state, $_, 0) for (@$msgs);
 	} else {
 		my $th = thread_results($msgs);
-		thread_entry(\$cb, $git, $state, $_, 0) for $th->rootset;
+		thread_entry($state, $_, 0) for $th->rootset;
 		if (my $max = $state->{cur_level}) {
-			$cb->write(('</ul></li>' x ($max - 1)) . '</ul>');
+			$state->{fh}->write(
+				('</ul></li>' x ($max - 1)) . '</ul>');
 		}
 	}
-	$git = undef;
 	Email::Address->purge_cache;
 
 	# there could be a race due to a message being deleted in git
 	# but still being in the Xapian index:
-	return missing_thread($cb, $ctx) if ($orig_cb eq $cb);
+	my $fh = delete $state->{fh} or return missing_thread($res, $ctx);
 
 	my $final_anchor = $state->{anchor_idx};
 	my $next = "<a\nid=s$final_anchor>";
@@ -241,9 +238,9 @@ sub emit_thread_html {
 	$next .= "\ndownload thread: ";
 	$next .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
-	$cb->write('<hr /><pre>' . $next . "\n\n".
+	$fh->write('<hr /><pre>' . $next . "\n\n".
 			$foot .  '</pre></body></html>');
-	$cb->close;
+	$fh->close;
 }
 
 sub index_walk {
@@ -450,8 +447,8 @@ sub thread_inline {
 	my ($dst, $ctx, $hdr, $upfx) = @_;
 	my $srch = $ctx->{srch};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
-	my $res = $srch->get_thread($mid);
-	my $nr = $res->{total};
+	my $sres = $srch->get_thread($mid);
+	my $nr = $sres->{total};
 	my $expand = "<a\nhref=\"${upfx}t/#u\">expand</a> " .
 			"/ <a\nhref=\"${upfx}t.mbox.gz\">mbox.gz</a>";
 
@@ -485,7 +482,7 @@ sub thread_inline {
 		prev_attr => '',
 		prev_level => 0,
 	};
-	for (thread_results(load_results($res))->rootset) {
+	for (thread_results(load_results($sres))->rootset) {
 		inline_dump($dst, $state, $upfx, $_, 0);
 	}
 	$$dst .= "<a\nid=b></a>"; # anchor for body start
@@ -620,11 +617,13 @@ sub anchor_for {
 }
 
 sub thread_html_head {
-	my ($cb, $header, $state) = @_;
-	$$cb = $$cb->([200, ['Content-Type'=> 'text/html; charset=UTF-8']]);
+	my ($hdr, $state) = @_;
+	my $res = delete $state->{res} or die "BUG: no Plack callback in {res}";
+	my $fh = $res->([200, ['Content-Type'=> 'text/html; charset=UTF-8']]);
+	$state->{fh} = $fh;
 
-	my $s = ascii_html($header->header('Subject'));
-	$$cb->write("<html><head><title>$s</title>".
+	my $s = ascii_html($hdr->header('Subject'));
+	$fh->write("<html><head><title>$s</title>".
 		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
 		qq!href="../t.atom"\ntype="application/atom+xml"/>! .
 		PublicInbox::Hval::STYLE .
@@ -649,7 +648,7 @@ sub ghost_parent {
 }
 
 sub thread_adj_level {
-	my ($fh, $state, $level) = @_;
+	my ($state, $level) = @_;
 
 	my $max = $state->{cur_level};
 	if ($level <= 0) {
@@ -657,52 +656,48 @@ sub thread_adj_level {
 
 		# reset existing lists
 		my $x = $max > 1 ? ('</ul></li>' x ($max - 1)) : '';
-		$fh->write($x . '</ul>');
+		$state->{fh}->write($x . '</ul>');
 		$state->{cur_level} = 0;
 		return '';
 	}
 	if ($level == $max) { # continue existing list
-		$fh->write('<li>');
+		$state->{fh}->write('<li>');
 	} elsif ($level < $max) {
 		my $x = $max > 1 ? ('</ul></li>' x ($max - $level)) : '';
-		$fh->write($x .= '<li>');
+		$state->{fh}->write($x .= '<li>');
 		$state->{cur_level} = $level;
 	} else { # ($level > $max) # start a new level
 		$state->{cur_level} = $level;
-		$fh->write(($max ? '<li>' : '') . '<ul><li>');
+		$state->{fh}->write(($max ? '<li>' : '') . '<ul><li>');
 	}
 	'</li>';
 }
 
 sub ghost_flush {
-	my ($fh, $state, $upfx, $mid, $level) = @_;
-
-	my $end = thread_adj_level($fh, $state, $level);
-	$fh->write('<pre>'. ghost_parent($upfx, $mid) .  '</pre>' . $end);
+	my ($state, $upfx, $mid, $level) = @_;
+	my $end = '<pre>'. ghost_parent($upfx, $mid) . '</pre>';
+	$state->{fh}->write($end .= thread_adj_level($state, $level));
 }
 
 sub __thread_entry {
-	my ($cb, $git, $state, $mime, $level) = @_;
+	my ($state, $mime, $level) = @_;
 
 	# lazy load the full message from mini_mime:
 	$mime = eval {
 		my $path = mid2path(mid_clean(mid_mime($mime)));
-		Email::MIME->new($git->cat_file('HEAD:'.$path));
+		Email::MIME->new($state->{ctx}->{git}->cat_file('HEAD:'.$path));
 	} or return;
 
-	if ($state->{anchor_idx} == 0) {
-		thread_html_head($cb, $mime, $state, $level);
-	}
-	my $fh = $$cb;
+	thread_html_head($mime, $state) if $state->{anchor_idx} == 0;
 	if (my $ghost = delete $state->{ghost}) {
 		# n.b. ghost messages may only be parents, not children
 		foreach my $g (@$ghost) {
-			ghost_flush($fh, $state, '../../', @$g);
+			ghost_flush($state, '../../', @$g);
 		}
 	}
-	my $end = thread_adj_level($fh, $state, $level);
-	index_entry($fh, $mime, $level, $state);
-	$fh->write($end) if $end;
+	my $end = thread_adj_level($state, $level);
+	index_entry($mime, $level, $state);
+	$state->{fh}->write($end) if $end;
 
 	1;
 }
@@ -719,24 +714,24 @@ sub __ghost_prepare {
 }
 
 sub thread_entry {
-	my ($cb, $git, $state, $node, $level) = @_;
+	my ($state, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
-		unless (__thread_entry($cb, $git, $state, $mime, $level)) {
+		unless (__thread_entry($state, $mime, $level)) {
 			__ghost_prepare($state, $node, $level);
 		}
 	} else {
 		__ghost_prepare($state, $node, $level);
 	}
 
-	thread_entry($cb, $git, $state, $node->child, $level + 1);
-	thread_entry($cb, $git, $state, $node->next, $level);
+	thread_entry($state, $node->child, $level + 1);
+	thread_entry($state, $node->next, $level);
 }
 
 sub load_results {
-	my ($res) = @_;
+	my ($sres) = @_;
 
-	[ map { $_->mini_mime } @{delete $res->{msgs}} ];
+	[ map { $_->mini_mime } @{delete $sres->{msgs}} ];
 }
 
 sub msg_timestamp {
@@ -757,10 +752,10 @@ sub thread_results {
 }
 
 sub missing_thread {
-	my ($cb, $ctx) = @_;
+	my ($res, $ctx) = @_;
 	require PublicInbox::ExtMsg;
 
-	$cb->(PublicInbox::ExtMsg::ext_msg($ctx))
+	$res->(PublicInbox::ExtMsg::ext_msg($ctx))
 }
 
 sub _msg_date {
@@ -913,13 +908,11 @@ sub dump_topics {
 		my $dot = $level == 0 ? '' : '` ';
 		$dst .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
 
-		my $attr;
 		$ts = fmt_ts($ts);
-		$attr = " $ts UTC";
+		my $attr = " $ts UTC";
 
 		# $n isn't the total number of posts on the topic,
-		# just the number of posts in the current results
-		# window, so leave it unlabeled
+		# just the number of posts in the current results window
 		$n = $n == 1 ? '' : " ($n+ messages)";
 
 		if ($level == 0 || $attr ne $prev_attr) {
@@ -934,7 +927,7 @@ sub dump_topics {
 }
 
 sub emit_index_topics {
-	my ($state, $fh) = @_;
+	my ($state) = @_;
 	my $off = $state->{ctx}->{cgi}->param('o');
 	$off = 0 unless defined $off;
 	$state->{order} = [];
@@ -943,16 +936,16 @@ sub emit_index_topics {
 	my $max = 25;
 	my %opts = ( offset => int $off, limit => $max * 4 );
 	while (scalar @{$state->{order}} < $max) {
-		my $res = $state->{srch}->query('', \%opts);
-		my $nr = scalar @{$res->{msgs}} or last;
+		my $sres = $state->{srch}->query('', \%opts);
+		my $nr = scalar @{$sres->{msgs}} or last;
 
-		for (rsort_ts(thread_results(load_results($res), 1)->rootset)) {
+		for (rsort_ts(thread_results(load_results($sres), 1)->rootset)){
 			add_topic($state, $_, 0);
 		}
 		$opts{offset} += $nr;
 	}
 
-	$fh->write(dump_topics($state));
+	$state->{fh}->write(dump_topics($state));
 	$opts{offset};
 }
 

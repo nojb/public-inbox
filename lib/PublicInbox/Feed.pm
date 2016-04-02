@@ -111,15 +111,15 @@ sub emit_atom_thread {
 }
 
 sub emit_html_index {
-	my ($cb, $ctx) = @_;
-	my $fh = $cb->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
+	my ($res, $ctx) = @_;
+	my $fh = $res->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
 
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $feed_opts = get_feedopts($ctx);
 
 	my $title = ascii_html($feed_opts->{description} || '');
 	my ($footer, $param, $last);
-	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0 };
+	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0, fh => $fh };
 	my $srch = $ctx->{srch};
 
 	my $top = "<b>$title</b> (<a\nhref=\"new.atom\">Atom feed</a>)";
@@ -144,10 +144,10 @@ sub emit_html_index {
 	my $cgi = $ctx->{cgi};
 	if ($cgi && !$cgi->param('r') && $srch) {
 		$state->{srch} = $srch;
-		$last = PublicInbox::View::emit_index_topics($state, $fh);
+		$last = PublicInbox::View::emit_index_topics($state);
 		$param = 'o';
 	} else {
-		$last = emit_index_nosrch($ctx, $state, $fh);
+		$last = emit_index_nosrch($ctx, $state);
 		$param = 'r';
 	}
 	$footer = nav_footer($cgi, $last, $feed_opts, $state, $param);
@@ -161,14 +161,14 @@ sub emit_html_index {
 }
 
 sub emit_index_nosrch {
-	my ($ctx, $state, $fh) = @_;
+	my ($ctx, $state) = @_;
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my (undef, $last) = each_recent_blob($ctx, sub {
 		my ($path, $commit, $ts, $u, $subj) = @_;
 		$state->{first} ||= $commit;
 
 		my $mime = do_cat_mail($git, $path) or return 0;
-		PublicInbox::View::index_entry($fh, $mime, 0, $state);
+		PublicInbox::View::index_entry($mime, 0, $state);
 		1;
 	});
 	Email::Address->purge_cache;

@@ -174,11 +174,12 @@ sub tdump {
 		ctx => $ctx,
 		anchor_idx => 0,
 		pct => \%pct,
-		cur_level => 0
+		cur_level => 0,
+		fh => $fh,
 	};
 	$ctx->{searchview} = 1;
-	tdump_ent($fh, $git, $state, $_, 0) for $th->rootset;
-	PublicInbox::View::thread_adj_level($fh, $state, 0);
+	tdump_ent($git, $state, $_, 0) for $th->rootset;
+	PublicInbox::View::thread_adj_level($state, 0);
 	Email::Address->purge_cache;
 
 	$fh->write(search_nav_bot($mset, $q). "\n\n" .
@@ -188,7 +189,7 @@ sub tdump {
 }
 
 sub tdump_ent {
-	my ($fh, $git, $state, $node, $level) = @_;
+	my ($git, $state, $node, $level) = @_;
 	return unless $node;
 	my $mime = $node->message;
 
@@ -201,16 +202,15 @@ sub tdump_ent {
 		};
 	}
 	if ($mime) {
-		my $end =
-		  PublicInbox::View::thread_adj_level($fh, $state, $level);
-		PublicInbox::View::index_entry($fh, $mime, $level, $state);
-		$fh->write($end) if $end;
+		my $end = PublicInbox::View::thread_adj_level($state, $level);
+		PublicInbox::View::index_entry($mime, $level, $state);
+		$state->{fh}->write($end) if $end;
 	} else {
 		my $mid = $node->messageid;
-		PublicInbox::View::ghost_flush($fh, $state, '', $mid, $level);
+		PublicInbox::View::ghost_flush($state, '', $mid, $level);
 	}
-	tdump_ent($fh, $git, $state, $node->child, $level + 1);
-	tdump_ent($fh, $git, $state, $node->next, $level);
+	tdump_ent($git, $state, $node->child, $level + 1);
+	tdump_ent($git, $state, $node->next, $level);
 }
 
 sub foot {
