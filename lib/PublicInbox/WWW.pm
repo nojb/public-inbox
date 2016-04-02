@@ -277,12 +277,11 @@ sub footer {
 	my $ssoma_url = PublicInbox::Hval::prurl($cgi->{env}, SSOMA_URL);
 	if (scalar(@urls) == 1) {
 		$urls = "URL for <a\nhref=\"" . $ssoma_url .
-			qq(">ssoma</a> or <b>git clone --mirror \$URL</b> :) .
-			$urls[0];
+			qq(">ssoma</a> or <b>git clone --mirror $urls[0]</b>);
 	} else {
 		$urls = "URLs for <a\nhref=\"" . $ssoma_url .
-			qq(">ssoma</a> or <b>git clone --mirror \$URL</b>\n) .
-			join("\n", map { "\t$_" } @urls);
+			qq(">ssoma</a> or <b>git clone --mirror</b>\n) .
+			join("\n", map { "\tgit clone --mirror $_" } @urls);
 	}
 
 	my $addr = $ctx->{pi_config}->get($listname, 'address');
