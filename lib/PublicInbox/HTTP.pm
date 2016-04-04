@@ -169,8 +169,8 @@ sub response_header_write {
 
 	my $conn = $env->{HTTP_CONNECTION} || '';
 	my $alive = (defined($len) || $chunked) &&
-			($proto eq 'HTTP/1.1' && $conn !~ /\bclose\b/i) ||
-			($conn =~ /\bkeep-alive\b/i);
+			(($proto eq 'HTTP/1.1' && $conn !~ /\bclose\b/i) ||
+			 ($conn =~ /\bkeep-alive\b/i));
 
 	$h .= 'Connection: ' . ($alive ? 'keep-alive' : 'close');
 	$h .= "\r\nDate: " . http_date() . "\r\n\r\n";
