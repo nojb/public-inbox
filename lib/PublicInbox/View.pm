@@ -102,7 +102,6 @@ sub index_entry {
 	my $midx = $state->{anchor_idx}++;
 	my $ctx = $state->{ctx};
 	my $srch = $ctx->{srch};
-	my ($prev, $next) = ($midx - 1, $midx + 1);
 	my $part_nr = 0;
 	my $hdr = $mime->header_obj;
 	my $enc = enc_for($hdr->header("Content-Type"));
@@ -126,44 +125,30 @@ sub index_entry {
 
 	$from = ascii_html($from);
 	$subj = ascii_html($subj);
-	if ($srch) {
-		my $t = $ctx->{flat} ? 'T' : 't';
-		$subj = "<a\nhref=\"${path}$href/$t/#u\">$subj</a>";
-	}
-	if ($root_anchor eq $id) {
-		$subj = "<u\nid=u>$subj</u>";
-	}
+	$subj = "<a\nhref=\"${path}$href/\">$subj</a>";
+	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id;
 
 	my $ts = _msg_date($hdr);
 	my $rv = "<pre\nid=s$midx>";
 	$rv .= "<b\nid=$id>$subj</b>\n";
-	$rv .= "- $from @ $ts UTC - ";
-	$rv .= "<a\nhref=\"#s$next\">next</a>";
-	if ($prev >= 0) {
-		$rv .= "/<a\nhref=\"#s$prev\">prev</a>";
-	}
+	my $txt = "${path}$href/raw";
 	my $fh = $state->{fh};
-	$fh->write($rv .= "\n\n");
+	$fh->write($rv .= "- $from @ $ts UTC (<a\nhref=\"$txt\">raw</a>)\n\n");
 
-	my ($fhref, $more_ref);
+	my $fhref;
 	my $mhref = "${path}$href/";
-	my $more = 'permalink';
 
 	# show full message if it's our root message
 	my $neq = $root_anchor ne $id;
 	if ($neq || ($neq && $level != 0 && !$ctx->{flat})) {
 		$fhref = "${path}$href/f/";
-		$more_ref = \$more;
 	}
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		index_walk($fh, $_[0], $enc, \$part_nr, $fhref, $more_ref);
+		index_walk($fh, $_[0], $enc, \$part_nr, $fhref);
 	});
 	$mime->body_set('');
-
-	my $txt = "${path}$href/raw";
-	$rv = "\n<a\nhref=\"$mhref\">$more</a> <a\nhref=\"$txt\">raw</a> ";
-	$rv .= html_footer($hdr, 0, undef, $ctx, $mhref);
+	$rv = "\n" . html_footer($hdr, 0, undef, $ctx, $mhref);
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
@@ -176,13 +161,15 @@ sub index_entry {
 	if (my $pct = $state->{pct}) { # used by SearchView.pm
 		$rv .= " [relevance $pct->{$mid_raw}%]";
 	} elsif ($srch) {
+		my $threaded = 'threaded';
+		my $flat = 'flat';
 		if ($ctx->{flat}) {
-			$rv .= " [<a\nhref=\"${path}$href/t/#u\">threaded</a>" .
-				"|<b>flat</b>]";
+			$flat = "<b>$flat</b>";
 		} else {
-			$rv .= " [<b>threaded</b>|" .
-				"<a\nhref=\"${path}$href/T/#u\">flat</a>]";
+			$threaded = "<b>$threaded</b>";
 		}
+		$rv .= " [<a\nhref=\"${path}$href/t/#u\">$threaded</a>";
+		$rv .= "|<a\nhref=\"${path}$href/T/#u\">$flat</a>]";
 	}
 	$fh->write($rv .= '</pre>');
 }
@@ -244,8 +231,8 @@ sub emit_thread_html {
 }
 
 sub index_walk {
-	my ($fh, $part, $enc, $part_nr, $fhref, $more) = @_;
-	my $s = add_text_body($enc, $part, $part_nr, $fhref);
+	my ($fh, $part, $enc, $part_nr, $fhref) = @_;
+	my $s = add_text_body($enc, $part, $part_nr, $fhref, 1);
 
 	return if $s eq '';
 
