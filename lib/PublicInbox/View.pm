@@ -819,13 +819,18 @@ sub inline_dump {
 		my $mid = mid_clean($hdr->header_raw('Message-ID'));
 		_inline_header($dst, $state, $upfx, $hdr, $level);
 	} else {
-		my $dot = $level == 0 ? '' : '` ';
-		my $pfx = '      [not found] ' .  indent_for($level) . $dot;
-		$$dst .= $pfx;
-		my $mid = PublicInbox::Hval->new_msgid($node->messageid);
-		my $href = $mid->as_href;
-		my $html = $mid->as_html;
-		$$dst .= qq{&lt;<a\nhref="$upfx../$href/">$html</a>&gt;\n};
+		my $mid = $node->messageid;
+		if ($mid eq 'subject dummy') {
+			$$dst .= "\t[no common parent]\n";
+		} else {
+			$$dst .= '      [not found] ';
+			my $dot = $level == 0 ? '' : '` ';
+			$$dst .= indent_for($level) . $dot;
+			$mid = PublicInbox::Hval->new_msgid($mid);
+			my $href = "$upfx../" . $mid->as_href . '/';
+			my $html = $mid->as_html;
+			$$dst .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
+		}
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
