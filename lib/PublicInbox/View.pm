@@ -820,10 +820,12 @@ sub inline_dump {
 		_inline_header($dst, $state, $upfx, $hdr, $level);
 	} else {
 		my $dot = $level == 0 ? '' : '` ';
-		my $pfx = (' ' x length(' 1970-01-01 13:37 ')).
-			indent_for($level) . $dot;
+		my $pfx = '      [not found] ' .  indent_for($level) . $dot;
 		$$dst .= $pfx;
-		$$dst .= ghost_parent("$upfx../", $node->messageid) . "\n";
+		my $mid = PublicInbox::Hval->new_msgid($node->messageid);
+		my $href = $mid->as_href;
+		my $html = $mid->as_html;
+		$$dst .= qq{&lt;<a\nhref="$upfx../$href/">$html</a>&gt;\n};
 	}
 	inline_dump($dst, $state, $upfx, $node->child, $level+1);
 	inline_dump($dst, $state, $upfx, $node->next, $level);
