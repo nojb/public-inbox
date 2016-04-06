@@ -151,7 +151,7 @@ sub response_header_write {
 	my $proto = $env->{SERVER_PROTOCOL} or return; # HTTP/0.9 :P
 	my $status = $res->[0];
 	my $h = "$proto $status " . status_message($status) . "\r\n";
-	my ($len, $chunked);
+	my $term;
 	my $headers = $res->[1];
 
 	for (my $i = 0; $i < @$headers; $i += 2) {
@@ -159,33 +159,32 @@ sub response_header_write {
 		my $v = $headers->[$i + 1];
 		next if $k =~ /\A(?:Connection|Date)\z/i;
 
-		$len = $v if $k =~ /\AContent-Length\z/i;
-		if ($k =~ /\ATransfer-Encoding\z/i && $v =~ /\bchunked\b/i) {
-			$chunked = 1;
+		if ($k =~ /\AContent-Length\z/ ||
+		    ($k =~ /\ATransfer-Encoding\z/i && $v =~ /\bchunked\b/i)) {
+			$term = 1;
 		}
-
 		$h .= "$k: $v\r\n";
 	}
 
 	my $conn = $env->{HTTP_CONNECTION} || '';
-	my $alive = (defined($len) || $chunked) &&
+	my $alive = $term &&
 			(($proto eq 'HTTP/1.1' && $conn !~ /\bclose\b/i) ||
 			 ($conn =~ /\bkeep-alive\b/i));
 
 	$h .= 'Connection: ' . ($alive ? 'keep-alive' : 'close');
 	$h .= "\r\nDate: " . http_date() . "\r\n\r\n";
 
-	if (($len || $chunked) && $env->{REQUEST_METHOD} ne 'HEAD') {
+	if ($term && $env->{REQUEST_METHOD} ne 'HEAD') {
 		more($self, $h);
 	} else {
 		$self->write($h);
 	}
-	($alive, $chunked);
+	$alive;
 }
 
 sub response_write {
 	my ($self, $env, $res) = @_;
-	my ($alive, $chunked) = response_header_write($self, $env, $res);
+	my $alive = response_header_write($self, $env, $res);
 	my $write = sub { $self->write($_[0]) };
 	my $close = sub {
 		if ($alive) {
