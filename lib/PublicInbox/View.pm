@@ -464,8 +464,6 @@ sub thread_inline {
 		seen => { $subj => 1 },
 		srch => $srch,
 		cur => $mid,
-		parent_cmp => defined $parent ? $parent : '',
-		parent => $parent,
 		prev_attr => '',
 		prev_level => 0,
 	};
@@ -474,7 +472,7 @@ sub thread_inline {
 	}
 	$$dst .= "<a\nid=b></a>"; # anchor for body start
 	$ctx->{next_msg} = $state->{next_msg};
-	$ctx->{parent_msg} = $state->{parent};
+	$ctx->{parent_msg} = $parent;
 }
 
 sub _parent_headers_nosrch {
@@ -811,9 +809,6 @@ sub inline_dump {
 	if (my $mime = $node->message) {
 		my $hdr = $mime->header_obj;
 		my $mid = mid_clean($hdr->header_raw('Message-ID'));
-		if ($mid eq $state->{parent_cmp}) {
-			$state->{parent} = $mid;
-		}
 		_inline_header($dst, $state, $upfx, $hdr, $level);
 	} else {
 		my $dot = $level == 0 ? '' : '` ';
