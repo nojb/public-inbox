@@ -297,24 +297,6 @@ sub count_body_parts {
 	like($s->as_string, qr/scrubbed/, "scrubbed message");
 }
 
-{
-	my $s = Email::MIME->create(
-		header => [
-			From => 'a@example.com',
-			To => 'b@example.com',
-			'Content-Type' => 'text/plain',
-			'Mail-Followup-To' => 'c@example.com',
-			Subject => 'mfttest',
-		],
-		body => "mft\n",
-	);
-
-	is('c@example.com', $s->header("Mail-Followup-To"),
-		"mft set correctly");
-	is(1, PublicInbox::Filter->run($s), "run succeeded for mft");
-	is(undef, $s->header("Mail-Followup-To"), "mft stripped");
-}
-
 # multi-part with application/octet-stream
 {
 	my $os = 'application/octet-stream';
