@@ -162,11 +162,16 @@ sub add {
 	unless ($parent) {
 		print $w "reset $ref\n" or wfail;
 	}
+
+	# quiet down wide character warnings:
+	binmode $w, ':utf8' or die "binmode :utf8 failed: $!";
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $date\n",
 		"committer $self->{ident} ", now2822(), "\n",
 		"data ", (length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
+	binmode $w, ':raw' or die "binmode :raw failed: $!";
+
 	if ($tip ne '') {
 		print $w 'from ', ($parent ? $parent : $tip), "\n" or wfail;
 	}
