@@ -17,7 +17,12 @@ if ($train !~ /\A(?:ham|spam)\z/) {
 }
 
 my $pi_config = PublicInbox::Config->new;
-my $mime = Email::MIME->new(eval { local $/; <> });
+my $mime = Email::MIME->new(eval {
+	local $/;
+	my $data = scalar <STDIN>;
+	$data =~ s/\AFrom [^\r\n]*\r?\n//s;
+	$data
+});
 
 # get all recipients
 my %dests;
