@@ -168,7 +168,7 @@ sub add {
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $date\n",
 		"committer $self->{ident} ", now2822(), "\n",
-		"data ", (length($subject) + 1), "\n",
+		"data ", (bytes::length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
 	binmode $w, ':raw' or die "binmode :raw failed: $!";
 
