@@ -67,9 +67,7 @@ sub emit_msg {
 	# ref: http://www.qmail.org/man/man5/mbox.html
 	$buf =~ s/^(>*From )/>$1/gm;
 
-	$buf .= "\n" unless $buf =~ /\n\z/s;
-
-	$fh->write($buf);
+	$fh->write($buf .= "\n");
 }
 
 sub emit_mbox {
