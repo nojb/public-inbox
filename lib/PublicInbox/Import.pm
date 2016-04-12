@@ -139,6 +139,12 @@ sub add {
 	my $mid = mid_mime($mime);
 	my $path = mid2path($mid);
 
+	# git gets confused with:
+	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
+	# ref:
+	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
+	$name =~ s/<([^>]+)>/($1)/g;
+
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};
 	if ($tip ne '') {
