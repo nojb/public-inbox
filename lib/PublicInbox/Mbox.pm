@@ -48,11 +48,21 @@ sub emit_msg {
 	my $base = $feed_opts->{url};
 	my $mid = mid_clean($header_obj->header('Message-ID'));
 	$mid = uri_escape_utf8($mid);
-	my @archived_at = $header_obj->header('Archived-At');
-	push @archived_at, "<$base$mid/>";
-	$header_obj->header_set('Archived-At', @archived_at);
-	$header_obj->header_set('List-Archive', "<$base>");
-	$header_obj->header_set('List-Post', "<mailto:$feed_opts->{id_addr}>");
+	my %append = (
+		'Archived-At' => "<$base$mid/>",
+		'List-Archive' => "<$base>",
+		'List-Post' => "<mailto:$feed_opts->{id_addr}>",
+	);
+	while (my ($k, $v) = each %append) {
+		my @v = $header_obj->header($k);
+		foreach (@v) {
+			if ($v eq $_) {
+				$v = undef;
+				last;
+			}
+		}
+		$header_obj->header_set($k, @v, $v) if defined $v;
+	}
 
 	my $buf = $header_obj->as_string;
 	unless ($buf =~ /\AFrom /) {
