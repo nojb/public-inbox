@@ -843,13 +843,6 @@ sub sort_ts {
 	} @_;
 }
 
-sub rsort_ts {
-	sort {
-		(eval { $b->topmost->message->header('X-PI-TS') } || 0) <=>
-		(eval { $a->topmost->message->header('X-PI-TS') } || 0)
-	} @_;
-}
-
 # accumulate recent topics if search is supported
 # returns 1 if done, undef if not
 sub add_topic {
@@ -884,16 +877,18 @@ sub add_topic {
 	add_topic($state, $node->next, $level);
 }
 
-sub dump_topics {
+sub emit_topics {
 	my ($state) = @_;
 	my $order = $state->{order};
 	my $subjs = $state->{subjs};
 	my $latest = $state->{latest};
-	return "\n[No topics in range]</pre>" unless (scalar @$order);
-	my $dst = '';
+	my $fh = $state->{fh};
+	return $fh->write("\n[No topics in range]</pre>") unless scalar @$order;
 	my $pfx;
 	my $prev = 0;
 	my $prev_attr = '';
+	my $cur;
+	my @recent;
 	while (defined(my $info = shift @$order)) {
 		my ($level, $subj) = @$info;
 		my $n = delete $subjs->{$subj};
@@ -902,8 +897,16 @@ sub dump_topics {
 		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$pfx = indent_for($level);
 		my $nl = $level == $prev ? "\n" : '';
+		if ($nl && $cur) {
+			push @recent, $cur;
+			$cur = undef;
+		}
+		$cur ||= [ $ts, '' ];
 		my $dot = $level == 0 ? '' : '` ';
-		$dst .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
+		$cur->[0] = $ts if $ts > $cur->[0];
+		$cur->[1] .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>";
+		$cur->[1] .= $subj;
+		$cur->[1] .= "</b></a>\n";
 
 		$ts = fmt_ts($ts);
 		my $attr = " $ts UTC";
@@ -916,11 +919,13 @@ sub dump_topics {
 			my $mbox = qq(<a\nhref="$mid/t.mbox.gz">mbox.gz</a>);
 			my $atom = qq(<a\nhref="$mid/t.atom">Atom</a>);
 			$pfx .= INDENT if $level > 0;
-			$dst .= $pfx . $attr . $n . " - $mbox / $atom\n";
+			$cur->[1] .= $pfx . $attr . $n . " - $mbox / $atom\n";
 			$prev_attr = $attr;
 		}
 	}
-	$dst .= '</pre>';
+	push @recent, $cur if $cur;
+	@recent = map { $_->[1] } sort { $b->[0] <=> $a->[0] } @recent;
+	$fh->write(join('', @recent) . '</pre>');
 }
 
 sub emit_index_topics {
@@ -936,13 +941,13 @@ sub emit_index_topics {
 		my $sres = $state->{srch}->query('', \%opts);
 		my $nr = scalar @{$sres->{msgs}} or last;
 
-		for (rsort_ts(thread_results(load_results($sres), 1)->rootset)){
+		for (thread_results(load_results($sres), 1)->rootset) {
 			add_topic($state, $_, 0);
 		}
 		$opts{offset} += $nr;
 	}
 
-	$state->{fh}->write(dump_topics($state));
+	emit_topics($state);
 	$opts{offset};
 }
 
