@@ -16,10 +16,6 @@ use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
 require POSIX;
 
-# TODO: make these constants tunable
-use constant MAX_INLINE_QUOTED => 12; # half an 80x24 terminal
-use constant MAX_TRUNC_LEN => 72;
-use constant T_ANCHOR => '#u';
 use constant INDENT => '  ';
 
 my $enc_utf8 = find_encoding('UTF-8');
@@ -226,7 +222,7 @@ sub emit_thread_html {
 
 sub index_walk {
 	my ($fh, $part, $enc, $part_nr) = @_;
-	my $s = add_text_body($enc, $part, $part_nr, 1);
+	my $s = add_text_body($enc, $part, $part_nr);
 
 	return if $s eq '';
 
@@ -258,7 +254,7 @@ sub multipart_text_as_html {
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
-		$part = add_text_body($enc, $part, \$part_nr, 1);
+		$part = add_text_body($enc, $part, \$part_nr);
 		$rv .= $part;
 		$rv .= "\n" if $part ne '';
 	});
@@ -277,21 +273,21 @@ sub add_filename_line {
 }
 
 sub flush_quote {
-	my ($quot, $n, $part_nr, $final, $do_anchor) = @_;
+	my ($s, $l, $quot, $part_nr) = @_;
 
 	# show everything in the full version with anchor from
 	# short version (see above)
-	my $l = PublicInbox::Linkify->new;
-	my $rv .= join('', map { $l->linkify_1($_) } @$quot);
+	my $rv = $l->linkify_1(join('', @$quot));
 	@$quot = ();
-	$rv = ascii_html($rv);
-	return $l->linkify_2($rv) unless $do_anchor;
-	my $nr = ++$$n;
-	qq(<a\nid="q${part_nr}_$nr"></a>) . $l->linkify_2($rv);
+
+	# we use a <div> here to allow users to specify their own
+	# color for quoted text
+	$rv = $l->linkify_2(ascii_html($rv));
+	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
 }
 
 sub add_text_body {
-	my ($enc_msg, $part, $part_nr, $do_anchor) = @_;
+	my ($enc_msg, $part, $part_nr) = @_;
 	return '' if $part->subparts;
 
 	my $ct = $part->content_type;
@@ -301,8 +297,6 @@ sub add_text_body {
 		return '';
 	}
 	my $enc = enc_for($ct, $enc_msg);
-	my $n = 0;
-	my $nr = 0;
 	my $s = $part->body;
 	$part->body_set('');
 	$s = $enc->decode($s);
@@ -316,16 +310,13 @@ sub add_text_body {
 	}
 
 	my @quot;
+	my $l = PublicInbox::Linkify->new;
 	while (defined(my $cur = shift @lines)) {
 		if ($cur !~ /^>/) {
 			# show the previously buffered quote inline
-			if (scalar @quot) {
-				$s .= flush_quote(\@quot, \$n, $$part_nr,
-						  0, $do_anchor);
-			}
+			flush_quote(\$s, $l, \@quot, $$part_nr) if @quot;
 
 			# regular line, OK
-			my $l = PublicInbox::Linkify->new;
 			$cur = $l->linkify_1($cur);
 			$cur = ascii_html($cur);
 			$s .= $l->linkify_2($cur);
@@ -333,9 +324,8 @@ sub add_text_body {
 			push @quot, $cur;
 		}
 	}
-	if (scalar @quot) {
-		$s .= flush_quote(\@quot, \$n, $$part_nr, 1, $do_anchor);
-	}
+
+	flush_quote(\$s, $l, \@quot, $$part_nr) if @quot;
 	++$$part_nr;
 
 	$s =~ s/[ \t]+$//sgm; # kill per-line trailing whitespace
@@ -347,7 +337,15 @@ sub add_text_body {
 sub headers_to_html_header {
 	my ($hdr, $full_pfx, $ctx) = @_;
 	my $srch = $ctx->{srch} if $ctx;
-	my $rv = "";
+	my $atom = '';
+	my $rv = '';
+	my $upfx = $full_pfx ? '' : '../';
+
+	if ($srch) {
+		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
+			qq!href="${upfx}t.atom"\ntype="application/atom+xml"/>!;
+	}
+
 	my @title;
 	my $mid = $hdr->header_raw('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
@@ -362,8 +360,8 @@ sub headers_to_html_header {
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
-				$rv .= "$h: <b\nid=t>";
-				$rv .= $v->as_html . "</b>\n";
+				$rv .= qq($h: <a\nhref="#r"\nid=t>);
+				$rv .= $v->as_html . "</a>\n";
 				next;
 			}
 		}
@@ -371,25 +369,17 @@ sub headers_to_html_header {
 
 	}
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
-	my $upfx = $full_pfx ? '' : '../';
 	$rv .= "(<a\nhref=\"${upfx}raw\">raw</a>)\n";
-	my $atom;
-	if ($srch) {
-		thread_inline(\$rv, $ctx, $hdr, $upfx);
-
-		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
-			qq!href="${upfx}t.atom"\ntype="application/atom+xml"/>!;
-	} else {
-		$rv .= _parent_headers_nosrch($hdr);
-		$atom = '';
-	}
+	$rv .= _parent_headers($hdr, $srch);
 	$rv .= "\n";
 
 	("<html><head><title>".  join(' - ', @title) . "</title>$atom".
-	 PublicInbox::Hval::STYLE . "</head><body><pre>" . $rv);
+	 PublicInbox::Hval::STYLE .
+	 "</head><body><pre\nid=b>" . # anchor for body start
+	 $rv);
 }
 
-sub thread_inline {
+sub thread_skel {
 	my ($dst, $ctx, $hdr, $upfx) = @_;
 	my $srch = $ctx->{srch};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
@@ -398,7 +388,6 @@ sub thread_inline {
 	my $expand = "<a\nhref=\"${upfx}t/#u\">expand</a> " .
 			"/ <a\nhref=\"${upfx}t.mbox.gz\">mbox.gz</a>";
 
-	$$dst .= 'Thread: ';
 	my $parent = in_reply_to($hdr);
 	if ($nr <= 1) {
 		if (defined $parent) {
@@ -412,11 +401,8 @@ sub thread_inline {
 		return;
 	}
 
-	$$dst .= "~$nr messages ($expand";
-	if ($nr > MAX_INLINE_QUOTED) {
-		$$dst .= qq! / <a\nhref="#b">[scroll down]</a>!;
-	}
-	$$dst .= ")\n";
+	$$dst .= "$nr+ messages in thread ($expand";
+	$$dst .= qq! / <a\nhref="#b">[top]</a>)\n!;
 
 	my $subj = $srch->subject_path($hdr->header('Subject'));
 	my $state = {
@@ -427,15 +413,14 @@ sub thread_inline {
 		prev_level => 0,
 	};
 	for (thread_results(load_results($sres))->rootset) {
-		inline_dump($dst, $state, $upfx, $_, 0);
+		skel_dump($dst, $state, $upfx, $_, 0);
 	}
-	$$dst .= "<a\nid=b></a>"; # anchor for body start
 	$ctx->{next_msg} = $state->{next_msg};
 	$ctx->{parent_msg} = $parent;
 }
 
-sub _parent_headers_nosrch {
-	my ($hdr) = @_;
+sub _parent_headers {
+	my ($hdr, $srch) = @_;
 	my $rv = '';
 
 	my $irt = in_reply_to($hdr);
@@ -446,6 +431,10 @@ sub _parent_headers_nosrch {
 		$rv .= "In-Reply-To: &lt;";
 		$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
 	}
+
+	# do not display References: if search is present,
+	# we show the thread skeleton at the bottom, instead.
+	return $rv if $srch;
 
 	my $refs = $hdr->header_raw('References');
 	if ($refs) {
@@ -505,7 +494,7 @@ sub mailto_arg_link {
 }
 
 sub html_footer {
-	my ($mime, $standalone, $full_pfx, $ctx, $mhref) = @_;
+	my ($hdr, $standalone, $full_pfx, $ctx, $mhref) = @_;
 
 	my $srch = $ctx->{srch} if $ctx;
 	my $upfx = $full_pfx ? '../' : '../../';
@@ -517,6 +506,7 @@ sub html_footer {
 		$idx .= qq{ / follow: <a\nhref="${tpfx}t.atom">Atom feed</a>\n};
 	}
 	if ($idx && $srch) {
+		thread_skel(\$idx, $ctx, $hdr, $tpfx);
 		my $p = $ctx->{parent_msg};
 		my $next = $ctx->{next_msg};
 		if ($p) {
@@ -530,11 +520,6 @@ sub html_footer {
 			$irt .= "<a\nhref=\"$upfx$next/\">next</a> ";
 		} else {
 			$irt .= ' ' x length('next ');
-		}
-		if ($p || $next) {
-			$irt .= "<a\nhref=\"${tpfx}t/#u\">thread</a> ";
-		} else {
-			$irt .= ' ' x length('thread ');
 		}
 	} else {
 		$irt = '';
@@ -717,7 +702,7 @@ sub _msg_date {
 
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
-sub _inline_header {
+sub _skel_header {
 	my ($dst, $state, $upfx, $hdr, $level) = @_;
 	my $dot = $level == 0 ? '' : '` ';
 
@@ -769,13 +754,13 @@ sub _inline_header {
 	}
 }
 
-sub inline_dump {
+sub skel_dump {
 	my ($dst, $state, $upfx, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
 		my $hdr = $mime->header_obj;
 		my $mid = mid_clean($hdr->header_raw('Message-ID'));
-		_inline_header($dst, $state, $upfx, $hdr, $level);
+		_skel_header($dst, $state, $upfx, $hdr, $level);
 	} else {
 		my $mid = $node->messageid;
 		if ($mid eq 'subject dummy') {
@@ -790,8 +775,8 @@ sub inline_dump {
 			$$dst .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
 		}
 	}
-	inline_dump($dst, $state, $upfx, $node->child, $level+1);
-	inline_dump($dst, $state, $upfx, $node->next, $level);
+	skel_dump($dst, $state, $upfx, $node->child, $level+1);
+	skel_dump($dst, $state, $upfx, $node->next, $level);
 }
 
 sub sort_ts {

@@ -47,8 +47,6 @@ EOF
 	like($html, qr!<a\nhref="\.\./raw"!s, "raw link present");
 	like($html, qr/hello world\b/, "body present");
 	like($html, qr/&gt; keep this inline/, "short quoted text is inline");
-	like($html, qr/<a\nid=[^>]+><\/a>&gt; Long and wordy/,
-		"long quoted text is anchored");
 }
 
 # multipart crap
