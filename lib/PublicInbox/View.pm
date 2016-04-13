@@ -581,8 +581,7 @@ sub html_footer {
 		$irt = '';
 	}
 
-	$mhref = './' unless defined $mhref;
-	$irt . qq(<a\nhref="${mhref}R/">reply</a>) . $idx;
+	$irt . qq(<a\nhref="${tpfx}R/">reply</a>) . $idx;
 }
 
 sub linkify_ref_nosrch {
