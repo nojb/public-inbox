@@ -726,7 +726,7 @@ sub msg_timestamp {
 }
 
 sub thread_results {
-	my ($msgs, $nosubject) = @_;
+	my ($msgs, $nosubject, $nosort) = @_;
 	require PublicInbox::Thread;
 	my $th = PublicInbox::Thread->new(@$msgs);
 
@@ -740,7 +740,7 @@ sub thread_results {
 	# Keep ghosts with only a single direct child:
 	$Mail::Thread::noprune = 1;
 	$th->thread;
-	$th->order(*sort_ts);
+	$th->order(*sort_ts) unless $nosort;
 	$th
 }
 

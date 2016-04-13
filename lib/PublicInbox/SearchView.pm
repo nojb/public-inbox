@@ -150,13 +150,8 @@ sub tdump {
 		$m;
 	} ($mset->items);
 
-	require PublicInbox::Thread;
-	my $th = PublicInbox::Thread->new(@m);
-	{
-		no warnings 'once';
-		$Mail::Thread::nosubject = 0;
-	}
-	$th->thread;
+	my @rootset;
+	my $th = PublicInbox::View::thread_results(\@m, 0, $q->{r});
 	if ($q->{r}) {
 		$th->order(sub {
 			sort { (eval { $pct{$b->topmost->messageid} } || 0)
@@ -164,9 +159,13 @@ sub tdump {
 				(eval { $pct{$a->topmost->messageid} } || 0)
 			} @_;
 		});
+		@rootset = $th->rootset;
 	} else {
-		no warnings 'once';
-		$th->order(*PublicInbox::View::rsort_ts);
+		@rootset = sort {
+			(eval { $b->topmost->message->header('X-PI-TS') } || 0)
+				<=>
+			(eval { $a->topmost->message->header('X-PI-TS') } || 0)
+		} $th->rootset;
 	}
 
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
@@ -178,7 +177,7 @@ sub tdump {
 		fh => $fh,
 	};
 	$ctx->{searchview} = 1;
-	tdump_ent($git, $state, $_, 0) for $th->rootset;
+	tdump_ent($git, $state, $_, 0) for @rootset;
 	PublicInbox::View::thread_adj_level($state, 0);
 	Email::Address->purge_cache;
 
