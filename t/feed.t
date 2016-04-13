@@ -76,9 +76,7 @@ EOF
 				"id is set to default");
 		}
 
-		unlike($feed, qr/drop me/, "long quoted text dropped");
-		like($feed, qr!/\d%40example\.com/f/#q!,
-			"/f/ url generated for long quoted text");
+		like($feed, qr/drop me/, "long quoted text kept");
 		like($feed, qr/inline me here/, "short quoted text kept");
 		like($feed, qr/keep me/, "unquoted text saved");
 	}

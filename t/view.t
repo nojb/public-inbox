@@ -49,18 +49,6 @@ EOF
 	like($html, qr/&gt; keep this inline/, "short quoted text is inline");
 	like($html, qr/<a\nid=[^>]+><\/a>&gt; Long and wordy/,
 		"long quoted text is anchored");
-
-	# short page
-	my $pfx = "../hello%40example.com/f/";
-	$mime = Email::MIME->new($s);
-	my $short = PublicInbox::View::msg_html(undef, $mime, $pfx);
-	like($short, qr!<a\nhref="\.\./hello%40example\.com/f/!s,
-		"MID link present");
-	like($short, qr/\n&gt; keep this inline/,
-		"short quoted text is inline");
-	like($short, qr/<a\nhref="\Q$pfx\E#[^>]+>Long and wordy/,
-		"long quoted text is made into a link");
-	ok(length($short) < length($html), "short page is shorter");
 }
 
 # multipart crap

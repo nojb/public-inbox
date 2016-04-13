@@ -11,13 +11,13 @@ URL naming
 /$LISTNAME/$MESSAGE_ID/t.mbox.gz          -> gzipped mbox of thread
 
 ### Stable endpoints
-/$LISTNAME/$MESSAGE_ID/                   -> HTML content (short quotes)
+/$LISTNAME/$MESSAGE_ID/                   -> HTML content
 /$LISTNAME/$MESSAGE_ID                    -> 301 to /$LISTNAME/$MESSAGE_ID
 /$LISTNAME/$MESSAGE_ID/raw                -> raw mbox
-/$LISTNAME/$MESSAGE_ID/f/                 -> HTML content (full quotes)
 /$LISTNAME/$MESSAGE_ID/R/                 -> HTML reply instructions
 
 ### Legacy endpoints (may be ambiguous given Message-IDs with similar suffixes)
+/$LISTNAME/$MESSAGE_ID/f/                 -> HTML content
 /$LISTNAME/m/$MESSAGE_ID/                 -> 301 to /$LISTNAME/$MESSAGE_ID/
 /$LISTNAME/m/$MESSAGE_ID.html             -> 301 to /$LISTNAME/$MESSAGE_ID/
 /$LISTNAME/m/$MESSAGE_ID.txt              -> 301 to /$LISTNAME/$MESSAGE_ID/raw

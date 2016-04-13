@@ -316,7 +316,7 @@ sub add_to_feed {
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href;
-	my $content = PublicInbox::View->feed_entry($mime, "$midurl$href/f/");
+	my $content = PublicInbox::View->feed_entry($mime);
 	defined($content) or return 0;
 	$mime = undef;
 

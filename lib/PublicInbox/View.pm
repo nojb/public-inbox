@@ -135,17 +135,11 @@ sub index_entry {
 	my $fh = $state->{fh};
 	$fh->write($rv .= "- $from @ $ts UTC (<a\nhref=\"$txt\">raw</a>)\n\n");
 
-	my $fhref;
 	my $mhref = "${path}$href/";
 
-	# show full message if it's our root message
-	my $neq = $root_anchor ne $id;
-	if ($neq || ($neq && $level != 0 && !$ctx->{flat})) {
-		$fhref = "${path}$href/f/";
-	}
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		index_walk($fh, $_[0], $enc, \$part_nr, $fhref);
+		index_walk($fh, $_[0], $enc, \$part_nr);
 	});
 	$mime->body_set('');
 	$rv = "\n" . html_footer($hdr, 0, undef, $ctx, $mhref);
@@ -231,8 +225,8 @@ sub emit_thread_html {
 }
 
 sub index_walk {
-	my ($fh, $part, $enc, $part_nr, $fhref) = @_;
-	my $s = add_text_body($enc, $part, $part_nr, $fhref, 1);
+	my ($fh, $part, $enc, $part_nr) = @_;
+	my $s = add_text_body($enc, $part, $part_nr, 1);
 
 	return if $s eq '';
 
@@ -264,7 +258,7 @@ sub multipart_text_as_html {
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
-		$part = add_text_body($enc, $part, \$part_nr, $full_pfx, 1);
+		$part = add_text_body($enc, $part, \$part_nr, 1);
 		$rv .= $part;
 		$rv .= "\n" if $part ne '';
 	});
@@ -283,55 +277,21 @@ sub add_filename_line {
 }
 
 sub flush_quote {
-	my ($quot, $n, $part_nr, $full_pfx, $final, $do_anchor) = @_;
+	my ($quot, $n, $part_nr, $final, $do_anchor) = @_;
 
-	# n.b.: do not use <blockquote> since it screws up alignment
-	# w.r.t. unquoted text.  Repliers may rely on pre-formatted
-	# alignment to point out a certain word in quoted text.
-	if ($full_pfx) {
-		if (!$final && scalar(@$quot) <= MAX_INLINE_QUOTED) {
-			# show quote inline
-			my $l = PublicInbox::Linkify->new;
-			my $rv = join('', map { $l->linkify_1($_) } @$quot);
-			@$quot = ();
-			$rv = ascii_html($rv);
-			return $l->linkify_2($rv);
-		}
-
-		# show a short snippet of quoted text and link to full version:
-		@$quot = map { s/^(?:>\s*)+//gm; $_ } @$quot;
-		my $cur = join(' ', @$quot);
-		@$quot = split(/\s+/, $cur);
-		$cur = '';
-		do {
-			my $tmp = shift(@$quot);
-			my $len = length($tmp) + length($cur);
-			if ($len > MAX_TRUNC_LEN) {
-				@$quot = ();
-			} else {
-				$cur .= $tmp . ' ';
-			}
-		} while (@$quot && length($cur) < MAX_TRUNC_LEN);
-		@$quot = ();
-		$cur =~ s/ \z/ .../s;
-		$cur = ascii_html($cur);
-		my $nr = ++$$n;
-		"&gt; [<a\nhref=\"$full_pfx#q${part_nr}_$nr\">$cur</a>]\n";
-	} else {
-		# show everything in the full version with anchor from
-		# short version (see above)
-		my $l = PublicInbox::Linkify->new;
-		my $rv .= join('', map { $l->linkify_1($_) } @$quot);
-		@$quot = ();
-		$rv = ascii_html($rv);
-		return $l->linkify_2($rv) unless $do_anchor;
-		my $nr = ++$$n;
-		"<a\nid=q${part_nr}_$nr></a>" . $l->linkify_2($rv);
-	}
+	# show everything in the full version with anchor from
+	# short version (see above)
+	my $l = PublicInbox::Linkify->new;
+	my $rv .= join('', map { $l->linkify_1($_) } @$quot);
+	@$quot = ();
+	$rv = ascii_html($rv);
+	return $l->linkify_2($rv) unless $do_anchor;
+	my $nr = ++$$n;
+	qq(<a\nid="q${part_nr}_$nr"></a>) . $l->linkify_2($rv);
 }
 
 sub add_text_body {
-	my ($enc_msg, $part, $part_nr, $full_pfx, $do_anchor) = @_;
+	my ($enc_msg, $part, $part_nr, $do_anchor) = @_;
 	return '' if $part->subparts;
 
 	my $ct = $part->content_type;
@@ -361,7 +321,7 @@ sub add_text_body {
 			# show the previously buffered quote inline
 			if (scalar @quot) {
 				$s .= flush_quote(\@quot, \$n, $$part_nr,
-						  $full_pfx, 0, $do_anchor);
+						  0, $do_anchor);
 			}
 
 			# regular line, OK
@@ -374,8 +334,7 @@ sub add_text_body {
 		}
 	}
 	if (scalar @quot) {
-		$s .= flush_quote(\@quot, \$n, $$part_nr, $full_pfx, 1,
-				  $do_anchor);
+		$s .= flush_quote(\@quot, \$n, $$part_nr, 1, $do_anchor);
 	}
 	++$$part_nr;
 
