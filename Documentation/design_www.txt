@@ -1,5 +1,5 @@
-URL naming
-----------
+URL and anchor naming
+---------------------
 
 ### Unstable endpoints
 /$LISTNAME/?r=$GIT_COMMIT                 -> HTML only
@@ -7,12 +7,23 @@ URL naming
 
 #### Optional, relies on Search::Xapian
 /$LISTNAME/$MESSAGE_ID/t/                 -> HTML content of thread
+	anchors:
+	#u          location of $MESSAGE_ID in URL
+	#m<SHA-1>   per-message links, where <SHA-1> is of the Message-ID
+	            of each message (stable)
+	#s<NUM>     relative numeric position of message in thread (unstable)
+
 /$LISTNAME/$MESSAGE_ID/t.atom             -> Atom feed for thread
 /$LISTNAME/$MESSAGE_ID/t.mbox.gz          -> gzipped mbox of thread
 
 ### Stable endpoints
 /$LISTNAME/$MESSAGE_ID/                   -> HTML content
-/$LISTNAME/$MESSAGE_ID                    -> 301 to /$LISTNAME/$MESSAGE_ID
+	anchors:
+	#r          location of the current message in thread skeleton
+	            (requires Xapian search)
+	#b          start of the message body (linked from thread skeleton)
+
+/$LISTNAME/$MESSAGE_ID                    -> 301 to /$LISTNAME/$MESSAGE_ID/
 /$LISTNAME/$MESSAGE_ID/raw                -> raw mbox
 /$LISTNAME/$MESSAGE_ID/R/                 -> HTML reply instructions
 
@@ -26,7 +37,9 @@ URL naming
 
 /$LISTNAME/atom.xml [2]                   -> identical to /$LISTNAME/new.atom
 
-Additionally, we support "git clone" pointed to http://$HOST/$LISTNAME
+Additionally, we support git clone/fetch over HTTP (dumb and smart):
+
+	git clone --mirror http://$HOSTNAME/$LISTNAME
 
 FIXME: we must refactor/cleanup/add tests for most of our CGI before
 adding more endpoints and features.
@@ -41,7 +54,8 @@ Encoding notes
 --------------
 
 Raw HTML and XML should only contain us-ascii characters which render
-to UTF-8.
+to UTF-8.  We must not rely on users having the necessary fonts
+installed to render uncommon characters.
 
 Plain text (raw message) endpoints display in the original encoding(s)
 of the original email.
@@ -55,17 +69,19 @@ We also set <title> to make window management easier.
 We favor <pre>-formatted text since public-inbox is intended as a place
 to share and discuss patches and code.  Unfortunately, long paragraphs
 tends to be less readable with fixed-width serif fonts which GUI
-browsers default to.  So perhaps we will add different endpoints for
-variable-width fonts.
+browsers default to.
 
 * No graphics, images, or icons at all.  We tolerate, but do not
   encourage the use of GUIs.
 
 * No setting colors or font sizes, power to users to decide those.
+  We will include and document <span class=?> to support colors
+  for user-supplied CSS, and may support client-supplied CSS
+  via cookie.
 
-* Only one font type (fixed or variable) per page.  This is for
-  accessibility, we must not blow certain elements out-of-proportion
-  when a reader increases font size.
+* Only one font type: fixed.  This is for accessibility, we must
+  not blow certain elements out-of-proportion with different
+  fonts on the page when a reader increases font size.
 
 * Bold and underline elements are OK since they should render fine
   regardless of chosen font and gracefully degrade if a display does
@@ -80,7 +96,16 @@ variable-width fonts.
 
 * We only use CSS for one reason: wrapping pre-formatted text
   This is necessary because unfortunate GUI browsers tend to be
-  prone to layout widening.  w3m is fine here without CSS :)
+  prone to layout widening from unwrapped mailers.
+  w3m is fine here without CSS :)
   No other CSS is allowed, especially with scary things like:
 
 	http://thejh.net/misc/website-terminal-copy-paste
+
+  However, we will try to make it easy for users to supply their
+  own colors and perhaps offer color options over cookies.
+
+CSS classes (for user-supplied CSS)
+-----------------------------------
+span.q	- quoted text in email messages
+...
