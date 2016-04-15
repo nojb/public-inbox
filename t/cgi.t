@@ -188,9 +188,11 @@ EOF
 	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
 	$res = cgi_run("/test/blahblah\@example.com/f/");
-	like($res->{body}, qr/\A<html>/, "mid html");
-	like($res->{head}, qr/Status: 200 OK/, "200 response");
-	$res = cgi_run("/test/blahblah\@example.con/f/");
+	like($res->{head}, qr/Status: 301 Moved/, "301 response");
+	like($res->{head},
+		qr!^Location: http://[^/]+/test/blahblah%40example\.com/\r\n!ms,
+		'301 redirect location');
+	$res = cgi_run("/test/blahblah\@example.con/");
 	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
 	$res = cgi_run("/test/");

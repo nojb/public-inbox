@@ -22,13 +22,13 @@ my $enc_utf8 = find_encoding('UTF-8');
 
 # public functions:
 sub msg_html {
-	my ($ctx, $mime, $full_pfx, $footer) = @_;
+	my ($ctx, $mime, $footer) = @_;
 	$footer = defined($footer) ? "\n$footer" : '';
 	my $hdr = $mime->header_obj;
-	headers_to_html_header($hdr, $full_pfx, $ctx) .
-		multipart_text_as_html($mime, $full_pfx) .
+	headers_to_html_header($hdr, $ctx) .
+		multipart_text_as_html($mime) .
 		'</pre><hr /><pre>' .
-		html_footer($hdr, 1, $full_pfx, $ctx) .
+		html_footer($hdr, 1, $ctx) .
 		$footer .
 		'</pre></body></html>';
 }
@@ -72,11 +72,10 @@ sub msg_reply {
 }
 
 sub feed_entry {
-	my ($class, $mime, $full_pfx) = @_;
+	my ($class, $mime) = @_;
 
 	# no <head> here for <style>...
-	PublicInbox::Hval::PRE .
-		multipart_text_as_html($mime, $full_pfx) . '</pre>';
+	PublicInbox::Hval::PRE . multipart_text_as_html($mime) . '</pre>';
 }
 
 sub in_reply_to {
@@ -138,7 +137,7 @@ sub index_entry {
 		index_walk($fh, $_[0], $enc, \$part_nr);
 	});
 	$mime->body_set('');
-	$rv = "\n" . html_footer($hdr, 0, undef, $ctx, $mhref);
+	$rv = "\n" . html_footer($hdr, 0, $ctx, $mhref);
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
@@ -246,7 +245,7 @@ sub enc_for {
 }
 
 sub multipart_text_as_html {
-	my ($mime, $full_pfx, $srch) = @_;
+	my ($mime) = @_;
 	my $rv = "";
 	my $part_nr = 0;
 	my $enc = enc_for($mime->header("Content-Type"));
@@ -335,11 +334,11 @@ sub add_text_body {
 }
 
 sub headers_to_html_header {
-	my ($hdr, $full_pfx, $ctx) = @_;
+	my ($hdr, $ctx) = @_;
 	my $srch = $ctx->{srch} if $ctx;
 	my $atom = '';
 	my $rv = '';
-	my $upfx = $full_pfx ? '' : '../';
+	my $upfx = '';
 
 	if ($srch) {
 		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
@@ -494,11 +493,11 @@ sub mailto_arg_link {
 }
 
 sub html_footer {
-	my ($hdr, $standalone, $full_pfx, $ctx, $mhref) = @_;
+	my ($hdr, $standalone, $ctx, $mhref) = @_;
 
 	my $srch = $ctx->{srch} if $ctx;
-	my $upfx = $full_pfx ? '../' : '../../';
-	my $tpfx = $full_pfx ? '' : '../';
+	my $upfx = '../';
+	my $tpfx = '';
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 	my $irt = '';
 

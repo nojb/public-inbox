@@ -98,9 +98,9 @@ EOF
 			my ($cb) = @_;
 			my $u = $pfx . "/blah%40example.com/$t";
 			my $res = $cb->(GET($u));
-			is(301, $res->code, "redirect for missing /");
+			is(301, $res->code, "redirect for legacy /f");
 			my $location = $res->header('Location');
-			like($location, qr!/\Q$t\E/\z!,
+			like($location, qr!/blah%40example\.com/\z!,
 				'redirected with missing /');
 		});
 	}
@@ -125,16 +125,22 @@ EOF
 			'atom feed generated correct URL');
 	});
 
-	foreach my $t (('', 'f/')) {
-		test_psgi($app, sub {
-			my ($cb) = @_;
-			my $path = "/blah%40example.com/$t";
-			my $res = $cb->(GET($pfx . $path));
-			is(200, $res->code, "success for $path");
-			like($res->content, qr!<title>hihi - Me</title>!,
-				"HTML returned");
-		});
-	}
+	test_psgi($app, sub {
+		my ($cb) = @_;
+		my $path = '/blah%40example.com/';
+		my $res = $cb->(GET($pfx . $path));
+		is(200, $res->code, "success for $path");
+		like($res->content, qr!<title>hihi - Me</title>!,
+			"HTML returned");
+
+		$path .= 'f/';
+		$res = $cb->(GET($pfx . $path));
+		is(301, $res->code, "redirect for $path");
+		my $location = $res->header('Location');
+		like($location, qr!/blah%40example\.com/\z!,
+			'/$MESSAGE_ID/f/ redirected to /$MESSAGE_ID/');
+	});
+
 	test_psgi($app, sub {
 		my ($cb) = @_;
 		my $res = $cb->(GET($pfx . '/blah%40example.com/raw'));
@@ -156,7 +162,7 @@ EOF
 
 	my %umap = (
 		'm' => '',
-		'f' => 'f/',
+		'f' => '',
 		't' => 't/',
 	);
 	while (my ($t, $e) = each %umap) {

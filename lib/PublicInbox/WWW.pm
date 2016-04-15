@@ -22,7 +22,7 @@ require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
-our $END_RE = qr!(f/|T/|t/|R/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
+our $END_RE = qr!(T/|t/|R/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 
 sub new {
 	my ($class, $pi_config) = @_;
@@ -72,10 +72,13 @@ sub call {
 		msg_page($self, $ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(f|T|t|R)\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(T|t|R)\z!o) {
 		my ($listname, $mid, $suffix) = ($1, $2, $3);
 		$suffix .= $suffix =~ /\A[tT]\z/ ? '/#u' : '/';
 		r301($ctx, $listname, $mid, $suffix);
+
+	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/f/?\z!o) {
+		r301($ctx, $1, $2);
 
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$LISTNAME_RE/([^/]{2,})\z!o) {
@@ -202,21 +205,7 @@ sub get_mid_html {
 	my $mime = Email::MIME->new($x);
 	searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View::msg_html($ctx, $mime, 'f/', $foot) ] ];
-}
-
-# /$LISTNAME/$MESSAGE_ID/f/                   -> HTML content (fullquotes)
-sub get_full_html {
-	my ($ctx) = @_;
-	my $x = mid2blob($ctx) or return r404($ctx);
-
-	require PublicInbox::View;
-	my $foot = footer($ctx);
-	require Email::MIME;
-	my $mime = Email::MIME->new($x);
-	searcher($ctx);
-	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View::msg_html($ctx, $mime, undef, $foot)] ];
+	  [ PublicInbox::View::msg_html($ctx, $mime, $foot) ] ];
 }
 
 # /$LISTNAME/$MESSAGE_ID/R/                   -> HTML content (fullquotes)
@@ -354,7 +343,7 @@ sub legacy_redirects {
 		r301($ctx, $1, $2, 'raw');
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)/\z!o) {
-		r301($ctx, $1, $2, 'f/');
+		r301($ctx, $1, $2);
 
 	# thread display
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/\z!o) {
@@ -371,7 +360,7 @@ sub legacy_redirects {
 		r301($ctx, $1, $2, 't/#u');
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
-		r301($ctx, $1, $2, 'f/');
+		r301($ctx, $1, $2);
 
 	} elsif ($path_info =~ m!$LISTNAME_RE/(?:m|f)/(\S+)\.txt\z!o) {
 		r301($ctx, $1, $2, 'raw');
@@ -385,7 +374,7 @@ sub legacy_redirects {
 	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\z!o) {
 		r301($ctx, $1, $2, 't/#u');
 	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
-		r301($ctx, $1, $2, 'f/');
+		r301($ctx, $1, $2);
 
 	# some Message-IDs have slashes in them and the HTTP server
 	# may try to be clever and unescape them :<
@@ -393,8 +382,10 @@ sub legacy_redirects {
 		msg_page($self, $ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
-	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/(f|T|t)\z!o) {
+	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/(T|t)\z!o) {
 		r301($ctx, $1, $2, $3 eq 't' ? 't/#u' : $3);
+	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/f\z!o) {
+		r301($ctx, $1, $2);
 	} else {
 		$self->news_www->call($ctx->{cgi}->{env});
 	}
@@ -426,7 +417,10 @@ sub msg_page {
 	't.mbox.gz' eq $e and return get_thread_mbox($ctx, '.gz');
 	'T/' eq $e and return get_thread($ctx, 1);
 	'raw' eq $e and return get_mid_txt($ctx);
-	'f/' eq $e and return get_full_html($ctx);
+
+	# legacy, but no redirect for compatibility:
+	'f/' eq $e and return get_mid_html($ctx);
+
 	'R/' eq $e and return get_reply_html($ctx);
 	r404($ctx);
 }
