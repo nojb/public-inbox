@@ -379,19 +379,20 @@ sub headers_to_html_header {
 }
 
 sub thread_skel {
-	my ($dst, $ctx, $hdr, $upfx) = @_;
+	my ($dst, $ctx, $hdr, $tpfx) = @_;
 	my $srch = $ctx->{srch};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $sres = $srch->get_thread($mid);
 	my $nr = $sres->{total};
-	my $expand = "<a\nhref=\"${upfx}t/#u\">expand</a> " .
-			"/ <a\nhref=\"${upfx}t.mbox.gz\">mbox.gz</a>";
+	my $expand = qq(<a\nhref="${tpfx}t/#u">expand</a> ) .
+			qq(/ <a\nhref="${tpfx}t.mbox.gz">mbox.gz</a> ) .
+			qq(/ <a\nhref="${tpfx}t.atom">Atom feed</a>);
 
 	my $parent = in_reply_to($hdr);
 	if ($nr <= 1) {
 		if (defined $parent) {
 			$$dst .= "($expand)\n ";
-			$$dst .= ghost_parent("$upfx../", $parent) . "\n";
+			$$dst .= ghost_parent("$tpfx../", $parent) . "\n";
 		} else {
 			$$dst .= "[no followups, yet] ($expand)\n";
 		}
@@ -412,7 +413,7 @@ sub thread_skel {
 		prev_level => 0,
 	};
 	for (thread_results(load_results($sres))->rootset) {
-		skel_dump($dst, $state, $upfx, $_, 0);
+		skel_dump($dst, $state, $tpfx, $_, 0);
 	}
 	$ctx->{next_msg} = $state->{next_msg};
 	$ctx->{parent_msg} = $parent;
@@ -500,11 +501,8 @@ sub html_footer {
 	my $tpfx = '';
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 	my $irt = '';
-
-	if ($srch && $standalone) {
-		$idx .= qq{ / follow: <a\nhref="${tpfx}t.atom">Atom feed</a>\n};
-	}
 	if ($idx && $srch) {
+		$idx .= "\n";
 		thread_skel(\$idx, $ctx, $hdr, $tpfx);
 		my $p = $ctx->{parent_msg};
 		my $next = $ctx->{next_msg};
@@ -709,7 +707,7 @@ sub _skel_header {
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $f = ascii_html($hdr->header('X-PI-From'));
 	my $d = _msg_date($hdr);
-	my $pfx = ' ' . $d . ' ' . indent_for($level);
+	my $pfx = $d . ' ' . indent_for($level);
 	my $attr = $f;
 	$state->{first_level} ||= $level;
 
@@ -723,7 +721,7 @@ sub _skel_header {
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $state->{cur};
-			$$dst .= "$pfx$dot<b><a\nid=r\nhref=\"#b\">".
+			$$dst .= "$pfx$dot<b><a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
 
 			return;
@@ -746,11 +744,8 @@ sub _skel_header {
 	}
 	my $m = PublicInbox::Hval->new_msgid($mid);
 	$m = $upfx . '../' . $m->as_href . '/';
-	if (defined $s) {
-		$$dst .= "$pfx$dot<a\nhref=\"$m\">$s</a> $attr\n";
-	} else {
-		$$dst .= "$pfx$dot<a\nhref=\"$m\">$f</a>\n";
-	}
+	$$dst .= "$pfx$dot<a\nhref=\"$m\">";
+	$$dst .= defined($s) ? "$s</a> $f\n" : "$f</a>\n";
 }
 
 sub skel_dump {
@@ -765,7 +760,7 @@ sub skel_dump {
 		if ($mid eq 'subject dummy') {
 			$$dst .= "\t[no common parent]\n";
 		} else {
-			$$dst .= '      [not found] ';
+			$$dst .= '     [not found] ';
 			my $dot = $level == 0 ? '' : '` ';
 			$$dst .= indent_for($level) . $dot;
 			$mid = PublicInbox::Hval->new_msgid($mid);
