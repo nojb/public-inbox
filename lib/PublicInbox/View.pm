@@ -174,10 +174,10 @@ sub thread_html {
 sub emit_thread_html {
 	my ($res, $ctx, $foot, $srch) = @_;
 	my $mid = $ctx->{mid};
-	my $msgs = load_results($srch->get_thread($mid));
+	my $flat = $ctx->{flat};
+	my $msgs = load_results($srch->get_thread($mid, { asc => $flat }));
 	my $nr = scalar @$msgs;
 	return missing_thread($res, $ctx) if $nr == 0;
-	my $flat = $ctx->{flat};
 	my $seen = {};
 	my $state = {
 		res => $res,
