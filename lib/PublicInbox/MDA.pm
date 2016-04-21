@@ -23,7 +23,9 @@ sub __drop_plus {
 sub precheck {
 	my ($klass, $filter, $address) = @_;
 	my Email::Simple $simple = $filter->simple;
-	my $mid = $simple->header("Message-ID");
+	my @mid = $simple->header('Message-ID');
+	return 0 if scalar(@mid) != 1;
+	my $mid = $mid[0];
 	return 0 if (length($mid) > MAX_MID_SIZE);
 	return 0 unless usable_str(length('<m@h>'), $mid) && $mid =~ /\@/;
 	return 0 unless usable_str(length('u@h'), $filter->from);
