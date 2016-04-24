@@ -154,13 +154,15 @@ sub index_entry {
 	} elsif ($srch) {
 		my $threaded = 'threaded';
 		my $flat = 'flat';
+		my $end = '';
 		if ($ctx->{flat}) {
 			$flat = "<b>$flat</b>";
+			$end = "\n"; # for lynx
 		} else {
 			$threaded = "<b>$threaded</b>";
 		}
 		$rv .= " [<a\nhref=\"${path}$href/t/#u\">$threaded</a>";
-		$rv .= "|<a\nhref=\"${path}$href/T/#u\">$flat</a>]";
+		$rv .= "|<a\nhref=\"${path}$href/T/#u\">$flat</a>]$end";
 	}
 	$fh->write($rv .= '</pre>');
 }
