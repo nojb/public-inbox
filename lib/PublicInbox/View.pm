@@ -17,6 +17,8 @@ use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
 require POSIX;
 
 use constant INDENT => '  ';
+use constant TCHILD => '` ';
+sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
 my $enc_utf8 = find_encoding('UTF-8');
 
@@ -701,13 +703,12 @@ sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _skel_header {
 	my ($dst, $state, $upfx, $hdr, $level) = @_;
-	my $dot = $level == 0 ? '' : '` ';
 
 	my $cur = $state->{cur};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $f = ascii_html($hdr->header('X-PI-From'));
 	my $d = _msg_date($hdr);
-	my $pfx = $d . ' ' . indent_for($level);
+	my $pfx = "$d " . indent_for($level) . th_pfx($level);
 	my $attr = $f;
 	$state->{first_level} ||= $level;
 
@@ -721,7 +722,7 @@ sub _skel_header {
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $state->{cur};
-			$$dst .= "$pfx$dot<b><a\nid=r\nhref=\"#t\">".
+			$$dst .= "$pfx<b><a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
 
 			return;
@@ -744,7 +745,7 @@ sub _skel_header {
 	}
 	my $m = PublicInbox::Hval->new_msgid($mid);
 	$m = $upfx . '../' . $m->as_href . '/';
-	$$dst .= "$pfx$dot<a\nhref=\"$m\">";
+	$$dst .= "$pfx<a\nhref=\"$m\">";
 	$$dst .= defined($s) ? "$s</a> $f\n" : "$f</a>\n";
 }
 
@@ -761,8 +762,7 @@ sub skel_dump {
 			$$dst .= "\t[no common parent]\n";
 		} else {
 			$$dst .= '     [not found] ';
-			my $dot = $level == 0 ? '' : '` ';
-			$$dst .= indent_for($level) . $dot;
+			$$dst .= indent_for($level) . th_pfx($level);
 			$mid = PublicInbox::Hval->new_msgid($mid);
 			my $href = "$upfx../" . $mid->as_href . '/';
 			my $html = $mid->as_html;
@@ -839,11 +839,10 @@ sub emit_topics {
 			$cur = undef;
 		}
 		$cur ||= [ $ts, '' ];
-		my $dot = $level == 0 ? '' : '` ';
 		$cur->[0] = $ts if $ts > $cur->[0];
-		$cur->[1] .= "$nl$pfx$dot<a\nhref=\"$mid/t/#u\"><b>";
-		$cur->[1] .= $subj;
-		$cur->[1] .= "</b></a>\n";
+		$cur->[1] .= $nl . $pfx . th_pfx($level) .
+				"<a\nhref=\"$mid/t/#u\"><b>" .
+				$subj . "</b></a>\n";
 
 		$ts = fmt_ts($ts);
 		my $attr = " $ts UTC";
