@@ -126,13 +126,13 @@ sub search_nav_bot {
 
 	if ($n < $total) {
 		my $qs = $q->qs_html(o => $n);
-		$rv .= qq{, <a\nhref="?$qs">next</a>}
+		$rv .= qq{, <a\nhref="?$qs"\nrel=next>next</a>}
 	}
 	if ($o > 0) {
 		$rv .= $n < $total ? '/' : ',      ';
 		my $p = $o - $LIM;
 		my $qs = $q->qs_html(o => ($p > 0 ? $p : 0));
-		$rv .= qq{<a\nhref="?$qs">prev</a>};
+		$rv .= qq{<a\nhref="?$qs"\nrel=prev>prev</a>};
 	}
 	$rv;
 }
