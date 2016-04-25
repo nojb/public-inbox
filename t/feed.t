@@ -33,7 +33,8 @@ sub rand_use ($) {
 		}
 		$SSOMA{$cmd} = $x;
 	}
-	(($x > 0 && (int(rand(10)) % 2) == 1) || $x < 0);
+	return if $x < 0;
+	($x > 0 && (int(rand(10)) % 2) == 1);
 }
 
 my $tmpdir = tempdir('pi-feed-XXXXXX', TMPDIR => 1, CLEANUP => 1);
