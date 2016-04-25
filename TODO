@@ -2,6 +2,20 @@ TODO items for public-inbox
 
 (Not in any particular order)
 
+* Optional cookies in WWW interface for user-configurable colors
+
+* WWW: Hybrid flat view + thread skeleton (requires Xapian)
+
+* POP3 server, since some webmail providers support external POP3:
+  https://public-inbox.org/meta/20160411034104.GA7817@dcvr.yhbt.net/
+
+* TLS support for various daemons (including STARTTLS for NNTP and POP3)
+
+* Unix socket support for HTTP and POP3 server for use behind reverse
+  proxies like nginx
+
+* Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
+
 * Optional reply-to-list support for mirroring lists that want it :<
   Reply-to-list encourages the existing list as a single-point-of-failure,
   but having an extra mirror using public-inbox.org is nice regardless.
@@ -14,7 +28,7 @@ TODO items for public-inbox
 
 * implement RFC 4685 (Atom message threading)
 
-* configurable constants (quote folding, index limits)
+* configurable constants (index limits, search results)
 
 * use tags as date-based skiplists for navigating history
   (maybe not needed with Xapian support nowadays?)
@@ -23,13 +37,11 @@ TODO items for public-inbox
   http://mid.gmane.org/20151005222157.GE5880@survex.com
 
 * use REQUEST_URI properly for CGI / mod_perl2 compatibility
-  with Message-IDs which include '%'
+  with Message-IDs which include '%' (done?)
 
 * more test cases (use git fast-import to speed up creation)
 
 * large mbox/Maildir/MH/NNTP spool import (use git fast-import)
-
-* remove dependency on ssoma installation (inline the code)
 
 * improve + document mlmmj integration, currently only at:
   http://bogomips.org/unicorn-public/20140508084301.GA2033%40dcvr.yhbt.net/
