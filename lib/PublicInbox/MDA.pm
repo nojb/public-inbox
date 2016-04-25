@@ -66,15 +66,20 @@ sub alias_specified {
 
 sub set_list_headers {
 	my ($class, $simple, $dst) = @_;
-	my $pa = $dst->{-primary_address};
+	unless (defined $simple->header('List-Id')) {
+		my $pa = $dst->{-primary_address};
+		$simple->header_set("List-Id", "<$pa>"); # RFC2919
+	}
 
-	$simple->header_set("List-Id", "<$pa>"); # RFC2919
-
-	# remove Delivered-To: prevent training loops
-	# The rest are taken from Mailman 2.1.15, some may be used for phishing
-	foreach my $h (qw(delivered-to approved approve x-approved x-approve
-			urgent return-receipt-to disposition-notification-to
-			x-confirm-reading-to x-pmrqc)) {
+	foreach my $h (qw(delivered-to), # prevent training loops
+			# The rest are taken from Mailman 2.1.15
+			# could contain passwords:
+			qw(approved approve x-approved x-approve urgent),
+			# could be used phishing:
+			qw(return-receipt-to disposition-notification-to
+			   x-confirm-reading-to),
+			# Pegasus mail:
+			qw(x-pmrqc)) {
 		$simple->header_set($h);
 	}
 }
