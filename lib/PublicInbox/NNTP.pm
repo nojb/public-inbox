@@ -38,12 +38,24 @@ my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
 my $EXPMAP; # fd -> [ idle_time, $self ]
 my $EXPTIMER;
 our $EXPTIME = 180; # 3 minutes
+my $WEAKEN = {}; # string(nntpd) -> nntpd
+my $WEAKTIMER;
 
 sub update_idle_time ($) {
 	my ($self) = @_;
 	my $tmp = $self->{sock} or return;
 	$tmp = fileno($tmp);
 	defined $tmp and $EXPMAP->{$tmp} = [ now(), $self ];
+}
+
+# reduce FD pressure by closing some "git cat-file --batch" processes
+# and unused FDs for msgmap and Xapian indices
+sub weaken_groups () {
+	$WEAKTIMER = undef;
+	foreach my $nntpd (values %$WEAKEN) {
+		$_->weaken_all foreach (@{$nntpd->{grouplist}});
+	}
+	$WEAKEN = {};
 }
 
 sub expire_old () {
@@ -69,11 +81,15 @@ sub expire_old () {
 		$next -= $now;
 		$next = 0 if $next < 0;
 		$EXPTIMER = Danga::Socket->AddTimer($next, *expire_old);
+		weaken_groups();
 	} else {
 		$EXPTIMER = undef;
-		# noop to kick outselves out of the loop so descriptors
+		# noop to kick outselves out of the loop ASAP so descriptors
 		# really get closed
 		Danga::Socket->AddTimer(0, sub {});
+
+		# grace period for reaping resources
+		$WEAKTIMER ||= Danga::Socket->AddTimer(30, *weaken_groups);
 	}
 }
 
@@ -87,6 +103,7 @@ sub new ($$$) {
 	$self->{rbuf} = '';
 	$self->watch_read(1);
 	update_idle_time($self);
+	$WEAKEN->{"$nntpd"} = $nntpd;
 	$EXPTIMER ||= Danga::Socket->AddTimer($EXPTIME, *expire_old);
 	$self;
 }

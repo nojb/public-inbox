@@ -24,20 +24,14 @@ sub new {
 	$self;
 }
 
-sub defer_weaken {
-	my ($self, $field) = @_;
-	Danga::Socket->AddTimer(30, sub { weaken($self->{$field}) });
+sub weaken_all {
+	my ($self) = @_;
+	weaken($self->{$_}) foreach qw(gcf mm search);
 }
 
 sub gcf {
 	my ($self) = @_;
-	$self->{gcf} ||= eval {
-		my $gcf = PublicInbox::Git->new($self->{git_dir});
-
-		# git repos may be repacked and old packs unlinked
-		defer_weaken($self, 'gcf');
-		$gcf;
-	};
+	$self->{gcf} ||= eval { PublicInbox::Git->new($self->{git_dir}) };
 }
 
 sub usable {
@@ -50,24 +44,12 @@ sub usable {
 
 sub mm {
 	my ($self) = @_;
-	$self->{mm} ||= eval {
-		my $mm = PublicInbox::Msgmap->new($self->{git_dir});
-
-		# may be needed if we run low on handles
-		defer_weaken($self, 'mm');
-		$mm;
-	};
+	$self->{mm} ||= eval { PublicInbox::Msgmap->new($self->{git_dir}) };
 }
 
 sub search {
 	my ($self) = @_;
-	$self->{search} ||= eval {
-		my $search = PublicInbox::Search->new($self->{git_dir});
-
-		# may be needed if we run low on handles
-		defer_weaken($self, 'search');
-		$search;
-	};
+	$self->{search} ||= eval { PublicInbox::Search->new($self->{git_dir}) };
 }
 
 sub description {
