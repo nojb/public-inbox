@@ -8,6 +8,7 @@ use warnings;
 use Plack::Util;
 use PublicInbox::Daemon;
 use PublicInbox::HTTP;
+use PublicInbox::HTTPD;
 use Plack::Request;
 use Plack::Builder;
 my %httpds;
@@ -54,80 +55,3 @@ PublicInbox::Daemon::run('0.0.0.0:8080', $refresh,
 		my $h = $httpds{$fd} ||= PublicInbox::HTTPD->new($srv, $app);
 		PublicInbox::HTTP->new($client, $addr, $h),
 	});
-
-1;
-
-# XXX This is a totally unstable API for public-inbox internal use only
-# This is exposed via the 'pi-httpd.async' key in the PSGI env hash.
-# The name of this key is not even stable!
-# Currently is is intended for use with read-only pipes.
-package PublicInbox::HTTPD::Async;
-use strict;
-use warnings;
-use base qw(Danga::Socket);
-use fields qw(cb);
-
-sub new {
-	my ($class, $io, $cb) = @_;
-	my $self = fields::new($class);
-	IO::Handle::blocking($io, 0);
-	$self->SUPER::new($io);
-	$self->{cb} = $cb;
-	$self->watch_read(1);
-	$self;
-}
-
-sub event_read { $_[0]->{cb}->() }
-sub event_hup { $_[0]->{cb}->() }
-sub event_err { $_[0]->{cb}->() }
-sub sysread { shift->{sock}->sysread(@_) }
-
-sub close {
-	my $self = shift;
-	$self->{cb} = undef;
-	$self->SUPER::close(@_);
-}
-
-1;
-
-package PublicInbox::HTTPD;
-use strict;
-use warnings;
-use Plack::Util;
-
-sub pi_httpd_async {
-	my ($io, $cb) = @_;
-	PublicInbox::HTTPD::Async->new($io, $cb);
-}
-
-sub new {
-	my ($class, $sock, $app) = @_;
-	my $n = getsockname($sock) or die "not a socket: $sock $!\n";
-	my ($host, $port) = PublicInbox::Daemon::host_with_port($n);
-
-	my %env = (
-		SERVER_NAME => $host,
-		SERVER_PORT => $port,
-		SCRIPT_NAME => '',
-		'psgi.version' => [ 1, 1 ],
-		'psgi.errors' => \*STDERR,
-		'psgi.url_scheme' => 'http',
-		'psgi.nonblocking' => Plack::Util::TRUE,
-		'psgi.streaming' => Plack::Util::TRUE,
-		'psgi.run_once'	 => Plack::Util::FALSE,
-		'psgi.multithread' => Plack::Util::FALSE,
-		'psgi.multiprocess' => Plack::Util::TRUE,
-		'psgix.harakiri'=> Plack::Util::FALSE,
-		'psgix.input.buffered' => Plack::Util::TRUE,
-		'pi-httpd.async' => do {
-			no warnings 'once';
-			*pi_httpd_async
-		},
-	);
-	bless {
-		app => $app,
-		env => \%env,
-	}, $class;
-}
-
-1;
