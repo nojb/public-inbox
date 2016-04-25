@@ -93,14 +93,16 @@ sub remove {
 	my $left = $1;
 	my $offset = 0;
 	my $buf = '';
+	my $n;
 	while ($left > 0) {
-		my $n = read($r, $buf, $left, $offset);
+		$n = read($r, $buf, $left, $offset);
 		defined($n) or die "read cat-blob failed: $!";
 		$n == 0 and die 'fast-export (cat-blob) died';
 		$left -= $n;
 		$offset += $n;
 	}
-	read($r, my $lf, 1);
+	$n = read($r, my $lf, 1);
+	defined($n) or die "read final byte of cat-blob failed: $!";
 	die "bad read on final byte: <$lf>" if $lf ne "\n";
 	my $cur = Email::MIME->new($buf);
 	if ($cur->header('Subject') ne $mime->header('Subject') ||
