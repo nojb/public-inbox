@@ -513,12 +513,12 @@ sub html_footer {
 		if ($p) {
 			$p = PublicInbox::Hval->new_msgid($p);
 			$p = $p->as_href;
-			$irt = "<a\nhref=\"$upfx$p/\">parent</a> ";
+			$irt = "<a\nhref=\"$upfx$p/\"rel=prev>parent</a> ";
 		} else {
 			$irt = ' ' x length('parent ');
 		}
 		if ($next) {
-			$irt .= "<a\nhref=\"$upfx$next/\">next</a> ";
+			$irt .= "<a\nhref=\"$upfx$next/\"\nrel=next>next</a> ";
 		} else {
 			$irt .= ' ' x length('next ');
 		}

@@ -185,7 +185,7 @@ sub nav_footer {
 	my $anchor = $state->{anchor_idx};
 
 	if ($last) {
-		$next = qq!<a\nhref="?$param=$last">next</a>!;
+		$next = qq!<a\nhref="?$param=$last"\nrel=next>next</a>!;
 	}
 	if ($old_r) {
 		$head = $cgi->path_info;
