@@ -7,6 +7,7 @@ package PublicInbox::GitHTTPBackend;
 use strict;
 use warnings;
 use Fcntl qw(:seek);
+use IO::File;
 use PublicInbox::Spawn qw(spawn);
 
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
