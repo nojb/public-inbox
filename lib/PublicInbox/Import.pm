@@ -195,6 +195,20 @@ sub done {
 	my $pid = delete $self->{pid} or die 'BUG: missing {pid} when done';
 	waitpid($pid, 0) == $pid or die 'fast-import did not finish';
 	$? == 0 or die "fast-import failed: $?";
+
+	# for compatibility with existing ssoma installations
+	# we can probably remove this entirely by 2020
+	my $git_dir = $self->{git}->{git_dir};
+	my $index = "$git_dir/ssoma.index";
+	# XXX: change the following scope to: if (-e $index) # in 2018 or so..
+	unless ($ENV{FAST}) {
+		local $ENV{GIT_INDEX_FILE} = $index;
+		system('git', "--git-dir=$git_dir", qw(read-tree -m -v -i),
+			$self->{ref}) == 0 or
+			die "failed to update $git_dir/ssoma.index: $?\n";
+	}
+
+
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";
 	flock($lockfh, LOCK_UN) or die "unlock failed: $!";
 	close $lockfh or die "close lock failed: $!";

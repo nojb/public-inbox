@@ -28,13 +28,6 @@ sub run {
 
 	my $content_type = $mime->header('Content-Type') || 'text/plain';
 
-	# kill potentially bad/confusing headers
-	# Note: ssoma already does this, but since we mangle the message,
-	# we should do this before it gets to ssoma.
-	foreach my $d (qw(status lines content-length)) {
-		$mime->header_set($d);
-	}
-
 	if ($content_type =~ m!\btext/plain\b!i) {
 		return 1; # yay, nothing to do
 	} elsif ($content_type =~ $MIME_HTML) {

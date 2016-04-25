@@ -8,6 +8,7 @@ use Email::Filter;
 use File::Temp qw/tempdir/;
 use Cwd;
 use IPC::Run qw(run);
+use PublicInbox::MID qw(mid2path);
 
 my $mda = "blib/script/public-inbox-mda";
 my $learn = "blib/script/public-inbox-learn";
@@ -54,7 +55,13 @@ local $ENV{GIT_COMMITTER_NAME} = eval {
 	close $fh;
 	my $msg = Email::Filter->new(data => $str);
 	$msg = Email::MIME->new($msg->simple->as_string);
-	my ($author, $email, $date) = PublicInbox::MDA->author_info($msg);
+
+	my $from = $msg->header('From');
+	my @from = Email::Address->parse($from);
+	my $author = $from[0]->name;
+	my $email = $from[0]->address;
+	my $date = $msg ->header('Date');
+
 	is('El&#233;anor',
 		encode('us-ascii', my $tmp = $author, Encode::HTMLCREF),
 		'HTML conversion is correct');
@@ -174,7 +181,8 @@ EOF
 	{
 		# deliver the spam message, first
 		run([$mda], \$in);
-		my $msg = `ssoma cat $mid $maindir`;
+		my $path = mid2path($mid);
+		my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
 		like($msg, qr/\Q$mid\E/, "message delivered");
 
 		# now train it
@@ -212,7 +220,8 @@ EOF
 
 	run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham without failure");
-	my $msg = `ssoma cat $mid $maindir`;
+	my $path = mid2path($mid);
+	my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
 	like($msg, qr/\Q$mid\E/, "ham message delivered");
 	run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham idempotently ");
@@ -251,7 +260,8 @@ EOF
 		$in = $mime->as_string;
 		run([$learn, "ham"], \$in);
 		is($?, 0, "learned ham without failure");
-		$msg = `ssoma cat $mid $maindir`;
+		my $path = mid2path($mid);
+		$msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
 		like($msg, qr/<\Q$mid\E>/, "ham message delivered");
 		unlike($msg, qr/<html>/i, '<html> filtered');
 	}

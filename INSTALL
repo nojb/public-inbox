@@ -23,7 +23,6 @@ Requirements (server MDA)
 -------------------------
 
 * git
-* ssoma - http://ssoma.public-inbox.org/INSTALL.html
 * SpamAssassin (spamc/spamd)
 * MTA - postfix is recommended
 * lynx (for converting HTML messages to text)

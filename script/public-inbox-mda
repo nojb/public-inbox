@@ -15,6 +15,8 @@ use IPC::Run qw(run);
 use PublicInbox::MDA;
 use PublicInbox::Filter;
 use PublicInbox::Config;
+use PublicInbox::Import;
+use PublicInbox::Git;
 
 # n.b: hopefully we can setup the emergency path without bailing due to
 # user error, we really want to setup the emergency destination ASAP
@@ -58,20 +60,20 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 			PublicInbox::MDA->set_list_headers($msg, $dst);
 			$filter->simple($msg);
 
-			my ($name, $email, $date) =
-					PublicInbox::MDA->author_info($msg);
-
 			END {
 				index_sync($main_repo) if ($? == 0);
 			};
-
-			local $ENV{GIT_AUTHOR_NAME} = $name;
-			local $ENV{GIT_AUTHOR_EMAIL} = $email;
-			local $ENV{GIT_AUTHOR_DATE} = $date;
-			local $ENV{GIT_COMMITTER_EMAIL} = $recipient;
-			local $ENV{GIT_COMMITTER_NAME} = $dst->{listname};
-
-			$filter->pipe(PublicInbox::MDA->cmd, $main_repo);
+			my $git = PublicInbox::Git->new($main_repo);
+			my $im = PublicInbox::Import->new($git,
+						$dst->{listname}, $recipient);
+			if (defined $im->add($msg)) {
+				$im->done;
+				$filter->ignore; # exits
+			}
+			# this message is similar to what ssoma-mda shows:
+			print STDERR "CONFLICT: Message-ID: ",
+				$msg->header_obj->header_raw('Message-ID'),
+				" exists\n";
 		}
 	}
 } else {

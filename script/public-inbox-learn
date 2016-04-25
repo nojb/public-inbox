@@ -8,6 +8,8 @@ my $usage = "$0 (spam|ham) < /path/to/message";
 use strict;
 use warnings;
 use PublicInbox::Config;
+use PublicInbox::Git;
+use PublicInbox::Import;
 use Email::MIME;
 use Email::Address;
 use IPC::Run qw/run/;
@@ -32,16 +34,12 @@ foreach my $h (qw(Cc To)) {
 	}
 }
 
-my ($name, $email, $date);
-
 if ($train eq "ham") {
 	require PublicInbox::MDA;
 	require PublicInbox::Filter;
 	PublicInbox::Filter->run($mime);
-	($name, $email, $date) = PublicInbox::MDA->author_info($mime);
 }
 
-my $in = $mime->as_string;
 my $err = 0;
 my @output = qw(> /dev/null > /dev/null);
 
@@ -50,37 +48,30 @@ foreach my $recipient (keys %dests) {
 	my $dst = $pi_config->lookup($recipient) or next;
 	my $git_dir = $dst->{mainrepo} or next;
 	my ($out, $err) = ("", "");
-
+	my $git = PublicInbox::Git->new($git_dir);
 	# We do not touch GIT_COMMITTER_* env here so we can track
 	# who trained the message.
-	# We will not touch GIT_AUTHOR_* when learning spam messages, either
+	my $name = $ENV{GIT_COMMITTER_NAME} || $dst->{listname};
+	my $email = $ENV{GIT_COMMITTER_EMAIL} || $recipient;
+	my $im = PublicInbox::Import->new($git, $name, $email);
+
 	if ($train eq "spam") {
 		# This needs to be idempotent, as my inotify trainer
 		# may train for each cross-posted message, and this
 		# script already learns for every list in
 		# ~/.public-inbox/config
-		if (!run(["ssoma-rm", $git_dir], \$in, \$out, \$err)) {
-			if ($err !~ /^git cat-file .+ failed: 32768$/) {
-				$err = 1;
-			}
-		}
+		$im->remove($mime);
 	} else { # $train eq "ham"
 		# no checking for spam here, we assume the message has
 		# been reviewed by a human at this point:
 		PublicInbox::MDA->set_list_headers($mime, $dst);
-		my $s  = $mime->as_string;
-
-		local $ENV{GIT_AUTHOR_NAME} = $name;
-		local $ENV{GIT_AUTHOR_EMAIL} = $email;
-		local $ENV{GIT_AUTHOR_DATE} = $date;
 
 		# Ham messages are trained when they're marked into
 		# a SEEN state, so this is idempotent:
-		run([PublicInbox::MDA->cmd, $git_dir], \$s, \$out, \$err);
-		if ($err !~ /CONFLICT/) {
-			$err = 1;
-		}
+		$im->add($mime);
 	}
+	$im->done;
+	my $in = $mime->as_string;
 	if (!run([qw(spamc -L), $train], \$in, @output)) {
 		$err = 1;
 	}

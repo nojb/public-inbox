@@ -3,11 +3,15 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::Simple;
+use Email::MIME;
 use PublicInbox::Feed;
+use PublicInbox::Git;
+use PublicInbox::Import;
 use File::Temp qw/tempdir/;
 my $tmpdir = tempdir('pi-http-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
+my $git = PublicInbox::Git->new($git_dir);
+my $im = PublicInbox::Import->new($git, 'tester', 'test@example');
 
 # setup
 {
@@ -15,19 +19,18 @@ my $git_dir = "$tmpdir/gittest";
 	my $prev = "";
 
 	foreach my $i (1..6) {
-		local $ENV{GIT_DIR} = $git_dir;
-		my $pid = open(my $pipe, "|-");
-		defined $pid or die "fork/pipe failed: $!\n";
-		if ($pid == 0) {
-			exec("ssoma-mda", $git_dir);
-		}
+		# my $pid = open(my $pipe, "|-");
+		# defined $pid or die "fork/pipe failed: $!\n";
+		# if ($pid == 0) {
+			# exec("ssoma-mda", $git_dir);
+		# }
 		my $mid = "<$i\@example.com>";
 		my $mid_line = "Message-ID: $mid";
 		if ($prev) {
 			$mid_line .= "In-Reply-To: $prev";
 		}
 		$prev = $mid;
-		my $simple = Email::Simple->new(<<EOF);
+		my $mime = Email::MIME->new(<<EOF);
 From: ME <me\@example.com>
 To: U <u\@example.com>
 $mid_line
@@ -43,9 +46,9 @@ msg $i
 
 keep me
 EOF
-		print $pipe $simple->as_string or die "print failed: $!\n";
-		close $pipe or die "close pipe failed: $!\n";
+		like($im->add($mime), qr/\A:\d+\z/, 'inserted message');
 	}
+	$im->done;
 }
 
 # check HTML index

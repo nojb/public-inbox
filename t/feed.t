@@ -3,8 +3,10 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::Simple;
+use Email::MIME;
 use PublicInbox::Feed;
+use PublicInbox::Git;
+use PublicInbox::Import;
 use PublicInbox::Config;
 use IPC::Run qw/run/;
 use File::Temp qw/tempdir/;
@@ -15,15 +17,36 @@ sub string_feed {
 	stream_to_string(PublicInbox::Feed::generate($_[0]));
 }
 
+# ensure we are compatible with existing ssoma installations which
+# do not use fast-import.  We can probably remove this in 2018
+my %SSOMA;
+sub rand_use ($) {
+	return 0 if $ENV{FAST};
+	my $cmd = $_[0];
+	my $x = $SSOMA{$cmd};
+	unless ($x) {
+		$x = -1;
+		foreach my $p (split(':', $ENV{PATH})) {
+			-x "$p/$cmd" or next;
+			$x = 1;
+			last;
+		}
+		$SSOMA{$cmd} = $x;
+	}
+	(($x > 0 && (int(rand(10)) % 2) == 1) || $x < 0);
+}
+
 my $tmpdir = tempdir('pi-feed-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
+my $git = PublicInbox::Git->new($git_dir);
+my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 
 {
 	is(0, system(qw(git init -q --bare), $git_dir), "git init");
 	local $ENV{GIT_DIR} = $git_dir;
 
 	foreach my $i (1..6) {
-		my $simple = Email::Simple->new(<<EOF);
+		my $mime = Email::MIME->new(<<EOF);
 From: ME <me\@example.com>
 To: U <u\@example.com>
 Message-Id: <$i\@example.com>
@@ -53,10 +76,16 @@ msg $i
 
 keep me
 EOF
-		my $str = $simple->as_string;
-		run(['ssoma-mda', $git_dir], \$str) or
-			die "mda failed: $?\n";
+		if (rand_use('ssoma-mda')) {
+			$im->done;
+			my $str = $mime->as_string;
+			run(['ssoma-mda', $git_dir], \$str) or
+				die "mda failed: $?\n";
+		} else {
+			like($im->add($mime), qr/\A:\d+/, 'added');
+		}
 	}
+	$im->done;
 }
 
 # spam check
@@ -84,13 +113,7 @@ EOF
 	# add a new spam message
 	my $spam;
 	{
-		my $pid = open(my $pipe, "|-");
-		defined $pid or die "fork/pipe failed: $!\n";
-		if ($pid == 0) {
-			exec("ssoma-mda", $git_dir);
-		}
-
-		$spam = Email::Simple->new(<<EOF);
+		$spam = Email::MIME->new(<<EOF);
 From: SPAMMER <spammer\@example.com>
 To: U <u\@example.com>
 Message-Id: <this-is-spam\@example.com>
@@ -98,8 +121,19 @@ Subject: SPAM!!!!!!!!
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 EOF
-		print $pipe $spam->as_string or die "print failed: $!\n";
-		close $pipe or die "close pipe failed: $!\n";
+		if (rand_use('ssoma-mda')) {
+			my $pid = open(my $pipe, "|-");
+			defined $pid or die "fork/pipe failed: $!";
+			if ($pid == 0) {
+				exec("ssoma-mda", $git_dir);
+			}
+
+			print $pipe $spam->as_string or die "print failed: $!";
+			close $pipe or die "close pipe failed: $!";
+		} else {
+			$im->add($spam);
+			$im->done;
+		}
 	}
 
 	# check spam shows up
@@ -118,10 +152,13 @@ EOF
 	}
 
 	# nuke spam
-	{
+	if (rand_use('ssoma-rm')) {
 		my $spam_str = $spam->as_string;
 		run(["ssoma-rm", $git_dir], \$spam_str) or
 				die "ssoma-rm failed: $?\n";
+	} else {
+		$im->remove($spam);
+		$im->done;
 	}
 
 	# spam no longer shows up

@@ -35,8 +35,7 @@ script delivers to a second recipient for training, the "pi" user:
                                            public-inbox-learn
 
 public-inbox-learn will then internally handle the "spamc -> spamd"
-delivery path as well as calling ssoma-rm on falsely trained
-
+delivery path as well as removing the message from the git tree.
 
 * incron - run commands based on filesystem events: http://incron.aiken.cz/
 
@@ -47,6 +46,3 @@ delivery path as well as calling ssoma-rm on falsely trained
 
 * report-spam / dc-dlvr - distributed with public-inbox in the scripts/
   directory: git clone git://80x24.org/public-inbox
-
-* ssoma-rm - part of ssoma: some sort of mail archiver, a dependency of
-  public-inbox: git clone git://80x24.org/ssoma

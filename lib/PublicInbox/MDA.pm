@@ -10,7 +10,6 @@ use Email::Address;
 use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
-use constant cmd => qw/ssoma-mda -1/;
 
 # drop plus addressing for matching
 sub __drop_plus {
@@ -82,17 +81,6 @@ sub set_list_headers {
 			qw(x-pmrqc)) {
 		$simple->header_set($h);
 	}
-}
-
-# returns a 3-element array: name, email, date
-sub author_info {
-	my ($class, $mime) = @_;
-
-	my $from = $mime->header('From');
-	my @from = Email::Address->parse($from);
-	my $name = $from[0]->name;
-	my $email = $from[0]->address;
-	($name, $email, $mime->header('Date'));
 }
 
 1;
