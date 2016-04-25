@@ -92,11 +92,10 @@ EOF
 	{
 		local $ENV{PATH} = $main_path;
 		run([$mda], \$in);
-		local $ENV{GIT_DIR} = $maindir;
-		my $rev = `git rev-list HEAD`;
+		my $rev = `git --git-dir=$maindir rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 		chomp $rev;
-		my $cmt = `git cat-file commit $rev`;
+		my $cmt = `git --git-dir=$maindir cat-file commit $rev`;
 		like($cmt, qr/^author Me <me\@example\.com> 0 \+0000\n/m,
 			"author info set correctly");
 		like($cmt, qr/^committer test <test-public\@example\.com>/m,
@@ -109,8 +108,7 @@ EOF
 		ok(!-e $failbox, "nothing in PI_EMERGENCY before");
 		local $ENV{PATH} = $fail_path;
 		run([$mda], \$in);
-		local $ENV{GIT_DIR} = $maindir;
-		my @revs = `git rev-list HEAD`;
+		my @revs = `git --git-dir=$maindir rev-list HEAD`;
 		is(scalar @revs, 1, "bad revision not committed");
 		ok(-s $failbox > 0, "PI_EMERGENCY is written to");
 	}
@@ -330,8 +328,7 @@ sub fail_bad_header {
 	my ($out, $err) = ("", "");
 	local $ENV{PATH} = $main_path;
 	run([$mda], \$in, \$out, \$err);
-	local $ENV{GIT_DIR} = $maindir;
-	my $rev = `git rev-list HEAD`;
+	my $rev = `git --git-dir=$maindir rev-list HEAD`;
 	chomp $rev;
 	is($rev, $good_rev, "bad revision not commited ($msg)");
 	ok(-s $failbox > 0, "PI_EMERGENCY is written to ($msg)");

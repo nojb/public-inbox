@@ -62,8 +62,7 @@ zzzzzz
 EOF
 		my $in = $simple->as_string;
 		run_with_env({PATH => $main_path}, [$mda], \$in);
-		local $ENV{GIT_DIR} = $maindir;
-		my $rev = `git rev-list HEAD`;
+		my $rev = `git --git-dir=$maindir rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 	}
 
@@ -85,8 +84,7 @@ what?
 EOF
 		my $in = $reply->as_string;
 		run_with_env({PATH => $main_path}, [$mda], \$in);
-		local $ENV{GIT_DIR} = $maindir;
-		my $rev = `git rev-list HEAD`;
+		my $rev = `git --git-dir=$maindir rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 	}
 
@@ -169,7 +167,6 @@ EOF
 		local $ENV{ORIGINAL_RECIPIENT} = $addr;
 		run_with_env({PATH => $main_path}, [$mda], \$in);
 	}
-	local $ENV{GIT_DIR} = $maindir;
 
 	my $res = cgi_run("/test/slashy%2fasdf%40example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
