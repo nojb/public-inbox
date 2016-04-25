@@ -533,16 +533,6 @@ sub get_range ($$) {
 	[ $beg, $end ];
 }
 
-sub hdr_val ($$) {
-	my ($r, $header) = @_;
-	return $r->[3] if $header =~ /\A:?bytes\z/i;
-	return $r->[4] if $header =~ /\A:?lines\z/i;
-	$r = $r->[2]->header_obj->header($header);
-	defined $r or return;
-	$r =~ s/[\r\n\t]+/ /sg;
-	$r;
-}
-
 sub long_response ($$$$) {
 	my ($self, $beg, $end, $cb) = @_;
 	die "BUG: nested long response" if $self->{long_res};
