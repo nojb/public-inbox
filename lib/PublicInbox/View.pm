@@ -30,7 +30,7 @@ sub msg_html {
 	headers_to_html_header($hdr, $ctx) .
 		multipart_text_as_html($mime) .
 		'</pre><hr /><pre>' .
-		html_footer($hdr, 1, $ctx) .
+		html_footer($hdr, 1, $ctx, 'R/') .
 		$footer .
 		'</pre></body></html>';
 }
@@ -139,7 +139,7 @@ sub index_entry {
 		index_walk($fh, $_[0], $enc, \$part_nr);
 	});
 	$mime->body_set('');
-	$rv = "\n" . html_footer($hdr, 0, $ctx, $mhref);
+	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/R");
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
@@ -498,7 +498,7 @@ sub mailto_arg_link {
 }
 
 sub html_footer {
-	my ($hdr, $standalone, $ctx, $mhref) = @_;
+	my ($hdr, $standalone, $ctx, $rhref) = @_;
 
 	my $srch = $ctx->{srch} if $ctx;
 	my $upfx = '../';
@@ -526,7 +526,7 @@ sub html_footer {
 		$irt = '';
 	}
 
-	$irt . qq(<a\nhref="${tpfx}R/">reply</a>) . $idx;
+	$irt . qq(<a\nhref="$rhref">reply</a>) . $idx;
 }
 
 sub linkify_ref_nosrch {
