@@ -3,7 +3,7 @@
 #
 # Used to read files from a git repository without excessive forking.
 # Used in our web interfaces as well as our -nntpd server.
-# This is based on code in Git.pm which is GPLv2, but modified to avoid
+# This is based on code in Git.pm which is GPLv2+, but modified to avoid
 # dependence on environment variables for compatibility with mod_perl.
 # There are also API changes to simplify our usage and data set.
 package PublicInbox::Git;
@@ -134,3 +134,55 @@ sub cleanup {
 sub DESTROY { cleanup(@_) }
 
 1;
+__END__
+=pod
+
+=head1 NAME
+
+PublicInbox::Git - git wrapper
+
+=head1 VERSION
+
+version 1.0
+
+=head1 SYNOPSIS
+
+	use PublicInbox::Git;
+	chomp(my $git_dir = `git rev-parse --git-dir`);
+	$git_dir or die "GIT_DIR= must be specified\n";
+	my $git = PublicInbox::Git->new($git_dir);
+
+=head1 DESCRIPTION
+
+Unstable API outside of the L</new> method.
+It requires L<git(1)> to be installed.
+
+=head1 METHODS
+
+=cut
+
+=head2 new
+
+	my $git = PublicInbox::Git->new($git_dir);
+
+Initialize a new PublicInbox::Git object for use with L<PublicInbox::Import>
+This is the only public API method we support.  Everything else
+in this module is subject to change.
+
+=head1 SEE ALSO
+
+L<Git>, L<PublicInbox::Import>
+
+=head1 CONTACT
+
+All feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
+
+=cut

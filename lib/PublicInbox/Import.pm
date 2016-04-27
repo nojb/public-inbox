@@ -66,7 +66,7 @@ sub now2822 () {
 }
 
 # returns undef on non-existent
-# (-1, msg) on mismatch
+# ('MISMATCH', msg) on mismatch
 # (:MARK, msg) on success
 sub remove {
 	my ($self, $mime) = @_; # mime = Email::MIME
@@ -76,13 +76,13 @@ sub remove {
 
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};
-	return if $tip eq '';
+	return ('MISSING', undef) if $tip eq '';
 
 	print $w "ls $tip $path\n" or wfail;
 	local $/ = "\n";
 	my $check = <$r>;
 	defined $check or die "EOF from fast-import / ls: $!";
-	return if $check =~ /\Amissing /;
+	return ('MISSING', undef) if $check =~ /\Amissing /;
 	$check =~ m!\A100644 blob ([a-f0-9]{40})\t!s or die "not blob: $check";
 	my $blob = $1;
 	print $w "cat-blob $blob\n" or wfail;
@@ -107,7 +107,7 @@ sub remove {
 	my $cur = Email::MIME->new($buf);
 	if ($cur->header('Subject') ne $mime->header('Subject') ||
 			$cur->body ne $mime->body) {
-		return (-1, $cur);
+		return ('MISMATCH', $cur);
 	}
 
 	my $ref = $self->{ref};
@@ -215,3 +215,122 @@ sub done {
 }
 
 1;
+__END__
+=pod
+
+=head1 NAME
+
+PublicInbox::Import - message importer for public-inbox
+
+=head1 VERSION
+
+version 1.0
+
+=head1 SYNOPSYS
+
+	use Email::MIME;
+	use PublicInbox::Git;
+	use PublicInbox::Import;
+
+	chomp(my $git_dir = `git rev-parse --git-dir`);
+	$git_dir or die "GIT_DIR= must be specified\n";
+	my $git = PublicInbox::Git->new($git_dir);
+	my @committer = ('inbox', 'inbox@example.org');
+	my $im = PublicInbox::Import->new($git, @committer);
+
+	# to add a message:
+	my $message = "From: <u\@example.org>\n".
+		"Subject: test message \n" .
+		"Date: Thu, 01 Jan 1970 00:00:00 +0000\n" .
+		"Message-ID: <m\@example.org>\n".
+		"\ntest message";
+	my $parsed = Email::MIME->new($message);
+	my $ret = $im->add($parsed);
+	if (!defined $ret) {
+		warn "duplicate: ",
+			$parsed->header_obj->header_raw('Message-ID'), "\n";
+	} else {
+		print "imported at mark $ret\n";
+	}
+	$im->done;
+
+	# to remove a message
+	my $junk = Email::MIME->new($message);
+	my ($mark, $orig) = $im->remove($junk);
+	if ($mark eq 'MISSING') {
+		print "not found\n";
+	} elsif ($mark eq 'MISMATCH') {
+		print "Message exists but does not match\n\n",
+			$orig->as_string, "\n",;
+	} else {
+		print "removed at mark $mark\n\n",
+			$orig->as_string, "\n";
+	}
+	$im->done;
+
+=head1 DESCRIPTION
+
+An importer and remover for public-inboxes which takes L<Email::MIME>
+messages as input and stores them in a ssoma repository as
+documented in L<https://ssoma.public-inbox.org/ssoma_repository.txt>,
+except it does not allow duplicate Message-IDs.
+
+It requires L<git(1)> and L<git-fast-import(1)> to be installed.
+
+=head1 METHODS
+
+=cut
+
+=head2 new
+
+	my $im = PublicInbox::Import->new($git, @committer);
+
+Initialize a new PublicInbox::Import object.
+
+=head2 add
+
+	my $parsed = Email::MIME->new($message);
+	$im->add($parsed);
+
+Adds a message to to the git repository.  This will acquire
+C<$GIT_DIR/ssoma.lock> and start L<git-fast-import(1)> if necessary.
+
+Messages added will not be visible to other processes until L</done>
+is called, but L</remove> may be called on them.
+
+=head2 remove
+
+	my $junk = Email::MIME->new($message);
+	my ($code, $orig) = $im->remove($junk);
+
+Removes a message from the repository.  On success, it returns
+a ':'-prefixed numeric code representing the git-fast-import
+mark and the original messages as an Email::MIME object.
+If the message could not be found, the code is "MISSING"
+and the original message is undef.  If there is a mismatch where
+the "Message-ID" is matched but the subject and body do not match,
+the returned code is "MISMATCH" and the conflicting message
+is returned as orig.
+
+=head2 done
+
+Finalizes the L<git-fast-import(1)> and unlocks the repository.
+Calling this is required to finalize changes to a repository.
+
+=head1 SEE ALSO
+
+L<Email::MIME>
+
+=head1 CONTACT
+
+All feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
+
+=cut

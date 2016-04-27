@@ -57,7 +57,7 @@ is(undef, $im->remove($mime), 'remove is idempotent');
 # mismatch on identical Message-ID
 $mime->header_set('Message-ID', '<a@example.com>');
 ($mark, $msg) = $im->remove($mime);
-is($mark, -1, 'mark == -1 on mismatch');
+is($mark, 'MISMATCH', 'mark == MISMATCH on mismatch');
 is($msg->header('Message-ID'), '<a@example.com>', 'Message-ID matches');
 isnt($msg->header('Subject'), $mime->header('Subject'), 'subject mismatch');
 
