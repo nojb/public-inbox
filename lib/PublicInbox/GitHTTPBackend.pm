@@ -37,6 +37,12 @@ sub serve {
 		return $ok if $ok;
 	}
 
+	serve_dumb($cgi, $git, $path);
+}
+
+sub serve_dumb {
+	my ($cgi, $git, $path) = @_;
+
 	my $type;
 	if ($path =~ /\A(?:$BIN)\z/o) {
 		$type = 'application/octet-stream';
@@ -141,11 +147,11 @@ sub serve_smart {
 	}
 	my ($rpipe, $wpipe);
 	unless (pipe($rpipe, $wpipe)) {
-		$err->print("error creating pipe: $!\n");
-		return r(500);
+		$err->print("error creating pipe: $! - going static\n");
+		return;
 	}
 	my %env = %ENV;
-	# GIT_HTTP_EXPORT_ALL, GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
+	# GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
 	# may be set in the server-process and are passed as-is
 	foreach my $name (qw(QUERY_STRING
 				REMOTE_USER REMOTE_ADDR
@@ -162,8 +168,8 @@ sub serve_smart {
 	my %rdr = ( 0 => fileno($in), 1 => fileno($wpipe) );
 	my $pid = spawn([qw(git http-backend)], \%env, \%rdr);
 	unless (defined $pid) {
-		$err->print("error spawning: $!\n");
-		return r(500);
+		$err->print("error spawning: $! - going static\n");
+		return;
 	}
 	$wpipe = $in = undef;
 	$buf = '';
@@ -172,19 +178,19 @@ sub serve_smart {
 		if ($fh) {
 			$fh->close;
 			$fh = undef;
-		} else {
-			$res->(r(500)) if $res;
 		}
 		if ($rpipe) {
 			$rpipe->close; # _may_ be Danga::Socket::close
 			$rpipe = undef;
 		}
-		if (defined $pid) {
-			my $wpid = $pid;
-			$pid = undef;
-			return if $wpid == waitpid($wpid, 0);
+		if (defined $pid && $pid != waitpid($pid, 0)) {
 			$err->print("git http-backend ($git_dir): $?\n");
+		} else {
+			$pid = undef;
 		}
+		return unless $res;
+		my $dumb = serve_dumb($cgi, $git, $path);
+		ref($dumb) eq 'ARRAY' ? $res->($dumb) : $dumb->($res);
 	};
 	my $fail = sub {
 		my ($e) = @_;
@@ -215,10 +221,14 @@ sub serve_smart {
 					push @h, $k, $v;
 				}
 			}
-			# write response header:
-			$fh = $res->([ $code, \@h ]);
-			$res = undef;
-			$fh->write($buf);
+			if ($code == 403) {
+				# smart cloning disabled, serve dumbly
+				# in $end since we never undef $res in here
+			} else { # write response header:
+				$fh = $res->([ $code, \@h ]);
+				$res = undef;
+				$fh->write($buf);
+			}
 			$buf = '';
 		} # else { keep reading ... }
 	};

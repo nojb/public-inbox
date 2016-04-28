@@ -105,6 +105,15 @@ EOF
 	is(system(qw(git clone -q --mirror),
 			"http://$host:$port/$group", "$tmpdir/clone.git"),
 		0, 'clone successful');
+
+	# ensure dumb cloning works, too:
+	is(system('git', "--git-dir=$maindir",
+		qw(config http.uploadpack false)),
+		0, 'disable http.uploadpack');
+	is(system(qw(git clone -q --mirror),
+			"http://$host:$port/$group", "$tmpdir/dumb.git"),
+		0, 'clone successful');
+
 	ok(kill('TERM', $pid), 'killed httpd');
 	$pid = undef;
 	waitpid(-1, 0);
