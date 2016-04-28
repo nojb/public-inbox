@@ -58,8 +58,6 @@ sub index_dir {
 	my ($git_dir) = @_;
 	-d $git_dir or die "$git_dir does not appear to be a git repository\n";
 
-	system('git', "--git-dir=$git_dir", 'update-server-info') and
-		die "git update-server-info failed for $git_dir";
 	my $s = PublicInbox::SearchIdx->new($git_dir, 1);
 	$s->index_sync;
 }

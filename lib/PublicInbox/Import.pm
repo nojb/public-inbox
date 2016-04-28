@@ -45,7 +45,7 @@ sub gfi_start {
 			--quiet --done --date-format=rfc2822));
 	my $rdr = { 0 => fileno($out_r), 1 => fileno($in_w) };
 	my $pid = spawn(\@cmd, undef, $rdr);
-	die "spawn failed: $!" unless defined $pid;
+	die "spawn fast-import failed: $!" unless defined $pid;
 	$out_w->autoflush(1);
 	$self->{in} = $in_r;
 	$self->{out} = $out_w;
@@ -201,13 +201,20 @@ sub done {
 	my $git_dir = $self->{git}->{git_dir};
 	my $index = "$git_dir/ssoma.index";
 	# XXX: change the following scope to: if (-e $index) # in 2018 or so..
+	my @cmd = ('git', "--git-dir=$git_dir");
 	unless ($ENV{FAST}) {
-		local $ENV{GIT_INDEX_FILE} = $index;
-		system('git', "--git-dir=$git_dir", qw(read-tree -m -v -i),
-			$self->{ref}) == 0 or
-			die "failed to update $git_dir/ssoma.index: $?\n";
+		my $env = { GIT_INDEX_FILE => $index };
+		my @rt = (@cmd, qw(read-tree -m -v -i), $self->{ref});
+		$pid = spawn(\@rt, $env, undef);
+		defined $pid or die "spawn read-tree failed: $!";
+		waitpid($pid, 0) == $pid or die 'read-tree did not finish';
+		$? == 0 or die "failed to update $git_dir/ssoma.index: $?\n";
 	}
 
+	$pid = spawn([@cmd, 'update-server-info'], undef, undef);
+	defined $pid or die "spawn update-server-info failed: $!\n";
+	waitpid($pid, 0) == $pid or die 'update-server-info did not finish';
+	$? == 0 or die "failed to update-server-info: $?\n";
 
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";
 	flock($lockfh, LOCK_UN) or die "unlock failed: $!";
