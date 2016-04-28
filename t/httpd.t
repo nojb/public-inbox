@@ -104,7 +104,7 @@ EOF
 
 	is(system(qw(git clone -q --mirror),
 			"http://$host:$port/$group", "$tmpdir/clone.git"),
-		0, 'clone successful');
+		0, 'smart clone successful');
 
 	# ensure dumb cloning works, too:
 	is(system('git', "--git-dir=$maindir",

@@ -10,6 +10,14 @@ use Fcntl qw(:seek);
 use IO::File;
 use PublicInbox::Spawn qw(spawn);
 
+# TODO: make configurable, but keep in mind it's better to have
+# multiple -httpd worker processes which are already scaled to
+# the proper number of CPUs and memory.  git-pack-objects(1) may
+# also use threads and bust memory limits, too, so I recommend
+# limiting threads to 1 (via `pack.threads` knob in git) for serving.
+my $LIMIT = 1;
+my $nr_running = 0;
+
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
 # not cause problems.  serving "config" might...
 my @text = qw[HEAD info/refs
@@ -31,6 +39,8 @@ sub r {
 
 sub serve {
 	my ($cgi, $git, $path) = @_;
+	return serve_dumb($cgi, $git, $path) if $nr_running >= $LIMIT;
+
 	my $service = $cgi->param('service') || '';
 	if ($service =~ /\Agit-\w+-pack\z/ || $path =~ /\Agit-\w+-pack\z/) {
 		my $ok = serve_smart($cgi, $git, $path);
@@ -174,6 +184,7 @@ sub serve_smart {
 	$wpipe = $in = undef;
 	$buf = '';
 	my ($vin, $fh, $res);
+	$nr_running++;
 	my $end = sub {
 		if ($fh) {
 			$fh->close;
@@ -182,6 +193,7 @@ sub serve_smart {
 		if ($rpipe) {
 			$rpipe->close; # _may_ be Danga::Socket::close
 			$rpipe = undef;
+			$nr_running--;
 		}
 		if (defined $pid && $pid != waitpid($pid, 0)) {
 			$err->print("git http-backend ($git_dir): $?\n");
