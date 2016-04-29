@@ -135,6 +135,9 @@ sub app_dispatch ($) {
 	sysseek($env->{'psgi.input'}, 0, SEEK_SET) or
 			die "BUG: psgi.input seek failed: $!";
 
+	# note: NOT $self->{sock}, we want our close (+ Danga::Socket::close),
+	# to do proper cleanup:
+	$env->{'psgix.io'} = $self; # only for ->close
 	my $res = Plack::Util::run_app($self->{httpd}->{app}, $env);
 	eval {
 		if (ref($res) eq 'CODE') {
@@ -370,6 +373,12 @@ sub quit {
 
 sub event_hup { $_[0]->close }
 sub event_err { $_[0]->close }
+
+sub close {
+	my $self = shift;
+	$self->{env} = undef;
+	$self->SUPER::close(@_);
+}
 
 sub write ($$) : method {
 	my PublicInbox::HTTP $self = $_[0];

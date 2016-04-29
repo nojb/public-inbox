@@ -95,6 +95,7 @@ sub serve_dumb {
 			$len -= $r;
 			$fh->write($buf);
 		}
+		die "$f truncated with $len bytes remaining\n" if $len;
 		$fh->close;
 	}
 }
@@ -191,14 +192,21 @@ sub serve_smart {
 			$fh = undef;
 		}
 		if ($rpipe) {
-			$rpipe->close; # _may_ be Danga::Socket::close
+			# _may_ be Danga::Socket::close via
+			# PublicInbox::HTTPD::Async::close:
+			$rpipe->close;
 			$rpipe = undef;
 			$nr_running--;
 		}
-		if (defined $pid && $pid != waitpid($pid, 0)) {
-			$err->print("git http-backend ($git_dir): $?\n");
-		} else {
-			$pid = undef;
+		if (defined $pid) {
+			my $e = $pid == waitpid($pid, 0) ?
+				$? : "PID:$pid still running?";
+			if ($e) {
+				$err->print("http-backend ($git_dir): $e\n");
+				if (my $io = $env->{'psgix.io'}) {
+					$io->close;
+				}
+			}
 		}
 		return unless $res;
 		my $dumb = serve_dumb($cgi, $git, $path);
@@ -245,6 +253,7 @@ sub serve_smart {
 		} # else { keep reading ... }
 	};
 	if (my $async = $env->{'pi-httpd.async'}) {
+		# $async is PublicInbox::HTTPD::Async->new($rpipe, $cb)
 		$rpipe = $async->($rpipe, $cb);
 		sub { ($res) = @_ } # let Danga::Socket handle the rest.
 	} else { # synchronous loop for other PSGI servers
