@@ -118,11 +118,11 @@ sub event_read_input ($) {
 		return recv_err($self, $r, $len) unless $r;
 		# continue looping if $r > 0;
 	}
-	app_dispatch($self);
+	app_dispatch($self, $input);
 }
 
-sub app_dispatch ($) {
-	my ($self) = @_;
+sub app_dispatch {
+	my ($self, $input) = @_;
 	$self->watch_read(0);
 	my $env = $self->{env};
 	$env->{REMOTE_ADDR} = $self->{remote_addr};
@@ -131,10 +131,10 @@ sub app_dispatch ($) {
 		$host =~ s/:(\d+)\z// and $env->{SERVER_PORT} = $1;
 		$env->{SERVER_NAME} = $host;
 	}
-
-	sysseek($env->{'psgi.input'}, 0, SEEK_SET) or
+	if (defined $input) {
+		sysseek($input, 0, SEEK_SET) or
 			die "BUG: psgi.input seek failed: $!";
-
+	}
 	# note: NOT $self->{sock}, we want our close (+ Danga::Socket::close),
 	# to do proper cleanup:
 	$env->{'psgix.io'} = $self; # only for ->close
@@ -306,7 +306,8 @@ sub event_read_input_chunked { # unlikely...
 
 	while (1) { # chunk start
 		if ($len == CHUNK_ZEND) {
-			return app_dispatch($self) if $$rbuf =~ s/\A\r\n//s;
+			$$rbuf =~ s/\A\r\n//s and
+				return app_dispatch($self, $input);
 			return quit($self, 400) if length($$rbuf) > 2;
 		}
 		if ($len == CHUNK_END) {
