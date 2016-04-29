@@ -5,6 +5,7 @@
 use strict;
 use warnings;
 use Test::More;
+use Time::HiRes qw(gettimeofday tv_interval);
 
 foreach my $mod (qw(Plack::Util Plack::Request Plack::Builder Danga::Socket
 			HTTP::Date HTTP::Status)) {
@@ -272,6 +273,18 @@ SKIP: {
 		is($hex, sha1_hex(''), "read expected body $i");
 		$i++;
 	}
+}
+
+{
+	my $conn = conn_for($sock, 'no TCP_CORK on empty body');
+	$conn->write("GET /empty HTTP/1.1\r\nHost:example.com\r\n\r\n");
+	my $buf = '';
+	my $t0 = [ gettimeofday ];
+	until ($buf =~ /\r\n\r\n/s) {
+		$conn->sysread($buf, 4096, length($buf));
+	}
+	my $elapsed = tv_interval($t0, [ gettimeofday ]);
+	ok($elapsed < 0.190, 'no 200ms TCP cork delay on empty body');
 }
 
 {

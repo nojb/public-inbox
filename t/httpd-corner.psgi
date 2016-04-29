@@ -56,6 +56,8 @@ my $app = sub {
 			$fh->write($buf);
 			$fh->close;
 		}
+	} elsif ($path eq '/empty') {
+		$code = 200;
 	}
 
 	[ $code, $h, $body ]
