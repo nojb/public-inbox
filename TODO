@@ -2,6 +2,8 @@ TODO items for public-inbox
 
 (Not in any particular order)
 
+* mailmap support (same as git) for remapping expired email addresses
+
 * Optional cookies in WWW interface for user-configurable colors
 
 * WWW: Hybrid flat view + thread skeleton (requires Xapian)
