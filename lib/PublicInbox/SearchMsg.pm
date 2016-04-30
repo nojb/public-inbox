@@ -148,12 +148,9 @@ sub ensure_metadata {
 sub mini_mime {
 	my ($self) = @_;
 	$self->ensure_metadata;
-	my @hs = (
+	my @h = (
 		'Subject' => $self->subject,
 		'X-PI-From' => $self->from_name,
-	);
-
-	my @h = (
 		# prevent Email::Simple::Creator from running,
 		# this header is useless for threading as we use X-PI-TS
 		# for sorting and display:
@@ -164,7 +161,7 @@ sub mini_mime {
 	if (my $refs = $self->{references}) {
 		push @h, References => $refs;
 	}
-	my $mime = Email::MIME->create(header_str => \@hs, header => \@h);
+	my $mime = Email::MIME->create(header => \@h);
 	my $h = $mime->header_obj;
 
 	# set these headers manually since Encode::encode('MIME-Q', ...)

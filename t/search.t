@@ -274,10 +274,11 @@ sub filter_mids {
 
 # circular references
 {
+	my $s = 'foo://'. ('Circle' x 15).'/foo';
 	my $doc_id = $rw->add_message(Email::MIME->create(
+		header => [ Subject => $s ],
 		header_str => [
 			Date => 'Sat, 02 Oct 2010 00:00:01 +0000',
-			Subject => 'Circle',
 			'Message-ID' => '<circle@a>',
 			'References' => '<circle@a>',
 			'In-Reply-To' => '<circle@a>',
@@ -289,6 +290,28 @@ sub filter_mids {
 	my $smsg = $rw->lookup_message('circle@a');
 	$smsg->ensure_metadata;
 	is($smsg->references, '', "no references created");
+	my $msg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
+	is($s, $msg->mini_mime->header('Subject'), 'long subject not rewritten');
+}
+
+{
+	my $str = eval {
+		my $mbox = 't/utf8.mbox';
+		open(my $fh, '<', $mbox) or die "failed to open mbox: $mbox\n";
+		local $/;
+		<$fh>
+	};
+	$str =~ s/\AFrom [^\n]+\n//s;
+	my $mime = Email::MIME->new($str);
+	my $doc_id = $rw->add_message($mime);
+	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
+	my $smsg = $rw->lookup_message('testmessage@example.com');
+	my $msg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
+
+	# mini_mime technically not valid (I think),
+	# but good enough for displaying HTML:
+	is($mime->header('Subject'), $msg->mini_mime->header('Subject'),
+		'UTF-8 subject preserved');
 }
 
 done_testing();
