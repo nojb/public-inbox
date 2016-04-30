@@ -32,4 +32,7 @@ sub close {
 	$self->SUPER::close(@_);
 }
 
+# do not let ourselves be closed during graceful termination
+sub busy () { $_[0]->{cb} }
+
 1;
