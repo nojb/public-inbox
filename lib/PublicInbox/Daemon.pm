@@ -14,6 +14,7 @@ STDERR->autoflush(1);
 require Danga::Socket;
 require POSIX;
 require PublicInbox::Listener;
+require PublicInbox::ParentPipe;
 my @CMD;
 my $set_user;
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
@@ -161,16 +162,18 @@ sub daemonize () {
 	}
 }
 
-sub worker_quit () {
+
+sub worker_quit {
+	my ($reason) = @_;
 	# killing again terminates immediately:
 	exit unless @listeners;
 
 	$_->close foreach @listeners; # call Danga::Socket::close
 	@listeners = ();
+	$reason->close if ref($reason) eq 'PublicInbox::ParentPipe';
 
-	# give slow clients 30s to finish reading/writing whatever
-	Danga::Socket->AddTimer(30, sub { exit });
-
+	my $proc_name;
+	my $warn = 0;
 	# drop idle connections and try to quit gracefully
 	Danga::Socket->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
@@ -178,11 +181,22 @@ sub worker_quit () {
 
 		foreach my $s (values %$dmap) {
 			if ($s->can('busy') && $s->busy) {
-				$n = 1;
+				++$n;
 			} else {
 				# close as much as possible, early as possible
 				$s->close;
 			}
+		}
+		if ($n) {
+			if (($warn + 5) < time) {
+				warn "$$ quitting, $n client(s) left\n";
+				$warn = time;
+			}
+			unless (defined $proc_name) {
+				$proc_name = (split(/\s+/, $0))[0];
+				$proc_name =~ s!\A.*?([^/]+)\z!$1!;
+			}
+			$0 = "$proc_name quitting, $n client(s) left";
 		}
 		$n; # true: loop continues, false: loop breaks
 	});
@@ -359,6 +373,7 @@ sub master_loop {
 	}
 	reopen_logs();
 	# main loop
+	my $quit = 0;
 	while (1) {
 		while (my $s = shift @caught) {
 			if ($s eq 'USR1') {
@@ -367,8 +382,8 @@ sub master_loop {
 			} elsif ($s eq 'USR2') {
 				upgrade();
 			} elsif ($s =~ /\A(?:QUIT|TERM|INT)\z/) {
-				# drops pipes and causes children to die
-				exit
+				exit if $quit++;
+				kill_workers($s);
 			} elsif ($s eq 'WINCH') {
 				$worker_processes = 0;
 			} elsif ($s eq 'HUP') {
@@ -390,6 +405,11 @@ sub master_loop {
 		}
 
 		my $n = scalar keys %pids;
+		if ($quit) {
+			exit if $n == 0;
+			$set_workers = $worker_processes = $n = 0;
+		}
+
 		if ($n > $worker_processes) {
 			while (my ($k, $v) = each %pids) {
 				kill('TERM', $k) if $v >= $worker_processes;
@@ -419,13 +439,12 @@ sub daemon_loop ($$) {
 	my $parent_pipe;
 	if ($worker_processes > 0) {
 		$refresh->(); # preload by default
-		$parent_pipe = master_loop(); # returns if in child process
-		my $fd = fileno($parent_pipe);
-		Danga::Socket->AddOtherFds($fd => *worker_quit);
+		my $fh = master_loop(); # returns if in child process
+		$parent_pipe = PublicInbox::ParentPipe->new($fh, *worker_quit);
 	} else {
 		reopen_logs();
 		$set_user->() if $set_user;
-		$SIG{USR2} = sub { worker_quit() if upgrade() };
+		$SIG{USR2} = sub { worker_quit('USR2') if upgrade() };
 		$refresh->();
 	}
 	$uid = $gid = undef;

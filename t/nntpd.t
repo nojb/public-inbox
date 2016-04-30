@@ -185,7 +185,12 @@ EOF
 		 'XHDR on invalid header returns empty');
 
 	{
-		syswrite($s, "HDR List-id 1-\r\n");
+		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
+		syswrite($s, 'HDR List-id 1-');
+		select(undef, undef, undef, 0.15);
+		ok(kill('TERM', $pid), 'killed nntpd');
+		select(undef, undef, undef, 0.15);
+		syswrite($s, "\r\n");
 		$buf = '';
 		do {
 			sysread($s, $buf, 4096, length($buf));
@@ -196,9 +201,8 @@ EOF
 		is(scalar @r, 1, 'only one response line');
 	}
 
-	ok(kill('TERM', $pid), 'killed nntpd');
-	$pid = undef;
-	waitpid(-1, 0);
+	is($pid, waitpid($pid, 0), 'nntpd exited successfully');
+	is($?, 0, 'no error in exited process');
 }
 
 done_testing();
