@@ -17,7 +17,7 @@ use Digest::SHA qw/sha1_hex/;
 my $SALT = rand;
 my $LINK_RE = qr!\b((?:ftp|https?|nntp)://
 		 [\@:\w\.-]+/
-		 ?[\@\w\+\&\?\.\%\;/#=-]*)!x;
+		 ?[~\@\w\+\&\?\.\%\;/#=-]*)!x;
 
 sub new { bless {}, shift }
 
