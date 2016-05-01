@@ -15,9 +15,9 @@ use warnings;
 use Digest::SHA qw/sha1_hex/;
 
 my $SALT = rand;
-my $LINK_RE = qr!\b((?:ftp|https?|nntp)://
+my $LINK_RE = qr!\b((?:ftps?|https?|nntps?|gopher)://
 		 [\@:\w\.-]+/
-		 ?[~\@\w\+\&\?\.\%\;/#=-]*)!x;
+		 ?[,:~\$\@\w\+\&\?\.\%\;/#=-]*)!x;
 
 sub new { bless {}, shift }
 
@@ -28,8 +28,10 @@ sub linkify_1 {
 		my $end = '';
 
 		# it's fairly common to end URLs in messages with
-		# '.' or ';' to denote the end of a statement.
-		if ($url =~ s/(\.)\z// || $url =~ s/(;)\z//) {
+		# '.', ',' or ';' to denote the end of a statement;
+		# assume the intent was to end the statement/sentence
+		# in English
+		if ($url =~ s/([\.,;])\z//) {
 			$end = $1;
 		}
 
