@@ -223,6 +223,15 @@ sub more ($$) {
 	$self->write($_[1]);
 }
 
+my $pipelineq = [];
+my $next_tick;
+sub process_pipelineq () {
+	$next_tick = undef;
+	my $q = $pipelineq;
+	$pipelineq = [];
+	rbuf_process($_) foreach @$q;
+}
+
 # overrides existing Danga::Socket method
 sub event_write {
 	my ($self) = @_;
@@ -232,7 +241,8 @@ sub event_write {
 	if ($self->{rbuf} eq '') { # wait for next request
 		$self->watch_read(1);
 	} else { # avoid recursion for pipelined requests
-		Danga::Socket->AddTimer(0, sub { rbuf_process($self) });
+		push @$pipelineq, $self;
+		$next_tick ||= Danga::Socket->AddTimer(0, *process_pipelineq);
 	}
 }
 
