@@ -130,7 +130,7 @@ sub prepare_range {
 		if ($len <= 0) {
 			$code = 416;
 		} else {
-			seek($in, $beg, SEEK_SET) or return [ 500, [], [] ];
+			sysseek($in, $beg, SEEK_SET) or return [ 500, [], [] ];
 			push @$h, qw(Accept-Ranges bytes Content-Range);
 			push @$h, "bytes $beg-$end/$size";
 
