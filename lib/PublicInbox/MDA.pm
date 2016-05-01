@@ -11,6 +11,19 @@ use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 
+our @BAD_HEADERS = (
+	# postfix
+	qw(delivered-to x-original-to), # prevent training loops
+
+	# The rest are taken from Mailman 2.1.15:
+	# could contain passwords:
+	qw(approved approve x-approved x-approve urgent),
+	# could be used phishing:
+	qw(return-receipt-to disposition-notification-to x-confirm-reading-to),
+	# Pegasus mail:
+	qw(x-pmrqc)
+);
+
 # drop plus addressing for matching
 sub __drop_plus {
 	my ($str_addr) = @_;
@@ -70,17 +83,7 @@ sub set_list_headers {
 		$simple->header_set("List-Id", "<$pa>"); # RFC2919
 	}
 
-	foreach my $h (qw(delivered-to), # prevent training loops
-			# The rest are taken from Mailman 2.1.15
-			# could contain passwords:
-			qw(approved approve x-approved x-approve urgent),
-			# could be used phishing:
-			qw(return-receipt-to disposition-notification-to
-			   x-confirm-reading-to),
-			# Pegasus mail:
-			qw(x-pmrqc)) {
-		$simple->header_set($h);
-	}
+	$simple->header_set($_) foreach @BAD_HEADERS;
 }
 
 1;
