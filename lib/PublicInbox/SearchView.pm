@@ -11,6 +11,7 @@ use PublicInbox::View;
 use PublicInbox::MID qw(mid2path mid_clean mid_mime);
 use Email::MIME;
 require PublicInbox::Git;
+require PublicInbox::Thread;
 our $LIM = 50;
 
 sub sres_top_html {
@@ -151,23 +152,19 @@ sub tdump {
 	} ($mset->items);
 
 	my @rootset;
-	my $th = PublicInbox::View::thread_results(\@m, 0, $q->{r});
-	if ($q->{r}) {
+	my $th = PublicInbox::Thread->new(@m);
+	$th->thread;
+	if ($q->{r}) { # order by relevance
 		$th->order(sub {
 			sort { (eval { $pct{$b->topmost->messageid} } || 0)
 					<=>
 				(eval { $pct{$a->topmost->messageid} } || 0)
 			} @_;
 		});
-		@rootset = $th->rootset;
-	} else {
-		@rootset = sort {
-			(eval { $b->topmost->message->header('X-PI-TS') } || 0)
-				<=>
-			(eval { $a->topmost->message->header('X-PI-TS') } || 0)
-		} $th->rootset;
+	} else { # order by time (default for threaded view)
+		$th->order(*PublicInbox::View::sort_ts);
 	}
-
+	@rootset = $th->rootset;
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my $state = {
 		ctx => $ctx,

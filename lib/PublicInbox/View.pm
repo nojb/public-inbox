@@ -670,21 +670,11 @@ sub msg_timestamp {
 }
 
 sub thread_results {
-	my ($msgs, $nosubject, $nosort) = @_;
+	my ($msgs) = @_;
 	require PublicInbox::Thread;
 	my $th = PublicInbox::Thread->new(@$msgs);
-
-	# WARNING! both these Mail::Thread knobs were found by inspecting
-	# the Mail::Thread 2.55 source code, and we have some monkey patches
-	# in PublicInbox::Thread to fix memory leaks.  Since Mail::Thread
-	# appears unmaintained, I suppose it's safe to depend on these
-	# variables for now:
-	no warnings 'once';
-	$Mail::Thread::nosubject = $nosubject;
-	# Keep ghosts with only a single direct child:
-	$Mail::Thread::noprune = 1;
 	$th->thread;
-	$th->order(*sort_ts) unless $nosort;
+	$th->order(*sort_ts);
 	$th
 }
 
@@ -879,7 +869,7 @@ sub emit_index_topics {
 		my $sres = $state->{srch}->query('', \%opts);
 		my $nr = scalar @{$sres->{msgs}} or last;
 
-		for (thread_results(load_results($sres), 1)->rootset) {
+		for (thread_results(load_results($sres))->rootset) {
 			add_topic($state, $_, 0);
 		}
 		$opts{offset} += $nr;

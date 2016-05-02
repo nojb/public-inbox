@@ -12,6 +12,20 @@ package PublicInbox::Thread;
 use strict;
 use warnings;
 use base qw(Mail::Thread);
+# WARNING! both these Mail::Thread knobs were found by inspecting
+# the Mail::Thread 2.55 source code, and we have some monkey patches
+# in PublicInbox::Thread to fix memory leaks.  Since Mail::Thread
+# appears unmaintained, I suppose it's safe to depend on these
+# variables for now:
+{
+	no warnings 'once';
+	# we want strict threads to expose (and hopefully discourage)
+	# use of broken email clients
+	$Mail::Thread::nosubject = 1;
+	# Keep ghosts with only a single direct child,
+	# don't hide that there may be missing messages.
+	$Mail::Thread::noprune = 1;
+}
 
 if ($Mail::Thread::VERSION <= 2.55) {
 	eval q(sub _container_class { 'PublicInbox::Thread::Container' });
