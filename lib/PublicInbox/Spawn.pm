@@ -24,6 +24,8 @@ my $vfork_spawn = <<'VFORK_SPAWN';
 #include <sys/uio.h>
 #include <unistd.h>
 #include <alloca.h>
+#include <signal.h>
+#include <assert.h>
 
 #define AV_ALLOCA(av, max) alloca((max = (av_len((av)) + 1)) * sizeof(char *))
 
@@ -81,6 +83,8 @@ int public_inbox_fork_exec(int in, int out, int err,
 	pid_t pid;
 	char **argv, **envp;
 	I32 max;
+	sigset_t set, old;
+	int ret;
 
 	argv = AV_ALLOCA(cmd, max);
 	av2c_copy(argv, cmd, max);
@@ -88,14 +92,26 @@ int public_inbox_fork_exec(int in, int out, int err,
 	envp = AV_ALLOCA(env, max);
 	av2c_copy(envp, env, max);
 
+	ret = sigfillset(&set);
+	assert(ret == 0 && "BUG calling sigfillset");
+	ret = sigprocmask(SIG_SETMASK, &set, &old);
+	assert(ret == 0 && "BUG calling sigprocmask to block");
 	pid = vfork();
 	if (pid == 0) {
+		int sig;
+
 		REDIR(in, 0);
 		REDIR(out, 1);
 		REDIR(err, 2);
+		for (sig = 1; sig < NSIG; sig++)
+			signal(sig, SIG_DFL); /* ignore errorrs on signals */
+		ret = sigprocmask(SIG_SETMASK, &old, NULL);
+		if (ret != 0) xerr("sigprocmask failed in vfork child");
 		execve(filename, argv, envp);
 		xerr("execve failed");
 	}
+	ret = sigprocmask(SIG_SETMASK, &old, NULL);
+	assert(ret == 0 && "BUG calling sigprocmask to restore");
 
 	return (int)pid;
 }
@@ -111,7 +127,7 @@ if (defined $vfork_spawn) {
 		my $f = "$inline_dir/.public-inbox.lock";
 		open my $fh, '>', $f or die "failed to open $f: $!\n";
 		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-		eval 'use Inline C => $vfork_spawn';
+		eval 'use Inline C => $vfork_spawn'; #, BUILD_NOISY => 1';
 		my $err = $@;
 		flock($fh, LOCK_UN) or die "LOCK_UN failed on $f: $!\n";
 		die $err if $err;
