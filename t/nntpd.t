@@ -46,6 +46,7 @@ my %opts = (
 );
 my $sock = IO::Socket::INET->new(%opts);
 my $pid;
+my $len;
 END { kill 'TERM', $pid if defined $pid };
 {
 	local $ENV{HOME} = $home;
@@ -69,6 +70,8 @@ EOF
 		IPC::Run::run([$mda], \$in);
 		is(0, $?, 'ran MDA correctly');
 		is(0, system($index, $maindir), 'indexed git dir');
+		$simple->header_set('List-Id', "<$addr>");
+		$len = length($simple->as_string);
 	}
 
 	ok($sock, 'sock created');
@@ -151,7 +154,7 @@ EOF
 			'Thu, 01 Jan 1970 06:06:06 +0000',
 			'<nntp@example.com>',
 			'',
-			'202',
+			$len,
 			'1' ] }, "XOVER range works");
 
 	is_deeply($n->xover('1'), {
@@ -160,7 +163,7 @@ EOF
 			'Thu, 01 Jan 1970 06:06:06 +0000',
 			'<nntp@example.com>',
 			'',
-			'202',
+			$len,
 			'1' ] }, "XOVER by article works");
 
 	{
@@ -173,7 +176,7 @@ EOF
 		like($r[0], qr/^224 /, 'got 224 response for OVER');
 		is($r[1], "0\thihi\tMe <me\@example.com>\t" .
 			"Thu, 01 Jan 1970 06:06:06 +0000\t" .
-			"$mid\t\t202\t1", 'OVER by Message-ID works');
+			"$mid\t\t$len\t1", 'OVER by Message-ID works');
 		is($r[2], '.', 'correctly terminated response');
 	}
 
