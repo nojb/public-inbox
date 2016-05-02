@@ -13,12 +13,21 @@ require PublicInbox::Search;
 require PublicInbox::Git;
 
 sub new {
-	my ($class, $name, $git_dir, $address) = @_;
+	my ($class, $name, $git_dir, $address, $url) = @_;
+
+	# first email address is preferred
 	$address = $address->[0] if ref($address);
+	if ($url) {
+		# assume protocol-relative URLs which start with '//' means
+		# the server supports both HTTP and HTTPS, favor HTTPS.
+		$url = "https:$url" if $url =~ m!\A//!;
+		$url .= '/' if $url !~ m!/\z!;
+	}
 	my $self = bless {
 		name => $name,
 		git_dir => $git_dir,
 		address => $address,
+		url => $url,
 	}, $class;
 	$self->{domain} = ($address =~ /\@(\S+)\z/) ? $1 : 'localhost';
 	$self;

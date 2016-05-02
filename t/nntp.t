@@ -11,6 +11,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian Danga::Socket)) {
 }
 
 use_ok 'PublicInbox::NNTP';
+use_ok 'PublicInbox::NewsGroup';
 
 {
 	sub quote_str {
@@ -93,6 +94,39 @@ use_ok 'PublicInbox::NNTP';
 		is($x1, $x2, 'YYYYMMDD and YYMMDD parse identically');
 		is(strftime('%Y', gmtime($x3)), '1993', '930724 was in 1993');
 	}
+}
+
+{ # test setting NNTP headers in HEAD and ARTICLE requests
+	require Email::MIME;
+	my $u = 'https://example.com/a/';
+	my $ng = PublicInbox::NewsGroup->new('test', 'test.git',
+				'a@example.com', '//example.com/a');
+	is($ng->{url}, $u, 'URL expanded');
+	my $mid = 'a@b';
+	my $mime = Email::MIME->new("Message-ID: <$mid>\r\n\r\n");
+	PublicInbox::NNTP::set_nntp_headers($mime->header_obj, $ng, 1, $mid);
+	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
+		'Message-ID unchanged');
+	is_deeply([ $mime->header('Archived-At') ], [ "<${u}a%40b/>" ],
+		'Archived-At: set');
+	is_deeply([ $mime->header('List-Archive') ], [ "<$u>" ],
+		'List-Archive: set');
+	is_deeply([ $mime->header('List-Post') ], [ '<mailto:a@example.com>' ],
+		'List-Post: set');
+	is_deeply([ $mime->header('Newsgroups') ], [ 'test' ],
+		'Newsgroups: set');
+	is_deeply([ $mime->header('Xref') ], [ 'example.com test:1' ],
+		'Xref: set');
+
+	$ng->{url} = 'http://mirror.example.com/m/';
+	PublicInbox::NNTP::set_nntp_headers($mime->header_obj, $ng, 2, $mid);
+	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
+		'Message-ID unchanged');
+	is_deeply([ $mime->header('Archived-At') ],
+		[ "<${u}a%40b/>", '<http://mirror.example.com/m/a%40b/>' ],
+		'Archived-At: appended');
+	is_deeply([ $mime->header('Xref') ], [ 'example.com test:2' ],
+		'Old Xref: clobbered');
 }
 
 done_testing();

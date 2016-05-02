@@ -30,11 +30,12 @@ sub refresh_groups () {
 		my $git_dir = $pi_config->{$k};
 		my $addr = $pi_config->{"publicinbox.$g.address"};
 		my $ngname = $pi_config->{"publicinbox.$g.newsgroup"};
+		my $url = $pi_config->{"publicinbox.$g.url"};
 		if (defined $ngname) {
 			next if ($ngname eq ''); # disabled
 			$g = $ngname;
 		}
-		my $ng = PublicInbox::NewsGroup->new($g, $git_dir, $addr);
+		my $ng = PublicInbox::NewsGroup->new($g, $git_dir, $addr, $url);
 		my $old_ng = $self->{groups}->{$g};
 
 		# Reuse the old one if possible since it can hold

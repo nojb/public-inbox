@@ -15,6 +15,7 @@ use Email::MIME;
 use Data::Dumper qw(Dumper);
 use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use URI::Escape qw(uri_escape_utf8);
 use constant {
 	r501 => '501 command syntax error',
 	r221 => '221 Header follows',
@@ -426,6 +427,29 @@ sub cmd_quit ($) {
 	undef;
 }
 
+sub header_append ($$$) {
+	my ($hdr, $k, $v) = @_;
+	my @v = $hdr->header($k);
+	foreach (@v) {
+		return if $v eq $_;
+	}
+	$hdr->header_set($k, @v, $v);
+}
+
+sub set_nntp_headers {
+	my ($hdr, $ng, $n, $mid) = @_;
+
+	# clobber some
+	$hdr->header_set('Newsgroups', $ng->{name});
+	$hdr->header_set('Xref', xref($ng, $n));
+	header_append($hdr, 'List-Post', "<mailto:$ng->{address}>");
+	if (my $url = $ng->{url}) {
+		$mid = uri_escape_utf8($mid);
+		header_append($hdr, 'Archived-At', "<$url$mid/>");
+		header_append($hdr, 'List-Archive', "<$url>");
+	}
+}
+
 sub art_lookup ($$$) {
 	my ($self, $art, $set_headers) = @_;
 	my $ng = $self->{ng};
@@ -468,8 +492,7 @@ found:
 	return $err unless $s;
 	my $lines;
 	if ($set_headers) {
-		$s->header_set('Newsgroups', $ng->{name});
-		$s->header_set('Xref', xref($ng, $n));
+		set_nntp_headers($s->header_obj, $ng, $n, $mid);
 		$lines = $s->body =~ tr!\n!\n!;
 
 		# must be last
