@@ -264,7 +264,6 @@ sub input_prepare {
 	# TODO: expire idle clients on ENFILE / EMFILE
 	return unless $input;
 
-	binmode $input;
 	$env->{'psgi.input'} = $input;
 	$self->{env} = $env;
 	$self->{input_left} = $len || 0;
