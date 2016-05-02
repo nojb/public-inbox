@@ -14,24 +14,16 @@ use Cwd qw/getcwd/;
 use IO::Socket;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
-use IPC::Run;
 
 # FIXME: too much setup
 my $tmpdir = tempdir('pi-httpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $pi_home = "$home/.public-inbox";
-my $pi_config = "$pi_home/config";
 my $maindir = "$tmpdir/main.git";
-my $main_bin = getcwd()."/t/main-bin";
-my $main_path = "$main_bin:$ENV{PATH}"; # for spamc ham mock
 my $group = 'test-httpd';
 my $addr = $group . '@example.com';
 my $cfgpfx = "publicinbox.$group";
-my $failbox = "$home/fail.mbox";
-local $ENV{PI_EMERGENCY} = $failbox;
-my $mda = 'blib/script/public-inbox-mda';
 my $httpd = 'blib/script/public-inbox-httpd';
 my $init = 'blib/script/public-inbox-init';
 
@@ -44,6 +36,9 @@ my %opts = (
 );
 my $sock = IO::Socket::INET->new(%opts);
 my $pid;
+use_ok 'PublicInbox::Git';
+use_ok 'PublicInbox::Import';
+use_ok 'Email::MIME';
 END { kill 'TERM', $pid if defined $pid };
 {
 	local $ENV{HOME} = $home;
@@ -52,8 +47,7 @@ END { kill 'TERM', $pid if defined $pid };
 
 	# ensure successful message delivery
 	{
-		local $ENV{ORIGINAL_RECIPIENT} = $addr;
-		my $in = <<EOF;
+		my $mime = Email::MIME->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -63,9 +57,11 @@ Date: Thu, 01 Jan 1970 06:06:06 +0000
 
 nntp
 EOF
-		local $ENV{PATH} = $main_path;
-		IPC::Run::run([$mda], \$in);
-		is(0, $?, 'ran MDA correctly');
+		$mime->header_set('List-Id', "<$addr>");
+		my $git = PublicInbox::Git->new($maindir);
+		my $im = PublicInbox::Import->new($git, 'test', $addr);
+		$im->add($mime);
+		$im->done($mime);
 	}
 	ok($sock, 'sock created');
 	$! = 0;

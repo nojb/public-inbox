@@ -16,26 +16,20 @@ use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use File::Temp qw/tempdir/;
 use Net::NNTP;
-use IPC::Run qw(run);
 
 my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $pi_home = "$home/.public-inbox";
-my $pi_config = "$pi_home/config";
 my $maindir = "$tmpdir/main.git";
-my $main_bin = getcwd()."/t/main-bin";
-my $main_path = "$main_bin:$ENV{PATH}"; # for spamc ham mock
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
 my $cfgpfx = "publicinbox.$group";
-my $failbox = "$home/fail.mbox";
-local $ENV{PI_EMERGENCY} = $failbox;
-my $mda = 'blib/script/public-inbox-mda';
 my $nntpd = 'blib/script/public-inbox-nntpd';
 my $init = 'blib/script/public-inbox-init';
 my $index = 'blib/script/public-inbox-index';
+use_ok 'PublicInbox::Import';
+use_ok 'PublicInbox::Git';
 
 my %opts = (
 	LocalAddr => '127.0.0.1',
@@ -51,11 +45,11 @@ END { kill 'TERM', $pid if defined $pid };
 {
 	local $ENV{HOME} = $home;
 	system($init, $group, $maindir, 'http://example.com/', $addr);
+	my $len;
 
 	# ensure successful message delivery
 	{
-		local $ENV{ORIGINAL_RECIPIENT} = $addr;
-		my $simple = Email::Simple->new(<<EOF);
+		my $mime = Email::MIME->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -65,13 +59,13 @@ Date: Thu, 01 Jan 1970 06:06:06 +0000
 
 nntp
 EOF
-		my $in = $simple->as_string;
-		local $ENV{PATH} = $main_path;
-		IPC::Run::run([$mda], \$in);
-		is(0, $?, 'ran MDA correctly');
+		$mime->header_set('List-Id', "<$addr>");
+		$len = length($mime->as_string);
+		my $git = PublicInbox::Git->new($maindir);
+		my $im = PublicInbox::Import->new($git, 'test', $addr);
+		$im->add($mime);
+		$im->done;
 		is(0, system($index, $maindir), 'indexed git dir');
-		$simple->header_set('List-Id', "<$addr>");
-		$len = length($simple->as_string);
 	}
 
 	ok($sock, 'sock created');

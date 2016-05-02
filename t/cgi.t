@@ -1,5 +1,7 @@
 # Copyright (C) 2014-2015 all contributors <meta@public-inbox.org>
 # License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+# FIXME: this test is too slow and most non-CGI-requirements
+# should be moved over to things which use test_psgi
 use strict;
 use warnings;
 use Test::More;
@@ -9,22 +11,16 @@ use Cwd;
 use IPC::Run qw/run/;
 
 use constant CGI => "blib/script/public-inbox.cgi";
-my $mda = "blib/script/public-inbox-mda";
 my $index = "blib/script/public-inbox-index";
 my $tmpdir = tempdir('pi-cgi-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
 my $pi_config = "$pi_home/config";
 my $maindir = "$tmpdir/main.git";
-my $main_bin = getcwd()."/t/main-bin";
-my $main_path = "$main_bin:$ENV{PATH}"; # for spamc ham mock
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
 
 {
-	ok(-x "$main_bin/spamc",
-		"spamc ham mock found (run in top of source tree");
-	ok(-x $mda, "$mda is executable");
 	is(1, mkdir($home, 0755), "setup ~/ for testing");
 	is(1, mkdir($pi_home, 0755), "setup ~/.public-inbox");
 	is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
@@ -42,15 +38,18 @@ my $cfgpfx = "publicinbox.test";
 	}
 }
 
-my $failbox = "$home/fail.mbox";
-local $ENV{PI_EMERGENCY} = $failbox;
+use_ok 'PublicInbox::Git';
+use_ok 'PublicInbox::Import';
+use_ok 'Email::MIME';
+my $git = PublicInbox::Git->new($maindir);
+my $im = PublicInbox::Import->new($git, 'test', $addr);
+
 {
 	local $ENV{HOME} = $home;
-	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 
 	# ensure successful message delivery
 	{
-		my $simple = Email::Simple->new(<<EOF);
+		my $mime = Email::MIME->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -60,15 +59,15 @@ Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 zzzzzz
 EOF
-		my $in = $simple->as_string;
-		run_with_env({PATH => $main_path}, [$mda], \$in);
+		$im->add($mime);
+		$im->done;
 		my $rev = `git --git-dir=$maindir rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 	}
 
 	# deliver a reply, too
 	{
-		my $reply = Email::Simple->new(<<EOF);
+		my $reply = Email::MIME->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr
@@ -82,8 +81,8 @@ Me wrote:
 
 what?
 EOF
-		my $in = $reply->as_string;
-		run_with_env({PATH => $main_path}, [$mda], \$in);
+		$im->add($reply);
+		$im->done;
 		my $rev = `git --git-dir=$maindir rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 	}
@@ -150,7 +149,7 @@ EOF
 {
 	local $ENV{HOME} = $home;
 	my $slashy_mid = 'slashy/asdf@example.com';
-	my $reply = Email::Simple->new(<<EOF);
+	my $reply = Email::MIME->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr
@@ -160,13 +159,8 @@ Date: Thu, 01 Jan 1970 00:00:01 +0000
 
 slashy
 EOF
-	my $in = $reply->as_string;
-
-	{
-		local $ENV{HOME} = $home;
-		local $ENV{ORIGINAL_RECIPIENT} = $addr;
-		run_with_env({PATH => $main_path}, [$mda], \$in);
-	}
+	$im->add($reply);
+	$im->done;
 
 	my $res = cgi_run("/test/slashy%2fasdf%40example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
@@ -200,7 +194,6 @@ EOF
 # retrieve thread as an mbox
 {
 	local $ENV{HOME} = $home;
-	local $ENV{PATH} = $main_path;
 	my $path = "/test/blahblah%40example.com/t.mbox.gz";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
