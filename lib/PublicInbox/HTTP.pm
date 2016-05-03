@@ -189,7 +189,9 @@ sub response_header_write {
 sub response_write {
 	my ($self, $env, $res) = @_;
 	my $alive = response_header_write($self, $env, $res);
-	my $write = sub { $self->write($_[0]) };
+
+	# middlewares such as Deflater may write empty strings
+	my $write = sub { $self->write($_[0]) if $_[0] ne '' };
 	my $close = sub {
 		if ($alive) {
 			$self->event_write; # watch for readability if done
@@ -388,13 +390,6 @@ sub close {
 	my $self = shift;
 	$self->{env} = undef;
 	$self->SUPER::close(@_);
-}
-
-sub write ($$) : method {
-	my PublicInbox::HTTP $self = $_[0];
-	return 1 if (defined($_[1]) && ref($_[1]) eq '' && $_[1] eq '');
-
-	$self->SUPER::write($_[1]);
 }
 
 # for graceful shutdown in PublicInbox::Daemon:
