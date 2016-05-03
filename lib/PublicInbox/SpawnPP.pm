@@ -19,8 +19,15 @@ sub public_inbox_fork_exec ($$$$$$) {
 		if ($err != 2) {
 			dup2($err, 2) or die "dup2 failed for stderr: $!";
 		}
-		exec qw(env -i), @$env, @$cmd;
-		die "exec env -i ... $cmd->[0] failed: $!\n";
+
+		if ($ENV{MOD_PERL}) {
+			exec qw(env -i), @$env, @$cmd;
+			die "exec env -i ... $cmd->[0] failed: $!\n";
+		} else {
+			local %ENV = map { split(/=/, $_, 2) } @$env;
+			exec @$cmd;
+			die "exec $cmd->[0] failed: $!\n";
+		}
 	}
 	$pid;
 }
