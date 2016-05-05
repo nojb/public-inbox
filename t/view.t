@@ -133,8 +133,11 @@ EOF
 
 {
 	use PublicInbox::MID qw/id_compress/;
+
+	# n.b: this is probably invalid since we dropped CGI for PSGI:
 	like(id_compress('foo%bar@wtf'), qr/\A[a-f0-9]{40}\z/,
 		"percent always converted to sha1 to workaround buggy httpds");
+
 	is(id_compress('foobar-wtf'), 'foobar-wtf',
 		'regular ID not compressed');
 }
