@@ -97,7 +97,7 @@ sub emit_mbox {
 	require PublicInbox::Git;
 	my $mid = $ctx->{mid};
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
-	my %opts = (offset => 0);
+	my %opts = (offset => 0, asc => 1);
 	my $nr;
 	do {
 		my $res = $srch->get_thread($mid, \%opts);
