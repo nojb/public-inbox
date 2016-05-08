@@ -11,7 +11,7 @@ use PublicInbox::Search;
 use PublicInbox::Msgmap;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
-use Email::MIME;
+use Email::Simple;
 use Data::Dumper qw(Dumper);
 use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
@@ -114,7 +114,6 @@ sub expire_old () {
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
-	binmode $sock, ':utf8'; # RFC 3977
 	$self->SUPER::new($sock);
 	$self->{nntpd} = $nntpd;
 	res($self, '201 server ready - post via email');
@@ -488,7 +487,7 @@ find_mid:
 found:
 	my $o = 'HEAD:' . mid2path($mid);
 	my $bytes;
-	my $s = eval { Email::MIME->new($ng->gcf->cat_file($o, \$bytes)) };
+	my $s = eval { Email::Simple->new($ng->gcf->cat_file($o, \$bytes)) };
 	return $err unless $s;
 	my $lines;
 	if ($set_headers) {
