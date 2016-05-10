@@ -20,8 +20,6 @@ use constant INDENT => '  ';
 use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
-my $enc_utf8 = find_encoding('UTF-8');
-
 # public functions:
 sub msg_html {
 	my ($ctx, $mime, $footer) = @_;
@@ -94,7 +92,6 @@ sub index_entry {
 	my $srch = $ctx->{srch};
 	my $part_nr = 0;
 	my $hdr = $mime->header_obj;
-	my $enc = enc_for($hdr->header("Content-Type"));
 	my $subj = $hdr->header('Subject');
 
 	my $mid_raw = mid_clean(mid_mime($mime));
@@ -129,7 +126,7 @@ sub index_entry {
 
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
-		index_walk($fh, $_[0], $enc, \$part_nr);
+		index_walk($fh, $_[0], \$part_nr);
 	});
 	$mime->body_set('');
 	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/R/");
@@ -217,8 +214,8 @@ sub emit_thread_html {
 }
 
 sub index_walk {
-	my ($fh, $part, $enc, $part_nr) = @_;
-	my $s = add_text_body($enc, $part, $part_nr);
+	my ($fh, $part, $part_nr) = @_;
+	my $s = add_text_body($part, $part_nr);
 
 	return if $s eq '';
 
@@ -227,30 +224,15 @@ sub index_walk {
 	$fh->write($s);
 }
 
-sub enc_for {
-	my ($ct, $default) = @_;
-	$default ||= $enc_utf8;
-	defined $ct or return $default;
-	my $ct_parsed = parse_content_type($ct);
-	if ($ct_parsed) {
-		if (my $charset = $ct_parsed->{attributes}->{charset}) {
-			my $enc = find_encoding($charset);
-			return $enc if $enc;
-		}
-	}
-	$default;
-}
-
 sub multipart_text_as_html {
 	my ($mime) = @_;
 	my $rv = "";
 	my $part_nr = 0;
-	my $enc = enc_for($mime->header("Content-Type"));
 
 	# scan through all parts, looking for displayable text
 	$mime->walk_parts(sub {
 		my ($part) = @_;
-		$part = add_text_body($enc, $part, \$part_nr);
+		$part = add_text_body($part, \$part_nr);
 		$rv .= $part;
 		$rv .= "\n" if $part ne '';
 	});
@@ -259,10 +241,9 @@ sub multipart_text_as_html {
 }
 
 sub add_filename_line {
-	my ($enc, $fn) = @_;
+	my ($fn) = @_;
 	my $len = 72;
 	my $pad = "-";
-	$fn = $enc->decode($fn);
 	$len -= length($fn);
 	$pad x= ($len/2) if ($len > 0);
 	"$pad " . ascii_html($fn) . " $pad\n";
@@ -282,27 +263,33 @@ sub flush_quote {
 	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
 }
 
-sub add_text_body {
-	my ($enc_msg, $part, $part_nr) = @_;
-	return '' if $part->subparts;
+sub attach ($$) {
+	my ($ct, $n) = @_;
+	my $nl = $n ? "\n" : '';
+	"$nl<b>[-- Attachment #$n: " . ascii_html($ct) . " --]\n".
+	"[-- TODO not shown --]</b>";
+}
 
+sub add_text_body {
+	my ($part, $part_nr) = @_;
+	return '' if $part->subparts;
 	my $ct = $part->content_type;
-	# account for filter bugs...
+
 	if (defined $ct && $ct =~ m!\btext/x?html\b!i) {
-		$part->body_set('');
-		return '';
+		return attach($ct, $$part_nr);
 	}
-	my $enc = enc_for($ct, $enc_msg);
-	my $s = $part->body;
-	$part->body_set('');
-	$s = $enc->decode($s);
+
+	my $s = eval { $part->body_str };
+
+	# badly-encoded message? tell the world about it!
+	return attach($ct, $$part_nr) if $@;
+
 	my @lines = split(/^/m, $s);
 	$s = '';
-
 	if ($$part_nr > 0) {
 		my $fn = $part->filename;
 		defined($fn) or $fn = "part #" . ($$part_nr + 1);
-		$s .= add_filename_line($enc, $fn);
+		$s .= add_filename_line($fn);
 	}
 
 	my @quot;
