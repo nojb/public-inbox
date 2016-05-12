@@ -65,6 +65,13 @@ sub now2822 () {
 		$day, $t[3], $mon, $t[5] + 1900, $t[2], $t[1], $t[0]);
 }
 
+sub norm_body ($) {
+	my ($mime) = @_;
+	my $b = $mime->body_raw;
+	$b =~ s/(\r?\n)+\z//s;
+	$b
+}
+
 # returns undef on non-existent
 # ('MISMATCH', msg) on mismatch
 # (:MARK, msg) on success
@@ -106,7 +113,7 @@ sub remove {
 	die "bad read on final byte: <$lf>" if $lf ne "\n";
 	my $cur = Email::MIME->new($buf);
 	if ($cur->header('Subject') ne $mime->header('Subject') ||
-			$cur->body ne $mime->body) {
+			norm_body($cur) ne norm_body($mime)) {
 		return ('MISMATCH', $cur);
 	}
 
