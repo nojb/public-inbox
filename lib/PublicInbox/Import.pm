@@ -152,7 +152,7 @@ sub add {
 	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
 	# ref:
 	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
-	$name =~ s/<([^>]+)>/($1)/g;
+	$name =~ tr/<>// and $name = $email;
 
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};
