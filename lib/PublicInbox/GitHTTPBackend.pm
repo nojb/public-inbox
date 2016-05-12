@@ -259,10 +259,7 @@ sub serve_smart {
 		if (defined $pid) {
 			my $e = $pid == waitpid($pid, 0) ?
 				$? : "PID:$pid still running?";
-			if ($e) {
-				err($env, "git http-backend ($git_dir): $e");
-				drop_client($env);
-			}
+			err($env, "git http-backend ($git_dir): $e") if $e;
 		}
 		return unless $res;
 		my $dumb = serve_dumb($cgi, $git, $path);
