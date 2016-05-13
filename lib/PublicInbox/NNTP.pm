@@ -16,6 +16,8 @@ use Data::Dumper qw(Dumper);
 use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use URI::Escape qw(uri_escape_utf8);
+use Encode qw(find_encoding);
+my $enc_utf8 = find_encoding('UTF-8');
 use constant {
 	r501 => '501 command syntax error',
 	r221 => '221 Header follows',
@@ -900,6 +902,7 @@ sub cmd_xpath ($$) {
 
 sub res ($$) {
 	my ($self, $line) = @_;
+	$line = $enc_utf8->encode($line);
 	do_write($self, $line . "\r\n");
 }
 
@@ -934,6 +937,7 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
 sub do_more ($$) {
 	my ($self, $data) = @_;
+	$data = $enc_utf8->encode($data);
 	if (MSG_MORE && !$self->{write_buf_size}) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
 		if (defined $n) {
