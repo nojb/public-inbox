@@ -189,7 +189,7 @@ sub list_active ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{name} =~ $wildmat or next;
+		$ng->{newsgroup} =~ $wildmat or next;
 		group_line($self, $ng);
 	}
 }
@@ -198,9 +198,9 @@ sub list_active_times ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{name} =~ $wildmat or next;
+		$ng->{newsgroup} =~ $wildmat or next;
 		my $c = eval { $ng->mm->created_at } || time;
-		more($self, "$ng->{name} $c $ng->{address}");
+		more($self, "$ng->{newsgroup} $c $ng->{address}");
 	}
 }
 
@@ -208,9 +208,9 @@ sub list_newsgroups ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{name} =~ $wildmat or next;
+		$ng->{newsgroup} =~ $wildmat or next;
 		my $d = $ng->description;
-		more($self, "$ng->{name} $d");
+		more($self, "$ng->{newsgroup} $d");
 	}
 }
 
@@ -289,7 +289,7 @@ sub parse_time ($$;$) {
 sub group_line ($$) {
 	my ($self, $ng) = @_;
 	my ($min, $max) = $ng->mm->minmax;
-	more($self, "$ng->{name} $max $min n") if defined $min && defined $max;
+	more($self, "$ng->{newsgroup} $max $min n") if defined $min && defined $max;
 }
 
 sub cmd_newgroups ($$$;$$) {
@@ -349,8 +349,8 @@ sub cmd_newnews ($$$$;$$) {
 	ngpat2re($skip);
 	my @srch;
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{name} =~ $keep or next;
-		$ng->{name} =~ $skip and next;
+		$ng->{newsgroup} =~ $keep or next;
+		$ng->{newsgroup} =~ $skip and next;
 		my $srch = $ng->search or next;
 		push @srch, $srch;
 	};
@@ -441,7 +441,7 @@ sub set_nntp_headers {
 	my ($hdr, $ng, $n, $mid) = @_;
 
 	# clobber some
-	$hdr->header_set('Newsgroups', $ng->{name});
+	$hdr->header_set('Newsgroups', $ng->{newsgroup});
 	$hdr->header_set('Xref', xref($ng, $n));
 	header_append($hdr, 'List-Post', "<mailto:$ng->{address}>");
 	if (my $url = $ng->{url}) {
@@ -670,7 +670,7 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 
 sub xref ($$) {
 	my ($ng, $n) = @_;
-	"$ng->{domain} $ng->{name}:$n"
+	"$ng->{domain} $ng->{newsgroup}:$n"
 }
 
 sub mid_lookup ($$) {
@@ -894,7 +894,7 @@ sub cmd_xpath ($$) {
 	my @paths;
 	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
 		my $n = $ng->mm->num_for($mid);
-		push @paths, "$ng->{name}/$n" if defined $n;
+		push @paths, "$ng->{newsgroup}/$n" if defined $n;
 	}
 	return '430 no such article on server' unless @paths;
 	'223 '.join(' ', @paths);

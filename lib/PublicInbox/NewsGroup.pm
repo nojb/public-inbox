@@ -13,7 +13,7 @@ require PublicInbox::Search;
 require PublicInbox::Git;
 
 sub new {
-	my ($class, $name, $git_dir, $address, $url) = @_;
+	my ($class, $newsgroup, $git_dir, $address, $url) = @_;
 
 	# first email address is preferred
 	$address = $address->[0] if ref($address);
@@ -24,7 +24,7 @@ sub new {
 		$url .= '/' if $url !~ m!/\z!;
 	}
 	my $self = bless {
-		name => $name,
+		newsgroup => $newsgroup,
 		git_dir => $git_dir,
 		address => $address,
 		url => $url,
