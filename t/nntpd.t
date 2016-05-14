@@ -27,7 +27,6 @@ my $addr = $group . '@example.com';
 my $cfgpfx = "publicinbox.$group";
 my $nntpd = 'blib/script/public-inbox-nntpd';
 my $init = 'blib/script/public-inbox-init';
-my $index = 'blib/script/public-inbox-index';
 use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Git';
 
@@ -65,7 +64,8 @@ EOF
 		my $im = PublicInbox::Import->new($git, 'test', $addr);
 		$im->add($mime);
 		$im->done;
-		is(0, system($index, $maindir), 'indexed git dir');
+		my $s = PublicInbox::SearchIdx->new($maindir, 1);
+		$s->index_sync;
 	}
 
 	ok($sock, 'sock created');
