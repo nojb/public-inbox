@@ -44,6 +44,3 @@ TODO items for public-inbox
 * more test cases (use git fast-import to speed up creation)
 
 * large mbox/Maildir/MH/NNTP spool import (use git fast-import)
-
-* improve + document mlmmj integration, currently only at:
-  http://bogomips.org/unicorn-public/20140508084301.GA2033%40dcvr.yhbt.net/

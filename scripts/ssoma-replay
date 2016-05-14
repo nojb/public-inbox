@@ -1,0 +1,95 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2015-2016 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# A work-in-progress, but one day I hope this script is no longer
+# necessary and users will all pull from public-inboxes instead
+# of having mail pushed to them via mlmmj.
+#
+# This is for use with ssoma, using "command:" delivery mechanism
+# (as opposed to normal Maildir or mbox).
+# It assumes mlmmj-process is in /usr/bin (mlmmj requires absolute paths)
+# and assumes FOO@domain.example.com has web archives available at:
+# https://domain.example.com/FOO/
+#
+# The goal here is _anybody_ can setup a mirror of any public-inbox
+# repository and run their own mlmmj instance to replay traffic.
+=begin usage with ssoma:
+
+NAME=meta
+URL=https://public-inbox.org/meta/
+ssoma add $NAME $URL "command:/path/to/ssoma-replay -L /path/to/spool/$NAME"
+
+; $GIT_DIR/ssoma.state should have something like the following target:
+; (where GIT_DIR is ~/.ssoma/meta.git/ in the above example)
+[target "local"]
+	command = /path/to/ssoma-replay -L /path/to/spool/meta
+=cut
+use strict;
+use Email::Simple;
+use URI::Escape qw/uri_escape_utf8/;
+use File::Temp qw/tempfile/;
+my ($fh, $filename) = tempfile('pi-replay-XXXXXXXX');
+my $msg = eval {
+	local $/;
+	Email::Simple->new(<STDIN>);
+};
+select $fh;
+
+# Note: the archive URL makes assumptions about where the
+# archive is hosted.  It is currently true of all the domains
+# hosted by me.
+
+my $header_obj = $msg->header_obj;
+my $body = $msg->body;
+my $list_id = $header_obj->header('List-Id');
+my ($archive_url, $user, $domain);
+if (defined $list_id) {
+	($user, $domain) = ($list_id =~ /<(.+)\@(.+)>/g);
+
+	if (defined $domain) {
+		$archive_url = "https://$domain/$user/";
+		my $mid = $header_obj->header('Message-Id');
+		if ($mid =~ /\A<(.+)>\z/) {
+			$mid = $1;
+		}
+		$mid = uri_escape_utf8($mid);
+		$header_obj->header_set('List-Archive', "<$archive_url>");
+
+		foreach my $h (qw(Help Unsubscribe Subscribe Owner)) {
+			my $lch = lc $h;
+			my $v = "<mailto:$user+$lch\@$domain>";
+			$header_obj->header_set("List-$h", $v);
+		}
+		$header_obj->header_set('List-Post', "<mailto:$user\@$domain>");
+
+		# RFC 5064
+		$header_obj->header_set('Archived-At', "<$archive_url$mid/>");
+		$header_obj->header_set('X-Archived-At');
+	}
+}
+
+print $header_obj->as_string, $msg->crlf, $body;
+
+# don't break inline signatures
+goto out if ($body =~ /^-----BEGIN PGP SIG.+-----/sm);
+
+# try not to break dkim/dmarc/spf crap, either
+foreach (qw(domainkey-signature dkim-signature authentication-results)) {
+	goto out if defined $header_obj->header($_);
+}
+
+my $ct = $header_obj->header('Content-Type');
+
+if (!defined($ct) || $ct =~ m{\A\s*text/plain\b}i) {
+	print "\n" unless $body =~ /\n\z/s;
+	defined $archive_url or goto out;
+	# Do not add a space after '--' as is standard for user-generated
+	# signatures, we want to preserve the "-- \n" in original user sigs
+	# for mail software which splits on that.
+	print "--\n", "unsubscribe: $user+unsubscribe\@$domain\n",
+		 "archive: $archive_url\n";
+}
+out:
+$| = 1;
+exec '/usr/bin/mlmmj-process', @ARGV, '-m', $filename;
