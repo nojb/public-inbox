@@ -2,7 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Plack app redirector for mapping /$NEWSGROUP requests to
-# the appropriate /$LISTNAME in PublicInbox::WWW because some
+# the appropriate /$INBOX in PublicInbox::WWW because some
 # auto-linkifiers cannot handle nntp:// redirects properly.
 # This is also used directly by PublicInbox::WWW
 package PublicInbox::NewsWWW;
@@ -64,11 +64,11 @@ sub newsgroup_map {
 	my %ng_map;
 	foreach my $k (keys %$pi_config) {
 		$k =~ /\Apublicinbox\.([^\.]+)\.mainrepo\z/ or next;
-		my $listname = $1;
-		my $git_dir = $pi_config->{"publicinbox.$listname.mainrepo"};
-		my $url = $pi_config->{"publicinbox.$listname.url"};
+		my $inbox = $1;
+		my $git_dir = $pi_config->{"publicinbox.$inbox.mainrepo"};
+		my $url = $pi_config->{"publicinbox.$inbox.url"};
 		defined $url or next;
-		my $ng = $pi_config->{"publicinbox.$listname.newsgroup"};
+		my $ng = $pi_config->{"publicinbox.$inbox.newsgroup"};
 		next if (!defined $ng) || ($ng eq ''); # disabled
 
 		$url =~ m!/\z! or $url .= '/';

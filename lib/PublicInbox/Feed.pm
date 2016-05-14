@@ -260,7 +260,7 @@ sub each_recent_blob {
 sub get_feedopts {
 	my ($ctx) = @_;
 	my $pi_config = $ctx->{pi_config};
-	my $listname = $ctx->{listname};
+	my $inbox = $ctx->{inbox};
 	my $cgi = $ctx->{cgi};
 	my %rv;
 	if (open my $fh, '<', "$ctx->{git_dir}/description") {
@@ -269,8 +269,8 @@ sub get_feedopts {
 		$rv{description} = '($GIT_DIR/description missing)';
 	}
 
-	if ($pi_config && defined $listname && $listname ne '') {
-		my $addr = $pi_config->get($listname, 'address') || "";
+	if ($pi_config && defined $inbox && $inbox ne '') {
+		my $addr = $pi_config->get($inbox, 'address') || "";
 		$rv{address} = $addr;
 		$addr = $addr->[0] if ref($addr);
 		$rv{id_addr} = $addr;
@@ -279,7 +279,7 @@ sub get_feedopts {
 
 	my $url_base;
 	if ($cgi) {
-		$url_base = $cgi->base->as_string . $listname;
+		$url_base = $cgi->base->as_string . $inbox;
 		if (my $mid = $ctx->{mid}) { # per-thread feed:
 			$rv{atomurl} = "$url_base/$mid/t.atom";
 		} else {

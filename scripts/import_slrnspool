@@ -5,7 +5,7 @@
 # Incremental (or one-shot) importer of a slrnpull news spool
 =begin usage
 	export ORIGINAL_RECIPIENT=address@example.com
-	public-inbox-init $LISTNAME $GIT_DIR $HTTP_URL $ORIGINAL_RECIPIENT
+	public-inbox-init $INBOX $GIT_DIR $HTTP_URL $ORIGINAL_RECIPIENT
 	./import_slrnspool SLRNPULL_ROOT/news/foo/bar
 =cut
 use strict;
@@ -33,7 +33,7 @@ if ($ENV{'FILTER'}) {
 
 sub key {
 	my ($cfg) = @_;
-	"publicinbox.$cfg->{listname}.importslrnspoolstate";
+	"publicinbox.$cfg->{inbox}.importslrnspoolstate";
 }
 
 sub get_min {

@@ -2,46 +2,46 @@ URL and anchor naming
 ---------------------
 
 ### Unstable endpoints
-/$LISTNAME/?r=$GIT_COMMIT                 -> HTML only
-/$LISTNAME/new.atom                       -> Atom feed
+/$INBOX/?r=$GIT_COMMIT                 -> HTML only
+/$INBOX/new.atom                       -> Atom feed
 
 #### Optional, relies on Search::Xapian
-/$LISTNAME/$MESSAGE_ID/t/                 -> HTML content of thread
+/$INBOX/$MESSAGE_ID/t/                 -> HTML content of thread
 	anchors:
 	#u          location of $MESSAGE_ID in URL
 	#m<SHA-1>   per-message links, where <SHA-1> is of the Message-ID
 	            of each message (stable)
 	#s<NUM>     relative numeric position of message in thread (unstable)
 
-/$LISTNAME/$MESSAGE_ID/t.atom             -> Atom feed for thread
-/$LISTNAME/$MESSAGE_ID/t.mbox.gz          -> gzipped mbox of thread
+/$INBOX/$MESSAGE_ID/t.atom             -> Atom feed for thread
+/$INBOX/$MESSAGE_ID/t.mbox.gz          -> gzipped mbox of thread
 
 ### Stable endpoints
-/$LISTNAME/$MESSAGE_ID/                   -> HTML content
+/$INBOX/$MESSAGE_ID/                   -> HTML content
 	anchors:
 	#r          location of the current message in thread skeleton
 	            (requires Xapian search)
 	#b          start of the message body (linked from thread skeleton)
 
-/$LISTNAME/$MESSAGE_ID                    -> 301 to /$LISTNAME/$MESSAGE_ID/
-/$LISTNAME/$MESSAGE_ID/raw                -> raw mbox
-/$LISTNAME/$MESSAGE_ID/R/                 -> HTML reply instructions
+/$INBOX/$MESSAGE_ID                    -> 301 to /$INBOX/$MESSAGE_ID/
+/$INBOX/$MESSAGE_ID/raw                -> raw mbox
+/$INBOX/$MESSAGE_ID/R/                 -> HTML reply instructions
 
 # Covering up a pre-1.0 design mistake:
-/$LISTNAME/$MESSAGE_ID/f/                 -> 301 to /$LISTNAME/$MESSAGE_ID/
+/$INBOX/$MESSAGE_ID/f/                 -> 301 to /$INBOX/$MESSAGE_ID/
 
 ### Legacy endpoints (may be ambiguous given Message-IDs with similar suffixes)
-/$LISTNAME/m/$MESSAGE_ID/                 -> 301 to /$LISTNAME/$MESSAGE_ID/
-/$LISTNAME/m/$MESSAGE_ID.html             -> 301 to /$LISTNAME/$MESSAGE_ID/
-/$LISTNAME/m/$MESSAGE_ID.txt              -> 301 to /$LISTNAME/$MESSAGE_ID/raw
-/$LISTNAME/f/$MESSAGE_ID.html             -> 301 to /$LISTNAME/$MESSAGE_ID/
-/$LISTNAME/f/$MESSAGE_ID.txt [1]          -> 301 to /$LISTNAME/$MESSAGE_ID/raw
+/$INBOX/m/$MESSAGE_ID/                 -> 301 to /$INBOX/$MESSAGE_ID/
+/$INBOX/m/$MESSAGE_ID.html             -> 301 to /$INBOX/$MESSAGE_ID/
+/$INBOX/m/$MESSAGE_ID.txt              -> 301 to /$INBOX/$MESSAGE_ID/raw
+/$INBOX/f/$MESSAGE_ID.html             -> 301 to /$INBOX/$MESSAGE_ID/
+/$INBOX/f/$MESSAGE_ID.txt [1]          -> 301 to /$INBOX/$MESSAGE_ID/raw
 
-/$LISTNAME/atom.xml [2]                   -> identical to /$LISTNAME/new.atom
+/$INBOX/atom.xml [2]                   -> identical to /$INBOX/new.atom
 
 Additionally, we support git clone/fetch over HTTP (dumb and smart):
 
-	git clone --mirror http://$HOSTNAME/$LISTNAME
+	git clone --mirror http://$HOSTNAME/$INBOX
 
 FIXME: we must refactor/cleanup/add tests for most of our CGI before
 adding more endpoints and features.

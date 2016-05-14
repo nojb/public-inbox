@@ -141,7 +141,7 @@ EOF
 	$idx->{body} = [ split(/\n/, $idx->{body}) ];
 	$res->{body} = [ split(/\n/, $res->{body}) ];
 	is_deeply($res, $idx,
-		'/$LISTNAME/ and /$LISTNAME/index.html are nearly identical');
+		'/$INBOX/ and /$INBOX/index.html are nearly identical');
 	# more checks in t/feed.t
 }
 

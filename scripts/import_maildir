@@ -9,8 +9,8 @@
 	export ORIGINAL_RECIPIENT='list@example.com'
 	git init --bare $MAINREPO
 	export GIT_CONFIG=$HOME/.public-inbox/config
-	git config publicinbox.$LISTNAME.address $ORIGINAL_RECIPIENT
-	git config publicinbox.$LISTNAME.mainrepo $MAINREPO
+	git config publicinbox.$INBOX.address $ORIGINAL_RECIPIENT
+	git config publicinbox.$INBOX.mainrepo $MAINREPO
 	unset GIT_CONFIG
 	./import_maildir /path/to/maildir/
 =cut

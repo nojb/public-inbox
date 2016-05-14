@@ -24,7 +24,7 @@ our @EXT_URL = (
 sub ext_msg {
 	my ($ctx) = @_;
 	my $pi_config = $ctx->{pi_config};
-	my $listname = $ctx->{listname};
+	my $inbox = $ctx->{inbox};
 	my $mid = $ctx->{mid};
 	my $cgi = $ctx->{cgi};
 	my $env = $cgi->{env};
@@ -35,13 +35,13 @@ sub ext_msg {
 
 	foreach my $k (keys %$pi_config) {
 		$k =~ /\Apublicinbox\.([A-Z0-9a-z-]+)\.url\z/ or next;
-		my $list = $1;
-		next if $list eq $listname;
+		my $name = $1;
+		next if $name eq $inbox;
 
-		my $git_dir = $pi_config->{"publicinbox.$list.mainrepo"};
+		my $git_dir = $pi_config->{"publicinbox.$name.mainrepo"};
 		defined $git_dir or next;
 
-		my $url = $pi_config->{"publicinbox.$list.url"};
+		my $url = $pi_config->{"publicinbox.$name.url"};
 		defined $url or next;
 
 		$url =~ s!/+\z!!;
@@ -93,7 +93,7 @@ sub ext_msg {
 		my $tmp_mid = $mid;
 		my $url;
 again:
-		$url = $base_url . $listname;
+		$url = $base_url . $inbox;
 		unshift @pfx, { git_dir => $ctx->{git_dir}, url => $url };
 		foreach my $pfx (@pfx) {
 			my $git_dir = delete $pfx->{git_dir} or next;

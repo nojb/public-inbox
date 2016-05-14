@@ -29,7 +29,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		'mainrepo' => '/home/pi/meta-main.git',
 		'address' => 'meta@public-inbox.org',
 		-primary_address => 'meta@public-inbox.org',
-		'listname' => 'meta',
+		'inbox' => 'meta',
 	}, "lookup matches expected output");
 
 	is($cfg->lookup('blah@example.com'), undef,
@@ -42,7 +42,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 			      'test@public-inbox.org'],
 		-primary_address => 'try@public-inbox.org',
 		'mainrepo' => '/home/pi/test-main.git',
-		'listname' => 'test',
+		'inbox' => 'test',
 	}, "lookup matches expected output for test");
 }
 

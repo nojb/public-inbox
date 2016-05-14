@@ -45,18 +45,18 @@ sub lookup {
 		my $v = $self->{"$pfx.$k"};
 		$rv{$k} = $v if defined $v;
 	}
-	my $listname = $pfx;
-	$listname =~ s/\Apublicinbox\.//;
-	$rv{listname} = $listname;
+	my $inbox = $pfx;
+	$inbox =~ s/\Apublicinbox\.//;
+	$rv{inbox} = $inbox;
 	my $v = $rv{address};
 	$rv{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
 	\%rv;
 }
 
 sub get {
-	my ($self, $listname, $key) = @_;
+	my ($self, $inbox, $key) = @_;
 
-	$self->{"publicinbox.$listname.$key"};
+	$self->{"publicinbox.$inbox.$key"};
 }
 
 sub config_dir { $ENV{PI_DIR} || expand_filename('~/.public-inbox') }

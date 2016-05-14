@@ -35,7 +35,7 @@ sub msg_html {
 		'</pre></body></html>';
 }
 
-# /$LISTNAME/$MESSAGE_ID/R/
+# /$INBOX/$MESSAGE_ID/R/
 sub msg_reply {
 	my ($ctx, $hdr, $footer) = @_;
 	my $s = $hdr->header('Subject');

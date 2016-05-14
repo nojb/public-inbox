@@ -184,7 +184,7 @@ EOF
 		my $feed = string_feed({
 			git_dir => $git_dir,
 			max => 3,
-			listname => 'asdf',
+			inbox => 'asdf',
 			pi_config => bless({
 				'publicinbox.asdf.address' => $addr,
 			}, 'PublicInbox::Config'),

@@ -20,7 +20,7 @@ use constant SSOMA_URL => '//ssoma.public-inbox.org/';
 use constant PI_URL => '//public-inbox.org/';
 require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
-our $LISTNAME_RE = qr!\A/([\w\.\-]+)!;
+our $INBOX_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|R/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 
@@ -44,9 +44,9 @@ sub call {
 
 	my $method = $cgi->method;
 	if ($method eq 'POST' &&
-		 $path_info =~ m!$LISTNAME_RE/(git-upload-pack)\z!) {
+		 $path_info =~ m!$INBOX_RE/(git-upload-pack)\z!) {
 		my $path = $2;
-		return (invalid_list($self, $ctx, $1) ||
+		return (invalid_inbox($self, $ctx, $1) ||
 			serve_git($cgi, $ctx->{git}, $path));
 	}
 	elsif ($method !~ /\AGET|HEAD\z/) {
@@ -56,32 +56,32 @@ sub call {
 	# top-level indices and feeds
 	if ($path_info eq '/') {
 		r404();
-	} elsif ($path_info =~ m!$LISTNAME_RE\z!o) {
-		invalid_list($self, $ctx, $1) || r301($ctx, $1);
-	} elsif ($path_info =~ m!$LISTNAME_RE(?:/|/index\.html)?\z!o) {
-		invalid_list($self, $ctx, $1) || get_index($ctx);
-	} elsif ($path_info =~ m!$LISTNAME_RE/(?:atom\.xml|new\.atom)\z!o) {
-		invalid_list($self, $ctx, $1) || get_atom($ctx);
+	} elsif ($path_info =~ m!$INBOX_RE\z!o) {
+		invalid_inbox($self, $ctx, $1) || r301($ctx, $1);
+	} elsif ($path_info =~ m!$INBOX_RE(?:/|/index\.html)?\z!o) {
+		invalid_inbox($self, $ctx, $1) || get_index($ctx);
+	} elsif ($path_info =~ m!$INBOX_RE/(?:atom\.xml|new\.atom)\z!o) {
+		invalid_inbox($self, $ctx, $1) || get_atom($ctx);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/
+	} elsif ($path_info =~ m!$INBOX_RE/
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my $path = $2;
-		invalid_list($self, $ctx, $1) ||
+		invalid_inbox($self, $ctx, $1) ||
 			serve_git($cgi, $ctx->{git}, $path);
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/$END_RE\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($self, $ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/(T|t|R)\z!o) {
-		my ($listname, $mid, $suffix) = ($1, $2, $3);
+	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/(T|t|R)\z!o) {
+		my ($inbox, $mid, $suffix) = ($1, $2, $3);
 		$suffix .= $suffix =~ /\A[tT]\z/ ? '/#u' : '/';
-		r301($ctx, $listname, $mid, $suffix);
+		r301($ctx, $inbox, $mid, $suffix);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/$MID_RE/f/?\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/f/?\z!o) {
 		r301($ctx, $1, $2);
 
 	# convenience redirects order matters
-	} elsif ($path_info =~ m!$LISTNAME_RE/([^/]{2,})\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/([^/]{2,})\z!o) {
 		r301($ctx, $1, $2);
 
 	} else {
@@ -121,13 +121,13 @@ sub r404 {
 sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 
 # returns undef if valid, array ref response if invalid
-sub invalid_list {
-	my ($self, $ctx, $listname, $mid) = @_;
-	my $git_dir = $ctx->{pi_config}->get($listname, "mainrepo");
+sub invalid_inbox {
+	my ($self, $ctx, $inbox, $mid) = @_;
+	my $git_dir = $ctx->{pi_config}->get($inbox, "mainrepo");
 	if (defined $git_dir) {
 		$ctx->{git_dir} = $git_dir;
 		$ctx->{git} = PublicInbox::Git->new($git_dir);
-		$ctx->{listname} = $listname;
+		$ctx->{inbox} = $inbox;
 		return;
 	}
 
@@ -139,9 +139,9 @@ sub invalid_list {
 }
 
 # returns undef if valid, array ref response if invalid
-sub invalid_list_mid {
-	my ($self, $ctx, $listname, $mid) = @_;
-	my $ret = invalid_list($self, $ctx, $listname, $mid);
+sub invalid_inbox_mid {
+	my ($self, $ctx, $inbox, $mid) = @_;
+	my $ret = invalid_inbox($self, $ctx, $inbox, $mid);
 	return $ret if $ret;
 
 	$ctx->{mid} = $mid = uri_unescape($mid);
@@ -157,14 +157,14 @@ sub invalid_list_mid {
 	undef;
 }
 
-# /$LISTNAME/new.atom                     -> Atom feed, includes replies
+# /$INBOX/new.atom                     -> Atom feed, includes replies
 sub get_atom {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate($ctx);
 }
 
-# /$LISTNAME/?r=$GIT_COMMIT                 -> HTML only
+# /$INBOX/?r=$GIT_COMMIT                 -> HTML only
 sub get_index {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
@@ -186,7 +186,7 @@ sub mid2blob {
 	$ctx->{git}->cat_file("HEAD:$path");
 }
 
-# /$LISTNAME/$MESSAGE_ID/raw                    -> raw mbox
+# /$INBOX/$MESSAGE_ID/raw                    -> raw mbox
 sub get_mid_txt {
 	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404($ctx);
@@ -194,7 +194,7 @@ sub get_mid_txt {
 	PublicInbox::Mbox::emit1($ctx, $x);
 }
 
-# /$LISTNAME/$MESSAGE_ID/                   -> HTML content (short quotes)
+# /$INBOX/$MESSAGE_ID/                   -> HTML content (short quotes)
 sub get_mid_html {
 	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404($ctx);
@@ -208,7 +208,7 @@ sub get_mid_html {
 	  [ PublicInbox::View::msg_html($ctx, $mime, $foot) ] ];
 }
 
-# /$LISTNAME/$MESSAGE_ID/R/                   -> HTML content (fullquotes)
+# /$INBOX/$MESSAGE_ID/R/                   -> HTML content (fullquotes)
 sub get_reply_html {
 	my ($ctx) = @_;
 	my $x = mid2blob($ctx) or return r404($ctx);
@@ -221,7 +221,7 @@ sub get_reply_html {
 	  [ PublicInbox::View::msg_reply($ctx, $hdr, $foot)] ];
 }
 
-# /$LISTNAME/$MESSAGE_ID/t/
+# /$INBOX/$MESSAGE_ID/t/
 sub get_thread {
 	my ($ctx, $flat) = @_;
 	my $srch = searcher($ctx) or return need_search($ctx);
@@ -252,7 +252,7 @@ sub footer {
 	}
 
 	# auto-generate a footer
-	my $listname = ctx_get($ctx, 'listname');
+	my $inbox = ctx_get($ctx, 'inbox');
 	my $desc = try_cat("$git_dir/description");
 	$desc = '$GIT_DIR/description missing' unless defined $desc;
 	chomp $desc;
@@ -261,7 +261,7 @@ sub footer {
 	my @urls = split(/\r?\n/, $urls || '');
 	my %seen = map { $_ => 1 } @urls;
 	my $cgi = $ctx->{cgi};
-	my $http = $cgi->base->as_string . $listname;
+	my $http = $cgi->base->as_string . $inbox;
 	$seen{$http} or unshift @urls, $http;
 	my $ssoma_url = PublicInbox::Hval::prurl($cgi->{env}, SSOMA_URL);
 	if (scalar(@urls) == 1) {
@@ -273,7 +273,7 @@ sub footer {
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
 	}
 
-	my $addr = $ctx->{pi_config}->get($listname, 'address');
+	my $addr = $ctx->{pi_config}->get($inbox, 'address');
 	if (ref($addr) eq 'ARRAY') {
 		$addr = $addr->[0]; # first address is primary
 	}
@@ -311,8 +311,8 @@ EOF
 	[ 501, [ 'Content-Type' => 'text/html; charset=UTF-8' ], [ $msg ] ];
 }
 
-# /$LISTNAME/$MESSAGE_ID/t.mbox           -> thread as mbox
-# /$LISTNAME/$MESSAGE_ID/t.mbox.gz        -> thread as gzipped mbox
+# /$INBOX/$MESSAGE_ID/t.mbox           -> thread as mbox
+# /$INBOX/$MESSAGE_ID/t.mbox.gz        -> thread as gzipped mbox
 # note: I'm not a big fan of other compression formats since they're
 # significantly more expensive on CPU than gzip and less-widely available,
 # especially on older systems.  Stick to zlib since that's what git uses.
@@ -324,7 +324,7 @@ sub get_thread_mbox {
 }
 
 
-# /$LISTNAME/$MESSAGE_ID/t.atom		  -> thread as Atom feed
+# /$INBOX/$MESSAGE_ID/t.atom		  -> thread as Atom feed
 sub get_thread_atom {
 	my ($ctx) = @_;
 	searcher($ctx) or return need_search($ctx);
@@ -337,54 +337,54 @@ sub legacy_redirects {
 	my ($self, $ctx, $path_info) = @_;
 
 	# single-message pages
-	if ($path_info =~ m!$LISTNAME_RE/m/(\S+)/\z!o) {
+	if ($path_info =~ m!$INBOX_RE/m/(\S+)/\z!o) {
 		r301($ctx, $1, $2);
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)/raw\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/m/(\S+)/raw\z!o) {
 		r301($ctx, $1, $2, 'raw');
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)/\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/f/(\S+)/\z!o) {
 		r301($ctx, $1, $2);
 
 	# thread display
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/t/(\S+)/\z!o) {
 		r301($ctx, $1, $2, 't/#u');
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)/mbox(\.gz)?\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/t/(\S+)/mbox(\.gz)?\z!o) {
 		r301($ctx, $1, $2, "t.mbox$3");
 
 	# even older legacy redirects
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\.html\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/m/(\S+)\.html\z!o) {
 		r301($ctx, $1, $2);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\.html\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/t/(\S+)\.html\z!o) {
 		r301($ctx, $1, $2, 't/#u');
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\.html\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/f/(\S+)\.html\z!o) {
 		r301($ctx, $1, $2);
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/(?:m|f)/(\S+)\.txt\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/(?:m|f)/(\S+)\.txt\z!o) {
 		r301($ctx, $1, $2, 'raw');
 
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)(\.mbox(?:\.gz)?)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/t/(\S+)(\.mbox(?:\.gz)?)\z!o) {
 		r301($ctx, $1, $2, "t$3");
 
 	# legacy convenience redirects, order still matters
-	} elsif ($path_info =~ m!$LISTNAME_RE/m/(\S+)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/m/(\S+)\z!o) {
 		r301($ctx, $1, $2);
-	} elsif ($path_info =~ m!$LISTNAME_RE/t/(\S+)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/t/(\S+)\z!o) {
 		r301($ctx, $1, $2, 't/#u');
-	} elsif ($path_info =~ m!$LISTNAME_RE/f/(\S+)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/f/(\S+)\z!o) {
 		r301($ctx, $1, $2);
 
 	# some Message-IDs have slashes in them and the HTTP server
 	# may try to be clever and unescape them :<
-	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/$END_RE\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/$END_RE\z!o) {
 		msg_page($self, $ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
-	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/(T|t)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/(T|t)\z!o) {
 		r301($ctx, $1, $2, $3 eq 't' ? 't/#u' : $3);
-	} elsif ($path_info =~ m!$LISTNAME_RE/(\S+/\S+)/f\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/f\z!o) {
 		r301($ctx, $1, $2);
 	} else {
 		$self->news_www->call($ctx->{cgi}->{env});
@@ -392,11 +392,11 @@ sub legacy_redirects {
 }
 
 sub r301 {
-	my ($ctx, $listname, $mid, $suffix) = @_;
+	my ($ctx, $inbox, $mid, $suffix) = @_;
 	my $cgi = $ctx->{cgi};
 	my $url;
 	my $qs = $cgi->env->{QUERY_STRING};
-	$url = $cgi->base->as_string . $listname . '/';
+	$url = $cgi->base->as_string . $inbox . '/';
 	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
 	$url .= $suffix if (defined $suffix);
 	$url .= "?$qs" if $qs ne '';
@@ -407,9 +407,9 @@ sub r301 {
 }
 
 sub msg_page {
-	my ($self, $ctx, $list, $mid, $e) = @_;
+	my ($self, $ctx, $inbox, $mid, $e) = @_;
 	my $ret;
-	$ret = invalid_list_mid($self, $ctx, $list, $mid) and return $ret;
+	$ret = invalid_inbox_mid($self, $ctx, $inbox, $mid) and return $ret;
 	'' eq $e and return get_mid_html($ctx);
 	't/' eq $e and return get_thread($ctx);
 	't.atom' eq $e and return get_thread_atom($ctx);
