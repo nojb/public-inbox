@@ -125,10 +125,11 @@ sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox {
 	my ($self, $ctx, $inbox, $mid) = @_;
-	my $git_dir = $ctx->{pi_config}->get($inbox, "mainrepo");
-	if (defined $git_dir) {
-		$ctx->{git_dir} = $git_dir;
-		$ctx->{git} = PublicInbox::Git->new($git_dir);
+	my $obj = $ctx->{pi_config}->lookup_name($inbox);
+	if (defined $obj) {
+		$ctx->{git_dir} = $obj->{mainrepo};
+		$ctx->{git} = $obj->git;
+		$ctx->{-inbox} = $obj;
 		$ctx->{inbox} = $inbox;
 		return;
 	}
@@ -243,27 +244,18 @@ sub ctx_get {
 sub footer {
 	my ($ctx) = @_;
 	return '' unless $ctx;
-	my $git_dir = ctx_get($ctx, 'git_dir');
-
-	# favor user-supplied footer
-	my $footer = try_cat("$git_dir/public-inbox/footer.html");
-	if (defined $footer) {
-		chomp $footer;
-		$ctx->{footer} = $footer;
-		return $footer;
-	}
+	my $obj = $ctx->{-inbox} or return '';
+	my $footer = $obj->footer_html;
+	return $ctx->{footer} = $footer if $footer;
 
 	# auto-generate a footer
-	my $inbox = ctx_get($ctx, 'inbox');
-	my $desc = try_cat("$git_dir/description");
-	$desc = '$GIT_DIR/description missing' unless defined $desc;
-	chomp $desc;
+	chomp(my $desc = $obj->description);
 
-	my $urls = try_cat("$git_dir/cloneurl");
-	my @urls = split(/\r?\n/, $urls || '');
+	my $urls;
+	my @urls = @{$obj->cloneurl};
 	my %seen = map { $_ => 1 } @urls;
 	my $cgi = $ctx->{cgi};
-	my $http = $cgi->base->as_string . $inbox;
+	my $http = $cgi->base->as_string . $obj->{name};
 	$seen{$http} or unshift @urls, $http;
 	my $ssoma_url = PublicInbox::Hval::prurl($cgi->{env}, SSOMA_URL);
 	if (scalar(@urls) == 1) {
@@ -275,13 +267,7 @@ sub footer {
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
 	}
 
-	my $addr = $ctx->{pi_config}->get($inbox, 'address');
-	if (ref($addr) eq 'ARRAY') {
-		$addr = $addr->[0]; # first address is primary
-	}
-
-	$addr = "<a\nhref=\"mailto:$addr\">$addr</a>";
-
+	my $addr = $obj->{-primary_address};
 	$ctx->{footer} = join("\n",
 		'- ' . $desc,
 		"A <a\nhref=\"" .
@@ -299,7 +285,7 @@ sub searcher {
 	my ($ctx) = @_;
 	eval {
 		require PublicInbox::Search;
-		$ctx->{srch} = PublicInbox::Search->new($ctx->{git_dir});
+		$ctx->{srch} = $ctx->{-inbox}->search;
 	};
 }
 

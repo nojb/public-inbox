@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/try_cat/;
+require PublicInbox::Inbox;
 use File::Path::Expand qw/expand_filename/;
 
 # returns key-value pairs of config directives in a hash
@@ -14,12 +15,18 @@ use File::Path::Expand qw/expand_filename/;
 sub new {
 	my ($class, $file) = @_;
 	$file = default_file() unless defined($file);
-	bless git_config_dump($file), $class;
+	my $self = bless git_config_dump($file), $class;
+	$self->{-by_addr} = {};
+	$self->{-by_name} = {};
+	$self;
 }
 
 sub lookup {
 	my ($self, $recipient) = @_;
 	my $addr = lc($recipient);
+	my $inbox = $self->{-by_addr}->{$addr};
+	return $inbox if $inbox;
+
 	my $pfx;
 
 	foreach my $k (keys %$self) {
@@ -37,20 +44,15 @@ sub lookup {
 			last;
 		}
 	}
-
 	defined $pfx or return;
+	_fill($self, $pfx);
+}
 
-	my %rv;
-	foreach my $k (qw(mainrepo address filter)) {
-		my $v = $self->{"$pfx.$k"};
-		$rv{$k} = $v if defined $v;
-	}
-	my $inbox = $pfx;
-	$inbox =~ s/\Apublicinbox\.//;
-	$rv{inbox} = $inbox;
-	my $v = $rv{address};
-	$rv{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
-	\%rv;
+sub lookup_name {
+	my ($self, $name) = @_;
+	my $rv = $self->{-by_name}->{$name};
+	return $rv if $rv;
+	$self->{-by_name}->{$name} = _fill($self, "publicinbox.$name");
 }
 
 sub get {
@@ -104,5 +106,28 @@ sub try_cat {
 	}
 	$rv;
 }
+
+sub _fill {
+	my ($self, $pfx) = @_;
+	my $rv = {};
+
+	foreach my $k (qw(mainrepo address filter url)) {
+		my $v = $self->{"$pfx.$k"};
+		$rv->{$k} = $v if defined $v;
+	}
+	my $inbox = $pfx;
+	$inbox =~ s/\Apublicinbox\.//;
+	$rv->{name} = $inbox;
+	my $v = $rv->{address} ||= 'public-inbox@example.com';
+	$rv->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
+	$rv = PublicInbox::Inbox->new($rv);
+	if (ref($v) eq 'ARRAY') {
+		$self->{-by_addr}->{lc($_)} = $rv foreach @$v;
+	} else {
+		$self->{-by_addr}->{lc($v)} = $rv;
+	}
+	$rv;
+}
+
 
 1;

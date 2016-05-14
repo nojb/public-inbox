@@ -49,7 +49,7 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 	} elsif ($fcfg eq 'scrub') {
 		$filter_arg = undef; # the default for legacy versions
 	} else {
-		warn "publicinbox.$dst->{inbox}.filter=$fcfg invalid\n";
+		warn "publicinbox.$dst->{name}.filter=$fcfg invalid\n";
 		warn "must be either 'scrub' or 'reject' (the default)\n";
 	}
 
@@ -65,7 +65,7 @@ if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
 			};
 			my $git = PublicInbox::Git->new($main_repo);
 			my $im = PublicInbox::Import->new($git,
-						$dst->{inbox}, $recipient);
+						$dst->{name}, $recipient);
 			if (defined $im->add($msg)) {
 				$im->done;
 				$filter->ignore; # exits

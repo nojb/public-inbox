@@ -28,8 +28,9 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 	is_deeply($cfg->lookup('meta@public-inbox.org'), {
 		'mainrepo' => '/home/pi/meta-main.git',
 		'address' => 'meta@public-inbox.org',
+		'url' => 'http://example.com/meta',
 		-primary_address => 'meta@public-inbox.org',
-		'inbox' => 'meta',
+		'name' => 'meta',
 	}, "lookup matches expected output");
 
 	is($cfg->lookup('blah@example.com'), undef,
@@ -42,7 +43,8 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 			      'test@public-inbox.org'],
 		-primary_address => 'try@public-inbox.org',
 		'mainrepo' => '/home/pi/test-main.git',
-		'inbox' => 'test',
+		'name' => 'test',
+		'url' => 'http://example.com/test',
 	}, "lookup matches expected output for test");
 }
 

@@ -43,10 +43,10 @@ if (-e $pi_config) {
 	foreach my $addr (@address) {
 		my $found = $cfg->lookup($addr);
 		if ($found) {
-			if ($found->{inbox} ne $name) {
+			if ($found->{name} ne $name) {
 				print STDERR
 					"`$addr' already defined for ",
-					"`$found->{inbox}',\n",
+					"`$found->{name}',\n",
 					"does not match intend `$name'\n";
 				$conflict = 1;
 			} else {
