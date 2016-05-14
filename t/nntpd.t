@@ -49,14 +49,16 @@ END { kill 'TERM', $pid if defined $pid };
 	# ensure successful message delivery
 	{
 		my $mime = Email::MIME->new(<<EOF);
-From: Me <me\@example.com>
-To: You <you\@example.com>
+To: =?utf-8?Q?El=C3=A9anor?= <you\@example.com>
+From: =?utf-8?Q?El=C3=A9anor?= <me\@example.com>
 Cc: $addr
 Message-Id: <nntp\@example.com>
-Subject: hihi
+Content-Type: text/plain; charset=utf-8
+Subject: Testing for =?utf-8?Q?El=C3=A9anor?=
 Date: Thu, 01 Jan 1970 06:06:06 +0000
+Content-Transfer-Encoding: 8bit
 
-nntp
+This is a test message for El\xc3\xa9anor
 EOF
 		$mime->header_set('List-Id', "<$addr>");
 		$len = length($mime->as_string);
@@ -103,10 +105,10 @@ EOF
 	my $mid = '<nntp@example.com>';
 	my %xhdr = (
 		'message-id' => $mid,
-		'subject' => 'hihi',
+		subject => "Testing for El\xc3\xa9anor",
 		'date' => 'Thu, 01 Jan 1970 06:06:06 +0000',
-		'from' => 'Me <me@example.com>',
-		'to' => 'You <you@example.com>',
+		'from' => "El\xc3\xa9anor <me\@example.com>",
+		'to' => "El\xc3\xa9anor <you\@example.com>",
 		'cc' => $addr,
 		'xref' => "example.com $group:1"
 	);
@@ -123,14 +125,13 @@ EOF
 			  "$k by article number works");
 		is_deeply($n->xhdr("$k 1-"), { 1 => $v },
 			  "$k by article range works");
-		next;
 		$buf = '';
 		syswrite($s, "HDR $k $mid\r\n");
 		do {
 			sysread($s, $buf, 4096, length($buf));
 		} until ($buf =~ /\r\n\.\r\n\z/);
 		my @r = split("\r\n", $buf);
-		like($r[0], qr/\A224 /, '224 response for HDR');
+		like($r[0], qr/\A225 /, '225 response for HDR');
 		is($r[1], "0 $v", 'got expected response for HDR');
 	}
 
@@ -143,8 +144,8 @@ EOF
 	}
 
 	is_deeply($n->xover('1-'), {
-		'1' => ['hihi',
-			'Me <me@example.com>',
+		'1' => ["Testing for El\xc3\xa9anor",
+			"El\xc3\xa9anor <me\@example.com>",
 			'Thu, 01 Jan 1970 06:06:06 +0000',
 			'<nntp@example.com>',
 			'',
@@ -152,8 +153,8 @@ EOF
 			'1' ] }, "XOVER range works");
 
 	is_deeply($n->xover('1'), {
-		'1' => ['hihi',
-			'Me <me@example.com>',
+		'1' => ["Testing for El\xc3\xa9anor",
+			"El\xc3\xa9anor <me\@example.com>",
 			'Thu, 01 Jan 1970 06:06:06 +0000',
 			'<nntp@example.com>',
 			'',
@@ -168,7 +169,8 @@ EOF
 		} until ($buf =~ /\r\n\.\r\n\z/);
 		my @r = split("\r\n", $buf);
 		like($r[0], qr/^224 /, 'got 224 response for OVER');
-		is($r[1], "0\thihi\tMe <me\@example.com>\t" .
+		is($r[1], "0\tTesting for El\xc3\xa9anor\t" .
+			"El\xc3\xa9anor <me\@example.com>\t" .
 			"Thu, 01 Jan 1970 06:06:06 +0000\t" .
 			"$mid\t\t$len\t1", 'OVER by Message-ID works');
 		is($r[2], '.', 'correctly terminated response');
@@ -199,7 +201,13 @@ EOF
 	}
 
 	is($pid, waitpid($pid, 0), 'nntpd exited successfully');
+	my $eout = eval {
+		local $/;
+		open my $fh, '<', $err or die "open $err failed: $!";
+		<$fh>;
+	};
 	is($?, 0, 'no error in exited process');
+	unlike($eout, qr/wide/i, 'no Wide character warnings');
 }
 
 done_testing();
