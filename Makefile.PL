@@ -36,6 +36,10 @@ WriteMakefile(
 
 sub MY::postamble {
   <<EOF;
+# support using eatmydata to speed up tests (apt-get install eatmydata):
+# https://www.flamingspork.com/projects/libeatmydata/
+EATMYDATA =
+-include config.mak
 -include Documentation/include.mk
 my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES))
 
@@ -47,7 +51,7 @@ N := \$(shell echo \$\$(( \$\$(nproc 2>/dev/null || echo 2) + 1)))
 syntax:: \$(my_syntax)
 
 check:: pure_all
-	prove -lv -j\$(N)
+	\$(EATMYDATA) prove -lv -j\$(N)
 
 EOF
 }
