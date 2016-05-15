@@ -48,12 +48,16 @@ sub emit_msg {
 	my $base = $feed_opts->{url};
 	my $mid = mid_clean($header_obj->header('Message-ID'));
 	$mid = uri_escape_utf8($mid);
-	my %append = (
-		'Archived-At' => "<$base$mid/>",
-		'List-Archive' => "<$base>",
-		'List-Post' => "<mailto:$feed_opts->{id_addr}>",
+	my @append = (
+		'Archived-At', "<$base$mid/>",
+		'List-Archive', "<$base>",
+		'List-Post', "<mailto:$feed_opts->{id_addr}>",
 	);
-	while (my ($k, $v) = each %append) {
+	my $append = '';
+	my $crlf = $simple->crlf;
+	for (my $i = 0; $i < @append; $i += 2) {
+		my $k = $append[$i];
+		my $v = $append[$i + 1];
 		my @v = $header_obj->header($k);
 		foreach (@v) {
 			if ($v eq $_) {
@@ -61,14 +65,14 @@ sub emit_msg {
 				last;
 			}
 		}
-		$header_obj->header_set($k, @v, $v) if defined $v;
+		$append .= "$k: $v$crlf" if defined $v;
 	}
-
 	my $buf = $header_obj->as_string;
 	unless ($buf =~ /\AFrom /) {
 		$fh->write("From mboxrd\@z Thu Jan  1 00:00:00 1970\n");
 	}
-	$fh->write($buf .= $simple->crlf);
+	$append .= $crlf;
+	$fh->write($buf .= $append);
 
 	$buf = $simple->body;
 	$simple->body_set('');
