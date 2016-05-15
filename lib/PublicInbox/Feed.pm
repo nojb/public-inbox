@@ -61,9 +61,9 @@ sub atom_header {
 
 sub emit_atom {
 	my ($cb, $ctx) = @_;
+	my $feed_opts = get_feedopts($ctx);
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
 	my $max = $ctx->{max} || MAX_PER_PAGE;
-	my $feed_opts = get_feedopts($ctx);
 	my $x = atom_header($feed_opts);
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	each_recent_blob($ctx, sub {
@@ -95,8 +95,8 @@ sub emit_atom_thread {
 	my ($cb, $ctx) = @_;
 	my $res = $ctx->{srch}->get_thread($ctx->{mid});
 	return _no_thread($cb) unless $res->{total};
-	my $fh = $cb->([200, ['Content-Type' => 'application/atom+xml']]);
 	my $feed_opts = get_feedopts($ctx);
+	my $fh = $cb->([200, ['Content-Type' => 'application/atom+xml']]);
 
 	my $html_url = $feed_opts->{atomurl} = $ctx->{self_url};
 	$html_url =~ s!/t\.atom\z!/!;
@@ -112,10 +112,10 @@ sub emit_atom_thread {
 
 sub emit_html_index {
 	my ($res, $ctx) = @_;
+	my $feed_opts = get_feedopts($ctx);
 	my $fh = $res->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
 
 	my $max = $ctx->{max} || MAX_PER_PAGE;
-	my $feed_opts = get_feedopts($ctx);
 
 	my $title = ascii_html($feed_opts->{description} || '');
 	my ($footer, $param, $last);
@@ -261,15 +261,15 @@ sub get_feedopts {
 	my ($ctx) = @_;
 	my $pi_config = $ctx->{pi_config};
 	my $inbox = $ctx->{inbox};
+	my $obj = $ctx->{-inbox};
 	my $cgi = $ctx->{cgi};
-	my %rv;
-	if (open my $fh, '<', "$ctx->{git_dir}/description") {
-		chomp($rv{description} = <$fh>);
-	} else {
-		$rv{description} = '($GIT_DIR/description missing)';
-	}
+	my %rv = ( description => $obj ? $obj->description : 'FIXME' );
 
-	if ($pi_config && defined $inbox && $inbox ne '') {
+	if ($obj) {
+		$rv{address} = $obj->{address};
+		$rv{id_addr} = $obj->{-primary_address};
+	} elsif ($pi_config && defined $inbox && $inbox ne '') {
+		# TODO: remove
 		my $addr = $pi_config->get($inbox, 'address') || "";
 		$rv{address} = $addr;
 		$addr = $addr->[0] if ref($addr);
@@ -278,19 +278,19 @@ sub get_feedopts {
 	$rv{id_addr} ||= 'public-inbox@example.com';
 
 	my $url_base;
-	if ($cgi) {
-		$url_base = $cgi->base->as_string . $inbox;
+	if ($obj) {
+		$url_base = $obj->base_url($cgi); # CGI may be undef
 		if (my $mid = $ctx->{mid}) { # per-thread feed:
-			$rv{atomurl} = "$url_base/$mid/t.atom";
+			$rv{atomurl} = "$url_base$mid/t.atom";
 		} else {
-			$rv{atomurl} = "$url_base/new.atom";
+			$rv{atomurl} = $url_base."new.atom";
 		}
 	} else {
-		$url_base = "http://example.com";
-		$rv{atomurl} = "$url_base/new.atom";
+		$url_base = 'http://example.com/';
+		$rv{atomurl} = $url_base.'new.atom';
 	}
-	$rv{url} ||= "$url_base/";
-	$rv{midurl} = "$url_base/";
+	$rv{url} ||= $url_base;
+	$rv{midurl} = $url_base;
 
 	\%rv;
 }

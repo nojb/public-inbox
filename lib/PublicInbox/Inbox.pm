@@ -64,6 +64,7 @@ sub cloneurl {
 	$self->{cloneurl} = \@url;
 }
 
+# TODO: can we remove this?
 sub footer_html {
 	my ($self) = @_;
 	my $footer = $self->{footer};
@@ -71,6 +72,25 @@ sub footer_html {
 	$footer = try_cat("$self->{mainrepo}/public-inbox/footer.html");
 	chomp $footer;
 	$self->{footer} = $footer;
+}
+
+sub base_url {
+	my ($self, $prq) = @_; # Plack::Request
+	if (defined $prq) {
+		my $url = $prq->base->as_string;
+		$url .= '/' if $url !~ m!/\z!; # for mount in Plack::Builder
+		$url .= $self->{name} . '/';
+	} else {
+		# either called from a non-PSGI environment (e.g. NNTP/POP3)
+		$self->{-base_url} ||= do {
+			my $url = $self->{url};
+			# expand protocol-relative URLs to HTTPS if we're
+			# not inside a web server
+			$url = "https:$url" if $url =~ m!\A//!;
+			$url .= '/' if $url !~ m!/\z!;
+			$url;
+		};
+	}
 }
 
 1;

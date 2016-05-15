@@ -39,7 +39,7 @@ sub run {
 sub call {
 	my ($self, $env) = @_;
 	my $cgi = Plack::Request->new($env);
-	my $ctx = { cgi => $cgi, pi_config => $self->{pi_config} };
+	my $ctx = {cgi => $cgi, pi_config => $self->{pi_config}, www => $self};
 	my $path_info = $cgi->path_info;
 
 	my $method = $cgi->method;
@@ -124,7 +124,7 @@ sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox {
-	my ($self, $ctx, $inbox, $mid) = @_;
+	my ($self, $ctx, $inbox) = @_;
 	my $obj = $ctx->{pi_config}->lookup_name($inbox);
 	if (defined $obj) {
 		$ctx->{git_dir} = $obj->{mainrepo};
@@ -144,7 +144,7 @@ sub invalid_inbox {
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox_mid {
 	my ($self, $ctx, $inbox, $mid) = @_;
-	my $ret = invalid_inbox($self, $ctx, $inbox, $mid);
+	my $ret = invalid_inbox($self, $ctx, $inbox);
 	return $ret if $ret;
 
 	$ctx->{mid} = $mid = uri_unescape($mid);
@@ -382,9 +382,14 @@ sub legacy_redirects {
 sub r301 {
 	my ($ctx, $inbox, $mid, $suffix) = @_;
 	my $cgi = $ctx->{cgi};
-	my $url;
+	my $obj = $ctx->{-inbox};
+	unless ($obj) {
+		my $r404 = invalid_inbox($ctx->{www}, $ctx, $inbox);
+		return $r404 if $r404;
+		$obj = $ctx->{-inbox};
+	}
+	my $url = $obj->base_url($cgi);
 	my $qs = $cgi->env->{QUERY_STRING};
-	$url = $cgi->base->as_string . $inbox . '/';
 	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
 	$url .= $suffix if (defined $suffix);
 	$url .= "?$qs" if $qs ne '';
