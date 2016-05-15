@@ -9,6 +9,7 @@ use warnings;
 use Fcntl qw(:seek);
 use IO::File;
 use PublicInbox::Spawn qw(spawn);
+use HTTP::Date qw(time2str);
 
 # TODO: make configurable, but keep in mind it's better to have
 # multiple -httpd worker processes which are already scaled to
@@ -33,6 +34,10 @@ our $ANY = join('|', @binary, @text);
 my $BIN = join('|', @binary);
 my $TEXT = join('|', @text);
 
+my @no_cache = ('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT',
+		'Pragma', 'no-cache',
+		'Cache-Control', 'no-cache, max-age=0, must-revalidate');
+
 my $nextq;
 sub do_next () {
 	my $q = $nextq;
@@ -42,8 +47,9 @@ sub do_next () {
 	}
 }
 
-sub r {
-	[ $_[0] , [qw(Content-Type text/plain Content-Length 0) ], [] ]
+sub r ($) {
+	my ($s) = @_;
+	[ $s, [qw(Content-Type text/plain Content-Length 0), @no_cache ], [] ]
 }
 
 sub serve {
@@ -73,11 +79,15 @@ sub drop_client ($) {
 sub serve_dumb {
 	my ($cgi, $git, $path) = @_;
 
+	my @h;
 	my $type;
 	if ($path =~ /\A(?:$BIN)\z/o) {
 		$type = 'application/octet-stream';
+		push @h, 'Expires', time2str(time + 31536000);
+		push @h, 'Cache-Control', 'public, max-age=31536000';
 	} elsif ($path =~ /\A(?:$TEXT)\z/o) {
 		$type = 'text/plain';
+		push @h, @no_cache;
 	} else {
 		return r(404);
 	}
@@ -125,7 +135,7 @@ sub serve_dumb {
 	};
 
 	my $code = 200;
-	my @h = ('Content-Type', $type);
+	push @h, 'Content-Type', $type;
 	my $range = $env->{HTTP_RANGE};
 	if (defined $range && $range =~ /\bbytes=(\d*)-(\d*)\z/) {
 		($code, $len) = prepare_range($cgi, $in, \@h, $1, $2, $size);
