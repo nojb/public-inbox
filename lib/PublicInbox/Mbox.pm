@@ -121,6 +121,69 @@ sub emit_mbox {
 	$fh->close;
 }
 
+sub emit_range {
+	my ($ctx, $range) = @_;
+	sub { _emit_range($_[0], $ctx, $range) };
+}
+
+sub _emit_range {
+	my ($res, $ctx, $range) = @_;
+
+	eval { require IO::Compress::Gzip };
+	return need_gzip($res) if $@;
+	my $query;
+	if ($range eq 'all') { # TODO: YYYY[-MM]
+		$query = '';
+	} else {
+		$res->([404, [qw(Content-Type text/plain)], []]);
+		return;
+	}
+
+	# http://www.iana.org/assignments/media-types/application/gzip
+	my $fh = $res->([200, [qw(Content-Type application/gzip)]]);
+	$fh = PublicInbox::MboxGz->new($fh);
+	my $env = $ctx->{cgi}->env;
+	my $srch = $ctx->{srch};
+	my $git = $ctx->{git};
+	my %opts = (offset => 0, asc => 1);
+	my $nr;
+	my $cb = sub {
+		my $res = $srch->query($query, \%opts);
+		my $msgs = $res->{msgs};
+		$nr = scalar @$msgs;
+		while (defined(my $smsg = shift @$msgs)) {
+			my $msg = eval {
+				my $p = 'HEAD:'.mid2path($smsg->mid);
+				Email::Simple->new($git->cat_file($p));
+			};
+			emit_msg($ctx, $fh, $msg) if $msg;
+		}
+
+		$opts{offset} += $nr;
+	};
+
+	$cb->(); # first part is free
+	return $fh->close if $nr == 0;
+
+	if ($env->{'pi-httpd.async'}) {
+		my $io = $env->{'psgix.io'} or die "no IO";
+		my $next;
+		$next = sub {
+			$cb->();
+			if ($nr > 0) {
+				$io->write($next);
+			} else {
+				$next = undef;
+				$fh->close;
+			}
+		};
+		$io->write($next); # Danga::Socket::write
+		return;
+	}
+	$cb->() while ($nr > 0);
+	$fh->close;
+}
+
 sub need_gzip {
 	my $fh = $_[0]->([501, ['Content-Type' => 'text/html']]);
 	my $title = 'gzipped mbox not available';

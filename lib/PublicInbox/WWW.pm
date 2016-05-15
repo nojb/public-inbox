@@ -68,6 +68,8 @@ sub call {
 		my $path = $2;
 		invalid_inbox($self, $ctx, $1) ||
 			serve_git($cgi, $ctx->{git}, $path);
+	} elsif ($path_info =~ m!$INBOX_RE/([\w-]+).mbox\.gz\z!o) {
+		serve_mbox_range($self, $ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($self, $ctx, $1, $2, $3);
 
@@ -428,6 +430,15 @@ sub msg_page {
 sub serve_git {
 	my ($cgi, $git, $path) = @_;
 	PublicInbox::GitHTTPBackend::serve($cgi, $git, $path);
+}
+
+sub serve_mbox_range {
+	my ($self, $ctx, $inbox, $range) = @_;
+	invalid_inbox($self, $ctx, $inbox) || eval {
+		require PublicInbox::Mbox;
+		searcher($ctx);
+		PublicInbox::Mbox::emit_range($ctx, $range);
+	}
 }
 
 sub news_www {
