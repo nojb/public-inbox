@@ -15,9 +15,12 @@ use File::Path::Expand qw/expand_filename/;
 sub new {
 	my ($class, $file) = @_;
 	$file = default_file() unless defined($file);
-	my $self = bless git_config_dump($file), $class;
-	$self->{-by_addr} = {};
-	$self->{-by_name} = {};
+	$file = ref $file ? $file : git_config_dump($file);
+	my $self = bless $file, $class;
+
+	# caches
+	$self->{-by_addr} ||= {};
+	$self->{-by_name} ||= {};
 	$self;
 }
 
