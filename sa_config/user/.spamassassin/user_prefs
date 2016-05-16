@@ -40,9 +40,27 @@ body HELLOMYDEAR /hello my dear/i
 describe HELLOMYDEAR "spam phrase"
 score HELLOMYDEAR 2.8
 
-# we hate HTML mail
-score MIME_HTML_MOSTLY  3.0
-score HTML_MESSAGE 3.0
+body JUSTAMAILBOX /I'm just a mailbox used for sending notifications/
+describe JUSTAMAILBOX "autoreply phrase"
+score JUSTAMAILBOX 5.0
+
+# no delivery
+header PI_DNOT subject =~ /delivery\s+(?:status\s+)?notification/i
+describe PI_DNOT "delivery notification"
+score PI_DNOT 3
+
+# notice to appear
+header PI_DNOTICE subject =~ /notice to appear/i
+describe PI_DNOTICE "notice to appear"
+score PI_DNOTICE 3
+
+full ZIPFILE            /\b(?:file)?name\=.*\.zip\b/i
+describe ZIPFILE        zipfile attachment
+score ZIPFILE           0.5
+
+score BAYES_999 3
+score BAYES_05 -1.5
+score BAYES_00 -15
 
 # trust paid whitelist services? never
 score RCVD_IN_RP_SAFE 0.0
