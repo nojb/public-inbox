@@ -518,7 +518,8 @@ sub html_footer {
 			$irt = ' ' x length('parent ');
 		}
 		if ($next) {
-			$irt .= "<a\nhref=\"$upfx$next/\"\nrel=next>next</a> ";
+			my $n = PublicInbox::Hval->new_msgid($next)->as_href;
+			$irt .= "<a\nhref=\"$upfx$n/\"\nrel=next>next</a> ";
 		} else {
 			$irt .= ' ' x length('next ');
 		}
