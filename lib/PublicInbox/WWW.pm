@@ -129,6 +129,8 @@ sub invalid_inbox {
 	if (defined $obj) {
 		$ctx->{git_dir} = $obj->{mainrepo};
 		$ctx->{git} = $obj->git;
+		# for PublicInbox::HTTP::weaken_task:
+		$ctx->{cgi}->{env}->{'pi-httpd.inbox'} = $obj;
 		$ctx->{-inbox} = $obj;
 		$ctx->{inbox} = $inbox;
 		return;

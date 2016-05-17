@@ -24,6 +24,15 @@ use constant {
 	CHUNK_MAX_HDR => 256,
 };
 
+# FIXME: duplicated code with NNTP.pm
+my $WEAKEN = {}; # string(inbox) -> inbox
+my $WEAKTIMER;
+sub weaken_task () {
+	$WEAKTIMER = undef;
+	$_->weaken_all for values %$WEAKEN;
+	$WEAKEN = {};
+}
+
 # Use the same configuration parameter as git since this is primarily
 # a slow-client sponge for git-http-backend
 # TODO: support per-respository http.maxRequestBuffer somehow...
@@ -197,6 +206,11 @@ sub response_write {
 			$self->event_write; # watch for readability if done
 		} else {
 			$self->write(sub { $self->close });
+		}
+		if (my $obj = $env->{'pi-httpd.inbox'}) {
+			# grace period for reaping resources
+			$WEAKEN->{"$obj"} = $obj;
+			$WEAKTIMER ||= Danga::Socket->AddTimer(60, *weaken_task);
 		}
 		$self->{env} = undef;
 	};
