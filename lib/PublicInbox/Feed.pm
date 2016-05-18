@@ -316,10 +316,10 @@ sub add_to_feed {
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->as_href;
-	my $content = PublicInbox::View->feed_entry($mime);
-	defined($content) or return 0;
-	$mime = undef;
 
+	my $content = qq(<pre\nstyle="white-space:pre-wrap">) .
+		PublicInbox::View::multipart_text_as_html($mime) .
+		'</pre>';
 	my $date = $header_obj->header('Date');
 	my $updated = feed_updated($date);
 

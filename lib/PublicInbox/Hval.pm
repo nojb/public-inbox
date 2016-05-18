@@ -16,7 +16,6 @@ our @EXPORT_OK = qw/ascii_html/;
 # and screw up rendering on some browsers.  This is the only CSS style
 # feature we use.
 use constant STYLE => '<style>pre{white-space:pre-wrap}</style>';
-use constant PRE => "<pre\nstyle=\"white-space:pre-wrap\">"; # legacy
 
 my $enc_ascii = find_encoding('us-ascii');
 

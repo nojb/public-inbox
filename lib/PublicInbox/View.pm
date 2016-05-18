@@ -73,13 +73,6 @@ sub msg_reply {
 	'</pre><hr /><pre>' . $footer .  '</pre></body></html>';
 }
 
-sub feed_entry {
-	my ($class, $mime) = @_;
-
-	# no <head> here for <style>...
-	PublicInbox::Hval::PRE . multipart_text_as_html($mime) . '</pre>';
-}
-
 sub in_reply_to {
 	my ($hdr) = @_;
 	my $irt = $hdr->header_raw('In-Reply-To');
