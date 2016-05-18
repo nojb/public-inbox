@@ -12,7 +12,6 @@ use PublicInbox::Msgmap;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use Email::Simple;
-use Data::Dumper qw(Dumper);
 use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use URI::Escape qw(uri_escape_utf8);
@@ -151,7 +150,7 @@ sub process_line ($$) {
 	my $res = eval { $req->($self, @args) };
 	my $err = $@;
 	if ($err && !$self->{closed}) {
-		chomp($l = Dumper(\$l));
+		chomp($l);
 		err($self, 'error from: %s (%s)', $l, $err);
 		$res = '503 program fault - command not performed';
 	}
@@ -972,6 +971,7 @@ sub event_read {
 	$self->{rbuf} .= $$buf;
 	while ($r > 0 && $self->{rbuf} =~ s/\A\s*([^\r\n]+)\r?\n//) {
 		my $line = $1;
+		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
 		my $fd = $self->{fd};
 		$r = eval { process_line($self, $line) };

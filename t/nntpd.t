@@ -118,6 +118,18 @@ EOF
 	is($buf, "201 server ready - post via email\r\n", 'got greeting');
 	$s->autoflush(1);
 
+	syswrite($s, "NEWGROUPS\t19990424 000000 \033GMT\007\r\n");
+	is(0, sysread($s, $buf, 4096), 'GOT EOF on cntrl');
+
+	$s = IO::Socket::INET->new(%opts);
+	sysread($s, $buf, 4096);
+	is($buf, "201 server ready - post via email\r\n", 'got greeting');
+	$s->autoflush(1);
+
+	syswrite($s, "NEWGROUPS 19990424 000000 GMT\r\n");
+	$buf = read_til_dot($s);
+	like($buf, qr/\A231 list of /, 'newgroups OK');
+
 	while (my ($k, $v) = each %xhdr) {
 		is_deeply($n->xhdr("$k $mid"), { $mid => $v },
 			  "XHDR $k by message-id works");
@@ -127,9 +139,7 @@ EOF
 			  "$k by article range works");
 		$buf = '';
 		syswrite($s, "HDR $k $mid\r\n");
-		do {
-			sysread($s, $buf, 4096, length($buf));
-		} until ($buf =~ /\r\n\.\r\n\z/);
+		$buf = read_til_dot($s);
 		my @r = split("\r\n", $buf);
 		like($r[0], qr/\A225 /, '225 response for HDR');
 		is($r[1], "0 $v", 'got expected response for HDR');
@@ -163,10 +173,7 @@ EOF
 
 	{
 		syswrite($s, "OVER $mid\r\n");
-		$buf = '';
-		do {
-			sysread($s, $buf, 4096, length($buf));
-		} until ($buf =~ /\r\n\.\r\n\z/);
+		$buf = read_til_dot($s);
 		my @r = split("\r\n", $buf);
 		like($r[0], qr/^224 /, 'got 224 response for OVER');
 		is($r[1], "0\tTesting for El\xc3\xa9anor\t" .
@@ -211,5 +218,14 @@ EOF
 }
 
 done_testing();
+
+sub read_til_dot {
+	my ($s) = @_;
+	my $buf = '';
+	do {
+		sysread($s, $buf, 4096, length($buf));
+	} until ($buf =~ /\r\n\.\r\n\z/);
+	$buf;
+}
 
 1;
