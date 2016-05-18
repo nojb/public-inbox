@@ -132,7 +132,7 @@ sub index_entry {
 		index_walk($fh, $_[0], $enc, \$part_nr);
 	});
 	$mime->body_set('');
-	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/R");
+	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/R/");
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
