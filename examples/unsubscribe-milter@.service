@@ -1,0 +1,24 @@
+# ==> /etc/systemd/system/unsubscribe-milter@.service <==
+# The '@' is to allow multiple simultaneous services to start
+# and share the same socket so new code can be cycled in
+# without downtime
+
+[Unit]
+Description = unsubscribe milter %i
+Wants = unsubscribe-milter.socket
+After = unsubscribe-milter.socket
+
+[Service]
+# First 8 bytes is for the key, next 8 bytes is for the IV
+# using Blowfish.  We want as short URLs as possible to avoid
+# copy+paste errors
+# umask 077 && dd if=/dev/urandom bs=16 count=1 of=.unsubscribe.key
+ExecStart = /usr/local/sbin/unsubscribe.milter /home/mlmmj/.unsubscribe.key
+Sockets = unsubscribe-milter.socket
+
+# the corresponding PSGI app needs permissions to modify the
+# mlmmj spool, so we might as well use the same user since
+User = mlmmj
+
+[Install]
+WantedBy = multi-user.target

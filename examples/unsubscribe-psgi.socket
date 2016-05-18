@@ -1,0 +1,11 @@
+# ==> /etc/systemd/system/unsubscribe-psgi.socket <==
+[Unit]
+Description = unsubscribe PSGI socket
+
+[Socket]
+# Forward to the PSGI using nginx or similar
+ListenStream = /run/unsubscribe-psgi.sock
+Service = unsubscribe-psgi@1.service
+
+[Install]
+WantedBy = sockets.target

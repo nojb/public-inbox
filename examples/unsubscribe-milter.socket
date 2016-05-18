@@ -1,0 +1,10 @@
+# ==> /etc/systemd/system/unsubscribe-milter.socket <==
+[Unit]
+Description = unsubscribe.milter socket
+
+[Socket]
+ListenStream = /var/spool/postfix/unsubscribe/unsubscribe.sock
+Service = unsubscribe-milter@1.service
+
+[Install]
+WantedBy = sockets.target
