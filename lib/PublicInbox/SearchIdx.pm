@@ -11,6 +11,7 @@ use strict;
 use warnings;
 use base qw(PublicInbox::Search);
 use PublicInbox::MID qw/mid_clean id_compress mid_mime/;
+use PublicInbox::MsgIter;
 require PublicInbox::Git;
 *xpfx = *PublicInbox::Search::xpfx;
 
@@ -114,9 +115,8 @@ sub add_message {
 		$tg->index_text($smsg->from);
 		$tg->increase_termpos;
 
-		$mime->walk_parts(sub {
-			my ($part) = @_;
-			return if $part->subparts; # walk_parts already recurses
+		msg_iter($mime, sub {
+			my ($part, $depth, @idx) = @{$_[0]};
 			my $ct = $part->content_type || $ct_msg;
 
 			# account for filter bugs...

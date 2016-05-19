@@ -14,6 +14,7 @@ use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
+use PublicInbox::MsgIter;
 require POSIX;
 
 use constant INDENT => '  ';
@@ -90,7 +91,6 @@ sub index_entry {
 	my $midx = $state->{anchor_idx}++;
 	my $ctx = $state->{ctx};
 	my $srch = $ctx->{srch};
-	my $part_nr = 0;
 	my $hdr = $mime->header_obj;
 	my $subj = $hdr->header('Subject');
 
@@ -125,10 +125,7 @@ sub index_entry {
 	my $mhref = "${path}$href/";
 
 	# scan through all parts, looking for displayable text
-	$mime->walk_parts(sub {
-		index_walk($fh, $_[0], \$part_nr);
-	});
-	$mime->body_set('');
+	msg_iter($mime, sub { index_walk($fh, $_[0]) });
 	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/R/");
 
 	if (defined $irt) {
@@ -214,8 +211,8 @@ sub emit_thread_html {
 }
 
 sub index_walk {
-	my ($fh, $part, $part_nr) = @_;
-	my $s = add_text_body($part, $part_nr);
+	my ($fh, $p) = @_;
+	my $s = add_text_body($p);
 
 	return if $s eq '';
 
@@ -227,30 +224,19 @@ sub index_walk {
 sub multipart_text_as_html {
 	my ($mime) = @_;
 	my $rv = "";
-	my $part_nr = 0;
 
 	# scan through all parts, looking for displayable text
-	$mime->walk_parts(sub {
-		my ($part) = @_;
-		$part = add_text_body($part, \$part_nr);
-		$rv .= $part;
-		$rv .= "\n" if $part ne '';
+	msg_iter($mime, sub {
+		my ($p) = @_;
+		$p = add_text_body($p);
+		$rv .= $p;
+		$rv .= "\n" if $p ne '';
 	});
-	$mime->body_set('');
 	$rv;
 }
 
-sub add_filename_line {
-	my ($fn) = @_;
-	my $len = 72;
-	my $pad = "-";
-	$len -= length($fn);
-	$pad x= ($len/2) if ($len > 0);
-	"$pad " . ascii_html($fn) . " $pad\n";
-}
-
 sub flush_quote {
-	my ($s, $l, $quot, $part_nr) = @_;
+	my ($s, $l, $quot) = @_;
 
 	# show everything in the full version with anchor from
 	# short version (see above)
@@ -263,41 +249,50 @@ sub flush_quote {
 	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
 }
 
-sub attach ($$) {
-	my ($ct, $n) = @_;
-	my $nl = $n ? "\n" : '';
-	"$nl<b>[-- Attachment #$n: " . ascii_html($ct) . " --]\n".
-	"[-- TODO not shown --]</b>";
+sub attach_link ($$$) {
+	my ($ct, $p, $fn) = @_;
+	my ($part, $depth, @idx) = @$p;
+	my $nl = $idx[-1] > 1 ? "\n" : '';
+	my $idx = join('.', @idx);
+	my $size = bytes::length($part->body);
+	$ct ||= 'text/plain';
+	$ct =~ s/;.*//; # no attributes
+	$ct = ascii_html($ct);
+	my $desc = $part->header('Content-Description');
+	$desc = $fn unless defined $desc;
+	$desc = '' unless defined $desc;
+	$desc = ': '.$desc if $desc;
+	"$nl<b>[-- Attachment #$idx$desc --]\n" .
+	"[-- Type: $ct, Size: $size bytes --]</b>"
 }
 
 sub add_text_body {
-	my ($part, $part_nr) = @_;
-	return '' if $part->subparts;
+	my ($p) = @_; # from msg_iter: [ Email::MIME, depth, @idx ]
+	my ($part, $depth, @idx) = @$p;
 	my $ct = $part->content_type;
+	my $fn = $part->filename;
 
 	if (defined $ct && $ct =~ m!\btext/x?html\b!i) {
-		return attach($ct, $$part_nr);
+		return attach_link($ct, $p, $fn);
 	}
 
 	my $s = eval { $part->body_str };
 
 	# badly-encoded message? tell the world about it!
-	return attach($ct, $$part_nr) if $@;
+	return attach_link($ct, $p, $fn) if $@;
 
 	my @lines = split(/^/m, $s);
 	$s = '';
-	if ($$part_nr > 0) {
-		my $fn = $part->filename;
-		defined($fn) or $fn = "part #" . ($$part_nr + 1);
-		$s .= add_filename_line($fn);
+	if (defined($fn) || $depth > 1 || $idx[0] > 1) {
+		$s .= attach_link($ct, $p, $fn);
+		$s .= "\n\n";
 	}
-
 	my @quot;
 	my $l = PublicInbox::Linkify->new;
 	while (defined(my $cur = shift @lines)) {
 		if ($cur !~ /^>/) {
 			# show the previously buffered quote inline
-			flush_quote(\$s, $l, \@quot, $$part_nr) if @quot;
+			flush_quote(\$s, $l, \@quot) if @quot;
 
 			# regular line, OK
 			$cur = $l->linkify_1($cur);
@@ -308,9 +303,7 @@ sub add_text_body {
 		}
 	}
 
-	flush_quote(\$s, $l, \@quot, $$part_nr) if @quot;
-	++$$part_nr;
-
+	flush_quote(\$s, $l, \@quot) if @quot;
 	$s =~ s/[ \t]+$//sgm; # kill per-line trailing whitespace
 	$s =~ s/\A\n+//s; # kill leading blank lines
 	$s =~ s/\s+\z//s; # kill all trailing spaces (final "\n" added if ne '')

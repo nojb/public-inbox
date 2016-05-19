@@ -72,7 +72,7 @@ EOF
 	);
 
 	my $html = PublicInbox::View::msg_html(undef, $mime);
-	like($html, qr/hi\n-+ part #2 -+\nbye\n/, "multipart split");
+	like($html, qr/hi\n.*-- Attachment #2.*\nbye\n/s, "multipart split");
 }
 
 # multipart email with attached patch
@@ -101,7 +101,7 @@ EOF
 	);
 
 	my $html = PublicInbox::View::msg_html(undef, $mime);
-	like($html, qr!see attached patch\n-+ foo\.patch -+\n--- a/file\n!,
+	like($html, qr!.*Attachment #2: foo\.patch --!,
 		"parts split with filename");
 }
 
