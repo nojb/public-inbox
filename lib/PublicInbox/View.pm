@@ -260,7 +260,6 @@ sub attach_link ($$$$) {
 	my $desc = $part->header('Content-Description');
 	$desc = $fn unless defined $desc;
 	$desc = '' unless defined $desc;
-	$desc = ': '.$desc if $desc;
 	my $sfn;
 	if (defined $fn && $fn =~ /\A[\w\.-]+[a-zA-Z0-9]\z/) {
 		$sfn = $fn;
@@ -269,8 +268,10 @@ sub attach_link ($$$$) {
 	} else {
 		$sfn = 'a.bin';
 	}
-	qq($nl<a\nhref="$upfx$idx-$sfn">[-- Attachment #$idx$desc --]\n) .
-	"[-- Type: $ct, Size: $size bytes --]</a>"
+	my @ret = qq($nl<a\nhref="$upfx$idx-$sfn">[-- Attachment #$idx: );
+	my $ts = "Type: $ct, Size: $size bytes";
+	push(@ret, ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]");
+	join('', @ret, '</a>');
 }
 
 sub add_text_body {
