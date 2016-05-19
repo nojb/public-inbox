@@ -23,7 +23,7 @@ use PublicInbox::GitHTTPBackend;
 our $INBOX_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|R/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
-our $ATTACH_RE = qr!(\d[\.\d]*)-([\w\.-]+[a-zA-Z0-9])!i;
+our $ATTACH_RE = qr!(\d[\.\d]*)-([[:alnum:]][\w\.-]+[[:alnum:]])!i;
 
 sub new {
 	my ($class, $pi_config) = @_;

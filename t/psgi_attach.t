@@ -36,6 +36,7 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 	my $qp = "abcdef=g\n==blah\n";
 	my $b64 = 'b64'.$buf."\n";
 	my $txt = "plain\ntext\npass\nthrough\n";
+	my $dot = "dotfile\n";
 	my $parts = [
 		Email::MIME->create(
 			attributes => {
@@ -57,6 +58,12 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 				content_type => 'text/plain',
 			},
 			body => $txt),
+		Email::MIME->create(
+			attributes => {
+				filename => '.dotfile',
+				content_type => 'text/plain',
+			},
+			body => $dot),
 	];
 	my $mime = Email::MIME->create(
 		parts => $parts,
@@ -76,7 +83,8 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 		$res = $cb->(GET('/test/Z%40B/'));
 		my @href = ($res->content =~ /^href="([^"]+)"/gms);
 		@href = grep(/\A[\d\.]+-/, @href);
-		is_deeply([qw(1-queue-pee 2-bayce-sixty-four 3-noop.txt)],
+		is_deeply([qw(1-queue-pee 2-bayce-sixty-four 3-noop.txt
+				4-a.txt)],
 			\@href, 'attachment links generated');
 
 		$res = $cb->(GET('/test/Z%40B/1-queue-pee'));
@@ -97,6 +105,13 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 			'plain text almost matches');
 		like($txt_res, qr/\n\z/s, 'trailing newline exists in text');
 		is(index($txt_res, $txt), 0, 'plain text not truncated');
+
+		$res = $cb->(GET('/test/Z%40B/4-a.txt'));
+		my $dot_res = $res->content;
+		ok(length($dot_res) >= length($dot), 'dot almost matches');
+		$res = $cb->(GET('/test/Z%40B/4-any-filename.txt'));
+		is($res->content, $dot_res, 'user-specified filename is OK');
+
 	});
 }
 done_testing();

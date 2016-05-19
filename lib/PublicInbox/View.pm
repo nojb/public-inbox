@@ -261,7 +261,7 @@ sub attach_link ($$$$) {
 	$desc = $fn unless defined $desc;
 	$desc = '' unless defined $desc;
 	my $sfn;
-	if (defined $fn && $fn =~ /\A[\w\.-]+[a-zA-Z0-9]\z/) {
+	if (defined $fn && $fn =~ /\A[[:alnum:]][\w\.-]+[[:alnum:]]\z/) {
 		$sfn = $fn;
 	} elsif ($ct eq 'text/plain') {
 		$sfn = 'a.txt';
