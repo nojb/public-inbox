@@ -53,7 +53,7 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 			body => $b64),
 		Email::MIME->create(
 			attributes => {
-				filename => 'noop',
+				filename => 'noop.txt',
 				content_type => 'text/plain',
 			},
 			body => $txt),
@@ -73,8 +73,13 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 	test_psgi(sub { $www->call(@_) }, sub {
 		my ($cb) = @_;
 		my $res;
+		$res = $cb->(GET('/test/Z%40B/'));
+		my @href = ($res->content =~ /^href="([^"]+)"/gms);
+		@href = grep(/\A[\d\.]+-/, @href);
+		is_deeply([qw(1-queue-pee 2-bayce-sixty-four 3-noop.txt)],
+			\@href, 'attachment links generated');
 
-		$res = $cb->(GET('/test/Z%40B/1-a.txt'));
+		$res = $cb->(GET('/test/Z%40B/1-queue-pee'));
 		my $qp_res = $res->content;
 		ok(length($qp_res) >= length($qp), 'QP length is close');
 		like($qp_res, qr/\n\z/s, 'trailing newline exists');
@@ -82,13 +87,14 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 		$qp_res =~ s/\r\n/\n/g;
 		is(index($qp_res, $qp), 0, 'QP trailing newline is there');
 
-		$res = $cb->(GET('/test/Z%40B/2-a.txt'));
+		$res = $cb->(GET('/test/Z%40B/2-base-sixty-four'));
 		is(quotemeta($res->content), quotemeta($b64),
 			'Base64 matches exactly');
 
-		$res = $cb->(GET('/test/Z%40B/3-a.txt'));
+		$res = $cb->(GET('/test/Z%40B/3-noop.txt'));
 		my $txt_res = $res->content;
-		ok(length($txt_res) >= length($txt), 'plain text almost matches');
+		ok(length($txt_res) >= length($txt),
+			'plain text almost matches');
 		like($txt_res, qr/\n\z/s, 'trailing newline exists in text');
 		is(index($txt_res, $txt), 0, 'plain text not truncated');
 	});
