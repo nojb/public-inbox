@@ -51,7 +51,7 @@ sub refresh_groups () {
 			push @list, $ng;
 		}
 	}
-	@list =	sort { $a->{name} cmp $b->{name} } @list;
+	@list =	sort { $a->{newsgroup} cmp $b->{newsgroup} } @list;
 	$self->{grouplist} = \@list;
 	# this will destroy old groups that got deleted
 	%{$self->{groups}} = %$new;
