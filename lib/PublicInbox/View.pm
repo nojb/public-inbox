@@ -10,7 +10,6 @@ use URI::Escape qw/uri_escape_utf8/;
 use Date::Parse qw/str2time/;
 use Encode qw/find_encoding/;
 use Encode::MIME::Header;
-use Email::MIME::ContentType qw/parse_content_type/;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
@@ -27,7 +26,7 @@ sub msg_html {
 	$footer = defined($footer) ? "\n$footer" : '';
 	my $hdr = $mime->header_obj;
 	headers_to_html_header($hdr, $ctx) .
-		multipart_text_as_html($mime) .
+		multipart_text_as_html($mime, '') .
 		'</pre><hr /><pre>' .
 		html_footer($hdr, 1, $ctx, 'R/') .
 		$footer .
@@ -125,7 +124,7 @@ sub index_entry {
 	my $mhref = "${path}$href/";
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { index_walk($fh, $_[0]) });
+	msg_iter($mime, sub { index_walk($fh, $mhref, $_[0]) });
 	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/R/");
 
 	if (defined $irt) {
@@ -211,8 +210,8 @@ sub emit_thread_html {
 }
 
 sub index_walk {
-	my ($fh, $p) = @_;
-	my $s = add_text_body($p);
+	my ($fh, $upfx, $p) = @_;
+	my $s = add_text_body($upfx, $p);
 
 	return if $s eq '';
 
@@ -222,13 +221,13 @@ sub index_walk {
 }
 
 sub multipart_text_as_html {
-	my ($mime) = @_;
+	my ($mime, $upfx) = @_;
 	my $rv = "";
 
 	# scan through all parts, looking for displayable text
 	msg_iter($mime, sub {
 		my ($p) = @_;
-		$p = add_text_body($p);
+		$p = add_text_body($upfx, $p);
 		$rv .= $p;
 		$rv .= "\n" if $p ne '';
 	});
@@ -249,8 +248,8 @@ sub flush_quote {
 	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
 }
 
-sub attach_link ($$$) {
-	my ($ct, $p, $fn) = @_;
+sub attach_link ($$$$) {
+	my ($upfx, $ct, $p, $fn) = @_;
 	my ($part, $depth, @idx) = @$p;
 	my $nl = $idx[-1] > 1 ? "\n" : '';
 	my $idx = join('.', @idx);
@@ -262,29 +261,37 @@ sub attach_link ($$$) {
 	$desc = $fn unless defined $desc;
 	$desc = '' unless defined $desc;
 	$desc = ': '.$desc if $desc;
-	"$nl<b>[-- Attachment #$idx$desc --]\n" .
-	"[-- Type: $ct, Size: $size bytes --]</b>"
+	my $sfn;
+	if (defined $fn && $fn =~ /\A[\w-]+\.[a-z0-9]+\z/) {
+		$sfn = $fn;
+	} elsif ($ct eq 'text/plain') {
+		$sfn = 'a.txt';
+	} else {
+		$sfn = 'a.bin';
+	}
+	qq($nl<a\nhref="$upfx$idx-$sfn">[-- Attachment #$idx$desc --]\n) .
+	"[-- Type: $ct, Size: $size bytes --]</a>"
 }
 
 sub add_text_body {
-	my ($p) = @_; # from msg_iter: [ Email::MIME, depth, @idx ]
+	my ($upfx, $p) = @_; # from msg_iter: [ Email::MIME, depth, @idx ]
 	my ($part, $depth, @idx) = @$p;
 	my $ct = $part->content_type;
 	my $fn = $part->filename;
 
 	if (defined $ct && $ct =~ m!\btext/x?html\b!i) {
-		return attach_link($ct, $p, $fn);
+		return attach_link($upfx, $ct, $p, $fn);
 	}
 
 	my $s = eval { $part->body_str };
 
 	# badly-encoded message? tell the world about it!
-	return attach_link($ct, $p, $fn) if $@;
+	return attach_link($upfx, $ct, $p, $fn) if $@;
 
 	my @lines = split(/^/m, $s);
 	$s = '';
-	if (defined($fn) || $depth > 1 || $idx[0] > 1) {
-		$s .= attach_link($ct, $p, $fn);
+	if (defined($fn) || $depth > 0) {
+		$s .= attach_link($upfx, $ct, $p, $fn);
 		$s .= "\n\n";
 	}
 	my @quot;

@@ -315,10 +315,10 @@ sub add_to_feed {
 	my $mid = $header_obj->header_raw('Message-ID');
 	defined $mid or return 0;
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $mid->as_href;
+	my $href = $midurl.$mid->as_href;
 
 	my $content = qq(<pre\nstyle="white-space:pre-wrap">) .
-		PublicInbox::View::multipart_text_as_html($mime) .
+		PublicInbox::View::multipart_text_as_html($mime, $href) .
 		'</pre>';
 	my $date = $header_obj->header('Date');
 	my $updated = feed_updated($date);
@@ -346,7 +346,7 @@ sub add_to_feed {
 	my $h = '[a-f0-9]';
 	my (@uuid5) = ($add =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
 	my $id = 'urn:uuid:' . join('-', @uuid5);
-	$fh->write(qq!</div></content><link\nhref="$midurl$href/"/>!.
+	$fh->write(qq!</div></content><link\nhref="$href/"/>!.
 		   "<id>$id</id></entry>");
 	1;
 }

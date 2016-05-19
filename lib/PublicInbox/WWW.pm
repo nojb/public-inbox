@@ -23,6 +23,7 @@ use PublicInbox::GitHTTPBackend;
 our $INBOX_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|R/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
+our $ATTACH_RE = qr!(\d[\.\d]*)-([\w-]+\.[a-z0-9]+)!i;
 
 sub new {
 	my ($class, $pi_config) = @_;
@@ -73,6 +74,10 @@ sub call {
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($self, $ctx, $1, $2, $3);
 
+	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$ATTACH_RE\z!o) {
+		my ($idx, $fn) = ($3, $4);
+		invalid_inbox_mid($self, $ctx, $1, $2) ||
+			get_attach($ctx, $idx, $fn);
 	# in case people leave off the trailing slash:
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/(T|t|R)\z!o) {
 		my ($inbox, $mid, $suffix) = ($1, $2, $3);
@@ -440,6 +445,12 @@ sub news_www {
 	return $nw if $nw;
 	require PublicInbox::NewsWWW;
 	$self->{news_www} = PublicInbox::NewsWWW->new($self->{pi_config});
+}
+
+sub get_attach {
+	my ($ctx, $idx, $fn) = @_;
+	require PublicInbox::WwwAttach;
+	PublicInbox::WwwAttach::get_attach($ctx, $idx, $fn);
 }
 
 1;
