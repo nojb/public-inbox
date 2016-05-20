@@ -29,7 +29,7 @@ use strict;
 use Email::Simple;
 use URI::Escape qw/uri_escape_utf8/;
 use File::Temp qw/tempfile/;
-my ($fh, $filename) = tempfile('pi-replay-XXXXXXXX');
+my ($fh, $filename) = tempfile('ssoma-replay-XXXXXXXX', TMPDIR => 1);
 my $msg = eval {
 	local $/;
 	Email::Simple->new(<STDIN>);
