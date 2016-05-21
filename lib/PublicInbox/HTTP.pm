@@ -205,7 +205,7 @@ sub response_write {
 		if ($alive) {
 			$self->event_write; # watch for readability if done
 		} else {
-			$self->write(sub { $self->close });
+			Danga::Socket::write($self, sub { $self->close });
 		}
 		if (my $obj = $env->{'pi-httpd.inbox'}) {
 			# grace period for reaping resources
@@ -215,9 +215,27 @@ sub response_write {
 		$self->{env} = undef;
 	};
 
-	if (defined $res->[2]) {
-		Plack::Util::foreach($res->[2], $write);
-		$close->();
+	if (defined(my $body = $res->[2])) {
+		if (ref $body eq 'ARRAY') {
+			$write->($_) foreach @$body;
+			$close->();
+		} else {
+			my $pull;
+			$pull = sub {
+				local $/ = \8192;
+				while (defined(my $buf = $body->getline)) {
+					$write->($buf);
+					if ($self->{write_buf}) {
+						$self->write($pull);
+						return;
+					}
+				}
+				$pull = undef;
+				$body->close();
+				$close->();
+			};
+			$pull->();
+		}
 	} else {
 		# this is returned to the calling application:
 		Plack::Util::inline_object(write => $write, close => $close);
