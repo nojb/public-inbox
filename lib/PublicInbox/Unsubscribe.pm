@@ -77,7 +77,7 @@ sub _user_list_addr {
 			'Missing mailing list name in path component');
 	}
 	my $user = eval { $self->{cipher}->decrypt(decode_base64url($u)) };
-	if (!defined $user) {
+	if (!defined $user || $user eq '') {
 		my $err = quotemeta($@);
 		my $errors = $env->{'psgi.errors'};
 		$errors->print("error decrypting: $u\n");
@@ -86,7 +86,7 @@ sub _user_list_addr {
 	}
 
 	# The URLs are too damn long if we have the encrypted domain
-	# name in the query string
+	# name in the PATH_INFO
 	if (index($list, '@') < 0) {
 		my $host = (split(':', $env->{HTTP_HOST}))[0];
 		$list .= '@'.$host;
