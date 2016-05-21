@@ -51,6 +51,7 @@ sub gfi_start {
 	$self->{out} = $out_w;
 	$self->{lockfh} = $lockfh;
 	$self->{pid} = $pid;
+	$self->{nchg} = 0;
 	($in_r, $out_w);
 }
 
@@ -131,6 +132,7 @@ sub remove {
 		"data 3\nrm\n\n",
 		'from ', ($parent ? $parent : $tip), "\n" or wfail;
 	print $w "D $path\n\n" or wfail;
+	$self->{nchg}++;
 	(($self->{tip} = ":$commit"), $cur);
 }
 
@@ -191,6 +193,7 @@ sub add {
 		print $w 'from ', ($parent ? $parent : $tip), "\n" or wfail;
 	}
 	print $w "M 100644 :$blob $path\n\n" or wfail;
+	$self->{nchg}++;
 	$self->{tip} = ":$commit";
 }
 
@@ -202,14 +205,15 @@ sub done {
 	my $pid = delete $self->{pid} or die 'BUG: missing {pid} when done';
 	waitpid($pid, 0) == $pid or die 'fast-import did not finish';
 	$? == 0 or die "fast-import failed: $?";
+	my $nchg = delete $self->{nchg};
 
 	# for compatibility with existing ssoma installations
 	# we can probably remove this entirely by 2020
 	my $git_dir = $self->{git}->{git_dir};
-	my $index = "$git_dir/ssoma.index";
 	# XXX: change the following scope to: if (-e $index) # in 2018 or so..
 	my @cmd = ('git', "--git-dir=$git_dir");
-	unless ($ENV{FAST}) {
+	if ($nchg && !$ENV{FAST}) {
+		my $index = "$git_dir/ssoma.index";
 		my $env = { GIT_INDEX_FILE => $index };
 		my @rt = (@cmd, qw(read-tree -m -v -i), $self->{ref});
 		$pid = spawn(\@rt, $env, undef);
@@ -217,11 +221,13 @@ sub done {
 		waitpid($pid, 0) == $pid or die 'read-tree did not finish';
 		$? == 0 or die "failed to update $git_dir/ssoma.index: $?\n";
 	}
-
-	$pid = spawn([@cmd, 'update-server-info'], undef, undef);
-	defined $pid or die "spawn update-server-info failed: $!\n";
-	waitpid($pid, 0) == $pid or die 'update-server-info did not finish';
-	$? == 0 or die "failed to update-server-info: $?\n";
+	if ($nchg) {
+		$pid = spawn([@cmd, 'update-server-info'], undef, undef);
+		defined $pid or die "spawn update-server-info failed: $!\n";
+		waitpid($pid, 0) == $pid or
+			die 'update-server-info did not finish';
+		$? == 0 or die "failed to update-server-info: $?\n";
+	}
 
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";
 	flock($lockfh, LOCK_UN) or die "unlock failed: $!";
