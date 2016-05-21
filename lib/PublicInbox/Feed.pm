@@ -224,6 +224,7 @@ sub each_recent_blob {
 	my $nr = 0;
 	my ($cur_commit, $first_commit, $last_commit);
 	my ($ts, $subj, $u);
+	local $/ = "\n";
 	while (defined(my $line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $add = $1;
@@ -244,6 +245,7 @@ sub each_recent_blob {
 	}
 
 	if ($last) {
+		local $/ = "\n";
 		while (my $line = <$log>) {
 			if ($line =~ /^(${hex}{7,40})/o) {
 				$last_commit = $1;

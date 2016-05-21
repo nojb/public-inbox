@@ -350,6 +350,7 @@ sub unlink_pid_file_safe_ish ($$) {
 	return unless defined $unlink_pid && $unlink_pid == $$;
 
 	open my $fh, '<', $file or return;
+	local $/ = "\n";
 	defined(my $read_pid = <$fh>) or return;
 	chomp $read_pid;
 	if ($read_pid == $unlink_pid) {

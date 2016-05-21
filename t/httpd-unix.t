@@ -103,6 +103,7 @@ SKIP: {
 
 	ok(-f "$tmpdir/pid", 'pid file written');
 	open my $fh, '<', "$tmpdir/pid" or die "open failed: $!";
+	local $/ = "\n";
 	my $rpid = <$fh>;
 	chomp $rpid;
 	like($rpid, qr/\A\d+\z/s, 'pid file looks like a pid');

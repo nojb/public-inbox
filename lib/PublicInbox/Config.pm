@@ -80,6 +80,7 @@ sub git_config_dump {
 	my $pid = open(my $fh, '-|', @cmd);
 	defined $pid or die "$cmd failed: $!";
 	my %rv;
+	local $/ = "\n";
 	foreach my $line (<$fh>) {
 		chomp $line;
 		my ($k, $v) = split(/=/, $line, 2);

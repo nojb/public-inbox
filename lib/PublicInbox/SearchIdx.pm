@@ -338,6 +338,7 @@ sub rlog {
 				--raw -r --no-abbrev/, $range);
 	my $latest;
 	my $bytes;
+	local $/ = "\n";
 	while (defined(my $line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $mime = do_cat_mail($git, $1, \$bytes) or next;
@@ -445,6 +446,7 @@ sub _read_git_config_perm {
 	my ($self) = @_;
 	my @cmd = qw(config core.sharedRepository);
 	my $fh = PublicInbox::Git->new($self->{git_dir})->popen(@cmd);
+	local $/ = "\n";
 	my $perm = <$fh>;
 	chomp $perm if defined $perm;
 	$perm;

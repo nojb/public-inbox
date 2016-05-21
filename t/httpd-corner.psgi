@@ -30,6 +30,7 @@ my $app = sub {
 			return sub {
 				open my $f, '<', $fifo or
 						die "open $fifo: $!\n";
+				local $/ = "\n";
 				my @r = <$f>;
 				$_[0]->([200, $h, \@r ]);
 			};
@@ -38,6 +39,7 @@ my $app = sub {
 				my $fh = $_[0]->([200, $h]);
 				open my $f, '<', $fifo or
 						die "open $fifo: $!\n";
+				local $/ = "\n";
 				while (defined(my $l = <$f>)) {
 					$fh->write($l);
 				}
