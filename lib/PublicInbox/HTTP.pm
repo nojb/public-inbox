@@ -219,6 +219,24 @@ sub response_write {
 		if (ref $body eq 'ARRAY') {
 			$write->($_) foreach @$body;
 			$close->();
+		} elsif ($body->can('async_pass')) { # HTTPD::Async
+			# prevent us from reading the body faster than we
+			# can write to the client
+			my $restart_read = sub { $body->watch_read(1) };
+			$body->async_pass(sub {
+				local $/ = \8192;
+				my $buf = $body->getline;
+				if (defined $buf) {
+					$write->($buf);
+					if ($self->{write_buf}) {
+						$body->watch_read(0);
+						$self->write($restart_read);
+					}
+					return; # continue waiting
+				}
+				$body->close;
+				$close->();
+			});
 		} else {
 			my $pull;
 			$pull = sub {

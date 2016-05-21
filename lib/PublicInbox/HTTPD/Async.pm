@@ -21,10 +21,12 @@ sub new {
 	$self;
 }
 
+sub async_pass { $_[0]->{cb} = $_[1] }
 sub event_read { $_[0]->{cb}->() }
 sub event_hup { $_[0]->{cb}->() }
 sub event_err { $_[0]->{cb}->() }
 sub sysread { shift->{sock}->sysread(@_) }
+sub getline { $_[0]->{sock}->getline };
 
 sub close {
 	my $self = shift;
