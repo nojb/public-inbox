@@ -141,15 +141,15 @@ sub daemonize () {
 	};
 
 	if ($daemonize) {
-		my ($pid, $err) = do_fork();
-		die "could not fork: $err\n" unless defined $pid;
+		my $pid = fork;
+		die "could not fork: $!\n" unless defined $pid;
 		exit if $pid;
 
 		open STDOUT, '>&STDIN' or die "redirect stdout failed: $!\n";
 		open STDERR, '>&STDIN' or die "redirect stderr failed: $!\n";
 		POSIX::setsid();
-		($pid, $err) = do_fork();
-		die "could not fork: $err\n" unless defined $pid;
+		$pid = fork;
+		die "could not fork: $!\n" unless defined $pid;
 		exit if $pid;
 	}
 	if (defined $pid_file) {
@@ -278,9 +278,9 @@ sub upgrade () {
 		$pid_file .= '.oldbin';
 		write_pid($pid_file);
 	}
-	my ($pid, $err) = do_fork();
+	my $pid = fork;
 	unless (defined $pid) {
-		warn "fork failed: $err\n";
+		warn "fork failed: $!\n";
 		return;
 	}
 	if ($pid == 0) {
@@ -303,17 +303,6 @@ sub kill_workers ($) {
 	while (my ($pid, $id) = each %pids) {
 		kill $s, $pid;
 	}
-}
-
-sub do_fork () {
-	my $new = POSIX::SigSet->new;
-	$new->fillset;
-	my $old = POSIX::SigSet->new;
-	POSIX::sigprocmask(&POSIX::SIG_BLOCK, $new, $old) or die "SIG_BLOCK: $!";
-	my $pid = fork;
-	my $err = $!;
-	POSIX::sigprocmask(&POSIX::SIG_SETMASK, $old) or die "SIG_SETMASK: $!";
-	($pid, $err);
 }
 
 sub upgrade_aborted ($) {
@@ -418,9 +407,9 @@ sub master_loop {
 			$n = $worker_processes;
 		}
 		foreach my $i ($n..($worker_processes - 1)) {
-			my ($pid, $err) = do_fork();
+			my $pid = fork;
 			if (!defined $pid) {
-				warn "failed to fork worker[$i]: $err\n";
+				warn "failed to fork worker[$i]: $!\n";
 			} elsif ($pid == 0) {
 				$set_user->() if $set_user;
 				return $p0; # run normal work code
