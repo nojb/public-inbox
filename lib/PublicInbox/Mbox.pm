@@ -6,17 +6,10 @@
 package PublicInbox::Mbox;
 use strict;
 use warnings;
-use PublicInbox::MID qw/mid2path mid_clean/;
+use PublicInbox::MID qw/mid_clean/;
 use URI::Escape qw/uri_escape_utf8/;
+use Plack::Util;
 require Email::Simple;
-
-sub thread_mbox {
-	my ($ctx, $srch, $sfx) = @_;
-	sub {
-		my ($response) = @_; # Plack callback
-		emit_mbox($response, $ctx, $srch, $sfx);
-	}
-}
 
 sub emit1 {
 	my $simple = Email::Simple->new(pop);
@@ -84,104 +77,35 @@ sub emit_msg {
 	$fh->write($buf .= "\n");
 }
 
-sub emit_mbox {
-	my ($response, $ctx, $srch, $sfx) = @_;
-	my $type = 'mbox';
-	if ($sfx) {
-		eval { require IO::Compress::Gzip };
-		return need_gzip($response) if $@;
-		$type = 'gzip';
-	}
+sub noop {}
 
+sub thread_mbox {
+	my ($ctx, $srch, $sfx) = @_;
+	eval { require IO::Compress::Gzip };
+	return sub { need_gzip(@_) } if $@;
+
+	my $cb = sub { $srch->get_thread($ctx->{mid}, @_) };
 	# http://www.iana.org/assignments/media-types/application/gzip
-	# http://www.iana.org/assignments/media-types/application/mbox
-	my $fh = $response->([200, ['Content-Type' => "application/$type"]]);
-	$fh = PublicInbox::MboxGz->new($fh) if $sfx;
-
-	require PublicInbox::Git;
-	my $mid = $ctx->{mid};
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
-	my %opts = (offset => 0, asc => 1);
-	my $nr;
-	do {
-		my $res = $srch->get_thread($mid, \%opts);
-		my $msgs = $res->{msgs};
-		$nr = scalar @$msgs;
-		while (defined(my $smsg = shift @$msgs)) {
-			my $msg = eval {
-				my $p = 'HEAD:'.mid2path($smsg->mid);
-				Email::Simple->new($git->cat_file($p));
-			};
-			emit_msg($ctx, $fh, $msg) if $msg;
-		}
-
-		$opts{offset} += $nr;
-	} while ($nr > 0);
-
-	$fh->close;
+	[200, ['Content-Type' => 'application/gzip'],
+		PublicInbox::MboxGz->new($ctx, $cb) ];
 }
 
 sub emit_range {
 	my ($ctx, $range) = @_;
-	sub { _emit_range($_[0], $ctx, $range) };
-}
-
-sub _emit_range {
-	my ($res, $ctx, $range) = @_;
 
 	eval { require IO::Compress::Gzip };
-	return need_gzip($res) if $@;
+	return sub { need_gzip(@_) } if $@;
 	my $query;
 	if ($range eq 'all') { # TODO: YYYY[-MM]
 		$query = '';
 	} else {
-		$res->([404, [qw(Content-Type text/plain)], []]);
-		return;
+		return [404, [qw(Content-Type text/plain)], []];
 	}
+	my $cb = sub { $ctx->{srch}->query($query, @_) };
 
 	# http://www.iana.org/assignments/media-types/application/gzip
-	my $fh = $res->([200, [qw(Content-Type application/gzip)]]);
-	$fh = PublicInbox::MboxGz->new($fh);
-	my $env = $ctx->{cgi}->env;
-	my $srch = $ctx->{srch};
-	my $git = $ctx->{git};
-	my %opts = (offset => 0, asc => 1);
-	my $nr;
-	my $cb = sub {
-		my $res = $srch->query($query, \%opts);
-		my $msgs = $res->{msgs};
-		$nr = scalar @$msgs;
-		while (defined(my $smsg = shift @$msgs)) {
-			my $msg = eval {
-				my $p = 'HEAD:'.mid2path($smsg->mid);
-				Email::Simple->new($git->cat_file($p));
-			};
-			emit_msg($ctx, $fh, $msg) if $msg;
-		}
-
-		$opts{offset} += $nr;
-	};
-
-	$cb->(); # first part is free
-	return $fh->close if $nr == 0;
-
-	if ($env->{'pi-httpd.async'}) {
-		my $io = $env->{'psgix.io'} or die "no IO";
-		my $next;
-		$next = sub {
-			$cb->();
-			if ($nr > 0) {
-				$io->write($next);
-			} else {
-				$next = undef;
-				$fh->close;
-			}
-		};
-		$io->write($next); # Danga::Socket::write
-		return;
-	}
-	$cb->() while ($nr > 0);
-	$fh->close;
+	[200, [qw(Content-Type application/gzip)],
+		PublicInbox::MboxGz->new($ctx, $cb) ];
 }
 
 sub need_gzip {
@@ -198,40 +122,59 @@ EOF
 
 1;
 
-# fh may not be a proper IO, so we wrap the write and close methods
-# to prevent IO::Compress::Gzip from complaining
 package PublicInbox::MboxGz;
 use strict;
 use warnings;
+use PublicInbox::MID qw(mid2path);
 
 sub new {
-	my ($class, $fh) = @_;
+	my ($class, $ctx, $cb) = @_;
 	my $buf;
 	bless {
 		buf => \$buf,
 		gz => IO::Compress::Gzip->new(\$buf),
-		fh => $fh,
+		cb => $cb,
+		ctx => $ctx,
+		msgs => [],
+		opts => { asc => 1, offset => 0 },
 	}, $class;
 }
 
 sub _flush_buf {
 	my ($self) = @_;
-	if (defined ${$self->{buf}}) {
-		$self->{fh}->write(${$self->{buf}});
-		${$self->{buf}} = undef;
-	}
+	my $ret = $self->{buf};
+	$ret = $$ret;
+	${$self->{buf}} = undef;
+	$ret;
 }
 
-sub write {
-	$_[0]->{gz}->write($_[1]);
-	_flush_buf($_[0]);
-}
-
-sub close {
+# called by Plack::Util::foreach or similar
+sub getline {
 	my ($self) = @_;
+	my $res;
+	my $ctx = $self->{ctx};
+	my $git = $ctx->{git};
+	do {
+		while (defined(my $smsg = shift @{$self->{msgs}})) {
+			my $msg = eval {
+				my $p = 'HEAD:'.mid2path($smsg->mid);
+				Email::Simple->new($git->cat_file($p));
+			};
+			$msg or next;
+
+			PublicInbox::Mbox::emit_msg($ctx, $self->{gz}, $msg);
+			my $ret = _flush_buf($self);
+			return $ret if $ret;
+		}
+		$res = $self->{cb}->($self->{opts});
+		$self->{msgs} = $res->{msgs};
+		$res = scalar @{$self->{msgs}};
+		$self->{opts}->{offset} += $res;
+	} while ($res);
 	$self->{gz}->close;
 	_flush_buf($self);
-	$self->{fh}->close;
 }
+
+sub close {} # noop
 
 1;
