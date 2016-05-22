@@ -200,7 +200,7 @@ sub response_write {
 	my $alive = response_header_write($self, $env, $res);
 
 	# middlewares such as Deflater may write empty strings
-	my $write = sub { $self->write($_[0]) if $_[0] ne '' };
+	my $write = sub { $self->write(\($_[0])) if $_[0] ne '' };
 	my $close = sub {
 		if ($alive) {
 			$self->event_write; # watch for readability if done
