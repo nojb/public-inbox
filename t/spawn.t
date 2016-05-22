@@ -70,6 +70,15 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	is(sysread($fh, $buf, 6), 6, 'sysread got 6 bytes');
 	is($buf, "hello\n", 'tied gets works');
 	is(sysread($fh, $buf, 6), 0, 'sysread got EOF');
+	$? = 1;
+	close $fh;
+	is($?, 0, '$? set properly');
+}
+
+{
+	my $fh = popen_rd([qw(false)]);
+	close $fh;
+	isnt($?, 0, '$? set properly: '.$?);
 }
 
 {
@@ -80,6 +89,7 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	   'sysread returned quickly with EAGAIN');
 	is(kill(15, $pid), 1, 'child process killed early');
 	is(waitpid($pid, 0), $pid, 'child process reapable');
+	isnt($?, 0, '$? set properly: '.$?);
 }
 
 done_testing();
