@@ -26,7 +26,23 @@ sub event_read { $_[0]->{cb}->() }
 sub event_hup { $_[0]->{cb}->() }
 sub event_err { $_[0]->{cb}->() }
 sub sysread { shift->{sock}->sysread(@_) }
-sub getline { $_[0]->{sock}->getline };
+
+sub getline {
+	my ($self) = @_;
+	die 'getline called without $/ ref' unless ref $/;
+	while (1) {
+		my $ret = $self->read(8192); # Danga::Socket::read
+		return $$ret if defined $ret;
+
+		return unless $!{EAGAIN} || $!{EINTR};
+
+		# in case of spurious wakeup, hopefully we never hit this
+		my $vin = '';
+		vec($vin, $self->{fd}, 1) = 1;
+		my $n;
+		do { $n = select($vin, undef, undef, undef) } until $n;
+	}
+}
 
 sub close {
 	my $self = shift;
