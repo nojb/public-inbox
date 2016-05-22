@@ -92,43 +92,9 @@ sub serve_dumb {
 	# TODO: If-Modified-Since and Last-Modified?
 	open my $in, '<', $f or return r(404);
 	my $len = $size;
-	my $n = 65536; # try to negotiate a big TCP window, first
-	my ($next, $fh);
-	my $cb = sub {
-		$n = $len if $len < $n;
-		my $r = sysread($in, my $buf, $n);
-		if (!defined $r) {
-			err($env, "$f read error: $!");
-			drop_client($env);
-		} elsif ($r <= 0) {
-			err($env, "$f EOF with $len bytes left");
-			drop_client($env);
-		} else {
-			$len -= $r;
-			$fh->write($buf);
-			if ($len == 0) {
-				$fh->close;
-			} elsif ($next) {
-				# avoid recursion in Danga::Socket::write
-				unless ($nextq) {
-					$nextq = [];
-					Danga::Socket->AddTimer(0, *do_next);
-				}
-				# avoid buffering too much in case we have
-				# slow clients:
-				$n = 8192;
-				push @$nextq, $next;
-				return;
-			}
-		}
-		# all done, cleanup references:
-		$fh = $next = undef;
-	};
-
 	my $code = 200;
 	push @h, 'Content-Type', $type;
-	my $range = $env->{HTTP_RANGE};
-	if (defined $range && $range =~ /\bbytes=(\d*)-(\d*)\z/) {
+	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=(\d*)-(\d*)\z/) {
 		($code, $len) = prepare_range($cgi, $in, \@h, $1, $2, $size);
 		if ($code == 416) {
 			push @h, 'Content-Range', "bytes */$size";
@@ -136,18 +102,24 @@ sub serve_dumb {
 		}
 	}
 	push @h, 'Content-Length', $len;
-
-	sub {
-		my ($res) = @_; # Plack callback
-		$fh = $res->([ $code, \@h ]);
-		if (defined $env->{'pi-httpd.async'}) {
-			my $pi_http = $env->{'psgix.io'};
-			$next = sub { $pi_http->write($cb) };
-			$cb->(); # start it off!
-		} else {
-			$cb->() while $fh;
-		}
-	}
+	my $n = 65536;
+	[ $code, \@h, Plack::Util::inline_object(close => sub { close $in },
+		getline => sub {
+			return if $len == 0;
+			$n = $len if $len < $n;
+			my $r = sysread($in, my $buf, $n);
+			if (!defined $r) {
+				err($env, "$f read error: $!");
+			} elsif ($r <= 0) {
+				err($env, "$f EOF with $len bytes left");
+			} else {
+				$len -= $r;
+				$n = 8192;
+				return $buf;
+			}
+			drop_client($env);
+			return;
+		})]
 }
 
 sub prepare_range {
