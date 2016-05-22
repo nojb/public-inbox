@@ -228,7 +228,7 @@ sub response_write {
 				my $buf = $body->getline;
 				if (defined $buf) {
 					$write->($buf);
-					if ($self->{write_buf}) {
+					if ($self->{write_buf_size}) {
 						$body->watch_read(0);
 						$self->write($restart_read);
 					}
@@ -243,7 +243,7 @@ sub response_write {
 				local $/ = \8192;
 				while (defined(my $buf = $body->getline)) {
 					$write->($buf);
-					if ($self->{write_buf}) {
+					if ($self->{write_buf_size}) {
 						$self->write($pull);
 						return;
 					}
