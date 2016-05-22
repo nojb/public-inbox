@@ -144,6 +144,7 @@ unless (defined $vfork_spawn) {
 	*public_inbox_fork_exec = *PublicInbox::SpawnPP::public_inbox_fork_exec
 }
 
+# n.b. we never use absolute paths with this
 sub which ($) {
 	my ($file) = @_;
 	foreach my $p (split(':', $ENV{PATH})) {
