@@ -11,14 +11,6 @@ use IO::File;
 use PublicInbox::Spawn qw(spawn);
 use HTTP::Date qw(time2str);
 
-# TODO: make configurable, but keep in mind it's better to have
-# multiple -httpd worker processes which are already scaled to
-# the proper number of CPUs and memory.  git-pack-objects(1) may
-# also use threads and bust memory limits, too, so I recommend
-# limiting threads to 1 (via `pack.threads` knob in git) for serving.
-my $LIMIT = 1;
-my $nr_running = 0;
-
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
 # not cause problems.  serving "config" might...
 my @text = qw[HEAD info/refs
@@ -54,7 +46,6 @@ sub r ($) {
 
 sub serve {
 	my ($cgi, $git, $path) = @_;
-	return serve_dumb($cgi, $git, $path) if $nr_running >= $LIMIT;
 
 	my $service = $cgi->param('service') || '';
 	if ($service =~ /\Agit-\w+-pack\z/ || $path =~ /\Agit-\w+-pack\z/) {
@@ -243,7 +234,6 @@ sub serve_smart {
 	$wpipe = $in = undef;
 	$buf = '';
 	my ($vin, $fh, $res);
-	$nr_running++;
 
 	# Danga::Socket users, we queue up the read_enable callback to
 	# fire after pending writes are complete:
@@ -264,7 +254,6 @@ sub serve_smart {
 			# PublicInbox::HTTPD::Async::close:
 			$rpipe->close;
 			$rpipe = undef;
-			$nr_running--;
 		}
 		if (defined $pid) {
 			my $e = $pid == waitpid($pid, 0) ?
