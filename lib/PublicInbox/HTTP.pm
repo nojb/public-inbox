@@ -11,7 +11,7 @@ package PublicInbox::HTTP;
 use strict;
 use warnings;
 use base qw(Danga::Socket);
-use fields qw(httpd env rbuf input_left remote_addr remote_port);
+use fields qw(httpd env rbuf input_left remote_addr remote_port forward);
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
@@ -219,24 +219,6 @@ sub response_write {
 		if (ref $body eq 'ARRAY') {
 			$write->($_) foreach @$body;
 			$close->();
-		} elsif ($body->can('async_pass')) { # HTTPD::Async
-			# prevent us from reading the body faster than we
-			# can write to the client
-			my $restart_read = sub { $body->watch_read(1) };
-			$body->async_pass(sub {
-				local $/ = \8192;
-				my $buf = $body->getline;
-				if (defined $buf) {
-					$write->($buf);
-					if ($self->{write_buf_size}) {
-						$body->watch_read(0);
-						$self->write($restart_read);
-					}
-					return; # continue waiting
-				}
-				$body->close;
-				$close->();
-			});
 		} else {
 			my $pull;
 			$pull = sub {
@@ -438,7 +420,9 @@ sub event_err { $_[0]->close }
 
 sub close {
 	my $self = shift;
-	$self->{env} = undef;
+	my $forward = $self->{forward};
+	$forward->close if $forward;
+	$self->{forward} = $self->{env} = undef;
 	$self->SUPER::close(@_);
 }
 

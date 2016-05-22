@@ -21,28 +21,37 @@ sub new {
 	$self;
 }
 
-sub async_pass { $_[0]->{cb} = $_[1] }
+sub async_pass {
+	my ($self, $io, $fh) = @_;
+	my $restart_read = sub { $self->watch_read(1) };
+
+	# In case the client HTTP connection ($io) dies, it
+	# will automatically close this ($self) object.
+	$io->{forward} = $self;
+	$self->{cb} = sub {
+		my $r = sysread($self->{sock}, my $buf, 8192);
+		if ($r) {
+			$fh->write($buf);
+			if ($io->{write_buf_size}) {
+				$self->watch_read(0);
+				$io->write($restart_read);
+			}
+			return; # stay in watch_read
+		} elsif (!defined $r) {
+			return if $!{EAGAIN} || $!{EINTR};
+		}
+
+		# Done! Error handling will happen in $fh->close
+		$io->{forward} = undef;
+		$self->close;
+		$fh->close;
+	}
+}
+
 sub event_read { $_[0]->{cb}->() }
 sub event_hup { $_[0]->{cb}->() }
 sub event_err { $_[0]->{cb}->() }
 sub sysread { shift->{sock}->sysread(@_) }
-
-sub getline {
-	my ($self) = @_;
-	die 'getline called without $/ ref' unless ref $/;
-	while (1) {
-		my $ret = $self->read(8192); # Danga::Socket::read
-		return $$ret if defined $ret;
-
-		return unless $!{EAGAIN} || $!{EINTR};
-
-		# in case of spurious wakeup, hopefully we never hit this
-		my $vin = '';
-		vec($vin, $self->{fd}, 1) = 1;
-		my $n;
-		do { $n = select($vin, undef, undef, undef) } until $n;
-	}
-}
 
 sub close {
 	my $self = shift;
