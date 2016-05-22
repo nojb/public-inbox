@@ -840,13 +840,12 @@ sub emit_topics {
 
 sub emit_index_topics {
 	my ($state) = @_;
-	my $off = $state->{ctx}->{cgi}->param('o');
-	$off = 0 unless defined $off;
+	my ($off) = (($state->{ctx}->{cgi}->param('o') || '0') =~ /(\d+)/);
 	$state->{order} = [];
 	$state->{subjs} = {};
 	$state->{latest} = {};
 	my $max = 25;
-	my %opts = ( offset => int $off, limit => $max * 4 );
+	my %opts = ( offset => $off, limit => $max * 4 );
 	while (scalar @{$state->{order}} < $max) {
 		my $sres = $state->{srch}->query('', \%opts);
 		my $nr = scalar @{$sres->{msgs}} or last;

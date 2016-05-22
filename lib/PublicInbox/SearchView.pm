@@ -263,10 +263,11 @@ use PublicInbox::Hval;
 sub new {
 	my ($class, $cgi) = @_;
 	my $r = $cgi->param('r');
+	my ($off) = (($cgi->param('o') || '0') =~ /(\d+)/);
 	bless {
 		q => $cgi->param('q'),
 		x => $cgi->param('x') || '',
-		o => int($cgi->param('o') || 0) || 0,
+		o => $off,
 		r => (defined $r && $r ne '0'),
 	}, $class;
 }
