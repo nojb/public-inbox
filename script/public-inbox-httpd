@@ -25,7 +25,6 @@ my $refresh = sub {
 		PublicInbox::WWW->preload;
 		my $www = PublicInbox::WWW->new;
 		$app = builder {
-			enable 'Chunked';
 			eval {
 				enable 'Deflater',
 					content_type => [ qw(

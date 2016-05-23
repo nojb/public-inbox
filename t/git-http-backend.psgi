@@ -11,7 +11,6 @@ use BSD::Resource qw(getrusage);
 my $git_dir = $ENV{GIANT_GIT_DIR} or die 'GIANT_GIT_DIR not defined in env';
 my $git = PublicInbox::Git->new($git_dir);
 builder {
-	enable 'Chunked' if $ENV{TEST_CHUNK};
 	enable 'Head';
 	sub {
 		my ($env) = @_;

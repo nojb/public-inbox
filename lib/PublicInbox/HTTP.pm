@@ -180,12 +180,19 @@ sub response_header_write {
 
 	my $conn = $env->{HTTP_CONNECTION} || '';
 	my $term = defined($len) || $chunked;
-	my $alive = $term &&
-			(($proto eq 'HTTP/1.1' && $conn !~ /\bclose\b/i) ||
-			 ($conn =~ /\bkeep-alive\b/i));
-
-	$h .= 'Connection: ' . ($alive ? 'keep-alive' : 'close');
-	$h .= "\r\nDate: " . http_date() . "\r\n\r\n";
+	my $prot_persist = ($proto eq 'HTTP/1.1') && ($conn !~ /\bclose\b/i);
+	my $alive;
+	if (!$term && $prot_persist) { # auto-chunk
+		$chunked = $alive = 2;
+		$h .= "Transfer-Encoding: chunked\r\n";
+		# no need for "Connection: keep-alive" with HTTP/1.1
+	} elsif ($term && ($prot_persist || ($conn =~ /\bkeep-alive\b/i))) {
+		$alive = 1;
+		$h .= "Connection: keep-alive\r\n";
+	} else {
+		$h .= "Connection: close\r\n";
+	}
+	$h .= 'Date: ' . http_date() . "\r\n\r\n";
 
 	if (($len || $chunked) && $env->{REQUEST_METHOD} ne 'HEAD') {
 		more($self, $h);
@@ -195,13 +202,29 @@ sub response_header_write {
 	$alive;
 }
 
+# middlewares such as Deflater may write empty strings
+sub chunked_wcb ($) {
+	my ($self) = @_;
+	sub {
+		return if $_[0] eq '';
+		more($self, sprintf("%x\r\n", bytes::length($_[0])));
+		more($self, $_[0]);
+		$self->write("\r\n");
+	}
+}
+
+sub identity_wcb ($) {
+	my ($self) = @_;
+	sub { $self->write(\($_[0])) if $_[0] ne '' }
+}
+
 sub response_write {
 	my ($self, $env, $res) = @_;
 	my $alive = response_header_write($self, $env, $res);
 
-	# middlewares such as Deflater may write empty strings
-	my $write = sub { $self->write(\($_[0])) if $_[0] ne '' };
+	my $write = $alive == 2 ? chunked_wcb($self) : identity_wcb($self);
 	my $close = sub {
+		$self->write("0\r\n\r\n") if $alive == 2;
 		if ($alive) {
 			$self->event_write; # watch for readability if done
 		} else {
