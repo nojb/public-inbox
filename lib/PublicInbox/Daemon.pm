@@ -375,7 +375,13 @@ sub master_loop {
 				exit if $quit++;
 				kill_workers($s);
 			} elsif ($s eq 'WINCH') {
-				$worker_processes = 0;
+				if (-t STDIN || -t STDOUT || -t STDERR) {
+					warn
+"ignoring SIGWINCH while connected to terminal\n";
+					$SIG{WINCH} = 'IGNORE';
+				} else {
+					$worker_processes = 0;
+				}
 			} elsif ($s eq 'HUP') {
 				$worker_processes = $set_workers;
 				kill_workers($s);
