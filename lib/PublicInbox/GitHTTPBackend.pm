@@ -42,7 +42,7 @@ sub r ($;$) {
 sub serve {
 	my ($cgi, $git, $path) = @_;
 
-	my $service = $cgi->param('service') || '';
+	my $service = $cgi->query_parameters->get('service') || '';
 	if ($service =~ /\Agit-\w+-pack\z/ || $path =~ /\Agit-\w+-pack\z/) {
 		my $ok = serve_smart($cgi, $git, $path);
 		return $ok if $ok;
