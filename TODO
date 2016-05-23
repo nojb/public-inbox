@@ -28,6 +28,14 @@ TODO items for public-inbox
   likewise "[Bug #123456]" could be configured to expand to
   point to some project's bug tracker at http://example.com/bug/123456
 
+* Support optional "HTTPS Everywhere" for mapping old HTTP to HTTPS
+  links if (and only if) the user wants to use HTTPS.  We may also
+  be able to configure redirects for expired URLs.
+
+  Note: message bodies rendered as HTML themselves must NOT change,
+  the links should point to an anchor tag within the same page,
+  instead; giving the user options.
+
 * implement RFC 4685 (Atom message threading)
 
 * configurable constants (index limits, search results)
