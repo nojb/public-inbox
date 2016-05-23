@@ -9,10 +9,8 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 
 {
 	is(system(qw(git init -q --bare), $tmpdir), 0, "git init successful");
-	{
-		local $ENV{GIT_DIR} = $tmpdir;
-		is(system(qw(git config foo.bar hihi)), 0, "set config");
-	}
+	my @cmd = ('git', "--git-dir=$tmpdir", qw(config foo.bar hihi));
+	is(system(@cmd), 0, "set config");
 
 	my $tmp = PublicInbox::Config->new("$tmpdir/config");
 
