@@ -31,15 +31,6 @@ my @no_cache = ('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT',
 		'Pragma', 'no-cache',
 		'Cache-Control', 'no-cache, max-age=0, must-revalidate');
 
-my $nextq;
-sub do_next () {
-	my $q = $nextq;
-	$nextq = undef;
-	while (my $cb = shift @$q) {
-		$cb->(); # this may redefine nextq
-	}
-}
-
 sub r ($;$) {
 	my ($code, $msg) = @_;
 	$msg ||= status_message($code);
