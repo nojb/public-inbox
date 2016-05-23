@@ -190,6 +190,7 @@ sub response_header_write {
 		$alive = 1;
 		$h .= "Connection: keep-alive\r\n";
 	} else {
+		$alive = 0;
 		$h .= "Connection: close\r\n";
 	}
 	$h .= 'Date: ' . http_date() . "\r\n\r\n";
