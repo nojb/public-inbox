@@ -8,10 +8,7 @@ use Plack::Util;
 require PublicInbox::HTTPD::Async;
 require PublicInbox::Daemon;
 
-sub pi_httpd_async {
-	my ($io, $cb) = @_;
-	PublicInbox::HTTPD::Async->new($io, $cb);
-}
+sub pi_httpd_async { PublicInbox::HTTPD::Async->new(@_) }
 
 sub new {
 	my ($class, $sock, $app) = @_;

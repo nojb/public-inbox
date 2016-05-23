@@ -194,6 +194,7 @@ sub serve_smart {
 		return;
 	}
 	$wpipe = $in = undef;
+	my $fh;
 	my $end = sub {
 		$rpipe = undef;
 		my $e = $pid == waitpid($pid, 0) ?
@@ -202,60 +203,57 @@ sub serve_smart {
 			err($env, "git http-backend ($git_dir): $e");
 			drop_client($env);
 		}
+		$fh->close if $fh; # async-only
 	};
 
 	# Danga::Socket users, we queue up the read_enable callback to
 	# fire after pending writes are complete:
 	my $buf = '';
-	if (my $async = $env->{'pi-httpd.async'}) {
-		my $res;
-		my $q = sub {
-			$async->close;
-			$end->();
-			$res->(@_);
-		};
-		# $async is PublicInbox::HTTPD::Async->new($rpipe, $cb)
-		$async = $async->($rpipe, sub {
-			my $r = sysread($rpipe, $buf, 1024, length($buf));
-			if (!defined $r || $r == 0) {
-				return $q->(r(500, 'http-backend error'));
-			}
-			$r = parse_cgi_headers(\$buf) or return;
-			if ($r->[0] == 403) {
-				return $q->(serve_dumb($cgi, $git, $path));
-			}
-			my $fh = $res->($r);
-			$fh->write($buf);
-			$buf = undef;
-			my $dst = Plack::Util::inline_object(
-				write => sub { $fh->write(@_) },
-				close => sub {
-					$end->();
-					$fh->close;
-				});
-			$async->async_pass($env->{'psgix.io'}, $dst);
-		});
-		sub { ($res) = @_ }; # let Danga::Socket handle the rest.
-	} else { # getline + close for other PSGI servers
-		my $r;
-		do {
-			$r = read($rpipe, $buf, 1024, length($buf));
-			if (!defined $r || $r == 0) {
-				return r(500, 'http-backend error');
-			}
-			$r = parse_cgi_headers(\$buf);
-		} until ($r);
-		return serve_dumb($cgi, $git, $path) if $r->[0] == 403;
+	my $rd_hdr = sub {
+		my $r = sysread($rpipe, $buf, 1024, length($buf));
+		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
+		return r(500, 'http-backend error') unless $r;
+		$r = parse_cgi_headers(\$buf) or return;
+		$r->[0] == 403 ? serve_dumb($cgi, $git, $path) : $r;
+	};
+	my $res;
+	my $async = $env->{'pi-httpd.async'};
+	my $io = $env->{'psgix.io'};
+	my $cb = sub {
+		my $r = $rd_hdr->() or return;
+		$rd_hdr = undef;
+		if (scalar(@$r) == 3) { # error:
+			$async->close if $async;
+			return $res->($r);
+		}
+		if ($async) {
+			$fh = $res->($r);
+			return $async->async_pass($io, $fh, \$buf);
+		}
+
+		# for synchronous PSGI servers
 		$r->[2] = Plack::Util::inline_object(
-			close => sub { $end->() },
+			close => $end,
 			getline => sub {
 				my $ret = $buf;
 				$buf = undef;
 				defined $ret ? $ret : $rpipe->getline;
 			});
-		$r;
+		$res->($r);
+	};
+	sub {
+		($res) = @_;
 
-	}
+		# hopefully this doesn't break any middlewares,
+		# holding the input here is a waste of FDs and memory
+		$env->{'psgi.input'} = undef;
+
+		if ($async) {
+			$async = $async->($rpipe, $cb, $end);
+		} else { # generic PSGI
+			$cb->() while $rd_hdr;
+		}
+	};
 }
 
 sub input_to_file {
