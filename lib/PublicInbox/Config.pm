@@ -8,6 +8,7 @@ use warnings;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/try_cat/;
 require PublicInbox::Inbox;
+use PublicInbox::Spawn qw(popen_rd);
 use File::Path::Expand qw/expand_filename/;
 
 # returns key-value pairs of config directives in a hash
@@ -77,8 +78,7 @@ sub git_config_dump {
 	my ($in, $out);
 	my @cmd = (qw/git config/, "--file=$file", '-l');
 	my $cmd = join(' ', @cmd);
-	my $pid = open(my $fh, '-|', @cmd);
-	defined $pid or die "$cmd failed: $!";
+	my $fh = popen_rd(\@cmd);
 	my %rv;
 	local $/ = "\n";
 	foreach my $line (<$fh>) {
@@ -96,8 +96,7 @@ sub git_config_dump {
 			$rv{$k} = $v;
 		}
 	}
-	close $fh or die "failed to close ($cmd) pipe: $!";
-	$? and warn "$$ $cmd exited with: ($pid) $?";
+	close $fh or die "failed to close ($cmd) pipe: $?";
 	\%rv;
 }
 
