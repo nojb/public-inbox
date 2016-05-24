@@ -8,9 +8,9 @@ use strict;
 use warnings;
 use Fcntl qw(:seek);
 use IO::File;
-use PublicInbox::Spawn qw(spawn);
 use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
+use PublicInbox::Qspawn;
 
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
 # not cause problems.  serving "config" might...
@@ -167,11 +167,6 @@ sub serve_smart {
 	unless (defined $fd && $fd >= 0) {
 		$in = input_to_file($env) or return r(500);
 	}
-	my ($rpipe, $wpipe);
-	unless (pipe($rpipe, $wpipe)) {
-		err($env, "error creating pipe: $! - going static");
-		return;
-	}
 	my %env = %ENV;
 	# GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
 	# may be set in the server-process and are passed as-is
@@ -187,20 +182,13 @@ sub serve_smart {
 	my $git_dir = $git->{git_dir};
 	$env{GIT_HTTP_EXPORT_ALL} = '1';
 	$env{PATH_TRANSLATED} = "$git_dir/$path";
-	my %rdr = ( 0 => fileno($in), 1 => fileno($wpipe) );
-	my $pid = spawn([qw(git http-backend)], \%env, \%rdr);
-	unless (defined $pid) {
-		err($env, "error spawning: $! - going static");
-		return;
-	}
-	$wpipe = $in = undef;
-	my $fh;
+	my %rdr = ( 0 => fileno($in) );
+	my $x = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, \%rdr);
+	my ($fh, $rpipe);
 	my $end = sub {
 		$rpipe = undef;
-		my $e = $pid == waitpid($pid, 0) ?
-			$? : "PID:$pid still running?";
-		if ($e) {
-			err($env, "git http-backend ($git_dir): $e");
+		if (my $err = $x->finish) {
+			err($env, "git http-backend ($git_dir): $err");
 			drop_client($env);
 		}
 		$fh->close if $fh; # async-only
@@ -248,11 +236,15 @@ sub serve_smart {
 		# holding the input here is a waste of FDs and memory
 		$env->{'psgi.input'} = undef;
 
-		if ($async) {
-			$async = $async->($rpipe, $cb, $end);
-		} else { # generic PSGI
-			$cb->() while $rd_hdr;
-		}
+		$x->start(sub { # may run later, much later...
+			($rpipe) = @_;
+			$in = undef;
+			if ($async) {
+				$async = $async->($rpipe, $cb, $end);
+			} else { # generic PSGI
+				$cb->() while $rd_hdr;
+			}
+		});
 	};
 }
 
