@@ -26,11 +26,20 @@ use constant {
 
 # FIXME: duplicated code with NNTP.pm
 my $WEAKEN = {}; # string(inbox) -> inbox
-my $WEAKTIMER;
+my $weakt;
 sub weaken_task () {
-	$WEAKTIMER = undef;
+	$weakt = undef;
 	$_->weaken_all for values %$WEAKEN;
 	$WEAKEN = {};
+}
+
+my $pipelineq = [];
+my $pipet;
+sub process_pipelineq () {
+	my $q = $pipelineq;
+	$pipet = undef;
+	$pipelineq = [];
+	rbuf_process($_) foreach @$q;
 }
 
 # Use the same configuration parameter as git since this is primarily
@@ -234,7 +243,7 @@ sub response_write {
 		if (my $obj = $env->{'pi-httpd.inbox'}) {
 			# grace period for reaping resources
 			$WEAKEN->{"$obj"} = $obj;
-			$WEAKTIMER ||= Danga::Socket->AddTimer(60, *weaken_task);
+			$weakt ||= PublicInbox::EvCleanup::later(*weaken_task);
 		}
 		$self->{env} = undef;
 	};
@@ -281,15 +290,6 @@ sub more ($$) {
 	$self->write($_[1]);
 }
 
-my $pipelineq = [];
-my $next_tick;
-sub process_pipelineq () {
-	$next_tick = undef;
-	my $q = $pipelineq;
-	$pipelineq = [];
-	rbuf_process($_) foreach @$q;
-}
-
 # overrides existing Danga::Socket method
 sub event_write {
 	my ($self) = @_;
@@ -300,7 +300,7 @@ sub event_write {
 		$self->watch_read(1);
 	} else { # avoid recursion for pipelined requests
 		push @$pipelineq, $self;
-		$next_tick ||= Danga::Socket->AddTimer(0, *process_pipelineq);
+		$pipet ||= PublicInbox::EvCleanup::asap(*process_pipelineq);
 	}
 }
 

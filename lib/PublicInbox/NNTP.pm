@@ -11,6 +11,7 @@ use PublicInbox::Search;
 use PublicInbox::Msgmap;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
+require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
@@ -38,15 +39,15 @@ my $LIST_HEADERS = join("\r\n", @OVERVIEW,
 my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
 
 my $EXPMAP; # fd -> [ idle_time, $self ]
-my $EXPTIMER;
+my $expt;
 our $EXPTIME = 180; # 3 minutes
 my $WEAKEN = {}; # string(nntpd) -> nntpd
-my $WEAKTIMER;
+my $weakt;
+my $nextt;
 
-my $next_tick;
 my $nextq = [];
 sub next_tick () {
-	$next_tick = undef;
+	$nextt = undef;
 	my $q = $nextq;
 	$nextq = [];
 	foreach my $nntp (@$q) {
@@ -70,7 +71,7 @@ sub update_idle_time ($) {
 # reduce FD pressure by closing some "git cat-file --batch" processes
 # and unused FDs for msgmap and Xapian indices
 sub weaken_groups () {
-	$WEAKTIMER = undef;
+	$weakt = undef;
 	foreach my $nntpd (values %$WEAKEN) {
 		$_->weaken_all foreach (@{$nntpd->{grouplist}});
 	}
@@ -81,7 +82,6 @@ sub expire_old () {
 	my $now = now();
 	my $exp = $EXPTIME;
 	my $old = $now - $exp;
-	my $next = $now + $exp;
 	my $nr = 0;
 	my %new;
 	while (my ($fd, $v) = each %$EXPMAP) {
@@ -89,26 +89,22 @@ sub expire_old () {
 		if ($idle_time < $old) {
 			$nntp->close; # idempotent
 		} else {
-			my $nexp = $idle_time + $exp;
-			$next = $nexp if ($nexp < $next);
 			++$nr;
 			$new{$fd} = $v;
 		}
 	}
 	$EXPMAP = \%new;
 	if ($nr) {
-		$next -= $now;
-		$next = 0 if $next < 0;
-		$EXPTIMER = Danga::Socket->AddTimer($next, *expire_old);
+		$expt = PublicInbox::EvCleanup::later(*expire_old);
 		weaken_groups();
 	} else {
-		$EXPTIMER = undef;
+		$expt = undef;
 		# noop to kick outselves out of the loop ASAP so descriptors
 		# really get closed
-		Danga::Socket->AddTimer(0, sub {});
+		PublicInbox::EvCleanup::asap(sub {});
 
 		# grace period for reaping resources
-		$WEAKTIMER ||= Danga::Socket->AddTimer(30, *weaken_groups);
+		$weakt ||= PublicInbox::EvCleanup::later(*weaken_groups);
 	}
 }
 
@@ -122,7 +118,7 @@ sub new ($$$) {
 	$self->watch_read(1);
 	update_idle_time($self);
 	$WEAKEN->{"$nntpd"} = $nntpd;
-	$EXPTIMER ||= Danga::Socket->AddTimer($EXPTIME, *expire_old);
+	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
 	$self;
 }
 
@@ -633,7 +629,7 @@ sub long_response ($$$$) {
 			update_idle_time($self);
 
 			push @$nextq, $self;
-			$next_tick ||= Danga::Socket->AddTimer(0, *next_tick);
+			$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
 		} else { # all done!
 			$self->{long_res} = undef;
 			$self->watch_read(1);
@@ -996,7 +992,7 @@ sub watch_read {
 		# in case we really did dispatch a read event and started
 		# another long response.
 		push @$nextq, $self;
-		$next_tick ||= Danga::Socket->AddTimer(0, *next_tick);
+		$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
 	}
 	$rv;
 }

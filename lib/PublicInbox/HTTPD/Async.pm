@@ -10,6 +10,7 @@ use strict;
 use warnings;
 use base qw(Danga::Socket);
 use fields qw(cb cleanup);
+require PublicInbox::EvCleanup;
 
 sub new {
 	my ($class, $io, $cb, $cleanup) = @_;
@@ -61,7 +62,7 @@ sub close {
 	$self->SUPER::close(@_);
 
 	# we defer this to the next timer loop since close is deferred
-	Danga::Socket->AddTimer(0, $cleanup) if $cleanup;
+	PublicInbox::EvCleanup::asap($cleanup) if $cleanup;
 }
 
 # do not let ourselves be closed during graceful termination
