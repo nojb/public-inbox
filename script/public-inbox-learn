@@ -11,7 +11,7 @@ use PublicInbox::Config;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use Email::MIME;
-use Email::Address;
+use PublicInbox::Address;
 use IPC::Run qw/run/;
 my $train = shift or die "usage: $usage\n";
 if ($train !~ /\A(?:ham|spam)\z/) {
@@ -29,8 +29,9 @@ my $mime = Email::MIME->new(eval {
 # get all recipients
 my %dests;
 foreach my $h (qw(Cc To)) {
-	foreach my $recipient (Email::Address->parse($mime->header($h))) {
-		$dests{lc($recipient->address)} = 1;
+	my $val = $mime->header($h) or next;
+	foreach my $email (PublicInbox::Address::emails($val)) {
+		$dests{lc($email)} = 1;
 	}
 }
 

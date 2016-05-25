@@ -48,6 +48,7 @@ my $mime;
 
 local $ENV{GIT_COMMITTER_NAME} = eval {
 	use PublicInbox::MDA;
+	use PublicInbox::Address;
 	use Encode qw/encode/;
 	my $mbox = 't/utf8.mbox';
 	open(my $fh, '<', $mbox) or die "failed to open mbox: $mbox\n";
@@ -57,10 +58,9 @@ local $ENV{GIT_COMMITTER_NAME} = eval {
 	$msg = Email::MIME->new($msg->simple->as_string);
 
 	my $from = $msg->header('From');
-	my @from = Email::Address->parse($from);
-	my $author = $from[0]->name;
-	my $email = $from[0]->address;
-	my $date = $msg ->header('Date');
+	my $author = PublicInbox::Address::from_name($from);
+	my ($email) = PublicInbox::Address::emails($from);
+	my $date = $msg->header('Date');
 
 	is('El&#233;anor',
 		encode('us-ascii', my $tmp = $author, Encode::HTMLCREF),

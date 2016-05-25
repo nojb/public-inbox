@@ -8,7 +8,6 @@ package PublicInbox::Import;
 use strict;
 use warnings;
 use Fcntl qw(:flock :DEFAULT);
-use Email::Address;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mid_mime mid2path);
 
@@ -141,20 +140,20 @@ sub add {
 	my ($self, $mime) = @_; # mime = Email::MIME
 
 	my $from = $mime->header('From');
-	my @from = Email::Address->parse($from);
-	my $name = $from[0]->name;
-	my $email = $from[0]->address;
-	my $date = $mime->header('Date');
-	my $subject = $mime->header('Subject');
-	$subject = '(no subject)' unless defined $subject;
-	my $mid = mid_mime($mime);
-	my $path = mid2path($mid);
-
+	my ($email) = ($from =~ /([^<\s]+\@[^>\s]+)/g);
+	my $name = $from;
+	$name =~ s/\s*\S+\@\S+\s*\z//;
 	# git gets confused with:
 	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
 	# ref:
 	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
 	$name =~ tr/<>// and $name = $email;
+
+	my $date = $mime->header('Date');
+	my $subject = $mime->header('Subject');
+	$subject = '(no subject)' unless defined $subject;
+	my $mid = mid_mime($mime);
+	my $path = mid2path($mid);
 
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};

@@ -14,6 +14,7 @@ use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
 use PublicInbox::MsgIter;
+use PublicInbox::Address;
 require POSIX;
 
 use constant INDENT => '  ';
@@ -99,9 +100,7 @@ sub index_entry {
 	$seen->{$id} = "#$id"; # save the anchor for children, later
 
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
-	my $from = $hdr->header('From');
-	my @from = Email::Address->parse($from);
-	$from = $from[0]->name;
+	my $from = PublicInbox::Address::from_name($hdr->header('From'));
 
 	my $root_anchor = $state->{root_anchor} || '';
 	my $path = $root_anchor ? '../../' : '';
@@ -191,7 +190,6 @@ sub emit_thread_html {
 				('</ul></li>' x ($max - 1)) . '</ul>');
 		}
 	}
-	Email::Address->purge_cache;
 
 	# there could be a race due to a message being deleted in git
 	# but still being in the Xapian index:
@@ -339,8 +337,7 @@ sub headers_to_html_header {
 		$v = PublicInbox::Hval->new($v);
 
 		if ($h eq 'From') {
-			my @from = Email::Address->parse($v->raw);
-			$title[1] = ascii_html($from[0]->name);
+			$title[1] = PublicInbox::Address::from_name($v->raw);
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
@@ -449,15 +446,13 @@ sub mailto_arg_link {
 	foreach my $h (qw(From To Cc)) {
 		my $v = $hdr->header($h);
 		defined($v) && ($v ne '') or next;
-		my @addrs = Email::Address->parse($v);
-		foreach my $recip (@addrs) {
-			my $address = $recip->address;
+		my @addrs = PublicInbox::Address::emails($v);
+		foreach my $address (@addrs) {
 			my $dst = lc($address);
 			$cc{$dst} ||= $address;
 			$to ||= $dst;
 		}
 	}
-	Email::Address->purge_cache;
 	my @arg;
 
 	my $subj = $hdr->header('Subject') || '';

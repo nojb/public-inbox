@@ -7,10 +7,10 @@ package PublicInbox::SearchMsg;
 use strict;
 use warnings;
 use Search::Xapian;
-use Email::Address qw//;
 use POSIX qw//;
 use Date::Parse qw/str2time/;
 use PublicInbox::MID qw/mid_clean/;
+use PublicInbox::Address;
 use Encode qw/find_encoding/;
 my $enc_utf8 = find_encoding('UTF-8');
 our $PFX2TERM_RE = undef;
@@ -87,9 +87,7 @@ sub from ($) {
 	my ($self) = @_;
 	my $from = __hdr($self, 'from');
 	if (defined $from && !defined $self->{from_name}) {
-		$from =~ tr/\t\r\n/ /;
-		my @from = Email::Address->parse($from);
-		$self->{from_name} = $from[0]->name;
+		$self->{from_name} = PublicInbox::Address::from_name($from);
 	}
 	$from;
 }

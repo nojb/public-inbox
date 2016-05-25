@@ -28,7 +28,6 @@ Requirements (server MDA)
 * lynx (for converting HTML messages to text)
 * Perl and several modules:    (Debian package name)
   - Date::Parse                libtimedate-perl
-  - Email::Address             libemail-address-perl
   - Email::Filter              libemail-filter-perl
   - Email::MIME                libemail-mime-perl
   - Email::MIME::ContentType   libemail-mime-contenttype-perl

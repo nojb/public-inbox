@@ -6,7 +6,6 @@ package PublicInbox::MDA;
 use strict;
 use warnings;
 use Email::Simple;
-use Email::Address;
 use Date::Parse qw(strptime);
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
@@ -62,13 +61,13 @@ sub alias_specified {
 
 	my @address = ref($address) eq 'ARRAY' ? @$address : ($address);
 	my %ok = map {
-		my @recip = Email::Address->parse($_);
-		lc(__drop_plus($recip[0]->address)) => 1;
+		lc(__drop_plus($_)) => 1;
 	} @address;
 
 	foreach my $line ($filter->cc, $filter->to) {
-		foreach my $addr (Email::Address->parse($line)) {
-			if ($ok{lc(__drop_plus($addr->address))}) {
+		my @addrs = ($line =~ /([^<\s]+\@[^>\s]+)/g);
+		foreach my $addr (@addrs) {
+			if ($ok{lc(__drop_plus($addr))}) {
 				return 1;
 			}
 		}

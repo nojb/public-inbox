@@ -176,7 +176,6 @@ sub tdump {
 	$ctx->{searchview} = 1;
 	tdump_ent($git, $state, $_, 0) for @rootset;
 	PublicInbox::View::thread_adj_level($state, 0);
-	Email::Address->purge_cache;
 
 	$fh->write(search_nav_bot($mset, $q). "\n\n" .
 			foot($ctx). '</pre></body></html>');

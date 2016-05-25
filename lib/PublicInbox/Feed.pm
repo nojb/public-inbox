@@ -5,13 +5,13 @@
 package PublicInbox::Feed;
 use strict;
 use warnings;
-use Email::Address;
 use Email::MIME;
 use Date::Parse qw(strptime);
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Git;
 use PublicInbox::View;
 use PublicInbox::MID qw/mid_clean mid2path/;
+use PublicInbox::Address;
 use POSIX qw/strftime/;
 use constant {
 	DATEFMT => '%Y-%m-%dT%H:%M:%SZ', # Atom standard
@@ -86,7 +86,6 @@ sub _no_thread {
 
 sub end_feed {
 	my ($fh) = @_;
-	Email::Address->purge_cache;
 	$fh->write('</feed>');
 	$fh->close;
 }
@@ -171,7 +170,6 @@ sub emit_index_nosrch {
 		PublicInbox::View::index_entry($mime, 0, $state);
 		1;
 	});
-	Email::Address->purge_cache;
 	$last;
 }
 
@@ -330,9 +328,9 @@ sub add_to_feed {
 	$title = title_tag($title);
 
 	my $from = $header_obj->header('From') or return 0;
-	my @from = Email::Address->parse($from) or return 0;
-	my $name = ascii_html($from[0]->name);
-	my $email = $from[0]->address;
+	my ($email) = PublicInbox::Address::emails($from);
+	my $name = PublicInbox::Address::from_name($from);
+	$name = ascii_html($name);
 	$email = ascii_html($email);
 
 	if (delete $feed_opts->{emit_header}) {
