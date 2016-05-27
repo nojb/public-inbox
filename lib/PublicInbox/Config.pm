@@ -56,7 +56,8 @@ sub lookup_name {
 	my ($self, $name) = @_;
 	my $rv = $self->{-by_name}->{$name};
 	return $rv if $rv;
-	$self->{-by_name}->{$name} = _fill($self, "publicinbox.$name");
+	$rv = _fill($self, "publicinbox.$name") or return;
+	$self->{-by_name}->{$name} = $rv;
 }
 
 sub get {
@@ -118,6 +119,7 @@ sub _fill {
 		my $v = $self->{"$pfx.$k"};
 		$rv->{$k} = $v if defined $v;
 	}
+	return unless $rv->{mainrepo};
 	my $inbox = $pfx;
 	$inbox =~ s/\Apublicinbox\.//;
 	$rv->{name} = $inbox;

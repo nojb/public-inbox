@@ -30,7 +30,6 @@ sub call {
 	if (my $info = $ng_map->{$ng}) {
 		my $url = PublicInbox::Hval::prurl($env, $info->{url});
 		my $code = 301;
-		my $h = [ Location => $url, 'Content-Type' => 'text/plain' ];
 		if (defined $article && $article =~ /\A\d+\z/) {
 			my $mid = eval { ng_mid_for($ng, $info, $article) };
 			if (defined $mid) {
@@ -40,6 +39,8 @@ sub call {
 				$url .= uri_escape_utf8($mid) . '/';
 			}
 		}
+
+		my $h = [ Location => $url, 'Content-Type' => 'text/plain' ];
 
 		return [ $code, $h, [ "Redirecting to $url\n" ] ]
 	}

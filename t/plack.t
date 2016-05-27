@@ -30,6 +30,8 @@ foreach my $mod (@mods) { use_ok $mod; }
 	my %cfg = (
 		"$cfgpfx.address" => $addr,
 		"$cfgpfx.mainrepo" => $maindir,
+		"$cfgpfx.url" => 'http://example.com/test/',
+		"$cfgpfx.newsgroup" => 'inbox.test',
 	);
 	while (my ($k,$v) = each %cfg) {
 		is(0, system(qw(git config --file), $pi_config, $k, $v),
@@ -59,6 +61,19 @@ EOF
 		local $ENV{PI_CONFIG} = $pi_config;
 		require $psgi;
 	};
+
+	# redirect with newsgroup
+	test_psgi($app, sub {
+		my ($cb) = @_;
+		my $from = 'http://example.com/inbox.test';
+		my $to = 'http://example.com/test/';
+		my $res = $cb->(GET($from));
+		is($res->code, 301, 'is permanent redirect');
+		is($to, $res->header('Location'), 'redirect location matches');
+		$from .= '/';
+		is($res->code, 301, 'is permanent redirect');
+		is($to, $res->header('Location'), 'redirect location matches');
+	});
 
 	# redirect with trailing /
 	test_psgi($app, sub {
