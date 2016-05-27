@@ -134,6 +134,4 @@ if ($fds && (($ENV{LISTEN_PID} || 0) == $$)) {
 }
 
 $milter->register('unsubscribe', \%cbs, SMFI_CURR_ACTS);
-my $dispatcher = Sendmail::PMilter::prefork_dispatcher(max_children => 2);
-$milter->set_dispatcher($dispatcher);
 $milter->main();
