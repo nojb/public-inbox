@@ -11,11 +11,12 @@ package PublicInbox::HTTP;
 use strict;
 use warnings;
 use base qw(Danga::Socket);
-use fields qw(httpd env rbuf input_left remote_addr remote_port forward);
+use fields qw(httpd env rbuf input_left remote_addr remote_port forward pull);
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
+use Scalar::Util qw(weaken);
 use IO::File;
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
@@ -255,6 +256,28 @@ sub response_done ($$) {
 	}
 }
 
+sub getline_response {
+	my ($self, $body, $write, $close) = @_;
+	$self->{forward} = $body;
+	weaken($self);
+	my $pull = $self->{pull} = sub {
+		local $/ = \8192;
+		my $forward = $self->{forward};
+		while ($forward && defined(my $buf = $forward->getline)) {
+			$write->($buf);
+			last if $self->{closed};
+			if ($self->{write_buf_size}) {
+				$self->write($self->{pull});
+				return;
+			}
+		}
+		$self->{forward} = $self->{pull} = undef;
+		$forward->close if $forward; # avoid recursion
+		$close->();
+	};
+	$pull->();
+}
+
 sub response_write {
 	my ($self, $env, $res) = @_;
 	my $alive = response_header_write($self, $env, $res);
@@ -266,21 +289,7 @@ sub response_write {
 			$write->($_) foreach @$body;
 			$close->();
 		} else {
-			my $pull;
-			$pull = sub {
-				local $/ = \8192;
-				while (defined(my $buf = $body->getline)) {
-					$write->($buf);
-					if ($self->{write_buf_size}) {
-						$self->write($pull);
-						return;
-					}
-				}
-				$pull = undef;
-				$body->close();
-				$close->();
-			};
-			$pull->();
+			getline_response($self, $body, $write, $close);
 		}
 	} else {
 		# this is returned to the calling application:
@@ -445,8 +454,10 @@ sub event_err { $_[0]->close }
 sub close {
 	my $self = shift;
 	my $forward = $self->{forward};
+	my $env = $self->{env};
+	delete $env->{'psgix.io'} if $env; # prevent circular referernces
+	$self->{pull} = $self->{forward} = $self->{env} = undef;
 	$forward->close if $forward;
-	$self->{forward} = $self->{env} = undef;
 	$self->SUPER::close(@_);
 }
 
