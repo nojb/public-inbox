@@ -13,19 +13,23 @@ sub new {
 	bless { rpipe => $rpipe, end => $end, buf => $buf }, $class;
 }
 
+# close should always be called after getline returns undef,
+# but a client aborting a connection can ruin our day; so lets
+# hope our underlying PSGI server does not leak references, here.
 sub DESTROY { $_[0]->close }
 
 sub getline {
 	my ($self) = @_;
-	my $buf = delete $self->{buf};
+	my $buf = delete $self->{buf}; # initial buffer
 	defined $buf ? $buf : $self->{rpipe}->getline;
 }
 
 sub close {
 	my ($self) = @_;
-	delete $self->{rpipe};
-	my $end = delete $self->{end} or return;
-	$end->();
+	my $rpipe = delete $self->{rpipe};
+	close $rpipe if $rpipe;
+	my $end = delete $self->{end};
+	$end->() if $end;
 }
 
 1;

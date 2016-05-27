@@ -186,7 +186,6 @@ sub serve_smart {
 	my $x = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, \%rdr);
 	my ($fh, $rpipe);
 	my $end = sub {
-		close $rpipe if $rpipe && !$fh; # generic PSGI
 		if (my $err = $x->finish) {
 			err($env, "git http-backend ($git_dir): $err");
 			drop_client($env);
