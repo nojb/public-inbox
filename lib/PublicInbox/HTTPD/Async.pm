@@ -24,14 +24,19 @@ sub new {
 	$self;
 }
 
+sub restart_read_cb ($) {
+	my ($self) = @_;
+	sub { $self->watch_read(1) }
+}
+
 sub async_pass {
 	my ($self, $io, $fh, $bref) = @_;
 	# In case the client HTTP connection ($io) dies, it
 	# will automatically close this ($self) object.
 	$io->{forward} = $self;
 	$fh->write($$bref);
+	my $restart_read = restart_read_cb($self);
 	weaken($self);
-	my $restart_read = sub { $self->watch_read(1) };
 	$self->{cb} = sub {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
