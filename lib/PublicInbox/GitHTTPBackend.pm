@@ -210,7 +210,12 @@ sub serve_smart {
 		my $r = $rd_hdr->() or return;
 		$rd_hdr = undef;
 		if (scalar(@$r) == 3) { # error:
-			$async->close if $async;
+			if ($async) {
+				$async->close; # calls rpipe->close
+			} else {
+				$rpipe->close;
+				$end->();
+			}
 			return $res->($r);
 		}
 		if ($async) {
