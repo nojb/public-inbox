@@ -186,7 +186,7 @@ sub serve_smart {
 	my $x = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, \%rdr);
 	my ($fh, $rpipe);
 	my $end = sub {
-		$rpipe = undef;
+		close $rpipe if $rpipe && !$fh; # generic PSGI
 		if (my $err = $x->finish) {
 			err($env, "git http-backend ($git_dir): $err");
 			drop_client($env);
@@ -201,7 +201,7 @@ sub serve_smart {
 		my $r = sysread($rpipe, $buf, 1024, length($buf));
 		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
 		return r(500, 'http-backend error') unless $r;
-		$r = parse_cgi_headers(\$buf) or return;
+		$r = parse_cgi_headers(\$buf) or return; # incomplete headers
 		$r->[0] == 403 ? serve_dumb($cgi, $git, $path) : $r;
 	};
 	my $res;
@@ -220,13 +220,8 @@ sub serve_smart {
 		}
 
 		# for synchronous PSGI servers
-		$r->[2] = Plack::Util::inline_object(
-			close => $end,
-			getline => sub {
-				my $ret = $buf;
-				$buf = undef;
-				defined $ret ? $ret : $rpipe->getline;
-			});
+		require PublicInbox::GetlineBody;
+		$r->[2] = PublicInbox::GetlineBody->new($rpipe, $end, $buf);
 		$res->($r);
 	};
 	sub {
