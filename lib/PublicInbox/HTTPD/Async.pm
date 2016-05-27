@@ -10,6 +10,7 @@ use strict;
 use warnings;
 use base qw(Danga::Socket);
 use fields qw(cb cleanup);
+use Scalar::Util qw(weaken);
 require PublicInbox::EvCleanup;
 
 sub new {
@@ -25,11 +26,12 @@ sub new {
 
 sub async_pass {
 	my ($self, $io, $fh, $bref) = @_;
-	my $restart_read = sub { $self->watch_read(1) };
 	# In case the client HTTP connection ($io) dies, it
 	# will automatically close this ($self) object.
 	$io->{forward} = $self;
 	$fh->write($$bref);
+	weaken($self);
+	my $restart_read = sub { $self->watch_read(1) };
 	$self->{cb} = sub {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
