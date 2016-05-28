@@ -64,16 +64,6 @@ sub cloneurl {
 	$self->{cloneurl} = \@url;
 }
 
-# TODO: can we remove this?
-sub footer_html {
-	my ($self) = @_;
-	my $footer = $self->{footer};
-	return $footer if defined $footer;
-	$footer = try_cat("$self->{mainrepo}/public-inbox/footer.html");
-	chomp $footer;
-	$self->{footer} = $footer;
-}
-
 sub base_url {
 	my ($self, $prq) = @_; # Plack::Request
 	if (defined $prq) {

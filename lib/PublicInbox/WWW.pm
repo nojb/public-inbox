@@ -252,8 +252,6 @@ sub footer {
 	my ($ctx) = @_;
 	return '' unless $ctx;
 	my $obj = $ctx->{-inbox} or return '';
-	my $footer = $obj->footer_html;
-	return $ctx->{footer} = $footer if $footer;
 
 	# auto-generate a footer
 	chomp(my $desc = $obj->description);
