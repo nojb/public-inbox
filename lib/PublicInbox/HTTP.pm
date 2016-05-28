@@ -4,7 +4,7 @@
 # Generic PSGI server for convenience.  It aims to provide
 # a consistent experience for public-inbox admins so they don't have
 # to learn different ways to admin both NNTP and HTTP components.
-# There's nothing public-inbox-specific, here.
+# There's nothing which depends on public-inbox, here.
 # Each instance of this class represents a HTTP client socket
 
 package PublicInbox::HTTP;
@@ -25,7 +25,7 @@ use constant {
 	CHUNK_MAX_HDR => 256,
 };
 
-# FIXME: duplicated code with NNTP.pm
+# FIXME: duplicated code with NNTP.pm, layering violation
 my $WEAKEN = {}; # string(inbox) -> inbox
 my $weakt;
 sub weaken_task () {
@@ -249,6 +249,8 @@ sub response_done ($$) {
 	$self->{env} = undef;
 	$self->write("0\r\n\r\n") if $alive == 2;
 	$self->write(sub { $alive ? next_request($self) : $self->close });
+
+	# FIXME: layering violation
 	if (my $obj = $env->{'pi-httpd.inbox'}) {
 		# grace period for reaping resources
 		$WEAKEN->{"$obj"} = $obj;
