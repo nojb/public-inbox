@@ -62,16 +62,24 @@ EOF
 		require $psgi;
 	};
 
+	test_psgi($app, sub {
+		my ($cb) = @_;
+		foreach my $u (qw(robots.txt favicon.ico .well-known/foo)) {
+			my $res = $cb->(GET("http://example.com/$u"));
+			is($res->code, 404, "$u is missing");
+		}
+	});
+
 	# redirect with newsgroup
 	test_psgi($app, sub {
 		my ($cb) = @_;
 		my $from = 'http://example.com/inbox.test';
 		my $to = 'http://example.com/test/';
 		my $res = $cb->(GET($from));
-		is($res->code, 301, 'is permanent redirect');
+		is($res->code, 301, 'newsgroup name is permanent redirect');
 		is($to, $res->header('Location'), 'redirect location matches');
 		$from .= '/';
-		is($res->code, 301, 'is permanent redirect');
+		is($res->code, 301, 'newsgroup name/ is permanent redirect');
 		is($to, $res->header('Location'), 'redirect location matches');
 	});
 
