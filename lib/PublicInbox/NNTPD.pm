@@ -6,7 +6,6 @@
 package PublicInbox::NNTPD;
 use strict;
 use warnings;
-require PublicInbox::NewsGroup;
 require PublicInbox::Config;
 
 sub new {
@@ -26,28 +25,16 @@ sub refresh_groups () {
 	my @list;
 	foreach my $k (keys %$pi_config) {
 		$k =~ /\Apublicinbox\.([^\.]+)\.mainrepo\z/ or next;
-		my $g = $1;
+		my $name = $1;
 		my $git_dir = $pi_config->{$k};
-		my $addr = $pi_config->{"publicinbox.$g.address"};
-		my $ngname = $pi_config->{"publicinbox.$g.newsgroup"};
-		my $url = $pi_config->{"publicinbox.$g.url"};
-		if (defined $ngname) {
-			next if ($ngname eq ''); # disabled
-			$g = $ngname;
-		}
-		my $ng = PublicInbox::NewsGroup->new($g, $git_dir, $addr, $url);
-		my $old_ng = $self->{groups}->{$g};
-
-		# Reuse the old one if possible since it can hold
-		# references to valid mm and gcf objects
-		if ($old_ng) {
-			$old_ng->update($ng);
-			$ng = $old_ng;
-		}
+		my $ngname = $pi_config->{"publicinbox.$name.newsgroup"};
+		next unless defined $ngname;
+		next if ($ngname eq ''); # disabled
+		my $ng = $pi_config->lookup_newsgroup($ngname) or next;
 
 		# Only valid if msgmap and search works
-		if ($ng->usable) {
-			$new->{$g} = $ng;
+		if ($ng->nntp_usable) {
+			$new->{$ngname} = $ng;
 			push @list, $ng;
 		}
 	}

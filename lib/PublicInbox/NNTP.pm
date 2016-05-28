@@ -195,7 +195,7 @@ sub list_active_times ($;$) {
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{newsgroup} =~ $wildmat or next;
 		my $c = eval { $ng->mm->created_at } || time;
-		more($self, "$ng->{newsgroup} $c $ng->{address}");
+		more($self, "$ng->{newsgroup} $c $ng->{-primary_address}");
 	}
 }
 
@@ -413,7 +413,8 @@ sub cmd_last ($) { article_adj($_[0], -1) }
 sub cmd_post ($) {
 	my ($self) = @_;
 	my $ng = $self->{ng};
-	$ng ? "440 mailto:$ng->{address} to post" : '440 posting not allowed'
+	$ng ? "440 mailto:$ng->{-primary_address} to post"
+		: '440 posting not allowed'
 }
 
 sub cmd_quit ($) {
@@ -438,8 +439,8 @@ sub set_nntp_headers {
 	# clobber some
 	$hdr->header_set('Newsgroups', $ng->{newsgroup});
 	$hdr->header_set('Xref', xref($ng, $n));
-	header_append($hdr, 'List-Post', "<mailto:$ng->{address}>");
-	if (my $url = $ng->{url}) {
+	header_append($hdr, 'List-Post', "<mailto:$ng->{-primary_address}>");
+	if (my $url = $ng->base_url) {
 		$mid = uri_escape_utf8($mid);
 		header_append($hdr, 'Archived-At', "<$url$mid/>");
 		header_append($hdr, 'List-Archive', "<$url>");

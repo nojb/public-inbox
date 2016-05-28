@@ -24,7 +24,6 @@ my $out = "$tmpdir/stdout.log";
 my $maindir = "$tmpdir/main.git";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
-my $cfgpfx = "publicinbox.$group";
 my $nntpd = 'blib/script/public-inbox-nntpd';
 my $init = 'blib/script/public-inbox-init';
 use_ok 'PublicInbox::Import';
@@ -44,6 +43,9 @@ END { kill 'TERM', $pid if defined $pid };
 {
 	local $ENV{HOME} = $home;
 	system($init, $group, $maindir, 'http://example.com/', $addr);
+	is(system(qw(git config), "--file=$home/.public-inbox/config",
+			"publicinbox.$group.newsgroup", $group),
+		0, 'enabled newsgroup');
 	my $len;
 
 	# ensure successful message delivery

@@ -11,7 +11,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian Danga::Socket)) {
 }
 
 use_ok 'PublicInbox::NNTP';
-use_ok 'PublicInbox::NewsGroup';
+use_ok 'PublicInbox::Inbox';
 
 {
 	sub quote_str {
@@ -99,9 +99,14 @@ use_ok 'PublicInbox::NewsGroup';
 { # test setting NNTP headers in HEAD and ARTICLE requests
 	require Email::MIME;
 	my $u = 'https://example.com/a/';
-	my $ng = PublicInbox::NewsGroup->new('test', 'test.git',
-				'a@example.com', '//example.com/a');
-	is($ng->{url}, $u, 'URL expanded');
+	my $ng = PublicInbox::Inbox->new({ name => 'test',
+					mainrepo => 'test.git',
+					address => 'a@example.com',
+					-primary_address => 'a@example.com',
+					newsgroup => 'test',
+					domain => 'example.com',
+					url => '//example.com/a'});
+	is($ng->base_url, $u, 'URL expanded');
 	my $mid = 'a@b';
 	my $mime = Email::MIME->new("Message-ID: <$mid>\r\n\r\n");
 	PublicInbox::NNTP::set_nntp_headers($mime->header_obj, $ng, 1, $mid);
@@ -118,7 +123,7 @@ use_ok 'PublicInbox::NewsGroup';
 	is_deeply([ $mime->header('Xref') ], [ 'example.com test:1' ],
 		'Xref: set');
 
-	$ng->{url} = 'http://mirror.example.com/m/';
+	$ng->{-base_url} = 'http://mirror.example.com/m/';
 	PublicInbox::NNTP::set_nntp_headers($mime->header_obj, $ng, 2, $mid);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');

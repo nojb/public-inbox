@@ -107,7 +107,7 @@ sub preload {
 
 	foreach (qw(PublicInbox::Search PublicInbox::SearchView
 			PublicInbox::Mbox IO::Compress::Gzip
-			PublicInbox::NewsWWW PublicInbox::NewsGroup)) {
+			PublicInbox::NewsWWW)) {
 		eval "require $_;";
 	}
 }

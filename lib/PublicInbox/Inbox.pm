@@ -83,4 +83,11 @@ sub base_url {
 	}
 }
 
+sub nntp_usable {
+	my ($self) = @_;
+	my $ret = $self->mm && $self->search;
+	weaken_all();
+	$ret;
+}
+
 1;

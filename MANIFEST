@@ -37,7 +37,6 @@ lib/PublicInbox/MID.pm
 lib/PublicInbox/Mbox.pm
 lib/PublicInbox/Msgmap.pm
 lib/PublicInbox/NNTP.pm
-lib/PublicInbox/NewsGroup.pm
 lib/PublicInbox/NewsWWW.pm
 lib/PublicInbox/ProcessPipe.pm
 lib/PublicInbox/Search.pm

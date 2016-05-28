@@ -20,6 +20,7 @@ sub new {
 	# caches
 	$self->{-by_addr} ||= {};
 	$self->{-by_name} ||= {};
+	$self->{-by_newsgroup} ||= {};
 	$self;
 }
 
@@ -55,7 +56,24 @@ sub lookup_name {
 	my $rv = $self->{-by_name}->{$name};
 	return $rv if $rv;
 	$rv = _fill($self, "publicinbox.$name") or return;
-	$self->{-by_name}->{$name} = $rv;
+}
+
+sub lookup_newsgroup {
+	my ($self, $ng) = @_;
+	$ng = lc($ng);
+	my $rv = $self->{-by_newsgroup}->{$ng};
+	return $rv if $rv;
+
+	foreach my $k (keys %$self) {
+		$k =~ /\A(publicinbox\.[\w-]+)\.newsgroup\z/ or next;
+		my $v = $self->{$k};
+		my $pfx = $1;
+		if ($v eq $ng) {
+			$rv = _fill($self, $pfx);
+			return $rv;
+		}
+	}
+	undef;
 }
 
 sub get {
@@ -103,24 +121,27 @@ sub _fill {
 	my ($self, $pfx) = @_;
 	my $rv = {};
 
-	foreach my $k (qw(mainrepo address filter url)) {
+	foreach my $k (qw(mainrepo address filter url newsgroup)) {
 		my $v = $self->{"$pfx.$k"};
 		$rv->{$k} = $v if defined $v;
 	}
 	return unless $rv->{mainrepo};
-	my $inbox = $pfx;
-	$inbox =~ s/\Apublicinbox\.//;
-	$rv->{name} = $inbox;
+	my $name = $pfx;
+	$name =~ s/\Apublicinbox\.//;
+	$rv->{name} = $name;
 	my $v = $rv->{address} ||= 'public-inbox@example.com';
-	$rv->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
+	my $p = $rv->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
+	$rv->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
 	$rv = PublicInbox::Inbox->new($rv);
 	if (ref($v) eq 'ARRAY') {
 		$self->{-by_addr}->{lc($_)} = $rv foreach @$v;
 	} else {
 		$self->{-by_addr}->{lc($v)} = $rv;
 	}
-	$rv;
+	if (my $ng = $rv->{newsgroup}) {
+		$self->{-by_newsgroup}->{$ng} = $rv;
+	}
+	$self->{-by_name}->{$name} = $rv;
 }
-
 
 1;
