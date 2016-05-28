@@ -5,8 +5,6 @@
 package PublicInbox::Config;
 use strict;
 use warnings;
-use base qw/Exporter/;
-our @EXPORT_OK = qw/try_cat/;
 require PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
 use File::Path::Expand qw/expand_filename/;
@@ -99,16 +97,6 @@ sub git_config_dump {
 	}
 	close $fh or die "failed to close ($cmd) pipe: $?";
 	\%rv;
-}
-
-sub try_cat {
-	my ($path) = @_;
-	my $rv;
-	if (open(my $fh, '<', $path)) {
-		local $/;
-		$rv = <$fh>;
-	}
-	$rv;
 }
 
 sub _fill {
