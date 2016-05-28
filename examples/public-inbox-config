@@ -10,4 +10,3 @@
 	address = meta@public-inbox.org
 	mainrepo = /home/pi/meta-main.git
 	url = http://example.com/meta
-	atomUrl = http://example.com/meta
