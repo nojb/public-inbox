@@ -40,10 +40,10 @@ sub MY::postamble {
 EATMYDATA =
 -include config.mak
 -include Documentation/include.mk
+N ?= \$(shell echo \$\$(( \$\$(nproc 2>/dev/null || echo 2) + 1)))
 SCRIPTS := scripts/ssoma-replay
 my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES) \$(SCRIPTS))
 
-N := \$(shell echo \$\$(( \$\$(nproc 2>/dev/null || echo 2) + 1)))
 
 %.syntax ::
 	@\$(PERL) -I lib -c \$(subst .syntax,,\$@)
