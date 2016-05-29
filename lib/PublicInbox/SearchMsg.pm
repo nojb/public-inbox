@@ -80,7 +80,7 @@ sub date ($) {
 	return $date if defined $date;
 	my $ts = $self->{ts};
 	return unless defined $ts;
-	$self->{date} = strftime('%a, %d %b %Y %T %z', gmtime($ts));
+	$self->{date} = strftime('%a, %d %b %Y %T +0000', gmtime($ts));
 }
 
 sub from ($) {
