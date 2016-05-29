@@ -485,7 +485,7 @@ find_mid:
 found:
 	my $o = 'HEAD:' . mid2path($mid);
 	my $bytes;
-	my $s = eval { Email::Simple->new($ng->gcf->cat_file($o, \$bytes)) };
+	my $s = eval { Email::Simple->new($ng->git->cat_file($o, \$bytes)) };
 	return $err unless $s;
 	my $lines;
 	if ($set_headers) {

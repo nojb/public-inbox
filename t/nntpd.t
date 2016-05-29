@@ -173,6 +173,14 @@ EOF
 			$len,
 			'1' ] }, "XOVER by article works");
 
+	is_deeply($n->head(1), $n->head('<nntp@example.com>'), 'HEAD OK');
+	is_deeply($n->body(1), $n->body('<nntp@example.com>'), 'BODY OK');
+	my $art = $n->article(1);
+	is(ref($art), 'ARRAY', 'got array for ARTICLE');
+	is_deeply($art, $n->article('<nntp@example.com>'), 'ARTICLE OK');
+	is($n->article(999), undef, 'non-existent num');
+	is($n->article('<non-existent@example>'), undef, 'non-existent mid');
+
 	{
 		syswrite($s, "OVER $mid\r\n");
 		$buf = read_til_dot($s);
