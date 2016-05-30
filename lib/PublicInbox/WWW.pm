@@ -40,7 +40,15 @@ sub run {
 sub call {
 	my ($self, $env) = @_;
 	my $cgi = Plack::Request->new($env);
-	my $ctx = {cgi => $cgi, pi_config => $self->{pi_config}, www => $self};
+	my $ctx = { cgi => $cgi, env => $env, www => $self,
+		pi_config => $self->{pi_config} };
+
+	# we don't care about multi-value
+	my %qp = map {
+		(split('=', $_, 2))
+	} split(/[&;]/, uri_unescape($env->{QUERY_STRING}));
+	$ctx->{qp} = \%qp;
+
 	my $path_info = $env->{PATH_INFO};
 	my $method = $env->{REQUEST_METHOD};
 
@@ -180,7 +188,7 @@ sub get_index {
 	require PublicInbox::Feed;
 	my $srch = searcher($ctx);
 	footer($ctx);
-	if (defined $ctx->{cgi}->param('q')) {
+	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
 		require PublicInbox::SearchView;
 		PublicInbox::SearchView::sres_top_html($ctx);
 	} else {
@@ -262,7 +270,7 @@ sub footer {
 	my $cgi = $ctx->{cgi};
 	my $http = $cgi->base->as_string . $obj->{name};
 	$seen{$http} or unshift @urls, $http;
-	my $ssoma_url = PublicInbox::Hval::prurl($cgi->{env}, SSOMA_URL);
+	my $ssoma_url = PublicInbox::Hval::prurl($ctx->{env}, SSOMA_URL);
 	if (scalar(@urls) == 1) {
 		$urls = "URL for <a\nhref=\"" . $ssoma_url .
 			qq(">ssoma</a> or <b>git clone --mirror $urls[0]</b>);
@@ -394,7 +402,7 @@ sub r301 {
 		$obj = $ctx->{-inbox};
 	}
 	my $url = $obj->base_url($cgi);
-	my $qs = $cgi->env->{QUERY_STRING};
+	my $qs = $ctx->{env}->{QUERY_STRING};
 	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
 	$url .= $suffix if (defined $suffix);
 	$url .= "?$qs" if $qs ne '';

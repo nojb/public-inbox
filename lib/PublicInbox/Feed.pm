@@ -140,8 +140,8 @@ sub emit_html_index {
 
 	# if the 'r' query parameter is given, it is a legacy permalink
 	# which we must continue supporting:
-	my $cgi = $ctx->{cgi};
-	if ($cgi && !$cgi->param('r') && $srch) {
+	my $qp = $ctx->{qp};
+	if ($qp && !$qp->{r} && $srch) {
 		$state->{srch} = $srch;
 		$last = PublicInbox::View::emit_index_topics($state);
 		$param = 'o';
@@ -149,7 +149,7 @@ sub emit_html_index {
 		$last = emit_index_nosrch($ctx, $state);
 		$param = 'r';
 	}
-	$footer = nav_footer($cgi, $last, $feed_opts, $state, $param);
+	$footer = nav_footer($ctx, $last, $feed_opts, $state, $param);
 	if ($footer) {
 		my $list_footer = $ctx->{footer};
 		$footer .= "\n\n" . $list_footer if $list_footer;
@@ -174,9 +174,9 @@ sub emit_index_nosrch {
 }
 
 sub nav_footer {
-	my ($cgi, $last, $feed_opts, $state, $param) = @_;
-	$cgi or return '';
-	my $old_r = $cgi->param($param);
+	my ($ctx, $last, $feed_opts, $state, $param) = @_;
+	my $qp = $ctx->{qp} or return '';
+	my $old_r = $qp->{$param};
 	my $head = '    ';
 	my $next = '    ';
 	my $first = $state->{first};
@@ -186,7 +186,7 @@ sub nav_footer {
 		$next = qq!<a\nhref="?$param=$last"\nrel=next>next</a>!;
 	}
 	if ($old_r) {
-		$head = $cgi->path_info;
+		$head = $ctx->{env}->{PATH_INFO};
 		$head = qq!<a\nhref="$head">head</a>!;
 	}
 	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">Atom feed</a>";
@@ -200,11 +200,11 @@ sub each_recent_blob {
 	my $addmsg = qr!^:000000 100644 \S+ \S+ A\t(${hex}{2}/${hex}{38})$!;
 	my $delmsg = qr!^:100644 000000 \S+ \S+ D\t(${hex}{2}/${hex}{38})$!;
 	my $refhex = qr/(?:HEAD|${hex}{4,40})(?:~\d+)?/;
-	my $cgi = $ctx->{cgi};
+	my $qp = $ctx->{qp};
 
 	# revision ranges may be specified
 	my $range = 'HEAD';
-	my $r = $cgi->param('r') if $cgi;
+	my $r = $qp->{r} if $qp;
 	if ($r && ($r =~ /\A(?:$refhex\.\.)?$refhex\z/o)) {
 		$range = $r;
 	}

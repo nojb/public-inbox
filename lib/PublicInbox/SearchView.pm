@@ -16,7 +16,7 @@ our $LIM = 50;
 
 sub sres_top_html {
 	my ($ctx) = @_;
-	my $q = PublicInbox::SearchQuery->new($ctx->{cgi});
+	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
 	my $code = 200;
 
 	# double the limit for expanded views:
@@ -260,13 +260,13 @@ use warnings;
 use PublicInbox::Hval;
 
 sub new {
-	my ($class, $cgi) = @_;
-	my $r = $cgi->param('r');
-	my ($off) = (($cgi->param('o') || '0') =~ /(\d+)/);
+	my ($class, $qp) = @_;
+
+	my $r = $qp->{r};
 	bless {
-		q => $cgi->param('q'),
-		x => $cgi->param('x') || '',
-		o => $off,
+		q => $qp->{'q'},
+		x => $qp->{x} || '',
+		o => (($qp->{o} || '0') =~ /(\d+)/),
 		r => (defined $r && $r ne '0'),
 	}, $class;
 }
