@@ -11,8 +11,6 @@ use POSIX qw//;
 use Date::Parse qw/str2time/;
 use PublicInbox::MID qw/mid_clean/;
 use PublicInbox::Address;
-use Encode qw/find_encoding/;
-my $enc_utf8 = find_encoding('UTF-8');
 our $PFX2TERM_RE = undef;
 use constant EPOCH_822 => 'Thu, 01 Jan 1970 00:00:00 +0000';
 use POSIX qw(strftime);
@@ -39,7 +37,7 @@ sub load_doc {
 	my ($class, $doc) = @_;
 	my $data = $doc->get_data;
 	my $ts = get_val($doc, &PublicInbox::Search::TS);
-	$data = $enc_utf8->decode($data);
+	utf8::decode($data);
 	my ($subj, $from, $refs, $to, $cc) = split(/\n/, $data);
 	bless {
 		doc => $doc,
