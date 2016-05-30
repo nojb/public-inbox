@@ -6,7 +6,6 @@ use warnings;
 use PublicInbox::GitHTTPBackend;
 use PublicInbox::Git;
 use Plack::Builder;
-use Plack::Request;
 use BSD::Resource qw(getrusage);
 my $git_dir = $ENV{GIANT_GIT_DIR} or die 'GIANT_GIT_DIR not defined in env';
 my $git = PublicInbox::Git->new($git_dir);
@@ -14,9 +13,8 @@ builder {
 	enable 'Head';
 	sub {
 		my ($env) = @_;
-		my $pr = Plack::Request->new($env);
-		if ($pr->path_info =~ m!\A/(.+)\z!s) {
-			PublicInbox::GitHTTPBackend::serve($pr, $git, $1);
+		if ($env->{PATH_INFO} =~ m!\A/(.+)\z!s) {
+			PublicInbox::GitHTTPBackend::serve($env, $git, $1);
 		} else {
 			my $ru = getrusage();
 			my $b = $ru->maxrss . "\n";

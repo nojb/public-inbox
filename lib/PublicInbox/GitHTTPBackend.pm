@@ -40,15 +40,17 @@ sub r ($;$) {
 }
 
 sub serve {
-	my ($cgi, $git, $path) = @_;
+	my ($env, $git, $path) = @_;
 
-	my $service = $cgi->query_parameters->get('service') || '';
-	if ($service =~ /\Agit-\w+-pack\z/ || $path =~ /\Agit-\w+-pack\z/) {
-		my $ok = serve_smart($cgi, $git, $path);
+	# Documentation/technical/http-protocol.txt in git.git
+	# requires one and exactly one query parameter:
+	if ($env->{QUERY_STRING} =~ /\Aservice=git-\w+-pack\z/ ||
+				$path =~ /\Agit-\w+-pack\z/) {
+		my $ok = serve_smart($env, $git, $path);
 		return $ok if $ok;
 	}
 
-	serve_dumb($cgi, $git, $path);
+	serve_dumb($env, $git, $path);
 }
 
 sub err ($@) {
@@ -63,7 +65,7 @@ sub drop_client ($) {
 }
 
 sub serve_dumb {
-	my ($cgi, $git, $path) = @_;
+	my ($env, $git, $path) = @_;
 
 	my @h;
 	my $type;
@@ -82,7 +84,6 @@ sub serve_dumb {
 	return r(404) unless -f $f && -r _; # just in case it's a FIFO :P
 	my @st = stat(_);
 	my $size = $st[7];
-	my $env = $cgi->{env};
 
 	# TODO: If-Modified-Since and Last-Modified?
 	open my $in, '<', $f or return r(404);
@@ -90,7 +91,7 @@ sub serve_dumb {
 	my $code = 200;
 	push @h, 'Content-Type', $type;
 	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=(\d*)-(\d*)\z/) {
-		($code, $len) = prepare_range($cgi, $in, \@h, $1, $2, $size);
+		($code, $len) = prepare_range($env, $in, \@h, $1, $2, $size);
 		if ($code == 416) {
 			push @h, 'Content-Range', "bytes */$size";
 			return [ 416, \@h, [] ];
@@ -118,7 +119,7 @@ sub serve_dumb {
 }
 
 sub prepare_range {
-	my ($cgi, $in, $h, $beg, $end, $size) = @_;
+	my ($env, $in, $h, $beg, $end, $size) = @_;
 	my $code = 200;
 	my $len = $size;
 	if ($beg eq '') {
@@ -152,7 +153,7 @@ sub prepare_range {
 			push @$h, "bytes $beg-$end/$size";
 
 			# FIXME: Plack::Middleware::Deflater bug?
-			$cgi->{env}->{'psgix.no-compress'} = 1;
+			$env->{'psgix.no-compress'} = 1;
 		}
 	}
 	($code, $len);
@@ -160,8 +161,7 @@ sub prepare_range {
 
 # returns undef if 403 so it falls back to dumb HTTP
 sub serve_smart {
-	my ($cgi, $git, $path) = @_;
-	my $env = $cgi->{env};
+	my ($env, $git, $path) = @_;
 	my $in = $env->{'psgi.input'};
 	my $fd = eval { fileno($in) };
 	unless (defined $fd && $fd >= 0) {
@@ -201,7 +201,7 @@ sub serve_smart {
 		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
 		return r(500, 'http-backend error') unless $r;
 		$r = parse_cgi_headers(\$buf) or return; # incomplete headers
-		$r->[0] == 403 ? serve_dumb($cgi, $git, $path) : $r;
+		$r->[0] == 403 ? serve_dumb($env, $git, $path) : $r;
 	};
 	my $res;
 	my $async = $env->{'pi-httpd.async'};

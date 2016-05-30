@@ -48,7 +48,7 @@ sub call {
 		 $path_info =~ m!$INBOX_RE/(git-upload-pack)\z!) {
 		my $path = $2;
 		return (invalid_inbox($self, $ctx, $1) ||
-			serve_git($cgi, $ctx->{git}, $path));
+			serve_git($env, $ctx->{git}, $path));
 	}
 	elsif ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
@@ -68,7 +68,7 @@ sub call {
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my $path = $2;
 		invalid_inbox($self, $ctx, $1) ||
-			serve_git($cgi, $ctx->{git}, $path);
+			serve_git($env, $ctx->{git}, $path);
 	} elsif ($path_info =~ m!$INBOX_RE/([\w-]+).mbox\.gz\z!o) {
 		serve_mbox_range($self, $ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
@@ -424,8 +424,8 @@ sub msg_page {
 }
 
 sub serve_git {
-	my ($cgi, $git, $path) = @_;
-	PublicInbox::GitHTTPBackend::serve($cgi, $git, $path);
+	my ($env, $git, $path) = @_;
+	PublicInbox::GitHTTPBackend::serve($env, $git, $path);
 }
 
 sub serve_mbox_range {

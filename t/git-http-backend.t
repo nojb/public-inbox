@@ -13,7 +13,7 @@ use Cwd qw(getcwd);
 my $git_dir = $ENV{GIANT_GIT_DIR};
 plan 'skip_all' => 'GIANT_GIT_DIR not defined' unless $git_dir;
 foreach my $mod (qw(Danga::Socket
-			Plack::Util Plack::Request Plack::Builder
+			Plack::Util Plack::Builder
 			HTTP::Date HTTP::Status Net::HTTP)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for git-http-backend.t" if $@;
