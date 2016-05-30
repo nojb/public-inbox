@@ -265,10 +265,13 @@ sub getline_response {
 	my $pull = $self->{pull} = sub {
 		local $/ = \8192;
 		my $forward = $self->{forward};
+		# limit our own running time for fairness with other
+		# clients and to avoid buffering too much:
+		my $n = 100;
 		while ($forward && defined(my $buf = $forward->getline)) {
 			$write->($buf);
 			last if $self->{closed};
-			if ($self->{write_buf_size}) {
+			if ((--$n) <= 0 || $self->{write_buf_size}) {
 				$self->write($self->{pull});
 				return;
 			}

@@ -45,7 +45,9 @@ sub async_pass {
 				$self->watch_read(0);
 				$io->write($restart_read); # D::S::write
 			}
-			return; # stay in watch_read
+			# stay in watch_read, but let other clients
+			# get some work done, too.
+			return;
 		} elsif (!defined $r) {
 			return if $!{EAGAIN} || $!{EINTR};
 		}
