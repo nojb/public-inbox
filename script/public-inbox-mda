@@ -9,6 +9,8 @@ my $usage = 'public-inbox-mda < rfc2822_message';
 
 use Email::Filter;
 use Email::MIME;
+use Email::MIME::ContentType;
+$Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use File::Path::Expand qw/expand_filename/;
 use IPC::Run qw(run);
 use PublicInbox::MDA;
