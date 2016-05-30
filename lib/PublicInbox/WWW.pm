@@ -41,9 +41,9 @@ sub call {
 	my ($self, $env) = @_;
 	my $cgi = Plack::Request->new($env);
 	my $ctx = {cgi => $cgi, pi_config => $self->{pi_config}, www => $self};
-	my $path_info = $cgi->path_info;
+	my $path_info = $env->{PATH_INFO};
+	my $method = $env->{REQUEST_METHOD};
 
-	my $method = $cgi->method;
 	if ($method eq 'POST' &&
 		 $path_info =~ m!$INBOX_RE/(git-upload-pack)\z!) {
 		my $path = $2;
