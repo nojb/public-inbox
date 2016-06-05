@@ -6,6 +6,12 @@ use Test::More;
 use Email::MIME;
 use PublicInbox::View;
 
+sub msg_html ($) {
+	my ($mime) = @_;
+
+	PublicInbox::View::msg_html(undef, $mime);
+}
+
 # plain text
 {
 	my $body = <<EOF;
@@ -41,7 +47,7 @@ EOF
 		body => $body,
 	)->as_string;
 	my $mime = Email::MIME->new($s);
-	my $html = PublicInbox::View::msg_html(undef, $mime);
+	my $html = msg_html($mime);
 
 	# ghetto tests
 	like($html, qr!<a\nhref="raw"!s, "raw link present");
@@ -71,7 +77,7 @@ EOF
 		parts => $parts,
 	);
 
-	my $html = PublicInbox::View::msg_html(undef, $mime);
+	my $html = msg_html($mime);
 	like($html, qr/hi\n.*-- Attachment #2.*\nbye\n/s, "multipart split");
 }
 
@@ -100,7 +106,7 @@ EOF
 		parts => $parts,
 	);
 
-	my $html = PublicInbox::View::msg_html(undef, $mime);
+	my $html = msg_html($mime);
 	like($html, qr!.*Attachment #2: foo\.patch --!,
 		"parts split with filename");
 }
@@ -126,7 +132,7 @@ EOF
 	);
 
 	my $orig = $mime->body_raw;
-	my $html = PublicInbox::View::msg_html(undef, $mime);
+	my $html = msg_html($mime);
 	like($orig, qr/hi =3D bye=/, "our test used QP correctly");
 	like($html, qr/\bhi = bye\b/, "HTML output decoded QP");
 }

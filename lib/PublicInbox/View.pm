@@ -20,7 +20,8 @@ use constant INDENT => '  ';
 use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
-# public functions:
+# public functions: (unstable)
+# TODO: stream this, since threading is expensive but also oh-so-important
 sub msg_html {
 	my ($ctx, $mime, $footer) = @_;
 	$footer = defined($footer) ? "\n$footer" : '';
@@ -28,36 +29,25 @@ sub msg_html {
 	headers_to_html_header($hdr, $ctx) .
 		multipart_text_as_html($mime, '') .
 		'</pre><hr /><pre>' .
-		html_footer($hdr, 1, $ctx, 'R/') .
-		$footer .
-		'</pre></body></html>';
+		html_footer($hdr, 1, $ctx) .
+		'</pre>' . msg_reply($ctx, $hdr) .
+		'<hr /><pre>'.  $footer . '</pre></body></html>';
 }
 
-# /$INBOX/$MESSAGE_ID/R/
+# /$INBOX/$MESSAGE_ID/#R
 sub msg_reply {
-	my ($ctx, $hdr, $footer) = @_;
-	my $s = $hdr->header('Subject');
-	$s = '(no subject)' if (!defined $s) || ($s eq '');
-	my $f = $hdr->header('From');
-	$f = '' unless defined $f;
-	my $mid = $hdr->header_raw('Message-ID');
-	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $t = ascii_html($s);
+	my ($ctx, $hdr) = @_;
 	my $se_url =
 	 'https://kernel.org/pub/software/scm/git/docs/git-send-email.html';
 
 	my ($arg, $link) = mailto_arg_link($hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
 
-	"<html><head><title>replying to \"$t\"</title></head><body><pre>" .
-	"replying to message:\n\n" .
-	"Subject: <b>$t</b>\n" .
-	"From: ". ascii_html($f) .
-	"\nDate: " .  ascii_html($hdr->header('Date')) .
-	"\nMessage-ID: &lt;" . $mid->as_html . "&gt;\n\n" .
-	"There are multiple ways to reply:\n\n" .
+	"<hr /><pre\nid=R>".
+	"You may reply publically to <a\nhref=#t>this message</a> via email\n".
+	"using any one of the following methods:\n\n" .
 	"* Save the following mbox file, import it into your mail client,\n" .
-	"  and reply-to-all from there: <a\nhref=../raw>mbox</a>\n\n" .
+	"  and reply-to-all from there: <a\nhref=raw>mbox</a>\n\n" .
 	"* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,\n" .
 	"  and <b>--in-reply-to</b> switches of git-send-email(1):\n\n" .
 	"\tgit send-email \\\n\t\t" .
@@ -66,9 +56,7 @@ sub msg_reply {
 	"* If your mail client supports setting the <b>In-Reply-To</b>" .
 	" header\n  via mailto: links, try the " .
 	qq(<a\nhref="$link">mailto: link</a>\n) .
-	"\nFor context, the original <a\nhref=../>message</a> or " .
-	qq(<a\nhref="../t/#u">thread</a>) .
-	'</pre><hr /><pre>' . $footer .  '</pre></body></html>';
+	'</pre>';
 }
 
 sub in_reply_to {
@@ -123,7 +111,7 @@ sub index_entry {
 
 	# scan through all parts, looking for displayable text
 	msg_iter($mime, sub { index_walk($fh, $mhref, $_[0]) });
-	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/R/");
+	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/#R");
 
 	if (defined $irt) {
 		unless (defined $parent_anchor) {
@@ -501,8 +489,9 @@ sub html_footer {
 	} else {
 		$irt = '';
 	}
-
-	$irt . qq(<a\nhref="$rhref">reply</a>) . $idx;
+	$rhref ||= '#R';
+	$irt .= qq(<a\nhref="$rhref">reply</a>);
+	$irt .= $idx;
 }
 
 sub linkify_ref_nosrch {
