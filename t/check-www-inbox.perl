@@ -13,6 +13,7 @@ use LWP::ConnCache;
 use POSIX qw(:sys_wait_h);
 use Time::HiRes qw(gettimeofday tv_interval);
 use WWW::Mechanize;
+use Data::Dumper;
 my $nproc = 4;
 my $slow = 0.5;
 my %opts = (
@@ -144,6 +145,17 @@ sub worker_loop {
 			die "$$ send $!\n" unless defined $s;
 			my $n = length($l);
 			die "$$ send truncated $s < $n\n" if $s != $n;
+		}
+
+		# make sure the HTML source doesn't screw up terminals
+		# when people curl the source (not remotely an expert
+		# on languages or encodings, here).
+		next if $r->header('Content-Type') !~ m!\btext/html\b!;
+		my $dc = $r->decoded_content;
+		if ($dc =~ /([\x00-\x08\x0d-\x1f\x7f-\x{99999999}]+)/s) {
+			my $o = $1;
+			my $c = Dumper($o);
+			warn "bad: $u $c\n";
 		}
 	}
 }

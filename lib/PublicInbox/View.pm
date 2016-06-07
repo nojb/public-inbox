@@ -324,7 +324,8 @@ sub headers_to_html_header {
 		$v = PublicInbox::Hval->new($v);
 
 		if ($h eq 'From') {
-			$title[1] = PublicInbox::Address::from_name($v->raw);
+			my $n = PublicInbox::Address::from_name($v->raw);
+			$title[1] = ascii_html($n);
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
