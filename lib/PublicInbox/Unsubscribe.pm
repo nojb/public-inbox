@@ -77,7 +77,7 @@ sub _user_list_addr {
 			'Missing mailing list name in path component');
 	}
 	my $user = eval { $self->{cipher}->decrypt(decode_base64url($u)) };
-	if (!defined $user || index($user, '@') <= 1) {
+	if (!defined $user || index($user, '@') < 1) {
 		my $err = quotemeta($@);
 		my $errors = $env->{'psgi.errors'};
 		$errors->print("error decrypting: $u\n");
