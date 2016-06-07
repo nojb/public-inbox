@@ -51,7 +51,7 @@ sub msg_reply {
 	"* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,\n" .
 	"  and <b>--in-reply-to</b> switches of git-send-email(1):\n\n" .
 	"\tgit send-email \\\n\t\t" .
-	join(" \\ \n\t\t", @$arg ). "\n\n" .
+	join(" \\\n\t\t", @$arg ). "\n\n" .
 	qq(  <a\nhref="$se_url">$se_url</a>\n\n) .
 	"* If your mail client supports setting the <b>In-Reply-To</b>" .
 	" header\n  via mailto: links, try the " .
