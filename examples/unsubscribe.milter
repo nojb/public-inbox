@@ -72,16 +72,13 @@ $cbs{header} = sub {
 	SMFIS_CONTINUE;
 };
 
-# only whitelist a few users for testing:
-my $whitelist = '/etc/unsubscribe-milter.whitelist';
-my %TEST_WHITELIST = map { $_ => 1 } eval {
-		open my $fh, '<', $whitelist or
-			die "Failed to open $whitelist: $!";
-		local $/ = "\n";
-		chomp(my @lines = (<$fh>));
-		@lines;
-	};
-die "No whitelist at $whitelist\n" unless scalar keys %TEST_WHITELIST;
+# We don't want people unsubscribing archivers:
+sub archive_addr {
+	my ($addr) = @_;
+	return 1 if ($addr =~ /\@m\.gmane\.org\z/);
+	return 1 if ($addr eq 'archive@mail-archive.com');
+	0
+}
 
 $cbs{eom} = sub {
 	my ($ctx) = @_;
@@ -92,7 +89,7 @@ $cbs{eom} = sub {
 
 		# one recipient, one unique HTTP(S) URL
 		return SMFIS_CONTINUE if @rcpt != 1;
-		return SMFIS_CONTINUE unless $TEST_WHITELIST{$rcpt[0]};
+		return SMFIS_CONTINUE if archive_addr(lc($rcpt[0]));
 
 		my $unsub = $priv->{header}->{'list-unsubscribe'} || [];
 		my $n = 0;
