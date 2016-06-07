@@ -1,0 +1,40 @@
+Unsubscribe endpoints for mlmmj users (and possibly Mailman, too)
+
+* examples/unsubscribe.milter filters outgoing messages
+  and appends an HTTPS URL to the List-Unsubscribe header.
+  This List-Unsubscribe header should point to the PSGI
+  described below.
+  Currently, this is only active for a whitelist of test
+  addresses in /etc/unsubscribe-milter.whitelist
+  with one email address per line.
+
+* examples/unsubscribe.psgi is a PSGI which needs to run
+  as the mlmmj user with permission to run mlmmj-unsub.
+  This depends on the PublicInbox::Unsubscribe module
+  which may be extracted from the rest of public-inbox.
+  It is strongly recommended to NOT run the rest of the
+  public-inbox WWW code in the same process as this PSGI.
+  (The public-inbox WWW code will never need write
+   permissions to anything besides stderr).
+
+* Both the .milter and .psgi examples are bundled with
+  systemd service and socket activation examples.
+  AFAIK no other PSGI server besides public-inbox-httpd
+  supports systemd socket activation.
+
+To wire up the milter for postfix, I use the following
+in /etc/postfix/main.cf:
+
+  # Milter configuration
+  milter_default_action = accept
+  milter_protocol = 2
+
+  # other milters may be chained here (e.g. opendkim)
+  # chroot users will need to adjust this path
+  smtpd_milters = local:/var/spool/postfix/unsubscribe/unsubscribe.sock
+
+  # This is not needed for mlmmj since mlmmj uses SMTP:
+  # non_smtpd_milters = local:/var/spool/postfix/unsubscribe/unsubscribe.sock
+
+Copyright (C) 2016 all contributors <meta@public-inbox.org>
+License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>

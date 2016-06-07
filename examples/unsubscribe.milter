@@ -1,0 +1,137 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2016 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+use strict;
+use warnings;
+use Sendmail::PMilter qw(:all);
+use IO::Socket;
+use Crypt::CBC;
+use MIME::Base64 qw(encode_base64url);
+
+my $key_file = shift @ARGV or die "Usage: $0 KEY_FILE\n";
+open my $fh, '<', $key_file or die "failed to open $key_file\n";
+my ($key, $iv);
+if (read($fh, $key, 8) != 8 || read($fh, $iv, 8) != 8 ||
+			read($fh, my $end, 8) != 0) {
+	die "KEY_FILE must be 16 bytes\n";
+}
+
+# these parameters were chosen to generate shorter parameters
+# to reduce the possibility of copy+paste errors
+my $crypt = Crypt::CBC->new(-key => $key,
+			-iv => $iv,
+			-header => 'none',
+			-cipher => 'Blowfish');
+$fh = $iv = $key = undef;
+
+my %cbs;
+$cbs{connect} = sub {
+	my ($ctx) = @_;
+	eval { $ctx->setpriv({ header => {}, envrcpt => {} }) };
+	warn $@ if $@;
+	SMFIS_CONTINUE;
+};
+
+$cbs{envrcpt} = sub {
+	my ($ctx, $addr) = @_;
+	eval {
+		$addr =~ tr!<>!!d;
+		$ctx->getpriv->{envrcpt}->{$addr} = 1;
+	};
+	warn $@ if $@;
+	SMFIS_CONTINUE;
+};
+
+$cbs{header} = sub {
+	my ($ctx, $k, $v) = @_;
+	eval {
+		my $k_ = lc $k;
+		if ($k_ eq 'list-unsubscribe') {
+			my $header = $ctx->getpriv->{header} ||= {};
+			my $ary = $header->{$k_} ||= [];
+
+			# we create placeholders in case there are
+			# multiple headers of the same name
+			my $cur = [];
+			push @$ary, $cur;
+
+			# This relies on mlmmj convention:
+			#	$LIST+unsubscribe@$DOMAIN
+			if ($v =~ /\A<mailto:([^@]+)\+unsubscribe@([^>]+)>\z/) {
+				@$cur = ($k, $v, $1, $2);
+
+			# Mailman convention:
+			#	$LIST-request@$DOMAIN?subject=unsubscribe
+			} elsif ($v =~ /\A<mailto:([^@]+)-request@
+					([^\?]+)\?subject=unsubscribe>\z/x) {
+				# @$cur = ($k, $v, $1, $2);
+			}
+		}
+	};
+	warn $@ if $@;
+	SMFIS_CONTINUE;
+};
+
+# only whitelist a few users for testing:
+my $whitelist = '/etc/unsubscribe-milter.whitelist';
+my %TEST_WHITELIST = map { $_ => 1 } eval {
+		open my $fh, '<', $whitelist or
+			die "Failed to open $whitelist: $!";
+		local $/ = "\n";
+		chomp(my @lines = (<$fh>));
+		@lines;
+	};
+die "No whitelist at $whitelist\n" unless scalar keys %TEST_WHITELIST;
+
+$cbs{eom} = sub {
+	my ($ctx) = @_;
+	eval {
+		my $priv = $ctx->getpriv;
+		$ctx->setpriv({ header => {}, envrcpt => {} });
+		my @rcpt = keys %{$priv->{envrcpt}};
+
+		# one recipient, one unique HTTP(S) URL
+		return SMFIS_CONTINUE if @rcpt != 1;
+		return SMFIS_CONTINUE unless $TEST_WHITELIST{$rcpt[0]};
+
+		my $unsub = $priv->{header}->{'list-unsubscribe'} || [];
+		my $n = 0;
+		foreach my $u (@$unsub) {
+			# Milter indices are 1-based,
+			# not 0-based like Perl arrays
+			my $index = ++$n;
+			my ($k, $v, $list, $domain) = @$u;
+
+			next unless $k && $v && $list && $domain;
+			my $u = $crypt->encrypt($rcpt[0]);
+			$u = encode_base64url($u);
+			$v .= ",\n <https://$domain/u/$u/$list>";
+
+			$ctx->chgheader($k, $index, $v);
+		}
+	};
+	warn $@ if $@;
+	SMFIS_CONTINUE;
+};
+
+my $milter = Sendmail::PMilter->new;
+
+# Try to inherit a socket from systemd or similar:
+my $fds = $ENV{LISTEN_FDS};
+if ($fds && (($ENV{LISTEN_PID} || 0) == $$)) {
+	die "$0 can only listen on one FD\n" if $fds != 1;
+	my $start_fd = 3;
+	my $s = IO::Socket->new_from_fd($start_fd, 'r') or
+		die "inherited bad FD from LISTEN_FDS: $!\n";
+	$milter->set_socket($s);
+} else {
+	# fall back to binding a socket:
+	my $sock = 'unix:/var/spool/postfix/unsubscribe/unsubscribe.sock';
+	$milter->set_listen(1024);
+	my $umask = umask 0000;
+	$milter->setconn($sock);
+	umask $umask;
+}
+
+$milter->register('unsubscribe', \%cbs, SMFI_CURR_ACTS);
+$milter->main();

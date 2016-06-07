@@ -1,0 +1,20 @@
+# ==> /etc/systemd/system/unsubscribe-psgi@.service <==
+# The '@' is to allow multiple simultaneous services to start
+# and share the same socket so new code can be cycled in
+# without downtime
+
+[Unit]
+Description = unsubscribe PSGI %i
+Wants = unsubscribe-psgi.socket
+After = unsubscribe-psgi.socket
+
+[Service]
+# any PSGI server ought to work,
+# but public-inbox-httpd supports socket activation like unsubscribe.milter
+ExecStart = /usr/local/bin/public-inbox-httpd -W0 /etc/unsubscribe.psgi
+Sockets = unsubscribe-psgi.socket
+# we need to modify the mlmmj spool
+User = mlmmj
+
+[Install]
+WantedBy = multi-user.target
