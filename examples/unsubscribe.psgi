@@ -19,7 +19,7 @@ my $app = PublicInbox::Unsubscribe->new(
 	},
 	code_url => 'git://80x24.org/public-inbox.git', # change if you fork
 	owner_email => 'BOFH@example.com',
-	confirm => 1,
+	confirm => 0,
 
 	# First 8 bytes is for the key, next 8 bytes is for the IV
 	# using Blowfish.  We want as short URLs as possible to avoid
