@@ -44,8 +44,8 @@ sub msg_reply {
 	push @$arg, '/path/to/YOUR_REPLY';
 
 	"<hr /><pre\nid=R>".
-	"You may reply publically to <a\nhref=#t>this message</a> via email\n".
-	"using any one of the following methods:\n\n" .
+	"You may reply publically to <a\nhref=#t>this message</a> via\n".
+	"plain-text email using any one of the following methods:\n\n" .
 	"* Save the following mbox file, import it into your mail client,\n" .
 	"  and reply-to-all from there: <a\nhref=raw>mbox</a>\n\n" .
 	"* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,\n" .
