@@ -47,7 +47,7 @@ archives.
 _Anybody_ may also setup a delivery-only mailing list server to
 replay a public-inbox git archive to subscribers via SMTP.
 
-[1] http://ssoma.public-inbox.org/
+[1] https://ssoma.public-inbox.org/
 
 Features
 --------
@@ -60,7 +60,7 @@ Features
 
 * uses only well-documented and easy-to-implement data formats
 
-Try it out now, see http://try.public-inbox.org/
+Try it out now, see https://try.public-inbox.org/
 
 Requirements for reading:
 
@@ -82,7 +82,7 @@ Requirements (participant)
 Requirements (server)
 ---------------------
 
-See http://public-inbox.org/INSTALL
+See https://public-inbox.org/INSTALL
 
 Hacking
 -------
@@ -111,15 +111,15 @@ on git@vger.kernel.org).
 The archives are readable via NNTP or HTTP:
 
 	nntp://news.public-inbox.org/inbox.comp.mail.public-inbox.meta
-	http://public-inbox.org/meta/
+	https://public-inbox.org/meta/
 
 You may also clone all messages via git:
 
-	git clone --mirror git://public-inbox.org/meta.git
+	git clone --mirror https://public-inbox.org/meta/
 
 Or pass the same git repository URL for ssoma using the instructions at:
 
-	http://ssoma.public-inbox.org/README.html
+	https://ssoma.public-inbox.org/README.html
 
 Anti-Spam
 ---------
@@ -128,7 +128,7 @@ The maintainer of public-inbox has found SpamAssassin a good tool for
 filtering his personal mail, and it will be the default spam filtering
 tool in public-inbox.
 
-See http://public-inbox.org/dc-dlvr-spam-flow.html for more info.
+See https://public-inbox.org/dc-dlvr-spam-flow.html for more info.
 
 Content Filtering
 -----------------
@@ -145,8 +145,8 @@ aims to preserve the focus on content, and not presentation.
 Copyright
 ---------
 
-Copyright 2013-2015 all contributors <meta@public-inbox.org>
-License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>
+Copyright 2013-2016 all contributors <meta@public-inbox.org>
+License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -159,7 +159,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 Additional permission under GNU GPL version 3 section 7:
 
