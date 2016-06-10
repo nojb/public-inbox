@@ -82,6 +82,7 @@ sub _user_list_addr {
 		my $errors = $env->{'psgi.errors'};
 		$errors->print("error decrypting: $u\n");
 		$errors->print("$_\n") for split("\n", $err);
+		$u = Plack::Util::encode_html($u);
 		return r($self, 400, 'Bad request', "Failed to decrypt: $u");
 	}
 
