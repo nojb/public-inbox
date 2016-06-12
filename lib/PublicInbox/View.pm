@@ -9,6 +9,7 @@ use warnings;
 use URI::Escape qw/uri_escape_utf8/;
 use Date::Parse qw/str2time/;
 use Encode::MIME::Header;
+use Plack::Util;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
@@ -26,12 +27,26 @@ sub msg_html {
 	my ($ctx, $mime, $footer) = @_;
 	$footer = defined($footer) ? "\n$footer" : '';
 	my $hdr = $mime->header_obj;
-	headers_to_html_header($hdr, $ctx) .
-		multipart_text_as_html($mime, '') .
-		'</pre><hr /><pre>' .
-		html_footer($hdr, 1, $ctx) .
-		'</pre>' . msg_reply($ctx, $hdr) .
-		'<hr /><pre>'.  $footer . '</pre></body></html>';
+	my $n = 0;
+	Plack::Util::inline_object(
+		close => sub {}, # noop
+		getline => sub {
+			my $nr = $n++;
+			if ($nr == 0) {
+				headers_to_html_header($hdr, $ctx) .
+					multipart_text_as_html($mime, '') .
+					'</pre><hr />'
+			} elsif ($nr == 1) {
+				'<pre>' .
+					html_footer($hdr, 1, $ctx) .
+					'</pre>' . msg_reply($ctx, $hdr) .
+					'<hr /><pre>'.  $footer .
+					'</pre></body></html>'
+			} else {
+				undef
+			}
+		}
+	)
 }
 
 # /$INBOX/$MESSAGE_ID/#R

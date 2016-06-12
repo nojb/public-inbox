@@ -228,7 +228,7 @@ sub get_mid_html {
 	my $mime = Email::MIME->new($x);
 	searcher($ctx);
 	[ 200, [ 'Content-Type' => 'text/html; charset=UTF-8' ],
-	  [ PublicInbox::View::msg_html($ctx, $mime, $foot) ] ];
+	  PublicInbox::View::msg_html($ctx, $mime, $foot) ];
 }
 
 # /$INBOX/$MESSAGE_ID/t/

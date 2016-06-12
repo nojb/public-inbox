@@ -9,7 +9,13 @@ use PublicInbox::View;
 sub msg_html ($) {
 	my ($mime) = @_;
 
-	PublicInbox::View::msg_html(undef, $mime);
+	my $s = '';
+	my $body = PublicInbox::View::msg_html(undef, $mime);
+	while (defined(my $buf = $body->getline)) {
+		$s .= $buf;
+	}
+	$body->close;
+	$s;
 }
 
 # plain text
