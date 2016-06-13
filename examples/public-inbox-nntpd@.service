@@ -26,6 +26,7 @@ User = nobody
 Group = nogroup
 ExecReload = /bin/kill -HUP $MAINPID
 TimeoutStopSec = 3600
+KillMode = process
 
 [Install]
 WantedBy = multi-user.target

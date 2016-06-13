@@ -15,6 +15,7 @@ ExecStart = /usr/local/bin/public-inbox-httpd -W0 /etc/unsubscribe.psgi
 Sockets = unsubscribe-psgi.socket
 # we need to modify the mlmmj spool
 User = mlmmj
+KillMode = process
 
 [Install]
 WantedBy = multi-user.target
