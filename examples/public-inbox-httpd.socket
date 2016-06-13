@@ -1,0 +1,10 @@
+# ==> /etc/systemd/system/public-inbox-httpd.socket <==
+[Unit]
+Description = public-inbox-httpd socket
+
+[Socket]
+ListenStream = 127.0.0.1:280
+Service = public-inbox-httpd@1.service
+
+[Install]
+WantedBy = sockets.target

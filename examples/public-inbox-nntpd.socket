@@ -1,0 +1,10 @@
+# ==> /etc/systemd/system/public-inbox-nntpd.socket <==
+[Unit]
+Description = public-inbox-nntpd socket
+
+[Socket]
+ListenStream = 119
+Service = public-inbox-nntpd@1.service
+
+[Install]
+WantedBy = sockets.target

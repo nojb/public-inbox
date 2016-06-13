@@ -1,0 +1,31 @@
+# ==> /etc/systemd/system/public-inbox-nntpd@.service <==
+# Since SIGUSR2 upgrades do not work under systemd, this service file
+# allows starting two simultaneous services during upgrade time
+# (e.g. public-inbox-nntpd@1 public-inbox-nntpd@2) with the intention
+# that they take turns running in-between upgrades.  This should
+# allow upgrading without downtime.
+
+[Unit]
+Description = public-inbox NNTP server %i
+Wants = public-inbox-nntpd.socket
+After = public-inbox-nntpd.socket
+
+[Service]
+Environment = PI_CONFIG=/home/pi/.public-inbox/config \
+PATH=/usr/local/bin:/usr/bin:/bin \
+PERL_INLINE_DIRECTORY=/tmp/.pub-inline
+
+LimitNOFILE = 30000
+ExecStartPre = /bin/mkdir -p -m 1777 /tmp/.pub-inline
+ExecStart = /usr/local/bin/public-inbox-nntpd \
+-1 /var/log/public-inbox/nntpd.out.log \
+-2 /var/log/public-inbox/nntpd.err.log
+Sockets = public-inbox-nntpd.socket
+KillSignal = SIGQUIT
+User = nobody
+Group = nogroup
+ExecReload = /bin/kill -HUP $MAINPID
+TimeoutStopSec = 3600
+
+[Install]
+WantedBy = multi-user.target
