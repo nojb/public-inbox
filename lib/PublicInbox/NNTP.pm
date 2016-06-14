@@ -512,6 +512,12 @@ sub set_art {
 	$self->{article} = $art if defined $art && $art =~ /\A\d+\z/;
 }
 
+sub _header ($) {
+	my $hdr = $_[0]->header_obj->as_string;
+	utf8::encode($hdr);
+	$hdr
+}
+
 sub cmd_article ($;$) {
 	my ($self, $art) = @_;
 	my $r = art_lookup($self, $art, 1);
@@ -519,7 +525,7 @@ sub cmd_article ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "220 $n <$mid> article retrieved - head and body follow");
-	do_more($self, $s->header_obj->as_string);
+	do_more($self, _header($s));
 	do_more($self, "\r\n");
 	simple_body_write($self, $s);
 }
@@ -531,7 +537,7 @@ sub cmd_head ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "221 $n <$mid> article retrieved - head follows");
-	do_more($self, $s->header_obj->as_string);
+	do_more($self, _header($s));
 	'.'
 }
 
@@ -738,6 +744,7 @@ sub hdr_searchmsg ($$$$) {
 			foreach my $s (@$msgs) {
 				$tmp .= $s->num . ' ' . $s->$field . "\r\n";
 			}
+			utf8::encode($tmp);
 			do_more($self, $tmp);
 			# -1 to adjust for implicit increment in long_response
 			$$i = $nr ? $$i + $nr - 1 : long_response_limit;
@@ -826,7 +833,7 @@ sub over_line ($$) {
 	my ($num, $smsg) = @_;
 	# n.b. field access and procedural calls can be
 	# 10%-15% faster than OO method calls:
-	join("\t", $num,
+	my $s = join("\t", $num,
 		$smsg->{subject},
 		$smsg->{from},
 		PublicInbox::SearchMsg::date($smsg),
@@ -834,6 +841,8 @@ sub over_line ($$) {
 		$smsg->{references},
 		PublicInbox::SearchMsg::bytes($smsg),
 		PublicInbox::SearchMsg::lines($smsg));
+	utf8::encode($s);
+	$s
 }
 
 sub cmd_over ($;$) {
@@ -896,7 +905,6 @@ sub cmd_xpath ($$) {
 
 sub res ($$) {
 	my ($self, $line) = @_;
-	utf8::encode($line);
 	do_write($self, $line . "\r\n");
 }
 
@@ -931,7 +939,6 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
 sub do_more ($$) {
 	my ($self, $data) = @_;
-	utf8::encode($data);
 	if (MSG_MORE && !$self->{write_buf_size}) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
 		if (defined $n) {

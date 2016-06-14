@@ -175,6 +175,8 @@ EOF
 
 	is_deeply($n->head(1), $n->head('<nntp@example.com>'), 'HEAD OK');
 	is_deeply($n->body(1), $n->body('<nntp@example.com>'), 'BODY OK');
+	is($n->body(1)->[0], "This is a test message for El\xc3\xa9anor\n",
+		'body really matches');
 	my $art = $n->article(1);
 	is(ref($art), 'ARRAY', 'got array for ARTICLE');
 	is_deeply($art, $n->article('<nntp@example.com>'), 'ARTICLE OK');
