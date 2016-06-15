@@ -8,7 +8,6 @@ use PublicInbox::Feed;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Config;
-use IPC::Run qw/run/;
 use File::Temp qw/tempdir/;
 my $have_xml_feed = eval { require XML::Feed; 1 };
 require 't/common.perl';
@@ -22,6 +21,8 @@ sub string_feed {
 my %SSOMA;
 sub rand_use ($) {
 	return 0 if $ENV{FAST};
+	eval { require IPC::Run };
+	return 0 if $@;
 	my $cmd = $_[0];
 	my $x = $SSOMA{$cmd};
 	unless ($x) {
@@ -80,7 +81,7 @@ EOF
 		if (rand_use('ssoma-mda')) {
 			$im->done;
 			my $str = $mime->as_string;
-			run(['ssoma-mda', $git_dir], \$str) or
+			IPC::Run::run(['ssoma-mda', $git_dir], \$str) or
 				die "mda failed: $?\n";
 		} else {
 			like($im->add($mime), qr/\A:\d+/, 'added');
@@ -123,14 +124,9 @@ Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 EOF
 		if (rand_use('ssoma-mda')) {
-			my $pid = open(my $pipe, "|-");
-			defined $pid or die "fork/pipe failed: $!";
-			if ($pid == 0) {
-				exec("ssoma-mda", $git_dir);
-			}
-
-			print $pipe $spam->as_string or die "print failed: $!";
-			close $pipe or die "close pipe failed: $!";
+			my $str = $spam->as_string;
+			IPC::Run::run(['ssoma-mda', $git_dir], \$str) or
+				die "mda failed: $?\n";
 		} else {
 			$im->add($spam);
 			$im->done;
@@ -155,7 +151,7 @@ EOF
 	# nuke spam
 	if (rand_use('ssoma-rm')) {
 		my $spam_str = $spam->as_string;
-		run(["ssoma-rm", $git_dir], \$spam_str) or
+		IPC::Run::run(["ssoma-rm", $git_dir], \$spam_str) or
 				die "ssoma-rm failed: $?\n";
 	} else {
 		$im->remove($spam);
