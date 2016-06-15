@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-use Email::Filter;
 use File::Temp qw/tempdir/;
 use Cwd;
 use IPC::Run qw(run);
@@ -54,8 +53,7 @@ local $ENV{GIT_COMMITTER_NAME} = eval {
 	open(my $fh, '<', $mbox) or die "failed to open mbox: $mbox\n";
 	my $str = eval { local $/; <$fh> };
 	close $fh;
-	my $msg = Email::Filter->new(data => $str);
-	$msg = Email::MIME->new($msg->simple->as_string);
+	my $msg = Email::MIME->new($str);
 
 	my $from = $msg->header('From');
 	my $author = PublicInbox::Address::from_name($from);
