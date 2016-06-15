@@ -25,10 +25,8 @@ Requirements (server MDA)
 * git
 * SpamAssassin (spamc/spamd)
 * MTA - postfix is recommended
-* lynx (for converting HTML messages to text)
 * Perl and several modules:    (Debian package name)
   - Date::Parse                libtimedate-perl
-  - Email::Filter              libemail-filter-perl
   - Email::MIME                libemail-mime-perl
   - Email::MIME::ContentType   libemail-mime-contenttype-perl
   - Encode::MIME::Header       perl

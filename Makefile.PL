@@ -18,7 +18,6 @@ WriteMakefile(
 		# We also depend on git.
 		# Keep this sorted and synced to the INSTALL document
 		'Date::Parse' => 0,
-		'Email::Filter' => 0,
 		'Email::MIME' => 0,
 		'Email::MIME::ContentType' => 0,
 		'Email::Simple' => 0,

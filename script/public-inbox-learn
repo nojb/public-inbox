@@ -55,11 +55,7 @@ foreach my $h (qw(Cc To)) {
 	}
 }
 
-if ($train eq "ham") {
-	require PublicInbox::MDA;
-	require PublicInbox::Filter;
-	PublicInbox::Filter->run($mime);
-}
+require PublicInbox::MDA if $train eq "ham";
 
 # n.b. message may be cross-posted to multiple public-inboxes
 foreach my $recipient (keys %dests) {
