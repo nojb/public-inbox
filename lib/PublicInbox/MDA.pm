@@ -32,18 +32,17 @@ sub __drop_plus {
 
 # do not allow Bcc, only Cc and To if recipient is set
 sub precheck {
-	my ($klass, $filter, $address) = @_;
-	my Email::Simple $simple = $filter->simple;
+	my ($klass, $simple, $address) = @_;
 	my @mid = $simple->header('Message-ID');
 	return 0 if scalar(@mid) != 1;
 	my $mid = $mid[0];
 	return 0 if (length($mid) > MAX_MID_SIZE);
 	return 0 unless usable_str(length('<m@h>'), $mid) && $mid =~ /\@/;
-	return 0 unless usable_str(length('u@h'), $filter->from);
+	return 0 unless usable_str(length('u@h'), $simple->header("From"));
 	return 0 unless usable_str(length(':o'), $simple->header("Subject"));
 	return 0 unless usable_date($simple->header("Date"));
 	return 0 if length($simple->as_string) > MAX_SIZE;
-	alias_specified($filter, $address);
+	alias_specified($simple, $address);
 }
 
 sub usable_str {
@@ -57,14 +56,14 @@ sub usable_date {
 }
 
 sub alias_specified {
-	my ($filter, $address) = @_;
+	my ($simple, $address) = @_;
 
 	my @address = ref($address) eq 'ARRAY' ? @$address : ($address);
 	my %ok = map {
 		lc(__drop_plus($_)) => 1;
 	} @address;
 
-	foreach my $line ($filter->cc, $filter->to) {
+	foreach my $line ($simple->header('Cc'), $simple->header('To')) {
 		my @addrs = ($line =~ /([^<\s]+\@[^>\s]+)/g);
 		foreach my $addr (@addrs) {
 			if ($ok{lc(__drop_plus($addr))}) {

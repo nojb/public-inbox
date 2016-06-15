@@ -34,7 +34,7 @@ defined $dst or exit(1);
 my $main_repo = $dst->{mainrepo} or exit(1);
 my $filtered; # string dest
 
-if (PublicInbox::MDA->precheck($filter, $dst->{address}) &&
+if (PublicInbox::MDA->precheck($filter->simple, $dst->{address}) &&
     do_spamc($filter->simple, \$filtered)) {
 	# update our message with SA headers (in case our filter rejects it)
 	my $msg = Email::MIME->new(\$filtered);
