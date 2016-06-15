@@ -7,7 +7,6 @@ use strict;
 use warnings;
 require PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
-use File::Path::Expand qw/expand_filename/;
 
 # returns key-value pairs of config directives in a hash
 # if keys may be multi-value, the value is an array ref containing all values
@@ -82,7 +81,7 @@ sub get {
 	$self->{"publicinbox.$inbox.$key"};
 }
 
-sub config_dir { $ENV{PI_DIR} || expand_filename('~/.public-inbox') }
+sub config_dir { $ENV{PI_DIR} || "$ENV{HOME}/.public-inbox" }
 
 sub default_file {
 	my $f = $ENV{PI_CONFIG};

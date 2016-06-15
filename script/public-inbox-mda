@@ -11,7 +11,6 @@ use Email::Filter;
 use Email::MIME;
 use Email::MIME::ContentType;
 $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
-use File::Path::Expand qw/expand_filename/;
 use IPC::Run qw(run);
 use PublicInbox::MDA;
 use PublicInbox::Filter;
@@ -22,8 +21,7 @@ use PublicInbox::Git;
 # n.b: hopefully we can setup the emergency path without bailing due to
 # user error, we really want to setup the emergency destination ASAP
 # in case there's bugs in our code or user error.
-my $emergency = $ENV{PI_EMERGENCY} || '~/.public-inbox/emergency/';
-$emergency = expand_filename($emergency);
+my $emergency = $ENV{PI_EMERGENCY} || "$ENV{HOME}/.public-inbox/emergency/";
 
 # this reads the message from stdin
 my $filter = Email::Filter->new(emergency => $emergency);
