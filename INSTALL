@@ -53,20 +53,7 @@ is patched against the index corruption bug documented in:
 
 	https://bugs.debian.org/808610
 
-For Debian 8.0, this means installing from jessie-backports
-until the fix lands in jessie.
-
-# Ensure the following line is in your apt sources.list(5)
-# (typically /etc/apt/sources.list):
-
-deb http://http.us.debian.org/debian jessie-backports main
-
-Then run:
-
-	apt-get update
-	apt-get install -t jessie-backports libxapian22
-
-to install the package.
+For Debian 8.x (jessie), this means using Debian 8.5 or later.
 
 public-inbox will never store unregeneratable data in Xapian
 or any other search database we might use; Xapian corruption
