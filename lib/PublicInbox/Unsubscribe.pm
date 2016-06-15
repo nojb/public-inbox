@@ -158,7 +158,7 @@ sub archive_info {
 	}
 
 	# protocol-relative URL:  "//example.com/" => "https://example.com/"
-	if ($archive_url =~ m!\A//!) {
+	if ($archive_url && $archive_url =~ m!\A//!) {
 		$archive_url = "$env->{'psgi.url_scheme'}:$archive_url";
 	}
 
