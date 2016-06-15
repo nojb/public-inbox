@@ -22,7 +22,7 @@ my $fail_bin = getcwd()."/t/fail-bin";
 my $fail_path = "$fail_bin:$ENV{PATH}"; # for spamc spam mock
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
-my $failbox = "$home/fail.mbox";
+my $faildir = "$home/faildir/";
 my $mime;
 
 {
@@ -72,7 +72,7 @@ die $@ if $@;
 
 {
 	my $good_rev;
-	local $ENV{PI_EMERGENCY} = $failbox;
+	local $ENV{PI_EMERGENCY} = $faildir;
 	local $ENV{HOME} = $home;
 	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	my $simple = Email::Simple->new(<<EOF);
@@ -103,12 +103,14 @@ EOF
 
 	# ensure failures work, fail with bad spamc
 	{
-		ok(!-e $failbox, "nothing in PI_EMERGENCY before");
+		my @prev = <$faildir/new/*>;
+		is(scalar @prev, 0 , "nothing in PI_EMERGENCY before");
 		local $ENV{PATH} = $fail_path;
 		run([$mda], \$in);
 		my @revs = `git --git-dir=$maindir rev-list HEAD`;
 		is(scalar @revs, 1, "bad revision not committed");
-		ok(-s $failbox > 0, "PI_EMERGENCY is written to");
+		my @new = <$faildir/new/*>;
+		is(scalar @new, 1, "PI_EMERGENCY is written to");
 	}
 
 	fail_bad_header($good_rev, "bad recipient", <<"");
@@ -158,7 +160,7 @@ Date: deadbeef
 
 # spam training
 {
-	local $ENV{PI_EMERGENCY} = $failbox;
+	local $ENV{PI_EMERGENCY} = $faildir;
 	local $ENV{HOME} = $home;
 	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
@@ -193,7 +195,7 @@ EOF
 
 # train ham message
 {
-	local $ENV{PI_EMERGENCY} = $failbox;
+	local $ENV{PI_EMERGENCY} = $faildir;
 	local $ENV{HOME} = $home;
 	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
@@ -263,72 +265,19 @@ EOF
 	}
 }
 
-# faildir - emergency destination is maildir
-{
-	my $faildir= "$home/faildir/";
-	local $ENV{PI_EMERGENCY} = $faildir;
-	local $ENV{HOME} = $home;
-	local $ENV{ORIGINAL_RECIPIENT} = $addr;
-	local $ENV{PATH} = $fail_path;
-	my $in = <<EOF;
-From: Faildir <faildir\@example.com>
-To: You <you\@example.com>
-Cc: $addr
-Message-ID: <faildir\@example.com>
-Subject: faildir subject
-Date: Thu, 01 Jan 1970 00:00:00 +0000
-
-EOF
-	run([$mda], \$in);
-	ok(-d $faildir, "emergency exists");
-	my @new = glob("$faildir/new/*");
-	is(scalar(@new), 1, "message delivered");
-	is(unlink(@new), 1, "removed emergency message");
-
-	local $ENV{PATH} = $main_path;
-	$in = <<EOF;
-From: Faildir <faildir\@example.com>
-To: $addr
-Content-Type: text/html
-Message-ID: <faildir\@example.com>
-Subject: faildir subject
-Date: Thu, 01 Jan 1970 00:00:00 +0000
-
-<html><body>bad</body></html>
-EOF
-	my $out = '';
-	my $err = '';
-	run([$mda], \$in, \$out, \$err);
-	isnt($?, 0, "mda exited with failure");
-	is(length $out, 0, 'nothing in stdout');
-	isnt(length $err, 0, 'error message in stderr');
-
-	@new = glob("$faildir/new/*");
-	is(scalar(@new), 0, "new message did not show up");
-
-	# reject multipart again
-	$in = $mime->as_string;
-	$err = '';
-	run([$mda], \$in, \$out, \$err);
-	isnt($?, 0, "mda exited with failure");
-	is(length $out, 0, 'nothing in stdout');
-	isnt(length $err, 0, 'error message in stderr');
-	@new = glob("$faildir/new/*");
-	is(scalar(@new), 0, "new message did not show up");
-}
-
 done_testing();
 
 sub fail_bad_header {
 	my ($good_rev, $msg, $in) = @_;
-	open my $fh, '>', $failbox or die "failed to open $failbox: $!\n";
-	close $fh or die "failed to close $failbox: $!\n";
+	my @f = glob("$faildir/*/*");
+	unlink @f if @f;
 	my ($out, $err) = ("", "");
 	local $ENV{PATH} = $main_path;
 	run([$mda], \$in, \$out, \$err);
 	my $rev = `git --git-dir=$maindir rev-list HEAD`;
 	chomp $rev;
 	is($rev, $good_rev, "bad revision not commited ($msg)");
-	ok(-s $failbox > 0, "PI_EMERGENCY is written to ($msg)");
+	@f = glob("$faildir/*/*");
+	is(scalar @f, 1, "faildir written to");
 	[ $in, $out, $err ];
 }
