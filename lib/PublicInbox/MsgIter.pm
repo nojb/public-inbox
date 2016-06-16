@@ -7,6 +7,7 @@ use warnings;
 use base qw(Exporter);
 our @EXPORT = qw(msg_iter);
 use Email::MIME;
+use Scalar::Util qw(readonly);
 
 # Workaround Email::MIME versions without
 # commit dcef9be66c49ae89c7a5027a789bbbac544499ce
@@ -36,7 +37,14 @@ sub msg_iter ($$) {
 				@parts = (@sub, @parts);
 			} else {
 				if ($extra_nl) {
-					${$part->{body}} .= $part->{mycrlf};
+					my $lf = $part->{mycrlf};
+					my $bref = $part->{body};
+					if (readonly($$bref)) {
+						my $s = $$bref . $lf;
+						$part->{body} = \$s;
+					} else {
+						$$bref .= $lf;
+					}
 				}
 				$cb->($p);
 			}
