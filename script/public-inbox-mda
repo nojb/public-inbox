@@ -57,7 +57,11 @@ do_exit(0) unless $spam_ok;
 
 my $fcfg = $dst->{filter} || '';
 my $filter;
-if ($fcfg eq 'scrub') { # TODO:
+if ($fcfg =~ /::/) {
+	eval "require $fcfg";
+	die $@ if $@;
+	$filter = $fcfg->new;
+} elsif ($fcfg eq 'scrub') { # TODO:
 	require PublicInbox::Filter::Mirror;
 	$filter = PublicInbox::Filter::Mirror->new;
 } else {
