@@ -5,12 +5,6 @@
 # to use with postfix main.cf: mailbox_command = /etc/dc-dlvr "$EXTENSION"
 DELIVER=/usr/lib/dovecot/deliver
 
-# my personal preference is to use a catchall account to avoid generating
-# backscatter, as invalid emails are usually spam
-case $USER in
-catchall) exec $DELIVER ;;
-esac
-
 # change if your spamc/spamd listens elsewhere
 spamc='spamc'
 
