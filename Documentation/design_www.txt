@@ -25,7 +25,7 @@ URL and anchor naming
 
 /$INBOX/$MESSAGE_ID                    -> 301 to /$INBOX/$MESSAGE_ID/
 /$INBOX/$MESSAGE_ID/raw                -> raw mbox
-/$INBOX/$MESSAGE_ID/R/                 -> HTML reply instructions
+/$INBOX/$MESSAGE_ID/#R                 -> HTML reply instructions
 
 # Covering up a pre-1.0 design mistake:
 /$INBOX/$MESSAGE_ID/f/                 -> 301 to /$INBOX/$MESSAGE_ID/
