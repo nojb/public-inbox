@@ -74,6 +74,7 @@ lib/PublicInbox/Thread.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/View.pm
 lib/PublicInbox/WWW.pm
+lib/PublicInbox/WatchMaildir.pm
 lib/PublicInbox/WwwAttach.pm
 sa_config/Makefile
 sa_config/README
@@ -85,6 +86,7 @@ script/public-inbox-init
 script/public-inbox-learn
 script/public-inbox-mda
 script/public-inbox-nntpd
+script/public-inbox-watch
 script/public-inbox.cgi
 scripts/dc-dlvr
 scripts/dc-dlvr.pre

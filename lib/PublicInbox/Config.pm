@@ -120,7 +120,8 @@ sub _fill {
 	my ($self, $pfx) = @_;
 	my $rv = {};
 
-	foreach my $k (qw(mainrepo address filter url newsgroup)) {
+	foreach my $k (qw(mainrepo address filter url newsgroup
+			watch watchheader)) {
 		my $v = $self->{"$pfx.$k"};
 		$rv->{$k} = $v if defined $v;
 	}
