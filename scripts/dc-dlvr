@@ -1,6 +1,6 @@
 #!/bin/sh
-# Copyright (C) 2008-2013, Eric Wong <e@80x24.org>
-# License: GPLv3 or later <http://www.gnu.org/licenses/gpl-3.0.txt>
+# Copyright (C) 2008-2016 all contributors <meta@public-inbox.org>
+# License: GPL-3.0+ <http://www.gnu.org/licenses/gpl-3.0.txt>
 # This is installed as /etc/dc-dcvr on my system
 # to use with postfix main.cf: mailbox_command = /etc/dc-dlvr "$EXTENSION"
 DELIVER=/usr/lib/dovecot/deliver
