@@ -17,7 +17,7 @@ my $l3 =
 # only LKML had this, and LKML nowadays has no list trailer since Jan 2016
 my $l4 = qr!Please read the FAQ at +http://www\.tux\.org/lkml/!;
 
-sub delivery {
+sub scrub {
 	my ($self, $mime) = @_;
 	my $s = $mime->as_string;
 
@@ -28,6 +28,11 @@ sub delivery {
 		$mime = Email::MIME->new(\$s);
 	}
 	$self->ACCEPT($mime);
+}
+
+sub delivery {
+	my ($self, $mime) = @_;
+	$self->scrub($mime);
 }
 
 1;

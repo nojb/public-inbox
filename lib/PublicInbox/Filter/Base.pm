@@ -62,6 +62,13 @@ sub reject ($$) {
 
 sub err ($) { $_[0]->{err} }
 
+# by default, scrub is a no-op, see PublicInbox::Filter::Vger::scrub
+# for an example of the override
+sub scrub {
+	my ($self, $mime) = @_;
+	$self->ACCEPT($mime);
+}
+
 # for MDA
 sub delivery {
 	my ($self, $mime) = @_;
@@ -94,7 +101,7 @@ sub delivery {
 		push @r, 'Rejected suffixes(s): '.join(', ', sort keys %sfx);
 	}
 
-	@r ? $self->reject(join("\n", @r)) : $self->ACCEPT;
+	@r ? $self->reject(join("\n", @r)) : $self->scrub($mime);
 }
 
 1;
