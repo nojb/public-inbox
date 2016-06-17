@@ -79,7 +79,6 @@ if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
 } # else { accept
 
 PublicInbox::MDA->set_list_headers($mime, $dst);
-END { index_sync($main_repo) if $? == 0 };
 my $git = PublicInbox::Git->new($main_repo);
 my $im = PublicInbox::Import->new($git, $dst->{name}, $recipient);
 if (defined $im->add($mime)) {
@@ -106,12 +105,4 @@ sub do_spamc {
 	waitpid($pid, 0);
 
 	($? || $$out eq '') ? 0 : 1;
-}
-
-sub index_sync {
-	my ($git_dir) = @_;
-	eval {
-		require PublicInbox::SearchIdx;
-		PublicInbox::SearchIdx->new($git_dir, 2)->index_sync;
-	};
 }

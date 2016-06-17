@@ -226,6 +226,11 @@ sub done {
 		waitpid($pid, 0) == $pid or
 			die 'update-server-info did not finish';
 		$? == 0 or die "failed to update-server-info: $?\n";
+
+		eval {
+			require PublicInbox::SearchIdx;
+			PublicInbox::SearchIdx->new($git_dir, 2)->index_sync;
+		};
 	}
 
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";

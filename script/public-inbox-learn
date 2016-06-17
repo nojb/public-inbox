@@ -84,10 +84,6 @@ foreach my $recipient (keys %dests) {
 		$im->add($mime);
 	}
 	$im->done;
-	eval {
-		require PublicInbox::SearchIdx;
-		PublicInbox::SearchIdx->new($git_dir, 2)->index_sync;
-	};
 }
 
 if ($err) {
