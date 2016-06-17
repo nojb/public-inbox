@@ -78,8 +78,7 @@ browsers default to.
 
 * No setting colors or font sizes, power to users to decide those.
   We will include and document <span class=?> to support colors
-  for user-supplied CSS, and may support client-supplied CSS
-  via cookie.
+  for user-supplied CSS.
 
 * Only one font type: fixed.  This is for accessibility, we must
   not blow certain elements out-of-proportion with different
@@ -105,7 +104,7 @@ browsers default to.
 	http://thejh.net/misc/website-terminal-copy-paste
 
   However, we will try to make it easy for users to supply their
-  own colors and perhaps offer color options over cookies.
+  own colors via user-side CSS.
 
 CSS classes (for user-supplied CSS)
 -----------------------------------
