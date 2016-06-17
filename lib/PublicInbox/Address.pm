@@ -7,7 +7,7 @@ use warnings;
 # very loose regexes, here.  We don't need RFC-compliance,
 # just enough to make thing sanely displayable and pass to git
 
-sub emails { ($_[0] =~ /([^<\s]+\@[^>\s]+)/g) }
+sub emails { ($_[0] =~ /([^<\s,]+\@[^>\s,]+)/g) }
 
 sub from_name {
 	my ($val) = @_;
