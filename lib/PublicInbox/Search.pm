@@ -109,6 +109,8 @@ sub get_thread {
 	my $path = id_compress($smsg->path);
 	my $qsub = Search::Xapian::Query->new(xpfx('path').$path);
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
+	$opts ||= {};
+	$opts->{limit} ||= 1000;
 	$self->do_enquire($query, $opts);
 }
 
