@@ -109,20 +109,11 @@ sub emit_atom_thread {
 	end_feed($fh);
 }
 
-sub emit_html_index {
-	my ($res, $ctx) = @_;
-	my $feed_opts = get_feedopts($ctx);
-	my $fh = $res->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
-
-	my $max = $ctx->{max} || MAX_PER_PAGE;
+sub _html_index_top {
+	my ($feed_opts, $srch) = @_;
 
 	my $title = ascii_html($feed_opts->{description} || '');
-	my ($footer, $param, $last);
-	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0, fh => $fh };
-	my $srch = $ctx->{srch};
-
 	my $top = "<b>$title</b> (<a\nhref=\"new.atom\">Atom feed</a>)";
-
 	if ($srch) {
 		$top = qq{<form\naction=""><pre>$top} .
 			  qq{ <input\nname=q\ntype=text />} .
@@ -132,11 +123,24 @@ sub emit_html_index {
 		$top = '<pre>' . $top . "\n";
 	}
 
-	$fh->write("<html><head><title>$title</title>" .
-		   "<link\nrel=alternate\ntitle=\"Atom feed\"\n".
-		   "href=\"new.atom\"\ntype=\"application/atom+xml\"/>" .
-		   PublicInbox::Hval::STYLE .
-		   "</head><body>$top");
+	"<html><head><title>$title</title>" .
+		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
+		"href=\"new.atom\"\ntype=\"application/atom+xml\"/>" .
+		PublicInbox::Hval::STYLE .
+		"</head><body>$top";
+}
+
+sub emit_html_index {
+	my ($res, $ctx) = @_;
+	my $feed_opts = get_feedopts($ctx);
+	my $fh = $res->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
+
+	my $max = $ctx->{max} || MAX_PER_PAGE;
+
+	my ($footer, $param, $last);
+	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0, fh => $fh };
+	my $srch = $ctx->{srch};
+	$fh->write(_html_index_top($feed_opts, $srch));
 
 	# if the 'r' query parameter is given, it is a legacy permalink
 	# which we must continue supporting:
