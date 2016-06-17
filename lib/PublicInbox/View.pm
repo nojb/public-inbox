@@ -15,6 +15,7 @@ use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
+use PublicInbox::WwwStream;
 require POSIX;
 
 use constant INDENT => '  ';
@@ -22,31 +23,22 @@ use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
 # public functions: (unstable)
-# TODO: stream this, since threading is expensive but also oh-so-important
 sub msg_html {
 	my ($ctx, $mime, $footer) = @_;
-	$footer = defined($footer) ? "\n$footer" : '';
 	my $hdr = $mime->header_obj;
-	my $n = 0;
-	Plack::Util::inline_object(
-		close => sub {}, # noop
-		getline => sub {
-			my $nr = $n++;
-			if ($nr == 0) {
-				headers_to_html_header($hdr, $ctx) .
-					multipart_text_as_html($mime, '') .
-					'</pre><hr />'
-			} elsif ($nr == 1) {
-				'<pre>' .
-					html_footer($hdr, 1, $ctx) .
-					'</pre>' . msg_reply($ctx, $hdr) .
-					'<hr /><pre>'.  $footer .
-					'</pre></body></html>'
-			} else {
-				undef
-			}
+	my $tip = _msg_html_prepare($hdr, $ctx);
+	PublicInbox::WwwStream->new($ctx, sub {
+		my ($nr, undef) = @_;
+		if ($nr == 1) {
+			$tip . multipart_text_as_html($mime, '') .
+				'</pre><hr />'
+		} elsif ($nr == 2) {
+			'<pre>' . html_footer($hdr, 1, $ctx) .
+			'</pre>' . msg_reply($ctx, $hdr) . '<hr />'
+		} else {
+			undef
 		}
-	)
+	});
 }
 
 # /$INBOX/$MESSAGE_ID/#R
@@ -318,18 +310,15 @@ sub add_text_body {
 	$s;
 }
 
-sub headers_to_html_header {
+sub _msg_html_prepare {
 	my ($hdr, $ctx) = @_;
 	my $srch = $ctx->{srch} if $ctx;
 	my $atom = '';
-	my $rv = '';
-	my $upfx = '';
+	my $rv = "<pre\nid=b>"; # anchor for body start
 
 	if ($srch) {
-		$atom = qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
-			qq!href="${upfx}t.atom"\ntype="application/atom+xml"/>!;
+		$ctx->{-upfx} = '../';
 	}
-
 	my @title;
 	my $mid = $hdr->header_raw('Message-ID');
 	$mid = PublicInbox::Hval->new_msgid($mid);
@@ -352,15 +341,11 @@ sub headers_to_html_header {
 		$rv .= "$h: " . $v->as_html . "\n";
 
 	}
+	$ctx->{-title_html} = join(' - ', @title);
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
-	$rv .= "(<a\nhref=\"${upfx}raw\">raw</a>)\n";
+	$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
 	$rv .= _parent_headers($hdr, $srch);
 	$rv .= "\n";
-
-	("<html><head><title>".  join(' - ', @title) . "</title>$atom".
-	 PublicInbox::Hval::STYLE .
-	 "</head><body><pre\nid=b>" . # anchor for body start
-	 $rv);
 }
 
 sub thread_skel {

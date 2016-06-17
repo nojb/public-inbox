@@ -5,12 +5,24 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use PublicInbox::View;
+use Plack::Util;
+
+# FIXME: make this test less fragile
+my $ctx = {
+	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'http' },
+	-inbox => Plack::Util::inline_object(
+		name => 'test',
+		search => sub { undef },
+		cloneurl => sub {[]},
+		description => sub { '' }),
+};
+$ctx->{-inbox}->{-primary_address} = 'test@example.com';
 
 sub msg_html ($) {
 	my ($mime) = @_;
 
 	my $s = '';
-	my $body = PublicInbox::View::msg_html(undef, $mime);
+	my $body = PublicInbox::View::msg_html($ctx, $mime);
 	while (defined(my $buf = $body->getline)) {
 		$s .= $buf;
 	}
