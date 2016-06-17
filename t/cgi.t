@@ -8,7 +8,8 @@ use Test::More;
 use Email::MIME;
 use File::Temp qw/tempdir/;
 use Cwd;
-use IPC::Run qw/run/;
+eval { require IPC::Run };
+plan skip_all => "missing IPC::Run for t/cgi.t" if $@;
 
 use constant CGI => "blib/script/public-inbox.cgi";
 my $index = "blib/script/public-inbox-index";
@@ -238,7 +239,7 @@ done_testing();
 sub run_with_env {
 	my ($env, @args) = @_;
 	my $init = sub { foreach my $k (keys %$env) { $ENV{$k} = $env->{$k} } };
-	run(@args, init => $init);
+	IPC::Run::run(@args, init => $init);
 }
 
 sub cgi_run {

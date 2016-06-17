@@ -30,7 +30,6 @@ Requirements (server MDA)
   - Email::MIME                libemail-mime-perl
   - Email::MIME::ContentType   libemail-mime-contenttype-perl
   - Encode::MIME::Header       perl
-  - IPC::Run                   libipc-run-perl
 
 Optional modules:
 

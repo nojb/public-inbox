@@ -6,8 +6,9 @@ use Test::More;
 use Email::MIME;
 use File::Temp qw/tempdir/;
 use Cwd;
-use IPC::Run qw(run);
 use PublicInbox::MID qw(mid2path);
+eval { require IPC::Run };
+plan skip_all => "missing IPC::Run for t/mda.t" if $@;
 
 my $mda = "blib/script/public-inbox-mda";
 my $learn = "blib/script/public-inbox-learn";
@@ -89,7 +90,7 @@ EOF
 	# ensure successful message delivery
 	{
 		local $ENV{PATH} = $main_path;
-		run([$mda], \$in);
+		IPC::Run::run([$mda], \$in);
 		my $rev = `git --git-dir=$maindir rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 		chomp $rev;
@@ -106,7 +107,7 @@ EOF
 		my @prev = <$faildir/new/*>;
 		is(scalar @prev, 0 , "nothing in PI_EMERGENCY before");
 		local $ENV{PATH} = $fail_path;
-		run([$mda], \$in);
+		IPC::Run::run([$mda], \$in);
 		my @revs = `git --git-dir=$maindir rev-list HEAD`;
 		is(scalar @revs, 1, "bad revision not committed");
 		my @new = <$faildir/new/*>;
@@ -178,7 +179,7 @@ EOF
 
 	{
 		# deliver the spam message, first
-		run([$mda], \$in);
+		IPC::Run::run([$mda], \$in);
 		my $path = mid2path($mid);
 		my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
 		like($msg, qr/\Q$mid\E/, "message delivered");
@@ -186,9 +187,9 @@ EOF
 		# now train it
 		local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
 		local $ENV{GIT_COMMITTER_EMAIL} = 'trainer@example.com';
-		run([$learn, "spam"], \$msg);
+		IPC::Run::run([$learn, "spam"], \$msg);
 		is($?, 0, "no failure from learning spam");
-		run([$learn, "spam"], \$msg);
+		IPC::Run::run([$learn, "spam"], \$msg);
 		is($?, 0, "no failure from learning spam idempotently");
 	}
 }
@@ -216,12 +217,12 @@ EOF
 	local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
 	local $ENV{GIT_COMMITTER_EMAIL} = 'trainer@example.com';
 
-	run([$learn, "ham"], \$in);
+	IPC::Run::run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham without failure");
 	my $path = mid2path($mid);
 	my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
 	like($msg, qr/\Q$mid\E/, "ham message delivered");
-	run([$learn, "ham"], \$in);
+	IPC::Run::run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham idempotently ");
 
 	# ensure trained email is filtered, too
@@ -256,7 +257,7 @@ EOF
 
 	{
 		$in = $mime->as_string;
-		run([$learn, "ham"], \$in);
+		IPC::Run::run([$learn, "ham"], \$in);
 		is($?, 0, "learned ham without failure");
 		my $path = mid2path($mid);
 		$msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
@@ -273,7 +274,7 @@ sub fail_bad_header {
 	unlink @f if @f;
 	my ($out, $err) = ("", "");
 	local $ENV{PATH} = $main_path;
-	run([$mda], \$in, \$out, \$err);
+	IPC::Run::run([$mda], \$in, \$out, \$err);
 	my $rev = `git --git-dir=$maindir rev-list HEAD`;
 	chomp $rev;
 	is($rev, $good_rev, "bad revision not commited ($msg)");
