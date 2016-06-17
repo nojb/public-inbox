@@ -8,11 +8,14 @@ use warnings;
 use PublicInbox::MsgIter;
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 
-my $NO_HTML = '*** We only accept plain-text mail, no HTML ***';
+sub No ($) { "*** We only accept plain-text mail, No $_[0] ***" }
+
 our %DEFAULTS = (
-	reject_suffix => [ qw(exe bat cmd com pif scr vbs cpl zip) ],
-	reject_type => [ "text/html:$NO_HTML", "text/xhtml:$NO_HTML",
-		'application/vnd.ms-*:No proprietary data formats' ],
+	reject_suffix => [ qw(exe bat cmd com pif scr vbs cpl zip swf swfl) ],
+	reject_type => [ 'text/html:'.No('HTML'), 'text/xhtml:'.No('HTML'),
+		'application/vnd.*:'.No('vendor-specific formats'),
+		'image/*:'.No('images'), 'video/*:'.No('video'),
+		'audio/*:'.No('audio') ],
 );
 our $INVALID_FN = qr/\0/;
 
