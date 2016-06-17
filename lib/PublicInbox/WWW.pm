@@ -15,6 +15,7 @@ use strict;
 use warnings;
 use Plack::Request;
 use PublicInbox::Config;
+use PublicInbox::Hval;
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
 use constant SSOMA_URL => '//ssoma.public-inbox.org/';
 use constant PI_URL => '//public-inbox.org/';
@@ -255,6 +256,7 @@ sub footer {
 
 	# auto-generate a footer
 	chomp(my $desc = $obj->description);
+	$desc = PublicInbox::Hval::ascii_html($desc);
 
 	my $urls;
 	my @urls = @{$obj->cloneurl};
