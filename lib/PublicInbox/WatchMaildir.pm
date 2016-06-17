@@ -86,10 +86,7 @@ sub _try_path {
 	my $wm = $inbox->{-watchheader};
 	if ($wm) {
 		my $v = $mime->header_obj->header_raw($wm->[0]);
-		unless ($v && $v =~ $wm->[1]) {
-			warn "$wm->[0] failed to match $wm->[1]\n";
-			return;
-		}
+		return unless ($v && $v =~ $wm->[1]);
 	}
 	my $f = $inbox->{filter};
 	if ($f && $f =~ /::/) {
