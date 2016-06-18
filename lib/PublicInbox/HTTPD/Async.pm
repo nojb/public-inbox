@@ -74,7 +74,4 @@ sub close {
 	PublicInbox::EvCleanup::asap($cleanup) if $cleanup;
 }
 
-# do not let ourselves be closed during graceful termination
-sub busy () { $_[0]->{cb} }
-
 1;

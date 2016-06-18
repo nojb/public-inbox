@@ -180,7 +180,8 @@ sub worker_quit {
 		my $n = 0;
 
 		foreach my $s (values %$dmap) {
-			if ($s->can('busy') && $s->busy) {
+			$s->can('busy') or next;
+			if ($s->busy) {
 				++$n;
 			} else {
 				# close as much as possible, early as possible
