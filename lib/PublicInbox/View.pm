@@ -34,7 +34,7 @@ sub msg_html {
 				'</pre><hr />'
 		} elsif ($nr == 2) {
 			'<pre>' . html_footer($hdr, 1, $ctx) .
-			'</pre>' . msg_reply($ctx, $hdr) . '<hr />'
+			'</pre>' . msg_reply($ctx, $hdr);
 		} else {
 			undef
 		}
@@ -50,15 +50,15 @@ sub msg_reply {
 	my ($arg, $link) = mailto_arg_link($hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
 
-	"<hr /><pre\nid=R>".
+	"<pre\nid=R>".
 	"You may reply publically to <a\nhref=#t>this message</a> via\n".
 	"plain-text email using any one of the following methods:\n\n" .
 	"* Save the following mbox file, import it into your mail client,\n" .
 	"  and reply-to-all from there: <a\nhref=raw>mbox</a>\n\n" .
 	"* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,\n" .
 	"  and <b>--in-reply-to</b> switches of git-send-email(1):\n\n" .
-	"\tgit send-email \\\n\t\t" .
-	join(" \\\n\t\t", @$arg ). "\n\n" .
+	"  git send-email \\\n    " .
+	join(" \\\n    ", @$arg ). "\n\n" .
 	qq(  <a\nhref="$se_url">$se_url</a>\n\n) .
 	"* If your mail client supports setting the <b>In-Reply-To</b>" .
 	" header\n  via mailto: links, try the " .
@@ -338,7 +338,9 @@ sub _msg_html_prepare {
 				next;
 			}
 		}
-		$rv .= "$h: " . $v->as_html . "\n";
+		$v = $v->as_html;
+		$v =~ s/(\@[^,]+,) /$1\n\t/g if ($h eq 'Cc' || $h eq 'To');
+		$rv .= "$h: $v\n";
 
 	}
 	$ctx->{-title_html} = join(' - ', @title);
@@ -420,7 +422,7 @@ sub _parent_headers {
 		}
 
 		if (@refs) {
-			$rv .= 'References: '. join(' ', @refs) . "\n";
+			$rv .= 'References: '. join("\n\t", @refs) . "\n";
 		}
 	}
 	$rv;
