@@ -45,10 +45,14 @@ sub new {
 	}, $class;
 }
 
+sub _done_for_now {
+	$_->done foreach values %{$_[0]->{importers}};
+}
+
 sub _try_fsn_paths {
 	my ($self, $paths) = @_;
 	_try_path($self, $_->{path}) foreach @$paths;
-	$_->done foreach values %{$self->{importers}};
+	_done_for_now($self);
 }
 
 sub _try_path {
@@ -133,6 +137,7 @@ sub scan {
 		}
 		closedir $dh;
 	}
+	_done_for_now($self);
 }
 
 1;
