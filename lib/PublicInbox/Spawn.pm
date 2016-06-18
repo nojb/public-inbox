@@ -104,9 +104,11 @@ int public_inbox_fork_exec(int in, int out, int err,
 		REDIR(out, 1);
 		REDIR(err, 2);
 		for (sig = 1; sig < NSIG; sig++)
-			signal(sig, SIG_DFL); /* ignore errorrs on signals */
-		ret = sigprocmask(SIG_SETMASK, &old, NULL);
-		if (ret != 0) xerr("sigprocmask failed in vfork child");
+			signal(sig, SIG_DFL); /* ignore errors on signals */
+		/*
+		 * don't bother unblocking, we don't want signals
+		 * to the group taking out a subprocess
+		 */
 		execve(filename, argv, envp);
 		xerr("execve failed");
 	}

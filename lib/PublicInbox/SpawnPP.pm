@@ -3,11 +3,15 @@
 package PublicInbox::SpawnPP;
 use strict;
 use warnings;
-use POSIX qw(dup2);
+use POSIX qw(dup2 :signal_h);
 
 # Pure Perl implementation for folks that do not use Inline::C
 sub public_inbox_fork_exec ($$$$$$) {
 	my ($in, $out, $err, $f, $cmd, $env) = @_;
+	my $old = POSIX::SigSet->new();
+	my $set = POSIX::SigSet->new();
+	$set->fillset or die "fillset failed: $!";
+	sigprocmask(SIG_SETMASK, $set, $old) or die "can't block signals: $!";
 	my $pid = fork;
 	if ($pid == 0) {
 		if ($in != 0) {
@@ -29,6 +33,7 @@ sub public_inbox_fork_exec ($$$$$$) {
 			die "exec $cmd->[0] failed: $!\n";
 		}
 	}
+	sigprocmask(SIG_SETMASK, $old) or die "can't unblock signals: $!";
 	$pid;
 }
 

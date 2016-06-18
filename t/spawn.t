@@ -87,7 +87,7 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	is(kill(0, $pid), 1, 'child process is running');
 	ok(!defined(sysread($fh, my $buf, 1)) && $!{EAGAIN},
 	   'sysread returned quickly with EAGAIN');
-	is(kill(15, $pid), 1, 'child process killed early');
+	is(kill(9, $pid), 1, 'child process killed early');
 	is(waitpid($pid, 0), $pid, 'child process reapable');
 	isnt($?, 0, '$? set properly: '.$?);
 }
