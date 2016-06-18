@@ -12,11 +12,11 @@ use IO::Handle;
 sub new {
 	my ($class, $dir) = @_;
 
+	-d $dir or mkdir($dir) or die "failed to mkdir($dir): $!\n";
 	foreach (qw(new tmp cur)) {
 		my $d = "$dir/$_";
 		next if -d $d;
-		require File::Path;
-		File::Path::mkpath($d); # croaks on fatal errors
+		-d $d or mkdir($d) or die "failed to mkdir($d): $!\n";
 	}
 	bless { dir => $dir, files => {}, t => 0, cnt => 0 }, $class;
 }
