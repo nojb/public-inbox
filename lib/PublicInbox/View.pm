@@ -207,8 +207,6 @@ sub index_walk {
 
 	return if $s eq '';
 
-	$s .= "\n"; # ensure there's a trailing newline
-
 	$fh->write($s);
 }
 
@@ -219,9 +217,7 @@ sub multipart_text_as_html {
 	# scan through all parts, looking for displayable text
 	msg_iter($mime, sub {
 		my ($p) = @_;
-		$p = add_text_body($upfx, $p);
-		$rv .= $p;
-		$rv .= "\n" if $p ne '';
+		$rv .= add_text_body($upfx, $p);
 	});
 	$rv;
 }
@@ -234,7 +230,7 @@ sub flush_quote {
 	my $rv = $l->linkify_1(join('', @$quot));
 	@$quot = ();
 
-	# we use a <div> here to allow users to specify their own
+	# we use a <span> here to allow users to specify their own
 	# color for quoted text
 	$rv = $l->linkify_2(ascii_html($rv));
 	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
@@ -263,7 +259,7 @@ sub attach_link ($$$$) {
 	my @ret = qq($nl<a\nhref="$upfx$idx-$sfn">[-- Attachment #$idx: );
 	my $ts = "Type: $ct, Size: $size bytes";
 	push(@ret, ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]");
-	join('', @ret, '</a>');
+	join('', @ret, "</a>\n");
 }
 
 sub add_text_body {
@@ -285,7 +281,7 @@ sub add_text_body {
 	$s = '';
 	if (defined($fn) || $depth > 0) {
 		$s .= attach_link($upfx, $ct, $p, $fn);
-		$s .= "\n\n";
+		$s .= "\n";
 	}
 	my @quot;
 	my $l = PublicInbox::Linkify->new;
@@ -303,11 +299,15 @@ sub add_text_body {
 		}
 	}
 
-	flush_quote(\$s, $l, \@quot) if @quot;
+	my $end = "\n";
+	if (@quot) {
+		$end = '';
+		flush_quote(\$s, $l, \@quot);
+	}
 	$s =~ s/[ \t]+$//sgm; # kill per-line trailing whitespace
 	$s =~ s/\A\n+//s; # kill leading blank lines
-	$s =~ s/\s+\z//s; # kill all trailing spaces (final "\n" added if ne '')
-	$s;
+	$s =~ s/\s+\z//s; # kill all trailing spaces
+	$s .= $end;
 }
 
 sub _msg_html_prepare {
