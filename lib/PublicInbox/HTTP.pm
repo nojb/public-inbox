@@ -16,6 +16,7 @@ use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use Scalar::Util qw(weaken);
 use IO::File;
 use constant {
@@ -24,6 +25,8 @@ use constant {
 	CHUNK_ZEND => -3,    # \r\n
 	CHUNK_MAX_HDR => 256,
 };
+
+sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
 # FIXME: duplicated code with NNTP.pm, layering violation
 my $WEAKEN = {}; # string(inbox) -> inbox
@@ -267,14 +270,14 @@ sub getline_response {
 		my $forward = $self->{forward};
 		# limit our own running time for fairness with other
 		# clients and to avoid buffering too much:
-		my $n = 100;
+		my $end = now() + 0.1;
 		while ($forward && defined(my $buf = $forward->getline)) {
 			$write->($buf);
 			last if $self->{closed};
 			if ($self->{write_buf_size}) {
 				$self->write($self->{pull});
 				return;
-			} elsif ((--$n) <= 0) {
+			} elsif (now() > $end) {
 				PublicInbox::EvCleanup::asap($self->{pull});
 				return;
 			}
