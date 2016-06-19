@@ -23,7 +23,7 @@ KillSignal = SIGQUIT
 User = nobody
 Group = nogroup
 ExecReload = /bin/kill -HUP $MAINPID
-TimeoutStopSec = 3600
+TimeoutStopSec = 86400
 KillMode = process
 
 [Install]
