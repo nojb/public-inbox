@@ -112,8 +112,11 @@ sub remove {
 	defined($n) or die "read final byte of cat-blob failed: $!";
 	die "bad read on final byte: <$lf>" if $lf ne "\n";
 	my $cur = Email::MIME->new($buf);
-	if ($cur->header('Subject') ne $mime->header('Subject') ||
-			norm_body($cur) ne norm_body($mime)) {
+	my $cur_s = $cur->header('Subject');
+	$cur_s = '' unless defined $cur_s;
+	my $cur_m = $mime->header('Subject');
+	$cur_m = '' unless defined $cur_m;
+	if ($cur_s ne $cur_m || norm_body($cur) ne norm_body($mime)) {
 		return ('MISMATCH', $cur);
 	}
 
