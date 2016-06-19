@@ -71,6 +71,7 @@ sub _try_fsn_paths {
 
 sub _check_spam {
 	my ($self, $path) = @_;
+	$path =~ /:2,[A-R]*S[T-Z]*\z/ or return;
 	my $mime = _path_to_mime($path) or return;
 	_force_mid($mime);
 	foreach my $inbox (values %{$self->{mdmap}}) {
@@ -107,6 +108,9 @@ sub _force_mid {
 
 sub _try_path {
 	my ($self, $path) = @_;
+	my @p = split(m!/+!, $path);
+	return unless $p[-1] =~ /\A[a-zA-Z0-9][\w:,=\.]+\z/;
+	return unless -f $path;
 	if ($path !~ $self->{mdre}) {
 		warn "unrecognized path: $path\n";
 		return;
@@ -155,13 +159,7 @@ sub scan {
 			next;
 		}
 		while (my $fn = readdir($dh)) {
-			next unless $fn =~ /\A[a-zA-Z0-9][\w:,=\.]+\z/;
-			$fn = "$dir/$fn";
-			if (-f $fn) {
-				_try_path($self, $fn);
-			} else {
-				warn "not a file: $fn\n";
-			}
+			_try_path($self, "$dir/$fn");
 		}
 		closedir $dh;
 	}

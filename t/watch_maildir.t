@@ -25,6 +25,7 @@ Date: Sat, 18 Jun 2016 00:00:00 +0000
 something
 EOF
 PublicInbox::Emergency->new($maildir)->prepare(\$msg);
+ok(POSIX::mkfifo("$maildir/cur/fifo", 0777));
 my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
 my $config = PublicInbox::Config->new({
@@ -47,7 +48,7 @@ my $write_spam = sub {
 	my @new = glob("$spamdir/new/*");
 	is(scalar @new, 1);
 	my @p = split(m!/+!, $new[0]);
-	ok(link($new[0], "$spamdir/cur/".$p[-1]));
+	ok(link($new[0], "$spamdir/cur/".$p[-1].":2,S"));
 	is(unlink($new[0]), 1);
 };
 $write_spam->();
