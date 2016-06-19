@@ -271,8 +271,11 @@ sub getline_response {
 		while ($forward && defined(my $buf = $forward->getline)) {
 			$write->($buf);
 			last if $self->{closed};
-			if ((--$n) <= 0 || $self->{write_buf_size}) {
+			if ($self->{write_buf_size}) {
 				$self->write($self->{pull});
+				return;
+			} elsif ((--$n) <= 0) {
+				PublicInbox::EvCleanup::asap($self->{pull});
 				return;
 			}
 		}
