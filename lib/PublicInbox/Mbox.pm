@@ -132,7 +132,7 @@ sub new {
 	my $buf;
 	bless {
 		buf => \$buf,
-		gz => IO::Compress::Gzip->new(\$buf),
+		gz => IO::Compress::Gzip->new(\$buf, Time => 0),
 		cb => $cb,
 		ctx => $ctx,
 		msgs => [],
