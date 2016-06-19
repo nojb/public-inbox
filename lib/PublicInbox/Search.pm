@@ -97,7 +97,7 @@ sub query {
 		$opts->{relevance} = 1 unless exists $opts->{relevance};
 	}
 
-	$self->do_enquire($query, $opts);
+	_do_enquire($self, $query, $opts);
 }
 
 sub get_thread {
@@ -111,10 +111,26 @@ sub get_thread {
 	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
 	$opts ||= {};
 	$opts->{limit} ||= 1000;
-	$self->do_enquire($query, $opts);
+	_do_enquire($self, $query, $opts);
 }
 
-sub do_enquire {
+sub _do_enquire {
+	my ($self, $query, $opts) = @_;
+	my $ret;
+	for (1..10) {
+		eval { $ret = _enquire_once($self, $query, $opts) };
+		return $ret unless $@;
+		# Exception: The revision being read has been discarded -
+		# you should call Xapian::Database::reopen()
+		if (index($@, 'Xapian::Database::reopen') >= 0) {
+			reopen($self);
+		} else {
+			die $@;
+		}
+	}
+}
+
+sub _enquire_once {
 	my ($self, $query, $opts) = @_;
 	my $enquire = $self->enquire;
 	if (defined $query) {
@@ -127,6 +143,8 @@ sub do_enquire {
         my $desc = !$opts->{asc};
 	if ($opts->{relevance}) {
 		$enquire->set_sort_by_relevance_then_value(TS, $desc);
+	} elsif ($opts->{num}) {
+		$enquire->set_sort_by_value(NUM, 0);
 	} else {
 		$enquire->set_sort_by_value_then_relevance(TS, $desc);
 	}
@@ -186,21 +204,12 @@ sub num_range_processor {
 # only used for NNTP server
 sub query_xover {
 	my ($self, $beg, $end, $offset) = @_;
-	my $enquire = $self->enquire;
 	my $qp = Search::Xapian::QueryParser->new;
 	$qp->set_database($self->{xdb});
 	$qp->add_valuerangeprocessor($self->num_range_processor);
 	my $query = $qp->parse_query("$beg..$end", QP_FLAGS);
-	$query = Search::Xapian::Query->new(OP_AND, $mail_query, $query);
-	$enquire->set_query($query);
-	$enquire->set_sort_by_value(NUM, 0);
-	my $limit = 200;
-	my $mset = $enquire->get_mset($offset, $limit);
-	my @msgs = map {
-		PublicInbox::SearchMsg->load_doc($_->get_document);
-	} $mset->items;
 
-	{ total => $mset->get_matches_estimated, msgs => \@msgs }
+	_do_enquire($self, $query, {num => 1, limit => 200, offset => $offset});
 }
 
 sub lookup_message {
