@@ -129,10 +129,8 @@ sub _fill {
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
 	$rv->{name} = $name;
-	my $v = $rv->{address} ||= 'public-inbox@example.com';
-	my $p = $rv->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
-	$rv->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
 	$rv = PublicInbox::Inbox->new($rv);
+	my $v = $rv->{address};
 	if (ref($v) eq 'ARRAY') {
 		$self->{-by_addr}->{lc($_)} = $rv foreach @$v;
 	} else {

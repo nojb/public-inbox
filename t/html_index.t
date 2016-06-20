@@ -13,7 +13,6 @@ my $tmpdir = tempdir('pi-http-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
 my $ibx = PublicInbox::Inbox->new({
 	address => 'test@example',
-	-primary_address => 'test@example',
 	name => 'tester',
 	mainrepo => $git_dir,
 	url => 'http://example.com/test',
