@@ -227,6 +227,12 @@ sub lookup_message {
 	$smsg;
 }
 
+sub lookup_mail { # no ghosts!
+	my ($self, $mid) = @_;
+	my $smsg = lookup_message($self, $mid);
+	PublicInbox::SearchMsg->load_doc($smsg->{doc});
+}
+
 sub find_unique_doc_id {
 	my ($self, $term, $value) = @_;
 

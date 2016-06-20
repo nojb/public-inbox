@@ -35,7 +35,7 @@ sub get_val ($$) {
 
 sub load_doc {
 	my ($class, $doc) = @_;
-	my $data = $doc->get_data;
+	my $data = $doc->get_data or return;
 	my $ts = get_val($doc, &PublicInbox::Search::TS);
 	utf8::decode($data);
 	my ($subj, $from, $refs, $to, $cc) = split(/\n/, $data);

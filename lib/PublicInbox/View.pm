@@ -741,19 +741,27 @@ sub sort_ts {
 	} @_;
 }
 
+sub _tryload_ghost ($$) {
+	my ($srch, $node) = @_;
+	my $mid = $node->messageid;
+	my $smsg = $srch->lookup_mail($mid) or return;
+	$smsg->mini_mime;
+}
+
 # accumulate recent topics if search is supported
 # returns 1 if done, undef if not
 sub add_topic {
 	my ($state, $node, $level) = @_;
 	return unless $node;
 	my $child_adjust = 1;
-
-	if (my $x = $node->message) {
+	my $srch = $state->{srch};
+	my $x = $node->message || _tryload_ghost($srch, $node);
+	if ($x) {
 		$x = $x->header_obj;
 		my $subj;
 
 		$subj = $x->header('Subject');
-		$subj = $state->{srch}->subject_normalized($subj);
+		$subj = $srch->subject_normalized($subj);
 
 		if (++$state->{subjs}->{$subj} == 1) {
 			push @{$state->{order}}, [ $level, $subj ];
