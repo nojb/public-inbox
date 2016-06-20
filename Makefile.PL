@@ -47,7 +47,10 @@ my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES) \$(SCRIPTS))
 
 syntax:: \$(my_syntax)
 
-check:: pure_all
+check-manifest :: MANIFEST
+	if git ls-files >\$<.gen 2>&1; then diff -u \$< \$<.gen; fi
+
+check:: pure_all check-manifest
 	\$(EATMYDATA) prove -lv -j\$(N)
 
 EOF

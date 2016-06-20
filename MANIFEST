@@ -76,6 +76,7 @@ lib/PublicInbox/View.pm
 lib/PublicInbox/WWW.pm
 lib/PublicInbox/WatchMaildir.pm
 lib/PublicInbox/WwwAttach.pm
+lib/PublicInbox/WwwStream.pm
 sa_config/Makefile
 sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
@@ -134,3 +135,4 @@ t/search.t
 t/spawn.t
 t/utf8.mbox
 t/view.t
+t/watch_maildir.t
