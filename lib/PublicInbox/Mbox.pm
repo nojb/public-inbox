@@ -12,19 +12,14 @@ use Plack::Util;
 require Email::Simple;
 
 sub emit1 {
-	my $simple = Email::Simple->new(pop);
-	my $ctx = pop;
-	sub {
-		my ($response) = @_;
-		# single message should be easily renderable in browsers
-		my $fh = $response->([200, ['Content-Type'=>'text/plain']]);
-		emit_msg($ctx, $fh, $simple);
-		$fh->close;
-	}
+	my ($ctx, $msg) = @_;
+	$msg = Email::Simple->new($msg);
+	# single message should be easily renderable in browsers
+	[200, ['Content-Type', 'text/plain'], [ msg_str($ctx, $msg)] ]
 }
 
-sub emit_msg {
-	my ($ctx, $fh, $simple) = @_; # Email::Simple object
+sub msg_str {
+	my ($ctx, $simple) = @_; # Email::Simple object
 	my $header_obj = $simple->header_obj;
 
 	# drop potentially confusing headers, ssoma already should've dropped
@@ -41,8 +36,9 @@ sub emit_msg {
 		'List-Archive', "<$base>",
 		'List-Post', "<mailto:$ibx->{-primary_address}>",
 	);
-	my $append = '';
 	my $crlf = $simple->crlf;
+	my $buf = "From mboxrd\@z Thu Jan  1 00:00:00 1970\n" .
+			$header_obj->as_string;
 	for (my $i = 0; $i < @append; $i += 2) {
 		my $k = $append[$i];
 		my $v = $append[$i + 1];
@@ -53,26 +49,17 @@ sub emit_msg {
 				last;
 			}
 		}
-		$append .= "$k: $v$crlf" if defined $v;
+		$buf .= "$k: $v$crlf" if defined $v;
 	}
-	my $buf = $header_obj->as_string;
-	unless ($buf =~ /\AFrom /) {
-		$fh->write("From mboxrd\@z Thu Jan  1 00:00:00 1970\n");
-	}
-	$append .= $crlf;
-	$fh->write($buf .= $append);
-
-	$buf = $simple->body;
-	$simple->body_set('');
+	$buf .= $crlf;
 
 	# mboxrd quoting style
 	# ref: http://www.qmail.org/man/man5/mbox.html
-	$buf =~ s/^(>*From )/>$1/gm;
-
-	$fh->write($buf .= "\n");
+	my $body = $simple->body;
+	$body =~ s/^(>*From )/>$1/gm;
+	$buf .= $body;
+	$buf .= "\n";
 }
-
-sub noop {}
 
 sub thread_mbox {
 	my ($ctx, $srch, $sfx) = @_;
@@ -149,6 +136,7 @@ sub getline {
 	my $res;
 	my $ctx = $self->{ctx};
 	my $git = $ctx->{git};
+	my $gz = $self->{gz};
 	do {
 		while (defined(my $smsg = shift @{$self->{msgs}})) {
 			my $msg = eval {
@@ -156,8 +144,7 @@ sub getline {
 				Email::Simple->new($git->cat_file($p));
 			};
 			$msg or next;
-
-			PublicInbox::Mbox::emit_msg($ctx, $self->{gz}, $msg);
+			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg));
 			my $ret = _flush_buf($self);
 			return $ret if $ret;
 		}
@@ -166,7 +153,7 @@ sub getline {
 		$res = scalar @{$self->{msgs}};
 		$self->{opts}->{offset} += $res;
 	} while ($res);
-	$self->{gz}->close;
+	$gz->close;
 	_flush_buf($self);
 }
 
