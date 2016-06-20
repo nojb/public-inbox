@@ -65,14 +65,14 @@ sub emit_atom {
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
 	my $max = $ctx->{max} || MAX_PER_PAGE;
 	my $x = atom_header($feed_opts);
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
+	my $ibx = $ctx->{-inbox};
 	each_recent_blob($ctx, sub {
 		my ($path, undef, $ts) = @_;
 		if (defined $x) {
 			$fh->write($x . feed_updated(undef, $ts));
 			$x = undef;
 		}
-		my $s = feed_entry($feed_opts, $path, $git) or return 0;
+		my $s = feed_entry($feed_opts, $path, $ibx) or return 0;
 		$fh->write($s);
 		1;
 	});
@@ -103,9 +103,9 @@ sub emit_atom_thread {
 	$feed_opts->{url} = $html_url;
 	$feed_opts->{emit_header} = 1;
 
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
+	my $ibx = $ctx->{-inbox};
 	foreach my $msg (@{$res->{msgs}}) {
-		my $s = feed_entry($feed_opts, mid2path($msg->mid), $git);
+		my $s = feed_entry($feed_opts, mid2path($msg->mid), $ibx);
 		$fh->write($s) if defined $s;
 	}
 	end_feed($fh);
@@ -167,12 +167,12 @@ sub emit_html_index {
 
 sub emit_index_nosrch {
 	my ($ctx, $state) = @_;
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
+	my $ibx = $ctx->{-inbox};
 	my (undef, $last) = each_recent_blob($ctx, sub {
 		my ($path, $commit, $ts, $u, $subj) = @_;
 		$state->{first} ||= $commit;
 
-		my $mime = do_cat_mail($git, $path) or return 0;
+		my $mime = do_cat_mail($ibx, $path) or return 0;
 		PublicInbox::View::index_entry($mime, 0, $state);
 		1;
 	});
@@ -218,8 +218,8 @@ sub each_recent_blob {
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
-	my $log = $git->popen(qw/log --no-notes --no-color --raw -r
+	my $log = $ctx->{-inbox}->git->popen(qw/log
+				--no-notes --no-color --raw -r
 				--abbrev=16 --abbrev-commit/,
 				"--format=%h%x00%ct%x00%an%x00%s%x00",
 				$range);
@@ -269,31 +269,16 @@ sub get_feedopts {
 	my $inbox = $ctx->{inbox};
 	my $obj = $ctx->{-inbox};
 	my $cgi = $ctx->{cgi};
-	my %rv = ( description => $obj ? $obj->description : 'FIXME' );
+	my %rv = ( description => $obj->description );
 
-	if ($obj) {
-		$rv{address} = $obj->{address};
-		$rv{id_addr} = $obj->{-primary_address};
-	} elsif ($pi_config && defined $inbox && $inbox ne '') {
-		# TODO: remove
-		my $addr = $pi_config->get($inbox, 'address') || "";
-		$rv{address} = $addr;
-		$addr = $addr->[0] if ref($addr);
-		$rv{id_addr} = $addr;
-	}
-	$rv{id_addr} ||= 'public-inbox@example.com';
-
+	$rv{address} = $obj->{address};
+	$rv{id_addr} = $obj->{-primary_address};
 	my $url_base;
-	if ($obj) {
-		$url_base = $obj->base_url($cgi); # CGI may be undef
-		if (my $mid = $ctx->{mid}) { # per-thread feed:
-			$rv{atomurl} = "$url_base$mid/t.atom";
-		} else {
-			$rv{atomurl} = $url_base."new.atom";
-		}
+	$url_base = $obj->base_url($cgi); # CGI may be undef
+	if (my $mid = $ctx->{mid}) { # per-thread feed:
+		$rv{atomurl} = "$url_base$mid/t.atom";
 	} else {
-		$url_base = 'http://example.com/';
-		$rv{atomurl} = $url_base.'new.atom';
+		$rv{atomurl} = $url_base."new.atom";
 	}
 	$rv{url} ||= $url_base;
 	$rv{midurl} = $url_base;
@@ -311,9 +296,9 @@ sub feed_updated {
 
 # returns undef or string
 sub feed_entry {
-	my ($feed_opts, $add, $git) = @_;
+	my ($feed_opts, $add, $ibx) = @_;
 
-	my $mime = do_cat_mail($git, $add) or return;
+	my $mime = do_cat_mail($ibx, $add) or return;
 	my $url = $feed_opts->{url};
 	my $midurl = $feed_opts->{midurl};
 
@@ -357,12 +342,9 @@ sub feed_entry {
 }
 
 sub do_cat_mail {
-	my ($git, $path) = @_;
-	my $mime = eval {
-		my $str = $git->cat_file("HEAD:$path");
-		Email::MIME->new($str);
-	};
-	$@ ? undef : $mime;
+	my ($ibx, $path) = @_;
+	my $mime = eval { $ibx->msg_by_path($path) } or return;
+	Email::MIME->new($mime);
 }
 
 1;

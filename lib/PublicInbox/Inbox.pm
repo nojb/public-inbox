@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use Scalar::Util qw(weaken);
 use PublicInbox::Git;
+use PublicInbox::MID qw(mid2path);
 
 sub new {
 	my ($class, $opts) = @_;
@@ -88,6 +89,17 @@ sub nntp_usable {
 	my $ret = $self->mm && $self->search;
 	$self->{mm} = $self->{search} = undef;
 	$ret;
+}
+
+sub msg_by_path ($$;$) {
+	my ($self, $path, $ref) = @_;
+	# TODO: allow other refs:
+	git($self)->cat_file('HEAD:'.$path, $ref);
+}
+
+sub msg_by_mid ($$;$) {
+	my ($self, $mid, $ref) = @_;
+	msg_by_path($self, mid2path($mid), $ref);
 }
 
 1;

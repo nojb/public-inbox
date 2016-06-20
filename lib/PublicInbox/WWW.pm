@@ -206,9 +206,7 @@ sub get_index {
 # just returns a string ref for the blob in the current ctx
 sub mid2blob {
 	my ($ctx) = @_;
-	require PublicInbox::MID;
-	my $path = PublicInbox::MID::mid2path($ctx->{mid});
-	$ctx->{git}->cat_file("HEAD:$path");
+	$ctx->{-inbox}->msg_by_mid($ctx->{mid});
 }
 
 # /$INBOX/$MESSAGE_ID/raw                    -> raw mbox

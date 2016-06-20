@@ -107,7 +107,6 @@ EOF
 package PublicInbox::MboxGz;
 use strict;
 use warnings;
-use PublicInbox::MID qw(mid2path);
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
@@ -135,15 +134,12 @@ sub getline {
 	my ($self) = @_;
 	my $res;
 	my $ctx = $self->{ctx};
-	my $git = $ctx->{git};
+	my $ibx = $ctx->{-inbox};
 	my $gz = $self->{gz};
 	do {
 		while (defined(my $smsg = shift @{$self->{msgs}})) {
-			my $msg = eval {
-				my $p = 'HEAD:'.mid2path($smsg->mid);
-				Email::Simple->new($git->cat_file($p));
-			};
-			$msg or next;
+			my $msg = eval { $ibx->msg_by_mid($smsg->mid) } or next;
+			$msg = Email::Simple->new($msg);
 			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg));
 			my $ret = _flush_buf($self);
 			return $ret if $ret;

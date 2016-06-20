@@ -8,16 +8,13 @@ use warnings;
 use Email::MIME;
 use Email::MIME::ContentType qw(parse_content_type);
 $Email::MIME::ContentType::STRICT_PARAMS = 0;
-use PublicInbox::MID qw(mid2path);
 use PublicInbox::MsgIter;
 
 # /$LISTNAME/$MESSAGE_ID/$IDX-$FILENAME
 sub get_attach ($$$) {
 	my ($ctx, $idx, $fn) = @_;
-	my $path = mid2path($ctx->{mid});
-
 	my $res = [ 404, [ 'Content-Type', 'text/plain' ], [ "Not found\n" ] ];
-	my $mime = $ctx->{git}->cat_file("HEAD:$path") or return $res;
+	my $mime = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return $res;
 	$mime = Email::MIME->new($mime);
 	msg_iter($mime, sub {
 		my ($part, $depth, @idx) = @{$_[0]};

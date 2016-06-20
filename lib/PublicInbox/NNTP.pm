@@ -10,7 +10,6 @@ use fields qw(nntpd article rbuf ng long_res);
 use PublicInbox::Search;
 use PublicInbox::Msgmap;
 use PublicInbox::Git;
-use PublicInbox::MID qw(mid2path);
 require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
@@ -481,10 +480,9 @@ find_mid:
 		defined $mid or return $err;
 	}
 found:
-	my $o = 'HEAD:' . mid2path($mid);
 	my $bytes;
-	my $s = eval { Email::Simple->new($ng->git->cat_file($o, \$bytes)) };
-	return $err unless $s;
+	my $s = eval { $ng->msg_by_mid($mid, \$bytes) } or return $err;
+	$s = Email::Simple->new($s);
 	my $lines;
 	if ($set_headers) {
 		set_nntp_headers($s->header_obj, $ng, $n, $mid);

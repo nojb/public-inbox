@@ -12,7 +12,7 @@ use Encode::MIME::Header;
 use Plack::Util;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/mid_clean id_compress mid2path mid_mime/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -581,9 +581,10 @@ sub __thread_entry {
 
 	# lazy load the full message from mini_mime:
 	$mime = eval {
-		my $path = mid2path(mid_clean(mid_mime($mime)));
-		Email::MIME->new($state->{ctx}->{git}->cat_file('HEAD:'.$path));
+		my $mid = mid_clean(mid_mime($mime));
+		$state->{ctx}->{-inbox}->msg_by_mid($mid);
 	} or return;
+	$mime = Email::MIME->new($mime);
 
 	thread_html_head($mime, $state) if $state->{anchor_idx} == 0;
 	if (my $ghost = delete $state->{ghost}) {

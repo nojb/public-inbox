@@ -8,6 +8,7 @@ use PublicInbox::Feed;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Config;
+use PublicInbox::Inbox;
 use File::Temp qw/tempdir/;
 my $have_xml_feed = eval { require XML::Feed; 1 };
 require 't/common.perl';
@@ -40,8 +41,15 @@ sub rand_use ($) {
 
 my $tmpdir = tempdir('pi-feed-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
-my $git = PublicInbox::Git->new($git_dir);
-my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
+my $ibx = PublicInbox::Inbox->new({
+	address => 'test@example',
+	-primary_address => 'test@example',
+	name => 'testbox',
+	mainrepo => $git_dir,
+	url => 'http://example.com/test',
+});
+my $git = $ibx->git;
+my $im = PublicInbox::Import->new($git, $ibx->{name}, 'test@example');
 
 {
 	is(0, system(qw(git init -q --bare), $git_dir), "git init");
@@ -95,7 +103,7 @@ EOF
 	# check initial feed
 	{
 		my $feed = string_feed({
-			git_dir => $git_dir,
+			-inbox => $ibx,
 			max => 3
 		});
 		SKIP: {
@@ -103,7 +111,7 @@ EOF
 			my $p = XML::Feed->parse(\$feed);
 			is($p->format, "Atom", "parsed atom feed");
 			is(scalar $p->entries, 3, "parsed three entries");
-			is($p->id, 'mailto:public-inbox@example.com',
+			is($p->id, 'mailto:test@example',
 				"id is set to default");
 		}
 
@@ -136,7 +144,7 @@ EOF
 	# check spam shows up
 	{
 		my $spammy_feed = string_feed({
-			git_dir => $git_dir,
+			-inbox => $ibx,
 			max => 3
 		});
 		SKIP: {
@@ -160,10 +168,7 @@ EOF
 
 	# spam no longer shows up
 	{
-		my $feed = string_feed({
-			git_dir => $git_dir,
-			max => 3
-		});
+		my $feed = string_feed({ -inbox => $ibx, max => 3 });
 		SKIP: {
 			skip 'XML::Feed missing', 2 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$feed);
@@ -171,28 +176,6 @@ EOF
 			is(scalar $p->entries, 3, "parsed three entries");
 		}
 		unlike($feed, qr/SPAM/, "spam gone :>");
-	}
-}
-
-# check pi_config
-{
-	foreach my $addr (('a@example.com'), ['a@example.com','b@localhost']) {
-		my $feed = string_feed({
-			git_dir => $git_dir,
-			max => 3,
-			inbox => 'asdf',
-			pi_config => bless({
-				'publicinbox.asdf.address' => $addr,
-			}, 'PublicInbox::Config'),
-		});
-		SKIP: {
-			skip 'XML::Feed missing', 3 unless $have_xml_feed;
-			my $p = XML::Feed->parse(\$feed);
-			is($p->id, 'mailto:a@example.com',
-				"ID is set correctly");
-			is($p->format, "Atom", "parsed atom feed");
-			is(scalar $p->entries, 3, "parsed three entries");
-		}
 	}
 }
 

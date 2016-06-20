@@ -7,10 +7,18 @@ use Email::MIME;
 use PublicInbox::Feed;
 use PublicInbox::Git;
 use PublicInbox::Import;
+use PublicInbox::Inbox;
 use File::Temp qw/tempdir/;
 my $tmpdir = tempdir('pi-http-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/gittest";
-my $git = PublicInbox::Git->new($git_dir);
+my $ibx = PublicInbox::Inbox->new({
+	address => 'test@example',
+	-primary_address => 'test@example',
+	name => 'tester',
+	mainrepo => $git_dir,
+	url => 'http://example.com/test',
+});
+my $git = $ibx->git;
 my $im = PublicInbox::Import->new($git, 'tester', 'test@example');
 
 # setup
@@ -55,7 +63,7 @@ EOF
 {
 	use IO::File;
 	my $cb = PublicInbox::Feed::generate_html_index({
-		git_dir => $git_dir,
+		-inbox => $ibx,
 		max => 3
 	});
 	require 't/common.perl';
