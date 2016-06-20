@@ -18,7 +18,8 @@ sub from_name {
 		$name =~ s/\@.*//;
 	}
 	$name =~ tr/\r\n\t/ /;
-	$name =~ s/\A\s*//;
+	$name =~ s/\A['"\s]*//;
+	$name =~ s/['"\s]*\z//;
 	$name;
 }
 
