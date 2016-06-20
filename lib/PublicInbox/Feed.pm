@@ -72,7 +72,9 @@ sub emit_atom {
 			$fh->write($x . feed_updated(undef, $ts));
 			$x = undef;
 		}
-		add_to_feed($feed_opts, $fh, $path, $git);
+		my $s = feed_entry($feed_opts, $path, $git) or return 0;
+		$fh->write($s);
+		1;
 	});
 	end_feed($fh);
 }
@@ -103,7 +105,8 @@ sub emit_atom_thread {
 
 	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	foreach my $msg (@{$res->{msgs}}) {
-		add_to_feed($feed_opts, $fh, mid2path($msg->mid), $git);
+		my $s = feed_entry($feed_opts, mid2path($msg->mid), $git);
+		$fh->write($s) if defined $s;
 	}
 	end_feed($fh);
 }
@@ -306,52 +309,51 @@ sub feed_updated {
 	'<updated>' . strftime(DATEFMT, @t) . '</updated>';
 }
 
-# returns 0 (skipped) or 1 (added)
-sub add_to_feed {
-	my ($feed_opts, $fh, $add, $git) = @_;
+# returns undef or string
+sub feed_entry {
+	my ($feed_opts, $add, $git) = @_;
 
-	my $mime = do_cat_mail($git, $add) or return 0;
+	my $mime = do_cat_mail($git, $add) or return;
 	my $url = $feed_opts->{url};
 	my $midurl = $feed_opts->{midurl};
 
 	my $header_obj = $mime->header_obj;
 	my $mid = $header_obj->header_raw('Message-ID');
-	defined $mid or return 0;
+	defined $mid or return;
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $midurl.$mid->as_href;
 
-	my $content = qq(<pre\nstyle="white-space:pre-wrap">) .
-		PublicInbox::View::multipart_text_as_html($mime, $href) .
-		'</pre>';
 	my $date = $header_obj->header('Date');
 	my $updated = feed_updated($date);
 
 	my $title = $header_obj->header('Subject');
-	defined $title or return 0;
+	defined $title or return;
 	$title = title_tag($title);
 
-	my $from = $header_obj->header('From') or return 0;
+	my $from = $header_obj->header('From') or return;
 	my ($email) = PublicInbox::Address::emails($from);
 	my $name = PublicInbox::Address::from_name($from);
 	$name = ascii_html($name);
 	$email = ascii_html($email);
 
+	my $s = '';
 	if (delete $feed_opts->{emit_header}) {
-		$fh->write(atom_header($feed_opts, $title) . $updated);
+		$s .= atom_header($feed_opts, $title) . $updated;
 	}
-	$fh->write("<entry><author><name>$name</name><email>$email</email>" .
-		   "</author>$title$updated" .
-		   qq{<content\ntype="xhtml">} .
-		   qq{<div\nxmlns="http://www.w3.org/1999/xhtml">});
-	$fh->write($content);
+	$s .= "<entry><author><name>$name</name><email>$email</email>" .
+		"</author>$title$updated" .
+		qq{<content\ntype="xhtml">} .
+		qq{<div\nxmlns="http://www.w3.org/1999/xhtml">} .
+		qq(<pre\nstyle="white-space:pre-wrap">) .
+		PublicInbox::View::multipart_text_as_html($mime, $href) .
+		'</pre>';
 
 	$add =~ tr!/!!d;
 	my $h = '[a-f0-9]';
 	my (@uuid5) = ($add =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
 	my $id = 'urn:uuid:' . join('-', @uuid5);
-	$fh->write(qq!</div></content><link\nhref="$href/"/>!.
-		   "<id>$id</id></entry>");
-	1;
+	$s .= qq!</div></content><link\nhref="$href/"/>!.
+		"<id>$id</id></entry>";
 }
 
 sub do_cat_mail {

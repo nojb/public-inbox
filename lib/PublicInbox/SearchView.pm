@@ -249,7 +249,8 @@ sub adump {
 	for ($mset->items) {
 		$x = PublicInbox::SearchMsg->load_doc($_->get_document)->mid;
 		$x = mid2path($x);
-		PublicInbox::Feed::add_to_feed($feed_opts, $fh, $x, $git);
+		my $s = PublicInbox::Feed::feed_entry($feed_opts, $x, $git);
+		$fh->write($s) if defined $s;
 	}
 	PublicInbox::Feed::end_feed($fh);
 }
