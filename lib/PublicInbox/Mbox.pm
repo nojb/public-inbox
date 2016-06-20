@@ -32,19 +32,14 @@ sub emit_msg {
 	foreach my $d (qw(Lines Bytes Content-Length Status)) {
 		$header_obj->header_set($d);
 	}
-	my $feed_opts = $ctx->{feed_opts};
-	unless ($feed_opts) {
-		require PublicInbox::Feed; # FIXME: gross
-		$feed_opts = PublicInbox::Feed::get_feedopts($ctx);
-		$ctx->{feed_opts} = $feed_opts;
-	}
-	my $base = $feed_opts->{url};
+	my $ibx = $ctx->{-inbox};
+	my $base = $ibx->base_url($ctx->{cgi});
 	my $mid = mid_clean($header_obj->header('Message-ID'));
 	$mid = uri_escape_utf8($mid);
 	my @append = (
 		'Archived-At', "<$base$mid/>",
 		'List-Archive', "<$base>",
-		'List-Post', "<mailto:$feed_opts->{id_addr}>",
+		'List-Post', "<mailto:$ibx->{-primary_address}>",
 	);
 	my $append = '';
 	my $crlf = $simple->crlf;
