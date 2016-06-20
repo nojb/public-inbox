@@ -79,9 +79,8 @@ sub emit_atom {
 
 sub _no_thread {
 	my ($cb) = @_;
-	my $fh = $cb->([404, ['Content-Type' => 'text/plain']]);
-	$fh->write("No feed found for thread\n");
-	$fh->close;
+	$cb->([404, ['Content-Type', 'text/plain'],
+		["No feed found for thread\n"]]);
 }
 
 sub end_feed {
