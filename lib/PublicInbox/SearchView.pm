@@ -8,7 +8,7 @@ use warnings;
 use PublicInbox::SearchMsg;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::View;
-use PublicInbox::MID qw(mid2path mid_clean mid_mime);
+use PublicInbox::MID qw(mid2path mid_mime);
 use Email::MIME;
 require PublicInbox::Git;
 require PublicInbox::Thread;
@@ -165,16 +165,16 @@ sub tdump {
 		$th->order(*PublicInbox::View::sort_ts);
 	}
 	@rootset = $th->rootset;
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
 	my $state = {
 		ctx => $ctx,
 		anchor_idx => 0,
 		pct => \%pct,
 		cur_level => 0,
+		-inbox => $ctx->{-inbox},
 		fh => $fh,
 	};
 	$ctx->{searchview} = 1;
-	tdump_ent($git, $state, $_, 0) for @rootset;
+	tdump_ent($state, $_, 0) for @rootset;
 	PublicInbox::View::thread_adj_level($state, 0);
 
 	$fh->write(search_nav_bot($mset, $q). "\n\n" .
@@ -184,17 +184,15 @@ sub tdump {
 }
 
 sub tdump_ent {
-	my ($git, $state, $node, $level) = @_;
+	my ($state, $node, $level) = @_;
 	return unless $node;
 	my $mime = $node->message;
 
 	if ($mime) {
 		# lazy load the full message from mini_mime:
 		my $mid = mid_mime($mime);
-		$mime = eval {
-			my $path = mid2path(mid_clean($mid));
-			Email::MIME->new($git->cat_file('HEAD:'.$path));
-		};
+		$mime = eval { $state->{-inbox}->msg_by_mid($mid) } and
+			$mime = Email::MIME->new($mime);
 	}
 	if ($mime) {
 		my $end = PublicInbox::View::thread_adj_level($state, $level);
@@ -204,8 +202,8 @@ sub tdump_ent {
 		my $mid = $node->messageid;
 		PublicInbox::View::ghost_flush($state, '', $mid, $level);
 	}
-	tdump_ent($git, $state, $node->child, $level + 1);
-	tdump_ent($git, $state, $node->next, $level);
+	tdump_ent($state, $node->child, $level + 1);
+	tdump_ent($state, $node->next, $level);
 }
 
 sub foot {
