@@ -711,8 +711,7 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 
 sub search_header_for {
 	my ($srch, $mid, $field) = @_;
-	my $smsg = $srch->lookup_message($mid) or return;
-	$smsg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
+	my $smsg = $srch->lookup_mail($mid) or return;
 	$smsg->$field;
 }
 
@@ -847,10 +846,9 @@ sub cmd_over ($;$) {
 	my ($self, $range) = @_;
 	if ($range && $range =~ /\A<(.+)>\z/) {
 		my ($ng, $n) = mid_lookup($self, $1);
-		my $smsg = $ng->search->lookup_message($range) or
+		my $smsg = $ng->search->lookup_mail($range) or
 			return '430 No article with that message-id';
 		more($self, '224 Overview information follows (multi-line)');
-		$smsg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
 
 		# Only set article number column if it's the current group
 		my $self_ng = $self->{ng};
