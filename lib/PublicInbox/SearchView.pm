@@ -237,7 +237,7 @@ sub html_start {
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
 	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
-	my $git = $ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
+	my $ibx = $ctx->{-inbox};
 	my $feed_opts = PublicInbox::Feed::get_feedopts($ctx);
 	my $x = ascii_html($q->{'q'});
 	$x = qq{$x - search results};
@@ -249,7 +249,7 @@ sub adump {
 	for ($mset->items) {
 		$x = PublicInbox::SearchMsg->load_doc($_->get_document)->mid;
 		$x = mid2path($x);
-		my $s = PublicInbox::Feed::feed_entry($feed_opts, $x, $git);
+		my $s = PublicInbox::Feed::feed_entry($feed_opts, $x, $ibx);
 		$fh->write($s) if defined $s;
 	}
 	PublicInbox::Feed::end_feed($fh);
