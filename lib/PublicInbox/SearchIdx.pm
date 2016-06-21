@@ -150,11 +150,11 @@ sub add_message {
 
 		if ($was_ghost) {
 			$doc_id = $smsg->doc_id;
-			$self->link_message($smsg, 0);
+			$self->link_message($smsg);
 			$doc->set_data($smsg->to_doc_data);
 			$db->replace_document($doc_id, $doc);
 		} else {
-			$self->link_message($smsg, 0);
+			$self->link_message($smsg);
 			$doc->set_data($smsg->to_doc_data);
 			$doc_id = $db->add_document($doc);
 		}
@@ -211,16 +211,6 @@ sub next_thread_id {
 }
 
 sub link_message {
-	my ($self, $smsg, $is_ghost) = @_;
-
-	if ($is_ghost) {
-		$smsg->ensure_metadata;
-	} else {
-		$self->link_message_to_parents($smsg);
-	}
-}
-
-sub link_message_to_parents {
 	my ($self, $smsg) = @_;
 	my $doc = $smsg->{doc};
 	my $mid = $smsg->mid;
@@ -414,17 +404,15 @@ sub _resolve_mid_to_tid {
 }
 
 sub create_ghost {
-	my ($self, $mid, $tid) = @_;
+	my ($self, $mid) = @_;
 
-	$tid = $self->next_thread_id unless defined $tid;
-
+	my $tid = $self->next_thread_id;
 	my $doc = Search::Xapian::Document->new;
 	$doc->add_term(xpfx('mid') . $mid);
 	$doc->add_term(xpfx('thread') . $tid);
 	$doc->add_term(xpfx('type') . 'ghost');
 
 	my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
-	$self->link_message($smsg, 1);
 	$self->{xdb}->add_document($doc);
 
 	$smsg;
