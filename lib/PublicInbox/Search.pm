@@ -107,12 +107,15 @@ sub get_thread {
 
 	return { total => 0, msgs => [] } unless $smsg;
 	my $qtid = Search::Xapian::Query->new(xpfx('thread').$smsg->thread_id);
-	my $path = id_compress($smsg->path);
-	my $qsub = Search::Xapian::Query->new(xpfx('path').$path);
-	my $query = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
+	my $path = $smsg->path;
+	if (defined $path && $path ne '') {
+		my $path = id_compress($smsg->path);
+		my $qsub = Search::Xapian::Query->new(xpfx('path').$path);
+		$qtid = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
+	}
 	$opts ||= {};
 	$opts->{limit} ||= 1000;
-	_do_enquire($self, $query, $opts);
+	_do_enquire($self, $qtid, $opts);
 }
 
 sub _do_enquire {
