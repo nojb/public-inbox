@@ -376,12 +376,12 @@ sub master_loop {
 				exit if $quit++;
 				kill_workers($s);
 			} elsif ($s eq 'WINCH') {
-				if (-t STDIN || -t STDOUT || -t STDERR) {
-					warn
-"ignoring SIGWINCH while connected to terminal\n";
-					$SIG{WINCH} = 'IGNORE';
-				} else {
+				if ($daemonize) {
 					$worker_processes = 0;
+				} else {
+					warn
+"ignoring SIGWINCH since we are not daemonized\n";
+					$SIG{WINCH} = 'IGNORE';
 				}
 			} elsif ($s eq 'HUP') {
 				$worker_processes = $set_workers;
