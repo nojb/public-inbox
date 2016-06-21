@@ -383,9 +383,10 @@ sub thread_skel {
 		cur => $mid,
 		prev_attr => '',
 		prev_level => 0,
+		upfx => "$tpfx../",
 	};
 	for (thread_results(load_results($sres))->rootset) {
-		skel_dump($dst, $state, $tpfx, $_, 0);
+		skel_dump($dst, $state, $_, 0);
 	}
 	$ctx->{next_msg} = $state->{next_msg};
 	$ctx->{parent_msg} = $parent;
@@ -663,7 +664,7 @@ sub _msg_date {
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _skel_header {
-	my ($dst, $state, $upfx, $hdr, $level) = @_;
+	my ($dst, $state, $hdr, $level) = @_;
 
 	my $cur = $state->{cur};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
@@ -705,18 +706,18 @@ sub _skel_header {
 		$s = $s->as_html;
 	}
 	my $m = PublicInbox::Hval->new_msgid($mid);
-	$m = $upfx . '../' . $m->as_href . '/';
+	$m = $state->{upfx} . $m->as_href . '/';
 	$$dst .= "$pfx<a\nhref=\"$m\">";
 	$$dst .= defined($s) ? "$s</a> $f\n" : "$f</a>\n";
 }
 
 sub skel_dump {
-	my ($dst, $state, $upfx, $node, $level) = @_;
+	my ($dst, $state, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
 		my $hdr = $mime->header_obj;
 		my $mid = mid_clean($hdr->header_raw('Message-ID'));
-		_skel_header($dst, $state, $upfx, $hdr, $level);
+		_skel_header($dst, $state, $hdr, $level);
 	} else {
 		my $mid = $node->messageid;
 		if ($mid eq 'subject dummy') {
@@ -725,13 +726,13 @@ sub skel_dump {
 			$$dst .= '     [not found] ';
 			$$dst .= indent_for($level) . th_pfx($level);
 			$mid = PublicInbox::Hval->new_msgid($mid);
-			my $href = "$upfx../" . $mid->as_href . '/';
+			my $href = $state->{upfx} . $mid->as_href . '/';
 			my $html = $mid->as_html;
 			$$dst .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
 		}
 	}
-	skel_dump($dst, $state, $upfx, $node->child, $level+1);
-	skel_dump($dst, $state, $upfx, $node->next, $level);
+	skel_dump($dst, $state, $node->child, $level+1);
+	skel_dump($dst, $state, $node->next, $level);
 }
 
 sub sort_ts {
