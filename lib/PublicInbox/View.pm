@@ -384,9 +384,10 @@ sub thread_skel {
 		prev_attr => '',
 		prev_level => 0,
 		upfx => "$tpfx../",
+		dst => $dst,
 	};
 	for (thread_results(load_results($sres))->rootset) {
-		skel_dump($dst, $state, $_, 0);
+		skel_dump($state, $_, 0);
 	}
 	$ctx->{next_msg} = $state->{next_msg};
 	$ctx->{parent_msg} = $parent;
@@ -664,8 +665,9 @@ sub _msg_date {
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _skel_header {
-	my ($dst, $state, $hdr, $level) = @_;
+	my ($state, $hdr, $level) = @_;
 
+	my $dst = $state->{dst};
 	my $cur = $state->{cur};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $f = ascii_html($hdr->header('X-PI-From'));
@@ -712,14 +714,15 @@ sub _skel_header {
 }
 
 sub skel_dump {
-	my ($dst, $state, $node, $level) = @_;
+	my ($state, $node, $level) = @_;
 	return unless $node;
 	if (my $mime = $node->message) {
 		my $hdr = $mime->header_obj;
 		my $mid = mid_clean($hdr->header_raw('Message-ID'));
-		_skel_header($dst, $state, $hdr, $level);
+		_skel_header($state, $hdr, $level);
 	} else {
 		my $mid = $node->messageid;
+		my $dst = $state->{dst};
 		if ($mid eq 'subject dummy') {
 			$$dst .= "\t[no common parent]\n";
 		} else {
@@ -731,8 +734,8 @@ sub skel_dump {
 			$$dst .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
 		}
 	}
-	skel_dump($dst, $state, $node->child, $level+1);
-	skel_dump($dst, $state, $node->next, $level);
+	skel_dump($state, $node->child, $level+1);
+	skel_dump($state, $node->next, $level);
 }
 
 sub sort_ts {
