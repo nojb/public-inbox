@@ -353,6 +353,7 @@ sub _msg_html_prepare {
 		$rv .= "$h: $v\n";
 
 	}
+	$title[0] ||= '(no subject)';
 	$ctx->{-title_html} = join(' - ', @title);
 	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
 	$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
