@@ -84,7 +84,7 @@ int public_inbox_fork_exec(int in, int out, int err,
 	char **argv, **envp;
 	I32 max;
 	sigset_t set, old;
-	int ret;
+	int ret, errnum;
 
 	argv = AV_ALLOCA(cmd, max);
 	av2c_copy(argv, cmd, max);
@@ -112,8 +112,10 @@ int public_inbox_fork_exec(int in, int out, int err,
 		execve(filename, argv, envp);
 		xerr("execve failed");
 	}
+	errnum = errno;
 	ret = sigprocmask(SIG_SETMASK, &old, NULL);
 	assert(ret == 0 && "BUG calling sigprocmask to restore");
+	errno = errnum;
 
 	return (int)pid;
 }
@@ -180,7 +182,8 @@ sub spawn ($;$$) {
 	my $in = $opts->{0} || 0;
 	my $out = $opts->{1} || 1;
 	my $err = $opts->{2} || 2;
-	public_inbox_fork_exec($in, $out, $err, $f, $cmd, \@env);
+	my $pid = public_inbox_fork_exec($in, $out, $err, $f, $cmd, \@env);
+	$pid < 0 ? undef : $pid;
 }
 
 sub popen_rd {
@@ -191,6 +194,7 @@ sub popen_rd {
 	IO::Handle::blocking($r, $blocking) if defined $blocking;
 	$opts->{1} = fileno($w);
 	my $pid = spawn($cmd, $env, $opts);
+	return unless defined $pid;
 	return ($r, $pid) if wantarray;
 	my $ret = gensym;
 	tie *$ret, 'PublicInbox::ProcessPipe', $pid, $r;

@@ -94,7 +94,7 @@ sub git_config_dump {
 	my ($in, $out);
 	my @cmd = (qw/git config/, "--file=$file", '-l');
 	my $cmd = join(' ', @cmd);
-	my $fh = popen_rd(\@cmd);
+	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
 	my %rv;
 	local $/ = "\n";
 	foreach my $line (<$fh>) {

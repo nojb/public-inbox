@@ -28,7 +28,9 @@ sub _bidi_pipe {
 
 	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file), $batch);
 	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
-	$self->{$pid} = spawn(\@cmd, undef, $redir);
+	my $p = spawn(\@cmd, undef, $redir);
+	defined $p or fail($self, "spawn failed: $!");
+	$self->{$pid} = $p;
 	$out_w->autoflush(1);
 	$self->{$out} = $out_w;
 	$self->{$in} = $in_r;
@@ -122,6 +124,7 @@ sub popen {
 sub qx {
 	my ($self, @cmd) = @_;
 	my $fh = $self->popen(@cmd);
+	defined $fh or return;
 	local $/ = "\n";
 	return <$fh> if wantarray;
 	local $/;

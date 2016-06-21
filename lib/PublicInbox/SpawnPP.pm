@@ -12,7 +12,12 @@ sub public_inbox_fork_exec ($$$$$$) {
 	my $set = POSIX::SigSet->new();
 	$set->fillset or die "fillset failed: $!";
 	sigprocmask(SIG_SETMASK, $set, $old) or die "can't block signals: $!";
+	my $syserr;
 	my $pid = fork;
+	unless (defined $pid) { # compat with Inline::C version
+		$syserr = $!;
+		$pid = -1;
+	}
 	if ($pid == 0) {
 		if ($in != 0) {
 			dup2($in, 0) or die "dup2 failed for stdin: $!";
@@ -34,6 +39,7 @@ sub public_inbox_fork_exec ($$$$$$) {
 		}
 	}
 	sigprocmask(SIG_SETMASK, $old) or die "can't unblock signals: $!";
+	$! = $syserr;
 	$pid;
 }
 

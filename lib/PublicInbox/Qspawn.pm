@@ -17,7 +17,7 @@ sub _do_spawn {
 	my ($self, $cb) = @_;
 	my $err;
 	($self->{rpipe}, $self->{pid}) = popen_rd(@{$self->{args}});
-	if ($self->{pid}) {
+	if (defined $self->{pid}) {
 		$running++;
 	} else {
 		$self->{err} = $!;

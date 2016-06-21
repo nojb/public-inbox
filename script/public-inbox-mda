@@ -97,6 +97,7 @@ sub do_spamc {
 	my ($in, $out) = @_;
 	my $rdr = { 0 => fileno($in) };
 	my ($fh, $pid) = popen_rd([qw/spamc -E --headers/], undef, $rdr);
+	defined $pid or die "failed to popen_rd spamc: $!\n";
 	my $r;
 	do {
 		$r = sysread($fh, $$out, 65536, length($$out));
