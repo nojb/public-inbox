@@ -757,8 +757,7 @@ sub _tryload_ghost ($$) {
 # accumulate recent topics if search is supported
 # returns 1 if done, undef if not
 sub add_topic {
-	my ($state, $node, $level) = @_;
-	return unless $node;
+	my ($state, $level, $node) = @_;
 	my $child_adjust = 1;
 	my $srch = $state->{srch};
 	my $x = $node->message || _tryload_ghost($srch, $node);
@@ -784,9 +783,6 @@ sub add_topic {
 		# ghost message, do not bump level
 		$child_adjust = 0;
 	}
-
-	add_topic($state, $node->child, $level + $child_adjust);
-	add_topic($state, $node->next, $level);
 }
 
 sub emit_topics {
@@ -850,9 +846,13 @@ sub emit_index_topics {
 	while (scalar @{$state->{order}} < $max) {
 		my $sres = $state->{srch}->query('', \%opts);
 		my $nr = scalar @{$sres->{msgs}} or last;
-
-		for (thread_results(load_results($sres))->rootset) {
-			add_topic($state, $_, 0);
+		$sres = load_results($sres);
+		my @q = map { (0, $_) } thread_results($sres)->rootset;
+		while (@q) {
+			my $level = shift @q;
+			my $node = shift @q or next;
+			add_topic($state, $level, $node);
+			unshift @q, $level+1, $node->child, $level, $node->next;
 		}
 		$opts{offset} += $nr;
 	}
