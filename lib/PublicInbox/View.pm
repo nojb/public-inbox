@@ -152,6 +152,17 @@ sub thread_html {
 	sub { emit_thread_html($_[0], $ctx, $foot, $srch) }
 }
 
+sub walk_thread {
+	my ($th, $state, $cb) = @_;
+	my @q = map { (0, $_) } $th->rootset;
+	while (@q) {
+		my $level = shift @q;
+		my $node = shift @q or next;
+		$cb->($state, $level, $node);
+		unshift @q, $level+1, $node->child, $level, $node->next;
+	}
+}
+
 # only private functions below.
 
 sub emit_thread_html {
@@ -177,13 +188,7 @@ sub emit_thread_html {
 		pre_anchor_entry($seen, $_) for (@$msgs);
 		__thread_entry($state, $_, 0) for (@$msgs);
 	} else {
-		my @q = map { (0, $_) } thread_results($msgs)->rootset;
-		while (@q) {
-			my $level = shift @q;
-			my $node = shift @q or next;
-			thread_entry($state, $level, $node);
-			unshift @q, $level+1, $node->child, $level, $node->next;
-		}
+		walk_thread(thread_results($msgs), $state, *thread_entry);
 		if (my $max = $state->{cur_level}) {
 			$state->{fh}->write(
 				('</ul></li>' x ($max - 1)) . '</ul>');
@@ -391,13 +396,7 @@ sub thread_skel {
 		upfx => "$tpfx../",
 		dst => $dst,
 	};
-	my @q = map { (0, $_) } thread_results(load_results($sres))->rootset;
-	while (@q) {
-		my $level = shift @q;
-		my $node = shift @q or next;
-		skel_dump($state, $level, $node);
-		unshift @q, $level+1, $node->child, $level, $node->next;
-	}
+	walk_thread(thread_results(load_results($sres)), $state, *skel_dump);
 	$ctx->{next_msg} = $state->{next_msg};
 	$ctx->{parent_msg} = $parent;
 }
@@ -847,13 +846,7 @@ sub emit_index_topics {
 		my $sres = $state->{srch}->query('', \%opts);
 		my $nr = scalar @{$sres->{msgs}} or last;
 		$sres = load_results($sres);
-		my @q = map { (0, $_) } thread_results($sres)->rootset;
-		while (@q) {
-			my $level = shift @q;
-			my $node = shift @q or next;
-			add_topic($state, $level, $node);
-			unshift @q, $level+1, $node->child, $level, $node->next;
-		}
+		walk_thread(thread_results($sres), $state, *add_topic);
 		$opts{offset} += $nr;
 	}
 

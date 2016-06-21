@@ -172,13 +172,7 @@ sub tdump {
 		fh => $fh,
 	};
 	$ctx->{searchview} = 1;
-	my @q = map { (0, $_) } $th->rootset;
-	while (@q) {
-		my $level = shift @q;
-		my $node = shift @q or next;
-		tdump_ent($state, $level, $node);
-		unshift @q, $level+1, $node->child, $level, $node->next;
-	}
+	PublicInbox::View::walk_thread($th, $state, *tdump_ent);
 	PublicInbox::View::thread_adj_level($state, 0);
 
 	$fh->write(search_nav_bot($mset, $q). "\n\n" .
