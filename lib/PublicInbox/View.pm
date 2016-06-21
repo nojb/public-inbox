@@ -386,8 +386,12 @@ sub thread_skel {
 		upfx => "$tpfx../",
 		dst => $dst,
 	};
-	for (thread_results(load_results($sres))->rootset) {
-		skel_dump($state, $_, 0);
+	my @q = map { (0, $_) } thread_results(load_results($sres))->rootset;
+	while (@q) {
+		my $level = shift @q;
+		my $node = shift @q or next;
+		skel_dump($state, $level, $node);
+		unshift @q, $level+1, $node->child, $level, $node->next;
 	}
 	$ctx->{next_msg} = $state->{next_msg};
 	$ctx->{parent_msg} = $parent;
@@ -714,8 +718,7 @@ sub _skel_header {
 }
 
 sub skel_dump {
-	my ($state, $node, $level) = @_;
-	return unless $node;
+	my ($state, $level, $node) = @_;
 	if (my $mime = $node->message) {
 		my $hdr = $mime->header_obj;
 		my $mid = mid_clean($hdr->header_raw('Message-ID'));
@@ -734,8 +737,6 @@ sub skel_dump {
 			$$dst .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
 		}
 	}
-	skel_dump($state, $node->child, $level+1);
-	skel_dump($state, $node->next, $level);
 }
 
 sub sort_ts {
