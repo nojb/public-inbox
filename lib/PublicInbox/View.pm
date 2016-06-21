@@ -177,8 +177,13 @@ sub emit_thread_html {
 		pre_anchor_entry($seen, $_) for (@$msgs);
 		__thread_entry($state, $_, 0) for (@$msgs);
 	} else {
-		my $th = thread_results($msgs);
-		thread_entry($state, $_, 0) for $th->rootset;
+		my @q = map { (0, $_) } thread_results($msgs)->rootset;
+		while (@q) {
+			my $level = shift @q;
+			my $node = shift @q or next;
+			thread_entry($state, $level, $node);
+			unshift @q, $level+1, $node->child, $level, $node->next;
+		}
 		if (my $max = $state->{cur_level}) {
 			$state->{fh}->write(
 				('</ul></li>' x ($max - 1)) . '</ul>');
@@ -618,8 +623,7 @@ sub __ghost_prepare {
 }
 
 sub thread_entry {
-	my ($state, $node, $level) = @_;
-	return unless $node;
+	my ($state, $level, $node) = @_;
 	if (my $mime = $node->message) {
 		unless (__thread_entry($state, $mime, $level)) {
 			__ghost_prepare($state, $node, $level);
@@ -627,9 +631,6 @@ sub thread_entry {
 	} else {
 		__ghost_prepare($state, $node, $level);
 	}
-
-	thread_entry($state, $node->child, $level + 1);
-	thread_entry($state, $node->next, $level);
 }
 
 sub load_results {
