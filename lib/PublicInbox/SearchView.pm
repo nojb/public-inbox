@@ -151,7 +151,6 @@ sub tdump {
 		$m;
 	} ($mset->items);
 
-	my @rootset;
 	my $th = PublicInbox::Thread->new(@m);
 	$th->thread;
 	if ($q->{r}) { # order by relevance
@@ -164,7 +163,6 @@ sub tdump {
 	} else { # order by time (default for threaded view)
 		$th->order(*PublicInbox::View::sort_ts);
 	}
-	@rootset = $th->rootset;
 	my $state = {
 		ctx => $ctx,
 		anchor_idx => 0,
@@ -174,7 +172,13 @@ sub tdump {
 		fh => $fh,
 	};
 	$ctx->{searchview} = 1;
-	tdump_ent($state, $_, 0) for @rootset;
+	my @q = map { (0, $_) } $th->rootset;
+	while (@q) {
+		my $level = shift @q;
+		my $node = shift @q or next;
+		tdump_ent($state, $level, $node);
+		unshift @q, $level+1, $node->child, $level, $node->next;
+	}
 	PublicInbox::View::thread_adj_level($state, 0);
 
 	$fh->write(search_nav_bot($mset, $q). "\n\n" .
@@ -184,8 +188,7 @@ sub tdump {
 }
 
 sub tdump_ent {
-	my ($state, $node, $level) = @_;
-	return unless $node;
+	my ($state, $level, $node) = @_;
 	my $mime = $node->message;
 
 	if ($mime) {
@@ -202,8 +205,6 @@ sub tdump_ent {
 		my $mid = $node->messageid;
 		PublicInbox::View::ghost_flush($state, '', $mid, $level);
 	}
-	tdump_ent($state, $node->child, $level + 1);
-	tdump_ent($state, $node->next, $level);
 }
 
 sub foot {
