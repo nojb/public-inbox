@@ -36,7 +36,8 @@ use constant {
 	# 8 - remove redundant/unneeded document data
 	# 9 - disable Message-ID compression (SHA-1)
 	# 10 - optimize doc for NNTP overviews
-	SCHEMA_VERSION => 10,
+	# 11 - merge threads when vivifying ghosts
+	SCHEMA_VERSION => 11,
 
 	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
 	# as it could become a denial-of-service vector

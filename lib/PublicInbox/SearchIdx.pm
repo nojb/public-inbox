@@ -150,7 +150,7 @@ sub add_message {
 
 		if ($was_ghost) {
 			$doc_id = $smsg->doc_id;
-			$self->link_message($smsg);
+			$self->link_message($smsg, $smsg->thread_id);
 			$doc->set_data($smsg->to_doc_data);
 			$db->replace_document($doc_id, $doc);
 		} else {
@@ -211,7 +211,7 @@ sub next_thread_id {
 }
 
 sub link_message {
-	my ($self, $smsg) = @_;
+	my ($self, $smsg, $old_tid) = @_;
 	my $doc = $smsg->{doc};
 	my $mid = $smsg->mid;
 	my $mime = $smsg->mime;
@@ -247,6 +247,7 @@ sub link_message {
 		# but we can never trust clients to do the right thing
 		my $ref = shift @refs;
 		$tid = $self->_resolve_mid_to_tid($ref);
+		$self->merge_threads($tid, $old_tid) if defined $old_tid;
 
 		# the rest of the refs should point to this tid:
 		foreach $ref (@refs) {
