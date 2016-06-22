@@ -33,8 +33,13 @@ sub msg_html {
 			$tip . multipart_text_as_html($mime, '') .
 				'</pre><hr />'
 		} elsif ($nr == 2) {
-			'<pre>' . html_footer($hdr, 1, $ctx) .
-			'</pre>' . msg_reply($ctx, $hdr);
+			# fake an EOF if generating the footer fails;
+			# we want to at least show the message if something
+			# here crashes:
+			eval {
+				'<pre>' . html_footer($hdr, 1, $ctx) .
+				'</pre>' . msg_reply($ctx, $hdr)
+			};
 		} else {
 			undef
 		}
