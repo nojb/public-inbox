@@ -748,8 +748,7 @@ sub sort_ts {
 }
 
 sub _tryload_ghost ($$) {
-	my ($srch, $node) = @_;
-	my $mid = $node->messageid;
+	my ($srch, $mid) = @_;
 	my $smsg = $srch->lookup_mail($mid) or return;
 	$smsg->mini_mime;
 }
@@ -758,30 +757,25 @@ sub _tryload_ghost ($$) {
 # returns 1 if done, undef if not
 sub add_topic {
 	my ($state, $level, $node) = @_;
-	my $child_adjust = 1;
 	my $srch = $state->{srch};
-	my $x = $node->message || _tryload_ghost($srch, $node);
+	my $mid = $node->messageid;
+	my $x = $node->message || _tryload_ghost($srch, $mid);
+	my ($subj, $ts);
 	if ($x) {
 		$x = $x->header_obj;
-		my $subj;
-
 		$subj = $x->header('Subject');
 		$subj = $srch->subject_normalized($subj);
-
-		if (++$state->{subjs}->{$subj} == 1) {
-			push @{$state->{order}}, [ $level, $subj ];
-		}
-
-		my $mid = mid_clean($x->header_raw('Message-ID'));
-
-		my $ts = $x->header('X-PI-TS');
-		my $exist = $state->{latest}->{$subj};
-		if (!$exist || $exist->[1] < $ts) {
-			$state->{latest}->{$subj} = [ $mid, $ts ];
-		}
-	} else {
-		# ghost message, do not bump level
-		$child_adjust = 0;
+		$ts = $x->header('X-PI-TS');
+	} else { # ghost message, do not bump level
+		$ts = -666;
+		$subj = "<$mid>";
+	}
+	if (++$state->{subjs}->{$subj} == 1) {
+		push @{$state->{order}}, [ $level, $subj ];
+	}
+	my $exist = $state->{latest}->{$subj};
+	if (!$exist || $exist->[1] < $ts) {
+		$state->{latest}->{$subj} = [ $mid, $ts ];
 	}
 }
 
@@ -802,7 +796,6 @@ sub emit_topics {
 		my $n = delete $subjs->{$subj};
 		my ($mid, $ts) = @{delete $latest->{$subj}};
 		$mid = PublicInbox::Hval->new_msgid($mid)->as_href;
-		$subj = PublicInbox::Hval->new($subj)->as_html;
 		$pfx = indent_for($level);
 		my $nl = $level == $prev ? "\n" : '';
 		if ($nl && $cur) {
@@ -811,10 +804,14 @@ sub emit_topics {
 		}
 		$cur ||= [ $ts, '' ];
 		$cur->[0] = $ts if $ts > $cur->[0];
-		$cur->[1] .= $nl . $pfx . th_pfx($level) .
-				"<a\nhref=\"$mid/t/#u\"><b>" .
-				$subj . "</b></a>\n";
+		$cur->[1] .= $nl . $pfx . th_pfx($level);
+		if ($ts == -666) { # ghost
+			$cur->[1] .= ghost_parent('', $mid) . "\n";
+			next; # child will have mbox / atom link
+		}
 
+		$subj = PublicInbox::Hval->new($subj)->as_html;
+		$cur->[1] .= "<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
 		$ts = fmt_ts($ts);
 		my $attr = " $ts UTC";
 
