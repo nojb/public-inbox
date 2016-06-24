@@ -69,6 +69,7 @@ lib/PublicInbox/Search.pm
 lib/PublicInbox/SearchIdx.pm
 lib/PublicInbox/SearchMsg.pm
 lib/PublicInbox/SearchView.pm
+lib/PublicInbox/Spamcheck/Spamc.pm
 lib/PublicInbox/Spawn.pm
 lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Thread.pm
@@ -133,6 +134,7 @@ t/psgi_attach.t
 t/psgi_mount.t
 t/qspawn.t
 t/search.t
+t/spamcheck_spamc.t
 t/spawn.t
 t/utf8.mbox
 t/view.t

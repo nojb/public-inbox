@@ -14,12 +14,13 @@ use Email::MIME;
 use Email::MIME::ContentType;
 $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Address;
-use PublicInbox::Spawn qw(spawn);
+use PublicInbox::Spamcheck::Spamc;
 my $train = shift or die "usage: $usage\n";
 if ($train !~ /\A(?:ham|spam)\z/) {
 	die "`$train' not recognized.\nusage: $usage\n";
 }
 
+my $spamc = PublicInbox::Spamcheck::Spamc->new;
 my $pi_config = PublicInbox::Config->new;
 my $err;
 my $mime = Email::MIME->new(eval {
@@ -27,19 +28,11 @@ my $mime = Email::MIME->new(eval {
 	my $data = scalar <STDIN>;
 	$data =~ s/\AFrom [^\r\n]*\r?\n//s;
 	eval {
-		my @cmd = (qw(spamc -L), $train);
-		my ($r, $w);
-		pipe($r, $w) or die "pipe failed: $!";
-		open my $null, '>', '/dev/null' or
-					die "failed to open /dev/null: $!";
-		my $nullfd = fileno($null);
-		my %rdr = (0 => fileno($r), 1 => $nullfd, 2 => $nullfd);
-		my $pid = spawn(\@cmd, undef, \%rdr);
-		close $null;
-		close $r or die "close \$r failed: $!";
-		print $w $data or die "print \$w failed: $!";
-		close $w or die "close \$w failed: $!";
-		waitpid($pid, 0);
+		if ($train eq 'ham') {
+			$spamc->hamlearn(\$data);
+		} else {
+			$spamc->spamlearn(\$data);
+		}
 		die "spamc failed with: $?\n" if $?;
 	};
 	$err = $@;

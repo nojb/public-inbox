@@ -24,7 +24,7 @@ use PublicInbox::Import;
 use PublicInbox::Git;
 use PublicInbox::Emergency;
 use PublicInbox::Filter::Base;
-use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::Spamcheck::Spamc;
 
 # n.b: hopefully we can setup the emergency path without bailing due to
 # user error, we really want to setup the emergency destination ASAP
@@ -44,9 +44,9 @@ my $main_repo = $dst->{mainrepo} or do_exit(1);
 
 # pre-check, MDA has stricter rules than an importer might;
 do_exit(0) unless PublicInbox::MDA->precheck($simple, $dst->{address});
-
+my $spamc = PublicInbox::Spamcheck::Spamc->new;
 $str = '';
-my $spam_ok = do_spamc($ems->fh, \$str);
+my $spam_ok = $spamc->spamcheck($ems->fh, \$str);
 $simple = undef;
 $emm = PublicInbox::Emergency->new($emergency);
 $emm->prepare(\$str);
@@ -90,20 +90,5 @@ if (defined $im->add($mime)) {
 			$mime->header_obj->header_raw('Message-ID'),
 			" exists\n";
 }
+
 do_exit(0);
-
-# we depend on "report_safe 0" in /etc/spamassassin/*.cf with --headers
-sub do_spamc {
-	my ($in, $out) = @_;
-	my $rdr = { 0 => fileno($in) };
-	my ($fh, $pid) = popen_rd([qw/spamc -E --headers/], undef, $rdr);
-	defined $pid or die "failed to popen_rd spamc: $!\n";
-	my $r;
-	do {
-		$r = sysread($fh, $$out, 65536, length($$out));
-	} while (defined($r) && $r != 0);
-	close $fh or die "close failed: $!\n";
-	waitpid($pid, 0);
-
-	($? || $$out eq '') ? 0 : 1;
-}
