@@ -4,6 +4,11 @@ use Test::More;
 use File::Temp qw/tempdir/;
 use Email::MIME;
 use PublicInbox::Config;
+my @mods = qw(Filesys::Notify::Simple);
+foreach my $mod (@mods) {
+	eval "require $mod";
+	plan skip_all => "$mod missing for watch_maildir.t" if $@;
+}
 
 my $tmpdir = tempdir('watch_maildir-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/test.git";

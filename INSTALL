@@ -19,8 +19,8 @@ standard MakeMaker installation (Perl)
 	make test
 	make install # root permissions may be needed
 
-Requirements (server MDA)
--------------------------
+Requirements
+------------
 
 * git
 * SpamAssassin (spamc/spamd)
@@ -36,19 +36,23 @@ Optional modules:
   - Plack[1]                   libplack-perl
   - Mail::Thread (2.5+)[1]     libmail-thread-perl
   - URI::Escape[1]             liburi-perl
-  - Search::Xapian[3]          libsearch-xapian-perl
-  - IO::Compress::Gzip[3]      libio-compress-perl
+  - Search::Xapian[2][3]       libsearch-xapian-perl
+  - IO::Compress::Gzip[3]      perl-modules (or libio-compress-perl)
   - DBI[3]                     libdbi-perl
-  - DBD::SQLite[3]             libdbd-sqlite3-perl
+  - DBD::SQLite[2][3]          libdbd-sqlite3-perl
   - Danga::Socket[4]           libdanga-socket-perl
-  - Net::Server[4]             libnet-server-perl
+  - Net::Server[5]             libnet-server-perl
+  - Filesys::Notify::Simple[6] libfilesys-notify-simple-perl
 
-[1] - Only required for serving/generating Atom and HTML pages.
-[3] - Optional for HTML web interface and HTTP/NNTP servers
-[4] - Optional for HTTP and NNTP servers
+[1] - Optional, needed for serving/generating Atom and HTML pages
+[2] - Optional, only required for NNTP server
+[3] - Optional, needed for gzipped mbox support over HTTP
+[4] - Optional, needed for bundled HTTP and NNTP servers
+[5] - Optional, needed for standalone daemonization of HTTP+NNTP servers
+[6] - Optional, needed for public-inbox-watch Maildir watcher
 
 When installing Search::Xapian, make sure the underlying Xapian
-is patched against the index corruption bug documented in:
+installation is not affected by an index corruption bug:
 
 	https://bugs.debian.org/808610
 

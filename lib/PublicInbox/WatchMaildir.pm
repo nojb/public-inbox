@@ -144,6 +144,8 @@ sub watch {
 	my $cb = sub { _try_fsn_paths($self, \@_) };
 	my $mdir = $self->{mdir};
 
+	# lazy load here, we may support watching via IMAP IDLE
+	# in the future...
 	require Filesys::Notify::Simple;
 	my $watcher = Filesys::Notify::Simple->new($mdir);
 	$watcher->wait($cb) while (1);
