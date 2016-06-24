@@ -69,7 +69,7 @@ sub _try_fsn_paths {
 	_done_for_now($self);
 }
 
-sub _check_spam {
+sub _remove_spam {
 	my ($self, $path) = @_;
 	$path =~ /:2,[A-R]*S[T-Z]*\z/ or return;
 	my $mime = _path_to_mime($path) or return;
@@ -121,7 +121,7 @@ sub _try_path {
 		return;
 	}
 	if (!ref($inbox) && $inbox eq 'watchspam') {
-		return _check_spam($self, $path);
+		return _remove_spam($self, $path);
 	}
 	my $im = _importer_for($self, $inbox);
 	my $mime = _path_to_mime($path) or return;
