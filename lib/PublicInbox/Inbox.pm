@@ -5,7 +5,7 @@
 package PublicInbox::Inbox;
 use strict;
 use warnings;
-use Scalar::Util qw(weaken);
+use Scalar::Util qw(weaken isweak);
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 
@@ -19,7 +19,9 @@ sub new {
 
 sub weaken_all {
 	my ($self) = @_;
-	weaken($self->{$_}) foreach qw(git mm search);
+	foreach my $f (qw(git mm search)) {
+		isweak($self->{$f}) or weaken($self->{$f});
+	}
 }
 
 sub git {
