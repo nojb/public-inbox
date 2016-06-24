@@ -1,5 +1,8 @@
 # Copyright (C) 2016 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# ref: https://cr.yp.to/proto/maildir.html
+#	http://wiki2.dovecot.org/MailboxFormat/Maildir
 package PublicInbox::WatchMaildir;
 use strict;
 use warnings;
@@ -89,7 +92,7 @@ sub _try_fsn_paths {
 
 sub _remove_spam {
 	my ($self, $path) = @_;
-	$path =~ /:2,[A-R]*S[T-Z]*\z/ or return;
+	$path =~ /:2,[A-R]*S[T-Z]*\z/i or return;
 	my $mime = _path_to_mime($path) or return;
 	_force_mid($mime);
 	foreach my $inbox (values %{$self->{mdmap}}) {
@@ -127,7 +130,11 @@ sub _force_mid {
 sub _try_path {
 	my ($self, $path) = @_;
 	my @p = split(m!/+!, $path);
-	return unless $p[-1] =~ /\A[a-zA-Z0-9][\w:,=\.]+\z/;
+	return if $p[-1] !~ /\A[a-zA-Z0-9][\w:,=\.]+\z/;
+	if ($p[-1] =~ /:2,([A-Z]+)\z/i) {
+		my $flags = $1;
+		return if $flags =~ /[DT]/; # no [D]rafts or [T]rashed mail
+	}
 	return unless -f $path;
 	if ($path !~ $self->{mdre}) {
 		warn "unrecognized path: $path\n";
