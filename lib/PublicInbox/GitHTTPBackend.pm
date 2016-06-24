@@ -188,7 +188,6 @@ sub serve_smart {
 	my $end = sub {
 		if (my $err = $x->finish) {
 			err($env, "git http-backend ($git_dir): $err");
-			drop_client($env);
 		}
 		$fh->close if $fh; # async-only
 	};
