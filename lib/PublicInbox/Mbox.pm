@@ -110,7 +110,7 @@ use warnings;
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
-	my $buf;
+	my $buf = '';
 	bless {
 		buf => \$buf,
 		gz => IO::Compress::Gzip->new(\$buf, Time => 0),
@@ -121,19 +121,11 @@ sub new {
 	}, $class;
 }
 
-sub _flush_buf {
-	my ($self) = @_;
-	my $ret = $self->{buf};
-	$ret = $$ret;
-	${$self->{buf}} = undef;
-	$ret;
-}
-
 # called by Plack::Util::foreach or similar
 sub getline {
 	my ($self) = @_;
+	my $ctx = $self->{ctx} or return;
 	my $res;
-	my $ctx = $self->{ctx};
 	my $ibx = $ctx->{-inbox};
 	my $gz = $self->{gz};
 	do {
@@ -141,8 +133,12 @@ sub getline {
 			my $msg = eval { $ibx->msg_by_mid($smsg->mid) } or next;
 			$msg = Email::Simple->new($msg);
 			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg));
-			my $ret = _flush_buf($self);
-			return $ret if $ret;
+			my $bref = $self->{buf};
+			if (length($$bref) >= 8192) {
+				my $ret = $$bref; # copy :<
+				${$self->{buf}} = '';
+				return $ret;
+			}
 		}
 		$res = $self->{cb}->($self->{opts});
 		$self->{msgs} = $res->{msgs};
@@ -150,7 +146,8 @@ sub getline {
 		$self->{opts}->{offset} += $res;
 	} while ($res);
 	$gz->close;
-	_flush_buf($self);
+	delete $self->{ctx};
+	${delete $self->{buf}};
 }
 
 sub close {} # noop
