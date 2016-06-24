@@ -3,6 +3,7 @@
 use Test::More;
 use File::Temp qw/tempdir/;
 use Email::MIME;
+use Cwd;
 use PublicInbox::Config;
 my @mods = qw(Filesys::Notify::Simple);
 foreach my $mod (@mods) {
@@ -84,6 +85,39 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	is(scalar @list, 0, 'tree is empty');
 	@list = $git->qx(qw(rev-list refs/heads/master));
 	is(scalar @list, 4, 'four revisions in rev-list');
+}
+
+{
+	my $fail_bin = getcwd()."/t/fail-bin";
+	ok(-x "$fail_bin/spamc", "mock spamc exists");
+	my $fail_path = "$fail_bin:$ENV{PATH}"; # for spamc ham mock
+	local $ENV{PATH} = $fail_path;
+	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
+	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
+	PublicInbox::WatchMaildir->new($config)->scan;
+	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	is(scalar @list, 0, 'tree has no files spamc checked');
+	is(unlink(glob("$maildir/new/*")), 1);
+}
+
+{
+	my $main_bin = getcwd()."/t/main-bin";
+	ok(-x "$main_bin/spamc", "mock spamc exists");
+	my $main_path = "$main_bin:$ENV{PATH}"; # for spamc ham mock
+	local $ENV{PATH} = $main_path;
+	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
+	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
+	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	PublicInbox::WatchMaildir->new($config)->scan;
+	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	is(scalar @list, 1, 'tree has one file after spamc checked');
+
+	# XXX: workaround some weird caching/memoization in cat-file,
+	# shouldn't be an issue in real-world use, though...
+	$git = PublicInbox::Git->new($git_dir);
+
+	my $mref = $git->cat_file('refs/heads/master:'.$list[0]);
+	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
 }
 
 done_testing;

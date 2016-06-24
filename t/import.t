@@ -30,7 +30,7 @@ is(scalar @revs, 1, 'one revision created');
 
 $mime->header_set('Message-ID', '<b@example.com>');
 $mime->header_set('Subject', 'msg2');
-like($im->add($mime), qr/\A:\d+\z/, 'added 2nd message');
+like($im->add($mime, sub { $mime }), qr/\A:\d+\z/, 'added 2nd message');
 $im->done;
 @revs = $git->qx(qw(rev-list HEAD));
 is(scalar @revs, 2, '2 revisions exist');
@@ -60,6 +60,10 @@ $mime->header_set('Message-ID', '<a@example.com>');
 is($mark, 'MISMATCH', 'mark == MISMATCH on mismatch');
 is($msg->header('Message-ID'), '<a@example.com>', 'Message-ID matches');
 isnt($msg->header('Subject'), $mime->header('Subject'), 'subject mismatch');
+
+$mime->header_set('Message-Id', '<failcheck@example.com>');
+is($im->add($mime, sub { undef }), undef, 'check callback fails');
+is($im->remove($mime), undef, 'message not added, so not removed');
 
 $im->done;
 done_testing();

@@ -140,7 +140,7 @@ sub remove {
 
 # returns undef on duplicate
 sub add {
-	my ($self, $mime) = @_; # mime = Email::MIME
+	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
 	my $from = $mime->header('From');
 	my ($email) = ($from =~ /([^<\s]+\@[^>\s]+)/g);
@@ -170,6 +170,10 @@ sub add {
 
 	# kill potentially confusing/misleading headers
 	$mime->header_set($_) for qw(bytes lines content-length status);
+	if ($check_cb) {
+		$mime = $check_cb->($mime) or return;
+	}
+
 	$mime = $mime->as_string;
 	my $blob = $self->{mark}++;
 	print $w "blob\nmark :$blob\ndata ", length($mime), "\n" or wfail;

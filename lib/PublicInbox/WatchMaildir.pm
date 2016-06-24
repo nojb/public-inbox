@@ -13,7 +13,9 @@ use PublicInbox::Spawn qw(spawn);
 
 sub new {
 	my ($class, $config) = @_;
-	my (%mdmap, @mdir);
+	my (%mdmap, @mdir, $spamc);
+
+	# XXX is "publicinboxlearn" really a good namespace for this?
 	my $k = 'publicinboxlearn.watchspam';
 	if (my $spamdir = $config->{$k}) {
 		if ($spamdir =~ s/\Amaildir://) {
@@ -24,6 +26,21 @@ sub new {
 			$mdmap{$cur} = 'watchspam';
 		} else {
 			warn "unsupported $k=$spamdir\n";
+		}
+	}
+
+	$k = 'publicinboxwatch.spamcheck';
+	my $spamcheck = $config->{$k};
+	if ($spamcheck) {
+		if ($spamcheck eq 'spamc') {
+			$spamcheck = 'PublicInbox::Spamcheck::Spamc';
+		}
+		if ($spamcheck =~ /::/) {
+			eval "require $spamcheck";
+			$spamcheck = _spamcheck_cb($spamcheck->new);
+		} else {
+			warn "unsupported $k=$spamcheck\n";
+			$spamcheck = undef;
 		}
 	}
 	foreach $k (keys %$config) {
@@ -52,6 +69,7 @@ sub new {
 	my $mdre = join('|', map { quotemeta($_) } @mdir);
 	$mdre = qr!\A($mdre)/!;
 	bless {
+		spamcheck => $spamcheck,
 		mdmap => \%mdmap,
 		mdir => \@mdir,
 		mdre => $mdre,
@@ -136,7 +154,7 @@ sub _try_path {
 	}
 
 	_force_mid($mime);
-	$im->add($mime);
+	$im->add($mime, $self->{spamcheck});
 }
 
 sub watch {
@@ -206,6 +224,18 @@ sub _scrubber_for {
 		}
 	}
 	undef;
+}
+
+sub _spamcheck_cb {
+	my ($sc) = @_;
+	sub {
+		my ($mime) = @_;
+		my $tmp = '';
+		if ($sc->spamcheck($mime, \$tmp)) {
+			return Email::MIME->new(\$tmp);
+		}
+		undef;
+	}
 }
 
 1;
