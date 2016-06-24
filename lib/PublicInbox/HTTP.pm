@@ -223,7 +223,10 @@ sub chunked_wcb ($) {
 		return if $_[0] eq '';
 		more($self, sprintf("%x\r\n", bytes::length($_[0])));
 		more($self, $_[0]);
-		$self->write("\r\n");
+
+		# use $self->write("\n\n") if you care about real-time
+		# streaming responses, public-inbox WWW does not.
+		more($self, "\r\n");
 	}
 }
 
