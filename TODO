@@ -18,7 +18,7 @@ TODO items for public-inbox
 
 * Optional reply-to-list support for mirroring lists that want it :<
   Reply-to-list encourages the existing list as a single-point-of-failure,
-  but having an extra mirror using public-inbox.org is nice regardless.
+  but having an extra mirror using public-inbox code is nice regardless.
 
 * Configurable linkification for per-inbox shorthands:
   "$gmane/123456" could be configured to expand to the
@@ -43,6 +43,12 @@ TODO items for public-inbox
 
 * handle Xapian date range queries:
   http://mid.gmane.org/20151005222157.GE5880@survex.com
+
+* Consider storing git blob ID in Xapian doc data to avoid ref
+  and tree lookups based on Message-Id.
+
+* Allow in-place Xapian updates without clobbering the whole
+  index (versioning each doc data entry?) for big archives
 
 * use REQUEST_URI properly for CGI / mod_perl2 compatibility
   with Message-IDs which include '%' (done?)
