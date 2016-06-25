@@ -83,6 +83,12 @@ sub in_reply_to {
 	undef;
 }
 
+sub _hdr_names ($$) {
+	my ($hdr, $field) = @_;
+	my $val = $hdr->header($field) or return '';
+	ascii_html(join(', ', PublicInbox::Address::names($val)));
+}
+
 # this is already inside a <pre>
 sub index_entry {
 	my ($mime, $level, $state) = @_;
@@ -98,7 +104,6 @@ sub index_entry {
 	$seen->{$id} = "#$id"; # save the anchor for children, later
 
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
-	my $from = PublicInbox::Address::from_name($hdr->header('From'));
 
 	my $root_anchor = $state->{root_anchor} || '';
 	my $path = $root_anchor ? '../../' : '';
@@ -106,7 +111,6 @@ sub index_entry {
 	my $irt = in_reply_to($hdr);
 	my $parent_anchor = $seen->{anchor_for($irt)} if defined $irt;
 
-	$from = ascii_html($from);
 	$subj = ascii_html($subj);
 	$subj = "<a\nhref=\"${path}$href/\">$subj</a>";
 	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id;
@@ -116,7 +120,15 @@ sub index_entry {
 	$rv .= "<b\nid=$id>$subj</b>\n";
 	my $txt = "${path}$href/raw";
 	my $fh = $state->{fh};
-	$fh->write($rv .= "- $from @ $ts UTC (<a\nhref=\"$txt\">raw</a>)\n\n");
+	my $from = _hdr_names($hdr, 'From');
+	$rv .= "- $from @ $ts UTC (<a\nhref=\"$txt\">raw</a>)\n";
+	my @tocc;
+	foreach my $f (qw(To Cc)) {
+		my $dst = _hdr_names($hdr, $f);
+		push @tocc, "$f: $dst" if $dst ne '';
+	}
+	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
+	$fh->write($rv .= "\n");
 
 	my $mhref = "${path}$href/";
 
