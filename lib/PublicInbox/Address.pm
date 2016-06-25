@@ -7,7 +7,18 @@ use warnings;
 # very loose regexes, here.  We don't need RFC-compliance,
 # just enough to make thing sanely displayable and pass to git
 
-sub emails { ($_[0] =~ /([^<\s,]+\@[^>\s,]+)/g) }
+sub emails { ($_[0] =~ /([\w\.\+=\-]+\@[\w\.\-]+)>?\s*(?:,\s*|\z)/g) }
+
+sub names {
+	map {
+		tr/\r\n\t/ /;
+		s/\s*<([^<]+)\z//;
+		my $e = $1;
+		s/\A['"\s]*//;
+		s/['"\s]*\z//;
+		$_ =~ /\S/ ? $_ : $e;
+	} split(/\@+[\w\.\-]+>?\s*(?:,\s*|\z)/, $_[0]);
+}
 
 sub from_name {
 	my ($val) = @_;

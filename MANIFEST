@@ -99,6 +99,7 @@ scripts/import_slrnspool
 scripts/report-spam
 scripts/slrnspool2maildir
 scripts/ssoma-replay
+t/address.t
 t/cgi.t
 t/check-www-inbox.perl
 t/common.perl
