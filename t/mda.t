@@ -57,7 +57,7 @@ local $ENV{GIT_COMMITTER_NAME} = eval {
 	my $msg = Email::MIME->new($str);
 
 	my $from = $msg->header('From');
-	my $author = PublicInbox::Address::from_name($from);
+	my ($author) = PublicInbox::Address::names($from);
 	my ($email) = PublicInbox::Address::emails($from);
 	my $date = $msg->header('Date');
 

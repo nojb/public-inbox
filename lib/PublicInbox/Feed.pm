@@ -317,7 +317,7 @@ sub feed_entry {
 
 	my $from = $header_obj->header('From') or return;
 	my ($email) = PublicInbox::Address::emails($from);
-	my $name = PublicInbox::Address::from_name($from);
+	my $name = join(', ',PublicInbox::Address::names($from));
 	$name = ascii_html($name);
 	$email = ascii_html($email);
 

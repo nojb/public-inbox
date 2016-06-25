@@ -85,7 +85,8 @@ sub from ($) {
 	my ($self) = @_;
 	my $from = __hdr($self, 'from');
 	if (defined $from && !defined $self->{from_name}) {
-		$self->{from_name} = PublicInbox::Address::from_name($from);
+		my @n = PublicInbox::Address::names($from);
+		$self->{from_name} = join(', ', @n);
 	}
 	$from;
 }

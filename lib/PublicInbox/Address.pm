@@ -20,18 +20,4 @@ sub names {
 	} split(/\@+[\w\.\-]+>?\s*(?:,\s*|\z)/, $_[0]);
 }
 
-sub from_name {
-	my ($val) = @_;
-	my $name = $val;
-	$name =~ s/\s*\S+\@\S+\s*\z//;
-	if ($name !~ /\S/ || $name =~ /[<>]/) { # git does not like [<>]
-		($name) = emails($val);
-		$name =~ s/\@.*//;
-	}
-	$name =~ tr/\r\n\t/ /;
-	$name =~ s/\A['"\s]*//;
-	$name =~ s/['"\s]*\z//;
-	$name;
-}
-
 1;

@@ -354,8 +354,8 @@ sub _msg_html_prepare {
 		$v = PublicInbox::Hval->new($v);
 
 		if ($h eq 'From') {
-			my $n = PublicInbox::Address::from_name($v->raw);
-			$title[1] = ascii_html($n);
+			my @n = PublicInbox::Address::names($v->raw);
+			$title[1] = ascii_html(join(', ', @n));
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
