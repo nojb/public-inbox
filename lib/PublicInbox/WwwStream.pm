@@ -44,8 +44,6 @@ sub _html_end {
 	my $ctx = $self->{ctx};
 	my $obj = $ctx->{-inbox};
 	my $desc = ascii_html($obj->description);
-	my @urls = @{$obj->cloneurl};
-	my %seen = map { $_ => 1 } @urls;
 
 	# FIXME: cleanup
 	my $env = $ctx->{env};
@@ -54,9 +52,15 @@ sub _html_end {
 			"$env->{SERVER_NAME}:$env->{SERVER_PORT}";
 	my $http = "$scheme://$host_port".($env->{SCRIPT_NAME} || '/');
 	$http = URI->new($http . $obj->{name})->canonical->as_string;
-	$seen{$http} or unshift @urls, $http;
+	my %seen = ( $http => 1 );
+	my @urls = ($http);
+	foreach my $u (@{$obj->cloneurl}) {
+		next if $seen{$u};
+		$seen{$u} = 1;
+		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
+	}
 	if (scalar(@urls) == 1) {
-		$urls .= " git clone --mirror $urls[0]";
+		$urls .= " git clone --mirror $http";
 	} else {
 		$urls .= "\n" .
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
