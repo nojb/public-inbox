@@ -455,6 +455,15 @@ sub _parent_headers {
 	$rv;
 }
 
+sub squote_maybe ($) {
+	my ($val) = @_;
+	if ($val =~ m{([^\w@\./,\%\+\-])}) {
+		$val =~ s/(['!])/'\\$1'/g; # '!' for csh
+		return "'$val'";
+	}
+	$val;
+}
+
 sub mailto_arg_link {
 	my ($hdr) = @_;
 	my %cc; # everyone else
@@ -475,7 +484,7 @@ sub mailto_arg_link {
 	my $subj = $hdr->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
 	my $mid = $hdr->header_raw('Message-ID');
-	push @arg, "--in-reply-to='" . ascii_html($mid) . "'";
+	push @arg, '--in-reply-to='.ascii_html(squote_maybe(mid_clean($mid)));
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
 	push @arg, '--to=' . ascii_html($to);

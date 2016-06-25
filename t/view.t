@@ -4,8 +4,20 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-use PublicInbox::View;
 use Plack::Util;
+use_ok 'PublicInbox::View';
+
+my @q = (
+	'foo@bar', 'foo@bar',
+	'a b', "'a b'",
+	"a'b", "'a'\\''b'",
+);
+while (@q) {
+	my $input = shift @q;
+	my $expect = shift @q;
+	my $res = PublicInbox::View::squote_maybe($input);
+	is($res, $expect, "quote $input => $res");
+}
 
 # FIXME: make this test less fragile
 my $ctx = {
