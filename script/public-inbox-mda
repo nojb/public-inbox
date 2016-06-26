@@ -32,6 +32,7 @@ use PublicInbox::Spamcheck::Spamc;
 my $emergency = $ENV{PI_EMERGENCY} || "$ENV{HOME}/.public-inbox/emergency/";
 $ems = PublicInbox::Emergency->new($emergency);
 my $str = eval { local $/; <STDIN> };
+$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 $ems->prepare(\$str);
 my $simple = Email::Simple->new(\$str);
 my $config = PublicInbox::Config->new;

@@ -26,7 +26,7 @@ my $err;
 my $mime = Email::MIME->new(eval {
 	local $/;
 	my $data = scalar <STDIN>;
-	$data =~ s/\AFrom [^\r\n]*\r?\n//s;
+	$data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 	eval {
 		if ($train eq 'ham') {
 			$spamc->hamlearn(\$data);
