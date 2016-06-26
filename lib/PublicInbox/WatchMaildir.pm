@@ -241,6 +241,7 @@ sub _spamcheck_cb {
 		if ($sc->spamcheck($mime, \$tmp)) {
 			return Email::MIME->new(\$tmp);
 		}
+		warn $mime->header('Message-ID')." failed spam check\n";
 		undef;
 	}
 }
