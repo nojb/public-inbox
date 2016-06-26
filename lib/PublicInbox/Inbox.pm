@@ -100,7 +100,7 @@ sub msg_by_path ($$;$) {
 	my ($self, $path, $ref) = @_;
 	# TODO: allow other refs:
 	my $str = git($self)->cat_file('HEAD:'.$path, $ref);
-	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s if $str;
 	$str;
 }
 
