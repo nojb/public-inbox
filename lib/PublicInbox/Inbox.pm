@@ -99,7 +99,9 @@ sub nntp_usable {
 sub msg_by_path ($$;$) {
 	my ($self, $path, $ref) = @_;
 	# TODO: allow other refs:
-	git($self)->cat_file('HEAD:'.$path, $ref);
+	my $str = git($self)->cat_file('HEAD:'.$path, $ref);
+	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+	$str;
 }
 
 sub msg_by_mid ($$;$) {

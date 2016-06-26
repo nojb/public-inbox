@@ -311,6 +311,8 @@ sub do_cat_mail {
 	my ($git, $blob, $sizeref) = @_;
 	my $mime = eval {
 		my $str = $git->cat_file($blob, $sizeref);
+		# fixup bugs from import:
+		$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 		Email::MIME->new($str);
 	};
 	$@ ? undef : $mime;
