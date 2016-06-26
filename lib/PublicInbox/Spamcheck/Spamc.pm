@@ -75,8 +75,8 @@ sub _msg_to_fd {
 	my $tmpfh;
 	my $fd;
 	if (my $ref = ref($msg)) {
-
-		return $msg->fileno if $ref ne 'SCALAR' && $msg->can('fileno');
+		my $fileno = eval { fileno($msg) };
+		return $fileno if defined $fileno;
 
 		$tmpfh = IO::File->new_tmpfile;
 		$tmpfh->autoflush(1);
