@@ -48,6 +48,7 @@ sub call {
 	my %qp = map {
 		my ($k, $v) = split('=', $_, 2);
 		$v = '' unless defined $v;
+		$v =~ tr/+/ /;
 		($k, $v)
 	} split(/[&;]/, uri_unescape($env->{QUERY_STRING}));
 	$ctx->{qp} = \%qp;
