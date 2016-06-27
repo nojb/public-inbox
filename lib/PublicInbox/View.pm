@@ -496,7 +496,7 @@ sub mailto_arg_link {
 	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
 	$href =~ s/%20/+/g;
 
-	(\@arg, $href);
+	(\@arg, ascii_html($href));
 }
 
 sub html_footer {
