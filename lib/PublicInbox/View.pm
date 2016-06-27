@@ -515,7 +515,7 @@ sub html_footer {
 		if ($p) {
 			$p = PublicInbox::Hval->new_msgid($p);
 			$p = $p->as_href;
-			$irt = "<a\nhref=\"$upfx$p/\"rel=prev>parent</a> ";
+			$irt = "<a\nhref=\"$upfx$p/\"\nrel=prev>parent</a> ";
 		} else {
 			$irt = ' ' x length('parent ');
 		}
