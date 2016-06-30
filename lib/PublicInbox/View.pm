@@ -103,7 +103,7 @@ sub index_entry {
 	my $subj = $hdr->header('Subject');
 
 	my $mid_raw = mid_clean(mid_mime($mime));
-	my $id = id_compress($mid_raw);
+	my $id = id_compress($mid_raw, 1);
 	my $id_m = 'm'.$id;
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
 
@@ -119,20 +119,23 @@ sub index_entry {
 		my $dst = _hdr_names($hdr, $f);
 		push @tocc, "$f: $dst" if $dst ne '';
 	}
-	my $mapping = $ctx->{mapping};
 	$rv .= "From: "._hdr_names($hdr, 'From').' @ '._msg_date($hdr)." UTC";
 	my $upfx = $ctx->{-upfx};
-	$rv .= qq{ (<a\nhref="$upfx$mid_raw/">permalink</a> / };
-	$rv .= qq{<a\nhref="$upfx$mid_raw/raw">raw</a>)\n};
+	my $mhref = $upfx . $mid->as_href . '/';
+	$rv .= qq{ (<a\nhref="$mhref/">permalink</a> / };
+	$rv .= qq{<a\nhref="$mhref/raw">raw</a>)\n};
 	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
+
+	my $mapping = $ctx->{mapping};
 	if (!$mapping && $irt) {
-		$rv .= qq(In-Reply-To: &lt;<a\nhref="$upfx$irt/">$irt</a>&gt;\n)
+		my $mirt = PublicInbox::Hval->msgid($irt);
+		my $href = $upfx . $mirt->as_href . '/';
+		my $html = $mirt->as_html;
+		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href/">$html</a>&gt;\n)
 	}
 	$rv .= "\n";
 
 	# scan through all parts, looking for displayable text
-	my $href = $mid->as_href;
-	my $mhref = $ctx->{-upfx}.$href.'/';
 	msg_iter($mime, sub { $rv .= add_text_body($mhref, $_[0]) });
 
 	# add the footer
