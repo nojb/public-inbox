@@ -138,8 +138,8 @@ sub index_entry {
 	$rv .= "From: "._hdr_names($hdr, 'From').' @ '._msg_date($hdr)." UTC";
 	my $upfx = $ctx->{-upfx};
 	my $mhref = $upfx . $mid->as_href . '/';
-	$rv .= qq{ (<a\nhref="$mhref/">permalink</a> / };
-	$rv .= qq{<a\nhref="$mhref/raw">raw</a>)\n};
+	$rv .= qq{ (<a\nhref="$mhref">permalink</a> / };
+	$rv .= qq{<a\nhref="${mhref}raw">raw</a>)\n};
 	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
 
 	my $mapping = $ctx->{mapping};
