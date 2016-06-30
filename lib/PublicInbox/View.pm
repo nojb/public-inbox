@@ -49,7 +49,8 @@ sub msg_html {
 # /$INBOX/$MESSAGE_ID/#R
 sub msg_reply {
 	my ($ctx, $hdr) = @_;
-	my $se_url = 'https://git-htmldocs.bogomips.org/git-send-email.html';
+	my $se_url =
+	 'https://kernel.org/pub/software/scm/git/docs/git-send-email.html';
 
 	my ($arg, $link) = mailto_arg_link($hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
