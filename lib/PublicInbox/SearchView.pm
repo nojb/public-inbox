@@ -8,11 +8,13 @@ use warnings;
 use PublicInbox::SearchMsg;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::View;
-use PublicInbox::MID qw(mid2path mid_mime);
+use PublicInbox::MID qw(mid2path mid_mime mid_clean);
 use Email::MIME;
 require PublicInbox::Git;
 require PublicInbox::Thread;
 our $LIM = 50;
+
+sub noop {}
 
 sub sres_top_html {
 	my ($ctx) = @_;
@@ -27,44 +29,46 @@ sub sres_top_html {
 		relevance => $q->{r},
 	};
 	my ($mset, $total);
-
 	eval {
-		$mset = $ctx->{srch}->query($q->{q}, $opts);
+		$mset = $ctx->{srch}->query($q->{'q'}, $opts);
 		$total = $mset->get_matches_estimated;
 	};
 	my $err = $@;
-	my $res = html_start($q, $ctx) . '<pre>';
+	ctx_prepare($q, $ctx);
+	my $cb;
 	if ($err) {
 		$code = 400;
-		$res .= err_txt($ctx, $err) . "</pre><hr /><pre>" . foot($ctx);
+		$ctx->{-html_tip} = '<pre>'.err_txt($ctx, $err).'</pre><hr />';
+		$cb = *noop;
 	} elsif ($total == 0) {
 		$code = 404;
-		$res .= "\n\n[No results found]</pre><hr /><pre>".foot($ctx);
+		$ctx->{-html_tip} = "<pre>\n[No results found]</pre><hr />";
+		$cb = *noop;
 	} else {
 		my $x = $q->{x};
 		return sub { adump($_[0], $mset, $q, $ctx) } if ($x eq 'A');
 
-		$res .= search_nav_top($mset, $q) . "\n\n";
+		$ctx->{-html_tip} = search_nav_top($mset, $q) . "\n\n";
 		if ($x eq 't') {
-			return sub { tdump($_[0], $res, $mset, $q, $ctx) };
+			$cb = mset_thread($ctx, $mset, $q);
+		} else {
+			$cb = mset_summary($ctx, $mset, $q);
 		}
-		dump_mset(\$res, $mset);
-		$res .= '</pre>' . search_nav_bot($mset, $q) .
-			"\n\n" . foot($ctx);
 	}
 
-	$res .= "</pre></body></html>";
-	[$code, ['Content-Type'=>'text/html; charset=UTF-8'], [$res]];
+	[ $code, ['Content-Type', 'text/html; charset=UTF-8'],
+		PublicInbox::WwwStream->new($ctx, $cb) ];
 }
 
 # display non-threaded search results similar to what users expect from
 # regular WWW search engines:
-sub dump_mset {
-	my ($res, $mset) = @_;
+sub mset_summary {
+	my ($ctx, $mset, $q) = @_;
 
 	my $total = $mset->get_matches_estimated;
 	my $pad = length("$total");
 	my $pfx = ' ' x $pad;
+	my $res = \($ctx->{-html_tip});
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = $m->get_percent;
@@ -77,6 +81,8 @@ sub dump_mset {
 			$s . "</a></b>\n";
 		$$res .= "$pfx  - by $f @ $ts UTC [$pct%]\n\n";
 	}
+	$$res .= search_nav_bot($mset, $q);
+	*noop;
 }
 
 sub err_txt {
@@ -85,14 +91,14 @@ sub err_txt {
 	$u = PublicInbox::Hval::prurl($ctx->{cgi}->{env}, $u);
 	$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
 	$err = ascii_html($err);
-	"\n\nBad query: <b>$err</b>\n" .
+	"\nBad query: <b>$err</b>\n" .
 		qq{See <a\nhref="$u">$u</a> for Xapian query syntax};
 }
 
 sub search_nav_top {
 	my ($mset, $q) = @_;
 
-	my $rv = "Search results ordered by [";
+	my $rv = "<pre>Search results ordered by [";
 	if ($q->{r}) {
 		my $d = $q->qs_html(r => 0);
 		$rv .= qq{<a\nhref="?$d">date</a>|<b>relevance</b>};
@@ -122,7 +128,7 @@ sub search_nav_bot {
 	my $o = $q->{o};
 	my $end = $o + $nr;
 	my $beg = $o + 1;
-	my $rv = "<hr /><pre>Results $beg-$end of $total";
+	my $rv = "</pre><hr /><pre>Results $beg-$end of $total";
 	my $n = $o + $LIM;
 
 	if ($n < $total) {
@@ -135,13 +141,11 @@ sub search_nav_bot {
 		my $qs = $q->qs_html(o => ($p > 0 ? $p : 0));
 		$rv .= qq{<a\nhref="?$qs"\nrel=prev>prev</a>};
 	}
-	$rv;
+	$rv .= '</pre>';
 }
 
-sub tdump {
-	my ($cb, $res, $mset, $q, $ctx) = @_;
-	my $fh = $cb->([200, ['Content-Type'=>'text/html; charset=UTF-8']]);
-	$fh->write($res .= '</pre>');
+sub mset_thread {
+	my ($ctx, $mset, $q) = @_;
 	my %pct;
 	my @m = map {
 		my $i = $_;
@@ -163,68 +167,51 @@ sub tdump {
 	} else { # order by time (default for threaded view)
 		$th->order(*PublicInbox::View::sort_ts);
 	}
-	my $state = {
-		ctx => $ctx,
-		anchor_idx => 0,
-		pct => \%pct,
-		cur_level => 0,
-		-inbox => $ctx->{-inbox},
-		fh => $fh,
-	};
-	$ctx->{searchview} = 1;
-	PublicInbox::View::walk_thread($th, $state, *tdump_ent);
-	PublicInbox::View::thread_adj_level($state, 0);
+	my $skel = search_nav_bot($mset, $q). "<pre>";
+	my $inbox = $ctx->{-inbox};
+	$ctx->{-upfx} = '';
+	$ctx->{anchor_idx} = 1;
+	$ctx->{cur_level} = 0;
+	$ctx->{dst} = \$skel;
+	$ctx->{mapping} = {};
+	$ctx->{pct} = \%pct;
+	$ctx->{prev_attr} = '';
+	$ctx->{prev_level} = 0;
+	$ctx->{seen} = {};
 
-	$fh->write(search_nav_bot($mset, $q). "\n\n" .
-			foot($ctx). '</pre></body></html>');
+	PublicInbox::View::walk_thread($th, $ctx,
+		*PublicInbox::View::pre_thread);
 
-	$fh->close;
-}
-
-sub tdump_ent {
-	my ($state, $level, $node) = @_;
-	my $mime = $node->message;
-
-	if ($mime) {
-		# lazy load the full message from mini_mime:
-		my $mid = mid_mime($mime);
-		$mime = eval { $state->{-inbox}->msg_by_mid($mid) } and
+	my $msgs = \@m;
+	my $mime;
+	sub {
+		return unless $msgs;
+		while ($mime = shift @$msgs) {
+			my $mid = mid_clean(mid_mime($mime));
+			$mime = $inbox->msg_by_mid($mid) and last;
+		}
+		if ($mime) {
 			$mime = Email::MIME->new($mime);
-	}
-	if ($mime) {
-		my $end = PublicInbox::View::thread_adj_level($state, $level);
-		PublicInbox::View::index_entry($mime, $level, $state);
-		$state->{fh}->write($end) if $end;
-	} else {
-		my $mid = $node->messageid;
-		PublicInbox::View::ghost_flush($state, '', $mid, $level);
-	}
+			return PublicInbox::View::index_entry($mime, $ctx);
+		}
+		$msgs = undef;
+		$skel .= "\n</pre>";
+	};
 }
 
-sub foot {
-	my ($ctx) = @_;
-	my $foot = $ctx->{footer} || '';
-	qq{Back to <a\nhref=".">index</a>.\n$foot};
-}
-
-sub html_start {
+sub ctx_prepare {
 	my ($q, $ctx) = @_;
 	my $qh = ascii_html($q->{'q'});
-	my $A = $q->qs_html(x => 'A', r => undef);
-	my $res = '<html><head>' . PublicInbox::Hval::STYLE .
-		"<title>$qh - search results</title>" .
-		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
-		qq!href="?$A"\ntype="application/atom+xml"/></head>! .
-		qq{<body><form\naction="">} .
-		qq{<input\nname=q\nvalue="$qh"\ntype=text />};
-
-	$res .= qq{<input\ntype=hidden\nname=r />} if $q->{r};
+	$ctx->{-q_value_html} = $qh;
+	$ctx->{-atom} = '?'.$q->qs_html(x => 'A', r => undef);
+	$ctx->{-title_html} = "$qh - search results";
+	my $extra = '';
+	$extra .= qq{<input\ntype=hidden\nname=r />} if $q->{r};
 	if (my $x = $q->{x}) {
 		$x = ascii_html($x);
-		$res .= qq{<input\ntype=hidden\nname=x\nvalue="$x" />};
+		$extra .= qq{<input\ntype=hidden\nname=x\nvalue="$x" />};
 	}
-
-	$res .= qq{<input\ntype=submit\nvalue=search /></form>};
+	$ctx->{-extra_form_html} = $extra;
 }
 
 sub adump {

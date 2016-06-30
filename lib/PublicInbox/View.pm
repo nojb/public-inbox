@@ -90,151 +90,269 @@ sub _hdr_names ($$) {
 	ascii_html(join(', ', PublicInbox::Address::names($val)));
 }
 
+sub nr_to_s ($$$) {
+	my ($nr, $singular, $plural) = @_;
+	return "0 $plural" if $nr == 0;
+	$nr == 1 ? "$nr $singular" : "$nr $plural";
+}
+
 # this is already inside a <pre>
 sub index_entry {
-	my ($mime, $level, $state) = @_;
-	my $midx = $state->{anchor_idx}++;
-	my $ctx = $state->{ctx};
+	my ($mime, $ctx, $more) = @_;
 	my $srch = $ctx->{srch};
 	my $hdr = $mime->header_obj;
 	my $subj = $hdr->header('Subject');
 
 	my $mid_raw = mid_clean(mid_mime($mime));
-	my $id = anchor_for($mid_raw);
-	my $seen = $state->{seen};
-	$seen->{$id} = "#$id"; # save the anchor for children, later
-
+	my $id = id_compress($mid_raw, 1);
+	my $id_m = 'm'.$id;
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
 
-	my $root_anchor = $state->{root_anchor} || '';
-	my $path = $root_anchor ? '../../' : '';
-	my $href = $mid->as_href;
+	my $root_anchor = $ctx->{root_anchor} || '';
 	my $irt = in_reply_to($hdr);
-	my $parent_anchor = $seen->{anchor_for($irt)} if defined $irt;
 
-	$subj = ascii_html($subj);
-	$subj = "<a\nhref=\"${path}$href/\">$subj</a>";
-	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id;
-
-	my $ts = _msg_date($hdr);
-	my $rv = "<pre\nid=s$midx>";
-	$rv .= "<b\nid=$id>$subj</b>\n";
-	my $txt = "${path}$href/raw";
-	my $fh = $state->{fh};
-	my $from = _hdr_names($hdr, 'From');
-	$rv .= "- $from @ $ts UTC (<a\nhref=\"$txt\">raw</a>)\n";
+	my $rv = '<b>'.ascii_html($subj).'</b>';
+	$rv = "<u\nid=u>$rv</u>" if $root_anchor eq $id_m;
+	$rv .= "\n";
+	$rv .= _th_index_lite($mid_raw, $irt, $id, $ctx);
 	my @tocc;
 	foreach my $f (qw(To Cc)) {
 		my $dst = _hdr_names($hdr, $f);
 		push @tocc, "$f: $dst" if $dst ne '';
 	}
+	$rv .= "From: "._hdr_names($hdr, 'From').' @ '._msg_date($hdr)." UTC";
+	my $upfx = $ctx->{-upfx};
+	my $mhref = $upfx . $mid->as_href . '/';
+	$rv .= qq{ (<a\nhref="$mhref/">permalink</a> / };
+	$rv .= qq{<a\nhref="$mhref/raw">raw</a>)\n};
 	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
-	$fh->write($rv .= "\n");
 
-	my $mhref = "${path}$href/";
+	my $mapping = $ctx->{mapping};
+	if (!$mapping && $irt) {
+		my $mirt = PublicInbox::Hval->msgid($irt);
+		my $href = $upfx . $mirt->as_href . '/';
+		my $html = $mirt->as_html;
+		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href/">$html</a>&gt;\n)
+	}
+	$rv .= "\n";
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { index_walk($fh, $mhref, $_[0]) });
-	$rv = "\n" . html_footer($hdr, 0, $ctx, "$path$href/#R");
+	msg_iter($mime, sub { $rv .= add_text_body($mhref, $_[0]) });
 
-	if (defined $irt) {
-		unless (defined $parent_anchor) {
-			my $v = PublicInbox::Hval->new_msgid($irt, 1);
-			$v = $v->as_href;
-			$parent_anchor = "${path}$v/";
-		}
-		$rv .= " <a\nhref=\"$parent_anchor\">parent</a>";
-	}
-	if (my $pct = $state->{pct}) { # used by SearchView.pm
+	# add the footer
+	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
+		"<a\nhref=\"$mhref\">permalink</a>" .
+		" / <a\nhref=\"${mhref}raw\">raw</a>" .
+		" / <a\nhref=\"${mhref}#R\">reply</a>";
+	if (my $pct = $ctx->{pct}) { # used by SearchView.pm
 		$rv .= " [relevance $pct->{$mid_raw}%]";
-	} elsif ($srch) {
+	} elsif ($mapping) {
 		my $threaded = 'threaded';
 		my $flat = 'flat';
 		my $end = '';
 		if ($ctx->{flat}) {
 			$flat = "<b>$flat</b>";
-			$end = "\n"; # for lynx
 		} else {
 			$threaded = "<b>$threaded</b>";
 		}
-		$rv .= " [<a\nhref=\"${path}$href/t/#u\">$threaded</a>";
-		$rv .= "|<a\nhref=\"${path}$href/T/#u\">$flat</a>]$end";
+		$rv .= " / [<a\nhref=\"${mhref}T/#u\">$flat</a>";
+		$rv .= "|<a\nhref=\"${mhref}t/#u\">$threaded</a>]";
+		$rv .= " / <a\nhref=#r$id>$ctx->{s_nr}</a>";
 	}
-	$fh->write($rv .= '</pre>');
+
+	$rv .= $more ? "\n\n" : "\n";
 }
 
-sub thread_html {
-	my ($ctx, $foot, $srch) = @_;
-	# $_[0] in sub is the Plack callback
-	sub { emit_thread_html($_[0], $ctx, $foot, $srch) }
+sub pad_link ($$;$) {
+	my ($mid, $level, $s) = @_;
+	$s ||= '...';
+	my $id = id_compress($mid, 1);
+	(' 'x19).indent_for($level).th_pfx($level)."<a\nhref=#r$id>($s)</a>\n";
+}
+
+sub _th_index_lite {
+	my ($mid_raw, $irt, $id, $ctx) = @_;
+	my $rv = '';
+	my $mapping = $ctx->{mapping} or return $rv;
+	my $pad = '  ';
+	# map = [children, attr, node, idx, level]
+	my $map = $mapping->{$mid_raw};
+	my $nr_c = scalar @{$map->[0]};
+	my $nr_s = 0;
+	my $level = $map->[4];
+	my $idx = $map->[3];
+	if (defined $irt) {
+		my $irt_map = $mapping->{$irt};
+		my $siblings = $irt_map->[0];
+		$nr_s = scalar(@$siblings) - 1;
+		$rv .= $pad . $irt_map->[1];
+		if ($idx > 0) {
+			my $prev = $siblings->[$idx - 1];
+			my $pmid = $prev->messageid;
+			if ($idx > 2) {
+				my $s = ($idx - 1). ' preceding siblings ...';
+				$rv .= pad_link($pmid, $level, $s);
+			} elsif ($idx == 2) {
+				my $ppmid = $siblings->[0]->messageid;
+				$rv .= $pad . $mapping->{$ppmid}->[1];
+			}
+			$rv .= $pad . $mapping->{$pmid}->[1];
+		}
+	}
+	my $s_s = nr_to_s($nr_s, 'sibling', 'siblings');
+	my $s_c = nr_to_s($nr_c, 'reply', 'replies');
+	my $this = $map->[1];
+	$this =~ s!\n\z!</b>\n!s;
+	$this =~ s!<a\nhref.*</a> !!s; # no point in duplicating subject
+	$rv .= "<b>@ $this";
+	my $node = $map->[2];
+	if (my $child = $node->child) {
+		my $cmid = $child->messageid;
+		$rv .= $pad . $mapping->{$cmid}->[1];
+		if ($nr_c > 2) {
+			my $s = ($nr_c - 1). ' more replies';
+			$rv .= pad_link($cmid, $level + 1, $s);
+		} elsif (my $cn = $child->next) {
+			$rv .= $pad . $mapping->{$cn->messageid}->[1];
+		}
+	}
+	if (my $next = $node->next) {
+		my $nmid = $next->messageid;
+		$rv .= $pad . $mapping->{$nmid}->[1];
+		my $nnext = $nr_s - $idx;
+		if ($nnext > 2) {
+			my $s = ($nnext - 1).' subsequent siblings';
+			$rv .= pad_link($nmid, $level, $s);
+		} elsif (my $nn = $next->next) {
+			$rv .= $pad . $mapping->{$nn->messageid}->[1];
+		}
+	}
+	$rv .= "<a\nhref=#e$id\nid=m$id>_</a> ";
+	$rv .= "<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
 }
 
 sub walk_thread {
-	my ($th, $state, $cb) = @_;
+	my ($th, $ctx, $cb) = @_;
 	my @q = map { (0, $_) } $th->rootset;
 	while (@q) {
 		my $level = shift @q;
 		my $node = shift @q or next;
-		$cb->($state, $level, $node);
+		$cb->($ctx, $level, $node);
 		unshift @q, $level+1, $node->child, $level, $node->next;
 	}
 }
 
-# only private functions below.
-
-sub emit_thread_html {
-	my ($res, $ctx, $foot, $srch) = @_;
-	my $mid = $ctx->{mid};
-	my $flat = $ctx->{flat};
-	my $msgs = load_results($srch->get_thread($mid, { asc => $flat }));
-	my $nr = scalar @$msgs;
-	return missing_thread($res, $ctx) if $nr == 0;
-	my $seen = {};
-	my $state = {
-		res => $res,
-		ctx => $ctx,
-		seen => $seen,
-		root_anchor => anchor_for($mid),
-		anchor_idx => 0,
-		cur_level => 0,
-	};
-
-	require PublicInbox::Git;
-	$ctx->{git} ||= PublicInbox::Git->new($ctx->{git_dir});
-	if ($flat) {
-		pre_anchor_entry($seen, $_) for (@$msgs);
-		__thread_entry($state, $_, 0) for (@$msgs);
-	} else {
-		walk_thread(thread_results($msgs), $state, *thread_entry);
-		if (my $max = $state->{cur_level}) {
-			$state->{fh}->write(
-				('</ul></li>' x ($max - 1)) . '</ul>');
-		}
+sub pre_thread  {
+	my ($ctx, $level, $node) = @_;
+	my $mapping = $ctx->{mapping};
+	my $idx = -1;
+	if (my $parent = $node->parent) {
+		my $m = $mapping->{$parent->messageid}->[0];
+		$idx = scalar @$m;
+		push @$m, $node;
 	}
-
-	# there could be a race due to a message being deleted in git
-	# but still being in the Xapian index:
-	my $fh = delete $state->{fh} or return missing_thread($res, $ctx);
-
-	my $final_anchor = $state->{anchor_idx};
-	my $next = "<a\nid=s$final_anchor>";
-	$next .= $final_anchor == 1 ? 'only message in' : 'end of';
-	$next .= " thread</a>, back to <a\nhref=\"../../\">index</a>";
-	$next .= "\ndownload thread: ";
-	$next .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
-	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>";
-	$fh->write('<hr /><pre>' . $next . "\n\n".
-			$foot .  '</pre></body></html>');
-	$fh->close;
+	$mapping->{$node->messageid} = [ [], '', $node, $idx, $level ];
+	skel_dump($ctx, $level, $node);
 }
 
-sub index_walk {
-	my ($fh, $upfx, $p) = @_;
-	my $s = add_text_body($upfx, $p);
+sub thread_index_entry {
+	my ($ctx, $level, $mime) = @_;
+	my ($beg, $end) = thread_adj_level($ctx, $level);
+	$beg . '<pre>' . index_entry($mime, $ctx, 0) . '</pre>' . $end;
+}
 
-	return if $s eq '';
+sub stream_thread ($$) {
+	my ($th, $ctx) = @_;
+	my $inbox = $ctx->{-inbox};
+	my $mime;
+	my @q = map { (0, $_) } $th->rootset;
+	my $level;
+	while (@q) {
+		$level = shift @q;
+		my $node = shift @q or next;
+		unshift @q, $level+1, $node->child, $level, $node->next;
+		$mime = $inbox->msg_by_mid($node->messageid) and last;
+	}
+	return missing_thread($ctx) unless $mime;
 
-	$fh->write($s);
+	$mime = Email::MIME->new($mime);
+	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
+	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $mime);
+	my $body = PublicInbox::WwwStream->new($ctx, sub {
+		return unless $ctx;
+		while (@q) {
+			$level = shift @q;
+			my $node = shift @q or next;
+			unshift @q, $level+1, $node->child, $level, $node->next;
+			my $mid = $node->messageid;
+			if ($mime = $inbox->msg_by_mid($mid)) {
+				$mime = Email::MIME->new($mime);
+				return thread_index_entry($ctx, $level, $mime);
+			} else {
+				return ghost_index_entry($ctx, $level, $mid);
+			}
+		}
+		my $ret = join('', thread_adj_level($ctx, 0));
+		$ret .= ${$ctx->{dst}}; # skel
+		$ctx = undef;
+		$ret;
+	});
+	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
+}
+
+sub thread_html {
+	my ($ctx) = @_;
+	my $mid = $ctx->{mid};
+	my $sres = $ctx->{srch}->get_thread($mid, { asc => 1 });
+	my $msgs = load_results($sres);
+	my $nr = $sres->{total};
+	return missing_thread($ctx) if $nr == 0;
+	my $skel = '<hr /><pre>';
+	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
+	$skel .= ", back to <a\nhref=\"../../\">index</a>";
+	$skel .= "\n<a\nid=t>$nr+ messages in thread:</a> (download: ";
+	$skel .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
+	$skel .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>)\n";
+	$ctx->{-upfx} = '../../';
+	$ctx->{cur_level} = 0;
+	$ctx->{dst} = \$skel;
+	$ctx->{prev_attr} = '';
+	$ctx->{prev_level} = 0;
+	$ctx->{root_anchor} = anchor_for($mid);
+	$ctx->{seen} = {};
+	$ctx->{mapping} = {};
+	$ctx->{s_nr} = "$nr+ messages in thread";
+
+	my $th = thread_results($msgs);
+	walk_thread($th, $ctx, *pre_thread);
+	$skel .= '</pre>';
+	return stream_thread($th, $ctx) unless $ctx->{flat};
+
+	# flat display: lazy load the full message from mini_mime:
+	my $inbox = $ctx->{-inbox};
+	my $mime;
+	while ($mime = shift @$msgs) {
+		$mime = $inbox->msg_by_mid(mid_clean(mid_mime($mime))) and last;
+	}
+	return missing_thread($ctx) unless $mime;
+	$mime = Email::MIME->new($mime);
+	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
+	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $ctx, scalar @$msgs);
+	$mime = undef;
+	my $body = PublicInbox::WwwStream->new($ctx, sub {
+		return unless $msgs;
+		while ($mime = shift @$msgs) {
+			$mid = mid_clean(mid_mime($mime));
+			$mime = $inbox->msg_by_mid($mid) and last;
+		}
+		if ($mime) {
+			$mime = Email::MIME->new($mime);
+			return index_entry($mime, $ctx, scalar @$msgs);
+		}
+		$msgs = undef;
+		'</pre>'.$skel;
+	});
+	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
 }
 
 sub multipart_text_as_html {
@@ -384,7 +502,7 @@ sub thread_skel {
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $sres = $srch->get_thread($mid);
 	my $nr = $sres->{total};
-	my $expand = qq(<a\nhref="${tpfx}t/#u">expand</a> ) .
+	my $expand = qq(<a\nhref="${tpfx}T/#u">expand</a> ) .
 			qq(/ <a\nhref="${tpfx}t.mbox.gz">mbox.gz</a> ) .
 			qq(/ <a\nhref="${tpfx}t.atom">Atom feed</a>);
 
@@ -405,17 +523,12 @@ sub thread_skel {
 	$$dst .= qq! / <a\nhref="#b">[top]</a>)\n!;
 
 	my $subj = $srch->subject_path($hdr->header('Subject'));
-	my $state = {
-		seen => { $subj => 1 },
-		srch => $srch,
-		cur => $mid,
-		prev_attr => '',
-		prev_level => 0,
-		upfx => "$tpfx../",
-		dst => $dst,
-	};
-	walk_thread(thread_results(load_results($sres)), $state, *skel_dump);
-	$ctx->{next_msg} = $state->{next_msg};
+	$ctx->{seen} = { $subj => 1 };
+	$ctx->{cur} = $mid;
+	$ctx->{prev_attr} = '';
+	$ctx->{prev_level} = 0;
+	$ctx->{dst} = $dst;
+	walk_thread(thread_results(load_results($sres)), $ctx, *skel_dump);
 	$ctx->{parent_msg} = $parent;
 }
 
@@ -543,31 +656,7 @@ sub linkify_ref_nosrch {
 
 sub anchor_for {
 	my ($msgid) = @_;
-	my $id = $msgid;
-	if ($id !~ /\A[a-f0-9]{40}\z/) {
-		$id = id_compress(mid_clean($id), 1);
-	}
-	'm' . $id;
-}
-
-sub thread_html_head {
-	my ($hdr, $state) = @_;
-	my $res = delete $state->{res} or die "BUG: no Plack callback in {res}";
-	my $fh = $res->([200, ['Content-Type'=> 'text/html; charset=UTF-8']]);
-	$state->{fh} = $fh;
-
-	my $s = ascii_html($hdr->header('Subject'));
-	$fh->write("<html><head><title>$s</title>".
-		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
-		qq!href="../t.atom"\ntype="application/atom+xml"/>! .
-		PublicInbox::Hval::STYLE .
-		"</head><body>");
-}
-
-sub pre_anchor_entry {
-	my ($seen, $mime) = @_;
-	my $id = anchor_for(mid_mime($mime));
-	$seen->{$id} = "#$id"; # save the anchor for children, later
+	'm' . id_compress($msgid, 1);
 }
 
 sub ghost_parent {
@@ -581,82 +670,9 @@ sub ghost_parent {
 	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
 }
 
-sub thread_adj_level {
-	my ($state, $level) = @_;
-
-	my $max = $state->{cur_level};
-	if ($level <= 0) {
-		return '' if $max == 0; # flat output
-
-		# reset existing lists
-		my $x = $max > 1 ? ('</ul></li>' x ($max - 1)) : '';
-		$state->{fh}->write($x . '</ul>');
-		$state->{cur_level} = 0;
-		return '';
-	}
-	if ($level == $max) { # continue existing list
-		$state->{fh}->write('<li>');
-	} elsif ($level < $max) {
-		my $x = $max > 1 ? ('</ul></li>' x ($max - $level)) : '';
-		$state->{fh}->write($x .= '<li>');
-		$state->{cur_level} = $level;
-	} else { # ($level > $max) # start a new level
-		$state->{cur_level} = $level;
-		$state->{fh}->write(($max ? '<li>' : '') . '<ul><li>');
-	}
-	'</li>';
-}
-
-sub ghost_flush {
-	my ($state, $upfx, $mid, $level) = @_;
-	my $end = '<pre>'. ghost_parent($upfx, $mid) . '</pre>';
-	$state->{fh}->write($end .= thread_adj_level($state, $level));
-}
-
-sub __thread_entry {
-	my ($state, $mime, $level) = @_;
-
-	# lazy load the full message from mini_mime:
-	$mime = eval {
-		my $mid = mid_clean(mid_mime($mime));
-		$state->{ctx}->{-inbox}->msg_by_mid($mid);
-	} or return;
-	$mime = Email::MIME->new($mime);
-
-	thread_html_head($mime, $state) if $state->{anchor_idx} == 0;
-	if (my $ghost = delete $state->{ghost}) {
-		# n.b. ghost messages may only be parents, not children
-		foreach my $g (@$ghost) {
-			ghost_flush($state, '../../', @$g);
-		}
-	}
-	my $end = thread_adj_level($state, $level);
-	index_entry($mime, $level, $state);
-	$state->{fh}->write($end) if $end;
-
-	1;
-}
-
 sub indent_for {
 	my ($level) = @_;
 	INDENT x ($level - 1);
-}
-
-sub __ghost_prepare {
-	my ($state, $node, $level) = @_;
-	my $ghost = $state->{ghost} ||= [];
-	push @$ghost, [ $node->messageid, $level ];
-}
-
-sub thread_entry {
-	my ($state, $level, $node) = @_;
-	if (my $mime = $node->message) {
-		unless (__thread_entry($state, $mime, $level)) {
-			__ghost_prepare($state, $node, $level);
-		}
-	} else {
-		__ghost_prepare($state, $node, $level);
-	}
 }
 
 sub load_results {
@@ -681,10 +697,9 @@ sub thread_results {
 }
 
 sub missing_thread {
-	my ($res, $ctx) = @_;
+	my ($ctx) = @_;
 	require PublicInbox::ExtMsg;
-
-	$res->(PublicInbox::ExtMsg::ext_msg($ctx))
+	PublicInbox::ExtMsg::ext_msg($ctx);
 }
 
 sub _msg_date {
@@ -696,73 +711,94 @@ sub _msg_date {
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _skel_header {
-	my ($state, $hdr, $level) = @_;
+	my ($ctx, $hdr, $level) = @_;
 
-	my $dst = $state->{dst};
-	my $cur = $state->{cur};
+	my $dst = $ctx->{dst};
+	my $cur = $ctx->{cur};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $f = ascii_html($hdr->header('X-PI-From'));
-	my $d = _msg_date($hdr);
-	my $pfx = "$d " . indent_for($level) . th_pfx($level);
+	my $d = _msg_date($hdr) . ' ' . indent_for($level) . th_pfx($level);
 	my $attr = $f;
-	$state->{first_level} ||= $level;
+	$ctx->{first_level} ||= $level;
 
-	if ($attr ne $state->{prev_attr} || $state->{prev_level} > $level) {
-		$state->{prev_attr} = $attr;
+	if ($attr ne $ctx->{prev_attr} || $ctx->{prev_level} > $level) {
+		$ctx->{prev_attr} = $attr;
 	} else {
 		$attr = '';
 	}
-	$state->{prev_level} = $level;
+	$ctx->{prev_level} = $level;
 
 	if ($cur) {
 		if ($cur eq $mid) {
-			delete $state->{cur};
-			$$dst .= "$pfx<b><a\nid=r\nhref=\"#t\">".
+			delete $ctx->{cur};
+			$$dst .= $d;
+			$$dst .= "<b><a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
-
 			return;
 		}
 	} else {
-		$state->{next_msg} ||= $mid;
+		$ctx->{next_msg} ||= $mid;
 	}
 
 	# Subject is never undef, this mail was loaded from
 	# our Xapian which would've resulted in '' if it were
 	# really missing (and Filter rejects empty subjects)
 	my $s = $hdr->header('Subject');
-	my $h = $state->{srch}->subject_path($s);
-	if ($state->{seen}->{$h}) {
+	my $h = $ctx->{srch}->subject_path($s);
+	if ($ctx->{seen}->{$h}) {
 		$s = undef;
 	} else {
-		$state->{seen}->{$h} = 1;
+		$ctx->{seen}->{$h} = 1;
 		$s = PublicInbox::Hval->new($s);
 		$s = $s->as_html;
 	}
 	my $m = PublicInbox::Hval->new_msgid($mid);
-	$m = $state->{upfx} . $m->as_href . '/';
-	$$dst .= "$pfx<a\nhref=\"$m\">";
-	$$dst .= defined($s) ? "$s</a> $f\n" : "$f</a>\n";
+	my $id = '';
+	my $mapping = $ctx->{mapping};
+	my $end = defined($s) ? "$s</a> $f\n" : "$f</a>\n";
+	if ($mapping) {
+		my $map = $mapping->{$mid};
+		$id = id_compress($mid, 1);
+		$m = '#m'.$id;
+		$map->[1] = "$d<a\nhref=\"$m\">$end";
+		$id = "\nid=r".$id;
+	} else {
+		$m = $ctx->{-upfx}.$m->as_href.'/';
+	}
+	$$dst .=  $d . "<a\nhref=\"$m\"$id>" . $end;
 }
 
 sub skel_dump {
-	my ($state, $level, $node) = @_;
+	my ($ctx, $level, $node) = @_;
 	if (my $mime = $node->message) {
-		my $hdr = $mime->header_obj;
-		my $mid = mid_clean($hdr->header_raw('Message-ID'));
-		_skel_header($state, $hdr, $level);
+		_skel_header($ctx, $mime->header_obj, $level);
 	} else {
 		my $mid = $node->messageid;
-		my $dst = $state->{dst};
+		my $dst = $ctx->{dst};
+		my $mapping = $ctx->{mapping};
+		my $map = $mapping->{$mid} if $mapping;
 		if ($mid eq 'subject dummy') {
-			$$dst .= "\t[no common parent]\n";
-		} else {
-			$$dst .= '     [not found] ';
-			$$dst .= indent_for($level) . th_pfx($level);
-			$mid = PublicInbox::Hval->new_msgid($mid);
-			my $href = $state->{upfx} . $mid->as_href . '/';
-			my $html = $mid->as_html;
-			$$dst .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
+			my $ncp = "\t[no common parent]\n";
+			$map->[1] = $ncp if $map;
+			$$dst .= $ncp;
+			return;
 		}
+		my $d = $ctx->{pct} ? '    [irrelevant] ' # search result
+				    : '     [not found] ';
+		$d .= indent_for($level) . th_pfx($level);
+		my $upfx = $ctx->{-upfx};
+		my $m = PublicInbox::Hval->new_msgid($mid);
+		my $href = $upfx . $m->as_href . '/';
+		my $html = $m->as_html;
+
+		if ($map) {
+			my $id = id_compress($mid, 1);
+			$map->[1] = $d . qq{&lt;<a\nhref=#r$id>$html</a>&gt;\n};
+			$d .= qq{&lt;<a\nhref="$href"\nid=r$id>$html</a>&gt;\n};
+		} else {
+			$d .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
+		}
+		$$dst .= $d;
 	}
 }
 
@@ -782,8 +818,8 @@ sub _tryload_ghost ($$) {
 # accumulate recent topics if search is supported
 # returns 1 if done, undef if not
 sub add_topic {
-	my ($state, $level, $node) = @_;
-	my $srch = $state->{srch};
+	my ($ctx, $level, $node) = @_;
+	my $srch = $ctx->{srch};
 	my $mid = $node->messageid;
 	my $x = $node->message || _tryload_ghost($srch, $mid);
 	my ($subj, $ts);
@@ -796,21 +832,21 @@ sub add_topic {
 		$ts = -666;
 		$subj = "<$mid>";
 	}
-	if (++$state->{subjs}->{$subj} == 1) {
-		push @{$state->{order}}, [ $level, $subj ];
+	if (++$ctx->{subjs}->{$subj} == 1) {
+		push @{$ctx->{order}}, [ $level, $subj ];
 	}
-	my $exist = $state->{latest}->{$subj};
+	my $exist = $ctx->{latest}->{$subj};
 	if (!$exist || $exist->[1] < $ts) {
-		$state->{latest}->{$subj} = [ $mid, $ts ];
+		$ctx->{latest}->{$subj} = [ $mid, $ts ];
 	}
 }
 
 sub emit_topics {
-	my ($state) = @_;
-	my $order = $state->{order};
-	my $subjs = $state->{subjs};
-	my $latest = $state->{latest};
-	my $fh = $state->{fh};
+	my ($ctx) = @_;
+	my $order = $ctx->{order};
+	my $subjs = $ctx->{subjs};
+	my $latest = $ctx->{latest};
+	my $fh = $ctx->{fh};
 	return $fh->write("\n[No topics in range]</pre>") unless scalar @$order;
 	my $pfx;
 	my $prev = 0;
@@ -837,7 +873,7 @@ sub emit_topics {
 		}
 
 		$subj = PublicInbox::Hval->new($subj)->as_html;
-		$cur->[1] .= "<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
+		$cur->[1] .= "<a\nhref=\"$mid/T/#u\"><b>$subj</b></a>\n";
 		$ts = fmt_ts($ts);
 		my $attr = " $ts UTC";
 
@@ -859,23 +895,53 @@ sub emit_topics {
 }
 
 sub emit_index_topics {
-	my ($state) = @_;
-	my ($off) = (($state->{ctx}->{cgi}->param('o') || '0') =~ /(\d+)/);
-	$state->{order} = [];
-	$state->{subjs} = {};
-	$state->{latest} = {};
+	my ($ctx) = @_;
+	my ($off) = (($ctx->{cgi}->param('o') || '0') =~ /(\d+)/);
+	$ctx->{order} = [];
+	$ctx->{subjs} = {};
+	$ctx->{latest} = {};
 	my $max = 25;
 	my %opts = ( offset => $off, limit => $max * 4 );
-	while (scalar @{$state->{order}} < $max) {
-		my $sres = $state->{srch}->query('', \%opts);
+	while (scalar @{$ctx->{order}} < $max) {
+		my $sres = $ctx->{srch}->query('', \%opts);
 		my $nr = scalar @{$sres->{msgs}} or last;
 		$sres = load_results($sres);
-		walk_thread(thread_results($sres), $state, *add_topic);
+		walk_thread(thread_results($sres), $ctx, *add_topic);
 		$opts{offset} += $nr;
 	}
 
-	emit_topics($state);
+	emit_topics($ctx);
 	$opts{offset};
+}
+
+sub thread_adj_level {
+	my ($ctx, $level) = @_;
+
+	my $max = $ctx->{cur_level};
+	if ($level <= 0) {
+		return ('', '') if $max == 0; # flat output
+
+		# reset existing lists
+		my $beg = $max > 1 ? ('</ul></li>' x ($max - 1)) : '';
+		$ctx->{cur_level} = 0;
+		("$beg</ul>", '');
+	} elsif ($level == $max) { # continue existing list
+		qw(<li> </li>);
+	} elsif ($level < $max) {
+		my $beg = $max > 1 ? ('</ul></li>' x ($max - $level)) : '';
+		$ctx->{cur_level} = $level;
+		("$beg<li>", '</li>');
+	} else { # ($level > $max) # start a new level
+		$ctx->{cur_level} = $level;
+		my $beg = ($max ? '<li>' : '') . '<ul><li>';
+		($beg, '</li>');
+	}
+}
+
+sub ghost_index_entry {
+	my ($ctx, $level, $mid) = @_;
+	my ($beg, $end) = thread_adj_level($ctx,  $level);
+	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $mid) . '</pre>' . $end;
 }
 
 1;

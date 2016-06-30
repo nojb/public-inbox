@@ -75,7 +75,8 @@ sub call {
 		invalid_inbox($self, $ctx, $1) || get_index($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/(?:atom\.xml|new\.atom)\z!o) {
 		invalid_inbox($self, $ctx, $1) || get_atom($ctx);
-
+	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
+		invalid_inbox($self, $ctx, $1) || get_new($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my $path = $2;
@@ -190,6 +191,13 @@ sub get_atom {
 	PublicInbox::Feed::generate($ctx);
 }
 
+# /$INBOX/new.html			-> HTML only
+sub get_new {
+	my ($ctx) = @_;
+	require PublicInbox::Feed;
+	PublicInbox::Feed::new_html($ctx);
+}
+
 # /$INBOX/?r=$GIT_COMMIT                 -> HTML only
 sub get_index {
 	my ($ctx) = @_;
@@ -235,11 +243,10 @@ sub get_mid_html {
 # /$INBOX/$MESSAGE_ID/t/
 sub get_thread {
 	my ($ctx, $flat) = @_;
-	my $srch = searcher($ctx) or return need_search($ctx);
-	require PublicInbox::View;
-	my $foot = footer($ctx);
+	searcher($ctx) or return need_search($ctx);
 	$ctx->{flat} = $flat;
-	PublicInbox::View::thread_html($ctx, $foot, $srch);
+	require PublicInbox::View;
+	PublicInbox::View::thread_html($ctx);
 }
 
 sub ctx_get {
@@ -411,11 +418,11 @@ sub msg_page {
 	my $ret;
 	$ret = invalid_inbox_mid($self, $ctx, $inbox, $mid) and return $ret;
 	'' eq $e and return get_mid_html($ctx);
+	'T/' eq $e and return get_thread($ctx, 1);
 	't/' eq $e and return get_thread($ctx);
 	't.atom' eq $e and return get_thread_atom($ctx);
 	't.mbox' eq $e and return get_thread_mbox($ctx);
 	't.mbox.gz' eq $e and return get_thread_mbox($ctx, '.gz');
-	'T/' eq $e and return get_thread($ctx, 1);
 	'raw' eq $e and return get_mid_txt($ctx);
 
 	# legacy, but no redirect for compatibility:

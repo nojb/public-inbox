@@ -4,8 +4,6 @@ TODO items for public-inbox
 
 * mailmap support (same as git) for remapping expired email addresses
 
-* WWW: Hybrid flat view + thread skeleton (requires Xapian)
-
 * POP3 server, since some webmail providers support external POP3:
   https://public-inbox.org/meta/20160411034104.GA7817@dcvr.yhbt.net/
 

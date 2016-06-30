@@ -34,6 +34,33 @@ sub generate_html_index {
 	sub { emit_html_index($_[0], $ctx) };
 }
 
+sub new_html {
+	my ($ctx) = @_;
+	my @paths;
+	my (undef, $last) = each_recent_blob($ctx, sub {
+		my ($path, $commit, $ts, $u, $subj) = @_;
+		$ctx->{first} ||= $commit;
+		push @paths, $path;
+	});
+	if (!@paths) {
+		return [404, ['Content-Type', 'text/plain'],
+			["No messages, yet\n"] ];
+	}
+	$ctx->{-html_tip} = '<pre>';
+	$ctx->{-upfx} = '';
+	my $res = PublicInbox::WwwStream->new($ctx, sub {
+		while (my $path = shift @paths) {
+			my $m = do_cat_mail($ctx->{-inbox}, $path) or next;
+			my $more = scalar @paths;
+			my $s = PublicInbox::View::index_entry($m, $ctx, $more);
+			$s .= '</pre>' unless $more;
+			return $s;
+		}
+		undef;
+	});
+	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $res ]
+}
+
 # private subs
 
 sub title_tag {
@@ -138,9 +165,12 @@ sub emit_html_index {
 	my $fh = $res->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
 
 	my $max = $ctx->{max} || MAX_PER_PAGE;
+	$ctx->{-upfx} = '';
 
 	my ($footer, $param, $last);
-	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0, fh => $fh };
+	$ctx->{seen} = {};
+	$ctx->{anchor_idx} = 0;
+	$ctx->{fh} = $fh;
 	my $srch = $ctx->{srch};
 	$fh->write(_html_index_top($feed_opts, $srch));
 
@@ -148,14 +178,13 @@ sub emit_html_index {
 	# which we must continue supporting:
 	my $qp = $ctx->{qp};
 	if ($qp && !$qp->{r} && $srch) {
-		$state->{srch} = $srch;
-		$last = PublicInbox::View::emit_index_topics($state);
+		$last = PublicInbox::View::emit_index_topics($ctx);
 		$param = 'o';
 	} else {
-		$last = emit_index_nosrch($ctx, $state);
+		$last = emit_index_nosrch($ctx);
 		$param = 'r';
 	}
-	$footer = nav_footer($ctx, $last, $feed_opts, $state, $param);
+	$footer = nav_footer($ctx, $last, $feed_opts, $param);
 	if ($footer) {
 		my $list_footer = $ctx->{footer};
 		$footer .= "\n\n" . $list_footer if $list_footer;
@@ -166,27 +195,28 @@ sub emit_html_index {
 }
 
 sub emit_index_nosrch {
-	my ($ctx, $state) = @_;
+	my ($ctx) = @_;
 	my $ibx = $ctx->{-inbox};
+	my $fh = $ctx->{fh};
 	my (undef, $last) = each_recent_blob($ctx, sub {
 		my ($path, $commit, $ts, $u, $subj) = @_;
-		$state->{first} ||= $commit;
+		$ctx->{first} ||= $commit;
 
 		my $mime = do_cat_mail($ibx, $path) or return 0;
-		PublicInbox::View::index_entry($mime, 0, $state);
+		$fh->write(PublicInbox::View::index_entry($mime, $ctx, 1));
 		1;
 	});
 	$last;
 }
 
 sub nav_footer {
-	my ($ctx, $last, $feed_opts, $state, $param) = @_;
+	my ($ctx, $last, $feed_opts, $param) = @_;
 	my $qp = $ctx->{qp} or return '';
 	my $old_r = $qp->{$param};
 	my $head = '    ';
 	my $next = '    ';
-	my $first = $state->{first};
-	my $anchor = $state->{anchor_idx};
+	my $first = $ctx->{first};
+	my $anchor = $ctx->{anchor_idx};
 
 	if ($last) {
 		$next = qq!<a\nhref="?$param=$last"\nrel=next>next</a>!;
