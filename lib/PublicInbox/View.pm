@@ -27,7 +27,7 @@ sub msg_html {
 	my ($ctx, $mime, $footer) = @_;
 	my $hdr = $mime->header_obj;
 	my $tip = _msg_html_prepare($hdr, $ctx);
-	PublicInbox::WwwStream->new($ctx, sub {
+	PublicInbox::WwwStream->response($ctx, 200, sub {
 		my ($nr, undef) = @_;
 		if ($nr == 1) {
 			$tip . multipart_text_as_html($mime, '') .
@@ -278,7 +278,7 @@ sub stream_thread ($$) {
 	$mime = Email::MIME->new($mime);
 	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
 	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $mime);
-	my $body = PublicInbox::WwwStream->new($ctx, sub {
+	PublicInbox::WwwStream->response($ctx, 200, sub {
 		return unless $ctx;
 		while (@q) {
 			$level = shift @q;
@@ -297,7 +297,6 @@ sub stream_thread ($$) {
 		$ctx = undef;
 		$ret;
 	});
-	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
 }
 
 sub thread_html {
@@ -339,7 +338,7 @@ sub thread_html {
 	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
 	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $ctx, scalar @$msgs);
 	$mime = undef;
-	my $body = PublicInbox::WwwStream->new($ctx, sub {
+	PublicInbox::WwwStream->response($ctx, 200, sub {
 		return unless $msgs;
 		while ($mime = shift @$msgs) {
 			$mid = mid_clean(mid_mime($mime));
@@ -352,7 +351,6 @@ sub thread_html {
 		$msgs = undef;
 		'</pre>'.$skel;
 	});
-	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
 }
 
 sub multipart_text_as_html {

@@ -48,7 +48,7 @@ sub new_html {
 	}
 	$ctx->{-html_tip} = '<pre>';
 	$ctx->{-upfx} = '';
-	my $res = PublicInbox::WwwStream->new($ctx, sub {
+	PublicInbox::WwwStream->response($ctx, 200, sub {
 		while (my $path = shift @paths) {
 			my $m = do_cat_mail($ctx->{-inbox}, $path) or next;
 			my $more = scalar @paths;
@@ -58,7 +58,6 @@ sub new_html {
 		}
 		undef;
 	});
-	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $res ]
 }
 
 # private subs

@@ -34,7 +34,8 @@ sub msg_html ($) {
 	my ($mime) = @_;
 
 	my $s = '';
-	my $body = PublicInbox::View::msg_html($ctx, $mime);
+	my $r = PublicInbox::View::msg_html($ctx, $mime);
+	my $body = $r->[2];
 	while (defined(my $buf = $body->getline)) {
 		$s .= $buf;
 	}

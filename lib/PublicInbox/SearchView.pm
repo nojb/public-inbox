@@ -55,9 +55,7 @@ sub sres_top_html {
 			$cb = mset_summary($ctx, $mset, $q);
 		}
 	}
-
-	[ $code, ['Content-Type', 'text/html; charset=UTF-8'],
-		PublicInbox::WwwStream->new($ctx, $cb) ];
+	PublicInbox::WwwStream->response($ctx, $code, $cb);
 }
 
 # display non-threaded search results similar to what users expect from

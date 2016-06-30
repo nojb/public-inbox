@@ -14,6 +14,12 @@ sub new {
 	bless { nr => 0, cb => $cb, ctx => $ctx }, $class;
 }
 
+sub response {
+	my ($class, $ctx, $code, $cb) = @_;
+	[ $code, [ 'Content-Type', 'text/html; charset=UTF-8' ],
+	  $class->new($ctx, $cb) ]
+}
+
 sub _html_top ($) {
 	my ($self) = @_;
 	my $ctx = $self->{ctx};
