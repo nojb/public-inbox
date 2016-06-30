@@ -146,6 +146,13 @@ sub index_entry {
 	$rv .= $more ? "\n\n" : "\n";
 }
 
+sub pad_link ($$;$) {
+	my ($mid, $level, $s) = @_;
+	$s ||= '...';
+	my $id = id_compress($mid, 1);
+	(' 'x19).indent_for($level).th_pfx($level)."<a\nhref=#r$id>($s)<a>\n";
+}
+
 sub _th_index_lite {
 	my ($mid_raw, $irt, $id, $ctx) = @_;
 	my $rv = '';
@@ -155,16 +162,24 @@ sub _th_index_lite {
 	my $map = $mapping->{$mid_raw};
 	my $nr_c = scalar @{$map->[0]};
 	my $nr_s = 0;
+	my $level = $map->[4];
+	my $idx = $map->[3];
 	if (defined $irt) {
 		my $irt_map = $mapping->{$irt};
 		my $siblings = $irt_map->[0];
 		$nr_s = scalar(@$siblings) - 1;
-		$nr_s = 0 if $nr_s < 0;
 		$rv .= $pad . $irt_map->[1];
-		my $idx = $map->[3];
 		if ($idx > 0) {
 			my $prev = $siblings->[$idx - 1];
-			$rv .= $pad . $mapping->{$prev->messageid}->[1];
+			my $pmid = $prev->messageid;
+			if ($idx > 2) {
+				my $s = ($idx - 1). ' preceding siblings ...';
+				$rv .= pad_link($pmid, $level, $s);
+			} elsif ($idx == 2) {
+				my $ppmid = $siblings->[0]->messageid;
+				$rv .= $pad . $mapping->{$ppmid}->[1];
+			}
+			$rv .= $pad . $mapping->{$pmid}->[1];
 		}
 	}
 	my $s_s = nr_to_s($nr_s, 'sibling', 'siblings');
@@ -175,10 +190,25 @@ sub _th_index_lite {
 	$rv .= "<b>@ $this";
 	my $node = $map->[2];
 	if (my $child = $node->child) {
-		$rv .= $pad . $mapping->{$child->messageid}->[1];
+		my $cmid = $child->messageid;
+		$rv .= $pad . $mapping->{$cmid}->[1];
+		if ($nr_c > 2) {
+			my $s = ($nr_c - 1). ' more replies';
+			$rv .= pad_link($cmid, $level + 1, $s);
+		} elsif (my $cn = $child->next) {
+			$rv .= $pad . $mapping->{$cn->messageid}->[1];
+		}
 	}
 	if (my $next = $node->next) {
-		$rv .= $pad .  $mapping->{$next->messageid}->[1];
+		my $nmid = $next->messageid;
+		$rv .= $pad . $mapping->{$nmid}->[1];
+		my $nnext = $nr_s - $idx;
+		if ($nnext > 2) {
+			my $s = ($nnext - 1).' subsequent siblings';
+			$rv .= pad_link($nmid, $level, $s);
+		} elsif (my $nn = $next->next) {
+			$rv .= $pad . $mapping->{$nn->messageid}->[1];
+		}
 	}
 	$rv .= "<a\nhref=#e$id\nid=m$id>_<a> <a\nhref=#r$id\n>$s_s, $s_c</a>\n";
 }
@@ -203,7 +233,7 @@ sub pre_thread  {
 		$idx = scalar @$m;
 		push @$m, $node;
 	}
-	$mapping->{$node->messageid} = [ [], '', $node, $idx ];
+	$mapping->{$node->messageid} = [ [], '', $node, $idx, $level ];
 	skel_dump($ctx, $level, $node);
 }
 
