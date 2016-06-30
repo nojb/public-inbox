@@ -176,6 +176,7 @@ sub mset_thread {
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{seen} = {};
+	$ctx->{s_nr} = scalar(@m).'+ results';
 
 	PublicInbox::View::walk_thread($th, $ctx,
 		*PublicInbox::View::pre_thread);
