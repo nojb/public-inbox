@@ -51,6 +51,8 @@ sub msg_reply {
 	my ($ctx, $hdr) = @_;
 	my $se_url =
 	 'https://kernel.org/pub/software/scm/git/docs/git-send-email.html';
+	my $p_url =
+	 'https://en.wikipedia.org/wiki/Posting_style#Interleaved_style';
 
 	my ($arg, $link) = mailto_arg_link($hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
@@ -64,6 +66,10 @@ plain-text email using any one of the following methods:
 * Save the following mbox file, import it into your mail client,
   and reply-to-all from there: <a
 href=raw>mbox</a>
+
+  Avoid top-posting and favor interleaved quoting:
+  <a
+href="$p_url">$p_url</a>
 
 * Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,
   and <b>--in-reply-to</b> switches of git-send-email(1):
