@@ -154,8 +154,9 @@ sub index_entry {
 		} else {
 			$threaded = "<b>$threaded</b>";
 		}
-		$rv .= " [<a\nhref=\"${mhref}t/#u\">$threaded</a>";
-		$rv .= "|<a\nhref=\"${mhref}T/#u\">$flat</a>]";
+		$rv .= " / [<a\nhref=\"${mhref}T/#u\">$flat</a>";
+		$rv .= "|<a\nhref=\"${mhref}t/#u\">$threaded</a>]";
+		$rv .= " / <a\nhref=#r$id>thread overview</a>";
 	}
 
 	$rv .= $more ? "\n\n" : "\n";
@@ -498,7 +499,7 @@ sub thread_skel {
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $sres = $srch->get_thread($mid);
 	my $nr = $sres->{total};
-	my $expand = qq(<a\nhref="${tpfx}t/#u">expand</a> ) .
+	my $expand = qq(<a\nhref="${tpfx}T/#u">expand</a> ) .
 			qq(/ <a\nhref="${tpfx}t.mbox.gz">mbox.gz</a> ) .
 			qq(/ <a\nhref="${tpfx}t.atom">Atom feed</a>);
 
@@ -869,7 +870,7 @@ sub emit_topics {
 		}
 
 		$subj = PublicInbox::Hval->new($subj)->as_html;
-		$cur->[1] .= "<a\nhref=\"$mid/t/#u\"><b>$subj</b></a>\n";
+		$cur->[1] .= "<a\nhref=\"$mid/T/#u\"><b>$subj</b></a>\n";
 		$ts = fmt_ts($ts);
 		my $attr = " $ts UTC";
 
