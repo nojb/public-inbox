@@ -125,9 +125,10 @@ sub index_entry {
 	my $root_anchor = $ctx->{root_anchor} || '';
 	my $irt = in_reply_to($hdr);
 
-	my $rv = '<b>'.ascii_html($subj).'</b>';
-	$rv = "<u\nid=u>$rv</u>" if $root_anchor eq $id_m;
-	$rv .= "\n";
+	my $rv = "<a\nhref=#e$id\nid=m$id>*</a> ";
+	$subj = '<b>'.ascii_html($subj).'</b>';
+	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id_m;
+	$rv .= $subj . "\n";
 	$rv .= _th_index_lite($mid_raw, $irt, $id, $ctx);
 	my @tocc;
 	foreach my $f (qw(To Cc)) {
@@ -241,8 +242,7 @@ sub _th_index_lite {
 			$rv .= $pad . $mapping->{$nn->messageid}->[1];
 		}
 	}
-	$rv .= "<a\nhref=#e$id\nid=m$id>_</a> ";
-	$rv .= "<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
+	$rv .= $pad ."<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
 }
 
 sub walk_thread {
