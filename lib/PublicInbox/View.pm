@@ -97,8 +97,7 @@ sub nr_to_s ($$$) {
 
 # this is already inside a <pre>
 sub index_entry {
-	my ($mime, $level, $state) = @_;
-	$state->{anchor_idx}++;
+	my ($mime, $state) = @_;
 	my $ctx = $state->{ctx};
 	my $srch = $ctx->{srch};
 	my $hdr = $mime->header_obj;
@@ -118,7 +117,7 @@ sub index_entry {
 	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id_m;
 
 	my $ts = _msg_date($hdr);
-	my $rv = "<pre><a\nhref=#e$id\nid=$id_m>#</a> ";
+	my $rv = "<a\nhref=#e$id\nid=$id_m>#</a> ";
 	$rv .= $subj;
 	my $mhref = $path.$href.'/';
 	my $from = _hdr_names($hdr, 'From');
@@ -154,13 +153,7 @@ sub index_entry {
 	if (my $pct = $state->{pct}) { # used by SearchView.pm
 		$rv .= " [relevance $pct->{$mid_raw}%]";
 	}
-	$state->{fh}->write($rv .= "\n</pre>"); # '\n' for lynx
-}
-
-sub thread_html {
-	my ($ctx, $foot, $srch) = @_;
-	# $_[0] in sub is the Plack callback
-	sub { emit_thread_html($_[0], $ctx, $foot, $srch) }
+	$rv .= "\n\n";
 }
 
 sub walk_thread {
@@ -186,25 +179,26 @@ sub pre_thread  {
 	skel_dump($state, $level, $node);
 }
 
-# only private functions below.
-
-sub emit_thread_html {
-	my ($res, $ctx, $foot, $srch) = @_;
+sub thread_html {
+	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
-	my $sres = $srch->get_thread($mid, { asc => 1 });
+	my $sres = $ctx->{srch}->get_thread($mid, { asc => 1 });
 	my $msgs = load_results($sres);
 	my $nr = $sres->{total};
-	return missing_thread($res, $ctx) if $nr == 0;
-	my $skel = '';
+	return missing_thread($ctx) if $nr == 0;
+	my $skel = '</pre><hr /><pre>';
+	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
+	$skel .= ", back to <a\nhref=\"../../\">index</a>";
+	$skel .= "\n<a\nid=t>$nr+ messages in thread:</a> (download: ";
+	$skel .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
+	$skel .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>)\n";
 	my $state = {
-		anchor_idx => 0,
 		ctx => $ctx,
 		cur_level => 0,
 		dst => \$skel,
 		mapping => {}, # mid -> reply count
 		prev_attr => '',
 		prev_level => 0,
-		res => $res,
 		root_anchor => anchor_for($mid),
 		seen => {},
 		srch => $ctx->{srch},
@@ -213,21 +207,28 @@ sub emit_thread_html {
 
 	walk_thread(thread_results($msgs), $state, *pre_thread);
 
-	thread_entry($state, $_, 0) for @$msgs;
-
-	# there could be a race due to a message being deleted in git
-	# but still being in the Xapian index:
-	my $fh = delete $state->{fh} or return missing_thread($res, $ctx);
-
-	my $next = @$msgs == 1 ? 'only message in thread' : 'end of thread';
-	$next .= ", back to <a\nhref=\"../../\">index</a>";
-	$next .= "\n<a\nid=t>$nr+ messages in thread:</a> (download: ";
-	$next .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
-	$next .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>)\n";
-	$next .= $skel;
-	$fh->write('<hr /><pre>' . $next . "\n\n".
-			$foot .  '</pre></body></html>');
-	$fh->close;
+	# lazy load the full message from mini_mime:
+	my $inbox = $ctx->{-inbox};
+	my $mime;
+	while ($mime = shift @$msgs) {
+		$mime = $inbox->msg_by_mid(mid_clean(mid_mime($mime))) and last;
+	}
+	$mime = Email::MIME->new($mime);
+	$ctx->{-upfx} = '../../';
+	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
+	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $state);
+	$mime = undef;
+	my $body = PublicInbox::WwwStream->new($ctx, sub {
+		return unless $msgs;
+		while ($mime = shift @$msgs) {
+			$mid = mid_clean(mid_mime($mime));
+			$mime = $inbox->msg_by_mid($mid) and last;
+		}
+		return index_entry(Email::MIME->new($mime), $state) if $mime;
+		$msgs = undef;
+		$skel .= "</pre>";
+	});
+	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
 }
 
 sub multipart_text_as_html {
@@ -539,20 +540,6 @@ sub anchor_for {
 	'm' . id_compress($msgid, 1);
 }
 
-sub thread_html_head {
-	my ($hdr, $state) = @_;
-	my $res = delete $state->{res} or die "BUG: no Plack callback in {res}";
-	my $fh = $res->([200, ['Content-Type'=> 'text/html; charset=UTF-8']]);
-	$state->{fh} = $fh;
-
-	my $s = ascii_html($hdr->header('Subject'));
-	$fh->write("<html><head><title>$s</title>".
-		qq{<link\nrel=alternate\ntitle="Atom feed"\n} .
-		qq!href="../t.atom"\ntype="application/atom+xml"/>! .
-		PublicInbox::Hval::STYLE .
-		"</head><body>");
-}
-
 sub ghost_parent {
 	my ($upfx, $mid) = @_;
 	# 'subject dummy' is used internally by Mail::Thread
@@ -562,21 +549,6 @@ sub ghost_parent {
 	my $href = $mid->as_href;
 	my $html = $mid->as_html;
 	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
-}
-
-sub thread_entry {
-	my ($state, $mime, $level) = @_;
-
-	# lazy load the full message from mini_mime:
-	$mime = eval {
-		my $mid = mid_clean(mid_mime($mime));
-		$state->{ctx}->{-inbox}->msg_by_mid($mid);
-	} or return;
-	$mime = Email::MIME->new($mime);
-
-	thread_html_head($mime, $state) if $state->{anchor_idx} == 0;
-	index_entry($mime, $level, $state);
-	1;
 }
 
 sub indent_for {
@@ -606,10 +578,9 @@ sub thread_results {
 }
 
 sub missing_thread {
-	my ($res, $ctx) = @_;
+	my ($ctx) = @_;
 	require PublicInbox::ExtMsg;
-
-	$res->(PublicInbox::ExtMsg::ext_msg($ctx))
+	PublicInbox::ExtMsg::ext_msg($ctx);
 }
 
 sub _msg_date {

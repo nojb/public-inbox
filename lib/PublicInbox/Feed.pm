@@ -168,12 +168,13 @@ sub emit_html_index {
 sub emit_index_nosrch {
 	my ($ctx, $state) = @_;
 	my $ibx = $ctx->{-inbox};
+	my $fh = $state->{fh};
 	my (undef, $last) = each_recent_blob($ctx, sub {
 		my ($path, $commit, $ts, $u, $subj) = @_;
 		$state->{first} ||= $commit;
 
 		my $mime = do_cat_mail($ibx, $path) or return 0;
-		PublicInbox::View::index_entry($mime, 0, $state);
+		$fh->write(PublicInbox::View::index_entry($mime, $state));
 		1;
 	});
 	$last;

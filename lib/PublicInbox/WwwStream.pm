@@ -22,10 +22,20 @@ sub _html_top ($) {
 	my $title = $ctx->{-title_html} || $desc;
 	my $upfx = $ctx->{-upfx} || '';
 	my $atom = $ctx->{-atom} || $upfx.'new.atom';
+	my $tip = $ctx->{-html_tip} || '';
 	my $top = "<b>$desc</b> (<a\nhref=\"$atom\">Atom feed</a>)";
 	if ($obj->search) {
+		my $q_val = $ctx->{-q_value_html};
+		if (defined $q_val && $q_val ne '') {
+			$q_val = qq(\nvalue="$q_val" );
+		} else {
+			$q_val = '';
+		}
+		# XXX gross, for SearchView.pm
+		my $extra = $ctx->{-extra_form_html} || '';
 		$top = qq{<form\naction="$upfx"><pre>$top} .
-			  qq{ <input\nname=q\ntype=text />} .
+			  qq{ <input\nname=q\ntype=text$q_val/>} .
+			  $extra .
 			  qq{<input\ntype=submit\nvalue=search />} .
 			  q{</pre></form>}
 	} else {
@@ -35,7 +45,7 @@ sub _html_top ($) {
 		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
 		"href=\"$atom\"\ntype=\"application/atom+xml\"/>" .
 		PublicInbox::Hval::STYLE .
-		"</head><body>$top";
+		"</head><body>". $top . $tip;
 }
 
 sub _html_end {

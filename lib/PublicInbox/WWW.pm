@@ -233,12 +233,10 @@ sub get_mid_html {
 
 # /$INBOX/$MESSAGE_ID/t/
 sub get_thread {
-	my ($ctx, $flat) = @_;
-	my $srch = searcher($ctx) or return need_search($ctx);
+	my ($ctx) = @_;
+	searcher($ctx) or return need_search($ctx);
 	require PublicInbox::View;
-	my $foot = footer($ctx);
-	$ctx->{flat} = $flat;
-	PublicInbox::View::thread_html($ctx, $foot, $srch);
+	PublicInbox::View::thread_html($ctx);
 }
 
 sub ctx_get {
@@ -414,7 +412,6 @@ sub msg_page {
 	't.atom' eq $e and return get_thread_atom($ctx);
 	't.mbox' eq $e and return get_thread_mbox($ctx);
 	't.mbox.gz' eq $e and return get_thread_mbox($ctx, '.gz');
-	'T/' eq $e and return get_thread($ctx, 1);
 	'raw' eq $e and return get_mid_txt($ctx);
 
 	# legacy, but no redirect for compatibility:
