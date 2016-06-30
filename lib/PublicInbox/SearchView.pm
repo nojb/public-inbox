@@ -163,42 +163,32 @@ sub tdump {
 	} else { # order by time (default for threaded view)
 		$th->order(*PublicInbox::View::sort_ts);
 	}
+	my $skel = '';
 	my $state = {
-		ctx => $ctx,
-		anchor_idx => 0,
-		pct => \%pct,
-		cur_level => 0,
 		-inbox => $ctx->{-inbox},
+		anchor_idx => 1,
+		ctx => $ctx,
+		cur_level => 0,
+		dst => \$skel,
 		fh => $fh,
+		mapping => {},
+		pct => \%pct,
+		prev_attr => '',
+		prev_level => 0,
+		seen => {},
+		srch => $ctx->{srch},
+		upfx => './',
 	};
 	$ctx->{searchview} = 1;
-	PublicInbox::View::walk_thread($th, $state, *tdump_ent);
-	PublicInbox::View::thread_adj_level($state, 0);
+	PublicInbox::View::walk_thread($th, $state,
+		*PublicInbox::View::pre_thread);
 
-	$fh->write(search_nav_bot($mset, $q). "\n\n" .
+	PublicInbox::View::thread_entry($state, $_, 0) for @m;
+
+	$fh->write(search_nav_bot($mset, $q). "\n\n" . $skel . "\n" .
 			foot($ctx). '</pre></body></html>');
 
 	$fh->close;
-}
-
-sub tdump_ent {
-	my ($state, $level, $node) = @_;
-	my $mime = $node->message;
-
-	if ($mime) {
-		# lazy load the full message from mini_mime:
-		my $mid = mid_mime($mime);
-		$mime = eval { $state->{-inbox}->msg_by_mid($mid) } and
-			$mime = Email::MIME->new($mime);
-	}
-	if ($mime) {
-		my $end = PublicInbox::View::thread_adj_level($state, $level);
-		PublicInbox::View::index_entry($mime, $level, $state);
-		$state->{fh}->write($end) if $end;
-	} else {
-		my $mid = $node->messageid;
-		PublicInbox::View::ghost_flush($state, '', $mid, $level);
-	}
 }
 
 sub foot {

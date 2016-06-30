@@ -23,7 +23,7 @@ require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 our $INBOX_RE = qr!\A/([\w\.\-]+)!;
 our $MID_RE = qr!([^/]+)!;
-our $END_RE = qr!(T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
+our $END_RE = qr!(t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 our $ATTACH_RE = qr!(\d[\.\d]*)-([[:alnum:]][\w\.-]+[[:alnum:]])!i;
 
 sub new {
@@ -91,10 +91,9 @@ sub call {
 		invalid_inbox_mid($self, $ctx, $1, $2) ||
 			get_attach($ctx, $idx, $fn);
 	# in case people leave off the trailing slash:
-	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/(T|t)\z!o) {
-		my ($inbox, $mid, $suffix) = ($1, $2, $3);
-		$suffix .= $suffix =~ /\A[tT]\z/ ? '/#u' : '/';
-		r301($ctx, $inbox, $mid, $suffix);
+	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/(?:T|T/|t)\z!o) {
+		my ($inbox, $mid) = ($1, $2);
+		r301($ctx, $inbox, $mid, 't/#u');
 
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/R/?\z!o) {
 		my ($inbox, $mid) = ($1, $2);
