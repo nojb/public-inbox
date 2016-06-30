@@ -119,8 +119,15 @@ sub index_entry {
 		my $dst = _hdr_names($hdr, $f);
 		push @tocc, "$f: $dst" if $dst ne '';
 	}
-	$rv .= "From: "._hdr_names($hdr, 'From').' @ '._msg_date($hdr)." UTC\n";
+	my $mapping = $ctx->{mapping};
+	$rv .= "From: "._hdr_names($hdr, 'From').' @ '._msg_date($hdr)." UTC";
+	my $upfx = $ctx->{-upfx};
+	$rv .= qq{ (<a\nhref="$upfx$mid_raw/">permalink</a> / };
+	$rv .= qq{<a\nhref="$upfx$mid_raw/raw">raw</a>)\n};
 	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
+	if (!$mapping && $irt) {
+		$rv .= qq(In-Reply-To: &lt;<a\nhref="$upfx$irt/">$irt</a>&gt;\n)
+	}
 	$rv .= "\n";
 
 	# scan through all parts, looking for displayable text
@@ -173,11 +180,7 @@ sub _th_index_lite {
 	if (my $next = $node->next) {
 		$rv .= $pad .  $mapping->{$next->messageid}->[1];
 	}
-	$rv .= "<a\nhref=#e$id\nid=m$id>.<a>\t\t\t";
-	$rv .= "(<a\nhref=#r$id\n>$s_s, $s_c</a> / ";
-	my $upfx = $ctx->{-upfx};
-	$rv .= qq{<a\nhref="$upfx$mid_raw/">permalink</a> / };
-	$rv .= qq{<a\nhref="$upfx$mid_raw/raw">raw</a>)\n};
+	$rv .= "<a\nhref=#e$id\nid=m$id>_<a> <a\nhref=#r$id\n>$s_s, $s_c</a>\n";
 }
 
 sub walk_thread {
