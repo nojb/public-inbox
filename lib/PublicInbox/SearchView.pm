@@ -170,21 +170,16 @@ sub mset_thread {
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	my $inbox = $ctx->{-inbox};
 	$ctx->{-upfx} = '';
-	my $state = {
-		-inbox => $inbox,
-		anchor_idx => 1,
-		ctx => $ctx,
-		cur_level => 0,
-		dst => \$skel,
-		mapping => {},
-		pct => \%pct,
-		prev_attr => '',
-		prev_level => 0,
-		seen => {},
-		srch => $ctx->{srch},
-	};
+	$ctx->{anchor_idx} = 1;
+	$ctx->{cur_level} = 0;
+	$ctx->{dst} = \$skel;
+	$ctx->{mapping} = {};
+	$ctx->{pct} = \%pct;
+	$ctx->{prev_attr} = '';
+	$ctx->{prev_level} = 0;
+	$ctx->{seen} = {};
 
-	PublicInbox::View::walk_thread($th, $state,
+	PublicInbox::View::walk_thread($th, $ctx,
 		*PublicInbox::View::pre_thread);
 
 	my $msgs = \@m;
@@ -197,7 +192,7 @@ sub mset_thread {
 		}
 		if ($mime) {
 			$mime = Email::MIME->new($mime);
-			return PublicInbox::View::index_entry($mime, $state);
+			return PublicInbox::View::index_entry($mime, $ctx);
 		}
 		$msgs = undef;
 		$skel .= "\n</pre>";
