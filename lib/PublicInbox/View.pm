@@ -142,7 +142,19 @@ sub index_entry {
 		" / <a\nhref=\"${mhref}#R\">reply</a>";
 	if (my $pct = $ctx->{pct}) { # used by SearchView.pm
 		$rv .= " [relevance $pct->{$mid_raw}%]";
+	} elsif ($mapping) {
+		my $threaded = 'threaded';
+		my $flat = 'flat';
+		my $end = '';
+		if ($ctx->{flat}) {
+			$flat = "<b>$flat</b>";
+		} else {
+			$threaded = "<b>$threaded</b>";
+		}
+		$rv .= " [<a\nhref=\"${mhref}t/#u\">$threaded</a>";
+		$rv .= "|<a\nhref=\"${mhref}T/#u\">$flat</a>]";
 	}
+
 	$rv .= $more ? "\n\n" : "\n";
 }
 
@@ -150,7 +162,7 @@ sub pad_link ($$;$) {
 	my ($mid, $level, $s) = @_;
 	$s ||= '...';
 	my $id = id_compress($mid, 1);
-	(' 'x19).indent_for($level).th_pfx($level)."<a\nhref=#r$id>($s)<a>\n";
+	(' 'x19).indent_for($level).th_pfx($level)."<a\nhref=#r$id>($s)</a>\n";
 }
 
 sub _th_index_lite {
@@ -186,7 +198,7 @@ sub _th_index_lite {
 	my $s_c = nr_to_s($nr_c, 'reply', 'replies');
 	my $this = $map->[1];
 	$this =~ s!\n\z!</b>\n!s;
-	$this =~ s!<a\nhref.*a> !!s; # no point in duplicating subject
+	$this =~ s!<a\nhref.*</a> !!s; # no point in duplicating subject
 	$rv .= "<b>@ $this";
 	my $node = $map->[2];
 	if (my $child = $node->child) {
@@ -210,7 +222,7 @@ sub _th_index_lite {
 			$rv .= $pad . $mapping->{$nn->messageid}->[1];
 		}
 	}
-	$rv .= "<a\nhref=#e$id\nid=m$id>_<a> <a\nhref=#r$id\n>$s_s, $s_c</a>\n";
+	$rv .= "<a\nhref=#e$id\nid=m$id>_</a> <a\nhref=#r$id>$s_s, $s_c</a>\n";
 }
 
 sub walk_thread {
@@ -237,6 +249,51 @@ sub pre_thread  {
 	skel_dump($ctx, $level, $node);
 }
 
+sub thread_index_entry {
+	my ($ctx, $level, $mime) = @_;
+	my ($beg, $end) = thread_adj_level($ctx, $level);
+	$beg . '<pre>' . index_entry($mime, $ctx, 0) . '</pre>' . $end;
+}
+
+sub stream_thread ($$) {
+	my ($th, $ctx) = @_;
+	my $inbox = $ctx->{-inbox};
+	my $mime;
+	my @q = map { (0, $_) } $th->rootset;
+	my $level;
+	while (@q) {
+		$level = shift @q;
+		my $node = shift @q or next;
+		unshift @q, $level+1, $node->child, $level, $node->next;
+		$mime = $inbox->msg_by_mid($node->messageid) and last;
+	}
+	return missing_thread($ctx) unless $mime;
+
+	$mime = Email::MIME->new($mime);
+	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
+	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $mime);
+	my $body = PublicInbox::WwwStream->new($ctx, sub {
+		return unless $ctx;
+		while (@q) {
+			$level = shift @q;
+			my $node = shift @q or next;
+			unshift @q, $level+1, $node->child, $level, $node->next;
+			my $mid = $node->messageid;
+			if ($mime = $inbox->msg_by_mid($mid)) {
+				$mime = Email::MIME->new($mime);
+				return thread_index_entry($ctx, $level, $mime);
+			} else {
+				return ghost_index_entry($ctx, $level, $mid);
+			}
+		}
+		my $ret = join('', thread_adj_level($ctx, 0));
+		$ret .= ${$ctx->{dst}}; # skel
+		$ctx = undef;
+		$ret;
+	});
+	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
+}
+
 sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
@@ -244,30 +301,34 @@ sub thread_html {
 	my $msgs = load_results($sres);
 	my $nr = $sres->{total};
 	return missing_thread($ctx) if $nr == 0;
-	my $skel = '</pre><hr /><pre>';
+	my $skel = '<hr /><pre>';
 	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
 	$skel .= ", back to <a\nhref=\"../../\">index</a>";
 	$skel .= "\n<a\nid=t>$nr+ messages in thread:</a> (download: ";
 	$skel .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$skel .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>)\n";
+	$ctx->{-upfx} = '../../';
 	$ctx->{cur_level} = 0;
 	$ctx->{dst} = \$skel;
-	$ctx->{mapping} = {}; # mid -> [ reply count, from@date, node ];
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{root_anchor} = anchor_for($mid);
 	$ctx->{seen} = {};
+	$ctx->{mapping} = {};
 
-	walk_thread(thread_results($msgs), $ctx, *pre_thread);
+	my $th = thread_results($msgs);
+	walk_thread($th, $ctx, *pre_thread);
+	$skel .= '</pre>';
+	return stream_thread($th, $ctx) unless $ctx->{flat};
 
-	# lazy load the full message from mini_mime:
+	# flat display: lazy load the full message from mini_mime:
 	my $inbox = $ctx->{-inbox};
 	my $mime;
 	while ($mime = shift @$msgs) {
 		$mime = $inbox->msg_by_mid(mid_clean(mid_mime($mime))) and last;
 	}
+	return missing_thread($ctx) unless $mime;
 	$mime = Email::MIME->new($mime);
-	$ctx->{-upfx} = '../../';
 	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
 	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $ctx, scalar @$msgs);
 	$mime = undef;
@@ -282,7 +343,7 @@ sub thread_html {
 			return index_entry($mime, $ctx, scalar @$msgs);
 		}
 		$msgs = undef;
-		$skel .= '</pre>';
+		'</pre>'.$skel;
 	});
 	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
 }
@@ -844,6 +905,36 @@ sub emit_index_topics {
 
 	emit_topics($ctx);
 	$opts{offset};
+}
+
+sub thread_adj_level {
+	my ($ctx, $level) = @_;
+
+	my $max = $ctx->{cur_level};
+	if ($level <= 0) {
+		return ('', '') if $max == 0; # flat output
+
+		# reset existing lists
+		my $beg = $max > 1 ? ('</ul></li>' x ($max - 1)) : '';
+		$ctx->{cur_level} = 0;
+		("$beg</ul>", '');
+	} elsif ($level == $max) { # continue existing list
+		qw(<li> </li>);
+	} elsif ($level < $max) {
+		my $beg = $max > 1 ? ('</ul></li>' x ($max - $level)) : '';
+		$ctx->{cur_level} = $level;
+		("$beg<li>", '</li>');
+	} else { # ($level > $max) # start a new level
+		$ctx->{cur_level} = $level;
+		my $beg = ($max ? '<li>' : '') . '<ul><li>';
+		($beg, '</li>');
+	}
+}
+
+sub ghost_index_entry {
+	my ($ctx, $level, $mid) = @_;
+	my ($beg, $end) = thread_adj_level($ctx,  $level);
+	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $mid) . '</pre>' . $end;
 }
 
 1;

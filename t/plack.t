@@ -101,7 +101,7 @@ EOF
 			my $res = $cb->(GET($u));
 			is(301, $res->code, "redirect for missing /");
 			my $location = $res->header('Location');
-			like($location, qr!/t/#u\z!,
+			like($location, qr!/\Q$t\E/#u\z!,
 				'redirected with missing /');
 		});
 	}
