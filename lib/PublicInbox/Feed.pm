@@ -34,6 +34,33 @@ sub generate_html_index {
 	sub { emit_html_index($_[0], $ctx) };
 }
 
+sub new_html {
+	my ($ctx) = @_;
+	my @paths;
+	my (undef, $last) = each_recent_blob($ctx, sub {
+		my ($path, $commit, $ts, $u, $subj) = @_;
+		$ctx->{first} ||= $commit;
+		push @paths, $path;
+	});
+	if (!@paths) {
+		return [404, ['Content-Type', 'text/plain'],
+			["No messages, yet\n"] ];
+	}
+	$ctx->{-html_tip} = '<pre>';
+	$ctx->{-upfx} = '';
+	my $res = PublicInbox::WwwStream->new($ctx, sub {
+		while (my $path = shift @paths) {
+			my $m = do_cat_mail($ctx->{-inbox}, $path) or next;
+			my $more = scalar @paths;
+			my $s = PublicInbox::View::index_entry($m, $ctx, $more);
+			$s .= '</pre>' unless $more;
+			return $s;
+		}
+		undef;
+	});
+	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $res ]
+}
+
 # private subs
 
 sub title_tag {

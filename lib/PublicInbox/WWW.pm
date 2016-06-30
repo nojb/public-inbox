@@ -75,7 +75,8 @@ sub call {
 		invalid_inbox($self, $ctx, $1) || get_index($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/(?:atom\.xml|new\.atom)\z!o) {
 		invalid_inbox($self, $ctx, $1) || get_atom($ctx);
-
+	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
+		invalid_inbox($self, $ctx, $1) || get_new($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my $path = $2;
@@ -187,6 +188,13 @@ sub get_atom {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate($ctx);
+}
+
+# /$INBOX/new.html			-> HTML only
+sub get_new {
+	my ($ctx) = @_;
+	require PublicInbox::Feed;
+	PublicInbox::Feed::new_html($ctx);
 }
 
 # /$INBOX/?r=$GIT_COMMIT                 -> HTML only
