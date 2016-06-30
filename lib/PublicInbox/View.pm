@@ -156,7 +156,7 @@ sub index_entry {
 		}
 		$rv .= " / [<a\nhref=\"${mhref}T/#u\">$flat</a>";
 		$rv .= "|<a\nhref=\"${mhref}t/#u\">$threaded</a>]";
-		$rv .= " / <a\nhref=#r$id>thread overview</a>";
+		$rv .= " / <a\nhref=#r$id>$ctx->{s_nr}</a>";
 	}
 
 	$rv .= $more ? "\n\n" : "\n";
@@ -226,7 +226,8 @@ sub _th_index_lite {
 			$rv .= $pad . $mapping->{$nn->messageid}->[1];
 		}
 	}
-	$rv .= "<a\nhref=#e$id\nid=m$id>_</a> <a\nhref=#r$id>$s_s, $s_c</a>\n";
+	$rv .= "<a\nhref=#e$id\nid=m$id>_</a> ";
+	$rv .= "<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
 }
 
 sub walk_thread {
@@ -319,6 +320,7 @@ sub thread_html {
 	$ctx->{root_anchor} = anchor_for($mid);
 	$ctx->{seen} = {};
 	$ctx->{mapping} = {};
+	$ctx->{s_nr} = "$nr+ messages in thread";
 
 	my $th = thread_results($msgs);
 	walk_thread($th, $ctx, *pre_thread);
