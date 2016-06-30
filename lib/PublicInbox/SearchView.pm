@@ -169,6 +169,7 @@ sub mset_thread {
 	}
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	my $inbox = $ctx->{-inbox};
+	$ctx->{-upfx} = '';
 	my $state = {
 		-inbox => $inbox,
 		anchor_idx => 1,
@@ -181,7 +182,6 @@ sub mset_thread {
 		prev_level => 0,
 		seen => {},
 		srch => $ctx->{srch},
-		upfx => './',
 	};
 
 	PublicInbox::View::walk_thread($th, $state,

@@ -97,7 +97,7 @@ sub nr_to_s ($$$) {
 
 # this is already inside a <pre>
 sub index_entry {
-	my ($mime, $state) = @_;
+	my ($mime, $state, $more) = @_;
 	my $ctx = $state->{ctx};
 	my $srch = $ctx->{srch};
 	my $hdr = $mime->header_obj;
@@ -109,51 +109,76 @@ sub index_entry {
 	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
 
 	my $root_anchor = $state->{root_anchor} || '';
-	my $path = $root_anchor ? '../../' : '';
-	my $href = $mid->as_href;
 	my $irt = in_reply_to($hdr);
 
-	$subj = '<b>'.ascii_html($subj).'</b>';
-	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id_m;
-
-	my $ts = _msg_date($hdr);
-	my $rv = "<a\nhref=#e$id\nid=$id_m>#</a> ";
-	$rv .= $subj;
-	my $mhref = $path.$href.'/';
-	my $from = _hdr_names($hdr, 'From');
-	$rv .= "\n- $from @ $ts UTC\n";
+	my $rv = '<b>'.ascii_html($subj).'</b>';
+	$rv = "<u\nid=u>$rv</u>" if $root_anchor eq $id_m;
+	$rv .= "\n";
+	$rv .= _th_index_lite($mid_raw, $irt, $id, $state);
 	my @tocc;
 	foreach my $f (qw(To Cc)) {
 		my $dst = _hdr_names($hdr, $f);
 		push @tocc, "$f: $dst" if $dst ne '';
 	}
+	$rv .= "From: "._hdr_names($hdr, 'From').' @ '._msg_date($hdr)." UTC\n";
 	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
 	$rv .= "\n";
 
 	# scan through all parts, looking for displayable text
+	my $href = $mid->as_href;
+	my $mhref = $ctx->{-upfx}.$href.'/';
 	msg_iter($mime, sub { $rv .= add_text_body($mhref, $_[0]) });
-	$rv .= "\n<a\nhref=\"$mhref\"\n>permalink</a>" .
-		" / <a\nhref=\"${mhref}raw\">raw</a> / ";
-	my $mapping = $state->{mapping};
-	my $nr_c = $mapping->{$mid_raw} || 0;
-	my $nr_s = 0;
-	if (defined $irt) {
-		$nr_s = ($mapping->{$irt} || 0) - 1;
-		$nr_s = 0 if $nr_s < 0;
-		$irt = anchor_for($irt);
-		$rv .= "<a\nhref=#$irt>#parent</a>,";
-	} else {
-		$rv .= 'root message:';
-	}
-	$nr_s = nr_to_s($nr_s, 'sibling', 'siblings');
-	$nr_c = nr_to_s($nr_c, 'reply', 'replies');
-	$rv .= " <a\nhref=#r$id\nid=e$id>$nr_s, $nr_c</a>";
-	$rv .= " / <a\nhref=\"${mhref}#R\">reply</a>";
 
+	# add the footer
+	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
+		"<a\nhref=\"$mhref\">permalink</a>" .
+		" / <a\nhref=\"${mhref}raw\">raw</a>" .
+		" / <a\nhref=\"${mhref}#R\">reply</a>";
 	if (my $pct = $state->{pct}) { # used by SearchView.pm
 		$rv .= " [relevance $pct->{$mid_raw}%]";
 	}
-	$rv .= "\n\n";
+	$rv .= $more ? "\n\n" : "\n";
+}
+
+sub _th_index_lite {
+	my ($mid_raw, $irt, $id, $state) = @_;
+	my $rv = '';
+	my $mapping = $state->{mapping} or return $rv;
+	my $pad = '  ';
+	# map = [children, attr, node, idx, level]
+	my $map = $mapping->{$mid_raw};
+	my $nr_c = scalar @{$map->[0]};
+	my $nr_s = 0;
+	if (defined $irt) {
+		my $irt_map = $mapping->{$irt};
+		my $siblings = $irt_map->[0];
+		$nr_s = scalar(@$siblings) - 1;
+		$nr_s = 0 if $nr_s < 0;
+		$rv .= $pad . $irt_map->[1];
+		my $idx = $map->[3];
+		if ($idx > 0) {
+			my $prev = $siblings->[$idx - 1];
+			$rv .= $pad . $mapping->{$prev->messageid}->[1];
+		}
+	}
+	my $s_s = nr_to_s($nr_s, 'sibling', 'siblings');
+	my $s_c = nr_to_s($nr_c, 'reply', 'replies');
+	my $this = $map->[1];
+	$this =~ s!\n\z!</b>\n!s;
+	$this =~ s!<a\nhref.*a> !!s; # no point in duplicating subject
+	$rv .= "<b>@ $this";
+	my $node = $map->[2];
+	if (my $child = $node->child) {
+		$rv .= $pad . $mapping->{$child->messageid}->[1];
+	}
+	if (my $next = $node->next) {
+		$rv .= $pad .  $mapping->{$next->messageid}->[1];
+	}
+	$rv .= "<a\nhref=#e$id\nid=m$id>.<a>\t\t\t";
+	$rv .= "(<a\nhref=#r$id\n>$s_s, $s_c</a> / ";
+	my $upfx = $state->{ctx}->{-upfx};
+	$rv .= qq{<a\nhref="$upfx$mid_raw/">permalink</a> / };
+	$rv .= qq{<a\nhref="$upfx$mid_raw/raw">raw</a>)\n};
 }
 
 sub walk_thread {
@@ -169,13 +194,14 @@ sub walk_thread {
 
 sub pre_thread  {
 	my ($state, $level, $node) = @_;
-	my $parent = $node->parent;
-	if ($parent) {
-		my $mid = $parent->messageid;
-		my $m = $state->{mapping};
-		$m->{$mid} ||= 0;
-		$m->{$mid}++;
+	my $mapping = $state->{mapping};
+	my $idx = -1;
+	if (my $parent = $node->parent) {
+		my $m = $mapping->{$parent->messageid}->[0];
+		$idx = scalar @$m;
+		push @$m, $node;
 	}
+	$mapping->{$node->messageid} = [ [], '', $node, $idx ];
 	skel_dump($state, $level, $node);
 }
 
@@ -196,13 +222,12 @@ sub thread_html {
 		ctx => $ctx,
 		cur_level => 0,
 		dst => \$skel,
-		mapping => {}, # mid -> reply count
+		mapping => {}, # mid -> [ reply count, from@date, node ];
 		prev_attr => '',
 		prev_level => 0,
 		root_anchor => anchor_for($mid),
 		seen => {},
 		srch => $ctx->{srch},
-		upfx => '../../',
 	};
 
 	walk_thread(thread_results($msgs), $state, *pre_thread);
@@ -216,7 +241,7 @@ sub thread_html {
 	$mime = Email::MIME->new($mime);
 	$ctx->{-upfx} = '../../';
 	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
-	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $state);
+	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $state, scalar @$msgs);
 	$mime = undef;
 	my $body = PublicInbox::WwwStream->new($ctx, sub {
 		return unless $msgs;
@@ -224,9 +249,12 @@ sub thread_html {
 			$mid = mid_clean(mid_mime($mime));
 			$mime = $inbox->msg_by_mid($mid) and last;
 		}
-		return index_entry(Email::MIME->new($mime), $state) if $mime;
+		if ($mime) {
+			$mime = Email::MIME->new($mime);
+			return index_entry($mime, $state, scalar @$msgs);
+		}
 		$msgs = undef;
-		$skel .= "</pre>";
+		$skel .= '</pre>';
 	});
 	[ 200, ['Content-Type', 'text/html; charset=UTF-8'], $body ];
 }
@@ -405,7 +433,6 @@ sub thread_skel {
 		cur => $mid,
 		prev_attr => '',
 		prev_level => 0,
-		upfx => "$tpfx../",
 		dst => $dst,
 	};
 	walk_thread(thread_results(load_results($sres)), $state, *skel_dump);
@@ -598,8 +625,7 @@ sub _skel_header {
 	my $cur = $state->{cur};
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $f = ascii_html($hdr->header('X-PI-From'));
-	my $d = _msg_date($hdr);
-	my $pfx = "$d " . indent_for($level) . th_pfx($level);
+	my $d = _msg_date($hdr) . ' ' . indent_for($level) . th_pfx($level);
 	my $attr = $f;
 	$state->{first_level} ||= $level;
 
@@ -613,9 +639,9 @@ sub _skel_header {
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $state->{cur};
-			$$dst .= "$pfx<b><a\nid=r\nhref=\"#t\">".
+			$$dst .= $d;
+			$$dst .= "<b><a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
-
 			return;
 		}
 	} else {
@@ -636,15 +662,18 @@ sub _skel_header {
 	}
 	my $m = PublicInbox::Hval->new_msgid($mid);
 	my $id = '';
-	if ($state->{mapping}) {
+	my $mapping = $state->{mapping};
+	my $end = defined($s) ? "$s</a> $f\n" : "$f</a>\n";
+	if ($mapping) {
+		my $map = $mapping->{$mid};
 		$id = id_compress($mid, 1);
 		$m = '#m'.$id;
+		$map->[1] = "$d<a\nhref=\"$m\">$end";
 		$id = "\nid=r".$id;
 	} else {
-		$m = $state->{upfx}.$m->as_href.'/';
+		$m = $state->{ctx}->{-upfx}.$m->as_href.'/';
 	}
-	$$dst .= "$pfx<a\nhref=\"$m\"$id>";
-	$$dst .= defined($s) ? "$s</a> $f\n" : "$f</a>\n";
+	$$dst .=  $d . "<a\nhref=\"$m\"$id>" . $end;
 }
 
 sub skel_dump {
@@ -654,25 +683,30 @@ sub skel_dump {
 	} else {
 		my $mid = $node->messageid;
 		my $dst = $state->{dst};
+		my $mapping = $state->{mapping};
+		my $map = $mapping->{$mid} if $mapping;
 		if ($mid eq 'subject dummy') {
-			$$dst .= "\t[no common parent]\n";
+			my $ncp = "\t[no common parent]\n";
+			$map->[1] = $ncp if $map;
+			$$dst .= $ncp;
 			return;
 		}
-		if ($state->{pct}) { # search result
-			$$dst .= '    [irrelevant] ';
+		my $d = $state->{pct} ? '    [irrelevant] ' # search result
+				      : '     [not found] ';
+		$d .= indent_for($level) . th_pfx($level);
+		my $upfx = $state->{ctx}->{-upfx};
+		my $m = PublicInbox::Hval->new_msgid($mid);
+		my $href = $upfx . $m->as_href . '/';
+		my $html = $m->as_html;
+
+		if ($map) {
+			my $id = id_compress($mid, 1);
+			$map->[1] = $d . qq{&lt;<a\nhref=#r$id>$html</a>&gt;\n};
+			$d .= qq{&lt;<a\nhref="$href"\nid=r$id>$html</a>&gt;\n};
 		} else {
-			$$dst .= '     [not found] ';
+			$d .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
 		}
-		$$dst .= indent_for($level) . th_pfx($level);
-		my $upfx = $state->{upfx};
-		my $id = '';
-		if ($state->{mapping}) { # thread index view
-			$id = "\nid=".anchor_for($mid);
-		}
-		$mid = PublicInbox::Hval->new_msgid($mid);
-		my $href = $upfx . $mid->as_href . '/';
-		my $html = $mid->as_html;
-		$$dst .= qq{&lt;<a\nhref="$href"$id>$html</a>&gt;\n};
+		$$dst .= $d;
 	}
 }
 

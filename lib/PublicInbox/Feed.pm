@@ -138,6 +138,7 @@ sub emit_html_index {
 	my $fh = $res->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
 
 	my $max = $ctx->{max} || MAX_PER_PAGE;
+	$ctx->{-upfx} = '';
 
 	my ($footer, $param, $last);
 	my $state = { ctx => $ctx, seen => {}, anchor_idx => 0, fh => $fh };
@@ -174,7 +175,7 @@ sub emit_index_nosrch {
 		$state->{first} ||= $commit;
 
 		my $mime = do_cat_mail($ibx, $path) or return 0;
-		$fh->write(PublicInbox::View::index_entry($mime, $state));
+		$fh->write(PublicInbox::View::index_entry($mime, $state, 1));
 		1;
 	});
 	$last;
