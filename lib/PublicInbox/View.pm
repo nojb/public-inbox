@@ -54,21 +54,29 @@ sub msg_reply {
 
 	my ($arg, $link) = mailto_arg_link($hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
+	$arg = join(" \\\n    ", '', @$arg);
+	<<EOF
+<pre
+id=R>You may reply publically to <a
+href=#t>this message</a> via
+plain-text email using any one of the following methods:
 
-	"<pre\nid=R>".
-	"You may reply publically to <a\nhref=#t>this message</a> via\n".
-	"plain-text email using any one of the following methods:\n\n" .
-	"* Save the following mbox file, import it into your mail client,\n" .
-	"  and reply-to-all from there: <a\nhref=raw>mbox</a>\n\n" .
-	"* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,\n" .
-	"  and <b>--in-reply-to</b> switches of git-send-email(1):\n\n" .
-	"  git send-email \\\n    " .
-	join(" \\\n    ", @$arg ). "\n\n" .
-	qq(  <a\nhref="$se_url">$se_url</a>\n\n) .
-	"* If your mail client supports setting the <b>In-Reply-To</b>" .
-	" header\n  via mailto: links, try the " .
-	qq(<a\nhref="$link">mailto: link</a>\n) .
-	'</pre>';
+* Save the following mbox file, import it into your mail client,
+  and reply-to-all from there: <a
+href=raw>mbox</a>
+
+* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,
+  and <b>--in-reply-to</b> switches of git-send-email(1):
+
+  git send-email$arg
+
+  <a
+href="$se_url">$se_url</a>
+
+* If your mail client supports setting the <b>In-Reply-To</b> header
+  via mailto: links, try the <a
+href="$link">mailto: link</a></pre>
+EOF
 }
 
 sub in_reply_to {
