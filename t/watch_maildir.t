@@ -94,7 +94,10 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	local $ENV{PATH} = $fail_path;
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
-	PublicInbox::WatchMaildir->new($config)->scan;
+	{
+		local $SIG{__WARN__} = sub {}; # quiet spam check warning
+		PublicInbox::WatchMaildir->new($config)->scan;
+	}
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 0, 'tree has no files spamc checked');
 	is(unlink(glob("$maildir/new/*")), 1);
