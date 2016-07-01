@@ -147,7 +147,7 @@ sub index_entry {
 		my $mirt = PublicInbox::Hval->new_msgid($irt);
 		my $href = $upfx . $mirt->as_href . '/';
 		my $html = $mirt->as_html;
-		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href/">$html</a>&gt;\n)
+		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href">$html</a>&gt;\n)
 	}
 	$rv .= "\n";
 
