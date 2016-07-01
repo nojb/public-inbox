@@ -16,4 +16,4 @@ apache2_perl.conf - intended to be the basis of a production config
 Contact
 -------
 Please send any related feedback to public-inbox: meta@public-inbox.org
-Our public-inbox is: git://public-inbox.org/meta
+Our public-inbox is: https://public-inbox.org/meta/
