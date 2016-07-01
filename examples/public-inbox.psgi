@@ -11,6 +11,10 @@ use PublicInbox::WWW;
 PublicInbox::WWW->preload;
 use Plack::Builder;
 my $www = PublicInbox::WWW->new;
+
+# share the public-inbox code itself:
+my $src = $ENV{SRC_GIT_DIR}; # '/path/to/public-inbox.git'
+
 builder {
 	eval {
 		enable 'Deflater',
@@ -40,5 +44,13 @@ builder {
 	#	format => '%t "%r" %>s %b %D';
 
 	enable 'Head';
-	sub { $www->call(@_) };
+	sub {
+		my ($env) = @_;
+		# share public-inbox.git code!
+		if ($src && $env->{PATH_INFO} =~ m!\A/public-inbox\.git/(.*)!) {
+			PublicInbox::GitHTTPBackend::serve($env, $src, $1);
+		} else {
+			$www->call($env);
+		}
+	};
 }

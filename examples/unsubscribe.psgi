@@ -17,7 +17,8 @@ my $app = PublicInbox::Unsubscribe->new(
 		# the archives runs as a different user.
 		PublicInbox::Config->new('/home/pi/.public-inbox/config')
 	},
-	code_url => 'git://80x24.org/public-inbox.git', # change if you fork
+	# change if you fork
+	code_url => 'https://public-inbox.org/public-inbox.git',
 	owner_email => 'BOFH@example.com',
 	confirm => 0,
 

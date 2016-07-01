@@ -12,7 +12,7 @@ use warnings;
 use Crypt::CBC;
 use Plack::Util;
 use MIME::Base64 qw(decode_base64url);
-my $CODE_URL = 'git://80x24.org/public-inbox.git';
+my $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 my @CT_HTML = ('Content-Type', 'text/html; charset=UTF-8');
 
 sub new {
