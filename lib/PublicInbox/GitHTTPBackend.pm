@@ -80,7 +80,7 @@ sub serve_dumb {
 		return r(404);
 	}
 
-	my $f = "$git->{git_dir}/$path";
+	my $f = (ref $git ? $git->{git_dir} : $git) . '/' . $path;
 	return r(404) unless -f $f && -r _; # just in case it's a FIFO :P
 	my @st = stat(_);
 	my $size = $st[7];
@@ -179,7 +179,7 @@ sub serve_smart {
 		my $val = $env->{$name};
 		$env{$name} = $val if defined $val;
 	}
-	my $git_dir = $git->{git_dir};
+	my $git_dir = ref $git ? $git->{git_dir} : $git;
 	$env{GIT_HTTP_EXPORT_ALL} = '1';
 	$env{PATH_TRANSLATED} = "$git_dir/$path";
 	my %rdr = ( 0 => fileno($in) );
