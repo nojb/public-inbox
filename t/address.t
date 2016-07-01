@@ -17,5 +17,7 @@ my @names = PublicInbox::Address::names(
 is_deeply(['User', 'e', 'John A. Doe', 'x'], \@names,
 	'name extraction works as expected');
 
+@names = PublicInbox::Address::names('"user@example.com" <user@example.com>');
+is_deeply(['user'], \@names, 'address-as-name extraction works as expected');
 
 done_testing;
