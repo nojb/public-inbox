@@ -39,7 +39,8 @@ sub _html_top ($) {
 		}
 		# XXX gross, for SearchView.pm
 		my $extra = $ctx->{-extra_form_html} || '';
-		$top = qq{<form\naction="$upfx"><pre>$top} .
+		my $action = $upfx eq '' ? './' : $upfx;
+		$top = qq{<form\naction="$action"><pre>$top} .
 			  qq{ <input\nname=q\ntype=text$q_val/>} .
 			  $extra .
 			  qq{<input\ntype=submit\nvalue=search />} .
