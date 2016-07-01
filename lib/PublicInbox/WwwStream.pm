@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use PublicInbox::Hval qw(ascii_html);
 use URI;
-use constant PI_URL => 'https://public-inbox.org/public-inbox.git';
+use constant PI_URL => 'https://public-inbox.org/';
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
@@ -87,7 +87,7 @@ sub _html_end {
 		'- ' . $desc,
 		$urls,
 		'Archived served using code from public-inbox:',
-		"\tgit clone $url",
+		"\tgit clone <a\nhref="$url">$url</a> public-inbox",
 	).'</pre></body></html>';
 }
 

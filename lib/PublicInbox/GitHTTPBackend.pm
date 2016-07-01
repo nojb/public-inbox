@@ -23,7 +23,7 @@ my @binary = qw!
 	objects/pack/pack-[a-f0-9]{40}\.(?:pack|idx)
 	!;
 
-our $ANY = join('|', @binary, @text);
+our $ANY = join('|', @binary, @text, 'git-upload-pack');
 my $BIN = join('|', @binary);
 my $TEXT = join('|', @text);
 

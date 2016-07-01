@@ -47,7 +47,9 @@ builder {
 	sub {
 		my ($env) = @_;
 		# share public-inbox.git code!
-		if ($src && $env->{PATH_INFO} =~ m!\A/public-inbox\.git/(.*)!) {
+		if ($src && $env->{PATH_INFO} =~
+				m!\A/(?:public-inbox(?:\.git)?/)?
+				($PublicInbox::GitHTTPBackend::ANY)\z!xo) {
 			PublicInbox::GitHTTPBackend::serve($env, $src, $1);
 		} else {
 			$www->call($env);

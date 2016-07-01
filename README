@@ -87,7 +87,7 @@ Hacking
 
 Source code is available via git:
 
-	git clone https://public-inbox.org/public-inbox.git
+	git clone https://public-inbox.org/ public-inbox
 
 See below for contact info.
 
