@@ -191,7 +191,8 @@ sub mset_thread {
 		}
 		if ($mime) {
 			$mime = Email::MIME->new($mime);
-			return PublicInbox::View::index_entry($mime, $ctx);
+			return PublicInbox::View::index_entry($mime, $ctx,
+				scalar @$msgs);
 		}
 		$msgs = undef;
 		$skel .= "\n</pre>";
