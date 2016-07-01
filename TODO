@@ -1,6 +1,11 @@
 TODO items for public-inbox
 
-(Not in any particular order)
+(Not in any particular order, and
+performance, ease-of-setup, installation, maintainability, etc
+all need to be considered for everything we introduce)
+
+* general performance improvements, but without relying on
+  XS or compiled code any more than we currently do.
 
 * mailmap support (same as git) for remapping expired email addresses
 
@@ -44,6 +49,10 @@ TODO items for public-inbox
 
 * Consider storing git blob ID in Xapian doc data to avoid ref
   and tree lookups based on Message-Id.
+
+* streaming Email::MIME replacement: currently we generate many
+  allocations/strings for headers we never look at and slurp
+  entire message bodies into memory.
 
 * Allow in-place Xapian updates without clobbering the whole
   index (versioning each doc data entry?) for big archives
