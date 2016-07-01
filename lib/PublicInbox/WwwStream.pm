@@ -87,7 +87,7 @@ sub _html_end {
 		'- ' . $desc,
 		$urls,
 		'Archived served using code from public-inbox:',
-		"\tgit clone <a\nhref="$url">$url</a> public-inbox",
+		qq(\tgit clone <a\nhref="$url">$url</a> public-inbox),
 	).'</pre></body></html>';
 }
 
