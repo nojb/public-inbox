@@ -86,7 +86,7 @@ sub mset_summary {
 sub err_txt {
 	my ($ctx, $err) = @_;
 	my $u = '//xapian.org/docs/queryparser.html';
-	$u = PublicInbox::Hval::prurl($ctx->{cgi}->{env}, $u);
+	$u = PublicInbox::Hval::prurl($ctx->{env}, $u);
 	$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
 	$err = ascii_html($err);
 	"\nBad query: <b>$err</b>\n" .

@@ -152,7 +152,7 @@ sub invalid_inbox {
 		$ctx->{git_dir} = $obj->{mainrepo};
 		$ctx->{git} = $obj->git;
 		# for PublicInbox::HTTP::weaken_task:
-		$ctx->{cgi}->{env}->{'pi-httpd.inbox'} = $obj;
+		$ctx->{env}->{'pi-httpd.inbox'} = $obj;
 		$ctx->{-inbox} = $obj;
 		$ctx->{inbox} = $inbox;
 		return;
@@ -162,7 +162,7 @@ sub invalid_inbox {
 	# generation and link things intended for nntp:// to https?://,
 	# so try to infer links and redirect them to the appropriate
 	# list URL.
-	$self->news_www->call($ctx->{cgi}->{env});
+	$self->news_www->call($ctx->{env});
 }
 
 # returns undef if valid, array ref response if invalid
@@ -284,7 +284,7 @@ sub footer {
 	$ctx->{footer} = join("\n",
 		'- ' . $desc,
 		"A <a\nhref=\"" .
-			PublicInbox::Hval::prurl($ctx->{cgi}->{env}, PI_URL) .
+			PublicInbox::Hval::prurl($ctx->{env}, PI_URL) .
 			'">public-inbox</a>, ' .
 			'anybody may post in plain-text (not HTML):',
 		$addr,
@@ -388,13 +388,12 @@ sub legacy_redirects {
 	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/f\z!o) {
 		r301($ctx, $1, $2);
 	} else {
-		$self->news_www->call($ctx->{cgi}->{env});
+		$self->news_www->call($ctx->{env});
 	}
 }
 
 sub r301 {
 	my ($ctx, $inbox, $mid, $suffix) = @_;
-	my $cgi = $ctx->{cgi};
 	my $obj = $ctx->{-inbox};
 	unless ($obj) {
 		my $r404 = invalid_inbox($ctx->{www}, $ctx, $inbox);
