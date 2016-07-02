@@ -119,17 +119,18 @@ sub end_feed {
 
 sub emit_atom_thread {
 	my ($cb, $ctx) = @_;
-	my $res = $ctx->{srch}->get_thread($ctx->{mid});
+	my $mid = $ctx->{mid};
+	my $res = $ctx->{srch}->get_thread($mid);
 	return _no_thread($cb) unless $res->{total};
 	my $feed_opts = get_feedopts($ctx);
 	my $fh = $cb->([200, ['Content-Type' => 'application/atom+xml']]);
+	my $ibx = $ctx->{-inbox};
+	my $html_url = $ibx->base_url($ctx->{env});
+	$html_url .= PublicInbox::Hval->new_msgid($mid)->as_href;
 
-	my $html_url = $feed_opts->{atomurl} = $ctx->{self_url};
-	$html_url =~ s!/t\.atom\z!/!;
 	$feed_opts->{url} = $html_url;
 	$feed_opts->{emit_header} = 1;
 
-	my $ibx = $ctx->{-inbox};
 	foreach my $msg (@{$res->{msgs}}) {
 		my $s = feed_entry($feed_opts, mid2path($msg->mid), $ibx);
 		$fh->write($s) if defined $s;

@@ -13,7 +13,6 @@ package PublicInbox::WWW;
 use 5.008;
 use strict;
 use warnings;
-use Plack::Request;
 use PublicInbox::Config;
 use PublicInbox::Hval;
 use URI::Escape qw(uri_escape_utf8 uri_unescape);
@@ -40,9 +39,7 @@ sub run {
 
 sub call {
 	my ($self, $env) = @_;
-	my $cgi = Plack::Request->new($env);
-	my $ctx = { cgi => $cgi, env => $env, www => $self,
-		pi_config => $self->{pi_config} };
+	my $ctx = { env => $env, www => $self, pi_config => $self->{pi_config} };
 
 	# we don't care about multi-value
 	my %qp = map {
@@ -267,10 +264,11 @@ sub footer {
 	my $urls;
 	my @urls = @{$obj->cloneurl};
 	my %seen = map { $_ => 1 } @urls;
-	my $cgi = $ctx->{cgi};
-	my $http = $cgi->base->as_string . $obj->{name};
+	my $env = $ctx->{env};
+	my $http = $obj->base_url($env);
+	chop $http;
 	$seen{$http} or unshift @urls, $http;
-	my $ssoma_url = PublicInbox::Hval::prurl($ctx->{env}, SSOMA_URL);
+	my $ssoma_url = PublicInbox::Hval::prurl($env, SSOMA_URL);
 	if (scalar(@urls) == 1) {
 		$urls = "URL for <a\nhref=\"" . $ssoma_url .
 			qq(">ssoma</a> or <b>git clone --mirror $urls[0]</b>);
@@ -329,7 +327,6 @@ sub get_thread_mbox {
 sub get_thread_atom {
 	my ($ctx) = @_;
 	searcher($ctx) or return need_search($ctx);
-	$ctx->{self_url} = $ctx->{cgi}->uri->as_string;
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate_thread_atom($ctx);
 }

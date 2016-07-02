@@ -9,7 +9,6 @@ use Plack::Util;
 use PublicInbox::Daemon;
 use PublicInbox::HTTP;
 use PublicInbox::HTTPD;
-use Plack::Request;
 use Plack::Builder;
 my %httpds;
 my $app;

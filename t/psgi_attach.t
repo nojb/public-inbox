@@ -9,7 +9,7 @@ my $tmpdir = tempdir('psgi-attach-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
-my @mods = qw(HTTP::Request::Common Plack::Request Plack::Test URI::Escape);
+my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for plack.t" if $@;

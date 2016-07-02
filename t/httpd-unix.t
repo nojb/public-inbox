@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Test::More;
 
-foreach my $mod (qw(Plack::Util Plack::Request Plack::Builder Danga::Socket
+foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket
 			HTTP::Date HTTP::Status)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd-unix.t" if $@;
