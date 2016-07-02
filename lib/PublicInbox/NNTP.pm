@@ -998,10 +998,19 @@ sub watch_read {
 	$rv;
 }
 
+sub not_idle_long ($$) {
+	my ($self, $now) = @_;
+	defined(my $fd = $self->{fd}) or return;
+	my $ary = $EXPMAP->{$fd} or return;
+	my $exp_at = $ary->[0] + $EXPTIME;
+	$exp_at > $now;
+}
+
 # for graceful shutdown in PublicInbox::Daemon:
-sub busy () {
-	my ($self) = @_;
-	($self->{rbuf} ne '' || $self->{long_res} || $self->{write_buf_size});
+sub busy {
+	my ($self, $now) = @_;
+	($self->{rbuf} ne '' || $self->{long_res} || $self->{write_buf_size} ||
+	 not_idle_long($self, $now));
 }
 
 1;

@@ -219,6 +219,7 @@ EOF
 		is(scalar @r, 1, 'only one response line');
 	}
 
+	$n = $s = undef;
 	is($pid, waitpid($pid, 0), 'nntpd exited successfully');
 	my $eout = eval {
 		local $/;
