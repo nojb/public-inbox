@@ -108,6 +108,11 @@ sub msg_by_path ($$;$) {
 	$str;
 }
 
+sub path_check {
+	my ($self, $path) = @_;
+	git($self)->check('HEAD:'.$path);
+}
+
 sub msg_by_mid ($$;$) {
 	my ($self, $mid, $ref) = @_;
 	msg_by_path($self, mid2path($mid), $ref);

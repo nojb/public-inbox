@@ -24,62 +24,53 @@ our @EXT_URL = (
 sub ext_msg {
 	my ($ctx) = @_;
 	my $pi_config = $ctx->{pi_config};
-	my $inbox = $ctx->{inbox};
+	my $cur = $ctx->{-inbox};
 	my $mid = $ctx->{mid};
-	my $cgi = $ctx->{cgi};
-	my $env = $cgi->{env};
+	my $env = $ctx->{env};
 
 	eval { require PublicInbox::Search };
 	my $have_xap = $@ ? 0 : 1;
-	my (@nox, @pfx);
+	my (@nox, @ibx);
 
 	foreach my $k (keys %$pi_config) {
 		$k =~ /\Apublicinbox\.([A-Z0-9a-z-]+)\.url\z/ or next;
 		my $name = $1;
-		next if $name eq $inbox;
+		next if $name eq $cur->{name};
+		my $other = $pi_config->lookup_name($name) or next;
+		next unless $other->base_url;
 
-		my $git_dir = $pi_config->{"publicinbox.$name.mainrepo"};
-		defined $git_dir or next;
-
-		my $url = $pi_config->{"publicinbox.$name.url"};
-		defined $url or next;
-
-		$url =~ s!/+\z!!;
-		$url = PublicInbox::Hval::prurl($env, $url);
-
-		# try to find the URL with Xapian to avoid forking
-		if ($have_xap) {
-			my $s;
-			my $doc_id = eval {
-				$s = PublicInbox::Search->new($git_dir);
-				$s->find_unique_doc_id('mid', $mid);
-			};
-			if ($@) {
-				# xapian not configured for this repo
-			} else {
-				# maybe we found it!
-				return r302($url, $mid) if (defined $doc_id);
-
-				# no point in trying the fork fallback if we
-				# know Xapian is up-to-date but missing the
-				# message in the current repo
-				push @pfx, { git_dir => $git_dir, url => $url };
-				next;
-			}
+		my $s = $other->search;
+		if (!$s) {
+			push @nox, $other;
+			next;
 		}
 
-		# queue up for forking after we've tried Xapian on all of them
-		push @nox, { git_dir => $git_dir, url => $url };
+		# try to find the URL with Xapian to avoid forking
+		my $doc_id = eval { $s->find_unique_doc_id('mid', $mid) };
+		if ($@) {
+			# xapian not configured properly for this repo
+			push @nox, $other;
+			next;
+		}
+
+		# maybe we found it!
+		return r302($other, $mid) if defined $doc_id;
+
+		# no point in trying the fork fallback if we
+		# know Xapian is up-to-date but missing the
+		# message in the current repo
+		push @ibx, $other;
 	}
 
-	# Xapian not installed or configured for some repos
-	my $path = "HEAD:" . mid2path($mid);
+	# Xapian not installed or configured for some repos,
+	# do a full MID check:
+	if (@nox) {
+		my $path = mid2path($mid);
+		foreach my $other (@nox) {
+			my (undef, $type, undef) = $other->path_check($path);
 
-	foreach my $n (@nox) {
-		# TODO: reuse existing PublicInbox::Git objects to save forks
-		my $git = PublicInbox::Git->new($n->{git_dir});
-		my (undef, $type, undef) = $git->check($path);
-		return r302($n->{url}, $mid) if ($type && $type eq 'blob');
+			return r302($other, $mid) if $type && $type eq 'blob';
+		}
 	}
 
 	# fall back to partial MID matching
@@ -88,22 +79,15 @@ sub ext_msg {
 
 	eval { require PublicInbox::Msgmap };
 	my $have_mm = $@ ? 0 : 1;
-	my $base_url = $cgi->base->as_string;
 	if ($have_mm) {
 		my $tmp_mid = $mid;
-		my $url;
 again:
-		$url = $base_url . $inbox;
-		unshift @pfx, { git_dir => $ctx->{git_dir}, url => $url };
-		foreach my $pfx (@pfx) {
-			my $git_dir = delete $pfx->{git_dir} or next;
-			my $mm = eval { PublicInbox::Msgmap->new($git_dir) };
-
-			$mm or next;
+		unshift @ibx, $cur;
+		foreach my $ibx (@ibx) {
+			my $mm = $ibx->mm or next;
 			if (my $res = $mm->mid_prefixes($tmp_mid)) {
 				$n_partial += scalar(@$res);
-				$pfx->{res} = $res;
-				push @partial, $pfx;
+				push @partial, [ $ibx, $res ];
 			}
 		}
 		# fixup common errors:
@@ -124,13 +108,14 @@ again:
 		$code = 300;
 		my $es = $n_partial == 1 ? '' : 'es';
 		$s.= "\n$n_partial partial match$es found:\n\n";
-		foreach my $pfx (@partial) {
-			my $u = $pfx->{url};
-			foreach my $m (@{$pfx->{res}}) {
+		foreach my $pair (@partial) {
+			my ($ibx, $res) = @$pair;
+			my $u = $ibx->base_url or next;
+			foreach my $m (@$res) {
 				my $p = PublicInbox::Hval->new_msgid($m);
 				my $r = $p->as_href;
 				my $t = $p->as_html;
-				$s .= qq{<a\nhref="$u/$r/">$u/$t/</a>\n};
+				$s .= qq{<a\nhref="$u$r/">$u$t/</a>\n};
 			}
 		}
 	}
@@ -152,9 +137,10 @@ again:
 }
 
 # Redirect to another public-inbox which is mapped by $pi_config
+# TODO: prompt for inbox-switching
 sub r302 {
-	my ($url, $mid) = @_;
-	$url .= '/' . uri_escape_utf8($mid) . '/';
+	my ($inbox, $mid) = @_;
+	my $url = $inbox->base_url . uri_escape_utf8($mid) . '/';
 	[ 302,
 	  [ 'Location' => $url, 'Content-Type' => 'text/plain' ],
 	  [ "Redirecting to\n$url\n" ] ]
