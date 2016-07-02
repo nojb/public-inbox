@@ -57,7 +57,7 @@ sub _html_top ($) {
 
 sub _html_end {
 	my ($self) = @_;
-	my $urls = 'Archives are clone-able:';
+	my $urls = 'Archives are clonable:';
 	my $ctx = $self->{ctx};
 	my $obj = $ctx->{-inbox};
 	my $desc = ascii_html($obj->description);
@@ -81,8 +81,8 @@ sub _html_end {
 	'<pre>'.join("\n",
 		'- ' . $desc,
 		$urls,
-		'Archived served using code from public-inbox:',
-		qq(\tgit clone <a\nhref="$url">$url</a> public-inbox),
+		'Served with public-inbox: '.
+		qq(git clone <a\nhref="$url">$url</a> public-inbox),
 	).'</pre></body></html>';
 }
 
