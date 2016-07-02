@@ -15,9 +15,9 @@ use warnings;
 use Digest::SHA qw/sha1_hex/;
 
 my $SALT = rand;
-my $LINK_RE = qr!\b((?:ftps?|https?|nntps?|gopher)://
+my $LINK_RE = qr{\b((?:ftps?|https?|nntps?|gopher)://
 		 [\@:\w\.-]+/
-		 ?[,:~\$\@\w\+\&\?\.\%\;/#=-]*)!x;
+		 ?[!,:~\$\@\w\+\&\?\.\%\;/#=-]*)}x;
 
 sub new { bless {}, shift }
 
