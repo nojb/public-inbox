@@ -50,11 +50,21 @@ sub lookup {
 	_fill($self, $pfx);
 }
 
-sub lookup_name {
+sub lookup_name ($$) {
 	my ($self, $name) = @_;
-	my $rv = $self->{-by_name}->{$name};
-	return $rv if $rv;
-	$rv = _fill($self, "publicinbox.$name") or return;
+	$self->{-by_name}->{$name} || _fill($self, "publicinbox.$name");
+}
+
+sub each_inbox {
+	my ($self, $cb) = @_;
+	my %seen;
+	foreach my $k (keys %$self) {
+		$k =~ /\Apublicinbox\.([A-Z0-9a-z-]+)\.mainrepo\z/ or next;
+		next if $seen{$1};
+		$seen{$1} = 1;
+		my $ibx = lookup_name($self, $1) or next;
+		$cb->($ibx);
+	}
 }
 
 sub lookup_newsgroup {

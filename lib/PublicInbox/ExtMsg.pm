@@ -30,19 +30,16 @@ sub ext_msg {
 
 	eval { require PublicInbox::Search };
 	my $have_xap = $@ ? 0 : 1;
-	my (@nox, @ibx);
+	my (@nox, @ibx, @found);
 
-	foreach my $k (keys %$pi_config) {
-		$k =~ /\Apublicinbox\.([A-Z0-9a-z-]+)\.url\z/ or next;
-		my $name = $1;
-		next if $name eq $cur->{name};
-		my $other = $pi_config->lookup_name($name) or next;
-		next unless $other->base_url;
+	$pi_config->each_inbox(sub {
+		my ($other) = @_;
+		return if $other->{name} eq $cur->{name} || !$other->base_url;
 
 		my $s = $other->search;
 		if (!$s) {
 			push @nox, $other;
-			next;
+			return;
 		}
 
 		# try to find the URL with Xapian to avoid forking
@@ -50,17 +47,22 @@ sub ext_msg {
 		if ($@) {
 			# xapian not configured properly for this repo
 			push @nox, $other;
-			next;
+			return;
 		}
 
 		# maybe we found it!
-		return r302($other, $mid) if defined $doc_id;
+		if (defined $doc_id) {
+			push @found, $other;
+		} else {
+			# no point in trying the fork fallback if we
+			# know Xapian is up-to-date but missing the
+			# message in the current repo
+			push @ibx, $other;
+		}
+	});
 
-		# no point in trying the fork fallback if we
-		# know Xapian is up-to-date but missing the
-		# message in the current repo
-		push @ibx, $other;
-	}
+	# TODO: multiple hits
+	return r302($found[0], $mid) if @found;
 
 	# Xapian not installed or configured for some repos,
 	# do a full MID check:

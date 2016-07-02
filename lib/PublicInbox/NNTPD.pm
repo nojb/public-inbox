@@ -23,21 +23,18 @@ sub refresh_groups () {
 	my $pi_config = PublicInbox::Config->new;
 	my $new = {};
 	my @list;
-	foreach my $k (keys %$pi_config) {
-		$k =~ /\Apublicinbox\.([^\.]+)\.mainrepo\z/ or next;
-		my $name = $1;
-		my $git_dir = $pi_config->{$k};
-		my $ngname = $pi_config->{"publicinbox.$name.newsgroup"};
-		next unless defined $ngname;
-		next if ($ngname eq ''); # disabled
-		my $ng = $pi_config->lookup_newsgroup($ngname) or next;
-
-		# Only valid if msgmap and search works
-		if ($ng->nntp_usable) {
+	$pi_config->each_inbox(sub {
+		my ($ng) = @_;
+		my $ngname = $ng->{newsgroup} or next;
+		if (ref $ngname) {
+			warn 'multiple newsgroups not supported: '.
+				join(', ', @$ngname). "\n";
+		} elsif ($ng->nntp_usable) {
+			# Only valid if msgmap and search works
 			$new->{$ngname} = $ng;
 			push @list, $ng;
 		}
-	}
+	});
 	@list =	sort { $a->{newsgroup} cmp $b->{newsgroup} } @list;
 	$self->{grouplist} = \@list;
 	# this will destroy old groups that got deleted
