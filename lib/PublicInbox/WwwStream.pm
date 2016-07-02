@@ -62,13 +62,8 @@ sub _html_end {
 	my $obj = $ctx->{-inbox};
 	my $desc = ascii_html($obj->description);
 
-	# FIXME: cleanup
-	my $env = $ctx->{env};
-	my $scheme = $env->{'psgi.url_scheme'};
-	my $host_port = $env->{HTTP_HOST} ||
-			"$env->{SERVER_NAME}:$env->{SERVER_PORT}";
-	my $http = "$scheme://$host_port".($env->{SCRIPT_NAME} || '/');
-	$http = URI->new($http . $obj->{name})->canonical->as_string;
+	my $http = $obj->base_url($ctx->{env});
+	chop $http;
 	my %seen = ( $http => 1 );
 	my @urls = ($http);
 	foreach my $u (@{$obj->cloneurl}) {

@@ -25,6 +25,7 @@ my $ctx = {
 	-inbox => Plack::Util::inline_object(
 		name => 'test',
 		search => sub { undef },
+		base_url => sub { 'http://example.com/' },
 		cloneurl => sub {[]},
 		description => sub { '' }),
 };

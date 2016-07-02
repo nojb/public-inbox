@@ -297,13 +297,11 @@ sub get_feedopts {
 	my $pi_config = $ctx->{pi_config};
 	my $inbox = $ctx->{inbox};
 	my $obj = $ctx->{-inbox};
-	my $cgi = $ctx->{cgi};
 	my %rv = ( description => $obj->description );
 
 	$rv{address} = $obj->{address};
 	$rv{id_addr} = $obj->{-primary_address};
-	my $url_base;
-	$url_base = $obj->base_url($cgi); # CGI may be undef
+	my $url_base = $obj->base_url($ctx->{env});
 	if (my $mid = $ctx->{mid}) { # per-thread feed:
 		$rv{atomurl} = "$url_base$mid/t.atom";
 	} else {

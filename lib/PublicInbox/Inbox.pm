@@ -71,10 +71,14 @@ sub cloneurl {
 }
 
 sub base_url {
-	my ($self, $prq) = @_; # Plack::Request
-	if (defined $prq) {
-		my $url = $prq->base->as_string;
-		$url .= '/' if $url !~ m!/\z!; # for mount in Plack::Builder
+	my ($self, $env) = @_;
+	if ($env) { # PSGI env
+		my $scheme = $env->{'psgi.url_scheme'};
+		my $host_port = $env->{HTTP_HOST} ||
+			"$env->{SERVER_NAME}:$env->{SERVER_PORT}";
+		my $url = "$scheme://$host_port". ($env->{SCRIPT_NAME} || '/');
+		# for mount in Plack::Builder
+		$url .= '/' if $url !~ m!/\z!;
 		$url .= $self->{name} . '/';
 	} else {
 		# either called from a non-PSGI environment (e.g. NNTP/POP3)

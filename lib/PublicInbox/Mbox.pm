@@ -28,7 +28,7 @@ sub msg_str {
 		$header_obj->header_set($d);
 	}
 	my $ibx = $ctx->{-inbox};
-	my $base = $ibx->base_url($ctx->{cgi});
+	my $base = $ibx->base_url($ctx->{env});
 	my $mid = mid_clean($header_obj->header('Message-ID'));
 	$mid = uri_escape_utf8($mid);
 	my @append = (

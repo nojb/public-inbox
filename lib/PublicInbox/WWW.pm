@@ -401,7 +401,7 @@ sub r301 {
 		return $r404 if $r404;
 		$obj = $ctx->{-inbox};
 	}
-	my $url = $obj->base_url($cgi);
+	my $url = $obj->base_url($ctx->{env});
 	my $qs = $ctx->{env}->{QUERY_STRING};
 	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
 	$url .= $suffix if (defined $suffix);
