@@ -60,9 +60,8 @@ sub next_tick () {
 
 sub update_idle_time ($) {
 	my ($self) = @_;
-	my $tmp = $self->{sock} or return;
-	$tmp = fileno($tmp);
-	defined $tmp and $EXPMAP->{$tmp} = [ now(), $self ];
+	my $fd = $self->{fd};
+	defined $fd and $EXPMAP->{$fd} = [ now(), $self ];
 }
 
 # reduce FD pressure by closing some "git cat-file --batch" processes
