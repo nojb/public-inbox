@@ -908,7 +908,7 @@ sub emit_topics {
 
 sub emit_index_topics {
 	my ($ctx) = @_;
-	my ($off) = (($ctx->{cgi}->param('o') || '0') =~ /(\d+)/);
+	my ($off) = (($ctx->{qp}->{o} || '0') =~ /(\d+)/);
 	$ctx->{order} = [];
 	$ctx->{subjs} = {};
 	$ctx->{latest} = {};
