@@ -53,6 +53,7 @@ all need to be considered for everything we introduce)
 * streaming Email::MIME replacement: currently we generate many
   allocations/strings for headers we never look at and slurp
   entire message bodies into memory.
+  (this is pie-in-the-sky territory...)
 
 * Allow in-place Xapian updates without clobbering the whole
   index (versioning each doc data entry?) for big archives
