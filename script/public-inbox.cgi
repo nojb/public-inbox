@@ -20,7 +20,7 @@ my $app = builder {
 
 	# Enable to ensure redirects and Atom feed URLs are generated
 	# properly when running behind a reverse proxy server which
-	# sets X-Forwarded-For and X-Forwarded-Proto request headers.
+	# sets the X-Forwarded-Proto request header.
 	# See Plack::Middleware::ReverseProxy documentation for details
 	# enable 'ReverseProxy';
 
