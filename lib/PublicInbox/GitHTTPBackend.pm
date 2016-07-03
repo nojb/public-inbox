@@ -64,15 +64,29 @@ sub drop_client ($) {
 	}
 }
 
+my $prev = 0;
+my $exp;
+sub cache_one_year {
+	my ($h) = @_;
+	my $t = time + 31536000;
+	push @$h, 'Expires', $t == $prev ? $exp : ($exp = time2str($prev = $t)),
+		'Cache-Control', 'public, max-age=31536000';
+}
+
 sub serve_dumb {
 	my ($env, $git, $path) = @_;
 
 	my @h;
 	my $type;
-	if ($path =~ /\A(?:$BIN)\z/o) {
-		$type = 'application/octet-stream';
-		push @h, 'Expires', time2str(time + 31536000);
-		push @h, 'Cache-Control', 'public, max-age=31536000';
+	if ($path =~ m!\Aobjects/[a-f0-9]{2}/[a-f0-9]{38}\z!) {
+		$type = 'application/x-git-loose-object';
+		cache_one_year(\@h);
+	} elsif ($path =~ m!\Aobjects/pack/pack-[a-f0-9]{40}\.pack\z!) {
+		$type = 'application/x-git-packed-objects';
+		cache_one_year(\@h);
+	} elsif ($path =~ m!\Aobjects/pack/pack-[a-f0-9]{40}\.idx\z!) {
+		$type = 'application/x-git-packed-objects-toc';
+		cache_one_year(\@h);
 	} elsif ($path =~ /\A(?:$TEXT)\z/o) {
 		$type = 'text/plain';
 		push @h, @no_cache;
