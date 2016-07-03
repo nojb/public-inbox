@@ -219,6 +219,7 @@ sub _th_index_lite {
 	my $this = $map->[1];
 	$this =~ s!\n\z!</b>\n!s;
 	$this =~ s!<a\nhref.*</a> !!s; # no point in duplicating subject
+	$this =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
 	$rv .= "<b>@ $this";
 	my $node = $map->[2];
 	if (my $child = $node->child) {
