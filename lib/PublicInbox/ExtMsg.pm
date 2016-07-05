@@ -99,7 +99,7 @@ again:
 	}
 
 	my $code = 404;
-	my $h = PublicInbox::Hval->new_msgid($mid, 1);
+	my $h = PublicInbox::Hval->new_msgid($mid);
 	my $href = $h->as_href;
 	my $html = $h->as_html;
 	my $title = "Message-ID &lt;$html&gt; not found";

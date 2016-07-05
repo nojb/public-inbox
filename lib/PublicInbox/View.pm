@@ -551,7 +551,7 @@ sub _parent_headers {
 
 	my $irt = in_reply_to($hdr);
 	if (defined $irt) {
-		my $v = PublicInbox::Hval->new_msgid($irt, 1);
+		my $v = PublicInbox::Hval->new_msgid($irt);
 		my $html = $v->as_html;
 		my $href = $v->as_href;
 		$rv .= "In-Reply-To: &lt;";
@@ -661,7 +661,7 @@ sub html_footer {
 }
 
 sub linkify_ref_nosrch {
-	my $v = PublicInbox::Hval->new_msgid($_[0], 1);
+	my $v = PublicInbox::Hval->new_msgid($_[0]);
 	my $html = $v->as_html;
 	my $href = $v->as_href;
 	"&lt;<a\nhref=\"../$href/\">$html</a>&gt;";
