@@ -449,7 +449,8 @@ sub daemon_loop ($$) {
 	$SIG{QUIT} = $SIG{INT} = $SIG{TERM} = *worker_quit;
 	$SIG{USR1} = *reopen_logs;
 	$SIG{HUP} = $refresh;
-	$SIG{$_} = 'DEFAULT' for qw(CHLD USR2 TTIN TTOU WINCH);
+	$SIG{CHLD} = 'DEFAULT';
+	$SIG{$_} = 'IGNORE' for qw(USR2 TTIN TTOU WINCH);
 	# this calls epoll_create:
 	@listeners = map {
 		PublicInbox::Listener->new($_, $post_accept)
