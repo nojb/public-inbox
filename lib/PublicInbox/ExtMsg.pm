@@ -8,9 +8,9 @@
 package PublicInbox::ExtMsg;
 use strict;
 use warnings;
-use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::Hval;
 use PublicInbox::MID qw/mid2path/;
+use PublicInbox::WwwStream;
 
 # TODO: user-configurable
 our @EXT_URL = (
@@ -61,19 +61,21 @@ sub ext_msg {
 		}
 	});
 
-	# TODO: multiple hits
-	return r302($found[0], $mid) if @found;
+	return exact($ctx, \@found, $mid) if @found;
 
 	# Xapian not installed or configured for some repos,
-	# do a full MID check:
+	# do a full MID check (this is expensive...):
 	if (@nox) {
 		my $path = mid2path($mid);
 		foreach my $other (@nox) {
 			my (undef, $type, undef) = $other->path_check($path);
 
-			return r302($other, $mid) if $type && $type eq 'blob';
+			if ($type && $type eq 'blob') {
+				push @found, $other;
+			}
 		}
 	}
+	return exact($ctx, \@found, $mid) if @found;
 
 	# fall back to partial MID matching
 	my $n_partial = 0;
@@ -138,14 +140,43 @@ again:
 	[$code, ['Content-Type'=>'text/html; charset=UTF-8'], [$s]];
 }
 
-# Redirect to another public-inbox which is mapped by $pi_config
-# TODO: prompt for inbox-switching
-sub r302 {
-	my ($inbox, $mid) = @_;
-	my $url = $inbox->base_url . uri_escape_utf8($mid) . '/';
-	[ 302,
-	  [ 'Location' => $url, 'Content-Type' => 'text/plain' ],
-	  [ "Redirecting to\n$url\n" ] ]
+sub ext_urls {
+	my ($ctx, $mid, $href, $html) = @_;
+
+	# Fall back to external repos if configured
+	if (@EXT_URL && index($mid, '@') >= 0) {
+		my $env = $ctx->{env};
+		my $e = "\nPerhaps try an external site:\n\n";
+		foreach my $url (@EXT_URL) {
+			my $u = PublicInbox::Hval::prurl($env, $url);
+			my $r = sprintf($u, $href);
+			my $t = sprintf($u, $html);
+			$e .= qq{<a\nhref="$r">$t</a>\n};
+		}
+		return $e;
+	}
+	''
+}
+
+sub exact {
+	my ($ctx, $found, $mid) = @_;
+	my $h = PublicInbox::Hval->new_msgid($mid);
+	my $href = $h->as_href;
+	my $html = $h->as_html;
+	my $title = "&lt;$html&gt; found in ";
+	my $end = @$found == 1 ? 'another inbox' : 'other inboxes';
+	$ctx->{-title_html} = $title . $end;
+	$ctx->{-upfx} = '../';
+	my $ext_urls = ext_urls($ctx, $mid, $href, $html);
+	my $code = (@$found == 1 && $ext_urls eq '') ? 200 : 300;
+	$ctx->{-html_tip} = join('',
+			"<pre>Message-ID: &lt;$html&gt;\nfound in $end:\n\n",
+				(map {
+					my $u = $_->base_url;
+					qq(<a\nhref="$u$href/">$u$html/</a>\n)
+				} @$found),
+			$ext_urls, '</pre>');
+	PublicInbox::WwwStream->response($ctx, $code);
 }
 
 1;
