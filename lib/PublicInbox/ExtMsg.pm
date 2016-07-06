@@ -104,14 +104,12 @@ again:
 	my $h = PublicInbox::Hval->new_msgid($mid);
 	my $href = $h->as_href;
 	my $html = $h->as_html;
-	my $title = "Message-ID &lt;$html&gt; not found";
-	my $s = "<html><head><title>$title</title>" .
-		"</head><body><pre><b>$title</b>\n";
-
+	my $title = "&lt;$html&gt; not found";
+	my $s = "<pre>Message-ID &lt;$html&gt;\nnot found\n";
 	if ($n_partial) {
 		$code = 300;
 		my $es = $n_partial == 1 ? '' : 'es';
-		$s.= "\n$n_partial partial match$es found:\n\n";
+		$s .= "\n$n_partial partial match$es found:\n\n";
 		foreach my $pair (@partial) {
 			my ($ibx, $res) = @$pair;
 			my $u = $ibx->base_url or next;
@@ -123,21 +121,15 @@ again:
 			}
 		}
 	}
-
-	# Fall back to external repos if configured
-	if (@EXT_URL && index($mid, '@') >= 0) {
+	my $ext = ext_urls($ctx, $mid, $href, $html);
+	if ($ext ne '') {
+		$s .= $ext;
 		$code = 300;
-		$s .= "\nPerhaps try an external site:\n\n";
-		foreach my $url (@EXT_URL) {
-			my $u = PublicInbox::Hval::prurl($env, $url);
-			my $r = sprintf($u, $href);
-			my $t = sprintf($u, $html);
-			$s .= qq{<a\nhref="$r">$t</a>\n};
-		}
 	}
-	$s .= '</pre></body></html>';
-
-	[$code, ['Content-Type'=>'text/html; charset=UTF-8'], [$s]];
+	$ctx->{-html_tip} = $s .= '</pre>';
+	$ctx->{-title_html} = $title;
+	$ctx->{-upfx} = '../';
+	PublicInbox::WwwStream->response($ctx, $code);
 }
 
 sub ext_urls {
