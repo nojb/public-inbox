@@ -334,7 +334,7 @@ sub feed_entry {
 	my $mid = $header_obj->header_raw('Message-ID');
 	defined $mid or return;
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $midurl.$mid->as_href;
+	my $href = $midurl . $mid->as_href . '/';
 
 	my $date = $header_obj->header('Date');
 	my $updated = feed_updated($date);
@@ -365,7 +365,7 @@ sub feed_entry {
 	my $h = '[a-f0-9]';
 	my (@uuid5) = ($add =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
 	my $id = 'urn:uuid:' . join('-', @uuid5);
-	$s .= qq!</div></content><link\nhref="$href/"/>!.
+	$s .= qq!</div></content><link\nhref="$href"/>!.
 		"<id>$id</id></entry>";
 }
 
