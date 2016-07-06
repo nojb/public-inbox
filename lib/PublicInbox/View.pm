@@ -870,7 +870,7 @@ sub emit_topics {
 		my ($level, $subj) = @$info;
 		my $n = delete $subjs->{$subj};
 		my ($mid, $ts) = @{delete $latest->{$subj}};
-		$mid = PublicInbox::Hval->new_msgid($mid)->as_href;
+		my $href = PublicInbox::Hval->new_msgid($mid)->as_href;
 		$pfx = indent_for($level);
 		my $nl = $level == $prev ? "\n" : '';
 		if ($nl && $cur) {
@@ -886,7 +886,7 @@ sub emit_topics {
 		}
 
 		$subj = PublicInbox::Hval->new($subj)->as_html;
-		$cur->[1] .= "<a\nhref=\"$mid/T/#u\"><b>$subj</b></a>\n";
+		$cur->[1] .= "<a\nhref=\"$href/T/#u\"><b>$subj</b></a>\n";
 		$ts = fmt_ts($ts);
 		my $attr = " $ts UTC";
 
@@ -895,8 +895,8 @@ sub emit_topics {
 		$n = $n == 1 ? '' : " ($n+ messages)";
 
 		if ($level == 0 || $attr ne $prev_attr) {
-			my $mbox = qq(<a\nhref="$mid/t.mbox.gz">mbox.gz</a>);
-			my $atom = qq(<a\nhref="$mid/t.atom">Atom</a>);
+			my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
+			my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
 			$pfx .= INDENT if $level > 0;
 			$cur->[1] .= $pfx . $attr . $n . " - $mbox / $atom\n";
 			$prev_attr = $attr;
