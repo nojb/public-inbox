@@ -30,8 +30,7 @@ sub msg_html {
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		my ($nr, undef) = @_;
 		if ($nr == 1) {
-			$tip . multipart_text_as_html($mime, '') .
-				'</pre><hr />'
+			$tip . multipart_text_as_html($mime, '') . '</pre><hr>'
 		} elsif ($nr == 2) {
 			# fake an EOF if generating the footer fails;
 			# we want to at least show the message if something
@@ -321,7 +320,7 @@ sub thread_html {
 	my $msgs = load_results($sres);
 	my $nr = $sres->{total};
 	return missing_thread($ctx) if $nr == 0;
-	my $skel = '<hr /><pre>';
+	my $skel = '<hr><pre>';
 	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
 	$skel .= ", back to <a\nhref=\"../../\">index</a>";
 	$skel .= "\n<a\nid=t>$nr+ messages in thread:</a> (download: ";

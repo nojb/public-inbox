@@ -188,7 +188,7 @@ sub emit_html_index {
 	if ($footer) {
 		my $list_footer = $ctx->{footer};
 		$footer .= "\n\n" . $list_footer if $list_footer;
-		$footer = "<hr /><pre>$footer</pre>";
+		$footer = "<hr><pre>$footer</pre>";
 	}
 	$fh->write("$footer</body></html>");
 	$fh->close;

@@ -38,11 +38,11 @@ sub sres_top_html {
 	my $cb;
 	if ($err) {
 		$code = 400;
-		$ctx->{-html_tip} = '<pre>'.err_txt($ctx, $err).'</pre><hr />';
+		$ctx->{-html_tip} = '<pre>'.err_txt($ctx, $err).'</pre><hr>';
 		$cb = *noop;
 	} elsif ($total == 0) {
 		$code = 404;
-		$ctx->{-html_tip} = "<pre>\n[No results found]</pre><hr />";
+		$ctx->{-html_tip} = "<pre>\n[No results found]</pre><hr>";
 		$cb = *noop;
 	} else {
 		my $x = $q->{x};
@@ -126,7 +126,7 @@ sub search_nav_bot {
 	my $o = $q->{o};
 	my $end = $o + $nr;
 	my $beg = $o + 1;
-	my $rv = "</pre><hr /><pre>Results $beg-$end of $total";
+	my $rv = "</pre><hr><pre>Results $beg-$end of $total";
 	my $n = $o + $LIM;
 
 	if ($n < $total) {

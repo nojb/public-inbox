@@ -136,7 +136,7 @@ sub r {
 	my ($self, $code, $title, @body) = @_;
 	[ $code, [ @CT_HTML ], [
 		"<html><head><title>$title</title></head><body><pre>".
-		join("\n", "<b>$title</b>\n", @body) . '</pre><hr />'.
+		join("\n", "<b>$title</b>\n", @body) . '</pre><hr>'.
 		"<pre>This page is available under AGPL-3.0+\n" .
 		"git clone $self->{code_url}\n" .
 		qq(Email $self->{contact} if you have any questions).
