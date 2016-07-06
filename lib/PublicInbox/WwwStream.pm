@@ -9,9 +9,11 @@ use PublicInbox::Hval qw(ascii_html);
 use URI;
 use constant PI_URL => 'https://public-inbox.org/';
 
+sub close {}
+
 sub new {
 	my ($class, $ctx, $cb) = @_;
-	bless { nr => 0, cb => $cb, ctx => $ctx }, $class;
+	bless { nr => 0, cb => $cb || *close, ctx => $ctx }, $class;
 }
 
 sub response {
@@ -98,7 +100,5 @@ sub getline {
 
 	delete $self->{cb} ? _html_end($self) : undef;
 }
-
-sub close {}
 
 1;
