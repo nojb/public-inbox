@@ -20,4 +20,13 @@ is_deeply(['User', 'e', 'John A. Doe', 'x'], \@names,
 @names = PublicInbox::Address::names('"user@example.com" <user@example.com>');
 is_deeply(['user'], \@names, 'address-as-name extraction works as expected');
 
+
+{
+	my $backwards = 'u@example.com (John Q. Public)';
+	@names = PublicInbox::Address::names($backwards);
+	is_deeply(\@names, ['u'], 'backwards name OK');
+	my @emails = PublicInbox::Address::emails($backwards);
+	is_deeply(\@emails, ['u@example.com'], 'backwards emails OK');
+}
+
 done_testing;
