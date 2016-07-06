@@ -25,7 +25,8 @@ cat >$CDMSG
 $CLAMDSCAN --quiet - <$CDMSG
 if test $? -eq 1
 then
-	exec $DELIVER -m INBOX.spam <$CDMSG
+	$DELIVER -m INBOX.spam <$CDMSG
+	exec rm -f $rm_list
 fi
 
 # pre-filter, for infrequently read lists which do their own spam filtering:
