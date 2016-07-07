@@ -735,16 +735,13 @@ sub _skel_header {
 
 	if ($attr ne $ctx->{prev_attr} || $ctx->{prev_level} > $level) {
 		$ctx->{prev_attr} = $attr;
-	} else {
-		$attr = '';
 	}
 	$ctx->{prev_level} = $level;
 
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $ctx->{cur};
-			$$dst .= $d;
-			$$dst .= "<b><a\nid=r\nhref=\"#t\">".
+			$$dst .= "<b>$d<a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
 			return;
 		}
