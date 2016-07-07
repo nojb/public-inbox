@@ -9,6 +9,26 @@ use Scalar::Util qw(weaken isweak);
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 
+my $weakt;
+eval {
+	$weakt = 'disabled';
+	require PublicInbox::EvCleanup;
+	$weakt = undef; # OK if we get here
+};
+
+my $WEAKEN = {}; # string(inbox) -> inbox
+sub weaken_task () {
+	$weakt = undef;
+	_weaken_fields($_) for values %$WEAKEN;
+	$WEAKEN = {};
+}
+
+sub _weaken_later ($) {
+	my ($self) = @_;
+	$weakt ||= PublicInbox::EvCleanup::later(*weaken_task);
+	$WEAKEN->{"$self"} = $self;
+}
+
 sub new {
 	my ($class, $opts) = @_;
 	my $v = $opts->{address} ||= 'public-inbox@example.com';
@@ -17,7 +37,7 @@ sub new {
 	bless $opts, $class;
 }
 
-sub weaken_all {
+sub _weaken_fields {
 	my ($self) = @_;
 	foreach my $f (qw(git mm search)) {
 		isweak($self->{$f}) or weaken($self->{$f});
@@ -26,17 +46,26 @@ sub weaken_all {
 
 sub git {
 	my ($self) = @_;
-	$self->{git} ||= eval { PublicInbox::Git->new($self->{mainrepo}) };
+	$self->{git} ||= eval {
+		_weaken_later($self);
+		PublicInbox::Git->new($self->{mainrepo});
+	};
 }
 
 sub mm {
 	my ($self) = @_;
-	$self->{mm} ||= eval { PublicInbox::Msgmap->new($self->{mainrepo}) };
+	$self->{mm} ||= eval {
+		_weaken_later($self);
+		PublicInbox::Msgmap->new($self->{mainrepo});
+	};
 }
 
 sub search {
 	my ($self) = @_;
-	$self->{search} ||= eval { PublicInbox::Search->new($self->{mainrepo}) };
+	$self->{search} ||= eval {
+		_weaken_later($self);
+		PublicInbox::Search->new($self->{mainrepo});
+	};
 }
 
 sub try_cat {

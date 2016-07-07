@@ -38,8 +38,6 @@ my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
 my $EXPMAP; # fd -> [ idle_time, $self ]
 my $expt;
 our $EXPTIME = 180; # 3 minutes
-my $WEAKEN = {}; # string(nntpd) -> nntpd
-my $weakt;
 my $nextt;
 
 my $nextq = [];
@@ -64,16 +62,6 @@ sub update_idle_time ($) {
 	defined $fd and $EXPMAP->{$fd} = [ now(), $self ];
 }
 
-# reduce FD pressure by closing some "git cat-file --batch" processes
-# and unused FDs for msgmap and Xapian indices
-sub weaken_groups () {
-	$weakt = undef;
-	foreach my $nntpd (values %$WEAKEN) {
-		$_->weaken_all foreach (@{$nntpd->{grouplist}});
-	}
-	$WEAKEN = {};
-}
-
 sub expire_old () {
 	my $now = now();
 	my $exp = $EXPTIME;
@@ -92,15 +80,11 @@ sub expire_old () {
 	$EXPMAP = \%new;
 	if ($nr) {
 		$expt = PublicInbox::EvCleanup::later(*expire_old);
-		weaken_groups();
 	} else {
 		$expt = undef;
 		# noop to kick outselves out of the loop ASAP so descriptors
 		# really get closed
 		PublicInbox::EvCleanup::asap(sub {});
-
-		# grace period for reaping resources
-		$weakt ||= PublicInbox::EvCleanup::later(*weaken_groups);
 	}
 }
 
@@ -113,7 +97,6 @@ sub new ($$$) {
 	$self->{rbuf} = '';
 	$self->watch_read(1);
 	update_idle_time($self);
-	$WEAKEN->{"$nntpd"} = $nntpd;
 	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
 	$self;
 }

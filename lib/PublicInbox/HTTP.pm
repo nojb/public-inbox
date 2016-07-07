@@ -25,15 +25,6 @@ use constant {
 	CHUNK_MAX_HDR => 256,
 };
 
-# FIXME: duplicated code with NNTP.pm, layering violation
-my $WEAKEN = {}; # string(inbox) -> inbox
-my $weakt;
-sub weaken_task () {
-	$weakt = undef;
-	$_->weaken_all for values %$WEAKEN;
-	$WEAKEN = {};
-}
-
 my $pipelineq = [];
 my $pipet;
 sub process_pipelineq () {
@@ -252,13 +243,6 @@ sub response_done ($$) {
 	$self->{env} = undef;
 	$self->write("0\r\n\r\n") if $alive == 2;
 	$self->write(sub { $alive ? next_request($self) : $self->close });
-
-	# FIXME: layering violation
-	if (my $obj = $env->{'pi-httpd.inbox'}) {
-		# grace period for reaping resources
-		$WEAKEN->{"$obj"} = $obj;
-		PublicInbox::EvCleanup::later(*weaken_task);
-	}
 }
 
 sub getline_response {
