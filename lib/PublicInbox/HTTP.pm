@@ -98,7 +98,7 @@ sub rbuf_process {
 	$self->{rbuf} = substr($self->{rbuf}, $r);
 
 	my $len = input_prepare($self, \%env);
-	defined $len or return write_err($self); # EMFILE/ENFILE
+	defined $len or return write_err($self, undef); # EMFILE/ENFILE
 
 	$len ? event_read_input($self) : app_dispatch($self);
 }
@@ -118,7 +118,7 @@ sub event_read_input ($) {
 	while ($len > 0) {
 		if ($$rbuf ne '') {
 			my $w = write_in_full($input, $rbuf, $len);
-			return write_err($self) unless $w;
+			return write_err($self, $len) unless $w;
 			$len -= $w;
 			die "BUG: $len < 0 (w=$w)" if $len < 0;
 			if ($len == 0) { # next request may be pipelined
@@ -332,9 +332,10 @@ sub input_prepare {
 sub env_chunked { ($_[0]->{HTTP_TRANSFER_ENCODING} || '') =~ /\bchunked\b/i }
 
 sub write_err {
-	my ($self) = @_;
+	my ($self, $len) = @_;
 	my $err = $self->{httpd}->{env}->{'psgi.errors'};
 	my $msg = $! || '(zero write)';
+	$msg .= " ($len bytes remaining)\n" if defined $len;
 	$err->print("error buffering to input: $msg\n");
 	quit($self, 500);
 }
@@ -410,7 +411,7 @@ sub event_read_input_chunked { # unlikely...
 		until ($len <= 0) {
 			if ($$rbuf ne '') {
 				my $w = write_in_full($input, $rbuf, $len);
-				return write_err($self) unless $w;
+				return write_err($self, "$len chunk") if !$w;
 				$len -= $w;
 				if ($len == 0) {
 					# we may have leftover data to parse
