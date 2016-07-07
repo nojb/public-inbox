@@ -198,7 +198,6 @@ sub get_index {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
 	my $srch = searcher($ctx);
-	footer($ctx);
 	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
 		require PublicInbox::SearchView;
 		PublicInbox::SearchView::sres_top_html($ctx);
@@ -227,11 +226,10 @@ sub get_mid_html {
 	my $x = mid2blob($ctx) or return r404($ctx);
 
 	require PublicInbox::View;
-	my $foot = footer($ctx);
 	require Email::MIME;
 	my $mime = Email::MIME->new($x);
 	searcher($ctx);
-	PublicInbox::View::msg_html($ctx, $mime, $foot);
+	PublicInbox::View::msg_html($ctx, $mime);
 }
 
 # /$INBOX/$MESSAGE_ID/t/
@@ -248,44 +246,6 @@ sub ctx_get {
 	my $val = $ctx->{$key};
 	(defined $val && $val ne '') or die "BUG: bad ctx, $key unusable";
 	$val;
-}
-
-sub footer {
-	my ($ctx) = @_;
-	return '' unless $ctx;
-	my $obj = $ctx->{-inbox} or return '';
-
-	# auto-generate a footer
-	chomp(my $desc = $obj->description);
-	$desc = PublicInbox::Hval::ascii_html($desc);
-
-	my $urls;
-	my @urls = @{$obj->cloneurl};
-	my %seen = map { $_ => 1 } @urls;
-	my $env = $ctx->{env};
-	my $http = $obj->base_url($env);
-	chop $http;
-	$seen{$http} or unshift @urls, $http;
-	my $ssoma_url = PublicInbox::Hval::prurl($env, SSOMA_URL);
-	if (scalar(@urls) == 1) {
-		$urls = "URL for <a\nhref=\"" . $ssoma_url .
-			qq(">ssoma</a> or <b>git clone --mirror $urls[0]</b>);
-	} else {
-		$urls = "URLs for <a\nhref=\"" . $ssoma_url .
-			qq(">ssoma</a> or <b>git clone --mirror</b>\n) .
-			join("\n", map { "\tgit clone --mirror $_" } @urls);
-	}
-
-	my $addr = $obj->{-primary_address};
-	$ctx->{footer} = join("\n",
-		'- ' . $desc,
-		"A <a\nhref=\"" .
-			PublicInbox::Hval::prurl($ctx->{env}, PI_URL) .
-			'">public-inbox</a>, ' .
-			'anybody may post in plain-text (not HTML):',
-		$addr,
-		$urls
-	);
 }
 
 # search support is optional, returns undef if Xapian is not installed

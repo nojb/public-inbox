@@ -131,21 +131,6 @@ EOF
 	like($res->{body}, qr/what\?/, "reply included");
 }
 
-# indices
-{
-	local $ENV{HOME} = $home;
-	my $res = cgi_run("/test/");
-	like($res->{head}, qr/Status: 200 OK/, "index returns 200");
-
-	my $idx = cgi_run("/test/index.html");
-	$idx->{body} =~ s!/index.html(\?r=)!/$1!g; # dirty...
-	$idx->{body} = [ split(/\n/, $idx->{body}) ];
-	$res->{body} = [ split(/\n/, $res->{body}) ];
-	is_deeply($res, $idx,
-		'/$INBOX/ and /$INBOX/index.html are nearly identical');
-	# more checks in t/feed.t
-}
-
 # message-id pages
 {
 	local $ENV{HOME} = $home;
@@ -187,7 +172,7 @@ EOF
 	$res = cgi_run("/test/blahblah\@example.con/");
 	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
-	$res = cgi_run("/test/");
+	$res = cgi_run("/test/new.html");
 	like($res->{body}, qr/slashy%2Fasdf%40example\.com/,
 		"slashy URL generated correctly");
 }

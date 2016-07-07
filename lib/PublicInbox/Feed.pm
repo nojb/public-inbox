@@ -31,7 +31,19 @@ sub generate_thread_atom {
 
 sub generate_html_index {
 	my ($ctx) = @_;
-	sub { emit_html_index($_[0], $ctx) };
+	# if the 'r' query parameter is given, it is a legacy permalink
+	# which we must continue supporting:
+	my $qp = $ctx->{qp};
+	if ($qp && !$qp->{r} && $ctx->{srch}) {
+		return PublicInbox::View::index_topics($ctx);
+	}
+
+	my $env = $ctx->{env};
+	my $url = $ctx->{-inbox}->base_url($env) . 'new.html';
+	my $qs = $env->{QUERY_STRING};
+	$url .= "?$qs" if $qs ne '';
+	[302, [ 'Location', $url, 'Content-Type', 'text/plain'],
+		[ "Redirecting to $url\n" ] ];
 }
 
 sub new_html {
@@ -56,7 +68,7 @@ sub new_html {
 			$s .= '</pre>' unless $more;
 			return $s;
 		}
-		undef;
+		new_html_footer($ctx, $last);
 	});
 }
 
@@ -159,74 +171,20 @@ sub _html_index_top {
 		"</head><body>$top";
 }
 
-sub emit_html_index {
-	my ($res, $ctx) = @_;
-	my $feed_opts = get_feedopts($ctx);
-	my $fh = $res->([200,['Content-Type'=>'text/html; charset=UTF-8']]);
-
-	my $max = $ctx->{max} || MAX_PER_PAGE;
-	$ctx->{-upfx} = '';
-
-	my ($footer, $param, $last);
-	$ctx->{seen} = {};
-	$ctx->{anchor_idx} = 0;
-	$ctx->{fh} = $fh;
-	my $srch = $ctx->{srch};
-	$fh->write(_html_index_top($feed_opts, $srch));
-
-	# if the 'r' query parameter is given, it is a legacy permalink
-	# which we must continue supporting:
-	my $qp = $ctx->{qp};
-	if ($qp && !$qp->{r} && $srch) {
-		$last = PublicInbox::View::emit_index_topics($ctx);
-		$param = 'o';
-	} else {
-		$last = emit_index_nosrch($ctx);
-		$param = 'r';
-	}
-	$footer = nav_footer($ctx, $last, $feed_opts, $param);
-	if ($footer) {
-		my $list_footer = $ctx->{footer};
-		$footer .= "\n\n" . $list_footer if $list_footer;
-		$footer = "<hr><pre>$footer</pre>";
-	}
-	$fh->write("$footer</body></html>");
-	$fh->close;
-}
-
-sub emit_index_nosrch {
-	my ($ctx) = @_;
-	my $ibx = $ctx->{-inbox};
-	my $fh = $ctx->{fh};
-	my (undef, $last) = each_recent_blob($ctx, sub {
-		my ($path, $commit, $ts, $u, $subj) = @_;
-		$ctx->{first} ||= $commit;
-
-		my $mime = do_cat_mail($ibx, $path) or return 0;
-		$fh->write(PublicInbox::View::index_entry($mime, $ctx, 1));
-		1;
-	});
-	$last;
-}
-
-sub nav_footer {
-	my ($ctx, $last, $feed_opts, $param) = @_;
-	my $qp = $ctx->{qp} or return '';
-	my $old_r = $qp->{$param};
-	my $head = '    ';
+sub new_html_footer {
+	my ($ctx, $last) = @_;
+	my $qp = delete $ctx->{qp} or return;
+	my $old_r = $qp->{r};
+	my $latest = '';
 	my $next = '    ';
-	my $first = $ctx->{first};
-	my $anchor = $ctx->{anchor_idx};
 
 	if ($last) {
-		$next = qq!<a\nhref="?$param=$last"\nrel=next>next</a>!;
+		$next = qq!<a\nhref="?r=$last"\nrel=next>next</a>!;
 	}
 	if ($old_r) {
-		$head = $ctx->{env}->{PATH_INFO};
-		$head = qq!<a\nhref="$head">head</a>!;
+		$latest = qq! <a\nhref='./new.html'>latest</a>!;
 	}
-	my $atom = "<a\nhref=\"$feed_opts->{atomurl}\">Atom feed</a>";
-	"<a\nname=\"s$anchor\">page:</a> $next $head $atom";
+	"<hr><pre>page: $next$latest</pre>";
 }
 
 sub each_recent_blob {

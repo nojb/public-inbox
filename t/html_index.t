@@ -26,11 +26,6 @@ my $im = PublicInbox::Import->new($git, 'tester', 'test@example');
 	my $prev = "";
 
 	foreach my $i (1..6) {
-		# my $pid = open(my $pipe, "|-");
-		# defined $pid or die "fork/pipe failed: $!\n";
-		# if ($pid == 0) {
-			# exec("ssoma-mda", $git_dir);
-		# }
 		my $mid = "<$i\@example.com>";
 		my $mid_line = "Message-ID: $mid";
 		if ($prev) {
@@ -56,17 +51,6 @@ EOF
 		like($im->add($mime), qr/\A:\d+\z/, 'inserted message');
 	}
 	$im->done;
-}
-
-# check HTML index
-{
-	use IO::File;
-	my $cb = PublicInbox::Feed::generate_html_index({
-		-inbox => $ibx,
-		max => 3
-	});
-	require 't/common.perl';
-	like(stream_to_string($cb), qr/html/, "feed is valid HTML :)");
 }
 
 done_testing();

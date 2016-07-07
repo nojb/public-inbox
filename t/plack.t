@@ -120,9 +120,9 @@ EOF
 	test_psgi($app, sub {
 		my ($cb) = @_;
 		my $atomurl = 'http://example.com/test/new.atom';
-		my $res = $cb->(GET('http://example.com/test/'));
+		my $res = $cb->(GET('http://example.com/test/new.html'));
 		is(200, $res->code, 'success response received');
-		like($res->content, qr!href="\Q$atomurl\E"!,
+		like($res->content, qr!href="new\.atom"!,
 			'atom URL generated');
 		like($res->content, qr!href="blah%40example\.com/"!,
 			'index generated');

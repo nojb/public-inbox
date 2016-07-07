@@ -24,7 +24,7 @@ sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
 # public functions: (unstable)
 sub msg_html {
-	my ($ctx, $mime, $footer) = @_;
+	my ($ctx, $mime) = @_;
 	my $hdr = $mime->header_obj;
 	my $tip = _msg_html_prepare($hdr, $ctx);
 	PublicInbox::WwwStream->response($ctx, 200, sub {
@@ -853,13 +853,15 @@ sub add_topic {
 	}
 }
 
-sub emit_topics {
+sub topics {
 	my ($ctx) = @_;
 	my $order = $ctx->{order};
 	my $subjs = $ctx->{subjs};
 	my $latest = $ctx->{latest};
-	my $fh = $ctx->{fh};
-	return $fh->write("\n[No topics in range]</pre>") unless scalar @$order;
+	if (!@$order) {
+		$ctx->{-html_tip} = '<pre>[No topics in range]</pre>';
+		return 404;
+	}
 	my $pfx;
 	my $prev = 0;
 	my $prev_attr = '';
@@ -903,13 +905,38 @@ sub emit_topics {
 	}
 	push @recent, $cur if $cur;
 	@recent = map { $_->[1] } sort { $b->[0] <=> $a->[0] } @recent;
-	$fh->write(join('', @recent) . '</pre>');
+	$ctx->{-html_tip} = join('', '<pre>', @recent, '</pre>');
+	200;
 }
 
-sub emit_index_topics {
+sub index_nav { # callback for WwwStream
+	my (undef, $ctx) = @_;
+	delete $ctx->{qp} or return;
+	my ($next, $prev);
+	$next = $prev = '    ';
+	my $latest = '';
+
+	my $next_o = $ctx->{-next_o};
+	if ($next_o) {
+		$next = qq!<a\nhref="?o=$next_o"\nrel=next>next</a>!;
+	}
+	if (my $cur_o = $ctx->{-cur_o}) {
+		$latest = qq! <a\nhref=.>latest</a>!;
+
+		my $o = $cur_o - ($next_o - $cur_o);
+		if ($o > 0) {
+			$prev = qq!<a\nhref="?o=$o"\nrel=prev>prev</a>!;
+		} elsif ($o == 0) {
+			$prev = qq!<a\nhref=.\nrel=prev>prev</a>!;
+		}
+	}
+	"<hr><pre>page: $next $prev$latest</pre>";
+}
+
+sub index_topics {
 	my ($ctx) = @_;
 	my ($off) = (($ctx->{qp}->{o} || '0') =~ /(\d+)/);
-	$ctx->{order} = [];
+	my $order = $ctx->{order} = [];
 	$ctx->{subjs} = {};
 	$ctx->{latest} = {};
 	my $max = 25;
@@ -921,9 +948,9 @@ sub emit_index_topics {
 		walk_thread(thread_results($sres), $ctx, *add_topic);
 		$opts{offset} += $nr;
 	}
-
-	emit_topics($ctx);
-	$opts{offset};
+	$ctx->{-next_o} = $opts{offset};
+	$ctx->{-cur_o} = $off;
+	PublicInbox::WwwStream->response($ctx, topics($ctx), *index_nav);
 }
 
 sub thread_adj_level {
