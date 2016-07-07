@@ -156,10 +156,10 @@ sub index_entry {
 	# add the footer
 	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
 		"<a\nhref=\"$mhref\">permalink</a>" .
-		" / <a\nhref=\"${mhref}raw\">raw</a>" .
-		" / <a\nhref=\"${mhref}#R\">reply</a>";
+		" <a\nhref=\"${mhref}raw\">raw</a>" .
+		" <a\nhref=\"${mhref}#R\">reply</a>";
 	if (my $pct = $ctx->{pct}) { # used by SearchView.pm
-		$rv .= " [relevance $pct->{$mid_raw}%]";
+		$rv .= "\t[relevance $pct->{$mid_raw}%]";
 	} elsif ($mapping) {
 		my $threaded = 'threaded';
 		my $flat = 'flat';
@@ -169,9 +169,9 @@ sub index_entry {
 		} else {
 			$threaded = "<b>$threaded</b>";
 		}
-		$rv .= " / [<a\nhref=\"${mhref}T/#u\">$flat</a>";
+		$rv .= "\t[<a\nhref=\"${mhref}T/#u\">$flat</a>";
 		$rv .= "|<a\nhref=\"${mhref}t/#u\">$threaded</a>]";
-		$rv .= " / <a\nhref=#r$id>$ctx->{s_nr}</a>";
+		$rv .= " <a\nhref=#r$id>$ctx->{s_nr}</a>";
 	}
 
 	$rv .= $more ? "\n\n" : "\n";
