@@ -25,7 +25,7 @@ sub refresh_groups () {
 	my @list;
 	$pi_config->each_inbox(sub {
 		my ($ng) = @_;
-		my $ngname = $ng->{newsgroup} or next;
+		my $ngname = $ng->{newsgroup} or return;
 		if (ref $ngname) {
 			warn 'multiple newsgroups not supported: '.
 				join(', ', @$ngname). "\n";
