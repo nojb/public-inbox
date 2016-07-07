@@ -96,8 +96,7 @@ sub serve_dumb {
 
 	my $f = (ref $git ? $git->{git_dir} : $git) . '/' . $path;
 	return r(404) unless -f $f && -r _; # just in case it's a FIFO :P
-	my @st = stat(_);
-	my $size = $st[7];
+	my $size = -s _;
 
 	# TODO: If-Modified-Since and Last-Modified?
 	open my $in, '<', $f or return r(404);
