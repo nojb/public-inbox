@@ -636,21 +636,35 @@ sub html_footer {
 	if ($idx && $srch) {
 		$idx .= "\n";
 		thread_skel(\$idx, $ctx, $hdr, $tpfx);
-		my $p = $ctx->{parent_msg};
-		my $next = $ctx->{next_msg};
-		if ($p) {
-			$p = PublicInbox::Hval->new_msgid($p);
-			$p = $p->as_href;
-			$irt = "<a\nhref=\"$upfx$p/\"\nrel=prev>parent</a> ";
-		} else {
-			$irt = ' ' x length('parent ');
+		my ($next, $prev);
+		my $parent = '       ';
+		$next = $prev = '    ';
+
+		if (my $n = $ctx->{next_msg}) {
+			$n = PublicInbox::Hval->new_msgid($n)->as_href;
+			$next = "<a\nhref=\"$upfx$n/\"\nrel=next>next</a>";
 		}
-		if ($next) {
-			my $n = PublicInbox::Hval->new_msgid($next)->as_href;
-			$irt .= "<a\nhref=\"$upfx$n/\"\nrel=next>next</a> ";
-		} else {
-			$irt .= ' ' x length('next ');
+		my $u;
+		my $par = $ctx->{parent_msg};
+		if ($par) {
+			$u = PublicInbox::Hval->new_msgid($par)->as_href;
+			$u = "$upfx$u/";
 		}
+		if (my $p = $ctx->{prev_msg}) {
+			$prev = PublicInbox::Hval->new_msgid($p)->as_href;
+			if ($p && $par && $p eq $par) {
+				$prev = "<a\nhref=\"$upfx$prev/\"\n" .
+					'rel=prev>prev parent</a>';
+				$parent = '';
+			} else {
+				$prev = "<a\nhref=\"$upfx$prev/\"\n" .
+					'rel=prev>prev</a>';
+				$parent = " <a\nhref=\"$u\">parent</a>" if $u;
+			}
+		} elsif ($u) { # unlikely
+			$parent = " <a\nhref=\"$u\"\nrel=prev>parent</a>";
+		}
+		$irt = "$next $prev$parent ";
 	} else {
 		$irt = '';
 	}
@@ -744,6 +758,8 @@ sub _skel_header {
 			$$dst .= "<b>$d<a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
 			return;
+		} else {
+			$ctx->{prev_msg} = $mid;
 		}
 	} else {
 		$ctx->{next_msg} ||= $mid;
