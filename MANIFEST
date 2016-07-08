@@ -20,6 +20,7 @@ examples/apache2_perl.conf
 examples/apache2_perl_old.conf
 examples/cgi-webrick.rb
 examples/cgit-commit-filter.lua
+examples/logrotate.conf
 examples/public-inbox-config
 examples/public-inbox-httpd.socket
 examples/public-inbox-httpd@.service
