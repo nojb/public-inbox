@@ -3,7 +3,7 @@
 Description = public-inbox-httpd socket
 
 [Socket]
-ListenStream = 127.0.0.1:280
+ListenStream = 80
 Service = public-inbox-httpd@1.service
 
 [Install]

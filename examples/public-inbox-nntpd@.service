@@ -18,8 +18,8 @@ PERL_INLINE_DIRECTORY=/tmp/.pub-inline
 LimitNOFILE = 30000
 ExecStartPre = /bin/mkdir -p -m 1777 /tmp/.pub-inline
 ExecStart = /usr/local/bin/public-inbox-nntpd \
--1 /var/log/public-inbox/nntpd.out.log \
--2 /var/log/public-inbox/nntpd.err.log
+-1 /var/log/public-inbox/nntpd.out.log
+StandardError = syslog
 Sockets = public-inbox-nntpd.socket
 KillSignal = SIGQUIT
 User = nobody

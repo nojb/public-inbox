@@ -17,7 +17,9 @@ PERL_INLINE_DIRECTORY=/tmp/.pub-inline
 
 LimitNOFILE = 30000
 ExecStartPre = /bin/mkdir -p -m 1777 /tmp/.pub-inline
-ExecStart = /usr/local/bin/public-inbox-httpd
+ExecStart = /usr/local/bin/public-inbox-httpd \
+-1 /var/log/public-inbox/httpd.out.log
+StandardError = syslog
 Sockets = public-inbox-httpd.socket
 KillSignal = SIGQUIT
 User = nobody
