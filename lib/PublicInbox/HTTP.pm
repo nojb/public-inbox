@@ -335,7 +335,7 @@ sub write_err {
 	my ($self, $len) = @_;
 	my $err = $self->{httpd}->{env}->{'psgi.errors'};
 	my $msg = $! || '(zero write)';
-	$msg .= " ($len bytes remaining)\n" if defined $len;
+	$msg .= " ($len bytes remaining)" if defined $len;
 	$err->print("error buffering to input: $msg\n");
 	quit($self, 500);
 }
