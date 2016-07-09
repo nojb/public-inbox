@@ -41,6 +41,7 @@ sub async_pass {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
 			$fh->write($$bref);
+			return if $io->{closed};
 			if ($io->{write_buf_size}) {
 				$self->watch_read(0);
 				$io->write($restart_read); # D::S::write
