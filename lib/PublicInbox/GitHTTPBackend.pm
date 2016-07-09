@@ -179,7 +179,6 @@ sub prepare_range {
 # returns undef if 403 so it falls back to dumb HTTP
 sub serve_smart {
 	my ($env, $git, $path) = @_;
-	my $limiter = $default_limiter;
 	my $in = $env->{'psgi.input'};
 	my $fd = eval { fileno($in) };
 	unless (defined $fd && $fd >= 0) {
@@ -197,7 +196,14 @@ sub serve_smart {
 		my $val = $env->{$name};
 		$env{$name} = $val if defined $val;
 	}
-	my $git_dir = ref $git ? $git->{git_dir} : $git;
+	my ($git_dir, $limiter);
+	if (ref $git) {
+		$limiter = $git->{-httpbackend_limiter} || $default_limiter;
+		$git_dir = $git->{git_dir};
+	} else {
+		$limiter = $default_limiter;
+		$git_dir = $git;
+	}
 	$env{GIT_HTTP_EXPORT_ALL} = '1';
 	$env{PATH_TRANSLATED} = "$git_dir/$path";
 	my %rdr = ( 0 => fileno($in) );

@@ -106,6 +106,7 @@ t/cgi.t
 t/check-www-inbox.perl
 t/common.perl
 t/config.t
+t/config_limiter.t
 t/emergency.t
 t/fail-bin/spamc
 t/feed.t

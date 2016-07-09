@@ -34,6 +34,7 @@ sub new {
 	my $v = $opts->{address} ||= 'public-inbox@example.com';
 	my $p = $opts->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
 	$opts->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
+	weaken($opts->{-pi_config});
 	bless $opts, $class;
 }
 
@@ -44,11 +45,33 @@ sub _weaken_fields {
 	}
 }
 
+sub _set_limiter ($$$) {
+	my ($self, $git, $pfx) = @_;
+	my $lkey = "-${pfx}_limiter";
+	$git->{$lkey} = $self->{$lkey} ||= eval {
+		my $mkey = $pfx.'max';
+		my $val = $self->{$mkey} or return;
+		my $lim;
+		if ($val =~ /\A\d+\z/) {
+			require PublicInbox::Qspawn;
+			$lim = PublicInbox::Qspawn::Limiter->new($val);
+		} elsif ($val =~ /\A[a-z][a-z0-9]*\z/) {
+			$lim = $self->{-pi_config}->limiter($val);
+			warn "$mkey limiter=$val not found\n" if !$lim;
+		} else {
+			warn "$mkey limiter=$val not understood\n";
+		}
+		$lim;
+	}
+}
+
 sub git {
 	my ($self) = @_;
 	$self->{git} ||= eval {
 		_weaken_later($self);
-		PublicInbox::Git->new($self->{mainrepo});
+		my $g = PublicInbox::Git->new($self->{mainrepo});
+		_set_limiter($self, $g, 'httpbackend');
+		$g;
 	};
 }
 

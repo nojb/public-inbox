@@ -20,6 +20,7 @@ sub new {
 	$self->{-by_addr} ||= {};
 	$self->{-by_name} ||= {};
 	$self->{-by_newsgroup} ||= {};
+	$self->{-limiters} ||= {};
 	$self;
 }
 
@@ -85,6 +86,15 @@ sub lookup_newsgroup {
 	undef;
 }
 
+sub limiter {
+	my ($self, $name) = @_;
+	$self->{-limiters}->{$name} ||= do {
+		require PublicInbox::Qspawn;
+		my $key = "limiter.$name.max";
+		PublicInbox::Qspawn::Limiter->new($self->{$key});
+	};
+}
+
 sub get {
 	my ($self, $inbox, $key) = @_;
 
@@ -131,7 +141,7 @@ sub _fill {
 	my $rv = {};
 
 	foreach my $k (qw(mainrepo address filter url newsgroup
-			watch watchheader)) {
+			watch watchheader httpbackendmax)) {
 		my $v = $self->{"$pfx.$k"};
 		$rv->{$k} = $v if defined $v;
 	}
@@ -139,6 +149,7 @@ sub _fill {
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
 	$rv->{name} = $name;
+	$rv->{-pi_config} = $self;
 	$rv = PublicInbox::Inbox->new($rv);
 	my $v = $rv->{address};
 	if (ref($v) eq 'ARRAY') {

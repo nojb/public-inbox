@@ -30,6 +30,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		'url' => 'http://example.com/meta',
 		-primary_address => 'meta@public-inbox.org',
 		'name' => 'meta',
+		-pi_config => $cfg,
 	}, "lookup matches expected output");
 
 	is($cfg->lookup('blah@example.com'), undef,
@@ -45,6 +46,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		'domain' => 'public-inbox.org',
 		'name' => 'test',
 		'url' => 'http://example.com/test',
+		-pi_config => $cfg,
 	}, "lookup matches expected output for test");
 }
 

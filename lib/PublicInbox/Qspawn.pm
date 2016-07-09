@@ -47,7 +47,7 @@ sub start {
 	my ($self, $limiter, $cb) = @_;
 	$self->{limiter} = $limiter;
 
-	if ($limiter->{running} < $limiter->{limit}) {
+	if ($limiter->{running} < $limiter->{max}) {
 		_do_spawn($self, $cb);
 	} else {
 		push @{$limiter->{run_queue}}, [ $self, $cb ];
@@ -59,9 +59,10 @@ use strict;
 use warnings;
 
 sub new {
-	my ($class, $limit) = @_;
+	my ($class, $max) = @_;
 	bless {
-		limit => $limit || 1,
+		# 32 is same as the git-daemon connection limit
+		max => $max || 32,
 		running => 0,
 		run_queue => [],
 	}, $class;
