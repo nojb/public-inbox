@@ -51,6 +51,12 @@ sub msg_reply {
 	my $p_url =
 	 'https://en.wikipedia.org/wiki/Posting_style#Interleaved_style';
 
+	my $info = '';
+	if (my $url = $ctx->{-inbox}->{infourl}) {
+		$url = PublicInbox::Hval::prurl($ctx->{env}, $url);
+		$info = qq(\n  List information: <a\nhref="$url">$url</a>\n);
+	}
+
 	my ($arg, $link) = mailto_arg_link($hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
 	$arg = join(" \\\n    ", '', @$arg);
@@ -67,7 +73,7 @@ href=raw>mbox</a>
   Avoid top-posting and favor interleaved quoting:
   <a
 href="$p_url">$p_url</a>
-
+$info
 * Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,
   and <b>--in-reply-to</b> switches of git-send-email(1):
 
