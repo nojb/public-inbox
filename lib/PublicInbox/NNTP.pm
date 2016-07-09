@@ -894,7 +894,7 @@ sub more ($$) {
 sub do_write ($$) {
 	my ($self, $data) = @_;
 	my $done = $self->write($data);
-	die if $self->{closed};
+	return if $self->{closed};
 
 	# Do not watch for readability if we have data in the queue,
 	# instead re-enable watching for readability when we can
