@@ -72,7 +72,7 @@ sub close {
 	$self->SUPER::close(@_);
 
 	# we defer this to the next timer loop since close is deferred
-	PublicInbox::EvCleanup::asap($cleanup) if $cleanup;
+	PublicInbox::EvCleanup::next_tick($cleanup) if $cleanup;
 }
 
 1;

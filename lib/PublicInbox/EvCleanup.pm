@@ -9,6 +9,7 @@ use base qw(Danga::Socket);
 use fields qw(rd);
 my $singleton;
 my $asapq = [ [], undef ];
+my $nextq = [ [], undef ];
 my $laterq = [ [], undef ];
 
 sub once_init () {
@@ -30,6 +31,7 @@ sub _run_all ($) {
 }
 
 sub _run_asap () { _run_all($asapq) }
+sub _run_next () { _run_all($nextq) }
 sub _run_later () { _run_all($laterq) }
 
 # Called by Danga::Socket
@@ -51,6 +53,12 @@ sub asap ($) {
 	$asapq->[1] ||= _asap_timer();
 }
 
+sub next_tick ($) {
+	my ($cb) = @_;
+	push @{$nextq->[0]}, $cb;
+	$nextq->[1] ||= Danga::Socket->AddTimer(0, *_run_next);
+}
+
 sub later ($) {
 	my ($cb) = @_;
 	push @{$laterq->[0]}, $cb;
@@ -59,6 +67,7 @@ sub later ($) {
 
 END {
 	_run_asap();
+	_run_next();
 	_run_later();
 }
 
