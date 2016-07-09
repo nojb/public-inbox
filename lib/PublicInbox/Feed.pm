@@ -8,7 +8,6 @@ use warnings;
 use Email::MIME;
 use Date::Parse qw(strptime);
 use PublicInbox::Hval qw/ascii_html/;
-use PublicInbox::Git;
 use PublicInbox::View;
 use PublicInbox::MID qw/mid_clean mid2path/;
 use PublicInbox::Address;
@@ -148,27 +147,6 @@ sub emit_atom_thread {
 		$fh->write($s) if defined $s;
 	}
 	end_feed($fh);
-}
-
-sub _html_index_top {
-	my ($feed_opts, $srch) = @_;
-
-	my $title = ascii_html($feed_opts->{description} || '');
-	my $top = "<b>$title</b> (<a\nhref=\"new.atom\">Atom feed</a>)";
-	if ($srch) {
-		$top = qq{<form\naction=""><pre>$top} .
-			  qq{ <input\nname=q\ntype=text />} .
-			  qq{<input\ntype=submit\nvalue=search />} .
-			  q{</pre></form><pre>}
-	} else {
-		$top = '<pre>' . $top . "\n";
-	}
-
-	"<html><head><title>$title</title>" .
-		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
-		"href=\"new.atom\"\ntype=\"application/atom+xml\"/>" .
-		PublicInbox::Hval::STYLE .
-		"</head><body>$top";
 }
 
 sub new_html_footer {
