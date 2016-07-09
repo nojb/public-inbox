@@ -879,14 +879,16 @@ sub acc_topic {
 
 sub dump_topics {
 	my ($ctx) = @_;
-	my $order = $ctx->{order}; # [ ts, subj1, subj2, subj3, ... ]
+	my $order = delete $ctx->{order}; # [ ts, subj1, subj2, subj3, ... ]
 	if (!@$order) {
 		$ctx->{-html_tip} = '<pre>[No topics in range]</pre>';
 		return 404;
 	}
 
 	my @out;
-	foreach my $topic (@$order) {
+
+	# sort by recency, this allows new posts to "bump" old topics...
+	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
 		my ($ts, $n, $seen, $top, @ex) = @$topic;
 		@$topic = ();
 		next unless defined $top;  # ghost topic
