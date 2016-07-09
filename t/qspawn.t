@@ -2,10 +2,12 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use Test::More;
 use_ok 'PublicInbox::Qspawn';
+
+my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 {
 	my $x = PublicInbox::Qspawn->new([qw(true)]);
 	my $run = 0;
-	$x->start(sub {
+	$x->start($limiter, sub {
 		my ($rpipe) = @_;
 		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes');
 		ok(!$x->finish, 'no error on finish');
@@ -17,7 +19,7 @@ use_ok 'PublicInbox::Qspawn';
 {
 	my $x = PublicInbox::Qspawn->new([qw(false)]);
 	my $run = 0;
-	$x->start(sub {
+	$x->start($limiter, sub {
 		my ($rpipe) = @_;
 		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes from false');
 		my $err = $x->finish;
@@ -30,7 +32,7 @@ use_ok 'PublicInbox::Qspawn';
 foreach my $cmd ([qw(sleep 1)], [qw(sh -c), 'sleep 1; false']) {
 	my $s = PublicInbox::Qspawn->new($cmd);
 	my @run;
-	$s->start(sub {
+	$s->start($limiter, sub {
 		my ($rpipe) = @_;
 		push @run, 'sleep';
 		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes');
@@ -39,7 +41,7 @@ foreach my $cmd ([qw(sleep 1)], [qw(sh -c), 'sleep 1; false']) {
 	my @t = map {
 		my $i = $n++;
 		my $x = PublicInbox::Qspawn->new([qw(true)]);
-		$x->start(sub {
+		$x->start($limiter, sub {
 			my ($rpipe) = @_;
 			push @run, $i;
 		});

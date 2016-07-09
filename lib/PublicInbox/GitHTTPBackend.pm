@@ -13,6 +13,9 @@ use HTTP::Status qw(status_message);
 use Plack::Util;
 use PublicInbox::Qspawn;
 
+# 32 is same as the git-daemon connection limit
+my $default_limiter = PublicInbox::Qspawn::Limiter->new(32);
+
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
 # not cause problems.  serving "config" might...
 my @text = qw[HEAD info/refs
@@ -176,6 +179,7 @@ sub prepare_range {
 # returns undef if 403 so it falls back to dumb HTTP
 sub serve_smart {
 	my ($env, $git, $path) = @_;
+	my $limiter = $default_limiter;
 	my $in = $env->{'psgi.input'};
 	my $fd = eval { fileno($in) };
 	unless (defined $fd && $fd >= 0) {
@@ -248,7 +252,7 @@ sub serve_smart {
 		# holding the input here is a waste of FDs and memory
 		$env->{'psgi.input'} = undef;
 
-		$x->start(sub { # may run later, much later...
+		$x->start($limiter, sub { # may run later, much later...
 			($rpipe) = @_;
 			$in = undef;
 			if ($async) {
