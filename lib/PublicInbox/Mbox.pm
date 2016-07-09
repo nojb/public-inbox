@@ -8,7 +8,6 @@ use strict;
 use warnings;
 use PublicInbox::MID qw/mid_clean/;
 use URI::Escape qw/uri_escape_utf8/;
-use Plack::Util;
 require Email::Simple;
 
 sub emit1 {

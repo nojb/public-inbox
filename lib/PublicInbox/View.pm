@@ -8,8 +8,6 @@ use strict;
 use warnings;
 use URI::Escape qw/uri_escape_utf8/;
 use Date::Parse qw/str2time/;
-use Encode::MIME::Header;
-use Plack::Util;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid_mime/;

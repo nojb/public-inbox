@@ -10,6 +10,7 @@ use Fcntl qw(:seek);
 use IO::File;
 use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
+use Plack::Util;
 use PublicInbox::Qspawn;
 
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
