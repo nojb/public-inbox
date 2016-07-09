@@ -37,7 +37,7 @@ sub run {
 
 sub call {
 	my ($self, $env) = @_;
-	my $ctx = { env => $env, www => $self, pi_config => $self->{pi_config} };
+	my $ctx = { env => $env, www => $self };
 
 	# we don't care about multi-value
 	my %qp = map {
@@ -54,8 +54,7 @@ sub call {
 	if ($method eq 'POST' &&
 		 $path_info =~ m!$INBOX_RE/(git-upload-pack)\z!) {
 		my $path = $2;
-		return (invalid_inbox($self, $ctx, $1) ||
-			serve_git($env, $ctx->{git}, $path));
+		return invalid_inbox($ctx, $1) || serve_git($ctx, $path);
 	}
 	elsif ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
@@ -65,27 +64,25 @@ sub call {
 	if ($path_info eq '/') {
 		r404();
 	} elsif ($path_info =~ m!$INBOX_RE\z!o) {
-		invalid_inbox($self, $ctx, $1) || r301($ctx, $1);
+		invalid_inbox($ctx, $1) || r301($ctx, $1);
 	} elsif ($path_info =~ m!$INBOX_RE(?:/|/index\.html)?\z!o) {
-		invalid_inbox($self, $ctx, $1) || get_index($ctx);
+		invalid_inbox($ctx, $1) || get_index($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/(?:atom\.xml|new\.atom)\z!o) {
-		invalid_inbox($self, $ctx, $1) || get_atom($ctx);
+		invalid_inbox($ctx, $1) || get_atom($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
-		invalid_inbox($self, $ctx, $1) || get_new($ctx);
+		invalid_inbox($ctx, $1) || get_new($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my $path = $2;
-		invalid_inbox($self, $ctx, $1) ||
-			serve_git($env, $ctx->{git}, $path);
+		invalid_inbox($ctx, $1) || serve_git($ctx, $path);
 	} elsif ($path_info =~ m!$INBOX_RE/([\w-]+).mbox\.gz\z!o) {
-		serve_mbox_range($self, $ctx, $1, $2);
+		serve_mbox_range($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
-		msg_page($self, $ctx, $1, $2, $3);
+		msg_page($ctx, $1, $2, $3);
 
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$ATTACH_RE\z!o) {
 		my ($idx, $fn) = ($3, $4);
-		invalid_inbox_mid($self, $ctx, $1, $2) ||
-			get_attach($ctx, $idx, $fn);
+		invalid_inbox_mid($ctx, $1, $2) || get_attach($ctx, $idx, $fn);
 	# in case people leave off the trailing slash:
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/(T|t)\z!o) {
 		my ($inbox, $mid, $suffix) = ($1, $2, $3);
@@ -104,7 +101,7 @@ sub call {
 		r301($ctx, $1, $2);
 
 	} else {
-		legacy_redirects($self, $ctx, $path_info);
+		legacy_redirects($ctx, $path_info);
 	}
 }
 
@@ -140,9 +137,10 @@ sub r404 {
 sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 
 # returns undef if valid, array ref response if invalid
-sub invalid_inbox {
-	my ($self, $ctx, $inbox) = @_;
-	my $obj = $ctx->{pi_config}->lookup_name($inbox);
+sub invalid_inbox ($$) {
+	my ($ctx, $inbox) = @_;
+	my $www = $ctx->{www};
+	my $obj = $www->{pi_config}->lookup_name($inbox);
 	if (defined $obj) {
 		$ctx->{git_dir} = $obj->{mainrepo};
 		$ctx->{git} = $obj->git;
@@ -155,13 +153,13 @@ sub invalid_inbox {
 	# generation and link things intended for nntp:// to https?://,
 	# so try to infer links and redirect them to the appropriate
 	# list URL.
-	$self->news_www->call($ctx->{env});
+	$www->news_www->call($ctx->{env});
 }
 
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox_mid {
-	my ($self, $ctx, $inbox, $mid) = @_;
-	my $ret = invalid_inbox($self, $ctx, $inbox);
+	my ($ctx, $inbox, $mid) = @_;
+	my $ret = invalid_inbox($ctx, $inbox);
 	return $ret if $ret;
 
 	$ctx->{mid} = $mid = uri_unescape($mid);
@@ -195,7 +193,7 @@ sub get_new {
 sub get_index {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
-	my $srch = searcher($ctx);
+	searcher($ctx);
 	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
 		require PublicInbox::SearchView;
 		PublicInbox::SearchView::sres_top_html($ctx);
@@ -288,7 +286,7 @@ sub get_thread_atom {
 }
 
 sub legacy_redirects {
-	my ($self, $ctx, $path_info) = @_;
+	my ($ctx, $path_info) = @_;
 
 	# single-message pages
 	if ($path_info =~ m!$INBOX_RE/m/(\S+)/\z!o) {
@@ -333,7 +331,7 @@ sub legacy_redirects {
 	# some Message-IDs have slashes in them and the HTTP server
 	# may try to be clever and unescape them :<
 	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/$END_RE\z!o) {
-		msg_page($self, $ctx, $1, $2, $3);
+		msg_page($ctx, $1, $2, $3);
 
 	# in case people leave off the trailing slash:
 	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/(T|t)\z!o) {
@@ -341,7 +339,7 @@ sub legacy_redirects {
 	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/f\z!o) {
 		r301($ctx, $1, $2);
 	} else {
-		$self->news_www->call($ctx->{env});
+		$ctx->{www}->news_www->call($ctx->{env});
 	}
 }
 
@@ -349,7 +347,7 @@ sub r301 {
 	my ($ctx, $inbox, $mid, $suffix) = @_;
 	my $obj = $ctx->{-inbox};
 	unless ($obj) {
-		my $r404 = invalid_inbox($ctx->{www}, $ctx, $inbox);
+		my $r404 = invalid_inbox($ctx, $inbox);
 		return $r404 if $r404;
 		$obj = $ctx->{-inbox};
 	}
@@ -365,9 +363,9 @@ sub r301 {
 }
 
 sub msg_page {
-	my ($self, $ctx, $inbox, $mid, $e) = @_;
+	my ($ctx, $inbox, $mid, $e) = @_;
 	my $ret;
-	$ret = invalid_inbox_mid($self, $ctx, $inbox, $mid) and return $ret;
+	$ret = invalid_inbox_mid($ctx, $inbox, $mid) and return $ret;
 	'' eq $e and return get_mid_html($ctx);
 	'T/' eq $e and return get_thread($ctx, 1);
 	't/' eq $e and return get_thread($ctx);
@@ -382,13 +380,13 @@ sub msg_page {
 }
 
 sub serve_git {
-	my ($env, $git, $path) = @_;
-	PublicInbox::GitHTTPBackend::serve($env, $git, $path);
+	my ($ctx, $path) = @_;
+	PublicInbox::GitHTTPBackend::serve($ctx->{env}, $ctx->{git}, $path);
 }
 
 sub serve_mbox_range {
-	my ($self, $ctx, $inbox, $range) = @_;
-	invalid_inbox($self, $ctx, $inbox) || eval {
+	my ($ctx, $inbox, $range) = @_;
+	invalid_inbox($ctx, $inbox) || eval {
 		require PublicInbox::Mbox;
 		searcher($ctx);
 		PublicInbox::Mbox::emit_range($ctx, $range);
@@ -397,10 +395,10 @@ sub serve_mbox_range {
 
 sub news_www {
 	my ($self) = @_;
-	my $nw = $self->{news_www};
-	return $nw if $nw;
-	require PublicInbox::NewsWWW;
-	$self->{news_www} = PublicInbox::NewsWWW->new($self->{pi_config});
+	$self->{news_www} ||= do {
+		require PublicInbox::NewsWWW;
+		PublicInbox::NewsWWW->new($self->{pi_config});
+	}
 }
 
 sub get_attach {

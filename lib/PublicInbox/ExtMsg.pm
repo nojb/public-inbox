@@ -23,16 +23,14 @@ our @EXT_URL = (
 
 sub ext_msg {
 	my ($ctx) = @_;
-	my $pi_config = $ctx->{pi_config};
 	my $cur = $ctx->{-inbox};
 	my $mid = $ctx->{mid};
-	my $env = $ctx->{env};
 
 	eval { require PublicInbox::Search };
 	my $have_xap = $@ ? 0 : 1;
 	my (@nox, @ibx, @found);
 
-	$pi_config->each_inbox(sub {
+	$ctx->{www}->{pi_config}->each_inbox(sub {
 		my ($other) = @_;
 		return if $other->{name} eq $cur->{name} || !$other->base_url;
 

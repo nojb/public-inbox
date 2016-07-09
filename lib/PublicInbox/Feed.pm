@@ -253,7 +253,6 @@ sub each_recent_blob {
 # private functions below
 sub get_feedopts {
 	my ($ctx) = @_;
-	my $pi_config = $ctx->{pi_config};
 	my $inbox = $ctx->{inbox};
 	my $obj = $ctx->{-inbox};
 	my %rv = ( description => $obj->description );
