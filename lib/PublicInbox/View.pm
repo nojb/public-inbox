@@ -839,84 +839,82 @@ sub _tryload_ghost ($$) {
 }
 
 # accumulate recent topics if search is supported
-# returns 1 if done, undef if not
-sub add_topic {
+# returns 200 if done, 404 if not
+sub acc_topic {
 	my ($ctx, $level, $node) = @_;
 	my $srch = $ctx->{srch};
 	my $mid = $node->messageid;
 	my $x = $node->message || _tryload_ghost($srch, $mid);
 	my ($subj, $ts);
+	my $topic;
 	if ($x) {
 		$x = $x->header_obj;
-		$subj = $x->header('Subject');
+		$subj = $x->header('Subject') || '';
 		$subj = $srch->subject_normalized($subj);
 		$ts = $x->header('X-PI-TS');
-	} else { # ghost message, do not bump level
-		$ts = -666;
-		$subj = "<$mid>";
-	}
-	if (++$ctx->{subjs}->{$subj} == 1) {
-		push @{$ctx->{order}}, [ $level, $subj ];
-	}
-	my $exist = $ctx->{latest}->{$subj};
-	if (!$exist || $exist->[1] < $ts) {
-		$ctx->{latest}->{$subj} = [ $mid, $ts ];
+		if ($level == 0) {
+			$topic = [ $ts, 1, { $subj => $mid }, $subj ];
+			$ctx->{-cur_topic} = $topic;
+			push @{$ctx->{order}}, $topic;
+			return;
+		}
+
+		$topic = $ctx->{-cur_topic}; # should never be undef
+		$topic->[0] = $ts if $ts > $topic->[0];
+		$topic->[1]++;
+		my $seen = $topic->[2];
+		if (scalar(@$topic) == 3) { # parent was a ghost
+			push @$topic, $subj;
+		} elsif (!$seen->{$subj}) {
+			push @$topic, $level, $subj;
+		}
+		$seen->{$subj} = $mid; # latest for subject
+	} else { # ghost message
+		return if $level != 0; # ignore child ghosts
+		$topic = [ -666, 0, {} ];
+		$ctx->{-cur_topic} = $topic;
+		push @{$ctx->{order}}, $topic;
 	}
 }
 
-sub topics {
+sub dump_topics {
 	my ($ctx) = @_;
-	my $order = $ctx->{order};
-	my $subjs = $ctx->{subjs};
-	my $latest = $ctx->{latest};
+	my $order = $ctx->{order}; # [ ts, subj1, subj2, subj3, ... ]
 	if (!@$order) {
 		$ctx->{-html_tip} = '<pre>[No topics in range]</pre>';
 		return 404;
 	}
-	my $pfx;
-	my $prev = 0;
-	my $prev_attr = '';
-	my $cur;
-	my @recent;
-	while (defined(my $info = shift @$order)) {
-		my ($level, $subj) = @$info;
-		my $n = delete $subjs->{$subj};
-		my ($mid, $ts) = @{delete $latest->{$subj}};
-		my $href = PublicInbox::Hval->new_msgid($mid)->as_href;
-		$pfx = indent_for($level);
-		my $nl = $level == $prev ? "\n" : '';
-		if ($nl && $cur) {
-			push @recent, $cur;
-			$cur = undef;
-		}
-		$cur ||= [ $ts, '' ];
-		$cur->[0] = $ts if $ts > $cur->[0];
-		$cur->[1] .= $nl . $pfx . th_pfx($level);
-		if ($ts == -666) { # ghost
-			$cur->[1] .= ghost_parent('', $mid) . "\n";
-			next; # child will have mbox / atom link
-		}
 
-		$subj = PublicInbox::Hval->new($subj)->as_html;
-		$cur->[1] .= "<a\nhref=\"$href/T/#u\"><b>$subj</b></a>\n";
+	my @out;
+	foreach my $topic (@$order) {
+		my ($ts, $n, $seen, $top, @ex) = @$topic;
+		@$topic = ();
+		next unless defined $top;  # ghost topic
+		my $mid = delete $seen->{$top};
+		my $href = PublicInbox::Hval->new_msgid($mid)->as_href;
+		$top = PublicInbox::Hval->new($top)->as_html;
 		$ts = fmt_ts($ts);
-		my $attr = " $ts UTC";
 
 		# $n isn't the total number of posts on the topic,
 		# just the number of posts in the current results window
 		$n = $n == 1 ? '' : " ($n+ messages)";
 
-		if ($level == 0 || $attr ne $prev_attr) {
-			my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
-			my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
-			$pfx .= INDENT if $level > 0;
-			$cur->[1] .= $pfx . $attr . $n . " - $mbox / $atom\n";
-			$prev_attr = $attr;
+		my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
+		my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
+		my $s = "<a\nhref=\"$href/T/#t\"><b>$top</b></a>\n" .
+			" $ts UTC $n - $mbox / $atom\n";
+		for (my $i = 0; $i < scalar(@ex); $i += 2) {
+			my $level = $ex[$i];
+			my $sub = $ex[$i + 1];
+			$mid = delete $seen->{$sub};
+			$sub = PublicInbox::Hval->new($sub)->as_html;
+			$href = PublicInbox::Hval->new_msgid($mid)->as_href;
+			$s .= indent_for($level) . TCHILD;
+			$s .= "<a\nhref=\"$href/T/#u\">$sub</a>\n";
 		}
+		push @out, $s;
 	}
-	push @recent, $cur if $cur;
-	@recent = map { $_->[1] } sort { $b->[0] <=> $a->[0] } @recent;
-	$ctx->{-html_tip} = join('', '<pre>', @recent, '</pre>');
+	$ctx->{-html_tip} = '<pre>' . join("\n", @out) . '</pre>';
 	200;
 }
 
@@ -947,21 +945,18 @@ sub index_nav { # callback for WwwStream
 sub index_topics {
 	my ($ctx) = @_;
 	my ($off) = (($ctx->{qp}->{o} || '0') =~ /(\d+)/);
-	my $order = $ctx->{order} = [];
-	$ctx->{subjs} = {};
-	$ctx->{latest} = {};
-	my $max = 25;
-	my %opts = ( offset => $off, limit => $max * 4 );
-	while (scalar @{$ctx->{order}} < $max) {
-		my $sres = $ctx->{srch}->query('', \%opts);
-		my $nr = scalar @{$sres->{msgs}} or last;
+	my $opts = { offset => $off, limit => 200 };
+
+	$ctx->{order} = [];
+	my $sres = $ctx->{srch}->query('', $opts);
+	my $nr = scalar @{$sres->{msgs}};
+	if ($nr) {
 		$sres = load_results($sres);
-		walk_thread(thread_results($sres), $ctx, *add_topic);
-		$opts{offset} += $nr;
+		walk_thread(thread_results($sres), $ctx, *acc_topic);
 	}
-	$ctx->{-next_o} = $opts{offset};
+	$ctx->{-next_o} = $off+ $nr;
 	$ctx->{-cur_o} = $off;
-	PublicInbox::WwwStream->response($ctx, topics($ctx), *index_nav);
+	PublicInbox::WwwStream->response($ctx, dump_topics($ctx), *index_nav);
 }
 
 sub thread_adj_level {
