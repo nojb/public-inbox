@@ -905,11 +905,18 @@ sub dump_topics {
 
 		# $n isn't the total number of posts on the topic,
 		# just the number of posts in the current results window
-		$n = $n == 1 ? '' : " ($n+ messages)";
+		my $anchor;
+		if ($n == 1) {
+			$n = '';
+			$anchor = '#u'; # top of only message
+		} else {
+			$n = " ($n+ messages)";
+			$anchor = '#t'; # thread skeleton
+		}
 
 		my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
 		my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
-		my $s = "<a\nhref=\"$href/T/#t\"><b>$top</b></a>\n" .
+		my $s = "<a\nhref=\"$href/T/$anchor\"><b>$top</b></a>\n" .
 			" $ts UTC $n - $mbox / $atom\n";
 		for (my $i = 0; $i < scalar(@ex); $i += 2) {
 			my $level = $ex[$i];
