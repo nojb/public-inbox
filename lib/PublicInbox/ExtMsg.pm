@@ -108,9 +108,11 @@ again:
 		$code = 300;
 		my $es = $n_partial == 1 ? '' : 'es';
 		$s .= "\n$n_partial partial match$es found:\n\n";
+		my $cur_name = $cur->{name};
 		foreach my $pair (@partial) {
 			my ($ibx, $res) = @$pair;
-			my $u = $ibx->base_url or next;
+			my $env = $ctx->{env} if $ibx->{name} eq $cur_name;
+			my $u = $ibx->base_url($env) or next;
 			foreach my $m (@$res) {
 				my $p = PublicInbox::Hval->new_msgid($m);
 				my $r = $p->as_href;
