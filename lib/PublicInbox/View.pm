@@ -61,10 +61,12 @@ sub msg_reply {
 	push @$arg, '/path/to/YOUR_REPLY';
 	$arg = join(" \\\n    ", '', @$arg);
 	<<EOF
-<pre
-id=R>You may reply publically to <a
-href=#t>this message</a> via
-plain-text email using any one of the following methods:
+<hr><pre
+id=R><b>Reply instructions:</b>
+
+You may reply publically to <a
+href=#t>this message</a> via plain-text email
+using any one of the following methods:
 
 * Save the following mbox file, import it into your mail client,
   and reply-to-all from there: <a
@@ -326,10 +328,12 @@ sub thread_html {
 	return missing_thread($ctx) if $nr == 0;
 	my $skel = '<hr><pre>';
 	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
-	$skel .= ", back to <a\nhref=\"../../\">index</a>";
-	$skel .= "\n<a\nid=t>$nr+ messages in thread:</a> (download: ";
-	$skel .= "<a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
+	$skel .= ", back to <a\nhref=\"../../\">index</a>\n\n";
+	$skel .= "<b\nid=t>Thread overview:</b> ";
+	$skel .= $nr == 1 ? '(only message)' : "$nr+ messages";
+	$skel .= " (download: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$skel .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>)\n";
+	$skel .= "-- links below jump to the message on this page --\n";
 	$ctx->{-upfx} = '../../';
 	$ctx->{cur_level} = 0;
 	$ctx->{dst} = \$skel;
@@ -523,6 +527,7 @@ sub thread_skel {
 			qq(/ <a\nhref="${tpfx}t.atom">Atom feed</a>);
 
 	my $parent = in_reply_to($hdr);
+	$$dst .= "\n<b>Thread overview: </b>";
 	if ($nr <= 1) {
 		if (defined $parent) {
 			$$dst .= "($expand)\n ";

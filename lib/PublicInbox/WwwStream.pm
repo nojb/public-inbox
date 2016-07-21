@@ -80,7 +80,7 @@ sub _html_end {
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
 	}
 	my $url = PublicInbox::Hval::prurl($ctx->{env}, PI_URL);
-	'<pre>'.join("\n",
+	'<hr><pre>'.join("\n",
 		'- ' . $desc,
 		$urls,
 		'Served with public-inbox: '.
