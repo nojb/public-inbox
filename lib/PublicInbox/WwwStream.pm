@@ -7,8 +7,9 @@ use strict;
 use warnings;
 use PublicInbox::Hval qw(ascii_html);
 use URI;
-use constant PI_URL => 'https://public-inbox.org/';
 our $TOR_URL = 'https://www.torproject.org/';
+our $CODE_URL = 'https://public-inbox.org/';
+our $PROJECT = 'public-inbox';
 
 sub close {}
 
@@ -87,12 +88,12 @@ sub _html_end {
 		$urls .= "\n note: .onion URLs require Tor: ";
 		$urls .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
 	}
-	my $url = PublicInbox::Hval::prurl($ctx->{env}, PI_URL);
+	my $url = PublicInbox::Hval::prurl($ctx->{env}, $CODE_URL);
 	'<hr><pre>'.join("\n\n",
 		$desc,
 		$urls,
-		'Served with public-inbox: '.
-		qq(git clone <a\nhref="$url">$url</a> public-inbox)
+		'Code for this site: '.
+		qq(git clone <a\nhref="$url">$url</a> $PROJECT)
 	).'</pre></body></html>';
 }
 
