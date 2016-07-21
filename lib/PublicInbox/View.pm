@@ -59,7 +59,7 @@ sub msg_reply {
 
 	my ($arg, $link) = mailto_arg_link($hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
-	$arg = join(" \\\n    ", '', @$arg);
+	$arg = ascii_html(join(" \\\n    ", '', @$arg));
 	<<EOF
 <hr><pre
 id=R><b>Reply instructions:</b>
@@ -619,15 +619,15 @@ sub mailto_arg_link {
 	my $subj = $hdr->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
 	my $mid = $hdr->header_raw('Message-ID');
-	push @arg, '--in-reply-to='.ascii_html(squote_maybe(mid_clean($mid)));
+	push @arg, '--in-reply-to='.squote_maybe(mid_clean($mid));
 	my $irt = uri_escape_utf8($mid);
 	delete $cc{$to};
-	push @arg, '--to=' . ascii_html($to);
+	push @arg, "--to=$to";
 	$to = uri_escape_utf8($to);
 	$subj = uri_escape_utf8($subj);
-	my $cc = join(',', sort values %cc);
-	push @arg, '--cc=' . ascii_html($cc);
-	$cc = uri_escape_utf8($cc);
+	my @cc = sort values %cc;
+	push(@arg, map { "--cc=$_" } @cc);
+	my $cc = uri_escape_utf8(join(',', @cc));
 	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
 	$href =~ s/%20/+/g;
 
