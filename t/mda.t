@@ -187,6 +187,7 @@ EOF
 		# now train it
 		local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
 		local $ENV{GIT_COMMITTER_EMAIL} = 'trainer@example.com';
+		local $ENV{GIT_COMMITTER_NAME} = undef;
 		IPC::Run::run([$learn, "spam"], \$msg);
 		is($?, 0, "no failure from learning spam");
 		IPC::Run::run([$learn, "spam"], \$msg);

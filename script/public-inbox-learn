@@ -57,7 +57,7 @@ foreach my $recipient (keys %dests) {
 	my $git = PublicInbox::Git->new($git_dir);
 	# We do not touch GIT_COMMITTER_* env here so we can track
 	# who trained the message.
-	my $name = $ENV{GIT_COMMITTER_NAME} || $dst->{inbox};
+	my $name = $ENV{GIT_COMMITTER_NAME} || $dst->{name};
 	my $email = $ENV{GIT_COMMITTER_EMAIL} || $recipient;
 	my $im = PublicInbox::Import->new($git, $name, $email);
 
