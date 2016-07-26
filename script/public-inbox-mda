@@ -83,7 +83,6 @@ PublicInbox::MDA->set_list_headers($mime, $dst);
 my $git = PublicInbox::Git->new($main_repo);
 my $im = PublicInbox::Import->new($git, $dst->{name}, $recipient);
 if (defined $im->add($mime)) {
-	$im->done;
 	$emm = $emm->abort;
 } else {
 	# this message is similar to what ssoma-mda shows:
@@ -92,4 +91,5 @@ if (defined $im->add($mime)) {
 			" exists\n";
 }
 
+$im->done;
 do_exit(0);
