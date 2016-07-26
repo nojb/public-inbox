@@ -27,6 +27,23 @@ sub do_checks {
 }
 
 {
+	my $s = Email::Simple->create(
+		header => [
+			From => 'abc@example.com',
+			To => 'abc@example.com',
+			Cc => 'c@example.com, another-list@example.com',
+			'Content-Type' => 'text/plain',
+			Subject => 'list is fine',
+			'Message-ID' => '<MID@host>',
+			Date => 'Wed, 09 Apr 2014 01:28:34 +0000',
+		],
+		body => "hello world\n",
+	);
+	my $addr = [ 'c@example.com', 'd@example.com' ];
+	ok(PublicInbox::MDA->precheck($s, $addr), 'Cc list is OK');
+}
+
+{
 	do_checks(Email::Simple->create(
 		header => [
 			From => 'a@example.com',

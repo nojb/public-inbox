@@ -64,7 +64,7 @@ sub alias_specified {
 	} @address;
 
 	foreach my $line ($simple->header('Cc'), $simple->header('To')) {
-		my @addrs = ($line =~ /([^<\s]+\@[^>\s]+)/g);
+		my @addrs = ($line =~ /([^,<\s]+\@[^,>\s]+)/g);
 		foreach my $addr (@addrs) {
 			if ($ok{lc(__drop_plus($addr))}) {
 				return 1;
