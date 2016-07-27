@@ -106,6 +106,7 @@ sub description {
 	my $desc = $self->{description};
 	return $desc if defined $desc;
 	$desc = try_cat("$self->{mainrepo}/description");
+	local $/ = "\n";
 	chomp $desc;
 	$desc =~ s/\s+/ /smg;
 	$desc = '($GIT_DIR/description missing)' if $desc eq '';
@@ -118,6 +119,7 @@ sub cloneurl {
 	return $url if $url;
 	$url = try_cat("$self->{mainrepo}/cloneurl");
 	my @url = split(/\s+/s, $url);
+	local $/ = "\n";
 	chomp @url;
 	$self->{cloneurl} = \@url;
 }

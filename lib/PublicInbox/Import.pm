@@ -38,6 +38,7 @@ sub gfi_start {
 
 	# wait for other processes to be done
 	flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
+	local $/ = "\n";
 	chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $self->{ref}));
 
 	my @cmd = ('git', "--git-dir=$git_dir", qw(fast-import

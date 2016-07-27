@@ -125,6 +125,7 @@ sub process_line ($$) {
 	my $res = eval { $req->($self, @args) };
 	my $err = $@;
 	if ($err && !$self->{closed}) {
+		local $/ = "\n";
 		chomp($l);
 		err($self, 'error from: %s (%s)', $l, $err);
 		$res = '503 program fault - command not performed';

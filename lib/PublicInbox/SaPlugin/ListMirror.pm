@@ -37,6 +37,7 @@ sub check_list_mirror_received {
 	foreach my $cfg (@{$pms->{conf}->{list_mirror_check}}) {
 		my ($hdr, $hval, $host_re, $addr_re) = @$cfg;
 		my $v = $pms->get($hdr) or next;
+		local $/ = "\n";
 		chomp $v;
 		next if $v ne $hval;
 		return 1 if $recvd !~ $host_re;
@@ -53,6 +54,7 @@ sub check_list_mirror_bcc {
 		my ($hdr, $hval, $host_re, $addr_re) = @$cfg;
 		defined $addr_re or next;
 		my $v = $pms->get($hdr) or next;
+		local $/ = "\n";
 		chomp $v;
 		next if $v ne $hval;
 		return 1 if !$tocc || $tocc !~ $addr_re;
