@@ -98,6 +98,7 @@ scripts/dc-dlvr.pre
 scripts/edit-sa-prefs
 scripts/import_maildir
 scripts/import_slrnspool
+scripts/import_vger_from_mbox
 scripts/report-spam
 scripts/slrnspool2maildir
 scripts/ssoma-replay
