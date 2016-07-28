@@ -102,6 +102,7 @@ scripts/import_vger_from_mbox
 scripts/report-spam
 scripts/slrnspool2maildir
 scripts/ssoma-replay
+scripts/xhdr-num2mid
 t/address.t
 t/cgi.t
 t/check-www-inbox.perl

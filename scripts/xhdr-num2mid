@@ -1,0 +1,30 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2016 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+# Useful for mapping article IDs from existing NNTP servers to MIDs
+use strict;
+use warnings;
+use Net::NNTP;
+use Data::Dumper;
+my $usage = "usage: NNTPSERVER=news.example.org $0 GROUP [FIRST_NUM]\n";
+my $group = shift or die $usage;
+my $nntp = Net::NNTP->new($ENV{NNTPSERVER} || '127.0.0.1');
+my ($num, $first, $last) = $nntp->group($group);
+die "Invalid group\n" if !(defined $num && defined $first && defined $last);
+my $arg_first = shift;
+if (defined $arg_first) {
+	$arg_first =~ /\A\d+\z/ or die $usage;
+	$first = $arg_first;
+}
+
+my $batch = 1000;
+my $i;
+for ($i = $first; $i < $last; $i += $batch) {
+	my $j = $i + $batch;
+	$j = $last if $j > $last;
+	my $num2mid = $nntp->xhdr('Message-ID', "$i-$j");
+	for my $n ($i..$j) {
+		defined(my $mid = $num2mid->{$n}) or next;
+		print "$n $mid\n";
+	}
+}
