@@ -1,0 +1,47 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2016 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+use strict;
+use warnings;
+use Email::MIME;
+$Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
+use PublicInbox::Git;
+use PublicInbox::Import;
+my $usage = "usage: $0 NAME EMAIL <MBOX\n";
+chomp(my $git_dir = `git rev-parse --git-dir`);
+my $git = PublicInbox::Git->new($git_dir);
+my $name = shift or die $usage; # git
+my $email = shift or die $usage; # git@vger.kernel.org
+my $im = PublicInbox::Import->new($git, $name, $email);
+binmode STDIN;
+my $msg = '';
+use PublicInbox::Filter::Vger;
+my $vger = PublicInbox::Filter::Vger->new;
+sub do_add ($$) {
+	my ($im, $msg) = @_;
+	$$msg =~ s/(\r?\n)+\z/$1/s;
+	$msg = Email::MIME->new($$msg);
+	$msg = $vger->scrub($msg);
+	$im->add($msg) or
+		warn "duplicate: ",
+			$msg->header_obj->header_raw('Message-ID'), "\n";
+}
+
+# asctime: From example@example.com Fri Jun 23 02:56:55 2000
+my $from_strict = qr/^From \S+ \S+ \S+ +\S+ [^:]+:[^:]+:[^:]+ [^:]+/;
+my $prev = undef;
+while (defined(my $l = <STDIN>)) {
+	if ($l =~ /$from_strict/o) {
+		if (!defined($prev) || $prev =~ /^\r?$/) {
+			do_add($im, \$msg) if $msg;
+			$msg = '';
+			$prev = $l;
+			next;
+		}
+		warn "W[$.] $l\n";
+	}
+	$prev = $l;
+	$msg .= $l;
+}
+do_add($im, \$msg) if $msg;
+$im->done;
