@@ -112,7 +112,6 @@ sub daemonize () {
 	check_absolute('pid-file', $pid_file);
 
 	chdir '/' or die "chdir failed: $!";
-	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!";
 
 	return unless (defined $pid_file || defined $group || defined $user
 			|| $daemonize);
@@ -145,6 +144,8 @@ sub daemonize () {
 		die "could not fork: $!\n" unless defined $pid;
 		exit if $pid;
 
+		open(STDIN, '+<', '/dev/null') or
+					die "redirect stdin failed: $!\n";
 		open STDOUT, '>&STDIN' or die "redirect stdout failed: $!\n";
 		open STDERR, '>&STDIN' or die "redirect stderr failed: $!\n";
 		POSIX::setsid();
@@ -376,12 +377,12 @@ sub master_loop {
 				exit if $quit++;
 				kill_workers($s);
 			} elsif ($s eq 'WINCH') {
-				if ($daemonize) {
-					$worker_processes = 0;
-				} else {
+				if (-t STDIN || -t STDOUT || -t STDERR) {
 					warn
 "ignoring SIGWINCH since we are not daemonized\n";
 					$SIG{WINCH} = 'IGNORE';
+				} else {
+					$worker_processes = 0;
 				}
 			} elsif ($s eq 'HUP') {
 				$worker_processes = $set_workers;
