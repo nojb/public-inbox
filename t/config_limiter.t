@@ -17,7 +17,6 @@ my $cfgpfx = "publicinbox.test";
 	my $lim = $git->{-httpbackend_limiter};
 	ok($lim, 'Limiter exists');
 	is($lim->{max}, 12, 'limiter has expected slots');
-	$git = undef;
 	$ibx->{git} = undef;
 	$git = $ibx->git;
 	isnt($old, "$git", 'got new Git object');
