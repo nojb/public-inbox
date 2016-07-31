@@ -369,18 +369,18 @@ sub _index_sync {
 			# Common case is the indexes are synced,
 			# we only need to run git-log once:
 			$lx = $self->rlog($range, *index_both, *unindex_both);
-			$mm->{dbh}->commit;
 			if (defined $lx) {
 				$db->set_metadata('last_commit', $lx);
 				$mm->last_commit($lx);
 			}
+			$mm->{dbh}->commit;
 		} else {
 			# dumb case, msgmap and xapian are out-of-sync
 			# do not care for performance:
 			my $r = $lm eq '' ? $head : "$lm..$head";
 			$lm = $self->rlog($r, *index_mm, *unindex_mm);
-			$mm->{dbh}->commit;
 			$mm->last_commit($lm) if defined $lm;
+			$mm->{dbh}->commit;
 
 			$lx = $self->rlog($range, *index_mm2, *unindex_mm2);
 			$db->set_metadata('last_commit', $lx) if defined $lx;
@@ -390,12 +390,7 @@ sub _index_sync {
 		$lx = $self->rlog($range, *index_blob, *unindex_blob);
 		$db->set_metadata('last_commit', $lx) if defined $lx;
 	}
-	if ($@) {
-		$db->cancel_transaction;
-		$mm->{dbh}->rollback if $mm;
-	} else {
-		$db->commit_transaction;
-	}
+	$db->commit_transaction;
 }
 
 # this will create a ghost as necessary

@@ -33,7 +33,9 @@ sub new {
 
 	if ($writable) {
 		create_tables($dbh);
+		$dbh->begin_work;
 		$self->created_at(time) unless $self->created_at;
+		$dbh->commit;
 	}
 	$self;
 }
@@ -51,22 +53,14 @@ sub meta_accessor {
 	defined $value or
 		return $dbh->selectrow_array(meta_select, undef, $key);
 
-	$dbh->begin_work;
-	eval {
-		$prev = $dbh->selectrow_array(meta_select, undef, $key);
+	$prev = $dbh->selectrow_array(meta_select, undef, $key);
 
-		if (defined $prev) {
-			$dbh->do(meta_update, undef, $value, $key);
-		} else {
-			$dbh->do(meta_insert, undef, $key, $value);
-		}
-		$dbh->commit;
-	};
-	my $err = $@;
-	return $prev unless $err;
-
-	$dbh->rollback;
-	die $err;
+	if (defined $prev) {
+		$dbh->do(meta_update, undef, $value, $key);
+	} else {
+		$dbh->do(meta_insert, undef, $key, $value);
+	}
+	$prev;
 }
 
 sub last_commit {
