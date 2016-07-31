@@ -8,6 +8,7 @@
 
 use strict;
 use warnings;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $usage = "public-inbox-index GIT_DIR";
 use PublicInbox::Config;
 eval { require PublicInbox::SearchIdx };
@@ -15,6 +16,11 @@ if ($@) {
 	print STDERR "Search::Xapian required for $0\n";
 	exit 1;
 }
+
+my $reindex;
+my %opts = ( '--reindex' => \$reindex );
+GetOptions(%opts) or die "bad command-line args\n$usage";
+
 my @dirs;
 
 sub resolve_git_dir {
@@ -57,7 +63,6 @@ foreach my $dir (@dirs) {
 sub index_dir {
 	my ($git_dir) = @_;
 	-d $git_dir or die "$git_dir does not appear to be a git repository\n";
-
 	my $s = PublicInbox::SearchIdx->new($git_dir, 1);
-	$s->index_sync;
+	$s->index_sync({ reindex => $reindex });
 }
