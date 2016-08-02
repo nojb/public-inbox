@@ -33,11 +33,12 @@ sub _html_top ($) {
 	my $upfx = $ctx->{-upfx} || '';
 	my $atom = $ctx->{-atom} || $upfx.'new.atom';
 	my $tip = $ctx->{-html_tip} || '';
-	my $top = "<b>$desc</b> (<a\nhref=\"$atom\">Atom feed</a>)";
+	my $top = "<b>$desc</b>";
+	my $links = "<a\nhref=\"$atom\">Atom feed</a>";
 	if ($obj->search) {
 		my $q_val = $ctx->{-q_value_html};
 		if (defined $q_val && $q_val ne '') {
-			$q_val = qq(\nvalue="$q_val" );
+			$q_val = qq(\nvalue="$q_val");
 		} else {
 			$q_val = '';
 		}
@@ -45,12 +46,13 @@ sub _html_top ($) {
 		my $extra = $ctx->{-extra_form_html} || '';
 		my $action = $upfx eq '' ? './' : $upfx;
 		$top = qq{<form\naction="$action"><pre>$top} .
-			  qq{ <input\nname=q\ntype=text$q_val/>} .
+			  qq{\n<input\nname=q\ntype=text$q_val />} .
 			  $extra .
 			  qq{<input\ntype=submit\nvalue=search />} .
+			  ' ' . $links .
 			  q{</pre></form>}
 	} else {
-		$top = '<pre>' . $top . '</pre>';
+		$top = '<pre>' . $top . "\n" . $links . '</pre>';
 	}
 	"<html><head><title>$title</title>" .
 		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
