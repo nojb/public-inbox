@@ -102,16 +102,18 @@ sub check_absolute ($$) {
 }
 
 sub daemonize () {
-	foreach my $i (0..$#ARGV) {
-		my $arg = $ARGV[$i];
-		next unless -e $arg;
-		$ARGV[$i] = abs_path($arg);
-	}
-	check_absolute('stdout', $stdout);
-	check_absolute('stderr', $stderr);
-	check_absolute('pid-file', $pid_file);
+	if ($daemonize) {
+		foreach my $i (0..$#ARGV) {
+			my $arg = $ARGV[$i];
+			next unless -e $arg;
+			$ARGV[$i] = abs_path($arg);
+		}
+		check_absolute('stdout', $stdout);
+		check_absolute('stderr', $stderr);
+		check_absolute('pid-file', $pid_file);
 
-	chdir '/' or die "chdir failed: $!";
+		chdir '/' or die "chdir failed: $!";
+	}
 
 	return unless (defined $pid_file || defined $group || defined $user
 			|| $daemonize);
