@@ -237,7 +237,8 @@ sub done {
 
 		eval {
 			require PublicInbox::SearchIdx;
-			PublicInbox::SearchIdx->new($git_dir, 2)->index_sync;
+			my $s = PublicInbox::SearchIdx->new($git_dir, 2);
+			$s->index_sync({ ref => $self->{ref} });
 		};
 	}
 

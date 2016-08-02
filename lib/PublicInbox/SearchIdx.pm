@@ -374,7 +374,7 @@ sub rlog {
 # indexes all unindexed messages
 sub _index_sync {
 	my ($self, $opts) = @_;
-	my $head = 'HEAD';
+	my $tip = $opts->{ref} || 'HEAD';
 	my $mm = $self->{mm} = eval {
 		require PublicInbox::Msgmap;
 		PublicInbox::Msgmap->new($self->{git_dir}, 1);
@@ -382,8 +382,13 @@ sub _index_sync {
 	my $xdb = $self->{xdb};
 	$xdb->begin_transaction;
 	my $reindex = $opts->{reindex};
-	my $mkey = $reindex ? undef : 'last_commit';
-	my $lx = $reindex ? '' : $xdb->get_metadata('last_commit');
+	my $mkey = 'last_commit';
+	my $last_commit = $xdb->get_metadata($mkey);
+	my $lx = $last_commit;
+	if ($reindex) {
+		$lx = '';
+		$mkey = undef if $last_commit ne '';
+	}
 	my $dbh;
 	my $cb = sub {
 		my ($commit, $more) = @_;
@@ -398,7 +403,7 @@ sub _index_sync {
 		$xdb = _xdb_acquire($self);
 	};
 
-	my $range = $lx eq '' ? $head : "$lx..$head";
+	my $range = $lx eq '' ? $tip : "$lx..$tip";
 	if ($mm) {
 		$dbh = $mm->{dbh};
 		$dbh->begin_work;
@@ -413,14 +418,15 @@ sub _index_sync {
 			# This happens if we have to reindex Xapian since
 			# msgmap is a frozen format and our Xapian format
 			# is evolving.
-			my $r = $lm eq '' ? $head : "$lm..$head";
+			my $r = $lm eq '' ? $tip : "$lm..$tip";
 
 			# first, ensure msgmap is up-to-date:
+			my $mkey_prev = $mkey;
 			$mkey = undef; # ignore xapian, for now
 			rlog($self, $r, *index_mm, *unindex_mm, $cb);
 
 			# now deal with Xapian
-			$mkey = 'last_commit' unless $reindex;
+			$mkey = $mkey_prev;
 			$dbh = undef;
 			rlog($self, $range, *index_mm2, *unindex_mm2, $cb);
 		}
