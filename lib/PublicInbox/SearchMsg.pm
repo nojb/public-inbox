@@ -38,7 +38,7 @@ sub load_doc {
 	my $data = $doc->get_data or return;
 	my $ts = get_val($doc, &PublicInbox::Search::TS);
 	utf8::decode($data);
-	my ($subj, $from, $refs, $to, $cc) = split(/\n/, $data);
+	my ($subj, $from, $refs, $to, $cc, $blob) = split(/\n/, $data);
 	bless {
 		doc => $doc,
 		subject => $subj,
@@ -47,6 +47,7 @@ sub load_doc {
 		references => $refs,
 		to => $to,
 		cc => $cc,
+		blob => $blob,
 	}, $class;
 }
 
@@ -105,9 +106,11 @@ sub ts {
 }
 
 sub to_doc_data {
-	my ($self) = @_;
-	join("\n", $self->subject, $self->from, $self->references,
-		$self->to, $self->cc);
+	my ($self, $blob) = @_;
+	my @rows = ($self->subject, $self->from, $self->references,
+			$self->to, $self->cc);
+	push @rows, $blob if defined $blob;
+	join("\n", @rows);
 }
 
 sub references {
@@ -184,6 +187,15 @@ sub mid ($;$) {
 }
 
 sub _extract_mid { mid_clean(mid_mime($_[0]->mime)) }
+
+sub blob {
+	my ($self, $x40) = @_;
+	if (defined $x40) {
+		$self->{blob} = $x40;
+	} else {
+		$self->{blob};
+	}
+}
 
 sub mime {
 	my ($self, $mime) = @_;

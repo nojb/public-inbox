@@ -91,7 +91,7 @@ sub add_val {
 }
 
 sub add_message {
-	my ($self, $mime, $bytes, $num) = @_; # mime = Email::MIME object
+	my ($self, $mime, $bytes, $num, $blob) = @_; # mime = Email::MIME object
 	my $db = $self->{xdb};
 
 	my ($doc_id, $old_tid);
@@ -170,7 +170,7 @@ sub add_message {
 		});
 
 		link_message($self, $smsg, $old_tid);
-		$doc->set_data($smsg->to_doc_data);
+		$doc->set_data($smsg->to_doc_data($blob));
 		if (defined $doc_id) {
 			$db->replace_document($doc_id, $doc);
 		} else {
@@ -279,8 +279,8 @@ sub link_message {
 }
 
 sub index_blob {
-	my ($self, $git, $mime, $bytes, $num) = @_;
-	$self->add_message($mime, $bytes, $num);
+	my ($self, $git, $mime, $bytes, $num, $blob) = @_;
+	$self->add_message($mime, $bytes, $num, $blob);
 }
 
 sub unindex_blob {
@@ -300,9 +300,9 @@ sub unindex_mm {
 }
 
 sub index_mm2 {
-	my ($self, $git, $mime, $bytes) = @_;
+	my ($self, $git, $mime, $bytes, $blob) = @_;
 	my $num = $self->{mm}->num_for(mid_clean(mid_mime($mime)));
-	index_blob($self, $git, $mime, $bytes, $num);
+	index_blob($self, $git, $mime, $bytes, $num, $blob);
 }
 
 sub unindex_mm2 {
@@ -312,9 +312,9 @@ sub unindex_mm2 {
 }
 
 sub index_both {
-	my ($self, $git, $mime, $bytes) = @_;
+	my ($self, $git, $mime, $bytes, $blob) = @_;
 	my $num = index_mm($self, $git, $mime);
-	index_blob($self, $git, $mime, $bytes, $num);
+	index_blob($self, $git, $mime, $bytes, $num, $blob);
 }
 
 sub unindex_both {
@@ -355,10 +355,12 @@ sub rlog {
 	my $line;
 	while (defined($line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
-			my $mime = do_cat_mail($git, $1, \$bytes) or next;
-			$add_cb->($self, $git, $mime, $bytes);
+			my $blob = $1;
+			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
+			$add_cb->($self, $git, $mime, $bytes, $blob);
 		} elsif ($line =~ /$delmsg/o) {
-			my $mime = do_cat_mail($git, $1) or next;
+			my $blob = $1;
+			my $mime = do_cat_mail($git, $blob) or next;
 			$del_cb->($self, $git, $mime);
 		} elsif ($line =~ /^commit ($h40)/o) {
 			if (defined $max && --$max <= 0) {

@@ -129,7 +129,7 @@ sub getline {
 	my $gz = $self->{gz};
 	do {
 		while (defined(my $smsg = shift @{$self->{msgs}})) {
-			my $msg = eval { $ibx->msg_by_mid($smsg->mid) } or next;
+			my $msg = eval { $ibx->msg_by_smsg($smsg) } or next;
 			$msg = Email::Simple->new($msg);
 			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg));
 			my $bref = $self->{buf};
