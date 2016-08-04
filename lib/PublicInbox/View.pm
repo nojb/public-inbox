@@ -94,7 +94,7 @@ sub in_reply_to {
 	my ($hdr) = @_;
 	my $irt = $hdr->header_raw('In-Reply-To');
 
-	return mid_clean($irt) if (defined $irt);
+	return mid_clean($irt) if defined $irt && $irt ne '';
 
 	my $refs = $hdr->header_raw('References');
 	if ($refs && $refs =~ /<([^>]+)>\s*\z/s) {
