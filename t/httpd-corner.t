@@ -86,6 +86,30 @@ my $spawn_httpd = sub {
 }
 
 {
+	my $conn = conn_for($sock, 'getline-die');
+	$conn->write("GET /getline-die HTTP/1.1\r\nHost: example.com\r\n\r\n");
+	ok($conn->read(my $buf, 8192), 'read some response');
+	like($buf, qr!HTTP/1\.1 200\b[^\r]*\r\n!, 'got some sort of header');
+	is($conn->read(my $nil, 8192), 0, 'read EOF');
+	$conn = undef;
+	my $after = capture($err);
+	is(scalar(grep(/GETLINE FAIL/, @$after)), 1, 'failure logged');
+	is(scalar(grep(/CLOSE FAIL/, @$after)), 1, 'body->close not called');
+}
+
+{
+	my $conn = conn_for($sock, 'close-die');
+	$conn->write("GET /close-die HTTP/1.1\r\nHost: example.com\r\n\r\n");
+	ok($conn->read(my $buf, 8192), 'read some response');
+	like($buf, qr!HTTP/1\.1 200\b[^\r]*\r\n!, 'got some sort of header');
+	is($conn->read(my $nil, 8192), 0, 'read EOF');
+	$conn = undef;
+	my $after = capture($err);
+	is(scalar(grep(/GETLINE FAIL/, @$after)), 0, 'getline not failed');
+	is(scalar(grep(/CLOSE FAIL/, @$after)), 1, 'body->close not called');
+}
+
+{
 	my $conn = conn_for($sock, 'excessive header');
 	$SIG{PIPE} = 'IGNORE';
 	$conn->write("GET /callback HTTP/1.0\r\n");
@@ -488,5 +512,14 @@ SKIP: {
 }
 
 done_testing();
+
+sub capture {
+	my ($f) = @_;
+	open my $fh, '+<', $f or die "failed to open $f: $!\n";
+	local $/ = "\n";
+	my @r = <$fh>;
+	truncate($fh, 0) or die "truncate failed on $f: $!\n";
+	\@r
+}
 
 1;

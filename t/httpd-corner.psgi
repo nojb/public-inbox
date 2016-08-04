@@ -60,6 +60,18 @@ my $app = sub {
 		}
 	} elsif ($path eq '/empty') {
 		$code = 200;
+	} elsif ($path eq '/getline-die') {
+		$code = 200;
+		$body = Plack::Util::inline_object(
+			getline => sub { die 'GETLINE FAIL' },
+			close => sub { die 'CLOSE FAIL' },
+		);
+	} elsif ($path eq '/close-die') {
+		$code = 200;
+		$body = Plack::Util::inline_object(
+			getline => sub { undef },
+			close => sub { die 'CLOSE FAIL' },
+		);
 	}
 
 	[ $code, $h, $body ]

@@ -245,29 +245,49 @@ sub response_done ($$) {
 	$self->write(sub { $alive ? next_request($self) : $self->close });
 }
 
+sub getline_cb ($$$) {
+	my ($self, $write, $close) = @_;
+	local $/ = \8192;
+	my $forward = $self->{forward};
+	# limit our own running time for fairness with other
+	# clients and to avoid buffering too much:
+	if ($forward) {
+		my $buf = eval { $forward->getline };
+		if (defined $buf) {
+			$write->($buf); # may close in Danga::Socket::write
+			unless ($self->{closed}) {
+				my $next = $self->{pull};
+				if ($self->{write_buf_size}) {
+					$self->write($next);
+				} else {
+					PublicInbox::EvCleanup::asap($next);
+				}
+				return;
+			}
+		} elsif ($@) {
+			err($self, "response ->getline error: $@");
+			$forward = undef;
+			$self->close;
+		}
+	}
+
+	$self->{forward} = $self->{pull} = undef;
+	# avoid recursion
+	if ($forward) {
+		eval { $forward->close };
+		if ($@) {
+			err($self, "response ->close error: $@");
+			$self->close; # idempotent
+		}
+	}
+	$close->();
+}
+
 sub getline_response {
 	my ($self, $body, $write, $close) = @_;
 	$self->{forward} = $body;
 	weaken($self);
-	my $pull = $self->{pull} = sub {
-		local $/ = \8192;
-		my $forward = $self->{forward};
-		# limit our own running time for fairness with other
-		# clients and to avoid buffering too much:
-		while ($forward && defined(my $buf = $forward->getline)) {
-			$write->($buf);
-			last if $self->{closed};
-			if ($self->{write_buf_size}) {
-				$self->write($self->{pull});
-			} else {
-				PublicInbox::EvCleanup::asap($self->{pull});
-			}
-			return;
-		}
-		$self->{forward} = $self->{pull} = undef;
-		$forward->close if $forward; # avoid recursion
-		$close->();
-	};
+	my $pull = $self->{pull} = sub { getline_cb($self, $write, $close) };
 	$pull->();
 }
 
@@ -331,12 +351,15 @@ sub input_prepare {
 
 sub env_chunked { ($_[0]->{HTTP_TRANSFER_ENCODING} || '') =~ /\bchunked\b/i }
 
+sub err ($$) {
+	eval { $_[0]->{httpd}->{env}->{'psgi.errors'}->print($_[1]."\n") };
+}
+
 sub write_err {
 	my ($self, $len) = @_;
-	my $err = $self->{httpd}->{env}->{'psgi.errors'};
 	my $msg = $! || '(zero write)';
 	$msg .= " ($len bytes remaining)" if defined $len;
-	$err->print("error buffering to input: $msg\n");
+	err($self, "error buffering to input: $msg");
 	quit($self, 500);
 }
 
@@ -347,8 +370,7 @@ sub recv_err {
 		$self->{input_left} = $len;
 		return;
 	}
-	my $err = $self->{httpd}->{env}->{'psgi.errors'};
-	$err->print("error reading for input: $! ($len bytes remaining)\n");
+	err($self, "error reading for input: $! ($len bytes remaining)");
 	quit($self, 500);
 }
 
@@ -451,7 +473,10 @@ sub close {
 	my $env = $self->{env};
 	delete $env->{'psgix.io'} if $env; # prevent circular referernces
 	$self->{pull} = $self->{forward} = $self->{env} = undef;
-	$forward->close if $forward;
+	if ($forward) {
+		eval { $forward->close };
+		err($self, "forward ->close error: $@") if $@;
+	}
 	$self->SUPER::close(@_);
 }
 
