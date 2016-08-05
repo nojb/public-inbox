@@ -28,6 +28,12 @@ use constant {
 	PERM_EVERYBODY => 0664,
 };
 
+# XXX temporary hack...
+my $xap_ver = ((Search::Xapian::major_version << 16) |
+		 (Search::Xapian::minor_version << 8 ) |
+		  Search::Xapian::revision());
+our $XAP_LOCK_BROKEN = $xap_ver >= 0x010216; # >= 1.2.22
+
 sub new {
 	my ($class, $git_dir, $writable) = @_;
 	my $dir = PublicInbox::Search->xdir($git_dir);
@@ -42,7 +48,7 @@ sub new {
 		if ($writable == 1) {
 			require File::Path;
 			File::Path::mkpath($dir);
-			$self->{batch_size} = 100;
+			$self->{batch_size} = 100 unless $XAP_LOCK_BROKEN;
 			$flag = Search::Xapian::DB_CREATE_OR_OPEN;
 			_lock_acquire($self);
 		}
@@ -56,16 +62,14 @@ sub _xdb_release {
 	my $xdb = delete $self->{xdb};
 	$xdb->commit_transaction;
 	$xdb->close;
-	_lock_release($self);
 }
 
 sub _xdb_acquire {
-	my ($self) = @_;
-	_lock_acquire($self);
+	my ($self, $more) = @_;
 	my $dir = PublicInbox::Search->xdir($self->{git_dir});
 	my $flag = Search::Xapian::DB_OPEN;
 	my $xdb = Search::Xapian::WritableDatabase->new($dir, $flag);
-	$xdb->begin_transaction;
+	$xdb->begin_transaction if $more;
 	$self->{xdb} = $xdb;
 }
 
@@ -399,10 +403,19 @@ sub _index_sync {
 			$mm->last_commit($commit) if $commit;
 			$dbh->commit;
 		}
-		_xdb_release($self);
+		if ($XAP_LOCK_BROKEN) {
+			$xdb->commit_transaction if !$more;
+		} else {
+			$xdb = undef;
+			_xdb_release($self);
+			_lock_release($self);
+		}
 		# let another process do some work...
-		$dbh->begin_work if $dbh && $more;
-		$xdb = _xdb_acquire($self);
+		if (!$XAP_LOCK_BROKEN) {
+			_lock_acquire($self);
+			$dbh->begin_work if $dbh && $more;
+			$xdb = _xdb_acquire($self, $more);
+		}
 	};
 
 	my $range = $lx eq '' ? $tip : "$lx..$tip";
