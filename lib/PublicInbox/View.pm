@@ -180,7 +180,7 @@ sub index_entry {
 		$rv .= " <a\nhref=#r$id>$ctx->{s_nr}</a>";
 	}
 
-	$rv .= $more ? "\n\n" : "\n";
+	$rv .= $more ? '</pre><hr><pre>' : '</pre>';
 }
 
 sub pad_link ($$;$) {
