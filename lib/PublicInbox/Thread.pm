@@ -5,6 +5,10 @@
 # - http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=795913
 # - https://rt.cpan.org/Ticket/Display.html?id=106498
 #
+# And avoid recursion in recurse_down:
+# - https://rt.cpan.org/Ticket/Display.html?id=116727
+# - http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=833479
+#
 # License differs from the rest of public-inbox (but is compatible):
 # This library is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
@@ -40,6 +44,32 @@ sub parent { @_ == 2 ? weaken($_[0]->{parent} = $_[1]) : $_[0]->{parent} }
 
 sub topmost {
 	$_[0]->SUPER::topmost || PublicInbox::Thread::CPANRTBug106498->new;
+}
+
+# non-recursive version of recurse_down to avoid stack depth warnings
+sub recurse_down {
+	my ($self, $callback) = @_;
+	my %seen;
+	my @q = ($self);
+	while (my $cont = shift @q) {
+		$seen{$cont}++;
+		$callback->($cont);
+
+		if (my $next = $cont->next) {
+			if ($seen{$next}) {
+				$cont->next(undef);
+			} else {
+				push @q, $next;
+			}
+		}
+		if (my $child = $cont->child) {
+			if ($seen{$child}) {
+				$cont->child(undef);
+			} else {
+				push @q, $child;
+			}
+		}
+	}
 }
 
 # ref:
