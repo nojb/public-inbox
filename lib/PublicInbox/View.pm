@@ -164,13 +164,17 @@ sub index_entry {
 		"<a\nhref=\"$mhref\">permalink</a>" .
 		" <a\nhref=\"${mhref}raw\">raw</a>" .
 		" <a\nhref=\"${mhref}#R\">reply</a>";
+
+	my $hr;
 	if (my $pct = $ctx->{pct}) { # used by SearchView.pm
 		$rv .= "\t[relevance $pct->{$mid_raw}%]";
+		$hr = 1;
 	} elsif ($mapping) {
 		my $threaded = 'threaded';
 		my $flat = 'flat';
 		my $end = '';
 		if ($ctx->{flat}) {
+			$hr = 1;
 			$flat = "<b>$flat</b>";
 		} else {
 			$threaded = "<b>$threaded</b>";
@@ -180,7 +184,8 @@ sub index_entry {
 		$rv .= " <a\nhref=#r$id>$ctx->{s_nr}</a>";
 	}
 
-	$rv .= $more ? '</pre><hr><pre>' : '</pre>';
+	$rv .= $more ? '</pre><hr><pre>' : '</pre>' if $hr;
+	$rv;
 }
 
 sub pad_link ($$;$) {
