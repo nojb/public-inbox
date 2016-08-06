@@ -59,12 +59,12 @@ sub new_html {
 	}
 	$ctx->{-html_tip} = '<pre>';
 	$ctx->{-upfx} = '';
+	$ctx->{-hr} = 1;
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		while (my $path = shift @paths) {
 			my $m = do_cat_mail($ctx->{-inbox}, $path) or next;
 			my $more = scalar @paths;
 			my $s = PublicInbox::View::index_entry($m, $ctx, $more);
-			$s .= '</pre>' unless $more;
 			return $s;
 		}
 		new_html_footer($ctx, $last);

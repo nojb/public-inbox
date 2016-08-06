@@ -182,6 +182,8 @@ sub index_entry {
 		$rv .= "\t[<a\nhref=\"${mhref}T/#u\">$flat</a>";
 		$rv .= "|<a\nhref=\"${mhref}t/#u\">$threaded</a>]";
 		$rv .= " <a\nhref=#r$id>$ctx->{s_nr}</a>";
+	} else {
+		$hr = $ctx->{-hr};
 	}
 
 	$rv .= $more ? '</pre><hr><pre>' : '</pre>' if $hr;
