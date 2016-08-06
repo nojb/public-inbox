@@ -138,6 +138,9 @@ sub getline {
 				${$self->{buf}} = '';
 				return $ret;
 			}
+
+			# be fair to other clients on public-inbox-httpd:
+			return '';
 		}
 		$res = $self->{cb}->($self->{opts});
 		$self->{msgs} = $res->{msgs};
