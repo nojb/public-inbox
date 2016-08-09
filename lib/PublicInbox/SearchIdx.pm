@@ -283,48 +283,48 @@ sub link_message {
 }
 
 sub index_blob {
-	my ($self, $git, $mime, $bytes, $num, $blob) = @_;
+	my ($self, $mime, $bytes, $num, $blob) = @_;
 	$self->add_message($mime, $bytes, $num, $blob);
 }
 
 sub unindex_blob {
-	my ($self, $git, $mime) = @_;
+	my ($self, $mime) = @_;
 	my $mid = eval { mid_clean(mid_mime($mime)) };
 	$self->remove_message($mid) if defined $mid;
 }
 
 sub index_mm {
-	my ($self, $git, $mime) = @_;
+	my ($self, $mime) = @_;
 	$self->{mm}->mid_insert(mid_clean(mid_mime($mime)));
 }
 
 sub unindex_mm {
-	my ($self, $git, $mime) = @_;
+	my ($self, $mime) = @_;
 	$self->{mm}->mid_delete(mid_clean(mid_mime($mime)));
 }
 
 sub index_mm2 {
-	my ($self, $git, $mime, $bytes, $blob) = @_;
+	my ($self, $mime, $bytes, $blob) = @_;
 	my $num = $self->{mm}->num_for(mid_clean(mid_mime($mime)));
-	index_blob($self, $git, $mime, $bytes, $num, $blob);
+	index_blob($self, $mime, $bytes, $num, $blob);
 }
 
 sub unindex_mm2 {
-	my ($self, $git, $mime) = @_;
+	my ($self, $mime) = @_;
 	$self->{mm}->mid_delete(mid_clean(mid_mime($mime)));
-	unindex_blob($self, $git, $mime);
+	unindex_blob($self, $mime);
 }
 
 sub index_both {
-	my ($self, $git, $mime, $bytes, $blob) = @_;
-	my $num = index_mm($self, $git, $mime);
-	index_blob($self, $git, $mime, $bytes, $num, $blob);
+	my ($self, $mime, $bytes, $blob) = @_;
+	my $num = index_mm($self, $mime);
+	index_blob($self, $mime, $bytes, $num, $blob);
 }
 
 sub unindex_both {
-	my ($self, $git, $mime) = @_;
-	unindex_blob($self, $git, $mime);
-	unindex_mm($self, $git, $mime);
+	my ($self, $mime) = @_;
+	unindex_blob($self, $mime);
+	unindex_mm($self, $mime);
 }
 
 sub do_cat_mail {
@@ -361,11 +361,11 @@ sub rlog {
 		if ($line =~ /$addmsg/o) {
 			my $blob = $1;
 			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
-			$add_cb->($self, $git, $mime, $bytes, $blob);
+			$add_cb->($self, $mime, $bytes, $blob);
 		} elsif ($line =~ /$delmsg/o) {
 			my $blob = $1;
 			my $mime = do_cat_mail($git, $blob) or next;
-			$del_cb->($self, $git, $mime);
+			$del_cb->($self, $mime);
 		} elsif ($line =~ /^commit ($h40)/o) {
 			if (defined $max && --$max <= 0) {
 				$max = $self->{batch_size};
