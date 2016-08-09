@@ -390,6 +390,7 @@ sub _index_sync {
 	my $tip = $opts->{ref} || 'HEAD';
 	my $reindex = $opts->{reindex};
 	my ($mkey, $last_commit, $lx, $xlog);
+	$self->{git}->batch_prepare;
 	my $xdb = _xdb_acquire($self);
 	$xdb->begin_transaction;
 	do {

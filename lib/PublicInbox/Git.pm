@@ -39,7 +39,7 @@ sub _bidi_pipe {
 sub cat_file {
 	my ($self, $obj, $ref) = @_;
 
-	$self->_bidi_pipe(qw(--batch in out pid));
+	batch_prepare($self);
 	$self->{out}->print($obj, "\n") or fail($self, "write error: $!");
 
 	my $in = $self->{in};
@@ -88,6 +88,8 @@ sub cat_file {
 
 	$rv;
 }
+
+sub batch_prepare ($) { _bidi_pipe($_[0], qw(--batch in out pid)) }
 
 sub check {
 	my ($self, $obj) = @_;
