@@ -169,6 +169,7 @@ sub add_message {
 		});
 
 		link_message($self, $smsg, $old_tid);
+		$tg->index_text($mid, 1);
 		$doc->set_data($smsg->to_doc_data($blob));
 		if (defined $doc_id) {
 			$db->replace_document($doc_id, $doc);
