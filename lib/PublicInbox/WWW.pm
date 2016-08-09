@@ -41,11 +41,11 @@ sub call {
 
 	# we don't care about multi-value
 	my %qp = map {
-		my ($k, $v) = split('=', $_, 2);
+		my ($k, $v) = split('=', uri_unescape($_), 2);
 		$v = '' unless defined $v;
 		$v =~ tr/+/ /;
 		($k, $v)
-	} split(/[&;]/, uri_unescape($env->{QUERY_STRING}));
+	} split(/[&;]/, $env->{QUERY_STRING});
 	$ctx->{qp} = \%qp;
 
 	my $path_info = $env->{PATH_INFO};
