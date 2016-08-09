@@ -33,13 +33,14 @@ ok($@, "exception raised on non-existent DB");
 }
 
 my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
-my $ro = PublicInbox::Search->new($git_dir);
+$rw->_xdb_acquire;
+$rw->_xdb_release;
 $rw = undef;
+my $ro = PublicInbox::Search->new($git_dir);
 my $rw_commit = sub {
-	$rw->{xdb}->commit_transaction if $rw;
-	$rw = undef;
+	$rw->{xdb}->commit_transaction if $rw && $rw->{xdb};
 	$rw = PublicInbox::SearchIdx->new($git_dir, 1);
-	$rw->{xdb}->begin_transaction;
+	$rw->_xdb_acquire->begin_transaction;
 };
 
 {
