@@ -44,6 +44,7 @@ sub new {
 	my $umask = _umask_for($perm);
 	$self->{umask} = $umask;
 	$self->{lock_path} = "$git_dir/ssoma.lock";
+	$self->{git} = PublicInbox::Git->new($git_dir);
 	$self->{xdb} = $self->with_umask(sub {
 		if ($writable == 1) {
 			require File::Path;
@@ -349,7 +350,7 @@ sub rlog {
 	my $h40 = $hex .'{40}';
 	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
-	my $git = PublicInbox::Git->new($self->{git_dir});
+	my $git = $self->{git};
 	my $log = $git->popen(qw/log --reverse --no-notes --no-color
 				--raw -r --no-abbrev/, $range);
 	my $latest;
