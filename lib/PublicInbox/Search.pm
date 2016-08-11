@@ -79,10 +79,10 @@ sub xdir {
 }
 
 sub new {
-	my ($class, $git_dir) = @_;
+	my ($class, $git_dir, $altid) = @_;
 	my $dir = $class->xdir($git_dir);
 	my $db = Search::Xapian::Database->new($dir);
-	bless { xdb => $db, git_dir => $git_dir }, $class;
+	bless { xdb => $db, git_dir => $git_dir, altid => $altid }, $class;
 }
 
 sub reopen { $_[0]->{xdb}->reopen }
@@ -184,6 +184,18 @@ sub qp {
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $prefix);
+	}
+
+	# we do not actually create AltId objects,
+	# just parse the spec to avoid the extra DB handles for now.
+	if (my $altid = $self->{altid}) {
+		for (@$altid) {
+			# $_ = 'serial:gmane:/path/to/gmane.msgmap.sqlite3'
+			/\Aserial:(\w+):/ or next;
+			my $pfx = $1;
+			# gmane => XGMANE
+			$qp->add_boolean_prefix($pfx, 'X'.uc($pfx));
+		}
 	}
 
 	while (my ($name, $prefix) = each %prob_prefix) {

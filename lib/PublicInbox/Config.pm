@@ -145,6 +145,12 @@ sub _fill {
 		my $v = $self->{"$pfx.$k"};
 		$rv->{$k} = $v if defined $v;
 	}
+	foreach my $k (qw(altid)) { # TODO: more arrays
+		if (defined(my $v = $self->{"$pfx.$k"})) {
+			$rv->{$k} = [ $v ];
+		}
+	}
+
 	return unless $rv->{mainrepo};
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;

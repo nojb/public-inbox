@@ -5,8 +5,18 @@
 use strict;
 use warnings;
 use Net::NNTP;
-use Data::Dumper;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $usage = "usage: NNTPSERVER=news.example.org $0 GROUP [FIRST_NUM]\n";
+my ($msgmap, $mm);
+my %opts = ( '--msgmap=s' => \$msgmap );
+GetOptions(%opts) or die "bad command-line args\n$usage";
+
+if ($msgmap) {
+	require PublicInbox::Msgmap;
+	require PublicInbox::MID; # mid_clean
+	$mm = PublicInbox::Msgmap->new_file($msgmap, 1);
+}
+
 my $group = shift or die $usage;
 my $nntp = Net::NNTP->new($ENV{NNTPSERVER} || '127.0.0.1');
 my ($num, $first, $last) = $nntp->group($group);
@@ -15,16 +25,29 @@ my $arg_first = shift;
 if (defined $arg_first) {
 	$arg_first =~ /\A\d+\z/ or die $usage;
 	$first = $arg_first;
+} elsif ($mm) {
+	my $last_article = $mm->meta_accessor('last_article');
+	$first = $last_article + 1 if defined $last_article;
 }
 
 my $batch = 1000;
 my $i;
 for ($i = $first; $i < $last; $i += $batch) {
-	my $j = $i + $batch;
+	my $j = $i + $batch - 1;
 	$j = $last if $j > $last;
 	my $num2mid = $nntp->xhdr('Message-ID', "$i-$j");
+
+	$mm->{dbh}->begin_work if $mm;
 	for my $n ($i..$j) {
 		defined(my $mid = $num2mid->{$n}) or next;
 		print "$n $mid\n";
+		if ($mm) {
+			$mid = PublicInbox::MID::mid_clean($mid);
+			$mm->mid_set($n, $mid);
+		}
+	}
+	if ($mm) {
+		$mm->meta_accessor('last_article', $j);
+		$mm->{dbh}->commit;
 	}
 }

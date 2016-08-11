@@ -20,7 +20,12 @@ sub new {
 		my $err = $!;
 		-d $d or die "$d not created: $err";
 	}
-	my $f = "$d/msgmap.sqlite3";
+	new_file($class, "$d/msgmap.sqlite3", $writable);
+}
+
+sub new_file {
+	my ($class, $f, $writable) = @_;
+
 	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,
 		RaiseError => 1,
@@ -40,6 +45,7 @@ sub new {
 	$self;
 }
 
+# n.b. invoked directly by scripts/xhdr-num2mid
 sub meta_accessor {
 	my ($self, $key, $value) = @_;
 	use constant {
@@ -154,6 +160,7 @@ sub create_tables {
 			'val VARCHAR(255) NOT NULL)');
 }
 
+# used by NNTP.pm
 sub id_batch {
 	my ($self, $num, $cb) = @_;
 	my $dbh = $self->{dbh};
@@ -165,6 +172,17 @@ sub id_batch {
 	my $nr = scalar @$ary;
 	$cb->($ary) if $nr;
 	$nr;
+}
+
+# only used for mapping external serial numbers (e.g. articles from gmane)
+# see scripts/xhdr-num2mid for usage
+sub mid_set {
+	my ($self, $num, $mid) = @_;
+	my $sth = $self->{mid_set} ||= do {
+		my $sql = 'INSERT INTO msgmap (num, mid) VALUES (?,?)';
+		$self->{dbh}->prepare($sql);
+	};
+	$sth->execute($num, $mid);
 }
 
 1;

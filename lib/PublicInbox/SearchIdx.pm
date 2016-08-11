@@ -30,9 +30,21 @@ use constant {
 };
 
 sub new {
-	my ($class, $git_dir, $creat) = @_;
+	my ($class, $inbox, $creat) = @_;
+	my $git_dir = $inbox;
+	my $altid;
+	if (ref $inbox) {
+		$git_dir = $inbox->{mainrepo};
+		$altid = $inbox->{altid};
+		if ($altid) {
+			require PublicInbox::AltId;
+			$altid = [ map {
+				PublicInbox::AltId->new($inbox, $_);
+			} @$altid ];
+		}
+	}
 	require Search::Xapian::WritableDatabase;
-	my $self = bless { git_dir => $git_dir }, $class;
+	my $self = bless { git_dir => $git_dir, -altid => $altid }, $class;
 	my $perm = $self->_git_config_perm;
 	my $umask = _umask_for($perm);
 	$self->{umask} = $umask;
@@ -171,6 +183,14 @@ sub add_message {
 		link_message($self, $smsg, $old_tid);
 		$tg->index_text($mid, 1);
 		$doc->set_data($smsg->to_doc_data($blob));
+
+		if (my $altid = $self->{-altid}) {
+			foreach my $alt (@$altid) {
+				my $id = $alt->mid2alt($mid);
+				next unless defined $id;
+				$doc->add_term($alt->{xprefix} . $id);
+			}
+		}
 		if (defined $doc_id) {
 			$db->replace_document($doc_id, $doc);
 		} else {

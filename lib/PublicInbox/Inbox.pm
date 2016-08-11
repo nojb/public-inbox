@@ -87,7 +87,7 @@ sub search {
 	my ($self) = @_;
 	$self->{search} ||= eval {
 		_weaken_later($self);
-		PublicInbox::Search->new($self->{mainrepo});
+		PublicInbox::Search->new($self->{mainrepo}, $self->{altid});
 	};
 }
 

@@ -35,6 +35,7 @@ examples/unsubscribe.milter
 examples/unsubscribe.psgi
 examples/varnish-4.vcl
 lib/PublicInbox/Address.pm
+lib/PublicInbox/AltId.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/Emergency.pm
@@ -104,6 +105,7 @@ scripts/slrnspool2maildir
 scripts/ssoma-replay
 scripts/xhdr-num2mid
 t/address.t
+t/altid.t
 t/cgi.t
 t/check-www-inbox.perl
 t/common.perl
