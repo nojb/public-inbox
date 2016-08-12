@@ -147,7 +147,7 @@ sub _fill {
 	}
 	foreach my $k (qw(altid)) { # TODO: more arrays
 		if (defined(my $v = $self->{"$pfx.$k"})) {
-			$rv->{$k} = [ $v ];
+			$rv->{$k} = ref($v) eq 'ARRAY' ? $v : [ $v ];
 		}
 	}
 

@@ -50,4 +50,17 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 	}, "lookup matches expected output for test");
 }
 
+
+{
+	my $cfgpfx = "publicinbox.test";
+	my @altid = qw(serial:gmane:file=a serial:enamg:file=b);
+	my $config = PublicInbox::Config->new({
+		"$cfgpfx.address" => 'test@example.com',
+		"$cfgpfx.mainrepo" => '/path/to/non/existent',
+		"$cfgpfx.altid" => [ @altid ],
+	});
+	my $ibx = $config->lookup_name('test');
+	is_deeply($ibx->{altid}, [ @altid ]);
+}
+
 done_testing();
