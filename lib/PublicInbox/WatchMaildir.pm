@@ -214,7 +214,7 @@ sub _importer_for {
 		my $git = $inbox->git;
 		my $name = $inbox->{name};
 		my $addr = $inbox->{-primary_address};
-		PublicInbox::Import->new($git, $name, $addr);
+		PublicInbox::Import->new($git, $name, $addr, $inbox);
 	};
 	$self->{importers}->{"$im"} = $im;
 }

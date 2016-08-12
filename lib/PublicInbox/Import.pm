@@ -12,12 +12,13 @@ use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mid_mime mid2path);
 
 sub new {
-	my ($class, $git, $name, $email) = @_;
+	my ($class, $git, $name, $email, $inbox) = @_;
 	bless {
 		git => $git,
 		ident => "$name <$email>",
 		mark => 1,
 		ref => 'refs/heads/master',
+		inbox => $inbox,
 	}, $class
 }
 
@@ -237,7 +238,8 @@ sub done {
 
 		eval {
 			require PublicInbox::SearchIdx;
-			my $s = PublicInbox::SearchIdx->new($git_dir);
+			my $inbox = $self->{inbox} || $git_dir;
+			my $s = PublicInbox::SearchIdx->new($inbox);
 			$s->index_sync({ ref => $self->{ref} });
 		};
 	}
