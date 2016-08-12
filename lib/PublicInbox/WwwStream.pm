@@ -72,10 +72,8 @@ sub _html_end {
 	chop $http;
 	my %seen = ( $http => 1 );
 	my @urls = ($http);
-	my $need_tor;
 	foreach my $u (@{$obj->cloneurl}) {
 		next if $seen{$u};
-		$need_tor = 1 if $u =~ m!\A[^:]+://\w+\.onion/!;
 		$seen{$u} = 1;
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
 	}
@@ -86,7 +84,14 @@ sub _html_end {
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
 	}
 
-	if ($need_tor) {
+	my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$obj->nntp_url};
+	if (@nntp) {
+		$urls .= "\n\n";
+		$urls .= @nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
+		$urls .= ' available over NNTP:';
+		$urls .= "\n\t" . join("\n\t", @nntp) . "\n";
+	}
+	if ($urls =~ m!\b[^:]+://\w+\.onion/!) {
 		$urls .= "\n note: .onion URLs require Tor: ";
 		$urls .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
 	}

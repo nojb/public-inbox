@@ -27,6 +27,7 @@ my $ctx = {
 		search => sub { undef },
 		base_url => sub { 'http://example.com/' },
 		cloneurl => sub {[]},
+		nntp_url => sub {[]},
 		description => sub { '' }),
 };
 $ctx->{-inbox}->{-primary_address} = 'test@example.com';

@@ -147,6 +147,52 @@ sub base_url {
 	}
 }
 
+sub nntp_url {
+	my ($self) = @_;
+	$self->{-nntp_url} ||= do {
+		# no checking for nntp_usable here, we can point entirely
+		# to non-local servers or users run by a different user
+		my $ns = $self->{-pi_config}->{'publicinbox.nntpserver'};
+		my $group = $self->{newsgroup};
+		my @urls;
+		if ($ns && $group) {
+			$ns = [ $ns ] if ref($ns) ne 'ARRAY';
+			@urls = map {
+				my $u = m!\Anntps?://! ? $_ : "nntp://$_";
+				$u .= '/' if $u !~ m!/\z!;
+				$u.$group;
+			} @$ns;
+		}
+
+		my $mirrors = $self->{nntpmirror};
+		if ($mirrors) {
+			my @m;
+			foreach (@$mirrors) {
+				my $u = m!\Anntps?://! ? $_ : "nntp://$_";
+				if ($u =~ m!\Anntps?://[^/]+/?\z!) {
+					if ($group) {
+						$u .= '/' if $u !~ m!/\z!;
+						$u .= $group;
+					} else {
+						warn
+"publicinbox.$self->{name}.nntpmirror=$_ missing newsgroup name\n";
+					}
+				}
+				# else: allow full URLs like:
+				# nntp://news.example.com/alt.example
+				push @m, $u;
+			}
+			my %seen = map { $_ => 1 } @urls;
+			foreach my $u (@m) {
+				next if $seen{$u};
+				$seen{$u} = 1;
+				push @urls, $u;
+			}
+		}
+		\@urls;
+	};
+}
+
 sub nntp_usable {
 	my ($self) = @_;
 	my $ret = $self->mm && $self->search;
