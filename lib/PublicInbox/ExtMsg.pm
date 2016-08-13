@@ -14,11 +14,16 @@ use PublicInbox::WwwStream;
 
 # TODO: user-configurable
 our @EXT_URL = (
+	# leading "//" denotes protocol-relative (http:// or https://)
+	'//marc.info/?i=%s',
+	'//mid.mail-archive.com/%s',
 	'http://mid.gmane.org/%s',
 	'https://lists.debian.org/msgid-search/%s',
-	# leading "//" denotes protocol-relative (http:// or https://)
-	'//mid.mail-archive.com/%s',
-	'//marc.info/?i=%s',
+	'//docs.FreeBSD.org/cgi/mid.cgi?db=mid&id=%s',
+	'https://www.w3.org/mid/%s',
+	'http://www.postgresql.org/message-id/%s',
+	'https://lists.debconf.org/cgi-lurker/keyword.cgi?'.
+		'doc-url=/lurker&format=en.html&query=id:%s'
 );
 
 sub ext_msg {
