@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2015 all contributors <meta@public-inbox.org>
-# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+# Copyright (C) 2015-2016 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Incremental (or one-shot) importer of a slrnpull news spool
 =begin usage
@@ -11,8 +11,9 @@
 use strict;
 use warnings;
 use PublicInbox::Config;
-use Email::Filter;
-use Email::LocalDelivery;
+use Email::MIME;
+use PublicInbox::Import;
+use PublicInbox::Git;
 sub usage { "Usage:\n".join('',grep(/\t/, `head -n 10 $0`)) }
 my $exit = 0;
 my $sighandler = sub { $exit = 1 };
@@ -22,43 +23,33 @@ my $spool = shift @ARGV or die usage();
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 defined $recipient or die usage();
 my $config = PublicInbox::Config->new;
-my $cfg = $config->lookup($recipient);
-defined $cfg or exit(1);
-my @mda;
-if ($ENV{'FILTER'}) {
-	@mda = qw(public-inbox-mda);
-} else {
-	@mda = (qw(ssoma-mda -1), $cfg->{mainrepo});
-}
+my $ibx = $config->lookup($recipient);
+my $git = $ibx->git;
+my $im = PublicInbox::Import->new($git, $ibx->{name}, $ibx->{-primary_address});
 
 sub key {
-	my ($cfg) = @_;
-	"publicinbox.$cfg->{inbox}.importslrnspoolstate";
+	"publicinbox.$ibx->{name}.importslrnspoolstate";
 }
 
 sub get_min {
 	my $f = PublicInbox::Config->default_file;
-	my @cmd = (qw/git config/, "--file=$f", key($cfg));
-	use IPC::Run qw/run/;
-
-	my $in = '';
-	my $out = '';
-	unless (run(\@cmd, \$in, \$out)) {
-		$out = 0;
-	}
-	int($out);
+	my $out = $git->qx('config', "--file=$f", key($ibx));
+	$out ||= 0;
+	chomp $out;
+	$out =~ /\A\d+\z/ and return $out;
+	0;
 }
 
 sub set_min {
-	my ($cfg, $num) = @_;
+	my ($num) = @_;
 	my $f = PublicInbox::Config->default_file;
-	my @cmd = (qw/git config/, "--file=$f", key($cfg), $num);
+	my @cmd = (qw/git config/, "--file=$f", key($ibx), $num);
 	system(@cmd) == 0 or die join(' ', @cmd). " failed: $?\n";
 }
 
 my $n = get_min();
 my $ok;
-my $max_gap = 10000;
+my $max_gap = 200000;
 my $max = $n + $max_gap;
 
 for (; $exit == 0 && $n < $max; $n++) {
@@ -67,40 +58,31 @@ for (; $exit == 0 && $n < $max; $n++) {
 	open(my $fh, '<', $fn) or next;
 	$max = $n + $max_gap;
 
-	# prevent process growth by forking a new process for each message
-	my $pid = fork;
-	die "failed to fork: $!\n" unless defined $pid;
+	my $mime = Email::MIME->new(eval { local $/; <$fh> });
+	my $hdr = $mime->header_obj;
 
-	if ($pid == 0) {
-		my $f = Email::Filter->new(data => eval { local $/; <$fh> });
-		close $fh;
-		$fh = undef;
-		my $s = $f->simple;
-
-		# gmane rewrites Received headers, which increases spamminess
-		# Some older archives set Original-To
-		foreach my $x (qw(Received To)) {
-			my @h = $s->header("Original-$x");
-			if (@h) {
-				$s->header_set($x, @h);
-				$s->header_set("Original-$x");
-			}
+	# gmane rewrites Received headers, which increases spamminess
+	# Some older archives set Original-To
+	foreach my $x (qw(Received To)) {
+		my @h = $hdr->header_raw("Original-$x");
+		if (@h) {
+			$hdr->header_set($x, @h);
+			$hdr->header_set("Original-$x");
 		}
-
-		# triggers for the SA HEADER_SPAM rule
-		foreach my $drop (qw(Approved)) { $s->header_set($drop) }
-
-		# appears to be an old gmane bug:
-		$s->header_set('connect()');
-
-		$f->exit(0);
-		$f->pipe(@mda);
-		exit 0;
-	} else {
-		close $fh;
-		waitpid($pid, 0);
-		die "error: $?\n" if $?;
 	}
+
+	# Approved triggers for the SA HEADER_SPAM rule,
+	# X-From is gmane specific
+	foreach my $drop (qw(Approved X-From)) {
+		$hdr->header_set($drop);
+	}
+
+	# appears to be an old gmane bug:
+	$hdr->header_set('connect()');
+	$im->add($mime);
+
 	$ok = $n + 1;
-	set_min($cfg, $ok);
+	set_min($ok);
 }
+
+$im->done;
