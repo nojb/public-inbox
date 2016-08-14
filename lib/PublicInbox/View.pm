@@ -378,7 +378,7 @@ sub thread_html {
 			return index_entry($mime, $ctx, scalar @$msgs);
 		}
 		$msgs = undef;
-		'</pre>'.$skel;
+		$skel;
 	});
 }
 
