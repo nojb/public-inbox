@@ -491,7 +491,7 @@ sub _msg_html_prepare {
 		$ctx->{-upfx} = '../';
 	}
 	my @title;
-	my $mid = $hdr->header_raw('Message-ID');
+	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $hdr->header($h);

@@ -31,7 +31,6 @@ sub new {
 
 sub new_msgid {
 	my ($class, $msgid) = @_;
-	$msgid = mid_clean($msgid);
 	$class->new($msgid, mid_escape($msgid));
 }
 

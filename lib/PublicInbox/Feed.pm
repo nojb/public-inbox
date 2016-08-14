@@ -266,8 +266,7 @@ sub feed_entry {
 	my $midurl = $feed_opts->{midurl};
 
 	my $header_obj = $mime->header_obj;
-	my $mid = $header_obj->header_raw('Message-ID');
-	defined $mid or return;
+	my $mid = mid_clean($header_obj->header_raw('Message-ID'));
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $midurl . $mid->{href}. '/';
 
