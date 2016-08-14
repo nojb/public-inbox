@@ -47,16 +47,29 @@ all need to be considered for everything we introduce)
 * handle Xapian date range queries:
   http://mid.gmane.org/20151005222157.GE5880@survex.com
 
-* Consider storing git blob ID in Xapian doc data to avoid ref
-  and tree lookups based on Message-Id.
+* handle messages with multiple Message-IDs
+
+* handle broken double-bracketed References properly (maybe)
+  and totally broken Message-IDs
+
+  cf.  https://public-inbox.org/git/20160814012706.GA18784@starla/
+
+* portability to FreeBSD (and other Free Software *BSDs)
+  ugh... https://rt.cpan.org/Ticket/Display.html?id=116615
+
+* documentation (pod/text)
+
+* linkify thread skeletons better
+  https://public-inbox.org/git/6E3699DEA672430CAEA6DEFEDE6918F4@PhilipOakley/
+
+* generate sample CSS for use with Stylish/dillo/etc
+
+* builtin-help for search engine syntax
 
 * streaming Email::MIME replacement: currently we generate many
   allocations/strings for headers we never look at and slurp
   entire message bodies into memory.
   (this is pie-in-the-sky territory...)
-
-* Allow in-place Xapian updates without clobbering the whole
-  index (versioning each doc data entry?) for big archives
 
 * use REQUEST_URI properly for CGI / mod_perl2 compatibility
   with Message-IDs which include '%' (done?)
