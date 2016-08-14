@@ -208,8 +208,8 @@ sub _th_index_lite {
 	my $nr_s = 0;
 	my $level = $map->[4];
 	my $idx = $map->[3];
-	if (defined $irt) {
-		my $irt_map = $mapping->{$irt};
+	my $irt_map = $mapping->{$irt} if defined $irt;
+	if (defined $irt_map) {
 		my $siblings = $irt_map->[0];
 		$nr_s = scalar(@$siblings) - 1;
 		$rv .= $pad . $irt_map->[1];
