@@ -245,7 +245,7 @@ sub lookup_message {
 
 sub lookup_mail { # no ghosts!
 	my ($self, $mid) = @_;
-	my $smsg = lookup_message($self, $mid);
+	my $smsg = lookup_message($self, $mid) or return;
 	PublicInbox::SearchMsg->load_doc($smsg->{doc});
 }
 
