@@ -25,6 +25,7 @@ sub id_compress {
 	my ($id, $force) = @_;
 
 	if ($force || $id =~ /[^\w\-]/ || length($id) > MID_MAX) {
+		utf8::encode($id);
 		return sha1_hex($id);
 	}
 	$id;
@@ -36,7 +37,9 @@ sub mid2path {
 
 	unless (defined $x38) {
 		# compatibility with old links (or short Message-IDs :)
-		$mid = sha1_hex(mid_clean($mid));
+		$mid = mid_clean($mid);
+		utf8::encode($mid);
+		$mid = sha1_hex($mid);
 		($x2, $x38) = ($mid =~ /\A([a-f0-9]{2})([a-f0-9]{38})\z/);
 	}
 	"$x2/$x38";
