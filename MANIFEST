@@ -132,6 +132,7 @@ t/init.t
 t/linkify.t
 t/main-bin/spamc
 t/mda.t
+t/mid.t
 t/msg_iter.t
 t/msgmap.t
 t/nntp.t

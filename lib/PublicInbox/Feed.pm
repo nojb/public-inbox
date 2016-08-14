@@ -137,7 +137,7 @@ sub emit_atom_thread {
 	my $fh = $cb->([200, ['Content-Type' => 'application/atom+xml']]);
 	my $ibx = $ctx->{-inbox};
 	my $html_url = $ibx->base_url($ctx->{env});
-	$html_url .= PublicInbox::Hval->new_msgid($mid)->as_href;
+	$html_url .= PublicInbox::Hval->new_msgid($mid)->{href};
 
 	$feed_opts->{url} = $html_url;
 	$feed_opts->{emit_header} = 1;
@@ -269,7 +269,7 @@ sub feed_entry {
 	my $mid = $header_obj->header_raw('Message-ID');
 	defined $mid or return;
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $midurl . $mid->as_href . '/';
+	my $href = $midurl . $mid->{href}. '/';
 
 	my $date = $header_obj->header('Date');
 	my $updated = feed_updated($date);

@@ -53,7 +53,8 @@ if (defined $list_id) {
 		if ($mid =~ /\A<(.+)>\z/) {
 			$mid = $1;
 		}
-		$mid = uri_escape_utf8($mid);
+		$mid = uri_escape_utf8($mid,
+				'^A-Za-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@');
 		$header_obj->header_set('List-Archive', "<$archive_url>");
 
 		foreach my $h (qw(Help Unsubscribe Subscribe Owner)) {

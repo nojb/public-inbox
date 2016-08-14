@@ -67,7 +67,7 @@ test_psgi($app, sub {
 	is($res->code, 200, 'OK with URLMap mount');
 	$res = $cb->(GET('/a/test/m/blah%40example.com.html'));
 	is($res->header('Location'),
-		'http://localhost/a/test/blah%40example.com/',
+		'http://localhost/a/test/blah@example.com/',
 		'redirect functions properly under mount');
 
 	$res = $cb->(GET('/test/blah%40example.com/'));

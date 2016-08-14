@@ -10,7 +10,7 @@ use URI::Escape qw/uri_escape_utf8/;
 use Date::Parse qw/str2time/;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/mid_clean id_compress mid_mime/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -125,7 +125,6 @@ sub index_entry {
 	my $mid_raw = mid_clean(mid_mime($mime));
 	my $id = id_compress($mid_raw, 1);
 	my $id_m = 'm'.$id;
-	my $mid = PublicInbox::Hval->new_msgid($mid_raw);
 
 	my $root_anchor = $ctx->{root_anchor} || '';
 	my $irt = in_reply_to($hdr);
@@ -142,7 +141,7 @@ sub index_entry {
 	}
 	$rv .= "From: "._hdr_names($hdr, 'From').' @ '._msg_date($hdr)." UTC";
 	my $upfx = $ctx->{-upfx};
-	my $mhref = $upfx . $mid->as_href . '/';
+	my $mhref = $upfx . mid_escape($mid_raw) . '/';
 	$rv .= qq{ (<a\nhref="$mhref">permalink</a> / };
 	$rv .= qq{<a\nhref="${mhref}raw">raw</a>)\n};
 	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
@@ -150,7 +149,7 @@ sub index_entry {
 	my $mapping = $ctx->{mapping};
 	if (!$mapping && $irt) {
 		my $mirt = PublicInbox::Hval->new_msgid($irt);
-		my $href = $upfx . $mirt->as_href . '/';
+		my $href = $upfx . $mirt->{href}. '/';
 		my $html = $mirt->as_html;
 		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href">$html</a>&gt;\n)
 	}
@@ -568,7 +567,7 @@ sub _parent_headers {
 	if (defined $irt) {
 		my $v = PublicInbox::Hval->new_msgid($irt);
 		my $html = $v->as_html;
-		my $href = $v->as_href;
+		my $href = $v->{href};
 		$rv .= "In-Reply-To: &lt;";
 		$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
 	}
@@ -627,7 +626,7 @@ sub mailto_arg_link {
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
 	my $mid = $hdr->header_raw('Message-ID');
 	push @arg, '--in-reply-to='.squote_maybe(mid_clean($mid));
-	my $irt = uri_escape_utf8($mid);
+	my $irt = mid_escape($mid);
 	delete $cc{$to};
 	push @arg, "--to=$to";
 	$to = uri_escape_utf8($to);
@@ -657,17 +656,17 @@ sub html_footer {
 		$next = $prev = '    ';
 
 		if (my $n = $ctx->{next_msg}) {
-			$n = PublicInbox::Hval->new_msgid($n)->as_href;
+			$n = PublicInbox::Hval->new_msgid($n)->{href};
 			$next = "<a\nhref=\"$upfx$n/\"\nrel=next>next</a>";
 		}
 		my $u;
 		my $par = $ctx->{parent_msg};
 		if ($par) {
-			$u = PublicInbox::Hval->new_msgid($par)->as_href;
+			$u = PublicInbox::Hval->new_msgid($par)->{href};
 			$u = "$upfx$u/";
 		}
 		if (my $p = $ctx->{prev_msg}) {
-			$prev = PublicInbox::Hval->new_msgid($p)->as_href;
+			$prev = PublicInbox::Hval->new_msgid($p)->{href};
 			if ($p && $par && $p eq $par) {
 				$prev = "<a\nhref=\"$upfx$prev/\"\n" .
 					'rel=prev>prev parent</a>';
@@ -692,7 +691,7 @@ sub html_footer {
 sub linkify_ref_nosrch {
 	my $v = PublicInbox::Hval->new_msgid($_[0]);
 	my $html = $v->as_html;
-	my $href = $v->as_href;
+	my $href = $v->{href};
 	"&lt;<a\nhref=\"../$href/\">$html</a>&gt;";
 }
 
@@ -707,7 +706,7 @@ sub ghost_parent {
 	return '[no common parent]' if ($mid eq 'subject dummy');
 
 	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $mid->as_href;
+	my $href = $mid->{href};
 	my $html = $mid->as_html;
 	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
 }
@@ -793,7 +792,7 @@ sub _skel_header {
 		$s = PublicInbox::Hval->new($s);
 		$s = $s->as_html;
 	}
-	my $m = PublicInbox::Hval->new_msgid($mid);
+	my $m;
 	my $id = '';
 	my $mapping = $ctx->{mapping};
 	my $end = defined($s) ? "$s</a> $f\n" : "$f</a>\n";
@@ -804,7 +803,7 @@ sub _skel_header {
 		$map->[1] = "$d<a\nhref=\"$m\">$end";
 		$id = "\nid=r".$id;
 	} else {
-		$m = $ctx->{-upfx}.$m->as_href.'/';
+		$m = $ctx->{-upfx}.mid_escape($mid).'/';
 	}
 	$$dst .=  $d . "<a\nhref=\"$m\"$id>" . $end;
 }
@@ -829,7 +828,7 @@ sub skel_dump {
 		$d .= indent_for($level) . th_pfx($level);
 		my $upfx = $ctx->{-upfx};
 		my $m = PublicInbox::Hval->new_msgid($mid);
-		my $href = $upfx . $m->as_href . '/';
+		my $href = $upfx . $m->{href} . '/';
 		my $html = $m->as_html;
 
 		if ($map) {
@@ -911,7 +910,7 @@ sub dump_topics {
 		@$topic = ();
 		next unless defined $top;  # ghost topic
 		my $mid = delete $seen->{$top};
-		my $href = PublicInbox::Hval->new_msgid($mid)->as_href;
+		my $href = mid_escape($mid);
 		$top = PublicInbox::Hval->new($top)->as_html;
 		$ts = fmt_ts($ts);
 
@@ -935,7 +934,7 @@ sub dump_topics {
 			my $sub = $ex[$i + 1];
 			$mid = delete $seen->{$sub};
 			$sub = PublicInbox::Hval->new($sub)->as_html;
-			$href = PublicInbox::Hval->new_msgid($mid)->as_href;
+			$href = mid_escape($mid);
 			$s .= indent_for($level) . TCHILD;
 			$s .= "<a\nhref=\"$href/T/#u\">$sub</a>\n";
 		}

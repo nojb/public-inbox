@@ -8,7 +8,7 @@ use warnings;
 use PublicInbox::SearchMsg;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::View;
-use PublicInbox::MID qw(mid2path mid_mime mid_clean);
+use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape);
 use Email::MIME;
 require PublicInbox::Git;
 require PublicInbox::Thread;
@@ -74,7 +74,7 @@ sub mset_summary {
 		my $s = ascii_html($smsg->subject);
 		my $f = ascii_html($smsg->from_name);
 		my $ts = PublicInbox::View::fmt_ts($smsg->ts);
-		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->as_href;
+		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->{href};
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s . "</a></b>\n";
 		$$res .= "$pfx  - by $f @ $ts UTC [$pct%]\n\n";
@@ -239,6 +239,7 @@ package PublicInbox::SearchQuery;
 use strict;
 use warnings;
 use PublicInbox::Hval;
+use PublicInbox::MID qw(mid_escape);
 
 sub new {
 	my ($class, $qp) = @_;
@@ -263,7 +264,7 @@ sub qs_html {
 		$self = $tmp;
 	}
 
-	my $q = PublicInbox::Hval->new($self->{'q'})->as_href;
+	my $q = mid_escape($self->{'q'});
 	$q =~ s/%20/+/g; # improve URL readability
 	my $qs = "q=$q";
 

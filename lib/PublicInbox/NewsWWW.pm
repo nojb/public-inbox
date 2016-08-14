@@ -9,7 +9,7 @@ package PublicInbox::NewsWWW;
 use strict;
 use warnings;
 use PublicInbox::Config;
-use URI::Escape qw(uri_escape_utf8);
+use PublicInbox::MID qw(mid_escape);
 
 sub new {
 	my ($class, $pi_config) = @_;
@@ -35,7 +35,7 @@ sub call {
 				# article IDs are not stable across clones,
 				# do not encourage caching/bookmarking them
 				$code = 302;
-				$url .= uri_escape_utf8($mid) . '/';
+				$url .= mid_escape($mid) . '/';
 			}
 		}
 

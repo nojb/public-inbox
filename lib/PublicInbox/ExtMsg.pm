@@ -105,7 +105,7 @@ again:
 
 	my $code = 404;
 	my $h = PublicInbox::Hval->new_msgid($mid);
-	my $href = $h->as_href;
+	my $href = $h->{href};
 	my $html = $h->as_html;
 	my $title = "&lt;$html&gt; not found";
 	my $s = "<pre>Message-ID &lt;$html&gt;\nnot found\n";
@@ -120,7 +120,7 @@ again:
 			my $u = $ibx->base_url($env) or next;
 			foreach my $m (@$res) {
 				my $p = PublicInbox::Hval->new_msgid($m);
-				my $r = $p->as_href;
+				my $r = $p->{href};
 				my $t = $p->as_html;
 				$s .= qq{<a\nhref="$u$r/">$u$t/</a>\n};
 			}
@@ -158,7 +158,7 @@ sub ext_urls {
 sub exact {
 	my ($ctx, $found, $mid) = @_;
 	my $h = PublicInbox::Hval->new_msgid($mid);
-	my $href = $h->as_href;
+	my $href = $h->{href};
 	my $html = $h->as_html;
 	my $title = "&lt;$html&gt; found in ";
 	my $end = @$found == 1 ? 'another inbox' : 'other inboxes';

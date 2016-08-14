@@ -97,7 +97,7 @@ EOF
 	foreach my $t (qw(t T)) {
 		test_psgi($app, sub {
 			my ($cb) = @_;
-			my $u = $pfx . "/blah%40example.com/$t";
+			my $u = $pfx . "/blah\@example.com/$t";
 			my $res = $cb->(GET($u));
 			is(301, $res->code, "redirect for missing /");
 			my $location = $res->header('Location');
@@ -108,11 +108,11 @@ EOF
 	foreach my $t (qw(f)) {
 		test_psgi($app, sub {
 			my ($cb) = @_;
-			my $u = $pfx . "/blah%40example.com/$t";
+			my $u = $pfx . "/blah\@example.com/$t";
 			my $res = $cb->(GET($u));
 			is(301, $res->code, "redirect for legacy /f");
 			my $location = $res->header('Location');
-			like($location, qr!/blah%40example\.com/\z!,
+			like($location, qr!/blah\@example\.com/\z!,
 				'redirected with missing /');
 		});
 	}
@@ -124,7 +124,7 @@ EOF
 		is(200, $res->code, 'success response received');
 		like($res->content, qr!href="new\.atom"!,
 			'atom URL generated');
-		like($res->content, qr!href="blah%40example\.com/"!,
+		like($res->content, qr!href="blah\@example\.com/"!,
 			'index generated');
 	});
 
@@ -133,13 +133,13 @@ EOF
 		my $res = $cb->(GET($pfx . '/atom.xml'));
 		is(200, $res->code, 'success response received for atom');
 		like($res->content,
-			qr!link\s+href="\Q$pfx\E/blah%40example\.com/"!s,
+			qr!link\s+href="\Q$pfx\E/blah\@example\.com/"!s,
 			'atom feed generated correct URL');
 	});
 
 	test_psgi($app, sub {
 		my ($cb) = @_;
-		my $path = '/blah%40example.com/';
+		my $path = '/blah@example.com/';
 		my $res = $cb->(GET($pfx . $path));
 		is(200, $res->code, "success for $path");
 		like($res->content, qr!<title>hihi - Me</title>!,
@@ -149,13 +149,13 @@ EOF
 		$res = $cb->(GET($pfx . $path));
 		is(301, $res->code, "redirect for $path");
 		my $location = $res->header('Location');
-		like($location, qr!/blah%40example\.com/\z!,
+		like($location, qr!/blah\@example\.com/\z!,
 			'/$MESSAGE_ID/f/ redirected to /$MESSAGE_ID/');
 	});
 
 	test_psgi($app, sub {
 		my ($cb) = @_;
-		my $res = $cb->(GET($pfx . '/blah%40example.com/raw'));
+		my $res = $cb->(GET($pfx . '/blah@example.com/raw'));
 		is(200, $res->code, 'success response received for /*/raw');
 		like($res->content, qr!^From !sm, "mbox returned");
 	});
@@ -164,10 +164,10 @@ EOF
 	foreach my $t (qw(m f)) {
 		test_psgi($app, sub {
 			my ($cb) = @_;
-			my $res = $cb->(GET($pfx . "/$t/blah%40example.com.txt"));
+			my $res = $cb->(GET($pfx . "/$t/blah\@example.com.txt"));
 			is(301, $res->code, "redirect for old $t .txt link");
 			my $location = $res->header('Location');
-			like($location, qr!/blah%40example\.com/raw\z!,
+			like($location, qr!/blah\@example\.com/raw\z!,
 				".txt redirected to /raw");
 		});
 	}
@@ -180,22 +180,22 @@ EOF
 	while (my ($t, $e) = each %umap) {
 		test_psgi($app, sub {
 			my ($cb) = @_;
-			my $res = $cb->(GET($pfx . "/$t/blah%40example.com.html"));
+			my $res = $cb->(GET($pfx . "/$t/blah\@example.com.html"));
 			is(301, $res->code, "redirect for old $t .html link");
 			my $location = $res->header('Location');
 			like($location,
-				qr!/blah%40example\.com/$e(?:#u)?\z!,
+				qr!/blah\@example\.com/$e(?:#u)?\z!,
 				".html redirected to new location");
 		});
 	}
 	foreach my $sfx (qw(mbox mbox.gz)) {
 		test_psgi($app, sub {
 			my ($cb) = @_;
-			my $res = $cb->(GET($pfx . "/t/blah%40example.com.$sfx"));
+			my $res = $cb->(GET($pfx . "/t/blah\@example.com.$sfx"));
 			is(301, $res->code, 'redirect for old thread link');
 			my $location = $res->header('Location');
 			like($location,
-			     qr!/blah%40example\.com/t\.mbox(?:\.gz)?\z!,
+			     qr!/blah\@example\.com/t\.mbox(?:\.gz)?\z!,
 			     "$sfx redirected to /mbox.gz");
 		});
 	}

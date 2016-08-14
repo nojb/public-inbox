@@ -7,8 +7,7 @@ package PublicInbox::Hval;
 use strict;
 use warnings;
 use Encode qw(find_encoding);
-use URI::Escape qw(uri_escape_utf8);
-use PublicInbox::MID qw/mid_clean/;
+use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/ascii_html/;
 
@@ -33,7 +32,7 @@ sub new {
 sub new_msgid {
 	my ($class, $msgid) = @_;
 	$msgid = mid_clean($msgid);
-	$class->new($msgid, $msgid);
+	$class->new($msgid, mid_escape($msgid));
 }
 
 sub new_oneline {
@@ -74,7 +73,6 @@ sub ascii_html {
 }
 
 sub as_html { ascii_html($_[0]->{raw}) }
-sub as_href { ascii_html(uri_escape_utf8($_[0]->{href})) }
 
 sub raw {
 	if (defined $_[1]) {

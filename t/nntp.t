@@ -112,7 +112,7 @@ use_ok 'PublicInbox::Inbox';
 	PublicInbox::NNTP::set_nntp_headers($mime->header_obj, $ng, 1, $mid);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');
-	is_deeply([ $mime->header('Archived-At') ], [ "<${u}a%40b/>" ],
+	is_deeply([ $mime->header('Archived-At') ], [ "<${u}a\@b/>" ],
 		'Archived-At: set');
 	is_deeply([ $mime->header('List-Archive') ], [ "<$u>" ],
 		'List-Archive: set');
@@ -128,7 +128,7 @@ use_ok 'PublicInbox::Inbox';
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');
 	is_deeply([ $mime->header('Archived-At') ],
-		[ "<${u}a%40b/>", '<http://mirror.example.com/m/a%40b/>' ],
+		[ "<${u}a\@b/>", '<http://mirror.example.com/m/a@b/>' ],
 		'Archived-At: appended');
 	is_deeply([ $mime->header('Xref') ], [ 'example.com test:2' ],
 		'Old Xref: clobbered');

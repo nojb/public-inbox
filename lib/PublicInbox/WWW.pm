@@ -15,7 +15,8 @@ use strict;
 use warnings;
 use PublicInbox::Config;
 use PublicInbox::Hval;
-use URI::Escape qw(uri_escape_utf8 uri_unescape);
+use URI::Escape qw(uri_unescape);
+use PublicInbox::MID qw(mid_escape);
 require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 our $INBOX_RE = qr!\A/([\w\.\-]+)!;
@@ -353,7 +354,7 @@ sub r301 {
 	}
 	my $url = $obj->base_url($ctx->{env});
 	my $qs = $ctx->{env}->{QUERY_STRING};
-	$url .= (uri_escape_utf8($mid) . '/') if (defined $mid);
+	$url .= (mid_escape($mid) . '/') if (defined $mid);
 	$url .= $suffix if (defined $suffix);
 	$url .= "?$qs" if $qs ne '';
 

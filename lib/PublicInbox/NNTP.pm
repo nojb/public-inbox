@@ -9,12 +9,12 @@ use base qw(Danga::Socket);
 use fields qw(nntpd article rbuf ng long_res);
 use PublicInbox::Search;
 use PublicInbox::Msgmap;
+use PublicInbox::MID qw(mid_escape);
 use PublicInbox::Git;
 require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
-use URI::Escape qw(uri_escape_utf8);
 use constant {
 	r501 => '501 command syntax error',
 	r221 => '221 Header follows',
@@ -421,7 +421,7 @@ sub set_nntp_headers {
 	$hdr->header_set('Xref', xref($ng, $n));
 	header_append($hdr, 'List-Post', "<mailto:$ng->{-primary_address}>");
 	if (my $url = $ng->base_url) {
-		$mid = uri_escape_utf8($mid);
+		$mid = mid_escape($mid);
 		header_append($hdr, 'Archived-At', "<$url$mid/>");
 		header_append($hdr, 'List-Archive', "<$url>");
 	}

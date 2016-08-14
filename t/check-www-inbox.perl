@@ -131,10 +131,6 @@ sub worker_loop {
 			warn "W: ".$r->code . " $u\n"
 		}
 
-		# check bad links
-		my @at = grep(/@/, @links);
-		print "BAD: $u ", join("\n", @at), "\n" if @at;
-
 		my $s;
 		# blocking
 		foreach my $l (@links, "DONE\t$u") {

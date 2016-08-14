@@ -118,7 +118,7 @@ EOF
 	like($res->{head}, qr/Status:\s*206/i, "info/refs partial past end OK");
 	is($res->{body}, substr($orig, 5), 'partial body OK past end');
 }
-
+use Data::Dumper;
 # atom feeds
 {
 	local $ENV{HOME} = $home;
@@ -126,7 +126,7 @@ EOF
 	like($res->{body}, qr/<title>test for public-inbox/,
 		"set title in XML feed");
 	like($res->{body},
-		qr!http://test\.example\.com/test/blah%40example\.com/!,
+		qr!http://test\.example\.com/test/blah\@example\.com/!,
 		"link id set");
 	like($res->{body}, qr/what\?/, "reply included");
 }
@@ -148,7 +148,7 @@ EOF
 	$im->add($reply);
 	$im->done;
 
-	my $res = cgi_run("/test/slashy%2fasdf%40example.com/raw");
+	my $res = cgi_run("/test/slashy%2fasdf\@example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
 		"slashy mid raw hit");
 
@@ -167,20 +167,20 @@ EOF
 	$res = cgi_run("/test/blahblah\@example.com/f/");
 	like($res->{head}, qr/Status: 301 Moved/, "301 response");
 	like($res->{head},
-		qr!^Location: http://[^/]+/test/blahblah%40example\.com/\r\n!ms,
+		qr!^Location: http://[^/]+/test/blahblah\@example\.com/\r\n!ms,
 		'301 redirect location');
 	$res = cgi_run("/test/blahblah\@example.con/");
 	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
 	$res = cgi_run("/test/new.html");
-	like($res->{body}, qr/slashy%2Fasdf%40example\.com/,
+	like($res->{body}, qr/slashy%2Fasdf\@example\.com/,
 		"slashy URL generated correctly");
 }
 
 # retrieve thread as an mbox
 {
 	local $ENV{HOME} = $home;
-	my $path = "/test/blahblah%40example.com/t.mbox.gz";
+	my $path = "/test/blahblah\@example.com/t.mbox.gz";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
 	my $indexed = system($index, $maindir) == 0;
@@ -200,7 +200,7 @@ EOF
 
 	my $have_xml_feed = eval { require XML::Feed; 1 } if $indexed;
 	if ($have_xml_feed) {
-		$path = "/test/blahblah%40example.com/t.atom";
+		$path = "/test/blahblah\@example.com/t.atom";
 		$res = cgi_run($path);
 		like($res->{head}, qr/^Status: 200 /, "atom returned 200");
 		like($res->{head}, qr!^Content-Type: application/atom\+xml!m,

@@ -6,8 +6,7 @@
 package PublicInbox::Mbox;
 use strict;
 use warnings;
-use PublicInbox::MID qw/mid_clean/;
-use URI::Escape qw/uri_escape_utf8/;
+use PublicInbox::MID qw/mid_clean mid_escape/;
 require Email::Simple;
 
 sub emit1 {
@@ -29,7 +28,7 @@ sub msg_str {
 	my $ibx = $ctx->{-inbox};
 	my $base = $ibx->base_url($ctx->{env});
 	my $mid = mid_clean($header_obj->header('Message-ID'));
-	$mid = uri_escape_utf8($mid);
+	$mid = mid_escape($mid);
 	my @append = (
 		'Archived-At', "<$base$mid/>",
 		'List-Archive', "<$base>",
