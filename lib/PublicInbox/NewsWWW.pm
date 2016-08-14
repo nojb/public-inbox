@@ -43,7 +43,7 @@ sub call {
 
 		return [ $code, $h, [ "Redirecting to $url\n" ] ]
 	}
-	[ 404, [ 'Content-Type' => 'text/plain' ], [] ];
+	[ 404, [ 'Content-Type' => 'text/plain' ], [ "404 Not Found\n" ] ];
 }
 
 1;
