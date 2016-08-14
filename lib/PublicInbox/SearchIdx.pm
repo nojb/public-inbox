@@ -436,19 +436,24 @@ sub _index_sync {
 
 	my $mm = _msgmap_init($self);
 	my $dbh = $mm->{dbh} if $mm;
+	my $mm_only;
 	my $cb = sub {
 		my ($commit, $more) = @_;
 		if ($dbh) {
 			$mm->last_commit($commit) if $commit;
 			$dbh->commit;
 		}
-		$xdb->set_metadata($mkey, $commit) if $mkey && $commit;
-		$xdb->commit_transaction;
-		$xdb = _xdb_release($self);
+		if (!$mm_only) {
+			$xdb->set_metadata($mkey, $commit) if $mkey && $commit;
+			$xdb->commit_transaction;
+			$xdb = _xdb_release($self);
+		}
 		# let another process do some work... <
 		if ($more) {
-			$xdb = _xdb_acquire($self);
-			$xdb->begin_transaction;
+			if (!$mm_only) {
+				$xdb = _xdb_acquire($self);
+				$xdb->begin_transaction;
+			}
 			$dbh->begin_work if $dbh;
 		}
 	};
@@ -472,14 +477,13 @@ sub _index_sync {
 			my $mkey_prev = $mkey;
 			$mkey = undef; # ignore xapian, for now
 			my $mlog = _git_log($self, $r);
+			$mm_only = 1;
 			rlog($self, $mlog, *index_mm, *unindex_mm, $cb);
-			$mlog = undef;
+			$mm_only = $mlog = undef;
 
 			# now deal with Xapian
 			$mkey = $mkey_prev;
 			$dbh = undef;
-			$xdb = _xdb_acquire($self);
-			$xdb->begin_transaction;
 			rlog($self, $xlog, *index_mm2, *unindex_mm2, $cb);
 		}
 	} else {
