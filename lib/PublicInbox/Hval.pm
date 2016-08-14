@@ -52,10 +52,24 @@ my %xhtml_map = (
 	'>' => '&gt;',
 );
 
+$xhtml_map{chr($_)} = sprintf('\\x%02x', $_) for (0..31);
+# some of these overrides are standard C escapes so they're
+# easy-to-understand when rendered.
+$xhtml_map{"\x00"} = '\\0'; # NUL
+$xhtml_map{"\x07"} = '\\a'; # bell
+$xhtml_map{"\x08"} = '\\b'; # backspace
+$xhtml_map{"\x09"} = "\t"; # obvious to show as-is
+$xhtml_map{"\x0a"} = "\n"; # obvious to show as-is
+$xhtml_map{"\x0b"} = '\\v'; # vertical tab
+$xhtml_map{"\x0c"} = '\\f'; # form feed
+$xhtml_map{"\x0d"} = '\\r'; # carriage ret (not preceding \n)
+$xhtml_map{"\x1b"} = '^['; # ASCII escape (mutt seems to escape this way)
+$xhtml_map{"\x7f"} = '\\x7f'; # DEL
+
 sub ascii_html {
 	my ($s) = @_;
 	$s =~ s/\r\n/\n/sg; # fixup bad line endings
-	$s =~ s/([<>&'"])/$xhtml_map{$1}/ge;
+	$s =~ s/([<>&'"\x7f\x00-\x1f])/$xhtml_map{$1}/sge;
 	$enc_ascii->encode($s, Encode::HTMLCREF);
 }
 
