@@ -10,6 +10,7 @@ use warnings;
 use Fcntl qw(:flock :DEFAULT);
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mid_mime mid2path);
+use PublicInbox::Address;
 
 sub new {
 	my ($class, $git, $name, $email, $inbox) = @_;
@@ -145,14 +146,13 @@ sub add {
 	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
 	my $from = $mime->header('From');
-	my ($email) = ($from =~ /([^<\s]+\@[^>\s]+)/g);
-	my $name = $from;
-	$name =~ s/\s*\S+\@\S+\s*\z//;
+	my ($email) = PublicInbox::Address::emails($from);
+	my ($name) = PublicInbox::Address::names($from);
 	# git gets confused with:
 	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
 	# ref:
 	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
-	$name =~ tr/<>// and $name = $email;
+	$name =~ tr/<>//d;
 
 	my $date = $mime->header('Date');
 	my $subject = $mime->header('Subject');

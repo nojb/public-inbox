@@ -29,4 +29,8 @@ is_deeply(['user'], \@names, 'address-as-name extraction works as expected');
 	is_deeply(\@emails, ['u@example.com'], 'backwards emails OK');
 }
 
+
+@names = PublicInbox::Address::names('"Quote Unneeded" <user@example.com>');
+is_deeply(['Quote Unneeded'], \@names, 'extra quotes dropped');
+
 done_testing;
