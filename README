@@ -111,6 +111,11 @@ The archives are readable via NNTP or HTTP:
 	nntp://news.public-inbox.org/inbox.comp.mail.public-inbox.meta
 	https://public-inbox.org/meta/
 
+And as Tor hidden services:
+
+	http://hjrcffqmbrq6wope.onion/meta/
+	nntp://hjrcffqmbrq6wope.onion/inbox.comp.mail.public-inbox.meta
+
 You may also clone all messages via git:
 
 	git clone --mirror https://public-inbox.org/meta/

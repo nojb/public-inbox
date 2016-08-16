@@ -4,7 +4,8 @@ all::
 
 RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
-docs := README COPYING INSTALL TODO $(shell git ls-files 'Documentation/*.txt')
+docs := README COPYING INSTALL TODO HACKING
+docs += $(shell git ls-files 'Documentation/*.txt')
 INSTALL = install
 POD2MAN ?= pod2man
 POD2MAN_OPTS = -v --stderr -d 1994-10-02 -c 'public-inbox user manual'

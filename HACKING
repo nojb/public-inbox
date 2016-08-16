@@ -1,8 +1,14 @@
 hacking public-inbox
 --------------------
 
-Send all patches via to our self-hosting inbox at meta@public-inbox.org
-It is archived at <http://public-inbox.org/meta/>.
+Send all patches and "git request-pull"-formatted emails to our
+self-hosting inbox at meta@public-inbox.org
+It is archived at: https://public-inbox.org/meta/
+and http://hjrcffqmbrq6wope.onion/meta/ (using Tor)
+
+Contributions are email-driven, just like contributing to git
+itself or the Linux kernel; however anonymous and pseudonymous
+contributions will always be welcome.
 
 Please consider our goals in mind:
 
@@ -37,5 +43,10 @@ in scripting languages (currently Perl 5).
 Performance should be reasonably good for server administrators, too,
 and we will sacrifice features to achieve predictable performance.
 
-See design_www.txt and design_notes.txt in the Documentation/ directory
-for design decisions made during development.
+See design_www.txt and design_notes.txt in the Documentation/
+directory for design decisions made during development.
+
+For now, one may optionally subscribe to the mailing list by
+sending an email to: meta+subscribe@public-inbox.org
+(and confirming).  However, reading over the mailing list is
+the least reliable method of reading a public-inbox.
