@@ -179,8 +179,6 @@ sub qp {
 	$qp->set_database($self->{xdb});
 	$qp->set_stemmer($self->stemmer);
 	$qp->set_stemming_strategy(STEM_SOME);
-	$qp->add_valuerangeprocessor($self->ts_range_processor);
-	$qp->add_valuerangeprocessor($self->date_range_processor);
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $prefix);
@@ -203,14 +201,6 @@ sub qp {
 	}
 
 	$self->{query_parser} = $qp;
-}
-
-sub ts_range_processor {
-	$_[0]->{tsrp} ||= Search::Xapian::NumberValueRangeProcessor->new(TS);
-}
-
-sub date_range_processor {
-	$_[0]->{drp} ||= Search::Xapian::DateValueRangeProcessor->new(TS);
 }
 
 sub num_range_processor {
