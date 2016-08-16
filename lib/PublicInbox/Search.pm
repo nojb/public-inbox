@@ -12,6 +12,7 @@ use constant TS => 0; # timestamp
 use constant NUM => 1; # NNTP article number
 use constant BYTES => 2; # :bytes as defined in RFC 3977
 use constant LINES => 3; # :lines as defined in RFC 3977
+use constant YYYYMMDD => 4; # for searching in the WWW UI
 
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
@@ -179,6 +180,8 @@ sub qp {
 	$qp->set_database($self->{xdb});
 	$qp->set_stemmer($self->stemmer);
 	$qp->set_stemming_strategy(STEM_SOME);
+	$qp->add_valuerangeprocessor(
+		Search::Xapian::StringValueRangeProcessor->new(YYYYMMDD, 'd:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $prefix);

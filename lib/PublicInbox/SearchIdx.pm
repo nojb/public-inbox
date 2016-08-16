@@ -17,6 +17,7 @@ use base qw(PublicInbox::Search);
 use PublicInbox::MID qw/mid_clean id_compress mid_mime/;
 use PublicInbox::MsgIter;
 use Carp qw(croak);
+use POSIX qw(strftime);
 require PublicInbox::Git;
 *xpfx = *PublicInbox::Search::xpfx;
 
@@ -128,7 +129,8 @@ sub add_message {
 			$doc->add_term(xpfx('path') . id_compress($path));
 		}
 
-		add_val($doc, &PublicInbox::Search::TS, $smsg->ts);
+		my $ts = $smsg->ts;
+		add_val($doc, &PublicInbox::Search::TS, $ts);
 
 		defined($num) and
 			add_val($doc, &PublicInbox::Search::NUM, $num);
@@ -138,6 +140,9 @@ sub add_message {
 
 		add_val($doc, &PublicInbox::Search::LINES,
 				$mime->body_raw =~ tr!\n!\n!);
+
+		my $yyyymmdd = strftime('%Y%m%d', gmtime($ts));
+		$doc->add_value(&PublicInbox::Search::YYYYMMDD, $yyyymmdd);
 
 		my $tg = $self->term_generator;
 

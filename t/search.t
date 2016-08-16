@@ -315,6 +315,15 @@ sub filter_mids {
 		'UTF-8 subject preserved');
 }
 
+{
+	my $res = $ro->query('d:19931002..20101002');
+	ok(scalar @{$res->{msgs}} > 0, 'got results within range');
+	$res = $ro->query('d:20101003..');
+	is(scalar @{$res->{msgs}}, 0, 'nothing after 20101003');
+	$res = $ro->query('d:..19931001');
+	is(scalar @{$res->{msgs}}, 0, 'nothing before 19931001');
+}
+
 done_testing();
 
 1;
