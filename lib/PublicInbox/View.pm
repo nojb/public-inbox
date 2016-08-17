@@ -427,10 +427,10 @@ sub attach_link ($$$$) {
 	} else {
 		$sfn = 'a.bin';
 	}
-	my @ret = qq($nl<a\nhref="$upfx$idx-$sfn">[-- Attachment #$idx: );
+	my $ret = qq($nl<a\nhref="$upfx$idx-$sfn">[-- Attachment #$idx: );
 	my $ts = "Type: $ct, Size: $size bytes";
-	push(@ret, ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]");
-	join('', @ret, "</a>\n");
+	$ret .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
+	$ret .= "</a>\n";
 }
 
 sub add_text_body {
