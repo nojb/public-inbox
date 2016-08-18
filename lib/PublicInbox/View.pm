@@ -407,14 +407,17 @@ sub flush_quote {
 	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
 }
 
-sub attach_link ($$$$) {
-	my ($upfx, $ct, $p, $fn) = @_;
+sub attach_link ($$$$;$) {
+	my ($upfx, $ct, $p, $fn, $err) = @_;
 	my ($part, $depth, @idx) = @$p;
 	my $nl = $idx[-1] > 1 ? "\n" : '';
 	my $idx = join('.', @idx);
 	my $size = bytes::length($part->body);
 	$ct ||= 'text/plain';
-	$ct =~ s/;.*//; # no attributes
+
+	# hide attributes normally, unless we want to aid users in
+	# spotting MUA problems:
+	$ct =~ s/;.*// unless $err;
 	$ct = ascii_html($ct);
 	my $desc = $part->header('Content-Description');
 	$desc = $fn unless defined $desc;
@@ -427,7 +430,12 @@ sub attach_link ($$$$) {
 	} else {
 		$sfn = 'a.bin';
 	}
-	my $ret = qq($nl<a\nhref="$upfx$idx-$sfn">[-- Attachment #$idx: );
+	my $ret = qq($nl<a\nhref="$upfx$idx-$sfn">);
+	if ($err) {
+		$ret .=
+"[-- Warning: decoded text below may be mangled --]\n";
+	}
+	$ret .= "[-- Attachment #$idx: ";
 	my $ts = "Type: $ct, Size: $size bytes";
 	$ret .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
 	$ret .= "</a>\n";
@@ -446,12 +454,20 @@ sub add_text_body {
 	my $s = eval { $part->body_str };
 
 	# badly-encoded message? tell the world about it!
-	return attach_link($upfx, $ct, $p, $fn) if $@;
+	my $err = $@;
+	if ($err) {
+		if ($ct =~ m!\btext/plain\b!i) {
+			# attach_link will warn further down...
+			$s = $part->body;
+		} else {
+			return attach_link($upfx, $ct, $p, $fn);
+		}
+	}
 
 	my @lines = split(/^/m, $s);
 	$s = '';
-	if (defined($fn) || $depth > 0) {
-		$s .= attach_link($upfx, $ct, $p, $fn);
+	if (defined($fn) || $depth > 0 || $err) {
+		$s .= attach_link($upfx, $ct, $p, $fn, $err);
 		$s .= "\n";
 	}
 	my @quot;
