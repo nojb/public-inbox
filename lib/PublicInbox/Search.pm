@@ -51,6 +51,7 @@ my %bool_pfx_internal = (
 	thread => 'G', # newsGroup (or similar entity - e.g. a web forum name)
 );
 
+# do we still need these? probably not..
 my %bool_pfx_external = (
 	path => 'XPATH',
 	mid => 'Q', # uniQue id (Message-ID)
@@ -61,6 +62,29 @@ my %prob_prefix = (
 	s => 'S', # for mairix compatibility
 	m => 'Q', # 'mid' is exact, 'm' can do partial
 );
+
+# not documenting m: and mid: for now, the using the URLs works w/o Xapian
+our @HELP = (
+	's:' => <<EOF,
+match within Subject only  e.g. s:"a quick brown fox"
+This is a probabilistic search with support for stemming
+and wildcards '*'
+EOF
+	'd:' => <<EOF,
+date range as YYYYMMDD  e.g. d:19931002..20101002
+Open-ended ranges such as d:19931002.. and d:..20101002
+are also supported.
+EOF
+);
+# TODO: (from mairix, some of these are maybe)
+# b (body), f (From:), c (Cc:), n (attachment), t (To:)
+# tc (To:+Cc:), bs (body + Subject), tcf (To: +Cc: +From:)
+#
+# Non-mairix:
+# df (filenames from diff)
+# nq (non-quoted body)
+# da (diff a/ removed lines)
+# db (diff b/ added lines)
 
 my %all_pfx = (%bool_pfx_internal, %bool_pfx_external, %prob_prefix);
 
@@ -190,10 +214,14 @@ sub qp {
 	# we do not actually create AltId objects,
 	# just parse the spec to avoid the extra DB handles for now.
 	if (my $altid = $self->{altid}) {
+		my $user_pfx = $self->{-user_pfx} ||= [];
 		for (@$altid) {
 			# $_ = 'serial:gmane:/path/to/gmane.msgmap.sqlite3'
 			/\Aserial:(\w+):/ or next;
 			my $pfx = $1;
+			push @$user_pfx, "$pfx:", <<EOF;
+alternate serial number  e.g. $pfx:12345
+EOF
 			# gmane => XGMANE
 			$qp->add_boolean_prefix($pfx, 'X'.uc($pfx));
 		}
@@ -319,6 +347,16 @@ sub subject_summary {
 sub enquire {
 	my ($self) = @_;
 	$self->{enquire} ||= Search::Xapian::Enquire->new($self->{xdb});
+}
+
+sub help {
+	my ($self) = @_;
+	$self->qp; # parse altids
+	my @ret = @HELP;
+	if (my $user_pfx = $self->{-user_pfx}) {
+		push @ret, @$user_pfx;
+	}
+	\@ret;
 }
 
 1;

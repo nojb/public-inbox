@@ -96,6 +96,8 @@ sub call {
 
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/f/?\z!o) {
 		r301($ctx, $1, $2);
+	} elsif ($path_info =~ m!$INBOX_RE/_/text(?:/(.*))?\z!o) {
+		get_text($ctx, $1, $2);
 
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$INBOX_RE/([^/]{2,})\z!o) {
@@ -236,6 +238,18 @@ sub get_thread {
 	$ctx->{flat} = $flat;
 	require PublicInbox::View;
 	PublicInbox::View::thread_html($ctx);
+}
+
+# /$INBOX/_/text/$KEY/
+# /$INBOX/_/text/$KEY/raw
+# KEY may contain slashes
+sub get_text {
+	my ($ctx, $inbox, $key) = @_;
+	my $r404 = invalid_inbox($ctx, $inbox);
+	return $r404 if $r404;
+
+	require PublicInbox::WwwText;
+	PublicInbox::WwwText::get_text($ctx, $key);
 }
 
 sub ctx_get {

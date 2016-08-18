@@ -82,6 +82,7 @@ lib/PublicInbox/WWW.pm
 lib/PublicInbox/WatchMaildir.pm
 lib/PublicInbox/WwwAttach.pm
 lib/PublicInbox/WwwStream.pm
+lib/PublicInbox/WwwText.pm
 sa_config/Makefile
 sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
@@ -141,6 +142,7 @@ t/plack.t
 t/precheck.t
 t/psgi_attach.t
 t/psgi_mount.t
+t/psgi_text.t
 t/qspawn.t
 t/search.t
 t/spamcheck_spamc.t
