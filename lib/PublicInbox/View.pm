@@ -457,8 +457,14 @@ sub add_text_body {
 	my $err = $@;
 	if ($err) {
 		if ($ct =~ m!\btext/plain\b!i) {
+			# Try to assume UTF-8 because Alpine seems to
+			# do wacky things and set charset=X-UNKNOWN
+			$part->charset_set('UTF-8');
+			$s = eval { $part->body_str };
+
+			# If forcing charset=UTF-8 failed,
 			# attach_link will warn further down...
-			$s = $part->body;
+			$s = $part->body if $@;
 		} else {
 			return attach_link($upfx, $ct, $p, $fn);
 		}
