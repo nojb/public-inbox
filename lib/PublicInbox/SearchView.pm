@@ -85,12 +85,11 @@ sub mset_summary {
 
 sub err_txt {
 	my ($ctx, $err) = @_;
-	my $u = '//xapian.org/docs/queryparser.html';
-	$u = PublicInbox::Hval::prurl($ctx->{env}, $u);
+	my $u = $ctx->{-inbox}->base_url($ctx->{env}) . '_/text/help/';
 	$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
 	$err = ascii_html($err);
 	"\nBad query: <b>$err</b>\n" .
-		qq{See <a\nhref="$u">$u</a> for Xapian query syntax};
+		qq{See <a\nhref="$u">$u</a> for help on using search};
 }
 
 sub search_nav_top {
