@@ -1,5 +1,3 @@
-% public-inbox-mda(1) public-inbox user manual
-
 =head1 NAME
 
 public-inbox-mda - mail delivery for public-inbox
