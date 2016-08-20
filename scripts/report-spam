@@ -32,14 +32,14 @@ PI_USER=pi
 
 case $1 in
 *[/.]spam/cur/*) # non-new messages in spam get trained
-	$DO_SENDMAIL $PI_USER+pispam < $1
-	exec $DO_SENDMAIL $USER+trainspam < $1
+	$DO_SENDMAIL $PI_USER+pispam <$1
+	exec $DO_SENDMAIL $USER+trainspam <$1
 	;;
 *:2,*S*) # otherwise, seen messages only
 	case $1 in
 	*:2,*T*) exit 0 ;; # ignore trashed messages
 	esac
-	$DO_SENDMAIL $PI_USER+piham < $1
-	exec $DO_SENDMAIL $USER+trainham < $1
+	$DO_SENDMAIL $PI_USER+piham <$1
+	exec $DO_SENDMAIL $USER+trainham <$1
 	;;
 esac

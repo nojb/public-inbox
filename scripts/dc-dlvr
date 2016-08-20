@@ -57,14 +57,14 @@ err=$?
 set -e
 
 case $err in
-1) $DELIVER -m INBOX.spam < $TMPMSG ;;
+1) $DELIVER -m INBOX.spam <$TMPMSG ;;
 *)
 	# users may override normal delivery and have it go elsewhere
 	if test -r ~/.dc-dlvr.rc
 	then
 		. ~/.dc-dlvr.rc
 	else
-		$DELIVER -m INBOX < $TMPMSG
+		$DELIVER -m INBOX <$TMPMSG
 	fi
 	;;
 esac

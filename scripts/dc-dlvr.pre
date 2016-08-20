@@ -5,7 +5,7 @@
 export PATH=/usr/local/bin:/usr/bin:/bin
 trap 'err=$?; set +e; test $err -eq 0 || rm -f $TMPMSG; exit $err' EXIT
 case $1,$CLIENT_ADDRESS in
-pispam,) exec public-inbox-learn spam < $TMPMSG ;;
-piham,) exec public-inbox-learn ham < $TMPMSG ;;
+pispam,) exec public-inbox-learn spam <$TMPMSG ;;
+piham,) exec public-inbox-learn ham <$TMPMSG ;;
 esac
-exec public-inbox-mda < $TMPMSG
+exec public-inbox-mda <$TMPMSG

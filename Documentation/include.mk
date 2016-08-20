@@ -52,7 +52,7 @@ all :: $(mantxt)
 Documentation/%.txt : Documentation/%.pod
 	$(pod2text) $< $@+ && mv $@+ $@
 
-txt2pre = ./Documentation/txt2pre < $< > $@+ && touch -r $< $@+ && mv $@+ $@
+txt2pre = ./Documentation/txt2pre <$< >$@+ && touch -r $< $@+ && mv $@+ $@
 txt := INSTALL README COPYING TODO
 dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
 dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
@@ -67,7 +67,7 @@ html: $(docs_html)
 gz_docs := $(addsuffix .gz, $(docs) $(docs_html))
 rsync_docs := $(gz_docs) $(docs) $(txt) $(docs_html)
 %.gz: %
-	gzip -9 --rsyncable < $< > $@+
+	gzip -9 --rsyncable <$< >$@+
 	touch -r $< $@+
 	mv $@+ $@
 

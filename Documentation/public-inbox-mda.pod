@@ -4,7 +4,7 @@ public-inbox-mda - mail delivery for public-inbox
 
 =head1 SYNOPSIS
 
-B<public-inbox-mda> E<lt> message
+B<public-inbox-mda> E<lt>MESSAGE
 
 =head1 DESCRIPTION
 
