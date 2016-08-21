@@ -7,12 +7,12 @@ RSYNC_DEST = public-inbox.org:/srv/public-inbox/
 docs := README COPYING INSTALL TODO HACKING
 docs += $(shell git ls-files 'Documentation/*.txt')
 INSTALL = install
-POD2MAN ?= pod2man
-POD2MAN_OPTS = -v --stderr -d 1994-10-02 -c 'public-inbox user manual'
-pod2man = $(POD2MAN) $(POD2MAN_OPTS)
-POD2TEXT = pod2text
-POD2TEXT_OPTS = --stderr
-pod2text = $(POD2TEXT) $(POD2TEXT_OPTS)
+PODMAN = pod2man
+PODMAN_OPTS = -v --stderr -d 1993-10-02 -c 'public-inbox user manual'
+podman = $(PODMAN) $(PODMAN_OPTS)
+PODTEXT = pod2text
+PODTEXT_OPTS = --stderr
+podtext = $(PODTEXT) $(PODTEXT_OPTS)
 
 m1 =
 m1 += public-inbox-mda
@@ -42,7 +42,7 @@ install-man: man
 	test -z "$(man7)" || $(INSTALL) -m 644 $(man7) $(DESTDIR)$(man7dir)
 
 %.1 : Documentation/%.pod
-	$(pod2man) -s 1 $< $@+ && mv $@+ $@
+	$(podman) -s 1 $< $@+ && mv $@+ $@
 
 mantxt = $(addprefix Documentation/, $(addsuffix .txt, $(m1)))
 docs += $(mantxt)
@@ -50,7 +50,7 @@ docs += $(mantxt)
 all :: $(mantxt)
 
 Documentation/%.txt : Documentation/%.pod
-	$(pod2text) $< $@+ && mv $@+ $@
+	$(podtext) $< $@+ && mv $@+ $@
 
 txt2pre = ./Documentation/txt2pre <$< >$@+ && touch -r $< $@+ && mv $@+ $@
 txt := INSTALL README COPYING TODO
