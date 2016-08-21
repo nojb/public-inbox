@@ -88,6 +88,8 @@ Hacking
 Source code is available via git:
 
 	git clone https://public-inbox.org/ public-inbox
+	git clone git://repo.or.cz/public-inbox
+	torsocks git clone http://hjrcffqmbrq6wope.onion/public-inbox
 
 See below for contact info.
 
@@ -119,6 +121,7 @@ And as Tor hidden services:
 You may also clone all messages via git:
 
 	git clone --mirror https://public-inbox.org/meta/
+	torsocks git clone --mirror http://hjrcffqmbrq6wope.onion/meta/
 
 Or pass the same git repository URL for ssoma using the instructions at:
 
