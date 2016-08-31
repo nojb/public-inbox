@@ -9,6 +9,7 @@ docs += $(shell git ls-files 'Documentation/*.txt')
 INSTALL = install
 PODMAN = pod2man
 PODMAN_OPTS = -v --stderr -d 1993-10-02 -c 'public-inbox user manual'
+PODMAN_OPTS += -r public-inbox.git
 podman = $(PODMAN) $(PODMAN_OPTS)
 PODTEXT = pod2text
 PODTEXT_OPTS = --stderr
@@ -41,8 +42,8 @@ install-man: man
 	test -z "$(man5)" || $(INSTALL) -m 644 $(man5) $(DESTDIR)$(man5dir)
 	test -z "$(man7)" || $(INSTALL) -m 644 $(man7) $(DESTDIR)$(man7dir)
 
-%.1 : Documentation/%.pod
-	$(podman) -s 1 $< $@+ && mv $@+ $@
+%.1 %.5 %.7 %.8 : Documentation/%.pod
+	$(podman) -s $(subst .,,$(suffix $@)) $< $@+ && mv $@+ $@
 
 mantxt = $(addprefix Documentation/, $(addsuffix .txt, $(m1)))
 docs += $(mantxt)
