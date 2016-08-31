@@ -59,7 +59,7 @@ dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
 dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
 
 %.html: %.txt
-	$(txt2pre)
+	TITLE="$(basename $(<F))" $(txt2pre)
 %.html: %
 	$(txt2pre)
 
