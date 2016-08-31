@@ -7,28 +7,18 @@
 # and requires indentation to output preformatted text.
 use strict;
 use warnings;
-use Encode qw/encode/;
+use PublicInbox::Linkify;
+use PublicInbox::Hval qw(ascii_html);
+
 my $str = eval { local $/; <> };
-my %xhtml_map = (
-	'"' => '&#34;',
-	'&' => '&#38;',
-	"'" => '&#39;',
-	'<' => '&lt;',
-	'>' => '&gt;',
-);
-$str =~ s/([<>&'"])/$xhtml_map{$1}/ge;
-$str = encode('us-ascii', $str, Encode::HTMLCREF);
 my ($title) = ($str =~ /\A([^\n]+)/);
-
-# temporarily swap &gt; for escape so our s!! to add href works.
-# there's probably a way to do this with only a single s!! ...
-$str =~ s!&gt;!\e!g;
-$str =~ s!\b((nntp|ftp|https?)://[\w+\+\&\?\.\%\;/#-]+)!<a
-href="$1"\n>$1</a>!g;
-
-$str =~ s!\e!&gt;!g; # swap escapes back to &gt;
+$title = ascii_html($title);
+my $l = PublicInbox::Linkify->new;
+$str = $l->linkify_1($str);
+$str = ascii_html($str);
+$str = $l->linkify_2($str);
 
 print '<html><head>',
-  '<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />',
+  qq(<meta\nhttp-equiv="Content-Type"\ncontent="text/html; charset=utf-8"\n/>),
   "<title>$title</title>",
-  "</head><body>\n<pre>",  $str , '</pre></body></html>';
+  "</head><body><pre>",  $str , '</pre></body></html>';

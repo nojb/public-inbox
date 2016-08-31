@@ -52,7 +52,8 @@ all :: $(mantxt)
 Documentation/%.txt : Documentation/%.pod
 	$(podtext) $< $@+ && mv $@+ $@
 
-txt2pre = ./Documentation/txt2pre <$< >$@+ && touch -r $< $@+ && mv $@+ $@
+txt2pre = $(PERL) -I lib ./Documentation/txt2pre <$< >$@+ && \
+	touch -r $< $@+ && mv $@+ $@
 txt := INSTALL README COPYING TODO
 dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
 dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
