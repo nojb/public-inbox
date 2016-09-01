@@ -18,21 +18,25 @@ sub new {
 	my ($class, $config) = @_;
 	my (%mdmap, @mdir, $spamc);
 
-	# XXX is "publicinboxlearn" really a good namespace for this?
-	my $k = 'publicinboxlearn.watchspam';
-	if (my $spamdir = $config->{$k}) {
-		if ($spamdir =~ s/\Amaildir://) {
-			$spamdir =~ s!/+\z!!;
-			# skip "new", no MUA has seen it, yet.
-			my $cur = "$spamdir/cur";
-			push @mdir, $cur;
-			$mdmap{$cur} = 'watchspam';
-		} else {
-			warn "unsupported $k=$spamdir\n";
+	# "publicinboxwatch" is the documented namespace
+	# "publicinboxlearn" is legacy but may be supported
+	# indefinitely...
+	foreach my $pfx (qw(publicinboxwatch publicinboxlearn)) {
+		my $k = "$pfx.watchspam";
+		if (my $spamdir = $config->{$k}) {
+			if ($spamdir =~ s/\Amaildir://) {
+				$spamdir =~ s!/+\z!!;
+				# skip "new", no MUA has seen it, yet.
+				my $cur = "$spamdir/cur";
+				push @mdir, $cur;
+				$mdmap{$cur} = 'watchspam';
+			} else {
+				warn "unsupported $k=$spamdir\n";
+			}
 		}
 	}
 
-	$k = 'publicinboxwatch.spamcheck';
+	my $k = 'publicinboxwatch.spamcheck';
 	my $spamcheck = $config->{$k};
 	if ($spamcheck) {
 		if ($spamcheck eq 'spamc') {
