@@ -90,8 +90,12 @@ sub limiter {
 	my ($self, $name) = @_;
 	$self->{-limiters}->{$name} ||= do {
 		require PublicInbox::Qspawn;
-		my $key = "limiter.$name.max";
-		PublicInbox::Qspawn::Limiter->new($self->{$key});
+		my $max;
+		# XXX "limiter.<name>.max" was a historical mistake
+		foreach my $pfx (qw(publicinboxlimiter limiter)) {
+			$max ||= $self->{"$pfx.$name.max"};
+		}
+		PublicInbox::Qspawn::Limiter->new($max);
 	};
 }
 
