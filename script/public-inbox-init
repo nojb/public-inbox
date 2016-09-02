@@ -63,6 +63,10 @@ my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$filename");
 $git_dir = abs_path($git_dir);
 x(qw(git init -q --bare), $git_dir);
+
+# set a reasonable default:
+x(qw/git config/, "--file=$git_dir/config", 'repack.writeBitmaps', 'true');
+
 foreach my $addr (@address) {
 	next if $seen{lc($addr)};
 	x(@x, "--add", "$pfx.address", $addr);
