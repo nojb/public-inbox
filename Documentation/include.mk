@@ -21,6 +21,7 @@ m1 += public-inbox-mda
 m1 += public-inbox-httpd
 m1 += public-inbox-nntpd
 m1 += public-inbox-watch
+m1 += public-inbox-index
 m5 =
 m5 += public-inbox-config
 m7 =

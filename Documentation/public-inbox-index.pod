@@ -4,7 +4,7 @@ public-inbox-index - create and update search indices
 
 =head1 SYNOPSIS
 
-public-inbox-index GIT_DIR
+public-inbox-index [OPTIONS] GIT_DIR
 
 =head1 DESCRIPTION
 
@@ -18,12 +18,30 @@ L<public-inbox-mda(1)> and L<public-inbox-watch(1)> will
 automatically maintain them.
 
 Running this manually to update indices is only required if
-relying on L<git-fetch(1)> to mirror an existing public-inbox.
+relying on L<git-fetch(1)> to mirror an existing public-inbox;
+or if upgrading to a new version of public-inbox using
+the C<--reindex> option.
 
 Having a search and article number database is essential to
 running the NNTP interface, and strongly recommended for the
 HTTP interface as it provides thread grouping in addition
 to normal search functionality.
+
+=head1 OPTIONS
+
+=over
+
+=item --reindex
+
+Forces a search engine re-index of all messages in the
+repository.  This can be used for in-place upgrades while
+NNTP/HTTP server processes are utilizing the index.  Keep in
+mind this roughly doubles the size of the already-large
+Xapian database.
+
+This does not touch the NNTP article number database.
+
+=back
 
 =head1 FILES
 
@@ -32,6 +50,8 @@ C<$GIT_DIR/public-inbox/> directory.  All files are expected to
 grow in size as more messages are archived, so using compaction
 commands (e.g. L<xapian-compact(1)>) is not recommended unless
 the list is no longer active.
+
+=over
 
 =item $GIT_DIR/public-inbox/msgmap.sqlite3
 
@@ -44,7 +64,7 @@ useful for attempting recovery from copy-paste truncations of
 URLs containing long Message-IDs.
 
 Avoid removing this file and regenerating it; it may cause
-existing NNTP readers to lose sync and miss (or duplicate)
+existing NNTP readers to lose sync and miss (or see duplicate)
 messages.
 
 This file is relatively small, and typically less than 5%
@@ -67,7 +87,10 @@ provides a cache of metadata and header information often
 requested by NNTP clients.
 
 This directory is large, often two to three times the size of
-the objects stored in a packed git repository.
+the objects stored in a packed git repository.  Using the
+C<--reindex> option makes it larger, still.
+
+=back
 
 =head1 ENVIRONMENT
 
