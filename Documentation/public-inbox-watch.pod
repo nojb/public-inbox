@@ -1,0 +1,121 @@
+=head1 NAME
+
+public-inbox-watch - mailbox watcher for public-inbox
+
+=head1 SYNOPSIS
+
+B<public-inbox-watch>
+
+In ~/.public-inbox/config:
+
+	[publicinbox "test"]
+		; generic public-inbox-config keys:
+		address = test@example.com
+		url = http://example.com/test
+		mainrepo = /path/to/test.example.com.git
+
+		; config keys specific to public-inbox-watch:
+		watch = maildir:/path/to/maildirs/.INBOX.test/
+		watchheader = List-Id:<test.example.com>
+
+	[publicinboxwatch]
+		; optional, enable use of spamc(1) for checking:
+		spamcheck = spamc
+
+		; optional, emails marked as read which appear
+		; here will be trained as spam and deleted from
+		; the mainrepos of any public-inboxes which are
+		; configured for watch.
+		; This is global for all publicinbox.* sections
+		watchspam = maildir:/path/to/maildirs/.INBOX.spam
+
+=head1 DESCRIPTION
+
+public-inbox-watch allows watching a mailbox (currently only
+Maildir) for the arrival of new messages and automatically
+importing them into a public-inbox (git) repository.
+public-inbox-watch is useful in situations when a user wishes to
+mirror an existing mailing list, but has no access to run
+L<public-inbox-mda(1)> on a server.  Unlike public-inbox-mda
+which is invoked once per-message, public-inbox-watch is a
+persistent process, making it faster for after-the-fact imports
+of large Maildirs.
+
+Upon startup, it scans the mailbox for new messages to be
+imported while it was not running.
+
+Currently, only Maildirs are supported and the
+L<Filesys::Notify::Simple> Perl module is required.
+
+For now, IMAP users should use tools such as L<mbsync(1)>
+or L<offlineimap(1)> to bidirectionally sync their IMAP
+folders to Maildirs for public-inbox-watch.
+
+public-inbox-watch should be run inside a L<screen(1)> session
+or as a L<systemd(1)> service.  Errors are emitted to stderr.
+
+=head1 OPTIONS
+
+public-inbox-watch takes no command-line options.
+
+=head1 CONFIGURATION
+
+These configuration knobs should be used in the
+L<public-inbox-config(5)>
+
+=over 8
+
+=item publicinbox.<name>.watch
+
+=item publicinbox.<name>.watchheader
+
+=item publicinboxwatch.spamcheck
+
+=item publicinboxwatch.watchspam
+
+=back
+
+See L<public-inbox-config(5)> for documentation on them.
+
+=head1 SIGNALS
+
+=over 8
+
+=item SIGHUP
+
+Reload the config file (default: ~/.public-inbox/config)
+
+=item SIGUSR1
+
+Rescan all watched mailboxes.  This is done automatically after
+startup.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+config file. default: ~/.public-inbox/config
+See L<public-inbox-config(5)>
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-config(5)>

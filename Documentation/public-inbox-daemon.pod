@@ -1,0 +1,171 @@
+=head1 NAME
+
+public-inbox-daemon - common usage for public-inbox network daemons
+
+=head1 SYNOPSIS
+
+	public-inbox-httpd
+	public-inbox-nntpd
+
+=head1 DESCRIPTION
+
+This manual describes common options and behavior for
+public-inbox network daemons.  Network daemons for public-inbox
+provide read-only NNTP and HTTP access to public-inboxes.  Write
+access to a public-inbox repository will never be required to
+run these.
+
+These daemons are implemented with a common core using
+non-blocking sockets and optimized for fairness; even with
+thousands of connected clients over slow links.
+
+They also provide graceful shutdown/upgrade support to avoid
+breaking existing connections during software upgrades.
+
+These daemons may also utilize multiple pre-forked worker
+processes to take advantage of multiple CPUs.
+
+Native TLS (Transport Layer Security) support is planned.
+
+=head1 OPTIONS
+
+=over
+
+=item -l, --listen ADDRESS
+
+This takes an absolute path to a Unix socket or HOST:PORT
+to listen on.  For example, to listen to TCP connections on
+port 119, use: C<-l 0.0.0.0:119>.  This may also point to
+a Unix socket (C<-l /path/to/http.sock>) for a reverse proxy
+like L<nginx(1)> to use.
+
+May be specified multiple times to allow listening on multiple
+sockets.
+
+Default: server-dependent unless socket activation is used with
+L<systemd(1)> or similar (see L<systemd.socket(5)>).
+
+=item -1, --stdout PATH
+
+Specify an appendable path to redirect stdout descriptor (1) to.
+Using this is preferable to setting up the redirect externally
+(e.g. E<gt>E<gt>/path/to/log in shell) since it allows
+SIGUSR1 to be handled (see L<SIGNALS/SIGNALS> below).
+
+Default: /dev/null
+
+=item -2, --stderr PATH
+
+Like C<--stdout>, but for the stderr descriptor (2).
+
+=item -W, --worker-processes
+
+Set the number of worker processes.
+
+Normally, this should match the number of CPUs on the system to
+take full advantage of the hardware.  However, users of
+memory-constrained systems may want to lower this.
+
+Setting this to zero (C<-W0>) disables the master/worker split;
+saving some memory but removing the ability to use SIGTTIN
+to increase worker processes or have the worker restarted by
+the master on crashes.
+
+Default: 1
+
+=back
+
+=head1 SIGNALS
+
+Most of our signal handling behavior is copied from L<nginx(1)>
+and/or L<starman(1)>; so it is possible to reuse common scripts
+for managing them.
+
+=over 8
+
+=item SIGUSR1
+
+Reopens log files pointed to by --stdout and --stderr options.
+
+=item SIGUSR2
+
+Spawn a new process with the intention to replace the running one.
+See L</UPGRADING> below.
+
+=item SIGHUP
+
+Reload config files associated with the process.
+(FIXME: not tested for -httpd, yet)
+
+=item SIGTTIN
+
+Increase the number of running workers processes by one.
+
+=item SIGTTOU
+
+Decrease the number of running worker processes by one.
+
+=item SIGWINCH
+
+Stop all running worker processes.   SIGHUP or SIGTTIN
+may be used to restart workers.
+
+=item SIGQUIT
+
+Gracefully terminate the running process.
+
+=back
+
+SIGTTOU, SIGTTIN, SIGWINCH all have no effect when worker
+processes are disabled with C<-W0> on the command-line.
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+The default config file, normally "~/.public-inbox/config".
+See L<public-inbox-config(5)>
+
+=item LISTEN_FDS, LISTEN_PID
+
+Used by systemd (and compatible) installations for socket
+activation.  See L<systemd.socket(5)> and L<sd_listen_fds(3)>.
+
+=back
+
+=head1 UPGRADING
+
+There are two ways to upgrade a running process.
+
+Users of process management systems with socket activation
+(L<systemd(1)> or similar) may rely on multiple instances For
+systemd, this means using two (or more) '@' instances for each
+service (e.g. C<SERVICENAME@INSTANCE>) as documented in
+L<systemd.unit(5)>.
+
+Users of traditional SysV init may use SIGUSR2 to spawn
+a replacement process and gracefully terminate the old
+process using SIGQUIT.
+
+In either case, the old process will not truncate running
+responses; so responses to expensive requests do not get
+interrupted and lost.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2013-2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-httpd(1)>, L<public-inbox-nntpd(1)>

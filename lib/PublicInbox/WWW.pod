@@ -1,0 +1,56 @@
+=head1 NAME
+
+PublicInbox::WWW - PSGI interface for public-inbox
+
+=head1 SYNOPSIS
+
+In your .psgi file:
+
+	use PublicInbox::WWW;
+
+	my $www = PublicInbox::WWW->new;
+	builder {
+		enable 'Head';
+		mount '/inboxes' => sub { $www->call(@_) };
+	};
+
+=head1 DESCRIPTION
+
+The PSGI web interface for public-inbox.
+
+Using this directly is not needed unless you wish to customize
+your public-inbox PSGI deployment or are using a PSGI server
+other than L<public-inbox-httpd(1)>.
+
+While this PSGI application works with all PSGI/Plack web
+servers such as L<starman(1)>, L<starlet(1)> or L<twiggy(1)>;
+PublicInbox::WWW takes advantage of currently-undocumented APIs
+of L<public-inbox-httpd(1)> to improve fairness when serving
+large responses for thread views and git clones.
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+Used to override the default "~/.public-inbox/config" value.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<http://plackperl.org/>, L<Plack>, L<public-inbox-httpd(1)>

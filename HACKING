@@ -36,12 +36,14 @@ In general, we favor mature and well-tested old things rather than
 the shiny new.
 
 Avoid relying on compiled modules too much.  Even if it is Free,
-compiled code makes packages more expensive to audit, build, and
+compiled code makes packages more expensive to audit, build,
 distribute and verify.  public-inbox itself will only be implemented
 in scripting languages (currently Perl 5).
 
 Performance should be reasonably good for server administrators, too,
 and we will sacrifice features to achieve predictable performance.
+Encouraging folks to self-host will be easier with lower hardware
+requirements.
 
 See design_www.txt and design_notes.txt in the Documentation/
 directory for design decisions made during development.

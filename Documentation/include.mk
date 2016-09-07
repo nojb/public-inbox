@@ -15,37 +15,58 @@ PODTEXT = pod2text
 PODTEXT_OPTS = --stderr
 podtext = $(PODTEXT) $(PODTEXT_OPTS)
 
+# MakeMaker only seems to support manpage sections 1 and 3...
 m1 =
 m1 += public-inbox-mda
+m1 += public-inbox-httpd
+m1 += public-inbox-nntpd
+m1 += public-inbox-watch
 m5 =
+m5 += public-inbox-config
 m7 =
+m7 += public-inbox-overview
+m8 =
+m8 += public-inbox-daemon
 
 man1 := $(addsuffix .1, $(m1))
 man5 := $(addsuffix .5, $(m5))
 man7 := $(addsuffix .7, $(m7))
+man8 := $(addsuffix .8, $(m8))
 
 all:: man html
 
-man: $(man1) $(man5) $(man7)
+man: $(man1) $(man5) $(man7) $(man8)
 
+prefix ?= $(PREFIX)
 prefix ?= $(HOME)
 mandir ?= $(prefix)/share/man
 man1dir = $(mandir)/man1
 man5dir = $(mandir)/man5
 man7dir = $(mandir)/man7
+man8dir = $(mandir)/man8
 
 install-man: man
 	test -z "$(man1)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man1dir)
 	test -z "$(man5)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man5dir)
 	test -z "$(man7)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man7dir)
+	test -z "$(man8)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man8dir)
 	test -z "$(man1)" || $(INSTALL) -m 644 $(man1) $(DESTDIR)$(man1dir)
 	test -z "$(man5)" || $(INSTALL) -m 644 $(man5) $(DESTDIR)$(man5dir)
 	test -z "$(man7)" || $(INSTALL) -m 644 $(man7) $(DESTDIR)$(man7dir)
+	test -z "$(man8)" || $(INSTALL) -m 644 $(man8) $(DESTDIR)$(man8dir)
+
+doc_install :: install-man
 
 %.1 %.5 %.7 %.8 : Documentation/%.pod
 	$(podman) -s $(subst .,,$(suffix $@)) $< $@+ && mv $@+ $@
 
-mantxt = $(addprefix Documentation/, $(addsuffix .txt, $(m1)))
+manuals :=
+manuals += $(m1)
+manuals += $(m5)
+manuals += $(m7)
+manuals += $(m8)
+
+mantxt = $(addprefix Documentation/, $(addsuffix .txt, $(manuals)))
 docs += $(mantxt)
 
 all :: $(mantxt)

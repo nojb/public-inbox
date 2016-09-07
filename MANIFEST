@@ -5,7 +5,14 @@ Documentation/dc-dlvr-spam-flow.txt
 Documentation/design_notes.txt
 Documentation/design_www.txt
 Documentation/include.mk
+Documentation/public-inbox-config.pod
+Documentation/public-inbox-daemon.pod
+Documentation/public-inbox-httpd.pod
+Documentation/public-inbox-index.pod
 Documentation/public-inbox-mda.pod
+Documentation/public-inbox-nntpd.pod
+Documentation/public-inbox-overview.pod
+Documentation/public-inbox-watch.pod
 Documentation/txt2pre
 HACKING
 INSTALL
@@ -79,6 +86,7 @@ lib/PublicInbox/Thread.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/View.pm
 lib/PublicInbox/WWW.pm
+lib/PublicInbox/WWW.pod
 lib/PublicInbox/WatchMaildir.pm
 lib/PublicInbox/WwwAttach.pm
 lib/PublicInbox/WwwStream.pm

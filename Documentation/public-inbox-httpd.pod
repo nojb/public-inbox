@@ -1,0 +1,40 @@
+=head1 NAME
+
+public-inbox-httpd - PSGI server optimized for public-inbox
+
+=head1 SYNOPSIS
+
+B<public-inbox-httpd> [OPTIONS] [/path/to/myapp.psgi]
+
+=head1 DESCRIPTION
+
+public-inbox-httpd is a PSGI/Plack server supporting HTTP/1.1
+and HTTP/1.0.  It uses options and environment variables common
+to all L<public-inbox-daemon(8)> implementations in addition to
+the PSGI file.
+
+If a PSGI file is not specified, L<PublicInbox::WWW> is
+loaded with a default middleware stack consisting of
+L<Plack::Middleware::Deflater>,
+L<Plack::Middleware::ReverseProxy>, and
+L<Plack::Middleware::Head>
+
+This may point to a PSGI file for supporting generic PSGI apps.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2013-2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<git(1)>, L<git-config(1)>, L<public-inbox-daemon(8)>,
+L<Plack>

@@ -1,0 +1,97 @@
+=head1 NAME
+
+public-inbox-index - create and update search indices
+
+=head1 SYNOPSIS
+
+public-inbox-index GIT_DIR
+
+=head1 DESCRIPTION
+
+public-inbox-index creates and updates the search and NNTP
+article number database used by the read-only public-inbox HTTP
+and NNTP interfaces.  Currently, this requires L<Search::Xapian>
+and L<DBD::SQlite> and L<DBI> Perl modules.
+
+Once the initial indices are created by public-inbox-index,
+L<public-inbox-mda(1)> and L<public-inbox-watch(1)> will
+automatically maintain them.
+
+Running this manually to update indices is only required if
+relying on L<git-fetch(1)> to mirror an existing public-inbox.
+
+Having a search and article number database is essential to
+running the NNTP interface, and strongly recommended for the
+HTTP interface as it provides thread grouping in addition
+to normal search functionality.
+
+=head1 FILES
+
+All public-inbox-specific files are contained within the
+C<$GIT_DIR/public-inbox/> directory.  All files are expected to
+grow in size as more messages are archived, so using compaction
+commands (e.g. L<xapian-compact(1)>) is not recommended unless
+the list is no longer active.
+
+=item $GIT_DIR/public-inbox/msgmap.sqlite3
+
+The stable NNTP article number to Message-ID mapping is
+stored in an SQLite3 database.
+
+This is required for users of L<public-inbox-nntpd(1)>, but
+users of the L<PublicInbox::WWW> interface will find it
+useful for attempting recovery from copy-paste truncations of
+URLs containing long Message-IDs.
+
+Avoid removing this file and regenerating it; it may cause
+existing NNTP readers to lose sync and miss (or duplicate)
+messages.
+
+This file is relatively small, and typically less than 5%
+of the space of the mail stored in a packed git repository.
+
+=item $GIT_DIR/public-inbox/xapian*
+
+The database used by L<Search::Xapian>.  This directory name is
+followed by a number indicating the index schema version this
+installation of public-inbox uses.
+
+These directories may be safely deleted or removed in full
+while the NNTP and HTTP interfaces are no longer accessing
+them.
+
+In addition to providing a search interface for the HTTP
+interface, the Xapian database is used to group and combine
+related messages into threads.  For NNTP servers, it also
+provides a cache of metadata and header information often
+requested by NNTP clients.
+
+This directory is large, often two to three times the size of
+the objects stored in a packed git repository.
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+Used to override the default "~/.public-inbox/config" value.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<Search::Xapian>, L<DBD::SQLite>

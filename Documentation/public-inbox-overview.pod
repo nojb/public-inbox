@@ -1,0 +1,108 @@
+=head1 NAME
+
+public-inbox-overview - an overview of public-inbox
+
+=head1 DESCRIPTION
+
+public-inbox consists of many parts which may be used
+independently or in conjunction of each other for:
+
+=over 4
+
+=item 1
+
+Mirroring existing public-inboxes.
+
+=item 2
+
+Mirroring mailing lists directly.
+
+=item 3
+
+Hosting standalone.
+
+=back
+
+=head2 Mirroring existing public-inboxes
+
+Mirroring existing public-inboxes is the easiest way to get
+started.  Your mirror will remain dependent on the REMOTE_URL
+you are mirroring and you only need to use two new commands in
+addition to common L<git(1)> commands.
+
+	git clone --mirror REMOTE_URL /path/to/repo.git
+
+	# The following should create the necessary entry in
+	# ~/.public-inbox/config
+	public-inbox-init NAME /path/to/repo.git MY_URL LIST_ADDRESS
+
+	# Optional but strongly recommended for hosting HTTP
+	# (and required for NNTP)
+	# enable search (requires Search::Xapian and DBD::SQLite)
+	public-inbox-index /path/to/repo.git
+
+	# Periodically update the repo with the following commands
+	# to update the git repo and index new messages:
+	cd /path/to/repo.git && git fetch && public-inbox-index
+
+See L</"Hosting public-inboxes"> below for info on how to expose
+your mirror to other readers.
+
+=head2 Mirroring mailing lists directly
+
+Mirroring existing mailing lists may be done by any reader
+of a mailing list using L<public-inbox-watch(1)>.
+
+	# This will create a new git repository:
+	public-inbox-init NAME /path/to/repo.git MY_URL LIST_ADDRESS
+
+Then, see the L<public-inbox-watch(1)> manual for configuring
+C<watch>, C<watchheader>, and the optional C<spamcheck> and
+C<watchspam> entries.
+
+You will need to leave L<public-inbox-watch(1)> running to
+keep the mailbox up-to-date as messages are delivered to
+the mailing list.
+
+Running L<public-inbox-index(1)> to create search indices
+is recommended.  L<public-inbox-watch(1)> will automatically
+maintain the indices if they were created by
+L<public-inbox-index(1)>
+
+	public-inbox-index /path/to/repo.git
+
+=head2 Hosting standalone
+
+Using L<public-inbox-init(1)> to initialize the inbox as in the
+other methods is recommended.  See L<public-inbox-mda(1)> for
+more details; but this also requires MTA-specific knowledge.
+
+=head2 Hosting public-inboxes
+
+Since public-inboxes are git repositories, they may be served to
+remote clients via L<git-daemon(1)> as well as specialized HTTP
+and NNTP daemons distributed with public-inbox.
+
+See L<public-inbox-httpd(1)> and L<public-inbox-nntpd(1)>
+for more information on using these daemons.
+
+Hosting a public-inbox over HTTP or NNTP will never require
+write access to any files in the git repository, including
+the search indices or article number map database.
+
+Users familiar with PSGI and L<Plack> may also use
+L<PublicInbox::WWW> with the preferred server instead of
+L<public-inbox-httpd(1)>
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>

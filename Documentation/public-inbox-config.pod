@@ -1,0 +1,151 @@
+=head1 NAME
+
+public-inbox-config - public-inbox config file description
+
+=head1 SYNOPSIS
+
+~/.public-inbox/config
+
+=head1 DESCRIPTION
+
+The public-inbox config file is parseable by L<git-config(1)>.
+This is a global configuration file for mapping/discovering
+all public-inboxes used by a particular user.
+
+=head1 CONFIGURATION FILE
+
+=head2 EXAMPLE
+
+	[publicinbox "test"]
+		mainrepo = /home/user/path/to/test.git
+		; multiple addresses are supported
+		address = test@example.com
+		; address = alternate@example.com
+		url = http://example.com/test
+		newsgroup = inbox.test
+
+=head2 VARIABLES
+
+=over 8
+
+=item publicinbox.<name>.address
+
+The email address of the public-inbox.  May be specified
+more than once for merging multiple mailing lists (or migrating
+to new addresses).  This must be specified at least once,
+the first value will be considered the primary address for
+informational purposes.
+
+Default: none, required
+
+=item publicinbox.<name>.mainrepo
+
+The absolute path to the git repository which hosts the
+public-inbox.  This must be specified once.
+
+Default: none, required
+
+=item publicinbox.<name>.url
+
+The primary URL for hosting the HTTP/HTTPS archives.
+Additional HTTP/HTTPS URLs may be specified via
+C<$GIT_DIR/cloneurl> as documented in L<gitweb(1)>
+
+Default: none, optional
+
+=item publicinbox.<name>.newsgroup
+
+The NNTP group name for use with L<public-inbox-nntpd(8)>.  This
+may be any newsgroup name with hierarchies delimited by '.'.
+For example, the newsgroup for L<mailto:meta@public-inbox.org>
+is: C<inbox.comp.mail.public-inbox.meta>
+
+Omitting this for the given inbox will prevent the group from
+being read by L<public-inbox-nntpd(1)>
+
+Default: none, optional
+
+=item publicinbox.<name>.watch
+
+A location for L<public-inbox-watch(1)> to watch.  Currently,
+only C<maildir:> paths are supported:
+
+	[publicinbox "test"]
+		watch = maildir:/path/to/maildirs/.INBOX.test/
+
+Default: none; only for L<public-inbox-watch(1)> users
+
+=item publicinbox.<name>.watchheader
+
+	[publicinbox "test"]
+		watchheader = List-Id:<test.example.com>
+
+Default: none; only for L<public-inbox-watch(1)> users
+
+=item publicinbox.<name>.nntpmirror
+
+This may be the full NNTP URL of an independently-run mirror.
+For example, the https://public-inbox.org/meta/ inbox is
+mirrored by Gmane at
+C<nntp://news.gmane.org/gmane.mail.public-inbox.general>
+
+Default: none
+
+=item publicinboxwatch.spamcheck
+
+This may be set to C<spamc> to enable the use of SpamAssassin
+L<spamc(1)> for filtering spam before it is imported into git
+history.  Other spam filtering backends may be supported in
+the future.
+
+Default: none
+
+=item publicinboxwatch.watchspam
+
+This may be set to C<spamc> to enable the use of SpamAssassin
+L<spamc(1)> for filtering spam before it is imported into git
+history.  Other spam filtering backends may be supported in
+the future.  This only affects L<public-inbox-watch(1)>.
+
+Default: none
+
+=item publicinbox.nntpserver
+
+Set this to point to the address of the L<public-inbox-nntpd(1)>
+instance.  This is used to advertise the existence of the NNTP
+presnce in the L<PublicInbox::WWW> HTML interface.
+
+Multiple values are allowed for servers with multiple
+addresses or mirrors.
+
+Default: none
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+Used to override the default "~/.public-inbox/config" value.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2016 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<git(1)>, L<git-config(1)>, L<public-inbox-daemon(8)>,
+L<public-inbox-mda(1)>, L<public-inbox-watch(1)>
