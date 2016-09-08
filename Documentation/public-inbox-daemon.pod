@@ -133,6 +133,18 @@ See L<public-inbox-config(5)>
 Used by systemd (and compatible) installations for socket
 activation.  See L<systemd.socket(5)> and L<sd_listen_fds(3)>.
 
+=item PERL_INLINE_DIRECTORY
+
+Pointing this to point to a writable directory enables the use
+of L<Inline> and L<Inline::C> extensions which may provide
+platform-specific performance improvements.  Currently, this
+enables the use of L<vfork(2)> which speeds up subprocess
+spawning with the Linux kernel.
+
+public-inbox will never enable L<Inline::C> automatically without
+this environment variable set.  See L<Inline> and L<Inline::C>
+for more details.
+
 =back
 
 =head1 UPGRADING

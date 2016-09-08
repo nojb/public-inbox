@@ -101,6 +101,12 @@ startup.
 config file. default: ~/.public-inbox/config
 See L<public-inbox-config(5)>
 
+=item PERL_INLINE_DIRECTORY
+
+This may affect any public-inbox processes, but is intended
+for long-lived ones such as C<public-inbox-watch> or network
+daemons.  See L<public-inbox-daemon(8)>.
+
 =back
 
 =head1 CONTACT
