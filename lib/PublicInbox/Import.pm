@@ -75,6 +75,15 @@ sub norm_body ($) {
 	$b
 }
 
+sub _check_path ($$$$) {
+	my ($r, $w, $tip, $path) = @_;
+	return if $tip eq '';
+	print $w "ls $tip $path\n" or wfail;
+	local $/ = "\n";
+	defined(my $info = <$r>) or die "EOF from fast-import: $!";
+	$info =~ /\Amissing / ? undef : $info;
+}
+
 # returns undef on non-existent
 # ('MISMATCH', msg) on mismatch
 # (:MARK, msg) on success
@@ -86,20 +95,16 @@ sub remove {
 
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};
-	return ('MISSING', undef) if $tip eq '';
-
-	print $w "ls $tip $path\n" or wfail;
-	local $/ = "\n";
-	my $check = <$r>;
-	defined $check or die "EOF from fast-import / ls: $!";
-	return ('MISSING', undef) if $check =~ /\Amissing /;
-	$check =~ m!\A100644 blob ([a-f0-9]{40})\t!s or die "not blob: $check";
+	my $info = _check_path($r, $w, $tip, $path) or return ('MISSING',undef);
+	$info =~ m!\A100644 blob ([a-f0-9]{40})\t!s or die "not blob: $info";
 	my $blob = $1;
+
 	print $w "cat-blob $blob\n" or wfail;
-	$check = <$r>;
-	defined $check or die "EOF from fast-import / cat-blob: $!";
-	$check =~ /\A[a-f0-9]{40} blob (\d+)\n\z/ or
-				die "unexpected cat-blob response: $check";
+	local $/ = "\n";
+	$info = <$r>;
+	defined $info or die "EOF from fast-import / cat-blob: $!";
+	$info =~ /\A[a-f0-9]{40} blob (\d+)\n\z/ or
+				die "unexpected cat-blob response: $info";
 	my $left = $1;
 	my $offset = 0;
 	my $buf = '';
@@ -162,13 +167,7 @@ sub add {
 
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};
-	if ($tip ne '') {
-		print $w "ls $tip $path\n" or wfail;
-		local $/ = "\n";
-		my $check = <$r>;
-		defined $check or die "EOF from fast-import: $!";
-		return unless $check =~ /\Amissing /;
-	}
+	_check_path($r, $w, $tip, $path) and return;
 
 	# kill potentially confusing/misleading headers
 	$mime->header_set($_) for qw(bytes lines content-length status);
