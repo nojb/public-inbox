@@ -413,7 +413,6 @@ sub attach_link ($$$$;$) {
 	my $nl = $idx[-1] > 1 ? "\n" : '';
 	my $idx = join('.', @idx);
 	my $size = bytes::length($part->body);
-	$ct ||= 'text/plain';
 
 	# hide attributes normally, unless we want to aid users in
 	# spotting MUA problems:
@@ -444,10 +443,10 @@ sub attach_link ($$$$;$) {
 sub add_text_body {
 	my ($upfx, $p) = @_; # from msg_iter: [ Email::MIME, depth, @idx ]
 	my ($part, $depth, @idx) = @$p;
-	my $ct = $part->content_type;
+	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 
-	if (defined $ct && $ct =~ m!\btext/x?html\b!i) {
+	if ($ct =~ m!\btext/x?html\b!i) {
 		return attach_link($upfx, $ct, $p, $fn);
 	}
 
