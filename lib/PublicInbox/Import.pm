@@ -204,6 +204,14 @@ sub add {
 	$self->{tip} = ":$commit";
 }
 
+sub run_die ($$) {
+	my ($cmd, $env) = @_;
+	my $pid = spawn($cmd, $env, undef);
+	defined $pid or die "spawning ".join(' ', @$cmd)." failed: $!";
+	waitpid($pid, 0) == $pid or die join(' ', @$cmd) .' did not finish';
+	$? == 0 or die join(' ', @$cmd) . " failed: $?\n";
+}
+
 sub done {
 	my ($self) = @_;
 	my $w = delete $self->{out} or return;
@@ -222,19 +230,10 @@ sub done {
 	if ($nchg && !$ENV{FAST}) {
 		my $index = "$git_dir/ssoma.index";
 		my $env = { GIT_INDEX_FILE => $index };
-		my @rt = (@cmd, qw(read-tree -m -v -i), $self->{ref});
-		$pid = spawn(\@rt, $env, undef);
-		defined $pid or die "spawn read-tree failed: $!";
-		waitpid($pid, 0) == $pid or die 'read-tree did not finish';
-		$? == 0 or die "failed to update $git_dir/ssoma.index: $?\n";
+		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
 	}
 	if ($nchg) {
-		$pid = spawn([@cmd, 'update-server-info'], undef, undef);
-		defined $pid or die "spawn update-server-info failed: $!\n";
-		waitpid($pid, 0) == $pid or
-			die 'update-server-info did not finish';
-		$? == 0 or die "failed to update-server-info: $?\n";
-
+		run_die([@cmd, 'update-server-info'], undef);
 		eval {
 			require PublicInbox::SearchIdx;
 			my $inbox = $self->{inbox} || $git_dir;
