@@ -54,6 +54,7 @@ ok(-S $unix, 'UNIX socket was bound by -httpd');
 sub check_sock ($) {
 	my ($unix) = @_;
 	my $sock = IO::Socket::UNIX->new(Peer => $unix, Type => SOCK_STREAM);
+	warn "E: $! connecting to $unix\n" unless defined $sock;
 	ok($sock, 'client UNIX socket connected');
 	ok($sock->write("GET /host-port HTTP/1.0\r\n\r\n"),
 		'wrote req to server');
