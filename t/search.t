@@ -86,6 +86,7 @@ my $rw_commit = sub {
 			'Message-ID' => '<last@s>',
 			From => 'John Smith <js@example.com>',
 			To => 'list@example.com',
+			Cc => 'foo@example.com',
 		],
 		body => "goodbye forever :<\n");
 
@@ -322,6 +323,42 @@ sub filter_mids {
 	is(scalar @{$res->{msgs}}, 0, 'nothing after 20101003');
 	$res = $ro->query('d:..19931001');
 	is(scalar @{$res->{msgs}}, 0, 'nothing before 19931001');
+}
+
+# names and addresses
+{
+	my $res = $ro->query('t:list@example.com');
+	is(scalar @{$res->{msgs}}, 6, 'searched To: successfully');
+	foreach my $smsg (@{$res->{msgs}}) {
+		like($smsg->to, qr/\blist\@example\.com\b/, 'to appears');
+	}
+
+	$res = $ro->query('tc:list@example.com');
+	is(scalar @{$res->{msgs}}, 6, 'searched To+Cc: successfully');
+	foreach my $smsg (@{$res->{msgs}}) {
+		my $tocc = join("\n", $smsg->to, $smsg->cc);
+		like($tocc, qr/\blist\@example\.com\b/, 'tocc appears');
+	}
+
+	foreach my $pfx ('tcf:', 'c:') {
+		$res = $ro->query($pfx . 'foo@example.com');
+		is(scalar @{$res->{msgs}}, 1,
+			"searched $pfx successfully for Cc:");
+		foreach my $smsg (@{$res->{msgs}}) {
+			like($smsg->cc, qr/\bfoo\@example\.com\b/,
+				'cc appears');
+		}
+	}
+
+	foreach my $pfx ('', 'tcf:', 'f:') {
+		$res = $ro->query($pfx . 'Laggy');
+		is(scalar @{$res->{msgs}}, 1,
+			"searched $pfx successfully for From:");
+		foreach my $smsg (@{$res->{msgs}}) {
+			like($smsg->from, qr/Laggy Sender/,
+				"From appears with $pfx");
+		}
+	}
 }
 
 done_testing();

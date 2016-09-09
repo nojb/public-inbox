@@ -51,8 +51,8 @@ my %bool_pfx_internal = (
 	thread => 'G', # newsGroup (or similar entity - e.g. a web forum name)
 );
 
-# do we still need these? probably not..
 my %bool_pfx_external = (
+	# do we still need these? probably not..
 	path => 'XPATH',
 	mid => 'Q', # uniQue id (Message-ID)
 );
@@ -61,6 +61,14 @@ my %prob_prefix = (
 	subject => 'S',
 	s => 'S', # for mairix compatibility
 	m => 'Q', # 'mid' is exact, 'm' can do partial
+	f => 'A', # for mairix compatibility
+	t => 'XTO', # for mairix compatibility
+	tc => 'XTC', # for mairix compatibility
+	c => 'XCC', # for mairix compatibility
+	tcf => 'XTCF', # for mairix compatibility
+	# n.b.: leaving out "a:" alias for "tcf:" even though
+	# mairix supports it.  It is only mentioned in passing in mairix(1)
+	# and the extra two letters are not significantly longer.
 );
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian

@@ -96,10 +96,49 @@ sub _lock_release {
 	close $lockfh or die "close failed: $!\n";
 }
 
-sub add_val {
+sub add_val ($$$) {
 	my ($doc, $col, $num) = @_;
 	$num = Search::Xapian::sortable_serialise($num);
 	$doc->add_value($col, $num);
+}
+
+sub add_values ($$$) {
+	my ($smsg, $bytes, $num) = @_;
+
+	my $ts = $smsg->ts;
+	my $doc = $smsg->{doc};
+	add_val($doc, &PublicInbox::Search::TS, $ts);
+
+	defined($num) and add_val($doc, &PublicInbox::Search::NUM, $num);
+
+	defined($bytes) and add_val($doc, &PublicInbox::Search::BYTES, $bytes);
+
+	add_val($doc, &PublicInbox::Search::LINES,
+			$smsg->{mime}->body_raw =~ tr!\n!\n!);
+
+	my $yyyymmdd = strftime('%Y%m%d', gmtime($ts));
+	$doc->add_value(&PublicInbox::Search::YYYYMMDD, $yyyymmdd);
+}
+
+sub index_users ($$) {
+	my ($tg, $smsg) = @_;
+
+	my $from = $smsg->from;
+	my $to = $smsg->to;
+	my $cc = $smsg->cc;
+
+	$tg->index_text($from, 1, 'A'); # A - author
+	$tg->increase_termpos;
+
+	$tg->index_text($to, 1, 'XTO') if $to ne '';
+	$tg->index_text($cc, 1, 'XCC') if $cc ne '';
+	my $tc = join("\t", $to, $cc);
+	$tg->index_text($tc, 1, 'XTC') if $tc ne '';
+	my $tcf = join("\t", $tc, $from);
+	$tg->index_text($tcf, 1, 'XTCF') if $tcf ne '';
+
+	$tg->index_text($from);
+	$tg->increase_termpos;
 }
 
 sub add_message {
@@ -129,20 +168,7 @@ sub add_message {
 			$doc->add_term(xpfx('path') . id_compress($path));
 		}
 
-		my $ts = $smsg->ts;
-		add_val($doc, &PublicInbox::Search::TS, $ts);
-
-		defined($num) and
-			add_val($doc, &PublicInbox::Search::NUM, $num);
-
-		defined($bytes) and
-			add_val($doc, &PublicInbox::Search::BYTES, $bytes);
-
-		add_val($doc, &PublicInbox::Search::LINES,
-				$mime->body_raw =~ tr!\n!\n!);
-
-		my $yyyymmdd = strftime('%Y%m%d', gmtime($ts));
-		$doc->add_value(&PublicInbox::Search::YYYYMMDD, $yyyymmdd);
+		add_values($smsg, $bytes, $num);
 
 		my $tg = $self->term_generator;
 
@@ -152,8 +178,7 @@ sub add_message {
 		$tg->index_text($subj) if $subj;
 		$tg->increase_termpos;
 
-		$tg->index_text($smsg->from);
-		$tg->increase_termpos;
+		index_users($tg, $smsg);
 
 		msg_iter($mime, sub {
 			my ($part, $depth, @idx) = @{$_[0]};
