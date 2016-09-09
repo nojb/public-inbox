@@ -15,6 +15,8 @@ require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use Digest::SHA qw(sha1_hex);
+use Time::Local qw(timegm timelocal);
 use constant {
 	r501 => '501 command syntax error',
 	r221 => '221 Header follows',
@@ -237,7 +239,6 @@ sub cmd_listgroup ($;$) {
 
 sub parse_time ($$;$) {
 	my ($date, $time, $gmt) = @_;
-	use Time::Local qw();
 	my ($hh, $mm, $ss) = unpack('A2A2A2', $time);
 	if (defined $gmt) {
 		$gmt =~ /\A(?:UTC|GMT)\z/i or die "GM invalid: $gmt";
@@ -255,9 +256,9 @@ sub parse_time ($$;$) {
 		}
 	}
 	if ($gmt) {
-		Time::Local::timegm($ss, $mm, $hh, $DD, $MM - 1, $YYYY);
+		timegm($ss, $mm, $hh, $DD, $MM - 1, $YYYY);
 	} else {
-		Time::Local::timelocal($ss, $mm, $hh, $DD, $MM - 1, $YYYY);
+		timelocal($ss, $mm, $hh, $DD, $MM - 1, $YYYY);
 	}
 }
 
@@ -286,7 +287,6 @@ sub wildmat2re (;$) {
 	return $_[0] = qr/.*/ if (!defined $_[0] || $_[0] eq '*');
 	my %keep;
 	my $salt = rand;
-	use Digest::SHA qw(sha1_hex);
 	my $tmp = $_[0];
 
 	$tmp =~ s#(?<!\\)\[(.+)(?<!\\)\]#
