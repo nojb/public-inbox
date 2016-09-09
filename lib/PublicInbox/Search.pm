@@ -60,20 +60,23 @@ my %bool_pfx_external = (
 my %prob_prefix = (
 	# for mairix compatibility
 	s => 'S',
-	m => 'Q', # 'mid' is exact, 'm' can do partial
+	m => 'XMID', # 'mid:' (bool) is exact, 'm:' (prob) can do partial
 	f => 'A',
 	t => 'XTO',
-	tc => 'XTC',
+	tc => 'XTO XCC',
 	c => 'XCC',
-	tcf => 'XTCF',
-	b => 'XBODY',
-	bs => 'XBS',
+	tcf => 'XTO XCC A',
+	b => 'XNQ XQUOT',
+	bs => 'XNQ XQUOT S',
 
 	# n.b.: leaving out "a:" alias for "tcf:" even though
 	# mairix supports it.  It is only mentioned in passing in mairix(1)
 	# and the extra two letters are not significantly longer.
 	q => 'XQUOT',
 	nq => 'XNQ',
+
+	# default:
+	'' => 'XMID S A XNQ XQUOT',
 );
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian
@@ -241,7 +244,7 @@ EOF
 	}
 
 	while (my ($name, $prefix) = each %prob_prefix) {
-		$qp->add_prefix($name, $prefix);
+		$qp->add_prefix($name, $_) foreach split(/ /, $prefix);
 	}
 
 	$self->{query_parser} = $qp;

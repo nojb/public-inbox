@@ -129,15 +129,9 @@ sub index_users ($$) {
 
 	$tg->index_text($from, 1, 'A'); # A - author
 	$tg->increase_termpos;
-
 	$tg->index_text($to, 1, 'XTO') if $to ne '';
+	$tg->increase_termpos;
 	$tg->index_text($cc, 1, 'XCC') if $cc ne '';
-	my $tc = join("\t", $to, $cc);
-	$tg->index_text($tc, 1, 'XTC') if $tc ne '';
-	my $tcf = join("\t", $tc, $from);
-	$tg->index_text($tcf, 1, 'XTCF') if $tcf ne '';
-
-	$tg->index_text($from);
 	$tg->increase_termpos;
 }
 
@@ -173,12 +167,7 @@ sub add_message {
 		my $tg = $self->term_generator;
 
 		$tg->set_document($doc);
-		if ($subj) {
-			$tg->index_text($subj, 1, 'S');
-			$tg->index_text($subj, 1, 'XBS');
-		}
-		$tg->increase_termpos;
-		$tg->index_text($subj) if $subj;
+		$tg->index_text($subj, 1, 'S') if $subj;
 		$tg->increase_termpos;
 
 		index_users($tg, $smsg);
@@ -204,25 +193,19 @@ sub add_message {
 			if (@quot) {
 				my $s = join("\n", @quot);
 				@quot = ();
-				$tg->index_text($s, 1, 'XQUOT');
-				$tg->index_text($s, 0, 'XBS');
-				$tg->index_text($s, 0, 'XBODY');
-				$tg->index_text($s, 0);
+				$tg->index_text($s, 0, 'XQUOT');
 				$tg->increase_termpos;
 			}
 			if (@orig) {
 				my $s = join("\n", @orig);
 				@orig = ();
 				$tg->index_text($s, 1, 'XNQ');
-				$tg->index_text($s, 1, 'XBS');
-				$tg->index_text($s, 1, 'XBODY');
-				$tg->index_text($s);
 				$tg->increase_termpos;
 			}
 		});
 
 		link_message($self, $smsg, $old_tid);
-		$tg->index_text($mid, 1);
+		$tg->index_text($mid, 1, 'XMID');
 		$doc->set_data($smsg->to_doc_data($blob));
 
 		if (my $altid = $self->{-altid}) {
