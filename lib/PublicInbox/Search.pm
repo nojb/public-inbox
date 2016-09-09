@@ -58,16 +58,22 @@ my %bool_pfx_external = (
 );
 
 my %prob_prefix = (
-	s => 'S', # for mairix compatibility
+	# for mairix compatibility
+	s => 'S',
 	m => 'Q', # 'mid' is exact, 'm' can do partial
-	f => 'A', # for mairix compatibility
-	t => 'XTO', # for mairix compatibility
-	tc => 'XTC', # for mairix compatibility
-	c => 'XCC', # for mairix compatibility
-	tcf => 'XTCF', # for mairix compatibility
+	f => 'A',
+	t => 'XTO',
+	tc => 'XTC',
+	c => 'XCC',
+	tcf => 'XTCF',
+	b => 'XBODY',
+	bs => 'XBS',
+
 	# n.b.: leaving out "a:" alias for "tcf:" even though
 	# mairix supports it.  It is only mentioned in passing in mairix(1)
 	# and the extra two letters are not significantly longer.
+	q => 'XQUOT',
+	nq => 'XNQ',
 );
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian

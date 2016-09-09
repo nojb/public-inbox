@@ -361,6 +361,31 @@ sub filter_mids {
 	}
 }
 
+{
+	$rw_commit->();
+	$ro->reopen;
+	my $res = $ro->query('b:hello');
+	is(scalar @{$res->{msgs}}, 0, 'no match on body search only');
+	$res = $ro->query('bs:smith');
+	is(scalar @{$res->{msgs}}, 0,
+		'no match on body+subject search for From');
+
+	$res = $ro->query('q:theatre');
+	is(scalar @{$res->{msgs}}, 1, 'only one quoted body');
+	like($res->{msgs}->[0]->from, qr/\AQuoter/, 'got quoted body');
+
+	$res = $ro->query('nq:theatre');
+	is(scalar @{$res->{msgs}}, 1, 'only one non-quoted body');
+	like($res->{msgs}->[0]->from, qr/\ANon-Quoter/, 'got non-quoted body');
+
+	foreach my $pfx (qw(b: bs:)) {
+		$res = $ro->query($pfx . 'theatre');
+		is(scalar @{$res->{msgs}}, 2, "searched both bodies for $pfx");
+		like($res->{msgs}->[0]->from, qr/\ANon-Quoter/,
+			"non-quoter first for $pfx");
+	}
+}
+
 done_testing();
 
 1;

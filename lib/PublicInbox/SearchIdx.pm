@@ -173,7 +173,10 @@ sub add_message {
 		my $tg = $self->term_generator;
 
 		$tg->set_document($doc);
-		$tg->index_text($subj, 1, 'S') if $subj;
+		if ($subj) {
+			$tg->index_text($subj, 1, 'S');
+			$tg->index_text($subj, 1, 'XBS');
+		}
 		$tg->increase_termpos;
 		$tg->index_text($subj) if $subj;
 		$tg->increase_termpos;
@@ -199,13 +202,21 @@ sub add_message {
 				}
 			}
 			if (@quot) {
-				$tg->index_text(join("\n", @quot), 0);
+				my $s = join("\n", @quot);
 				@quot = ();
+				$tg->index_text($s, 1, 'XQUOT');
+				$tg->index_text($s, 0, 'XBS');
+				$tg->index_text($s, 0, 'XBODY');
+				$tg->index_text($s, 0);
 				$tg->increase_termpos;
 			}
 			if (@orig) {
-				$tg->index_text(join("\n", @orig));
+				my $s = join("\n", @orig);
 				@orig = ();
+				$tg->index_text($s, 1, 'XNQ');
+				$tg->index_text($s, 1, 'XBS');
+				$tg->index_text($s, 1, 'XBODY');
+				$tg->index_text($s);
 				$tg->increase_termpos;
 			}
 		});
