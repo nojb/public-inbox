@@ -148,7 +148,6 @@ sub add_message {
 
 	my ($doc_id, $old_tid);
 	my $mid = mid_clean(mid_mime($mime));
-	my $ct_msg = $mime->header('Content-Type') || 'text/plain';
 
 	eval {
 		die 'Message-ID too long' if length($mid) > MAX_MID_SIZE;
@@ -181,10 +180,22 @@ sub add_message {
 
 		msg_iter($mime, sub {
 			my ($part, $depth, @idx) = @{$_[0]};
-			my $ct = $part->content_type || $ct_msg;
+			my $ct = $part->content_type || 'text/plain';
 
-			# account for filter bugs...
-			$ct =~ m!\btext/plain\b!i or return;
+			return if $ct =~ m!\btext/x?html\b!i;
+
+			my $s = eval { $part->body_str };
+			if ($@) {
+				if ($ct =~ m!\btext/plain\b!i) {
+					# Try to assume UTF-8 because Alpine
+					# seems to do wacky things and set
+					# charset=X-UNKNOWN
+					$part->charset_set('UTF-8');
+					$s = eval { $part->body_str };
+					$s = $part->body if $@;
+				}
+			}
+			defined $s or return;
 
 			my (@orig, @quot);
 			my $body = $part->body;
