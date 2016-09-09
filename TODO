@@ -14,9 +14,6 @@ all need to be considered for everything we introduce)
 
 * TLS support for various daemons (including STARTTLS for NNTP and POP3)
 
-* Unix socket support for HTTP and POP3 server for use behind reverse
-  proxies like nginx
-
 * Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
 
 * Optional reply-to-list support for mirroring lists that want it :<
@@ -41,12 +38,6 @@ all need to be considered for everything we introduce)
 
 * configurable constants (index limits, search results)
 
-* use tags as date-based skiplists for navigating history
-  (maybe not needed with Xapian support nowadays?)
-
-* handle Xapian date range queries:
-  http://mid.gmane.org/20151005222157.GE5880@survex.com
-
 * handle messages with multiple Message-IDs
 
 * handle broken double-bracketed References properly (maybe)
@@ -57,14 +48,12 @@ all need to be considered for everything we introduce)
 * portability to FreeBSD (and other Free Software *BSDs)
   ugh... https://rt.cpan.org/Ticket/Display.html?id=116615
 
-* documentation (pod/text)
+* improve documentation
 
 * linkify thread skeletons better
   https://public-inbox.org/git/6E3699DEA672430CAEA6DEFEDE6918F4@PhilipOakley/
 
 * generate sample CSS for use with Stylish/dillo/etc
-
-* builtin-help for search engine syntax
 
 * streaming Email::MIME replacement: currently we generate many
   allocations/strings for headers we never look at and slurp
@@ -74,6 +63,6 @@ all need to be considered for everything we introduce)
 * use REQUEST_URI properly for CGI / mod_perl2 compatibility
   with Message-IDs which include '%' (done?)
 
-* more test cases (use git fast-import to speed up creation)
+* more and better test cases (use git fast-import to speed up creation)
 
-* large mbox/Maildir/MH/NNTP spool import (use git fast-import)
+* large mbox/Maildir/MH/NNTP spool import (see PublicInbox::Import)
