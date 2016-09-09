@@ -135,6 +135,13 @@ sub index_users ($$) {
 	$tg->increase_termpos;
 }
 
+sub index_body ($$$) {
+	my ($tg, $lines, $inc) = @_;
+	$tg->index_text(join("\n", @$lines), $inc, $inc ? 'XNQ' : 'XQUOT');
+	@$lines = ();
+	$tg->increase_termpos;
+}
+
 sub add_message {
 	my ($self, $mime, $bytes, $num, $blob) = @_; # mime = Email::MIME object
 	my $db = $self->{xdb};
@@ -185,23 +192,15 @@ sub add_message {
 			my @lines = split(/\n/, $body);
 			while (defined(my $l = shift @lines)) {
 				if ($l =~ /^>/) {
+					index_body($tg, \@orig, 1) if @orig;
 					push @quot, $l;
 				} else {
+					index_body($tg, \@quot, 0) if @quot;
 					push @orig, $l;
 				}
 			}
-			if (@quot) {
-				my $s = join("\n", @quot);
-				@quot = ();
-				$tg->index_text($s, 0, 'XQUOT');
-				$tg->increase_termpos;
-			}
-			if (@orig) {
-				my $s = join("\n", @orig);
-				@orig = ();
-				$tg->index_text($s, 1, 'XNQ');
-				$tg->increase_termpos;
-			}
+			index_body($tg, \@quot, 0) if @quot;
+			index_body($tg, \@orig, 1) if @orig;
 		});
 
 		link_message($self, $smsg, $old_tid);
