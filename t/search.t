@@ -123,19 +123,19 @@ sub filter_mids {
 		is($res->{total}, 0, "path variant `$p' does not match");
 	}
 
-	$res = $ro->query('subject:(Hello world)');
+	$res = $ro->query('s:(Hello world)');
 	@res = filter_mids($res);
-	is_deeply(\@res, \@exp, 'got expected results for subject:() match');
+	is_deeply(\@res, \@exp, 'got expected results for s:() match');
 
-	$res = $ro->query('subject:"Hello world"');
+	$res = $ro->query('s:"Hello world"');
 	@res = filter_mids($res);
-	is_deeply(\@res, \@exp, 'got expected results for subject:"" match');
+	is_deeply(\@res, \@exp, 'got expected results for s:"" match');
 
-	$res = $ro->query('subject:"Hello world"', {limit => 1});
+	$res = $ro->query('s:"Hello world"', {limit => 1});
 	is(scalar @{$res->{msgs}}, 1, "limit works");
 	my $first = $res->{msgs}->[0];
 
-	$res = $ro->query('subject:"Hello world"', {offset => 1});
+	$res = $ro->query('s:"Hello world"', {offset => 1});
 	is(scalar @{$res->{msgs}}, 1, "offset works");
 	my $second = $res->{msgs}->[0];
 
@@ -181,7 +181,7 @@ sub filter_mids {
 	$rw_commit->();
 	$ro->reopen;
 
-	# Subject:
+	# subject
 	my $res = $ro->query('ghost');
 	my @exp = sort qw(ghost-message@s ghost-reply@s);
 	my @res = filter_mids($res);

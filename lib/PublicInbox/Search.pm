@@ -58,7 +58,6 @@ my %bool_pfx_external = (
 );
 
 my %prob_prefix = (
-	subject => 'S',
 	s => 'S', # for mairix compatibility
 	m => 'Q', # 'mid' is exact, 'm' can do partial
 	f => 'A', # for mairix compatibility
