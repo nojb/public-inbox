@@ -386,6 +386,50 @@ sub filter_mids {
 	}
 }
 
+{
+	my $part1 = Email::MIME->create(
+                 attributes => {
+                     content_type => 'text/plain',
+                     disposition  => 'attachment',
+                     charset => 'US-ASCII',
+		     encoding => 'quoted-printable',
+		     filename => 'attached_fart.txt',
+                 },
+                 body_str => 'inside the attachment',
+	);
+	my $part2 = Email::MIME->create(
+                 attributes => {
+                     content_type => 'text/plain',
+                     disposition  => 'attachment',
+                     charset => 'US-ASCII',
+		     encoding => 'quoted-printable',
+		     filename => 'part_deux.txt',
+                 },
+                 body_str => 'inside another',
+	);
+	my $amsg = Email::MIME->create(
+		header_str => [
+			Subject => 'see attachment',
+			'Message-ID' => '<file@attached>',
+			From => 'John Smith <js@example.com>',
+			To => 'list@example.com',
+		],
+		parts => [ $part1, $part2 ],
+	);
+	ok($rw->add_message($amsg), 'added attachment');
+	$rw_commit->();
+	$ro->reopen;
+	my $n = $ro->query('n:attached_fart.txt');
+	is(scalar @{$n->{msgs}}, 1, 'got result for n:');
+	my $res = $ro->query('part_deux.txt');
+	is(scalar @{$res->{msgs}}, 1, 'got result without n:');
+	is($n->{msgs}->[0]->mid, $res->{msgs}->[0]->mid,
+		'same result with and without');
+	my $txt = $ro->query('"inside another"');
+	is($txt->{msgs}->[0]->mid, $res->{msgs}->[0]->mid,
+		'search inside text attachments works');
+}
+
 done_testing();
 
 1;

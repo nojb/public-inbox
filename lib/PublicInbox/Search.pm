@@ -69,6 +69,7 @@ my %prob_prefix = (
 	tcf => 'XTO XCC A',
 	b => 'XNQ XQUOT',
 	bs => 'XNQ XQUOT S',
+	n => 'XFN',
 
 	# n.b.: leaving out "a:" alias for "tcf:" even though
 	# mairix supports it.  It is only mentioned in passing in mairix(1)
@@ -77,7 +78,7 @@ my %prob_prefix = (
 	nq => 'XNQ',
 
 	# default:
-	'' => 'XMID S A XNQ XQUOT',
+	'' => 'XMID S A XNQ XQUOT XFN',
 );
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian

@@ -181,6 +181,10 @@ sub add_message {
 		msg_iter($mime, sub {
 			my ($part, $depth, @idx) = @{$_[0]};
 			my $ct = $part->content_type || 'text/plain';
+			my $fn = $part->filename;
+			if (defined $fn && $fn ne '') {
+				$tg->index_text($fn, 1, 'XFN');
+			}
 
 			return if $ct =~ m!\btext/x?html\b!i;
 
