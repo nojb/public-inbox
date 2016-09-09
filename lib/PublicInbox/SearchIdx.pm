@@ -117,7 +117,7 @@ sub add_values ($$$) {
 			$smsg->{mime}->body_raw =~ tr!\n!\n!);
 
 	my $yyyymmdd = strftime('%Y%m%d', gmtime($ts));
-	$doc->add_value(&PublicInbox::Search::YYYYMMDD, $yyyymmdd);
+	add_val($doc, PublicInbox::Search::YYYYMMDD, $yyyymmdd);
 }
 
 sub index_users ($$) {

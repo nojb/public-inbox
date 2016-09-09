@@ -38,7 +38,8 @@ use constant {
 	# 9 - disable Message-ID compression (SHA-1)
 	# 10 - optimize doc for NNTP overviews
 	# 11 - merge threads when vivifying ghosts
-	SCHEMA_VERSION => 11,
+	# 12 - change YYYYMMDD value column to numeric
+	SCHEMA_VERSION => 12,
 
 	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
 	# as it could become a denial-of-service vector
@@ -221,7 +222,7 @@ sub qp {
 	$qp->set_stemmer($self->stemmer);
 	$qp->set_stemming_strategy(STEM_SOME);
 	$qp->add_valuerangeprocessor(
-		Search::Xapian::StringValueRangeProcessor->new(YYYYMMDD, 'd:'));
+		Search::Xapian::NumberValueRangeProcessor->new(YYYYMMDD, 'd:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $prefix);
