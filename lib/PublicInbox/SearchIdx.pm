@@ -184,7 +184,7 @@ sub add_message {
 			$part->body_set('');
 			my @lines = split(/\n/, $body);
 			while (defined(my $l = shift @lines)) {
-				if ($l =~ /^\s*>/) {
+				if ($l =~ /^>/) {
 					push @quot, $l;
 				} else {
 					push @orig, $l;
