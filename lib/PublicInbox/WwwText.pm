@@ -134,7 +134,7 @@ search
     in other search engines.
 
     We also support search prefixes to limit the scope of the
-    search to certain fields using prefixes.
+    search to certain fields.
 
     Prefixes supported in this installation include:
 
@@ -142,6 +142,10 @@ EOF
 		_srch_prefix($srch, $txt);
 
 		$$txt .= <<EOF;
+
+    Most prefixes are probabilistic, meaning they support stemming
+    and wildcards ('*').  Ranges (such as 'd:') and boolean prefixes
+    do not support stemming or wildcards.
     The upstream Xapian query parser documentation fully explains
     the query syntax:
 

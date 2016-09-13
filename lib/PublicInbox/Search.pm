@@ -67,13 +67,11 @@ my %prob_prefix = (
 	tc => 'XTO XCC',
 	c => 'XCC',
 	tcf => 'XTO XCC A',
+	a => 'XTO XCC A',
 	b => 'XNQ XQUOT',
 	bs => 'XNQ XQUOT S',
 	n => 'XFN',
 
-	# n.b.: leaving out "a:" alias for "tcf:" even though
-	# mairix supports it.  It is only mentioned in passing in mairix(1)
-	# and the extra two letters are not significantly longer.
 	q => 'XQUOT',
 	nq => 'XNQ',
 
@@ -83,24 +81,26 @@ my %prob_prefix = (
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian
 our @HELP = (
-	's:' => <<EOF,
-match within Subject only  e.g. s:"a quick brown fox"
-This is a probabilistic search with support for stemming
-and wildcards '*'
-EOF
+	's:' => 'match within Subject  e.g. s:"a quick brown fox"',
 	'd:' => <<EOF,
 date range as YYYYMMDD  e.g. d:19931002..20101002
 Open-ended ranges such as d:19931002.. and d:..20101002
-are also supported.
+are also supported
 EOF
+	'b:' => 'match within message body, including text attachments',
+	'nq:' => 'match non-quoted text within message body',
+	'quot:' => 'match quoted text within message body',
+	'n:' => 'match filename of attachment(s)',
+	't:' => 'match within the To header',
+	'c:' => 'match within the Cc header',
+	'f:' => 'match within the From header',
+	'a:' => 'match within the To, Cc, and From headers',
+	'tc:' => 'match within the To and Cc headers',
+	'bs:' => 'match within the Subject and body',
 );
-# TODO: (from mairix, some of these are maybe)
-# b (body), f (From:), c (Cc:), n (attachment), t (To:)
-# tc (To:+Cc:), bs (body + Subject), tcf (To: +Cc: +From:)
-#
-# Non-mairix:
+chomp @HELP;
+# TODO:
 # df (filenames from diff)
-# nq (non-quoted body)
 # da (diff a/ removed lines)
 # db (diff b/ added lines)
 
@@ -238,11 +238,12 @@ sub qp {
 			/\Aserial:(\w+):/ or next;
 			my $pfx = $1;
 			push @$user_pfx, "$pfx:", <<EOF;
-alternate serial number  e.g. $pfx:12345
+alternate serial number  e.g. $pfx:12345 (boolean)
 EOF
 			# gmane => XGMANE
 			$qp->add_boolean_prefix($pfx, 'X'.uc($pfx));
 		}
+		chomp @$user_pfx;
 	}
 
 	while (my ($name, $prefix) = each %prob_prefix) {
