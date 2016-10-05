@@ -201,19 +201,16 @@ sub _th_index_lite {
 	my $rv = '';
 	my $mapping = $ctx->{mapping} or return $rv;
 	my $pad = '  ';
-	# map = [children, attr, node, idx, level]
-	my $map = $mapping->{$mid_raw};
-	my $children = $map->[0];
+	my ($attr, $node, $idx, $level) = @{$mapping->{$mid_raw}};
+	my $children = $node->{children};
 	my $nr_c = scalar @$children;
 	my $nr_s = 0;
-	my $level = $map->[4];
-	my $idx = $map->[3];
 	my $siblings;
 	my $irt_map = $mapping->{$irt} if defined $irt;
 	if (defined $irt_map) {
-		$siblings = $irt_map->[0];
+		$siblings = $irt_map->[1]->{children};
 		$nr_s = scalar(@$siblings) - 1;
-		$rv .= $pad . $irt_map->[1];
+		$rv .= $pad . $irt_map->[0];
 		if ($idx > 0) {
 			my $prev = $siblings->[$idx - 1];
 			my $pmid = $prev->{id};
@@ -222,40 +219,38 @@ sub _th_index_lite {
 				$rv .= pad_link($pmid, $level, $s);
 			} elsif ($idx == 2) {
 				my $ppmid = $siblings->[0]->{id};
-				$rv .= $pad . $mapping->{$ppmid}->[1];
+				$rv .= $pad . $mapping->{$ppmid}->[0];
 			}
-			$rv .= $pad . $mapping->{$pmid}->[1];
+			$rv .= $pad . $mapping->{$pmid}->[0];
 		}
 	}
 	my $s_s = nr_to_s($nr_s, 'sibling', 'siblings');
 	my $s_c = nr_to_s($nr_c, 'reply', 'replies');
-	my $this = $map->[1];
-	$this =~ s!\n\z!</b>\n!s;
-	$this =~ s!<a\nhref.*</a> !!s; # no point in duplicating subject
-	$this =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
-	$rv .= "<b>@ $this";
-	my $node = $map->[2];
+	$attr =~ s!\n\z!</b>\n!s;
+	$attr =~ s!<a\nhref.*</a> !!s; # no point in duplicating subject
+	$attr =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
+	$rv .= "<b>@ $attr";
 	if ($nr_c) {
 		my $cmid = $children->[0]->{id};
-		$rv .= $pad . $mapping->{$cmid}->[1];
+		$rv .= $pad . $mapping->{$cmid}->[0];
 		if ($nr_c > 2) {
 			my $s = ($nr_c - 1). ' more replies';
 			$rv .= pad_link($cmid, $level + 1, $s);
 		} elsif (my $cn = $children->[1]) {
-			$rv .= $pad . $mapping->{$cn->{id}}->[1];
+			$rv .= $pad . $mapping->{$cn->{id}}->[0];
 		}
 	}
 
 	my $next = $siblings->[$idx+1] if $siblings && $idx >= 0;
 	if ($next) {
 		my $nmid = $next->{id};
-		$rv .= $pad . $mapping->{$nmid}->[1];
+		$rv .= $pad . $mapping->{$nmid}->[0];
 		my $nnext = $nr_s - $idx;
 		if ($nnext > 2) {
 			my $s = ($nnext - 1).' subsequent siblings';
 			$rv .= pad_link($nmid, $level, $s);
 		} elsif (my $nn = $siblings->[$idx + 2]) {
-			$rv .= $pad . $mapping->{$nn->{id}}->[1];
+			$rv .= $pad . $mapping->{$nn->{id}}->[0];
 		}
 	}
 	$rv .= $pad ."<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
@@ -263,26 +258,20 @@ sub _th_index_lite {
 
 sub walk_thread {
 	my ($th, $ctx, $cb) = @_;
-	my @q = map { (0, $_) } @{$th->{rootset}};
+	my @q = map { (0, $_, -1) } @{$th->{rootset}};
 	while (@q) {
-		my $level = shift @q;
-		my $node = shift @q or next;
-		$cb->($ctx, $level, $node);
+		my ($level, $node, $i) = splice(@q, 0, 3);
+		defined $node or next;
+		$cb->($ctx, $level, $node, $i);
 		++$level;
-		unshift @q, map { ($level, $_) } @{$node->{children}};
+		$i = 0;
+		unshift @q, map { ($level, $_, $i++) } @{$node->{children}};
 	}
 }
 
 sub pre_thread  {
-	my ($ctx, $level, $node) = @_;
-	my $mapping = $ctx->{mapping};
-	my $idx = -1;
-	if (my $parent = $node->{parent}) {
-		my $m = $mapping->{$parent->{id}}->[0];
-		$idx = scalar @$m;
-		push @$m, $node;
-	}
-	$mapping->{$node->{id}} = [ [], '', $node, $idx, $level ];
+	my ($ctx, $level, $node, $idx) = @_;
+	$ctx->{mapping}->{$node->{id}} = [ '', $node, $idx, $level ];
 	skel_dump($ctx, $level, $node);
 }
 
@@ -825,7 +814,7 @@ sub _skel_header {
 		my $map = $mapping->{$mid};
 		$id = id_compress($mid, 1);
 		$m = '#m'.$id;
-		$map->[1] = "$d<a\nhref=\"$m\">$end";
+		$map->[0] = "$d<a\nhref=\"$m\">$end";
 		$id = "\nid=r".$id;
 	} else {
 		$m = $ctx->{-upfx}.mid_escape($mid).'/';
@@ -840,8 +829,6 @@ sub skel_dump {
 	} else {
 		my $mid = $node->{id};
 		my $dst = $ctx->{dst};
-		my $mapping = $ctx->{mapping};
-		my $map = $mapping->{$mid} if $mapping;
 		my $d = $ctx->{pct} ? '    [irrelevant] ' # search result
 				    : '     [not found] ';
 		$d .= indent_for($level) . th_pfx($level);
@@ -850,9 +837,11 @@ sub skel_dump {
 		my $href = $upfx . $m->{href} . '/';
 		my $html = $m->as_html;
 
+		my $mapping = $ctx->{mapping};
+		my $map = $mapping->{$mid} if $mapping;
 		if ($map) {
 			my $id = id_compress($mid, 1);
-			$map->[1] = $d . qq{&lt;<a\nhref=#r$id>$html</a>&gt;\n};
+			$map->[0] = $d . qq{&lt;<a\nhref=#r$id>$html</a>&gt;\n};
 			$d .= qq{&lt;<a\nhref="$href"\nid=r$id>$html</a>&gt;\n};
 		} else {
 			$d .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
