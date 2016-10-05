@@ -81,8 +81,7 @@ sub _add_message ($$) {
 }
 
 sub order {
-	my $self = shift;
-	my $ordersub = shift;
+	my ($self, $ordersub) = @_;
 
 	# make a fake root
 	my $root = _get_cont_for_id($self, 'fakeroot');
@@ -174,22 +173,6 @@ sub set_children {
 	} while ($walk);
 }
 
-sub order_children {
-	my $self = shift;
-	my $ordersub = shift;
-
-	return unless $ordersub;
-
-	my $sub = sub {
-		my $cont = shift;
-		my $children = $cont->children;
-		return if @$children < 2;
-		$cont->set_children( $ordersub->( $children ) );
-	};
-	$self->iterate_down( undef, $sub );
-	undef $sub;
-}
-
 # non-recursive version of recurse_down to avoid stack depth warnings
 sub recurse_down {
 	my ($self, $callback) = @_;
@@ -216,17 +199,14 @@ sub recurse_down {
 	}
 }
 
-sub iterate_down {
-	my $self = shift;
-	my ($before, $after) = @_;
+sub order_children {
+	my ($walk, $ordersub) = @_;
 
 	my %seen;
-	my $walk = $self;
 	my $depth = 0;
 	my @visited;
 	while ($walk) {
-		push @visited, [ $walk, $depth ];
-		$before->($walk, $depth) if $before;
+		push @visited, $walk;
 
 		# spot/break loops
 		$seen{$walk}++;
@@ -258,8 +238,15 @@ sub iterate_down {
 		}
 		$walk = $next;
 	}
-	return unless $after;
-	while (@visited) { $after->(@{ pop @visited }) }
+	foreach my $cont (@visited) {
+		my $children = $cont->children;
+		next if @$children < 2;
+		$children = $ordersub->($children);
+		$cont = $cont->{child} = shift @$children;
+		do {
+			$cont = $cont->{next} = shift @$children;
+		} while ($cont);
+	}
 }
 
 1;
