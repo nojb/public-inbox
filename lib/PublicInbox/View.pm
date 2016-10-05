@@ -723,8 +723,6 @@ sub anchor_for {
 
 sub ghost_parent {
 	my ($upfx, $mid) = @_;
-	# 'subject dummy' is used internally by Mail::Thread
-	return '[no common parent]' if ($mid eq 'subject dummy');
 
 	$mid = PublicInbox::Hval->new_msgid($mid);
 	my $href = $mid->{href};
@@ -838,12 +836,6 @@ sub skel_dump {
 		my $dst = $ctx->{dst};
 		my $mapping = $ctx->{mapping};
 		my $map = $mapping->{$mid} if $mapping;
-		if ($mid eq 'subject dummy') {
-			my $ncp = "\t[no common parent]\n";
-			$map->[1] = $ncp if $map;
-			$$dst .= $ncp;
-			return;
-		}
 		my $d = $ctx->{pct} ? '    [irrelevant] ' # search result
 				    : '     [not found] ';
 		$d .= indent_for($level) . th_pfx($level);
