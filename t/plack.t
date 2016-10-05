@@ -11,8 +11,7 @@ my $pi_config = "$tmpdir/config";
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
-my @mods = qw(HTTP::Request::Common Plack::Test
-	Mail::Thread URI::Escape);
+my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for plack.t" if $@;

@@ -112,7 +112,7 @@ sub call {
 sub preload {
 	require PublicInbox::Feed;
 	require PublicInbox::View;
-	require PublicInbox::Thread;
+	require PublicInbox::SearchThread;
 	require Email::MIME;
 	require Digest::SHA;
 	require POSIX;

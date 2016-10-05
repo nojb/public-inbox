@@ -37,7 +37,6 @@ Optional components:
 Optional Perl modules:
 
   - Plack[1]                   libplack-perl
-  - Mail::Thread (2.5+)[1]     libmail-thread-perl
   - URI::Escape[1]             liburi-perl
   - Search::Xapian[2][3]       libsearch-xapian-perl
   - IO::Compress::Gzip[3]      perl-modules (or libio-compress-perl)

@@ -749,8 +749,8 @@ sub msg_timestamp {
 
 sub thread_results {
 	my ($msgs) = @_;
-	require PublicInbox::Thread;
-	my $th = PublicInbox::Thread->new(@$msgs);
+	require PublicInbox::SearchThread;
+	my $th = PublicInbox::SearchThread->new($msgs);
 	$th->thread;
 	$th->order(*sort_ts);
 	$th

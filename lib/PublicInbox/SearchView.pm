@@ -11,7 +11,7 @@ use PublicInbox::View;
 use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape);
 use Email::MIME;
 require PublicInbox::Git;
-require PublicInbox::Thread;
+require PublicInbox::SearchThread;
 our $LIM = 50;
 
 sub noop {}
@@ -152,7 +152,7 @@ sub mset_thread {
 		$m;
 	} ($mset->items);
 
-	my $th = PublicInbox::Thread->new(@m);
+	my $th = PublicInbox::SearchThread->new(\@m);
 	$th->thread;
 	if ($q->{r}) { # order by relevance
 		$th->order(sub {

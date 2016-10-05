@@ -4,8 +4,8 @@
 #
 # Indexes mail with Xapian and our (SQLite-based) ::Msgmap for use
 # with the web and NNTP interfaces.  This index maintains thread
-# relationships for use by Mail::Thread.  This writes to the search
-# index.
+# relationships for use by PublicInbox::SearchThread.
+# This writes to the search index.
 package PublicInbox::SearchIdx;
 use strict;
 use warnings;
