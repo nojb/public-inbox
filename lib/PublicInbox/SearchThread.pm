@@ -66,7 +66,8 @@ sub rootset { @{$_[0]{rootset}} }
 sub thread {
 	my $self = shift;
 	$self->_setup();
-	$self->{rootset} = [ grep { !$_->parent } values %{$self->{id_table}} ];
+	$self->{rootset} = [
+			grep { !$_->{parent} } values %{$self->{id_table}} ];
 	$self->_finish();
 }
 
@@ -95,7 +96,7 @@ sub _add_message ($$) {
 
 	# A. if id_table...
 	my $this_container = $self->_get_cont_for_id($self->_msgid($message));
-	$this_container->message($message);
+	$this_container->{message} = $message;
 
 	# B. For each element in the message's References field:
 	my @refs = $self->_references($message);
@@ -112,7 +113,7 @@ sub _add_message ($$) {
 		#   a loop...
 
 		if ($prev &&
-			!$container->parent &&  # already linked
+			!$container->{parent} &&  # already linked
 			!$container->has_descendent($prev) # would loop
 		   ) {
 			$prev->add_child($container);
@@ -152,10 +153,9 @@ use Scalar::Util qw(weaken);
 
 sub new { my $self = shift; bless { id => shift }, $self; }
 
-sub message { $_[0]->{message} = $_[1] if @_ == 2; $_[0]->{message} }
-sub parent { @_ == 2 ? weaken($_[0]->{parent} = $_[1]) : $_[0]->{parent} }
-sub child { $_[0]->{child} = $_[1] if @_ == 2; $_[0]->{child} }
-sub next { $_[0]->{next} = $_[1] if @_ == 2; $_[0]->{next} }
+sub message { $_[0]->{message} }
+sub child { $_[0]->{child} }
+sub next { $_[0]->{next} }
 sub messageid { $_[0]->{id} }
 
 sub add_child {
@@ -165,41 +165,39 @@ sub add_child {
 
 	if (grep { $_ == $child } @{$self->children}) {
 		# All is potentially correct with the world
-		$child->parent($self);
+		weaken($child->{parent} = $self);
 		return;
 	}
 
-	$child->parent->remove_child($child) if $child->parent;
+	my $parent = $child->{parent};
+	remove_child($parent, $child) if $parent;
 
-	$child->next($self->child);
-	$self->child($child);
-	$child->parent($self);
+	$child->{next} = $self->{child};
+	$self->{child} = $child;
+	weaken($child->{parent} = $self);
 }
 
 sub remove_child {
 	my ($self, $child) = @_;
-	return unless $self->child;
-	if ($self->child == $child) {  # First one's easy.
-		$self->child($child->next);
-		$child->next(undef);
-		$child->parent(undef);
+
+	my $x = $self->{child} or return;
+	if ($x == $child) {  # First one's easy.
+		$self->{child} = $child->{next};
+		$child->{parent} = $child->{next} = undef;
 		return;
 	}
 
-	my $x = $self->child;
 	my $prev = $x;
-	while ($x = $x->next) {
+	while ($x = $x->{next}) {
 		if ($x == $child) {
-			$prev->next($x->next); # Unlink x
-			$x->next(undef);
-			$x->parent(undef);	 # Deparent it
+			$prev->{next} = $x->{next}; # Unlink x
+			$x->{next} = $x->{parent} = undef; # Deparent it
 			return;
 		}
 		$prev = $x;
 	}
 	# oddly, we can get here
-	$child->next(undef);
-	$child->parent(undef);
+	$child->{next} = $child->{parent} = undef;
 }
 
 sub has_descendent {
@@ -215,10 +213,10 @@ sub has_descendent {
 sub children {
 	my $self = shift;
 	my @children;
-	my $visitor = $self->child;
+	my $visitor = $self->{child};
 	while ($visitor) {
 		push @children, $visitor;
-		$visitor = $visitor->next
+		$visitor = $visitor->{next};
 	}
 	\@children;
 }
@@ -256,16 +254,16 @@ sub recurse_down {
 		$seen{$cont}++;
 		$callback->($cont);
 
-		if (my $next = $cont->next) {
+		if (my $next = $cont->{next}) {
 			if ($seen{$next}) {
-				$cont->next(undef);
+				$cont->{next} = undef;
 			} else {
 				push @q, $next;
 			}
 		}
-		if (my $child = $cont->child) {
+		if (my $child = $cont->{child}) {
 			if ($seen{$child}) {
-				$cont->child(undef);
+				$cont->{child} = undef;
 			} else {
 				push @q, $child;
 			}
@@ -288,16 +286,14 @@ sub iterate_down {
 		# spot/break loops
 		$seen{$walk}++;
 
-		my $child = $walk->child;
+		my $child = $walk->{child};
 		if ($child && $seen{$child}) {
-			$walk->child(undef);
-			$child = undef;
+			$walk->{child} = $child = undef;
 		}
 
-		my $next = $walk->next;
+		my $next = $walk->{next};
 		if ($next && $seen{$next}) {
-			$walk->next(undef);
-			$next = undef;
+			$walk->{next} = $next = undef;
 		}
 
 		# go down, or across
@@ -310,9 +306,9 @@ sub iterate_down {
 		if (!$next) {
 			my $up = $walk;
 			while ($up && !$next) {
-				$up = $up->parent;
+				$up = $up->{parent};
 				--$depth;
-				$next = $up->next if $up;
+				$next = $up->{next} if $up;
 			}
 		}
 		$walk = $next;
