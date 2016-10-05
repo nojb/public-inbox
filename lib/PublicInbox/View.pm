@@ -203,13 +203,15 @@ sub _th_index_lite {
 	my $pad = '  ';
 	# map = [children, attr, node, idx, level]
 	my $map = $mapping->{$mid_raw};
-	my $nr_c = scalar @{$map->[0]};
+	my $children = $map->[0];
+	my $nr_c = scalar @$children;
 	my $nr_s = 0;
 	my $level = $map->[4];
 	my $idx = $map->[3];
+	my $siblings;
 	my $irt_map = $mapping->{$irt} if defined $irt;
 	if (defined $irt_map) {
-		my $siblings = $irt_map->[0];
+		$siblings = $irt_map->[0];
 		$nr_s = scalar(@$siblings) - 1;
 		$rv .= $pad . $irt_map->[1];
 		if ($idx > 0) {
@@ -233,24 +235,26 @@ sub _th_index_lite {
 	$this =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
 	$rv .= "<b>@ $this";
 	my $node = $map->[2];
-	if (my $child = $node->{child}) {
-		my $cmid = $child->{id};
+	if ($nr_c) {
+		my $cmid = $children->[0]->{id};
 		$rv .= $pad . $mapping->{$cmid}->[1];
 		if ($nr_c > 2) {
 			my $s = ($nr_c - 1). ' more replies';
 			$rv .= pad_link($cmid, $level + 1, $s);
-		} elsif (my $cn = $child->{next}) {
+		} elsif (my $cn = $children->[1]) {
 			$rv .= $pad . $mapping->{$cn->{id}}->[1];
 		}
 	}
-	if (my $next = $node->{next}) {
+
+	my $next = $siblings->[$idx+1] if $siblings && $idx >= 0;
+	if ($next) {
 		my $nmid = $next->{id};
 		$rv .= $pad . $mapping->{$nmid}->[1];
 		my $nnext = $nr_s - $idx;
 		if ($nnext > 2) {
 			my $s = ($nnext - 1).' subsequent siblings';
 			$rv .= pad_link($nmid, $level, $s);
-		} elsif (my $nn = $next->{next}) {
+		} elsif (my $nn = $siblings->[$idx + 2]) {
 			$rv .= $pad . $mapping->{$nn->{id}}->[1];
 		}
 	}
@@ -264,7 +268,8 @@ sub walk_thread {
 		my $level = shift @q;
 		my $node = shift @q or next;
 		$cb->($ctx, $level, $node);
-		unshift @q, $level+1, $node->{child}, $level, $node->{next};
+		++$level;
+		unshift @q, map { ($level, $_) } @{$node->{children}};
 	}
 }
 
@@ -296,7 +301,8 @@ sub stream_thread ($$) {
 	while (@q) {
 		$level = shift @q;
 		my $node = shift @q or next;
-		unshift @q, $level+1, $node->{child}, $level, $node->{next};
+		my $cl = $level + 1;
+		unshift @q, map { ($cl, $_) } @{$node->{children}};
 		$mime = $inbox->msg_by_smsg($node->{smsg}) and last;
 	}
 	return missing_thread($ctx) unless $mime;
@@ -309,8 +315,8 @@ sub stream_thread ($$) {
 		while (@q) {
 			$level = shift @q;
 			my $node = shift @q or next;
-			unshift @q, $level+1, $node->{child},
-					$level, $node->{next};
+			my $cl = $level + 1;
+			unshift @q, map { ($cl, $_) } @{$node->{children}};
 			my $mid = $node->{id};
 			if ($mime = $inbox->msg_by_smsg($node->{smsg})) {
 				$mime = Email::MIME->new($mime);

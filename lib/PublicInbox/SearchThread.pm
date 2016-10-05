@@ -32,9 +32,8 @@ sub new {
 sub thread {
 	my $self = shift;
 	_add_message($self, $_) foreach @{$self->{messages}};
-	$self->{rootset} = [
-			grep { !$_->{parent} } values %{$self->{id_table}} ];
-	delete $self->{id_table};
+	my $id_table = delete $self->{id_table};
+	$self->{rootset} = [ grep { !$_->{parent} } values %$id_table ];
 }
 
 sub _get_cont_for_id ($$) {
@@ -82,156 +81,67 @@ sub _add_message ($$) {
 
 sub order {
 	my ($self, $ordersub) = @_;
-
-	# make a fake root
-	my $root = _get_cont_for_id($self, 'fakeroot');
-	$root->add_child( $_ ) for @{ $self->{rootset} };
-
-	# sort it
-	$root->order_children( $ordersub );
-
-	# and untangle it
-	my $kids = $root->children;
-	$self->{rootset} = $kids;
-	$root->remove_child($_) for @$kids;
+	my $rootset = $ordersub->($self->{rootset});
+	$self->{rootset} = $rootset;
+	$_->order_children($ordersub) for @$rootset;
 }
 
 package PublicInbox::SearchThread::Msg;
+use strict;
+use warnings;
 use Carp qw(croak);
 use Scalar::Util qw(weaken);
 
-sub new { my $self = shift; bless { id => shift }, $self; }
+sub new {
+	bless {
+		id => $_[1],
+		children => {}, # becomes an array when sorted by ->order(...)
+	}, $_[0];
+}
 
 sub add_child {
 	my ($self, $child) = @_;
 	croak "Cowardly refusing to become my own parent: $self"
 	  if $self == $child;
 
-	if (grep { $_ == $child } @{$self->children}) {
-		# All is potentially correct with the world
-		weaken($child->{parent} = $self);
-		return;
+	my $cid = $child->{id};
+	$self->{children}->{$cid} = $child;
+
+	# reparenting:
+	if (defined(my $parent = $child->{parent})) {
+		delete $parent->{children}->{$cid};
 	}
 
-	my $parent = $child->{parent};
-	remove_child($parent, $child) if $parent;
-
-	$child->{next} = $self->{child};
-	$self->{child} = $child;
 	weaken($child->{parent} = $self);
 }
 
-sub remove_child {
-	my ($self, $child) = @_;
-
-	my $x = $self->{child} or return;
-	if ($x == $child) {  # First one's easy.
-		$self->{child} = $child->{next};
-		$child->{parent} = $child->{next} = undef;
-		return;
-	}
-
-	my $prev = $x;
-	while ($x = $x->{next}) {
-		if ($x == $child) {
-			$prev->{next} = $x->{next}; # Unlink x
-			$x->{next} = $x->{parent} = undef; # Deparent it
-			return;
-		}
-		$prev = $x;
-	}
-	# oddly, we can get here
-	$child->{next} = $child->{parent} = undef;
-}
-
 sub has_descendent {
-	my ($self, $child) = @_;
+	my ($cur, $child) = @_;
 	my %seen;
-	my @q = ($self);
-	while (my $cont = shift @q) {
-		$seen{$cont} = 1;
+	my @q = ($cur->{parent} || $cur);
 
-		return 1 if $cont == $child;
+	while (defined($cur = shift @q)) {
+		return 1 if $cur == $child;
 
-		if (my $next = $cont->{next}) {
-			if ($seen{$next}) {
-				$cont->{next} = undef;
-			} else {
-				push @q, $next;
-			}
-		}
-		if (my $child = $cont->{child}) {
-			if ($seen{$child}) {
-				$cont->{child} = undef;
-			} else {
-				push @q, $child;
-			}
+		if (!$seen{$cur}++) {
+			push @q, values %{$cur->{children}};
 		}
 	}
 	0;
 }
 
-sub children {
-	my $self = shift;
-	my @children;
-	my $visitor = $self->{child};
-	while ($visitor) {
-		push @children, $visitor;
-		$visitor = $visitor->{next};
-	}
-	\@children;
-}
-
-sub set_children {
-	my ($self, $children) = @_;
-	my $walk = $self->{child} = shift @$children;
-	do {
-		$walk = $walk->{next} = shift @$children;
-	} while ($walk);
-}
-
 sub order_children {
-	my ($walk, $ordersub) = @_;
+	my ($cur, $ordersub) = @_;
 
-	my %seen;
-	my @visited;
-	while ($walk) {
-		push @visited, $walk;
+	my %seen = ($cur => 1);
+	my @q = ($cur);
+	while (defined($cur = shift @q)) {
+		my $c = $cur->{children}; # The hashref here...
 
-		# spot/break loops
-		$seen{$walk} = 1;
-
-		my $child = $walk->{child};
-		if ($child && $seen{$child}) {
-			$walk->{child} = $child = undef;
-		}
-
-		my $next = $walk->{next};
-		if ($next && $seen{$next}) {
-			$walk->{next} = $next = undef;
-		}
-
-		# go down, or across
-		$next = $child if $child;
-
-		# no next?  look up
-		if (!$next) {
-			my $up = $walk;
-			while ($up && !$next) {
-				$up = $up->{parent};
-				$next = $up->{next} if $up;
-			}
-		}
-		$walk = $next;
-	}
-	foreach my $cont (@visited) {
-		my $children = $cont->children;
-		next if @$children < 2;
-		$children = $ordersub->($children);
-		$cont = $cont->{child} = shift @$children;
-		do {
-			$cont = $cont->{next} = shift @$children;
-		} while ($cont);
+		$c = [ grep { !$seen{$_}++ } values %$c ]; # spot/break loops
+		$c = $ordersub->($c) if scalar @$c > 1;
+		$cur->{children} = $c; # ...becomes an arrayref
+		push @q, @$c;
 	}
 }
 
