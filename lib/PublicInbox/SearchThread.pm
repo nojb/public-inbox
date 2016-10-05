@@ -31,27 +31,15 @@ sub new {
 
 sub thread {
 	my $self = shift;
-	$self->_setup();
+	_add_message($self, $_) foreach @{$self->{messages}};
 	$self->{rootset} = [
 			grep { !$_->{parent} } values %{$self->{id_table}} ];
-	$self->_finish();
-}
-
-sub _finish {
-	my $self = shift;
 	delete $self->{id_table};
-	delete $self->{seen};
 }
 
 sub _get_cont_for_id ($$) {
 	my ($self, $mid) = @_;
 	$self->{id_table}{$mid} ||= PublicInbox::SearchThread::Msg->new($mid);
-}
-
-sub _setup {
-	my ($self) = @_;
-
-	_add_message($self, $_) foreach @{$self->{messages}};
 }
 
 sub _add_message ($$) {
