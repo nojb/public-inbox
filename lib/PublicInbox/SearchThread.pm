@@ -179,7 +179,7 @@ sub recurse_down {
 	my %seen;
 	my @q = ($self);
 	while (my $cont = shift @q) {
-		$seen{$cont}++;
+		$seen{$cont} = 1;
 		$callback->($cont);
 
 		if (my $next = $cont->{next}) {
@@ -209,7 +209,7 @@ sub order_children {
 		push @visited, $walk;
 
 		# spot/break loops
-		$seen{$walk}++;
+		$seen{$walk} = 1;
 
 		my $child = $walk->{child};
 		if ($child && $seen{$child}) {
