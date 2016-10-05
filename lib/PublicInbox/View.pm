@@ -857,8 +857,8 @@ sub skel_dump {
 
 sub sort_ts {
 	[ sort {
-		(eval { $a->topmost->{smsg}->ts } || 0) <=>
-		(eval { $b->topmost->{smsg}->ts } || 0)
+		(eval { $a->{smsg}->ts } || 0) <=>
+		(eval { $b->{smsg}->ts } || 0)
 	} @{$_[0]} ];
 }
 
