@@ -51,18 +51,7 @@ my @msgs = map {
 	}
 );
 
-my $th = PublicInbox::SearchThread->new(\@msgs);
-$th->thread;
-$th->order(sub { [ sort { $a->{id} cmp $b->{id} } @{$_[0]} ] });
-my $st = '';
-my @q = map { (0, $_) } @{$th->{rootset}};
-while (@q) {
-	my $level = shift @q;
-	my $node = shift @q or next;
-	$st .= (" "x$level). "$node->{id}\n";
-	my $cl = $level + 1;
-	unshift @q, map { ($cl, $_) } @{$node->{children}}
-}
+my $st = thread_to_s(\@msgs);
 
 SKIP: {
 	skip 'Mail::Thread missing', 1 unless $mt;
@@ -71,7 +60,7 @@ SKIP: {
 	$mt->order(sub { sort { $a->messageid cmp $b->messageid } @_ });
 	my $check = '';
 
-	@q = map { (0, $_) } $mt->rootset;
+	my @q = map { (0, $_) } $mt->rootset;
 	while (@q) {
 		my $level = shift @q;
 		my $node = shift @q or next;
@@ -81,6 +70,28 @@ SKIP: {
 	is($check, $st, 'Mail::Thread output matches');
 }
 
+@msgs = map { bless $_, 'PublicInbox::SearchMsg' } (
+	{ mid => 'a@b' },
+	{ mid => 'b@c', references => '<a@b> <b@c>' },
+	{ mid => 'd@e', references => '<d@e>' },
+);
+
+is(thread_to_s(\@msgs), "a\@b\n b\@c\nd\@e\n", 'ok with self-references');
+
 done_testing();
 
-1;
+sub thread_to_s {
+	my $th = PublicInbox::SearchThread->new(shift);
+	$th->thread;
+	$th->order(sub { [ sort { $a->{id} cmp $b->{id} } @{$_[0]} ] });
+	my $st = '';
+	my @q = map { (0, $_) } @{$th->{rootset}};
+	while (@q) {
+		my $level = shift @q;
+		my $node = shift @q or next;
+		$st .= (" "x$level). "$node->{id}\n";
+		my $cl = $level + 1;
+		unshift @q, map { ($cl, $_) } @{$node->{children}};
+	}
+	$st;
+}
