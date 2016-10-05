@@ -33,7 +33,7 @@ sub thread {
 	my $self = shift;
 	_add_message($self, $_) foreach @{$self->{messages}};
 	my $id_table = delete $self->{id_table};
-	$self->{rootset} = [ grep { !$_->{parent} } values %$id_table ];
+	$self->{rootset} = [ grep { !delete $_->{parent} } values %$id_table ];
 }
 
 sub _get_cont_for_id ($$) {
@@ -90,7 +90,6 @@ package PublicInbox::SearchThread::Msg;
 use strict;
 use warnings;
 use Carp qw(croak);
-use Scalar::Util qw(weaken);
 
 sub new {
 	bless {
@@ -112,7 +111,7 @@ sub add_child {
 		delete $parent->{children}->{$cid};
 	}
 
-	weaken($child->{parent} = $self);
+	$child->{parent} = $self;
 }
 
 sub has_descendent {
