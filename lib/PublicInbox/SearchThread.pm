@@ -141,9 +141,9 @@ sub order {
 	$root->order_children( $ordersub );
 
 	# and untangle it
-	my @kids = $root->children;
-	$self->{rootset} = \@kids;
-	$root->remove_child($_) for @kids;
+	my $kids = $root->children;
+	$self->{rootset} = $kids;
+	$root->remove_child($_) for @$kids;
 }
 
 package PublicInbox::SearchThread::Container;
@@ -163,7 +163,7 @@ sub add_child {
 	croak "Cowardly refusing to become my own parent: $self"
 	  if $self == $child;
 
-	if (grep { $_ == $child } $self->children) {
+	if (grep { $_ == $child } @{$self->children}) {
 		# All is potentially correct with the world
 		$child->parent($self);
 		return;
@@ -220,14 +220,15 @@ sub children {
 		push @children, $visitor;
 		$visitor = $visitor->next
 	}
-	return @children;
+	\@children;
 }
 
 sub set_children {
-	my $self = shift;
-	my $walk = $self->child( shift );
-	while (@_) { $walk = $walk->next( shift ) }
-	$walk->next(undef) if $walk;
+	my ($self, $children) = @_;
+	my $walk = $self->{child} = shift @$children;
+	do {
+		$walk = $walk->{next} = shift @$children;
+	} while ($walk);
 }
 
 sub order_children {
@@ -238,9 +239,9 @@ sub order_children {
 
 	my $sub = sub {
 		my $cont = shift;
-		my @children = $cont->children;
-		return if @children < 2;
-		$cont->set_children( $ordersub->( @children ) );
+		my $children = $cont->children;
+		return if @$children < 2;
+		$cont->set_children( $ordersub->( $children ) );
 	};
 	$self->iterate_down( undef, $sub );
 	undef $sub;

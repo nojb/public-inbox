@@ -856,10 +856,10 @@ sub skel_dump {
 }
 
 sub sort_ts {
-	sort {
+	[ sort {
 		(eval { $a->topmost->message->header('X-PI-TS') } || 0) <=>
 		(eval { $b->topmost->message->header('X-PI-TS') } || 0)
-	} @_;
+	} @{$_[0]} ];
 }
 
 sub _tryload_ghost ($$) {

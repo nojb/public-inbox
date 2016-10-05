@@ -156,10 +156,10 @@ sub mset_thread {
 	$th->thread;
 	if ($q->{r}) { # order by relevance
 		$th->order(sub {
-			sort { (eval { $pct{$b->topmost->messageid} } || 0)
+			[ sort { (eval { $pct{$b->topmost->messageid} } || 0)
 					<=>
 				(eval { $pct{$a->topmost->messageid} } || 0)
-			} @_;
+			} @{$_[0]} ];
 		});
 	} else { # order by time (default for threaded view)
 		$th->order(*PublicInbox::View::sort_ts);
