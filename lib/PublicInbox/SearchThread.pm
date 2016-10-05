@@ -29,8 +29,6 @@ sub new {
 	}, $_[0];
 }
 
-sub rootset { @{$_[0]{rootset}} }
-
 sub thread {
 	my $self = shift;
 	$self->_setup();

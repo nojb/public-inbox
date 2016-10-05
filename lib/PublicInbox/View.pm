@@ -259,7 +259,7 @@ sub _th_index_lite {
 
 sub walk_thread {
 	my ($th, $ctx, $cb) = @_;
-	my @q = map { (0, $_) } $th->rootset;
+	my @q = map { (0, $_) } @{$th->{rootset}};
 	while (@q) {
 		my $level = shift @q;
 		my $node = shift @q or next;
@@ -291,7 +291,7 @@ sub stream_thread ($$) {
 	my ($th, $ctx) = @_;
 	my $inbox = $ctx->{-inbox};
 	my $mime;
-	my @q = map { (0, $_) } $th->rootset;
+	my @q = map { (0, $_) } @{$th->{rootset}};
 	my $level;
 	while (@q) {
 		$level = shift @q;
