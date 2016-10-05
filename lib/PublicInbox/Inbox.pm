@@ -211,6 +211,8 @@ sub msg_by_path ($$;$) {
 sub msg_by_smsg ($$;$) {
 	my ($self, $smsg, $ref) = @_;
 
+	return unless defined $smsg; # ghost
+
 	# backwards compat to fallback to msg_by_mid
 	# TODO: remove if we bump SCHEMA_VERSION in Search.pm:
 	defined(my $blob = $smsg->blob) or return msg_by_mid($self, $smsg->mid);
