@@ -145,13 +145,30 @@ sub remove_child {
 }
 
 sub has_descendent {
-	my $self = shift;
-	my $child = shift;
-	die "Assertion failed: $child" unless eval {$child};
-	my $there = 0;
-	$self->recurse_down(sub { $there = 1 if $_[0] == $child });
+	my ($self, $child) = @_;
+	my %seen;
+	my @q = ($self);
+	while (my $cont = shift @q) {
+		$seen{$cont} = 1;
 
-	return $there;
+		return 1 if $cont == $child;
+
+		if (my $next = $cont->{next}) {
+			if ($seen{$next}) {
+				$cont->{next} = undef;
+			} else {
+				push @q, $next;
+			}
+		}
+		if (my $child = $cont->{child}) {
+			if ($seen{$child}) {
+				$cont->{child} = undef;
+			} else {
+				push @q, $child;
+			}
+		}
+	}
+	0;
 }
 
 sub children {
@@ -171,32 +188,6 @@ sub set_children {
 	do {
 		$walk = $walk->{next} = shift @$children;
 	} while ($walk);
-}
-
-# non-recursive version of recurse_down to avoid stack depth warnings
-sub recurse_down {
-	my ($self, $callback) = @_;
-	my %seen;
-	my @q = ($self);
-	while (my $cont = shift @q) {
-		$seen{$cont} = 1;
-		$callback->($cont);
-
-		if (my $next = $cont->{next}) {
-			if ($seen{$next}) {
-				$cont->{next} = undef;
-			} else {
-				push @q, $next;
-			}
-		}
-		if (my $child = $cont->{child}) {
-			if ($seen{$child}) {
-				$cont->{child} = undef;
-			} else {
-				push @q, $child;
-			}
-		}
-	}
 }
 
 sub order_children {
