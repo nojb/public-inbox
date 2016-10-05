@@ -203,7 +203,6 @@ sub order_children {
 	my ($walk, $ordersub) = @_;
 
 	my %seen;
-	my $depth = 0;
 	my @visited;
 	while ($walk) {
 		push @visited, $walk;
@@ -222,17 +221,13 @@ sub order_children {
 		}
 
 		# go down, or across
-		if ($child) {
-			$next = $child;
-			++$depth;
-		}
+		$next = $child if $child;
 
 		# no next?  look up
 		if (!$next) {
 			my $up = $walk;
 			while ($up && !$next) {
 				$up = $up->{parent};
-				--$depth;
 				$next = $up->{next} if $up;
 			}
 		}
