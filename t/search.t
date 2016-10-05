@@ -293,7 +293,7 @@ sub filter_mids {
 	$smsg->ensure_metadata;
 	is($smsg->references, '', "no references created");
 	my $msg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
-	is($s, $msg->mini_mime->header('Subject'), 'long subject not rewritten');
+	is($s, $msg->subject, 'long subject not rewritten');
 }
 
 {
@@ -310,10 +310,7 @@ sub filter_mids {
 	my $smsg = $rw->lookup_message('testmessage@example.com');
 	my $msg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
 
-	# mini_mime technically not valid (I think),
-	# but good enough for displaying HTML:
-	is($mime->header('Subject'), $msg->mini_mime->header('Subject'),
-		'UTF-8 subject preserved');
+	is($mime->header('Subject'), $msg->subject, 'UTF-8 subject preserved');
 }
 
 {

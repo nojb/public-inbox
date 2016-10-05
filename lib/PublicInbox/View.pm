@@ -214,12 +214,12 @@ sub _th_index_lite {
 		$rv .= $pad . $irt_map->[1];
 		if ($idx > 0) {
 			my $prev = $siblings->[$idx - 1];
-			my $pmid = $prev->messageid;
+			my $pmid = $prev->{id};
 			if ($idx > 2) {
 				my $s = ($idx - 1). ' preceding siblings ...';
 				$rv .= pad_link($pmid, $level, $s);
 			} elsif ($idx == 2) {
-				my $ppmid = $siblings->[0]->messageid;
+				my $ppmid = $siblings->[0]->{id};
 				$rv .= $pad . $mapping->{$ppmid}->[1];
 			}
 			$rv .= $pad . $mapping->{$pmid}->[1];
@@ -233,25 +233,25 @@ sub _th_index_lite {
 	$this =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
 	$rv .= "<b>@ $this";
 	my $node = $map->[2];
-	if (my $child = $node->child) {
-		my $cmid = $child->messageid;
+	if (my $child = $node->{child}) {
+		my $cmid = $child->{id};
 		$rv .= $pad . $mapping->{$cmid}->[1];
 		if ($nr_c > 2) {
 			my $s = ($nr_c - 1). ' more replies';
 			$rv .= pad_link($cmid, $level + 1, $s);
-		} elsif (my $cn = $child->next) {
-			$rv .= $pad . $mapping->{$cn->messageid}->[1];
+		} elsif (my $cn = $child->{next}) {
+			$rv .= $pad . $mapping->{$cn->{id}}->[1];
 		}
 	}
-	if (my $next = $node->next) {
-		my $nmid = $next->messageid;
+	if (my $next = $node->{next}) {
+		my $nmid = $next->{id};
 		$rv .= $pad . $mapping->{$nmid}->[1];
 		my $nnext = $nr_s - $idx;
 		if ($nnext > 2) {
 			my $s = ($nnext - 1).' subsequent siblings';
 			$rv .= pad_link($nmid, $level, $s);
-		} elsif (my $nn = $next->next) {
-			$rv .= $pad . $mapping->{$nn->messageid}->[1];
+		} elsif (my $nn = $next->{next}) {
+			$rv .= $pad . $mapping->{$nn->{id}}->[1];
 		}
 	}
 	$rv .= $pad ."<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
@@ -264,7 +264,7 @@ sub walk_thread {
 		my $level = shift @q;
 		my $node = shift @q or next;
 		$cb->($ctx, $level, $node);
-		unshift @q, $level+1, $node->child, $level, $node->next;
+		unshift @q, $level+1, $node->{child}, $level, $node->{next};
 	}
 }
 
@@ -272,12 +272,12 @@ sub pre_thread  {
 	my ($ctx, $level, $node) = @_;
 	my $mapping = $ctx->{mapping};
 	my $idx = -1;
-	if (my $parent = $node->parent) {
-		my $m = $mapping->{$parent->messageid}->[0];
+	if (my $parent = $node->{parent}) {
+		my $m = $mapping->{$parent->{id}}->[0];
 		$idx = scalar @$m;
 		push @$m, $node;
 	}
-	$mapping->{$node->messageid} = [ [], '', $node, $idx, $level ];
+	$mapping->{$node->{id}} = [ [], '', $node, $idx, $level ];
 	skel_dump($ctx, $level, $node);
 }
 
@@ -296,8 +296,8 @@ sub stream_thread ($$) {
 	while (@q) {
 		$level = shift @q;
 		my $node = shift @q or next;
-		unshift @q, $level+1, $node->child, $level, $node->next;
-		$mime = $inbox->msg_by_mid($node->messageid) and last;
+		unshift @q, $level+1, $node->{child}, $level, $node->{next};
+		$mime = $inbox->msg_by_smsg($node->{smsg}) and last;
 	}
 	return missing_thread($ctx) unless $mime;
 
@@ -309,13 +309,14 @@ sub stream_thread ($$) {
 		while (@q) {
 			$level = shift @q;
 			my $node = shift @q or next;
-			unshift @q, $level+1, $node->child, $level, $node->next;
-			my $mid = $node->messageid;
-			if ($mime = $inbox->msg_by_mid($mid)) {
+			unshift @q, $level+1, $node->{child},
+					$level, $node->{next};
+			my $mid = $node->{id};
+			if ($mime = $inbox->msg_by_smsg($node->{smsg})) {
 				$mime = Email::MIME->new($mime);
 				return thread_index_entry($ctx, $level, $mime);
 			} else {
-				return ghost_index_entry($ctx, $level, $mid);
+				return ghost_index_entry($ctx, $level, $node);
 			}
 		}
 		my $ret = join('', thread_adj_level($ctx, 0));
@@ -355,11 +356,11 @@ sub thread_html {
 	$skel .= '</pre>';
 	return stream_thread($th, $ctx) unless $ctx->{flat};
 
-	# flat display: lazy load the full message from mini_mime:
+	# flat display: lazy load the full message from smsg
 	my $inbox = $ctx->{-inbox};
 	my $mime;
 	while ($mime = shift @$msgs) {
-		$mime = $inbox->msg_by_mid(mid_clean(mid_mime($mime))) and last;
+		$mime = $inbox->msg_by_smsg($mime) and last;
 	}
 	return missing_thread($ctx) unless $mime;
 	$mime = Email::MIME->new($mime);
@@ -369,8 +370,7 @@ sub thread_html {
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		return unless $msgs;
 		while ($mime = shift @$msgs) {
-			$mid = mid_clean(mid_mime($mime));
-			$mime = $inbox->msg_by_mid($mid) and last;
+			$mime = $inbox->msg_by_smsg($mime) and last;
 		}
 		if ($mime) {
 			$mime = Email::MIME->new($mime);
@@ -738,7 +738,7 @@ sub indent_for {
 sub load_results {
 	my ($sres) = @_;
 
-	[ map { $_->mini_mime } @{delete $sres->{msgs}} ];
+	[ map { $_->ensure_metadata; $_ } @{delete $sres->{msgs}} ];
 }
 
 sub msg_timestamp {
@@ -771,13 +771,13 @@ sub _msg_date {
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub _skel_header {
-	my ($ctx, $hdr, $level) = @_;
+	my ($ctx, $smsg, $level) = @_;
 
 	my $dst = $ctx->{dst};
 	my $cur = $ctx->{cur};
-	my $mid = mid_clean($hdr->header_raw('Message-ID'));
-	my $f = ascii_html($hdr->header('X-PI-From'));
-	my $d = _msg_date($hdr) . ' ' . indent_for($level) . th_pfx($level);
+	my $mid = $smsg->{mid};
+	my $f = ascii_html($smsg->from_name);
+	my $d = fmt_ts($smsg->{ts}) . ' ' . indent_for($level) . th_pfx($level);
 	my $attr = $f;
 	$ctx->{first_level} ||= $level;
 
@@ -802,7 +802,7 @@ sub _skel_header {
 	# Subject is never undef, this mail was loaded from
 	# our Xapian which would've resulted in '' if it were
 	# really missing (and Filter rejects empty subjects)
-	my $s = $hdr->header('Subject');
+	my $s = $smsg->subject;
 	my $h = $ctx->{srch}->subject_path($s);
 	if ($ctx->{seen}->{$h}) {
 		$s = undef;
@@ -829,10 +829,10 @@ sub _skel_header {
 
 sub skel_dump {
 	my ($ctx, $level, $node) = @_;
-	if (my $mime = $node->message) {
-		_skel_header($ctx, $mime->header_obj, $level);
+	if (my $smsg = $node->{smsg}) {
+		_skel_header($ctx, $smsg, $level);
 	} else {
-		my $mid = $node->messageid;
+		my $mid = $node->{id};
 		my $dst = $ctx->{dst};
 		my $mapping = $ctx->{mapping};
 		my $map = $mapping->{$mid} if $mapping;
@@ -857,15 +857,9 @@ sub skel_dump {
 
 sub sort_ts {
 	[ sort {
-		(eval { $a->topmost->message->header('X-PI-TS') } || 0) <=>
-		(eval { $b->topmost->message->header('X-PI-TS') } || 0)
+		(eval { $a->topmost->{smsg}->ts } || 0) <=>
+		(eval { $b->topmost->{smsg}->ts } || 0)
 	} @{$_[0]} ];
-}
-
-sub _tryload_ghost ($$) {
-	my ($srch, $mid) = @_;
-	my $smsg = $srch->lookup_mail($mid) or return;
-	$smsg->mini_mime;
 }
 
 # accumulate recent topics if search is supported
@@ -873,15 +867,14 @@ sub _tryload_ghost ($$) {
 sub acc_topic {
 	my ($ctx, $level, $node) = @_;
 	my $srch = $ctx->{srch};
-	my $mid = $node->messageid;
-	my $x = $node->message || _tryload_ghost($srch, $mid);
+	my $mid = $node->{id};
+	my $x = $node->{smsg} || $srch->lookup_mail($mid);
 	my ($subj, $ts);
 	my $topic;
 	if ($x) {
-		$x = $x->header_obj;
-		$subj = $x->header('Subject') || '';
+		$subj = $x->subject;
 		$subj = $srch->subject_normalized($subj);
-		$ts = $x->header('X-PI-TS');
+		$ts = $x->ts;
 		if ($level == 0) {
 			$topic = [ $ts, 1, { $subj => $mid }, $subj ];
 			$ctx->{-cur_topic} = $topic;
@@ -1023,9 +1016,10 @@ sub thread_adj_level {
 }
 
 sub ghost_index_entry {
-	my ($ctx, $level, $mid) = @_;
+	my ($ctx, $level, $node) = @_;
 	my ($beg, $end) = thread_adj_level($ctx,  $level);
-	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $mid) . '</pre>' . $end;
+	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $node->{id})
+		. '</pre>' . $end;
 }
 
 1;

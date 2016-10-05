@@ -144,35 +144,6 @@ sub ensure_metadata {
 	}
 }
 
-# for threading only
-sub mini_mime {
-	my ($self) = @_;
-	$self->ensure_metadata;
-	my @h = (
-		'Subject' => $self->subject,
-		'X-PI-From' => $self->from_name,
-		# prevent Email::Simple::Creator from running,
-		# this header is useless for threading as we use X-PI-TS
-		# for sorting and display:
-		'Date' => EPOCH_822,
-		'Message-ID' => "<$self->{mid}>",
-		'X-PI-TS' => $self->ts,
-	);
-	if (my $refs = $self->{references}) {
-		push @h, References => $refs;
-	}
-	my $mime = Email::MIME->create(header => \@h);
-	my $h = $mime->header_obj;
-
-	# set these headers manually since Encode::encode('MIME-Q', ...)
-	# will add spaces to long values when using header_str above.
-
-	# drop useless headers Email::MIME set for us
-	$h->header_set('Date');
-	$h->header_set('MIME-Version');
-	$mime;
-}
-
 sub mid ($;$) {
 	my ($self, $mid) = @_;
 

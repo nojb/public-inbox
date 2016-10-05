@@ -148,7 +148,6 @@ sub mset_thread {
 		my $i = $_;
 		my $m = PublicInbox::SearchMsg->load_doc($i->get_document);
 		$pct{$m->mid} = $i->get_percent;
-		$m = $m->mini_mime;
 		$m;
 	} ($mset->items);
 
@@ -156,9 +155,9 @@ sub mset_thread {
 	$th->thread;
 	if ($q->{r}) { # order by relevance
 		$th->order(sub {
-			[ sort { (eval { $pct{$b->topmost->messageid} } || 0)
+			[ sort { (eval { $pct{$b->topmost->{id}} } || 0)
 					<=>
-				(eval { $pct{$a->topmost->messageid} } || 0)
+				(eval { $pct{$a->topmost->{id}} } || 0)
 			} @{$_[0]} ];
 		});
 	} else { # order by time (default for threaded view)
@@ -185,8 +184,7 @@ sub mset_thread {
 	sub {
 		return unless $msgs;
 		while ($mime = shift @$msgs) {
-			my $mid = mid_clean(mid_mime($mime));
-			$mime = $inbox->msg_by_mid($mid) and last;
+			$mime = $inbox->msg_by_smsg($mime) and last;
 		}
 		if ($mime) {
 			$mime = Email::MIME->new($mime);

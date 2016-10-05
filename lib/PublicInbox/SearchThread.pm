@@ -20,7 +20,6 @@
 package PublicInbox::SearchThread;
 use strict;
 use warnings;
-use Email::Abstract;
 
 sub new {
 	return bless {
@@ -28,37 +27,6 @@ sub new {
 		id_table => {},
 		rootset  => []
 	}, $_[0];
-}
-
-sub _get_hdr {
-	my ($class, $msg, $hdr) = @_;
-	Email::Abstract->get_header($msg, $hdr) || '';
-}
-
-sub _uniq {
-	my %seen;
-	return grep { !$seen{$_}++ } @_;
-}
-
-sub _references {
-	my $class = shift;
-	my $msg = shift;
-	my @references = ($class->_get_hdr($msg, "References") =~ /<([^>]+)>/g);
-	my $foo = $class->_get_hdr($msg, "In-Reply-To");
-	chomp $foo;
-	$foo =~ s/.*?<([^>]+)>.*/$1/;
-	push @references, $foo
-	  if $foo =~ /^\S+\@\S+$/ && (!@references || $references[-1] ne $foo);
-	return _uniq(@references);
-}
-
-sub _msgid {
-	my ($class, $msg) = @_;
-	my $id = $class->_get_hdr($msg, "Message-ID");
-	die "attempt to thread message with no id" unless $id;
-	chomp $id;
-	$id =~ s/^<([^>]+)>.*/$1/; # We expect this not to have <>s
-	return $id;
 }
 
 sub rootset { @{$_[0]{rootset}} }
@@ -77,13 +45,10 @@ sub _finish {
 	delete $self->{seen};
 }
 
-sub _get_cont_for_id {
-	my $self = shift;
-	my $id = shift;
-	$self->{id_table}{$id} ||= $self->_container_class->new($id);
+sub _get_cont_for_id ($$) {
+	my ($self, $mid) = @_;
+	$self->{id_table}{$mid} ||= PublicInbox::SearchThread::Msg->new($mid);
 }
-
-sub _container_class { 'PublicInbox::SearchThread::Container' }
 
 sub _setup {
 	my ($self) = @_;
@@ -92,41 +57,40 @@ sub _setup {
 }
 
 sub _add_message ($$) {
-	my ($self, $message) = @_;
+	my ($self, $smsg) = @_;
 
 	# A. if id_table...
-	my $this_container = $self->_get_cont_for_id($self->_msgid($message));
-	$this_container->{message} = $message;
+	my $this = _get_cont_for_id($self, $smsg->{mid});
+	$this->{smsg} = $smsg;
 
 	# B. For each element in the message's References field:
-	my @refs = $self->_references($message);
-
 	my $prev;
-	for my $ref (@refs) {
-		# Find a Container object for the given Message-ID
-		my $container = $self->_get_cont_for_id($ref);
+	if (defined(my $refs = $smsg->{references})) {
+		foreach my $ref ($refs =~ m/<([^>]+)>/g) {
+			# Find a Container object for the given Message-ID
+			my $cont = _get_cont_for_id($self, $ref);
 
-		# Link the References field's Containers together in the
-		# order implied by the References header
-		# * If they are already linked don't change the existing links
-		# * Do not add a link if adding that link would introduce
-		#   a loop...
-
-		if ($prev &&
-			!$container->{parent} &&  # already linked
-			!$container->has_descendent($prev) # would loop
-		   ) {
-			$prev->add_child($container);
+			# Link the References field's Containers together in
+			# the order implied by the References header
+			#
+			# * If they are already linked don't change the
+			#   existing links
+			# * Do not add a link if adding that link would
+			#   introduce a loop...
+			if ($prev &&
+				!$cont->{parent} &&  # already linked
+				!$cont->has_descendent($prev) # would loop
+			   ) {
+				$prev->add_child($cont);
+			}
+			$prev = $cont;
 		}
-		$prev = $container;
 	}
 
 	# C. Set the parent of this message to be the last element in
 	# References...
-	if ($prev &&
-		!$this_container->has_descendent($prev) # would loop
-	   ) {
-		$prev->add_child($this_container)
+	if ($prev && !$this->has_descendent($prev)) { # would loop
+		$prev->add_child($this)
 	}
 }
 
@@ -135,7 +99,7 @@ sub order {
 	my $ordersub = shift;
 
 	# make a fake root
-	my $root = $self->_container_class->new( 'fakeroot' );
+	my $root = _get_cont_for_id($self, 'fakeroot');
 	$root->add_child( $_ ) for @{ $self->{rootset} };
 
 	# sort it
@@ -147,16 +111,11 @@ sub order {
 	$root->remove_child($_) for @$kids;
 }
 
-package PublicInbox::SearchThread::Container;
+package PublicInbox::SearchThread::Msg;
 use Carp qw(croak);
 use Scalar::Util qw(weaken);
 
 sub new { my $self = shift; bless { id => shift }, $self; }
-
-sub message { $_[0]->{message} }
-sub child { $_[0]->{child} }
-sub next { $_[0]->{next} }
-sub messageid { $_[0]->{id} }
 
 sub add_child {
 	my ($self, $child) = @_;
