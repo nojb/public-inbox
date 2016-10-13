@@ -49,27 +49,27 @@ sub _add_message ($$) {
 	$this->{smsg} = $smsg;
 
 	# B. For each element in the message's References field:
-	my $prev;
-	if (defined(my $refs = $smsg->{references})) {
-		foreach my $ref ($refs =~ m/<([^>]+)>/g) {
-			# Find a Container object for the given Message-ID
-			my $cont = _get_cont_for_id($self, $ref);
+	defined(my $refs = $smsg->{references}) or return;
 
-			# Link the References field's Containers together in
-			# the order implied by the References header
-			#
-			# * If they are already linked don't change the
-			#   existing links
-			# * Do not add a link if adding that link would
-			#   introduce a loop...
-			if ($prev &&
-				!$cont->{parent} &&  # already linked
-				!$cont->has_descendent($prev) # would loop
-			   ) {
-				$prev->add_child($cont);
-			}
-			$prev = $cont;
+	my $prev;
+	foreach my $ref ($refs =~ m/<([^>]+)>/g) {
+		# Find a Container object for the given Message-ID
+		my $cont = _get_cont_for_id($self, $ref);
+
+		# Link the References field's Containers together in
+		# the order implied by the References header
+		#
+		# * If they are already linked don't change the
+		#   existing links
+		# * Do not add a link if adding that link would
+		#   introduce a loop...
+		if ($prev &&
+			!$cont->{parent} &&  # already linked
+			!$cont->has_descendent($prev) # would loop
+		   ) {
+			$prev->add_child($cont);
 		}
+		$prev = $cont;
 	}
 
 	# C. Set the parent of this message to be the last element in
