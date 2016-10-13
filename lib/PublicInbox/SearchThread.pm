@@ -104,27 +104,21 @@ sub add_child {
 	  if $self == $child;
 
 	my $cid = $child->{id};
-	$self->{children}->{$cid} = $child;
 
 	# reparenting:
 	if (defined(my $parent = $child->{parent})) {
 		delete $parent->{children}->{$cid};
 	}
 
+	$self->{children}->{$cid} = $child;
 	$child->{parent} = $self;
 }
 
 sub has_descendent {
-	my ($cur, $child) = @_;
-	my %seen;
-	my @q = ($cur->{parent} || $cur);
-
-	while (defined($cur = shift @q)) {
-		return 1 if $cur == $child;
-
-		if (!$seen{$cur}++) {
-			push @q, values %{$cur->{children}};
-		}
+	my ($self, $child) = @_;
+	while ($child) {
+		return 1 if $self == $child;
+		$child = $child->{parent};
 	}
 	0;
 }
