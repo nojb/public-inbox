@@ -155,8 +155,9 @@ sub mset_thread {
 	$th->thread;
 	if ($q->{r}) { # order by relevance
 		$th->order(sub {
-			[ sort { ( $pct{$b->{id}} || 0) <=>
-				 ( $pct{$a->{id}} || 0)
+			[ sort { (eval { $pct{$b->topmost->{id}} } || 0)
+					<=>
+				(eval { $pct{$a->topmost->{id}} } || 0)
 			} @{$_[0]} ];
 		});
 	} else { # order by time (default for threaded view)

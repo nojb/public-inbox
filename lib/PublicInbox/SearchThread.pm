@@ -98,6 +98,16 @@ sub new {
 	}, $_[0];
 }
 
+sub topmost {
+	my ($self) = @_;
+	my @q = ($self);
+	while (my $cont = shift @q) {
+		return $cont if $cont->{smsg};
+		push @q, values %{$cont->{children}};
+	}
+	undef;
+}
+
 sub add_child {
 	my ($self, $child) = @_;
 	croak "Cowardly refusing to become my own parent: $self"
