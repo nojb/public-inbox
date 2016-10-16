@@ -240,7 +240,8 @@ sub done {
 			my $s = PublicInbox::SearchIdx->new($inbox);
 			$s->index_sync({ ref => $self->{ref} });
 		};
-		run_die([@cmd, qw(gc --auto)], undef);
+
+		eval { run_die([@cmd, qw(gc --auto)], undef) };
 	}
 
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";
