@@ -12,7 +12,10 @@ use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use Cwd 'abs_path';
 my $usage = "public-inbox-index GIT_DIR";
 use PublicInbox::Config;
-my $config = PublicInbox::Config->new;
+my $config = eval { PublicInbox::Config->new } || eval {
+	warn "public-inbox unconfigured for serving, indexing anyways...\n";
+	{}
+};
 eval { require PublicInbox::SearchIdx };
 if ($@) {
 	print STDERR "Search::Xapian required for $0\n";
