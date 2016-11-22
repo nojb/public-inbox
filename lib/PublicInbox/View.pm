@@ -651,7 +651,6 @@ sub mailto_arg_link {
 	push(@arg, map { "--cc=$_" } @cc);
 	my $cc = uri_escape_utf8(join(',', @cc));
 	my $href = "mailto:$to?In-Reply-To=$irt&Cc=${cc}&Subject=$subj";
-	$href =~ s/%20/+/g;
 
 	(\@arg, ascii_html($href));
 }
