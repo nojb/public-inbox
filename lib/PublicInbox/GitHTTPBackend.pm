@@ -273,6 +273,10 @@ sub serve_smart {
 sub input_to_file {
 	my ($env) = @_;
 	my $in = IO::File->new_tmpfile;
+	unless (defined $in) {
+		err($env, "could not open temporary file: $!");
+		return;
+	}
 	my $input = $env->{'psgi.input'};
 	my $buf;
 	while (1) {
@@ -281,11 +285,22 @@ sub input_to_file {
 			err($env, "error reading input: $!");
 			return;
 		}
-		last if ($r == 0);
-		$in->write($buf);
+		my $off = 0;
+		while ($r > 0) {
+			my $w = syswrite($in, $buf, $r, $off);
+			if (defined $w) {
+				$r -= $w;
+				$off += $w;
+			} else {
+				err($env, "error writing temporary file: $!");
+				return;
+			}
+		}
 	}
-	$in->flush;
-	$in->sysseek(0, SEEK_SET);
+	unless (defined(sysseek($in, 0, SEEK_SET))) {
+		err($env, "error seeking temporary file: $!");
+		return;
+	}
 	return $in;
 }
 
