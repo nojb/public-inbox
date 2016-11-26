@@ -7,7 +7,7 @@ package PublicInbox::GitHTTPBackend;
 use strict;
 use warnings;
 use Fcntl qw(:seek);
-use IO::File;
+use IO::Handle;
 use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
 use Plack::Util;
@@ -272,7 +272,7 @@ sub serve_smart {
 
 sub input_to_file {
 	my ($env) = @_;
-	my $in = IO::File->new_tmpfile;
+	open(my $in, '+>', undef);
 	unless (defined $in) {
 		err($env, "could not open temporary file: $!");
 		return;

@@ -243,7 +243,6 @@ my $check_self = sub {
 
 SKIP: {
 	use POSIX qw(dup2);
-	use IO::File;
 	my $have_curl = 0;
 	foreach my $p (split(':', $ENV{PATH})) {
 		-x "$p/curl" or next;
@@ -255,7 +254,7 @@ SKIP: {
 	my $url = 'http://' . $sock->sockhost . ':' . $sock->sockport . '/sha1';
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
-	my $tout = IO::File->new_tmpfile or die "new_tmpfile: $!";
+	open(my $tout, '+>', undef) or die "open temporary file: $!";
 	my $pid = fork;
 	defined $pid or die "fork: $!";
 	my @cmd = (qw(curl --tcp-nodelay --no-buffer -T- -HExpect: -sS), $url);

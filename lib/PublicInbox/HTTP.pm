@@ -17,7 +17,7 @@ use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use Scalar::Util qw(weaken);
-use IO::File;
+use IO::Handle;
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
@@ -43,7 +43,7 @@ sub process_pipelineq () {
 our $MAX_REQUEST_BUFFER = $ENV{GIT_HTTP_MAX_REQUEST_BUFFER} ||
 			(10 * 1024 * 1024);
 
-my $null_io = IO::File->new('/dev/null', '<');
+open(my $null_io, '<', '/dev/null') or die "failed to open /dev/null: $!";
 my $http_date;
 my $prev = 0;
 sub http_date () {
@@ -335,10 +335,10 @@ sub input_prepare {
 			quit($self, 413);
 			return;
 		}
-		$input = IO::File->new_tmpfile;
+		open($input, '+>', undef);
 	} elsif (env_chunked($env)) {
 		$len = CHUNK_START;
-		$input = IO::File->new_tmpfile;
+		open($input, '+>', undef);
 	}
 
 	# TODO: expire idle clients on ENFILE / EMFILE

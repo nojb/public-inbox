@@ -4,7 +4,7 @@ package PublicInbox::Spamcheck::Spamc;
 use strict;
 use warnings;
 use PublicInbox::Spawn qw(popen_rd spawn);
-use IO::File;
+use IO::Handle;
 use Fcntl qw(:DEFAULT SEEK_SET);
 
 sub new {
@@ -72,13 +72,12 @@ sub _devnull {
 
 sub _msg_to_fd {
 	my ($self, $msg, $tmpref) = @_;
-	my $tmpfh;
 	my $fd;
 	if (my $ref = ref($msg)) {
 		my $fileno = eval { fileno($msg) };
 		return $fileno if defined $fileno;
 
-		$tmpfh = IO::File->new_tmpfile;
+		open(my $tmpfh, '+>', undef) or die "failed to open: $!";
 		$tmpfh->autoflush(1);
 		$msg = \($msg->as_string) if $ref ne 'SCALAR';
 		print $tmpfh $$msg or die "failed to print: $!";
