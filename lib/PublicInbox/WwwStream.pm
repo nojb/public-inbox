@@ -106,7 +106,7 @@ sub _html_end {
 	'<hr><pre>'.join("\n\n",
 		$desc,
 		$urls,
-		'Code for this site: '.
+		'AGPL code for this site: '.
 		qq(git clone <a\nhref="$url">$url</a> $PROJECT)
 	).'</pre></body></html>';
 }
