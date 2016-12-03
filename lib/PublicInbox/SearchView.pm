@@ -8,6 +8,7 @@ use warnings;
 use PublicInbox::SearchMsg;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::View;
+use PublicInbox::WwwAtomStream;
 use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape);
 use Email::MIME;
 require PublicInbox::Git;
@@ -46,7 +47,7 @@ sub sres_top_html {
 		$cb = *noop;
 	} else {
 		my $x = $q->{x};
-		return sub { adump($_[0], $mset, $q, $ctx) } if ($x eq 'A');
+		return adump($_[0], $mset, $q, $ctx) if $x eq 'A';
 
 		$ctx->{-html_tip} = search_nav_top($mset, $q) . "\n\n";
 		if ($x eq 't') {
@@ -213,23 +214,17 @@ sub ctx_prepare {
 
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
-	my $fh = $cb->([ 200, ['Content-Type' => 'application/atom+xml']]);
 	my $ibx = $ctx->{-inbox};
-	my $feed_opts = PublicInbox::Feed::get_feedopts($ctx);
-	my $x = ascii_html($q->{'q'});
-	$x = qq{$x - search results};
-	$feed_opts->{atomurl} = $feed_opts->{url} . '?'. $q->qs_html;
-	$feed_opts->{url} .= '?'. $q->qs_html(x => undef);
-	$x = PublicInbox::Feed::atom_header($feed_opts, "<title>$x</title>");
-	$fh->write($x. PublicInbox::Feed::feed_updated());
-
-	for ($mset->items) {
-		$x = PublicInbox::SearchMsg->load_doc($_->get_document)->mid;
-		$x = mid2path($x);
-		my $s = PublicInbox::Feed::feed_entry($feed_opts, $x, $ibx);
-		$fh->write($s) if defined $s;
-	}
-	PublicInbox::Feed::end_feed($fh);
+	my @items = $mset->items;
+	$ctx->{search_query} = $q;
+	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
+		while (my $x = shift @items) {
+			$x = PublicInbox::SearchMsg->load_doc($x->get_document);
+			$x = $ibx->msg_by_smsg($x) and
+					return Email::MIME->new($x);
+		}
+		return undef;
+	});
 }
 
 package PublicInbox::SearchQuery;
