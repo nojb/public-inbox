@@ -12,6 +12,7 @@ our $TOR2WEB_URL = 'https://www.tor2web.org/';
 our $CODE_URL = 'https://public-inbox.org/';
 our $PROJECT = 'public-inbox';
 
+# noop for HTTP.pm (and any other PSGI servers)
 sub close {}
 
 sub new {
@@ -111,14 +112,15 @@ sub _html_end {
 	).'</pre></body></html>';
 }
 
+# callback for HTTP.pm (and any other PSGI servers)
 sub getline {
 	my ($self) = @_;
 	my $nr = $self->{nr}++;
 
 	return _html_top($self) if $nr == 0;
 
-	if (my $mid = $self->{cb}) { # middle
-		$mid = $mid->($nr, $self->{ctx}) and return $mid;
+	if (my $middle = $self->{cb}) {
+		$middle = $middle->($nr, $self->{ctx}) and return $middle;
 	}
 
 	delete $self->{cb} ? _html_end($self) : undef;
