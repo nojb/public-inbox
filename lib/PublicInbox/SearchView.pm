@@ -220,7 +220,7 @@ sub adump {
 	$x = qq{$x - search results};
 	$feed_opts->{atomurl} = $feed_opts->{url} . '?'. $q->qs_html;
 	$feed_opts->{url} .= '?'. $q->qs_html(x => undef);
-	$x = PublicInbox::Feed::atom_header($feed_opts, $x);
+	$x = PublicInbox::Feed::atom_header($feed_opts, "<title>$x</title>");
 	$fh->write($x. PublicInbox::Feed::feed_updated());
 
 	for ($mset->items) {
