@@ -15,7 +15,7 @@ use warnings;
 use Digest::SHA qw/sha1_hex/;
 
 my $SALT = rand;
-my $LINK_RE = qr{\b((?:ftps?|https?|nntps?|gopher)://
+my $LINK_RE = qr{(\()?\b((?:ftps?|https?|nntps?|gopher)://
 		 [\@:\w\.-]+/
 		 (?:[a-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@/%]*)
 		 (?:\?[a-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@/%]+)?
@@ -27,15 +27,22 @@ sub new { bless {}, shift }
 sub linkify_1 {
 	my ($self, $s) = @_;
 	$s =~ s!$LINK_RE!
-		my $url = $1;
+		my $beg = $1 || '';
+		my $url = $2;
 		my $end = '';
+
+		# Markdown compatibility:
+		if ($beg eq '(') {
+			$url =~ s/\)\z//;
+			$end = ')';
+		}
 
 		# it's fairly common to end URLs in messages with
 		# '.', ',' or ';' to denote the end of a statement;
 		# assume the intent was to end the statement/sentence
 		# in English
 		if ($url =~ s/([\.,;])\z//) {
-			$end = $1;
+			$end = $1 . $end;
 		}
 
 		# salt this, as this could be exploited to show
@@ -45,7 +52,7 @@ sub linkify_1 {
 		# only escape ampersands, others do not match LINK_RE
 		$url =~ s/&/&#38;/g;
 		$self->{$key} = $url;
-		'PI-LINK-'. $key . $end;
+		$beg . 'PI-LINK-'. $key . $end;
 	!ge;
 	$s;
 }

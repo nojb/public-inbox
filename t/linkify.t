@@ -57,4 +57,13 @@ use PublicInbox::Linkify;
 	is($s, qq(hello <a\nhref="$u">$u</a> world), "root + fragment");
 }
 
+{
+	my $l = PublicInbox::Linkify->new;
+	my $u = 'http://example.com/';
+	my $s = "[markdown]($u)";
+	$s = $l->linkify_1($s);
+	$s = $l->linkify_2($s);
+	is($s, qq![markdown](<a\nhref="$u">$u</a>)!, 'markdown compatible');
+}
+
 done_testing();
