@@ -327,8 +327,9 @@ sub stream_thread ($$) {
 sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
-	my $sres = $ctx->{srch}->get_thread($mid);
-	my $msgs = load_results($sres);
+	my $srch = $ctx->{srch};
+	my $sres = $srch->get_thread($mid);
+	my $msgs = load_results($srch, $sres);
 	my $nr = $sres->{total};
 	return missing_thread($ctx) if $nr == 0;
 	my $skel = '<hr><pre>';
@@ -574,7 +575,8 @@ sub thread_skel {
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{dst} = $dst;
-	walk_thread(thread_results(load_results($sres)), $ctx, *skel_dump);
+	$sres = load_results($srch, $sres);
+	walk_thread(thread_results($sres), $ctx, *skel_dump);
 	$ctx->{parent_msg} = $parent;
 }
 
@@ -733,9 +735,9 @@ sub indent_for {
 }
 
 sub load_results {
-	my ($sres) = @_;
-
-	[ map { $_->ensure_metadata; $_ } @{delete $sres->{msgs}} ];
+	my ($srch, $sres) = @_;
+	my $msgs = delete $sres->{msgs};
+	$srch->retry_reopen(sub { [ map { $_->ensure_metadata; $_ } @$msgs ] });
 }
 
 sub msg_timestamp {
@@ -975,10 +977,11 @@ sub index_topics {
 	my $opts = { offset => $off, limit => 200 };
 
 	$ctx->{order} = [];
-	my $sres = $ctx->{srch}->query('', $opts);
+	my $srch = $ctx->{srch};
+	my $sres = $srch->query('', $opts);
 	my $nr = scalar @{$sres->{msgs}};
 	if ($nr) {
-		$sres = load_results($sres);
+		$sres = load_results($srch, $sres);
 		walk_thread(thread_results($sres), $ctx, *acc_topic);
 	}
 	$ctx->{-next_o} = $off+ $nr;

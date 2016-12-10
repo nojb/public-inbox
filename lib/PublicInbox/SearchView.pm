@@ -59,6 +59,17 @@ sub sres_top_html {
 	PublicInbox::WwwStream->response($ctx, $code, $cb);
 }
 
+# allow undef for individual doc loads...
+sub load_doc_retry {
+	my ($srch, $mitem) = @_;
+
+	eval {
+		$srch->retry_reopen(sub {
+			PublicInbox::SearchMsg->load_doc($mitem->get_document)
+		});
+	}
+}
+
 # display non-threaded search results similar to what users expect from
 # regular WWW search engines:
 sub mset_summary {
@@ -68,10 +79,18 @@ sub mset_summary {
 	my $pad = length("$total");
 	my $pfx = ' ' x $pad;
 	my $res = \($ctx->{-html_tip});
+	my $srch = $ctx->{srch};
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = $m->get_percent;
-		my $smsg = PublicInbox::SearchMsg->load_doc($m->get_document);
+		my $smsg = load_doc_retry($srch, $m);
+		unless ($smsg) {
+			eval {
+				$m = "$m ".$m->get_docid . " expired\n";
+				$ctx->{env}->{'psgi.errors'}->print($m);
+			};
+			next;
+		}
 		my $s = ascii_html($smsg->subject);
 		my $f = ascii_html($smsg->from_name);
 		my $ts = PublicInbox::View::fmt_ts($smsg->ts);
@@ -145,14 +164,14 @@ sub search_nav_bot {
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my %pct;
-	my @m = map {
+	my $msgs = $ctx->{srch}->retry_reopen(sub { [ map {
 		my $i = $_;
-		my $m = PublicInbox::SearchMsg->load_doc($i->get_document);
-		$pct{$m->mid} = $i->get_percent;
-		$m;
-	} ($mset->items);
+		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
+		$pct{$smsg->mid} = $i->get_percent;
+		$smsg;
+	} ($mset->items) ]});
 
-	my $th = PublicInbox::SearchThread->new(\@m);
+	my $th = PublicInbox::SearchThread->new($msgs);
 	$th->thread;
 	if ($q->{r}) { # order by relevance
 		$th->order(sub {
@@ -175,12 +194,11 @@ sub mset_thread {
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{seen} = {};
-	$ctx->{s_nr} = scalar(@m).'+ results';
+	$ctx->{s_nr} = scalar(@$msgs).'+ results';
 
 	PublicInbox::View::walk_thread($th, $ctx,
 		*PublicInbox::View::pre_thread);
 
-	my $msgs = \@m;
 	my $mime;
 	sub {
 		return unless $msgs;
@@ -217,9 +235,10 @@ sub adump {
 	my $ibx = $ctx->{-inbox};
 	my @items = $mset->items;
 	$ctx->{search_query} = $q;
+	my $srch = $ctx->{srch};
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
 		while (my $x = shift @items) {
-			$x = PublicInbox::SearchMsg->load_doc($x->get_document);
+			$x = load_doc_retry($srch, $x);
 			$x = $ibx->msg_by_smsg($x) and
 					return Email::MIME->new($x);
 		}

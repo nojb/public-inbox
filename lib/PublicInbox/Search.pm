@@ -166,20 +166,25 @@ sub get_thread {
 	_do_enquire($self, $qtid, $opts);
 }
 
-sub _do_enquire {
-	my ($self, $query, $opts) = @_;
+sub retry_reopen {
+	my ($self, $cb) = @_;
 	my $ret;
 	for (1..10) {
-		eval { $ret = _enquire_once($self, $query, $opts) };
+		eval { $ret = $cb->() };
 		return $ret unless $@;
 		# Exception: The revision being read has been discarded -
 		# you should call Xapian::Database::reopen()
-		if (index($@, 'Xapian::Database::reopen') >= 0) {
+		if (ref($@) eq 'Search::Xapian::DatabaseModifiedError') {
 			reopen($self);
 		} else {
-			die $@;
+			die;
 		}
 	}
+}
+
+sub _do_enquire {
+	my ($self, $query, $opts) = @_;
+	retry_reopen($self, sub { _enquire_once($self, $query, $opts) });
 }
 
 sub _enquire_once {
