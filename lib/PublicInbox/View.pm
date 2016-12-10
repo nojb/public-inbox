@@ -767,8 +767,9 @@ sub _msg_date {
 
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
-sub _skel_header {
-	my ($ctx, $smsg, $level) = @_;
+sub skel_dump {
+	my ($ctx, $level, $node) = @_;
+	my $smsg = $node->{smsg} or return _skel_ghost($ctx, $level, $node);
 
 	my $dst = $ctx->{dst};
 	my $cur = $ctx->{cur};
@@ -824,32 +825,29 @@ sub _skel_header {
 	$$dst .=  $d . "<a\nhref=\"$m\"$id>" . $end;
 }
 
-sub skel_dump {
+sub _skel_ghost {
 	my ($ctx, $level, $node) = @_;
-	if (my $smsg = $node->{smsg}) {
-		_skel_header($ctx, $smsg, $level);
-	} else {
-		my $mid = $node->{id};
-		my $dst = $ctx->{dst};
-		my $d = $ctx->{pct} ? '    [irrelevant] ' # search result
-				    : '     [not found] ';
-		$d .= indent_for($level) . th_pfx($level);
-		my $upfx = $ctx->{-upfx};
-		my $m = PublicInbox::Hval->new_msgid($mid);
-		my $href = $upfx . $m->{href} . '/';
-		my $html = $m->as_html;
 
-		my $mapping = $ctx->{mapping};
-		my $map = $mapping->{$mid} if $mapping;
-		if ($map) {
-			my $id = id_compress($mid, 1);
-			$map->[0] = $d . qq{&lt;<a\nhref=#r$id>$html</a>&gt;\n};
-			$d .= qq{&lt;<a\nhref="$href"\nid=r$id>$html</a>&gt;\n};
-		} else {
-			$d .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
-		}
-		$$dst .= $d;
+	my $mid = $node->{id};
+	my $d = $ctx->{pct} ? '    [irrelevant] ' # search result
+			    : '     [not found] ';
+	$d .= indent_for($level) . th_pfx($level);
+	my $upfx = $ctx->{-upfx};
+	my $m = PublicInbox::Hval->new_msgid($mid);
+	my $href = $upfx . $m->{href} . '/';
+	my $html = $m->as_html;
+
+	my $mapping = $ctx->{mapping};
+	my $map = $mapping->{$mid} if $mapping;
+	if ($map) {
+		my $id = id_compress($mid, 1);
+		$map->[0] = $d . qq{&lt;<a\nhref=#r$id>$html</a>&gt;\n};
+		$d .= qq{&lt;<a\nhref="$href"\nid=r$id>$html</a>&gt;\n};
+	} else {
+		$d .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
 	}
+	my $dst = $ctx->{dst};
+	$$dst .= $d;
 }
 
 sub sort_ts {
