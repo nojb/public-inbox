@@ -4,7 +4,7 @@
 # This license differs from the rest of public-inbox
 #
 # Our own jwz-style threading class based on Mail::Thread from CPAN.
-# Mail::Thread is unmaintained and available on some distros.
+# Mail::Thread is unmaintained and unavailable on some distros.
 # We also do not want pruning or subject grouping, since we want
 # to encourage strict threading and hopefully encourage people
 # to use proper In-Reply-To.
