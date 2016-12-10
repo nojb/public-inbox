@@ -70,14 +70,6 @@ SKIP: {
 	is($check, $st, 'Mail::Thread output matches');
 }
 
-@msgs = map { bless $_, 'PublicInbox::SearchMsg' } (
-	{ mid => 'a@b' },
-	{ mid => 'b@c', references => '<a@b> <b@c>' },
-	{ mid => 'd@e', references => '<d@e>' },
-);
-
-is(thread_to_s(\@msgs), "a\@b\n b\@c\nd\@e\n", 'ok with self-references');
-
 done_testing();
 
 sub thread_to_s {

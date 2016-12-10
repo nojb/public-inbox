@@ -52,6 +52,10 @@ sub _add_message ($$) {
 	# B. For each element in the message's References field:
 	defined(my $refs = $smsg->{references}) or return;
 
+	# This loop exists to help fill in gaps left from missing
+	# messages.  It is not needed in a perfect world where
+	# everything is perfectly referenced, only the last ref
+	# matters.
 	my $prev;
 	foreach my $ref ($refs =~ m/<([^>]+)>/g) {
 		# Find a Container object for the given Message-ID
@@ -74,10 +78,8 @@ sub _add_message ($$) {
 	}
 
 	# C. Set the parent of this message to be the last element in
-	# References...
-	if ($prev && !$this->has_descendent($prev)) { # would loop
-		$prev->add_child($this)
-	}
+	# References.
+	$prev->add_child($this) if defined $prev;
 }
 
 sub order {
@@ -127,8 +129,9 @@ sub add_child {
 
 sub has_descendent {
 	my ($self, $child) = @_;
+	my %seen; # loop prevention XXX may not be necessary
 	while ($child) {
-		return 1 if $self == $child;
+		return 1 if $self == $child || $seen{$child}++;
 		$child = $child->{parent};
 	}
 	0;
