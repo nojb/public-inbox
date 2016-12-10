@@ -115,7 +115,7 @@ sub new {
 		cb => $cb,
 		ctx => $ctx,
 		msgs => [],
-		opts => { asc => 1, offset => 0 },
+		opts => { offset => 0 },
 	}, $class;
 }
 

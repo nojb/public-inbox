@@ -158,6 +158,11 @@ sub get_thread {
 	}
 	$opts ||= {};
 	$opts->{limit} ||= 1000;
+
+	# always sort threads by timestamp, this makes life easier
+	# for the threading algorithm (in SearchThread.pm)
+	$opts->{asc} = 1;
+
 	_do_enquire($self, $qtid, $opts);
 }
 

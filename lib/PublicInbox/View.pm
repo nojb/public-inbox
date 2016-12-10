@@ -327,7 +327,7 @@ sub stream_thread ($$) {
 sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
-	my $sres = $ctx->{srch}->get_thread($mid, { asc => 1 });
+	my $sres = $ctx->{srch}->get_thread($mid);
 	my $msgs = load_results($sres);
 	my $nr = $sres->{total};
 	return missing_thread($ctx) if $nr == 0;
