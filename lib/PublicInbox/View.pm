@@ -127,13 +127,13 @@ sub index_entry {
 	my $id_m = 'm'.$id;
 
 	my $root_anchor = $ctx->{root_anchor} || '';
-	my $irt = in_reply_to($hdr);
+	my $irt;
 
 	my $rv = "<a\nhref=#e$id\nid=m$id>*</a> ";
 	$subj = '<b>'.ascii_html($subj).'</b>';
 	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id_m;
 	$rv .= $subj . "\n";
-	$rv .= _th_index_lite($mid_raw, $irt, $id, $ctx);
+	$rv .= _th_index_lite($mid_raw, \$irt, $id, $ctx);
 	my @tocc;
 	foreach my $f (qw(To Cc)) {
 		my $dst = _hdr_names($hdr, $f);
@@ -147,7 +147,7 @@ sub index_entry {
 	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
 
 	my $mapping = $ctx->{mapping};
-	if (!$mapping && $irt) {
+	if (!$mapping && (defined($irt) || defined($irt = in_reply_to($hdr)))) {
 		my $mirt = PublicInbox::Hval->new_msgid($irt);
 		my $href = $upfx . $mirt->{href}. '/';
 		my $html = $mirt->as_html;
@@ -206,7 +206,10 @@ sub _th_index_lite {
 	my $nr_c = scalar @$children;
 	my $nr_s = 0;
 	my $siblings;
-	my $irt_map = $mapping->{$irt} if defined $irt;
+	if (my $smsg = $node->{smsg}) {
+		($$irt) = (($smsg->{references} || '') =~ m/<([^>]+)>\z/);
+	}
+	my $irt_map = $mapping->{$$irt} if defined $$irt;
 	if (defined $irt_map) {
 		$siblings = $irt_map->[1]->{children};
 		$nr_s = scalar(@$siblings) - 1;
