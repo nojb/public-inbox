@@ -33,7 +33,8 @@ sub thread {
 	my $self = shift;
 	_add_message($self, $_) foreach @{$self->{messages}};
 	my $id_table = delete $self->{id_table};
-	$self->{rootset} = [ grep { !delete $_->{parent} } values %$id_table ];
+	$self->{rootset} = [ grep {
+		!delete($_->{parent}) && $_->visible } values %$id_table ];
 }
 
 sub _get_cont_for_id ($$) {
@@ -133,15 +134,23 @@ sub has_descendent {
 	0;
 }
 
+# Do not show/keep ghosts iff they have no children.  Sometimes
+# a ghost Message-ID is the result of a long header line
+# being folded/mangled by a MUA, and not a missing message.
+sub visible ($) {
+	my ($self) = @_;
+	$self->{smsg} || scalar values %{$self->{children}};
+}
+
 sub order_children {
 	my ($cur, $ordersub) = @_;
 
-	my %seen = ($cur => 1);
+	my %seen = ($cur => 1); # self-referential loop prevention
 	my @q = ($cur);
 	while (defined($cur = shift @q)) {
 		my $c = $cur->{children}; # The hashref here...
 
-		$c = [ grep { !$seen{$_}++ } values %$c ]; # spot/break loops
+		$c = [ grep { !$seen{$_}++ && visible($_) } values %$c ];
 		$c = $ordersub->($c) if scalar @$c > 1;
 		$cur->{children} = $c; # ...becomes an arrayref
 		push @q, @$c;
