@@ -28,6 +28,11 @@ mkpath($dir); # will croak on fatal errors
 my ($fh, $filename) = tempfile('pi-init-XXXXXXXX', DIR => $dir);
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
+	my @st = stat($oh);
+	my $perm = $st[2];
+	defined $perm or die "(f)stat failed on $pi_config: $!\n";
+	chmod($perm & 07777, $fh) or
+		die "(f)chmod failed on future $pi_config: $!\n";
 	my $old;
 	{
 		local $/;
