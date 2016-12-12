@@ -9,6 +9,7 @@ use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
 use Cwd qw/abs_path/;
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 require Danga::Socket;
@@ -181,10 +182,11 @@ sub worker_quit {
 	Danga::Socket->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
 		my $n = 0;
+		my $now = clock_gettime(CLOCK_MONOTONIC);
 
 		foreach my $s (values %$dmap) {
 			$s->can('busy') or next;
-			if ($s->busy) {
+			if ($s->busy($now)) {
 				++$n;
 			} else {
 				# close as much as possible, early as possible
