@@ -47,14 +47,14 @@ man7dir = $(mandir)/man7
 man8dir = $(mandir)/man8
 
 install-man: man
-	test -z "$(man1)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man1dir)
-	test -z "$(man5)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man5dir)
-	test -z "$(man7)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man7dir)
-	test -z "$(man8)" || $(INSTALL) -d -m 755 $(DESTDIR)$(man8dir)
-	test -z "$(man1)" || $(INSTALL) -m 644 $(man1) $(DESTDIR)$(man1dir)
-	test -z "$(man5)" || $(INSTALL) -m 644 $(man5) $(DESTDIR)$(man5dir)
-	test -z "$(man7)" || $(INSTALL) -m 644 $(man7) $(DESTDIR)$(man7dir)
-	test -z "$(man8)" || $(INSTALL) -m 644 $(man8) $(DESTDIR)$(man8dir)
+	$(INSTALL) -d -m 755 $(DESTDIR)$(man1dir)
+	$(INSTALL) -d -m 755 $(DESTDIR)$(man5dir)
+	$(INSTALL) -d -m 755 $(DESTDIR)$(man7dir)
+	$(INSTALL) -d -m 755 $(DESTDIR)$(man8dir)
+	$(INSTALL) -m 644 $(man1) $(DESTDIR)$(man1dir)
+	$(INSTALL) -m 644 $(man5) $(DESTDIR)$(man5dir)
+	$(INSTALL) -m 644 $(man7) $(DESTDIR)$(man7dir)
+	$(INSTALL) -m 644 $(man8) $(DESTDIR)$(man8dir)
 
 doc_install :: install-man
 
