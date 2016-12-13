@@ -250,8 +250,8 @@ sub parse_time ($$;$) {
 		($YYYY, $MM, $DD) = unpack('A4A2A2', $date);
 	} else { # legacy clients send YYMMDD
 		($YYYY, $MM, $DD) = unpack('A2A2A2', $date);
-		if ($YYYY > strftime('%y', @now)) {
-			my $cur_year = $now[5] + 1900;
+		my $cur_year = $now[5] + 1900;
+		if ($YYYY > $cur_year) {
 			$YYYY += int($cur_year / 1000) * 1000 - 100;
 		}
 	}
