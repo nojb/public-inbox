@@ -203,6 +203,14 @@ EOF
 		 'XHDR on invalid header returns empty');
 
 	{
+		my $t0 = time;
+		my $date = $n->date;
+		my $t1 = time;
+		ok($date >= $t0, 'valid date after start');
+		ok($date <= $t1, 'valid date before stop');
+	}
+
+	{
 		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
 		syswrite($s, 'HDR List-id 1-');
 		select(undef, undef, undef, 0.15);
