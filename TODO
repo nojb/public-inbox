@@ -34,8 +34,6 @@ all need to be considered for everything we introduce)
   the links should point to an anchor tag within the same page,
   instead; giving the user options.
 
-* implement RFC 4685 (Atom message threading)
-
 * configurable constants (index limits, search results)
 
 * handle messages with multiple Message-IDs

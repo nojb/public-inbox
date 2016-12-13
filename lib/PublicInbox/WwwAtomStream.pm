@@ -9,10 +9,10 @@ use warnings;
 # FIXME: locale-independence:
 use POSIX qw(strftime);
 use Date::Parse qw(strptime);
-
+use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
 use PublicInbox::Hval qw(ascii_html);
-use PublicInbox::MID qw/mid_clean mid2path mid_escape/;
+use PublicInbox::MID qw/mid_clean mid_escape/;
 
 # called by PSGI server after getline:
 sub close {}
@@ -72,7 +72,8 @@ sub atom_header {
 	my $mtime = (stat($ibx->{mainrepo}))[9] || time;
 
 	qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
-	qq{<feed\nxmlns="http://www.w3.org/2005/Atom">} .
+	qq(<feed\nxmlns="http://www.w3.org/2005/Atom"\n) .
+	qq(xmlns:thr="http://purl.org/syndication/thread/1.0">) .
 	qq{$title} .
 	qq(<link\nrel="alternate"\ntype="text/html") .
 		qq(\nhref="$base_url"/>) .
@@ -81,22 +82,33 @@ sub atom_header {
 	feed_updated(gmtime($mtime));
 }
 
+sub mid2uuid ($) {
+	my ($mid) = @_;
+	utf8::encode($mid); # really screwed up In-Reply-To fields exist
+	$mid = sha1_hex($mid);
+	my $h = '[a-f0-9]';
+	my (@uuid5) = ($mid =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
+	'urn:uuid:' . join('-', @uuid5);
+}
+
 # returns undef or string
 sub feed_entry {
 	my ($self, $mime) = @_;
 	my $ctx = $self->{ctx};
 	my $hdr = $mime->header_obj;
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
-
-	my $uuid = mid2path($mid);
-	$uuid =~ tr!/!!d;
-	my $h = '[a-f0-9]';
-	my (@uuid5) = ($uuid =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
-	$uuid = 'urn:uuid:' . join('-', @uuid5);
-
-	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $ctx->{feed_base_url} . $mid->{href}. '/';
-
+	my $irt = PublicInbox::View::in_reply_to($hdr);
+	my $uuid = mid2uuid($mid);
+	my $base = $ctx->{feed_base_url};
+	if (defined $irt) {
+		my $irt_uuid = mid2uuid($irt);
+		$irt = mid_escape($irt);
+		$irt = qq(<thr:in-reply-to\nref="$irt_uuid"\n).
+			qq(href="$base$irt/"/>);
+	} else {
+		$irt = '';
+	}
+	my $href = $base . mid_escape($mid) . '/';
 	my $date = $hdr->header('Date');
 	my @t = eval { strptime($date) } if defined $date;
 	@t = gmtime(time) unless scalar @t;
@@ -124,7 +136,7 @@ sub feed_entry {
 		PublicInbox::View::multipart_text_as_html($mime, $href) .
 		'</pre>' .
 		qq!</div></content><link\nhref="$href"/>!.
-		"<id>$uuid</id></entry>";
+		"<id>$uuid</id>$irt</entry>";
 }
 
 sub feed_updated {
