@@ -181,6 +181,10 @@ message threading
 	$WIKI_URL/Atom_(standard)
 	https://tools.ietf.org/html/rfc4287
 
+      Atom Threading Extensions (RFC4685) is supported:
+
+	https://tools.ietf.org/html/rfc4685
+
     Finally, the gzipped mbox for a thread is available for
     downloading and importing into your favorite mail client:
 
