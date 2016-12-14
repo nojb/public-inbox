@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use_ok('PublicInbox::SearchMsg');
 use_ok('PublicInbox::SearchThread');
 use Email::Simple;
 my $mt = eval {
