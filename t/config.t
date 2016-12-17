@@ -30,7 +30,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		'url' => 'http://example.com/meta',
 		-primary_address => 'meta@public-inbox.org',
 		'name' => 'meta',
-		feedmax => 100,
+		feedmax => 25,
 		-pi_config => $cfg,
 	}, "lookup matches expected output");
 
@@ -46,7 +46,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		'mainrepo' => '/home/pi/test-main.git',
 		'domain' => 'public-inbox.org',
 		'name' => 'test',
-		feedmax => 100,
+		feedmax => 25,
 		'url' => 'http://example.com/test',
 		-pi_config => $cfg,
 	}, "lookup matches expected output for test");
