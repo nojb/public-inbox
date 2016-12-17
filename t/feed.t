@@ -46,6 +46,7 @@ my $ibx = PublicInbox::Inbox->new({
 	name => 'testbox',
 	mainrepo => $git_dir,
 	url => 'http://example.com/test',
+	feedmax => 3,
 });
 my $git = $ibx->git;
 my $im = PublicInbox::Import->new($git, $ibx->{name}, 'test@example');
@@ -101,10 +102,7 @@ EOF
 {
 	# check initial feed
 	{
-		my $feed = string_feed({
-			-inbox => $ibx,
-			max => 3
-		});
+		my $feed = string_feed({ -inbox => $ibx });
 		SKIP: {
 			skip 'XML::Feed missing', 2 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$feed);
@@ -142,10 +140,7 @@ EOF
 
 	# check spam shows up
 	{
-		my $spammy_feed = string_feed({
-			-inbox => $ibx,
-			max => 3
-		});
+		my $spammy_feed = string_feed({ -inbox => $ibx });
 		SKIP: {
 			skip 'XML::Feed missing', 2 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$spammy_feed);
@@ -167,7 +162,7 @@ EOF
 
 	# spam no longer shows up
 	{
-		my $feed = string_feed({ -inbox => $ibx, max => 3 });
+		my $feed = string_feed({ -inbox => $ibx });
 		SKIP: {
 			skip 'XML::Feed missing', 2 unless $have_xml_feed;
 			my $p = XML::Feed->parse(\$feed);

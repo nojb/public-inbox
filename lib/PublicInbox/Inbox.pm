@@ -29,11 +29,22 @@ sub _weaken_later ($) {
 	$WEAKEN->{"$self"} = $self;
 }
 
+sub _set_uint ($$$) {
+	my ($opts, $field, $default) = @_;
+	my $val = $opts->{$field};
+	if (defined $val) {
+		$val = $val->[-1] if ref($val) eq 'ARRAY';
+		$val = undef if $val !~ /\A\d+\z/;
+	}
+	$opts->{$field} = $val || $default;
+}
+
 sub new {
 	my ($class, $opts) = @_;
 	my $v = $opts->{address} ||= 'public-inbox@example.com';
 	my $p = $opts->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
 	$opts->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
+	_set_uint($opts, 'feedmax', 25);
 	weaken($opts->{-pi_config});
 	bless $opts, $class;
 }

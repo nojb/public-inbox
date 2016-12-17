@@ -145,7 +145,8 @@ sub _fill {
 	my $rv = {};
 
 	foreach my $k (qw(mainrepo address filter url newsgroup
-			infourl watch watchheader httpbackendmax)) {
+			infourl watch watchheader httpbackendmax
+			feedmax)) {
 		my $v = $self->{"$pfx.$k"};
 		$rv->{$k} = $v if defined $v;
 	}

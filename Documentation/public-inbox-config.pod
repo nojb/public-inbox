@@ -120,6 +120,14 @@ addresses or mirrors.
 
 Default: none
 
+=item publicinbox.<name>.feedmax
+
+The size of an Atom feed for the inbox.  If specified more than
+once, only the last value is used.  Invalid values (<= 0) will
+be treated as the default value.
+
+Default: 25
+
 =back
 
 =head1 ENVIRONMENT

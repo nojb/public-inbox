@@ -8,9 +8,6 @@ use warnings;
 use Email::MIME;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
-use constant {
-	MAX_PER_PAGE => 25, # this needs to be tunable
-};
 
 # main function
 sub generate {
@@ -114,7 +111,7 @@ sub new_html_footer {
 
 sub each_recent_blob {
 	my ($ctx, $cb) = @_;
-	my $max = $ctx->{max} || MAX_PER_PAGE;
+	my $max = $ctx->{-inbox}->{feedmax};
 	my $hex = '[a-f0-9]';
 	my $addmsg = qr!^:000000 100644 \S+ \S+ A\t(${hex}{2}/${hex}{38})$!;
 	my $delmsg = qr!^:100644 000000 \S+ \S+ D\t(${hex}{2}/${hex}{38})$!;
