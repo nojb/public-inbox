@@ -7,12 +7,10 @@ package PublicInbox::SearchMsg;
 use strict;
 use warnings;
 use Search::Xapian;
-use POSIX qw//;
 use Date::Parse qw/str2time/;
 use PublicInbox::MID qw/mid_clean/;
 use PublicInbox::Address;
 our $PFX2TERM_RE = undef;
-use POSIX qw(strftime);
 
 sub new {
 	my ($class, $mime) = @_;
@@ -72,13 +70,21 @@ sub subject ($) { __hdr($_[0], 'subject') }
 sub to ($) { __hdr($_[0], 'to') }
 sub cc ($) { __hdr($_[0], 'cc') }
 
+# no strftime, that is locale-dependent
+my @DoW = qw(Sun Mon Tue Wed Thu Fri Sat);
+my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+
 sub date ($) {
 	my ($self) = @_;
 	my $date = __hdr($self, 'date');
 	return $date if defined $date;
 	my $ts = $self->{ts};
 	return unless defined $ts;
-	$self->{date} = strftime('%a, %d %b %Y %T +0000', gmtime($ts));
+	my ($sec, $min, $hour, $mday, $mon, $year, $wday) = gmtime($ts);
+	$self->{date} = "$DoW[$wday], ".
+			sprintf("%02d $MoY[$mon] %04d %02d:%02d:%02d +0000",
+				$mday, $year+1900, $hour, $min, $sec);
+
 }
 
 sub from ($) {
