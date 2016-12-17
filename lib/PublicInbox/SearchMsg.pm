@@ -76,13 +76,10 @@ my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
 sub date ($) {
 	my ($self) = @_;
-	my $date = __hdr($self, 'date');
-	return $date if defined $date;
 	my $ts = $self->{ts};
 	return unless defined $ts;
 	my ($sec, $min, $hour, $mday, $mon, $year, $wday) = gmtime($ts);
-	$self->{date} = "$DoW[$wday], ".
-			sprintf("%02d $MoY[$mon] %04d %02d:%02d:%02d +0000",
+	"$DoW[$wday], " . sprintf("%02d $MoY[$mon] %04d %02d:%02d:%02d +0000",
 				$mday, $year+1900, $hour, $min, $sec);
 
 }
