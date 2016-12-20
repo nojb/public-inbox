@@ -72,11 +72,11 @@ SKIP: {
 done_testing();
 
 sub thread_to_s {
-	my $th = PublicInbox::SearchThread->new(shift);
-	$th->thread;
-	$th->order(sub { [ sort { $a->{id} cmp $b->{id} } @{$_[0]} ] });
+	my ($msgs) = @_;
+	my $rootset = PublicInbox::SearchThread::thread($msgs, sub {
+		[ sort { $a->{id} cmp $b->{id} } @{$_[0]} ] });
 	my $st = '';
-	my @q = map { (0, $_) } @{$th->{rootset}};
+	my @q = map { (0, $_) } @$rootset;
 	while (@q) {
 		my $level = shift @q;
 		my $node = shift @q or next;

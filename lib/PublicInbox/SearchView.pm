@@ -161,6 +161,15 @@ sub search_nav_bot {
 	$rv .= '</pre>';
 }
 
+sub sort_relevance {
+	my ($pct) = @_;
+	sub {
+		[ sort { (eval { $pct->{$b->topmost->{id}} } || 0)
+				<=>
+			(eval { $pct->{$a->topmost->{id}} } || 0)
+	} @{$_[0]} ] };
+}
+
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my %pct;
@@ -171,18 +180,8 @@ sub mset_thread {
 		$smsg;
 	} ($mset->items) ]});
 
-	my $th = PublicInbox::SearchThread->new($msgs);
-	$th->thread;
-	if ($q->{r}) { # order by relevance
-		$th->order(sub {
-			[ sort { (eval { $pct{$b->topmost->{id}} } || 0)
-					<=>
-				(eval { $pct{$a->topmost->{id}} } || 0)
-			} @{$_[0]} ];
-		});
-	} else { # order by time (default for threaded view)
-		$th->order(*PublicInbox::View::sort_ts);
-	}
+	my $rootset = PublicInbox::SearchThread::thread($msgs,
+		$q->{r} ? sort_relevance(\%pct) : *PublicInbox::View::sort_ts);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	my $inbox = $ctx->{-inbox};
 	$ctx->{-upfx} = '';
@@ -196,7 +195,7 @@ sub mset_thread {
 	$ctx->{seen} = {};
 	$ctx->{s_nr} = scalar(@$msgs).'+ results';
 
-	PublicInbox::View::walk_thread($th, $ctx,
+	PublicInbox::View::walk_thread($rootset, $ctx,
 		*PublicInbox::View::pre_thread);
 
 	my $mime;

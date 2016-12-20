@@ -260,8 +260,8 @@ sub _th_index_lite {
 }
 
 sub walk_thread {
-	my ($th, $ctx, $cb) = @_;
-	my @q = map { (0, $_, -1) } @{$th->{rootset}};
+	my ($rootset, $ctx, $cb) = @_;
+	my @q = map { (0, $_, -1) } @$rootset;
 	while (@q) {
 		my ($level, $node, $i) = splice(@q, 0, 3);
 		defined $node or next;
@@ -285,10 +285,10 @@ sub thread_index_entry {
 }
 
 sub stream_thread ($$) {
-	my ($th, $ctx) = @_;
+	my ($rootset, $ctx) = @_;
 	my $inbox = $ctx->{-inbox};
 	my $mime;
-	my @q = map { (0, $_) } @{$th->{rootset}};
+	my @q = map { (0, $_) } @$rootset;
 	my $level;
 	while (@q) {
 		$level = shift @q;
@@ -350,10 +350,10 @@ sub thread_html {
 	$ctx->{mapping} = {};
 	$ctx->{s_nr} = "$nr+ messages in thread";
 
-	my $th = thread_results($msgs);
-	walk_thread($th, $ctx, *pre_thread);
+	my $rootset = thread_results($msgs);
+	walk_thread($rootset, $ctx, *pre_thread);
 	$skel .= '</pre>';
-	return stream_thread($th, $ctx) unless $ctx->{flat};
+	return stream_thread($rootset, $ctx) unless $ctx->{flat};
 
 	# flat display: lazy load the full message from smsg
 	my $inbox = $ctx->{-inbox};
@@ -749,10 +749,7 @@ sub msg_timestamp {
 sub thread_results {
 	my ($msgs) = @_;
 	require PublicInbox::SearchThread;
-	my $th = PublicInbox::SearchThread->new($msgs);
-	$th->thread;
-	$th->order(*sort_ts);
-	$th
+	PublicInbox::SearchThread::thread($msgs, *sort_ts);
 }
 
 sub missing_thread {

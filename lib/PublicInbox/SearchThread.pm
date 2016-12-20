@@ -21,32 +21,28 @@ package PublicInbox::SearchThread;
 use strict;
 use warnings;
 
-sub new {
-	return bless {
-		messages => $_[1],
-		id_table => {},
-		rootset  => []
-	}, $_[0];
-}
-
 sub thread {
-	my $self = shift;
-	_add_message($self, $_) foreach @{$self->{messages}};
-	my $id_table = delete $self->{id_table};
-	$self->{rootset} = [ grep {
+	my ($messages, $ordersub) = @_;
+	my $id_table = {};
+	_add_message($id_table, $_) foreach @$messages;
+	my $rootset = [ grep {
 		!delete($_->{parent}) && $_->visible } values %$id_table ];
+	$id_table = undef;
+	$rootset = $ordersub->($rootset);
+	$_->order_children($ordersub) for @$rootset;
+	$rootset;
 }
 
 sub _get_cont_for_id ($$) {
-	my ($self, $mid) = @_;
-	$self->{id_table}{$mid} ||= PublicInbox::SearchThread::Msg->new($mid);
+	my ($id_table, $mid) = @_;
+	$id_table->{$mid} ||= PublicInbox::SearchThread::Msg->new($mid);
 }
 
 sub _add_message ($$) {
-	my ($self, $smsg) = @_;
+	my ($id_table, $smsg) = @_;
 
 	# A. if id_table...
-	my $this = _get_cont_for_id($self, $smsg->{mid});
+	my $this = _get_cont_for_id($id_table, $smsg->{mid});
 	$this->{smsg} = $smsg;
 
 	# B. For each element in the message's References field:
@@ -59,7 +55,7 @@ sub _add_message ($$) {
 	my $prev;
 	foreach my $ref ($refs =~ m/<([^>]+)>/g) {
 		# Find a Container object for the given Message-ID
-		my $cont = _get_cont_for_id($self, $ref);
+		my $cont = _get_cont_for_id($id_table, $ref);
 
 		# Link the References field's Containers together in
 		# the order implied by the References header
@@ -80,13 +76,6 @@ sub _add_message ($$) {
 	# C. Set the parent of this message to be the last element in
 	# References.
 	$prev->add_child($this) if defined $prev;
-}
-
-sub order {
-	my ($self, $ordersub) = @_;
-	my $rootset = $ordersub->($self->{rootset});
-	$self->{rootset} = $rootset;
-	$_->order_children($ordersub) for @$rootset;
 }
 
 package PublicInbox::SearchThread::Msg;
