@@ -10,7 +10,6 @@ use Search::Xapian;
 use Date::Parse qw/str2time/;
 use PublicInbox::MID qw/mid_clean/;
 use PublicInbox::Address;
-our $PFX2TERM_RE = undef;
 
 sub new {
 	my ($class, $mime) = @_;
@@ -121,29 +120,17 @@ sub references {
 	defined $x ? $x : '';
 }
 
-sub ensure_metadata {
-	my ($self) = @_;
+sub _get_term_val ($$$) {
+	my ($self, $pfx, $re) = @_;
 	my $doc = $self->{doc};
 	my $end = $doc->termlist_end;
-
-	unless (defined $PFX2TERM_RE) {
-		my $or = join('|', keys %PublicInbox::Search::PFX2TERM_RMAP);
-		$PFX2TERM_RE = qr/\A($or)/;
+	my $i = $doc->termlist_begin;
+	$i->skip_to($pfx);
+	if ($i != $end) {
+		my $val = $i->get_termname;
+		$val =~ s/$re// and return $val;
 	}
-
-	while (my ($pfx, $field) = each %PublicInbox::Search::PFX2TERM_RMAP) {
-		# ideally we'd move this out of the loop:
-		my $i = $doc->termlist_begin;
-
-		$i->skip_to($pfx);
-		if ($i != $end) {
-			my $val = $i->get_termname;
-
-			if ($val =~ s/$PFX2TERM_RE//o) {
-				$self->{$field} = $val;
-			}
-		}
-	}
+	undef;
 }
 
 sub mid ($;$) {
@@ -154,8 +141,8 @@ sub mid ($;$) {
 	} elsif (my $rv = $self->{mid}) {
 		$rv;
 	} else {
-		$self->ensure_metadata; # needed for ghosts
-		$self->{mid} ||= $self->_extract_mid;
+		$self->{mid} = _get_term_val($self, 'Q', qr/\AQ/) ||
+				$self->_extract_mid;
 	}
 }
 
@@ -194,16 +181,14 @@ sub thread_id {
 	my ($self) = @_;
 	my $tid = $self->{thread};
 	return $tid if defined $tid;
-	$self->ensure_metadata;
-	$self->{thread};
+	$self->{thread} = _get_term_val($self, 'G', qr/\AG/); # *G*roup
 }
 
 sub path {
 	my ($self) = @_;
 	my $path = $self->{path};
 	return $path if defined $path;
-	$self->ensure_metadata;
-	$self->{path};
+	$self->{path} = _get_term_val($self, 'XPATH', qr/\AXPATH/); # path
 }
 
 1;

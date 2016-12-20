@@ -109,7 +109,6 @@ sub filter_mids {
 	my $found = $ro->lookup_message('<root@s>');
 	ok($found, "message found");
 	is($root_id, $found->{doc_id}, 'doc_id set correctly');
-	$found->ensure_metadata;
 	is($found->mid, 'root@s', 'mid set correctly');
 	ok(int($found->thread_id) > 0, 'thread_id is an integer');
 
@@ -290,7 +289,6 @@ sub filter_mids {
 		body => "LOOP!\n"));
 	ok($doc_id > 0, "doc_id defined with circular reference");
 	my $smsg = $rw->lookup_message('circle@a');
-	$smsg->ensure_metadata;
 	is($smsg->references, '', "no references created");
 	my $msg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
 	is($s, $msg->subject, 'long subject not rewritten');

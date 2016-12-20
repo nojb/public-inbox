@@ -737,7 +737,7 @@ sub indent_for {
 sub load_results {
 	my ($srch, $sres) = @_;
 	my $msgs = delete $sres->{msgs};
-	$srch->retry_reopen(sub { [ map { $_->ensure_metadata; $_ } @$msgs ] });
+	$srch->retry_reopen(sub { [ map { $_->mid; $_ } @$msgs ] });
 }
 
 sub msg_timestamp {
