@@ -129,7 +129,7 @@ sub add_child {
 
 sub has_descendent {
 	my ($self, $child) = @_;
-	my %seen; # loop prevention XXX may not be necessary
+	my %seen; # loop prevention
 	while ($child) {
 		return 1 if $self == $child || $seen{$child}++;
 		$child = $child->{parent};
