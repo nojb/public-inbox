@@ -13,7 +13,7 @@ require IO::Handle;
 sub new ($$$) {
 	my ($class, $s, $cb) = @_;
 	setsockopt($s, SOL_SOCKET, SO_KEEPALIVE, 1);
-	setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
+	setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1); # ignore errors on non-TCP
 	listen($s, 1024);
 	IO::Handle::blocking($s, 0);
 	my $self = fields::new($class);
@@ -26,8 +26,12 @@ sub new ($$$) {
 sub event_read {
 	my ($self) = @_;
 	my $sock = $self->{sock};
+
 	# no loop here, we want to fairly distribute clients
 	# between multiple processes sharing the same socket
+	# XXX our event loop needs better granularity for
+	# a single accept() here to be, umm..., acceptable
+	# on high-traffic sites.
 	if (my $addr = accept(my $c, $sock)) {
 		IO::Handle::blocking($c, 0); # no accept4 :<
 		$self->{post_accept}->($c, $addr, $sock);

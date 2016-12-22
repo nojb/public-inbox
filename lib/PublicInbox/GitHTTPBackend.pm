@@ -227,7 +227,7 @@ sub serve_smart {
 		$r->[0] == 403 ? serve_dumb($env, $git, $path) : $r;
 	};
 	my $res;
-	my $async = $env->{'pi-httpd.async'};
+	my $async = $env->{'pi-httpd.async'}; # XXX unstable API
 	my $io = $env->{'psgix.io'};
 	my $cb = sub {
 		my $r = $rd_hdr->() or return;

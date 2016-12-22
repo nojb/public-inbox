@@ -29,6 +29,8 @@ sub new {
 		'psgi.multiprocess' => Plack::Util::TRUE,
 		'psgix.harakiri'=> Plack::Util::FALSE,
 		'psgix.input.buffered' => Plack::Util::TRUE,
+
+		# XXX unstable API!
 		'pi-httpd.async' => do {
 			no warnings 'once';
 			*pi_httpd_async
