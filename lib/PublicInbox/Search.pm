@@ -289,8 +289,10 @@ sub lookup_message {
 
 sub lookup_mail { # no ghosts!
 	my ($self, $mid) = @_;
-	my $smsg = lookup_message($self, $mid) or return;
-	PublicInbox::SearchMsg->load_doc($smsg->{doc});
+	retry_reopen($self, sub {
+		my $smsg = lookup_message($self, $mid) or return;
+		PublicInbox::SearchMsg->load_doc($smsg->{doc});
+	});
 }
 
 sub find_unique_doc_id {
