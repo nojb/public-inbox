@@ -490,15 +490,13 @@ sub add_text_body {
 		}
 	}
 
-	my $end = "\n";
-	if (@quot) {
-		$end = '';
+	if (@quot) { # ugh, top posted
 		flush_quote(\$s, $l, \@quot);
+	} elsif ($s =~ /\n\z/s) { # common, last line ends with a newline
+		$s;
+	} else { # some editors don't do newlines...
+		$s .= "\n";
 	}
-	$s =~ s/[ \t]+$//sgm; # kill per-line trailing whitespace
-	$s =~ s/\A\n+//s; # kill leading blank lines
-	$s =~ s/\s+\z//s; # kill all trailing spaces
-	$s .= $end;
 }
 
 sub _msg_html_prepare {
