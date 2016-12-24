@@ -441,7 +441,7 @@ sub attach_link ($$$$;$) {
 
 sub add_text_body {
 	my ($upfx, $p) = @_; # from msg_iter: [ Email::MIME, depth, @idx ]
-	my ($part, $depth, @idx) = @$p;
+	my ($part, $depth) = @$p; # attachment @idx is unused
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 
