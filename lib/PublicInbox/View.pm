@@ -482,9 +482,8 @@ sub add_text_body {
 			flush_quote(\$s, $l, \@quot) if @quot;
 
 			# regular line, OK
-			$cur = $l->linkify_1($cur);
-			$cur = ascii_html($cur);
-			$s .= $l->linkify_2($cur);
+			$l->linkify_1($cur);
+			$s .= $l->linkify_2(ascii_html($cur));
 		} else {
 			push @quot, $cur;
 		}

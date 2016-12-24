@@ -22,11 +22,10 @@ my $LINK_RE = qr{(\()?\b((?:ftps?|https?|nntps?|gopher)://
 		 (?:\#[a-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@/%\?]+)?
 		 )}xi;
 
-sub new { bless {}, shift }
+sub new { bless {}, $_[0] }
 
 sub linkify_1 {
-	my ($self, $s) = @_;
-	$s =~ s!$LINK_RE!
+	$_[1] =~ s!$LINK_RE!
 		my $beg = $1 || '';
 		my $url = $2;
 		my $end = '';
@@ -50,19 +49,17 @@ sub linkify_1 {
 
 		# only escape ampersands, others do not match LINK_RE
 		$url =~ s/&/&#38;/g;
-		$self->{$key} = $url;
+		$_[0]->{$key} = $url;
 		$beg . 'PI-LINK-'. $key . $end;
 	!ge;
-	$s;
+	$_[1];
 }
 
 sub linkify_2 {
-	my ($self, $s) = @_;
-
 	# Added "PI-LINK-" prefix to avoid false-positives on git commits
-	$s =~ s!\bPI-LINK-([a-f0-9]{40})\b!
+	$_[1] =~ s!\bPI-LINK-([a-f0-9]{40})\b!
 		my $key = $1;
-		my $url = $self->{$key};
+		my $url = $_[0]->{$key};
 		if (defined $url) {
 			"<a\nhref=\"$url\">$url</a>";
 		} else {
@@ -70,7 +67,7 @@ sub linkify_2 {
 			$key;
 		}
 	!ge;
-	$s;
+	$_[1];
 }
 
 1;
