@@ -476,7 +476,7 @@ sub add_text_body {
 	}
 	my @quot;
 	my $l = PublicInbox::Linkify->new;
-	while (defined(my $cur = shift @lines)) {
+	foreach my $cur (@lines) {
 		if ($cur !~ /^>/) {
 			# show the previously buffered quote inline
 			flush_quote(\$s, $l, \@quot) if @quot;
