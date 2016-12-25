@@ -9,6 +9,7 @@ package PublicInbox::Qspawn;
 use strict;
 use warnings;
 use PublicInbox::Spawn qw(popen_rd);
+my $def_limiter;
 
 sub new ($$$;) {
 	my ($class, $cmd, $env, $opt) = @_;
@@ -57,6 +58,63 @@ sub start {
 	} else {
 		push @{$limiter->{run_queue}}, [ $self, $cb ];
 	}
+}
+
+sub psgi_return {
+	my ($self, $env, $limiter, $parse_hdr) = @_;
+	my ($fh, $rpipe);
+	my $end = sub {
+		if (my $err = $self->finish) {
+			$err = join(' ', @{$self->{args}->[0]}).": $err\n";
+			$env->{'psgi.errors'}->print($err);
+		}
+		$fh->close if $fh; # async-only
+	};
+
+	# Danga::Socket users, we queue up the read_enable callback to
+	# fire after pending writes are complete:
+	my $buf = '';
+	my $rd_hdr = sub {
+		my $r = sysread($rpipe, $buf, 1024, length($buf));
+		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
+		$parse_hdr->($r, \$buf);
+	};
+	my $res;
+	my $async = $env->{'pi-httpd.async'};
+	my $cb = sub {
+		my $r = $rd_hdr->() or return;
+		$rd_hdr = undef;
+		if (scalar(@$r) == 3) { # error
+			if ($async) {
+				$async->close; # calls rpipe->close
+			} else {
+				$rpipe->close;
+				$end->();
+			}
+			$res->($r);
+		} elsif ($async) {
+			$fh = $res->($r); # scalar @$r == 2
+			$async->async_pass($env->{'psgix.io'}, $fh, \$buf);
+		} else { # for synchronous PSGI servers
+			require PublicInbox::GetlineBody;
+			$r->[2] = PublicInbox::GetlineBody->new($rpipe, $end,
+								$buf);
+			$res->($r);
+		}
+	};
+	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
+	sub {
+		($res) = @_;
+		$self->start($limiter, sub { # may run later, much later...
+			($rpipe) = @_;
+			if ($async) {
+			# PublicInbox::HTTPD::Async->new($rpipe, $cb, $end)
+				$async = $async->($rpipe, $cb, $end);
+			} else { # generic PSGI
+				$cb->() while $rd_hdr;
+			}
+		});
+	};
 }
 
 package PublicInbox::Qspawn::Limiter;

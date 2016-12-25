@@ -200,69 +200,15 @@ sub serve_smart {
 		$env{$name} = $val if defined $val;
 	}
 	my $limiter = $git->{-httpbackend_limiter} || $default_limiter;
-	my $git_dir = $git->{git_dir};
 	$env{GIT_HTTP_EXPORT_ALL} = '1';
-	$env{PATH_TRANSLATED} = "$git_dir/$path";
+	$env{PATH_TRANSLATED} = "$git->{git_dir}/$path";
 	my $rdr = { 0 => fileno($in) };
 	my $qsp = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, $rdr);
-	my ($fh, $rpipe);
-	my $end = sub {
-		if (my $err = $qsp->finish) {
-			err($env, "git http-backend ($git_dir): $err");
-		}
-		$fh->close if $fh; # async-only
-	};
-
-	# Danga::Socket users, we queue up the read_enable callback to
-	# fire after pending writes are complete:
-	my $buf = '';
-	my $rd_hdr = sub {
-		my $r = sysread($rpipe, $buf, 1024, length($buf));
-		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
-		return r(500, 'http-backend error') unless $r;
-		$r = parse_cgi_headers(\$buf) or return; # incomplete headers
+	$qsp->psgi_return($env, $limiter, sub {
+		my ($r, $bref) = @_;
+		$r = parse_cgi_headers($bref) or return; # incomplete headers
 		$r->[0] == 403 ? serve_dumb($env, $git, $path) : $r;
-	};
-	my $res;
-	my $async = $env->{'pi-httpd.async'}; # XXX unstable API
-	my $cb = sub {
-		my $r = $rd_hdr->() or return;
-		$rd_hdr = undef;
-		if (scalar(@$r) == 3) { # error:
-			if ($async) {
-				$async->close; # calls rpipe->close
-			} else {
-				$rpipe->close;
-				$end->();
-			}
-			$res->($r);
-		} elsif ($async) {
-			$fh = $res->($r);
-			$async->async_pass($env->{'psgix.io'}, $fh, \$buf);
-		} else { # for synchronous PSGI servers
-			require PublicInbox::GetlineBody;
-			$r->[2] = PublicInbox::GetlineBody->new($rpipe, $end,
-								$buf);
-			$res->($r);
-		}
-	};
-	sub {
-		($res) = @_;
-
-		# hopefully this doesn't break any middlewares,
-		# holding the input here is a waste of FDs and memory
-		$env->{'psgi.input'} = undef;
-
-		$qsp->start($limiter, sub { # may run later, much later...
-			($rpipe) = @_;
-			$in = undef;
-			if ($async) {
-				$async = $async->($rpipe, $cb, $end);
-			} else { # generic PSGI
-				$cb->() while $rd_hdr;
-			}
-		});
-	};
+	});
 }
 
 sub input_to_file {
