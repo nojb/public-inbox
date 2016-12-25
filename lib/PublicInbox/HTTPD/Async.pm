@@ -30,10 +30,10 @@ sub restart_read_cb ($) {
 }
 
 sub async_pass {
-	my ($self, $io, $fh, $bref) = @_;
-	# In case the client HTTP connection ($io) dies, it
+	my ($self, $http, $fh, $bref) = @_;
+	# In case the client HTTP connection ($http) dies, it
 	# will automatically close this ($self) object.
-	$io->{forward} = $self;
+	$http->{forward} = $self;
 	$fh->write($$bref);
 	my $restart_read = restart_read_cb($self);
 	weaken($self);
@@ -41,10 +41,10 @@ sub async_pass {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
 			$fh->write($$bref);
-			return if $io->{closed};
-			if ($io->{write_buf_size}) {
+			return if $http->{closed};
+			if ($http->{write_buf_size}) {
 				$self->watch_read(0);
-				$io->write($restart_read); # D::S::write
+				$http->write($restart_read); # D::S::write
 			}
 			# stay in watch_read, but let other clients
 			# get some work done, too.
@@ -55,7 +55,7 @@ sub async_pass {
 
 		# Done! Error handling will happen in $fh->close
 		# called by the {cleanup} handler
-		$io->{forward} = undef;
+		$http->{forward} = undef;
 		$self->close;
 	}
 }
