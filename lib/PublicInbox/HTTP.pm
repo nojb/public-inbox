@@ -328,7 +328,7 @@ sub more ($$) {
 
 sub input_prepare {
 	my ($self, $env) = @_;
-	my $input = $null_io;
+	my $input;
 	my $len = $env->{CONTENT_LENGTH};
 	if ($len) {
 		if ($len > $MAX_REQUEST_BUFFER) {
@@ -339,6 +339,8 @@ sub input_prepare {
 	} elsif (env_chunked($env)) {
 		$len = CHUNK_START;
 		open($input, '+>', undef);
+	} else {
+		$input = $null_io;
 	}
 
 	# TODO: expire idle clients on ENFILE / EMFILE
