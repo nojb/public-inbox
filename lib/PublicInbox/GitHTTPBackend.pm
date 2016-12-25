@@ -225,7 +225,6 @@ sub serve_smart {
 	};
 	my $res;
 	my $async = $env->{'pi-httpd.async'}; # XXX unstable API
-	my $io = $env->{'psgix.io'};
 	my $cb = sub {
 		my $r = $rd_hdr->() or return;
 		$rd_hdr = undef;
@@ -236,17 +235,16 @@ sub serve_smart {
 				$rpipe->close;
 				$end->();
 			}
-			return $res->($r);
-		}
-		if ($async) {
+			$res->($r);
+		} elsif ($async) {
 			$fh = $res->($r);
-			return $async->async_pass($io, $fh, \$buf);
+			$async->async_pass($env->{'psgix.io'}, $fh, \$buf);
+		} else { # for synchronous PSGI servers
+			require PublicInbox::GetlineBody;
+			$r->[2] = PublicInbox::GetlineBody->new($rpipe, $end,
+								$buf);
+			$res->($r);
 		}
-
-		# for synchronous PSGI servers
-		require PublicInbox::GetlineBody;
-		$r->[2] = PublicInbox::GetlineBody->new($rpipe, $end, $buf);
-		$res->($r);
 	};
 	sub {
 		($res) = @_;
