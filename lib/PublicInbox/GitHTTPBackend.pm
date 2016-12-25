@@ -46,6 +46,9 @@ sub r ($;$) {
 sub serve {
 	my ($env, $git, $path) = @_;
 
+	# XXX compatibility... ugh, can we stop supporting this?
+	$git = PublicInbox::Git->new($git) unless ref($git);
+
 	# Documentation/technical/http-protocol.txt in git.git
 	# requires one and exactly one query parameter:
 	if ($env->{QUERY_STRING} =~ /\Aservice=git-\w+-pack\z/ ||
@@ -98,7 +101,7 @@ sub serve_dumb {
 		return r(404);
 	}
 
-	my $f = (ref $git ? $git->{git_dir} : $git) . '/' . $path;
+	my $f = $git->{git_dir} . '/' . $path;
 	return r(404) unless -f $f && -r _; # just in case it's a FIFO :P
 	my $size = -s _;
 
@@ -196,14 +199,8 @@ sub serve_smart {
 		my $val = $env->{$name};
 		$env{$name} = $val if defined $val;
 	}
-	my ($git_dir, $limiter);
-	if (ref $git) {
-		$limiter = $git->{-httpbackend_limiter} || $default_limiter;
-		$git_dir = $git->{git_dir};
-	} else {
-		$limiter = $default_limiter;
-		$git_dir = $git;
-	}
+	my $limiter = $git->{-httpbackend_limiter} || $default_limiter;
+	my $git_dir = $git->{git_dir};
 	$env{GIT_HTTP_EXPORT_ALL} = '1';
 	$env{PATH_TRANSLATED} = "$git_dir/$path";
 	my $rdr = { 0 => fileno($in) };

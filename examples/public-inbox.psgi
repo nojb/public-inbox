@@ -14,6 +14,7 @@ my $www = PublicInbox::WWW->new;
 
 # share the public-inbox code itself:
 my $src = $ENV{SRC_GIT_DIR}; # '/path/to/public-inbox.git'
+$src = PublicInbox::Git->new($src) if defined $src;
 
 builder {
 	eval {
