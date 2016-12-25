@@ -206,11 +206,11 @@ sub serve_smart {
 	}
 	$env{GIT_HTTP_EXPORT_ALL} = '1';
 	$env{PATH_TRANSLATED} = "$git_dir/$path";
-	my %rdr = ( 0 => fileno($in) );
-	my $x = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, \%rdr);
+	my $rdr = { 0 => fileno($in) };
+	my $qsp = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, $rdr);
 	my ($fh, $rpipe);
 	my $end = sub {
-		if (my $err = $x->finish) {
+		if (my $err = $qsp->finish) {
 			err($env, "git http-backend ($git_dir): $err");
 		}
 		$fh->close if $fh; # async-only
@@ -258,7 +258,7 @@ sub serve_smart {
 		# holding the input here is a waste of FDs and memory
 		$env->{'psgi.input'} = undef;
 
-		$x->start($limiter, sub { # may run later, much later...
+		$qsp->start($limiter, sub { # may run later, much later...
 			($rpipe) = @_;
 			$in = undef;
 			if ($async) {
