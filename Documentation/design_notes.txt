@@ -56,7 +56,8 @@ Why email?
 * git, one of the most widely-used version control systems, includes many
   tools for for email, including: git-format-patch(1), git-send-email(1),
   git-am(1), git-imap-send(1).  Furthermore, the development of git itself
-  is based on the git mailing list.
+  is based on the git mailing list: https://public-inbox.org/git/
+  (or http://hjrcffqmbrq6wope.onion/git/ for Tor users)
 
 * Email is already the de-facto form of communication in many Free Software
   communities..
@@ -86,6 +87,11 @@ Why perl 5?
 * git and SpamAssassin both use it, so it should be one less thing for
   admins to install and waste disk space with.
 
+* Distributing compiled binaries has higher costs for storage/cache
+  space is required for each architecture.  Having a runnable,
+  source-only distribution means any user already has access to all
+  of our source.
+
 Laziness
 --------
 
@@ -112,12 +118,11 @@ Laziness
 
 * Avoids bikeshedding about web UI decisions, GUI-lovers can write their
   own GUI-friendly interfaces (HTML or native) based on public archives.
-  Maybe one day integrated MUAs will feature built-in git protocol support!
 
 Web notes
 ---------
 
-* Getting users to install/run ssoma (or any new tool) is difficult.
+* Getting users to install/run any new tool is difficult.
   The web views must be easily read/cache/mirror-able.
 
 * There may also be a significant number of webmail users without
