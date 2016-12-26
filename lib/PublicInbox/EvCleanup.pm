@@ -30,9 +30,19 @@ sub _run_all ($) {
 	$_->() foreach @$run;
 }
 
+# ensure Danga::Socket::ToClose fires after timers fire
+sub _asap_close () { $asapq->[1] ||= _asap_timer() }
+
 sub _run_asap () { _run_all($asapq) }
-sub _run_next () { _run_all($nextq) }
-sub _run_later () { _run_all($laterq) }
+sub _run_next () {
+	_run_all($nextq);
+	_asap_close();
+}
+
+sub _run_later () {
+	_run_all($laterq);
+	_asap_close();
+}
 
 # Called by Danga::Socket
 sub event_write {
