@@ -105,7 +105,8 @@ Default: none
 This may be set to C<spamc> to enable the use of SpamAssassin
 L<spamc(1)> for filtering spam before it is imported into git
 history.  Other spam filtering backends may be supported in
-the future.  This only affects L<public-inbox-watch(1)>.
+the future.  This requires L<public-inbox-watch(1)>, but affects
+all configured public-inboxes in PI_CONFIG.
 
 Default: none
 

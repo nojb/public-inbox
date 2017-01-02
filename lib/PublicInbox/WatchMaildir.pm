@@ -80,6 +80,7 @@ sub new {
 		mdmap => \%mdmap,
 		mdir => \@mdir,
 		mdre => $mdre,
+		config => $config,
 		importers => {},
 	}, $class;
 }
@@ -99,15 +100,18 @@ sub _remove_spam {
 	$path =~ /:2,[A-R]*S[T-Z]*\z/i or return;
 	my $mime = _path_to_mime($path) or return;
 	_force_mid($mime);
-	foreach my $inbox (values %{$self->{mdmap}}) {
-		next unless ref $inbox;
-		my $im = _importer_for($self, $inbox);
-		$im->remove($mime);
-		if (my $scrub = _scrubber_for($inbox)) {
-			my $scrubbed = $scrub->scrub($mime) or next;
-			$im->remove($scrubbed);
-		}
-	}
+	$self->{config}->each_inbox(sub {
+		my ($ibx) = @_;
+		eval {
+			my $im = _importer_for($self, $ibx);
+			$im->remove($mime);
+			if (my $scrub = _scrubber_for($ibx)) {
+				my $scrubbed = $scrub->scrub($mime) or return;
+				$im->remove($scrubbed);
+			}
+		};
+		warn "error removing spam at $path from $ibx->{name}\n" if $@;
+	})
 }
 
 # used to hash the relevant portions of a message when there are conflicts
