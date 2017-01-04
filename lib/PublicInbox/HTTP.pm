@@ -473,7 +473,7 @@ sub close {
 	my $self = shift;
 	my $forward = $self->{forward};
 	my $env = $self->{env};
-	delete $env->{'psgix.io'} if $env; # prevent circular referernces
+	delete $env->{'psgix.io'} if $env; # prevent circular references
 	$self->{pull} = $self->{forward} = $self->{env} = undef;
 	if ($forward) {
 		eval { $forward->close };
