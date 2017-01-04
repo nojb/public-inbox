@@ -10,7 +10,6 @@ use strict;
 use warnings;
 use base qw(Danga::Socket);
 use fields qw(cb cleanup);
-use Scalar::Util qw(weaken);
 require PublicInbox::EvCleanup;
 
 sub new {
@@ -29,22 +28,17 @@ sub restart_read_cb ($) {
 	sub { $self->watch_read(1) }
 }
 
-sub async_pass {
-	my ($self, $http, $fh, $bref) = @_;
-	# In case the client HTTP connection ($http) dies, it
-	# will automatically close this ($self) object.
-	$http->{forward} = $self;
-	$fh->write($$bref);
-	my $restart_read = restart_read_cb($self);
-	weaken($self);
-	$self->{cb} = sub {
+sub main_cb ($$$) {
+	my ($http, $fh, $bref) = @_;
+	sub {
+		my ($self) = @_;
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
 			$fh->write($$bref);
 			return if $http->{closed};
 			if ($http->{write_buf_size}) {
 				$self->watch_read(0);
-				$http->write($restart_read); # D::S::write
+				$http->write(restart_read_cb($self));
 			}
 			# stay in watch_read, but let other clients
 			# get some work done, too.
@@ -60,9 +54,18 @@ sub async_pass {
 	}
 }
 
-sub event_read { $_[0]->{cb}->() }
-sub event_hup { $_[0]->{cb}->() }
-sub event_err { $_[0]->{cb}->() }
+sub async_pass {
+	my ($self, $http, $fh, $bref) = @_;
+	# In case the client HTTP connection ($http) dies, it
+	# will automatically close this ($self) object.
+	$http->{forward} = $self;
+	$fh->write($$bref); # PublicInbox:HTTP::{chunked,identity}_wcb
+	$self->{cb} = main_cb($http, $fh, $bref);
+}
+
+sub event_read { $_[0]->{cb}->(@_) }
+sub event_hup { $_[0]->{cb}->(@_) }
+sub event_err { $_[0]->{cb}->(@_) }
 sub sysread { shift->{sock}->sysread(@_) }
 
 sub close {
