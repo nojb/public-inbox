@@ -16,7 +16,6 @@ use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
-use Scalar::Util qw(weaken);
 use IO::Handle;
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
@@ -237,12 +236,14 @@ sub next_request ($) {
 	}
 }
 
-sub response_done ($$) {
+sub response_done_cb ($$) {
 	my ($self, $alive) = @_;
-	my $env = $self->{env};
-	$self->{env} = undef;
-	$self->write("0\r\n\r\n") if $alive == 2;
-	$self->write(sub { $alive ? next_request($self) : $self->close });
+	sub {
+		my $env = $self->{env};
+		$self->{env} = undef;
+		$self->write("0\r\n\r\n") if $alive == 2;
+		$self->write(sub{$alive ? next_request($self) : $self->close});
+	}
 }
 
 sub getline_cb ($$$) {
@@ -283,10 +284,8 @@ sub getline_cb ($$$) {
 	$close->();
 }
 
-sub getline_response {
-	my ($self, $body, $write, $close) = @_;
-	$self->{forward} = $body;
-	weaken($self);
+sub getline_response ($$$) {
+	my ($self, $write, $close) = @_;
 	my $pull = $self->{pull} = sub { getline_cb($self, $write, $close) };
 	$pull->();
 }
@@ -294,15 +293,15 @@ sub getline_response {
 sub response_write {
 	my ($self, $env, $res) = @_;
 	my $alive = response_header_write($self, $env, $res);
-
+	my $close = response_done_cb($self, $alive);
 	my $write = $alive == 2 ? chunked_wcb($self) : identity_wcb($self);
-	my $close = sub { response_done($self, $alive) };
 	if (defined(my $body = $res->[2])) {
 		if (ref $body eq 'ARRAY') {
 			$write->($_) foreach @$body;
 			$close->();
 		} else {
-			getline_response($self, $body, $write, $close);
+			$self->{forward} = $body;
+			getline_response($self, $write, $close);
 		}
 	} else {
 		# this is returned to the calling application:
