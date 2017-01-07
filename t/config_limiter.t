@@ -25,7 +25,7 @@ my $cfgpfx = "publicinbox.test";
 
 {
 	my $config = PublicInbox::Config->new({
-		'limiter.named.max' => 3,
+		'publicinboxlimiter.named.max' => 3,
 		"$cfgpfx.address" => 'test@example.com',
 		"$cfgpfx.mainrepo" => '/path/to/non/existent',
 		"$cfgpfx.httpbackendmax" => 'named',
