@@ -22,12 +22,6 @@ sub cleanup_task () {
 	$CLEANUP = {};
 }
 
-sub _cleanup_later ($) {
-	my ($self) = @_;
-	$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
-	$CLEANUP->{"$self"} = $self;
-}
-
 sub _set_uint ($$$) {
 	my ($opts, $field, $default) = @_;
 	my $val = $opts->{$field};
@@ -76,6 +70,8 @@ sub git {
 	$self->{git} ||= eval {
 		my $g = PublicInbox::Git->new($self->{mainrepo});
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
+		$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
+		$CLEANUP->{"$self"} = $self;
 		$g;
 	};
 }
