@@ -15,23 +15,6 @@ is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
 eval { PublicInbox::Search->new($git_dir) };
 ok($@, "exception raised on non-existent DB");
 
-{
-	my $orig = "FOO " x 30;
-	my $summ = PublicInbox::Search::subject_summary($orig);
-
-	$summ = length($summ);
-	$orig = length($orig);
-	ok($summ < $orig && $summ > 0, "summary shortened ($orig => $summ)");
-
-	$orig = "FOO" x 30;
-	$summ = PublicInbox::Search::subject_summary($orig);
-
-	$summ = length($summ);
-	$orig = length($orig);
-	ok($summ < $orig && $summ > 0,
-	   "summary shortened but not empty: $summ");
-}
-
 my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
 $rw->_xdb_acquire;
 $rw->_xdb_release;

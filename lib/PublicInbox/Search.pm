@@ -326,6 +326,7 @@ sub find_doc_ids_for_term {
 }
 
 # normalize subjects so they are suitable as pathnames for URLs
+# XXX: consider for removal
 sub subject_path {
 	my $subj = pop;
 	$subj = subject_normalized($subj);
@@ -340,32 +341,6 @@ sub subject_normalized {
 	$subj =~ s/\s+/ /gs; # no redundant spaces
 	$subj =~ s/\.+\z//; # no trailing '.'
 	$subj =~ s/$REPLY_RE//igo; # remove reply prefix
-	$subj;
-}
-
-# for doc data
-sub subject_summary {
-	my $subj = pop;
-	my $max = 68;
-	if (length($subj) > $max) {
-		my @subj = split(/\s+/, $subj);
-		$subj = '';
-		my $l;
-
-		while ($l = shift @subj) {
-			my $new = $subj . $l . ' ';
-			last if length($new) >= $max;
-			$subj = $new;
-		}
-		if ($subj ne '') {
-			my $r = scalar @subj ? ' ...' : '';
-			$subj =~ s/ \z/$r/s;
-		} else {
-			# subject has one REALLY long word, and NOT spam? wtf
-			@subj = ($l =~ /\A(.{1,72})/);
-			$subj = $subj[0] . ' ...';
-		}
-	}
 	$subj;
 }
 

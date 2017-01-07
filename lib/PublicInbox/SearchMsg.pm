@@ -155,6 +155,7 @@ sub thread_id {
 	$self->{thread} = _get_term_val($self, 'G', qr/\AG/); # *G*roup
 }
 
+# XXX: consider removing this, we can phrase match subject
 sub path {
 	my ($self) = @_;
 	my $path = $self->{path};
