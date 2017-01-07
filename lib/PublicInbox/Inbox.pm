@@ -60,6 +60,7 @@ sub _set_limiter ($$$) {
 	my ($self, $git, $pfx) = @_;
 	my $lkey = "-${pfx}_limiter";
 	$git->{$lkey} = $self->{$lkey} ||= eval {
+		# full key is: publicinbox.$NAME.httpbackendmax
 		my $mkey = $pfx.'max';
 		my $val = $self->{$mkey} or return;
 		my $lim;
