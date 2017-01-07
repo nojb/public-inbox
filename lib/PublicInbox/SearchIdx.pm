@@ -155,7 +155,7 @@ sub add_message {
 		if ($smsg) {
 			# convert a ghost to a regular message
 			# it will also clobber any existing regular message
-			$doc_id = $smsg->doc_id;
+			$doc_id = $smsg->{doc_id};
 			$old_tid = $smsg->thread_id;
 		}
 		$smsg = PublicInbox::SearchMsg->new($mime);
@@ -289,7 +289,7 @@ sub link_message {
 	my ($self, $smsg, $old_tid) = @_;
 	my $doc = $smsg->{doc};
 	my $mid = $smsg->mid;
-	my $mime = $smsg->mime;
+	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
 	my $refs = $hdr->header_raw('References');
 	my @refs = $refs ? ($refs =~ /<([^>]+)>/g) : ();

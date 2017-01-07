@@ -282,7 +282,7 @@ sub lookup_message {
 		# raises on error:
 		my $doc = $self->{xdb}->get_document($doc_id);
 		$smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
-		$smsg->doc_id($doc_id);
+		$smsg->{doc_id} = $doc_id;
 	}
 	$smsg;
 }
