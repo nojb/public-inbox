@@ -31,14 +31,19 @@ sub _do_spawn {
 sub finish ($) {
 	my ($self) = @_;
 	my $limiter = $self->{limiter};
+	my $running;
 	if (delete $self->{rpipe}) {
 		my $pid = delete $self->{pid};
 		$self->{err} = $pid == waitpid($pid, 0) ? $? :
 				"PID:$pid still running?";
-		$limiter->{running}--;
+		$running = --$limiter->{running};
 	}
-	if (my $next = shift @{$limiter->{run_queue}}) {
-		_do_spawn(@$next);
+
+	# limiter->{max} may change dynamically
+	if (($running || $limiter->{running}) < $limiter->{max}) {
+		if (my $next = shift @{$limiter->{run_queue}}) {
+			_do_spawn(@$next);
+		}
 	}
 	$self->{err};
 }
