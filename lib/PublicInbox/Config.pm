@@ -95,12 +95,6 @@ sub limiter {
 	};
 }
 
-sub get {
-	my ($self, $inbox, $key) = @_;
-
-	$self->{"publicinbox.$inbox.$key"};
-}
-
 sub config_dir { $ENV{PI_DIR} || "$ENV{HOME}/.public-inbox" }
 
 sub default_file {
