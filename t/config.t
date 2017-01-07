@@ -31,7 +31,8 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		-primary_address => 'meta@public-inbox.org',
 		'name' => 'meta',
 		feedmax => 25,
-		-pi_config => $cfg,
+		-httpbackend_limiter => undef,
+		nntpserver => undef,
 	}, "lookup matches expected output");
 
 	is($cfg->lookup('blah@example.com'), undef,
@@ -48,7 +49,8 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		'name' => 'test',
 		feedmax => 25,
 		'url' => 'http://example.com/test',
-		-pi_config => $cfg,
+		-httpbackend_limiter => undef,
+		nntpserver => undef,
 	}, "lookup matches expected output for test");
 }
 
@@ -63,6 +65,19 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 	});
 	my $ibx = $config->lookup_name('test');
 	is_deeply($ibx->{altid}, [ @altid ]);
+}
+
+{
+	my $pfx = "publicinbox.test";
+	my %h = (
+		"$pfx.address" => 'test@example.com',
+		"$pfx.mainrepo" => '/path/to/non/existent',
+		"publicinbox.nntpserver" => 'news.example.com',
+	);
+	my %tmp = %h;
+	my $cfg = PublicInbox::Config->new(\%tmp);
+	my $ibx = $cfg->lookup_name('test');
+	is($ibx->{nntpserver}, 'news.example.com', 'global NNTP server');
 }
 
 done_testing();

@@ -37,12 +37,11 @@ my $cfgpfx = "publicinbox.test";
 	my $lim = $git->{-httpbackend_limiter};
 	ok($lim, 'Limiter exists');
 	is($lim->{max}, 3, 'limiter has expected slots');
-	$git = undef;
 	$ibx->{git} = undef;
-	PublicInbox::Inbox::weaken_task;
-	$git = $ibx->git;
-	isnt($old, "$git", 'got new Git object');
-	is("$git->{-httpbackend_limiter}", "$lim", 'same limiter');
+	PublicInbox::Inbox::cleanup_task;
+	my $new = $ibx->git;
+	isnt($old, "$new", 'got new Git object');
+	is("$new->{-httpbackend_limiter}", "$lim", 'same limiter');
 	is($lim->{max}, 3, 'limiter has expected slots');
 }
 

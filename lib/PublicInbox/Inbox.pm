@@ -5,28 +5,27 @@
 package PublicInbox::Inbox;
 use strict;
 use warnings;
-use Scalar::Util qw(weaken isweak);
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 
-my $weakt;
+my $cleanup_timer;
 eval {
-	$weakt = 'disabled';
+	$cleanup_timer = 'disabled';
 	require PublicInbox::EvCleanup;
-	$weakt = undef; # OK if we get here
+	$cleanup_timer = undef; # OK if we get here
 };
 
-my $WEAKEN = {}; # string(inbox) -> inbox
-sub weaken_task () {
-	$weakt = undef;
-	_weaken_fields($_) for values %$WEAKEN;
-	$WEAKEN = {};
+my $CLEANUP = {}; # string(inbox) -> inbox
+sub cleanup_task () {
+	$cleanup_timer = undef;
+	delete $_->{git} for values %$CLEANUP;
+	$CLEANUP = {};
 }
 
-sub _weaken_later ($) {
+sub _cleanup_later ($) {
 	my ($self) = @_;
-	$weakt ||= PublicInbox::EvCleanup::later(*weaken_task);
-	$WEAKEN->{"$self"} = $self;
+	$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
+	$CLEANUP->{"$self"} = $self;
 }
 
 sub _set_uint ($$$) {
@@ -39,27 +38,10 @@ sub _set_uint ($$$) {
 	$opts->{$field} = $val || $default;
 }
 
-sub new {
-	my ($class, $opts) = @_;
-	my $v = $opts->{address} ||= 'public-inbox@example.com';
-	my $p = $opts->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
-	$opts->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
-	_set_uint($opts, 'feedmax', 25);
-	weaken($opts->{-pi_config});
-	bless $opts, $class;
-}
-
-sub _weaken_fields {
-	my ($self) = @_;
-	foreach my $f (qw(git mm search)) {
-		isweak($self->{$f}) or weaken($self->{$f});
-	}
-}
-
 sub _set_limiter ($$$) {
-	my ($self, $git, $pfx) = @_;
+	my ($self, $pi_config, $pfx) = @_;
 	my $lkey = "-${pfx}_limiter";
-	$git->{$lkey} = $self->{$lkey} ||= eval {
+	$self->{$lkey} ||= eval {
 		# full key is: publicinbox.$NAME.httpbackendmax
 		my $mkey = $pfx.'max';
 		my $val = $self->{$mkey} or return;
@@ -68,7 +50,7 @@ sub _set_limiter ($$$) {
 			require PublicInbox::Qspawn;
 			$lim = PublicInbox::Qspawn::Limiter->new($val);
 		} elsif ($val =~ /\A[a-z][a-z0-9]*\z/) {
-			$lim = $self->{-pi_config}->limiter($val);
+			$lim = $pi_config->limiter($val);
 			warn "$mkey limiter=$val not found\n" if !$lim;
 		} else {
 			warn "$mkey limiter=$val not understood\n";
@@ -77,28 +59,35 @@ sub _set_limiter ($$$) {
 	}
 }
 
+sub new {
+	my ($class, $opts) = @_;
+	my $v = $opts->{address} ||= 'public-inbox@example.com';
+	my $p = $opts->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
+	$opts->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
+	my $pi_config = delete $opts->{-pi_config};
+	_set_limiter($opts, $pi_config, 'httpbackend');
+	_set_uint($opts, 'feedmax', 25);
+	$opts->{nntpserver} ||= $pi_config->{'publicinbox.nntpserver'};
+	bless $opts, $class;
+}
+
 sub git {
 	my ($self) = @_;
 	$self->{git} ||= eval {
-		_weaken_later($self);
 		my $g = PublicInbox::Git->new($self->{mainrepo});
-		_set_limiter($self, $g, 'httpbackend');
+		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
 		$g;
 	};
 }
 
 sub mm {
 	my ($self) = @_;
-	$self->{mm} ||= eval {
-		_weaken_later($self);
-		PublicInbox::Msgmap->new($self->{mainrepo});
-	};
+	$self->{mm} ||= eval { PublicInbox::Msgmap->new($self->{mainrepo}) };
 }
 
 sub search {
 	my ($self) = @_;
 	$self->{search} ||= eval {
-		_weaken_later($self);
 		PublicInbox::Search->new($self->{mainrepo}, $self->{altid});
 	};
 }
@@ -164,7 +153,7 @@ sub nntp_url {
 	$self->{-nntp_url} ||= do {
 		# no checking for nntp_usable here, we can point entirely
 		# to non-local servers or users run by a different user
-		my $ns = $self->{-pi_config}->{'publicinbox.nntpserver'};
+		my $ns = $self->{nntpserver};
 		my $group = $self->{newsgroup};
 		my @urls;
 		if ($ns && $group) {
