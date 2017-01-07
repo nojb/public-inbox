@@ -69,7 +69,7 @@ sub subject ($) { __hdr($_[0], 'subject') }
 sub to ($) { __hdr($_[0], 'to') }
 sub cc ($) { __hdr($_[0], 'cc') }
 
-# no strftime, that is locale-dependent
+# no strftime, that is locale-dependent and not for RFC822
 my @DoW = qw(Sun Mon Tue Wed Thu Fri Sat);
 my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 

@@ -6,7 +6,6 @@ package PublicInbox::WwwAtomStream;
 use strict;
 use warnings;
 
-# FIXME: locale-independence:
 use POSIX qw(strftime);
 use Date::Parse qw(strptime);
 use Digest::SHA qw(sha1_hex);
