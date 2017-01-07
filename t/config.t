@@ -78,6 +78,12 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 	my $cfg = PublicInbox::Config->new(\%tmp);
 	my $ibx = $cfg->lookup_name('test');
 	is($ibx->{nntpserver}, 'news.example.com', 'global NNTP server');
+
+	delete $h{'publicinbox.nntpserver'};
+	$h{"$pfx.nntpserver"} = 'news.alt.example.com';
+	$cfg = PublicInbox::Config->new(\%h);
+	$ibx = $cfg->lookup_name('test');
+	is($ibx->{nntpserver}, 'news.alt.example.com','per-inbox NNTP server');
 }
 
 done_testing();
