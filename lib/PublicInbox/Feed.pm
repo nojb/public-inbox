@@ -5,7 +5,7 @@
 package PublicInbox::Feed;
 use strict;
 use warnings;
-use Email::MIME;
+use PublicInbox::MIME;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 
@@ -39,7 +39,7 @@ sub generate_thread_atom {
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
 		while (my $msg = shift @$msgs) {
 			$msg = $ibx->msg_by_smsg($msg) and
-					return Email::MIME->new($msg);
+				return PublicInbox::MIME->new($msg);
 		}
 	});
 }
@@ -175,7 +175,7 @@ sub each_recent_blob {
 sub do_cat_mail {
 	my ($ibx, $path) = @_;
 	my $mime = eval { $ibx->msg_by_path($path) } or return;
-	Email::MIME->new($mime);
+	PublicInbox::MIME->new($mime);
 }
 
 1;

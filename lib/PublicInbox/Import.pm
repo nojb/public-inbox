@@ -119,7 +119,7 @@ sub remove {
 	$n = read($r, my $lf, 1);
 	defined($n) or die "read final byte of cat-blob failed: $!";
 	die "bad read on final byte: <$lf>" if $lf ne "\n";
-	my $cur = Email::MIME->new($buf);
+	my $cur = PublicInbox::MIME->new($buf);
 	my $cur_s = $cur->header('Subject');
 	$cur_s = '' unless defined $cur_s;
 	my $cur_m = $mime->header('Subject');

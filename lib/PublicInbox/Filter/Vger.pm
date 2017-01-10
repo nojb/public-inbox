@@ -25,7 +25,7 @@ sub scrub {
 	# so in multipart (e.g. GPG-signed) messages, the list trailer
 	# becomes invisible to MIME-aware email clients.
 	if ($s =~ s/$l0\n$l1\n$l2\n$l3\n($l4\n)?\z//os) {
-		$mime = Email::MIME->new(\$s);
+		$mime = PublicInbox::MIME->new(\$s);
 	}
 	$self->ACCEPT($mime);
 }

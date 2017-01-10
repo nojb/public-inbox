@@ -113,7 +113,7 @@ sub preload {
 	require PublicInbox::Feed;
 	require PublicInbox::View;
 	require PublicInbox::SearchThread;
-	require Email::MIME;
+	require PublicInbox::MIME;
 	require Digest::SHA;
 	require POSIX;
 
@@ -225,8 +225,8 @@ sub get_mid_html {
 	my $x = mid2blob($ctx) or return r404($ctx);
 
 	require PublicInbox::View;
-	require Email::MIME;
-	my $mime = Email::MIME->new($x);
+	require PublicInbox::MIME;
+	my $mime = PublicInbox::MIME->new($x);
 	searcher($ctx);
 	PublicInbox::View::msg_html($ctx, $mime);
 }

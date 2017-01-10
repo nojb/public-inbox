@@ -6,17 +6,7 @@ use strict;
 use warnings;
 use base qw(Exporter);
 our @EXPORT = qw(msg_iter);
-use Email::MIME;
-use Scalar::Util qw(readonly);
-
-# Workaround Email::MIME versions without
-# commit dcef9be66c49ae89c7a5027a789bbbac544499ce
-# ("removing all trailing newlines was too much")
-# This is necessary for Debian jessie
-my $bad = 1.923;
-my $good = 1.935;
-my $ver = $Email::MIME::VERSION;
-my $extra_nl = 1 if ($ver >= $bad && $ver < $good);
+use PublicInbox::MIME;
 
 # Like Email::MIME::walk_parts, but this is:
 # * non-recursive
@@ -36,16 +26,6 @@ sub msg_iter ($$) {
 				@sub = map { [ $_, $depth, @idx, ++$i ] } @sub;
 				@parts = (@sub, @parts);
 			} else {
-				if ($extra_nl) {
-					my $lf = $part->{mycrlf};
-					my $bref = $part->{body};
-					if (readonly($$bref)) {
-						my $s = $$bref . $lf;
-						$part->{body} = \$s;
-					} else {
-						$$bref .= $lf;
-					}
-				}
 				$cb->($p);
 			}
 		}

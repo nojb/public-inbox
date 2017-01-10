@@ -299,7 +299,7 @@ sub stream_thread ($$) {
 	}
 	return missing_thread($ctx) unless $mime;
 
-	$mime = Email::MIME->new($mime);
+	$mime = PublicInbox::MIME->new($mime);
 	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
 	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $mime);
 	PublicInbox::WwwStream->response($ctx, 200, sub {
@@ -311,7 +311,7 @@ sub stream_thread ($$) {
 			unshift @q, map { ($cl, $_) } @{$node->{children}};
 			my $mid = $node->{id};
 			if ($mime = $inbox->msg_by_smsg($node->{smsg})) {
-				$mime = Email::MIME->new($mime);
+				$mime = PublicInbox::MIME->new($mime);
 				return thread_index_entry($ctx, $level, $mime);
 			} else {
 				return ghost_index_entry($ctx, $level, $node);
@@ -362,7 +362,7 @@ sub thread_html {
 		$mime = $inbox->msg_by_smsg($mime) and last;
 	}
 	return missing_thread($ctx) unless $mime;
-	$mime = Email::MIME->new($mime);
+	$mime = PublicInbox::MIME->new($mime);
 	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
 	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $ctx, scalar @$msgs);
 	$mime = undef;
@@ -372,7 +372,7 @@ sub thread_html {
 			$mime = $inbox->msg_by_smsg($mime) and last;
 		}
 		if ($mime) {
-			$mime = Email::MIME->new($mime);
+			$mime = PublicInbox::MIME->new($mime);
 			return index_entry($mime, $ctx, scalar @$msgs);
 		}
 		$msgs = undef;

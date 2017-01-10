@@ -65,6 +65,7 @@ lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
 lib/PublicInbox/MDA.pm
 lib/PublicInbox/MID.pm
+lib/PublicInbox/MIME.pm
 lib/PublicInbox/Mbox.pm
 lib/PublicInbox/MsgIter.pm
 lib/PublicInbox/Msgmap.pm
@@ -143,6 +144,7 @@ t/linkify.t
 t/main-bin/spamc
 t/mda.t
 t/mid.t
+t/mime.t
 t/msg_iter.t
 t/msgmap.t
 t/nntp.t

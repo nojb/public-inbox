@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use File::Temp qw/tempdir/;
@@ -13,7 +13,7 @@ is(system(qw(git init -q --bare), $dir), 0, 'git init successful');
 my $git = PublicInbox::Git->new($dir);
 
 my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
-my $mime = Email::MIME->create(
+my $mime = PublicInbox::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'b@example.com',
@@ -50,7 +50,7 @@ $im->done;
 is(scalar @revs, 26, '26 revisions exist after mass import');
 my ($mark, $msg) = $im->remove($mime);
 like($mark, qr/\A:\d+\z/, 'got mark');
-is(ref($msg), 'Email::MIME', 'got old message deleted');
+is(ref($msg), 'PublicInbox::MIME', 'got old message deleted');
 
 is(undef, $im->remove($mime), 'remove is idempotent');
 

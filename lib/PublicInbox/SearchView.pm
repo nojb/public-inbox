@@ -10,7 +10,7 @@ use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape);
-use Email::MIME;
+use PublicInbox::MIME;
 require PublicInbox::Git;
 require PublicInbox::SearchThread;
 our $LIM = 50;
@@ -205,7 +205,7 @@ sub mset_thread {
 			$mime = $inbox->msg_by_smsg($mime) and last;
 		}
 		if ($mime) {
-			$mime = Email::MIME->new($mime);
+			$mime = PublicInbox::MIME->new($mime);
 			return PublicInbox::View::index_entry($mime, $ctx,
 				scalar @$msgs);
 		}
@@ -239,7 +239,7 @@ sub adump {
 		while (my $x = shift @items) {
 			$x = load_doc_retry($srch, $x);
 			$x = $ibx->msg_by_smsg($x) and
-					return Email::MIME->new($x);
+					return PublicInbox::MIME->new($x);
 		}
 		return undef;
 	});

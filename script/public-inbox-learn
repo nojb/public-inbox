@@ -10,7 +10,7 @@ use warnings;
 use PublicInbox::Config;
 use PublicInbox::Git;
 use PublicInbox::Import;
-use Email::MIME;
+use PublicInbox::MIME;
 use Email::MIME::ContentType;
 $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Address;
@@ -23,7 +23,7 @@ if ($train !~ /\A(?:ham|spam)\z/) {
 my $spamc = PublicInbox::Spamcheck::Spamc->new;
 my $pi_config = PublicInbox::Config->new;
 my $err;
-my $mime = Email::MIME->new(eval {
+my $mime = PublicInbox::MIME->new(eval {
 	local $/;
 	my $data = scalar <STDIN>;
 	$data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;

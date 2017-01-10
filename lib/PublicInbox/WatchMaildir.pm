@@ -6,7 +6,7 @@
 package PublicInbox::WatchMaildir;
 use strict;
 use warnings;
-use Email::MIME;
+use PublicInbox::MIME;
 use Email::MIME::ContentType;
 $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Git;
@@ -207,7 +207,7 @@ sub _path_to_mime {
 		local $/;
 		my $str = <$fh>;
 		$str or return;
-		return Email::MIME->new(\$str);
+		return PublicInbox::MIME->new(\$str);
 	} elsif ($!{ENOENT}) {
 		return;
 	} else {
@@ -247,7 +247,7 @@ sub _spamcheck_cb {
 		my ($mime) = @_;
 		my $tmp = '';
 		if ($sc->spamcheck($mime, \$tmp)) {
-			return Email::MIME->new(\$tmp);
+			return PublicInbox::MIME->new(\$tmp);
 		}
 		warn $mime->header('Message-ID')." failed spam check\n";
 		undef;

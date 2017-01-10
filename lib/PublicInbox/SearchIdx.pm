@@ -10,7 +10,7 @@ package PublicInbox::SearchIdx;
 use strict;
 use warnings;
 use Fcntl qw(:flock :DEFAULT);
-use Email::MIME;
+use PublicInbox::MIME;
 use Email::MIME::ContentType;
 $Email::MIME::ContentType::STRICT_PARAMS = 0;
 use base qw(PublicInbox::Search);
@@ -400,7 +400,7 @@ sub do_cat_mail {
 		my $str = $git->cat_file($blob, $sizeref);
 		# fixup bugs from import:
 		$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
-		Email::MIME->new($str);
+		PublicInbox::MIME->new($str);
 	};
 	$@ ? undef : $mime;
 }

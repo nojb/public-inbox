@@ -5,7 +5,7 @@
 package PublicInbox::WwwAttach; # internal package
 use strict;
 use warnings;
-use Email::MIME;
+use PublicInbox::MIME;
 use Email::MIME::ContentType qw(parse_content_type);
 $Email::MIME::ContentType::STRICT_PARAMS = 0;
 use PublicInbox::MsgIter;
@@ -15,7 +15,7 @@ sub get_attach ($$$) {
 	my ($ctx, $idx, $fn) = @_;
 	my $res = [ 404, [ 'Content-Type', 'text/plain' ], [ "Not found\n" ] ];
 	my $mime = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return $res;
-	$mime = Email::MIME->new($mime);
+	$mime = PublicInbox::MIME->new($mime);
 	msg_iter($mime, sub {
 		my ($part, $depth, @idx) = @{$_[0]};
 		return if join('.', @idx) ne $idx;

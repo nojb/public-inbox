@@ -16,7 +16,7 @@ use constant YYYYMMDD => 4; # for searching in the WWW UI
 
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
-use Email::MIME;
+use PublicInbox::MIME;
 use PublicInbox::MID qw/mid_clean id_compress/;
 
 # This is English-only, everything else is non-standard and may be confused as
