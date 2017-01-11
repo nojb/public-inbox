@@ -86,8 +86,6 @@ sub psgi_return {
 		$fh->close if $fh; # async-only
 	};
 
-	# Danga::Socket users, we queue up the read_enable callback to
-	# fire after pending writes are complete:
 	my $buf = '';
 	my $rd_hdr = sub {
 		my $r = sysread($rpipe, $buf, 1024, length($buf));
@@ -102,7 +100,7 @@ sub psgi_return {
 		my $filter = delete $env->{'qspawn.filter'};
 		if (scalar(@$r) == 3) { # error
 			if ($async) {
-				$async->close; # calls rpipe->close
+				$async->close; # calls rpipe->close and $end
 			} else {
 				$rpipe->close;
 				$end->();

@@ -23,6 +23,7 @@ sub new {
 	$self;
 }
 
+# fires after pending writes are complete:
 sub restart_read_cb ($) {
 	my ($self) = @_;
 	sub { $self->watch_read(1) }
