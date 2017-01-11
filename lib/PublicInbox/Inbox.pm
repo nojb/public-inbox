@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
+use Devel::Peek qw(SvREFCNT);
 
 my $cleanup_timer;
 eval {
@@ -18,8 +19,18 @@ eval {
 my $CLEANUP = {}; # string(inbox) -> inbox
 sub cleanup_task () {
 	$cleanup_timer = undef;
-	delete $_->{git} for values %$CLEANUP;
+	for my $ibx (values %$CLEANUP) {
+		foreach my $f (qw(git mm search)) {
+			delete $ibx->{$f} if SvREFCNT($ibx->{$f}) == 1;
+		}
+	}
 	$CLEANUP = {};
+}
+
+sub _cleanup_later ($) {
+	my ($self) = @_;
+	$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
+	$CLEANUP->{"$self"} = $self;
 }
 
 sub _set_uint ($$$) {
@@ -70,20 +81,23 @@ sub git {
 	$self->{git} ||= eval {
 		my $g = PublicInbox::Git->new($self->{mainrepo});
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
-		$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
-		$CLEANUP->{"$self"} = $self;
+		_cleanup_later($self);
 		$g;
 	};
 }
 
 sub mm {
 	my ($self) = @_;
-	$self->{mm} ||= eval { PublicInbox::Msgmap->new($self->{mainrepo}) };
+	$self->{mm} ||= eval {
+		_cleanup_later($self);
+		PublicInbox::Msgmap->new($self->{mainrepo});
+	};
 }
 
 sub search {
 	my ($self) = @_;
 	$self->{search} ||= eval {
+		_cleanup_later($self);
 		PublicInbox::Search->new($self->{mainrepo}, $self->{altid});
 	};
 }
