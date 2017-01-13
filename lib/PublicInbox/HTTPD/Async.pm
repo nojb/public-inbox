@@ -36,14 +36,16 @@ sub main_cb ($$$) {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
 			$fh->write($$bref);
-			return if $http->{closed};
-			if ($http->{write_buf_size}) {
-				$self->watch_read(0);
-				$http->write(restart_read_cb($self));
+			unless ($http->{closed}) { # Danga::Socket sets this
+				if ($http->{write_buf_size}) {
+					$self->watch_read(0);
+					$http->write(restart_read_cb($self));
+				}
+				# stay in watch_read, but let other clients
+				# get some work done, too.
+				return;
 			}
-			# stay in watch_read, but let other clients
-			# get some work done, too.
-			return;
+			# fall through to close below...
 		} elsif (!defined $r) {
 			return if $!{EAGAIN} || $!{EINTR};
 		}
