@@ -37,7 +37,7 @@ sub parts_multipart {
   return $self->parts_single_part
     unless $boundary and $self->body_raw =~ /^--\Q$boundary\E\s*$/sm;
 
-  $self->{body_raw} = $self->SUPER::body;
+  $self->{body_raw} = Email::Simple::body($self);
 
   # rfc1521 7.2.1
   my ($body, $epilogue) = split /^--\Q$boundary\E--\s*$/sm, $self->body_raw, 2;
@@ -45,13 +45,13 @@ sub parts_multipart {
   # Split on boundaries, but keep blank lines after them intact
   my @bits = split /^--\Q$boundary\E\s*?(?=$self->{mycrlf})/m, ($body || '');
 
-  $self->SUPER::body_set(undef);
+  Email::Simple::body_set($self, undef);
 
   # If there are no headers in the potential MIME part, it's just part of the
   # body.  This is a horrible hack, although it's debatable whether it was
   # better or worse when it was $self->{body} = shift @bits ... -- rjbs,
   # 2006-11-27
-  $self->SUPER::body_set(shift @bits) if ($bits[0] || '') !~ /.*:.*/;
+  Email::Simple::body_set($self, shift @bits) if ($bits[0] || '') !~ /.*:.*/;
 
   my $bits = @bits;
 

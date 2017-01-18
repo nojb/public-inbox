@@ -6,6 +6,7 @@ use strict;
 use warnings;
 use Test::More;
 use_ok 'PublicInbox::MIME';
+use PublicInbox::MsgIter;
 
 my $msg = PublicInbox::MIME->new(
 'From:   Richard Hansen <hansenr@google.com>
@@ -53,5 +54,64 @@ my $exp = 'Richard Hansen (2):
 
 ok($msg->isa('Email::MIME'), 'compatible with Email::MIME');
 is($parts[0]->body, $exp, 'body matches expected');
+
+
+my $raw = q^Date:   Wed, 18 Jan 2017 13:28:32 -0500
+From:   Santiago Torres <santiago@nyu.edu>
+To:     Junio C Hamano <gitster@pobox.com>
+Cc:     git@vger.kernel.org, peff@peff.net, sunshine@sunshineco.com,
+        walters@verbum.org, Lukas Puehringer <luk.puehringer@gmail.com>
+Subject: Re: [PATCH v6 4/6] builtin/tag: add --format argument for tag -v
+Message-ID: <20170118182831.pkhqu2np3bh2puei@LykOS.localdomain>
+References: <20170117233723.23897-1-santiago@nyu.edu>
+ <20170117233723.23897-5-santiago@nyu.edu>
+ <xmqqmvepb4oj.fsf@gitster.mtv.corp.google.com>
+ <xmqqh94wb4y0.fsf@gitster.mtv.corp.google.com>
+MIME-Version: 1.0
+Content-Type: multipart/signed; micalg=pgp-sha256;
+        protocol="application/pgp-signature"; boundary="r24xguofrazenjwe"
+Content-Disposition: inline
+In-Reply-To: <xmqqh94wb4y0.fsf@gitster.mtv.corp.google.com>
+
+
+--r24xguofrazenjwe
+Content-Type: text/plain; charset=us-ascii
+Content-Disposition: inline
+Content-Transfer-Encoding: quoted-printable
+
+your tree directly?=20
+
+--r24xguofrazenjwe
+Content-Type: application/pgp-signature; name="signature.asc"
+
+-----BEGIN PGP SIGNATURE-----
+
+=7wIb
+-----END PGP SIGNATURE-----
+
+--r24xguofrazenjwe--
+
+^;
+
+$msg = PublicInbox::MIME->new($raw);
+my $nr = 0;
+msg_iter($msg, sub {
+	my ($part, $level, @ex) = @{$_[0]};
+	if ($ex[0] == 1) {
+		is($part->body_str, "your tree directly? \r\n", 'body OK');
+	} elsif ($ex[0] == 2) {
+		is($part->body, "-----BEGIN PGP SIGNATURE-----\n\n" .
+				"=7wIb\n" .
+				"-----END PGP SIGNATURE-----\n",
+			'sig "matches"');
+	} else {
+		fail "unexpected part\n";
+	}
+	$nr++;
+});
+
+is($nr, 2, 'got 2 parts');
+is($msg->as_string, $raw,
+	'stringified sufficiently close to original');
 
 done_testing();
