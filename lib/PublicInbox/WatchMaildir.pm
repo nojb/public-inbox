@@ -224,7 +224,14 @@ sub _importer_for {
 		my $addr = $inbox->{-primary_address};
 		PublicInbox::Import->new($git, $name, $addr, $inbox);
 	};
-	$self->{importers}->{"$im"} = $im;
+
+	my $importers = $self->{importers};
+	if (scalar(keys(%$importers)) > 2) {
+		delete $importers->{"$im"};
+		_done_for_now($self);
+	}
+
+	$importers->{"$im"} = $im;
 }
 
 sub _scrubber_for {
