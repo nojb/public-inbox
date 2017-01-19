@@ -16,7 +16,7 @@ $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Address;
 use PublicInbox::Spamcheck::Spamc;
 my $train = shift or die "usage: $usage\n";
-if ($train !~ /\A(?:ham|spam)\z/) {
+if ($train !~ /\A(?:ham|spam|rm)\z/) {
 	die "`$train' not recognized.\nusage: $usage\n";
 }
 
@@ -27,15 +27,18 @@ my $mime = PublicInbox::MIME->new(eval {
 	local $/;
 	my $data = scalar <STDIN>;
 	$data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
-	eval {
-		if ($train eq 'ham') {
-			$spamc->hamlearn(\$data);
-		} else {
-			$spamc->spamlearn(\$data);
-		}
-		die "spamc failed with: $?\n" if $?;
-	};
-	$err = $@;
+
+	if ($train ne 'rm') {
+		eval {
+			if ($train eq 'ham') {
+				$spamc->hamlearn(\$data);
+			} elsif ($train eq 'spam') {
+				$spamc->spamlearn(\$data);
+			}
+			die "spamc failed with: $?\n" if $?;
+		};
+		$err = $@;
+	}
 	$data
 });
 
@@ -61,7 +64,7 @@ foreach my $recipient (keys %dests) {
 	my $email = $ENV{GIT_COMMITTER_EMAIL} || $recipient;
 	my $im = PublicInbox::Import->new($git, $name, $email);
 
-	if ($train eq "spam") {
+	if ($train eq "spam" || $train eq "rm") {
 		# This needs to be idempotent, as my inotify trainer
 		# may train for each cross-posted message, and this
 		# script already learns for every list in
