@@ -238,11 +238,17 @@ sub _scrubber_for {
 	my ($inbox) = @_;
 	my $f = $inbox->{filter};
 	if ($f && $f =~ /::/) {
+		my @args;
+		# basic line splitting, only
+		# Perhaps we can have proper quote splitting one day...
+		($f, @args) = split(/\s+/, $f) if $f =~ /\s+/;
+
 		eval "require $f";
 		if ($@) {
 			warn $@;
 		} else {
-			return $f->new;
+			# e.g: PublicInbox::Filter::Vger->new(@args)
+			return $f->new(@args);
 		}
 	}
 	undef;
