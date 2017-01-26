@@ -51,6 +51,7 @@ lib/PublicInbox/ExtMsg.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm
 lib/PublicInbox/Filter/Mirror.pm
+lib/PublicInbox/Filter/SubjectTag.pm
 lib/PublicInbox/Filter/Vger.pm
 lib/PublicInbox/GetlineBody.pm
 lib/PublicInbox/Git.pm
@@ -127,6 +128,7 @@ t/fail-bin/spamc
 t/feed.t
 t/filter_base.t
 t/filter_mirror.t
+t/filter_subjecttag.t
 t/filter_vger.t
 t/git-http-backend.psgi
 t/git-http-backend.t
