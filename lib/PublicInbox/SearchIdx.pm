@@ -292,11 +292,15 @@ sub link_message {
 	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
 	my $refs = $hdr->header_raw('References');
-	my @refs = $refs ? ($refs =~ /<([^>]+)>/g) : ();
+	my @refs = defined $refs ? ($refs =~ /<([^>]+)>/g) : ();
 	my $irt = $hdr->header_raw('In-Reply-To');
 	if (defined $irt) {
-		$irt = mid_clean($irt);
-		$irt = undef if $mid eq $irt;
+		if ($irt eq '') {
+			$irt = undef;
+		} else {
+			$irt = mid_clean($irt);
+			$irt = undef if $mid eq $irt;
+		}
 	}
 
 	my $tid;
