@@ -157,6 +157,10 @@ sub add_message {
 			# it will also clobber any existing regular message
 			$doc_id = $smsg->{doc_id};
 			$old_tid = $smsg->thread_id;
+
+			# no need to remove_term for old_tid, we use a new
+			# doc to replace the old one when reindexing:
+			$old_tid = undef if $self->{reindex};
 		}
 		$smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
@@ -464,7 +468,7 @@ sub _git_log {
 sub _index_sync {
 	my ($self, $opts) = @_;
 	my $tip = $opts->{ref} || 'HEAD';
-	my $reindex = $opts->{reindex};
+	$self->{reindex} = $opts->{reindex};
 	my ($mkey, $last_commit, $lx, $xlog);
 	$self->{git}->batch_prepare;
 	my $xdb = _xdb_acquire($self);
@@ -474,7 +478,7 @@ sub _index_sync {
 		$mkey = 'last_commit';
 		$last_commit = $xdb->get_metadata('last_commit');
 		$lx = $last_commit;
-		if ($reindex) {
+		if ($self->{reindex}) {
 			$lx = '';
 			$mkey = undef if $last_commit ne '';
 		}
