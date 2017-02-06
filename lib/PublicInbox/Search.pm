@@ -39,7 +39,9 @@ use constant {
 	# 10 - optimize doc for NNTP overviews
 	# 11 - merge threads when vivifying ghosts
 	# 12 - change YYYYMMDD value column to numeric
-	SCHEMA_VERSION => 12,
+	# 13 - fix threading for empty References/In-Reply-To
+	#      (commit 83425ef12e4b65cdcecd11ddcb38175d4a91d5a0)
+	SCHEMA_VERSION => 13,
 
 	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
 	# as it could become a denial-of-service vector
