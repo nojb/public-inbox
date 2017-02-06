@@ -13,7 +13,7 @@ use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape);
 use PublicInbox::MIME;
 require PublicInbox::Git;
 require PublicInbox::SearchThread;
-our $LIM = 50;
+our $LIM = 200;
 
 sub noop {}
 
