@@ -145,15 +145,21 @@ sub search_nav_bot {
 	my $o = $q->{o};
 	my $end = $o + $nr;
 	my $beg = $o + 1;
-	my $rv = "</pre><hr><pre>Results $beg-$end of $total";
+	my $rv = '</pre><hr><pre>';
+	if ($beg <= $end) {
+		$rv .= "Results $beg-$end of $total";
+		$rv .= ' (estimated)' if $end != $total;
+	} else {
+		$rv .= "No more results, only $total";
+	}
 	my $n = $o + $LIM;
 
 	if ($n < $total) {
 		my $qs = $q->qs_html(o => $n);
-		$rv .= qq{, <a\nhref="?$qs"\nrel=next>next</a>}
+		$rv .= qq{  <a\nhref="?$qs"\nrel=next>next</a>}
 	}
 	if ($o > 0) {
-		$rv .= $n < $total ? '/' : ',      ';
+		$rv .= $n < $total ? '/' : '       ';
 		my $p = $o - $LIM;
 		my $qs = $q->qs_html(o => ($p > 0 ? $p : 0));
 		$rv .= qq{<a\nhref="?$qs"\nrel=prev>prev</a>};
