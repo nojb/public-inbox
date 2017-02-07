@@ -11,14 +11,27 @@ all need to be considered for everything we introduce)
 
 * POP3 server, since some webmail providers support external POP3:
   https://public-inbox.org/meta/20160411034104.GA7817@dcvr.yhbt.net/
+  Perhaps make this depend solely the NNTP server and work as a proxy.
+  Meaning users can run this without needing a full copy of the
+  archives in a git repository.
+
+* HTTP and NNTP proxy support.  Allow us to be a frontend for
+  firewalled off (or Tor-exclusive) instances.  The use case is
+  for offering a publically accessible IP with a cheap VPS,
+  yet storing large amounts of data on computers without a
+  public IP behind a home Internet connection.
 
 * TLS support for various daemons (including STARTTLS for NNTP and POP3)
+
+* NNTP COMPRESS extension (see innd)
 
 * Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
 
 * Optional reply-to-list support for mirroring lists that want it :<
   Reply-to-list encourages the existing list as a single-point-of-failure,
   but having an extra mirror using public-inbox code is nice regardless.
+
+* Optional reply-to-nobody for dead lists.
 
 * Configurable linkification for per-inbox shorthands:
   "$gmane/123456" could be configured to expand to the
@@ -36,7 +49,7 @@ all need to be considered for everything we introduce)
 
 * configurable constants (index limits, search results)
 
-* handle messages with multiple Message-IDs
+* handle messages with multiple Message-IDs (how?)
 
 * handle broken double-bracketed References properly (maybe)
   and totally broken Message-IDs
