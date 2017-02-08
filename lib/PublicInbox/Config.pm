@@ -111,7 +111,7 @@ sub git_config_dump {
 	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
 	my %rv;
 	local $/ = "\n";
-	foreach my $line (<$fh>) {
+	while (defined(my $line = <$fh>)) {
 		chomp $line;
 		my ($k, $v) = split(/=/, $line, 2);
 		my $cur = $rv{$k};
