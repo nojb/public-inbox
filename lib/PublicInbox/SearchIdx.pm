@@ -291,32 +291,18 @@ sub link_message {
 	my $mid = $smsg->mid;
 	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
-	my $refs = $hdr->header_raw('References');
-	my @refs = defined $refs ? ($refs =~ /<([^>]+)>/g) : ();
-	my $irt = $hdr->header_raw('In-Reply-To');
-	if (defined $irt) {
-		if ($irt eq '') {
-			$irt = undef;
-		} else {
-			$irt = mid_clean($irt);
-			$irt = undef if $mid eq $irt;
-		}
-	}
+
+	# last References should be IRT, but some mail clients do things
+	# out of order, so trust IRT over References iff IRT exists
+	my @refs = ($hdr->header_raw('References'),
+			$hdr->header_raw('In-Reply-To'));
+	@refs = ((join(' ', @refs)) =~ /<([^>]+)>/g);
 
 	my $tid;
 	if (@refs) {
 		my %uniq = ($mid => 1);
 		my @orig_refs = @refs;
 		@refs = ();
-
-		if (defined $irt) {
-			# to check MAX_MID_SIZE
-			push @orig_refs, $irt;
-
-			# below, we will ensure IRT (if specified)
-			# is the last References
-			$uniq{$irt} = 1;
-		}
 
 		# prevent circular references via References: here:
 		foreach my $ref (@orig_refs) {
@@ -328,10 +314,6 @@ sub link_message {
 			push @refs, $ref;
 		}
 	}
-
-	# last References should be IRT, but some mail clients do things
-	# out of order, so trust IRT over References iff IRT exists
-	push @refs, $irt if defined $irt;
 
 	if (@refs) {
 		$smsg->{references} = '<'.join('> <', @refs).'>';

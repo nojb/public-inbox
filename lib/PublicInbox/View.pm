@@ -92,13 +92,13 @@ EOF
 
 sub in_reply_to {
 	my ($hdr) = @_;
-	my $irt = $hdr->header_raw('In-Reply-To');
-
-	return mid_clean($irt) if defined $irt && $irt ne '';
-
-	my $refs = $hdr->header_raw('References');
-	if ($refs && $refs =~ /<([^>]+)>\s*\z/s) {
-		return $1;
+	my %mid = map { $_ => 1 } $hdr->header_raw('Message-ID');
+	my @refs = ($hdr->header_raw('References'),
+			$hdr->header_raw('In-Reply-To'));
+	@refs = ((join(' ', @refs)) =~ /<([^>]+)>/g);
+	while (defined(my $irt = pop @refs)) {
+		next if $mid{"<$irt>"};
+		return $irt;
 	}
 	undef;
 }
@@ -201,7 +201,10 @@ sub _th_index_lite {
 	my $rv = '';
 	my $mapping = $ctx->{mapping} or return $rv;
 	my $pad = '  ';
-	my ($attr, $node, $idx, $level) = @{$mapping->{$mid_raw}};
+	my $mid_map = $mapping->{$mid_raw};
+	defined $mid_map or
+		return 'public-inbox BUG: '.ascii_html($mid_raw).' not mapped';
+	my ($attr, $node, $idx, $level) = @$mid_map;
 	my $children = $node->{children};
 	my $nr_c = scalar @$children;
 	my $nr_s = 0;

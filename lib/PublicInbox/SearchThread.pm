@@ -7,7 +7,7 @@
 # Mail::Thread is unmaintained and unavailable on some distros.
 # We also do not want pruning or subject grouping, since we want
 # to encourage strict threading and hopefully encourage people
-# to use proper In-Reply-To.
+# to use proper In-Reply-To/References.
 #
 # This includes fixes from several open bugs for Mail::Thread
 #
