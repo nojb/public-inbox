@@ -8,6 +8,7 @@ use Test::More;
 use_ok 'PublicInbox::MIME';
 use PublicInbox::MsgIter;
 
+local $SIG{__WARN__} = sub {};
 my $msg = PublicInbox::MIME->new(
 'From:   Richard Hansen <hansenr@google.com>
 To:     git@vger.kernel.org
