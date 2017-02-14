@@ -165,7 +165,7 @@ sub invalid_inbox_mid {
 	my $ret = invalid_inbox($ctx, $inbox);
 	return $ret if $ret;
 
-	$ctx->{mid} = $mid = uri_unescape($mid);
+	$ctx->{mid} = $mid;
 	if ($mid =~ /\A[a-f0-9]{40}\z/) {
 		# this is horiffically wasteful for legacy URLs:
 		if ($mid = mid2blob($ctx)) {

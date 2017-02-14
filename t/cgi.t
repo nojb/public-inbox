@@ -148,7 +148,7 @@ EOF
 	$im->add($reply);
 	$im->done;
 
-	my $res = cgi_run("/test/slashy%2fasdf\@example.com/raw");
+	my $res = cgi_run("/test/slashy/asdf\@example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
 		"slashy mid raw hit");
 
