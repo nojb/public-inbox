@@ -438,6 +438,7 @@ sub attach_link ($$$$;$) {
 	}
 	$ret .= "[-- Attachment #$idx: ";
 	my $ts = "Type: $ct, Size: $size bytes";
+	$desc = ascii_html($desc);
 	$ret .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
 	$ret .= "</a>\n";
 }

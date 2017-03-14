@@ -124,7 +124,7 @@ EOF
 		Email::MIME->create(
 			attributes => {
 				content_type => 'text/plain',
-				filename => "foo.patch",
+				filename => "foo&.patch",
 			},
 			body => "--- a/file\n+++ b/file\n" .
 			        "@@ -49, 7 +49,34 @@\n",
@@ -140,7 +140,7 @@ EOF
 	);
 
 	my $html = msg_html($mime);
-	like($html, qr!.*Attachment #2: foo\.patch --!,
+	like($html, qr!.*Attachment #2: foo&(?:amp|#38);\.patch --!,
 		"parts split with filename");
 }
 
