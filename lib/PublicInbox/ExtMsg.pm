@@ -16,7 +16,7 @@ use PublicInbox::WwwStream;
 our @EXT_URL = (
 	# leading "//" denotes protocol-relative (http:// or https://)
 	'//marc.info/?i=%s',
-	'//mid.mail-archive.com/%s',
+	'//www.mail-archive.com/search?l=mid&q=%s',
 	'http://mid.gmane.org/%s',
 	'https://lists.debian.org/msgid-search/%s',
 	'//docs.FreeBSD.org/cgi/mid.cgi?db=mid&id=%s',
