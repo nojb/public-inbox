@@ -185,9 +185,9 @@ sub mset_thread {
 		$pct{$smsg->mid} = $i->get_percent;
 		$smsg;
 	} ($mset->items) ]});
-
+	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
-		$q->{r} ? sort_relevance(\%pct) : *PublicInbox::View::sort_ts);
+		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ts);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	my $inbox = $ctx->{-inbox};
 	$ctx->{-upfx} = '';
@@ -203,11 +203,11 @@ sub mset_thread {
 
 	PublicInbox::View::walk_thread($rootset, $ctx,
 		*PublicInbox::View::pre_thread);
-
+	@$msgs = reverse @$msgs if $r;
 	my $mime;
 	sub {
 		return unless $msgs;
-		while ($mime = shift @$msgs) {
+		while ($mime = pop @$msgs) {
 			$mime = $inbox->msg_by_smsg($mime) and last;
 		}
 		if ($mime) {
