@@ -145,7 +145,7 @@ sub search_nav_bot {
 	my $o = $q->{o};
 	my $end = $o + $nr;
 	my $beg = $o + 1;
-	my $rv = '</pre><hr><pre>';
+	my $rv = '</pre><hr><pre id=t>';
 	if ($beg <= $end) {
 		$rv .= "Results $beg-$end of $total";
 		$rv .= ' (estimated)' if $end != $total;
