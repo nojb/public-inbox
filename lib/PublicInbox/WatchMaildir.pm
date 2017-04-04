@@ -97,7 +97,8 @@ sub _try_fsn_paths {
 
 sub _remove_spam {
 	my ($self, $path) = @_;
-	$path =~ /:2,[A-R]*S[T-Z]*\z/i or return;
+	# path must be marked as (S)een
+	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
 	my $mime = _path_to_mime($path) or return;
 	_force_mid($mime);
 	$self->{config}->each_inbox(sub {
