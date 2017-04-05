@@ -51,6 +51,18 @@ foreach my $h (qw(Cc To)) {
 	}
 }
 
+if ($train eq 'spam') {
+	$pi_config->each_inbox(sub {
+		my ($ibx) = @_;
+		my $git = $ibx->git;
+		my $name = $ibx->{name};
+		my $addr = $ibx->{-primary_address};
+		my $im = PublicInbox::Import->new($git, $name, $addr, $ibx);
+		$im->remove($mime);
+		$im->done;
+	});
+}
+
 require PublicInbox::MDA if $train eq "ham";
 
 # n.b. message may be cross-posted to multiple public-inboxes
