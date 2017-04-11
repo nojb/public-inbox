@@ -91,7 +91,7 @@ are also supported
 EOF
 	'b:' => 'match within message body, including text attachments',
 	'nq:' => 'match non-quoted text within message body',
-	'quot:' => 'match quoted text within message body',
+	'q:' => 'match quoted text within message body',
 	'n:' => 'match filename of attachment(s)',
 	't:' => 'match within the To header',
 	'c:' => 'match within the Cc header',
