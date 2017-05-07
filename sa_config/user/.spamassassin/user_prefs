@@ -44,10 +44,20 @@ body JUSTAMAILBOX /I'm just a mailbox used for sending notifications/
 describe JUSTAMAILBOX "autoreply phrase"
 score JUSTAMAILBOX 5.0
 
+# hello foo
+header PI_HELLO subject =~ /^hello \w+/i
+describe PI_HELLO "Hello foo"
+score PI_HELLO 3
+
 # no delivery
 header PI_DNOT subject =~ /delivery\s+(?:status\s+)?notification/i
 describe PI_DNOT "delivery notification"
 score PI_DNOT 3
+
+# no delivery
+header PI_PARCEL subject =~ /could not deliver your parcel/
+describe PI_PARCEL "delivery notification"
+score PI_PARCEL 3
 
 # notice to appear
 header PI_DNOTICE subject =~ /notice to appear/i
@@ -56,12 +66,55 @@ score PI_DNOTICE 3
 
 full ZIPFILE            /\b(?:file)?name\=.*\.zip\b/i
 describe ZIPFILE        zipfile attachment
-score ZIPFILE           0.5
+score ZIPFILE           1.5
+
+header PI_NUM_WORD_SUBJ subject =~ /^\d+ [a-z0-9_-]+$/
+describe PI_NUM_WORD_SUBJ "number and single word subject"
+score PI_NUM_WORD_SUBJ 0.5
+
+header PI_NUM_ONLY_SUBJ subject =~ /^\d+$/
+describe PI_NUM_ONLY_SUBJ "number only subject"
+score PI_NUM_ONLY_SUBJ 0.5
+
+header PI_IMPORTANCE_HIGH importance =~ /^high$/
+describe PI_IMPORTANCE_HIGH "importance: high header"
+score PI_IMPORTANCE_HIGH 0.5
+
+meta PI_ZIPFILE_NUM_WORD_SUBJ PI_NUM_WORD_SUBJ && ZIPFILE
+describe PI_ZIPFILE_NUM_WORD_SUBJ "common spam/virus pattern"
+score PI_ZIPFILE_NUM_WORD_SUBJ 3
+
+meta PI_ZIPFILE_NUM_ONLY_SUBJ PI_NUM_ONLY_SUBJ && ZIPFILE
+describe PI_ZIPFILE_NUM_ONLY_SUBJ "common spam/virus pattern"
+score PI_ZIPFILE_NUM_ONLY_SUBJ 3
+
+full DOCFILE            /\b(?:file)?name\=.*\.doc\b/i
+describe DOCFILE        doc attachment
+score DOCFILE           3
 
 score BAYES_999 3
 score BAYES_05 -1.5
-score BAYES_00 -15
+score BAYES_00 -3
 
 # trust paid whitelist services? never
 score RCVD_IN_RP_SAFE 0.0
 score RCVD_IN_RP_CERTIFIED 0.0
+
+# this depends on PublicInbox::SaPlugin::ListMirror:
+# header LIST_MIRROR_RECEIVED eval:check_list_mirror_received()
+# describe LIST_MIRROR_RECEIVED Received does not match trusted list server
+# score LIST_MIRROR_RECEIVED 10
+#
+# this depends on PublicInbox::SaPlugin::ListMirror:
+# header LIST_MIRROR_BCC eval:check_list_mirror_bcc()
+# describe LIST_MIRROR_BCC Mailing list was Bcc-ed
+# score LIST_MIRROR_BCC 10
+
+# list_mirror X-Mailing-List git@vger.kernel.org *.kernel.org git@vger.kernel.org
+
+# DNSWL scores is a bit too powerful by default (-5 adjustment!)
+# default score RCVD_IN_DNSWL_LOW 0 -0.7 0 -0.7
+# default score RCVD_IN_DNSWL_MED 0 -2.3 0 -2.3
+# default score RCVD_IN_DNSWL_HI 0 -5 0 -5
+score RCVD_IN_DNSWL_MED 0 -0.1 0 -0.1
+score RCVD_IN_DNSWL_HI 0 -0.2 0 -0.2
