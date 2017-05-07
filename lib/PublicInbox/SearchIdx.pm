@@ -330,7 +330,7 @@ sub link_message {
 			merge_threads($self, $tid, $ptid);
 		}
 	} else {
-		$tid = $self->next_thread_id;
+		$tid = defined $old_tid ? $old_tid : $self->next_thread_id;
 	}
 	$doc->add_term(xpfx('thread') . $tid);
 }

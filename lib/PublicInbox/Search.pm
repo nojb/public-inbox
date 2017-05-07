@@ -41,7 +41,8 @@ use constant {
 	# 12 - change YYYYMMDD value column to numeric
 	# 13 - fix threading for empty References/In-Reply-To
 	#      (commit 83425ef12e4b65cdcecd11ddcb38175d4a91d5a0)
-	SCHEMA_VERSION => 13,
+	# 14 - fix ghost root vivification
+	SCHEMA_VERSION => 14,
 
 	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
 	# as it could become a denial-of-service vector
