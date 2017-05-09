@@ -111,7 +111,10 @@ sub _remove_spam {
 				$im->remove($scrubbed);
 			}
 		};
-		warn "error removing spam at $path from $ibx->{name}\n" if $@;
+		if ($@) {
+			warn "error removing spam at: ", $path,
+				" from ", $ibx->{name}, ': ', $@, "\n";
+		}
 	})
 }
 
