@@ -620,7 +620,7 @@ sub with_umask {
 	my $rv = eval { $cb->() };
 	my $err = $@;
 	umask $old;
-	die $err if $@;
+	die $err if $err;
 	$rv;
 }
 
