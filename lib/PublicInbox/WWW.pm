@@ -46,7 +46,7 @@ sub call {
 		$v = '' unless defined $v;
 		$v =~ tr/+/ /;
 		($k, $v)
-	} split(/[&;]/, $env->{QUERY_STRING});
+	} split(/[&;]+/, $env->{QUERY_STRING});
 	$ctx->{qp} = \%qp;
 
 	my $path_info = $env->{PATH_INFO};
