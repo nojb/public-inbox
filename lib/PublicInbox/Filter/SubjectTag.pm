@@ -19,8 +19,10 @@ sub new {
 sub scrub {
 	my ($self, $mime) = @_;
 	my $subj = $mime->header('Subject');
-	$subj =~ s/$self->{tag_re}/$1/; # $1 is "Re: "
-	$mime->header_str_set('Subject', $subj);
+	if (defined $subj) {
+		$subj =~ s/$self->{tag_re}/$1/; # $1 is "Re: "
+		$mime->header_str_set('Subject', $subj);
+	}
 	$self->ACCEPT($mime);
 }
 
