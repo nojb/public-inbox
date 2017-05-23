@@ -5,11 +5,12 @@
 package PublicInbox::SearchView;
 use strict;
 use warnings;
+use URI::Escape qw(uri_unescape uri_escape);
 use PublicInbox::SearchMsg;
 use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
-use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape);
+use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape MID_ESC);
 use PublicInbox::MIME;
 require PublicInbox::Git;
 require PublicInbox::SearchThread;
@@ -29,19 +30,27 @@ sub sres_top_html {
 		mset => 1,
 		relevance => $q->{r},
 	};
-	my ($mset, $total);
+	my ($mset, $total, $err, $cb);
+retry:
 	eval {
 		$mset = $ctx->{srch}->query($q->{'q'}, $opts);
 		$total = $mset->get_matches_estimated;
 	};
-	my $err = $@;
+	$err = $@;
 	ctx_prepare($q, $ctx);
-	my $cb;
 	if ($err) {
 		$code = 400;
 		$ctx->{-html_tip} = '<pre>'.err_txt($ctx, $err).'</pre><hr>';
 		$cb = *noop;
 	} elsif ($total == 0) {
+		if (defined($ctx->{-uxs_retried})) {
+			# undo retry damage:
+			$q->{'q'} = $ctx->{-uxs_retried};
+		} elsif (index($q->{'q'}, '%') >= 0) {
+			$ctx->{-uxs_retried} = $q->{'q'};
+			$q->{'q'} = uri_unescape($q->{'q'});
+			goto retry;
+		}
 		$code = 404;
 		$ctx->{-html_tip} = "<pre>\n[No results found]</pre><hr>";
 		$cb = *noop;
@@ -49,7 +58,7 @@ sub sres_top_html {
 		my $x = $q->{x};
 		return adump($_[0], $mset, $q, $ctx) if $x eq 'A';
 
-		$ctx->{-html_tip} = search_nav_top($mset, $q) . "\n\n";
+		$ctx->{-html_tip} = search_nav_top($mset, $q, $ctx) . "\n\n";
 		if ($x eq 't') {
 			$cb = mset_thread($ctx, $mset, $q);
 		} else {
@@ -113,9 +122,22 @@ sub err_txt {
 }
 
 sub search_nav_top {
-	my ($mset, $q) = @_;
+	my ($mset, $q, $ctx) = @_;
 
-	my $rv = "<pre>Search results ordered by [";
+	my $rv = '<pre>';
+	my $initial_q = $ctx->{-uxs_retried};
+	if (defined $initial_q) {
+		my $rewritten = $q->{'q'};
+		utf8::decode($initial_q);
+		utf8::decode($rewritten);
+		$initial_q = ascii_html($initial_q);
+		$rewritten = ascii_html($rewritten);
+		$rv .= " Warning: Initial query:\n <b>$initial_q</b>\n";
+		$rv .= " returned no results, used:\n";
+		$rv .= " <b>$rewritten</b>\n instead\n\n";
+	}
+
+	$rv .= 'Search results ordered by [';
 	if ($q->{r}) {
 		my $d = $q->qs_html(r => 0);
 		$rv .= qq{<a\nhref="?$d">date</a>|<b>relevance</b>};
