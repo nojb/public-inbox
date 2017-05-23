@@ -6,7 +6,7 @@ package PublicInbox::MID;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape/;
+our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape MID_ESC/;
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
 use constant MID_MAX => 40; # SHA-1 hex length

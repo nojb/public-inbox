@@ -42,6 +42,7 @@ sub call {
 
 	# we don't care about multi-value
 	my %qp = map {
+		utf8::decode($_);
 		my ($k, $v) = split('=', uri_unescape($_), 2);
 		$v = '' unless defined $v;
 		$v =~ tr/+/ /;

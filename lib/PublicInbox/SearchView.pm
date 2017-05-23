@@ -222,7 +222,9 @@ sub mset_thread {
 
 sub ctx_prepare {
 	my ($q, $ctx) = @_;
-	my $qh = ascii_html($q->{'q'});
+	my $qh = $q->{'q'};
+	utf8::decode($qh);
+	$qh = ascii_html($qh);
 	$ctx->{-q_value_html} = $qh;
 	$ctx->{-atom} = '?'.$q->qs_html(x => 'A', r => undef);
 	$ctx->{-title_html} = "$qh - search results";
@@ -254,8 +256,9 @@ sub adump {
 package PublicInbox::SearchQuery;
 use strict;
 use warnings;
+use URI::Escape qw(uri_escape);
 use PublicInbox::Hval;
-use PublicInbox::MID qw(mid_escape);
+use PublicInbox::MID qw(MID_ESC);
 
 sub new {
 	my ($class, $qp) = @_;
@@ -280,7 +283,7 @@ sub qs_html {
 		$self = $tmp;
 	}
 
-	my $q = mid_escape($self->{'q'});
+	my $q = uri_escape($self->{'q'}, MID_ESC);
 	$q =~ s/%20/+/g; # improve URL readability
 	my $qs = "q=$q";
 
