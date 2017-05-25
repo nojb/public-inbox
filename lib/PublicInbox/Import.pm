@@ -191,11 +191,10 @@ sub add {
 	binmode $w, ':utf8' or die "binmode :utf8 failed: $!";
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $date\n",
-		"committer $self->{ident} ", now2822(), "\n",
-		"data ", (bytes::length($subject) + 1), "\n",
-		$subject, "\n\n" or wfail;
+		"committer $self->{ident} ", now2822(), "\n" or wfail;
 	binmode $w, ':raw' or die "binmode :raw failed: $!";
-
+	print $w "data ", (bytes::length($subject) + 1), "\n",
+		$subject, "\n\n" or wfail;
 	if ($tip ne '') {
 		print $w 'from ', ($parent ? $parent : $tip), "\n" or wfail;
 	}
