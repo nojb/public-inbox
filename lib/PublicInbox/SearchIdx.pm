@@ -28,7 +28,27 @@ use constant {
 	PERM_GROUP => 0660,
 	PERM_EVERYBODY => 0664,
 	BATCH_BYTES => 1_000_000,
+	DEBUG => !!$ENV{DEBUG},
 };
+
+my %GIT_ESC = (
+	a => "\a",
+	b => "\b",
+	f => "\f",
+	n => "\n",
+	r => "\r",
+	t => "\t",
+	v => "\013",
+);
+
+sub git_unquote ($) {
+	my ($s) = @_;
+	return $s unless ($s =~ /\A"(.*)"\z/);
+	$s = $1;
+	$s =~ s/\\([abfnrtv])/$GIT_ESC{$1}/g;
+	$s =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
+	$s;
+}
 
 sub new {
 	my ($class, $inbox, $creat) = @_;
@@ -134,11 +154,108 @@ sub index_users ($$) {
 	$tg->increase_termpos;
 }
 
-sub index_body ($$$) {
-	my ($tg, $lines, $inc) = @_;
-	$tg->index_text(join("\n", @$lines), $inc, $inc ? 'XNQ' : 'XQUOT');
-	@$lines = ();
+sub index_text_inc ($$$) {
+	my ($tg, $text, $pfx) = @_;
+	$tg->index_text($text, 1, $pfx);
 	$tg->increase_termpos;
+}
+
+sub index_old_diff_fn {
+	my ($tg, $seen, $fa, $fb) = @_;
+
+	# no renames or space support for traditional diffs,
+	# find the number of leading common paths to strip:
+	my @fa = split('/', $fa);
+	my @fb = split('/', $fb);
+	while (scalar(@fa) && scalar(@fb)) {
+		$fa = join('/', @fa);
+		$fb = join('/', @fb);
+		if ($fa eq $fb) {
+			index_text_inc($tg, $fa,'XDFN') unless $seen->{$fa}++;
+			return 1;
+		}
+		shift @fa;
+		shift @fb;
+	}
+	0;
+}
+
+sub index_diff ($$$) {
+	my ($tg, $lines, $doc) = @_;
+	my %seen;
+	my $in_diff;
+	foreach (@$lines) {
+		if ($in_diff && s/^ //) { # diff context
+			index_text_inc($tg, $_, 'XDFCTX');
+		} elsif (/^-- $/) { # email signature begins
+			$in_diff = undef;
+		} elsif (m!^diff --git ("?a/.+) ("?b/.+)\z!) {
+			my ($fa, $fb) = ($1, $2);
+			my $fn = (split('/', git_unquote($fa), 2))[1];
+			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$fn = (split('/', git_unquote($fb), 2))[1];
+			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$in_diff = 1;
+		# traditional diff:
+		} elsif (m/^diff -(.+) (\S+) (\S+)$/) {
+			my ($opt, $fa, $fb) = ($1, $2, $3);
+			# only support unified:
+			next unless $opt =~ /[uU]/;
+			$in_diff = index_old_diff_fn($tg, \%seen, $fa, $fb);
+		} elsif (m!^--- ("?a/.+)!) {
+			my $fn = (split('/', git_unquote($1), 2))[1];
+			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$in_diff = 1;
+		} elsif (m!^\+\+\+ ("?b/.+)!)  {
+			my $fn = (split('/', git_unquote($1), 2))[1];
+			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$in_diff = 1;
+		} elsif (/^--- (\S+)/) {
+			$in_diff = $1;
+		} elsif (defined $in_diff && /^\+\+\+ (\S+)/) {
+			$in_diff = index_old_diff_fn($tg, \%seen, $in_diff, $1);
+		} elsif ($in_diff && s/^\+//) { # diff added
+			index_text_inc($tg, $_, 'XDFB');
+		} elsif ($in_diff && s/^-//) { # diff removed
+			index_text_inc($tg, $_, 'XDFA');
+		} elsif (m!^index ([a-f0-9]+)\.\.([a-f0-9]+)!) {
+			my ($ba, $bb) = ($1, $2);
+			index_git_blob_id($doc, 'XDFPRE', $ba);
+			index_git_blob_id($doc, 'XDFPOST', $bb);
+			$in_diff = 1;
+		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*$/) {
+			# traditional diff w/o -p
+		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*(\S+.*)$/) {
+			# hunk header context
+			index_text_inc($tg, $1, 'XDFHH');
+		# ignore the following lines:
+		} elsif (/^(?:dis)similarity index/) {
+		} elsif (/^(?:old|new) mode/) {
+		} elsif (/^(?:deleted|new) file mode/) {
+		} elsif (/^(?:copy|rename) (?:from|to) /) {
+		} elsif (/^(?:dis)?similarity index /) {
+		} elsif (/^\\ No newline at end of file/) {
+		} elsif (/^Binary files .* differ/) {
+		} elsif ($_ eq '') {
+			$in_diff = undef;
+		} else {
+			warn "non-diff line: $_\n" if DEBUG && $_ ne '';
+			$in_diff = undef;
+		}
+	}
+}
+
+sub index_body ($$$) {
+	my ($tg, $lines, $doc) = @_;
+	my $txt = join("\n", @$lines);
+	$tg->index_text($txt, !!$doc, $doc ? 'XNQ' : 'XQUOT');
+	$tg->increase_termpos;
+	# does it look like a diff?
+	if ($doc && $txt =~ /^(?:diff|---|\+\+\+) /ms) {
+		$txt = undef;
+		index_diff($tg, $lines, $doc);
+	}
+	@$lines = ();
 }
 
 sub add_message {
@@ -205,7 +322,7 @@ sub add_message {
 			my @lines = split(/\n/, $body);
 			while (defined(my $l = shift @lines)) {
 				if ($l =~ /^>/) {
-					index_body($tg, \@orig, 1) if @orig;
+					index_body($tg, \@orig, $doc) if @orig;
 					push @quot, $l;
 				} else {
 					index_body($tg, \@quot, 0) if @quot;
@@ -213,7 +330,7 @@ sub add_message {
 				}
 			}
 			index_body($tg, \@quot, 0) if @quot;
-			index_body($tg, \@orig, 1) if @orig;
+			index_body($tg, \@orig, $doc) if @orig;
 		});
 
 		link_message($self, $smsg, $old_tid);
@@ -337,6 +454,16 @@ sub link_message {
 sub index_blob {
 	my ($self, $mime, $bytes, $num, $blob) = @_;
 	$self->add_message($mime, $bytes, $num, $blob);
+}
+
+sub index_git_blob_id {
+	my ($doc, $pfx, $objid) = @_;
+
+	my $len = length($objid);
+	for (my $len = length($objid); $len >= 7; ) {
+		$doc->add_term($pfx.$objid);
+		$objid = substr($objid, 0, --$len);
+	}
 }
 
 sub unindex_blob {

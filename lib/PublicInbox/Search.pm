@@ -75,6 +75,14 @@ my %prob_prefix = (
 
 	q => 'XQUOT',
 	nq => 'XNQ',
+	dfn => 'XDFN',
+	dfa => 'XDFA',
+	dfb => 'XDFB',
+	dfhh => 'XDFHH',
+	dfctx => 'XDFCTX',
+	dfpre => 'XDFPRE',
+	dfpost => 'XDFPOST',
+	dfblob => 'XDFPRE XDFPOST',
 
 	# default:
 	'' => 'XMID S A XNQ XQUOT XFN',
@@ -98,12 +106,16 @@ EOF
 	'a:' => 'match within the To, Cc, and From headers',
 	'tc:' => 'match within the To and Cc headers',
 	'bs:' => 'match within the Subject and body',
+	'dfn:' => 'match filename from diff',
+	'dfa:' => 'match diff removed (-) lines',
+	'dfb:' => 'match diff added (+) lines',
+	'dfhh:' => 'match diff hunk header context (usually a function name)',
+	'dfctx:' => 'match diff context lines',
+	'dfpre:' => 'match pre-image git blob ID',
+	'dfpost:' => 'match post-image git blob ID',
+	'dfblob:' => 'match either pre or post-image git blob ID',
 );
 chomp @HELP;
-# TODO:
-# df (filenames from diff)
-# da (diff a/ removed lines)
-# db (diff b/ added lines)
 
 my $mail_query = Search::Xapian::Query->new('T' . 'mail');
 
