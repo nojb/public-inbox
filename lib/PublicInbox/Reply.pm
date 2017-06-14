@@ -26,7 +26,7 @@ sub add_addrs {
 	}
 }
 
-my @reply_headers = qw(From To Cc);
+my @reply_headers = qw(From To Cc Reply-To);
 my $reply_headers = join('|', @reply_headers);
 
 sub mailto_arg_link {
