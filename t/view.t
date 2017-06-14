@@ -15,7 +15,7 @@ my @q = (
 while (@q) {
 	my $input = shift @q;
 	my $expect = shift @q;
-	my $res = PublicInbox::View::squote_maybe($input);
+	my $res = PublicInbox::Reply::squote_maybe($input);
 	is($res, $expect, "quote $input => $res");
 }
 
