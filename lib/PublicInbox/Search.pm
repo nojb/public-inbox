@@ -56,8 +56,6 @@ my %bool_pfx_internal = (
 );
 
 my %bool_pfx_external = (
-	# do we still need these? probably not..
-	path => 'XPATH',
 	mid => 'Q', # uniQue id (Message-ID)
 );
 
@@ -107,11 +105,7 @@ chomp @HELP;
 # da (diff a/ removed lines)
 # db (diff b/ added lines)
 
-my %all_pfx = (%bool_pfx_internal, %bool_pfx_external, %prob_prefix);
-
-sub xpfx { $all_pfx{$_[0]} }
-
-my $mail_query = Search::Xapian::Query->new(xpfx('type') . 'mail');
+my $mail_query = Search::Xapian::Query->new('T' . 'mail');
 
 sub xdir {
 	my (undef, $git_dir) = @_;
@@ -146,11 +140,11 @@ sub get_thread {
 	my $smsg = eval { $self->lookup_message($mid) };
 
 	return { total => 0, msgs => [] } unless $smsg;
-	my $qtid = Search::Xapian::Query->new(xpfx('thread').$smsg->thread_id);
+	my $qtid = Search::Xapian::Query->new('G' . $smsg->thread_id);
 	my $path = $smsg->path;
 	if (defined $path && $path ne '') {
 		my $path = id_compress($smsg->path);
-		my $qsub = Search::Xapian::Query->new(xpfx('path').$path);
+		my $qsub = Search::Xapian::Query->new('XPATH' . $path);
 		$qtid = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
 	}
 	$opts ||= {};
@@ -279,7 +273,7 @@ sub lookup_message {
 	my ($self, $mid) = @_;
 	$mid = mid_clean($mid);
 
-	my $doc_id = $self->find_unique_doc_id('mid', $mid);
+	my $doc_id = $self->find_unique_doc_id('Q' . $mid);
 	my $smsg;
 	if (defined $doc_id) {
 		# raises on error:
@@ -299,9 +293,9 @@ sub lookup_mail { # no ghosts!
 }
 
 sub find_unique_doc_id {
-	my ($self, $term, $value) = @_;
+	my ($self, $termval) = @_;
 
-	my ($begin, $end) = $self->find_doc_ids($term, $value);
+	my ($begin, $end) = $self->find_doc_ids($termval);
 
 	return undef if $begin->equal($end); # not found
 
@@ -309,23 +303,16 @@ sub find_unique_doc_id {
 
 	# sanity check
 	$begin->inc;
-	$begin->equal($end) or die "Term '$term:$value' is not unique\n";
+	$begin->equal($end) or die "Term '$termval' is not unique\n";
 	$rv;
 }
 
 # returns begin and end PostingIterator
 sub find_doc_ids {
-	my ($self, $term, $value) = @_;
-
-	$self->find_doc_ids_for_term(xpfx($term) . $value);
-}
-
-# returns begin and end PostingIterator
-sub find_doc_ids_for_term {
-	my ($self, $term) = @_;
+	my ($self, $termval) = @_;
 	my $db = $self->{xdb};
 
-	($db->postlist_begin($term), $db->postlist_end($term));
+	($db->postlist_begin($termval), $db->postlist_end($termval));
 }
 
 # normalize subjects so they are suitable as pathnames for URLs

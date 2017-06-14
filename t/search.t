@@ -95,15 +95,8 @@ sub filter_mids {
 	is($found->mid, 'root@s', 'mid set correctly');
 	ok(int($found->thread_id) > 0, 'thread_id is an integer');
 
+	my ($res, @res);
 	my @exp = sort qw(root@s last@s);
-	my $res = $ro->query("path:hello_world");
-	my @res = filter_mids($res);
-	is_deeply(\@res, \@exp, 'got expected results for path: match');
-
-	foreach my $p (qw(hello hello_ hello_world2 hello_world_)) {
-		$res = $ro->query("path:$p");
-		is($res->{total}, 0, "path variant `$p' does not match");
-	}
 
 	$res = $ro->query('s:(Hello world)');
 	@res = filter_mids($res);

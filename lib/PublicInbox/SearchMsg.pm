@@ -14,7 +14,7 @@ use PublicInbox::Address;
 sub new {
 	my ($class, $mime) = @_;
 	my $doc = Search::Xapian::Document->new;
-	$doc->add_term(PublicInbox::Search::xpfx('type') . 'mail');
+	$doc->add_term('T' . 'mail');
 
 	bless { type => 'mail', doc => $doc, mime => $mime }, $class;
 }

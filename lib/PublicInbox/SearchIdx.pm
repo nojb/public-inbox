@@ -19,7 +19,6 @@ use PublicInbox::MsgIter;
 use Carp qw(croak);
 use POSIX qw(strftime);
 require PublicInbox::Git;
-*xpfx = *PublicInbox::Search::xpfx;
 
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 use constant {
@@ -160,12 +159,12 @@ sub add_message {
 		}
 		$smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
-		$doc->add_term(xpfx('mid') . $mid);
+		$doc->add_term('Q' . $mid);
 
 		my $subj = $smsg->subject;
 		if ($subj ne '') {
 			my $path = $self->subject_path($subj);
-			$doc->add_term(xpfx('path') . id_compress($path));
+			$doc->add_term('XPATH' . id_compress($path));
 		}
 
 		add_values($smsg, $bytes, $num);
@@ -332,7 +331,7 @@ sub link_message {
 	} else {
 		$tid = defined $old_tid ? $old_tid : $self->next_thread_id;
 	}
-	$doc->add_term(xpfx('thread') . $tid);
+	$doc->add_term('G' . $tid);
 }
 
 sub index_blob {
@@ -542,9 +541,9 @@ sub create_ghost {
 
 	my $tid = $self->next_thread_id;
 	my $doc = Search::Xapian::Document->new;
-	$doc->add_term(xpfx('mid') . $mid);
-	$doc->add_term(xpfx('thread') . $tid);
-	$doc->add_term(xpfx('type') . 'ghost');
+	$doc->add_term('Q' . $mid);
+	$doc->add_term('G' . $tid);
+	$doc->add_term('T' . 'ghost');
 
 	my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
 	$self->{xdb}->add_document($doc);
@@ -555,15 +554,14 @@ sub create_ghost {
 sub merge_threads {
 	my ($self, $winner_tid, $loser_tid) = @_;
 	return if $winner_tid == $loser_tid;
-	my ($head, $tail) = $self->find_doc_ids('thread', $loser_tid);
-	my $thread_pfx = xpfx('thread');
+	my ($head, $tail) = $self->find_doc_ids('G' . $loser_tid);
 	my $db = $self->{xdb};
 
 	for (; $head != $tail; $head->inc) {
 		my $docid = $head->get_docid;
 		my $doc = $db->get_document($docid);
-		$doc->remove_term($thread_pfx . $loser_tid);
-		$doc->add_term($thread_pfx . $winner_tid);
+		$doc->remove_term('G' . $loser_tid);
+		$doc->add_term('G' . $winner_tid);
 		$db->replace_document($docid, $doc);
 	}
 }
