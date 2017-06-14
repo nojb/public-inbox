@@ -7,18 +7,6 @@ use Email::MIME;
 use Plack::Util;
 use_ok 'PublicInbox::View';
 
-my @q = (
-	'foo@bar', 'foo@bar',
-	'a b', "'a b'",
-	"a'b", "'a'\\''b'",
-);
-while (@q) {
-	my $input = shift @q;
-	my $expect = shift @q;
-	my $res = PublicInbox::Reply::squote_maybe($input);
-	is($res, $expect, "quote $input => $res");
-}
-
 # FIXME: make this test less fragile
 my $ctx = {
 	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'http' },

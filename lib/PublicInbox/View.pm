@@ -52,12 +52,13 @@ sub msg_reply {
 	 'https://en.wikipedia.org/wiki/Posting_style#Interleaved_style';
 
 	my $info = '';
-	if (my $url = $ctx->{-inbox}->{infourl}) {
+	my $ibx = $ctx->{-inbox};
+	if (my $url = $ibx->{infourl}) {
 		$url = PublicInbox::Hval::prurl($ctx->{env}, $url);
 		$info = qq(\n  List information: <a\nhref="$url">$url</a>\n);
 	}
 
-	my ($arg, $link) = PublicInbox::Reply::mailto_arg_link($hdr);
+	my ($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
 	push @$arg, '/path/to/YOUR_REPLY';
 	$arg = ascii_html(join(" \\\n    ", '', @$arg));
 	<<EOF

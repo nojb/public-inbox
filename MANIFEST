@@ -159,6 +159,7 @@ t/psgi_mount.t
 t/psgi_search.t
 t/psgi_text.t
 t/qspawn.t
+t/reply.t
 t/search-thr-index.t
 t/search.t
 t/spamcheck_spamc.t
