@@ -366,8 +366,12 @@ sub remove_message {
 	$mid = mid_clean($mid);
 
 	eval {
-		$doc_id = $self->find_unique_doc_id('mid', $mid);
-		$db->delete_document($doc_id) if defined $doc_id;
+		$doc_id = $self->find_unique_doc_id('Q' . $mid);
+		if (defined $doc_id) {
+			$db->delete_document($doc_id);
+		} else {
+			warn "cannot remove non-existent <$mid>\n";
+		}
 	};
 
 	if ($@) {
