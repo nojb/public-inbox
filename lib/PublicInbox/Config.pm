@@ -140,6 +140,17 @@ sub _fill {
 		my $v = $self->{"$pfx.$k"};
 		$rv->{$k} = $v if defined $v;
 	}
+	foreach my $k (qw(obfuscate)) {
+		my $v = $self->{"$pfx.$k"};
+		defined $v or next;
+		if ($v =~ /\A(?:false|no|off|0)\z/) {
+			$rv->{$k} = 0;
+		} elsif ($v =~ /\A(?:true|yes|on|1)\z/) {
+			$rv->{$k} = 1;
+		} else {
+			warn "Ignoring $pfx.$k=$v in config, not boolean\n";
+		}
+	}
 
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization

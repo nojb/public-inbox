@@ -9,7 +9,7 @@ use warnings;
 use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/ascii_html/;
+our @EXPORT_OK = qw/ascii_html obfuscate_addrs/;
 
 # for user-generated content (UGC) which may have excessively long lines
 # and screw up rendering on some browsers.  This is the only CSS style
@@ -85,5 +85,12 @@ sub prurl {
 	my ($env, $u) = @_;
 	index($u, '//') == 0 ? "$env->{'psgi.url_scheme'}:$u" : $u;
 }
+
+# for misguided people who believe in this stuff, give them a
+# substitution for '.'
+# &#8228; &#183; and &#890; were also candidates:
+#   https://public-inbox.org/meta/20170615015250.GA6484@starla/
+# However, &#8226; was chosen to make copy+paste errors more obvious
+sub obfuscate_addrs ($) { $_[0] =~ s/(\S+@[^\.]+)\./$1&#8226;/g }
 
 1;

@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use URI::Escape qw(uri_unescape uri_escape);
 use PublicInbox::SearchMsg;
-use PublicInbox::Hval qw/ascii_html/;
+use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape MID_ESC);
@@ -89,6 +89,7 @@ sub mset_summary {
 	my $pfx = ' ' x $pad;
 	my $res = \($ctx->{-html_tip});
 	my $srch = $ctx->{srch};
+	my $obfs = $ctx->{-inbox}->{obfuscate};
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = $m->get_percent;
@@ -102,6 +103,10 @@ sub mset_summary {
 		}
 		my $s = ascii_html($smsg->subject);
 		my $f = ascii_html($smsg->from_name);
+		if ($obfs) {
+			obfuscate_addrs($s);
+			obfuscate_addrs($f);
+		}
 		my $ts = PublicInbox::View::fmt_ts($smsg->ts);
 		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->{href};
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
@@ -223,8 +228,11 @@ sub mset_thread {
 	$ctx->{seen} = {};
 	$ctx->{s_nr} = scalar(@$msgs).'+ results';
 
+	# reduce hash lookups in skel_dump
+	$ctx->{-obfuscate} = $ctx->{-inbox}->{obfuscate};
 	PublicInbox::View::walk_thread($rootset, $ctx,
 		*PublicInbox::View::pre_thread);
+
 	@$msgs = reverse @$msgs if $r;
 	my $mime;
 	sub {
