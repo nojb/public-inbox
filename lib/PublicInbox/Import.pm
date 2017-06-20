@@ -54,6 +54,8 @@ sub gfi_start {
 	$self->{lockfh} = $lockfh;
 	$self->{pid} = $pid;
 	$self->{nchg} = 0;
+	binmode $out_w, ':raw' or die "binmode :raw failed: $!";
+	binmode $in_r, ':raw' or die "binmode :raw failed: $!";
 	($in_r, $out_w);
 }
 
@@ -187,13 +189,14 @@ sub add {
 		print $w "reset $ref\n" or wfail;
 	}
 
+	utf8::encode($email);
+	utf8::encode($name);
+	utf8::encode($subject);
 	# quiet down wide character warnings:
-	binmode $w, ':utf8' or die "binmode :utf8 failed: $!";
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $date\n",
 		"committer $self->{ident} ", now2822(), "\n" or wfail;
-	binmode $w, ':raw' or die "binmode :raw failed: $!";
-	print $w "data ", (bytes::length($subject) + 1), "\n",
+	print $w "data ", (length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
 	if ($tip ne '') {
 		print $w 'from ', ($parent ? $parent : $tip), "\n" or wfail;
