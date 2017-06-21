@@ -9,7 +9,7 @@ use URI::Escape qw(uri_unescape);
 # spec: TYPE:PREFIX:param1=value1&param2=value2&...
 # Example: serial:gmane:file=/path/to/altmsgmap.sqlite3
 sub new {
-	my ($class, $inbox, $spec) = @_;
+	my ($class, $inbox, $spec, $writable) = @_;
 	my ($type, $prefix, $query) = split(/:/, $spec, 3);
 	$type eq 'serial' or die "non-serial not supported, yet\n";
 
@@ -25,7 +25,7 @@ sub new {
 		$f = "$inbox->{mainrepo}/public-inbox/$f";
 	}
 	bless {
-		mm_alt => PublicInbox::Msgmap->new_file($f),
+		mm_alt => PublicInbox::Msgmap->new_file($f, $writable),
 		xprefix => 'X'.uc($prefix),
 	}, $class;
 }

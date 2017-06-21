@@ -242,7 +242,7 @@ sub _scrubber_for {
 	my ($inbox) = @_;
 	my $f = $inbox->{filter};
 	if ($f && $f =~ /::/) {
-		my @args;
+		my @args = (-inbox => $inbox);
 		# basic line splitting, only
 		# Perhaps we can have proper quote splitting one day...
 		($f, @args) = split(/\s+/, $f) if $f =~ /\s+/;
