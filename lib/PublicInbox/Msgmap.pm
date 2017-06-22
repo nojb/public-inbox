@@ -82,10 +82,10 @@ sub created_at {
 sub mid_insert {
 	my ($self, $mid) = @_;
 	my $dbh = $self->{dbh};
-	use constant MID_INSERT => 'INSERT INTO msgmap (mid) VALUES (?)';
-	my $sth = $self->{mid_insert} ||= $dbh->prepare(MID_INSERT);
+	my $sql = 'INSERT OR IGNORE INTO msgmap (mid) VALUES (?)';
+	my $sth = $self->{mid_insert} ||= $dbh->prepare($sql);
 	$sth->bind_param(1, $mid);
-	$sth->execute;
+	return if $sth->execute == 0;
 	$dbh->last_insert_id(undef, undef, 'msgmap', 'num');
 }
 

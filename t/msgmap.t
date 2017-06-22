@@ -27,9 +27,9 @@ foreach my $mid (@mids) {
 }
 
 $@ = undef;
-eval { $d->mid_insert('a@b') };
-ok($@, 'error raised when attempting duplicate message ID');
-
+my $ret = $d->mid_insert('a@b');
+is($ret, undef, 'duplicate mid_insert in undef result');
+is($d->num_for('a@b'), $mid2num{'a@b'}, 'existing number not clobbered');
 
 foreach my $n (keys %num2mid) {
 	is($d->mid_for($n), $num2mid{$n}, "num:$n maps correctly");
