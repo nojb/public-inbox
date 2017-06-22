@@ -130,6 +130,7 @@ t/fail-bin/spamc
 t/feed.t
 t/filter_base.t
 t/filter_mirror.t
+t/filter_rubylang.t
 t/filter_subjecttag.t
 t/filter_vger.t
 t/git-http-backend.psgi
