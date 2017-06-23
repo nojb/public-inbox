@@ -478,7 +478,12 @@ sub unindex_blob {
 
 sub index_mm {
 	my ($self, $mime) = @_;
-	$self->{mm}->mid_insert(mid_clean(mid_mime($mime)));
+	my $mid = mid_clean(mid_mime($mime));
+	my $mm = $self->{mm};
+	my $num = $mm->mid_insert($mid);
+
+	# fallback to num_for since filters like RubyLang set the number
+	defined $num ? $num : $mm->num_for($mid);
 }
 
 sub unindex_mm {
