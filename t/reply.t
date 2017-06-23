@@ -64,4 +64,16 @@ $ibx->{replyto} = 'new@example.com';
 $exp = [ '--in-reply-to=blah@example.com', '--to=new@example.com' ];
 is_deeply($arg, $exp, 'explicit address works, too');
 
+$ibx->{replyto} = ':all';
+$ibx->{obfuscate} = 1;
+($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
+$exp = [
+    '--in-reply-to=blah@example.com',
+    '--to=from@example$(echo .)com',
+    '--cc=cc@example$(echo .)com',
+    '--cc=to@example$(echo .)com'
+];
+is_deeply($arg, $exp, 'address obfuscation works');
+is($link, '', 'no mailto: link given');
+
 done_testing();

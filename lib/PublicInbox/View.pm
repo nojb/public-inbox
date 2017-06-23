@@ -61,6 +61,15 @@ sub msg_reply {
 	}
 
 	my ($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
+
+	# mailto: link only works if address obfuscation is disabled
+	if ($link) {
+		$link = <<EOF;
+* If your mail client supports setting the <b>In-Reply-To</b> header
+  via mailto: links, try the <a
+href="$link">mailto: link</a></pre>
+EOF
+	}
 	push @$arg, '/path/to/YOUR_REPLY';
 	$arg = ascii_html(join(" \\\n    ", '', @$arg));
 	<<EOF
@@ -86,10 +95,7 @@ $info
 
   <a
 href="$se_url">$se_url</a>
-
-* If your mail client supports setting the <b>In-Reply-To</b> header
-  via mailto: links, try the <a
-href="$link">mailto: link</a></pre>
+$link
 EOF
 }
 

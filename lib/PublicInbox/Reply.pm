@@ -58,21 +58,40 @@ sub mailto_arg_link {
 	}
 
 	my @arg;
+	my $obfs = $ibx->{obfuscate};
 	my $subj = $hdr->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
 	my $mid = $hdr->header_raw('Message-ID');
 	push @arg, '--in-reply-to='.squote_maybe(mid_clean($mid));
 	my $irt = mid_escape($mid);
 	delete $cc->{$to};
-	push @arg, "--to=$to";
-	$to = uri_escape_utf8($to);
-	$subj = uri_escape_utf8($subj);
+	if ($obfs) {
+		my $arg_to = $to;
+		$arg_to =~ s/\./\$(echo .)/;
+		push @arg, "--to=$arg_to";
+	} else {
+		push @arg, "--to=$to";
+		$to = uri_escape_utf8($to);
+		$subj = uri_escape_utf8($subj);
+	}
 	my @cc = sort values %$cc;
 	$cc = '';
 	if (@cc) {
-		push(@arg, map { "--cc=$_" } @cc);
-		$cc = '&Cc=' . uri_escape_utf8(join(',', @cc));
+		if ($obfs) {
+			push(@arg, map {
+				s/\./\$(echo .)/;
+				"--cc=$_";
+			} @cc);
+		} else {
+			$cc = '&Cc=' . uri_escape_utf8(join(',', @cc));
+			push(@arg, map { "--cc=$_" } @cc);
+		}
 	}
+
+	# I'm not sure if address obfuscation and mailto: links can
+	# be made compatible; and address obfuscation is misguided,
+	# anyways.
+	return (\@arg, '') if $obfs;
 
 	# order matters, Subject is the least important header,
 	# so it is last in case it's lost/truncated in a copy+paste
