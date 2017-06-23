@@ -12,8 +12,12 @@ require Email::Simple;
 sub emit1 {
 	my ($ctx, $msg) = @_;
 	$msg = Email::Simple->new($msg);
-	# single message should be easily renderable in browsers
-	[200, ['Content-Type', 'text/plain'], [ msg_str($ctx, $msg)] ]
+
+	# single message should be easily renderable in browsers,
+	# unless obfuscation is enabled :<
+	[ 200, [ 'Content-Type',
+	  $ctx->{-inbox}->{obfuscate} ? 'application/mbox' : 'text/plain' ],
+	 [ msg_str($ctx, $msg)] ]
 }
 
 sub msg_str {
