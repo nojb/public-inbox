@@ -108,6 +108,7 @@ sub _remove_spam {
 			$im->remove($mime);
 			if (my $scrub = _scrubber_for($ibx)) {
 				my $scrubbed = $scrub->scrub($mime) or return;
+				$scrubbed == 100 and return;
 				$im->remove($scrubbed);
 			}
 		};
@@ -169,7 +170,9 @@ sub _try_path {
 		return unless ($v && $v =~ $wm->[1]);
 	}
 	if (my $scrub = _scrubber_for($inbox)) {
-		$mime = $scrub->scrub($mime) or return;
+		my $ret = $scrub->scrub($mime) or return;
+		$ret == 100 and return;
+		$mime = $ret;
 	}
 
 	_force_mid($mime);
