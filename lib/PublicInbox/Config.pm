@@ -134,7 +134,7 @@ sub _fill {
 	my ($self, $pfx) = @_;
 	my $rv = {};
 
-	foreach my $k (qw(mainrepo address filter url newsgroup
+	foreach my $k (qw(mainrepo filter url newsgroup
 			infourl watch watchheader httpbackendmax
 			replyto feedmax nntpserver)) {
 		my $v = $self->{"$pfx.$k"};
@@ -154,7 +154,7 @@ sub _fill {
 
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	foreach my $k (qw(altid nntpmirror)) {
+	foreach my $k (qw(address altid nntpmirror)) {
 		if (defined(my $v = $self->{"$pfx.$k"})) {
 			$rv->{$k} = ref($v) eq 'ARRAY' ? $v : [ $v ];
 		}
@@ -166,12 +166,7 @@ sub _fill {
 	$rv->{name} = $name;
 	$rv->{-pi_config} = $self;
 	$rv = PublicInbox::Inbox->new($rv);
-	my $v = $rv->{address};
-	if (ref($v) eq 'ARRAY') {
-		$self->{-by_addr}->{lc($_)} = $rv foreach @$v;
-	} else {
-		$self->{-by_addr}->{lc($v)} = $rv;
-	}
+	$self->{-by_addr}->{lc($_)} = $rv foreach @{$rv->{address}};
 	if (my $ng = $rv->{newsgroup}) {
 		$self->{-by_newsgroup}->{$ng} = $rv;
 	}

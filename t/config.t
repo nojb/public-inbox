@@ -25,7 +25,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 	my $cfg = PublicInbox::Config->new($f);
 	is_deeply($cfg->lookup('meta@public-inbox.org'), {
 		'mainrepo' => '/home/pi/meta-main.git',
-		'address' => 'meta@public-inbox.org',
+		'address' => [ 'meta@public-inbox.org' ],
 		'domain' => 'public-inbox.org',
 		'url' => 'http://example.com/meta',
 		-primary_address => 'meta@public-inbox.org',
