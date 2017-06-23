@@ -65,6 +65,7 @@ sub msg_reply {
 	# mailto: link only works if address obfuscation is disabled
 	if ($link) {
 		$link = <<EOF;
+
 * If your mail client supports setting the <b>In-Reply-To</b> header
   via mailto: links, try the <a
 href="$link">mailto: link</a></pre>
