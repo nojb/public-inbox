@@ -179,7 +179,7 @@ sub id_batch {
 sub mid_set {
 	my ($self, $num, $mid) = @_;
 	my $sth = $self->{mid_set} ||= do {
-		my $sql = 'INSERT INTO msgmap (num, mid) VALUES (?,?)';
+		my $sql = 'INSERT OR IGNORE INTO msgmap (num, mid) VALUES (?,?)';
 		$self->{dbh}->prepare($sql);
 	};
 	$sth->execute($num, $mid);
