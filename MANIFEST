@@ -142,6 +142,7 @@ t/httpd-corner.psgi
 t/httpd-corner.t
 t/httpd-unix.t
 t/httpd.t
+t/hval.t
 t/import.t
 t/inbox.t
 t/init.t

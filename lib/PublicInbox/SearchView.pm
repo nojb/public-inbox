@@ -89,7 +89,8 @@ sub mset_summary {
 	my $pfx = ' ' x $pad;
 	my $res = \($ctx->{-html_tip});
 	my $srch = $ctx->{srch};
-	my $obfs = $ctx->{-inbox}->{obfuscate};
+	my $ibx = $ctx->{-inbox};
+	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = $m->get_percent;
@@ -103,9 +104,9 @@ sub mset_summary {
 		}
 		my $s = ascii_html($smsg->subject);
 		my $f = ascii_html($smsg->from_name);
-		if ($obfs) {
-			obfuscate_addrs($s);
-			obfuscate_addrs($f);
+		if ($obfs_ibx) {
+			obfuscate_addrs($obfs_ibx, $s);
+			obfuscate_addrs($obfs_ibx, $f);
 		}
 		my $ts = PublicInbox::View::fmt_ts($smsg->ts);
 		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->{href};

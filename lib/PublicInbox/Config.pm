@@ -20,7 +20,28 @@ sub new {
 	$self->{-by_addr} ||= {};
 	$self->{-by_name} ||= {};
 	$self->{-by_newsgroup} ||= {};
+	$self->{-no_obfuscate} ||= {};
 	$self->{-limiters} ||= {};
+
+	if (my $no = delete $self->{'publicinbox.noobfuscate'}) {
+		$no = [ $no ] if ref($no) ne 'ARRAY';
+		my @domains;
+		foreach my $n (@$no) {
+			my @n = split(/\s+/, $n);
+			foreach (@n) {
+				if (/\S+@\S+/) { # full address
+					$self->{-no_obfuscate}->{lc $_} = 1;
+				} else {
+					# allow "example.com" or "@example.com"
+					s/\A@//;
+					push @domains, quotemeta($_);
+				}
+			}
+		}
+		my $nod = join('|', @domains);
+		$self->{-no_obfuscate_re} = qr/(?:$nod)\z/i;
+	}
+
 	$self;
 }
 
@@ -127,6 +148,7 @@ sub git_config_dump {
 		}
 	}
 	close $fh or die "failed to close ($cmd) pipe: $?";
+
 	\%rv;
 }
 
@@ -151,7 +173,6 @@ sub _fill {
 			warn "Ignoring $pfx.$k=$v in config, not boolean\n";
 		}
 	}
-
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
 	foreach my $k (qw(address altid nntpmirror)) {
@@ -166,11 +187,21 @@ sub _fill {
 	$rv->{name} = $name;
 	$rv->{-pi_config} = $self;
 	$rv = PublicInbox::Inbox->new($rv);
-	$self->{-by_addr}->{lc($_)} = $rv foreach @{$rv->{address}};
+	foreach (@{$rv->{address}}) {
+		my $lc_addr = lc($_);
+		$self->{-by_addr}->{$lc_addr} = $rv;
+		$self->{-no_obfuscate}->{$lc_addr} = 1;
+	}
 	if (my $ng = $rv->{newsgroup}) {
 		$self->{-by_newsgroup}->{$ng} = $rv;
 	}
 	$self->{-by_name}->{$name} = $rv;
+	if ($rv->{obfuscate}) {
+		$rv->{-no_obfuscate} = $self->{-no_obfuscate};
+		$rv->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
+		each_inbox($self, sub {}); # noop to populate -no_obfuscate
+	}
+	$rv
 }
 
 1;

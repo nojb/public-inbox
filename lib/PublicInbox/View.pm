@@ -24,12 +24,13 @@ sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 sub msg_html {
 	my ($ctx, $mime) = @_;
 	my $hdr = $mime->header_obj;
-	my $obfs = $ctx->{-inbox}->{obfuscate};
-	my $tip = _msg_html_prepare($hdr, $ctx, $obfs);
+	my $ibx = $ctx->{-inbox};
+	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
+	my $tip = _msg_html_prepare($hdr, $ctx, $obfs_ibx);
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		my ($nr, undef) = @_;
 		if ($nr == 1) {
-			$tip . multipart_text_as_html($mime, '', $obfs) .
+			$tip . multipart_text_as_html($mime, '', $obfs_ibx) .
 				'</pre><hr>'
 		} elsif ($nr == 2) {
 			# fake an EOF if generating the footer fails;
@@ -138,11 +139,11 @@ sub index_entry {
 
 	my $root_anchor = $ctx->{root_anchor} || '';
 	my $irt;
-	my $obfs = $ctx->{-obfuscate};
+	my $obfs_ibx = $ctx->{-obfs_ibx};
 
 	my $rv = "<a\nhref=#e$id\nid=m$id>*</a> ";
 	$subj = '<b>'.ascii_html($subj).'</b>';
-	obfuscate_addrs($subj) if $obfs;
+	obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
 	$subj = "<u\nid=u>$subj</u>" if $root_anchor eq $id_m;
 	$rv .= $subj . "\n";
 	$rv .= _th_index_lite($mid_raw, \$irt, $id, $ctx);
@@ -150,12 +151,12 @@ sub index_entry {
 	foreach my $f (qw(To Cc)) {
 		my $dst = _hdr_names_html($hdr, $f);
 		if ($dst ne '') {
-			obfuscate_addrs($dst) if $obfs;
+			obfuscate_addrs($obfs_ibx, $dst) if $obfs_ibx;
 			push @tocc, "$f: $dst";
 		}
 	}
 	my $from = _hdr_names_html($hdr, 'From');
-	obfuscate_addrs($from) if $obfs;
+	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
 	$rv .= "From: $from @ "._msg_date($hdr)." UTC";
 	my $upfx = $ctx->{-upfx};
 	my $mhref = $upfx . mid_escape($mid_raw) . '/';
@@ -173,7 +174,7 @@ sub index_entry {
 	$rv .= "\n";
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { $rv .= add_text_body($mhref, $obfs, $_[0]) });
+	msg_iter($mime, sub { $rv .= add_text_body($mhref, $obfs_ibx, $_[0]) });
 
 	# add the footer
 	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
@@ -319,7 +320,7 @@ sub stream_thread ($$) {
 	}
 	return missing_thread($ctx) unless $mime;
 
-	$ctx->{-obfuscate} = $ctx->{-inbox}->{obfuscate};
+	$ctx->{-obfs_ibx} = $inbox->{obfuscate} ? $inbox : undef;
 	$mime = PublicInbox::MIME->new($mime);
 	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
 	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $mime);
@@ -374,14 +375,14 @@ sub thread_html {
 	my $rootset = thread_results($msgs);
 
 	# reduce hash lookups in pre_thread->skel_dump
-	$ctx->{-obfuscate} = $ctx->{-inbox}->{obfuscate};
+	my $inbox = $ctx->{-inbox};
+	$ctx->{-obfs_ibx} = $inbox->{obfuscate} ? $inbox : undef;
 	walk_thread($rootset, $ctx, *pre_thread);
 
 	$skel .= '</pre>';
 	return stream_thread($rootset, $ctx) unless $ctx->{flat};
 
 	# flat display: lazy load the full message from smsg
-	my $inbox = $ctx->{-inbox};
 	my $mime;
 	while ($mime = shift @$msgs) {
 		$mime = $inbox->msg_by_smsg($mime) and last;
@@ -406,11 +407,11 @@ sub thread_html {
 }
 
 sub multipart_text_as_html {
-	my ($mime, $upfx, $obfs) = @_;
+	my ($mime, $upfx, $obfs_ibx) = @_;
 	my $rv = "";
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { $rv .= add_text_body($upfx, $obfs, $_[0]) });
+	msg_iter($mime, sub { $rv .= add_text_body($upfx, $obfs_ibx, $_[0]) });
 	$rv;
 }
 
@@ -463,7 +464,7 @@ sub attach_link ($$$$;$) {
 }
 
 sub add_text_body {
-	my ($upfx, $obfs, $p) = @_;
+	my ($upfx, $obfs_ibx, $p) = @_;
 	# $p - from msg_iter: [ Email::MIME, depth, @idx ]
 	my ($part, $depth) = @$p; # attachment @idx is unused
 	my $ct = $part->content_type || 'text/plain';
@@ -515,10 +516,10 @@ sub add_text_body {
 
 	if (@quot) { # ugh, top posted
 		flush_quote(\$s, $l, \@quot);
-		obfuscate_addrs($s) if $obfs;
+		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
 		$s;
 	} else {
-		obfuscate_addrs($s) if $obfs;
+		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
 		if ($s =~ /\n\z/s) { # common, last line ends with a newline
 			$s;
 		} else { # some editors don't do newlines...
@@ -528,7 +529,7 @@ sub add_text_body {
 }
 
 sub _msg_html_prepare {
-	my ($hdr, $ctx, $obfs) = @_;
+	my ($hdr, $ctx, $obfs_ibx) = @_;
 	my $srch = $ctx->{srch} if $ctx;
 	my $atom = '';
 	my $rv = "<pre\nid=b>"; # anchor for body start
@@ -547,7 +548,7 @@ sub _msg_html_prepare {
 		if ($h eq 'From') {
 			my @n = PublicInbox::Address::names($v->raw);
 			$title[1] = ascii_html(join(', ', @n));
-			obfuscate_addrs($title[1]) if $obfs;
+			obfuscate_addrs($obfs_ibx, $title[1]) if $obfs_ibx;
 		} elsif ($h eq 'Subject') {
 			$title[0] = $v->as_html;
 			if ($srch) {
@@ -557,7 +558,7 @@ sub _msg_html_prepare {
 			}
 		}
 		$v = $v->as_html;
-		obfuscate_addrs($v) if $obfs;
+		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
 		$rv .= "$h: $v\n";
 
 	}
@@ -605,7 +606,8 @@ sub thread_skel {
 	$sres = load_results($srch, $sres);
 
 	# reduce hash lookups in skel_dump
-	$ctx->{-obfuscate} = $ctx->{-inbox}->{obfuscate};
+	my $ibx = $ctx->{-inbox};
+	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	walk_thread(thread_results($sres), $ctx, *skel_dump);
 
 	$ctx->{parent_msg} = $parent;
@@ -763,8 +765,8 @@ sub skel_dump {
 	my $mid = $smsg->{mid};
 
 	my $f = ascii_html($smsg->from_name);
-	my $obfs = $ctx->{-obfuscate};
-	obfuscate_addrs($f) if $obfs;
+	my $obfs_ibx = $ctx->{-obfs_ibx};
+	obfuscate_addrs($obfs_ibx, $f) if $obfs_ibx;
 
 	my $d = fmt_ts($smsg->{ts}) . ' ' . indent_for($level) . th_pfx($level);
 	my $attr = $f;
@@ -799,7 +801,7 @@ sub skel_dump {
 		$ctx->{seen}->{$h} = 1;
 		$subj = PublicInbox::Hval->new($subj);
 		$subj = $subj->as_html;
-		obfuscate_addrs($subj) if $obfs;
+		obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
 	}
 	my $m;
 	my $id = '';
@@ -896,7 +898,8 @@ sub dump_topics {
 	}
 
 	my @out;
-	my $obfs = $ctx->{-inbox}->{obfuscate};
+	my $ibx = $ctx->{-inbox};
+	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 
 	# sort by recency, this allows new posts to "bump" old topics...
 	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
@@ -928,7 +931,7 @@ sub dump_topics {
 			my $subj = $ex[$i + 1];
 			$mid = delete $seen->{$subj};
 			$subj = ascii_html($subj);
-			obfuscate_addrs($subj) if $obfs;
+			obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
 			$href = mid_escape($mid);
 			$s .= indent_for($level) . TCHILD;
 			$s .= "<a\nhref=\"$href/T/#u\">$subj</a>\n";

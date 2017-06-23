@@ -86,4 +86,32 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 	is($ibx->{nntpserver}, 'news.alt.example.com','per-inbox NNTP server');
 }
 
+# no obfuscate domains
+{
+	my $pfx = "publicinbox.test";
+	my $pfx2 = "publicinbox.foo";
+	my %h = (
+		"$pfx.address" => 'test@example.com',
+		"$pfx.mainrepo" => '/path/to/non/existent',
+		"$pfx2.address" => 'foo@example.com',
+		"$pfx2.mainrepo" => '/path/to/foo',
+		lc("publicinbox.noObfuscate") =>
+			'public-inbox.org @example.com z@EXAMPLE.com',
+		"$pfx.obfuscate" => 'true', # :<
+	);
+	my %tmp = %h;
+	my $cfg = PublicInbox::Config->new(\%tmp);
+	my $ibx = $cfg->lookup_name('test');
+	my $re = $ibx->{-no_obfuscate_re};
+	like('meta@public-inbox.org', $re,
+		'public-inbox.org address not to be obfuscated');
+	like('t@example.com', $re, 'example.com address not to be obfuscated');
+	unlike('t@example.comM', $re, 'example.comM address does not match');
+	is_deeply($ibx->{-no_obfuscate}, {
+			'test@example.com' => 1,
+			'foo@example.com' => 1,
+			'z@example.com' => 1,
+		}, 'known addresses populated');
+}
+
 done_testing();
