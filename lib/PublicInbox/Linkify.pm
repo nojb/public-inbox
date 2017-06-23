@@ -25,7 +25,7 @@ my $LINK_RE = qr{(\()?\b((?:ftps?|https?|nntps?|gopher)://
 sub new { bless {}, $_[0] }
 
 sub linkify_1 {
-	$_[1] =~ s!$LINK_RE!
+	$_[1] =~ s^$LINK_RE^
 		my $beg = $1 || '';
 		my $url = $2;
 		my $end = '';
@@ -41,6 +41,8 @@ sub linkify_1 {
 			}
 		} elsif ($url =~ s/([\.,;])\z//) {
 			$end = $1;
+		} elsif ($url !~ /\(/ && $url =~ s/\)\z//) {
+			$end = ')';
 		}
 
 		# salt this, as this could be exploited to show
@@ -51,7 +53,7 @@ sub linkify_1 {
 		$url =~ s/&/&#38;/g;
 		$_[0]->{$key} = $url;
 		$beg . 'PI-LINK-'. $key . $end;
-	!ge;
+	^ge;
 	$_[1];
 }
 

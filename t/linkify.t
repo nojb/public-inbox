@@ -14,6 +14,16 @@ use PublicInbox::Linkify;
 	is($s, qq(<a\nhref="$u">$u</a>.), 'trailing period not in URL');
 }
 
+# handle URLs in parenthesized statements
+{
+	my $l = PublicInbox::Linkify->new;
+	my $u = 'http://example.com/';
+	my $s = "(see: $u)";
+	$s = $l->linkify_1($s);
+	$s = $l->linkify_2($s);
+	is($s, qq{(see: <a\nhref="$u">$u</a>)}, 'trailing ) not in URL');
+}
+
 {
 	my $l = PublicInbox::Linkify->new;
 	my $u = 'http://example.com/url-with-trailing-semicolon';
