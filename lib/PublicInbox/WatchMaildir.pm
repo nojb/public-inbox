@@ -179,6 +179,8 @@ sub _try_path {
 	$im->add($mime, $self->{spamcheck});
 }
 
+sub quit { $_[0]->{quit} = 1 }
+
 sub watch {
 	my ($self) = @_;
 	my $cb = sub { _try_fsn_paths($self, \@_) };
@@ -188,7 +190,7 @@ sub watch {
 	# in the future...
 	require Filesys::Notify::Simple;
 	my $watcher = Filesys::Notify::Simple->new($mdir);
-	$watcher->wait($cb) while (1);
+	$watcher->wait($cb) until ($self->{quit});
 }
 
 sub scan {
