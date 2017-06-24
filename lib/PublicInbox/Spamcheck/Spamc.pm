@@ -29,10 +29,14 @@ sub spamcheck {
 		my $buf = '';
 		$out = \$buf;
 	}
+again:
 	do {
 		$r = sysread($fh, $$out, 65536, length($$out));
 	} while (defined($r) && $r != 0);
-	defined $r or die "read failed: $!";
+	unless (defined $r) {
+		goto again if $!{EINTR};
+		die "read failed: $!";
+	}
 	close $fh or die "close failed: $!";
 	waitpid($pid, 0);
 	($? || $$out eq '') ? 0 : 1;
