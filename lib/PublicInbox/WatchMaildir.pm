@@ -201,7 +201,7 @@ sub _try_path {
 	$im->add($mime, $self->{spamcheck});
 }
 
-sub quit { $_[0]->{quit} = 1 }
+sub quit { trigger_scan($_[0], 'quit') }
 
 sub watch {
 	my ($self) = @_;
@@ -215,7 +215,7 @@ sub watch {
 	# in the future...
 	require Filesys::Notify::Simple;
 	my $fsn = Filesys::Notify::Simple->new([@{$self->{mdir}}, $scandir]);
-	$fsn->wait($cb) until ($self->{quit});
+	$fsn->wait($cb) until $self->{quit};
 }
 
 sub trigger_scan {
@@ -227,6 +227,14 @@ sub trigger_scan {
 
 sub scan {
 	my ($self, $path) = @_;
+	if ($path =~ /quit\z/) {
+		%{$self->{opendirs}} = ();
+		_done_for_now($self);
+		$self->{quit} = 1;
+		return;
+	}
+	# else: $path =~ /(cont|full)\z/
+	return if $self->{quit};
 	my $max = 10;
 	my $opendirs = $self->{opendirs};
 	my @dirnames = keys %$opendirs;

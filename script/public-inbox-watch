@@ -17,6 +17,10 @@ if ($watch_md) {
 	$SIG{HUP} = $reload;
 	$SIG{USR1} = $scan;
 	$SIG{ALRM} = sub { $SIG{ALRM} = 'DEFAULT'; $scan->() };
+	$SIG{QUIT} = $SIG{TERM} = $SIG{INT} = sub {
+		$watch_md->quit if $watch_md;
+		$watch_md = undef;
+	};
 	alarm(1);
 	$watch_md->watch while ($watch_md);
 }
