@@ -13,7 +13,7 @@ my $reload = sub {
 };
 $reload->();
 if ($watch_md) {
-	my $scan = sub { $watch_md->scan if $watch_md };
+	my $scan = sub { $watch_md->trigger_scan('full') if $watch_md };
 	$SIG{HUP} = $reload;
 	$SIG{USR1} = $scan;
 	$SIG{ALRM} = sub { $SIG{ALRM} = 'DEFAULT'; $scan->() };

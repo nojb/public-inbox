@@ -42,7 +42,7 @@ my $config = PublicInbox::Config->new({
 	"publicinboxlearn.watchspam" => "maildir:$spamdir",
 });
 
-PublicInbox::WatchMaildir->new($config)->scan;
+PublicInbox::WatchMaildir->new($config)->scan('full');
 my $git = PublicInbox::Git->new($git_dir);
 my @list = $git->qx(qw(rev-list refs/heads/master));
 is(scalar @list, 1, 'one revision in rev-list');
@@ -59,7 +59,7 @@ my $write_spam = sub {
 };
 $write_spam->();
 is(unlink(glob("$maildir/new/*")), 1, 'unlinked old spam');
-PublicInbox::WatchMaildir->new($config)->scan;
+PublicInbox::WatchMaildir->new($config)->scan('full');
 @list = $git->qx(qw(rev-list refs/heads/master));
 is(scalar @list, 2, 'two revisions in rev-list');
 @list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
@@ -72,7 +72,7 @@ To unsubscribe from this list: send the line "unsubscribe git" in
 the body of a message to majordomo\@vger.kernel.org
 More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
-	PublicInbox::WatchMaildir->new($config)->scan;
+	PublicInbox::WatchMaildir->new($config)->scan('full');
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 1, 'tree has one file');
 	my $mref = $git->cat_file('HEAD:'.$list[0]);
@@ -80,7 +80,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 
 	is(unlink(glob("$maildir/new/*")), 1, 'unlinked spam');
 	$write_spam->();
-	PublicInbox::WatchMaildir->new($config)->scan;
+	PublicInbox::WatchMaildir->new($config)->scan('full');
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 0, 'tree is empty');
 	@list = $git->qx(qw(rev-list refs/heads/master));
@@ -96,7 +96,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
 	{
 		local $SIG{__WARN__} = sub {}; # quiet spam check warning
-		PublicInbox::WatchMaildir->new($config)->scan;
+		PublicInbox::WatchMaildir->new($config)->scan('full');
 	}
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 0, 'tree has no files spamc checked');
@@ -111,7 +111,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
-	PublicInbox::WatchMaildir->new($config)->scan;
+	PublicInbox::WatchMaildir->new($config)->scan('full');
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 1, 'tree has one file after spamc checked');
 

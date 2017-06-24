@@ -13,25 +13,27 @@ use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MDA;
 use PublicInbox::Spawn qw(spawn);
+use File::Temp qw//;
 
 sub new {
 	my ($class, $config) = @_;
-	my (%mdmap, @mdir, $spamc);
+	my (%mdmap, @mdir, $spamc, $spamdir);
 
 	# "publicinboxwatch" is the documented namespace
 	# "publicinboxlearn" is legacy but may be supported
 	# indefinitely...
 	foreach my $pfx (qw(publicinboxwatch publicinboxlearn)) {
 		my $k = "$pfx.watchspam";
-		if (my $spamdir = $config->{$k}) {
-			if ($spamdir =~ s/\Amaildir://) {
-				$spamdir =~ s!/+\z!!;
+		if (my $dir = $config->{$k}) {
+			if ($dir =~ s/\Amaildir://) {
+				$dir =~ s!/+\z!!;
 				# skip "new", no MUA has seen it, yet.
-				my $cur = "$spamdir/cur";
+				my $cur = "$dir/cur";
+				$spamdir = $cur;
 				push @mdir, $cur;
 				$mdmap{$cur} = 'watchspam';
 			} else {
-				warn "unsupported $k=$spamdir\n";
+				warn "unsupported $k=$dir\n";
 			}
 		}
 	}
@@ -77,21 +79,41 @@ sub new {
 	$mdre = qr!\A($mdre)/!;
 	bless {
 		spamcheck => $spamcheck,
+		spamdir => $spamdir,
 		mdmap => \%mdmap,
 		mdir => \@mdir,
 		mdre => $mdre,
 		config => $config,
 		importers => {},
+		opendirs => {}, # dirname => dirhandle (in progress scans)
 	}, $class;
 }
 
 sub _done_for_now {
-	$_->done foreach values %{$_[0]->{importers}};
+	my ($self) = @_;
+	my $opendirs = $self->{opendirs};
+
+	# spamdir scanning means every importer remains open
+	my $spamdir = $self->{spamdir};
+	return if defined($spamdir) && $opendirs->{$spamdir};
+
+	foreach my $im (values %{$self->{importers}}) {
+		# not done if we're scanning
+		next if $opendirs->{$im->{git}->{git_dir}};
+		$im->done;
+	}
 }
 
 sub _try_fsn_paths {
-	my ($self, $paths) = @_;
-	_try_path($self, $_->{path}) foreach @$paths;
+	my ($self, $scan_re, $paths) = @_;
+	foreach (@$paths) {
+		my $path = $_->{path};
+		if ($path =~ $scan_re) {
+			scan($self, $path);
+		} else {
+			_try_path($self, $path);
+		}
+	}
 	_done_for_now($self);
 }
 
@@ -183,31 +205,61 @@ sub quit { $_[0]->{quit} = 1 }
 
 sub watch {
 	my ($self) = @_;
-	my $cb = sub { _try_fsn_paths($self, \@_) };
-	my $mdir = $self->{mdir};
+	my $scan = File::Temp->newdir("public-inbox-watch.$$.scan.XXXXXX",
+					TMPDIR => 1);
+	my $scandir = $self->{scandir} = $scan->dirname;
+	my $re = qr!\A$scandir/!;
+	my $cb = sub { _try_fsn_paths($self, $re, \@_) };
 
 	# lazy load here, we may support watching via IMAP IDLE
 	# in the future...
 	require Filesys::Notify::Simple;
-	my $watcher = Filesys::Notify::Simple->new($mdir);
-	$watcher->wait($cb) until ($self->{quit});
+	my $fsn = Filesys::Notify::Simple->new([@{$self->{mdir}}, $scandir]);
+	$fsn->wait($cb) until ($self->{quit});
+}
+
+sub trigger_scan {
+	my ($self, $base) = @_;
+	my $dir = $self->{scandir} or die "not watch-ing, yet\n";
+	open my $fh, '>', "$dir/$base" or die "open $dir/$base failed: $!\n";
+	close $fh or die "close $dir/$base failed: $!\n";
 }
 
 sub scan {
-	my ($self) = @_;
-	my $mdir = $self->{mdir};
-	foreach my $dir (@$mdir) {
-		my $ok = opendir(my $dh, $dir);
-		unless ($ok) {
-			warn "failed to open $dir: $!\n";
-			next;
-		}
+	my ($self, $path) = @_;
+	my $max = 10;
+	my $opendirs = $self->{opendirs};
+	my @dirnames = keys %$opendirs;
+	foreach my $dir (@dirnames) {
+		my $dh = delete $opendirs->{$dir};
+		my $n = $max;
 		while (my $fn = readdir($dh)) {
 			_try_path($self, "$dir/$fn");
+			last if --$n < 0;
 		}
-		closedir $dh;
+		$opendirs->{$dir} = $dh if $n < 0;
 	}
-	_done_for_now($self);
+	if ($path =~ /full\z/) {
+		foreach my $dir (@{$self->{mdir}}) {
+			next if $opendirs->{$dir}; # already in progress
+			my $ok = opendir(my $dh, $dir);
+			unless ($ok) {
+				warn "failed to open $dir: $!\n";
+				next;
+			}
+			my $n = $max;
+			while (my $fn = readdir($dh)) {
+				_try_path($self, "$dir/$fn");
+				last if --$n < 0;
+			}
+			$opendirs->{$dir} = $dh if $n < 0;
+		}
+	}
+	if (keys %$opendirs) { # do we have more work to do?
+		trigger_scan($self, 'cont');
+	} else {
+		_done_for_now($self);
+	}
 }
 
 sub _path_to_mime {
