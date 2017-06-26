@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use File::Temp qw/tempdir/;
-my $psgi = "examples/public-inbox.psgi";
+my $psgi = "./examples/public-inbox.psgi";
 my $tmpdir = tempdir('pi-plack-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $pi_config = "$tmpdir/config";
 my $maindir = "$tmpdir/main.git";

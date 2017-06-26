@@ -11,7 +11,7 @@ use PublicInbox::Config;
 use PublicInbox::Inbox;
 use File::Temp qw/tempdir/;
 my $have_xml_feed = eval { require XML::Feed; 1 };
-require 't/common.perl';
+require './t/common.perl';
 
 sub string_feed {
 	stream_to_string(PublicInbox::Feed::generate($_[0]));
