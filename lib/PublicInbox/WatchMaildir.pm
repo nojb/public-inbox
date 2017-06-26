@@ -91,13 +91,18 @@ sub new {
 
 sub _done_for_now {
 	my ($self) = @_;
+	my $importers = $self->{importers};
+	foreach my $im (values %$importers) {
+		$im->done if $im->{nchg};
+	}
+
 	my $opendirs = $self->{opendirs};
 
 	# spamdir scanning means every importer remains open
 	my $spamdir = $self->{spamdir};
 	return if defined($spamdir) && $opendirs->{$spamdir};
 
-	foreach my $im (values %{$self->{importers}}) {
+	foreach my $im (values %$importers) {
 		# not done if we're scanning
 		next if $opendirs->{$im->{git}->{git_dir}};
 		$im->done;
@@ -263,11 +268,9 @@ sub scan {
 			$opendirs->{$dir} = $dh if $n < 0;
 		}
 	}
-	if (keys %$opendirs) { # do we have more work to do?
-		trigger_scan($self, 'cont');
-	} else {
-		_done_for_now($self);
-	}
+	_done_for_now($self);
+	# do we have more work to do?
+	trigger_scan($self, 'cont') if keys %$opendirs;
 }
 
 sub _path_to_mime {
