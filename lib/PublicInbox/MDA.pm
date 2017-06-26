@@ -78,7 +78,8 @@ sub set_list_headers {
 	my ($class, $simple, $dst) = @_;
 	unless (defined $simple->header('List-Id')) {
 		my $pa = $dst->{-primary_address};
-		$simple->header_set("List-Id", "<$pa>"); # RFC2919
+		$pa =~ tr/@/./; # RFC2919
+		$simple->header_set("List-Id", "<$pa>");
 	}
 
 	$simple->header_set($_) foreach @BAD_HEADERS;

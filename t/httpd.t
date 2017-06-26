@@ -57,7 +57,7 @@ Date: Thu, 01 Jan 1970 06:06:06 +0000
 
 nntp
 EOF
-		$mime->header_set('List-Id', "<$addr>");
+
 		my $git = PublicInbox::Git->new($maindir);
 		my $im = PublicInbox::Import->new($git, 'test', $addr);
 		$im->add($mime);

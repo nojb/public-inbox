@@ -62,7 +62,9 @@ Content-Transfer-Encoding: 8bit
 
 This is a test message for El\xc3\xa9anor
 EOF
-		$mime->header_set('List-Id', "<$addr>");
+		my $list_id = $addr;
+		$list_id =~ s/@/./;
+		$mime->header_set('List-Id', "<$list_id>");
 		$len = length($mime->as_string);
 		my $git = PublicInbox::Git->new($maindir);
 		my $im = PublicInbox::Import->new($git, 'test', $addr);

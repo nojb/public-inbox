@@ -45,7 +45,9 @@ my $body = $msg->body;
 my $list_id = $header_obj->header('List-Id');
 my ($archive_url, $user, $domain);
 if (defined $list_id) {
-	($user, $domain) = ($list_id =~ /<(.+)\@(.+)>/g);
+	# due to a bug in old versions of public-inbox, <user@domain> was used
+	# as the list-Id instead of <user.domain> as recommended in RFC2919
+	($user, $domain) = ($list_id =~ /<([^\.@]+)[\.@](.+)>/g);
 
 	if (defined $domain) {
 		$archive_url = "https://$domain/$user/";
