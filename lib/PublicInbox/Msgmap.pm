@@ -48,23 +48,20 @@ sub new_file {
 # n.b. invoked directly by scripts/xhdr-num2mid
 sub meta_accessor {
 	my ($self, $key, $value) = @_;
-	use constant {
-		meta_select => 'SELECT val FROM meta WHERE key = ? LIMIT 1',
-		meta_update => 'UPDATE meta SET val = ? WHERE key = ? LIMIT 1',
-		meta_insert => 'INSERT INTO meta (key,val) VALUES (?,?)',
-	};
 
+	my $sql = 'SELECT val FROM meta WHERE key = ? LIMIT 1';
 	my $dbh = $self->{dbh};
 	my $prev;
-	defined $value or
-		return $dbh->selectrow_array(meta_select, undef, $key);
+	defined $value or return $dbh->selectrow_array($sql, undef, $key);
 
-	$prev = $dbh->selectrow_array(meta_select, undef, $key);
+	$prev = $dbh->selectrow_array($sql, undef, $key);
 
 	if (defined $prev) {
-		$dbh->do(meta_update, undef, $value, $key);
+		$sql = 'UPDATE meta SET val = ? WHERE key = ? LIMIT 1';
+		$dbh->do($sql, undef, $value, $key);
 	} else {
-		$dbh->do(meta_insert, undef, $key, $value);
+		$sql = 'INSERT INTO meta (key,val) VALUES (?,?)';
+		$dbh->do($sql, undef, $key, $value);
 	}
 	$prev;
 }
@@ -92,8 +89,8 @@ sub mid_insert {
 sub mid_for {
 	my ($self, $num) = @_;
 	my $dbh = $self->{dbh};
-	use constant MID_FOR => 'SELECT mid FROM msgmap WHERE num = ? LIMIT 1';
-	my $sth = $self->{mid_for} ||= $dbh->prepare(MID_FOR);
+	my $sth = $self->{mid_for} ||=
+		$dbh->prepare('SELECT mid FROM msgmap WHERE num = ? LIMIT 1');
 	$sth->bind_param(1, $num);
 	$sth->execute;
 	$sth->fetchrow_array;
@@ -102,8 +99,8 @@ sub mid_for {
 sub num_for {
 	my ($self, $mid) = @_;
 	my $dbh = $self->{dbh};
-	use constant NUM_FOR => 'SELECT num FROM msgmap WHERE mid = ? LIMIT 1';
-	my $sth = $self->{num_for} ||= $dbh->prepare(NUM_FOR);
+	my $sth = $self->{num_for} ||=
+		$dbh->prepare('SELECT num FROM msgmap WHERE mid = ? LIMIT 1');
 	$sth->bind_param(1, $mid);
 	$sth->execute;
 	$sth->fetchrow_array;
@@ -112,8 +109,8 @@ sub num_for {
 sub minmax {
 	my ($self) = @_;
 	my $dbh = $self->{dbh};
-	use constant NUM_MINMAX => 'SELECT MIN(num),MAX(num) FROM msgmap';
-	my $sth = $self->{num_minmax} ||= $dbh->prepare(NUM_MINMAX);
+	my $sth = $self->{num_minmax} ||=
+		$dbh->prepare('SELECT MIN(num),MAX(num) FROM msgmap');
 	$sth->execute;
         $sth->fetchrow_array;
 }
@@ -138,8 +135,7 @@ sub mid_prefixes {
 sub mid_delete {
 	my ($self, $mid) = @_;
 	my $dbh = $self->{dbh};
-	use constant MID_DELETE => 'DELETE FROM msgmap WHERE mid = ?';
-	my $sth = $dbh->prepare(MID_DELETE);
+	my $sth = $dbh->prepare('DELETE FROM msgmap WHERE mid = ?');
 	$sth->bind_param(1, $mid);
 	$sth->execute;
 }
@@ -175,12 +171,12 @@ sub id_batch {
 }
 
 # only used for mapping external serial numbers (e.g. articles from gmane)
-# see scripts/xhdr-num2mid for usage
+# see scripts/xhdr-num2mid or PublicInbox::Filter::RubyLang for usage
 sub mid_set {
 	my ($self, $num, $mid) = @_;
 	my $sth = $self->{mid_set} ||= do {
-		my $sql = 'INSERT OR IGNORE INTO msgmap (num, mid) VALUES (?,?)';
-		$self->{dbh}->prepare($sql);
+		$self->{dbh}->prepare(
+			'INSERT OR IGNORE INTO msgmap (num,mid) VALUES (?,?)');
 	};
 	$sth->execute($num, $mid);
 }
