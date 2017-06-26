@@ -225,7 +225,7 @@ sub watch {
 
 sub trigger_scan {
 	my ($self, $base) = @_;
-	my $dir = $self->{scandir} or die "not watch-ing, yet\n";
+	my $dir = $self->{scandir} or return;
 	open my $fh, '>', "$dir/$base" or die "open $dir/$base failed: $!\n";
 	close $fh or die "close $dir/$base failed: $!\n";
 }
@@ -235,6 +235,7 @@ sub scan {
 	if ($path =~ /quit\z/) {
 		%{$self->{opendirs}} = ();
 		_done_for_now($self);
+		delete $self->{scandir};
 		$self->{quit} = 1;
 		return;
 	}
