@@ -4,25 +4,22 @@
 #
 # Script to import a Maildir into a public-inbox
 =begin usage
-	mkdir -p $HOME/.public-inbox
-	MAINREPO=/path/to/your/repo.git
-	export ORIGINAL_RECIPIENT='list@example.com'
-	git init --bare $MAINREPO
-	export GIT_CONFIG=$HOME/.public-inbox/config
-	git config publicinbox.$INBOX.address $ORIGINAL_RECIPIENT
-	git config publicinbox.$INBOX.mainrepo $MAINREPO
-	unset GIT_CONFIG
+	export GIT_DIR=/path/to/your/repo.git
+	export GIT_AUTHOR_EMAIL='list@example.com'
+	export GIT_AUTHOR_NAME='list name'
 	./import_maildir /path/to/maildir/
 =cut
 use strict;
 use warnings;
-use Email::Filter;
+use Email::Simple;
 use Date::Parse qw/str2time/;
-use IPC::Run qw/run/;
+use PublicInbox::MIME;
+use PublicInbox::Git;
+use PublicInbox::Import;
 sub usage { "Usage:\n".join('', grep(/\t/, `head -n 24 $0`)) }
 my $dir = shift @ARGV or die usage();
-defined $ENV{ORIGINAL_RECIPIENT} or die usage();
-my @mda = qw(public-inbox-mda);
+my $git_dir = `git rev-parse --git-dir`;
+chomp $git_dir;
 foreach my $sub (qw(cur new tmp)) {
 	-d "$dir/$sub" or die "$dir is not a Maildir (missing $sub)\n";
 }
@@ -31,22 +28,26 @@ my @msgs;
 foreach my $sub (qw(cur new)) {
 	foreach my $fn (glob("$dir/$sub/*")) {
 		open my $fh, '<', $fn or next;
-		my $f = Email::Filter->new(data => eval { local $/; <$fh> });
-		my $date = $f->simple->header('Date');
+		my $s = Email::Simple->new(eval { local $/; <$fh> });
+		my $date = $s->header('Date');
 		my $t = eval { str2time($date) };
-		$f->exit(0);
-		$f->ignore;
 		defined $t or next;
 		my @fn = split(m!/!, $fn);
 		push @msgs, [ $t, "$sub/" . pop @fn, $date ];
 	}
 }
 
+my $git = PublicInbox::Git->new($git_dir);
+chomp(my $name = `git config user.name`);
+chomp(my $email = `git config user.email`);
+my $im = PublicInbox::Import->new($git, $name, $email);
 @msgs = sort { $b->[0] <=> $a->[0] } @msgs;
 while (my $ary = pop @msgs) {
 	my $fn = "$dir/$ary->[1]";
-	local $ENV{GIT_COMMITTER_DATE} = $ary->[2]; # this preserves timezone
-	run(\@mda, '<', $fn);
+	open my $fh, '<', $fn or next;
+	my $mime = PublicInbox::MIME->new(eval { local $/; <$fh> });
+	$im->add($mime);
 }
+$im->done;
 
 1;
