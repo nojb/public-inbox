@@ -368,7 +368,6 @@ sub thread_html {
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{root_anchor} = anchor_for($mid);
-	$ctx->{seen} = {};
 	$ctx->{mapping} = {};
 	$ctx->{s_nr} = "$nr+ messages in thread";
 
@@ -597,8 +596,9 @@ sub thread_skel {
 	$$dst .= "$nr+ messages in thread ($expand";
 	$$dst .= qq! / <a\nhref="#b">[top]</a>)\n!;
 
-	my $subj = $srch->subject_path($hdr->header('Subject'));
-	$ctx->{seen} = { $subj => 1 };
+	my $subj = $hdr->header('Subject');
+	defined $subj or $subj = '';
+	$ctx->{prev_subj} = [ split(/ /, $srch->subject_normalized($subj)) ];
 	$ctx->{cur} = $mid;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
@@ -793,20 +793,31 @@ sub skel_dump {
 	# Subject is never undef, this mail was loaded from
 	# our Xapian which would've resulted in '' if it were
 	# really missing (and Filter rejects empty subjects)
-	my $subj = $smsg->subject;
-	my $h = $ctx->{srch}->subject_path($subj);
-	if ($ctx->{seen}->{$h}) {
-		$subj = undef;
-	} else {
-		$ctx->{seen}->{$h} = 1;
-		$subj = PublicInbox::Hval->new($subj);
-		$subj = $subj->as_html;
+	my @subj = split(/ /, $ctx->{srch}->subject_normalized($smsg->subject));
+
+	# remove common suffixes from the subject if it matches the previous,
+	# so we do not show redundant text at the end.
+	my $prev_subj = $ctx->{prev_subj} || [];
+	$ctx->{prev_subj} = [ @subj ];
+	my $omit = ''; # '"' denotes identical text omitted
+	while (@$prev_subj && @subj && $subj[-1] eq $prev_subj->[-1]) {
+		pop @$prev_subj;
+		pop @subj;
+		$omit ||= '&#34; ';
+	}
+	pop @subj if @subj && $subj[-1] =~ /^re:\s*/i;
+	my $end;
+	if (@subj) {
+		my $subj = join(' ', @subj);
+		$subj = ascii_html($subj);
 		obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
+		$end = "$subj</a> $omit$f\n"
+	} else {
+		$end = "$f</a>\n";
 	}
 	my $m;
 	my $id = '';
 	my $mapping = $ctx->{mapping};
-	my $end = defined($subj) ? "$subj</a> $f\n" : "$f</a>\n";
 	if ($mapping) {
 		my $map = $mapping->{$mid};
 		$id = id_compress($mid, 1);
@@ -900,6 +911,7 @@ sub dump_topics {
 	my @out;
 	my $ibx = $ctx->{-inbox};
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
+	my $srch = $ctx->{srch};
 
 	# sort by recency, this allows new posts to "bump" old topics...
 	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
@@ -908,6 +920,7 @@ sub dump_topics {
 		next unless defined $top;  # ghost topic
 		my $mid = delete $seen->{$top};
 		my $href = mid_escape($mid);
+		my $prev_subj = [ split(/ /, $top) ];
 		$top = PublicInbox::Hval->new($top)->as_html;
 		$ts = fmt_ts($ts);
 
@@ -930,11 +943,22 @@ sub dump_topics {
 			my $level = $ex[$i];
 			my $subj = $ex[$i + 1];
 			$mid = delete $seen->{$subj};
-			$subj = ascii_html($subj);
+			my @subj = split(/ /, $srch->subject_normalized($subj));
+			my @next_prev = @subj; # full copy
+			my $omit = ''; # '"' denotes identical text omitted
+			while (@$prev_subj && @subj &&
+					$subj[-1] eq $prev_subj->[-1]) {
+				pop @$prev_subj;
+				pop @subj;
+				$omit ||= ' &#34;';
+			}
+			pop @subj if @subj && $subj[-1] =~ /^re:\s*/i;
+			$prev_subj = \@next_prev;
+			$subj = ascii_html(join(' ', @subj));
 			obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
 			$href = mid_escape($mid);
 			$s .= indent_for($level) . TCHILD;
-			$s .= "<a\nhref=\"$href/T/#u\">$subj</a>\n";
+			$s .= "<a\nhref=\"$href/T/#u\">$subj</a>$omit\n";
 		}
 		push @out, $s;
 	}
