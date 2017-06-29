@@ -100,7 +100,7 @@ sub obfuscate_addrs ($$) {
 		if ($addrs->{$addr} || ((defined $re && $domain =~ $re))) {
 			$addr;
 		} else {
-			$addr =~ s!([^\.]+)\.!$1&#8226;!g;
+			$addr =~ s!([^\.]+)\.!$1&#8226;!;
 			$addr
 		}
 		/sge;
