@@ -78,7 +78,7 @@ Documentation/%.txt : Documentation/%.pod
 txt2pre = $(PERL) -I lib ./Documentation/txt2pre <$< >$@+ && \
 	touch -r $< $@+ && mv $@+ $@
 txt := INSTALL README COPYING TODO
-dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt
+dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt hosted.txt
 dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
 
 %.html: %.txt
