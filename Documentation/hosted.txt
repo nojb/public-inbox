@@ -25,6 +25,11 @@ public-inbox or public-inbox.org in any way.
   Core development list for the Ruby programming language
   https://www.ruby-lang.org/en/community/mailing-lists/
 
+* https://public-inbox.org/ruby-dev/
+  ruby-dev@ruby-lang.org
+  Japanese development list for the Ruby programming language
+  https://www.ruby-lang.org/en/community/mailing-lists/
+
 * https://public-inbox.org/sox-users/
   sox-users@lists.sourceforge.net
   Users' list for the SoX sound processing tool
