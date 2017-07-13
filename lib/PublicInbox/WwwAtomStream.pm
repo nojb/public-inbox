@@ -7,7 +7,7 @@ use strict;
 use warnings;
 
 use POSIX qw(strftime);
-use Date::Parse qw(strptime);
+use Date::Parse qw(str2time);
 use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
 use PublicInbox::Hval qw(ascii_html);
@@ -109,8 +109,8 @@ sub feed_entry {
 	}
 	my $href = $base . mid_escape($mid) . '/';
 	my $date = $hdr->header('Date');
-	my @t = eval { strptime($date) } if defined $date;
-	@t = gmtime(time) unless scalar @t;
+	my $t = eval { str2time($date) } if defined $date;
+	my @t = gmtime(defined $t ? $t : time);
 	my $updated = feed_updated(@t);
 
 	my $title = $hdr->header('Subject');
