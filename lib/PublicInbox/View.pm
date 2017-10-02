@@ -104,9 +104,8 @@ EOF
 sub in_reply_to {
 	my ($hdr) = @_;
 	my %mid = map { $_ => 1 } $hdr->header_raw('Message-ID');
-	my @refs = ($hdr->header_raw('References'),
-			$hdr->header_raw('In-Reply-To'));
-	@refs = ((join(' ', @refs)) =~ /<([^>]+)>/g);
+	my @refs = (($hdr->header_raw('References') || '') =~ /<([^>]+)>/g);
+	push(@refs, (($hdr->header_raw('In-Reply-To') || '') =~ /<([^>]+)>/g));
 	while (defined(my $irt = pop @refs)) {
 		next if $mid{"<$irt>"};
 		return $irt;

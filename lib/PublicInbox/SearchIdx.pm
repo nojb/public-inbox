@@ -414,9 +414,8 @@ sub link_message {
 
 	# last References should be IRT, but some mail clients do things
 	# out of order, so trust IRT over References iff IRT exists
-	my @refs = ($hdr->header_raw('References'),
-			$hdr->header_raw('In-Reply-To'));
-	@refs = ((join(' ', @refs)) =~ /<([^>]+)>/g);
+	my @refs = (($hdr->header_raw('References') || '') =~ /<([^>]+)>/g);
+	push(@refs, (($hdr->header_raw('In-Reply-To') || '') =~ /<([^>]+)>/g));
 
 	my $tid;
 	if (@refs) {
