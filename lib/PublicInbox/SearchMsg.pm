@@ -29,6 +29,22 @@ sub get_val ($$) {
 	Search::Xapian::sortable_unserialise($doc->get_value($col));
 }
 
+sub load_expand {
+	my ($self) = @_;
+	my $doc = $self->{doc};
+	my $data = $doc->get_data or return;
+	$self->{ts} = get_val($doc, &PublicInbox::Search::TS);
+	utf8::decode($data);
+	my ($subj, $from, $refs, $to, $cc, $blob) = split(/\n/, $data);
+	$self->{subject} = $subj;
+	$self->{from} = $from;
+	$self->{references} = $refs;
+	$self->{to} = $to;
+	$self->{cc} = $cc;
+	$self->{blob} = $blob;
+	$self;
+}
+
 sub load_doc {
 	my ($class, $doc) = @_;
 	my $data = $doc->get_data or return;

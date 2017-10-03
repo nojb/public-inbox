@@ -207,7 +207,8 @@ sub sort_relevance {
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my %pct;
-	my $msgs = $ctx->{srch}->retry_reopen(sub { [ map {
+	my $srch = $ctx->{srch};
+	my $msgs = $srch->retry_reopen(sub { [ map {
 		my $i = $_;
 		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
 		$pct{$smsg->mid} = $i->get_percent;
@@ -215,7 +216,8 @@ sub mset_thread {
 	} ($mset->items) ]});
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
-		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ts);
+		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ts,
+		$srch);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	my $inbox = $ctx->{-inbox};
 	$ctx->{-upfx} = '';

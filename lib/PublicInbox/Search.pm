@@ -300,7 +300,7 @@ sub lookup_mail { # no ghosts!
 	my ($self, $mid) = @_;
 	retry_reopen($self, sub {
 		my $smsg = lookup_message($self, $mid) or return;
-		PublicInbox::SearchMsg->load_doc($smsg->{doc});
+		$smsg->load_expand;
 	});
 }
 
