@@ -9,7 +9,7 @@ use warnings;
 use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/ascii_html obfuscate_addrs/;
+our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename/;
 
 # for user-generated content (UGC) which may have excessively long lines
 # and screw up rendering on some browsers.  This is the only CSS style
@@ -104,6 +104,16 @@ sub obfuscate_addrs ($$) {
 			$addr
 		}
 		/sge;
+}
+
+# like format_sanitized_subject in git.git pretty.c with '%f' format string
+sub to_filename ($) {
+	my ($s, undef) = split(/\n/, $_[0]);
+	$s =~ s/[^A-Za-z0-9_\.]+/-/g;
+	$s =~ tr/././s;
+	$s =~ s/[\.\-]+\z//;
+	$s =~ s/\A[\.\-]+//;
+	$s
 }
 
 1;

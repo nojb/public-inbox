@@ -7,17 +7,43 @@ package PublicInbox::Mbox;
 use strict;
 use warnings;
 use PublicInbox::MID qw/mid_clean mid_escape/;
-require Email::Simple;
+use PublicInbox::Hval qw/to_filename/;
+use Email::Simple;
+use Email::MIME::Encode;
+
+sub subject_fn ($) {
+	my ($simple) = @_;
+	my $fn = $simple->header('Subject');
+	return 'no-subject' unless defined($fn);
+
+	# no need for full Email::MIME, here
+	if ($fn =~ /=\?/) {
+		eval { $fn = Encode::decode('MIME-Header', $fn) };
+		$fn = 'no-subject' if $@;
+	}
+	$fn =~ s/^re:\s+//i;
+	$fn = to_filename($fn);
+	$fn eq '' ? 'no-subject' : $fn;
+}
 
 sub emit1 {
 	my ($ctx, $msg) = @_;
 	$msg = Email::Simple->new($msg);
+	my $fn = subject_fn($msg);
+	my @hdr = ('Content-Type');
+	if ($ctx->{-inbox}->{obfuscate}) {
+		# obfuscation is stupid, but maybe scrapers are, too...
+		push @hdr, 'application/mbox';
+		$fn .= '.mbox';
+	} else {
+		push @hdr, 'text/plain';
+		$fn .= '.txt';
+	}
+	push @hdr, 'Content-Disposition', "inline; filename=$fn";
 
 	# single message should be easily renderable in browsers,
 	# unless obfuscation is enabled :<
-	[ 200, [ 'Content-Type',
-	  $ctx->{-inbox}->{obfuscate} ? 'application/mbox' : 'text/plain' ],
-	 [ msg_str($ctx, $msg)] ]
+	[ 200, \@hdr, [ msg_str($ctx, $msg) ] ]
 }
 
 sub msg_str {
@@ -69,9 +95,7 @@ sub thread_mbox {
 	return sub { need_gzip(@_) } if $@;
 
 	my $cb = sub { $srch->get_thread($ctx->{mid}, @_) };
-	# http://www.iana.org/assignments/media-types/application/gzip
-	[200, ['Content-Type' => 'application/gzip'],
-		PublicInbox::MboxGz->new($ctx, $cb) ];
+	PublicInbox::MboxGz->response($ctx, $cb);
 }
 
 sub emit_range {
@@ -85,11 +109,9 @@ sub emit_range {
 	} else {
 		return [404, [qw(Content-Type text/plain)], []];
 	}
-	my $cb = sub { $ctx->{srch}->query($query, @_) };
 
-	# http://www.iana.org/assignments/media-types/application/gzip
-	[200, [qw(Content-Type application/gzip)],
-		PublicInbox::MboxGz->new($ctx, $cb) ];
+	my $cb = sub { $ctx->{srch}->query($query, @_) };
+	PublicInbox::MboxGz->response($ctx, $cb);
 }
 
 sub need_gzip {
@@ -123,6 +145,15 @@ sub new {
 	}, $class;
 }
 
+sub response {
+	my ($class, $ctx, $cb) = @_;
+	my $body = $class->new($ctx, $cb);
+	# http://www.iana.org/assignments/media-types/application/gzip
+	$body->{hdr} = [ 'Content-Type', 'application/gzip' ];
+	my $hdr = $body->getline; # fill in Content-Disposition filename
+	[ 200, $hdr, $body ];
+}
+
 # called by Plack::Util::foreach or similar
 sub getline {
 	my ($self) = @_;
@@ -131,10 +162,19 @@ sub getline {
 	my $ibx = $ctx->{-inbox};
 	my $gz = $self->{gz};
 	do {
+		# work on existing result set
 		while (defined(my $smsg = shift @{$self->{msgs}})) {
 			my $msg = eval { $ibx->msg_by_smsg($smsg) } or next;
 			$msg = Email::Simple->new($msg);
 			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg));
+
+			# use subject of first message as subject
+			if (my $hdr = delete $self->{hdr}) {
+				my $fn = PublicInbox::Mbox::subject_fn($msg);
+				push @$hdr, 'Content-Disposition',
+						"inline; filename=$fn.mbox.gz";
+				return $hdr;
+			}
 			my $bref = $self->{buf};
 			if (length($$bref) >= 8192) {
 				my $ret = $$bref; # copy :<
@@ -145,6 +185,8 @@ sub getline {
 			# be fair to other clients on public-inbox-httpd:
 			return '';
 		}
+
+		# refill result set
 		$res = $self->{cb}->($self->{opts});
 		$self->{msgs} = $res->{msgs};
 		$res = scalar @{$self->{msgs}};
