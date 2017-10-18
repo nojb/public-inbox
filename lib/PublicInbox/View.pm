@@ -186,17 +186,17 @@ sub index_entry {
 		$rv .= "\t[relevance $pct->{$mid_raw}%]";
 		$hr = 1;
 	} elsif ($mapping) {
-		my $threaded = 'threaded';
+		my $nested = 'nested';
 		my $flat = 'flat';
 		my $end = '';
 		if ($ctx->{flat}) {
 			$hr = 1;
 			$flat = "<b>$flat</b>";
 		} else {
-			$threaded = "<b>$threaded</b>";
+			$nested = "<b>$nested</b>";
 		}
 		$rv .= "\t[<a\nhref=\"${mhref}T/#u\">$flat</a>";
-		$rv .= "|<a\nhref=\"${mhref}t/#u\">$threaded</a>]";
+		$rv .= "|<a\nhref=\"${mhref}t/#u\">$nested</a>]";
 		$rv .= " <a\nhref=#r$id>$ctx->{s_nr}</a>";
 	} else {
 		$hr = $ctx->{-hr};
