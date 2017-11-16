@@ -132,11 +132,11 @@ sub _remove_spam {
 		my ($ibx) = @_;
 		eval {
 			my $im = _importer_for($self, $ibx);
-			$im->remove($mime);
+			$im->remove($mime, 'spam');
 			if (my $scrub = _scrubber_for($ibx)) {
 				my $scrubbed = $scrub->scrub($mime) or return;
 				$scrubbed == 100 and return;
-				$im->remove($scrubbed);
+				$im->remove($scrubbed, 'spam');
 			}
 		};
 		if ($@) {
