@@ -58,7 +58,7 @@ if ($train eq 'spam') {
 		my $name = $ibx->{name};
 		my $addr = $ibx->{-primary_address};
 		my $im = PublicInbox::Import->new($git, $name, $addr, $ibx);
-		$im->remove($mime);
+		$im->remove($mime, 'spam');
 		$im->done;
 	});
 }
