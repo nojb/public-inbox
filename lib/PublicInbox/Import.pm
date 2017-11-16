@@ -90,7 +90,7 @@ sub _check_path ($$$$) {
 # ('MISMATCH', msg) on mismatch
 # (:MARK, msg) on success
 sub remove {
-	my ($self, $mime) = @_; # mime = Email::MIME
+	my ($self, $mime, $msg) = @_; # mime = Email::MIME
 
 	my $mid = mid_mime($mime);
 	my $path = mid2path($mid);
@@ -138,10 +138,12 @@ sub remove {
 	}
 	my $ident = $self->{ident};
 	my $now = now2822();
+	$msg ||= 'rm';
+	my $len = length($msg) + 1;
 	print $w "commit $ref\nmark :$commit\n",
 		"author $ident $now\n",
 		"committer $ident $now\n",
-		"data 3\nrm\n\n",
+		"data $len\n$msg\n\n",
 		'from ', ($parent ? $parent : $tip), "\n" or wfail;
 	print $w "D $path\n\n" or wfail;
 	$self->{nchg}++;

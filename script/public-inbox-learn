@@ -81,7 +81,7 @@ foreach my $recipient (keys %dests) {
 		# may train for each cross-posted message, and this
 		# script already learns for every list in
 		# ~/.public-inbox/config
-		$im->remove($mime);
+		$im->remove($mime, $train);
 	} else { # $train eq "ham"
 		# no checking for spam here, we assume the message has
 		# been reviewed by a human at this point:
