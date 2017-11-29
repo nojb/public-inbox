@@ -101,17 +101,22 @@ sub thread_mbox {
 sub emit_range {
 	my ($ctx, $range) = @_;
 
-	eval { require IO::Compress::Gzip };
-	return sub { need_gzip(@_) } if $@;
 	my $query;
 	if ($range eq 'all') { # TODO: YYYY[-MM]
 		$query = '';
 	} else {
 		return [404, [qw(Content-Type text/plain)], []];
 	}
+	mbox_all($ctx, $query);
+}
 
+sub mbox_all {
+	my ($ctx, $query) = @_;
+
+	eval { require IO::Compress::Gzip };
+	return sub { need_gzip(@_) } if $@;
 	my $cb = sub { $ctx->{srch}->query($query, @_) };
-	PublicInbox::MboxGz->response($ctx, $cb);
+	PublicInbox::MboxGz->response($ctx, $cb, 'results-'.$query);
 }
 
 sub need_gzip {
@@ -131,6 +136,7 @@ EOF
 package PublicInbox::MboxGz;
 use strict;
 use warnings;
+use PublicInbox::Hval qw/to_filename/;
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
@@ -146,12 +152,20 @@ sub new {
 }
 
 sub response {
-	my ($class, $ctx, $cb) = @_;
+	my ($class, $ctx, $cb, $fn) = @_;
 	my $body = $class->new($ctx, $cb);
 	# http://www.iana.org/assignments/media-types/application/gzip
 	$body->{hdr} = [ 'Content-Type', 'application/gzip' ];
+	$body->{fn} = $fn;
 	my $hdr = $body->getline; # fill in Content-Disposition filename
 	[ 200, $hdr, $body ];
+}
+
+sub set_filename ($$) {
+	my ($fn, $msg) = @_;
+	return to_filename($fn) if defined($fn);
+
+	PublicInbox::Mbox::subject_fn($msg);
 }
 
 # called by Plack::Util::foreach or similar
@@ -170,7 +184,7 @@ sub getline {
 
 			# use subject of first message as subject
 			if (my $hdr = delete $self->{hdr}) {
-				my $fn = PublicInbox::Mbox::subject_fn($msg);
+				my $fn = set_filename($self->{fn}, $msg);
 				push @$hdr, 'Content-Disposition',
 						"inline; filename=$fn.mbox.gz";
 				return $hdr;

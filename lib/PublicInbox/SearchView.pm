@@ -21,8 +21,11 @@ sub noop {}
 sub sres_top_html {
 	my ($ctx) = @_;
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
-	my $code = 200;
+	my $x = $q->{x};
+	my $query = $q->{'q'};
+	return PublicInbox::Mbox::mbox_all($ctx, $query) if $x eq 'm';
 
+	my $code = 200;
 	# double the limit for expanded views:
 	my $opts = {
 		limit => $LIM,
@@ -33,7 +36,7 @@ sub sres_top_html {
 	my ($mset, $total, $err, $cb);
 retry:
 	eval {
-		$mset = $ctx->{srch}->query($q->{'q'}, $opts);
+		$mset = $ctx->{srch}->query($query, $opts);
 		$total = $mset->get_matches_estimated;
 	};
 	$err = $@;
@@ -55,7 +58,6 @@ retry:
 		$ctx->{-html_tip} = "<pre>\n[No results found]</pre><hr>";
 		$cb = *noop;
 	} else {
-		my $x = $q->{x};
 		return adump($_[0], $mset, $q, $ctx) if $x eq 'A';
 
 		$ctx->{-html_tip} = search_nav_top($mset, $q, $ctx) . "\n\n";
@@ -164,6 +166,9 @@ sub search_nav_top {
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
 	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
+	my $m = $q->qs_html(x => 'm', r => undef);
+	warn "m: $m\n";
+	$rv .= qq{\n\t\t\t\t\t\tdownload: <a\nhref="?$m">mbox.gz</a>};
 }
 
 sub search_nav_bot {
@@ -327,7 +332,7 @@ sub qs_html {
 		$qs .= "&amp;r";
 	}
 	if (my $x = $self->{x}) {
-		$qs .= "&amp;x=$x" if ($x eq 't' || $x eq 'A');
+		$qs .= "&amp;x=$x" if ($x eq 't' || $x eq 'A' || $x eq 'm');
 	}
 	$qs;
 }
