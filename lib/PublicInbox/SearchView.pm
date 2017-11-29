@@ -79,7 +79,7 @@ sub load_doc_retry {
 	}
 }
 
-# display non-threaded search results similar to what users expect from
+# display non-nested search results similar to what users expect from
 # regular WWW search engines:
 sub mset_summary {
 	my ($ctx, $mset, $q) = @_;
@@ -157,10 +157,10 @@ sub search_nav_top {
 	my $x = $q->{x};
 	if ($x eq '') {
 		my $t = $q->qs_html(x => 't');
-		$rv .= qq{<b>summary</b>|<a\nhref="?$t">threaded</a>}
+		$rv .= qq{<b>summary</b>|<a\nhref="?$t">nested</a>}
 	} elsif ($q->{x} eq 't') {
 		my $s = $q->qs_html(x => '');
-		$rv .= qq{<a\nhref="?$s">summary</a>|<b>threaded</b>};
+		$rv .= qq{<a\nhref="?$s">summary</a>|<b>nested</b>};
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
 	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
