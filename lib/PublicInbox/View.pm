@@ -720,7 +720,7 @@ sub ghost_parent {
 
 sub indent_for {
 	my ($level) = @_;
-	INDENT x ($level - 1);
+	$level ? INDENT x ($level - 1) : '';
 }
 
 sub load_results {
