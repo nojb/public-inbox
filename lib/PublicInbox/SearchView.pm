@@ -168,7 +168,8 @@ sub search_nav_top {
 	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
 	my $m = $q->qs_html(x => 'm', r => undef);
 	warn "m: $m\n";
-	$rv .= qq{\n\t\t\t\t\t\tdownload: <a\nhref="?$m">mbox.gz</a>};
+	$rv .= qq{\n\t\t\t\t\t\tdownload: };
+	$rv .= qq{<a\nhref="?$m"\nrel="nofollow">mbox.gz</a>};
 }
 
 sub search_nav_bot {
