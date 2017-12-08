@@ -18,12 +18,19 @@ our $LIM = 200;
 
 sub noop {}
 
+sub mbox_results {
+	my ($ctx) = @_;
+	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
+	my $x = $q->{x};
+	return PublicInbox::Mbox::mbox_all($ctx, $q->{'q'}) if $x eq 'm';
+	sres_top_html($ctx);
+}
+
 sub sres_top_html {
 	my ($ctx) = @_;
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
 	my $x = $q->{x};
 	my $query = $q->{'q'};
-	return PublicInbox::Mbox::mbox_all($ctx, $query) if $x eq 'm';
 
 	my $code = 200;
 	# double the limit for expanded views:
@@ -60,7 +67,7 @@ retry:
 	} else {
 		return adump($_[0], $mset, $q, $ctx) if $x eq 'A';
 
-		$ctx->{-html_tip} = search_nav_top($mset, $q, $ctx) . "\n\n";
+		$ctx->{-html_tip} = search_nav_top($mset, $q, $ctx);
 		if ($x eq 't') {
 			$cb = mset_thread($ctx, $mset, $q);
 		} else {
@@ -131,8 +138,8 @@ sub err_txt {
 
 sub search_nav_top {
 	my ($mset, $q, $ctx) = @_;
-
-	my $rv = '<pre>';
+	my $m = $q->qs_html(x => 'm', r => undef);
+	my $rv = qq{<form\naction="?$m"\nmethod="post"><pre>};
 	my $initial_q = $ctx->{-uxs_retried};
 	if (defined $initial_q) {
 		my $rewritten = $q->{'q'};
@@ -166,10 +173,8 @@ sub search_nav_top {
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
 	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
-	my $m = $q->qs_html(x => 'm', r => undef);
-	warn "m: $m\n";
 	$rv .= qq{\n\t\t\t\t\t\tdownload: };
-	$rv .= qq{<a\nhref="?$m"\nrel="nofollow">mbox.gz</a>};
+	$rv .= qq{<input\ntype=submit\nvalue="mbox.gz"/></pre></form><pre>};
 }
 
 sub search_nav_bot {

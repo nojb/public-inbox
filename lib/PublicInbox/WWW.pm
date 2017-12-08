@@ -53,10 +53,14 @@ sub call {
 	my $path_info = $env->{PATH_INFO};
 	my $method = $env->{REQUEST_METHOD};
 
-	if ($method eq 'POST' &&
-		 $path_info =~ m!$INBOX_RE/(git-upload-pack)\z!) {
-		my $path = $2;
-		return invalid_inbox($ctx, $1) || serve_git($ctx, $path);
+	if ($method eq 'POST') {
+		if ($path_info =~ m!$INBOX_RE/(git-upload-pack)\z!) {
+			my $path = $2;
+			return invalid_inbox($ctx, $1) ||
+				serve_git($ctx, $path);
+		} elsif ($path_info =~ m!$INBOX_RE/!o) {
+			return invalid_inbox($ctx, $1) || mbox_results($ctx);
+		}
 	}
 	elsif ($method !~ /\AGET|HEAD\z/) {
 		return r(405, 'Method Not Allowed');
@@ -398,6 +402,16 @@ sub msg_page {
 sub serve_git {
 	my ($ctx, $path) = @_;
 	PublicInbox::GitHTTPBackend::serve($ctx->{env}, $ctx->{git}, $path);
+}
+
+sub mbox_results {
+	my ($ctx) = @_;
+	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
+		searcher($ctx) or return need_search($ctx);
+		require PublicInbox::SearchView;
+		return PublicInbox::SearchView::mbox_results($ctx);
+	}
+	r404();
 }
 
 sub serve_mbox_range {
