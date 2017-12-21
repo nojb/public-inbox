@@ -755,6 +755,25 @@ sub _msg_date {
 
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
+sub dedupe_subject {
+	my ($prev_subj, $subj, $val) = @_;
+
+	my $omit = ''; # '"' denotes identical text omitted
+	my (@prev_pop, @curr_pop);
+	while (@$prev_subj && @$subj && $subj->[-1] eq $prev_subj->[-1]) {
+		push(@prev_pop, pop(@$prev_subj));
+		push(@curr_pop, pop(@$subj));
+		$omit ||= $val;
+	}
+	pop @$subj if @$subj && $subj->[-1] =~ /^re:\s*/i;
+	if (scalar(@curr_pop) == 1) {
+		$omit = '';
+		push @$prev_subj, @prev_pop;
+		push @$subj, @curr_pop;
+	}
+	$omit;
+}
+
 sub skel_dump {
 	my ($ctx, $level, $node) = @_;
 	my $smsg = $node->{smsg} or return _skel_ghost($ctx, $level, $node);
@@ -798,13 +817,7 @@ sub skel_dump {
 	# so we do not show redundant text at the end.
 	my $prev_subj = $ctx->{prev_subj} || [];
 	$ctx->{prev_subj} = [ @subj ];
-	my $omit = ''; # '"' denotes identical text omitted
-	while (@$prev_subj && @subj && $subj[-1] eq $prev_subj->[-1]) {
-		pop @$prev_subj;
-		pop @subj;
-		$omit ||= '&#34; ';
-	}
-	pop @subj if @subj && $subj[-1] =~ /^re:\s*/i;
+	my $omit = dedupe_subject($prev_subj, \@subj, '&#34; ');
 	my $end;
 	if (@subj) {
 		my $subj = join(' ', @subj);
@@ -944,14 +957,7 @@ sub dump_topics {
 			$mid = delete $seen->{$subj};
 			my @subj = split(/ /, $srch->subject_normalized($subj));
 			my @next_prev = @subj; # full copy
-			my $omit = ''; # '"' denotes identical text omitted
-			while (@$prev_subj && @subj &&
-					$subj[-1] eq $prev_subj->[-1]) {
-				pop @$prev_subj;
-				pop @subj;
-				$omit ||= ' &#34;';
-			}
-			pop @subj if @subj && $subj[-1] =~ /^re:\s*/i;
+			my $omit = dedupe_subject($prev_subj, \@subj, ' &#34;');
 			$prev_subj = \@next_prev;
 			$subj = ascii_html(join(' ', @subj));
 			obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
