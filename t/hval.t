@@ -18,6 +18,7 @@ hello@example.com
 meta@public-inbox.org
 test@public-inbox.org
 test@a.b.c.org
+te.st@example.org
 EOF
 
 PublicInbox::Hval::obfuscate_addrs($ibx, $html);
@@ -28,6 +29,7 @@ hello@example.com
 meta@public-inbox.org
 test@public-inbox&#8226;org
 test@a&#8226;b.c.org
+te.st@example&#8226;org
 EOF
 
 is($html, $exp, 'only obfuscated relevant addresses');

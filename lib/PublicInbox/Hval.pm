@@ -95,13 +95,13 @@ sub obfuscate_addrs ($$) {
 	my $ibx = $_[0];
 	my $re = $ibx->{-no_obfuscate_re}; # regex of domains
 	my $addrs = $ibx->{-no_obfuscate}; # { adddress => 1 }
-	$_[1] =~ s/([\w\.\+=\-]+\@([\w\-]+\.[\w\.\-]+))/
-		my ($addr, $domain) = ($1, $2);
+	$_[1] =~ s/(([\w\.\+=\-]+)\@([\w\-]+\.[\w\.\-]+))/
+		my ($addr, $user, $domain) = ($1, $2, $3);
 		if ($addrs->{$addr} || ((defined $re && $domain =~ $re))) {
 			$addr;
 		} else {
-			$addr =~ s!([^\.]+)\.!$1&#8226;!;
-			$addr
+			$domain =~ s!([^\.]+)\.!$1&#8226;!;
+			$user . '@' . $domain
 		}
 		/sge;
 }
