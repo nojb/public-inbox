@@ -76,7 +76,7 @@ browsers default to.
 * No graphics, images, or icons at all.  We tolerate, but do not
   encourage the use of GUIs.
 
-* No setting colors or font sizes, power to users to decide those.
+* No setting font sizes, power to users to decide those.
   We will include and document <span class=?> to support colors
   for user-supplied CSS.
 
@@ -98,10 +98,9 @@ browsers default to.
 * We only use CSS for one reason: wrapping pre-formatted text
   This is necessary because unfortunate GUI browsers tend to be
   prone to layout widening from unwrapped mailers.
-  w3m is fine here without CSS :)
-  No other CSS is allowed, especially with scary things like:
+  Do not expect CSS to be enabled, especially with scary things like:
 
-	http://thejh.net/misc/website-terminal-copy-paste
+	https://thejh.net/misc/website-terminal-copy-paste
 
   However, we will try to make it easy for users to supply their
   own colors via user-side CSS.
@@ -109,4 +108,7 @@ browsers default to.
 CSS classes (for user-supplied CSS)
 -----------------------------------
 span.q	- quoted text in email messages
+
+TODO: consider using highlight(1) via libhighlight-perl in Debian,
+      optionally
 ...
