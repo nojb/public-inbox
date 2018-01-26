@@ -129,13 +129,13 @@ sub feed_entry {
 	}
 	$s .= "<entry><author><name>$name</name><email>$email</email>" .
 		"</author>$title$updated" .
+		qq(<link\nhref="$href"/>).
+		"<id>$uuid</id>$irt" .
 		qq{<content\ntype="xhtml">} .
 		qq{<div\nxmlns="http://www.w3.org/1999/xhtml">} .
 		qq(<pre\nstyle="white-space:pre-wrap">) .
 		PublicInbox::View::multipart_text_as_html($mime, $href) .
-		'</pre>' .
-		qq!</div></content><link\nhref="$href"/>!.
-		"<id>$uuid</id>$irt</entry>";
+		'</pre></div></content></entry>';
 }
 
 sub feed_updated {
