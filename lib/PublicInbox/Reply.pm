@@ -32,7 +32,8 @@ my $reply_headers = join('|', @reply_headers);
 sub mailto_arg_link {
 	my ($ibx, $hdr) = @_;
 	my $cc = {}; # everyone else
-	my $to; # this is the From address by default
+	my $to; # this is the From address by defaultq
+	my $reply_to_all = 'reply-to-all'; # the only good default :P
 
 	foreach my $rt (split(/\s*,\s*/, $ibx->{replyto} || ':all')) {
 		if ($rt eq ':all') {
@@ -43,8 +44,10 @@ sub mailto_arg_link {
 				add_addrs(\$to, $cc, @addrs);
 			}
 		} elsif ($rt eq ':list') {
+			$reply_to_all = 'reply-to-list';
 			add_addrs(\$to, $cc, $ibx->{-primary_address});
 		} elsif ($rt =~ /\A(?:$reply_headers)\z/io) {
+			# ugh, this is weird...
 			my $v = $hdr->header($rt);
 			if (defined($v) && ($v ne '')) {
 				my @addrs = PublicInbox::Address::emails($v);
@@ -91,13 +94,13 @@ sub mailto_arg_link {
 	# I'm not sure if address obfuscation and mailto: links can
 	# be made compatible; and address obfuscation is misguided,
 	# anyways.
-	return (\@arg, '') if $obfs;
+	return (\@arg, '', $reply_to_all) if $obfs;
 
 	# order matters, Subject is the least important header,
 	# so it is last in case it's lost/truncated in a copy+paste
 	my $href = "mailto:$to?In-Reply-To=$irt${cc}&Subject=$subj";
 
-	(\@arg, ascii_html($href));
+	(\@arg, ascii_html($href), $reply_to_all);
 }
 
 1;

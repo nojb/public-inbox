@@ -61,7 +61,8 @@ sub msg_reply {
 		$info = qq(\n  List information: <a\nhref="$url">$url</a>\n);
 	}
 
-	my ($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
+	my ($arg, $link, $reply_to_all) =
+			PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
 
 	# mailto: link only works if address obfuscation is disabled
 	if ($link) {
@@ -83,15 +84,15 @@ href=#t>this message</a> via plain-text email
 using any one of the following methods:
 
 * Save the following mbox file, import it into your mail client,
-  and reply-to-all from there: <a
+  and $reply_to_all from there: <a
 href=raw>mbox</a>
 
   Avoid top-posting and favor interleaved quoting:
   <a
 href="$p_url">$p_url</a>
 $info
-* Reply to all the recipients using the <b>--to</b>, <b>--cc</b>,
-  and <b>--in-reply-to</b> switches of git-send-email(1):
+* Reply using the <b>--to</b>, <b>--cc</b>, and <b>--in-reply-to</b>
+  switches of git-send-email(1):
 
   git send-email$arg
 
