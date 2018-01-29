@@ -4,7 +4,7 @@ package PublicInbox::Reply;
 use strict;
 use warnings;
 use URI::Escape qw/uri_escape_utf8/;
-use PublicInbox::Hval qw/ascii_html/;
+use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Address;
 use PublicInbox::MID qw/mid_clean mid_escape/;
 
@@ -70,8 +70,9 @@ sub mailto_arg_link {
 	delete $cc->{$to};
 	if ($obfs) {
 		my $arg_to = $to;
-		$arg_to =~ s/\./\$(echo .)/;
+		obfuscate_addrs($ibx, $arg_to, '$(echo .)');
 		push @arg, "--to=$arg_to";
+		# no $subj for $href below
 	} else {
 		push @arg, "--to=$to";
 		$to = uri_escape_utf8($to);
@@ -82,8 +83,9 @@ sub mailto_arg_link {
 	if (@cc) {
 		if ($obfs) {
 			push(@arg, map {
-				s/\./\$(echo .)/;
-				"--cc=$_";
+				my $addr = $_;
+				obfuscate_addrs($ibx, $addr, '$(echo .)');
+				"--cc=$addr";
 			} @cc);
 		} else {
 			$cc = '&Cc=' . uri_escape_utf8(join(',', @cc));
