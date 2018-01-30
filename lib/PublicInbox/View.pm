@@ -70,9 +70,10 @@ sub msg_reply {
 
 * If your mail client supports setting the <b>In-Reply-To</b> header
   via mailto: links, try the <a
-href="$link">mailto: link</a></pre>
+href="$link">mailto: link</a>
 EOF
 	}
+
 	push @$arg, '/path/to/YOUR_REPLY';
 	$arg = ascii_html(join(" \\\n    ", '', @$arg));
 	<<EOF
@@ -98,7 +99,7 @@ $info
 
   <a
 href="$se_url">$se_url</a>
-$link
+$link</pre>
 EOF
 }
 
