@@ -576,26 +576,27 @@ sub thread_skel {
 	my $mid = mid_clean($hdr->header_raw('Message-ID'));
 	my $sres = $srch->get_thread($mid);
 	my $nr = $sres->{total};
-	my $expand = qq(<a\nhref="${tpfx}T/#u">expand</a> ) .
-			qq(/ <a\nhref="${tpfx}t.mbox.gz">mbox.gz</a> ) .
-			qq(/ <a\nhref="${tpfx}t.atom">Atom feed</a>);
+	my $expand = qq(expand[<a\nhref="${tpfx}T/#u">flat</a>) .
+	                qq(|<a\nhref="${tpfx}t/#u">nested</a>]  ) .
+			qq(<a\nhref="${tpfx}t.mbox.gz">mbox.gz</a>  ) .
+			qq(<a\nhref="${tpfx}t.atom">Atom feed</a>);
 
 	my $parent = in_reply_to($hdr);
 	$$dst .= "\n<b>Thread overview: </b>";
 	if ($nr <= 1) {
 		if (defined $parent) {
-			$$dst .= "($expand)\n ";
+			$$dst .= "$expand\n ";
 			$$dst .= ghost_parent("$tpfx../", $parent) . "\n";
 		} else {
-			$$dst .= "[no followups, yet] ($expand)\n";
+			$$dst .= "[no followups] $expand\n";
 		}
 		$ctx->{next_msg} = undef;
 		$ctx->{parent_msg} = $parent;
 		return;
 	}
 
-	$$dst .= "$nr+ messages in thread ($expand";
-	$$dst .= qq! / <a\nhref="#b">[top]</a>)\n!;
+	$$dst .= "$nr+ messages / $expand";
+	$$dst .= qq!  <a\nhref="#b">top</a>\n!;
 
 	my $subj = $hdr->header('Subject');
 	defined $subj or $subj = '';
