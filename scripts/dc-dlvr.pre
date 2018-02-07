@@ -1,5 +1,5 @@
 # Copyright (C) 2014, Eric Wong <e@80x24.org>
-# License: AGPLv3 or later <http://www.gnu.org/licenses/agpl-3.0.txt>
+# License: AGPL-3.0+ <http://www.gnu.org/licenses/agpl-3.0.txt>
 # sourced by /etc/dc-dlvr in ~$PI_USER/.dc-dlvr.rc, this just exits,
 # aborting /etc/dc-dlvr
 export PATH=/usr/local/bin:/usr/bin:/bin

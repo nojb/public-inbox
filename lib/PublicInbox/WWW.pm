@@ -1,5 +1,5 @@
-# Copyright (C) 2014-2015 all contributors <meta@public-inbox.org>
-# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+# Copyright (C) 2014-2018 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Main web interface for mailing list archives
 #

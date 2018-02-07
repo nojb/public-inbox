@@ -1,5 +1,5 @@
-# Copyright (C) 2014-2015 all contributors <meta@public-inbox.org>
-# License: GPLv2 or later (https://www.gnu.org/licenses/gpl-2.0.txt)
+# Copyright (C) 2014-2018 all contributors <meta@public-inbox.org>
+# License: GPLv2 or later <https://www.gnu.org/licenses/gpl-2.0.txt>
 #
 # Used to read files from a git repository without excessive forking.
 # Used in our web interfaces as well as our -nntpd server.

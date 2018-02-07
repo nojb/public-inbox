@@ -1,5 +1,5 @@
-# Copyright (C) 2015 all contributors <meta@public-inbox.org>
-# License: AGPLv3 or later (https://www.gnu.org/licenses/agpl-3.0.txt)
+# Copyright (C) 2015-2018 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # bidirectional Message-ID <-> Article Number mapping for the NNTP
 # and web interfaces.  This is required for implementing stable article
