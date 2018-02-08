@@ -170,7 +170,7 @@ sub _force_mid {
 sub _try_path {
 	my ($self, $path) = @_;
 	my @p = split(m!/+!, $path);
-	return if $p[-1] !~ /\A[a-zA-Z0-9][\w:,=\.]+\z/;
+	return if $p[-1] !~ /\A[a-zA-Z0-9][\-\w:,=\.]+\z/;
 	if ($p[-1] =~ /:2,([A-Z]+)\z/i) {
 		my $flags = $1;
 		return if $flags =~ /[DT]/; # no [D]rafts or [T]rashed mail
