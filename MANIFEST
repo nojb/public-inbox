@@ -1,4 +1,5 @@
 .gitignore
+AUTHORS
 COPYING
 Documentation/.gitignore
 Documentation/dc-dlvr-spam-flow.txt
