@@ -229,10 +229,9 @@ sub done {
 	# for compatibility with existing ssoma installations
 	# we can probably remove this entirely by 2020
 	my $git_dir = $self->{git}->{git_dir};
-	# XXX: change the following scope to: if (-e $index) # in 2018 or so..
 	my @cmd = ('git', "--git-dir=$git_dir");
-	if ($nchg && !$ENV{FAST}) {
-		my $index = "$git_dir/ssoma.index";
+	my $index = "$git_dir/ssoma.index";
+	if ($nchg && -e $index && !$ENV{FAST}) {
 		my $env = { GIT_INDEX_FILE => $index };
 		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
 	}
