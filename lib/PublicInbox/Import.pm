@@ -13,13 +13,20 @@ use PublicInbox::MID qw(mid_mime mid2path);
 use PublicInbox::Address;
 
 sub new {
-	my ($class, $git, $name, $email, $inbox) = @_;
+	my ($class, $git, $name, $email, $ibx) = @_;
+	my $ref = 'refs/heads/master';
+	if ($ibx) {
+		$ref = $ibx->{ref_head} || 'refs/heads/master';
+		$name ||= $ibx->{name};
+		$email ||= $ibx->{-primary_address};
+	}
 	bless {
 		git => $git,
 		ident => "$name <$email>",
 		mark => 1,
-		ref => 'refs/heads/master',
-		inbox => $inbox,
+		ref => $ref,
+		inbox => $ibx,
+		ssoma_lock => 1, # disable for v2
 	}, $class
 }
 
@@ -34,12 +41,16 @@ sub gfi_start {
 	pipe($out_r, $out_w) or die "pipe failed: $!";
 	my $git = $self->{git};
 	my $git_dir = $git->{git_dir};
-	my $lockpath = "$git_dir/ssoma.lock";
-	sysopen(my $lockfh, $lockpath, O_WRONLY|O_CREAT) or
-		die "failed to open lock $lockpath: $!";
 
-	# wait for other processes to be done
-	flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
+	my $lockfh;
+	if ($self->{ssoma_lock}) {
+		my $lockpath = "$git_dir/ssoma.lock";
+		sysopen($lockfh, $lockpath, O_WRONLY|O_CREAT) or
+			die "failed to open lock $lockpath: $!";
+		# wait for other processes to be done
+		flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
+	}
+
 	local $/ = "\n";
 	chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $self->{ref}));
 
@@ -247,6 +258,7 @@ sub done {
 		eval { run_die([@cmd, qw(gc --auto)], undef) };
 	}
 
+	$self->{ssoma_lock} or return;
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";
 	flock($lockfh, LOCK_UN) or die "unlock failed: $!";
 	close $lockfh or die "close lock failed: $!";
