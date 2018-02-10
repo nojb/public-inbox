@@ -11,6 +11,7 @@ use Fcntl qw(:flock :DEFAULT);
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mid_mime mid2path);
 use PublicInbox::Address;
+use PublicInbox::ContentId qw(content_id);
 
 sub new {
 	my ($class, $git, $name, $email, $ibx) = @_;
@@ -26,6 +27,7 @@ sub new {
 		mark => 1,
 		ref => $ref,
 		inbox => $ibx,
+		path_type => '2/38', # or 'v2'
 		ssoma_lock => 1, # disable for v2
 	}, $class
 }
@@ -88,6 +90,7 @@ sub norm_body ($) {
 	$b
 }
 
+# only used for v1 (ssoma) inboxes
 sub _check_path ($$$$) {
 	my ($r, $w, $tip, $path) = @_;
 	return if $tip eq '';
@@ -97,17 +100,9 @@ sub _check_path ($$$$) {
 	$info =~ /\Amissing / ? undef : $info;
 }
 
-# returns undef on non-existent
-# ('MISMATCH', msg) on mismatch
-# (:MARK, msg) on success
-sub remove {
-	my ($self, $mime, $msg) = @_; # mime = Email::MIME
+sub check_remove_v1 {
+	my ($r, $w, $tip, $path, $mime) = @_;
 
-	my $mid = mid_mime($mime);
-	my $path = mid2path($mid);
-
-	my ($r, $w) = $self->gfi_start;
-	my $tip = $self->{tip};
 	my $info = _check_path($r, $w, $tip, $path) or return ('MISSING',undef);
 	$info =~ m!\A100644 blob ([a-f0-9]{40})\t!s or die "not blob: $info";
 	my $blob = $1;
@@ -140,6 +135,34 @@ sub remove {
 	if ($cur_s ne $cur_m || norm_body($cur) ne norm_body($mime)) {
 		return ('MISMATCH', $cur);
 	}
+	(undef, $cur);
+}
+
+# returns undef on non-existent
+# ('MISMATCH', msg) on mismatch
+# (:MARK, msg) on success
+#
+# For v2 inboxes, the content_id is returned instead of the msg
+# v2 callers should check with Xapian before calling this as
+# it is not idempotent.
+sub remove {
+	my ($self, $mime, $msg) = @_; # mime = Email::MIME
+
+	my $path_type = $self->{path_type};
+	my ($path, $err, $cur, $blob);
+
+	my ($r, $w) = $self->gfi_start;
+	my $tip = $self->{tip};
+	if ($path_type eq '2/38') {
+		$path = mid2path(mid_mime($mime));
+		($err, $cur) = check_remove_v1($r, $w, $tip, $path, $mime);
+		return ($err, $cur) if $err;
+	} else {
+		$cur = content_id($mime);
+		my $len = length($cur);
+		$blob = $self->{mark}++;
+		print $w "blob\nmark :$blob\ndata $len\n$cur\n" or wfail;
+	}
 
 	my $ref = $self->{ref};
 	my $commit = $self->{mark}++;
@@ -156,7 +179,11 @@ sub remove {
 		"committer $ident $now\n",
 		"data $len\n$msg\n\n",
 		'from ', ($parent ? $parent : $tip), "\n" or wfail;
-	print $w "D $path\n\n" or wfail;
+	if (defined $path) {
+		print $w "D $path\n\n" or wfail;
+	} else {
+		print $w "M 100644 :$blob d\n\n" or wfail;
+	}
 	$self->{nchg}++;
 	(($self->{tip} = ":$commit"), $cur);
 }
@@ -177,15 +204,25 @@ sub add {
 	my $date = $mime->header('Date');
 	my $subject = $mime->header('Subject');
 	$subject = '(no subject)' unless defined $subject;
-	my $mid = mid_mime($mime);
-	my $path = mid2path($mid);
+	my $path_type = $self->{path_type};
+
+	my $path;
+	if ($path_type eq '2/38') {
+		$path = mid2path(mid_mime($mime));
+	} else { # v2 layout, one file:
+		$path = 'm';
+	}
 
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};
-	_check_path($r, $w, $tip, $path) and return;
+	if ($path_type eq '2/38') {
+		_check_path($r, $w, $tip, $path) and return;
+	}
 
 	# kill potentially confusing/misleading headers
 	$mime->header_set($_) for qw(bytes lines content-length status);
+
+	# spam check:
 	if ($check_cb) {
 		$mime = $check_cb->($mime) or return;
 	}
@@ -194,6 +231,15 @@ sub add {
 	my $blob = $self->{mark}++;
 	print $w "blob\nmark :$blob\ndata ", length($mime), "\n" or wfail;
 	print $w $mime, "\n" or wfail;
+
+	# v2: we need this for Xapian
+	if ($self->{want_object_id}) {
+		print $w "get-mark :$blob\n" or wfail;
+		defined(my $object_id = <$r>) or
+				die "get-mark failed, need git 2.6.0+\n";
+		chomp($self->{last_object_id} = $object_id);
+	}
+
 	my $ref = $self->{ref};
 	my $commit = $self->{mark}++;
 	my $parent = $tip =~ /\A:/ ? $tip : undef;

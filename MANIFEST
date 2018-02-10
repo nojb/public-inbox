@@ -46,6 +46,7 @@ examples/varnish-4.vcl
 lib/PublicInbox/Address.pm
 lib/PublicInbox/AltId.pm
 lib/PublicInbox/Config.pm
+lib/PublicInbox/ContentId.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/EvCleanup.pm
