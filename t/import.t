@@ -6,7 +6,10 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
-use File::Temp qw/tempdir/;
+use PublicInbox::Spawn qw(spawn);
+use IO::File;
+use Fcntl qw(:DEFAULT);
+use File::Temp qw/tempdir tempfile/;
 my $dir = tempdir('pi-import-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 
 is(system(qw(git init -q --bare), $dir), 0, 'git init successful');
@@ -20,10 +23,30 @@ my $mime = PublicInbox::MIME->create(
 		'Content-Type' => 'text/plain',
 		Subject => 'this is a subject',
 		'Message-ID' => '<a@example.com>',
+		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
 	],
 	body => "hello world\n",
 );
+
+$im->{want_object_id} = 1 if 'v2';
 like($im->add($mime), qr/\A:\d+\z/, 'added one message');
+
+if ('v2') {
+	like($im->{last_object_id}, qr/\A[a-f0-9]{40}\z/, 'got last_object_id');
+	my @cmd = ('git', "--git-dir=$git->{git_dir}", qw(hash-object --stdin));
+	my $in = tempfile();
+	print $in $mime->as_string or die "write failed: $!";
+	$in->flush or die "flush failed: $!";
+	$in->seek(0, SEEK_SET);
+	my $out = tempfile();
+	my $pid = spawn(\@cmd, {}, { 0 => fileno($in), 1 => fileno($out)});
+	is(waitpid($pid, 0), $pid, 'waitpid succeeds on hash-object');
+	is($?, 0, 'hash-object');
+	$out->seek(0, SEEK_SET);
+	chomp(my $hashed_obj = <$out>);
+	is($hashed_obj, $im->{last_object_id}, "last_object_id matches exp");
+}
+
 $im->done;
 my @revs = $git->qx(qw(rev-list HEAD));
 is(scalar @revs, 1, 'one revision created');
