@@ -3,16 +3,21 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use warnings;
+use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
+use Date::Parse qw/str2time/;
 use Email::MIME;
 $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Git;
 use PublicInbox::Import;
 my $usage = "usage: $0 NAME EMAIL <MBOX\n";
+my $dry_run;
+my %opts = ( 'n|dry-run' => \$dry_run );
+GetOptions(%opts) or die $usage;
 chomp(my $git_dir = `git rev-parse --git-dir`);
 my $git = PublicInbox::Git->new($git_dir);
 my $name = shift or die $usage; # git
 my $email = shift or die $usage; # git@vger.kernel.org
-my $im = PublicInbox::Import->new($git, $name, $email);
+my $im = $dry_run ? undef : PublicInbox::Import->new($git, $name, $email);
 binmode STDIN;
 my $msg = '';
 use PublicInbox::Filter::Vger;
@@ -22,9 +27,27 @@ sub do_add ($$) {
 	$$msg =~ s/(\r?\n)+\z/$1/s;
 	$msg = Email::MIME->new($$msg);
 	$msg = $vger->scrub($msg);
+	my $hdr = $msg->header_obj;
+	my $date = $hdr->header_raw('Date');
+	if ($date) {
+		eval { str2time($date) };
+		if ($@) {
+			warn "bad Date: $date in ",
+				$hdr->header_raw('Message-ID'), ": $@\n";
+		}
+	} else {
+		warn "missing Date: $date in ",
+				$hdr->header_raw('Message-ID'), ": $@\n";
+		my $n = 0;
+		foreach my $r ($hdr->header_raw('Received')) {
+			warn "$n Received: $r\n";
+		}
+		warn(('-' x 72), "\n");
+	}
+	return unless $im;
 	$im->add($msg) or
 		warn "duplicate: ",
-			$msg->header_obj->header_raw('Message-ID'), "\n";
+			$hdr->header_raw('Message-ID'), "\n";
 }
 
 # asctime: From example@example.com Fri Jun 23 02:56:55 2000
@@ -44,4 +67,4 @@ while (defined(my $l = <STDIN>)) {
 	$msg .= $l;
 }
 do_add($im, \$msg) if $msg;
-$im->done;
+$im->done if $im;
