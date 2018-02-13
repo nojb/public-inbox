@@ -56,13 +56,13 @@ my %bool_pfx_internal = (
 );
 
 my %bool_pfx_external = (
-	mid => 'Q', # uniQue id (Message-ID)
+	mid => 'XMID', # uniQue id (Message-ID)
 );
 
 my %prob_prefix = (
 	# for mairix compatibility
 	s => 'S',
-	m => 'XMID', # 'mid:' (bool) is exact, 'm:' (prob) can do partial
+	m => 'XM', # 'mid:' (bool) is exact, 'm:' (prob) can do partial
 	f => 'A',
 	t => 'XTO',
 	tc => 'XTO XCC',
@@ -85,7 +85,7 @@ my %prob_prefix = (
 	dfblob => 'XDFPRE XDFPOST',
 
 	# default:
-	'' => 'XMID S A XNQ XQUOT XFN',
+	'' => 'XM S A XNQ XQUOT XFN',
 );
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian
@@ -285,7 +285,7 @@ sub lookup_message {
 	my ($self, $mid) = @_;
 	$mid = mid_clean($mid);
 
-	my $doc_id = $self->find_unique_doc_id('Q' . $mid);
+	my $doc_id = $self->find_unique_doc_id('XMID' . $mid);
 	my $smsg;
 	if (defined $doc_id) {
 		# raises on error:

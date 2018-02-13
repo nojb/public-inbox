@@ -276,7 +276,7 @@ sub add_message {
 		}
 		$smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
-		$doc->add_term('Q' . $mid);
+		$doc->add_term('XMID' . $mid);
 
 		my $subj = $smsg->subject;
 		if ($subj ne '') {
@@ -334,7 +334,7 @@ sub add_message {
 		});
 
 		link_message($self, $smsg, $old_tid);
-		$tg->index_text($mid, 1, 'XMID');
+		$tg->index_text($mid, 1, 'XM');
 		$doc->set_data($smsg->to_doc_data($blob));
 
 		if (my $altid = $self->{-altid}) {
@@ -366,7 +366,7 @@ sub remove_message {
 	$mid = mid_clean($mid);
 
 	eval {
-		$doc_id = $self->find_unique_doc_id('Q' . $mid);
+		$doc_id = $self->find_unique_doc_id('XMID' . $mid);
 		if (defined $doc_id) {
 			$db->delete_document($doc_id);
 		} else {
@@ -683,7 +683,7 @@ sub create_ghost {
 
 	my $tid = $self->next_thread_id;
 	my $doc = Search::Xapian::Document->new;
-	$doc->add_term('Q' . $mid);
+	$doc->add_term('XMID' . $mid);
 	$doc->add_term('G' . $tid);
 	$doc->add_term('T' . 'ghost');
 
