@@ -8,7 +8,7 @@ use strict;
 use warnings;
 use Search::Xapian;
 use Date::Parse qw/str2time/;
-use PublicInbox::MID qw/mid_clean/;
+use PublicInbox::MID qw/mid_clean mid_mime/;
 use PublicInbox::Address;
 
 sub new {
