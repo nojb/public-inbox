@@ -394,7 +394,7 @@ sub term_generator { # write-only
 }
 
 # increments last_thread_id counter
-# returns a 64-bit integer represented as a hex string
+# returns a 64-bit integer represented as a decimal string
 sub next_thread_id {
 	my ($self) = @_;
 	my $db = $self->{xdb};
