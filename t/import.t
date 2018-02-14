@@ -87,6 +87,8 @@ isnt($msg->header('Subject'), $mime->header('Subject'), 'subject mismatch');
 $mime->header_set('Message-Id', '<failcheck@example.com>');
 is($im->add($mime, sub { undef }), undef, 'check callback fails');
 is($im->remove($mime), undef, 'message not added, so not removed');
-
+is(undef, $im->checkpoint, 'checkpoint works before ->done');
 $im->done;
+is(undef, $im->checkpoint, 'checkpoint works after ->done');
+$im->checkpoint;
 done_testing();

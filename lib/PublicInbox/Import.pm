@@ -138,9 +138,27 @@ sub check_remove_v1 {
 	(undef, $cur);
 }
 
+# used for v2 (maybe)
+sub checkpoint {
+	my ($self) = @_;
+	return unless $self->{pid};
+	print { $self->{out} } "checkpoint\n" or wfail;
+	undef;
+}
+
+# used for v2
+sub get_mark {
+	my ($self, $mark) = @_;
+	die "not active\n" unless $self->{pid};
+	my ($r, $w) = $self->gfi_start;
+	print $w "get-mark $mark\n" or wfail;
+	defined(my $oid = <$r>) or die "get-mark failed, need git 2.6.0+\n";
+	$oid;
+}
+
 # returns undef on non-existent
-# ('MISMATCH', msg) on mismatch
-# (:MARK, msg) on success
+# ('MISMATCH', Email::MIME) on mismatch
+# (:MARK, Email::MIME) on success
 #
 # For v2 inboxes, the content_id is returned instead of the msg
 # v2 callers should check with Xapian before calling this as
@@ -189,6 +207,7 @@ sub remove {
 }
 
 # returns undef on duplicate
+# returns the :MARK of the most recent commit
 sub add {
 	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
@@ -234,10 +253,7 @@ sub add {
 
 	# v2: we need this for Xapian
 	if ($self->{want_object_id}) {
-		print $w "get-mark :$blob\n" or wfail;
-		defined(my $object_id = <$r>) or
-				die "get-mark failed, need git 2.6.0+\n";
-		chomp($self->{last_object_id} = $object_id);
+		chomp($self->{last_object_id} = $self->get_mark(":$blob"));
 	}
 
 	my $ref = $self->{ref};
