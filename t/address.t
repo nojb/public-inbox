@@ -9,8 +9,9 @@ is_deeply([qw(e@example.com e@example.org)],
 	[PublicInbox::Address::emails('User <e@example.com>, e@example.org')],
 	'address extraction works as expected');
 
-is_deeply([PublicInbox::Address::emails('"ex@example.com" <ex@example.com>')],
-	[qw(ex@example.com)]);
+is_deeply(['user@example.com'],
+	[PublicInbox::Address::emails('<user@example.com (Comment)>')],
+	'comment after domain accepted before >');
 
 my @names = PublicInbox::Address::names(
 	'User <e@e>, e@e, "John A. Doe" <j@d>, <x@x>');
