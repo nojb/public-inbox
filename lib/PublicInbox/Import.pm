@@ -12,6 +12,8 @@ use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mid_mime mid2path);
 use PublicInbox::Address;
 use PublicInbox::ContentId qw(content_id);
+use Date::Parse qw(str2time);
+use Time::Zone qw(tz_offset);
 
 sub new {
 	my ($class, $git, $name, $email, $ibx) = @_;
@@ -57,7 +59,7 @@ sub gfi_start {
 	chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $self->{ref}));
 
 	my @cmd = ('git', "--git-dir=$git_dir", qw(fast-import
-			--quiet --done --date-format=rfc2822));
+			--quiet --done --date-format=raw));
 	my $rdr = { 0 => fileno($out_r), 1 => fileno($in_w) };
 	my $pid = spawn(\@cmd, undef, $rdr);
 	die "spawn fast-import failed: $!" unless defined $pid;
@@ -74,14 +76,7 @@ sub gfi_start {
 
 sub wfail () { die "write to fast-import failed: $!" }
 
-sub now2822 () {
-	my @t = gmtime(time);
-	my $day = qw(Sun Mon Tue Wed Thu Fri Sat)[$t[6]];
-	my $mon = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)[$t[4]];
-
-	sprintf('%s, %2d %s %d %02d:%02d:%02d +0000',
-		$day, $t[3], $mon, $t[5] + 1900, $t[2], $t[1], $t[0]);
-}
+sub now_raw () { time . ' +0000' }
 
 sub norm_body ($) {
 	my ($mime) = @_;
@@ -189,7 +184,7 @@ sub remove {
 		print $w "reset $ref\n" or wfail;
 	}
 	my $ident = $self->{ident};
-	my $now = now2822();
+	my $now = now_raw();
 	$msg ||= 'rm';
 	my $len = length($msg) + 1;
 	print $w "commit $ref\nmark :$commit\n",
@@ -206,6 +201,43 @@ sub remove {
 	(($self->{tip} = ":$commit"), $cur);
 }
 
+sub parse_date ($) {
+	my ($mime) = @_;
+	my $hdr = $mime->header_obj;
+	my $date = $hdr->header_raw('Date');
+	my ($ts, $zone);
+	my $mid = $hdr->header_raw('Message-ID');
+	if ($date) {
+		$ts = eval { str2time($date) };
+		if ($@) {
+			warn "bad Date: $date in $mid: $@\n";
+		} elsif ($date =~ /\s+([\+\-]\d+)\s*\z/) {
+			$zone = $1;
+		}
+	}
+	unless ($ts) {
+		my @recvd = $hdr->header_raw('Received');
+		foreach my $r (@recvd) {
+			$zone = undef;
+			$r =~ /\s*(\d+\s+[[:alpha:]]+\s+\d{2,4}\s+
+				\d+\D\d+(?:\D\d+)\s+([\+\-]\d+))/osx or next;
+			$zone = $2;
+			$ts = eval { str2time($1) } and last;
+			warn "no date in Received: $r\n";
+		}
+	}
+	$zone ||= '+0000';
+	# "-1200" is the furthest westermost zone offset,
+	# but git fast-import is liberal so we use "-1400"
+	if ($zone >= 1400 || $zone <= -1400) {
+		warn "bogus TZ offset: $zone, ignoring and assuming +0000\n";
+		$zone = '+0000';
+	}
+	$ts ||= time;
+	$ts = 0 if $ts < 0; # git uses unsigned times
+	"$ts $zone";
+}
+
 # returns undef on duplicate
 # returns the :MARK of the most recent commit
 sub add {
@@ -220,7 +252,7 @@ sub add {
 	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
 	$name =~ tr/<>//d;
 
-	my $date = $mime->header('Date');
+	my $date_raw = parse_date($mime);
 	my $subject = $mime->header('Subject');
 	$subject = '(no subject)' unless defined $subject;
 	my $path_type = $self->{path_type};
@@ -246,10 +278,11 @@ sub add {
 		$mime = $check_cb->($mime) or return;
 	}
 
-	$mime = $mime->as_string;
 	my $blob = $self->{mark}++;
-	print $w "blob\nmark :$blob\ndata ", length($mime), "\n" or wfail;
-	print $w $mime, "\n" or wfail;
+	my $str = $mime->as_string;
+	print $w "blob\nmark :$blob\ndata ", length($str), "\n" or wfail;
+	print $w $str, "\n" or wfail;
+	$str = undef;
 
 	# v2: we need this for Xapian
 	if ($self->{want_object_id}) {
@@ -269,8 +302,8 @@ sub add {
 	utf8::encode($subject);
 	# quiet down wide character warnings:
 	print $w "commit $ref\nmark :$commit\n",
-		"author $name <$email> $date\n",
-		"committer $self->{ident} ", now2822(), "\n" or wfail;
+		"author $name <$email> $date_raw\n",
+		"committer $self->{ident} ", now_raw(), "\n" or wfail;
 	print $w "data ", (length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
 	if ($tip ne '') {
