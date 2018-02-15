@@ -22,32 +22,20 @@ binmode STDIN;
 my $msg = '';
 use PublicInbox::Filter::Vger;
 my $vger = PublicInbox::Filter::Vger->new;
+if ($im) {
+	$im->{ssoma_lock} = 0;
+	$im->{path_type} = 'v2';
+}
+
 sub do_add ($$) {
 	my ($im, $msg) = @_;
 	$$msg =~ s/(\r?\n)+\z/$1/s;
 	$msg = Email::MIME->new($$msg);
 	$msg = $vger->scrub($msg);
-	my $hdr = $msg->header_obj;
-	my $date = $hdr->header_raw('Date');
-	if ($date) {
-		eval { str2time($date) };
-		if ($@) {
-			warn "bad Date: $date in ",
-				$hdr->header_raw('Message-ID'), ": $@\n";
-		}
-	} else {
-		warn "missing Date: $date in ",
-				$hdr->header_raw('Message-ID'), ": $@\n";
-		my $n = 0;
-		foreach my $r ($hdr->header_raw('Received')) {
-			warn "$n Received: $r\n";
-		}
-		warn(('-' x 72), "\n");
-	}
 	return unless $im;
 	$im->add($msg) or
 		warn "duplicate: ",
-			$hdr->header_raw('Message-ID'), "\n";
+			$msg->header_obj->header_raw('Message-ID'), "\n";
 }
 
 # asctime: From example@example.com Fri Jun 23 02:56:55 2000
