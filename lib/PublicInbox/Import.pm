@@ -233,7 +233,7 @@ sub parse_date ($) {
 		warn "bogus TZ offset: $zone, ignoring and assuming +0000\n";
 		$zone = '+0000';
 	}
-	$ts ||= time;
+	$ts = time unless defined $ts;
 	$ts = 0 if $ts < 0; # git uses unsigned times
 	"$ts $zone";
 }
