@@ -56,7 +56,7 @@ my %bool_pfx_internal = (
 );
 
 my %bool_pfx_external = (
-	mid => 'XMID', # uniQue id (Message-ID)
+	mid => 'XMID', # Message-ID (full/exact)
 );
 
 my %prob_prefix = (
@@ -285,7 +285,7 @@ sub lookup_message {
 	my ($self, $mid) = @_;
 	$mid = mid_clean($mid);
 
-	my $doc_id = $self->find_unique_doc_id('XMID' . $mid);
+	my $doc_id = $self->find_first_doc_id('XMID' . $mid);
 	my $smsg;
 	if (defined $doc_id) {
 		# raises on error:
@@ -325,6 +325,16 @@ sub find_doc_ids {
 	my $db = $self->{xdb};
 
 	($db->postlist_begin($termval), $db->postlist_end($termval));
+}
+
+sub find_first_doc_id {
+	my ($self, $termval) = @_;
+
+	my ($begin, $end) = $self->find_doc_ids($termval);
+
+	return undef if $begin->equal($end); # not found
+
+	$begin->get_docid;
 }
 
 # normalize subjects so they are suitable as pathnames for URLs

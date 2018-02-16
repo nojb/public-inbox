@@ -366,11 +366,13 @@ sub remove_message {
 	$mid = mid_clean($mid);
 
 	eval {
-		$doc_id = $self->find_unique_doc_id('XMID' . $mid);
-		if (defined $doc_id) {
-			$db->delete_document($doc_id);
-		} else {
+		my ($head, $tail) = $self->find_doc_ids('XMID' . $mid);
+		if ($head->equal($tail)) {
 			warn "cannot remove non-existent <$mid>\n";
+		}
+		for (; $head != $tail; $head->inc) {
+			my $docid = $head->get_docid;
+			$db->delete_document($docid);
 		}
 	};
 
