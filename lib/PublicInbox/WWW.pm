@@ -150,7 +150,6 @@ sub invalid_inbox ($$) {
 	my $www = $ctx->{www};
 	my $obj = $www->{pi_config}->lookup_name($inbox);
 	if (defined $obj) {
-		$ctx->{git_dir} = $obj->{mainrepo};
 		$ctx->{git} = $obj->git;
 		$ctx->{-inbox} = $obj;
 		$ctx->{inbox} = $inbox;
