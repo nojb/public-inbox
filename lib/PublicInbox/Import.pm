@@ -31,6 +31,7 @@ sub new {
 		inbox => $ibx,
 		path_type => '2/38', # or 'v2'
 		ssoma_lock => 1, # disable for v2
+		bytes_added => 0,
 	}, $class
 }
 
@@ -275,7 +276,9 @@ sub add {
 
 	my $blob = $self->{mark}++;
 	my $str = $mime->as_string;
-	print $w "blob\nmark :$blob\ndata ", length($str), "\n" or wfail;
+	my $n = length($str);
+	$self->{bytes_added} += $n;
+	print $w "blob\nmark :$blob\ndata ", $n, "\n" or wfail;
 	print $w $str, "\n" or wfail;
 	$str = undef;
 
@@ -325,7 +328,7 @@ sub add {
 	$self->{tip} = ":$commit";
 }
 
-sub run_die ($$) {
+sub run_die ($;$) {
 	my ($cmd, $env) = @_;
 	my $pid = spawn($cmd, $env, undef);
 	defined $pid or die "spawning ".join(' ', @$cmd)." failed: $!";
@@ -354,7 +357,7 @@ sub done {
 	}
 	if ($nchg) {
 		run_die([@cmd, 'update-server-info'], undef);
-		eval {
+		($self->{path_type} eq '2/38') and eval {
 			require PublicInbox::SearchIdx;
 			my $inbox = $self->{inbox} || $git_dir;
 			my $s = PublicInbox::SearchIdx->new($inbox);

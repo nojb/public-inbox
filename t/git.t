@@ -137,6 +137,9 @@ if (1) {
 	is($all, join('', @ref), 'qx returned array when wanted');
 	my $nl = scalar @ref;
 	ok($nl > 1, "qx returned array length of $nl");
+
+	$gcf->qx(qw(repack -adbq));
+	ok($gcf->packed_bytes > 0, 'packed size is positive');
 }
 
 done_testing();

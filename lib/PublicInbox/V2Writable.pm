@@ -1,0 +1,180 @@
+# Copyright (C) 2018 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+
+# This interface wraps and mimics PublicInbox::Import
+package PublicInbox::V2Writable;
+use strict;
+use warnings;
+use Fcntl qw(:flock :DEFAULT);
+use PublicInbox::SearchIdx;
+use PublicInbox::MIME;
+use PublicInbox::Git;
+use PublicInbox::Import;
+use Email::MIME::ContentType;
+$Email::MIME::ContentType::STRICT_PARAMS = 0;
+
+# an estimate of the post-packed size to the raw uncompressed size
+my $PACKING_FACTOR = 0.4;
+
+sub new {
+	my ($class, $v2ibx, $creat) = @_;
+	my $dir = $v2ibx->{mainrepo} or die "no mainrepo in inbox\n";
+	unless (-d $dir) {
+		if ($creat) {
+			require File::Path;
+			File::Path::mkpath($dir);
+		} else {
+			die "$dir does not exist\n";
+		}
+	}
+	my $self = {
+		-inbox => $v2ibx,
+		im => undef, #  PublicInbox::Import
+		xap_rw => undef, # PublicInbox::V2SearchIdx
+		xap_ro => undef,
+
+		# limit each repo to 1GB or so
+		rotate_bytes => int((100 * 1024 * 1024) / $PACKING_FACTOR),
+	};
+	bless $self, $class
+}
+
+# returns undef on duplicate or spam
+# mimics Import::add and wraps it for v2
+sub add {
+	my ($self, $mime, $check_cb) = @_;
+	my $existing = $self->lookup_content($mime);
+
+	if ($existing) {
+		return undef if $existing->type eq 'mail'; # duplicate
+	}
+
+	my $im = $self->importer;
+
+	# im->add returns undef if check_cb fails
+	my $cmt = $im->add($mime, $check_cb) or return;
+	$cmt = $im->get_mark($cmt);
+	my $oid = $im->{last_object_id};
+	$self->index_msg($mime, $existing, $cmt, $oid);
+	$mime;
+}
+
+sub index_msg {  # TODO
+}
+
+sub remove {
+	my ($self, $mime, $msg) = @_;
+	my $existing = $self->lookup_content($mime) or return;
+
+	# don't touch ghosts or already junked messages
+	return unless $existing->type eq 'mail';
+
+	# always write removals to the current (latest) git repo since
+	# we process chronologically
+	my $im = $self->importer;
+	my ($cmt, undef) = $im->remove($mime, $msg);
+	$cmt = $im->get_mark($cmt);
+	$self->unindex_msg($existing, $cmt);
+}
+
+sub done {
+	my ($self) = @_;
+	$self->{im}->done; # PublicInbox::Import::done
+}
+
+sub checkpoint {
+	my ($self) = @_;
+	$self->{im}->checkpoint; # PublicInbox::Import::checkpoint
+}
+
+sub git_init {
+	my ($self, $new) = @_;
+	my $pfx = "$self->{-inbox}->{mainrepo}/git";
+	my $git_dir = "$pfx/$new.git";
+	die "$git_dir exists\n" if -e $git_dir;
+	my @cmd = (qw(git init --bare -q), $git_dir);
+	PublicInbox::Import::run_die(\@cmd);
+	@cmd = (qw/git config/, "--file=$git_dir/config",
+			'repack.writeBitmaps', 'true');
+	PublicInbox::Import::run_die(\@cmd);
+
+	my $all = "$self->{-inbox}->{mainrepo}/all.git";
+	unless (-d $all) {
+		@cmd = (qw(git init --bare -q), $all);
+		PublicInbox::Import::run_die(\@cmd);
+	}
+
+	my $alt = "$all/objects/info/alternates";
+	my $new_obj_dir = "../../git/$new.git/objects";
+	my %alts;
+	if (-e $alt) {
+		open(my $fh, '<', $alt) or die "open < $alt: $!\n";
+		%alts = map { chomp; $_ => 1 } (<$fh>);
+	}
+	return $git_dir if $alts{$new_obj_dir};
+	open my $fh, '>>', $alt or die "open >> $alt: $!\n";
+	print $fh "$new_obj_dir\n" or die "print >> $alt: $!\n";
+	close $fh or die "close $alt: $!\n";
+	$git_dir
+}
+
+sub importer {
+	my ($self) = @_;
+	my $im = $self->{im};
+	if ($im) {
+		if ($im->{bytes_added} < $self->{rotate_bytes}) {
+			return $im;
+		} else {
+			$self->{im} = undef;
+			$im->done;
+			$im = undef;
+			my $git_dir = $self->git_init(++$self->{max_git});
+			my $git = PublicInbox::Git->new($git_dir);
+			return $self->import_init($git, 0);
+		}
+	}
+	my $latest;
+	my $max = -1;
+	my $new = 0;
+	my $pfx = "$self->{-inbox}->{mainrepo}/git";
+	if (-d $pfx) {
+		foreach my $git_dir (glob("$pfx/*.git")) {
+			$git_dir =~ m!/(\d+)\.git\z! or next;
+			my $n = $1;
+			if ($n > $max) {
+				$max = $n;
+				$latest = $git_dir;
+			}
+		}
+	}
+	if (defined $latest) {
+		my $git = PublicInbox::Git->new($latest);
+		my $packed_bytes = $git->packed_bytes;
+		if ($packed_bytes >= $self->{rotate_bytes}) {
+			$new = $max + 1;
+		} else {
+			$self->{max_git} = $max;
+			return $self->import_init($git, $packed_bytes);
+		}
+	} else {
+		warn "latest not found in $pfx\n";
+	}
+	$self->{max_git} = $new;
+	$latest = $self->git_init($new);
+	$self->import_init(PublicInbox::Git->new($latest), 0);
+}
+
+sub import_init {
+	my ($self, $git, $packed_bytes) = @_;
+	my $im = PublicInbox::Import->new($git, undef, undef, $self->{-inbox});
+	$im->{bytes_added} = int($packed_bytes / $PACKING_FACTOR);
+	$im->{ssoma_lock} = 0;
+	$im->{path_type} = 'v2';
+	$self->{im} = $im;
+}
+
+sub lookup_content {
+	undef # TODO
+}
+
+1;

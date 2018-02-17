@@ -7,25 +7,24 @@ use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use Date::Parse qw/str2time/;
 use Email::MIME;
 $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
-use PublicInbox::Git;
-use PublicInbox::Import;
-my $usage = "usage: $0 NAME EMAIL <MBOX\n";
+use PublicInbox::V2Writable;
+my $usage = "usage: $0 NAME EMAIL DIR <MBOX\n";
 my $dry_run;
 my %opts = ( 'n|dry-run' => \$dry_run );
 GetOptions(%opts) or die $usage;
-chomp(my $git_dir = `git rev-parse --git-dir`);
-my $git = PublicInbox::Git->new($git_dir);
 my $name = shift or die $usage; # git
 my $email = shift or die $usage; # git@vger.kernel.org
-my $im = $dry_run ? undef : PublicInbox::Import->new($git, $name, $email);
+my $mainrepo = shift or die $usage; # /path/to/v2/repo
+my $v2ibx = {
+	mainrepo => $mainrepo,
+	name => $name,
+	-primary_address => $email,
+};
+my $im = $dry_run ? undef : PublicInbox::V2Writable->new($v2ibx, 1);
 binmode STDIN;
 my $msg = '';
 use PublicInbox::Filter::Vger;
 my $vger = PublicInbox::Filter::Vger->new;
-if ($im) {
-	$im->{ssoma_lock} = 0;
-	$im->{path_type} = 'v2';
-}
 
 sub do_add ($$) {
 	my ($im, $msg) = @_;

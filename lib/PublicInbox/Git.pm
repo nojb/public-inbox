@@ -139,6 +139,18 @@ sub cleanup {
 	_destroy($self, qw(in_c out_c pid_c));
 }
 
+# assuming a well-maintained repo, this should be a somewhat
+# accurate estimation of its size
+# TODO: show this in the WWW UI as a hint to potential cloners
+sub packed_bytes {
+	my ($self) = @_;
+	my $n = 0;
+	foreach my $p (glob("$self->{git_dir}/objects/pack/*.pack")) {
+		$n += -s $p;
+	}
+	$n
+}
+
 sub DESTROY { cleanup(@_) }
 
 1;

@@ -91,6 +91,7 @@ lib/PublicInbox/Spamcheck/Spamc.pm
 lib/PublicInbox/Spawn.pm
 lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Unsubscribe.pm
+lib/PublicInbox/V2Writable.pm
 lib/PublicInbox/View.pm
 lib/PublicInbox/WWW.pm
 lib/PublicInbox/WWW.pod
