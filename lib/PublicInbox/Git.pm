@@ -15,7 +15,19 @@ use PublicInbox::Spawn qw(spawn popen_rd);
 
 sub new {
 	my ($class, $git_dir) = @_;
-	bless { git_dir => $git_dir }, $class
+	my @st;
+	$st[7] = $st[10] = 0;
+	bless { git_dir => $git_dir, st => \@st }, $class
+}
+
+sub alternates_changed {
+	my ($self) = @_;
+	my $alt = "$self->{git_dir}/objects/info/alternates";
+	my @st = stat($alt) or return 0;
+	my $old_st = $self->{st};
+	# 10 - ctime, 7 - size
+	return 0 if ($st[10] == $old_st->[10] && $st[7] == $old_st->[7]);
+	$self->{st} = \@st;
 }
 
 sub _bidi_pipe {
@@ -38,14 +50,23 @@ sub _bidi_pipe {
 
 sub cat_file {
 	my ($self, $obj, $ref) = @_;
+	my ($retried, $in, $head);
 
+again:
 	batch_prepare($self);
 	$self->{out}->print($obj, "\n") or fail($self, "write error: $!");
 
-	my $in = $self->{in};
+	$in = $self->{in};
 	local $/ = "\n";
-	my $head = $in->getline;
-	$head =~ / missing$/ and return undef;
+	$head = $in->getline;
+	if ($head =~ / missing$/) {
+		if (!$retried && alternates_changed($self)) {
+			$retried = 1;
+			cleanup($self);
+			goto again;
+		}
+		return;
+	}
 	$head =~ /^[0-9a-f]{40} \S+ (\d+)$/ or
 		fail($self, "Unexpected result from git cat-file: $head");
 

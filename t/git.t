@@ -6,6 +6,7 @@ use Test::More;
 use File::Temp qw/tempdir/;
 my $dir = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use Cwd qw/getcwd/;
+use PublicInbox::Spawn qw(popen_rd);
 
 use_ok 'PublicInbox::Git';
 {
@@ -140,6 +141,26 @@ if (1) {
 
 	$gcf->qx(qw(repack -adbq));
 	ok($gcf->packed_bytes > 0, 'packed size is positive');
+}
+
+if ('alternates reloaded') {
+	my $alt = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+	my @cmd = ('git', "--git-dir=$alt", qw(hash-object -w --stdin));
+	is(system(qw(git init -q --bare), $alt), 0, 'create alt directory');
+	open my $fh, '<', "$alt/config" or die "open failed: $!\n";
+	my $rd = popen_rd(\@cmd, {}, { 0 => fileno($fh) } );
+	close $fh or die "close failed: $!";
+	chomp(my $remote = <$rd>);
+	my $gcf = PublicInbox::Git->new($dir);
+	is($gcf->cat_file($remote), undef, "remote file not found");
+	open $fh, '>>', "$dir/objects/info/alternates" or
+			die "open failed: $!\n";
+	print $fh "$alt/objects" or die "print failed: $!\n";
+	close $fh or die "close failed: $!";
+	my $found = $gcf->cat_file($remote);
+	open $fh, '<', "$alt/config" or die "open failed: $!\n";
+	my $config = eval { local $/; <$fh> };
+	is($$found, $config, 'alternates reloaded');
 }
 
 done_testing();
