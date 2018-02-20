@@ -51,26 +51,43 @@ sub git_unquote ($) {
 }
 
 sub new {
-	my ($class, $inbox, $creat) = @_;
-	my $git_dir = $inbox;
-	my $altid;
-	if (ref $inbox) {
-		$git_dir = $inbox->{mainrepo};
-		$altid = $inbox->{altid};
+	my ($class, $ibx, $creat) = @_;
+	my $mainrepo = $ibx; # for "public-inbox-index" w/o entry in config
+	my $git_dir = $mainrepo;
+	my ($altid, $git);
+	my $version = 1;
+	if (ref $ibx) {
+		$mainrepo = $ibx->{mainrepo};
+		$altid = $ibx->{altid};
+		$version = $ibx->{version} || 1;
 		if ($altid) {
 			require PublicInbox::AltId;
 			$altid = [ map {
-				PublicInbox::AltId->new($inbox, $_);
+				PublicInbox::AltId->new($ibx, $_);
 			} @$altid ];
 		}
+		$git = $ibx->git;
+	} else {
+		$git = PublicInbox::Git->new($git_dir); # v1 only
 	}
 	require Search::Xapian::WritableDatabase;
-	my $self = bless { git_dir => $git_dir, -altid => $altid }, $class;
+	my $self = bless {
+		mainrepo => $mainrepo,
+		git => $git,
+		-altid => $altid,
+		version => $version,
+	}, $class;
 	my $perm = $self->_git_config_perm;
 	my $umask = _umask_for($perm);
 	$self->{umask} = $umask;
-	$self->{lock_path} = "$git_dir/ssoma.lock";
-	$self->{git} = PublicInbox::Git->new($git_dir);
+	if ($version == 1) {
+		$self->{lock_path} = "$mainrepo/ssoma.lock";
+	} elsif ($version == 2) {
+		$self->{lock_path} = "$mainrepo/inbox.lock";
+		$self->{msgmap_path} = "$mainrepo/msgmap.sqlite3";
+	} else {
+		die "unsupported inbox version=$version\n";
+	}
 	$self->{creat} = ($creat || 0) == 1;
 	$self;
 }
@@ -86,7 +103,7 @@ sub _xdb_release {
 sub _xdb_acquire {
 	my ($self) = @_;
 	croak 'already acquired' if $self->{xdb};
-	my $dir = PublicInbox::Search->xdir($self->{git_dir});
+	my $dir = $self->xdir;
 	my $flag = Search::Xapian::DB_OPEN;
 	if ($self->{creat}) {
 		require File::Path;
@@ -541,6 +558,7 @@ sub batch_adjust ($$$$) {
 	}
 }
 
+# only for v1
 sub rlog {
 	my ($self, $log, $add_cb, $del_cb, $batch_cb) = @_;
 	my $hex = '[a-f0-9]';
@@ -573,9 +591,14 @@ sub rlog {
 
 sub _msgmap_init {
 	my ($self) = @_;
-	$self->{mm} = eval {
+	$self->{mm} ||= eval {
 		require PublicInbox::Msgmap;
-		PublicInbox::Msgmap->new($self->{git_dir}, 1);
+		my $msgmap_path = $self->{msgmap_path};
+		if (defined $msgmap_path) { # v2
+			PublicInbox::Msgmap->new_file($msgmap_path, 1);
+		} else {
+			PublicInbox::Msgmap->new($self->{mainrepo}, 1);
+		}
 	};
 }
 
@@ -712,8 +735,11 @@ sub merge_threads {
 
 sub _read_git_config_perm {
 	my ($self) = @_;
-	my @cmd = qw(config core.sharedRepository);
-	my $fh = PublicInbox::Git->new($self->{git_dir})->popen(@cmd);
+	my @cmd = qw(config);
+	if ($self->{version} == 2) {
+		push @cmd, "--file=$self->{mainrepo}/inbox-config";
+	}
+	my $fh = $self->{git}->popen(@cmd, 'core.sharedRepository');
 	local $/ = "\n";
 	my $perm = <$fh>;
 	chomp $perm if defined $perm;

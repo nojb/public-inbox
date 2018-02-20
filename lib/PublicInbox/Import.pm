@@ -285,6 +285,7 @@ sub add {
 	# v2: we need this for Xapian
 	if ($self->{want_object_id}) {
 		chomp($self->{last_object_id} = $self->get_mark(":$blob"));
+		$self->{last_object_size} = $n;
 	}
 
 	my $ref = $self->{ref};

@@ -120,15 +120,29 @@ chomp @HELP;
 my $mail_query = Search::Xapian::Query->new('T' . 'mail');
 
 sub xdir {
-	my (undef, $git_dir) = @_;
-	"$git_dir/public-inbox/xapian" . SCHEMA_VERSION;
+	my ($self) = @_;
+	if ($self->{version} == 1) {
+		"$self->{mainrepo}/public-inbox/xapian" . SCHEMA_VERSION;
+	} else {
+		"$self->{mainrepo}/xap" . SCHEMA_VERSION;
+	}
 }
 
 sub new {
-	my ($class, $git_dir, $altid) = @_;
-	my $dir = $class->xdir($git_dir);
-	my $db = Search::Xapian::Database->new($dir);
-	bless { xdb => $db, git_dir => $git_dir, altid => $altid }, $class;
+	my ($class, $mainrepo, $altid) = @_;
+	my $version = 1;
+	my $ibx = $mainrepo;
+	if (ref $ibx) {
+		$version = $ibx->{version} || 1;
+		$mainrepo = $ibx->{mainrepo};
+	}
+	my $self = bless {
+		mainrepo => $mainrepo,
+		altid => $altid,
+		version => $version,
+	}, $class;
+	$self->{xdb} = Search::Xapian::Database->new($self->xdir);
+	$self;
 }
 
 sub reopen { $_[0]->{xdb}->reopen }

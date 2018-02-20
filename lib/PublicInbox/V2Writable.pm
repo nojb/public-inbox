@@ -34,7 +34,7 @@ sub new {
 		xap_ro => undef,
 
 		# limit each repo to 1GB or so
-		rotate_bytes => int((100 * 1024 * 1024) / $PACKING_FACTOR),
+		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 	};
 	bless $self, $class
 }
@@ -55,11 +55,29 @@ sub add {
 	my $cmt = $im->add($mime, $check_cb) or return;
 	$cmt = $im->get_mark($cmt);
 	my $oid = $im->{last_object_id};
-	$self->index_msg($mime, $existing, $cmt, $oid);
+	my $size = $im->{last_object_size};
+
+	my $idx = $self->search_idx;
+	$idx->index_both($mime, $size, $oid);
+	$idx->{xdb}->set_metadata('last_commit', $cmt);
+	my $n = $self->{transact_bytes} += $size;
+	if ($n > PublicInbox::SearchIdx::BATCH_BYTES) {
+		$self->checkpoint;
+	}
+
 	$mime;
 }
 
-sub index_msg {  # TODO
+sub search_idx {
+	my ($self) = @_;
+	$self->{idx} ||= eval {
+		my $idx = PublicInbox::SearchIdx->new($self->{-inbox}, 1);
+		my $mm = $idx->_msgmap_init;
+		$idx->_xdb_acquire->begin_transaction;
+		$self->{transact_bytes} = 0;
+		$mm->{dbh}->begin_work;
+		$idx
+	};
 }
 
 sub remove {
@@ -79,12 +97,25 @@ sub remove {
 
 sub done {
 	my ($self) = @_;
-	$self->{im}->done; # PublicInbox::Import::done
+	my $im = $self->{im};
+	$im->done if $im; # PublicInbox::Import::done
+	$self->searchidx_checkpoint;
 }
 
 sub checkpoint {
 	my ($self) = @_;
-	$self->{im}->checkpoint; # PublicInbox::Import::checkpoint
+	my $im = $self->{im};
+	$im->checkpoint if $im; # PublicInbox::Import::checkpoint
+	$self->searchidx_checkpoint;
+}
+
+sub searchidx_checkpoint {
+	my ($self) = @_;
+	my $idx = delete $self->{idx} or return;
+
+	$idx->{mm}->{dbh}->commit;
+	$idx->{xdb}->commit_transaction;
+	$idx->_xdb_release;
 }
 
 sub git_init {
@@ -127,6 +158,7 @@ sub importer {
 		} else {
 			$self->{im} = undef;
 			$im->done;
+			$self->searchidx_checkpoint;
 			$im = undef;
 			my $git_dir = $self->git_init(++$self->{max_git});
 			my $git = PublicInbox::Git->new($git_dir);
@@ -156,8 +188,6 @@ sub importer {
 			$self->{max_git} = $max;
 			return $self->import_init($git, $packed_bytes);
 		}
-	} else {
-		warn "latest not found in $pfx\n";
 	}
 	$self->{max_git} = $new;
 	$latest = $self->git_init($new);
@@ -168,6 +198,7 @@ sub import_init {
 	my ($self, $git, $packed_bytes) = @_;
 	my $im = PublicInbox::Import->new($git, undef, undef, $self->{-inbox});
 	$im->{bytes_added} = int($packed_bytes / $PACKING_FACTOR);
+	$im->{want_object_id} = 1;
 	$im->{ssoma_lock} = 0;
 	$im->{path_type} = 'v2';
 	$self->{im} = $im;

@@ -79,7 +79,9 @@ sub new {
 sub git {
 	my ($self) = @_;
 	$self->{git} ||= eval {
-		my $g = PublicInbox::Git->new($self->{mainrepo});
+		my $git_dir = $self->{mainrepo};
+		$git_dir .= '/all.git' if (($self->{version} || 1) == 2);
+		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
 		_cleanup_later($self);
 		$g;
