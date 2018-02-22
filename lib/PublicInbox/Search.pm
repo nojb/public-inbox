@@ -144,7 +144,26 @@ sub new {
 		altid => $altid,
 		version => $version,
 	}, $class;
-	$self->{xdb} = Search::Xapian::Database->new($self->xdir);
+	if ($version >= 2) {
+		my $dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
+		my $xdb;
+		my $parts = 0;
+		foreach my $part (<$dir/*>) {
+			-d $part && $part =~ m!/\d+\z! or next;
+			$parts++;
+			my $sub = Search::Xapian::Database->new($part);
+			if ($xdb) {
+				$xdb->add_database($sub);
+			} else {
+				$xdb = $sub;
+			}
+		}
+		warn "v2 repo with $parts found in $dir\n";
+		$self->{xdb} = $xdb;
+		$self->{skel} = Search::Xapian::Database->new("$dir/all");
+	} else {
+		$self->{xdb} = Search::Xapian::Database->new($self->xdir);
+	}
 	$self;
 }
 
@@ -166,7 +185,7 @@ sub query {
 
 sub get_thread {
 	my ($self, $mid, $opts) = @_;
-	my $smsg = eval { $self->lookup_message($mid) };
+	my $smsg = eval { $self->lookup_skeleton($mid) };
 
 	return { total => 0, msgs => [] } unless $smsg;
 	my $qtid = Search::Xapian::Query->new('G' . $smsg->thread_id);
@@ -296,6 +315,25 @@ sub query_xover {
 	my $query = $qp->parse_query("$beg..$end", QP_FLAGS);
 
 	_do_enquire($self, $query, {num => 1, limit => 200, offset => $offset});
+}
+
+sub lookup_skeleton {
+	my ($self, $mid) = @_;
+	my $skel = $self->{skel} or return lookup_message($self, $mid);
+	$mid = mid_clean($mid);
+	my $term = 'XMID' . $mid;
+	my $smsg;
+	my $beg = $skel->postlist_begin($term);
+	if ($beg != $skel->postlist_end($term)) {
+		my $doc_id = $beg->get_docid;
+		if (defined $doc_id) {
+			# raises on error:
+			my $doc = $skel->get_document($doc_id);
+			$smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
+			$smsg->{doc_id} = $doc_id;
+		}
+	}
+	$smsg;
 }
 
 sub lookup_message {

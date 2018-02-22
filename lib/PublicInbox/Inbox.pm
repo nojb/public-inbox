@@ -73,6 +73,10 @@ sub new {
 	_set_limiter($opts, $pi_config, 'httpbackend');
 	_set_uint($opts, 'feedmax', 25);
 	$opts->{nntpserver} ||= $pi_config->{'publicinbox.nntpserver'};
+	my $dir = $opts->{mainrepo};
+	if (defined $dir && -f "$dir/msgmap.sqlite3") { # XXX DIRTY
+		$opts->{version} = 2;
+	}
 	bless $opts, $class;
 }
 
@@ -92,7 +96,12 @@ sub mm {
 	my ($self) = @_;
 	$self->{mm} ||= eval {
 		_cleanup_later($self);
-		PublicInbox::Msgmap->new($self->{mainrepo});
+		my $dir = $self->{mainrepo};
+		if (($self->{version} || 1) >= 2) {
+			PublicInbox::Msgmap->new_file("$dir/msgmap.sqlite3");
+		} else {
+			PublicInbox::Msgmap->new($dir);
+		}
 	};
 }
 
@@ -100,7 +109,7 @@ sub search {
 	my ($self) = @_;
 	$self->{search} ||= eval {
 		_cleanup_later($self);
-		PublicInbox::Search->new($self->{mainrepo}, $self->{altid});
+		PublicInbox::Search->new($self, $self->{altid});
 	};
 }
 
@@ -229,7 +238,7 @@ sub msg_by_smsg ($$;$) {
 	# backwards compat to fallback to msg_by_mid
 	# TODO: remove if we bump SCHEMA_VERSION in Search.pm:
 	defined(my $blob = $smsg->{blob}) or
-			return msg_by_mid($self, $smsg->mid);
+			return msg_by_path($self, mid2path($smsg->mid), $ref);
 
 	my $str = git($self)->cat_file($blob, $ref);
 	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s if $str;
@@ -243,7 +252,11 @@ sub path_check {
 
 sub msg_by_mid ($$;$) {
 	my ($self, $mid, $ref) = @_;
-	msg_by_path($self, mid2path($mid), $ref);
+	my $srch = search($self) or
+			return msg_by_path($self, mid2path($mid), $ref);
+	my $smsg = $srch->lookup_skeleton($mid) or return;
+	$smsg->load_expand;
+	msg_by_smsg($self, $smsg, $ref);
 }
 
 1;
