@@ -254,9 +254,11 @@ sub msg_by_mid ($$;$) {
 	my ($self, $mid, $ref) = @_;
 	my $srch = search($self) or
 			return msg_by_path($self, mid2path($mid), $ref);
-	my $smsg = $srch->lookup_skeleton($mid) or return;
-	$smsg->load_expand;
-	msg_by_smsg($self, $smsg, $ref);
+	my $smsg;
+	$srch->retry_reopen(sub {
+		$smsg = $srch->lookup_skeleton($mid) and $smsg->load_expand;
+	});
+	$smsg ? msg_by_smsg($self, $smsg, $ref) : undef;
 }
 
 1;

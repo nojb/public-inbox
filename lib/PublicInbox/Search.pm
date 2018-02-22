@@ -185,7 +185,7 @@ sub query {
 
 sub get_thread {
 	my ($self, $mid, $opts) = @_;
-	my $smsg = eval { $self->lookup_skeleton($mid) };
+	my $smsg = retry_reopen($self, sub { lookup_skeleton($self, $mid) });
 
 	return { total => 0, msgs => [] } unless $smsg;
 	my $qtid = Search::Xapian::Query->new('G' . $smsg->thread_id);
@@ -216,6 +216,7 @@ sub retry_reopen {
 		if (ref($@) eq 'Search::Xapian::DatabaseModifiedError') {
 			reopen($self);
 		} else {
+			warn "ref: ", ref($@), "\n";
 			die;
 		}
 	}
