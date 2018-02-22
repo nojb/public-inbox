@@ -46,12 +46,12 @@ my $vger = PublicInbox::Filter::Vger->new;
 sub do_add ($$) {
 	my ($im, $msg) = @_;
 	$$msg =~ s/(\r?\n)+\z/$1/s;
-	$msg = Email::MIME->new($$msg);
-	$msg = $vger->scrub($msg);
+	my $mime = PublicInbox::MIME->new($msg);
+	$mime = $vger->scrub($mime);
 	return unless $im;
-	$im->add($msg) or
+	$im->add($mime) or
 		warn "duplicate: ",
-			$msg->header_obj->header_raw('Message-ID'), "\n";
+			$mime->header_obj->header_raw('Message-ID'), "\n";
 }
 
 # asctime: From example@example.com Fri Jun 23 02:56:55 2000
