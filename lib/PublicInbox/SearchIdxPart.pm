@@ -20,6 +20,11 @@ sub new {
 		}
 		$v2writable = undef;
 		close $w;
+
+		# F_SETPIPE_SZ = 1031 on Linux; increasing the pipe size here
+		# speeds V2Writable batch imports across 8 cores by nearly 20%
+		fcntl($r, 1031, 1048576) if $^O eq 'linux';
+
 		eval { partition_worker_loop($self, $r) };
 		die "worker $part died: $@\n" if $@;
 		die "unexpected MM $self->{mm}" if $self->{mm};
@@ -63,8 +68,10 @@ sub partition_worker_loop ($$) {
 # called by V2Writable
 sub index_raw {
 	my ($self, $len, $msgref, $artnum, $object_id) = @_;
-	print { $self->{w} } "$len $artnum $object_id\n", $$msgref or die
+	my $w = $self->{w};
+	print $w "$len $artnum $object_id\n", $$msgref or die
 		"failed to write partition $!\n";
+	$w->flush or die "failed to flush: $!\n";
 }
 
 1;
