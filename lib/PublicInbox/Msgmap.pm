@@ -57,7 +57,7 @@ sub meta_accessor {
 	$prev = $dbh->selectrow_array($sql, undef, $key);
 
 	if (defined $prev) {
-		$sql = 'UPDATE meta SET val = ? WHERE key = ? LIMIT 1';
+		$sql = 'UPDATE meta SET val = ? WHERE key = ?';
 		$dbh->do($sql, undef, $value, $key);
 	} else {
 		$sql = 'INSERT INTO meta (key,val) VALUES (?,?)';
