@@ -515,13 +515,15 @@ sub unindex_blob {
 }
 
 sub index_mm {
-	my ($self, $mime) = @_;
+	my ($self, $mime, $warn_existing) = @_;
 	my $mid = mid_clean(mid_mime($mime));
 	my $mm = $self->{mm};
 	my $num = $mm->mid_insert($mid);
+	return $num if defined $num;
 
+	warn "<$mid> reused\n" if $warn_existing;
 	# fallback to num_for since filters like RubyLang set the number
-	defined $num ? $num : $mm->num_for($mid);
+	$mm->num_for($mid);
 }
 
 sub unindex_mm {

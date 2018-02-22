@@ -63,7 +63,7 @@ sub add {
 	my ($len, $msgref) = @{$im->{last_object}};
 
 	$self->idx_init;
-	my $num = $self->{all}->index_mm($mime);
+	my $num = $self->{all}->index_mm($mime, 1);
 	my $nparts = $self->{partitions};
 	my $part = $num % $nparts;
 	my $idx = $self->idx_part($part);
