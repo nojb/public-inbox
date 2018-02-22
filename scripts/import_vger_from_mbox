@@ -9,21 +9,35 @@ use Email::MIME;
 $Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Inbox;
 use PublicInbox::V2Writable;
+use PublicInbox::Import;
 my $usage = "usage: $0 NAME EMAIL DIR <MBOX\n";
 my $dry_run;
-my %opts = ( 'n|dry-run' => \$dry_run );
+my $version = 2;
+my %opts = (
+	'n|dry-run' => \$dry_run,
+	'V|version=i' => \$version,
+);
 GetOptions(%opts) or die $usage;
 my $name = shift or die $usage; # git
 my $email = shift or die $usage; # git@vger.kernel.org
 my $mainrepo = shift or die $usage; # /path/to/v2/repo
-my $v2ibx = {
+my $ibx = {
 	mainrepo => $mainrepo,
 	name => $name,
-	version => 2,
+	version => $version,
 	-primary_address => $email,
 };
-$v2ibx = PublicInbox::Inbox->new($v2ibx);
-my $im = $dry_run ? undef : PublicInbox::V2Writable->new($v2ibx, 1);
+$ibx = PublicInbox::Inbox->new($ibx);
+my $im;
+unless ($dry_run) {
+	if ($version >= 2) {
+		$im = PublicInbox::V2Writable->new($ibx, 1);
+	} else {
+		system(qw(git init --bare -q), $mainrepo);
+		my $git = PublicInbox::Git->new($mainrepo);
+		$im = PublicInbox::Import->new($git, $name, $email, $ibx);
+	}
+}
 binmode STDIN;
 my $msg = '';
 use PublicInbox::Filter::Vger;
