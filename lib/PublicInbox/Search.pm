@@ -124,7 +124,10 @@ sub xdir {
 	if ($self->{version} == 1) {
 		"$self->{mainrepo}/public-inbox/xapian" . SCHEMA_VERSION;
 	} else {
-		"$self->{mainrepo}/xap" . SCHEMA_VERSION;
+		my $dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
+		my $part = $self->{partition};
+		defined $part or die "partition not given";
+		$dir .= "/$part";
 	}
 }
 

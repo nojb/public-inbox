@@ -29,19 +29,24 @@ sub get_val ($$) {
 	Search::Xapian::sortable_unserialise($doc->get_value($col));
 }
 
-sub load_expand {
-	my ($self) = @_;
-	my $doc = $self->{doc};
-	my $data = $doc->get_data or return;
-	$self->{ts} = get_val($doc, &PublicInbox::Search::TS);
-	utf8::decode($data);
-	my ($subj, $from, $refs, $to, $cc, $blob) = split(/\n/, $data);
+sub load_from_data ($$) {
+	my ($self) = $_[0]; # data = $_[1]
+	my ($subj, $from, $refs, $to, $cc, $blob) = split(/\n/, $_[1]);
 	$self->{subject} = $subj;
 	$self->{from} = $from;
 	$self->{references} = $refs;
 	$self->{to} = $to;
 	$self->{cc} = $cc;
 	$self->{blob} = $blob;
+}
+
+sub load_expand {
+	my ($self) = @_;
+	my $doc = $self->{doc};
+	my $data = $doc->get_data or return;
+	$self->{ts} = get_val($doc, &PublicInbox::Search::TS);
+	utf8::decode($data);
+	load_from_data($self, $data);
 	$self;
 }
 
@@ -50,17 +55,9 @@ sub load_doc {
 	my $data = $doc->get_data or return;
 	my $ts = get_val($doc, &PublicInbox::Search::TS);
 	utf8::decode($data);
-	my ($subj, $from, $refs, $to, $cc, $blob) = split(/\n/, $data);
-	bless {
-		doc => $doc,
-		subject => $subj,
-		ts => $ts,
-		from => $from,
-		references => $refs,
-		to => $to,
-		cc => $cc,
-		blob => $blob,
-	}, $class;
+	my $self = bless { doc => $doc, ts => $ts }, $class;
+	load_from_data($self, $data);
+	$self
 }
 
 # :bytes and :lines metadata in RFC 3977

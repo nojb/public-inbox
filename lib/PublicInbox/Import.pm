@@ -280,14 +280,12 @@ sub add {
 	$self->{bytes_added} += $n;
 	print $w "blob\nmark :$blob\ndata ", $n, "\n" or wfail;
 	print $w $str, "\n" or wfail;
-	$str = undef;
 
 	# v2: we need this for Xapian
 	if ($self->{want_object_id}) {
 		chomp($self->{last_object_id} = $self->get_mark(":$blob"));
-		$self->{last_object_size} = $n;
+		$self->{last_object} = [ $n, \$str ];
 	}
-
 	my $ref = $self->{ref};
 	my $commit = $self->{mark}++;
 	my $parent = $tip =~ /\A:/ ? $tip : undef;
