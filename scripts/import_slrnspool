@@ -11,7 +11,7 @@
 use strict;
 use warnings;
 use PublicInbox::Config;
-use Email::MIME;
+use PublicInbox::MIME;
 use PublicInbox::Import;
 use PublicInbox::Git;
 sub usage { "Usage:\n".join('',grep(/\t/, `head -n 10 $0`)) }
@@ -58,7 +58,7 @@ for (; $exit == 0 && $n < $max; $n++) {
 	open(my $fh, '<', $fn) or next;
 	$max = $n + $max_gap;
 
-	my $mime = Email::MIME->new(eval { local $/; <$fh> });
+	my $mime = PublicInbox::MIME->new(eval { local $/; <$fh> });
 	my $hdr = $mime->header_obj;
 
 	# gmane rewrites Received headers, which increases spamminess

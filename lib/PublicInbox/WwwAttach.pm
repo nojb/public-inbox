@@ -5,9 +5,8 @@
 package PublicInbox::WwwAttach; # internal package
 use strict;
 use warnings;
-use PublicInbox::MIME;
 use Email::MIME::ContentType qw(parse_content_type);
-$Email::MIME::ContentType::STRICT_PARAMS = 0;
+use PublicInbox::MIME;
 use PublicInbox::MsgIter;
 
 # /$LISTNAME/$MESSAGE_ID/$IDX-$FILENAME

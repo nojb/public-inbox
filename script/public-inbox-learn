@@ -11,8 +11,6 @@ use PublicInbox::Config;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MIME;
-use Email::MIME::ContentType;
-$Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Address;
 use PublicInbox::Spamcheck::Spamc;
 my $train = shift or die "usage: $usage\n";

@@ -7,8 +7,6 @@ package PublicInbox::WatchMaildir;
 use strict;
 use warnings;
 use PublicInbox::MIME;
-use Email::MIME::ContentType;
-$Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MDA;

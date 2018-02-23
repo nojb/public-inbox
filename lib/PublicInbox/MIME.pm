@@ -23,6 +23,8 @@ package PublicInbox::MIME;
 use strict;
 use warnings;
 use base qw(Email::MIME);
+use Email::MIME::ContentType;
+$Email::MIME::ContentType::STRICT_PARAMS = 0;
 
 if ($Email::MIME::VERSION <= 1.937) {
 sub parts_multipart {

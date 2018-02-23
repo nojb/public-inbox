@@ -11,8 +11,6 @@ use strict;
 use warnings;
 use Fcntl qw(:flock :DEFAULT);
 use PublicInbox::MIME;
-use Email::MIME::ContentType;
-$Email::MIME::ContentType::STRICT_PARAMS = 0;
 use base qw(PublicInbox::Search);
 use PublicInbox::MID qw/mid_clean id_compress mid_mime/;
 use PublicInbox::MsgIter;

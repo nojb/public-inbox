@@ -11,8 +11,6 @@ use PublicInbox::SearchIdxThread;
 use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
-use Email::MIME::ContentType;
-$Email::MIME::ContentType::STRICT_PARAMS = 0;
 
 # an estimate of the post-packed size to the raw uncompressed size
 my $PACKING_FACTOR = 0.4;

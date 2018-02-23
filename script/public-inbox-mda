@@ -15,9 +15,7 @@ sub do_exit {
 }
 
 use Email::Simple;
-use Email::MIME;
-use Email::MIME::ContentType;
-$Email::MIME::ContentType::STRICT_PARAMS = 0; # user input is imperfect
+use PublicInbox::MIME;
 use PublicInbox::MDA;
 use PublicInbox::Config;
 use PublicInbox::Import;
