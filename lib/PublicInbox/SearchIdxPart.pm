@@ -14,10 +14,7 @@ sub new {
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
-		foreach my $other (@{$v2writable->{idx_parts}}) {
-			my $other_w = $other->{w} or next;
-			close $other_w or die "close other failed: $!\n";
-		}
+		$v2writable->atfork_child;
 		$v2writable = undef;
 		close $w;
 
@@ -72,6 +69,10 @@ sub index_raw {
 	print $w "$len $artnum $object_id\n", $$msgref or die
 		"failed to write partition $!\n";
 	$w->flush or die "failed to flush: $!\n";
+}
+
+sub atfork_child {
+	close $_[0]->{w} or die "failed to close write pipe: $!\n";
 }
 
 1;

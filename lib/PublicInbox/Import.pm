@@ -372,6 +372,13 @@ sub done {
 	close $lockfh or die "close lock failed: $!";
 }
 
+sub atfork_child {
+	my ($self) = @_;
+	foreach my $f (qw(in out)) {
+		close $self->{$f} or die "failed to close import[$f]: $!\n";
+	}
+}
+
 1;
 __END__
 =pod

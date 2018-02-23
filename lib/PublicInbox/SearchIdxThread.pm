@@ -7,8 +7,8 @@ use base qw(PublicInbox::SearchIdx);
 use Storable qw(freeze thaw);
 
 sub new {
-	my ($class, $v2ibx) = @_;
-	my $self = $class->SUPER::new($v2ibx, 1, 'all');
+	my ($class, $v2writable) = @_;
+	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, 'all');
 	# create the DB:
 	$self->_xdb_acquire;
 	$self->_xdb_release;
@@ -20,6 +20,8 @@ sub new {
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
+		$v2writable->atfork_child;
+		$v2writable = undef;
 		close $w;
 		eval { thread_worker_loop($self, $r) };
 		die "thread worker died: $@\n" if $@;

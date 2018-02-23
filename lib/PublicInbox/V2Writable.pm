@@ -84,9 +84,9 @@ sub idx_part {
 sub idx_init {
 	my ($self) = @_;
 	return if $self->{idx_parts};
-	# first time initialization:
-	my $all = $self->{all} =
-		PublicInbox::SearchIdxThread->new($self->{-inbox});
+
+	# first time initialization, first we create the threader pipe:
+	my $all = $self->{all} = PublicInbox::SearchIdxThread->new($self);
 
 	# need to create all parts before initializing msgmap FD
 	my $max = $self->{partitions} - 1;
@@ -94,6 +94,8 @@ sub idx_init {
 	for my $i (0..$max) {
 		push @$idx, PublicInbox::SearchIdxPart->new($self, $i, $all);
 	}
+
+	# Now that all subprocesses are up, we can open the FD for SQLite:
 	$all->_msgmap_init->{dbh}->begin_work;
 }
 
@@ -240,6 +242,16 @@ sub import_init {
 
 sub lookup_content {
 	undef # TODO
+}
+
+sub atfork_child {
+	my ($self) = @_;
+	if (my $parts = $self->{idx_parts}) {
+		$_->atfork_child foreach @$parts;
+	}
+	if (my $im = $self->{im}) {
+		$im->atfork_child;
+	}
 }
 
 1;
