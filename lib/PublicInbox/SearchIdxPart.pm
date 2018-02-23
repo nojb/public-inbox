@@ -11,6 +11,8 @@ sub new {
 	$self->{threader} = $threader;
 	my ($r, $w);
 	pipe($r, $w) or die "pipe failed: $!\n";
+	binmode $r, ':raw';
+	binmode $w, ':raw';
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
