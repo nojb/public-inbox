@@ -752,8 +752,7 @@ sub missing_thread {
 
 sub _msg_date {
 	my ($hdr) = @_;
-	my $ts = $hdr->header('X-PI-TS') || msg_timestamp($hdr);
-	fmt_ts($ts);
+	fmt_ts(msg_timestamp($hdr));
 }
 
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
