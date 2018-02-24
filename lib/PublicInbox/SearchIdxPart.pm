@@ -48,6 +48,7 @@ sub partition_worker_loop ($$) {
 			$self->_xdb_release;
 			$xdb = $txn = undef;
 		} else {
+			chomp $line;
 			my ($len, $artnum, $object_id) = split(/ /, $line);
 			$xdb ||= $self->_xdb_acquire;
 			if (!$txn) {
