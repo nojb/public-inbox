@@ -491,11 +491,6 @@ sub link_message {
 	$smsg->{doc}->add_term('G' . $tid);
 }
 
-sub index_blob {
-	my ($self, $mime, $bytes, $num, $blob) = @_;
-	$self->add_message($mime, $bytes, $num, $blob);
-}
-
 sub index_git_blob_id {
 	my ($doc, $pfx, $objid) = @_;
 
@@ -532,7 +527,7 @@ sub unindex_mm {
 sub index_mm2 {
 	my ($self, $mime, $bytes, $blob) = @_;
 	my $num = $self->{mm}->num_for(mid_clean(mid_mime($mime)));
-	index_blob($self, $mime, $bytes, $num, $blob);
+	add_message($self, $mime, $bytes, $num, $blob);
 }
 
 sub unindex_mm2 {
@@ -544,7 +539,7 @@ sub unindex_mm2 {
 sub index_both {
 	my ($self, $mime, $bytes, $blob) = @_;
 	my $num = index_mm($self, $mime);
-	index_blob($self, $mime, $bytes, $num, $blob);
+	add_message($self, $mime, $bytes, $num, $blob);
 }
 
 sub unindex_both {
@@ -711,7 +706,7 @@ sub _index_sync {
 		}
 	} else {
 		# user didn't install DBD::SQLite and DBI
-		rlog($self, $xlog, *index_blob, *unindex_blob, $cb);
+		rlog($self, $xlog, *add_message, *unindex_blob, $cb);
 	}
 }
 
