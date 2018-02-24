@@ -41,6 +41,7 @@ sub new {
 
 sub thread_worker_loop {
 	my ($self, $r) = @_;
+	$0 = 'pi-v2-threader';
 	my $msg;
 	my $xdb = $self->_xdb_acquire;
 	$xdb->begin_transaction;

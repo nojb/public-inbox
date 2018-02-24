@@ -24,7 +24,7 @@ sub new {
 		# speeds V2Writable batch imports across 8 cores by nearly 20%
 		fcntl($r, 1031, 1048576) if $^O eq 'linux';
 
-		eval { partition_worker_loop($self, $r) };
+		eval { partition_worker_loop($self, $r, $part) };
 		die "worker $part died: $@\n" if $@;
 		die "unexpected MM $self->{mm}" if $self->{mm};
 		exit;
@@ -35,8 +35,9 @@ sub new {
 	$self;
 }
 
-sub partition_worker_loop ($$) {
-	my ($self, $r) = @_;
+sub partition_worker_loop ($$$) {
+	my ($self, $r, $part) = @_;
+	$0 = "pi-v2-partition[$part]";
 	my $xdb = $self->_xdb_acquire;
 	$xdb->begin_transaction;
 	my $txn = 1;
