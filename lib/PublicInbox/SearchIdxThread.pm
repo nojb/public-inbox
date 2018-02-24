@@ -101,6 +101,7 @@ sub thread_msg_real {
 	$doc->add_term('XMID' . $mid);
 	$doc->set_data($doc_data);
 	$smsg->{ts} = $ts;
+	$smsg->load_from_data($doc_data);
 	my @refs = ($smsg->references =~ /<([^>]+)>/g);
 	$self->link_message($smsg, \@refs, $old_tid);
 	my $db = $self->{xdb};
