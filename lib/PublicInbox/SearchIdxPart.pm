@@ -59,7 +59,8 @@ sub partition_worker_loop ($$$) {
 			my $n = read($r, my $msg, $len) or die "read: $!\n";
 			$n == $len or die "short read: $n != $len\n";
 			my $mime = PublicInbox::MIME->new(\$msg);
-			$self->add_message($mime, $len, $artnum, $object_id);
+			$artnum = int($artnum);
+			$self->add_message($mime, $n, $artnum, $object_id);
 		}
 	}
 	warn "$$ still in transaction\n" if $txn;
