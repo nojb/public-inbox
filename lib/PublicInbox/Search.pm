@@ -167,7 +167,13 @@ sub new {
 	$self;
 }
 
-sub reopen { $_[0]->{xdb}->reopen }
+sub reopen {
+	my ($self) = @_;
+	$self->{xdb}->reopen;
+	if (my $skel = $self->{skel}) {
+		$skel->reopen;
+	}
+}
 
 # read-only
 sub query {
