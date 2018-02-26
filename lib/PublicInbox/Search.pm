@@ -207,7 +207,7 @@ sub get_thread {
 	# always sort threads by timestamp, this makes life easier
 	# for the threading algorithm (in SearchThread.pm)
 	$opts->{asc} = 1;
-
+	$opts->{enquire} = enquire_skel($self);
 	_do_enquire($self, $qtid, $opts);
 }
 
@@ -235,7 +235,7 @@ sub _do_enquire {
 
 sub _enquire_once {
 	my ($self, $query, $opts) = @_;
-	my $enquire = $self->enquire;
+	my $enquire = $opts->{enquire} || enquire($self);
 	if (defined $query) {
 		$query = Search::Xapian::Query->new(OP_AND,$query,$mail_query);
 	} else {
@@ -421,6 +421,15 @@ sub subject_normalized {
 sub enquire {
 	my ($self) = @_;
 	$self->{enquire} ||= Search::Xapian::Enquire->new($self->{xdb});
+}
+
+sub enquire_skel {
+	my ($self) = @_;
+	if (my $skel = $self->{skel}) {
+		$self->{enquire_skel} ||= Search::Xapian::Enquire->new($skel);
+	} else {
+		enquire($self);
+	}
 }
 
 sub help {
