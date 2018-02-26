@@ -61,30 +61,34 @@ sub thread_worker_loop {
 				$xdb->begin_transaction;
 				$txn = 1;
 			}
-			eval { $self->thread_msg_real(@$msg) };
-			warn "failed to index message <$msg->[0]>: $@\n" if $@;
+			eval { $self->thread_msg_real($msg) };
+			warn "failed to index message <$msg->[-1]>: $@\n" if $@;
 		}
 	}
 }
 
 # called by a partition worker
 sub thread_msg {
-	my ($self, $mid, $ts, $xpath, $doc_data) = @_;
+	my ($self, $values) = @_;
 	my $w = $self->{w};
 	my $err;
-	my $str = freeze([ $mid, $ts, $xpath, $doc_data ]);
-	my $len = length($str) . "\n";
+	my $str = freeze($values);
+	$str = length($str) . "\n" . $str;
 
 	# multiple processes write to the same pipe, so use flock
 	$self->_lock_acquire;
-	print $w $len, $str or $err = $!;
+	print $w $str or $err = $!;
 	$self->_lock_release;
 
 	die "print failed: $err\n" if $err;
 }
 
 sub thread_msg_real {
-	my ($self, $mid, $ts, $xpath, $doc_data) = @_;
+	my ($self, $values) = @_;
+	my $doc_data = pop @$values;
+	my $xpath = pop @$values;
+	my $mid = pop @$values;
+	my $ts = $values->[PublicInbox::Search::TS];
 	my $smsg = $self->lookup_message($mid);
 	my ($old_tid, $doc_id);
 	if ($smsg) {
@@ -99,6 +103,7 @@ sub thread_msg_real {
 	my $doc = $smsg->{doc};
 	$doc->add_term('XPATH' . $xpath) if defined $xpath;
 	$doc->add_term('XMID' . $mid);
+	PublicInbox::SearchIdx::add_values($doc, $values);
 	$doc->set_data($doc_data);
 	$smsg->{ts} = $ts;
 	$smsg->load_from_data($doc_data);

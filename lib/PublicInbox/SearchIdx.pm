@@ -141,18 +141,20 @@ sub add_val ($$$) {
 	$doc->add_value($col, $num);
 }
 
-sub add_values ($$$$) {
-	my ($smsg, $bytes, $num, $lines) = @_;
+sub add_values ($$) {
+	my ($doc, $values) = @_;
 
-	my $ts = $smsg->ts;
-	my $doc = $smsg->{doc};
-	add_val($doc, &PublicInbox::Search::TS, $ts);
+	my $ts = $values->[PublicInbox::Search::TS];
+	add_val($doc, PublicInbox::Search::TS, $ts);
 
-	defined($num) and add_val($doc, &PublicInbox::Search::NUM, $num);
+	my $num = $values->[PublicInbox::Search::NUM];
+	defined($num) and add_val($doc, PublicInbox::Search::NUM, $num);
 
-	defined($bytes) and add_val($doc, &PublicInbox::Search::BYTES, $bytes);
+	my $bytes = $values->[PublicInbox::Search::BYTES];
+	defined($bytes) and add_val($doc, PublicInbox::Search::BYTES, $bytes);
 
-	add_val($doc, &PublicInbox::Search::LINES, $lines);
+	my $lines = $values->[PublicInbox::Search::LINES];
+	add_val($doc, PublicInbox::Search::LINES, $lines);
 
 	my $yyyymmdd = strftime('%Y%m%d', gmtime($ts));
 	add_val($doc, PublicInbox::Search::YYYYMMDD, $yyyymmdd);
@@ -307,7 +309,8 @@ sub add_message {
 		}
 
 		my $lines = $mime->body_raw =~ tr!\n!\n!;
-		add_values($smsg, $bytes, $num, $lines);
+		my @values = ($smsg->ts, $num, $bytes, $lines);
+		add_values($doc, \@values);
 
 		my $tg = $self->term_generator;
 
@@ -360,7 +363,8 @@ sub add_message {
 		my $refs = parse_references($smsg);
 		my $data = $smsg->to_doc_data($blob);
 		if ($threader) {
-			$threader->thread_msg($mid, $smsg->ts, $xpath, $data);
+			push @values, $mid, $xpath, $data;
+			$threader->thread_msg(\@values);
 		} else {
 			link_message($self, $smsg, $refs, $old_tid);
 		}
