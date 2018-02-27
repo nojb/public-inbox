@@ -696,15 +696,22 @@ sub create_ghost {
 sub merge_threads {
 	my ($self, $winner_tid, $loser_tid) = @_;
 	return if $winner_tid == $loser_tid;
-	my ($head, $tail) = $self->find_doc_ids('G' . $loser_tid);
 	my $db = $self->{xdb};
 
-	for (; $head != $tail; $head->inc) {
-		my $docid = $head->get_docid;
-		my $doc = $db->get_document($docid);
-		$doc->remove_term('G' . $loser_tid);
-		$doc->add_term('G' . $winner_tid);
-		$db->replace_document($docid, $doc);
+	my $batch_size = 1000; # don't let @ids grow too large to avoid OOM
+	while (1) {
+		my ($head, $tail) = $self->find_doc_ids('G' . $loser_tid);
+		return if $head == $tail;
+		my @ids;
+		for (; $head != $tail && @ids < $batch_size; $head->inc) {
+			push @ids, $head->get_docid;
+		}
+		foreach my $docid (@ids) {
+			my $doc = $db->get_document($docid);
+			$doc->remove_term('G' . $loser_tid);
+			$doc->add_term('G' . $winner_tid);
+			$db->replace_document($docid, $doc);
+		}
 	}
 }
 
