@@ -317,11 +317,17 @@ sub num_range_processor {
 sub query_xover {
 	my ($self, $beg, $end, $offset) = @_;
 	my $qp = Search::Xapian::QueryParser->new;
-	$qp->set_database($self->{xdb});
+	$qp->set_database($self->{skel} || $self->{xdb});
 	$qp->add_valuerangeprocessor($self->num_range_processor);
 	my $query = $qp->parse_query("$beg..$end", QP_FLAGS);
 
-	_do_enquire($self, $query, {num => 1, limit => 200, offset => $offset});
+	my $opts = {
+		enquire => enquire_skel($self),
+		num => 1,
+		limit => 200,
+		offset => $offset,
+	};
+	_do_enquire($self, $query, $opts);
 }
 
 sub lookup_skeleton {
