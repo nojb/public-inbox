@@ -45,6 +45,7 @@ sub partition_worker_loop ($$$) {
 		if ($line eq "commit\n") {
 			$xdb->commit_transaction if $txn;
 			$txn = undef;
+			$self->{skeleton}->remote_commit;
 		} elsif ($line eq "close\n") {
 			$self->_xdb_release;
 			$xdb = $txn = undef;

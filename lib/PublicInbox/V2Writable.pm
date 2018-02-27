@@ -131,22 +131,21 @@ sub searchidx_checkpoint {
 
 	# order matters, we can only close {skel} after all partitions
 	# are done because the partitions also write to {skel}
-
 	if (my $parts = $self->{idx_parts}) {
 		foreach my $idx (@$parts) {
-			$idx->remote_commit;
+			$idx->remote_commit; # propagates commit to skel
 			$idx->remote_close unless $more;
 		}
 		delete $self->{idx_parts} unless $more;
 	}
 
 	if (my $skel = $self->{skel}) {
-		$skel->{mm}->{dbh}->commit;
+		my $dbh = $skel->{mm}->{dbh};
+		$dbh->commit;
 		if ($more) {
-			$skel->{mm}->{dbh}->begin_work;
-		}
-		$skel->remote_commit;
-		unless ($more) {
+			$dbh->begin_work;
+		} else {
+			$skel->remote_commit; # XXX should be unnecessary...
 			$skel->remote_close;
 			delete $self->{skel};
 		}
