@@ -6,9 +6,9 @@ use warnings;
 use base qw(PublicInbox::SearchIdx);
 
 sub new {
-	my ($class, $v2writable, $part, $threader) = @_;
+	my ($class, $v2writable, $part, $skel) = @_;
 	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, $part);
-	$self->{threader} = $threader;
+	$self->{skeleton} = $skel;
 	my ($r, $w);
 	pipe($r, $w) or die "pipe failed: $!\n";
 	binmode $r, ':raw';

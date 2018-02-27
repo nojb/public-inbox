@@ -285,7 +285,7 @@ sub add_message {
 
 	my ($doc_id, $old_tid);
 	my $mid = mid_clean(mid_mime($mime));
-	my $threader = $self->{threader};
+	my $skel = $self->{skeleton};
 
 	eval {
 		die 'Message-ID too long' if length($mid) > MAX_MID_SIZE;
@@ -294,7 +294,7 @@ sub add_message {
 			# convert a ghost to a regular message
 			# it will also clobber any existing regular message
 			$doc_id = $smsg->{doc_id};
-			$old_tid = $smsg->thread_id unless $threader;
+			$old_tid = $smsg->thread_id unless $skel;
 		}
 		$smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
@@ -362,9 +362,9 @@ sub add_message {
 		# populates smsg->references for smsg->to_doc_data
 		my $refs = parse_references($smsg);
 		my $data = $smsg->to_doc_data($blob);
-		if ($threader) {
+		if ($skel) {
 			push @values, $mid, $xpath, $data;
-			$threader->thread_msg(\@values);
+			$skel->index_skeleton(\@values);
 		} else {
 			link_message($self, $smsg, $refs, $old_tid);
 		}
@@ -817,7 +817,7 @@ sub DESTROY {
 	$_[0]->{lockfh} = undef;
 }
 
-# remote_* subs are only used by SearchIdxPart and SearchIdxThread:
+# remote_* subs are only used by SearchIdxPart and SearchIdxSkeleton
 sub remote_commit {
 	my ($self) = @_;
 	print { $self->{w} } "commit\n" or die "failed to write commit: $!";

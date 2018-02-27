@@ -1,6 +1,6 @@
 # Copyright (C) 2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-package PublicInbox::SearchIdxThread;
+package PublicInbox::SearchIdxSkeleton;
 use strict;
 use warnings;
 use base qw(PublicInbox::SearchIdx);
@@ -8,7 +8,7 @@ use Storable qw(freeze thaw);
 
 sub new {
 	my ($class, $v2writable) = @_;
-	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, 'all');
+	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, 'skel');
 	# create the DB:
 	$self->_xdb_acquire;
 	$self->_xdb_release;
@@ -23,8 +23,8 @@ sub new {
 		$v2writable->atfork_child;
 		$v2writable = undef;
 		close $w;
-		eval { thread_worker_loop($self, $r) };
-		die "thread worker died: $@\n" if $@;
+		eval { skeleton_worker_loop($self, $r) };
+		die "skeleton worker died: $@\n" if $@;
 		exit;
 	}
 	$self->{w} = $w;
@@ -34,14 +34,14 @@ sub new {
 	$w->autoflush(1);
 
 	# lock on only exists in parent, not in worker
-	my $l = $self->{lock_path} = $self->xdir . '/thread.lock';
+	my $l = $self->{lock_path} = $self->xdir . '/pi-v2-skeleton.lock';
 	open my $fh, '>>', $l or die "failed to create $l: $!\n";
 	$self;
 }
 
-sub thread_worker_loop {
+sub skeleton_worker_loop {
 	my ($self, $r) = @_;
-	$0 = 'pi-v2-threader';
+	$0 = 'pi-v2-skeleton';
 	my $msg;
 	my $xdb = $self->_xdb_acquire;
 	$xdb->begin_transaction;
@@ -61,14 +61,14 @@ sub thread_worker_loop {
 				$xdb->begin_transaction;
 				$txn = 1;
 			}
-			eval { $self->thread_msg_real($msg) };
+			eval { index_skeleton_real($self, $msg) };
 			warn "failed to index message <$msg->[-1]>: $@\n" if $@;
 		}
 	}
 }
 
 # called by a partition worker
-sub thread_msg {
+sub index_skeleton {
 	my ($self, $values) = @_;
 	my $w = $self->{w};
 	my $err;
@@ -83,7 +83,8 @@ sub thread_msg {
 	die "print failed: $err\n" if $err;
 }
 
-sub thread_msg_real {
+# values: [ TS, NUM, BYTES, LINES, MID, XPATH, doc_data ]
+sub index_skeleton_real ($$) {
 	my ($self, $values) = @_;
 	my $doc_data = pop @$values;
 	my $xpath = pop @$values;

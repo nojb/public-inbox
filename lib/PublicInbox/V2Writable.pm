@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use Fcntl qw(:flock :DEFAULT);
 use PublicInbox::SearchIdxPart;
-use PublicInbox::SearchIdxThread;
+use PublicInbox::SearchIdxSkeleton;
 use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
@@ -61,7 +61,7 @@ sub add {
 	my ($len, $msgref) = @{$im->{last_object}};
 
 	$self->idx_init;
-	my $num = $self->{all}->index_mm($mime, 1);
+	my $num = $self->{skel}->index_mm($mime, 1);
 	my $nparts = $self->{partitions};
 	my $part = $num % $nparts;
 	my $idx = $self->idx_part($part);
@@ -83,18 +83,18 @@ sub idx_init {
 	my ($self) = @_;
 	return if $self->{idx_parts};
 
-	# first time initialization, first we create the threader pipe:
-	my $all = $self->{all} = PublicInbox::SearchIdxThread->new($self);
+	# first time initialization, first we create the skeleton pipe:
+	my $skel = $self->{skel} = PublicInbox::SearchIdxSkeleton->new($self);
 
 	# need to create all parts before initializing msgmap FD
 	my $max = $self->{partitions} - 1;
 	my $idx = $self->{idx_parts} = [];
 	for my $i (0..$max) {
-		push @$idx, PublicInbox::SearchIdxPart->new($self, $i, $all);
+		push @$idx, PublicInbox::SearchIdxPart->new($self, $i, $skel);
 	}
 
 	# Now that all subprocesses are up, we can open the FD for SQLite:
-	$all->_msgmap_init->{dbh}->begin_work;
+	$skel->_msgmap_init->{dbh}->begin_work;
 }
 
 sub remove {
@@ -129,8 +129,8 @@ sub checkpoint {
 sub searchidx_checkpoint {
 	my ($self, $more) = @_;
 
-	# order matters, we can only close {all} after all partitions
-	# are done because the partitions also write to {all}
+	# order matters, we can only close {skel} after all partitions
+	# are done because the partitions also write to {skel}
 
 	if (my $parts = $self->{idx_parts}) {
 		foreach my $idx (@$parts) {
@@ -140,14 +140,16 @@ sub searchidx_checkpoint {
 		delete $self->{idx_parts} unless $more;
 	}
 
-	if (my $all = $self->{all}) {
-		$all->{mm}->{dbh}->commit;
+	if (my $skel = $self->{skel}) {
+		$skel->{mm}->{dbh}->commit;
 		if ($more) {
-			$all->{mm}->{dbh}->begin_work;
+			$skel->{mm}->{dbh}->begin_work;
 		}
-		$all->remote_commit;
-		$all->remote_close unless $more;
-		delete $self->{all} unless $more;
+		$skel->remote_commit;
+		unless ($more) {
+			$skel->remote_close;
+			delete $self->{skel};
+		}
 	}
 	$self->{transact_bytes} = 0;
 }
