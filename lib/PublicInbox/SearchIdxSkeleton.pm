@@ -42,7 +42,6 @@ sub new {
 sub skeleton_worker_loop {
 	my ($self, $r) = @_;
 	$0 = 'pi-v2-skeleton';
-	my $msg;
 	my $xdb = $self->_xdb_acquire;
 	$xdb->begin_transaction;
 	my $txn = 1;
@@ -54,9 +53,12 @@ sub skeleton_worker_loop {
 			$self->_xdb_release;
 			$xdb = $txn = undef;
 		} else {
-			read($r, $msg, $line) or die "read failed: $!\n";
+			my $len = int($line);
+			my $n = read($r, my $msg, $len) or die "read: $!\n";
+			$n == $len or die "short read: $n != $len\n";
 			$msg = thaw($msg); # should raise on error
 			defined $msg or die "failed to thaw buffer\n";
+			$xdb ||= $self->_xdb_acquire;
 			if (!$txn) {
 				$xdb->begin_transaction;
 				$txn = 1;
@@ -65,6 +67,8 @@ sub skeleton_worker_loop {
 			warn "failed to index message <$msg->[-1]>: $@\n" if $@;
 		}
 	}
+	die "xdb not released\n" if $xdb;
+	die "in transaction\n" if $txn;
 }
 
 # called by a partition worker
