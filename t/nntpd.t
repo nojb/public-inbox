@@ -21,14 +21,18 @@ my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $maindir = "$tmpdir/main.git";
+my $mainrepo = "$tmpdir/main.git";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
 my $nntpd = 'blib/script/public-inbox-nntpd';
 my $init = 'blib/script/public-inbox-init';
 use_ok 'PublicInbox::Import';
+use_ok 'PublicInbox::Inbox';
 use_ok 'PublicInbox::Git';
+use_ok 'PublicInbox::V2Writable';
 
+# XXX FIXME: make it easier to test both versions
+my $version = int($ENV{PI_VERSION} || 1);
 my %opts = (
 	LocalAddr => '127.0.0.1',
 	ReuseAddr => 1,
@@ -40,13 +44,33 @@ my $sock = IO::Socket::INET->new(%opts);
 my $pid;
 my $len;
 END { kill 'TERM', $pid if defined $pid };
+
+my $ibx = {
+	mainrepo => $mainrepo,
+	name => $group,
+	version => $version,
+	-primary_address => $addr,
+};
+$ibx = PublicInbox::Inbox->new($ibx);
 {
 	local $ENV{HOME} = $home;
-	system($init, $group, $maindir, 'http://example.com/', $addr);
+	my @cmd = ($init, $group, $mainrepo, 'http://example.com/', $addr);
+	push @cmd, "-V$version";
+	is(system(@cmd), 0, 'init OK');
 	is(system(qw(git config), "--file=$home/.public-inbox/config",
 			"publicinbox.$group.newsgroup", $group),
 		0, 'enabled newsgroup');
 	my $len;
+
+	my $im;
+	if ($version == 2) {
+		$im = PublicInbox::V2Writable->new($ibx);
+	} elsif ($version == 1) {
+		my $git = PublicInbox::Git->new($mainrepo);
+		$im = PublicInbox::Import->new($git, 'test', $addr);
+	} else {
+		die "unsupported version: $version";
+	}
 
 	# ensure successful message delivery
 	{
@@ -66,12 +90,12 @@ EOF
 		$list_id =~ s/@/./;
 		$mime->header_set('List-Id', "<$list_id>");
 		$len = length($mime->as_string);
-		my $git = PublicInbox::Git->new($maindir);
-		my $im = PublicInbox::Import->new($git, 'test', $addr);
 		$im->add($mime);
 		$im->done;
-		my $s = PublicInbox::SearchIdx->new($maindir, 1);
-		$s->index_sync;
+		if ($version == 1) {
+			my $s = PublicInbox::SearchIdx->new($mainrepo, 1);
+			$s->index_sync;
+		}
 	}
 
 	ok($sock, 'sock created');

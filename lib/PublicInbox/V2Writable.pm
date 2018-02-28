@@ -79,6 +79,7 @@ sub idx_part {
 	$self->{idx_parts}->[$part];
 }
 
+# idempotent
 sub idx_init {
 	my ($self) = @_;
 	return if $self->{idx_parts};
