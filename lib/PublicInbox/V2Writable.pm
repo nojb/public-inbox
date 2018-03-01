@@ -115,7 +115,7 @@ sub remove {
 
 sub done {
 	my ($self) = @_;
-	my $im = $self->{im};
+	my $im = delete $self->{im};
 	$im->done if $im; # PublicInbox::Import::done
 	$self->searchidx_checkpoint(0);
 }
