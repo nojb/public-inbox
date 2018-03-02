@@ -11,8 +11,8 @@ use PublicInbox::SearchIdxSkeleton;
 use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
-use PublicInbox::MID qw(mid_clean mid_mime);
-use PublicInbox::ContentId qw(content_id);
+use PublicInbox::MID qw(mids);
+use PublicInbox::ContentId qw(content_id content_digest);
 use PublicInbox::Inbox;
 
 # an estimate of the post-packed size to the raw uncompressed size
@@ -62,21 +62,8 @@ sub add {
 	# leaking FDs to it...
 	$self->idx_init;
 
-	my $mid = mid_clean(mid_mime($mime));
-	my $num = $self->{skel}->{mm}->mid_insert($mid);
-	if (!defined($num)) { # mid is already known
-		$self->done; # ensure all subprocesses are done writing
-
-		my $existing = $self->lookup_content($mime);
-		warn "<$mid> resent\n" if $existing;
-		return if $existing; # easy, don't store duplicates
-
-		# reuse NNTP article number?
-		warn "<$mid> reused for mismatched content\n";
-		$self->idx_init;
-		$num = $self->{skel}->{mm}->num_for($mid);
-	}
-
+	my $num = num_for($self, $mime);
+	defined $num or return; # duplicate
 	my $im = $self->importer;
 	my $cmt = $im->add($mime);
 	$cmt = $im->get_mark($cmt);
@@ -93,6 +80,70 @@ sub add {
 	}
 
 	$mime;
+}
+
+sub num_for {
+	my ($self, $mime) = @_;
+	my $mids = mids($mime->header_obj);
+	if (@$mids) {
+		my $mid = $mids->[0];
+		my $num = $self->{skel}->{mm}->mid_insert($mid);
+		return $num if defined($num); # common case
+
+		# crap, Message-ID is already known, hope somebody just resent:
+		$self->done; # write barrier, clears $self->{skel}
+		foreach my $m (@$mids) {
+			# read-only lookup now safe to do after above barrier
+			my $existing = $self->lookup_content($mime, $m);
+			if ($existing) {
+				warn "<$m> resent\n";
+				return; # easy, don't store duplicates
+			}
+		}
+
+		# very unlikely:
+		warn "<$mid> reused for mismatched content\n";
+		$self->idx_init;
+
+		# try the rest of the mids
+		foreach my $i (1..$#$mids) {
+			my $m = $mids->[$i];
+			$num = $self->{skel}->{mm}->mid_insert($m);
+			if (defined $num) {
+				warn "alternative <$m> for <$mid> found\n";
+				return $num;
+			}
+		}
+	}
+	# none of the existing Message-IDs are good, generate a new one:
+	num_for_harder($self, $mime);
+}
+
+sub num_for_harder {
+	my ($self, $mime) = @_;
+
+	my $hdr = $mime->header_obj;
+	my $dig = content_digest($mime);
+	my $mid = $dig->clone->hexdigest . '@localhost';
+	my $num = $self->{skel}->{mm}->mid_insert($mid);
+	unless (defined $num) {
+		# it's hard to spoof the last Received: header
+		my @recvd = $hdr->header_raw('Received');
+		$dig->add("Received: $_") foreach (@recvd);
+		$mid = $dig->clone->hexdigest . '@localhost';
+		$num = $self->{skel}->{mm}->mid_insert($mid);
+
+		# fall back to a random Message-ID and give up determinism:
+		until (defined($num)) {
+			$dig->add(rand);
+			$mid = $dig->clone->hexdigest . '@localhost';
+			warn "using random Message-ID <$mid> as fallback\n";
+			$num = $self->{skel}->{mm}->mid_insert($mid);
+		}
+	}
+	my @cur = $hdr->header_raw('Message-Id');
+	$hdr->header_set('Message-Id', @cur, "<$mid>");
+	$num;
 }
 
 sub idx_part {
@@ -268,13 +319,12 @@ sub import_init {
 }
 
 sub lookup_content {
-	my ($self, $mime) = @_;
+	my ($self, $mime, $mid) = @_;
 	my $ibx = $self->{-inbox};
 
 	my $srch = $ibx->search;
 	my $cid = content_id($mime);
 	my $found;
-	my $mid = mid_mime($mime);
 	$srch->each_smsg_by_mid($mid, sub {
 		my ($smsg) = @_;
 		$smsg->load_expand;
