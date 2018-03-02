@@ -837,7 +837,7 @@ sub remote_close {
 	print $w "close\n" or die "failed to write to pid:$pid: $!\n";
 	close $w or die "failed to close pipe for pid:$pid: $!\n";
 	waitpid($pid, 0) == $pid or die "remote process did not finish";
-	$? == 0 or die ref($self)." exited with: $?";
+	$? == 0 or die ref($self)." pid:$pid exited with: $?";
 }
 
 1;
