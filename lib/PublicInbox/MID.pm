@@ -68,6 +68,9 @@ sub uniq_mids {
 }
 
 sub mids { uniq_mids($_[0], 'Message-Id') }
+
+# last References should be IRT, but some mail clients do things
+# out of order, so trust IRT over References iff IRT exists
 sub references { uniq_mids($_[0], 'References', 'In-Reply-To') }
 
 # RFC3986, section 3.3:

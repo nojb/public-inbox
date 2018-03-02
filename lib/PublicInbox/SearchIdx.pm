@@ -12,7 +12,7 @@ use warnings;
 use Fcntl qw(:flock :DEFAULT);
 use PublicInbox::MIME;
 use base qw(PublicInbox::Search);
-use PublicInbox::MID qw/mid_clean id_compress mid_mime/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime mids references/;
 use PublicInbox::MsgIter;
 use Carp qw(croak);
 use POSIX qw(strftime);
@@ -447,33 +447,24 @@ sub next_thread_id {
 
 sub parse_references ($) {
 	my ($smsg) = @_;
-	my $doc = $smsg->{doc};
-	my $mid = $smsg->mid;
 	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
+	my $refs = references($hdr);
+	return $refs if scalar(@$refs) == 0;
 
-	# last References should be IRT, but some mail clients do things
-	# out of order, so trust IRT over References iff IRT exists
-	my @refs = (($hdr->header_raw('References') || '') =~ /<([^>]+)>/g);
-	push(@refs, (($hdr->header_raw('In-Reply-To') || '') =~ /<([^>]+)>/g));
-
-	if (@refs) {
-		my %uniq = ($mid => 1);
-		my @orig_refs = @refs;
-		@refs = ();
-
-		# prevent circular references via References: here:
-		foreach my $ref (@orig_refs) {
-			if (length($ref) > MAX_MID_SIZE) {
-				warn "References: <$ref> too long, ignoring\n";
-			}
-			next if $uniq{$ref};
-			$uniq{$ref} = 1;
-			push @refs, $ref;
+	# prevent circular references via References here:
+	my %mids = map { $_ => 1 } @{mids($hdr)};
+	my @keep;
+	foreach my $ref (@$refs) {
+		# FIXME: this is an archive-prevention vector like X-No-Archive
+		if (length($ref) > MAX_MID_SIZE) {
+			warn "References: <$ref> too long, ignoring\n";
 		}
+		next if $mids{$ref};
+		push @keep, $ref;
 	}
-	$smsg->{references} = '<'.join('> <', @refs).'>' if @refs;
-	\@refs
+	$smsg->{references} = '<'.join('> <', @keep).'>' if @keep;
+	\@keep;
 }
 
 sub link_message {
