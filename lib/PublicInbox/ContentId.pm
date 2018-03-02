@@ -6,6 +6,7 @@ use strict;
 use warnings;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/content_id/;
+use PublicInbox::MID qw(mids references);
 
 # not sure if less-widely supported hash families are worth bothering with
 use Digest::SHA;
@@ -22,20 +23,18 @@ sub content_id ($;$) {
 	# References: and In-Reply-To: get used interchangeably
 	# in some "duplicates" in LKML.  We treat them the same
 	# in SearchIdx, so treat them the same for this:
-	my @mid = $hdr->header_raw('Message-ID');
-	@mid = (join(' ', @mid) =~ /<([^>]+)>/g);
-	my $refs = join(' ', $hdr->header_raw('References'),
-			$hdr->header_raw('In-Reply-To'));
-	my @refs = ($refs =~ /<([^>]+)>/g);
 	my %seen;
-	foreach my $mid (@mid, @refs) {
-		next if $seen{$mid};
-		$dig->add($mid);
+	foreach my $mid (@{mids($hdr)}) {
+		$dig->add('mid: '.$mid);
 		$seen{$mid} = 1;
+	}
+	foreach my $mid (@{references($hdr)}) {
+		next if $seen{$mid};
+		$dig->add('ref: '.$mid);
 	}
 	foreach my $h (@ID_HEADERS) {
 		my @v = $hdr->header_raw($h);
-		$dig->add($_) foreach @v;
+		$dig->add("$h: $_") foreach @v;
 	}
 	$dig->add($mime->body_raw);
 	'SHA-' . $dig->algorithm . ':' . $dig->hexdigest;
