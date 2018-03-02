@@ -79,8 +79,8 @@ sub later ($) {
 
 END {
 	_run_asap();
-	_run_next();
-	_run_later();
+	_run_all($nextq);
+	_run_all($laterq);
 }
 
 1;
