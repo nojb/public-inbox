@@ -158,7 +158,6 @@ sub new {
 				$xdb = $sub;
 			}
 		}
-		warn "v2 repo with $parts found in $dir\n";
 		$self->{xdb} = $xdb;
 		$self->{skel} = Search::Xapian::Database->new("$dir/skel");
 	} else {
