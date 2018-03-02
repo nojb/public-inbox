@@ -5,7 +5,7 @@ package PublicInbox::ContentId;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/content_id/;
+our @EXPORT_OK = qw/content_id content_digest/;
 use PublicInbox::MID qw(mids references);
 
 # not sure if less-widely supported hash families are worth bothering with
@@ -14,10 +14,9 @@ use Digest::SHA;
 # Content-* headers are often no-ops, so maybe we don't need them
 my @ID_HEADERS = qw(Subject From Date To Cc);
 
-sub content_id ($;$) {
-	my ($mime, $alg) = @_;
-	$alg ||= 256;
-	my $dig = Digest::SHA->new($alg);
+sub content_digest ($) {
+	my ($mime) = @_;
+	my $dig = Digest::SHA->new(256);
 	my $hdr = $mime->header_obj;
 
 	# References: and In-Reply-To: get used interchangeably
@@ -37,7 +36,11 @@ sub content_id ($;$) {
 		$dig->add("$h: $_") foreach @v;
 	}
 	$dig->add($mime->body_raw);
-	'SHA-' . $dig->algorithm . ':' . $dig->hexdigest;
+	$dig;
+}
+
+sub content_id ($) {
+	content_digest($_[0])->digest;
 }
 
 1;

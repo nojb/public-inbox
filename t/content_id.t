@@ -18,7 +18,8 @@ my $mime = Email::MIME->create(
 	body => "hello world\n",
 );
 
-my $res = content_id($mime);
-like($res, qr/\ASHA-256:[a-f0-9]{64}\z/, 'cid in format expected');
+my $orig = content_id($mime);
+my $reload = content_id(Email::MIME->new($mime->as_string));
+is($orig, $reload, 'content_id matches after serialization');
 
 done_testing();
