@@ -460,6 +460,7 @@ sub daemon_loop ($$) {
 	@listeners = map {
 		PublicInbox::Listener->new($_, $post_accept)
 	} @listeners;
+	$PublicInbox::EvCleanup::ENABLED = 1;
 	Danga::Socket->EventLoop;
 	$parent_pipe = undef;
 }

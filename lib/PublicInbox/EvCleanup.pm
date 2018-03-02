@@ -7,6 +7,8 @@ use strict;
 use warnings;
 use base qw(Danga::Socket);
 use fields qw(rd);
+
+our $ENABLED;
 my $singleton;
 my $asapq = [ [], undef ];
 my $nextq = [ [], undef ];
