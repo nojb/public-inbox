@@ -6,7 +6,8 @@ package PublicInbox::MID;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape MID_ESC/;
+our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape MID_ESC
+	mids references/;
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
 use constant MID_MAX => 40; # SHA-1 hex length
@@ -47,6 +48,27 @@ sub mid2path {
 }
 
 sub mid_mime ($) { $_[0]->header_obj->header_raw('Message-ID') }
+
+sub uniq_mids {
+	my ($hdr, @fields) = @_;
+	my %seen;
+	my @raw;
+	foreach my $f (@fields) {
+		push @raw, $hdr->header_raw($f);
+	}
+	my @mids = (join(' ', @raw) =~ /<([^>]+)>/g);
+	my $mids = scalar(@mids) == 0 ? \@raw: \@mids;
+	my @ret;
+	foreach (@$mids) {
+		next if $seen{$_};
+		push @ret, $_;
+		$seen{$_} = 1;
+	}
+	\@ret;
+}
+
+sub mids { uniq_mids($_[0], 'Message-Id') }
+sub references { uniq_mids($_[0], 'References', 'In-Reply-To') }
 
 # RFC3986, section 3.3:
 sub MID_ESC () { '^A-Za-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@' }
