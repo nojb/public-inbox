@@ -107,7 +107,7 @@ sub index_skeleton_real ($$) {
 	}
 	my $doc = $smsg->{doc};
 	$doc->add_term('XPATH' . $xpath) if defined $xpath;
-	$doc->add_term('XMID' . $mid);
+	$doc->add_term('Q' . $mid);
 	PublicInbox::SearchIdx::add_values($doc, $values);
 	$doc->set_data($doc_data);
 	$smsg->{ts} = $ts;

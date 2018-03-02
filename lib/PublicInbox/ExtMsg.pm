@@ -46,7 +46,7 @@ sub ext_msg {
 		}
 
 		# try to find the URL with Xapian to avoid forking
-		my $doc_id = eval { $s->find_first_doc_id('XMID' . $mid) };
+		my $doc_id = eval { $s->find_first_doc_id('Q' . $mid) };
 		if ($@) {
 			# xapian not configured properly for this repo
 			push @nox, $other;

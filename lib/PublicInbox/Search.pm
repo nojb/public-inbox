@@ -56,7 +56,7 @@ my %bool_pfx_internal = (
 );
 
 my %bool_pfx_external = (
-	mid => 'XMID', # Message-ID (full/exact)
+	mid => 'Q', # Message-ID (full/exact), this is mostly uniQue
 );
 
 my %prob_prefix = (
@@ -333,7 +333,7 @@ sub lookup_skeleton {
 	my ($self, $mid) = @_;
 	my $skel = $self->{skel} or return lookup_message($self, $mid);
 	$mid = mid_clean($mid);
-	my $term = 'XMID' . $mid;
+	my $term = 'Q' . $mid;
 	my $smsg;
 	my $beg = $skel->postlist_begin($term);
 	if ($beg != $skel->postlist_end($term)) {
@@ -352,7 +352,7 @@ sub lookup_message {
 	my ($self, $mid) = @_;
 	$mid = mid_clean($mid);
 
-	my $doc_id = $self->find_first_doc_id('XMID' . $mid);
+	my $doc_id = $self->find_first_doc_id('Q' . $mid);
 	my $smsg;
 	if (defined $doc_id) {
 		# raises on error:
@@ -377,7 +377,7 @@ sub each_smsg_by_mid {
 	my $xdb = $self->{xdb};
 	# XXX retry_reopen isn't necessary for V2Writable, but the PSGI
 	# interface will need it...
-	my ($head, $tail) = $self->find_doc_ids('XMID' . $mid);
+	my ($head, $tail) = $self->find_doc_ids('Q' . $mid);
 	for (; $head->nequal($tail); $head->inc) {
 		my $doc_id = $head->get_docid;
 		my $doc = $xdb->get_document($doc_id);

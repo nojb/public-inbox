@@ -154,7 +154,7 @@ sub mid ($;$) {
 	} elsif (my $rv = $self->{mid}) {
 		$rv;
 	} else {
-		$self->{mid} = _get_term_val($self, 'XMID', qr/\AXMID/) ||
+		$self->{mid} = _get_term_val($self, 'Q', qr/\AQ/) ||
 				$self->_extract_mid;
 	}
 }

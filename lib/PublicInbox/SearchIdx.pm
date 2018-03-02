@@ -19,7 +19,7 @@ use POSIX qw(strftime);
 require PublicInbox::Git;
 
 use constant {
-	MAX_MID_SIZE => 244, # max term size - 1 in Xapian
+	MAX_MID_SIZE => 244, # max term size (Xapian limitation) - length('Q')
 	PERM_UMASK => 0,
 	OLD_PERM_GROUP => 1,
 	OLD_PERM_EVERYBODY => 2,
@@ -302,7 +302,7 @@ sub add_message {
 		}
 		$smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
-		$doc->add_term('XMID' . $mid);
+		$doc->add_term('Q' . $mid);
 
 		my $subj = $smsg->subject;
 		my $xpath;
@@ -404,7 +404,7 @@ sub remove_message {
 	$mid = mid_clean($mid);
 
 	eval {
-		my ($head, $tail) = $self->find_doc_ids('XMID' . $mid);
+		my ($head, $tail) = $self->find_doc_ids('Q' . $mid);
 		if ($head->equal($tail)) {
 			warn "cannot remove non-existent <$mid>\n";
 		}
@@ -721,7 +721,7 @@ sub create_ghost {
 
 	my $tid = $self->next_thread_id;
 	my $doc = Search::Xapian::Document->new;
-	$doc->add_term('XMID' . $mid);
+	$doc->add_term('Q' . $mid);
 	$doc->add_term('G' . $tid);
 	$doc->add_term('T' . 'ghost');
 
