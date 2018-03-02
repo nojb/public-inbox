@@ -11,6 +11,9 @@ use PublicInbox::SearchIdxSkeleton;
 use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
+use PublicInbox::MID qw(mid_clean mid_mime);
+use PublicInbox::ContentId qw(content_id);
+use PublicInbox::Inbox;
 
 # an estimate of the post-packed size to the raw uncompressed size
 my $PACKING_FACTOR = 0.4;
@@ -46,22 +49,40 @@ sub new {
 # mimics Import::add and wraps it for v2
 sub add {
 	my ($self, $mime, $check_cb) = @_;
-	my $existing = $self->lookup_content($mime);
 
-	if ($existing) {
-		return undef if $existing->type eq 'mail'; # duplicate
+	# spam check:
+	if ($check_cb) {
+		$mime = $check_cb->($mime) or return;
+	}
+
+	# All pipes (> $^F) known to Perl 5.6+ have FD_CLOEXEC set,
+	# as does SQLite 3.4.1+ (released in 2007-07-20), and
+	# Xapian 1.3.2+ (released 2015-03-15).
+	# For the most part, we can spawn git-fast-import without
+	# leaking FDs to it...
+	$self->idx_init;
+
+	my $mid = mid_clean(mid_mime($mime));
+	my $num = $self->{skel}->{mm}->mid_insert($mid);
+	if (!defined($num)) { # mid is already known
+		$self->done; # ensure all subprocesses are done writing
+
+		my $existing = $self->lookup_content($mime);
+		warn "<$mid> resent\n" if $existing;
+		return if $existing; # easy, don't store duplicates
+
+		# reuse NNTP article number?
+		warn "<$mid> reused for mismatched content\n";
+		$self->idx_init;
+		$num = $self->{skel}->{mm}->num_for($mid);
 	}
 
 	my $im = $self->importer;
-
-	# im->add returns undef if check_cb fails
-	my $cmt = $im->add($mime, $check_cb) or return;
+	my $cmt = $im->add($mime);
 	$cmt = $im->get_mark($cmt);
 	my $oid = $im->{last_object_id};
 	my ($len, $msgref) = @{$im->{last_object}};
 
-	$self->idx_init;
-	my $num = $self->{skel}->index_mm($mime, 1);
 	my $nparts = $self->{partitions};
 	my $part = $num % $nparts;
 	my $idx = $self->idx_part($part);
@@ -83,6 +104,12 @@ sub idx_part {
 sub idx_init {
 	my ($self) = @_;
 	return if $self->{idx_parts};
+	my $ibx = $self->{-inbox};
+
+	# do not leak read-only FDs to child processes, we only have these
+	# FDs for duplicate detection so they should not be
+	# frequently activated.
+	delete $ibx->{$_} foreach (qw(git mm search));
 
 	# first time initialization, first we create the skeleton pipe:
 	my $skel = $self->{skel} = PublicInbox::SearchIdxSkeleton->new($self);
@@ -241,7 +268,30 @@ sub import_init {
 }
 
 sub lookup_content {
-	undef # TODO
+	my ($self, $mime) = @_;
+	my $ibx = $self->{-inbox};
+
+	my $srch = $ibx->search;
+	my $cid = content_id($mime);
+	my $found;
+	my $mid = mid_mime($mime);
+	$srch->each_smsg_by_mid($mid, sub {
+		my ($smsg) = @_;
+		$smsg->load_expand;
+		my $msg = $ibx->msg_by_smsg($smsg);
+		if (!defined($msg)) {
+			warn "broken smsg for $mid\n";
+			return 1; # continue
+		}
+		my $cur = PublicInbox::MIME->new($msg);
+		if (content_id($cur) eq $cid) {
+			$smsg->{mime} = $cur;
+			$found = $smsg;
+			return 0; # break out of loop
+		}
+		1; # continue
+	});
+	$found;
 }
 
 sub atfork_child {

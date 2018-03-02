@@ -371,6 +371,22 @@ sub lookup_mail { # no ghosts!
 	});
 }
 
+sub each_smsg_by_mid {
+	my ($self, $mid, $cb) = @_;
+	$mid = mid_clean($mid);
+	my $xdb = $self->{xdb};
+	# XXX retry_reopen isn't necessary for V2Writable, but the PSGI
+	# interface will need it...
+	my ($head, $tail) = $self->find_doc_ids('XMID' . $mid);
+	for (; $head->nequal($tail); $head->inc) {
+		my $doc_id = $head->get_docid;
+		my $doc = $xdb->get_document($doc_id);
+		my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
+		$smsg->{doc_id} = $doc_id;
+		$cb->($smsg) or return;
+	}
+}
+
 sub find_unique_doc_id {
 	my ($self, $termval) = @_;
 

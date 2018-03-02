@@ -284,7 +284,11 @@ sub add_message {
 	my $db = $self->{xdb};
 
 	my ($doc_id, $old_tid);
-	my $mid = mid_clean(mid_mime($mime));
+	my @mids = mid_mime($mime);
+	if (@mids > 1) {
+		warn "Multi-MID: ( ",join(' | ', @mids)," )\n";
+	}
+	my $mid = mid_clean($mids[0]);
 	my $skel = $self->{skeleton};
 
 	eval {
@@ -512,13 +516,12 @@ sub unindex_blob {
 }
 
 sub index_mm {
-	my ($self, $mime, $warn_existing) = @_;
+	my ($self, $mime) = @_;
 	my $mid = mid_clean(mid_mime($mime));
 	my $mm = $self->{mm};
 	my $num = $mm->mid_insert($mid);
 	return $num if defined $num;
 
-	warn "<$mid> reused\n" if $warn_existing;
 	# fallback to num_for since filters like RubyLang set the number
 	$mm->num_for($mid);
 }
