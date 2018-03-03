@@ -282,9 +282,9 @@ sub add {
 	print $w $str, "\n" or wfail;
 
 	# v2: we need this for Xapian
-	if ($self->{want_object_id}) {
-		chomp($self->{last_object_id} = $self->get_mark(":$blob"));
-		$self->{last_object} = [ $n, \$str ];
+	if ($self->{want_object_info}) {
+		chomp(my $oid = $self->get_mark(":$blob"));
+		$self->{last_object} = [ $oid, $n, \$str ];
 	}
 	my $ref = $self->{ref};
 	my $commit = $self->{mark}++;

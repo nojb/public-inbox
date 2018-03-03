@@ -69,8 +69,7 @@ sub add {
 	my $im = $self->importer;
 	my $cmt = $im->add($mime);
 	$cmt = $im->get_mark($cmt);
-	my $oid = $im->{last_object_id};
-	my ($len, $msgref) = @{$im->{last_object}};
+	my ($oid, $len, $msgref) = @{$im->{last_object}};
 
 	my $nparts = $self->{partitions};
 	my $part = $num % $nparts;
@@ -318,7 +317,7 @@ sub import_init {
 	my ($self, $git, $packed_bytes) = @_;
 	my $im = PublicInbox::Import->new($git, undef, undef, $self->{-inbox});
 	$im->{bytes_added} = int($packed_bytes / $PACKING_FACTOR);
-	$im->{want_object_id} = 1;
+	$im->{want_object_info} = 1;
 	$im->{ssoma_lock} = 0;
 	$im->{path_type} = 'v2';
 	$self->{im} = $im;
