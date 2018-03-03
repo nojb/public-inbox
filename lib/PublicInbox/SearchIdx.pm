@@ -19,7 +19,6 @@ use POSIX qw(strftime);
 require PublicInbox::Git;
 
 use constant {
-	MAX_MID_SIZE => 244, # max term size (Xapian limitation) - length('Q')
 	PERM_UMASK => 0,
 	OLD_PERM_GROUP => 1,
 	OLD_PERM_EVERYBODY => 2,
@@ -311,12 +310,6 @@ sub add_message {
 	eval {
 		my $smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
-		foreach my $mid (@$mids) {
-			# FIXME: may be abused to prevent archival
-			length($mid) > MAX_MID_SIZE and
-				die 'Message-ID too long';
-			$doc->add_term('Q' . $mid);
-		}
 		my $subj = $smsg->subject;
 		my $xpath;
 		if ($subj ne '') {
@@ -392,9 +385,11 @@ sub add_message {
 				}
 			}
 		}
+
 		if ($skel) {
 			push @values, $mids, $xpath, $data;
 			$skel->index_skeleton(\@values);
+			$doc->add_boolean_term('Q' . $_) foreach @$mids;
 			$doc_id = $self->{xdb}->add_document($doc);
 		} else {
 			$doc_id = link_and_save($self, $doc, $mids, $refs,
@@ -469,9 +464,9 @@ sub parse_references ($) {
 	my %mids = map { $_ => 1 } @{mids($hdr)};
 	my @keep;
 	foreach my $ref (@$refs) {
-		# FIXME: this is an archive-prevention vector like X-No-Archive
-		if (length($ref) > MAX_MID_SIZE) {
+		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {
 			warn "References: <$ref> too long, ignoring\n";
+			next;
 		}
 		next if $mids{$ref};
 		push @keep, $ref;
@@ -510,6 +505,8 @@ sub link_and_save {
 	my $doc_id;
 	$doc->add_boolean_term('XNUM' . $num) if defined $num;
 	$doc->add_boolean_term('XPATH' . $xpath) if defined $xpath;
+	$doc->add_boolean_term('Q' . $_) foreach @$mids;
+
 	my $vivified = 0;
 	foreach my $mid (@$mids) {
 		$self->each_smsg_by_mid($mid, sub {

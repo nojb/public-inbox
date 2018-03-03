@@ -98,9 +98,6 @@ sub index_skeleton_real ($$) {
 	my $ts = $values->[PublicInbox::Search::TS];
 	my $smsg = PublicInbox::SearchMsg->new(undef);
 	my $doc = $smsg->{doc};
-	foreach my $mid (@$mids) {
-		$doc->add_term('Q' . $mid);
-	}
 	PublicInbox::SearchIdx::add_values($doc, $values);
 	$doc->set_data($doc_data);
 	$smsg->{ts} = $ts;

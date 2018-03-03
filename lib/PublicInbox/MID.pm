@@ -10,7 +10,10 @@ our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape MID_ESC
 	mids references/;
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
-use constant MID_MAX => 40; # SHA-1 hex length
+use constant {
+	MID_MAX => 40, # SHA-1 hex length # TODO: get rid of this
+	MAX_MID_SIZE => 244, # max term size (Xapian limitation) - length('Q')
+};
 
 sub mid_clean {
 	my ($mid) = @_;
@@ -61,6 +64,12 @@ sub mids ($) {
 			push(@mids, $v);
 		}
 	}
+	foreach my $i (0..$#mids) {
+		next if length($mids[$i]) <= MAX_MID_SIZE;
+		warn "Message-ID: <$mids[$i]> too long, truncating\n";
+		$mids[$i] = substr($mids[$i], 0, MAX_MID_SIZE);
+	}
+
 	uniq_mids(\@mids);
 }
 
