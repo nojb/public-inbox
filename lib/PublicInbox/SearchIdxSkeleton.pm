@@ -80,6 +80,8 @@ sub index_skeleton {
 	$str = length($str) . "\n" . $str;
 
 	# multiple processes write to the same pipe, so use flock
+	# We can't avoid this lock for <=PIPE_BUF writes, either,
+	# because those atomic writes can break up >PIPE_BUF ones
 	$self->_lock_acquire;
 	print $w $str or $err = $!;
 	$self->_lock_release;
