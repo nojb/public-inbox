@@ -322,7 +322,6 @@ sub add_message {
 		if ($subj ne '') {
 			$xpath = $self->subject_path($subj);
 			$xpath = id_compress($xpath);
-			$doc->add_boolean_term('XPATH' . $xpath);
 		}
 
 		my $lines = $mime->body_raw =~ tr!\n!\n!;
@@ -398,7 +397,8 @@ sub add_message {
 			$skel->index_skeleton(\@values);
 			$doc_id = $self->{xdb}->add_document($doc);
 		} else {
-			$doc_id = link_and_save($self, $doc, $mids, $refs);
+			$doc_id = link_and_save($self, $doc, $mids, $refs,
+						$num, $xpath);
 		}
 	};
 
@@ -504,10 +504,12 @@ sub link_doc {
 }
 
 sub link_and_save {
-	my ($self, $doc, $mids, $refs) = @_;
+	my ($self, $doc, $mids, $refs, $num, $xpath) = @_;
 	my $db = $self->{xdb};
 	my $old_tid;
 	my $doc_id;
+	$doc->add_boolean_term('XNUM' . $num) if defined $num;
+	$doc->add_boolean_term('XPATH' . $xpath) if defined $xpath;
 	my $vivified = 0;
 	foreach my $mid (@$mids) {
 		$self->each_smsg_by_mid($mid, sub {

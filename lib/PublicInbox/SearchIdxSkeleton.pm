@@ -98,7 +98,6 @@ sub index_skeleton_real ($$) {
 	my $ts = $values->[PublicInbox::Search::TS];
 	my $smsg = PublicInbox::SearchMsg->new(undef);
 	my $doc = $smsg->{doc};
-	$doc->add_boolean_term('XPATH' . $xpath) if defined $xpath;
 	foreach my $mid (@$mids) {
 		$doc->add_term('Q' . $mid);
 	}
@@ -106,8 +105,9 @@ sub index_skeleton_real ($$) {
 	$doc->set_data($doc_data);
 	$smsg->{ts} = $ts;
 	$smsg->load_from_data($doc_data);
+	my $num = $values->[PublicInbox::Search::NUM];
 	my @refs = ($smsg->references =~ /<([^>]+)>/g);
-	$self->link_and_save($doc, $mids, \@refs);
+	$self->link_and_save($doc, $mids, \@refs, $num, $xpath);
 }
 
 1;
