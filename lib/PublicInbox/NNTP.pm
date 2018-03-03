@@ -463,18 +463,16 @@ find_mid:
 		defined $mid or return $err;
 	}
 found:
-	my $bytes;
-	my $s = eval { $ng->msg_by_mid($mid, \$bytes) } or return $err;
-	$s = Email::Simple->new($s);
-	my $lines;
+	my $smsg = $ng->search->lookup_article($n) or return $err;
+	my $msg = $ng->msg_by_smsg($smsg) or return $err;
+	my $s = Email::Simple->new($msg);
 	if ($set_headers) {
 		set_nntp_headers($s->header_obj, $ng, $n, $mid);
-		$lines = $s->body =~ tr!\n!\n!;
 
 		# must be last
 		$s->body_set('') if ($set_headers == 2);
 	}
-	[ $n, $mid, $s, $bytes, $lines, $ng ];
+	[ $n, $mid, $s, $smsg->bytes, $smsg->lines, $ng ];
 }
 
 sub simple_body_write ($$) {
@@ -693,8 +691,8 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 }
 
 sub search_header_for {
-	my ($srch, $mid, $field) = @_;
-	my $smsg = $srch->lookup_mail($mid) or return;
+	my ($srch, $num, $field) = @_;
+	my $smsg = $srch->lookup_article($num) or return;
 	$smsg->$field;
 }
 
@@ -702,8 +700,8 @@ sub hdr_searchmsg ($$$$) {
 	my ($self, $xhdr, $field, $range) = @_;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my ($ng, $n) = mid_lookup($self, $1);
-		return r430 unless $n;
-		my $v = search_header_for($ng->search, $range, $field);
+		return r430 unless defined $n;
+		my $v = search_header_for($ng->search, $n, $field);
 		hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
@@ -803,9 +801,10 @@ sub cmd_xrover ($;$) {
 	more($self, '224 Overview information follows');
 	long_response($self, $beg, $end, sub {
 		my ($i) = @_;
-		my $mid = $mm->mid_for($$i) or return;
-		my $h = search_header_for($srch, $mid, 'references');
-		more($self, "$$i $h");
+		my $num = $$i;
+		my $h = search_header_for($srch, $num, 'references');
+		defined $h or return;
+		more($self, "$num $h");
 	});
 }
 
@@ -829,8 +828,8 @@ sub cmd_over ($;$) {
 	my ($self, $range) = @_;
 	if ($range && $range =~ /\A<(.+)>\z/) {
 		my ($ng, $n) = mid_lookup($self, $1);
-		my $smsg = $ng->search->lookup_mail($range) or
-			return '430 No article with that message-id';
+		defined $n or return r430;
+		my $smsg = $ng->search->lookup_article($n) or return r430;
 		more($self, '224 Overview information follows (multi-line)');
 
 		# Only set article number column if it's the current group

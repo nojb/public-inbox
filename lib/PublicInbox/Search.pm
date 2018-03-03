@@ -372,6 +372,27 @@ sub lookup_mail { # no ghosts!
 	});
 }
 
+sub lookup_article {
+	my ($self, $num) = @_;
+	my $term = 'XNUM'.$num;
+	my $smsg;
+	eval {
+		retry_reopen($self, sub {
+			my $db = $self->{skel} || $self->{xdb};
+			my $head = $db->postlist_begin($term);
+			return if $head == $db->postlist_end($term);
+			my $doc_id = $head->get_docid;
+			return unless defined $doc_id;
+			# raises on error:
+			my $doc = $db->get_document($doc_id);
+			$smsg = PublicInbox::SearchMsg->wrap($doc);
+			$smsg->load_expand;
+			$smsg->{doc_id} = $doc_id;
+		});
+	};
+	$smsg;
+}
+
 sub each_smsg_by_mid {
 	my ($self, $mid, $cb) = @_;
 	my $xdb = $self->{xdb};
