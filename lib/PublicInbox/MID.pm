@@ -49,16 +49,39 @@ sub mid2path {
 
 sub mid_mime ($) { $_[0]->header_obj->header_raw('Message-ID') }
 
-sub uniq_mids {
-	my ($hdr, @fields) = @_;
-	my %seen;
-	my @raw;
-	foreach my $f (@fields) {
-		push @raw, $hdr->header_raw($f);
+sub mids ($) {
+	my ($hdr) = @_;
+	my @mids;
+	my @v = $hdr->header_raw('Message-Id');
+	foreach my $v (@v) {
+		my @cur = ($v =~ /<([^>]+)>/sg);
+		if (@cur) {
+			push(@mids, @cur);
+		} else {
+			push(@mids, $v);
+		}
 	}
-	my @mids = (join(' ', @raw) =~ /<([^>]+)>/g);
-	my $mids = scalar(@mids) == 0 ? \@raw: \@mids;
+	uniq_mids(\@mids);
+}
+
+# last References should be IRT, but some mail clients do things
+# out of order, so trust IRT over References iff IRT exists
+sub references ($) {
+	my ($hdr) = @_;
+	my @mids;
+	foreach my $f (qw(References In-Reply-To)) {
+		my @v = $hdr->header_raw($f);
+		foreach my $v (@v) {
+			push(@mids, ($v =~ /<([^>]+)>/sg));
+		}
+	}
+	uniq_mids(\@mids);
+}
+
+sub uniq_mids ($) {
+	my ($mids) = @_;
 	my @ret;
+	my %seen;
 	foreach (@$mids) {
 		next if $seen{$_};
 		push @ret, $_;
@@ -66,12 +89,6 @@ sub uniq_mids {
 	}
 	\@ret;
 }
-
-sub mids { uniq_mids($_[0], 'Message-Id') }
-
-# last References should be IRT, but some mail clients do things
-# out of order, so trust IRT over References iff IRT exists
-sub references { uniq_mids($_[0], 'References', 'In-Reply-To') }
 
 # RFC3986, section 3.3:
 sub MID_ESC () { '^A-Za-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@' }
