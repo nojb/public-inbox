@@ -281,6 +281,19 @@ sub query_xover {
 	_do_enquire($self, $query, {num => 1, limit => 200, offset => $offset});
 }
 
+sub query_ts {
+	my ($self, $ts, $opts) = @_;
+	my $qp = $self->{qp_ts} ||= eval {
+		my $q = Search::Xapian::QueryParser->new;
+		$q->set_database($self->{xdb});
+		$q->add_valuerangeprocessor(
+			Search::Xapian::NumberValueRangeProcessor->new(TS));
+		$q
+	};
+	my $query = $qp->parse_query($ts, QP_FLAGS);
+	_do_enquire($self, $query, $opts);
+}
+
 sub lookup_message {
 	my ($self, $mid) = @_;
 	$mid = mid_clean($mid);

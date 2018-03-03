@@ -204,6 +204,8 @@ EOF
 	is_deeply($n->xhdr(qw(list-id 1-)), {},
 		 'XHDR on invalid header returns empty');
 
+	my $mids = $n->newnews(0, '*');
+	is_deeply($mids, ['<nntp@example.com>'], 'NEWNEWS works');
 	{
 		my $t0 = time;
 		my $date = $n->date;

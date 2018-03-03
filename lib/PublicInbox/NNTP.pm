@@ -336,7 +336,7 @@ sub cmd_newnews ($$$$;$$) {
 	long_response($self, 0, long_response_limit, sub {
 		my ($i) = @_;
 		my $srch = $srch[0];
-		my $res = $srch->query($ts, $opts);
+		my $res = $srch->query_ts($ts, $opts);
 		my $msgs = $res->{msgs};
 		if (my $nr = scalar @$msgs) {
 			more($self, '<' .
