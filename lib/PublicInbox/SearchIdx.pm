@@ -175,14 +175,19 @@ sub index_users ($$) {
 	$tg->increase_termpos;
 }
 
-sub index_text_inc ($$$) {
-	my ($tg, $text, $pfx) = @_;
+sub index_diff_inc ($$$$) {
+	my ($tg, $text, $pfx, $xnq) = @_;
+	if (@$xnq) {
+		$tg->index_text(join("\n", @$xnq), 1, 'XNQ');
+		$tg->increase_termpos;
+		@$xnq = ();
+	}
 	$tg->index_text($text, 1, $pfx);
 	$tg->increase_termpos;
 }
 
 sub index_old_diff_fn {
-	my ($tg, $seen, $fa, $fb) = @_;
+	my ($tg, $seen, $fa, $fb, $xnq) = @_;
 
 	# no renames or space support for traditional diffs,
 	# find the number of leading common paths to strip:
@@ -192,7 +197,9 @@ sub index_old_diff_fn {
 		$fa = join('/', @fa);
 		$fb = join('/', @fb);
 		if ($fa eq $fb) {
-			index_text_inc($tg, $fa,'XDFN') unless $seen->{$fa}++;
+			unless ($seen->{$fa}++) {
+				index_diff_inc($tg, $fa, 'XDFN', $xnq);
+			}
 			return 1;
 		}
 		shift @fa;
@@ -205,40 +212,46 @@ sub index_diff ($$$) {
 	my ($tg, $lines, $doc) = @_;
 	my %seen;
 	my $in_diff;
+	my @xnq;
+	my $xnq = \@xnq;
 	foreach (@$lines) {
 		if ($in_diff && s/^ //) { # diff context
-			index_text_inc($tg, $_, 'XDFCTX');
+			index_diff_inc($tg, $_, 'XDFCTX', $xnq);
 		} elsif (/^-- $/) { # email signature begins
 			$in_diff = undef;
 		} elsif (m!^diff --git ("?a/.+) ("?b/.+)\z!) {
 			my ($fa, $fb) = ($1, $2);
 			my $fn = (split('/', git_unquote($fa), 2))[1];
-			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
 			$fn = (split('/', git_unquote($fb), 2))[1];
-			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		# traditional diff:
 		} elsif (m/^diff -(.+) (\S+) (\S+)$/) {
 			my ($opt, $fa, $fb) = ($1, $2, $3);
+			push @xnq, $_;
 			# only support unified:
 			next unless $opt =~ /[uU]/;
-			$in_diff = index_old_diff_fn($tg, \%seen, $fa, $fb);
+			$in_diff = index_old_diff_fn($tg, \%seen, $fa, $fb,
+							$xnq);
 		} elsif (m!^--- ("?a/.+)!) {
 			my $fn = (split('/', git_unquote($1), 2))[1];
-			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (m!^\+\+\+ ("?b/.+)!)  {
 			my $fn = (split('/', git_unquote($1), 2))[1];
-			index_text_inc($tg, $fn, 'XDFN') unless $seen{$fn}++;
+			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (/^--- (\S+)/) {
 			$in_diff = $1;
+			push @xnq, $_;
 		} elsif (defined $in_diff && /^\+\+\+ (\S+)/) {
-			$in_diff = index_old_diff_fn($tg, \%seen, $in_diff, $1);
+			$in_diff = index_old_diff_fn($tg, \%seen, $in_diff, $1,
+							$xnq);
 		} elsif ($in_diff && s/^\+//) { # diff added
-			index_text_inc($tg, $_, 'XDFB');
+			index_diff_inc($tg, $_, 'XDFB', $xnq);
 		} elsif ($in_diff && s/^-//) { # diff removed
-			index_text_inc($tg, $_, 'XDFA');
+			index_diff_inc($tg, $_, 'XDFA', $xnq);
 		} elsif (m!^index ([a-f0-9]+)\.\.([a-f0-9]+)!) {
 			my ($ba, $bb) = ($1, $2);
 			index_git_blob_id($doc, 'XDFPRE', $ba);
@@ -248,34 +261,44 @@ sub index_diff ($$$) {
 			# traditional diff w/o -p
 		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*(\S+.*)$/) {
 			# hunk header context
-			index_text_inc($tg, $1, 'XDFHH');
+			index_diff_inc($tg, $1, 'XDFHH', $xnq);
 		# ignore the following lines:
-		} elsif (/^(?:dis)similarity index/) {
-		} elsif (/^(?:old|new) mode/) {
-		} elsif (/^(?:deleted|new) file mode/) {
-		} elsif (/^(?:copy|rename) (?:from|to) /) {
-		} elsif (/^(?:dis)?similarity index /) {
-		} elsif (/^\\ No newline at end of file/) {
-		} elsif (/^Binary files .* differ/) {
+		} elsif (/^(?:dis)similarity index/ ||
+				/^(?:old|new) mode/ ||
+				/^(?:deleted|new) file mode/ ||
+				/^(?:copy|rename) (?:from|to) / ||
+				/^(?:dis)?similarity index / ||
+				/^\\ No newline at end of file/ ||
+				/^Binary files .* differ/) {
+			push @xnq, $_;
 		} elsif ($_ eq '') {
 			$in_diff = undef;
 		} else {
+			push @xnq, $_;
 			warn "non-diff line: $_\n" if DEBUG && $_ ne '';
 			$in_diff = undef;
 		}
 	}
+
+	$tg->index_text(join("\n", @xnq), 1, 'XNQ');
+	$tg->increase_termpos;
 }
 
 sub index_body ($$$) {
 	my ($tg, $lines, $doc) = @_;
 	my $txt = join("\n", @$lines);
-	$tg->index_text($txt, !!$doc, $doc ? 'XNQ' : 'XQUOT');
-	$tg->increase_termpos;
-	# does it look like a diff?
-	if ($doc && $txt =~ /^(?:diff|---|\+\+\+) /ms) {
-		$txt = undef;
-		index_diff($tg, $lines, $doc);
+	if ($doc) {
+		# does it look like a diff?
+		if ($txt =~ /^(?:diff|---|\+\+\+) /ms) {
+			$txt = undef;
+			index_diff($tg, $lines, $doc);
+		} else {
+			$tg->index_text($txt, 1, 'XNQ');
+		}
+	} else {
+		$tg->index_text($txt, 0, 'XQUOT');
 	}
+	$tg->increase_termpos;
 	@$lines = ();
 }
 

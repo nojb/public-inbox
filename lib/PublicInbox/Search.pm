@@ -59,6 +59,7 @@ my %bool_pfx_external = (
 	mid => 'Q', # Message-ID (full/exact), this is mostly uniQue
 );
 
+my $non_quoted_body = 'XNQ XDFN XDFA XDFB XDFHH XDFCTX XDFPRE XDFPOST';
 my %prob_prefix = (
 	# for mairix compatibility
 	s => 'S',
@@ -69,12 +70,12 @@ my %prob_prefix = (
 	c => 'XCC',
 	tcf => 'XTO XCC A',
 	a => 'XTO XCC A',
-	b => 'XNQ XQUOT',
-	bs => 'XNQ XQUOT S',
+	b => $non_quoted_body . ' XQUOT',
+	bs => $non_quoted_body . ' XQUOT S',
 	n => 'XFN',
 
 	q => 'XQUOT',
-	nq => 'XNQ',
+	nq => $non_quoted_body,
 	dfn => 'XDFN',
 	dfa => 'XDFA',
 	dfb => 'XDFB',
@@ -85,7 +86,7 @@ my %prob_prefix = (
 	dfblob => 'XDFPRE XDFPOST',
 
 	# default:
-	'' => 'XM S A XNQ XQUOT XFN',
+	'' => 'XM S A XQUOT XFN ' . $non_quoted_body,
 );
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian
