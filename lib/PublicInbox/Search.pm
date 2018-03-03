@@ -330,6 +330,20 @@ sub query_xover {
 	_do_enquire($self, $query, $opts);
 }
 
+sub query_ts {
+	my ($self, $ts, $opts) = @_;
+	my $qp = $self->{qp_ts} ||= eval {
+		my $q = Search::Xapian::QueryParser->new;
+		$q->set_database($self->{skel} || $self->{xdb});
+		$q->add_valuerangeprocessor(
+			Search::Xapian::NumberValueRangeProcessor->new(TS));
+		$q
+	};
+	my $query = $qp->parse_query($ts, QP_FLAGS);
+	$opts->{enquire} = enquire_skel($self);
+	_do_enquire($self, $query, $opts);
+}
+
 sub lookup_skeleton {
 	my ($self, $mid) = @_;
 	my $skel = $self->{skel} or return lookup_message($self, $mid);
