@@ -80,5 +80,18 @@ ok($im->add($mime), 'ordinary message added');
 	is(scalar(@mids), 1, 'new generated');
 }
 
-$im->done;
+{
+	$mime->header_set('Message-Id', '<abcde@1>', '<abcde@2>');
+	ok($im->add($mime), 'message with multiple Message-ID');
+	$im->done;
+	my @found;
+	$ibx->search->each_smsg_by_mid('abcde@1', sub { push @found, @_; 1 });
+	is(scalar(@found), 1, 'message found by first MID');
+	$ibx->search->each_smsg_by_mid('abcde@2', sub { push @found, @_; 1 });
+	is(scalar(@found), 2, 'message found by second MID');
+	is($found[0]->{doc_id}, $found[1]->{doc_id}, 'same document');
+	ok($found[1]->{doc_id} > 0, 'doc_id is positive');
+}
+
+
 done_testing();

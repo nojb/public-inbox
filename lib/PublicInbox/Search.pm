@@ -373,7 +373,6 @@ sub lookup_mail { # no ghosts!
 
 sub each_smsg_by_mid {
 	my ($self, $mid, $cb) = @_;
-	$mid = mid_clean($mid);
 	my $xdb = $self->{xdb};
 	# XXX retry_reopen isn't necessary for V2Writable, but the PSGI
 	# interface will need it...

@@ -176,4 +176,11 @@ sub path {
 	$self->{path} = _get_term_val($self, 'XPATH', qr/\AXPATH/); # path
 }
 
+sub type {
+	my ($self) = @_;
+	my $type = $self->{type};
+	return $type if defined $type;
+	$self->{type} = _get_term_val($self, 'T', qr/\AT/);
+}
+
 1;

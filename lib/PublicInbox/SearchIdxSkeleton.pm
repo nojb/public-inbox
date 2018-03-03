@@ -92,34 +92,20 @@ sub index_skeleton_real ($$) {
 	my ($self, $values) = @_;
 	my $doc_data = pop @$values;
 	my $xpath = pop @$values;
-	my $mid = pop @$values;
+	my $mids = pop @$values;
 	my $ts = $values->[PublicInbox::Search::TS];
-	my $smsg = $self->lookup_message($mid);
-	my ($old_tid, $doc_id);
-	if ($smsg) {
-		# convert a ghost to a regular message
-		# it will also clobber any existing regular message
-		$doc_id = $smsg->{doc_id};
-		$old_tid = $smsg->thread_id;
-	} else {
-		$smsg = PublicInbox::SearchMsg->new(undef);
-		$smsg->{mid} = $mid;
-	}
+	my $smsg = PublicInbox::SearchMsg->new(undef);
 	my $doc = $smsg->{doc};
 	$doc->add_term('XPATH' . $xpath) if defined $xpath;
-	$doc->add_term('Q' . $mid);
+	foreach my $mid (@$mids) {
+		$doc->add_term('Q' . $mid);
+	}
 	PublicInbox::SearchIdx::add_values($doc, $values);
 	$doc->set_data($doc_data);
 	$smsg->{ts} = $ts;
 	$smsg->load_from_data($doc_data);
 	my @refs = ($smsg->references =~ /<([^>]+)>/g);
-	$self->link_message($smsg, \@refs, $old_tid);
-	my $db = $self->{xdb};
-	if (defined $doc_id) {
-		$db->replace_document($doc_id, $doc);
-	} else {
-		$doc_id = $db->add_document($doc);
-	}
+	$self->link_and_save($doc, $mids, \@refs);
 }
 
 1;

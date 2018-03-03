@@ -281,29 +281,19 @@ sub index_body ($$$) {
 
 sub add_message {
 	my ($self, $mime, $bytes, $num, $blob) = @_; # mime = Email::MIME object
-	my $db = $self->{xdb};
-
-	my ($doc_id, $old_tid);
-	my @mids = mid_mime($mime);
-	if (@mids > 1) {
-		warn "Multi-MID: ( ",join(' | ', @mids)," )\n";
-	}
-	my $mid = mid_clean($mids[0]);
+	my $doc_id;
+	my $mids = mids($mime->header_obj);
 	my $skel = $self->{skeleton};
 
 	eval {
-		die 'Message-ID too long' if length($mid) > MAX_MID_SIZE;
-		my $smsg = $self->lookup_message($mid);
-		if ($smsg) {
-			# convert a ghost to a regular message
-			# it will also clobber any existing regular message
-			$doc_id = $smsg->{doc_id};
-			$old_tid = $smsg->thread_id unless $skel;
-		}
-		$smsg = PublicInbox::SearchMsg->new($mime);
+		my $smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
-		$doc->add_term('Q' . $mid);
-
+		foreach my $mid (@$mids) {
+			# FIXME: may be abused to prevent archival
+			length($mid) > MAX_MID_SIZE and
+				die 'Message-ID too long';
+			$doc->add_term('Q' . $mid);
+		}
 		my $subj = $smsg->subject;
 		my $xpath;
 		if ($subj ne '') {
@@ -366,31 +356,30 @@ sub add_message {
 		# populates smsg->references for smsg->to_doc_data
 		my $refs = parse_references($smsg);
 		my $data = $smsg->to_doc_data($blob);
-		if ($skel) {
-			push @values, $mid, $xpath, $data;
-			$skel->index_skeleton(\@values);
-		} else {
-			link_message($self, $smsg, $refs, $old_tid);
+		foreach my $mid (@$mids) {
+			$tg->index_text($mid, 1, 'XM');
 		}
-		$tg->index_text($mid, 1, 'XM');
 		$doc->set_data($data);
-
 		if (my $altid = $self->{-altid}) {
 			foreach my $alt (@$altid) {
-				my $id = $alt->mid2alt($mid);
-				next unless defined $id;
-				$doc->add_term($alt->{xprefix} . $id);
+				foreach my $mid (@$mids) {
+					my $id = $alt->mid2alt($mid);
+					next unless defined $id;
+					$doc->add_term($alt->{xprefix} . $id);
+				}
 			}
 		}
-		if (defined $doc_id) {
-			$db->replace_document($doc_id, $doc);
+		if ($skel) {
+			push @values, $mids, $xpath, $data;
+			$skel->index_skeleton(\@values);
+			$doc_id = $self->{xdb}->add_document($doc);
 		} else {
-			$doc_id = $db->add_document($doc);
+			$doc_id = link_and_save($self, $doc, $mids, $refs);
 		}
 	};
 
 	if ($@) {
-		warn "failed to index message <$mid>: $@\n";
+		warn "failed to index message <".join('> <',@$mids).">: $@\n";
 		return undef;
 	}
 	$doc_id;
@@ -467,27 +456,62 @@ sub parse_references ($) {
 	\@keep;
 }
 
-sub link_message {
-	my ($self, $smsg, $refs, $old_tid) = @_;
+sub link_doc {
+	my ($self, $doc, $refs, $old_tid) = @_;
 	my $tid;
 
 	if (@$refs) {
-
 		# first ref *should* be the thread root,
 		# but we can never trust clients to do the right thing
 		my $ref = shift @$refs;
-		$tid = $self->_resolve_mid_to_tid($ref);
-		$self->merge_threads($tid, $old_tid) if defined $old_tid;
+		$tid = resolve_mid_to_tid($self, $ref);
+		merge_threads($self, $tid, $old_tid) if defined $old_tid;
 
 		# the rest of the refs should point to this tid:
 		foreach $ref (@$refs) {
-			my $ptid = $self->_resolve_mid_to_tid($ref);
+			my $ptid = resolve_mid_to_tid($self, $ref);
 			merge_threads($self, $tid, $ptid);
 		}
 	} else {
 		$tid = defined $old_tid ? $old_tid : $self->next_thread_id;
 	}
-	$smsg->{doc}->add_term('G' . $tid);
+	$doc->add_term('G' . $tid);
+	$tid;
+}
+
+sub link_and_save {
+	my ($self, $doc, $mids, $refs) = @_;
+	my $db = $self->{xdb};
+	my $old_tid;
+	my $doc_id;
+	my $vivified = 0;
+	foreach my $mid (@$mids) {
+		$self->each_smsg_by_mid($mid, sub {
+			my ($cur) = @_;
+			my $type = $cur->type;
+			my $cur_tid = $cur->thread_id;
+			$old_tid = $cur_tid unless defined $old_tid;
+			if ($type eq 'mail') {
+				# do not break existing mail messages,
+				# just merge the threads
+				merge_threads($self, $old_tid, $cur_tid);
+				return 1;
+			}
+			if ($type ne 'ghost') {
+				die "<$mid> has a bad type: $type\n";
+			}
+			my $tid = link_doc($self, $doc, $refs, $old_tid);
+			$old_tid = $tid unless defined $old_tid;
+			$doc_id = $cur->{doc_id};
+			$self->{xdb}->replace_document($doc_id, $doc);
+			++$vivified;
+			1;
+		});
+	}
+	# not really important, but we return any vivified ghost docid, here:
+	return $doc_id if defined $doc_id;
+	link_doc($self, $doc, $refs, $old_tid);
+	$self->{xdb}->add_document($doc);
 }
 
 sub index_git_blob_id {
@@ -709,11 +733,22 @@ sub _index_sync {
 }
 
 # this will create a ghost as necessary
-sub _resolve_mid_to_tid {
+sub resolve_mid_to_tid {
 	my ($self, $mid) = @_;
+	my $tid;
+	$self->each_smsg_by_mid($mid, sub {
+		my ($smsg) = @_;
+		my $cur_tid = $smsg->thread_id;
+		if (defined $tid) {
+			merge_threads($self, $tid, $cur_tid);
+		} else {
+			$tid = $smsg->thread_id;
+		}
+		1;
+	});
+	return $tid if defined $tid;
 
-	my $smsg = $self->lookup_message($mid) || $self->create_ghost($mid);
-	$smsg->thread_id;
+	$self->create_ghost($mid)->thread_id;
 }
 
 sub create_ghost {
