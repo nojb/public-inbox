@@ -32,6 +32,22 @@ my $mime = PublicInbox::MIME->create(
 
 my $im = PublicInbox::V2Writable->new($ibx, 1);
 ok($im->add($mime), 'ordinary message added');
+
+if ('ensure git configs are correct') {
+	my @cmd = (qw(git config), "--file=$mainrepo/all.git/config",
+		qw(core.sharedRepository 0644));
+	is(system(@cmd), 0, "set sharedRepository in all.git");
+	my $git0 = PublicInbox::Git->new("$mainrepo/git/0.git");
+	my $fh = $git0->popen(qw(config core.sharedRepository));
+	my $v = eval { local $/; <$fh> };
+	chomp $v;
+	is($v, '0644', 'child repo inherited core.sharedRepository');
+	$fh = $git0->popen(qw(config --bool repack.writeBitmaps));
+	$v = eval { local $/; <$fh> };
+	chomp $v;
+	is($v, 'true', 'child repo inherited repack.writeBitmaps');
+}
+
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };

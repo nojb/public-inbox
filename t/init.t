@@ -38,6 +38,8 @@ SKIP: {
 	ok(-d "$tmpdir/v2list", 'v2list directory exists');
 	ok(-f "$tmpdir/v2list/msgmap.sqlite3", 'msgmap exists');
 	ok(-d "$tmpdir/v2list/all.git", 'catch-all.git directory exists');
+	@cmd = (qw(git config), "--file=$tmpdir/v2list/all.git/config",
+		qw(core.sharedRepository 0644));
 }
 
 done_testing();

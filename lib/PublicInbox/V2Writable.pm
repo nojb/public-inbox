@@ -244,15 +244,19 @@ sub git_init {
 	die "$git_dir exists\n" if -e $git_dir;
 	my @cmd = (qw(git init --bare -q), $git_dir);
 	PublicInbox::Import::run_die(\@cmd);
-	@cmd = (qw/git config/, "--file=$git_dir/config",
-			'repack.writeBitmaps', 'true');
-	PublicInbox::Import::run_die(\@cmd);
 
 	my $all = "$self->{-inbox}->{mainrepo}/all.git";
 	unless (-d $all) {
 		@cmd = (qw(git init --bare -q), $all);
 		PublicInbox::Import::run_die(\@cmd);
+		@cmd = (qw/git config/, "--file=$all/config",
+				'repack.writeBitmaps', 'true');
+		PublicInbox::Import::run_die(\@cmd);
 	}
+
+	@cmd = (qw/git config/, "--file=$git_dir/config",
+			'include.path', '../../all.git/config');
+	PublicInbox::Import::run_die(\@cmd);
 
 	my $alt = "$all/objects/info/alternates";
 	my $new_obj_dir = "../../git/$new.git/objects";

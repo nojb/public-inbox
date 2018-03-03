@@ -817,7 +817,7 @@ sub _read_git_config_perm {
 	my ($self) = @_;
 	my @cmd = qw(config);
 	if ($self->{version} == 2) {
-		push @cmd, "--file=$self->{mainrepo}/inbox-config";
+		push @cmd, "--file=$self->{mainrepo}/all.git/config";
 	}
 	my $fh = $self->{git}->popen(@cmd, 'core.sharedRepository');
 	local $/ = "\n";
