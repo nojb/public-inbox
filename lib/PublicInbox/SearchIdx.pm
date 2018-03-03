@@ -322,7 +322,7 @@ sub add_message {
 		if ($subj ne '') {
 			$xpath = $self->subject_path($subj);
 			$xpath = id_compress($xpath);
-			$doc->add_term('XPATH' . $xpath);
+			$doc->add_boolean_term('XPATH' . $xpath);
 		}
 
 		my $lines = $mime->body_raw =~ tr!\n!\n!;
@@ -385,10 +385,11 @@ sub add_message {
 		$doc->set_data($data);
 		if (my $altid = $self->{-altid}) {
 			foreach my $alt (@$altid) {
+				my $pfx = $alt->{xprefix};
 				foreach my $mid (@$mids) {
 					my $id = $alt->mid2alt($mid);
 					next unless defined $id;
-					$doc->add_term($alt->{xprefix} . $id);
+					$doc->add_boolean_term($pfx . $id);
 				}
 			}
 		}
@@ -498,7 +499,7 @@ sub link_doc {
 	} else {
 		$tid = defined $old_tid ? $old_tid : $self->next_thread_id;
 	}
-	$doc->add_term('G' . $tid);
+	$doc->add_boolean_term('G' . $tid);
 	$tid;
 }
 
@@ -779,9 +780,9 @@ sub create_ghost {
 
 	my $tid = $self->next_thread_id;
 	my $doc = Search::Xapian::Document->new;
-	$doc->add_term('Q' . $mid);
-	$doc->add_term('G' . $tid);
-	$doc->add_term('T' . 'ghost');
+	$doc->add_boolean_term('Q' . $mid);
+	$doc->add_boolean_term('G' . $tid);
+	$doc->add_boolean_term('T' . 'ghost');
 
 	my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
 	$self->{xdb}->add_document($doc);
@@ -805,7 +806,7 @@ sub merge_threads {
 		foreach my $docid (@ids) {
 			my $doc = $db->get_document($docid);
 			$doc->remove_term('G' . $loser_tid);
-			$doc->add_term('G' . $winner_tid);
+			$doc->add_boolean_term('G' . $winner_tid);
 			$db->replace_document($docid, $doc);
 		}
 	}

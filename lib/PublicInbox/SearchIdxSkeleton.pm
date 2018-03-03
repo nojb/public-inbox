@@ -98,7 +98,7 @@ sub index_skeleton_real ($$) {
 	my $ts = $values->[PublicInbox::Search::TS];
 	my $smsg = PublicInbox::SearchMsg->new(undef);
 	my $doc = $smsg->{doc};
-	$doc->add_term('XPATH' . $xpath) if defined $xpath;
+	$doc->add_boolean_term('XPATH' . $xpath) if defined $xpath;
 	foreach my $mid (@$mids) {
 		$doc->add_term('Q' . $mid);
 	}
