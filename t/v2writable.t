@@ -53,8 +53,8 @@ ok($im->add($mime), 'ordinary message added');
 	ok($im->add($mime), 'reused mid ok');
 	like(join(' ', @warn), qr/reused/, 'warned about reused MID');
 	my @mids = $mime->header_obj->header_raw('Message-Id');
-	is($mids[0], '<a-mid@b>', 'original mid not changed');
-	like($mids[1], qr/\A<\w+\@localhost>\z/, 'new MID added');
+	is($mids[1], '<a-mid@b>', 'original mid not changed');
+	like($mids[0], qr/\A<\w+\@localhost>\z/, 'new MID added');
 	is(scalar(@mids), 2, 'only one new MID added');
 
 	@warn = ();
@@ -68,8 +68,8 @@ ok($im->add($mime), 'ordinary message added');
 	ok($im->add($mime), 'random MID made');
 	like(join(' ', @warn), qr/using random/, 'warned about using random');
 	@mids = $mime->header_obj->header_raw('Message-Id');
-	is($mids[0], '<a-mid@b>', 'original mid not changed');
-	like($mids[1], qr/\A<\w+\@localhost>\z/, 'new MID added');
+	is($mids[1], '<a-mid@b>', 'original mid not changed');
+	like($mids[0], qr/\A<\w+\@localhost>\z/, 'new MID added');
 	is(scalar(@mids), 2, 'only one new MID added');
 
 	@warn = ();

@@ -142,7 +142,7 @@ sub num_for_harder {
 		}
 	}
 	my @cur = $hdr->header_raw('Message-Id');
-	$hdr->header_set('Message-Id', @cur, "<$mid>");
+	$hdr->header_set('Message-Id', "<$mid>", @cur);
 	$num;
 }
 
