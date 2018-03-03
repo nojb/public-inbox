@@ -302,7 +302,8 @@ sub index_body ($$$) {
 }
 
 sub add_message {
-	my ($self, $mime, $bytes, $num, $blob) = @_; # mime = Email::MIME object
+	# mime = Email::MIME object
+	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
 	my $doc_id;
 	my $mids = mids($mime->header_obj);
 	my $skel = $self->{skeleton};
@@ -370,7 +371,8 @@ sub add_message {
 
 		# populates smsg->references for smsg->to_doc_data
 		my $refs = parse_references($smsg);
-		my $data = $smsg->to_doc_data($blob);
+		$mid0 = $mids->[0] unless defined $mid0;
+		my $data = $smsg->to_doc_data($oid, $mid0);
 		foreach my $mid (@$mids) {
 			$tg->index_text($mid, 1, 'XM');
 		}

@@ -51,7 +51,7 @@ sub partition_worker_loop ($$$) {
 			$xdb = $txn = undef;
 		} else {
 			chomp $line;
-			my ($len, $artnum, $object_id) = split(/ /, $line);
+			my ($len, $artnum, $oid, $mid0) = split(/ /, $line);
 			$xdb ||= $self->_xdb_acquire;
 			if (!$txn) {
 				$xdb->begin_transaction;
@@ -61,7 +61,7 @@ sub partition_worker_loop ($$$) {
 			$n == $len or die "short read: $n != $len\n";
 			my $mime = PublicInbox::MIME->new(\$msg);
 			$artnum = int($artnum);
-			$self->add_message($mime, $n, $artnum, $object_id);
+			$self->add_message($mime, $n, $artnum, $oid, $mid0);
 		}
 	}
 	warn "$$ still in transaction\n" if $txn;
@@ -70,9 +70,9 @@ sub partition_worker_loop ($$$) {
 
 # called by V2Writable
 sub index_raw {
-	my ($self, $len, $msgref, $artnum, $object_id) = @_;
+	my ($self, $len, $msgref, $artnum, $object_id, $mid0) = @_;
 	my $w = $self->{w};
-	print $w "$len $artnum $object_id\n", $$msgref or die
+	print $w "$len $artnum $object_id $mid0\n", $$msgref or die
 		"failed to write partition $!\n";
 	$w->flush or die "failed to flush: $!\n";
 }

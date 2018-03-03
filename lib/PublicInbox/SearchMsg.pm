@@ -31,13 +31,14 @@ sub get_val ($$) {
 
 sub load_from_data ($$) {
 	my ($self) = $_[0]; # data = $_[1]
-	my ($subj, $from, $refs, $to, $cc, $blob) = split(/\n/, $_[1]);
+	my ($subj, $from, $refs, $to, $cc, $blob, $mid0) = split(/\n/, $_[1]);
 	$self->{subject} = $subj;
 	$self->{from} = $from;
 	$self->{references} = $refs;
 	$self->{to} = $to;
 	$self->{cc} = $cc;
 	$self->{blob} = $blob;
+	$self->{mid} = $mid0;
 }
 
 sub load_expand {
@@ -120,11 +121,11 @@ sub ts {
 }
 
 sub to_doc_data {
-	my ($self, $blob) = @_;
+	my ($self, $oid, $mid0) = @_;
 	my @rows = ($self->subject, $self->from, $self->references,
 			$self->to, $self->cc);
-	push @rows, $blob if defined $blob;
-	join("\n", @rows);
+	$oid = '' unless defined $oid;
+	join("\n", @rows, $oid, $mid0);
 }
 
 sub references {

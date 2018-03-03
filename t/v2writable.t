@@ -93,5 +93,78 @@ ok($im->add($mime), 'ordinary message added');
 	ok($found[1]->{doc_id} > 0, 'doc_id is positive');
 }
 
+SKIP: {
+	use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
+	use Net::NNTP;
+	use IO::Socket;
+	use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
+	eval { require Danga::Socket };
+	skip "Danga::Socket missing $@", 2 if $@;
+	my $err = "$mainrepo/stderr.log";
+	my $out = "$mainrepo/stdout.log";
+	my %opts = (
+		LocalAddr => '127.0.0.1',
+		ReuseAddr => 1,
+		Proto => 'tcp',
+		Type => SOCK_STREAM,
+		Listen => 1024,
+	);
+	my $group = 'inbox.comp.test.v2writable';
+	my $pi_config = "$mainrepo/pi_config";
+	open my $fh, '>', $pi_config or die "open: $!\n";
+	print $fh <<EOF
+[publicinbox "test-v2writable"]
+	mainrepo = $mainrepo
+	version = 2
+	address = test\@example.com
+	newsgroup = $group
+EOF
+	;
+	close $fh or die "close: $!\n";
+	my $sock = IO::Socket::INET->new(%opts);
+	ok($sock, 'sock created');
+	my $pid;
+	my $len;
+	END { kill 'TERM', $pid if defined $pid };
+	$! = 0;
+	my $fl = fcntl($sock, F_GETFD, 0);
+	ok(! $!, 'no error from fcntl(F_GETFD)');
+	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
+	$pid = fork;
+	if ($pid == 0) {
+		use POSIX qw(dup2);
+		$ENV{PI_CONFIG} = $pi_config;
+		# pretend to be systemd
+		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
+		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
+		$ENV{LISTEN_PID} = $$;
+		$ENV{LISTEN_FDS} = 1;
+		my $nntpd = 'blib/script/public-inbox-nntpd';
+		exec $nntpd, "--stdout=$out", "--stderr=$err";
+		die "FAIL: $!\n";
+	}
+	ok(defined $pid, 'forked nntpd process successfully');
+	$! = 0;
+	fcntl($sock, F_SETFD, $fl |= FD_CLOEXEC);
+	ok(! $!, 'no error from fcntl(F_SETFD)');
+	my $host_port = $sock->sockhost . ':' . $sock->sockport;
+	my $n = Net::NNTP->new($host_port);
+	$n->group($group);
+	my $x = $n->xover('1-');
+	my %uniq;
+	foreach my $num (sort { $a <=> $b } keys %$x) {
+		my $mid = $x->{$num}->[3];
+		is($uniq{$mid}++, 0, "MID for $num is unique in XOVER");
+		is_deeply($n->xhdr('Message-ID', $num),
+			 { $num => $mid }, "XHDR lookup OK on num $num");
+		is_deeply($n->xhdr('Message-ID', $mid),
+			 { $mid => $mid }, "XHDR lookup OK on MID $num");
+	}
+	my %nn;
+	foreach my $mid (@{$n->newnews(0, $group)}) {
+		is($nn{$mid}++, 0, "MID is unique in NEWNEWS");
+	}
+	is_deeply([sort keys %nn], [sort keys %uniq]);
+};
 
 done_testing();

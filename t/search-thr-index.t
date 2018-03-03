@@ -41,8 +41,8 @@ foreach (reverse split(/\n\n/, $data)) {
 	$mime->header_set('From' => 'bw@g');
 	$mime->header_set('To' => 'git@vger.kernel.org');
 	my $bytes = bytes::length($mime->as_string);
-	my $doc_id = $rw->add_message($mime, $bytes, ++$num, 'ignored');
 	my $mid = $mime->header('Message-Id');
+	my $doc_id = $rw->add_message($mime, $bytes, ++$num, 'ignored', $mid);
 	push @mids, $mid;
 	ok($doc_id, 'message added: '. $mid);
 }

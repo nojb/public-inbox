@@ -62,8 +62,10 @@ sub add {
 	# leaking FDs to it...
 	$self->idx_init;
 
-	my $num = num_for($self, $mime);
+	my $mid0;
+	my $num = num_for($self, $mime, \$mid0);
 	defined $num or return; # duplicate
+	defined $mid0 or die "BUG: $mid0 undefined\n";
 	my $im = $self->importer;
 	my $cmt = $im->add($mime);
 	$cmt = $im->get_mark($cmt);
@@ -73,7 +75,7 @@ sub add {
 	my $nparts = $self->{partitions};
 	my $part = $num % $nparts;
 	my $idx = $self->idx_part($part);
-	$idx->index_raw($len, $msgref, $num, $oid);
+	$idx->index_raw($len, $msgref, $num, $oid, $mid0);
 	my $n = $self->{transact_bytes} += $len;
 	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
 		$self->checkpoint;
@@ -83,12 +85,15 @@ sub add {
 }
 
 sub num_for {
-	my ($self, $mime) = @_;
+	my ($self, $mime, $mid0) = @_;
 	my $mids = mids($mime->header_obj);
 	if (@$mids) {
 		my $mid = $mids->[0];
 		my $num = $self->{skel}->{mm}->mid_insert($mid);
-		return $num if defined($num); # common case
+		if (defined $num) { # common case
+			$$mid0 = $mid;
+			return $num;
+		};
 
 		# crap, Message-ID is already known, hope somebody just resent:
 		$self->done; # write barrier, clears $self->{skel}
@@ -111,38 +116,39 @@ sub num_for {
 			$num = $self->{skel}->{mm}->mid_insert($m);
 			if (defined $num) {
 				warn "alternative <$m> for <$mid> found\n";
+				$$mid0 = $m;
 				return $num;
 			}
 		}
 	}
 	# none of the existing Message-IDs are good, generate a new one:
-	num_for_harder($self, $mime);
+	num_for_harder($self, $mime, $mid0);
 }
 
 sub num_for_harder {
-	my ($self, $mime) = @_;
+	my ($self, $mime, $mid0) = @_;
 
 	my $hdr = $mime->header_obj;
 	my $dig = content_digest($mime);
-	my $mid = $dig->clone->hexdigest . '@localhost';
-	my $num = $self->{skel}->{mm}->mid_insert($mid);
+	$$mid0 = $dig->clone->hexdigest . '@localhost';
+	my $num = $self->{skel}->{mm}->mid_insert($$mid0);
 	unless (defined $num) {
 		# it's hard to spoof the last Received: header
 		my @recvd = $hdr->header_raw('Received');
 		$dig->add("Received: $_") foreach (@recvd);
-		$mid = $dig->clone->hexdigest . '@localhost';
-		$num = $self->{skel}->{mm}->mid_insert($mid);
+		$$mid0 = $dig->clone->hexdigest . '@localhost';
+		$num = $self->{skel}->{mm}->mid_insert($$mid0);
 
 		# fall back to a random Message-ID and give up determinism:
 		until (defined($num)) {
 			$dig->add(rand);
-			$mid = $dig->clone->hexdigest . '@localhost';
-			warn "using random Message-ID <$mid> as fallback\n";
-			$num = $self->{skel}->{mm}->mid_insert($mid);
+			$$mid0 = $dig->clone->hexdigest . '@localhost';
+			warn "using random Message-ID <$$mid0> as fallback\n";
+			$num = $self->{skel}->{mm}->mid_insert($$mid0);
 		}
 	}
 	my @cur = $hdr->header_raw('Message-Id');
-	$hdr->header_set('Message-Id', "<$mid>", @cur);
+	$hdr->header_set('Message-Id', "<$$mid0>", @cur);
 	$num;
 }
 
