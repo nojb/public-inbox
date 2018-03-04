@@ -381,7 +381,7 @@ sub lookup_message {
 sub lookup_mail { # no ghosts!
 	my ($self, $mid) = @_;
 	retry_reopen($self, sub {
-		my $smsg = lookup_message($self, $mid) or return;
+		my $smsg = lookup_skeleton($self, $mid) or return;
 		$smsg->load_expand;
 	});
 }
