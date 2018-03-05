@@ -187,6 +187,8 @@ sub add {
 	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
 	my $from = $mime->header('From');
+        $from ||= $mime->header('Sender');
+        $from ||= "$1" if ($mime->as_string =~ /^From\s+(\S+)/);
 	my ($email) = PublicInbox::Address::emails($from);
 	my ($name) = PublicInbox::Address::names($from);
 	# git gets confused with:
