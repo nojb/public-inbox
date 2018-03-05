@@ -45,6 +45,9 @@ Optional Perl modules:
   - Danga::Socket[4]           libdanga-socket-perl
   - Net::Server[5]             libnet-server-perl
   - Filesys::Notify::Simple[6] libfilesys-notify-simple-perl
+  - Inline::C[7]               libinline-c-perl
+  - Plack::Middleware::ReverseProxy[8] libplack-middleware-reverseproxy-perl
+  - Plack::Middleware::Deflater[8] libplack-middleware-deflater-perl
 
 [1] - Optional, needed for serving/generating Atom and HTML pages
 [2] - Optional, only required for NNTP server
@@ -52,6 +55,8 @@ Optional Perl modules:
 [4] - Optional, needed for bundled HTTP and NNTP servers
 [5] - Optional, needed for standalone daemonization of HTTP+NNTP servers
 [6] - Optional, needed for public-inbox-watch Maildir watcher
+[7] - Optional, allows speeds up spawning on Linux (see public-inbox-daemon(8))
+[8] - Optional, recommended for PSGI interface
 
 When installing Search::Xapian, make sure the underlying Xapian
 installation is not affected by an index corruption bug:
@@ -63,6 +68,14 @@ For Debian 8.x (jessie), this means using Debian 8.5 or later.
 public-inbox will never store unregeneratable data in Xapian
 or any other search database we might use; Xapian corruption
 will not destroy critical data.
+
+Optional Perl modules (for developers):
+
+  - XML::Feed[9]               libxml-feed-perl
+  - IPC::Run[10]               libipc-run-perl
+
+[9] - Optional, for testing Atom feeds
+[10] - Optional, for some tests (we hope to drop this dependency someday)
 
 Copyright
 ---------
