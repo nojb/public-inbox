@@ -409,13 +409,15 @@ sub lookup_article {
 
 sub each_smsg_by_mid {
 	my ($self, $mid, $cb) = @_;
-	my $xdb = $self->{xdb};
 	# XXX retry_reopen isn't necessary for V2Writable, but the PSGI
 	# interface will need it...
-	my ($head, $tail) = $self->find_doc_ids('Q' . $mid);
+	my $db = $self->{skel} || $self->{xdb};
+	my $term = 'Q' . $mid;
+	my $head = $db->postlist_begin($term);
+	my $tail = $db->postlist_end($term);
 	for (; $head->nequal($tail); $head->inc) {
 		my $doc_id = $head->get_docid;
-		my $doc = $xdb->get_document($doc_id);
+		my $doc = $db->get_document($doc_id);
 		my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
 		$smsg->{doc_id} = $doc_id;
 		$cb->($smsg) or return;
