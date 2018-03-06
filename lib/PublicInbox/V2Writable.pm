@@ -229,7 +229,6 @@ sub searchidx_checkpoint {
 		if ($more) {
 			$dbh->begin_work;
 		} else {
-			$skel->remote_commit; # XXX should be unnecessary...
 			$skel->remote_close;
 			delete $self->{skel};
 		}
