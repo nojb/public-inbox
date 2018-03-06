@@ -208,15 +208,50 @@ sub parse_date ($) {
 	"$ts $zone";
 }
 
+sub extract_author_info ($) {
+	my ($mime) = @_;
+
+	my $sender = '';
+	my $from = $mime->header('From');
+	my ($email) = PublicInbox::Address::emails($from);
+	my ($name) = PublicInbox::Address::names($from);
+	if (!defined($name) || !defined($email)) {
+		$sender = $mime->header('Sender');
+		if (!defined($name)) {
+			($name) = PublicInbox::Address::names($sender);
+		}
+		if (!defined($email)) {
+			($email) = PublicInbox::Address::emails($sender);
+		}
+	}
+	if (defined $email) {
+		# quiet down wide character warnings with utf8::encode
+		utf8::encode($email);
+	} else {
+		$email = '';
+		warn "no email in From: $from or Sender: $sender\n";
+	}
+
+	# git gets confused with:
+	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
+	# ref:
+	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
+	if (defined $name) {
+		$name =~ tr/<>//d;
+		utf8::encode($name);
+	} else {
+		$name = '';
+		warn "no name in From: $from or Sender: $sender\n";
+	}
+	($name, $email);
+}
+
 # returns undef on duplicate
 # returns the :MARK of the most recent commit
 sub add {
 	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
-	my $from = $mime->header('From');
-	my ($email) = PublicInbox::Address::emails($from);
-	my ($name) = PublicInbox::Address::names($from);
-
+	my ($name, $email) = extract_author_info($mime);
 	my $date_raw = parse_date($mime);
 	my $subject = $mime->header('Subject');
 	$subject = '(no subject)' unless defined $subject;
@@ -263,25 +298,6 @@ sub add {
 		print $w "reset $ref\n" or wfail;
 	}
 
-	# quiet down wide character warnings with utf8::encode
-	if (defined $email) {
-		utf8::encode($email);
-	} else {
-		$email = '';
-		warn "no email in From: $from\n";
-	}
-
-	# git gets confused with:
-	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
-	# ref:
-	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
-	if (defined $name) {
-		$name =~ tr/<>//d;
-		utf8::encode($name);
-	} else {
-		$name = '';
-		warn "no name in From: $from\n";
-	}
 	utf8::encode($subject);
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $date_raw\n",
