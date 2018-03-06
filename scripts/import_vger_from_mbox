@@ -11,11 +11,16 @@ use PublicInbox::Import;
 my $usage = "usage: $0 NAME EMAIL DIR <MBOX\n";
 my $dry_run;
 my $version = 2;
+my $variant = 'mboxrd';
 my %opts = (
 	'n|dry-run' => \$dry_run,
 	'V|version=i' => \$version,
+	'F|format=s' => \$variant,
 );
 GetOptions(%opts) or die $usage;
+if ($variant ne 'mboxrd' && $variant ne 'mboxo') {
+	die "Unsupported mbox variant: $variant\n";
+}
 my $name = shift or die $usage; # git
 my $email = shift or die $usage; # git@vger.kernel.org
 my $mainrepo = shift or die $usage; # /path/to/v2/repo
@@ -45,6 +50,11 @@ sub do_add ($$) {
 	my ($im, $msg) = @_;
 	$$msg =~ s/(\r?\n)+\z/$1/s;
 	my $mime = PublicInbox::MIME->new($msg);
+	if ($variant eq 'mboxrd') {
+		$$msg =~ s/^>(>*From )/$1/sm;
+	} elsif ($variant eq 'mboxo') {
+		$$msg =~ s/^>From /From /sm;
+	}
 	$mime = $vger->scrub($mime);
 	return unless $im;
 	$im->add($mime) or
