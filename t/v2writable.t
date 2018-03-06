@@ -30,7 +30,11 @@ my $mime = PublicInbox::MIME->create(
 	body => "hello world\n",
 );
 
-my $im = PublicInbox::V2Writable->new($ibx, 1);
+my $im = eval {
+	local $ENV{NPROC} = '1';
+	PublicInbox::V2Writable->new($ibx, 1);
+};
+is($im->{partitions}, 1, 'one partition when forced');
 ok($im->add($mime), 'ordinary message added');
 
 if ('ensure git configs are correct') {
@@ -182,5 +186,10 @@ EOF
 	}
 	is_deeply([sort keys %nn], [sort keys %uniq]);
 };
+{
+	local $ENV{NPROC} = 2;
+	$im = PublicInbox::V2Writable->new($ibx, 1);
+	is($im->{partitions}, 1, 'detected single partition from previous');
+}
 
 done_testing();

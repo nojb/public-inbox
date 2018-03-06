@@ -19,7 +19,9 @@ use PublicInbox::Inbox;
 my $PACKING_FACTOR = 0.4;
 
 # assume 2 cores if GNU nproc(1) is not available
-my $NPROC = int($ENV{NPROC} || `nproc 2>/dev/null` || 2);
+sub nproc () {
+	int($ENV{NPROC} || `nproc 2>/dev/null` || 2);
+}
 
 sub new {
 	my ($class, $v2ibx, $creat) = @_;
@@ -32,12 +34,28 @@ sub new {
 			die "$dir does not exist\n";
 		}
 	}
+
+	my $nparts = 0;
+	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
+
+	# always load existing partitions in case core count changes:
+	if (-d $xpfx) {
+		foreach my $part (<$xpfx/*>) {
+			-d $part && $part =~ m!/\d+\z! or next;
+			eval {
+				Search::Xapian::Database->new($part)->close;
+				$nparts++;
+			};
+		}
+	}
+	$nparts = nproc() if ($nparts == 0);
+
 	my $self = {
 		-inbox => $v2ibx,
 		im => undef, #  PublicInbox::Import
 		xap_rw => undef, # PublicInbox::V2SearchIdx
 		xap_ro => undef,
-		partitions => $NPROC,
+		partitions => $nparts,
 		transact_bytes => 0,
 		# limit each repo to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
