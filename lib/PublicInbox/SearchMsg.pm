@@ -7,9 +7,9 @@ package PublicInbox::SearchMsg;
 use strict;
 use warnings;
 use Search::Xapian;
-use Date::Parse qw/str2time/;
 use PublicInbox::MID qw/mid_clean mid_mime/;
 use PublicInbox::Address;
+use PublicInbox::MsgTime qw(msg_timestamp);
 
 sub new {
 	my ($class, $mime) = @_;
@@ -117,7 +117,9 @@ sub from_name {
 
 sub ts {
 	my ($self) = @_;
-	$self->{ts} ||= eval { str2time($self->{mime}->header('Date')) } || 0;
+	$self->{ts} ||= eval {
+		msg_timestamp($self->{mime}->header_obj);
+	} || 0;
 }
 
 sub to_doc_data {

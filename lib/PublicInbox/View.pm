@@ -6,7 +6,7 @@
 package PublicInbox::View;
 use strict;
 use warnings;
-use Date::Parse qw/str2time/;
+use PublicInbox::MsgTime qw(msg_timestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape/;
@@ -730,12 +730,6 @@ sub load_results {
 	my ($srch, $sres) = @_;
 	my $msgs = delete $sres->{msgs};
 	$srch->retry_reopen(sub { [ map { $_->mid; $_ } @$msgs ] });
-}
-
-sub msg_timestamp {
-	my ($hdr) = @_;
-	my $ts = eval { str2time($hdr->header('Date')) };
-	defined($ts) ? $ts : 0;
 }
 
 sub thread_results {

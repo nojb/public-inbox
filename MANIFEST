@@ -73,6 +73,7 @@ lib/PublicInbox/MID.pm
 lib/PublicInbox/MIME.pm
 lib/PublicInbox/Mbox.pm
 lib/PublicInbox/MsgIter.pm
+lib/PublicInbox/MsgTime.pm
 lib/PublicInbox/Msgmap.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm

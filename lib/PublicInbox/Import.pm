@@ -12,8 +12,7 @@ use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mid_mime mid2path);
 use PublicInbox::Address;
 use PublicInbox::ContentId qw(content_id);
-use Date::Parse qw(str2time);
-use Time::Zone qw(tz_offset);
+use PublicInbox::MsgTime qw(msg_timestamp);
 
 sub new {
 	my ($class, $git, $name, $email, $ibx) = @_;
@@ -204,37 +203,7 @@ sub remove {
 
 sub parse_date ($) {
 	my ($mime) = @_;
-	my $hdr = $mime->header_obj;
-	my $date = $hdr->header_raw('Date');
-	my ($ts, $zone);
-	my $mid = $hdr->header_raw('Message-ID');
-	if ($date) {
-		$ts = eval { str2time($date) };
-		if ($@) {
-			warn "bad Date: $date in $mid: $@\n";
-		} elsif ($date =~ /\s+([\+\-]\d+)\s*\z/) {
-			$zone = $1;
-		}
-	}
-	unless ($ts) {
-		my @recvd = $hdr->header_raw('Received');
-		foreach my $r (@recvd) {
-			$zone = undef;
-			$r =~ /\s*(\d+\s+[[:alpha:]]+\s+\d{2,4}\s+
-				\d+\D\d+(?:\D\d+)\s+([\+\-]\d+))/osx or next;
-			$zone = $2;
-			$ts = eval { str2time($1) } and last;
-			warn "no date in Received: $r\n";
-		}
-	}
-	$zone ||= '+0000';
-	# "-1200" is the furthest westermost zone offset,
-	# but git fast-import is liberal so we use "-1400"
-	if ($zone >= 1400 || $zone <= -1400) {
-		warn "bogus TZ offset: $zone, ignoring and assuming +0000\n";
-		$zone = '+0000';
-	}
-	$ts = time unless defined $ts;
+	my ($ts, $zone) = msg_timestamp($mime->header_obj);
 	$ts = 0 if $ts < 0; # git uses unsigned times
 	"$ts $zone";
 }

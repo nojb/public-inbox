@@ -7,11 +7,11 @@ use strict;
 use warnings;
 
 use POSIX qw(strftime);
-use Date::Parse qw(str2time);
 use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
 use PublicInbox::Hval qw(ascii_html);
 use PublicInbox::MID qw/mid_clean mid_escape/;
+use PublicInbox::MsgTime qw(msg_timestamp);
 
 # called by PSGI server after getline:
 sub close {}
@@ -108,8 +108,7 @@ sub feed_entry {
 		$irt = '';
 	}
 	my $href = $base . mid_escape($mid) . '/';
-	my $date = $hdr->header('Date');
-	my $t = eval { str2time($date) } if defined $date;
+	my $t = msg_timestamp($hdr);
 	my @t = gmtime(defined $t ? $t : time);
 	my $updated = feed_updated(@t);
 
