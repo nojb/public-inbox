@@ -191,11 +191,6 @@ sub add {
         $from ||= "$1" if ($mime->as_string =~ /^From\s+(\S+)/);
 	my ($email) = PublicInbox::Address::emails($from);
 	my ($name) = PublicInbox::Address::names($from);
-	# git gets confused with:
-	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
-	# ref:
-	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
-	$name =~ tr/<>//d;
 
 	my $date_raw = parse_date($mime);
 	my $subject = $mime->header('Subject');
@@ -226,10 +221,26 @@ sub add {
 		print $w "reset $ref\n" or wfail;
 	}
 
-	utf8::encode($email);
-	utf8::encode($name);
+        # quiet down wide character warnings with utf8::encode
+        if (defined $email) {
+            utf8::encode($email);
+        } else {
+            $email = '';
+            warn "no email in From: $from\n";
+        }
+
+	# git gets confused with:
+	#  "'A U Thor <u@example.com>' via foo" <foo@example.com>
+	# ref:
+	# <CAD0k6qSUYANxbjjbE4jTW4EeVwOYgBD=bXkSu=akiYC_CB7Ffw@mail.gmail.com>
+        if (defined $name) {
+            $name =~ tr/<>//d;
+            utf8::encode($name);
+        } else {
+            $name = '';
+            warn "no name in From: $from\n";
+        }
 	utf8::encode($subject);
-	# quiet down wide character warnings:
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $date_raw\n",
 		"committer $self->{ident} ", now_raw(), "\n" or wfail;
