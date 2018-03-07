@@ -590,9 +590,10 @@ sub long_response ($$$$) {
 
 		my $err;
 		do {
-			eval { $cb->(\$beg) };
+			eval { $cb->(\$beg, \$lim) };
 		} until (($err = $@) || $self->{closed} ||
-			 ++$beg > $end || !--$lim || $self->{write_buf_size});
+			 ++$beg > $end || --$lim < 0 ||
+			 $self->{write_buf_size});
 
 		if ($err || $self->{closed}) {
 			$self->{long_res} = undef;
@@ -609,7 +610,7 @@ sub long_response ($$$$) {
 				update_idle_time($self);
 				$self->watch_read(1);
 			}
-		} elsif (!$lim || $self->{write_buf_size}) {
+		} elsif ($lim < 0 || $self->{write_buf_size}) {
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			update_idle_time($self);
@@ -715,11 +716,12 @@ sub hdr_searchmsg ($$$$) {
 		more($self, $xhdr ? r221 : r225);
 		my $off = 0;
 		long_response($self, $beg, $end, sub {
-			my ($i) = @_;
+			my ($i, $lim) = @_;
 			my $res = $srch->query_xover($beg, $end, $off);
 			my $msgs = $res->{msgs};
 			my $nr = scalar @$msgs or return;
 			$off += $nr;
+			$$lim -= $nr;
 			my $tmp = '';
 			foreach my $s (@$msgs) {
 				$tmp .= $s->num . ' ' . $s->$field . "\r\n";
@@ -853,11 +855,12 @@ sub cmd_xover ($;$) {
 	my $srch = $self->{ng}->search;
 	my $off = 0;
 	long_response($self, $beg, $end, sub {
-		my ($i) = @_;
+		my ($i, $lim) = @_;
 		my $res = $srch->query_xover($beg, $end, $off);
 		my $msgs = $res->{msgs};
 		my $nr = scalar @$msgs or return;
 		$off += $nr;
+		$$lim -= $nr;
 
 		# OVERVIEW.FMT
 		more($self, join("\r\n", map {
