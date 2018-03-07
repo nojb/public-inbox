@@ -949,10 +949,12 @@ sub event_write {
 sub event_read {
 	my ($self) = @_;
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
-	my $r = 1;
 
-	my $buf = $self->read(LINE_MAX) or return $self->close;
-	$self->{rbuf} .= $$buf;
+	if (index($self->{rbuf}, "\n") < 0) {
+		my $buf = $self->read(LINE_MAX) or return $self->close;
+		$self->{rbuf} .= $$buf;
+	}
+	my $r = 1;
 	while ($r > 0 && $self->{rbuf} =~ s/\A\s*([^\r\n]+)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
