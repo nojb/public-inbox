@@ -8,61 +8,107 @@ if they want to import mail into their personal inboxes.
 TODO: this still needs to be documented better,
 also see the scripts/ and sa_config/ directories in the source tree
 
-It should also be possible to use public-inbox with only IMAP
-(or even POP(!)) access to a mailbox.
-
-standard MakeMaker installation (Perl)
---------------------------------------
-
-	perl Makefile.PL
-	make
-	make test
-	make install # root permissions may be needed
-
 Requirements
 ------------
 
-* git
-* Perl and several modules:    (Debian package name)
-  - Date::Parse                libtimedate-perl
-  - Email::MIME                libemail-mime-perl
-  - Email::MIME::ContentType   libemail-mime-contenttype-perl
-  - Encode::MIME::Header       perl
+public-inbox requires a number of other packages to access its full
+functionality.  The core tools are, of course:
 
-Optional components:
+* Git
+* Perl
+* SQLite (needed for Xapian use)
+
+To accept incoming mail into a public inbox, you'll likely want:
 
 * MTA - postfix is recommended (for public-inbox-mda)
 * SpamAssassin (spamc/spamd)   (for public-inbox-watch/public-inbox-mda)
 
-Optional Perl modules:
+Beyond that, there is a long list of Perl modules required, starting with:
 
-  - Plack[1]                   libplack-perl
-  - URI::Escape[1]             liburi-perl
-  - Search::Xapian[2][3]       libsearch-xapian-perl
-  - IO::Compress::Gzip[3]      perl-modules (or libio-compress-perl)
-  - DBI[3]                     libdbi-perl
-  - DBD::SQLite[2][3]          libdbd-sqlite3-perl
-  - Danga::Socket[4]           libdanga-socket-perl
-  - Net::Server[5]             libnet-server-perl
-  - Filesys::Notify::Simple[6] libfilesys-notify-simple-perl
+* Date::Parse                   deb: libdatetime-perl
+                                rpm: perl-Time-ParseDate
 
-[1] - Optional, needed for serving/generating Atom and HTML pages
-[2] - Optional, only required for NNTP server
-[3] - Optional, needed for gzipped mbox support over HTTP
-[4] - Optional, needed for bundled HTTP and NNTP servers
-[5] - Optional, needed for standalone daemonization of HTTP+NNTP servers
-[6] - Optional, needed for public-inbox-watch Maildir watcher
+* Email::MIME                   deb: libemail-mime-perl
+                                rpm: perl-Email-MIME
+
+* Email::MIME::ContentType      deb: libemail-mime-contenttype-perl
+                                rpm: perl-Email-MIME-ContentType
+
+* Encode::MIME::Header          deb: libencode-perl
+                                rpm: perl-Encode
+
+Where "deb" indicates package names for Debian-derived distributions and
+"rpm" is for RPM-based distributions (only known to work on Fedora).
+
+Numerous optional modules are likely to be useful as well:
+
+  - Plack                      deb: libplack-perl
+                               rpm: perl-Plack, perl-Plack-Test,
+                                    perl-Plack-Middleware-ReverseProxy,
+                                    perl-Plack-Middleware-Deflater
+                               (for HTML/Atom generation)
+
+  - URI::Escape                deb: liburi-perl
+                               rpm: perl-URI
+                               (for HTML/Atom generation)
+
+  - Search::Xapian             deb: libsearch-xapian-perl
+                               rpm: perl-Search-Xapian
+                               (for NNTP service or gzipped mbox over HTTP)
+
+  - IO::Compress::Gzip         deb: perl-modules (or libio-compress-perl)
+                               rpm: perl-PerlIO-gzip
+                               (for gzipped mbox over HTTP)
+
+  - DBI                        deb: libdbi-perl
+                               rpm: perl-DBI
+                               (for gzipped mbox over HTTP)
+
+  - DBD::SQLite                deb: libdbd-sqlite3-perl
+                               rpm: perl-DBD-SQLite
+                               (for NNTP service or gzipped mbox over HTTP)
+
+  - Danga::Socket              deb: libdanga-socket-perl
+                               rpm: perl-Danga-Socket
+                               (for bundled HTTP and NNTP servers)
+
+  - Net::Server                deb: libnet-server-perl
+                               rpm: perl-Net-Server
+                               (for HTTP/NNTP servers as standalone daemons)
+
+  - Filesys::Notify::Simple    deb: libfilesys-notify-simple-perl
+                               rpm: perl-Filesys-Notify-Simple
+                               (for public-inbox-watch)
+
+
+On Fedora systems, you'll probably also end up wanting
+perl-Test-HTTP-Server-Simple, perl-Devel-Peek, and perl-IPC-Run to run the
+test suite.
+
+standard MakeMaker installation (Perl)
+--------------------------------------
+
+Once the dependencies are installed, you should be able to build and
+install the system (into /usr/local) with:
+
+        perl Makefile.PL
+        make
+        make test
+        make install # root permissions may be needed
 
 When installing Search::Xapian, make sure the underlying Xapian
 installation is not affected by an index corruption bug:
 
-	https://bugs.debian.org/808610
+        https://bugs.debian.org/808610
 
 For Debian 8.x (jessie), this means using Debian 8.5 or later.
 
 public-inbox will never store unregeneratable data in Xapian
 or any other search database we might use; Xapian corruption
 will not destroy critical data.
+
+See the public-inbox-overview(7) man page for the next steps once the
+installation is complete.
 
 Copyright
 ---------
