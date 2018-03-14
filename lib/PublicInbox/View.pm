@@ -959,6 +959,7 @@ sub dump_topics {
 			obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
 			$href = mid_escape($mid);
 			$s .= indent_for($level) . TCHILD;
+			$subj = '(no subject)' if $subj eq '';
 			$s .= "<a\nhref=\"$href/T/#u\">$subj</a>$omit\n";
 		}
 		push @out, $s;
