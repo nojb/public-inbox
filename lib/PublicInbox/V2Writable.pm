@@ -113,7 +113,7 @@ sub num_for {
 		};
 
 		# crap, Message-ID is already known, hope somebody just resent:
-		$self->done; # write barrier, clears $self->{skel}
+		$self->barrier;
 		foreach my $m (@$mids) {
 			# read-only lookup now safe to do after above barrier
 			my $existing = $self->lookup_content($mime, $m);
@@ -226,6 +226,37 @@ sub checkpoint {
 	my $im = $self->{im};
 	$im->checkpoint if $im; # PublicInbox::Import::checkpoint
 	$self->searchidx_checkpoint(1);
+}
+
+# issue a write barrier to ensure all data is visible to other processes
+# and read-only ops.  Order of data importance is: git > SQLite > Xapian
+sub barrier {
+	my ($self) = @_;
+
+	# For safety, we ensure git checkpoint is complete before because
+	# the data in git is still more important than what is in Xapian.
+	# Performance may be gained by delaying ->progress call but we
+	# lose safety
+	if (my $im = $self->{im}) {
+		$im->checkpoint;
+		$im->progress('checkpoint');
+	}
+	my $skel = $self->{skel};
+	my $parts = $self->{idx_parts};
+	if ($parts && $skel) {
+		my $dbh = $skel->{mm}->{dbh};
+		$dbh->commit; # SQLite data is second in importance
+
+		# Now deal with Xapian
+		$skel->barrier_init(scalar(@$parts));
+		# each partition needs to issue a barrier command to skel:
+		$_->barrier foreach @$parts;
+
+		$skel->barrier_wait; # wait for each Xapian partition
+
+		$dbh->begin_work;
+	}
+	$self->{transact_bytes} = 0;
 }
 
 sub searchidx_checkpoint {
@@ -349,6 +380,7 @@ sub lookup_content {
 	my $ibx = $self->{-inbox};
 
 	my $srch = $ibx->search;
+	$srch->reopen;
 	my $cid = content_id($mime);
 	my $found;
 	$srch->each_smsg_by_mid($mid, sub {

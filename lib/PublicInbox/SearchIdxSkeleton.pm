@@ -15,21 +15,25 @@ sub new {
 
 	my ($r, $w);
 	pipe($r, $w) or die "pipe failed: $!\n";
-	binmode $r, ':raw';
-	binmode $w, ':raw';
+	my ($barrier_wait, $barrier_note);
+	pipe($barrier_wait, $barrier_note) or die "pipe failed: $!\n";
+	binmode $_, ':raw' foreach ($r, $w, $barrier_wait, $barrier_note);
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
 		$v2writable->atfork_child;
 		$v2writable = undef;
 		close $w;
-		eval { skeleton_worker_loop($self, $r) };
+		close $barrier_wait;
+		eval { skeleton_worker_loop($self, $r, $barrier_note) };
 		die "skeleton worker died: $@\n" if $@;
 		exit;
 	}
 	$self->{w} = $w;
 	$self->{pid} = $pid;
 	close $r;
+	close $barrier_note;
+	$self->{barrier_wait} = $barrier_wait;
 
 	$w->autoflush(1);
 
@@ -40,11 +44,13 @@ sub new {
 }
 
 sub skeleton_worker_loop {
-	my ($self, $r) = @_;
+	my ($self, $r, $barrier_note) = @_;
+	$barrier_note->autoflush(1);
 	$0 = 'pi-v2-skeleton';
 	my $xdb = $self->_xdb_acquire;
 	$xdb->begin_transaction;
 	my $txn = 1;
+	my $barrier = undef;
 	while (my $line = $r->getline) {
 		if ($line eq "commit\n") {
 			$xdb->commit_transaction if $txn;
@@ -52,6 +58,21 @@ sub skeleton_worker_loop {
 		} elsif ($line eq "close\n") {
 			$self->_xdb_release;
 			$xdb = $txn = undef;
+		} elsif ($line =~ /\Abarrier_init (\d+)\n\z/) {
+			my $n = $1 - 1;
+			die "barrier in-progress\n" if defined $barrier;
+			$barrier = { map { $_ => 1 } (0..$n) };
+		} elsif ($line =~ /\Abarrier (\d+)\n\z/) {
+			my $part = $1;
+			die "no barrier in-progress\n" unless defined $barrier;
+			delete $barrier->{$1} or die "unknown barrier: $part\n";
+			if ((scalar keys %$barrier) == 0) {
+				$barrier = undef;
+				$xdb->commit_transaction if $txn;
+				$txn = undef;
+				print $barrier_note "barrier_done\n" or die
+					"print failed to barrier note: $!";
+			}
 		} else {
 			my $len = int($line);
 			my $n = read($r, my $msg, $len) or die "read: $!\n";
@@ -105,6 +126,20 @@ sub index_skeleton_real ($$) {
 	my $num = $values->[PublicInbox::Search::NUM];
 	my @refs = ($smsg->references =~ /<([^>]+)>/g);
 	$self->link_and_save($doc, $mids, \@refs, $num, $xpath);
+}
+
+# write to the subprocess
+sub barrier_init {
+	my ($self, $nparts) = @_;
+	my $w = $_[0]->{w};
+	print $w "barrier_init $nparts\n" or die "failed to write: $!";
+	$w->flush or die "failed to flush: $!";
+}
+
+sub barrier_wait {
+	my ($self) = @_;
+	my $l = $self->{barrier_wait}->getline;
+	$l eq "barrier_done\n" or die "bad response from barrier_wait: $l\n";
 }
 
 1;

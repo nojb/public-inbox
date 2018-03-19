@@ -133,11 +133,19 @@ sub check_remove_v1 {
 	(undef, $cur);
 }
 
-# used for v2 (maybe)
 sub checkpoint {
 	my ($self) = @_;
 	return unless $self->{pid};
 	print { $self->{out} } "checkpoint\n" or wfail;
+	undef;
+}
+
+sub progress {
+	my ($self, $msg) = @_;
+	return unless $self->{pid};
+	print { $self->{out} } "progress $msg\n" or wfail;
+	$self->{in}->getline eq "progress $msg\n" or die
+		"progress $msg not received\n";
 	undef;
 }
 

@@ -49,6 +49,11 @@ sub partition_worker_loop ($$$) {
 		} elsif ($line eq "close\n") {
 			$self->_xdb_release;
 			$xdb = $txn = undef;
+		} elsif ($line eq "barrier\n") {
+			$xdb->commit_transaction if $txn;
+			$txn = undef;
+			print { $self->{skeleton}->{w} } "barrier $part\n" or
+					die "write failed to skeleton: $!\n";
 		} else {
 			chomp $line;
 			my ($len, $artnum, $oid, $mid0) = split(/ /, $line);
@@ -79,6 +84,13 @@ sub index_raw {
 
 sub atfork_child {
 	close $_[0]->{w} or die "failed to close write pipe: $!\n";
+}
+
+# called by V2Writable:
+sub barrier {
+	my $w = $_[0]->{w};
+	print $w "barrier\n" or die "failed to print: $!";
+	$w->flush or die "failed to flush: $!";
 }
 
 1;

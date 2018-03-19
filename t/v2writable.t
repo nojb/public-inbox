@@ -55,7 +55,7 @@ if ('ensure git configs are correct') {
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
-	is(undef, $im->add($mime), 'obvious duplicate rejected');
+	is($im->add($mime), undef, 'obvious duplicate rejected');
 	like(join(' ', @warn), qr/resent/, 'warned about resent message');
 
 	@warn = ();
@@ -105,6 +105,7 @@ if ('ensure git configs are correct') {
 	ok($im->add($mime), 'message with multiple Message-ID');
 	$im->done;
 	my @found;
+	$ibx->search->reopen;
 	$ibx->search->each_smsg_by_mid('abcde@1', sub { push @found, @_; 1 });
 	is(scalar(@found), 1, 'message found by first MID');
 	$ibx->search->each_smsg_by_mid('abcde@2', sub { push @found, @_; 1 });
