@@ -401,7 +401,16 @@ sub atfork_child {
 
 sub digest2mid ($) {
 	my ($dig) = @_;
-	$dig->clone->hexdigest . '@localhost';
+	my $b64 = $dig->clone->b64digest;
+	# Make our own URLs nicer:
+	# See "Base 64 Encoding with URL and Filename Safe Alphabet" in RFC4648
+	$b64 =~ tr!+/=!-_!d;
+
+	# We can make this more meaningful with a date prefix or other things,
+	# but this is only needed for crap that fails to generate a Message-ID
+	# or reuses one.  In other words, it's usually spammers who hit this
+	# so they don't deserve nice Message-IDs :P
+	$b64 . '@localhost';
 }
 
 1;

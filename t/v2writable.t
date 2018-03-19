@@ -68,6 +68,7 @@ if ('ensure git configs are correct') {
 		[ $mime->header_obj->header_raw('Message-Id') ],
 		'no new Message-Id added');
 
+	my $sane_mid = qr/\A<[\w\-]+\@localhost>\z/;
 	@warn = ();
 	$mime->header_set('Message-Id', '<a-mid@b>');
 	$mime->body_set('different');
@@ -75,13 +76,14 @@ if ('ensure git configs are correct') {
 	like(join(' ', @warn), qr/reused/, 'warned about reused MID');
 	my @mids = $mime->header_obj->header_raw('Message-Id');
 	is($mids[1], '<a-mid@b>', 'original mid not changed');
-	like($mids[0], qr/\A<\w+\@localhost>\z/, 'new MID added');
+	like($mids[0], $sane_mid, 'new MID added');
 	is(scalar(@mids), 2, 'only one new MID added');
 
 	@warn = ();
 	$mime->header_set('Message-Id', '<a-mid@b>');
 	$mime->body_set('this one needs a random mid');
-	my $gen = content_digest($mime)->hexdigest . '@localhost';
+	my $gen = PublicInbox::Import::digest2mid(content_digest($mime));
+	unlike($gen, qr![\+/=]!, 'no URL-unfriendly chars in Message-Id');
 	my $fake = PublicInbox::MIME->new($mime->as_string);
 	$fake->header_set('Message-Id', $gen);
 	ok($im->add($fake), 'fake added easily');
@@ -90,14 +92,14 @@ if ('ensure git configs are correct') {
 	like(join(' ', @warn), qr/using random/, 'warned about using random');
 	@mids = $mime->header_obj->header_raw('Message-Id');
 	is($mids[1], '<a-mid@b>', 'original mid not changed');
-	like($mids[0], qr/\A<\w+\@localhost>\z/, 'new MID added');
+	like($mids[0], $sane_mid, 'new MID added');
 	is(scalar(@mids), 2, 'only one new MID added');
 
 	@warn = ();
 	$mime->header_set('Message-Id');
 	ok($im->add($mime), 'random MID made for MID free message');
 	@mids = $mime->header_obj->header_raw('Message-Id');
-	like($mids[0], qr/\A<\w+\@localhost>\z/, 'mid was generated');
+	like($mids[0], $sane_mid, 'mid was generated');
 	is(scalar(@mids), 1, 'new generated');
 }
 
