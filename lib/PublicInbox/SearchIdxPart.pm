@@ -54,6 +54,14 @@ sub partition_worker_loop ($$$) {
 			$txn = undef;
 			print { $self->{skeleton}->{w} } "barrier $part\n" or
 					die "write failed to skeleton: $!\n";
+		} elsif ($line =~ /\AD ([a-f0-9]{40,}) (.+)\n\z/s) {
+			my ($oid, $mid) = ($1, $2);
+			$xdb ||= $self->_xdb_acquire;
+			if (!$txn) {
+				$xdb->begin_transaction;
+				$txn = 1;
+			}
+			$self->remove_by_oid($oid, $mid);
 		} else {
 			chomp $line;
 			my ($len, $artnum, $oid, $mid0) = split(/ /, $line);

@@ -199,18 +199,47 @@ sub idx_init {
 }
 
 sub remove {
-	my ($self, $mime, $msg) = @_;
-	my $existing = $self->lookup_content($mime) or return;
-
-	# don't touch ghosts or already junked messages
-	return unless $existing->type eq 'mail';
-
-	# always write removals to the current (latest) git repo since
-	# we process chronologically
+	my ($self, $mime, $cmt_msg) = @_;
+	$self->barrier;
+	$self->idx_init;
 	my $im = $self->importer;
-	my ($cmt, undef) = $im->remove($mime, $msg);
-	$cmt = $im->get_mark($cmt);
-	$self->unindex_msg($existing, $cmt);
+	my $ibx = $self->{-inbox};
+	my $srch = $ibx->search;
+	my $cid = content_id($mime);
+	my $skel = $self->{skel};
+	my $parts = $self->{idx_parts};
+	my $mm = $skel->{mm};
+	my $removed;
+	my $mids = mids($mime->header_obj);
+	foreach my $mid (@$mids) {
+		$srch->reopen->each_smsg_by_mid($mid, sub {
+			my ($smsg) = @_;
+			$smsg->load_expand;
+			my $msg = $ibx->msg_by_smsg($smsg);
+			if (!defined($msg)) {
+				warn "broken smsg for $mid\n";
+				return 1; # continue
+			}
+			my $cur = PublicInbox::MIME->new($msg);
+			if (content_id($cur) eq $cid) {
+				$mm->num_delete($smsg->num);
+				# $removed should only be set once assuming
+				# no bugs in our deduplication code:
+				$removed = $smsg;
+				$removed->{mime} = $cur;
+				$im->remove($cur, $cmt_msg);
+				$removed->num; # memoize this for callers
+
+				my $oid = $smsg->{blob};
+				foreach my $idx (@$parts, $skel) {
+					$idx->remote_remove($oid, $mid);
+				}
+			}
+			1; # continue
+		});
+		$self->barrier;
+	}
+	$removed;
 }
 
 sub done {

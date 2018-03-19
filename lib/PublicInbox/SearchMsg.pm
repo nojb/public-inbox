@@ -64,7 +64,9 @@ sub load_doc {
 # :bytes and :lines metadata in RFC 3977
 sub bytes ($) { get_val($_[0]->{doc}, &PublicInbox::Search::BYTES) }
 sub lines ($) { get_val($_[0]->{doc}, &PublicInbox::Search::LINES) }
-sub num ($) { get_val($_[0]->{doc}, &PublicInbox::Search::NUM) }
+sub num ($) {
+	$_[0]->{num} ||= get_val($_[0]->{doc}, PublicInbox::Search::NUM)
+}
 
 sub __hdr ($$) {
 	my ($self, $field) = @_;

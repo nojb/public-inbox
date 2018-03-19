@@ -36,12 +36,13 @@ my $im = eval {
 };
 is($im->{partitions}, 1, 'one partition when forced');
 ok($im->add($mime), 'ordinary message added');
+my $git0;
 
 if ('ensure git configs are correct') {
 	my @cmd = (qw(git config), "--file=$mainrepo/all.git/config",
 		qw(core.sharedRepository 0644));
 	is(system(@cmd), 0, "set sharedRepository in all.git");
-	my $git0 = PublicInbox::Git->new("$mainrepo/git/0.git");
+	$git0 = PublicInbox::Git->new("$mainrepo/git/0.git");
 	my $fh = $git0->popen(qw(config core.sharedRepository));
 	my $v = eval { local $/; <$fh> };
 	chomp $v;
@@ -189,8 +190,23 @@ EOF
 };
 {
 	local $ENV{NPROC} = 2;
+	my @before = $git0->qx(qw(log --pretty=oneline));
 	$im = PublicInbox::V2Writable->new($ibx, 1);
 	is($im->{partitions}, 1, 'detected single partition from previous');
+	my $smsg = $im->remove($mime, 'test removal');
+	my @after = $git0->qx(qw(log --pretty=oneline));
+	$im->done;
+	my $tip = shift @after;
+	like($tip, qr/\A[a-f0-9]+ test removal\n\z/s,
+		'commit message propaged to git');
+	is_deeply(\@after, \@before, 'only one commit written to git');
+	is($ibx->mm->num_for($smsg->mid), undef, 'no longer in Msgmap by mid');
+	like($smsg->num, qr/\A\d+\z/, 'numeric number in return message');
+	is($ibx->mm->mid_for($smsg->num), undef, 'no longer in Msgmap by num');
+	my $srch = $ibx->search->reopen;
+	my @found = ();
+	$srch->each_smsg_by_mid($smsg->mid, sub { push @found, @_; 1 });
+	is(scalar(@found), 0, 'no longer found in Xapian skeleton');
 }
 
 done_testing();

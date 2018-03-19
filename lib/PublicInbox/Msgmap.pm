@@ -140,6 +140,14 @@ sub mid_delete {
 	$sth->execute;
 }
 
+sub num_delete {
+	my ($self, $num) = @_;
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare('DELETE FROM msgmap WHERE num = ?');
+	$sth->bind_param(1, $num);
+	$sth->execute;
+}
+
 sub create_tables {
 	my ($dbh) = @_;
 	my $e;

@@ -73,6 +73,14 @@ sub skeleton_worker_loop {
 				print $barrier_note "barrier_done\n" or die
 					"print failed to barrier note: $!";
 			}
+		} elsif ($line =~ /\AD ([a-f0-9]{40,}) (.*)\n\z/s) {
+			my ($oid, $mid) = ($1, $2);
+			$xdb ||= $self->_xdb_acquire;
+			if (!$txn) {
+				$xdb->begin_transaction;
+				$txn = 1;
+			}
+			$self->remove_by_oid($oid, $mid);
 		} else {
 			my $len = int($line);
 			my $n = read($r, my $msg, $len) or die "read: $!\n";
@@ -108,6 +116,16 @@ sub index_skeleton {
 	$self->_lock_release;
 
 	die "print failed: $err\n" if $err;
+}
+
+sub remote_remove {
+	my ($self, $oid, $mid) = @_;
+	my $err;
+	$self->_lock_acquire;
+	eval { $self->SUPER::remote_remove($oid, $mid) };
+	$err = $@;
+	$self->_lock_release;
+	die $err if $err;
 }
 
 # values: [ TS, NUM, BYTES, LINES, MID, XPATH, doc_data ]

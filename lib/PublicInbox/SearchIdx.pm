@@ -440,6 +440,31 @@ sub remove_message {
 	}
 }
 
+# MID is a hint in V2
+sub remove_by_oid {
+	my ($self, $oid, $mid) = @_;
+	my $db = $self->{xdb};
+
+	# XXX careful, we cannot use batch_do here since we conditionally
+	# delete documents based on other factors, so we cannot call
+	# find_doc_ids twice.
+	my ($head, $tail) = $self->find_doc_ids('Q' . $mid);
+	return if $head == $tail;
+
+	# there is only ONE element in @delete unless we
+	# have bugs in our v2writable deduplication check
+	my @delete;
+	for (; $head != $tail; $head->inc) {
+		my $docid = $head->get_docid;
+		my $doc = $db->get_document($docid);
+		my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
+		$smsg->load_expand;
+		push(@delete, $docid) if $smsg->{blob} eq $oid;
+	}
+	$db->delete_document($_) foreach @delete;
+	scalar(@delete);
+}
+
 sub term_generator { # write-only
 	my ($self) = @_;
 
@@ -894,6 +919,13 @@ sub remote_close {
 	close $w or die "failed to close pipe for pid:$pid: $!\n";
 	waitpid($pid, 0) == $pid or die "remote process did not finish";
 	$? == 0 or die ref($self)." pid:$pid exited with: $?";
+}
+
+# triggers remove_by_oid in partition or skeleton
+sub remote_remove {
+	my ($self, $oid, $mid) = @_;
+	print { $self->{w} } "D $oid $mid\n" or
+			die "failed to write remove $!";
 }
 
 1;
