@@ -378,8 +378,7 @@ sub lookup_content {
 	my ($self, $mime, $mid) = @_;
 	my $ibx = $self->{-inbox};
 
-	my $srch = $ibx->search;
-	$srch->reopen;
+	my $srch = $ibx->search->reopen;
 	my $cid = content_id($mime);
 	my $found;
 	$srch->each_smsg_by_mid($mid, sub {

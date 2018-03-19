@@ -173,6 +173,7 @@ sub reopen {
 	if (my $skel = $self->{skel}) {
 		$skel->reopen;
 	}
+	$self; # make chaining easier
 }
 
 # read-only
