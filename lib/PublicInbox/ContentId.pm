@@ -21,7 +21,8 @@ sub content_digest ($) {
 	# in SearchIdx, so treat them the same for this:
 	my %seen;
 	foreach my $mid (@{mids($hdr)}) {
-		$dig->add('mid: '.$mid);
+		# do NOT consider the Message-ID as part of the content_id
+		# if we got here, we've already got Message-ID reuse
 		$seen{$mid} = 1;
 	}
 	foreach my $mid (@{references($hdr)}) {

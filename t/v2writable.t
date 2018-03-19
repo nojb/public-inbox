@@ -61,11 +61,15 @@ if ('ensure git configs are correct') {
 
 	@warn = ();
 	$mime->header_set('Message-Id', '<a-mid@b>', '<c@d>');
-	ok($im->add($mime), 'secondary MID used');
+	is($im->add($mime), undef, 'secondary MID ignored if first matches');
+	my $sec = PublicInbox::MIME->new($mime->as_string);
+	$sec->header_set('Date');
+	$sec->header_set('Message-Id', '<a-mid@b>', '<c@d>');
+	ok($im->add($sec), 'secondary MID used if data is different');
 	like(join(' ', @warn), qr/mismatched/, 'warned about mismatch');
 	like(join(' ', @warn), qr/alternative/, 'warned about alternative');
 	is_deeply([ '<a-mid@b>', '<c@d>' ],
-		[ $mime->header_obj->header_raw('Message-Id') ],
+		[ $sec->header_obj->header_raw('Message-Id') ],
 		'no new Message-Id added');
 
 	my $sane_mid = qr/\A<[\w\-]+\@localhost>\z/;
@@ -85,7 +89,7 @@ if ('ensure git configs are correct') {
 	my $gen = PublicInbox::Import::digest2mid(content_digest($mime));
 	unlike($gen, qr![\+/=]!, 'no URL-unfriendly chars in Message-Id');
 	my $fake = PublicInbox::MIME->new($mime->as_string);
-	$fake->header_set('Message-Id', $gen);
+	$fake->header_set('Message-Id', "<$gen>");
 	ok($im->add($fake), 'fake added easily');
 	is_deeply(\@warn, [], 'no warnings from a faker');
 	ok($im->add($mime), 'random MID made');
