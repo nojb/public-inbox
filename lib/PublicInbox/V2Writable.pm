@@ -406,6 +406,26 @@ sub import_init {
 	$self->{im} = $im;
 }
 
+# XXX experimental
+sub diff ($$$) {
+	my ($mid, $cur, $new) = @_;
+	use File::Temp qw(tempfile);
+	use PublicInbox::Spawn qw(spawn);
+
+	my ($ah, $an) = tempfile('email-cur-XXXXXXXX');
+	print $ah $cur->as_string or die "print: $!";
+	close $ah or die "close: $!";
+	my ($bh, $bn) = tempfile('email-new-XXXXXXXX');
+	print $bh $new->as_string or die "print: $!";
+	close $bh or die "close: $!";
+	my $cmd = [ qw(diff -u), $an, $bn ];
+	print STDERR "# MID conflict <$mid>\n";
+	my $pid = spawn($cmd, undef, { 1 => 2 });
+	defined $pid or die "diff failed to spawn $!";
+	waitpid($pid, 0) == $pid or die "diff did not finish";
+	unlink($an, $bn);
+}
+
 sub lookup_content {
 	my ($self, $mime, $mid) = @_;
 	my $ibx = $self->{-inbox};
@@ -427,6 +447,10 @@ sub lookup_content {
 			$found = $smsg;
 			return 0; # break out of loop
 		}
+
+		# XXX DEBUG_DIFF is experimental and may be removed
+		diff($mid, $cur, $mime) if $ENV{DEBUG_DIFF};
+
 		1; # continue
 	});
 	$found;
