@@ -12,6 +12,8 @@ use PublicInbox::Import;
 use PublicInbox::MDA;
 use PublicInbox::Spawn qw(spawn);
 use File::Temp qw//;
+use PublicInbox::MID qw(mids);
+use PublicInbox::ContentId qw(content_digest);
 
 sub new {
 	my ($class, $config) = @_;
@@ -144,25 +146,14 @@ sub _remove_spam {
 	})
 }
 
-# used to hash the relevant portions of a message when there are conflicts
-sub _hash_mime2 {
-	my ($mime) = @_;
-	require Digest::SHA;
-	my $dig = Digest::SHA->new('SHA-1');
-	$dig->add($mime->header_obj->header_raw('Subject'));
-	$dig->add($mime->body_raw);
-	$dig->hexdigest;
-}
-
 sub _force_mid {
 	my ($mime) = @_;
-	# probably a bad idea, but we inject a Message-Id if
-	# one is missing, here..
-	my $mid = $mime->header_obj->header_raw('Message-Id');
-	if (!defined $mid || $mid =~ /\A\s*\z/) {
-		$mid = '<' . _hash_mime2($mime) . '@generated>';
-		$mime->header_set('Message-Id', $mid);
-	}
+	my $hdr = $mime->header_obj;
+	my $mids = mids($hdr);
+	return if @$mids;
+	my $dig = content_digest($mime);
+	my $mid = $dig->clone->hexdigest . '@localhost';
+	$hdr->header_set('Message-Id', $mid);
 }
 
 sub _try_path {
