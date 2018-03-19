@@ -8,6 +8,7 @@ use PublicInbox::MIME;
 use PublicInbox::Inbox;
 use PublicInbox::V2Writable;
 use PublicInbox::Import;
+use PublicInbox::MDA;
 my $usage = "usage: $0 NAME EMAIL DIR <MBOX\n";
 my $dry_run;
 my $version = 2;
@@ -57,6 +58,7 @@ sub do_add ($$) {
 	}
 	$mime = $vger->scrub($mime);
 	return unless $im;
+	$mime->header_set($_) foreach @PublicInbox::MDA::BAD_HEADERS;
 	$im->add($mime) or
 		warn "duplicate: ",
 			$mime->header_obj->header_raw('Message-ID'), "\n";
