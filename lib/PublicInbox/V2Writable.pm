@@ -220,6 +220,7 @@ sub remove {
 				warn "broken smsg for $mid\n";
 				return 1; # continue
 			}
+			my $orig = $$msg;
 			my $cur = PublicInbox::MIME->new($msg);
 			if (content_id($cur) eq $cid) {
 				$mm->num_delete($smsg->num);
@@ -227,7 +228,8 @@ sub remove {
 				# no bugs in our deduplication code:
 				$removed = $smsg;
 				$removed->{mime} = $cur;
-				$im->remove($cur, $cmt_msg);
+				$im->remove(\$orig, $cmt_msg);
+				$orig = undef;
 				$removed->num; # memoize this for callers
 
 				my $oid = $smsg->{blob};

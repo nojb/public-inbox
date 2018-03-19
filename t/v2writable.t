@@ -191,6 +191,7 @@ EOF
 {
 	local $ENV{NPROC} = 2;
 	my @before = $git0->qx(qw(log --pretty=oneline));
+	my $before = $git0->qx(qw(log --pretty=raw --raw -r --no-abbrev));
 	$im = PublicInbox::V2Writable->new($ibx, 1);
 	is($im->{partitions}, 1, 'detected single partition from previous');
 	my $smsg = $im->remove($mime, 'test removal');
@@ -207,6 +208,14 @@ EOF
 	my @found = ();
 	$srch->each_smsg_by_mid($smsg->mid, sub { push @found, @_; 1 });
 	is(scalar(@found), 0, 'no longer found in Xapian skeleton');
+
+	my $after = $git0->qx(qw(log -1 --pretty=raw --raw -r --no-abbrev));
+	if ($after =~ m!( [a-f0-9]+ )A\td$!) {
+		my $oid = $1;
+		ok(index($before, $oid) > 0, 'no new blob introduced');
+	} else {
+		fail('failed to extract blob from log output');
+	}
 }
 
 done_testing();

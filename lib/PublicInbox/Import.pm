@@ -11,7 +11,6 @@ use Fcntl qw(:flock :DEFAULT);
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mid_mime mid2path);
 use PublicInbox::Address;
-use PublicInbox::ContentId qw(content_id);
 use PublicInbox::MsgTime qw(msg_timestamp);
 
 sub new {
@@ -163,7 +162,6 @@ sub get_mark {
 # ('MISMATCH', Email::MIME) on mismatch
 # (:MARK, Email::MIME) on success
 #
-# For v2 inboxes, the content_id is returned instead of the msg
 # v2 callers should check with Xapian before calling this as
 # it is not idempotent.
 sub remove {
@@ -179,10 +177,17 @@ sub remove {
 		($err, $cur) = check_remove_v1($r, $w, $tip, $path, $mime);
 		return ($err, $cur) if $err;
 	} else {
-		$cur = content_id($mime);
-		my $len = length($cur);
+		my $sref;
+		if (ref($mime) eq 'SCALAR') { # optimization used by V2Writable
+			$sref = $mime;
+		} else { # XXX should not be necessary:
+			my $str = $mime->as_string;
+			$sref = \$str;
+		}
+		my $len = length($$sref);
 		$blob = $self->{mark}++;
-		print $w "blob\nmark :$blob\ndata $len\n$cur\n" or wfail;
+		print $w "blob\nmark :$blob\ndata $len\n",
+			$$sref, "\n" or wfail;
 	}
 
 	my $ref = $self->{ref};
