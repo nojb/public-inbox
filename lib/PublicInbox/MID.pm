@@ -50,7 +50,8 @@ sub mid2path {
 	"$x2/$x38";
 }
 
-sub mid_mime ($) { $_[0]->header_obj->header_raw('Message-ID') }
+# Only for v1 code paths:
+sub mid_mime ($) { mids($_[0]->header_obj)->[0] }
 
 sub mids ($) {
 	my ($hdr) = @_;
