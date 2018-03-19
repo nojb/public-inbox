@@ -125,7 +125,6 @@ sub num_for {
 
 		# very unlikely:
 		warn "<$mid> reused for mismatched content\n";
-		$self->idx_init;
 
 		# try the rest of the mids
 		foreach my $i (1..$#$mids) {
