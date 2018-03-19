@@ -259,7 +259,9 @@ sub _importer_for {
 		if ($v == 2) {
 			eval { require PublicInbox::V2Writable };
 			die "v2 not supported: $@\n" if $@;
-			PublicInbox::V2Writable->new($inbox);
+			my $v2w = PublicInbox::V2Writable->new($inbox);
+			$v2w->{parallel} = 0;
+			$v2w;
 		} elsif ($v == 1) {
 			my $git = $inbox->git;
 			my $name = $inbox->{name};

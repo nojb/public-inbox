@@ -83,8 +83,9 @@ if ($version >= 2) {
 	};
 	$ibx = PublicInbox::Inbox->new($ibx);
 	my $v2w = PublicInbox::V2Writable->new($ibx, 1);
+	$v2w->{parallel} = 0;
+	$v2w->idx_init;
 	$v2w->git_init(0);
-	$v2w->idx_init(0);
 	$v2w->done;
 } elsif ($version == 1) {
 	x(qw(git init -q --bare), $mainrepo);

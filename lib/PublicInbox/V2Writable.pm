@@ -56,6 +56,7 @@ sub new {
 		xap_rw => undef, # PublicInbox::V2SearchIdx
 		xap_ro => undef,
 		partitions => $nparts,
+		parallel => 1,
 		transact_bytes => 0,
 		lock_path => "$dir/inbox.lock",
 		# limit each repo to 1GB or so
@@ -93,7 +94,7 @@ sub add {
 	my $nparts = $self->{partitions};
 	my $part = $num % $nparts;
 	my $idx = $self->idx_part($part);
-	$idx->index_raw($len, $msgref, $num, $oid, $mid0);
+	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
 	my $n = $self->{transact_bytes} += $len;
 	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
 		$self->checkpoint;

@@ -523,6 +523,7 @@ sub link_and_save {
 	$doc->add_boolean_term('Q' . $_) foreach @$mids;
 
 	my $vivified = 0;
+	$self->{skel} and die "Should not have read-only skel here\n";;
 	foreach my $mid (@$mids) {
 		$self->each_smsg_by_mid($mid, sub {
 			my ($cur) = @_;
@@ -887,24 +888,59 @@ sub DESTROY {
 # remote_* subs are only used by SearchIdxPart and SearchIdxSkeleton
 sub remote_commit {
 	my ($self) = @_;
-	print { $self->{w} } "commit\n" or die "failed to write commit: $!";
+	if (my $w = $self->{w}) {
+		print $w "commit\n" or die "failed to write commit: $!";
+	} else {
+		$self->commit_txn_lazy;
+		if (my $skel = $self->{skeleton}) {
+			$skel->commit_txn_lazy;
+		}
+	}
 }
 
 sub remote_close {
 	my ($self) = @_;
-	my $pid = delete $self->{pid} or die "no process to wait on\n";
-	my $w = delete $self->{w} or die "no pipe to write to\n";
-	print $w "close\n" or die "failed to write to pid:$pid: $!\n";
-	close $w or die "failed to close pipe for pid:$pid: $!\n";
-	waitpid($pid, 0) == $pid or die "remote process did not finish";
-	$? == 0 or die ref($self)." pid:$pid exited with: $?";
+	if (my $w = delete $self->{w}) {
+		my $pid = delete $self->{pid} or die "no process to wait on\n";
+		print $w "close\n" or die "failed to write to pid:$pid: $!\n";
+		close $w or die "failed to close pipe for pid:$pid: $!\n";
+		waitpid($pid, 0) == $pid or die "remote process did not finish";
+		$? == 0 or die ref($self)." pid:$pid exited with: $?";
+	} else {
+		die "transaction in progress $self\n" if $self->{txn};
+		$self->_xdb_release if $self->{xdb};
+	}
 }
 
-# triggers remove_by_oid in partition or skeleton
 sub remote_remove {
 	my ($self, $oid, $mid) = @_;
-	print { $self->{w} } "D $oid $mid\n" or
-			die "failed to write remove $!";
+	if (my $w = $self->{w}) {
+		# triggers remove_by_oid in partition or skeleton
+		print $w "D $oid $mid\n" or die "failed to write remove $!";
+	} else {
+		$self->begin_txn_lazy;
+		$self->remove_by_oid($oid, $mid);
+	}
+}
+
+sub begin_txn_lazy {
+	my ($self) = @_;
+	return if $self->{txn};
+	my $xdb = $self->{xdb} || $self->_xdb_acquire;
+	$xdb->begin_transaction;
+	$self->{txn} = 1;
+}
+
+sub commit_txn_lazy {
+	my ($self) = @_;
+	delete $self->{txn} or return;
+	$self->{xdb}->commit_transaction;
+}
+
+sub worker_done {
+	my ($self) = @_;
+	die "$$ $0 xdb not released\n" if $self->{xdb};
+	die "$$ $0 still in transaction\n" if $self->{txn};
 }
 
 1;
