@@ -57,7 +57,7 @@ if ('ensure git configs are correct') {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
 	is($im->add($mime), undef, 'obvious duplicate rejected');
-	like(join(' ', @warn), qr/resent/, 'warned about resent message');
+	is(scalar(@warn), 0, 'no warning about resent message');
 
 	@warn = ();
 	$mime->header_set('Message-Id', '<a-mid@b>', '<c@d>');

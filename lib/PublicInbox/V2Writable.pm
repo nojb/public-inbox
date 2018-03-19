@@ -119,10 +119,10 @@ sub num_for {
 		foreach my $m (@$mids) {
 			# read-only lookup now safe to do after above barrier
 			my $existing = $self->lookup_content($mime, $m);
-			if ($existing) {
-				warn "<$m> resent\n";
-				return; # easy, don't store duplicates
-			}
+			# easy, don't store duplicates
+			# note: do not add more diagnostic info here since
+			# it gets noisy on public-inbox-watch restarts
+			return if $existing;
 		}
 
 		# very unlikely:
