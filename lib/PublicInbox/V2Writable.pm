@@ -146,19 +146,19 @@ sub num_for_harder {
 
 	my $hdr = $mime->header_obj;
 	my $dig = content_digest($mime);
-	$$mid0 = $dig->clone->hexdigest . '@localhost';
+	$$mid0 = PublicInbox::Import::digest2mid($dig);
 	my $num = $self->{skel}->{mm}->mid_insert($$mid0);
 	unless (defined $num) {
 		# it's hard to spoof the last Received: header
 		my @recvd = $hdr->header_raw('Received');
 		$dig->add("Received: $_") foreach (@recvd);
-		$$mid0 = $dig->clone->hexdigest . '@localhost';
+		$$mid0 = PublicInbox::Import::digest2mid($dig);
 		$num = $self->{skel}->{mm}->mid_insert($$mid0);
 
 		# fall back to a random Message-ID and give up determinism:
 		until (defined($num)) {
 			$dig->add(rand);
-			$$mid0 = $dig->clone->hexdigest . '@localhost';
+			$$mid0 = PublicInbox::Import::digest2mid($dig);
 			warn "using random Message-ID <$$mid0> as fallback\n";
 			$num = $self->{skel}->{mm}->mid_insert($$mid0);
 		}

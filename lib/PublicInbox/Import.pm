@@ -9,9 +9,10 @@ use strict;
 use warnings;
 use Fcntl qw(:flock :DEFAULT);
 use PublicInbox::Spawn qw(spawn);
-use PublicInbox::MID qw(mid_mime mid2path);
+use PublicInbox::MID qw(mids mid_mime mid2path);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp);
+use PublicInbox::ContentId qw(content_digest);
 
 sub new {
 	my ($class, $git, $name, $email, $ibx) = @_;
@@ -308,7 +309,12 @@ sub add {
 
 	my $path;
 	if ($path_type eq '2/38') {
-		$path = mid2path(mid_mime($mime));
+		my $mids = mids($mime->header_obj);
+		if (!scalar(@$mids)) {
+			my $dig = content_digest($mime);
+			@$mids = (digest2mid($dig));
+		}
+		$path = mid2path($mids->[0]);
 	} else { # v2 layout, one file:
 		$path = 'm';
 	}
@@ -391,6 +397,11 @@ sub atfork_child {
 	foreach my $f (qw(in out)) {
 		close $self->{$f} or die "failed to close import[$f]: $!\n";
 	}
+}
+
+sub digest2mid ($) {
+	my ($dig) = @_;
+	$dig->clone->hexdigest . '@localhost';
 }
 
 1;

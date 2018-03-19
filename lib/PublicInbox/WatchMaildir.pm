@@ -12,8 +12,6 @@ use PublicInbox::Import;
 use PublicInbox::MDA;
 use PublicInbox::Spawn qw(spawn);
 use File::Temp qw//;
-use PublicInbox::MID qw(mids);
-use PublicInbox::ContentId qw(content_digest);
 
 sub new {
 	my ($class, $config) = @_;
@@ -127,7 +125,6 @@ sub _remove_spam {
 	# path must be marked as (S)een
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
 	my $mime = _path_to_mime($path) or return;
-	_force_mid($mime);
 	$self->{config}->each_inbox(sub {
 		my ($ibx) = @_;
 		eval {
@@ -144,16 +141,6 @@ sub _remove_spam {
 				" from ", $ibx->{name}, ': ', $@, "\n";
 		}
 	})
-}
-
-sub _force_mid {
-	my ($mime) = @_;
-	my $hdr = $mime->header_obj;
-	my $mids = mids($hdr);
-	return if @$mids;
-	my $dig = content_digest($mime);
-	my $mid = $dig->clone->hexdigest . '@localhost';
-	$hdr->header_set('Message-Id', $mid);
 }
 
 sub _try_path {
@@ -191,7 +178,6 @@ sub _try_path {
 		$mime = $ret;
 	}
 
-	_force_mid($mime);
 	$im->add($mime, $self->{spamcheck});
 }
 
