@@ -280,7 +280,7 @@ sub barrier {
 		# Now deal with Xapian
 		$skel->barrier_init(scalar(@$parts));
 		# each partition needs to issue a barrier command to skel:
-		$_->barrier foreach @$parts;
+		$_->remote_barrier foreach @$parts;
 
 		$skel->barrier_wait; # wait for each Xapian partition
 

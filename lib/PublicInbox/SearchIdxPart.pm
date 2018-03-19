@@ -95,7 +95,7 @@ sub atfork_child {
 }
 
 # called by V2Writable:
-sub barrier {
+sub remote_barrier {
 	my $w = $_[0]->{w};
 	print $w "barrier\n" or die "failed to print: $!";
 	$w->flush or die "failed to flush: $!";
