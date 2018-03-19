@@ -66,6 +66,7 @@ lib/PublicInbox/HTTPD/Async.pm
 lib/PublicInbox/Hval.pm
 lib/PublicInbox/Import.pm
 lib/PublicInbox/Inbox.pm
+lib/PublicInbox/InboxWritable.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
 lib/PublicInbox/Lock.pm

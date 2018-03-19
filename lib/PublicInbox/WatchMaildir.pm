@@ -11,6 +11,7 @@ use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MDA;
 use PublicInbox::Spawn qw(spawn);
+use PublicInbox::InboxWritable;
 use File::Temp qw//;
 
 sub new {
@@ -50,6 +51,10 @@ sub new {
 			$spamcheck = undef;
 		}
 	}
+
+	# need to make all inboxes writable for spam removal:
+	$config->each_inbox(sub { PublicInbox::InboxWritable->new($_[0]) });
+
 	foreach $k (keys %$config) {
 		$k =~ /\Apublicinbox\.([^\.]+)\.watch\z/ or next;
 		my $name = $1;
@@ -118,7 +123,7 @@ sub _remove_spam {
 		eval {
 			my $im = _importer_for($self, $ibx);
 			$im->remove($mime, 'spam');
-			if (my $scrub = _scrubber_for($ibx)) {
+			if (my $scrub = $ibx->filter) {
 				my $scrubbed = $scrub->scrub($mime) or return;
 				$scrubbed == 100 and return;
 				$im->remove($scrubbed, 'spam');
@@ -160,7 +165,7 @@ sub _try_path {
 		my $v = $mime->header_obj->header_raw($wm->[0]);
 		return unless ($v && $v =~ $wm->[1]);
 	}
-	if (my $scrub = _scrubber_for($inbox)) {
+	if (my $scrub = $inbox->filter) {
 		my $ret = $scrub->scrub($mime) or return;
 		$ret == 100 and return;
 		$mime = $ret;
@@ -253,25 +258,8 @@ sub _path_to_mime {
 }
 
 sub _importer_for {
-	my ($self, $inbox) = @_;
-	my $im = $inbox->{-import} ||= eval {
-		my $v = $inbox->{version} || 1;
-		if ($v == 2) {
-			eval { require PublicInbox::V2Writable };
-			die "v2 not supported: $@\n" if $@;
-			my $v2w = PublicInbox::V2Writable->new($inbox);
-			$v2w->{parallel} = 0;
-			$v2w;
-		} elsif ($v == 1) {
-			my $git = $inbox->git;
-			my $name = $inbox->{name};
-			my $addr = $inbox->{-primary_address};
-			PublicInbox::Import->new($git, $name, $addr, $inbox);
-		} else {
-			die "unsupported inbox version: $v\n";
-		}
-	};
-
+	my ($self, $ibx) = @_;
+	my $im = $ibx->importer(0);
 	my $importers = $self->{importers};
 	if (scalar(keys(%$importers)) > 2) {
 		delete $importers->{"$im"};
@@ -279,26 +267,6 @@ sub _importer_for {
 	}
 
 	$importers->{"$im"} = $im;
-}
-
-sub _scrubber_for {
-	my ($inbox) = @_;
-	my $f = $inbox->{filter};
-	if ($f && $f =~ /::/) {
-		my @args = (-inbox => $inbox);
-		# basic line splitting, only
-		# Perhaps we can have proper quote splitting one day...
-		($f, @args) = split(/\s+/, $f) if $f =~ /\s+/;
-
-		eval "require $f";
-		if ($@) {
-			warn $@;
-		} else {
-			# e.g: PublicInbox::Filter::Vger->new(@args)
-			return $f->new(@args);
-		}
-	}
-	undef;
 }
 
 sub _spamcheck_cb {
