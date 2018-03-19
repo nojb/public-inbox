@@ -149,9 +149,12 @@ sub index_skeleton_real ($$) {
 # write to the subprocess
 sub barrier_init {
 	my ($self, $nparts) = @_;
-	my $w = $_[0]->{w};
-	print $w "barrier_init $nparts\n" or die "failed to write: $!";
-	$w->flush or die "failed to flush: $!";
+	my $w = $self->{w};
+	my $err;
+	$self->_lock_acquire;
+	print $w "barrier_init $nparts\n" or $err = "failed to write: $!\n";
+	$self->_lock_release;
+	die $err if $err;
 }
 
 sub barrier_wait {
