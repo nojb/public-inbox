@@ -26,10 +26,13 @@ sub nproc () {
 sub new {
 	my ($class, $v2ibx, $creat) = @_;
 	my $dir = $v2ibx->{mainrepo} or die "no mainrepo in inbox\n";
+	my $lock_path = "$dir/inbox.lock";
 	unless (-d $dir) {
 		if ($creat) {
 			require File::Path;
 			File::Path::mkpath($dir);
+			open my $fh, '>>', $lock_path or
+				die "failed to open $lock_path: $!\n";
 		} else {
 			die "$dir does not exist\n";
 		}
@@ -57,6 +60,7 @@ sub new {
 		xap_ro => undef,
 		partitions => $nparts,
 		transact_bytes => 0,
+		lock_path => "$dir/inbox.lock",
 		# limit each repo to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 	};
@@ -395,7 +399,7 @@ sub import_init {
 	my $im = PublicInbox::Import->new($git, undef, undef, $self->{-inbox});
 	$im->{bytes_added} = int($packed_bytes / $PACKING_FACTOR);
 	$im->{want_object_info} = 1;
-	$im->{ssoma_lock} = 0;
+	$im->{lock_path} = $self->{lock_path};
 	$im->{path_type} = 'v2';
 	$self->{im} = $im;
 }

@@ -29,7 +29,7 @@ sub new {
 		ref => $ref,
 		inbox => $ibx,
 		path_type => '2/38', # or 'v2'
-		ssoma_lock => 1, # disable for v2
+		lock_path => "$git->{git_dir}/ssoma.lock", # v2 changes this
 		bytes_added => 0,
 	}, $class
 }
@@ -46,13 +46,12 @@ sub gfi_start {
 	my $git = $self->{git};
 	my $git_dir = $git->{git_dir};
 
-	my $lockfh;
-	if ($self->{ssoma_lock}) {
-		my $lockpath = "$git_dir/ssoma.lock";
-		sysopen($lockfh, $lockpath, O_WRONLY|O_CREAT) or
-			die "failed to open lock $lockpath: $!";
+	if (my $lock_path = $self->{lock_path}) {
+		sysopen(my $lockfh, $lock_path, O_WRONLY|O_CREAT) or
+			die "failed to open lock $lock_path: $!";
 		# wait for other processes to be done
 		flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
+		$self->{lockfh} = $lockfh;
 	}
 
 	local $/ = "\n";
@@ -66,7 +65,6 @@ sub gfi_start {
 	$out_w->autoflush(1);
 	$self->{in} = $in_r;
 	$self->{out} = $out_w;
-	$self->{lockfh} = $lockfh;
 	$self->{pid} = $pid;
 	$self->{nchg} = 0;
 	binmode $out_w, ':raw' or die "binmode :raw failed: $!";
@@ -386,7 +384,7 @@ sub done {
 
 	_update_git_info($self, 1) if delete $self->{nchg};
 
-	$self->{ssoma_lock} or return;
+	$self->{lock_path} or return;
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";
 	flock($lockfh, LOCK_UN) or die "unlock failed: $!";
 	close $lockfh or die "close lock failed: $!";
