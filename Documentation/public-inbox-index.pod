@@ -4,7 +4,7 @@ public-inbox-index - create and update search indices
 
 =head1 SYNOPSIS
 
-public-inbox-index [OPTIONS] GIT_DIR
+public-inbox-index [OPTIONS] REPO_DIR
 
 =head1 DESCRIPTION
 
@@ -46,14 +46,14 @@ This does not touch the NNTP article number database.
 =head1 FILES
 
 All public-inbox-specific files are contained within the
-C<$GIT_DIR/public-inbox/> directory.  All files are expected to
+C<$REPO_DIR/public-inbox/> directory.  All files are expected to
 grow in size as more messages are archived, so using compaction
 commands (e.g. L<xapian-compact(1)>) is not recommended unless
 the list is no longer active.
 
 =over
 
-=item $GIT_DIR/public-inbox/msgmap.sqlite3
+=item $REPO_DIR/public-inbox/msgmap.sqlite3
 
 The stable NNTP article number to Message-ID mapping is
 stored in an SQLite3 database.
@@ -70,7 +70,7 @@ messages.
 This file is relatively small, and typically less than 5%
 of the space of the mail stored in a packed git repository.
 
-=item $GIT_DIR/public-inbox/xapian*
+=item $REPO_DIR/public-inbox/xapian*
 
 The database used by L<Search::Xapian>.  This directory name is
 followed by a number indicating the index schema version this

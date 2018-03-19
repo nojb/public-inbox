@@ -4,13 +4,13 @@
 # Basic tool to create a Xapian search index for a git repository
 # configured for public-inbox.
 # Usage with libeatmydata <https://www.flamingspork.com/projects/libeatmydata/>
-# highly recommended: eatmydata public-inbox-index GIT_DIR
+# highly recommended: eatmydata public-inbox-index REPO_DIR
 
 use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use Cwd 'abs_path';
-my $usage = "public-inbox-index GIT_DIR";
+my $usage = "public-inbox-index REPO_DIR";
 use PublicInbox::Config;
 my $config = eval { PublicInbox::Config->new } || eval {
 	warn "public-inbox unconfigured for serving, indexing anyways...\n";
@@ -28,8 +28,10 @@ GetOptions(%opts) or die "bad command-line args\n$usage";
 
 my @dirs;
 
-sub resolve_git_dir {
+sub resolve_repo_dir {
 	my ($cd) = @_;
+	my $prefix = defined $cd ? $cd : './';
+
 	my @cmd = qw(git rev-parse --git-dir);
 	my $cmd = join(' ', @cmd);
 	my $pid = open my $fh, '-|';
@@ -53,9 +55,9 @@ sub resolve_git_dir {
 }
 
 if (@ARGV) {
-	@dirs = map { resolve_git_dir($_) } @ARGV;
+	@dirs = map { resolve_repo_dir($_) } @ARGV;
 } else {
-	@dirs = (resolve_git_dir());
+	@dirs = (resolve_repo_dir());
 }
 
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
