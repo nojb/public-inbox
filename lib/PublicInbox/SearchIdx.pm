@@ -406,29 +406,38 @@ sub add_message {
 	$doc_id;
 }
 
-# returns deleted doc_id on success, undef on missing
+sub batch_do {
+	my ($self, $termval, $cb) = @_;
+	my $batch_size = 1000; # don't let @ids grow too large to avoid OOM
+	while (1) {
+		my ($head, $tail) = $self->find_doc_ids($termval);
+		return if $head == $tail;
+		my @ids;
+		for (; $head != $tail && @ids < $batch_size; $head->inc) {
+			push @ids, $head->get_docid;
+		}
+		$cb->(\@ids);
+	}
+}
+
 sub remove_message {
 	my ($self, $mid) = @_;
 	my $db = $self->{xdb};
-	my $doc_id;
+	my $called;
 	$mid = mid_clean($mid);
 
 	eval {
-		my ($head, $tail) = $self->find_doc_ids('Q' . $mid);
-		if ($head->equal($tail)) {
-			warn "cannot remove non-existent <$mid>\n";
-		}
-		for (; $head != $tail; $head->inc) {
-			my $docid = $head->get_docid;
-			$db->delete_document($docid);
-		}
+		batch_do($self, 'Q' . $mid, sub {
+			my ($ids) = @_;
+			$db->delete_document($_) for @$ids;
+			$called = 1;
+		});
 	};
-
 	if ($@) {
 		warn "failed to remove message <$mid>: $@\n";
-		return undef;
+	} elsif (!$called) {
+		warn "cannot remove non-existent <$mid>\n";
 	}
-	$doc_id;
 }
 
 sub term_generator { # write-only
@@ -795,22 +804,15 @@ sub merge_threads {
 	my ($self, $winner_tid, $loser_tid) = @_;
 	return if $winner_tid == $loser_tid;
 	my $db = $self->{xdb};
-
-	my $batch_size = 1000; # don't let @ids grow too large to avoid OOM
-	while (1) {
-		my ($head, $tail) = $self->find_doc_ids('G' . $loser_tid);
-		return if $head == $tail;
-		my @ids;
-		for (; $head != $tail && @ids < $batch_size; $head->inc) {
-			push @ids, $head->get_docid;
-		}
-		foreach my $docid (@ids) {
+	batch_do($self, 'G' . $loser_tid, sub {
+		my ($ids) = @_;
+		foreach my $docid (@$ids) {
 			my $doc = $db->get_document($docid);
 			$doc->remove_term('G' . $loser_tid);
 			$doc->add_boolean_term('G' . $winner_tid);
 			$db->replace_document($docid, $doc);
 		}
-	}
+	});
 }
 
 sub _read_git_config_perm {
