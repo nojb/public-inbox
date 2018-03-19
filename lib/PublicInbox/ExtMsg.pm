@@ -84,17 +84,33 @@ sub ext_msg {
 	my $n_partial = 0;
 	my @partial;
 
-	eval { require PublicInbox::Msgmap };
-	my $have_mm = $@ ? 0 : 1;
-	if ($have_mm) {
+	if (my $mm = $cur->mm) {
+		my $tmp_mid = $mid;
+		my $res = $mm->mid_prefixes($tmp_mid, 100);
+		if ($res && scalar(@$res)) {
+			$n_partial += scalar(@$res);
+			push @partial, [ $cur, $res ];
+		# fixup common errors:
+		} elsif ($tmp_mid =~ s,/[tTf],,) {
+			$res = $mm->mid_prefixes($tmp_mid, 100);
+			if ($res && scalar(@$res)) {
+				$n_partial += scalar(@$res);
+				push @partial, [ $cur, $res ];
+			}
+		}
+	}
+
+	# can't find a partial match in current inbox, try the others:
+	if (!$n_partial && length($mid) >= 16) {
 		my $tmp_mid = $mid;
 again:
-		unshift @ibx, $cur;
 		foreach my $ibx (@ibx) {
 			my $mm = $ibx->mm or next;
-			if (my $res = $mm->mid_prefixes($tmp_mid)) {
+			my $res = $mm->mid_prefixes($tmp_mid, 100);
+			if ($res && scalar(@$res)) {
 				$n_partial += scalar(@$res);
 				push @partial, [ $ibx, $res ];
+				last if $n_partial >= 100;
 			}
 		}
 		# fixup common errors:
