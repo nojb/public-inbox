@@ -249,10 +249,11 @@ sub remove {
 
 sub done {
 	my ($self) = @_;
+	my $locked = defined $self->{idx_parts};
 	my $im = delete $self->{im};
 	$im->done if $im; # PublicInbox::Import::done
 	$self->searchidx_checkpoint(0);
-	$self->lock_release;
+	$self->lock_release if $locked;
 }
 
 sub checkpoint {

@@ -223,6 +223,8 @@ EOF
 	$im->done;
 	is($git0->qx(qw(log -1 --pretty=raw --raw -r --no-abbrev)),
 		$after, 'no git history made with idempotent remove');
+	eval { $im->done };
+	ok(!$@, '->done is idempotent');
 }
 
 done_testing();
