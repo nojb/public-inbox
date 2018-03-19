@@ -9,9 +9,8 @@
 package PublicInbox::SearchIdx;
 use strict;
 use warnings;
-use Fcntl qw(:flock :DEFAULT);
+use base qw(PublicInbox::Search PublicInbox::Lock);
 use PublicInbox::MIME;
-use base qw(PublicInbox::Search);
 use PublicInbox::MID qw/mid_clean id_compress mid_mime mids references/;
 use PublicInbox::MsgIter;
 use Carp qw(croak);
@@ -96,7 +95,7 @@ sub _xdb_release {
 	my ($self) = @_;
 	my $xdb = delete $self->{xdb} or croak 'not acquired';
 	$xdb->close;
-	_lock_release($self) if $self->{creat};
+	$self->lock_release if $self->{creat};
 	undef;
 }
 
@@ -107,31 +106,11 @@ sub _xdb_acquire {
 	my $flag = Search::Xapian::DB_OPEN;
 	if ($self->{creat}) {
 		require File::Path;
-		_lock_acquire($self);
+		$self->lock_acquire;
 		File::Path::mkpath($dir);
 		$flag = Search::Xapian::DB_CREATE_OR_OPEN;
 	}
 	$self->{xdb} = Search::Xapian::WritableDatabase->new($dir, $flag);
-}
-
-# we only acquire the flock if creating or reindexing;
-# PublicInbox::Import already has the lock on its own.
-sub _lock_acquire {
-	my ($self) = @_;
-	croak 'already locked' if $self->{lockfh};
-	my $lock_path = $self->{lock_path} or return;
-	sysopen(my $lockfh, $lock_path, O_WRONLY|O_CREAT) or
-		die "failed to open lock $lock_path: $!\n";
-	flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
-	$self->{lockfh} = $lockfh;
-}
-
-sub _lock_release {
-	my ($self) = @_;
-	return unless $self->{lock_path};
-	my $lockfh = delete $self->{lockfh} or croak 'not locked';
-	flock($lockfh, LOCK_UN) or die "unlock failed: $!\n";
-	close $lockfh or die "close failed: $!\n";
 }
 
 sub add_val ($$$) {

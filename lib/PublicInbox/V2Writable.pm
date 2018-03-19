@@ -5,7 +5,7 @@
 package PublicInbox::V2Writable;
 use strict;
 use warnings;
-use Fcntl qw(:flock :DEFAULT);
+use base qw(PublicInbox::Lock);
 use PublicInbox::SearchIdxPart;
 use PublicInbox::SearchIdxSkeleton;
 use PublicInbox::MIME;
@@ -26,13 +26,10 @@ sub nproc () {
 sub new {
 	my ($class, $v2ibx, $creat) = @_;
 	my $dir = $v2ibx->{mainrepo} or die "no mainrepo in inbox\n";
-	my $lock_path = "$dir/inbox.lock";
 	unless (-d $dir) {
 		if ($creat) {
 			require File::Path;
 			File::Path::mkpath($dir);
-			open my $fh, '>>', $lock_path or
-				die "failed to open $lock_path: $!\n";
 		} else {
 			die "$dir does not exist\n";
 		}
@@ -64,7 +61,7 @@ sub new {
 		# limit each repo to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 	};
-	bless $self, $class
+	bless $self, $class;
 }
 
 # returns undef on duplicate or spam
@@ -188,6 +185,8 @@ sub idx_init {
 	# frequently activated.
 	delete $ibx->{$_} foreach (qw(git mm search));
 
+	$self->lock_acquire;
+
 	# first time initialization, first we create the skeleton pipe:
 	my $skel = $self->{skel} = PublicInbox::SearchIdxSkeleton->new($self);
 
@@ -253,6 +252,7 @@ sub done {
 	my $im = delete $self->{im};
 	$im->done if $im; # PublicInbox::Import::done
 	$self->searchidx_checkpoint(0);
+	$self->lock_release;
 }
 
 sub checkpoint {
@@ -399,7 +399,7 @@ sub import_init {
 	my $im = PublicInbox::Import->new($git, undef, undef, $self->{-inbox});
 	$im->{bytes_added} = int($packed_bytes / $PACKING_FACTOR);
 	$im->{want_object_info} = 1;
-	$im->{lock_path} = $self->{lock_path};
+	$im->{lock_path} = undef;
 	$im->{path_type} = 'v2';
 	$self->{im} = $im;
 }

@@ -38,8 +38,7 @@ sub new {
 	$w->autoflush(1);
 
 	# lock on only exists in parent, not in worker
-	my $l = $self->{lock_path} = $self->xdir . '/pi-v2-skeleton.lock';
-	open my $fh, '>>', $l or die "failed to create $l: $!\n";
+	$self->{lock_path} = $self->xdir . '/pi-v2-skeleton.lock';
 	$self;
 }
 
@@ -111,9 +110,9 @@ sub index_skeleton {
 	# multiple processes write to the same pipe, so use flock
 	# We can't avoid this lock for <=PIPE_BUF writes, either,
 	# because those atomic writes can break up >PIPE_BUF ones
-	$self->_lock_acquire;
+	$self->lock_acquire;
 	print $w $str or $err = $!;
-	$self->_lock_release;
+	$self->lock_release;
 
 	die "print failed: $err\n" if $err;
 }
@@ -121,10 +120,10 @@ sub index_skeleton {
 sub remote_remove {
 	my ($self, $oid, $mid) = @_;
 	my $err;
-	$self->_lock_acquire;
+	$self->lock_acquire;
 	eval { $self->SUPER::remote_remove($oid, $mid) };
 	$err = $@;
-	$self->_lock_release;
+	$self->lock_release;
 	die $err if $err;
 }
 
@@ -151,9 +150,9 @@ sub barrier_init {
 	my ($self, $nparts) = @_;
 	my $w = $self->{w};
 	my $err;
-	$self->_lock_acquire;
+	$self->lock_acquire;
 	print $w "barrier_init $nparts\n" or $err = "failed to write: $!\n";
-	$self->_lock_release;
+	$self->lock_release;
 	die $err if $err;
 }
 

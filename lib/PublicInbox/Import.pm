@@ -7,7 +7,7 @@
 package PublicInbox::Import;
 use strict;
 use warnings;
-use Fcntl qw(:flock :DEFAULT);
+use base qw(PublicInbox::Lock);
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mids mid_mime mid2path);
 use PublicInbox::Address;
@@ -44,19 +44,13 @@ sub gfi_start {
 	pipe($in_r, $in_w) or die "pipe failed: $!";
 	pipe($out_r, $out_w) or die "pipe failed: $!";
 	my $git = $self->{git};
-	my $git_dir = $git->{git_dir};
 
-	if (my $lock_path = $self->{lock_path}) {
-		sysopen(my $lockfh, $lock_path, O_WRONLY|O_CREAT) or
-			die "failed to open lock $lock_path: $!";
-		# wait for other processes to be done
-		flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
-		$self->{lockfh} = $lockfh;
-	}
+	$self->lock_acquire;
 
 	local $/ = "\n";
 	chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $self->{ref}));
 
+	my $git_dir = $git->{git_dir};
 	my @cmd = ('git', "--git-dir=$git_dir", qw(fast-import
 			--quiet --done --date-format=raw));
 	my $rdr = { 0 => fileno($out_r), 1 => fileno($in_w) };
@@ -384,10 +378,7 @@ sub done {
 
 	_update_git_info($self, 1) if delete $self->{nchg};
 
-	$self->{lock_path} or return;
-	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";
-	flock($lockfh, LOCK_UN) or die "unlock failed: $!";
-	close $lockfh or die "close lock failed: $!";
+	$self->lock_release;
 }
 
 sub atfork_child {

@@ -68,6 +68,7 @@ lib/PublicInbox/Import.pm
 lib/PublicInbox/Inbox.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
+lib/PublicInbox/Lock.pm
 lib/PublicInbox/MDA.pm
 lib/PublicInbox/MID.pm
 lib/PublicInbox/MIME.pm
