@@ -208,7 +208,7 @@ sub remove {
 	if (defined $path) {
 		print $w "D $path\n\n" or wfail;
 	} else {
-		print $w "M 100644 :$blob d\n\n" or wfail;
+		print $w "M 100644 :$blob _/D\n\n" or wfail;
 	}
 	$self->{nchg}++;
 	(($self->{tip} = ":$commit"), $cur);

@@ -210,7 +210,7 @@ EOF
 	is(scalar(@found), 0, 'no longer found in Xapian skeleton');
 
 	my $after = $git0->qx(qw(log -1 --pretty=raw --raw -r --no-abbrev));
-	if ($after =~ m!( [a-f0-9]+ )A\td$!) {
+	if ($after =~ m!( [a-f0-9]+ )A\t_/D$!) {
 		my $oid = $1;
 		ok(index($before, $oid) > 0, 'no new blob introduced');
 	} else {
