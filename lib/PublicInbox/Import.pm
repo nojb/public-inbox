@@ -148,6 +148,42 @@ sub progress {
 	undef;
 }
 
+sub _update_git_info ($$) {
+	my ($self, $do_gc) = @_;
+	# for compatibility with existing ssoma installations
+	# we can probably remove this entirely by 2020
+	my $git_dir = $self->{git}->{git_dir};
+	my @cmd = ('git', "--git-dir=$git_dir");
+	my $index = "$git_dir/ssoma.index";
+	if (-e $index && !$ENV{FAST}) {
+		my $env = { GIT_INDEX_FILE => $index };
+		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
+	}
+	run_die([@cmd, 'update-server-info'], undef);
+	($self->{path_type} eq '2/38') and eval {
+		require PublicInbox::SearchIdx;
+		my $inbox = $self->{inbox} || $git_dir;
+		my $s = PublicInbox::SearchIdx->new($inbox);
+		$s->index_sync({ ref => $self->{ref} });
+	};
+	eval { run_die([@cmd, qw(gc --auto)], undef) } if $do_gc;
+}
+
+sub barrier {
+	my ($self) = @_;
+
+	# For safety, we ensure git checkpoint is complete before because
+	# the data in git is still more important than what is in Xapian
+	# in v2.  Performance may be gained by delaying the ->progress
+	# call but we lose safety
+	if ($self->{nchg}) {
+		$self->checkpoint;
+		$self->progress('checkpoint');
+		_update_git_info($self, 0);
+		$self->{nchg} = 0;
+	}
+}
+
 # used for v2
 sub get_mark {
 	my ($self, $mark) = @_;
@@ -341,28 +377,8 @@ sub done {
 	my $pid = delete $self->{pid} or die 'BUG: missing {pid} when done';
 	waitpid($pid, 0) == $pid or die 'fast-import did not finish';
 	$? == 0 or die "fast-import failed: $?";
-	my $nchg = delete $self->{nchg};
 
-	# for compatibility with existing ssoma installations
-	# we can probably remove this entirely by 2020
-	my $git_dir = $self->{git}->{git_dir};
-	my @cmd = ('git', "--git-dir=$git_dir");
-	my $index = "$git_dir/ssoma.index";
-	if ($nchg && -e $index && !$ENV{FAST}) {
-		my $env = { GIT_INDEX_FILE => $index };
-		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
-	}
-	if ($nchg) {
-		run_die([@cmd, 'update-server-info'], undef);
-		($self->{path_type} eq '2/38') and eval {
-			require PublicInbox::SearchIdx;
-			my $inbox = $self->{inbox} || $git_dir;
-			my $s = PublicInbox::SearchIdx->new($inbox);
-			$s->index_sync({ ref => $self->{ref} });
-		};
-
-		eval { run_die([@cmd, qw(gc --auto)], undef) };
-	}
+	_update_git_info($self, 1) if delete $self->{nchg};
 
 	$self->{ssoma_lock} or return;
 	my $lockfh = delete $self->{lockfh} or die "BUG: not locked: $!";

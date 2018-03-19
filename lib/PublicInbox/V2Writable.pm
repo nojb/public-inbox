@@ -263,13 +263,8 @@ sub checkpoint {
 sub barrier {
 	my ($self) = @_;
 
-	# For safety, we ensure git checkpoint is complete before because
-	# the data in git is still more important than what is in Xapian.
-	# Performance may be gained by delaying ->progress call but we
-	# lose safety
 	if (my $im = $self->{im}) {
-		$im->checkpoint;
-		$im->progress('checkpoint');
+		$im->barrier;
 	}
 	my $skel = $self->{skel};
 	my $parts = $self->{idx_parts};

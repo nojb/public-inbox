@@ -91,7 +91,7 @@ sub _done_for_now {
 	my ($self) = @_;
 	my $importers = $self->{importers};
 	foreach my $im (values %$importers) {
-		$im->done if $im->{nchg};
+		$im->barrier;
 	}
 
 	my $opendirs = $self->{opendirs};
