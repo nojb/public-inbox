@@ -31,7 +31,8 @@ Date: Sat, 18 Jun 2016 00:00:00 +0000
 something
 EOF
 PublicInbox::Emergency->new($maildir)->prepare(\$msg);
-ok(POSIX::mkfifo("$maildir/cur/fifo", 0777));
+ok(POSIX::mkfifo("$maildir/cur/fifo", 0777),
+	'create FIFO to ensure we do not get stuck on it :P');
 my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
 my $config = PublicInbox::Config->new({
