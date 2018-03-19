@@ -218,6 +218,11 @@ EOF
 	} else {
 		fail('failed to extract blob from log output');
 	}
+	is($im->remove($mime, 'test removal'), undef,
+		'remove is idempotent');
+	$im->done;
+	is($git0->qx(qw(log -1 --pretty=raw --raw -r --no-abbrev)),
+		$after, 'no git history made with idempotent remove');
 }
 
 done_testing();
