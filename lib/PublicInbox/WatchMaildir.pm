@@ -91,18 +91,6 @@ sub _done_for_now {
 	my ($self) = @_;
 	my $importers = $self->{importers};
 	foreach my $im (values %$importers) {
-		$im->barrier;
-	}
-
-	my $opendirs = $self->{opendirs};
-
-	# spamdir scanning means every importer remains open
-	my $spamdir = $self->{spamdir};
-	return if defined($spamdir) && $opendirs->{$spamdir};
-
-	foreach my $im (values %$importers) {
-		# not done if we're scanning
-		next if $opendirs->{$im->{git}->{git_dir}};
 		$im->done;
 	}
 }
@@ -267,10 +255,19 @@ sub _path_to_mime {
 sub _importer_for {
 	my ($self, $inbox) = @_;
 	my $im = $inbox->{-import} ||= eval {
-		my $git = $inbox->git;
-		my $name = $inbox->{name};
-		my $addr = $inbox->{-primary_address};
-		PublicInbox::Import->new($git, $name, $addr, $inbox);
+		my $v = $inbox->{version} || 1;
+		if ($v == 2) {
+			eval { require PublicInbox::V2Writable };
+			die "v2 not supported: $@\n" if $@;
+			PublicInbox::V2Writable->new($inbox);
+		} elsif ($v == 1) {
+			my $git = $inbox->git;
+			my $name = $inbox->{name};
+			my $addr = $inbox->{-primary_address};
+			PublicInbox::Import->new($git, $name, $addr, $inbox);
+		} else {
+			die "unsupported inbox version: $v\n";
+		}
 	};
 
 	my $importers = $self->{importers};
