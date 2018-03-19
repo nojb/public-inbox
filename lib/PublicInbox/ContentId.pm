@@ -11,9 +11,6 @@ use PublicInbox::MID qw(mids references);
 # not sure if less-widely supported hash families are worth bothering with
 use Digest::SHA;
 
-# Content-* headers are often no-ops, so maybe we don't need them
-my @ID_HEADERS = qw(Subject From Date To Cc);
-
 sub content_digest ($) {
 	my ($mime) = @_;
 	my $dig = Digest::SHA->new(256);
@@ -31,7 +28,18 @@ sub content_digest ($) {
 		next if $seen{$mid};
 		$dig->add('ref: '.$mid);
 	}
-	foreach my $h (@ID_HEADERS) {
+
+	# Only use Sender: if From is not present
+	foreach my $h (qw(From Sender)) {
+		my @v = $hdr->header_raw($h);
+		if (@v) {
+			$dig->add("$h: $_") foreach @v;
+			last;
+		}
+	}
+
+	# Content-* headers are often no-ops, so maybe we don't need them
+	foreach my $h (qw(Subject Date To Cc)) {
 		my @v = $hdr->header_raw($h);
 		$dig->add("$h: $_") foreach @v;
 	}
