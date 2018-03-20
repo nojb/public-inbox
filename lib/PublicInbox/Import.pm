@@ -13,6 +13,7 @@ use PublicInbox::MID qw(mids mid_mime mid2path);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp);
 use PublicInbox::ContentId qw(content_digest);
+use PublicInbox::MDA;
 
 sub new {
 	my ($class, $git, $name, $email, $ibx) = @_;
@@ -319,6 +320,7 @@ sub add {
 
 	# kill potentially confusing/misleading headers
 	$mime->header_set($_) for qw(bytes lines content-length status);
+	$mime->header_set($_) for @PublicInbox::MDA::BAD_HEADERS;
 
 	# spam check:
 	if ($check_cb) {

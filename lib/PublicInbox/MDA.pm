@@ -81,8 +81,6 @@ sub set_list_headers {
 		$pa =~ tr/@/./; # RFC2919
 		$simple->header_set("List-Id", "<$pa>");
 	}
-
-	$simple->header_set($_) foreach @BAD_HEADERS;
 }
 
 1;

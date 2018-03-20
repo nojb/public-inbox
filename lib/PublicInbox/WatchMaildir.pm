@@ -159,7 +159,6 @@ sub _try_path {
 	}
 	my $im = _importer_for($self, $inbox);
 	my $mime = _path_to_mime($path) or return;
-	$mime->header_set($_) foreach @PublicInbox::MDA::BAD_HEADERS;
 	my $wm = $inbox->{-watchheader};
 	if ($wm) {
 		my $v = $mime->header_obj->header_raw($wm->[0]);
