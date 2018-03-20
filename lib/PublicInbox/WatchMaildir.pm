@@ -13,6 +13,8 @@ use PublicInbox::MDA;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::InboxWritable;
 use File::Temp qw//;
+use PublicInbox::Filter::Base;
+*REJECT = *PublicInbox::Filter::Base::REJECT;
 
 sub new {
 	my ($class, $config) = @_;
@@ -125,7 +127,7 @@ sub _remove_spam {
 			$im->remove($mime, 'spam');
 			if (my $scrub = $ibx->filter) {
 				my $scrubbed = $scrub->scrub($mime) or return;
-				$scrubbed == 100 and return;
+				$scrubbed == REJECT() and return;
 				$im->remove($scrubbed, 'spam');
 			}
 		};
@@ -138,13 +140,7 @@ sub _remove_spam {
 
 sub _try_path {
 	my ($self, $path) = @_;
-	my @p = split(m!/+!, $path);
-	return if $p[-1] !~ /\A[a-zA-Z0-9][\-\w:,=\.]+\z/;
-	if ($p[-1] =~ /:2,([A-Z]+)\z/i) {
-		my $flags = $1;
-		return if $flags =~ /[DT]/; # no [D]rafts or [T]rashed mail
-	}
-	return unless -f $path;
+	return unless PublicInbox::InboxWritable::is_maildir_path($path);
 	if ($path !~ $self->{mdre}) {
 		warn "unrecognized path: $path\n";
 		return;
@@ -166,7 +162,7 @@ sub _try_path {
 	}
 	if (my $scrub = $inbox->filter) {
 		my $ret = $scrub->scrub($mime) or return;
-		$ret == 100 and return;
+		$ret == REJECT() and return;
 		$mime = $ret;
 	}
 
@@ -258,14 +254,14 @@ sub _path_to_mime {
 
 sub _importer_for {
 	my ($self, $ibx) = @_;
-	my $im = $ibx->importer(0);
 	my $importers = $self->{importers};
+	my $im = $importers->{"$ibx"} ||= $ibx->importer(0);
 	if (scalar(keys(%$importers)) > 2) {
-		delete $importers->{"$im"};
+		delete $importers->{"$ibx"};
 		_done_for_now($self);
 	}
 
-	$importers->{"$im"} = $im;
+	$importers->{"$ibx"} = $im;
 }
 
 sub _spamcheck_cb {

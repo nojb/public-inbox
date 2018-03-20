@@ -65,6 +65,14 @@ sub new {
 	bless $self, $class;
 }
 
+sub init_inbox {
+	my ($self, $parallel) = @_;
+	$self->{parallel} = $parallel;
+	$self->idx_init;
+	$self->git_init(0);
+	$self->done;
+}
+
 # returns undef on duplicate or spam
 # mimics Import::add and wraps it for v2
 sub add {

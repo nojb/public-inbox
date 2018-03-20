@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use PublicInbox::MIME;
-use PublicInbox::Inbox;
+use PublicInbox::InboxWritable;
 use PublicInbox::V2Writable;
 use PublicInbox::Import;
 use PublicInbox::MDA;
@@ -30,55 +30,16 @@ my $ibx = {
 	name => $name,
 	version => $version,
 	-primary_address => $email,
+	filter => 'PublicInbox::Filter::Vger',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $im;
 unless ($dry_run) {
 	if ($version >= 2) {
-		$im = PublicInbox::V2Writable->new($ibx, 1);
+		PublicInbox::V2Writable->new($ibx, 1)->init_inbox(0);
 	} else {
-		system(qw(git init --bare -q), $mainrepo);
-		my $git = PublicInbox::Git->new($mainrepo);
-		$im = PublicInbox::Import->new($git, $name, $email, $ibx);
+		system(qw(git init --bare -q), $mainrepo) == 0 or die;
 	}
 }
+$ibx = PublicInbox::InboxWritable->new($ibx);
 binmode STDIN;
-my $msg = '';
-use PublicInbox::Filter::Vger;
-my $vger = PublicInbox::Filter::Vger->new;
-
-sub do_add ($$) {
-	my ($im, $msg) = @_;
-	$$msg =~ s/(\r?\n)+\z/$1/s;
-	my $mime = PublicInbox::MIME->new($msg);
-	if ($variant eq 'mboxrd') {
-		$$msg =~ s/^>(>*From )/$1/sm;
-	} elsif ($variant eq 'mboxo') {
-		$$msg =~ s/^>From /From /sm;
-	}
-	$mime = $vger->scrub($mime);
-	return unless $im;
-	$mime->header_set($_) foreach @PublicInbox::MDA::BAD_HEADERS;
-	$im->add($mime) or
-		warn "duplicate: ",
-			$mime->header_obj->header_raw('Message-ID'), "\n";
-}
-
-# asctime: From example@example.com Fri Jun 23 02:56:55 2000
-my $from_strict = qr/^From \S+ +\S+ \S+ +\S+ [^:]+:[^:]+:[^:]+ [^:]+/;
-my $prev = undef;
-while (defined(my $l = <STDIN>)) {
-	if ($l =~ /$from_strict/o) {
-		if (!defined($prev) || $prev =~ /^\r?$/) {
-			do_add($im, \$msg) if $msg;
-			$msg = '';
-			$prev = $l;
-			next;
-		}
-		warn "W[$.] $l\n";
-	}
-	$prev = $l;
-	$msg .= $l;
-}
-do_add($im, \$msg) if $msg;
-$im->done if $im;
+$ibx->import_mbox(\*STDIN, $variant);
