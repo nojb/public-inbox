@@ -352,7 +352,7 @@ sub add_message {
 
 		# populates smsg->references for smsg->to_doc_data
 		my $refs = parse_references($smsg);
-		$mid0 = $mids->[0] unless defined $mid0;
+		$mid0 = $mids->[0] unless defined $mid0; # v1 compatibility
 		my $data = $smsg->to_doc_data($oid, $mid0);
 		foreach my $mid (@$mids) {
 			$tg->index_text($mid, 1, 'XM');
@@ -369,10 +369,12 @@ sub add_message {
 			}
 		}
 
+		$self->delete_article($num) if defined $num; # for reindexing
 		if ($skel) {
 			push @values, $mids, $xpath, $data;
 			$skel->index_skeleton(\@values);
 			$doc->add_boolean_term('Q' . $_) foreach @$mids;
+			$doc->add_boolean_term('XNUM' . $num) if defined $num;
 			$doc_id = $self->{xdb}->add_document($doc);
 		} else {
 			$doc_id = link_and_save($self, $doc, $mids, $refs,
@@ -419,6 +421,16 @@ sub remove_message {
 	} elsif (!$called) {
 		warn "cannot remove non-existent <$mid>\n";
 	}
+}
+
+sub delete_article {
+	my ($self, $num) = @_;
+	my $ndel = 0;
+	batch_do($self, 'XNUM' . $num, sub {
+		my ($ids) = @_;
+		$ndel += scalar @$ids;
+		$self->{xdb}->delete_document($_) for @$ids;
+	});
 }
 
 # MID is a hint in V2

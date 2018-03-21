@@ -24,9 +24,8 @@ sub new {
 	new_file($class, "$d/msgmap.sqlite3", $writable);
 }
 
-sub new_file {
-	my ($class, $f, $writable) = @_;
-
+sub dbh_new {
+	my ($f, $writable) = @_;
 	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,
 		RaiseError => 1,
@@ -35,6 +34,13 @@ sub new_file {
 		sqlite_use_immediate_transaction => 1,
 	});
 	$dbh->do('PRAGMA case_sensitive_like = ON');
+	$dbh;
+}
+
+sub new_file {
+	my ($class, $f, $writable) = @_;
+
+	my $dbh = dbh_new($f, $writable);
 	my $self = bless { dbh => $dbh }, $class;
 
 	if ($writable) {
@@ -49,12 +55,13 @@ sub new_file {
 # used to keep track of used numeric mappings for v2 reindex
 sub tmp_clone {
 	my ($self) = @_;
-	my ($fh, $fn) = tempfile(EXLOCK => 0);
+	my ($fh, $fn) = tempfile('msgmap-XXXXXXXX', EXLOCK => 0, TMPDIR => 1);
 	$self->{dbh}->sqlite_backup_to_file($fn);
 	my $tmp = ref($self)->new_file($fn, 1);
 	$tmp->{dbh}->do('PRAGMA synchronous = OFF');
 	$tmp->{tmp_name} = $fn; # SQLite won't work if unlinked, apparently
-	$fh = undef;
+	$tmp->{pid} = $$;
+	close $fh or die "failed to close $fn: $!";
 	$tmp;
 }
 
@@ -205,7 +212,28 @@ sub mid_set {
 sub DESTROY {
 	my ($self) = @_;
 	delete $self->{dbh};
-	unlink $self->{tmp_name} if defined $self->{tmp_name};
+	my $f = delete $self->{tmp_name};
+	if (defined $f && $self->{pid} == $$) {
+		unlink $f or warn "failed to unlink $f: $!\n";
+	}
+}
+
+sub atfork_parent {
+	my ($self) = @_;
+	my $f = $self->{tmp_name} or die "not a temporary clone\n";
+	delete $self->{dbh} and die "tmp_clone dbh not prepared for parent";
+	my $dbh = $self->{dbh} = dbh_new($f, 1);
+	$dbh->do('PRAGMA synchronous = OFF');
+}
+
+sub atfork_prepare {
+	my ($self) = @_;
+	my $f = $self->{tmp_name} or die "not a temporary clone\n";
+	$self->{pid} == $$ or
+		die "BUG: atfork_prepare not called from $self->{pid}\n";
+	$self->{dbh} or die "temporary clone not open\n";
+	# must clobber prepared statements
+	%$self = (tmp_name => $f, pid => $$);
 }
 
 1;

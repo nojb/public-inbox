@@ -31,6 +31,9 @@ my @dirs;
 sub resolve_repo_dir {
 	my ($cd) = @_;
 	my $prefix = defined $cd ? $cd : './';
+	if (-d $prefix && -f "$prefix/inbox.lock") { # v2
+		return abs_path($prefix);
+	}
 
 	my @cmd = qw(git rev-parse --git-dir);
 	my $cmd = join(' ', @cmd);
@@ -75,14 +78,26 @@ foreach my $k (keys %$config) {
 }
 
 foreach my $dir (@dirs) {
+	if (!ref($dir) && -f "$dir/inbox.lock") { # v2
+		my $ibx = { mainrepo => $dir, name => 'unnamed' };
+		$dir = PublicInbox::Inbox->new($ibx);
+	}
 	index_dir($dir);
 }
 
 sub index_dir {
-	my ($git_dir) = @_;
-	if (!ref $git_dir && ! -d $git_dir) {
-		die "$git_dir does not appear to be a git repository\n";
+	my ($repo) = @_;
+	if (!ref $repo && ! -d $repo) {
+		die "$repo does not appear to be an inbox repository\n";
 	}
-	my $s = PublicInbox::SearchIdx->new($git_dir, 1);
-	$s->index_sync({ reindex => $reindex });
+	if (ref($repo) && ($repo->{version} || 1) == 2) {
+		eval { require PublicInbox::V2Writable };
+		die "v2 requirements not met: $@\n" if $@;
+		my $v2w = PublicInbox::V2Writable->new($repo);
+		$v2w->reindex;
+		$v2w->done;
+	} else {
+		my $s = PublicInbox::SearchIdx->new($repo, 1);
+		$s->index_sync({ reindex => $reindex });
+	}
 }

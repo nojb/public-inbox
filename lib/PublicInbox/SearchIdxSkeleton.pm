@@ -134,6 +134,7 @@ sub index_skeleton_real ($$) {
 	$smsg->load_from_data($doc_data);
 	my $num = $values->[PublicInbox::Search::NUM];
 	my @refs = ($smsg->references =~ /<([^>]+)>/g);
+	$self->delete_article($num) if defined $num; # for reindexing
 	$self->link_and_save($doc, $mids, \@refs, $num, $xpath);
 }
 

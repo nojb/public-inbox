@@ -359,6 +359,23 @@ sub git_init {
 	$git_dir
 }
 
+sub git_dir_latest {
+	my ($self, $max) = @_;
+	$$max = -1;
+	my $pfx = "$self->{-inbox}->{mainrepo}/git";
+	return unless -d $pfx;
+	my $latest;
+	opendir my $dh, $pfx or die "opendir $pfx: $!\n";
+	while (defined(my $git_dir = readdir($dh))) {
+		$git_dir =~ m!\A(\d+)\.git\z! or next;
+		if ($1 > $$max) {
+			$$max = $1;
+			$latest = "$pfx/$git_dir";
+		}
+	}
+	$latest;
+}
+
 sub importer {
 	my ($self) = @_;
 	my $im = $self->{im};
@@ -375,20 +392,9 @@ sub importer {
 			return $self->import_init($git, 0);
 		}
 	}
-	my $latest;
-	my $max = -1;
 	my $new = 0;
-	my $pfx = "$self->{-inbox}->{mainrepo}/git";
-	if (-d $pfx) {
-		foreach my $git_dir (glob("$pfx/*.git")) {
-			$git_dir =~ m!/(\d+)\.git\z! or next;
-			my $n = $1;
-			if ($n > $max) {
-				$max = $n;
-				$latest = $git_dir;
-			}
-		}
-	}
+	my $max;
+	my $latest = git_dir_latest($self, \$max);
 	if (defined $latest) {
 		my $git = PublicInbox::Git->new($latest);
 		my $packed_bytes = $git->packed_bytes;
@@ -466,12 +472,114 @@ sub lookup_content {
 
 sub atfork_child {
 	my ($self) = @_;
+	my $fh = delete $self->{reindex_pipe};
+	close $fh if $fh;
 	if (my $parts = $self->{idx_parts}) {
 		$_->atfork_child foreach @$parts;
 	}
 	if (my $im = $self->{im}) {
 		$im->atfork_child;
 	}
+}
+
+sub mark_deleted {
+	my ($self, $D, $git, $oid) = @_;
+	my $msgref = $git->cat_file($oid);
+	my $mime = PublicInbox::MIME->new($$msgref);
+	my $mids = mids($mime->header_obj);
+	my $cid = content_id($mime);
+	foreach my $mid (@$mids) {
+		$D->{$mid.$cid} = 1;
+	}
+}
+
+sub reindex_oid {
+	my ($self, $mm_tmp, $D, $git, $oid) = @_;
+	my $len;
+	my $msgref = $git->cat_file($oid, \$len);
+	my $mime = PublicInbox::MIME->new($$msgref);
+	my $mids = mids($mime->header_obj);
+	my $cid = content_id($mime);
+
+	# get the NNTP article number we used before, highest number wins
+	# and gets deleted from mm_tmp;
+	my $mid0;
+	my $num = -1;
+	my $del = 0;
+	foreach my $mid (@$mids) {
+		$del += (delete $D->{$mid.$cid} || 0);
+		my $n = $mm_tmp->num_for($mid);
+		if (defined $n && $n > $num) {
+			$mid0 = $mid;
+			$num = $n;
+		}
+	}
+	if (!defined($mid0) || $del) {
+		return if (!defined($mid0) && $del); # expected for deletes
+
+		my $id = '<' . join('> <', @$mids) . '>';
+		defined($mid0) or
+			warn "Skipping $id, no article number found\n";
+		if ($del && defined($mid0)) {
+			warn "$id was deleted $del " .
+				"time(s) but mapped to article #$num\n";
+		}
+		return;
+
+	}
+	$mm_tmp->mid_delete($mid0) or
+		die "failed to delete <$mid0> for article #$num\n";
+
+	my $nparts = $self->{partitions};
+	my $part = $num % $nparts;
+	my $idx = $self->idx_part($part);
+	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
+	my $n = $self->{transact_bytes} += $len;
+	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
+		$git->cleanup;
+		$mm_tmp->atfork_prepare;
+		$self->done; # release lock
+		# allow -watch or -mda to write...
+		$self->idx_init; # reacquire lock
+		$mm_tmp->atfork_parent;
+	}
+}
+
+sub reindex {
+	my ($self) = @_;
+	my $ibx = $self->{-inbox};
+	my $pfx = "$ibx->{mainrepo}/git";
+	my $max_git;
+	my $latest = git_dir_latest($self, \$max_git);
+	return unless defined $latest;
+	my @cmd = qw(log --raw -r --pretty=tformat:%h
+			--no-notes --no-color --no-abbrev);
+	my $head = $ibx->{ref_head} || 'refs/heads/master';
+	$self->idx_init; # acquire lock
+	my $x40 = qr/[a-f0-9]{40}/;
+	my $mm_tmp = $self->{skel}->{mm}->tmp_clone;
+	my $D = {};
+
+	# work backwards through history
+	for (my $cur = $max_git; $cur >= 0; $cur--) {
+		die "already reindexing!\n" if delete $self->{reindex_pipe};
+		my $cmt;
+		my $git_dir = "$pfx/$cur.git";
+		my $git = PublicInbox::Git->new($git_dir);
+		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $head);
+		while (<$fh>) {
+			if (/\A$x40$/o) {
+				chomp($cmt = $_);
+			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
+				$self->reindex_oid($mm_tmp, $D, $git, $1);
+			} elsif (m!\A:\d{6} 100644 $x40 ($x40) [AM]\t_/D$!o) {
+				$self->mark_deleted($D, $git, $1);
+			}
+		}
+		delete $self->{reindex_pipe};
+	}
+	my ($min, $max) = $mm_tmp->minmax;
+	defined $max and die "leftover article numbers at $min..$max\n";
 }
 
 1;
