@@ -134,7 +134,9 @@ sub add_values ($$) {
 	my $lines = $values->[PublicInbox::Search::LINES];
 	add_val($doc, PublicInbox::Search::LINES, $lines);
 
-	my $yyyymmdd = strftime('%Y%m%d', gmtime($ts));
+	my $ds = $values->[PublicInbox::Search::DS];
+	add_val($doc, PublicInbox::Search::DS, $ds);
+	my $yyyymmdd = strftime('%Y%m%d', gmtime($ds));
 	add_val($doc, PublicInbox::Search::YYYYMMDD, $yyyymmdd);
 }
 
@@ -298,7 +300,7 @@ sub add_message {
 		}
 
 		my $lines = $mime->body_raw =~ tr!\n!\n!;
-		my @values = ($smsg->ts, $num, $bytes, $lines);
+		my @values = ($smsg->ds, $num, $bytes, $lines, $smsg->ts);
 		add_values($doc, \@values);
 
 		my $tg = $self->term_generator;

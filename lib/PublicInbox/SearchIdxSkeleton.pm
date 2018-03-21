@@ -121,18 +121,16 @@ sub remote_remove {
 	die $err if $err;
 }
 
-# values: [ TS, NUM, BYTES, LINES, MID, XPATH, doc_data ]
+# values: [ DS, NUM, BYTES, LINES, TS, MIDS, XPATH, doc_data ]
 sub index_skeleton_real ($$) {
 	my ($self, $values) = @_;
 	my $doc_data = pop @$values;
 	my $xpath = pop @$values;
 	my $mids = pop @$values;
-	my $ts = $values->[PublicInbox::Search::TS];
 	my $smsg = PublicInbox::SearchMsg->new(undef);
 	my $doc = $smsg->{doc};
 	PublicInbox::SearchIdx::add_values($doc, $values);
 	$doc->set_data($doc_data);
-	$smsg->{ts} = $ts;
 	$smsg->load_from_data($doc_data);
 	my $num = $values->[PublicInbox::Search::NUM];
 	my @refs = ($smsg->references =~ /<([^>]+)>/g);

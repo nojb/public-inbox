@@ -117,11 +117,11 @@ sub mset_summary {
 			obfuscate_addrs($obfs_ibx, $s);
 			obfuscate_addrs($obfs_ibx, $f);
 		}
-		my $ts = PublicInbox::View::fmt_ts($smsg->ts);
+		my $date = PublicInbox::View::fmt_ts($smsg->ds);
 		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->{href};
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s . "</a></b>\n";
-		$$res .= "$pfx  - by $f @ $ts UTC [$pct%]\n\n";
+		$$res .= "$pfx  - by $f @ $date UTC [$pct%]\n\n";
 	}
 	$$res .= search_nav_bot($mset, $q);
 	*noop;
@@ -227,7 +227,7 @@ sub mset_thread {
 	} ($mset->items) ]});
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
-		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ts,
+		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ds,
 		$srch);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	my $inbox = $ctx->{-inbox};

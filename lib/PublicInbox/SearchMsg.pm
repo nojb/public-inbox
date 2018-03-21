@@ -9,7 +9,7 @@ use warnings;
 use Search::Xapian;
 use PublicInbox::MID qw/mid_clean mid_mime/;
 use PublicInbox::Address;
-use PublicInbox::MsgTime qw(msg_timestamp);
+use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 
 sub new {
 	my ($class, $mime) = @_;
@@ -46,6 +46,7 @@ sub load_expand {
 	my $doc = $self->{doc};
 	my $data = $doc->get_data or return;
 	$self->{ts} = get_val($doc, &PublicInbox::Search::TS);
+	$self->{ds} = get_val($doc, &PublicInbox::Search::DS);
 	utf8::decode($data);
 	load_from_data($self, $data);
 	$self;
@@ -53,12 +54,8 @@ sub load_expand {
 
 sub load_doc {
 	my ($class, $doc) = @_;
-	my $data = $doc->get_data or return;
-	my $ts = get_val($doc, &PublicInbox::Search::TS);
-	utf8::decode($data);
-	my $self = bless { doc => $doc, ts => $ts }, $class;
-	load_from_data($self, $data);
-	$self
+	my $self = bless { doc => $doc }, $class;
+	$self->load_expand;
 }
 
 # :bytes and :lines metadata in RFC 3977
@@ -91,9 +88,9 @@ my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
 sub date ($) {
 	my ($self) = @_;
-	my $ts = $self->{ts};
-	return unless defined $ts;
-	my ($sec, $min, $hour, $mday, $mon, $year, $wday) = gmtime($ts);
+	my $ds = $self->{ds};
+	return unless defined $ds;
+	my ($sec, $min, $hour, $mday, $mon, $year, $wday) = gmtime($ds);
 	"$DoW[$wday], " . sprintf("%02d $MoY[$mon] %04d %02d:%02d:%02d +0000",
 				$mday, $year+1900, $hour, $min, $sec);
 
@@ -119,9 +116,12 @@ sub from_name {
 
 sub ts {
 	my ($self) = @_;
-	$self->{ts} ||= eval {
-		msg_timestamp($self->{mime}->header_obj);
-	} || 0;
+	$self->{ts} ||= eval { msg_timestamp($self->{mime}->header_obj) } || 0;
+}
+
+sub ds {
+	my ($self) = @_;
+	$self->{ds} ||= eval { msg_datestamp($self->{mime}->header_obj); } || 0;
 }
 
 sub to_doc_data {

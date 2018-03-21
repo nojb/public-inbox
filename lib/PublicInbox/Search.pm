@@ -8,11 +8,12 @@ use strict;
 use warnings;
 
 # values for searching
-use constant TS => 0; # timestamp
+use constant DS => 0; # Date: header in Unix time
 use constant NUM => 1; # NNTP article number
 use constant BYTES => 2; # :bytes as defined in RFC 3977
 use constant LINES => 3; # :lines as defined in RFC 3977
-use constant YYYYMMDD => 4; # for searching in the WWW UI
+use constant TS => 4;  # Received: header in Unix time
+use constant YYYYMMDD => 5; # for searching in the WWW UI
 
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;

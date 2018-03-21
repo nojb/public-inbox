@@ -11,7 +11,7 @@ use base qw(PublicInbox::Lock);
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MID qw(mids mid_mime mid2path);
 use PublicInbox::Address;
-use PublicInbox::MsgTime qw(msg_timestamp);
+use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use PublicInbox::ContentId qw(content_digest);
 use PublicInbox::MDA;
 
@@ -244,9 +244,8 @@ sub remove {
 	(($self->{tip} = ":$commit"), $cur);
 }
 
-sub parse_date ($) {
-	my ($mime) = @_;
-	my ($ts, $zone) = msg_timestamp($mime->header_obj);
+sub git_timestamp {
+	my ($ts, $zone) = @_;
 	$ts = 0 if $ts < 0; # git uses unsigned times
 	"$ts $zone";
 }
@@ -295,7 +294,11 @@ sub add {
 	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
 	my ($name, $email) = extract_author_info($mime);
-	my $date_raw = parse_date($mime);
+	my $hdr = $mime->header_obj;
+	my @at = msg_datestamp($hdr);
+	my @ct = msg_timestamp($hdr);
+	my $author_time_raw = git_timestamp(@at);
+	my $commit_time_raw = git_timestamp(@ct);
 	my $subject = $mime->header('Subject');
 	$subject = '(no subject)' unless defined $subject;
 	my $path_type = $self->{path_type};
@@ -349,8 +352,8 @@ sub add {
 
 	utf8::encode($subject);
 	print $w "commit $ref\nmark :$commit\n",
-		"author $name <$email> $date_raw\n",
-		"committer $self->{ident} ", now_raw(), "\n" or wfail;
+		"author $name <$email> $author_time_raw\n",
+		"committer $self->{ident} $commit_time_raw\n" or wfail;
 	print $w "data ", (length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
 	if ($tip ne '') {

@@ -6,7 +6,7 @@
 package PublicInbox::View;
 use strict;
 use warnings;
-use PublicInbox::MsgTime qw(msg_timestamp);
+use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;
 use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape/;
@@ -735,7 +735,7 @@ sub load_results {
 sub thread_results {
 	my ($msgs, $srch) = @_;
 	require PublicInbox::SearchThread;
-	PublicInbox::SearchThread::thread($msgs, *sort_ts, $srch);
+	PublicInbox::SearchThread::thread($msgs, *sort_ds, $srch);
 }
 
 sub missing_thread {
@@ -746,7 +746,7 @@ sub missing_thread {
 
 sub _msg_date {
 	my ($hdr) = @_;
-	fmt_ts(msg_timestamp($hdr));
+	fmt_ts(msg_datestamp($hdr));
 }
 
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
@@ -782,7 +782,7 @@ sub skel_dump {
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	obfuscate_addrs($obfs_ibx, $f) if $obfs_ibx;
 
-	my $d = fmt_ts($smsg->{ts}) . ' ' . indent_for($level) . th_pfx($level);
+	my $d = fmt_ts($smsg->{ds}) . ' ' . indent_for($level) . th_pfx($level);
 	my $attr = $f;
 	$ctx->{first_level} ||= $level;
 
@@ -863,10 +863,10 @@ sub _skel_ghost {
 	$$dst .= $d;
 }
 
-sub sort_ts {
+sub sort_ds {
 	[ sort {
-		(eval { $a->topmost->{smsg}->ts } || 0) <=>
-		(eval { $b->topmost->{smsg}->ts } || 0)
+		(eval { $a->topmost->{smsg}->ds } || 0) <=>
+		(eval { $b->topmost->{smsg}->ds } || 0)
 	} @{$_[0]} ];
 }
 
@@ -877,21 +877,21 @@ sub acc_topic {
 	my $srch = $ctx->{srch};
 	my $mid = $node->{id};
 	my $x = $node->{smsg} || $srch->lookup_mail($mid);
-	my ($subj, $ts);
+	my ($subj, $ds);
 	my $topic;
 	if ($x) {
 		$subj = $x->subject;
 		$subj = $srch->subject_normalized($subj);
-		$ts = $x->ts;
+		$ds = $x->ds;
 		if ($level == 0) {
-			$topic = [ $ts, 1, { $subj => $mid }, $subj ];
+			$topic = [ $ds, 1, { $subj => $mid }, $subj ];
 			$ctx->{-cur_topic} = $topic;
 			push @{$ctx->{order}}, $topic;
 			return;
 		}
 
 		$topic = $ctx->{-cur_topic}; # should never be undef
-		$topic->[0] = $ts if $ts > $topic->[0];
+		$topic->[0] = $ds if $ds > $topic->[0];
 		$topic->[1]++;
 		my $seen = $topic->[2];
 		if (scalar(@$topic) == 3) { # parent was a ghost
@@ -910,7 +910,7 @@ sub acc_topic {
 
 sub dump_topics {
 	my ($ctx) = @_;
-	my $order = delete $ctx->{order}; # [ ts, subj1, subj2, subj3, ... ]
+	my $order = delete $ctx->{order}; # [ ds, subj1, subj2, subj3, ... ]
 	if (!@$order) {
 		$ctx->{-html_tip} = '<pre>[No topics in range]</pre>';
 		return 404;
@@ -923,14 +923,14 @@ sub dump_topics {
 
 	# sort by recency, this allows new posts to "bump" old topics...
 	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
-		my ($ts, $n, $seen, $top, @ex) = @$topic;
+		my ($ds, $n, $seen, $top, @ex) = @$topic;
 		@$topic = ();
 		next unless defined $top;  # ghost topic
 		my $mid = delete $seen->{$top};
 		my $href = mid_escape($mid);
 		my $prev_subj = [ split(/ /, $top) ];
 		$top = PublicInbox::Hval->new($top)->as_html;
-		$ts = fmt_ts($ts);
+		$ds = fmt_ts($ds);
 
 		# $n isn't the total number of posts on the topic,
 		# just the number of posts in the current results window
@@ -946,7 +946,7 @@ sub dump_topics {
 		my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
 		my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
 		my $s = "<a\nhref=\"$href/T/$anchor\"><b>$top</b></a>\n" .
-			" $ts UTC $n - $mbox / $atom\n";
+			" $ds UTC $n - $mbox / $atom\n";
 		for (my $i = 0; $i < scalar(@ex); $i += 2) {
 			my $level = $ex[$i];
 			my $subj = $ex[$i + 1];
