@@ -12,6 +12,7 @@ use strict;
 use warnings;
 use DBI;
 use DBD::SQLite;
+use File::Temp qw(tempfile);
 
 sub new {
 	my ($class, $git_dir, $writable) = @_;
@@ -43,6 +44,18 @@ sub new_file {
 		$dbh->commit;
 	}
 	$self;
+}
+
+# used to keep track of used numeric mappings for v2 reindex
+sub tmp_clone {
+	my ($self) = @_;
+	my ($fh, $fn) = tempfile(EXLOCK => 0);
+	$self->{dbh}->sqlite_backup_to_file($fn);
+	my $tmp = ref($self)->new_file($fn, 1);
+	$tmp->{dbh}->do('PRAGMA synchronous = OFF');
+	$tmp->{tmp_name} = $fn; # SQLite won't work if unlinked, apparently
+	$fh = undef;
+	$tmp;
 }
 
 # n.b. invoked directly by scripts/xhdr-num2mid
@@ -187,6 +200,12 @@ sub mid_set {
 			'INSERT OR IGNORE INTO msgmap (num,mid) VALUES (?,?)');
 	};
 	$sth->execute($num, $mid);
+}
+
+sub DESTROY {
+	my ($self) = @_;
+	delete $self->{dbh};
+	unlink $self->{tmp_name} if defined $self->{tmp_name};
 }
 
 1;

@@ -65,4 +65,8 @@ my $orig = $d->mid_insert('spam@1');
 $d->mid_delete('spam@1');
 is($d->mid_insert('spam@2'), 1 + $orig, "last number not recycled");
 
+my $tmp = $d->tmp_clone;
+is_deeply([$d->minmax], [$tmp->minmax], 'Cloned temporary DB matches');
+ok($tmp->mid_delete('spam@2'), 'temporary DB is writable');
+
 done_testing();

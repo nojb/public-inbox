@@ -75,7 +75,7 @@ sub new {
 	_set_uint($opts, 'feedmax', 25);
 	$opts->{nntpserver} ||= $pi_config->{'publicinbox.nntpserver'};
 	my $dir = $opts->{mainrepo};
-	if (defined $dir && -f "$dir/msgmap.sqlite3") { # XXX DIRTY
+	if (defined $dir && -f "$dir/inbox.lock") {
 		$opts->{version} = 2;
 	}
 	bless $opts, $class;
