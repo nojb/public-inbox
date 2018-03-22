@@ -62,7 +62,7 @@ sub load_doc {
 sub bytes ($) { get_val($_[0]->{doc}, &PublicInbox::Search::BYTES) }
 sub lines ($) { get_val($_[0]->{doc}, &PublicInbox::Search::LINES) }
 sub num ($) {
-	$_[0]->{num} ||= get_val($_[0]->{doc}, PublicInbox::Search::NUM)
+	$_[0]->{num} ||= get_val($_[0]->{doc}, PublicInbox::Search::NUM())
 }
 
 sub __hdr ($$) {

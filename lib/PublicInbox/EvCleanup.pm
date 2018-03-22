@@ -8,7 +8,9 @@ use warnings;
 use base qw(Danga::Socket);
 use fields qw(rd);
 
-our $ENABLED;
+my $ENABLED;
+sub enabled { $ENABLED }
+sub enable { $ENABLED = 1 }
 my $singleton;
 my $asapq = [ [], undef ];
 my $nextq = [ [], undef ];

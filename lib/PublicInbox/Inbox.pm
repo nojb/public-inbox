@@ -29,7 +29,7 @@ sub cleanup_task () {
 
 sub _cleanup_later ($) {
 	my ($self) = @_;
-	return unless $PublicInbox::EvCleanup::ENABLED;
+	return unless PublicInbox::EvCleanup::enabled();
 	$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
 	$CLEANUP->{"$self"} = $self;
 }
