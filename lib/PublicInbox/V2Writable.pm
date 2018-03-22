@@ -432,10 +432,10 @@ sub diff ($$$) {
 	use File::Temp qw(tempfile);
 	use PublicInbox::Spawn qw(spawn);
 
-	my ($ah, $an) = tempfile('email-cur-XXXXXXXX');
+	my ($ah, $an) = tempfile('email-cur-XXXXXXXX', TMPDIR => 1);
 	print $ah $cur->as_string or die "print: $!";
 	close $ah or die "close: $!";
-	my ($bh, $bn) = tempfile('email-new-XXXXXXXX');
+	my ($bh, $bn) = tempfile('email-new-XXXXXXXX', TMPDIR => 1);
 	PublicInbox::Import::drop_unwanted_headers($new);
 	print $bh $new->as_string or die "print: $!";
 	close $bh or die "close: $!";
