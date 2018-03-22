@@ -20,7 +20,9 @@ my $altid = [ "serial:gmane:file=$alt_file" ];
 
 {
 	my $mm = PublicInbox::Msgmap->new_file($alt_file, 1);
-	$mm->mid_set(1234, 'a@example.com');
+	is($mm->mid_set(1234, 'a@example.com'), 1, 'mid_set once OK');
+	ok(0 == $mm->mid_set(1234, 'a@example.com'), 'mid_set not idempotent');
+	ok(0 == $mm->mid_set(1, 'a@example.com'), 'mid_set fails with dup MID');
 }
 
 {
@@ -55,6 +57,13 @@ my $altid = [ "serial:gmane:file=$alt_file" ];
 	$res = $ro->query("gmane:666");
 	is($res->{total}, 0, 'body did NOT match');
 };
+
+{
+	my $mm = PublicInbox::Msgmap->new_file($alt_file, 1);
+	my ($min, $max) = $mm->minmax;
+	my $num = $mm->mid_insert('b@example.com');
+	ok($num > $max, 'auto-increment goes beyond mid_set');
+}
 
 done_testing();
 
