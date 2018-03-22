@@ -12,15 +12,15 @@ use PublicInbox::WwwAtomStream;
 # main function
 sub generate {
 	my ($ctx) = @_;
-	my @paths;
-	each_recent_blob($ctx, sub { push @paths, $_[0] });
-	return _no_thread() unless @paths;
+	my @oids;
+	each_recent_blob($ctx, sub { push @oids, $_[0] });
+	return _no_thread() unless @oids;
 
-	my $ibx = $ctx->{-inbox};
+	my $git = $ctx->{-inbox}->git;
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
-		while (my $path = shift @paths) {
-			my $mime = do_cat_mail($ibx, $path) or next;
-			return $mime;
+		while (my $oid = shift @oids) {
+			my $msg = $git->cat_file($oid) or next;
+			return PublicInbox::MIME->new($msg);
 		}
 	});
 }
@@ -63,25 +63,27 @@ sub generate_html_index {
 
 sub new_html {
 	my ($ctx) = @_;
-	my @paths;
+	die "BUG: new_html is not used with search" if $ctx->{srch};
+	my @oids;
 	my (undef, $last) = each_recent_blob($ctx, sub {
-		my ($path, $commit, $ts, $u, $subj) = @_;
+		my ($oid, $commit, $ts, $u, $subj) = @_;
 		$ctx->{first} ||= $commit;
-		push @paths, $path;
+		push @oids, $oid;
 	});
-	if (!@paths) {
+	if (!@oids) {
 		return [404, ['Content-Type', 'text/plain'],
 			["No messages, yet\n"] ];
 	}
 	$ctx->{-html_tip} = '<pre>';
 	$ctx->{-upfx} = '';
 	$ctx->{-hr} = 1;
+	my $git = $ctx->{-inbox}->git;
 	PublicInbox::WwwStream->response($ctx, 200, sub {
-		while (my $path = shift @paths) {
-			my $m = do_cat_mail($ctx->{-inbox}, $path) or next;
-			my $more = scalar @paths;
-			my $s = PublicInbox::View::index_entry($m, $ctx, $more);
-			return $s;
+		while (my $oid = shift @oids) {
+			my $msg = $git->cat_file($oid) or next;
+			my $m = PublicInbox::MIME->new($msg);
+			my $more = scalar @oids;
+			return PublicInbox::View::index_entry($m, $ctx, $more);
 		}
 		new_html_footer($ctx, $last);
 	});
@@ -111,10 +113,26 @@ sub new_html_footer {
 
 sub each_recent_blob {
 	my ($ctx, $cb) = @_;
-	my $max = $ctx->{-inbox}->{feedmax};
+	my $ibx = $ctx->{-inbox};
+	my $max = $ibx->{feedmax};
+	my $v = $ibx->{version} || 1;
+	if ($v == 2) {
+		wantarray and die "each_recent_blob return ignored for v2";
+	} elsif ($v != 1) {
+		die "BUG: unsupported inbox version: $v\n";
+	}
+	if (my $srch = $ibx->search) {
+		my $res = $srch->query('', { limit => $max });
+		foreach my $smsg (@{$res->{msgs}}) {
+			# search-enabled callers do not need author/date/subject
+			$cb->($smsg->{blob});
+		}
+		return;
+	}
+
 	my $hex = '[a-f0-9]';
-	my $addmsg = qr!^:000000 100644 \S+ \S+ A\t(${hex}{2}/${hex}{38})$!;
-	my $delmsg = qr!^:100644 000000 \S+ \S+ D\t(${hex}{2}/${hex}{38})$!;
+	my $addmsg = qr!^:000000 100644 \S+ (\S+) A\t${hex}{2}/${hex}{38}$!;
+	my $delmsg = qr!^:100644 000000 (\S+) \S+ D\t(${hex}{2}/${hex}{38})$!;
 	my $refhex = qr/(?:HEAD|${hex}{4,40})(?:~\d+)?/;
 	my $qp = $ctx->{qp};
 
@@ -128,9 +146,9 @@ sub each_recent_blob {
 	# get recent messages
 	# we could use git log -z, but, we already know ssoma will not
 	# leave us with filenames with spaces in them..
-	my $log = $ctx->{-inbox}->git->popen(qw/log
+	my $log = $ibx->git->popen(qw/log
 				--no-notes --no-color --raw -r
-				--abbrev=16 --abbrev-commit/,
+				--no-abbrev --abbrev-commit/,
 				"--format=%h%x00%ct%x00%an%x00%s%x00",
 				$range);
 	my %deleted; # only an optimization at this point
@@ -170,12 +188,6 @@ sub each_recent_blob {
 
 	# for pagination
 	($first_commit, $last_commit);
-}
-
-sub do_cat_mail {
-	my ($ibx, $path) = @_;
-	my $mime = eval { $ibx->msg_by_path($path) } or return;
-	PublicInbox::MIME->new($mime);
 }
 
 1;
