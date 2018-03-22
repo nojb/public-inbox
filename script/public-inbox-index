@@ -23,8 +23,15 @@ if ($@) {
 }
 
 my $reindex;
-my %opts = ( '--reindex' => \$reindex );
+my $regen;
+my $jobs = undef;
+my %opts = (
+	'--reindex' => \$reindex,
+	'--regenerate' => \$regen,
+	'--jobs|j=i' => \$jobs,
+);
 GetOptions(%opts) or die "bad command-line args\n$usage";
+die "--jobs must be positive\n" if defined $jobs && $jobs <= 0;
 
 my @dirs;
 
@@ -93,8 +100,30 @@ sub index_dir {
 	if (ref($repo) && ($repo->{version} || 1) == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
-		my $v2w = PublicInbox::V2Writable->new($repo);
-		$v2w->reindex;
+		my $v2w = eval {
+			local $ENV{NPROC} = $jobs;
+			PublicInbox::V2Writable->new($repo);
+		};
+		if (defined $jobs) {
+			if ($jobs == 1) {
+				$v2w->{parallel} = 0;
+			} else {
+				my $n = $v2w->{partitions};
+				if ($jobs != $n) {
+					warn
+"Unable to respect --jobs=$jobs, inbox was created with $n partitions\n";
+				}
+			}
+		}
+		my $mm = $repo->mm;
+		my (undef, $max) = $mm->minmax if $mm;
+		if (defined($max) && !$reindex && !$regen) {
+			die
+"v2 inboxes may only use --reindex and/or --regenerate once\n".
+"msgmap.sqlite3 is initialized\n";
+		}
+
+		$v2w->reindex($regen);
 		$v2w->done;
 	} else {
 		my $s = PublicInbox::SearchIdx->new($repo, 1);

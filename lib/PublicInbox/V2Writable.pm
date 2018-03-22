@@ -494,7 +494,7 @@ sub mark_deleted {
 }
 
 sub reindex_oid {
-	my ($self, $mm_tmp, $D, $git, $oid) = @_;
+	my ($self, $mm_tmp, $D, $git, $oid, $regen) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -514,8 +514,27 @@ sub reindex_oid {
 			$num = $n;
 		}
 	}
+	if (!defined($mid0) && $regen && !$del) {
+		$num = $$regen--;
+		die "BUG: ran out of article numbers\n" if $num <= 0;
+		my $mm = $self->{skel}->{mm};
+		foreach my $mid (@$mids) {
+			if ($mm->mid_set($num, $mid) == 1) {
+				$mid0 = $mid;
+				last;
+			}
+		}
+		if (!defined($mid0)) {
+			my $id = '<' . join('> <', @$mids) . '>';
+			warn "Message-Id $id unusable for $num\n";
+		}
+	}
+
 	if (!defined($mid0) || $del) {
-		return if (!defined($mid0) && $del); # expected for deletes
+		if (!defined($mid0) && $del) { # expected for deletes
+			$$regen--;
+			return
+		}
 
 		my $id = '<' . join('> <', @$mids) . '>';
 		defined($mid0) or
@@ -546,19 +565,45 @@ sub reindex_oid {
 }
 
 sub reindex {
-	my ($self) = @_;
+	my ($self, $regen) = @_;
 	my $ibx = $self->{-inbox};
 	my $pfx = "$ibx->{mainrepo}/git";
 	my $max_git;
 	my $latest = git_dir_latest($self, \$max_git);
 	return unless defined $latest;
-	my @cmd = qw(log --raw -r --pretty=tformat:%h
-			--no-notes --no-color --no-abbrev);
 	my $head = $ibx->{ref_head} || 'refs/heads/master';
 	$self->idx_init; # acquire lock
 	my $x40 = qr/[a-f0-9]{40}/;
 	my $mm_tmp = $self->{skel}->{mm}->tmp_clone;
+	if (!$regen) {
+		my (undef, $max) = $mm_tmp->minmax;
+		unless (defined $max) {
+			$regen = 1;
+			warn
+"empty msgmap.sqlite3, regenerating article numbers\n";
+		}
+	}
+	my $tip; # latest commit out of all git repos
+	if ($regen) {
+		my $regen_max = 0;
+		for (my $cur = $max_git; $cur >= 0; $cur--) {
+			die "already reindexing!\n" if $self->{reindex_pipe};
+			my $git = PublicInbox::Git->new("$pfx/$cur.git");
+			chomp($tip = $git->qx('rev-parse', $head)) unless $tip;
+			my $h = $cur == $max_git ? $tip : $head;
+			my @count = ('rev-list', '--count', $h, '--', 'm');
+			$regen_max += $git->qx(@count);
+		}
+		die "No messages found in $pfx/*.git, bug?\n" unless $regen_max;
+		$regen = \$regen_max;
+	}
 	my $D = {};
+	my @cmd = qw(log --raw -r --pretty=tformat:%h
+			--no-notes --no-color --no-abbrev);
+
+	# if we are regenerating, we must not use a newer tip commit than what
+	# the regeneration counter used:
+	$tip ||= $head;
 
 	# work backwards through history
 	for (my $cur = $max_git; $cur >= 0; $cur--) {
@@ -566,12 +611,14 @@ sub reindex {
 		my $cmt;
 		my $git_dir = "$pfx/$cur.git";
 		my $git = PublicInbox::Git->new($git_dir);
-		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $head);
+		my $h = $cur == $max_git ? $tip : $head;
+		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $h);
 		while (<$fh>) {
 			if (/\A$x40$/o) {
 				chomp($cmt = $_);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				$self->reindex_oid($mm_tmp, $D, $git, $1);
+				$self->reindex_oid($mm_tmp, $D, $git, $1,
+						$regen);
 			} elsif (m!\A:\d{6} 100644 $x40 ($x40) [AM]\t_/D$!o) {
 				$self->mark_deleted($D, $git, $1);
 			}
