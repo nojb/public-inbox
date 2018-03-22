@@ -173,8 +173,7 @@ sub num_for_harder {
 			$num = $self->{skel}->{mm}->mid_insert($$mid0);
 		}
 	}
-	my @cur = $hdr->header_raw('Message-Id');
-	$hdr->header_set('Message-Id', "<$$mid0>", @cur);
+	PublicInbox::Import::prepend_mid($hdr, $$mid0);
 	$num;
 }
 

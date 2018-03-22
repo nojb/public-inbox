@@ -203,7 +203,7 @@ sub remove {
 	my ($r, $w) = $self->gfi_start;
 	my $tip = $self->{tip};
 	if ($path_type eq '2/38') {
-		$path = mid2path(mid_mime($mime));
+		$path = mid2path(v1_mid0($mime));
 		($err, $cur) = check_remove_v1($r, $w, $tip, $path, $mime);
 		return ($err, $cur) if $err;
 	} else {
@@ -296,6 +296,28 @@ sub drop_unwanted_headers ($) {
 	$mime->header_set($_) for @PublicInbox::MDA::BAD_HEADERS;
 }
 
+# used by V2Writable, too
+sub prepend_mid ($$) {
+	my ($hdr, $mid0) = @_;
+	# @cur is likely empty if we need to call this sub, but it could
+	# have random unparseable crap which we'll preserve, too.
+	my @cur = $hdr->header_raw('Message-Id');
+	$hdr->header_set('Message-Id', "<$mid0>", @cur);
+}
+
+sub v1_mid0 ($) {
+	my ($mime) = @_;
+	my $hdr = $mime->header_obj;
+	my $mids = mids($hdr);
+
+	if (!scalar(@$mids)) { # spam often has no Message-Id
+		my $mid0 = digest2mid(content_digest($mime));
+		prepend_mid($hdr, $mid0);
+		return $mid0;
+	}
+	$mids->[0];
+}
+
 # returns undef on duplicate
 # returns the :MARK of the most recent commit
 sub add {
@@ -313,12 +335,7 @@ sub add {
 
 	my $path;
 	if ($path_type eq '2/38') {
-		my $mids = mids($mime->header_obj);
-		if (!scalar(@$mids)) {
-			my $dig = content_digest($mime);
-			@$mids = (digest2mid($dig));
-		}
-		$path = mid2path($mids->[0]);
+		$path = mid2path(v1_mid0($mime));
 	} else { # v2 layout, one file:
 		$path = 'm';
 	}
