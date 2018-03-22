@@ -223,6 +223,12 @@ sub remove {
 	my $mm = $skel->{mm};
 	my $removed;
 	my $mids = mids($mime->header_obj);
+
+	# We avoid introducing new blobs into git since the raw content
+	# can be slightly different, so we do not need the user-supplied
+	# message now that we have the mids and content_id
+	$mime = undef;
+
 	foreach my $mid (@$mids) {
 		$srch->reopen->each_smsg_by_mid($mid, sub {
 			my ($smsg) = @_;
@@ -430,6 +436,7 @@ sub diff ($$$) {
 	print $ah $cur->as_string or die "print: $!";
 	close $ah or die "close: $!";
 	my ($bh, $bn) = tempfile('email-new-XXXXXXXX');
+	PublicInbox::Import::drop_unwanted_headers($new);
 	print $bh $new->as_string or die "print: $!";
 	close $bh or die "close: $!";
 	my $cmd = [ qw(diff -u), $an, $bn ];

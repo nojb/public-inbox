@@ -288,6 +288,14 @@ sub extract_author_info ($) {
 	($name, $email);
 }
 
+# kill potentially confusing/misleading headers
+sub drop_unwanted_headers ($) {
+	my ($mime) = @_;
+
+	$mime->header_set($_) for qw(bytes lines content-length status);
+	$mime->header_set($_) for @PublicInbox::MDA::BAD_HEADERS;
+}
+
 # returns undef on duplicate
 # returns the :MARK of the most recent commit
 sub add {
@@ -321,9 +329,7 @@ sub add {
 		_check_path($r, $w, $tip, $path) and return;
 	}
 
-	# kill potentially confusing/misleading headers
-	$mime->header_set($_) for qw(bytes lines content-length status);
-	$mime->header_set($_) for @PublicInbox::MDA::BAD_HEADERS;
+	drop_unwanted_headers($mime);
 
 	# spam check:
 	if ($check_cb) {
