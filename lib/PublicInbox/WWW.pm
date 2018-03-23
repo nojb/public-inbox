@@ -218,9 +218,8 @@ sub mid2blob {
 # /$INBOX/$MESSAGE_ID/raw                    -> raw mbox
 sub get_mid_txt {
 	my ($ctx) = @_;
-	my $x = mid2blob($ctx) or return r404($ctx);
 	require PublicInbox::Mbox;
-	PublicInbox::Mbox::emit1($ctx, $x);
+	PublicInbox::Mbox::emit_raw($ctx) || r404($ctx);
 }
 
 # /$INBOX/$MESSAGE_ID/                   -> HTML content (short quotes)

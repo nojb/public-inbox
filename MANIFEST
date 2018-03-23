@@ -171,6 +171,7 @@ t/psgi_attach.t
 t/psgi_mount.t
 t/psgi_search.t
 t/psgi_text.t
+t/psgi_v2.t
 t/qspawn.t
 t/reply.t
 t/search-thr-index.t

@@ -26,12 +26,68 @@ sub subject_fn ($) {
 	$fn eq '' ? 'no-subject' : $fn;
 }
 
-sub emit1 {
-	my ($ctx, $msg) = @_;
-	$msg = Email::Simple->new($msg);
-	my $fn = subject_fn($msg);
+sub smsg_for ($$$) {
+	my ($head, $db, $mid) = @_;
+	my $doc_id = $head->get_docid;
+	my $doc = $db->get_document($doc_id);
+	PublicInbox::SearchMsg->wrap($doc, $mid)->load_expand;
+}
+
+sub mb_stream {
+	my ($more) = @_;
+	bless $more, 'PublicInbox::Mbox';
+}
+
+# called by PSGI server as body response
+sub getline {
+	my ($more) = @_; # self
+	my ($ctx, $head, $tail, $db, $cur) = @$more;
+	if ($cur) {
+		pop @$more;
+		return msg_str($ctx, $cur);
+	}
+	for (; !defined($cur) && $head != $tail; $head++) {
+		my $smsg = smsg_for($head, $db, $ctx->{mid});
+		next if $smsg->type ne 'mail';
+		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
+		$cur = Email::Simple->new($mref);
+		$cur = msg_str($ctx, $cur);
+	}
+	$more->[1] = $head;
+	$cur;
+}
+
+sub close {} # noop
+
+sub emit_raw {
+	my ($ctx) = @_;
+	my $mid = $ctx->{mid};
+	my $ibx = $ctx->{-inbox};
+	my $first;
+	my $more;
+	my ($head, $tail, $db);
+	my %seen;
+	if (my $srch = $ibx->search) {
+		$srch->retry_reopen(sub {
+			($head, $tail, $db) = $srch->each_smsg_by_mid($mid);
+			for (; !defined($first) && $head != $tail; $head++) {
+				my $smsg = smsg_for($head, $db, $mid);
+				next if $smsg->type ne 'mail';
+				my $mref = $ibx->msg_by_smsg($smsg) or next;
+				$first = Email::Simple->new($mref);
+			}
+			if ($head != $tail) {
+				$more = [ $ctx, $head, $tail, $db, $first ];
+			}
+		});
+	} else {
+		my $mref = $ibx->msg_by_mid($mid) or return;
+		$first = Email::Simple->new($mref);
+	}
+	return unless defined $first;
+	my $fn = subject_fn($first);
 	my @hdr = ('Content-Type');
-	if ($ctx->{-inbox}->{obfuscate}) {
+	if ($ibx->{obfuscate}) {
 		# obfuscation is stupid, but maybe scrapers are, too...
 		push @hdr, 'application/mbox';
 		$fn .= '.mbox';
@@ -40,10 +96,7 @@ sub emit1 {
 		$fn .= '.txt';
 	}
 	push @hdr, 'Content-Disposition', "inline; filename=$fn";
-
-	# single message should be easily renderable in browsers,
-	# unless obfuscation is enabled :<
-	[ 200, \@hdr, [ msg_str($ctx, $msg) ] ]
+	[ 200, \@hdr, $more ? mb_stream($more) : [ msg_str($ctx, $first) ] ];
 }
 
 sub msg_str {
