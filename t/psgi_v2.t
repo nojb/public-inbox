@@ -43,6 +43,7 @@ $mime->body_set("hello world!\n");
 
 my @warn;
 local $SIG{__WARN__} = sub { push @warn, @_ };
+$mime->header_set(Date => 'Fri, 02 Oct 1993 00:01:00 +0000');
 ok($im->add($mime), 'added duplicate-but-different message');
 is(scalar(@warn), 1, 'got one warning');
 my @mids = $mime->header_obj->header_raw('Message-Id');
@@ -71,6 +72,12 @@ test_psgi(sub { $www->call(@_) }, sub {
 	like($raw, qr/^hello world!$/m, 'second message with new Message-Id');
 	@from_ = ($raw =~ m/^From /mg);
 	is(scalar(@from_), 1, 'only one From_ line');
+
+	# Atom feed should sort by Date: (if Received is missing)
+	$res = $cb->(GET('/v2test/new.atom'));
+	my @bodies = ($res->content =~ />(hello [^<]+)</mg);
+	is_deeply(\@bodies, [ "hello world!\n", "hello world\n" ],
+		'Atom ordering is chronological');
 });
 
 $mime->header_set('Message-Id', 'a-mid@b');
@@ -99,6 +106,21 @@ test_psgi(sub { $www->call(@_) }, sub {
 	like($raw, qr/^hello ghosts$/m, 'got third message');
 	@from_ = ($raw =~ m/^From /mg);
 	is(scalar(@from_), 3, 'three From_ lines');
+
+	SKIP: {
+		eval { require IO::Uncompress::Gunzip };
+		skip 'IO::Uncompress::Gunzip missing', 4 if $@;
+
+		$res = $cb->(GET('/v2test/a-mid@b/t.mbox.gz'));
+		my $out;
+		my $in = $res->content;
+		my $status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		like($out, qr/^hello world$/m, 'got first in t.mbox.gz');
+		like($out, qr/^hello world!$/m, 'got second in t.mbox.gz');
+		like($out, qr/^hello ghosts$/m, 'got third in t.mbox.gz');
+		@from_ = ($raw =~ m/^From /mg);
+		is(scalar(@from_), 3, 'three From_ lines in t.mbox.gz');
+	};
 });
 
 done_testing();
