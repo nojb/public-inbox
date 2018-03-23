@@ -127,6 +127,18 @@ test_psgi(sub { $www->call(@_) }, sub {
 		@from_ = ($raw =~ m/^From /mg);
 		is(scalar(@from_), 3, 'three From_ lines in t.mbox.gz');
 	};
+
+	local $SIG{__WARN__} = 'DEFAULT';
+	$res = $cb->(GET('/v2test/a-mid@b/'));
+	$raw = $res->content;
+	like($raw, qr/^hello world$/m, 'got first message');
+	like($raw, qr/^hello world!$/m, 'got second message');
+	like($raw, qr/^hello ghosts$/m, 'got third message');
+	@from_ = ($raw =~ m/>From: /mg);
+	is(scalar(@from_), 3, 'three From: lines');
+	foreach my $mid ('a-mid@b', $new_mid, $third) {
+		like($raw, qr/&lt;\Q$mid\E&gt;/s, "Message-ID $mid shown");
+	}
 });
 
 done_testing();

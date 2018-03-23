@@ -225,13 +225,8 @@ sub get_mid_txt {
 # /$INBOX/$MESSAGE_ID/                   -> HTML content (short quotes)
 sub get_mid_html {
 	my ($ctx) = @_;
-	my $x = mid2blob($ctx) or return r404($ctx);
-
 	require PublicInbox::View;
-	require PublicInbox::MIME;
-	my $mime = PublicInbox::MIME->new($x);
-	searcher($ctx);
-	PublicInbox::View::msg_html($ctx, $mime);
+	PublicInbox::View::msg_page($ctx) || r404($ctx);
 }
 
 # /$INBOX/$MESSAGE_ID/t/

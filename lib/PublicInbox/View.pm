@@ -9,7 +9,7 @@ use warnings;
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape mids/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -21,18 +21,23 @@ use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
 # public functions: (unstable)
+
 sub msg_html {
-	my ($ctx, $mime) = @_;
+	my ($ctx, $mime, $more) = @_;
 	my $hdr = $mime->header_obj;
 	my $ibx = $ctx->{-inbox};
-	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
-	my $tip = _msg_html_prepare($hdr, $ctx, $obfs_ibx);
+	my $obfs_ibx = $ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
+	my $tip = _msg_html_prepare($hdr, $ctx, $more, 0);
+	my $end = 2;
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		my ($nr, undef) = @_;
 		if ($nr == 1) {
 			$tip . multipart_text_as_html($mime, '', $obfs_ibx) .
 				'</pre><hr>'
-		} elsif ($nr == 2) {
+		} elsif ($more && @$more) {
+			++$end;
+			msg_html_more($ctx, $more, $nr);
+		} elsif ($nr == $end) {
 			# fake an EOF if generating the footer fails;
 			# we want to at least show the message if something
 			# here crashes:
@@ -44,6 +49,63 @@ sub msg_html {
 			undef
 		}
 	});
+}
+
+sub msg_page {
+	my ($ctx) = @_;
+	my $mid = $ctx->{mid};
+	my $ibx = $ctx->{-inbox};
+	my ($first, $more, $head, $tail, $db);
+	if (my $srch = $ibx->search) {
+		$srch->retry_reopen(sub {
+			($head, $tail, $db) = $srch->each_smsg_by_mid($mid);
+			for (; !defined($first) && $head != $tail; $head++) {
+				my @args = ($head, $db, $mid);
+				my $smsg = PublicInbox::SearchMsg->get(@args);
+				next if $smsg->type ne 'mail';
+				$first = $ibx->msg_by_smsg($smsg);
+			}
+			if ($head != $tail) {
+				$more = [ $head, $tail, $db ];
+			}
+		});
+	} else {
+		$first = $ibx->msg_by_mid($mid) or return;
+	}
+	$first ? msg_html($ctx, PublicInbox::MIME->new($first), $more) : undef;
+}
+
+sub msg_html_more {
+	my ($ctx, $more, $nr) = @_;
+	my $str = eval {
+		my $mref;
+		my ($head, $tail, $db) = @$more;
+		for (; !defined($mref) && $head != $tail; $head++) {
+			my $smsg = PublicInbox::SearchMsg->get($head, $db,
+								$ctx->{mid});
+			next if $smsg->type ne 'mail';
+			$mref = $ctx->{-inbox}->msg_by_smsg($smsg);
+		}
+		if ($head == $tail) { # done
+			@$more = ();
+		} else {
+			$more->[0] = $head;
+		}
+		if ($mref) {
+			my $mime = PublicInbox::MIME->new($mref);
+			_msg_html_prepare($mime->header_obj, $ctx, $more, $nr) .
+				multipart_text_as_html($mime, '',
+							$ctx->{-obfs_ibx}) .
+				'</pre><hr>'
+		} else {
+			'';
+		}
+	};
+	if ($@) {
+		warn "Error lookup up additional messages: $@\n";
+		$str = '<pre>Error looking up additional messages</pre>';
+	}
+	$str;
 }
 
 # /$INBOX/$MESSAGE_ID/#R
@@ -529,17 +591,26 @@ sub add_text_body {
 }
 
 sub _msg_html_prepare {
-	my ($hdr, $ctx, $obfs_ibx) = @_;
+	my ($hdr, $ctx, $more, $nr) = @_;
 	my $srch = $ctx->{srch} if $ctx;
 	my $atom = '';
-	my $rv = "<pre\nid=b>"; # anchor for body start
-
+	my $obfs_ibx = $ctx->{-obfs_ibx};
+	my $rv = '';
+	my $mids = mids($hdr);
+	my $multiple = scalar(@$mids) > 1; # zero, one, infinity
+	if ($nr == 0) {
+		if ($more) {
+			$rv .=
+"<pre>WARNING: multiple messages refer to this Message-ID\n</pre>";
+		}
+		$rv .= "<pre\nid=b>"; # anchor for body start
+	} else {
+		$rv .= '<pre>';
+	}
 	if ($srch) {
 		$ctx->{-upfx} = '../';
 	}
 	my @title;
-	my $mid = mid_clean($hdr->header_raw('Message-ID'));
-	$mid = PublicInbox::Hval->new_msgid($mid);
 	foreach my $h (qw(From To Cc Subject Date)) {
 		my $v = $hdr->header($h);
 		defined($v) && ($v ne '') or next;
@@ -564,8 +635,20 @@ sub _msg_html_prepare {
 	}
 	$title[0] ||= '(no subject)';
 	$ctx->{-title_html} = join(' - ', @title);
-	$rv .= 'Message-ID: &lt;' . $mid->as_html . '&gt; ';
-	$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
+	foreach (@$mids) {
+		my $mid = PublicInbox::Hval->new_msgid($_) ;
+		my $mhtml = $mid->as_html;
+		if ($multiple) {
+			my $href = $mid->{href};
+			$rv .= "Message-ID: ";
+			$rv .= "<a\nhref=\"../$href/\">";
+			$rv .= "&lt;$mhtml&gt;</a> ";
+			$rv .= "(<a\nhref=\"../$href/raw\">raw</a>)\n";
+		} else {
+			$rv .= "Message-ID: &lt;$mhtml&gt; ";
+			$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
+		}
+	}
 	$rv .= _parent_headers($hdr, $srch);
 	$rv .= "\n";
 }

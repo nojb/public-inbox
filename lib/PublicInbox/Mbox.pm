@@ -26,13 +26,6 @@ sub subject_fn ($) {
 	$fn eq '' ? 'no-subject' : $fn;
 }
 
-sub smsg_for ($$$) {
-	my ($head, $db, $mid) = @_;
-	my $doc_id = $head->get_docid;
-	my $doc = $db->get_document($doc_id);
-	PublicInbox::SearchMsg->wrap($doc, $mid)->load_expand;
-}
-
 sub mb_stream {
 	my ($more) = @_;
 	bless $more, 'PublicInbox::Mbox';
@@ -47,7 +40,7 @@ sub getline {
 		return msg_str($ctx, $cur);
 	}
 	for (; !defined($cur) && $head != $tail; $head++) {
-		my $smsg = smsg_for($head, $db, $ctx->{mid});
+		my $smsg = PublicInbox::SearchMsg->get($head, $db, $ctx->{mid});
 		next if $smsg->type ne 'mail';
 		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
 		$cur = Email::Simple->new($mref);
@@ -71,7 +64,8 @@ sub emit_raw {
 		$srch->retry_reopen(sub {
 			($head, $tail, $db) = $srch->each_smsg_by_mid($mid);
 			for (; !defined($first) && $head != $tail; $head++) {
-				my $smsg = smsg_for($head, $db, $mid);
+				my @args = ($head, $db, $mid);
+				my $smsg = PublicInbox::SearchMsg->get(@args);
 				next if $smsg->type ne 'mail';
 				my $mref = $ibx->msg_by_smsg($smsg) or next;
 				$first = Email::Simple->new($mref);
