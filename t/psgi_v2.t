@@ -78,6 +78,12 @@ test_psgi(sub { $www->call(@_) }, sub {
 	my @bodies = ($res->content =~ />(hello [^<]+)</mg);
 	is_deeply(\@bodies, [ "hello world!\n", "hello world\n" ],
 		'Atom ordering is chronological');
+
+	# new.html should sort by Date:, too (if Received is missing)
+	$res = $cb->(GET('/v2test/new.html'));
+	@bodies = ($res->content =~ /^(hello [^<]+)$/mg);
+	is_deeply(\@bodies, [ "hello world!\n", "hello world\n" ],
+		'new.html ordering is chronological');
 });
 
 $mime->header_set('Message-Id', 'a-mid@b');

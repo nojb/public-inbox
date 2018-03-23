@@ -12,13 +12,12 @@ use PublicInbox::WwwAtomStream;
 # main function
 sub generate {
 	my ($ctx) = @_;
-	my @oids;
-	each_recent_blob($ctx, sub { push @oids, $_[0] });
-	return _no_thread() unless @oids;
+	my $oids = recent_blobs($ctx);
+	return _no_thread() unless @$oids;
 
 	my $git = $ctx->{-inbox}->git;
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
-		while (my $oid = shift @oids) {
+		while (my $oid = shift @$oids) {
 			my $msg = $git->cat_file($oid) or next;
 			return PublicInbox::MIME->new($msg);
 		}
@@ -63,14 +62,8 @@ sub generate_html_index {
 
 sub new_html {
 	my ($ctx) = @_;
-	die "BUG: new_html is not used with search" if $ctx->{srch};
-	my @oids;
-	my (undef, $last) = each_recent_blob($ctx, sub {
-		my ($oid, $commit, $ts, $u, $subj) = @_;
-		$ctx->{first} ||= $commit;
-		push @oids, $oid;
-	});
-	if (!@oids) {
+	my $oids = recent_blobs($ctx);
+	if (!@$oids) {
 		return [404, ['Content-Type', 'text/plain'],
 			["No messages, yet\n"] ];
 	}
@@ -79,13 +72,13 @@ sub new_html {
 	$ctx->{-hr} = 1;
 	my $git = $ctx->{-inbox}->git;
 	PublicInbox::WwwStream->response($ctx, 200, sub {
-		while (my $oid = shift @oids) {
+		while (my $oid = shift @$oids) {
 			my $msg = $git->cat_file($oid) or next;
 			my $m = PublicInbox::MIME->new($msg);
-			my $more = scalar @oids;
+			my $more = scalar @$oids;
 			return PublicInbox::View::index_entry($m, $ctx, $more);
 		}
-		new_html_footer($ctx, $last);
+		new_html_footer($ctx);
 	});
 }
 
@@ -96,45 +89,43 @@ sub _no_thread () {
 }
 
 sub new_html_footer {
-	my ($ctx, $last) = @_;
+	my ($ctx) = @_;
 	my $qp = delete $ctx->{qp} or return;
-	my $old_r = $qp->{r};
 	my $latest = '';
-	my $next = '    ';
-
-	if ($last) {
-		$next = qq!<a\nhref="?r=$last"\nrel=next>next</a>!;
+	my $next = delete $ctx->{next_page} || '';
+	if ($next) {
+		$next = qq!<a\nhref="?$next"\nrel=next>next</a>!;
 	}
-	if ($old_r) {
+	if (!$qp) {
 		$latest = qq! <a\nhref='./new.html'>latest</a>!;
+		$next ||= '    ';
 	}
 	"<hr><pre>page: $next$latest</pre>";
 }
 
-sub each_recent_blob {
-	my ($ctx, $cb) = @_;
+sub recent_blobs {
+	my ($ctx) = @_;
 	my $ibx = $ctx->{-inbox};
 	my $max = $ibx->{feedmax};
+	my $qp = $ctx->{qp};
 	my $v = $ibx->{version} || 1;
-	if ($v == 2) {
-		wantarray and die "each_recent_blob return ignored for v2";
-	} elsif ($v != 1) {
+	if ($v > 2) {
 		die "BUG: unsupported inbox version: $v\n";
 	}
 	if (my $srch = $ibx->search) {
-		my $res = $srch->query('', { limit => $max });
-		foreach my $smsg (@{$res->{msgs}}) {
-			# search-enabled callers do not need author/date/subject
-			$cb->($smsg->{blob});
-		}
-		return;
+		my $o = $qp ? $qp->{o} : 0;
+		$o += 0;
+		$o = 0 if $o < 0;
+		my $res = $srch->query('', { limit => $max, offset => $o });
+		my $next = $o + $max;
+		$ctx->{next_page} = "o=$next" if $res->{total} >= $next;
+		return [ map { $_->{blob} } @{$res->{msgs}} ];
 	}
 
 	my $hex = '[a-f0-9]';
 	my $addmsg = qr!^:000000 100644 \S+ (\S+) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 (\S+) \S+ D\t(${hex}{2}/${hex}{38})$!;
 	my $refhex = qr/(?:HEAD|${hex}{4,40})(?:~\d+)?/;
-	my $qp = $ctx->{qp};
 
 	# revision ranges may be specified
 	my $range = 'HEAD';
@@ -149,45 +140,38 @@ sub each_recent_blob {
 	my $log = $ibx->git->popen(qw/log
 				--no-notes --no-color --raw -r
 				--no-abbrev --abbrev-commit/,
-				"--format=%h%x00%ct%x00%an%x00%s%x00",
-				$range);
+				"--format=%h", $range);
 	my %deleted; # only an optimization at this point
 	my $last;
-	my $nr = 0;
-	my ($cur_commit, $first_commit, $last_commit);
-	my ($ts, $subj, $u);
+	my $last_commit;
 	local $/ = "\n";
+	my @oids;
 	while (defined(my $line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $add = $1;
 			next if $deleted{$add}; # optimization-only
-			$cb->($add, $cur_commit, $ts, $u, $subj) and $nr++;
-			if ($nr >= $max) {
+			push @oids, $add;
+			if (scalar(@oids) >= $max) {
 				$last = 1;
 				last;
 			}
 		} elsif ($line =~ /$delmsg/o) {
 			$deleted{$1} = 1;
-		} elsif ($line =~ /^${hex}{7,40}/o) {
-			($cur_commit, $ts, $u, $subj) = split("\0", $line);
-			unless (defined $first_commit) {
-				$first_commit = $cur_commit;
-			}
 		}
 	}
 
 	if ($last) {
 		local $/ = "\n";
 		while (my $line = <$log>) {
-			if ($line =~ /^(${hex}{7,40})/o) {
+			if ($line =~ /^(${hex}{7,40})/) {
 				$last_commit = $1;
 				last;
 			}
 		}
 	}
 
-	# for pagination
-	($first_commit, $last_commit);
+	$ctx->{next_page} = "r=$last_commit" if $last_commit;
+	\@oids;
 }
 
 1;
