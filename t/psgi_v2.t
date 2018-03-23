@@ -50,12 +50,11 @@ $new_mid = PublicInbox::MID::mid_clean($mids[0]);
 $im->done;
 
 my $cfgpfx = "publicinbox.v2test";
-my %cfg = (
+my $cfg = {
 	"$cfgpfx.address" => $ibx->{-primary_address},
 	"$cfgpfx.mainrepo" => $mainrepo,
-);
-
-my $config = PublicInbox::Config->new({ %cfg });
+};
+my $config = PublicInbox::Config->new($cfg);
 my $www = PublicInbox::WWW->new($config);
 my ($res, $raw, @from_);
 test_psgi(sub { $www->call(@_) }, sub {
@@ -85,9 +84,6 @@ is($warn[0], $warn[1], 'both warnings are the same');
 my $third = PublicInbox::MID::mid_clean($mids[0]);
 $im->done;
 
-# need to reload...
-$config = PublicInbox::Config->new({ %cfg });
-$www = PublicInbox::WWW->new($config);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;
 	$res = $cb->(GET("/v2test/$third/raw"));

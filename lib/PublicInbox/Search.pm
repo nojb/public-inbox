@@ -417,6 +417,11 @@ sub each_smsg_by_mid {
 	my $term = 'Q' . $mid;
 	my $head = $db->postlist_begin($term);
 	my $tail = $db->postlist_end($term);
+	if ($head == $tail) {
+		$db->reopen;
+		$head = $db->postlist_begin($term);
+		$tail = $db->postlist_end($term);
+	}
 	return ($head, $tail, $db) if wantarray;
 	for (; $head->nequal($tail); $head->inc) {
 		my $doc_id = $head->get_docid;
