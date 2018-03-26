@@ -152,7 +152,6 @@ sub invalid_inbox ($$) {
 	if (defined $obj) {
 		$ctx->{git} = $obj->git;
 		$ctx->{-inbox} = $obj;
-		$ctx->{inbox} = $inbox;
 		return;
 	}
 
