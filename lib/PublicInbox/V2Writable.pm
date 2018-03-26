@@ -495,7 +495,7 @@ sub mark_deleted {
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
 	foreach my $mid (@$mids) {
-		$D->{$mid.$cid} = 1;
+		$D->{"$mid\0$cid"} = 1;
 	}
 }
 
@@ -513,7 +513,7 @@ sub reindex_oid {
 	my $num = -1;
 	my $del = 0;
 	foreach my $mid (@$mids) {
-		$del += (delete $D->{$mid.$cid} || 0);
+		$del += (delete $D->{"$mid\0$cid"} || 0);
 		my $n = $mm_tmp->num_for($mid);
 		if (defined $n && $n > $num) {
 			$mid0 = $mid;
@@ -633,6 +633,14 @@ sub reindex {
 	}
 	my ($min, $max) = $mm_tmp->minmax;
 	defined $max and die "leftover article numbers at $min..$max\n";
+	my @d = sort keys %$D;
+	if (@d) {
+		warn "BUG: ", scalar(@d)," unseen deleted messages marked\n";
+		foreach (@d) {
+			my ($mid, undef) = split(/\0/, $_, 2);
+			warn "<$mid>\n";
+		}
+	}
 }
 
 1;
