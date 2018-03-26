@@ -561,6 +561,10 @@ sub link_and_save {
 			1;
 		});
 	}
+	if ($vivified > 1) {
+		my $id = '<'.join('> <', @$mids).'>';
+		warn "BUG: vivified multiple ($vivified) ghosts for $id\n";
+	}
 	# not really important, but we return any vivified ghost docid, here:
 	return $doc_id if defined $doc_id;
 	link_doc($self, $doc, $refs, $old_tid);
