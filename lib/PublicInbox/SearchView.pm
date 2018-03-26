@@ -10,7 +10,7 @@ use PublicInbox::SearchMsg;
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
-use PublicInbox::MID qw(mid2path mid_mime mid_clean mid_escape MID_ESC);
+use PublicInbox::MID qw(MID_ESC);
 use PublicInbox::MIME;
 require PublicInbox::Git;
 require PublicInbox::SearchThread;
