@@ -9,7 +9,8 @@ use warnings;
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape mids/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape mids
+			references/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -69,30 +70,31 @@ sub msg_page {
 				$more = [ $head, $tail, $db ];
 			}
 		});
+		return unless $first;
 	} else {
 		$first = $ibx->msg_by_mid($mid) or return;
 	}
-	$first ? msg_html($ctx, PublicInbox::MIME->new($first), $more) : undef;
+	msg_html($ctx, PublicInbox::MIME->new($first), $more);
 }
 
 sub msg_html_more {
 	my ($ctx, $more, $nr) = @_;
 	my $str = eval {
-		my $mref;
+		my $smsg;
 		my ($head, $tail, $db) = @$more;
-		for (; !defined($mref) && $head != $tail; $head++) {
-			my $smsg = PublicInbox::SearchMsg->get($head, $db,
-								$ctx->{mid});
-			next if $smsg->type ne 'mail';
-			$mref = $ctx->{-inbox}->msg_by_smsg($smsg);
+		my $mid = $ctx->{mid};
+		for (; !defined($smsg) && $head != $tail; $head++) {
+			my $m = PublicInbox::SearchMsg->get($head, $db, $mid);
+			next if $m->type ne 'mail';
+			$smsg = $ctx->{-inbox}->smsg_mime($m);
 		}
 		if ($head == $tail) { # done
 			@$more = ();
 		} else {
 			$more->[0] = $head;
 		}
-		if ($mref) {
-			my $mime = PublicInbox::MIME->new($mref);
+		if ($smsg) {
+			my $mime = $smsg->{mime};
 			_msg_html_prepare($mime->header_obj, $ctx, $more, $nr) .
 				multipart_text_as_html($mime, '',
 							$ctx->{-obfs_ibx}) .
@@ -167,14 +169,8 @@ EOF
 
 sub in_reply_to {
 	my ($hdr) = @_;
-	my %mid = map { $_ => 1 } $hdr->header_raw('Message-ID');
-	my @refs = (($hdr->header_raw('References') || '') =~ /<([^>]+)>/g);
-	push(@refs, (($hdr->header_raw('In-Reply-To') || '') =~ /<([^>]+)>/g));
-	while (defined(my $irt = pop @refs)) {
-		next if $mid{"<$irt>"};
-		return $irt;
-	}
-	undef;
+	my $refs = references($hdr);
+	$refs->[-1];
 }
 
 sub _hdr_names_html ($$) {
@@ -191,12 +187,10 @@ sub nr_to_s ($$$) {
 
 # this is already inside a <pre>
 sub index_entry {
-	my ($mime, $ctx, $more) = @_;
+	my ($smsg, $ctx, $more) = @_;
 	my $srch = $ctx->{srch};
-	my $hdr = $mime->header_obj;
-	my $subj = $hdr->header('Subject');
-
-	my $mid_raw = mid_clean(mid_mime($mime));
+	my $subj = $smsg->subject;
+	my $mid_raw = $smsg->mid;
 	my $id = id_compress($mid_raw, 1);
 	my $id_m = 'm'.$id;
 
@@ -211,6 +205,8 @@ sub index_entry {
 	$rv .= $subj . "\n";
 	$rv .= _th_index_lite($mid_raw, \$irt, $id, $ctx);
 	my @tocc;
+	my $mime = $smsg->{mime};
+	my $hdr = $mime->header_obj;
 	foreach my $f (qw(To Cc)) {
 		my $dst = _hdr_names_html($hdr, $f);
 		if ($dst ne '') {
@@ -220,7 +216,7 @@ sub index_entry {
 	}
 	my $from = _hdr_names_html($hdr, 'From');
 	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
-	$rv .= "From: $from @ "._msg_date($hdr)." UTC";
+	$rv .= "From: $from @ ".fmt_ts($smsg->ds)." UTC";
 	my $upfx = $ctx->{-upfx};
 	my $mhref = $upfx . mid_escape($mid_raw) . '/';
 	$rv .= qq{ (<a\nhref="$mhref">permalink</a> / };
@@ -363,30 +359,30 @@ sub pre_thread  {
 }
 
 sub thread_index_entry {
-	my ($ctx, $level, $mime) = @_;
+	my ($ctx, $level, $smsg) = @_;
 	my ($beg, $end) = thread_adj_level($ctx, $level);
-	$beg . '<pre>' . index_entry($mime, $ctx, 0) . '</pre>' . $end;
+	$beg . '<pre>' . index_entry($smsg, $ctx, 0) . '</pre>' . $end;
 }
 
 sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
 	my $inbox = $ctx->{-inbox};
-	my $mime;
 	my @q = map { (0, $_) } @$rootset;
 	my $level;
+	my $smsg;
 	while (@q) {
 		$level = shift @q;
 		my $node = shift @q or next;
 		my $cl = $level + 1;
 		unshift @q, map { ($cl, $_) } @{$node->{children}};
-		$mime = $inbox->msg_by_smsg($node->{smsg}) and last;
+		$smsg = $inbox->smsg_mime($node->{smsg}) and last;
 	}
-	return missing_thread($ctx) unless $mime;
+	return missing_thread($ctx) unless $smsg;
 
 	$ctx->{-obfs_ibx} = $inbox->{obfuscate} ? $inbox : undef;
-	$mime = PublicInbox::MIME->new($mime);
-	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
-	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $mime);
+	$ctx->{-title_html} = ascii_html($smsg->subject);
+	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $smsg);
+	$smsg = undef;
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		return unless $ctx;
 		while (@q) {
@@ -394,10 +390,8 @@ sub stream_thread ($$) {
 			my $node = shift @q or next;
 			my $cl = $level + 1;
 			unshift @q, map { ($cl, $_) } @{$node->{children}};
-			my $mid = $node->{id};
-			if ($mime = $inbox->msg_by_smsg($node->{smsg})) {
-				$mime = PublicInbox::MIME->new($mime);
-				return thread_index_entry($ctx, $level, $mime);
+			if ($smsg = $inbox->smsg_mime($node->{smsg})) {
+				return thread_index_entry($ctx, $level, $smsg);
 			} else {
 				return ghost_index_entry($ctx, $level, $node);
 			}
@@ -445,24 +439,21 @@ sub thread_html {
 	return stream_thread($rootset, $ctx) unless $ctx->{flat};
 
 	# flat display: lazy load the full message from smsg
-	my $mime;
-	while ($mime = shift @$msgs) {
-		$mime = $inbox->msg_by_smsg($mime) and last;
+	my $smsg;
+	while (my $m = shift @$msgs) {
+		$smsg = $inbox->smsg_mime($m) and last;
 	}
-	return missing_thread($ctx) unless $mime;
-	$mime = PublicInbox::MIME->new($mime);
-	$ctx->{-title_html} = ascii_html($mime->header('Subject'));
-	$ctx->{-html_tip} = '<pre>'.index_entry($mime, $ctx, scalar @$msgs);
-	$mime = undef;
+	return missing_thread($ctx) unless $smsg;
+	$ctx->{-title_html} = ascii_html($smsg->subject);
+	$ctx->{-html_tip} = '<pre>'.index_entry($smsg, $ctx, scalar @$msgs);
+	$smsg = undef;
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		return unless $msgs;
-		while ($mime = shift @$msgs) {
-			$mime = $inbox->msg_by_smsg($mime) and last;
+		$smsg = undef;
+		while (my $m = shift @$msgs) {
+			$smsg = $inbox->smsg_mime($m) and last;
 		}
-		if ($mime) {
-			$mime = PublicInbox::MIME->new($mime);
-			return index_entry($mime, $ctx, scalar @$msgs);
-		}
+		return index_entry($smsg, $ctx, scalar @$msgs) if $smsg;
 		$msgs = undef;
 		$skel;
 	});
@@ -656,7 +647,7 @@ sub _msg_html_prepare {
 sub thread_skel {
 	my ($dst, $ctx, $hdr, $tpfx) = @_;
 	my $srch = $ctx->{srch};
-	my $mid = mid_clean($hdr->header_raw('Message-ID'));
+	my $mid = mids($hdr)->[0];
 	my $sres = $srch->get_thread($mid);
 	my $nr = $sres->{total};
 	my $expand = qq(expand[<a\nhref="${tpfx}T/#u">flat</a>) .

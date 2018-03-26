@@ -8,6 +8,7 @@ use warnings;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use Devel::Peek qw(SvREFCNT);
+use PublicInbox::MIME;
 
 my $cleanup_timer;
 eval {
@@ -244,6 +245,14 @@ sub msg_by_smsg ($$;$) {
 	my $str = git($self)->cat_file($blob, $ref);
 	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s if $str;
 	$str;
+}
+
+sub smsg_mime {
+	my ($self, $smsg, $ref) = @_;
+	if (my $s = msg_by_smsg($self, $smsg, $ref)) {
+		$smsg->{mime} = PublicInbox::MIME->new($s);
+		return $smsg;
+	}
 }
 
 sub path_check {

@@ -225,6 +225,7 @@ sub get_mid_txt {
 sub get_mid_html {
 	my ($ctx) = @_;
 	require PublicInbox::View;
+	searcher($ctx);
 	PublicInbox::View::msg_page($ctx) || r404($ctx);
 }
 

@@ -139,6 +139,32 @@ test_psgi(sub { $www->call(@_) }, sub {
 	foreach my $mid ('a-mid@b', $new_mid, $third) {
 		like($raw, qr/&lt;\Q$mid\E&gt;/s, "Message-ID $mid shown");
 	}
+	like($raw, qr/\b3\+ messages\b/, 'thread overview shown');
+
+	my $exp = [ qw(<a-mid@b> <reuse@mid>) ];
+	$mime->header_set('Message-Id', @$exp);
+	$mime->header_set('Subject', '4th dupe');
+	local $SIG{__WARN__} = sub {};
+	ok($im->add($mime), 'added one message');
+	$im->done;
+	my @h = $mime->header('Message-ID');
+	is_deeply($exp, \@h, 'reused existing Message-ID');
+
+	$config->each_inbox(sub { $_[0]->search->reopen });
+
+	$res = $cb->(GET('/v2test/new.atom'));
+	my @ids = ($res->content =~ m!<id>urn:uuid:([^<]+)</id>!sg);
+	my %ids;
+	$ids{$_}++ for @ids;
+	is_deeply([qw(1 1 1 1)], [values %ids], 'feed ids unique');
+
+	$res = $cb->(GET('/v2test/reuse@mid/T/'));
+	$raw = $res->content;
+	like($raw, qr/\b4\+ messages\b/, 'thread overview shown with /T/');
+
+	$res = $cb->(GET('/v2test/reuse@mid/t/'));
+	$raw = $res->content;
+	like($raw, qr/\b4\+ messages\b/, 'thread overview shown with /t/');
 });
 
 done_testing();

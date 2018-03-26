@@ -248,15 +248,14 @@ sub mset_thread {
 		*PublicInbox::View::pre_thread);
 
 	@$msgs = reverse @$msgs if $r;
-	my $mime;
 	sub {
 		return unless $msgs;
-		while ($mime = pop @$msgs) {
-			$mime = $inbox->msg_by_smsg($mime) and last;
+		my $smsg;
+		while (my $m = pop @$msgs) {
+			$smsg = $inbox->smsg_mime($m) and last;
 		}
-		if ($mime) {
-			$mime = PublicInbox::MIME->new($mime);
-			return PublicInbox::View::index_entry($mime, $ctx,
+		if ($smsg) {
+			return PublicInbox::View::index_entry($smsg, $ctx,
 				scalar @$msgs);
 		}
 		$msgs = undef;
@@ -290,8 +289,7 @@ sub adump {
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
 		while (my $x = shift @items) {
 			$x = load_doc_retry($srch, $x);
-			$x = $ibx->msg_by_smsg($x) and
-					return PublicInbox::MIME->new($x);
+			$x = $ibx->smsg_mime($x) and return $x;
 		}
 		return undef;
 	});

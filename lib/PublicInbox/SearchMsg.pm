@@ -6,7 +6,6 @@
 package PublicInbox::SearchMsg;
 use strict;
 use warnings;
-use Search::Xapian;
 use PublicInbox::MID qw/mid_clean mid_mime/;
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
@@ -165,9 +164,10 @@ sub mid ($;$) {
 		$self->{mid} = $mid;
 	} elsif (my $rv = $self->{mid}) {
 		$rv;
+	} elsif ($self->{doc}) {
+		$self->{mid} = _get_term_val($self, 'Q', qr/\AQ/);
 	} else {
-		$self->{mid} = _get_term_val($self, 'Q', qr/\AQ/) ||
-				$self->_extract_mid;
+		$self->_extract_mid; # v1 w/o Xapian
 	}
 }
 

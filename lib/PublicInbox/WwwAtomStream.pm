@@ -33,8 +33,8 @@ sub response {
 sub getline {
 	my ($self) = @_;
 	if (my $middle = $self->{cb}) {
-		my $mime = $middle->();
-		return feed_entry($self, $mime) if $mime;
+		my $smsg = $middle->();
+		return feed_entry($self, $smsg) if $smsg;
 	}
 	delete $self->{cb} ? '</feed>' : undef;
 }
@@ -92,10 +92,11 @@ sub mid2uuid ($) {
 
 # returns undef or string
 sub feed_entry {
-	my ($self, $mime) = @_;
+	my ($self, $smsg) = @_;
 	my $ctx = $self->{ctx};
+	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
-	my $mid = mid_clean($hdr->header_raw('Message-ID'));
+	my $mid = $smsg->mid;
 	my $irt = PublicInbox::View::in_reply_to($hdr);
 	my $uuid = mid2uuid($mid);
 	my $base = $ctx->{feed_base_url};
