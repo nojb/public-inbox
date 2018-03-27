@@ -72,17 +72,32 @@ sub _html_end {
 	my $obj = $ctx->{-inbox};
 	my $desc = ascii_html($obj->description);
 
+	my (%seen, @urls);
 	my $http = $obj->base_url($ctx->{env});
-	chop $http;
-	my %seen = ( $http => 1 );
-	my @urls = ($http);
+	chop $http; # no trailing slash
+	my $part = $obj->max_git_part;
+	if (defined($part)) { # v2
+		# most recent partition first:
+		for (; $part >= 0; $part--) {
+			my $url = "$http/$part";
+			$seen{$url} = 1;
+			push @urls, $url;
+		}
+	} else { # v1
+		$seen{$http} = 1;
+		push @urls, $http;
+	}
+
+	# FIXME: partitioning in can be different in other repositories,
+	# use the "cloneurl" file as-is for now:
 	foreach my $u (@{$obj->cloneurl}) {
 		next if $seen{$u};
 		$seen{$u} = 1;
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
 	}
+
 	if (scalar(@urls) == 1) {
-		$urls .= " git clone --mirror $http";
+		$urls .= " git clone --mirror $urls[0]";
 	} else {
 		$urls .= "\n" .
 			join("\n", map { "\tgit clone --mirror $_" } @urls);

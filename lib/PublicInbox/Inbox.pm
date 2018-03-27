@@ -82,6 +82,18 @@ sub new {
 	bless $opts, $class;
 }
 
+sub git_part {
+	my ($self, $part) = @_;
+	($self->{version} || 1) == 2 or return;
+	$self->{"$part.git"} ||= eval {
+		my $git_dir = "$self->{mainrepo}/git/$part.git";
+		my $g = PublicInbox::Git->new($git_dir);
+		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
+		# no cleanup needed, we never cat-file off this, only clone
+		$g;
+	};
+}
+
 sub git {
 	my ($self) = @_;
 	$self->{git} ||= eval {
@@ -92,6 +104,29 @@ sub git {
 		_cleanup_later($self);
 		$g;
 	};
+}
+
+sub max_git_part {
+	my ($self) = @_;
+	my $v = $self->{version};
+	return unless defined($v) && $v == 2;
+	my $part = $self->{-max_git_part};
+	my $changed = git($self)->alternates_changed;
+	if (!defined($part) || $changed) {
+		$self->git->cleanup if $changed;
+		my $gits = "$self->{mainrepo}/git";
+		if (opendir my $dh, $gits) {
+			my $max = -1;
+			while (defined(my $git_dir = readdir($dh))) {
+				$git_dir =~ m!\A(\d+)\.git\z! or next;
+				$max = $1 if $1 > $max;
+			}
+			$part = $self->{-max_git_part} = $max if $max >= 0;
+		} else {
+			warn "opendir $gits failed: $!\n";
+		}
+	}
+	$part;
 }
 
 sub mm {
@@ -133,7 +168,7 @@ sub description {
 	local $/ = "\n";
 	chomp $desc;
 	$desc =~ s/\s+/ /smg;
-	$desc = '($GIT_DIR/description missing)' if $desc eq '';
+	$desc = '($REPO_DIR/description missing)' if $desc eq '';
 	$self->{description} = $desc;
 }
 

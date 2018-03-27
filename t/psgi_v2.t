@@ -165,6 +165,11 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/v2test/reuse@mid/t/'));
 	$raw = $res->content;
 	like($raw, qr/\b4\+ messages\b/, 'thread overview shown with /t/');
+
+	$res = $cb->(GET('/v2test/0/info/refs'));
+	is($res->code, 200, 'got info refs for dumb clones');
+	$res = $cb->(GET('/v2test/info/refs'));
+	is($res->code, 404, 'unpartitioned git URL fails');
 });
 
 done_testing();

@@ -54,10 +54,10 @@ sub call {
 	my $method = $env->{REQUEST_METHOD};
 
 	if ($method eq 'POST') {
-		if ($path_info =~ m!$INBOX_RE/(git-upload-pack)\z!) {
-			my $path = $2;
+		if ($path_info =~ m!$INBOX_RE/(?:(\d+)/)?(git-upload-pack)\z!) {
+			my ($part, $path) = ($2, $3);
 			return invalid_inbox($ctx, $1) ||
-				serve_git($ctx, $path);
+				serve_git($ctx, $part, $path);
 		} elsif ($path_info =~ m!$INBOX_RE/!o) {
 			return invalid_inbox($ctx, $1) || mbox_results($ctx);
 		}
@@ -77,10 +77,10 @@ sub call {
 		invalid_inbox($ctx, $1) || get_atom($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
 		invalid_inbox($ctx, $1) || get_new($ctx);
-	} elsif ($path_info =~ m!$INBOX_RE/
+	} elsif ($path_info =~ m!$INBOX_RE/(?:(\d+)/)?
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
-		my $path = $2;
-		invalid_inbox($ctx, $1) || serve_git($ctx, $path);
+		my ($part, $path) = ($2, $3);
+		invalid_inbox($ctx, $1) || serve_git($ctx, $part, $path);
 	} elsif ($path_info =~ m!$INBOX_RE/([\w-]+).mbox\.gz\z!o) {
 		serve_mbox_range($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
@@ -393,8 +393,11 @@ sub msg_page {
 }
 
 sub serve_git {
-	my ($ctx, $path) = @_;
-	PublicInbox::GitHTTPBackend::serve($ctx->{env}, $ctx->{git}, $path);
+	my ($ctx, $part, $path) = @_;
+	my $env = $ctx->{env};
+	my $ibx = $ctx->{-inbox};
+	my $git = defined $part ? $ibx->git_part($part) : $ibx->git;
+	$git ? PublicInbox::GitHTTPBackend::serve($env, $git, $path) : r404();
 }
 
 sub mbox_results {

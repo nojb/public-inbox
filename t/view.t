@@ -16,6 +16,7 @@ my $ctx = {
 		base_url => sub { 'http://example.com/' },
 		cloneurl => sub {[]},
 		nntp_url => sub {[]},
+		max_git_part => sub { undef },
 		description => sub { '' }),
 };
 $ctx->{-inbox}->{-primary_address} = 'test@example.com';
