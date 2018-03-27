@@ -316,9 +316,12 @@ sub more ($$) {
 	if (MSG_MORE && !$self->{write_buf_size}) {
 		my $n = send($self->{sock}, $_[1], MSG_MORE);
 		if (defined $n) {
-			my $dlen = length($_[1]);
-			return 1 if $n == $dlen; # all done!
-			$_[1] = substr($_[1], $n, $dlen - $n);
+			my $nlen = length($_[1]) - $n;
+			return 1 if $nlen == 0; # all done!
+			eval { $_[1] = substr($_[1], $n, $nlen) };
+			if ($@) { # modification of read-only value:
+				return $self->write(substr($_[1], $n, $nlen));
+			}
 			# fall through to normal write:
 		}
 	}
