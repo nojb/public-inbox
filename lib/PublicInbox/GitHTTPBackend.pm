@@ -280,6 +280,7 @@ sub input_to_file {
 			err($env, "error reading input: $!");
 			return;
 		}
+		last if $r == 0;
 		my $off = 0;
 		while ($r > 0) {
 			my $w = syswrite($in, $buf, $r, $off);
