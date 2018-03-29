@@ -348,36 +348,34 @@ sub query_ts {
 sub first_smsg_by_mid {
 	my ($self, $mid) = @_;
 	my $smsg;
-	each_smsg_by_mid($self, $mid, sub { $smsg = $_[0]; undef });
+	retry_reopen($self, sub {
+		each_smsg_by_mid($self, $mid, sub { $smsg = $_[0]; undef });
+	});
 	$smsg;
 }
 
 sub lookup_article {
 	my ($self, $num) = @_;
 	my $term = 'XNUM'.$num;
-	my $smsg;
-	eval {
-		retry_reopen($self, sub {
-			my $db = $self->{skel} || $self->{xdb};
-			my $head = $db->postlist_begin($term);
-			my $tail = $db->postlist_end($term);
-			return if $head->equal($tail);
-			my $doc_id = $head->get_docid;
-			return unless defined $doc_id;
-			$head->inc;
-			if ($head->nequal($tail)) {
-				my $loc= $self->{mainrepo} .
-					($self->{skel} ? 'skel' : 'xdb');
-				warn "article #$num is not unique in $loc\n";
-			}
-			# raises on error:
-			my $doc = $db->get_document($doc_id);
-			$smsg = PublicInbox::SearchMsg->wrap($doc);
-			$smsg->load_expand;
-			$smsg->{doc_id} = $doc_id;
-		});
-	};
-	$smsg;
+	my $db = $self->{skel} || $self->{xdb};
+	retry_reopen($self, sub {
+		my $head = $db->postlist_begin($term);
+		my $tail = $db->postlist_end($term);
+		return if $head->equal($tail);
+		my $doc_id = $head->get_docid;
+		return unless defined $doc_id;
+		$head->inc;
+		if ($head->nequal($tail)) {
+			my $loc= $self->{mainrepo} .
+				($self->{skel} ? 'skel' : 'xdb');
+			warn "article #$num is not unique in $loc\n";
+		}
+		# raises on error:
+		my $doc = $db->get_document($doc_id);
+		my $smsg = PublicInbox::SearchMsg->wrap($doc);
+		$smsg->{doc_id} = $doc_id;
+		$smsg->load_expand;
+	});
 }
 
 sub each_smsg_by_mid {
