@@ -1,0 +1,50 @@
+=head1 NAME
+
+public-inbox-compact - compact Xapian DBs
+
+=head1 SYNOPSIS
+
+	public-inbox-compact INBOX_DIR
+
+=head1 DESCRIPTION
+
+public-inbox-compact is a wrapper for L<xapian-compact(1)>
+designed for "v2" inboxes.  It combines multiple Xapian
+partitions into one to reduce space overhead after an initial
+mass import (using multiple partitions) is done.
+
+It locks the inbox and prevents other processes such as
+L<public-inbox-watch(1)> from writing while it operates.
+
+It also supports "v1" (ssoma) inboxes with limited
+usefulness over L<xapian-compact(1)>
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+The default config file, normally "~/.public-inbox/config".
+See L<public-inbox-config(5)>
+
+=back
+
+=head1 UPGRADING
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2018 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<xapian-compact(1)>, L<public-inbox-index(1)>

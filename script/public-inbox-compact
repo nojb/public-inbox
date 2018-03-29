@@ -1,0 +1,94 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2018 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+use strict;
+use warnings;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+use PublicInbox::V2Writable;
+use PublicInbox::Search;
+use PublicInbox::Config;
+use Cwd 'abs_path';
+use File::Temp qw(tempdir);
+use File::Path qw(remove_tree);
+use PublicInbox::Spawn qw(spawn);
+my $usage = "Usage: public-inbox-compact REPO_DIR\n";
+my $dir = shift or die $usage;
+my $config = PublicInbox::Config->new;
+my $ibx;
+$config->each_inbox(sub {
+	$ibx = $_[0] if abs_path($_[0]->{mainrepo}) eq $dir
+});
+unless ($ibx) {
+	warn "W: $dir not configured in ".
+		PublicInbox::Config::default_file() . "\n";
+	$ibx = {
+		mainrepo => $dir,
+		name => 'ignored',
+		address => [ 'old@example.com' ],
+	};
+	$ibx = PublicInbox::Inbox->new($ibx);
+}
+my $v = ($ibx->{version} || 1);
+if ($v == 2) {
+	require PublicInbox::V2Writable;
+	my $v2w = PublicInbox::V2Writable->new($ibx);
+	my $xap_v = 'xap'.PublicInbox::Search::SCHEMA_VERSION;
+	my $xroot = "$ibx->{mainrepo}/$xap_v";
+	opendir my $dh, $xroot or die "Failed to opendir $xroot: $!\n";
+	$v2w->lock_acquire;
+	my $new = tempdir(CLEANUP => 1, DIR => $ibx->{mainrepo});
+	my @parts;
+	my $skel;
+	while (defined(my $dn = readdir($dh))) {
+		if ($dn =~ /\A\d+\z/) {
+			push @parts, "$xroot/$dn";
+		} elsif ($dn eq 'skel') {
+			$skel = "$xroot/$dn";
+		} elsif ($dn eq '.' || $dn eq '..') {
+		} else {
+			warn "W: skipping unknown Xapian DB: $xroot/$dn\n";
+		}
+	}
+	close $dh;
+	my %pids;
+	if (@parts) {
+		my $pid = spawn([ qw(xapian-compact), @parts, "$new/0" ]);
+		defined $pid or die "compact failed: $?\n";
+		$pids{$pid} = 'xapian-compact (parts)';
+	} else {
+		warn "No parts found in $xroot\n";
+	}
+	if (defined $skel) {
+		my $pid = spawn([ qw(xapian-compact), $skel, "$new/skel" ]);
+		defined $pid or die "compact failed: $?\n";
+		$pids{$pid} = 'xapian-compact (skel)';
+	} else {
+		warn "$xroot/skel missing\n";
+	}
+	die "No xapian-compact processes running\n" unless scalar keys %pids;
+	while (scalar keys %pids) {
+		my $pid = waitpid(-1, 0);
+		my $desc = delete $pids{$pid};
+		die "$desc failed: $?\n" if $?;
+	}
+	rename($xroot, "$new/old") or die "rename $xroot => $new/old: $!\n";
+	rename($new, $xroot) or die "rename $new => $xroot: $!\n";
+	$v2w->lock_release;
+	remove_tree("$xroot/old") or die "failed to remove $xroot/old: $!\n";
+} elsif ($v == 1) {
+	require PublicInbox::Import;
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $xap_v = 'xapian'.PublicInbox::Search::SCHEMA_VERSION;
+	my $v1_root = "$ibx->{mainrepo}/public-inbox";
+	my $old = "$v1_root/$xap_v";
+	-d $old or die "$old does not exist\n";
+	my $new = tempdir(CLEANUP => 1, DIR => $v1_root);
+	$im->lock_acquire;
+	PublicInbox::Import::run_die([ qw(xapian-compact), $old, $new ]);
+	rename($old, "$new/old") or die "rename $old => $new: $!\n";
+	rename($new, $old) or die "rename $new => $old: $!\n";
+	$im->lock_release;
+	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
+} else {
+	die "Unsupported inbox version: $v\n";
+}
