@@ -298,9 +298,15 @@ sub msg_by_mid ($$;$) {
 	my $srch = search($self) or
 			return msg_by_path($self, mid2path($mid), $ref);
 	my $smsg;
-	$srch->retry_reopen(sub {
-		$smsg = $srch->lookup_skeleton($mid) and $smsg->load_expand;
-	});
+	# favor the Message-ID we used for the NNTP article number:
+	if (my $mm = mm($self)) {
+		my $num = $mm->num_for($mid);
+		$smsg = $srch->lookup_article($num);
+	} else {
+		$smsg = $srch->retry_reopen(sub {
+			$srch->lookup_skeleton($mid) and $smsg->load_expand;
+		});
+	}
 	$smsg ? msg_by_smsg($self, $smsg, $ref) : undef;
 }
 
