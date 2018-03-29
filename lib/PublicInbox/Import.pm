@@ -387,9 +387,9 @@ sub add {
 	$self->{tip} = ":$commit";
 }
 
-sub run_die ($;$) {
-	my ($cmd, $env) = @_;
-	my $pid = spawn($cmd, $env, undef);
+sub run_die ($;$$) {
+	my ($cmd, $env, $rdr) = @_;
+	my $pid = spawn($cmd, $env, $rdr);
 	defined $pid or die "spawning ".join(' ', @$cmd)." failed: $!";
 	waitpid($pid, 0) == $pid or die join(' ', @$cmd) .' did not finish';
 	$? == 0 or die join(' ', @$cmd) . " failed: $?\n";
