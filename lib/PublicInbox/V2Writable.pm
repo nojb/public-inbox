@@ -53,8 +53,6 @@ sub new {
 	my $self = {
 		-inbox => $v2ibx,
 		im => undef, #  PublicInbox::Import
-		xap_rw => undef, # PublicInbox::V2SearchIdx
-		xap_ro => undef,
 		partitions => $nparts,
 		parallel => 1,
 		transact_bytes => 0,
