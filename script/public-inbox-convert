@@ -1,0 +1,109 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2018 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <http://www.gnu.org/licenses/agpl-3.0.txt>
+use strict;
+use warnings;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+use PublicInbox::MIME;
+use PublicInbox::Inbox;
+use PublicInbox::Config;
+use PublicInbox::V2Writable;
+use PublicInbox::Spawn qw(spawn);
+use Cwd 'abs_path';
+my $usage = "Usage: public-inbox-convert OLD NEW\n";
+my $jobs;
+my $index = 1;
+my %opts = (
+	'--jobs|j=i' => \$jobs,
+	'--index!' => \$index,
+);
+GetOptions(%opts) or die "bad command-line args\n$usage";
+GetOptions(%opts) or die "bad command-line args\n$usage";
+my $old_dir = shift or die $usage;
+my $new_dir = shift or die $usage;
+die "$new_dir exists\n" if -d $new_dir;
+die "$old_dir not a directory\n" unless -d $old_dir;
+my $config = PublicInbox::Config->new;
+$old_dir = abs_path($old_dir);
+my $old;
+$config->each_inbox(sub {
+	$old = $_[0] if abs_path($_[0]->{mainrepo}) eq $old_dir;
+});
+unless ($old) {
+	warn "W: $old_dir not configured in " .
+		PublicInbox::Config::default_file() . "\n";
+	$old = {
+		mainrepo => $old_dir,
+		name => 'ignored',
+		address => [ 'old@example.com' ],
+	};
+	$old = PublicInbox::Inbox->new($old);
+}
+if (($old->{version} || 1) >= 2) {
+	die "Only conversion from v1 inboxes is supported\n";
+}
+my $new = { %$old };
+delete $new->{altid}; # TODO: support altid for v2
+$new->{mainrepo} = $new_dir;
+$new->{version} = 2;
+$new = PublicInbox::Inbox->new($new);
+my $v2w = PublicInbox::V2Writable->new($new, 1);
+$v2w->init_inbox($jobs);
+my $state = '';
+my ($prev, $from);
+my $head = $old->{ref_head} || 'HEAD';
+my ($rd, $pid) = $old->git->popen(qw(fast-export --use-done-feature), $head);
+$v2w->idx_init;
+my $im = $v2w->importer;
+my ($r, $w) = $im->gfi_start;
+my $h = '[0-9a-f]';
+my %D;
+while (<$rd>) {
+	if ($_ eq "blob\n") {
+		$state = 'blob';
+	} elsif (/^commit /) {
+		$state = 'commit';
+	} elsif (/^data (\d+)/) {
+		my $len = $1;
+		$w->print($_) or $im->wfail;
+		while ($len) {
+			my $n = read($rd, my $tmp, $len) or die "read: $!";
+			warn "$n != $len\n" if $n != $len;
+			$len -= $n;
+			$w->print($tmp) or $im->wfail;
+		}
+		next;
+	} elsif ($state eq 'commit') {
+		if (m{^M 100644 :(\d+) (${h}{2}/${h}{38})}o) {
+			my ($mark, $path) = ($1, $2);
+			$D{$path} = $mark;
+			$w->print("M 100644 :$mark m\n") or $im->wfail;
+			next;
+		}
+		if (m{^D (${h}{2}/${h}{38})}o) {
+			my $mark = delete $D{$1};
+			defined $mark or die "undeleted path: $1\n";
+			$w->print("M 100644 :$mark _/D\n") or $im->wfail;
+			next;
+		}
+		if (m{^from (:\d+)}) {
+			$prev = $from;
+			$from = $1;
+			# no next
+		}
+	} elsif ($_ eq "done\n") {
+		last;
+	}
+	$w->print($_) or $im->wfail;
+}
+$w = $r = undef;
+close $rd or die "close fast-export: $!\n";
+waitpid($pid, 0) or die "waitpid failed: $!\n";
+$? == 0 or die "fast-export failed: $?\n";
+my $mm = $old->mm;
+$mm->{dbh}->sqlite_backup_to_file("$new_dir/msgmap.sqlite3") if $mm;
+$v2w->done;
+if ($index) {
+	$v2w->reindex;
+	$v2w->done;
+}

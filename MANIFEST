@@ -8,6 +8,7 @@ Documentation/design_www.txt
 Documentation/hosted.txt
 Documentation/include.mk
 Documentation/public-inbox-config.pod
+Documentation/public-inbox-convert.pod
 Documentation/public-inbox-daemon.pod
 Documentation/public-inbox-httpd.pod
 Documentation/public-inbox-index.pod
@@ -109,6 +110,7 @@ sa_config/Makefile
 sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
 sa_config/user/.spamassassin/user_prefs
+script/public-inbox-convert
 script/public-inbox-httpd
 script/public-inbox-index
 script/public-inbox-init

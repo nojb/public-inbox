@@ -40,7 +40,7 @@ Default: none, required
 
 =item publicinbox.<name>.mainrepo
 
-The absolute path to the git repository which hosts the
+The absolute path to the directory which hosts the
 public-inbox.  This must be specified once.
 
 Default: none, required

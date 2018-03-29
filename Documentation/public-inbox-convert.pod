@@ -1,0 +1,45 @@
+=head1 NAME
+
+public-inbox-convert - convert v1 inboxes to v2
+
+=head1 SYNOPSIS
+
+	public-inbox-convert OLD_DIR NEW_DIR
+
+=head1 DESCRIPTION
+
+public-inbox-convert copies the contents of an old "v1" inbox
+into a new "v2" inbox.  It makes no changes to the old inbox
+and users are expected to update the "mainrepo" path in
+L<public-inbox-config(5)> to point to the path of NEW_DIR
+once they are satisfied with the conversion.
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+The default config file, normally "~/.public-inbox/config".
+See L<public-inbox-config(5)>
+
+=back
+
+=head1 UPGRADING
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2013-2018 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-init(1)>, L<public-inbox-index(1)>
