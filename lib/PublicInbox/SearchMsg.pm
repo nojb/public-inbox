@@ -41,8 +41,12 @@ sub load_from_data ($$) {
 	$self->{subject} = $subj;
 	$self->{from} = $from;
 	$self->{references} = $refs;
+
+	# To: and Cc: are stored to optimize HDR/XHDR in NNTP since
+	# some NNTP clients will use that for message displays.
 	$self->{to} = $to;
 	$self->{cc} = $cc;
+
 	$self->{blob} = $blob;
 	$self->{mid} = $mid0;
 }
