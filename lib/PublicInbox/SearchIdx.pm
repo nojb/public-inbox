@@ -389,6 +389,14 @@ sub add_message {
 	$doc_id;
 }
 
+# returns begin and end PostingIterator
+sub find_doc_ids {
+	my ($self, $termval) = @_;
+	my $db = $self->{xdb};
+
+	($db->postlist_begin($termval), $db->postlist_end($termval));
+}
+
 sub batch_do {
 	my ($self, $termval, $cb) = @_;
 	my $batch_size = 1000; # don't let @ids grow too large to avoid OOM

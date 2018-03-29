@@ -403,14 +403,6 @@ sub each_smsg_by_mid {
 	}
 }
 
-# returns begin and end PostingIterator
-sub find_doc_ids {
-	my ($self, $termval) = @_;
-	my $db = $self->{xdb};
-
-	($db->postlist_begin($termval), $db->postlist_end($termval));
-}
-
 # normalize subjects so they are suitable as pathnames for URLs
 # XXX: consider for removal
 sub subject_path {
