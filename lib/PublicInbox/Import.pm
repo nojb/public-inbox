@@ -297,12 +297,12 @@ sub drop_unwanted_headers ($) {
 }
 
 # used by V2Writable, too
-sub prepend_mid ($$) {
+sub append_mid ($$) {
 	my ($hdr, $mid0) = @_;
 	# @cur is likely empty if we need to call this sub, but it could
 	# have random unparseable crap which we'll preserve, too.
-	my @cur = $hdr->header_raw('Message-Id');
-	$hdr->header_set('Message-Id', "<$mid0>", @cur);
+	my @cur = $hdr->header_raw('Message-ID');
+	$hdr->header_set('Message-ID', @cur, "<$mid0>");
 }
 
 sub v1_mid0 ($) {
@@ -312,7 +312,7 @@ sub v1_mid0 ($) {
 
 	if (!scalar(@$mids)) { # spam often has no Message-Id
 		my $mid0 = digest2mid(content_digest($mime));
-		prepend_mid($hdr, $mid0);
+		append_mid($hdr, $mid0);
 		return $mid0;
 	}
 	$mids->[0];

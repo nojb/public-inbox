@@ -173,7 +173,7 @@ sub num_for_harder {
 			$num = $self->{skel}->{mm}->mid_insert($$mid0);
 		}
 	}
-	PublicInbox::Import::prepend_mid($hdr, $$mid0);
+	PublicInbox::Import::append_mid($hdr, $$mid0);
 	$num;
 }
 

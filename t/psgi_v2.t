@@ -7,6 +7,7 @@ use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
+use PublicInbox::MID qw(mids);
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {
@@ -46,8 +47,8 @@ local $SIG{__WARN__} = sub { push @warn, @_ };
 $mime->header_set(Date => 'Fri, 02 Oct 1993 00:01:00 +0000');
 ok($im->add($mime), 'added duplicate-but-different message');
 is(scalar(@warn), 1, 'got one warning');
-my @mids = $mime->header_obj->header_raw('Message-Id');
-$new_mid = PublicInbox::MID::mid_clean($mids[0]);
+my $mids = mids($mime->header_obj);
+$new_mid = $mids->[1];
 $im->done;
 
 my $cfgpfx = "publicinbox.v2test";
@@ -93,8 +94,8 @@ is(scalar(@warn), 2, 'got another warning');
 like($warn[0], qr/mismatched/, 'warned about mismatched messages');
 is($warn[0], $warn[1], 'both warnings are the same');
 
-@mids = $mime->header_obj->header_raw('Message-Id');
-my $third = PublicInbox::MID::mid_clean($mids[0]);
+$mids = mids($mime->header_obj);
+my $third = $mids->[-1];
 $im->done;
 
 test_psgi(sub { $www->call(@_) }, sub {
