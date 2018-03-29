@@ -231,4 +231,11 @@ EOF
 	ok(!$@, '->done is idempotent');
 }
 
+{
+	ok($im->add($mime), 'add message to be purged');
+	local $SIG{__WARN__} = sub {};
+	ok($im->purge($mime), 'purged message');
+	$im->done;
+}
+
 done_testing();

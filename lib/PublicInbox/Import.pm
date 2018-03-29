@@ -430,6 +430,96 @@ sub digest2mid ($) {
 	$b64 . '@localhost';
 }
 
+sub clean_purge_buffer {
+	my ($oid, $buf) = @_;
+	my $cmt_msg = "purged $oid\n";
+
+	foreach my $i (0..$#$buf) {
+		my $l = $buf->[$i];
+		if ($l =~ /^author .* (\d+ [\+-]?\d+)$/) {
+			$buf->[$i] = "author <> $1\n";
+		} elsif ($l =~ /^data (\d+)/) {
+			$buf->[$i++] = "data " . length($cmt_msg) . "\n";
+			$buf->[$i] = $cmt_msg;
+			last;
+		}
+	}
+}
+
+sub purge_oids {
+	my ($self, $purge) = @_;
+	my $tmp = "refs/heads/purge-".((keys %$purge)[0]);
+	my $old = $self->{'ref'};
+	my $git = $self->{git};
+	my @export = (qw(fast-export --no-data --use-done-feature), $old);
+	my ($rd, $pid) = $git->popen(@export);
+	my ($r, $w) = $self->gfi_start;
+	my @buf;
+	my $npurge = 0;
+	while (<$rd>) {
+		if (/^reset (?:.+)/) {
+			push @buf, "reset $tmp\n";
+		} elsif (/^commit (?:.+)/) {
+			if (@buf) {
+				$w->print(@buf) or wfail;
+				@buf = ();
+			}
+			push @buf, "commit $tmp\n";
+		} elsif (/^data (\d+)/) {
+			# only commit message, so $len is small:
+			my $len = $1; # + 1 for trailing "\n"
+			push @buf, $_;
+			my $n = read($rd, my $buf, $len) or die "read: $!";
+			$len == $n or die "short read ($n < $len)";
+			push @buf, $buf;
+		} elsif (/^M 100644 ([a-f0-9]+) /) {
+			my $oid = $1;
+			if ($purge->{$oid}) {
+				my $lf = <$rd>;
+				if ($lf eq "\n") {
+					my $out = join('', @buf);
+					$out =~ s/^/# /sgm;
+					warn "purge rewriting\n", $out, "\n";
+					clean_purge_buffer($oid, \@buf);
+					$out = join('', @buf);
+					$w->print(@buf, "\n") or wfail;
+					@buf = ();
+					$npurge++;
+				} else {
+					die "expected LF: $lf\n";
+				}
+			} else {
+				push @buf, $_;
+			}
+		} else {
+			push @buf, $_;
+		}
+	}
+	if (@buf) {
+		$w->print(@buf) or wfail;
+	}
+	$w = $r = undef;
+	$self->done;
+	my @git = ('git', "--git-dir=$git->{git_dir}");
+
+	run_die([@git, qw(update-ref), $old, $tmp]) if $npurge;
+
+	run_die([@git, qw(update-ref -d), $tmp]);
+
+	return if $npurge == 0;
+
+	run_die([@git, qw(-c gc.reflogExpire=now gc --prune=all)]);
+	my $err = 0;
+	foreach my $oid (keys %$purge) {
+		my @info = $git->check($oid);
+		if (@info) {
+			warn "$oid not purged\n";
+			$err++;
+		}
+	}
+	die "Failed to purge $err object(s)\n" if $err;
+}
+
 1;
 __END__
 =pod

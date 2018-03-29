@@ -209,11 +209,22 @@ sub idx_init {
 	$skel->_msgmap_init->{dbh}->begin_work;
 }
 
-sub remove {
-	my ($self, $mime, $cmt_msg) = @_;
+sub purge_oids {
+	my ($self, $purge) = @_; # $purge = { $object_id => 1, ... }
+	$self->done;
+	my $pfx = "$self->{-inbox}->{mainrepo}/git";
+	foreach my $i (0..$self->{max_git}) {
+		my $git = PublicInbox::Git->new("$pfx/$i.git");
+		my $im = $self->import_init($git, 0);
+		$im->purge_oids($purge);
+	}
+}
+
+sub remove_internal {
+	my ($self, $mime, $cmt_msg, $purge) = @_;
 	$self->barrier;
 	$self->idx_init;
-	my $im = $self->importer;
+	my $im = $self->importer unless $purge;
 	my $ibx = $self->{-inbox};
 	my $srch = $ibx->search;
 	my $cid = content_id($mime);
@@ -245,11 +256,15 @@ sub remove {
 				# no bugs in our deduplication code:
 				$removed = $smsg;
 				$removed->{mime} = $cur;
-				$im->remove(\$orig, $cmt_msg);
+				my $oid = $smsg->{blob};
+				if ($purge) {
+					$purge->{$oid} = 1;
+				} else {
+					$im->remove(\$orig, $cmt_msg);
+				}
 				$orig = undef;
 				$removed->num; # memoize this for callers
 
-				my $oid = $smsg->{blob};
 				foreach my $idx (@$parts, $skel) {
 					$idx->remote_remove($oid, $mid);
 				}
@@ -258,8 +273,22 @@ sub remove {
 		});
 		$self->barrier;
 	}
+	if ($purge && scalar keys %$purge) {
+		purge_oids($self, $purge);
+	}
 	$removed;
 }
+
+sub remove {
+	my ($self, $mime, $cmt_msg) = @_;
+	remove_internal($self, $mime, $cmt_msg);
+}
+
+sub purge {
+	my ($self, $mime) = @_;
+	remove_internal($self, $mime, undef, {});
+}
+
 
 sub done {
 	my ($self) = @_;
