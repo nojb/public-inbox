@@ -92,7 +92,7 @@ sub emit_raw {
 }
 
 sub msg_str {
-	my ($ctx, $simple) = @_; # Email::Simple object
+	my ($ctx, $simple, $mid) = @_; # Email::Simple object
 	my $header_obj = $simple->header_obj;
 
 	# drop potentially confusing headers, ssoma already should've dropped
@@ -102,7 +102,7 @@ sub msg_str {
 	}
 	my $ibx = $ctx->{-inbox};
 	my $base = $ibx->base_url($ctx->{env});
-	my $mid = mid_clean($header_obj->header('Message-ID'));
+	$mid = $ctx->{mid} unless defined $mid;
 	$mid = mid_escape($mid);
 	my @append = (
 		'Archived-At', "<$base$mid/>",
@@ -225,7 +225,8 @@ sub getline {
 		while (defined(my $smsg = shift @{$self->{msgs}})) {
 			my $msg = eval { $ibx->msg_by_smsg($smsg) } or next;
 			$msg = Email::Simple->new($msg);
-			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg));
+			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg,
+								$smsg->mid));
 
 			# use subject of first message as subject
 			if (my $hdr = delete $self->{hdr}) {
