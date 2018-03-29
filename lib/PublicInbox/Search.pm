@@ -396,9 +396,16 @@ sub lookup_article {
 		retry_reopen($self, sub {
 			my $db = $self->{skel} || $self->{xdb};
 			my $head = $db->postlist_begin($term);
-			return if $head == $db->postlist_end($term);
+			my $tail = $db->postlist_end($term);
+			return if $head->equal($tail);
 			my $doc_id = $head->get_docid;
 			return unless defined $doc_id;
+			$head->inc;
+			if ($head->nequal($tail)) {
+				my $loc= $self->{mainrepo} .
+					($self->{skel} ? 'skel' : 'xdb');
+				warn "article #$num is not unique in $loc\n";
+			}
 			# raises on error:
 			my $doc = $db->get_document($doc_id);
 			$smsg = PublicInbox::SearchMsg->wrap($doc);
@@ -430,21 +437,6 @@ sub each_smsg_by_mid {
 		$smsg->{doc_id} = $doc_id;
 		$cb->($smsg) or return;
 	}
-}
-
-sub find_unique_doc_id {
-	my ($self, $termval) = @_;
-
-	my ($begin, $end) = $self->find_doc_ids($termval);
-
-	return undef if $begin->equal($end); # not found
-
-	my $rv = $begin->get_docid;
-
-	# sanity check
-	$begin->inc;
-	$begin->equal($end) or die "Term '$termval' is not unique\n";
-	$rv;
 }
 
 # returns begin and end PostingIterator
