@@ -15,7 +15,7 @@ use Cwd qw/abs_path/;
 
 sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
-my $version = 1;
+my $version = undef;
 my %opts = ( 'V|version=i' => \$version );
 GetOptions(%opts) or usage();
 my $name = shift @ARGV or usage();
@@ -71,6 +71,21 @@ my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
 
 $mainrepo = abs_path($mainrepo);
+if (-f "$mainrepo/inbox.lock") {
+	if (!defined $version) {
+		$version = 2;
+	} elsif ($version != 2) {
+		die "$mainrepo is a -V2 repo, -V$version specified\n"
+	}
+} elsif (-d "$mainrepo/objects") {
+	if (!defined $version) {
+		$version = 1;
+	} elsif ($version != 1) {
+		die "$mainrepo is a -V1 repo, -V$version specified\n"
+	}
+}
+
+$version = 1 unless defined $version;
 
 if ($version >= 2) {
 	require PublicInbox::V2Writable;

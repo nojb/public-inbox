@@ -360,7 +360,6 @@ sub git_init {
 	my ($self, $new) = @_;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $git_dir = "$pfx/$new.git";
-	die "$git_dir exists\n" if -e $git_dir;
 	my @cmd = (qw(git init --bare -q), $git_dir);
 	PublicInbox::Import::run_die(\@cmd);
 
