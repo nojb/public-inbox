@@ -186,6 +186,7 @@ t/spawn.t
 t/thread-all.t
 t/thread-cycle.t
 t/utf8.mbox
+t/v2mda.t
 t/v2reindex.t
 t/v2writable.t
 t/view.t

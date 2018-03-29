@@ -18,7 +18,7 @@ sub new {
 		next if -d $d;
 		-d $d or mkdir($d) or die "failed to mkdir($d): $!\n";
 	}
-	bless { dir => $dir, files => {}, t => 0, cnt => 0 }, $class;
+	bless { dir => $dir, files => {}, t => 0, cnt => 0, pid => $$ }, $class;
 }
 
 sub _fn_in {
@@ -75,6 +75,7 @@ sub fh {
 
 sub commit {
 	my ($self) = @_;
+	$$ == $self->{pid} or return; # no-op in forked child
 
 	delete $self->{fh};
 	my $tmp = delete $self->{tmp} or return;
