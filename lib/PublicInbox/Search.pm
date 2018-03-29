@@ -18,7 +18,7 @@ use constant YYYYMMDD => 5; # for searching in the WWW UI
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
 use PublicInbox::MIME;
-use PublicInbox::MID qw/mid_clean id_compress/;
+use PublicInbox::MID qw/id_compress/;
 
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
@@ -193,9 +193,8 @@ sub query {
 
 sub get_thread {
 	my ($self, $mid, $opts) = @_;
-	my $smsg = retry_reopen($self, sub { lookup_skeleton($self, $mid) });
-
-	return { total => 0, msgs => [] } unless $smsg;
+	my $smsg = first_smsg_by_mid($self, $mid) or
+			return { total => 0, msgs => [] };
 	my $qtid = Search::Xapian::Query->new('G' . $smsg->thread_id);
 	my $path = $smsg->path;
 	if (defined $path && $path ne '') {
@@ -346,46 +345,11 @@ sub query_ts {
 	_do_enquire($self, $query, $opts);
 }
 
-sub lookup_skeleton {
+sub first_smsg_by_mid {
 	my ($self, $mid) = @_;
-	my $skel = $self->{skel} or return lookup_message($self, $mid);
-	$mid = mid_clean($mid);
-	my $term = 'Q' . $mid;
 	my $smsg;
-	my $beg = $skel->postlist_begin($term);
-	if ($beg != $skel->postlist_end($term)) {
-		my $doc_id = $beg->get_docid;
-		if (defined $doc_id) {
-			# raises on error:
-			my $doc = $skel->get_document($doc_id);
-			$smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
-			$smsg->{doc_id} = $doc_id;
-		}
-	}
+	each_smsg_by_mid($self, $mid, sub { $smsg = $_[0]; undef });
 	$smsg;
-}
-
-sub lookup_message {
-	my ($self, $mid) = @_;
-	$mid = mid_clean($mid);
-
-	my $doc_id = $self->find_first_doc_id('Q' . $mid);
-	my $smsg;
-	if (defined $doc_id) {
-		# raises on error:
-		my $doc = $self->{xdb}->get_document($doc_id);
-		$smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
-		$smsg->{doc_id} = $doc_id;
-	}
-	$smsg;
-}
-
-sub lookup_mail { # no ghosts!
-	my ($self, $mid) = @_;
-	retry_reopen($self, sub {
-		my $smsg = lookup_skeleton($self, $mid) or return;
-		$smsg->load_expand;
-	});
 }
 
 sub lookup_article {
@@ -445,16 +409,6 @@ sub find_doc_ids {
 	my $db = $self->{xdb};
 
 	($db->postlist_begin($termval), $db->postlist_end($termval));
-}
-
-sub find_first_doc_id {
-	my ($self, $termval) = @_;
-
-	my ($begin, $end) = $self->find_doc_ids($termval);
-
-	return undef if $begin->equal($end); # not found
-
-	$begin->get_docid;
 }
 
 # normalize subjects so they are suitable as pathnames for URLs

@@ -22,15 +22,15 @@ use strict;
 use warnings;
 
 sub thread {
-	my ($messages, $ordersub, $srch) = @_;
+	my ($messages, $ordersub, $ibx) = @_;
 	my $id_table = {};
 	_add_message($id_table, $_) foreach @$messages;
 	my $rootset = [ grep {
-			!delete($_->{parent}) && $_->visible($srch)
+			!delete($_->{parent}) && $_->visible($ibx)
 		} values %$id_table ];
 	$id_table = undef;
 	$rootset = $ordersub->($rootset);
-	$_->order_children($ordersub, $srch) for @$rootset;
+	$_->order_children($ordersub, $ibx) for @$rootset;
 	$rootset;
 }
 
@@ -131,20 +131,20 @@ sub has_descendent {
 # a ghost Message-ID is the result of a long header line
 # being folded/mangled by a MUA, and not a missing message.
 sub visible ($$) {
-	my ($self, $srch) = @_;
-	($self->{smsg} ||= eval { $srch->lookup_mail($self->{id}) }) ||
+	my ($self, $ibx) = @_;
+	($self->{smsg} ||= eval { $ibx->smsg_by_mid($self->{id}) }) ||
 	 (scalar values %{$self->{children}});
 }
 
 sub order_children {
-	my ($cur, $ordersub, $srch) = @_;
+	my ($cur, $ordersub, $ibx) = @_;
 
 	my %seen = ($cur => 1); # self-referential loop prevention
 	my @q = ($cur);
 	while (defined($cur = shift @q)) {
 		my $c = $cur->{children}; # The hashref here...
 
-		$c = [ grep { !$seen{$_}++ && visible($_, $srch) } values %$c ];
+		$c = [ grep { !$seen{$_}++ && visible($_, $ibx) } values %$c ];
 		$c = $ordersub->($c) if scalar @$c > 1;
 		$cur->{children} = $c; # ...becomes an arrayref
 		push @q, @$c;

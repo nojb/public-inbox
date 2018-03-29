@@ -89,7 +89,7 @@ sub filter_mids {
 {
 	$rw_commit->();
 	$ro->reopen;
-	my $found = $ro->lookup_message('<root@s>');
+	my $found = $ro->first_smsg_by_mid('root@s');
 	ok($found, "message found");
 	is($root_id, $found->{doc_id}, 'doc_id set correctly');
 	is($found->mid, 'root@s', 'mid set correctly');
@@ -264,7 +264,7 @@ sub filter_mids {
 		],
 		body => "LOOP!\n"));
 	ok($doc_id > 0, "doc_id defined with circular reference");
-	my $smsg = $rw->lookup_message('circle@a');
+	my $smsg = $rw->first_smsg_by_mid('circle@a');
 	is($smsg->references, '', "no references created");
 	my $msg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
 	is($s, $msg->subject, 'long subject not rewritten');
@@ -281,7 +281,7 @@ sub filter_mids {
 	my $mime = Email::MIME->new($str);
 	my $doc_id = $rw->add_message($mime);
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
-	my $smsg = $rw->lookup_message('testmessage@example.com');
+	my $smsg = $rw->first_smsg_by_mid('testmessage@example.com');
 	my $msg = PublicInbox::SearchMsg->load_doc($smsg->{doc});
 
 	is($mime->header('Subject'), $msg->subject, 'UTF-8 subject preserved');

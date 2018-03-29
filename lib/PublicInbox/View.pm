@@ -430,7 +430,7 @@ sub thread_html {
 	$ctx->{mapping} = {};
 	$ctx->{s_nr} = "$nr+ messages in thread";
 
-	my $rootset = thread_results($msgs, $srch);
+	my $rootset = thread_results($ctx, $msgs);
 
 	# reduce hash lookups in pre_thread->skel_dump
 	my $inbox = $ctx->{-inbox};
@@ -686,7 +686,7 @@ sub thread_skel {
 	# reduce hash lookups in skel_dump
 	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	walk_thread(thread_results($sres, $srch), $ctx, *skel_dump);
+	walk_thread(thread_results($ctx, $sres), $ctx, *skel_dump);
 
 	$ctx->{parent_msg} = $parent;
 }
@@ -809,9 +809,9 @@ sub load_results {
 }
 
 sub thread_results {
-	my ($msgs, $srch) = @_;
+	my ($ctx, $msgs) = @_;
 	require PublicInbox::SearchThread;
-	PublicInbox::SearchThread::thread($msgs, *sort_ds, $srch);
+	PublicInbox::SearchThread::thread($msgs, *sort_ds, $ctx->{-inbox});
 }
 
 sub missing_thread {
@@ -952,7 +952,7 @@ sub acc_topic {
 	my ($ctx, $level, $node) = @_;
 	my $srch = $ctx->{srch};
 	my $mid = $node->{id};
-	my $x = $node->{smsg} || $srch->lookup_mail($mid);
+	my $x = $node->{smsg} || $ctx->{-inbox}->smsg_by_mid($mid);
 	my ($subj, $ds);
 	my $topic;
 	if ($x) {
@@ -1078,7 +1078,7 @@ sub index_topics {
 	my $nr = scalar @{$sres->{msgs}};
 	if ($nr) {
 		$sres = load_results($srch, $sres);
-		walk_thread(thread_results($sres, $srch), $ctx, *acc_topic);
+		walk_thread(thread_results($ctx, $sres), $ctx, *acc_topic);
 	}
 	$ctx->{-next_o} = $off+ $nr;
 	$ctx->{-cur_o} = $off;

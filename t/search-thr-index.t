@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
+use PublicInbox::MID qw(mids);
 use Email::MIME;
 eval { require PublicInbox::SearchIdx; };
 plan skip_all => "Xapian missing for search" if $@;
@@ -41,7 +42,7 @@ foreach (reverse split(/\n\n/, $data)) {
 	$mime->header_set('From' => 'bw@g');
 	$mime->header_set('To' => 'git@vger.kernel.org');
 	my $bytes = bytes::length($mime->as_string);
-	my $mid = $mime->header('Message-Id');
+	my $mid = mids($mime->header_obj)->[0];
 	my $doc_id = $rw->add_message($mime, $bytes, ++$num, 'ignored', $mid);
 	push @mids, $mid;
 	ok($doc_id, 'message added: '. $mid);

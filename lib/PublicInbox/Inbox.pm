@@ -293,20 +293,20 @@ sub path_check {
 	git($self)->check('HEAD:'.$path);
 }
 
+sub smsg_by_mid ($$) {
+	my ($self, $mid) = @_;
+	my $srch = search($self) or return;
+	# favor the Message-ID we used for the NNTP article number:
+	my $mm = mm($self) or return;
+	my $num = $mm->num_for($mid);
+	$srch->lookup_article($num);
+}
+
 sub msg_by_mid ($$;$) {
 	my ($self, $mid, $ref) = @_;
 	my $srch = search($self) or
-			return msg_by_path($self, mid2path($mid), $ref);
-	my $smsg;
-	# favor the Message-ID we used for the NNTP article number:
-	if (my $mm = mm($self)) {
-		my $num = $mm->num_for($mid);
-		$smsg = $srch->lookup_article($num);
-	} else {
-		$smsg = $srch->retry_reopen(sub {
-			$srch->lookup_skeleton($mid) and $smsg->load_expand;
-		});
-	}
+		return msg_by_path($self, mid2path($mid), $ref);
+	my $smsg = smsg_by_mid($self, $mid);
 	$smsg ? msg_by_smsg($self, $smsg, $ref) : undef;
 }
 
