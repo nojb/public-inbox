@@ -293,13 +293,18 @@ sub path_check {
 	git($self)->check('HEAD:'.$path);
 }
 
+sub mid2num($$) {
+	my ($self, $mid) = @_;
+	my $mm = mm($self) or return;
+	$mm->num_for($mid);
+}
+
 sub smsg_by_mid ($$) {
 	my ($self, $mid) = @_;
 	my $srch = search($self) or return;
 	# favor the Message-ID we used for the NNTP article number:
-	my $mm = mm($self) or return;
-	my $num = $mm->num_for($mid);
-	$srch->lookup_article($num);
+	my $num = mid2num($self, $mid);
+	defined $num ? $srch->lookup_article($num) : undef;
 }
 
 sub msg_by_mid ($$;$) {

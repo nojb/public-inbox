@@ -18,6 +18,7 @@ foreach my $mod (@mods) {
 }
 use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Git';
+my @ls;
 
 foreach my $mod (@mods) { use_ok $mod; }
 {
@@ -55,6 +56,8 @@ EOF
 		$im->done;
 		my $rev = `git --git-dir="$maindir" rev-list HEAD`;
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
+		@ls = `git --git-dir="$maindir" ls-tree -r --name-only HEAD`;
+		chomp @ls;
 	}
 	my $app = eval {
 		local $ENV{PI_CONFIG} = $pi_config;
@@ -198,6 +201,21 @@ EOF
 			     "$sfx redirected to /mbox.gz");
 		});
 	}
+	test_psgi($app, sub {
+		my ($cb) = @_;
+		# for a while, we used to support /$INBOX/$X40/
+		# when we "compressed" long Message-IDs to SHA-1
+		# Now we're stuck supporting them forever :<
+		foreach my $path (@ls) {
+			$path =~ tr!/!!d;
+			my $from = "http://example.com/test/$path/";
+			my $res = $cb->(GET($from));
+			is(301, $res->code, 'is permanent redirect');
+			like($res->header('Location'),
+				qr!/test/blah\@example\.com/!,
+				'redirect from x40 MIDs works');
+		}
+	});
 }
 
 done_testing();

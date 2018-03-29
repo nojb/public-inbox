@@ -169,14 +169,15 @@ sub invalid_inbox_mid {
 	return $ret if $ret;
 
 	$ctx->{mid} = $mid;
-	if ($mid =~ /\A[a-f0-9]{40}\z/) {
-		# this is horiffically wasteful for legacy URLs:
-		if ($mid = mid2blob($ctx)) {
-			require Email::Simple;
-			use PublicInbox::MID qw/mid_clean/;
-			my $s = Email::Simple->new($mid);
-			$ctx->{mid} = mid_clean($s->header('Message-ID'));
-		}
+	my $ibx = $ctx->{-inbox};
+	if ($mid =~ m!\A([a-f0-9]{2})([a-f0-9]{38})\z!) {
+		my ($x2, $x38) = ($1, $2);
+		# this is horrifically wasteful for legacy URLs:
+		my $str = $ctx->{-inbox}->msg_by_path("$x2/$x38") or return;
+		require Email::Simple;
+		my $s = Email::Simple->new($str);
+		$mid = PublicInbox::MID::mid_clean($s->header('Message-ID'));
+		return r301($ctx, $inbox, $mid);
 	}
 	undef;
 }
@@ -206,12 +207,6 @@ sub get_index {
 	} else {
 		PublicInbox::Feed::generate_html_index($ctx);
 	}
-}
-
-# just returns a string ref for the blob in the current ctx
-sub mid2blob {
-	my ($ctx) = @_;
-	$ctx->{-inbox}->msg_by_mid($ctx->{mid});
 }
 
 # /$INBOX/$MESSAGE_ID/raw                    -> raw mbox
