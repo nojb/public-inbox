@@ -63,7 +63,6 @@ sub msg_page {
 			for (; !defined($first) && $head != $tail; $head++) {
 				my @args = ($head, $db, $mid);
 				my $smsg = PublicInbox::SearchMsg->get(@args);
-				next if $smsg->type ne 'mail';
 				$first = $ibx->msg_by_smsg($smsg);
 			}
 			if ($head != $tail) {
@@ -85,7 +84,6 @@ sub msg_html_more {
 		my $mid = $ctx->{mid};
 		for (; !defined($smsg) && $head != $tail; $head++) {
 			my $m = PublicInbox::SearchMsg->get($head, $db, $mid);
-			next if $m->type ne 'mail';
 			$smsg = $ctx->{-inbox}->smsg_mime($m);
 		}
 		if ($head == $tail) { # done

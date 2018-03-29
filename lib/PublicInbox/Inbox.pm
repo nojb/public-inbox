@@ -270,12 +270,10 @@ sub msg_by_path ($$;$) {
 sub msg_by_smsg ($$;$) {
 	my ($self, $smsg, $ref) = @_;
 
-	return unless defined $smsg; # ghost
-
-	# backwards compat to fallback to msg_by_mid
-	# TODO: remove if we bump SCHEMA_VERSION in Search.pm:
-	defined(my $blob = $smsg->{blob}) or
-			return msg_by_path($self, mid2path($smsg->mid), $ref);
+	# ghosts may have undef smsg (from SearchThread.node) or
+	# no {blob} field (from each_smsg_by_mid)
+	return unless defined $smsg;
+	defined(my $blob = $smsg->{blob}) or return;
 
 	my $str = git($self)->cat_file($blob, $ref);
 	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s if $str;

@@ -41,7 +41,6 @@ sub getline {
 	}
 	for (; !defined($cur) && $head != $tail; $head++) {
 		my $smsg = PublicInbox::SearchMsg->get($head, $db, $ctx->{mid});
-		next if $smsg->type ne 'mail';
 		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
 		$cur = Email::Simple->new($mref);
 		$cur = msg_str($ctx, $cur);
@@ -66,7 +65,6 @@ sub emit_raw {
 			for (; !defined($first) && $head != $tail; $head++) {
 				my @args = ($head, $db, $mid);
 				my $smsg = PublicInbox::SearchMsg->get(@args);
-				next if $smsg->type ne 'mail';
 				my $mref = $ibx->msg_by_smsg($smsg) or next;
 				$first = Email::Simple->new($mref);
 			}
