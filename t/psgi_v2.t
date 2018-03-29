@@ -171,6 +171,42 @@ test_psgi(sub { $www->call(@_) }, sub {
 	is($res->code, 200, 'got info refs for dumb clones');
 	$res = $cb->(GET('/v2test/info/refs'));
 	is($res->code, 404, 'unpartitioned git URL fails');
+
+	# ensure conflicted attachments can be resolved
+	foreach my $body (qw(old new)) {
+		my $parts = [
+			PublicInbox::MIME->create(
+				attributes => { content_type => 'text/plain' },
+				body => 'blah',
+			),
+			PublicInbox::MIME->create(
+				attributes => {
+					filename => 'attach.txt',
+					content_type => 'text/plain',
+				},
+				body => $body
+			)
+		];
+		$mime = PublicInbox::MIME->create(
+			parts => $parts,
+			header_str => [ From => 'root@z',
+				'Message-ID' => '<a@dup>',
+				Subject => 'hi']
+		);
+		ok($im->add($mime), "added attachment $body");
+	}
+	$im->done;
+	$config->each_inbox(sub { $_[0]->search->reopen });
+	$res = $cb->(GET('/v2test/a@dup/'));
+	my @links = ($res->content =~ m!"\.\./([^/]+/2-attach\.txt)\"!g);
+	is(scalar(@links), 2, 'both attachment links exist');
+	isnt($links[0], $links[1], 'attachment links are different');
+	{
+		my $old = $cb->(GET('/v2test/' . $links[0]));
+		my $new = $cb->(GET('/v2test/' . $links[1]));
+		is($old->content, 'old', 'got expected old content');
+		is($new->content, 'new', 'got expected new content');
+	}
 });
 
 done_testing();

@@ -24,7 +24,7 @@ sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 # public functions: (unstable)
 
 sub msg_html {
-	my ($ctx, $mime, $more) = @_;
+	my ($ctx, $mime, $more, $smsg) = @_;
 	my $hdr = $mime->header_obj;
 	my $ibx = $ctx->{-inbox};
 	my $obfs_ibx = $ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
@@ -33,7 +33,9 @@ sub msg_html {
 	PublicInbox::WwwStream->response($ctx, 200, sub {
 		my ($nr, undef) = @_;
 		if ($nr == 1) {
-			$tip . multipart_text_as_html($mime, '', $obfs_ibx) .
+			# $more cannot be true w/o $smsg being defined:
+			my $upfx = $more ? '../'.mid_escape($smsg->mid).'/' : '';
+			$tip . multipart_text_as_html($mime, $upfx, $obfs_ibx) .
 				'</pre><hr>'
 		} elsif ($more && @$more) {
 			++$end;
@@ -57,12 +59,13 @@ sub msg_page {
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
 	my ($first, $more, $head, $tail, $db);
+	my $smsg;
 	if (my $srch = $ibx->search) {
 		$srch->retry_reopen(sub {
 			($head, $tail, $db) = $srch->each_smsg_by_mid($mid);
 			for (; !defined($first) && $head != $tail; $head++) {
 				my @args = ($head, $db, $mid);
-				my $smsg = PublicInbox::SearchMsg->get(@args);
+				$smsg = PublicInbox::SearchMsg->get(@args);
 				$first = $ibx->msg_by_smsg($smsg);
 			}
 			if ($head != $tail) {
@@ -73,7 +76,7 @@ sub msg_page {
 	} else {
 		$first = $ibx->msg_by_mid($mid) or return;
 	}
-	msg_html($ctx, PublicInbox::MIME->new($first), $more);
+	msg_html($ctx, PublicInbox::MIME->new($first), $more, $smsg);
 }
 
 sub msg_html_more {
@@ -93,8 +96,9 @@ sub msg_html_more {
 		}
 		if ($smsg) {
 			my $mime = $smsg->{mime};
+			my $upfx = '../' . mid_escape($smsg->mid) . '/';
 			_msg_html_prepare($mime->header_obj, $ctx, $more, $nr) .
-				multipart_text_as_html($mime, '',
+				multipart_text_as_html($mime, $upfx,
 							$ctx->{-obfs_ibx}) .
 				'</pre><hr>'
 		} else {
