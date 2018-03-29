@@ -9,8 +9,7 @@ use warnings;
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/mid_clean id_compress mid_mime mid_escape mids
-			references/;
+use PublicInbox::MID qw/id_compress mid_escape mids references/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
