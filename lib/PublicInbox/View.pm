@@ -1069,17 +1069,31 @@ sub index_nav { # callback for WwwStream
 sub index_topics {
 	my ($ctx) = @_;
 	my ($off) = (($ctx->{qp}->{o} || '0') =~ /(\d+)/);
-	my $opts = { offset => $off, limit => 200 };
+	my $lim = 200;
+	my $opts = { offset => $off, limit => $lim };
 
 	$ctx->{order} = [];
 	my $srch = $ctx->{srch};
-	my $sres = $srch->query('', $opts);
+
+	my $qs = '';
+	# this complicated bit cuts loading time by over 400ms on my system:
+	if ($off == 0) {
+		my ($min, $max) = $ctx->{-inbox}->mm->minmax;
+		my $n = $max - $lim;
+		$n = $min if $n < $min;
+		for (; $qs eq '' && $n >= $min; --$n) {
+			my $smsg = $srch->lookup_article($n) or next;
+			$qs = POSIX::strftime('d:%Y%m%d..', gmtime($smsg->ts));
+		}
+	}
+
+	my $sres = $srch->query($qs, $opts);
 	my $nr = scalar @{$sres->{msgs}};
 	if ($nr) {
 		$sres = load_results($srch, $sres);
 		walk_thread(thread_results($ctx, $sres), $ctx, *acc_topic);
 	}
-	$ctx->{-next_o} = $off+ $nr;
+	$ctx->{-next_o} = $off + $nr;
 	$ctx->{-cur_o} = $off;
 	PublicInbox::WwwStream->response($ctx, dump_topics($ctx), *index_nav);
 }

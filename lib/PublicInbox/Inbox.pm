@@ -132,6 +132,7 @@ sub max_git_part {
 sub mm {
 	my ($self) = @_;
 	$self->{mm} ||= eval {
+		require PublicInbox::Msgmap;
 		_cleanup_later($self);
 		my $dir = $self->{mainrepo};
 		if (($self->{version} || 1) >= 2) {
