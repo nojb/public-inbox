@@ -47,6 +47,9 @@ sub msg_date_only ($) {
 	my ($ts, $zone);
 	foreach my $d (@date) {
 		$zone = undef;
+		# Y2K problems: 3-digit years
+		$d =~ s!([A-Za-z]{3}) (\d{3}) (\d\d:\d\d:\d\d)!
+			my $yyyy = $2 + 1900; "$1 $yyyy $3"!e;
 		$ts = eval { str2time($d) };
 		if ($@) {
 			my $mid = $hdr->header_raw('Message-ID');
