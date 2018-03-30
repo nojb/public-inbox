@@ -552,7 +552,7 @@ sub reindex_oid {
 		$num = $$regen--;
 		die "BUG: ran out of article numbers\n" if $num <= 0;
 		my $mm = $self->{skel}->{mm};
-		foreach my $mid (@$mids) {
+		foreach my $mid (reverse @$mids) {
 			if ($mm->mid_set($num, $mid) == 1) {
 				$mid0 = $mid;
 				last;
@@ -560,7 +560,11 @@ sub reindex_oid {
 		}
 		if (!defined($mid0)) {
 			my $id = '<' . join('> <', @$mids) . '>';
-			warn "Message-Id $id unusable for $num\n";
+			warn "Message-ID $id unusable for $num\n";
+			foreach my $mid (@$mids) {
+				defined(my $n = $mm->num_for($mid)) or next;
+				warn "#$n previously mapped for <$mid>\n";
+			}
 		}
 	}
 
@@ -661,8 +665,17 @@ sub reindex {
 		}
 		delete $self->{reindex_pipe};
 	}
+	my $gaps;
+	if ($regen && $$regen != 0) {
+		warn "W: leftover article number ($$regen)\n";
+		$gaps = 1;
+	}
 	my ($min, $max) = $mm_tmp->minmax;
-	defined $max and die "leftover article numbers at $min..$max\n";
+	if (defined $max) {
+		warn "W: leftover article numbers at $min..$max\n";
+		$gaps = 1;
+	}
+	warn "W: were old git partitions deleted?\n" if $gaps;
 	my @d = sort keys %$D;
 	if (@d) {
 		warn "BUG: ", scalar(@d)," unseen deleted messages marked\n";
