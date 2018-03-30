@@ -74,14 +74,17 @@ sub _html_end {
 
 	my (%seen, @urls);
 	my $http = $obj->base_url($ctx->{env});
-	chop $http; # no trailing slash
+	chop $http; # no trailing slash for clone
 	my $part = $obj->max_git_part;
+	my $dir = (split(m!/!, $http))[-1];
 	if (defined($part)) { # v2
-		# most recent partition first:
-		for (; $part >= 0; $part--) {
-			my $url = "$http/$part";
+		$seen{$http} = 1;
+		for my $i (0..$part) {
+			# old parts my be deleted:
+			-d "$obj->{mainrepo}/git/$i.git" or next;
+			my $url = "$http/$i";
 			$seen{$url} = 1;
-			push @urls, $url;
+			push @urls, "$url $dir/git/$i.git";
 		}
 	} else { # v1
 		$seen{$http} = 1;
@@ -102,7 +105,19 @@ sub _html_end {
 		$urls .= "\n" .
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
 	}
+	if (defined $part) {
+		my $addrs = $obj->{address};
+		$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
+		$urls .=  <<EOF
 
+
+	# If you have public-inbox 1.1+ installed, you may
+	# initialize and index your mirror using the following commands:
+	public-inbox-init -V2 $obj->{name} $dir/ $http \\
+		$addrs
+	public-inbox-index $dir
+EOF
+	}
 	my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$obj->nntp_url};
 	if (@nntp) {
 		$urls .= "\n\n";
