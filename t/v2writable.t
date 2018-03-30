@@ -43,13 +43,9 @@ if ('ensure git configs are correct') {
 		qw(core.sharedRepository 0644));
 	is(system(@cmd), 0, "set sharedRepository in all.git");
 	$git0 = PublicInbox::Git->new("$mainrepo/git/0.git");
-	my $fh = $git0->popen(qw(config core.sharedRepository));
-	my $v = eval { local $/; <$fh> };
-	chomp $v;
+	chomp(my $v = $git0->qx(qw(config core.sharedRepository)));
 	is($v, '0644', 'child repo inherited core.sharedRepository');
-	$fh = $git0->popen(qw(config --bool repack.writeBitmaps));
-	$v = eval { local $/; <$fh> };
-	chomp $v;
+	chomp($v = $git0->qx(qw(config --bool repack.writeBitmaps)));
 	is($v, 'true', 'child repo inherited repack.writeBitmaps');
 }
 
