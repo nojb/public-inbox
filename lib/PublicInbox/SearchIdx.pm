@@ -539,9 +539,9 @@ sub link_and_save {
 	$doc->add_boolean_term('XPATH' . $xpath) if defined $xpath;
 	$doc->add_boolean_term('Q' . $_) foreach @$mids;
 
-	my $vivified = 0;
 	$self->{skel} and die "Should not have read-only skel here\n";;
 	foreach my $mid (@$mids) {
+		my $vivified = 0;
 		$self->each_smsg_by_mid($mid, sub {
 			my ($cur) = @_;
 			my $type = $cur->type;
@@ -563,10 +563,8 @@ sub link_and_save {
 			++$vivified;
 			1;
 		});
-	}
-	if ($vivified > 1) {
-		my $id = '<'.join('> <', @$mids).'>';
-		warn "BUG: vivified multiple ($vivified) ghosts for $id\n";
+		$vivified > 1 and warn
+			"BUG: vivified multiple ($vivified) ghosts for $mid\n";
 	}
 	# not really important, but we return any vivified ghost docid, here:
 	return $doc_id if defined $doc_id;
