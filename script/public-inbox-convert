@@ -91,9 +91,8 @@ while (<$rd>) {
 			$from = $1;
 			# no next
 		}
-	} elsif ($_ eq "done\n") {
-		last;
 	}
+	last if $_ eq "done\n";
 	$w->print($_) or $im->wfail;
 }
 $w = $r = undef;
