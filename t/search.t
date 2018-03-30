@@ -18,6 +18,7 @@ ok($@, "exception raised on non-existent DB");
 my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
 $rw->_xdb_acquire;
 $rw->_xdb_release;
+my $ibx = $rw->{-inbox};
 $rw = undef;
 my $ro = PublicInbox::Search->new($git_dir);
 my $rw_commit = sub {
@@ -28,26 +29,25 @@ my $rw_commit = sub {
 
 {
 	# git repository perms
-	is(PublicInbox::SearchIdx->_git_config_perm(undef),
-	   &PublicInbox::SearchIdx::PERM_GROUP,
+	is($ibx->_git_config_perm(), &PublicInbox::InboxWritable::PERM_GROUP,
 	   "undefined permission is group");
-	is(PublicInbox::SearchIdx::_umask_for(
-	     PublicInbox::SearchIdx->_git_config_perm('0644')),
+	is(PublicInbox::InboxWritable::_umask_for(
+	     PublicInbox::InboxWritable->_git_config_perm('0644')),
 	   0022, "644 => umask(0022)");
-	is(PublicInbox::SearchIdx::_umask_for(
-	     PublicInbox::SearchIdx->_git_config_perm('0600')),
+	is(PublicInbox::InboxWritable::_umask_for(
+	     PublicInbox::InboxWritable->_git_config_perm('0600')),
 	   0077, "600 => umask(0077)");
-	is(PublicInbox::SearchIdx::_umask_for(
-	     PublicInbox::SearchIdx->_git_config_perm('0640')),
+	is(PublicInbox::InboxWritable::_umask_for(
+	     PublicInbox::InboxWritable->_git_config_perm('0640')),
 	   0027, "640 => umask(0027)");
-	is(PublicInbox::SearchIdx::_umask_for(
-	     PublicInbox::SearchIdx->_git_config_perm('group')),
+	is(PublicInbox::InboxWritable::_umask_for(
+	     PublicInbox::InboxWritable->_git_config_perm('group')),
 	   0007, 'group => umask(0007)');
-	is(PublicInbox::SearchIdx::_umask_for(
-	     PublicInbox::SearchIdx->_git_config_perm('everybody')),
+	is(PublicInbox::InboxWritable::_umask_for(
+	     PublicInbox::InboxWritable->_git_config_perm('everybody')),
 	   0002, 'everybody => umask(0002)');
-	is(PublicInbox::SearchIdx::_umask_for(
-	     PublicInbox::SearchIdx->_git_config_perm('umask')),
+	is(PublicInbox::InboxWritable::_umask_for(
+	     PublicInbox::InboxWritable->_git_config_perm('umask')),
 	   umask, 'umask => existing umask');
 }
 
