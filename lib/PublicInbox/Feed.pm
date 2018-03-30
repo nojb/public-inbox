@@ -114,7 +114,7 @@ sub recent_msgs {
 		my $o = $qp ? $qp->{o} : 0;
 		$o += 0;
 		$o = 0 if $o < 0;
-		my $res = $srch->query('', { limit => $max, offset => $o });
+		my $res = $ibx->recent({ limit => $max, offset => $o });
 		my $next = $o + $max;
 		$ctx->{next_page} = "o=$next" if $res->{total} >= $next;
 		return $res->{msgs};

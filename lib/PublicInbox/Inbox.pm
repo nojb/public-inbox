@@ -9,6 +9,7 @@ use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use Devel::Peek qw(SvREFCNT);
 use PublicInbox::MIME;
+use POSIX qw(strftime);
 
 my $cleanup_timer;
 eval {
@@ -314,6 +315,24 @@ sub msg_by_mid ($$;$) {
 		return msg_by_path($self, mid2path($mid), $ref);
 	my $smsg = smsg_by_mid($self, $mid);
 	$smsg ? msg_by_smsg($self, $smsg, $ref) : undef;
+}
+
+sub recent {
+	my ($self, $opts) = @_;
+	my $qs = '';
+	my $srch = search($self);
+	if (!$opts->{offset}) {
+		# this complicated bit cuts /$INBOX/ loading time by
+		# over 400ms on my system:
+		my ($min, $max) = mm($self)->minmax;
+		my $n = $max - $opts->{limit};
+		$n = $min if $n < $min;
+		for (; $qs eq '' && $n >= $min; --$n) {
+			my $smsg = $srch->lookup_article($n) or next;
+			$qs = strftime('d:%Y%m%d..', gmtime($smsg->ts));
+		}
+	}
+	$srch->query($qs, $opts);
 }
 
 1;

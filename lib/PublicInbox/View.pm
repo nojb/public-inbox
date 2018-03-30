@@ -1063,25 +1063,10 @@ sub index_nav { # callback for WwwStream
 sub index_topics {
 	my ($ctx) = @_;
 	my ($off) = (($ctx->{qp}->{o} || '0') =~ /(\d+)/);
-	my $lim = 200;
-	my $opts = { offset => $off, limit => $lim };
 
 	$ctx->{order} = [];
 	my $srch = $ctx->{srch};
-
-	my $qs = '';
-	# this complicated bit cuts loading time by over 400ms on my system:
-	if ($off == 0) {
-		my ($min, $max) = $ctx->{-inbox}->mm->minmax;
-		my $n = $max - $lim;
-		$n = $min if $n < $min;
-		for (; $qs eq '' && $n >= $min; --$n) {
-			my $smsg = $srch->lookup_article($n) or next;
-			$qs = POSIX::strftime('d:%Y%m%d..', gmtime($smsg->ts));
-		}
-	}
-
-	my $sres = $srch->query($qs, $opts);
+	my $sres = $ctx->{-inbox}->recent({offset => $off, limit => 200 });
 	$sres = $sres->{msgs};
 	my $nr = scalar @$sres;
 	if ($nr) {
