@@ -35,7 +35,7 @@ sub sres_top_html {
 	my $code = 200;
 	# double the limit for expanded views:
 	my $opts = {
-		limit => $LIM,
+		limit => $q->{l},
 		offset => $q->{o},
 		mset => 1,
 		relevance => $q->{r},
@@ -182,6 +182,7 @@ sub search_nav_bot {
 	my $total = $mset->get_matches_estimated;
 	my $nr = scalar $mset->items;
 	my $o = $q->{o};
+	my $l = $q->{l};
 	my $end = $o + $nr;
 	my $beg = $o + 1;
 	my $rv = '</pre><hr><pre id=t>';
@@ -191,15 +192,15 @@ sub search_nav_bot {
 	} else {
 		$rv .= "No more results, only $total";
 	}
-	my $n = $o + $LIM;
+	my $n = $o + $l;
 
 	if ($n < $total) {
-		my $qs = $q->qs_html(o => $n);
+		my $qs = $q->qs_html(o => $n, l => $l);
 		$rv .= qq{  <a\nhref="?$qs"\nrel=next>next</a>}
 	}
 	if ($o > 0) {
 		$rv .= $n < $total ? '/' : '       ';
-		my $p = $o - $LIM;
+		my $p = $o - $l;
 		my $qs = $q->qs_html(o => ($p > 0 ? $p : 0));
 		$rv .= qq{<a\nhref="?$qs"\nrel=prev>prev</a>};
 	}
@@ -308,10 +309,15 @@ sub new {
 	my ($class, $qp) = @_;
 
 	my $r = $qp->{r};
+	my $l = $qp->{l} || '200';
+	if (! ($l =~ /(\d+)/ && $l <= $LIM)) {
+		$l = $LIM;
+	}
 	bless {
 		q => $qp->{'q'},
 		x => $qp->{x} || '',
 		o => (($qp->{o} || '0') =~ /(\d+)/),
+		l => $l,
 		r => (defined $r && $r ne '0'),
 	}, $class;
 }
@@ -333,6 +339,9 @@ sub qs_html {
 
 	if (my $o = $self->{o}) { # ignore o == 0
 		$qs .= "&amp;o=$o";
+	}
+	if (my $l = $self->{l}) {
+		$qs .= "&amp;l=$l";
 	}
 	if (my $r = $self->{r}) {
 		$qs .= "&amp;r";
