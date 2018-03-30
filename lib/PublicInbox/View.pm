@@ -409,7 +409,7 @@ sub thread_html {
 	my $mid = $ctx->{mid};
 	my $srch = $ctx->{srch};
 	my $sres = $srch->get_thread($mid);
-	my $msgs = load_results($srch, $sres);
+	my $msgs = $sres->{msgs};
 	my $nr = $sres->{total};
 	return missing_thread($ctx) if $nr == 0;
 	my $skel = '<hr><pre>';
@@ -680,7 +680,7 @@ sub thread_skel {
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{dst} = $dst;
-	$sres = load_results($srch, $sres);
+	$sres = $sres->{msgs};
 
 	# reduce hash lookups in skel_dump
 	my $ibx = $ctx->{-inbox};
@@ -799,12 +799,6 @@ sub ghost_parent {
 sub indent_for {
 	my ($level) = @_;
 	$level ? INDENT x ($level - 1) : '';
-}
-
-sub load_results {
-	my ($srch, $sres) = @_;
-	my $msgs = delete $sres->{msgs};
-	$srch->retry_reopen(sub { [ map { $_->mid; $_ } @$msgs ] });
 }
 
 sub thread_results {
@@ -1088,9 +1082,9 @@ sub index_topics {
 	}
 
 	my $sres = $srch->query($qs, $opts);
-	my $nr = scalar @{$sres->{msgs}};
+	$sres = $sres->{msgs};
+	my $nr = scalar @$sres;
 	if ($nr) {
-		$sres = load_results($srch, $sres);
 		walk_thread(thread_results($ctx, $sres), $ctx, *acc_topic);
 	}
 	$ctx->{-next_o} = $off + $nr;
