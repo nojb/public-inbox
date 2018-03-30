@@ -215,18 +215,20 @@ sub get_thread {
 sub retry_reopen {
 	my ($self, $cb) = @_;
 	my $ret;
-	for (1..10) {
+	for my $i (1..10) {
 		eval { $ret = $cb->() };
 		return $ret unless $@;
 		# Exception: The revision being read has been discarded -
 		# you should call Xapian::Database::reopen()
 		if (ref($@) eq 'Search::Xapian::DatabaseModifiedError') {
+			warn "reopen try #$i on $@\n";
 			reopen($self);
 		} else {
 			warn "ref: ", ref($@), "\n";
 			die;
 		}
 	}
+	die "Too many Xapian database modifications in progress\n";
 }
 
 sub _do_enquire {
