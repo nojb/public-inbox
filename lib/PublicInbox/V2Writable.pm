@@ -67,7 +67,9 @@ sub init_inbox {
 	my ($self, $parallel) = @_;
 	$self->{parallel} = $parallel;
 	$self->idx_init;
-	$self->git_init(0);
+	my $max_git = -1;
+	git_dir_latest($self, \$max_git);
+	$self->git_init($max_git >= 0 ? $max_git : 0);
 	$self->done;
 }
 
@@ -621,6 +623,7 @@ sub reindex {
 		for (my $cur = $max_git; $cur >= 0; $cur--) {
 			die "already reindexing!\n" if $self->{reindex_pipe};
 			my $git = PublicInbox::Git->new("$pfx/$cur.git");
+			-d $git->{git_dir} or next; # missing parts are fine
 			chomp($tip = $git->qx('rev-parse', $head)) unless $tip;
 			my $h = $cur == $max_git ? $tip : $head;
 			my @count = ('rev-list', '--count', $h, '--', 'm');
@@ -642,6 +645,7 @@ sub reindex {
 		die "already reindexing!\n" if delete $self->{reindex_pipe};
 		my $cmt;
 		my $git_dir = "$pfx/$cur.git";
+		-d $git_dir or next; # missing parts are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		my $h = $cur == $max_git ? $tip : $head;
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $h);
