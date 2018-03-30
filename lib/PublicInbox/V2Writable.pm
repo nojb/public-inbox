@@ -137,7 +137,7 @@ sub num_for {
 		warn "<$mid> reused for mismatched content\n";
 
 		# try the rest of the mids
-		foreach my $i (1..$#$mids) {
+		for(my $i = $#$mids; $i >= 1; $i--) {
 			my $m = $mids->[$i];
 			$num = $self->{skel}->{mm}->mid_insert($m);
 			if (defined $num) {
