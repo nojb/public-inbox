@@ -21,6 +21,9 @@ my $ibx = {
 
 ok(PublicInbox::Import::run_die([qw(git init --bare -q), $ibx->{mainrepo}]),
 	'initialized v1 repo');
+ok(umask(077), 'set restrictive umask');
+ok(PublicInbox::Import::run_die([qw(git) , "--git-dir=$ibx->{mainrepo}",
+	qw(config core.sharedRepository 0644)]), 'set sharedRepository');
 $ibx = PublicInbox::Inbox->new($ibx);
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
 my $mime = PublicInbox::MIME->create(
@@ -36,6 +39,18 @@ my $mime = PublicInbox::MIME->create(
 ok($im->add($mime), 'added one message');
 $im->done;
 PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
+
+is(((stat("$ibx->{mainrepo}/public-inbox"))[2]) & 07777, 0755,
+	'sharedRepository respected for v1');
+is(((stat("$ibx->{mainrepo}/public-inbox/msgmap.sqlite3"))[2]) & 07777, 0644,
+	'sharedRepository respected for v1 msgmap');
+my @xdir = glob("$ibx->{mainrepo}/public-inbox/xap*/*");
+foreach (@xdir) {
+	my @st = stat($_);
+	is($st[2] & 07777, -f _ ? 0644 : 0755,
+		'sharedRepository respected on file after convert');
+}
+
 local $ENV{PATH} = "blib/script:$ENV{PATH}";
 open my $err, '>>', "$tmpdir/err.log" or die "open: err.log $!\n";
 open my $out, '>>', "$tmpdir/out.log" or die "open: out.log $!\n";
@@ -44,8 +59,19 @@ my $rdr = { 1 => fileno($out), 2 => fileno($err) };
 my $cmd = [ 'public-inbox-compact', $ibx->{mainrepo} ];
 ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'v1 compact works');
 
+@xdir = glob("$ibx->{mainrepo}/public-inbox/xap*");
+is(scalar(@xdir), 1, 'got one xapian directory after compact');
+is(((stat($xdir[0]))[2]) & 07777, 0755,
+	'sharedRepository respected on v1 compact');
+
 $cmd = [ 'public-inbox-convert', $ibx->{mainrepo}, "$tmpdir/v2" ];
 ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'convert works');
+@xdir = glob("$tmpdir/v2/xap*/*");
+foreach (@xdir) {
+	my @st = stat($_);
+	is($st[2] & 07777, -f _ ? 0644 : 0755,
+		'sharedRepository respected after convert');
+}
 
 $cmd = [ 'public-inbox-compact', "$tmpdir/v2" ];
 my $env = { NPROC => 2 };
@@ -53,5 +79,22 @@ ok(PublicInbox::Import::run_die($cmd, $env, $rdr), 'v2 compact works');
 $ibx->{mainrepo} = "$tmpdir/v2";
 my $v2w = PublicInbox::V2Writable->new($ibx);
 is($v2w->{partitions}, 1, "only one partition in compacted repo");
+
+@xdir = glob("$tmpdir/v2/xap*/*");
+foreach (@xdir) {
+	my @st = stat($_);
+	is($st[2] & 07777, -f _ ? 0644 : 0755,
+		'sharedRepository respected after v2 compact');
+}
+is(((stat("$tmpdir/v2/msgmap.sqlite3"))[2]) & 07777, 0644,
+	'sharedRepository respected for v2 msgmap');
+
+@xdir = (glob("$tmpdir/v2/git/*.git/objects/*/*"),
+	 glob("$tmpdir/v2/git/*.git/objects/pack/*"));
+foreach (@xdir) {
+	my @st = stat($_);
+	is($st[2] & 07777, -f _ ? 0444 : 0755,
+		'sharedRepository respected after v2 compact');
+}
 
 done_testing();

@@ -15,6 +15,7 @@ my $usage = "Usage: public-inbox-compact REPO_DIR\n";
 my $dir = shift or die $usage;
 my $config = PublicInbox::Config->new;
 my $ibx;
+$dir = abs_path($dir);
 $config->each_inbox(sub {
 	$ibx = $_[0] if abs_path($_[0]->{mainrepo}) eq $dir
 });
@@ -29,66 +30,79 @@ unless ($ibx) {
 	$ibx = PublicInbox::Inbox->new($ibx);
 }
 my $v = ($ibx->{version} || 1);
+$ibx = PublicInbox::InboxWritable->new($ibx);
+$ibx->umask_prepare;
+
+sub commit_changes ($$$) {
+	my ($im, $old, $new) = @_;
+	my @st = stat($old) or die "failed to stat($old): $!\n";
+	rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
+	chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
+	rename($new, $old) or die "rename $new => $old: $!\n";
+	$im->lock_release;
+	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
+}
+
 if ($v == 2) {
 	require PublicInbox::V2Writable;
 	my $v2w = PublicInbox::V2Writable->new($ibx);
 	my $xap_v = 'xap'.PublicInbox::Search::SCHEMA_VERSION;
-	my $xroot = "$ibx->{mainrepo}/$xap_v";
-	opendir my $dh, $xroot or die "Failed to opendir $xroot: $!\n";
-	$v2w->lock_acquire;
-	my $new = tempdir(CLEANUP => 1, DIR => $ibx->{mainrepo});
-	my @parts;
-	my $skel;
-	while (defined(my $dn = readdir($dh))) {
-		if ($dn =~ /\A\d+\z/) {
-			push @parts, "$xroot/$dn";
-		} elsif ($dn eq 'skel') {
-			$skel = "$xroot/$dn";
-		} elsif ($dn eq '.' || $dn eq '..') {
-		} else {
-			warn "W: skipping unknown Xapian DB: $xroot/$dn\n";
+	my $old = "$dir/$xap_v";
+	opendir my $dh, $old or die "Failed to opendir $old: $!\n";
+	my $new = tempdir('compact-XXXXXXXX', CLEANUP => 1, DIR => $dir);
+	$ibx->with_umask(sub {
+		$v2w->lock_acquire;
+		my @parts;
+		my $skel;
+		while (defined(my $dn = readdir($dh))) {
+			if ($dn =~ /\A\d+\z/) {
+				push @parts, "$old/$dn";
+			} elsif ($dn eq 'skel') {
+				$skel = "$old/$dn";
+			} elsif ($dn eq '.' || $dn eq '..') {
+			} else {
+				warn "W: skipping unknown Xapian DB: $old/$dn\n"
+			}
 		}
-	}
-	close $dh;
-	my %pids;
-	if (@parts) {
-		my $pid = spawn([ qw(xapian-compact), @parts, "$new/0" ]);
-		defined $pid or die "compact failed: $?\n";
-		$pids{$pid} = 'xapian-compact (parts)';
-	} else {
-		warn "No parts found in $xroot\n";
-	}
-	if (defined $skel) {
-		my $pid = spawn([ qw(xapian-compact), $skel, "$new/skel" ]);
-		defined $pid or die "compact failed: $?\n";
-		$pids{$pid} = 'xapian-compact (skel)';
-	} else {
-		warn "$xroot/skel missing\n";
-	}
-	die "No xapian-compact processes running\n" unless scalar keys %pids;
-	while (scalar keys %pids) {
-		my $pid = waitpid(-1, 0);
-		my $desc = delete $pids{$pid};
-		die "$desc failed: $?\n" if $?;
-	}
-	rename($xroot, "$new/old") or die "rename $xroot => $new/old: $!\n";
-	rename($new, $xroot) or die "rename $new => $xroot: $!\n";
-	$v2w->lock_release;
-	remove_tree("$xroot/old") or die "failed to remove $xroot/old: $!\n";
+		close $dh;
+		my %pids;
+
+		if (@parts) {
+			my $pid = spawn(['xapian-compact', @parts, "$new/0" ]);
+			defined $pid or die "compact failed: $?\n";
+			$pids{$pid} = 'xapian-compact (parts)';
+		} else {
+			warn "No parts found in $old\n";
+		}
+		if (defined $skel) {
+			my $pid = spawn(['xapian-compact', $skel, "$new/skel"]);
+			defined $pid or die "compact failed: $?\n";
+			$pids{$pid} = 'xapian-compact (skel)';
+		} else {
+			warn "$old/skel missing\n";
+		}
+		scalar keys %pids or
+			die "No xapian-compact processes running\n";
+		while (scalar keys %pids) {
+			my $pid = waitpid(-1, 0);
+			my $desc = delete $pids{$pid};
+			die "$desc failed: $?\n" if $?;
+		}
+		commit_changes($v2w, $old, $new);
+	});
 } elsif ($v == 1) {
 	require PublicInbox::Import;
 	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
 	my $xap_v = 'xapian'.PublicInbox::Search::SCHEMA_VERSION;
-	my $v1_root = "$ibx->{mainrepo}/public-inbox";
+	my $v1_root = "$dir/public-inbox";
 	my $old = "$v1_root/$xap_v";
 	-d $old or die "$old does not exist\n";
-	my $new = tempdir(CLEANUP => 1, DIR => $v1_root);
-	$im->lock_acquire;
-	PublicInbox::Import::run_die([ qw(xapian-compact), $old, $new ]);
-	rename($old, "$new/old") or die "rename $old => $new: $!\n";
-	rename($new, $old) or die "rename $new => $old: $!\n";
-	$im->lock_release;
-	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
+	my $new = tempdir('compact-XXXXXXXX', CLEANUP => 1, DIR => $v1_root);
+	$ibx->with_umask(sub {
+		$im->lock_acquire;
+		PublicInbox::Import::run_die(['xapian-compact', $old, $new]);
+		commit_changes($im, $old, $new);
+	});
 } else {
 	die "Unsupported inbox version: $v\n";
 }

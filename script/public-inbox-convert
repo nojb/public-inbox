@@ -5,9 +5,10 @@ use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::MIME;
-use PublicInbox::Inbox;
+use PublicInbox::InboxWritable;
 use PublicInbox::Config;
 use PublicInbox::V2Writable;
+use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
 use Cwd 'abs_path';
 my $usage = "Usage: public-inbox-convert OLD NEW\n";
@@ -39,16 +40,28 @@ unless ($old) {
 	};
 	$old = PublicInbox::Inbox->new($old);
 }
+$old = PublicInbox::InboxWritable->new($old);
 if (($old->{version} || 1) >= 2) {
 	die "Only conversion from v1 inboxes is supported\n";
 }
 my $new = { %$old };
 delete $new->{altid}; # TODO: support altid for v2
-$new->{mainrepo} = $new_dir;
+$new->{mainrepo} = abs_path($new_dir);
 $new->{version} = 2;
-$new = PublicInbox::Inbox->new($new);
-my $v2w = PublicInbox::V2Writable->new($new, 1);
-$v2w->init_inbox($jobs);
+$new = PublicInbox::InboxWritable->new($new);
+my $v2w;
+$old->umask_prepare;
+$old->with_umask(sub {
+	local $ENV{GIT_CONFIG} = "$old->{mainrepo}/config";
+	$v2w = PublicInbox::V2Writable->new($new, 1);
+	$v2w->init_inbox($jobs);
+	chomp(my $sr = $old->git->qx('config', 'core.sharedRepository'));
+	if ($sr ne '') {
+		PublicInbox::Import::run_die(['git', 'config',
+			"--file=$new->{mainrepo}/all.git/config",
+			'core.sharedRepository', $sr]);
+	}
+});
 my $state = '';
 my ($prev, $from);
 my $head = $old->{ref_head} || 'HEAD';

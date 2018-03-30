@@ -168,10 +168,7 @@ sub import_mbox {
 sub _read_git_config_perm {
 	my ($self) = @_;
 	my @cmd = qw(config);
-	if (($self->{version} ||= 1) == 2) {
-		push @cmd, "--file=$self->{mainrepo}/all.git/config";
-	}
-	chomp(my $perm = $self->git->qx(@cmd, 'core.sharedRepository'));
+	chomp(my $perm = $self->git->qx('config', 'core.sharedRepository'));
 	$perm;
 }
 

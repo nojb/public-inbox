@@ -50,6 +50,7 @@ sub new {
 	}
 	$nparts = nproc() if ($nparts == 0);
 
+	$v2ibx = PublicInbox::InboxWritable->new($v2ibx);
 	my $self = {
 		-inbox => $v2ibx,
 		im => undef, #  PublicInbox::Import
@@ -193,20 +194,23 @@ sub idx_init {
 	# frequently activated.
 	delete $ibx->{$_} foreach (qw(git mm search));
 
-	$self->lock_acquire;
+	$ibx->umask_prepare;
+	$ibx->with_umask(sub {
+		$self->lock_acquire;
 
-	# first time initialization, first we create the skeleton pipe:
-	my $skel = $self->{skel} = PublicInbox::SearchIdxSkeleton->new($self);
+		# first time initialization, first we create the skeleton pipe:
+		my $skel = PublicInbox::SearchIdxSkeleton->new($self);
+		$self->{skel} = $skel;
 
-	# need to create all parts before initializing msgmap FD
-	my $max = $self->{partitions} - 1;
-	my $idx = $self->{idx_parts} = [];
-	for my $i (0..$max) {
-		push @$idx, PublicInbox::SearchIdxPart->new($self, $i, $skel);
-	}
+		# need to create all parts before initializing msgmap FD
+		my $max = $self->{partitions} - 1;
+		@{$self->{idx_parts}} = map {
+			PublicInbox::SearchIdxPart->new($self, $_, $skel);
+		} (0..$max);
 
-	# Now that all subprocesses are up, we can open the FD for SQLite:
-	$skel->_msgmap_init->{dbh}->begin_work;
+		# Now that all subprocesses are up, we can open the FD for SQLite:
+		$skel->_msgmap_init->{dbh}->begin_work;
+	});
 }
 
 sub purge_oids {
