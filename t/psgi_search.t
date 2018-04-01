@@ -64,6 +64,12 @@ test_psgi(sub { $www->call(@_) }, sub {
 	is('%C3%86var', (keys %uniq)[0], 'matches original query');
 	ok(index($html, 'by &#198;var Arnfj&#246;r&#240; Bjarmason') >= 0,
 		"displayed Ævar's name properly in HTML");
+
+	my $warn = [];
+	local $SIG{__WARN__} = sub { push @$warn, @_ };
+	$res = $cb->(GET('/test/?q=s:test&l=5e'));
+	is($res->code, 200, 'successful search result');
+	is_deeply([], $warn, 'no warnings from non-numeric comparison');
 });
 
 done_testing();

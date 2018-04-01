@@ -309,10 +309,8 @@ sub new {
 	my ($class, $qp) = @_;
 
 	my $r = $qp->{r};
-	my $l = $qp->{l} || '200';
-	if (! ($l =~ /(\d+)/ && $l <= $LIM)) {
-		$l = $LIM;
-	}
+	my ($l) = (($qp->{l} || '') =~ /(\d+)/);
+	$l = $LIM if !$l || $l > $LIM;
 	bless {
 		q => $qp->{'q'},
 		x => $qp->{x} || '',
