@@ -71,6 +71,7 @@ my $im = $v2w->importer;
 my ($r, $w) = $im->gfi_start;
 my $h = '[0-9a-f]';
 my %D;
+my $last;
 while (<$rd>) {
 	if ($_ eq "blob\n") {
 		$state = 'blob';
@@ -90,13 +91,21 @@ while (<$rd>) {
 		if (m{^M 100644 :(\d+) (${h}{2}/${h}{38})}o) {
 			my ($mark, $path) = ($1, $2);
 			$D{$path} = $mark;
+			if ($last && $last ne 'm') {
+				$w->print("D $last\n") or $im->wfail;
+			}
 			$w->print("M 100644 :$mark m\n") or $im->wfail;
+			$last = 'm';
 			next;
 		}
 		if (m{^D (${h}{2}/${h}{38})}o) {
 			my $mark = delete $D{$1};
 			defined $mark or die "undeleted path: $1\n";
-			$w->print("M 100644 :$mark _/D\n") or $im->wfail;
+			if ($last && $last ne 'd') {
+				$w->print("D $last\n") or $im->wfail;
+			}
+			$w->print("M 100644 :$mark d\n") or $im->wfail;
+			$last = 'd';
 			next;
 		}
 		if (m{^from (:\d+)}) {

@@ -634,15 +634,19 @@ sub reindex {
 			-d $git->{git_dir} or next; # missing parts are fine
 			chomp($tip = $git->qx('rev-parse', $head)) unless $tip;
 			my $h = $cur == $max_git ? $tip : $head;
-			my @count = ('rev-list', '--count', $h, '--', 'm');
-			$regen_max += $git->qx(@count);
+
+			# can't use 'rev-list --count' if we use --diff-filter
+			my $fh = $git->popen(qw(log --pretty=tformat:%h
+					--no-notes --no-color --no-renames
+					--diff-filter=AM), $h, '--', 'm');
+			++$regen_max while <$fh>;
 		}
 		die "No messages found in $pfx/*.git, bug?\n" unless $regen_max;
 		$regen = \$regen_max;
 	}
 	my $D = {};
 	my @cmd = qw(log --raw -r --pretty=tformat:%h
-			--no-notes --no-color --no-abbrev);
+			--no-notes --no-color --no-abbrev --no-renames);
 
 	# if we are regenerating, we must not use a newer tip commit than what
 	# the regeneration counter used:
@@ -663,7 +667,7 @@ sub reindex {
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
 				$self->reindex_oid($mm_tmp, $D, $git, $1,
 						$regen);
-			} elsif (m!\A:\d{6} 100644 $x40 ($x40) [AM]\t_/D$!o) {
+			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
 				$self->mark_deleted($D, $git, $1);
 			}
 		}

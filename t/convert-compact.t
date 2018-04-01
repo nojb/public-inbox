@@ -37,6 +37,8 @@ my $mime = PublicInbox::MIME->create(
 	body => "hello world\n",
 );
 ok($im->add($mime), 'added one message');
+ok($im->remove($mime), 'remove message');
+ok($im->add($mime), 'added message again');
 $im->done;
 PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 
@@ -77,6 +79,7 @@ $cmd = [ 'public-inbox-compact', "$tmpdir/v2" ];
 my $env = { NPROC => 2 };
 ok(PublicInbox::Import::run_die($cmd, $env, $rdr), 'v2 compact works');
 $ibx->{mainrepo} = "$tmpdir/v2";
+$ibx->{version} = 2;
 my $v2w = PublicInbox::V2Writable->new($ibx);
 is($v2w->{partitions}, 1, "only one partition in compacted repo");
 
@@ -96,5 +99,8 @@ foreach (@xdir) {
 	is($st[2] & 07777, -f _ ? 0444 : 0755,
 		'sharedRepository respected after v2 compact');
 }
+my $res = $ibx->recent({limit => 1000});
+is($res->{msgs}->[0]->{mid}, 'a-mid@b', 'message exists in history');
+is(scalar @{$res->{msgs}}, 1, 'only one message in history');
 
 done_testing();

@@ -187,6 +187,7 @@ t/thread-all.t
 t/thread-cycle.t
 t/time.t
 t/utf8.mbox
+t/v2-add-remove-add.t
 t/v2mda.t
 t/v2reindex.t
 t/v2writable.t

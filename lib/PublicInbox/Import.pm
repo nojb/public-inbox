@@ -49,7 +49,14 @@ sub gfi_start {
 	$self->lock_acquire;
 
 	local $/ = "\n";
-	chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $self->{ref}));
+	my $ref = $self->{ref};
+	chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $ref));
+	if ($self->{path_type} ne '2/38' && $self->{tip}) {
+		local $/ = "\0";
+		my @tree = $git->qx(qw(ls-tree -r -z --name-only), $ref);
+		chomp @tree;
+		$self->{-tree} = { map { $_ => 1 } @tree };
+	}
 
 	my $git_dir = $git->{git_dir};
 	my @cmd = ('git', "--git-dir=$git_dir", qw(fast-import
@@ -238,7 +245,8 @@ sub remove {
 	if (defined $path) {
 		print $w "D $path\n\n" or wfail;
 	} else {
-		print $w "M 100644 :$blob _/D\n\n" or wfail;
+		clean_tree_v2($self, $w, 'd');
+		print $w "M 100644 :$blob d\n\n" or wfail;
 	}
 	$self->{nchg}++;
 	(($self->{tip} = ":$commit"), $cur);
@@ -317,6 +325,15 @@ sub v1_mid0 ($) {
 	}
 	$mids->[0];
 }
+sub clean_tree_v2 ($$$) {
+	my ($self, $w, $keep) = @_;
+	my $tree = $self->{-tree} or return; #v2 only
+	delete $tree->{$keep};
+	foreach (keys %$tree) {
+		print $w "D $_\n" or wfail;
+	}
+	%$tree = ($keep => 1);
+}
 
 # returns undef on duplicate
 # returns the :MARK of the most recent commit
@@ -382,6 +399,7 @@ sub add {
 	if ($tip ne '') {
 		print $w 'from ', ($parent ? $parent : $tip), "\n" or wfail;
 	}
+	clean_tree_v2($self, $w, $path);
 	print $w "M 100644 :$blob $path\n\n" or wfail;
 	$self->{nchg}++;
 	$self->{tip} = ":$commit";
@@ -431,8 +449,9 @@ sub digest2mid ($) {
 }
 
 sub clean_purge_buffer {
-	my ($oid, $buf) = @_;
-	my $cmt_msg = "purged $oid\n";
+	my ($oids, $buf) = @_;
+	my $cmt_msg = 'purged '.join(' ',@$oids)."\n";
+	@$oids = ();
 
 	foreach my $i (0..$#$buf) {
 		my $l = $buf->[$i];
@@ -456,6 +475,8 @@ sub purge_oids {
 	my ($r, $w) = $self->gfi_start;
 	my @buf;
 	my $npurge = 0;
+	my @oids;
+	my $tree = $self->{-tree};
 	while (<$rd>) {
 		if (/^reset (?:.+)/) {
 			push @buf, "reset $tmp\n";
@@ -472,25 +493,27 @@ sub purge_oids {
 			my $n = read($rd, my $buf, $len) or die "read: $!";
 			$len == $n or die "short read ($n < $len)";
 			push @buf, $buf;
-		} elsif (/^M 100644 ([a-f0-9]+) /) {
-			my $oid = $1;
+		} elsif (/^M 100644 ([a-f0-9]+) (\w+)/) {
+			my ($oid, $path) = ($1, $2);
 			if ($purge->{$oid}) {
-				my $lf = <$rd>;
-				if ($lf eq "\n") {
-					my $out = join('', @buf);
-					$out =~ s/^/# /sgm;
-					warn "purge rewriting\n", $out, "\n";
-					clean_purge_buffer($oid, \@buf);
-					$out = join('', @buf);
-					$w->print(@buf, "\n") or wfail;
-					@buf = ();
-					$npurge++;
-				} else {
-					die "expected LF: $lf\n";
-				}
+				push @oids, $oid;
+				delete $tree->{$path};
 			} else {
+				$tree->{$path} = 1;
 				push @buf, $_;
 			}
+		} elsif (/^D (\w+)/) {
+			my $path = $1;
+			push @buf, $_ if $tree->{$path};
+		} elsif ($_ eq "\n") {
+			my $out = join('', @buf);
+			$out =~ s/^/# /sgm;
+			warn "purge rewriting\n", $out, "\n";
+			clean_purge_buffer(\@oids, \@buf);
+			$out = join('', @buf);
+			$w->print(@buf, "\n") or wfail;
+			@buf = ();
+			$npurge++;
 		} else {
 			push @buf, $_;
 		}

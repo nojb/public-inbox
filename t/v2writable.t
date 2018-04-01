@@ -210,9 +210,10 @@ EOF
 	my @found = ();
 	$srch->each_smsg_by_mid($smsg->mid, sub { push @found, @_; 1 });
 	is(scalar(@found), 0, 'no longer found in Xapian skeleton');
+	my @log1 = qw(log -1 --pretty=raw --raw -r --no-abbrev --no-renames);
 
-	my $after = $git0->qx(qw(log -1 --pretty=raw --raw -r --no-abbrev));
-	if ($after =~ m!( [a-f0-9]+ )A\t_/D$!) {
+	my $after = $git0->qx(@log1);
+	if ($after =~ m!( [a-f0-9]+ )A\td$!m) {
 		my $oid = $1;
 		ok(index($before, $oid) > 0, 'no new blob introduced');
 	} else {
@@ -221,7 +222,7 @@ EOF
 	is($im->remove($mime, 'test removal'), undef,
 		'remove is idempotent');
 	$im->done;
-	is($git0->qx(qw(log -1 --pretty=raw --raw -r --no-abbrev)),
+	is($git0->qx(@log1),
 		$after, 'no git history made with idempotent remove');
 	eval { $im->done };
 	ok(!$@, '->done is idempotent');
