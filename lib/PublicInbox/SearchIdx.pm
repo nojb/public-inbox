@@ -114,25 +114,12 @@ sub add_val ($$$) {
 	$doc->add_value($col, $num);
 }
 
-sub add_values ($$) {
-	my ($doc, $values) = @_;
-
-	my $ts = $values->[PublicInbox::Search::TS];
+sub add_values {
+	my ($doc, $ts, $ds, $num) = @_;
 	add_val($doc, PublicInbox::Search::TS, $ts);
-
-	my $num = $values->[PublicInbox::Search::NUM];
-	defined($num) and add_val($doc, PublicInbox::Search::NUM, $num);
-
-	my $bytes = $values->[PublicInbox::Search::BYTES];
-	defined($bytes) and add_val($doc, PublicInbox::Search::BYTES, $bytes);
-
-	my $lines = $values->[PublicInbox::Search::LINES];
-	add_val($doc, PublicInbox::Search::LINES, $lines);
-
-	my $ds = $values->[PublicInbox::Search::DS];
-	add_val($doc, PublicInbox::Search::DS, $ds);
 	my $yyyymmdd = strftime('%Y%m%d', gmtime($ds));
 	add_val($doc, PublicInbox::Search::YYYYMMDD, $yyyymmdd);
+	defined($num) and add_val($doc, PublicInbox::Search::NUM, $num);
 }
 
 sub index_users ($$) {
@@ -295,8 +282,10 @@ sub add_message {
 		}
 
 		my $lines = $mime->body_raw =~ tr!\n!\n!;
-		my @values = ($smsg->ds, $num, $bytes, $lines, $smsg->ts);
-		add_values($doc, \@values);
+		$smsg->{lines} = $mime->body_raw =~ tr!\n!\n!;
+		defined $bytes or $bytes = length($mime->as_string);
+		$smsg->{bytes} = $bytes;
+		add_values($doc, $smsg->ts, $smsg->ds, $num);
 
 		my $tg = $self->term_generator;
 
@@ -366,8 +355,8 @@ sub add_message {
 
 		$self->delete_article($num) if defined $num; # for reindexing
 		if ($skel) {
-			push @values, $mids, $xpath, $data;
-			$skel->index_skeleton(\@values);
+			my @vals = ($smsg->ts, $num, $mids, $xpath, $data);
+			$skel->index_skeleton(\@vals);
 			$doc->add_boolean_term('Q' . $_) foreach @$mids;
 			$doc->add_boolean_term('XNUM' . $num) if defined $num;
 			$doc_id = $self->{xdb}->add_document($doc);

@@ -35,20 +35,41 @@ sub get_val ($$) {
 	Search::Xapian::sortable_unserialise($doc->get_value($col));
 }
 
+sub to_doc_data {
+	my ($self, $oid, $mid0) = @_;
+	$oid = '' unless defined $oid;
+	join("\n",
+		$self->subject,
+		$self->from,
+		$self->references,
+		$self->to,
+		$self->cc,
+		$oid,
+		$mid0,
+		$self->ds,
+		$self->{bytes},
+		$self->{lines}
+	);
+}
+
 sub load_from_data ($$) {
 	my ($self) = $_[0]; # data = $_[1]
-	my ($subj, $from, $refs, $to, $cc, $blob, $mid0) = split(/\n/, $_[1]);
-	$self->{subject} = $subj;
-	$self->{from} = $from;
-	$self->{references} = $refs;
+	(
+		$self->{subject},
+		$self->{from},
+		$self->{references},
 
-	# To: and Cc: are stored to optimize HDR/XHDR in NNTP since
-	# some NNTP clients will use that for message displays.
-	$self->{to} = $to;
-	$self->{cc} = $cc;
+		# To: and Cc: are stored to optimize HDR/XHDR in NNTP since
+		# some NNTP clients will use that for message displays.
+		$self->{to},
+		$self->{cc},
 
-	$self->{blob} = $blob;
-	$self->{mid} = $mid0;
+		$self->{blob},
+		$self->{mid},
+		$self->{ds},
+		$self->{bytes},
+		$self->{lines}
+	) = split(/\n/, $_[1]);
 }
 
 sub load_expand {
@@ -56,7 +77,6 @@ sub load_expand {
 	my $doc = $self->{doc};
 	my $data = $doc->get_data or return;
 	$self->{ts} = get_val($doc, &PublicInbox::Search::TS);
-	$self->{ds} = get_val($doc, &PublicInbox::Search::DS);
 	utf8::decode($data);
 	load_from_data($self, $data);
 	$self;
@@ -69,11 +89,9 @@ sub load_doc {
 }
 
 # :bytes and :lines metadata in RFC 3977
-sub bytes ($) { get_val($_[0]->{doc}, &PublicInbox::Search::BYTES) }
-sub lines ($) { get_val($_[0]->{doc}, &PublicInbox::Search::LINES) }
-sub num ($) {
-	$_[0]->{num} ||= get_val($_[0]->{doc}, PublicInbox::Search::NUM())
-}
+sub bytes ($) { $_[0]->{bytes} }
+sub lines ($) { $_[0]->{lines} }
+sub num ($) { $_[0]->{num} ||= _get_term_val($_[0], 'XNUM', qr/\AXNUM/) }
 
 sub __hdr ($$) {
 	my ($self, $field) = @_;
@@ -132,14 +150,6 @@ sub ts {
 sub ds {
 	my ($self) = @_;
 	$self->{ds} ||= eval { msg_datestamp($self->{mime}->header_obj); } || 0;
-}
-
-sub to_doc_data {
-	my ($self, $oid, $mid0) = @_;
-	my @rows = ($self->subject, $self->from, $self->references,
-			$self->to, $self->cc);
-	$oid = '' unless defined $oid;
-	join("\n", @rows, $oid, $mid0);
 }
 
 sub references {
