@@ -65,12 +65,6 @@ sub mids ($) {
 			push(@mids, $v);
 		}
 	}
-	foreach my $i (0..$#mids) {
-		next if length($mids[$i]) <= MAX_MID_SIZE;
-		warn "Message-ID: <$mids[$i]> too long, truncating\n";
-		$mids[$i] = substr($mids[$i], 0, MAX_MID_SIZE);
-	}
-
 	uniq_mids(\@mids);
 }
 
@@ -92,10 +86,14 @@ sub uniq_mids ($) {
 	my ($mids) = @_;
 	my @ret;
 	my %seen;
-	foreach (@$mids) {
-		next if $seen{$_};
-		push @ret, $_;
-		$seen{$_} = 1;
+	foreach my $mid (@$mids) {
+		if (length($mid) > MAX_MID_SIZE) {
+			warn "Message-ID: <$mid> too long, truncating\n";
+			$mid = substr($mid, 0, MAX_MID_SIZE);
+		}
+		next if $seen{$mid};
+		push @ret, $mid;
+		$seen{$mid} = 1;
 	}
 	\@ret;
 }

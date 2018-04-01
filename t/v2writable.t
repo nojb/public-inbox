@@ -235,4 +235,26 @@ EOF
 	$im->done;
 }
 
+{
+	my @warn;
+	my $x = 'x'x250;
+	my $y = 'y'x250;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	$mime->header_set('Subject', 'long mid');
+	$mime->header_set('Message-ID', "<$x>");
+	ok($im->add($mime), 'add excessively long Message-ID');
+
+	$mime->header_set('Message-ID', "<$y>");
+	$mime->header_set('References', "<$x>");
+	ok($im->add($mime), 'add excessively long References');
+	$im->barrier;
+
+	my $msgs = $ibx->search->reopen->get_thread('x'x244)->{msgs};
+	is(2, scalar(@$msgs), 'got both messages');
+	is($msgs->[0]->{mid}, 'x'x244, 'stored truncated mid');
+	is($msgs->[1]->{references}, '<'.('x'x244).'>', 'stored truncated ref');
+	is($msgs->[1]->{mid}, 'y'x244, 'stored truncated mid(2)');
+	$im->done;
+}
+
 done_testing();
