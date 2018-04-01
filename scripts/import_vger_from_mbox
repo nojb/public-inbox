@@ -29,7 +29,7 @@ my $ibx = {
 	mainrepo => $mainrepo,
 	name => $name,
 	version => $version,
-	-primary_address => $email,
+	address => [ $email ],
 	filter => 'PublicInbox::Filter::Vger',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
