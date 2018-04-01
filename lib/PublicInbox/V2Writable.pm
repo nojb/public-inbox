@@ -204,9 +204,13 @@ sub idx_init {
 
 		# need to create all parts before initializing msgmap FD
 		my $max = $self->{partitions} - 1;
-		@{$self->{idx_parts}} = map {
-			PublicInbox::SearchIdxPart->new($self, $_, $skel);
-		} (0..$max);
+
+		# idx_parts must be visible to all forked processes
+		my $idx = $self->{idx_parts} = [];
+		for my $i (0..$max) {
+			push @$idx,
+			     PublicInbox::SearchIdxPart->new($self, $i, $skel);
+		}
 
 		# Now that all subprocesses are up, we can open the FD for SQLite:
 		$skel->_msgmap_init->{dbh}->begin_work;

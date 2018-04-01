@@ -30,9 +30,8 @@ my $mime = PublicInbox::MIME->create(
 	],
 	body => "hello world\n",
 );
-
+local $ENV{NPROC} = 2;
 my $im = PublicInbox::V2Writable->new($ibx, 1);
-$im->{parallel} = 0;
 foreach my $i (1..10) {
 	$mime->header_set('Message-Id', "<$i\@example.com>");
 	ok($im->add($mime), "message $i added");
