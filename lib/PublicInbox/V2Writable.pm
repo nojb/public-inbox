@@ -303,24 +303,39 @@ sub purge {
 
 sub done {
 	my ($self) = @_;
-	my $locked = defined $self->{idx_parts};
 	my $im = delete $self->{im};
 	$im->done if $im; # PublicInbox::Import::done
-	$self->searchidx_checkpoint(0);
-	$self->lock_release if $locked;
+
+	if (my $mm = delete $self->{mm}) {
+		$mm->{dbh}->commit;
+	}
+
+	# order matters, we can only close {over} after all partitions
+	# are done because the partitions also write to {over}
+	my $parts = delete $self->{idx_parts};
+	if ($parts) {
+		$_->remote_commit for @$parts;
+		$_->remote_close for @$parts;
+	}
+
+	my $over = $self->{over};
+	$over->remote_commit;
+	$over->remote_close;
+	$self->{transact_bytes} = 0;
+	$self->lock_release if $parts;
 }
 
 sub checkpoint {
 	my ($self) = @_;
 	my $im = $self->{im};
 	$im->checkpoint if $im; # PublicInbox::Import::checkpoint
-	$self->searchidx_checkpoint(1);
+	$self->barrier(1);
 }
 
 # issue a write barrier to ensure all data is visible to other processes
 # and read-only ops.  Order of data importance is: git > SQLite > Xapian
 sub barrier {
-	my ($self) = @_;
+	my ($self, $fsync) = @_;
 
 	if (my $im = $self->{im}) {
 		$im->barrier;
@@ -339,38 +354,9 @@ sub barrier {
 		$_->remote_barrier foreach @$parts;
 
 		$over->barrier_wait; # wait for each Xapian partition
+		$over->commit_fsync if $fsync;
 
 		$dbh->begin_work;
-	}
-	$self->{transact_bytes} = 0;
-}
-
-sub searchidx_checkpoint {
-	my ($self, $more) = @_;
-
-	# order matters, we can only close {over} after all partitions
-	# are done because the partitions also write to {over}
-	if (my $parts = $self->{idx_parts}) {
-		foreach my $idx (@$parts) {
-			$idx->remote_commit; # propagates commit to over
-			$idx->remote_close unless $more;
-		}
-		delete $self->{idx_parts} unless $more;
-	}
-
-	if (my $mm = $self->{mm}) {
-		my $dbh = $mm->{dbh};
-		$dbh->commit;
-		if ($more) {
-			$dbh->begin_work;
-		} else {
-			delete $self->{mm};
-		}
-	}
-	my $over = $self->{over};
-	$over->remote_commit;
-	if (!$more) {
-		$over->remote_close;
 	}
 	$self->{transact_bytes} = 0;
 }
@@ -435,7 +421,7 @@ sub importer {
 		} else {
 			$self->{im} = undef;
 			$im->done;
-			$self->searchidx_checkpoint(1);
+			$self->barrier(1);
 			$im = undef;
 			my $git_dir = $self->git_init(++$self->{max_git});
 			my $git = PublicInbox::Git->new($git_dir);

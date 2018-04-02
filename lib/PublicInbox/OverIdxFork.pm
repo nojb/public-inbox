@@ -135,9 +135,12 @@ sub barrier_init {
 
 sub barrier_wait {
 	my ($self) = @_;
-	my $bw = $self->{barrier_wait} or return;
-	my $l = $bw->getline;
-	$l eq "barrier_done\n" or die "bad response from barrier_wait: $l\n";
+	if (my $bw = $self->{barrier_wait}) {
+		my $l = $bw->getline;
+		$l eq "barrier_done\n" or die "bad response from barrier_wait: $l\n";
+	} else {
+		$self->commit_lazy;
+	}
 }
 
 sub remote_commit {
@@ -172,12 +175,6 @@ sub remote_close {
 		die "transaction in progress $self\n" if $self->{txn};
 		$self->disconnect;
 	}
-}
-
-sub commit_fsync {
-	my ($self) = @_;
-	return if $self->{w}; # don't bother; main parent can also call this
-	$self->SUPER::commit_fsync;
 }
 
 1;
