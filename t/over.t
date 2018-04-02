@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
+use Compress::Zlib qw(compress);
 foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for over.t" if $@;
@@ -34,5 +35,29 @@ $x = $over->create_ghost('never');
 is(int($x), $x, 'integer tid for ghost');
 $y = $over->create_ghost('NEVAR');
 is($y, $x + 1, 'integer tid for ghost increases');
+
+my $ddd = compress('');
+foreach my $s ('', undef) {
+	$over->add_over([0, 98, [ 'a' ], [], $s, $ddd]);
+	$over->add_over([0, 99, [ 'b' ], [], $s, $ddd]);
+	my $msgs = [ map { $_->{num} } @{$over->get_thread('a')->{msgs}} ];
+	is_deeply([98], $msgs,
+		'messages not linked by empty subject');
+}
+
+$over->add_over([0, 98, [ 'a' ], [], 's', $ddd]);
+$over->add_over([0, 99, [ 'b' ], [], 's', $ddd]);
+foreach my $mid (qw(a b)) {
+	my $msgs = [ map { $_->{num} } @{$over->get_thread('a')->{msgs}} ];
+	is_deeply([98, 99], $msgs, 'linked messages by subject');
+}
+$over->add_over([0, 98, [ 'a' ], [], 's', $ddd]);
+$over->add_over([0, 99, [ 'b' ], ['a'], 'diff', $ddd]);
+foreach my $mid (qw(a b)) {
+	my $msgs = [ map { $_->{num} } @{$over->get_thread($mid)->{msgs}} ];
+	is_deeply([98, 99], $msgs, "linked messages by Message-ID: <$mid>");
+}
+
+$over->rollback_lazy;
 
 done_testing();
