@@ -185,10 +185,16 @@ sub get_thread {
 
 sub retry_reopen {
 	my ($self, $cb) = @_;
-	my $ret;
 	for my $i (1..10) {
-		eval { $ret = $cb->() };
-		return $ret unless $@;
+		if (wantarray) {
+			my @ret;
+			eval { @ret = $cb->() };
+			return @ret unless $@;
+		} else {
+			my $ret;
+			eval { $ret = $cb->() };
+			return $ret unless $@;
+		}
 		# Exception: The revision being read has been discarded -
 		# you should call Xapian::Database::reopen()
 		if (ref($@) eq 'Search::Xapian::DatabaseModifiedError') {
@@ -226,8 +232,9 @@ sub _enquire_once {
 	my @msgs = map {
 		PublicInbox::SearchMsg->load_doc($_->get_document);
 	} $mset->items;
+	return \@msgs unless wantarray;
 
-	{ total => $mset->get_matches_estimated, msgs => \@msgs }
+	($mset->get_matches_estimated, \@msgs)
 }
 
 # read-write

@@ -217,12 +217,12 @@ sub set_filename ($$) {
 sub getline {
 	my ($self) = @_;
 	my $ctx = $self->{ctx} or return;
-	my $res;
 	my $ibx = $ctx->{-inbox};
 	my $gz = $self->{gz};
+	my $msgs = $self->{msgs};
 	do {
 		# work on existing result set
-		while (defined(my $smsg = shift @{$self->{msgs}})) {
+		while (defined(my $smsg = shift @$msgs)) {
 			my $msg = eval { $ibx->msg_by_smsg($smsg) } or next;
 			$msg = Email::Simple->new($msg);
 			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg,
@@ -247,11 +247,9 @@ sub getline {
 		}
 
 		# refill result set
-		$res = $self->{cb}->($self->{opts});
-		$self->{msgs} = $res->{msgs};
-		$res = scalar @{$self->{msgs}};
-		$self->{opts}->{offset} += $res;
-	} while ($res);
+		$msgs = $self->{msgs} = $self->{cb}->($self->{opts});
+		$self->{opts}->{offset} += scalar @$msgs;
+	} while (@$msgs);
 	$gz->close;
 	delete $self->{ctx};
 	${delete $self->{buf}};

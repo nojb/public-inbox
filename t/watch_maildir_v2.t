@@ -50,8 +50,8 @@ ok($ibx, 'found inbox by name');
 my $srch = $ibx->search;
 
 PublicInbox::WatchMaildir->new($config)->scan('full');
-my $res = $srch->reopen->query('');
-is($res->{total}, 1, 'got one revision');
+my ($total, undef) = $srch->reopen->query('');
+is($total, 1, 'got one revision');
 
 # my $git = PublicInbox::Git->new("$mainrepo/git/0.git");
 # my @list = $git->qx(qw(rev-list refs/heads/master));
@@ -70,7 +70,7 @@ my $write_spam = sub {
 $write_spam->();
 is(unlink(glob("$maildir/new/*")), 1, 'unlinked old spam');
 PublicInbox::WatchMaildir->new($config)->scan('full');
-is($srch->reopen->query('')->{total}, 0, 'deleted file');
+is(($srch->reopen->query(''))[0], 0, 'deleted file');
 
 # check with scrubbing
 {
@@ -80,16 +80,16 @@ the body of a message to majordomo\@vger.kernel.org
 More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	$res = $srch->reopen->query('');
-	is($res->{total}, 1, 'got one file back');
-	my $mref = $ibx->msg_by_smsg($res->{msgs}->[0]);
+	my ($nr, $msgs) = $srch->reopen->query('');
+	is($nr, 1, 'got one file back');
+	my $mref = $ibx->msg_by_smsg($msgs->[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
 
 	is(unlink(glob("$maildir/new/*")), 1, 'unlinked spam');
 	$write_spam->();
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	$res = $srch->reopen->query('');
-	is($res->{total}, 0, 'inbox is empty again');
+	($nr, $msgs) = $srch->reopen->query('');
+	is($nr, 0, 'inbox is empty again');
 }
 
 {
@@ -103,8 +103,8 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 		local $SIG{__WARN__} = sub {}; # quiet spam check warning
 		PublicInbox::WatchMaildir->new($config)->scan('full');
 	}
-	$res = $srch->reopen->query('');
-	is($res->{total}, 0, 'inbox is still empty');
+	($nr, $msgs) = $srch->reopen->query('');
+	is($nr, 0, 'inbox is still empty');
 	is(unlink(glob("$maildir/new/*")), 1);
 }
 
@@ -116,9 +116,9 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	$res = $srch->reopen->query('');
-	is($res->{total}, 1, 'inbox has one mail after spamc OK-ed a message');
-	my $mref = $ibx->msg_by_smsg($res->{msgs}->[0]);
+	($nr, $msgs) = $srch->reopen->query('');
+	is($nr, 1, 'inbox has one mail after spamc OK-ed a message');
+	my $mref = $ibx->msg_by_smsg($msgs->[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
 }
 

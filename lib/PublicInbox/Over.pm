@@ -88,10 +88,12 @@ LIMIT 1
 SELECT * $cond
 ORDER BY ts ASC
 
+	return $msgs unless wantarray;
+
 	my $nr = $dbh->selectrow_array(<<"", undef, $tid, $sid);
 SELECT COUNT(num) $cond
 
-	{ total => $nr, msgs => $msgs };
+	($nr, $msgs);
 }
 
 sub recent {
@@ -100,10 +102,12 @@ sub recent {
 SELECT * FROM over WHERE num > 0
 ORDER BY ts DESC
 
+	return $msgs unless wantarray;
+
 	my $nr = $self->{dbh}->selectrow_array(<<'');
 SELECT COUNT(num) FROM over WHERE num > 0
 
-	{ total => $nr, msgs => $msgs };
+	($nr, $msgs);
 }
 
 sub get_art {

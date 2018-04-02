@@ -27,14 +27,13 @@ sub generate {
 sub generate_thread_atom {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
-	my $res = $ctx->{srch}->get_thread($mid);
-	return _no_thread() unless $res->{total};
+	my $msgs = $ctx->{srch}->get_thread($mid);
+	return _no_thread() unless @$msgs;
 
 	my $ibx = $ctx->{-inbox};
 	my $html_url = $ibx->base_url($ctx->{env});
 	$html_url .= PublicInbox::Hval->new_msgid($mid)->{href};
 	$ctx->{-html_url} = $html_url;
-	my $msgs = $res->{msgs};
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
 		while (my $smsg = shift @$msgs) {
 			$ibx->smsg_mime($smsg) and return $smsg;
@@ -114,10 +113,10 @@ sub recent_msgs {
 		my $o = $qp ? $qp->{o} : 0;
 		$o += 0;
 		$o = 0 if $o < 0;
-		my $res = $ibx->recent({ limit => $max, offset => $o });
+		my $msgs = $ibx->recent({ limit => $max, offset => $o });
 		my $next = $o + $max;
-		$ctx->{next_page} = "o=$next" if $res->{total} >= $next;
-		return $res->{msgs};
+		$ctx->{next_page} = "o=$next" if scalar(@$msgs) == $max;
+		return $msgs;
 	}
 
 	my $hex = '[a-f0-9]';

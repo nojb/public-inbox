@@ -82,8 +82,8 @@ my $rw_commit = sub {
 }
 
 sub filter_mids {
-	my ($res) = @_;
-	sort(map { $_->mid } @{$res->{msgs}});
+	my ($msgs) = @_;
+	sort(map { $_->mid } @$msgs);
 }
 
 {
@@ -106,12 +106,12 @@ sub filter_mids {
 	is_deeply(\@res, \@exp, 'got expected results for s:"" match');
 
 	$res = $ro->query('s:"Hello world"', {limit => 1});
-	is(scalar @{$res->{msgs}}, 1, "limit works");
-	my $first = $res->{msgs}->[0];
+	is(scalar @$res, 1, "limit works");
+	my $first = $res->[0];
 
 	$res = $ro->query('s:"Hello world"', {offset => 1});
-	is(scalar @{$res->{msgs}}, 1, "offset works");
-	my $second = $res->{msgs}->[0];
+	is(scalar @$res, 1, "offset works");
+	my $second = $res->[0];
 
 	isnt($first, $second, "offset returned different result from limit");
 }
@@ -147,7 +147,7 @@ sub filter_mids {
 
 	my $ghost_id = $rw->add_message($was_ghost);
 	is($ghost_id, int($ghost_id), "ghost_id is an integer: $ghost_id");
-	my $msgs = $rw->{over}->get_thread('ghost-message@s')->{msgs};
+	my $msgs = $rw->{over}->get_thread('ghost-message@s');
 	is(scalar(@$msgs), 2, 'got both messages in ghost thread');
 	foreach (qw(sid tid)) {
 		is($msgs->[0]->{$_}, $msgs->[1]->{$_}, "{$_} match");
@@ -169,7 +169,7 @@ sub filter_mids {
 
 	# body
 	$res = $ro->query('goodbye');
-	is($res->{msgs}->[0]->mid, 'last@s', 'got goodbye message body');
+	is($res->[0]->mid, 'last@s', 'got goodbye message body');
 }
 
 # long message-id
@@ -215,7 +215,7 @@ sub filter_mids {
 	$rw_commit->();
 	$ro->reopen;
 	my $t = $ro->get_thread('root@s');
-	is($t->{total}, 4, "got all 4 mesages in thread");
+	is(scalar(@$t), 4, "got all 4 mesages in thread");
 	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_mid);
 	@res = filter_mids($t);
 	is_deeply(\@res, \@exp, "get_thread works");
@@ -244,13 +244,13 @@ sub filter_mids {
 		],
 		body => "theatre\nfade\n"));
 	my $res = $rw->query("theatre");
-	is($res->{total}, 2, "got both matches");
-	is($res->{msgs}->[0]->mid, 'nquote@a', "non-quoted scores higher");
-	is($res->{msgs}->[1]->mid, 'quote@a', "quoted result still returned");
+	is(scalar(@$res), 2, "got both matches");
+	is($res->[0]->mid, 'nquote@a', "non-quoted scores higher");
+	is($res->[1]->mid, 'quote@a', "quoted result still returned");
 
 	$res = $rw->query("illusions");
-	is($res->{total}, 1, "got a match for quoted text");
-	is($res->{msgs}->[0]->mid, 'quote@a',
+	is(scalar(@$res), 1, "got a match for quoted text");
+	is($res->[0]->mid, 'quote@a',
 		"quoted result returned if nothing else");
 }
 
@@ -293,34 +293,34 @@ sub filter_mids {
 }
 
 {
-	my $res = $ro->query('d:19931002..20101002');
-	ok(scalar @{$res->{msgs}} > 0, 'got results within range');
-	$res = $ro->query('d:20101003..');
-	is(scalar @{$res->{msgs}}, 0, 'nothing after 20101003');
-	$res = $ro->query('d:..19931001');
-	is(scalar @{$res->{msgs}}, 0, 'nothing before 19931001');
+	my $msgs = $ro->query('d:19931002..20101002');
+	ok(scalar(@$msgs) > 0, 'got results within range');
+	$msgs = $ro->query('d:20101003..');
+	is(scalar(@$msgs), 0, 'nothing after 20101003');
+	$msgs = $ro->query('d:..19931001');
+	is(scalar(@$msgs), 0, 'nothing before 19931001');
 }
 
 # names and addresses
 {
 	my $res = $ro->query('t:list@example.com');
-	is(scalar @{$res->{msgs}}, 6, 'searched To: successfully');
-	foreach my $smsg (@{$res->{msgs}}) {
+	is(scalar @$res, 6, 'searched To: successfully');
+	foreach my $smsg (@$res) {
 		like($smsg->to, qr/\blist\@example\.com\b/, 'to appears');
 	}
 
 	$res = $ro->query('tc:list@example.com');
-	is(scalar @{$res->{msgs}}, 6, 'searched To+Cc: successfully');
-	foreach my $smsg (@{$res->{msgs}}) {
+	is(scalar @$res, 6, 'searched To+Cc: successfully');
+	foreach my $smsg (@$res) {
 		my $tocc = join("\n", $smsg->to, $smsg->cc);
 		like($tocc, qr/\blist\@example\.com\b/, 'tocc appears');
 	}
 
 	foreach my $pfx ('tcf:', 'c:') {
 		$res = $ro->query($pfx . 'foo@example.com');
-		is(scalar @{$res->{msgs}}, 1,
+		is(scalar @$res, 1,
 			"searched $pfx successfully for Cc:");
-		foreach my $smsg (@{$res->{msgs}}) {
+		foreach my $smsg (@$res) {
 			like($smsg->cc, qr/\bfoo\@example\.com\b/,
 				'cc appears');
 		}
@@ -328,9 +328,9 @@ sub filter_mids {
 
 	foreach my $pfx ('', 'tcf:', 'f:') {
 		$res = $ro->query($pfx . 'Laggy');
-		is(scalar @{$res->{msgs}}, 1,
+		is(scalar(@$res), 1,
 			"searched $pfx successfully for From:");
-		foreach my $smsg (@{$res->{msgs}}) {
+		foreach my $smsg (@$res) {
 			like($smsg->from, qr/Laggy Sender/,
 				"From appears with $pfx");
 		}
@@ -341,23 +341,23 @@ sub filter_mids {
 	$rw_commit->();
 	$ro->reopen;
 	my $res = $ro->query('b:hello');
-	is(scalar @{$res->{msgs}}, 0, 'no match on body search only');
+	is(scalar(@$res), 0, 'no match on body search only');
 	$res = $ro->query('bs:smith');
-	is(scalar @{$res->{msgs}}, 0,
+	is(scalar(@$res), 0,
 		'no match on body+subject search for From');
 
 	$res = $ro->query('q:theatre');
-	is(scalar @{$res->{msgs}}, 1, 'only one quoted body');
-	like($res->{msgs}->[0]->from, qr/\AQuoter/, 'got quoted body');
+	is(scalar(@$res), 1, 'only one quoted body');
+	like($res->[0]->from, qr/\AQuoter/, 'got quoted body');
 
 	$res = $ro->query('nq:theatre');
-	is(scalar @{$res->{msgs}}, 1, 'only one non-quoted body');
-	like($res->{msgs}->[0]->from, qr/\ANon-Quoter/, 'got non-quoted body');
+	is(scalar @$res, 1, 'only one non-quoted body');
+	like($res->[0]->from, qr/\ANon-Quoter/, 'got non-quoted body');
 
 	foreach my $pfx (qw(b: bs:)) {
 		$res = $ro->query($pfx . 'theatre');
-		is(scalar @{$res->{msgs}}, 2, "searched both bodies for $pfx");
-		like($res->{msgs}->[0]->from, qr/\ANon-Quoter/,
+		is(scalar @$res, 2, "searched both bodies for $pfx");
+		like($res->[0]->from, qr/\ANon-Quoter/,
 			"non-quoter first for $pfx");
 	}
 }
@@ -396,13 +396,13 @@ sub filter_mids {
 	$rw_commit->();
 	$ro->reopen;
 	my $n = $ro->query('n:attached_fart.txt');
-	is(scalar @{$n->{msgs}}, 1, 'got result for n:');
+	is(scalar @$n, 1, 'got result for n:');
 	my $res = $ro->query('part_deux.txt');
-	is(scalar @{$res->{msgs}}, 1, 'got result without n:');
-	is($n->{msgs}->[0]->mid, $res->{msgs}->[0]->mid,
+	is(scalar @$res, 1, 'got result without n:');
+	is($n->[0]->mid, $res->[0]->mid,
 		'same result with and without');
 	my $txt = $ro->query('"inside another"');
-	is($txt->{msgs}->[0]->mid, $res->{msgs}->[0]->mid,
+	is($txt->[0]->mid, $res->[0]->mid,
 		'search inside text attachments works');
 }
 $rw->commit_txn_lazy;

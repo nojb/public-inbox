@@ -50,12 +50,11 @@ my $altid = [ "serial:gmane:file=$alt_file" ];
 
 {
 	my $ro = PublicInbox::Search->new($git_dir, $altid);
-	my $res = $ro->query("gmane:1234");
-	is($res->{total}, 1, 'got one match');
-	is($res->{msgs}->[0]->mid, 'a@example.com');
+	my $msgs = $ro->query("gmane:1234");
+	is_deeply([map { $_->mid } @$msgs], ['a@example.com'], 'got one match');
 
-	$res = $ro->query("gmane:666");
-	is($res->{total}, 0, 'body did NOT match');
+	$msgs = $ro->query("gmane:666");
+	is_deeply([], $msgs, 'body did NOT match');
 };
 
 {

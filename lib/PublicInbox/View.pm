@@ -408,9 +408,7 @@ sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $srch = $ctx->{srch};
-	my $sres = $srch->get_thread($mid);
-	my $msgs = $sres->{msgs};
-	my $nr = $sres->{total};
+	my ($nr, $msgs) = $srch->get_thread($mid);
 	return missing_thread($ctx) if $nr == 0;
 	my $skel = '<hr><pre>';
 	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
@@ -649,8 +647,7 @@ sub thread_skel {
 	my ($dst, $ctx, $hdr, $tpfx) = @_;
 	my $srch = $ctx->{srch};
 	my $mid = mids($hdr)->[0];
-	my $sres = $srch->get_thread($mid);
-	my $nr = $sres->{total};
+	my ($nr, $msgs) = $srch->get_thread($mid);
 	my $expand = qq(expand[<a\nhref="${tpfx}T/#u">flat</a>) .
 	                qq(|<a\nhref="${tpfx}t/#u">nested</a>]  ) .
 			qq(<a\nhref="${tpfx}t.mbox.gz">mbox.gz</a>  ) .
@@ -680,12 +677,11 @@ sub thread_skel {
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{dst} = $dst;
-	$sres = $sres->{msgs};
 
 	# reduce hash lookups in skel_dump
 	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	walk_thread(thread_results($ctx, $sres), $ctx, *skel_dump);
+	walk_thread(thread_results($ctx, $msgs), $ctx, *skel_dump);
 
 	$ctx->{parent_msg} = $parent;
 }
@@ -1066,11 +1062,10 @@ sub index_topics {
 
 	$ctx->{order} = [];
 	my $srch = $ctx->{srch};
-	my $sres = $ctx->{-inbox}->recent({offset => $off, limit => 200 });
-	$sres = $sres->{msgs};
-	my $nr = scalar @$sres;
+	my $msgs = $ctx->{-inbox}->recent({offset => $off, limit => 200 });
+	my $nr = scalar @$msgs;
 	if ($nr) {
-		walk_thread(thread_results($ctx, $sres), $ctx, *acc_topic);
+		walk_thread(thread_results($ctx, $msgs), $ctx, *acc_topic);
 	}
 	$ctx->{-next_o} = $off + $nr;
 	$ctx->{-cur_o} = $off;

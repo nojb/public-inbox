@@ -52,8 +52,8 @@ ok(PublicInbox::Import::run_die(['public-inbox-mda'], undef, $rdr),
 	'mda delivered a message');
 
 $ibx = PublicInbox::Inbox->new($ibx);
-my $res = $ibx->search->query('');
-my $saved = $ibx->smsg_mime($res->{msgs}->[0]);
+my $msgs = $ibx->search->query('');
+my $saved = $ibx->smsg_mime($msgs->[0]);
 is($saved->{mime}->as_string, $mime->as_string, 'injected message');
 
 done_testing();

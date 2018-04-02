@@ -49,8 +49,8 @@ foreach (reverse split(/\n\n/, $data)) {
 
 my $prev;
 foreach my $mid (@mids) {
-	my $res = $rw->{over}->get_thread($mid);
-	is(3, $res->{total}, "got all messages from $mid");
+	my $msgs = $rw->{over}->get_thread($mid);
+	is(3, scalar(@$msgs), "got all messages from $mid");
 }
 
 $rw->commit_txn_lazy;

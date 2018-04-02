@@ -35,8 +35,8 @@ ok($im->add($mime), 'message added');
 ok($im->remove($mime), 'message added');
 ok($im->add($mime), 'message added again');
 $im->done;
-my $res = $ibx->recent({limit => 1000});
-is($res->{msgs}->[0]->{mid}, 'a-mid@b', 'message exists in history');
-is(scalar @{$res->{msgs}}, 1, 'only one message in history');
+my $msgs = $ibx->recent({limit => 1000});
+is($msgs->[0]->{mid}, 'a-mid@b', 'message exists in history');
+is(scalar @$msgs, 1, 'only one message in history');
 
 done_testing();
