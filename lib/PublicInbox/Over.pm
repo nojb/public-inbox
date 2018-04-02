@@ -73,20 +73,31 @@ ORDER BY ts ASC
 
 }
 
+sub nothing () { wantarray ? (0, []) : [] };
+
 sub get_thread {
 	my ($self, $mid, $opts) = @_;
 	my $dbh = $self->connect;
-	my ($tid, $sid) = $dbh->selectrow_array(<<'', undef, $mid);
-SELECT tid,sid FROM over
-LEFT JOIN id2num ON over.num = id2num.num
-LEFT JOIN msgid ON id2num.id = msgid.id
-WHERE msgid.mid = ? AND over.num > 0
-LIMIT 1
+
+	my $id = $dbh->selectrow_array(<<'', undef, $mid);
+SELECT id FROM msgid WHERE mid = ? LIMIT 1
+
+	defined $id or return nothing;
+
+	my $num = $dbh->selectrow_array(<<'', undef, $id);
+SELECT num FROM id2num WHERE id = ? AND num > 0
+ORDER BY num ASC LIMIT 1
+
+	defined $num or return nothing;
+
+	my ($tid, $sid) = $dbh->selectrow_array(<<'', undef, $num);
+SELECT tid,sid FROM over WHERE num = ? LIMIT 1
+
+	defined $tid or return nothing; # $sid may be undef
 
 	my $cond = 'FROM over WHERE (tid = ? OR sid = ?) AND num > 0';
 	my $msgs = do_get($self, <<"", $opts, $tid, $sid);
-SELECT * $cond
-ORDER BY ts ASC
+SELECT * $cond ORDER BY ts ASC
 
 	return $msgs unless wantarray;
 
