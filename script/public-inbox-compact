@@ -10,7 +10,6 @@ use PublicInbox::Config;
 use Cwd 'abs_path';
 use File::Temp qw(tempdir);
 use File::Path qw(remove_tree);
-use PublicInbox::Spawn qw(spawn);
 my $usage = "Usage: public-inbox-compact REPO_DIR\n";
 my $dir = shift or die $usage;
 my $config = PublicInbox::Config->new;
@@ -36,6 +35,8 @@ $ibx->umask_prepare;
 sub commit_changes ($$$) {
 	my ($im, $old, $new) = @_;
 	my @st = stat($old) or die "failed to stat($old): $!\n";
+	link("$old/over.sqlite3", "$new/over.sqlite3") or die
+		"failed to link {$old => $new}/over.sqlite3: $!\n";
 	rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
 	chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
 	rename($new, $old) or die "rename $new => $old: $!\n";
@@ -53,41 +54,18 @@ if ($v == 2) {
 	$ibx->with_umask(sub {
 		$v2w->lock_acquire;
 		my @parts;
-		my $skel;
 		while (defined(my $dn = readdir($dh))) {
 			if ($dn =~ /\A\d+\z/) {
 				push @parts, "$old/$dn";
-			} elsif ($dn eq 'skel') {
-				$skel = "$old/$dn";
 			} elsif ($dn eq '.' || $dn eq '..') {
 			} else {
 				warn "W: skipping unknown Xapian DB: $old/$dn\n"
 			}
 		}
 		close $dh;
-		my %pids;
-
-		if (@parts) {
-			my $pid = spawn(['xapian-compact', @parts, "$new/0" ]);
-			defined $pid or die "compact failed: $?\n";
-			$pids{$pid} = 'xapian-compact (parts)';
-		} else {
-			warn "No parts found in $old\n";
-		}
-		if (defined $skel) {
-			my $pid = spawn(['xapian-compact', $skel, "$new/skel"]);
-			defined $pid or die "compact failed: $?\n";
-			$pids{$pid} = 'xapian-compact (skel)';
-		} else {
-			warn "$old/skel missing\n";
-		}
-		scalar keys %pids or
-			die "No xapian-compact processes running\n";
-		while (scalar keys %pids) {
-			my $pid = waitpid(-1, 0);
-			my $desc = delete $pids{$pid};
-			die "$desc failed: $?\n" if $?;
-		}
+		die "No Xapian parts found in $old\n" unless @parts;
+		my $cmd = ['xapian-compact', @parts, "$new/0" ];
+		PublicInbox::Import::run_die($cmd);
 		commit_changes($v2w, $old, $new);
 	});
 } elsif ($v == 1) {

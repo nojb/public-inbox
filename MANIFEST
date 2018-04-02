@@ -82,6 +82,9 @@ lib/PublicInbox/Msgmap.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NewsWWW.pm
+lib/PublicInbox/Over.pm
+lib/PublicInbox/OverIdx.pm
+lib/PublicInbox/OverIdxFork.pm
 lib/PublicInbox/ParentPipe.pm
 lib/PublicInbox/ProcessPipe.pm
 lib/PublicInbox/Qspawn.pm
@@ -90,7 +93,6 @@ lib/PublicInbox/SaPlugin/ListMirror.pm
 lib/PublicInbox/Search.pm
 lib/PublicInbox/SearchIdx.pm
 lib/PublicInbox/SearchIdxPart.pm
-lib/PublicInbox/SearchIdxSkeleton.pm
 lib/PublicInbox/SearchMsg.pm
 lib/PublicInbox/SearchThread.pm
 lib/PublicInbox/SearchView.pm
@@ -170,6 +172,7 @@ t/msg_iter.t
 t/msgmap.t
 t/nntp.t
 t/nntpd.t
+t/over.t
 t/plack.t
 t/precheck.t
 t/psgi_attach.t

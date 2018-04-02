@@ -32,8 +32,7 @@ EOF
 
 my $num = 0;
 # nb. using internal API, fragile!
-my $xdb = $rw->_xdb_acquire;
-$xdb->begin_transaction;
+my $xdb = $rw->begin_txn_lazy;
 my @mids;
 
 foreach (reverse split(/\n\n/, $data)) {
@@ -50,9 +49,11 @@ foreach (reverse split(/\n\n/, $data)) {
 
 my $prev;
 foreach my $mid (@mids) {
-	my $res = $rw->get_thread($mid);
+	my $res = $rw->{over}->get_thread($mid);
 	is(3, $res->{total}, "got all messages from $mid");
 }
+
+$rw->commit_txn_lazy;
 
 done_testing();
 

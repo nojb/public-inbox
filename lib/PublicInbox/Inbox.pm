@@ -319,20 +319,7 @@ sub msg_by_mid ($$;$) {
 
 sub recent {
 	my ($self, $opts) = @_;
-	my $qs = '';
-	my $srch = search($self);
-	if (!$opts->{offset}) {
-		# this complicated bit cuts /$INBOX/ loading time by
-		# over 400ms on my system:
-		my ($min, $max) = mm($self)->minmax;
-		my $n = $max - $opts->{limit};
-		$n = $min if $n < $min;
-		for (; $qs eq '' && $n >= $min; --$n) {
-			my $smsg = $srch->lookup_article($n) or next;
-			$qs = strftime('d:%Y%m%d..', gmtime($smsg->ts));
-		}
-	}
-	$srch->query($qs, $opts);
+	search($self)->query('', $opts);
 }
 
 1;

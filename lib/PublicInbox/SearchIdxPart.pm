@@ -6,12 +6,12 @@ use warnings;
 use base qw(PublicInbox::SearchIdx);
 
 sub new {
-	my ($class, $v2writable, $part, $skel) = @_;
+	my ($class, $v2writable, $part) = @_;
 	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, $part);
-	$self->{skeleton} = $skel;
-	# create the DB:
+	# create the DB before forking:
 	$self->_xdb_acquire;
 	$self->_xdb_release;
+	$self->{over} = $v2writable->{over};
 	$self->spawn_worker($v2writable, $part) if $v2writable->{parallel};
 	$self;
 }
@@ -27,7 +27,7 @@ sub spawn_worker {
 	if ($pid == 0) {
 		$v2writable->atfork_child;
 		$v2writable = undef;
-		close $w;
+		close $w or die "failed to close: $!";
 
 		# F_SETPIPE_SZ = 1031 on Linux; increasing the pipe size here
 		# speeds V2Writable batch imports across 8 cores by nearly 20%
@@ -40,7 +40,7 @@ sub spawn_worker {
 	}
 	$self->{pid} = $pid;
 	$self->{w} = $w;
-	close $r;
+	close $r or die "failed to close: $!";
 }
 
 sub partition_worker_loop ($$$) {
@@ -50,13 +50,12 @@ sub partition_worker_loop ($$$) {
 	while (my $line = $r->getline) {
 		if ($line eq "commit\n") {
 			$self->commit_txn_lazy;
-			$self->{skeleton}->remote_commit;
 		} elsif ($line eq "close\n") {
 			$self->_xdb_release;
 		} elsif ($line eq "barrier\n") {
 			$self->commit_txn_lazy;
-			print { $self->{skeleton}->{w} } "barrier $part\n" or
-					die "write failed to skeleton: $!\n";
+			print { $self->{over}->{w} } "barrier $part\n" or
+					die "write failed to overview $!\n";
 		} elsif ($line =~ /\AD ([a-f0-9]{40,}) (.+)\n\z/s) {
 			my ($oid, $mid) = ($1, $2);
 			$self->begin_txn_lazy;
@@ -101,7 +100,6 @@ sub remote_barrier {
 		$w->flush or die "failed to flush: $!";
 	} else {
 		$self->commit_txn_lazy;
-		$self->{skeleton}->remote_commit;
 	}
 }
 

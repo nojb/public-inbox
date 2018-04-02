@@ -22,9 +22,9 @@ my $ibx = $rw->{-inbox};
 $rw = undef;
 my $ro = PublicInbox::Search->new($git_dir);
 my $rw_commit = sub {
-	$rw->{xdb}->commit_transaction if $rw && $rw->{xdb};
+	$rw->commit_txn_lazy if $rw;
 	$rw = PublicInbox::SearchIdx->new($git_dir, 1);
-	$rw->_xdb_acquire->begin_transaction;
+	$rw->begin_txn_lazy;
 };
 
 {
@@ -93,7 +93,6 @@ sub filter_mids {
 	ok($found, "message found");
 	is($root_id, $found->{doc_id}, 'doc_id set correctly');
 	is($found->mid, 'root@s', 'mid set correctly');
-	ok(int($found->thread_id) > 0, 'thread_id is an integer');
 
 	my ($res, @res);
 	my @exp = sort qw(root@s last@s);
@@ -148,7 +147,13 @@ sub filter_mids {
 
 	my $ghost_id = $rw->add_message($was_ghost);
 	is($ghost_id, int($ghost_id), "ghost_id is an integer: $ghost_id");
-	ok($ghost_id < $reply_id, "ghost vivified from earlier message");
+	my $msgs = $rw->{over}->get_thread('ghost-message@s')->{msgs};
+	is(scalar(@$msgs), 2, 'got both messages in ghost thread');
+	foreach (qw(sid tid)) {
+		is($msgs->[0]->{$_}, $msgs->[1]->{$_}, "{$_} match");
+	}
+	isnt($msgs->[0]->{num}, $msgs->[1]->{num}, "num do not match");
+	ok($_->{num} > 0, 'positive art num') foreach @$msgs
 }
 
 # search thread on ghost
@@ -400,6 +405,7 @@ sub filter_mids {
 	is($txt->{msgs}->[0]->mid, $res->{msgs}->[0]->mid,
 		'search inside text attachments works');
 }
+$rw->commit_txn_lazy;
 
 done_testing();
 

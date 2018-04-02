@@ -39,6 +39,7 @@ sub dbh_new {
 
 sub new_file {
 	my ($class, $f, $writable) = @_;
+	return if !$writable && !-r $f;
 
 	my $dbh = dbh_new($f, $writable);
 	my $self = bless { dbh => $dbh }, $class;

@@ -30,8 +30,7 @@ EOF
 
 my $num = 0;
 # nb. using internal API, fragile!
-my $xdb = $rw->_xdb_acquire;
-$xdb->begin_transaction;
+$rw->begin_txn_lazy;
 
 foreach (reverse split(/\n\n/, $data)) {
 	$_ .= "\n";
@@ -42,8 +41,7 @@ foreach (reverse split(/\n\n/, $data)) {
 	ok($doc_id, 'message added: '. $mid);
 }
 
-$xdb->commit_transaction;
-$rw = undef;
+$rw->commit_txn_lazy;
 
 my $cfgpfx = "publicinbox.test";
 my $config = PublicInbox::Config->new({

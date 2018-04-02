@@ -13,9 +13,7 @@ use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 sub new {
 	my ($class, $mime) = @_;
 	my $doc = Search::Xapian::Document->new;
-	$doc->add_boolean_term('T' . 'mail');
-
-	bless { type => 'mail', doc => $doc, mime => $mime }, $class;
+	bless { doc => $doc, mime => $mime }, $class;
 }
 
 sub wrap {
@@ -51,6 +49,7 @@ sub to_doc_data {
 		$self->{lines}
 	);
 }
+
 
 sub load_from_data ($$) {
 	my ($self) = $_[0]; # data = $_[1]
@@ -187,26 +186,9 @@ sub mid ($;$) {
 
 sub _extract_mid { mid_clean(mid_mime($_[0]->{mime})) }
 
-sub thread_id {
-	my ($self) = @_;
-	my $tid = $self->{thread};
-	return $tid if defined $tid;
-	$self->{thread} = _get_term_val($self, 'G', qr/\AG/); # *G*roup
-}
+sub tid { $_[0]->{tid} }
 
 # XXX: consider removing this, we can phrase match subject
-sub path {
-	my ($self) = @_;
-	my $path = $self->{path};
-	return $path if defined $path;
-	$self->{path} = _get_term_val($self, 'XPATH', qr/\AXPATH/); # path
-}
-
-sub type {
-	my ($self) = @_;
-	my $type = $self->{type};
-	return $type if defined $type;
-	$self->{type} = _get_term_val($self, 'T', qr/\AT/);
-}
+sub path { $_[0]->{path} }
 
 1;

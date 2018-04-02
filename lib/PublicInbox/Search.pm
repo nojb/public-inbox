@@ -10,12 +10,12 @@ use warnings;
 # values for searching
 use constant TS => 0;  # Received: header in Unix time
 use constant YYYYMMDD => 1; # for searching in the WWW UI
-use constant NUM => 2; # NNTP article number
 
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
 use PublicInbox::MIME;
 use PublicInbox::MID qw/id_compress/;
+use PublicInbox::Over;
 
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
@@ -40,18 +40,12 @@ use constant {
 	# 13 - fix threading for empty References/In-Reply-To
 	#      (commit 83425ef12e4b65cdcecd11ddcb38175d4a91d5a0)
 	# 14 - fix ghost root vivification
-	SCHEMA_VERSION => 14,
+	SCHEMA_VERSION => 15,
 
 	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
 	# as it could become a denial-of-service vector
 	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
-
-# setup prefixes
-my %bool_pfx_internal = (
-	type => 'T', # "mail" or "ghost"
-	thread => 'G', # newsGroup (or similar entity - e.g. a web forum name)
-);
 
 my %bool_pfx_external = (
 	mid => 'Q', # Message-ID (full/exact), this is mostly uniQue
@@ -116,8 +110,6 @@ EOF
 );
 chomp @HELP;
 
-my $mail_query = Search::Xapian::Query->new('T' . 'mail');
-
 sub xdir {
 	my ($self) = @_;
 	if ($self->{version} == 1) {
@@ -143,8 +135,9 @@ sub new {
 		altid => $altid,
 		version => $version,
 	}, $class;
+	my $dir;
 	if ($version >= 2) {
-		my $dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
+		$dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
 		my $xdb;
 		my $parts = 0;
 		foreach my $part (<$dir/*>) {
@@ -158,55 +151,36 @@ sub new {
 			}
 		}
 		$self->{xdb} = $xdb;
-		$self->{skel} = Search::Xapian::Database->new("$dir/skel");
 	} else {
-		$self->{xdb} = Search::Xapian::Database->new($self->xdir);
+		$dir = $self->xdir;
+		$self->{xdb} = Search::Xapian::Database->new($dir);
 	}
+	$self->{over_ro} = PublicInbox::Over->new("$dir/over.sqlite3");
 	$self;
 }
 
 sub reopen {
 	my ($self) = @_;
 	$self->{xdb}->reopen;
-	if (my $skel = $self->{skel}) {
-		$skel->reopen;
-	}
 	$self; # make chaining easier
 }
 
 # read-only
 sub query {
 	my ($self, $query_string, $opts) = @_;
-	my $query;
-
 	$opts ||= {};
-	unless ($query_string eq '') {
-		$query = $self->qp->parse_query($query_string, QP_FLAGS);
+	if ($query_string eq '' && !$opts->{mset}) {
+		$self->{over_ro}->recent($opts);
+	} else {
+		my $query = $self->qp->parse_query($query_string, QP_FLAGS);
 		$opts->{relevance} = 1 unless exists $opts->{relevance};
+		_do_enquire($self, $query, $opts);
 	}
-
-	_do_enquire($self, $query, $opts);
 }
 
 sub get_thread {
 	my ($self, $mid, $opts) = @_;
-	my $smsg = first_smsg_by_mid($self, $mid) or
-			return { total => 0, msgs => [] };
-	my $qtid = Search::Xapian::Query->new('G' . $smsg->thread_id);
-	my $path = $smsg->path;
-	if (defined $path && $path ne '') {
-		my $path = id_compress($smsg->path);
-		my $qsub = Search::Xapian::Query->new('XPATH' . $path);
-		$qtid = Search::Xapian::Query->new(OP_OR, $qtid, $qsub);
-	}
-	$opts ||= {};
-	$opts->{limit} ||= 1000;
-
-	# always sort threads by timestamp, this makes life easier
-	# for the threading algorithm (in SearchThread.pm)
-	$opts->{asc} = 1;
-	$opts->{enquire} = enquire_skel($self);
-	_do_enquire($self, $qtid, $opts);
+	$self->{over_ro}->get_thread($mid, $opts);
 }
 
 sub retry_reopen {
@@ -235,19 +209,13 @@ sub _do_enquire {
 
 sub _enquire_once {
 	my ($self, $query, $opts) = @_;
-	my $enquire = $opts->{enquire} || enquire($self);
-	if (defined $query) {
-		$query = Search::Xapian::Query->new(OP_AND,$query,$mail_query);
-	} else {
-		$query = $mail_query;
-	}
+	my $enquire = enquire($self);
+	$query = Search::Xapian::Query->new(OP_AND,$query);
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
 	if ($opts->{relevance}) {
 		$enquire->set_sort_by_relevance_then_value(TS, $desc);
-	} elsif ($opts->{num}) {
-		$enquire->set_sort_by_value(NUM, 0);
 	} else {
 		$enquire->set_sort_by_value_then_relevance(TS, $desc);
 	}
@@ -309,39 +277,15 @@ EOF
 	$self->{query_parser} = $qp;
 }
 
-sub num_range_processor {
-	$_[0]->{nrp} ||= Search::Xapian::NumberValueRangeProcessor->new(NUM);
-}
-
 # only used for NNTP server
 sub query_xover {
 	my ($self, $beg, $end, $offset) = @_;
-	my $qp = Search::Xapian::QueryParser->new;
-	$qp->set_database($self->{skel} || $self->{xdb});
-	$qp->add_valuerangeprocessor($self->num_range_processor);
-	my $query = $qp->parse_query("$beg..$end", QP_FLAGS);
-
-	my $opts = {
-		enquire => enquire_skel($self),
-		num => 1,
-		limit => 200,
-		offset => $offset,
-	};
-	_do_enquire($self, $query, $opts);
+	$self->{over_ro}->query_xover($beg, $end, $offset);
 }
 
 sub query_ts {
-	my ($self, $ts, $opts) = @_;
-	my $qp = $self->{qp_ts} ||= eval {
-		my $q = Search::Xapian::QueryParser->new;
-		$q->set_database($self->{skel} || $self->{xdb});
-		$q->add_valuerangeprocessor(
-			Search::Xapian::NumberValueRangeProcessor->new(TS));
-		$q
-	};
-	my $query = $qp->parse_query($ts, QP_FLAGS);
-	$opts->{enquire} = enquire_skel($self);
-	_do_enquire($self, $query, $opts);
+	my ($self, $ts, $offset) = @_;
+	$self->{over_ro}->query_ts($ts, $offset);
 }
 
 sub first_smsg_by_mid {
@@ -356,7 +300,7 @@ sub first_smsg_by_mid {
 sub lookup_article {
 	my ($self, $num) = @_;
 	my $term = 'XNUM'.$num;
-	my $db = $self->{skel} || $self->{xdb};
+	my $db = $self->{xdb};
 	retry_reopen($self, sub {
 		my $head = $db->postlist_begin($term);
 		my $tail = $db->postlist_end($term);
@@ -365,9 +309,7 @@ sub lookup_article {
 		return unless defined $doc_id;
 		$head->inc;
 		if ($head->nequal($tail)) {
-			my $loc= $self->{mainrepo} .
-				($self->{skel} ? 'skel' : 'xdb');
-			warn "article #$num is not unique in $loc\n";
+			warn "article #$num is not unique\n";
 		}
 		# raises on error:
 		my $doc = $db->get_document($doc_id);
@@ -381,7 +323,7 @@ sub each_smsg_by_mid {
 	my ($self, $mid, $cb) = @_;
 	# XXX retry_reopen isn't necessary for V2Writable, but the PSGI
 	# interface will need it...
-	my $db = $self->{skel} || $self->{xdb};
+	my $db = $self->{xdb};
 	my $term = 'Q' . $mid;
 	my $head = $db->postlist_begin($term);
 	my $tail = $db->postlist_end($term);
@@ -422,15 +364,6 @@ sub subject_normalized {
 sub enquire {
 	my ($self) = @_;
 	$self->{enquire} ||= Search::Xapian::Enquire->new($self->{xdb});
-}
-
-sub enquire_skel {
-	my ($self) = @_;
-	if (my $skel = $self->{skel}) {
-		$self->{enquire_skel} ||= Search::Xapian::Enquire->new($skel);
-	} else {
-		enquire($self);
-	}
 }
 
 sub help {

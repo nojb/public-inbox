@@ -331,13 +331,11 @@ sub cmd_newnews ($$$$;$$) {
 	};
 	return '.' unless @srch;
 
-	$ts .= '..';
-	my $opts = { asc => 1, limit => 1000, offset => 0 };
+	my $opts = { limit => 1000, offset => 0 };
 	long_response($self, 0, long_response_limit, sub {
 		my ($i) = @_;
 		my $srch = $srch[0];
-		my $res = $srch->query_ts($ts, $opts);
-		my $msgs = $res->{msgs};
+		my $msgs = $srch->query_ts($ts, $opts);
 		if (my $nr = scalar @$msgs) {
 			more($self, '<' .
 				join(">\r\n<", map { $_->mid } @$msgs ).
@@ -463,7 +461,7 @@ find_mid:
 		defined $mid or return $err;
 	}
 found:
-	my $smsg = $ng->search->lookup_article($n) or return $err;
+	my $smsg = $ng->search->{over_ro}->get_art($n) or return $err;
 	my $msg = $ng->msg_by_smsg($smsg) or return $err;
 	my $s = Email::Simple->new($msg);
 	if ($set_headers) {
@@ -692,8 +690,9 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 
 sub search_header_for {
 	my ($srch, $num, $field) = @_;
-	my $smsg = $srch->lookup_article($num) or return;
-	$smsg->$field;
+	my $smsg = $srch->{over_ro}->get_art($num) or return;
+	return PublicInbox::SearchMsg::date($smsg) if $field eq 'date';
+	$smsg->{$field};
 }
 
 sub hdr_searchmsg ($$$$) {
@@ -714,8 +713,7 @@ sub hdr_searchmsg ($$$$) {
 		my $off = 0;
 		long_response($self, $beg, $end, sub {
 			my ($i) = @_;
-			my $res = $srch->query_xover($beg, $end, $off);
-			my $msgs = $res->{msgs};
+			my $msgs = $srch->query_xover($beg, $end, $off);
 			my $nr = scalar @$msgs or return;
 			$off += $nr;
 			my $tmp = '';
@@ -816,10 +814,10 @@ sub over_line ($$) {
 		$smsg->{subject},
 		$smsg->{from},
 		PublicInbox::SearchMsg::date($smsg),
-		'<'.PublicInbox::SearchMsg::mid($smsg).'>',
+		"<$smsg->{mid}>",
 		$smsg->{references},
-		PublicInbox::SearchMsg::bytes($smsg),
-		PublicInbox::SearchMsg::lines($smsg));
+		$smsg->{bytes},
+		$smsg->{lines});
 	utf8::encode($s);
 	$s
 }
@@ -829,7 +827,7 @@ sub cmd_over ($;$) {
 	if ($range && $range =~ /\A<(.+)>\z/) {
 		my ($ng, $n) = mid_lookup($self, $1);
 		defined $n or return r430;
-		my $smsg = $ng->search->lookup_article($n) or return r430;
+		my $smsg = $ng->search->{over_ro}->get_art($n) or return r430;
 		more($self, '224 Overview information follows (multi-line)');
 
 		# Only set article number column if it's the current group
@@ -853,14 +851,13 @@ sub cmd_xover ($;$) {
 	my $off = 0;
 	long_response($self, $beg, $end, sub {
 		my ($i) = @_;
-		my $res = $srch->query_xover($beg, $end, $off);
-		my $msgs = $res->{msgs};
+		my $msgs = $srch->query_xover($beg, $end, $off);
 		my $nr = scalar @$msgs or return;
 		$off += $nr;
 
 		# OVERVIEW.FMT
 		more($self, join("\r\n", map {
-			over_line(PublicInbox::SearchMsg::num($_), $_);
+			over_line($_->{num}, $_);
 			} @$msgs));
 
 		# -1 to adjust for implicit increment in long_response
