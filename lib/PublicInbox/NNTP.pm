@@ -331,20 +331,20 @@ sub cmd_newnews ($$$$;$$) {
 	};
 	return '.' unless @srch;
 
-	my $opts = { limit => 1000, offset => 0 };
+	my $prev = 0;
 	long_response($self, 0, long_response_limit, sub {
 		my ($i) = @_;
 		my $srch = $srch[0];
-		my $msgs = $srch->query_ts($ts, $opts);
-		if (my $nr = scalar @$msgs) {
+		my $msgs = $srch->query_ts($ts, $prev);
+		if (scalar @$msgs) {
 			more($self, '<' .
 				join(">\r\n<", map { $_->mid } @$msgs ).
 				'>');
-			$opts->{offset} += $nr;
+			$prev = $msgs->[-1]->{num};
 		} else {
 			shift @srch;
 			if (@srch) { # continue onto next newsgroup
-				$opts->{offset} = 0;
+				$prev = 0;
 			} else { # break out of the long response.
 				$$i = long_response_limit;
 			}
@@ -582,7 +582,7 @@ sub long_response ($$$$) {
 	$self->{long_res} = sub {
 		# limit our own running time for fairness with other
 		# clients and to avoid buffering too much:
-		my $lim = 100;
+		my $lim = $end == long_response_limit ? 1 : 100;
 
 		my $err;
 		do {
@@ -710,20 +710,19 @@ sub hdr_searchmsg ($$$$) {
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		my $off = 0;
-		long_response($self, $beg, $end, sub {
+		my $cur = $beg;
+		long_response($self, 0, long_response_limit, sub {
 			my ($i) = @_;
-			my $msgs = $srch->query_xover($beg, $end, $off);
-			my $nr = scalar @$msgs or return;
-			$off += $nr;
+			my $msgs = $srch->query_xover($cur, $end);
+			my $nr = scalar @$msgs or
+					return ($$i = long_response_limit);
 			my $tmp = '';
 			foreach my $s (@$msgs) {
 				$tmp .= $s->num . ' ' . $s->$field . "\r\n";
 			}
 			utf8::encode($tmp);
 			do_more($self, $tmp);
-			# -1 to adjust for implicit increment in long_response
-			$$i = $nr ? $$i + $nr - 1 : long_response_limit;
+			$cur = $msgs->[-1]->{num} + 1;
 		});
 	}
 }
@@ -848,20 +847,18 @@ sub cmd_xover ($;$) {
 	my ($beg, $end) = @$r;
 	more($self, "224 Overview information follows for $beg to $end");
 	my $srch = $self->{ng}->search;
-	my $off = 0;
-	long_response($self, $beg, $end, sub {
+	my $cur = $beg;
+	long_response($self, 0, long_response_limit, sub {
 		my ($i) = @_;
-		my $msgs = $srch->query_xover($beg, $end, $off);
-		my $nr = scalar @$msgs or return;
-		$off += $nr;
+		my $msgs = $srch->query_xover($cur, $end);
+		my $nr = scalar @$msgs or return ($$i = long_response_limit);
 
 		# OVERVIEW.FMT
 		more($self, join("\r\n", map {
 			over_line($_->{num}, $_);
 			} @$msgs));
-
-		# -1 to adjust for implicit increment in long_response
-		$$i = $nr ? $$i + $nr - 1 : long_response_limit;
+		$cur = $msgs->[-1]->{num} + 1;
+		1;
 	});
 }
 

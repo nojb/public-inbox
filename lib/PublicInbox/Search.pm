@@ -291,8 +291,8 @@ sub query_xover {
 }
 
 sub query_ts {
-	my ($self, $ts, $offset) = @_;
-	$self->{over_ro}->query_ts($ts, $offset);
+	my ($self, $ts, $prev) = @_;
+	$self->{over_ro}->query_ts($ts, $prev);
 }
 
 sub first_smsg_by_mid {

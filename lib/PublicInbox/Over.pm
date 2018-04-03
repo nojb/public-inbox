@@ -51,25 +51,26 @@ sub do_get {
 	my $dbh = $self->connect;
 	my $lim = (($opts->{limit} || 0) + 0) || 1000;
 	my $off = (($opts->{offset} || 0) + 0) || 0;
-	$sql .= "LIMIT $lim OFFSET $off";
+	$sql .= "LIMIT $lim";
+	$sql .= " OFFSET $off" if $off > 0;
 	my $msgs = $dbh->selectall_arrayref($sql, { Slice => {} }, @args);
 	load_from_row($_) for @$msgs;
 	$msgs
 }
 
 sub query_xover {
-	my ($self, $beg, $end, $off) = @_;
-	do_get($self, <<'', { offset => $off }, $beg, $end);
+	my ($self, $beg, $end) = @_;
+	do_get($self, <<'', {}, $beg, $end);
 SELECT * FROM over WHERE num >= ? AND num <= ?
 ORDER BY num ASC
 
 }
 
 sub query_ts {
-	my ($self, $ts, $opts) = @_;
-	do_get($self, <<'', $opts, $ts);
-SELECT * FROM over WHERE num > 0 AND ts >= ?
-ORDER BY ts ASC
+	my ($self, $ts, $prev) = @_;
+	do_get($self, <<'', {}, $ts, $prev);
+SELECT num,ddd FROM over WHERE ts >= ? AND num > ?
+ORDER BY num ASC
 
 }
 

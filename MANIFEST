@@ -173,6 +173,7 @@ t/msgmap.t
 t/nntp.t
 t/nntpd.t
 t/over.t
+t/perf-nntpd.t
 t/perf-threading.t
 t/plack.t
 t/precheck.t
