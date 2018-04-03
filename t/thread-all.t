@@ -6,32 +6,26 @@ use strict;
 use warnings;
 use Test::More;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use PublicInbox::Inbox;
 my $pi_dir = $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
-eval { require PublicInbox::Search; };
-plan skip_all => "Xapian missing for $0" if $@;
-my $srch = eval { PublicInbox::Search->new($pi_dir) };
-plan skip_all => "$pi_dir not initialized for $0" if $@;
+my $ibx = PublicInbox::Inbox->new({ mainrepo => $pi_dir });
+my $srch = $ibx->search;
+plan skip_all => "$pi_dir not configured for search $0" unless $srch;
 
 require PublicInbox::View;
 require PublicInbox::SearchThread;
 
-my $pfx = PublicInbox::Search::xpfx('thread');
-my $opts = { limit => 1000000, asc => 1 };
 my $t0 = clock_gettime(CLOCK_MONOTONIC);
 my $elapsed;
-
-my $sres = $srch->_do_enquire(undef, $opts);
+my $msgs = $srch->{over_ro}->recent({limit => 200000});
+my $n =	scalar(@$msgs);
+ok($n, 'got some messages');
 $elapsed = clock_gettime(CLOCK_MONOTONIC) - $t0;
-diag "enquire: $elapsed";
+diag "enquire: $elapsed for $n";
 
 $t0 = clock_gettime(CLOCK_MONOTONIC);
-my $msgs = PublicInbox::View::load_results($srch, $sres);
-$elapsed = clock_gettime(CLOCK_MONOTONIC) - $t0;
-diag "load_results $elapsed";
-
-$t0 = clock_gettime(CLOCK_MONOTONIC);
-PublicInbox::View::thread_results($msgs);
+PublicInbox::View::thread_results({-inbox => $ibx}, $msgs);
 $elapsed = clock_gettime(CLOCK_MONOTONIC) - $t0;
 diag "thread_results $elapsed";
 
