@@ -179,8 +179,8 @@ sub query {
 }
 
 sub get_thread {
-	my ($self, $mid, $opts) = @_;
-	$self->{over_ro}->get_thread($mid, $opts);
+	my ($self, $mid, $prev) = @_;
+	$self->{over_ro}->get_thread($mid, $prev);
 }
 
 sub retry_reopen {

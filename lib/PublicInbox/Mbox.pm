@@ -138,8 +138,12 @@ sub thread_mbox {
 	my ($ctx, $srch, $sfx) = @_;
 	eval { require IO::Compress::Gzip };
 	return sub { need_gzip(@_) } if $@;
-
-	my $cb = sub { $srch->get_thread($ctx->{mid}, @_) };
+	my $prev = 0;
+	my $cb = sub {
+		my $msgs = $srch->get_thread($ctx->{mid}, $prev);
+		$prev = $msgs->[-1]->{num} if scalar(@$msgs);
+		$msgs;
+	};
 	PublicInbox::MboxGz->response($ctx, $cb);
 }
 
@@ -160,7 +164,25 @@ sub mbox_all {
 
 	eval { require IO::Compress::Gzip };
 	return sub { need_gzip(@_) } if $@;
-	my $cb = sub { $ctx->{srch}->query($query, @_) };
+	if ($query eq '') {
+		my $prev = 0;
+		my $msgs = [];
+		my $cb = sub {
+			$ctx->{-inbox}->mm->id_batch($prev, sub {
+				$msgs = $_[0];
+			});
+			$prev = $msgs->[-1] if @$msgs;
+			$msgs;
+		};
+		return PublicInbox::MboxGz->response($ctx, $cb, 'all');
+	}
+	my $opts = { offset => 0 };
+	my $srch = $ctx->{srch};
+	my $cb = sub { # called by MboxGz->getline
+		my $msgs = $srch->query($query, $opts);
+		$opts->{offset} += scalar @$msgs;
+		$msgs;
+	};
 	PublicInbox::MboxGz->response($ctx, $cb, 'results-'.$query);
 }
 
@@ -192,7 +214,6 @@ sub new {
 		cb => $cb,
 		ctx => $ctx,
 		msgs => [],
-		opts => { offset => 0 },
 	}, $class;
 }
 
@@ -223,6 +244,10 @@ sub getline {
 	do {
 		# work on existing result set
 		while (defined(my $smsg = shift @$msgs)) {
+			# id_batch may return integers
+			ref($smsg) or
+				$smsg = $ctx->{srch}->{over_ro}->get_art($smsg);
+
 			my $msg = eval { $ibx->msg_by_smsg($smsg) } or next;
 			$msg = Email::Simple->new($msg);
 			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg,
@@ -247,10 +272,10 @@ sub getline {
 		}
 
 		# refill result set
-		$msgs = $self->{msgs} = $self->{cb}->($self->{opts});
-		$self->{opts}->{offset} += scalar @$msgs;
+		$msgs = $self->{msgs} = $self->{cb}->();
 	} while (@$msgs);
 	$gz->close;
+	# signal that we're done and can return undef next call:
 	delete $self->{ctx};
 	${delete $self->{buf}};
 }

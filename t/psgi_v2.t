@@ -125,8 +125,28 @@ test_psgi(sub { $www->call(@_) }, sub {
 		like($out, qr/^hello world$/m, 'got first in t.mbox.gz');
 		like($out, qr/^hello world!$/m, 'got second in t.mbox.gz');
 		like($out, qr/^hello ghosts$/m, 'got third in t.mbox.gz');
-		@from_ = ($raw =~ m/^From /mg);
+		@from_ = ($out =~ m/^From /mg);
 		is(scalar(@from_), 3, 'three From_ lines in t.mbox.gz');
+
+		# search interface
+		$res = $cb->(POST('/v2test/?q=m:a-mid@b&x=m'));
+		$in = $res->content;
+		$status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		like($out, qr/^hello world$/m, 'got first in mbox POST');
+		like($out, qr/^hello world!$/m, 'got second in mbox POST');
+		like($out, qr/^hello ghosts$/m, 'got third in mbox POST');
+		@from_ = ($out =~ m/^From /mg);
+		is(scalar(@from_), 3, 'three From_ lines in mbox POST');
+
+		# all.mbox.gz interface
+		$res = $cb->(GET('/v2test/all.mbox.gz'));
+		$in = $res->content;
+		$status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		like($out, qr/^hello world$/m, 'got first in all.mbox');
+		like($out, qr/^hello world!$/m, 'got second in all.mbox');
+		like($out, qr/^hello ghosts$/m, 'got third in all.mbox');
+		@from_ = ($out =~ m/^From /mg);
+		is(scalar(@from_), 3, 'three From_ lines in all.mbox');
 	};
 
 	local $SIG{__WARN__} = 'DEFAULT';

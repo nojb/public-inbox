@@ -50,9 +50,7 @@ sub do_get {
 	my ($self, $sql, $opts, @args) = @_;
 	my $dbh = $self->connect;
 	my $lim = (($opts->{limit} || 0) + 0) || 1000;
-	my $off = (($opts->{offset} || 0) + 0) || 0;
 	$sql .= "LIMIT $lim";
-	$sql .= " OFFSET $off" if $off > 0;
 	my $msgs = $dbh->selectall_arrayref($sql, { Slice => {} }, @args);
 	load_from_row($_) for @$msgs;
 	$msgs
@@ -77,7 +75,7 @@ ORDER BY num ASC
 sub nothing () { wantarray ? (0, []) : [] };
 
 sub get_thread {
-	my ($self, $mid, $opts) = @_;
+	my ($self, $mid, $prev) = @_;
 	my $dbh = $self->connect;
 
 	my $id = $dbh->selectrow_array(<<'', undef, $mid);
@@ -96,13 +94,14 @@ SELECT tid,sid FROM over WHERE num = ? LIMIT 1
 
 	defined $tid or return nothing; # $sid may be undef
 
-	my $cond = 'FROM over WHERE (tid = ? OR sid = ?) AND num > 0';
-	my $msgs = do_get($self, <<"", $opts, $tid, $sid);
-SELECT * $cond ORDER BY ts ASC
+	$prev ||= 0;
+	my $cond = 'FROM over WHERE (tid = ? OR sid = ?) AND num > ?';
+	my $msgs = do_get($self, <<"", {}, $tid, $sid, $prev);
+SELECT * $cond ORDER BY num ASC
 
 	return $msgs unless wantarray;
 
-	my $nr = $dbh->selectrow_array(<<"", undef, $tid, $sid);
+	my $nr = $dbh->selectrow_array(<<"", undef, $tid, $sid, $prev);
 SELECT COUNT(num) $cond
 
 	($nr, $msgs);
