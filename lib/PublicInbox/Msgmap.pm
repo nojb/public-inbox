@@ -186,17 +186,14 @@ sub create_tables {
 }
 
 # used by NNTP.pm
-sub id_batch {
-	my ($self, $num, $cb) = @_;
-	my $dbh = $self->{dbh};
-	my $sth = $dbh->prepare('SELECT num FROM msgmap WHERE num > ? '.
-				'ORDER BY num ASC LIMIT 1000');
-	$sth->execute($num);
-	my $ary = $sth->fetchall_arrayref;
-	@$ary = map { $_->[0] } @$ary;
-	my $nr = scalar @$ary;
-	$cb->($ary) if $nr;
-	$nr;
+sub ids_after {
+	my ($self, $num) = @_;
+	my $ids = $self->{dbh}->selectcol_arrayref(<<'', undef, $$num);
+SELECT num FROM msgmap WHERE num > ?
+ORDER BY num ASC LIMIT 1000
+
+	$$num = $ids->[-1] if @$ids;
+	$ids;
 }
 
 # only used for mapping external serial numbers (e.g. articles from gmane)

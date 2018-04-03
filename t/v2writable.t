@@ -189,6 +189,13 @@ EOF
 		is($nn{$mid}++, 0, "MID is unique in NEWNEWS");
 	}
 	is_deeply([sort keys %nn], [sort keys %uniq]);
+
+	my %lg;
+	foreach my $num (@{$n->listgroup($group)}) {
+		is($lg{$num}++, 0, "num is unique in LISTGROUP");
+	}
+	is_deeply([sort keys %lg], [sort keys %$x],
+		'XOVER and LISTGROUPS return the same article numbers');
 };
 {
 	local $ENV{NPROC} = 2;

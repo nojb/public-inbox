@@ -34,7 +34,6 @@ my $LIST_HEADERS = join("\r\n", @OVERVIEW,
 			qw(:bytes :lines Xref To Cc)) . "\r\n";
 
 # disable commands with easy DoS potential:
-# LISTGROUP could get pretty bad, too...
 my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
 
 my $EXPMAP; # fd -> [ idle_time, $self ]
@@ -225,15 +224,12 @@ sub cmd_listgroup ($;$) {
 	}
 
 	$self->{ng} or return '412 no newsgroup selected';
+	my $n = 0;
 	long_response($self, 0, long_response_limit, sub {
 		my ($i) = @_;
-		my $nr = $self->{ng}->mm->id_batch($$i, sub {
-			my ($ary) = @_;
-			more($self, join("\r\n", @$ary));
-		});
-
-		# -1 to adjust for implicit increment in long_response
-		$$i = $nr ? $$i + $nr - 1 : long_response_limit;
+		my $ary = $self->{ng}->mm->ids_after(\$n);
+		scalar @$ary or return ($$i = long_response_limit);
+		more($self, join("\r\n", @$ary));
 	});
 }
 

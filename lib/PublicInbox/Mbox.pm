@@ -166,14 +166,7 @@ sub mbox_all {
 	return sub { need_gzip(@_) } if $@;
 	if ($query eq '') {
 		my $prev = 0;
-		my $msgs = [];
-		my $cb = sub {
-			$ctx->{-inbox}->mm->id_batch($prev, sub {
-				$msgs = $_[0];
-			});
-			$prev = $msgs->[-1] if @$msgs;
-			$msgs;
-		};
+		my $cb = sub { $ctx->{-inbox}->mm->ids_after(\$prev) };
 		return PublicInbox::MboxGz->response($ctx, $cb, 'all');
 	}
 	my $opts = { offset => 0 };
@@ -244,7 +237,7 @@ sub getline {
 	do {
 		# work on existing result set
 		while (defined(my $smsg = shift @$msgs)) {
-			# id_batch may return integers
+			# ids_after may return integers
 			ref($smsg) or
 				$smsg = $ctx->{srch}->{over_ro}->get_art($smsg);
 
