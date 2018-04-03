@@ -109,10 +109,26 @@ SELECT COUNT(num) $cond
 }
 
 sub recent {
-	my ($self, $opts) = @_;
-	my $msgs = do_get($self, <<'', $opts);
-SELECT * FROM over WHERE num > 0
-ORDER BY ts DESC
+	my ($self, $opts, $after, $before) = @_;
+	my ($s, @v);
+	if (defined($before)) {
+		if (defined($after)) {
+			$s = 'num > 0 AND ts >= ? AND ts <= ? ORDER BY ts DESC';
+			@v = ($after, $before);
+		} else {
+			$s = 'num > 0 AND ts <= ? ORDER BY ts DESC';
+			@v = ($before);
+		}
+	} else {
+		if (defined($after)) {
+			$s = 'num > 0 AND ts >= ? ORDER BY ts ASC';
+			@v = ($after);
+		} else {
+			$s = 'num > 0 ORDER BY ts DESC';
+		}
+	}
+	my $msgs = do_get($self, <<"", $opts, @v);
+SELECT * FROM over WHERE $s
 
 	return $msgs unless wantarray;
 

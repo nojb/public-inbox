@@ -15,6 +15,7 @@ use PublicInbox::Address;
 use PublicInbox::WwwStream;
 use PublicInbox::Reply;
 require POSIX;
+use Time::Local qw(timegm);
 
 use constant INDENT => '  ';
 use constant TCHILD => '` ';
@@ -1032,43 +1033,82 @@ sub dump_topics {
 	200;
 }
 
+sub ts2str ($) {
+	my ($ts) = @_;
+	POSIX::strftime('%Y%m%d%H%M%S', gmtime($ts));
+}
+
+sub str2ts ($) {
+	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $_[0]);
+	timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
+}
+
+sub pagination_footer ($$) {
+	my ($ctx, $latest) = @_;
+	delete $ctx->{qp} or return;
+	my $next = $ctx->{next_page} || '';
+	my $prev = $ctx->{prev_page} || '';
+	if ($prev) {
+		$next = $next ? "$next " : '     ';
+		$prev .= qq! <a\nhref='$latest'>latest</a>!;
+	}
+	"<hr><pre>page: $next$prev</pre>";
+}
+
 sub index_nav { # callback for WwwStream
 	my (undef, $ctx) = @_;
-	delete $ctx->{qp} or return;
-	my ($next, $prev);
-	$next = $prev = '    ';
-	my $latest = '';
+	pagination_footer($ctx, '.')
+}
 
-	my $next_o = $ctx->{-next_o};
-	if ($next_o) {
-		$next = qq!<a\nhref="?o=$next_o"\nrel=next>next</a>!;
+sub paginate_recent ($) {
+	my ($ctx) = @_;
+	my $t = $ctx->{qp}->{t} || '';
+	my $lim = 200; # this is our window
+	my $opts = { limit => $lim };
+	my ($after, $before);
+
+	# Xapian uses '..' but '-' is perhaps friendier to URL linkifiers
+	# if only $after exists "YYYYMMDD.." because "." could be skipped
+	# if interpreted as an end-of-sentence
+	$t =~ s/\A(\d{8,14})-// and $after = str2ts($1);
+	$t =~ /\A(\d{8,14})\z/ and $before = str2ts($1);
+
+	my $ibx = $ctx->{-inbox};
+	my $msgs = $ibx->recent($opts, $after, $before);
+	my $nr = scalar @$msgs;
+	if ($nr < $lim && defined($after)) {
+		$after = $before = undef;
+		$msgs = $ibx->recent($opts);
+		$nr = scalar @$msgs;
 	}
-	if (my $cur_o = $ctx->{-cur_o}) {
-		$latest = qq! <a\nhref=.>latest</a>!;
-
-		my $o = $cur_o - ($next_o - $cur_o);
-		if ($o > 0) {
-			$prev = qq!<a\nhref="?o=$o"\nrel=prev>prev</a>!;
-		} elsif ($o == 0) {
-			$prev = qq!<a\nhref=.\nrel=prev>prev</a>!;
+	my $more = $nr == $lim;
+	my ($newest, $oldest);
+	if ($nr) {
+		$newest = $msgs->[0]->{ts};
+		$oldest = $msgs->[-1]->{ts};
+		# if we only had $after, our SQL query in ->recent ordered
+		if ($newest < $oldest) {
+			($oldest, $newest) = ($newest, $oldest);
+			$more = 0 if defined($after) && $after < $oldest;
 		}
 	}
-	"<hr><pre>page: $next $prev$latest</pre>";
+	if (defined($oldest) && $more) {
+		my $s = ts2str($oldest);
+		$ctx->{next_page} = qq!<a\nhref="?t=$s"\nrel=next>next</a>!;
+	}
+	if (defined($newest) && (defined($before) || defined($after))) {
+		my $s = ts2str($newest);
+		$ctx->{prev_page} = qq!<a\nhref="?t=$s-"\nrel=prev>prev</a>!;
+	}
+	$msgs;
 }
 
 sub index_topics {
 	my ($ctx) = @_;
-	my ($off) = (($ctx->{qp}->{o} || '0') =~ /(\d+)/);
-
-	$ctx->{order} = [];
-	my $srch = $ctx->{srch};
-	my $msgs = $ctx->{-inbox}->recent({offset => $off, limit => 200 });
-	my $nr = scalar @$msgs;
-	if ($nr) {
+	my $msgs = paginate_recent($ctx);
+	if (@$msgs) {
 		walk_thread(thread_results($ctx, $msgs), $ctx, *acc_topic);
 	}
-	$ctx->{-next_o} = $off + $nr;
-	$ctx->{-cur_o} = $off;
 	PublicInbox::WwwStream->response($ctx, dump_topics($ctx), *index_nav);
 }
 

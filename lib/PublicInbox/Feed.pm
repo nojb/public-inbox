@@ -75,7 +75,7 @@ sub new_html {
 			my $more = scalar @$msgs;
 			return PublicInbox::View::index_entry($m, $ctx, $more);
 		}
-		new_html_footer($ctx);
+		PublicInbox::View::pagination_footer($ctx, './new.html');
 	});
 }
 
@@ -83,21 +83,6 @@ sub new_html {
 
 sub _no_thread () {
 	[404, ['Content-Type', 'text/plain'], ["No feed found for thread\n"]];
-}
-
-sub new_html_footer {
-	my ($ctx) = @_;
-	my $qp = delete $ctx->{qp} or return;
-	my $latest = '';
-	my $next = delete $ctx->{next_page} || '';
-	if ($next) {
-		$next = qq!<a\nhref="?$next"\nrel=next>next</a>!;
-	}
-	if (!$qp) {
-		$latest = qq! <a\nhref='./new.html'>latest</a>!;
-		$next ||= '    ';
-	}
-	"<hr><pre>page: $next$latest</pre>";
 }
 
 sub recent_msgs {
@@ -110,13 +95,7 @@ sub recent_msgs {
 		die "BUG: unsupported inbox version: $v\n";
 	}
 	if (my $srch = $ibx->search) {
-		my $o = $qp ? $qp->{o} : 0;
-		$o += 0;
-		$o = 0 if $o < 0;
-		my $msgs = $ibx->recent({ limit => $max, offset => $o });
-		my $next = $o + $max;
-		$ctx->{next_page} = "o=$next" if scalar(@$msgs) == $max;
-		return $msgs;
+		return PublicInbox::View::paginate_recent($ctx);
 	}
 
 	my $hex = '[a-f0-9]';

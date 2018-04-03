@@ -318,8 +318,8 @@ sub msg_by_mid ($$;$) {
 }
 
 sub recent {
-	my ($self, $opts) = @_;
-	search($self)->query('', $opts);
+	my ($self, $opts, $after, $before) = @_;
+	search($self)->{over_ro}->recent($opts, $after, $before);
 }
 
 1;
