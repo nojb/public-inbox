@@ -22,6 +22,7 @@ sub mbox_results {
 	my ($ctx) = @_;
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
 	my $x = $q->{x};
+	require PublicInbox::Mbox;
 	return PublicInbox::Mbox::mbox_all($ctx, $q->{'q'}) if $x eq 'm';
 	sres_top_html($ctx);
 }

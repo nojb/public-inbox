@@ -157,7 +157,12 @@ sub response {
 	# http://www.iana.org/assignments/media-types/application/gzip
 	$body->{hdr} = [ 'Content-Type', 'application/gzip' ];
 	$body->{fn} = $fn;
-	my $hdr = $body->getline; # fill in Content-Disposition filename
+	# fill in Content-Disposition filename
+	my $hdr = $body->getline;
+	if ($body->{hdr}) {
+		return [ 404, ['Content-Type','text/plain'],
+			[ "No results found\n" ] ];
+	}
 	[ 200, $hdr, $body ];
 }
 
