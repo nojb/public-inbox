@@ -173,6 +173,7 @@ t/msgmap.t
 t/nntp.t
 t/nntpd.t
 t/over.t
+t/perf-threading.t
 t/plack.t
 t/precheck.t
 t/psgi_attach.t
@@ -186,7 +187,6 @@ t/search-thr-index.t
 t/search.t
 t/spamcheck_spamc.t
 t/spawn.t
-t/thread-all.t
 t/thread-cycle.t
 t/time.t
 t/utf8.mbox
