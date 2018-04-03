@@ -105,6 +105,7 @@ if ('ensure git configs are correct') {
 
 {
 	$mime->header_set('Message-Id', '<abcde@1>', '<abcde@2>');
+	$mime->header_set('References', '<zz-mid@b>');
 	ok($im->add($mime), 'message with multiple Message-ID');
 	$im->done;
 	my @found;
@@ -196,6 +197,15 @@ EOF
 	}
 	is_deeply([sort keys %lg], [sort keys %$x],
 		'XOVER and LISTGROUPS return the same article numbers');
+
+	my $xref = $n->xhdr('Xref', '1-');
+	is_deeply([sort keys %lg], [sort keys %$xref], 'Xref range OK');
+
+	my $mids = $n->xhdr('Message-ID', '1-');
+	is_deeply([sort keys %lg], [sort keys %$xref], 'Message-ID range OK');
+
+	my $rover = $n->xrover('1-');
+	is_deeply([sort keys %lg], [sort keys %$rover], 'XROVER range OK');
 };
 {
 	local $ENV{NPROC} = 2;

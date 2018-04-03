@@ -196,6 +196,18 @@ ORDER BY num ASC LIMIT 1000
 	$ids;
 }
 
+sub msg_range {
+	my ($self, $beg, $end) = @_;
+	my $dbh = $self->{dbh};
+	my $attr = { Columns => [] };
+	my $mids = $dbh->selectall_arrayref(<<'', $attr, $$beg, $end);
+SELECT num,mid FROM msgmap WHERE num >= ? AND num <= ?
+ORDER BY num ASC
+
+	$$beg = $mids->[-1]->[0] + 1 if @$mids;
+	$mids
+}
+
 # only used for mapping external serial numbers (e.g. articles from gmane)
 # see scripts/xhdr-num2mid or PublicInbox::Filter::RubyLang for usage
 sub mid_set {

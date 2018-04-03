@@ -225,11 +225,11 @@ sub cmd_listgroup ($;$) {
 
 	$self->{ng} or return '412 no newsgroup selected';
 	my $n = 0;
-	long_response($self, 0, long_response_limit, sub {
-		my ($i) = @_;
+	long_response($self, sub {
 		my $ary = $self->{ng}->mm->ids_after(\$n);
-		scalar @$ary or return ($$i = long_response_limit);
+		scalar @$ary or return;
 		more($self, join("\r\n", @$ary));
+		1;
 	});
 }
 
@@ -328,8 +328,7 @@ sub cmd_newnews ($$$$;$$) {
 	return '.' unless @srch;
 
 	my $prev = 0;
-	long_response($self, 0, long_response_limit, sub {
-		my ($i) = @_;
+	long_response($self, sub {
 		my $srch = $srch[0];
 		my $msgs = $srch->query_ts($ts, $prev);
 		if (scalar @$msgs) {
@@ -341,8 +340,9 @@ sub cmd_newnews ($$$$;$$) {
 			shift @srch;
 			if (@srch) { # continue onto next newsgroup
 				$prev = 0;
+				return 1;
 			} else { # break out of the long response.
-				$$i = long_response_limit;
+				return;
 			}
 		}
 	});
@@ -564,8 +564,8 @@ sub get_range ($$) {
 	[ $beg, $end ];
 }
 
-sub long_response ($$$$) {
-	my ($self, $beg, $end, $cb) = @_;
+sub long_response ($$) {
+	my ($self, $cb) = @_;
 	die "BUG: nested long response" if $self->{long_res};
 
 	my $fd = $self->{fd};
@@ -576,23 +576,14 @@ sub long_response ($$$$) {
 	$self->watch_read(0);
 	my $t0 = now();
 	$self->{long_res} = sub {
-		# limit our own running time for fairness with other
-		# clients and to avoid buffering too much:
-		my $lim = $end == long_response_limit ? 1 : 100;
-
-		my $err;
-		do {
-			eval { $cb->(\$beg) };
-		} until (($err = $@) || $self->{closed} ||
-			 ++$beg > $end || !--$lim || $self->{write_buf_size});
-
-		if ($err || $self->{closed}) {
+		my $more = eval { $cb->() };
+		if ($@ || $self->{closed}) {
 			$self->{long_res} = undef;
 
-			if ($err) {
+			if ($@) {
 				err($self,
 				    "%s during long response[$fd] - %0.6f",
-				    $err, now() - $t0);
+				    $@, now() - $t0);
 			}
 			if ($self->{closed}) {
 				out($self, " deferred[$fd] aborted - %0.6f",
@@ -601,7 +592,7 @@ sub long_response ($$$$) {
 				update_idle_time($self);
 				$self->watch_read(1);
 			}
-		} elsif (!$lim || $self->{write_buf_size}) {
+		} elsif ($more) { # $self->{write_buf_size}:
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			update_idle_time($self);
@@ -633,10 +624,13 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 		my $mm = $self->{ng}->mm;
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		long_response($self, $beg, $end, sub {
-			my ($i) = @_;
-			my $mid = $mm->mid_for($$i);
-			more($self, "$$i <$mid>") if defined $mid;
+		long_response($self, sub {
+			my $r = $mm->msg_range(\$beg, $end);
+			@$r or return;
+			more($self, join("\r\n", map {
+				"$_->[0] <$_->[1]>"
+			} @$r));
+			1;
 		});
 	}
 }
@@ -676,10 +670,16 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		my $mm = $ng->mm;
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		long_response($self, $beg, $end, sub {
-			my ($i) = @_;
-			my $mid = $mm->mid_for($$i);
-			more($self, "$$i ".xref($ng, $$i)) if defined $mid;
+		long_response($self, sub {
+			my $r = $mm->msg_range(\$beg, $end);
+			@$r or return;
+			more($self, join("\r\n", map {
+				# TODO: use $_->[1] (mid) to fill
+				# Xref: from other inboxes
+				my $num = $_->[0];
+				"$num ".xref($ng, $num);
+			} @$r));
+			1;
 		});
 	}
 }
@@ -707,11 +707,9 @@ sub hdr_searchmsg ($$$$) {
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
 		my $cur = $beg;
-		long_response($self, 0, long_response_limit, sub {
-			my ($i) = @_;
+		long_response($self, sub {
 			my $msgs = $srch->query_xover($cur, $end);
-			my $nr = scalar @$msgs or
-					return ($$i = long_response_limit);
+			my $nr = scalar @$msgs or return;
 			my $tmp = '';
 			foreach my $s (@$msgs) {
 				$tmp .= $s->num . ' ' . $s->$field . "\r\n";
@@ -792,12 +790,11 @@ sub cmd_xrover ($;$) {
 	my $mm = $ng->mm;
 	my $srch = $ng->search;
 	more($self, '224 Overview information follows');
-	long_response($self, $beg, $end, sub {
-		my ($i) = @_;
-		my $num = $$i;
-		my $h = search_header_for($srch, $num, 'references');
-		defined $h or return;
-		more($self, "$num $h");
+
+	long_response($self, sub {
+		my $h = search_header_for($srch, $beg, 'references');
+		more($self, "$beg $h") if defined($h);
+		$beg++ < $end;
 	});
 }
 
@@ -844,17 +841,15 @@ sub cmd_xover ($;$) {
 	more($self, "224 Overview information follows for $beg to $end");
 	my $srch = $self->{ng}->search;
 	my $cur = $beg;
-	long_response($self, 0, long_response_limit, sub {
-		my ($i) = @_;
+	long_response($self, sub {
 		my $msgs = $srch->query_xover($cur, $end);
-		my $nr = scalar @$msgs or return ($$i = long_response_limit);
+		my $nr = scalar @$msgs or return;
 
 		# OVERVIEW.FMT
 		more($self, join("\r\n", map {
 			over_line($_->{num}, $_);
 			} @$msgs));
 		$cur = $msgs->[-1]->{num} + 1;
-		1;
 	});
 }
 
