@@ -256,6 +256,7 @@ sub remove_internal {
 	my $mark;
 
 	foreach my $mid (@$mids) {
+		my %gone;
 		$srch->reopen->each_smsg_by_mid($mid, sub {
 			my ($smsg) = @_;
 			$smsg->load_expand;
@@ -267,28 +268,35 @@ sub remove_internal {
 			my $orig = $$msg;
 			my $cur = PublicInbox::MIME->new($msg);
 			if (content_id($cur) eq $cid) {
-				$mm->num_delete($smsg->num);
-				# $removed should only be set once assuming
-				# no bugs in our deduplication code:
-				$removed = $smsg;
-				$removed->{mime} = $cur;
-				my $oid = $smsg->{blob};
-				if ($purge) {
-					$purge->{$oid} = 1;
-				} else {
-					($mark, undef) =
-						$im->remove(\$orig, $cmt_msg);
-				}
-				$orig = undef;
-				$removed->num; # memoize this for callers
-
-				foreach my $idx (@$parts) {
-					$idx->remote_remove($oid, $mid);
-				}
-				$self->{over}->remove_oid($oid, $mid);
+				$smsg->{mime} = $cur;
+				$gone{$smsg->num} = [ $smsg, \$orig ];
 			}
 			1; # continue
 		});
+		my $n = scalar keys %gone;
+		next unless $n;
+		if ($n > 1) {
+			warn "BUG: multiple articles linked to <$mid>\n",
+				join(',', sort keys %gone), "\n";
+		}
+		foreach my $num (keys %gone) {
+			my ($smsg, $orig) = @{$gone{$num}};
+			$mm->num_delete($num);
+			# $removed should only be set once assuming
+			# no bugs in our deduplication code:
+			$removed = $smsg;
+			my $oid = $smsg->{blob};
+			if ($purge) {
+				$purge->{$oid} = 1;
+			} else {
+				($mark, undef) = $im->remove($orig, $cmt_msg);
+			}
+			$orig = undef;
+			foreach my $idx (@$parts) {
+				$idx->remote_remove($oid, $mid);
+			}
+			$self->{over}->remove_oid($oid, $mid);
+		}
 		$self->barrier;
 	}
 
