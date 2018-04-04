@@ -182,6 +182,9 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/v2test/reuse@mid/T/'));
 	$raw = $res->content;
 	like($raw, qr/\b4\+ messages\b/, 'thread overview shown with /T/');
+	my @over = ($raw =~ m/^\d{4}-\d+-\d+\s+\d+:\d+ (.+)$/gm);
+	is_deeply(\@over, [ '<a', '` <a', '` <a', '` <a' ],
+		'duplicate messages share the same root');
 
 	$res = $cb->(GET('/v2test/reuse@mid/t/'));
 	$raw = $res->content;

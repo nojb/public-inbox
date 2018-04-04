@@ -334,7 +334,7 @@ sub add_message {
 		});
 
 		# populates smsg->references for smsg->to_doc_data
-		my $refs = parse_references($smsg);
+		my $refs = parse_references($smsg, $mid0, $mids);
 		my $data = $smsg->to_doc_data($oid, $mid0);
 		foreach my $mid (@$mids) {
 			$tg->index_text($mid, 1, 'XM');
@@ -463,22 +463,23 @@ sub term_generator { # write-only
 	$self->{term_generator} = $tg;
 }
 
-sub parse_references ($) {
-	my ($smsg) = @_;
+sub parse_references ($$$) {
+	my ($smsg, $mid0, $mids) = @_;
 	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
 	my $refs = references($hdr);
+	push(@$refs, @$mids) if scalar(@$mids) > 1;
 	return $refs if scalar(@$refs) == 0;
 
-	# prevent circular references via References here:
-	my %mids = map { $_ => 1 } @{mids($hdr)};
+	# prevent circular references here:
+	my %seen = ( $mid0 => 1 );
 	my @keep;
 	foreach my $ref (@$refs) {
 		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {
 			warn "References: <$ref> too long, ignoring\n";
 			next;
 		}
-		next if $mids{$ref};
+		next if $seen{$ref}++;
 		push @keep, $ref;
 	}
 	$smsg->{references} = '<'.join('> <', @keep).'>' if @keep;
