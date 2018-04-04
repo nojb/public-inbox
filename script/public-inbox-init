@@ -5,7 +5,7 @@
 # Initializes a public-inbox, basically a wrapper for git-init(1)
 use strict;
 use warnings;
-my $usage = "public-inbox-init NAME GIT_DIR HTTP_URL ADDRESS [ADDRESS..]";
+my $usage = "public-inbox-init NAME REPO_DIR HTTP_URL ADDRESS [ADDRESS..]";
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use PublicInbox::Config;
 use File::Temp qw/tempfile/;
