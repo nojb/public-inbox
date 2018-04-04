@@ -224,11 +224,13 @@ sub purge_oids {
 	my ($self, $purge) = @_; # $purge = { $object_id => 1, ... }
 	$self->done;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
+	my $purges = [];
 	foreach my $i (0..$self->{max_git}) {
 		my $git = PublicInbox::Git->new("$pfx/$i.git");
 		my $im = $self->import_init($git, 0);
-		$im->purge_oids($purge);
+		$purges->[$i] = $im->purge_oids($purge);
 	}
+	$purges;
 }
 
 sub remove_internal {
@@ -285,7 +287,7 @@ sub remove_internal {
 		$self->barrier;
 	}
 	if ($purge && scalar keys %$purge) {
-		purge_oids($self, $purge);
+		return purge_oids($self, $purge);
 	}
 	$removed;
 }

@@ -476,6 +476,7 @@ sub purge_oids {
 	my @buf;
 	my $npurge = 0;
 	my @oids;
+	my ($done, $mark);
 	my $tree = $self->{-tree};
 	while (<$rd>) {
 		if (/^reset (?:.+)/) {
@@ -506,14 +507,20 @@ sub purge_oids {
 			my $path = $1;
 			push @buf, $_ if $tree->{$path};
 		} elsif ($_ eq "\n") {
-			my $out = join('', @buf);
-			$out =~ s/^/# /sgm;
-			warn "purge rewriting\n", $out, "\n";
-			clean_purge_buffer(\@oids, \@buf);
-			$out = join('', @buf);
+			if (@oids) {
+				my $out = join('', @buf);
+				$out =~ s/^/# /sgm;
+				warn "purge rewriting\n", $out, "\n";
+				clean_purge_buffer(\@oids, \@buf);
+				$npurge++;
+			}
 			$w->print(@buf, "\n") or wfail;
 			@buf = ();
-			$npurge++;
+		} elsif ($_ eq "done\n") {
+			$done = 1;
+		} elsif (/^mark :(\d+)$/) {
+			push @buf, $_;
+			$mark = $1;
 		} else {
 			push @buf, $_;
 		}
@@ -521,7 +528,9 @@ sub purge_oids {
 	if (@buf) {
 		$w->print(@buf) or wfail;
 	}
-	$w = $r = undef;
+	die 'done\n not seen from fast-export' unless $done;
+	chomp(my $cmt = $self->get_mark(":$mark")) if $npurge;
+	$self->{nchg} = 0; # prevent _update_git_info until update-ref:
 	$self->done;
 	my @git = ('git', "--git-dir=$git->{git_dir}");
 
@@ -540,7 +549,9 @@ sub purge_oids {
 			$err++;
 		}
 	}
+	_update_git_info($self, 0);
 	die "Failed to purge $err object(s)\n" if $err;
+	$cmt;
 }
 
 1;
