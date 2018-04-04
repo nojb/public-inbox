@@ -92,6 +92,11 @@ sub last_commit {
 	$self->meta_accessor('last_commit', $commit);
 }
 
+sub last_commit_n {
+	my ($self, $i, $commit) = @_;
+	$self->meta_accessor('last_commit'.$i, $commit);
+}
+
 sub created_at {
 	my ($self, $second) = @_;
 	$self->meta_accessor('created_at', $second);

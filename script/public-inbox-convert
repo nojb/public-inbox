@@ -125,6 +125,6 @@ my $mm = $old->mm;
 $mm->{dbh}->sqlite_backup_to_file("$new_dir/msgmap.sqlite3") if $mm;
 $v2w->done;
 if ($index) {
-	$v2w->reindex;
+	$v2w->index_sync;
 	$v2w->done;
 }

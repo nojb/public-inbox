@@ -192,6 +192,7 @@ sub get_mark {
 	my ($r, $w) = $self->gfi_start;
 	print $w "get-mark $mark\n" or wfail;
 	defined(my $oid = <$r>) or die "get-mark failed, need git 2.6.0+\n";
+	chomp($oid);
 	$oid;
 }
 
@@ -379,7 +380,7 @@ sub add {
 
 	# v2: we need this for Xapian
 	if ($self->{want_object_info}) {
-		chomp(my $oid = $self->get_mark(":$blob"));
+		my $oid = $self->get_mark(":$blob");
 		$self->{last_object} = [ $oid, $n, \$str ];
 	}
 	my $ref = $self->{ref};

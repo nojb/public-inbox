@@ -23,12 +23,12 @@ if ($@) {
 }
 
 my $reindex;
-my $regen;
+my $prune;
 my $jobs = undef;
 my %opts = (
 	'--reindex' => \$reindex,
-	'--regenerate' => \$regen,
 	'--jobs|j=i' => \$jobs,
+	'--prune' => \$prune,
 );
 GetOptions(%opts) or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $jobs && $jobs <= 0;
@@ -115,16 +115,7 @@ sub index_dir {
 				}
 			}
 		}
-		my $mm = $repo->mm;
-		my (undef, $max) = $mm->minmax if $mm;
-		if (defined($max) && !$reindex && !$regen) {
-			die
-"v2 inboxes may only use --reindex and/or --regenerate once\n".
-"msgmap.sqlite3 is initialized\n";
-		}
-
-		$v2w->reindex($regen);
-		$v2w->done;
+		$v2w->index_sync({ reindex => $reindex, prune => $prune });
 	} else {
 		my $s = PublicInbox::SearchIdx->new($repo, 1);
 		$s->index_sync({ reindex => $reindex });

@@ -193,6 +193,7 @@ t/time.t
 t/utf8.mbox
 t/v2-add-remove-add.t
 t/v2mda.t
+t/v2mirror.t
 t/v2reindex.t
 t/v2writable.t
 t/view.t

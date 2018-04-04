@@ -49,14 +49,14 @@ $im->done;
 my $minmax = [ $ibx->mm->minmax ];
 ok(defined $minmax->[0] && defined $minmax->[1], 'minmax defined');
 
-eval { $im->reindex };
+eval { $im->index_sync({reindex => 1}) };
 is($@, '', 'no error from reindexing');
 $im->done;
 
 my $xap = "$mainrepo/xap".PublicInbox::Search::SCHEMA_VERSION();
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed');
-eval { $im->reindex };
+eval { $im->index_sync({reindex => 1}) };
 is($@, '', 'no error from reindexing');
 $im->done;
 ok(-d $xap, 'Xapian directories recreated');
@@ -70,9 +70,9 @@ ok(!-d $xap, 'Xapian directories removed again');
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
-	eval { $im->reindex };
+	eval { $im->index_sync({reindex => 1}) };
 	is($@, '', 'no error from reindexing without msgmap');
-	like(join(' ', @warn), qr/regenerat/, 'warned about regenerating');
+	is(scalar(@warn), 0, 'no warnings from reindexing');
 	$im->done;
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
@@ -85,7 +85,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
-	eval { $im->reindex(my $regen = 1) };
+	eval { $im->index_sync({reindex => 1}) };
 	is($@, '', 'no error from reindexing without msgmap');
 	is_deeply(\@warn, [], 'no warnings');
 	$im->done;
