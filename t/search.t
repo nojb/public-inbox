@@ -170,6 +170,13 @@ sub filter_mids {
 	# body
 	$res = $ro->query('goodbye');
 	is($res->[0]->mid, 'last@s', 'got goodbye message body');
+
+	# datestamp
+	$res = $ro->query('dt:20101002000001..20101002000001');
+	@res = filter_mids($res);
+	is_deeply(\@res, ['ghost-message@s'], 'exact Date: match works');
+	$res = $ro->query('dt:20101002000002..20101002000002');
+	is_deeply($res, [], 'exact Date: match down to the second');
 }
 
 # long message-id

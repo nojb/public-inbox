@@ -38,21 +38,21 @@ is($y, $x + 1, 'integer tid for ghost increases');
 
 my $ddd = compress('');
 foreach my $s ('', undef) {
-	$over->add_over([0, 98, [ 'a' ], [], $s, $ddd]);
-	$over->add_over([0, 99, [ 'b' ], [], $s, $ddd]);
+	$over->add_over([0, 0, 98, [ 'a' ], [], $s, $ddd]);
+	$over->add_over([0, 0, 99, [ 'b' ], [], $s, $ddd]);
 	my $msgs = [ map { $_->{num} } @{$over->get_thread('a')} ];
 	is_deeply([98], $msgs,
 		'messages not linked by empty subject');
 }
 
-$over->add_over([0, 98, [ 'a' ], [], 's', $ddd]);
-$over->add_over([0, 99, [ 'b' ], [], 's', $ddd]);
+$over->add_over([0, 0, 98, [ 'a' ], [], 's', $ddd]);
+$over->add_over([0, 0, 99, [ 'b' ], [], 's', $ddd]);
 foreach my $mid (qw(a b)) {
 	my $msgs = [ map { $_->{num} } @{$over->get_thread('a')} ];
 	is_deeply([98, 99], $msgs, 'linked messages by subject');
 }
-$over->add_over([0, 98, [ 'a' ], [], 's', $ddd]);
-$over->add_over([0, 99, [ 'b' ], ['a'], 'diff', $ddd]);
+$over->add_over([0, 0, 98, [ 'a' ], [], 's', $ddd]);
+$over->add_over([0, 0, 99, [ 'b' ], ['a'], 'diff', $ddd]);
 foreach my $mid (qw(a b)) {
 	my $msgs = [ map { $_->{num} } @{$over->get_thread($mid)} ];
 	is_deeply([98, 99], $msgs, "linked messages by Message-ID: <$mid>");

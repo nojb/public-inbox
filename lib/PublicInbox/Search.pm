@@ -9,7 +9,8 @@ use warnings;
 
 # values for searching
 use constant TS => 0;  # Received: header in Unix time
-use constant YYYYMMDD => 1; # for searching in the WWW UI
+use constant YYYYMMDD => 1; # Date: header for searching in the WWW UI
+use constant DT => 2; # Date: YYYYMMDDHHMMSS
 
 use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
@@ -88,6 +89,9 @@ our @HELP = (
 date range as YYYYMMDD  e.g. d:19931002..20101002
 Open-ended ranges such as d:19931002.. and d:..20101002
 are also supported
+EOF
+	'dt:' => <<EOF,
+date-time range as YYYYMMDDhhmmss (e.g. dt:19931002011000..19931002011200)
 EOF
 	'b:' => 'match within message body, including text attachments',
 	'nq:' => 'match non-quoted text within message body',
@@ -258,6 +262,8 @@ sub qp {
 	$qp->set_stemming_strategy(STEM_SOME);
 	$qp->add_valuerangeprocessor(
 		Search::Xapian::NumberValueRangeProcessor->new(YYYYMMDD, 'd:'));
+	$qp->add_valuerangeprocessor(
+		Search::Xapian::NumberValueRangeProcessor->new(DT, 'dt:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $prefix);

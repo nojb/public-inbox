@@ -282,9 +282,14 @@ sub add_message {
 		$smsg->{lines} = $mime->body_raw =~ tr!\n!\n!;
 		defined $bytes or $bytes = length($mime->as_string);
 		$smsg->{bytes} = $bytes;
+
 		add_val($doc, PublicInbox::Search::TS(), $smsg->ts);
-		my $yyyymmdd = strftime('%Y%m%d', gmtime($smsg->ds));
-		add_val($doc, PublicInbox::Search::YYYYMMDD, $yyyymmdd);
+		my @ds = gmtime($smsg->ds);
+		my $yyyymmdd = strftime('%Y%m%d', @ds);
+		add_val($doc, PublicInbox::Search::YYYYMMDD(), $yyyymmdd);
+		my $dt = strftime('%Y%m%d%H%M%S', @ds);
+		add_val($doc, PublicInbox::Search::DT(), $dt);
+		my @vals = ($smsg->{ts}, $smsg->{ds});
 
 		my $tg = $self->term_generator;
 
@@ -355,7 +360,7 @@ sub add_message {
 
 		utf8::encode($data);
 		$data = compress($data);
-		my @vals = ($smsg->ts, $num, $mids, $refs, $xpath, $data);
+		push @vals, $num, $mids, $refs, $xpath, $data;
 		$self->{over}->add_over(\@vals);
 		$doc->add_boolean_term('Q' . $_) foreach @$mids;
 		$doc->add_boolean_term('XNUM' . $num) if defined $num;

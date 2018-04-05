@@ -202,7 +202,7 @@ sub link_refs {
 
 sub add_over {
 	my ($self, $values) = @_;
-	my ($ts, $num, $mids, $refs, $xpath, $ddd) = @$values;
+	my ($ts, $ds, $num, $mids, $refs, $xpath, $ddd) = @$values;
 	my $old_tid;
 	my $vivified = 0;
 
@@ -232,11 +232,11 @@ sub add_over {
 	my $sid = $self->sid($xpath);
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(<<'');
-INSERT INTO over (num, tid, sid, ts, ddd)
-VALUES (?,?,?,?,?)
+INSERT INTO over (num, tid, sid, ts, ds, ddd)
+VALUES (?,?,?,?,?,?)
 
 	my $n = 0;
-	my @v = ($num, $tid, $sid, $ts);
+	my @v = ($num, $tid, $sid, $ts, $ds);
 	foreach (@v) { $sth->bind_param(++$n, $_) }
 	$sth->bind_param(++$n, $ddd, SQL_BLOB);
 	$sth->execute;
@@ -274,6 +274,7 @@ CREATE TABLE IF NOT EXISTS over (
 	tid INTEGER NOT NULL,
 	sid INTEGER,
 	ts INTEGER,
+	ds INTEGER,
 	ddd VARBINARY, /* doc-data-deflated */
 	UNIQUE (num)
 )
@@ -281,6 +282,7 @@ CREATE TABLE IF NOT EXISTS over (
 	$dbh->do('CREATE INDEX IF NOT EXISTS idx_tid ON over (tid)');
 	$dbh->do('CREATE INDEX IF NOT EXISTS idx_sid ON over (sid)');
 	$dbh->do('CREATE INDEX IF NOT EXISTS idx_ts ON over (ts)');
+	$dbh->do('CREATE INDEX IF NOT EXISTS idx_ds ON over (ds)');
 
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS counter (

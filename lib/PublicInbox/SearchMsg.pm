@@ -9,6 +9,7 @@ use warnings;
 use PublicInbox::MID qw/mid_clean mid_mime/;
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
+use Time::Local qw(timegm);
 
 sub new {
 	my ($class, $mime) = @_;
@@ -44,7 +45,6 @@ sub to_doc_data {
 		$self->cc,
 		$oid,
 		$mid0,
-		$self->ds,
 		$self->{bytes},
 		$self->{lines}
 	);
@@ -65,7 +65,6 @@ sub load_from_data ($$) {
 
 		$self->{blob},
 		$self->{mid},
-		$self->{ds},
 		$self->{bytes},
 		$self->{lines}
 	) = split(/\n/, $_[1]);
@@ -75,7 +74,10 @@ sub load_expand {
 	my ($self) = @_;
 	my $doc = $self->{doc};
 	my $data = $doc->get_data or return;
-	$self->{ts} = get_val($doc, &PublicInbox::Search::TS);
+	$self->{ts} = get_val($doc, PublicInbox::Search::TS());
+	my $dt = get_val($doc, PublicInbox::Search::DT());
+	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $dt);
+	$self->{ds} = timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
 	utf8::decode($data);
 	load_from_data($self, $data);
 	$self;
