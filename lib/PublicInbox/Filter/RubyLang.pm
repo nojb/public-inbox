@@ -6,6 +6,7 @@ package PublicInbox::Filter::RubyLang;
 use base qw(PublicInbox::Filter::Base);
 use strict;
 use warnings;
+use PublicInbox::MID qw(mids);
 
 my $l1 = qr/Unsubscribe:\s
 	<mailto:ruby-\w+-request\@ruby-lang\.org\?subject=unsubscribe>/x;
@@ -44,16 +45,23 @@ sub scrub {
 	my $altid = $self->{-altid};
 	if ($altid) {
 		my $hdr = $mime->header_obj;
-		my $mid = $hdr->header_raw('Message-ID');
-		unless (defined $mid) {
-			return $self->REJECT('Message-Id missing');
+		my $mids = mids($hdr);
+		return $self->REJECT('Message-ID missing') unless (@$mids);
+		my @v = $hdr->header_raw('X-Mail-Count');
+		my $n;
+		foreach (@v) {
+			/\A\s*(\d+)\s*\z/ or next;
+			$n = $1;
+			last;
 		}
-		my $n = $hdr->header_raw('X-Mail-Count');
-		if (!defined($n) || $n !~ /\A\s*\d+\s*\z/) {
+		unless (defined $n) {
 			return $self->REJECT('X-Mail-Count not numeric');
 		}
-		$mid = PublicInbox::MID::mid_clean($mid);
-		$altid->{mm_alt}->mid_set($n, $mid);
+		foreach my $mid (@$mids) {
+			my $r = $altid->mm_alt->mid_set($n, $mid);
+			next if $r == 0;
+			last;
+		}
 	}
 	$self->ACCEPT($mime);
 }

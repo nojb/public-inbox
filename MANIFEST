@@ -135,6 +135,7 @@ scripts/ssoma-replay
 scripts/xhdr-num2mid
 t/address.t
 t/altid.t
+t/altid_v2.t
 t/cgi.t
 t/check-www-inbox.perl
 t/common.perl

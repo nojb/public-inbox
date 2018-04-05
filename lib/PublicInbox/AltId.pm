@@ -22,17 +22,31 @@ sub new {
 	} split(/[&;]/, $query);
 	my $f = $params{file} or die "file: required for $type spec $spec\n";
 	unless (index($f, '/') == 0) {
-		$f = "$inbox->{mainrepo}/public-inbox/$f";
+		if (($inbox->{version} || 1) == 1) {
+			$f = "$inbox->{mainrepo}/public-inbox/$f";
+		} else {
+			$f = "$inbox->{mainrepo}/$f";
+		}
 	}
 	bless {
-		mm_alt => PublicInbox::Msgmap->new_file($f, $writable),
+		filename => $f,
+		writable => $writable,
 		xprefix => 'X'.uc($prefix),
 	}, $class;
 }
 
+sub mm_alt {
+	my ($self) = @_;
+	$self->{mm_alt} ||= eval {
+		my $f = $self->{filename};
+		my $writable = $self->{filename};
+		PublicInbox::Msgmap->new_file($f, $writable);
+	};
+}
+
 sub mid2alt {
 	my ($self, $mid) = @_;
-	$self->{mm_alt}->num_for($mid);
+	$self->mm_alt->num_for($mid);
 }
 
 1;
