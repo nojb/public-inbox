@@ -36,15 +36,12 @@ sub commit_changes ($$$) {
 	my ($im, $old, $new) = @_;
 	my @st = stat($old) or die "failed to stat($old): $!\n";
 
-	for my $suf (qw(.pipe.lock -journal)) {
-		my $orig = "$old/over.sqlite3$suf";
-		link($orig, "$new/over.sqlite3$suf") and next;
-		next if $!{ENOENT};
-		die "failed to link $orig => $new/over.sqlite3$suf: $!\n";
+	my $over = "$old/over.sqlite3";
+	if (-f $over) {
+		require PublicInbox::Over;
+		$over = PublicInbox::Over->new($over);
+		$over->connect->sqlite_backup_to_file("$new/over.sqlite3");
 	}
-	link("$old/over.sqlite3", "$new/over.sqlite3") or die
-		"failed to link {$old => $new}/over.sqlite3: $!\n";
-
 	rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
 	chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
 	rename($new, $old) or die "rename $new => $old: $!\n";

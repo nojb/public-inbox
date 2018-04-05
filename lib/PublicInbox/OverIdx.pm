@@ -14,19 +14,10 @@ use DBI qw(:sql_types); # SQL_BLOB
 sub dbh_new {
 	my ($self) = @_;
 	my $dbh = $self->SUPER::dbh_new;
-	$dbh->do('PRAGMA synchronous = OFF'); # commit_fsync instead
 	$dbh->do('PRAGMA journal_mode = TRUNCATE');
 	$dbh->do('PRAGMA cache_size = 80000');
 	create_tables($dbh);
 	$dbh;
-}
-
-sub commit_fsync {
-	my $fn = $_[0]->{filename};
-	if (open my $fh, '+<', $fn) {
-		$fh->sync;
-		close $fh;
-	}
 }
 
 sub get_counter ($$) {

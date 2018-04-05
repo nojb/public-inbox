@@ -397,7 +397,7 @@ sub checkpoint {
 # issue a write barrier to ensure all data is visible to other processes
 # and read-only ops.  Order of data importance is: git > SQLite > Xapian
 sub barrier {
-	my ($self, $fsync) = @_;
+	my ($self) = @_;
 
 	if (my $im = $self->{im}) {
 		$im->barrier;
@@ -416,7 +416,6 @@ sub barrier {
 		$_->remote_barrier foreach @$parts;
 
 		$over->barrier_wait; # wait for each Xapian partition
-		$over->commit_fsync if $fsync;
 
 		# last_commit is special, don't commit these until
 		# remote partitions are done:
