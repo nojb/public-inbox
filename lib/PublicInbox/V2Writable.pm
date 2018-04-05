@@ -71,7 +71,7 @@ sub new {
 		lock_path => "$dir/inbox.lock",
 		# limit each repo to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
-		last_commit => [],
+		last_commit => [], # git repo -> commit
 	};
 	$self->{partitions} = count_partitions($self) || nproc();
 	bless $self, $class;
@@ -339,15 +339,20 @@ sub purge {
 	$purges;
 }
 
+sub last_commit_part ($$;$) {
+	my ($self, $i, $cmt) = @_;
+	my $v = PublicInbox::Search::SCHEMA_VERSION();
+	$self->{mm}->last_commit_xap($v, $i, $cmt);
+}
+
 sub set_last_commits ($) {
 	my ($self) = @_;
 	defined(my $max_git = $self->{max_git}) or return;
-	my $mm = $self->{mm};
 	my $last_commit = $self->{last_commit};
 	foreach my $i (0..$max_git) {
 		defined(my $cmt = $last_commit->[$i]) or next;
 		$last_commit->[$i] = undef;
-		$mm->last_commit_n($i, $cmt);
+		last_commit_part($self, $i, $cmt);
 	}
 }
 
@@ -673,13 +678,13 @@ sub reindex_oid {
 # only update last_commit for $i on reindex iff newer than current
 sub update_last_commit {
 	my ($self, $git, $i, $cmt) = @_;
-	my $last = $self->{mm}->last_commit_n($i);
+	my $last = last_commit_part($self, $i);
 	if (defined $last && is_ancestor($git, $last, $cmt)) {
 		my @cmd = (qw(rev-list --count), "$last..$cmt");
 		chomp(my $n = $git->qx(@cmd));
 		return if $n ne '' && $n == 0;
 	}
-	$self->{mm}->last_commit_n($i, $cmt);
+	last_commit_part($self, $i, $cmt);
 }
 
 sub git_dir_n ($$) { "$_[0]->{-inbox}->{mainrepo}/git/$_[1].git" }
@@ -688,7 +693,7 @@ sub last_commits {
 	my ($self, $max_git) = @_;
 	my $heads = [];
 	for (my $i = $max_git; $i >= 0; $i--) {
-		$heads->[$i] = $self->{mm}->last_commit_n($i);
+		$heads->[$i] = last_commit_part($self, $i);
 	}
 	$heads;
 }

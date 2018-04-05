@@ -92,9 +92,12 @@ sub last_commit {
 	$self->meta_accessor('last_commit', $commit);
 }
 
-sub last_commit_n {
-	my ($self, $i, $commit) = @_;
-	$self->meta_accessor('last_commit'.$i, $commit);
+# v2 uses this to keep track of how up-to-date Xapian is
+# old versions may be automatically GC'ed away in the future,
+# but it's a trivial amount of storage.
+sub last_commit_xap {
+	my ($self, $version, $i, $commit) = @_;
+	$self->meta_accessor("last_xap$version-$i", $commit);
 }
 
 sub created_at {
