@@ -69,7 +69,7 @@ sub new {
 		xpfx => $xpfx,
 		over => PublicInbox::OverIdxFork->new("$xpfx/over.sqlite3"),
 		lock_path => "$dir/inbox.lock",
-		# limit each repo to 1GB or so
+		# limit each git repo (epoch) to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git repo -> commit
 	};
@@ -81,9 +81,9 @@ sub init_inbox {
 	my ($self, $parallel) = @_;
 	$self->{parallel} = $parallel;
 	$self->idx_init;
-	my $max_git = -1;
-	git_dir_latest($self, \$max_git);
-	$self->git_init($max_git >= 0 ? $max_git : 0);
+	my $epoch_max = -1;
+	git_dir_latest($self, \$epoch_max);
+	$self->git_init($epoch_max >= 0 ? $epoch_max : 0);
 	$self->done;
 }
 
@@ -115,7 +115,7 @@ sub add {
 
 	my $nparts = $self->{partitions};
 	my $part = $num % $nparts;
-	$self->{last_commit}->[$self->{max_git}] = $cmt;
+	$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 	my $idx = $self->idx_part($part);
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
 	my $n = $self->{transact_bytes} += $len;
@@ -242,7 +242,7 @@ sub purge_oids {
 	$self->done;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $purges = [];
-	foreach my $i (0..$self->{max_git}) {
+	foreach my $i (0..$self->{epoch_max}) {
 		my $git = PublicInbox::Git->new("$pfx/$i.git");
 		my $im = $self->import_init($git, 0, 1);
 		$purges->[$i] = $im->purge_oids($purge);
@@ -315,7 +315,7 @@ sub remove_internal {
 
 	if (defined $mark) {
 		my $cmt = $im->get_mark($mark);
-		$self->{last_commit}->[$self->{max_git}] = $cmt;
+		$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 	}
 	if ($purge && scalar keys %$purge) {
 		return purge_oids($self, $purge);
@@ -347,9 +347,9 @@ sub last_commit_part ($$;$) {
 
 sub set_last_commits ($) {
 	my ($self) = @_;
-	defined(my $max_git = $self->{max_git}) or return;
+	defined(my $epoch_max = $self->{epoch_max}) or return;
 	my $last_commit = $self->{last_commit};
-	foreach my $i (0..$max_git) {
+	foreach my $i (0..$epoch_max) {
 		defined(my $cmt = $last_commit->[$i]) or next;
 		$last_commit->[$i] = undef;
 		last_commit_part($self, $i, $cmt);
@@ -430,9 +430,9 @@ sub barrier {
 }
 
 sub git_init {
-	my ($self, $new) = @_;
+	my ($self, $epoch) = @_;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
-	my $git_dir = "$pfx/$new.git";
+	my $git_dir = "$pfx/$epoch.git";
 	my @cmd = (qw(git init --bare -q), $git_dir);
 	PublicInbox::Import::run_die(\@cmd);
 
@@ -450,7 +450,7 @@ sub git_init {
 	PublicInbox::Import::run_die(\@cmd);
 
 	my $alt = "$all/objects/info/alternates";
-	my $new_obj_dir = "../../git/$new.git/objects";
+	my $new_obj_dir = "../../git/$epoch.git/objects";
 	my %alts;
 	if (-e $alt) {
 		open(my $fh, '<', $alt) or die "open < $alt: $!\n";
@@ -491,26 +491,26 @@ sub importer {
 			$im->done;
 			$self->barrier(1);
 			$im = undef;
-			my $git_dir = $self->git_init(++$self->{max_git});
+			my $git_dir = $self->git_init(++$self->{epoch_max});
 			my $git = PublicInbox::Git->new($git_dir);
 			return $self->import_init($git, 0);
 		}
 	}
-	my $new = 0;
+	my $epoch = 0;
 	my $max;
 	my $latest = git_dir_latest($self, \$max);
 	if (defined $latest) {
 		my $git = PublicInbox::Git->new($latest);
 		my $packed_bytes = $git->packed_bytes;
 		if ($packed_bytes >= $self->{rotate_bytes}) {
-			$new = $max + 1;
+			$epoch = $max + 1;
 		} else {
-			$self->{max_git} = $max;
+			$self->{epoch_max} = $max;
 			return $self->import_init($git, $packed_bytes);
 		}
 	}
-	$self->{max_git} = $new;
-	$latest = $self->git_init($new);
+	$self->{epoch_max} = $epoch;
+	$latest = $self->git_init($epoch);
 	$self->import_init(PublicInbox::Git->new($latest), 0);
 }
 
@@ -690,9 +690,9 @@ sub update_last_commit {
 sub git_dir_n ($$) { "$_[0]->{-inbox}->{mainrepo}/git/$_[1].git" }
 
 sub last_commits {
-	my ($self, $max_git) = @_;
+	my ($self, $epoch_max) = @_;
 	my $heads = [];
-	for (my $i = $max_git; $i >= 0; $i--) {
+	for (my $i = $epoch_max; $i >= 0; $i--) {
 		$heads->[$i] = last_commit_part($self, $i);
 	}
 	$heads;
@@ -710,10 +710,10 @@ sub is_ancestor ($$$) {
 }
 
 sub index_prepare {
-	my ($self, $opts, $max_git, $ranges) = @_;
+	my ($self, $opts, $epoch_max, $ranges) = @_;
 	my $regen_max = 0;
 	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
-	for (my $i = $max_git; $i >= 0; $i--) {
+	for (my $i = $epoch_max; $i >= 0; $i--) {
 		die "already indexing!\n" if $self->{index_pipe};
 		my $git_dir = git_dir_n($self, $i);
 		-d $git_dir or next; # missing parts are fine
@@ -822,15 +822,15 @@ sub index_sync {
 	my ($self, $opts) = @_;
 	$opts ||= {};
 	my $ibx = $self->{-inbox};
-	my $max_git;
-	my $latest = git_dir_latest($self, \$max_git);
+	my $epoch_max;
+	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
 	$self->idx_init; # acquire lock
 	my $mm_tmp = $self->{mm}->tmp_clone;
-	my $ranges = $opts->{reindex} ? [] : $self->last_commits($max_git);
+	my $ranges = $opts->{reindex} ? [] : $self->last_commits($epoch_max);
 
 	my ($min, $max) = $mm_tmp->minmax;
-	my $regen = $self->index_prepare($opts, $max_git, $ranges);
+	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
 	$$regen += $max if $max;
 	my $D = {};
 	my @cmd = qw(log --raw -r --pretty=tformat:%h
@@ -838,7 +838,7 @@ sub index_sync {
 
 	# work backwards through history
 	my $last_commit = [];
-	for (my $i = $max_git; $i >= 0; $i--) {
+	for (my $i = $epoch_max; $i >= 0; $i--) {
 		my $git_dir = git_dir_n($self, $i);
 		die "already reindexing!\n" if delete $self->{reindex_pipe};
 		-d $git_dir or next; # missing parts are fine
