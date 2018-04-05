@@ -216,7 +216,6 @@ sub _do_enquire {
 sub _enquire_once {
 	my ($self, $query, $opts) = @_;
 	my $enquire = enquire($self);
-	$query = Search::Xapian::Query->new(OP_AND,$query);
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
