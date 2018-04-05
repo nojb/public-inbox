@@ -186,9 +186,4 @@ sub mid ($;$) {
 
 sub _extract_mid { mid_clean(mid_mime($_[0]->{mime})) }
 
-sub tid { $_[0]->{tid} }
-
-# XXX: consider removing this, we can phrase match subject
-sub path { $_[0]->{path} }
-
 1;
