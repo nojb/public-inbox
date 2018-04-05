@@ -35,8 +35,16 @@ $ibx->umask_prepare;
 sub commit_changes ($$$) {
 	my ($im, $old, $new) = @_;
 	my @st = stat($old) or die "failed to stat($old): $!\n";
+
+	for my $suf (qw(.pipe.lock -journal)) {
+		my $orig = "$old/over.sqlite3$suf";
+		link($orig, "$new/over.sqlite3$suf") and next;
+		next if $!{ENOENT};
+		die "failed to link $orig => $new/over.sqlite3$suf: $!\n";
+	}
 	link("$old/over.sqlite3", "$new/over.sqlite3") or die
 		"failed to link {$old => $new}/over.sqlite3: $!\n";
+
 	rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
 	chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
 	rename($new, $old) or die "rename $new => $old: $!\n";
@@ -58,6 +66,7 @@ if ($v == 2) {
 			if ($dn =~ /\A\d+\z/) {
 				push @parts, "$old/$dn";
 			} elsif ($dn eq '.' || $dn eq '..') {
+			} elsif ($dn =~ /\Aover\.sqlite3/) {
 			} else {
 				warn "W: skipping unknown Xapian DB: $old/$dn\n"
 			}
