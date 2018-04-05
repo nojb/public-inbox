@@ -180,9 +180,8 @@ sub search_nav_top {
 sub search_nav_bot {
 	my ($mset, $q) = @_;
 	my $total = $mset->get_matches_estimated;
-	my $nr = scalar $mset->items;
 	my $o = $q->{o};
-	my $end = $o + $nr;
+	my $end = $o + $mset->size;
 	my $beg = $o + 1;
 	my $rv = '</pre><hr><pre id=t>';
 	if ($beg <= $end) {
