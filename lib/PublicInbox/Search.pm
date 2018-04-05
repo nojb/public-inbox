@@ -219,7 +219,11 @@ sub _enquire_once {
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
-	if ($opts->{relevance}) {
+	if (($opts->{mset} || 0) == 2) {
+		$enquire->set_docid_order(Search::Xapian::ENQ_ASCENDING());
+		$enquire->set_weighting_scheme(Search::Xapian::BoolWeight->new);
+		delete $self->{enquire};
+	} elsif ($opts->{relevance}) {
 		$enquire->set_sort_by_relevance_then_value(TS, $desc);
 	} else {
 		$enquire->set_sort_by_value_then_relevance(TS, $desc);

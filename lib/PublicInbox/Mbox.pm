@@ -138,13 +138,24 @@ sub thread_mbox {
 	my ($ctx, $srch, $sfx) = @_;
 	eval { require IO::Compress::Gzip };
 	return sub { need_gzip(@_) } if $@;
-	my $prev = 0;
+	my $mid = $ctx->{mid};
+	my $msgs = $srch->get_thread($mid, 0);
+	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
+	my $prev = $msgs->[-1]->{num};
+	my $i = 0;
 	my $cb = sub {
-		my $msgs = $srch->get_thread($ctx->{mid}, $prev);
-		$prev = $msgs->[-1]->{num} if scalar(@$msgs);
-		$msgs;
+		while (1) {
+			if (my $smsg = $msgs->[$i++]) {
+				return $smsg;
+			}
+			# refill result set
+			$msgs = $srch->get_thread($mid, $prev);
+			return unless @$msgs;
+			$prev = $msgs->[-1]->{num};
+			$i = 0;
+		}
 	};
-	PublicInbox::MboxGz->response($ctx, $cb);
+	PublicInbox::MboxGz->response($ctx, $cb, $msgs->[0]->subject);
 }
 
 sub emit_range {
@@ -159,22 +170,55 @@ sub emit_range {
 	mbox_all($ctx, $query);
 }
 
+sub mbox_all_ids {
+	my ($ctx) = @_;
+	my $prev = 0;
+	my $ids = $ctx->{-inbox}->mm->ids_after(\$prev) or return
+		[404, [qw(Content-Type text/plain)], ["No results found\n"]];
+	my $i = 0;
+	my $over = $ctx->{srch}->{over_ro};
+	my $cb = sub {
+		do {
+			while ((my $num = $ids->[$i++])) {
+				my $smsg = $over->get_art($num) or next;
+				return $smsg;
+			}
+			$ids = $ctx->{-inbox}->mm->ids_after(\$prev);
+			$i = 0;
+		} while (@$ids);
+		undef;
+	};
+	return PublicInbox::MboxGz->response($ctx, $cb, 'all');
+}
+
 sub mbox_all {
 	my ($ctx, $query) = @_;
 
 	eval { require IO::Compress::Gzip };
 	return sub { need_gzip(@_) } if $@;
-	if ($query eq '') {
-		my $prev = 0;
-		my $cb = sub { $ctx->{-inbox}->mm->ids_after(\$prev) };
-		return PublicInbox::MboxGz->response($ctx, $cb, 'all');
-	}
-	my $opts = { offset => 0 };
+	return mbox_all_ids($ctx) if $query eq '';
+	my $opts = { mset => 2 };
 	my $srch = $ctx->{srch};
+	my $mset = $srch->query($query, $opts);
+	$opts->{offset} = $mset->size or
+			return [404, [qw(Content-Type text/plain)],
+				["No results found\n"]];
+	my $i = 0;
 	my $cb = sub { # called by MboxGz->getline
-		my $msgs = $srch->query($query, $opts);
-		$opts->{offset} += scalar @$msgs;
-		$msgs;
+		while (1) {
+			while (my $mi = (($mset->items)[$i++])) {
+				my $doc = $mi->get_document;
+				my $smsg = $srch->retry_reopen(sub {
+					PublicInbox::SearchMsg->load_doc($doc);
+				}) or next;
+				return $smsg;
+			}
+			# refill result set
+			$mset = $srch->query($query, $opts);
+			my $size = $mset->size or return;
+			$opts->{offset} += $size;
+			$i = 0;
+		}
 	};
 	PublicInbox::MboxGz->response($ctx, $cb, 'results-'.$query);
 }
@@ -206,7 +250,6 @@ sub new {
 		gz => IO::Compress::Gzip->new(\$buf, Time => 0),
 		cb => $cb,
 		ctx => $ctx,
-		msgs => [],
 	}, $class;
 }
 
@@ -214,60 +257,34 @@ sub response {
 	my ($class, $ctx, $cb, $fn) = @_;
 	my $body = $class->new($ctx, $cb);
 	# http://www.iana.org/assignments/media-types/application/gzip
-	$body->{hdr} = [ 'Content-Type', 'application/gzip' ];
-	$body->{fn} = $fn;
-	my $hdr = $body->getline; # fill in Content-Disposition filename
-	[ 200, $hdr, $body ];
-}
-
-sub set_filename ($$) {
-	my ($fn, $msg) = @_;
-	return to_filename($fn) if defined($fn);
-
-	PublicInbox::Mbox::subject_fn($msg);
+	my @h = qw(Content-Type application/gzip);
+	if ($fn) {
+		$fn = to_filename($fn);
+		push @h, 'Content-Disposition', "inline; filename=$fn.mbox.gz";
+	}
+	[ 200, \@h, $body ];
 }
 
 # called by Plack::Util::foreach or similar
 sub getline {
 	my ($self) = @_;
 	my $ctx = $self->{ctx} or return;
-	my $ibx = $ctx->{-inbox};
-	my $gz = $self->{gz};
-	my $msgs = $self->{msgs};
-	do {
-		# work on existing result set
-		while (defined(my $smsg = shift @$msgs)) {
-			# ids_after may return integers
-			ref($smsg) or
-				$smsg = $ctx->{srch}->{over_ro}->get_art($smsg);
-
-			my $msg = eval { $ibx->msg_by_smsg($smsg) } or next;
-			$msg = Email::Simple->new($msg);
-			$gz->write(PublicInbox::Mbox::msg_str($ctx, $msg,
-								$smsg->mid));
-
-			# use subject of first message as subject
-			if (my $hdr = delete $self->{hdr}) {
-				my $fn = set_filename($self->{fn}, $msg);
-				push @$hdr, 'Content-Disposition',
-						"inline; filename=$fn.mbox.gz";
-				return $hdr;
-			}
-			my $bref = $self->{buf};
-			if (length($$bref) >= 8192) {
-				my $ret = $$bref; # copy :<
-				${$self->{buf}} = '';
-				return $ret;
-			}
-
-			# be fair to other clients on public-inbox-httpd:
-			return '';
+	while (my $smsg = $self->{cb}->()) {
+		my $msg = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
+		$msg = Email::Simple->new($msg);
+		$self->{gz}->write(PublicInbox::Mbox::msg_str($ctx, $msg,
+				$smsg->{mid}));
+		my $bref = $self->{buf};
+		if (length($$bref) >= 8192) {
+			my $ret = $$bref; # copy :<
+			${$self->{buf}} = '';
+			return $ret;
 		}
 
-		# refill result set
-		$msgs = $self->{msgs} = $self->{cb}->();
-	} while (@$msgs);
-	$gz->close;
+		# be fair to other clients on public-inbox-httpd:
+		return '';
+	}
+	delete($self->{gz})->close;
 	# signal that we're done and can return undef next call:
 	delete $self->{ctx};
 	${delete $self->{buf}};
