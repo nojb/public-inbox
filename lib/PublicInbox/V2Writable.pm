@@ -26,6 +26,26 @@ sub nproc () {
 	int($ENV{NPROC} || `nproc 2>/dev/null` || 2);
 }
 
+sub count_partitions ($) {
+	my ($self) = @_;
+	my $nparts = 0;
+	my $xpfx = $self->{xpfx};
+
+	# always load existing partitions in case core count changes:
+	# Also, partition count may change while -watch is running
+	# due to -compact
+	if (-d $xpfx) {
+		foreach my $part (<$xpfx/*>) {
+			-d $part && $part =~ m!/\d+\z! or next;
+			eval {
+				Search::Xapian::Database->new($part)->close;
+				$nparts++;
+			};
+		}
+	}
+	$nparts;
+}
+
 sub new {
 	my ($class, $v2ibx, $creat) = @_;
 	my $dir = $v2ibx->{mainrepo} or die "no mainrepo in inbox\n";
@@ -38,34 +58,22 @@ sub new {
 		}
 	}
 
-	my $nparts = 0;
-	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
-
-	# always load existing partitions in case core count changes:
-	if (-d $xpfx) {
-		foreach my $part (<$xpfx/*>) {
-			-d $part && $part =~ m!/\d+\z! or next;
-			eval {
-				Search::Xapian::Database->new($part)->close;
-				$nparts++;
-			};
-		}
-	}
-	$nparts = nproc() if ($nparts == 0);
-
 	$v2ibx = PublicInbox::InboxWritable->new($v2ibx);
+
+	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
 	my $self = {
 		-inbox => $v2ibx,
 		im => undef, #  PublicInbox::Import
-		partitions => $nparts,
 		parallel => 1,
 		transact_bytes => 0,
+		xpfx => $xpfx,
 		over => PublicInbox::OverIdxFork->new("$xpfx/over.sqlite3"),
 		lock_path => "$dir/inbox.lock",
 		# limit each repo to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [],
 	};
+	$self->{partitions} = count_partitions($self) || nproc();
 	bless $self, $class;
 }
 
@@ -205,6 +213,12 @@ sub idx_init {
 	$ibx->with_umask(sub {
 		$self->lock_acquire;
 		$over->create($self);
+
+		# -compact can change partition count while -watch is idle
+		my $nparts = count_partitions($self);
+		if ($nparts && $nparts != $self->{partitions}) {
+			$self->{partitions} = $nparts;
+		}
 
 		# need to create all parts before initializing msgmap FD
 		my $max = $self->{partitions} - 1;
