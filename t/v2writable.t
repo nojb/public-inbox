@@ -218,7 +218,7 @@ EOF
 	$im->done;
 	my $tip = shift @after;
 	like($tip, qr/\A[a-f0-9]+ test removal\n\z/s,
-		'commit message propaged to git');
+		'commit message propagated to git');
 	is_deeply(\@after, \@before, 'only one commit written to git');
 	is($ibx->mm->num_for($smsg->mid), undef, 'no longer in Msgmap by mid');
 	like($smsg->num, qr/\A\d+\z/, 'numeric number in return message');
@@ -226,8 +226,10 @@ EOF
 	my $srch = $ibx->search->reopen;
 	my @found = ();
 	$srch->each_smsg_by_mid($smsg->mid, sub { push @found, @_; 1 });
-	is(scalar(@found), 0, 'no longer found in Xapian skeleton');
+	is(scalar(@found), 0, 'no longer found in Xapian');
 	my @log1 = qw(log -1 --pretty=raw --raw -r --no-abbrev --no-renames);
+	is($srch->{over_ro}->get_art($smsg->num), undef,
+		'removal propagated to Over DB');
 
 	my $after = $git0->qx(@log1);
 	if ($after =~ m!( [a-f0-9]+ )A\td$!m) {

@@ -309,7 +309,6 @@ sub remove_internal {
 			foreach my $idx (@$parts) {
 				$idx->remote_remove($oid, $mid);
 			}
-			$self->{over}->remove_oid($oid, $mid);
 		}
 		$self->barrier;
 	}
