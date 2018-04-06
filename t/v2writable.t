@@ -108,14 +108,13 @@ if ('ensure git configs are correct') {
 	$mime->header_set('References', '<zz-mid@b>');
 	ok($im->add($mime), 'message with multiple Message-ID');
 	$im->done;
-	my @found;
 	my $srch = $ibx->search;
-	$srch->reopen->each_smsg_by_mid('abcde@1', sub { push @found, @_; 1 });
-	is(scalar(@found), 1, 'message found by first MID');
-	$srch->reopen->each_smsg_by_mid('abcde@2', sub { push @found, @_; 1 });
-	is(scalar(@found), 2, 'message found by second MID');
-	is($found[0]->{doc_id}, $found[1]->{doc_id}, 'same document');
-	ok($found[1]->{doc_id} > 0, 'doc_id is positive');
+	my $mset1 = $srch->reopen->query('m:abcde@1', { mset => 1 });
+	is($mset1->size, 1, 'message found by first MID');
+	my $mset2 = $srch->reopen->query('m:abcde@2', { mset => 1 });
+	is($mset2->size, 1, 'message found by second MID');
+	is((($mset1->items)[0])->get_docid, (($mset2->items)[0])->get_docid,
+		'same document');
 }
 
 SKIP: {
@@ -224,9 +223,8 @@ EOF
 	like($smsg->num, qr/\A\d+\z/, 'numeric number in return message');
 	is($ibx->mm->mid_for($smsg->num), undef, 'no longer in Msgmap by num');
 	my $srch = $ibx->search->reopen;
-	my @found = ();
-	$srch->each_smsg_by_mid($smsg->mid, sub { push @found, @_; 1 });
-	is(scalar(@found), 0, 'no longer found in Xapian');
+	my $mset = $srch->query('m:'.$smsg->mid, { mset => 1});
+	is($mset->size, 0, 'no longer found in Xapian');
 	my @log1 = qw(log -1 --pretty=raw --raw -r --no-abbrev --no-renames);
 	is($srch->{over_ro}->get_art($smsg->num), undef,
 		'removal propagated to Over DB');

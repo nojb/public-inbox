@@ -58,20 +58,16 @@ sub msg_page {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
-	my ($first, $more, $head, $tail, $db);
+	my ($first, $more);
 	my $smsg;
 	if (my $srch = $ibx->search) {
-		$srch->retry_reopen(sub {
-			($head, $tail, $db) = $srch->each_smsg_by_mid($mid);
-			for (; !defined($first) && $head != $tail; $head++) {
-				my @args = ($head, $db, $mid);
-				$smsg = PublicInbox::SearchMsg->get(@args);
-				$first = $ibx->msg_by_smsg($smsg);
-			}
-			if ($head != $tail) {
-				$more = [ $head, $tail, $db ];
-			}
-		});
+		my ($id, $prev);
+		$smsg = $srch->next_by_mid($mid, \$id, \$prev);
+		$first = $ibx->msg_by_smsg($smsg) if $smsg;
+		if ($first) {
+			my $next = $srch->next_by_mid($mid, \$id, \$prev);
+			$more = [ $id, $prev, $next ] if $next;
+		}
 		return unless $first;
 	} else {
 		$first = $ibx->msg_by_mid($mid) or return;
@@ -82,18 +78,11 @@ sub msg_page {
 sub msg_html_more {
 	my ($ctx, $more, $nr) = @_;
 	my $str = eval {
-		my $smsg;
-		my ($head, $tail, $db) = @$more;
+		my ($id, $prev, $smsg) = @$more;
 		my $mid = $ctx->{mid};
-		for (; !defined($smsg) && $head != $tail; $head++) {
-			my $m = PublicInbox::SearchMsg->get($head, $db, $mid);
-			$smsg = $ctx->{-inbox}->smsg_mime($m);
-		}
-		if ($head == $tail) { # done
-			@$more = ();
-		} else {
-			$more->[0] = $head;
-		}
+		$smsg = $ctx->{-inbox}->smsg_mime($smsg);
+		my $next = $ctx->{srch}->next_by_mid($mid, \$id, \$prev);
+		@$more = $next ? ($id, $prev, $next) : ();
 		if ($smsg) {
 			my $mime = $smsg->{mime};
 			my $upfx = '../' . mid_escape($smsg->mid) . '/';

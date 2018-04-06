@@ -271,22 +271,20 @@ sub remove_internal {
 
 	foreach my $mid (@$mids) {
 		my %gone;
-		$srch->reopen->each_smsg_by_mid($mid, sub {
-			my ($smsg) = @_;
-			$smsg->load_expand;
+		my ($id, $prev);
+		while (my $smsg = $srch->next_by_mid($mid, \$id, \$prev)) {
 			my $msg = $ibx->msg_by_smsg($smsg);
 			if (!defined($msg)) {
 				warn "broken smsg for $mid\n";
-				return 1; # continue
+				next; # continue
 			}
 			my $orig = $$msg;
 			my $cur = PublicInbox::MIME->new($msg);
 			if (content_id($cur) eq $cid) {
 				$smsg->{mime} = $cur;
-				$gone{$smsg->num} = [ $smsg, \$orig ];
+				$gone{$smsg->{num}} = [ $smsg, \$orig ];
 			}
-			1; # continue
-		});
+		}
 		my $n = scalar keys %gone;
 		next unless $n;
 		if ($n > 1) {
@@ -552,26 +550,23 @@ sub lookup_content {
 	my $srch = $ibx->search->reopen;
 	my $cid = content_id($mime);
 	my $found;
-	$srch->each_smsg_by_mid($mid, sub {
-		my ($smsg) = @_;
-		$smsg->load_expand;
+	my ($id, $prev);
+	while (my $smsg = $srch->next_by_mid($mid, \$id, \$prev)) {
 		my $msg = $ibx->msg_by_smsg($smsg);
 		if (!defined($msg)) {
 			warn "broken smsg for $mid\n";
-			return 1; # continue
+			next;
 		}
 		my $cur = PublicInbox::MIME->new($msg);
 		if (content_id($cur) eq $cid) {
 			$smsg->{mime} = $cur;
 			$found = $smsg;
-			return 0; # break out of loop
+			last;
 		}
 
 		# XXX DEBUG_DIFF is experimental and may be removed
 		diff($mid, $cur, $mime) if $ENV{DEBUG_DIFF};
-
-		1; # continue
-	});
+	}
 	$found;
 }
 
@@ -770,15 +765,14 @@ sub unindex_oid {
 	my $mime = PublicInbox::MIME->new($msgref);
 	my $mids = mids($mime->header_obj);
 	$mime = $msgref = undef;
-
+	my $srch = $self->{-inbox}->search;
 	foreach my $mid (@$mids) {
 		my %gone;
-		$self->{-inbox}->search->reopen->each_smsg_by_mid($mid, sub {
-			my ($smsg) = @_;
-			$smsg->load_expand;
+		my ($id, $prev);
+		while (my $smsg = $srch->next_by_mid($mid, \$id, \$prev)) {
 			$gone{$smsg->num} = 1 if $oid eq $smsg->{blob};
 			1; # continue
-		});
+		}
 		my $n = scalar keys %gone;
 		next unless $n;
 		if ($n > 1) {

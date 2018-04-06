@@ -304,58 +304,14 @@ sub query_ts {
 	$self->{over_ro}->query_ts($ts, $prev);
 }
 
-sub first_smsg_by_mid {
-	my ($self, $mid) = @_;
-	my $smsg;
-	retry_reopen($self, sub {
-		each_smsg_by_mid($self, $mid, sub { $smsg = $_[0]; undef });
-	});
-	$smsg;
-}
-
 sub lookup_article {
 	my ($self, $num) = @_;
-	my $term = 'XNUM'.$num;
-	my $db = $self->{xdb};
-	retry_reopen($self, sub {
-		my $head = $db->postlist_begin($term);
-		my $tail = $db->postlist_end($term);
-		return if $head->equal($tail);
-		my $doc_id = $head->get_docid;
-		return unless defined $doc_id;
-		$head->inc;
-		if ($head->nequal($tail)) {
-			warn "article #$num is not unique\n";
-		}
-		# raises on error:
-		my $doc = $db->get_document($doc_id);
-		my $smsg = PublicInbox::SearchMsg->wrap($doc);
-		$smsg->{doc_id} = $doc_id;
-		$smsg->load_expand;
-	});
+	$self->{over_ro}->get_art($num);
 }
 
-sub each_smsg_by_mid {
-	my ($self, $mid, $cb) = @_;
-	# XXX retry_reopen isn't necessary for V2Writable, but the PSGI
-	# interface will need it...
-	my $db = $self->{xdb};
-	my $term = 'Q' . $mid;
-	my $head = $db->postlist_begin($term);
-	my $tail = $db->postlist_end($term);
-	if ($head == $tail) {
-		$db->reopen;
-		$head = $db->postlist_begin($term);
-		$tail = $db->postlist_end($term);
-	}
-	return ($head, $tail, $db) if wantarray;
-	for (; $head->nequal($tail); $head->inc) {
-		my $doc_id = $head->get_docid;
-		my $doc = $db->get_document($doc_id);
-		my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
-		$smsg->{doc_id} = $doc_id;
-		$cb->($smsg) or return;
-	}
+sub next_by_mid {
+	my ($self, $mid, $id, $prev) = @_;
+	$self->{over_ro}->next_by_mid($mid, $id, $prev);
 }
 
 # normalize subjects so they are suitable as pathnames for URLs

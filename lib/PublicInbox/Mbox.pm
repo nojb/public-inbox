@@ -34,19 +34,17 @@ sub mb_stream {
 # called by PSGI server as body response
 sub getline {
 	my ($more) = @_; # self
-	my ($ctx, $head, $tail, $db, $cur) = @$more;
-	if ($cur) {
+	my ($ctx, $id, $prev, $next, $cur) = @$more;
+	if ($cur) { # first
 		pop @$more;
 		return msg_str($ctx, $cur);
 	}
-	for (; !defined($cur) && $head != $tail; $head++) {
-		my $smsg = PublicInbox::SearchMsg->get($head, $db, $ctx->{mid});
-		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
-		$cur = Email::Simple->new($mref);
-		$cur = msg_str($ctx, $cur);
-	}
-	$more->[1] = $head;
-	$cur;
+	$cur = $next or return;
+	my $ibx = $ctx->{-inbox};
+	$next = $ibx->search->next_by_mid($ctx->{mid}, \$id, \$prev);
+	@$more = ($ctx, $id, $prev, $next); # $next may be undef, here
+	my $mref = $ibx->msg_by_smsg($cur) or return;
+	msg_str($ctx, Email::Simple->new($mref));
 }
 
 sub close {} # noop
@@ -57,21 +55,14 @@ sub emit_raw {
 	my $ibx = $ctx->{-inbox};
 	my $first;
 	my $more;
-	my ($head, $tail, $db);
-	my %seen;
 	if (my $srch = $ibx->search) {
-		$srch->retry_reopen(sub {
-			($head, $tail, $db) = $srch->each_smsg_by_mid($mid);
-			for (; !defined($first) && $head != $tail; $head++) {
-				my @args = ($head, $db, $mid);
-				my $smsg = PublicInbox::SearchMsg->get(@args);
-				my $mref = $ibx->msg_by_smsg($smsg) or next;
-				$first = Email::Simple->new($mref);
-			}
-			if ($head != $tail) {
-				$more = [ $ctx, $head, $tail, $db, $first ];
-			}
-		});
+		my ($id, $prev);
+		my $smsg = $srch->next_by_mid($mid, \$id, \$prev) or return;
+		my $mref = $ibx->msg_by_smsg($smsg) or return;
+		$first = Email::Simple->new($mref);
+		my $next = $srch->next_by_mid($mid, \$id, \$prev);
+		# $more is for ->getline
+		$more = [ $ctx, $id, $prev, $next, $first ] if $next;
 	} else {
 		my $mref = $ibx->msg_by_mid($mid) or return;
 		$first = Email::Simple->new($mref);

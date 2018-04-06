@@ -76,7 +76,8 @@ sub new {
 	if ($version == 1) {
 		$self->{lock_path} = "$mainrepo/ssoma.lock";
 		my $dir = $self->xdir;
-		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
+		$self->{over_ro} = $self->{over} =
+				PublicInbox::OverIdx->new("$dir/over.sqlite3");
 	} elsif ($version == 2) {
 		defined $part or die "partition is required for v2\n";
 		# partition is a number

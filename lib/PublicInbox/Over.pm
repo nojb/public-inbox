@@ -147,4 +147,33 @@ SELECT * from OVER where num = ? LIMIT 1
 	undef;
 }
 
+sub next_by_mid {
+	my ($self, $mid, $id, $prev) = @_;
+	my $dbh = $self->connect;
+
+	unless (defined $$id) {
+		my $sth = $dbh->prepare_cached(<<'', undef, 1);
+	SELECT id FROM msgid WHERE mid = ? LIMIT 1
+
+		$sth->execute($mid);
+		$$id = $sth->fetchrow_array;
+		defined $$id or return;
+	}
+	my $sth = $dbh->prepare_cached(<<"", undef, 1);
+SELECT num FROM id2num WHERE id = ? AND num > ?
+ORDER BY num ASC LIMIT 1
+
+	$$prev ||= 0;
+	$sth->execute($$id, $$prev);
+	my $num = $sth->fetchrow_array or return;
+	$$prev = $num;
+
+	$sth = $dbh->prepare_cached(<<"", undef, 1);
+SELECT num,ts,ds,ddd FROM over WHERE num = ? LIMIT 1
+
+	$sth->execute($num);
+	my $smsg = $sth->fetchrow_hashref or return;
+	load_from_row($smsg);
+}
+
 1;

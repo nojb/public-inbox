@@ -129,6 +129,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		is(scalar(@from_), 3, 'three From_ lines in t.mbox.gz');
 
 		# search interface
+		$config->each_inbox(sub { $_[0]->search->reopen });
 		$res = $cb->(POST('/v2test/?q=m:a-mid@b&x=m'));
 		$in = $res->content;
 		$status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
