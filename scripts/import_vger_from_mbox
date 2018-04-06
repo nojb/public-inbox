@@ -6,7 +6,6 @@ use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
-use PublicInbox::V2Writable;
 use PublicInbox::Import;
 use PublicInbox::MDA;
 my $usage = "usage: $0 NAME EMAIL DIR <MBOX\n";
@@ -35,6 +34,7 @@ my $ibx = {
 $ibx = PublicInbox::Inbox->new($ibx);
 unless ($dry_run) {
 	if ($version >= 2) {
+		require PublicInbox::V2Writable;
 		PublicInbox::V2Writable->new($ibx, 1)->init_inbox(0);
 	} else {
 		system(qw(git init --bare -q), $mainrepo) == 0 or die;

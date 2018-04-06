@@ -13,7 +13,7 @@ foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket
 use File::Temp qw/tempdir/;
 use IO::Socket;
 use POSIX qw(dup2);
-use PublicInbox::V2Writable;
+use_ok 'PublicInbox::V2Writable';
 use PublicInbox::MIME;
 use PublicInbox::Config;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);

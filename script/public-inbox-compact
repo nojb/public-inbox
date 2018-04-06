@@ -4,9 +4,9 @@
 use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use PublicInbox::V2Writable;
 use PublicInbox::Search;
 use PublicInbox::Config;
+use PublicInbox::InboxWritable;
 use Cwd 'abs_path';
 use File::Temp qw(tempdir);
 use File::Path qw(remove_tree);

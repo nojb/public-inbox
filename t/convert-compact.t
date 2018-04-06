@@ -10,7 +10,7 @@ foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for convert-compact.t" if $@;
 }
-use PublicInbox::V2Writable;
+use_ok 'PublicInbox::V2Writable';
 use PublicInbox::Import;
 my $tmpdir = tempdir('convert-compact-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = {
