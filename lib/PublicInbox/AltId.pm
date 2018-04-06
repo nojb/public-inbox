@@ -39,7 +39,7 @@ sub mm_alt {
 	my ($self) = @_;
 	$self->{mm_alt} ||= eval {
 		my $f = $self->{filename};
-		my $writable = $self->{filename};
+		my $writable = $self->{writable};
 		PublicInbox::Msgmap->new_file($f, $writable);
 	};
 }
