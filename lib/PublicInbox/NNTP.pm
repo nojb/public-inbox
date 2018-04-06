@@ -407,12 +407,30 @@ sub header_append ($$$) {
 	$hdr->header_set($k, @v, $v);
 }
 
-sub set_nntp_headers {
-	my ($hdr, $ng, $n, $mid) = @_;
+sub xref ($$$$) {
+	my ($self, $ng, $n, $mid) = @_;
+	my $ret = "$ng->{domain} $ng->{newsgroup}:$n";
+
+	# num_for is pretty cheap and sometimes we'll lookup the existence
+	# of an article without getting even the OVER info.  In other words,
+	# I'm not sure if its worth optimizing by scanning To:/Cc: and
+	# PublicInbox::ExtMsg on the PSGI end is just as expensive
+	foreach my $other (@{$self->{nntpd}->{grouplist}}) {
+		next if $ng eq $other;
+		my $num = eval { $other->mm->num_for($mid) } or next;
+		$ret .= " $other->{newsgroup}:$num";
+	}
+	$ret;
+}
+
+sub set_nntp_headers ($$$$$) {
+	my ($self, $hdr, $ng, $n, $mid) = @_;
 
 	# clobber some
-	$hdr->header_set('Newsgroups', $ng->{newsgroup});
-	$hdr->header_set('Xref', xref($ng, $n));
+	my $xref = xref($self, $ng, $n, $mid);
+	$hdr->header_set('Xref', $xref);
+	$xref =~ s/:\d+//g;
+	$hdr->header_set('Newsgroups', (split(/ /, $xref, 2))[1]);
 	header_append($hdr, 'List-Post', "<mailto:$ng->{-primary_address}>");
 	if (my $url = $ng->base_url) {
 		$mid = mid_escape($mid);
@@ -461,7 +479,7 @@ found:
 	my $msg = $ng->msg_by_smsg($smsg) or return $err;
 	my $s = Email::Simple->new($msg);
 	if ($set_headers) {
-		set_nntp_headers($s->header_obj, $ng, $n, $mid);
+		set_nntp_headers($self, $s->header_obj, $ng, $n, $mid);
 
 		# must be last
 		$s->body_set('') if ($set_headers == 2);
@@ -635,11 +653,6 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 	}
 }
 
-sub xref ($$) {
-	my ($ng, $n) = @_;
-	"$ng->{domain} $ng->{newsgroup}:$n"
-}
-
 sub mid_lookup ($$) {
 	my ($self, $mid) = @_;
 	my $self_ng = $self->{ng};
@@ -659,9 +672,11 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 	my ($self, $xhdr, $range) = @_;
 
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
-		my ($ng, $n) = mid_lookup($self, $1);
+		my $mid = $1;
+		my ($ng, $n) = mid_lookup($self, $mid);
 		return r430 unless $n;
-		hdr_mid_response($self, $xhdr, $ng, $n, $range, xref($ng, $n));
+		hdr_mid_response($self, $xhdr, $ng, $n, $range,
+				xref($self, $ng, $n, $mid));
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
@@ -674,10 +689,8 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 			my $r = $mm->msg_range(\$beg, $end);
 			@$r or return;
 			more($self, join("\r\n", map {
-				# TODO: use $_->[1] (mid) to fill
-				# Xref: from other inboxes
 				my $num = $_->[0];
-				"$num ".xref($ng, $num);
+				"$num ".xref($self, $ng, $num, $_->[1]);
 			} @$r));
 			1;
 		});
