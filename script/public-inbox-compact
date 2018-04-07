@@ -48,7 +48,7 @@ sub commit_changes ($$$) {
 	$im->lock_release;
 	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
 }
-
+my @compact = qw(xapian-compact --no-renumber);
 if ($v == 2) {
 	require PublicInbox::V2Writable;
 	my $v2w = PublicInbox::V2Writable->new($ibx);
@@ -70,7 +70,7 @@ if ($v == 2) {
 		}
 		close $dh;
 		die "No Xapian parts found in $old\n" unless @parts;
-		my $cmd = ['xapian-compact', @parts, "$new/0" ];
+		my $cmd = [@compact, @parts, "$new/0" ];
 		PublicInbox::Import::run_die($cmd);
 		commit_changes($v2w, $old, $new);
 	});
@@ -84,7 +84,7 @@ if ($v == 2) {
 	my $new = tempdir('compact-XXXXXXXX', CLEANUP => 1, DIR => $v1_root);
 	$ibx->with_umask(sub {
 		$im->lock_acquire;
-		PublicInbox::Import::run_die(['xapian-compact', $old, $new]);
+		PublicInbox::Import::run_die([@compact, $old, $new]);
 		commit_changes($im, $old, $new);
 	});
 } else {

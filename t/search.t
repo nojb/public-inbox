@@ -306,31 +306,33 @@ sub filter_mids {
 
 # names and addresses
 {
-	my $res = $ro->query('t:list@example.com');
-	is(scalar @$res, 6, 'searched To: successfully');
-	foreach my $smsg (@$res) {
+	my $mset = $ro->query('t:list@example.com', {mset => 1});
+	is($mset->size, 6, 'searched To: successfully');
+	foreach my $m ($mset->items) {
+		my $smsg = $ro->lookup_article($m->get_docid);
 		like($smsg->to, qr/\blist\@example\.com\b/, 'to appears');
 	}
 
-	$res = $ro->query('tc:list@example.com');
-	is(scalar @$res, 6, 'searched To+Cc: successfully');
-	foreach my $smsg (@$res) {
+	$mset = $ro->query('tc:list@example.com', {mset => 1});
+	is($mset->size, 6, 'searched To+Cc: successfully');
+	foreach my $m ($mset->items) {
+		my $smsg = $ro->lookup_article($m->get_docid);
 		my $tocc = join("\n", $smsg->to, $smsg->cc);
 		like($tocc, qr/\blist\@example\.com\b/, 'tocc appears');
 	}
 
 	foreach my $pfx ('tcf:', 'c:') {
-		$res = $ro->query($pfx . 'foo@example.com');
-		is(scalar @$res, 1,
-			"searched $pfx successfully for Cc:");
-		foreach my $smsg (@$res) {
+		my $mset = $ro->query($pfx . 'foo@example.com', { mset => 1 });
+		is($mset->items, 1, "searched $pfx successfully for Cc:");
+		foreach my $m ($mset->items) {
+			my $smsg = $ro->lookup_article($m->get_docid);
 			like($smsg->cc, qr/\bfoo\@example\.com\b/,
 				'cc appears');
 		}
 	}
 
 	foreach my $pfx ('', 'tcf:', 'f:') {
-		$res = $ro->query($pfx . 'Laggy');
+		my $res = $ro->query($pfx . 'Laggy');
 		is(scalar(@$res), 1,
 			"searched $pfx successfully for From:");
 		foreach my $smsg (@$res) {

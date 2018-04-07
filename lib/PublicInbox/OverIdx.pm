@@ -207,8 +207,8 @@ sub link_refs {
 	$tid;
 }
 
-sub parse_references ($$$$) {
-	my ($self, $smsg, $mid0, $mids) = @_;
+sub parse_references ($$$) {
+	my ($smsg, $mid0, $mids) = @_;
 	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
 	my $refs = references($hdr);
@@ -241,7 +241,7 @@ sub add_overview {
 		blob => $oid,
 	}, 'PublicInbox::SearchMsg';
 	my $mids = mids($mime->header_obj);
-	my $refs = $self->parse_references($smsg, $mid0, $mids);
+	my $refs = parse_references($smsg, $mid0, $mids);
 	my $subj = $smsg->subject;
 	my $xpath;
 	if ($subj ne '') {

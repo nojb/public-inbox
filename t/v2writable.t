@@ -220,13 +220,14 @@ EOF
 		'commit message propagated to git');
 	is_deeply(\@after, \@before, 'only one commit written to git');
 	is($ibx->mm->num_for($smsg->mid), undef, 'no longer in Msgmap by mid');
-	like($smsg->num, qr/\A\d+\z/, 'numeric number in return message');
-	is($ibx->mm->mid_for($smsg->num), undef, 'no longer in Msgmap by num');
+	my $num = $smsg->{num};
+	like($num, qr/\A\d+\z/, 'numeric number in return message');
+	is($ibx->mm->mid_for($num), undef, 'no longer in Msgmap by num');
 	my $srch = $ibx->search->reopen;
 	my $mset = $srch->query('m:'.$smsg->mid, { mset => 1});
 	is($mset->size, 0, 'no longer found in Xapian');
 	my @log1 = qw(log -1 --pretty=raw --raw -r --no-abbrev --no-renames);
-	is($srch->{over_ro}->get_art($smsg->num), undef,
+	is($srch->{over_ro}->get_art($num), undef,
 		'removal propagated to Over DB');
 
 	my $after = $git0->qx(@log1);

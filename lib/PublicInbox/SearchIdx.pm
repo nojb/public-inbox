@@ -273,18 +273,12 @@ sub add_message {
 		my $smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
 		my $subj = $smsg->subject;
-
-		$smsg->{lines} = $mime->body_raw =~ tr!\n!\n!;
-		defined $bytes or $bytes = length($mime->as_string);
-		$smsg->{bytes} = $bytes;
-
 		add_val($doc, PublicInbox::Search::TS(), $smsg->ts);
 		my @ds = gmtime($smsg->ds);
 		my $yyyymmdd = strftime('%Y%m%d', @ds);
 		add_val($doc, PublicInbox::Search::YYYYMMDD(), $yyyymmdd);
 		my $dt = strftime('%Y%m%d%H%M%S', @ds);
 		add_val($doc, PublicInbox::Search::DT(), $dt);
-		my @vals = ($smsg->{ts}, $smsg->{ds});
 
 		my $tg = $self->term_generator;
 
@@ -333,11 +327,11 @@ sub add_message {
 			index_body($tg, \@orig, $doc) if @orig;
 		});
 
-		# populates smsg->references for smsg->to_doc_data
-		my $data = $smsg->to_doc_data($oid, $mid0);
 		foreach my $mid (@$mids) {
 			$tg->index_text($mid, 1, 'XM');
 		}
+		$smsg->{to} = $smsg->{cc} = '';
+		my $data = $smsg->to_doc_data($oid, $mid0);
 		$doc->set_data($data);
 		if (my $altid = $self->{-altid}) {
 			foreach my $alt (@$altid) {
@@ -350,24 +344,11 @@ sub add_message {
 			}
 		}
 
-		$self->delete_article($num) if defined $num; # for reindexing
-
 		if (my $over = $self->{over}) {
-			utf8::encode($data);
-			$data = compress($data);
-			my $refs = $over->parse_references($smsg, $mid0, $mids);
-			my $xpath;
-			if ($subj ne '') {
-				$xpath = $self->subject_path($subj);
-				$xpath = id_compress($xpath);
-			}
-
-			push @vals, $num, $mids, $refs, $xpath, $data;
-			$over->add_over(\@vals);
+			$over->add_overview($mime, $bytes, $num, $oid, $mid0);
 		}
 		$doc->add_boolean_term('Q' . $_) foreach @$mids;
-		$doc->add_boolean_term('XNUM' . $num) if defined $num;
-		$doc_id = $self->{xdb}->add_document($doc);
+		$self->{xdb}->replace_document($doc_id = $num, $doc);
 	};
 
 	if ($@) {
@@ -417,16 +398,6 @@ sub remove_message {
 	} elsif (!$called) {
 		warn "cannot remove non-existent <$mid>\n";
 	}
-}
-
-sub delete_article {
-	my ($self, $num) = @_;
-	my $ndel = 0;
-	batch_do($self, 'XNUM' . $num, sub {
-		my ($ids) = @_;
-		$ndel += scalar @$ids;
-		$self->{xdb}->delete_document($_) for @$ids;
-	});
 }
 
 # MID is a hint in V2

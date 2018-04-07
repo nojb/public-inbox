@@ -725,7 +725,7 @@ sub hdr_searchmsg ($$$$) {
 			my $nr = scalar @$msgs or return;
 			my $tmp = '';
 			foreach my $s (@$msgs) {
-				$tmp .= $s->num . ' ' . $s->$field . "\r\n";
+				$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
 			}
 			utf8::encode($tmp);
 			do_more($self, $tmp);

@@ -45,11 +45,10 @@ sub to_doc_data {
 		$self->cc,
 		$oid,
 		$mid0,
-		$self->{bytes},
-		$self->{lines}
+		$self->{bytes} || '',
+		$self->{lines} || ''
 	);
 }
-
 
 sub load_from_data ($$) {
 	my ($self) = $_[0]; # data = $_[1]
@@ -92,7 +91,6 @@ sub load_doc {
 # :bytes and :lines metadata in RFC 3977
 sub bytes ($) { $_[0]->{bytes} }
 sub lines ($) { $_[0]->{lines} }
-sub num ($) { $_[0]->{num} ||= _get_term_val($_[0], 'XNUM', qr/\AXNUM/) }
 
 sub __hdr ($$) {
 	my ($self, $field) = @_;

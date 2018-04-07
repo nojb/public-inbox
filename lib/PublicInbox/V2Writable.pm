@@ -800,7 +800,7 @@ sub unindex_oid {
 		my %gone;
 		my ($id, $prev);
 		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
-			$gone{$smsg->num} = 1 if $oid eq $smsg->{blob};
+			$gone{$smsg->{num}} = 1 if $oid eq $smsg->{blob};
 			1; # continue
 		}
 		my $n = scalar keys %gone;
