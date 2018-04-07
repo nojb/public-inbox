@@ -138,10 +138,14 @@ sub num_for {
 sub minmax {
 	my ($self) = @_;
 	my $dbh = $self->{dbh};
-	my $sth = $self->{num_minmax} ||=
-		$dbh->prepare('SELECT MIN(num),MAX(num) FROM msgmap');
+	# breaking MIN and MAX into separate queries speeds up from 250ms
+	# to around 700us with 2.7million messages.
+	my $sth = $dbh->prepare_cached('SELECT MIN(num) FROM msgmap', undef, 1);
 	$sth->execute;
-        $sth->fetchrow_array;
+	my $min = $sth->fetchrow_array;
+	$sth = $dbh->prepare_cached('SELECT MAX(num) FROM msgmap', undef, 1);
+	$sth->execute;
+	($min, $sth->fetchrow_array);
 }
 
 sub mid_prefixes {

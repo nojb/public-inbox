@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Benchmark qw(:all);
+use Benchmark qw(:all :hireswallclock);
 use PublicInbox::Inbox;
 use File::Temp qw/tempdir/;
 use POSIX qw(dup2);
@@ -79,8 +79,13 @@ $s = IO::Socket::INET->new(%opts);
 $s->autoflush(1);
 my $buf = $s->getline;
 is($buf, "201 server ready - post via email\r\n", 'got greeting');
-ok($s->print("GROUP $group\r\n"), 'changed group');
-$buf = $s->getline;
+
+my $t = timeit(10, sub {
+	ok($s->print("GROUP $group\r\n"), 'changed group');
+	$buf = $s->getline;
+});
+diag 'GROUP took: ' . timestr($t);
+
 my ($tot, $min, $max) = ($buf =~ /\A211 (\d+) (\d+) (\d+) /);
 ok($tot && $min && $max, 'got GROUP response');
 my $nr = $max - $min;
@@ -100,7 +105,7 @@ sub read_until_dot ($) {
 	$n;
 }
 
-my $t = timeit(1, sub {
+$t = timeit(1, sub {
 	$s->print("XOVER $spec\r\n");
 	$n = read_until_dot($s);
 });
