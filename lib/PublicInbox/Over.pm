@@ -59,7 +59,7 @@ sub do_get {
 sub query_xover {
 	my ($self, $beg, $end) = @_;
 	do_get($self, <<'', {}, $beg, $end);
-SELECT * FROM over WHERE num >= ? AND num <= ?
+SELECT num,ts,ds,ddd FROM over WHERE num >= ? AND num <= ?
 ORDER BY num ASC
 
 }
@@ -131,7 +131,7 @@ sub recent {
 		}
 	}
 	my $msgs = do_get($self, <<"", $opts, @v);
-SELECT * FROM over WHERE $s
+SELECT ts,ds,ddd FROM over WHERE $s
 
 	return $msgs unless wantarray;
 
@@ -145,7 +145,7 @@ sub get_art {
 	my ($self, $num) = @_;
 	my $dbh = $self->connect;
 	my $smsg = $dbh->selectrow_hashref(<<'', undef, $num);
-SELECT * from OVER where num = ? LIMIT 1
+SELECT num,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 
 	return load_from_row($smsg) if $smsg;
 	undef;
