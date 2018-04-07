@@ -45,7 +45,6 @@ if (($old->{version} || 1) >= 2) {
 	die "Only conversion from v1 inboxes is supported\n";
 }
 my $new = { %$old };
-delete $new->{altid}; # TODO: support altid for v2
 $new->{mainrepo} = abs_path($new_dir);
 $new->{version} = 2;
 $new = PublicInbox::InboxWritable->new($new);
@@ -60,6 +59,16 @@ $old->with_umask(sub {
 		PublicInbox::Import::run_die(['git', 'config',
 			"--file=$new->{mainrepo}/all.git/config",
 			'core.sharedRepository', $sr]);
+	}
+	if (my $alt = $new->{altid}) {
+		require PublicInbox::AltId;
+		foreach my $i (0..$#$alt) {
+			my $src = PublicInbox::AltId->new($old, $alt->[$i], 0);
+			$src->mm_alt or next;
+			my $dst = PublicInbox::AltId->new($new, $alt->[$i], 1);
+			$dst = $dst->{filename};
+			$src->mm_alt->{dbh}->sqlite_backup_to_file($dst);
+		}
 	}
 });
 my $state = '';
