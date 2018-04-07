@@ -213,8 +213,8 @@ EOF
 	$im = PublicInbox::V2Writable->new($ibx, 1);
 	is($im->{partitions}, 1, 'detected single partition from previous');
 	my $smsg = $im->remove($mime, 'test removal');
-	my @after = $git0->qx(qw(log --pretty=oneline));
 	$im->done;
+	my @after = $git0->qx(qw(log --pretty=oneline));
 	my $tip = shift @after;
 	like($tip, qr/\A[a-f0-9]+ test removal\n\z/s,
 		'commit message propagated to git');
