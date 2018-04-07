@@ -130,9 +130,9 @@ sub thread_mbox {
 	eval { require IO::Compress::Gzip };
 	return sub { need_gzip(@_) } if $@;
 	my $mid = $ctx->{mid};
-	my $msgs = $srch->get_thread($mid, 0);
+	my $msgs = $srch->get_thread($mid, {});
 	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
-	my $prev = $msgs->[-1]->{num};
+	my $prev = $msgs->[-1];
 	my $i = 0;
 	my $cb = sub {
 		while (1) {
@@ -142,7 +142,7 @@ sub thread_mbox {
 			# refill result set
 			$msgs = $srch->get_thread($mid, $prev);
 			return unless @$msgs;
-			$prev = $msgs->[-1]->{num};
+			$prev = $msgs->[-1];
 			$i = 0;
 		}
 	};

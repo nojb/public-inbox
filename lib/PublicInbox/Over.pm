@@ -93,16 +93,20 @@ ORDER BY num ASC LIMIT 1
 SELECT tid,sid FROM over WHERE num = ? LIMIT 1
 
 	defined $tid or return nothing; # $sid may be undef
-
-	$prev ||= 0;
-	my $cond = 'FROM over WHERE (tid = ? OR sid = ?) AND num > ?';
-	my $msgs = do_get($self, <<"", {}, $tid, $sid, $prev);
-SELECT * $cond ORDER BY num ASC
+	my $sort_col = 'ds';
+	$num = 0;
+	if ($prev) {
+		$num = $prev->{num} || 0;
+		$sort_col = 'num';
+	}
+	my $cond = '(tid = ? OR sid = ?) AND num > ?';
+	my $msgs = do_get($self, <<"", {}, $tid, $sid, $num);
+SELECT num,ts,ds,ddd FROM over WHERE $cond ORDER BY $sort_col ASC
 
 	return $msgs unless wantarray;
 
-	my $nr = $dbh->selectrow_array(<<"", undef, $tid, $sid, $prev);
-SELECT COUNT(num) $cond
+	my $nr = $dbh->selectrow_array(<<"", undef, $tid, $sid, $num);
+SELECT COUNT(num) FROM over WHERE $cond
 
 	($nr, $msgs);
 }
