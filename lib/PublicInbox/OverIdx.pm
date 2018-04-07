@@ -2,14 +2,21 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # for XOVER, OVER in NNTP, and feeds/homepage/threads in PSGI
-# Unlike Msgmap, this is an _UNSTABLE_ database which can be
+# Unlike Msgmap, this is an _UNSTABLE_ cache which can be
 # tweaked/updated over time and rebuilt.
+#
+# Ghost messages (messages which are only referenced in References/In-Reply-To)
+# are denoted by a negative NNTP article number.
 package PublicInbox::OverIdx;
 use strict;
 use warnings;
 use base qw(PublicInbox::Over);
 use IO::Handle;
 use DBI qw(:sql_types); # SQL_BLOB
+use PublicInbox::MID qw/id_compress mids references/;
+use PublicInbox::SearchMsg;
+use Compress::Zlib qw(compress);
+use PublicInbox::Search;
 
 sub dbh_new {
 	my ($self) = @_;
@@ -198,6 +205,54 @@ sub link_refs {
 		$tid = defined $old_tid ? $old_tid : $self->next_tid;
 	}
 	$tid;
+}
+
+sub parse_references ($$$$) {
+	my ($self, $smsg, $mid0, $mids) = @_;
+	my $mime = $smsg->{mime};
+	my $hdr = $mime->header_obj;
+	my $refs = references($hdr);
+	push(@$refs, @$mids) if scalar(@$mids) > 1;
+	return $refs if scalar(@$refs) == 0;
+
+	# prevent circular references here:
+	my %seen = ( $mid0 => 1 );
+	my @keep;
+	foreach my $ref (@$refs) {
+		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {
+			warn "References: <$ref> too long, ignoring\n";
+			next;
+		}
+		next if $seen{$ref}++;
+		push @keep, $ref;
+	}
+	$smsg->{references} = '<'.join('> <', @keep).'>' if @keep;
+	\@keep;
+}
+
+sub add_overview {
+	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
+	my $lines = $mime->body_raw =~ tr!\n!\n!;
+	my $smsg = bless {
+		mime => $mime,
+		mid => $mid0,
+		bytes => $bytes,
+		lines => $lines,
+		blob => $oid,
+	}, 'PublicInbox::SearchMsg';
+	my $mids = mids($mime->header_obj);
+	my $refs = $self->parse_references($smsg, $mid0, $mids);
+	my $subj = $smsg->subject;
+	my $xpath;
+	if ($subj ne '') {
+		$xpath = PublicInbox::Search::subject_path($subj);
+		$xpath = id_compress($xpath);
+	}
+	my $dd = $smsg->to_doc_data($oid, $mid0);
+	utf8::encode($dd);
+	$dd = compress($dd);
+	my $values = [ $smsg->ts, $smsg->ds, $num, $mids, $refs, $xpath, $dd ];
+	add_over($self, $values);
 }
 
 sub add_over {

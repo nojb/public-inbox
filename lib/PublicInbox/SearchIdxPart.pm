@@ -11,7 +11,6 @@ sub new {
 	# create the DB before forking:
 	$self->_xdb_acquire;
 	$self->_xdb_release;
-	$self->{over} = $v2writable->{over};
 	$self->spawn_worker($v2writable, $part) if $v2writable->{parallel};
 	$self;
 }
@@ -25,7 +24,7 @@ sub spawn_worker {
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
-		$v2writable->atfork_child;
+		my $bnote = $v2writable->atfork_child;
 		$v2writable = undef;
 		close $w or die "failed to close: $!";
 
@@ -33,7 +32,7 @@ sub spawn_worker {
 		# speeds V2Writable batch imports across 8 cores by nearly 20%
 		fcntl($r, 1031, 1048576) if $^O eq 'linux';
 
-		eval { partition_worker_loop($self, $r, $part) };
+		eval { partition_worker_loop($self, $r, $part, $bnote) };
 		die "worker $part died: $@\n" if $@;
 		die "unexpected MM $self->{mm}" if $self->{mm};
 		exit;
@@ -43,8 +42,8 @@ sub spawn_worker {
 	close $r or die "failed to close: $!";
 }
 
-sub partition_worker_loop ($$$) {
-	my ($self, $r, $part) = @_;
+sub partition_worker_loop ($$$$) {
+	my ($self, $r, $part, $bnote) = @_;
 	$0 = "pi-v2-partition[$part]";
 	$self->begin_txn_lazy;
 	while (my $line = $r->getline) {
@@ -54,8 +53,9 @@ sub partition_worker_loop ($$$) {
 			$self->_xdb_release;
 		} elsif ($line eq "barrier\n") {
 			$self->commit_txn_lazy;
-			print { $self->{over}->{w} } "barrier $part\n" or
-					die "write failed to overview $!\n";
+			# no need to lock < 512 bytes is atomic under POSIX
+			print $bnote "barrier $part\n" or
+					die "write failed for barrier $!\n";
 		} elsif ($line =~ /\AD ([a-f0-9]{40,}) (.+)\n\z/s) {
 			my ($oid, $mid) = ($1, $2);
 			$self->begin_txn_lazy;

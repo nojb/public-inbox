@@ -84,7 +84,6 @@ lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NewsWWW.pm
 lib/PublicInbox/Over.pm
 lib/PublicInbox/OverIdx.pm
-lib/PublicInbox/OverIdxFork.pm
 lib/PublicInbox/ParentPipe.pm
 lib/PublicInbox/ProcessPipe.pm
 lib/PublicInbox/Qspawn.pm

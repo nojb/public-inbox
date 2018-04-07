@@ -12,7 +12,7 @@ use warnings;
 use base qw(PublicInbox::Search PublicInbox::Lock);
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
-use PublicInbox::MID qw/mid_clean id_compress mid_mime mids references/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime mids/;
 use PublicInbox::MsgIter;
 use Carp qw(croak);
 use POSIX qw(strftime);
@@ -76,8 +76,7 @@ sub new {
 	if ($version == 1) {
 		$self->{lock_path} = "$mainrepo/ssoma.lock";
 		my $dir = $self->xdir;
-		$self->{over_ro} = $self->{over} =
-				PublicInbox::OverIdx->new("$dir/over.sqlite3");
+		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
 	} elsif ($version == 2) {
 		defined $part or die "partition is required for v2\n";
 		# partition is a number
@@ -274,11 +273,6 @@ sub add_message {
 		my $smsg = PublicInbox::SearchMsg->new($mime);
 		my $doc = $smsg->{doc};
 		my $subj = $smsg->subject;
-		my $xpath;
-		if ($subj ne '') {
-			$xpath = $self->subject_path($subj);
-			$xpath = id_compress($xpath);
-		}
 
 		$smsg->{lines} = $mime->body_raw =~ tr!\n!\n!;
 		defined $bytes or $bytes = length($mime->as_string);
@@ -340,7 +334,6 @@ sub add_message {
 		});
 
 		# populates smsg->references for smsg->to_doc_data
-		my $refs = parse_references($smsg, $mid0, $mids);
 		my $data = $smsg->to_doc_data($oid, $mid0);
 		foreach my $mid (@$mids) {
 			$tg->index_text($mid, 1, 'XM');
@@ -359,10 +352,19 @@ sub add_message {
 
 		$self->delete_article($num) if defined $num; # for reindexing
 
-		utf8::encode($data);
-		$data = compress($data);
-		push @vals, $num, $mids, $refs, $xpath, $data;
-		$self->{over}->add_over(\@vals);
+		if (my $over = $self->{over}) {
+			utf8::encode($data);
+			$data = compress($data);
+			my $refs = $over->parse_references($smsg, $mid0, $mids);
+			my $xpath;
+			if ($subj ne '') {
+				$xpath = $self->subject_path($subj);
+				$xpath = id_compress($xpath);
+			}
+
+			push @vals, $num, $mids, $refs, $xpath, $data;
+			$over->add_over(\@vals);
+		}
 		$doc->add_boolean_term('Q' . $_) foreach @$mids;
 		$doc->add_boolean_term('XNUM' . $num) if defined $num;
 		$doc_id = $self->{xdb}->add_document($doc);
@@ -432,6 +434,8 @@ sub remove_by_oid {
 	my ($self, $oid, $mid) = @_;
 	my $db = $self->{xdb};
 
+	$self->{over}->remove_oid($oid, $mid) if $self->{over};
+
 	# XXX careful, we cannot use batch_do here since we conditionally
 	# delete documents based on other factors, so we cannot call
 	# find_doc_ids twice.
@@ -441,7 +445,6 @@ sub remove_by_oid {
 	# there is only ONE element in @delete unless we
 	# have bugs in our v2writable deduplication check
 	my @delete;
-	my @over_del;
 	for (; $head != $tail; $head->inc) {
 		my $docid = $head->get_docid;
 		my $doc = $db->get_document($docid);
@@ -449,11 +452,9 @@ sub remove_by_oid {
 		$smsg->load_expand;
 		if ($smsg->{blob} eq $oid) {
 			push(@delete, $docid);
-			push(@over_del, $smsg->num);
 		}
 	}
 	$db->delete_document($_) foreach @delete;
-	$self->{over}->remove_oid($oid, $mid);
 	scalar(@delete);
 }
 
@@ -467,29 +468,6 @@ sub term_generator { # write-only
 	$tg->set_stemmer($self->stemmer);
 
 	$self->{term_generator} = $tg;
-}
-
-sub parse_references ($$$) {
-	my ($smsg, $mid0, $mids) = @_;
-	my $mime = $smsg->{mime};
-	my $hdr = $mime->header_obj;
-	my $refs = references($hdr);
-	push(@$refs, @$mids) if scalar(@$mids) > 1;
-	return $refs if scalar(@$refs) == 0;
-
-	# prevent circular references here:
-	my %seen = ( $mid0 => 1 );
-	my @keep;
-	foreach my $ref (@$refs) {
-		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {
-			warn "References: <$ref> too long, ignoring\n";
-			next;
-		}
-		next if $seen{$ref}++;
-		push @keep, $ref;
-	}
-	$smsg->{references} = '<'.join('> <', @keep).'>' if @keep;
-	\@keep;
 }
 
 sub index_git_blob_id {
@@ -619,7 +597,7 @@ sub _git_log {
 				--raw -r --no-abbrev/, $range);
 }
 
-# indexes all unindexed messages
+# indexes all unindexed messages (v1 only)
 sub _index_sync {
 	my ($self, $opts) = @_;
 	my $tip = $opts->{ref} || 'HEAD';
@@ -750,7 +728,7 @@ sub begin_txn_lazy {
 	my ($self) = @_;
 	return if $self->{txn};
 	my $xdb = $self->{xdb} || $self->_xdb_acquire;
-	$self->{over}->begin_lazy;
+	$self->{over}->begin_lazy if $self->{over};
 	$xdb->begin_transaction;
 	$self->{txn} = 1;
 	$xdb;
@@ -760,7 +738,7 @@ sub commit_txn_lazy {
 	my ($self) = @_;
 	delete $self->{txn} or return;
 	$self->{xdb}->commit_transaction;
-	$self->{over}->commit_lazy;
+	$self->{over}->commit_lazy if $self->{over};
 }
 
 sub worker_done {
