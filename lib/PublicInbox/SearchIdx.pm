@@ -331,6 +331,7 @@ sub add_message {
 			$tg->index_text($mid, 1, 'XM');
 		}
 		$smsg->{to} = $smsg->{cc} = '';
+		PublicInbox::OverIdx::parse_references($smsg, $mid0, $mids);
 		my $data = $smsg->to_doc_data($oid, $mid0);
 		$doc->set_data($data);
 		if (my $altid = $self->{-altid}) {

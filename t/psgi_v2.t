@@ -113,6 +113,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 	like($raw, qr/^hello ghosts$/m, 'got third message');
 	@from_ = ($raw =~ m/^From /mg);
 	is(scalar(@from_), 3, 'three From_ lines');
+	$config->each_inbox(sub { $_[0]->search->reopen });
 
 	SKIP: {
 		eval { require IO::Uncompress::Gunzip };
@@ -129,7 +130,6 @@ test_psgi(sub { $www->call(@_) }, sub {
 		is(scalar(@from_), 3, 'three From_ lines in t.mbox.gz');
 
 		# search interface
-		$config->each_inbox(sub { $_[0]->search->reopen });
 		$res = $cb->(POST('/v2test/?q=m:a-mid@b&x=m'));
 		$in = $res->content;
 		$status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
@@ -149,6 +149,13 @@ test_psgi(sub { $www->call(@_) }, sub {
 		@from_ = ($out =~ m/^From /mg);
 		is(scalar(@from_), 3, 'three From_ lines in all.mbox');
 	};
+
+	$res = $cb->(GET('/v2test/?q=m:a-mid@b&x=t'));
+	is($res->code, 200, 'success with threaded search');
+	my $raw = $res->content;
+	ok($raw =~ s/\A.*>Results 1-3 of 3<//s, 'got all results');
+	my @over = ($raw =~ m/\d{4}-\d+-\d+\s+\d+:\d+ (.+)$/gm);
+	is_deeply(\@over, [ '<a', '` <a', '` <a' ], 'threaded messages show up');
 
 	local $SIG{__WARN__} = 'DEFAULT';
 	$res = $cb->(GET('/v2test/a-mid@b/'));
@@ -183,7 +190,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/v2test/reuse@mid/T/'));
 	$raw = $res->content;
 	like($raw, qr/\b4\+ messages\b/, 'thread overview shown with /T/');
-	my @over = ($raw =~ m/^\d{4}-\d+-\d+\s+\d+:\d+ (.+)$/gm);
+	@over = ($raw =~ m/^\d{4}-\d+-\d+\s+\d+:\d+ (.+)$/gm);
 	is_deeply(\@over, [ '<a', '` <a', '` <a', '` <a' ],
 		'duplicate messages share the same root');
 
