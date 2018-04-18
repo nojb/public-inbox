@@ -116,6 +116,7 @@ sub args_ok ($$) {
 sub process_line ($$) {
 	my ($self, $l) = @_;
 	my ($req, @args) = split(/\s+/, $l);
+	return unless defined($req);
 	$req = lc($req);
 	$req = eval {
 		no strict 'refs';
@@ -955,7 +956,7 @@ sub event_read {
 		$self->{rbuf} .= $$buf;
 	}
 	my $r = 1;
-	while ($r > 0 && $self->{rbuf} =~ s/\A\s*([^\r\n]+)\r?\n//) {
+	while ($r > 0 && $self->{rbuf} =~ s/\A\s*([^\r\n]*)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
@@ -975,7 +976,7 @@ sub event_read {
 sub watch_read {
 	my ($self, $bool) = @_;
 	my $rv = $self->SUPER::watch_read($bool);
-	if ($bool && $self->{rbuf} ne '') {
+	if ($bool && index($self->{rbuf}, "\n") >= 0) {
 		# Force another read if there is a pipelined request.
 		# We don't know if the socket has anything for us to read,
 		# and we must double-check again by the time the timer fires

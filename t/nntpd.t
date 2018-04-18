@@ -122,6 +122,8 @@ EOF
 	is($buf, "201 server ready - post via email\r\n", 'got greeting');
 	$s->autoflush(1);
 
+	ok(syswrite($s, "   \r\n"), 'wrote spaces');
+	ok(syswrite($s, "\r\n"), 'wrote nothing');
 	syswrite($s, "NEWGROUPS\t19990424 000000 \033GMT\007\r\n");
 	is(0, sysread($s, $buf, 4096), 'GOT EOF on cntrl');
 
