@@ -36,6 +36,15 @@ my $im = eval {
 };
 is($im->{partitions}, 1, 'one partition when forced');
 ok($im->add($mime), 'ordinary message added');
+foreach my $f ("$mainrepo/msgmap.sqlite3",
+		glob("$mainrepo/xap*/*"),
+		glob("$mainrepo/xap*/*/*")) {
+	my @st = stat($f);
+	my ($bn) = (split(m!/!, $f))[-1];
+	is($st[2] & 07777, -f _ ? 0660 : 0770,
+		"default sharedRepository respected for $bn");
+}
+
 my $git0;
 
 if ('ensure git configs are correct') {

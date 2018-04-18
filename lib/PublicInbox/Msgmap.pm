@@ -26,6 +26,9 @@ sub new {
 
 sub dbh_new {
 	my ($f, $writable) = @_;
+	if ($writable && !-f $f) { # SQLite defaults mode to 0644, we want 0666
+		open my $fh, '+>>', $f or die "failed to open $f: $!";
+	}
 	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,
 		RaiseError => 1,

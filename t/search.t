@@ -16,9 +16,11 @@ eval { PublicInbox::Search->new($git_dir) };
 ok($@, "exception raised on non-existent DB");
 
 my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
-$rw->_xdb_acquire;
-$rw->_xdb_release;
 my $ibx = $rw->{-inbox};
+$ibx->with_umask(sub {
+	$rw->_xdb_acquire;
+	$rw->_xdb_release;
+});
 $rw = undef;
 my $ro = PublicInbox::Search->new($git_dir);
 my $rw_commit = sub {
@@ -51,7 +53,7 @@ my $rw_commit = sub {
 	   umask, 'umask => existing umask');
 }
 
-{
+$ibx->with_umask(sub {
 	my $root = Email::MIME->create(
 		header_str => [
 			Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
@@ -79,7 +81,7 @@ my $rw_commit = sub {
 	is($root_id, int($root_id), "root_id is an integer: $root_id");
 	$last_id = $rw->add_message($last);
 	is($last_id, int($last_id), "last_id is an integer: $last_id");
-}
+});
 
 sub filter_mids {
 	my ($msgs) = @_;
@@ -116,7 +118,7 @@ sub filter_mids {
 }
 
 # ghost vivication
-{
+$ibx->with_umask(sub {
 	$rw_commit->();
 	my $rmid = '<ghost-message@s>';
 	my $reply_to_ghost = Email::MIME->create(
@@ -153,7 +155,7 @@ sub filter_mids {
 	}
 	isnt($msgs->[0]->{num}, $msgs->[1]->{num}, "num do not match");
 	ok($_->{num} > 0, 'positive art num') foreach @$msgs
-}
+});
 
 # search thread on ghost
 {
@@ -179,7 +181,7 @@ sub filter_mids {
 }
 
 # long message-id
-{
+$ibx->with_umask(sub {
 	$rw_commit->();
 	$ro->reopen;
 	my $long_mid = 'last' . ('x' x 60). '@s';
@@ -225,10 +227,10 @@ sub filter_mids {
 	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_mid);
 	@res = filter_mids($t);
 	is_deeply(\@res, \@exp, "get_thread works");
-}
+});
 
 # quote prioritization
-{
+$ibx->with_umask(sub {
 	$rw_commit->();
 	$rw->add_message(Email::MIME->create(
 		header_str => [
@@ -258,10 +260,10 @@ sub filter_mids {
 	is(scalar(@$res), 1, "got a match for quoted text");
 	is($res->[0]->mid, 'quote@a',
 		"quoted result returned if nothing else");
-}
+});
 
 # circular references
-{
+$ibx->with_umask(sub {
 	my $s = 'foo://'. ('Circle' x 15).'/foo';
 	my $doc_id = $rw->add_message(Email::MIME->create(
 		header => [ Subject => $s ],
@@ -278,9 +280,9 @@ sub filter_mids {
 	my $smsg = $rw->query('m:circle@a', {limit=>1})->[0];
 	is($smsg->references, '', "no references created");
 	is($s, $smsg->subject, 'long subject not rewritten');
-}
+});
 
-{
+$ibx->with_umask(sub {
 	my $str = eval {
 		my $mbox = 't/utf8.mbox';
 		open(my $fh, '<', $mbox) or die "failed to open mbox: $mbox\n";
@@ -293,7 +295,7 @@ sub filter_mids {
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
 	my $msg = $rw->query('m:testmessage@example.com', {limit => 1})->[0];
 	is($mime->header('Subject'), $msg->subject, 'UTF-8 subject preserved');
-}
+});
 
 {
 	my $msgs = $ro->query('d:19931002..20101002');
@@ -367,7 +369,7 @@ sub filter_mids {
 	}
 }
 
-{
+$ibx->with_umask(sub {
 	my $part1 = Email::MIME->create(
                  attributes => {
                      content_type => 'text/plain',
@@ -417,6 +419,15 @@ sub filter_mids {
 	$rw->unindex_blob($amsg);
 	$rw->commit_txn_lazy;
 	is($ro->lookup_article($art->{num}), undef, 'gone from OVER DB');
+});
+
+foreach my $f ("$git_dir/public-inbox/msgmap.sqlite3",
+		glob("$git_dir/public-inbox/xapian*/"),
+		glob("$git_dir/public-inbox/xapian*/*")) {
+	my @st = stat($f);
+	my ($bn) = (split(m!/!, $f))[-1];
+	is($st[2] & 07777, -f _ ? 0660 : 0770,
+		"sharedRepository respected for $bn");
 }
 
 done_testing();

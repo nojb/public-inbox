@@ -15,7 +15,11 @@ use Compress::Zlib qw(uncompress);
 sub dbh_new {
 	my ($self) = @_;
 	my $ro = ref($self) eq 'PublicInbox::Over';
-	my $dbh = DBI->connect("dbi:SQLite:dbname=$self->{filename}",'','', {
+	my $f = $self->{filename};
+	if (!$ro && !-f $f) { # SQLite defaults mode to 0644, we want 0666
+		open my $fh, '+>>', $f or die "failed to open $f: $!";
+	}
+	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,
 		RaiseError => 1,
 		PrintError => 0,

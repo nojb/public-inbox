@@ -63,6 +63,7 @@ sub new {
 	}
 
 	$v2ibx = PublicInbox::InboxWritable->new($v2ibx);
+	$v2ibx->umask_prepare;
 
 	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
 	my $self = {
@@ -94,6 +95,13 @@ sub init_inbox {
 # returns undef on duplicate or spam
 # mimics Import::add and wraps it for v2
 sub add {
+	my ($self, $mime, $check_cb) = @_;
+	$self->{-inbox}->with_umask(sub {
+		_add($self, $mime, $check_cb)
+	});
+}
+
+sub _add {
 	my ($self, $mime, $check_cb) = @_;
 
 	# spam check:
@@ -348,12 +356,16 @@ sub remove_internal {
 
 sub remove {
 	my ($self, $mime, $cmt_msg) = @_;
-	remove_internal($self, $mime, $cmt_msg);
+	$self->{-inbox}->with_umask(sub {
+		remove_internal($self, $mime, $cmt_msg);
+	});
 }
 
 sub purge {
 	my ($self, $mime) = @_;
-	my $purges = remove_internal($self, $mime, undef, {});
+	my $purges = $self->{-inbox}->with_umask(sub {
+		remove_internal($self, $mime, undef, {});
+	});
 	$self->idx_init if @$purges; # ->done is called on purges
 	for my $i (0..$#$purges) {
 		defined(my $cmt = $purges->[$i]) or next;
