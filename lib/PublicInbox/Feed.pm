@@ -95,7 +95,7 @@ sub recent_msgs {
 		die "BUG: unsupported inbox version: $v\n";
 	}
 	if (my $srch = $ibx->search) {
-		return PublicInbox::View::paginate_recent($ctx);
+		return PublicInbox::View::paginate_recent($ctx, $max);
 	}
 
 	my $hex = '[a-f0-9]';

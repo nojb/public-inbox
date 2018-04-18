@@ -1049,10 +1049,9 @@ sub index_nav { # callback for WwwStream
 	pagination_footer($ctx, '.')
 }
 
-sub paginate_recent ($) {
-	my ($ctx) = @_;
+sub paginate_recent ($$) {
+	my ($ctx, $lim) = @_;
 	my $t = $ctx->{qp}->{t} || '';
-	my $lim = 200; # this is our window
 	my $opts = { limit => $lim };
 	my ($after, $before);
 
@@ -1094,7 +1093,7 @@ sub paginate_recent ($) {
 
 sub index_topics {
 	my ($ctx) = @_;
-	my $msgs = paginate_recent($ctx);
+	my $msgs = paginate_recent($ctx, 200); # 200 is our window
 	if (@$msgs) {
 		walk_thread(thread_results($ctx, $msgs), $ctx, *acc_topic);
 	}
