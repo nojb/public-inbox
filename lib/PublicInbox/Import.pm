@@ -117,6 +117,9 @@ sub _cat_blob ($$$) {
 	$n = read($r, my $lf, 1);
 	defined($n) or die "read final byte of cat-blob failed: $!";
 	die "bad read on final byte: <$lf>" if $lf ne "\n";
+
+	# fixup some bugginess in old versions:
+	$buf =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 	\$buf;
 }
 
