@@ -295,6 +295,7 @@ sub add_message {
 			my $fn = $part->filename;
 			if (defined $fn && $fn ne '') {
 				$tg->index_text($fn, 1, 'XFN');
+				$tg->increase_termpos;
 			}
 
 			return if $ct =~ m!\btext/x?html\b!i;
@@ -330,6 +331,7 @@ sub add_message {
 
 		foreach my $mid (@$mids) {
 			$tg->index_text($mid, 1, 'XM');
+			$tg->increase_termpos;
 		}
 		$smsg->{to} = $smsg->{cc} = '';
 		PublicInbox::OverIdx::parse_references($smsg, $mid0, $mids);
