@@ -22,7 +22,7 @@ require PublicInbox::Git;
 use Compress::Zlib qw(compress);
 
 use constant {
-	BATCH_BYTES => 10_000_000,
+	BATCH_BYTES => 1_000_000,
 	DEBUG => !!$ENV{DEBUG},
 };
 
