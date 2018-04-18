@@ -116,7 +116,7 @@ sub recent_msgs {
 	my $log = $ibx->git->popen(qw/log
 				--no-notes --no-color --raw -r
 				--no-abbrev --abbrev-commit/,
-				"--format=%h", $range);
+				"--format=%H", $range);
 	my %deleted; # only an optimization at this point
 	my $last;
 	my $last_commit;

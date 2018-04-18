@@ -788,7 +788,7 @@ $range
 		$ranges->[$i] = $range;
 
 		# can't use 'rev-list --count' if we use --diff-filter
-		my $fh = $git->popen(qw(log --pretty=tformat:%h
+		my $fh = $git->popen(qw(log --pretty=tformat:%H
 				--no-notes --no-color --no-renames
 				--diff-filter=AM), $range, '--', 'm');
 		++$regen_max while <$fh>;
@@ -865,7 +865,7 @@ sub index_sync {
 	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
 	$$regen += $max if $max;
 	my $D = {};
-	my @cmd = qw(log --raw -r --pretty=tformat:%h
+	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
 
 	# work backwards through history
