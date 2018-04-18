@@ -22,4 +22,14 @@ my $orig = content_id($mime);
 my $reload = content_id(Email::MIME->new($mime->as_string));
 is($orig, $reload, 'content_id matches after serialization');
 
+foreach my $h (qw(From To Cc)) {
+	my $n = '"Quoted N\'Ame" <foo@EXAMPLE.com>';
+	$mime->header_str_set($h, "$n");
+	my $q = content_id($mime);
+	is($n, $mime->header($h), "content_id does not mutate $h:");
+	$mime->header_str_set($h, 'Quoted N\'Ame <foo@example.com>');
+	my $nq = content_id($mime);
+	is($nq, $q, "quotes ignored in $h:");
+}
+
 done_testing();

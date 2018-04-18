@@ -259,12 +259,32 @@ sub purge_oids {
 	$purges;
 }
 
+sub content_ids ($) {
+	my ($mime) = @_;
+	my @cids = ( content_id($mime) );
+
+	# Email::MIME->as_string doesn't always round-trip, so we may
+	# use a second content_id
+	my $rt = content_id(PublicInbox::MIME->new(\($mime->as_string)));
+	push @cids, $rt if $cids[0] ne $rt;
+	\@cids;
+}
+
+sub content_matches ($$) {
+	my ($cids, $existing) = @_;
+	my $cid = content_id($existing);
+	foreach (@$cids) {
+		return 1 if $_ eq $cid
+	}
+	0
+}
+
 sub remove_internal {
 	my ($self, $mime, $cmt_msg, $purge) = @_;
 	$self->idx_init;
 	my $im = $self->importer unless $purge;
 	my $over = $self->{over};
-	my $cid = content_id($mime);
+	my $cids = content_ids($mime);
 	my $parts = $self->{idx_parts};
 	my $mm = $self->{mm};
 	my $removed;
@@ -287,7 +307,7 @@ sub remove_internal {
 			}
 			my $orig = $$msg;
 			my $cur = PublicInbox::MIME->new($msg);
-			if (content_id($cur) eq $cid) {
+			if (content_matches($cids, $cur)) {
 				$smsg->{mime} = $cur;
 				$gone{$smsg->{num}} = [ $smsg, \$orig ];
 			}
@@ -572,8 +592,7 @@ sub get_blob ($$) {
 sub lookup_content {
 	my ($self, $mime, $mid) = @_;
 	my $over = $self->{over};
-	my $cid = content_id($mime);
-	my $found;
+	my $cids = content_ids($mime);
 	my ($id, $prev);
 	while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
 		my $msg = get_blob($self, $smsg);
@@ -582,16 +601,16 @@ sub lookup_content {
 			next;
 		}
 		my $cur = PublicInbox::MIME->new($msg);
-		if (content_id($cur) eq $cid) {
+		if (content_matches($cids, $cur)) {
 			$smsg->{mime} = $cur;
-			$found = $smsg;
-			last;
+			return $smsg;
 		}
+
 
 		# XXX DEBUG_DIFF is experimental and may be removed
 		diff($mid, $cur, $mime) if $ENV{DEBUG_DIFF};
 	}
-	$found;
+	undef;
 }
 
 sub atfork_child {

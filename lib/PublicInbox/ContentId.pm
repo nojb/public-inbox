@@ -7,9 +7,18 @@ use warnings;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/content_id content_digest/;
 use PublicInbox::MID qw(mids references);
+use PublicInbox::MsgIter;
 
 # not sure if less-widely supported hash families are worth bothering with
 use Digest::SHA;
+
+sub digest_addr ($$$) {
+	my ($dig, $h, $v) = @_;
+	$v =~ tr/"//d;
+	$v =~ s/@([a-z0-9\_\.\-\(\)]*([A-Z])\S*)/'@'.lc($1)/ge;
+	utf8::encode($v);
+	$dig->add("$h\0$v\0");
+}
 
 sub content_digest ($) {
 	my ($mime) = @_;
@@ -27,24 +36,62 @@ sub content_digest ($) {
 	}
 	foreach my $mid (@{references($hdr)}) {
 		next if $seen{$mid};
-		$dig->add('ref: '.$mid);
+		$dig->add("ref\0$mid\0");
 	}
 
 	# Only use Sender: if From is not present
 	foreach my $h (qw(From Sender)) {
-		my @v = $hdr->header_raw($h);
+		my @v = $hdr->header($h);
 		if (@v) {
-			$dig->add("$h: $_") foreach @v;
-			last;
+			digest_addr($dig, $h, $_) foreach @v;
 		}
 	}
-
-	# Content-* headers are often no-ops, so maybe we don't need them
-	foreach my $h (qw(Subject Date To Cc)) {
-		my @v = $hdr->header_raw($h);
-		$dig->add("$h: $_") foreach @v;
+	foreach my $h (qw(Subject Date)) {
+		my @v = $hdr->header($h);
+		foreach my $v (@v) {
+			utf8::encode($v);
+			$dig->add("$h\0$v\0");
+		}
 	}
-	$dig->add($mime->body_raw);
+	# Some mail processors will add " to unquoted names that were
+	# not in the original message.  For the purposes of deduplication,
+	# do not take it into account:
+	foreach my $h (qw(To Cc)) {
+		my @v = $hdr->header($h);
+		digest_addr($dig, $h, $_) foreach @v;
+	}
+	msg_iter($mime, sub {
+		my ($part, $depth, @idx) = @{$_[0]};
+		$dig->add("\0$depth:".join('.', @idx)."\0");
+		my $fn = $part->filename;
+		if (defined $fn) {
+			utf8::encode($fn);
+			$dig->add("fn\0$fn\0");
+		}
+		my @d = $part->header('Content-Description');
+		foreach my $d (@d) {
+			utf8::encode($d);
+			$dig->add("d\0$d\0");
+		}
+		$dig->add("b\0");
+		my $ct = $part->content_type || 'text/plain';
+		my $s = eval { $part->body_str };
+		if ($@ && $ct =~ m!\btext/plain\b!i) {
+			# Try to assume UTF-8 because Alpine
+			# seems to do wacky things and set
+			# charset=X-UNKNOWN
+			$part->charset_set('UTF-8');
+			$s = eval { $part->body_str };
+		}
+		if (defined $s) {
+			$s =~ s/\r\n/\n/gs;
+			$s =~ s/\s*\z//s;
+			utf8::encode($s);
+		} else {
+			$s = $part->body;
+		}
+		$dig->add($s);
+	});
 	$dig;
 }
 
