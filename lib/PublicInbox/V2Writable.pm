@@ -22,8 +22,11 @@ use IO::Handle;
 my $PACKING_FACTOR = 0.4;
 
 # assume 2 cores if GNU nproc(1) is not available
-sub nproc () {
-	int($ENV{NPROC} || `nproc 2>/dev/null` || 2);
+sub nproc_parts () {
+	my $n = int($ENV{NPROC} || `nproc 2>/dev/null` || 2);
+	# subtract for the main process and git-fast-import
+	$n -= 1;
+	$n < 1 ? 1 : $n;
 }
 
 sub count_partitions ($) {
@@ -73,7 +76,7 @@ sub new {
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git repo -> commit
 	};
-	$self->{partitions} = count_partitions($self) || nproc();
+	$self->{partitions} = count_partitions($self) || nproc_parts();
 	bless $self, $class;
 }
 
