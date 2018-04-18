@@ -108,10 +108,10 @@ sub created_at {
 sub mid_insert {
 	my ($self, $mid) = @_;
 	my $dbh = $self->{dbh};
-	my $sql = 'INSERT OR IGNORE INTO msgmap (mid) VALUES (?)';
-	my $sth = $self->{mid_insert} ||= $dbh->prepare($sql);
-	$sth->bind_param(1, $mid);
-	return if $sth->execute == 0;
+	my $sth = $dbh->prepare_cached(<<'');
+INSERT OR IGNORE INTO msgmap (mid) VALUES (?)
+
+	return if $sth->execute($mid) == 0;
 	$dbh->last_insert_id(undef, undef, 'msgmap', 'num');
 }
 

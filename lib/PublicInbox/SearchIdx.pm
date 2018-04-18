@@ -17,6 +17,7 @@ use PublicInbox::MsgIter;
 use Carp qw(croak);
 use POSIX qw(strftime);
 use PublicInbox::OverIdx;
+use PublicInbox::Spawn qw(spawn);
 require PublicInbox::Git;
 use Compress::Zlib qw(compress);
 
@@ -266,8 +267,8 @@ sub add_message {
 	my $mids = mids($mime->header_obj);
 	$mid0 = $mids->[0] unless defined $mid0; # v1 compatibility
 	unless (defined $num) { # v1
-		my $mm = $self->_msgmap_init;
-		$num = $mm->mid_insert($mid0) || $mm->num_for($mid0);
+		$self->_msgmap_init;
+		$num = index_mm($self, $mime);
 	}
 	eval {
 		my $smsg = PublicInbox::SearchMsg->new($mime);
@@ -464,8 +465,28 @@ sub index_mm {
 	my ($self, $mime) = @_;
 	my $mid = mid_clean(mid_mime($mime));
 	my $mm = $self->{mm};
-	my $num = $mm->mid_insert($mid);
-	return $num if defined $num;
+	my $num;
+
+	if (defined $self->{regen_down}) {
+		$num = $mm->num_for($mid) and return $num;
+
+		while (($num = $self->{regen_down}--) > 0) {
+			if ($mm->mid_set($num, $mid) != 0) {
+				return $num;
+			}
+		}
+	} elsif (defined $self->{regen_up}) {
+		$num = $mm->num_for($mid) and return $num;
+
+		# this is to fixup old bugs due to add-remove-add
+		while (($num = ++$self->{regen_up})) {
+			if ($mm->mid_set($num, $mid) != 0) {
+				return $num;
+			}
+		}
+	}
+
+	$num = $mm->mid_insert($mid) and return $num;
 
 	# fallback to num_for since filters like RubyLang set the number
 	$mm->num_for($mid);
@@ -474,18 +495,6 @@ sub index_mm {
 sub unindex_mm {
 	my ($self, $mime) = @_;
 	$self->{mm}->mid_delete(mid_clean(mid_mime($mime)));
-}
-
-sub index_mm2 {
-	my ($self, $mime, $bytes, $blob) = @_;
-	my $num = $self->{mm}->num_for(mid_clean(mid_mime($mime)));
-	add_message($self, $mime, $bytes, $num, $blob);
-}
-
-sub unindex_mm2 {
-	my ($self, $mime) = @_;
-	$self->{mm}->mid_delete(mid_clean(mid_mime($mime)));
-	unindex_blob($self, $mime);
 }
 
 sub index_both {
@@ -521,12 +530,12 @@ sub batch_adjust ($$$$) {
 	$$max -= $bytes;
 	if ($$max <= 0) {
 		$$max = BATCH_BYTES;
-		$batch_cb->($latest, 1);
+		$batch_cb->($latest);
 	}
 }
 
 # only for v1
-sub rlog {
+sub read_log {
 	my ($self, $log, $add_cb, $del_cb, $batch_cb) = @_;
 	my $hex = '[a-f0-9]';
 	my $h40 = $hex .'{40}';
@@ -537,23 +546,39 @@ sub rlog {
 	my $bytes;
 	my $max = BATCH_BYTES;
 	local $/ = "\n";
+	my %D;
 	my $line;
+	my $newest;
+	my $mid = '20170114215743.5igbjup6qpsh3jfg@genre.crustytoothpaste.net';
 	while (defined($line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $blob = $1;
+			delete $D{$blob} and next;
 			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
+			my $mids = mids($mime->header_obj);
+			foreach (@$mids) {
+				warn "ADD $mid\n" if ($_ eq $mid);
+			}
 			batch_adjust(\$max, $bytes, $batch_cb, $latest);
 			$add_cb->($self, $mime, $bytes, $blob);
 		} elsif ($line =~ /$delmsg/o) {
 			my $blob = $1;
-			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
-			batch_adjust(\$max, $bytes, $batch_cb, $latest);
-			$del_cb->($self, $mime);
+			$D{$blob} = 1;
 		} elsif ($line =~ /^commit ($h40)/o) {
 			$latest = $1;
+			$newest ||= $latest;
 		}
 	}
-	$batch_cb->($latest, 0);
+	# get the leftovers
+	foreach my $blob (keys %D) {
+		my $mime = do_cat_mail($git, $blob, \$bytes) or next;
+		my $mids = mids($mime->header_obj);
+		foreach (@$mids) {
+			warn "DEL $mid\n" if ($_ eq $mid);
+		}
+		$del_cb->($self, $mime);
+	}
+	$batch_cb->($latest, $newest);
 }
 
 sub _msgmap_init {
@@ -567,8 +592,49 @@ sub _msgmap_init {
 
 sub _git_log {
 	my ($self, $range) = @_;
-	$self->{git}->popen(qw/log --reverse --no-notes --no-color
+	my $git = $self->{git};
+
+	if (index($range, '..') < 0) {
+		my $regen_max = 0;
+		# can't use 'rev-list --count' if we use --diff-filter
+		my $fh = $git->popen(qw(log --pretty=tformat:%h
+				--no-notes --no-color --no-renames
+				--diff-filter=AM), $range);
+		++$regen_max while <$fh>;
+		my (undef, $max) = $self->{mm}->minmax;
+
+		if ($max && $max == $regen_max) {
+			# fix up old bugs in full indexes which caused messages to
+			# not appear in Msgmap
+			$self->{regen_up} = $max;
+		} else {
+			# normal regen is for for fresh data
+			$self->{regen_down} = $regen_max;
+		}
+	}
+
+	$git->popen(qw/log --no-notes --no-color --no-renames
 				--raw -r --no-abbrev/, $range);
+}
+
+sub is_ancestor ($$$) {
+	my ($git, $cur, $tip) = @_;
+	return 0 unless $git->check($cur);
+	my $cmd = [ 'git', "--git-dir=$git->{git_dir}",
+		qw(merge-base --is-ancestor), $cur, $tip ];
+	my $pid = spawn($cmd);
+	defined $pid or die "spawning ".join(' ', @$cmd)." failed: $!";
+	waitpid($pid, 0) == $pid or die join(' ', @$cmd) .' did not finish';
+	$? == 0;
+}
+
+sub need_update ($$$) {
+	my ($self, $cur, $new) = @_;
+	my $git = $self->{git};
+	return 1 if $cur && !is_ancestor($git, $cur, $new);
+	my $range = $cur eq '' ? $new : "$cur..$new";
+	chomp(my $n = $git->qx(qw(rev-list --count), $range));
+	($n eq '' || $n > 0);
 }
 
 # indexes all unindexed messages (v1 only)
@@ -577,8 +643,11 @@ sub _index_sync {
 	my $tip = $opts->{ref} || 'HEAD';
 	my $reindex = $opts->{reindex};
 	my ($mkey, $last_commit, $lx, $xlog);
-	$self->{git}->batch_prepare;
+	my $git = $self->{git};
+	$git->batch_prepare;
+
 	my $xdb = $self->begin_txn_lazy;
+	my $mm = _msgmap_init($self);
 	do {
 		$xlog = undef;
 		$mkey = 'last_commit';
@@ -588,73 +657,54 @@ sub _index_sync {
 			$lx = '';
 			$mkey = undef if $last_commit ne '';
 		}
+
+		# use last_commit from msgmap if it is older or unset
+		my $lm = $mm->last_commit || '';
+		if (!$lm || ($lm && $lx && is_ancestor($git, $lm, $lx))) {
+			$lx = $lm;
+		}
+
 		$self->{over}->rollback_lazy;
 		$self->{over}->disconnect;
 		delete $self->{txn};
 		$xdb->cancel_transaction;
 		$xdb = _xdb_release($self);
 
-		# ensure we leak no FDs to "git log"
+		# ensure we leak no FDs to "git log" with Xapian <= 1.2
 		my $range = $lx eq '' ? $tip : "$lx..$tip";
 		$xlog = _git_log($self, $range);
 
 		$xdb = $self->begin_txn_lazy;
 	} while ($xdb->get_metadata('last_commit') ne $last_commit);
 
-	my $mm = _msgmap_init($self);
 	my $dbh = $mm->{dbh} if $mm;
-	my $mm_only;
 	my $cb = sub {
-		my ($commit, $more) = @_;
+		my ($commit, $newest) = @_;
 		if ($dbh) {
-			$mm->last_commit($commit) if $commit;
+			if ($newest) {
+				my $cur = $mm->last_commit || '';
+				if (need_update($self, $cur, $newest)) {
+					$mm->last_commit($newest);
+				}
+			}
 			$dbh->commit;
 		}
-		if (!$mm_only) {
-			$xdb->set_metadata($mkey, $commit) if $mkey && $commit;
-			$self->commit_txn_lazy;
-		}
-		# let another process do some work... <
-		if ($more) {
-			if (!$mm_only) {
-				$xdb = $self->begin_txn_lazy;
+		if ($mkey && $newest) {
+			my $cur = $xdb->get_metadata($mkey);
+			if (need_update($self, $cur, $newest)) {
+				$xdb->set_metadata($mkey, $newest);
 			}
+		}
+		$self->commit_txn_lazy;
+		# let another process do some work... <
+		if (!$newest) {
+			$xdb = $self->begin_txn_lazy;
 			$dbh->begin_work if $dbh;
 		}
 	};
 
-	if ($mm) {
-		$dbh->begin_work;
-		my $lm = $mm->last_commit || '';
-		if ($lm eq $lx) {
-			# Common case is the indexes are synced,
-			# we only need to run git-log once:
-			rlog($self, $xlog, *index_both, *unindex_both, $cb);
-		} else {
-			# Uncommon case, msgmap and xapian are out-of-sync
-			# do not care for performance (but git is fast :>)
-			# This happens if we have to reindex Xapian since
-			# msgmap is a frozen format and our Xapian format
-			# is evolving.
-			my $r = $lm eq '' ? $tip : "$lm..$tip";
-
-			# first, ensure msgmap is up-to-date:
-			my $mkey_prev = $mkey;
-			$mkey = undef; # ignore xapian, for now
-			my $mlog = _git_log($self, $r);
-			$mm_only = 1;
-			rlog($self, $mlog, *index_mm, *unindex_mm, $cb);
-			$mm_only = $mlog = undef;
-
-			# now deal with Xapian
-			$mkey = $mkey_prev;
-			$dbh = undef;
-			rlog($self, $xlog, *index_mm2, *unindex_mm2, $cb);
-		}
-	} else {
-		# user didn't install DBD::SQLite and DBI
-		rlog($self, $xlog, *add_message, *unindex_blob, $cb);
-	}
+	$dbh->begin_work;
+	read_log($self, $xlog, *index_both, *unindex_both, $cb);
 }
 
 sub DESTROY {

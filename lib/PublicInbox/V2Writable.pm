@@ -15,7 +15,8 @@ use PublicInbox::ContentId qw(content_id content_digest);
 use PublicInbox::Inbox;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
-use PublicInbox::Spawn;
+use PublicInbox::Spawn qw(spawn);
+use PublicInbox::SearchIdx;
 use IO::Handle;
 
 # an estimate of the post-packed size to the raw uncompressed size
@@ -561,7 +562,6 @@ sub import_init {
 sub diff ($$$) {
 	my ($mid, $cur, $new) = @_;
 	use File::Temp qw(tempfile);
-	use PublicInbox::Spawn qw(spawn);
 
 	my ($ah, $an) = tempfile('email-cur-XXXXXXXX', TMPDIR => 1);
 	print $ah $cur->as_string or die "print: $!";
@@ -738,16 +738,7 @@ sub last_commits {
 	$heads;
 }
 
-sub is_ancestor ($$$) {
-	my ($git, $cur, $tip) = @_;
-	return 0 unless $git->check($cur);
-	my $cmd = [ 'git', "--git-dir=$git->{git_dir}",
-		qw(merge-base --is-ancestor), $cur, $tip ];
-	my $pid = spawn($cmd);
-	defined $pid or die "spawning ".join(' ', @$cmd)." failed: $!";
-	waitpid($pid, 0) == $pid or die join(' ', @$cmd) .' did not finish';
-	$? == 0;
-}
+*is_ancestor = *PublicInbox::SearchIdx::is_ancestor;
 
 sub index_prepare {
 	my ($self, $opts, $epoch_max, $ranges) = @_;
