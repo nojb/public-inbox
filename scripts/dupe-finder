@@ -1,0 +1,54 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2018 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# ad-hoc tool for finding duplicates, unstable!
+use strict;
+use warnings;
+use PublicInbox::Inbox;
+use PublicInbox::Over;
+use PublicInbox::Search;
+use PublicInbox::Config;
+my $repo = shift;
+my $ibx;
+if (index($repo, '@') > 0) {
+	$ibx = PublicInbox::Config->new->lookup($repo);
+} elsif (-d $repo) {
+	$ibx = { mainrepo => $repo, address => 'unnamed@example.com' };
+	$ibx = PublicInbox::Inbox->new($ibx);
+} else {
+	$ibx = PublicInbox::Config->new->lookup_name($repo);
+}
+$ibx or die "No inbox";
+$ibx->search or die "search not available for inbox";
+my $dbh = $ibx->search->{over_ro}->connect;
+my $over = PublicInbox::Over->new($dbh->sqlite_db_filename);
+
+sub emit ($) {
+	my ($nums) = @_;
+	foreach my $n (@$nums) {
+		my $smsg = $over->get_art($n) or next;
+		print STDERR "$n $smsg->{blob} $smsg->{mid}\n";
+		my $msg = $ibx->msg_by_smsg($smsg) or next;
+		print "From $smsg->{blob}\@$n Thu Jan  1 00:00:00 1970\n";
+		$$msg =~ s/^(>*From )/>$1/gm;
+		print $$msg, "\n";
+	}
+}
+
+my $sth = $dbh->prepare(<<'');
+SELECT id,num FROM id2num WHERE num > 0 ORDER BY id
+
+$sth->execute;
+my $prev_id = -1;
+my ($id, $num, @nums);
+while (1) {
+	($id, $num) = $sth->fetchrow_array;
+	defined $id or last;
+	if ($prev_id != $id) {
+		emit(\@nums) if scalar(@nums) > 1;
+		@nums = ();
+	}
+	$prev_id = $id;
+	push @nums, $num;
+}

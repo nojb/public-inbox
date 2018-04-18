@@ -124,6 +124,7 @@ script/public-inbox-watch
 script/public-inbox.cgi
 scripts/dc-dlvr
 scripts/dc-dlvr.pre
+scripts/dupe-finder
 scripts/edit-sa-prefs
 scripts/import_maildir
 scripts/import_slrnspool

@@ -14,6 +14,7 @@ use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use PublicInbox::ContentId qw(content_digest);
 use PublicInbox::MDA;
+use POSIX qw(strftime);
 
 sub new {
 	my ($class, $git, $name, $email, $ibx) = @_;
@@ -330,7 +331,7 @@ sub v1_mid0 ($) {
 	my $mids = mids($hdr);
 
 	if (!scalar(@$mids)) { # spam often has no Message-Id
-		my $mid0 = digest2mid(content_digest($mime));
+		my $mid0 = digest2mid(content_digest($mime), $hdr);
 		append_mid($hdr, $mid0);
 		return $mid0;
 	}
@@ -445,18 +446,19 @@ sub atfork_child {
 	}
 }
 
-sub digest2mid ($) {
-	my ($dig) = @_;
+sub digest2mid ($$) {
+	my ($dig, $hdr) = @_;
 	my $b64 = $dig->clone->b64digest;
 	# Make our own URLs nicer:
 	# See "Base 64 Encoding with URL and Filename Safe Alphabet" in RFC4648
 	$b64 =~ tr!+/=!-_!d;
 
-	# We can make this more meaningful with a date prefix or other things,
-	# but this is only needed for crap that fails to generate a Message-ID
-	# or reuses one.  In other words, it's usually spammers who hit this
-	# so they don't deserve nice Message-IDs :P
-	$b64 . '@localhost';
+	# Add a date prefix to prevent a leading '-' in case that trips
+	# up some tools (e.g. if a Message-ID were a expected as a
+	# command-line arg)
+	my $dt = msg_datestamp($hdr);
+	$dt = POSIX::strftime('%Y%m%d%H%M%S', gmtime($dt));
+	"$dt.$b64" . '@z';
 }
 
 sub clean_purge_buffer {

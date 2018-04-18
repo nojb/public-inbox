@@ -68,7 +68,7 @@ if ('ensure git configs are correct') {
 		[ $sec->header_obj->header_raw('Message-Id') ],
 		'no new Message-Id added');
 
-	my $sane_mid = qr/\A<[\w\-]+\@localhost>\z/;
+	my $sane_mid = qr/\A<[\w\-\.]+\@\w+>\z/;
 	@warn = ();
 	$mime->header_set('Message-Id', '<a-mid@b>');
 	$mime->body_set('different');
@@ -82,7 +82,8 @@ if ('ensure git configs are correct') {
 	@warn = ();
 	$mime->header_set('Message-Id', '<a-mid@b>');
 	$mime->body_set('this one needs a random mid');
-	my $gen = PublicInbox::Import::digest2mid(content_digest($mime));
+	my $hdr = $mime->header_obj;
+	my $gen = PublicInbox::Import::digest2mid(content_digest($mime), $hdr);
 	unlike($gen, qr![\+/=]!, 'no URL-unfriendly chars in Message-Id');
 	my $fake = PublicInbox::MIME->new($mime->as_string);
 	$fake->header_set('Message-Id', "<$gen>");
