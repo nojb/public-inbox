@@ -80,8 +80,6 @@ my $env = { NPROC => 2 };
 ok(PublicInbox::Import::run_die($cmd, $env, $rdr), 'v2 compact works');
 $ibx->{mainrepo} = "$tmpdir/v2";
 $ibx->{version} = 2;
-my $v2w = PublicInbox::V2Writable->new($ibx);
-is($v2w->{partitions}, 1, "only one partition in compacted repo");
 
 @xdir = glob("$tmpdir/v2/xap*/*");
 foreach (@xdir) {

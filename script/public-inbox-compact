@@ -10,6 +10,7 @@ use PublicInbox::InboxWritable;
 use Cwd 'abs_path';
 use File::Temp qw(tempdir);
 use File::Path qw(remove_tree);
+use PublicInbox::Spawn qw(spawn);
 my $usage = "Usage: public-inbox-compact REPO_DIR\n";
 my $dir = shift or die $usage;
 my $config = PublicInbox::Config->new;
@@ -58,10 +59,11 @@ if ($v == 2) {
 	my $new = tempdir('compact-XXXXXXXX', CLEANUP => 1, DIR => $dir);
 	$ibx->with_umask(sub {
 		$v2w->lock_acquire;
-		my @parts;
+		my %pids;
 		while (defined(my $dn = readdir($dh))) {
 			if ($dn =~ /\A\d+\z/) {
-				push @parts, "$old/$dn";
+				my $cmd = [ @compact, "$old/$dn", "$new/$dn" ];
+				$pids{spawn($cmd)} = join(' ', @$cmd);
 			} elsif ($dn eq '.' || $dn eq '..') {
 			} elsif ($dn =~ /\Aover\.sqlite3/) {
 			} else {
@@ -69,9 +71,12 @@ if ($v == 2) {
 			}
 		}
 		close $dh;
-		die "No Xapian parts found in $old\n" unless @parts;
-		my $cmd = [@compact, @parts, "$new/0" ];
-		PublicInbox::Import::run_die($cmd);
+		die "No Xapian parts found in $old\n" unless keys %pids;
+		while (scalar keys %pids) {
+			my $pid = waitpid(-1, 0);
+			my $desc = delete $pids{$pid};
+			die "$desc failed: $?\n" if $?;
+		}
 		commit_changes($v2w, $old, $new);
 	});
 } elsif ($v == 1) {
