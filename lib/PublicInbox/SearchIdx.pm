@@ -385,11 +385,13 @@ sub remove_message {
 	my $db = $self->{xdb};
 	my $called;
 	$mid = mid_clean($mid);
+	my $over = $self->{over};
 
 	eval {
 		batch_do($self, 'Q' . $mid, sub {
 			my ($ids) = @_;
 			$db->delete_document($_) for @$ids;
+			$over->delete_articles($ids) if $over;
 			$called = 1;
 		});
 	};

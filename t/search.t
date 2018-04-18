@@ -409,8 +409,15 @@ sub filter_mids {
 	my $txt = $ro->query('"inside another"');
 	is($txt->[0]->mid, $res->[0]->mid,
 		'search inside text attachments works');
+
+	my $mid = $n->[0]->mid;
+	my ($id, $prev);
+	my $art = $ro->next_by_mid($mid, \$id, \$prev);
+	ok($art, 'article exists in OVER DB');
+	$rw->unindex_blob($amsg);
+	$rw->commit_txn_lazy;
+	is($ro->lookup_article($art->{num}), undef, 'gone from OVER DB');
 }
-$rw->commit_txn_lazy;
 
 done_testing();
 
