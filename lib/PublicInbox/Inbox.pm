@@ -290,11 +290,6 @@ sub smsg_mime {
 	}
 }
 
-sub path_check {
-	my ($self, $path) = @_;
-	git($self)->check('HEAD:'.$path);
-}
-
 sub mid2num($$) {
 	my ($self, $mid) = @_;
 	my $mm = mm($self) or return;

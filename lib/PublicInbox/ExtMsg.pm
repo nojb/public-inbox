@@ -31,30 +31,19 @@ sub ext_msg {
 	my $cur = $ctx->{-inbox};
 	my $mid = $ctx->{mid};
 
-	eval { require PublicInbox::Search };
-	my $have_xap = $@ ? 0 : 1;
-	my (@nox, @ibx, @found);
+	eval { require PublicInbox::Msgmap };
+	my $have_mm = $@ ? 0 : 1;
+	my (@ibx, @found);
 
 	$ctx->{www}->{pi_config}->each_inbox(sub {
 		my ($other) = @_;
 		return if $other->{name} eq $cur->{name} || !$other->base_url;
 
-		my $s = $other->search;
-		if (!$s) {
-			push @nox, $other;
-			return;
-		}
+		my $mm = $other->mm or return;
 
-		# try to find the URL with Xapian to avoid forking
-		my $doc_id = eval { $s->find_first_doc_id('Q' . $mid) };
-		if ($@) {
-			# xapian not configured properly for this repo
-			push @nox, $other;
-			return;
-		}
-
-		# maybe we found it!
-		if (defined $doc_id) {
+		# try to find the URL with Msgmap to avoid forking
+		my $num = $mm->num_for($mid);
+		if (defined $num) {
 			push @found, $other;
 		} else {
 			# no point in trying the fork fallback if we
@@ -64,20 +53,6 @@ sub ext_msg {
 		}
 	});
 
-	return exact($ctx, \@found, $mid) if @found;
-
-	# Xapian not installed or configured for some repos,
-	# do a full MID check (this is expensive...):
-	if (@nox) {
-		my $path = mid2path($mid);
-		foreach my $other (@nox) {
-			my (undef, $type, undef) = $other->path_check($path);
-
-			if ($type && $type eq 'blob') {
-				push @found, $other;
-			}
-		}
-	}
 	return exact($ctx, \@found, $mid) if @found;
 
 	# fall back to partial MID matching
