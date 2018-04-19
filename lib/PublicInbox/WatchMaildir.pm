@@ -126,7 +126,8 @@ sub _remove_spam {
 			my $im = _importer_for($self, $ibx);
 			$im->remove($mime, 'spam');
 			if (my $scrub = $ibx->filter) {
-				my $scrubbed = $scrub->scrub($mime) or return;
+				my $scrubbed = $scrub->scrub($mime, 1);
+				$scrubbed or return;
 				$scrubbed == REJECT() and return;
 				$im->remove($scrubbed, 'spam');
 			}

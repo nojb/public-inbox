@@ -30,7 +30,7 @@ sub new {
 }
 
 sub scrub {
-	my ($self, $mime) = @_;
+	my ($self, $mime, $for_remove) = @_;
 	# no msg_iter here, that is only for read-only access
 	$mime->walk_parts(sub {
 		my ($part) = $_[0];
@@ -43,7 +43,7 @@ sub scrub {
 		}
 	});
 	my $altid = $self->{-altid};
-	if ($altid) {
+	if ($altid && !$for_remove) {
 		my $hdr = $mime->header_obj;
 		my $mids = mids($hdr);
 		return $self->REJECT('Message-ID missing') unless (@$mids);

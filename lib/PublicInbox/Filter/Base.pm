@@ -66,9 +66,10 @@ sub reject ($$) {
 sub err ($) { $_[0]->{err} }
 
 # by default, scrub is a no-op, see PublicInbox::Filter::Vger::scrub
-# for an example of the override
+# for an example of the override.  The $for_remove arg is set to
+# disable altid setting for spam removal.
 sub scrub {
-	my ($self, $mime) = @_;
+	my ($self, $mime, $for_remove) = @_;
 	$self->ACCEPT($mime);
 }
 
