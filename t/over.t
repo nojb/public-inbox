@@ -5,7 +5,8 @@ use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
 use Compress::Zlib qw(compress);
-foreach my $mod (qw(DBD::SQLite)) {
+# FIXME: allow using Over w/o Xapian
+foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for over.t" if $@;
 }

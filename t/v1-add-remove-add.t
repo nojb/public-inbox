@@ -5,13 +5,13 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Import;
-use PublicInbox::SearchIdx;
 use File::Temp qw/tempdir/;
 
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for v1-add-remove-add.t" if $@;
 }
+require PublicInbox::SearchIdx;
 my $mainrepo = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 is(system(qw(git init --bare), $mainrepo), 0);
 my $ibx = {
