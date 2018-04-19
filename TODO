@@ -25,11 +25,9 @@ all need to be considered for everything we introduce)
 
 * NNTP COMPRESS extension (see innd)
 
-* Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
+* Support more of RFC 3977 (NNTP)
 
-* Optional reply-to-list support for mirroring lists that want it :<
-  Reply-to-list encourages the existing list as a single-point-of-failure,
-  but having an extra mirror using public-inbox code is nice regardless.
+* Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
 
 * Optional reply-to-nobody for dead lists.
 
@@ -49,7 +47,7 @@ all need to be considered for everything we introduce)
 
 * configurable constants (index limits, search results)
 
-* handle messages with multiple Message-IDs (how?)
+* handle messages with multiple Message-IDs (done for v2, doable for v1)
 
 * handle broken double-bracketed References properly (maybe)
   and totally broken Message-IDs
@@ -79,33 +77,10 @@ all need to be considered for everything we introduce)
 
 * large mbox/Maildir/MH/NNTP spool import (see PublicInbox::Import)
 
+* Optionally allow indexing Xapian without positional information to
+  save space (but prevents "quoted phrase" searching).
+
+* Allow NNTP and more of PSGI code to work without Xapian
+
 * Read-only WebDAV interface to the git repo so it can be mounted
   via davfs2 or fusedav to avoid full clones.
-
-* Improve tree layout to help giant archives (v2 format):
-
-  * Must be optional; old ssoma users may continue using v1
-
-  * Xapian becomes becomes a requirement when using v2; they
-    claim good scalability: https://xapian.org/docs/scalability.html
-
-  * Allow git to perform better deltafication for quoted messages
-
-  * Changing tree layout for deltafication means we need to handle
-    deletes for spam differently than we do now.
-
-  * Deal with duplicate Message-IDs (web UI, at least, not sure about NNTP)
-
-  * (Maybe) SQLite alternatives (MySQL/MariaDB/Pg) for NNTP article
-    number mapping: https://www.sqlite.org/whentouse.html
-
-  * Ref rotation (splitting heads by YYYY or YYYY-MM)
-
-  * Support multiple git repos for a single archive?
-    This seems gross, but splitting large packs in in git conflicts
-    with bitmaps and we want to use both features.  Perhaps this
-    limitation can be fixed in git instead of merely being documented:
-    https://public-inbox.org/git/20160428072854.GA5252@dcvr.yhbt.net/
-
-  * Optional history squashing to reduce commit and intermediate
-    tree objects
