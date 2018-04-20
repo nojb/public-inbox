@@ -698,6 +698,7 @@ sub _index_sync {
 			}
 		}
 		$self->commit_txn_lazy;
+		$xdb = _xdb_release($self);
 		# let another process do some work... <
 		if (!$newest) {
 			$xdb = $self->begin_txn_lazy;
