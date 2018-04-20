@@ -440,6 +440,8 @@ sub done {
 	_update_git_info($self, 1) if delete $self->{nchg};
 
 	$self->lock_release;
+
+	$self->{git}->cleanup;
 }
 
 sub atfork_child {
