@@ -551,16 +551,11 @@ sub read_log {
 	my %D;
 	my $line;
 	my $newest;
-	my $mid = '20170114215743.5igbjup6qpsh3jfg@genre.crustytoothpaste.net';
 	while (defined($line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $blob = $1;
 			delete $D{$blob} and next;
 			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
-			my $mids = mids($mime->header_obj);
-			foreach (@$mids) {
-				warn "ADD $mid\n" if ($_ eq $mid);
-			}
 			batch_adjust(\$max, $bytes, $batch_cb, $latest);
 			$add_cb->($self, $mime, $bytes, $blob);
 		} elsif ($line =~ /$delmsg/o) {
@@ -574,10 +569,6 @@ sub read_log {
 	# get the leftovers
 	foreach my $blob (keys %D) {
 		my $mime = do_cat_mail($git, $blob, \$bytes) or next;
-		my $mids = mids($mime->header_obj);
-		foreach (@$mids) {
-			warn "DEL $mid\n" if ($_ eq $mid);
-		}
 		$del_cb->($self, $mime);
 	}
 	$batch_cb->($latest, $newest);
