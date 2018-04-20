@@ -80,9 +80,10 @@ From: =?utf-8?Q?El=C3=A9anor?= <me\@example.com>
 Cc: $addr
 Message-Id: <nntp\@example.com>
 Content-Type: text/plain; charset=utf-8
-Subject: Testing for =?utf-8?Q?El=C3=A9anor?=
+Subject: Testing for	=?utf-8?Q?El=C3=A9anor?=
 Date: Thu, 01 Jan 1970 06:06:06 +0000
 Content-Transfer-Encoding: 8bit
+References: <ref	tab	squeezed>
 
 This is a test message for El\xc3\xa9anor
 EOF
@@ -139,7 +140,8 @@ EOF
 		'from' => "El\xc3\xa9anor <me\@example.com>",
 		'to' => "El\xc3\xa9anor <you\@example.com>",
 		'cc' => $addr,
-		'xref' => "example.com $group:1"
+		'xref' => "example.com $group:1",
+		'references' => '<reftabsqueezed>',
 	);
 
 	my $s = IO::Socket::INET->new(%opts);
@@ -189,7 +191,7 @@ EOF
 			"El\xc3\xa9anor <me\@example.com>",
 			'Thu, 01 Jan 1970 06:06:06 +0000',
 			'<nntp@example.com>',
-			'',
+			'<reftabsqueezed>',
 			$len,
 			'1' ] }, "XOVER range works");
 
@@ -198,7 +200,7 @@ EOF
 			"El\xc3\xa9anor <me\@example.com>",
 			'Thu, 01 Jan 1970 06:06:06 +0000',
 			'<nntp@example.com>',
-			'',
+			'<reftabsqueezed>',
 			$len,
 			'1' ] }, "XOVER by article works");
 
@@ -220,14 +222,15 @@ EOF
 		is($r[1], "0\tTesting for El\xc3\xa9anor\t" .
 			"El\xc3\xa9anor <me\@example.com>\t" .
 			"Thu, 01 Jan 1970 06:06:06 +0000\t" .
-			"$mid\t\t$len\t1", 'OVER by Message-ID works');
+			"$mid\t<reftabsqueezed>\t$len\t1",
+			'OVER by Message-ID works');
 		is($r[2], '.', 'correctly terminated response');
 	}
 
 	is_deeply($n->xhdr(qw(Cc 1-)), { 1 => 'test-nntpd@example.com' },
 		 'XHDR Cc 1- works');
-	is_deeply($n->xhdr(qw(References 1-)), { 1 => '' },
-		 'XHDR References 1- works (empty string)');
+	is_deeply($n->xhdr(qw(References 1-)), { 1 => '<reftabsqueezed>' },
+		 'XHDR References 1- works)');
 	is_deeply($n->xhdr(qw(list-id 1-)), {},
 		 'XHDR on invalid header returns empty');
 

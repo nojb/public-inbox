@@ -25,6 +25,17 @@ is(mid_escape('foo%!@(bar)'), 'foo%25!@(bar)');
 	$mime->header_set('In-Reply-To', '<weld>');
 	is_deeply(['hello', 'world', 'weld'], references($mime->header_obj),
 		'references combines with In-Reply-To');
+
+	$mime->header_set('References', "<hello>\n\t<world>");
+	$mime->header_set('In-Reply-To');
+	is_deeply(references($mime->header_obj), ['hello', 'world'],
+		'multiline References OK');
+	$mime->header_set('References', "<hello\tworld>");
+	is_deeply(references($mime->header_obj), ['helloworld'],
+		'drop \t in References <656C30A1EFC89F6B2082D9B6@localhost>');
+	$mime->header_set('Message-ID', "<hello\tworld>");
+	is_deeply(mids($mime->header_obj), ['helloworld'],
+		'drop \t in Message-ID');
 }
 
 done_testing();

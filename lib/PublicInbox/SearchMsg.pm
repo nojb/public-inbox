@@ -100,7 +100,7 @@ sub __hdr ($$) {
 	my $mime = $self->{mime} or return;
 	$val = $mime->header($field);
 	$val = '' unless defined $val;
-	$val =~ tr/\n/ /;
+	$val =~ tr/\t\n/  /;
 	$val =~ tr/\r//d;
 	$self->{$field} = $val;
 }

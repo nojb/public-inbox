@@ -87,6 +87,7 @@ sub uniq_mids ($) {
 	my @ret;
 	my %seen;
 	foreach my $mid (@$mids) {
+		$mid =~ tr/\n\t\r//d;
 		if (length($mid) > MAX_MID_SIZE) {
 			warn "Message-ID: <$mid> too long, truncating\n";
 			$mid = substr($mid, 0, MAX_MID_SIZE);
