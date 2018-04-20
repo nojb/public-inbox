@@ -11,6 +11,7 @@ use PublicInbox::V2Writable;
 use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
 use Cwd 'abs_path';
+use File::Copy 'cp'; # preserves permissions:
 my $usage = "Usage: public-inbox-convert OLD NEW\n";
 my $jobs;
 my $index = 1;
@@ -50,16 +51,22 @@ $new->{version} = 2;
 $new = PublicInbox::InboxWritable->new($new);
 my $v2w;
 $old->umask_prepare;
+
+sub link_or_copy ($$) {
+	my ($src, $dst) = @_;
+	link($src, $dst) and return;
+	$!{EXDEV} or warn "link $src, $dst failed: $!, trying cp\n";
+	cp($src, $dst) or die "cp $src, $dst failed: $!\n";
+}
+
 $old->with_umask(sub {
-	local $ENV{GIT_CONFIG} = "$old->{mainrepo}/config";
+	my $old_cfg = "$old->{mainrepo}/config";
+	local $ENV{GIT_CONFIG} = $old_cfg;
+	my $new_cfg = "$new->{mainrepo}/all.git/config";
 	$v2w = PublicInbox::V2Writable->new($new, 1);
 	$v2w->init_inbox($jobs);
-	chomp(my $sr = $old->git->qx('config', 'core.sharedRepository'));
-	if ($sr ne '') {
-		PublicInbox::Import::run_die(['git', 'config',
-			"--file=$new->{mainrepo}/all.git/config",
-			'core.sharedRepository', $sr]);
-	}
+	unlink $new_cfg;
+	link_or_copy($old_cfg, $new_cfg);
 	if (my $alt = $new->{altid}) {
 		require PublicInbox::AltId;
 		foreach my $i (0..$#$alt) {
@@ -69,6 +76,14 @@ $old->with_umask(sub {
 			$dst = $dst->{filename};
 			$src->mm_alt->{dbh}->sqlite_backup_to_file($dst);
 		}
+	}
+	my $desc = "$old->{mainrepo}/description";
+	link_or_copy($desc, "$new->{mainrepo}/description") if -e $desc;
+	my $clone = "$old->{mainrepo}/cloneurl";
+	if (-e $clone) {
+		warn <<"";
+$clone may not be valid after migrating to v2, not copying
+
 	}
 });
 my $state = '';
