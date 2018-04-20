@@ -58,6 +58,9 @@ all need to be considered for everything we introduce)
   ugh... https://rt.cpan.org/Ticket/Display.html?id=116615
   (IO::KQueue is broken with Danga::Socket)
 
+* EPOLLEXCLUSIVE for listen socket fairness across -httpd/nntpd
+  worker processes.
+
 * improve documentation
 
 * linkify thread skeletons better
