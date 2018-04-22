@@ -36,7 +36,6 @@ sub dbh_new {
 		ReadOnly => !$writable,
 		sqlite_use_immediate_transaction => 1,
 	});
-	$dbh->do('PRAGMA case_sensitive_like = ON');
 	$dbh;
 }
 
@@ -149,23 +148,6 @@ sub minmax {
 	$sth = $dbh->prepare_cached('SELECT MAX(num) FROM msgmap', undef, 1);
 	$sth->execute;
 	($min, $sth->fetchrow_array);
-}
-
-sub mid_prefixes {
-	my ($self, $pfx, $limit) = @_;
-
-	die "No prefix given" unless (defined $pfx && $pfx ne '');
-	$pfx =~ s/([%_])/\\$1/g;
-	$pfx .= '%';
-
-	$limit ||= 100;
-	$limit += 0; # force to integer
-	$limit ||= 100;
-
-	$self->{dbh}->selectcol_arrayref('SELECT mid FROM msgmap ' .
-					 'WHERE mid LIKE ? ESCAPE ? ' .
-					 "ORDER BY num DESC LIMIT $limit",
-					 undef, $pfx, '\\');
 }
 
 sub mid_delete {

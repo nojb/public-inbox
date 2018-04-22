@@ -331,6 +331,13 @@ sub add_message {
 
 		foreach my $mid (@$mids) {
 			$tg->index_text($mid, 1, 'XM');
+
+			# because too many Message-IDs are prefixed with
+			# "Pine.LNX."...
+			if ($mid =~ /\w{12,}/) {
+				my @long = ($mid =~ /(\w{3,}+)/g);
+				$tg->index_text(join(' ', @long), 1, 'XM');
+			}
 			$tg->increase_termpos;
 		}
 		$smsg->{to} = $smsg->{cc} = '';

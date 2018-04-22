@@ -20,11 +20,14 @@ my $git_dir = "$tmpdir/a.git";
 is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
 my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
 ok($rw, "search indexer created");
-my $data = <<'EOF';
+my $digits = '10010260936330';
+my $ua = 'Pine.LNX.4.10';
+my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
+my $data = <<"EOF";
 Subject: test
-Message-Id: <utf8@example>
-From: Ævar Arnfjörð Bjarmason <avarab@example>
-To: git@vger.kernel.org
+Message-ID: <$mid>
+From: Ævar Arnfjörð Bjarmason <avarab\@example>
+To: git\@vger.kernel.org
 
 EOF
 
@@ -37,8 +40,7 @@ foreach (reverse split(/\n\n/, $data)) {
 	my $mime = Email::MIME->new(\$_);
 	my $bytes = bytes::length($mime->as_string);
 	my $doc_id = $rw->add_message($mime, $bytes, ++$num, 'ignored');
-	my $mid = $mime->header('Message-Id');
-	ok($doc_id, 'message added: '. $mid);
+	ok($doc_id, 'message added');
 }
 
 $rw->commit_txn_lazy;
@@ -72,6 +74,15 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(POST('/test/?q=s:bogus&x=m'));
 	is($res->code, 404, 'failed search result gives 404');
 	is_deeply([], $warn, 'no warnings');
+
+	my $mid_re = qr/\Q$mid\E/o;
+	while (length($digits) > 8) {
+		$res = $cb->(GET("/test/$ua.$digits/"));
+		is($res->code, 300, 'partial match found while truncated');
+		like($res->content, qr/\b1 partial match found\b/);
+		like($res->content, $mid_re, 'found mid in response');
+		chop($digits);
+	}
 });
 
 done_testing();

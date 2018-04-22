@@ -430,6 +430,36 @@ foreach my $f ("$git_dir/public-inbox/msgmap.sqlite3",
 		"sharedRepository respected for $bn");
 }
 
+$ibx->with_umask(sub {
+	$rw_commit->();
+	my $digits = '10010260936330';
+	my $ua = 'Pine.LNX.4.10';
+	my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
+	is($ro->reopen->query("m:$digits", { mset => 1})->size, 0,
+		'no results yet');
+	my $pine = Email::MIME->create(
+		header_str => [
+			Subject => 'blah',
+			'Message-ID' => "<$mid>",
+			From => 'torvalds@transmeta',
+			To => 'list@example.com',
+		],
+		body => ""
+	);
+	my $x = $rw->add_message($pine);
+	$rw->commit_txn_lazy;
+	is($ro->reopen->query("m:$digits", { mset => 1})->size, 1,
+		'searching only digit yielded result');
+
+	my $wild = $digits;
+	for my $i (1..6) {
+		chop($wild);
+		is($ro->query("m:$wild*", { mset => 1})->size, 1,
+			"searching chopped($i) digit yielded result $wild ");
+	}
+	is($ro->query("m:Pine m:LNX m:10010260936330", {mset=>1})->size, 1);
+});
+
 done_testing();
 
 1;

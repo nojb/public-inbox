@@ -155,22 +155,16 @@ EOF
 	$res = cgi_run("/test/blahblah\@example.com/raw");
 	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
 		"mid raw hit");
-	$res = cgi_run("/test/blahblah\@example.con/raw");
-	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid raw miss");
 
 	$res = cgi_run("/test/blahblah\@example.com/");
 	like($res->{body}, qr/\A<html>/, "mid html hit");
 	like($res->{head}, qr/Status: 200 OK/, "200 response");
-	$res = cgi_run("/test/blahblah\@example.con/");
-	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
 	$res = cgi_run("/test/blahblah\@example.com/f/");
 	like($res->{head}, qr/Status: 301 Moved/, "301 response");
 	like($res->{head},
 		qr!^Location: http://[^/]+/test/blahblah\@example\.com/\r\n!ms,
 		'301 redirect location');
-	$res = cgi_run("/test/blahblah\@example.con/");
-	like($res->{head}, qr/Status: 300 Multiple Choices/, "mid html miss");
 
 	$res = cgi_run("/test/new.html");
 	like($res->{body}, qr/slashy%2Fasdf\@example\.com/,

@@ -38,9 +38,6 @@ foreach my $mid (@mids) {
 	is($d->num_for($mid), $mid2num{$mid}, "mid:$mid maps correctly");
 }
 
-is_deeply($d->mid_prefixes('a'), [qw(aa@cc aa@bb a@b)], "mid_prefixes match");
-is_deeply($d->mid_prefixes('A'), [], "mid_prefixes is case sensitive");
-
 is(undef, $d->last_commit, "last commit not set");
 my $lc = 'deadbeef' x 5;
 is(undef, $d->last_commit($lc), 'previous last commit (undef) returned');

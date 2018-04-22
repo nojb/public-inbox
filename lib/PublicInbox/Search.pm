@@ -260,6 +260,7 @@ sub qp {
 	$qp->set_database($self->{xdb});
 	$qp->set_stemmer($self->stemmer);
 	$qp->set_stemming_strategy(STEM_SOME);
+	$qp->set_max_wildcard_expansion(100);
 	$qp->add_valuerangeprocessor(
 		Search::Xapian::NumberValueRangeProcessor->new(YYYYMMDD, 'd:'));
 	$qp->add_valuerangeprocessor(

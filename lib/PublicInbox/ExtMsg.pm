@@ -26,6 +26,52 @@ our @EXT_URL = (
 		'doc-url=/lurker&format=en.html&query=id:%s'
 );
 
+sub PARTIAL_MAX () { 100 }
+
+sub search_partial ($$) {
+	my ($srch, $mid) = @_;
+	my $opt = { limit => PARTIAL_MAX, mset => 2 };
+	my @try = ("m:$mid*");
+	my $chop = $mid;
+	if ($chop =~ s/(\W+)(\w*)\z//) {
+		my ($delim, $word) = ($1, $2);
+		if (length($word)) {
+			push @try, "m:$chop$delim";
+			push @try, "m:$chop$delim*";
+		}
+		push @try, "m:$chop";
+		push @try, "m:$chop*";
+	}
+
+	# break out long words individually to search for, because
+	# too many messages begin with "Pine.LNX." (or "alpine" or "nycvar")
+	if ($mid =~ /\w{9,}/) {
+		my @long = ($mid =~ m!(\w{3,})!g);
+		push(@try, join(' ', map { "m:$_" } @long));
+
+		# is the last element long enough to not trigger excessive
+		# wildcard matches?
+		if (length($long[-1]) > 8) {
+			$long[-1] .= '*';
+			push(@try, join(' ', map { "m:$_" } @long));
+		}
+	}
+
+	foreach my $m (@try) {
+		my $mset = eval { $srch->query($m, $opt) };
+		if (ref($@) eq 'Search::Xapian::QueryParserError') {
+			# If Xapian can't handle the wildcard since it
+			# has too many results.
+			next;
+		}
+		my @mids = map {
+			my $doc = $_->get_document;
+			PublicInbox::SearchMsg->load_doc($doc)->mid;
+		} $mset->items;
+		return \@mids if scalar(@mids);
+	}
+}
+
 sub ext_msg {
 	my ($ctx) = @_;
 	my $cur = $ctx->{-inbox};
@@ -56,41 +102,23 @@ sub ext_msg {
 	return exact($ctx, \@found, $mid) if @found;
 
 	# fall back to partial MID matching
-	my $n_partial = 0;
 	my @partial;
-
-	if (my $mm = $cur->mm) {
-		my $tmp_mid = $mid;
-		my $res = $mm->mid_prefixes($tmp_mid, 100);
-		if ($res && scalar(@$res)) {
-			$n_partial += scalar(@$res);
-			push @partial, [ $cur, $res ];
-		# fixup common errors:
-		} elsif ($tmp_mid =~ s,/[tTf],,) {
-			$res = $mm->mid_prefixes($tmp_mid, 100);
-			if ($res && scalar(@$res)) {
-				$n_partial += scalar(@$res);
-				push @partial, [ $cur, $res ];
-			}
-		}
+	my $n_partial = 0;
+	my $srch = $cur->search;
+	my $mids = search_partial($srch, $mid) if $srch;
+	if ($mids) {
+		$n_partial = scalar(@$mids);
+		push @partial, [ $cur, $mids ];
 	}
 
 	# can't find a partial match in current inbox, try the others:
 	if (!$n_partial && length($mid) >= 16) {
-		my $tmp_mid = $mid;
-again:
 		foreach my $ibx (@ibx) {
-			my $mm = $ibx->mm or next;
-			my $res = $mm->mid_prefixes($tmp_mid, 100);
-			if ($res && scalar(@$res)) {
-				$n_partial += scalar(@$res);
-				push @partial, [ $ibx, $res ];
-				last if $n_partial >= 100;
-			}
-		}
-		# fixup common errors:
-		if (!$n_partial && $tmp_mid =~ s,/[tTf],,) {
-			goto again;
+			$srch = $ibx->search or next;
+			$mids = search_partial($srch, $mid) or next;
+			$n_partial += scalar(@$mids);
+			push @partial, [ $ibx, $mids];
+			last if $n_partial >= PARTIAL_MAX;
 		}
 	}
 
@@ -103,6 +131,7 @@ again:
 	if ($n_partial) {
 		$code = 300;
 		my $es = $n_partial == 1 ? '' : 'es';
+		$n_partial .= '+' if ($n_partial == PARTIAL_MAX);
 		$s .= "\n$n_partial partial match$es found:\n\n";
 		my $cur_name = $cur->{name};
 		foreach my $pair (@partial) {
