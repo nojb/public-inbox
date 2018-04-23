@@ -723,7 +723,8 @@ sub _parent_headers {
 	my ($hdr, $srch) = @_;
 	my $rv = '';
 
-	my $irt = in_reply_to($hdr);
+	my $refs = references($hdr);
+	my $irt = pop @$refs;
 	if (defined $irt) {
 		my $v = PublicInbox::Hval->new_msgid($irt);
 		my $html = $v->as_html;
@@ -736,22 +737,9 @@ sub _parent_headers {
 	# we show the thread skeleton at the bottom, instead.
 	return $rv if $srch;
 
-	my $refs = $hdr->header_raw('References');
-	if ($refs) {
-		# avoid redundant URLs wasting bandwidth
-		my %seen;
-		$seen{$irt} = 1 if defined $irt;
-		my @refs;
-		my @raw_refs = ($refs =~ /<([^>]+)>/g);
-		foreach my $ref (@raw_refs) {
-			next if $seen{$ref};
-			$seen{$ref} = 1;
-			push @refs, linkify_ref_nosrch($ref);
-		}
-
-		if (@refs) {
-			$rv .= 'References: '. join("\n\t", @refs) . "\n";
-		}
+	if (@$refs) {
+		@$refs = map { linkify_ref_nosrch($_) } @$refs;
+		$rv .= 'References: '. join("\n\t", @$refs) . "\n";
 	}
 	$rv;
 }
