@@ -219,14 +219,13 @@ sub _do_enquire {
 
 sub _enquire_once {
 	my ($self, $query, $opts) = @_;
-	my $enquire = enquire($self);
+	my $enquire = Search::Xapian::Enquire->new($self->{xdb});
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
 	if (($opts->{mset} || 0) == 2) {
 		$enquire->set_docid_order(Search::Xapian::ENQ_ASCENDING());
 		$enquire->set_weighting_scheme(Search::Xapian::BoolWeight->new);
-		delete $self->{enquire};
 	} elsif ($opts->{relevance}) {
 		$enquire->set_sort_by_relevance_then_value(TS, $desc);
 	} else {
@@ -332,11 +331,6 @@ sub subject_normalized {
 	$subj =~ s/\.+\z//; # no trailing '.'
 	$subj =~ s/$REPLY_RE//igo; # remove reply prefix
 	$subj;
-}
-
-sub enquire {
-	my ($self) = @_;
-	$self->{enquire} ||= Search::Xapian::Enquire->new($self->{xdb});
 }
 
 sub help {
