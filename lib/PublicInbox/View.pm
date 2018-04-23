@@ -591,29 +591,42 @@ sub _msg_html_prepare {
 		$ctx->{-upfx} = '../';
 	}
 	my @title;
-	foreach my $h (qw(From To Cc Subject Date)) {
-		my $v = $hdr->header($h);
-		defined($v) && ($v ne '') or next;
+	my $v;
+	if (defined($v = $hdr->header('From'))) {
 		$v = PublicInbox::Hval->new($v);
-
-		if ($h eq 'From') {
-			my @n = PublicInbox::Address::names($v->raw);
-			$title[1] = ascii_html(join(', ', @n));
-			obfuscate_addrs($obfs_ibx, $title[1]) if $obfs_ibx;
-		} elsif ($h eq 'Subject') {
-			$title[0] = $v->as_html;
-			if ($srch) {
-				$rv .= qq($h: <a\nhref="#r"\nid=t>);
-				$rv .= $v->as_html . "</a>\n";
-				next;
-			}
-		}
+		my @n = PublicInbox::Address::names($v->raw);
+		$title[1] = ascii_html(join(', ', @n));
 		$v = $v->as_html;
-		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-		$rv .= "$h: $v\n";
-
+		if ($obfs_ibx) {
+			obfuscate_addrs($obfs_ibx, $v);
+			obfuscate_addrs($obfs_ibx, $title[1]);
+		}
+		$rv .= "From: $v\n" if $v ne '';
 	}
-	$title[0] ||= '(no subject)';
+	foreach my $h (qw(To Cc)) {
+		defined($v = $hdr->header($h)) or next;
+		$v = ascii_html($v);
+		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
+		$rv .= "$h: $v\n" if $v ne '';
+	}
+	if (defined($v = $hdr->header('Subject')) && ($v ne '')) {
+		$v = ascii_html($v);
+		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
+		if ($srch) {
+			$rv .= qq(Subject: <a\nhref="#r"\nid=t>$v</a>\n);
+		} else {
+			$rv .= "Subject: $v\n";
+		}
+		$title[0] = $v;
+	} else { # dummy anchor for thread skeleton at bottom of page
+		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $srch;
+		$title[0] = '(no subject)';
+	}
+	if (defined($v = $hdr->header('Date'))) {
+		$v = ascii_html($v);
+		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx; # possible :P
+		$rv .= "Date: $v\n";
+	}
 	$ctx->{-title_html} = join(' - ', @title);
 	foreach (@$mids) {
 		my $mid = PublicInbox::Hval->new_msgid($_) ;
