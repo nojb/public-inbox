@@ -337,7 +337,7 @@ sub qs_html {
 		$qs .= "&amp;o=$o";
 	}
 	if (my $l = $self->{l}) {
-		$qs .= "&amp;l=$l";
+		$qs .= "&amp;l=$l" unless $l == $LIM;
 	}
 	if (my $r = $self->{r}) {
 		$qs .= "&amp;r";
