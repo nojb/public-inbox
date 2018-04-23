@@ -17,6 +17,7 @@ use PublicInbox::Reply;
 require POSIX;
 use Time::Local qw(timegm);
 
+use constant COLS => 72;
 use constant INDENT => '  ';
 use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
@@ -164,6 +165,24 @@ sub in_reply_to {
 	$refs->[-1];
 }
 
+sub fold_addresses ($) {
+	return $_[0] if length($_[0]) <= COLS;
+	# try to fold on commas after non-word chars before $lim chars,
+	# Try to get the "," preceeded by ">" or ")", but avoid folding
+	# on the comma where somebody uses "Lastname, Firstname".
+	# We also try to keep the last and penultimate addresses in
+	# the list on the same line if possible, hence the extra \z
+	# Fall back to folding on spaces at $lim + 1 chars
+	my $lim = COLS - 8; # 8 = "\t" display width
+	my $too_long = $lim + 1;
+	$_[0] =~ s/\s*\z//s; # Email::Simple doesn't strip trailing spaces
+	$_[0] = join("\n\t",
+		($_[0] =~ /(.{0,$lim}\W(?:,|\z)|
+				.{1,$lim}(?:,|\z)|
+				.{1,$lim}|
+				.{$too_long,}?)(?:\s|\z)/xgo));
+}
+
 sub _hdr_names_html ($$) {
 	my ($hdr, $field) = @_;
 	my $val = $hdr->header($field) or return '';
@@ -198,13 +217,6 @@ sub index_entry {
 	my @tocc;
 	my $mime = $smsg->{mime};
 	my $hdr = $mime->header_obj;
-	foreach my $f (qw(To Cc)) {
-		my $dst = _hdr_names_html($hdr, $f);
-		if ($dst ne '') {
-			obfuscate_addrs($obfs_ibx, $dst) if $obfs_ibx;
-			push @tocc, "$f: $dst";
-		}
-	}
 	my $from = _hdr_names_html($hdr, 'From');
 	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
 	$rv .= "From: $from @ ".fmt_ts($smsg->ds)." UTC";
@@ -212,7 +224,24 @@ sub index_entry {
 	my $mhref = $upfx . mid_escape($mid_raw) . '/';
 	$rv .= qq{ (<a\nhref="$mhref">permalink</a> / };
 	$rv .= qq{<a\nhref="${mhref}raw">raw</a>)\n};
-	$rv .= '  '.join('; +', @tocc) . "\n" if @tocc;
+	my $to = fold_addresses(_hdr_names_html($hdr, 'To'));
+	my $cc = fold_addresses(_hdr_names_html($hdr, 'Cc'));
+	my ($tlen, $clen) = (length($to), length($cc));
+	my $to_cc = '';
+	if (($tlen + $clen) > COLS) {
+		$to_cc .= '  To: '.$to."\n" if $tlen;
+		$to_cc .= '  Cc: '.$cc."\n" if $clen;
+	} else {
+		if ($tlen) {
+			$to_cc .= '  To: '.$to;
+			$to_cc .= '; <b>+Cc:</b> '.$cc if $clen;
+		} else {
+			$to_cc .= '  Cc: '.$cc if $clen;
+		}
+		$to_cc .= "\n";
+	}
+	obfuscate_addrs($obfs_ibx, $to_cc) if $obfs_ibx;
+	$rv .= $to_cc;
 
 	my $mapping = $ctx->{mapping};
 	if (!$mapping && (defined($irt) || defined($irt = in_reply_to($hdr)))) {
@@ -605,6 +634,7 @@ sub _msg_html_prepare {
 	}
 	foreach my $h (qw(To Cc)) {
 		defined($v = $hdr->header($h)) or next;
+		fold_addresses($v);
 		$v = ascii_html($v);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
 		$rv .= "$h: $v\n" if $v ne '';
