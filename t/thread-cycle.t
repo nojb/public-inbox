@@ -85,13 +85,13 @@ SKIP: {
 }
 ($simples, $smsgs) = make_objs(reverse @backwards);
 my $forward = thread_to_s($smsgs);
-if ('Mail::Thread sorts by Date') {
+unless ('Mail::Thread sorts by Date') {
 	SKIP: {
 		skip 'Mail::Thread missing', 1 unless $mt;
 		check_mt($forward, $simples, 'matches Mail::Thread forwards');
 	}
 }
-unless ('sorting by Date') {
+if ('sorting by Date') {
 	is("\n".$backward, "\n".$forward, 'forward and backward matches');
 }
 

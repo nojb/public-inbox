@@ -22,9 +22,16 @@ use strict;
 use warnings;
 
 sub thread {
-	my ($messages, $ordersub, $ibx) = @_;
+	my ($msgs, $ordersub, $ibx) = @_;
 	my $id_table = {};
-	_add_message($id_table, $_) foreach @$messages;
+
+	# Sadly, we sort here anyways since the fill-in-the-blanks References:
+	# can be shakier if somebody used In-Reply-To with multiple, disparate
+	# messages.  So, take the client Date: into account since we can't
+	# alway determine ordering when somebody uses multiple In-Reply-To.
+	# We'll trust the client Date: header here instead of the Received:
+	# time since this is for display (and not retrieval)
+	_add_message($id_table, $_) for sort { $a->{ds} <=> $b->{ds} } @$msgs;
 	my $rootset = [ grep {
 			!delete($_->{parent}) && $_->visible($ibx)
 		} values %$id_table ];
