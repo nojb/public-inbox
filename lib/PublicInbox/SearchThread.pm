@@ -76,7 +76,9 @@ sub _add_message ($$) {
 
 	# C. Set the parent of this message to be the last element in
 	# References.
-	$prev->add_child($this) if defined $prev;
+	if (defined $prev && !$this->has_descendent($prev)) { # would loop
+		$prev->add_child($this);
+	}
 }
 
 package PublicInbox::SearchThread::Msg;
