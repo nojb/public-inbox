@@ -752,18 +752,23 @@ sub remote_remove {
 sub begin_txn_lazy {
 	my ($self) = @_;
 	return if $self->{txn};
-	my $xdb = $self->{xdb} || $self->_xdb_acquire;
-	$self->{over}->begin_lazy if $self->{over};
-	$xdb->begin_transaction;
-	$self->{txn} = 1;
-	$xdb;
+
+	$self->{-inbox}->with_umask(sub {
+		my $xdb = $self->{xdb} || $self->_xdb_acquire;
+		$self->{over}->begin_lazy if $self->{over};
+		$xdb->begin_transaction;
+		$self->{txn} = 1;
+		$xdb;
+	});
 }
 
 sub commit_txn_lazy {
 	my ($self) = @_;
 	delete $self->{txn} or return;
-	$self->{xdb}->commit_transaction;
-	$self->{over}->commit_lazy if $self->{over};
+	$self->{-inbox}->with_umask(sub {
+		$self->{xdb}->commit_transaction;
+		$self->{over}->commit_lazy if $self->{over};
+	});
 }
 
 sub worker_done {
