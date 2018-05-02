@@ -25,7 +25,15 @@ defined $recipient or die usage();
 my $config = PublicInbox::Config->new;
 my $ibx = $config->lookup($recipient);
 my $git = $ibx->git;
-my $im = PublicInbox::Import->new($git, $ibx->{name}, $ibx->{-primary_address});
+my $im;
+if (($ibx->{version} || 1) == 2) {
+	require PublicInbox::V2Writable;
+	$im = PublicInbox::V2Writable->new($ibx);
+	$im->{parallel} = 0; # pointless to be parallel for a single message
+} else {
+	$im = PublicInbox::Import->new($git, $ibx->{name},
+					$ibx->{-primary_address});
+}
 
 sub key {
 	"publicinbox.$ibx->{name}.importslrnspoolstate";
