@@ -59,12 +59,13 @@ my $n = get_min();
 my $ok;
 my $max_gap = 200000;
 my $max = $n + $max_gap;
+$spool =~ s!/+\z!!;
 
 for (; $exit == 0 && $n < $max; $n++) {
 	my $fn = "$spool/$n";
-	print STDERR $fn, "\n";
 	open(my $fh, '<', $fn) or next;
 	$max = $n + $max_gap;
+	print STDERR $fn, "\n";
 
 	my $mime = PublicInbox::MIME->new(eval { local $/; <$fh> });
 	my $hdr = $mime->header_obj;
