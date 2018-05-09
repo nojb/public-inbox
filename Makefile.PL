@@ -9,7 +9,7 @@ $PM_FILES =~ tr/\n/ /;
 
 WriteMakefile(
 	NAME => 'PublicInbox',
-	VERSION => '1.0.0',
+	VERSION => '1.1.0-pre1',
 	AUTHOR => 'Eric Wong <e@80x24.org>',
 	ABSTRACT => 'public-inbox server infrastructure',
 	EXE_FILES => \@EXE_FILES,
