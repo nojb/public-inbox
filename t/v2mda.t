@@ -36,6 +36,8 @@ ok(-f "blib/script/public-inbox-mda", '-mda exists');
 my $main_bin = getcwd()."/t/main-bin";
 local $ENV{PI_DIR} = "$tmpdir/foo";
 local $ENV{PATH} = "$main_bin:blib/script:$ENV{PATH}";
+local $ENV{PI_EMERGENCY} = "$tmpdir/fail";
+ok(mkdir "$tmpdir/fail");
 my @cmd = (qw(public-inbox-init -V2), $ibx->{name},
 		$ibx->{mainrepo}, 'http://localhost/test',
 		$ibx->{address}->[0]);
