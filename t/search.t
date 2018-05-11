@@ -214,7 +214,7 @@ $ibx->with_umask(sub {
 			# No References:
 			# 'References' => '<root@s> <last@s> <'.$long_mid.'>',
 			'In-Reply-To' => "<$long_mid>",
-			From => '"no1 <no1@example.com>',
+			From => 'no1 <no1@example.com>',
 			To => 'list@example.com',
 		],
 		body => "no References\n");
