@@ -54,6 +54,7 @@ foreach (@xdir) {
 }
 
 local $ENV{PATH} = "blib/script:$ENV{PATH}";
+local $ENV{PI_CONFIG} = '/dev/null';
 open my $err, '>>', "$tmpdir/err.log" or die "open: err.log $!\n";
 open my $out, '>>', "$tmpdir/out.log" or die "open: out.log $!\n";
 my $rdr = { 1 => fileno($out), 2 => fileno($err) };

@@ -13,12 +13,14 @@ use File::Path qw(remove_tree);
 use PublicInbox::Spawn qw(spawn);
 my $usage = "Usage: public-inbox-compact REPO_DIR\n";
 my $dir = shift or die $usage;
-my $config = PublicInbox::Config->new;
+my $config = eval { PublicInbox::Config->new };
 my $ibx;
 $dir = abs_path($dir);
-$config->each_inbox(sub {
-	$ibx = $_[0] if abs_path($_[0]->{mainrepo}) eq $dir
-});
+if ($config) {
+	$config->each_inbox(sub {
+		$ibx = $_[0] if abs_path($_[0]->{mainrepo}) eq $dir
+	});
+}
 unless ($ibx) {
 	warn "W: $dir not configured in ".
 		PublicInbox::Config::default_file() . "\n";

@@ -25,12 +25,14 @@ my $old_dir = shift or die $usage;
 my $new_dir = shift or die $usage;
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
-my $config = PublicInbox::Config->new;
+my $config = eval { PublicInbox::Config->new };
 $old_dir = abs_path($old_dir);
 my $old;
-$config->each_inbox(sub {
-	$old = $_[0] if abs_path($_[0]->{mainrepo}) eq $old_dir;
-});
+if ($config) {
+	$config->each_inbox(sub {
+		$old = $_[0] if abs_path($_[0]->{mainrepo}) eq $old_dir;
+	});
+}
 unless ($old) {
 	warn "W: $old_dir not configured in " .
 		PublicInbox::Config::default_file() . "\n";
