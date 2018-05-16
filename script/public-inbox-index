@@ -101,7 +101,7 @@ sub index_dir {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
 		my $v2w = eval {
-			local $ENV{NPROC} = $jobs if $jobs;
+			$jobs and local $ENV{NPROC} = $jobs;
 			PublicInbox::V2Writable->new($repo);
 		};
 		if (defined $jobs) {
