@@ -40,7 +40,10 @@ ok($im->add($mime), 'added one message');
 ok($im->remove($mime), 'remove message');
 ok($im->add($mime), 'added message again');
 $im->done;
-PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
+for (1..2) {
+	eval { PublicInbox::SearchIdx->new($ibx, 1)->index_sync; };
+	is($@, '', 'no errors syncing');
+}
 
 is(((stat("$ibx->{mainrepo}/public-inbox"))[2]) & 07777, 0755,
 	'sharedRepository respected for v1');

@@ -666,6 +666,7 @@ sub _index_sync {
 
 		$self->{over}->rollback_lazy;
 		$self->{over}->disconnect;
+		$git->cleanup;
 		delete $self->{txn};
 		$xdb->cancel_transaction;
 		$xdb = _xdb_release($self);
@@ -696,6 +697,7 @@ sub _index_sync {
 			}
 		}
 		$self->commit_txn_lazy;
+		$git->cleanup;
 		$xdb = _xdb_release($self);
 		# let another process do some work... <
 		if (!$newest) {

@@ -50,7 +50,7 @@ for my $i (1..9) {
 	$mime->header_set('Subject', "subject = $i");
 	ok($v2w->add($mime), "add msg $i OK");
 }
-$v2w->barrier;
+$v2w->done;
 
 my %opts = (
 	LocalAddr => '127.0.0.1',
