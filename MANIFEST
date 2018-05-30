@@ -37,6 +37,7 @@ examples/public-inbox-httpd.socket
 examples/public-inbox-httpd@.service
 examples/public-inbox-nntpd.socket
 examples/public-inbox-nntpd@.service
+examples/public-inbox-watch.service
 examples/public-inbox.psgi
 examples/unsubscribe-milter.socket
 examples/unsubscribe-milter@.service

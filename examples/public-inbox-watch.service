@@ -1,0 +1,20 @@
+# ==> /etc/systemd/system/public-inbox-watch.service <==
+
+[Unit]
+Description = public-inbox Maildir watch
+After = spamassassin.service
+
+[Service]
+Environment = PI_CONFIG=/home/pi/.public-inbox/config \
+PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart = /usr/local/bin/public-inbox-watch
+
+StandardOutput = syslog
+StandardError = syslog
+ExecReload = /bin/kill -HUP $MAINPID
+# this user must have read access to Maildirs it watches
+User = pi
+KillMode = process
+
+[Install]
+WantedBy = multi-user.target
