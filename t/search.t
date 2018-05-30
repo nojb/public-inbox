@@ -11,7 +11,7 @@ my $tmpdir = tempdir('pi-search-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
 my ($root_id, $last_id);
 
-is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
+is(0, system(qw(git init --shared -q --bare), $git_dir), "git init (main)");
 eval { PublicInbox::Search->new($git_dir) };
 ok($@, "exception raised on non-existent DB");
 
@@ -422,11 +422,12 @@ $ibx->with_umask(sub {
 });
 
 foreach my $f ("$git_dir/public-inbox/msgmap.sqlite3",
+		"$git_dir/public-inbox",
 		glob("$git_dir/public-inbox/xapian*/"),
 		glob("$git_dir/public-inbox/xapian*/*")) {
 	my @st = stat($f);
 	my ($bn) = (split(m!/!, $f))[-1];
-	is($st[2] & 07777, -f _ ? 0660 : 0770,
+	is($st[2] & 07777, -f _ ? 0660 : 02770,
 		"sharedRepository respected for $bn");
 }
 

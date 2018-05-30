@@ -11,6 +11,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	plan skip_all => "$mod missing for nntpd.t" if $@;
 }
 use_ok 'PublicInbox::V2Writable';
+umask 007;
 my $mainrepo = tempdir('pi-v2writable-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = {
 	mainrepo => $mainrepo,

@@ -175,7 +175,7 @@ sub _read_git_config_perm {
 sub _git_config_perm {
 	my $self = shift;
 	my $perm = scalar @_ ? $_[0] : _read_git_config_perm($self);
-	return PERM_GROUP if (!defined($perm) || $perm eq '');
+	return PERM_UMASK if (!defined($perm) || $perm eq '');
 	return PERM_UMASK if ($perm eq 'umask');
 	return PERM_GROUP if ($perm eq 'group');
 	if ($perm =~ /\A(?:all|world|everybody)\z/) {
