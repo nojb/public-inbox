@@ -38,8 +38,8 @@ my $config = PublicInbox::Config->new;
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 defined $recipient or die "ORIGINAL_RECIPIENT not defined in ENV\n";
 my $dst = $config->lookup($recipient); # first check
-defined $dst or do_exit(1);
-my $main_repo = $dst->{mainrepo} or do_exit(1);
+defined $dst or do_exit(67); # EX_NOUSER 5.1.1 user unknown
+my $main_repo = $dst->{mainrepo} or do_exit(67);
 
 # pre-check, MDA has stricter rules than an importer might;
 do_exit(0) unless PublicInbox::MDA->precheck($simple, $dst->{address});
@@ -73,7 +73,7 @@ if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
 } elsif ($ret == PublicInbox::Filter::Base::IGNORE) {
 	do_exit(0); # chuck it to emergency
 } elsif ($ret == PublicInbox::Filter::Base::REJECT) {
-	$! = $ret;
+	$! = 65; # EX_DATAERR 5.6.0 data format error
 	die $filter->err, "\n";
 } # else { accept
 
@@ -88,6 +88,7 @@ if ($v == 2) {
 	my $git = $dst->git;
 	$im = PublicInbox::Import->new($git, $dst->{name}, $recipient, $dst);
 } else {
+	$! = 78; # EX_CONFIG 5.3.5 local configuration error
 	die "Unsupported inbox version: $v\n";
 }
 if (defined $im->add($mime)) {
