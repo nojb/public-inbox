@@ -42,6 +42,10 @@ Where "deb" indicates package names for Debian-derived distributions and
 
 Numerous optional modules are likely to be useful as well:
 
+  - Socket6                    deb: libsocket6-perl
+                               rpm: perl-Socket6
+                               (for IPv6 support)
+
   - Plack                      deb: libplack-perl
                                rpm: perl-Plack, perl-Plack-Test,
                                (for HTML/Atom generation)
