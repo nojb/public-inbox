@@ -225,6 +225,8 @@ sub cgi_run {
 	my %env = (
 		PATH_INFO => $_[0],
 		QUERY_STRING => $_[1] || "",
+		SCRIPT_NAME => '',
+		REQUEST_URI => $_[0] . ($_[1] ? "?$_[1]" : ''),
 		REQUEST_METHOD => $_[2] || "GET",
 		GATEWAY_INTERFACE => 'CGI/1.1',
 		HTTP_ACCEPT => '*/*',

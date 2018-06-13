@@ -36,6 +36,17 @@ sub run {
 	PublicInbox::WWW->new->call($req->env);
 }
 
+my %path_re_cache;
+
+sub path_re ($) {
+	my $sn = $_[0]->{SCRIPT_NAME};
+	$path_re_cache{$sn} ||= do {
+		$sn = '/'.$sn unless index($sn, '/') == 0;
+		$sn =~ s!/\z!!;
+		qr!\A(?:https?://[^/]+)?\Q$sn\E(/[^\?\#]+)!;
+	};
+}
+
 sub call {
 	my ($self, $env) = @_;
 	my $ctx = { env => $env, www => $self };
@@ -50,7 +61,8 @@ sub call {
 	} split(/[&;]+/, $env->{QUERY_STRING});
 	$ctx->{qp} = \%qp;
 
-	my $path_info = $env->{PATH_INFO};
+	# not using $env->{PATH_INFO} here since that's already decoded
+	my ($path_info) = ($env->{REQUEST_URI} =~ path_re($env));
 	my $method = $env->{REQUEST_METHOD};
 
 	if ($method eq 'POST') {
@@ -91,13 +103,13 @@ sub call {
 		invalid_inbox_mid($ctx, $1, $2) || get_attach($ctx, $idx, $fn);
 	# in case people leave off the trailing slash:
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/(T|t)\z!o) {
-		my ($inbox, $mid, $suffix) = ($1, $2, $3);
+		my ($inbox, $mid_ue, $suffix) = ($1, $2, $3);
 		$suffix .= $suffix =~ /\A[tT]\z/ ? '/#u' : '/';
-		r301($ctx, $inbox, $mid, $suffix);
+		r301($ctx, $inbox, $mid_ue, $suffix);
 
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/R/?\z!o) {
-		my ($inbox, $mid) = ($1, $2);
-		r301($ctx, $inbox, $mid, '#R');
+		my ($inbox, $mid_ue) = ($1, $2);
+		r301($ctx, $inbox, $mid_ue, '#R');
 
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/f/?\z!o) {
 		r301($ctx, $1, $2);
@@ -164,11 +176,11 @@ sub invalid_inbox ($$) {
 
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox_mid {
-	my ($ctx, $inbox, $mid) = @_;
+	my ($ctx, $inbox, $mid_ue) = @_;
 	my $ret = invalid_inbox($ctx, $inbox);
 	return $ret if $ret;
 
-	$ctx->{mid} = $mid;
+	my $mid = $ctx->{mid} = uri_unescape($mid_ue);
 	my $ibx = $ctx->{-inbox};
 	if ($mid =~ m!\A([a-f0-9]{2})([a-f0-9]{38})\z!) {
 		my ($x2, $x38) = ($1, $2);
@@ -177,7 +189,7 @@ sub invalid_inbox_mid {
 		require Email::Simple;
 		my $s = Email::Simple->new($str);
 		$mid = PublicInbox::MID::mid_clean($s->header('Message-ID'));
-		return r301($ctx, $inbox, $mid);
+		return r301($ctx, $inbox, mid_escape($mid));
 	}
 	undef;
 }
@@ -352,7 +364,7 @@ sub legacy_redirects {
 }
 
 sub r301 {
-	my ($ctx, $inbox, $mid, $suffix) = @_;
+	my ($ctx, $inbox, $mid_ue, $suffix) = @_;
 	my $obj = $ctx->{-inbox};
 	unless ($obj) {
 		my $r404 = invalid_inbox($ctx, $inbox);
@@ -361,7 +373,11 @@ sub r301 {
 	}
 	my $url = $obj->base_url($ctx->{env});
 	my $qs = $ctx->{env}->{QUERY_STRING};
-	$url .= (mid_escape($mid) . '/') if (defined $mid);
+	if (defined $mid_ue) {
+		# common, and much nicer as '@' than '%40':
+		$mid_ue =~ s/%40/@/g;
+		$url .= $mid_ue . '/';
+	}
 	$url .= $suffix if (defined $suffix);
 	$url .= "?$qs" if $qs ne '';
 
@@ -371,9 +387,9 @@ sub r301 {
 }
 
 sub msg_page {
-	my ($ctx, $inbox, $mid, $e) = @_;
+	my ($ctx, $inbox, $mid_ue, $e) = @_;
 	my $ret;
-	$ret = invalid_inbox_mid($ctx, $inbox, $mid) and return $ret;
+	$ret = invalid_inbox_mid($ctx, $inbox, $mid_ue) and return $ret;
 	'' eq $e and return get_mid_html($ctx);
 	'T/' eq $e and return get_thread($ctx, 1);
 	't/' eq $e and return get_thread($ctx);
