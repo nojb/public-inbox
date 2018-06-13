@@ -3,9 +3,10 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use ExtUtils::MakeMaker;
-my @EXE_FILES = split("\n", `git ls-files 'script/*' 2>/dev/null`);
-my $PM_FILES = `git ls-files lib '*.pm' 2>/dev/null`;
-$PM_FILES =~ tr/\n/ /;
+open my $m, '<', 'MANIFEST' or die "open(MANIFEST): $!\n";
+chomp(my @manifest = (<$m>));
+my @EXE_FILES = grep(m!^script/!, @manifest);
+my $PM_FILES = join(' ', grep(m!^lib/.*\.pm$!, @manifest));
 
 WriteMakefile(
 	NAME => 'PublicInbox',
