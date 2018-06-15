@@ -1,0 +1,8 @@
+/usr/(local/)?bin/public-inbox-httpd    -- gen_context(system_u:object_r:publicinbox_daemon_exec_t,s0)
+/usr/(local/)?bin/public-inbox-nntpd    -- gen_context(system_u:object_r:publicinbox_daemon_exec_t,s0)
+/usr/(local/)?bin/public-inbox-watch    -- gen_context(system_u:object_r:publicinbox_deliver_exec_t,s0)
+/usr/(local/)?bin/public-inbox-mda      -- gen_context(system_u:object_r:publicinbox_deliver_exec_t,s0)
+
+/var/lib/public-inbox(/.*)?                gen_context(system_u:object_r:publicinbox_var_lib_t,s0)
+/var/run/public-inbox(/.*)?                gen_context(system_u:object_r:publicinbox_var_run_t,s0)
+/var/log/public-inbox(/.*)?                gen_context(system_u:object_r:publicinbox_log_t,s0)

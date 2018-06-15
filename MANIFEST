@@ -24,6 +24,8 @@ MANIFEST
 Makefile.PL
 README
 TODO
+contrib/selinux/el7/publicinbox.fc
+contrib/selinux/el7/publicinbox.te
 examples/README
 examples/README.unsubscribe
 examples/apache2_cgi.conf

@@ -1,0 +1,112 @@
+##################
+# This policy allows running public-inbox-httpd and public-inbox-nntpd
+# on reasonable ports (119 for nntpd and 80/443/8080 for httpd)
+#
+# It also allows delivering mail via postfix-pipe to public-inbox-mda
+#
+# Author: Konstantin Ryabitsev <konstantin@linuxfoundation.org>
+#
+policy_module(publicinbox, 1.0.3)
+
+require {
+    type postfix_pipe_t;
+    type spamc_t;
+    type spamd_t;
+}
+
+##################
+# Declarations
+
+type publicinbox_daemon_t;
+type publicinbox_daemon_exec_t;
+init_daemon_domain(publicinbox_daemon_t, publicinbox_daemon_exec_t)
+
+type publicinbox_var_lib_t;
+files_type(publicinbox_var_lib_t)
+
+type publicinbox_log_t;
+logging_log_file(publicinbox_log_t)
+
+type publicinbox_var_run_t;
+files_tmp_file(publicinbox_var_run_t)
+
+type publicinbox_tmp_t;
+files_tmp_file(publicinbox_tmp_t)
+
+type publicinbox_deliver_t;
+type publicinbox_deliver_exec_t;
+init_daemon_domain(publicinbox_deliver_t, publicinbox_deliver_exec_t)
+
+# Uncomment to put these domains into permissive mode
+#permissive publicinbox_daemon_t;
+#permissive publicinbox_deliver_t;
+
+##################
+# Daemons policy
+
+domain_use_interactive_fds(publicinbox_daemon_t)
+files_read_etc_files(publicinbox_daemon_t)
+miscfiles_read_localization(publicinbox_daemon_t)
+allow publicinbox_daemon_t self:tcp_socket create_stream_socket_perms;
+allow publicinbox_daemon_t self:tcp_socket { accept listen };
+
+# Need to be able to manage and exec them for Inline::C
+manage_files_pattern(publicinbox_daemon_t, publicinbox_var_run_t, publicinbox_var_run_t)
+exec_files_pattern(publicinbox_daemon_t, publicinbox_var_run_t, publicinbox_var_run_t)
+
+# Logging
+append_files_pattern(publicinbox_daemon_t, publicinbox_log_t, publicinbox_log_t)
+create_files_pattern(publicinbox_daemon_t, publicinbox_log_t, publicinbox_log_t)
+setattr_files_pattern(publicinbox_daemon_t, publicinbox_log_t, publicinbox_log_t)
+logging_log_filetrans(publicinbox_daemon_t, publicinbox_log_t, { file dir })
+
+# Run on httpd and nntp ports (called innd_port_t)
+corenet_tcp_bind_generic_node(publicinbox_daemon_t)
+corenet_tcp_bind_http_port(publicinbox_daemon_t)
+corenet_tcp_bind_http_cache_port(publicinbox_daemon_t)
+corenet_tcp_bind_innd_port(publicinbox_daemon_t)
+
+# Allow reading anything publicinbox_var_lib_t
+list_dirs_pattern(publicinbox_daemon_t, publicinbox_var_lib_t, publicinbox_var_lib_t)
+read_files_pattern(publicinbox_daemon_t, publicinbox_var_lib_t, publicinbox_var_lib_t)
+
+# The daemon doesn't need to write to this dir
+dontaudit publicinbox_daemon_t publicinbox_var_lib_t:file write;
+
+# Allow executing bin (for git, mostly)
+corecmd_exec_bin(publicinbox_daemon_t)
+
+# Manage our tmp files
+manage_dirs_pattern(publicinbox_daemon_t, publicinbox_tmp_t, publicinbox_tmp_t)
+manage_files_pattern(publicinbox_daemon_t, publicinbox_tmp_t, publicinbox_tmp_t)
+files_tmp_filetrans(publicinbox_daemon_t, publicinbox_tmp_t, { file dir })
+
+##################
+# mda/watch policy
+#
+# Allow transitioning to deliver_t from postfix pipe
+domtrans_pattern(postfix_pipe_t, publicinbox_deliver_exec_t, publicinbox_deliver_t)
+postfix_rw_inherited_master_pipes(publicinbox_deliver_t)
+postfix_read_spool_files(publicinbox_deliver_t)
+
+files_read_etc_files(publicinbox_deliver_t)
+
+# Allow managing anything in publicinbox_var_lib_t
+manage_dirs_pattern(publicinbox_deliver_t, publicinbox_var_lib_t, publicinbox_var_lib_t)
+manage_files_pattern(publicinbox_deliver_t, publicinbox_var_lib_t, publicinbox_var_lib_t)
+
+# Allow executing bin (for git, mostly)
+corecmd_exec_bin(publicinbox_deliver_t)
+
+# git-fast-import wants to access system state and other bits
+kernel_dontaudit_read_system_state(publicinbox_deliver_t)
+
+# Allow using spamc
+spamassassin_domtrans_client(publicinbox_deliver_t)
+manage_files_pattern(spamc_t, publicinbox_var_lib_t, publicinbox_var_lib_t)
+read_files_pattern(spamd_t, publicinbox_var_lib_t, publicinbox_var_lib_t)
+
+# Manage our tmp files
+manage_dirs_pattern(publicinbox_deliver_t, publicinbox_tmp_t, publicinbox_tmp_t)
+manage_files_pattern(publicinbox_deliver_t, publicinbox_tmp_t, publicinbox_tmp_t)
+files_tmp_filetrans(publicinbox_deliver_t, publicinbox_tmp_t, { file dir })
