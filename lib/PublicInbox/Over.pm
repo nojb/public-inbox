@@ -120,18 +120,18 @@ sub recent {
 	my ($s, @v);
 	if (defined($before)) {
 		if (defined($after)) {
-			$s = 'num > 0 AND ts >= ? AND ts <= ? ORDER BY ts DESC';
+			$s = '+num > 0 AND ts >= ? AND ts <= ? ORDER BY ts DESC';
 			@v = ($after, $before);
 		} else {
-			$s = 'num > 0 AND ts <= ? ORDER BY ts DESC';
+			$s = '+num > 0 AND ts <= ? ORDER BY ts DESC';
 			@v = ($before);
 		}
 	} else {
 		if (defined($after)) {
-			$s = 'num > 0 AND ts >= ? ORDER BY ts ASC';
+			$s = '+num > 0 AND ts >= ? ORDER BY ts ASC';
 			@v = ($after);
 		} else {
-			$s = 'num > 0 ORDER BY ts DESC';
+			$s = '+num > 0 ORDER BY ts DESC';
 		}
 	}
 	my $msgs = do_get($self, <<"", $opts, @v);
