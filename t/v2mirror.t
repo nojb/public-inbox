@@ -45,11 +45,16 @@ To: You <you@example.com>
 Subject: a
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
+my $old_rotate_bytes = $v2w->{rotate_bytes};
+$v2w->{rotate_bytes} = 500; # force rotating
 for my $i (1..9) {
 	$mime->header_set('Message-ID', "<$i\@example.com>");
 	$mime->header_set('Subject', "subject = $i");
 	ok($v2w->add($mime), "add msg $i OK");
 }
+
+my $epoch_max = $v2w->{epoch_max};
+ok($epoch_max > 0, "multiple epochs");
 $v2w->done;
 
 my %opts = (
@@ -79,11 +84,14 @@ ok(defined $pid, 'forked httpd process successfully');
 my ($host, $port) = ($sock->sockhost, $sock->sockport);
 $sock = undef;
 
-my @cmd = (qw(git clone --mirror -q), "http://$host:$port/v2/0",
-	"$tmpdir/m/git/0.git");
+my @cmd;
+foreach my $i (0..$epoch_max) {
+	@cmd = (qw(git clone --mirror -q), "http://$host:$port/v2/$i",
+		"$tmpdir/m/git/$i.git");
 
-is(system(@cmd), 0, 'cloned OK');
-ok(-d "$tmpdir/m/git/0.git", 'mirror OK');;
+	is(system(@cmd), 0, 'cloned OK');
+	ok(-d "$tmpdir/m/git/$i.git", 'mirror OK');
+}
 
 @cmd = ("$script-init", '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
 	'alt@example.com');
@@ -94,14 +102,23 @@ my $mibx = { mainrepo => "$tmpdir/m", address => 'alt@example.com' };
 $mibx = PublicInbox::Inbox->new($mibx);
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'index synched minmax');
 
+$v2w->{rotate_bytes} = $old_rotate_bytes;
 for my $i (10..15) {
 	$mime->header_set('Message-ID', "<$i\@example.com>");
 	$mime->header_set('Subject', "subject = $i");
 	ok($v2w->add($mime), "add msg $i OK");
 }
 $v2w->barrier;
-is(system('git', "--git-dir=$tmpdir/m/git/0.git", 'fetch', '-q'), 0,
-	'fetch successful');
+
+sub fetch_each_epoch {
+	foreach my $i (0..$epoch_max) {
+		my $dir = "$tmpdir/m/git/$i.git";
+		is(system('git', "--git-dir=$dir", 'fetch', '-q'), 0,
+			'fetch successful');
+	}
+}
+
+fetch_each_epoch();
 
 my $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 0, 'new message not found in mirror, yet');
@@ -131,8 +148,7 @@ like($to_purge, qr/\A[a-f0-9]{40,}\z/, 'read blob to be purged');
 $mset = $ibx->search->reopen->query('m:10@example.com', {mset => 1});
 is(scalar($mset->items), 0, 'purged message gone from origin');
 
-is(system('git', "--git-dir=$tmpdir/m/git/0.git", 'fetch', '-q'), 0,
-	'fetch successful');
+fetch_each_epoch();
 {
 	open my $err, '+>', "$tmpdir/index-err" or die "open: $!";
 	my $ipid = fork;

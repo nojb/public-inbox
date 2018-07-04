@@ -495,15 +495,21 @@ sub git_init {
 	PublicInbox::Import::run_die(\@cmd);
 
 	my $alt = "$all/objects/info/alternates";
-	my $new_obj_dir = "../../git/$epoch.git/objects";
 	my %alts;
+	my @add;
 	if (-e $alt) {
 		open(my $fh, '<', $alt) or die "open < $alt: $!\n";
 		%alts = map { chomp; $_ => 1 } (<$fh>);
 	}
-	return $git_dir if $alts{$new_obj_dir};
+	foreach my $i (0..$epoch) {
+		my $dir = "../../git/$i.git/objects";
+		push @add, $dir if !$alts{$dir} && -d "$pfx/$i.git";
+	}
+	return $git_dir unless @add;
 	open my $fh, '>>', $alt or die "open >> $alt: $!\n";
-	print $fh "$new_obj_dir\n" or die "print >> $alt: $!\n";
+	foreach my $dir (@add) {
+		print $fh "$dir\n" or die "print >> $alt: $!\n";
+	}
 	close $fh or die "close $alt: $!\n";
 	$git_dir
 }
