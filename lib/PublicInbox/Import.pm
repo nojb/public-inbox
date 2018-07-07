@@ -405,6 +405,8 @@ sub add {
 		print $w "reset $ref\n" or wfail;
 	}
 
+	# Mime decoding can create nulls replace them with spaces to protect git
+	$subject =~ tr/\0/ /;
 	utf8::encode($subject);
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $author_time_raw\n",
