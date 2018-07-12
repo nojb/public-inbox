@@ -109,7 +109,7 @@ sub index_dir {
 				$v2w->{parallel} = 0;
 			} else {
 				my $n = $v2w->{partitions};
-				if ($jobs != $n) {
+				if ($jobs != ($n + 1)) {
 					warn
 "Unable to respect --jobs=$jobs, inbox was created with $n partitions\n";
 				}
