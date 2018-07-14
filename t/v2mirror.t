@@ -182,7 +182,33 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	is_deeply(\@warn, [], 'no warnings from index_sync after purge');
 }
 
-$v2w->done;
+# deletes happen in a different fetch window
+{
+	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
+	is(scalar($mset->items), 1, '1@example.com visible in mirror');
+	$mime->header_set('Message-ID', '<1@example.com>');
+	$mime->header_set('Subject', 'subject = 1');
+	ok($v2w->remove($mime), 'removed <1@example.com> from source');
+	$v2w->done;
+	fetch_each_epoch();
+
+	open my $err, '+>', "$tmpdir/index-err" or die "open: $!";
+	my $ipid = fork;
+	if ($ipid == 0) {
+		dup2(fileno($err), 2) or die "dup2 failed: $!";
+		exec("$script-index", "$tmpdir/m");
+		die "exec fail: $!";
+	}
+	ok($ipid, 'running index');
+	is(waitpid($ipid, 0), $ipid, 'index done');
+	is($?, 0, 'no error from index');
+	ok(seek($err, 0, 0), 'rewound stderr');
+	$err = eval { local $/; <$err> };
+	is($err, '', 'no errors reported by index');
+	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
+	is(scalar($mset->items), 0, '1@example.com no longer visible in mirror');
+}
+
 ok(kill('TERM', $pid), 'killed httpd');
 $pid = undef;
 waitpid(-1, 0);

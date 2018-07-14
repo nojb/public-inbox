@@ -653,7 +653,7 @@ sub mark_deleted {
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
 	foreach my $mid (@$mids) {
-		$D->{"$mid\0$cid"} = 1;
+		$D->{"$mid\0$cid"} = $oid;
 	}
 }
 
@@ -671,7 +671,7 @@ sub reindex_oid {
 	my $num = -1;
 	my $del = 0;
 	foreach my $mid (@$mids) {
-		$del += (delete $D->{"$mid\0$cid"} || 0);
+		$del += delete($D->{"$mid\0$cid"}) ? 1 : 0;
 		my $n = $mm_tmp->num_for($mid);
 		if (defined $n && $n > $num) {
 			$mid0 = $mid;
@@ -882,7 +882,7 @@ sub index_sync {
 	my ($min, $max) = $mm_tmp->minmax;
 	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
 	$$regen += $max if $max;
-	my $D = {};
+	my $D = {}; # "$mid\0$cid" => $oid
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
 
@@ -912,13 +912,13 @@ sub index_sync {
 		delete $self->{reindex_pipe};
 		$self->update_last_commit($git, $i, $cmt) if defined $cmt;
 	}
-	my @d = sort keys %$D;
-	if (@d) {
-		warn "BUG: ", scalar(@d)," unseen deleted messages marked\n";
-		foreach (@d) {
-			my ($mid, undef) = split(/\0/, $_, 2);
-			warn "<$mid>\n";
-		}
+
+	# unindex is required for leftovers if "deletes" affect messages
+	# in a previous fetch+index window:
+	if (scalar keys %$D) {
+		my $git = $self->{-inbox}->git;
+		$self->unindex_oid($git, $_) for values %$D;
+		$git->cleanup;
 	}
 	$self->done;
 }
