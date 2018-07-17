@@ -199,6 +199,7 @@ t/thread-cycle.t
 t/time.t
 t/utf8.mbox
 t/v1-add-remove-add.t
+t/v1reindex.t
 t/v2-add-remove-add.t
 t/v2mda.t
 t/v2mirror.t

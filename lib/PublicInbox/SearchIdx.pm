@@ -561,7 +561,12 @@ sub read_log {
 	while (defined($line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $blob = $1;
-			delete $D{$blob} and next;
+			if (delete $D{$blob}) {
+				if (defined $self->{regen_down}) {
+					$self->{regen_down}--;
+				}
+				next;
+			}
 			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
 			batch_adjust(\$max, $bytes, $batch_cb, $latest);
 			$add_cb->($self, $mime, $bytes, $blob);
