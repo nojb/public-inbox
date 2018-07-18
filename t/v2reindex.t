@@ -14,13 +14,13 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 }
 use_ok 'PublicInbox::V2Writable';
 my $mainrepo = tempdir('pi-v2reindex-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-my $ibx = {
+my $ibx_config = {
 	mainrepo => $mainrepo,
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',
 };
-$ibx = PublicInbox::Inbox->new($ibx);
+my $ibx = PublicInbox::Inbox->new($ibx_config);
 my $mime = PublicInbox::MIME->create(
 	header => [
 		From => 'a@example.com',
