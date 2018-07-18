@@ -93,7 +93,7 @@ sub filter_mids {
 	$ro->reopen;
 	my $found = $ro->query('m:root@s');
 	is(scalar(@$found), 1, "message found");
-	is($found->[0]->mid, 'root@s', 'mid set correctly');
+	is($found->[0]->mid, 'root@s', 'mid set correctly') if scalar(@$found);
 
 	my ($res, @res);
 	my @exp = sort qw(root@s last@s);
@@ -170,7 +170,8 @@ $ibx->with_umask(sub {
 
 	# body
 	$res = $ro->query('goodbye');
-	is($res->[0]->mid, 'last@s', 'got goodbye message body');
+	is(scalar(@$res), 1, "goodbye message found");
+	is($res->[0]->mid, 'last@s', 'got goodbye message body') if scalar(@$res);
 
 	# datestamp
 	$res = $ro->query('dt:20101002000001..20101002000001');
@@ -253,13 +254,13 @@ $ibx->with_umask(sub {
 		body => "theatre\nfade\n"));
 	my $res = $rw->query("theatre");
 	is(scalar(@$res), 2, "got both matches");
-	is($res->[0]->mid, 'nquote@a', "non-quoted scores higher");
-	is($res->[1]->mid, 'quote@a', "quoted result still returned");
+	is($res->[0]->mid, 'nquote@a', "non-quoted scores higher") if scalar(@$res);
+	is($res->[1]->mid, 'quote@a', "quoted result still returned") if scalar(@$res);
 
 	$res = $rw->query("illusions");
 	is(scalar(@$res), 1, "got a match for quoted text");
 	is($res->[0]->mid, 'quote@a',
-		"quoted result returned if nothing else");
+		"quoted result returned if nothing else") if scalar(@$res);
 });
 
 # circular references
@@ -278,8 +279,9 @@ $ibx->with_umask(sub {
 		body => "LOOP!\n"));
 	ok($doc_id > 0, "doc_id defined with circular reference");
 	my $smsg = $rw->query('m:circle@a', {limit=>1})->[0];
-	is($smsg->references, '', "no references created");
-	is($s, $smsg->subject, 'long subject not rewritten');
+	is(defined($smsg), 1, 'found m:circl@a');
+	is($smsg->references, '', "no references created") if defined($smsg);
+	is($smsg->subject, $s, 'long subject not rewritten') if defined($smsg);
 });
 
 $ibx->with_umask(sub {
@@ -294,7 +296,8 @@ $ibx->with_umask(sub {
 	my $doc_id = $rw->add_message($mime);
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
 	my $msg = $rw->query('m:testmessage@example.com', {limit => 1})->[0];
-	is($mime->header('Subject'), $msg->subject, 'UTF-8 subject preserved');
+	is(defined($msg), 1, 'found testmessage@example.com');
+	is($mime->header('Subject'), $msg->subject, 'UTF-8 subject preserved') if defined($msg);
 });
 
 {
@@ -355,17 +358,17 @@ $ibx->with_umask(sub {
 
 	$res = $ro->query('q:theatre');
 	is(scalar(@$res), 1, 'only one quoted body');
-	like($res->[0]->from, qr/\AQuoter/, 'got quoted body');
+	like($res->[0]->from, qr/\AQuoter/, 'got quoted body') if scalar(@$res);
 
 	$res = $ro->query('nq:theatre');
 	is(scalar @$res, 1, 'only one non-quoted body');
-	like($res->[0]->from, qr/\ANon-Quoter/, 'got non-quoted body');
+	like($res->[0]->from, qr/\ANon-Quoter/, 'got non-quoted body') if scalar(@$res);
 
 	foreach my $pfx (qw(b: bs:)) {
 		$res = $ro->query($pfx . 'theatre');
 		is(scalar @$res, 2, "searched both bodies for $pfx");
 		like($res->[0]->from, qr/\ANon-Quoter/,
-			"non-quoter first for $pfx");
+			"non-quoter first for $pfx") if scalar(@$res);
 	}
 }
 
@@ -407,18 +410,22 @@ $ibx->with_umask(sub {
 	my $res = $ro->query('part_deux.txt');
 	is(scalar @$res, 1, 'got result without n:');
 	is($n->[0]->mid, $res->[0]->mid,
-		'same result with and without');
+		'same result with and without') if scalar(@$res);
 	my $txt = $ro->query('"inside another"');
+	is(scalar @$txt, 1, 'found inside another');
 	is($txt->[0]->mid, $res->[0]->mid,
-		'search inside text attachments works');
+		'search inside text attachments works') if scalar(@$txt);
 
-	my $mid = $n->[0]->mid;
-	my ($id, $prev);
-	my $art = $ro->next_by_mid($mid, \$id, \$prev);
-	ok($art, 'article exists in OVER DB');
+	my $art;
+	if (scalar(@$n) >= 1) {
+		my $mid = $n->[0]->mid;
+		my ($id, $prev);
+		$art = $ro->next_by_mid($mid, \$id, \$prev);
+		ok($art, 'article exists in OVER DB');
+	}
 	$rw->unindex_blob($amsg);
 	$rw->commit_txn_lazy;
-	is($ro->lookup_article($art->{num}), undef, 'gone from OVER DB');
+	is($ro->lookup_article($art->{num}), undef, 'gone from OVER DB') if defined($art);
 });
 
 foreach my $f ("$git_dir/public-inbox/msgmap.sqlite3",

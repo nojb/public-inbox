@@ -125,7 +125,7 @@ if ('ensure git configs are correct') {
 	my $mset2 = $srch->reopen->query('m:abcde@2', { mset => 1 });
 	is($mset2->size, 1, 'message found by second MID');
 	is((($mset1->items)[0])->get_docid, (($mset2->items)[0])->get_docid,
-		'same document');
+		'same document') if ($mset1->size);
 }
 
 SKIP: {
