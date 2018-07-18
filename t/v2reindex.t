@@ -19,6 +19,7 @@ my $ibx_config = {
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',
+	indexlevel => 'full',
 };
 my $ibx = PublicInbox::Inbox->new($ibx_config);
 my $mime = PublicInbox::MIME->create(
@@ -83,6 +84,45 @@ ok(!-d $xap, 'Xapian directories removed again');
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	eval { $im->index_sync({reindex => 1}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	ok(-d $xap, 'Xapian directories recreated');
+	delete $ibx->{mm};
+	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+}
+
+ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+remove_tree($xap);
+ok(!-d $xap, 'Xapian directories removed again');
+
+$ibx_config->{index_level} = 'medium';
+$ibx = PublicInbox::Inbox->new($ibx_config);
+$im = PublicInbox::V2Writable->new($ibx);
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	eval { $im->index_sync({reindex => 1}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	ok(-d $xap, 'Xapian directories recreated');
+	delete $ibx->{mm};
+	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+}
+
+
+ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+remove_tree($xap);
+ok(!-d $xap, 'Xapian directories removed again');
+
+$ibx_config->{index_level} = 'basic';
+$ibx = PublicInbox::Inbox->new($ibx_config);
+$im = PublicInbox::V2Writable->new($ibx);
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };

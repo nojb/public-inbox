@@ -47,6 +47,7 @@ sub git_unquote ($) {
 
 sub new {
 	my ($class, $ibx, $creat, $part) = @_;
+	my $levels = qr/\A(?:full|medium|basic)\z/;
 	my $mainrepo = $ibx; # for "public-inbox-index" w/o entry in config
 	my $git_dir = $mainrepo;
 	my ($altid, $git);
@@ -61,6 +62,13 @@ sub new {
 			$altid = [ map {
 				PublicInbox::AltId->new($ibx, $_);
 			} @$altid ];
+		}
+		if ($ibx->{indexlevel}) {
+			if ($ibx->{indexlevel} =~ $levels) {
+				$indexlevel = $ibx->{indexlevel};
+			} else {
+				die("Invalid indexlevel $ibx->{indexlevel}\n");
+			}
 		}
 	} else { # v1
 		$ibx = { mainrepo => $git_dir, version => 1 };
