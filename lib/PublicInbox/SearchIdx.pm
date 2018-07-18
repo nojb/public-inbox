@@ -268,10 +268,95 @@ sub index_body ($$$) {
 	@$lines = ();
 }
 
+sub add_xapian ($$$$$) {
+	my ($self, $mime, $num, $oid, $mids, $mid0) = @_;
+	my $smsg = PublicInbox::SearchMsg->new($mime);
+	my $doc = $smsg->{doc};
+	my $subj = $smsg->subject;
+	add_val($doc, PublicInbox::Search::TS(), $smsg->ts);
+	my @ds = gmtime($smsg->ds);
+	my $yyyymmdd = strftime('%Y%m%d', @ds);
+	add_val($doc, PublicInbox::Search::YYYYMMDD(), $yyyymmdd);
+	my $dt = strftime('%Y%m%d%H%M%S', @ds);
+	add_val($doc, PublicInbox::Search::DT(), $dt);
+
+	my $tg = $self->term_generator;
+
+	$tg->set_document($doc);
+	$self->index_text($subj, 1, 'S') if $subj;
+	$self->index_users($smsg);
+
+	msg_iter($mime, sub {
+		my ($part, $depth, @idx) = @{$_[0]};
+		my $ct = $part->content_type || 'text/plain';
+		my $fn = $part->filename;
+		if (defined $fn && $fn ne '') {
+			$self->index_text($fn, 1, 'XFN');
+		}
+
+		return if $ct =~ m!\btext/x?html\b!i;
+
+		my $s = eval { $part->body_str };
+		if ($@) {
+			if ($ct =~ m!\btext/plain\b!i) {
+				# Try to assume UTF-8 because Alpine
+				# seems to do wacky things and set
+				# charset=X-UNKNOWN
+				$part->charset_set('UTF-8');
+				$s = eval { $part->body_str };
+				$s = $part->body if $@;
+			}
+		}
+		defined $s or return;
+
+		my (@orig, @quot);
+		my $body = $part->body;
+		my @lines = split(/\n/, $body);
+		while (defined(my $l = shift @lines)) {
+			if ($l =~ /^>/) {
+				$self->index_body(\@orig, $doc) if @orig;
+				push @quot, $l;
+			} else {
+				$self->index_body(\@quot, 0) if @quot;
+				push @orig, $l;
+			}
+		}
+		$self->index_body(\@quot, 0) if @quot;
+		$self->index_body(\@orig, $doc) if @orig;
+	});
+
+	foreach my $mid (@$mids) {
+		$self->index_text($mid, 1, 'XM');
+
+		# because too many Message-IDs are prefixed with
+		# "Pine.LNX."...
+		if ($mid =~ /\w{12,}/) {
+			my @long = ($mid =~ /(\w{3,}+)/g);
+			$self->index_text(join(' ', @long), 1, 'XM');
+		}
+	}
+	$smsg->{to} = $smsg->{cc} = '';
+	PublicInbox::OverIdx::parse_references($smsg, $mid0, $mids);
+	my $data = $smsg->to_doc_data($oid, $mid0);
+	$doc->set_data($data);
+	if (my $altid = $self->{-altid}) {
+		foreach my $alt (@$altid) {
+			my $pfx = $alt->{xprefix};
+			foreach my $mid (@$mids) {
+				my $id = $alt->mid2alt($mid);
+				next unless defined $id;
+				$doc->add_boolean_term($pfx . $id);
+			}
+		}
+	}
+	$doc->add_boolean_term('Q' . $_) foreach @$mids;
+	$self->{xdb}->replace_document($num, $doc);
+}
+
 sub add_message {
 	# mime = Email::MIME object
 	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
-	my $doc_id;
+	my $xapianlevels = qr/\A(?:full|medium)\z/;
 	my $mids = mids($mime->header_obj);
 	$mid0 = $mids->[0] unless defined $mid0; # v1 compatibility
 	unless (defined $num) { # v1
@@ -279,98 +364,19 @@ sub add_message {
 		$num = index_mm($self, $mime);
 	}
 	eval {
-		my $smsg = PublicInbox::SearchMsg->new($mime);
-		my $doc = $smsg->{doc};
-		my $subj = $smsg->subject;
-		add_val($doc, PublicInbox::Search::TS(), $smsg->ts);
-		my @ds = gmtime($smsg->ds);
-		my $yyyymmdd = strftime('%Y%m%d', @ds);
-		add_val($doc, PublicInbox::Search::YYYYMMDD(), $yyyymmdd);
-		my $dt = strftime('%Y%m%d%H%M%S', @ds);
-		add_val($doc, PublicInbox::Search::DT(), $dt);
-
-		my $tg = $self->term_generator;
-
-		$tg->set_document($doc);
-		$self->index_text($subj, 1, 'S') if $subj;
-		$self->index_users($smsg);
-
-		msg_iter($mime, sub {
-			my ($part, $depth, @idx) = @{$_[0]};
-			my $ct = $part->content_type || 'text/plain';
-			my $fn = $part->filename;
-			if (defined $fn && $fn ne '') {
-				$self->index_text($fn, 1, 'XFN');
-			}
-
-			return if $ct =~ m!\btext/x?html\b!i;
-
-			my $s = eval { $part->body_str };
-			if ($@) {
-				if ($ct =~ m!\btext/plain\b!i) {
-					# Try to assume UTF-8 because Alpine
-					# seems to do wacky things and set
-					# charset=X-UNKNOWN
-					$part->charset_set('UTF-8');
-					$s = eval { $part->body_str };
-					$s = $part->body if $@;
-				}
-			}
-			defined $s or return;
-
-			my (@orig, @quot);
-			my $body = $part->body;
-			my @lines = split(/\n/, $body);
-			while (defined(my $l = shift @lines)) {
-				if ($l =~ /^>/) {
-					$self->index_body(\@orig, $doc) if @orig;
-					push @quot, $l;
-				} else {
-					$self->index_body(\@quot, 0) if @quot;
-					push @orig, $l;
-				}
-			}
-			$self->index_body(\@quot, 0) if @quot;
-			$self->index_body(\@orig, $doc) if @orig;
-		});
-
-		foreach my $mid (@$mids) {
-			$self->index_text($mid, 1, 'XM');
-
-			# because too many Message-IDs are prefixed with
-			# "Pine.LNX."...
-			if ($mid =~ /\w{12,}/) {
-				my @long = ($mid =~ /(\w{3,}+)/g);
-				$self->index_text(join(' ', @long), 1, 'XM');
-			}
+		if ($self->{indexlevel} =~ $xapianlevels) {
+			$self->add_xapian($mime, $num, $oid, $mids, $mid0)
 		}
-		$smsg->{to} = $smsg->{cc} = '';
-		PublicInbox::OverIdx::parse_references($smsg, $mid0, $mids);
-		my $data = $smsg->to_doc_data($oid, $mid0);
-		$doc->set_data($data);
-		if (my $altid = $self->{-altid}) {
-			foreach my $alt (@$altid) {
-				my $pfx = $alt->{xprefix};
-				foreach my $mid (@$mids) {
-					my $id = $alt->mid2alt($mid);
-					next unless defined $id;
-					$doc->add_boolean_term($pfx . $id);
-				}
-			}
-		}
-
 		if (my $over = $self->{over}) {
 			$over->add_overview($mime, $bytes, $num, $oid, $mid0);
 		}
-		$doc->add_boolean_term('Q' . $_) foreach @$mids;
-		$self->{xdb}->replace_document($doc_id = $num, $doc);
 	};
 
 	if ($@) {
 		warn "failed to index message <".join('> <',@$mids).">: $@\n";
 		return undef;
 	}
-	$doc_id;
+	$num;
 }
 
 # returns begin and end PostingIterator
