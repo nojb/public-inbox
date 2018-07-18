@@ -16,7 +16,10 @@ use Cwd qw/abs_path/;
 sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 my $version = undef;
-my %opts = ( 'V|version=i' => \$version );
+my $indexlevel = undef;
+my %opts = ( 'V|version=i' => \$version,
+	     'L|indexlevel=s' => \$indexlevel,
+);
 GetOptions(%opts) or usage();
 my $name = shift @ARGV or usage();
 my $mainrepo = shift @ARGV or usage();
@@ -64,8 +67,16 @@ if (-e $pi_config) {
 	}
 
 	exit(1) if $conflict;
+
+	my $ibx = $cfg->lookup_name($name);
+	if ($ibx) {
+		if (!defined($indexlevel) && $ibx->{indexlevel}) {
+			$indexlevel = $ibx->{indexlevel};
+		}
+	}
 }
 close $fh or die "failed to close $pi_config_tmp: $!\n";
+$indexlevel ||= 'full';
 
 my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
@@ -114,6 +125,7 @@ foreach my $addr (@address) {
 }
 x(@x, "$pfx.url", $http_url);
 x(@x, "$pfx.mainrepo", $mainrepo);
+x(@x, "$pfx.indexlevel", $indexlevel);
 
 rename $pi_config_tmp, $pi_config or
 	die "failed to rename `$pi_config_tmp' to `$pi_config': $!\n";
