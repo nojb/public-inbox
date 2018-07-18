@@ -51,6 +51,7 @@ sub new {
 	my $git_dir = $mainrepo;
 	my ($altid, $git);
 	my $version = 1;
+	my $indexlevel = 'full';
 	if (ref $ibx) {
 		$mainrepo = $ibx->{mainrepo};
 		$altid = $ibx->{altid};
@@ -72,6 +73,7 @@ sub new {
 		git => $ibx->git,
 		-altid => $altid,
 		version => $version,
+		indexlevel => $indexlevel,
 	}, $class;
 	$ibx->umask_prepare;
 	if ($version == 1) {
@@ -118,34 +120,42 @@ sub add_val ($$$) {
 	$doc->add_value($col, $num);
 }
 
+sub index_text ($$$$)
+{
+	my ($self, $field, $n, $text) = @_;
+	my $tg = $self->term_generator;
+
+	if ($self->{indexlevel} eq 'full') {
+		$tg->index_text($field, $n, $text);
+		$tg->increase_termpos;
+	} else {
+		$tg->index_text_without_positions($field, $n, $text);
+	}
+}
+
 sub index_users ($$) {
-	my ($tg, $smsg) = @_;
+	my ($self, $smsg) = @_;
 
 	my $from = $smsg->from;
 	my $to = $smsg->to;
 	my $cc = $smsg->cc;
 
-	$tg->index_text($from, 1, 'A'); # A - author
-	$tg->increase_termpos;
-	$tg->index_text($to, 1, 'XTO') if $to ne '';
-	$tg->increase_termpos;
-	$tg->index_text($cc, 1, 'XCC') if $cc ne '';
-	$tg->increase_termpos;
+	$self->index_text($from, 1, 'A'); # A - author
+	$self->index_text($to, 1, 'XTO') if $to ne '';
+	$self->index_text($cc, 1, 'XCC') if $cc ne '';
 }
 
 sub index_diff_inc ($$$$) {
-	my ($tg, $text, $pfx, $xnq) = @_;
+	my ($self, $text, $pfx, $xnq) = @_;
 	if (@$xnq) {
-		$tg->index_text(join("\n", @$xnq), 1, 'XNQ');
-		$tg->increase_termpos;
+		$self->index_text(join("\n", @$xnq), 1, 'XNQ');
 		@$xnq = ();
 	}
-	$tg->index_text($text, 1, $pfx);
-	$tg->increase_termpos;
+	$self->index_text($text, 1, $pfx);
 }
 
 sub index_old_diff_fn {
-	my ($tg, $seen, $fa, $fb, $xnq) = @_;
+	my ($self, $seen, $fa, $fb, $xnq) = @_;
 
 	# no renames or space support for traditional diffs,
 	# find the number of leading common paths to strip:
@@ -156,7 +166,7 @@ sub index_old_diff_fn {
 		$fb = join('/', @fb);
 		if ($fa eq $fb) {
 			unless ($seen->{$fa}++) {
-				index_diff_inc($tg, $fa, 'XDFN', $xnq);
+				$self->index_diff_inc($fa, 'XDFN', $xnq);
 			}
 			return 1;
 		}
@@ -167,22 +177,22 @@ sub index_old_diff_fn {
 }
 
 sub index_diff ($$$) {
-	my ($tg, $lines, $doc) = @_;
+	my ($self, $lines, $doc) = @_;
 	my %seen;
 	my $in_diff;
 	my @xnq;
 	my $xnq = \@xnq;
 	foreach (@$lines) {
 		if ($in_diff && s/^ //) { # diff context
-			index_diff_inc($tg, $_, 'XDFCTX', $xnq);
+			$self->index_diff_inc($_, 'XDFCTX', $xnq);
 		} elsif (/^-- $/) { # email signature begins
 			$in_diff = undef;
 		} elsif (m!^diff --git ("?a/.+) ("?b/.+)\z!) {
 			my ($fa, $fb) = ($1, $2);
 			my $fn = (split('/', git_unquote($fa), 2))[1];
-			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
+			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
 			$fn = (split('/', git_unquote($fb), 2))[1];
-			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
+			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		# traditional diff:
 		} elsif (m/^diff -(.+) (\S+) (\S+)$/) {
@@ -190,26 +200,26 @@ sub index_diff ($$$) {
 			push @xnq, $_;
 			# only support unified:
 			next unless $opt =~ /[uU]/;
-			$in_diff = index_old_diff_fn($tg, \%seen, $fa, $fb,
+			$in_diff = $self->index_old_diff_fn(\%seen, $fa, $fb,
 							$xnq);
 		} elsif (m!^--- ("?a/.+)!) {
 			my $fn = (split('/', git_unquote($1), 2))[1];
-			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
+			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (m!^\+\+\+ ("?b/.+)!)  {
 			my $fn = (split('/', git_unquote($1), 2))[1];
-			$seen{$fn}++ or index_diff_inc($tg, $fn, 'XDFN', $xnq);
+			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (/^--- (\S+)/) {
 			$in_diff = $1;
 			push @xnq, $_;
 		} elsif (defined $in_diff && /^\+\+\+ (\S+)/) {
-			$in_diff = index_old_diff_fn($tg, \%seen, $in_diff, $1,
+			$in_diff = $self->index_old_diff_fn(\%seen, $in_diff, $1,
 							$xnq);
 		} elsif ($in_diff && s/^\+//) { # diff added
-			index_diff_inc($tg, $_, 'XDFB', $xnq);
+			$self->index_diff_inc($_, 'XDFB', $xnq);
 		} elsif ($in_diff && s/^-//) { # diff removed
-			index_diff_inc($tg, $_, 'XDFA', $xnq);
+			$self->index_diff_inc($_, 'XDFA', $xnq);
 		} elsif (m!^index ([a-f0-9]+)\.\.([a-f0-9]+)!) {
 			my ($ba, $bb) = ($1, $2);
 			index_git_blob_id($doc, 'XDFPRE', $ba);
@@ -219,7 +229,7 @@ sub index_diff ($$$) {
 			# traditional diff w/o -p
 		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*(\S+.*)$/) {
 			# hunk header context
-			index_diff_inc($tg, $1, 'XDFHH', $xnq);
+			$self->index_diff_inc($1, 'XDFHH', $xnq);
 		# ignore the following lines:
 		} elsif (/^(?:dis)similarity index/ ||
 				/^(?:old|new) mode/ ||
@@ -238,25 +248,23 @@ sub index_diff ($$$) {
 		}
 	}
 
-	$tg->index_text(join("\n", @xnq), 1, 'XNQ');
-	$tg->increase_termpos;
+	$self->index_text(join("\n", @xnq), 1, 'XNQ');
 }
 
 sub index_body ($$$) {
-	my ($tg, $lines, $doc) = @_;
+	my ($self, $lines, $doc) = @_;
 	my $txt = join("\n", @$lines);
 	if ($doc) {
 		# does it look like a diff?
 		if ($txt =~ /^(?:diff|---|\+\+\+) /ms) {
 			$txt = undef;
-			index_diff($tg, $lines, $doc);
+			$self->index_diff($lines, $doc);
 		} else {
-			$tg->index_text($txt, 1, 'XNQ');
+			$self->index_text($txt, 1, 'XNQ');
 		}
 	} else {
-		$tg->index_text($txt, 0, 'XQUOT');
+		$self->index_text($txt, 0, 'XQUOT');
 	}
-	$tg->increase_termpos;
 	@$lines = ();
 }
 
@@ -284,18 +292,15 @@ sub add_message {
 		my $tg = $self->term_generator;
 
 		$tg->set_document($doc);
-		$tg->index_text($subj, 1, 'S') if $subj;
-		$tg->increase_termpos;
-
-		index_users($tg, $smsg);
+		$self->index_text($subj, 1, 'S') if $subj;
+		$self->index_users($smsg);
 
 		msg_iter($mime, sub {
 			my ($part, $depth, @idx) = @{$_[0]};
 			my $ct = $part->content_type || 'text/plain';
 			my $fn = $part->filename;
 			if (defined $fn && $fn ne '') {
-				$tg->index_text($fn, 1, 'XFN');
-				$tg->increase_termpos;
+				$self->index_text($fn, 1, 'XFN');
 			}
 
 			return if $ct =~ m!\btext/x?html\b!i;
@@ -318,27 +323,26 @@ sub add_message {
 			my @lines = split(/\n/, $body);
 			while (defined(my $l = shift @lines)) {
 				if ($l =~ /^>/) {
-					index_body($tg, \@orig, $doc) if @orig;
+					$self->index_body(\@orig, $doc) if @orig;
 					push @quot, $l;
 				} else {
-					index_body($tg, \@quot, 0) if @quot;
+					$self->index_body(\@quot, 0) if @quot;
 					push @orig, $l;
 				}
 			}
-			index_body($tg, \@quot, 0) if @quot;
-			index_body($tg, \@orig, $doc) if @orig;
+			$self->index_body(\@quot, 0) if @quot;
+			$self->index_body(\@orig, $doc) if @orig;
 		});
 
 		foreach my $mid (@$mids) {
-			$tg->index_text($mid, 1, 'XM');
+			$self->index_text($mid, 1, 'XM');
 
 			# because too many Message-IDs are prefixed with
 			# "Pine.LNX."...
 			if ($mid =~ /\w{12,}/) {
 				my @long = ($mid =~ /(\w{3,}+)/g);
-				$tg->index_text(join(' ', @long), 1, 'XM');
+				$self->index_text(join(' ', @long), 1, 'XM');
 			}
-			$tg->increase_termpos;
 		}
 		$smsg->{to} = $smsg->{cc} = '';
 		PublicInbox::OverIdx::parse_references($smsg, $mid0, $mids);
