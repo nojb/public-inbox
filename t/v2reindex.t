@@ -63,7 +63,7 @@ $im->done;
 ok(-d $xap, 'Xapian directories recreated');
 
 delete $ibx->{mm};
-is_deeply($minmax, [ $ibx->mm->minmax ], 'minmax unchanged');
+is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
@@ -77,7 +77,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	$im->done;
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
-	is_deeply($minmax, [ $ibx->mm->minmax ], 'minmax unchanged');
+	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 }
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
@@ -92,7 +92,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	$im->done;
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
-	is_deeply($minmax, [ $ibx->mm->minmax ], 'minmax unchanged');
+	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 }
 
 done_testing();
