@@ -48,6 +48,7 @@ if ('test remove later') {
 $im->done;
 my $minmax = [ $ibx->mm->minmax ];
 ok(defined $minmax->[0] && defined $minmax->[1], 'minmax defined');
+is_deeply($minmax, [ 1, 10 ], 'minmax as expected');
 
 eval { $im->index_sync({reindex => 1}) };
 is($@, '', 'no error from reindexing');
