@@ -81,6 +81,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 }
 
+my %sizes;
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
@@ -94,13 +95,16 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	my $mset = $ibx->search->query('"hello world"', {mset=>1});
+	isnt(0, $mset->size, "phrase search succeeds on indexlevel=full");
+	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 }
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 
-$ibx_config->{index_level} = 'medium';
+$ibx_config->{indexlevel} = 'medium';
 $ibx = PublicInbox::Inbox->new($ibx_config);
 $im = PublicInbox::V2Writable->new($ibx);
 {
@@ -113,14 +117,26 @@ $im = PublicInbox::V2Writable->new($ibx);
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
-}
 
+	if (0) {
+		# not sure why, but Xapian seems to fallback to terms and
+		# phrase searches still work
+		delete $ibx->{search};
+		my $mset = $ibx->search->query('"hello world"', {mset=>1});
+		is(0, $mset->size, 'phrase search does not work on medium');
+	}
+
+	my $mset = $ibx->search->query('hello world', {mset=>1});
+	isnt(0, $mset->size, "normal search works on indexlevel=medium");
+	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+	ok($sizes{full} > $sizes{medium}, 'medium is smaller than full');
+}
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 
-$ibx_config->{index_level} = 'basic';
+$ibx_config->{indexlevel} = 'basic';
 $ibx = PublicInbox::Inbox->new($ibx_config);
 $im = PublicInbox::V2Writable->new($ibx);
 {
@@ -133,6 +149,10 @@ $im = PublicInbox::V2Writable->new($ibx);
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	my $mset = $ibx->search->query('hello', {mset=>1});
+	is(0, $mset->size, "search fails on indexlevel='basic'");
+	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+	ok($sizes{medium} > $sizes{basic}, 'basic is smaller than medium');
 }
 
 done_testing();

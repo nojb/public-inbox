@@ -111,7 +111,7 @@ ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 
-$ibx_config->{index_level} = 'medium';
+$ibx_config->{indexlevel} = 'medium';
 $ibx = PublicInbox::Inbox->new($ibx_config);
 $rw = PublicInbox::SearchIdx->new($ibx, 1);
 {
@@ -131,7 +131,7 @@ ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 
-$ibx_config->{index_level} = 'basic';
+$ibx_config->{indexlevel} = 'basic';
 $ibx = PublicInbox::Inbox->new($ibx_config);
 $rw = PublicInbox::SearchIdx->new($ibx, 1);
 {
