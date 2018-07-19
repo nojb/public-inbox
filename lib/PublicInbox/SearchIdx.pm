@@ -22,7 +22,8 @@ require PublicInbox::Git;
 use Compress::Zlib qw(compress);
 
 use constant {
-	BATCH_BYTES => 1_000_000,
+	BATCH_BYTES => defined($ENV{XAPIAN_FLUSH_THRESHOLD}) ?
+			0x7fffffff : 1_000_000,
 	DEBUG => !!$ENV{DEBUG},
 };
 
