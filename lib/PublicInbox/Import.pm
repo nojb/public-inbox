@@ -278,10 +278,12 @@ sub extract_author_info ($) {
 
 	my $sender = '';
 	my $from = $mime->header('From');
+	$from ||= '';
 	my ($email) = PublicInbox::Address::emails($from);
 	my ($name) = PublicInbox::Address::names($from);
 	if (!defined($name) || !defined($email)) {
 		$sender = $mime->header('Sender');
+		$sender ||= '';
 		if (!defined($name)) {
 			($name) = PublicInbox::Address::names($sender);
 		}
