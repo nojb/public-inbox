@@ -124,8 +124,9 @@ $rw = PublicInbox::SearchIdx->new($ibx, 1);
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	my $mset = $ibx->search->query('hello world', {mset=>1});
+	isnt(0, $mset->size, 'got Xapian search results');
 }
-
 
 ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
@@ -144,7 +145,25 @@ $rw = PublicInbox::SearchIdx->new($ibx, 1);
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	my $mset = $ibx->search->reopen->query('hello world', {mset=>1});
+	is(0, $mset->size, "no Xapian search results");
 }
 
+# upgrade existing basic to medium
+# note: changing indexlevels is not yet supported in v2,
+# and may not be without more effort
+$ibx_config->{indexlevel} = 'medium';
+$ibx = PublicInbox::Inbox->new($ibx_config);
+$rw = PublicInbox::SearchIdx->new($ibx, 1);
+# no removals
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	eval { $rw->index_sync };
+	is($@, '', 'no error from indexing');
+	is_deeply(\@warn, [], 'no warnings');
+	my $mset = $ibx->search->reopen->query('hello world', {mset=>1});
+	isnt(0, $mset->size, 'search OK after basic -> medium');
+}
 
 done_testing();

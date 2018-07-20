@@ -27,6 +27,8 @@ use constant {
 	DEBUG => !!$ENV{DEBUG},
 };
 
+my $xapianlevels = qr/\A(?:full|medium)\z/;
+
 my %GIT_ESC = (
 	a => "\a",
 	b => "\b",
@@ -365,7 +367,6 @@ sub add_xapian ($$$$$) {
 sub add_message {
 	# mime = Email::MIME object
 	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
-	my $xapianlevels = qr/\A(?:full|medium)\z/;
 	my $mids = mids($mime->header_obj);
 	$mid0 = $mids->[0] unless defined $mid0; # v1 compatibility
 	unless (defined $num) { # v1
@@ -714,7 +715,7 @@ sub _index_sync {
 			}
 			$dbh->commit;
 		}
-		if ($mkey && $newest) {
+		if ($mkey && $newest && $self->{indexlevel} =~ $xapianlevels) {
 			my $cur = $xdb->get_metadata($mkey);
 			if (need_update($self, $cur, $newest)) {
 				$xdb->set_metadata($mkey, $newest);
