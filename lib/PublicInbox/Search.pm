@@ -50,6 +50,9 @@ use constant {
 
 my %bool_pfx_external = (
 	mid => 'Q', # Message-ID (full/exact), this is mostly uniQue
+	dfpre => 'XDFPRE',
+	dfpost => 'XDFPOST',
+	dfblob => 'XDFPRE XDFPOST',
 );
 
 my $non_quoted_body = 'XNQ XDFN XDFA XDFB XDFHH XDFCTX XDFPRE XDFPOST';
@@ -74,9 +77,6 @@ my %prob_prefix = (
 	dfb => 'XDFB',
 	dfhh => 'XDFHH',
 	dfctx => 'XDFCTX',
-	dfpre => 'XDFPRE',
-	dfpost => 'XDFPOST',
-	dfblob => 'XDFPRE XDFPOST',
 
 	# default:
 	'' => 'XM S A XQUOT XFN ' . $non_quoted_body,
@@ -266,7 +266,7 @@ sub qp {
 		Search::Xapian::NumberValueRangeProcessor->new(DT, 'dt:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
-		$qp->add_boolean_prefix($name, $prefix);
+		$qp->add_boolean_prefix($name, $_) foreach split(/ /, $prefix);
 	}
 
 	# we do not actually create AltId objects,
