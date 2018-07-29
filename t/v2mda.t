@@ -8,6 +8,7 @@ use File::Temp qw/tempdir/;
 use Fcntl qw(SEEK_SET);
 use Cwd;
 
+my $V = 2;
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for v2mda.t" if $@;
@@ -38,7 +39,8 @@ local $ENV{PI_DIR} = "$tmpdir/foo";
 local $ENV{PATH} = "$main_bin:blib/script:$ENV{PATH}";
 local $ENV{PI_EMERGENCY} = "$tmpdir/fail";
 ok(mkdir "$tmpdir/fail");
-my @cmd = (qw(public-inbox-init -V2), $ibx->{name},
+
+my @cmd = (qw(public-inbox-init), "-V$V", $ibx->{name},
 		$ibx->{mainrepo}, 'http://localhost/test',
 		$ibx->{address}->[0]);
 ok(PublicInbox::Import::run_die(\@cmd), 'initialized v2 inbox');
@@ -54,6 +56,11 @@ ok(PublicInbox::Import::run_die(['public-inbox-mda'], undef, $rdr),
 	'mda delivered a message');
 
 $ibx = PublicInbox::Inbox->new($ibx);
+
+if ($V == 1) {
+	my $cmd = [ 'public-inbox-index', "$tmpdir/inbox" ];
+	ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'v1 indexed');
+}
 my $msgs = $ibx->search->query('');
 my $saved = $ibx->smsg_mime($msgs->[0]);
 is($saved->{mime}->as_string, $mime->as_string, 'injected message');
