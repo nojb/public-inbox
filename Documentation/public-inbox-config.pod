@@ -91,6 +91,15 @@ C<nntp://news.gmane.org/gmane.mail.public-inbox.general>
 
 Default: none
 
+=item publicinboxmda.spamcheck
+
+This may be set to C<none> to disable the use of SpamAssassin
+L<spamc(1)> for filtering spam before it is imported into git
+history.  Other spam filtering backends may be supported in
+the future.
+
+Default: spamc
+
 =item publicinboxwatch.spamcheck
 
 This may be set to C<spamc> to enable the use of SpamAssassin

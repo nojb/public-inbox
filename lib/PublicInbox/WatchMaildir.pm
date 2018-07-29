@@ -14,6 +14,7 @@ use PublicInbox::Spawn qw(spawn);
 use PublicInbox::InboxWritable;
 use File::Temp qw//;
 use PublicInbox::Filter::Base;
+use PublicInbox::Spamcheck;
 *REJECT = *PublicInbox::Filter::Base::REJECT;
 
 sub new {
@@ -40,19 +41,9 @@ sub new {
 	}
 
 	my $k = 'publicinboxwatch.spamcheck';
-	my $spamcheck = $config->{$k};
-	if ($spamcheck) {
-		if ($spamcheck eq 'spamc') {
-			$spamcheck = 'PublicInbox::Spamcheck::Spamc';
-		}
-		if ($spamcheck =~ /::/) {
-			eval "require $spamcheck";
-			$spamcheck = _spamcheck_cb($spamcheck->new);
-		} else {
-			warn "unsupported $k=$spamcheck\n";
-			$spamcheck = undef;
-		}
-	}
+	my $default = undef;
+	my $spamcheck = PublicInbox::Spamcheck::get($config, $k, $default);
+	$spamcheck = _spamcheck_cb($spamcheck) if $spamcheck;
 
 	# need to make all inboxes writable for spam removal:
 	$config->each_inbox(sub { PublicInbox::InboxWritable->new($_[0]) });

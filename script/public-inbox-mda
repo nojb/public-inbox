@@ -20,8 +20,8 @@ use PublicInbox::MDA;
 use PublicInbox::Config;
 use PublicInbox::Emergency;
 use PublicInbox::Filter::Base;
-use PublicInbox::Spamcheck::Spamc;
 use PublicInbox::InboxWritable;
+use PublicInbox::Spamcheck;
 
 # n.b: hopefully we can setup the emergency path without bailing due to
 # user error, we really want to setup the emergency destination ASAP
@@ -33,7 +33,9 @@ $str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 $ems->prepare(\$str);
 my $simple = Email::Simple->new(\$str);
 my $config = PublicInbox::Config->new;
-
+my $key = 'publicinboxmda.spamcheck';
+my $default = 'PublicInbox::Spamcheck::Spamc';
+my $spamc = PublicInbox::Spamcheck::get($config, $key, $default);
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 defined $recipient or die "ORIGINAL_RECIPIENT not defined in ENV\n";
 my $dst = $config->lookup($recipient); # first check
@@ -43,13 +45,22 @@ $dst = PublicInbox::InboxWritable->new($dst);
 
 # pre-check, MDA has stricter rules than an importer might;
 do_exit(0) unless PublicInbox::MDA->precheck($simple, $dst->{address});
-my $spamc = PublicInbox::Spamcheck::Spamc->new;
-$str = '';
-my $spam_ok = $spamc->spamcheck($ems->fh, \$str);
 $simple = undef;
-$emm = PublicInbox::Emergency->new($emergency);
-$emm->prepare(\$str);
-$ems = $ems->abort;
+my $spam_ok;
+if ($spamc) {
+	$str = '';
+	$spam_ok = $spamc->spamcheck($ems->fh, \$str);
+	# update the emergency dump with the new message:
+	$emm = PublicInbox::Emergency->new($emergency);
+	$emm->prepare(\$str);
+	$ems = $ems->abort;
+} else { # no spam checking configured:
+	$spam_ok = 1;
+	$emm = $ems;
+	my $fh = $emm->fh;
+	read($fh, $str, -s $fh);
+}
+
 my $mime = PublicInbox::MIME->new(\$str);
 do_exit(0) unless $spam_ok;
 

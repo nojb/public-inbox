@@ -12,6 +12,10 @@ Mail Delivery Agent (MDA) for public-inbox installations.
 Each system user may have their own public-inbox instances.
 This may be invoked via L<procmail(1)> or similar tools.
 
+By default, it relies on L<spamc(1)> for filtering mail,
+but may be disabled via
+L<public-inbox-config(5)/publicinboxmda.spamcheck>
+
 =head1 ENVIRONMENT
 
 =over 8
