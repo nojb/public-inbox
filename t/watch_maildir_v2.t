@@ -120,6 +120,21 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	is($nr, 1, 'inbox has one mail after spamc OK-ed a message');
 	my $mref = $ibx->msg_by_smsg($msgs->[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
+	delete $config->{'publicinboxwatch.spamcheck'};
+}
+
+{
+	my $patch = 't/data/0001.patch';
+	open my $fh, '<', $patch or die "failed to open $patch: $!\n";
+	$msg = eval { local $/; <$fh> };
+	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
+	PublicInbox::WatchMaildir->new($config)->scan('full');
+	($nr, $msgs) = $srch->reopen->query('dfpost:6e006fd7');
+	is($nr, 1, 'diff postimage found');
+	my $post = $msgs->[0];
+	($nr, $msgs) = $srch->query('dfpre:090d998b6c2c');
+	is($nr, 1, 'diff preimage found');
+	is($post->{blob}, $msgs->[0]->{blob}, 'same message');
 }
 
 done_testing;

@@ -51,7 +51,6 @@ $emm = PublicInbox::Emergency->new($emergency);
 $emm->prepare(\$str);
 $ems = $ems->abort;
 my $mime = PublicInbox::MIME->new(\$str);
-$str = '';
 do_exit(0) unless $spam_ok;
 
 my $fcfg = $dst->{filter} || '';

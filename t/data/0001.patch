@@ -1,0 +1,46 @@
+From: Eric Wong <e@80x24.org>
+Date: Fri, 20 Jul 2018 07:21:41 +0000
+To: test@example.com
+Subject: [PATCH] search: use boolean prefix for filenames in diffs, too
+Message-ID: <20180720072141.GA15957@example>
+
+Filenames within a project tend to be reasonably stable within a
+project and I plan on having automated searches hit these.
+
+Also, using no term prefix at all (the default for searching)
+still allows probabilistic searches on everything that's in a
+"git diff", including the blob names which were just made
+boolean.
+
+Note, attachment filenames ("n:" prefix) will stil use
+probabilistic search, as they're hardly standardized.
+---
+ lib/PublicInbox/Search.pm | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/lib/PublicInbox/Search.pm b/lib/PublicInbox/Search.pm
+index 090d998b6c2c..6e006fd73b1d 100644
+--- a/lib/PublicInbox/Search.pm
++++ b/lib/PublicInbox/Search.pm
+@@ -53,6 +53,9 @@ my %bool_pfx_external = (
+ 	dfpre => 'XDFPRE',
+ 	dfpost => 'XDFPOST',
+ 	dfblob => 'XDFPRE XDFPOST',
++	dfn => 'XDFN',
++	dfa => 'XDFA',
++	dfb => 'XDFB',
+ );
+ 
+ my $non_quoted_body = 'XNQ XDFN XDFA XDFB XDFHH XDFCTX XDFPRE XDFPOST';
+@@ -72,9 +75,6 @@ my %prob_prefix = (
+ 
+ 	q => 'XQUOT',
+ 	nq => $non_quoted_body,
+-	dfn => 'XDFN',
+-	dfa => 'XDFA',
+-	dfb => 'XDFB',
+ 	dfhh => 'XDFHH',
+ 	dfctx => 'XDFCTX',
+ 
+-- 
+^_^

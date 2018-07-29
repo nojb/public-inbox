@@ -65,4 +65,14 @@ my $msgs = $ibx->search->query('');
 my $saved = $ibx->smsg_mime($msgs->[0]);
 is($saved->{mime}->as_string, $mime->as_string, 'injected message');
 
+my $patch = 't/data/0001.patch';
+open my $fh, '<', $patch or die "failed to open $patch: $!\n";
+$rdr = { 0 => fileno($fh) };
+ok(PublicInbox::Import::run_die(['public-inbox-mda'], undef, $rdr),
+	'mda delivered a patch');
+my $post = $ibx->search->reopen->query('dfpost:6e006fd7');
+is(scalar(@$post), 1, 'got one result for dfpost');
+my $pre = $ibx->search->query('dfpre:090d998');
+is(scalar(@$pre), 1, 'got one result for dfpre');
+is($post->[0]->{blob}, $pre->[0]->{blob}, 'same message in both cases');
 done_testing();
