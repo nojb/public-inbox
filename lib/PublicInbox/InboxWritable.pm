@@ -39,6 +39,7 @@ sub importer {
 			my $addr = $self->{-primary_address};
 			PublicInbox::Import->new($git, $name, $addr, $self);
 		} else {
+			$! = 78; # EX_CONFIG 5.3.5 local configuration error
 			die "unsupported inbox version: $v\n";
 		}
 	}
