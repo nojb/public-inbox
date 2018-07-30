@@ -11,7 +11,7 @@ sub TIEHANDLE {
 	bless { pid => $pid, fh => $fh }, $class;
 }
 
-sub READ { sysread($_[0]->{fh}, $_[1], $_[2], $_[3] || 0) }
+sub READ { read($_[0]->{fh}, $_[1], $_[2], $_[3] || 0) }
 
 sub READLINE { readline($_[0]->{fh}) }
 
