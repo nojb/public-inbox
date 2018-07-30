@@ -321,8 +321,7 @@ sub add_xapian ($$$$$) {
 		defined $s or return;
 
 		my (@orig, @quot);
-		my $body = $part->body;
-		my @lines = split(/\n/, $body);
+		my @lines = split(/\n/, $s);
 		while (defined(my $l = shift @lines)) {
 			if ($l =~ /^>/) {
 				$self->index_body(\@orig, $doc) if @orig;
