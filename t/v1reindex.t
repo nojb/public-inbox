@@ -33,6 +33,7 @@ my $mime = PublicInbox::MIME->create(
 );
 my $minmax;
 my $msgmap;
+my ($mark1, $mark2, $mark3, $mark4);
 {
 	my %config = %$ibx_config;
 	my $ibx = PublicInbox::Inbox->new(\%config);
@@ -41,13 +42,17 @@ my $msgmap;
 		$mime->header_set('Message-Id', "<$i\@example.com>");
 		ok($im->add($mime), "message $i added");
 		if ($i == 4) {
+			$mark1 = $im->get_mark($im->{tip});
 			$im->remove($mime);
+			$mark2 = $im->get_mark($im->{tip});
 		}
 	}
 
 	if ('test remove later') {
+		$mark3 = $im->get_mark($im->{tip});
 		$mime->header_set('Message-Id', "<5\@example.com>");
 		$im->remove($mime);
+		$mark4 = $im->get_mark($im->{tip});
 	}
 
 	$im->done;
@@ -221,5 +226,194 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
+
+# An incremental indexing test
+ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+remove_tree($xap);
+ok(!-d $xap, 'Xapian directories removed again');
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	# mark1 4 simple additions in the same index_sync
+	eval { $rw->index_sync({ref => $mark1}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 4, 'max as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [4, '4@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	# mark2 A delete separated form and add in the same index_sync
+	eval { $rw->index_sync({ref => $mark2}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 3, 'max as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	# mark3 adds following the delete at mark2
+	eval { $rw->index_sync({ref => $mark3}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [5, '5@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	# mark4 A delete of an older message
+	eval { $rw->index_sync({ref => $mark4}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
+}
+
+
+# Another incremental indexing test
+ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+remove_tree($xap);
+ok(!-d $xap, 'Xapian directories removed again');
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	# mark2 an add and it's delete in the same index_sync
+	eval { $rw->index_sync({ref => $mark2}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 3, 'max as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	# mark3 adds following the delete at mark2
+	eval { $rw->index_sync({ref => $mark3}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [5, '5@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	# mark4 A delete of an older message
+	eval { $rw->index_sync({ref => $mark4}) };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
+}
+
 
 done_testing();
