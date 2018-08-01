@@ -879,9 +879,9 @@ sub index_sync {
 	my $mm_tmp = $self->{mm}->tmp_clone;
 	my $ranges = $opts->{reindex} ? [] : $self->last_commits($epoch_max);
 
-	my ($min, $max) = $mm_tmp->minmax;
+	my $high = $self->{mm}->num_highwater();
 	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
-	$$regen += $max if $max;
+	$$regen += $high if $high;
 	my $D = {}; # "$mid\0$cid" => $oid
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);

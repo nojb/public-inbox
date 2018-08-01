@@ -627,20 +627,20 @@ sub _git_log {
 			     --no-notes --no-color --no-renames
 			     --diff-filter=AM), $range);
 	++$fcount while <$fh>;
-	my (undef, $max) = $self->{mm}->minmax;
+	my $high = $self->{mm}->num_highwater;
 
 	if (index($range, '..') < 0) {
-		if ($max && $max == $fcount) {
+		if ($high && $high == $fcount) {
 			# fix up old bugs in full indexes which caused messages to
 			# not appear in Msgmap
-			$self->{regen_up} = $max;
+			$self->{regen_up} = $high;
 		} else {
 			# normal regen is for for fresh data
 			$self->{regen_down} = $fcount;
 		}
 	} else {
 		# Give oldest messages the smallest numbers
-		$self->{regen_down} = $max + $fcount;
+		$self->{regen_down} = $high + $fcount;
 	}
 
 	$git->popen(qw/log --no-notes --no-color --no-renames
