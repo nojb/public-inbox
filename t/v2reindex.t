@@ -60,6 +60,7 @@ my ($mark1, $mark2, $mark3, $mark4);
 	$minmax = [ $ibx->mm->minmax ];
 	ok(defined $minmax->[0] && defined $minmax->[1], 'minmax defined');
 	is_deeply($minmax, [ 1, 10 ], 'minmax as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 
 	my ($min, $max) = @$minmax;
 	$msgmap = $ibx->mm->msg_range(\$min, $max);
@@ -85,6 +86,7 @@ my ($mark1, $mark2, $mark3, $mark4);
 
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 
 	my ($min, $max) = $ibx->mm->minmax;
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
@@ -104,6 +106,7 @@ ok(!-d $xap, 'Xapian directories removed');
 
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 
 	my ($min, $max) = $ibx->mm->minmax;
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
@@ -125,6 +128,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 
 	my ($min, $max) = $ibx->mm->minmax;
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
@@ -147,6 +151,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	my $mset = $ibx->search->query('"hello world"', {mset=>1});
 	isnt($mset->size, 0, "phrase search succeeds on indexlevel=full");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
@@ -172,6 +177,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 
 	if (0) {
 		# not sure why, but Xapian seems to fallback to terms and
@@ -208,6 +214,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	my $mset = $ibx->search->query('hello', {mset=>1});
 	is($mset->size, 0, "search fails on indexlevel='basic'");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
