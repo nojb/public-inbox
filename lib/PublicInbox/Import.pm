@@ -451,6 +451,7 @@ sub done {
 sub atfork_child {
 	my ($self) = @_;
 	foreach my $f (qw(in out)) {
+		next unless defined($self->{$f});
 		close $self->{$f} or die "failed to close import[$f]: $!\n";
 	}
 }
