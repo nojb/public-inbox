@@ -676,6 +676,7 @@ sub reindex_oid {
 		if (defined $n && $n > $num) {
 			$mid0 = $mid;
 			$num = $n;
+			$self->{mm}->mid_set($num, $mid0);
 		}
 	}
 	if (!defined($mid0) && $regen && !$del) {
