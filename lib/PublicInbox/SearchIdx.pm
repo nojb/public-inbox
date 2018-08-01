@@ -583,7 +583,8 @@ sub read_log {
 			my $blob = $1;
 			if (delete $D{$blob}) {
 				if (defined $self->{regen_down}) {
-					$self->{regen_down}--;
+					my $num = $self->{regen_down}--;
+					$self->{mm}->num_highwater($num);
 				}
 				next;
 			}
