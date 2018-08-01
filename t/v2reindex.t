@@ -237,6 +237,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is($min, 1, 'min as expected');
 	is($max, 4, 'max as expected');
+	is($ibx->mm->num_highwater, 4, 'num_highwater as expected');
 	is_deeply($ibx->mm->msg_range(\$min, $max),
 		  [
 		   [1, '1@example.com' ],
@@ -260,6 +261,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is($min, 1, 'min as expected');
 	is($max, 3, 'max as expected');
+	is($ibx->mm->num_highwater, 4, 'num_highwater as expected');
 	is_deeply($ibx->mm->msg_range(\$min, $max),
 		  [
 		   [1, '1@example.com' ],
@@ -282,6 +284,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is($min, 1, 'min as expected');
 	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	is_deeply($ibx->mm->msg_range(\$min, $max),
 		  [
 		   [1, '1@example.com' ],
@@ -310,6 +313,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is($min, 1, 'min as expected');
 	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	is_deeply($ibx->mm->msg_range(\$min, $max),
 		  [
 		   [1, '1@example.com' ],
@@ -343,6 +347,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is($min, 1, 'min as expected');
 	is($max, 3, 'max as expected');
+	is($ibx->mm->num_highwater, 4, 'num_highwater as expected');
 	is_deeply($ibx->mm->msg_range(\$min, $max),
 		  [
 		   [1, '1@example.com' ],
@@ -365,6 +370,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is($min, 1, 'min as expected');
 	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	is_deeply($ibx->mm->msg_range(\$min, $max),
 		  [
 		   [1, '1@example.com' ],
@@ -393,6 +399,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my ($min, $max) = $ibx->mm->minmax;
 	is($min, 1, 'min as expected');
 	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	is_deeply($ibx->mm->msg_range(\$min, $max),
 		  [
 		   [1, '1@example.com' ],
