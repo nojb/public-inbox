@@ -842,7 +842,10 @@ sub unindex_oid {
 			warn "BUG: multiple articles linked to $oid\n",
 				join(',',sort keys %gone), "\n";
 		}
-		$self->{unindexed}->{$_}++ foreach keys %gone;
+		foreach my $num (keys %gone) {
+			$self->{unindexed}->{$_}++;
+			$self->{mm}->num_delete($num);
+		}
 		$self->unindex_oid_remote($oid, $mid);
 	}
 }
