@@ -32,6 +32,7 @@ my $mime = PublicInbox::MIME->create(
 );
 local $ENV{NPROC} = 2;
 my $minmax;
+my $msgmap;
 {
 	my %config = %$ibx_config;
 	my $ibx = PublicInbox::Inbox->new(\%config);
@@ -53,6 +54,19 @@ my $minmax;
 	$minmax = [ $ibx->mm->minmax ];
 	ok(defined $minmax->[0] && defined $minmax->[1], 'minmax defined');
 	is_deeply($minmax, [ 1, 10 ], 'minmax as expected');
+
+	my ($min, $max) = @$minmax;
+	$msgmap = $ibx->mm->msg_range(\$min, $max);
+	is_deeply($msgmap, [
+			  [1, '1@example.com' ],
+			  [2, '2@example.com' ],
+			  [3, '3@example.com' ],
+			  [6, '6@example.com' ],
+			  [7, '7@example.com' ],
+			  [8, '8@example.com' ],
+			  [9, '9@example.com' ],
+			  [10, '10@example.com' ],
+		  ], 'msgmap as expected');
 }
 
 {
@@ -65,6 +79,9 @@ my $minmax;
 
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 my $xap = "$mainrepo/xap".PublicInbox::Search::SCHEMA_VERSION();
@@ -81,6 +98,9 @@ ok(!-d $xap, 'Xapian directories removed');
 
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
@@ -99,6 +119,9 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 my %sizes;
@@ -121,6 +144,9 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my $mset = $ibx->search->query('"hello world"', {mset=>1});
 	isnt($mset->size, 0, "phrase search succeeds on indexlevel=full");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
@@ -153,6 +179,10 @@ ok(!-d $xap, 'Xapian directories removed again');
 	isnt($mset->size, 0, "normal search works on indexlevel=medium");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{full} > $sizes{medium}, 'medium is smaller than full');
+
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
@@ -176,6 +206,9 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is($mset->size, 0, "search fails on indexlevel='basic'");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{medium} > $sizes{basic}, 'basic is smaller than medium');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 done_testing();
