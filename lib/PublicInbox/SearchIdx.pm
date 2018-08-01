@@ -619,23 +619,28 @@ sub _git_log {
 	my ($self, $range) = @_;
 	my $git = $self->{git};
 
-	if (index($range, '..') < 0) {
-		my $regen_max = 0;
-		# can't use 'rev-list --count' if we use --diff-filter
-		my $fh = $git->popen(qw(log --pretty=tformat:%h
-				--no-notes --no-color --no-renames
-				--diff-filter=AM), $range);
-		++$regen_max while <$fh>;
-		my (undef, $max) = $self->{mm}->minmax;
+	# Count the new files so they can be added newest to oldest
+	# and still have numbers increasing from oldest to newest
+	my $fcount = 0;
+	# can't use 'rev-list --count' if we use --diff-filter
+	my $fh = $git->popen(qw(log --pretty=tformat:%h
+			     --no-notes --no-color --no-renames
+			     --diff-filter=AM), $range);
+	++$fcount while <$fh>;
+	my (undef, $max) = $self->{mm}->minmax;
 
-		if ($max && $max == $regen_max) {
+	if (index($range, '..') < 0) {
+		if ($max && $max == $fcount) {
 			# fix up old bugs in full indexes which caused messages to
 			# not appear in Msgmap
 			$self->{regen_up} = $max;
 		} else {
 			# normal regen is for for fresh data
-			$self->{regen_down} = $regen_max;
+			$self->{regen_down} = $fcount;
 		}
+	} else {
+		# Give oldest messages the smallest numbers
+		$self->{regen_down} = $max + $fcount;
 	}
 
 	$git->popen(qw/log --no-notes --no-color --no-renames
