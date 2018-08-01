@@ -144,7 +144,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	my $mset = $ibx->search->query('hello world', {mset=>1});
-	isnt(0, $mset->size, 'got Xapian search results');
+	isnt($mset->size, 0, 'got Xapian search results');
 }
 
 ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
@@ -166,7 +166,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	my $mset = $ibx->search->reopen->query('hello world', {mset=>1});
-	is(0, $mset->size, "no Xapian search results");
+	is($mset->size, 0, "no Xapian search results");
 }
 
 # upgrade existing basic to medium
@@ -184,7 +184,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is($@, '', 'no error from indexing');
 	is_deeply(\@warn, [], 'no warnings');
 	my $mset = $ibx->search->reopen->query('hello world', {mset=>1});
-	isnt(0, $mset->size, 'search OK after basic -> medium');
+	isnt($mset->size, 0, 'search OK after basic -> medium');
 }
 
 done_testing();

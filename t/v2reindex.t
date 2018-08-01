@@ -119,7 +119,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	my $mset = $ibx->search->query('"hello world"', {mset=>1});
-	isnt(0, $mset->size, "phrase search succeeds on indexlevel=full");
+	isnt($mset->size, 0, "phrase search succeeds on indexlevel=full");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 }
 
@@ -146,11 +146,11 @@ ok(!-d $xap, 'Xapian directories removed again');
 		# phrase searches still work
 		delete $ibx->{search};
 		my $mset = $ibx->search->query('"hello world"', {mset=>1});
-		is(0, $mset->size, 'phrase search does not work on medium');
+		is($mset->size, 0, 'phrase search does not work on medium');
 	}
 
 	my $mset = $ibx->search->query('hello world', {mset=>1});
-	isnt(0, $mset->size, "normal search works on indexlevel=medium");
+	isnt($mset->size, 0, "normal search works on indexlevel=medium");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{full} > $sizes{medium}, 'medium is smaller than full');
 }
@@ -173,7 +173,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	my $mset = $ibx->search->query('hello', {mset=>1});
-	is(0, $mset->size, "search fails on indexlevel='basic'");
+	is($mset->size, 0, "search fails on indexlevel='basic'");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{medium} > $sizes{basic}, 'basic is smaller than medium');
 }
