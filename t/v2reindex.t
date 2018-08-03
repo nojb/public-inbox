@@ -21,7 +21,6 @@ my $ibx_config = {
 	-primary_address => 'test@example.com',
 	indexlevel => 'full',
 };
-my $ibx = PublicInbox::Inbox->new($ibx_config);
 my $mime = PublicInbox::MIME->create(
 	header => [
 		From => 'a@example.com',
@@ -32,39 +31,86 @@ my $mime = PublicInbox::MIME->create(
 	body => "hello world\n",
 );
 local $ENV{NPROC} = 2;
-my $im = PublicInbox::V2Writable->new($ibx, 1);
-foreach my $i (1..10) {
-	$mime->header_set('Message-Id', "<$i\@example.com>");
-	ok($im->add($mime), "message $i added");
-	if ($i == 4) {
-		$im->remove($mime);
+my $minmax;
+my $msgmap;
+my ($mark1, $mark2, $mark3, $mark4);
+{
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx, 1);
+	my $im0 = $im->importer();
+	foreach my $i (1..10) {
+		$mime->header_set('Message-Id', "<$i\@example.com>");
+		ok($im->add($mime), "message $i added");
+		if ($i == 4) {
+			$mark1 = $im0->get_mark($im0->{tip});
+			$im->remove($mime);
+			$mark2 = $im0->get_mark($im0->{tip});
+		}
 	}
+
+	if ('test remove later') {
+		$mark3 = $im0->get_mark($im0->{tip});
+		$mime->header_set('Message-Id', "<5\@example.com>");
+		$im->remove($mime);
+		$mark4 = $im0->get_mark($im0->{tip});
+	}
+
+	$im->done;
+	$minmax = [ $ibx->mm->minmax ];
+	ok(defined $minmax->[0] && defined $minmax->[1], 'minmax defined');
+	is_deeply($minmax, [ 1, 10 ], 'minmax as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+
+	my ($min, $max) = @$minmax;
+	$msgmap = $ibx->mm->msg_range(\$min, $max);
+	is_deeply($msgmap, [
+			  [1, '1@example.com' ],
+			  [2, '2@example.com' ],
+			  [3, '3@example.com' ],
+			  [6, '6@example.com' ],
+			  [7, '7@example.com' ],
+			  [8, '8@example.com' ],
+			  [9, '9@example.com' ],
+			  [10, '10@example.com' ],
+		  ], 'msgmap as expected');
 }
 
-if ('test remove later') {
-	$mime->header_set('Message-Id', "<5\@example.com>");
-	$im->remove($mime);
+{
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx, 1);
+	eval { $im->index_sync({reindex => 1}) };
+	is($@, '', 'no error from reindexing');
+	$im->done;
+
+	delete $ibx->{mm};
+	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
-
-$im->done;
-my $minmax = [ $ibx->mm->minmax ];
-ok(defined $minmax->[0] && defined $minmax->[1], 'minmax defined');
-is_deeply($minmax, [ 1, 10 ], 'minmax as expected');
-
-eval { $im->index_sync({reindex => 1}) };
-is($@, '', 'no error from reindexing');
-$im->done;
 
 my $xap = "$mainrepo/xap".PublicInbox::Search::SCHEMA_VERSION();
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed');
-eval { $im->index_sync({reindex => 1}) };
-is($@, '', 'no error from reindexing');
-$im->done;
-ok(-d $xap, 'Xapian directories recreated');
+{
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx, 1);
+	eval { $im->index_sync({reindex => 1}) };
+	is($@, '', 'no error from reindexing');
+	$im->done;
+	ok(-d $xap, 'Xapian directories recreated');
 
-delete $ibx->{mm};
-is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	delete $ibx->{mm};
+	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
+}
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
@@ -72,6 +118,9 @@ ok(!-d $xap, 'Xapian directories removed again');
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx, 1);
 	eval { $im->index_sync({reindex => 1}) };
 	is($@, '', 'no error from reindexing without msgmap');
 	is(scalar(@warn), 0, 'no warnings from reindexing');
@@ -79,6 +128,10 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 my %sizes;
@@ -88,6 +141,9 @@ ok(!-d $xap, 'Xapian directories removed again');
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx, 1);
 	eval { $im->index_sync({reindex => 1}) };
 	is($@, '', 'no error from reindexing without msgmap');
 	is_deeply(\@warn, [], 'no warnings');
@@ -95,21 +151,25 @@ ok(!-d $xap, 'Xapian directories removed again');
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	my $mset = $ibx->search->query('"hello world"', {mset=>1});
-	isnt(0, $mset->size, "phrase search succeeds on indexlevel=full");
+	isnt($mset->size, 0, "phrase search succeeds on indexlevel=full");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
-
-$ibx_config->{indexlevel} = 'medium';
-$ibx = PublicInbox::Inbox->new($ibx_config);
-$im = PublicInbox::V2Writable->new($ibx);
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	$config{indexlevel} = 'medium';
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx);
 	eval { $im->index_sync({reindex => 1}) };
 	is($@, '', 'no error from reindexing without msgmap');
 	is_deeply(\@warn, [], 'no warnings');
@@ -117,31 +177,36 @@ $im = PublicInbox::V2Writable->new($ibx);
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 
 	if (0) {
 		# not sure why, but Xapian seems to fallback to terms and
 		# phrase searches still work
 		delete $ibx->{search};
 		my $mset = $ibx->search->query('"hello world"', {mset=>1});
-		is(0, $mset->size, 'phrase search does not work on medium');
+		is($mset->size, 0, 'phrase search does not work on medium');
 	}
 
 	my $mset = $ibx->search->query('hello world', {mset=>1});
-	isnt(0, $mset->size, "normal search works on indexlevel=medium");
+	isnt($mset->size, 0, "normal search works on indexlevel=medium");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{full} > $sizes{medium}, 'medium is smaller than full');
+
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
 ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
-
-$ibx_config->{indexlevel} = 'basic';
-$ibx = PublicInbox::Inbox->new($ibx_config);
-$im = PublicInbox::V2Writable->new($ibx);
 {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	$config{indexlevel} = 'basic';
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx);
 	eval { $im->index_sync({reindex => 1}) };
 	is($@, '', 'no error from reindexing without msgmap');
 	is_deeply(\@warn, [], 'no warnings');
@@ -149,10 +214,210 @@ $im = PublicInbox::V2Writable->new($ibx);
 	ok(-d $xap, 'Xapian directories recreated');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	my $mset = $ibx->search->query('hello', {mset=>1});
-	is(0, $mset->size, "search fails on indexlevel='basic'");
+	is($mset->size, 0, "search fails on indexlevel='basic'");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{medium} > $sizes{basic}, 'basic is smaller than medium');
+
+	my ($min, $max) = $ibx->mm->minmax;
+	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
+}
+
+
+# An incremental indexing test
+ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+remove_tree($xap);
+ok(!-d $xap, 'Xapian directories removed again');
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	# mark1 4 simple additions in the same index_sync
+	$ibx->{ref_head} = $mark1;
+	my $im = PublicInbox::V2Writable->new($ibx);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 4, 'max as expected');
+	is($ibx->mm->num_highwater, 4, 'num_highwater as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [4, '4@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	# mark2 A delete separated from an add in the same index_sync
+	$ibx->{ref_head} = $mark2;
+	my $im = PublicInbox::V2Writable->new($ibx);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 3, 'max as expected');
+	is($ibx->mm->num_highwater, 4, 'num_highwater as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	# mark3 adds following the delete at mark2
+	$ibx->{ref_head} = $mark3;
+	my $im = PublicInbox::V2Writable->new($ibx);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [5, '5@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	# mark4 A delete of an older message
+	$ibx->{ref_head} = $mark4;
+	my $im = PublicInbox::V2Writable->new($ibx);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
+}
+
+
+# Another incremental indexing test
+ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+remove_tree($xap);
+ok(!-d $xap, 'Xapian directories removed again');
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	# mark2 an add and it's delete in the same index_sync
+	$ibx->{ref_head} = $mark2;
+	my $im = PublicInbox::V2Writable->new($ibx);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 3, 'max as expected');
+	is($ibx->mm->num_highwater, 4, 'num_highwater as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	# mark3 adds following the delete at mark2
+	$ibx->{ref_head} = $mark3;
+	my $im = PublicInbox::V2Writable->new($ibx);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [5, '5@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
+}
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	# mark4 A delete of an older message
+	$ibx->{ref_head} = $mark4;
+	my $im = PublicInbox::V2Writable->new($ibx);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from reindexing without msgmap');
+	is_deeply(\@warn, [], 'no warnings');
+	$im->done;
+	my ($min, $max) = $ibx->mm->minmax;
+	is($min, 1, 'min as expected');
+	is($max, 10, 'max as expected');
+	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
+	is_deeply($ibx->mm->msg_range(\$min, $max),
+		  [
+		   [1, '1@example.com' ],
+		   [2, '2@example.com' ],
+		   [3, '3@example.com' ],
+		   [6, '6@example.com' ],
+		   [7, '7@example.com' ],
+		   [8, '8@example.com' ],
+		   [9, '9@example.com' ],
+		   [10, '10@example.com' ],
+		  ], 'msgmap as expected' );
 }
 
 done_testing();

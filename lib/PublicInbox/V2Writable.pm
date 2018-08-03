@@ -658,7 +658,7 @@ sub mark_deleted {
 }
 
 sub reindex_oid {
-	my ($self, $mm_tmp, $D, $git, $oid, $regen) = @_;
+	my ($self, $mm_tmp, $D, $git, $oid, $regen, $reindex) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -676,6 +676,7 @@ sub reindex_oid {
 		if (defined $n && $n > $num) {
 			$mid0 = $mid;
 			$num = $n;
+			$self->{mm}->mid_set($num, $mid0);
 		}
 	}
 	if (!defined($mid0) && $regen && !$del) {
@@ -700,7 +701,8 @@ sub reindex_oid {
 
 	if (!defined($mid0) || $del) {
 		if (!defined($mid0) && $del) { # expected for deletes
-			$$regen--;
+			$num = $$regen--;
+			$self->{mm}->num_highwater($num) unless $reindex;
 			return
 		}
 
@@ -840,7 +842,10 @@ sub unindex_oid {
 			warn "BUG: multiple articles linked to $oid\n",
 				join(',',sort keys %gone), "\n";
 		}
-		$self->{unindexed}->{$_}++ foreach keys %gone;
+		foreach my $num (keys %gone) {
+			$self->{unindexed}->{$_}++;
+			$self->{mm}->num_delete($num);
+		}
 		$self->unindex_oid_remote($oid, $mid);
 	}
 }
@@ -877,11 +882,12 @@ sub index_sync {
 	return unless defined $latest;
 	$self->idx_init; # acquire lock
 	my $mm_tmp = $self->{mm}->tmp_clone;
-	my $ranges = $opts->{reindex} ? [] : $self->last_commits($epoch_max);
+	my $reindex = $opts->{reindex};
+	my $ranges = $reindex ? [] : $self->last_commits($epoch_max);
 
-	my ($min, $max) = $mm_tmp->minmax;
+	my $high = $self->{mm}->num_highwater();
 	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
-	$$regen += $max if $max;
+	$$regen += $high if $high;
 	my $D = {}; # "$mid\0$cid" => $oid
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
@@ -903,7 +909,7 @@ sub index_sync {
 				chomp($cmt = $_);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
 				$self->reindex_oid($mm_tmp, $D, $git, $1,
-						$regen);
+						$regen, $reindex);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
 				$self->mark_deleted($D, $git, $1);
 			}

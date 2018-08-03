@@ -50,6 +50,10 @@ sub new_file {
 		create_tables($dbh);
 		$dbh->begin_work;
 		$self->created_at(time) unless $self->created_at;
+
+		my (undef, $max) = $self->minmax();
+		$max ||= 0;
+		$self->num_highwater($max);
 		$dbh->commit;
 	}
 	$self;
@@ -107,6 +111,17 @@ sub created_at {
 	$self->meta_accessor('created_at', $second);
 }
 
+sub num_highwater {
+	my ($self, $num) = @_;
+	my $high = $self->{num_highwater} ||=
+	    $self->meta_accessor('num_highwater');
+	if (defined($num) && (!defined($high) || ($num > $high))) {
+		$self->{num_highwater} = $num;
+		$self->meta_accessor('num_highwater', $num);
+	}
+	$self->{num_highwater};
+}
+
 sub mid_insert {
 	my ($self, $mid) = @_;
 	my $dbh = $self->{dbh};
@@ -114,7 +129,9 @@ sub mid_insert {
 INSERT OR IGNORE INTO msgmap (mid) VALUES (?)
 
 	return if $sth->execute($mid) == 0;
-	$dbh->last_insert_id(undef, undef, 'msgmap', 'num');
+	my $num = $dbh->last_insert_id(undef, undef, 'msgmap', 'num');
+	$self->num_highwater($num) unless !defined($num);
+	$num;
 }
 
 sub mid_for {
@@ -213,7 +230,9 @@ sub mid_set {
 		$self->{dbh}->prepare(
 			'INSERT OR IGNORE INTO msgmap (num,mid) VALUES (?,?)');
 	};
-	$sth->execute($num, $mid);
+	my $result = $sth->execute($num, $mid);
+	$self->num_highwater($num) if (defined($result) && $result == 1);
+	$result;
 }
 
 sub DESTROY {
