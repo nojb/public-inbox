@@ -365,7 +365,7 @@ sub walk_thread {
 	while (@q) {
 		my ($level, $node, $i) = splice(@q, 0, 3);
 		defined $node or next;
-		$cb->($ctx, $level, $node, $i);
+		$cb->($ctx, $level, $node, $i) or return;
 		++$level;
 		$i = 0;
 		unshift @q, map { ($level, $_, $i++) } @{$node->{children}};
@@ -818,10 +818,56 @@ sub indent_for {
 	$level ? INDENT x ($level - 1) : '';
 }
 
+sub find_mid_root {
+	my ($ctx, $level, $node, $idx) = @_;
+	++$ctx->{root_idx} if $level == 0;
+	if ($node->{id} eq $ctx->{mid}) {
+		$ctx->{found_mid_at} = $ctx->{root_idx};
+		return 0;
+	}
+	1;
+}
+
+sub strict_loose_note ($) {
+	my ($nr) = @_;
+	my $msg =
+"  -- strict thread matches above, loose matches on Subject: below --\n";
+
+	if ($nr > PublicInbox::Over::DEFAULT_LIMIT()) {
+		$msg .=
+"  -- use mbox.gz link to download all $nr messages --\n";
+	}
+	$msg;
+}
+
 sub thread_results {
 	my ($ctx, $msgs) = @_;
 	require PublicInbox::SearchThread;
-	PublicInbox::SearchThread::thread($msgs, *sort_ds, $ctx->{-inbox});
+	my $ibx = $ctx->{-inbox};
+	my $rootset = PublicInbox::SearchThread::thread($msgs, *sort_ds, $ibx);
+
+	# FIXME: `tid' is broken on --reindex, so that needs to be fixed
+	# and preserved in the future.  This bug is hidden by `sid' matches
+	# in get_thread, so we never noticed it until now.  And even when
+	# reindexing is fixed, we'll keep this code until a SCHEMA_VERSION
+	# bump since reindexing is expensive and users may not do it
+
+	# loose threading could've returned too many results,
+	# put the root the message we care about at the top:
+	my $mid = $ctx->{mid};
+	if (defined($mid) && scalar(@$rootset) > 1) {
+		$ctx->{root_idx} = -1;
+		my $nr = scalar @$msgs;
+		walk_thread($rootset, $ctx, *find_mid_root);
+		my $idx = $ctx->{found_mid_at};
+		if (defined($idx) && $idx != 0) {
+			my $tip = splice(@$rootset, $idx, 1);
+			@$rootset = reverse @$rootset;
+			unshift @$rootset, $tip;
+			$ctx->{sl_note} = strict_loose_note($nr);
+		}
+	}
+	$rootset
 }
 
 sub missing_thread {
@@ -864,6 +910,10 @@ sub skel_dump {
 	my $cur = $ctx->{cur};
 	my $mid = $smsg->{mid};
 
+	if ($level == 0 && $ctx->{skel_dump_roots}++) {
+		$$dst .= delete $ctx->{sl_note} || '';
+	}
+
 	my $f = ascii_html($smsg->from_name);
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	obfuscate_addrs($obfs_ibx, $f) if $obfs_ibx;
@@ -882,7 +932,7 @@ sub skel_dump {
 			delete $ctx->{cur};
 			$$dst .= "<b>$d<a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
-			return;
+			return 1;
 		} else {
 			$ctx->{prev_msg} = $mid;
 		}
@@ -922,6 +972,7 @@ sub skel_dump {
 		$m = $ctx->{-upfx}.mid_escape($mid).'/';
 	}
 	$$dst .=  $d . "<a\nhref=\"$m\"$id>" . $end;
+	1;
 }
 
 sub _skel_ghost {
@@ -947,6 +998,7 @@ sub _skel_ghost {
 	}
 	my $dst = $ctx->{dst};
 	$$dst .= $d;
+	1;
 }
 
 sub sort_ds {
@@ -973,7 +1025,7 @@ sub acc_topic {
 			$topic = [ $ds, 1, { $subj => $mid }, $subj ];
 			$ctx->{-cur_topic} = $topic;
 			push @{$ctx->{order}}, $topic;
-			return;
+			return 1;
 		}
 
 		$topic = $ctx->{-cur_topic}; # should never be undef
@@ -987,11 +1039,12 @@ sub acc_topic {
 		}
 		$seen->{$subj} = $mid; # latest for subject
 	} else { # ghost message
-		return if $level != 0; # ignore child ghosts
+		return 1 if $level != 0; # ignore child ghosts
 		$topic = [ -666, 0, {} ];
 		$ctx->{-cur_topic} = $topic;
 		push @{$ctx->{order}}, $topic;
 	}
+	1;
 }
 
 sub dump_topics {

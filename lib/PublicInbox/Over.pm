@@ -11,6 +11,7 @@ use DBI;
 use DBD::SQLite;
 use PublicInbox::SearchMsg;
 use Compress::Zlib qw(uncompress);
+use constant DEFAULT_LIMIT => 1000;
 
 sub dbh_new {
 	my ($self) = @_;
@@ -53,7 +54,7 @@ sub load_from_row {
 sub do_get {
 	my ($self, $sql, $opts, @args) = @_;
 	my $dbh = $self->connect;
-	my $lim = (($opts->{limit} || 0) + 0) || 1000;
+	my $lim = (($opts->{limit} || 0) + 0) || DEFAULT_LIMIT;
 	$sql .= "LIMIT $lim";
 	my $msgs = $dbh->selectall_arrayref($sql, { Slice => {} }, @args);
 	load_from_row($_) for @$msgs;
@@ -97,21 +98,47 @@ ORDER BY num ASC LIMIT 1
 SELECT tid,sid FROM over WHERE num = ? LIMIT 1
 
 	defined $tid or return nothing; # $sid may be undef
+
+	my $cond_all = '(tid = ? OR sid = ?) AND num > ?';
 	my $sort_col = 'ds';
 	$num = 0;
-	if ($prev) {
+	if ($prev) { # mboxrd stream, only
 		$num = $prev->{num} || 0;
 		$sort_col = 'num';
 	}
-	my $cond = '(tid = ? OR sid = ?) AND num > ?';
-	my $msgs = do_get($self, <<"", {}, $tid, $sid, $num);
-SELECT num,ts,ds,ddd FROM over WHERE $cond ORDER BY $sort_col ASC
 
-	return $msgs unless wantarray;
+	my $cols = 'num,ts,ds,ddd';
+	unless (wantarray) {
+		return do_get($self, <<"", {}, $tid, $sid, $num);
+SELECT $cols FROM over WHERE $cond_all
+ORDER BY $sort_col ASC
 
+	}
+
+	# HTML view always wants an array and never uses $prev,
+	# but the mbox stream never wants an array and always has $prev
+	die '$prev not supported with wantarray' if $prev;
 	my $nr = $dbh->selectrow_array(<<"", undef, $tid, $sid, $num);
-SELECT COUNT(num) FROM over WHERE $cond
+SELECT COUNT(num) FROM over WHERE $cond_all
 
+	# giant thread, prioritize strict (tid) matches and throw
+	# in the loose (sid) matches at the end
+	my $msgs = do_get($self, <<"", {}, $tid, $num);
+SELECT $cols FROM over WHERE tid = ? AND num > ?
+ORDER BY $sort_col ASC
+
+	# do we have room for loose matches? get the most recent ones, first:
+	my $lim = DEFAULT_LIMIT - scalar(@$msgs);
+	if ($lim > 0) {
+		my $opts = { limit => $lim };
+		my $loose = do_get($self, <<"", $opts, $tid, $sid, $num);
+SELECT $cols FROM over WHERE tid != ? AND sid = ? AND num > ?
+ORDER BY $sort_col DESC
+
+		# TODO separate strict and loose matches here once --reindex
+		# is fixed to preserve `tid' properly
+		push @$msgs, @$loose;
+	}
 	($nr, $msgs);
 }
 
