@@ -48,9 +48,49 @@ foreach (reverse split(/\n\n/, $data)) {
 }
 
 my $prev;
+my %tids;
+my $dbh = $rw->{over}->connect;
 foreach my $mid (@mids) {
 	my $msgs = $rw->{over}->get_thread($mid);
 	is(3, scalar(@$msgs), "got all messages from $mid");
+	foreach my $m (@$msgs) {
+		my $tid = $dbh->selectrow_array(<<'', undef, $m->{num});
+SELECT tid FROM over WHERE num = ? LIMIT 1
+
+		$tids{$tid}++;
+	}
+}
+
+is(scalar keys %tids, 1, 'all messages have the same tid');
+
+$rw->commit_txn_lazy;
+
+$xdb = $rw->begin_txn_lazy;
+{
+	my $mime = Email::MIME->new(<<'');
+Subject: [RFC 00/14]
+Message-Id: <1-bw@g>
+From: bw@g
+To: git@vger.kernel.org
+
+	my $dbh = $rw->{over}->connect;
+	my ($id, $prev);
+	my $reidx = $rw->{over}->next_by_mid('1-bw@g', \$id, \$prev);
+	ok(defined $reidx);
+	my $num = $reidx->{num};
+	my $tid0 = $dbh->selectrow_array(<<'', undef, $num);
+SELECT tid FROM over WHERE num = ? LIMIT 1
+
+	my $bytes = bytes::length($mime->as_string);
+	my $mid = mids($mime->header_obj)->[0];
+	my $doc_id = $rw->add_message($mime, $bytes, $num, 'ignored', $mid);
+	ok($doc_id, 'message reindexed'. $mid);
+	is($doc_id, $num, "article number unchanged: $num");
+
+	my $tid1 = $dbh->selectrow_array(<<'', undef, $num);
+SELECT tid FROM over WHERE num = ? LIMIT 1
+
+	is($tid1, $tid0, 'tid unchanged on reindex');
 }
 
 $rw->commit_txn_lazy;

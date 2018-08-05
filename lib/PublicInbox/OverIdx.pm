@@ -79,8 +79,15 @@ sub mid2id {
 }
 
 sub delete_by_num {
-	my ($self, $num) = @_;
+	my ($self, $num, $tid_ref) = @_;
 	my $dbh = $self->{dbh};
+	if ($tid_ref) {
+		my $sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT tid FROM over WHERE num = ? LIMIT 1
+
+		$sth->execute($num);
+		$$tid_ref = $sth->fetchrow_array; # may be undef
+	}
 	foreach (qw(over id2num)) {
 		$dbh->prepare_cached(<<"")->execute($num);
 DELETE FROM $_ WHERE num = ?
@@ -262,7 +269,7 @@ sub add_over {
 	my $vivified = 0;
 
 	$self->begin_lazy;
-	$self->delete_by_num($num);
+	$self->delete_by_num($num, \$old_tid);
 	foreach my $mid (@$mids) {
 		my $v = 0;
 		each_by_mid($self, $mid, ['tid'], sub {
