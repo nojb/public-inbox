@@ -519,11 +519,12 @@ sub purge_oids {
 			push @buf, $buf;
 		} elsif (/^M 100644 ([a-f0-9]+) (\w+)/) {
 			my ($oid, $path) = ($1, $2);
+			$tree->{$path} = 1;
 			if ($purge->{$oid}) {
 				push @oids, $oid;
-				delete $tree->{$path};
+				my $cmd = "M 100644 inline $path\ndata 0\n\n";
+				push @buf, $cmd;
 			} else {
-				$tree->{$path} = 1;
 				push @buf, $_;
 			}
 		} elsif (/^D (\w+)/) {
