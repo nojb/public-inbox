@@ -16,6 +16,7 @@ use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use File::Temp qw/tempdir/;
 use Net::NNTP;
+use Sys::Hostname;
 
 my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
@@ -140,13 +141,14 @@ EOF
 		'from' => "El\xc3\xa9anor <me\@example.com>",
 		'to' => "El\xc3\xa9anor <you\@example.com>",
 		'cc' => $addr,
-		'xref' => "example.com $group:1",
+		'xref' => hostname . " $group:1",
 		'references' => '<reftabsqueezed>',
 	);
 
 	my $s = IO::Socket::INET->new(%opts);
 	sysread($s, my $buf, 4096);
-	is($buf, "201 server ready - post via email\r\n", 'got greeting');
+	is($buf, "201 " . hostname . " ready - post via email\r\n",
+		'got greeting');
 	$s->autoflush(1);
 
 	ok(syswrite($s, "   \r\n"), 'wrote spaces');
@@ -156,7 +158,8 @@ EOF
 
 	$s = IO::Socket::INET->new(%opts);
 	sysread($s, $buf, 4096);
-	is($buf, "201 server ready - post via email\r\n", 'got greeting');
+	is($buf, "201 " . hostname . " ready - post via email\r\n",
+		'got greeting');
 	$s->autoflush(1);
 
 	syswrite($s, "NEWGROUPS 19990424 000000 GMT\r\n");

@@ -6,15 +6,25 @@
 package PublicInbox::NNTPD;
 use strict;
 use warnings;
+use Sys::Hostname;
 require PublicInbox::Config;
 
 sub new {
 	my ($class) = @_;
+	my $pi_config = PublicInbox::Config->new;
+	my $name = $pi_config->{'publicinbox.nntpserver'};
+	if (!defined($name) or $name eq '') {
+		$name = hostname;
+	} elsif (ref($name) eq 'ARRAY') {
+		$name = $name->[0];
+	}
+
 	bless {
 		groups => {},
 		err => \*STDERR,
 		out => \*STDOUT,
 		grouplist => [],
+		servername => $name,
 	}, $class;
 }
 

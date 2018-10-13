@@ -110,7 +110,8 @@ use_ok 'PublicInbox::Inbox';
 	my $mid = 'a@b';
 	my $mime = Email::MIME->new("Message-ID: <$mid>\r\n\r\n");
 	my $hdr = $mime->header_obj;
-	my $mock_self = { nntpd => { grouplist => [] } };
+	my $mock_self = { nntpd => { grouplist => [], 
+				     servername => 'example.com' } };
 	PublicInbox::NNTP::set_nntp_headers($mock_self, $hdr, $ng, 1, $mid);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');

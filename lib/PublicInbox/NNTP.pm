@@ -94,7 +94,7 @@ sub new ($$$) {
 	my $self = fields::new($class);
 	$self->SUPER::new($sock);
 	$self->{nntpd} = $nntpd;
-	res($self, '201 server ready - post via email');
+	res($self, '201 ' . $nntpd->{servername} . ' ready - post via email');
 	$self->{rbuf} = '';
 	$self->watch_read(1);
 	update_idle_time($self);
@@ -410,7 +410,7 @@ sub header_append ($$$) {
 
 sub xref ($$$$) {
 	my ($self, $ng, $n, $mid) = @_;
-	my $ret = "$ng->{domain} $ng->{newsgroup}:$n";
+	my $ret = $self->{nntpd}->{servername} . " $ng->{newsgroup}:$n";
 
 	# num_for is pretty cheap and sometimes we'll lookup the existence
 	# of an article without getting even the OVER info.  In other words,
