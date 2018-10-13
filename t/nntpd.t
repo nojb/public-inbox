@@ -196,7 +196,9 @@ EOF
 			'<nntp@example.com>',
 			'<reftabsqueezed>',
 			$len,
-			'1' ] }, "XOVER range works");
+			'1',
+			'Xref: '. hostname . ' test-nntpd:1'] },
+		"XOVER range works");
 
 	is_deeply($n->xover('1'), {
 		'1' => ["Testing for El\xc3\xa9anor",
@@ -205,7 +207,9 @@ EOF
 			'<nntp@example.com>',
 			'<reftabsqueezed>',
 			$len,
-			'1' ] }, "XOVER by article works");
+			'1',
+			'Xref: '. hostname . ' test-nntpd:1'] },
+		"XOVER by article works");
 
 	is_deeply($n->head(1), $n->head('<nntp@example.com>'), 'HEAD OK');
 	is_deeply($n->body(1), $n->body('<nntp@example.com>'), 'BODY OK');
@@ -225,7 +229,8 @@ EOF
 		is($r[1], "0\tTesting for El\xc3\xa9anor\t" .
 			"El\xc3\xa9anor <me\@example.com>\t" .
 			"Thu, 01 Jan 1970 06:06:06 +0000\t" .
-			"$mid\t<reftabsqueezed>\t$len\t1",
+			"$mid\t<reftabsqueezed>\t$len\t1" .
+			"\tXref: " . hostname . " test-nntpd:0",
 			'OVER by Message-ID works');
 		is($r[2], '.', 'correctly terminated response');
 	}

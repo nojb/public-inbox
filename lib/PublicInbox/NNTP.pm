@@ -28,7 +28,7 @@ use constant {
 
 sub now () { clock_gettime(CLOCK_MONOTONIC) };
 
-my @OVERVIEW = qw(Subject From Date Message-ID References);
+my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
 my $LIST_HEADERS = join("\r\n", @OVERVIEW,
 			qw(:bytes :lines Xref To Cc)) . "\r\n";
@@ -812,8 +812,8 @@ sub cmd_xrover ($;$) {
 	});
 }
 
-sub over_line ($$) {
-	my ($num, $smsg) = @_;
+sub over_line ($$$$) {
+	my ($self, $ng, $num, $smsg) = @_;
 	# n.b. field access and procedural calls can be
 	# 10%-15% faster than OO method calls:
 	my $s = join("\t", $num,
@@ -823,7 +823,8 @@ sub over_line ($$) {
 		"<$smsg->{mid}>",
 		$smsg->{references},
 		$smsg->{bytes},
-		$smsg->{lines});
+		$smsg->{lines},
+		"Xref: " . xref($self, $ng, $num, $smsg->{mid}));
 	utf8::encode($s);
 	$s
 }
@@ -839,7 +840,7 @@ sub cmd_over ($;$) {
 		# Only set article number column if it's the current group
 		my $self_ng = $self->{ng};
 		$n = 0 if (!$self_ng || $self_ng ne $ng);
-		more($self, over_line($n, $smsg));
+		more($self, over_line($self, $ng, $n, $smsg));
 		'.';
 	} else {
 		cmd_xover($self, $range);
@@ -861,7 +862,7 @@ sub cmd_xover ($;$) {
 
 		# OVERVIEW.FMT
 		more($self, join("\r\n", map {
-			over_line($_->{num}, $_);
+			over_line($self, $self->{ng}, $_->{num}, $_);
 			} @$msgs));
 		$cur = $msgs->[-1]->{num} + 1;
 	});
