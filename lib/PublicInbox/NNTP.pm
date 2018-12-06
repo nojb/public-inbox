@@ -51,8 +51,16 @@ sub next_tick () {
 		# before finishing reading:
 		if (my $long_cb = $nntp->{long_res}) {
 			$nntp->write($long_cb);
-		} elsif (&Danga::Socket::POLLIN & $nntp->{event_watch}) {
+		} else {
+			# pipelined request, we bypassed socket-readiness
+			# checks to get here:
 			event_read($nntp);
+
+			# maybe there's more pipelined data, or we'll have
+			# to register it for socket-readiness notifications
+			if (!$nntp->{long_res} && !$nntp->{closed}) {
+				check_read($nntp);
+			}
 		}
 	}
 }
@@ -609,7 +617,7 @@ sub long_response ($$) {
 				           now() - $t0);
 			} else {
 				update_idle_time($self);
-				$self->watch_read(1);
+				check_read($self);
 			}
 		} elsif ($more) { # $self->{write_buf_size}:
 			# no recursion, schedule another call ASAP
@@ -620,7 +628,7 @@ sub long_response ($$) {
 			$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
 		} else { # all done!
 			$self->{long_res} = undef;
-			$self->watch_read(1);
+			check_read($self);
 			res($self, '.');
 			out($self, " deferred[$fd] done - %0.6f", now() - $t0);
 		}
@@ -968,10 +976,9 @@ sub event_read {
 	update_idle_time($self);
 }
 
-sub watch_read {
-	my ($self, $bool) = @_;
-	my $rv = $self->SUPER::watch_read($bool);
-	if ($bool && index($self->{rbuf}, "\n") >= 0) {
+sub check_read {
+	my ($self) = @_;
+	if (index($self->{rbuf}, "\n") >= 0) {
 		# Force another read if there is a pipelined request.
 		# We don't know if the socket has anything for us to read,
 		# and we must double-check again by the time the timer fires
@@ -979,8 +986,11 @@ sub watch_read {
 		# another long response.
 		push @$nextq, $self;
 		$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
+	} else {
+		# no pipelined requests available, let the kernel know
+		# to wake us up if there's more
+		$self->watch_read(1); # Danga::Socket::watch_read
 	}
-	$rv;
 }
 
 sub not_idle_long ($$) {

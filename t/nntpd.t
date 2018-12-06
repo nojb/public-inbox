@@ -252,6 +252,27 @@ EOF
 		ok($date <= $t1, 'valid date before stop');
 	}
 
+	# pipelined requests:
+	{
+		my $nreq = 90;
+		syswrite($s, "GROUP $group\r\n");
+		my $res = <$s>;
+		my $rdr = fork;
+		if ($rdr == 0) {
+			use POSIX qw(_exit);
+			for (1..$nreq) {
+				<$s> =~ /\A224 / or _exit(1);
+				<$s> =~ /\A1/ or _exit(2);
+				<$s> eq ".\r\n" or _exit(3);
+			}
+			_exit(0);
+		}
+		for (1..$nreq) {
+			syswrite($s, "XOVER 1\r\n");
+		}
+		is($rdr, waitpid($rdr, 0), 'reader done');
+		is($? >> 8, 0, 'no errors');
+	}
 	{
 		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
 		syswrite($s, 'HDR List-id 1-');
