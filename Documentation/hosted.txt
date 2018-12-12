@@ -2,13 +2,26 @@ In addition to eating our own dogfood at <https://public-inbox.org/meta/>,
 public-inbox.org hosts unofficial archives for several other projects
 as a service to their users and to further test our own software.
 
+These mirrors are NOT to be considered reliable or permanent.
+Interested parties are strongly encouraged to host mirrors.
+
 The presence of these archives does not imply these projects endorse
 public-inbox or public-inbox.org in any way.
+
+* https://public-inbox.org/bug-gnulib/
+  bug-gnulib@gnu.org
+  Discussion for Gnulib portability/common source project
+  https://lists.gnu.org/mailman/listinfo/bug-gnulib
 
 * https://public-inbox.org/git/
   git@vger.kernel.org
   Mailing list for the git version control system
   http://vger.kernel.org/majordomo-info.html
+
+* https://public-inbox.org/libc-alpha/
+  libc-alpha@sourceware.org
+  Mailing list for GNU C library development
+  https://www.gnu.org/software/libc/involved.html
 
 * https://public-inbox.org/libreplanet-discuss/
   libreplanet-discuss@libreplanet.org
