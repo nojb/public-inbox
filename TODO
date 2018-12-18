@@ -87,3 +87,6 @@ all need to be considered for everything we introduce)
 
 * Read-only WebDAV interface to the git repo so it can be mounted
   via davfs2 or fusedav to avoid full clones.
+  davfs2 needs Range: request support for this to be feasible:
+    https://savannah.nongnu.org/bugs/?33259
+    https://savannah.nongnu.org/support/?107649
