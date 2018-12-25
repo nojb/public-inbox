@@ -57,7 +57,6 @@ my $get_maxrss = sub {
 		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
 		$ENV{LISTEN_PID} = $$;
 		$ENV{LISTEN_FDS} = 1;
-		$ENV{TEST_CHUNK} = '1';
 		exec $httpd, "--stdout=$out", "--stderr=$err", $psgi;
 		die "FAIL: $!\n";
 	}
