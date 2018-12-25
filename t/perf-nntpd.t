@@ -78,7 +78,7 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 $s = IO::Socket::INET->new(%opts);
 $s->autoflush(1);
 my $buf = $s->getline;
-is($buf, "201 server ready - post via email\r\n", 'got greeting');
+like($buf, qr/\A201 .* ready - post via email\r\n/s, 'got greeting');
 
 my $t = timeit(10, sub {
 	ok($s->print("GROUP $group\r\n"), 'changed group');
