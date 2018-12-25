@@ -32,6 +32,8 @@ sub quiet_fail {
 		   qw(http://example.com/blist blist@example.com));
 	is(system(@cmd), 0, 'public-inbox-init OK');
 
+	is(read_indexlevel('blist'), '', 'indexlevel unset by default');
+
 	ok(-e $cfgfile, "config exists, now");
 	is(system(@cmd), 0, 'public-inbox-init OK (idempotent)');
 
@@ -64,10 +66,26 @@ SKIP: {
 	is(system(@cmd), 0, 'public-inbox-init is idempotent');
 	ok(! -d "$tmpdir/public-inbox" && !-d "$tmpdir/objects",
 		'idempotent invocation w/o -V2 does not make inbox v1');
+	is(read_indexlevel('v2list'), '', 'indexlevel unset by default');
 
 	@cmd = (pi_init, 'v2list', "-V1", "$tmpdir/v2list",
 		   qw(http://example.com/v2list v2list@example.com));
 	quiet_fail(\@cmd, 'initializing V2 as V1 fails');
+
+	foreach my $lvl (qw(medium basic)) {
+		@cmd = (pi_init, "v2$lvl", '-V2', '-L', $lvl,
+			"$tmpdir/v2$lvl", "http://example.com/v2$lvl",
+			"v2$lvl\@example.com");
+		is(system(@cmd), 0, "-init -L $lvl");
+		is(read_indexlevel("v2$lvl"), $lvl, "indexlevel set to '$lvl'");
+	}
 }
 
 done_testing();
+
+sub read_indexlevel {
+	my ($inbox) = @_;
+	local $ENV{GIT_CONFIG} = "$ENV{PI_DIR}/config";
+	chomp(my $lvl = `git config publicinbox.$inbox.indexlevel`);
+	$lvl;
+}

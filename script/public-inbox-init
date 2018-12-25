@@ -76,7 +76,6 @@ if (-e $pi_config) {
 	}
 }
 close $fh or die "failed to close $pi_config_tmp: $!\n";
-$indexlevel ||= 'full';
 
 my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
@@ -125,7 +124,10 @@ foreach my $addr (@address) {
 }
 x(@x, "$pfx.url", $http_url);
 x(@x, "$pfx.mainrepo", $mainrepo);
-x(@x, "$pfx.indexlevel", $indexlevel);
+
+if (defined($indexlevel)) {
+	x(@x, "$pfx.indexlevel", $indexlevel);
+}
 
 rename $pi_config_tmp, $pi_config or
 	die "failed to rename `$pi_config_tmp' to `$pi_config': $!\n";
