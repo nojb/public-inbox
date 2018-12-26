@@ -12,11 +12,11 @@ require PublicInbox::Msgmap;
 use Cwd;
 use Email::Simple;
 use IO::Socket;
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use File::Temp qw/tempdir/;
 use Net::NNTP;
 use Sys::Hostname;
+require './t/common.perl';
 
 my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
@@ -101,25 +101,9 @@ EOF
 	}
 
 	ok($sock, 'sock created');
-	$! = 0;
-	my $fl = fcntl($sock, F_GETFD, 0);
-	ok(! $!, 'no error from fcntl(F_GETFD)');
-	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
-	$pid = fork;
-	if ($pid == 0) {
-		use POSIX qw(dup2);
-		# pretend to be systemd
-		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
-		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 1;
-		exec $nntpd, "--stdout=$out", "--stderr=$err";
-		die "FAIL: $!\n";
-	}
+	my $cmd = [ $nntpd, "--stdout=$out", "--stderr=$err" ];
+	$pid = spawn_listener(undef, $cmd, [ $sock ]);
 	ok(defined $pid, 'forked nntpd process successfully');
-	$! = 0;
-	fcntl($sock, F_SETFD, $fl |= FD_CLOEXEC);
-	ok(! $!, 'no error from fcntl(F_SETFD)');
 	my $host_port = $sock->sockhost . ':' . $sock->sockport;
 	my $n = Net::NNTP->new($host_port);
 	my $list = $n->list;

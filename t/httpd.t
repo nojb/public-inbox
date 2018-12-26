@@ -12,8 +12,8 @@ foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket
 use File::Temp qw/tempdir/;
 use Cwd qw/getcwd/;
 use IO::Socket;
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
+require './t/common.perl';
 
 # FIXME: too much setup
 my $tmpdir = tempdir('pi-httpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
@@ -64,25 +64,8 @@ EOF
 		$im->done($mime);
 	}
 	ok($sock, 'sock created');
-	$! = 0;
-	my $fl = fcntl($sock, F_GETFD, 0);
-	ok(! $!, 'no error from fcntl(F_GETFD)');
-	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
-	$pid = fork;
-	if ($pid == 0) {
-		use POSIX qw(dup2);
-		# pretend to be systemd
-		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
-		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 1;
-		exec $httpd, "--stdout=$out", "--stderr=$err";
-		die "FAIL: $!\n";
-	}
-	ok(defined $pid, 'forked httpd process successfully');
-	$! = 0;
-	fcntl($sock, F_SETFD, $fl |= FD_CLOEXEC);
-	ok(! $!, 'no error from fcntl(F_SETFD)');
+	my $cmd = [ $httpd, "--stdout=$out", "--stderr=$err" ];
+	$pid = spawn_listener(undef, $cmd, [$sock]);
 	my $host = $sock->sockhost;
 	my $port = $sock->sockport;
 	my $conn = IO::Socket::INET->new(PeerAddr => $host,

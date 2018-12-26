@@ -6,13 +6,13 @@ use Test::More;
 use Benchmark qw(:all :hireswallclock);
 use PublicInbox::Inbox;
 use File::Temp qw/tempdir/;
-use POSIX qw(dup2);
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Net::NNTP;
 my $pi_dir = $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
 eval { require PublicInbox::Search };
 my ($host_port, $group, %opts, $s, $pid);
+require './t/common.perl';
+
 END {
 	if ($s) {
 		$s->print("QUIT\r\n");
@@ -53,21 +53,8 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	my $sock = IO::Socket::INET->new(%opts);
 
 	ok($sock, 'sock created');
-	$! = 0;
-	$pid = fork;
-	if ($pid == 0) {
-		# pretend to be systemd
-		my $fl = fcntl($sock, F_GETFD, 0);
-		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-		dup2(1, 2) or die "dup2 failed: $!\n";
-		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 1;
-		$ENV{PI_CONFIG} = $pi_config;
-		exec $nntpd, '-W0';
-		die "FAIL: $!\n";
-	}
-	ok(defined $pid, 'forked nntpd process successfully');
+	my $cmd = [ $nntpd, '-W0' ];
+	$pid = spawn_listener({ PI_CONFIG => $pi_config }, $cmd, [$sock]);
 	$host_port = $sock->sockhost . ':' . $sock->sockport;
 }
 %opts = (

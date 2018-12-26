@@ -14,7 +14,6 @@ foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket
 use File::Temp qw/tempdir/;
 use IO::Socket::UNIX;
 use Cwd qw/getcwd/;
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 my $tmpdir = tempdir('httpd-unix-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $unix = "$tmpdir/unix.sock";
 my $httpd = 'blib/script/public-inbox-httpd';

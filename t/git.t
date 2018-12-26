@@ -9,20 +9,15 @@ use Cwd qw/getcwd/;
 use PublicInbox::Spawn qw(popen_rd);
 
 use_ok 'PublicInbox::Git';
+eval { require IPC::Run } or plan skip_all => 'IPC::Run missing';
+
 {
 	is(system(qw(git init -q --bare), $dir), 0, 'created git directory');
-	my @cmd = ('git', "--git-dir=$dir", 'fast-import', '--quiet');
+	my $cmd = [ 'git', "--git-dir=$dir", 'fast-import', '--quiet' ];
 
 	my $fi_data = getcwd().'/t/git.fast-import-data';
 	ok(-r $fi_data, "fast-import data readable (or run test at top level)");
-	my $pid = fork;
-	defined $pid or die "fork failed: $!\n";
-	if ($pid == 0) {
-		open STDIN, '<', $fi_data or die "open $fi_data: $!\n";
-		exec @cmd;
-		die "failed exec: ",join(' ', @cmd),": $!\n";
-	}
-	waitpid $pid, 0;
+	IPC::Run::run($cmd, '<', $fi_data);
 	is($?, 0, 'fast-import succeeded');
 }
 
@@ -69,8 +64,7 @@ use_ok 'PublicInbox::Git';
 }
 
 if (1) {
-	use POSIX qw(dup2);
-	my @cmd = ('git', "--git-dir=$dir", qw(hash-object -w --stdin));
+	my $cmd = [ 'git', "--git-dir=$dir", qw(hash-object -w --stdin) ];
 
 	# need a big file, use the AGPL-3.0 :p
 	my $big_data = getcwd().'/COPYING';
@@ -78,21 +72,8 @@ if (1) {
 	my $size = -s $big_data;
 	ok($size > 8192, 'file is big enough');
 
-	my ($r, $w);
-	ok(pipe($r, $w), 'created pipe');
-
-	my $pid = fork;
-	defined $pid or die "fork failed: $!\n";
-	if ($pid == 0) {
-		close $r;
-		open STDIN, '<', $big_data or die "open $big_data: $!\n";
-		dup2(fileno($w), 1);
-		exec @cmd;
-		die "failed exec: ",join(' ', @cmd),": $!\n";
-	}
-	close $w;
-	my $n = read $r, my $buf, 41;
-	waitpid $pid, 0;
+	my $buf = '';
+	IPC::Run::run($cmd, '<', $big_data, '>', \$buf);
 	is(0, $?, 'hashed object successfully');
 	chomp $buf;
 

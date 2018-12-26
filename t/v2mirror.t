@@ -3,10 +3,12 @@
 use strict;
 use warnings;
 use Test::More;
+require './t/common.perl';
 
 # Integration tests for HTTP cloning + mirroring
 foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket
-			HTTP::Date HTTP::Status Search::Xapian DBD::SQLite)) {
+			HTTP::Date HTTP::Status Search::Xapian DBD::SQLite
+			IPC::Run)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for v2mirror.t" if $@;
 }
@@ -16,7 +18,6 @@ use POSIX qw(dup2);
 use_ok 'PublicInbox::V2Writable';
 use PublicInbox::MIME;
 use PublicInbox::Config;
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 # FIXME: too much setup
 my $tmpdir = tempdir('pi-v2mirror-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $script = 'blib/script/public-inbox';
@@ -69,18 +70,9 @@ END { kill 'TERM', $pid if defined $pid };
 $! = 0;
 $sock = IO::Socket::INET->new(%opts);
 ok($sock, 'sock created');
-my $fl = fcntl($sock, F_GETFD, 0);
-$pid = fork;
-if ($pid == 0) {
-	# pretend to be systemd
-	fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
-	dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-	$ENV{LISTEN_PID} = $$;
-	$ENV{LISTEN_FDS} = 1;
-	exec "$script-httpd", "--stdout=$tmpdir/out", "--stderr=$tmpdir/err";
-	die "FAIL: $!\n";
-}
-ok(defined $pid, 'forked httpd process successfully');
+my $cmd = [ "$script-httpd", "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
+ok(defined($pid = spawn_listener(undef, $cmd, [ $sock ])),
+	'spawned httpd process successfully');
 my ($host, $port) = ($sock->sockhost, $sock->sockport);
 $sock = undef;
 
@@ -150,18 +142,9 @@ is(scalar($mset->items), 0, 'purged message gone from origin');
 
 fetch_each_epoch();
 {
-	open my $err, '+>', "$tmpdir/index-err" or die "open: $!";
-	my $ipid = fork;
-	if ($ipid == 0) {
-		dup2(fileno($err), 2) or die "dup2 failed: $!";
-		exec("$script-index", '--prune', "$tmpdir/m");
-		die "exec fail: $!";
-	}
-	ok($ipid, 'running index..');
-	is(waitpid($ipid, 0), $ipid, 'index --prune done');
-	is($?, 0, 'no error from index');
-	ok(seek($err, 0, 0), 'rewound stderr');
-	$err = eval { local $/; <$err> };
+	my $cmd = [ "$script-index", '--prune', "$tmpdir/m" ];
+	my ($in, $out, $err) = ('', '', '');
+	ok(IPC::Run::run($cmd, \$in, \$out, \$err), '-index --prune');
 	like($err, qr/discontiguous range/, 'warned about discontiguous range');
 	unlike($err, qr/fatal/, 'no scary fatal error shown');
 }
@@ -192,18 +175,9 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	$v2w->done;
 	fetch_each_epoch();
 
-	open my $err, '+>', "$tmpdir/index-err" or die "open: $!";
-	my $ipid = fork;
-	if ($ipid == 0) {
-		dup2(fileno($err), 2) or die "dup2 failed: $!";
-		exec("$script-index", "$tmpdir/m");
-		die "exec fail: $!";
-	}
-	ok($ipid, 'running index');
-	is(waitpid($ipid, 0), $ipid, 'index done');
-	is($?, 0, 'no error from index');
-	ok(seek($err, 0, 0), 'rewound stderr');
-	$err = eval { local $/; <$err> };
+	my ($in, $out, $err) = ('', '', '');
+	my $cmd = [ "$script-index", "$tmpdir/m" ];
+	ok(IPC::Run::run($cmd, \$in, \$out, \$err), 'index ran');
 	is($err, '', 'no errors reported by index');
 	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
 	is(scalar($mset->items), 0, '1@example.com no longer visible in mirror');

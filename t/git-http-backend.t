@@ -5,7 +5,6 @@ use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
 use IO::Socket;
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use POSIX qw(dup2 setsid);
 use Cwd qw(getcwd);
@@ -18,6 +17,7 @@ foreach my $mod (qw(Danga::Socket BSD::Resource
 	eval "require $mod";
 	plan skip_all => "$mod missing for git-http-backend.t" if $@;
 }
+require './t/common.perl';
 my $psgi = getcwd()."/t/git-http-backend.psgi";
 my $tmpdir = tempdir('pi-git-http-backend-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
@@ -51,16 +51,9 @@ my $get_maxrss = sub {
 
 {
 	ok($sock, 'sock created');
-	$pid = fork;
-	if ($pid == 0) { # pretend to be systemd
-		fcntl($sock, F_SETFD, 0);
-		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 1;
-		exec $httpd, "--stdout=$out", "--stderr=$err", $psgi;
-		die "FAIL: $!\n";
-	}
-	ok(defined $pid, 'forked httpd process successfully');
+	my $cmd = [ $httpd, "--stdout=$out", "--stderr=$err", $psgi ];
+	ok(defined($pid = spawn_listener(undef, $cmd, [$sock])),
+	   'forked httpd process successfully');
 }
 my $mem_a = $get_maxrss->();
 

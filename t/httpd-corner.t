@@ -8,7 +8,7 @@ use Test::More;
 use Time::HiRes qw(gettimeofday tv_interval);
 
 foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket
-			HTTP::Date HTTP::Status)) {
+			HTTP::Date HTTP::Status IPC::Run)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd-corner.t" if $@;
 }
@@ -18,9 +18,10 @@ use File::Temp qw/tempdir/;
 use Cwd qw/getcwd/;
 use IO::Socket;
 use IO::Socket::UNIX;
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
+use Fcntl qw(:seek);
 use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
-use POSIX qw(dup2 mkfifo :sys_wait_h);
+use POSIX qw(mkfifo :sys_wait_h);
+require './t/common.perl';
 my $tmpdir = tempdir('httpd-corner-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $fifo = "$tmpdir/fifo";
 ok(defined mkfifo($fifo, 0777), 'created FIFO');
@@ -47,33 +48,13 @@ my $pid;
 END { kill 'TERM', $pid if defined $pid };
 my $spawn_httpd = sub {
 	my (@args) = @_;
-	$! = 0;
-	my $fl = fcntl($sock, F_GETFD, 0);
-	ok(! $!, 'no error from fcntl(F_GETFD)');
-	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
-	$pid = fork;
-	if ($pid == 0) {
-		# pretend to be systemd
-		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-		dup2(fileno($unix), 4) or die "dup2 failed: $!\n";
-		my $t = IO::Handle->new_from_fd(3, 'r');
-		$t->fcntl(F_SETFD, 0);
-		my $u = IO::Handle->new_from_fd(4, 'r');
-		$u->fcntl(F_SETFD, 0);
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 2;
-		exec $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi;
-		die "FAIL: $!\n";
-	}
+	my $cmd = [ $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi ];
+	$pid = spawn_listener(undef, $cmd, [ $sock, $unix ]);
 	ok(defined $pid, 'forked httpd process successfully');
 };
 
 {
 	ok($sock, 'sock created');
-	$! = 0;
-	my $fl = fcntl($sock, F_GETFD, 0);
-	ok(! $!, 'no error from fcntl(F_GETFD)');
-	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
 	$spawn_httpd->('-W0');
 }
 
@@ -242,7 +223,6 @@ my $check_self = sub {
 };
 
 SKIP: {
-	use POSIX qw(dup2);
 	my $have_curl = 0;
 	foreach my $p (split(':', $ENV{PATH})) {
 		-x "$p/curl" or next;
@@ -254,15 +234,9 @@ SKIP: {
 	my $url = 'http://' . $sock->sockhost . ':' . $sock->sockport . '/sha1';
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
-	open(my $tout, '+>', undef) or die "open temporary file: $!";
-	my $pid = fork;
-	defined $pid or die "fork: $!";
-	my @cmd = (qw(curl --tcp-nodelay --no-buffer -T- -HExpect: -sS), $url);
-	if ($pid == 0) {
-		dup2(fileno($r), 0) or die "redirect stdin failed: $!\n";
-		dup2(fileno($tout), 1) or die "redirect stdout failed: $!\n";
-		exec(@cmd) or die 'exec `' . join(' '). "' failed: $!\n";
-	}
+	my $cmd = [qw(curl --tcp-nodelay --no-buffer -T- -HExpect: -sS), $url];
+	my ($out, $err) = ('', '');
+	my $h = IPC::Run::start($cmd, $r, \$out, \$err);
 	$w->autoflush(1);
 	foreach my $c ('a'..'z') {
 		print $w $c or die "failed to write to curl: $!";
@@ -270,11 +244,10 @@ SKIP: {
 	}
 	close $w or die "close write pipe: $!";
 	close $r or die "close read pipe: $!";
-	my $kid = waitpid $pid, 0;
+	IPC::Run::finish($h);
 	is($?, 0, 'curl exited successfully');
-	$tout->sysseek(0, SEEK_SET);
-	$tout->sysread(my $buf, 100);
-	is($buf, sha1_hex($str), 'read expected body');
+	is($err, '', 'no errors from curl');
+	is($out, sha1_hex($str), 'read expected body');
 }
 
 {

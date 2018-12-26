@@ -6,6 +6,7 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::ContentId qw(content_digest);
 use File::Temp qw/tempdir/;
+require './t/common.perl';
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for nntpd.t" if $@;
@@ -129,7 +130,6 @@ if ('ensure git configs are correct') {
 }
 
 SKIP: {
-	use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 	use Net::NNTP;
 	use IO::Socket;
 	use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
@@ -161,27 +161,9 @@ EOF
 	my $pid;
 	my $len;
 	END { kill 'TERM', $pid if defined $pid };
-	$! = 0;
-	my $fl = fcntl($sock, F_GETFD, 0);
-	ok(! $!, 'no error from fcntl(F_GETFD)');
-	is($fl, FD_CLOEXEC, 'cloexec set by default (Perl behavior)');
-	$pid = fork;
-	if ($pid == 0) {
-		use POSIX qw(dup2);
-		$ENV{PI_CONFIG} = $pi_config;
-		# pretend to be systemd
-		fcntl($sock, F_SETFD, $fl &= ~FD_CLOEXEC);
-		dup2(fileno($sock), 3) or die "dup2 failed: $!\n";
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = 1;
-		my $nntpd = 'blib/script/public-inbox-nntpd';
-		exec $nntpd, "--stdout=$out", "--stderr=$err";
-		die "FAIL: $!\n";
-	}
-	ok(defined $pid, 'forked nntpd process successfully');
-	$! = 0;
-	fcntl($sock, F_SETFD, $fl |= FD_CLOEXEC);
-	ok(! $!, 'no error from fcntl(F_SETFD)');
+	my $nntpd = 'blib/script/public-inbox-nntpd';
+	my $cmd = [ $nntpd, "--stdout=$out", "--stderr=$err" ];
+	$pid = spawn_listener({ PI_CONFIG => $pi_config }, $cmd, [ $sock ]);
 	my $host_port = $sock->sockhost . ':' . $sock->sockport;
 	my $n = Net::NNTP->new($host_port);
 	$n->group($group);
