@@ -99,11 +99,11 @@ sub _html_end {
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
 	}
 
-	if (scalar(@urls) == 1) {
-		$urls .= " git clone --mirror $urls[0]";
-	} else {
+	if (defined($part) || scalar(@urls) > 1) {
 		$urls .= "\n" .
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
+	} else {
+		$urls .= " git clone --mirror $urls[0]";
 	}
 	if (defined $part) {
 		my $addrs = $obj->{address};
