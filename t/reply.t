@@ -76,4 +76,9 @@ $exp = [
 is_deeply($arg, $exp, 'address obfuscation works');
 is($link, '', 'no mailto: link given');
 
+$ibx->{replyto} = ':none=dead list';
+$ibx->{obfuscate} = 1;
+($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
+is($$arg, 'dead list', ':none= works');
+
 done_testing();

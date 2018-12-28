@@ -34,8 +34,16 @@ sub mailto_arg_link {
 	my $cc = {}; # everyone else
 	my $to; # this is the From address by defaultq
 	my $reply_to_all = 'reply-to-all'; # the only good default :P
+	my $reply_to_cfg = $ibx->{replyto};
 
-	foreach my $rt (split(/\s*,\s*/, $ibx->{replyto} || ':all')) {
+	$reply_to_cfg ||= ':all';
+	if ($reply_to_cfg =~ /\A:none=(.*)/) {
+		my $msg = $1;
+		$msg = 'replies disabled' if $msg eq '';
+		return \$msg;
+	}
+
+	foreach my $rt (split(/\s*,\s*/, $reply_to_cfg)) {
 		if ($rt eq ':all') {
 			foreach my $h (@reply_headers) {
 				my $v = $hdr->header($h);

@@ -119,6 +119,9 @@ sub msg_reply {
 
 	my ($arg, $link, $reply_to_all) =
 			PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
+	if (ref($arg) eq 'SCALAR') {
+		return '<pre id=R>'.ascii_html($$arg).'</pre>';
+	}
 
 	# mailto: link only works if address obfuscation is disabled
 	if ($link) {
