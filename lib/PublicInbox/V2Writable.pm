@@ -83,11 +83,14 @@ sub new {
 }
 
 sub init_inbox {
-	my ($self, $parallel) = @_;
+	my ($self, $parallel, $skip) = @_;
 	$self->{parallel} = $parallel;
 	$self->idx_init;
 	my $epoch_max = -1;
 	git_dir_latest($self, \$epoch_max);
+	if (defined $skip && $epoch_max == -1) {
+		$epoch_max = $skip;
+	}
 	$self->git_init($epoch_max >= 0 ? $epoch_max : 0);
 	$self->done;
 }

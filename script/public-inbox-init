@@ -17,8 +17,10 @@ sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 my $version = undef;
 my $indexlevel = undef;
+my $skip;
 my %opts = ( 'V|version=i' => \$version,
 	     'L|indexlevel=s' => \$indexlevel,
+	     'S|skip=i' => \$skip,
 );
 GetOptions(%opts) or usage();
 my $name = shift @ARGV or usage();
@@ -97,6 +99,10 @@ if (-f "$mainrepo/inbox.lock") {
 
 $version = 1 unless defined $version;
 
+if ($version == 1 && defined $skip) {
+	die "--skip is only supported for -V2 repos\n";
+}
+
 if ($version >= 2) {
 	require PublicInbox::V2Writable;
 	require PublicInbox::Inbox;
@@ -107,7 +113,7 @@ if ($version >= 2) {
 		-primary_address => $address[0],
 	};
 	$ibx = PublicInbox::Inbox->new($ibx);
-	PublicInbox::V2Writable->new($ibx, 1)->init_inbox(0);
+	PublicInbox::V2Writable->new($ibx, 1)->init_inbox(0, $skip);
 } elsif ($version == 1) {
 	x(qw(git init -q --bare), $mainrepo);
 

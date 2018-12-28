@@ -79,6 +79,22 @@ SKIP: {
 		is(system(@cmd), 0, "-init -L $lvl");
 		is(read_indexlevel("v2$lvl"), $lvl, "indexlevel set to '$lvl'");
 	}
+
+	# loop for idempotency
+	for (1..2) {
+		@cmd = (pi_init, '-V2', '-S1', 'skip1', "$tmpdir/skip1",
+			   qw(http://example.com/skip1 skip1@example.com));
+		is(system(@cmd), 0, "--skip 1");
+		my $gits = [ glob("$tmpdir/skip1/git/*.git") ];
+		is_deeply(["$tmpdir/skip1/git/1.git"], $gits, 'skip OK');
+	}
+
+
+	@cmd = (pi_init, '-V2', '--skip=2', 'skip2', "$tmpdir/skip2",
+		   qw(http://example.com/skip2 skip2@example.com));
+	is(system(@cmd), 0, "--skip 2");
+	my $gits = [ glob("$tmpdir/skip2/git/*.git") ];
+	is_deeply(["$tmpdir/skip2/git/2.git"], $gits, 'skipping 2 works, too');
 }
 
 done_testing();
