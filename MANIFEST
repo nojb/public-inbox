@@ -58,6 +58,7 @@ lib/PublicInbox/EvCleanup.pm
 lib/PublicInbox/ExtMsg.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm
+lib/PublicInbox/Filter/Gmane.pm
 lib/PublicInbox/Filter/Mirror.pm
 lib/PublicInbox/Filter/RubyLang.pm
 lib/PublicInbox/Filter/SubjectTag.pm
