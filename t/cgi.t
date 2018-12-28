@@ -217,8 +217,7 @@ done_testing();
 
 sub run_with_env {
 	my ($env, @args) = @_;
-	my $init = sub { foreach my $k (keys %$env) { $ENV{$k} = $env->{$k} } };
-	IPC::Run::run(@args, init => $init);
+	IPC::Run::run(@args, init => sub { %ENV = (%ENV, %$env) });
 }
 
 sub cgi_run {
