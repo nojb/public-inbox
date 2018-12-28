@@ -8,10 +8,10 @@
 --
 --   commit-filter=lua:/path/to/this/script.lua
 --
--- Example: http://bogomips.org/public-inbox.git/
+-- Example site: https://80x24.org/public-inbox.git/
 
 local urls = {}
-urls['public-inbox.git'] = 'http://public-inbox.org/meta/'
+urls['public-inbox.git'] = 'https://public-inbox.org/meta/'
 -- additional URLs here...
 
 function filter_open(...)
