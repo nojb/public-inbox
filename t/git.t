@@ -8,8 +8,8 @@ my $dir = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use Cwd qw/getcwd/;
 use PublicInbox::Spawn qw(popen_rd);
 
-use_ok 'PublicInbox::Git';
 eval { require IPC::Run } or plan skip_all => 'IPC::Run missing';
+use_ok 'PublicInbox::Git';
 
 {
 	is(system(qw(git init -q --bare), $dir), 0, 'created git directory');
