@@ -90,3 +90,7 @@ all need to be considered for everything we introduce)
   davfs2 needs Range: request support for this to be feasible:
     https://savannah.nongnu.org/bugs/?33259
     https://savannah.nongnu.org/support/?107649
+
+* Contribute something like IMAP IDLE for "git fetch".
+  Inboxes (and any git repos) can be kept up-to-date without
+  relying on polling.
