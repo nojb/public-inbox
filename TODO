@@ -94,3 +94,7 @@ all need to be considered for everything we introduce)
 * Contribute something like IMAP IDLE for "git fetch".
   Inboxes (and any git repos) can be kept up-to-date without
   relying on polling.
+
+* Expose targeted reindexing of individual messages.
+  Sometimes an indexing bug only affects a handful of messages,
+  so it's not worth the trouble of doing a full reindex.
