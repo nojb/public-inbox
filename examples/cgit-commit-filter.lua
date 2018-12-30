@@ -26,7 +26,7 @@ function filter_close()
 		if u == nil then
 			html(buffer)
 		else
-			html('<a href="' .. u .. '?x=t&q=')
+			html('<a href="' .. u .. '?x=t&amp;q=')
 			html_url_arg('"' .. buffer .. '"')
 			html('"><tt>')
 			html_txt(buffer)
