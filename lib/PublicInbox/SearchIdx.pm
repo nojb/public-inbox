@@ -305,19 +305,7 @@ sub add_xapian ($$$$$) {
 			$self->index_text($fn, 1, 'XFN');
 		}
 
-		return if $ct =~ m!\btext/x?html\b!i;
-
-		my $s = eval { $part->body_str };
-		if ($@) {
-			if ($ct =~ m!\btext/plain\b!i) {
-				# Try to assume UTF-8 because Alpine
-				# seems to do wacky things and set
-				# charset=X-UNKNOWN
-				$part->charset_set('UTF-8');
-				$s = eval { $part->body_str };
-				$s = $part->body if $@;
-			}
-		}
+		my ($s, undef) = msg_part_text($part, $ct);
 		defined $s or return;
 
 		my (@orig, @quot);

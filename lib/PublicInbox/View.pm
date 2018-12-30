@@ -543,33 +543,14 @@ sub add_text_body {
 	my ($part, $depth) = @$p; # attachment @idx is unused
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
+	my ($s, $err) = msg_part_text($part, $ct);
 
-	if ($ct =~ m!\btext/x?html\b!i) {
-		return attach_link($upfx, $ct, $p, $fn);
-	}
-
-	my $s = eval { $part->body_str };
-
-	# badly-encoded message? tell the world about it!
-	my $err = $@;
-	if ($err) {
-		if ($ct =~ m!\btext/plain\b!i) {
-			# Try to assume UTF-8 because Alpine seems to
-			# do wacky things and set charset=X-UNKNOWN
-			$part->charset_set('UTF-8');
-			$s = eval { $part->body_str };
-
-			# If forcing charset=UTF-8 failed,
-			# attach_link will warn further down...
-			$s = $part->body if $@;
-		} else {
-			return attach_link($upfx, $ct, $p, $fn);
-		}
-	}
+	return attach_link($upfx, $ct, $p, $fn) unless defined $s;
 
 	my @lines = split(/^/m, $s);
 	$s = '';
 	if (defined($fn) || $depth > 0 || $err) {
+		# badly-encoded message with $err? tell the world about it!
 		$s .= attach_link($upfx, $ct, $p, $fn, $err);
 		$s .= "\n";
 	}

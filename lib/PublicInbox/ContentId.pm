@@ -75,14 +75,7 @@ sub content_digest ($) {
 		}
 		$dig->add("b\0");
 		my $ct = $part->content_type || 'text/plain';
-		my $s = eval { $part->body_str };
-		if ($@ && $ct =~ m!\btext/plain\b!i) {
-			# Try to assume UTF-8 because Alpine
-			# seems to do wacky things and set
-			# charset=X-UNKNOWN
-			$part->charset_set('UTF-8');
-			$s = eval { $part->body_str };
-		}
+		my ($s, undef) = msg_part_text($part, $ct);
 		if (defined $s) {
 			$s =~ s/\r\n/\n/gs;
 			$s =~ s/\s*\z//s;
