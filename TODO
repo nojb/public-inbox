@@ -98,3 +98,5 @@ all need to be considered for everything we introduce)
 * Expose targeted reindexing of individual messages.
   Sometimes an indexing bug only affects a handful of messages,
   so it's not worth the trouble of doing a full reindex.
+
+* code repository integration (with cgit, gitweb, etc...)
