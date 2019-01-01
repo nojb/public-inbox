@@ -73,16 +73,14 @@ if (@ARGV) {
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 usage() unless @dirs;
 
-foreach my $k (keys %$config) {
-	$k =~ /\Apublicinbox\.([^\.]+)\.mainrepo\z/ or next;
-	my $name = $1;
-	my $v = $config->{$k};
+$config->each_inbox(sub {
+	my ($ibx) = @_;
+
 	for my $i (0..$#dirs) {
-		next if $dirs[$i] ne $v;
-		my $ibx = $config->lookup_name($name);
-		$dirs[$i] = $ibx if $ibx;
+		next if $dirs[$i] ne $ibx->{mainrepo};
+		$dirs[$i] = $ibx;
 	}
-}
+});
 
 foreach my $dir (@dirs) {
 	if (!ref($dir) && -f "$dir/inbox.lock") { # v2

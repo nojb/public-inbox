@@ -45,30 +45,27 @@ sub new {
 	my $spamcheck = PublicInbox::Spamcheck::get($config, $k, $default);
 	$spamcheck = _spamcheck_cb($spamcheck) if $spamcheck;
 
-	# need to make all inboxes writable for spam removal:
-	$config->each_inbox(sub { PublicInbox::InboxWritable->new($_[0]) });
+	$config->each_inbox(sub {
+		# need to make all inboxes writable for spam removal:
+		my $ibx = $_[0] = PublicInbox::InboxWritable->new($_[0]);
 
-	foreach $k (keys %$config) {
-		$k =~ /\Apublicinbox\.([^\.]+)\.watch\z/ or next;
-		my $name = $1;
-		my $watch = $config->{$k};
+		my $watch = $ibx->{watch} or return;
 		if ($watch =~ s/\Amaildir://) {
 			$watch =~ s!/+\z!!;
-			my $inbox = $config->lookup_name($name);
-			if (my $wm = $inbox->{watchheader}) {
+			if (my $wm = $ibx->{watchheader}) {
 				my ($k, $v) = split(/:/, $wm, 2);
-				$inbox->{-watchheader} = [ $k, qr/\Q$v\E/ ];
+				$ibx->{-watchheader} = [ $k, qr/\Q$v\E/ ];
 			}
 			my $new = "$watch/new";
 			my $cur = "$watch/cur";
 			push @mdir, $new, $cur;
 			die "$new already in use\n" if $mdmap{$new};
 			die "$cur already in use\n" if $mdmap{$cur};
-			$mdmap{$new} = $mdmap{$cur} = $inbox;
+			$mdmap{$new} = $mdmap{$cur} = $ibx;
 		} else {
 			warn "watch unsupported: $k=$watch\n";
 		}
-	}
+	});
 	return unless @mdir;
 
 	my $mdre = join('|', map { quotemeta($_) } @mdir);
