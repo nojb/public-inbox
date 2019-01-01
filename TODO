@@ -66,7 +66,7 @@ all need to be considered for everything we introduce)
 * linkify thread skeletons better
   https://public-inbox.org/git/6E3699DEA672430CAEA6DEFEDE6918F4@PhilipOakley/
 
-* generate sample CSS for use with Stylish/dillo/etc
+* generate sample CSS for use with userContent.css/dillo/etc
 
 * streaming Email::MIME replacement: currently we generate many
   allocations/strings for headers we never look at and slurp
