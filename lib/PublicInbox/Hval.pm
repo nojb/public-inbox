@@ -11,10 +11,15 @@ use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename/;
 
-# for user-generated content (UGC) which may have excessively long lines
-# and screw up rendering on some browsers.  This is the only CSS style
-# feature we use.
-use constant STYLE => '<style>pre{white-space:pre-wrap}</style>';
+# User-generated content (UGC) may have excessively long lines
+# and screw up rendering on some browsers, so we use pre-wrap.
+#
+# We also force everything to the same scaled font-size because GUI
+# browsers (tested both Firefox and surf (webkit)) uses a larger font
+# for the Search <form> element than the rest of the page.  Font size
+# uniformity is important to people who rely on gigantic fonts.
+use constant STYLE =>
+	'<style>pre{white-space:pre-wrap}*{font-size:100%}</style>';
 
 my $enc_ascii = find_encoding('us-ascii');
 
