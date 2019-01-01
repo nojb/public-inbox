@@ -223,11 +223,16 @@ sub idx_init {
 	# frequently activated.
 	delete $ibx->{$_} foreach (qw(git mm search));
 
-       if ($self->{parallel}) {
-               pipe(my ($r, $w)) or die "pipe failed: $!";
-               $self->{bnote} = [ $r, $w ];
-               $w->autoflush(1);
-       }
+	my $indexlevel = $ibx->{indexlevel};
+	if ($indexlevel && $indexlevel eq 'basic') {
+		$self->{parallel} = 0;
+	}
+
+	if ($self->{parallel}) {
+		pipe(my ($r, $w)) or die "pipe failed: $!";
+		$self->{bnote} = [ $r, $w ];
+		$w->autoflush(1);
+	}
 
 	my $over = $self->{over};
 	$ibx->umask_prepare;
