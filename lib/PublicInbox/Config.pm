@@ -54,7 +54,7 @@ sub lookup {
 	my $pfx;
 
 	foreach my $k (keys %$self) {
-		$k =~ /\A(publicinbox\.[\w-]+)\.address\z/ or next;
+		$k =~ m!\A(publicinbox\.[^/]+)\.address\z! or next;
 		my $v = $self->{$k};
 		if (ref($v) eq "ARRAY") {
 			foreach my $alias (@$v) {
@@ -81,7 +81,7 @@ sub each_inbox {
 	my ($self, $cb) = @_;
 	my %seen;
 	foreach my $k (keys %$self) {
-		$k =~ /\Apublicinbox\.([A-Z0-9a-z-]+)\.mainrepo\z/ or next;
+		$k =~ m!\Apublicinbox\.([^/]+)\.mainrepo\z! or next;
 		next if $seen{$1};
 		$seen{$1} = 1;
 		my $ibx = lookup_name($self, $1) or next;
@@ -96,7 +96,7 @@ sub lookup_newsgroup {
 	return $rv if $rv;
 
 	foreach my $k (keys %$self) {
-		$k =~ /\A(publicinbox\.[\w-]+)\.newsgroup\z/ or next;
+		$k =~ m!\A(publicinbox\.[^/]+)\.newsgroup\z! or next;
 		my $v = $self->{$k};
 		my $pfx = $1;
 		if ($v eq $ng) {
@@ -184,6 +184,13 @@ sub _fill {
 	return unless $rv->{mainrepo};
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
+
+	# same rules as git.git/remote.c::valid_remote_nick
+	if ($name eq '' || $name =~ m!/! || $name eq '.' || $name eq '..') {
+		warn "invalid inbox name: '$name'\n";
+		return;
+	}
+
 	$rv->{name} = $name;
 	$rv->{-pi_config} = $self;
 	$rv = PublicInbox::Inbox->new($rv);
