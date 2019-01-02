@@ -17,6 +17,7 @@ eval {
 	require PublicInbox::EvCleanup;
 	$cleanup_timer = undef; # OK if we get here
 };
+my $cleanup_broken = $@;
 
 my $CLEANUP = {}; # string(inbox) -> inbox
 sub cleanup_task () {
@@ -31,6 +32,7 @@ sub cleanup_task () {
 
 sub _cleanup_later ($) {
 	my ($self) = @_;
+	return if $cleanup_broken;
 	return unless PublicInbox::EvCleanup::enabled();
 	$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
 	$CLEANUP->{"$self"} = $self;
