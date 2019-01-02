@@ -21,6 +21,13 @@ my $ibx_config = {
 	-primary_address => 'test@example.com',
 	indexlevel => 'full',
 };
+my $agpl = eval {
+	open my $fh, '<', 'COPYING' or die "can't open COPYING: $!";
+	local $/;
+	<$fh>;
+};
+$agpl or die "AGPL or die :P\n";
+my $phrase = q("defending all users' freedom");
 my $mime = PublicInbox::MIME->create(
 	header => [
 		From => 'a@example.com',
@@ -28,7 +35,7 @@ my $mime = PublicInbox::MIME->create(
 		Subject => 'this is a subject',
 		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
 	],
-	body => "hello world\n",
+	body => $agpl,
 );
 local $ENV{NPROC} = 2;
 my $minmax;
@@ -152,7 +159,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
-	my $mset = $ibx->search->query('"hello world"', {mset=>1});
+	my $mset = $ibx->search->query($phrase, {mset=>1});
 	isnt($mset->size, 0, "phrase search succeeds on indexlevel=full");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 
@@ -183,13 +190,15 @@ ok(!-d $xap, 'Xapian directories removed again');
 		# not sure why, but Xapian seems to fallback to terms and
 		# phrase searches still work
 		delete $ibx->{search};
-		my $mset = $ibx->search->query('"hello world"', {mset=>1});
+		my $mset = $ibx->search->query($phrase, {mset=>1});
 		is($mset->size, 0, 'phrase search does not work on medium');
 	}
-
-	my $mset = $ibx->search->query('hello world', {mset=>1});
+	my $words = $phrase;
+	$words =~ tr/"'//d;
+	my $mset = $ibx->search->query($words, {mset=>1});
 	isnt($mset->size, 0, "normal search works on indexlevel=medium");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+
 	ok($sizes{full} > $sizes{medium}, 'medium is smaller than full');
 
 
@@ -215,7 +224,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
-	my $mset = $ibx->search->query('hello', {mset=>1});
+	my $mset = $ibx->search->query('freedom', {mset=>1});
 	is($mset->size, 0, "search fails on indexlevel='basic'");
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{medium} > $sizes{basic}, 'basic is smaller than medium');
