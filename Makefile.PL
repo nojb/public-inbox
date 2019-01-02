@@ -23,10 +23,13 @@ WriteMakefile(
 		'Email::MIME::ContentType' => 0,
 		'Email::Simple' => 0,
 		'Encode::MIME::Header' => 0,
+
+		# TODO: these should really be made optional...
 		'Plack' => 0,
 		'URI::Escape' => 0,
+
 		# We have more test dependencies, but do not force
-		# users to install them
+		# users to install them.  See INSTALL
 	},
 );
 

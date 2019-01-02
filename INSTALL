@@ -37,6 +37,14 @@ Beyond that, there is a long list of Perl modules required, starting with:
 * Encode::MIME::Header          deb: libencode-perl
                                 rpm: perl-Encode
 
+* Plack                         deb: libplack-perl
+                                rpm: perl-Plack, perl-Plack-Test,
+                                (for HTML/Atom generation)
+
+* URI::Escape                   deb: liburi-perl
+                                rpm: perl-URI
+                                (for HTML/Atom generation)
+
 Where "deb" indicates package names for Debian-derived distributions and
 "rpm" is for RPM-based distributions (only known to work on Fedora).
 
@@ -45,14 +53,6 @@ Numerous optional modules are likely to be useful as well:
   - Socket6                    deb: libsocket6-perl
                                rpm: perl-Socket6
                                (for IPv6 support)
-
-  - Plack                      deb: libplack-perl
-                               rpm: perl-Plack, perl-Plack-Test,
-                               (for HTML/Atom generation)
-
-  - URI::Escape                deb: liburi-perl
-                               rpm: perl-URI
-                               (for HTML/Atom generation)
 
   - Search::Xapian             deb: libsearch-xapian-perl
                                rpm: perl-Search-Xapian
@@ -102,11 +102,9 @@ Numerous optional modules are likely to be useful as well:
 
 On Fedora systems, you'll probably also end up wanting
 perl-Test-HTTP-Server-Simple, perl-Devel-Peek, and perl-IPC-Run to run the
-test suite.  On Debian systems, libxml-feed-perl and libipc-run-perl(*)
+test suite.  On Debian systems, libxml-feed-perl and libipc-run-perl
 will aid in running the test suite (XML::Feed and IPC::Run respectively,
 on CPAN).
-
-(*) we hope to drop this dependency someday
 
 standard MakeMaker installation (Perl)
 --------------------------------------
