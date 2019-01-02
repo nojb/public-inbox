@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2013-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 all::
 
@@ -24,6 +24,8 @@ m1 += public-inbox-watch
 m1 += public-inbox-index
 m5 =
 m5 += public-inbox-config
+m5 += public-inbox-v1-format
+m5 += public-inbox-v2-format
 m7 =
 m7 += public-inbox-overview
 m8 =

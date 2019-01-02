@@ -56,4 +56,4 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<git(1)>, L<git-config(1)>, L<ssoma_repository(5)>
+L<git(1)>, L<git-config(1)>, L<public-inbox-v1-format(5)>

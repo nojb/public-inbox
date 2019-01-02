@@ -2,7 +2,7 @@ public-inbox (server-side) installation
 ---------------------------------------
 
 This is for folks who want to setup their own public-inbox instance.
-Clients should see https://ssoma.public-inbox.org/INSTALL.html instead
+Clients should use normal git-clone/git-fetch, or NNTP clients
 if they want to import mail into their personal inboxes.
 
 TODO: this still needs to be documented better,
@@ -134,5 +134,5 @@ installation is complete.
 Copyright
 ---------
 
-Copyright 2013-2018 all contributors <meta@public-inbox.org>
+Copyright 2013-2019 all contributors <meta@public-inbox.org>
 License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>

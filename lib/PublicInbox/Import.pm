@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # git fast-import-based ssoma-mda MDA replacement
@@ -635,8 +635,8 @@ version 1.0
 =head1 DESCRIPTION
 
 An importer and remover for public-inboxes which takes L<Email::MIME>
-messages as input and stores them in a ssoma repository as
-documented in L<https://ssoma.public-inbox.org/ssoma_repository.txt>,
+messages as input and stores them in a git repository as
+documented in L<https://public-inbox.org/public-inbox-v1-format.txt>,
 except it does not allow duplicate Message-IDs.
 
 It requires L<git(1)> and L<git-fast-import(1)> to be installed.

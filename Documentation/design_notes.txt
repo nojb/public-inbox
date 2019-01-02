@@ -27,9 +27,7 @@ Use existing infrastructure
 * Existing spam filtering on an SMTP server is also effective on
   public-inbox.
 
-* readers may continue using use their choice of mail clients and
-  mailbox formats, only learning a few commands of the ssoma(1) tool
-  is required.
+* Readers may continue using use their choice of NNTP and mail clients.
 
 * Atom is a reasonable feed format for casual readers and is supported
   by a variety of feed readers.
@@ -145,19 +143,11 @@ What sucks about public-inbox
 Scalability notes
 -----------------
 
-Even with shallow clone, storing the history of large/busy mailing lists
-may place much burden on subscribers and servers.  However, having a
-single (or few) refs representing the entire history of a list is good
-for small lists since it's easier to look up a message by Message-ID, so
-we want to avoid splitting refs with independent histories.
-
-ssoma will likely grow its own built-in ref rotation system based on
-message count (not rotating at fixed time intervals).  This would
-split the histories and require O(n) lookup time based on Message-ID,
-where `n' is the number of history splits.
+See the public-inbox-v2-format(5) manpage for all the scalability
+problems solved.
 
 Copyright
 ---------
 
-Copyright 2013-2018 all contributors <meta@public-inbox.org>
+Copyright 2013-2019 all contributors <meta@public-inbox.org>
 License: AGPL-3.0+ <http://www.gnu.org/licenses/agpl-3.0.txt>

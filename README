@@ -22,8 +22,9 @@ to run their own instances with minimal overhead.
 Implementation
 --------------
 
-public-inbox stores mail in a git repository keyed by Message-ID
-as documented in: https://ssoma.public-inbox.org/ssoma_repository.txt
+public-inbox stores mail in git repositories as documented
+in https://public-inbox.org/public-inbox-v2-format.txt and
+https://public-inbox.org/public-inbox-v1-format.txt
 
 By storing (and optionally) exposing an inbox via git, it is
 fast and efficient to host and mirror public-inboxes.
@@ -35,10 +36,10 @@ discussions if archives do not expose Message-ID and References
 headers.  List server admins are also burdened with delivery
 failures.
 
-public-inbox uses the "pull" model.  Casual readers may also
+public-inbox uses the "pull" model.  Casual readers may
 follow the list via NNTP, Atom feed or HTML archives.
 
-If a reader loses interest, they simply stop syncing.
+If a reader loses interest, they simply stop following.
 
 Since we use git, mirrors are easy-to-setup, and lists are
 easy-to-relocate to different mail addresses without losing
@@ -74,6 +75,9 @@ Requirements (participant)
   Users are strongly encouraged to use the "reply-all" feature of
   their mailers to reduce the impact of a public-inbox as a
   single point of failure.
+
+* The HTTP web interface exposes mboxrd files, and NNTP clients often
+  feature reply-by-email functionality
 
 * participants do not need to install public-inbox, only server admins
 
@@ -123,10 +127,6 @@ You may also clone all messages via git:
 	git clone --mirror https://public-inbox.org/meta/
 	torsocks git clone --mirror http://hjrcffqmbrq6wope.onion/meta/
 
-Or pass the same git repository URL for ssoma using the instructions at:
-
-	https://ssoma.public-inbox.org/README.html
-
 Anti-Spam
 ---------
 
@@ -140,7 +140,7 @@ Content Filtering
 -----------------
 
 To discourage phishing, trackers, exploits and other nuisances,
-only plain-text emails are allowed and HTML is rejected.
+only plain-text emails are allowed and HTML is rejected by default.
 This improves accessibility, and saves bandwidth and storage
 as mail is archived forever.
 
@@ -151,7 +151,7 @@ aims to preserve the focus on content, and not presentation.
 Copyright
 ---------
 
-Copyright 2013-2018 all contributors <meta@public-inbox.org>
+Copyright 2013-2019 all contributors <meta@public-inbox.org>
 License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 This program is free software: you can redistribute it and/or modify
