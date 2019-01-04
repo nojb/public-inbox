@@ -12,7 +12,6 @@ eval { require IPC::Run };
 plan skip_all => "missing IPC::Run for t/cgi.t" if $@;
 
 use constant CGI => "blib/script/public-inbox.cgi";
-my $index = "blib/script/public-inbox-index";
 my $tmpdir = tempdir('pi-cgi-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
@@ -77,14 +76,9 @@ Me wrote:
 what?
 EOF
 	$im->add($reply);
-	$im->done;
-}
 
-# message-id pages
-{
-	local $ENV{HOME} = $home;
 	my $slashy_mid = 'slashy/asdf@example.com';
-	my $reply = Email::MIME->new(<<EOF);
+	my $slashy = Email::MIME->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr
@@ -94,30 +88,12 @@ Date: Thu, 01 Jan 1970 00:00:01 +0000
 
 slashy
 EOF
-	$im->add($reply);
+	$im->add($slashy);
 	$im->done;
 
 	my $res = cgi_run("/test/slashy/asdf\@example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
 		"slashy mid raw hit");
-
-	$res = cgi_run("/test/blahblah\@example.com/raw");
-	like($res->{body}, qr/Message-Id: <blahblah\@example\.com>/,
-		"mid raw hit");
-
-	$res = cgi_run("/test/blahblah\@example.com/");
-	like($res->{body}, qr/\A<html>/, "mid html hit");
-	like($res->{head}, qr/Status: 200 OK/, "200 response");
-
-	$res = cgi_run("/test/blahblah\@example.com/f/");
-	like($res->{head}, qr/Status: 301 Moved/, "301 response");
-	like($res->{head},
-		qr!^Location: http://[^/]+/test/blahblah\@example\.com/\r\n!ms,
-		'301 redirect location');
-
-	$res = cgi_run("/test/new.html");
-	like($res->{body}, qr/slashy%2Fasdf\@example\.com/,
-		"slashy URL generated correctly");
 }
 
 # retrieve thread as an mbox
@@ -126,7 +102,13 @@ EOF
 	my $path = "/test/blahblah\@example.com/t.mbox.gz";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
-	my $indexed = system($index, $maindir) == 0;
+	my $indexed;
+	eval {
+		require PublicInbox::SearchIdx;
+		my $s = PublicInbox::SearchIdx->new($maindir, 1);
+		$s->index_sync;
+		$indexed = 1;
+	};
 	if ($indexed) {
 		$res = cgi_run($path);
 		like($res->{head}, qr/^Status: 200 /, "search returned mbox");
