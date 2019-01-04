@@ -80,16 +80,6 @@ EOF
 	$im->done;
 }
 
-# obvious failures, first
-{
-	local $ENV{HOME} = $home;
-	my $res = cgi_run("/", "", "PUT");
-	like($res->{head}, qr/Status:\s*405/i, "PUT not allowed");
-
-	$res = cgi_run("/");
-	like($res->{head}, qr/Status:\s*404/i, "index returns 404");
-}
-
 # message-id pages
 {
 	local $ENV{HOME} = $home;

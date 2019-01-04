@@ -240,6 +240,19 @@ EOF
 		is(206, $res->code, 'got partial another response');
 		is($res->content, substr($orig, 5), 'partial body OK past end');
 	});
+
+	# things which should fail
+	test_psgi($app, sub {
+		my ($cb) = @_;
+
+		my $res = $cb->(PUT('/'));
+		is(405, $res->code, 'no PUT to / allowed');
+		$res = $cb->(PUT('/test/'));
+		is(405, $res->code, 'no PUT /$INBOX allowed');
+
+		# TODO
+		# $res = $cb->(GET('/'));
+	});
 }
 
 done_testing();
