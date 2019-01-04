@@ -135,9 +135,12 @@ EOF
 		my ($cb) = @_;
 		my $res = $cb->(GET($pfx . '/atom.xml'));
 		is(200, $res->code, 'success response received for atom');
-		like($res->content,
-			qr!link\s+href="\Q$pfx\E/blah\@example\.com/"!s,
+		my $body = $res->content;
+		like($body, qr!link\s+href="\Q$pfx\E/blah\@example\.com/"!s,
 			'atom feed generated correct URL');
+		like($body, qr/<title>test for public-inbox/,
+			"set title in XML feed");
+		like($body, qr/zzzzzz/, 'body included');
 	});
 
 	test_psgi($app, sub {

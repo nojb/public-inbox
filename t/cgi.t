@@ -109,18 +109,6 @@ EOF
 	is($res->{body}, substr($orig, 5), 'partial body OK past end');
 }
 
-# atom feeds
-{
-	local $ENV{HOME} = $home;
-	my $res = cgi_run("/test/atom.xml");
-	like($res->{body}, qr/<title>test for public-inbox/,
-		"set title in XML feed");
-	like($res->{body},
-		qr!http://test\.example\.com/test/blah\@example\.com/!,
-		"link id set");
-	like($res->{body}, qr/what\?/, "reply included");
-}
-
 # message-id pages
 {
 	local $ENV{HOME} = $home;
