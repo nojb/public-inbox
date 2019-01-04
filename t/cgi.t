@@ -48,9 +48,8 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 {
 	local $ENV{HOME} = $home;
 
-	# ensure successful message delivery
-	{
-		my $mime = Email::MIME->new(<<EOF);
+	# inject some messages:
+	my $mime = Email::MIME->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -60,15 +59,10 @@ Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 zzzzzz
 EOF
-		$im->add($mime);
-		$im->done;
-		my $rev = `git --git-dir=$maindir rev-list HEAD`;
-		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
-	}
+	$im->add($mime);
 
 	# deliver a reply, too
-	{
-		my $reply = Email::MIME->new(<<EOF);
+	my $reply = Email::MIME->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr
@@ -82,12 +76,8 @@ Me wrote:
 
 what?
 EOF
-		$im->add($reply);
-		$im->done;
-		my $rev = `git --git-dir=$maindir rev-list HEAD`;
-		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
-	}
-
+	$im->add($reply);
+	$im->done;
 }
 
 # obvious failures, first
@@ -118,7 +108,7 @@ EOF
 	like($res->{head}, qr/Status:\s*206/i, "info/refs partial past end OK");
 	is($res->{body}, substr($orig, 5), 'partial body OK past end');
 }
-use Data::Dumper;
+
 # atom feeds
 {
 	local $ENV{HOME} = $home;
