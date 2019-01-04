@@ -92,7 +92,8 @@ EOF
 		my $to = "$from/";
 		my $res = $cb->(GET($from));
 		is(301, $res->code, 'is permanent redirect');
-		is($to, $res->header('Location'), 'redirect location matches');
+		is($to, $res->header('Location'),
+			'redirect location matches with trailing slash');
 	});
 
 	my $pfx = 'http://example.com/test';
