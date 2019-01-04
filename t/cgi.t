@@ -90,25 +90,6 @@ EOF
 	like($res->{head}, qr/Status:\s*404/i, "index returns 404");
 }
 
-# dumb HTTP support
-{
-	local $ENV{HOME} = $home;
-	my $path = "/test/info/refs";
-	my $res = cgi_run($path);
-	like($res->{head}, qr/Status:\s*200/i, "info/refs readable");
-	my $orig = $res->{body};
-
-	local $ENV{HTTP_RANGE} = 'bytes=5-10';
-	$res = cgi_run($path);
-	like($res->{head}, qr/Status:\s*206/i, "info/refs partial OK");
-	is($res->{body}, substr($orig, 5, 6), 'partial body OK');
-
-	local $ENV{HTTP_RANGE} = 'bytes=5-';
-	$res = cgi_run($path);
-	like($res->{head}, qr/Status:\s*206/i, "info/refs partial past end OK");
-	is($res->{body}, substr($orig, 5), 'partial body OK past end');
-}
-
 # message-id pages
 {
 	local $ENV{HOME} = $home;

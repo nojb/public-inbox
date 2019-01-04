@@ -220,6 +220,26 @@ EOF
 				'redirect from x40 MIDs works');
 		}
 	});
+
+	# dumb HTTP clone/fetch support
+	test_psgi($app, sub {
+		my ($cb) = @_;
+		my $path = '/test/info/refs';
+		my $req = HTTP::Request->new('GET' => $path);
+		my $res = $cb->($req);
+		is(200, $res->code, 'refs readable');
+		my $orig = $res->content;
+
+		$req->header('Range', 'bytes=5-10');
+		$res = $cb->($req);
+		is(206, $res->code, 'got partial response');
+		is($res->content, substr($orig, 5, 6), 'partial body OK');
+
+		$req->header('Range', 'bytes=5-');
+		$res = $cb->($req);
+		is(206, $res->code, 'got partial another response');
+		is($res->content, substr($orig, 5), 'partial body OK past end');
+	});
 }
 
 done_testing();
