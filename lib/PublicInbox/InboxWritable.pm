@@ -168,7 +168,6 @@ sub import_mbox {
 
 sub _read_git_config_perm {
 	my ($self) = @_;
-	my @cmd = qw(config);
 	chomp(my $perm = $self->git->qx('config', 'core.sharedRepository'));
 	$perm;
 }
