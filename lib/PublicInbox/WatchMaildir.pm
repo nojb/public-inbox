@@ -19,7 +19,7 @@ use PublicInbox::Spamcheck;
 
 sub new {
 	my ($class, $config) = @_;
-	my (%mdmap, @mdir, $spamc, $spamdir);
+	my (%mdmap, @mdir, $spamc);
 	my %uniq;
 
 	# "publicinboxwatch" is the documented namespace
@@ -32,7 +32,6 @@ sub new {
 				$dir =~ s!/+\z!!;
 				# skip "new", no MUA has seen it, yet.
 				my $cur = "$dir/cur";
-				$spamdir = $cur;
 				my $old = $mdmap{$cur};
 				if (ref($old)) {
 					foreach my $ibx (@$old) {
@@ -84,7 +83,6 @@ sub new {
 	$mdre = qr!\A($mdre)/!;
 	bless {
 		spamcheck => $spamcheck,
-		spamdir => $spamdir,
 		mdmap => \%mdmap,
 		mdir => \@mdir,
 		mdre => $mdre,
