@@ -607,6 +607,17 @@ sub _git_log {
 	my ($self, $range) = @_;
 	my $git = $self->{git};
 
+	if (index($range, '..') < 0) {
+		# don't show annoying git errrors to users who run -index
+		# on empty inboxes
+		$git->qx(qw(rev-parse -q --verify), "$range^0");
+		if ($?) {
+			open my $fh, '<', '/dev/null' or
+				die "failed to open /dev/null: $!\n";
+			return $fh;
+		}
+	}
+
 	# Count the new files so they can be added newest to oldest
 	# and still have numbers increasing from oldest to newest
 	my $fcount = 0;

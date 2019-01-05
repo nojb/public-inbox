@@ -790,7 +790,8 @@ sub index_prepare {
 		my $git_dir = git_dir_n($self, $i);
 		-d $git_dir or next; # missing parts are fine
 		my $git = PublicInbox::Git->new($git_dir);
-		chomp(my $tip = $git->qx('rev-parse', $head));
+		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
+		next if $?; # new repo
 		my $range;
 		if (defined(my $cur = $ranges->[$i])) {
 			$range = "$cur..$tip";
