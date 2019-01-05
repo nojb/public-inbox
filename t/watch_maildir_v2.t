@@ -38,13 +38,14 @@ ok(POSIX::mkfifo("$maildir/cur/fifo", 0777),
 	'create FIFO to ensure we do not get stuck on it :P');
 my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
-my $config = PublicInbox::Config->new({
+my %orig = (
 	"$cfgpfx.address" => $addr,
 	"$cfgpfx.mainrepo" => $mainrepo,
 	"$cfgpfx.watch" => "maildir:$maildir",
 	"$cfgpfx.filter" => 'PublicInbox::Filter::Vger',
-	"publicinboxlearn.watchspam" => "maildir:$spamdir",
-});
+	"publicinboxlearn.watchspam" => "maildir:$spamdir"
+);
+my $config = PublicInbox::Config->new({%orig});
 my $ibx = $config->lookup_name('test');
 ok($ibx, 'found inbox by name');
 my $srch = $ibx->search;
@@ -135,6 +136,37 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	($nr, $msgs) = $srch->query('dfpre:090d998b6c2c');
 	is($nr, 1, 'diff preimage found');
 	is($post->{blob}, $msgs->[0]->{blob}, 'same message');
+}
+
+# multiple inboxes in the same maildir
+{
+	my $v1repo = "$tmpdir/v1";
+	my $v1pfx = "publicinbox.v1";
+	my $v1addr = 'v1-public@example.com';
+	is(system(qw(git init -q --bare), $v1repo), 0, 'v1 init OK');
+	my $config = PublicInbox::Config->new({
+		%orig,
+		"$v1pfx.address" => $v1addr,
+		"$v1pfx.mainrepo" => $v1repo,
+		"$v1pfx.watch" => "maildir:$maildir",
+	});
+	my $both = <<EOF;
+From: user\@example.com
+To: $addr, $v1addr
+Subject: both
+Message-Id: <both\@b.com>
+Date: Sat, 18 Jun 2016 00:00:00 +0000
+
+both
+EOF
+	PublicInbox::Emergency->new($maildir)->prepare(\$both);
+	PublicInbox::WatchMaildir->new($config)->scan('full');
+	my ($total, $msgs) = $srch->reopen->query('m:both@b.com');
+	my $v1 = $config->lookup_name('v1');
+	my $msg = $v1->git->cat_file($msgs->[0]->{blob});
+	is($both, $$msg, 'got original message back from v1');
+	$msg = $ibx->git->cat_file($msgs->[0]->{blob});
+	is($both, $$msg, 'got original message back from v2');
 }
 
 done_testing;

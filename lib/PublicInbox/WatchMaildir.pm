@@ -20,6 +20,7 @@ use PublicInbox::Spamcheck;
 sub new {
 	my ($class, $config) = @_;
 	my (%mdmap, @mdir, $spamc, $spamdir);
+	my %uniq;
 
 	# "publicinboxwatch" is the documented namespace
 	# "publicinboxlearn" is legacy but may be supported
@@ -32,7 +33,17 @@ sub new {
 				# skip "new", no MUA has seen it, yet.
 				my $cur = "$dir/cur";
 				$spamdir = $cur;
+				my $old = $mdmap{$cur};
+				if (ref($old)) {
+					foreach my $ibx (@$old) {
+						warn <<"";
+"$cur already watched for `$ibx->{name}'
+
+					}
+					die;
+				}
 				push @mdir, $cur;
+				$uniq{$cur}++;
 				$mdmap{$cur} = 'watchspam';
 			} else {
 				warn "unsupported $k=$dir\n";
@@ -58,10 +69,11 @@ sub new {
 			}
 			my $new = "$watch/new";
 			my $cur = "$watch/cur";
-			push @mdir, $new, $cur;
-			die "$new already in use\n" if $mdmap{$new};
-			die "$cur already in use\n" if $mdmap{$cur};
-			$mdmap{$new} = $mdmap{$cur} = $ibx;
+			push @mdir, $new unless $uniq{$new}++;
+			push @mdir, $cur unless $uniq{$cur}++;
+
+			push @{$mdmap{$new} ||= []}, $ibx;
+			push @{$mdmap{$cur} ||= []}, $ibx;
 		} else {
 			warn "watch unsupported: $k=$watch\n";
 		}
@@ -134,28 +146,30 @@ sub _try_path {
 		warn "unrecognized path: $path\n";
 		return;
 	}
-	my $inbox = $self->{mdmap}->{$1};
-	unless ($inbox) {
+	my $inboxes = $self->{mdmap}->{$1};
+	unless ($inboxes) {
 		warn "unmappable dir: $1\n";
 		return;
 	}
-	if (!ref($inbox) && $inbox eq 'watchspam') {
+	if (!ref($inboxes) && $inboxes eq 'watchspam') {
 		return _remove_spam($self, $path);
 	}
-	my $im = _importer_for($self, $inbox);
-	my $mime = _path_to_mime($path) or return;
-	my $wm = $inbox->{-watchheader};
-	if ($wm) {
-		my $v = $mime->header_obj->header_raw($wm->[0]);
-		return unless ($v && $v =~ $wm->[1]);
-	}
-	if (my $scrub = $inbox->filter) {
-		my $ret = $scrub->scrub($mime) or return;
-		$ret == REJECT() and return;
-		$mime = $ret;
-	}
+	foreach my $ibx (@$inboxes) {
+		my $mime = _path_to_mime($path) or next;
+		my $im = _importer_for($self, $ibx);
 
-	$im->add($mime, $self->{spamcheck});
+		my $wm = $ibx->{-watchheader};
+		if ($wm) {
+			my $v = $mime->header_obj->header_raw($wm->[0]);
+			next unless ($v && $v =~ $wm->[1]);
+		}
+		if (my $scrub = $ibx->filter) {
+			my $ret = $scrub->scrub($mime) or next;
+			$ret == REJECT() and next;
+			$mime = $ret;
+		}
+		$im->add($mime, $self->{spamcheck});
+	}
 }
 
 sub quit { trigger_scan($_[0], 'quit') }
