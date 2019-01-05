@@ -356,6 +356,11 @@ sub unlink_pid_file_safe_ish ($$) {
 sub master_loop {
 	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!";
 	pipe(my ($r, $w)) or die "failed to create self-pipe: $!";
+
+	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ = 1031
+		fcntl($_, 1031, 4096) for ($w, $p1);
+	}
+
 	IO::Handle::blocking($w, 0);
 	my $set_workers = $worker_processes;
 	my @caught;

@@ -243,6 +243,9 @@ sub idx_init {
 
 	if ($self->{parallel}) {
 		pipe(my ($r, $w)) or die "pipe failed: $!";
+		# pipe for barrier notifications doesn't need to be big,
+		# 1031: F_SETPIPE_SZ
+		fcntl($w, 1031, 4096) if $^O eq 'linux';
 		$self->{bnote} = [ $r, $w ];
 		$w->autoflush(1);
 	}

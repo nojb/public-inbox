@@ -37,6 +37,10 @@ sub _bidi_pipe {
 
 	pipe($in_r, $in_w) or fail($self, "pipe failed: $!");
 	pipe($out_r, $out_w) or fail($self, "pipe failed: $!");
+	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ
+		fcntl($out_w, 1031, 4096);
+		fcntl($in_w, 1031, 4096) if $batch eq '--batch-check';
+	}
 
 	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file), $batch);
 	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
