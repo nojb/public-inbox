@@ -28,8 +28,7 @@ sub new {
 	foreach my $pfx (qw(publicinboxwatch publicinboxlearn)) {
 		my $k = "$pfx.watchspam";
 		if (my $dir = $config->{$k}) {
-			if ($dir =~ s/\Amaildir://) {
-				$dir =~ s!/+\z!!;
+			if (is_maildir($dir)) {
 				# skip "new", no MUA has seen it, yet.
 				my $cur = "$dir/cur";
 				my $old = $mdmap{$cur};
@@ -60,8 +59,7 @@ sub new {
 		my $ibx = $_[0] = PublicInbox::InboxWritable->new($_[0]);
 
 		my $watch = $ibx->{watch} or return;
-		if ($watch =~ s/\Amaildir://) {
-			$watch =~ s!/+\z!!;
+		if (is_maildir($watch)) {
 			if (my $wm = $ibx->{watchheader}) {
 				my ($k, $v) = split(/:/, $wm, 2);
 				$ibx->{-watchheader} = [ $k, qr/\Q$v\E/ ];
@@ -276,6 +274,13 @@ sub _spamcheck_cb {
 		warn $mime->header('Message-ID')." failed spam check\n";
 		undef;
 	}
+}
+
+sub is_maildir {
+	$_[0] =~ s!\Amaildir:!! or return;
+	$_[0] =~ tr!/!/!s;
+	$_[0] =~ s!/\z!!;
+	$_[0];
 }
 
 1;

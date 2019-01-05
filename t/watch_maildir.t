@@ -124,4 +124,13 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
 }
 
+sub is_maildir {
+	my ($dir) = @_;
+	PublicInbox::WatchMaildir::is_maildir($dir);
+}
+
+is(is_maildir('maildir:/hello//world'), '/hello/world', 'extra slash gone');
+is(is_maildir('maildir:/hello/world/'), '/hello/world', 'trailing slash gone');
+is(is_maildir('faildir:/hello/world/'), undef, 'non-maildir rejected');
+
 done_testing;
