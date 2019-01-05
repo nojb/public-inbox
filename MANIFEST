@@ -175,6 +175,7 @@ t/init.t
 t/linkify.t
 t/main-bin/spamc
 t/mda.t
+t/mda_filter_rubylang.t
 t/mid.t
 t/mime.t
 t/msg_iter.t
@@ -212,5 +213,6 @@ t/v2mirror.t
 t/v2reindex.t
 t/v2writable.t
 t/view.t
+t/watch_filter_rubylang.t
 t/watch_maildir.t
 t/watch_maildir_v2.t

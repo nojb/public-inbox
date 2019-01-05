@@ -46,9 +46,16 @@ sub importer {
 }
 
 sub filter {
-	my ($self) = @_;
+	my ($self, $im) = @_;
 	my $f = $self->{filter};
 	if ($f && $f =~ /::/) {
+		# v2 keeps msgmap open, which causes conflicts for filters
+		# such as PublicInbox::Filter::RubyLang which overload msgmap
+		# for a predictable serial number.
+		if ($im && ($self->{version} || 1) >= 2 && $self->{altid}) {
+			$im->done;
+		}
+
 		my @args = (-inbox => $self);
 		# basic line splitting, only
 		# Perhaps we can have proper quote splitting one day...
@@ -100,7 +107,7 @@ sub maildir_path_load ($) {
 sub import_maildir {
 	my ($self, $dir) = @_;
 	my $im = $self->importer(1);
-	my $filter = $self->filter;
+
 	foreach my $sub (qw(cur new tmp)) {
 		-d "$dir/$sub" or die "$dir is not a Maildir (missing $sub)\n";
 	}
@@ -109,7 +116,8 @@ sub import_maildir {
 		while (defined(my $fn = readdir($dh))) {
 			next unless is_maildir_basename($fn);
 			my $mime = maildir_file_load("$dir/$fn") or next;
-			if ($filter) {
+
+			if (my $filter = $self->filter($im)) {
 				my $ret = $filter->scrub($mime) or return;
 				return if $ret == REJECT();
 				$mime = $ret;

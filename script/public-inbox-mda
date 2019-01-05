@@ -81,6 +81,7 @@ if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
 	$! = 65; # EX_DATAERR 5.6.0 data format error
 	die $filter->err, "\n";
 } # else { accept
+$filter = undef;
 
 PublicInbox::MDA->set_list_headers($mime, $dst);
 my $im = $dst->importer(0);

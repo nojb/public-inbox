@@ -121,7 +121,7 @@ sub _remove_spam {
 		eval {
 			my $im = _importer_for($self, $ibx);
 			$im->remove($mime, 'spam');
-			if (my $scrub = $ibx->filter) {
+			if (my $scrub = $ibx->filter($im)) {
 				my $scrubbed = $scrub->scrub($mime, 1);
 				$scrubbed or return;
 				$scrubbed == REJECT() and return;
@@ -159,7 +159,8 @@ sub _try_path {
 			my $v = $mime->header_obj->header_raw($wm->[0]);
 			next unless ($v && $v =~ $wm->[1]);
 		}
-		if (my $scrub = $ibx->filter) {
+
+		if (my $scrub = $ibx->filter($im)) {
 			my $ret = $scrub->scrub($mime) or next;
 			$ret == REJECT() and next;
 			$mime = $ret;

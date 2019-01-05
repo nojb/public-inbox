@@ -163,6 +163,19 @@ sub num_for {
 			return if $existing;
 		}
 
+		# AltId may pre-populate article numbers (e.g. X-Mail-Count
+		# or NNTP article number), use that article number if it's
+		# not in Over.
+		my $altid = $self->{-inbox}->{altid};
+		if ($altid && grep(/:file=msgmap\.sqlite3\z/, @$altid)) {
+			my $num = $self->{mm}->num_for($mid);
+
+			if (defined $num && !$self->{over}->get_art($num)) {
+				$$mid0 = $mid;
+				return $num;
+			}
+		}
+
 		# very unlikely:
 		warn "<$mid> reused for mismatched content\n";
 
