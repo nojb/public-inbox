@@ -3,6 +3,8 @@
 # based on notmuch, but with no concept of folders, files or flags
 #
 # Wraps a document inside our Xapian search index.
+# There may be many of these objects loaded in memory at once
+# for large threads in our WWW UI.
 package PublicInbox::SearchMsg;
 use strict;
 use warnings;

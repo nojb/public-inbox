@@ -1,6 +1,8 @@
 # Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
+# wraps a listen socket for HTTP and links it to the PSGI app in
+# public-inbox-httpd
 package PublicInbox::HTTPD;
 use strict;
 use warnings;

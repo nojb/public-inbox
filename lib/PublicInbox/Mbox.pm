@@ -1,8 +1,12 @@
 # Copyright (C) 2015-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# Streaming interface for formatting messages as an mboxrd.
-# Used by the web interface
+# Streaming (via getline) interface for formatting messages as an mboxrd.
+# Used by the PSGI web interface.
+#
+# public-inbox-httpd favors "getline" response bodies to take a
+# "pull"-based approach to feeding slow clients (as opposed to a
+# more common "push" model)
 package PublicInbox::Mbox;
 use strict;
 use warnings;

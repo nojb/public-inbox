@@ -2,6 +2,10 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # HTML body stream for which yields getline+close methods
+#
+# public-inbox-httpd favors "getline" response bodies to take a
+# "pull"-based approach to feeding slow clients (as opposed to a
+# more common "push" model)
 package PublicInbox::WwwStream;
 use strict;
 use warnings;

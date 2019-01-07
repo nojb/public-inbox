@@ -1,5 +1,7 @@
 # Copyright (C) 2014-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+
+# For reply instructions and address generation in WWW UI
 package PublicInbox::Reply;
 use strict;
 use warnings;

@@ -1,5 +1,7 @@
 # Copyright (C) 2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+
+# Various date/time-related functions
 package PublicInbox::MsgTime;
 use strict;
 use warnings;

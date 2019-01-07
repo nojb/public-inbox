@@ -1,12 +1,21 @@
 # Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
+# Used for giving serial numbers to messages.  This can be tied to
+# the msgmap for live updates to living lists (see
+# PublicInbox::Filters::RubyLang), or kept separate for imports
+# of defunct NNTP groups (e.g. scripts/xhdr-num2mid)
+#
+# Introducing NEW uses of serial numbers is discouraged because of
+# it leads to reliance on centralization.  However, being able
+# to use existing serial numbers is beneficial.
 package PublicInbox::AltId;
 use strict;
 use warnings;
 use URI::Escape qw(uri_unescape);
 
 # spec: TYPE:PREFIX:param1=value1&param2=value2&...
+# The PREFIX will be a searchable boolean prefix in Xapian
 # Example: serial:gmane:file=/path/to/altmsgmap.sqlite3
 sub new {
 	my ($class, $inbox, $spec, $writable) = @_;

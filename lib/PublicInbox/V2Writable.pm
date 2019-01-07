@@ -2,6 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # This interface wraps and mimics PublicInbox::Import
+# Used to write to V2 inboxes (see L<public-inbox-v2-format(5)>).
 package PublicInbox::V2Writable;
 use strict;
 use warnings;

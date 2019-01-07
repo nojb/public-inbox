@@ -1,7 +1,7 @@
 # Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# Rules useful for running a mailing list mirror.  We want to:
+# SpamAssassin rules useful for running a mailing list mirror.  We want to:
 # * ensure Received: headers are really from the list mail server
 #   users expect.  This is to prevent malicious users from
 #   injecting spam into mirrors without going through the expected

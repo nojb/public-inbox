@@ -4,6 +4,10 @@
 # Wrap a pipe or file for PSGI streaming response bodies and calls the
 # end callback when the object goes out-of-scope.
 # This depends on rpipe being _blocking_ on getline.
+#
+# public-inbox-httpd favors "getline" response bodies to take a
+# "pull"-based approach to feeding slow clients (as opposed to a
+# more common "push" model)
 package PublicInbox::GetlineBody;
 use strict;
 use warnings;

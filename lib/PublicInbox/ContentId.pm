@@ -1,6 +1,11 @@
 # Copyright (C) 2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
+# Unstable internal API.
+# Used for on-the-fly duplicate detection in V2 inboxes.
+# This is not stored in any database anywhere and may change
+# as changes in duplicate detection are needed.
+# See L<public-inbox-v2-format(5)> manpage for more details.
 package PublicInbox::ContentId;
 use strict;
 use warnings;

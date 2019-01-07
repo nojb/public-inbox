@@ -1,5 +1,8 @@
 # Copyright (C) 2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+
+# used to interface with a single Xapian partition in V2 repos.
+# See L<public-inbox-v2-format(5)> for more info on how we partition Xapian
 package PublicInbox::SearchIdxPart;
 use strict;
 use warnings;

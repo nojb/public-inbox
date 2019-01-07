@@ -1,5 +1,7 @@
 # Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+
+# Default spam filter class for wrapping spamc(1)
 package PublicInbox::Spamcheck::Spamc;
 use strict;
 use warnings;

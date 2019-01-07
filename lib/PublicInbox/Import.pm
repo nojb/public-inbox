@@ -2,8 +2,9 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # git fast-import-based ssoma-mda MDA replacement
-# This is only ever run by public-inbox-mda and public-inbox-learn,
-# not the WWW or NNTP code which only requires read-only access.
+# This is only ever run by public-inbox-mda, public-inbox-learn
+# and public-inbox-watch. Not the WWW or NNTP code which only
+# requires read-only access.
 package PublicInbox::Import;
 use strict;
 use warnings;

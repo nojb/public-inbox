@@ -2,7 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # when no endpoints match, fallback to this and serve a static file
-# or smart HTTP
+# or smart HTTP.  This is our wrapper for git-http-backend(1)
 package PublicInbox::GitHTTPBackend;
 use strict;
 use warnings;
