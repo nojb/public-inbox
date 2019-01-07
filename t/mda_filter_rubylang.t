@@ -16,6 +16,7 @@ use_ok 'PublicInbox::V2Writable';
 my $tmpdir = tempdir('mda-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $pi_config = "$tmpdir/pi_config";
 local $ENV{PI_CONFIG} = $pi_config;
+local $ENV{PI_EMERGENCY} = "$tmpdir/emergency";
 my $mda = 'blib/script/public-inbox-mda';
 my @cfg = ('git', 'config', "--file=$pi_config");
 is(system(@cfg, 'publicinboxmda.spamcheck', 'none'), 0);
