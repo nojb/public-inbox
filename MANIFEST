@@ -51,6 +51,7 @@ examples/unsubscribe.milter
 examples/unsubscribe.psgi
 examples/varnish-4.vcl
 lib/PublicInbox/Address.pm
+lib/PublicInbox/Admin.pm
 lib/PublicInbox/AltId.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/ContentId.pm
@@ -141,6 +142,7 @@ scripts/slrnspool2maildir
 scripts/ssoma-replay
 scripts/xhdr-num2mid
 t/address.t
+t/admin.t
 t/altid.t
 t/altid_v2.t
 t/cgi.t

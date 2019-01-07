@@ -9,9 +9,10 @@
 use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use Cwd 'abs_path';
 my $usage = "public-inbox-index REPO_DIR";
 use PublicInbox::Config;
+use PublicInbox::Admin qw(resolve_repo_dir);
+
 my $config = eval { PublicInbox::Config->new } || eval {
 	warn "public-inbox unconfigured for serving, indexing anyways...\n";
 	{}
@@ -34,35 +35,6 @@ GetOptions(%opts) or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $jobs && $jobs < 0;
 
 my @dirs;
-
-sub resolve_repo_dir {
-	my ($cd) = @_;
-	my $prefix = defined $cd ? $cd : './';
-	if (-d $prefix && -f "$prefix/inbox.lock") { # v2
-		return abs_path($prefix);
-	}
-
-	my @cmd = qw(git rev-parse --git-dir);
-	my $cmd = join(' ', @cmd);
-	my $pid = open my $fh, '-|';
-	defined $pid or die "forking $cmd failed: $!\n";
-	if ($pid == 0) {
-		if (defined $cd) {
-			chdir $cd or die "chdir $cd failed: $!\n";
-		}
-		exec @cmd;
-		die "Failed to exec $cmd: $!\n";
-	} else {
-		my $dir = eval {
-			local $/;
-			<$fh>;
-		};
-		close $fh or die "error in $cmd: $!\n";
-		chomp $dir;
-		return abs_path($cd) if ($dir eq '.' && defined $cd);
-		abs_path($dir);
-	}
-}
 
 if (@ARGV) {
 	@dirs = map { resolve_repo_dir($_) } @ARGV;
