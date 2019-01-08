@@ -157,29 +157,17 @@ sub references {
 	defined $x ? $x : '';
 }
 
-sub _get_term_val ($$$) {
-	my ($self, $pfx, $re) = @_;
-	my $doc = $self->{doc};
-	my $end = $doc->termlist_end;
-	my $i = $doc->termlist_begin;
-	$i->skip_to($pfx);
-	if ($i != $end) {
-		my $val = $i->get_termname;
-		$val =~ s/$re// and return $val;
-	}
-	undef;
-}
-
 sub mid ($;$) {
 	my ($self, $mid) = @_;
 
 	if (defined $mid) {
 		$self->{mid} = $mid;
-	} elsif (my $rv = $self->{mid}) {
+	} elsif (defined(my $rv = $self->{mid})) {
 		$rv;
 	} elsif ($self->{doc}) {
-		$self->{mid} = _get_term_val($self, 'Q', qr/\AQ/);
+		die "SHOULD NOT HAPPEN\n";
 	} else {
+		die "NO {mime} for mid\n" unless $self->{mime};
 		$self->_extract_mid; # v1 w/o Xapian
 	}
 }
