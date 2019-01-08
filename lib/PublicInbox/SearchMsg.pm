@@ -82,18 +82,21 @@ sub load_expand {
 	$self;
 }
 
+sub psgi_cull ($) {
+	my ($self) = @_;
+	from_name($self); # fill in {from_name} so we can delete {from}
+
+	# drop NNTP-only fields which aren't relevant to PSGI results:
+	# saves ~80K on a 200 item search result:
+	delete @$self{qw(from ts to cc bytes lines)};
+	$self;
+}
+
 # Only called by PSGI interface, not NNTP
 sub load_doc {
 	my ($class, $doc) = @_;
 	my $self = bless {}, $class;
-	my $smsg = load_expand($self, $doc);
-
-	from_name($smsg); # fill in {from_name} so we can delete {from}
-
-	# drop NNTP-only fields which aren't relevant to PSGI results:
-	# saves ~80K on a 200 item search result:
-	delete @$smsg{qw(from ts to cc bytes lines)};
-	$smsg;
+	psgi_cull(load_expand($self, $doc));
 }
 
 # :bytes and :lines metadata in RFC 3977
