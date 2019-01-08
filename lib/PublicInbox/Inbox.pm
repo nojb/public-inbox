@@ -302,8 +302,9 @@ sub smsg_by_mid ($$) {
 	my ($self, $mid) = @_;
 	my $srch = search($self) or return;
 	# favor the Message-ID we used for the NNTP article number:
-	my $num = mid2num($self, $mid);
-	defined $num ? $srch->lookup_article($num) : undef;
+	defined(my $num = mid2num($self, $mid)) or return;
+	my $smsg = $srch->lookup_article($num) or return;
+	PublicInbox::SearchMsg::psgi_cull($smsg);
 }
 
 sub msg_by_mid ($$;$) {

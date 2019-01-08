@@ -219,7 +219,10 @@ sub index_entry {
 	$rv .= _th_index_lite($mid_raw, \$irt, $id, $ctx);
 	my @tocc;
 	my $ds = $smsg->ds; # for v1 non-Xapian/SQLite users
-	my $mime = delete $smsg->{mime}; # critical to memory use
+	# deleting {mime} is critical to memory use,
+	# the rest of the fields saves about 400K as we iterate across 1K msgs
+	my ($mime) = delete @$smsg{qw(mime ds ts blob subject)};
+
 	my $hdr = $mime->header_obj;
 	my $from = _hdr_names_html($hdr, 'From');
 	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
@@ -311,7 +314,10 @@ sub _th_index_lite {
 	my $nr_s = 0;
 	my $siblings;
 	if (my $smsg = $node->{smsg}) {
-		($$irt) = (($smsg->{references} || '') =~ m/<([^>]+)>\z/);
+		# delete saves about 200KB on a 1K message thread
+		if (my $refs = delete $smsg->{references}) {
+			($$irt) = ($refs =~ m/<([^>]+)>\z/);
+		}
 	}
 	my $irt_map = $mapping->{$$irt} if defined $$irt;
 	if (defined $irt_map) {
