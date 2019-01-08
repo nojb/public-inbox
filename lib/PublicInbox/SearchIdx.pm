@@ -282,7 +282,7 @@ sub index_body ($$$) {
 sub add_xapian ($$$$$) {
 	my ($self, $mime, $num, $oid, $mids, $mid0) = @_;
 	my $smsg = PublicInbox::SearchMsg->new($mime);
-	my $doc = $smsg->{doc};
+	my $doc = Search::Xapian::Document->new;
 	my $subj = $smsg->subject;
 	add_val($doc, PublicInbox::Search::TS(), $smsg->ts);
 	my @ds = gmtime($smsg->ds);
@@ -439,8 +439,8 @@ sub remove_by_oid {
 	for (; $head != $tail; $head->inc) {
 		my $docid = $head->get_docid;
 		my $doc = $db->get_document($docid);
-		my $smsg = PublicInbox::SearchMsg->wrap($doc, $mid);
-		$smsg->load_expand;
+		my $smsg = PublicInbox::SearchMsg->wrap($mid);
+		$smsg->load_expand($doc);
 		if ($smsg->{blob} eq $oid) {
 			push(@delete, $docid);
 		}

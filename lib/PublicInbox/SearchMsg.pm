@@ -13,20 +13,18 @@ use Time::Local qw(timegm);
 
 sub new {
 	my ($class, $mime) = @_;
-	my $doc = Search::Xapian::Document->new;
-	bless { doc => $doc, mime => $mime }, $class;
+	bless { mime => $mime }, $class;
 }
 
 sub wrap {
-	my ($class, $doc, $mid) = @_;
-	bless { doc => $doc, mime => undef, mid => $mid }, $class;
+	my ($class, $mid) = @_;
+	bless { mid => $mid }, $class;
 }
 
 sub get {
 	my ($class, $head, $db, $mid) = @_;
 	my $doc_id = $head->get_docid;
-	my $doc = $db->get_document($doc_id);
-	load_expand(wrap($class, $doc, $mid))
+	load_expand(wrap($class, $mid), $db->get_document($doc_id));
 }
 
 sub get_val ($$) {
@@ -70,8 +68,7 @@ sub load_from_data ($$) {
 }
 
 sub load_expand {
-	my ($self) = @_;
-	my $doc = $self->{doc};
+	my ($self, $doc) = @_;
 	my $data = $doc->get_data or return;
 	$self->{ts} = get_val($doc, PublicInbox::Search::TS());
 	my $dt = get_val($doc, PublicInbox::Search::DT());
@@ -84,8 +81,8 @@ sub load_expand {
 
 sub load_doc {
 	my ($class, $doc) = @_;
-	my $self = bless { doc => $doc }, $class;
-	$self->load_expand;
+	my $self = bless {}, $class;
+	load_expand($self, $doc);
 }
 
 # :bytes and :lines metadata in RFC 3977
@@ -164,8 +161,6 @@ sub mid ($;$) {
 		$self->{mid} = $mid;
 	} elsif (defined(my $rv = $self->{mid})) {
 		$rv;
-	} elsif ($self->{doc}) {
-		die "SHOULD NOT HAPPEN\n";
 	} else {
 		die "NO {mime} for mid\n" unless $self->{mime};
 		$self->_extract_mid; # v1 w/o Xapian
