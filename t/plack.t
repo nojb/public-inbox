@@ -46,7 +46,7 @@ To: You <you\@example.com>
 Cc: $addr
 Message-Id: <blah\@example.com>
 Subject: hihi
-Date: Thu, 01 Jan 1970 00:00:00 +0000
+Date: Fri, 02 Oct 1993 00:00:00 +0000
 
 zzzzzz
 EOF
@@ -129,6 +129,7 @@ EOF
 			'atom URL generated');
 		like($res->content, qr!href="blah\@example\.com/"!,
 			'index generated');
+		like($res->content, qr!1993-10-02!, 'date set');
 	});
 
 	test_psgi($app, sub {

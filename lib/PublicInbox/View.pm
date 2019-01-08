@@ -218,11 +218,12 @@ sub index_entry {
 	$rv .= $subj . "\n";
 	$rv .= _th_index_lite($mid_raw, \$irt, $id, $ctx);
 	my @tocc;
+	my $ds = $smsg->ds; # for v1 non-Xapian/SQLite users
 	my $mime = delete $smsg->{mime}; # critical to memory use
 	my $hdr = $mime->header_obj;
 	my $from = _hdr_names_html($hdr, 'From');
 	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
-	$rv .= "From: $from @ ".fmt_ts($smsg->ds)." UTC";
+	$rv .= "From: $from @ ".fmt_ts($ds)." UTC";
 	my $upfx = $ctx->{-upfx};
 	my $mhref = $upfx . mid_escape($mid_raw) . '/';
 	$rv .= qq{ (<a\nhref="$mhref">permalink</a> / };
