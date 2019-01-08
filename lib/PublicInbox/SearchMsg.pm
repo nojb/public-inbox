@@ -57,11 +57,14 @@ sub load_from_data ($$) {
 
 		# To: and Cc: are stored to optimize HDR/XHDR in NNTP since
 		# some NNTP clients will use that for message displays.
+		# NNTP only, and only stored in Over(view), not Xapian
 		$self->{to},
 		$self->{cc},
 
 		$self->{blob},
 		$self->{mid},
+
+		# NNTP only
 		$self->{bytes},
 		$self->{lines}
 	) = split(/\n/, $_[1]);
@@ -79,10 +82,18 @@ sub load_expand {
 	$self;
 }
 
+# Only called by PSGI interface, not NNTP
 sub load_doc {
 	my ($class, $doc) = @_;
 	my $self = bless {}, $class;
-	load_expand($self, $doc);
+	my $smsg = load_expand($self, $doc);
+
+	from_name($smsg); # fill in {from_name} so we can delete {from}
+
+	# drop NNTP-only fields which aren't relevant to PSGI results:
+	# saves ~80K on a 200 item search result:
+	delete @$smsg{qw(from ts to cc bytes lines)};
+	$smsg;
 }
 
 # :bytes and :lines metadata in RFC 3977
