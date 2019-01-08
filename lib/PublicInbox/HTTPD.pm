@@ -27,7 +27,6 @@ sub new {
 		'psgi.run_once'	 => Plack::Util::FALSE,
 		'psgi.multithread' => Plack::Util::FALSE,
 		'psgi.multiprocess' => Plack::Util::TRUE,
-		'psgix.harakiri'=> Plack::Util::FALSE,
 		'psgix.input.buffered' => Plack::Util::TRUE,
 
 		# XXX unstable API!
