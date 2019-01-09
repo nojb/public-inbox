@@ -152,6 +152,23 @@ sub git_config_dump {
 	\%rv;
 }
 
+sub valid_inbox_name ($) {
+	my ($name) = @_;
+
+	# Similar rules found in git.git/remote.c::valid_remote_nick
+	# and git.git/refs.c::check_refname_component
+	# We don't reject /\.lock\z/, however, since we don't lock refs
+	if ($name eq '' || $name =~ /\@\{/ ||
+	    $name =~ /\.\./ || $name =~ m![/:\?\[\]\^~\s\f[:cntrl:]\*]! ||
+	    $name =~ /\A\./ || $name =~ /\.\z/) {
+		return 0;
+	}
+
+	# Note: we allow URL-unfriendly characters; users may configure
+	# non-HTTP-accessible inboxes
+	1;
+}
+
 sub _fill {
 	my ($self, $pfx) = @_;
 	my $rv = {};
@@ -185,8 +202,7 @@ sub _fill {
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
 
-	# same rules as git.git/remote.c::valid_remote_nick
-	if ($name eq '' || $name =~ m!/! || $name eq '.' || $name eq '..') {
+	if (!valid_inbox_name($name)) {
 		warn "invalid inbox name: '$name'\n";
 		return;
 	}

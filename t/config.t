@@ -114,4 +114,40 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		}, 'known addresses populated');
 }
 
+my @invalid = (
+	# git rejects this because it locks refnames, but we don't have
+	# this problem with inbox names:
+	# 'inbox.lock',
+
+	# git rejects these:
+	'', '..', '.', 'stash@{9}', 'inbox.', '^caret', '~tilde',
+	'*asterisk', 's p a c e s', ' leading-space', 'trailing-space ',
+	'question?', 'colon:', '[square-brace]', "\fformfeed",
+	"\0zero", "\bbackspace",
+
+);
+
+require Data::Dumper;
+for my $s (@invalid) {
+	my $d = Data::Dumper->new([$s])->Terse(1)->Indent(0)->Dump;
+	ok(!PublicInbox::Config::valid_inbox_name($s), "$d name rejected");
+}
+
+# obviously-valid examples
+my @valid = qw(a a@example a@example.com);
+
+# Rejecting more was considered, but then it dawned on me that
+# people may intentionally use inbox names which are not URL-friendly
+# to prevent the PSGI interface from displaying them...
+# URL-unfriendly
+# '<', '>', '%', '#', '?', '&', '(', ')',
+
+# maybe these aren't so bad, they're common in Message-IDs, even:
+# '!', '$', '=', '+'
+push @valid, qw[bang! ca$h less< more> 1% (parens) &more eql= +plus], '#hash';
+for my $s (@valid) {
+	my $d = Data::Dumper->new([$s])->Terse(1)->Indent(0)->Dump;
+	ok(PublicInbox::Config::valid_inbox_name($s), "$d name accepted");
+}
+
 done_testing();

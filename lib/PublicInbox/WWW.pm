@@ -19,7 +19,9 @@ use URI::Escape qw(uri_unescape);
 use PublicInbox::MID qw(mid_escape);
 require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
-our $INBOX_RE = qr!\A/([\w\.\-]+)!;
+
+# TODO: consider a routing tree now that we have more endpoints:
+our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 our $ATTACH_RE = qr!(\d[\.\d]*)-([[:alnum:]][\w\.-]+[[:alnum:]])!i;
