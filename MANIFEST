@@ -208,6 +208,7 @@ t/psgi_attach.t
 t/psgi_bad_mids.t
 t/psgi_mount.t
 t/psgi_multipart_not.t
+t/psgi_scan_all.t
 t/psgi_search.t
 t/psgi_text.t
 t/psgi_v2.t

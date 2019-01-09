@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Plack app redirector for mapping /$NEWSGROUP requests to
@@ -17,16 +17,34 @@ sub new {
 	bless { pi_config => $pi_config }, $class;
 }
 
+sub redirect ($$) {
+	my ($code, $url) = @_;
+	[ $code,
+	  [ Location => $url, 'Content-Type' => 'text/plain' ],
+	  [ "Redirecting to $url\n" ] ]
+}
+
+sub try_inbox ($$) {
+	my ($ibx, $mid) = @_;
+	# do not pass $env since HTTP_HOST may differ
+	my $url = $ibx->base_url or return;
+
+	eval { $ibx->mm->num_for($mid) } or return;
+
+	# 302 since the same message may show up on
+	# multiple inboxes and inboxes can be added/reordered
+	redirect(302, $url .= mid_escape($mid) . '/');
+}
+
 sub call {
 	my ($self, $env) = @_;
-	my $path = $env->{PATH_INFO};
-	$path =~ s!\A/+!!;
-	$path =~ s!/+\z!!;
 
 	# some links may have the article number in them:
 	# /inbox.foo.bar/123456
-	my ($ng, $article) = split(m!/+!, $path, 2);
-	if (my $inbox = $self->{pi_config}->lookup_newsgroup($ng)) {
+	my (undef, @parts) = split(m!/!, $env->{PATH_INFO});
+	my ($ng, $article) = @parts;
+	my $pi_config = $self->{pi_config};
+	if (my $inbox = $pi_config->lookup_newsgroup($ng)) {
 		my $url = PublicInbox::Hval::prurl($env, $inbox->{url});
 		my $code = 301;
 		if (defined $article && $article =~ /\A\d+\z/) {
@@ -38,12 +56,26 @@ sub call {
 				$url .= mid_escape($mid) . '/';
 			}
 		}
-
-		my $h = [ Location => $url, 'Content-Type' => 'text/plain' ];
-
-		return [ $code, $h, [ "Redirecting to $url\n" ] ]
+		return redirect($code, $url);
 	}
-	[ 404, [ 'Content-Type' => 'text/plain' ], [ "404 Not Found\n" ] ];
+
+	my $res;
+	my @try = (join('/', @parts));
+
+	# trailing slash is in the rest of our WWW, so maybe some users
+	# will assume it:
+	if ($parts[-1] eq '') {
+		pop @parts;
+		push @try, join('/', @parts);
+	}
+
+	foreach my $mid (@try) {
+		$pi_config->each_inbox(sub {
+			$res ||= try_inbox($_[0], $mid);
+		});
+		last if defined $res;
+	}
+	$res || [ 404, [qw(Content-Type text/plain)], ["404 Not Found\n"] ];
 }
 
 1;
