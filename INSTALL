@@ -25,7 +25,7 @@ To accept incoming mail into a public inbox, you'll likely want:
 
 Beyond that, there is a long list of Perl modules required, starting with:
 
-* Date::Parse                   deb: libdatetime-perl
+* Date::Parse                   deb: libtimedate-perl
                                 rpm: perl-Time-ParseDate
 
 * Email::MIME                   deb: libemail-mime-perl
