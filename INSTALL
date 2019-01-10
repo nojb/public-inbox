@@ -50,10 +50,6 @@ Where "deb" indicates package names for Debian-derived distributions and
 
 Numerous optional modules are likely to be useful as well:
 
-  - Socket6                    deb: libsocket6-perl
-                               rpm: perl-Socket6
-                               (for IPv6 support)
-
   - Search::Xapian             deb: libsearch-xapian-perl
                                rpm: perl-Search-Xapian
                                (for NNTP service or gzipped mbox over HTTP)
@@ -76,14 +72,15 @@ Numerous optional modules are likely to be useful as well:
 
   - Net::Server                deb: libnet-server-perl
                                rpm: perl-Net-Server
-                               (for HTTP/NNTP servers as standalone daemons)
+                               (for HTTP/NNTP servers as standalone daemons,
+                                not needed as systemd services)
 
   - Filesys::Notify::Simple    deb: libfilesys-notify-simple-perl
                                rpm: perl-Filesys-Notify-Simple
                                (for public-inbox-watch)
 
   - Inline::C[7]               deb: libinline-c-perl
-                               (speeds up spawning on Linux
+                               (speeds up spawning of git(1) on Linux
                                 (see public-inbox-daemon(8))
 
   - Plack::Middleware::ReverseProxy
@@ -99,6 +96,11 @@ Numerous optional modules are likely to be useful as well:
                                rpm: perl-Plack-Middleware-Deflater
                                (saves bandwidth on responses)
 
+  - Socket6                    deb: libsocket6-perl
+                               rpm: perl-Socket6
+                               (pulled in by SpamAssassin and Net::Server,
+                                only necessary if using IPv6 with
+                                Plack::Middleware::AccessLog or similar)
 
 On Fedora systems, you'll probably also end up wanting
 perl-Test-HTTP-Server-Simple, perl-Devel-Peek, and perl-IPC-Run to run the
