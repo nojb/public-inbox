@@ -128,6 +128,7 @@ script/public-inbox-init
 script/public-inbox-learn
 script/public-inbox-mda
 script/public-inbox-nntpd
+script/public-inbox-purge
 script/public-inbox-watch
 script/public-inbox.cgi
 scripts/dc-dlvr
@@ -198,6 +199,7 @@ t/psgi_multipart_not.t
 t/psgi_search.t
 t/psgi_text.t
 t/psgi_v2.t
+t/purge.t
 t/qspawn.t
 t/reply.t
 t/search-thr-index.t
