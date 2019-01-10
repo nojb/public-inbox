@@ -341,7 +341,7 @@ $ibx->with_umask(sub {
 		is(scalar(@$res), 1,
 			"searched $pfx successfully for From:");
 		foreach my $smsg (@$res) {
-			like($smsg->from, qr/Laggy Sender/,
+			like($smsg->from_name, qr/Laggy Sender/,
 				"From appears with $pfx");
 		}
 	}
@@ -358,16 +358,18 @@ $ibx->with_umask(sub {
 
 	$res = $ro->query('q:theatre');
 	is(scalar(@$res), 1, 'only one quoted body');
-	like($res->[0]->from, qr/\AQuoter/, 'got quoted body') if scalar(@$res);
+	like($res->[0]->from_name, qr/\AQuoter/,
+		'got quoted body') if (scalar(@$res));
 
 	$res = $ro->query('nq:theatre');
 	is(scalar @$res, 1, 'only one non-quoted body');
-	like($res->[0]->from, qr/\ANon-Quoter/, 'got non-quoted body') if scalar(@$res);
+	like($res->[0]->from_name, qr/\ANon-Quoter/,
+		'got non-quoted body') if (scalar(@$res));
 
 	foreach my $pfx (qw(b: bs:)) {
 		$res = $ro->query($pfx . 'theatre');
 		is(scalar @$res, 2, "searched both bodies for $pfx");
-		like($res->[0]->from, qr/\ANon-Quoter/,
+		like($res->[0]->from_name, qr/\ANon-Quoter/,
 			"non-quoter first for $pfx") if scalar(@$res);
 	}
 }

@@ -40,13 +40,16 @@ sub disconnect { $_[0]->{dbh} = undef }
 
 sub connect { $_[0]->{dbh} ||= $_[0]->dbh_new }
 
-sub load_from_row {
-	my ($smsg) = @_;
+sub load_from_row ($;$) {
+	my ($smsg, $cull) = @_;
 	bless $smsg, 'PublicInbox::SearchMsg';
 	if (defined(my $data = delete $smsg->{ddd})) {
 		$data = uncompress($data);
 		utf8::decode($data);
-		$smsg->load_from_data($data);
+		PublicInbox::SearchMsg::load_from_data($smsg, $data);
+
+		# saves over 600K for 1000+ message threads
+		PublicInbox::SearchMsg::psgi_cull($smsg) if $cull;
 	}
 	$smsg
 }
@@ -57,7 +60,8 @@ sub do_get {
 	my $lim = (($opts->{limit} || 0) + 0) || DEFAULT_LIMIT;
 	$sql .= "LIMIT $lim";
 	my $msgs = $dbh->selectall_arrayref($sql, { Slice => {} }, @args);
-	load_from_row($_) for @$msgs;
+	my $cull = $opts->{cull};
+	load_from_row($_, $cull) for @$msgs;
 	$msgs
 }
 
@@ -82,6 +86,7 @@ sub nothing () { wantarray ? (0, []) : [] };
 sub get_thread {
 	my ($self, $mid, $prev) = @_;
 	my $dbh = $self->connect;
+	my $opts = { cull => 1 };
 
 	my $id = $dbh->selectrow_array(<<'', undef, $mid);
 SELECT id FROM msgid WHERE mid = ? LIMIT 1
@@ -109,7 +114,7 @@ SELECT tid,sid FROM over WHERE num = ? LIMIT 1
 
 	my $cols = 'num,ts,ds,ddd';
 	unless (wantarray) {
-		return do_get($self, <<"", {}, $tid, $sid, $num);
+		return do_get($self, <<"", $opts, $tid, $sid, $num);
 SELECT $cols FROM over WHERE $cond_all
 ORDER BY $sort_col ASC
 
@@ -123,14 +128,14 @@ SELECT COUNT(num) FROM over WHERE $cond_all
 
 	# giant thread, prioritize strict (tid) matches and throw
 	# in the loose (sid) matches at the end
-	my $msgs = do_get($self, <<"", {}, $tid, $num);
+	my $msgs = do_get($self, <<"", $opts, $tid, $num);
 SELECT $cols FROM over WHERE tid = ? AND num > ?
 ORDER BY $sort_col ASC
 
 	# do we have room for loose matches? get the most recent ones, first:
 	my $lim = DEFAULT_LIMIT - scalar(@$msgs);
 	if ($lim > 0) {
-		my $opts = { limit => $lim };
+		$opts->{limit} = $lim;
 		my $loose = do_get($self, <<"", $opts, $tid, $sid, $num);
 SELECT $cols FROM over WHERE tid != ? AND sid = ? AND num > ?
 ORDER BY $sort_col DESC

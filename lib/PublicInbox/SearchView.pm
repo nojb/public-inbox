@@ -240,7 +240,6 @@ sub mset_thread {
 	$ctx->{pct} = \%pct;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
-	$ctx->{seen} = {};
 	$ctx->{s_nr} = scalar(@$msgs).'+ results';
 
 	# reduce hash lookups in skel_dump

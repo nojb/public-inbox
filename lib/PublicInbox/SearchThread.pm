@@ -53,6 +53,11 @@ sub _add_message ($$) {
 	my $this = _get_cont_for_id($id_table, $smsg->{mid});
 	$this->{smsg} = $smsg;
 
+	# saves around 4K across 1K messages
+	# TODO: move this to a more appropriate place, breaks tests
+	# if we do it during psgi_cull
+	delete $smsg->{num};
+
 	# B. For each element in the message's References field:
 	defined(my $refs = $smsg->{references}) or return;
 

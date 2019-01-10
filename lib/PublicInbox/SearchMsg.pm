@@ -15,20 +15,18 @@ use Time::Local qw(timegm);
 
 sub new {
 	my ($class, $mime) = @_;
-	my $doc = Search::Xapian::Document->new;
-	bless { doc => $doc, mime => $mime }, $class;
+	bless { mime => $mime }, $class;
 }
 
 sub wrap {
-	my ($class, $doc, $mid) = @_;
-	bless { doc => $doc, mime => undef, mid => $mid }, $class;
+	my ($class, $mid) = @_;
+	bless { mid => $mid }, $class;
 }
 
 sub get {
 	my ($class, $head, $db, $mid) = @_;
 	my $doc_id = $head->get_docid;
-	my $doc = $db->get_document($doc_id);
-	load_expand(wrap($class, $doc, $mid))
+	load_expand(wrap($class, $mid), $db->get_document($doc_id));
 }
 
 sub get_val ($$) {
@@ -61,19 +59,21 @@ sub load_from_data ($$) {
 
 		# To: and Cc: are stored to optimize HDR/XHDR in NNTP since
 		# some NNTP clients will use that for message displays.
+		# NNTP only, and only stored in Over(view), not Xapian
 		$self->{to},
 		$self->{cc},
 
 		$self->{blob},
 		$self->{mid},
+
+		# NNTP only
 		$self->{bytes},
 		$self->{lines}
 	) = split(/\n/, $_[1]);
 }
 
 sub load_expand {
-	my ($self) = @_;
-	my $doc = $self->{doc};
+	my ($self, $doc) = @_;
 	my $data = $doc->get_data or return;
 	$self->{ts} = get_val($doc, PublicInbox::Search::TS());
 	my $dt = get_val($doc, PublicInbox::Search::DT());
@@ -84,10 +84,21 @@ sub load_expand {
 	$self;
 }
 
+sub psgi_cull ($) {
+	my ($self) = @_;
+	from_name($self); # fill in {from_name} so we can delete {from}
+
+	# drop NNTP-only fields which aren't relevant to PSGI results:
+	# saves ~80K on a 200 item search result:
+	delete @$self{qw(from ts to cc bytes lines)};
+	$self;
+}
+
+# Only called by PSGI interface, not NNTP
 sub load_doc {
 	my ($class, $doc) = @_;
-	my $self = bless { doc => $doc }, $class;
-	$self->load_expand;
+	my $self = bless {}, $class;
+	psgi_cull(load_expand($self, $doc));
 }
 
 # :bytes and :lines metadata in RFC 3977
@@ -159,29 +170,15 @@ sub references {
 	defined $x ? $x : '';
 }
 
-sub _get_term_val ($$$) {
-	my ($self, $pfx, $re) = @_;
-	my $doc = $self->{doc};
-	my $end = $doc->termlist_end;
-	my $i = $doc->termlist_begin;
-	$i->skip_to($pfx);
-	if ($i != $end) {
-		my $val = $i->get_termname;
-		$val =~ s/$re// and return $val;
-	}
-	undef;
-}
-
 sub mid ($;$) {
 	my ($self, $mid) = @_;
 
 	if (defined $mid) {
 		$self->{mid} = $mid;
-	} elsif (my $rv = $self->{mid}) {
+	} elsif (defined(my $rv = $self->{mid})) {
 		$rv;
-	} elsif ($self->{doc}) {
-		$self->{mid} = _get_term_val($self, 'Q', qr/\AQ/);
 	} else {
+		die "NO {mime} for mid\n" unless $self->{mime};
 		$self->_extract_mid; # v1 w/o Xapian
 	}
 }
