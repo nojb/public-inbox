@@ -202,13 +202,14 @@ EOF
 };
 {
 	local $ENV{NPROC} = 2;
-	my @before = $git0->qx(qw(log --pretty=oneline));
-	my $before = $git0->qx(qw(log --pretty=raw --raw -r --no-abbrev));
+	my @log = qw(log --no-decorate --no-abbrev --no-notes --no-color);
+	my @before = $git0->qx(@log, qw(--pretty=oneline));
+	my $before = $git0->qx(@log, qw(--pretty=raw --raw -r));
 	$im = PublicInbox::V2Writable->new($ibx, 1);
 	is($im->{partitions}, 1, 'detected single partition from previous');
 	my $smsg = $im->remove($mime, 'test removal');
 	$im->done;
-	my @after = $git0->qx(qw(log --pretty=oneline));
+	my @after = $git0->qx(@log, qw(--pretty=oneline));
 	my $tip = shift @after;
 	like($tip, qr/\A[a-f0-9]+ test removal\n\z/s,
 		'commit message propagated to git');
@@ -220,7 +221,7 @@ EOF
 	my $srch = $ibx->search->reopen;
 	my $mset = $srch->query('m:'.$smsg->mid, { mset => 1});
 	is($mset->size, 0, 'no longer found in Xapian');
-	my @log1 = qw(log -1 --pretty=raw --raw -r --no-abbrev --no-renames);
+	my @log1 = (@log, qw(-1 --pretty=raw --raw -r --no-renames));
 	is($srch->{over_ro}->get_art($num), undef,
 		'removal propagated to Over DB');
 
