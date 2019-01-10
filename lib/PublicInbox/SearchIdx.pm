@@ -646,6 +646,7 @@ sub _git_log {
 				--raw -r --no-abbrev/, $range);
 }
 
+# --is-ancestor requires git 1.8.0+
 sub is_ancestor ($$$) {
 	my ($git, $cur, $tip) = @_;
 	return 0 unless $git->check($cur);

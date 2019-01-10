@@ -7,6 +7,8 @@ use PublicInbox::MIME;
 use File::Temp qw/tempdir/;
 use Fcntl qw(SEEK_SET);
 use Cwd;
+require './t/common.perl';
+require_git(2.6);
 
 my $V = 2;
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {

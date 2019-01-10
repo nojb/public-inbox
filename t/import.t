@@ -11,6 +11,7 @@ use IO::File;
 use Fcntl qw(:DEFAULT);
 use File::Temp qw/tempdir tempfile/;
 my $dir = tempdir('pi-import-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+require './t/common.perl';
 
 is(system(qw(git init -q --bare), $dir), 0, 'git init successful');
 my $git = PublicInbox::Git->new($dir);
@@ -27,11 +28,12 @@ my $mime = PublicInbox::MIME->create(
 	],
 	body => "hello world\n",
 );
+my $v2 = require_git(2.6, 1);
 
-$im->{want_object_info} = 1 if 'v2';
+$im->{want_object_info} = 1 if $v2;
 like($im->add($mime), qr/\A:\d+\z/, 'added one message');
 
-if ('v2') {
+if ($v2) {
 	my $info = $im->{last_object};
 	like($info->[0], qr/\A[a-f0-9]{40}\z/, 'got last object_id');
 	is($mime->as_string, ${$info->[2]}, 'string matches');

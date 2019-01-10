@@ -18,6 +18,10 @@ use Net::NNTP;
 use Sys::Hostname;
 require './t/common.perl';
 
+# FIXME: make easier to test both versions
+my $version = $ENV{PI_VERSION} || 2;
+require_git('2.6') if $version == 2;
+
 my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
@@ -30,10 +34,11 @@ my $init = 'blib/script/public-inbox-init';
 use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Inbox';
 use_ok 'PublicInbox::Git';
-use_ok 'PublicInbox::V2Writable';
+SKIP: {
+	skip "git 2.6+ required for V2Writable", 1 if $version == 1;
+	use_ok 'PublicInbox::V2Writable';
+}
 
-# XXX FIXME: make it easier to test both versions
-my $version = int($ENV{PI_VERSION} || 1);
 my %opts = (
 	LocalAddr => '127.0.0.1',
 	ReuseAddr => 1,

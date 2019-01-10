@@ -3,6 +3,8 @@
 use strict;
 use warnings;
 use Test::More;
+require './t/common.perl';
+require_git(2.6);
 use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::Config;

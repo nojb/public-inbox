@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
+require './t/common.perl';
+require_git(2.6);
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for altid_v2.t" if $@;

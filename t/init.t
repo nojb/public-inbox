@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::Config;
 use File::Temp qw/tempdir/;
+require './t/common.perl';
 my $tmpdir = tempdir('pi-init-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use constant pi_init => 'blib/script/public-inbox-init';
 use PublicInbox::Import;
@@ -53,6 +54,7 @@ SKIP: {
 		eval "require $mod";
 		skip "$mod missing for v2", 2 if $@;
 	}
+	require_git(2.6, 1) or skip "git 2.6+ required", 2;
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
 	my $cfgfile = "$ENV{PI_DIR}/config";
 	my @cmd = (pi_init, '-V2', 'v2list', "$tmpdir/v2list",

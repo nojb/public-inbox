@@ -5,6 +5,8 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use File::Temp qw/tempdir/;
+require './t/common.perl';
+require_git(2.6);
 
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";

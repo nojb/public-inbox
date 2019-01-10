@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 require './t/common.perl';
+require_git(2.6);
 
 # Integration tests for HTTP cloning + mirroring
 foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket

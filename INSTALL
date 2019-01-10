@@ -5,6 +5,13 @@ This is for folks who want to setup their own public-inbox instance.
 Clients should use normal git-clone/git-fetch, or NNTP clients
 if they want to import mail into their personal inboxes.
 
+public-inbox is developed on Debian GNU/Linux systems and will
+never depend on packages outside of the "main" component of
+the "stable" distribution, currently Debian 9.x ("stretch")
+
+Most packages are available in other GNU/Linux distributions;
+and FreeBSD support can happen.
+
 TODO: this still needs to be documented better,
 also see the scripts/ and sa_config/ directories in the source tree
 
@@ -14,8 +21,8 @@ Requirements
 public-inbox requires a number of other packages to access its full
 functionality.  The core tools are, of course:
 
-* Git
-* Perl
+* Git (1.8.0+, 2.6+ for writing v2 repositories)
+* Perl 5.8+
 * SQLite (needed for Xapian use)
 
 To accept incoming mail into a public inbox, you'll likely want:

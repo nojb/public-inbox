@@ -7,6 +7,8 @@ use PublicInbox::MIME;
 use PublicInbox::ContentId qw(content_digest);
 use File::Temp qw/tempdir/;
 use File::Path qw(remove_tree);
+require './t/common.perl';
+require_git(2.6);
 
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
