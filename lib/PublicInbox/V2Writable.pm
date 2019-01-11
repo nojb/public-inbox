@@ -285,7 +285,13 @@ sub purge_oids {
 	$self->done;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $purges = [];
-	foreach my $i (0..$self->{epoch_max}) {
+	my $max = $self->{epoch_max};
+
+	unless (defined($max)) {
+		defined(my $latest = git_dir_latest($self, \$max)) or return;
+		$self->{epoch_max} = $max;
+	}
+	foreach my $i (0..$max) {
 		my $git_dir = "$pfx/$i.git";
 		-d $git_dir or next;
 		my $git = PublicInbox::Git->new($git_dir);
