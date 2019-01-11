@@ -291,6 +291,7 @@ sub purge_oids {
 		my $git = PublicInbox::Git->new($git_dir);
 		my $im = $self->import_init($git, 0, 1);
 		$purges->[$i] = $im->purge_oids($purge);
+		$im->done;
 	}
 	$purges;
 }
@@ -499,6 +500,7 @@ sub done {
 	delete $self->{bnote};
 	$self->{transact_bytes} = 0;
 	$self->lock_release if $parts;
+	$self->{-inbox}->git->cleanup;
 }
 
 sub git_init {
