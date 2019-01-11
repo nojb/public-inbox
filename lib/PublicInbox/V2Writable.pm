@@ -286,7 +286,9 @@ sub purge_oids {
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $purges = [];
 	foreach my $i (0..$self->{epoch_max}) {
-		my $git = PublicInbox::Git->new("$pfx/$i.git");
+		my $git_dir = "$pfx/$i.git";
+		-d $git_dir or next;
+		my $git = PublicInbox::Git->new($git_dir);
 		my $im = $self->import_init($git, 0, 1);
 		$purges->[$i] = $im->purge_oids($purge);
 	}
