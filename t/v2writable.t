@@ -247,6 +247,9 @@ EOF
 	ok(my $cmts = $im->purge($mime), 'purged message');
 	like($cmts->[0], qr/\A[a-f0-9]{40}\z/, 'purge returned current commit');
 	$im->done;
+
+	# again
+	is($im->purge($mime), undef, 'no-op returns undef');
 }
 
 {

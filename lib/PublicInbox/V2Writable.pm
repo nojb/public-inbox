@@ -390,7 +390,7 @@ sub purge {
 	my ($self, $mime) = @_;
 	my $purges = $self->{-inbox}->with_umask(sub {
 		remove_internal($self, $mime, undef, {});
-	});
+	}) or return;
 	$self->idx_init if @$purges; # ->done is called on purges
 	for my $i (0..$#$purges) {
 		defined(my $cmt = $purges->[$i]) or next;
