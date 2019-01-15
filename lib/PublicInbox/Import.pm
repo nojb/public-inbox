@@ -394,16 +394,16 @@ sub add {
 	}
 
 	my $blob = $self->{mark}++;
-	my $str = $mime->as_string;
-	my $n = length($str);
+	my $raw_email = $mime->{-public_inbox_raw} // $mime->as_string;
+	my $n = length($raw_email);
 	$self->{bytes_added} += $n;
 	print $w "blob\nmark :$blob\ndata ", $n, "\n" or wfail;
-	print $w $str, "\n" or wfail;
+	print $w $raw_email, "\n" or wfail;
 
 	# v2: we need this for Xapian
 	if ($self->{want_object_info}) {
 		my $oid = $self->get_mark(":$blob");
-		$self->{last_object} = [ $oid, $n, \$str ];
+		$self->{last_object} = [ $oid, $n, \$raw_email ];
 	}
 	my $ref = $self->{ref};
 	my $commit = $self->{mark}++;
