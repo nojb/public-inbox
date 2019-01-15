@@ -27,12 +27,11 @@ my %GIT_ESC = (
 
 # unquote pathnames used by git, see quote.c::unquote_c_style.c in git.git
 sub git_unquote ($) {
-	my ($s) = @_;
-	return $s unless ($s =~ /\A"(.*)"\z/);
-	$s = $1;
-	$s =~ s/\\([abfnrtv])/$GIT_ESC{$1}/g;
-	$s =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
-	$s;
+	return $_[0] unless ($_[0] =~ /\A"(.*)"\z/);
+	$_[0] = $1;
+	$_[0] =~ s/\\([abfnrtv])/$GIT_ESC{$1}/g;
+	$_[0] =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
+	$_[0];
 }
 
 sub new {

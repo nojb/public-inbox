@@ -144,4 +144,8 @@ if ('alternates reloaded') {
 	is($$found, $config, 'alternates reloaded');
 }
 
+use_ok 'PublicInbox::Git', qw(git_unquote);
+is("foo\nbar", git_unquote('"foo\\nbar"'.''), 'unquoted newline');
+is("Eléanor", git_unquote('"El\\303\\251anor"'.''), 'unquoted octal');
+
 done_testing();
