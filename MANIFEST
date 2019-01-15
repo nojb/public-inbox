@@ -101,6 +101,7 @@ lib/PublicInbox/SearchIdxPart.pm
 lib/PublicInbox/SearchMsg.pm
 lib/PublicInbox/SearchThread.pm
 lib/PublicInbox/SearchView.pm
+lib/PublicInbox/SolverGit.pm
 lib/PublicInbox/Spamcheck.pm
 lib/PublicInbox/Spamcheck/Spamc.pm
 lib/PublicInbox/Spawn.pm
@@ -201,6 +202,9 @@ t/qspawn.t
 t/reply.t
 t/search-thr-index.t
 t/search.t
+t/solve/0001-simple-mod.patch
+t/solve/0002-rename-with-modifications.patch
+t/solver_git.t
 t/spamcheck_spamc.t
 t/spawn.t
 t/thread-cycle.t

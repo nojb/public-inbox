@@ -40,6 +40,7 @@ sub new {
 	my ($class, $git_dir) = @_;
 	my @st;
 	$st[7] = $st[10] = 0;
+	# may contain {-wt} field (working-tree (File::Temp::Dir))
 	bless { git_dir => $git_dir, st => \@st }, $class
 }
 
@@ -200,6 +201,21 @@ sub packed_bytes {
 }
 
 sub DESTROY { cleanup(@_) }
+
+# show the blob URL for cgit/gitweb/whatever
+sub src_blob_url {
+	my ($self, $oid) = @_;
+	# blob_fmt = "https://example.com/foo.git/blob/%s"
+	if (my $bfu = $self->{blob_fmt_url}) {
+		return sprintf($bfu, $oid);
+	}
+
+	# don't show full FS path, basename should be OK:
+	if ($self->{git_dir} =~ m!/([^/]+)\z!) {
+		return "/path/to/$1";
+	}
+	'???';
+}
 
 1;
 __END__
