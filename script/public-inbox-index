@@ -14,7 +14,7 @@ my $usage = "public-inbox-index REPO_DIR";
 use PublicInbox::Config;
 my $config = eval { PublicInbox::Config->new } || eval {
 	warn "public-inbox unconfigured for serving, indexing anyways...\n";
-	{}
+	undef;
 };
 eval { require PublicInbox::SearchIdx };
 if ($@) {
@@ -73,7 +73,7 @@ if (@ARGV) {
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 usage() unless @dirs;
 
-$config->each_inbox(sub {
+defined($config) and $config->each_inbox(sub {
 	my ($ibx) = @_;
 
 	for my $i (0..$#dirs) {
