@@ -18,7 +18,7 @@ use Carp qw(croak);
 use POSIX qw(strftime);
 use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
-require PublicInbox::Git;
+use PublicInbox::Git qw(git_unquote);
 use Compress::Zlib qw(compress);
 
 use constant {
@@ -28,25 +28,6 @@ use constant {
 };
 
 my $xapianlevels = qr/\A(?:full|medium)\z/;
-
-my %GIT_ESC = (
-	a => "\a",
-	b => "\b",
-	f => "\f",
-	n => "\n",
-	r => "\r",
-	t => "\t",
-	v => "\013",
-);
-
-sub git_unquote ($) {
-	my ($s) = @_;
-	return $s unless ($s =~ /\A"(.*)"\z/);
-	$s = $1;
-	$s =~ s/\\([abfnrtv])/$GIT_ESC{$1}/g;
-	$s =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
-	$s;
-}
 
 sub new {
 	my ($class, $ibx, $creat, $part) = @_;

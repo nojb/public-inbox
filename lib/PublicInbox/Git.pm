@@ -12,6 +12,28 @@ use warnings;
 use POSIX qw(dup2);
 require IO::Handle;
 use PublicInbox::Spawn qw(spawn popen_rd);
+use base qw(Exporter);
+our @EXPORT_OK = qw(git_unquote);
+
+my %GIT_ESC = (
+	a => "\a",
+	b => "\b",
+	f => "\f",
+	n => "\n",
+	r => "\r",
+	t => "\t",
+	v => "\013",
+);
+
+# unquote pathnames used by git, see quote.c::unquote_c_style.c in git.git
+sub git_unquote ($) {
+	my ($s) = @_;
+	return $s unless ($s =~ /\A"(.*)"\z/);
+	$s = $1;
+	$s =~ s/\\([abfnrtv])/$GIT_ESC{$1}/g;
+	$s =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
+	$s;
+}
 
 sub new {
 	my ($class, $git_dir) = @_;
