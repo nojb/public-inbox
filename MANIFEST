@@ -185,6 +185,7 @@ t/nntp.t
 t/nntpd.t
 t/nulsubject.t
 t/over.t
+t/perf-msgview.t
 t/perf-nntpd.t
 t/perf-threading.t
 t/plack.t
