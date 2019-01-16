@@ -515,6 +515,7 @@ sub set_art {
 sub _header ($) {
 	my $hdr = $_[0]->header_obj->as_string;
 	utf8::encode($hdr);
+	$hdr =~ s/(?<!\r)\n/\r\n/sg;
 	$hdr
 }
 
