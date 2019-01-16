@@ -202,19 +202,33 @@ sub packed_bytes {
 
 sub DESTROY { cleanup(@_) }
 
+sub local_nick ($) {
+	my ($self) = @_;
+	my $ret = '???';
+	# don't show full FS path, basename should be OK:
+	if ($self->{git_dir} =~ m!/([^/]+)(?:/\.git)?\z!) {
+		$ret = "/path/to/$1";
+	}
+	wantarray ? ($ret) : $ret;
+}
+
 # show the blob URL for cgit/gitweb/whatever
 sub src_blob_url {
 	my ($self, $oid) = @_;
-	# blob_fmt = "https://example.com/foo.git/blob/%s"
-	if (my $bfu = $self->{blob_fmt_url}) {
-		return sprintf($bfu, $oid);
+	# blob_url_format = "https://example.com/foo.git/blob/%s"
+	if (my $bfu = $self->{blob_url_format}) {
+		return map { sprintf($_, $oid) } @$bfu if wantarray;
+		return sprintf($bfu->[0], $oid);
 	}
+	local_nick($self);
+}
 
-	# don't show full FS path, basename should be OK:
-	if ($self->{git_dir} =~ m!/([^/]+)\z!) {
-		return "/path/to/$1";
+sub pub_urls {
+	my ($self) = @_;
+	if (my $urls = $self->{cgit_url}) {
+		return @$urls;
 	}
-	'???';
+	local_nick($self);
 }
 
 1;
