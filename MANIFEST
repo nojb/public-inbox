@@ -109,6 +109,8 @@ lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/V2Writable.pm
 lib/PublicInbox/View.pm
+lib/PublicInbox/ViewDiff.pm
+lib/PublicInbox/ViewVCS.pm
 lib/PublicInbox/WWW.pm
 lib/PublicInbox/WWW.pod
 lib/PublicInbox/WatchMaildir.pm

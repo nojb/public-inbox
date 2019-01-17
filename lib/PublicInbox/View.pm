@@ -14,6 +14,7 @@ use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
 use PublicInbox::Reply;
+use PublicInbox::ViewDiff qw(flush_diff);
 require POSIX;
 use Time::Local qw(timegm);
 
@@ -28,7 +29,7 @@ sub msg_html {
 	my ($ctx, $mime, $more, $smsg) = @_;
 	my $hdr = $mime->header_obj;
 	my $ibx = $ctx->{-inbox};
-	my $obfs_ibx = $ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
+	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	my $tip = _msg_html_prepare($hdr, $ctx, $more, 0);
 	my $end = 2;
 	PublicInbox::WwwStream->response($ctx, 200, sub {
@@ -36,7 +37,7 @@ sub msg_html {
 		if ($nr == 1) {
 			# $more cannot be true w/o $smsg being defined:
 			my $upfx = $more ? '../'.mid_escape($smsg->mid).'/' : '';
-			$tip . multipart_text_as_html($mime, $upfx, $obfs_ibx) .
+			$tip . multipart_text_as_html($mime, $upfx, $ibx) .
 				'</pre><hr>'
 		} elsif ($more && @$more) {
 			++$end;
@@ -81,15 +82,15 @@ sub msg_html_more {
 	my $str = eval {
 		my ($id, $prev, $smsg) = @$more;
 		my $mid = $ctx->{mid};
-		$smsg = $ctx->{-inbox}->smsg_mime($smsg);
+		my $ibx = $ctx->{-inbox};
+		$smsg = $ibx->smsg_mime($smsg);
 		my $next = $ctx->{srch}->next_by_mid($mid, \$id, \$prev);
 		@$more = $next ? ($id, $prev, $next) : ();
 		if ($smsg) {
 			my $mime = $smsg->{mime};
 			my $upfx = '../' . mid_escape($smsg->mid) . '/';
 			_msg_html_prepare($mime->header_obj, $ctx, $more, $nr) .
-				multipart_text_as_html($mime, $upfx,
-							$ctx->{-obfs_ibx}) .
+				multipart_text_as_html($mime, $upfx, $ibx) .
 				'</pre><hr>'
 		} else {
 			'';
@@ -260,7 +261,8 @@ sub index_entry {
 	$rv .= "\n";
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { $rv .= add_text_body($mhref, $obfs_ibx, $_[0]) });
+	my $ibx = $ctx->{-inbox};
+	msg_iter($mime, sub { $rv .= add_text_body($mhref, $ibx, $_[0]) });
 
 	# add the footer
 	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
@@ -488,11 +490,11 @@ sub thread_html {
 }
 
 sub multipart_text_as_html {
-	my ($mime, $upfx, $obfs_ibx) = @_;
+	my ($mime, $upfx, $ibx) = @_;
 	my $rv = "";
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { $rv .= add_text_body($upfx, $obfs_ibx, $_[0]) });
+	msg_iter($mime, sub { $rv .= add_text_body($upfx, $ibx, $_[0]) });
 	$rv;
 }
 
@@ -545,7 +547,8 @@ sub attach_link ($$$$;$) {
 }
 
 sub add_text_body {
-	my ($upfx, $obfs_ibx, $p) = @_;
+	my ($upfx, $ibx, $p) = @_;
+	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	# $p - from msg_iter: [ Email::MIME, depth, @idx ]
 	my ($part, $depth) = @$p; # attachment @idx is unused
 	my $ct = $part->content_type || 'text/plain';
@@ -553,6 +556,19 @@ sub add_text_body {
 	my ($s, $err) = msg_part_text($part, $ct);
 
 	return attach_link($upfx, $ct, $p, $fn) unless defined $s;
+
+	my ($diff, $spfx);
+	if ($ibx->{-repo_objs} && $s =~ /^(?:diff|---|\+{3}) /ms) {
+		$diff = [];
+		my $n_slash = $upfx =~ tr!/!/!;
+		if ($n_slash == 0) {
+			$spfx = '../';
+		} elsif ($n_slash == 1) {
+			$spfx = '';
+		} else { # nslash == 2
+			$spfx = '../../';
+		}
+	};
 
 	my @lines = split(/^/m, $s);
 	$s = '';
@@ -568,19 +584,26 @@ sub add_text_body {
 			# show the previously buffered quote inline
 			flush_quote(\$s, $l, \@quot) if @quot;
 
-			# regular line, OK
-			$l->linkify_1($cur);
-			$s .= $l->linkify_2(ascii_html($cur));
+			if ($diff) {
+				push @$diff, $cur;
+			} else {
+				# regular line, OK
+				$l->linkify_1($cur);
+				$s .= $l->linkify_2(ascii_html($cur));
+			}
 		} else {
+			flush_diff(\$s, $spfx, $l, $diff) if $diff && @$diff;
 			push @quot, $cur;
 		}
 	}
 
 	if (@quot) { # ugh, top posted
 		flush_quote(\$s, $l, \@quot);
+		flush_diff(\$s, $spfx, $l, $diff) if $diff && @$diff;
 		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
 		$s;
 	} else {
+		flush_diff(\$s, $spfx, $l, $diff) if $diff && @$diff;
 		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
 		if ($s =~ /\n\z/s) { # common, last line ends with a newline
 			$s;

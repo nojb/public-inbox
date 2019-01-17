@@ -25,6 +25,7 @@ our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 our $ATTACH_RE = qr!(\d[\.\d]*)-([[:alnum:]][\w\.-]+[[:alnum:]])!i;
+our $OID_RE = qr![a-f0-9]{7,40}!;
 
 sub new {
 	my ($class, $pi_config) = @_;
@@ -117,7 +118,10 @@ sub call {
 		r301($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/_/text(?:/(.*))?\z!o) {
 		get_text($ctx, $1, $2);
-
+	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s\z!o) {
+		get_vcs_object($ctx, $1, $2);
+	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/_([\w\.\-]+)\z!o) {
+		get_vcs_object($ctx, $1, $2, $3);
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$INBOX_RE/([^/]{2,})\z!o) {
 		r301($ctx, $1, $2);
@@ -257,6 +261,18 @@ sub get_text {
 
 	require PublicInbox::WwwText;
 	PublicInbox::WwwText::get_text($ctx, $key);
+}
+
+# show git objects (blobs and commits)
+# /$INBOX/_/$OBJECT_ID/show
+# /$INBOX/_/${OBJECT_ID}_${FILENAME}
+# KEY may contain slashes
+sub get_vcs_object ($$$;$) {
+	my ($ctx, $inbox, $oid, $filename) = @_;
+	my $r404 = invalid_inbox($ctx, $inbox);
+	return $r404 if $r404;
+	require PublicInbox::ViewVCS;
+	PublicInbox::ViewVCS::show($ctx, $oid, $filename);
 }
 
 sub ctx_get {

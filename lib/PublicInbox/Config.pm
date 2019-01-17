@@ -2,11 +2,18 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Used throughout the project for reading configuration
+#
+# Note: I hate camelCase; but git-config(1) uses it, but it's better
+# than alllowercasewithoutunderscores, so use lc('configKey') where
+# applicable for readability
+
 package PublicInbox::Config;
 use strict;
 use warnings;
 require PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
+
+sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }
 
 # returns key-value pairs of config directives in a hash
 # if keys may be multi-value, the value is an array ref containing all values
@@ -22,6 +29,7 @@ sub new {
 	$self->{-by_newsgroup} ||= {};
 	$self->{-no_obfuscate} ||= {};
 	$self->{-limiters} ||= {};
+	$self->{-code_repos} ||= {}; # nick => PublicInbox::Git object
 
 	if (my $no = delete $self->{'publicinbox.noobfuscate'}) {
 		$no = [ $no ] if ref($no) ne 'ARRAY';
@@ -169,6 +177,41 @@ sub valid_inbox_name ($) {
 	1;
 }
 
+# parse a code repo
+# Only git is supported at the moment, but SVN and Hg are possibilities
+sub _fill_code_repo {
+	my ($self, $nick) = @_;
+	my $pfx = "coderepo.$nick";
+
+	my $dir = $self->{"$pfx.dir"}; # aka "GIT_DIR"
+	unless (defined $dir) {
+		warn "$pfx.repodir unset";
+		return;
+	}
+
+	my $git = PublicInbox::Git->new($dir);
+	foreach my $t (qw(blob commit tree tag)) {
+		$git->{$t.'_url_format'} =
+				_array($self->{lc("$pfx.${t}UrlFormat")});
+	}
+
+	if (my $cgits = $self->{lc("$pfx.cgitUrl")}) {
+		$git->{cgit_url} = $cgits = _array($cgits);
+
+		# cgit supports "/blob/?id=%s", but it's only a plain-text
+		# display and requires an unabbreviated id=
+		foreach my $t (qw(blob commit tag)) {
+			$git->{$t.'_url_format'} ||= map {
+				"$_/$t/?id=%s"
+			} @$cgits;
+		}
+	}
+	# TODO: support gitweb and other repository viewers?
+	# TODO: parse cgitrc
+
+	$git;
+}
+
 sub _fill {
 	my ($self, $pfx) = @_;
 	my $rv = {};
@@ -192,9 +235,9 @@ sub _fill {
 	}
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	foreach my $k (qw(address altid nntpmirror)) {
+	foreach my $k (qw(address altid nntpmirror coderepo)) {
 		if (defined(my $v = $self->{"$pfx.$k"})) {
-			$rv->{$k} = ref($v) eq 'ARRAY' ? $v : [ $v ];
+			$rv->{$k} = _array($v);
 		}
 	}
 
@@ -224,6 +267,18 @@ sub _fill {
 		$rv->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
 		each_inbox($self, sub {}); # noop to populate -no_obfuscate
 	}
+
+	if (my $ibx_code_repos = $rv->{coderepo}) {
+		my $code_repos = $self->{-code_repos};
+		my $repo_objs = $rv->{-repo_objs} = [];
+		foreach my $nick (@$ibx_code_repos) {
+			valid_inbox_name($nick) or next;
+			my $repo = $code_repos->{$nick} ||=
+						_fill_code_repo($self, $nick);
+			push @$repo_objs, $repo if $repo;
+		}
+	}
+
 	$rv
 }
 
