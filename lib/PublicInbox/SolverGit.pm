@@ -12,8 +12,7 @@ use strict;
 use warnings;
 use File::Temp qw();
 use Fcntl qw(SEEK_SET);
-use File::Path qw(make_path);
-use PublicInbox::Git qw(git_unquote);
+use PublicInbox::Git qw(git_unquote git_quote);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::MsgIter qw(msg_iter msg_part_text);
 use URI::Escape qw(uri_escape_utf8);
@@ -31,15 +30,31 @@ sub new {
 }
 
 # look for existing blobs already in git repos
-sub solve_existing ($$) {
-	my ($self, $want) = @_;
+sub solve_existing ($$$) {
+	my ($self, $out, $want) = @_;
+	my $oid_b = $want->{oid_b};
+	my @ambiguous; # Array of [ git, $oids]
 	foreach my $git (@{$self->{gits}}) {
-		my ($oid_full, $type, $size) = $git->check($want->{oid_b});
+		my ($oid_full, $type, $size) = $git->check($oid_b);
 		if (defined($type) && $type eq 'blob') {
 			return [ $git, $oid_full, $type, int($size) ];
 		}
+
+		next if length($oid_b) == 40;
+
+		# parse stderr of "git cat-file --batch-check"
+		my $err = $git->last_check_err;
+		my (@oids) = ($err =~ /\b([a-f0-9]{40})\s+blob\b/g);
+		next unless scalar(@oids);
+
+		# TODO: do something with the ambiguous array?
+		# push @ambiguous, [ $git, @oids ];
+
+		print $out "`$oid_b' ambiguous in ",
+				join("\n", $git->pub_urls), "\n",
+				join('', map { "$_ blob\n" } @oids), "\n";
 	}
-	undef;
+	scalar(@ambiguous) ? \@ambiguous : undef;
 }
 
 # returns a hashref with information about a diff:
@@ -64,19 +79,22 @@ sub extract_diff ($$$$) {
 	defined $s or return;
 	my $di = {};
 	foreach my $l (split(/^/m, $s)) {
-		if ($l =~ /$re/) {
+		if ($l =~ $re) {
 			$di->{oid_a} = $1;
 			$di->{oid_b} = $2;
-			my $mode_a = $3;
-			if ($mode_a =~ /\A(?:100644|120000|100755)\z/) {
-				$di->{mode_a} = $mode_a;
+			if (defined($3)) {
+				my $mode_a = $3;
+				if ($mode_a =~ /\A(?:100644|120000|100755)\z/) {
+					$di->{mode_a} = $mode_a;
+				}
 			}
 
 			# start writing the diff out to a tempfile
 			open($tmp, '+>', undef) or die "open(tmp): $!";
 			$di->{tmp} = $tmp;
-			$di->{hdr_lines} = $hdr_lines;
 
+			push @$hdr_lines, $l;
+			$di->{hdr_lines} = $hdr_lines;
 			print $tmp @$hdr_lines, $l or die "print(tmp): $!";
 
 			# for debugging/diagnostics:
@@ -103,6 +121,9 @@ sub extract_diff ($$$$) {
 			print $tmp $l or die "print(tmp): $!";
 		} elsif ($hdr_lines) {
 			push @$hdr_lines, $l;
+			if ($l =~ /\Anew file mode (100644|120000|100755)$/) {
+				$di->{mode_a} = $1;
+			}
 		}
 	}
 	$tmp ? $di : undef;
@@ -154,8 +175,8 @@ sub do_git_init_wt ($) {
 	my $wt = File::Temp->newdir('solver.wt-XXXXXXXX', TMPDIR => 1);
 	my $dir = $wt->dirname;
 
-	foreach (qw(objects/info refs/heads)) {
-		make_path("$dir/.git/$_") or die "make_path $_: $!";
+	foreach ('', qw(objects refs objects/info refs/heads)) {
+		mkdir("$dir/.git/$_") or die "mkdir $_: $!";
 	}
 	open my $fh, '>', "$dir/.git/config" or die "open .git/config: $!";
 	print $fh <<'EOF' or die "print .git/config $!";
@@ -174,9 +195,8 @@ EOF
 
 	my $f = '.git/objects/info/alternates';
 	open $fh, '>', "$dir/$f" or die "open: $f: $!";
-	foreach my $git (@{$self->{gits}}) {
-		print $fh "$git->{git_dir}/objects\n" or die "print $f: $!";
-	}
+	print($fh (map { "$_->{git_dir}/objects\n" } @{$self->{gits}})) or
+		die "print $f: $!";
 	close $fh or die "close: $f: $!";
 	$wt;
 }
@@ -195,8 +215,8 @@ sub reap ($$) {
 	$? == 0 or die "$msg failed: $?";
 }
 
-sub prepare_wt ($$$) {
-	my ($wt_dir, $existing, $di) = @_;
+sub prepare_wt ($$$$) {
+	my ($out, $wt_dir, $existing, $di) = @_;
 	my $oid_full = $existing->[1];
 	my ($r, $w);
 	my $path_a = $di->{path_a} or die "BUG: path_a missing for $oid_full";
@@ -208,17 +228,21 @@ sub prepare_wt ($$$) {
 	my $pid = spawn([@git, qw(update-index -z --index-info)], {}, $rdr);
 	close $r or die "close pipe(r): $!";
 	print $w "$mode_a $oid_full\t$path_a\0" or die "print update-index: $!";
+
 	close $w or die "close update-index: $!";
 	reap($pid, 'update-index -z --index-info');
 
 	$pid = spawn([@git, qw(checkout-index -a -f -u)]);
 	reap($pid, 'checkout-index -a -f -u');
+
+	print $out "Working tree prepared:\n",
+		"$mode_a $oid_full\t", git_quote($path_a), "\n";
 }
 
 sub do_apply ($$$$) {
 	my ($out, $wt_git, $wt_dir, $di) = @_;
 
-	my $tmp = delete $di->{tmp} or die "BUG: no tmp ", di_info($di);
+	my $tmp = delete $di->{tmp} or die "BUG: no tmp ", di_url($di);
 	$tmp->flush or die "tmp->flush failed: $!";
 	$out->flush or die "err->flush failed: $!";
 	sysseek($tmp, 0, SEEK_SET) or die "sysseek(tmp) failed: $!";
@@ -257,7 +281,7 @@ sub di_url ($) {
 	# can have different HTTP_HOST on the same instance.
 	my $url = $di->{ibx}->base_url;
 	my $mid = $di->{smsg}->{mid};
-	defined($url) ? "<$url/$mid/>" : "<$mid>";
+	defined($url) ? "<$url$mid/>" : "<$mid>";
 }
 
 sub apply_patches ($$$$$) {
@@ -275,7 +299,7 @@ sub apply_patches ($$$$$) {
 		my $existing = $found->{$oid_a};
 		my $empty_oid = $oid_a =~ /\A0+\z/;
 
-		if ($empty_oid && $i != 0) {
+		if ($empty_oid && $i != 1) {
 			die "empty oid at [$i/$tot] ", di_url($di);
 		}
 		if (!$existing && !$empty_oid) {
@@ -284,13 +308,13 @@ sub apply_patches ($$$$$) {
 
 		# prepare the worktree for patch application:
 		if ($i == 1 && $existing) {
-			prepare_wt($wt_dir, $existing, $di);
+			prepare_wt($out, $wt_dir, $existing, $di);
 		}
-		unless (-f "$wt_dir/$di->{path_a}") {
+		if (!$empty_oid && ! -f "$wt_dir/$di->{path_a}") {
 			die "missing $di->{path_a} at [$i/$tot] ", di_url($di);
 		}
 
-		print $out "applying [$i/$tot] ", di_url($di), "\n",
+		print $out "\napplying [$i/$tot] ", di_url($di), "\n",
 			   join('', @{$di->{hdr_lines}}), "\n"
 			or die "print \$out failed: $!";
 
@@ -302,8 +326,8 @@ sub apply_patches ($$$$$) {
 sub dump_found ($$) {
 	my ($out, $found) = @_;
 	foreach my $oid (sort keys %$found) {
-		my ($git, $oid, $di) = @{$found->{$oid}};
-		my $loc = $di ? di_info($di) : $git->src_blob_url($oid);
+		my ($git, $oid, undef, undef, $di) = @{$found->{$oid}};
+		my $loc = $di ? di_url($di) : $git->src_blob_url($oid);
 		print $out "$oid from $loc\n";
 	}
 }
@@ -330,7 +354,7 @@ sub solve ($$$$) {
 
 	my $req = { %$hints, oid_b => $oid_b };
 	my @todo = ($req);
-	my $found = {}; # { oid_abbrev => [ PublicInbox::Git, oid_full, $di ] }
+	my $found = {}; # { abbrev => [ ::Git, oid_full, type, size, $di ] }
 	my $patches = []; # [ array of $di hashes ]
 
 	my $max = $self->{max_steps} || 200;
@@ -338,9 +362,14 @@ sub solve ($$$$) {
 
 	while (defined(my $want = pop @todo)) {
 		# see if we can find the blob in an existing git repo:
-		if (my $existing = solve_existing($self, $want)) {
+		if (my $existing = solve_existing($self, $out, $want)) {
 			my $want_oid = $want->{oid_b};
-			return $existing if $want_oid eq $oid_b; # DONE!
+			if ($want_oid eq $oid_b) { # DONE!
+				my @pub_urls = $existing->[0]->pub_urls;
+				print $out "found $want_oid in ",
+						join("\n", @pub_urls),"\n";
+				return $existing;
+			}
 
 			$found->{$want_oid} = $existing;
 			next; # ok, one blob resolved, more to go?
