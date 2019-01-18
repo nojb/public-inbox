@@ -23,13 +23,15 @@ my %GIT_ESC = (
 	r => "\r",
 	t => "\t",
 	v => "\013",
+	'"' => '"',
+	'\\' => '\\',
 );
 
 # unquote pathnames used by git, see quote.c::unquote_c_style.c in git.git
 sub git_unquote ($) {
 	return $_[0] unless ($_[0] =~ /\A"(.*)"\z/);
 	$_[0] = $1;
-	$_[0] =~ s/\\([abfnrtv])/$GIT_ESC{$1}/g;
+	$_[0] =~ s/\\([\\"abfnrtv])/$GIT_ESC{$1}/g;
 	$_[0] =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
 	$_[0];
 }

@@ -148,5 +148,7 @@ use_ok 'PublicInbox::Git', qw(git_unquote);
 my $s;
 is("foo\nbar", git_unquote($s = '"foo\\nbar"'), 'unquoted newline');
 is("Eléanor", git_unquote($s = '"El\\303\\251anor"'), 'unquoted octal');
+is(git_unquote($s = '"I\"m"'), 'I"m', 'unquoted dq');
+is(git_unquote($s = '"I\\m"'), 'I\\m', 'unquoted backslash');
 
 done_testing();
