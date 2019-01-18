@@ -215,7 +215,7 @@ sub reap ($$) {
 	$? == 0 or die "$msg failed: $?";
 }
 
-sub prepare_wt ($$$$) {
+sub prepare_index ($$$$) {
 	my ($out, $wt_dir, $existing, $di) = @_;
 	my $oid_full = $existing->[1];
 	my ($r, $w);
@@ -232,10 +232,7 @@ sub prepare_wt ($$$$) {
 	close $w or die "close update-index: $!";
 	reap($pid, 'update-index -z --index-info');
 
-	$pid = spawn([@git, qw(checkout-index -a -f -u)]);
-	reap($pid, 'checkout-index -a -f -u');
-
-	print $out "Working tree prepared:\n",
+	print $out "index prepared:\n",
 		"$mode_a $oid_full\t", git_quote($path_a), "\n";
 }
 
@@ -250,7 +247,7 @@ sub do_apply ($$$$) {
 	defined(my $err_fd = fileno($out)) or die "fileno(out): $!";
 	my $rdr = { 0 => fileno($tmp), 1 => $err_fd, 2 => $err_fd };
 	my $cmd = [ qw(git -C), $wt_dir,
-	            qw(apply --whitespace=warn -3 --verbose) ];
+	            qw(apply --cached --whitespace=warn --verbose) ];
 	reap(spawn($cmd, undef, $rdr), 'apply');
 
 	local $/ = "\0";
@@ -267,11 +264,12 @@ sub do_apply ($$$$) {
 
 	$file eq $di->{path_b} or
 		die "index mismatch: file=$file != path_b=$di->{path_b}";
-	my $abs_path = "$wt_dir/$file";
-	-r $abs_path or die "WT_DIR/$file not readable";
-	my $size = -s _;
 
-	print $out "OK $mode_b $oid_b_full $stage\t$file\n";
+	my (undef, undef, $size) = $wt_git->check($oid_b_full);
+
+	defined($size) or die "failed to read_size from $oid_b_full";
+
+	print $out "$mode_b $oid_b_full\t$file\n";
 	[ $wt_git, $oid_b_full, 'blob', $size, $di ];
 }
 
@@ -308,10 +306,7 @@ sub apply_patches ($$$$$) {
 
 		# prepare the worktree for patch application:
 		if ($i == 1 && $existing) {
-			prepare_wt($out, $wt_dir, $existing, $di);
-		}
-		if (!$empty_oid && ! -f "$wt_dir/$di->{path_a}") {
-			die "missing $di->{path_a} at [$i/$tot] ", di_url($di);
+			prepare_index($out, $wt_dir, $existing, $di);
 		}
 
 		print $out "\napplying [$i/$tot] ", di_url($di), "\n",
