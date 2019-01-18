@@ -1075,7 +1075,7 @@ sub dump_topics {
 
 		my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
 		my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
-		my $s = "<a\nhref=\"$href/T/$anchor\"><b>$top</b></a>\n" .
+		my $s = "<a\nhref=\"$href/T/$anchor\">$top</a>\n" .
 			" $ds UTC $n - $mbox / $atom\n";
 		for (my $i = 0; $i < scalar(@ex); $i += 2) {
 			my $level = $ex[$i];
