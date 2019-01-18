@@ -64,9 +64,25 @@ sub alternates_changed {
 	$self->{st} = \@st;
 }
 
+sub last_check_err {
+	my ($self) = @_;
+	my $fh = $self->{err_c} or return;
+	sysseek($fh, 0, 0) or fail($self, "sysseek failed: $!");
+	defined(sysread($fh, my $buf, -s $fh)) or
+			fail($self, "sysread failed: $!");
+	$buf;
+}
+
 sub _bidi_pipe {
-	my ($self, $batch, $in, $out, $pid) = @_;
-	return if $self->{$pid};
+	my ($self, $batch, $in, $out, $pid, $err) = @_;
+	if ($self->{$pid}) {
+		if (defined $err) { # "err_c"
+			my $fh = $self->{$err};
+			sysseek($fh, 0, 0) or fail($self, "sysseek failed: $!");
+			truncate($fh, 0) or fail($self, "truncate failed: $!");
+		}
+		return;
+	}
 	my ($in_r, $in_w, $out_r, $out_w);
 
 	pipe($in_r, $in_w) or fail($self, "pipe failed: $!");
@@ -78,6 +94,11 @@ sub _bidi_pipe {
 
 	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file), $batch);
 	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
+	if ($err) {
+		open(my $fh, '+>', undef) or fail($self, "open.err failed: $!");
+		$self->{$err} = $fh;
+		$redir->{2} = fileno($fh);
+	}
 	my $p = spawn(\@cmd, undef, $redir);
 	defined $p or fail($self, "spawn failed: $!");
 	$self->{$pid} = $p;
@@ -152,12 +173,23 @@ sub batch_prepare ($) { _bidi_pipe($_[0], qw(--batch in out pid)) }
 
 sub check {
 	my ($self, $obj) = @_;
-	$self->_bidi_pipe(qw(--batch-check in_c out_c pid_c));
+	_bidi_pipe($self, qw(--batch-check in_c out_c pid_c err_c));
 	$self->{out_c}->print($obj, "\n") or fail($self, "write error: $!");
 	local $/ = "\n";
 	chomp(my $line = $self->{in_c}->getline);
 	my ($hex, $type, $size) = split(' ', $line);
 	return if $type eq 'missing';
+
+	# "dead" in git.git shows "dangling 4\ndead\n", not sure why
+	# https://public-inbox.org/git/20190118033845.s2vlrb3wd3m2jfzu@dcvr/
+	# so handle the oddball stuff just in case
+	if ($hex eq 'dangling' || $hex eq 'notdir' || $hex eq 'loop') {
+		$size = $type + length("\n");
+		my $r = read($self->{in_c}, my $buf, $size);
+		defined($r) or fail($self, "read failed: $!");
+		return;
+	}
+
 	($hex, $type, $size);
 }
 
