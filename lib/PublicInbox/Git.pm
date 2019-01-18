@@ -92,7 +92,8 @@ sub _bidi_pipe {
 		fcntl($in_w, 1031, 4096) if $batch eq '--batch-check';
 	}
 
-	my @cmd = ('git', "--git-dir=$self->{git_dir}", qw(cat-file), $batch);
+	my @cmd = (qw(git), "--git-dir=$self->{git_dir}",
+			qw(-c core.abbrev=40 cat-file), $batch);
 	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
 	if ($err) {
 		open(my $fh, '+>', undef) or fail($self, "open.err failed: $!");
