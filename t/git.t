@@ -145,7 +145,8 @@ if ('alternates reloaded') {
 }
 
 use_ok 'PublicInbox::Git', qw(git_unquote);
-is("foo\nbar", git_unquote('"foo\\nbar"'.''), 'unquoted newline');
-is("Eléanor", git_unquote('"El\\303\\251anor"'.''), 'unquoted octal');
+my $s;
+is("foo\nbar", git_unquote($s = '"foo\\nbar"'), 'unquoted newline');
+is("Eléanor", git_unquote($s = '"El\\303\\251anor"'), 'unquoted octal');
 
 done_testing();
