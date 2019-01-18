@@ -13,7 +13,7 @@ use POSIX qw(dup2);
 require IO::Handle;
 use PublicInbox::Spawn qw(spawn popen_rd);
 use base qw(Exporter);
-our @EXPORT_OK = qw(git_unquote);
+our @EXPORT_OK = qw(git_unquote git_quote);
 
 my %GIT_ESC = (
 	a => "\a",
@@ -26,6 +26,8 @@ my %GIT_ESC = (
 	'"' => '"',
 	'\\' => '\\',
 );
+my %ESC_GIT = map { $GIT_ESC{$_} => $_ } keys %GIT_ESC;
+
 
 # unquote pathnames used by git, see quote.c::unquote_c_style.c in git.git
 sub git_unquote ($) {
@@ -33,6 +35,14 @@ sub git_unquote ($) {
 	$_[0] = $1;
 	$_[0] =~ s/\\([\\"abfnrtv])/$GIT_ESC{$1}/g;
 	$_[0] =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
+	$_[0];
+}
+
+sub git_quote ($) {
+	if ($_[0] =~ s/([\\"\a\b\f\n\r\t\013]|[^[:print:]])/
+		      '\\'.($ESC_GIT{$1}||sprintf("%0o",ord($1)))/egs) {
+		return qq{"$_[0]"};
+	}
 	$_[0];
 }
 

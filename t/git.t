@@ -144,11 +144,16 @@ if ('alternates reloaded') {
 	is($$found, $config, 'alternates reloaded');
 }
 
-use_ok 'PublicInbox::Git', qw(git_unquote);
+use_ok 'PublicInbox::Git', qw(git_unquote git_quote);
 my $s;
 is("foo\nbar", git_unquote($s = '"foo\\nbar"'), 'unquoted newline');
 is("Eléanor", git_unquote($s = '"El\\303\\251anor"'), 'unquoted octal');
 is(git_unquote($s = '"I\"m"'), 'I"m', 'unquoted dq');
 is(git_unquote($s = '"I\\m"'), 'I\\m', 'unquoted backslash');
+
+is(git_quote($s = "Eléanor"), '"El\\303\\251anor"', 'quoted octal');
+is(git_quote($s = "hello\"world"), '"hello\"world"', 'quoted dq');
+is(git_quote($s = "hello\\world"), '"hello\\\\world"', 'quoted backslash');
+is(git_quote($s = "hello\nworld"), '"hello\\nworld"', 'quoted LF');
 
 done_testing();
