@@ -2,12 +2,16 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # used by PublicInbox::View
+# This adds CSS spans for diff highlighting.
+# It also generates links for ViewVCS + SolverGit to show
+# (or reconstruct) blobs.
+
 package PublicInbox::ViewDiff;
 use strict;
 use warnings;
 use base qw(Exporter);
 our @EXPORT_OK = qw(flush_diff);
-
+use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::Hval qw(ascii_html);
 use PublicInbox::Git qw(git_unquote);
 
@@ -18,6 +22,7 @@ sub DSTATE_HUNK () { 3 } # /^@@ /
 sub DSTATE_CTX () { 4 } # /^ /
 sub DSTATE_ADD () { 5 } # /^\+/
 sub DSTATE_DEL () { 6 } # /^\-/
+sub UNSAFE () { "^A-Za-z0-9\-\._~/" }
 
 my $OID_NULL = '0{7,40}';
 my $OID_BLOB = '[a-f0-9]{7,40}';
@@ -40,18 +45,18 @@ sub diff_hunk ($$$$) {
 	my ($n) = ($ca =~ /^-(\d+)/);
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
 
-	my $rv = qq(@@ <a\nhref=$spfx$oid_a/s$n>$ca</a>);
+	my $rv = qq(@@ <a\nhref=$spfx$oid_a/s$dctx->{Q}$n>$ca</a>);
 
 	($n) = ($cb =~ /^\+(\d+)/);
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
 
-	$rv .= qq( <a\nhref=$spfx$oid_b/s$n>$cb</a> @@);
+	$rv .= qq( <a\nhref=$spfx$oid_b/s$dctx->{Q}$n>$cb</a> @@);
 }
 
 sub flush_diff ($$$$) {
 	my ($dst, $spfx, $linkify, $diff) = @_;
 	my $state = DSTATE_INIT;
-	my $dctx; # {}, keys: oid_a, oid_b, path_a, path_b
+	my $dctx = { Q => '' }; # {}, keys: oid_a, oid_b, path_a, path_b
 
 	foreach my $s (@$diff) {
 		if ($s =~ /^ /) {
@@ -67,7 +72,7 @@ sub flush_diff ($$$$) {
 				$$dst .= '</span>';
 			}
 			$$dst .= $s;
-		} elsif ($s =~ m!^diff --git ($PATH_A) ($PATH_B)$!x) {
+		} elsif ($s =~ m!^diff --git ($PATH_A) ($PATH_B)$!) {
 			if ($state != DSTATE_HEAD) {
 				my ($pa, $pb) = ($1, $2);
 				$$dst .= '</span>' if $state != DSTATE_INIT;
@@ -75,15 +80,21 @@ sub flush_diff ($$$$) {
 				$state = DSTATE_HEAD;
 				$pa = (split('/', git_unquote($pa), 2))[1];
 				$pb = (split('/', git_unquote($pb), 2))[1];
-				$dctx = { path_a => $pa, path_b => $pb };
+				$dctx = {
+					Q => "?b=".uri_escape_utf8($pb, UNSAFE),
+				};
+				if ($pa ne $pb) {
+					$dctx->{Q} .=
+					     "&a=".uri_escape_utf8($pa, UNSAFE);
+				}
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {
-			$$dst .= qq($1<a\nhref=$spfx$2/s>$2</a>);
+			$$dst .= qq($1<a\nhref=$spfx$2/s$dctx->{Q}>$2</a>);
 			$$dst .= to_html($linkify, $s) ;
 		} elsif ($s =~ s/^index ($OID_NULL)(\.\.$OID_BLOB)\b//o) {
 			$$dst .= 'index ';
-			$$dst .= qq(<a\nhref=$spfx$1/s>$1</a>$2);
+			$$dst .= qq(<a\nhref=$spfx$1/s$dctx->{Q}>$1</a>$2);
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^index ($OID_BLOB)\.\.($OID_BLOB)/o) {
 			$dctx->{oid_a} = $1;
