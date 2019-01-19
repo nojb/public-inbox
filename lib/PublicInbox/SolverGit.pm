@@ -236,8 +236,8 @@ sub prepare_index ($$$$) {
 		"$mode_a $oid_full\t", git_quote($path_a), "\n";
 }
 
-sub do_apply ($$$$) {
-	my ($out, $wt_git, $wt_dir, $di) = @_;
+sub do_apply_begin ($$$) {
+	my ($out, $wt_dir, $di) = @_;
 
 	my $tmp = delete $di->{tmp} or die "BUG: no tmp ", di_url($di);
 	$tmp->flush or die "tmp->flush failed: $!";
@@ -248,11 +248,19 @@ sub do_apply ($$$$) {
 	my $rdr = { 0 => fileno($tmp), 1 => $err_fd, 2 => $err_fd };
 	my $cmd = [ qw(git -C), $wt_dir,
 	            qw(apply --cached --whitespace=warn --verbose) ];
-	reap(spawn($cmd, undef, $rdr), 'apply');
+	spawn($cmd, undef, $rdr);
+}
+
+sub do_apply_continue ($$) {
+	my ($wt_dir, $apply_pid) = @_;
+	reap($apply_pid, 'apply');
+	popen_rd([qw(git -C), $wt_dir, qw(ls-files -s -z)]);
+}
+
+sub do_apply_end ($$$$) {
+	my ($out, $wt_git, $rd, $di) = @_;
 
 	local $/ = "\0";
-	my $rd = popen_rd([qw(git -C), $wt_dir, qw(ls-files -s -z)]);
-
 	defined(my $line = <$rd>) or die "failed to read ls-files: $!";
 	chomp $line or die "no trailing \\0 in [$line] from ls-files";
 
@@ -314,7 +322,9 @@ sub apply_patches ($$$$$) {
 			or die "print \$out failed: $!";
 
 		# apply the patch!
-		$found->{$di->{oid_b}} = do_apply($out, $wt_git, $wt_dir, $di);
+		my $apply_pid = do_apply_begin($out, $wt_dir, $di);
+		my $rd = do_apply_continue($wt_dir, $apply_pid);
+		$found->{$di->{oid_b}} = do_apply_end($out, $wt_git, $rd, $di);
 	}
 }
 
