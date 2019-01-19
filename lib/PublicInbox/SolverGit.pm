@@ -221,11 +221,13 @@ sub prepare_index ($$$$) {
 	my ($r, $w);
 	my $path_a = $di->{path_a} or die "BUG: path_a missing for $oid_full";
 	my $mode_a = $di->{mode_a} || extract_old_mode($di);
-	my @git = (qw(git -C), $wt_dir);
 
+	# unlike git-apply(1), this only gets called once in a patch
+	# series and happens too quickly to be worth making async:
 	pipe($r, $w) or die "pipe: $!";
 	my $rdr = { 0 => fileno($r) };
-	my $pid = spawn([@git, qw(update-index -z --index-info)], {}, $rdr);
+	my $pid = spawn([qw(git -C), $wt_dir,
+			 qw(update-index -z --index-info)], undef, $rdr);
 	close $r or die "close pipe(r): $!";
 	print $w "$mode_a $oid_full\t$path_a\0" or die "print update-index: $!";
 
