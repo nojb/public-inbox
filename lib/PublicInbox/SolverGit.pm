@@ -290,16 +290,35 @@ sub di_url ($) {
 	defined($url) ? "$url$mid/" : "<$mid>";
 }
 
-sub apply_patches ($$$$$) {
-	my ($self, $out, $wt, $found, $patches) = @_;
+sub apply_patches_cb ($$$$$) {
+	my ($self, $out, $found, $patches, $oid_b) = @_;
+	my $wt = do_git_init_wt($self);
 	my $wt_dir = $wt->dirname;
 	my $wt_git = PublicInbox::Git->new("$wt_dir/.git");
 	$wt_git->{-wt} = $wt;
 
 	my $cur = 0;
 	my $tot = scalar @$patches;
+	my ($apply_pid, $rd, $di);
 
-	foreach my $di (@$patches) {
+	# returns an empty string if in progress, undef if not found,
+	# or the final [ ::Git, oid_full, type, size, $di ] arrayref
+	# if found
+	sub {
+		if ($rd) {
+			$found->{$di->{oid_b}} =
+					do_apply_end($out, $wt_git, $rd, $di);
+			$rd = undef;
+			# continue to shift @$patches
+		} elsif ($apply_pid) {
+			$rd = do_apply_continue($wt_dir, $apply_pid);
+			$apply_pid = undef;
+			return ''; # $rd => do_apply_ned
+		}
+
+		# may return undef here
+		$di = shift @$patches or return $found->{$oid_b};
+
 		my $i = ++$cur;
 		my $oid_a = $di->{oid_a};
 		my $existing = $found->{$oid_a};
@@ -321,29 +340,10 @@ sub apply_patches ($$$$$) {
 			   join('', @{$di->{hdr_lines}}), "\n"
 			or die "print \$out failed: $!";
 
-		# apply the patch!
-		my $apply_pid = do_apply_begin($out, $wt_dir, $di);
-		my $rd = do_apply_continue($wt_dir, $apply_pid);
-		$found->{$di->{oid_b}} = do_apply_end($out, $wt_git, $rd, $di);
-	}
-}
-
-sub dump_found ($$) {
-	my ($out, $found) = @_;
-	foreach my $oid (sort keys %$found) {
-		my ($git, $oid, undef, undef, $di) = @{$found->{$oid}};
-		my $loc = $di ? di_url($di) : $git->src_blob_url($oid);
-		print $out "$oid from $loc\n";
-	}
-}
-
-sub dump_patches ($$) {
-	my ($out, $patches) = @_;
-	my $tot = scalar(@$patches);
-	my $i = 0;
-	foreach my $di (@$patches) {
-		++$i;
-		print $out "[$i/$tot] ", di_url($di), "\n";
+		# begin the patch application patch!
+		$apply_pid = do_apply_begin($out, $wt_dir, $di);
+		# next call to this callback will call do_apply_continue
+		'';
 	}
 }
 
@@ -415,24 +415,16 @@ sub solve ($$$$) {
 
 	unless (scalar(@$patches)) {
 		print $out "no patch(es) for $oid_b\n";
-		dump_found($out, $found);
 		return;
 	}
 
 	# reconstruct the oid_b blob using patches we found:
-	eval {
-		my $wt = do_git_init_wt($self);
-		apply_patches($self, $out, $wt, $found, $patches);
-	};
-	if ($@) {
-		print $out "E: $@\nfound: ";
-		dump_found($out, $found);
-		print $out "patches: ";
-		dump_patches($out, $patches);
-		return;
+	my $cb = apply_patches_cb($self, $out, $found, $patches, $oid_b);
+	my $ret;
+	while (1) {
+		$ret = $cb->();
+		return $ret if (ref($ret) || !defined($ret));
 	}
-
-	$found->{$oid_b};
 }
 
 1;
