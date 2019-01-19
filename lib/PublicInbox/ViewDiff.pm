@@ -45,12 +45,12 @@ sub diff_hunk ($$$$) {
 	my ($n) = ($ca =~ /^-(\d+)/);
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
 
-	my $rv = qq(@@ <a\nhref=$spfx$oid_a/s$dctx->{Q}$n>$ca</a>);
+	my $rv = qq(@@ <a\nhref=$spfx$oid_a/s/$dctx->{Q}$n>$ca</a>);
 
 	($n) = ($cb =~ /^\+(\d+)/);
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
 
-	$rv .= qq( <a\nhref=$spfx$oid_b/s$dctx->{Q}$n>$cb</a> @@);
+	$rv .= qq( <a\nhref=$spfx$oid_b/s/$dctx->{Q}$n>$cb</a> @@);
 }
 
 sub flush_diff ($$$$) {
@@ -90,11 +90,11 @@ sub flush_diff ($$$$) {
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {
-			$$dst .= qq($1<a\nhref=$spfx$2/s$dctx->{Q}>$2</a>);
+			$$dst .= qq($1<a\nhref=$spfx$2/s/$dctx->{Q}>$2</a>);
 			$$dst .= to_html($linkify, $s) ;
 		} elsif ($s =~ s/^index ($OID_NULL)(\.\.$OID_BLOB)\b//o) {
 			$$dst .= 'index ';
-			$$dst .= qq(<a\nhref=$spfx$1/s$dctx->{Q}>$1</a>$2);
+			$$dst .= qq(<a\nhref=$spfx$1/s/$dctx->{Q}>$1</a>$2);
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^index ($OID_BLOB)\.\.($OID_BLOB)/o) {
 			$dctx->{oid_a} = $1;

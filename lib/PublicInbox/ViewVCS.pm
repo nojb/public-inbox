@@ -27,7 +27,7 @@ my $enc_utf8 = find_encoding('UTF-8');
 
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
-	$ctx->{-upfx} = '../'; # from "/$INBOX/$OID/s"
+	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
 	PublicInbox::WwwStream->response($ctx, $code, sub {
 		my ($nr, undef) =  @_;
 		$nr == 1 ? $$strref : undef;
@@ -82,7 +82,7 @@ sub show ($$;$) {
 	}
 
 	my $path = to_filename($di->{path_b} || $hints->{path_b} || 'blob');
-	my $raw_link = "(<a\nhref=_$path>raw</a>)";
+	my $raw_link = "(<a\nhref=$path>raw</a>)";
 	if ($binary) {
 		$log = "<pre>$oid $type $size bytes (binary)" .
 			" $raw_link</pre>" . $log;

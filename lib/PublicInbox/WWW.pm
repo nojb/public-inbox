@@ -118,10 +118,12 @@ sub call {
 		r301($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/_/text(?:/(.*))?\z!o) {
 		get_text($ctx, $1, $2);
-	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
-	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/_([\w\.\-]+)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/([\w\.\-]+)\z!o) {
 		get_vcs_object($ctx, $1, $2, $3);
+	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s\z!o) {
+		r301($ctx, $1, $2, 's/');
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$INBOX_RE/([^/]{2,})\z!o) {
 		r301($ctx, $1, $2);
