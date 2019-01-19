@@ -358,6 +358,9 @@ sub apply_patches_cb ($$$$$) {
 # recreate $oid_b
 # Returns an array ref: [ ::Git object, oid_full, type, size, di ]
 # or undef if nothing was found.
+#
+# TODO: complete the migration of this and ViewVCS into an evented
+# model for fairness
 sub solve ($$$$) {
 	my ($self, $out, $oid_b, $hints) = @_;
 
