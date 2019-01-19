@@ -290,15 +290,21 @@ sub di_url ($) {
 	defined($url) ? "$url$mid/" : "<$mid>";
 }
 
+# reconstruct the oid_b blob using patches we found:
 sub apply_patches_cb ($$$$$) {
 	my ($self, $out, $found, $patches, $oid_b) = @_;
+
+	my $tot = scalar(@$patches) or return sub {
+		print $out "no patch(es) for $oid_b\n";
+		undef;
+	};
+
 	my $wt = do_git_init_wt($self);
 	my $wt_dir = $wt->dirname;
 	my $wt_git = PublicInbox::Git->new("$wt_dir/.git");
 	$wt_git->{-wt} = $wt;
 
 	my $cur = 0;
-	my $tot = scalar @$patches;
 	my ($apply_pid, $rd, $di);
 
 	# returns an empty string if in progress, undef if not found,
@@ -362,8 +368,15 @@ sub solve ($$$$) {
 	my $found = {}; # { abbrev => [ ::Git, oid_full, type, size, $di ] }
 	my $patches = []; # [ array of $di hashes ]
 	my $max = $self->{max_patches} || 200;
+	my $apply_cb;
+	my $cb = sub {
+		my $want = pop @todo;
+		unless ($want) {
+			$apply_cb ||= apply_patches_cb($self, $out, $found,
+			                               $patches, $oid_b);
+			return $apply_cb->();
+		}
 
-	while (defined(my $want = pop @todo)) {
 		if (scalar(@$patches) > $max) {
 			print $out "Aborting, too many steps to $oid_b\n";
 			return;
@@ -376,7 +389,7 @@ sub solve ($$$$) {
 
 			return $existing if $want_oid eq $oid_b; # DONE!
 			$found->{$want_oid} = $existing;
-			last; # ok, one blob resolved, more to go?
+			return ''; # ok, one blob resolved, more to go?
 		}
 
 		# scan through inboxes to look for emails which results in
@@ -403,19 +416,13 @@ sub solve ($$$$) {
 			print $out "$want_oid could not be found\n";
 			return;
 		}
-	}
+		''; # continue onto next @todo item;
+	};
 
-	unless (scalar(@$patches)) {
-		print $out "no patch(es) for $oid_b\n";
-		return;
-	}
-
-	# reconstruct the oid_b blob using patches we found:
-	my $cb = apply_patches_cb($self, $out, $found, $patches, $oid_b);
-	my $ret;
 	while (1) {
-		$ret = $cb->();
+		my $ret = $cb->();
 		return $ret if (ref($ret) || !defined($ret));
+		# $ret == ''; so continue looping here
 	}
 }
 
