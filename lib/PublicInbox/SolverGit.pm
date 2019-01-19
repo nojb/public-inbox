@@ -105,6 +105,11 @@ sub extract_diff ($$$$) {
 
 			my ($path_a, $path_b) = ($1, $2);
 
+			# diff header lines won't have \r because git
+			# will quote them, but Email::MIME gives CRLF
+			# for quoted-printable:
+			$path_b =~ tr/\r//d;
+
 			# don't care for leading 'a/' and 'b/'
 			my (undef, @a) = split(m{/}, git_unquote($path_a));
 			my (undef, @b) = split(m{/}, git_unquote($path_b));
@@ -248,8 +253,11 @@ sub do_apply_begin ($$$) {
 
 	defined(my $err_fd = fileno($out)) or die "fileno(out): $!";
 	my $rdr = { 0 => fileno($tmp), 1 => $err_fd, 2 => $err_fd };
+
+	# we need --ignore-whitespace because some patches are CRLF
 	my $cmd = [ qw(git -C), $wt_dir,
-	            qw(apply --cached --whitespace=warn --verbose) ];
+	            qw(apply --cached --ignore-whitespace
+		       --whitespace=warn --verbose) ];
 	spawn($cmd, undef, $rdr);
 }
 
@@ -425,8 +433,12 @@ sub solve ($$$$) {
 	};
 
 	while (1) {
-		my $ret = $cb->();
-		return $ret if (ref($ret) || !defined($ret));
+		my $ret = eval { $cb->() };
+		unless (defined($ret)) {
+			print $out "E: $@\n" if $@;
+			return;
+		}
+		return $ret if ref($ret);
 		# $ret == ''; so continue looping here
 	}
 }
