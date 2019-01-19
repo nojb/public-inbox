@@ -361,11 +361,13 @@ sub solve ($$$$) {
 	my @todo = ($req);
 	my $found = {}; # { abbrev => [ ::Git, oid_full, type, size, $di ] }
 	my $patches = []; # [ array of $di hashes ]
-
-	my $max = $self->{max_steps} || 200;
-	my $steps = 0;
+	my $max = $self->{max_patches} || 200;
 
 	while (defined(my $want = pop @todo)) {
+		if (scalar(@$patches) > $max) {
+			print $out "Aborting, too many steps to $oid_b\n";
+			return;
+		}
 		# see if we can find the blob in an existing git repo:
 		my $want_oid = $want->{oid_b};
 		if (my $existing = solve_existing($self, $out, $want)) {
@@ -373,9 +375,8 @@ sub solve ($$$$) {
 				join("\n", $existing->[0]->pub_urls), "\n";
 
 			return $existing if $want_oid eq $oid_b; # DONE!
-
 			$found->{$want_oid} = $existing;
-			next; # ok, one blob resolved, more to go?
+			last; # ok, one blob resolved, more to go?
 		}
 
 		# scan through inboxes to look for emails which results in
@@ -390,21 +391,12 @@ sub solve ($$$$) {
 			# good, we can find a path to the oid we $want, now
 			# lets see if we need to apply more patches:
 			my $src = $di->{oid_a};
-			if ($src !~ /\A0+\z/) {
-				if (++$steps > $max) {
-					print $out
-"Aborting, too many steps to $oid_b\n";
 
-					return;
-				}
+			last if $src =~ /\A0+\z/;
 
-				# we have to solve it using another oid, fine:
-				my $job = {
-					oid_b => $src,
-					path_b => $di->{path_a},
-				};
-				push @todo, $job;
-			}
+			# we have to solve it using another oid, fine:
+			my $job = { oid_b => $src, path_b => $di->{path_a} };
+			push @todo, $job;
 			last; # onto the next @todo item
 		}
 		unless ($di) {
