@@ -179,11 +179,13 @@ sub check {
 	local $/ = "\n";
 	chomp(my $line = $self->{in_c}->getline);
 	my ($hex, $type, $size) = split(' ', $line);
-	return if $type eq 'missing';
 
-	# "dead" in git.git shows "dangling 4\ndead\n", not sure why
-	# https://public-inbox.org/git/20190118033845.s2vlrb3wd3m2jfzu@dcvr/
-	# so handle the oddball stuff just in case
+	# Future versions of git.git may show 'ambiguous', but for now,
+	# we must handle 'dangling' below (and maybe some other oddball
+	# stuff):
+	# https://public-inbox.org/git/20190118033845.s2vlrb3wd3m2jfzu@dcvr/T/
+	return if $type eq 'missing' || $type eq 'ambiguous';
+
 	if ($hex eq 'dangling' || $hex eq 'notdir' || $hex eq 'loop') {
 		$size = $type + length("\n");
 		my $r = read($self->{in_c}, my $buf, $size);
