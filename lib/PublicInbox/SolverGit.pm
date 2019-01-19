@@ -57,7 +57,7 @@ sub solve_existing ($$$) {
 	scalar(@ambiguous) ? \@ambiguous : undef;
 }
 
-# returns a hashref with information about a diff:
+# returns a hashref with information about a diff ($di):
 # {
 #	oid_a => abbreviated pre-image oid,
 #	oid_b => abbreviated post-image oid,
@@ -279,7 +279,7 @@ sub di_url ($) {
 	# can have different HTTP_HOST on the same instance.
 	my $url = $di->{ibx}->base_url;
 	my $mid = $di->{smsg}->{mid};
-	defined($url) ? "<$url$mid/>" : "<$mid>";
+	defined($url) ? "$url$mid/" : "<$mid>";
 }
 
 sub apply_patches ($$$$$) {
@@ -338,7 +338,7 @@ sub dump_patches ($$) {
 }
 
 # recreate $oid_b
-# Returns a 2-element array ref: [ PublicInbox::Git object, oid_full ]
+# Returns an array ref: [ ::Git object, oid_full, type, size, di ]
 # or undef if nothing was found.
 sub solve ($$$$) {
 	my ($self, $out, $oid_b, $hints) = @_;
@@ -357,14 +357,12 @@ sub solve ($$$$) {
 
 	while (defined(my $want = pop @todo)) {
 		# see if we can find the blob in an existing git repo:
+		my $want_oid = $want->{oid_b};
 		if (my $existing = solve_existing($self, $out, $want)) {
-			my $want_oid = $want->{oid_b};
-			if ($want_oid eq $oid_b) { # DONE!
-				my @pub_urls = $existing->[0]->pub_urls;
-				print $out "found $want_oid in ",
-						join("\n", @pub_urls),"\n";
-				return $existing;
-			}
+			print $out "found $want_oid in ",
+				join("\n", $existing->[0]->pub_urls), "\n";
+
+			return $existing if $want_oid eq $oid_b; # DONE!
 
 			$found->{$want_oid} = $existing;
 			next; # ok, one blob resolved, more to go?
@@ -372,10 +370,12 @@ sub solve ($$$$) {
 
 		# scan through inboxes to look for emails which results in
 		# the oid we want:
+		my $di;
 		foreach my $ibx (@{$self->{inboxes}}) {
-			my $di = find_extract_diff($self, $ibx, $want) or next;
+			$di = find_extract_diff($self, $ibx, $want) or next;
 
 			unshift @$patches, $di;
+			print $out "found $want_oid in ",di_url($di),"\n";
 
 			# good, we can find a path to the oid we $want, now
 			# lets see if we need to apply more patches:
@@ -396,6 +396,10 @@ sub solve ($$$$) {
 				push @todo, $job;
 			}
 			last; # onto the next @todo item
+		}
+		unless ($di) {
+			print $out "$want_oid could not be found\n";
+			return;
 		}
 	}
 
