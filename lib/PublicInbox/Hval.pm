@@ -18,8 +18,12 @@ our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename/;
 # browsers (tested both Firefox and surf (webkit)) uses a larger font
 # for the Search <form> element than the rest of the page.  Font size
 # uniformity is important to people who rely on gigantic fonts.
+# Finally, we use monospace to ensure the Search field and button
+# has the same size and spacing as everything else which is
+# <pre>-formatted anyways.
 use constant STYLE =>
-	'<style>pre{white-space:pre-wrap}*{font-size:100%}</style>';
+	'<style>pre{white-space:pre-wrap}' .
+	'*{font-size:100%;font-family:monospace}</style>';
 
 my $enc_ascii = find_encoding('us-ascii');
 
