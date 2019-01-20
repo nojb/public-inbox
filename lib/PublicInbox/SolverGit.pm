@@ -78,6 +78,14 @@ sub extract_diff ($$$$) {
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
 	my $di = {};
+
+	# Email::MIME::Encodings forces QP to be CRLF upon decoding,
+	# change it back to LF:
+	my $cte = $part->header('Content-Transfer-Encoding') || '';
+	if ($cte =~ /\bquoted-printable\b/i && $part->crlf eq "\n") {
+		$s =~ s/\r\n/\n/sg;
+	}
+
 	foreach my $l (split(/^/m, $s)) {
 		if ($l =~ $re) {
 			$di->{oid_a} = $1;
