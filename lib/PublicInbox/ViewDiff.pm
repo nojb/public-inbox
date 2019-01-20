@@ -107,9 +107,11 @@ sub flush_diff ($$$$) {
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {
 			$$dst .= $1 . oid($dctx, $spfx, $2);
+			$dctx = { Q => '' };
 			$$dst .= to_html($linkify, $s) ;
-		} elsif ($s =~ s/^index ($OID_NULL)(\.\.$OID_BLOB)\b//o) {
+		} elsif ($s =~ s/^index ($OID_BLOB)(\.\.$OID_NULL)\b//o) {
 			$$dst .= 'index ' . oid($dctx, $spfx, $1) . $2;
+			$dctx = { Q => '' };
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^index ($OID_BLOB)\.\.($OID_BLOB)/o) {
 			$dctx->{oid_a} = $1;
