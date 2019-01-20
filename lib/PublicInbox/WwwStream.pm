@@ -65,7 +65,7 @@ sub _html_top ($) {
 	"<html><head><title>$title</title>" .
 		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
 		"href=\"$atom\"\ntype=\"application/atom+xml\"/>" .
-		PublicInbox::Hval::STYLE .
+	        $ctx->{www}->style($upfx) .
 		"</head><body>". $top . $tip;
 }
 

@@ -49,6 +49,9 @@ sub new {
 		my $nod = join('|', @domains);
 		$self->{-no_obfuscate_re} = qr/(?:$nod)\z/i;
 	}
+	if (my $css = delete $self->{'publicinbox.css'}) {
+		$self->{css} = _array($css);
+	}
 
 	$self;
 }

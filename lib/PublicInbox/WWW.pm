@@ -6,6 +6,7 @@
 # We focus on the lowest common denominators here:
 # - targeted at text-only console browsers (w3m, links, etc..)
 # - Only basic HTML, CSS only for line-wrapping <pre> text content for GUIs
+#   and diff/syntax-highlighting (optional)
 # - No JavaScript, graphics or icons allowed.
 # - Must not rely on static content
 # - UTF-8 is only for user-content, 7-bit US-ASCII for us
@@ -118,6 +119,8 @@ sub call {
 		r301($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/_/text(?:/(.*))?\z!o) {
 		get_text($ctx, $1, $2);
+	} elsif ($path_info =~ m!$INBOX_RE/([\w\-\.]+)\.css\z!o) {
+		get_css($self, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/([\w\.\-]+)\z!o) {
@@ -135,6 +138,7 @@ sub call {
 
 # for CoW-friendliness, MOOOOO!
 sub preload {
+	my ($self) = @_;
 	require PublicInbox::Feed;
 	require PublicInbox::View;
 	require PublicInbox::SearchThread;
@@ -146,6 +150,9 @@ sub preload {
 			PublicInbox::Mbox IO::Compress::Gzip
 			PublicInbox::NewsWWW)) {
 		eval "require $_;";
+	}
+	if (ref($self)) {
+		$self->stylesheets_prepare($_) for ('', '../', '../../');
 	}
 }
 
@@ -462,6 +469,122 @@ sub get_attach {
 	my ($ctx, $idx, $fn) = @_;
 	require PublicInbox::WwwAttach;
 	PublicInbox::WwwAttach::get_attach($ctx, $idx, $fn);
+}
+
+# User-generated content (UGC) may have excessively long lines
+# and screw up rendering on some browsers, so we use pre-wrap.
+#
+# We also force everything to the same scaled font-size because GUI
+# browsers (tested both Firefox and surf (webkit)) uses a larger font
+# for the Search <form> element than the rest of the page.  Font size
+# uniformity is important to people who rely on gigantic fonts.
+# Finally, we use monospace to ensure the Search field and button
+# has the same size and spacing as everything else which is
+# <pre>-formatted anyways.
+our $STYLE = 'pre{white-space:pre-wrap}*{font-size:100%;font-family:monospace}';
+
+sub stylesheets_prepare ($$) {
+	my ($self, $upfx) = @_;
+	my $mini = eval {
+		require CSS::Minifier;
+		sub { CSS::Minifier::minify(input => $_[0]) };
+	} || eval {
+		require CSS::Minifier::XS;
+		sub { CSS::Minifier::XS::minify($_[0]) };
+	} || sub { $_[0] };
+
+	my $css_map = {};
+	my $stylesheets = $self->{pi_config}->{css} || [];
+	my $links = [];
+	my $inline_ok = 1;
+
+	foreach my $s (@$stylesheets) {
+		my $attr = {};
+		local $_ = $s;
+		foreach my $k (qw(media title href)) {
+			if (s/\s*$k='([^']+)'// || s/\s*$k=(\S+)//) {
+				$attr->{$k} = $1;
+			}
+		}
+
+		if (defined $attr->{href}) {
+			$inline_ok = 0;
+		} else {
+			open(my $fh, '<', $_) or do {
+				warn "failed to open $_: $!\n";
+				next;
+			};
+			my ($key) = (m!([^/]+?)(?:\.css)?\z!i);
+			my $ctime = 0;
+			my $local = do { local $/; <$fh> };
+			if ($local =~ /\S/) {
+				$ctime = sprintf('%x',(stat($fh))[10]);
+				$local = $mini->($local);
+			}
+			$css_map->{$key} = $local;
+			$attr->{href} = "$upfx$key.css?$ctime";
+			if (defined($attr->{title})) {
+				$inline_ok = 0;
+			} elsif (($attr->{media}||'screen') eq 'screen') {
+				$attr->{-inline} = $local;
+			}
+		}
+		push @$links, $attr;
+	}
+
+	my $buf = "<style>$STYLE";
+	if ($inline_ok) {
+		my @ext; # for media=print and whatnot
+		foreach my $attr (@$links) {
+			if (defined(my $str = delete $attr->{-inline})) {
+				$buf .= $str;
+			} else {
+				push @ext, $attr;
+			}
+		}
+		$links = \@ext;
+	}
+	$buf .= '</style>';
+
+	if (@$links) {
+		foreach my $attr (@$links) {
+			delete $attr->{-inline};
+			$buf .= "<link\ntype=text/css\nrel=stylesheet";
+			while (my ($k, $v) = each %$attr) {
+				$v = qq{"$v"} if $v =~ /[\s=]/;
+				$buf .= qq{\n$k=$v};
+			}
+			$buf .= ' />';
+		}
+		$self->{"-style-$upfx"} = $buf;
+	} else {
+		$self->{-style_inline} = $buf;
+	}
+	$self->{-css_map} = $css_map;
+}
+
+# returns an HTML fragment with <style> or <link> tags in them
+# Called by WwwStream by nearly every HTML page
+sub style {
+	my ($self, $upfx) = @_;
+	$self->{-style_inline} || $self->{"-style-$upfx"} || do {
+		stylesheets_prepare($self, $upfx);
+		$self->{-style_inline} || $self->{"-style-$upfx"}
+	};
+}
+
+# /$INBOX/$KEY.css endpoint
+# CSS is configured globally for all inboxes, but we access them on
+# a per-inbox basis.  This allows administrators to setup per-inbox
+# static routes to intercept the request before it hits PSGI
+sub get_css ($$) {
+	my ($self, $key) = @_;
+	my $css_map = $self->{-css_map} || stylesheets_prepare($self, '');
+	defined(my $css = $css_map->{$key}) or return r404();
+	my $h = [ 'Content-Length', bytes::length($css),
+		'Content-Type', 'text/css' ];
+	PublicInbox::GitHTTPBackend::cache_one_year($h);
+	[ 200, $h, [ $css ] ];
 }
 
 1;

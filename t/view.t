@@ -6,6 +6,7 @@ use Test::More;
 use Email::MIME;
 use Plack::Util;
 use_ok 'PublicInbox::View';
+use_ok 'PublicInbox::Config';
 
 # FIXME: make this test less fragile
 my $ctx = {
@@ -18,6 +19,7 @@ my $ctx = {
 		nntp_url => sub {[]},
 		max_git_part => sub { undef },
 		description => sub { '' }),
+	www => Plack::Util::inline_object(style => sub { '' }),
 };
 $ctx->{-inbox}->{-primary_address} = 'test@example.com';
 

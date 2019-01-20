@@ -26,6 +26,9 @@ MANIFEST
 Makefile.PL
 README
 TODO
+contrib/css/216dark.css
+contrib/css/216light.css
+contrib/css/README
 contrib/selinux/el7/publicinbox.fc
 contrib/selinux/el7/publicinbox.te
 examples/README

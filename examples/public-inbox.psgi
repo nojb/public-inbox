@@ -8,9 +8,9 @@
 use strict;
 use warnings;
 use PublicInbox::WWW;
-PublicInbox::WWW->preload;
 use Plack::Builder;
 my $www = PublicInbox::WWW->new;
+$www->preload;
 
 # share the public-inbox code itself:
 my $src = $ENV{SRC_GIT_DIR}; # '/path/to/public-inbox.git'

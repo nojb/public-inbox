@@ -1,0 +1,26 @@
+/*
+ * Dark color scheme using 216 web-safe colors, inspired
+ * somewhat by the default color scheme in mutt.
+ * It reduces eyestrain for me, and energy usage for all:
+ * https://en.wikipedia.org/wiki/Light-on-dark_color_scheme
+ */
+* { background:#000; color:#ccc }
+
+/*
+ * Underlined links add visual noise which make them hard-to-read.
+ * Use colors to make them stand out, instead.
+ */
+a { color:#69f; text-decoration:none }
+a:visited { color:#96f }
+
+/* quoted text gets a different color */
+*.q { color:#09f }
+
+/*
+ * these may be used with cgit, too
+ * (cgit uses <div>, public-inbox uses <span>)
+ */
+*.add { color:#0ff }
+*.del { color:#f0f }
+*.head { color:#fff }
+*.hunk { color:#c93 }
