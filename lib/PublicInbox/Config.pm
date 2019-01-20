@@ -90,13 +90,22 @@ sub lookup_name ($$) {
 
 sub each_inbox {
 	my ($self, $cb) = @_;
-	my %seen;
-	foreach my $k (keys %$self) {
-		$k =~ m!\Apublicinbox\.([^/]+)\.mainrepo\z! or next;
-		next if $seen{$1};
-		$seen{$1} = 1;
-		my $ibx = lookup_name($self, $1) or next;
-		$cb->($ibx);
+	if (my $section_order = $self->{-section_order}) {
+		foreach my $section (@$section_order) {
+			next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
+			$self->{"publicinbox.$1.mainrepo"} or next;
+			my $ibx = lookup_name($self, $1) or next;
+			$cb->($ibx);
+		}
+	} else {
+		my %seen;
+		foreach my $k (keys %$self) {
+			$k =~ m!\Apublicinbox\.([^/]+)\.mainrepo\z! or next;
+			next if $seen{$1};
+			$seen{$1} = 1;
+			my $ibx = lookup_name($self, $1) or next;
+			$cb->($ibx);
+		}
 	}
 }
 
@@ -137,7 +146,7 @@ sub default_file {
 
 sub git_config_dump {
 	my ($file) = @_;
-	my ($in, $out);
+	my (%section_seen, @section_order);
 	my @cmd = (qw/git config/, "--file=$file", '-l');
 	my $cmd = join(' ', @cmd);
 	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
@@ -146,8 +155,14 @@ sub git_config_dump {
 	while (defined(my $line = <$fh>)) {
 		chomp $line;
 		my ($k, $v) = split(/=/, $line, 2);
-		my $cur = $rv{$k};
 
+		my ($section) = ($k =~ /\A(\S+)\.[^\.]+\z/);
+		unless (defined $section_seen{$section}) {
+			$section_seen{$section} = 1;
+			push @section_order, $section;
+		}
+
+		my $cur = $rv{$k};
 		if (defined $cur) {
 			if (ref($cur) eq "ARRAY") {
 				push @$cur, $v;
@@ -159,6 +174,7 @@ sub git_config_dump {
 		}
 	}
 	close $fh or die "failed to close ($cmd) pipe: $?";
+	$rv{-section_order} = \@section_order;
 
 	\%rv;
 }
