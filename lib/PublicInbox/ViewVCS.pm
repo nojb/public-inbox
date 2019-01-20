@@ -100,7 +100,8 @@ sub show ($$;$) {
 			sprintf("<a id=n$_ href=#n$_>% ${pad}u</a>\n", $_)
 		} (1..$nl)) . '</pre></td>' .
 		'<td><pre> </pre></td>'. # pad for non-CSS users
-		"<td\nclass=lines><pre><code>" .  ascii_html($$blob) .
+		"<td\nclass=lines><pre\nstyle='white-space:pre'><code>" .
+		ascii_html($$blob) .
 		'</code></pre></td></tr></table>' . $log;
 
 	html_page($ctx, 200, \$log);
