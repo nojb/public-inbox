@@ -11,6 +11,7 @@ use warnings;
 use PublicInbox::Hval;
 use PublicInbox::MID qw/mid2path/;
 use PublicInbox::WwwStream;
+our $MIN_PARTIAL_LEN = 16;
 
 # TODO: user-configurable
 our @EXT_URL = (
@@ -30,6 +31,7 @@ sub PARTIAL_MAX () { 100 }
 
 sub search_partial ($$) {
 	my ($srch, $mid) = @_;
+	return if length($mid) < $MIN_PARTIAL_LEN;
 	my $opt = { limit => PARTIAL_MAX, mset => 2 };
 	my @try = ("m:$mid*");
 	my $chop = $mid;
@@ -58,12 +60,12 @@ sub search_partial ($$) {
 	}
 
 	foreach my $m (@try) {
-		my $mset = eval { $srch->query($m, $opt) };
-		if (ref($@) eq 'Search::Xapian::QueryParserError') {
-			# If Xapian can't handle the wildcard since it
-			# has too many results.
-			next;
-		}
+		# If Xapian can't handle the wildcard since it
+		# has too many results.  $@ can be
+		# Search::Xapian::QueryParserError or even:
+		# "something terrible happened at ../Search/Xapian/Enquire.pm"
+		my $mset = eval { $srch->query($m, $opt) } or next;
+
 		my @mids = map {
 			my $doc = $_->get_document;
 			PublicInbox::SearchMsg->load_doc($doc)->mid;
@@ -112,7 +114,7 @@ sub ext_msg {
 	}
 
 	# can't find a partial match in current inbox, try the others:
-	if (!$n_partial && length($mid) >= 16) {
+	if (!$n_partial && length($mid) >= $MIN_PARTIAL_LEN) {
 		foreach my $ibx (@ibx) {
 			$srch = $ibx->search or next;
 			$mids = search_partial($srch, $mid) or next;
