@@ -110,6 +110,7 @@ lib/PublicInbox/Spamcheck/Spamc.pm
 lib/PublicInbox/Spawn.pm
 lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Unsubscribe.pm
+lib/PublicInbox/UserContent.pm
 lib/PublicInbox/V2Writable.pm
 lib/PublicInbox/View.pm
 lib/PublicInbox/ViewDiff.pm

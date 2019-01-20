@@ -20,6 +20,7 @@ use URI::Escape qw(uri_unescape);
 use PublicInbox::MID qw(mid_escape);
 require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
+use PublicInbox::UserContent;
 
 # TODO: consider a routing tree now that we have more endpoints:
 our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
@@ -120,7 +121,7 @@ sub call {
 	} elsif ($path_info =~ m!$INBOX_RE/_/text(?:/(.*))?\z!o) {
 		get_text($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/([\w\-\.]+)\.css\z!o) {
-		get_css($self, $2);
+		get_css($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/([\w\.\-]+)\z!o) {
@@ -577,10 +578,18 @@ sub style {
 # CSS is configured globally for all inboxes, but we access them on
 # a per-inbox basis.  This allows administrators to setup per-inbox
 # static routes to intercept the request before it hits PSGI
-sub get_css ($$) {
-	my ($self, $key) = @_;
+sub get_css ($$$) {
+	my ($ctx, $inbox, $key) = @_;
+	my $r404 = invalid_inbox($ctx, $inbox);
+	return $r404 if $r404;
+	my $self = $ctx->{www};
 	my $css_map = $self->{-css_map} || stylesheets_prepare($self, '');
-	defined(my $css = $css_map->{$key}) or return r404();
+	my $css = $css_map->{$key};
+	if (!defined($css) && $key eq 'userContent') {
+		my $env = $ctx->{env};
+		$css = PublicInbox::UserContent::sample($ctx->{-inbox}, $env);
+	}
+	defined $css or return r404();
 	my $h = [ 'Content-Length', bytes::length($css),
 		'Content-Type', 'text/css' ];
 	PublicInbox::GitHTTPBackend::cache_one_year($h);
