@@ -18,10 +18,18 @@ use PublicInbox::Git qw(git_unquote);
 sub DSTATE_INIT () { 0 }
 sub DSTATE_STAT () { 1 } # TODO
 sub DSTATE_HEAD () { 2 } # /^diff --git /, /^index /, /^--- /, /^\+\+\+ /
-sub DSTATE_HUNK () { 3 } # /^@@ /
-sub DSTATE_CTX () { 4 } # /^ /
-sub DSTATE_ADD () { 5 } # /^\+/
-sub DSTATE_DEL () { 6 } # /^\-/
+sub DSTATE_CTX () { 3 } # /^ /
+sub DSTATE_ADD () { 4 } # /^\+/
+sub DSTATE_DEL () { 5 } # /^\-/
+my @state2class = (
+	'', # init
+	'', # stat
+	'head',
+	'', # ctx
+	'add',
+	'del'
+);
+
 sub UNSAFE () { "^A-Za-z0-9\-\._~/" }
 
 my $OID_NULL = '0{7,40}';
@@ -59,6 +67,14 @@ sub oid ($$$) {
 	defined($spfx) ? qq(<a\nhref=$spfx$oid/s/$dctx->{Q}>$oid</a>) : $oid;
 }
 
+sub to_state ($$$) {
+	my ($dst, $state, $new_state) = @_;
+	$$dst .= '</span>' if $state2class[$state];
+	$_[1] = $new_state;
+	my $class = $state2class[$new_state] or return;
+	$$dst .= "<span\nclass=$class>";
+}
+
 sub flush_diff ($$$$) {
 	my ($dst, $spfx, $linkify, $diff) = @_;
 	my $state = DSTATE_INIT;
@@ -66,24 +82,18 @@ sub flush_diff ($$$$) {
 
 	foreach my $s (@$diff) {
 		if ($s =~ /^ /) {
-			if ($state == DSTATE_HUNK || $state == DSTATE_ADD ||
-			    $state == DSTATE_DEL || $state == DSTATE_HEAD) {
-				$$dst .= "</span><span\nclass=ctx>";
-				$state = DSTATE_CTX;
+			if ($state2class[$state]) {
+				to_state($dst, $state, DSTATE_CTX);
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^-- $/) { # email signature begins
-			if ($state != DSTATE_INIT) {
-				$state = DSTATE_INIT;
-				$$dst .= '</span>';
-			}
+			$state == DSTATE_INIT or
+				to_state($dst, $state, DSTATE_INIT);
 			$$dst .= $s;
 		} elsif ($s =~ m!^diff --git ($PATH_A) ($PATH_B)$!) {
 			if ($state != DSTATE_HEAD) {
 				my ($pa, $pb) = ($1, $2);
-				$$dst .= '</span>' if $state != DSTATE_INIT;
-				$$dst .= "<span\nclass=head>";
-				$state = DSTATE_HEAD;
+				to_state($dst, $state, DSTATE_HEAD);
 				$pa = (split('/', git_unquote($pa), 2))[1];
 				$pb = (split('/', git_unquote($pb), 2))[1];
 				$dctx = {
@@ -106,38 +116,26 @@ sub flush_diff ($$$$) {
 			$dctx->{oid_b} = $2;
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^@@ (\S+) (\S+) @@//) {
-			my ($ca, $cb) = ($1, $2);
-			if ($state == DSTATE_HEAD || $state == DSTATE_CTX ||
-			    $state == DSTATE_ADD || $state == DSTATE_DEL) {
-				$$dst .= "</span><span\nclass=hunk>";
-				$state = DSTATE_HUNK;
-				$$dst .= diff_hunk($dctx, $spfx, $ca, $cb);
-			} else {
-				$$dst .= to_html($linkify, "@@ $ca $cb @@");
-			}
+			$$dst .= '</span>' if $state2class[$state];
+			$$dst .= "<span\nclass=hunk>";
+			$$dst .= diff_hunk($dctx, $spfx, $1, $2);
+			$$dst .= '</span>';
+			$state = DSTATE_CTX;
 			$$dst .= to_html($linkify, $s);
-		} elsif ($s =~ m!^--- $PATH_A!) {
-			if ($state == DSTATE_INIT) { # color only (no oid link)
-				$state = DSTATE_HEAD;
-				$$dst .= "<span\nclass=head>";
-			}
-			$$dst .= to_html($linkify, $s);
-		} elsif ($s =~ m!^\+{3} $PATH_B!)  {
-			if ($state == DSTATE_INIT) { # color only (no oid link)
-				$state = DSTATE_HEAD;
-				$$dst .= "<span\nclass=head>";
-			}
+		} elsif ($s =~ m!^--- $PATH_A! ||
+		         $s =~ m!^\+{3} $PATH_B!)  {
+			# color only (no oid link)
+			$state == DSTATE_INIT and
+				to_state($dst, $state, DSTATE_HEAD);
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^\+/) {
 			if ($state != DSTATE_ADD && $state != DSTATE_INIT) {
-				$$dst .= "</span><span\nclass=add>";
-				$state = DSTATE_ADD;
+				to_state($dst, $state, DSTATE_ADD);
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^-/) {
 			if ($state != DSTATE_DEL && $state != DSTATE_INIT) {
-				$$dst .= "</span><span\nclass=del>";
-				$state = DSTATE_DEL;
+				to_state($dst, $state, DSTATE_DEL);
 			}
 			$$dst .= to_html($linkify, $s);
 		# ignore the following lines in headers:
@@ -148,15 +146,13 @@ sub flush_diff ($$$$) {
 			 $s =~ /^(?:dis)?similarity index /) {
 			$$dst .= to_html($linkify, $s);
 		} else {
-			if ($state != DSTATE_INIT) {
-				$$dst .= '</span>';
-				$state = DSTATE_INIT;
-			}
+			$state == DSTATE_INIT or
+				to_state($dst, $state, DSTATE_INIT);
 			$$dst .= to_html($linkify, $s);
 		}
 	}
 	@$diff = ();
-	$$dst .= '</span>' if $state != DSTATE_INIT;
+	$$dst .= '</span>' if $state2class[$state];
 	undef;
 }
 
