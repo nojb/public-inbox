@@ -103,7 +103,7 @@ sub extract_diff ($$$$) {
 
 			push @$hdr_lines, $l;
 			$di->{hdr_lines} = $hdr_lines;
-			print $tmp @$hdr_lines, $l or die "print(tmp): $!";
+			print $tmp @$hdr_lines or die "print(tmp): $!";
 
 			# for debugging/diagnostics:
 			$di->{ibx} = $ibx;
