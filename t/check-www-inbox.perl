@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # Parallel WWW checker
 my $usage = "$0 [-j JOBS] [-s SLOW_THRESHOLD] URL_OF_INBOX\n";
@@ -22,6 +22,16 @@ my %opts = (
 );
 GetOptions(%opts) or die "bad command-line args\n$usage";
 my $root_url = shift or die $usage;
+
+chomp(my $xmlstarlet = `which xmlstarlet 2>/dev/null`);
+my $atom_check = eval {
+	require IPC::Run;
+	my $cmd = [ qw(xmlstarlet val -e -) ];
+	sub {
+		my ($in, $out, $err) = @_;
+		IPC::Run::run($cmd, $in, $out, $err);
+	}
+} if $xmlstarlet;
 
 my %workers;
 $SIG{TERM} = sub { exit 0 };
@@ -146,7 +156,15 @@ sub worker_loop {
 		# make sure the HTML source doesn't screw up terminals
 		# when people curl the source (not remotely an expert
 		# on languages or encodings, here).
-		next if $r->header('Content-Type') !~ m!\btext/html\b!;
+		my $ct = $r->header('Content-Type');
+		if ($atom_check && $ct =~ m!\bapplication/atom\+xml\b!) {
+			my $raw = $r->decoded_content;
+			my ($out, $err) = ('', '');
+			$atom_check->(\$raw, \$out, \$err) and
+				warn "Atom ($?) - $u - <1:$out> <2:$err>\n";
+		}
+
+		next if $ct !~ m!\btext/html\b!;
 		my $dc = $r->decoded_content;
 		if ($dc =~ /([\x00-\x08\x0d-\x1f\x7f-\x{99999999}]+)/s) {
 			my $o = $1;
