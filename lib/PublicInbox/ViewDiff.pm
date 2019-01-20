@@ -54,17 +54,17 @@ sub diff_hunk ($$$$) {
 	my ($n) = ($ca =~ /^-(\d+)/);
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
 
-	my $rv = qq(@@ <a\nhref=$spfx$oid_a/s/$dctx->{Q}$n>$ca</a>);
+	my $rv = qq(@@ <a\nhref="$spfx$oid_a/s/$dctx->{Q}$n">$ca</a>);
 
 	($n) = ($cb =~ /^\+(\d+)/);
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
 
-	$rv .= qq( <a\nhref=$spfx$oid_b/s/$dctx->{Q}$n>$cb</a> @@);
+	$rv .= qq( <a\nhref="$spfx$oid_b/s/$dctx->{Q}$n">$cb</a> @@);
 }
 
 sub oid ($$$) {
 	my ($dctx, $spfx, $oid) = @_;
-	defined($spfx) ? qq(<a\nhref=$spfx$oid/s/$dctx->{Q}>$oid</a>) : $oid;
+	defined($spfx) ? qq(<a\nhref="$spfx$oid/s/$dctx->{Q}">$oid</a>) : $oid;
 }
 
 sub to_state ($$$) {
@@ -72,7 +72,7 @@ sub to_state ($$$) {
 	$$dst .= '</span>' if $state2class[$state];
 	$_[1] = $new_state;
 	my $class = $state2class[$new_state] or return;
-	$$dst .= "<span\nclass=$class>";
+	$$dst .= qq(<span\nclass="$class">);
 }
 
 sub flush_diff ($$$$) {
@@ -117,7 +117,7 @@ sub flush_diff ($$$$) {
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^@@ (\S+) (\S+) @@//) {
 			$$dst .= '</span>' if $state2class[$state];
-			$$dst .= "<span\nclass=hunk>";
+			$$dst .= qq(<span\nclass="hunk">);
 			$$dst .= diff_hunk($dctx, $spfx, $1, $2);
 			$$dst .= '</span>';
 			$state = DSTATE_CTX;
