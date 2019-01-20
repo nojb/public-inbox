@@ -40,7 +40,8 @@ sub diff_hunk ($$$$) {
 	my $oid_a = $dctx->{oid_a};
 	my $oid_b = $dctx->{oid_b};
 
-	(defined($oid_a) && defined($oid_b)) or return "@@ $ca $cb @@";
+	(defined($spfx) && defined($oid_a) && defined($oid_b)) or
+		return "@@ $ca $cb @@";
 
 	my ($n) = ($ca =~ /^-(\d+)/);
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
@@ -51,6 +52,11 @@ sub diff_hunk ($$$$) {
 	$n = defined($n) ? do { ++$n; "#n$n" } : '';
 
 	$rv .= qq( <a\nhref=$spfx$oid_b/s/$dctx->{Q}$n>$cb</a> @@);
+}
+
+sub oid ($$$) {
+	my ($dctx, $spfx, $oid) = @_;
+	defined($spfx) ? qq(<a\nhref=$spfx$oid/s/$dctx->{Q}>$oid</a>) : $oid;
 }
 
 sub flush_diff ($$$$) {
@@ -90,11 +96,10 @@ sub flush_diff ($$$$) {
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {
-			$$dst .= qq($1<a\nhref=$spfx$2/s/$dctx->{Q}>$2</a>);
+			$$dst .= $1 . oid($dctx, $spfx, $2);
 			$$dst .= to_html($linkify, $s) ;
 		} elsif ($s =~ s/^index ($OID_NULL)(\.\.$OID_BLOB)\b//o) {
-			$$dst .= 'index ';
-			$$dst .= qq(<a\nhref=$spfx$1/s/$dctx->{Q}>$1</a>$2);
+			$$dst .= 'index ' . oid($dctx, $spfx, $1) . $2;
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^index ($OID_BLOB)\.\.($OID_BLOB)/o) {
 			$dctx->{oid_a} = $1;

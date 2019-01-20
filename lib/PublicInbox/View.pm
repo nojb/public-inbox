@@ -558,15 +558,17 @@ sub add_text_body {
 	return attach_link($upfx, $ct, $p, $fn) unless defined $s;
 
 	my ($diff, $spfx);
-	if ($ibx->{-repo_objs} && $s =~ /^(?:diff|---|\+{3}) /ms) {
+	if ($s =~ /^(?:diff|---|\+{3}) /ms) {
 		$diff = [];
-		my $n_slash = $upfx =~ tr!/!/!;
-		if ($n_slash == 0) {
-			$spfx = '../';
-		} elsif ($n_slash == 1) {
-			$spfx = '';
-		} else { # nslash == 2
-			$spfx = '../../';
+		if ($ibx->{-repo_objs}) {
+			my $n_slash = $upfx =~ tr!/!/!;
+			if ($n_slash == 0) {
+				$spfx = '../';
+			} elsif ($n_slash == 1) {
+				$spfx = '';
+			} else { # nslash == 2
+				$spfx = '../../';
+			}
 		}
 	};
 
