@@ -14,6 +14,7 @@ use POSIX qw(:sys_wait_h);
 use Time::HiRes qw(gettimeofday tv_interval);
 use WWW::Mechanize;
 use Data::Dumper;
+our $tmp_owner = $$;
 my $nproc = 4;
 my $slow = 0.5;
 my %opts = (
@@ -34,6 +35,7 @@ my $atom_check = eval {
 } if $xmlstarlet;
 
 my %workers;
+$SIG{INT} = sub { exit 130 };
 $SIG{TERM} = sub { exit 0 };
 $SIG{CHLD} = sub {
 	while (1) {
