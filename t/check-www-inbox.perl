@@ -156,7 +156,9 @@ sub worker_loop {
 		# make sure the HTML source doesn't screw up terminals
 		# when people curl the source (not remotely an expert
 		# on languages or encodings, here).
-		my $ct = $r->header('Content-Type');
+		my $ct = $r->header('Content-Type') || '';
+		warn "no Content-Type: $u\n" if $ct eq '';
+
 		if ($atom_check && $ct =~ m!\bapplication/atom\+xml\b!) {
 			my $raw = $r->decoded_content;
 			my ($out, $err) = ('', '');
