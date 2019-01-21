@@ -38,6 +38,7 @@ examples/apache2_perl.conf
 examples/apache2_perl_old.conf
 examples/cgi-webrick.rb
 examples/cgit-commit-filter.lua
+examples/highlight.psgi
 examples/logrotate.conf
 examples/public-inbox-config
 examples/public-inbox-httpd.socket
@@ -74,6 +75,7 @@ lib/PublicInbox/GitHTTPBackend.pm
 lib/PublicInbox/HTTP.pm
 lib/PublicInbox/HTTPD.pm
 lib/PublicInbox/HTTPD/Async.pm
+lib/PublicInbox/HlMod.pm
 lib/PublicInbox/Hval.pm
 lib/PublicInbox/Import.pm
 lib/PublicInbox/Inbox.pm
@@ -120,6 +122,7 @@ lib/PublicInbox/WWW.pod
 lib/PublicInbox/WatchMaildir.pm
 lib/PublicInbox/WwwAtomStream.pm
 lib/PublicInbox/WwwAttach.pm
+lib/PublicInbox/WwwHighlight.pm
 lib/PublicInbox/WwwStream.pm
 lib/PublicInbox/WwwText.pm
 sa_config/Makefile
@@ -170,6 +173,7 @@ t/git-http-backend.psgi
 t/git-http-backend.t
 t/git.fast-import-data
 t/git.t
+t/hl_mod.t
 t/html_index.t
 t/httpd-corner.psgi
 t/httpd-corner.t
