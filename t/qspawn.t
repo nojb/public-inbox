@@ -1,7 +1,15 @@
-# Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use Test::More;
 use_ok 'PublicInbox::Qspawn';
+
+{
+	my $cmd = [qw(sh -c), 'echo >&2 err; echo out'];
+	my $qsp = PublicInbox::Qspawn->new($cmd, {}, { 2 => 1 });
+	my $res;
+	$qsp->psgi_qx({}, undef, sub { $res = ${$_[0]} });
+	is($res, "err\nout\n", 'captured stderr and stdout');
+}
 
 my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 {
