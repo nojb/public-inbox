@@ -40,10 +40,12 @@ sub deliver_patch ($) {
 
 deliver_patch('t/solve/0001-simple-mod.patch');
 
-my $gits = [ PublicInbox::Git->new($git_dir) ];
-my $solver = PublicInbox::SolverGit->new($gits, [ $ibx ]);
+$ibx->{-repo_objs} = [ PublicInbox::Git->new($git_dir) ];
+my $res;
+my $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
 open my $log, '+>>', "$mainrepo/solve.log" or die "open: $!";
-my $res = $solver->solve($log, '69df7d5', {});
+my $psgi_env = { 'psgi.url_scheme' => 'http', HTTP_HOST => 'example.com' };
+$solver->solve($psgi_env, $log, '69df7d5', {});
 ok($res, 'solved a blob!');
 my $wt_git = $res->[0];
 is(ref($wt_git), 'PublicInbox::Git', 'got a git object for the blob');
@@ -62,20 +64,24 @@ if (0) { # TODO: check this?
 	diag $z;
 }
 
+$solver = undef;
 $res = undef;
 my $wt_git_dir = $wt_git->{git_dir};
 $wt_git = undef;
 ok(!-d $wt_git_dir, 'no references to WT held');
 
-$res = $solver->solve($log, '0'x40, {});
+$solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
+$solver->solve($psgi_env, $log, '0'x40, {});
 is($res, undef, 'no error on z40');
 
 my $git_v2_20_1_tag = '7a95a1cd084cb665c5c2586a415e42df0213af74';
-$res = $solver->solve($log, $git_v2_20_1_tag, {});
+$solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
+$solver->solve($psgi_env, $log, $git_v2_20_1_tag, {});
 is($res, undef, 'no error on a tag not in our repo');
 
 deliver_patch('t/solve/0002-rename-with-modifications.patch');
-$res = $solver->solve($log, '0a92431', {});
+$solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
+$solver->solve($psgi_env, $log, '0a92431', {});
 ok($res, 'resolved without hints');
 
 my $hints = {
@@ -83,7 +89,9 @@ my $hints = {
 	path_a => 'HACKING',
 	path_b => 'CONTRIBUTING'
 };
-my $hinted = $solver->solve($log, '0a92431', $hints);
+$solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
+$solver->solve($psgi_env, $log, '0a92431', $hints);
+my $hinted = $res;
 # don't compare ::Git objects:
 shift @$res; shift @$hinted;
 is_deeply($res, $hinted, 'hints work (or did not hurt :P');

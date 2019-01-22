@@ -14,6 +14,15 @@ require PublicInbox::EvCleanup;
 
 sub new {
 	my ($class, $io, $cb, $cleanup) = @_;
+
+	# no $io? call $cb at the top of the next event loop to
+	# avoid recursion:
+	unless (defined($io)) {
+		PublicInbox::EvCleanup::asap($cb) if $cb;
+		PublicInbox::EvCleanup::next_tick($cleanup) if $cleanup;
+		return;
+	}
+
 	my $self = fields::new($class);
 	IO::Handle::blocking($io, 0);
 	$self->SUPER::new($io);

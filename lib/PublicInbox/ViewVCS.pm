@@ -27,37 +27,33 @@ my $enc_utf8 = find_encoding('UTF-8');
 
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
+	my $wcb = delete $ctx->{-wcb};
 	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
-	PublicInbox::WwwStream->response($ctx, $code, sub {
+	my $res = PublicInbox::WwwStream->response($ctx, $code, sub {
 		my ($nr, undef) =  @_;
 		$nr == 1 ? $$strref : undef;
 	});
+	$wcb->($res);
 }
 
-sub show ($$;$) {
-	my ($ctx, $oid_b, $fn) = @_;
-	my $ibx = $ctx->{-inbox};
-	my $inboxes = [ $ibx ];
-	my $solver = PublicInbox::SolverGit->new($ibx->{-repo_objs}, $inboxes);
-	my $qp = $ctx->{qp};
-	my $hints = {};
-	while (my ($from, $to) = each %QP_MAP) {
-		defined(my $v = $qp->{$from}) or next;
-		$hints->{$to} = $v;
+sub solve_result {
+	my ($ctx, $res, $log, $hints, $fn) = @_;
+
+	unless (seek($log, 0, 0)) {
+		$ctx->{env}->{'psgi.errors'}->print("seek(log): $!\n");
+		return html_page($ctx, 500, \'seek error');
 	}
-
-	open my $log, '+>', undef or die "open: $!";
-	my $res = $solver->solve($log, $oid_b, $hints);
-
-	seek($log, 0, 0) or die "seek: $!";
 	$log = do { local $/; <$log> };
 
+	my $ref = ref($res);
+	$log .= $res unless $ref;
 	my $l = PublicInbox::Linkify->new;
 	$l->linkify_1($log);
 	$log = '<pre>debug log:</pre><hr /><pre>' .
 		$l->linkify_2(ascii_html($log)) . '</pre>';
 
 	$res or return html_page($ctx, 404, \$log);
+	$ref eq 'ARRAY' or return html_page($ctx, 500, \$log);
 
 	my ($git, $oid, $type, $size, $di) = @$res;
 	if ($size > $max_size) {
@@ -78,7 +74,7 @@ sub show ($$;$) {
 	if ($fn) {
 		my $h = [ 'Content-Length', $size, 'Content-Type' ];
 		push(@$h, ($binary ? 'application/octet-stream' : 'text/plain'));
-		return [ 200, $h, [ $$blob ]];
+		return delete($ctx->{-wcb})->([200, $h, [ $$blob ]]);
 	}
 
 	my $path = to_filename($di->{path_b} || $hints->{path_b} || 'blob');
@@ -105,6 +101,27 @@ sub show ($$;$) {
 		'</code></pre></td></tr></table>' . $log;
 
 	html_page($ctx, 200, \$log);
+}
+
+sub show ($$;$) {
+	my ($ctx, $oid_b, $fn) = @_;
+	my $qp = $ctx->{qp};
+	my $hints = {};
+	while (my ($from, $to) = each %QP_MAP) {
+		defined(my $v = $qp->{$from}) or next;
+		$hints->{$to} = $v;
+	}
+
+	open my $log, '+>', undef or die "open: $!";
+	my $solver = PublicInbox::SolverGit->new($ctx->{-inbox}, sub {
+		solve_result($ctx, $_[0], $log, $hints, $fn);
+	});
+
+	# PSGI server will call this and give us a callback
+	sub {
+		$ctx->{-wcb} = $_[0]; # HTTP write callback
+		$solver->solve($ctx->{env}, $log, $oid_b, $hints);
+	};
 }
 
 1;
