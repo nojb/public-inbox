@@ -557,6 +557,10 @@ sub add_text_body {
 
 	return attach_link($upfx, $ct, $p, $fn) unless defined $s;
 
+	# makes no difference to browsers, and don't screw up filename
+	# link generation in diffs with the extra '%0D'
+	$s =~ s/\r\n/\n/sg;
+
 	my ($diff, $spfx);
 	if ($s =~ /^(?:diff|---|\+{3}) /ms) {
 		$diff = [];
