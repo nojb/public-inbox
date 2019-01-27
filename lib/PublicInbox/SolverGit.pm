@@ -24,6 +24,14 @@ use URI::Escape qw(uri_escape_utf8);
 use POSIX qw(sysconf _SC_ARG_MAX);
 my $ARG_SIZE_MAX = (sysconf(_SC_ARG_MAX) || 4096) - 2048;
 
+# By default, "git format-patch" generates filenames with a four-digit
+# prefix, so that means 9999 patch series are OK, right? :>
+# Maybe we can make this configurable, main concern is disk space overhead
+# for uncompressed patch fragments.  Aside from space, public-inbox-httpd
+# is otherwise unaffected by having many patches, here, as it can share
+# work fairly.  Other PSGI servers may have trouble, though.
+my $MAX_PATCH = 9999;
+
 # di = diff info / a hashref with information about a diff ($di):
 # {
 #	oid_a => abbreviated pre-image oid,
@@ -425,7 +433,7 @@ sub di_url ($$) {
 sub resolve_patch ($$) {
 	my ($self, $want) = @_;
 
-	if (scalar(@{$self->{patches}}) > $self->{max_patch}) {
+	if (scalar(@{$self->{patches}}) > $MAX_PATCH) {
 		die "Aborting, too many steps to $self->{oid_want}";
 	}
 
@@ -477,7 +485,6 @@ sub new {
 	bless {
 		gits => $ibx->{-repo_objs},
 		user_cb => $user_cb,
-		max_patch => 100,
 
 		# TODO: config option for searching related inboxes
 		inboxes => [ $ibx ],
