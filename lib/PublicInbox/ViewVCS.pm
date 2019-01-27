@@ -46,7 +46,6 @@ sub solve_result {
 	$log = do { local $/; <$log> };
 
 	my $ref = ref($res);
-	$log .= $res unless $ref;
 	my $l = PublicInbox::Linkify->new;
 	$l->linkify_1($log);
 	$log = '<pre>debug log:</pre><hr /><pre>' .
