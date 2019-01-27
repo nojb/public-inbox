@@ -18,6 +18,12 @@ use PublicInbox::MsgIter qw(msg_iter msg_part_text);
 use PublicInbox::Qspawn;
 use URI::Escape qw(uri_escape_utf8);
 
+# POSIX requires _POSIX_ARG_MAX >= 4096, and xargs is required to
+# subtract 2048 bytes.  We also don't factor in environment variable
+# headroom into this.
+use POSIX qw(sysconf _SC_ARG_MAX);
+my $ARG_SIZE_MAX = (sysconf(_SC_ARG_MAX) || 4096) - 2048;
+
 # di = diff info / a hashref with information about a diff ($di):
 # {
 #	oid_a => abbreviated pre-image oid,
@@ -75,8 +81,8 @@ sub solve_existing ($$) {
 	scalar(@ambiguous) ? \@ambiguous : undef;
 }
 
-sub extract_diff ($$$$) {
-	my ($p, $re, $ibx, $smsg) = @_;
+sub extract_diff ($$$$$) {
+	my ($self, $p, $re, $ibx, $smsg) = @_;
 	my ($part) = @$p; # ignore $depth and @idx;
 	my $hdr_lines; # diff --git a/... b/...
 	my $tmp;
@@ -103,9 +109,11 @@ sub extract_diff ($$$$) {
 				}
 			}
 
+
 			# start writing the diff out to a tempfile
-			open($tmp, '+>', undef) or die "open(tmp): $!";
-			$di->{tmp} = $tmp;
+			my $pn = ++$self->{tot};
+			open($tmp, '>', $self->{tmp}->dirname . "/$pn") or
+							die "open(tmp): $!";
 
 			push @$hdr_lines, $l;
 			$di->{hdr_lines} = $hdr_lines;
@@ -115,7 +123,7 @@ sub extract_diff ($$$$) {
 			$di->{ibx} = $ibx;
 			$di->{smsg} = $smsg;
 		} elsif ($l =~ m!\Adiff --git ("?a/.+) ("?b/.+)$!) {
-			return $di if $tmp; # got our blob, done!
+			last if $tmp; # got our blob, done!
 
 			my ($path_a, $path_b) = ($1, $2);
 
@@ -145,7 +153,9 @@ sub extract_diff ($$$$) {
 			}
 		}
 	}
-	$tmp ? $di : undef;
+	return undef unless $tmp;
+	close $tmp or die "close(tmp): $!";
+	$di;
 }
 
 sub path_searchable ($) { defined($_[0]) && $_[0] =~ m!\A[\w/\. \-]+\z! }
@@ -182,7 +192,7 @@ sub find_extract_diff ($$$) {
 	foreach my $smsg (@$msgs) {
 		$ibx->smsg_mime($smsg) or next;
 		msg_iter(delete($smsg->{mime}), sub {
-			$di ||= extract_diff($_[0], $re, $ibx, $smsg);
+			$di ||= extract_diff($self, $_[0], $re, $ibx, $smsg);
 		});
 		return $di if $di;
 	}
@@ -192,7 +202,6 @@ sub prepare_index ($) {
 	my ($self) = @_;
 	my $patches = $self->{patches};
 	$self->{nr} = 0;
-	$self->{tot} = scalar @$patches;
 
 	my $di = $patches->[0] or die 'no patches';
 	my $oid_a = $di->{oid_a} or die '{oid_a} unset';
@@ -368,24 +377,31 @@ sub start_ls_files ($$) {
 
 sub do_git_apply ($) {
 	my ($self) = @_;
-
-	my $di = shift @{$self->{patches}} or die 'empty {patches}';
-	my $tmp = delete $di->{tmp} or die 'no tmp ', di_url($self, $di);
-	$tmp->flush or die "tmp->flush failed: $!";
-	sysseek($tmp, 0, SEEK_SET) or die "sysseek(tmp) failed: $!";
-
-	my $i = ++$self->{nr};
-	dbg($self, "\napplying [$i/$self->{tot}] " . di_url($self, $di) .
-		"\n" . join('', @{$di->{hdr_lines}}));
+	my $dn = $self->{tmp}->dirname;
+	my $patches = $self->{patches};
 
 	# we need --ignore-whitespace because some patches are CRLF
-	my $cmd = [ qw(git apply --cached --ignore-whitespace
-		       --whitespace=warn --verbose) ];
-	my $rdr = { 0 => fileno($tmp), 2 => 1 };
-	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
+	my @cmd = qw(git apply --cached --ignore-whitespace
+			--whitespace=warn --verbose);
+	my $len = length(join(' ', @cmd));
+	my $total = $self->{tot};
+	my $di; # keep track of the last one for "git ls-files"
+
+	do {
+		my $i = ++$self->{nr};
+		$di = shift @$patches;
+		dbg($self, "\napplying [$i/$total] " . di_url($self, $di) .
+			"\n" . join('', @{$di->{hdr_lines}}));
+		my $pn = $total + 1 - $i;
+		my $path = "$dn/$pn";
+		$len += length($path) + 1;
+		push @cmd, $path;
+	} while (@$patches && $len < $ARG_SIZE_MAX);
+
+	my $rdr = { 2 => 1 };
+	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $rdr);
 	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
 		my ($bref) = @_;
-		close $tmp;
 		dbg($self, $$bref);
 		if (my $err = $qsp->{err}) {
 			ERR($self, "git apply error: $err");
@@ -481,6 +497,7 @@ sub solve ($$$$$) {
 
 	$self->{oid_want} = $oid_want;
 	$self->{out} = $out;
+	$self->{tot} = 0;
 	$self->{psgi_env} = $env;
 	$self->{todo} = [ { %$hints, oid_b => $oid_want } ];
 	$self->{patches} = []; # [ $di, $di, ... ]
