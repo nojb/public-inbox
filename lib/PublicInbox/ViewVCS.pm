@@ -21,6 +21,11 @@ use PublicInbox::SolverGit;
 use PublicInbox::WwwStream;
 use PublicInbox::Linkify;
 use PublicInbox::Hval qw(ascii_html to_filename);
+my $hl = eval {
+	require PublicInbox::HlMod;
+	PublicInbox::HlMod->new;
+};
+
 my %QP_MAP = ( A => 'oid_a', B => 'oid_b', a => 'path_a', b => 'path_b' );
 my $max_size = 1024 * 1024; # TODO: configurable
 my $enc_utf8 = find_encoding('UTF-8');
@@ -88,6 +93,14 @@ sub solve_result {
 	my $nl = ($$blob =~ tr/\n/\n/);
 	my $pad = length($nl);
 
+	$l->linkify_1($$blob);
+	my $ok = $hl->do_hl($blob, $path) if $hl;
+	if ($ok) {
+		$blob = $ok;
+	} else {
+		$$blob = ascii_html($$blob);
+	}
+
 	# using some of the same CSS class names and ids as cgit
 	$log = "<pre>$oid $type $size bytes $raw_link</pre>" .
 		"<hr /><table\nclass=blob>".
@@ -96,7 +109,7 @@ sub solve_result {
 		} (1..$nl)) . '</pre></td>' .
 		'<td><pre> </pre></td>'. # pad for non-CSS users
 		"<td\nclass=lines><pre\nstyle='white-space:pre'><code>" .
-		ascii_html($$blob) .
+		$l->linkify_2($$blob) .
 		'</code></pre></td></tr></table>' . $log;
 
 	html_page($ctx, 200, \$log);
