@@ -43,5 +43,8 @@ is('foo-bar', PublicInbox::Hval::to_filename("foo   bar\nanother line\n"),
 is('foo.bar', PublicInbox::Hval::to_filename("foo....bar"),
 	'to_filename squeezes -');
 
+my $s = "\0\x07\n";
+PublicInbox::Hval::src_escape($s);
+is($s, "\\0\\a\n", 'src_escape works as intended');
 
 done_testing();

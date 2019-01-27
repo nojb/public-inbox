@@ -20,7 +20,7 @@ use Encode qw(find_encoding);
 use PublicInbox::SolverGit;
 use PublicInbox::WwwStream;
 use PublicInbox::Linkify;
-use PublicInbox::Hval qw(ascii_html to_filename);
+use PublicInbox::Hval qw(ascii_html to_filename src_escape);
 my $hl = eval {
 	require PublicInbox::HlMod;
 	PublicInbox::HlMod->new;
@@ -96,6 +96,8 @@ sub solve_result {
 	$l->linkify_1($$blob);
 	my $ok = $hl->do_hl($blob, $path) if $hl;
 	if ($ok) {
+		$$ok = $enc_utf8->decode($$ok);
+		src_escape($$ok);
 		$blob = $ok;
 	} else {
 		$$blob = ascii_html($$blob);

@@ -9,7 +9,7 @@ use warnings;
 use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename/;
+our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape/;
 
 my $enc_ascii = find_encoding('us-ascii');
 
@@ -62,6 +62,12 @@ my %xhtml_map = (
 
 $xhtml_map{chr($_)} = sprintf('\\x%02x', $_) for (0..31);
 %xhtml_map = (%xhtml_map, %escape_sequence);
+
+sub src_escape ($) {
+	$_[0] =~ s/\r\n/\n/sg;
+	$_[0] =~ s/([\x7f\x00-\x1f])/$xhtml_map{$1}/sge;
+	$_[0] = $enc_ascii->encode($_[0], Encode::HTMLCREF);
+}
 
 sub ascii_html {
 	my ($s) = @_;
