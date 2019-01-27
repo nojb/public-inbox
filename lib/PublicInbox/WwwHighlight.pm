@@ -52,6 +52,7 @@ sub read_in_full ($) {
 		$off += $r;
 	}
 	$env->{'psgi.errors'}->print("input read error: $!\n");
+	undef;
 }
 
 # entry point for PSGI
