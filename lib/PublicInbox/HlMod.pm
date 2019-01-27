@@ -99,7 +99,6 @@ sub do_hl {
 	my $gen = $self->{$langpath} ||= do {
 		my $g = highlight::CodeGenerator::getInstance($highlight::HTML);
 		$g->setFragmentCode(1); # generate html fragment
-		$g->setHTMLEnclosePreTag(1); # include <pre>
 
 		# whatever theme works
 		my $themepath = $dir->getThemePath('print.theme');

@@ -27,7 +27,7 @@ my $orig = $str;
 		require File::Temp;
 		my $cmd = [ qw(w3m -T text/html -dump -config /dev/null) ];
 		my ($out, $err) = ('', '');
-		IPC::Run::run($cmd, $ref, \$out, \$err);
+		IPC::Run::run($cmd, \('<pre>'.$$ref.'</pre>'), \$out, \$err);
 		# expand tabs and normalize whitespace,
 		# w3m doesn't preserve tabs
 		$orig =~ s/\t/        /gs;
