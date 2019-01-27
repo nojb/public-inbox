@@ -20,6 +20,7 @@ my $orig = $str;
 	my $ref = $hls->do_hl(\$str, 'foo.perl');
 	is(ref($ref), 'SCALAR', 'got a scalar reference back');
 	like($$ref, qr/I can see you!/, 'we can see ourselves in output');
+	like($$ref, qr/&amp;&amp;/, 'escaped');
 
 	use PublicInbox::Spawn qw(which);
 	if (eval { require IPC::Run } && which('w3m')) {
