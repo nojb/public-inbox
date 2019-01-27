@@ -31,7 +31,7 @@ my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 		my ($rpipe) = @_;
 		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes from false');
 		my $err = $x->finish;
-		is($err, 256, 'error on finish');
+		ok($err, 'error on finish');
 		$run = 1;
 	});
 	is($run, 1, 'callback ran alright');

@@ -30,13 +30,22 @@ sub _do_spawn {
 	$cb->($self->{rpipe});
 }
 
+sub child_err ($) {
+	my ($child_error) = @_; # typically $?
+	my $exitstatus = ($child_error >> 8) or return;
+	my $sig = $child_error & 127;
+	my $msg = "exit status=$exitstatus";
+	$msg .= " signal=$sig" if $sig;
+	$msg;
+}
+
 sub finish ($) {
 	my ($self) = @_;
 	my $limiter = $self->{limiter};
 	my $running;
 	if (delete $self->{rpipe}) {
 		my $pid = delete $self->{pid};
-		$self->{err} = $pid == waitpid($pid, 0) ? $? :
+		$self->{err} = $pid == waitpid($pid, 0) ? child_err($?) :
 				"PID:$pid still running?";
 		$running = --$limiter->{running};
 	}
