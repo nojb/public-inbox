@@ -50,7 +50,7 @@ sub new {
 	my ($class, $git_dir) = @_;
 	my @st;
 	$st[7] = $st[10] = 0;
-	# may contain {-wt} field (working-tree (File::Temp::Dir))
+	# may contain {-tmp} field for File::Temp::Dir
 	bless { git_dir => $git_dir, st => \@st }, $class
 }
 

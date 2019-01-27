@@ -214,9 +214,8 @@ sub prepare_index ($) {
 
 	dbg($self, 'preparing index');
 	my $rdr = { 0 => fileno($in) };
-	my $cmd = [ qw(git -C), $self->{wt_dir},
-			qw(update-index -z --index-info) ];
-	my $qsp = PublicInbox::Qspawn->new($cmd, undef, $rdr);
+	my $cmd = [ qw(git update-index -z --index-info) ];
+	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
 	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
 		my ($bref) = @_;
 		if (my $err = $qsp->{err}) {
@@ -229,16 +228,16 @@ sub prepare_index ($) {
 }
 
 # pure Perl "git init"
-sub do_git_init_wt ($) {
+sub do_git_init ($) {
 	my ($self) = @_;
-	my $wt = File::Temp->newdir('solver.wt-XXXXXXXX', TMPDIR => 1);
-	my $dir = $self->{wt_dir} = $wt->dirname;
+	my $dir = $self->{tmp}->dirname;
+	my $git_dir = "$dir/git";
 
 	foreach ('', qw(objects refs objects/info refs/heads)) {
-		mkdir("$dir/.git/$_") or die "mkdir $_: $!";
+		mkdir("$git_dir/$_") or die "mkdir $_: $!";
 	}
-	open my $fh, '>', "$dir/.git/config" or die "open .git/config: $!";
-	print $fh <<'EOF' or die "print .git/config $!";
+	open my $fh, '>', "$git_dir/config" or die "open git/config: $!";
+	print $fh <<'EOF' or die "print git/config $!";
 [core]
 	repositoryFormatVersion = 0
 	filemode = true
@@ -246,19 +245,23 @@ sub do_git_init_wt ($) {
 	fsyncObjectfiles = false
 	logAllRefUpdates = false
 EOF
-	close $fh or die "close .git/config: $!";
+	close $fh or die "close git/config: $!";
 
-	open $fh, '>', "$dir/.git/HEAD" or die "open .git/HEAD: $!";
-	print $fh "ref: refs/heads/master\n" or die "print .git/HEAD: $!";
-	close $fh or die "close .git/HEAD: $!";
+	open $fh, '>', "$git_dir/HEAD" or die "open git/HEAD: $!";
+	print $fh "ref: refs/heads/master\n" or die "print git/HEAD: $!";
+	close $fh or die "close git/HEAD: $!";
 
-	my $f = '.git/objects/info/alternates';
-	open $fh, '>', "$dir/$f" or die "open: $f: $!";
+	my $f = 'objects/info/alternates';
+	open $fh, '>', "$git_dir/$f" or die "open: $f: $!";
 	print($fh (map { "$_->{git_dir}/objects\n" } @{$self->{gits}})) or
 		die "print $f: $!";
 	close $fh or die "close: $f: $!";
-	my $wt_git = $self->{wt_git} = PublicInbox::Git->new("$dir/.git");
-	$wt_git->{-wt} = $wt;
+	my $tmp_git = $self->{tmp_git} = PublicInbox::Git->new($git_dir);
+	$tmp_git->{-tmp} = $self->{tmp};
+	$self->{git_env} = {
+		GIT_DIR => $git_dir,
+		GIT_INDEX_FILE => "$git_dir/index",
+	};
 	prepare_index($self);
 }
 
@@ -280,8 +283,8 @@ sub do_step ($) {
 
 		# step 2: then we instantiate a working tree once
 		# the todo queue is finally empty:
-		} elsif (!defined($self->{wt_git})) {
-			do_git_init_wt($self);
+		} elsif (!defined($self->{tmp_git})) {
+			do_git_init($self);
 
 		# step 3: apply each patch in the stack
 		} elsif (scalar @{$self->{patches}}) {
@@ -342,20 +345,20 @@ sub parse_ls_files ($$$$) {
 "BUG: index mismatch: file=$file != path_b=$di->{path_b}";
 	}
 
-	my $wt_git = $self->{wt_git} or die 'no git working tree';
-	my (undef, undef, $size) = $wt_git->check($oid_b_full);
+	my $tmp_git = $self->{tmp_git} or die 'no git working tree';
+	my (undef, undef, $size) = $tmp_git->check($oid_b_full);
 	defined($size) or die "check $oid_b_full failed";
 
 	dbg($self, "index at:\n$mode_b $oid_b_full\t$file");
-	my $created = [ $wt_git, $oid_b_full, 'blob', $size, $di ];
+	my $created = [ $tmp_git, $oid_b_full, 'blob', $size, $di ];
 	mark_found($self, $di->{oid_b}, $created);
 	next_step($self); # onto the next patch
 }
 
 sub start_ls_files ($$) {
 	my ($self, $di) = @_;
-	my $cmd = [qw(git -C), $self->{wt_dir}, qw(ls-files -s -z)];
-	my $qsp = PublicInbox::Qspawn->new($cmd);
+	my $cmd = [qw(git ls-files -s -z)];
+	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env});
 	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
 		my ($bref) = @_;
 		eval { parse_ls_files($self, $qsp, $bref, $di) };
@@ -376,11 +379,10 @@ sub do_git_apply ($) {
 		"\n" . join('', @{$di->{hdr_lines}}));
 
 	# we need --ignore-whitespace because some patches are CRLF
-	my $cmd = [ qw(git -C), $self->{wt_dir},
-	            qw(apply --cached --ignore-whitespace
+	my $cmd = [ qw(git apply --cached --ignore-whitespace
 		       --whitespace=warn --verbose) ];
 	my $rdr = { 0 => fileno($tmp), 2 => 1 };
-	my $qsp = PublicInbox::Qspawn->new($cmd, undef, $rdr);
+	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
 	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
 		my ($bref) = @_;
 		close $tmp;
@@ -483,6 +485,7 @@ sub solve ($$$$$) {
 	$self->{todo} = [ { %$hints, oid_b => $oid_want } ];
 	$self->{patches} = []; # [ $di, $di, ... ]
 	$self->{found} = {}; # { abbr => [ ::Git, oid, type, size, $di ] }
+	$self->{tmp} = File::Temp->newdir('solver.tmp-XXXXXXXX', TMPDIR => 1);
 
 	dbg($self, "solving $oid_want ...");
 	my $step_cb = step_cb($self);
