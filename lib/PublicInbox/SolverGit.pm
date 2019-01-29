@@ -439,6 +439,9 @@ sub resolve_patch ($$) {
 
 	# see if we can find the blob in an existing git repo:
 	my $cur_want = $want->{oid_b};
+	if ($self->{seen_oid}->{$cur_want}++) {
+		die "Loop detected solving $cur_want\n";
+	}
 	if (my $existing = solve_existing($self, $want)) {
 		dbg($self, "found $cur_want in " .
 			join("\n", $existing->[0]->pub_urls));
@@ -504,6 +507,7 @@ sub solve ($$$$$) {
 
 	$self->{oid_want} = $oid_want;
 	$self->{out} = $out;
+	$self->{seen_oid} = {};
 	$self->{tot} = 0;
 	$self->{psgi_env} = $env;
 	$self->{todo} = [ { %$hints, oid_b => $oid_want } ];
