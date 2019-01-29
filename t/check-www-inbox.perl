@@ -151,6 +151,7 @@ sub worker_loop {
 	$SIG{CHLD} = 'DEFAULT';
 	my $m = WWW::Mechanize->new(autocheck => 0);
 	my $cc = LWP::ConnCache->new;
+	$m->stack_depth(0); # no history
 	$m->conn_cache($cc);
 	while (1) {
 		$todo_rd->recv(my $u, 65535, 0);
