@@ -26,6 +26,11 @@ my $hl = eval {
 	PublicInbox::HlMod->new;
 };
 
+# we need to trigger highlight::CodeGenerator::deleteInstance
+# in HlMod::DESTROY before the rest of Perl shuts down to avoid
+# a segfault at shutdown
+END { $hl = undef };
+
 my %QP_MAP = ( A => 'oid_a', B => 'oid_b', a => 'path_a', b => 'path_b' );
 my $max_size = 1024 * 1024; # TODO: configurable
 my $enc_utf8 = find_encoding('UTF-8');
