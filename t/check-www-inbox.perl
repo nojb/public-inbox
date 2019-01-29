@@ -175,7 +175,7 @@ sub worker_loop {
 		my $s;
 		# blocking
 		foreach my $l (@links, "DONE\t$u") {
-			next if $l eq '';
+			next if $l eq '' || $l =~ /\.mbox(?:\.gz)\z/;
 			do {
 				$s = $done_wr->send($l, MSG_EOR);
 			} while (!defined $s && $!{EINTR});
