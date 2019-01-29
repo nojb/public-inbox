@@ -10,6 +10,7 @@ our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape MID_ESC
 	mids references/;
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
+require PublicInbox::Address;
 use constant {
 	MID_MAX => 40, # SHA-1 hex length # TODO: get rid of this
 	MAX_MID_SIZE => 244, # max term size (Xapian limitation) - length('Q')
@@ -79,22 +80,34 @@ sub references ($) {
 			push(@mids, ($v =~ /<([^>]+)>/sg));
 		}
 	}
-	uniq_mids(\@mids);
+
+	# old versions of git-send-email would prompt users for
+	# In-Reply-To and users' muscle memory would use 'y' or 'n'
+	# as responses:
+	my %addr = ( y => 1, n => 1 );
+
+	foreach my $f (qw(To From Cc)) {
+		my @v = $hdr->header_raw($f);
+		foreach my $v (@v) {
+			$addr{$_} = 1 for (PublicInbox::Address::emails($v));
+		}
+	}
+	uniq_mids(\@mids, \%addr);
 }
 
-sub uniq_mids ($) {
-	my ($mids) = @_;
+sub uniq_mids ($;$) {
+	my ($mids, $seen) = @_;
 	my @ret;
-	my %seen;
+	$seen ||= {};
 	foreach my $mid (@$mids) {
 		$mid =~ tr/\n\t\r//d;
 		if (length($mid) > MAX_MID_SIZE) {
 			warn "Message-ID: <$mid> too long, truncating\n";
 			$mid = substr($mid, 0, MAX_MID_SIZE);
 		}
-		next if $seen{$mid};
+		next if $seen->{$mid};
 		push @ret, $mid;
-		$seen{$mid} = 1;
+		$seen->{$mid} = 1;
 	}
 	\@ret;
 }

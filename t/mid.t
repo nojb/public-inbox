@@ -36,6 +36,10 @@ is(mid_escape('foo%!@(bar)'), 'foo%25!@(bar)');
 	$mime->header_set('Message-ID', "<hello\tworld>");
 	is_deeply(mids($mime->header_obj), ['helloworld'],
 		'drop \t in Message-ID');
+
+	$mime->header_set('To', 'u@example.com');
+	$mime->header_set('References', '<hello> <world> <n> <u@example.com>');
+	is_deeply(references($mime->header_obj), [qw(hello world)]);
 }
 
 done_testing();
