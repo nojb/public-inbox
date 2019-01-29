@@ -30,17 +30,17 @@ a:visited { color:#96f }
  * this doesn't use most of the colors available (I find too many
  * colors overwhelming).  So the #ccc default is commented out.
  */
-.hl.num { color:#f30 }
-.hl.esc { color:#f0f }
-.hl.str { color:#f30 }
-.hl.pps { color:#f30 }
-/* .hl.slc { color:#ccc } */
+.hl.num { color:#f30 } /* number */
+.hl.esc { color:#f0f } /* escape character */
+.hl.str { color:#f30 } /* string */
+.hl.ppc { color:#f0f } /* preprocessor */
+.hl.pps { color:#f30 } /* preprocessor string */
+.hl.slc { color:#09f } /* single-line comment */
 .hl.com { color:#09f }
-.hl.ppc { color:#f0f }
 /* .hl.opt { color:#ccc } */
 /* .hl.ipl { color:#ccc } */
 /* .hl.lin { color:#ccc } */
 .hl.kwa { color:#ff0 }
-.hl.kwb { color:#0ff }
+.hl.kwb { color:#0f0 }
 .hl.kwc { color:#ff0 }
 /* .hl.kwd { color:#ccc } */
