@@ -91,6 +91,25 @@ C<nntp://news.gmane.org/gmane.mail.public-inbox.general>
 
 Default: none
 
+=item publicinbox.<name>.coderepo
+
+The nickname of a "coderepo" section associated with the inbox.
+May be specified more than once for M:N mapping of code repos to
+inboxes.  If enabled, diff hunk headers in patch emails will
+link to the line numbers of blobs.
+
+Default: none
+
+=item publicinbox.css
+
+The local path name of a CSS file for the PSGI web interface.
+May contain the attributes "media", "title" and "href" which match
+the associated attributes of the HTML <style> tag.
+"href" may be specified to point to the URL of an remote CSS file
+and the path may be "/dev/null" or any empty file.
+Multiple files may be specified and will be included in the
+order specified.
+
 =item publicinboxmda.spamcheck
 
 This may be set to C<none> to disable the use of SpamAssassin
@@ -137,6 +156,16 @@ once, only the last value is used.  Invalid values (<= 0) will
 be treated as the default value.
 
 Default: 25
+
+=item coderepo.<name>.dir
+
+The path to a git repository for "publicinbox.<name>.coderepo"
+
+=item coderepo.<name>.cgitUrl
+
+The URL of the cgit instance associated with the coderepo.
+
+Default: none
 
 =back
 
