@@ -56,5 +56,8 @@ check-manifest :: MANIFEST
 check:: pure_all check-manifest
 	\$(EATMYDATA) prove -lv -j\$(N)
 
+lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
+	@\$(PERL) -I lib \$@ \$<
+
 EOF
 }

@@ -1,0 +1,20 @@
+From: WEB DESIGN EXPERT <BOFH@YHBT.net>
+To: meta@public-inbox.org
+Subject: [PATCH] TODO: take expert web design advice
+Date: Mon, 1 Apr 2019 08:15:20 +0000
+Message-Id: <20190401081523.16213-1-BOFH@YHBT.net>
+
+---
+ TODO | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/TODO b/TODO
+index 605013e..69df7d5 100644
+--- a/TODO
++++ b/TODO
+@@ -109,3 +109,5 @@ all need to be considered for everything we introduce)
+ 
+   * Optional history squashing to reduce commit and intermediate
+     tree objects
++
++  * Make use of <blink> and <marquee> tags

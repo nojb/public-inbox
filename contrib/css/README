@@ -1,0 +1,41 @@
+Example CSS for use with public-inbox.
+
+CSS::Minifier or CSS::Minifier::XS will be tried for minimizing
+CSS at startup if available(*).
+
+Multiple CSS files may be configured for user-selectability via
+the "title" attribute or for different media.  Local CSS files
+are read into memory once at startup.
+
+If only one CSS file is given without "title", it will be inlined.
+
+Snippet from ~/.public-inbox/config, order matters to browsers.
+-----8<-----
+[publicinbox]
+	; Depending on the browser, the first entry is the default.
+	; So having "/dev/null" at the top means no colors by default.
+	; Using the "title" attribute enables `View -> "Page Style"'
+	; choices in Firefox.
+	css = /dev/null title=default
+
+	; git-config supports backslash to continue long lines
+	; Attributes ('media', 'title') must use single quotes(')
+	; or no quotes at all, but not double-quotes, as git-config(1)
+	; won't preserve them:
+	css = /path/to/public-inbox/contrib/css/216dark.css \
+		title=216dark \
+		media='screen,(prefers-color-scheme:dark)'
+
+	; for tree haters who print web pages :P
+	css = /path/to/public-inbox/contrib/css/216light.css \
+		title=216light \
+		media='screen,print,(prefers-color-scheme:light)'
+
+	; external CSS may be specified with href.
+	; Using "//" (protocol-relative) URLs is allowed, as is
+	; "https://" or "http://" for hosts which only support one protocol.
+	css = href=//example.com/fugly.css title=external
+
+
+(*) "libcss-minifier-perl" or "libcss-minifier-xs-perl"
+    on Debian-based systems

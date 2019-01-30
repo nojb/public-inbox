@@ -14,6 +14,15 @@ require PublicInbox::EvCleanup;
 
 sub new {
 	my ($class, $io, $cb, $cleanup) = @_;
+
+	# no $io? call $cb at the top of the next event loop to
+	# avoid recursion:
+	unless (defined($io)) {
+		PublicInbox::EvCleanup::asap($cb) if $cb;
+		PublicInbox::EvCleanup::next_tick($cleanup) if $cleanup;
+		return;
+	}
+
 	my $self = fields::new($class);
 	IO::Handle::blocking($io, 0);
 	$self->SUPER::new($io);
@@ -23,6 +32,7 @@ sub new {
 	$self;
 }
 
+# fires after pending writes are complete:
 sub restart_read_cb ($) {
 	my ($self) = @_;
 	sub { $self->watch_read(1) }
@@ -35,14 +45,16 @@ sub main_cb ($$$) {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
 			$fh->write($$bref);
-			return if $http->{closed};
-			if ($http->{write_buf_size}) {
-				$self->watch_read(0);
-				$http->write(restart_read_cb($self));
+			unless ($http->{closed}) { # Danga::Socket sets this
+				if ($http->{write_buf_size}) {
+					$self->watch_read(0);
+					$http->write(restart_read_cb($self));
+				}
+				# stay in watch_read, but let other clients
+				# get some work done, too.
+				return;
 			}
-			# stay in watch_read, but let other clients
-			# get some work done, too.
-			return;
+			# fall through to close below...
 		} elsif (!defined $r) {
 			return if $!{EAGAIN} || $!{EINTR};
 		}
@@ -66,7 +78,6 @@ sub async_pass {
 sub event_read { $_[0]->{cb}->(@_) }
 sub event_hup { $_[0]->{cb}->(@_) }
 sub event_err { $_[0]->{cb}->(@_) }
-sub sysread { shift->{sock}->sysread(@_) }
 
 sub close {
 	my $self = shift;

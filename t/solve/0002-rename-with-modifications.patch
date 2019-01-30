@@ -1,0 +1,37 @@
+From: POLITICAL CORRECTNESS EXPERT <BOFH@YHBT.net>
+To: meta@public-inbox.org
+Subject: [PATCH] POLITICALLY CORRECT FILE NAMING
+Date: Mon, 1 Apr 2019 08:15:20 +0000
+Message-Id: <20190401081523.16213-2-BOFH@YHBT.net>
+
+HACKING MIGHT GET US REPORTED TO EFF-BEE-EYE
+AND USE MARKDOWN CUZ MOAR FLAVORS == BETTER
+---
+ HACKING => CONTRIBUTING.md | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+ rename HACKING => CONTRIBUTING.md (94%)
+
+diff --git a/HACKING b/CONTRIBUTING.md
+similarity index 94%
+rename from HACKING
+rename to CONTRIBUTING.md
+index 3435775..0a92431 100644
+--- a/HACKING
++++ b/CONTRIBUTING.md
+@@ -1,5 +1,5 @@
+-hacking public-inbox
+---------------------
++contributing to public-inbox
++----------------------------
+ 
+ Send all patches and "git request-pull"-formatted emails to our
+ self-hosting inbox at meta@public-inbox.org
+@@ -15,7 +15,7 @@ Please consider our goals in mind:
+ 	Decentralization, Accessibility, Compatibility, Performance
+ 
+ These goals apply to everyone: users viewing over the web or NNTP,
+-sysadmins running public-inbox, and other hackers working public-inbox.
++sysadmins running public-inbox, and other contributors working public-inbox.
+ 
+ We will reject any feature which advocates or contributes to any
+ particular instance of a public-inbox becoming a single point of failure.

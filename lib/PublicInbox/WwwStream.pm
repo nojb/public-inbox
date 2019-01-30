@@ -38,10 +38,12 @@ sub _html_top ($) {
 	my $title = $ctx->{-title_html} || $desc;
 	my $upfx = $ctx->{-upfx} || '';
 	my $help = $upfx.'_/text/help';
+	my $color = $upfx.'_/text/color';
 	my $atom = $ctx->{-atom} || $upfx.'new.atom';
 	my $tip = $ctx->{-html_tip} || '';
 	my $top = "<b>$desc</b>";
 	my $links = "<a\nhref=\"$help\">help</a> / ".
+			"<a\nhref=\"$color\">color</a> / ".
 			"<a\nhref=\"$atom\">Atom feed</a>";
 	if ($obj->search) {
 		my $q_val = $ctx->{-q_value_html};
@@ -65,7 +67,7 @@ sub _html_top ($) {
 	"<html><head><title>$title</title>" .
 		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
 		"href=\"$atom\"\ntype=\"application/atom+xml\"/>" .
-		PublicInbox::Hval::STYLE .
+	        $ctx->{www}->style($upfx) .
 		"</head><body>". $top . $tip;
 }
 

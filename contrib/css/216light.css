@@ -1,0 +1,25 @@
+/*
+ * Light color scheme using 216 web-safe colors.
+ * Suitable for print, and blinding people with brightness.
+ * Haphazardly thrown together because bright colors hurt my eyes
+ */
+* { background:#fff; color:#333 }
+
+/*
+ * Underlined links add visual noise which make them hard-to-read.
+ * Use colors to make them stand out, instead.
+ */
+a { color:#00f; text-decoration:none }
+a:visited { color:#808 }
+
+/* quoted text gets a different color */
+*.q { color:#006 }
+
+/*
+ * these may be used with cgit, too
+ * (cgit uses <div>, public-inbox uses <span>)
+ */
+*.add { color:#060 }
+*.del {color:#900 }
+*.head { color:#000 }
+*.hunk { color:#960 }

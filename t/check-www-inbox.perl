@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # Parallel WWW checker
 my $usage = "$0 [-j JOBS] [-s SLOW_THRESHOLD] URL_OF_INBOX\n";
@@ -14,6 +14,13 @@ use POSIX qw(:sys_wait_h);
 use Time::HiRes qw(gettimeofday tv_interval);
 use WWW::Mechanize;
 use Data::Dumper;
+
+# we want to use vfork+exec with spawn, WWW::Mechanize can use too much
+# memory and fork(2) fails
+use PublicInbox::Spawn qw(spawn which);
+$ENV{PERL_INLINE_DIRECTORY} or warn "PERL_INLINE_DIRECTORY unset, may OOM\n";
+
+our $tmp_owner = $$;
 my $nproc = 4;
 my $slow = 0.5;
 my %opts = (
@@ -23,7 +30,40 @@ my %opts = (
 GetOptions(%opts) or die "bad command-line args\n$usage";
 my $root_url = shift or die $usage;
 
+chomp(my $xmlstarlet = which('xmlstarlet'));
+my $atom_check = eval {
+	my $cmd = [ qw(xmlstarlet val -e -) ];
+	sub {
+		my ($in, $out, $err) = @_;
+		use autodie;
+		open my $in_fh, '+>', undef;
+		open my $out_fh, '+>', undef;
+		open my $err_fh, '+>', undef;
+		print $in_fh $$in;
+		$in_fh->flush;
+		sysseek($in_fh, 0, 0);
+		my $rdr = {
+			0 => fileno($in_fh),
+			1 => fileno($out_fh),
+			2 => fileno($err_fh),
+		};
+		my $pid = spawn($cmd, undef, $rdr);
+		defined $pid or die "spawn failure: $!";
+		while (waitpid($pid, 0) != $pid) {
+			next if $!{EINTR};
+			warn "waitpid(xmlstarlet, $pid) $!";
+			return $!;
+		}
+		sysseek($out_fh, 0, 0);
+		sysread($out_fh, $$out, -s $out_fh);
+		sysseek($err_fh, 0, 0);
+		sysread($err_fh, $$err, -s $err_fh);
+		$?
+	}
+} if $xmlstarlet;
+
 my %workers;
+$SIG{INT} = sub { exit 130 };
 $SIG{TERM} = sub { exit 0 };
 $SIG{CHLD} = sub {
 	while (1) {
@@ -108,8 +148,10 @@ while (keys %workers) { # reacts to SIGCHLD
 
 sub worker_loop {
 	my ($todo_rd, $done_wr) = @_;
+	$SIG{CHLD} = 'DEFAULT';
 	my $m = WWW::Mechanize->new(autocheck => 0);
 	my $cc = LWP::ConnCache->new;
+	$m->stack_depth(0); # no history
 	$m->conn_cache($cc);
 	while (1) {
 		$todo_rd->recv(my $u, 65535, 0);
@@ -134,7 +176,7 @@ sub worker_loop {
 		my $s;
 		# blocking
 		foreach my $l (@links, "DONE\t$u") {
-			next if $l eq '';
+			next if $l eq '' || $l =~ /\.mbox(?:\.gz)\z/;
 			do {
 				$s = $done_wr->send($l, MSG_EOR);
 			} while (!defined $s && $!{EINTR});
@@ -146,7 +188,17 @@ sub worker_loop {
 		# make sure the HTML source doesn't screw up terminals
 		# when people curl the source (not remotely an expert
 		# on languages or encodings, here).
-		next if $r->header('Content-Type') !~ m!\btext/html\b!;
+		my $ct = $r->header('Content-Type') || '';
+		warn "no Content-Type: $u\n" if $ct eq '';
+
+		if ($atom_check && $ct =~ m!\bapplication/atom\+xml\b!) {
+			my $raw = $r->decoded_content;
+			my ($out, $err) = ('', '');
+			my $fail = $atom_check->(\$raw, \$out, \$err);
+			warn "Atom ($fail) - $u - <1:$out> <2:$err>\n" if $fail;
+		}
+
+		next if $ct !~ m!\btext/html\b!;
 		my $dc = $r->decoded_content;
 		if ($dc =~ /([\x00-\x08\x0d-\x1f\x7f-\x{99999999}]+)/s) {
 			my $o = $1;

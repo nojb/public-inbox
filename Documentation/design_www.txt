@@ -107,8 +107,6 @@ browsers default to.
 
 CSS classes (for user-supplied CSS)
 -----------------------------------
-span.q	- quoted text in email messages
 
-TODO: consider using highlight(1) via libhighlight-perl in Debian,
-      optionally
-...
+See examples in contrib/css/ and lib/PublicInbox/WwwText.pm
+(or https://public-inbox.org/meta/_/text/color/ soon)

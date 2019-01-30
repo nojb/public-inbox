@@ -13,8 +13,13 @@ use strict;
 use warnings;
 
 sub new {
-	my ($class, $rpipe, $end, $buf) = @_;
-	bless { rpipe => $rpipe, end => $end, buf => $buf }, $class;
+	my ($class, $rpipe, $end, $buf, $filter) = @_;
+	bless {
+		rpipe => $rpipe,
+		end => $end,
+		buf => $buf,
+		filter => $filter || 0,
+	}, $class;
 }
 
 # close should always be called after getline returns undef,
@@ -24,8 +29,13 @@ sub DESTROY { $_[0]->close }
 
 sub getline {
 	my ($self) = @_;
+	my $filter = $self->{filter};
+	return if $filter == -1; # last call was EOF
+
 	my $buf = delete $self->{buf}; # initial buffer
-	defined $buf ? $buf : $self->{rpipe}->getline;
+	$buf = $self->{rpipe}->getline unless defined $buf;
+	$self->{filter} = -1 unless defined $buf; # set EOF for next call
+	$filter ? $filter->($buf) : $buf;
 }
 
 sub close {

@@ -150,4 +150,23 @@ for my $s (@valid) {
 	ok(PublicInbox::Config::valid_inbox_name($s), "$d name accepted");
 }
 
+{
+	my $f = "$tmpdir/ordered";
+	open my $fh, '>', $f or die "open: $!";
+	my @expect;
+	foreach my $i (0..3) {
+		push @expect, "$i";
+		print $fh <<"" or die "print: $!";
+[publicinbox "$i"]
+	mainrepo = /path/to/$i.git
+	address = $i\@example.com
+
+	}
+	close $fh or die "close: $!";
+	my $cfg = PublicInbox::Config->new($f);
+	my @result;
+	$cfg->each_inbox(sub { push @result, $_[0]->{name} });
+	is_deeply(\@result, \@expect);
+}
+
 done_testing();

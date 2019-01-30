@@ -88,9 +88,44 @@ sub _srch_prefix ($$) {
 	1;
 }
 
+sub _colors_help ($$) {
+	my ($ctx, $txt) = @_;
+	my $ibx = $ctx->{-inbox};
+	my $base_url = $ibx->base_url($ctx->{env});
+	$$txt .= "color customization for $base_url\n";
+	$$txt .= <<EOF;
+
+public-inbox provides a stable set of CSS classes for users to
+customize colors for highlighting diffs and code.
+
+Users of browsers such as dillo, Firefox, or some browser
+extensions may start by downloading the following sample CSS file
+to control the colors they see:
+
+	${base_url}userContent.css
+
+CSS classes
+-----------
+
+	   span.q - quoted text in email messages
+
+For diff highlighting, we try to match class names with those
+used by cgit: https://git.zx2c4.com/cgit/
+
+	 span.add - diff post-image lines
+
+	 span.del - diff pre-image lines
+
+	span.head - diff header (metainformation)
+
+	span.hunk - diff hunk-header
+
+EOF
+}
 
 sub _default_text ($$$) {
 	my ($ctx, $key, $txt) = @_;
+	return _colors_help($ctx, $txt) if $key eq 'color';
 	return if $key ne 'help'; # TODO more keys?
 
 	my $ibx = $ctx->{-inbox};

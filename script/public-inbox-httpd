@@ -21,8 +21,8 @@ my $refresh = sub {
 		}
 	} else {
 		require PublicInbox::WWW;
-		PublicInbox::WWW->preload;
 		my $www = PublicInbox::WWW->new;
+		$www->preload;
 		$app = builder {
 			eval {
 				enable 'Deflater',

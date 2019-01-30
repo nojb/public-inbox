@@ -9,17 +9,7 @@ use warnings;
 use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename/;
-
-# User-generated content (UGC) may have excessively long lines
-# and screw up rendering on some browsers, so we use pre-wrap.
-#
-# We also force everything to the same scaled font-size because GUI
-# browsers (tested both Firefox and surf (webkit)) uses a larger font
-# for the Search <form> element than the rest of the page.  Font size
-# uniformity is important to people who rely on gigantic fonts.
-use constant STYLE =>
-	'<style>pre{white-space:pre-wrap}*{font-size:100%}</style>';
+our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape/;
 
 my $enc_ascii = find_encoding('us-ascii');
 
@@ -47,6 +37,21 @@ sub new_oneline {
 	$class->new($raw);
 }
 
+# some of these overrides are standard C escapes so they're
+# easy-to-understand when rendered.
+my %escape_sequence = (
+	"\x00" => '\\0', # NUL
+	"\x07" => '\\a', # bell
+	"\x08" => '\\b', # backspace
+	"\x09" => "\t", # obvious to show as-is
+	"\x0a" => "\n", # obvious to show as-is
+	"\x0b" => '\\v', # vertical tab
+	"\x0c" => '\\f', # form feed
+	"\x0d" => '\\r', # carriage ret (not preceding \n)
+	"\x1b" => '^[', # ASCII escape (mutt seems to escape this way)
+	"\x7f" => '\\x7f', # DEL
+);
+
 my %xhtml_map = (
 	'"' => '&#34;',
 	'&' => '&#38;',
@@ -56,18 +61,13 @@ my %xhtml_map = (
 );
 
 $xhtml_map{chr($_)} = sprintf('\\x%02x', $_) for (0..31);
-# some of these overrides are standard C escapes so they're
-# easy-to-understand when rendered.
-$xhtml_map{"\x00"} = '\\0'; # NUL
-$xhtml_map{"\x07"} = '\\a'; # bell
-$xhtml_map{"\x08"} = '\\b'; # backspace
-$xhtml_map{"\x09"} = "\t"; # obvious to show as-is
-$xhtml_map{"\x0a"} = "\n"; # obvious to show as-is
-$xhtml_map{"\x0b"} = '\\v'; # vertical tab
-$xhtml_map{"\x0c"} = '\\f'; # form feed
-$xhtml_map{"\x0d"} = '\\r'; # carriage ret (not preceding \n)
-$xhtml_map{"\x1b"} = '^['; # ASCII escape (mutt seems to escape this way)
-$xhtml_map{"\x7f"} = '\\x7f'; # DEL
+%xhtml_map = (%xhtml_map, %escape_sequence);
+
+sub src_escape ($) {
+	$_[0] =~ s/\r\n/\n/sg;
+	$_[0] =~ s/([\x7f\x00-\x1f])/$xhtml_map{$1}/sge;
+	$_[0] = $enc_ascii->encode($_[0], Encode::HTMLCREF);
+}
 
 sub ascii_html {
 	my ($s) = @_;

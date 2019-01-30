@@ -1,0 +1,46 @@
+/*
+ * Dark color scheme using 216 web-safe colors, inspired
+ * somewhat by the default color scheme in mutt.
+ * It reduces eyestrain for me, and energy usage for all:
+ * https://en.wikipedia.org/wiki/Light-on-dark_color_scheme
+ */
+* { background:#000; color:#ccc }
+
+/*
+ * Underlined links add visual noise which make them hard-to-read.
+ * Use colors to make them stand out, instead.
+ */
+a { color:#69f; text-decoration:none }
+a:visited { color:#96f }
+
+/* quoted text gets a different color */
+*.q { color:#09f }
+
+/*
+ * these may be used with cgit, too
+ * (cgit uses <div>, public-inbox uses <span>)
+ */
+*.add { color:#0ff }
+*.del { color:#f0f }
+*.head { color:#fff }
+*.hunk { color:#c93 }
+
+/*
+ * highlight 3.x colors (tested 3.18)
+ * this doesn't use most of the colors available (I find too many
+ * colors overwhelming).  So the #ccc default is commented out.
+ */
+.hl.num { color:#f30 } /* number */
+.hl.esc { color:#f0f } /* escape character */
+.hl.str { color:#f30 } /* string */
+.hl.ppc { color:#f0f } /* preprocessor */
+.hl.pps { color:#f30 } /* preprocessor string */
+.hl.slc { color:#09f } /* single-line comment */
+.hl.com { color:#09f }
+/* .hl.opt { color:#ccc } */
+/* .hl.ipl { color:#ccc } */
+/* .hl.lin { color:#ccc } */
+.hl.kwa { color:#ff0 }
+.hl.kwb { color:#0f0 }
+.hl.kwc { color:#ff0 }
+/* .hl.kwd { color:#ccc } */
