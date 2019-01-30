@@ -867,11 +867,6 @@ sub missing_thread {
 	PublicInbox::ExtMsg::ext_msg($ctx);
 }
 
-sub _msg_date {
-	my ($hdr) = @_;
-	fmt_ts(msg_datestamp($hdr));
-}
-
 sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 sub dedupe_subject {
