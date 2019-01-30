@@ -29,9 +29,16 @@ sub new {
 		'psgi.run_once'	 => Plack::Util::FALSE,
 		'psgi.multithread' => Plack::Util::FALSE,
 		'psgi.multiprocess' => Plack::Util::TRUE,
+
+		# We don't use this anywhere, but we can support
+		# other PSGI apps which might use it:
 		'psgix.input.buffered' => Plack::Util::TRUE,
 
-		# XXX unstable API!
+		# XXX unstable API!, only GitHTTPBackend needs
+		# this to limit git-http-backend(1) parallelism.
+		# The rest of our PSGI code is generic, relying
+		# on "pull" model using "getline" to prevent
+		# over-buffering.
 		'pi-httpd.async' => do {
 			no warnings 'once';
 			*pi_httpd_async
