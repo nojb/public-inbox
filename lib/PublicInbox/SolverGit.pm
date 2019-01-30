@@ -286,7 +286,8 @@ EOF
 
 sub extract_old_mode ($) {
 	my ($di) = @_;
-	if (grep(/\Aold mode (100644|100755|120000)$/, @{$di->{hdr_lines}})) {
+	if (join('', @{$di->{hdr_lines}}) =~
+			/^old mode (100644|100755|120000)\b/) {
 		return $1;
 	}
 	'100644';
