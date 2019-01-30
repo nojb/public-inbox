@@ -125,6 +125,7 @@ sub extract_diff ($$$$$) {
 
 			push @$hdr_lines, $l;
 			$di->{hdr_lines} = $hdr_lines;
+			utf8::encode($_) for @$hdr_lines;
 			print $tmp @$hdr_lines or die "print(tmp): $!";
 
 			# for debugging/diagnostics:
@@ -153,6 +154,7 @@ sub extract_diff ($$$$$) {
 			$di->{path_b} = join('/', @b);
 			$hdr_lines = [ $l ];
 		} elsif ($tmp) {
+			utf8::encode($l);
 			print $tmp $l or die "print(tmp): $!";
 		} elsif ($hdr_lines) {
 			push @$hdr_lines, $l;
