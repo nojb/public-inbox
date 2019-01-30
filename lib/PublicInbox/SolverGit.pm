@@ -389,8 +389,8 @@ sub do_git_apply ($) {
 	my $patches = $self->{patches};
 
 	# we need --ignore-whitespace because some patches are CRLF
-	my @cmd = qw(git apply --cached --ignore-whitespace
-			--whitespace=warn --verbose);
+	my @cmd = (qw(git -C), $dn, qw(apply --cached --ignore-whitespace
+			--whitespace=warn --verbose));
 	my $len = length(join(' ', @cmd));
 	my $total = $self->{tot};
 	my $di; # keep track of the last one for "git ls-files"
@@ -400,8 +400,7 @@ sub do_git_apply ($) {
 		$di = shift @$patches;
 		dbg($self, "\napplying [$i/$total] " . di_url($self, $di) .
 			"\n" . join('', @{$di->{hdr_lines}}));
-		my $pn = $total + 1 - $i;
-		my $path = "$dn/$pn";
+		my $path = $total + 1 - $i;
 		$len += length($path) + 1;
 		push @cmd, $path;
 	} while (@$patches && $len < $ARG_SIZE_MAX);
