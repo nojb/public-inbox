@@ -131,7 +131,7 @@ sub extract_diff ($$$$$) {
 			# for debugging/diagnostics:
 			$di->{ibx} = $ibx;
 			$di->{smsg} = $smsg;
-		} elsif ($l =~ m!\Adiff --git ("?a/.+) ("?b/.+)$!) {
+		} elsif ($l =~ m!\Adiff --git ("?[^/]+/.+) ("?[^/]+/.+)$!) {
 			last if $tmp; # got our blob, done!
 
 			my ($path_a, $path_b) = ($1, $2);
