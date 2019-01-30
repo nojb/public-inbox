@@ -170,6 +170,13 @@ sub extract_diff ($$$$$) {
 
 sub path_searchable ($) { defined($_[0]) && $_[0] =~ m!\A[\w/\. \-]+\z! }
 
+# ".." appears in path names, which confuses Xapian into treating
+# it as a range query.  So we split on ".." since Xapian breaks
+# on punctuation anyways:
+sub filename_query ($) {
+	join('', map { qq( dfn:"$_") } split(/\.\./, $_[0]));
+}
+
 sub find_extract_diff ($$$) {
 	my ($self, $ibx, $want) = @_;
 	my $srch = $ibx->search or return;
@@ -187,11 +194,11 @@ sub find_extract_diff ($$$) {
 
 	my $path_b = $want->{path_b};
 	if (path_searchable($path_b)) {
-		$q .= qq{ dfn:"$path_b"};
+		$q .= filename_query($path_b);
 
 		my $path_a = $want->{path_a};
 		if (path_searchable($path_a) && $path_a ne $path_b) {
-			$q .= qq{ dfn:"$path_a"};
+			$q .= filename_query($path_a);
 		}
 	}
 
