@@ -169,4 +169,23 @@ for my $s (@valid) {
 	is_deeply(\@result, \@expect);
 }
 
+{
+	my $pfx1 = "publicinbox.test1";
+	my $pfx2 = "publicinbox.test2";
+	my $h = {
+		"$pfx1.address" => 'test@example.com',
+		"$pfx1.mainrepo" => '/path/to/non/existent',
+		"$pfx2.address" => 'foo@example.com',
+		"$pfx2.mainrepo" => '/path/to/foo',
+		"$pfx1.coderepo" => 'project',
+		"$pfx2.coderepo" => 'project',
+		"coderepo.project.dir" => '/path/to/project.git',
+	};
+	my $cfg = PublicInbox::Config->new($h);
+	my $t1 = $cfg->lookup_name('test1');
+	my $t2 = $cfg->lookup_name('test2');
+	is($t1->{-repo_objs}->[0], $t2->{-repo_objs}->[0],
+		'inboxes share ::Git object');
+}
+
 done_testing();
