@@ -51,12 +51,21 @@ sub new {
 	my @st;
 	$st[7] = $st[10] = 0;
 	# may contain {-tmp} field for File::Temp::Dir
-	bless { git_dir => $git_dir, st => \@st }, $class
+	bless { git_dir => $git_dir, st => \@st, -git_path => {} }, $class
+}
+
+sub git_path ($$) {
+	my ($self, $path) = @_;
+	$self->{-git_path}->{$path} ||= do {
+		local $/ = "\n";
+		chomp(my $str = $self->qx(qw(rev-parse --git-path), $path));
+		$str;
+	};
 }
 
 sub alternates_changed {
 	my ($self) = @_;
-	my $alt = "$self->{git_dir}/objects/info/alternates";
+	my $alt = git_path($self, 'objects/info/alternates');
 	my @st = stat($alt) or return 0;
 	my $old_st = $self->{st};
 	# 10 - ctime, 7 - size
@@ -239,7 +248,8 @@ sub cleanup {
 sub packed_bytes {
 	my ($self) = @_;
 	my $n = 0;
-	foreach my $p (glob("$self->{git_dir}/objects/pack/*.pack")) {
+	my $pack_dir = git_path($self, 'objects/pack');
+	foreach my $p (glob("$pack_dir/*.pack")) {
 		$n += -s $p;
 	}
 	$n

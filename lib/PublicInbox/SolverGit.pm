@@ -272,8 +272,9 @@ EOF
 
 	my $f = 'objects/info/alternates';
 	open $fh, '>', "$git_dir/$f" or die "open: $f: $!";
-	print($fh (map { "$_->{git_dir}/objects\n" } @{$self->{gits}})) or
-		die "print $f: $!";
+	foreach my $git (@{$self->{gits}}) {
+		print $fh $git->git_path('objects'),"\n" or die "print $f: $!";
+	}
 	close $fh or die "close: $f: $!";
 	my $tmp_git = $self->{tmp_git} = PublicInbox::Git->new($git_dir);
 	$tmp_git->{-tmp} = $self->{tmp};
