@@ -23,6 +23,7 @@ use URI::Escape qw(uri_escape_utf8);
 # headroom into this.
 use POSIX qw(sysconf _SC_ARG_MAX);
 my $ARG_SIZE_MAX = (sysconf(_SC_ARG_MAX) || 4096) - 2048;
+my $OID_MIN = 7;
 
 # By default, "git format-patch" generates filenames with a four-digit
 # prefix, so that means 9999 patch series are OK, right? :>
@@ -353,7 +354,13 @@ sub next_step ($) {
 
 sub mark_found ($$$) {
 	my ($self, $oid, $found_info) = @_;
-	$self->{found}->{$oid} = $found_info;
+	my $found = $self->{found};
+	$found->{$oid} = $found_info;
+	my $oid_cur = $found_info->[1];
+	while ($oid_cur ne $oid && length($oid_cur) > $OID_MIN) {
+		$found->{$oid_cur} = $found_info;
+		chop($oid_cur);
+	}
 }
 
 sub parse_ls_files ($$$$) {
@@ -485,6 +492,14 @@ sub resolve_patch ($$) {
 		}
 		return next_step($self); # onto the next todo item
 	}
+	if (length($cur_want) > $OID_MIN) {
+		chop($cur_want);
+		dbg($self, "retrying $want->{oid_b} as $cur_want");
+		$want->{oid_b} = $cur_want;
+		push @{$self->{todo}}, $want;
+		return next_step($self); # retry with shorter abbrev
+	}
+
 	dbg($self, "could not find $cur_want");
 	eval { delete($self->{user_cb})->(undef) }; # not found! :<
 	die "E: $@" if $@;

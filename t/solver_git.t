@@ -64,6 +64,15 @@ if (0) { # TODO: check this?
 	diag $z;
 }
 
+my $oid = $expect;
+for my $i (1..2) {
+	my $more;
+	my $s = PublicInbox::SolverGit->new($ibx, sub { $more = $_[0] });
+	$s->solve($psgi_env, $log, $oid, {});
+	is($more->[1], $expect, 'resolved blob to long OID '.$i);
+	chop($oid);
+}
+
 $solver = undef;
 $res = undef;
 my $wt_git_dir = $wt_git->{git_dir};
