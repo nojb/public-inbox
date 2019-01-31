@@ -34,6 +34,7 @@ END { $hl = undef };
 my %QP_MAP = ( A => 'oid_a', B => 'oid_b', a => 'path_a', b => 'path_b' );
 my $max_size = 1024 * 1024; # TODO: configurable
 my $enc_utf8 = find_encoding('UTF-8');
+my $BIN_DETECT = 8000; # same as git
 
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
@@ -43,7 +44,33 @@ sub html_page ($$$) {
 		my ($nr, undef) =  @_;
 		$nr == 1 ? $$strref : undef;
 	});
-	$wcb->($res);
+	$wcb ? $wcb->($res) : $res;
+}
+
+sub stream_large_blob ($$$$) {
+	my ($ctx, $res, $logref, $fn) = @_;
+	my ($git, $oid, $type, $size, $di) = @$res;
+	my $cmd = ['git', "--git-dir=$git->{git_dir}", 'cat-file', $type, $oid];
+	my $qsp = PublicInbox::Qspawn->new($cmd);
+	my @cl = ('Content-Length', $size);
+	my $env = $ctx->{env};
+	$env->{'qspawn.response'} = delete $ctx->{-wcb};
+	$qsp->psgi_return($env, undef, sub {
+		my ($r, $bref) = @_;
+		if (!defined $r) { # error
+			html_page($ctx, 500, $logref);
+		} elsif (index($$bref, "\0") >= 0) {
+			my $ct = 'application/octet-stream';
+			[200, ['Content-Type', $ct, @cl ] ];
+		} else {
+			my $n = bytes::length($$bref);
+			if ($n >= $BIN_DETECT || $n == $size) {
+				my $ct = 'text/plain; charset=UTF-8';
+				return [200, ['Content-Type', $ct, @cl] ];
+			}
+			undef; # bref keeps growing
+		}
+	});
 }
 
 sub solve_result {
@@ -65,9 +92,13 @@ sub solve_result {
 	$ref eq 'ARRAY' or return html_page($ctx, 500, \$log);
 
 	my ($git, $oid, $type, $size, $di) = @$res;
+	my $path = to_filename($di->{path_b} || $hints->{path_b} || 'blob');
+	my $raw_link = "(<a\nhref=$path>raw</a>)";
 	if ($size > $max_size) {
+		return stream_large_blob($ctx, $res, \$log, $fn) if defined $fn;
 		# TODO: stream the raw file if it's gigantic, at least
-		$log = '<pre><b>Too big to show</b></pre>' . $log;
+		$log = "<pre><b>Too big to show, download available</b>\n" .
+			"$oid $type $size bytes $raw_link</pre>" . $log;
 		return html_page($ctx, 500, \$log);
 	}
 
@@ -86,8 +117,6 @@ sub solve_result {
 		return delete($ctx->{-wcb})->([200, $h, [ $$blob ]]);
 	}
 
-	my $path = to_filename($di->{path_b} || $hints->{path_b} || 'blob');
-	my $raw_link = "(<a\nhref=$path>raw</a>)";
 	if ($binary) {
 		$log = "<pre>$oid $type $size bytes (binary)" .
 			" $raw_link</pre>" . $log;
