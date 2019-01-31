@@ -112,6 +112,25 @@ link to the line numbers of blobs.
 
 Default: none
 
+=item publicinbox.<name>.replyto
+
+May be used to control how reply instructions in the PSGI
+interface are displayed.
+
+":none=dead inbox" may be specified to denote an inactive list
+("dead inbox" may be replaced with another phrase).
+
+A list of comma-delimited email addresses may be specified.
+This can be useful for dedicated inboxes for bot emails, but
+discussion happens on a seperate mailing list/inbox.
+
+Mirrors of existing centralized mailing lists may use ":list"
+here to redirect mail only to the configured inbox address.
+The use of ":list" is discouraged for new mailing lists, as it
+leads to centralization.
+
+Default: :all
+
 =item publicinbox.css
 
 The local path name of a CSS file for the PSGI web interface.
