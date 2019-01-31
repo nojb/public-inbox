@@ -1,17 +1,40 @@
-# Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# Limits the number of processes spawned
+# Like most Perl modules in public-inbox, this is internal and
+# NOT subject to any stability guarantees!  It is only documented
+# for other hackers.
+#
+# This is used to limit the number of processes spawned by the
+# PSGI server, so it acts like a semaphore and queues up extra
+# commands to be run if currently at the limit.  Multiple "limiters"
+# may be configured which give inboxes different channels to
+# operate in.  This can be useful to ensure smaller inboxes can
+# be cloned while cloning of large inboxes is maxed out.
+#
 # This does not depend on Danga::Socket or any other external
-# scheduling mechanism, you just need to call start and finish
-# appropriately
+# scheduling mechanism, you just need to call start() and finish()
+# appropriately. However, public-inbox-httpd (which uses Danga::Socket)
+# will be able to schedule this based on readability of stdout from
+# the spawned process.  See GitHTTPBackend.pm and SolverGit.pm for
+# usage examples.  It does not depend on any form of threading.
+#
+# This is useful for scheduling CGI execution of both long-lived
+# git-http-backend(1) process (for "git clone") as well as short-lived
+# processes such as git-apply(1).
+
 package PublicInbox::Qspawn;
 use strict;
 use warnings;
 use PublicInbox::Spawn qw(popen_rd);
 require Plack::Util;
+
 my $def_limiter;
 
+# declares a command to spawn (but does not spawn it).
+# $cmd is the command to spawn
+# $env is the environ for the child process
+# $opt can include redirects and perhaps other process spawning options
 sub new ($$$;) {
 	my ($class, $cmd, $env, $opt) = @_;
 	bless { args => [ $cmd, $env, $opt ] }, $class;
@@ -79,6 +102,10 @@ sub _psgi_finish ($$) {
 	}
 }
 
+# Similar to `backtick` or "qx" ("perldoc -f qx"), it calls $qx_cb with
+# the stdout of the given command when done; but respects the given limiter
+# $env is the PSGI env.  As with ``/qx; only use this when output is small
+# and safe to slurp.
 sub psgi_qx {
 	my ($self, $env, $limiter, $qx_cb) = @_;
 	my $qx = PublicInbox::Qspawn::Qx->new;
@@ -125,6 +152,28 @@ sub filter_fh ($$) {
 		});
 }
 
+# Used for streaming the stdout of one process as a PSGI response.
+#
+# $env is the PSGI env.
+# optional keys in $env:
+#   $env->{'qspawn.wcb'} - the write callback from the PSGI server
+#                          optional, use this if you've already
+#                          captured it elsewhere.  If not given,
+#                          psgi_return will return an anonymous
+#                          sub for the PSGI server to call
+#
+#   $env->{'qspawn.filter'} - filter callback, receives a string as input,
+#                             undef on EOF
+#
+# $limiter - the Limiter object to use (uses the def_limiter if not given)
+#
+# $parse_hdr - Initial read function; often for parsing CGI header output.
+#              It will be given the return value of sysread from the pipe
+#              and a string ref of the current buffer.  Returns an arrayref
+#              for PSGI responses.  2-element arrays in PSGI mean the
+#              body will be streamed, later, via writes (push-based) to
+#              psgix.io.  3-element arrays means the body is available
+#              immediately (or streamed via ->getline (pull-based)).
 sub psgi_return {
 	my ($self, $env, $limiter, $parse_hdr) = @_;
 	my ($fh, $rpipe);
@@ -139,8 +188,10 @@ sub psgi_return {
 		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
 		$parse_hdr->($r, \$buf);
 	};
-	my $res = delete $env->{'qspawn.response'};
+
+	my $wcb = delete $env->{'qspawn.wcb'};
 	my $async = $env->{'pi-httpd.async'};
+
 	my $cb = sub {
 		my $r = $rd_hdr->() or return;
 		$rd_hdr = undef;
@@ -152,16 +203,16 @@ sub psgi_return {
 				$rpipe->close;
 				$end->();
 			}
-			$res->($r);
+			$wcb->($r);
 		} elsif ($async) {
-			$fh = $res->($r); # scalar @$r == 2
+			$fh = $wcb->($r); # scalar @$r == 2
 			$fh = filter_fh($fh, $filter) if $filter;
 			$async->async_pass($env->{'psgix.io'}, $fh, \$buf);
 		} else { # for synchronous PSGI servers
 			require PublicInbox::GetlineBody;
 			$r->[2] = PublicInbox::GetlineBody->new($rpipe, $end,
 								$buf, $filter);
-			$res->($r);
+			$wcb->($r);
 		}
 	};
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
@@ -175,10 +226,16 @@ sub psgi_return {
 		}
 	};
 
-	return $self->start($limiter, $start_cb) if $res;
+	# the caller already captured the PSGI write callback from
+	# the PSGI server, so we can call ->start, here:
+	return $self->start($limiter, $start_cb) if $wcb;
 
+	# the caller will return this sub to the PSGI server, so
+	# it can set the response callback (that is, for PublicInbox::HTTP,
+	# the chunked_wcb or identity_wcb callback), but other HTTP servers
+	# are supported:
 	sub {
-		($res) = @_;
+		($wcb) = @_;
 		$self->start($limiter, $start_cb);
 	};
 }

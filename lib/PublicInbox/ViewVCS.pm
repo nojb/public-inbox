@@ -54,7 +54,7 @@ sub stream_large_blob ($$$$) {
 	my $qsp = PublicInbox::Qspawn->new($cmd);
 	my @cl = ('Content-Length', $size);
 	my $env = $ctx->{env};
-	$env->{'qspawn.response'} = delete $ctx->{-wcb};
+	$env->{'qspawn.wcb'} = delete $ctx->{-wcb};
 	$qsp->psgi_return($env, undef, sub {
 		my ($r, $bref) = @_;
 		if (!defined $r) { # error
