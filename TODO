@@ -29,8 +29,6 @@ all need to be considered for everything we introduce)
 
 * Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
 
-* Optional reply-to-nobody for dead lists.
-
 * Configurable linkification for per-inbox shorthands:
   "$gmane/123456" could be configured to expand to the
   appropriate link pointing to the gmane.org list archives,
@@ -77,9 +75,6 @@ all need to be considered for everything we introduce)
 * more and better test cases (use git fast-import to speed up creation)
 
 * large mbox/Maildir/MH/NNTP spool import (see PublicInbox::Import)
-
-* Optionally allow indexing Xapian without positional information to
-  save space (but prevents "quoted phrase" searching).
 
 * Allow NNTP and more of PSGI code to work without Xapian
 

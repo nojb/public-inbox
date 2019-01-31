@@ -96,7 +96,6 @@ sub solve_result {
 	my $raw_link = "(<a\nhref=$path>raw</a>)";
 	if ($size > $max_size) {
 		return stream_large_blob($ctx, $res, \$log, $fn) if defined $fn;
-		# TODO: stream the raw file if it's gigantic, at least
 		$log = "<pre><b>Too big to show, download available</b>\n" .
 			"$oid $type $size bytes $raw_link</pre>" . $log;
 		return html_page($ctx, 500, \$log);
