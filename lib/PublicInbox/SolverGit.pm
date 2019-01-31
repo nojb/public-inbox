@@ -302,6 +302,26 @@ sub extract_old_mode ($) {
 	'100644';
 }
 
+sub do_finish ($$) {
+	my ($self, $user_cb) = @_;
+	my $found = $self->{found};
+	my $oid_want = $self->{oid_want};
+	if (my $exists = $found->{$oid_want}) {
+		return $user_cb->($exists);
+	}
+
+	# let git disambiguate if oid_want was too short,
+	# but long enough to be unambiguous:
+	my $tmp_git = $self->{tmp_git};
+	if (my @res = $tmp_git->check($oid_want)) {
+		return $user_cb->($found->{$res[0]});
+	}
+	if (my $err = $tmp_git->last_check_err) {
+		dbg($self, $err);
+	}
+	$user_cb->(undef);
+}
+
 sub do_step ($) {
 	my ($self) = @_;
 	eval {
@@ -323,8 +343,8 @@ sub do_step ($) {
 		# our result: (which may be undef)
 		# Other steps may call user_cb to terminate prematurely
 		# on error
-		} elsif (my $ucb = delete($self->{user_cb})) {
-			$ucb->($self->{found}->{$self->{oid_want}});
+		} elsif (my $user_cb = delete($self->{user_cb})) {
+			do_finish($self, $user_cb);
 		} else {
 			die 'about to call user_cb twice'; # Oops :x
 		}
