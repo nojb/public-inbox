@@ -202,8 +202,8 @@ sub cloneurl {
 
 sub base_url {
 	my ($self, $env) = @_;
-	if ($env) { # PSGI env
-		my $scheme = $env->{'psgi.url_scheme'};
+	my $scheme;
+	if ($env && ($scheme = $env->{'psgi.url_scheme'})) { # PSGI env
 		my $host_port = $env->{HTTP_HOST} ||
 			"$env->{SERVER_NAME}:$env->{SERVER_PORT}";
 		my $url = "$scheme://$host_port". ($env->{SCRIPT_NAME} || '/');

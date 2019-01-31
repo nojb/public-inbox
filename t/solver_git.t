@@ -44,7 +44,7 @@ $ibx->{-repo_objs} = [ PublicInbox::Git->new($git_dir) ];
 my $res;
 my $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
 open my $log, '+>>', "$mainrepo/solve.log" or die "open: $!";
-my $psgi_env = { 'psgi.url_scheme' => 'http', HTTP_HOST => 'example.com' };
+my $psgi_env = { 'psgi.errors' => *STDERR };
 $solver->solve($psgi_env, $log, '69df7d5', {});
 ok($res, 'solved a blob!');
 my $wt_git = $res->[0];
