@@ -32,7 +32,7 @@ sub new {
 	$self->{-code_repos} ||= {}; # nick => PublicInbox::Git object
 
 	if (my $no = delete $self->{'publicinbox.noobfuscate'}) {
-		$no = [ $no ] if ref($no) ne 'ARRAY';
+		$no = _array($no);
 		my @domains;
 		foreach my $n (@$no) {
 			my @n = split(/\s+/, $n);
