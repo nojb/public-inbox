@@ -76,10 +76,10 @@ sub to_state ($$$) {
 }
 
 sub anchor0 ($$$$$) {
-	my ($dst, $anchors, $linkify, $fn, $rest) = @_;
-	if (my $attr = to_attr($fn)) {
-		$anchors->{$attr} = 1;
-		$$dst .= " <a\nhref=#$attr>" .
+	my ($dst, $ctx, $linkify, $fn, $rest) = @_;
+	if (my $attr = to_attr($ctx->{-apfx}.$fn)) {
+		$ctx->{-anchors}->{$attr} = 1;
+		$$dst .= " <a\nid=i$attr\nhref=#$attr>" .
 			ascii_html($fn) . '</a>'.
 			to_html($linkify, $rest);
 		return 1;
@@ -88,33 +88,33 @@ sub anchor0 ($$$$$) {
 }
 
 sub anchor1 ($$$$$) {
-	my ($dst, $anchors, $linkify, $pb, $s) = @_;
-	my $attr = to_attr($pb) or return;
+	my ($dst, $ctx, $linkify, $pb, $s) = @_;
+	my $attr = to_attr($ctx->{-apfx}.$pb) or return;
 	my $line = to_html($linkify, $s);
 
-	if (delete $anchors->{$attr} && $line =~ s/^diff //) {
-		$$dst .= "<a\nhref=#ds\nid=$attr>diff</a> ".$line;
+	if (delete $ctx->{-anchors}->{$attr} && $line =~ s/^diff //) {
+		$$dst .= "<a\nhref=#i$attr\nid=$attr>diff</a> ".$line;
 		return 1;
 	}
 	undef
 }
 
-sub flush_diff ($$$$) {
-	my ($dst, $spfx, $linkify, $diff) = @_;
+sub flush_diff ($$$) {
+	my ($dst, $ctx, $linkify) = @_;
+	my $diff = $ctx->{-diff};
+	my $spfx = $ctx->{-spfx};
 	my $state = DSTATE_INIT;
 	my $dctx = { Q => '' }; # {}, keys: oid_a, oid_b, path_a, path_b
-	my $anchors = {}; # attr => filename
 
 	foreach my $s (@$diff) {
 		if ($s =~ /^---$/) {
 			to_state($dst, $state, DSTATE_STAT);
-			$$dst .= "<span\nid=ds>" . $s . '</span>';
+			$$dst .= $s;
 		} elsif ($s =~ /^ /) {
 			# works for common cases, but not weird/long filenames
 			if ($state == DSTATE_STAT &&
 					$s =~ /^ (\S+)(\s+\|.*\z)/s) {
-				anchor0($dst, $anchors, $linkify, $1, $2)
-					and next;
+				anchor0($dst, $ctx, $linkify, $1, $2) and next;
 			} elsif ($state2class[$state]) {
 				to_state($dst, $state, DSTATE_CTX);
 			}
@@ -136,8 +136,7 @@ sub flush_diff ($$$$) {
 					$dctx->{Q} .=
 					     "&a=".uri_escape_utf8($pa, UNSAFE);
 				}
-				anchor1($dst, $anchors, $linkify, $pb, $s)
-					and next;
+				anchor1($dst, $ctx, $linkify, $pb, $s) and next;
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {

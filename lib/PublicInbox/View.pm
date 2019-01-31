@@ -37,7 +37,7 @@ sub msg_html {
 		if ($nr == 1) {
 			# $more cannot be true w/o $smsg being defined:
 			my $upfx = $more ? '../'.mid_escape($smsg->mid).'/' : '';
-			$tip . multipart_text_as_html($mime, $upfx, $ibx) .
+			$tip . multipart_text_as_html($mime, $upfx, $ctx) .
 				'</pre><hr>'
 		} elsif ($more && @$more) {
 			++$end;
@@ -90,7 +90,7 @@ sub msg_html_more {
 			my $mime = $smsg->{mime};
 			my $upfx = '../' . mid_escape($smsg->mid) . '/';
 			_msg_html_prepare($mime->header_obj, $ctx, $more, $nr) .
-				multipart_text_as_html($mime, $upfx, $ibx) .
+				multipart_text_as_html($mime, $upfx, $ctx) .
 				'</pre><hr>'
 		} else {
 			'';
@@ -262,7 +262,7 @@ sub index_entry {
 
 	# scan through all parts, looking for displayable text
 	my $ibx = $ctx->{-inbox};
-	msg_iter($mime, sub { $rv .= add_text_body($mhref, $ibx, $_[0]) });
+	msg_iter($mime, sub { $rv .= add_text_body($mhref, $ctx, $_[0]) });
 
 	# add the footer
 	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
@@ -490,11 +490,11 @@ sub thread_html {
 }
 
 sub multipart_text_as_html {
-	my ($mime, $upfx, $ibx) = @_;
+	my ($mime, $upfx, $ctx) = @_;
 	my $rv = "";
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { $rv .= add_text_body($upfx, $ibx, $_[0]) });
+	msg_iter($mime, sub { $rv .= add_text_body($upfx, $ctx, $_[0]) });
 	$rv;
 }
 
@@ -547,10 +547,11 @@ sub attach_link ($$$$;$) {
 }
 
 sub add_text_body {
-	my ($upfx, $ibx, $p) = @_;
+	my ($upfx, $ctx, $p) = @_;
+	my $ibx = $ctx->{-inbox};
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	# $p - from msg_iter: [ Email::MIME, depth, @idx ]
-	my ($part, $depth) = @$p; # attachment @idx is unused
+	my ($part, $depth, @idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	my ($s, $err) = msg_part_text($part, $ct);
@@ -561,9 +562,16 @@ sub add_text_body {
 	# link generation in diffs with the extra '%0D'
 	$s =~ s/\r\n/\n/sg;
 
-	my ($diff, $spfx);
+	# always support diff-highlighting, but we can't linkify hunk
+	# headers for solver unless some coderepo are configured:
+	my $diff;
 	if ($s =~ /^(?:diff|---|\+{3}) /ms) {
-		$diff = [];
+		# diffstat anchors do not link across attachments or messages:
+		$idx[0] = $upfx . $idx[0] if $upfx ne '';
+		$ctx->{-apfx} = join('/', @idx);
+		$ctx->{-anchors} = {}; # attr => filename
+		$ctx->{-diff} = $diff = [];
+		my $spfx;
 		if ($ibx->{-repo_objs}) {
 			my $n_slash = $upfx =~ tr!/!/!;
 			if ($n_slash == 0) {
@@ -574,6 +582,7 @@ sub add_text_body {
 				$spfx = '../../';
 			}
 		}
+		$ctx->{-spfx} = $spfx;
 	};
 
 	my @lines = split(/^/m, $s);
@@ -598,18 +607,18 @@ sub add_text_body {
 				$s .= $l->linkify_2(ascii_html($cur));
 			}
 		} else {
-			flush_diff(\$s, $spfx, $l, $diff) if $diff && @$diff;
+			flush_diff(\$s, $ctx, $l) if $diff && @$diff;
 			push @quot, $cur;
 		}
 	}
 
 	if (@quot) { # ugh, top posted
 		flush_quote(\$s, $l, \@quot);
-		flush_diff(\$s, $spfx, $l, $diff) if $diff && @$diff;
+		flush_diff(\$s, $ctx, $l) if $diff && @$diff;
 		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
 		$s;
 	} else {
-		flush_diff(\$s, $spfx, $l, $diff) if $diff && @$diff;
+		flush_diff(\$s, $ctx, $l) if $diff && @$diff;
 		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
 		if ($s =~ /\n\z/s) { # common, last line ends with a newline
 			$s;

@@ -6,12 +6,15 @@ URL and anchor naming
 /$INBOX/new.atom                       -> Atom feed
 
 #### Optional, relies on Search::Xapian
-/$INBOX/$MESSAGE_ID/t/                 -> HTML content of thread
+/$INBOX/$MESSAGE_ID/t/                 -> HTML content of thread (nested)
+/$INBOX/$MESSAGE_ID/T/                 -> HTML content of thread (flat)
 	anchors:
 	#u          location of $MESSAGE_ID in URL
 	#m<SHA-1>   per-message links, where <SHA-1> is of the Message-ID
 	            of each message (stable)
 	#s<NUM>     relative numeric position of message in thread (unstable)
+	#i<...>     diffstat location for patch emails
+	#Z?<...>    per-file diff header location for patch emails
 
 /$INBOX/$MESSAGE_ID/t.atom             -> Atom feed for thread
 /$INBOX/$MESSAGE_ID/t.mbox.gz          -> gzipped mbox of thread

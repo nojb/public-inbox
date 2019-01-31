@@ -137,7 +137,7 @@ sub feed_entry {
 		qq{<content\ntype="xhtml">} .
 		qq{<div\nxmlns="http://www.w3.org/1999/xhtml">} .
 		qq(<pre\nstyle="white-space:pre-wrap">) .
-		PublicInbox::View::multipart_text_as_html($mime, $href) .
+		PublicInbox::View::multipart_text_as_html($mime, $href, $ctx) .
 		'</pre></div></content></entry>';
 }
 
