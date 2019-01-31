@@ -91,6 +91,18 @@ C<nntp://news.gmane.org/gmane.mail.public-inbox.general>
 
 Default: none
 
+=item publicinbox.<name>.httpbackendmax
+
+If a digit, the maximum number of parallel
+L<git-http-backend(1)> processes to allow for cloning this
+particular inbox.
+
+If an alphanumeric value starting with a lowercase alphabetic
+character is specified, the inbox will use a L</NAMED LIMITER>
+which can be shared by multiple inboxes.
+
+Default: 32 (using a default limiter shared by all inboxes)
+
 =item publicinbox.<name>.coderepo
 
 The nickname of a "coderepo" section associated with the inbox.
@@ -168,6 +180,53 @@ The URL of the cgit instance associated with the coderepo.
 Default: none
 
 =back
+
+=head2 NAMED LIMITER (PSGI)
+
+Named limiters are useful for preventing large inboxes from
+monopolizing (or overloading) the server.  Since serving git
+clones (via L<git-http-backend(1)> can be memory-intensive for
+large inboxes, it makes sense to put large inboxes on a named
+limiter with a low max value; while smaller inboxes can use
+the default limiter.
+
+=over 8
+
+=item publicinboxlimiter.<name>.max
+
+The maximum number of parallel processes for the given limiter.
+
+=back
+
+=head3 EXAMPLE WITH NAMED LIMITERS
+
+	; big inboxes which require lots of memory to clone:
+	[publicinbox "big1"]
+		mainrepo = /path/to/big1
+		address = big1@example.com
+		httpbackendmax = big
+	[publicinbox "big2"]
+		mainrepo = /path/to/big2
+		address = big2@example.com
+		httpbackendmax = big
+
+	; tiny inboxes which are easily cloned:
+	[publicinbox "tiny1"]
+		mainrepo = /path/to/tiny1
+		address = tiny1@example.com
+	[publicinbox "tiny2"]
+		mainrepo = /path/to/tiny2
+		address = tiny2@example.com
+
+	[publicinboxlimiter "big"]
+		max = 4
+
+In the above example, the "big1" and "big2" are limited to four
+parallel L<git-http-backend(1)> processes between them.
+
+However, "tiny1" and "tiny2" will share the default limiter
+which means there can be 32 L<git-http-backend(1)> processes
+between them.
 
 =head1 ENVIRONMENT
 
