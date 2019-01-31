@@ -12,11 +12,11 @@ use warnings;
 use base qw(Exporter);
 our @EXPORT_OK = qw(flush_diff);
 use URI::Escape qw(uri_escape_utf8);
-use PublicInbox::Hval qw(ascii_html);
+use PublicInbox::Hval qw(ascii_html to_attr from_attr);
 use PublicInbox::Git qw(git_unquote);
 
 sub DSTATE_INIT () { 0 }
-sub DSTATE_STAT () { 1 } # TODO
+sub DSTATE_STAT () { 1 }
 sub DSTATE_HEAD () { 2 } # /^diff --git /, /^index /, /^--- /, /^\+\+\+ /
 sub DSTATE_CTX () { 3 } # /^ /
 sub DSTATE_ADD () { 4 } # /^\+/
@@ -75,14 +75,47 @@ sub to_state ($$$) {
 	$$dst .= qq(<span\nclass="$class">);
 }
 
+sub anchor0 ($$$$$) {
+	my ($dst, $anchors, $linkify, $fn, $rest) = @_;
+	if (my $attr = to_attr($fn)) {
+		$anchors->{$attr} = 1;
+		$$dst .= " <a\nhref=#$attr>" .
+			ascii_html($fn) . '</a>'.
+			to_html($linkify, $rest);
+		return 1;
+	}
+	undef;
+}
+
+sub anchor1 ($$$$$) {
+	my ($dst, $anchors, $linkify, $pb, $s) = @_;
+	my $attr = to_attr($pb) or return;
+	my $line = to_html($linkify, $s);
+
+	if (delete $anchors->{$attr} && $line =~ s/^diff //) {
+		$$dst .= "<a\nhref=#ds\nid=$attr>diff</a> ".$line;
+		return 1;
+	}
+	undef
+}
+
 sub flush_diff ($$$$) {
 	my ($dst, $spfx, $linkify, $diff) = @_;
 	my $state = DSTATE_INIT;
 	my $dctx = { Q => '' }; # {}, keys: oid_a, oid_b, path_a, path_b
+	my $anchors = {}; # attr => filename
 
 	foreach my $s (@$diff) {
-		if ($s =~ /^ /) {
-			if ($state2class[$state]) {
+		if ($s =~ /^---$/) {
+			to_state($dst, $state, DSTATE_STAT);
+			$$dst .= "<span\nid=ds>" . $s . '</span>';
+		} elsif ($s =~ /^ /) {
+			# works for common cases, but not weird/long filenames
+			if ($state == DSTATE_STAT &&
+					$s =~ /^ (\S+)(\s+\|.*\z)/s) {
+				anchor0($dst, $anchors, $linkify, $1, $2)
+					and next;
+			} elsif ($state2class[$state]) {
 				to_state($dst, $state, DSTATE_CTX);
 			}
 			$$dst .= to_html($linkify, $s);
@@ -103,6 +136,8 @@ sub flush_diff ($$$$) {
 					$dctx->{Q} .=
 					     "&a=".uri_escape_utf8($pa, UNSAFE);
 				}
+				anchor1($dst, $anchors, $linkify, $pb, $s)
+					and next;
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {
@@ -127,16 +162,16 @@ sub flush_diff ($$$$) {
 		} elsif ($s =~ m!^--- $PATH_A! ||
 		         $s =~ m!^\+{3} $PATH_B!)  {
 			# color only (no oid link)
-			$state == DSTATE_INIT and
+			$state <= DSTATE_STAT and
 				to_state($dst, $state, DSTATE_HEAD);
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^\+/) {
-			if ($state != DSTATE_ADD && $state != DSTATE_INIT) {
+			if ($state != DSTATE_ADD && $state > DSTATE_STAT) {
 				to_state($dst, $state, DSTATE_ADD);
 			}
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ /^-/) {
-			if ($state != DSTATE_DEL && $state != DSTATE_INIT) {
+			if ($state != DSTATE_DEL && $state > DSTATE_STAT) {
 				to_state($dst, $state, DSTATE_DEL);
 			}
 			$$dst .= to_html($linkify, $s);
@@ -148,7 +183,7 @@ sub flush_diff ($$$$) {
 			 $s =~ /^(?:dis)?similarity index /) {
 			$$dst .= to_html($linkify, $s);
 		} else {
-			$state == DSTATE_INIT or
+			$state <= DSTATE_STAT or
 				to_state($dst, $state, DSTATE_INIT);
 			$$dst .= to_html($linkify, $s);
 		}
