@@ -495,7 +495,7 @@ sub purge_oids {
 	my $old = $self->{'ref'};
 	my $git = $self->{git};
 	my @export = (qw(fast-export --no-data --use-done-feature), $old);
-	my ($rd, $pid) = $git->popen(@export);
+	my $rd = $git->popen(@export);
 	my ($r, $w) = $self->gfi_start;
 	my @buf;
 	my $npurge = 0;
@@ -550,6 +550,7 @@ sub purge_oids {
 			push @buf, $_;
 		}
 	}
+	close $rd or die "close fast-export failed: $?";
 	if (@buf) {
 		$w->print(@buf) or wfail;
 	}

@@ -285,10 +285,19 @@ sub purge_oids {
 	$self->done;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $purges = [];
-	foreach my $i (0..$self->{epoch_max}) {
-		my $git = PublicInbox::Git->new("$pfx/$i.git");
+	my $max = $self->{epoch_max};
+
+	unless (defined($max)) {
+		defined(my $latest = git_dir_latest($self, \$max)) or return;
+		$self->{epoch_max} = $max;
+	}
+	foreach my $i (0..$max) {
+		my $git_dir = "$pfx/$i.git";
+		-d $git_dir or next;
+		my $git = PublicInbox::Git->new($git_dir);
 		my $im = $self->import_init($git, 0, 1);
 		$purges->[$i] = $im->purge_oids($purge);
+		$im->done;
 	}
 	$purges;
 }
@@ -390,7 +399,7 @@ sub purge {
 	my ($self, $mime) = @_;
 	my $purges = $self->{-inbox}->with_umask(sub {
 		remove_internal($self, $mime, undef, {});
-	});
+	}) or return;
 	$self->idx_init if @$purges; # ->done is called on purges
 	for my $i (0..$#$purges) {
 		defined(my $cmt = $purges->[$i]) or next;
@@ -497,6 +506,7 @@ sub done {
 	delete $self->{bnote};
 	$self->{transact_bytes} = 0;
 	$self->lock_release if $parts;
+	$self->{-inbox}->git->cleanup;
 }
 
 sub git_init {

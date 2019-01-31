@@ -1,0 +1,111 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2019 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# Used for purging messages entirely from a public-inbox.  Currently
+# supports v2 inboxes only, for now.
+use strict;
+use warnings;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+use PublicInbox::Config;
+use PublicInbox::MIME;
+use PublicInbox::Admin qw(resolve_repo_dir);
+use PublicInbox::Filter::Base;
+*REJECT = *PublicInbox::Filter::Base::REJECT;
+
+my $usage = "$0 [--all] [INBOX_DIRS] </path/to/message";
+
+eval { require PublicInbox::V2Writable } or die
+	"DBI, DBD::SQLite and Search::Xapian required for purge\n";
+my $config = eval { PublicInbox::Config->new };
+my $cfgfile = PublicInbox::Config::default_file();
+my ($all, $force);
+my $verbose = 1;
+my %opts = (
+	'all' => \$all,
+	'force|f' => \$force,
+	'verbose|v!' => \$verbose,
+);
+GetOptions(%opts) or die "bad command-line args\n", $usage, "\n";
+
+# TODO: clean this up and share code with -index via ::Admin
+my %dir2ibx; # ( path => Inbox object )
+my @inboxes;
+$config and $config->each_inbox(sub {
+	my ($ibx) = @_;
+	push @inboxes, $ibx if $all && $ibx->{version} != 1;
+	$dir2ibx{$ibx->{mainrepo}} = $ibx;
+});
+
+if ($all) {
+	$config or die "--all specified, but $cfgfile not readable\n";
+	@ARGV and die "--all specified, but directories specified\n";
+} else {
+	my @err;
+	my @dirs = scalar(@ARGV) ? @ARGV : ('.');
+	my $u = 0;
+
+	foreach my $dir (@dirs) {
+		my $v;
+		my $dir = resolve_repo_dir($dir, \$v);
+		if ($v == 1) {
+			push @err, $dir;
+			next;
+		}
+		my $ibx = $dir2ibx{$dir} ||= do {
+			warn "$dir not configured in $cfgfile\n";
+			$u++;
+			my $name = "unconfigured-$u";
+			PublicInbox::Inbox->new({
+				version => 2,
+				name => $name,
+				-primary_address => "$name\@example.com",
+				mainrepo => $dir,
+			});
+		};
+		push @inboxes, $ibx;
+	}
+
+	if (@err) {
+		die "v1 inboxes currently not supported by -purge\n\t",
+		    join("\n\t", @err), "\n";
+	}
+}
+
+my $data = do { local $/; scalar <STDIN> };
+$data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+my $n_purged = 0;
+
+foreach my $ibx (@inboxes) {
+	my $mime = PublicInbox::MIME->new($data);
+	my $v2w = PublicInbox::V2Writable->new($ibx, 0);
+
+	my $commits = $v2w->purge($mime) || [];
+
+	if (my $scrub = $ibx->filter($v2w)) {
+		my $scrubbed = $scrub->scrub($mime, 1);
+
+		if ($scrubbed && $scrubbed != REJECT()) {
+			my $scrub_commits = $v2w->purge($scrubbed);
+			push @$commits, @$scrub_commits if $scrub_commits;
+		}
+	}
+
+	$v2w->done;
+
+	if ($verbose) { # should we consider this machine-parseable?
+		print "$ibx->{mainrepo}:";
+		if (scalar @$commits) {
+			print join("\n\t", '', @$commits), "\n";
+		} else {
+			print " NONE\n";
+		}
+	}
+	$n_purged += scalar @$commits;
+}
+
+# behave like "rm -f"
+exit(0) if ($force || $n_purged);
+
+warn "Not found\n" if $verbose;
+exit(1);
