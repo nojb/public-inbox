@@ -22,12 +22,25 @@ my $cleanup_broken = $@;
 my $CLEANUP = {}; # string(inbox) -> inbox
 sub cleanup_task () {
 	$cleanup_timer = undef;
+	my $next = {};
 	for my $ibx (values %$CLEANUP) {
-		foreach my $f (qw(git mm search)) {
+		my $again;
+		foreach my $f (qw(mm search)) {
 			delete $ibx->{$f} if SvREFCNT($ibx->{$f}) == 1;
 		}
+		my $expire = time - 60;
+		if (my $git = $ibx->{git}) {
+			$again = $git->cleanup($expire);
+		}
+		if (my $gits = $ibx->{-repo_objs}) {
+			foreach my $git (@$gits) {
+				$again = 1 if $git->cleanup($expire);
+			}
+		}
+		$again ||= !!($ibx->{mm} || $ibx->{search});
+		$next->{"$ibx"} = $ibx if $again;
 	}
-	$CLEANUP = {};
+	$CLEANUP = $next;
 }
 
 sub _cleanup_later ($) {
