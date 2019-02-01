@@ -19,6 +19,7 @@ my $orig = $str;
 {
 	my $ref = $hls->do_hl(\$str, 'foo.perl');
 	is(ref($ref), 'SCALAR', 'got a scalar reference back');
+	ok(utf8::valid($$ref), 'resulting string is utf8::valid');
 	like($$ref, qr/I can see you!/, 'we can see ourselves in output');
 	like($$ref, qr/&amp;&amp;/, 'escaped');
 

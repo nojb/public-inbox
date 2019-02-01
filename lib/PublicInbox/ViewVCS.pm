@@ -16,7 +16,6 @@
 package PublicInbox::ViewVCS;
 use strict;
 use warnings;
-use Encode qw(find_encoding);
 use PublicInbox::SolverGit;
 use PublicInbox::WwwStream;
 use PublicInbox::Linkify;
@@ -33,7 +32,6 @@ END { $hl = undef };
 
 my %QP_MAP = ( A => 'oid_a', B => 'oid_b', a => 'path_a', b => 'path_b' );
 my $max_size = 1024 * 1024; # TODO: configurable
-my $enc_utf8 = find_encoding('UTF-8');
 my $BIN_DETECT = 8000; # same as git
 
 sub html_page ($$$) {
@@ -122,14 +120,14 @@ sub solve_result {
 		return html_page($ctx, 200, \$log);
 	}
 
-	$$blob = $enc_utf8->decode($$blob);
+	# TODO: detect + convert to ensure validity
+	utf8::decode($$blob);
 	my $nl = ($$blob =~ tr/\n/\n/);
 	my $pad = length($nl);
 
 	$l->linkify_1($$blob);
 	my $ok = $hl->do_hl($blob, $path) if $hl;
 	if ($ok) {
-		$$ok = $enc_utf8->decode($$ok);
 		src_escape($$ok);
 		$blob = $ok;
 	} else {

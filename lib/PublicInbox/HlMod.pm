@@ -107,7 +107,12 @@ sub do_hl {
 		$g->setEncoding('utf-8');
 		$g;
 	};
-	\($gen->generateString($$str))
+
+	# we assume $$str is valid UTF-8, but the SWIG binding doesn't
+	# know that, so ensure it's marked as UTF-8 even if it isnt...
+	my $out = $gen->generateString($$str);
+	utf8::decode($out);
+	\$out;
 }
 
 # SWIG instances aren't reference-counted, but $self is;
