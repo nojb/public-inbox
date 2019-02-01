@@ -110,7 +110,7 @@ sub solve_result {
 	}
 
 	my $binary = index($$blob, "\0") >= 0;
-	if ($fn) {
+	if (defined $fn) {
 		my $h = [ 'Content-Length', $size, 'Content-Type' ];
 		push(@$h, ($binary ? 'application/octet-stream' : 'text/plain'));
 		return delete($ctx->{-wcb})->([200, $h, [ $$blob ]]);
