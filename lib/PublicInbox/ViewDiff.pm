@@ -133,8 +133,8 @@ sub flush_diff ($$$) {
 					Q => "?b=".uri_escape_utf8($pb, UNSAFE),
 				};
 				if ($pa ne $pb) {
-					$dctx->{Q} .=
-					     "&a=".uri_escape_utf8($pa, UNSAFE);
+					$dctx->{Q} .= '&amp;a='.
+						uri_escape_utf8($pa, UNSAFE);
 				}
 				anchor1($dst, $ctx, $linkify, $pb, $s) and next;
 			}
