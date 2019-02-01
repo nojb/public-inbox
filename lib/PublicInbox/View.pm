@@ -573,13 +573,18 @@ sub add_text_body {
 		$ctx->{-diff} = $diff = [];
 		my $spfx;
 		if ($ibx->{-repo_objs}) {
-			my $n_slash = $upfx =~ tr!/!/!;
-			if ($n_slash == 0) {
-				$spfx = '../';
-			} elsif ($n_slash == 1) {
-				$spfx = '';
-			} else { # nslash == 2
-				$spfx = '../../';
+			if (index($upfx, '//') >= 0) { # absolute URL (Atom feeds)
+				$spfx = $upfx;
+				$spfx =~ s!/([^/]*)/\z!/!;
+			} else {
+				my $n_slash = $upfx =~ tr!/!/!;
+				if ($n_slash == 0) {
+					$spfx = '../';
+				} elsif ($n_slash == 1) {
+					$spfx = '';
+				} else { # nslash == 2
+					$spfx = '../../';
+				}
 			}
 		}
 		$ctx->{-spfx} = $spfx;
