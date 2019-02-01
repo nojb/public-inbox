@@ -503,12 +503,12 @@ sub flush_quote {
 
 	# show everything in the full version with anchor from
 	# short version (see above)
-	my $rv = $l->linkify_1(join('', @$quot));
-	@$quot = ();
+	my $rv = $l->linkify_1($$quot);
 
 	# we use a <span> here to allow users to specify their own
 	# color for quoted text
 	$rv = $l->linkify_2(ascii_html($rv));
+	$$quot = undef;
 	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
 }
 
@@ -590,47 +590,35 @@ sub add_text_body {
 		$ctx->{-spfx} = $spfx;
 	};
 
-	my @lines = split(/^/m, $s);
+	# some editors don't put trailing newlines at the end:
+	$s .= "\n" unless $s =~ /\n\z/s;
+
+	# split off quoted and unquoted blocks:
+	my @sections = split(/((?:^>[^\n]*\n)+)/sm, $s);
 	$s = '';
 	if (defined($fn) || $depth > 0 || $err) {
 		# badly-encoded message with $err? tell the world about it!
 		$s .= attach_link($upfx, $ct, $p, $fn, $err);
 		$s .= "\n";
 	}
-	my @quot;
 	my $l = PublicInbox::Linkify->new;
-	foreach my $cur (@lines) {
-		if ($cur !~ /^>/) {
-			# show the previously buffered quote inline
-			flush_quote(\$s, $l, \@quot) if @quot;
-
-			if ($diff) {
-				push @$diff, $cur;
-			} else {
-				# regular line, OK
-				$l->linkify_1($cur);
-				$s .= $l->linkify_2(ascii_html($cur));
-			}
+	foreach my $cur (@sections) {
+		if ($cur =~ /\A>/) {
+			flush_quote(\$s, $l, \$cur);
+		} elsif ($diff) {
+			@$diff = split(/^/m, $cur);
+			$cur = undef;
+			flush_diff(\$s, $ctx, $l);
 		} else {
-			flush_diff(\$s, $ctx, $l) if $diff && @$diff;
-			push @quot, $cur;
+			# regular lines, OK
+			$l->linkify_1($cur);
+			$s .= $l->linkify_2(ascii_html($cur));
+			$cur = undef;
 		}
 	}
 
-	if (@quot) { # ugh, top posted
-		flush_quote(\$s, $l, \@quot);
-		flush_diff(\$s, $ctx, $l) if $diff && @$diff;
-		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
-		$s;
-	} else {
-		flush_diff(\$s, $ctx, $l) if $diff && @$diff;
-		obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
-		if ($s =~ /\n\z/s) { # common, last line ends with a newline
-			$s;
-		} else { # some editors don't do newlines...
-			$s .= "\n";
-		}
-	}
+	obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
+	$s;
 }
 
 sub _msg_html_prepare {
