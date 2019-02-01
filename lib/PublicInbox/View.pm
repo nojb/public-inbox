@@ -571,6 +571,7 @@ sub add_text_body {
 		$ctx->{-apfx} = join('/', @idx);
 		$ctx->{-anchors} = {}; # attr => filename
 		$ctx->{-diff} = $diff = [];
+		delete $ctx->{-long_path};
 		my $spfx;
 		if ($ibx->{-repo_objs}) {
 			if (index($upfx, '//') >= 0) { # absolute URL (Atom feeds)

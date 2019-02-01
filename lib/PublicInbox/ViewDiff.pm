@@ -77,10 +77,28 @@ sub to_state ($$$) {
 
 sub anchor0 ($$$$$) {
 	my ($dst, $ctx, $linkify, $fn, $rest) = @_;
+
+	my $orig = $fn;
+
+	# normal git diffstat output is impossible to parse reliably
+	# without --numstat, and that isn't the default for format-patch.
+	# So only do best-effort handling of renames for common cases;
+	# which works well in practice. If projects put "=>", or trailing
+	# spaces in filenames, oh well :P
+	$fn =~ s/ +\z//s;
+	$fn =~ s/{(?:.+) => (.+)}/$1/ or $fn =~ s/.* => (.+)/$1/;
+	$fn = git_unquote($fn);
+
+	# long filenames will require us to walk backwards in anchor1
+	if ($fn =~ s!\A\.\.\./?!!) {
+		my $lp = $ctx->{-long_path} ||= {};
+		$lp->{$fn} = qr/\Q$fn\E\z/s;
+	}
+
 	if (my $attr = to_attr($ctx->{-apfx}.$fn)) {
 		$ctx->{-anchors}->{$attr} = 1;
 		$$dst .= " <a\nid=i$attr\nhref=#$attr>" .
-			ascii_html($fn) . '</a>'.
+			ascii_html($orig) . '</a>'.
 			to_html($linkify, $rest);
 		return 1;
 	}
@@ -92,7 +110,21 @@ sub anchor1 ($$$$$) {
 	my $attr = to_attr($ctx->{-apfx}.$pb) or return;
 	my $line = to_html($linkify, $s);
 
-	if (delete $ctx->{-anchors}->{$attr} && $line =~ s/^diff //) {
+	my $ok = delete $ctx->{-anchors}->{$attr};
+
+	# unlikely, check the end of all long path names we captured:
+	unless ($ok) {
+		my $lp = $ctx->{-long_path} or return;
+		foreach my $fn (keys %$lp) {
+			$pb =~ $lp->{$fn} or next;
+
+			delete $lp->{$fn};
+			$attr = to_attr($ctx->{-apfx}.$fn) or return;
+			$ok = delete $ctx->{-anchors}->{$attr} or return;
+			last;
+		}
+	}
+	if ($ok && $line =~ s/^diff //) {
 		$$dst .= "<a\nhref=#i$attr\nid=$attr>diff</a> ".$line;
 		return 1;
 	}
@@ -113,7 +145,7 @@ sub flush_diff ($$$) {
 		} elsif ($s =~ /^ /) {
 			# works for common cases, but not weird/long filenames
 			if ($state == DSTATE_STAT &&
-					$s =~ /^ (\S+)(\s+\|.*\z)/s) {
+					$s =~ /^ (.+)( +\| .*\z)/s) {
 				anchor0($dst, $ctx, $linkify, $1, $2) and next;
 			} elsif ($state2class[$state]) {
 				to_state($dst, $state, DSTATE_CTX);
@@ -124,20 +156,20 @@ sub flush_diff ($$$) {
 				to_state($dst, $state, DSTATE_INIT);
 			$$dst .= $s;
 		} elsif ($s =~ m!^diff --git ($PATH_A) ($PATH_B)$!) {
+			my ($pa, $pb) = ($1, $2);
 			if ($state != DSTATE_HEAD) {
-				my ($pa, $pb) = ($1, $2);
 				to_state($dst, $state, DSTATE_HEAD);
-				$pa = (split('/', git_unquote($pa), 2))[1];
-				$pb = (split('/', git_unquote($pb), 2))[1];
-				$dctx = {
-					Q => "?b=".uri_escape_utf8($pb, UNSAFE),
-				};
-				if ($pa ne $pb) {
-					$dctx->{Q} .= '&amp;a='.
-						uri_escape_utf8($pa, UNSAFE);
-				}
-				anchor1($dst, $ctx, $linkify, $pb, $s) and next;
 			}
+			$pa = (split('/', git_unquote($pa), 2))[1];
+			$pb = (split('/', git_unquote($pb), 2))[1];
+			$dctx = {
+				Q => "?b=".uri_escape_utf8($pb, UNSAFE),
+			};
+			if ($pa ne $pb) {
+				$dctx->{Q} .= '&amp;a='.
+					uri_escape_utf8($pa, UNSAFE);
+			}
+			anchor1($dst, $ctx, $linkify, $pb, $s) and next;
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {
 			$$dst .= $1 . oid($dctx, $spfx, $2);
@@ -160,7 +192,7 @@ sub flush_diff ($$$) {
 			$$dst .= to_html($linkify, $s);
 		} elsif ($s =~ m!^--- $PATH_A! ||
 		         $s =~ m!^\+{3} $PATH_B!)  {
-			# color only (no oid link)
+			# color only (no oid link) if missing dctx->{oid_*}
 			$state <= DSTATE_STAT and
 				to_state($dst, $state, DSTATE_HEAD);
 			$$dst .= to_html($linkify, $s);
