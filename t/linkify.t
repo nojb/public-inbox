@@ -14,6 +14,15 @@ use PublicInbox::Linkify;
 	is($s, qq(<a\nhref="$u">$u</a>.), 'trailing period not in URL');
 }
 
+{
+	my $l = PublicInbox::Linkify->new;
+	my $u = 'http://i-forgot-trailing-slash.example.com';
+	my $s = $u;
+	$s = $l->linkify_1($s);
+	$s = $l->linkify_2($s);
+	is($s, qq(<a\nhref="$u">$u</a>), 'missing trailing slash OK');
+}
+
 # handle URLs in parenthesized statements
 {
 	my $l = PublicInbox::Linkify->new;
