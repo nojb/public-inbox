@@ -40,19 +40,4 @@ my $orig = $str;
 	}
 }
 
-my $nr = $ENV{TEST_MEMLEAK};
-if ($nr && -r "/proc/$$/status") {
-	my $fh;
-	open $fh, '<', "/proc/$$/status";
-	diag "starting at memtest at ".join('', grep(/VmRSS:/, <$fh>));
-	PublicInbox::HlMod->new->do_hl(\$orig) for (1..$nr);
-	open $fh, '<', "/proc/$$/status";
-	diag "creating $nr instances: ".join('', grep(/VmRSS:/, <$fh>));
-	my $hls = PublicInbox::HlMod->new;
-	$hls->do_hl(\$orig) for (1..$nr);
-	$hls = undef;
-	open $fh, '<', "/proc/$$/status";
-	diag "reused instance $nr times: ".join('', grep(/VmRSS:/, <$fh>));
-}
-
 done_testing;

@@ -16,6 +16,7 @@ package PublicInbox::HlMod;
 use strict;
 use warnings;
 use highlight; # SWIG-generated stuff
+my $hl;
 
 sub _parse_filetypes ($) {
 	my $ft_conf = $_[0]->searchFile('filetypes.conf') or
@@ -52,16 +53,20 @@ sub _parse_filetypes ($) {
 	(\%ext2lang, \@shebang);
 }
 
+# We only need one instance, so we don't need to do
+# highlight::CodeGenerator::deleteInstance
 sub new {
 	my ($class) = @_;
-	my $dir = highlight::DataDir->new;
-	$dir->initSearchDirectories('');
-	my ($ext2lang, $shebang) = _parse_filetypes($dir);
-	bless {
-		-dir => $dir,
-		-ext2lang => $ext2lang,
-		-shebang => $shebang,
-	}, $class;
+	$hl ||= do {
+		my $dir = highlight::DataDir->new;
+		$dir->initSearchDirectories('');
+		my ($ext2lang, $shebang) = _parse_filetypes($dir);
+		bless {
+			-dir => $dir,
+			-ext2lang => $ext2lang,
+			-shebang => $shebang,
+		}, $class;
+	};
 }
 
 sub _shebang2lang ($$) {
@@ -118,18 +123,6 @@ sub do_hl_lang {
 	my $out = $gen->generateString($$str);
 	utf8::decode($out);
 	\$out;
-}
-
-# SWIG instances aren't reference-counted, but $self is;
-# so we need to delete all the CodeGenerator instances manually
-# at our own destruction
-sub DESTROY {
-	my ($self) = @_;
-	foreach my $gen (values %$self) {
-		if (ref($gen) eq 'highlight::CodeGenerator') {
-			highlight::CodeGenerator::deleteInstance($gen);
-		}
-	}
 }
 
 1;
