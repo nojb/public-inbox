@@ -22,6 +22,8 @@ my $orig = $str;
 	ok(utf8::valid($$ref), 'resulting string is utf8::valid');
 	like($$ref, qr/I can see you!/, 'we can see ourselves in output');
 	like($$ref, qr/&amp;&amp;/, 'escaped');
+	my $lref = $hls->do_hl_lang(\$str, 'perl');
+	is($$ref, $$lref, 'do_hl_lang matches do_hl');
 
 	use PublicInbox::Spawn qw(which);
 	if (eval { require IPC::Run } && which('w3m')) {

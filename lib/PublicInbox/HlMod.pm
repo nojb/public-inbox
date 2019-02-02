@@ -83,19 +83,24 @@ sub _path2lang ($$) {
 sub do_hl {
 	my ($self, $str, $path) = @_;
 	my $lang = _path2lang($self, $path) if defined $path;
+	do_hl_lang($self, $str, $lang);
+}
+
+sub do_hl_lang {
+	my ($self, $str, $lang) = @_;
+
 	my $dir = $self->{-dir};
 	my $langpath;
+
 	if (defined $lang) {
 		$langpath = $dir->getLangPath("$lang.lang") or return;
-		$langpath = undef unless -f $langpath;
+		$lang = undef unless -f $langpath
 	}
-	unless (defined $langpath) {
+	unless (defined $lang) {
 		$lang = _shebang2lang($self, $str) or return;
 		$langpath = $dir->getLangPath("$lang.lang") or return;
-		$langpath = undef unless -f $langpath;
+		return unless -f $langpath
 	}
-	return unless defined $langpath;
-
 	my $gen = $self->{$langpath} ||= do {
 		my $g = highlight::CodeGenerator::getInstance($highlight::HTML);
 		$g->setFragmentCode(1); # generate html fragment
