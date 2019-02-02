@@ -16,6 +16,7 @@ package PublicInbox::HlMod;
 use strict;
 use warnings;
 use highlight; # SWIG-generated stuff
+use PublicInbox::Hval qw(src_escape);
 my $hl;
 
 sub _parse_filetypes ($) {
@@ -122,6 +123,7 @@ sub do_hl_lang {
 	# know that, so ensure it's marked as UTF-8 even if it isnt...
 	my $out = $gen->generateString($$str);
 	utf8::decode($out);
+	src_escape($out);
 	\$out;
 }
 
