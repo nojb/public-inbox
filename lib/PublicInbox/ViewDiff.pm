@@ -190,8 +190,8 @@ sub flush_diff ($$$) {
 			$$dst .= '</span>';
 			$state = DSTATE_CTX;
 			$$dst .= to_html($linkify, $s);
-		} elsif ($s =~ m!^--- $PATH_A! ||
-		         $s =~ m!^\+{3} $PATH_B!)  {
+		} elsif ($s =~ m!^--- (?:$PATH_A)! ||
+		         $s =~ m!^\+{3} (?:$PATH_B)!)  {
 			# color only (no oid link) if missing dctx->{oid_*}
 			$state <= DSTATE_STAT and
 				to_state($dst, $state, DSTATE_HEAD);
