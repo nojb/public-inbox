@@ -93,3 +93,5 @@ all need to be considered for everything we introduce)
   so it's not worth the trouble of doing a full reindex.
 
 * code repository integration (with cgit, gitweb, etc...)
+
+* migration path to v2 without breaking v1 "git fetch" cronjobs
