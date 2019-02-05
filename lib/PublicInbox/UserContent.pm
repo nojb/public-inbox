@@ -38,9 +38,9 @@ sub CSS () {
 	*.hunk { color:#c93 }
 
 	/*
-	 * highlight 3.x colors (tested 3.18)
-	 * this doesn't use most of the colors available (I find too many
-	 * colors overwhelming).  So the #ccc default is commented out.
+	 * highlight 3.x colors (tested 3.18) for displaying blobs.
+	 * This doesn't use most of the colors available (I find too many
+	 * colors overwhelming), so the #ccc default is commented out.
 	 */
 	.hl.num { color:#f30 } /* number */
 	.hl.esc { color:#f0f } /* escape character */
@@ -48,10 +48,12 @@ sub CSS () {
 	.hl.ppc { color:#f0f } /* preprocessor */
 	.hl.pps { color:#f30 } /* preprocessor string */
 	.hl.slc { color:#09f } /* single-line comment */
-	.hl.com { color:#09f }
-	/* .hl.opt { color:#ccc } */
-	/* .hl.ipl { color:#ccc } */
-	/* .hl.lin { color:#ccc } */
+	.hl.com { color:#09f } /* multi-line comment */
+	/* .hl.opt { color:#ccc } */ /* operator */
+	/* .hl.ipl { color:#ccc } */ /* interpolation */
+	/* .hl.lin { color:#ccc } */ /* line-number (unused by public-inbox) */
+
+	/* keyword groups kw[a-z] */
 	.hl.kwa { color:#ff0 }
 	.hl.kwb { color:#0f0 }
 	.hl.kwc { color:#ff0 }
