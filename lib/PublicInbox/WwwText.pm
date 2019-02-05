@@ -10,6 +10,10 @@ use PublicInbox::WwwStream;
 use PublicInbox::Hval qw(ascii_html);
 our $QP_URL = 'https://xapian.org/docs/queryparser.html';
 our $WIKI_URL = 'https://en.wikipedia.org/wiki';
+my $hl = eval {
+	require PublicInbox::HlMod;
+	PublicInbox::HlMod->new
+};
 
 # /$INBOX/_/text/$KEY/ # KEY may contain slashes
 # For now, "help" is the only supported $KEY
@@ -61,7 +65,13 @@ sub get_text {
 
 sub _do_linkify {
 	my $l = PublicInbox::Linkify->new;
-	$_[0] = $l->linkify_2(ascii_html($l->linkify_1($_[0])));
+	$l->linkify_1($_[0]);
+	if ($hl) {
+		$hl->do_hl_text(\($_[0]));
+	} else {
+		$_[0] = ascii_html($_[0]);
+	}
+	$_[0] = $l->linkify_2($_[0]);
 }
 
 sub _srch_prefix ($$) {
@@ -91,7 +101,8 @@ sub _srch_prefix ($$) {
 sub _colors_help ($$) {
 	my ($ctx, $txt) = @_;
 	my $ibx = $ctx->{-inbox};
-	my $base_url = $ibx->base_url($ctx->{env});
+	my $env = $ctx->{env};
+	my $base_url = $ibx->base_url($env);
 	$$txt .= "color customization for $base_url\n";
 	$$txt .= <<EOF;
 
@@ -104,23 +115,11 @@ to control the colors they see:
 
 	${base_url}userContent.css
 
-CSS classes
------------
-
-	   span.q - quoted text in email messages
-
-For diff highlighting, we try to match class names with those
-used by cgit: https://git.zx2c4.com/cgit/
-
-	 span.add - diff post-image lines
-
-	 span.del - diff pre-image lines
-
-	span.head - diff header (metainformation)
-
-	span.hunk - diff hunk-header
-
+CSS sample
+----------
+```css
 EOF
+	$$txt .= PublicInbox::UserContent::sample($ibx, $env) . "```\n";
 }
 
 sub _default_text ($$$) {

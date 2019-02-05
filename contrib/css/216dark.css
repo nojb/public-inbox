@@ -13,22 +13,22 @@
 a { color:#69f; text-decoration:none }
 a:visited { color:#96f }
 
-/* quoted text gets a different color */
+/* quoted text in emails gets a different color */
 *.q { color:#09f }
 
 /*
- * these may be used with cgit, too
+ * these may be used with cgit <https://git.zx2c4.com/cgit/>, too.
  * (cgit uses <div>, public-inbox uses <span>)
  */
-*.add { color:#0ff }
-*.del { color:#f0f }
-*.head { color:#fff }
-*.hunk { color:#c93 }
+*.add { color:#0ff } /* diff post-image lines */
+*.del { color:#f0f } /* diff pre-image lines */
+*.head { color:#fff } /* diff header (metainformation) */
+*.hunk { color:#c93 } /* diff hunk-header */
 
 /*
- * highlight 3.x colors (tested 3.18)
- * this doesn't use most of the colors available (I find too many
- * colors overwhelming).  So the #ccc default is commented out.
+ * highlight 3.x colors (tested 3.18) for displaying blobs.
+ * This doesn't use most of the colors available, as I find too
+ * many colors overwhelming, so the default is commented out.
  */
 .hl.num { color:#f30 } /* number */
 .hl.esc { color:#f0f } /* escape character */
@@ -36,11 +36,15 @@ a:visited { color:#96f }
 .hl.ppc { color:#f0f } /* preprocessor */
 .hl.pps { color:#f30 } /* preprocessor string */
 .hl.slc { color:#09f } /* single-line comment */
-.hl.com { color:#09f }
-/* .hl.opt { color:#ccc } */
-/* .hl.ipl { color:#ccc } */
-/* .hl.lin { color:#ccc } */
+.hl.com { color:#09f } /* multi-line comment */
+/* .hl.opt { color:#ccc } */ /* operator */
+/* .hl.ipl { color:#ccc } */ /* interpolation */
+
+/* keyword groups kw[a-z] */
 .hl.kwa { color:#ff0 }
 .hl.kwb { color:#0f0 }
 .hl.kwc { color:#ff0 }
 /* .hl.kwd { color:#ccc } */
+
+/* line-number (unused by public-inbox) */
+/* .hl.lin { color:#ccc } */

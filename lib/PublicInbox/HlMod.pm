@@ -16,6 +16,8 @@ package PublicInbox::HlMod;
 use strict;
 use warnings;
 use highlight; # SWIG-generated stuff
+use PublicInbox::Hval qw(src_escape ascii_html);
+my $hl;
 
 sub _parse_filetypes ($) {
 	my $ft_conf = $_[0]->searchFile('filetypes.conf') or
@@ -52,16 +54,20 @@ sub _parse_filetypes ($) {
 	(\%ext2lang, \@shebang);
 }
 
+# We only need one instance, so we don't need to do
+# highlight::CodeGenerator::deleteInstance
 sub new {
 	my ($class) = @_;
-	my $dir = highlight::DataDir->new;
-	$dir->initSearchDirectories('');
-	my ($ext2lang, $shebang) = _parse_filetypes($dir);
-	bless {
-		-dir => $dir,
-		-ext2lang => $ext2lang,
-		-shebang => $shebang,
-	}, $class;
+	$hl ||= do {
+		my $dir = highlight::DataDir->new;
+		$dir->initSearchDirectories('');
+		my ($ext2lang, $shebang) = _parse_filetypes($dir);
+		bless {
+			-dir => $dir,
+			-ext2lang => $ext2lang,
+			-shebang => $shebang,
+		}, $class;
+	};
 }
 
 sub _shebang2lang ($$) {
@@ -83,19 +89,24 @@ sub _path2lang ($$) {
 sub do_hl {
 	my ($self, $str, $path) = @_;
 	my $lang = _path2lang($self, $path) if defined $path;
+	do_hl_lang($self, $str, $lang);
+}
+
+sub do_hl_lang {
+	my ($self, $str, $lang) = @_;
+
 	my $dir = $self->{-dir};
 	my $langpath;
+
 	if (defined $lang) {
 		$langpath = $dir->getLangPath("$lang.lang") or return;
-		$langpath = undef unless -f $langpath;
+		$lang = undef unless -f $langpath
 	}
-	unless (defined $langpath) {
+	unless (defined $lang) {
 		$lang = _shebang2lang($self, $str) or return;
 		$langpath = $dir->getLangPath("$lang.lang") or return;
-		$langpath = undef unless -f $langpath;
+		return unless -f $langpath
 	}
-	return unless defined $langpath;
-
 	my $gen = $self->{$langpath} ||= do {
 		my $g = highlight::CodeGenerator::getInstance($highlight::HTML);
 		$g->setFragmentCode(1); # generate html fragment
@@ -107,19 +118,32 @@ sub do_hl {
 		$g->setEncoding('utf-8');
 		$g;
 	};
-	\($gen->generateString($$str))
+
+	# we assume $$str is valid UTF-8, but the SWIG binding doesn't
+	# know that, so ensure it's marked as UTF-8 even if it isnt...
+	my $out = $gen->generateString($$str);
+	utf8::decode($out);
+	src_escape($out);
+	\$out;
 }
 
-# SWIG instances aren't reference-counted, but $self is;
-# so we need to delete all the CodeGenerator instances manually
-# at our own destruction
-sub DESTROY {
-	my ($self) = @_;
-	foreach my $gen (values %$self) {
-		if (ref($gen) eq 'highlight::CodeGenerator') {
-			highlight::CodeGenerator::deleteInstance($gen);
+# Highlight text, but support Markdown "```$LANG" notation
+# while preserving WYSIWYG of plain-text documentation.
+# This is NOT to be enabled by default or encouraged for parsing
+# emails, since it is NOT stable and can lead to standards
+# proliferation of email.
+sub do_hl_text {
+	my ($self, $str) = @_;
+
+	$$str = join('', map {
+		if (/\A(``` ?)(\w+)\s*?\n(.+)(^```\s*)\z/sm) {
+			my ($pfx, $lang, $code, $post) = ($1, $2, $3, $4);
+			my $hl = do_hl_lang($self, \$code, $lang) || \$code;
+			$pfx . $lang . "\n" . $$hl . $post;
+		} else {
+			ascii_html($_);
 		}
-	}
+	} split(/(^``` ?\w+\s*?\n.+?^```\s*$)/sm, $$str));
 }
 
 1;

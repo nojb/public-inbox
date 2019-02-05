@@ -19,8 +19,11 @@ my $orig = $str;
 {
 	my $ref = $hls->do_hl(\$str, 'foo.perl');
 	is(ref($ref), 'SCALAR', 'got a scalar reference back');
+	ok(utf8::valid($$ref), 'resulting string is utf8::valid');
 	like($$ref, qr/I can see you!/, 'we can see ourselves in output');
 	like($$ref, qr/&amp;&amp;/, 'escaped');
+	my $lref = $hls->do_hl_lang(\$str, 'perl');
+	is($$ref, $$lref, 'do_hl_lang matches do_hl');
 
 	use PublicInbox::Spawn qw(which);
 	if (eval { require IPC::Run } && which('w3m')) {
@@ -37,19 +40,24 @@ my $orig = $str;
 	}
 }
 
-my $nr = $ENV{TEST_MEMLEAK};
-if ($nr && -r "/proc/$$/status") {
-	my $fh;
-	open $fh, '<', "/proc/$$/status";
-	diag "starting at memtest at ".join('', grep(/VmRSS:/, <$fh>));
-	PublicInbox::HlMod->new->do_hl(\$orig) for (1..$nr);
-	open $fh, '<', "/proc/$$/status";
-	diag "creating $nr instances: ".join('', grep(/VmRSS:/, <$fh>));
-	my $hls = PublicInbox::HlMod->new;
-	$hls->do_hl(\$orig) for (1..$nr);
-	$hls = undef;
-	open $fh, '<', "/proc/$$/status";
-	diag "reused instance $nr times: ".join('', grep(/VmRSS:/, <$fh>));
+if ('experimental, only for help text') {
+	my $tmp = <<'EOF';
+:>
+```perl
+my $foo = 1 & 2;
+```
+:<
+EOF
+	$hls->do_hl_text(\$tmp);
+	my @hl = split(/^/m, $tmp);
+	is($hl[0], ":&gt;\n", 'first line escaped');
+	is($hl[1], "```perl\n", '2nd line preserved');
+	like($hl[2], qr/<span\b/, 'code highlighted');
+	like($hl[2], qr/&amp;/, 'ampersand escaped');
+	is($hl[3], "```\n", '4th line preserved');
+	is($hl[4], ":&lt;\n", '5th line escaped');
+	is(scalar(@hl), 5, 'no extra line');
+
 }
 
 done_testing;
