@@ -95,3 +95,6 @@ all need to be considered for everything we introduce)
 * code repository integration (with cgit, gitweb, etc...)
 
 * migration path to v2 without breaking v1 "git fetch" cronjobs
+
+* imperfect scraper importers for obfuscated list archives
+  (e.g. obfuscated Mailman stuff, Google Groups, etc...)
