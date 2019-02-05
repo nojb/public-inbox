@@ -16,7 +16,7 @@ package PublicInbox::HlMod;
 use strict;
 use warnings;
 use highlight; # SWIG-generated stuff
-use PublicInbox::Hval qw(src_escape);
+use PublicInbox::Hval qw(src_escape ascii_html);
 my $hl;
 
 sub _parse_filetypes ($) {
@@ -125,6 +125,25 @@ sub do_hl_lang {
 	utf8::decode($out);
 	src_escape($out);
 	\$out;
+}
+
+# Highlight text, but support Markdown "```$LANG" notation
+# while preserving WYSIWYG of plain-text documentation.
+# This is NOT to be enabled by default or encouraged for parsing
+# emails, since it is NOT stable and can lead to standards
+# proliferation of email.
+sub do_hl_text {
+	my ($self, $str) = @_;
+
+	$$str = join('', map {
+		if (/\A(``` ?)(\w+)\s*?\n(.+)(^```\s*)\z/sm) {
+			my ($pfx, $lang, $code, $post) = ($1, $2, $3, $4);
+			my $hl = do_hl_lang($self, \$code, $lang) || \$code;
+			$pfx . $lang . "\n" . $$hl . $post;
+		} else {
+			ascii_html($_);
+		}
+	} split(/(^``` ?\w+\s*?\n.+?^```\s*$)/sm, $$str));
 }
 
 1;

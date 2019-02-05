@@ -40,4 +40,24 @@ my $orig = $str;
 	}
 }
 
+if ('experimental, only for help text') {
+	my $tmp = <<'EOF';
+:>
+```perl
+my $foo = 1 & 2;
+```
+:<
+EOF
+	$hls->do_hl_text(\$tmp);
+	my @hl = split(/^/m, $tmp);
+	is($hl[0], ":&gt;\n", 'first line escaped');
+	is($hl[1], "```perl\n", '2nd line preserved');
+	like($hl[2], qr/<span\b/, 'code highlighted');
+	like($hl[2], qr/&amp;/, 'ampersand escaped');
+	is($hl[3], "```\n", '4th line preserved');
+	is($hl[4], ":&lt;\n", '5th line escaped');
+	is(scalar(@hl), 5, 'no extra line');
+
+}
+
 done_testing;
