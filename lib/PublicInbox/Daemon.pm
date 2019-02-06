@@ -241,8 +241,8 @@ sub unpack_ipv6 ($) {
 	# (perl-modules-5.24 in Debian)
 
 	# SpamAssassin and Net::Server use Socket6, so it may be installed
-	# on our system, already:
-	eval { require Socket6 } or return ('???-Socket6-missing', 0);
+	# on our system, already (otherwise die):
+	require Socket6;
 
 	my ($port, $host) = Socket6::unpack_sockaddr_in6($addr);
 	$host = Socket6::inet_ntop(Socket6::AF_INET6(), $host);
