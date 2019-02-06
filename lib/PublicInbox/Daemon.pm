@@ -236,16 +236,23 @@ sub sockname ($) {
 
 sub unpack_ipv6 ($) {
 	my ($addr) = @_;
+	my ($port, $host);
 
-	# TODO: support IO::Socket::IP which comes with Perl 5.24
-	# (perl-modules-5.24 in Debian)
+	# Socket.pm in Perl 5.14+ supports IPv6:
+	eval {
+		($port, $host) = Socket::unpack_sockaddr_in6($addr);
+		$host = Socket::inet_ntop(Socket::AF_INET6(), $host);
+	};
 
-	# SpamAssassin and Net::Server use Socket6, so it may be installed
-	# on our system, already (otherwise die):
-	require Socket6;
+	if ($@) {
+		# Perl 5.12 or earlier?  SpamAssassin and Net::Server use
+		# Socket6, so it may be installed on our system, already
+		# (otherwise die here):
+		require Socket6;
 
-	my ($port, $host) = Socket6::unpack_sockaddr_in6($addr);
-	$host = Socket6::inet_ntop(Socket6::AF_INET6(), $host);
+		($port, $host) = Socket6::unpack_sockaddr_in6($addr);
+		$host = Socket6::inet_ntop(Socket6::AF_INET6(), $host);
+	}
 	($host, $port);
 }
 

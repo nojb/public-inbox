@@ -107,7 +107,8 @@ Numerous optional modules are likely to be useful as well:
                                rpm: perl-Socket6
                                (pulled in by SpamAssassin and Net::Server,
                                 only necessary if using IPv6 with
-                                Plack::Middleware::AccessLog or similar)
+                                Plack::Middleware::AccessLog or similar
+                                on Perl <= 5.12)
 
 On Fedora systems, you'll probably also end up wanting
 perl-Test-HTTP-Server-Simple, perl-Devel-Peek, and perl-IPC-Run to run the
