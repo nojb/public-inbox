@@ -318,11 +318,9 @@ sub more ($$) {
 		if (defined $n) {
 			my $nlen = length($_[1]) - $n;
 			return 1 if $nlen == 0; # all done!
-			eval { $_[1] = substr($_[1], $n, $nlen) };
-			if ($@) { # modification of read-only value:
-				return $self->write(substr($_[1], $n, $nlen));
-			}
-			# fall through to normal write:
+
+			# Danga::Socket::write queues the unwritten substring:
+			return $self->write(substr($_[1], $n, $nlen));
 		}
 	}
 	$self->write($_[1]);
