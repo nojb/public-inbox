@@ -23,7 +23,6 @@ use constant {
 	r224 => '224 Overview information follows (multi-line)',
 	r225 =>	'225 Headers follow (multi-line)',
 	r430 => '430 No article with that message-id',
-	long_response_limit => 0xffffffff,
 };
 
 sub now () { clock_gettime(CLOCK_MONOTONIC) };
