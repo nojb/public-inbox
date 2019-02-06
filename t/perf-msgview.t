@@ -8,6 +8,9 @@ use PublicInbox::Inbox;
 use PublicInbox::View;
 require './t/common.perl';
 
+my $pi_dir = $ENV{GIANT_PI_DIR};
+plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
+
 my @cat = qw(cat-file --buffer --batch-check --batch-all-objects);
 if (require_git(2.19, 1)) {
 	push @cat, '--unordered';
@@ -15,9 +18,6 @@ if (require_git(2.19, 1)) {
 	warn
 "git <2.19, cat-file lacks --unordered, locality suffers\n";
 }
-
-my $pi_dir = $ENV{GIANT_PI_DIR};
-plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
 
 my $ibx = PublicInbox::Inbox->new({ mainrepo => $pi_dir, name => 'name' });
 my $git = $ibx->git;
