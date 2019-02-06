@@ -19,6 +19,7 @@ if (require_git(2.19, 1)) {
 "git <2.19, cat-file lacks --unordered, locality suffers\n";
 }
 
+use_ok 'Plack::Util';
 my $ibx = PublicInbox::Inbox->new({ mainrepo => $pi_dir, name => 'name' });
 my $git = $ibx->git;
 my $fh = $git->popen(@cat);
@@ -29,6 +30,7 @@ select($vec, undef, undef, 60) or die "timed out waiting for --batch-check";
 my $ctx = {
 	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'https' },
 	-inbox => $ibx,
+	www => Plack::Util::inline_object(style => sub {''}),
 };
 my ($str, $mime, $res, $cmt, $type);
 my $n = 0;
