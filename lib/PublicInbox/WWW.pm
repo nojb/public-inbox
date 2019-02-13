@@ -14,6 +14,7 @@ package PublicInbox::WWW;
 use 5.008;
 use strict;
 use warnings;
+use bytes (); # only for bytes::length
 use PublicInbox::Config;
 use PublicInbox::Hval;
 use URI::Escape qw(uri_unescape);

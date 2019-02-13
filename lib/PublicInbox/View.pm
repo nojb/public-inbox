@@ -6,6 +6,7 @@
 package PublicInbox::View;
 use strict;
 use warnings;
+use bytes (); # only for bytes::length
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;

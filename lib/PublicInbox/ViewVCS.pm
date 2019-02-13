@@ -16,6 +16,7 @@
 package PublicInbox::ViewVCS;
 use strict;
 use warnings;
+use bytes (); # only for bytes::length
 use PublicInbox::SolverGit;
 use PublicInbox::WwwStream;
 use PublicInbox::Linkify;

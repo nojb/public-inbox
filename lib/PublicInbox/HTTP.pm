@@ -12,6 +12,7 @@ use strict;
 use warnings;
 use base qw(Danga::Socket);
 use fields qw(httpd env rbuf input_left remote_addr remote_port forward pull);
+use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);

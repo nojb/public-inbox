@@ -21,6 +21,7 @@
 package PublicInbox::WwwHighlight;
 use strict;
 use warnings;
+use bytes (); # only for bytes::length
 use HTTP::Status qw(status_message);
 use parent qw(PublicInbox::HlMod);
 

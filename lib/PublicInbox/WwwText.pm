@@ -5,6 +5,7 @@
 package PublicInbox::WwwText;
 use strict;
 use warnings;
+use bytes (); # only for bytes::length
 use PublicInbox::Linkify;
 use PublicInbox::WwwStream;
 use PublicInbox::Hval qw(ascii_html);

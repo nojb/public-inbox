@@ -7,6 +7,7 @@ use File::Temp qw/tempdir/;
 use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
+use bytes (); # only for bytes::length
 my @mods = qw(PublicInbox::SearchIdx HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {
