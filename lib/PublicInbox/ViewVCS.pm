@@ -71,6 +71,33 @@ sub stream_large_blob ($$$$) {
 	});
 }
 
+sub show_other ($$$$) {
+	my ($ctx, $res, $logref, $fn) = @_;
+	my ($git, $oid, $type, $size) = @$res;
+	if ($size > $max_size) {
+		$$logref = "$oid is too big to show\n" . $$logref;
+		return html_page($ctx, 200, $logref);
+	}
+	my $cmd = ['git', "--git-dir=$git->{git_dir}",
+		qw(show --encoding=UTF-8 --no-color --no-abbrev), $oid ];
+	my $qsp = PublicInbox::Qspawn->new($cmd);
+	my $env = $ctx->{env};
+	$qsp->psgi_qx($env, undef, sub {
+		my ($bref) = @_;
+		if (my $err = $qsp->{err}) {
+			utf8::decode($$err);
+			$$logref .= "git show error: $err";
+			return html_page($ctx, 500, $logref);
+		}
+		my $l = PublicInbox::Linkify->new;
+		utf8::decode($$bref);
+		$l->linkify_1($$bref);
+		$$bref = '<pre>'. $l->linkify_2(ascii_html($$bref));
+		$$bref .= '</pre><hr>' . $$logref;
+		html_page($ctx, 200, $bref);
+	});
+}
+
 sub solve_result {
 	my ($ctx, $res, $log, $hints, $fn) = @_;
 
@@ -90,6 +117,7 @@ sub solve_result {
 	$ref eq 'ARRAY' or return html_page($ctx, 500, \$log);
 
 	my ($git, $oid, $type, $size, $di) = @$res;
+	return show_other($ctx, $res, \$log, $fn) if $type ne 'blob';
 	my $path = to_filename($di->{path_b} || $hints->{path_b} || 'blob');
 	my $raw_link = "(<a\nhref=$path>raw</a>)";
 	if ($size > $max_size) {

@@ -62,14 +62,15 @@ sub ERR ($$) {
 	die $err;
 }
 
-# look for existing blobs already in git repos
+# look for existing objects already in git repos
 sub solve_existing ($$) {
 	my ($self, $want) = @_;
 	my $oid_b = $want->{oid_b};
+	my $have_hints = scalar keys %$want > 1;
 	my @ambiguous; # Array of [ git, $oids]
 	foreach my $git (@{$self->{gits}}) {
 		my ($oid_full, $type, $size) = $git->check($oid_b);
-		if (defined($type) && $type eq 'blob') {
+		if (defined($type) && (!$have_hints || $type eq 'blob')) {
 			return [ $git, $oid_full, $type, int($size) ];
 		}
 
@@ -480,10 +481,11 @@ sub resolve_patch ($$) {
 		die "Loop detected solving $cur_want\n";
 	}
 	if (my $existing = solve_existing($self, $want)) {
+		my ($found_git, undef, $type, undef) = @$existing;
 		dbg($self, "found $cur_want in " .
-			join("\n", $existing->[0]->pub_urls));
+			join("\n", $found_git->pub_urls));
 
-		if ($cur_want eq $self->{oid_want}) { # all done!
+		if ($cur_want eq $self->{oid_want} || $type ne 'blob') {
 			eval { delete($self->{user_cb})->($existing) };
 			die "E: $@" if $@;
 			return;
@@ -540,6 +542,7 @@ sub new {
 }
 
 # recreate $oid_want using $hints
+# hints keys: path_a, path_b, oid_a
 # Calls {user_cb} with: [ ::Git object, oid_full, type, size, di (diff_info) ]
 # with found object, or undef if nothing was found
 # Calls {user_cb} with a string error on fatal errors
