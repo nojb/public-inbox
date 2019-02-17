@@ -296,6 +296,13 @@ sub pub_urls {
 	local_nick($self);
 }
 
+sub commit_title ($$) {
+	my ($self, $oid) = @_; # PublicInbox::Git, $sha1hex
+	my $buf = cat_file($self, $oid) or return;
+	utf8::decode($$buf);
+	($$buf =~ /\r?\n\r?\n([^\r\n]+)\r?\n?/)[0]
+}
+
 1;
 __END__
 =pod

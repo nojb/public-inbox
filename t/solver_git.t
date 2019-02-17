@@ -40,7 +40,14 @@ sub deliver_patch ($) {
 
 deliver_patch('t/solve/0001-simple-mod.patch');
 
-$ibx->{-repo_objs} = [ PublicInbox::Git->new($git_dir) ];
+my $git = PublicInbox::Git->new($git_dir);
+is('public-inbox 1.0.0',
+	$git->commit_title('cb7c42b1e15577ed2215356a2bf925aef59cdd8d'),
+	'commit_title works on 1.0.0');
+
+is(undef, $git->commit_title('impossible'), 'undef on impossible object');
+
+$ibx->{-repo_objs} = [ $git ];
 my $res;
 my $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
 open my $log, '+>>', "$mainrepo/solve.log" or die "open: $!";
