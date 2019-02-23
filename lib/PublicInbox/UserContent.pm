@@ -16,48 +16,50 @@ sub CSS () {
 	 * It reduces eyestrain for me, and energy usage for all:
 	 * https://en.wikipedia.org/wiki/Light-on-dark_color_scheme
 	 */
-	* { background:#000; color:#ccc }
+	* { background:#000 !important; color:#ccc !important }
 
 	/*
 	 * Underlined links add visual noise which make them hard-to-read.
 	 * Use colors to make them stand out, instead.
 	 */
-	a { color:#69f; text-decoration:none }
-	a:visited { color:#96f }
+	a { color:#69f !important; text-decoration:none !important }
+	a:visited { color:#96f !important }
 
-	/* quoted text gets a different color */
-	*.q { color:#09f }
+	/* quoted text in emails gets a different color */
+	*.q { color:#09f !important }
 
 	/*
-	 * these may be used with cgit, too
+	 * these may be used with cgit <https://git.zx2c4.com/cgit/>, too.
 	 * (cgit uses <div>, public-inbox uses <span>)
 	 */
-	*.add { color:#0ff }
-	*.del { color:#f0f }
-	*.head { color:#fff }
-	*.hunk { color:#c93 }
+	*.add { color:#0ff !important } /* diff post-image lines */
+	*.del { color:#f0f !important } /* diff pre-image lines */
+	*.head { color:#fff !important } /* diff header (metainformation) */
+	*.hunk { color:#c93 !important } /* diff hunk-header */
 
 	/*
 	 * highlight 3.x colors (tested 3.18) for displaying blobs.
-	 * This doesn't use most of the colors available (I find too many
-	 * colors overwhelming), so the #ccc default is commented out.
+	 * This doesn't use most of the colors available, as I find too
+	 * many colors overwhelming, so the default is commented out.
 	 */
-	.hl.num { color:#f30 } /* number */
-	.hl.esc { color:#f0f } /* escape character */
-	.hl.str { color:#f30 } /* string */
-	.hl.ppc { color:#f0f } /* preprocessor */
-	.hl.pps { color:#f30 } /* preprocessor string */
-	.hl.slc { color:#09f } /* single-line comment */
-	.hl.com { color:#09f } /* multi-line comment */
-	/* .hl.opt { color:#ccc } */ /* operator */
-	/* .hl.ipl { color:#ccc } */ /* interpolation */
-	/* .hl.lin { color:#ccc } */ /* line-number (unused by public-inbox) */
+	.hl.num { color:#f30 !important } /* number */
+	.hl.esc { color:#f0f !important } /* escape character */
+	.hl.str { color:#f30 !important } /* string */
+	.hl.ppc { color:#f0f !important } /* preprocessor */
+	.hl.pps { color:#f30 !important } /* preprocessor string */
+	.hl.slc { color:#09f !important } /* single-line comment */
+	.hl.com { color:#09f !important } /* multi-line comment */
+	/* .hl.opt { color:#ccc !important } */ /* operator */
+	/* .hl.ipl { color:#ccc !important } */ /* interpolation */
 
 	/* keyword groups kw[a-z] */
-	.hl.kwa { color:#ff0 }
-	.hl.kwb { color:#0f0 }
-	.hl.kwc { color:#ff0 }
-	/* .hl.kwd { color:#ccc } */
+	.hl.kwa { color:#ff0 !important }
+	.hl.kwb { color:#0f0 !important }
+	.hl.kwc { color:#ff0 !important }
+	/* .hl.kwd { color:#ccc !important } */
+
+	/* line-number (unused by public-inbox) */
+	/* .hl.lin { color:#ccc !important } */
 _
 }
 # end of auto-updated sub
@@ -89,7 +91,14 @@ if (scalar(@ARGV) == 1 && -r __FILE__) {
 	use autodie;
 	open my $ro, '<', $ARGV[0];
 	my $css = do { local $/; <$ro> };
+
+	# indent one level:
 	$css =~ s/^([ \t]*\S)/\t$1/smg;
+
+	# "!important" overrides whatever the BOFH sets:
+	$css =~ s/;/ !important;/sg;
+	$css =~ s/(\w) \}/$1 !important }/msg;
+
 	open my $rw, '+<', __FILE__;
 	my $out = do { local $/; <$rw> };
 	$out =~ s/^sub CSS.*^_\n\}/sub CSS () {\n\t<<'_'\n${css}_\n}/sm;
