@@ -512,8 +512,9 @@ sub stylesheets_prepare ($$) {
 		if (defined $attr->{href}) {
 			$inline_ok = 0;
 		} else {
-			open(my $fh, '<', $_) or do {
-				warn "failed to open $_: $!\n";
+			my $fn = $_;
+			open(my $fh, '<', $fn) or do {
+				warn "failed to open $fn: $!\n";
 				next;
 			};
 			my ($key) = (m!([^/]+?)(?:\.css)?\z!i);
@@ -523,6 +524,13 @@ sub stylesheets_prepare ($$) {
 				$ctime = sprintf('%x',(stat($fh))[10]);
 				$local = $mini->($local);
 			}
+
+			# do not let BOFHs override userContent.css:
+			if ($local =~ /!\s*important\b/i) {
+				warn "ignoring $fn since it uses `!important'\n";
+				next;
+			}
+
 			$css_map->{$key} = $local;
 			$attr->{href} = "$upfx$key.css?$ctime";
 			if (defined($attr->{title})) {
