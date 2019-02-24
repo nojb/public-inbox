@@ -135,14 +135,14 @@ sub solve_result {
 		return html_page($ctx, 500, \$log);
 	}
 
-	my $binary = index($$blob, "\0") >= 0;
+	my $bin = index(substr($$blob, 0, $BIN_DETECT), "\0") >= 0;
 	if (defined $fn) {
 		my $h = [ 'Content-Length', $size, 'Content-Type' ];
-		push(@$h, ($binary ? 'application/octet-stream' : 'text/plain'));
+		push(@$h, ($bin ? 'application/octet-stream' : 'text/plain'));
 		return delete($ctx->{-wcb})->([200, $h, [ $$blob ]]);
 	}
 
-	if ($binary) {
+	if ($bin) {
 		$log = "<pre>$oid $type $size bytes (binary)" .
 			" $raw_link</pre>" . $log;
 		return html_page($ctx, 200, \$log);
