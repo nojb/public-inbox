@@ -9,8 +9,8 @@ use warnings;
 use POSIX qw(dup2 :signal_h);
 
 # Pure Perl implementation for folks that do not use Inline::C
-sub public_inbox_fork_exec ($$$$$$) {
-	my ($in, $out, $err, $f, $cmd, $env) = @_;
+sub pi_fork_exec ($$$$$$) {
+	my ($in, $out, $err, $f, $cmd, $env, $rlim) = @_;
 	my $old = POSIX::SigSet->new();
 	my $set = POSIX::SigSet->new();
 	$set->fillset or die "fillset failed: $!";
@@ -22,6 +22,11 @@ sub public_inbox_fork_exec ($$$$$$) {
 		$pid = -1;
 	}
 	if ($pid == 0) {
+		while (@$rlim) {
+			my ($r, $soft, $hard) = splice(@$rlim, 0, 3);
+			BSD::Resource::setrlimit($r, $soft, $hard) or
+			  warn "failed to set $r=[$soft,$hard]\n";
+		}
 		if ($in != 0) {
 			dup2($in, 0) or die "dup2 failed for stdin: $!";
 		}

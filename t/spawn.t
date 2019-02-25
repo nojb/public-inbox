@@ -92,6 +92,24 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	isnt($?, 0, '$? set properly: '.$?);
 }
 
+SKIP: {
+	eval {
+		require BSD::Resource;
+		defined(BSD::Resource::RLIMIT_CPU())
+	} or skip 'BSD::Resource::RLIMIT_CPU missing', 3;
+	my ($r, $w);
+	pipe($r, $w) or die "pipe: $!";
+	my $cmd = ['sh', '-c', 'while true; do :; done'];
+	my $opt = { RLIMIT_CPU => [ 1, 1 ], RLIMIT_CORE => 0, 1 => fileno($w) };
+	my $pid = spawn($cmd, undef, $opt);
+	close $w or die "close(w): $!";
+	my $rset = '';
+	vec($rset, fileno($r), 1) = 1;
+	ok(select($rset, undef, undef, 5), 'child died before timeout');
+	is(waitpid($pid, 0), $pid, 'XCPU child process reaped');
+	isnt($?, 0, 'non-zero exit status');
+}
+
 done_testing();
 
 1;

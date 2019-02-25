@@ -22,6 +22,8 @@ our @EXPORT_OK = qw/which spawn popen_rd/;
 my $vfork_spawn = <<'VFORK_SPAWN';
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <alloca.h>
 #include <signal.h>
@@ -74,11 +76,12 @@ static void xerr(const char *msg)
  * whatever we'll need in the future.
  * Be sure to update PublicInbox::SpawnPP if this changes
  */
-int public_inbox_fork_exec(int in, int out, int err,
-			SV *file, SV *cmdref, SV *envref)
+int pi_fork_exec(int in, int out, int err,
+			SV *file, SV *cmdref, SV *envref, SV *rlimref)
 {
 	AV *cmd = (AV *)SvRV(cmdref);
 	AV *env = (AV *)SvRV(envref);
+	AV *rlim = (AV *)SvRV(rlimref);
 	const char *filename = SvPV_nolen(file);
 	pid_t pid;
 	char **argv, **envp;
@@ -99,12 +102,27 @@ int public_inbox_fork_exec(int in, int out, int err,
 	pid = vfork();
 	if (pid == 0) {
 		int sig;
+		I32 i, max;
 
 		REDIR(in, 0);
 		REDIR(out, 1);
 		REDIR(err, 2);
 		for (sig = 1; sig < NSIG; sig++)
 			signal(sig, SIG_DFL); /* ignore errors on signals */
+
+		max = av_len(rlim);
+		for (i = 0; i < max; i += 3) {
+			struct rlimit rl;
+			SV **res = av_fetch(rlim, i, 0);
+			SV **soft = av_fetch(rlim, i + 1, 0);
+			SV **hard = av_fetch(rlim, i + 2, 0);
+
+			rl.rlim_cur = SvIV(*soft);
+			rl.rlim_max = SvIV(*hard);
+			if (setrlimit(SvIV(*res), &rl) < 0)
+				xerr("sertlimit");
+		}
+
 		/*
 		 * don't bother unblocking, we don't want signals
 		 * to the group taking out a subprocess
@@ -145,7 +163,7 @@ if (defined $vfork_spawn) {
 unless (defined $vfork_spawn) {
 	require PublicInbox::SpawnPP;
 	no warnings 'once';
-	*public_inbox_fork_exec = *PublicInbox::SpawnPP::public_inbox_fork_exec
+	*pi_fork_exec = *PublicInbox::SpawnPP::pi_fork_exec
 }
 
 # n.b. we never use absolute paths with this
@@ -182,7 +200,24 @@ sub spawn ($;$$) {
 	my $in = $opts->{0} || 0;
 	my $out = $opts->{1} || 1;
 	my $err = $opts->{2} || 2;
-	my $pid = public_inbox_fork_exec($in, $out, $err, $f, $cmd, \@env);
+	my $rlim = [];
+
+	foreach my $l (qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA)) {
+		defined(my $v = $opts->{$l}) or next;
+		my ($soft, $hard);
+		if (ref($v)) {
+			($soft, $hard) = @$v;
+		} else {
+			$soft = $hard = $v;
+		}
+		my $r = eval "require BSD::Resource; BSD::Resource::$l();";
+		unless (defined $r) {
+			warn "$l undefined by BSD::Resource: $@\n";
+			next;
+		}
+		push @$rlim, $r, $soft, $hard;
+	}
+	my $pid = pi_fork_exec($in, $out, $err, $f, $cmd, \@env, $rlim);
 	$pid < 0 ? undef : $pid;
 }
 
