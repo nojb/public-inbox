@@ -588,7 +588,9 @@ sub importer {
 	if (defined $latest) {
 		my $git = PublicInbox::Git->new($latest);
 		my $packed_bytes = $git->packed_bytes;
-		if ($packed_bytes >= $self->{rotate_bytes}) {
+		my $unpacked_bytes = $packed_bytes / $PACKING_FACTOR;
+
+		if ($unpacked_bytes >= $self->{rotate_bytes}) {
 			$epoch = $max + 1;
 		} else {
 			$self->{epoch_max} = $max;
