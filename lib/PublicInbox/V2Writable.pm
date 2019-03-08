@@ -509,14 +509,12 @@ sub done {
 	$self->{-inbox}->git->cleanup;
 }
 
-sub git_init {
+sub fill_alternates ($$) {
 	my ($self, $epoch) = @_;
-	my $pfx = "$self->{-inbox}->{mainrepo}/git";
-	my $git_dir = "$pfx/$epoch.git";
-	my @cmd = (qw(git init --bare -q), $git_dir);
-	PublicInbox::Import::run_die(\@cmd);
 
+	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $all = "$self->{-inbox}->{mainrepo}/all.git";
+	my @cmd;
 	unless (-d $all) {
 		@cmd = (qw(git init --bare -q), $all);
 		PublicInbox::Import::run_die(\@cmd);
@@ -524,8 +522,7 @@ sub git_init {
 				'repack.writeBitmaps', 'true');
 		PublicInbox::Import::run_die(\@cmd);
 	}
-
-	@cmd = (qw/git config/, "--file=$git_dir/config",
+	@cmd = (qw/git config/, "--file=$pfx/$epoch.git/config",
 			'include.path', '../../all.git/config');
 	PublicInbox::Import::run_die(\@cmd);
 
@@ -540,12 +537,20 @@ sub git_init {
 		my $dir = "../../git/$i.git/objects";
 		push @add, $dir if !$alts{$dir} && -d "$pfx/$i.git";
 	}
-	return $git_dir unless @add;
+	return unless @add;
 	open my $fh, '>>', $alt or die "open >> $alt: $!\n";
 	foreach my $dir (@add) {
 		print $fh "$dir\n" or die "print >> $alt: $!\n";
 	}
 	close $fh or die "close $alt: $!\n";
+}
+
+sub git_init {
+	my ($self, $epoch) = @_;
+	my $git_dir = "$self->{-inbox}->{mainrepo}/git/$epoch.git";
+	my @cmd = (qw(git init --bare -q), $git_dir);
+	PublicInbox::Import::run_die(\@cmd);
+	fill_alternates($self, $epoch);
 	$git_dir
 }
 
