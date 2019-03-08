@@ -288,10 +288,19 @@ sub src_blob_url {
 	local_nick($self);
 }
 
+sub host_prefix_url ($$) {
+	my ($env, $url) = @_;
+	return $url if index($url, '//') >= 0;
+	my $scheme = $env->{'psgi.url_scheme'};
+	my $host_port = $env->{HTTP_HOST} ||
+		"$env->{SERVER_NAME}:$env->{SERVER_PORT}";
+	"$scheme://$host_port". ($env->{SCRIPT_NAME} || '/') . $url;
+}
+
 sub pub_urls {
-	my ($self) = @_;
+	my ($self, $env) = @_;
 	if (my $urls = $self->{cgit_url}) {
-		return @$urls;
+		return map { host_prefix_url($env, $_) } @$urls;
 	}
 	local_nick($self);
 }

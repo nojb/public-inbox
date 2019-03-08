@@ -197,15 +197,59 @@ sub valid_inbox_name ($) {
 	1;
 }
 
+sub cgit_repo_merge ($$) {
+	my ($self, $repo) = @_;
+	# $repo = { url => 'foo.git', path => '/path/to/foo.git' }
+	my $nick = $repo->{url};
+	$self->{"coderepo.$nick.dir"} ||= $repo->{path};
+	$self->{"coderepo.$nick.cgiturl"} ||= $nick;
+}
+
+sub parse_cgitrc {
+	my ($self, $cgitrc, $nesting) = @_;
+
+	# same limit as cgit/configfile.c::parse_configfile
+	return if $nesting > 8;
+
+	open my $fh, '<', $cgitrc or do {
+		warn "failed to open cgitrc=$cgitrc: $!\n";
+		return;
+	};
+
+	# FIXME: this doesn't support macro expansion via $VARS, yet
+	my $repo;
+	foreach (<$fh>) {
+		chomp;
+		if (m!\Arepo\.url=(.+?)/*\z!) {
+			my $nick = $1;
+			cgit_repo_merge($self, $repo) if $repo;
+			$repo = { url => $nick };
+		} elsif (m!\Arepo\.path=(.+)\z!) {
+			if (defined $repo) {
+				$repo->{path} = $1;
+			} else {
+				warn "$_ without repo.url\n";
+			}
+		} elsif (m!\Ainclude=(.+)\z!) {
+			parse_cgitrc($self, $1, $nesting + 1);
+		}
+	}
+	cgit_repo_merge($self, $repo) if $repo;
+}
+
 # parse a code repo
 # Only git is supported at the moment, but SVN and Hg are possibilities
 sub _fill_code_repo {
 	my ($self, $nick) = @_;
 	my $pfx = "coderepo.$nick";
 
+	# TODO: support gitweb and other repository viewers?
+	if (defined(my $cgitrc = delete $self->{'publicinbox.cgitrc'})) {
+		parse_cgitrc($self, $cgitrc, 0);
+	}
 	my $dir = $self->{"$pfx.dir"}; # aka "GIT_DIR"
 	unless (defined $dir) {
-		warn "$pfx.repodir unset";
+		warn "$pfx.dir unset";
 		return;
 	}
 
@@ -226,8 +270,6 @@ sub _fill_code_repo {
 			} @$cgits;
 		}
 	}
-	# TODO: support gitweb and other repository viewers?
-	# TODO: parse cgitrc
 
 	$git;
 }
@@ -292,7 +334,11 @@ sub _fill {
 		my $code_repos = $self->{-code_repos};
 		my $repo_objs = $rv->{-repo_objs} = [];
 		foreach my $nick (@$ibx_code_repos) {
-			valid_inbox_name($nick) or next;
+			my @parts = split(m!/!, $nick);
+			my $valid = 0;
+			$valid += valid_inbox_name($_) foreach (@parts);
+			$valid == scalar(@parts) or next;
+
 			my $repo = $code_repos->{$nick} ||=
 						_fill_code_repo($self, $nick);
 			push @$repo_objs, $repo if $repo;

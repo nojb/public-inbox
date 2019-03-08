@@ -85,7 +85,8 @@ sub solve_existing ($$) {
 		# push @ambiguous, [ $git, @oids ];
 
 		dbg($self, "`$oid_b' ambiguous in " .
-				join("\n\t", $git->pub_urls) . "\n" .
+				join("\n\t", $git->pub_urls($self->{psgi_env}))
+                                . "\n" .
 				join('', map { "$_ blob\n" } @oids));
 	}
 	scalar(@ambiguous) ? \@ambiguous : undef;
@@ -483,7 +484,7 @@ sub resolve_patch ($$) {
 	if (my $existing = solve_existing($self, $want)) {
 		my ($found_git, undef, $type, undef) = @$existing;
 		dbg($self, "found $cur_want in " .
-			join("\n", $found_git->pub_urls));
+			join("\n", $found_git->pub_urls($self->{psgi_env})));
 
 		if ($cur_want eq $self->{oid_want} || $type ne 'blob') {
 			eval { delete($self->{user_cb})->($existing) };

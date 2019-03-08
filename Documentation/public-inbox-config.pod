@@ -188,15 +188,26 @@ be treated as the default value.
 
 Default: 25
 
-=item coderepo.<name>.dir
+=item coderepo.<nick>.dir
 
 The path to a git repository for "publicinbox.<name>.coderepo"
 
-=item coderepo.<name>.cgitUrl
+=item coderepo.<nick>.cgitUrl
 
 The URL of the cgit instance associated with the coderepo.
 
 Default: none
+
+=item publicinbox.cgitrc
+
+A path to a L<cgitrc(5)> file.  "repo.url" directives in the cgitrc
+will be mapped to the nickname of a coderepo (without trailing slash),
+and "repo.path" directives map to "coderepo.<nick>.dir".
+Use of this directive allows admins of existing cgit installations
+to skip declaring coderepo sections and map inboxes directly to
+code repositories known to cgit.
+
+Macro expansion (e.g. C<$HTTP_HOST>) is not yet supported.
 
 =back
 
