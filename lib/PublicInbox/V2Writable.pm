@@ -941,6 +941,7 @@ sub index_sync {
 		my $git_dir = git_dir_n($self, $i);
 		die "already reindexing!\n" if delete $self->{reindex_pipe};
 		-d $git_dir or next; # missing parts are fine
+		fill_alternates($self, $i);
 		my $git = PublicInbox::Git->new($git_dir);
 		my $unindex = delete $self->{"unindex-range.$i"};
 		$self->unindex($opts, $git, $unindex) if $unindex;
