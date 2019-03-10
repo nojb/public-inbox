@@ -38,6 +38,7 @@ examples/apache2_perl.conf
 examples/apache2_perl_old.conf
 examples/cgi-webrick.rb
 examples/cgit-commit-filter.lua
+examples/cgit.psgi
 examples/highlight.psgi
 examples/logrotate.conf
 examples/newswww.psgi
@@ -58,6 +59,7 @@ examples/varnish-4.vcl
 lib/PublicInbox/Address.pm
 lib/PublicInbox/Admin.pm
 lib/PublicInbox/AltId.pm
+lib/PublicInbox/Cgit.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/ContentId.pm
 lib/PublicInbox/Daemon.pm
