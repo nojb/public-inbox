@@ -166,9 +166,9 @@ unless (defined $vfork_spawn) {
 	*pi_fork_exec = *PublicInbox::SpawnPP::pi_fork_exec
 }
 
-# n.b. we never use absolute paths with this
 sub which ($) {
 	my ($file) = @_;
+	return $file if index($file, '/') == 0;
 	foreach my $p (split(':', $ENV{PATH})) {
 		$p .= "/$file";
 		return $p if -x $p;
