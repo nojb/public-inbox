@@ -201,8 +201,8 @@ sub serve_smart {
 	my $qsp = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, $rdr);
 	$qsp->psgi_return($env, $limiter, sub {
 		my ($r, $bref) = @_;
-		$r = parse_cgi_headers($bref) or return; # incomplete headers
-		$r->[0] == 403 ? serve_dumb($env, $git, $path) : $r;
+		my $res = parse_cgi_headers($r, $bref) or return; # incomplete
+		$res->[0] == 403 ? serve_dumb($env, $git, $path) : $res;
 	});
 }
 
@@ -247,12 +247,13 @@ sub input_prepare {
 }
 
 sub parse_cgi_headers {
-	my ($bref) = @_;
-	$$bref =~ s/\A(.*?)\r\n\r\n//s or return;
+	my ($r, $bref) = @_;
+	return r(500) unless defined $r && $r >= 0;
+	$$bref =~ s/\A(.*?)\r?\n\r?\n//s or return $r == 0 ? r(500) : undef;
 	my $h = $1;
 	my $code = 200;
 	my @h;
-	foreach my $l (split(/\r\n/, $h)) {
+	foreach my $l (split(/\r?\n/, $h)) {
 		my ($k, $v) = split(/:\s*/, $l, 2);
 		if ($k =~ /\AStatus\z/i) {
 			($code) = ($v =~ /\b(\d+)\b/);
