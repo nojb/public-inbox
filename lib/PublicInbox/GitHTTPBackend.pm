@@ -182,11 +182,6 @@ sub prepare_range {
 # returns undef if 403 so it falls back to dumb HTTP
 sub serve_smart {
 	my ($env, $git, $path) = @_;
-	my $in = $env->{'psgi.input'};
-	my $fd = eval { fileno($in) };
-	unless (defined $fd && $fd >= 0) {
-		$in = input_to_file($env) or return r(500);
-	}
 	my %env = %ENV;
 	# GIT_COMMITTER_NAME, GIT_COMMITTER_EMAIL
 	# may be set in the server-process and are passed as-is
@@ -202,7 +197,7 @@ sub serve_smart {
 	my $limiter = $git->{-httpbackend_limiter} || $default_limiter;
 	$env{GIT_HTTP_EXPORT_ALL} = '1';
 	$env{PATH_TRANSLATED} = "$git->{git_dir}/$path";
-	my $rdr = { 0 => fileno($in) };
+	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, $rdr);
 	$qsp->psgi_return($env, $limiter, sub {
 		my ($r, $bref) = @_;
@@ -211,14 +206,19 @@ sub serve_smart {
 	});
 }
 
-sub input_to_file {
+sub input_prepare {
 	my ($env) = @_;
+
+	my $input = $env->{'psgi.input'};
+	my $fd = eval { fileno($input) };
+	if (defined $fd && $fd >= 0) {
+		return { 0 => $fd };
+	}
 	open(my $in, '+>', undef);
 	unless (defined $in) {
 		err($env, "could not open temporary file: $!");
 		return;
 	}
-	my $input = $env->{'psgi.input'};
 	my $buf;
 	while (1) {
 		my $r = $input->read($buf, 8192);
@@ -243,7 +243,7 @@ sub input_to_file {
 		err($env, "error seeking temporary file: $!");
 		return;
 	}
-	return $in;
+	{ 0 => fileno($in), -hold => $in };
 }
 
 sub parse_cgi_headers {
