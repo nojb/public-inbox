@@ -18,6 +18,7 @@ use Symbol qw(gensym);
 use IO::Handle;
 use PublicInbox::ProcessPipe;
 our @EXPORT_OK = qw/which spawn popen_rd/;
+sub RLIMITS () { qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA) }
 
 my $vfork_spawn = <<'VFORK_SPAWN';
 #include <sys/types.h>
@@ -202,7 +203,7 @@ sub spawn ($;$$) {
 	my $err = $opts->{2} || 2;
 	my $rlim = [];
 
-	foreach my $l (qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA)) {
+	foreach my $l (RLIMITS()) {
 		defined(my $v = $opts->{$l}) or next;
 		my ($soft, $hard);
 		if (ref($v)) {

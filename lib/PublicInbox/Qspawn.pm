@@ -43,10 +43,18 @@ sub new ($$$;) {
 sub _do_spawn {
 	my ($self, $cb) = @_;
 	my $err;
+	my ($cmd, $env, $opts) = @{$self->{args}};
+	my %opts = %{$opts || {}};
+	my $limiter = $self->{limiter};
+	foreach my $k (PublicInbox::Spawn::RLIMITS()) {
+		if (defined(my $rlimit = $limiter->{$k})) {
+			$opts{$k} = $rlimit;
+		}
+	}
 
-	($self->{rpipe}, $self->{pid}) = popen_rd(@{$self->{args}});
+	($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $env, \%opts);
 	if (defined $self->{pid}) {
-		$self->{limiter}->{running}++;
+		$limiter->{running}++;
 	} else {
 		$self->{err} = $!;
 	}
@@ -251,7 +259,36 @@ sub new {
 		max => $max || 32,
 		running => 0,
 		run_queue => [],
+		# RLIMIT_CPU => undef,
+		# RLIMIT_DATA => undef,
+		# RLIMIT_CORE => undef,
 	}, $class;
+}
+
+sub setup_rlimit {
+	my ($self, $name, $config) = @_;
+	foreach my $rlim (PublicInbox::Spawn::RLIMITS()) {
+		my $k = lc($rlim);
+		$k =~ tr/_//d;
+		$k = "publicinboxlimiter.$name.$k";
+		defined(my $v = $config->{$k}) or next;
+		my @rlimit = split(/\s*,\s*/, $v);
+		if (scalar(@rlimit) == 1) {
+			push @rlimit, $rlimit[0];
+		} elsif (scalar(@rlimit) != 2) {
+			warn "could not parse $k: $v\n";
+		}
+		eval { require BSD::Resource };
+		if ($@) {
+			warn "BSD::Resource missing for $rlim";
+			next;
+		}
+		foreach my $i (0..$#rlimit) {
+			next if $rlimit[$i] ne 'INFINITY';
+			$rlimit[$i] = BSD::Resource::RLIM_INFINITY();
+		}
+		$self->{$rlim} = \@rlimit;
+	}
 }
 
 # captures everything into a buffer and executes a callback when done

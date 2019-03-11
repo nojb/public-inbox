@@ -228,11 +228,28 @@ large inboxes, it makes sense to put large inboxes on a named
 limiter with a low max value; while smaller inboxes can use
 the default limiter.
 
+C<RLIMIT_*> keys may be set to enforce resource limits for
+a particular limiter.
+
 =over 8
 
 =item publicinboxlimiter.<name>.max
 
 The maximum number of parallel processes for the given limiter.
+
+=item publicinboxlimiter.<name>.rlimitCore
+
+=item publicinboxlimiter.<name>.rlimitCPU
+
+=item publicinboxlimiter.<name>.rlimitData
+
+The maximum core size, CPU time, or data size processes run with the
+given limiter will use.  This may be comma-separated to distinguish
+soft and hard limits.  The word "INFINITY" is accepted as the
+RLIM_INFINITY constant (if supported by your OS).
+
+See L<setrlimit(2)> for more info on the behavior of RLIMIT_CORE,
+RLIMIT_CPU, and RLIMIT_DATA for you operating system.
 
 =back
 
