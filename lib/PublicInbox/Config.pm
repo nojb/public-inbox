@@ -30,6 +30,7 @@ sub new {
 	$self->{-no_obfuscate} ||= {};
 	$self->{-limiters} ||= {};
 	$self->{-code_repos} ||= {}; # nick => PublicInbox::Git object
+	$self->{-cgitrc_unparsed} = $self->{'publicinbox.cgitrc'};
 
 	if (my $no = delete $self->{'publicinbox.noobfuscate'}) {
 		$no = _array($no);
@@ -244,7 +245,7 @@ sub _fill_code_repo {
 	my $pfx = "coderepo.$nick";
 
 	# TODO: support gitweb and other repository viewers?
-	if (defined(my $cgitrc = delete $self->{'publicinbox.cgitrc'})) {
+	if (defined(my $cgitrc = delete $self->{-cgitrc_unparsed})) {
 		parse_cgitrc($self, $cgitrc, 0);
 	}
 	my $dir = $self->{"$pfx.dir"}; # aka "GIT_DIR"

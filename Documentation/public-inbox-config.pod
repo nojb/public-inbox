@@ -209,6 +209,14 @@ code repositories known to cgit.
 
 Macro expansion (e.g. C<$HTTP_HOST>) is not yet supported.
 
+=item publicinbox.cgitbin
+
+A path to the C<cgit.cgi> executable.  The L<PublicInbox::WWW>
+interface can spawn cgit as a fallback if the publicinbox.cgitrc
+directive is configured.
+
+Default: /usr/lib/cgit/cgit.cgi
+
 =back
 
 =head2 NAMED LIMITER (PSGI)

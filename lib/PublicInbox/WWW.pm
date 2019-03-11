@@ -15,6 +15,7 @@ use 5.008;
 use strict;
 use warnings;
 use bytes (); # only for bytes::length
+use Plack::Util;
 use PublicInbox::Config;
 use PublicInbox::Hval;
 use URI::Escape qw(uri_unescape);
@@ -154,6 +155,7 @@ sub preload {
 		eval "require $_;";
 	}
 	if (ref($self)) {
+		$self->cgit;
 		$self->stylesheets_prepare($_) for ('', '../', '../../');
 	}
 }
@@ -188,7 +190,9 @@ sub invalid_inbox ($$) {
 	# generation and link things intended for nntp:// to https?://,
 	# so try to infer links and redirect them to the appropriate
 	# list URL.
-	$www->news_www->call($ctx->{env});
+	my $env = $ctx->{env};
+	my $res = $www->news_www->call($env);
+	$res->[0] == 404 ? $www->cgit->call($env) : $res;
 }
 
 # returns undef if valid, array ref response if invalid
@@ -464,6 +468,20 @@ sub news_www {
 	$self->{news_www} ||= do {
 		require PublicInbox::NewsWWW;
 		PublicInbox::NewsWWW->new($self->{pi_config});
+	}
+}
+
+sub cgit {
+	my ($self) = @_;
+	$self->{cgit} ||= do {
+		my $pi_config = $self->{pi_config};
+
+		if (defined($pi_config->{'publicinbox.cgitrc'})) {
+			require PublicInbox::Cgit;
+			PublicInbox::Cgit->new($pi_config);
+		} else {
+			Plack::Util::inline_object(call => sub { r404() });
+		}
 	}
 }
 
