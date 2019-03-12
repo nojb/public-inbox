@@ -77,7 +77,8 @@ sub call {
 
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new($self->{cmd}, $cgi_env, $rdr);
-	$qsp->psgi_return($env, undef, sub {
+	my $limiter = $self->{pi_config}->limiter('-cgit');
+	$qsp->psgi_return($env, $limiter, sub {
 		my ($r, $bref) = @_;
 		my $res = parse_cgi_headers($r, $bref) or return; # incomplete
 		$res;

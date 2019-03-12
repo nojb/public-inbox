@@ -132,7 +132,7 @@ sub limiter {
 	my ($self, $name) = @_;
 	$self->{-limiters}->{$name} ||= do {
 		require PublicInbox::Qspawn;
-		my $max = $self->{"publicinboxlimiter.$name.max"};
+		my $max = $self->{"publicinboxlimiter.$name.max"} || 1;
 		my $limiter = PublicInbox::Qspawn::Limiter->new($max);
 		$limiter->setup_rlimit($name, $self);
 		$limiter;

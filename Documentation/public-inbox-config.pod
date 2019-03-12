@@ -231,6 +231,10 @@ the default limiter.
 C<RLIMIT_*> keys may be set to enforce resource limits for
 a particular limiter.
 
+Default named-limiters are prefixed with "-".  Currently,
+the "-cgit" named limiter is reserved for instances spawning
+cgit via C<publicinbox.cgitrc>
+
 =over 8
 
 =item publicinboxlimiter.<name>.max
