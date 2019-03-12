@@ -100,7 +100,8 @@ SKIP: {
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
 	my $cmd = ['sh', '-c', 'while true; do :; done'];
-	my $opt = { RLIMIT_CPU => [ 1, 1 ], RLIMIT_CORE => 0, 1 => fileno($w) };
+	my $fd = fileno($w);
+	my $opt = { RLIMIT_CPU => [ 1, 1 ], RLIMIT_CORE => [ 0, 0 ], 1 => $fd };
 	my $pid = spawn($cmd, undef, $opt);
 	close $w or die "close(w): $!";
 	my $rset = '';

@@ -205,18 +205,12 @@ sub spawn ($;$$) {
 
 	foreach my $l (RLIMITS()) {
 		defined(my $v = $opts->{$l}) or next;
-		my ($soft, $hard);
-		if (ref($v)) {
-			($soft, $hard) = @$v;
-		} else {
-			$soft = $hard = $v;
-		}
 		my $r = eval "require BSD::Resource; BSD::Resource::$l();";
 		unless (defined $r) {
 			warn "$l undefined by BSD::Resource: $@\n";
 			next;
 		}
-		push @$rlim, $r, $soft, $hard;
+		push @$rlim, $r, @$v;
 	}
 	my $pid = pi_fork_exec($in, $out, $err, $f, $cmd, \@env, $rlim);
 	$pid < 0 ? undef : $pid;
