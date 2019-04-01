@@ -18,7 +18,7 @@ my $default_limiter = PublicInbox::Qspawn::Limiter->new(32);
 
 # n.b. serving "description" and "cloneurl" should be innocuous enough to
 # not cause problems.  serving "config" might...
-my @text = qw[HEAD info/refs
+my @text = qw[HEAD info/refs info/attributes
 	objects/info/(?:http-alternates|alternates|packs)
 	cloneurl description];
 
