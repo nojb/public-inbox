@@ -175,11 +175,18 @@ sub r404 {
 # simple response for errors
 sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 
+sub news_cgit_fallback ($) {
+	my ($ctx) = @_;
+	my $www = $ctx->{www};
+	my $env = $ctx->{env};
+	my $res = $www->news_www->call($env);
+	$res->[0] == 404 ? $www->cgit->call($env) : $res;
+}
+
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox ($$) {
 	my ($ctx, $inbox) = @_;
-	my $www = $ctx->{www};
-	my $obj = $www->{pi_config}->lookup_name($inbox);
+	my $obj = $ctx->{www}->{pi_config}->lookup_name($inbox);
 	if (defined $obj) {
 		$ctx->{git} = $obj->git;
 		$ctx->{-inbox} = $obj;
@@ -190,9 +197,7 @@ sub invalid_inbox ($$) {
 	# generation and link things intended for nntp:// to https?://,
 	# so try to infer links and redirect them to the appropriate
 	# list URL.
-	my $env = $ctx->{env};
-	my $res = $www->news_www->call($env);
-	$res->[0] == 404 ? $www->cgit->call($env) : $res;
+	news_cgit_fallback($ctx);
 }
 
 # returns undef if valid, array ref response if invalid
@@ -392,7 +397,7 @@ sub legacy_redirects {
 	} elsif ($path_info =~ m!$INBOX_RE/(\S+/\S+)/f\z!o) {
 		r301($ctx, $1, $2);
 	} else {
-		$ctx->{www}->news_www->call($ctx->{env});
+		news_cgit_fallback($ctx);
 	}
 }
 
