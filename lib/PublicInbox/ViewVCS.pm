@@ -62,6 +62,10 @@ sub stream_large_blob ($$$$) {
 				my $ct = 'text/plain; charset=UTF-8';
 				return [200, ['Content-Type', $ct, @cl] ];
 			}
+			if ($r == 0) {
+				warn "premature EOF on $oid $$logref\n";
+				return html_page($ctx, 500, $logref);
+			}
 			undef; # bref keeps growing
 		}
 	});
