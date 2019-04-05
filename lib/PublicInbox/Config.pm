@@ -208,6 +208,30 @@ sub cgit_repo_merge ($$) {
 	$self->{"coderepo.$nick.cgiturl"} ||= $nick;
 }
 
+sub is_git_dir ($) {
+	my ($git_dir) = @_;
+	-d "$git_dir/objects" && -f "$git_dir/HEAD";
+}
+
+sub scan_path_coderepo {
+	my ($self, $base, $path) = @_;
+	opendir my $dh, $path or return;
+	while (defined(my $dn = readdir $dh)) {
+		next if $dn eq '.' || $dn eq '..';
+		if (index($dn, '.') == 0 && !$self->{-cgit_scan_hidden_path}) {
+			next;
+		}
+		my $nick = $base eq '' ? $dn : "$base/$dn";
+		my $git_dir = "$path/$dn";
+		if (is_git_dir($git_dir)) {
+			my $repo = { url => $nick, path => $git_dir };
+			cgit_repo_merge($self, $repo);
+		} elsif (-d $git_dir) {
+			scan_path_coderepo($self, $nick, $git_dir);
+		}
+	}
+}
+
 sub parse_cgitrc {
 	my ($self, $cgitrc, $nesting) = @_;
 
@@ -235,6 +259,10 @@ sub parse_cgitrc {
 			}
 		} elsif (m!\Ainclude=(.+)\z!) {
 			parse_cgitrc($self, $1, $nesting + 1);
+		} elsif (m!\Ascan-hidden-path=(\d+)\z!) {
+			$self->{-cgit_scan_hidden_path} = $1;
+		} elsif (m!\Ascan-path=(.+)\z!) {
+			scan_path_coderepo($self, '', $1);
 		}
 	}
 	cgit_repo_merge($self, $repo) if $repo;
