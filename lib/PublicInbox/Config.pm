@@ -200,12 +200,33 @@ sub valid_inbox_name ($) {
 	1;
 }
 
-sub cgit_repo_merge ($$) {
-	my ($self, $repo) = @_;
-	# $repo = { url => 'foo.git', path => '/path/to/foo.git' }
-	my $nick = $repo->{url};
-	$self->{"coderepo.$nick.dir"} ||= $repo->{path};
-	$self->{"coderepo.$nick.cgiturl"} ||= $nick;
+# XXX needs testing for cgit compatibility
+# cf. cgit/scan-tree.c::add_repo
+sub cgit_repo_merge ($$$) {
+	my ($self, $base, $repo) = @_;
+	my $path = $repo->{dir};
+	if (defined(my $se = $self->{-cgit_strict_export})) {
+		return unless -e "$path/$se";
+	}
+	return if -e "$path/noweb";
+	# $repo = { url => 'foo.git', dir => '/path/to/foo.git' }
+	my $rel = $repo->{url};
+	unless (defined $rel) {
+		my $off = index($path, $base, 0);
+		if ($off != 0) {
+			$rel = $path;
+		} else {
+			$rel = substr($path, length($base) + 1);
+		}
+
+		$rel =~ s!/\.git\z!! or
+			$rel =~ s!/+\z!!;
+
+		$self->{-cgit_remove_suffix} and
+			$rel =~ s!/?\.git\z!!;
+	}
+	$self->{"coderepo.$rel.dir"} ||= $path;
+	$self->{"coderepo.$rel.cgiturl"} ||= $rel;
 }
 
 sub is_git_dir ($) {
@@ -213,22 +234,43 @@ sub is_git_dir ($) {
 	-d "$git_dir/objects" && -f "$git_dir/HEAD";
 }
 
+# XXX needs testing for cgit compatibility
 sub scan_path_coderepo {
 	my ($self, $base, $path) = @_;
-	opendir my $dh, $path or return;
+	opendir(my $dh, $path) or do {
+		warn "error opening directory: $path\n";
+		return
+	};
+	my $git_dir = $path;
+	if (is_git_dir($git_dir) || is_git_dir($git_dir .= '/.git')) {
+		my $repo = { dir => $git_dir };
+		cgit_repo_merge($self, $base, $repo);
+		return;
+	}
 	while (defined(my $dn = readdir $dh)) {
 		next if $dn eq '.' || $dn eq '..';
 		if (index($dn, '.') == 0 && !$self->{-cgit_scan_hidden_path}) {
 			next;
 		}
-		my $nick = $base eq '' ? $dn : "$base/$dn";
-		my $git_dir = "$path/$dn";
-		if (is_git_dir($git_dir)) {
-			my $repo = { url => $nick, path => $git_dir };
-			cgit_repo_merge($self, $repo);
-		} elsif (-d $git_dir) {
-			scan_path_coderepo($self, $nick, $git_dir);
-		}
+		my $dir = "$path/$dn";
+		scan_path_coderepo($self, $base, $dir) if -d $dir;
+	}
+}
+
+sub scan_tree_coderepo ($$) {
+	my ($self, $path) = @_;
+	scan_path_coderepo($self, $path, $path);
+}
+
+sub scan_projects_coderepo ($$$) {
+	my ($self, $list, $path) = @_;
+	open my $fh, '<', $list or do {
+		warn "failed to open cgit projectlist=$list: $!\n";
+		return;
+	};
+	foreach (<$fh>) {
+		chomp;
+		scan_path_coderepo($self, $path, "$path/$_");
 	}
 }
 
@@ -255,7 +297,7 @@ sub parse_cgitrc {
 		chomp;
 		if (m!\Arepo\.url=(.+?)/*\z!) {
 			my $nick = $1;
-			cgit_repo_merge($self, $repo) if $repo;
+			cgit_repo_merge($self, $repo->{path}, $repo) if $repo;
 			$repo = { url => $nick };
 		} elsif (m!\Arepo\.path=(.+)\z!) {
 			if (defined $repo) {
@@ -265,17 +307,26 @@ sub parse_cgitrc {
 			}
 		} elsif (m!\Ainclude=(.+)\z!) {
 			parse_cgitrc($self, $1, $nesting + 1);
-		} elsif (m!\Ascan-hidden-path=(\d+)\z!) {
-			$self->{-cgit_scan_hidden_path} = $1;
+		} elsif (m!\A(scan-hidden-path|remove-suffix)=(\d+)\z!) {
+			my ($k, $v) = ($1, $2);
+			$k =~ tr/-/_/;
+			$self->{"-cgit_$k"} = $v;
+		} elsif (m!\A(project-list|strict-export)=(.+)\z!) {
+			my ($k, $v) = ($1, $2);
+			$k =~ tr/-/_/;
+			$self->{"-cgit_$k"} = $v;
 		} elsif (m!\Ascan-path=(.+)\z!) {
-			scan_path_coderepo($self, '', $1);
-
+			if (defined(my $list = $self->{-cgit_project_list})) {
+				scan_projects_coderepo($self, $list, $1);
+			} else {
+				scan_tree_coderepo($self, $1);
+			}
 		} elsif (m!\A(?:css|favicon|logo|repo\.logo)=(/.+)\z!) {
 			# absolute paths for static files via PublicInbox::Cgit
 			$self->{-cgit_static}->{$1} = 1;
 		}
 	}
-	cgit_repo_merge($self, $repo) if $repo;
+	cgit_repo_merge($self, $repo->{path}, $repo) if $repo;
 }
 
 # parse a code repo
@@ -290,7 +341,7 @@ sub _fill_code_repo {
 	}
 	my $dir = $self->{"$pfx.dir"}; # aka "GIT_DIR"
 	unless (defined $dir) {
-		warn "$pfx.dir unset";
+		warn "$pfx.dir unset\n";
 		return;
 	}
 
