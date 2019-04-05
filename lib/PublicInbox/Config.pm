@@ -234,6 +234,12 @@ sub scan_path_coderepo {
 
 sub parse_cgitrc {
 	my ($self, $cgitrc, $nesting) = @_;
+	if ($nesting == 0) {
+		# defaults:
+		my %s = map { $_ => 1 } qw(/cgit.css /cgit.png
+						/favicon.ico /robots.txt);
+		$self->{-cgit_static} = \%s;
+	}
 
 	# same limit as cgit/configfile.c::parse_configfile
 	return if $nesting > 8;
@@ -263,6 +269,10 @@ sub parse_cgitrc {
 			$self->{-cgit_scan_hidden_path} = $1;
 		} elsif (m!\Ascan-path=(.+)\z!) {
 			scan_path_coderepo($self, '', $1);
+
+		} elsif (m!\A(?:css|favicon|logo|repo\.logo)=(/.+)\z!) {
+			# absolute paths for static files via PublicInbox::Cgit
+			$self->{-cgit_static}->{$1} = 1;
 		}
 	}
 	cgit_repo_merge($self, $repo) if $repo;

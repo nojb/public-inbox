@@ -13,17 +13,45 @@ use PublicInbox::GitHTTPBackend;
 *input_prepare = *PublicInbox::GitHTTPBackend::input_prepare;
 *parse_cgi_headers = *PublicInbox::GitHTTPBackend::parse_cgi_headers;
 *serve = *PublicInbox::GitHTTPBackend::serve;
+*static_result = *PublicInbox::GitHTTPBackend::static_result;
 use warnings;
 use PublicInbox::Qspawn;
+use Plack::MIME;
+
+sub locate_cgit ($) {
+	my ($pi_config) = @_;
+	my $cgit_bin = $pi_config->{'publicinbox.cgitbin'};
+	my $cgit_data = $pi_config->{'publicinbox.cgitdata'};
+
+	# /var/www/htdocs/cgit is the default install path from cgit.git
+	# /usr/{lib,share}/cgit is where Debian puts cgit
+	# TODO: check other distros for common paths
+	unless (defined $cgit_bin) {
+		foreach (qw(/var/www/htdocs/cgit /usr/lib/cgit)) {
+			my $x = "$_/cgit.cgi";
+			next unless -x $x;
+			$cgit_bin = $x;
+			last;
+		}
+	}
+	unless (defined $cgit_data) {
+		foreach my $d (qw(/var/www/htdocs/cgit /usr/share/cgit)) {
+			my $f = "$d/cgit.css";
+			next unless -f $f;
+			$cgit_data = $d;
+			last;
+		}
+	}
+	($cgit_bin, $cgit_data);
+}
 
 sub new {
 	my ($class, $pi_config) = @_;
-	my $cgit_bin = $pi_config->{'publicinbox.cgitbin'} ||
-		# Debian default location:
-		'/usr/lib/cgit/cgit.cgi';
+	my ($cgit_bin, $cgit_data) = locate_cgit($pi_config);
 
 	my $self = bless {
 		cmd => [ $cgit_bin ],
+		cgit_data => $cgit_data,
 		pi_config => $pi_config,
 	}, $class;
 
@@ -39,6 +67,9 @@ sub new {
 	while (my ($nick, $repo) = each %$code_repos) {
 		$self->{"\0$nick"} = $repo;
 	}
+	my $cgit_static = $pi_config->{-cgit_static};
+	my $static = join('|', map { quotemeta $_ } keys %$cgit_static);
+	$self->{static} = qr/\A($static)\z/;
 	$self;
 }
 
@@ -66,6 +97,10 @@ sub call {
 		if (my $git = $self->{"\0$nick"}) {
 			return serve($env, $git, $path);
 		}
+	} elsif ($path_info =~ m!$self->{static}!) {
+		my $f = $1;
+		my $type = Plack::MIME->mime_type($f);
+		return static_result($env, [], "$self->{cgit_data}$f", $type);
 	}
 
 	my $cgi_env = { PATH_INFO => $path_info };

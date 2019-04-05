@@ -80,46 +80,26 @@ sub cache_one_year {
 		'Cache-Control', 'public, max-age=31536000';
 }
 
-sub serve_dumb {
-	my ($env, $git, $path) = @_;
-
-	my @h;
-	my $type;
-	if ($path =~ m!\Aobjects/[a-f0-9]{2}/[a-f0-9]{38}\z!) {
-		$type = 'application/x-git-loose-object';
-		cache_one_year(\@h);
-	} elsif ($path =~ m!\Aobjects/pack/pack-[a-f0-9]{40}\.pack\z!) {
-		$type = 'application/x-git-packed-objects';
-		cache_one_year(\@h);
-	} elsif ($path =~ m!\Aobjects/pack/pack-[a-f0-9]{40}\.idx\z!) {
-		$type = 'application/x-git-packed-objects-toc';
-		cache_one_year(\@h);
-	} elsif ($path =~ /\A(?:$TEXT)\z/o) {
-		$type = 'text/plain';
-		push @h, @no_cache;
-	} else {
-		return r(404);
-	}
-
-	my $f = $git->{git_dir} . '/' . $path;
+sub static_result ($$$$) {
+	my ($env, $h, $f, $type) = @_;
 	return r(404) unless -f $f && -r _; # just in case it's a FIFO :P
-	my $size = -s _;
 
 	# TODO: If-Modified-Since and Last-Modified?
 	open my $in, '<', $f or return r(404);
+	my $size = -s $in;
 	my $len = $size;
 	my $code = 200;
-	push @h, 'Content-Type', $type;
+	push @$h, 'Content-Type', $type;
 	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=(\d*)-(\d*)\z/) {
-		($code, $len) = prepare_range($env, $in, \@h, $1, $2, $size);
+		($code, $len) = prepare_range($env, $in, $h, $1, $2, $size);
 		if ($code == 416) {
-			push @h, 'Content-Range', "bytes */$size";
-			return [ 416, \@h, [] ];
+			push @$h, 'Content-Range', "bytes */$size";
+			return [ 416, $h, [] ];
 		}
 	}
-	push @h, 'Content-Length', $len;
+	push @$h, 'Content-Length', $len;
 	my $n = 65536;
-	[ $code, \@h, Plack::Util::inline_object(close => sub { close $in },
+	[ $code, $h, Plack::Util::inline_object(close => sub { close $in },
 		getline => sub {
 			return if $len == 0;
 			$n = $len if $len < $n;
@@ -136,6 +116,30 @@ sub serve_dumb {
 			drop_client($env);
 			return;
 		})]
+}
+
+sub serve_dumb {
+	my ($env, $git, $path) = @_;
+
+	my $h = [];
+	my $type;
+	if ($path =~ m!\Aobjects/[a-f0-9]{2}/[a-f0-9]{38}\z!) {
+		$type = 'application/x-git-loose-object';
+		cache_one_year($h);
+	} elsif ($path =~ m!\Aobjects/pack/pack-[a-f0-9]{40}\.pack\z!) {
+		$type = 'application/x-git-packed-objects';
+		cache_one_year($h);
+	} elsif ($path =~ m!\Aobjects/pack/pack-[a-f0-9]{40}\.idx\z!) {
+		$type = 'application/x-git-packed-objects-toc';
+		cache_one_year($h);
+	} elsif ($path =~ /\A(?:$TEXT)\z/o) {
+		$type = 'text/plain';
+		push @$h, @no_cache;
+	} else {
+		return r(404);
+	}
+
+	static_result($env, $h, "$git->{git_dir}/$path", $type);
 }
 
 sub prepare_range {
