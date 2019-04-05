@@ -15,12 +15,16 @@ use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::Hval qw(ascii_html to_attr from_attr);
 use PublicInbox::Git qw(git_unquote);
 
+# keep track of state so we can avoid redundant HTML tags for
+# identically-classed lines
 sub DSTATE_INIT () { 0 }
 sub DSTATE_STAT () { 1 }
 sub DSTATE_HEAD () { 2 } # /^diff --git /, /^index /, /^--- /, /^\+\+\+ /
 sub DSTATE_CTX () { 3 } # /^ /
 sub DSTATE_ADD () { 4 } # /^\+/
 sub DSTATE_DEL () { 5 } # /^\-/
+
+# maps the DSTATE_* to CSS class names compatible with what cgit uses:
 my @state2class = (
 	'', # init
 	'', # stat
