@@ -109,7 +109,7 @@ code paths.
 
 The performance of the storage device is now the bottleneck on
 larger multi-core systems.  In our experience, performance is
-improves with high-quality and high-quantity solid-state storage.
+improved with high-quality and high-quantity solid-state storage.
 Issuing TRIM commands with L<fstrim(8)> was necessary to maintain
 consistent performance while developing this feature.
 
@@ -210,7 +210,7 @@ for all non-atomic operations.
 
 =head1 HEADERS
 
-Same handling as with v1, except the Message-ID header will will
+Same handling as with v1, except the Message-ID header will
 be generated if not provided or conflicting.  "Bytes", "Lines"
 and "Content-Length" headers are stripped and not allowed, they
 can interfere with further processing.
