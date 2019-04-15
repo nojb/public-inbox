@@ -297,11 +297,11 @@ sub parse_cgitrc {
 		chomp;
 		if (m!\Arepo\.url=(.+?)/*\z!) {
 			my $nick = $1;
-			cgit_repo_merge($self, $repo->{path}, $repo) if $repo;
+			cgit_repo_merge($self, $repo->{dir}, $repo) if $repo;
 			$repo = { url => $nick };
 		} elsif (m!\Arepo\.path=(.+)\z!) {
 			if (defined $repo) {
-				$repo->{path} = $1;
+				$repo->{dir} = $1;
 			} else {
 				warn "$_ without repo.url\n";
 			}
@@ -326,7 +326,7 @@ sub parse_cgitrc {
 			$self->{-cgit_static}->{$1} = 1;
 		}
 	}
-	cgit_repo_merge($self, $repo->{path}, $repo) if $repo;
+	cgit_repo_merge($self, $repo->{dir}, $repo) if $repo;
 }
 
 # parse a code repo
