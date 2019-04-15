@@ -49,8 +49,3 @@ requirements.
 
 See design_www.txt and design_notes.txt in the Documentation/
 directory for design decisions made during development.
-
-For now, one may optionally subscribe to the mailing list by
-sending an email to: meta+subscribe@public-inbox.org
-(and confirming).  However, reading over the mailing list is
-the least reliable method of reading a public-inbox.
