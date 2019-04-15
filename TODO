@@ -98,3 +98,8 @@ all need to be considered for everything we introduce)
 
 * imperfect scraper importers for obfuscated list archives
   (e.g. obfuscated Mailman stuff, Google Groups, etc...)
+
+* support hooks, since low-level git-fast-import does not run them
+  https://public-inbox.org/meta/20190405174329.GA21472@chatter.qube.local/
+
+* investigate native grokmirror support/integration
