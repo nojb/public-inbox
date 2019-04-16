@@ -188,7 +188,6 @@ sub invalid_inbox ($$) {
 	my ($ctx, $inbox) = @_;
 	my $obj = $ctx->{www}->{pi_config}->lookup_name($inbox);
 	if (defined $obj) {
-		$ctx->{git} = $obj->git;
 		$ctx->{-inbox} = $obj;
 		return;
 	}
