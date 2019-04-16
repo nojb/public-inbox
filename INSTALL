@@ -110,6 +110,9 @@ Numerous optional modules are likely to be useful as well:
                                 Plack::Middleware::AccessLog or similar
                                 on Perl <= 5.12)
 
+  - Crypt::CBC                 deb: libcrypt-cbc-perl
+                               (for the rarely-used PublicInbox::Unsubscribe)
+
 On Fedora systems, you'll probably also end up wanting
 perl-Test-HTTP-Server-Simple, perl-Devel-Peek, and perl-IPC-Run to run the
 test suite.  On Debian systems, libxml-feed-perl and libipc-run-perl
