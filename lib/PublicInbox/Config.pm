@@ -60,8 +60,8 @@ sub new {
 sub lookup {
 	my ($self, $recipient) = @_;
 	my $addr = lc($recipient);
-	my $inbox = $self->{-by_addr}->{$addr};
-	return $inbox if $inbox;
+	my $ibx = $self->{-by_addr}->{$addr};
+	return $ibx if $ibx;
 
 	my $pfx;
 

@@ -231,7 +231,7 @@ sub mset_thread {
 		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ds,
 		$ctx);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
-	my $inbox = $ctx->{-inbox};
+	my $ibx = $ctx->{-inbox};
 	$ctx->{-upfx} = '';
 	$ctx->{anchor_idx} = 1;
 	$ctx->{cur_level} = 0;
@@ -252,7 +252,7 @@ sub mset_thread {
 		return unless $msgs;
 		my $smsg;
 		while (my $m = pop @$msgs) {
-			$smsg = $inbox->smsg_mime($m) and last;
+			$smsg = $ibx->smsg_mime($m) and last;
 		}
 		if ($smsg) {
 			return PublicInbox::View::index_entry($smsg, $ctx,

@@ -33,8 +33,8 @@ sub response {
 sub _html_top ($) {
 	my ($self) = @_;
 	my $ctx = $self->{ctx};
-	my $obj = $ctx->{-inbox};
-	my $desc = ascii_html($obj->description);
+	my $ibx = $ctx->{-inbox};
+	my $desc = ascii_html($ibx->description);
 	my $title = $ctx->{-title_html} || $desc;
 	my $upfx = $ctx->{-upfx} || '';
 	my $help = $upfx.'_/text/help';
@@ -45,7 +45,7 @@ sub _html_top ($) {
 	my $links = "<a\nhref=\"$help\">help</a> / ".
 			"<a\nhref=\"$color\">color</a> / ".
 			"<a\nhref=\"$atom\">Atom feed</a>";
-	if ($obj->search) {
+	if ($ibx->search) {
 		my $q_val = $ctx->{-q_value_html};
 		if (defined $q_val && $q_val ne '') {
 			$q_val = qq(\nvalue="$q_val");
@@ -75,19 +75,19 @@ sub _html_end {
 	my ($self) = @_;
 	my $urls = 'Archives are clonable:';
 	my $ctx = $self->{ctx};
-	my $obj = $ctx->{-inbox};
-	my $desc = ascii_html($obj->description);
+	my $ibx = $ctx->{-inbox};
+	my $desc = ascii_html($ibx->description);
 
 	my (%seen, @urls);
-	my $http = $obj->base_url($ctx->{env});
+	my $http = $ibx->base_url($ctx->{env});
 	chop $http; # no trailing slash for clone
-	my $part = $obj->max_git_part;
+	my $part = $ibx->max_git_part;
 	my $dir = (split(m!/!, $http))[-1];
 	if (defined($part)) { # v2
 		$seen{$http} = 1;
 		for my $i (0..$part) {
 			# old parts my be deleted:
-			-d "$obj->{mainrepo}/git/$i.git" or next;
+			-d "$ibx->{mainrepo}/git/$i.git" or next;
 			my $url = "$http/$i";
 			$seen{$url} = 1;
 			push @urls, "$url $dir/git/$i.git";
@@ -99,7 +99,7 @@ sub _html_end {
 
 	# FIXME: partitioning in can be different in other repositories,
 	# use the "cloneurl" file as-is for now:
-	foreach my $u (@{$obj->cloneurl}) {
+	foreach my $u (@{$ibx->cloneurl}) {
 		next if $seen{$u};
 		$seen{$u} = 1;
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
@@ -112,19 +112,19 @@ sub _html_end {
 		$urls .= " git clone --mirror $urls[0]";
 	}
 	if (defined $part) {
-		my $addrs = $obj->{address};
+		my $addrs = $ibx->{address};
 		$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
 		$urls .=  <<EOF
 
 
 	# If you have public-inbox 1.1+ installed, you may
 	# initialize and index your mirror using the following commands:
-	public-inbox-init -V2 $obj->{name} $dir/ $http \\
+	public-inbox-init -V2 $ibx->{name} $dir/ $http \\
 		$addrs
 	public-inbox-index $dir
 EOF
 	}
-	my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$obj->nntp_url};
+	my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$ibx->nntp_url};
 	if (@nntp) {
 		$urls .= "\n\n";
 		$urls .= @nntp == 1 ? 'Newsgroup' : 'Newsgroups are';

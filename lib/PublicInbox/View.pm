@@ -399,7 +399,7 @@ sub thread_index_entry {
 
 sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
-	my $inbox = $ctx->{-inbox};
+	my $ibx = $ctx->{-inbox};
 	my @q = map { (0, $_) } @$rootset;
 	my $level;
 	my $smsg;
@@ -408,11 +408,11 @@ sub stream_thread ($$) {
 		my $node = shift @q or next;
 		my $cl = $level + 1;
 		unshift @q, map { ($cl, $_) } @{$node->{children}};
-		$smsg = $inbox->smsg_mime($node->{smsg}) and last;
+		$smsg = $ibx->smsg_mime($node->{smsg}) and last;
 	}
 	return missing_thread($ctx) unless $smsg;
 
-	$ctx->{-obfs_ibx} = $inbox->{obfuscate} ? $inbox : undef;
+	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	$ctx->{-title_html} = ascii_html($smsg->subject);
 	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $smsg);
 	$smsg = undef;
@@ -423,7 +423,7 @@ sub stream_thread ($$) {
 			my $node = shift @q or next;
 			my $cl = $level + 1;
 			unshift @q, map { ($cl, $_) } @{$node->{children}};
-			if ($smsg = $inbox->smsg_mime($node->{smsg})) {
+			if ($smsg = $ibx->smsg_mime($node->{smsg})) {
 				return thread_index_entry($ctx, $level, $smsg);
 			} else {
 				return ghost_index_entry($ctx, $level, $node);
@@ -462,8 +462,8 @@ sub thread_html {
 	my $rootset = thread_results($ctx, $msgs);
 
 	# reduce hash lookups in pre_thread->skel_dump
-	my $inbox = $ctx->{-inbox};
-	$ctx->{-obfs_ibx} = $inbox->{obfuscate} ? $inbox : undef;
+	my $ibx = $ctx->{-inbox};
+	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	walk_thread($rootset, $ctx, *pre_thread);
 
 	$skel .= '</pre>';
@@ -472,7 +472,7 @@ sub thread_html {
 	# flat display: lazy load the full message from smsg
 	my $smsg;
 	while (my $m = shift @$msgs) {
-		$smsg = $inbox->smsg_mime($m) and last;
+		$smsg = $ibx->smsg_mime($m) and last;
 	}
 	return missing_thread($ctx) unless $smsg;
 	$ctx->{-title_html} = ascii_html($smsg->subject);
@@ -482,7 +482,7 @@ sub thread_html {
 		return unless $msgs;
 		$smsg = undef;
 		while (my $m = shift @$msgs) {
-			$smsg = $inbox->smsg_mime($m) and last;
+			$smsg = $ibx->smsg_mime($m) and last;
 		}
 		return index_entry($smsg, $ctx, scalar @$msgs) if $smsg;
 		$msgs = undef;

@@ -186,9 +186,9 @@ sub news_cgit_fallback ($) {
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox ($$) {
 	my ($ctx, $inbox) = @_;
-	my $obj = $ctx->{www}->{pi_config}->lookup_name($inbox);
-	if (defined $obj) {
-		$ctx->{-inbox} = $obj;
+	my $ibx = $ctx->{www}->{pi_config}->lookup_name($inbox);
+	if (defined $ibx) {
+		$ctx->{-inbox} = $ibx;
 		return;
 	}
 
@@ -402,13 +402,13 @@ sub legacy_redirects {
 
 sub r301 {
 	my ($ctx, $inbox, $mid_ue, $suffix) = @_;
-	my $obj = $ctx->{-inbox};
-	unless ($obj) {
+	my $ibx = $ctx->{-inbox};
+	unless ($ibx) {
 		my $r404 = invalid_inbox($ctx, $inbox);
 		return $r404 if $r404;
-		$obj = $ctx->{-inbox};
+		$ibx = $ctx->{-inbox};
 	}
-	my $url = $obj->base_url($ctx->{env});
+	my $url = $ibx->base_url($ctx->{env});
 	my $qs = $ctx->{env}->{QUERY_STRING};
 	if (defined $mid_ue) {
 		# common, and much nicer as '@' than '%40':

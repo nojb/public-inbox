@@ -151,9 +151,9 @@ sub archive_info {
 	unless ($archive_url) {
 		if (my $config = $self->{pi_config}) {
 			# PublicInbox::Config::lookup
-			my $inbox = $config->lookup($list_addr);
+			my $ibx = $config->lookup($list_addr);
 			# PublicInbox::Inbox::base_url
-			$archive_url = $inbox->base_url if $inbox;
+			$archive_url = $ibx->base_url if $ibx;
 		}
 	}
 

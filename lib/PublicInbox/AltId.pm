@@ -18,7 +18,7 @@ use URI::Escape qw(uri_unescape);
 # The PREFIX will be a searchable boolean prefix in Xapian
 # Example: serial:gmane:file=/path/to/altmsgmap.sqlite3
 sub new {
-	my ($class, $inbox, $spec, $writable) = @_;
+	my ($class, $ibx, $spec, $writable) = @_;
 	my ($type, $prefix, $query) = split(/:/, $spec, 3);
 	$type eq 'serial' or die "non-serial not supported, yet\n";
 
@@ -31,10 +31,10 @@ sub new {
 	} split(/[&;]/, $query);
 	my $f = $params{file} or die "file: required for $type spec $spec\n";
 	unless (index($f, '/') == 0) {
-		if (($inbox->{version} || 1) == 1) {
-			$f = "$inbox->{mainrepo}/public-inbox/$f";
+		if (($ibx->{version} || 1) == 1) {
+			$f = "$ibx->{mainrepo}/public-inbox/$f";
 		} else {
-			$f = "$inbox->{mainrepo}/$f";
+			$f = "$ibx->{mainrepo}/$f";
 		}
 	}
 	bless {

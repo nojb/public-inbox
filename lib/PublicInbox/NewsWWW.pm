@@ -44,11 +44,11 @@ sub call {
 	my (undef, @parts) = split(m!/!, $env->{PATH_INFO});
 	my ($ng, $article) = @parts;
 	my $pi_config = $self->{pi_config};
-	if (my $inbox = $pi_config->lookup_newsgroup($ng)) {
-		my $url = PublicInbox::Hval::prurl($env, $inbox->{url});
+	if (my $ibx = $pi_config->lookup_newsgroup($ng)) {
+		my $url = PublicInbox::Hval::prurl($env, $ibx->{url});
 		my $code = 301;
 		if (defined $article && $article =~ /\A\d+\z/) {
-			my $mid = eval { $inbox->mm->mid_for($article) };
+			my $mid = eval { $ibx->mm->mid_for($article) };
 			if (defined $mid) {
 				# article IDs are not stable across clones,
 				# do not encourage caching/bookmarking them

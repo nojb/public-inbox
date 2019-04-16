@@ -178,8 +178,8 @@ sub _update_git_info ($$) {
 	run_die([@cmd, 'update-server-info'], undef);
 	($self->{path_type} eq '2/38') and eval {
 		require PublicInbox::SearchIdx;
-		my $inbox = $self->{inbox} || $git_dir;
-		my $s = PublicInbox::SearchIdx->new($inbox);
+		my $ibx = $self->{inbox} || $git_dir;
+		my $s = PublicInbox::SearchIdx->new($ibx);
 		$s->index_sync({ ref => $self->{ref} });
 	};
 	eval { run_die([@cmd, qw(gc --auto)], undef) } if $do_gc;

@@ -42,9 +42,9 @@ my $altid = [ "serial:gmane:file=$alt_file" ];
 	$im->done;
 }
 {
-	my $inbox = PublicInbox::Inbox->new({mainrepo=>$git_dir});
-	$inbox->{altid} = $altid;
-	my $rw = PublicInbox::SearchIdx->new($inbox, 1);
+	my $ibx = PublicInbox::Inbox->new({mainrepo => $git_dir});
+	$ibx->{altid} = $altid;
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 	$rw->index_sync;
 }
 
