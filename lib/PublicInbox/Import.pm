@@ -30,7 +30,7 @@ sub new {
 		ident => "$name <$email>",
 		mark => 1,
 		ref => $ref,
-		inbox => $ibx,
+		-inbox => $ibx,
 		path_type => '2/38', # or 'v2'
 		lock_path => "$git->{git_dir}/ssoma.lock", # v2 changes this
 		bytes_added => 0,
@@ -178,7 +178,7 @@ sub _update_git_info ($$) {
 	run_die([@cmd, 'update-server-info'], undef);
 	($self->{path_type} eq '2/38') and eval {
 		require PublicInbox::SearchIdx;
-		my $ibx = $self->{inbox} || $git_dir;
+		my $ibx = $self->{-inbox} || $git_dir;
 		my $s = PublicInbox::SearchIdx->new($ibx);
 		$s->index_sync({ ref => $self->{ref} });
 	};
