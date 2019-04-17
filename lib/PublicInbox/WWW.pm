@@ -11,7 +11,7 @@
 # - Must not rely on static content
 # - UTF-8 is only for user-content, 7-bit US-ASCII for us
 package PublicInbox::WWW;
-use 5.008;
+use 5.010_001;
 use strict;
 use warnings;
 use bytes (); # only for bytes::length
