@@ -23,6 +23,7 @@ use_ok 'PublicInbox::Git';
 
 {
 	my $gcf = PublicInbox::Git->new($dir);
+	is($gcf->modified, 749520000, 'modified time detected from commit');
 	my $f = 'HEAD:foo.txt';
 	my @x = $gcf->check($f);
 	is(scalar @x, 3, 'returned 3 element array for existing file');
@@ -146,6 +147,10 @@ if ('alternates reloaded') {
 	ok($gcf->cleanup(time - 30), 'cleanup did not expire');
 	ok(!$gcf->cleanup(time + 30), 'cleanup can expire');
 	ok(!$gcf->cleanup, 'cleanup idempotent');
+
+	my $t = $gcf->modified;
+	ok($t <= time, 'repo not modified in the future');
+	isnt($t, 0, 'repo not modified in 1970')
 }
 
 use_ok 'PublicInbox::Git', qw(git_unquote git_quote);

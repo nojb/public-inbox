@@ -312,6 +312,24 @@ sub commit_title ($$) {
 	($$buf =~ /\r?\n\r?\n([^\r\n]+)\r?\n?/)[0]
 }
 
+# returns the modified time of a git repo, same as the "modified" field
+# of a grokmirror manifest
+sub modified ($) {
+	my ($self) = @_;
+	my $modified = 0;
+	my $fh = popen($self, qw(rev-parse --branches));
+	defined $fh or return $modified;
+	local $/ = "\n";
+	foreach my $oid (<$fh>) {
+		chomp $oid;
+		my $buf = cat_file($self, $oid) or next;
+		$$buf =~ /^committer .*?> (\d+) [\+\-]?\d+/sm or next;
+		my $cmt_time = $1;
+		$modified = $cmt_time if $cmt_time > $modified;
+	}
+	$modified || time;
+}
+
 1;
 __END__
 =pod

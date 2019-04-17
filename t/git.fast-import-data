@@ -90,7 +90,7 @@ data 78
 commit refs/heads/master
 mark :13
 author AU Thor <e@example.com> 0 +0000
-committer AU Thor <e@example.com> 0 +0000
+committer AU Thor <e@example.com> 749520000 +0000
 data 18
 add git submodule
 from :11
