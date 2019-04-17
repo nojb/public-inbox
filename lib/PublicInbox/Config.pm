@@ -113,16 +113,16 @@ sub each_inbox {
 sub lookup_newsgroup {
 	my ($self, $ng) = @_;
 	$ng = lc($ng);
-	my $rv = $self->{-by_newsgroup}->{$ng};
-	return $rv if $rv;
+	my $ibx = $self->{-by_newsgroup}->{$ng};
+	return $ibx if $ibx;
 
 	foreach my $k (keys %$self) {
 		$k =~ m!\A(publicinbox\.[^/]+)\.newsgroup\z! or next;
 		my $v = $self->{$k};
 		my $pfx = $1;
 		if ($v eq $ng) {
-			$rv = _fill($self, $pfx);
-			return $rv;
+			$ibx = _fill($self, $pfx);
+			return $ibx;
 		}
 	}
 	undef;
@@ -368,21 +368,21 @@ sub _fill_code_repo {
 
 sub _fill {
 	my ($self, $pfx) = @_;
-	my $rv = {};
+	my $ibx = {};
 
 	foreach my $k (qw(mainrepo filter url newsgroup
 			infourl watch watchheader httpbackendmax
 			replyto feedmax nntpserver indexlevel)) {
 		my $v = $self->{"$pfx.$k"};
-		$rv->{$k} = $v if defined $v;
+		$ibx->{$k} = $v if defined $v;
 	}
 	foreach my $k (qw(obfuscate)) {
 		my $v = $self->{"$pfx.$k"};
 		defined $v or next;
 		if ($v =~ /\A(?:false|no|off|0)\z/) {
-			$rv->{$k} = 0;
+			$ibx->{$k} = 0;
 		} elsif ($v =~ /\A(?:true|yes|on|1)\z/) {
-			$rv->{$k} = 1;
+			$ibx->{$k} = 1;
 		} else {
 			warn "Ignoring $pfx.$k=$v in config, not boolean\n";
 		}
@@ -391,11 +391,11 @@ sub _fill {
 	# more things to encourage decentralization
 	foreach my $k (qw(address altid nntpmirror coderepo)) {
 		if (defined(my $v = $self->{"$pfx.$k"})) {
-			$rv->{$k} = _array($v);
+			$ibx->{$k} = _array($v);
 		}
 	}
 
-	return unless $rv->{mainrepo};
+	return unless $ibx->{mainrepo};
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
 
@@ -404,27 +404,27 @@ sub _fill {
 		return;
 	}
 
-	$rv->{name} = $name;
-	$rv->{-pi_config} = $self;
-	$rv = PublicInbox::Inbox->new($rv);
-	foreach (@{$rv->{address}}) {
+	$ibx->{name} = $name;
+	$ibx->{-pi_config} = $self;
+	$ibx = PublicInbox::Inbox->new($ibx);
+	foreach (@{$ibx->{address}}) {
 		my $lc_addr = lc($_);
-		$self->{-by_addr}->{$lc_addr} = $rv;
+		$self->{-by_addr}->{$lc_addr} = $ibx;
 		$self->{-no_obfuscate}->{$lc_addr} = 1;
 	}
-	if (my $ng = $rv->{newsgroup}) {
-		$self->{-by_newsgroup}->{$ng} = $rv;
+	if (my $ng = $ibx->{newsgroup}) {
+		$self->{-by_newsgroup}->{$ng} = $ibx;
 	}
-	$self->{-by_name}->{$name} = $rv;
-	if ($rv->{obfuscate}) {
-		$rv->{-no_obfuscate} = $self->{-no_obfuscate};
-		$rv->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
+	$self->{-by_name}->{$name} = $ibx;
+	if ($ibx->{obfuscate}) {
+		$ibx->{-no_obfuscate} = $self->{-no_obfuscate};
+		$ibx->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
 		each_inbox($self, sub {}); # noop to populate -no_obfuscate
 	}
 
-	if (my $ibx_code_repos = $rv->{coderepo}) {
+	if (my $ibx_code_repos = $ibx->{coderepo}) {
 		my $code_repos = $self->{-code_repos};
-		my $repo_objs = $rv->{-repo_objs} = [];
+		my $repo_objs = $ibx->{-repo_objs} = [];
 		foreach my $nick (@$ibx_code_repos) {
 			my @parts = split(m!/!, $nick);
 			my $valid = 0;
@@ -437,7 +437,7 @@ sub _fill {
 		}
 	}
 
-	$rv
+	$ibx
 }
 
 1;
