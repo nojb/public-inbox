@@ -47,8 +47,16 @@ sub linkify_1 {
 			if ($url =~ s/$re//) {
 				$end = $1;
 			}
-		} elsif ($url =~ s/([\.,;])\z//) {
-			$end = $1;
+		} elsif ($url =~ s/(\))?([\.,;])\z//) {
+			$end = $2;
+			# require ')' to be paired with '('
+			if (defined $1) { # ')'
+				if (index($url, '(') < 0) {
+					$end = ")$end";
+				} else {
+					$url .= ')';
+				}
+			}
 		} elsif ($url !~ /\(/ && $url =~ s/\)\z//) {
 			$end = ')';
 		}
