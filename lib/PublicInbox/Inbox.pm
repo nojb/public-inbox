@@ -333,4 +333,16 @@ sub recent {
 	search($self)->{over_ro}->recent($opts, $after, $before);
 }
 
+sub modified {
+	my ($self) = @_;
+	if (my $srch = search($self)) {
+		my $msgs = $srch->{over_ro}->recent({limit => 1});
+		if (my $smsg = $msgs->[0]) {
+			return $smsg->{ts};
+		}
+		return time;
+	}
+	git($self)->modified; # v1
+}
+
 1;
