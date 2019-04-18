@@ -15,7 +15,7 @@ use warnings;
 use Digest::SHA qw/sha1_hex/;
 
 my $SALT = rand;
-my $LINK_RE = qr{(\()?\b((?:ftps?|https?|nntps?|gopher)://
+my $LINK_RE = qr{([\('!])?\b((?:ftps?|https?|nntps?|gopher)://
 		 [\@:\w\.-]+(?:/
 		 (?:[a-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@/%]*)
 		 (?:\?[a-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@/%]+)?
@@ -24,6 +24,14 @@ my $LINK_RE = qr{(\()?\b((?:ftps?|https?|nntps?|gopher)://
 		)}xi;
 
 sub new { bless {}, $_[0] }
+
+# try to distinguish paired punctuation chars from the URL itself
+# Maybe other languages/formats can be supported here, too...
+my %pairs = (
+	"(" => qr/(\)[\.,;\+]?)\z/, # Markdown (,), Ruby (+) (, for arrays)
+	"'" => qr/('[\.,;\+]?)\z/, # Perl / Ruby
+	"!" => qr/(![\.,;\+]?)\z/, # Perl / Ruby
+);
 
 sub linkify_1 {
 	$_[1] =~ s^$LINK_RE^
@@ -35,9 +43,8 @@ sub linkify_1 {
 		# '.', ',' or ';' to denote the end of a statement;
 		# assume the intent was to end the statement/sentence
 		# in English
-		# Markdown compatibility:
-		if ($beg eq '(') {
-			if ($url =~ s/(\)[\.,;]?)\z//) {
+		if (defined(my $re = $pairs{$beg})) {
+			if ($url =~ s/$re//) {
 				$end = $1;
 			}
 		} elsif ($url =~ s/([\.,;])\z//) {

@@ -98,4 +98,23 @@ use PublicInbox::Linkify;
 		'Markdown-compatible end of sentence');
 }
 
+# Perl and Ruby code compatibility
+{
+	my $l = PublicInbox::Linkify->new;
+	my $u = 'http://example.com/';
+	foreach my $q ("'%s'", '"%s"', 'q!%s!', 'q(%s)') {
+		# Perl
+		my $s = sprintf("my \$var = $q;", $u);
+		$s = $l->linkify_1($s);
+		$s = $l->linkify_2($s);
+		like($s, qr/>\Q$u\E</, "no quote($q) in URL");
+
+		# applies to Ruby, too
+		$s = sprintf("$q,", $u);
+		$s = $l->linkify_1($s);
+		$s = $l->linkify_2($s);
+		like($s, qr/>\Q$u\E</, "no quote($q) in URL array");
+	}
+}
+
 done_testing();
