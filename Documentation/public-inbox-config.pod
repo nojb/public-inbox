@@ -215,7 +215,7 @@ A path to the C<cgit.cgi> executable.  The L<PublicInbox::WWW>
 interface can spawn cgit as a fallback if the publicinbox.cgitrc
 directive is configured.
 
-Default: /var/www/htdocs/cgit/cgit.gti or /usr/lib/cgit/cgit.cgi
+Default: /var/www/htdocs/cgit/cgit.cgi or /usr/lib/cgit/cgit.cgi
 
 =back
 
