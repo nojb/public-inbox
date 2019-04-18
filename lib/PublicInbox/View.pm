@@ -213,6 +213,7 @@ sub index_entry {
 	my $irt;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 
+	$subj = '(no subject)' if $subj eq '';
 	my $rv = "<a\nhref=#e$id\nid=m$id>*</a> ";
 	$subj = '<b>'.ascii_html($subj).'</b>';
 	obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
@@ -729,6 +730,7 @@ sub thread_skel {
 
 	my $subj = $hdr->header('Subject');
 	defined $subj or $subj = '';
+	$subj = '(no subject)' if $subj eq '';
 	$ctx->{prev_subj} = [ split(/ /, $srch->subject_normalized($subj)) ];
 	$ctx->{cur} = $mid;
 	$ctx->{prev_attr} = '';
@@ -1039,6 +1041,7 @@ sub acc_topic {
 	if ($x) {
 		$subj = $x->subject;
 		$subj = $srch->subject_normalized($subj);
+		$subj = '(no subject)' if $subj eq '';
 		$ds = $x->ds;
 		if ($level == 0) {
 			$topic = [ $ds, 1, { $subj => $mid }, $subj ];

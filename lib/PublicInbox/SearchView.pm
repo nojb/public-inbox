@@ -120,6 +120,7 @@ sub mset_summary {
 		}
 		my $date = PublicInbox::View::fmt_ts($smsg->ds);
 		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->{href};
+		$s = '(no subject)' if $s eq '';
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s . "</a></b>\n";
 		$$res .= "$pfx  - by $f @ $date UTC [$pct%]\n\n";
