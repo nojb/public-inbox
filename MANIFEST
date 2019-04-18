@@ -127,6 +127,7 @@ lib/PublicInbox/WatchMaildir.pm
 lib/PublicInbox/WwwAtomStream.pm
 lib/PublicInbox/WwwAttach.pm
 lib/PublicInbox/WwwHighlight.pm
+lib/PublicInbox/WwwListing.pm
 lib/PublicInbox/WwwStream.pm
 lib/PublicInbox/WwwText.pm
 sa_config/Makefile
