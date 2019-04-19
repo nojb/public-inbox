@@ -253,10 +253,9 @@ EOF
 }
 
 {
-	my @warn;
 	my $x = 'x'x250;
 	my $y = 'y'x250;
-	local $SIG{__WARN__} = sub { push @warn, @_ };
+	local $SIG{__WARN__} = sub {};
 	$mime->header_set('Subject', 'long mid');
 	$mime->header_set('Message-ID', "<$x>");
 	ok($im->add($mime), 'add excessively long Message-ID');

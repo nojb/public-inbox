@@ -85,6 +85,9 @@ sub index_dir {
 				}
 			}
 		}
+		local $SIG{__WARN__} = sub {
+			print STDERR $v2w->{current_info}, ': ', @_;
+		};
 		$v2w->index_sync({ reindex => $reindex, prune => $prune });
 	} else {
 		my $s = PublicInbox::SearchIdx->new($repo, 1);

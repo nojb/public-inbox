@@ -48,8 +48,15 @@ sub spawn_worker {
 sub partition_worker_loop ($$$$) {
 	my ($self, $r, $part, $bnote) = @_;
 	$0 = "pi-v2-partition[$part]";
+	my $current_info = '';
+	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	local $SIG{__WARN__} = sub {
+		chomp $current_info;
+		$warn_cb->("[$part] $current_info: ", @_);
+	};
 	$self->begin_txn_lazy;
 	while (my $line = $r->getline) {
+		$current_info = $line;
 		if ($line eq "commit\n") {
 			$self->commit_txn_lazy;
 		} elsif ($line eq "close\n") {

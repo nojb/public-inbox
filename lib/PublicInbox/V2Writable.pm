@@ -72,6 +72,7 @@ sub new {
 		im => undef, #  PublicInbox::Import
 		parallel => 1,
 		transact_bytes => 0,
+		current_info => '',
 		xpfx => $xpfx,
 		over => PublicInbox::OverIdx->new("$xpfx/over.sqlite3", 1),
 		lock_path => "$dir/inbox.lock",
@@ -949,8 +950,10 @@ sub index_sync {
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
 		my $cmt;
 		while (<$fh>) {
+			chomp;
+			$self->{current_info} = "$i.git $_";
 			if (/\A$x40$/o && !defined($cmt)) {
-				chomp($cmt = $_);
+				$cmt = $_;
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
 				$self->reindex_oid($mm_tmp, $D, $git, $1,
 						$regen, $reindex);
