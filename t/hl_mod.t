@@ -30,6 +30,10 @@ my $orig = $str;
 		require File::Temp;
 		my $cmd = [ qw(w3m -T text/html -dump -config /dev/null) ];
 		my ($out, $err) = ('', '');
+
+		# workaround https://bugs.debian.org/927409
+		$$ref =~ s/&apos;/&#39;/sg;
+
 		IPC::Run::run($cmd, \('<pre>'.$$ref.'</pre>'), \$out, \$err);
 		# expand tabs and normalize whitespace,
 		# w3m doesn't preserve tabs
