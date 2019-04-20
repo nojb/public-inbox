@@ -19,6 +19,7 @@ Documentation/public-inbox-overview.pod
 Documentation/public-inbox-v1-format.pod
 Documentation/public-inbox-v2-format.pod
 Documentation/public-inbox-watch.pod
+Documentation/standards.perl
 Documentation/txt2pre
 HACKING
 INSTALL

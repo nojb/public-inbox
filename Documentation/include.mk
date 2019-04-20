@@ -81,7 +81,11 @@ txt2pre = $(PERL) -I lib ./Documentation/txt2pre <$< >$@+ && \
 	touch -r $< $@+ && mv $@+ $@
 txt := INSTALL README COPYING TODO
 dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt hosted.txt
+dtxt += standards.txt
 dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
+
+Documentation/standards.txt : Documentation/standards.perl
+	$(PERL) $< >$@+ && mv $@+ $@
 
 %.html: %.txt
 	TITLE="$(basename $(<F))" $(txt2pre)
@@ -91,7 +95,7 @@ dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
 docs_html := $(addsuffix .html, $(subst .txt,,$(dtxt)) $(txt))
 html: $(docs_html)
 gz_docs := $(addsuffix .gz, $(docs) $(docs_html))
-rsync_docs := $(gz_docs) $(docs) $(txt) $(docs_html)
+rsync_docs := $(gz_docs) $(docs) $(txt) $(docs_html) $(dtxt)
 %.gz: %
 	gzip -9 --rsyncable <$< >$@+
 	touch -r $< $@+
