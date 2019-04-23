@@ -458,7 +458,8 @@ sub thread_html {
 	$ctx->{prev_level} = 0;
 	$ctx->{root_anchor} = anchor_for($mid);
 	$ctx->{mapping} = {};
-	$ctx->{s_nr} = "$nr+ messages in thread";
+	$ctx->{s_nr} = ($nr > 1 ? "$nr+ messages" : 'only message')
+	               .' in thread';
 
 	my $rootset = thread_results($ctx, $msgs);
 
