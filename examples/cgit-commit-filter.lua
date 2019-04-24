@@ -17,7 +17,6 @@ urls['public-inbox.git'] = 'https://public-inbox.org/meta/'
 function filter_open(...)
 	lineno = 0
 	buffer = ""
-	subject = ""
 end
 
 function filter_close()
