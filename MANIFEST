@@ -39,6 +39,7 @@ examples/apache2_perl.conf
 examples/apache2_perl_old.conf
 examples/cgi-webrick.rb
 examples/cgit-commit-filter.lua
+examples/cgit-wwwhighlight-filter.lua
 examples/cgit.psgi
 examples/highlight.psgi
 examples/logrotate.conf
