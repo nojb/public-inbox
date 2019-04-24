@@ -24,6 +24,7 @@ use warnings;
 use bytes (); # only for bytes::length
 use HTTP::Status qw(status_message);
 use parent qw(PublicInbox::HlMod);
+use PublicInbox::Linkify qw();
 
 # TODO: support highlight(1) for distros which don't package the
 # SWIG extension.  Also, there may be admins who don't want to
@@ -64,7 +65,10 @@ sub call {
 	return r(405) if $req_method ne 'PUT';
 
 	my $bref = read_in_full($env) or return r(500);
+	my $l = PublicInbox::Linkify->new;
+	$l->linkify_1($$bref);
 	$bref = $self->do_hl($bref, $env->{PATH_INFO});
+	$l->linkify_2($$bref);
 
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
 	push @$h, 'Content-Length', bytes::length($$bref);
