@@ -35,7 +35,15 @@ sub locate_cgit ($) {
 		}
 	}
 	unless (defined $cgit_data) {
-		foreach my $d (qw(/var/www/htdocs/cgit /usr/share/cgit)) {
+		my @dirs = qw(/var/www/htdocs/cgit /usr/share/cgit);
+
+		# local installs of cgit from source have
+		# CGIT_SCRIPT_PATH==CGIT_DATA_PATH by default,
+		# so we can usually infer the cgit_data path from cgit_bin
+		if (defined($cgit_bin) && $cgit_bin =~ m!\A(.+?)/[^/]+\z!) {
+			unshift @dirs, $1 if -d $1;
+		}
+		foreach my $d (@dirs) {
 			my $f = "$d/cgit.css";
 			next unless -f $f;
 			$cgit_data = $d;
@@ -90,6 +98,7 @@ my @PASS_ENV = qw(
 sub call {
 	my ($self, $env) = @_;
 	my $path_info = $env->{PATH_INFO};
+	my $cgit_data;
 
 	# handle requests without spawning cgit iff possible:
 	if ($path_info =~ m!\A/(.+?)/($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
@@ -97,10 +106,11 @@ sub call {
 		if (my $git = $self->{"\0$nick"}) {
 			return serve($env, $git, $path);
 		}
-	} elsif ($path_info =~ m!$self->{static}!) {
+	} elsif ($path_info =~ m!$self->{static}! &&
+		 defined($cgit_data = $self->{cgit_data})) {
 		my $f = $1;
 		my $type = Plack::MIME->mime_type($f);
-		return static_result($env, [], "$self->{cgit_data}$f", $type);
+		return static_result($env, [], $cgit_data.$f, $type);
 	}
 
 	my $cgi_env = { PATH_INFO => $path_info };

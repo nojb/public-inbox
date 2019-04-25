@@ -217,6 +217,15 @@ directive is configured.
 
 Default: /var/www/htdocs/cgit/cgit.cgi or /usr/lib/cgit/cgit.cgi
 
+=item publicinbox.cgitdata
+
+A path to the data directory used by cgit for storing static files.
+Typically guessed based the location of C<cgit.cgi> (from
+C<publicinbox.cgitbin>, but may be overridden.
+
+Default: basename of C<publicinbox.cgitbin>, /var/www/htdocs/cgit/
+or /usr/share/cgit/
+
 =back
 
 =head2 NAMED LIMITER (PSGI)
