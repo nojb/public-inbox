@@ -146,7 +146,7 @@ sub flush_diff ($$$) {
 		if ($s =~ /^---$/) {
 			to_state($dst, $state, DSTATE_STAT);
 			$$dst .= $s;
-		} elsif ($s =~ /^ /) {
+		} elsif ($s =~ /^ / || ($s =~ /^$/ && $state >= DSTATE_CTX)) {
 			# works for common cases, but not weird/long filenames
 			if ($state == DSTATE_STAT &&
 					$s =~ /^ (.+)( +\| .*\z)/s) {
