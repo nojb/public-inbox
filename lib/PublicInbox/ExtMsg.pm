@@ -8,13 +8,13 @@
 package PublicInbox::ExtMsg;
 use strict;
 use warnings;
-use PublicInbox::Hval;
+use PublicInbox::Hval qw/ascii_html/;
 use PublicInbox::MID qw/mid2path/;
 use PublicInbox::WwwStream;
 our $MIN_PARTIAL_LEN = 16;
 
 # TODO: user-configurable
-our @EXT_URL = (
+our @EXT_URL = map { ascii_html($_) } (
 	# leading "//" denotes protocol-relative (http:// or https://)
 	'//marc.info/?i=%s',
 	'//www.mail-archive.com/search?l=mid&q=%s',
