@@ -66,6 +66,9 @@ Other relevant documentation
 * Various mbox formats (we currently emit and parse mboxrd)
   https://en.wikipedia.org/wiki/Mbox
 
+* PSGI/Plack specifications (as long as our web frontend uses Perl5)
+  git clone https://github.com/plack/psgi-specs.git
+
 Copyright
 ---------
 
