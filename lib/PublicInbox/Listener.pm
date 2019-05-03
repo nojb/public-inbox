@@ -17,7 +17,7 @@ sub new ($$$) {
 	listen($s, 1024);
 	IO::Handle::blocking($s, 0);
 	my $self = fields::new($class);
-	$self->SUPER::new($s); # calls epoll_create for the first socket
+	$self->SUPER::new($s, 1); # calls epoll_create for the first socket
 	$self->watch_read(1);
 	$self->{post_accept} = $cb;
 	$self

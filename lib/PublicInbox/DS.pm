@@ -78,6 +78,8 @@ our (
      @Timers,                    # timers
      );
 
+# this may be set to zero with old kernels
+our $EPOLLEXCLUSIVE = EPOLLEXCLUSIVE;
 Reset();
 
 #####################################################################
@@ -666,10 +668,8 @@ This is normally (always?) called from your subclass via:
 
 =cut
 sub new {
-    my PublicInbox::DS $self = shift;
+    my ($self, $sock, $exclusive) = @_;
     $self = fields::new($self) unless ref $self;
-
-    my $sock = shift;
 
     $self->{sock}        = $sock;
     my $fd = fileno($sock);
@@ -685,13 +685,23 @@ sub new {
     $self->{corked} = 0;
     $self->{read_push_back} = [];
 
-    $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
+    my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
 
     _InitPoller();
 
     if ($HaveEpoll) {
-        epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $self->{event_watch})
-            and die "couldn't add epoll watch for $fd\n";
+        if ($exclusive) {
+            $ev = $self->{event_watch} = EPOLLIN|EPOLLERR|EPOLLHUP|$EPOLLEXCLUSIVE;
+        }
+retry:
+        if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
+            if ($!{EINVAL} && ($ev & $EPOLLEXCLUSIVE)) {
+                $EPOLLEXCLUSIVE = 0; # old kernel
+                $ev = $self->{event_watch} = EPOLLIN|EPOLLERR|EPOLLHUP;
+                goto retry;
+            }
+            die "couldn't add epoll watch for $fd: $!\n";
+        }
     }
     elsif ($HaveKQueue) {
         # Add them to the queue but disabled for now
