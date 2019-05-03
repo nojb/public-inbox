@@ -7,7 +7,7 @@ use warnings;
 use Test::More;
 use Time::HiRes qw(gettimeofday tv_interval);
 
-foreach my $mod (qw(Plack::Util Plack::Builder Danga::Socket
+foreach my $mod (qw(Plack::Util Plack::Builder PublicInbox::DS
 			HTTP::Date HTTP::Status IPC::Run)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd-corner.t" if $@;

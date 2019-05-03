@@ -54,7 +54,7 @@ all need to be considered for everything we introduce)
 
 * portability to FreeBSD (and other Free Software *BSDs)
   ugh... https://rt.cpan.org/Ticket/Display.html?id=116615
-  (IO::KQueue is broken with Danga::Socket)
+  (IO::KQueue is broken with Danga::Socket / PublicInbox::DS)
 
 * EPOLLEXCLUSIVE for listen socket fairness across -httpd/nntpd
   worker processes.

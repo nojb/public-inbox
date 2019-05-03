@@ -1,11 +1,11 @@
 # Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# event cleanups (currently for Danga::Socket)
+# event cleanups (currently for PublicInbox::DS)
 package PublicInbox::EvCleanup;
 use strict;
 use warnings;
-use base qw(Danga::Socket);
+use base qw(PublicInbox::DS);
 use fields qw(rd);
 
 my $ENABLED;
@@ -38,7 +38,7 @@ sub _run_all ($) {
 	$_->() foreach @$run;
 }
 
-# ensure Danga::Socket::ToClose fires after timers fire
+# ensure PublicInbox::DS::ToClose fires after timers fire
 sub _asap_close () { $asapq->[1] ||= _asap_timer() }
 
 sub _run_asap () { _run_all($asapq) }
@@ -52,7 +52,7 @@ sub _run_later () {
 	_asap_close();
 }
 
-# Called by Danga::Socket
+# Called by PublicInbox::DS
 sub event_write {
 	my ($self) = @_;
 	$self->watch_write(0);
@@ -74,13 +74,13 @@ sub asap ($) {
 sub next_tick ($) {
 	my ($cb) = @_;
 	push @{$nextq->[0]}, $cb;
-	$nextq->[1] ||= Danga::Socket->AddTimer(0, *_run_next);
+	$nextq->[1] ||= PublicInbox::DS->AddTimer(0, *_run_next);
 }
 
 sub later ($) {
 	my ($cb) = @_;
 	push @{$laterq->[0]}, $cb;
-	$laterq->[1] ||= Danga::Socket->AddTimer(60, *_run_later);
+	$laterq->[1] ||= PublicInbox::DS->AddTimer(60, *_run_later);
 }
 
 END {

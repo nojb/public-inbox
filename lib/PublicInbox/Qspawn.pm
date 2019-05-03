@@ -12,9 +12,9 @@
 # operate in.  This can be useful to ensure smaller inboxes can
 # be cloned while cloning of large inboxes is maxed out.
 #
-# This does not depend on Danga::Socket or any other external
+# This does not depend on PublicInbox::DS or any other external
 # scheduling mechanism, you just need to call start() and finish()
-# appropriately. However, public-inbox-httpd (which uses Danga::Socket)
+# appropriately. However, public-inbox-httpd (which uses PublicInbox::DS)
 # will be able to schedule this based on readability of stdout from
 # the spawned process.  See GitHTTPBackend.pm and SolverGit.pm for
 # usage examples.  It does not depend on any form of threading.

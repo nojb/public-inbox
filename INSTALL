@@ -73,10 +73,6 @@ Numerous optional modules are likely to be useful as well:
                                rpm: perl-DBD-SQLite
                                (for NNTP service or gzipped mbox over HTTP)
 
-  - Danga::Socket              deb: libdanga-socket-perl
-                               rpm: perl-Danga-Socket
-                               (for bundled HTTP and NNTP servers)
-
   - Net::Server                deb: libnet-server-perl
                                rpm: perl-Net-Server
                                (for HTTP/NNTP servers as standalone daemons,

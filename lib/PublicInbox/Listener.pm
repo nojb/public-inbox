@@ -5,7 +5,7 @@
 package PublicInbox::Listener;
 use strict;
 use warnings;
-use base 'Danga::Socket';
+use base 'PublicInbox::DS';
 use Socket qw(SOL_SOCKET SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use fields qw(post_accept);
 require IO::Handle;

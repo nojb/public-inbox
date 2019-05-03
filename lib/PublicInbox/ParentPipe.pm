@@ -4,7 +4,7 @@
 package PublicInbox::ParentPipe;
 use strict;
 use warnings;
-use base qw(Danga::Socket);
+use base qw(PublicInbox::DS);
 use fields qw(cb);
 
 sub new ($$$) {

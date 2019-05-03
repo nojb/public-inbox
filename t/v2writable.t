@@ -134,8 +134,8 @@ SKIP: {
 	use Net::NNTP;
 	use IO::Socket;
 	use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
-	eval { require Danga::Socket };
-	skip "Danga::Socket missing $@", 2 if $@;
+	eval { require PublicInbox::DS };
+	skip "PublicInbox::DS missing $@", 2 if $@;
 	my $err = "$mainrepo/stderr.log";
 	my $out = "$mainrepo/stdout.log";
 	my %opts = (

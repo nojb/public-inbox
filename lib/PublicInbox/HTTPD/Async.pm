@@ -8,7 +8,7 @@
 package PublicInbox::HTTPD::Async;
 use strict;
 use warnings;
-use base qw(Danga::Socket);
+use base qw(PublicInbox::DS);
 use fields qw(cb cleanup);
 require PublicInbox::EvCleanup;
 
@@ -45,7 +45,7 @@ sub main_cb ($$$) {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
 			$fh->write($$bref);
-			unless ($http->{closed}) { # Danga::Socket sets this
+			unless ($http->{closed}) { # PublicInbox::DS sets this
 				if ($http->{write_buf_size}) {
 					$self->watch_read(0);
 					$http->write(restart_read_cb($self));

@@ -12,7 +12,7 @@ use Cwd qw/abs_path/;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
-require Danga::Socket;
+require PublicInbox::DS;
 require POSIX;
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
@@ -172,14 +172,14 @@ sub worker_quit {
 	# killing again terminates immediately:
 	exit unless @listeners;
 
-	$_->close foreach @listeners; # call Danga::Socket::close
+	$_->close foreach @listeners; # call PublicInbox::DS::close
 	@listeners = ();
 	$reason->close if ref($reason) eq 'PublicInbox::ParentPipe';
 
 	my $proc_name;
 	my $warn = 0;
 	# drop idle connections and try to quit gracefully
-	Danga::Socket->SetPostLoopCallback(sub {
+	PublicInbox::DS->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
 		my $n = 0;
 		my $now = clock_gettime(CLOCK_MONOTONIC);
@@ -486,7 +486,7 @@ sub daemon_loop ($$) {
 		PublicInbox::Listener->new($_, $post_accept)
 	} @listeners;
 	PublicInbox::EvCleanup::enable();
-	Danga::Socket->EventLoop;
+	PublicInbox::DS->EventLoop;
 	$parent_pipe = undef;
 }
 

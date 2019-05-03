@@ -64,6 +64,7 @@ lib/PublicInbox/AltId.pm
 lib/PublicInbox/Cgit.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/ContentId.pm
+lib/PublicInbox/DS.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/EvCleanup.pm
@@ -117,6 +118,7 @@ lib/PublicInbox/Spamcheck.pm
 lib/PublicInbox/Spamcheck/Spamc.pm
 lib/PublicInbox/Spawn.pm
 lib/PublicInbox/SpawnPP.pm
+lib/PublicInbox/Syscall.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/UserContent.pm
 lib/PublicInbox/V2Writable.pm

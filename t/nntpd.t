@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-foreach my $mod (qw(DBD::SQLite Search::Xapian Danga::Socket)) {
+foreach my $mod (qw(DBD::SQLite Search::Xapian PublicInbox::DS)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for nntpd.t" if $@;
 }
