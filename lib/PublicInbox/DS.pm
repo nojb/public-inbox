@@ -29,15 +29,8 @@ use fields ('sock',              # underlying socket
             'write_buf_offset',  # offset into first array of write_buf to start writing at
             'write_buf_size',    # total length of data in all write_buf items
             'write_set_watch',   # bool: true if we internally set watch_write rather than by a subclass
-            'read_push_back',    # arrayref of "pushed-back" read data the application didn't want
             'closed',            # bool: socket is closed
-            'corked',            # bool: socket is corked
             'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
-            'peer_v6',           # bool: cached; if peer is an IPv6 address
-            'peer_ip',           # cached stringified IP address of $sock
-            'peer_port',         # cached port number of $sock
-            'local_ip',          # cached stringified IP address of local end of $sock
-            'local_port',        # cached port number of local end of $sock
             'writer_func',       # subref which does writing.  must return bytes written (or undef) and set $! on errors
             );
 
@@ -46,7 +39,6 @@ use Errno  qw(EINPROGRESS EWOULDBLOCK EISCONN ENOTSOCK
 use Socket qw(IPPROTO_TCP);
 use Carp   qw(croak confess);
 
-use constant TCP_CORK => ($^O eq "linux" ? 3 : 0); # FIXME: not hard-coded (Linux-specific too)
 use constant DebugLevel => 0;
 
 use constant POLLIN        => 1;
@@ -61,7 +53,6 @@ our (
      $HaveEpoll,                 # Flag -- is epoll available?  initially undefined.
      $HaveKQueue,
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
-     %PushBackSet,               # fd (num) -> PublicInbox::DS (fds with pushed back read data)
      $Epoll,                     # Global epoll fd (for epoll mode only)
      $KQueue,                    # Global kqueue fd (for kqueue mode only)
      @ToClose,                   # sockets to close when event loop is done
@@ -93,7 +84,6 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
-    %PushBackSet = ();
     @ToClose = ();
     %OtherFds = ();
     $LoopTimeout = -1;  # no timeout by default
@@ -598,27 +588,6 @@ sub SetPostLoopCallback {
 # for pushed-back data, and close pending connections.  returns 1
 # if event loop should continue, or 0 to shut it all down.
 sub PostEventLoop {
-    # fire read events for objects with pushed-back read data
-    my $loop = 1;
-    while ($loop) {
-        $loop = 0;
-        foreach my $fd (keys %PushBackSet) {
-            my PublicInbox::DS $pob = $PushBackSet{$fd};
-
-            # a previous event_read invocation could've closed a
-            # connection that we already evaluated in "keys
-            # %PushBackSet", so skip ones that seem to have
-            # disappeared.  this is expected.
-            next unless $pob;
-
-            die "ASSERT: the $pob socket has no read_push_back" unless @{$pob->{read_push_back}};
-            next unless (! $pob->{closed} &&
-                         $pob->{event_watch} & POLLIN);
-            $loop = 1;
-            $pob->event_read;
-        }
-    }
-
     # now we can close sockets that wanted to close during our event processing.
     # (we didn't want to close them during the loop, as we didn't want fd numbers
     #  being reused and confused during the event loop)
@@ -682,8 +651,6 @@ sub new {
     $self->{write_buf_offset} = 0;
     $self->{write_buf_size} = 0;
     $self->{closed} = 0;
-    $self->{corked} = 0;
-    $self->{read_push_back} = [];
 
     my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
 
@@ -722,49 +689,6 @@ retry:
 #####################################################################
 ### I N S T A N C E   M E T H O D S
 #####################################################################
-
-=head2 C<< $obj->tcp_cork( $boolean ) >>
-
-Turn TCP_CORK on or off depending on the value of I<boolean>.
-
-=cut
-sub tcp_cork {
-    my PublicInbox::DS $self = $_[0];
-    my $val = $_[1];
-
-    # make sure we have a socket
-    return unless $self->{sock};
-    return if $val == $self->{corked};
-
-    my $rv;
-    if (TCP_CORK) {
-        $rv = setsockopt($self->{sock}, IPPROTO_TCP, TCP_CORK,
-                         pack("l", $val ? 1 : 0));
-    } else {
-        # FIXME: implement freebsd *PUSH sockopts
-        $rv = 1;
-    }
-
-    # if we failed, close (if we're not already) and warn about the error
-    if ($rv) {
-        $self->{corked} = $val;
-    } else {
-        if ($! == EBADF || $! == ENOTSOCK) {
-            # internal state is probably corrupted; warn and then close if
-            # we're not closed already
-            warn "setsockopt: $!";
-            $self->close('tcp_cork_failed');
-        } elsif ($! == ENOPROTOOPT || $!{ENOTSOCK} || $!{EOPNOTSUPP}) {
-            # TCP implementation doesn't support corking, so just ignore it
-            # or we're trying to tcp-cork a non-socket (like a socketpair pipe
-            # which is acting like a socket, which Perlbal does for child
-            # processes acting like inetd-like web servers)
-        } else {
-            # some other error; we should never hit here, but if we do, die
-            die "setsockopt: $!";
-        }
-    }
-}
 
 =head2 C<< $obj->steal_socket() >>
 
@@ -828,10 +752,6 @@ sub _cleanup {
     # preventing the object from being destroyed
     $self->{write_buf} = [];
 
-    # uncork so any final data gets sent.  only matters if the person closing
-    # us forgot to do it, but we do it to be safe.
-    $self->tcp_cork(0);
-
     # if we're using epoll, we have to remove this from our epoll fd so we stop getting
     # notifications about it
     if ($HaveEpoll && $self->{fd}) {
@@ -843,7 +763,6 @@ sub _cleanup {
 
     # now delete from mappings.  this fd no longer belongs to us, so we don't want
     # to get alerts for it if it becomes writable/readable/etc.
-    delete $PushBackSet{$self->{fd}};
     delete $PLCMap{$self->{fd}};
 
     # we explicitly don't delete from DescriptorMap here until we
@@ -1020,19 +939,6 @@ sub on_incomplete_write {
     $self->watch_write(1);
 }
 
-=head2 C<< $obj->push_back_read( $buf ) >>
-
-Push back I<buf> (a scalar or scalarref) into the read stream. Useful if you read
-more than you need to and want to return this data on the next "read".
-
-=cut
-sub push_back_read {
-    my PublicInbox::DS $self = shift;
-    my $buf = shift;
-    push @{$self->{read_push_back}}, ref $buf ? $buf : \$buf;
-    $PushBackSet{$self->{fd}} = $self;
-}
-
 =head2 C<< $obj->read( $bytecount ) >>
 
 Read at most I<bytecount> bytes from the underlying handle; returns scalar
@@ -1045,22 +951,6 @@ sub read {
     my $bytes = shift;
     my $buf;
     my $sock = $self->{sock};
-
-    if (@{$self->{read_push_back}}) {
-        $buf = shift @{$self->{read_push_back}};
-        my $len = length($$buf);
-
-        if ($len <= $bytes) {
-            delete $PushBackSet{$self->{fd}} unless @{$self->{read_push_back}};
-            return $buf;
-        } else {
-            # if the pushed back read is too big, we have to split it
-            my $overflow = substr($$buf, $bytes);
-            $buf = substr($$buf, 0, $bytes);
-            unshift @{$self->{read_push_back}}, \$overflow;
-            return \$buf;
-        }
-    }
 
     # if this is too high, perl quits(!!).  reports on mailing lists
     # don't seem to point to a universal answer.  5MB worked for some,
@@ -1216,91 +1106,6 @@ sub debugmsg {
     printf STDERR ">>> $fmt\n", @args;
 }
 
-
-=head2 C<< $obj->peer_ip_string() >>
-
-Returns the string describing the peer's IP
-
-=cut
-sub peer_ip_string {
-    my PublicInbox::DS $self = shift;
-    return _undef("peer_ip_string undef: no sock") unless $self->{sock};
-    return $self->{peer_ip} if defined $self->{peer_ip};
-
-    my $pn = getpeername($self->{sock});
-    return _undef("peer_ip_string undef: getpeername") unless $pn;
-
-    my ($port, $iaddr) = eval {
-        if (length($pn) >= 28) {
-            return Socket6::unpack_sockaddr_in6($pn);
-        } else {
-            return Socket::sockaddr_in($pn);
-        }
-    };
-
-    if ($@) {
-        $self->{peer_port} = "[Unknown peerport '$@']";
-        return "[Unknown peername '$@']";
-    }
-
-    $self->{peer_port} = $port;
-
-    if (length($iaddr) == 4) {
-        return $self->{peer_ip} = Socket::inet_ntoa($iaddr);
-    } else {
-        $self->{peer_v6} = 1;
-        return $self->{peer_ip} = Socket6::inet_ntop(Socket6::AF_INET6(),
-                                                     $iaddr);
-    }
-}
-
-=head2 C<< $obj->peer_addr_string() >>
-
-Returns the string describing the peer for the socket which underlies this
-object in form "ip:port"
-
-=cut
-sub peer_addr_string {
-    my PublicInbox::DS $self = shift;
-    my $ip = $self->peer_ip_string
-        or return undef;
-    return $self->{peer_v6} ?
-        "[$ip]:$self->{peer_port}" :
-        "$ip:$self->{peer_port}";
-}
-
-=head2 C<< $obj->local_ip_string() >>
-
-Returns the string describing the local IP
-
-=cut
-sub local_ip_string {
-    my PublicInbox::DS $self = shift;
-    return _undef("local_ip_string undef: no sock") unless $self->{sock};
-    return $self->{local_ip} if defined $self->{local_ip};
-
-    my $pn = getsockname($self->{sock});
-    return _undef("local_ip_string undef: getsockname") unless $pn;
-
-    my ($port, $iaddr) = Socket::sockaddr_in($pn);
-    $self->{local_port} = $port;
-
-    return $self->{local_ip} = Socket::inet_ntoa($iaddr);
-}
-
-=head2 C<< $obj->local_addr_string() >>
-
-Returns the string describing the local end of the socket which underlies this
-object in form "ip:port"
-
-=cut
-sub local_addr_string {
-    my PublicInbox::DS $self = shift;
-    my $ip = $self->local_ip_string;
-    return $ip ? "$ip:$self->{local_port}" : undef;
-}
-
-
 =head2 C<< $obj->as_string() >>
 
 Returns a string describing this socket.
@@ -1311,10 +1116,6 @@ sub as_string {
     my $rw = "(" . ($self->{event_watch} & POLLIN ? 'R' : '') .
                    ($self->{event_watch} & POLLOUT ? 'W' : '') . ")";
     my $ret = ref($self) . "$rw: " . ($self->{closed} ? "closed" : "open");
-    my $peer = $self->peer_addr_string;
-    if ($peer) {
-        $ret .= " to " . $self->peer_addr_string;
-    }
     return $ret;
 }
 
