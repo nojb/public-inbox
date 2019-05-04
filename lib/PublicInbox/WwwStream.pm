@@ -12,7 +12,6 @@ use warnings;
 use PublicInbox::Hval qw(ascii_html);
 use URI;
 our $TOR_URL = 'https://www.torproject.org/';
-our $TOR2WEB_URL = 'https://www.tor2web.org/';
 our $CODE_URL = 'https://public-inbox.org/';
 our $PROJECT = 'public-inbox';
 
@@ -134,10 +133,6 @@ EOF
 	if ($urls =~ m!\b[^:]+://\w+\.onion/!) {
 		$urls .= "\n note: .onion URLs require Tor: ";
 		$urls .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
-		if ($TOR2WEB_URL) {
-			$urls .= "\n       or Tor2web: ";
-			$urls .= qq[<a\nhref="$TOR2WEB_URL">$TOR2WEB_URL</a>];
-		}
 	}
 	my $url = PublicInbox::Hval::prurl($ctx->{env}, $CODE_URL);
 	'<hr><pre>'.join("\n\n",
