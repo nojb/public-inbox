@@ -389,7 +389,7 @@ sub _fill {
 	}
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	foreach my $k (qw(address altid nntpmirror coderepo)) {
+	foreach my $k (qw(address altid nntpmirror coderepo hide)) {
 		if (defined(my $v = $self->{"$pfx.$k"})) {
 			$ibx->{$k} = _array($v);
 		}

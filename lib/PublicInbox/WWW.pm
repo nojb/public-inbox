@@ -11,7 +11,7 @@
 # - Must not rely on static content
 # - UTF-8 is only for user-content, 7-bit US-ASCII for us
 package PublicInbox::WWW;
-use 5.008;
+use 5.010_001;
 use strict;
 use warnings;
 use bytes (); # only for bytes::length
@@ -68,8 +68,9 @@ sub call {
 	} split(/[&;]+/, $env->{QUERY_STRING});
 	$ctx->{qp} = \%qp;
 
-	# not using $env->{PATH_INFO} here since that's already decoded
+	# avoiding $env->{PATH_INFO} here since that's already decoded
 	my ($path_info) = ($env->{REQUEST_URI} =~ path_re($env));
+	$path_info //= $env->{PATH_INFO};
 	my $method = $env->{REQUEST_METHOD};
 
 	if ($method eq 'POST') {
@@ -87,7 +88,7 @@ sub call {
 
 	# top-level indices and feeds
 	if ($path_info eq '/') {
-		r404();
+		www_listing($self)->call($env);
 	} elsif ($path_info =~ m!$INBOX_RE\z!o) {
 		invalid_inbox($ctx, $1) || r301($ctx, $1);
 	} elsif ($path_info =~ m!$INBOX_RE(?:/|/index\.html)?\z!o) {
@@ -157,6 +158,7 @@ sub preload {
 	if (ref($self)) {
 		$self->cgit;
 		$self->stylesheets_prepare($_) for ('', '../', '../../');
+		$self->www_listing;
 	}
 }
 
@@ -486,6 +488,14 @@ sub cgit {
 		} else {
 			Plack::Util::inline_object(call => sub { r404() });
 		}
+	}
+}
+
+sub www_listing {
+	my ($self) = @_;
+	$self->{www_listing} ||= do {
+		require PublicInbox::WwwListing;
+		PublicInbox::WwwListing->new($self);
 	}
 }
 

@@ -95,6 +95,15 @@ sub new {
 	if (defined $dir && -f "$dir/inbox.lock") {
 		$opts->{version} = 2;
 	}
+
+	# allow any combination of multi-line or comma-delimited hide entries
+	my $hide = {};
+	if (defined(my $h = $opts->{hide})) {
+		foreach my $v (@$h) {
+			$hide->{$_} = 1 foreach (split(/\s*,\s*/, $v));
+		}
+		$opts->{-hide} = $hide;
+	}
 	bless $opts, $class;
 }
 

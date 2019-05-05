@@ -70,6 +70,12 @@ sub _html_top ($) {
 		"</head><body>". $top . $tip;
 }
 
+sub code_footer ($) {
+	my ($env) = @_;
+	my $u = PublicInbox::Hval::prurl($env, $CODE_URL);
+	qq(AGPL code for this site: git clone <a\nhref="$u">$u</a> $PROJECT)
+}
+
 sub _html_end {
 	my ($self) = @_;
 	my $urls = 'Archives are clonable:';
@@ -134,12 +140,10 @@ EOF
 		$urls .= "\n note: .onion URLs require Tor: ";
 		$urls .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
 	}
-	my $url = PublicInbox::Hval::prurl($ctx->{env}, $CODE_URL);
 	'<hr><pre>'.join("\n\n",
 		$desc,
 		$urls,
-		'AGPL code for this site: '.
-		qq(git clone <a\nhref="$url">$url</a> $PROJECT)
+		code_footer($ctx->{env})
 	).'</pre></body></html>';
 }
 

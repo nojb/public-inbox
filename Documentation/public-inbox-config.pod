@@ -188,6 +188,14 @@ be treated as the default value.
 
 Default: 25
 
+=item publicinbox.<name>.hide
+
+A comma-delimited list of listings to hide the inbox from.
+
+Valid values are currently "www".
+
+Default: none
+
 =item coderepo.<nick>.dir
 
 The path to a git repository for "publicinbox.<name>.coderepo"
@@ -225,6 +233,35 @@ C<publicinbox.cgitbin>, but may be overridden.
 
 Default: basename of C<publicinbox.cgitbin>, /var/www/htdocs/cgit/
 or /usr/share/cgit/
+
+=item publicinbox.wwwlisting
+
+Enable a HTML listing style when the root path of the URL '/' is accessed.
+Valid values are:
+
+=over 8
+
+=item all
+
+Show all inboxes
+
+=item 404
+
+Return a 404 page.  This is useful to allow customization with
+L<Plack::App::Cascade(3pm)>
+
+=item match=domain
+
+Only show inboxes with URLs which belong to the domain of the HTTP
+request
+
+=for TODO comment
+
+support showing cgit listing
+
+=back
+
+Default: 404
 
 =back
 
