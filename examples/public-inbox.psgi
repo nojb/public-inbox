@@ -25,8 +25,6 @@ builder {
 				application/atom+xml
 				)]
 	};
-	$@ and warn
-"Plack::Middleware::Deflater missing, bandwidth will be wasted\n";
 
 	# Enable to ensure redirects and Atom feed URLs are generated
 	# properly when running behind a reverse proxy server which

@@ -32,8 +32,6 @@ my $refresh = sub {
 						application/atom+xml
 						)]
 			};
-			$@ and warn
-"Plack::Middleware::Deflater missing, bandwidth will be wasted\n";
 
 			eval { enable 'ReverseProxy' };
 			$@ and warn
