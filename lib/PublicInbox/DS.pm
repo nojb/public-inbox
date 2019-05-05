@@ -428,7 +428,15 @@ sub KQueueEventLoop {
 
     while (1) {
         my $timeout = RunTimers();
-        my @ret = $KQueue->kevent($timeout);
+        my @ret = eval { $KQueue->kevent($timeout) };
+        if (my $err = $@) {
+            # workaround https://rt.cpan.org/Ticket/Display.html?id=116615
+            if ($err =~ /Interrupted system call/) {
+                @ret = ();
+            } else {
+                die $err;
+            }
+        }
 
         foreach my $kev (@ret) {
             my ($fd, $filter, $flags, $fflags) = @$kev;
