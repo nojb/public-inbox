@@ -430,13 +430,23 @@ $ibx->with_umask(sub {
 	is($ro->lookup_article($art->{num}), undef, 'gone from OVER DB') if defined($art);
 });
 
+my $all_mask = 07777;
+my $dir_mask = 02770;
+
+# FreeBSD does not allow non-root users to set S_ISGID, so
+# git doesn't set it, either (see DIR_HAS_BSD_GROUP_SEMANTICS in git.git)
+if ($^O =~ /freebsd/i) {
+	$all_mask = 0777;
+	$dir_mask = 0770;
+}
+
 foreach my $f ("$git_dir/public-inbox/msgmap.sqlite3",
 		"$git_dir/public-inbox",
 		glob("$git_dir/public-inbox/xapian*/"),
 		glob("$git_dir/public-inbox/xapian*/*")) {
 	my @st = stat($f);
 	my ($bn) = (split(m!/!, $f))[-1];
-	is($st[2] & 07777, -f _ ? 0660 : 02770,
+	is($st[2] & $all_mask, -f _ ? 0660 : $dir_mask,
 		"sharedRepository respected for $bn");
 }
 
