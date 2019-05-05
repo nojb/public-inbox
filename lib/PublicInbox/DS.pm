@@ -13,8 +13,6 @@ use bytes;
 use POSIX ();
 use Time::HiRes ();
 
-my $opt_bsd_resource = eval "use BSD::Resource; 1;";
-
 use vars qw{$VERSION};
 $VERSION = "1.61";
 
@@ -63,8 +61,6 @@ our (
      %PLCMap,                    # fd (num) -> PostLoopCallback (per-object)
 
      $LoopTimeout,               # timeout of event loop in milliseconds
-     $DoProfile,                 # if on, enable profiling
-     %Profiling,                 # what => [ utime, stime, calls ]
      $DoneInit,                  # if we've done the one-time module init yet
      @Timers,                    # timers
      );
@@ -87,8 +83,6 @@ sub Reset {
     @ToClose = ();
     %OtherFds = ();
     $LoopTimeout = -1;  # no timeout by default
-    $DoProfile = 0;
-    %Profiling = ();
     @Timers = ();
 
     $PostLoopCallback = undef;
@@ -121,40 +115,6 @@ sub WatchedSockets {
     return scalar keys %DescriptorMap;
 }
 *watched_sockets = *WatchedSockets;
-
-=head2 C<< CLASS->EnableProfiling() >>
-
-Turns profiling on, clearing current profiling data.
-
-=cut
-sub EnableProfiling {
-    if ($opt_bsd_resource) {
-        %Profiling = ();
-        $DoProfile = 1;
-        return 1;
-    }
-    return 0;
-}
-
-=head2 C<< CLASS->DisableProfiling() >>
-
-Turns off profiling, but retains data up to this point
-
-=cut
-sub DisableProfiling {
-    $DoProfile = 0;
-}
-
-=head2 C<< CLASS->ProfilingData() >>
-
-Returns reference to a hash of data in format:
-
-  ITEM => [ utime, stime, #calls ]
-
-=cut
-sub ProfilingData {
-    return \%Profiling;
-}
 
 =head2 C<< CLASS->ToClose() >>
 
@@ -306,28 +266,6 @@ sub FirstTimeEventLoop {
     }
 }
 
-## profiling-related data/functions
-our ($Prof_utime0, $Prof_stime0);
-sub _pre_profile {
-    ($Prof_utime0, $Prof_stime0) = getrusage();
-}
-
-sub _post_profile {
-    # get post information
-    my ($autime, $astime) = getrusage();
-
-    # calculate differences
-    my $utime = $autime - $Prof_utime0;
-    my $stime = $astime - $Prof_stime0;
-
-    foreach my $k (@_) {
-        $Profiling{$k} ||= [ 0.0, 0.0, 0 ];
-        $Profiling{$k}->[0] += $utime;
-        $Profiling{$k}->[1] += $stime;
-        $Profiling{$k}->[2]++;
-    }
-}
-
 # runs timers and returns milliseconds for next one, or next event loop
 sub RunTimers {
     return $LoopTimeout unless @Timers;
@@ -403,38 +341,6 @@ sub EpollEventLoop {
 
             DebugLevel >= 1 && $class->DebugMsg("Event: fd=%d (%s), state=%d \@ %s\n",
                                                 $ev->[0], ref($pob), $ev->[1], time);
-
-            if ($DoProfile) {
-                my $class = ref $pob;
-
-                # call profiling action on things that need to be done
-                if ($state & EPOLLIN && ! $pob->{closed}) {
-                    _pre_profile();
-                    $pob->event_read;
-                    _post_profile("$class-read");
-                }
-
-                if ($state & EPOLLOUT && ! $pob->{closed}) {
-                    _pre_profile();
-                    $pob->event_write;
-                    _post_profile("$class-write");
-                }
-
-                if ($state & (EPOLLERR|EPOLLHUP)) {
-                    if ($state & EPOLLERR && ! $pob->{closed}) {
-                        _pre_profile();
-                        $pob->event_err;
-                        _post_profile("$class-err");
-                    }
-                    if ($state & EPOLLHUP && ! $pob->{closed}) {
-                        _pre_profile();
-                        $pob->event_hup;
-                        _post_profile("$class-hup");
-                    }
-                }
-
-                next;
-            }
 
             # standard non-profiling codepat
             $pob->event_read   if $state & EPOLLIN && ! $pob->{closed};
