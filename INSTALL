@@ -9,8 +9,8 @@ public-inbox is developed on Debian GNU/Linux systems and will
 never depend on packages outside of the "main" component of
 the "stable" distribution, currently Debian 9.x ("stretch")
 
-Most packages are available in other GNU/Linux distributions;
-and FreeBSD support can happen.
+Most packages are available in other GNU/Linux distributions
+and FreeBSD.
 
 TODO: this still needs to be documented better,
 also see the scripts/ and sa_config/ directories in the source tree
@@ -23,7 +23,7 @@ functionality.  The core tools are, of course:
 
 * Git (1.8.0+, 2.6+ for writing v2 repositories)
 * Perl 5.10.1+
-* SQLite (needed for Xapian use)
+* DBD::SQLite (needed for NNTP, message threading, and v2 repositories)
 
 To accept incoming mail into a public inbox, you'll likely want:
 
@@ -32,88 +32,131 @@ To accept incoming mail into a public inbox, you'll likely want:
 
 Beyond that, there is a long list of Perl modules required, starting with:
 
-* Date::Parse                   deb: libtimedate-perl
-                                rpm: perl-Time-ParseDate
+* Date::Parse                      deb: libtimedate-perl
+                                   pkg: p5-TimeDate
+                                   rpm: perl-TimeDate
 
-* Email::MIME                   deb: libemail-mime-perl
-                                rpm: perl-Email-MIME
+* Devel::Peek                      deb: libperl5.$MINOR (e.g. libperl5.24)
+                                   pkg: perl5
+                                   rpm: perl-Devel-Peek
+                                   (typically installed alongside Perl5)
 
-* Email::MIME::ContentType      deb: libemail-mime-contenttype-perl
-                                rpm: perl-Email-MIME-ContentType
+* Email::MIME                      deb: libemail-mime-perl
+                                   pkg: p5-Email-MIME
+                                   rpm: perl-Email-MIME
 
-* Encode::MIME::Header          deb: libencode-perl
-                                rpm: perl-Encode
+* Encode::MIME::Header             deb: libencode-perl
+                                   pkg: perl5
+                                   rpm: perl-Encode
 
-* Plack                         deb: libplack-perl
-                                rpm: perl-Plack, perl-Plack-Test,
-                                (for HTML/Atom generation)
+* Plack                            deb: libplack-perl
+                                   pkg: p5-Plack
+                                   rpm: perl-Plack, perl-Plack-Test,
+                                   (for HTML/Atom generation)
 
-* URI::Escape                   deb: liburi-perl
-                                rpm: perl-URI
-                                (for HTML/Atom generation)
+* URI::Escape                      deb: liburi-perl
+                                   pkg: p5-URI
+                                   rpm: perl-URI
+                                   (for HTML/Atom generation)
 
-Where "deb" indicates package names for Debian-derived distributions and
+Where "deb" indicates package names for Debian-derived distributions,
+"pkg" is for the FreeBSD package (maybe other common BSDs, too), and
 "rpm" is for RPM-based distributions (only known to work on Fedora).
 
 Numerous optional modules are likely to be useful as well:
 
-  - Search::Xapian             deb: libsearch-xapian-perl
-                               rpm: perl-Search-Xapian
-                               (for NNTP service or gzipped mbox over HTTP)
+- DBD::SQLite                      deb: libdbd-sqlite3-perl
+                                   pkg: p5-DBD-SQLite
+                                   rpm: perl-DBD-SQLite
+                                   (for v2, NNTP, or gzipped mboxes)
 
-  - IO::Compress::Gzip         deb: perl-modules (or libio-compress-perl)
-                               rpm: perl-PerlIO-gzip
-                               (for gzipped mbox over HTTP)
+- Search::Xapian                   deb: libsearch-xapian-perl
+                                   pkg: p5-Search-Xapian
+                                   rpm: perl-Search-Xapian
+                                   (for v2, HTTP search)
 
-  - DBI                        deb: libdbi-perl
-                               rpm: perl-DBI
-                               (for gzipped mbox over HTTP)
+- Net::Server                      deb: libnet-server-perl
+                                   pkg: pkg-Net-Server
+                                   rpm: perl-Net-Server
+                                   (for HTTP/NNTP background daemons,
+                                    not needed as systemd services or
+                                    foreground servers)
 
-  - DBD::SQLite                deb: libdbd-sqlite3-perl
-                               rpm: perl-DBD-SQLite
-                               (for NNTP service or gzipped mbox over HTTP)
+- Inline::C[7]                     deb: libinline-c-perl
+                                   pkg: pkg-Inline-C
+                                   (speeds up process spawning on Linux,
+                                    see public-inbox-daemon(8))
 
-  - Net::Server                deb: libnet-server-perl
-                               rpm: perl-Net-Server
-                               (for HTTP/NNTP servers as standalone daemons,
-                                not needed as systemd services)
+- Plack::Middleware::ReverseProxy  deb: libplack-middleware-reverseproxy-perl
+                                   pkg: p5-Plack-Middleware-ReverseProxy
+                                   rpm: perl-Plack-Middleware-ReverseProxy
+                                   (ensures redirects are correct when running
+                                    behind nginx or Varnish)
 
-  - Filesys::Notify::Simple    deb: libfilesys-notify-simple-perl
-                               rpm: perl-Filesys-Notify-Simple
-                               (for public-inbox-watch)
+- Plack::Middleware::Deflater      deb: libplack-middleware-deflater-perl
+                                   pkg: p5 -Plack-Middleware-Deflater
+                                   rpm: perl-Plack-Middleware-Deflater
+                                   (saves bandwidth on responses)
 
-  - Inline::C[7]               deb: libinline-c-perl
-                               (speeds up spawning of git(1) on Linux
-                                (see public-inbox-daemon(8))
+* highlight                        deb: libhighlight-perl
+                                   (for syntax highlighting with coderepo)
 
-  - Plack::Middleware::ReverseProxy
+The following modules are typically pulled in by dependencies listed
+above, so there is no need to explicitly install them:
 
-                               deb: libplack-middleware-reverseproxy-perl
-                               rpm: perl-Plack-Middleware-ReverseProxy
-                               (ensures redirects are correct when running
-                                behind nginx or Varnish)
+- Email::MIME::ContentType         deb: libemail-mime-contenttype-perl
+                                   pkg: p5-Email-MIME-ContentType
+                                   rpm: perl-Email-MIME-ContentType
+                                   (pulled in by Email::MIME)
 
-  - Plack::Middleware::Deflater
+- Email::Simple                    deb: libemail-simple-perl
+                                   pkg: p5-Email-Simple
+                                   rpm: perl-Email-Simple
+                                   (pulled in by Email::MIME)
 
-                               deb: libplack-middleware-deflater-perl
-                               rpm: perl-Plack-Middleware-Deflater
-                               (saves bandwidth on responses)
+- DBI                              deb: libdbi-perl
+                                   pkg: p5-DBI
+                                   rpm: perl-DBI
+                                   (pulled in by DBD::SQLite)
 
-  - Socket6                    deb: libsocket6-perl
-                               rpm: perl-Socket6
-                               (pulled in by SpamAssassin and Net::Server,
-                                only necessary if using IPv6 with
-                                Plack::Middleware::AccessLog or similar
-                                on Perl <= 5.12)
+- Filesys::Notify::Simple          deb: libfilesys-notify-simple-perl
+                                   pkg: pkg-Filesys-Notify-Simple
+                                   rpm: perl-Filesys-Notify-Simple
+                                   (for public-inbox-watch, pulled in by Plack)
 
-  - Crypt::CBC                 deb: libcrypt-cbc-perl
-                               (for the rarely-used PublicInbox::Unsubscribe)
+- IO::Compress::Gzip               deb: perl-modules (or libio-compress-perl)
+                                   rpm: perl-PerlIO-gzip
+                                   pkg: perl5
+                                   (for gzipped mbox over HTTP)
 
-On Fedora systems, you'll probably also end up wanting
-perl-Test-HTTP-Server-Simple, perl-Devel-Peek, and perl-IPC-Run to run the
-test suite.  On Debian systems, libxml-feed-perl and libipc-run-perl
-will aid in running the test suite (XML::Feed and IPC::Run respectively,
-on CPAN).
+Uncommonly needed modules:
+
+- Socket6                          deb: libsocket6-perl
+                                   pkg: p5-Socket6
+                                   rpm: perl-Socket6
+                                   (pulled in by SpamAssassin and Net::Server,
+                                    only necessary if using IPv6 with
+                                    Plack::Middleware::AccessLog or similar
+                                    on Perl <= 5.12)
+
+- Crypt::CBC                       deb: libcrypt-cbc-perl
+                                   pkg: p5-Crypt-CBC
+                                   (for PublicInbox::Unsubscribe (rarely used))
+
+Optional packages testing and development:
+
+- IPC::Run                         deb: libipc-run-perl
+                                   pkg: p5-IPC-Run
+                                   rpm: perl-IPC-Run
+
+- XML::Feed                        deb: libxml-feed-perl
+                                   pkg: p5-XML-Feed
+                                   rpm: perl-XML-Feed
+
+- Test::HTTP::Server::Simple       deb: libtest-http-server-simple-perl
+                                   pkg: p5-Test-HTTP-Server-Simple
+                                   rpm: perl-Test-HTTP-Server-Simple
+                                   (XXX is this really needed?)
 
 standard MakeMaker installation (Perl)
 --------------------------------------
@@ -137,8 +180,8 @@ public-inbox will never store unregeneratable data in Xapian
 or any other search database we might use; Xapian corruption
 will not destroy critical data.
 
-See the public-inbox-overview(7) man page for the next steps once the
-installation is complete.
+See the public-inbox-overview(7) man page for the next steps once
+the installation is complete.
 
 Copyright
 ---------

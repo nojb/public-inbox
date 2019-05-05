@@ -29,9 +29,17 @@ WriteMakefile(
 		# Keep this sorted and synced to the INSTALL document
 		'Date::Parse' => 0,
 		'Email::MIME' => 0,
+
+		# the following should be pulled in by Email::MIME:
 		'Email::MIME::ContentType' => 0,
 		'Email::Simple' => 0,
+
+		# "libencode-perl" on Debian, `perl5' on FreeBSD
 		'Encode::MIME::Header' => 0,
+
+		# libperl$PERL_VERSION on Debian, `perl5' on FreeBSD,
+		# but Fedora seems to need this separately
+		'Devel::Peek' => 0,
 
 		# TODO: these should really be made optional...
 		'Plack' => 0,
