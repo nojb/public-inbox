@@ -26,22 +26,35 @@ my $vfork_spawn = <<'VFORK_SPAWN';
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
-#include <alloca.h>
+#include <stdlib.h>
+
+/* some platforms need alloca.h, but some don't */
+#if defined(__GNUC__) && !defined(alloca)
+#  define alloca(sz) __builtin_alloca(sz)
+#endif
+
 #include <signal.h>
 #include <assert.h>
 
-#define AV_ALLOCA(av, max) alloca((max = (av_len((av)) + 1)) * sizeof(char *))
-
-static void av2c_copy(char **dst, AV *src, I32 max)
-{
-	I32 i;
-
-	for (i = 0; i < max; i++) {
-		SV **sv = av_fetch(src, i, 0);
-		dst[i] = sv ? SvPV_nolen(*sv) : 0;
-	}
-	dst[max] = 0;
-}
+/*
+ * From the av_len apidoc:
+ *   Note that, unlike what the name implies, it returns
+ *   the highest index in the array, so to get the size of
+ *   the array you need to use "av_len(av) + 1".
+ *   This is unlike "sv_len", which returns what you would expect.
+ */
+#define AV2C_COPY(dst, src) do { \
+	I32 i; \
+	I32 top_index = av_len(src); \
+	I32 real_len = top_index + 1; \
+	I32 capa = real_len + 1; \
+	dst = alloca(capa * sizeof(char *)); \
+	for (i = 0; i < real_len; i++) { \
+		SV **sv = av_fetch(src, i, 0); \
+		dst[i] = SvPV_nolen(*sv); \
+	} \
+	dst[real_len] = 0; \
+} while (0)
 
 static void *deconst(const char *s)
 {
@@ -86,15 +99,11 @@ int pi_fork_exec(int in, int out, int err,
 	const char *filename = SvPV_nolen(file);
 	pid_t pid;
 	char **argv, **envp;
-	I32 max;
 	sigset_t set, old;
 	int ret, errnum;
 
-	argv = AV_ALLOCA(cmd, max);
-	av2c_copy(argv, cmd, max);
-
-	envp = AV_ALLOCA(env, max);
-	av2c_copy(envp, env, max);
+	AV2C_COPY(argv, cmd);
+	AV2C_COPY(envp, env);
 
 	ret = sigfillset(&set);
 	assert(ret == 0 && "BUG calling sigfillset");
