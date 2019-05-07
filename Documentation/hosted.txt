@@ -1,3 +1,5 @@
+unofficially hosted mirrors at public-inbox.org
+
 In addition to eating our own dogfood at <https://public-inbox.org/meta/>,
 public-inbox.org hosts unofficial archives for several other projects
 as a service to their users and to further test our own software.

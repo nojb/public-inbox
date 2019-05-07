@@ -11,8 +11,7 @@ use PublicInbox::Linkify;
 use PublicInbox::Hval qw(ascii_html);
 
 my $str = eval { local $/; <> };
-my $title = $ENV{TITLE};
-($title) = ($str =~ /\A([^\n]+)/) unless $title;
+my ($title) = ($str =~ /\A([^\n]+)/);
 $title = ascii_html($title);
 my $l = PublicInbox::Linkify->new;
 $str = $l->linkify_1($str);

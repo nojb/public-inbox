@@ -1,3 +1,5 @@
+PublicInbox::WWW (PSGI interface) design notes
+
 URL and anchor naming
 ---------------------
 

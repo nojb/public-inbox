@@ -87,8 +87,9 @@ dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
 Documentation/standards.txt : Documentation/standards.perl
 	$(PERL) $< >$@+ && mv $@+ $@
 
-%.html: %.txt
-	TITLE="$(basename $(<F))" $(txt2pre)
+Documentation/%.html: Documentation/%.txt
+	$(txt2pre)
+
 %.html: %
 	$(txt2pre)
 
