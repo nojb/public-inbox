@@ -59,7 +59,7 @@ sub MY::postamble {
 EATMYDATA =
 -include config.mak
 -include Documentation/include.mk
-N ?= \$(shell echo \$\$(( \$\$(nproc 2>/dev/null || echo 2) + 1)))
+N = \$\$(( \$\$(nproc 2>/dev/null || gnproc 2>/dev/null || echo 2) + 1 ))
 SCRIPTS := scripts/ssoma-replay
 my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES) \$(SCRIPTS))
 
@@ -70,13 +70,13 @@ my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES) \$(SCRIPTS))
 syntax:: \$(my_syntax)
 
 check-manifest :: MANIFEST
-	if git ls-files >\$<.gen 2>&1; then diff -u \$< \$<.gen; fi
+	if git ls-files >\$?.gen 2>&1; then diff -u \$? \$?.gen; fi
 
 check:: pure_all check-manifest
 	\$(EATMYDATA) prove -lv -j\$(N)
 
 lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
-	@\$(PERL) -I lib \$@ \$<
+	\$(PERL) -I lib \$@ \$?
 
 EOF
 }
