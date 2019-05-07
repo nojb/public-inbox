@@ -10,7 +10,6 @@ package PublicInbox::WwwStream;
 use strict;
 use warnings;
 use PublicInbox::Hval qw(ascii_html);
-use URI;
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/';
 our $PROJECT = 'public-inbox';
