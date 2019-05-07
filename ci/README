@@ -1,0 +1,33 @@
+various scripts for automated testing in chroots/VMs/jails
+
+TL;DR: ./ci/run.sh
+
+By default, `sudo' is used to install/uninstall packages.  It may be
+overridden with the `SUDO' environment variable.  These scripts should
+run in the top-level source tree, that is, as `./ci/run.sh'.
+
+* ci/run.sh - runs tests against all profiles for the current OS
+
+	Environment options may override behavior:
+
+	* DO - may be set to ":" to print commands instead of running
+	       default: "" (empty)
+
+	Common commands can be overridden by the environment, too:
+
+	* MAKE - default: "make"
+	* PERL - default: "perl"
+	* SUDO - default: "sudo"
+
+* ci/deps.perl - script to mass-install/remove packages (requires root/sudo)
+
+	Called automatically by ci/run.sh
+
+	There is no need to run this manually unless you are debugging
+	or doing development.  However, it can be convenient to for
+	users to mass-install several packages.
+
+* ci/profiles.sh - prints to-be tested package profile for the current OS
+
+	Called automatically by ci/run.sh
+	The output is read by ci/run.sh

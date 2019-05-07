@@ -27,6 +27,10 @@ MANIFEST
 Makefile.PL
 README
 TODO
+ci/README
+ci/deps.perl
+ci/profiles.sh
+ci/run.sh
 contrib/css/216dark.css
 contrib/css/216light.css
 contrib/css/README
