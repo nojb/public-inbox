@@ -2,10 +2,18 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 all::
 
+# Note: some GNU-isms present and required to build docs
+# (including manpages), but at least this should not trigger
+# warnings with BSD make(1) when running "make check"
+# Maybe it's not worth it to support non-GNU make, though...
 RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
-docs := README COPYING INSTALL TODO HACKING
-docs += $(shell git ls-files 'Documentation/*.txt')
+txt := INSTALL README COPYING TODO HACKING
+dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt hosted.txt
+dtxt += standards.txt
+dtxt := $(addprefix Documentation/, $(dtxt))
+docs := $(txt) $(dtxt)
+
 INSTALL = install
 PODMAN = pod2man
 PODMAN_OPTS = -v --stderr -d 1993-10-02 -c 'public-inbox user manual'
@@ -71,6 +79,7 @@ manuals += $(m8)
 
 mantxt = $(addprefix Documentation/, $(addsuffix .txt, $(manuals)))
 docs += $(mantxt)
+dtxt += $(mantxt)
 
 all :: $(mantxt)
 
@@ -79,10 +88,6 @@ Documentation/%.txt : Documentation/%.pod
 
 txt2pre = $(PERL) -I lib ./Documentation/txt2pre <$< >$@+ && \
 	touch -r $< $@+ && mv $@+ $@
-txt := INSTALL README COPYING TODO
-dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt hosted.txt
-dtxt += standards.txt
-dtxt := $(addprefix Documentation/, $(dtxt)) $(mantxt)
 
 Documentation/standards.txt : Documentation/standards.perl
 	$(PERL) $< >$@+ && mv $@+ $@
@@ -96,7 +101,10 @@ Documentation/%.html: Documentation/%.txt
 docs_html := $(addsuffix .html, $(subst .txt,,$(dtxt)) $(txt))
 html: $(docs_html)
 gz_docs := $(addsuffix .gz, $(docs) $(docs_html))
-rsync_docs := $(gz_docs) $(docs) $(txt) $(docs_html) $(dtxt)
+rsync_docs := $(gz_docs) $(docs) $(docs_html)
+
+doc: $(docs)
+
 %.gz: %
 	gzip -9 --rsyncable <$< >$@+
 	touch -r $< $@+
@@ -111,3 +119,7 @@ clean-doc:
 	$(RM) $(man1) $(man5) $(man7) $(gz_docs) $(docs_html) $(mantxt)
 
 clean :: clean-doc
+
+pure_all ::
+	@if test x"$(addprefix g, make)" != xgmake; then \
+	echo W: gmake is currently required to build manpages; fi
