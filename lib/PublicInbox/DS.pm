@@ -1033,13 +1033,6 @@ sub as_string {
     return $ret;
 }
 
-sub _undef {
-    return undef unless $ENV{DS_DEBUG};
-    my $msg = shift || "";
-    warn "PublicInbox::DS: $msg\n";
-    return undef;
-}
-
 package PublicInbox::DS::Timer;
 # [$abs_float_firetime, $coderef];
 sub cancel {
