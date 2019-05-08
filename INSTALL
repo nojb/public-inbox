@@ -45,10 +45,6 @@ Beyond that, there is a long list of Perl modules required, starting with:
                                    pkg: p5-Email-MIME
                                    rpm: perl-Email-MIME
 
-* Encode::MIME::Header             deb: libencode-perl
-                                   pkg: perl5
-                                   rpm: perl-Encode
-
 * Plack                            deb: libplack-perl
                                    pkg: p5-Plack
                                    rpm: perl-Plack, perl-Plack-Test,
@@ -113,6 +109,11 @@ above, so there is no need to explicitly install them:
                                    pkg: p5-Email-Simple
                                    rpm: perl-Email-Simple
                                    (pulled in by Email::MIME)
+
+* Encode                           deb: libperl5.$MINOR (or libencode-perl)
+                                   pkg: perl5
+                                   rpm: perl-Encode
+                                   (likely installed with Perl)
 
 - DBI                              deb: libdbi-perl
                                    pkg: p5-DBI

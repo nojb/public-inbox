@@ -34,8 +34,9 @@ WriteMakefile(
 		'Email::MIME::ContentType' => 0,
 		'Email::Simple' => 0,
 
-		# "libencode-perl" on Debian, `perl5' on FreeBSD
-		'Encode::MIME::Header' => 0,
+		# libperl$PERL_VERSION or libencode-perl on Debian,
+		# `perl5' on FreeBSD
+		'Encode' => 0,
 
 		# libperl$PERL_VERSION on Debian, `perl5' on FreeBSD,
 		# but Fedora seems to need this separately
