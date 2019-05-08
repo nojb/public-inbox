@@ -9,7 +9,7 @@ require_git(2.6);
 my @mods = qw(IPC::Run DBI DBD::SQLite Search::Xapian);
 foreach my $mod (@mods) {
 	eval "require $mod";
-	plan skip_all => "missing $_ for t/purge.t" if $@;
+	plan skip_all => "missing $mod for t/purge.t" if $@;
 };
 use Cwd qw(abs_path);
 my $purge = abs_path('blib/script/public-inbox-purge');
