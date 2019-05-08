@@ -67,7 +67,7 @@ sub err ($@) {
 
 sub drop_client ($) {
 	if (my $io = $_[0]->{'psgix.io'}) {
-		$io->close; # this is Danga::Socket::close
+		$io->close; # this is PublicInbox::DS::close
 	}
 }
 

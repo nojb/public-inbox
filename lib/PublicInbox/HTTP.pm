@@ -10,7 +10,7 @@
 package PublicInbox::HTTP;
 use strict;
 use warnings;
-use base qw(Danga::Socket);
+use base qw(PublicInbox::DS);
 use fields qw(httpd env rbuf input_left remote_addr remote_port forward pull);
 use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
@@ -63,7 +63,7 @@ sub new ($$$) {
 	$self;
 }
 
-sub event_read { # called by Danga::Socket
+sub event_read { # called by PublicInbox::DS
 	my ($self) = @_;
 
 	return event_read_input($self) if defined $self->{env};
@@ -148,7 +148,7 @@ sub app_dispatch {
 		sysseek($input, 0, SEEK_SET) or
 			die "BUG: psgi.input seek failed: $!";
 	}
-	# note: NOT $self->{sock}, we want our close (+ Danga::Socket::close),
+	# note: NOT $self->{sock}, we want our close (+ PublicInbox::DS::close),
 	# to do proper cleanup:
 	$env->{'psgix.io'} = $self; # only for ->close
 	my $res = Plack::Util::run_app($self->{httpd}->{app}, $env);
@@ -256,7 +256,7 @@ sub getline_cb ($$$) {
 	if ($forward) {
 		my $buf = eval { $forward->getline };
 		if (defined $buf) {
-			$write->($buf); # may close in Danga::Socket::write
+			$write->($buf); # may close in PublicInbox::DS::write
 			unless ($self->{closed}) {
 				my $next = $self->{pull};
 				if ($self->{write_buf_size}) {
@@ -320,7 +320,7 @@ sub more ($$) {
 			my $nlen = length($_[1]) - $n;
 			return 1 if $nlen == 0; # all done!
 
-			# Danga::Socket::write queues the unwritten substring:
+			# PublicInbox::DS::write queues the unwritten substring:
 			return $self->write(substr($_[1], $n, $nlen));
 		}
 	}
@@ -465,7 +465,7 @@ sub quit {
 	$self->close;
 }
 
-# callbacks for Danga::Socket
+# callbacks for PublicInbox::DS
 
 sub event_hup { $_[0]->close }
 sub event_err { $_[0]->close }

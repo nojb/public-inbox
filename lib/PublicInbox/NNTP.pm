@@ -5,7 +5,7 @@
 package PublicInbox::NNTP;
 use strict;
 use warnings;
-use base qw(Danga::Socket);
+use base qw(PublicInbox::DS);
 use fields qw(nntpd article rbuf ng long_res);
 use PublicInbox::Search;
 use PublicInbox::Msgmap;
@@ -936,7 +936,7 @@ sub do_more ($$) {
 	do_write($self, $data);
 }
 
-# callbacks for Danga::Socket
+# callbacks for PublicInbox::DS
 
 sub event_hup { $_[0]->close }
 sub event_err { $_[0]->close }
@@ -989,7 +989,7 @@ sub check_read {
 	} else {
 		# no pipelined requests available, let the kernel know
 		# to wake us up if there's more
-		$self->watch_read(1); # Danga::Socket::watch_read
+		$self->watch_read(1); # PublicInbox::DS::watch_read
 	}
 }
 

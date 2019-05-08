@@ -8,6 +8,15 @@ chomp(my @manifest = (<$m>));
 my @EXE_FILES = grep(m!^script/!, @manifest);
 my $PM_FILES = join(' ', grep(m!^lib/.*\.pm$!, @manifest));
 
+# Don't waste user's disk space by installing some pods from
+# imported code or internal use only
+my %man3 = map {; # semi-colon tells Perl this is a BLOCK (and not EXPR)
+	my $base = $_;
+	my $mod = $base;
+	$mod =~ s/\.\w+\z//;
+	"lib/PublicInbox/$_" => "blib/man3/PublicInbox::$mod.3"
+} qw(Git.pm Import.pm WWW.pod);
+
 WriteMakefile(
 	NAME => 'PublicInbox',
 	VERSION => '1.1.0-pre1',
@@ -31,6 +40,7 @@ WriteMakefile(
 		# We have more test dependencies, but do not force
 		# users to install them.  See INSTALL
 	},
+	MAN3PODS => \%man3,
 );
 
 sub MY::postamble {
