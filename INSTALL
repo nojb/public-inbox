@@ -97,6 +97,11 @@ Numerous optional modules are likely to be useful as well:
 * highlight                        deb: libhighlight-perl
                                    (for syntax highlighting with coderepo)
 
+* xapian-compact (tool)            deb: xapian-tools
+                                   pkg: xapian-core
+                                   rpm: xapian-core
+                                   (optional, for public-inbox-compact(1))
+
 The following modules are typically pulled in by dependencies listed
 above, so there is no need to explicitly install them:
 
