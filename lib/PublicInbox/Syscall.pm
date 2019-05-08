@@ -64,7 +64,6 @@ our (
      $SYS_epoll_ctl,
      $SYS_epoll_wait,
      $SYS_sendfile,
-     $SYS_readahead,
      );
 
 our $no_deprecated = 0;
@@ -90,47 +89,40 @@ if ($^O eq "linux") {
         $SYS_epoll_ctl    = 255;
         $SYS_epoll_wait   = 256;
         $SYS_sendfile     = 187;  # or 64: 239
-        $SYS_readahead    = 225;
     } elsif ($machine eq "x86_64") {
         $SYS_epoll_create = 213;
         $SYS_epoll_ctl    = 233;
         $SYS_epoll_wait   = 232;
         $SYS_sendfile     =  40;
-        $SYS_readahead    = 187;
     } elsif ($machine =~ m/^parisc/) {
         $SYS_epoll_create = 224;
         $SYS_epoll_ctl    = 225;
         $SYS_epoll_wait   = 226;
         $SYS_sendfile     = 122;  # sys_sendfile64=209
-        $SYS_readahead    = 207;
         $u64_mod_8        = 1;
     } elsif ($machine =~ m/^ppc64/) {
         $SYS_epoll_create = 236;
         $SYS_epoll_ctl    = 237;
         $SYS_epoll_wait   = 238;
         $SYS_sendfile     = 186;  # (sys32_sendfile).  sys32_sendfile64=226  (64 bit processes: sys_sendfile64=186)
-        $SYS_readahead    = 191;  # both 32-bit and 64-bit vesions
         $u64_mod_8        = 1;
     } elsif ($machine eq "ppc") {
         $SYS_epoll_create = 236;
         $SYS_epoll_ctl    = 237;
         $SYS_epoll_wait   = 238;
         $SYS_sendfile     = 186;  # sys_sendfile64=226
-        $SYS_readahead    = 191;
         $u64_mod_8        = 1;
     } elsif ($machine =~ m/^s390/) {
         $SYS_epoll_create = 249;
         $SYS_epoll_ctl    = 250;
         $SYS_epoll_wait   = 251;
         $SYS_sendfile     = 187;  # sys_sendfile64=223
-        $SYS_readahead    = 222;
         $u64_mod_8        = 1;
     } elsif ($machine eq "ia64") {
         $SYS_epoll_create = 1243;
         $SYS_epoll_ctl    = 1244;
         $SYS_epoll_wait   = 1245;
         $SYS_sendfile     = 1187;
-        $SYS_readahead    = 1216;
         $u64_mod_8        = 1;
     } elsif ($machine eq "alpha") {
         # natural alignment, ints are 32-bits
@@ -138,14 +130,12 @@ if ($^O eq "linux") {
         $SYS_epoll_create = 407;
         $SYS_epoll_ctl    = 408;
         $SYS_epoll_wait   = 409;
-        $SYS_readahead    = 379;
         $u64_mod_8        = 1;
     } elsif ($machine eq "aarch64") {
         $SYS_epoll_create = 20;  # (sys_epoll_create1)
         $SYS_epoll_ctl    = 21;
         $SYS_epoll_wait   = 22;  # (sys_epoll_pwait)
         $SYS_sendfile     = 71;  # (sys_sendfile64)
-        $SYS_readahead    = 213;
         $u64_mod_8        = 1;
         $no_deprecated    = 1;
     } elsif ($machine =~ m/arm(v\d+)?.*l/) {
@@ -154,21 +144,18 @@ if ($^O eq "linux") {
         $SYS_epoll_ctl    = 251;
         $SYS_epoll_wait   = 252;
         $SYS_sendfile     = 187;
-        $SYS_readahead    = 225;
         $u64_mod_8        = 1;
     } elsif ($machine =~ m/^mips64/) {
         $SYS_sendfile     = 5039;
         $SYS_epoll_create = 5207;
         $SYS_epoll_ctl    = 5208;
         $SYS_epoll_wait   = 5209;
-        $SYS_readahead    = 5179;
         $u64_mod_8        = 1;
     } elsif ($machine =~ m/^mips/) {
         $SYS_sendfile     = 4207;
         $SYS_epoll_create = 4248;
         $SYS_epoll_ctl    = 4249;
         $SYS_epoll_wait   = 4250;
-        $SYS_readahead    = 4223;
         $u64_mod_8        = 1;
     } else {
         # as a last resort, try using the *.ph files which may not
@@ -177,7 +164,6 @@ if ($^O eq "linux") {
         $SYS_epoll_create = eval { &SYS_epoll_create; } || 0;
         $SYS_epoll_ctl    = eval { &SYS_epoll_ctl;    } || 0;
         $SYS_epoll_wait   = eval { &SYS_epoll_wait;   } || 0;
-        $SYS_readahead    = eval { &SYS_readahead;    } || 0;
     }
 
     if ($u64_mod_8) {
