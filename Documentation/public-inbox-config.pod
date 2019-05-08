@@ -241,19 +241,15 @@ Valid values are:
 
 =over 8
 
-=item all
+=item * all
+- Show all inboxes
 
-Show all inboxes
-
-=item 404
-
-Return a 404 page.  This is useful to allow customization with
+=item * 404
+- Return a 404 page.  This is useful to allow customization with
 L<Plack::App::Cascade(3pm)>
 
-=item match=domain
-
-Only show inboxes with URLs which belong to the domain of the HTTP
-request
+=item * match=domain
+- Only show inboxes with URLs which belong to the domain of the HTTP request
 
 =for TODO comment
 
