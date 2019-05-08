@@ -122,7 +122,7 @@ sub args_ok ($$) {
 sub process_line ($$) {
 	my ($self, $l) = @_;
 	my ($req, @args) = split(/\s+/, $l);
-	return unless defined($req);
+	return 1 unless defined($req); # skip blank line
 	$req = lc($req);
 	$req = eval {
 		no strict 'refs';
