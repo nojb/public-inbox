@@ -333,8 +333,8 @@ sub EpollEventLoop {
                 } else {
                     my $fd = $ev->[0];
                     warn "epoll() returned fd $fd w/ state $state for which we have no mapping.  removing.\n";
-                    POSIX::close($fd);
                     epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, 0);
+                    POSIX::close($fd);
                 }
                 next;
             }
