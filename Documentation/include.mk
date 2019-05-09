@@ -10,6 +10,7 @@ RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
 txt := INSTALL README COPYING TODO HACKING
 dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt hosted.txt
+dtxt += marketing.txt
 dtxt += standards.txt
 dtxt := $(addprefix Documentation/, $(dtxt))
 docs := $(txt) $(dtxt)

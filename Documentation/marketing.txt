@@ -1,0 +1,27 @@
+marketing guide for public-inbox
+
+TL; DR: Don't market this.
+
+If you must: don't be pushy and annoying about it.  Slow down.
+Please no superlatives, hype or BS.
+
+It's online and public, so it already markets itself.
+Being informative is not a bad thing, being insistent is.
+
+Chances are, you're preaching to the choir; or the folks you're
+trying to convince are not ready for everything our project
+represents to the resistance against centralization.
+
+Baby steps...
+
+There's never a need for anybody to migrate to using our
+software, or to use any particular instance of it.  It's
+designed to coexist with other mail archives, especially
+other installations of public-inbox.
+
+Most importantly, we take victories even when our software
+doesn't get adopted.  Freedom from lock-in is more important
+than the adoption of any software.
+
+Every time somebody recognizes and rejects various forms of
+lock-in and centralization is already a victory for us.
