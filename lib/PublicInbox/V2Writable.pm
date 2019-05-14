@@ -24,7 +24,14 @@ use IO::Handle;
 my $PACKING_FACTOR = 0.4;
 
 # assume 2 cores if GNU nproc(1) is not available
-sub nproc_parts () {
+sub nproc_parts ($) {
+	my ($creat_opt) = @_;
+	if (ref($creat_opt) eq 'HASH') {
+		if (defined(my $n = $creat_opt->{nproc})) {
+			return $n
+		}
+	}
+
 	my $n = int($ENV{NPROC} || `nproc 2>/dev/null` || 2);
 	# subtract for the main process and git-fast-import
 	$n -= 1;
@@ -52,6 +59,8 @@ sub count_partitions ($) {
 }
 
 sub new {
+	# $creat may be any true value, or 0/undef.  A hashref is true,
+	# and $creat->{nproc} may be set to an integer
 	my ($class, $v2ibx, $creat) = @_;
 	my $dir = $v2ibx->{mainrepo} or die "no mainrepo in inbox\n";
 	unless (-d $dir) {
@@ -80,7 +89,7 @@ sub new {
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git repo -> commit
 	};
-	$self->{partitions} = count_partitions($self) || nproc_parts();
+	$self->{partitions} = count_partitions($self) || nproc_parts($creat);
 	bless $self, $class;
 }
 

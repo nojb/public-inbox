@@ -33,10 +33,7 @@ my $mime = PublicInbox::MIME->create(
 	body => "hello world\n",
 );
 
-my $im = eval {
-	local $ENV{NPROC} = '1';
-	PublicInbox::V2Writable->new($ibx, 1);
-};
+my $im = PublicInbox::V2Writable->new($ibx, {nproc => 1});
 is($im->{partitions}, 1, 'one partition when forced');
 ok($im->add($mime), 'ordinary message added');
 foreach my $f ("$mainrepo/msgmap.sqlite3",
@@ -201,11 +198,10 @@ EOF
 	is_deeply([sort keys %lg], [sort keys %$rover], 'XROVER range OK');
 };
 {
-	local $ENV{NPROC} = 2;
 	my @log = qw(log --no-decorate --no-abbrev --no-notes --no-color);
 	my @before = $git0->qx(@log, qw(--pretty=oneline));
 	my $before = $git0->qx(@log, qw(--pretty=raw --raw -r));
-	$im = PublicInbox::V2Writable->new($ibx, 1);
+	$im = PublicInbox::V2Writable->new($ibx, {nproc => 2});
 	is($im->{partitions}, 1, 'detected single partition from previous');
 	my $smsg = $im->remove($mime, 'test removal');
 	$im->done;
