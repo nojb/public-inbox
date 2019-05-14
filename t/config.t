@@ -127,10 +127,13 @@ my @invalid = (
 
 );
 
-require Data::Dumper;
+my %X = ("\0" => '\\0', "\b" => '\\b', "\f" => '\\f', "'" => "\\'");
+my $xre = join('|', keys %X);
+
 for my $s (@invalid) {
-	my $d = Data::Dumper->new([$s])->Terse(1)->Indent(0)->Dump;
-	ok(!PublicInbox::Config::valid_inbox_name($s), "$d name rejected");
+	my $d = $s;
+	$d =~ s/($xre)/$X{$1}/g;
+	ok(!PublicInbox::Config::valid_inbox_name($s), "`$d' name rejected");
 }
 
 # obviously-valid examples
@@ -146,8 +149,7 @@ my @valid = qw(a a@example a@example.com);
 # '!', '$', '=', '+'
 push @valid, qw[bang! ca$h less< more> 1% (parens) &more eql= +plus], '#hash';
 for my $s (@valid) {
-	my $d = Data::Dumper->new([$s])->Terse(1)->Indent(0)->Dump;
-	ok(PublicInbox::Config::valid_inbox_name($s), "$d name accepted");
+	ok(PublicInbox::Config::valid_inbox_name($s), "`$s' name accepted");
 }
 
 {
