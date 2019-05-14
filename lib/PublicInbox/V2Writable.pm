@@ -517,11 +517,7 @@ sub fill_alternates ($$) {
 	my $all = "$self->{-inbox}->{mainrepo}/all.git";
 	my @cmd;
 	unless (-d $all) {
-		@cmd = (qw(git init --bare -q), $all);
-		PublicInbox::Import::run_die(\@cmd);
-		@cmd = (qw/git config/, "--file=$all/config",
-				'repack.writeBitmaps', 'true');
-		PublicInbox::Import::run_die(\@cmd);
+		PublicInbox::Import::init_bare($all);
 	}
 	@cmd = (qw/git config/, "--file=$pfx/$epoch.git/config",
 			'include.path', '../../all.git/config');

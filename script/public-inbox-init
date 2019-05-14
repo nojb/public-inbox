@@ -8,6 +8,7 @@ use warnings;
 my $usage = "public-inbox-init NAME REPO_DIR HTTP_URL ADDRESS [ADDRESS..]";
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use PublicInbox::Config;
+use PublicInbox::Inbox;
 use File::Temp qw/tempfile/;
 use File::Basename qw/dirname/;
 use File::Path qw/mkpath/;
@@ -103,23 +104,19 @@ if ($version == 1 && defined $skip) {
 	die "--skip is only supported for -V2 repos\n";
 }
 
+my $ibx = PublicInbox::Inbox->new({
+	mainrepo => $mainrepo,
+	name => $name,
+	version => $version,
+	-primary_address => $address[0],
+});
+
 if ($version >= 2) {
 	require PublicInbox::V2Writable;
-	require PublicInbox::Inbox;
-	my $ibx = {
-		mainrepo => $mainrepo,
-		name => $name,
-		version => $version,
-		-primary_address => $address[0],
-	};
-	$ibx = PublicInbox::Inbox->new($ibx);
 	PublicInbox::V2Writable->new($ibx, 1)->init_inbox(0, $skip);
 } elsif ($version == 1) {
-	x(qw(git init -q --bare), $mainrepo);
-
-	# set a reasonable default:
-	x(qw/git config/, "--file=$mainrepo/config",
-		'repack.writeBitmaps', 'true');
+	require PublicInbox::V1Writable;
+	PublicInbox::V1Writable->new($ibx, 1)->init_inbox(0, $skip);
 } else {
 	die "Unsupported -V/--version: $version\n";
 }

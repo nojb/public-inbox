@@ -18,12 +18,15 @@ use PublicInbox::MDA;
 use POSIX qw(strftime);
 
 sub new {
+	# we can't change arg order, this is documented in POD
+	# and external projects may rely on it:
 	my ($class, $git, $name, $email, $ibx) = @_;
 	my $ref = 'refs/heads/master';
 	if ($ibx) {
 		$ref = $ibx->{ref_head} || 'refs/heads/master';
 		$name ||= $ibx->{name};
 		$email ||= $ibx->{-primary_address};
+		$git ||= $ibx->git;
 	}
 	bless {
 		git => $git,
@@ -433,6 +436,16 @@ sub run_die ($;$$) {
 	$? == 0 or die join(' ', @$cmd) . " failed: $?\n";
 }
 
+sub init_bare {
+	my ($dir) = @_;
+	my @cmd = (qw(git init --bare -q), $dir);
+	run_die(\@cmd);
+	# set a reasonable default:
+	@cmd = (qw/git config/, "--file=$dir/config",
+		'repack.writeBitmaps', 'true');
+	run_die(\@cmd);
+}
+
 sub done {
 	my ($self) = @_;
 	my $w = delete $self->{out} or return;
@@ -586,7 +599,7 @@ __END__
 
 =head1 NAME
 
-PublicInbox::Import - message importer for public-inbox
+PublicInbox::Import - message importer for public-inbox v1 inboxes
 
 =head1 VERSION
 

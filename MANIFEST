@@ -125,6 +125,7 @@ lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Syscall.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/UserContent.pm
+lib/PublicInbox/V1Writable.pm
 lib/PublicInbox/V2Writable.pm
 lib/PublicInbox/View.pm
 lib/PublicInbox/ViewDiff.pm
