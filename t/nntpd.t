@@ -9,7 +9,6 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 }
 require PublicInbox::SearchIdx;
 require PublicInbox::Msgmap;
-use Cwd;
 use Email::Simple;
 use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);

@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use Cwd;
 use Email::Simple;
 use IO::File;
 use File::Temp qw/tempdir/;

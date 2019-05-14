@@ -9,7 +9,6 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	plan skip_all => "$mod missing for httpd.t" if $@;
 }
 use File::Temp qw/tempdir/;
-use Cwd qw/getcwd/;
 use IO::Socket::INET;
 require './t/common.perl';
 

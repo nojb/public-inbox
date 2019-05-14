@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use File::Temp qw/tempdir/;
-use Cwd;
+use Cwd qw(getcwd);
 use PublicInbox::MID qw(mid2path);
 eval { require IPC::Run };
 plan skip_all => "missing IPC::Run for t/mda.t" if $@;

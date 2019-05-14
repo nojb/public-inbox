@@ -16,6 +16,8 @@ foreach my $mod (@mods) {
 }
 chomp(my $git_dir = `git rev-parse --git-dir 2>/dev/null`);
 plan skip_all => "$0 must be run from a git working tree" if $?;
+
+# needed for alternates, and --absolute-git-dir is only in git 2.13+
 $git_dir = abs_path($git_dir);
 
 use_ok "PublicInbox::$_" for (qw(Inbox V2Writable MIME Git SolverGit));

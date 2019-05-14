@@ -7,7 +7,6 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use File::Temp qw/tempdir/;
-use Cwd;
 eval { require IPC::Run };
 plan skip_all => "missing IPC::Run for t/cgi.t" if $@;
 

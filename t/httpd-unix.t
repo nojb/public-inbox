@@ -12,11 +12,10 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 
 use File::Temp qw/tempdir/;
 use IO::Socket::UNIX;
-use Cwd qw/getcwd/;
 my $tmpdir = tempdir('httpd-unix-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $unix = "$tmpdir/unix.sock";
 my $httpd = 'blib/script/public-inbox-httpd';
-my $psgi = getcwd() . '/t/httpd-corner.psgi';
+my $psgi = './t/httpd-corner.psgi';
 my $out = "$tmpdir/out.log";
 my $err = "$tmpdir/err.log";
 

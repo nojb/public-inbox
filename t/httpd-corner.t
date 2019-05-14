@@ -15,7 +15,6 @@ foreach my $mod (qw(Plack::Util Plack::Builder
 
 use Digest::SHA qw(sha1_hex);
 use File::Temp qw/tempdir/;
-use Cwd qw/getcwd/;
 use IO::Socket;
 use IO::Socket::UNIX;
 use Fcntl qw(:seek);
@@ -28,7 +27,7 @@ ok(defined mkfifo($fifo, 0777), 'created FIFO');
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $httpd = 'blib/script/public-inbox-httpd';
-my $psgi = getcwd()."/t/httpd-corner.psgi";
+my $psgi = "./t/httpd-corner.psgi";
 my %opts = (
 	LocalAddr => '127.0.0.1',
 	ReuseAddr => 1,

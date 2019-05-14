@@ -5,7 +5,6 @@ use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
 my $dir = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-use Cwd qw/getcwd/;
 use PublicInbox::Spawn qw(popen_rd);
 
 eval { require IPC::Run } or plan skip_all => 'IPC::Run missing';
@@ -15,7 +14,7 @@ use_ok 'PublicInbox::Git';
 	is(system(qw(git init -q --bare), $dir), 0, 'created git directory');
 	my $cmd = [ 'git', "--git-dir=$dir", 'fast-import', '--quiet' ];
 
-	my $fi_data = getcwd().'/t/git.fast-import-data';
+	my $fi_data = './t/git.fast-import-data';
 	ok(-r $fi_data, "fast-import data readable (or run test at top level)");
 	IPC::Run::run($cmd, '<', $fi_data);
 	is($?, 0, 'fast-import succeeded');
@@ -68,7 +67,7 @@ if (1) {
 	my $cmd = [ 'git', "--git-dir=$dir", qw(hash-object -w --stdin) ];
 
 	# need a big file, use the AGPL-3.0 :p
-	my $big_data = getcwd().'/COPYING';
+	my $big_data = './COPYING';
 	ok(-r $big_data, 'COPYING readable');
 	my $size = -s $big_data;
 	ok($size > 8192, 'file is big enough');

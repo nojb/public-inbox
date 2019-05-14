@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-# use Cwd qw(getcwd);
 use_ok 'PublicInbox::Admin', qw(resolve_repo_dir);
 my $tmpdir = tempdir('pi-admin.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/v1";
