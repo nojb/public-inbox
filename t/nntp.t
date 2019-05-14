@@ -3,9 +3,8 @@
 use strict;
 use warnings;
 use Test::More;
-use Data::Dumper;
 
-foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
+foreach my $mod (qw(DBD::SQLite Search::Xapian Data::Dumper)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for nntp.t" if $@;
 }
@@ -15,7 +14,7 @@ use_ok 'PublicInbox::Inbox';
 
 {
 	sub quote_str {
-		my (undef, $s) = split(/ = /, Dumper($_[0]), 2);
+		my (undef, $s) = split(/ = /, Data::Dumper::Dumper($_[0]), 2);
 		$s =~ s/;\n//;
 		$s;
 	}
