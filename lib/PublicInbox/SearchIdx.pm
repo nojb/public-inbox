@@ -365,6 +365,7 @@ sub find_doc_ids {
 	($db->postlist_begin($termval), $db->postlist_end($termval));
 }
 
+# v1 only
 sub batch_do {
 	my ($self, $termval, $cb) = @_;
 	my $batch_size = 1000; # don't let @ids grow too large to avoid OOM
@@ -379,25 +380,33 @@ sub batch_do {
 	}
 }
 
+# v1 only, where $mid is unique
 sub remove_message {
 	my ($self, $mid) = @_;
 	my $db = $self->{xdb};
-	my $called;
 	$mid = mid_clean($mid);
-	my $over = $self->{over};
 
+	if (my $over = $self->{over}) {
+		my $nr = eval { $over->remove_oid(undef, $mid) };
+		if ($@) {
+			warn "failed to remove <$mid> from overview: $@\n";
+		} elsif ($nr == 0) {
+			warn "<$mid> missing for removal from overview\n";
+		}
+	}
+	return if $self->{indexlevel} !~ $xapianlevels;
+	my $nr = 0;
 	eval {
 		batch_do($self, 'Q' . $mid, sub {
 			my ($ids) = @_;
 			$db->delete_document($_) for @$ids;
-			$over->delete_articles($ids) if $over;
-			$called = 1;
+			$nr = scalar @$ids;
 		});
 	};
 	if ($@) {
-		warn "failed to remove message <$mid>: $@\n";
-	} elsif (!$called) {
-		warn "cannot remove non-existent <$mid>\n";
+		warn "failed to remove <$mid> from Xapian: $@\n";
+	} elsif ($nr == 0) {
+		warn "<$mid> missing for removal from Xapian\n";
 	}
 }
 
@@ -648,12 +657,30 @@ sub need_update ($$$) {
 	($n eq '' || $n > 0);
 }
 
+# The last git commit we indexed with Xapian or SQLite (msgmap)
+# This needs to account for cases where Xapian or SQLite is
+# out-of-date with respect to the other.
+sub _last_x_commit {
+	my ($self, $mm) = @_;
+	my $lm = $mm->last_commit || '';
+	my $lx = '';
+	if ($self->{indexlevel} =~ $xapianlevels) {
+		$lx = $self->{xdb}->get_metadata('last_commit') || '';
+	} else {
+		$lx = $lm;
+	}
+	# Use last_commit from msgmap if it is older or unset
+	if (!$lm || ($lx && $lx && is_ancestor($self->{git}, $lm, $lx))) {
+		$lx = $lm;
+	}
+	$lx;
+}
+
 # indexes all unindexed messages (v1 only)
 sub _index_sync {
 	my ($self, $opts) = @_;
 	my $tip = $opts->{ref} || 'HEAD';
-	my $reindex = $opts->{reindex};
-	my ($mkey, $last_commit, $lx, $xlog);
+	my ($last_commit, $lx, $xlog);
 	my $git = $self->{git};
 	$git->batch_prepare;
 
@@ -661,19 +688,8 @@ sub _index_sync {
 	my $mm = _msgmap_init($self);
 	do {
 		$xlog = undef;
-		$mkey = 'last_commit';
-		$last_commit = $xdb->get_metadata('last_commit');
-		$lx = $last_commit;
-		if ($reindex) {
-			$lx = '';
-			$mkey = undef if $last_commit ne '';
-		}
-
-		# use last_commit from msgmap if it is older or unset
-		my $lm = $mm->last_commit || '';
-		if (!$lm || ($lm && $lx && is_ancestor($git, $lm, $lx))) {
-			$lx = $lm;
-		}
+		$last_commit = _last_x_commit($self, $mm);
+		$lx = $opts->{reindex} ? '' : $last_commit;
 
 		$self->{over}->rollback_lazy;
 		$self->{over}->disconnect;
@@ -687,7 +703,7 @@ sub _index_sync {
 		$xlog = _git_log($self, $range);
 
 		$xdb = $self->begin_txn_lazy;
-	} while ($xdb->get_metadata('last_commit') ne $last_commit);
+	} while (_last_x_commit($self, $mm) ne $last_commit);
 
 	my $dbh = $mm->{dbh} if $mm;
 	my $cb = sub {
@@ -701,10 +717,10 @@ sub _index_sync {
 			}
 			$dbh->commit;
 		}
-		if ($mkey && $newest && $self->{indexlevel} =~ $xapianlevels) {
-			my $cur = $xdb->get_metadata($mkey);
+		if ($newest && $self->{indexlevel} =~ $xapianlevels) {
+			my $cur = $xdb->get_metadata('last_commit');
 			if (need_update($self, $cur, $newest)) {
-				$xdb->set_metadata($mkey, $newest);
+				$xdb->set_metadata('last_commit', $newest);
 			}
 		}
 		$self->commit_txn_lazy;

@@ -317,14 +317,21 @@ sub delete_articles {
 	$self->delete_by_num($_) foreach @$nums;
 }
 
+# returns number of removed messages
+# $oid may be undef to match only on $mid
 sub remove_oid {
 	my ($self, $oid, $mid) = @_;
+	my $nr = 0;
 	$self->begin_lazy;
 	each_by_mid($self, $mid, ['ddd'], sub {
 		my ($smsg) = @_;
-		$self->delete_by_num($smsg->{num}) if $smsg->{blob} eq $oid;
+		if (!defined($oid) || $smsg->{blob} eq $oid) {
+			$self->delete_by_num($smsg->{num});
+			$nr++;
+		}
 		1;
 	});
+	$nr;
 }
 
 sub create_tables {
