@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Data::Dumper;
 
-foreach my $mod (qw(DBD::SQLite Search::Xapian PublicInbox::DS)) {
+foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for nntp.t" if $@;
 }

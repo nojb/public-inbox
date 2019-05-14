@@ -4,15 +4,13 @@ use strict;
 use warnings;
 use Test::More;
 
-foreach my $mod (qw(Plack::Util Plack::Builder PublicInbox::DS
-			HTTP::Date HTTP::Status)) {
+foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd.t" if $@;
 }
 use File::Temp qw/tempdir/;
 use Cwd qw/getcwd/;
-use IO::Socket;
-use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
+use IO::Socket::INET;
 require './t/common.perl';
 
 # FIXME: too much setup

@@ -7,7 +7,7 @@ use warnings;
 use Test::More;
 use Time::HiRes qw(gettimeofday tv_interval);
 
-foreach my $mod (qw(Plack::Util Plack::Builder PublicInbox::DS
+foreach my $mod (qw(Plack::Util Plack::Builder
 			HTTP::Date HTTP::Status IPC::Run)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd-corner.t" if $@;
@@ -19,8 +19,8 @@ use Cwd qw/getcwd/;
 use IO::Socket;
 use IO::Socket::UNIX;
 use Fcntl qw(:seek);
-use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
-use POSIX qw(mkfifo :sys_wait_h);
+use Socket qw(IPPROTO_TCP TCP_NODELAY);
+use POSIX qw(mkfifo);
 require './t/common.perl';
 my $tmpdir = tempdir('httpd-corner-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $fifo = "$tmpdir/fifo";

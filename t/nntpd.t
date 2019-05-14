@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-foreach my $mod (qw(DBD::SQLite Search::Xapian PublicInbox::DS)) {
+foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for nntpd.t" if $@;
 }
@@ -12,7 +12,7 @@ require PublicInbox::Msgmap;
 use Cwd;
 use Email::Simple;
 use IO::Socket;
-use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
+use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use File::Temp qw/tempdir/;
 use Net::NNTP;
 use Sys::Hostname;

@@ -127,12 +127,9 @@ if ('ensure git configs are correct') {
 		'same document') if ($mset1->size);
 }
 
-SKIP: {
+{
 	use Net::NNTP;
-	use IO::Socket;
-	use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
-	eval { require PublicInbox::DS };
-	skip "PublicInbox::DS missing $@", 2 if $@;
+	use IO::Socket::INET;
 	my $err = "$mainrepo/stderr.log";
 	my $out = "$mainrepo/stdout.log";
 	my %opts = (

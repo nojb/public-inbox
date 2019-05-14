@@ -7,7 +7,7 @@ require './t/common.perl';
 require_git(2.6);
 
 # Integration tests for HTTP cloning + mirroring
-foreach my $mod (qw(Plack::Util Plack::Builder PublicInbox::DS
+foreach my $mod (qw(Plack::Util Plack::Builder
 			HTTP::Date HTTP::Status Search::Xapian DBD::SQLite
 			IPC::Run)) {
 	eval "require $mod";

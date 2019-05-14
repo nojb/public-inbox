@@ -4,21 +4,19 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
-use IO::Socket;
-use Socket qw(SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
-use POSIX qw(dup2 setsid);
-use Cwd qw(getcwd);
+use IO::Socket::INET;
+use POSIX qw(setsid);
 
 my $git_dir = $ENV{GIANT_GIT_DIR};
 plan 'skip_all' => 'GIANT_GIT_DIR not defined' unless $git_dir;
-foreach my $mod (qw(PublicInbox::DS BSD::Resource
+foreach my $mod (qw(BSD::Resource
 			Plack::Util Plack::Builder
 			HTTP::Date HTTP::Status Net::HTTP)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for git-http-backend.t" if $@;
 }
 require './t/common.perl';
-my $psgi = getcwd()."/t/git-http-backend.psgi";
+my $psgi = "./t/git-http-backend.psgi";
 my $tmpdir = tempdir('pi-git-http-backend-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
