@@ -293,17 +293,6 @@ EOF
 	$self->{query_parser} = $qp;
 }
 
-# only used for NNTP server
-sub query_xover {
-	my ($self, $beg, $end, $offset) = @_;
-	$self->{over_ro}->query_xover($beg, $end, $offset);
-}
-
-sub query_ts {
-	my ($self, $ts, $prev) = @_;
-	$self->{over_ro}->query_ts($ts, $prev);
-}
-
 sub lookup_article {
 	my ($self, $num) = @_;
 	$self->{over_ro}->get_art($num);
