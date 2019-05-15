@@ -20,7 +20,6 @@ use PublicInbox::Over;
 
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
-our $REPLY_RE = qr/^re:\s+/i;
 our $LANG = 'english';
 
 use constant {
@@ -182,11 +181,6 @@ sub query {
 	}
 }
 
-sub get_thread {
-	my ($self, $mid, $prev) = @_;
-	$self->{over_ro}->get_thread($mid, $prev);
-}
-
 sub retry_reopen {
 	my ($self, $cb) = @_;
 	for my $i (1..10) {
@@ -296,30 +290,6 @@ EOF
 sub lookup_article {
 	my ($self, $num) = @_;
 	$self->{over_ro}->get_art($num);
-}
-
-sub next_by_mid {
-	my ($self, $mid, $id, $prev) = @_;
-	$self->{over_ro}->next_by_mid($mid, $id, $prev);
-}
-
-# normalize subjects so they are suitable as pathnames for URLs
-# XXX: consider for removal
-sub subject_path {
-	my $subj = pop;
-	$subj = subject_normalized($subj);
-	$subj =~ s![^a-zA-Z0-9_\.~/\-]+!_!g;
-	lc($subj);
-}
-
-sub subject_normalized {
-	my $subj = pop;
-	$subj =~ s/\A\s+//s; # no leading space
-	$subj =~ s/\s+\z//s; # no trailing space
-	$subj =~ s/\s+/ /gs; # no redundant spaces
-	$subj =~ s/\.+\z//; # no trailing '.'
-	$subj =~ s/$REPLY_RE//igo; # remove reply prefix
-	$subj;
 }
 
 sub help {

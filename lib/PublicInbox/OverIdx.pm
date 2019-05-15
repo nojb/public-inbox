@@ -14,7 +14,7 @@ use base qw(PublicInbox::Over);
 use IO::Handle;
 use DBI qw(:sql_types); # SQL_BLOB
 use PublicInbox::MID qw/id_compress mids references/;
-use PublicInbox::SearchMsg;
+use PublicInbox::SearchMsg qw(subject_normalized);
 use Compress::Zlib qw(compress);
 use PublicInbox::Search;
 
@@ -237,6 +237,15 @@ sub parse_references ($$$) {
 	\@keep;
 }
 
+# normalize subjects so they are suitable as pathnames for URLs
+# XXX: consider for removal
+sub subject_path ($) {
+	my ($subj) = @_;
+	$subj = subject_normalized($subj);
+	$subj =~ s![^a-zA-Z0-9_\.~/\-]+!_!g;
+	lc($subj);
+}
+
 sub add_overview {
 	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
 	my $lines = $mime->body_raw =~ tr!\n!\n!;
@@ -252,7 +261,7 @@ sub add_overview {
 	my $subj = $smsg->subject;
 	my $xpath;
 	if ($subj ne '') {
-		$xpath = PublicInbox::Search::subject_path($subj);
+		$xpath = subject_path($subj);
 		$xpath = id_compress($xpath);
 	}
 	my $dd = $smsg->to_doc_data($oid, $mid0);

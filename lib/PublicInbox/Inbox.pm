@@ -172,6 +172,7 @@ sub search ($;$) {
 	my ($self, $over_only) = @_;
 	my $srch = $self->{search} ||= eval {
 		_cleanup_later($self);
+		require PublicInbox::Search;
 		PublicInbox::Search->new($self, $self->{altid});
 	};
 	# TODO: lazily load Xapian

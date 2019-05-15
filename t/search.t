@@ -223,7 +223,7 @@ $ibx->with_umask(sub {
 
 	$rw_commit->();
 	$ro->reopen;
-	my $t = $ro->get_thread('root@s');
+	my $t = $ro->{over_ro}->get_thread('root@s');
 	is(scalar(@$t), 4, "got all 4 mesages in thread");
 	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_mid);
 	@res = filter_mids($t);
@@ -422,7 +422,7 @@ $ibx->with_umask(sub {
 	if (scalar(@$n) >= 1) {
 		my $mid = $n->[0]->mid;
 		my ($id, $prev);
-		$art = $ro->next_by_mid($mid, \$id, \$prev);
+		$art = $ro->{over_ro}->next_by_mid($mid, \$id, \$prev);
 		ok($art, 'article exists in OVER DB');
 	}
 	$rw->unindex_blob($amsg);

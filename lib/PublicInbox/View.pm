@@ -18,7 +18,7 @@ use PublicInbox::Reply;
 use PublicInbox::ViewDiff qw(flush_diff);
 require POSIX;
 use Time::Local qw(timegm);
-
+use PublicInbox::SearchMsg qw(subject_normalized);
 use constant COLS => 72;
 use constant INDENT => '  ';
 use constant TCHILD => '` ';
@@ -63,12 +63,12 @@ sub msg_page {
 	my $ibx = $ctx->{-inbox};
 	my ($first, $more);
 	my $smsg;
-	if (my $srch = $ibx->search) {
+	if (my $over = $ibx->over) {
 		my ($id, $prev);
-		$smsg = $srch->next_by_mid($mid, \$id, \$prev);
+		$smsg = $over->next_by_mid($mid, \$id, \$prev);
 		$first = $ibx->msg_by_smsg($smsg) if $smsg;
 		if ($first) {
-			my $next = $srch->next_by_mid($mid, \$id, \$prev);
+			my $next = $over->next_by_mid($mid, \$id, \$prev);
 			$more = [ $id, $prev, $next ] if $next;
 		}
 		return unless $first;
@@ -85,7 +85,7 @@ sub msg_html_more {
 		my $mid = $ctx->{mid};
 		my $ibx = $ctx->{-inbox};
 		$smsg = $ibx->smsg_mime($smsg);
-		my $next = $ctx->{srch}->next_by_mid($mid, \$id, \$prev);
+		my $next = $ibx->over->next_by_mid($mid, \$id, \$prev);
 		@$more = $next ? ($id, $prev, $next) : ();
 		if ($smsg) {
 			my $mime = $smsg->{mime};
@@ -203,7 +203,6 @@ sub nr_to_s ($$$) {
 # this is already inside a <pre>
 sub index_entry {
 	my ($smsg, $ctx, $more) = @_;
-	my $srch = $ctx->{srch};
 	my $subj = $smsg->subject;
 	my $mid_raw = $smsg->mid;
 	my $id = id_compress($mid_raw, 1);
@@ -440,8 +439,8 @@ sub stream_thread ($$) {
 sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
-	my $srch = $ctx->{srch};
-	my ($nr, $msgs) = $srch->get_thread($mid);
+	my $ibx = $ctx->{-inbox};
+	my ($nr, $msgs) = $ibx->over->get_thread($mid);
 	return missing_thread($ctx) if $nr == 0;
 	my $skel = '<hr><pre>';
 	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
@@ -464,7 +463,6 @@ sub thread_html {
 	my $rootset = thread_results($ctx, $msgs);
 
 	# reduce hash lookups in pre_thread->skel_dump
-	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	walk_thread($rootset, $ctx, *pre_thread);
 
@@ -627,8 +625,8 @@ sub add_text_body {
 
 sub _msg_html_prepare {
 	my ($hdr, $ctx, $more, $nr) = @_;
-	my $srch = $ctx->{srch} if $ctx;
 	my $atom = '';
+	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
 	my $mids = mids($hdr);
@@ -642,7 +640,7 @@ sub _msg_html_prepare {
 	} else {
 		$rv .= '<pre>';
 	}
-	if ($srch) {
+	if ($over) {
 		$ctx->{-upfx} = '../';
 	}
 	my @title;
@@ -668,14 +666,14 @@ sub _msg_html_prepare {
 	if (defined($v = $hdr->header('Subject')) && ($v ne '')) {
 		$v = ascii_html($v);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-		if ($srch) {
+		if ($over) {
 			$rv .= qq(Subject: <a\nhref="#r"\nid=t>$v</a>\n);
 		} else {
 			$rv .= "Subject: $v\n";
 		}
 		$title[0] = $v;
 	} else { # dummy anchor for thread skeleton at bottom of page
-		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $srch;
+		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $over;
 		$title[0] = '(no subject)';
 	}
 	if (defined($v = $hdr->header('Date'))) {
@@ -698,15 +696,15 @@ sub _msg_html_prepare {
 			$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
 		}
 	}
-	$rv .= _parent_headers($hdr, $srch);
+	$rv .= _parent_headers($hdr, $over);
 	$rv .= "\n";
 }
 
 sub thread_skel {
 	my ($dst, $ctx, $hdr, $tpfx) = @_;
-	my $srch = $ctx->{srch};
 	my $mid = mids($hdr)->[0];
-	my ($nr, $msgs) = $srch->get_thread($mid);
+	my $ibx = $ctx->{-inbox};
+	my ($nr, $msgs) = $ibx->over->get_thread($mid);
 	my $expand = qq(expand[<a\nhref="${tpfx}T/#u">flat</a>) .
 	                qq(|<a\nhref="${tpfx}t/#u">nested</a>]  ) .
 			qq(<a\nhref="${tpfx}t.mbox.gz">mbox.gz</a>  ) .
@@ -732,14 +730,13 @@ sub thread_skel {
 	my $subj = $hdr->header('Subject');
 	defined $subj or $subj = '';
 	$subj = '(no subject)' if $subj eq '';
-	$ctx->{prev_subj} = [ split(/ /, $srch->subject_normalized($subj)) ];
+	$ctx->{prev_subj} = [ split(/ /, subject_normalized($subj)) ];
 	$ctx->{cur} = $mid;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{dst} = $dst;
 
 	# reduce hash lookups in skel_dump
-	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	walk_thread(thread_results($ctx, $msgs), $ctx, *skel_dump);
 
@@ -747,7 +744,7 @@ sub thread_skel {
 }
 
 sub _parent_headers {
-	my ($hdr, $srch) = @_;
+	my ($hdr, $over) = @_;
 	my $rv = '';
 
 	my $refs = references($hdr);
@@ -762,10 +759,10 @@ sub _parent_headers {
 
 	# do not display References: if search is present,
 	# we show the thread skeleton at the bottom, instead.
-	return $rv if $srch;
+	return $rv if $over;
 
 	if (@$refs) {
-		@$refs = map { linkify_ref_nosrch($_) } @$refs;
+		@$refs = map { linkify_ref_no_over($_) } @$refs;
 		$rv .= 'References: '. join("\n\t", @$refs) . "\n";
 	}
 	$rv;
@@ -774,12 +771,12 @@ sub _parent_headers {
 sub html_footer {
 	my ($hdr, $standalone, $ctx, $rhref) = @_;
 
-	my $srch = $ctx->{srch} if $ctx;
+	my $ibx = $ctx->{-inbox} if $ctx;
 	my $upfx = '../';
 	my $tpfx = '';
 	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 	my $irt = '';
-	if ($idx && $srch) {
+	if ($idx && $ibx->over) {
 		$idx .= "\n";
 		thread_skel(\$idx, $ctx, $hdr, $tpfx);
 		my ($next, $prev);
@@ -819,7 +816,7 @@ sub html_footer {
 	$irt .= $idx;
 }
 
-sub linkify_ref_nosrch {
+sub linkify_ref_no_over {
 	my $v = PublicInbox::Hval->new_msgid($_[0]);
 	my $html = $v->as_html;
 	my $href = $v->{href};
@@ -965,7 +962,7 @@ sub skel_dump {
 	# Subject is never undef, this mail was loaded from
 	# our Xapian which would've resulted in '' if it were
 	# really missing (and Filter rejects empty subjects)
-	my @subj = split(/ /, $ctx->{srch}->subject_normalized($smsg->subject));
+	my @subj = split(/ /, subject_normalized($smsg->subject));
 
 	# remove common suffixes from the subject if it matches the previous,
 	# so we do not show redundant text at the end.
@@ -1034,14 +1031,13 @@ sub sort_ds {
 # returns 200 if done, 404 if not
 sub acc_topic {
 	my ($ctx, $level, $node) = @_;
-	my $srch = $ctx->{srch};
 	my $mid = $node->{id};
 	my $x = $node->{smsg} || $ctx->{-inbox}->smsg_by_mid($mid);
 	my ($subj, $ds);
 	my $topic;
 	if ($x) {
 		$subj = $x->subject;
-		$subj = $srch->subject_normalized($subj);
+		$subj = subject_normalized($subj);
 		$subj = '(no subject)' if $subj eq '';
 		$ds = $x->ds;
 		if ($level == 0) {
@@ -1081,7 +1077,6 @@ sub dump_topics {
 	my @out;
 	my $ibx = $ctx->{-inbox};
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
-	my $srch = $ctx->{srch};
 
 	# sort by recency, this allows new posts to "bump" old topics...
 	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
@@ -1113,7 +1108,7 @@ sub dump_topics {
 			my $level = $ex[$i];
 			my $subj = $ex[$i + 1];
 			$mid = delete $seen->{$subj};
-			my @subj = split(/ /, $srch->subject_normalized($subj));
+			my @subj = split(/ /, subject_normalized($subj));
 			my @next_prev = @subj; # full copy
 			my $omit = dedupe_subject($prev_subj, \@subj, ' &#34;');
 			$prev_subj = \@next_prev;

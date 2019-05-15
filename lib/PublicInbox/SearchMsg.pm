@@ -8,6 +8,8 @@
 package PublicInbox::SearchMsg;
 use strict;
 use warnings;
+use base qw(Exporter);
+our @EXPORT_OK = qw(subject_normalized);
 use PublicInbox::MID qw/mid_clean mid_mime/;
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
@@ -184,5 +186,17 @@ sub mid ($;$) {
 }
 
 sub _extract_mid { mid_clean(mid_mime($_[0]->{mime})) }
+
+our $REPLY_RE = qr/^re:\s+/i;
+
+sub subject_normalized ($) {
+	my ($subj) = @_;
+	$subj =~ s/\A\s+//s; # no leading space
+	$subj =~ s/\s+\z//s; # no trailing space
+	$subj =~ s/\s+/ /gs; # no redundant spaces
+	$subj =~ s/\.+\z//; # no trailing '.'
+	$subj =~ s/$REPLY_RE//igo; # remove reply prefix
+	$subj;
+}
 
 1;
