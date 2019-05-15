@@ -8,13 +8,13 @@ use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
 use bytes (); # only for bytes::length
-my @mods = qw(PublicInbox::SearchIdx HTTP::Request::Common Plack::Test
+my @mods = qw(Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for psgi_search.t" if $@;
 }
-use_ok $_ foreach @mods;
+use_ok $_ foreach (@mods, qw(PublicInbox::SearchIdx));
 my $tmpdir = tempdir('pi-psgi-search.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
 

@@ -69,7 +69,7 @@ Numerous optional modules are likely to be useful as well:
 - Search::Xapian                   deb: libsearch-xapian-perl
                                    pkg: p5-Search-Xapian
                                    rpm: perl-Search-Xapian
-                                   (for v2, HTTP search)
+                                   (HTTP search)
 
 - Net::Server                      deb: libnet-server-perl
                                    pkg: pkg-Net-Server

@@ -149,8 +149,11 @@ sub preload {
 	require PublicInbox::MIME;
 	require Digest::SHA;
 	require POSIX;
-
-	foreach (qw(PublicInbox::Search PublicInbox::SearchView
+	eval {
+		require PublicInbox::Search;
+		PublicInbox::Search::load_xapian();
+	};
+	foreach (qw(PublicInbox::SearchView
 			PublicInbox::Mbox IO::Compress::Gzip
 			PublicInbox::NewsWWW)) {
 		eval "require $_;";

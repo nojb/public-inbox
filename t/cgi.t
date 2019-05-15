@@ -30,6 +30,7 @@ my $cfgpfx = "publicinbox.test";
 	my %cfg = (
 		"$cfgpfx.address" => $addr,
 		"$cfgpfx.mainrepo" => $maindir,
+		"$cfgpfx.indexlevel" => 'basic',
 	);
 	while (my ($k,$v) = each %cfg) {
 		is(0, system(qw(git config --file), $pi_config, $k, $v),
@@ -39,9 +40,12 @@ my $cfgpfx = "publicinbox.test";
 
 use_ok 'PublicInbox::Git';
 use_ok 'PublicInbox::Import';
-use_ok 'Email::MIME';
-my $git = PublicInbox::Git->new($maindir);
-my $im = PublicInbox::Import->new($git, 'test', $addr);
+use_ok 'PublicInbox::Inbox';
+use_ok 'PublicInbox::V1Writable';
+use_ok 'PublicInbox::Config';
+my $cfg = PublicInbox::Config->new($pi_config);
+my $ibx = $cfg->lookup_name('test');
+my $im = PublicInbox::V1Writable->new($ibx);
 
 {
 	local $ENV{HOME} = $home;
@@ -103,8 +107,9 @@ EOF
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
 	my $indexed;
 	eval {
+		require DBD::SQLite;
 		require PublicInbox::SearchIdx;
-		my $s = PublicInbox::SearchIdx->new($maindir, 1);
+		my $s = PublicInbox::SearchIdx->new($ibx, 1);
 		$s->index_sync;
 		$indexed = 1;
 	};
@@ -120,6 +125,7 @@ EOF
 		};
 	} else {
 		like($res->{head}, qr/^Status: 501 /, "search not available");
+		SKIP: { skip 'DBD::SQLite not available', 2 };
 	}
 
 	my $have_xml_feed = eval { require XML::Feed; 1 } if $indexed;
@@ -132,6 +138,8 @@ EOF
 		my $p = XML::Feed->parse(\($res->{body}));
 		is($p->format, "Atom", "parsed atom feed");
 		is(scalar $p->entries, 3, "parsed three entries");
+	} else {
+		SKIP: { skip 'DBD::SQLite or XML::Feed missing', 2 };
 	}
 }
 

@@ -109,6 +109,7 @@ my $ibx = PublicInbox::Inbox->new({
 	name => $name,
 	version => $version,
 	-primary_address => $address[0],
+	indexlevel => $indexlevel,
 });
 
 if ($version >= 2) {

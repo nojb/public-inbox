@@ -12,11 +12,21 @@ use constant TS => 0;  # Received: header in Unix time
 use constant YYYYMMDD => 1; # Date: header for searching in the WWW UI
 use constant DT => 2; # Date: YYYYMMDDHHMMSS
 
-use Search::Xapian qw/:standard/;
 use PublicInbox::SearchMsg;
 use PublicInbox::MIME;
 use PublicInbox::MID qw/id_compress/;
 use PublicInbox::Over;
+my $QP_FLAGS;
+sub load_xapian () {
+	$QP_FLAGS ||= eval {
+		require Search::Xapian;
+		Search::Xapian->import(qw(:standard));
+
+		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
+		# website as it could become a denial-of-service vector
+		FLAG_PHRASE()|FLAG_BOOLEAN()|FLAG_LOVEHATE()|FLAG_WILDCARD();
+	};
+};
 
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
@@ -41,10 +51,6 @@ use constant {
 	#      (commit 83425ef12e4b65cdcecd11ddcb38175d4a91d5a0)
 	# 14 - fix ghost root vivification
 	SCHEMA_VERSION => 15,
-
-	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
-	# as it could become a denial-of-service vector
-	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
 my %bool_pfx_external = (
@@ -113,16 +119,41 @@ EOF
 );
 chomp @HELP;
 
-sub xdir {
-	my ($self) = @_;
+sub xdir ($;$) {
+	my ($self, $rdonly) = @_;
 	if ($self->{version} == 1) {
 		"$self->{mainrepo}/public-inbox/xapian" . SCHEMA_VERSION;
 	} else {
 		my $dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
+		return $dir if $rdonly;
+
 		my $part = $self->{partition};
 		defined $part or die "partition not given";
 		$dir .= "/$part";
 	}
+}
+
+sub xdb ($) {
+	my ($self) = @_;
+	$self->{xdb} ||= do {
+		load_xapian();
+		my $dir = xdir($self, 1);
+		if ($self->{version} >= 2) {
+			my $xdb;
+			foreach my $part (<$dir/*>) {
+				-d $part && $part =~ m!/\d+\z! or next;
+				my $sub = Search::Xapian::Database->new($part);
+				if ($xdb) {
+					$xdb->add_database($sub);
+				} else {
+					$xdb = $sub;
+				}
+			}
+			$xdb;
+		} else {
+			Search::Xapian::Database->new($dir);
+		}
+	};
 }
 
 sub new {
@@ -138,33 +169,16 @@ sub new {
 		altid => $altid,
 		version => $version,
 	}, $class;
-	my $dir;
-	if ($version >= 2) {
-		$dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
-		my $xdb;
-		my $parts = 0;
-		foreach my $part (<$dir/*>) {
-			-d $part && $part =~ m!/\d+\z! or next;
-			$parts++;
-			my $sub = Search::Xapian::Database->new($part);
-			if ($xdb) {
-				$xdb->add_database($sub);
-			} else {
-				$xdb = $sub;
-			}
-		}
-		$self->{xdb} = $xdb;
-	} else {
-		$dir = $self->xdir;
-		$self->{xdb} = Search::Xapian::Database->new($dir);
-	}
+	my $dir = xdir($self, 1);
 	$self->{over_ro} = PublicInbox::Over->new("$dir/over.sqlite3");
 	$self;
 }
 
 sub reopen {
 	my ($self) = @_;
-	$self->{xdb}->reopen;
+	if (my $xdb = $self->{xdb}) {
+		$xdb->reopen;
+	}
 	$self; # make chaining easier
 }
 
@@ -175,7 +189,8 @@ sub query {
 	if ($query_string eq '' && !$opts->{mset}) {
 		$self->{over_ro}->recent($opts);
 	} else {
-		my $query = $self->qp->parse_query($query_string, QP_FLAGS);
+		my $qp = qp($self);
+		my $query = $qp->parse_query($query_string, $QP_FLAGS);
 		$opts->{relevance} = 1 unless exists $opts->{relevance};
 		_do_enquire($self, $query, $opts);
 	}
@@ -213,7 +228,8 @@ sub _do_enquire {
 
 sub _enquire_once {
 	my ($self, $query, $opts) = @_;
-	my $enquire = Search::Xapian::Enquire->new($self->{xdb});
+	my $xdb = xdb($self);
+	my $enquire = Search::Xapian::Enquire->new($xdb);
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
@@ -246,13 +262,13 @@ sub qp {
 
 	my $qp = $self->{query_parser};
 	return $qp if $qp;
-
+	my $xdb = xdb($self);
 	# new parser
 	$qp = Search::Xapian::QueryParser->new;
-	$qp->set_default_op(OP_AND);
-	$qp->set_database($self->{xdb});
+	$qp->set_default_op(OP_AND());
+	$qp->set_database($xdb);
 	$qp->set_stemmer($self->stemmer);
-	$qp->set_stemming_strategy(STEM_SOME);
+	$qp->set_stemming_strategy(STEM_SOME());
 	$qp->set_max_wildcard_expansion(100);
 	$qp->add_valuerangeprocessor(
 		Search::Xapian::NumberValueRangeProcessor->new(YYYYMMDD, 'd:'));

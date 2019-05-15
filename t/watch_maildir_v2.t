@@ -7,12 +7,12 @@ use Cwd;
 use PublicInbox::Config;
 require './t/common.perl';
 require_git(2.6);
-my @mods = qw(Filesys::Notify::Simple PublicInbox::V2Writable);
+my @mods = qw(Search::Xapian DBD::SQLite Filesys::Notify::Simple);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for watch_maildir_v2.t" if $@;
 }
-
+require PublicInbox::V2Writable;
 my $tmpdir = tempdir('watch_maildir-v2-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $mainrepo = "$tmpdir/v2";
 my $maildir = "$tmpdir/md";

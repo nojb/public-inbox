@@ -6,8 +6,7 @@ use Test::More;
 use Email::MIME;
 use File::Temp qw/tempdir/;
 use PublicInbox::Config;
-my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape Search::Xapian
-	DBD::SQLite);
+my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape DBD::SQLite);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for psgi_scan_all.t" if $@;
@@ -26,6 +25,7 @@ foreach my $i (1..2) {
 		mainrepo => $mainrepo,
 		name => "test-$i",
 		version => 2,
+		indexlevel => 'basic',
 		-primary_address => $addr,
 	};
 	my $ibx = PublicInbox::Inbox->new($opt);

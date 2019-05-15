@@ -70,12 +70,7 @@ if (@precious) {
 
 
 # bare minimum for v2
-$profiles->{v2essential} = [ @{$profiles->{essential}}, qw(
-	DBD::SQLite
-	DBI
-	Search::Xapian
-	xapian-compact
-) ];
+$profiles->{v2essential} = [ @{$profiles->{essential}}, qw(DBD::SQLite DBI) ];
 
 # package names which can't be mapped automatically:
 my $non_auto = {

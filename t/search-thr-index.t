@@ -7,8 +7,9 @@ use Test::More;
 use File::Temp qw/tempdir/;
 use PublicInbox::MID qw(mids);
 use Email::MIME;
-eval { require PublicInbox::SearchIdx; };
-plan skip_all => "Xapian missing for search" if $@;
+eval { require Search::Xapian };
+plan skip_all => "Search::Xapian missing for search" if $@;
+require PublicInbox::SearchIdx;
 my $tmpdir = tempdir('pi-search-thr-index.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
 

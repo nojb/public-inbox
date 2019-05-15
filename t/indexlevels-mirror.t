@@ -10,8 +10,7 @@ require './t/common.perl';
 require_git(2.6);
 my $this = (split('/', __FILE__))[-1];
 
-# TODO: remove Search::Xapian as a requirement for basic
-foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
+foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for $this" if $@;
 }
@@ -47,8 +46,11 @@ sub import_index_incremental {
 	$im->done;
 
 	# index master (required for v1)
-	is(system($index, $ibx->{mainrepo}), 0, 'index master OK');
-	my $ro_master = PublicInbox::Inbox->new({mainrepo => $ibx->{mainrepo}});
+	is(system($index, $ibx->{mainrepo}, "-L$level"), 0, 'index master OK');
+	my $ro_master = PublicInbox::Inbox->new({
+		mainrepo => $ibx->{mainrepo},
+		indexlevel => $level
+	});
 	my ($nr, $msgs) = $ro_master->recent;
 	is($nr, 1, 'only one message in master, so far');
 	is($msgs->[0]->{mid}, 'm@1', 'first message in master indexed');
@@ -75,7 +77,10 @@ sub import_index_incremental {
 	is(system($index, $mirror), 0, "v$v index mirror OK");
 
 	# read-only access
-	my $ro_mirror = PublicInbox::Inbox->new({mainrepo => $mirror});
+	my $ro_mirror = PublicInbox::Inbox->new({
+		mainrepo => $mirror,
+		indexlevel => 'basic'
+	});
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 1, 'only one message, so far');
 	is($msgs->[0]->{mid}, 'm@1', 'read first message');
@@ -94,7 +99,7 @@ sub import_index_incremental {
 		['m@1','m@2'], 'got both messages in mirror');
 
 	# incremental index master (required for v1)
-	is(system($index, $ibx->{mainrepo}), 0, 'index master OK');
+	is(system($index, $ibx->{mainrepo}, "-L$level"), 0, 'index master OK');
 	($nr, $msgs) = $ro_master->recent;
 	is($nr, 2, '2nd message seen in master');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],

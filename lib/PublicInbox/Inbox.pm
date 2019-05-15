@@ -25,7 +25,7 @@ sub cleanup_task () {
 	my $next = {};
 	for my $ibx (values %$CLEANUP) {
 		my $again;
-		foreach my $f (qw(mm search)) {
+		foreach my $f (qw(mm search over)) {
 			delete $ibx->{$f} if SvREFCNT($ibx->{$f}) == 1;
 		}
 		my $expire = time - 60;
@@ -37,7 +37,7 @@ sub cleanup_task () {
 				$again = 1 if $git->cleanup($expire);
 			}
 		}
-		$again ||= !!($ibx->{mm} || $ibx->{search});
+		$again ||= !!($ibx->{over} || $ibx->{mm} || $ibx->{search});
 		$next->{"$ibx"} = $ibx if $again;
 	}
 	$CLEANUP = $next;
@@ -175,14 +175,17 @@ sub search ($;$) {
 		require PublicInbox::Search;
 		PublicInbox::Search->new($self, $self->{altid});
 	};
-	# TODO: lazily load Xapian
-	# return $srch if $over_only || eval { $srch->xdb };
-	# undef;
+	($over_only || eval { $srch->xdb }) ? $srch : undef;
 }
 
 sub over ($) {
-	my $srch = search($_[0], 1) or return;
-	$srch->{over_ro};
+	my ($self) = @_;
+	my $srch = search($self, 1) or return;
+	$self->{over} ||= eval {
+		my $over = $srch->{over_ro};
+		$over->dbh_new; # may fail
+		$over;
+	}
 }
 
 sub try_cat {
@@ -290,7 +293,7 @@ sub nntp_url {
 sub nntp_usable {
 	my ($self) = @_;
 	my $ret = mm($self) && over($self);
-	$self->{mm} = $self->{search} = undef;
+	$self->{mm} = $self->{over} = $self->{search} = undef;
 	$ret;
 }
 

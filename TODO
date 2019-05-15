@@ -69,8 +69,6 @@ all need to be considered for everything we introduce)
 
 * large mbox/Maildir/MH/NNTP spool import (see PublicInbox::Import)
 
-* Allow NNTP and more of PSGI code to work without Xapian
-
 * Read-only WebDAV interface to the git repo so it can be mounted
   via davfs2 or fusedav to avoid full clones.
   davfs2 needs Range: request support for this to be feasible:

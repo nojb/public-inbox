@@ -63,6 +63,11 @@ if ($all) {
 				mainrepo => $dir,
 			});
 		};
+
+		# somebody could "rm -r" all the Xapian directories;
+		# let them purge the overview, at least
+		$ibx->{indexlevel} ||= 'basic' unless $ibx->search;
+
 		push @inboxes, $ibx;
 	}
 

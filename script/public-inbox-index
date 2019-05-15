@@ -26,10 +26,12 @@ if ($@) {
 my $reindex;
 my $prune;
 my $jobs = undef;
+my $indexlevel;
 my %opts = (
 	'--reindex' => \$reindex,
 	'--jobs|j=i' => \$jobs,
 	'--prune' => \$prune,
+        'L|indexlevel=s' => \$indexlevel,
 );
 GetOptions(%opts) or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $jobs && $jobs < 0;
@@ -55,18 +57,27 @@ defined($config) and $config->each_inbox(sub {
 });
 
 foreach my $dir (@dirs) {
-	if (!ref($dir) && -f "$dir/inbox.lock") { # v2
-		my $ibx = { mainrepo => $dir, name => 'unnamed' };
+	if (!ref($dir)) {
+		unless (-d $dir) {
+			die "$dir does not appear to be an inbox repository\n";
+		}
+		my $ibx = {
+			mainrepo => $dir,
+			name => 'unnamed',
+			indexlevel => $indexlevel,
+			version => -f "$dir/inbox.lock" ? 2 : 1,
+		};
 		$dir = PublicInbox::Inbox->new($ibx);
+	} elsif (defined $indexlevel && !defined($dir->{indexlevel})) {
+		# XXX: users can shoot themselves in the foot, with this...
+		$dir->{indexlevel} = $indexlevel;
 	}
-	index_dir($dir);
+
+	index_inbox($dir);
 }
 
-sub index_dir {
+sub index_inbox {
 	my ($repo) = @_;
-	if (!ref $repo && ! -d $repo) {
-		die "$repo does not appear to be an inbox repository\n";
-	}
 	if (ref($repo) && ($repo->{version} || 1) == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
