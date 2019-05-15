@@ -110,7 +110,12 @@ sub _xdb_acquire {
 	if ($self->{creat}) {
 		require File::Path;
 		$self->lock_acquire;
-		File::Path::mkpath($dir);
+
+		# don't create empty Xapian directories if we don't need Xapian
+		my $is_part = defined($self->{partition});
+		if (!$is_part || ($is_part && need_xapian($self))) {
+			File::Path::mkpath($dir);
+		}
 	}
 	return unless defined $flag;
 	$self->{xdb} = Search::Xapian::WritableDatabase->new($dir, $flag);

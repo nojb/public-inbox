@@ -116,6 +116,11 @@ sub import_index_incremental {
 	is($nr, 1, '2nd message gone from mirror');
 	is_deeply([map { $_->{mid} } @$msgs], ['m@1'],
 		'message unavailable in mirror');
+
+	if ($v == 2 && $level eq 'basic') {
+		is_deeply([glob("$ibx->{mainrepo}/xap*/?/")], [],
+			 'no Xapian partition directories for v2 basic');
+	}
 }
 
 # we can probably cull some other tests and put full/medium tests, here
