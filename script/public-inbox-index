@@ -10,18 +10,14 @@ use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $usage = "public-inbox-index REPO_DIR";
-use PublicInbox::Config;
 use PublicInbox::Admin qw(resolve_repo_dir);
+PublicInbox::Admin::require_or_die('-index');
+require PublicInbox::Config;
 
 my $config = eval { PublicInbox::Config->new } || eval {
 	warn "public-inbox unconfigured for serving, indexing anyways...\n";
 	undef;
 };
-eval { require PublicInbox::SearchIdx };
-if ($@) {
-	print STDERR "Search::Xapian required for $0\n";
-	exit 1;
-}
 
 my $reindex;
 my $prune;
@@ -56,25 +52,33 @@ defined($config) and $config->each_inbox(sub {
 	}
 });
 
+my @inboxes;
+my $mods = {};
+
 foreach my $dir (@dirs) {
-	if (!ref($dir)) {
+	my $ibx = $dir;
+	if (!ref($ibx)) {
 		unless (-d $dir) {
 			die "$dir does not appear to be an inbox repository\n";
 		}
-		my $ibx = {
+		$ibx = PublicInbox::Inbox->new({
 			mainrepo => $dir,
 			name => 'unnamed',
 			indexlevel => $indexlevel,
 			version => -f "$dir/inbox.lock" ? 2 : 1,
-		};
-		$dir = PublicInbox::Inbox->new($ibx);
-	} elsif (defined $indexlevel && !defined($dir->{indexlevel})) {
+		});
+	} elsif (defined $indexlevel && !defined($ibx->{indexlevel})) {
 		# XXX: users can shoot themselves in the foot, with this...
-		$dir->{indexlevel} = $indexlevel;
+		$ibx->{indexlevel} = $indexlevel;
 	}
-
-	index_inbox($dir);
+	push @inboxes, $ibx;
+	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
+
+PublicInbox::Admin::require_or_die(keys %$mods);
+
+require PublicInbox::SearchIdx;
+index_inbox($_) for @inboxes;
 
 sub index_inbox {
 	my ($repo) = @_;
