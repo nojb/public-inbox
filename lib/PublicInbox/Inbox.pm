@@ -9,7 +9,6 @@ use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use Devel::Peek qw(SvREFCNT);
 use PublicInbox::MIME;
-use POSIX qw(strftime);
 
 my $cleanup_timer;
 eval {
