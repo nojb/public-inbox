@@ -38,10 +38,6 @@ WriteMakefile(
 		# `perl5' on FreeBSD
 		'Encode' => 0,
 
-		# libperl$PERL_VERSION on Debian, `perl5' on FreeBSD,
-		# but Fedora seems to need this separately
-		'Devel::Peek' => 0,
-
 		# TODO: these should really be made optional...
 		'Plack' => 0,
 		'URI::Escape' => 0,

@@ -36,11 +36,6 @@ Beyond that, there is a long list of Perl modules required, starting with:
                                    pkg: p5-TimeDate
                                    rpm: perl-TimeDate
 
-* Devel::Peek                      deb: libperl5.$MINOR (e.g. libperl5.24)
-                                   pkg: perl5
-                                   rpm: perl-Devel-Peek
-                                   (typically installed alongside Perl5)
-
 * Email::MIME                      deb: libemail-mime-perl
                                    pkg: p5-Email-MIME
                                    rpm: perl-Email-MIME
@@ -124,6 +119,12 @@ above, so there is no need to explicitly install them:
                                    pkg: p5-DBI
                                    rpm: perl-DBI
                                    (pulled in by DBD::SQLite)
+
+* Devel::Peek                      deb: libperl5.$MINOR (e.g. libperl5.24)
+                                   pkg: perl5
+                                   rpm: perl-Devel-Peek
+                                   (optional for stale FD cleanup in daemons,
+                                    typically installed alongside Perl5)
 
 - Filesys::Notify::Simple          deb: libfilesys-notify-simple-perl
                                    pkg: pkg-Filesys-Notify-Simple

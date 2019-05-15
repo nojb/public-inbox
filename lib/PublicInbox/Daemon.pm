@@ -13,6 +13,7 @@ use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 require PublicInbox::DS;
+require PublicInbox::EvCleanup;
 require POSIX;
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
@@ -463,6 +464,7 @@ sub master_loop {
 
 sub daemon_loop ($$) {
 	my ($refresh, $post_accept) = @_;
+	PublicInbox::EvCleanup::enable(); # early for $refresh
 	my $parent_pipe;
 	if ($worker_processes > 0) {
 		$refresh->(); # preload by default
@@ -485,7 +487,6 @@ sub daemon_loop ($$) {
 	@listeners = map {
 		PublicInbox::Listener->new($_, $post_accept)
 	} @listeners;
-	PublicInbox::EvCleanup::enable();
 	PublicInbox::DS->EventLoop;
 	$parent_pipe = undef;
 }

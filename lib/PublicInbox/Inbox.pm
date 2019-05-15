@@ -7,25 +7,30 @@ use strict;
 use warnings;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
-use Devel::Peek qw(SvREFCNT);
 use PublicInbox::MIME;
 
+# Long-running "git-cat-file --batch" processes won't notice
+# unlinked packs, so we need to restart those processes occasionally.
+# Xapian and SQLite file handles are mostly stable, but sometimes an
+# admin will attempt to replace them atomically after compact/vacuum
+# and we need to be prepared for that.
 my $cleanup_timer;
-eval {
-	$cleanup_timer = 'disabled';
-	require PublicInbox::EvCleanup;
-	$cleanup_timer = undef; # OK if we get here
-};
-my $cleanup_broken = $@;
-
+my $cleanup_avail = -1; # 0, or 1
+my $have_devel_peek;
 my $CLEANUP = {}; # string(inbox) -> inbox
 sub cleanup_task () {
 	$cleanup_timer = undef;
 	my $next = {};
 	for my $ibx (values %$CLEANUP) {
 		my $again;
-		foreach my $f (qw(mm search)) {
-			delete $ibx->{$f} if SvREFCNT($ibx->{$f}) == 1;
+		if ($have_devel_peek) {
+			foreach my $f (qw(mm search)) {
+				# we bump refcnt by assigning tmp, here:
+				my $tmp = $ibx->{$f} or next;
+				next if Devel::Peek::SvREFCNT($tmp) > 2;
+				delete $ibx->{$f};
+				# refcnt is zero when tmp is out-of-scope
+			}
 		}
 		my $expire = time - 60;
 		if (my $git = $ibx->{git}) {
@@ -36,16 +41,30 @@ sub cleanup_task () {
 				$again = 1 if $git->cleanup($expire);
 			}
 		}
-		$again ||= !!($ibx->{mm} || $ibx->{search});
+		if ($have_devel_peek) {
+			$again ||= !!($ibx->{mm} || $ibx->{search});
+		}
 		$next->{"$ibx"} = $ibx if $again;
 	}
 	$CLEANUP = $next;
 }
 
+sub cleanup_possible () {
+	# no need to require EvCleanup, here, if it were enabled another
+	# module would've require'd it, already
+	eval { PublicInbox::EvCleanup::enabled() } or return 0;
+
+	eval {
+		require Devel::Peek; # needs separate package in Fedora
+		$have_devel_peek = 1;
+	};
+	1;
+}
+
 sub _cleanup_later ($) {
 	my ($self) = @_;
-	return if $cleanup_broken;
-	return unless PublicInbox::EvCleanup::enabled();
+	$cleanup_avail = cleanup_possible() if $cleanup_avail < 0;
+	return if $cleanup_avail != 1;
 	$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
 	$CLEANUP->{"$self"} = $self;
 }

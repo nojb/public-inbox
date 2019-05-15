@@ -18,6 +18,7 @@ use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::Handle;
+require PublicInbox::EvCleanup;
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
