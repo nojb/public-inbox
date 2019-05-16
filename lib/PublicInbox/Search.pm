@@ -45,7 +45,11 @@ use constant {
 
 	# n.b. FLAG_PURE_NOT is expensive not suitable for a public website
 	# as it could become a denial-of-service vector
-	QP_FLAGS => FLAG_PHRASE|FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
+	#
+	# FLAG_PHRASE also seems to cause performance problems sometimes.
+	# TODO: make this an option, maybe?
+	# or make indexlevel=medium as default
+	QP_FLAGS => FLAG_BOOLEAN|FLAG_LOVEHATE|FLAG_WILDCARD,
 };
 
 my %bool_pfx_external = (
