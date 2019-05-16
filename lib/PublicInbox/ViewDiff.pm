@@ -141,8 +141,14 @@ sub flush_diff ($$$) {
 	my $spfx = $ctx->{-spfx};
 	my $state = DSTATE_INIT;
 	my $dctx = { Q => '' }; # {}, keys: oid_a, oid_b, path_a, path_b
+	my $dpfx = $ctx->{-dpfx}; # leading spaces for interdiff
+	my $dpfx_re = qr/\A$dpfx/ if defined $dpfx;
 
 	foreach my $s (@$diff) {
+		if (defined($dpfx)) {
+			$s =~ s/$dpfx_re//;
+			$$dst .= $dpfx;
+		}
 		if ($s =~ /^---$/) {
 			to_state($dst, $state, DSTATE_STAT);
 			$$dst .= $s;

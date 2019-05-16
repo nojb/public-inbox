@@ -568,7 +568,9 @@ sub add_text_body {
 	# always support diff-highlighting, but we can't linkify hunk
 	# headers for solver unless some coderepo are configured:
 	my $diff;
-	if ($s =~ /^(?:diff|---|\+{3}) /ms) {
+	if ($s =~ /^([ \t]*)(?:diff|---|\+{3}) /ms) {
+		$ctx->{-dpfx} = $1 if $1; # for format-patch --interdiff output
+
 		# diffstat anchors do not link across attachments or messages:
 		$idx[0] = $upfx . $idx[0] if $upfx ne '';
 		$ctx->{-apfx} = join('/', @idx);
