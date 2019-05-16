@@ -59,14 +59,14 @@ sub call {
 	my $ctx = { env => $env, www => $self };
 
 	# we don't care about multi-value
-	my %qp = map {
+	%{$ctx->{qp}} = map {
 		utf8::decode($_);
-		my ($k, $v) = split('=', uri_unescape($_), 2);
-		$v = '' unless defined $v;
-		$v =~ tr/+/ /;
-		($k, $v)
+		tr/+/ /;
+		my ($k, $v) = split('=', $_, 2);
+		$v = uri_unescape($v // '');
+		# none of the keys we care about will need escaping
+		$k => $v;
 	} split(/[&;]+/, $env->{QUERY_STRING});
-	$ctx->{qp} = \%qp;
 
 	# avoiding $env->{PATH_INFO} here since that's already decoded
 	my ($path_info) = ($env->{REQUEST_URI} =~ path_re($env));
