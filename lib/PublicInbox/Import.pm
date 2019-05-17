@@ -367,10 +367,14 @@ sub add {
 	my @ct = msg_timestamp($hdr);
 	my $author_time_raw = git_timestamp(@at);
 	my $commit_time_raw = git_timestamp(@ct);
+
 	my $subject = $mime->header('Subject');
 	$subject = '(no subject)' unless defined $subject;
-	my $path_type = $self->{path_type};
+	# Mime decoding can create nulls replace them with spaces to protect git
+	$subject =~ tr/\0/ /;
+	utf8::encode($subject);
 
+	my $path_type = $self->{path_type};
 	my $path;
 	if ($path_type eq '2/38') {
 		$path = mid2path(v1_mid0($mime));
@@ -411,9 +415,6 @@ sub add {
 		print $w "reset $ref\n" or wfail;
 	}
 
-	# Mime decoding can create nulls replace them with spaces to protect git
-	$subject =~ tr/\0/ /;
-	utf8::encode($subject);
 	print $w "commit $ref\nmark :$commit\n",
 		"author $name <$email> $author_time_raw\n",
 		"committer $self->{ident} $commit_time_raw\n" or wfail;
