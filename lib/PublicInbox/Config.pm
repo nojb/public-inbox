@@ -25,6 +25,7 @@ sub new {
 
 	# caches
 	$self->{-by_addr} ||= {};
+	$self->{-by_list_id} ||= {};
 	$self->{-by_name} ||= {};
 	$self->{-by_newsgroup} ||= {};
 	$self->{-no_obfuscate} ||= {};
@@ -76,6 +77,33 @@ sub lookup {
 			}
 		} else {
 			(lc($v) eq $addr) or next;
+			$pfx = $1;
+			last;
+		}
+	}
+	defined $pfx or return;
+	_fill($self, $pfx);
+}
+
+sub lookup_list_id {
+	my ($self, $list_id) = @_;
+	$list_id = lc($list_id);
+	my $ibx = $self->{-by_list_id}->{$list_id};
+	return $ibx if $ibx;
+
+	my $pfx;
+
+	foreach my $k (keys %$self) {
+		$k =~ /\A(publicinbox\.[\w-]+)\.listid\z/ or next;
+		my $v = $self->{$k};
+		if (ref($v) eq "ARRAY") {
+			foreach my $alias (@$v) {
+				(lc($alias) eq $list_id) or next;
+				$pfx = $1;
+				last;
+			}
+		} else {
+			(lc($v) eq $list_id) or next;
 			$pfx = $1;
 			last;
 		}
@@ -398,7 +426,7 @@ sub _fill {
 	}
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	foreach my $k (qw(address altid nntpmirror coderepo hide)) {
+	foreach my $k (qw(address altid nntpmirror coderepo hide listid)) {
 		if (defined(my $v = $self->{"$pfx.$k"})) {
 			$ibx->{$k} = _array($v);
 		}
@@ -420,6 +448,11 @@ sub _fill {
 		my $lc_addr = lc($_);
 		$self->{-by_addr}->{$lc_addr} = $ibx;
 		$self->{-no_obfuscate}->{$lc_addr} = 1;
+	}
+	if (my $listids = $ibx->{listid}) {
+		foreach my $list_id (@$listids) {
+			$self->{-by_list_id}->{$list_id} = $ibx;
+		}
 	}
 	if (my $ng = $ibx->{newsgroup}) {
 		$self->{-by_newsgroup}->{$ng} = $ibx;
