@@ -19,7 +19,6 @@ use POSIX qw(strftime);
 use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::Git qw(git_unquote);
-use Compress::Zlib qw(compress);
 
 use constant {
 	BATCH_BYTES => defined($ENV{XAPIAN_FLUSH_THRESHOLD}) ?
