@@ -326,27 +326,27 @@ sub cmd_newnews ($$$$;$$) {
 	my ($keep, $skip) = split('!', $newsgroups, 2);
 	ngpat2re($keep);
 	ngpat2re($skip);
-	my @srch;
+	my @over;
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{newsgroup} =~ $keep or next;
 		$ng->{newsgroup} =~ $skip and next;
-		my $srch = $ng->search or next;
-		push @srch, $srch;
+		my $over = $ng->over or next;
+		push @over, $over;
 	};
-	return '.' unless @srch;
+	return '.' unless @over;
 
 	my $prev = 0;
 	long_response($self, sub {
-		my $srch = $srch[0];
-		my $msgs = $srch->query_ts($ts, $prev);
+		my $over = $over[0];
+		my $msgs = $over->query_ts($ts, $prev);
 		if (scalar @$msgs) {
 			more($self, '<' .
 				join(">\r\n<", map { $_->mid } @$msgs ).
 				'>');
 			$prev = $msgs->[-1]->{num};
 		} else {
-			shift @srch;
-			if (@srch) { # continue onto next newsgroup
+			shift @over;
+			if (@over) { # continue onto next newsgroup
 				$prev = 0;
 				return 1;
 			} else { # break out of the long response.
@@ -483,7 +483,7 @@ find_mid:
 		defined $mid or return $err;
 	}
 found:
-	my $smsg = $ng->search->{over_ro}->get_art($n) or return $err;
+	my $smsg = $ng->over->get_art($n) or return $err;
 	my $msg = $ng->msg_by_smsg($smsg) or return $err;
 	my $s = Email::Simple->new($msg);
 	if ($set_headers) {
@@ -706,9 +706,9 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 	}
 }
 
-sub search_header_for {
-	my ($srch, $num, $field) = @_;
-	my $smsg = $srch->{over_ro}->get_art($num) or return;
+sub over_header_for {
+	my ($over, $num, $field) = @_;
+	my $smsg = $over->get_art($num) or return;
 	return PublicInbox::SearchMsg::date($smsg) if $field eq 'date';
 	$smsg->{$field};
 }
@@ -718,11 +718,11 @@ sub hdr_searchmsg ($$$$) {
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my ($ng, $n) = mid_lookup($self, $1);
 		return r430 unless defined $n;
-		my $v = search_header_for($ng->search, $n, $field);
+		my $v = over_header_for($ng->over, $n, $field);
 		hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
-		my $srch = $self->{ng}->search;
+		my $over = $self->{ng}->over;
 		my $mm = $self->{ng}->mm;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
@@ -730,7 +730,7 @@ sub hdr_searchmsg ($$$$) {
 		more($self, $xhdr ? r221 : r225);
 		my $cur = $beg;
 		long_response($self, sub {
-			my $msgs = $srch->query_xover($cur, $end);
+			my $msgs = $over->query_xover($cur, $end);
 			my $nr = scalar @$msgs or return;
 			my $tmp = '';
 			foreach my $s (@$msgs) {
@@ -810,11 +810,11 @@ sub cmd_xrover ($;$) {
 	return $r unless ref $r;
 	my ($beg, $end) = @$r;
 	my $mm = $ng->mm;
-	my $srch = $ng->search;
+	my $over = $ng->over;
 	more($self, '224 Overview information follows');
 
 	long_response($self, sub {
-		my $h = search_header_for($srch, $beg, 'references');
+		my $h = over_header_for($over, $beg, 'references');
 		more($self, "$beg $h") if defined($h);
 		$beg++ < $end;
 	});
@@ -842,7 +842,7 @@ sub cmd_over ($;$) {
 	if ($range && $range =~ /\A<(.+)>\z/) {
 		my ($ng, $n) = mid_lookup($self, $1);
 		defined $n or return r430;
-		my $smsg = $ng->search->{over_ro}->get_art($n) or return r430;
+		my $smsg = $ng->over->get_art($n) or return r430;
 		more($self, '224 Overview information follows (multi-line)');
 
 		# Only set article number column if it's the current group
@@ -862,10 +862,10 @@ sub cmd_xover ($;$) {
 	return $r unless ref $r;
 	my ($beg, $end) = @$r;
 	more($self, "224 Overview information follows for $beg to $end");
-	my $srch = $self->{ng}->search;
+	my $over = $self->{ng}->over;
 	my $cur = $beg;
 	long_response($self, sub {
-		my $msgs = $srch->query_xover($cur, $end);
+		my $msgs = $over->query_xover($cur, $end);
 		my $nr = scalar @$msgs or return;
 
 		# OVERVIEW.FMT

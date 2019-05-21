@@ -27,10 +27,10 @@ sub generate {
 sub generate_thread_atom {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
-	my $msgs = $ctx->{srch}->get_thread($mid);
+	my $ibx = $ctx->{-inbox};
+	my $msgs = $ibx->over->get_thread($mid);
 	return _no_thread() unless @$msgs;
 
-	my $ibx = $ctx->{-inbox};
 	my $html_url = $ibx->base_url($ctx->{env});
 	$html_url .= PublicInbox::Hval->new_msgid($mid)->{href};
 	$ctx->{-html_url} = $html_url;
@@ -46,12 +46,13 @@ sub generate_html_index {
 	# if the 'r' query parameter is given, it is a legacy permalink
 	# which we must continue supporting:
 	my $qp = $ctx->{qp};
-	if ($qp && !$qp->{r} && $ctx->{srch}) {
+	my $ibx = $ctx->{-inbox};
+	if ($qp && !$qp->{r} && $ibx->over) {
 		return PublicInbox::View::index_topics($ctx);
 	}
 
 	my $env = $ctx->{env};
-	my $url = $ctx->{-inbox}->base_url($env) . 'new.html';
+	my $url = $ibx->base_url($env) . 'new.html';
 	my $qs = $env->{QUERY_STRING};
 	$url .= "?$qs" if $qs ne '';
 	[302, [ 'Location', $url, 'Content-Type', 'text/plain'],
@@ -94,7 +95,7 @@ sub recent_msgs {
 	if ($v > 2) {
 		die "BUG: unsupported inbox version: $v\n";
 	}
-	if (my $srch = $ibx->search) {
+	if ($ibx->over) {
 		return PublicInbox::View::paginate_recent($ctx, $max);
 	}
 

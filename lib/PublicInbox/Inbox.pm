@@ -24,7 +24,7 @@ sub cleanup_task () {
 	for my $ibx (values %$CLEANUP) {
 		my $again;
 		if ($have_devel_peek) {
-			foreach my $f (qw(mm search)) {
+			foreach my $f (qw(mm search over)) {
 				# we bump refcnt by assigning tmp, here:
 				my $tmp = $ibx->{$f} or next;
 				next if Devel::Peek::SvREFCNT($tmp) > 2;
@@ -42,7 +42,8 @@ sub cleanup_task () {
 			}
 		}
 		if ($have_devel_peek) {
-			$again ||= !!($ibx->{mm} || $ibx->{search});
+			$again ||= !!($ibx->{over} || $ibx->{mm} ||
+			              $ibx->{search});
 		}
 		$next->{"$ibx"} = $ibx if $again;
 	}
@@ -186,12 +187,24 @@ sub mm {
 	};
 }
 
-sub search {
-	my ($self) = @_;
-	$self->{search} ||= eval {
+sub search ($;$) {
+	my ($self, $over_only) = @_;
+	my $srch = $self->{search} ||= eval {
 		_cleanup_later($self);
+		require PublicInbox::Search;
 		PublicInbox::Search->new($self, $self->{altid});
 	};
+	($over_only || eval { $srch->xdb }) ? $srch : undef;
+}
+
+sub over ($) {
+	my ($self) = @_;
+	my $srch = search($self, 1) or return;
+	$self->{over} ||= eval {
+		my $over = $srch->{over_ro};
+		$over->dbh_new; # may fail
+		$over;
+	}
 }
 
 sub try_cat {
@@ -298,8 +311,8 @@ sub nntp_url {
 
 sub nntp_usable {
 	my ($self) = @_;
-	my $ret = $self->mm && $self->search;
-	$self->{mm} = $self->{search} = undef;
+	my $ret = mm($self) && over($self);
+	$self->{mm} = $self->{over} = $self->{search} = undef;
 	$ret;
 }
 
@@ -340,30 +353,32 @@ sub mid2num($$) {
 
 sub smsg_by_mid ($$) {
 	my ($self, $mid) = @_;
-	my $srch = search($self) or return;
+	my $over = over($self) or return;
 	# favor the Message-ID we used for the NNTP article number:
 	defined(my $num = mid2num($self, $mid)) or return;
-	my $smsg = $srch->lookup_article($num) or return;
+	my $smsg = $over->get_art($num) or return;
 	PublicInbox::SearchMsg::psgi_cull($smsg);
 }
 
 sub msg_by_mid ($$;$) {
 	my ($self, $mid, $ref) = @_;
-	my $srch = search($self) or
+
+	over($self) or
 		return msg_by_path($self, mid2path($mid), $ref);
+
 	my $smsg = smsg_by_mid($self, $mid);
 	$smsg ? msg_by_smsg($self, $smsg, $ref) : undef;
 }
 
 sub recent {
 	my ($self, $opts, $after, $before) = @_;
-	search($self)->{over_ro}->recent($opts, $after, $before);
+	over($self)->recent($opts, $after, $before);
 }
 
 sub modified {
 	my ($self) = @_;
-	if (my $srch = search($self)) {
-		my $msgs = $srch->{over_ro}->recent({limit => 1});
+	if (my $over = over($self)) {
+		my $msgs = $over->recent({limit => 1});
 		if (my $smsg = $msgs->[0]) {
 			return $smsg->{ts};
 		}

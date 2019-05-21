@@ -7,7 +7,7 @@ use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
-my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
+my @mods = qw(DBD::SQLite HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {
 	eval "require $mod";
@@ -22,6 +22,7 @@ my $ibx = {
 	name => 'bad-mids',
 	version => 2,
 	-primary_address => 'test@example.com',
+	indexlevel => 'basic',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
 my $im = PublicInbox::V2Writable->new($ibx, 1);

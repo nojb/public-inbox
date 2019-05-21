@@ -29,6 +29,8 @@ sub mbox_results {
 
 sub sres_top_html {
 	my ($ctx) = @_;
+	my $srch = $ctx->{-inbox}->search or
+		return PublicInbox::WWW::need($ctx, 'Search');
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
 	my $x = $q->{x};
 	my $query = $q->{'q'};
@@ -44,7 +46,7 @@ sub sres_top_html {
 	my ($mset, $total, $err, $cb);
 retry:
 	eval {
-		$mset = $ctx->{srch}->query($query, $opts);
+		$mset = $srch->query($query, $opts);
 		$total = $mset->get_matches_estimated;
 	};
 	$err = $@;
@@ -98,8 +100,8 @@ sub mset_summary {
 	my $pad = length("$total");
 	my $pfx = ' ' x $pad;
 	my $res = \($ctx->{-html_tip});
-	my $srch = $ctx->{srch};
 	my $ibx = $ctx->{-inbox};
+	my $srch = $ibx->search;
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
@@ -220,8 +222,8 @@ sub sort_relevance {
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my %pct;
-	my $srch = $ctx->{srch};
-	my $msgs = $srch->retry_reopen(sub { [ map {
+	my $ibx = $ctx->{-inbox};
+	my $msgs = $ibx->search->retry_reopen(sub { [ map {
 		my $i = $_;
 		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
 		$pct{$smsg->mid} = $i->get_percent;
@@ -232,7 +234,6 @@ sub mset_thread {
 		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ds,
 		$ctx);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
-	my $ibx = $ctx->{-inbox};
 	$ctx->{-upfx} = '';
 	$ctx->{anchor_idx} = 1;
 	$ctx->{cur_level} = 0;
@@ -286,7 +287,7 @@ sub adump {
 	my $ibx = $ctx->{-inbox};
 	my @items = $mset->items;
 	$ctx->{search_query} = $q;
-	my $srch = $ctx->{srch};
+	my $srch = $ibx->search;
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
 		while (my $x = shift @items) {
 			$x = load_doc_retry($srch, $x);

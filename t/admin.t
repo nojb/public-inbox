@@ -50,7 +50,7 @@ SKIP: {
 
 # v2
 SKIP: {
-	for my $m (qw(DBD::SQLite Search::Xapian)) {
+	for my $m (qw(DBD::SQLite)) {
 		skip "$m missing", 5 unless eval "require $m";
 	}
 	use_ok 'PublicInbox::V2Writable';

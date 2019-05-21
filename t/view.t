@@ -13,6 +13,7 @@ my $ctx = {
 	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'http' },
 	-inbox => Plack::Util::inline_object(
 		name => 'test',
+		over => sub { undef },
 		search => sub { undef },
 		base_url => sub { 'http://example.com/' },
 		cloneurl => sub {[]},

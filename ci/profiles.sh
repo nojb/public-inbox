@@ -62,8 +62,9 @@ essential devtest-
 EOF
 	;;
 debian-sid|debian-9|debian-10) sed "s/^/$PKG_FMT /" <<EOF
-all devtest-
 all devtest
+all devtest Search::Xapian-
+all devtest-
 v2essential
 essential
 essential devtest-

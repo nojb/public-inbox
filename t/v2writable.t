@@ -258,7 +258,7 @@ EOF
 	ok($im->add($mime), 'add excessively long References');
 	$im->barrier;
 
-	my $msgs = $ibx->search->reopen->get_thread('x'x244);
+	my $msgs = $ibx->search->{over_ro}->get_thread('x'x244);
 	is(2, scalar(@$msgs), 'got both messages');
 	is($msgs->[0]->{mid}, 'x'x244, 'stored truncated mid');
 	is($msgs->[1]->{references}, '<'.('x'x244).'>', 'stored truncated ref');

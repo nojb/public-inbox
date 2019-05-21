@@ -41,4 +41,64 @@ sub resolve_repo_dir {
 	}
 }
 
+# TODO: make Devel::Peek optional, only used for daemon
+my @base_mod = qw(Email::MIME Date::Parse Devel::Peek);
+my @over_mod = qw(DBD::SQLite DBI);
+my %mod_groups = (
+	-index => [ @base_mod, @over_mod ],
+	-base => \@base_mod,
+	-search => [ @base_mod, @over_mod, 'Search::Xapian' ],
+);
+
+sub scan_ibx_modules ($$) {
+	my ($mods, $ibx) = @_;
+	if (!$ibx->{indexlevel} || $ibx->{indexlevel} ne 'basic') {
+		$mods->{'Search::Xapian'} = 1;
+	} else {
+		$mods->{$_} = 1 foreach @over_mod;
+	}
+}
+
+sub check_require {
+	my (@mods) = @_;
+	my $err = {};
+	while (my $mod = shift @mods) {
+		if (my $groups = $mod_groups{$mod}) {
+			push @mods, @$groups;
+		} else {
+			eval "require $mod";
+			$err->{$mod} = $@ if $@;
+		}
+	}
+	scalar keys %$err ? $err : undef;
+}
+
+sub missing_mod_msg {
+	my ($err) = @_;
+	my @mods = map { "`$_'" } sort keys %$err;
+	my $last = pop @mods;
+	@mods ? (join(', ', @mods)."' and $last") : $last
+}
+
+sub require_or_die {
+	my $err = check_require(@_) or return;
+	die missing_mod_msg($err)." required for $0\n";
+}
+
+sub indexlevel_ok_or_die ($) {
+	my ($indexlevel) = @_;
+	my $req;
+	if ($indexlevel eq 'basic') {
+		$req = '-index';
+	} elsif ($indexlevel =~ /\A(?:medium|full)\z/) {
+		$req = '-search';
+	} else {
+		die <<"";
+invalid indexlevel=$indexlevel (must be `basic', `medium', or `full')
+
+	}
+	my $err = check_require($req) or return;
+	die missing_mod_msg($err) ." required for indexlevel=$indexlevel\n";
+}
+
 1;

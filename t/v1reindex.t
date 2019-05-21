@@ -209,8 +209,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
-	my $mset = $ibx->search->reopen->query('hello world', {mset=>1});
-	is($mset->size, 0, "no Xapian search results");
+	isnt($ibx->search, 'no search for basic');
 
 	my ($min, $max) = $ibx->mm->minmax;
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');

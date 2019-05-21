@@ -7,16 +7,16 @@
 use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use PublicInbox::Config;
-use PublicInbox::MIME;
 use PublicInbox::Admin qw(resolve_repo_dir);
-use PublicInbox::Filter::Base;
-*REJECT = *PublicInbox::Filter::Base::REJECT;
+PublicInbox::Admin::check_require('-index');
+require PublicInbox::Filter::Base;
+require PublicInbox::Config;
+require PublicInbox::MIME;
+require PublicInbox::V2Writable;
+
+{ no warnings 'once'; *REJECT = *PublicInbox::Filter::Base::REJECT }
 
 my $usage = "$0 [--all] [INBOX_DIRS] </path/to/message";
-
-eval { require PublicInbox::V2Writable } or die
-	"DBI, DBD::SQLite and Search::Xapian required for purge\n";
 my $config = eval { PublicInbox::Config->new };
 my $cfgfile = PublicInbox::Config::default_file();
 my ($all, $force);
@@ -69,6 +69,40 @@ if ($all) {
 	if (@err) {
 		die "v1 inboxes currently not supported by -purge\n\t",
 		    join("\n\t", @err), "\n";
+	}
+}
+
+foreach my $ibx (@inboxes) {
+	my $lvl = $ibx->{indexlevel};
+	if (defined $lvl) {
+		PublicInbox::Admin::indexlevel_ok_or_die($lvl);
+		next;
+	}
+
+	# Undefined indexlevel, so `full'...
+	# Search::Xapian exists and the DB can be read, at least, fine
+	$ibx->search and next;
+
+	# it's possible for a Xapian directory to exist, but Search::Xapian
+	# to go missing/broken.  Make sure it's purged in that case:
+	$ibx->over or die "no over.sqlite3 in $ibx->{mainrepo}\n";
+
+	# $ibx->{search} is populated by $ibx->over call
+	my $xdir_ro = $ibx->{search}->xdir(1);
+	my $npart = 0;
+	foreach my $part (<$xdir_ro/*>) {
+		if (-d $part && $part =~ m!/\d+\z!) {
+			my $bytes = 0;
+			$bytes += -s $_ foreach glob("$part/*");
+			$npart++ if $bytes;
+		}
+	}
+	if ($npart) {
+		PublicInbox::Admin::require_or_die('-search');
+	} else {
+		# somebody could "rm -r" all the Xapian directories;
+		# let them purge the overview, at least
+		$ibx->{indexlevel} ||= 'basic';
 	}
 }
 

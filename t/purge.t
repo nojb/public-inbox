@@ -6,7 +6,7 @@ use Test::More;
 use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6);
-my @mods = qw(IPC::Run DBI DBD::SQLite Search::Xapian);
+my @mods = qw(IPC::Run DBI DBD::SQLite);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "missing $mod for t/purge.t" if $@;

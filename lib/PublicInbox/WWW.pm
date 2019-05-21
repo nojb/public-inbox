@@ -149,8 +149,11 @@ sub preload {
 	require PublicInbox::MIME;
 	require Digest::SHA;
 	require POSIX;
-
-	foreach (qw(PublicInbox::Search PublicInbox::SearchView
+	eval {
+		require PublicInbox::Search;
+		PublicInbox::Search::load_xapian();
+	};
+	foreach (qw(PublicInbox::SearchView
 			PublicInbox::Mbox IO::Compress::Gzip
 			PublicInbox::NewsWWW)) {
 		eval "require $_;";
@@ -168,7 +171,6 @@ sub r404 {
 	my ($ctx) = @_;
 	if ($ctx && $ctx->{mid}) {
 		require PublicInbox::ExtMsg;
-		searcher($ctx);
 		return PublicInbox::ExtMsg::ext_msg($ctx);
 	}
 	r(404, 'Not Found');
@@ -239,7 +241,6 @@ sub get_new {
 sub get_index {
 	my ($ctx) = @_;
 	require PublicInbox::Feed;
-	searcher($ctx);
 	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
 		require PublicInbox::SearchView;
 		PublicInbox::SearchView::sres_top_html($ctx);
@@ -259,14 +260,13 @@ sub get_mid_txt {
 sub get_mid_html {
 	my ($ctx) = @_;
 	require PublicInbox::View;
-	searcher($ctx);
 	PublicInbox::View::msg_page($ctx) || r404($ctx);
 }
 
 # /$INBOX/$MESSAGE_ID/t/
 sub get_thread {
 	my ($ctx, $flat) = @_;
-	searcher($ctx) or return need_search($ctx);
+	$ctx->{-inbox}->over or return need($ctx, 'Overview');
 	$ctx->{flat} = $flat;
 	require PublicInbox::View;
 	PublicInbox::View::thread_html($ctx);
@@ -303,21 +303,11 @@ sub ctx_get {
 	$val;
 }
 
-# search support is optional, returns undef if Xapian is not installed
-# or not configured for the given GIT_DIR
-sub searcher {
-	my ($ctx) = @_;
-	eval {
-		require PublicInbox::Search;
-		$ctx->{srch} = $ctx->{-inbox}->search;
-	};
-}
-
-sub need_search {
-	my ($ctx) = @_;
+sub need {
+	my ($ctx, $extra) = @_;
 	my $msg = <<EOF;
-<html><head><title>Search not available for this
-public-inbox</title><body><pre>Search is not available for this public-inbox
+<html><head><title>$extra not available for this
+public-inbox</title><body><pre>$extra is not available for this public-inbox
 <a href="../">Return to index</a></pre></body></html>
 EOF
 	[ 501, [ 'Content-Type' => 'text/html; charset=UTF-8' ], [ $msg ] ];
@@ -330,16 +320,16 @@ EOF
 # especially on older systems.  Stick to zlib since that's what git uses.
 sub get_thread_mbox {
 	my ($ctx, $sfx) = @_;
-	my $srch = searcher($ctx) or return need_search($ctx);
+	my $over = $ctx->{-inbox}->over or return need($ctx, 'Overview');
 	require PublicInbox::Mbox;
-	PublicInbox::Mbox::thread_mbox($ctx, $srch, $sfx);
+	PublicInbox::Mbox::thread_mbox($ctx, $over, $sfx);
 }
 
 
 # /$INBOX/$MESSAGE_ID/t.atom		  -> thread as Atom feed
 sub get_thread_atom {
 	my ($ctx) = @_;
-	searcher($ctx) or return need_search($ctx);
+	$ctx->{-inbox}->over or return need($ctx, 'Overview');
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate_thread_atom($ctx);
 }
@@ -453,7 +443,7 @@ sub serve_git {
 sub mbox_results {
 	my ($ctx) = @_;
 	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
-		searcher($ctx) or return need_search($ctx);
+		$ctx->{-inbox}->search or return need($ctx, 'search');
 		require PublicInbox::SearchView;
 		return PublicInbox::SearchView::mbox_results($ctx);
 	}
@@ -464,7 +454,6 @@ sub serve_mbox_range {
 	my ($ctx, $inbox, $range) = @_;
 	invalid_inbox($ctx, $inbox) || eval {
 		require PublicInbox::Mbox;
-		searcher($ctx);
 		PublicInbox::Mbox::emit_range($ctx, $range);
 	}
 }

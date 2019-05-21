@@ -45,7 +45,7 @@ sub getline {
 	}
 	$cur = $next or return;
 	my $ibx = $ctx->{-inbox};
-	$next = $ibx->search->next_by_mid($ctx->{mid}, \$id, \$prev);
+	$next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	@$more = ($ctx, $id, $prev, $next); # $next may be undef, here
 	my $mref = $ibx->msg_by_smsg($cur) or return;
 	msg_str($ctx, Email::Simple->new($mref));
@@ -59,12 +59,12 @@ sub emit_raw {
 	my $ibx = $ctx->{-inbox};
 	my $first;
 	my $more;
-	if (my $srch = $ibx->search) {
+	if (my $over = $ibx->over) {
 		my ($id, $prev);
-		my $smsg = $srch->next_by_mid($mid, \$id, \$prev) or return;
+		my $smsg = $over->next_by_mid($mid, \$id, \$prev) or return;
 		my $mref = $ibx->msg_by_smsg($smsg) or return;
 		$first = Email::Simple->new($mref);
-		my $next = $srch->next_by_mid($mid, \$id, \$prev);
+		my $next = $over->next_by_mid($mid, \$id, \$prev);
 		# $more is for ->getline
 		$more = [ $ctx, $id, $prev, $next, $first ] if $next;
 	} else {
@@ -130,11 +130,11 @@ sub msg_str {
 }
 
 sub thread_mbox {
-	my ($ctx, $srch, $sfx) = @_;
+	my ($ctx, $over, $sfx) = @_;
 	eval { require IO::Compress::Gzip };
 	return sub { need_gzip(@_) } if $@;
 	my $mid = $ctx->{mid};
-	my $msgs = $srch->get_thread($mid, {});
+	my $msgs = $over->get_thread($mid, {});
 	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
 	my $prev = $msgs->[-1];
 	my $i = 0;
@@ -144,7 +144,7 @@ sub thread_mbox {
 				return $smsg;
 			}
 			# refill result set
-			$msgs = $srch->get_thread($mid, $prev);
+			$msgs = $over->get_thread($mid, $prev);
 			return unless @$msgs;
 			$prev = $msgs->[-1];
 			$i = 0;
@@ -168,17 +168,19 @@ sub emit_range {
 sub mbox_all_ids {
 	my ($ctx) = @_;
 	my $prev = 0;
-	my $ids = $ctx->{-inbox}->mm->ids_after(\$prev) or return
+	my $ibx = $ctx->{-inbox};
+	my $ids = $ibx->mm->ids_after(\$prev) or return
 		[404, [qw(Content-Type text/plain)], ["No results found\n"]];
 	my $i = 0;
-	my $over = $ctx->{srch}->{over_ro};
+	my $over = $ibx->over or
+		return PublicInbox::WWW::need($ctx, 'Overview');
 	my $cb = sub {
 		do {
 			while ((my $num = $ids->[$i++])) {
 				my $smsg = $over->get_art($num) or next;
 				return $smsg;
 			}
-			$ids = $ctx->{-inbox}->mm->ids_after(\$prev);
+			$ids = $ibx->mm->ids_after(\$prev);
 			$i = 0;
 		} while (@$ids);
 		undef;
@@ -193,7 +195,8 @@ sub mbox_all {
 	return sub { need_gzip(@_) } if $@;
 	return mbox_all_ids($ctx) if $query eq '';
 	my $opts = { mset => 2 };
-	my $srch = $ctx->{srch};
+	my $srch = $ctx->{-inbox}->search or
+		return PublicInbox::WWW::need($ctx, 'Search');;
 	my $mset = $srch->query($query, $opts);
 	$opts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],

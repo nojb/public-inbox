@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
+foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for nntpd.t" if $@;
 }
@@ -55,12 +55,13 @@ my $ibx = {
 	name => $group,
 	version => $version,
 	-primary_address => $addr,
+	indexlevel => 'basic',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
 {
 	local $ENV{HOME} = $home;
 	my @cmd = ($init, $group, $mainrepo, 'http://example.com/', $addr);
-	push @cmd, "-V$version";
+	push @cmd, "-V$version", '-Lbasic';
 	is(system(@cmd), 0, 'init OK');
 	is(system(qw(git config), "--file=$home/.public-inbox/config",
 			"publicinbox.$group.newsgroup", $group),
@@ -71,8 +72,8 @@ $ibx = PublicInbox::Inbox->new($ibx);
 	if ($version == 2) {
 		$im = PublicInbox::V2Writable->new($ibx);
 	} elsif ($version == 1) {
-		my $git = PublicInbox::Git->new($mainrepo);
-		$im = PublicInbox::Import->new($git, 'test', $addr);
+		use_ok 'PublicInbox::V1Writable';
+		$im = PublicInbox::V1Writable->new($ibx);
 	} else {
 		die "unsupported version: $version";
 	}
@@ -260,6 +261,12 @@ EOF
 		}
 		is($rdr, waitpid($rdr, 0), 'reader done');
 		is($? >> 8, 0, 'no errors');
+	}
+	SKIP: {
+		my @of = `lsof -p $pid 2>/dev/null`;
+		skip('lsof broken', 1) if (!scalar(@of) || $?);
+		my @xap = grep m!Search/Xapian!, @of;
+		is_deeply(\@xap, [], 'Xapian not loaded in nntpd');
 	}
 	{
 		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);

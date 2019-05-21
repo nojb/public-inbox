@@ -225,8 +225,9 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
-	my $mset = $ibx->search->query('freedom', {mset=>1});
-	is($mset->size, 0, "search fails on indexlevel='basic'");
+
+	isnt($ibx->search, 'no search for basic');
+
 	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{medium} > $sizes{basic}, 'basic is smaller than medium');
 

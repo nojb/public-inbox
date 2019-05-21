@@ -53,11 +53,10 @@ sub new {
 				die("Invalid indexlevel $ibx->{indexlevel}\n");
 			}
 		}
-	} else { # v1
+	} else { # FIXME: old tests: old tests
 		$ibx = { mainrepo => $git_dir, version => 1 };
 	}
 	$ibx = PublicInbox::InboxWritable->new($ibx);
-	require Search::Xapian::WritableDatabase;
 	my $self = bless {
 		mainrepo => $mainrepo,
 		-inbox => $ibx,
@@ -83,25 +82,41 @@ sub new {
 	$self;
 }
 
+sub need_xapian ($) { $_[0]->{indexlevel} =~ $xapianlevels }
+
 sub _xdb_release {
 	my ($self) = @_;
-	my $xdb = delete $self->{xdb} or croak 'not acquired';
-	$xdb->close;
+	if (need_xapian($self)) {
+		my $xdb = delete $self->{xdb} or croak 'not acquired';
+		$xdb->close;
+	}
 	$self->lock_release if $self->{creat};
 	undef;
 }
 
 sub _xdb_acquire {
 	my ($self) = @_;
-	croak 'already acquired' if $self->{xdb};
+	my $flag;
 	my $dir = $self->xdir;
-	my $flag = Search::Xapian::DB_OPEN;
+	if (need_xapian($self)) {
+		croak 'already acquired' if $self->{xdb};
+		PublicInbox::Search::load_xapian();
+		require Search::Xapian::WritableDatabase;
+		$flag = $self->{creat} ?
+			Search::Xapian::DB_CREATE_OR_OPEN() :
+			Search::Xapian::DB_OPEN();
+	}
 	if ($self->{creat}) {
 		require File::Path;
 		$self->lock_acquire;
-		File::Path::mkpath($dir);
-		$flag = Search::Xapian::DB_CREATE_OR_OPEN;
+
+		# don't create empty Xapian directories if we don't need Xapian
+		my $is_part = defined($self->{partition});
+		if (!$is_part || ($is_part && need_xapian($self))) {
+			File::Path::mkpath($dir);
+		}
 	}
+	return unless defined $flag;
 	$self->{xdb} = Search::Xapian::WritableDatabase->new($dir, $flag);
 }
 
@@ -341,7 +356,7 @@ sub add_message {
 		$num = index_mm($self, $mime);
 	}
 	eval {
-		if ($self->{indexlevel} =~ $xapianlevels) {
+		if (need_xapian($self)) {
 			$self->add_xapian($mime, $num, $oid, $mids, $mid0)
 		}
 		if (my $over = $self->{over}) {
@@ -382,7 +397,6 @@ sub batch_do {
 # v1 only, where $mid is unique
 sub remove_message {
 	my ($self, $mid) = @_;
-	my $db = $self->{xdb};
 	$mid = mid_clean($mid);
 
 	if (my $over = $self->{over}) {
@@ -393,7 +407,8 @@ sub remove_message {
 			warn "<$mid> missing for removal from overview\n";
 		}
 	}
-	return if $self->{indexlevel} !~ $xapianlevels;
+	return unless need_xapian($self);
+	my $db = $self->{xdb};
 	my $nr = 0;
 	eval {
 		batch_do($self, 'Q' . $mid, sub {
@@ -412,9 +427,11 @@ sub remove_message {
 # MID is a hint in V2
 sub remove_by_oid {
 	my ($self, $oid, $mid) = @_;
-	my $db = $self->{xdb};
 
 	$self->{over}->remove_oid($oid, $mid) if $self->{over};
+
+	return unless need_xapian($self);
+	my $db = $self->{xdb};
 
 	# XXX careful, we cannot use batch_do here since we conditionally
 	# delete documents based on other factors, so we cannot call
@@ -663,7 +680,7 @@ sub _last_x_commit {
 	my ($self, $mm) = @_;
 	my $lm = $mm->last_commit || '';
 	my $lx = '';
-	if ($self->{indexlevel} =~ $xapianlevels) {
+	if (need_xapian($self)) {
 		$lx = $self->{xdb}->get_metadata('last_commit') || '';
 	} else {
 		$lx = $lm;
@@ -694,7 +711,7 @@ sub _index_sync {
 		$self->{over}->disconnect;
 		$git->cleanup;
 		delete $self->{txn};
-		$xdb->cancel_transaction;
+		$xdb->cancel_transaction if $xdb;
 		$xdb = _xdb_release($self);
 
 		# ensure we leak no FDs to "git log" with Xapian <= 1.2
@@ -716,7 +733,7 @@ sub _index_sync {
 			}
 			$dbh->commit;
 		}
-		if ($newest && $self->{indexlevel} =~ $xapianlevels) {
+		if ($newest && need_xapian($self)) {
 			my $cur = $xdb->get_metadata('last_commit');
 			if (need_update($self, $cur, $newest)) {
 				$xdb->set_metadata('last_commit', $newest);
@@ -784,7 +801,7 @@ sub begin_txn_lazy {
 	$self->{-inbox}->with_umask(sub {
 		my $xdb = $self->{xdb} || $self->_xdb_acquire;
 		$self->{over}->begin_lazy if $self->{over};
-		$xdb->begin_transaction;
+		$xdb->begin_transaction if $xdb;
 		$self->{txn} = 1;
 		$xdb;
 	});
@@ -794,14 +811,18 @@ sub commit_txn_lazy {
 	my ($self) = @_;
 	delete $self->{txn} or return;
 	$self->{-inbox}->with_umask(sub {
-		$self->{xdb}->commit_transaction;
+		if (my $xdb = $self->{xdb}) {
+			$xdb->commit_transaction;
+		}
 		$self->{over}->commit_lazy if $self->{over};
 	});
 }
 
 sub worker_done {
 	my ($self) = @_;
-	die "$$ $0 xdb not released\n" if $self->{xdb};
+	if (need_xapian($self)) {
+		die "$$ $0 xdb not released\n" if $self->{xdb};
+	}
 	die "$$ $0 still in transaction\n" if $self->{txn};
 }
 
