@@ -88,9 +88,8 @@ sub sample ($$) {
 # usage: perl -I lib __FILE__ contrib/css/216dark.css
 # (See Makefile.PL)
 if (scalar(@ARGV) == 1 && -r __FILE__) {
-	use autodie;
-	open my $ro, '<', $ARGV[0];
-	my $css = do { local $/; <$ro> };
+	open my $ro, '<', $ARGV[0] or die $!;
+	my $css = do { local $/; <$ro> } or die $!;
 
 	# indent one level:
 	$css =~ s/^([ \t]*\S)/\t$1/smg;
@@ -99,11 +98,12 @@ if (scalar(@ARGV) == 1 && -r __FILE__) {
 	$css =~ s/;/ !important;/sg;
 	$css =~ s/(\w) \}/$1 !important }/msg;
 
-	open my $rw, '+<', __FILE__;
-	my $out = do { local $/; <$rw> };
+	open my $rw, '+<', __FILE__ or die $!;
+	my $out = do { local $/; <$rw> } or die $!;
 	$out =~ s/^sub CSS.*^_\n\}/sub CSS () {\n\t<<'_'\n${css}_\n}/sm;
 	seek $rw, 0, 0;
-	print $rw $out;
+	print $rw $out or die $!;
+	close $rw or die $!;
 }
 
 1;
