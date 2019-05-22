@@ -14,7 +14,6 @@ use POSIX ();
 use Time::HiRes ();
 
 use warnings;
-no  warnings qw(deprecated);
 
 use PublicInbox::Syscall qw(:epoll);
 
