@@ -70,4 +70,10 @@ essential
 essential devtest-
 EOF
 	;;
+centos-7) sed "s/^/$PKG_FMT /" <<EOF
+v2essential devtest
+essential devtest
+all Search::Xapian-
+EOF
+	;;
 esac

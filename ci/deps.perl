@@ -58,6 +58,8 @@ my $profiles = {
 my @precious;
 if ($^O eq 'freebsd') {
 	@precious = qw(perl curl Socket6 IO::Compress::Gzip);
+} elsif ($pkg_fmt eq 'rpm') {
+	@precious = qw(perl curl);
 }
 
 if (@precious) {
@@ -168,6 +170,11 @@ if ($pkg_fmt eq 'deb') {
 	root(qw(pkg install -y), @quiet, @pkg_install) if @pkg_install;
 	root(qw(pkg autoremove -y), @quiet);
 # TODO: yum / rpm support
+} elsif ($pkg_fmt eq 'rpm') {
+	my @quiet = $ENV{V} ? () : ('-q');
+	exclude_uninstalled(\@pkg_remove);
+	root(qw(yum remove -y), @quiet, @pkg_remove) if @pkg_remove;
+	root(qw(yum install -y), @quiet, @pkg_install) if @pkg_install;
 } else {
 	die "unsupported package format: $pkg_fmt\n";
 }
