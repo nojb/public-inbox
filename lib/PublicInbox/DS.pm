@@ -13,9 +13,6 @@ use bytes;
 use POSIX ();
 use Time::HiRes ();
 
-use vars qw{$VERSION};
-$VERSION = "1.61";
-
 use warnings;
 no  warnings qw(deprecated);
 
