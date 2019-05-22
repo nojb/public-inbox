@@ -105,17 +105,6 @@ sub HaveEpoll {
     return $HaveEpoll;
 }
 
-=head2 C<< CLASS->WatchedSockets() >>
-
-Returns the number of file descriptors which are registered with the global
-poll object.
-
-=cut
-sub WatchedSockets {
-    return scalar keys %DescriptorMap;
-}
-*watched_sockets = *WatchedSockets;
-
 =head2 C<< CLASS->ToClose() >>
 
 Return the list of sockets that are awaiting close() at the end of the
@@ -205,20 +194,6 @@ sub AddTimer {
 
     die "Shouldn't get here.";
 }
-
-=head2 C<< CLASS->DescriptorMap() >>
-
-Get the hash of PublicInbox::DS objects keyed by the file descriptor (fileno) they
-are wrapping.
-
-Returns a hash in list context or a hashref in scalar context.
-
-=cut
-sub DescriptorMap {
-    return wantarray ? %DescriptorMap : \%DescriptorMap;
-}
-*descriptor_map = *DescriptorMap;
-*get_sock_ref = *DescriptorMap;
 
 sub _InitPoller
 {
