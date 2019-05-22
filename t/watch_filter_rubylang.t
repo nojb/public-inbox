@@ -2,6 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use warnings;
+require './t/common.perl';
 use Test::More;
 use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
@@ -12,13 +13,22 @@ foreach my $mod (@mods) {
 	plan skip_all => "$mod missing for watch_filter_rubylang_v2.t" if $@;
 }
 
-use_ok 'PublicInbox::V2Writable';
 use_ok 'PublicInbox::WatchMaildir';
 use_ok 'PublicInbox::Emergency';
 my $tmpdir = tempdir('watch-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 local $ENV{PI_CONFIG} = "$tmpdir/pi_config";
 
-for my $v (qw(V1 V2)) {
+my @v = qw(V1);
+SKIP: {
+	if (require_git(2.6, 1)) {
+		use_ok 'PublicInbox::V2Writable';
+		push @v, 'V2';
+	} else {
+		skip 'git 2.6+ needed for V2', 40;
+	}
+}
+
+for my $v (@v) {
 	my @warn;
 	$SIG{__WARN__} = sub { push @warn, @_ };
 	my $cfgpfx = "publicinbox.$v";
