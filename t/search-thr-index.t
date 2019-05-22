@@ -7,8 +7,11 @@ use Test::More;
 use File::Temp qw/tempdir/;
 use PublicInbox::MID qw(mids);
 use Email::MIME;
-eval { require Search::Xapian };
-plan skip_all => "Search::Xapian missing for search" if $@;
+my @mods = qw(DBI DBD::SQLite Search::Xapian);
+foreach my $mod (@mods) {
+	eval "require $mod";
+	plan skip_all => "missing $mod for $0" if $@;
+}
 require PublicInbox::SearchIdx;
 my $tmpdir = tempdir('pi-search-thr-index.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";

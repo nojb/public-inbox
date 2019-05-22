@@ -3,8 +3,11 @@
 use strict;
 use warnings;
 use Test::More;
-eval { require Search::Xapian };
-plan skip_all => "Search::Xapian missing for search" if $@;
+my @mods = qw(DBI DBD::SQLite Search::Xapian);
+foreach my $mod (@mods) {
+	eval "require $mod";
+	plan skip_all => "missing $mod for $0" if $@;
+};
 require PublicInbox::SearchIdx;
 use File::Temp qw/tempdir/;
 use Email::MIME;
