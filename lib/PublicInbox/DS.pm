@@ -31,7 +31,6 @@ use fields ('sock',              # underlying socket
 
 use Errno  qw(EINPROGRESS EWOULDBLOCK EISCONN ENOTSOCK
               EPIPE EAGAIN EBADF ECONNRESET ENOPROTOOPT);
-use Socket qw(IPPROTO_TCP);
 use Carp   qw(croak confess);
 
 use constant DebugLevel => 0;
