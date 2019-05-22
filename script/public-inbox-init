@@ -38,10 +38,11 @@ my $pi_config = PublicInbox::Config->default_file;
 my $dir = dirname($pi_config);
 mkpath($dir); # will croak on fatal errors
 my ($fh, $pi_config_tmp) = tempfile('pi-init-XXXXXXXX', DIR => $dir);
+my $perm;
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
 	my @st = stat($oh);
-	my $perm = $st[2];
+	$perm = $st[2];
 	defined $perm or die "(f)stat failed on $pi_config: $!\n";
 	chmod($perm & 07777, $fh) or
 		die "(f)chmod failed on future $pi_config: $!\n";
@@ -125,6 +126,9 @@ if ($version >= 2) {
 	die "Unsupported -V/--version: $version\n";
 }
 
+# needed for git prior to v2.1.0
+umask(0077) if defined $perm;
+
 foreach my $addr (@address) {
 	next if $seen{lc($addr)};
 	x(@x, "--add", "$pfx.address", $addr);
@@ -134,6 +138,12 @@ x(@x, "$pfx.mainrepo", $mainrepo);
 
 if (defined($indexlevel)) {
 	x(@x, "$pfx.indexlevel", $indexlevel);
+}
+
+# needed for git prior to v2.1.0
+if (defined $perm) {
+	chmod($perm & 07777, $pi_config_tmp) or
+			die "(f)chmod failed on future $pi_config: $!\n";
 }
 
 rename $pi_config_tmp, $pi_config or
