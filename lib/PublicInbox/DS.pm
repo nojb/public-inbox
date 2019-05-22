@@ -13,11 +13,7 @@ use bytes;
 use POSIX ();
 use Time::HiRes ();
 
-use vars qw{$VERSION};
-$VERSION = "1.61";
-
 use warnings;
-no  warnings qw(deprecated);
 
 use PublicInbox::Syscall qw(:epoll);
 
@@ -34,7 +30,6 @@ use fields ('sock',              # underlying socket
 
 use Errno  qw(EINPROGRESS EWOULDBLOCK EISCONN ENOTSOCK
               EPIPE EAGAIN EBADF ECONNRESET ENOPROTOOPT);
-use Socket qw(IPPROTO_TCP);
 use Carp   qw(croak confess);
 
 use constant DebugLevel => 0;
@@ -54,8 +49,6 @@ our (
      $Epoll,                     # Global epoll fd (for epoll mode only)
      $KQueue,                    # Global kqueue fd (for kqueue mode only)
      @ToClose,                   # sockets to close when event loop is done
-     %OtherFds,                  # A hash of "other" (non-PublicInbox::DS) file
-                                 # descriptors for the event loop to track.
 
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
      %PLCMap,                    # fd (num) -> PostLoopCallback (per-object)
@@ -81,7 +74,6 @@ Reset all state
 sub Reset {
     %DescriptorMap = ();
     @ToClose = ();
-    %OtherFds = ();
     $LoopTimeout = -1;  # no timeout by default
     @Timers = ();
 
@@ -105,17 +97,6 @@ sub HaveEpoll {
     return $HaveEpoll;
 }
 
-=head2 C<< CLASS->WatchedSockets() >>
-
-Returns the number of file descriptors which are registered with the global
-poll object.
-
-=cut
-sub WatchedSockets {
-    return scalar keys %DescriptorMap;
-}
-*watched_sockets = *WatchedSockets;
-
 =head2 C<< CLASS->ToClose() >>
 
 Return the list of sockets that are awaiting close() at the end of the
@@ -123,29 +104,6 @@ current event loop.
 
 =cut
 sub ToClose { return @ToClose; }
-
-=head2 C<< CLASS->OtherFds( [%fdmap] ) >>
-
-Get/set the hash of file descriptors that need processing in parallel with
-the registered PublicInbox::DS objects.
-
-=cut
-sub OtherFds {
-    my $class = shift;
-    if ( @_ ) { %OtherFds = @_ }
-    return wantarray ? %OtherFds : \%OtherFds;
-}
-
-=head2 C<< CLASS->AddOtherFds( [%fdmap] ) >>
-
-Add fds to the OtherFds hash for processing.
-
-=cut
-sub AddOtherFds {
-    my $class = shift;
-    %OtherFds = ( %OtherFds, @_ ); # FIXME investigate what happens on dupe fds
-    return wantarray ? %OtherFds : \%OtherFds;
-}
 
 =head2 C<< CLASS->SetLoopTimeout( $timeout ) >>
 
@@ -205,20 +163,6 @@ sub AddTimer {
 
     die "Shouldn't get here.";
 }
-
-=head2 C<< CLASS->DescriptorMap() >>
-
-Get the hash of PublicInbox::DS objects keyed by the file descriptor (fileno) they
-are wrapping.
-
-Returns a hash in list context or a hashref in scalar context.
-
-=cut
-sub DescriptorMap {
-    return wantarray ? %DescriptorMap : \%DescriptorMap;
-}
-*descriptor_map = *DescriptorMap;
-*get_sock_ref = *DescriptorMap;
 
 sub _InitPoller
 {
@@ -300,12 +244,6 @@ sub RunTimers {
 sub EpollEventLoop {
     my $class = shift;
 
-    foreach my $fd ( keys %OtherFds ) {
-        if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, EPOLLIN) == -1) {
-            warn "epoll_ctl(): failure adding fd=$fd; $! (", $!+0, ")\n";
-        }
-    }
-
     while (1) {
         my @events;
         my $i;
@@ -328,14 +266,10 @@ sub EpollEventLoop {
             # if we didn't find a Perlbal::Socket subclass for that fd, try other
             # pseudo-registered (above) fds.
             if (! $pob) {
-                if (my $code = $OtherFds{$ev->[0]}) {
-                    $code->($state);
-                } else {
-                    my $fd = $ev->[0];
-                    warn "epoll() returned fd $fd w/ state $state for which we have no mapping.  removing.\n";
-                    epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, 0);
-                    POSIX::close($fd);
-                }
+                my $fd = $ev->[0];
+                warn "epoll() returned fd $fd w/ state $state for which we have no mapping.  removing.\n";
+                epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, 0);
+                POSIX::close($fd);
                 next;
             }
 
@@ -370,9 +304,6 @@ sub PollEventLoop {
         # modifies the array in place with the even elements being
         # replaced with the event masks that occured.
         my @poll;
-        foreach my $fd ( keys %OtherFds ) {
-            push @poll, $fd, POLLIN;
-        }
         while ( my ($fd, $sock) = each %DescriptorMap ) {
             push @poll, $fd, $sock->{event_watch};
         }
@@ -399,9 +330,6 @@ sub PollEventLoop {
             $pob = $DescriptorMap{$fd};
 
             if (!$pob) {
-                if (my $code = $OtherFds{$fd}) {
-                    $code->($state);
-                }
                 next;
             }
 
@@ -422,10 +350,6 @@ sub PollEventLoop {
 sub KQueueEventLoop {
     my $class = shift;
 
-    foreach my $fd (keys %OtherFds) {
-        $KQueue->EV_SET($fd, IO::KQueue::EVFILT_READ(), IO::KQueue::EV_ADD());
-    }
-
     while (1) {
         my $timeout = RunTimers();
         my @ret = eval { $KQueue->kevent($timeout) };
@@ -442,12 +366,8 @@ sub KQueueEventLoop {
             my ($fd, $filter, $flags, $fflags) = @$kev;
             my PublicInbox::DS $pob = $DescriptorMap{$fd};
             if (!$pob) {
-                if (my $code = $OtherFds{$fd}) {
-                    $code->($filter);
-                }  else {
-                    warn "kevent() returned fd $fd for which we have no mapping.  removing.\n";
-                    POSIX::close($fd); # close deletes the kevent entry
-                }
+                warn "kevent() returned fd $fd for which we have no mapping.  removing.\n";
+                POSIX::close($fd); # close deletes the kevent entry
                 next;
             }
 
@@ -478,7 +398,7 @@ called every time the event loop finishes.
 Return 1 (or any true value) from the sub to make the loop continue, 0 or false
 and it will exit.
 
-The callback function will be passed two parameters: \%DescriptorMap, \%OtherFds.
+The callback function will be passed two parameters: \%DescriptorMap
 
 =cut
 sub SetPostLoopCallback {
@@ -523,12 +443,12 @@ sub PostEventLoop {
 
     # per-object post-loop-callbacks
     for my $plc (values %PLCMap) {
-        $keep_running &&= $plc->(\%DescriptorMap, \%OtherFds);
+        $keep_running &&= $plc->(\%DescriptorMap);
     }
 
     # now we're at the very end, call callback if defined
     if (defined $PostLoopCallback) {
-        $keep_running &&= $PostLoopCallback->(\%DescriptorMap, \%OtherFds);
+        $keep_running &&= $PostLoopCallback->(\%DescriptorMap);
     }
 
     return $keep_running;
