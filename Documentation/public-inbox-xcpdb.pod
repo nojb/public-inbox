@@ -8,13 +8,11 @@ public-inbox-xcpdb - copy Xapian DBs (for format upgrades)
 
 =head1 DESCRIPTION
 
-public-inbox-xcpdb is a wrapper for L<copydatabase(1)> for
+public-inbox-xcpdb is similar to L<copydatabase(1)> for
 upgrading to the latest database format supported by Xapian
-(e.g. "glass" or "honey").
-
-It locks the inbox and prevents other processes such as
-L<public-inbox-watch(1)> and L<public-inbox-mda(1)> from
-writing while it operates.
+(e.g. "glass" or "honey"), but is designed to tolerate and
+recover from Xapian database modifications from
+L<public-inbox-watch(1)> or L<public-inbox-mda(1)>.
 
 This is intended for upgrading the database format used by
 Xapian.  It DOES NOT upgrade the schema used by the
@@ -28,6 +26,14 @@ public-inbox search interface (see L<public-inbox-index(1)>).
 
 The default config file, normally "~/.public-inbox/config".
 See L<public-inbox-config(5)>
+
+=item XAPIAN_FLUSH_THRESHOLD
+
+The number of documents to update before committing changes to
+disk.  This environment is handled directly by Xapian, refer to
+Xapian API documentation for more details.
+
+Default: 10000
 
 =back
 
