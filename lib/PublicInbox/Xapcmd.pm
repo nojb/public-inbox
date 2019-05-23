@@ -222,10 +222,11 @@ sub cpdb {
 
 			$it = $src->postlist_begin('');
 			$end = $src->postlist_end('');
-			$pfx = (split('/', $old))[-1].':';
 			if ($pr) {
 				$nr = 0;
 				$tot = $src->get_doccount;
+				my @p = split('/', $old);
+				$pfx = "$p[-2]/$p[-1]:";
 				$fmt = "$pfx % ".length($tot)."u/$tot\n";
 				$pr->("$pfx copying $tot documents\n");
 			}
@@ -255,7 +256,6 @@ sub cpdb {
 	return unless $opt->{compact};
 
 	$src = $dst = undef; # flushes and closes
-	$pfx = undef unless $fmt;
 
 	$pr->("$pfx compacting...\n") if $pr;
 	# this is probably the best place to do xapian-compact
@@ -268,11 +268,11 @@ sub cpdb {
 	}
 
 	my ($r, $w);
-	if ($pfx && pipe($r, $w)) {
+	if ($pr && pipe($r, $w)) {
 		$rdr->{1} = fileno($w);
 	}
 	my $pid = spawn($cmd, $env, $rdr);
-	if ($pfx) {
+	if ($pr) {
 		close $w or die "close: \$w: $!";
 		foreach (<$r>) {
 			s/\r/\r$pfx /g;

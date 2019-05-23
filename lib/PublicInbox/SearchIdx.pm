@@ -549,12 +549,12 @@ sub index_sync {
 	$self->{-inbox}->with_umask(sub { $self->_index_sync($opts) })
 }
 
-sub batch_adjust ($$$$) {
-	my ($max, $bytes, $batch_cb, $latest) = @_;
+sub batch_adjust ($$$$$) {
+	my ($max, $bytes, $batch_cb, $latest, $nr) = @_;
 	$$max -= $bytes;
 	if ($$max <= 0) {
 		$$max = BATCH_BYTES;
-		$batch_cb->($latest);
+		$batch_cb->($nr, $latest);
 	}
 }
 
@@ -573,6 +573,7 @@ sub read_log {
 	my %D;
 	my $line;
 	my $newest;
+	my $nr = 0;
 	while (defined($line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $blob = $1;
@@ -584,7 +585,7 @@ sub read_log {
 				next;
 			}
 			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
-			batch_adjust(\$max, $bytes, $batch_cb, $latest);
+			batch_adjust(\$max, $bytes, $batch_cb, $latest, ++$nr);
 			$add_cb->($self, $mime, $bytes, $blob);
 		} elsif ($line =~ /$delmsg/o) {
 			my $blob = $1;
@@ -599,7 +600,7 @@ sub read_log {
 		my $mime = do_cat_mail($git, $blob, \$bytes) or next;
 		$del_cb->($self, $mime);
 	}
-	$batch_cb->($latest, $newest);
+	$batch_cb->($nr, $latest, $newest);
 }
 
 sub _msgmap_init {
@@ -612,7 +613,7 @@ sub _msgmap_init {
 }
 
 sub _git_log {
-	my ($self, $range) = @_;
+	my ($self, $opts, $range) = @_;
 	my $git = $self->{git};
 
 	if (index($range, '..') < 0) {
@@ -629,12 +630,17 @@ sub _git_log {
 	# Count the new files so they can be added newest to oldest
 	# and still have numbers increasing from oldest to newest
 	my $fcount = 0;
+	my $pr = $opts->{-progress};
+	$pr->("counting changes\n\t$range ... ") if $pr;
 	# can't use 'rev-list --count' if we use --diff-filter
 	my $fh = $git->popen(qw(log --pretty=tformat:%h
 			     --no-notes --no-color --no-renames
 			     --diff-filter=AM), $range);
 	++$fcount while <$fh>;
+	close $fh;
 	my $high = $self->{mm}->num_highwater;
+	$pr->("$fcount\n") if $pr; # continue previous line
+	$self->{ntodo} = $fcount;
 
 	if (index($range, '..') < 0) {
 		if ($high && $high == $fcount) {
@@ -707,6 +713,7 @@ sub _index_sync {
 	my ($last_commit, $lx, $xlog);
 	my $git = $self->{git};
 	$git->batch_prepare;
+	my $pr = $opts->{-progress};
 
 	my $xdb = $self->begin_txn_lazy;
 	my $mm = _msgmap_init($self);
@@ -724,14 +731,14 @@ sub _index_sync {
 
 		# ensure we leak no FDs to "git log" with Xapian <= 1.2
 		my $range = $lx eq '' ? $tip : "$lx..$tip";
-		$xlog = _git_log($self, $range);
+		$xlog = _git_log($self, $opts, $range);
 
 		$xdb = $self->begin_txn_lazy;
 	} while (_last_x_commit($self, $mm) ne $last_commit);
 
 	my $dbh = $mm->{dbh} if $mm;
 	my $cb = sub {
-		my ($commit, $newest) = @_;
+		my ($nr, $commit, $newest) = @_;
 		if ($dbh) {
 			if ($newest) {
 				my $cur = $mm->last_commit || '';
@@ -751,6 +758,7 @@ sub _index_sync {
 		$git->cleanup;
 		$xdb = _xdb_release($self);
 		# let another process do some work... <
+		$pr->("indexed $nr/$self->{ntodo}\n") if $pr && $nr;
 		if (!$newest) {
 			$xdb = $self->begin_txn_lazy;
 			$dbh->begin_work if $dbh;

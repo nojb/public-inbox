@@ -777,6 +777,9 @@ sub reindex_oid {
 		$git->cleanup;
 		$mm_tmp->atfork_prepare;
 		$self->done; # release lock
+
+		# TODO: print progress info, here
+
 		# allow -watch or -mda to write...
 		$self->idx_init; # reacquire lock
 		$mm_tmp->atfork_parent;
@@ -844,6 +847,7 @@ $range
 
 sub index_prepare {
 	my ($self, $opts, $epoch_max, $ranges) = @_;
+	my $pr = $opts->{-progress};
 	my $regen_max = 0;
 	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
 	for (my $i = $epoch_max; $i >= 0; $i--) {
@@ -858,10 +862,14 @@ sub index_prepare {
 		$ranges->[$i] = $range;
 
 		# can't use 'rev-list --count' if we use --diff-filter
+		$pr->("$i.git counting changes\n\t$range ... ") if $pr;
+		my $n = 0;
 		my $fh = $git->popen(qw(log --pretty=tformat:%H
 				--no-notes --no-color --no-renames
 				--diff-filter=AM), $range, '--', 'm');
-		++$regen_max while <$fh>;
+		++$n while <$fh>;
+		$pr->("$n\n") if $pr;
+		$regen_max += $n;
 	}
 	\$regen_max;
 }
