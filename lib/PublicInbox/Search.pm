@@ -24,8 +24,8 @@ sub load_xapian () {
 
 		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
 		# website as it could become a denial-of-service vector
-		# FLAG_PHRASE also seems to cause performance problems
-		# sometimes.
+		# FLAG_PHRASE also seems to cause performance problems chert
+		# (and probably earlier Xapian DBs).  glass seems fine...
 		# TODO: make this an option, maybe?
 		# or make indexlevel=medium as default
 		FLAG_PHRASE()|FLAG_BOOLEAN()|FLAG_LOVEHATE()|FLAG_WILDCARD();
@@ -137,26 +137,35 @@ sub xdir ($;$) {
 	}
 }
 
+sub _xdb ($) {
+	my ($self) = @_;
+	my $dir = xdir($self, 1);
+	my ($xdb, $slow_phrase);
+	my $qpf = \($self->{qp_flags} ||= $QP_FLAGS);
+	if ($self->{version} >= 2) {
+		foreach my $part (<$dir/*>) {
+			-d $part && $part =~ m!/\d+\z! or next;
+			my $sub = Search::Xapian::Database->new($part);
+			if ($xdb) {
+				$xdb->add_database($sub);
+			} else {
+				$xdb = $sub;
+			}
+			$slow_phrase ||= -f "$part/iamchert";
+		}
+	} else {
+		$slow_phrase = -f "$dir/iamchert";
+		$xdb = Search::Xapian::Database->new($dir);
+	}
+	$$qpf |= FLAG_PHRASE() unless $slow_phrase;
+	$xdb;
+}
+
 sub xdb ($) {
 	my ($self) = @_;
 	$self->{xdb} ||= do {
 		load_xapian();
-		my $dir = xdir($self, 1);
-		if ($self->{version} >= 2) {
-			my $xdb;
-			foreach my $part (<$dir/*>) {
-				-d $part && $part =~ m!/\d+\z! or next;
-				my $sub = Search::Xapian::Database->new($part);
-				if ($xdb) {
-					$xdb->add_database($sub);
-				} else {
-					$xdb = $sub;
-				}
-			}
-			$xdb;
-		} else {
-			Search::Xapian::Database->new($dir);
-		}
+		_xdb($self);
 	};
 }
 
@@ -194,7 +203,8 @@ sub query {
 		$self->{over_ro}->recent($opts);
 	} else {
 		my $qp = qp($self);
-		my $query = $qp->parse_query($query_string, $QP_FLAGS);
+		my $qp_flags = $self->{qp_flags};
+		my $query = $qp->parse_query($query_string, $qp_flags);
 		$opts->{relevance} = 1 unless exists $opts->{relevance};
 		_do_enquire($self, $query, $opts);
 	}

@@ -30,6 +30,7 @@ my $ro = PublicInbox::Search->new($git_dir);
 my $rw_commit = sub {
 	$rw->commit_txn_lazy if $rw;
 	$rw = PublicInbox::SearchIdx->new($git_dir, 1);
+	$rw->{qp_flags} = 0; # quiet a warning
 	$rw->begin_txn_lazy;
 };
 
