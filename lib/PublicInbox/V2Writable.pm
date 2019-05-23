@@ -808,6 +808,40 @@ sub last_commits {
 
 *is_ancestor = *PublicInbox::SearchIdx::is_ancestor;
 
+# returns a revision range for git-log(1)
+sub log_range ($$$$$) {
+	my ($self, $git, $ranges, $i, $tip) = @_;
+	my $cur = $ranges->[$i] or return $tip; # all of it
+	my $range = "$cur..$tip";
+	if (is_ancestor($git, $cur, $tip)) { # common case
+		my $n = $git->qx(qw(rev-list --count), $range);
+		chomp($n);
+		if ($n == 0) {
+			$ranges->[$i] = undef;
+			return; # nothing to do
+		}
+	} else {
+		warn <<"";
+discontiguous range: $range
+Rewritten history? (in $git->{git_dir})
+
+		chomp(my $base = $git->qx('merge-base', $tip, $cur));
+		if ($base) {
+			$range = "$base..$tip";
+			warn "found merge-base: $base\n"
+		} else {
+			$range = $tip;
+			warn "discarding history at $cur\n";
+		}
+		warn <<"";
+reindexing $git->{git_dir} starting at
+$range
+
+		$self->{"unindex-range.$i"} = "$base..$cur";
+	}
+	$range;
+}
+
 sub index_prepare {
 	my ($self, $opts, $epoch_max, $ranges) = @_;
 	my $regen_max = 0;
@@ -818,42 +852,9 @@ sub index_prepare {
 		-d $git_dir or next; # missing parts are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
+
 		next if $?; # new repo
-		my $range;
-		if (defined(my $cur = $ranges->[$i])) {
-			$range = "$cur..$tip";
-			if (is_ancestor($git, $cur, $tip)) { # common case
-				my $n = $git->qx(qw(rev-list --count), $range);
-				chomp($n);
-				if ($n == 0) {
-					$ranges->[$i] = undef;
-					next;
-				}
-			} else {
-				warn <<"";
-discontiguous range: $range
-Rewritten history? (in $git_dir)
-
-				my $base = $git->qx('merge-base', $tip, $cur);
-				chomp $base;
-				if ($base) {
-					$range = "$base..$tip";
-					warn "found merge-base: $base\n"
-				} else {
-					$range = $tip;
-					warn <<"";
-discarding history at $cur
-
-				}
-				warn <<"";
-reindexing $git_dir starting at
-$range
-
-				$self->{"unindex-range.$i"} = "$base..$cur";
-			}
-		} else {
-			$range = $tip; # all of it
-		}
+		my $range = log_range($self, $git, $ranges, $i, $tip) or next;
 		$ranges->[$i] = $range;
 
 		# can't use 'rev-list --count' if we use --diff-filter
@@ -923,6 +924,7 @@ sub unindex {
 		qw(-c gc.reflogExpire=now gc --prune=all)]);
 }
 
+# called for public-inbox-index
 sub index_sync {
 	my ($self, $opts) = @_;
 	$opts ||= {};
