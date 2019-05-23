@@ -8,6 +8,10 @@ use PublicInbox::Over;
 use File::Temp qw(tempdir);
 use File::Path qw(remove_tree);
 
+# support testing with dev versions of Xapian which installs
+# commands with a version number suffix (e.g. "xapian-compact-1.5")
+our $XAPIAN_COMPACT = $ENV{XAPIAN_COMPACT} || 'xapian-compact';
+
 sub commit_changes ($$$) {
 	my ($im, $old, $new) = @_;
 	my @st = stat($old) or die "failed to stat($old): $!\n";
@@ -38,17 +42,23 @@ sub xspawn {
 	}
 }
 
+sub runnable_or_die ($) {
+	my ($exe) = @_;
+	which($exe) or die "$exe not found in PATH\n";
+}
+
 sub run {
 	my ($ibx, $cmd, $env, $opt) = @_;
 	$opt ||= {};
 	my $dir = $ibx->{mainrepo} or die "no mainrepo in inbox\n";
 	my $exe = $cmd->[0];
 	my $pfx = $exe;
+	runnable_or_die($XAPIAN_COMPACT) if $opt->{compact};
 	if (ref($exe) eq 'CODE') {
 		$pfx = 'CODE';
 		require Search::Xapian::WritableDatabase;
 	} else {
-		which($exe) or die "$exe not found in PATH\n";
+		runnable_or_die($exe);
 	}
 	$ibx->umask_prepare;
 	my $old = $ibx->search->xdir(1);
@@ -107,11 +117,12 @@ sub cpdb {
 	my ($args, $env, $opt) = @_;
 	my ($old, $new) = @$args;
 	my $src = Search::Xapian::Database->new($old);
+	my $tmp = $opt->{compact} ? "$new.compact" : $new;
 
 	# like copydatabase(1), be sure we don't overwrite anything in case
 	# of other bugs:
 	my $creat = Search::Xapian::DB_CREATE();
-	my $dst = Search::Xapian::WritableDatabase->new($new, $creat);
+	my $dst = Search::Xapian::WritableDatabase->new($tmp, $creat);
 	my ($it, $end);
 
 	do {
@@ -140,6 +151,25 @@ sub cpdb {
 			# (and public-inbox does not use those features)
 		};
 	} while (cpdb_retryable($src, $@));
+
+	return unless $opt->{compact};
+
+	$src = $dst = undef; # flushes and closes
+
+	# this is probably the best place to do xapian-compact
+	# since $dst isn't readable by HTTP or NNTP clients, yet:
+	my $cmd = [ $XAPIAN_COMPACT, '--no-renumber', $tmp, $new ];
+	my $rdr = {};
+	foreach my $fd (0..2) {
+		defined(my $dst = $opt->{$fd}) or next;
+		$rdr->{$fd} = $dst;
+	}
+	my $pid = spawn($cmd, $env, $rdr);
+	my $r = waitpid($pid, 0);
+	if ($? || $r != $pid) {
+		die join(' ', @$cmd)." failed: $? (pid=$pid, reaped=$r)\n";
+	}
+	remove_tree($tmp) or die "failed to remove $tmp: $!\n";
 }
 
 1;
