@@ -13,6 +13,7 @@ use File::Basename qw(dirname);
 # support testing with dev versions of Xapian which installs
 # commands with a version number suffix (e.g. "xapian-compact-1.5")
 our $XAPIAN_COMPACT = $ENV{XAPIAN_COMPACT} || 'xapian-compact';
+our @COMPACT_OPT = qw(quiet|q blocksize|b=s no-full|n fuller|F);
 
 sub commit_changes ($$$) {
 	my ($ibx, $tmp, $opt) = @_;
@@ -213,13 +214,19 @@ sub compact ($$) {
 		defined(my $dfd = $opt->{$fd}) or next;
 		$rdr->{$fd} = $dfd;
 	}
-	if ($pr) {
-		$pr->("$pfx compacting...\n");
-		$rdr->{1} = fileno($w) if pipe($r, $w);
-	}
+	$rdr->{1} = fileno($w) if $pr && pipe($r, $w);
 
 	# we rely on --no-renumber to keep docids synched to NNTP
-	my $cmd = [ $XAPIAN_COMPACT, '--no-renumber', $src, $dst ];
+	my $cmd = [ $XAPIAN_COMPACT, '--no-renumber' ];
+	for my $sw (qw(no-full fuller)) {
+		push @$cmd, "--$sw" if $opt->{$sw};
+	}
+	for my $sw (qw(blocksize)) {
+		defined(my $v = $opt->{$sw}) or next;
+		push @$cmd, "--$sw", $v;
+	}
+	$pr->("$pfx `".join(' ', @$cmd)."'\n") if $pr;
+	push @$cmd, $src, $dst;
 	my $pid = spawn($cmd, undef, $rdr);
 	if ($pr) {
 		close $w or die "close: \$w: $!";

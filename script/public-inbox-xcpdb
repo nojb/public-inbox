@@ -9,7 +9,8 @@ use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-search');
 my $usage = "Usage: public-inbox-xcpdb INBOX_DIR\n";
 my $opt = {};
-GetOptions($opt, qw(compact quiet|q)) or die "bad command-line args\n$usage";
+GetOptions($opt, qw(compact), @PublicInbox::Xapcmd::COMPACT_OPT) or
+	die "bad command-line args\n$usage";
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
