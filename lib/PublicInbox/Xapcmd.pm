@@ -8,31 +8,36 @@ use PublicInbox::Over;
 use PublicInbox::Search;
 use File::Temp qw(tempdir);
 use File::Path qw(remove_tree);
+use File::Basename qw(dirname);
 
 # support testing with dev versions of Xapian which installs
 # commands with a version number suffix (e.g. "xapian-compact-1.5")
 our $XAPIAN_COMPACT = $ENV{XAPIAN_COMPACT} || 'xapian-compact';
 
-sub commit_changes ($$$$) {
-	my ($ibx, $old, $new, $opt) = @_;
+sub commit_changes ($$$) {
+	my ($ibx, $tmp, $opt) = @_;
 
 	my $reindex = $opt->{reindex};
 	my $im = $ibx->importer(0);
 	$im->lock_acquire if $reindex;
 
-	my @st = stat($old) or die "failed to stat($old): $!\n";
+	while (my ($old, $new) = each %$tmp) {
+		my @st = stat($old) or die "failed to stat($old): $!\n";
 
-	my $over = "$old/over.sqlite3";
-	if (-f $over) {
-		$over = PublicInbox::Over->new($over);
-		$over->connect->sqlite_backup_to_file("$new/over.sqlite3");
-		$over = undef;
+		my $over = "$old/over.sqlite3";
+		if (-f $over) { # only for v1, v2 over is untouched
+			$over = PublicInbox::Over->new($over);
+			my $tmp_over = "$new/over.sqlite3";
+			$over->connect->sqlite_backup_to_file($tmp_over);
+			$over = undef;
+		}
+
+		rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
+		chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
+		rename($new, $old) or die "rename $new => $old: $!\n";
+		my $prev = "$old/old";
+		remove_tree($prev) or die "failed to remove $prev: $!\n";
 	}
-	rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
-	chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
-	rename($new, $old) or die "rename $new => $old: $!\n";
-	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
-
 	if ($reindex) {
 		$opt->{-skip_lock} = 1;
 		PublicInbox::Admin::index_inbox($ibx, $opt);
@@ -94,19 +99,23 @@ sub progress_prepare ($) {
 	}
 }
 
+sub same_fs_or_die ($$) {
+	my ($x, $y) = @_;
+	return if ((stat($x))[0] == (stat($y))[0]); # 0 - st_dev
+	die "$x and $y reside on different filesystems\n";
+}
+
 sub run {
 	my ($ibx, $cmd, $env, $opt) = @_;
 	progress_prepare($opt ||= {});
 	my $dir = $ibx->{mainrepo} or die "no mainrepo in inbox\n";
 	my $exe = $cmd->[0];
-	my $pfx = $exe;
 	runnable_or_die($XAPIAN_COMPACT) if $opt->{compact};
 
 	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
 	my $from; # per-epoch ranges
 
 	if (ref($exe) eq 'CODE') {
-		$pfx = 'CODE';
 		$reindex = $opt->{reindex} = {};
 		$from = $reindex->{from} = [];
 		require Search::Xapian::WritableDatabase;
@@ -116,16 +125,28 @@ sub run {
 	$ibx->umask_prepare;
 	my $old = $ibx->search->xdir(1);
 	-d $old or die "$old does not exist\n";
-	my $new = tempdir("$pfx-XXXXXXXX", DIR => $dir);
+
+	my $tmp = {}; # old partition => new (tmp) partition
 	my $v = $ibx->{version} ||= 1;
 	my @cmds;
+
+	# we want temporary directories to be as deep as possible,
+	# so v2 partitions can keep "xap$SCHEMA_VERSION" on a separate FS.
 	if ($v == 1) {
-		push @cmds, [@$cmd, $old, $new];
+		my $old_parent = dirname($old);
+		same_fs_or_die($old_parent, $old);
+		$tmp->{$old} = tempdir('xapcmd-XXXXXXXX', DIR => $old_parent);
+		push @cmds, [ @$cmd, $old, $tmp->{$old} ];
 	} else {
 		opendir my $dh, $old or die "Failed to opendir $old: $!\n";
 		while (defined(my $dn = readdir($dh))) {
 			if ($dn =~ /\A\d+\z/) {
-				push @cmds, [@$cmd, "$old/$dn", "$new/$dn"];
+				my $tmpl = "$dn-XXXXXXXX";
+				my $dst = tempdir($tmpl, DIR => $old);
+				same_fs_or_die($old, $dst);
+				my $cur = "$old/$dn";
+				push @cmds, [@$cmd, $cur, $dst ];
+				$tmp->{$cur} = $dst;
 			} elsif ($dn eq '.' || $dn eq '..') {
 			} elsif ($dn =~ /\Aover\.sqlite3/) {
 			} else {
@@ -158,7 +179,7 @@ sub run {
 				die join(' ', @$x)." failed: $?\n" if $?;
 			}
 		}
-		commit_changes($ibx, $old, $new, $opt);
+		commit_changes($ibx, $tmp, $opt);
 	});
 }
 
