@@ -247,7 +247,16 @@ sub cpdb ($$) {
 	my ($args, $opt) = @_;
 	my ($old, $new) = @$args;
 	my $src = Search::Xapian::Database->new($old);
-	my $tmp = $opt->{compact} ? "$new.compact" : $new;
+	my ($xtmp, $tmp);
+	if ($opt->{compact}) {
+		my $newdir = dirname($new);
+		same_fs_or_die($newdir, $new);
+		$tmp = tempdir("$new.compact-XXXXXX", DIR => $newdir);
+		$xtmp = PublicInbox::Xtmpdirs->new;
+		$xtmp->{$new} = $tmp;
+	} else {
+		$tmp = $new;
+	}
 
 	# like copydatabase(1), be sure we don't overwrite anything in case
 	# of other bugs:
@@ -295,7 +304,7 @@ sub cpdb ($$) {
 	} while (cpdb_retryable($src, $pfx));
 
 	$pr->(sprintf($fmt, $nr)) if $pr;
-	return unless $opt->{compact};
+	return unless $xtmp;
 
 	$src = $dst = undef; # flushes and closes
 
@@ -303,6 +312,7 @@ sub cpdb ($$) {
 	# since $dst isn't readable by HTTP or NNTP clients, yet:
 	compact([ $tmp, $new ], $opt);
 	remove_tree($tmp) or die "failed to remove $tmp: $!\n";
+	$xtmp->done;
 }
 
 # slightly easier-to-manage manage than END{} blocks
