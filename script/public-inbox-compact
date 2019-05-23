@@ -3,14 +3,16 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use warnings;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::InboxWritable;
 use PublicInbox::Xapcmd;
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
 my $usage = "Usage: public-inbox-compact REPO_DIR\n";
+my $opt = { compact => 1, -coarse_lock => 1 };
+GetOptions($opt, qw(quiet|q)) or die "bad command-line args\n$usage";
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
-	# we rely on --no-renumber to keep docids synched to NNTP
-	PublicInbox::Xapcmd::run($ibx, [qw(xapian-compact --no-renumber)]);
+	PublicInbox::Xapcmd::run($ibx, 'compact', $opt);
 }

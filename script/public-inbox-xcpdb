@@ -11,9 +11,8 @@ my $usage = "Usage: public-inbox-xcpdb INBOX_DIR\n";
 my $opt = {};
 GetOptions($opt, qw(compact quiet|q)) or die "bad command-line args\n$usage";
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
-my $cmd = [ \&PublicInbox::Xapcmd::cpdb ];
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
 	# we rely on --no-renumber to keep docids synched to NNTP
-	PublicInbox::Xapcmd::run($ibx, $cmd, undef, $opt);
+	PublicInbox::Xapcmd::run($ibx, 'cpdb', $opt);
 }
