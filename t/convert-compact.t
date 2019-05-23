@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
+use PublicInbox::Spawn qw(which);
 require './t/common.perl';
 require_git(2.6);
 my @mods = qw(DBD::SQLite Search::Xapian);
@@ -12,6 +13,9 @@ foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for convert-compact.t" if $@;
 }
+which('xapian-compact') or
+	plan skip_all => 'xapian-compact missing for '.__FILE__;
+
 use_ok 'PublicInbox::V2Writable';
 use PublicInbox::Import;
 my $tmpdir = tempdir('convert-compact-XXXXXX', TMPDIR => 1, CLEANUP => 1);
