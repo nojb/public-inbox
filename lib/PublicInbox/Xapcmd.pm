@@ -163,13 +163,16 @@ sub run {
 }
 
 sub cpdb_retryable ($$) {
-	my ($src, $err) = @_;
-	if (ref($err) eq 'Search::Xapian::DatabaseModifiedError') {
-		warn "$err, reopening and retrying\n";
+	my ($src, $pfx) = @_;
+	if (ref($@) eq 'Search::Xapian::DatabaseModifiedError') {
+		warn "$pfx Xapian DB modified, reopening and retrying\n";
 		$src->reopen;
 		return 1;
 	}
-	die $err if $err;
+	if ($@) {
+		warn "$pfx E: ", ref($@), "\n";
+		die;
+	}
 	0;
 }
 
@@ -186,7 +189,8 @@ sub cpdb {
 	my $creat = Search::Xapian::DB_CREATE();
 	my $dst = Search::Xapian::WritableDatabase->new($tmp, $creat);
 	my ($it, $end);
-	my ($pfx, $nr, $tot, $fmt); # progress output
+	my $pfx = '';
+	my ($nr, $tot, $fmt); # progress output
 
 	do {
 		eval {
@@ -196,15 +200,15 @@ sub cpdb {
 
 			$it = $src->postlist_begin('');
 			$end = $src->postlist_end('');
+			$pfx = (split('/', $old))[-1].':';
 			if ($opt->{-progress}) {
 				$nr = 0;
-				$pfx = (split('/', $old))[-1].':';
 				$tot = $src->get_doccount;
 				$fmt = "$pfx % ".length($tot)."u/$tot\n";
 				warn "$pfx copying $tot documents\n";
 			}
 		};
-	} while (cpdb_retryable($src, $@));
+	} while (cpdb_retryable($src, $pfx));
 
 	do {
 		eval {
@@ -223,12 +227,13 @@ sub cpdb {
 			# the Perl APIs don't expose iterators for them
 			# (and public-inbox does not use those features)
 		};
-	} while (cpdb_retryable($src, $@));
+	} while (cpdb_retryable($src, $pfx));
 
 	warn(sprintf($fmt, $nr)) if $fmt;
 	return unless $opt->{compact};
 
 	$src = $dst = undef; # flushes and closes
+	$pfx = undef unless $fmt;
 
 	warn "$pfx compacting...\n" if $pfx;
 	# this is probably the best place to do xapian-compact
