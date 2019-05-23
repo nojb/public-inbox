@@ -9,6 +9,7 @@ foreach my $mod (qw(DBD::SQLite)) {
 }
 require PublicInbox::SearchIdx;
 require PublicInbox::Msgmap;
+require PublicInbox::InboxWritable;
 use Email::Simple;
 use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
@@ -30,9 +31,6 @@ my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
 my $nntpd = 'blib/script/public-inbox-nntpd';
 my $init = 'blib/script/public-inbox-init';
-use_ok 'PublicInbox::Import';
-use_ok 'PublicInbox::Inbox';
-use_ok 'PublicInbox::Git';
 SKIP: {
 	skip "git 2.6+ required for V2Writable", 1 if $version == 1;
 	use_ok 'PublicInbox::V2Writable';
@@ -68,15 +66,8 @@ $ibx = PublicInbox::Inbox->new($ibx);
 		0, 'enabled newsgroup');
 	my $len;
 
-	my $im;
-	if ($version == 2) {
-		$im = PublicInbox::V2Writable->new($ibx);
-	} elsif ($version == 1) {
-		use_ok 'PublicInbox::V1Writable';
-		$im = PublicInbox::V1Writable->new($ibx);
-	} else {
-		die "unsupported version: $version";
-	}
+	$ibx = PublicInbox::InboxWritable->new($ibx);
+	my $im = $ibx->importer;
 
 	# ensure successful message delivery
 	{

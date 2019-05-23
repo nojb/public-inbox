@@ -19,25 +19,44 @@ use constant {
 };
 
 sub new {
-	my ($class, $ibx) = @_;
-	bless $ibx, $class;
+	my ($class, $ibx, $creat_opt) = @_;
+	my $self = bless $ibx, $class;
+
+	# TODO: maybe stop supporting this
+	if ($creat_opt) { # for { nproc => $N }
+		$self->{-creat_opt} = $creat_opt;
+		init_inbox($self) if ($self->{version} || 1) == 1;
+	}
+	$self;
+}
+
+sub init_inbox {
+	my ($self, $partitions, $skip_epoch, $skip_artnum) = @_;
+	# TODO: honor skip_artnum
+	my $v = $self->{version} || 1;
+	if ($v == 1) {
+		my $dir = $self->{mainrepo} or die "no mainrepo in inbox\n";
+		PublicInbox::Import::init_bare($dir);
+	} else {
+		my $v2w = importer($self);
+		$v2w->init_inbox($partitions, $skip_epoch, $skip_artnum);
+	}
 }
 
 sub importer {
 	my ($self, $parallel) = @_;
-	$self->{-importer} ||= eval {
+	$self->{-importer} ||= do {
 		my $v = $self->{version} || 1;
 		if ($v == 2) {
 			eval { require PublicInbox::V2Writable };
 			die "v2 not supported: $@\n" if $@;
-			my $v2w = PublicInbox::V2Writable->new($self);
+			my $opt = $self->{-creat_opt};
+			my $v2w = PublicInbox::V2Writable->new($self, $opt);
 			$v2w->{parallel} = $parallel;
 			$v2w;
 		} elsif ($v == 1) {
-			my $git = $self->git;
-			my $name = $self->{name};
-			my $addr = $self->{-primary_address};
-			PublicInbox::Import->new($git, $name, $addr, $self);
+			my @arg = (undef, undef, undef, $self);
+			PublicInbox::Import->new(@arg);
 		} else {
 			$! = 78; # EX_CONFIG 5.3.5 local configuration error
 			die "unsupported inbox version: $v\n";

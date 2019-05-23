@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Inbox;
+use PublicInbox::InboxWritable;
 use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6);
@@ -38,9 +39,7 @@ sub import_index_incremental {
 		-primary_address => 'test@example.com',
 		indexlevel => $level,
 	});
-	my $cls = "PublicInbox::V${v}Writable";
-	use_ok $cls;
-	my $im = $cls->new($ibx, {nproc=>1});
+	my $im = PublicInbox::InboxWritable->new($ibx, {nproc=>1})->importer;
 	$mime->header_set('Message-ID', '<m@1>');
 	ok($im->add($mime), 'first message added');
 	$im->done;

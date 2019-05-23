@@ -41,11 +41,11 @@ my $cfgpfx = "publicinbox.test";
 use_ok 'PublicInbox::Git';
 use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Inbox';
-use_ok 'PublicInbox::V1Writable';
+use_ok 'PublicInbox::InboxWritable';
 use_ok 'PublicInbox::Config';
 my $cfg = PublicInbox::Config->new($pi_config);
 my $ibx = $cfg->lookup_name('test');
-my $im = PublicInbox::V1Writable->new($ibx);
+my $im = PublicInbox::InboxWritable->new($ibx)->importer;
 
 {
 	local $ENV{HOME} = $home;

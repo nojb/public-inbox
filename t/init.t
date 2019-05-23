@@ -88,7 +88,7 @@ SKIP: {
 			   qw(http://example.com/skip1 skip1@example.com));
 		is(system(@cmd), 0, "--skip 1");
 		my $gits = [ glob("$tmpdir/skip1/git/*.git") ];
-		is_deeply(["$tmpdir/skip1/git/1.git"], $gits, 'skip OK');
+		is_deeply($gits, ["$tmpdir/skip1/git/1.git"], 'skip OK');
 	}
 
 
@@ -96,7 +96,7 @@ SKIP: {
 		   qw(http://example.com/skip2 skip2@example.com));
 	is(system(@cmd), 0, "--skip 2");
 	my $gits = [ glob("$tmpdir/skip2/git/*.git") ];
-	is_deeply(["$tmpdir/skip2/git/2.git"], $gits, 'skipping 2 works, too');
+	is_deeply($gits, ["$tmpdir/skip2/git/2.git"], 'skipping 2 works, too');
 }
 
 done_testing();

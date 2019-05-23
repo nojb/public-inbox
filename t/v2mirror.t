@@ -17,6 +17,7 @@ use File::Temp qw/tempdir/;
 use IO::Socket;
 use POSIX qw(dup2);
 use_ok 'PublicInbox::V2Writable';
+use PublicInbox::InboxWritable;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 # FIXME: too much setup
