@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2015-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2015-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # Basic tool to create a Xapian search index for a git repository
 # configured for public-inbox.
@@ -10,14 +10,8 @@ use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $usage = "public-inbox-index REPO_DIR";
-use PublicInbox::Admin qw(resolve_repo_dir);
+use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
-require PublicInbox::Config;
-
-my $config = eval { PublicInbox::Config->new } || eval {
-	warn "public-inbox unconfigured for serving, indexing anyways...\n";
-	undef;
-};
 
 my $reindex;
 my $prune;
@@ -32,53 +26,26 @@ my %opts = (
 GetOptions(%opts) or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $jobs && $jobs < 0;
 
-my @dirs;
-
-if (@ARGV) {
-	@dirs = map { resolve_repo_dir($_) } @ARGV;
-} else {
-	@dirs = (resolve_repo_dir());
-}
-
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
-usage() unless @dirs;
 
-defined($config) and $config->each_inbox(sub {
-	my ($ibx) = @_;
-
-	for my $i (0..$#dirs) {
-		next if $dirs[$i] ne $ibx->{mainrepo};
-		$dirs[$i] = $ibx;
-	}
-});
-
-my @inboxes;
+# do we really care about this message?  It's annoying...
+my $warn = 'public-inbox unconfigured for serving, indexing anyways...';
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $warn);
+PublicInbox::Admin::require_or_die('-index');
+usage() unless @ibxs;
 my $mods = {};
-
-foreach my $dir (@dirs) {
-	my $ibx = $dir;
-	if (!ref($ibx)) {
-		unless (-d $dir) {
-			die "$dir does not appear to be an inbox repository\n";
-		}
-		$ibx = PublicInbox::Inbox->new({
-			mainrepo => $dir,
-			name => 'unnamed',
-			indexlevel => $indexlevel,
-			version => -f "$dir/inbox.lock" ? 2 : 1,
-		});
-	} elsif (defined $indexlevel && !defined($ibx->{indexlevel})) {
+foreach my $ibx (@ibxs) {
+	if (defined $indexlevel && !defined($ibx->{indexlevel})) {
 		# XXX: users can shoot themselves in the foot, with this...
 		$ibx->{indexlevel} = $indexlevel;
 	}
-	push @inboxes, $ibx;
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
 
 PublicInbox::Admin::require_or_die(keys %$mods);
 
 require PublicInbox::SearchIdx;
-index_inbox($_) for @inboxes;
+index_inbox($_) for @ibxs;
 
 sub index_inbox {
 	my ($repo) = @_;
