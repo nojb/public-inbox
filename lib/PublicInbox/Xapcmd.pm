@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use PublicInbox::Spawn qw(which spawn);
 use PublicInbox::Over;
+use PublicInbox::Search;
 use File::Temp qw(tempdir);
 use File::Path qw(remove_tree);
 
@@ -12,20 +13,33 @@ use File::Path qw(remove_tree);
 # commands with a version number suffix (e.g. "xapian-compact-1.5")
 our $XAPIAN_COMPACT = $ENV{XAPIAN_COMPACT} || 'xapian-compact';
 
-sub commit_changes ($$$) {
-	my ($im, $old, $new) = @_;
+sub commit_changes ($$$$) {
+	my ($ibx, $old, $new, $opt) = @_;
+
+	my $reindex = $opt->{reindex};
+	my $im = $ibx->importer(0);
+	$im->lock_acquire if $reindex;
+
 	my @st = stat($old) or die "failed to stat($old): $!\n";
 
 	my $over = "$old/over.sqlite3";
 	if (-f $over) {
 		$over = PublicInbox::Over->new($over);
 		$over->connect->sqlite_backup_to_file("$new/over.sqlite3");
+		$over = undef;
 	}
 	rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
 	chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
 	rename($new, $old) or die "rename $new => $old: $!\n";
-	$im->lock_release;
 	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
+
+	if ($reindex) {
+		$opt->{-skip_lock} = 1;
+		PublicInbox::Admin::index_inbox($ibx, $opt);
+		# implicit lock_release
+	} else {
+		$im->lock_release;
+	}
 }
 
 sub xspawn {
@@ -47,6 +61,27 @@ sub runnable_or_die ($) {
 	which($exe) or die "$exe not found in PATH\n";
 }
 
+sub prepare_reindex ($$) {
+	my ($ibx, $reindex) = @_;
+	if ($ibx->{version} == 1) {
+		my $dir = $ibx->search->xdir(1);
+		my $xdb = Search::Xapian::Database->new($dir);
+		if (my $lc = $xdb->get_metadata('last_commit')) {
+			$reindex->{from} = $lc;
+		}
+	} else { # v2
+		my $v2w = $ibx->importer(0);
+		my $max;
+		$v2w->git_dir_latest(\$max) or return;
+		my $from = $reindex->{from};
+		my $mm = $ibx->mm;
+		my $v = PublicInbox::Search::SCHEMA_VERSION();
+		foreach my $i (0..$max) {
+			$from->[$i] = $mm->last_commit_xap($v, $i);
+		}
+	}
+}
+
 sub run {
 	my ($ibx, $cmd, $env, $opt) = @_;
 	$opt ||= {};
@@ -54,8 +89,14 @@ sub run {
 	my $exe = $cmd->[0];
 	my $pfx = $exe;
 	runnable_or_die($XAPIAN_COMPACT) if $opt->{compact};
+
+	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
+	my $from; # per-epoch ranges
+
 	if (ref($exe) eq 'CODE') {
 		$pfx = 'CODE';
+		$reindex = $opt->{reindex} = {};
+		$from = $reindex->{from} = [];
 		require Search::Xapian::WritableDatabase;
 	} else {
 		runnable_or_die($exe);
@@ -64,7 +105,7 @@ sub run {
 	my $old = $ibx->search->xdir(1);
 	-d $old or die "$old does not exist\n";
 	my $new = tempdir("$pfx-XXXXXXXX", DIR => $dir);
-	my $v = $ibx->{version} || 1;
+	my $v = $ibx->{version} ||= 1;
 	my @cmds;
 	if ($v == 1) {
 		push @cmds, [@$cmd, $old, $new];
@@ -85,6 +126,13 @@ sub run {
 	my $max = $opt->{jobs} || scalar(@cmds);
 	$ibx->with_umask(sub {
 		$im->lock_acquire;
+
+		# fine-grained locking if we prepare for reindex
+		if ($reindex) {
+			prepare_reindex($ibx, $reindex);
+			$im->lock_release;
+		}
+		delete($ibx->{$_}) for (qw(mm over search)); # cleanup
 		my %pids;
 		while (@cmds) {
 			while (scalar(keys(%pids)) < $max && scalar(@cmds)) {
@@ -98,7 +146,7 @@ sub run {
 				die join(' ', @$x)." failed: $?\n" if $?;
 			}
 		}
-		commit_changes($im, $old, $new);
+		commit_changes($ibx, $old, $new, $opt);
 	});
 }
 

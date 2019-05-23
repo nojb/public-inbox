@@ -141,7 +141,7 @@ sub index_inbox {
 	if (ref($ibx) && ($ibx->{version} || 1) == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
-		my $v2w = eval {
+		my $v2w = eval { $ibx->importer(0) } || eval {
 			PublicInbox::V2Writable->new($ibx, {nproc=>$jobs});
 		};
 		if (defined $jobs) {

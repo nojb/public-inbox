@@ -542,8 +542,10 @@ sub do_cat_mail {
 	$@ ? undef : $mime;
 }
 
+# called by public-inbox-index
 sub index_sync {
 	my ($self, $opts) = @_;
+	delete $self->{lock_path} if $opts->{-skip_lock};
 	$self->{-inbox}->with_umask(sub { $self->_index_sync($opts) })
 }
 
@@ -692,6 +694,12 @@ sub _last_x_commit {
 	$lx;
 }
 
+sub reindex_from ($$) {
+	my ($reindex, $last_commit) = @_;
+	return $last_commit unless $reindex;
+	ref($reindex) eq 'HASH' ? $reindex->{from} : '';
+}
+
 # indexes all unindexed messages (v1 only)
 sub _index_sync {
 	my ($self, $opts) = @_;
@@ -705,7 +713,7 @@ sub _index_sync {
 	do {
 		$xlog = undef;
 		$last_commit = _last_x_commit($self, $mm);
-		$lx = $opts->{reindex} ? '' : $last_commit;
+		$lx = reindex_from($opts->{reindex}, $last_commit);
 
 		$self->{over}->rollback_lazy;
 		$self->{over}->disconnect;

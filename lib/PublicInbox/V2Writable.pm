@@ -238,7 +238,7 @@ sub idx_part {
 
 # idempotent
 sub idx_init {
-	my ($self) = @_;
+	my ($self, $opt) = @_;
 	return if $self->{idx_parts};
 	my $ibx = $self->{-inbox};
 
@@ -264,7 +264,7 @@ sub idx_init {
 	my $over = $self->{over};
 	$ibx->umask_prepare;
 	$ibx->with_umask(sub {
-		$self->lock_acquire;
+		$self->lock_acquire unless ($opt && $opt->{-skip_lock});
 		$over->create;
 
 		# -compact can change partition count while -watch is idle
@@ -924,6 +924,19 @@ sub unindex {
 		qw(-c gc.reflogExpire=now gc --prune=all)]);
 }
 
+sub index_ranges ($$$) {
+	my ($self, $reindex, $epoch_max) = @_;
+	return last_commits($self, $epoch_max) unless $reindex;
+
+	return [] if ref($reindex) ne 'HASH';
+
+	my $ranges = $reindex->{from}; # arrayref;
+	if (ref($ranges) ne 'ARRAY') {
+		die 'BUG: $reindex->{from} not an ARRAY';
+	}
+	$ranges;
+}
+
 # called for public-inbox-index
 sub index_sync {
 	my ($self, $opts) = @_;
@@ -931,10 +944,10 @@ sub index_sync {
 	my $epoch_max;
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
-	$self->idx_init; # acquire lock
+	$self->idx_init($opts); # acquire lock
 	my $mm_tmp = $self->{mm}->tmp_clone;
 	my $reindex = $opts->{reindex};
-	my $ranges = $reindex ? [] : $self->last_commits($epoch_max);
+	my $ranges = index_ranges($self, $reindex, $epoch_max);
 
 	my $high = $self->{mm}->num_highwater();
 	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
