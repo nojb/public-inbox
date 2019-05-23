@@ -25,7 +25,8 @@ sub commit_changes ($$$) {
 }
 
 sub run {
-	my ($ibx, $cmd) = @_;
+	my ($ibx, $cmd, $env, $opt) = @_;
+	$opt ||= {};
 	my $dir = $ibx->{mainrepo} or die "no mainrepo in inbox\n";
 	which($cmd->[0]) or die "$cmd->[0] not found in PATH\n";
 	$ibx->umask_prepare;
@@ -50,13 +51,21 @@ sub run {
 		die "No Xapian parts found in $old\n" unless @cmds;
 	}
 	my $im = $ibx->importer(0);
+	my $max = $opt->{jobs} || scalar(@cmds);
 	$ibx->with_umask(sub {
 		$im->lock_acquire;
-		my %pids = map {; spawn($_) => join(' ', @$_) } @cmds;
-		while (scalar keys %pids) {
-			my $pid = waitpid(-1, 0);
-			my $desc = delete $pids{$pid};
-			die "$desc failed: $?\n" if $?;
+		my %pids;
+		while (@cmds) {
+			while (scalar(keys(%pids)) < $max && scalar(@cmds)) {
+				my $x = shift @cmds;
+				$pids{spawn($x, $env, $opt)} = $x;
+			}
+
+			while (scalar keys %pids) {
+				my $pid = waitpid(-1, 0);
+				my $x = delete $pids{$pid};
+				die join(' ', @$x)." failed: $?\n" if $?;
+			}
 		}
 		commit_changes($im, $old, $new);
 	});
