@@ -13,18 +13,10 @@ my $usage = "public-inbox-index REPO_DIR";
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
 
-my $reindex;
-my $prune;
-my $jobs = undef;
-my $indexlevel;
-my %opts = (
-	'--reindex' => \$reindex,
-	'--jobs|j=i' => \$jobs,
-	'--prune' => \$prune,
-        'L|indexlevel=s' => \$indexlevel,
-);
-GetOptions(%opts) or die "bad command-line args\n$usage";
-die "--jobs must be positive\n" if defined $jobs && $jobs < 0;
+my $opt = {};
+GetOptions($opt, qw(reindex jobs|j=i prune indexlevel|L=s))
+	or die "bad command-line args\n$usage";
+die "--jobs must be positive\n" if defined $opt->{jobs} && $opt->{jobs} <= 0;
 
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 
@@ -35,43 +27,12 @@ PublicInbox::Admin::require_or_die('-index');
 usage() unless @ibxs;
 my $mods = {};
 foreach my $ibx (@ibxs) {
-	if (defined $indexlevel && !defined($ibx->{indexlevel})) {
+	if (defined $opt->{indexlevel} && !defined($ibx->{indexlevel})) {
 		# XXX: users can shoot themselves in the foot, with this...
-		$ibx->{indexlevel} = $indexlevel;
+		$ibx->{indexlevel} = $opt->{indexlevel};
 	}
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
 
 PublicInbox::Admin::require_or_die(keys %$mods);
-
-require PublicInbox::SearchIdx;
-index_inbox($_) for @ibxs;
-
-sub index_inbox {
-	my ($repo) = @_;
-	if (ref($repo) && ($repo->{version} || 1) == 2) {
-		eval { require PublicInbox::V2Writable };
-		die "v2 requirements not met: $@\n" if $@;
-		my $v2w = eval {
-			PublicInbox::V2Writable->new($repo, {nproc=>$jobs});
-		};
-		if (defined $jobs) {
-			if ($jobs == 0) {
-				$v2w->{parallel} = 0;
-			} else {
-				my $n = $v2w->{partitions};
-				if ($jobs != ($n + 1)) {
-					warn
-"Unable to respect --jobs=$jobs, inbox was created with $n partitions\n";
-				}
-			}
-		}
-		local $SIG{__WARN__} = sub {
-			print STDERR $v2w->{current_info}, ': ', @_;
-		};
-		$v2w->index_sync({ reindex => $reindex, prune => $prune });
-	} else {
-		my $s = PublicInbox::SearchIdx->new($repo, 1);
-		$s->index_sync({ reindex => $reindex });
-	}
-}
+PublicInbox::Admin::index_inbox($_, $opt) for @ibxs;

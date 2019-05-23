@@ -135,4 +135,36 @@ invalid indexlevel=$indexlevel (must be `basic', `medium', or `full')
 	die missing_mod_msg($err) ." required for indexlevel=$indexlevel\n";
 }
 
+sub index_inbox {
+	my ($ibx, $opt) = @_;
+	my $jobs = delete $opt->{jobs} if $opt;
+	if (ref($ibx) && ($ibx->{version} || 1) == 2) {
+		eval { require PublicInbox::V2Writable };
+		die "v2 requirements not met: $@\n" if $@;
+		my $v2w = eval {
+			PublicInbox::V2Writable->new($ibx, {nproc=>$jobs});
+		};
+		if (defined $jobs) {
+			if ($jobs == 0) {
+				$v2w->{parallel} = 0;
+			} else {
+				my $n = $v2w->{partitions};
+				if ($jobs != ($n + 1)) {
+					warn
+"Unable to respect --jobs=$jobs, inbox was created with $n partitions\n";
+				}
+			}
+		}
+		my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+		local $SIG{__WARN__} = sub {
+			$warn_cb->($v2w->{current_info}, ': ', @_);
+		};
+		$v2w->index_sync($opt);
+	} else {
+		require PublicInbox::SearchIdx;
+		my $s = PublicInbox::SearchIdx->new($ibx, 1);
+		$s->index_sync($opt);
+	}
+}
+
 1;
