@@ -31,13 +31,15 @@ sub commit_changes ($$$) {
 			$over->connect->sqlite_backup_to_file($tmp_over);
 			$over = undef;
 		}
-
-		rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
 		chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
+
+		# Xtmpdir->DESTROY won't remove $new after this:
+		rename($old, "$new/old") or die "rename $old => $new/old: $!\n";
 		rename($new, $old) or die "rename $new => $old: $!\n";
 		my $prev = "$old/old";
 		remove_tree($prev) or die "failed to remove $prev: $!\n";
 	}
+	$tmp->done;
 	if ($reindex) {
 		$opt->{-skip_lock} = 1;
 		PublicInbox::Admin::index_inbox($ibx, $opt);
@@ -126,7 +128,7 @@ sub run {
 	my $old = $ibx->search->xdir(1);
 	-d $old or die "$old does not exist\n";
 
-	my $tmp = {}; # old partition => new (tmp) partition
+	my $tmp = PublicInbox::Xtmpdirs->new;
 	my $v = $ibx->{version} ||= 1;
 	my @cmds;
 
@@ -284,6 +286,39 @@ sub cpdb {
 		die join(' ', @$cmd)." failed: $? (pid=$pid, reaped=$rp)\n";
 	}
 	remove_tree($tmp) or die "failed to remove $tmp: $!\n";
+}
+
+# slightly easier-to-manage manage than END{} blocks
+package PublicInbox::Xtmpdirs;
+use strict;
+use warnings;
+use File::Path qw(remove_tree);
+my %owner;
+
+sub new {
+	# http://www.tldp.org/LDP/abs/html/exitcodes.html
+	$SIG{INT} = sub { exit(130) };
+	$SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub { exit(1) };
+	my $self = bless {}, $_[0]; # old partition => new (tmp) partition
+	$owner{"$self"} = $$;
+	$self;
+}
+
+sub done {
+	my ($self) = @_;
+	delete $owner{"$self"};
+	$SIG{INT} = $SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = 'DEFAULT';
+	%$self = ();
+}
+
+sub DESTROY {
+	my ($self) = @_;
+	my $owner_pid = delete $owner{"$self"} or return;
+	return if $owner_pid != $$;
+	foreach my $new (values %$self) {
+		remove_tree($new) unless -d "$new/old";
+	}
+	$SIG{INT} = $SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = 'DEFAULT';
 }
 
 1;
