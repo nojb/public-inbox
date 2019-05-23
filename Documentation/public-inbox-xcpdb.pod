@@ -1,6 +1,6 @@
 =head1 NAME
 
-public-inbox-xcpdb - copy Xapian DBs (for format upgrades)
+public-inbox-xcpdb - upgrade Xapian DB formats
 
 =head1 SYNOPSIS
 
@@ -16,7 +16,8 @@ L<public-inbox-watch(1)> or L<public-inbox-mda(1)>.
 
 This is intended for upgrading the database format used by
 Xapian.  It DOES NOT upgrade the schema used by the
-public-inbox search interface (see L<public-inbox-index(1)>).
+public-inbox PSGI search interface (see
+L<public-inbox-index(1)>).
 
 =head1 ENVIRONMENT
 

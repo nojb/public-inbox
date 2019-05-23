@@ -118,8 +118,9 @@ large mail archives; but are fine for backup and usable for
 small instances.
 
 Our use of the L</OVERVIEW DB> requires Xapian document IDs to
-remain stable.  Thus, use of L<xapian-compact(1)> and
-L<copydatabase(8)> require the use of C<--no-renumber> switch.
+remain stable.  Using L<public-inbox-compact(1)> and
+L<public-inbox-xcpdb(1)> wrappers are recommended over tools
+provided by Xapian.
 
 =head2 OVERVIEW DB
 

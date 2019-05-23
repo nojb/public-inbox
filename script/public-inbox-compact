@@ -8,7 +8,7 @@ use PublicInbox::InboxWritable;
 use PublicInbox::Xapcmd;
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
-my $usage = "Usage: public-inbox-compact REPO_DIR\n";
+my $usage = "Usage: public-inbox-compact INBOX_DIR\n";
 my $opt = { compact => 1, -coarse_lock => 1 };
 GetOptions($opt, @PublicInbox::Xapcmd::COMPACT_OPT) or
 	die "bad command-line args\n$usage";

@@ -225,7 +225,7 @@ sub description {
 	local $/ = "\n";
 	chomp $desc;
 	$desc =~ s/\s+/ /smg;
-	$desc = '($REPO_DIR/description missing)' if $desc eq '';
+	$desc = '($INBOX_DIR/description missing)' if $desc eq '';
 	$self->{description} = $desc;
 }
 

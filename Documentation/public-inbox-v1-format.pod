@@ -104,6 +104,10 @@ SQLite3 database maintaining a stable mapping of Message-IDs to NNTP
 article numbers.  Used by L<public-inbox-nntpd(1)> and created
 and updated by L<public-inbox-index(1)>.
 
+Users of the L<PublicInbox::WWW> interface will find it
+useful for attempting recovery from copy-paste truncations of
+URLs containing long Message-IDs.
+
 Automatically updated by L<public-inbox-mda(1)>,
 L<public-inbox-learn(1)> and L<public-inbox-watch(1)>.
 
@@ -135,8 +139,12 @@ the "overview" DB also exists in the xapian directory for v1
 repositories.  See L<public-inbox-v2-format(5)/OVERVIEW DB>
 
 Our use of the L</OVERVIEW DB> requires Xapian document IDs to
-remain stable.  Thus, use of L<xapian-compact(1)> and
-L<copydatabase(8)> require the use of C<--no-renumber> switch.
+remain stable.  Using L<public-inbox-compact(1)> and
+L<public-inbox-xcpdb(1)> wrappers are recommended over tools
+provided by Xapian.
+
+This directory is large, often two to three times the size of
+the objects stored in a packed git repository.
 
 =item $GIT_DIR/ssoma.index
 
