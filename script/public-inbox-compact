@@ -51,6 +51,8 @@ sub commit_changes ($$$) {
 	$im->lock_release;
 	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
 }
+
+# we rely on --no-renumber to keep docids synched to NNTP
 my @compact = qw(xapian-compact --no-renumber);
 if ($v == 2) {
 	require PublicInbox::V2Writable;

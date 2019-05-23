@@ -134,6 +134,10 @@ Since SCHEMA_VERSION 15 and the development of the v2 format,
 the "overview" DB also exists in the xapian directory for v1
 repositories.  See L<public-inbox-v2-format(5)/OVERVIEW DB>
 
+Our use of the L</OVERVIEW DB> requires Xapian document IDs to
+remain stable.  Thus, use of L<xapian-compact(1)> and
+L<copydatabase(8)> require the use of C<--no-renumber> switch.
+
 =item $GIT_DIR/ssoma.index
 
 This file is no longer used or created by public-inbox, but it is
