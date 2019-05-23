@@ -82,9 +82,21 @@ sub prepare_reindex ($$) {
 	}
 }
 
+sub progress_prepare ($) {
+	my ($opt) = @_;
+	if ($opt->{quiet}) {
+		open my $null, '>', '/dev/null' or
+			die "failed to open /dev/null: $!\n";
+		$opt->{1} = fileno($null);
+		$opt->{-dev_null} = $null;
+	} else {
+		$opt->{-progress} = 1;
+	}
+}
+
 sub run {
 	my ($ibx, $cmd, $env, $opt) = @_;
-	$opt ||= {};
+	progress_prepare($opt ||= {});
 	my $dir = $ibx->{mainrepo} or die "no mainrepo in inbox\n";
 	my $exe = $cmd->[0];
 	my $pfx = $exe;
@@ -161,6 +173,8 @@ sub cpdb_retryable ($$) {
 	0;
 }
 
+# Like copydatabase(1), this is horribly slow; and it doesn't seem due
+# to the overhead of Perl.
 sub cpdb {
 	my ($args, $env, $opt) = @_;
 	my ($old, $new) = @$args;
@@ -172,6 +186,7 @@ sub cpdb {
 	my $creat = Search::Xapian::DB_CREATE();
 	my $dst = Search::Xapian::WritableDatabase->new($tmp, $creat);
 	my ($it, $end);
+	my ($pfx, $nr, $tot, $fmt); # progress output
 
 	do {
 		eval {
@@ -181,6 +196,13 @@ sub cpdb {
 
 			$it = $src->postlist_begin('');
 			$end = $src->postlist_end('');
+			if ($opt->{-progress}) {
+				$nr = 0;
+				$pfx = (split('/', $old))[-1].':';
+				$tot = $src->get_doccount;
+				$fmt = "$pfx % ".length($tot)."u/$tot\n";
+				warn "$pfx copying $tot documents\n";
+			}
 		};
 	} while (cpdb_retryable($src, $@));
 
@@ -191,6 +213,9 @@ sub cpdb {
 				my $doc = $src->get_document($docid);
 				$dst->replace_document($docid, $doc);
 				$it->inc;
+				if ($fmt && !(++$nr & 1023)) {
+					warn(sprintf($fmt, $nr));
+				}
 			}
 
 			# unlike copydatabase(1), we don't copy spelling
@@ -200,10 +225,12 @@ sub cpdb {
 		};
 	} while (cpdb_retryable($src, $@));
 
+	warn(sprintf($fmt, $nr)) if $fmt;
 	return unless $opt->{compact};
 
 	$src = $dst = undef; # flushes and closes
 
+	warn "$pfx compacting...\n" if $pfx;
 	# this is probably the best place to do xapian-compact
 	# since $dst isn't readable by HTTP or NNTP clients, yet:
 	my $cmd = [ $XAPIAN_COMPACT, '--no-renumber', $tmp, $new ];
@@ -212,10 +239,22 @@ sub cpdb {
 		defined(my $dst = $opt->{$fd}) or next;
 		$rdr->{$fd} = $dst;
 	}
+
+	my ($r, $w);
+	if ($pfx && pipe($r, $w)) {
+		$rdr->{1} = fileno($w);
+	}
 	my $pid = spawn($cmd, $env, $rdr);
-	my $r = waitpid($pid, 0);
-	if ($? || $r != $pid) {
-		die join(' ', @$cmd)." failed: $? (pid=$pid, reaped=$r)\n";
+	if ($pfx) {
+		close $w or die "close: \$w: $!";
+		foreach (<$r>) {
+			s/\r/\r$pfx /g;
+			warn "$pfx $_";
+		}
+	}
+	my $rp = waitpid($pid, 0);
+	if ($? || $rp != $pid) {
+		die join(' ', @$cmd)." failed: $? (pid=$pid, reaped=$rp)\n";
 	}
 	remove_tree($tmp) or die "failed to remove $tmp: $!\n";
 }

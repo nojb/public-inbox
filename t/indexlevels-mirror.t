@@ -18,7 +18,7 @@ foreach my $mod (qw(DBD::SQLite)) {
 
 my $path = 'blib/script';
 my $index = "$path/public-inbox-index";
-my $xcpdb = "$path/public-inbox-xcpdb";
+my @xcpdb = ("$path/public-inbox-xcpdb", '-q');
 
 my $mime = PublicInbox::MIME->create(
 	header => [
@@ -110,7 +110,7 @@ sub import_index_incremental {
 	$im->done;
 
 	if ($level ne 'basic') {
-		is(system($xcpdb, $mirror), 0, "v$v xcpdb OK");
+		is(system(@xcpdb, $mirror), 0, "v$v xcpdb OK");
 		delete $ro_mirror->{$_} for (qw(over search));
 		($nr, $msgs) = $ro_mirror->search->query('m:m@2');
 		is($nr, 1, "v$v found m\@2 via Xapian on $level");

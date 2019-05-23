@@ -9,12 +9,9 @@ use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-search');
 my $usage = "Usage: public-inbox-xcpdb INBOX_DIR\n";
 my $opt = {};
-GetOptions($opt, qw(compact)) or die "bad command-line args\n$usage";
+GetOptions($opt, qw(compact quiet|q)) or die "bad command-line args\n$usage";
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
-
 my $cmd = [ \&PublicInbox::Xapcmd::cpdb ];
-open my $null, '>', '/dev/null' or die "failed to open /dev/null: $!\n";
-$opt->{1} = fileno($null);
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
 	# we rely on --no-renumber to keep docids synched to NNTP
