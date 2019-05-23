@@ -18,6 +18,7 @@ foreach my $mod (qw(DBD::SQLite)) {
 
 my $path = 'blib/script';
 my $index = "$path/public-inbox-index";
+my $xcpdb = "$path/public-inbox-xcpdb";
 
 my $mime = PublicInbox::MIME->create(
 	header => [
@@ -108,6 +109,13 @@ sub import_index_incremental {
 	ok($im->remove($mime), '2nd message removed');
 	$im->done;
 
+	if ($level ne 'basic') {
+		is(system($xcpdb, $mirror), 0, "v$v xcpdb OK");
+		delete $ro_mirror->{$_} for (qw(over search));
+		($nr, $msgs) = $ro_mirror->search->query('m:m@2');
+		is($nr, 1, "v$v found m\@2 via Xapian on $level");
+	}
+
 	# sync the mirror
 	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	is(system($index, $mirror), 0, "v$v index mirror again OK");
@@ -120,6 +128,10 @@ sub import_index_incremental {
 		is_deeply([glob("$ibx->{mainrepo}/xap*/?/")], [],
 			 'no Xapian partition directories for v2 basic');
 	}
+	if ($level ne 'basic') {
+		($nr, $msgs) = $ro_mirror->search->reopen->query('m:m@2');
+		is($nr, 0, "v$v m\@2 gone from Xapian in mirror on $level");
+	}
 }
 
 # we can probably cull some other tests and put full/medium tests, here
@@ -127,6 +139,16 @@ for my $level (qw(basic)) {
 	for my $v (1..2) {
 		subtest("v$v indexlevel=$level" => sub {
 			import_index_incremental($v, $level);
+		})
+	}
+}
+
+SKIP: {
+	require PublicInbox::Search;
+	PublicInbox::Search::load_xapian() or skip 'Search::Xapian missing', 2;
+	for my $v (1..2) {
+		subtest("v$v indexlevel=medium" => sub {
+			import_index_incremental($v, 'medium');
 		})
 	}
 }

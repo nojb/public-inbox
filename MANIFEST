@@ -20,6 +20,7 @@ Documentation/public-inbox-overview.pod
 Documentation/public-inbox-v1-format.pod
 Documentation/public-inbox-v2-format.pod
 Documentation/public-inbox-watch.pod
+Documentation/public-inbox-xcpdb.pod
 Documentation/standards.perl
 Documentation/txt2pre
 HACKING
@@ -154,6 +155,7 @@ script/public-inbox-mda
 script/public-inbox-nntpd
 script/public-inbox-purge
 script/public-inbox-watch
+script/public-inbox-xcpdb
 script/public-inbox.cgi
 scripts/dc-dlvr
 scripts/dc-dlvr.pre

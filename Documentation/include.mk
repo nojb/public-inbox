@@ -26,11 +26,13 @@ podtext = $(PODTEXT) $(PODTEXT_OPTS)
 
 # MakeMaker only seems to support manpage sections 1 and 3...
 m1 =
-m1 += public-inbox-mda
+m1 += public-inbox-compact
 m1 += public-inbox-httpd
+m1 += public-inbox-index
+m1 += public-inbox-mda
 m1 += public-inbox-nntpd
 m1 += public-inbox-watch
-m1 += public-inbox-index
+m1 += public-inbox-xcpdb
 m5 =
 m5 += public-inbox-config
 m5 += public-inbox-v1-format
