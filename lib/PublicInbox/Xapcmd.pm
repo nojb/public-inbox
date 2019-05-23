@@ -24,15 +24,36 @@ sub commit_changes ($$$) {
 	remove_tree("$old/old") or die "failed to remove $old/old: $!\n";
 }
 
+sub xspawn {
+	my ($cmd, $env, $opt) = @_;
+	if (ref($cmd->[0]) eq 'CODE') {
+		my $cb = shift(@$cmd); # $cb = cpdb()
+		defined(my $pid = fork) or die "fork: $!";
+		return $pid if $pid > 0;
+		eval { $cb->($cmd, $env, $opt) };
+		die $@ if $@;
+		exit 0;
+	} else {
+		spawn($cmd, $env, $opt);
+	}
+}
+
 sub run {
 	my ($ibx, $cmd, $env, $opt) = @_;
 	$opt ||= {};
 	my $dir = $ibx->{mainrepo} or die "no mainrepo in inbox\n";
-	which($cmd->[0]) or die "$cmd->[0] not found in PATH\n";
+	my $exe = $cmd->[0];
+	my $pfx = $exe;
+	if (ref($exe) eq 'CODE') {
+		$pfx = 'CODE';
+		require Search::Xapian::WritableDatabase;
+	} else {
+		which($exe) or die "$exe not found in PATH\n";
+	}
 	$ibx->umask_prepare;
 	my $old = $ibx->search->xdir(1);
 	-d $old or die "$old does not exist\n";
-	my $new = tempdir($cmd->[0].'-XXXXXXXX', DIR => $dir);
+	my $new = tempdir("$pfx-XXXXXXXX", DIR => $dir);
 	my $v = $ibx->{version} || 1;
 	my @cmds;
 	if ($v == 1) {
@@ -58,7 +79,7 @@ sub run {
 		while (@cmds) {
 			while (scalar(keys(%pids)) < $max && scalar(@cmds)) {
 				my $x = shift @cmds;
-				$pids{spawn($x, $env, $opt)} = $x;
+				$pids{xspawn($x, $env, $opt)} = $x;
 			}
 
 			while (scalar keys %pids) {
@@ -69,6 +90,56 @@ sub run {
 		}
 		commit_changes($im, $old, $new);
 	});
+}
+
+sub cpdb_retryable ($$) {
+	my ($src, $err) = @_;
+	if (ref($err) eq 'Search::Xapian::DatabaseModifiedError') {
+		warn "$err, reopening and retrying\n";
+		$src->reopen;
+		return 1;
+	}
+	die $err if $err;
+	0;
+}
+
+sub cpdb {
+	my ($args, $env, $opt) = @_;
+	my ($old, $new) = @$args;
+	my $src = Search::Xapian::Database->new($old);
+
+	# like copydatabase(1), be sure we don't overwrite anything in case
+	# of other bugs:
+	my $creat = Search::Xapian::DB_CREATE();
+	my $dst = Search::Xapian::WritableDatabase->new($new, $creat);
+	my ($it, $end);
+
+	do {
+		eval {
+			# update the only metadata key for v1:
+			my $lc = $src->get_metadata('last_commit');
+			$dst->set_metadata('last_commit', $lc) if $lc;
+
+			$it = $src->postlist_begin('');
+			$end = $src->postlist_end('');
+		};
+	} while (cpdb_retryable($src, $@));
+
+	do {
+		eval {
+			while ($it != $end) {
+				my $docid = $it->get_docid;
+				my $doc = $src->get_document($docid);
+				$dst->replace_document($docid, $doc);
+				$it->inc;
+			}
+
+			# unlike copydatabase(1), we don't copy spelling
+			# and synonym data (or other user metadata) since
+			# the Perl APIs don't expose iterators for them
+			# (and public-inbox does not use those features)
+		};
+	} while (cpdb_retryable($src, $@));
 }
 
 1;

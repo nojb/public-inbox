@@ -8,7 +8,7 @@ use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-search');
 my $usage = "Usage: public-inbox-xcpdb INBOX_DIR\n";
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
-my $cmd = [qw(copydatabase --no-renumber)];
+my $cmd = [ \&PublicInbox::Xapcmd::cpdb ];
 open my $null, '>', '/dev/null' or die "failed to open /dev/null: $!\n";
 my $rdr = { 1 => fileno($null) };
 foreach (@ibxs) {
