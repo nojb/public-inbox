@@ -32,7 +32,7 @@ sub run {
 	$ibx->umask_prepare;
 	my $old = $ibx->search->xdir(1);
 	-d $old or die "$old does not exist\n";
-	my $new = tempdir($cmd->[0].'-XXXXXXXX', CLEANUP => 1, DIR => $dir);
+	my $new = tempdir($cmd->[0].'-XXXXXXXX', DIR => $dir);
 	my $v = $ibx->{version} || 1;
 	my @cmds;
 	if ($v == 1) {
