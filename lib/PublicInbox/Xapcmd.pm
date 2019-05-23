@@ -95,7 +95,7 @@ sub progress_prepare ($) {
 		$opt->{1} = fileno($null);
 		$opt->{-dev_null} = $null;
 	} else {
-		$opt->{-progress} = 1;
+		$opt->{-progress} = sub { print STDERR @_ };
 	}
 }
 
@@ -212,6 +212,7 @@ sub cpdb {
 	my ($it, $end);
 	my $pfx = '';
 	my ($nr, $tot, $fmt); # progress output
+	my $pr = $opt->{-progress};
 
 	do {
 		eval {
@@ -222,11 +223,11 @@ sub cpdb {
 			$it = $src->postlist_begin('');
 			$end = $src->postlist_end('');
 			$pfx = (split('/', $old))[-1].':';
-			if ($opt->{-progress}) {
+			if ($pr) {
 				$nr = 0;
 				$tot = $src->get_doccount;
 				$fmt = "$pfx % ".length($tot)."u/$tot\n";
-				warn "$pfx copying $tot documents\n";
+				$pr->("$pfx copying $tot documents\n");
 			}
 		};
 	} while (cpdb_retryable($src, $pfx));
@@ -238,8 +239,8 @@ sub cpdb {
 				my $doc = $src->get_document($docid);
 				$dst->replace_document($docid, $doc);
 				$it->inc;
-				if ($fmt && !(++$nr & 1023)) {
-					warn(sprintf($fmt, $nr));
+				if ($pr && !(++$nr & 1023)) {
+					$pr->(sprintf($fmt, $nr));
 				}
 			}
 
@@ -250,13 +251,13 @@ sub cpdb {
 		};
 	} while (cpdb_retryable($src, $pfx));
 
-	warn(sprintf($fmt, $nr)) if $fmt;
+	$pr->(sprintf($fmt, $nr)) if $pr;
 	return unless $opt->{compact};
 
 	$src = $dst = undef; # flushes and closes
 	$pfx = undef unless $fmt;
 
-	warn "$pfx compacting...\n" if $pfx;
+	$pr->("$pfx compacting...\n") if $pr;
 	# this is probably the best place to do xapian-compact
 	# since $dst isn't readable by HTTP or NNTP clients, yet:
 	my $cmd = [ $XAPIAN_COMPACT, '--no-renumber', $tmp, $new ];
@@ -275,7 +276,7 @@ sub cpdb {
 		close $w or die "close: \$w: $!";
 		foreach (<$r>) {
 			s/\r/\r$pfx /g;
-			warn "$pfx $_";
+			$pr->("$pfx $_");
 		}
 	}
 	my $rp = waitpid($pid, 0);
