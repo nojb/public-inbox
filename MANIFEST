@@ -139,6 +139,7 @@ lib/PublicInbox/WwwHighlight.pm
 lib/PublicInbox/WwwListing.pm
 lib/PublicInbox/WwwStream.pm
 lib/PublicInbox/WwwText.pm
+lib/PublicInbox/Xapcmd.pm
 sa_config/Makefile
 sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
