@@ -22,6 +22,8 @@ sub commit_changes ($$$) {
 	my $im = $ibx->importer(0);
 	$im->lock_acquire if !$opt->{-coarse_lock};
 
+	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
+
 	while (my ($old, $new) = each %$tmp) {
 		my @st = stat($old) or die "failed to stat($old): $!\n";
 
@@ -346,7 +348,12 @@ sub new {
 sub done {
 	my ($self) = @_;
 	delete $owner{"$self"};
-	$SIG{INT} = $SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = 'DEFAULT';
+
+	my %known_pids;
+	$known_pids{$_}++ foreach values %owner;
+	if (!$known_pids{$$}) {
+		$SIG{INT} = $SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = 'DEFAULT';
+	}
 	%$self = ();
 }
 
@@ -357,7 +364,7 @@ sub DESTROY {
 	foreach my $new (values %$self) {
 		remove_tree($new) unless -d "$new/old";
 	}
-	$SIG{INT} = $SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = 'DEFAULT';
+	done($self);
 }
 
 1;
