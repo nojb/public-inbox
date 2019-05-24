@@ -8,6 +8,11 @@ all::
 # Maybe it's not worth it to support non-GNU make, though...
 RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
+MAN = man
+
+# same as pod2text
+COLUMNS = 76
+
 txt := INSTALL README COPYING TODO HACKING
 dtxt := design_notes.txt design_www.txt dc-dlvr-spam-flow.txt hosted.txt
 dtxt += marketing.txt
@@ -106,6 +111,26 @@ html: $(docs_html)
 gz_docs := $(addsuffix .gz, $(docs) $(docs_html))
 rsync_docs := $(gz_docs) $(docs) $(docs_html)
 
+# external manpages which we host ourselves, since some packages
+# (currently just Xapian) doesn't host manpages themselves.
+xtxt :=
+xtxt += .copydatabase.1
+xtxt += .xapian-compact.1
+xtxt := $(addprefix Documentation/.x/, $(addsuffix .txt, $(xtxt)))
+xdocs := $(xtxt)
+xdocs_html := $(addsuffix .html, $(subst .txt,,$(xtxt)))
+gz_xdocs := $(addsuffix .gz, $(xdocs) $(xdocs_html))
+rsync_xdocs := $(gz_xdocs) $(xdocs_html) $(xdocs)
+xdoc: $(xdocs) $(xdocs_html)
+
+Documentation/.x/%.txt::
+	@-mkdir -p $(@D)
+	$(PERL) -w Documentation/extman.perl $@ >$@+
+	mv $@+ $@
+
+Documentation/.x/%.html: Documentation/.x/%.txt
+	$(txt2pre)
+
 doc: $(docs)
 
 %.gz: %
@@ -114,14 +139,19 @@ doc: $(docs)
 	mv $@+ $@
 
 gz-doc: $(gz_docs)
+
+gz-xdoc: $(gz_xdocs)
+
 rsync-doc:
 	# /usr/share/doc/rsync/scripts/git-set-file-times{.gz} on Debian systems
 	# It is also at: https://yhbt.net/git-set-file-times
 	-git set-file-times $(docs) $(txt)
-	$(MAKE) gz-doc
-	$(RSYNC) --chmod=Fugo=r -av $(rsync_docs) $(RSYNC_DEST)
+	$(MAKE) gz-doc gz-xdoc
+	$(RSYNC) --chmod=Fugo=r -av $(rsync_docs) $(rsync_xdocs) $(RSYNC_DEST)
+
 clean-doc:
 	$(RM) $(man1) $(man5) $(man7) $(gz_docs) $(docs_html) $(mantxt)
+	$(RM) $(gz_xdocs) $(xdocs_html) $(xdocs)
 
 clean :: clean-doc
 
