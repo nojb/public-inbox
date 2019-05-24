@@ -228,7 +228,9 @@ sub retry_reopen {
 			warn "reopen try #$i on $@\n";
 			reopen($self);
 		} else {
-			warn "ref: ", ref($@), "\n";
+			# let caller decide how to spew, because ExtMsg queries
+			# get wonky and trigger:
+			# "something terrible happened at .../Xapian/Enquire.pm"
 			die;
 		}
 	}
