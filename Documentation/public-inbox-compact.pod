@@ -60,4 +60,5 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<xapian-compact(1)>, L<public-inbox-index(1)>
+L<xapian-compact(1)|https://public-inbox.org/.xapian-compact.1.html>,
+L<public-inbox-index(1)|https://public-inbox.org/public-inbox-index.html>
