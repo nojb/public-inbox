@@ -23,6 +23,13 @@ all need to be considered for everything we introduce)
 
 * TLS support for various daemons (including STARTTLS for NNTP and POP3)
 
+* dogfood and take advantage of new kernel APIs (while maintaining
+  portability to older Linux, free BSDs and maybe Hurd).
+
+* dogfood latest Xapian, Perl5, SQLite, git and various modules to
+  ensure things continue working as they should (or more better)
+  while retaining compatibility with old versions.
+
 * NNTP COMPRESS extension (see innd)
 
 * Support more of RFC 3977 (NNTP)
@@ -34,6 +41,8 @@ all need to be considered for everything we introduce)
   appropriate link pointing to the gmane.org list archives,
   likewise "[Bug #123456]" could be configured to expand to
   point to some project's bug tracker at http://example.com/bug/123456
+
+* configurable synonym and spelling support in Xapian
 
 * Support optional "HTTPS Everywhere" for mapping old HTTP to HTTPS
   links if (and only if) the user wants to use HTTPS.  We may also
@@ -78,6 +87,9 @@ all need to be considered for everything we introduce)
 * Contribute something like IMAP IDLE for "git fetch".
   Inboxes (and any git repos) can be kept up-to-date without
   relying on polling.
+
+* Improve bundle support in git to make it cheaper to host/clone
+  with dumb HTTP(S) servers.
 
 * Expose targeted reindexing of individual messages.
   Sometimes an indexing bug only affects a handful of messages,
