@@ -5,6 +5,7 @@ Documentation/.gitignore
 Documentation/dc-dlvr-spam-flow.txt
 Documentation/design_notes.txt
 Documentation/design_www.txt
+Documentation/extman.perl
 Documentation/hosted.txt
 Documentation/include.mk
 Documentation/marketing.txt
