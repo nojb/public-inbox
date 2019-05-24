@@ -87,13 +87,13 @@ dtxt += $(mantxt)
 all :: $(mantxt)
 
 Documentation/%.txt : Documentation/%.pod
-	$(podtext) $< $@+ && mv $@+ $@
+	$(podtext) $< $@+ && touch -r $< $@+ && mv $@+ $@
 
 txt2pre = $(PERL) -I lib ./Documentation/txt2pre <$< >$@+ && \
 	touch -r $< $@+ && mv $@+ $@
 
 Documentation/standards.txt : Documentation/standards.perl
-	$(PERL) $< >$@+ && mv $@+ $@
+	$(PERL) $< >$@+ && touch -r $< $@+ && mv $@+ $@
 
 Documentation/%.html: Documentation/%.txt
 	$(txt2pre)
