@@ -16,6 +16,16 @@ writing while it operates.
 It enforces the use of the C<--no-renumber> option of
 L<xapian-compact(1)>
 
+=head1 OPTIONS
+
+=over
+
+=item --blocksize / --no-full / --fuller
+
+These options are passed directly to L<xapian-compact(1)>.
+
+=back
+
 =head1 ENVIRONMENT
 
 =over 8
