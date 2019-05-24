@@ -37,7 +37,7 @@ This takes an absolute path to a Unix socket or HOST:PORT
 to listen on.  For example, to listen to TCP connections on
 port 119, use: C<-l 0.0.0.0:119>.  This may also point to
 a Unix socket (C<-l /path/to/http.sock>) for a reverse proxy
-like L<nginx(1)> to use.
+like L<nginx(8)> to use.
 
 May be specified multiple times to allow listening on multiple
 sockets.
@@ -77,7 +77,7 @@ Default: 1
 
 =head1 SIGNALS
 
-Most of our signal handling behavior is copied from L<nginx(1)>
+Most of our signal handling behavior is copied from L<nginx(8)>
 and/or L<starman(1)>; so it is possible to reuse common scripts
 for managing them.
 
