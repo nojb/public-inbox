@@ -115,7 +115,9 @@ doc: $(docs)
 
 gz-doc: $(gz_docs)
 rsync-doc:
-	git set-file-times $(docs) $(txt)
+	# /usr/share/doc/rsync/scripts/git-set-file-times{.gz} on Debian systems
+	# It is also at: https://yhbt.net/git-set-file-times
+	-git set-file-times $(docs) $(txt)
 	$(MAKE) gz-doc
 	$(RSYNC) --chmod=Fugo=r -av $(rsync_docs) $(RSYNC_DEST)
 clean-doc:
