@@ -79,7 +79,7 @@ sub import_index_incremental {
 	# read-only access
 	my $ro_mirror = PublicInbox::Inbox->new({
 		mainrepo => $mirror,
-		indexlevel => 'basic'
+		indexlevel => $level,
 	});
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 1, 'only one message, so far');
