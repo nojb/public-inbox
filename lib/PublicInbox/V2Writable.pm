@@ -965,7 +965,6 @@ sub index_sync {
 			--no-notes --no-color --no-abbrev --no-renames);
 
 	# work backwards through history
-	my $last_commit = [];
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		my $git_dir = git_dir_n($self, $i);
 		die "already reindexing!\n" if delete $self->{reindex_pipe};
