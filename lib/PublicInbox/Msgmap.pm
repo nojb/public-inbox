@@ -130,7 +130,7 @@ INSERT OR IGNORE INTO msgmap (mid) VALUES (?)
 
 	return if $sth->execute($mid) == 0;
 	my $num = $dbh->last_insert_id(undef, undef, 'msgmap', 'num');
-	$self->num_highwater($num) unless !defined($num);
+	$self->num_highwater($num) if defined($num);
 	$num;
 }
 
