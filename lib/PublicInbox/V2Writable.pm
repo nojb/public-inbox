@@ -851,7 +851,7 @@ sub index_prepare {
 	my $regen_max = 0;
 	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
 	for (my $i = $epoch_max; $i >= 0; $i--) {
-		die "already indexing!\n" if $self->{index_pipe};
+		die 'BUG: already indexing!' if $self->{reindex_pipe};
 		my $git_dir = git_dir_n($self, $i);
 		-d $git_dir or next; # missing parts are fine
 		my $git = PublicInbox::Git->new($git_dir);
@@ -967,7 +967,7 @@ sub index_sync {
 	# work backwards through history
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		my $git_dir = git_dir_n($self, $i);
-		die "already reindexing!\n" if delete $self->{reindex_pipe};
+		die 'BUG: already reindexing!' if $self->{reindex_pipe};
 		-d $git_dir or next; # missing parts are fine
 		fill_alternates($self, $i);
 		my $git = PublicInbox::Git->new($git_dir);
