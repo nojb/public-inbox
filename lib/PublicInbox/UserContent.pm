@@ -11,6 +11,7 @@ use warnings;
 sub CSS () {
 	<<'_'
 	/*
+	 * CC0-1.0 <https://creativecommons.org/publicdomain/zero/1.0/legalcode>
 	 * Dark color scheme using 216 web-safe colors, inspired
 	 * somewhat by the default color scheme in mutt.
 	 * It reduces eyestrain for me, and energy usage for all:

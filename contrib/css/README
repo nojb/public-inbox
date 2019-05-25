@@ -36,6 +36,10 @@ Snippet from ~/.public-inbox/config, order matters to browsers.
 	; "https://" or "http://" for hosts which only support one protocol.
 	css = href=//example.com/fugly.css title=external
 
+All files in these example directory are CC0-1.0 (public domain):
+To the extent possible under law, Eric Wong has waived all copyright and
+related or neighboring rights to these examples.
+https://creativecommons.org/publicdomain/zero/1.0/legalcode
 
 (*) "libcss-minifier-perl" or "libcss-minifier-xs-perl"
     on Debian-based systems
