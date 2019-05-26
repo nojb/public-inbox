@@ -48,6 +48,7 @@ sub stream_large_blob ($$$$) {
 	my $qsp = PublicInbox::Qspawn->new($cmd);
 	my @cl = ('Content-Length', $size);
 	my $env = $ctx->{env};
+	$env->{'public-inbox.tmpgit'} = $git; # for {-tmp}/File::Temp::Dir
 	$env->{'qspawn.wcb'} = delete $ctx->{-wcb};
 	$qsp->psgi_return($env, undef, sub {
 		my ($r, $bref) = @_;
