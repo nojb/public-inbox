@@ -694,7 +694,7 @@ sub _last_x_commit {
 		$lx = $lm;
 	}
 	# Use last_commit from msgmap if it is older or unset
-	if (!$lm || ($lx && $lx && is_ancestor($self->{git}, $lm, $lx))) {
+	if (!$lm || ($lx && $lm && is_ancestor($self->{git}, $lm, $lx))) {
 		$lx = $lm;
 	}
 	$lx;
