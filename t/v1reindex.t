@@ -223,7 +223,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
 	my %config = %$ibx_config;
-	$config{indexleve} = 'medium';
+	$config{indexlevel} = 'medium';
 	my $ibx = PublicInbox::Inbox->new(\%config);
 	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 	eval { $rw->index_sync };
