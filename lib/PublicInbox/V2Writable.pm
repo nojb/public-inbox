@@ -850,11 +850,19 @@ sub index_prepare {
 	my $pr = $opts->{-progress};
 	my $regen_max = 0;
 	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
+
+	# reindex stops at the current heads and we later rerun index_sync
+	# without {reindex}
+	my $reindex_heads = last_commits($self, $epoch_max) if $opts->{reindex};
+
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		die 'BUG: already indexing!' if $self->{reindex_pipe};
 		my $git_dir = git_dir_n($self, $i);
 		-d $git_dir or next; # missing parts are fine
 		my $git = PublicInbox::Git->new($git_dir);
+		if ($reindex_heads) {
+			$head = $reindex_heads->[$i] or next;
+		}
 		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
 
 		next if $?; # new repo
@@ -959,7 +967,14 @@ sub index_sync {
 
 	my $high = $self->{mm}->num_highwater();
 	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
-	$$regen += $high if $high;
+	if ($opts->{reindex}) {
+		# reindex should NOT see new commits anymore, if we do,
+		# it's a problem and we need to notice it via die()
+		$$regen = -1;
+	} else {
+		$$regen += $high;
+	}
+
 	my $D = {}; # "$mid\0$cid" => $oid
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
@@ -1001,6 +1016,14 @@ sub index_sync {
 		$git->cleanup;
 	}
 	$self->done;
+
+	# reindex does not pick up new changes, so we rerun w/o it:
+	if ($opts->{reindex}) {
+		my %again = %$opts;
+		$mm_tmp = undef;
+		delete @again{qw(reindex -skip_lock)};
+		index_sync($self, \%again);
+	}
 }
 
 1;

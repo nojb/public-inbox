@@ -105,9 +105,17 @@ sub import_index_incremental {
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
 		['m@1','m@2'], 'got both messages in master');
 
+	my @rw_nums = map { $_->{num} } @{$ibx->over->query_ts(0, 0)};
+	is_deeply(\@rw_nums, [1, 2], 'master has expected NNTP articles');
+
+	my @ro_nums = map { $_->{num} } @{$ro_mirror->over->query_ts(0, 0)};
+	is_deeply(\@ro_nums, [1, 2], 'mirror has expected NNTP articles');
+
 	# remove message from master
 	ok($im->remove($mime), '2nd message removed');
 	$im->done;
+	@rw_nums = map { $_->{num} } @{$ibx->over->query_ts(0, 0)};
+	is_deeply(\@rw_nums, [1], 'unindex NNTP article'.$v.$level);
 
 	if ($level ne 'basic') {
 		is(system(@xcpdb, $mirror), 0, "v$v xcpdb OK");
@@ -132,6 +140,23 @@ sub import_index_incremental {
 		($nr, $msgs) = $ro_mirror->search->reopen->query('m:m@2');
 		is($nr, 0, "v$v m\@2 gone from Xapian in mirror on $level");
 	}
+
+	# add another message to master and have the mirror
+	# sync and reindex it
+	my @expect = map { $_->{num} } @{$ibx->over->query_ts(0, 0)};
+	foreach my $i (3..5) {
+		$mime->header_set('Message-ID', "<m\@$i>");
+		ok($im->add($mime), "#$i message added");
+		push @expect, $i;
+	}
+	$im->done;
+	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
+	is(system($index, '--reindex', $mirror), 0,
+		"v$v index --reindex mirror OK");
+	@ro_nums = map { $_->{num} } @{$ro_mirror->over->query_ts(0, 0)};
+	@rw_nums = map { $_->{num} } @{$ibx->over->query_ts(0, 0)};
+	is_deeply(\@rw_nums, \@expect, "v$v master has expected NNTP articles");
+	is_deeply(\@ro_nums, \@expect, "v$v mirror matches master articles");
 }
 
 # we can probably cull some other tests and put full/medium tests, here
