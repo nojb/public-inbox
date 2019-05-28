@@ -779,12 +779,16 @@ sub reindex_oid ($$$$) {
 	my $idx = $self->idx_part($part);
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
 	my $n = $self->{transact_bytes} += $len;
+	$sync->{nr}++;
 	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
 		$git->cleanup;
 		$sync->{mm_tmp}->atfork_prepare;
 		$self->done; # release lock
 
-		# TODO: print progress info, here
+		if (my $pr = $sync->{-opt}->{-progress}) {
+			my ($bn) = (split('/', $git->{git_dir}))[-1];
+			$pr->("$bn ".sprintf($sync->{-regen_fmt}, $sync->{nr}));
+		}
 
 		# allow -watch or -mda to write...
 		$self->idx_init; # reacquire lock
@@ -820,16 +824,27 @@ sub last_commits ($$) {
 # returns a revision range for git-log(1)
 sub log_range ($$$$$) {
 	my ($self, $sync, $git, $i, $tip) = @_;
-	my $cur = $sync->{ranges}->[$i] or return $tip; # all of it
+	my $opt = $sync->{-opt};
+	my $pr = $opt->{-progress} if (($opt->{verbose} || 0) > 1);
+	my $cur = $sync->{ranges}->[$i] or do {
+		$pr->("$i.git indexing all of $tip") if $pr;
+		return $tip; # all of it
+	};
+
 	my $range = "$cur..$tip";
+	$pr->("$i.git checking contiguity... ") if $pr;
 	if (is_ancestor($git, $cur, $tip)) { # common case
+		$pr->("OK\n") if $pr;
 		my $n = $git->qx(qw(rev-list --count), $range);
 		chomp($n);
 		if ($n == 0) {
 			$sync->{ranges}->[$i] = undef;
+			$pr->("$i.git has nothing new\n") if $pr;
 			return; # nothing to do
 		}
+		$pr->("$i.git has $n changes since $cur\n") if $pr;
 	} else {
+		$pr->("FAIL\n") if $pr;
 		warn <<"";
 discontiguous range: $range
 Rewritten history? (in $git->{git_dir})
@@ -876,7 +891,7 @@ sub sync_prepare ($$$) {
 		$sync->{ranges}->[$i] = $range;
 
 		# can't use 'rev-list --count' if we use --diff-filter
-		$pr->("$i.git counting changes\n\t$range ... ") if $pr;
+		$pr->("$i.git counting $range ... ") if $pr;
 		my $n = 0;
 		my $fh = $git->popen(qw(log --pretty=tformat:%H
 				--no-notes --no-color --no-renames
@@ -887,6 +902,9 @@ sub sync_prepare ($$$) {
 	}
 	# reindex should NOT see new commits anymore, if we do,
 	# it's a problem and we need to notice it via die()
+	my $pad = length($regen_max) + 1;
+	$sync->{-regen_fmt} = "% ${pad}u/$regen_max\n";
+	$sync->{nr} = 0;
 	return -1 if $sync->{reindex};
 	$regen_max + $self->{mm}->num_highwater() || 0;
 }
@@ -967,6 +985,7 @@ sub sync_ranges ($$$) {
 sub index_sync {
 	my ($self, $opt) = @_;
 	$opt ||= {};
+	my $pr = $opt->{-progress};
 	my $epoch_max;
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
@@ -993,6 +1012,7 @@ sub index_sync {
 		my $unindex_range = delete $sync->{"unindex-range.$i"};
 		unindex($self, $sync, $git, $unindex_range) if $unindex_range;
 		defined(my $range = $sync->{ranges}->[$i]) or next;
+		$pr->("$i.git indexing $range\n") if $pr;
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
 		my $cmt;
 		while (<$fh>) {
@@ -1019,6 +1039,9 @@ sub index_sync {
 		$git->cleanup;
 	}
 	$self->done;
+	if (my $pr = $sync->{-opt}->{-progress}) {
+		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $sync->{nr}));
+	}
 
 	# reindex does not pick up new changes, so we rerun w/o it:
 	if ($opt->{reindex}) {
