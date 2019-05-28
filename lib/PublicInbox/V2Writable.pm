@@ -695,18 +695,18 @@ sub atfork_child {
 }
 
 sub mark_deleted {
-	my ($self, $D, $git, $oid) = @_;
+	my ($self, $sync, $git, $oid) = @_;
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::MIME->new($$msgref);
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
 	foreach my $mid (@$mids) {
-		$D->{"$mid\0$cid"} = $oid;
+		$sync->{D}->{"$mid\0$cid"} = $oid;
 	}
 }
 
 sub reindex_oid {
-	my ($self, $sync, $D, $git, $oid, $regen, $reindex) = @_;
+	my ($self, $sync, $git, $oid, $regen, $reindex) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -719,7 +719,7 @@ sub reindex_oid {
 	my $num = -1;
 	my $del = 0;
 	foreach my $mid (@$mids) {
-		$del += delete($D->{"$mid\0$cid"}) ? 1 : 0;
+		$del += delete($sync->{D}->{"$mid\0$cid"}) ? 1 : 0;
 		my $n = $sync->{mm_tmp}->num_for($mid);
 		if (defined $n && $n > $num) {
 			$mid0 = $mid;
@@ -963,6 +963,7 @@ sub index_sync {
 	$self->idx_init($opts); # acquire lock
 	my $sync = {
 		mm_tmp => $self->{mm}->tmp_clone,
+		D => {}, # "$mid\0$cid" => $oid
 	};
 	my $reindex = $opts->{reindex};
 	my $ranges = index_ranges($self, $reindex, $epoch_max);
@@ -977,7 +978,6 @@ sub index_sync {
 		$$regen += $high;
 	}
 
-	my $D = {}; # "$mid\0$cid" => $oid
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
 
@@ -999,10 +999,10 @@ sub index_sync {
 			if (/\A$x40$/o && !defined($cmt)) {
 				$cmt = $_;
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				$self->reindex_oid($sync, $D, $git, $1,
+				$self->reindex_oid($sync, $git, $1,
 						$regen, $reindex);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
-				$self->mark_deleted($D, $git, $1);
+				$self->mark_deleted($sync, $git, $1);
 			}
 		}
 		$fh = undef;
@@ -1012,9 +1012,9 @@ sub index_sync {
 
 	# unindex is required for leftovers if "deletes" affect messages
 	# in a previous fetch+index window:
-	if (scalar keys %$D) {
+	if (my @leftovers = values %{delete $sync->{D}}) {
 		my $git = $self->{-inbox}->git;
-		$self->unindex_oid($git, $_) for values %$D;
+		$self->unindex_oid($git, $_) for @leftovers;
 		$git->cleanup;
 	}
 	$self->done;
