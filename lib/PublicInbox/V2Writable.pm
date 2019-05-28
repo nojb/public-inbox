@@ -706,7 +706,7 @@ sub mark_deleted {
 }
 
 sub reindex_oid {
-	my ($self, $mm_tmp, $D, $git, $oid, $regen, $reindex) = @_;
+	my ($self, $sync, $D, $git, $oid, $regen, $reindex) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -714,13 +714,13 @@ sub reindex_oid {
 	my $cid = content_id($mime);
 
 	# get the NNTP article number we used before, highest number wins
-	# and gets deleted from mm_tmp;
+	# and gets deleted from sync->{mm_tmp};
 	my $mid0;
 	my $num = -1;
 	my $del = 0;
 	foreach my $mid (@$mids) {
 		$del += delete($D->{"$mid\0$cid"}) ? 1 : 0;
-		my $n = $mm_tmp->num_for($mid);
+		my $n = $sync->{mm_tmp}->num_for($mid);
 		if (defined $n && $n > $num) {
 			$mid0 = $mid;
 			$num = $n;
@@ -764,7 +764,7 @@ sub reindex_oid {
 		return;
 
 	}
-	$mm_tmp->mid_delete($mid0) or
+	$sync->{mm_tmp}->mid_delete($mid0) or
 		die "failed to delete <$mid0> for article #$num\n";
 
 	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
@@ -775,14 +775,14 @@ sub reindex_oid {
 	my $n = $self->{transact_bytes} += $len;
 	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
 		$git->cleanup;
-		$mm_tmp->atfork_prepare;
+		$sync->{mm_tmp}->atfork_prepare;
 		$self->done; # release lock
 
 		# TODO: print progress info, here
 
 		# allow -watch or -mda to write...
 		$self->idx_init; # reacquire lock
-		$mm_tmp->atfork_parent;
+		$sync->{mm_tmp}->atfork_parent;
 	}
 }
 
@@ -961,7 +961,9 @@ sub index_sync {
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
 	$self->idx_init($opts); # acquire lock
-	my $mm_tmp = $self->{mm}->tmp_clone;
+	my $sync = {
+		mm_tmp => $self->{mm}->tmp_clone,
+	};
 	my $reindex = $opts->{reindex};
 	my $ranges = index_ranges($self, $reindex, $epoch_max);
 
@@ -997,7 +999,7 @@ sub index_sync {
 			if (/\A$x40$/o && !defined($cmt)) {
 				$cmt = $_;
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				$self->reindex_oid($mm_tmp, $D, $git, $1,
+				$self->reindex_oid($sync, $D, $git, $1,
 						$regen, $reindex);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
 				$self->mark_deleted($D, $git, $1);
@@ -1020,7 +1022,7 @@ sub index_sync {
 	# reindex does not pick up new changes, so we rerun w/o it:
 	if ($opts->{reindex}) {
 		my %again = %$opts;
-		$mm_tmp = undef;
+		$sync = undef;
 		delete @again{qw(reindex -skip_lock)};
 		index_sync($self, \%again);
 	}
