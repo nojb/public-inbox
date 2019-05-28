@@ -706,7 +706,7 @@ sub mark_deleted {
 }
 
 sub reindex_oid {
-	my ($self, $sync, $git, $oid, $regen) = @_;
+	my ($self, $sync, $git, $oid) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -727,8 +727,8 @@ sub reindex_oid {
 			$self->{mm}->mid_set($num, $mid0);
 		}
 	}
-	if (!defined($mid0) && $regen && !$del) {
-		$num = $$regen--;
+	if (!defined($mid0) && !$del) {
+		$num = $sync->{regen}--;
 		die "BUG: ran out of article numbers\n" if $num <= 0;
 		my $mm = $self->{mm};
 		foreach my $mid (reverse @$mids) {
@@ -749,7 +749,7 @@ sub reindex_oid {
 
 	if (!defined($mid0) || $del) {
 		if (!defined($mid0) && $del) { # expected for deletes
-			$num = $$regen--;
+			$num = $sync->{regen}--;
 			$self->{mm}->num_highwater($num) if !$sync->{reindex};
 			return
 		}
@@ -845,7 +845,7 @@ $range
 	$range;
 }
 
-sub index_prepare {
+sub sync_prepare {
 	my ($self, $opts, $epoch_max, $ranges) = @_;
 	my $pr = $opts->{-progress};
 	my $regen_max = 0;
@@ -879,7 +879,10 @@ sub index_prepare {
 		$pr->("$n\n") if $pr;
 		$regen_max += $n;
 	}
-	\$regen_max;
+	# reindex should NOT see new commits anymore, if we do,
+	# it's a problem and we need to notice it via die()
+	return -1 if $opts->{reindex};
+	$regen_max + $self->{mm}->num_highwater() || 0;
 }
 
 sub unindex_oid_remote {
@@ -968,16 +971,7 @@ sub index_sync {
 		reindex => $opts->{reindex},
 	};
 	my $ranges = sync_ranges($self, $sync, $epoch_max);
-
-	my $high = $self->{mm}->num_highwater();
-	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
-	if ($opts->{reindex}) {
-		# reindex should NOT see new commits anymore, if we do,
-		# it's a problem and we need to notice it via die()
-		$$regen = -1;
-	} else {
-		$$regen += $high;
-	}
+	$sync->{regen} = sync_prepare($self, $opts, $epoch_max, $ranges);
 
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
@@ -1000,7 +994,7 @@ sub index_sync {
 			if (/\A$x40$/o && !defined($cmt)) {
 				$cmt = $_;
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				$self->reindex_oid($sync, $git, $1, $regen);
+				$self->reindex_oid($sync, $git, $1);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
 				$self->mark_deleted($sync, $git, $1);
 			}
