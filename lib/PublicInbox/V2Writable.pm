@@ -706,7 +706,7 @@ sub mark_deleted {
 }
 
 sub reindex_oid {
-	my ($self, $sync, $git, $oid, $regen, $reindex) = @_;
+	my ($self, $sync, $git, $oid, $regen) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -750,7 +750,7 @@ sub reindex_oid {
 	if (!defined($mid0) || $del) {
 		if (!defined($mid0) && $del) { # expected for deletes
 			$num = $$regen--;
-			$self->{mm}->num_highwater($num) unless $reindex;
+			$self->{mm}->num_highwater($num) if !$sync->{reindex};
 			return
 		}
 
@@ -940,10 +940,11 @@ sub unindex {
 		qw(-c gc.reflogExpire=now gc --prune=all)]);
 }
 
-sub index_ranges ($$$) {
-	my ($self, $reindex, $epoch_max) = @_;
-	return last_commits($self, $epoch_max) unless $reindex;
+sub sync_ranges ($$$) {
+	my ($self, $sync, $epoch_max) = @_;
+	my $reindex = $sync->{reindex};
 
+	return last_commits($self, $epoch_max) unless $reindex;
 	return [] if ref($reindex) ne 'HASH';
 
 	my $ranges = $reindex->{from}; # arrayref;
@@ -964,9 +965,9 @@ sub index_sync {
 	my $sync = {
 		mm_tmp => $self->{mm}->tmp_clone,
 		D => {}, # "$mid\0$cid" => $oid
+		reindex => $opts->{reindex},
 	};
-	my $reindex = $opts->{reindex};
-	my $ranges = index_ranges($self, $reindex, $epoch_max);
+	my $ranges = sync_ranges($self, $sync, $epoch_max);
 
 	my $high = $self->{mm}->num_highwater();
 	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
@@ -999,8 +1000,7 @@ sub index_sync {
 			if (/\A$x40$/o && !defined($cmt)) {
 				$cmt = $_;
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				$self->reindex_oid($sync, $git, $1,
-						$regen, $reindex);
+				$self->reindex_oid($sync, $git, $1, $regen);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
 				$self->mark_deleted($sync, $git, $1);
 			}
