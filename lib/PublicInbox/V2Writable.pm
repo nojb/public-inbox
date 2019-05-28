@@ -813,14 +813,14 @@ sub last_commits {
 
 # returns a revision range for git-log(1)
 sub log_range ($$$$$) {
-	my ($self, $git, $ranges, $i, $tip) = @_;
-	my $cur = $ranges->[$i] or return $tip; # all of it
+	my ($self, $sync, $git, $i, $tip) = @_;
+	my $cur = $sync->{ranges}->[$i] or return $tip; # all of it
 	my $range = "$cur..$tip";
 	if (is_ancestor($git, $cur, $tip)) { # common case
 		my $n = $git->qx(qw(rev-list --count), $range);
 		chomp($n);
 		if ($n == 0) {
-			$ranges->[$i] = undef;
+			$sync->{ranges}->[$i] = undef;
 			return; # nothing to do
 		}
 	} else {
@@ -846,7 +846,7 @@ $range
 }
 
 sub sync_prepare {
-	my ($self, $opts, $epoch_max, $ranges) = @_;
+	my ($self, $sync, $opts, $epoch_max) = @_;
 	my $pr = $opts->{-progress};
 	my $regen_max = 0;
 	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
@@ -866,8 +866,8 @@ sub sync_prepare {
 		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
 
 		next if $?; # new repo
-		my $range = log_range($self, $git, $ranges, $i, $tip) or next;
-		$ranges->[$i] = $range;
+		my $range = log_range($self, $sync, $git, $i, $tip) or next;
+		$sync->{ranges}->[$i] = $range;
 
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$i.git counting changes\n\t$range ... ") if $pr;
@@ -970,8 +970,8 @@ sub index_sync {
 		D => {}, # "$mid\0$cid" => $oid
 		reindex => $opts->{reindex},
 	};
-	my $ranges = sync_ranges($self, $sync, $epoch_max);
-	$sync->{regen} = sync_prepare($self, $opts, $epoch_max, $ranges);
+	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
+	$sync->{regen} = sync_prepare($self, $sync, $opts, $epoch_max);
 
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
@@ -985,7 +985,7 @@ sub index_sync {
 		my $git = PublicInbox::Git->new($git_dir);
 		my $unindex = delete $self->{"unindex-range.$i"};
 		$self->unindex($opts, $git, $unindex) if $unindex;
-		defined(my $range = $ranges->[$i]) or next;
+		defined(my $range = $sync->{ranges}->[$i]) or next;
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
 		my $cmt;
 		while (<$fh>) {
