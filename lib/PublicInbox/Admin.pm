@@ -167,4 +167,22 @@ sub index_inbox {
 	}
 }
 
+sub progress_prepare ($) {
+	my ($opt) = @_;
+
+	# public-inbox-index defaults to quiet, -xcpdb and -compact do not
+	if (defined($opt->{quiet}) && $opt->{quiet} < 0) {
+		$opt->{quiet} = !$opt->{verbose};
+	}
+	if ($opt->{quiet}) {
+		open my $null, '>', '/dev/null' or
+			die "failed to open /dev/null: $!\n";
+		$opt->{1} = fileno($null); # suitable for spawn() redirect
+		$opt->{-dev_null} = $null;
+	} else {
+		$opt->{verbose} ||= 1;
+		$opt->{-progress} = sub { print STDERR @_ };
+	}
+}
+
 1;

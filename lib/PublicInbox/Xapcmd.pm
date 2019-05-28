@@ -86,18 +86,6 @@ sub prepare_reindex ($$) {
 	}
 }
 
-sub progress_prepare ($) {
-	my ($opt) = @_;
-	if ($opt->{quiet}) {
-		open my $null, '>', '/dev/null' or
-			die "failed to open /dev/null: $!\n";
-		$opt->{1} = fileno($null);
-		$opt->{-dev_null} = $null;
-	} else {
-		$opt->{-progress} = sub { print STDERR @_ };
-	}
-}
-
 sub same_fs_or_die ($$) {
 	my ($x, $y) = @_;
 	return if ((stat($x))[0] == (stat($y))[0]); # 0 - st_dev
@@ -132,7 +120,7 @@ sub process_queue {
 sub run {
 	my ($ibx, $task, $opt) = @_; # task = 'cpdb' or 'compact'
 	my $cb = \&${\"PublicInbox::Xapcmd::$task"};
-	progress_prepare($opt ||= {});
+	PublicInbox::Admin::progress_prepare($opt ||= {});
 	my $dir = $ibx->{mainrepo} or die "no mainrepo in inbox\n";
 	runnable_or_die($XAPIAN_COMPACT) if $opt->{compact};
 	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
