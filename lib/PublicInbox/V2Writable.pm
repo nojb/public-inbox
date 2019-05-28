@@ -840,7 +840,7 @@ Rewritten history? (in $git->{git_dir})
 reindexing $git->{git_dir} starting at
 $range
 
-		$self->{"unindex-range.$i"} = "$base..$cur";
+		$sync->{"unindex-range.$i"} = "$base..$cur";
 	}
 	$range;
 }
@@ -983,7 +983,7 @@ sub index_sync {
 		-d $git_dir or next; # missing parts are fine
 		fill_alternates($self, $i);
 		my $git = PublicInbox::Git->new($git_dir);
-		my $unindex = delete $self->{"unindex-range.$i"};
+		my $unindex = delete $sync->{"unindex-range.$i"};
 		$self->unindex($opts, $git, $unindex) if $unindex;
 		defined(my $range = $sync->{ranges}->[$i]) or next;
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
