@@ -851,15 +851,15 @@ $range
 	$range;
 }
 
-sub sync_prepare ($$$$) {
-	my ($self, $sync, $opts, $epoch_max) = @_;
-	my $pr = $opts->{-progress};
+sub sync_prepare ($$$) {
+	my ($self, $sync, $epoch_max) = @_;
+	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
 	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
-	my $reindex_heads = last_commits($self, $epoch_max) if $opts->{reindex};
+	my $reindex_heads = last_commits($self, $epoch_max) if $sync->{reindex};
 
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		die 'BUG: already indexing!' if $self->{reindex_pipe};
@@ -887,7 +887,7 @@ sub sync_prepare ($$$$) {
 	}
 	# reindex should NOT see new commits anymore, if we do,
 	# it's a problem and we need to notice it via die()
-	return -1 if $opts->{reindex};
+	return -1 if $sync->{reindex};
 	$regen_max + $self->{mm}->num_highwater() || 0;
 }
 
@@ -927,7 +927,7 @@ sub unindex_oid ($$$) {
 
 my $x40 = qr/[a-f0-9]{40}/;
 sub unindex ($$$$) {
-	my ($self, $opts, $git, $unindex_range) = @_;
+	my ($self, $sync, $git, $unindex_range) = @_;
 	my $un = $self->{unindexed} ||= {}; # num => removal count
 	my $before = scalar keys %$un;
 	my @cmd = qw(log --raw -r
@@ -940,7 +940,7 @@ sub unindex ($$$$) {
 	delete $self->{reindex_pipe};
 	$fh = undef;
 
-	return unless $opts->{prune};
+	return unless $sync->{-opt}->{prune};
 	my $after = scalar keys %$un;
 	return if $before == $after;
 
@@ -965,19 +965,20 @@ sub sync_ranges ($$$) {
 
 # public, called by public-inbox-index
 sub index_sync {
-	my ($self, $opts) = @_;
-	$opts ||= {};
+	my ($self, $opt) = @_;
+	$opt ||= {};
 	my $epoch_max;
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
-	$self->idx_init($opts); # acquire lock
+	$self->idx_init($opt); # acquire lock
 	my $sync = {
 		mm_tmp => $self->{mm}->tmp_clone,
 		D => {}, # "$mid\0$cid" => $oid
-		reindex => $opts->{reindex},
+		reindex => $opt->{reindex},
+		-opt => $opt
 	};
 	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
-	$sync->{regen} = sync_prepare($self, $sync, $opts, $epoch_max);
+	$sync->{regen} = sync_prepare($self, $sync, $epoch_max);
 
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
@@ -990,7 +991,7 @@ sub index_sync {
 		fill_alternates($self, $i);
 		my $git = PublicInbox::Git->new($git_dir);
 		my $unindex_range = delete $sync->{"unindex-range.$i"};
-		unindex($self, $opts, $git, $unindex_range) if $unindex_range;
+		unindex($self, $sync, $git, $unindex_range) if $unindex_range;
 		defined(my $range = $sync->{ranges}->[$i]) or next;
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
 		my $cmt;
@@ -1020,8 +1021,8 @@ sub index_sync {
 	$self->done;
 
 	# reindex does not pick up new changes, so we rerun w/o it:
-	if ($opts->{reindex}) {
-		my %again = %$opts;
+	if ($opt->{reindex}) {
+		my %again = %$opt;
 		$sync = undef;
 		delete @again{qw(reindex -skip_lock)};
 		index_sync($self, \%again);
