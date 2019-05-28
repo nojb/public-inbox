@@ -93,6 +93,7 @@ sub new {
 	bless $self, $class;
 }
 
+# public (for now?)
 sub init_inbox {
 	my ($self, $parallel, $skip_epoch) = @_;
 	$self->{parallel} = $parallel;
@@ -167,7 +168,7 @@ sub num_for {
 		# crap, Message-ID is already known, hope somebody just resent:
 		foreach my $m (@$mids) {
 			# read-only lookup now safe to do after above barrier
-			my $existing = $self->lookup_content($mime, $m);
+			my $existing = lookup_content($self, $mime, $m);
 			# easy, don't store duplicates
 			# note: do not add more diagnostic info here since
 			# it gets noisy on public-inbox-watch restarts
@@ -290,7 +291,7 @@ sub idx_init {
 	});
 }
 
-sub purge_oids {
+sub purge_oids ($$) {
 	my ($self, $purge) = @_; # $purge = { $object_id => 1, ... }
 	$self->done;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
@@ -332,7 +333,7 @@ sub content_matches ($$) {
 	0
 }
 
-sub remove_internal {
+sub remove_internal ($$$$) {
 	my ($self, $mime, $cmt_msg, $purge) = @_;
 	$self->idx_init;
 	my $im = $self->importer unless $purge;
@@ -384,7 +385,7 @@ sub remove_internal {
 				($mark, undef) = $im->remove($orig, $cmt_msg);
 			}
 			$orig = undef;
-			$self->unindex_oid_remote($oid, $mid);
+			unindex_oid_remote($self, $oid, $mid);
 		}
 	}
 
@@ -398,13 +399,15 @@ sub remove_internal {
 	$removed;
 }
 
+# public
 sub remove {
 	my ($self, $mime, $cmt_msg) = @_;
 	$self->{-inbox}->with_umask(sub {
-		remove_internal($self, $mime, $cmt_msg);
+		remove_internal($self, $mime, $cmt_msg, undef);
 	});
 }
 
+# public
 sub purge {
 	my ($self, $mime) = @_;
 	my $purges = $self->{-inbox}->with_umask(sub {
@@ -453,6 +456,7 @@ sub barrier_wait {
 	}
 }
 
+# public
 sub checkpoint ($;$) {
 	my ($self, $wait) = @_;
 
@@ -499,8 +503,10 @@ sub checkpoint ($;$) {
 
 # issue a write barrier to ensure all data is visible to other processes
 # and read-only ops.  Order of data importance is: git > SQLite > Xapian
+# public
 sub barrier { checkpoint($_[0], 1) };
 
+# public
 sub done {
 	my ($self) = @_;
 	my $im = delete $self->{im};
@@ -655,7 +661,7 @@ sub get_blob ($$) {
 	$ibx->msg_by_smsg($smsg);
 }
 
-sub lookup_content {
+sub lookup_content ($$$) {
 	my ($self, $mime, $mid) = @_;
 	my $over = $self->{over};
 	my $cids = content_ids($mime);
@@ -694,7 +700,7 @@ sub atfork_child {
 	$self->{bnote}->[1];
 }
 
-sub mark_deleted {
+sub mark_deleted ($$$$) {
 	my ($self, $sync, $git, $oid) = @_;
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -705,7 +711,7 @@ sub mark_deleted {
 	}
 }
 
-sub reindex_oid {
+sub reindex_oid ($$$$) {
 	my ($self, $sync, $git, $oid) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
@@ -787,7 +793,7 @@ sub reindex_oid {
 }
 
 # only update last_commit for $i on reindex iff newer than current
-sub update_last_commit {
+sub update_last_commit ($$$$) {
 	my ($self, $git, $i, $cmt) = @_;
 	my $last = last_commit_part($self, $i);
 	if (defined $last && is_ancestor($git, $last, $cmt)) {
@@ -800,7 +806,7 @@ sub update_last_commit {
 
 sub git_dir_n ($$) { "$_[0]->{-inbox}->{mainrepo}/git/$_[1].git" }
 
-sub last_commits {
+sub last_commits ($$) {
 	my ($self, $epoch_max) = @_;
 	my $heads = [];
 	for (my $i = $epoch_max; $i >= 0; $i--) {
@@ -845,7 +851,7 @@ $range
 	$range;
 }
 
-sub sync_prepare {
+sub sync_prepare ($$$$) {
 	my ($self, $sync, $opts, $epoch_max) = @_;
 	my $pr = $opts->{-progress};
 	my $regen_max = 0;
@@ -885,13 +891,13 @@ sub sync_prepare {
 	$regen_max + $self->{mm}->num_highwater() || 0;
 }
 
-sub unindex_oid_remote {
+sub unindex_oid_remote ($$$) {
 	my ($self, $oid, $mid) = @_;
 	$_->remote_remove($oid, $mid) foreach @{$self->{idx_parts}};
 	$self->{over}->remove_oid($oid, $mid);
 }
 
-sub unindex_oid {
+sub unindex_oid ($$$) {
 	my ($self, $git, $oid) = @_;
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::MIME->new($msgref);
@@ -915,12 +921,12 @@ sub unindex_oid {
 			$self->{unindexed}->{$_}++;
 			$self->{mm}->num_delete($num);
 		}
-		$self->unindex_oid_remote($oid, $mid);
+		unindex_oid_remote($self, $oid, $mid);
 	}
 }
 
 my $x40 = qr/[a-f0-9]{40}/;
-sub unindex {
+sub unindex ($$$$) {
 	my ($self, $opts, $git, $unindex_range) = @_;
 	my $un = $self->{unindexed} ||= {}; # num => removal count
 	my $before = scalar keys %$un;
@@ -929,7 +935,7 @@ sub unindex {
 	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $unindex_range);
 	while (<$fh>) {
 		/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o or next;
-		$self->unindex_oid($git, $1);
+		unindex_oid($self, $git, $1);
 	}
 	delete $self->{reindex_pipe};
 	$fh = undef;
@@ -957,7 +963,7 @@ sub sync_ranges ($$$) {
 	$ranges;
 }
 
-# called for public-inbox-index
+# public, called by public-inbox-index
 sub index_sync {
 	my ($self, $opts) = @_;
 	$opts ||= {};
@@ -983,8 +989,8 @@ sub index_sync {
 		-d $git_dir or next; # missing parts are fine
 		fill_alternates($self, $i);
 		my $git = PublicInbox::Git->new($git_dir);
-		my $unindex = delete $sync->{"unindex-range.$i"};
-		$self->unindex($opts, $git, $unindex) if $unindex;
+		my $unindex_range = delete $sync->{"unindex-range.$i"};
+		unindex($self, $opts, $git, $unindex_range) if $unindex_range;
 		defined(my $range = $sync->{ranges}->[$i]) or next;
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
 		my $cmt;
@@ -994,21 +1000,21 @@ sub index_sync {
 			if (/\A$x40$/o && !defined($cmt)) {
 				$cmt = $_;
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				$self->reindex_oid($sync, $git, $1);
+				reindex_oid($self, $sync, $git, $1);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
-				$self->mark_deleted($sync, $git, $1);
+				mark_deleted($self, $sync, $git, $1);
 			}
 		}
 		$fh = undef;
 		delete $self->{reindex_pipe};
-		$self->update_last_commit($git, $i, $cmt) if defined $cmt;
+		update_last_commit($self, $git, $i, $cmt) if defined $cmt;
 	}
 
 	# unindex is required for leftovers if "deletes" affect messages
 	# in a previous fetch+index window:
 	if (my @leftovers = values %{delete $sync->{D}}) {
 		my $git = $self->{-inbox}->git;
-		$self->unindex_oid($git, $_) for @leftovers;
+		unindex_oid($self, $git, $_) for @leftovers;
 		$git->cleanup;
 	}
 	$self->done;
