@@ -20,9 +20,7 @@ die "--jobs must be positive\n" if defined $opt->{jobs} && $opt->{jobs} <= 0;
 
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 
-# do we really care about this message?  It's annoying...
-my $warn = 'public-inbox unconfigured for serving, indexing anyways...';
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $warn);
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV);
 PublicInbox::Admin::require_or_die('-index');
 usage() unless @ibxs;
 my $mods = {};
