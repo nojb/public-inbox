@@ -69,7 +69,7 @@ check-manifest :: MANIFEST
 	if git ls-files >\$?.gen 2>&1; then diff -u \$? \$?.gen; fi
 
 check:: pure_all check-manifest
-	\$(EATMYDATA) prove -lv -j\$(N)
+	\$(EATMYDATA) prove -lvw -j\$(N)
 
 lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
 	\$(PERL) -I lib \$@ \$?
