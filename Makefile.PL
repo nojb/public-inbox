@@ -53,9 +53,9 @@ sub MY::postamble {
 # support using eatmydata to speed up tests (apt-get install eatmydata):
 # https://www.flamingspork.com/projects/libeatmydata/
 EATMYDATA =
+N = \$\$(( \$\$(nproc 2>/dev/null || gnproc 2>/dev/null || echo 2) + 1 ))
 -include config.mak
 -include Documentation/include.mk
-N = \$\$(( \$\$(nproc 2>/dev/null || gnproc 2>/dev/null || echo 2) + 1 ))
 SCRIPTS := scripts/ssoma-replay
 my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES) \$(SCRIPTS))
 
