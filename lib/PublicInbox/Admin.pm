@@ -41,6 +41,31 @@ sub resolve_repo_dir {
 	}
 }
 
+# for unconfigured inboxes
+sub detect_indexlevel ($) {
+	my ($ibx) = @_;
+
+	# brand new or never before indexed inboxes default to full
+	return 'full' unless $ibx->over;
+	delete $ibx->{over}; # don't leave open FD lying around
+
+	my $l = 'basic';
+	my $srch = $ibx->search or return $l;
+	delete $ibx->{search}; # don't leave open FD lying around
+	if (my $xdb = $srch->xdb) {
+		$l = 'full';
+		my $m = $xdb->get_metadata('indexlevel');
+		if ($m eq 'medium') {
+			$l = $m;
+		} elsif ($m ne '') {
+			warn <<"";
+$ibx->{mainrepo} has unexpected indexlevel in Xapian: $m
+
+		}
+	}
+	$l;
+}
+
 sub resolve_inboxes {
 	my ($argv, $warn_on_unconfigured) = @_;
 	require PublicInbox::Config;

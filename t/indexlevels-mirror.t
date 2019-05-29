@@ -7,6 +7,7 @@ use PublicInbox::MIME;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
 use File::Temp qw/tempdir/;
+require PublicInbox::Admin;
 require './t/common.perl';
 require_git(2.6);
 my $this = (split('/', __FILE__))[-1];
@@ -119,6 +120,8 @@ sub import_index_incremental {
 
 	if ($level ne 'basic') {
 		is(system(@xcpdb, $mirror), 0, "v$v xcpdb OK");
+		is(PublicInbox::Admin::detect_indexlevel($ro_mirror), $level,
+		   'indexlevel detectable by Admin after xcpdb v' .$v.$level);
 		delete $ro_mirror->{$_} for (qw(over search));
 		($nr, $msgs) = $ro_mirror->search->query('m:m@2');
 		is($nr, 1, "v$v found m\@2 via Xapian on $level");
@@ -157,6 +160,9 @@ sub import_index_incremental {
 	@rw_nums = map { $_->{num} } @{$ibx->over->query_ts(0, 0)};
 	is_deeply(\@rw_nums, \@expect, "v$v master has expected NNTP articles");
 	is_deeply(\@ro_nums, \@expect, "v$v mirror matches master articles");
+
+	is(PublicInbox::Admin::detect_indexlevel($ro_mirror), $level,
+	   'indexlevel detectable by Admin '.$v.$level);
 }
 
 # we can probably cull some other tests and put full/medium tests, here
@@ -172,9 +178,11 @@ SKIP: {
 	require PublicInbox::Search;
 	PublicInbox::Search::load_xapian() or skip 'Search::Xapian missing', 2;
 	for my $v (1..2) {
-		subtest("v$v indexlevel=medium" => sub {
-			import_index_incremental($v, 'medium');
-		})
+		foreach my $l (qw(medium full)) {
+			subtest("v$v indexlevel=$l" => sub {
+				import_index_incremental($v, $l);
+			});
+		}
 	}
 }
 

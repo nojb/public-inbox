@@ -25,10 +25,9 @@ PublicInbox::Admin::require_or_die('-index');
 usage() unless @ibxs;
 my $mods = {};
 foreach my $ibx (@ibxs) {
-	if (defined $opt->{indexlevel} && !defined($ibx->{indexlevel})) {
-		# XXX: users can shoot themselves in the foot, with this...
-		$ibx->{indexlevel} = $opt->{indexlevel};
-	}
+	# XXX: users can shoot themselves in the foot, with opt->{indexlevel}
+	$ibx->{indexlevel} //= $opt->{indexlevel} //
+			PublicInbox::Admin::detect_indexlevel($ibx);
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
 

@@ -275,6 +275,14 @@ sub cpdb ($$) {
 			my $lc = $src->get_metadata('last_commit');
 			$dst->set_metadata('last_commit', $lc) if $lc;
 
+			# only the first xapian partition (0) gets 'indexlevel'
+			if ($old =~ m!(?:xapian\d+|xap\d+/0)\z!) {
+				my $l = $src->get_metadata('indexlevel');
+				if ($l eq 'medium') {
+					$dst->set_metadata('indexlevel', $l);
+				}
+			}
+
 			$it = $src->postlist_begin('');
 			$end = $src->postlist_end('');
 			if ($pr) {

@@ -828,6 +828,14 @@ sub commit_txn_lazy {
 	delete $self->{txn} or return;
 	$self->{-inbox}->with_umask(sub {
 		if (my $xdb = $self->{xdb}) {
+
+			# store 'indexlevel=medium' in v2 part=0 and v1 (only part)
+			# This metadata is read by Admin::detect_indexlevel:
+			if (!$self->{partition} # undef or 0, not >0
+			    && $self->{indexlevel} eq 'medium') {
+				$xdb->set_metadata('indexlevel', 'medium');
+			}
+
 			$xdb->commit_transaction;
 		}
 		$self->{over}->commit_lazy if $self->{over};
