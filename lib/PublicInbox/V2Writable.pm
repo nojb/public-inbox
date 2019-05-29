@@ -93,6 +93,7 @@ sub new {
 	bless $self, $class;
 }
 
+# public (for now?)
 sub init_inbox {
 	my ($self, $parallel, $skip_epoch) = @_;
 	$self->{parallel} = $parallel;
@@ -167,7 +168,7 @@ sub num_for {
 		# crap, Message-ID is already known, hope somebody just resent:
 		foreach my $m (@$mids) {
 			# read-only lookup now safe to do after above barrier
-			my $existing = $self->lookup_content($mime, $m);
+			my $existing = lookup_content($self, $mime, $m);
 			# easy, don't store duplicates
 			# note: do not add more diagnostic info here since
 			# it gets noisy on public-inbox-watch restarts
@@ -290,7 +291,7 @@ sub idx_init {
 	});
 }
 
-sub purge_oids {
+sub purge_oids ($$) {
 	my ($self, $purge) = @_; # $purge = { $object_id => 1, ... }
 	$self->done;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
@@ -332,7 +333,7 @@ sub content_matches ($$) {
 	0
 }
 
-sub remove_internal {
+sub remove_internal ($$$$) {
 	my ($self, $mime, $cmt_msg, $purge) = @_;
 	$self->idx_init;
 	my $im = $self->importer unless $purge;
@@ -384,7 +385,7 @@ sub remove_internal {
 				($mark, undef) = $im->remove($orig, $cmt_msg);
 			}
 			$orig = undef;
-			$self->unindex_oid_remote($oid, $mid);
+			unindex_oid_remote($self, $oid, $mid);
 		}
 	}
 
@@ -398,13 +399,15 @@ sub remove_internal {
 	$removed;
 }
 
+# public
 sub remove {
 	my ($self, $mime, $cmt_msg) = @_;
 	$self->{-inbox}->with_umask(sub {
-		remove_internal($self, $mime, $cmt_msg);
+		remove_internal($self, $mime, $cmt_msg, undef);
 	});
 }
 
+# public
 sub purge {
 	my ($self, $mime) = @_;
 	my $purges = $self->{-inbox}->with_umask(sub {
@@ -453,6 +456,7 @@ sub barrier_wait {
 	}
 }
 
+# public
 sub checkpoint ($;$) {
 	my ($self, $wait) = @_;
 
@@ -499,8 +503,10 @@ sub checkpoint ($;$) {
 
 # issue a write barrier to ensure all data is visible to other processes
 # and read-only ops.  Order of data importance is: git > SQLite > Xapian
+# public
 sub barrier { checkpoint($_[0], 1) };
 
+# public
 sub done {
 	my ($self) = @_;
 	my $im = delete $self->{im};
@@ -655,7 +661,7 @@ sub get_blob ($$) {
 	$ibx->msg_by_smsg($smsg);
 }
 
-sub lookup_content {
+sub lookup_content ($$$) {
 	my ($self, $mime, $mid) = @_;
 	my $over = $self->{over};
 	my $cids = content_ids($mime);
@@ -694,19 +700,19 @@ sub atfork_child {
 	$self->{bnote}->[1];
 }
 
-sub mark_deleted {
-	my ($self, $D, $git, $oid) = @_;
+sub mark_deleted ($$$$) {
+	my ($self, $sync, $git, $oid) = @_;
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::MIME->new($$msgref);
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
 	foreach my $mid (@$mids) {
-		$D->{"$mid\0$cid"} = $oid;
+		$sync->{D}->{"$mid\0$cid"} = $oid;
 	}
 }
 
-sub reindex_oid {
-	my ($self, $mm_tmp, $D, $git, $oid, $regen, $reindex) = @_;
+sub reindex_oid ($$$$) {
+	my ($self, $sync, $git, $oid) = @_;
 	my $len;
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
@@ -714,21 +720,21 @@ sub reindex_oid {
 	my $cid = content_id($mime);
 
 	# get the NNTP article number we used before, highest number wins
-	# and gets deleted from mm_tmp;
+	# and gets deleted from sync->{mm_tmp};
 	my $mid0;
 	my $num = -1;
 	my $del = 0;
 	foreach my $mid (@$mids) {
-		$del += delete($D->{"$mid\0$cid"}) ? 1 : 0;
-		my $n = $mm_tmp->num_for($mid);
+		$del += delete($sync->{D}->{"$mid\0$cid"}) ? 1 : 0;
+		my $n = $sync->{mm_tmp}->num_for($mid);
 		if (defined $n && $n > $num) {
 			$mid0 = $mid;
 			$num = $n;
 			$self->{mm}->mid_set($num, $mid0);
 		}
 	}
-	if (!defined($mid0) && $regen && !$del) {
-		$num = $$regen--;
+	if (!defined($mid0) && !$del) {
+		$num = $sync->{regen}--;
 		die "BUG: ran out of article numbers\n" if $num <= 0;
 		my $mm = $self->{mm};
 		foreach my $mid (reverse @$mids) {
@@ -749,8 +755,8 @@ sub reindex_oid {
 
 	if (!defined($mid0) || $del) {
 		if (!defined($mid0) && $del) { # expected for deletes
-			$num = $$regen--;
-			$self->{mm}->num_highwater($num) unless $reindex;
+			$num = $sync->{regen}--;
+			$self->{mm}->num_highwater($num) if !$sync->{reindex};
 			return
 		}
 
@@ -764,7 +770,7 @@ sub reindex_oid {
 		return;
 
 	}
-	$mm_tmp->mid_delete($mid0) or
+	$sync->{mm_tmp}->mid_delete($mid0) or
 		die "failed to delete <$mid0> for article #$num\n";
 
 	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
@@ -773,21 +779,25 @@ sub reindex_oid {
 	my $idx = $self->idx_part($part);
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
 	my $n = $self->{transact_bytes} += $len;
+	$sync->{nr}++;
 	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
 		$git->cleanup;
-		$mm_tmp->atfork_prepare;
+		$sync->{mm_tmp}->atfork_prepare;
 		$self->done; # release lock
 
-		# TODO: print progress info, here
+		if (my $pr = $sync->{-opt}->{-progress}) {
+			my ($bn) = (split('/', $git->{git_dir}))[-1];
+			$pr->("$bn ".sprintf($sync->{-regen_fmt}, $sync->{nr}));
+		}
 
 		# allow -watch or -mda to write...
 		$self->idx_init; # reacquire lock
-		$mm_tmp->atfork_parent;
+		$sync->{mm_tmp}->atfork_parent;
 	}
 }
 
 # only update last_commit for $i on reindex iff newer than current
-sub update_last_commit {
+sub update_last_commit ($$$$) {
 	my ($self, $git, $i, $cmt) = @_;
 	my $last = last_commit_part($self, $i);
 	if (defined $last && is_ancestor($git, $last, $cmt)) {
@@ -800,7 +810,7 @@ sub update_last_commit {
 
 sub git_dir_n ($$) { "$_[0]->{-inbox}->{mainrepo}/git/$_[1].git" }
 
-sub last_commits {
+sub last_commits ($$) {
 	my ($self, $epoch_max) = @_;
 	my $heads = [];
 	for (my $i = $epoch_max; $i >= 0; $i--) {
@@ -813,17 +823,28 @@ sub last_commits {
 
 # returns a revision range for git-log(1)
 sub log_range ($$$$$) {
-	my ($self, $git, $ranges, $i, $tip) = @_;
-	my $cur = $ranges->[$i] or return $tip; # all of it
+	my ($self, $sync, $git, $i, $tip) = @_;
+	my $opt = $sync->{-opt};
+	my $pr = $opt->{-progress} if (($opt->{verbose} || 0) > 1);
+	my $cur = $sync->{ranges}->[$i] or do {
+		$pr->("$i.git indexing all of $tip") if $pr;
+		return $tip; # all of it
+	};
+
 	my $range = "$cur..$tip";
+	$pr->("$i.git checking contiguity... ") if $pr;
 	if (is_ancestor($git, $cur, $tip)) { # common case
+		$pr->("OK\n") if $pr;
 		my $n = $git->qx(qw(rev-list --count), $range);
 		chomp($n);
 		if ($n == 0) {
-			$ranges->[$i] = undef;
+			$sync->{ranges}->[$i] = undef;
+			$pr->("$i.git has nothing new\n") if $pr;
 			return; # nothing to do
 		}
+		$pr->("$i.git has $n changes since $cur\n") if $pr;
 	} else {
+		$pr->("FAIL\n") if $pr;
 		warn <<"";
 discontiguous range: $range
 Rewritten history? (in $git->{git_dir})
@@ -840,20 +861,20 @@ Rewritten history? (in $git->{git_dir})
 reindexing $git->{git_dir} starting at
 $range
 
-		$self->{"unindex-range.$i"} = "$base..$cur";
+		$sync->{"unindex-range.$i"} = "$base..$cur";
 	}
 	$range;
 }
 
-sub index_prepare {
-	my ($self, $opts, $epoch_max, $ranges) = @_;
-	my $pr = $opts->{-progress};
+sub sync_prepare ($$$) {
+	my ($self, $sync, $epoch_max) = @_;
+	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
 	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
-	my $reindex_heads = last_commits($self, $epoch_max) if $opts->{reindex};
+	my $reindex_heads = last_commits($self, $epoch_max) if $sync->{reindex};
 
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		die 'BUG: already indexing!' if $self->{reindex_pipe};
@@ -866,11 +887,11 @@ sub index_prepare {
 		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
 
 		next if $?; # new repo
-		my $range = log_range($self, $git, $ranges, $i, $tip) or next;
-		$ranges->[$i] = $range;
+		my $range = log_range($self, $sync, $git, $i, $tip) or next;
+		$sync->{ranges}->[$i] = $range;
 
 		# can't use 'rev-list --count' if we use --diff-filter
-		$pr->("$i.git counting changes\n\t$range ... ") if $pr;
+		$pr->("$i.git counting $range ... ") if $pr;
 		my $n = 0;
 		my $fh = $git->popen(qw(log --pretty=tformat:%H
 				--no-notes --no-color --no-renames
@@ -879,16 +900,22 @@ sub index_prepare {
 		$pr->("$n\n") if $pr;
 		$regen_max += $n;
 	}
-	\$regen_max;
+	# reindex should NOT see new commits anymore, if we do,
+	# it's a problem and we need to notice it via die()
+	my $pad = length($regen_max) + 1;
+	$sync->{-regen_fmt} = "% ${pad}u/$regen_max\n";
+	$sync->{nr} = 0;
+	return -1 if $sync->{reindex};
+	$regen_max + $self->{mm}->num_highwater() || 0;
 }
 
-sub unindex_oid_remote {
+sub unindex_oid_remote ($$$) {
 	my ($self, $oid, $mid) = @_;
 	$_->remote_remove($oid, $mid) foreach @{$self->{idx_parts}};
 	$self->{over}->remove_oid($oid, $mid);
 }
 
-sub unindex_oid {
+sub unindex_oid ($$$) {
 	my ($self, $git, $oid) = @_;
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::MIME->new($msgref);
@@ -912,13 +939,13 @@ sub unindex_oid {
 			$self->{unindexed}->{$_}++;
 			$self->{mm}->num_delete($num);
 		}
-		$self->unindex_oid_remote($oid, $mid);
+		unindex_oid_remote($self, $oid, $mid);
 	}
 }
 
 my $x40 = qr/[a-f0-9]{40}/;
-sub unindex {
-	my ($self, $opts, $git, $unindex_range) = @_;
+sub unindex ($$$$) {
+	my ($self, $sync, $git, $unindex_range) = @_;
 	my $un = $self->{unindexed} ||= {}; # num => removal count
 	my $before = scalar keys %$un;
 	my @cmd = qw(log --raw -r
@@ -926,12 +953,12 @@ sub unindex {
 	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $unindex_range);
 	while (<$fh>) {
 		/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o or next;
-		$self->unindex_oid($git, $1);
+		unindex_oid($self, $git, $1);
 	}
 	delete $self->{reindex_pipe};
 	$fh = undef;
 
-	return unless $opts->{prune};
+	return unless $sync->{-opt}->{prune};
 	my $after = scalar keys %$un;
 	return if $before == $after;
 
@@ -940,10 +967,11 @@ sub unindex {
 		qw(-c gc.reflogExpire=now gc --prune=all)]);
 }
 
-sub index_ranges ($$$) {
-	my ($self, $reindex, $epoch_max) = @_;
-	return last_commits($self, $epoch_max) unless $reindex;
+sub sync_ranges ($$$) {
+	my ($self, $sync, $epoch_max) = @_;
+	my $reindex = $sync->{reindex};
 
+	return last_commits($self, $epoch_max) unless $reindex;
 	return [] if ref($reindex) ne 'HASH';
 
 	my $ranges = $reindex->{from}; # arrayref;
@@ -953,29 +981,24 @@ sub index_ranges ($$$) {
 	$ranges;
 }
 
-# called for public-inbox-index
+# public, called by public-inbox-index
 sub index_sync {
-	my ($self, $opts) = @_;
-	$opts ||= {};
+	my ($self, $opt) = @_;
+	$opt ||= {};
+	my $pr = $opt->{-progress};
 	my $epoch_max;
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
-	$self->idx_init($opts); # acquire lock
-	my $mm_tmp = $self->{mm}->tmp_clone;
-	my $reindex = $opts->{reindex};
-	my $ranges = index_ranges($self, $reindex, $epoch_max);
+	$self->idx_init($opt); # acquire lock
+	my $sync = {
+		mm_tmp => $self->{mm}->tmp_clone,
+		D => {}, # "$mid\0$cid" => $oid
+		reindex => $opt->{reindex},
+		-opt => $opt
+	};
+	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
+	$sync->{regen} = sync_prepare($self, $sync, $epoch_max);
 
-	my $high = $self->{mm}->num_highwater();
-	my $regen = $self->index_prepare($opts, $epoch_max, $ranges);
-	if ($opts->{reindex}) {
-		# reindex should NOT see new commits anymore, if we do,
-		# it's a problem and we need to notice it via die()
-		$$regen = -1;
-	} else {
-		$$regen += $high;
-	}
-
-	my $D = {}; # "$mid\0$cid" => $oid
 	my @cmd = qw(log --raw -r --pretty=tformat:%H
 			--no-notes --no-color --no-abbrev --no-renames);
 
@@ -986,9 +1009,10 @@ sub index_sync {
 		-d $git_dir or next; # missing parts are fine
 		fill_alternates($self, $i);
 		my $git = PublicInbox::Git->new($git_dir);
-		my $unindex = delete $self->{"unindex-range.$i"};
-		$self->unindex($opts, $git, $unindex) if $unindex;
-		defined(my $range = $ranges->[$i]) or next;
+		my $unindex_range = delete $sync->{"unindex-range.$i"};
+		unindex($self, $sync, $git, $unindex_range) if $unindex_range;
+		defined(my $range = $sync->{ranges}->[$i]) or next;
+		$pr->("$i.git indexing $range\n") if $pr;
 		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
 		my $cmt;
 		while (<$fh>) {
@@ -997,30 +1021,32 @@ sub index_sync {
 			if (/\A$x40$/o && !defined($cmt)) {
 				$cmt = $_;
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				$self->reindex_oid($mm_tmp, $D, $git, $1,
-						$regen, $reindex);
+				reindex_oid($self, $sync, $git, $1);
 			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
-				$self->mark_deleted($D, $git, $1);
+				mark_deleted($self, $sync, $git, $1);
 			}
 		}
 		$fh = undef;
 		delete $self->{reindex_pipe};
-		$self->update_last_commit($git, $i, $cmt) if defined $cmt;
+		update_last_commit($self, $git, $i, $cmt) if defined $cmt;
 	}
 
 	# unindex is required for leftovers if "deletes" affect messages
 	# in a previous fetch+index window:
-	if (scalar keys %$D) {
+	if (my @leftovers = values %{delete $sync->{D}}) {
 		my $git = $self->{-inbox}->git;
-		$self->unindex_oid($git, $_) for values %$D;
+		unindex_oid($self, $git, $_) for @leftovers;
 		$git->cleanup;
 	}
 	$self->done;
+	if (my $pr = $sync->{-opt}->{-progress}) {
+		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $sync->{nr}));
+	}
 
 	# reindex does not pick up new changes, so we rerun w/o it:
-	if ($opts->{reindex}) {
-		my %again = %$opts;
-		$mm_tmp = undef;
+	if ($opt->{reindex}) {
+		my %again = %$opt;
+		$sync = undef;
 		delete @again{qw(reindex -skip_lock)};
 		index_sync($self, \%again);
 	}

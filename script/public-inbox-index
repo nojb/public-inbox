@@ -13,8 +13,8 @@ my $usage = "public-inbox-index INBOX_DIR";
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
 
-my $opt = {};
-GetOptions($opt, qw(reindex jobs|j=i prune indexlevel|L=s))
+my $opt = { quiet => -1 };
+GetOptions($opt, qw(verbose|v+ reindex jobs|j=i prune indexlevel|L=s))
 	or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $opt->{jobs} && $opt->{jobs} <= 0;
 
@@ -35,4 +35,5 @@ foreach my $ibx (@ibxs) {
 }
 
 PublicInbox::Admin::require_or_die(keys %$mods);
+PublicInbox::Admin::progress_prepare($opt);
 PublicInbox::Admin::index_inbox($_, $opt) for @ibxs;
