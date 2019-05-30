@@ -900,6 +900,9 @@ sub sync_prepare ($$$) {
 		$pr->("$n\n") if $pr;
 		$regen_max += $n;
 	}
+
+	return 0 if (!$regen_max && !keys(%{$self->{unindex_range}}));
+
 	# reindex should NOT see new commits anymore, if we do,
 	# it's a problem and we need to notice it via die()
 	my $pad = length($regen_max) + 1;
@@ -1027,7 +1030,6 @@ sub index_sync {
 	return unless defined $latest;
 	$self->idx_init($opt); # acquire lock
 	my $sync = {
-		mm_tmp => $self->{mm}->tmp_clone,
 		D => {}, # "$mid\0$cid" => $oid
 		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
@@ -1035,6 +1037,16 @@ sub index_sync {
 	};
 	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
 	$sync->{regen} = sync_prepare($self, $sync, $epoch_max);
+
+	if ($sync->{regen}) {
+		# tmp_clone seems to fail if inside a transaction, so
+		# we rollback here (because we opened {mm} for reading)
+		# Note: we do NOT rely on DBI transactions for atomicity;
+		# only for batch performance.
+		$self->{mm}->{dbh}->rollback;
+		$self->{mm}->{dbh}->begin_work;
+		$sync->{mm_tmp} = $self->{mm}->tmp_clone;
+	}
 
 	# work backwards through history
 	for (my $i = $epoch_max; $i >= 0; $i--) {
@@ -1049,8 +1061,10 @@ sub index_sync {
 		$git->cleanup;
 	}
 	$self->done;
-	if (my $pr = $sync->{-opt}->{-progress}) {
-		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $sync->{nr}));
+
+	if (my $nr = $sync->{nr}) {
+		my $pr = $sync->{-opt}->{-progress};
+		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $nr)) if $pr;
 	}
 
 	# reindex does not pick up new changes, so we rerun w/o it:
