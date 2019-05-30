@@ -861,7 +861,7 @@ Rewritten history? (in $git->{git_dir})
 reindexing $git->{git_dir} starting at
 $range
 
-		$sync->{"unindex-range.$i"} = "$base..$cur";
+		$sync->{unindex_range}->{$i} = "$base..$cur";
 	}
 	$range;
 }
@@ -993,6 +993,7 @@ sub index_sync {
 	my $sync = {
 		mm_tmp => $self->{mm}->tmp_clone,
 		D => {}, # "$mid\0$cid" => $oid
+		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
 		-opt => $opt
 	};
@@ -1009,7 +1010,7 @@ sub index_sync {
 		-d $git_dir or next; # missing parts are fine
 		fill_alternates($self, $i);
 		my $git = PublicInbox::Git->new($git_dir);
-		my $unindex_range = delete $sync->{"unindex-range.$i"};
+		my $unindex_range = delete $sync->{unindex_range}->{$i};
 		unindex($self, $sync, $git, $unindex_range) if $unindex_range;
 		defined(my $range = $sync->{ranges}->[$i]) or next;
 		$pr->("$i.git indexing $range\n") if $pr;
