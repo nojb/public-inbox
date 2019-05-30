@@ -831,6 +831,12 @@ sub log_range ($$$$$) {
 		return $tip; # all of it
 	};
 
+	# fast equality check to avoid (v)fork+execve overhead
+	if ($cur eq $tip) {
+		$sync->{ranges}->[$i] = undef;
+		return;
+	}
+
 	my $range = "$cur..$tip";
 	$pr->("$i.git checking contiguity... ") if $pr;
 	if (is_ancestor($git, $cur, $tip)) { # common case
