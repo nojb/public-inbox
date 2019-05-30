@@ -831,6 +831,12 @@ sub log_range ($$$$$) {
 		return $tip; # all of it
 	};
 
+	# fast equality check to avoid (v)fork+execve overhead
+	if ($cur eq $tip) {
+		$sync->{ranges}->[$i] = undef;
+		return;
+	}
+
 	my $range = "$cur..$tip";
 	$pr->("$i.git checking contiguity... ") if $pr;
 	if (is_ancestor($git, $cur, $tip)) { # common case
@@ -861,7 +867,7 @@ Rewritten history? (in $git->{git_dir})
 reindexing $git->{git_dir} starting at
 $range
 
-		$sync->{"unindex-range.$i"} = "$base..$cur";
+		$sync->{unindex_range}->{$i} = "$base..$cur";
 	}
 	$range;
 }
@@ -900,6 +906,9 @@ sub sync_prepare ($$$) {
 		$pr->("$n\n") if $pr;
 		$regen_max += $n;
 	}
+
+	return 0 if (!$regen_max && !keys(%{$self->{unindex_range}}));
+
 	# reindex should NOT see new commits anymore, if we do,
 	# it's a problem and we need to notice it via die()
 	my $pad = length($regen_max) + 1;
@@ -981,6 +990,42 @@ sub sync_ranges ($$$) {
 	$ranges;
 }
 
+sub index_epoch ($$$) {
+	my ($self, $sync, $i) = @_;
+
+	my $git_dir = git_dir_n($self, $i);
+	die 'BUG: already reindexing!' if $self->{reindex_pipe};
+	-d $git_dir or return; # missing parts are fine
+	fill_alternates($self, $i);
+	my $git = PublicInbox::Git->new($git_dir);
+	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) {
+		unindex($self, $sync, $git, $unindex_range);
+	}
+	defined(my $range = $sync->{ranges}->[$i]) or return;
+	if (my $pr = $sync->{-opt}->{-progress}) {
+		$pr->("$i.git indexing $range\n");
+	}
+
+	my @cmd = qw(log --raw -r --pretty=tformat:%H
+			--no-notes --no-color --no-abbrev --no-renames);
+	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
+	my $cmt;
+	while (<$fh>) {
+		chomp;
+		$self->{current_info} = "$i.git $_";
+		if (/\A$x40$/o && !defined($cmt)) {
+			$cmt = $_;
+		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
+			reindex_oid($self, $sync, $git, $1);
+		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
+			mark_deleted($self, $sync, $git, $1);
+		}
+	}
+	$fh = undef;
+	delete $self->{reindex_pipe};
+	update_last_commit($self, $git, $i, $cmt) if defined $cmt;
+}
+
 # public, called by public-inbox-index
 sub index_sync {
 	my ($self, $opt) = @_;
@@ -991,44 +1036,27 @@ sub index_sync {
 	return unless defined $latest;
 	$self->idx_init($opt); # acquire lock
 	my $sync = {
-		mm_tmp => $self->{mm}->tmp_clone,
 		D => {}, # "$mid\0$cid" => $oid
+		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
 		-opt => $opt
 	};
 	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
 	$sync->{regen} = sync_prepare($self, $sync, $epoch_max);
 
-	my @cmd = qw(log --raw -r --pretty=tformat:%H
-			--no-notes --no-color --no-abbrev --no-renames);
+	if ($sync->{regen}) {
+		# tmp_clone seems to fail if inside a transaction, so
+		# we rollback here (because we opened {mm} for reading)
+		# Note: we do NOT rely on DBI transactions for atomicity;
+		# only for batch performance.
+		$self->{mm}->{dbh}->rollback;
+		$self->{mm}->{dbh}->begin_work;
+		$sync->{mm_tmp} = $self->{mm}->tmp_clone;
+	}
 
 	# work backwards through history
 	for (my $i = $epoch_max; $i >= 0; $i--) {
-		my $git_dir = git_dir_n($self, $i);
-		die 'BUG: already reindexing!' if $self->{reindex_pipe};
-		-d $git_dir or next; # missing parts are fine
-		fill_alternates($self, $i);
-		my $git = PublicInbox::Git->new($git_dir);
-		my $unindex_range = delete $sync->{"unindex-range.$i"};
-		unindex($self, $sync, $git, $unindex_range) if $unindex_range;
-		defined(my $range = $sync->{ranges}->[$i]) or next;
-		$pr->("$i.git indexing $range\n") if $pr;
-		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
-		my $cmt;
-		while (<$fh>) {
-			chomp;
-			$self->{current_info} = "$i.git $_";
-			if (/\A$x40$/o && !defined($cmt)) {
-				$cmt = $_;
-			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				reindex_oid($self, $sync, $git, $1);
-			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
-				mark_deleted($self, $sync, $git, $1);
-			}
-		}
-		$fh = undef;
-		delete $self->{reindex_pipe};
-		update_last_commit($self, $git, $i, $cmt) if defined $cmt;
+		index_epoch($self, $sync, $i);
 	}
 
 	# unindex is required for leftovers if "deletes" affect messages
@@ -1039,8 +1067,10 @@ sub index_sync {
 		$git->cleanup;
 	}
 	$self->done;
-	if (my $pr = $sync->{-opt}->{-progress}) {
-		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $sync->{nr}));
+
+	if (my $nr = $sync->{nr}) {
+		my $pr = $sync->{-opt}->{-progress};
+		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $nr)) if $pr;
 	}
 
 	# reindex does not pick up new changes, so we rerun w/o it:
