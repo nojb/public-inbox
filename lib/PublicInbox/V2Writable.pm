@@ -981,6 +981,42 @@ sub sync_ranges ($$$) {
 	$ranges;
 }
 
+sub index_epoch ($$$) {
+	my ($self, $sync, $i) = @_;
+
+	my $git_dir = git_dir_n($self, $i);
+	die 'BUG: already reindexing!' if $self->{reindex_pipe};
+	-d $git_dir or return; # missing parts are fine
+	fill_alternates($self, $i);
+	my $git = PublicInbox::Git->new($git_dir);
+	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) {
+		unindex($self, $sync, $git, $unindex_range);
+	}
+	defined(my $range = $sync->{ranges}->[$i]) or return;
+	if (my $pr = $sync->{-opt}->{-progress}) {
+		$pr->("$i.git indexing $range\n");
+	}
+
+	my @cmd = qw(log --raw -r --pretty=tformat:%H
+			--no-notes --no-color --no-abbrev --no-renames);
+	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
+	my $cmt;
+	while (<$fh>) {
+		chomp;
+		$self->{current_info} = "$i.git $_";
+		if (/\A$x40$/o && !defined($cmt)) {
+			$cmt = $_;
+		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
+			reindex_oid($self, $sync, $git, $1);
+		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
+			mark_deleted($self, $sync, $git, $1);
+		}
+	}
+	$fh = undef;
+	delete $self->{reindex_pipe};
+	update_last_commit($self, $git, $i, $cmt) if defined $cmt;
+}
+
 # public, called by public-inbox-index
 sub index_sync {
 	my ($self, $opt) = @_;
@@ -1000,36 +1036,9 @@ sub index_sync {
 	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
 	$sync->{regen} = sync_prepare($self, $sync, $epoch_max);
 
-	my @cmd = qw(log --raw -r --pretty=tformat:%H
-			--no-notes --no-color --no-abbrev --no-renames);
-
 	# work backwards through history
 	for (my $i = $epoch_max; $i >= 0; $i--) {
-		my $git_dir = git_dir_n($self, $i);
-		die 'BUG: already reindexing!' if $self->{reindex_pipe};
-		-d $git_dir or next; # missing parts are fine
-		fill_alternates($self, $i);
-		my $git = PublicInbox::Git->new($git_dir);
-		my $unindex_range = delete $sync->{unindex_range}->{$i};
-		unindex($self, $sync, $git, $unindex_range) if $unindex_range;
-		defined(my $range = $sync->{ranges}->[$i]) or next;
-		$pr->("$i.git indexing $range\n") if $pr;
-		my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
-		my $cmt;
-		while (<$fh>) {
-			chomp;
-			$self->{current_info} = "$i.git $_";
-			if (/\A$x40$/o && !defined($cmt)) {
-				$cmt = $_;
-			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-				reindex_oid($self, $sync, $git, $1);
-			} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
-				mark_deleted($self, $sync, $git, $1);
-			}
-		}
-		$fh = undef;
-		delete $self->{reindex_pipe};
-		update_last_commit($self, $git, $i, $cmt) if defined $cmt;
+		index_epoch($self, $sync, $i);
 	}
 
 	# unindex is required for leftovers if "deletes" affect messages
