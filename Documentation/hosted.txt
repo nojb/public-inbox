@@ -2,10 +2,10 @@ unofficially hosted mirrors at public-inbox.org
 
 In addition to eating our own dogfood at <https://public-inbox.org/meta/>,
 public-inbox.org hosts unofficial archives for several other projects
-as a service to their users and to further test our own software.
+to further test our own software.
 
 These mirrors are NOT to be considered reliable or permanent.
-Interested parties are strongly encouraged to host mirrors.
+Interested parties are strongly encouraged to host their own mirrors.
 
 The presence of these archives does not imply these projects endorse
 public-inbox or public-inbox.org in any way.
@@ -25,25 +25,10 @@ public-inbox or public-inbox.org in any way.
   Mailing list for GNU C library development
   https://www.gnu.org/software/libc/involved.html
 
-* https://public-inbox.org/libreplanet-discuss/
-  libreplanet-discuss@libreplanet.org
-  LibrePlanet discussion list
-  https://lists.gnu.org/mailman/listinfo/libreplanet-discuss
-
 * https://public-inbox.org/rack-devel/
   rack-devel@googlegroups.com
   Development list for the Ruby webserver interface
   https://groups.google.com/group/rack-devel
-
-* https://public-inbox.org/ruby-core/
-  ruby-core@ruby-lang.org
-  Core development list for the Ruby programming language
-  https://www.ruby-lang.org/en/community/mailing-lists/
-
-* https://public-inbox.org/ruby-dev/
-  ruby-dev@ruby-lang.org
-  Japanese development list for the Ruby programming language
-  https://www.ruby-lang.org/en/community/mailing-lists/
 
 * https://public-inbox.org/sox-users/
   sox-users@lists.sourceforge.net
