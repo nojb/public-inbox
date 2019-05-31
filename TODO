@@ -23,6 +23,9 @@ all need to be considered for everything we introduce)
 
 * TLS support for various daemons (including STARTTLS for NNTP and POP3)
 
+* optional Cache::FastMmap support so production deployments won't
+  need Varnish (Varnish doesn't protect NNTP, either)
+
 * dogfood and take advantage of new kernel APIs (while maintaining
   portability to older Linux, free BSDs and maybe Hurd).
 
