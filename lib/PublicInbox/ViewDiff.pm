@@ -159,7 +159,7 @@ sub flush_diff ($$$) {
 			$state == DSTATE_INIT or
 				to_state($dst, $state, DSTATE_INIT);
 			$$dst .= $s;
-		} elsif ($s =~ m!^diff --git ($PATH_A) ($PATH_B)$!) {
+		} elsif ($s =~ m!^diff --git ($PATH_A) ($PATH_B)$!o) {
 			my ($pa, $pb) = ($1, $2);
 			if ($state != DSTATE_HEAD) {
 				to_state($dst, $state, DSTATE_HEAD);
@@ -194,8 +194,8 @@ sub flush_diff ($$$) {
 			$$dst .= '</span>';
 			$state = DSTATE_CTX;
 			$$dst .= to_html($linkify, $s);
-		} elsif ($s =~ m!^--- (?:$PATH_A)! ||
-		         $s =~ m!^\+{3} (?:$PATH_B)!)  {
+		} elsif ($s =~ m!^--- (?:$PATH_A)!o ||
+		         $s =~ m!^\+{3} (?:$PATH_B)!o)  {
 			# color only (no oid link) if missing dctx->{oid_*}
 			$state <= DSTATE_STAT and
 				to_state($dst, $state, DSTATE_HEAD);
