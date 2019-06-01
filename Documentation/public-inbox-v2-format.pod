@@ -135,10 +135,10 @@ The overview DB maintains all the header information necessary
 to implement the NNTP OVER/XOVER commands and non-search
 endpoints of of the PSGI UI.
 
-In the future, Xapian will become completely optional for v2 (as
-it is for v1) as SQLite turns out to be powerful enough to
-maintain overview information.  Most of the PSGI and all of the
-NNTP functionality will be possible with only SQLite in addition
+Xapian has become completely optional for v2 (as it is for v1), but
+SQLite remains required for v2.  SQLite turns out to be powerful
+enough to maintain overview information.  Most of the PSGI and all
+of the NNTP functionality is possible with only SQLite in addition
 to git.
 
 The overview DB was an instrumental piece in maintaining near
