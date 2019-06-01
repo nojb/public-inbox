@@ -211,19 +211,9 @@ sub check {
 }
 
 sub _destroy {
-	my ($self, $in, $out, $pid, $expire) = @_;
-	my $rfh = $self->{$in} or return;
-	if (defined $expire) {
-		# at least FreeBSD 11.2 and Linux 4.20 update mtime of the
-		# read end of a pipe when the pipe is written to; dunno
-		# about other OSes.
-		my $mtime = (stat($rfh))[9];
-		return if $mtime > $expire;
-	}
+	my ($self, $in, $out, $pid) = @_;
 	my $p = delete $self->{$pid} or return;
-	foreach my $f ($in, $out) {
-		delete $self->{$f};
-	}
+	delete @$self{($in, $out)};
 	waitpid $p, 0;
 }
 
@@ -251,9 +241,9 @@ sub qx {
 
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
-	my ($self, $expire) = @_;
-	_destroy($self, qw(in out pid), $expire);
-	_destroy($self, qw(in_c out_c pid_c), $expire);
+	my ($self) = @_;
+	_destroy($self, qw(in out pid));
+	_destroy($self, qw(in_c out_c pid_c));
 	!!($self->{pid} || $self->{pid_c});
 }
 

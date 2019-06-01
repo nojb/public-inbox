@@ -143,8 +143,7 @@ if ('alternates reloaded') {
 	my $config = eval { local $/; <$fh> };
 	is($$found, $config, 'alternates reloaded');
 
-	ok($gcf->cleanup(time - 30), 'cleanup did not expire');
-	ok(!$gcf->cleanup(time + 30), 'cleanup can expire');
+	ok(!$gcf->cleanup, 'cleanup can expire');
 	ok(!$gcf->cleanup, 'cleanup idempotent');
 
 	my $t = $gcf->modified;

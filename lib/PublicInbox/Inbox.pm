@@ -32,13 +32,12 @@ sub cleanup_task () {
 				# refcnt is zero when tmp is out-of-scope
 			}
 		}
-		my $expire = time - 60;
 		if (my $git = $ibx->{git}) {
-			$again = $git->cleanup($expire);
+			$again = $git->cleanup;
 		}
 		if (my $gits = $ibx->{-repo_objs}) {
 			foreach my $git (@$gits) {
-				$again = 1 if $git->cleanup($expire);
+				$again = 1 if $git->cleanup;
 			}
 		}
 		if ($have_devel_peek) {
