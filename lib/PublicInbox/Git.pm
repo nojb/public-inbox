@@ -211,9 +211,10 @@ sub check {
 }
 
 sub _destroy {
-	my ($self, $in, $out, $pid) = @_;
+	my ($self, $in, $out, $pid, $err) = @_;
 	my $p = delete $self->{$pid} or return;
 	delete @$self{($in, $out)};
+	delete $self->{$err} if $err; # `err_c'
 	waitpid $p, 0;
 }
 
@@ -243,7 +244,7 @@ sub qx {
 sub cleanup {
 	my ($self) = @_;
 	_destroy($self, qw(in out pid));
-	_destroy($self, qw(in_c out_c pid_c));
+	_destroy($self, qw(in_c out_c pid_c err_c));
 	!!($self->{pid} || $self->{pid_c});
 }
 
