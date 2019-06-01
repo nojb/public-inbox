@@ -12,6 +12,8 @@ use strict;
 use bytes;
 use POSIX ();
 use Time::HiRes ();
+use IO::Handle qw();
+use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 
 use warnings;
 
@@ -48,6 +50,7 @@ our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (for epoll mode only)
      $KQueue,                    # Global kqueue fd (for kqueue mode only)
+     $_io,                       # IO::Handle for Epoll or KQueue
      @ToClose,                   # sockets to close when event loop is done
 
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
@@ -83,6 +86,7 @@ sub Reset {
 
     POSIX::close($Epoll)  if defined $Epoll  && $Epoll  >= 0;
     POSIX::close($KQueue) if defined $KQueue && $KQueue >= 0;
+    $_io = undef;
 
     *EventLoop = *FirstTimeEventLoop;
 }
@@ -164,6 +168,16 @@ sub AddTimer {
     die "Shouldn't get here.";
 }
 
+sub set_cloexec ($) {
+    my ($fd) = @_;
+
+    # new_from_fd fails on real kqueue, but is needed for libkqueue
+    # (which emulates kqueue via epoll)
+    $_io = IO::Handle->new_from_fd($fd, 'r+') or return;
+    defined(my $fl = fcntl($_io, F_GETFD, 0)) or return;
+    fcntl($_io, F_SETFD, $fl | FD_CLOEXEC);
+}
+
 sub _InitPoller
 {
     return if $DoneInit;
@@ -173,6 +187,7 @@ sub _InitPoller
         $KQueue = IO::KQueue->new();
         $HaveKQueue = $KQueue >= 0;
         if ($HaveKQueue) {
+            set_cloexec($KQueue); # needed if using libkqueue & epoll
             *EventLoop = *KQueueEventLoop;
         }
     }
@@ -180,6 +195,7 @@ sub _InitPoller
         $Epoll = eval { epoll_create(1024); };
         $HaveEpoll = defined $Epoll && $Epoll >= 0;
         if ($HaveEpoll) {
+            set_cloexec($Epoll);
             *EventLoop = *EpollEventLoop;
         }
     }
