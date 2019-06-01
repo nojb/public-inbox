@@ -49,8 +49,8 @@ our (
      $HaveKQueue,
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (for epoll mode only)
-     $KQueue,                    # Global kqueue fd (for kqueue mode only)
-     $_io,                       # IO::Handle for Epoll or KQueue
+     $KQueue,                    # Global kqueue fd ref (for kqueue mode only)
+     $_io,                       # IO::Handle for Epoll
      @ToClose,                   # sockets to close when event loop is done
 
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
@@ -84,9 +84,13 @@ sub Reset {
     %PLCMap = ();
     $DoneInit = 0;
 
-    POSIX::close($Epoll)  if defined $Epoll  && $Epoll  >= 0;
-    POSIX::close($KQueue) if defined $KQueue && $KQueue >= 0;
-    $_io = undef;
+    # NOTE kqueue is close-on-fork, and we don't account for it, yet
+    # OTOH, we (public-inbox) don't need this sub outside of tests...
+    POSIX::close($$KQueue) if !$_io && $KQueue && $$KQueue >= 0;
+    $KQueue = undef;
+
+    $_io = undef; # close $Epoll
+    $Epoll = undef;
 
     *EventLoop = *FirstTimeEventLoop;
 }
@@ -168,11 +172,11 @@ sub AddTimer {
     die "Shouldn't get here.";
 }
 
+# keeping this around in case we support other FD types for now,
+# epoll_create1(EPOLL_CLOEXEC) requires Linux 2.6.27+...
 sub set_cloexec ($) {
     my ($fd) = @_;
 
-    # new_from_fd fails on real kqueue, but is needed for libkqueue
-    # (which emulates kqueue via epoll)
     $_io = IO::Handle->new_from_fd($fd, 'r+') or return;
     defined(my $fl = fcntl($_io, F_GETFD, 0)) or return;
     fcntl($_io, F_SETFD, $fl | FD_CLOEXEC);
@@ -185,9 +189,8 @@ sub _InitPoller
 
     if ($HAVE_KQUEUE) {
         $KQueue = IO::KQueue->new();
-        $HaveKQueue = $KQueue >= 0;
+        $HaveKQueue = defined $KQueue;
         if ($HaveKQueue) {
-            set_cloexec($KQueue); # needed if using libkqueue & epoll
             *EventLoop = *KQueueEventLoop;
         }
     }

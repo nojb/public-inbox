@@ -181,6 +181,7 @@ t/config_limiter.t
 t/content_id.t
 t/convert-compact.t
 t/data/0001.patch
+t/ds-leak.t
 t/emergency.t
 t/fail-bin/spamc
 t/feed.t
