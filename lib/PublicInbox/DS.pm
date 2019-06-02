@@ -257,7 +257,6 @@ sub EpollEventLoop {
 
         # get up to 1000 events
         my $evcount = epoll_wait($Epoll, 1000, $timeout, \@events);
-      EVENT:
         for ($i=0; $i<$evcount; $i++) {
             my $ev = $events[$i];
 
