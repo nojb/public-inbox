@@ -33,7 +33,6 @@ use fields ('sock',              # underlying socket
             'write_set_watch',   # bool: true if we internally set watch_write rather than by a subclass
             'closed',            # bool: socket is closed
             'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
-            'writer_func',       # subref which does writing.  must return bytes written (or undef) and set $! on errors
             );
 
 use Errno  qw(EINPROGRESS EWOULDBLOCK EISCONN ENOTSOCK
@@ -629,18 +628,6 @@ sub sock {
     return $self->{sock};
 }
 
-=head2 C<< $obj->set_writer_func( CODEREF ) >>
-
-Sets a function to use instead of C<syswrite()> when writing data to the socket.
-
-=cut
-sub set_writer_func {
-   my PublicInbox::DS $self = shift;
-   my $wtr = shift;
-   Carp::croak("Not a subref") unless !defined $wtr || UNIVERSAL::isa($wtr, "CODE");
-   $self->{writer_func} = $wtr;
-}
-
 =head2 C<< $obj->write( $data ) >>
 
 Write the specified data to the underlying handle.  I<data> may be scalar,
@@ -710,12 +697,8 @@ sub write {
         }
 
         my $to_write = $len - $self->{write_buf_offset};
-        my $written;
-        if (my $wtr = $self->{writer_func}) {
-            $written = $wtr->($bref, $to_write, $self->{write_buf_offset});
-        } else {
-            $written = syswrite($self->{sock}, $$bref, $to_write, $self->{write_buf_offset});
-        }
+        my $written = syswrite($self->{sock}, $$bref, $to_write,
+                               $self->{write_buf_offset});
 
         if (! defined $written) {
             if ($! == EPIPE) {
