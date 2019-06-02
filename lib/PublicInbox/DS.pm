@@ -95,24 +95,6 @@ sub Reset {
     *EventLoop = *FirstTimeEventLoop;
 }
 
-=head2 C<< CLASS->HaveEpoll() >>
-
-Returns a true value if this class will use IO::Epoll for async IO.
-
-=cut
-sub HaveEpoll {
-    _InitPoller();
-    return $HaveEpoll;
-}
-
-=head2 C<< CLASS->ToClose() >>
-
-Return the list of sockets that are awaiting close() at the end of the
-current event loop.
-
-=cut
-sub ToClose { return @ToClose; }
-
 =head2 C<< CLASS->SetLoopTimeout( $timeout ) >>
 
 Set the loop timeout for the event loop to some value in milliseconds.
