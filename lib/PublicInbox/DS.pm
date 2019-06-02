@@ -5,8 +5,14 @@
 #
 # This is a fork of the (for now) unmaintained Danga::Socket 1.61.
 # Unused features will be removed, and updates will be made to take
-# advantage of newer kernels
-
+# advantage of newer kernels.
+#
+# API changes to diverge from Danga::Socket will happen to better
+# accomodate new features and improve scalability.  Do not expect
+# this to be a stable API like Danga::Socket.
+# Bugs encountered (and likely fixed) are reported to
+# bug-Danga-Socket@rt.cpan.org and visible at:
+# https://rt.cpan.org/Public/Dist/Display.html?Name=Danga-Socket
 package PublicInbox::DS;
 use strict;
 use bytes;
