@@ -269,16 +269,6 @@ sub EpollEventLoop {
             my $code;
             my $state = $ev->[1];
 
-            # if we didn't find a Perlbal::Socket subclass for that fd, try other
-            # pseudo-registered (above) fds.
-            if (! $pob) {
-                my $fd = $ev->[0];
-                warn "epoll() returned fd $fd w/ state $state for which we have no mapping.  removing.\n";
-                epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, 0);
-                POSIX::close($fd);
-                next;
-            }
-
             DebugLevel >= 1 && $class->DebugMsg("Event: fd=%d (%s), state=%d \@ %s\n",
                                                 $ev->[0], ref($pob), $ev->[1], time);
 
@@ -335,10 +325,6 @@ sub PollEventLoop {
 
             $pob = $DescriptorMap{$fd};
 
-            if (!$pob) {
-                next;
-            }
-
             $pob->event_read   if $state & POLLIN && ! $pob->{closed};
             $pob->event_write  if $state & POLLOUT && ! $pob->{closed};
             $pob->event_err    if $state & POLLERR && ! $pob->{closed};
@@ -371,11 +357,6 @@ sub KQueueEventLoop {
         foreach my $kev (@ret) {
             my ($fd, $filter, $flags, $fflags) = @$kev;
             my PublicInbox::DS $pob = $DescriptorMap{$fd};
-            if (!$pob) {
-                warn "kevent() returned fd $fd for which we have no mapping.  removing.\n";
-                POSIX::close($fd); # close deletes the kevent entry
-                next;
-            }
 
             DebugLevel >= 1 && $class->DebugMsg("Event: fd=%d (%s), flags=%d \@ %s\n",
                                                         $fd, ref($pob), $flags, time);
