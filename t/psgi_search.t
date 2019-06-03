@@ -8,7 +8,7 @@ use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
 use bytes (); # only for bytes::length
-my @mods = qw(Search::Xapian HTTP::Request::Common Plack::Test
+my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {
 	eval "require $mod";
