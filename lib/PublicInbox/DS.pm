@@ -33,8 +33,7 @@ use fields ('sock',              # underlying socket
             'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
             );
 
-use Errno  qw(EINPROGRESS EWOULDBLOCK EISCONN ENOTSOCK
-              EPIPE EAGAIN EBADF ECONNRESET ENOPROTOOPT);
+use Errno  qw(EPIPE EAGAIN ECONNRESET EINVAL);
 use Carp   qw(croak confess);
 
 use constant DebugLevel => 0;
@@ -462,7 +461,7 @@ sub new {
         }
 retry:
         if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
-            if ($!{EINVAL} && ($ev & $EPOLLEXCLUSIVE)) {
+            if ($! == EINVAL && ($ev & $EPOLLEXCLUSIVE)) {
                 $EPOLLEXCLUSIVE = 0; # old kernel
                 $ev = $self->{event_watch} = EPOLLIN|EPOLLERR|EPOLLHUP;
                 goto retry;
@@ -730,7 +729,7 @@ sub read {
     my $res = sysread($sock, $buf, $req_bytes, 0);
     DebugLevel >= 2 && $self->debugmsg("sysread = %d; \$! = %d", $res, $!);
 
-    if (! $res && $! != EWOULDBLOCK) {
+    if (! $res && $! != EAGAIN) {
         # catches 0=conn closed or undef=error
         DebugLevel >= 2 && $self->debugmsg("Fd \#%d read hit the end of the road.", $self->{fd});
         return undef;
