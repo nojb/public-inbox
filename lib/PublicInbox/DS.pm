@@ -58,7 +58,6 @@ our (
      @ToClose,                   # sockets to close when event loop is done
 
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
-     %PLCMap,                    # fd (num) -> PostLoopCallback (per-object)
 
      $LoopTimeout,               # timeout of event loop in milliseconds
      $DoneInit,                  # if we've done the one-time module init yet
@@ -85,7 +84,6 @@ sub Reset {
     @Timers = ();
 
     $PostLoopCallback = undef;
-    %PLCMap = ();
     $DoneInit = 0;
 
     # NOTE kqueue is close-on-fork, and we don't account for it, yet
@@ -389,18 +387,8 @@ The callback function will be passed two parameters: \%DescriptorMap
 sub SetPostLoopCallback {
     my ($class, $ref) = @_;
 
-    if (ref $class) {
-        # per-object callback
-        my PublicInbox::DS $self = $class;
-        if (defined $ref && ref $ref eq 'CODE') {
-            $PLCMap{$self->{fd}} = $ref;
-        } else {
-            delete $PLCMap{$self->{fd}};
-        }
-    } else {
-        # global callback
-        $PostLoopCallback = (defined $ref && ref $ref eq 'CODE') ? $ref : undef;
-    }
+    # global callback
+    $PostLoopCallback = (defined $ref && ref $ref eq 'CODE') ? $ref : undef;
 }
 
 # Internal function: run the post-event callback, send read events
@@ -425,11 +413,6 @@ sub PostEventLoop {
     # by default we keep running, unless a postloop callback (either per-object
     # or global) cancels it
     my $keep_running = 1;
-
-    # per-object post-loop-callbacks
-    for my $plc (values %PLCMap) {
-        $keep_running &&= $plc->(\%DescriptorMap);
-    }
 
     # now we're at the very end, call callback if defined
     if (defined $PostLoopCallback) {
@@ -579,10 +562,6 @@ sub _cleanup {
             $self->dump_error("epoll_ctl(): failure deleting fd=$self->{fd} during _cleanup(); $! (" . ($!+0) . ")");
         }
     }
-
-    # now delete from mappings.  this fd no longer belongs to us, so we don't want
-    # to get alerts for it if it becomes writable/readable/etc.
-    delete $PLCMap{$self->{fd}};
 
     # we explicitly don't delete from DescriptorMap here until we
     # actually close the socket, as we might be in the middle of
