@@ -38,7 +38,7 @@ sub _run_all ($) {
 	$_->() foreach @$run;
 }
 
-# ensure PublicInbox::DS::ToClose fires after timers fire
+# ensure PublicInbox::DS::ToClose processing after timers fire
 sub _asap_close () { $asapq->[1] ||= _asap_timer() }
 
 sub _run_asap () { _run_all($asapq) }
