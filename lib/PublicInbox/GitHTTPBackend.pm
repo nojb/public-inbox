@@ -90,7 +90,7 @@ sub static_result ($$$$) {
 	my $len = $size;
 	my $code = 200;
 	push @$h, 'Content-Type', $type;
-	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=(\d*)-(\d*)\z/) {
+	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=([0-9]*)-([0-9]*)\z/) {
 		($code, $len) = prepare_range($env, $in, $h, $1, $2, $size);
 		if ($code == 416) {
 			push @$h, 'Content-Range', "bytes */$size";
@@ -260,7 +260,7 @@ sub parse_cgi_headers {
 	foreach my $l (split(/\r?\n/, $h)) {
 		my ($k, $v) = split(/:\s*/, $l, 2);
 		if ($k =~ /\AStatus\z/i) {
-			($code) = ($v =~ /\b(\d+)\b/);
+			($code) = ($v =~ /\b([0-9]+)\b/);
 		} else {
 			push @h, $k, $v;
 		}
