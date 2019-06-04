@@ -127,7 +127,8 @@ sub call {
 		get_css($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
-	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/([\w\.\-]+)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/
+				($PublicInbox::Hval::FN)\z!ox) {
 		get_vcs_object($ctx, $1, $2, $3);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s\z!o) {
 		r301($ctx, $1, $2, 's/');
