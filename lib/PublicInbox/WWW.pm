@@ -102,7 +102,7 @@ sub call {
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my ($part, $path) = ($2, $3);
 		invalid_inbox($ctx, $1) || serve_git($ctx, $part, $path);
-	} elsif ($path_info =~ m!$INBOX_RE/([\w-]+).mbox\.gz\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/([a-zA-Z0-9_\-]+).mbox\.gz\z!o) {
 		serve_mbox_range($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($ctx, $1, $2, $3);
