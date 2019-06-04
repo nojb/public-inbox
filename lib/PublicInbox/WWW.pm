@@ -124,7 +124,7 @@ sub call {
 		r301($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/_/text(?:/(.*))?\z!o) {
 		get_text($ctx, $1, $2);
-	} elsif ($path_info =~ m!$INBOX_RE/([\w\-\.]+)\.css\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/([a-zA-Z0-9_\-\.]+)\.css\z!o) {
 		get_css($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
@@ -536,11 +536,15 @@ sub stylesheets_prepare ($$) {
 			$inline_ok = 0;
 		} else {
 			my $fn = $_;
+			my ($key) = (m!([^/]+?)(?:\.css)?\z!i);
+			if ($key !~ /\A[a-zA-Z0-9_\-\.]+\z/) {
+				warn "ignoring $fn, non-ASCII word character\n";
+				next;
+			}
 			open(my $fh, '<', $fn) or do {
 				warn "failed to open $fn: $!\n";
 				next;
 			};
-			my ($key) = (m!([^/]+?)(?:\.css)?\z!i);
 			my $ctime = 0;
 			my $local = do { local $/; <$fh> };
 			if ($local =~ /\S/) {
