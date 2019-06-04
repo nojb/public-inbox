@@ -27,7 +27,7 @@ sub get_attach ($$$) {
 		if ($ct && (($ct->{discrete} || '') eq 'text')) {
 			# display all text as text/plain:
 			my $cset = $ct->{attributes}->{charset};
-			if ($cset && ($cset =~ /\A[\w-]+\z/)) {
+			if ($cset && ($cset =~ /\A[a-zA-Z0-9_\-]+\z/)) {
 				$res->[1]->[1] .= qq(; charset=$cset);
 			}
 		} else { # TODO: allow user to configure safe types
