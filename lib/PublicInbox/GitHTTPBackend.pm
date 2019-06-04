@@ -51,8 +51,8 @@ sub serve {
 
 	# Documentation/technical/http-protocol.txt in git.git
 	# requires one and exactly one query parameter:
-	if ($env->{QUERY_STRING} =~ /\Aservice=git-\w+-pack\z/ ||
-				$path =~ /\Agit-\w+-pack\z/) {
+	if ($env->{QUERY_STRING} =~ /\Aservice=git-[A-Za-z0-9_]+-pack\z/ ||
+				$path =~ /\Agit-[A-Za-z0-9_]+-pack\z/) {
 		my $ok = serve_smart($env, $git, $path);
 		return $ok if $ok;
 	}
@@ -90,7 +90,7 @@ sub static_result ($$$$) {
 	my $len = $size;
 	my $code = 200;
 	push @$h, 'Content-Type', $type;
-	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=(\d*)-(\d*)\z/) {
+	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=([0-9]*)-([0-9]*)\z/) {
 		($code, $len) = prepare_range($env, $in, $h, $1, $2, $size);
 		if ($code == 416) {
 			push @$h, 'Content-Range', "bytes */$size";
@@ -260,7 +260,7 @@ sub parse_cgi_headers {
 	foreach my $l (split(/\r?\n/, $h)) {
 		my ($k, $v) = split(/:\s*/, $l, 2);
 		if ($k =~ /\AStatus\z/i) {
-			($code) = ($v =~ /\b(\d+)\b/);
+			($code) = ($v =~ /\b([0-9]+)\b/);
 		} else {
 			push @h, $k, $v;
 		}

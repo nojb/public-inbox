@@ -144,7 +144,7 @@ sub _xdb ($) {
 	my $qpf = \($self->{qp_flags} ||= $QP_FLAGS);
 	if ($self->{version} >= 2) {
 		foreach my $part (<$dir/*>) {
-			-d $part && $part =~ m!/\d+\z! or next;
+			-d $part && $part =~ m!/[0-9]+\z! or next;
 			my $sub = Search::Xapian::Database->new($part);
 			if ($xdb) {
 				$xdb->add_database($sub);

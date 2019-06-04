@@ -28,7 +28,7 @@ use PublicInbox::UserContent;
 our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
-our $ATTACH_RE = qr!(\d[\.\d]*)-([[:alnum:]][\w\.-]+[[:alnum:]])!i;
+our $ATTACH_RE = qr!([0-9][0-9\.]*)-($PublicInbox::Hval::FN)!;
 our $OID_RE = qr![a-f0-9]{7,40}!;
 
 sub new {
@@ -74,7 +74,8 @@ sub call {
 	my $method = $env->{REQUEST_METHOD};
 
 	if ($method eq 'POST') {
-		if ($path_info =~ m!$INBOX_RE/(?:(\d+)/)?(git-upload-pack)\z!) {
+		if ($path_info =~ m!$INBOX_RE/(?:([0-9]+)/)?
+					(git-upload-pack)\z!x) {
 			my ($part, $path) = ($2, $3);
 			return invalid_inbox($ctx, $1) ||
 				serve_git($ctx, $part, $path);
@@ -97,11 +98,11 @@ sub call {
 		invalid_inbox($ctx, $1) || get_atom($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
 		invalid_inbox($ctx, $1) || get_new($ctx);
-	} elsif ($path_info =~ m!$INBOX_RE/(?:(\d+)/)?
+	} elsif ($path_info =~ m!$INBOX_RE/(?:([0-9]+)/)?
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my ($part, $path) = ($2, $3);
 		invalid_inbox($ctx, $1) || serve_git($ctx, $part, $path);
-	} elsif ($path_info =~ m!$INBOX_RE/([\w-]+).mbox\.gz\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/([a-zA-Z0-9_\-]+).mbox\.gz\z!o) {
 		serve_mbox_range($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
 		msg_page($ctx, $1, $2, $3);
@@ -123,11 +124,12 @@ sub call {
 		r301($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/_/text(?:/(.*))?\z!o) {
 		get_text($ctx, $1, $2);
-	} elsif ($path_info =~ m!$INBOX_RE/([\w\-\.]+)\.css\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/([a-zA-Z0-9_\-\.]+)\.css\z!o) {
 		get_css($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
-	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/([\w\.\-]+)\z!o) {
+	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/
+				($PublicInbox::Hval::FN)\z!ox) {
 		get_vcs_object($ctx, $1, $2, $3);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s\z!o) {
 		r301($ctx, $1, $2, 's/');
@@ -534,11 +536,15 @@ sub stylesheets_prepare ($$) {
 			$inline_ok = 0;
 		} else {
 			my $fn = $_;
+			my ($key) = (m!([^/]+?)(?:\.css)?\z!i);
+			if ($key !~ /\A[a-zA-Z0-9_\-\.]+\z/) {
+				warn "ignoring $fn, non-ASCII word character\n";
+				next;
+			}
 			open(my $fh, '<', $fn) or do {
 				warn "failed to open $fn: $!\n";
 				next;
 			};
-			my ($key) = (m!([^/]+?)(?:\.css)?\z!i);
 			my $ctime = 0;
 			my $local = do { local $/; <$fh> };
 			if ($local =~ /\S/) {

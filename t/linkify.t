@@ -132,4 +132,16 @@ use PublicInbox::Linkify;
 		'punctuation with unpaired ) OK')
 }
 
+if ('IDN example: <ACDB98F4-178C-43C3-99C4-A1D03DD6A8F5@sb.org>') {
+	my $hc = '&#26376;';
+	my $u = "http://www.\x{6708}.example.com/";
+	my $s = $u;
+	my $l = PublicInbox::Linkify->new;
+	$s = $l->linkify_1($s);
+	$s = $l->linkify_2($s);
+	my $expect = qq{<a
+href="http://www.$hc.example.com/">http://www.$hc.example.com/</a>};
+	is($s, $expect, 'IDN message escaped properly');
+}
+
 done_testing();

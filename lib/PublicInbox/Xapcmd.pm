@@ -150,7 +150,7 @@ sub run {
 	} else {
 		opendir my $dh, $old or die "Failed to opendir $old: $!\n";
 		while (defined(my $dn = readdir($dh))) {
-			if ($dn =~ /\A\d+\z/) {
+			if ($dn =~ /\A[0-9]+\z/) {
 				my $tmpl = "$dn-XXXXXXXX";
 				my $dst = tempdir($tmpl, DIR => $old);
 				same_fs_or_die($old, $dst);
@@ -200,7 +200,7 @@ sub progress_pfx ($) {
 	my @p = split('/', $_[0]);
 
 	# return "xap15/0" for v2, or "xapian15" for v1:
-	($p[-1] =~ /\A\d+\z/) ? "$p[-2]/$p[-1]" : $p[-1];
+	($p[-1] =~ /\A[0-9]+\z/) ? "$p[-2]/$p[-1]" : $p[-1];
 }
 
 # xapian-compact wrapper
@@ -276,7 +276,7 @@ sub cpdb ($$) {
 			$dst->set_metadata('last_commit', $lc) if $lc;
 
 			# only the first xapian partition (0) gets 'indexlevel'
-			if ($old =~ m!(?:xapian\d+|xap\d+/0)\z!) {
+			if ($old =~ m!(?:xapian[0-9]+|xap[0-9]+/0)\z!) {
 				my $l = $src->get_metadata('indexlevel');
 				if ($l eq 'medium') {
 					$dst->set_metadata('indexlevel', $l);

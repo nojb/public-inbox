@@ -74,7 +74,7 @@ sub _set_uint ($$$) {
 	my $val = $opts->{$field};
 	if (defined $val) {
 		$val = $val->[-1] if ref($val) eq 'ARRAY';
-		$val = undef if $val !~ /\A\d+\z/;
+		$val = undef if $val !~ /\A[0-9]+\z/;
 	}
 	$opts->{$field} = $val || $default;
 }
@@ -87,7 +87,7 @@ sub _set_limiter ($$$) {
 		my $mkey = $pfx.'max';
 		my $val = $self->{$mkey} or return;
 		my $lim;
-		if ($val =~ /\A\d+\z/) {
+		if ($val =~ /\A[0-9]+\z/) {
 			require PublicInbox::Qspawn;
 			$lim = PublicInbox::Qspawn::Limiter->new($val);
 		} elsif ($val =~ /\A[a-z][a-z0-9]*\z/) {
@@ -161,7 +161,7 @@ sub max_git_part {
 		if (opendir my $dh, $gits) {
 			my $max = -1;
 			while (defined(my $git_dir = readdir($dh))) {
-				$git_dir =~ m!\A(\d+)\.git\z! or next;
+				$git_dir =~ m!\A([0-9]+)\.git\z! or next;
 				$max = $1 if $1 > $max;
 			}
 			$part = $self->{-max_git_part} = $max if $max >= 0;

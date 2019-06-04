@@ -13,6 +13,7 @@ package PublicInbox::Linkify;
 use strict;
 use warnings;
 use Digest::SHA qw/sha1_hex/;
+use PublicInbox::Hval qw(ascii_html);
 
 my $SALT = rand;
 my $LINK_RE = qr{([\('!])?\b((?:ftps?|https?|nntps?|gopher)://
@@ -61,12 +62,12 @@ sub linkify_1 {
 			$end = ')';
 		}
 
+		$url = ascii_html($url); # for IDN
+
 		# salt this, as this could be exploited to show
 		# links in the HTML which don't show up in the raw mail.
 		my $key = sha1_hex($url . $SALT);
 
-		# only escape ampersands, others do not match LINK_RE
-		$url =~ s/&/&#38;/g;
 		$_[0]->{$key} = $url;
 		$beg . 'PI-LINK-'. $key . $end;
 	^ge;

@@ -91,7 +91,7 @@ foreach my $ibx (@inboxes) {
 	my $xdir_ro = $ibx->{search}->xdir(1);
 	my $npart = 0;
 	foreach my $part (<$xdir_ro/*>) {
-		if (-d $part && $part =~ m!/\d+\z!) {
+		if (-d $part && $part =~ m!/[0-9]+\z!) {
 			my $bytes = 0;
 			$bytes += -s $_ foreach glob("$part/*");
 			$npart++ if $bytes;

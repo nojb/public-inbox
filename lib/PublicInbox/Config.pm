@@ -307,7 +307,7 @@ sub parse_cgitrc {
 			}
 		} elsif (m!\Ainclude=(.+)\z!) {
 			parse_cgitrc($self, $1, $nesting + 1);
-		} elsif (m!\A(scan-hidden-path|remove-suffix)=(\d+)\z!) {
+		} elsif (m!\A(scan-hidden-path|remove-suffix)=([0-9]+)\z!) {
 			my ($k, $v) = ($1, $2);
 			$k =~ tr/-/_/;
 			$self->{"-cgit_$k"} = $v;

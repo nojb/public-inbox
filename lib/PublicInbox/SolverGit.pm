@@ -206,7 +206,7 @@ sub find_extract_diff ($$$) {
 	}
 
 	my $msgs = $srch->query($q, { relevance => 1 });
-	my $re = qr/\Aindex ($pre[a-f0-9]*)\.\.($post[a-f0-9]*)(?: (\d+))?/;
+	my $re = qr/\Aindex ($pre[a-f0-9]*)\.\.($post[a-f0-9]*)(?: ([0-9]+))?/;
 
 	my $di;
 	foreach my $smsg (@$msgs) {

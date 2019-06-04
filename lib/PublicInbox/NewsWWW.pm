@@ -47,7 +47,7 @@ sub call {
 	if (my $ibx = $pi_config->lookup_newsgroup($ng)) {
 		my $url = PublicInbox::Hval::prurl($env, $ibx->{url});
 		my $code = 301;
-		if (defined $article && $article =~ /\A\d+\z/) {
+		if (defined $article && $article =~ /\A[0-9]+\z/) {
 			my $mid = eval { $ibx->mm->mid_for($article) };
 			if (defined $mid) {
 				# article IDs are not stable across clones,

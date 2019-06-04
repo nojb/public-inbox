@@ -13,6 +13,9 @@ our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape
 		to_attr from_attr/;
 my $enc_ascii = find_encoding('us-ascii');
 
+# safe-ish acceptable filename pattern for portability
+our $FN = '[a-zA-Z0-9][a-zA-Z0-9_\-\.]+[a-zA-Z0-9]'; # needs \z anchor
+
 sub new {
 	my ($class, $raw, $href) = @_;
 
