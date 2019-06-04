@@ -28,7 +28,7 @@ use PublicInbox::UserContent;
 our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
-our $ATTACH_RE = qr!(\d[\.\d]*)-([[:alnum:]][\w\.-]+[[:alnum:]])!i;
+our $ATTACH_RE = qr!([0-9][0-9\.]*)-($PublicInbox::Hval::FN)!;
 our $OID_RE = qr![a-f0-9]{7,40}!;
 
 sub new {
