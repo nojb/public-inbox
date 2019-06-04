@@ -74,7 +74,7 @@ sub _set_uint ($$$) {
 	my $val = $opts->{$field};
 	if (defined $val) {
 		$val = $val->[-1] if ref($val) eq 'ARRAY';
-		$val = undef if $val !~ /\A\d+\z/;
+		$val = undef if $val !~ /\A[0-9]+\z/;
 	}
 	$opts->{$field} = $val || $default;
 }
