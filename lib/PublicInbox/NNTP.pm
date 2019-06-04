@@ -121,7 +121,7 @@ sub args_ok ($$) {
 # returns 1 if we can continue, 0 if not due to buffered writes or disconnect
 sub process_line ($$) {
 	my ($self, $l) = @_;
-	my ($req, @args) = split(/\s+/, $l);
+	my ($req, @args) = split(/[ \t]/, $l);
 	return 1 unless defined($req); # skip blank line
 	$req = lc($req);
 	$req = eval {
@@ -959,7 +959,7 @@ sub event_read {
 		$self->{rbuf} .= $$buf;
 	}
 	my $r = 1;
-	while ($r > 0 && $self->{rbuf} =~ s/\A\s*([^\r\n]*)\r?\n//) {
+	while ($r > 0 && $self->{rbuf} =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
