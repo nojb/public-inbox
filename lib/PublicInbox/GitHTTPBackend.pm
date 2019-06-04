@@ -51,8 +51,8 @@ sub serve {
 
 	# Documentation/technical/http-protocol.txt in git.git
 	# requires one and exactly one query parameter:
-	if ($env->{QUERY_STRING} =~ /\Aservice=git-\w+-pack\z/ ||
-				$path =~ /\Agit-\w+-pack\z/) {
+	if ($env->{QUERY_STRING} =~ /\Aservice=git-[A-Za-z0-9_]+-pack\z/ ||
+				$path =~ /\Agit-[A-Za-z0-9_]+-pack\z/) {
 		my $ok = serve_smart($env, $git, $path);
 		return $ok if $ok;
 	}
