@@ -1160,8 +1160,8 @@ sub paginate_recent ($$) {
 	# Xapian uses '..' but '-' is perhaps friendier to URL linkifiers
 	# if only $after exists "YYYYMMDD.." because "." could be skipped
 	# if interpreted as an end-of-sentence
-	$t =~ s/\A(\d{8,14})-// and $after = str2ts($1);
-	$t =~ /\A(\d{8,14})\z/ and $before = str2ts($1);
+	$t =~ s/\A([0-9]{8,14})-// and $after = str2ts($1);
+	$t =~ /\A([0-9]{8,14})\z/ and $before = str2ts($1);
 
 	my $ibx = $ctx->{-inbox};
 	my $msgs = $ibx->recent($opts, $after, $before);
