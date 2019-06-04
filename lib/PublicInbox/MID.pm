@@ -26,11 +26,11 @@ sub mid_clean {
 	$mid;
 }
 
-# this is idempotent
+# this is idempotent, used for HTML anchor/ids and such
 sub id_compress {
 	my ($id, $force) = @_;
 
-	if ($force || $id =~ /[^\w\-]/ || length($id) > MID_MAX) {
+	if ($force || $id =~ /[^a-zA-Z0-9_\-]/ || length($id) > MID_MAX) {
 		utf8::encode($id);
 		return sha1_hex($id);
 	}
