@@ -48,7 +48,7 @@ sub count_partitions ($) {
 	# due to -compact
 	if (-d $xpfx) {
 		foreach my $part (<$xpfx/*>) {
-			-d $part && $part =~ m!/\d+\z! or next;
+			-d $part && $part =~ m!/[0-9]+\z! or next;
 			eval {
 				Search::Xapian::Database->new($part)->close;
 				$nparts++;
@@ -574,7 +574,7 @@ sub git_dir_latest {
 	my $latest;
 	opendir my $dh, $pfx or die "opendir $pfx: $!\n";
 	while (defined(my $git_dir = readdir($dh))) {
-		$git_dir =~ m!\A(\d+)\.git\z! or next;
+		$git_dir =~ m!\A([0-9]+)\.git\z! or next;
 		if ($1 > $$max) {
 			$$max = $1;
 			$latest = "$pfx/$git_dir";
