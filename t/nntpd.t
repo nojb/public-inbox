@@ -19,7 +19,7 @@ use Sys::Hostname;
 require './t/common.perl';
 
 # FIXME: make easier to test both versions
-my $version = $ENV{PI_VERSION} || 2;
+my $version = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $version == 2;
 
 my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);

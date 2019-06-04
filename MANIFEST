@@ -204,6 +204,7 @@ t/httpd.t
 t/hval.t
 t/import.t
 t/inbox.t
+t/indexlevels-mirror-v1.t
 t/indexlevels-mirror.t
 t/init.t
 t/linkify.t

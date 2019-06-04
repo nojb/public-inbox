@@ -9,12 +9,12 @@ use PublicInbox::InboxWritable;
 use File::Temp qw/tempdir/;
 require PublicInbox::Admin;
 require './t/common.perl';
-require_git(2.6);
-my $this = (split('/', __FILE__))[-1];
+my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
+require_git('2.6') if $PI_TEST_VERSION == 2;
 
 foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
-	plan skip_all => "$mod missing for $this" if $@;
+	plan skip_all => "$mod missing for $0" if $@;
 }
 
 my $path = 'blib/script';
@@ -33,10 +33,11 @@ my $mime = PublicInbox::MIME->create(
 
 sub import_index_incremental {
 	my ($v, $level) = @_;
-	my $tmpdir = tempdir("pi-$this-tmp-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+	my $this = "pi-$v-$level-indexlevels";
+	my $tmpdir = tempdir("$this-tmp-XXXXXX", TMPDIR => 1, CLEANUP => 1);
 	my $ibx = PublicInbox::Inbox->new({
 		mainrepo => "$tmpdir/testbox",
-		name => "$this-$v",
+		name => $this,
 		version => $v,
 		-primary_address => 'test@example.com',
 		indexlevel => $level,
@@ -165,24 +166,14 @@ sub import_index_incremental {
 	   'indexlevel detectable by Admin '.$v.$level);
 }
 
-# we can probably cull some other tests and put full/medium tests, here
-for my $level (qw(basic)) {
-	for my $v (1..2) {
-		subtest("v$v indexlevel=$level" => sub {
-			import_index_incremental($v, $level);
-		})
-	}
-}
+# we can probably cull some other tests
+import_index_incremental($PI_TEST_VERSION, 'basic');
 
 SKIP: {
 	require PublicInbox::Search;
 	PublicInbox::Search::load_xapian() or skip 'Search::Xapian missing', 2;
-	for my $v (1..2) {
-		foreach my $l (qw(medium full)) {
-			subtest("v$v indexlevel=$l" => sub {
-				import_index_incremental($v, $l);
-			});
-		}
+	foreach my $l (qw(medium full)) {
+		import_index_incremental($PI_TEST_VERSION, $l);
 	}
 }
 

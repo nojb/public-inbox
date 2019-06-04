@@ -8,7 +8,7 @@ use warnings;
 use Test::More;
 use_ok 'PublicInbox::DS';
 
-subtest('close-on-exec for epoll and kqueue' => sub {
+if ('close-on-exec for epoll and kqueue') {
 	use PublicInbox::Spawn qw(spawn);
 	my $pid;
 	my $evfd_re = qr/(?:kqueue|eventpoll)/i;
@@ -29,7 +29,7 @@ subtest('close-on-exec for epoll and kqueue' => sub {
 		waitpid($pid, 0);
 	}
 	PublicInbox::DS->Reset;
-});
+}
 
 SKIP: {
 	# not bothering with BSD::Resource
