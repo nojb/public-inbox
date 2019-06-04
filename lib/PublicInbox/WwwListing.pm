@@ -24,8 +24,8 @@ sub list_match_domain ($$) {
 	my ($self, $env) = @_;
 	my @list;
 	my $host = $env->{HTTP_HOST} // $env->{SERVER_NAME};
-	$host =~ s/:\d+\z//;
-	my $re = qr!\A(?:https?:)?//\Q$host\E(?::\d+)?/!i;
+	$host =~ s/:[0-9]+\z//;
+	my $re = qr!\A(?:https?:)?//\Q$host\E(?::[0-9]+)?/!i;
 	$self->{pi_config}->each_inbox(sub {
 		my ($ibx) = @_;
 		push @list, $ibx if !$ibx->{-hide}->{www} && $ibx->{url} =~ $re;
