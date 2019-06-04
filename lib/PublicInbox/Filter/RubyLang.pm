@@ -50,7 +50,7 @@ sub scrub {
 		my @v = $hdr->header_raw('X-Mail-Count');
 		my $n;
 		foreach (@v) {
-			/\A\s*(\d+)\s*\z/ or next;
+			/\A\s*([0-9]+)\s*\z/ or next;
 			$n = $1;
 			last;
 		}
