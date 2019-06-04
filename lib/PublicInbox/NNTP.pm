@@ -437,7 +437,7 @@ sub set_nntp_headers ($$$$$) {
 	# clobber some
 	my $xref = xref($self, $ng, $n, $mid);
 	$hdr->header_set('Xref', $xref);
-	$xref =~ s/:\d+//g;
+	$xref =~ s/:[0-9]+//g;
 	$hdr->header_set('Newsgroups', (split(/ /, $xref, 2))[1]);
 	header_append($hdr, 'List-Post', "<mailto:$ng->{-primary_address}>");
 	if (my $url = $ng->base_url) {
@@ -453,7 +453,7 @@ sub art_lookup ($$$) {
 	my ($n, $mid);
 	my $err;
 	if (defined $art) {
-		if ($art =~ /\A\d+\z/o) {
+		if ($art =~ /\A[0-9]+\z/) {
 			$err = '423 no such article number in this group';
 			$n = int($art);
 			goto find_mid;
@@ -508,7 +508,7 @@ sub simple_body_write ($$) {
 
 sub set_art {
 	my ($self, $art) = @_;
-	$self->{article} = $art if defined $art && $art =~ /\A\d+\z/;
+	$self->{article} = $art if defined $art && $art =~ /\A[0-9]+\z/;
 }
 
 sub _header ($) {
@@ -576,11 +576,11 @@ sub get_range ($$) {
 	defined $range or return '420 No article(s) selected';
 	my ($beg, $end);
 	my ($min, $max) = $ng->mm->minmax;
-	if ($range =~ /\A(\d+)\z/) {
+	if ($range =~ /\A([0-9]+)\z/) {
 		$beg = $end = $1;
-	} elsif ($range =~ /\A(\d+)-\z/) {
+	} elsif ($range =~ /\A([0-9]+)-\z/) {
 		($beg, $end) = ($1, $max);
-	} elsif ($range =~ /\A(\d+)-(\d+)\z/) {
+	} elsif ($range =~ /\A([0-9]+)-([0-9]+)\z/) {
 		($beg, $end) = ($1, $2);
 	} else {
 		return r501;
