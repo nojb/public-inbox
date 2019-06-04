@@ -1,0 +1,24 @@
+# Example NGINX configuration to proxy-pass requests
+# to public-inbox-httpd or to a standalone PSGI/Plack server.
+# The daemon is assumed to be running locally on port 8001.
+# Adjust ssl certificate paths if you use any, or remove
+# the ssl configuration directives if you don't.
+server {
+	server_name _;
+	listen 80;
+
+	access_log /var/log/nginx/public-inbox-httpd_access.log;
+	error_log /var/log/nginx/public-inbox-httpd_error.log;
+
+	location ~* ^/(.*)$ {
+		proxy_set_header    HOST $host;
+		proxy_set_header    X-Real-IP $remote_addr;
+		proxy_set_header    X-Forwarded-Proto $scheme;
+		proxy_pass          http://127.0.0.1:8001$request_uri;
+	}
+
+	listen 443 ssl;
+	ssl_certificate /path/to/certificate.pem;
+	ssl_certificate_key /path/to/certificate_key.pem;
+}
+
