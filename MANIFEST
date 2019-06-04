@@ -51,6 +51,7 @@ examples/cgit.psgi
 examples/highlight.psgi
 examples/logrotate.conf
 examples/newswww.psgi
+examples/nginx_proxy
 examples/public-inbox-config
 examples/public-inbox-httpd.socket
 examples/public-inbox-httpd@.service
