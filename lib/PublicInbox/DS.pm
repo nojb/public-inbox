@@ -33,7 +33,7 @@ use fields ('sock',              # underlying socket
             'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
             );
 
-use Errno  qw(EPIPE EAGAIN ECONNRESET EINVAL);
+use Errno  qw(EAGAIN EINVAL);
 use Carp   qw(croak confess);
 
 use constant DebugLevel => 0;
@@ -509,21 +509,14 @@ sub steal_socket {
     return $sock;
 }
 
-=head2 C<< $obj->close( [$reason] ) >>
+=head2 C<< $obj->close >>
 
-Close the socket. The I<reason> argument will be used in debugging messages.
+Close the socket.
 
 =cut
 sub close {
     my PublicInbox::DS $self = $_[0];
     return if $self->{closed};
-
-    # print out debugging info for this close
-    if (DebugLevel) {
-        my ($pkg, $filename, $line) = caller;
-        my $reason = $_[1] || "";
-        warn "Closing \#$self->{fd} due to $pkg/$filename/$line ($reason)\n";
-    }
 
     # this does most of the work of closing us
     $self->_cleanup();
@@ -655,9 +648,7 @@ sub write {
                                $self->{wbuf_off});
 
         if (! defined $written) {
-            if ($! == EPIPE) {
-                return $self->close("EPIPE");
-            } elsif ($! == EAGAIN) {
+            if ($! == EAGAIN) {
                 # since connection has stuff to write, it should now be
                 # interested in pending writes:
                 if ($need_queue) {
@@ -665,13 +656,9 @@ sub write {
                 }
                 $self->watch_write(1);
                 return 0;
-            } elsif ($! == ECONNRESET) {
-                return $self->close("ECONNRESET");
             }
 
-            DebugLevel >= 1 && $self->debugmsg("Closing connection ($self) due to write error: $!\n");
-
-            return $self->close("write_error");
+            return $self->close;
         } elsif ($written != $to_write) {
             DebugLevel >= 2 && $self->debugmsg("Wrote PARTIAL %d bytes to %d",
                                                $written, $self->{fd});
