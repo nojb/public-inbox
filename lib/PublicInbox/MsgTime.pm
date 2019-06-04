@@ -44,8 +44,9 @@ sub msg_received_at ($) {
 	my @recvd = $hdr->header_raw('Received');
 	my ($ts);
 	foreach my $r (@recvd) {
-		$r =~ /\s*(\d+\s+[[:alpha:]]+\s+\d{2,4}\s+
-			\d+\D\d+(?:\D\d+)\s+([\+\-]\d+))/sx or next;
+		$r =~ /\s*([0-9]+\s+[a-zA-Z]+\s+[0-9]{2,4}\s+
+			[0-9]+[^0-9][0-9]+(?:[^0-9][0-9]+)
+			\s+([\+\-][0-9]+))/sx or next;
 		$ts = eval { str2date_zone($1) } and return $ts;
 		my $mid = $hdr->header_raw('Message-ID');
 		warn "no date in $mid Received: $r\n";
@@ -59,7 +60,7 @@ sub msg_date_only ($) {
 	my ($ts);
 	foreach my $d (@date) {
 		# Y2K problems: 3-digit years
-		$d =~ s!([A-Za-z]{3}) (\d{3}) (\d\d:\d\d:\d\d)!
+		$d =~ s!([A-Za-z]{3}) ([0-9]{3}) ([0-9]{2}:[0-9]{2}:[0-9]{2})!
 			my $yyyy = $2 + 1900; "$1 $yyyy $3"!e;
 		$ts = eval { str2date_zone($d) } and return $ts;
 		if ($@) {
