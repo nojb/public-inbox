@@ -23,7 +23,7 @@ my ($num, $first, $last) = $nntp->group($group);
 die "Invalid group\n" if !(defined $num && defined $first && defined $last);
 my $arg_first = shift;
 if (defined $arg_first) {
-	$arg_first =~ /\A\d+\z/ or die $usage;
+	$arg_first =~ /\A[0-9]+\z/ or die $usage;
 	$first = $arg_first;
 } elsif ($mm) {
 	my $last_article = $mm->meta_accessor('last_article');

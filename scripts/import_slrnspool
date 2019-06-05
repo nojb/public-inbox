@@ -47,7 +47,7 @@ sub get_min {
 	my $out = $git->qx('config', "--file=$f", key($ibx));
 	$out ||= 0;
 	chomp $out;
-	$out =~ /\A\d+\z/ and return $out;
+	$out =~ /\A[0-9]+\z/ and return $out;
 	0;
 }
 
