@@ -159,6 +159,7 @@ script/public-inbox-purge
 script/public-inbox-watch
 script/public-inbox-xcpdb
 script/public-inbox.cgi
+scripts/README
 scripts/dc-dlvr
 scripts/dc-dlvr.pre
 scripts/dupe-finder

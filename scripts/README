@@ -1,0 +1,6 @@
+This directory contains informal scripts and random tools used
+in the development of public-inbox.  Some only exist only for
+historical purposes, and some may not work anymore.
+
+See the "script/" directory (not "scripts/") for supported and
+documented commands.
