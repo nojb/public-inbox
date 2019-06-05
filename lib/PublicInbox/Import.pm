@@ -106,7 +106,7 @@ sub _cat_blob ($$$) {
 	local $/ = "\n";
 	my $info = <$r>;
 	defined $info or die "EOF from fast-import / cat-blob: $!";
-	$info =~ /\A[a-f0-9]{40} blob (\d+)\n\z/ or return;
+	$info =~ /\A[a-f0-9]{40} blob ([0-9]+)\n\z/ or return;
 	my $left = $1;
 	my $offset = 0;
 	my $buf = '';
@@ -493,9 +493,9 @@ sub clean_purge_buffer {
 
 	foreach my $i (0..$#$buf) {
 		my $l = $buf->[$i];
-		if ($l =~ /^author .* (\d+ [\+-]?\d+)$/) {
+		if ($l =~ /^author .* ([0-9]+ [\+-]?[0-9]+)$/) {
 			$buf->[$i] = "author <> $1\n";
-		} elsif ($l =~ /^data (\d+)/) {
+		} elsif ($l =~ /^data ([0-9]+)/) {
 			$buf->[$i++] = "data " . length($cmt_msg) . "\n";
 			$buf->[$i] = $cmt_msg;
 			last;
@@ -525,7 +525,7 @@ sub purge_oids {
 				@buf = ();
 			}
 			push @buf, "commit $tmp\n";
-		} elsif (/^data (\d+)/) {
+		} elsif (/^data ([0-9]+)/) {
 			# only commit message, so $len is small:
 			my $len = $1; # + 1 for trailing "\n"
 			push @buf, $_;
@@ -557,7 +557,7 @@ sub purge_oids {
 			@buf = ();
 		} elsif ($_ eq "done\n") {
 			$done = 1;
-		} elsif (/^mark :(\d+)$/) {
+		} elsif (/^mark :([0-9]+)$/) {
 			push @buf, $_;
 			$mark = $1;
 		} else {

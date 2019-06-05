@@ -103,7 +103,7 @@ while (<$rd>) {
 		$state = 'blob';
 	} elsif (/^commit /) {
 		$state = 'commit';
-	} elsif (/^data (\d+)/) {
+	} elsif (/^data ([0-9]+)/) {
 		my $len = $1;
 		$w->print($_) or $im->wfail;
 		while ($len) {
@@ -114,7 +114,7 @@ while (<$rd>) {
 		}
 		next;
 	} elsif ($state eq 'commit') {
-		if (m{^M 100644 :(\d+) (${h}{2}/${h}{38})}o) {
+		if (m{^M 100644 :([0-9]+) (${h}{2}/${h}{38})}o) {
 			my ($mark, $path) = ($1, $2);
 			$D{$path} = $mark;
 			if ($last && $last ne 'm') {
@@ -134,7 +134,7 @@ while (<$rd>) {
 			$last = 'd';
 			next;
 		}
-		if (m{^from (:\d+)}) {
+		if (m{^from (:[0-9]+)}) {
 			$prev = $from;
 			$from = $1;
 			# no next

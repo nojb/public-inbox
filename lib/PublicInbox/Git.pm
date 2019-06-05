@@ -141,7 +141,7 @@ again:
 		}
 		return;
 	}
-	$head =~ /^[0-9a-f]{40} \S+ (\d+)$/ or
+	$head =~ /^[0-9a-f]{40} \S+ ([0-9]+)$/ or
 		fail($self, "Unexpected result from git cat-file: $head");
 
 	my $size = $1;
@@ -319,7 +319,7 @@ sub modified ($) {
 	foreach my $oid (<$fh>) {
 		chomp $oid;
 		my $buf = cat_file($self, $oid) or next;
-		$$buf =~ /^committer .*?> (\d+) [\+\-]?\d+/sm or next;
+		$$buf =~ /^committer .*?> ([0-9]+) [\+\-]?[0-9]+/sm or next;
 		my $cmt_time = $1;
 		$modified = $cmt_time if $cmt_time > $modified;
 	}
