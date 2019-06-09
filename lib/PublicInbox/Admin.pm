@@ -67,7 +67,7 @@ $ibx->{mainrepo} has unexpected indexlevel in Xapian: $m
 }
 
 sub resolve_inboxes {
-	my ($argv, $warn_on_unconfigured) = @_;
+	my ($argv) = @_;
 	require PublicInbox::Config;
 	require PublicInbox::Inbox;
 
@@ -80,9 +80,6 @@ sub resolve_inboxes {
 			my ($ibx) = @_;
 			$dir2ibx{abs_path($ibx->{mainrepo})} = $ibx;
 		});
-	} elsif ($warn_on_unconfigured) {
-		# do we really care about this?  It's annoying...
-		warn $warn_on_unconfigured, "\n";
 	}
 	for my $i (0..$#ibxs) {
 		my $dir = $ibxs[$i];
