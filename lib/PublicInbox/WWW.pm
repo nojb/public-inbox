@@ -74,7 +74,7 @@ sub call {
 	my $method = $env->{REQUEST_METHOD};
 
 	if ($method eq 'POST') {
-		if ($path_info =~ m!$INBOX_RE/(?:([0-9]+)/)?
+		if ($path_info =~ m!$INBOX_RE/(?:(?:git/)?([0-9]+)(?:\.git)?/)?
 					(git-upload-pack)\z!x) {
 			my ($part, $path) = ($2, $3);
 			return invalid_inbox($ctx, $1) ||
@@ -98,7 +98,7 @@ sub call {
 		invalid_inbox($ctx, $1) || get_atom($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
 		invalid_inbox($ctx, $1) || get_new($ctx);
-	} elsif ($path_info =~ m!$INBOX_RE/(?:([0-9]+)/)?
+	} elsif ($path_info =~ m!$INBOX_RE/(?:(?:git/)?([0-9]+)(?:\.git)?/)?
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my ($part, $path) = ($2, $3);
 		invalid_inbox($ctx, $1) || serve_git($ctx, $part, $path);

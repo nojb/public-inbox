@@ -144,7 +144,7 @@ sub manifest_add ($$;$) {
 	my $git_dir = $ibx->{mainrepo};
 	if (defined $epoch) {
 		$git_dir .= "/git/$epoch.git";
-		$url_path .= "/$epoch";
+		$url_path .= "/git/$epoch.git";
 	}
 	return unless -d $git_dir;
 	my $git = PublicInbox::Git->new($git_dir);

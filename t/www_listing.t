@@ -111,7 +111,7 @@ SKIP: {
 	is(HTTP::Date::time2str($bare->{modified}), $h{'Last-Modified'},
 		'modified field and Last-Modified header match');
 
-	ok($manifest->{'/v2/0'}, 'v2 epoch appeared');
+	ok($manifest->{'/v2/git/0.git'}, 'v2 epoch appeared');
 
 	skip 'skipping grok-pull integration test', 2 if !which('grok-pull');
 
@@ -130,7 +130,7 @@ mymanifest = $tmpdir/local-manifest.js.gz
 
 	system(qw(grok-pull -c), "$tmpdir/repos.conf");
 	is($? >> 8, 127, 'grok-pull exit code as expected');
-	for (qw(alt bare v2/0 v2/1 v2/2)) {
+	for (qw(alt bare v2/git/0.git v2/git/1.git v2/git/2.git)) {
 		ok(-d "$tmpdir/mirror/$_", "grok-pull created $_");
 	}
 
@@ -150,7 +150,7 @@ mymanifest = $tmpdir/per-inbox-manifest.js.gz
 	ok(mkdir("$tmpdir/per-inbox"), 'prepare single-v2-inbox mirror');
 	system(qw(grok-pull -c), "$tmpdir/per-inbox.conf");
 	is($? >> 8, 127, 'grok-pull exit code as expected');
-	for (qw(v2/0 v2/1 v2/2)) {
+	for (qw(v2/git/0.git v2/git/1.git v2/git/2.git)) {
 		ok(-d "$tmpdir/per-inbox/$_", "grok-pull created $_");
 	}
 }
