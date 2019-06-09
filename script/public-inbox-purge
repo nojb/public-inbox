@@ -10,64 +10,19 @@ use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::AdminEdit;
 PublicInbox::Admin::check_require('-index');
 require PublicInbox::Filter::Base;
-require PublicInbox::Config;
 require PublicInbox::MIME;
 require PublicInbox::V2Writable;
 
 { no warnings 'once'; *REJECT = *PublicInbox::Filter::Base::REJECT }
 
 my $usage = "$0 [--all] [INBOX_DIRS] </path/to/message";
-my $config = eval { PublicInbox::Config->new };
-my $cfgfile = PublicInbox::Config::default_file();
-my $opt = { verbose => 1 };
+my $opt = { verbose => 1, all => 0, -min_inbox_version => 2 };
 GetOptions($opt, @PublicInbox::AdminEdit::OPT) or
 	die "bad command-line args\n$usage\n";
 
-# TODO: clean this up and share code with -index via ::Admin
-my %dir2ibx; # ( path => Inbox object )
-my @inboxes;
-$config and $config->each_inbox(sub {
-	my ($ibx) = @_;
-	push @inboxes, $ibx if $opt->{all} && $ibx->{version} != 1;
-	$dir2ibx{$ibx->{mainrepo}} = $ibx;
-});
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
 
-if ($opt->{all}) {
-	$config or die "--all specified, but $cfgfile not readable\n";
-	@ARGV and die "--all specified, but directories specified\n";
-} else {
-	my @err;
-	my @dirs = scalar(@ARGV) ? @ARGV : ('.');
-	my $u = 0;
-
-	foreach my $dir (@dirs) {
-		my $v;
-		my $dir = PublicInbox::Admin::resolve_repo_dir($dir, \$v);
-		if ($v == 1) {
-			push @err, $dir;
-			next;
-		}
-		my $ibx = $dir2ibx{$dir} ||= do {
-			warn "$dir not configured in $cfgfile\n";
-			$u++;
-			my $name = "unconfigured-$u";
-			PublicInbox::Inbox->new({
-				version => 2,
-				name => $name,
-				-primary_address => "$name\@example.com",
-				mainrepo => $dir,
-			});
-		};
-		push @inboxes, $ibx;
-	}
-
-	if (@err) {
-		die "v1 inboxes currently not supported by -purge\n\t",
-		    join("\n\t", @err), "\n";
-	}
-}
-
-foreach my $ibx (@inboxes) {
+foreach my $ibx (@ibxs) {
 	my $lvl = $ibx->{indexlevel};
 	if (defined $lvl) {
 		PublicInbox::Admin::indexlevel_ok_or_die($lvl);
@@ -105,7 +60,7 @@ my $data = do { local $/; scalar <STDIN> };
 $data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 my $n_purged = 0;
 
-foreach my $ibx (@inboxes) {
+foreach my $ibx (@ibxs) {
 	my $mime = PublicInbox::MIME->new($data);
 	my $v2w = PublicInbox::V2Writable->new($ibx, 0);
 
