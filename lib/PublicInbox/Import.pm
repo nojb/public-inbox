@@ -277,7 +277,7 @@ sub git_timestamp {
 	"$ts $zone";
 }
 
-sub extract_author_info ($) {
+sub extract_cmt_info ($) {
 	my ($mime) = @_;
 
 	my $sender = '';
@@ -314,7 +314,17 @@ sub extract_author_info ($) {
 		$name = '';
 		warn "no name in From: $from or Sender: $sender\n";
 	}
-	($name, $email);
+
+	my $hdr = $mime->header_obj;
+
+	my $subject = $hdr->header('Subject');
+	$subject = '(no subject)' unless defined $subject;
+	# Mime decoding can create nulls replace them with spaces to protect git
+	$subject =~ tr/\0/ /;
+	utf8::encode($subject);
+	my $at = git_timestamp(my @at = msg_datestamp($hdr));
+	my $ct = git_timestamp(my @ct = msg_timestamp($hdr));
+	($name, $email, $at, $ct, $subject);
 }
 
 # kill potentially confusing/misleading headers
@@ -361,19 +371,7 @@ sub clean_tree_v2 ($$$) {
 sub add {
 	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
-	my ($name, $email) = extract_author_info($mime);
-	my $hdr = $mime->header_obj;
-	my @at = msg_datestamp($hdr);
-	my @ct = msg_timestamp($hdr);
-	my $author_time_raw = git_timestamp(@at);
-	my $commit_time_raw = git_timestamp(@ct);
-
-	my $subject = $mime->header('Subject');
-	$subject = '(no subject)' unless defined $subject;
-	# Mime decoding can create nulls replace them with spaces to protect git
-	$subject =~ tr/\0/ /;
-	utf8::encode($subject);
-
+	my ($name, $email, $at, $ct, $subject) = extract_cmt_info($mime);
 	my $path_type = $self->{path_type};
 	my $path;
 	if ($path_type eq '2/38') {
@@ -416,8 +414,8 @@ sub add {
 	}
 
 	print $w "commit $ref\nmark :$commit\n",
-		"author $name <$email> $author_time_raw\n",
-		"committer $self->{ident} $commit_time_raw\n" or wfail;
+		"author $name <$email> $at\n",
+		"committer $self->{ident} $ct\n" or wfail;
 	print $w "data ", (length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
 	if ($tip ne '') {
