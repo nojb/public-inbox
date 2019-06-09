@@ -42,6 +42,13 @@ Xapian database.
 
 This does not touch the NNTP article number database.
 
+=item --prune
+
+Run L<git-gc(1)> to prune and expire reflogs if discontiguous history
+is detected.  This is intended to be used in mirrors after running
+L<public-inbox-edit(1)> or L<public-inbox-purge(1)> to ensure data
+is expunged from mirrors.
+
 =back
 
 =head1 FILES
