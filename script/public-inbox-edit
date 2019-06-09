@@ -1,0 +1,233 @@
+#!/usr/bin/perl -w
+# Copyright (C) 2019 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# Used for editing messages in a public-inbox.
+# Supports v2 inboxes only, for now.
+use strict;
+use warnings;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+use PublicInbox::AdminEdit;
+use File::Temp qw(tempfile);
+use PublicInbox::ContentId qw(content_id);
+use PublicInbox::MID qw(mid_clean mids);
+PublicInbox::Admin::check_require('-index');
+require PublicInbox::MIME;
+require PublicInbox::InboxWritable;
+
+my $usage = "$0 -m MESSAGE_ID [--all] [INBOX_DIRS]";
+my $opt = { verbose => 1, all => 0, -min_inbox_version => 2, raw => 0 };
+my @opt = qw(mid|m=s file|F=s raw);
+GetOptions($opt, @PublicInbox::AdminEdit::OPT, @opt) or
+	die "bad command-line args\n$usage\n";
+
+my $editor = $ENV{MAIL_EDITOR}; # e.g. "mutt -f"
+unless (defined $editor) {
+	my $k = 'publicinbox.mailEditor';
+	if (my $cfg = PublicInbox::Admin::config()) {
+		$editor = $cfg->{lc($k)};
+	}
+	unless (defined $editor) {
+		warn "\`$k' not configured, trying \`git var GIT_EDITOR'\n";
+		chomp($editor = `git var GIT_EDITOR`);
+		warn "Will use $editor to edit mail\n";
+	}
+}
+
+my $mid = $opt->{mid};
+my $file = $opt->{file};
+if (defined $mid && defined $file) {
+	die "the --mid and --file options are mutually exclusive\n";
+}
+
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
+PublicInbox::AdminEdit::check_editable(\@ibxs);
+
+my $found = {}; # cid => [ [ibx, smsg] [, [ibx, smsg] ] ]
+
+sub find_mid ($) {
+	my ($mid) = @_;
+	foreach my $ibx (@ibxs) {
+		my $over = $ibx->over;
+		my ($id, $prev);
+		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
+			my $ref = $ibx->msg_by_smsg($smsg);
+			my $mime = PublicInbox::MIME->new($ref);
+			my $cid = content_id($mime);
+			my $tuple = [ $ibx, $smsg ];
+			push @{$found->{$cid} ||= []}, $tuple
+		}
+		delete @$ibx{qw(over mm git search)}; # cleanup
+	}
+	$found;
+}
+
+sub show_cmd ($$) {
+	my ($ibx, $smsg) = @_;
+	" GIT_DIR=$ibx->{mainrepo}/all.git \\\n    git show $smsg->{blob}\n";
+}
+
+sub show_found () {
+	foreach my $to_edit (values %$found) {
+		foreach my $tuple (@$to_edit) {
+			my ($ibx, $smsg) = @$tuple;
+			warn show_cmd($ibx, $smsg);
+		}
+	}
+}
+
+if (defined($mid)) {
+	$mid = mid_clean($mid);
+	$found = find_mid($mid);
+	my $nr = scalar(keys %$found);
+	die "No message found for <$mid>\n" unless $nr;
+	if ($nr > 1) {
+		warn <<"";
+Multiple messages with different content found matching
+<$mid>:
+
+		show_found();
+		die "Use --force to edit all of them\n" if !$opt->{force};
+		warn "Will edit all of them\n";
+	}
+} else {
+	open my $fh, '<', $file or die "open($file) failed: $!";
+	my $orig = do { local $/; <$fh> };
+	my $mime = PublicInbox::MIME->new(\$orig);
+	my $mids = mids($mime->header_obj);
+	find_mid($_) for (@$mids); # populates $found
+	my $cid = content_id($mime);
+	my $to_edit = $found->{$cid};
+	unless ($to_edit) {
+		my $nr = scalar(keys %$found);
+		if ($nr > 0) {
+			warn <<"";
+$nr matches to Message-ID(s) in $file, but none matched content
+Partial matches below:
+
+			show_found();
+		} elsif ($nr == 0) {
+			$mids = join('', map { "  <$_>\n" } @$mids);
+			warn <<"";
+No matching messages found matching Message-ID(s) in $file
+$mids
+
+		}
+		exit 1;
+	}
+	$found = { $cid => $to_edit };
+}
+
+my $tmpl = 'public-inbox-edit-XXXXXX';
+foreach my $to_edit (values %$found) {
+	my ($edit_fh, $edit_fn) = tempfile($tmpl, TMPDIR => 1);
+	$edit_fh->autoflush(1);
+	my ($ibx, $smsg) = @{$to_edit->[0]};
+	my $old_raw = $ibx->msg_by_smsg($smsg);
+	delete @$ibx{qw(over mm git search)}; # cleanup
+
+	my $tmp = $$old_raw;
+	if (!$opt->{raw}) {
+		my $oid = $smsg->{blob};
+		print $edit_fh "From mboxrd\@$oid Thu Jan  1 00:00:00 1970\n";
+		$tmp =~ s/^(>*From )/>$1/gm;
+	}
+	print $edit_fh $tmp or
+		die "failed to write tempfile for editing: $!";
+
+	# run the editor, respecting spaces/quote
+retry_edit:
+	if (system(qw(sh -c), qq(eval "$editor" '"\$@"'), '--', $edit_fn)) {
+		if (!(-t STDIN) && !$opt->{force}) {
+			die "E: $editor failed: $?\n";
+		}
+		print STDERR "$editor failed, ";
+		print STDERR "continuing as forced\n" if $opt->{force};
+		while (!$opt->{force}) {
+			print STDERR "(r)etry, (c)ontinue, (q)uit?\n";
+			chomp(my $op = <STDIN> || '');
+			$op = lc($op);
+			goto retry_edit if $op eq 'r';
+			exit $? if $op eq 'q';
+			last if $op eq 'c'; # continuing
+			print STDERR "\`$op' not recognized\n";
+		}
+	}
+
+	# reread the edited file, not using $edit_fh since $EDITOR may
+	# rename/relink $edit_fn
+	open my $new_fh, '<', $edit_fn or
+		die "can't read edited file ($edit_fn): $!\n";
+	my $new_raw = do { local $/; <$new_fh> };
+
+	if (!$opt->{raw}) {
+		# get rid of the From we added
+		$new_raw =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+
+		# check if user forgot to purge (in mutt) after editing
+		if ($new_raw =~ /^From /sm) {
+			if (-t STDIN) {
+				print STDERR <<'';
+Extra "From " lines detected in new mbox.
+Did you forget to purge the original message from the mbox after editing?
+
+				while (1) {
+					print STDERR <<"";
+(y)es to re-edit, (n)o to continue
+
+					chomp(my $op = <STDIN> || '');
+					$op = lc($op);
+					goto retry_edit if $op eq 'y';
+					last if $op eq 'n'; # continuing
+					print STDERR "\`$op' not recognized\n";
+				}
+			} else { # non-interactive path
+				# unlikely to happen, as extra From lines are
+				# only a common mistake (for me) with
+				# interactive use
+				warn <<"";
+W: possible message boundary splitting error
+
+			}
+		}
+		# unescape what we escaped:
+		$new_raw =~ s/^>(>*From )/$1/gm;
+	}
+
+	my $new_mime = PublicInbox::MIME->new(\$new_raw);
+	my $old_mime = PublicInbox::MIME->new($old_raw);
+
+	# allow changing Received: and maybe other headers which can
+	# contain sensitive info.
+	my $nhdr = $new_mime->header_obj;
+	my $ohdr = $old_mime->header_obj;
+	if (($nhdr->as_string eq $ohdr->as_string) &&
+	    (content_id($new_mime) eq content_id($old_mime))) {
+		warn "No change detected to:\n", show_cmd($ibx, $smsg);
+
+		next unless $opt->{verbose};
+		# should we consider this machine-parseable?
+		print "$ibx->{mainrepo}:\n\tNONE\n";
+		next;
+	}
+
+	foreach my $tuple (@$to_edit) {
+		$ibx = PublicInbox::InboxWritable->new($tuple->[0]);
+		$smsg = $tuple->[1];
+		my $im = $ibx->importer(0);
+		my $commits = $im->replace($old_mime, $new_mime);
+		$im->done;
+		unless ($commits) {
+			warn "Failed to replace:\n", show_cmd($ibx, $smsg);
+			next;
+		}
+		next unless $opt->{verbose};
+		# should we consider this machine-parseable?
+		print "$ibx->{mainrepo}:";
+		if (scalar @$commits) {
+			print join("\n\t", '', @$commits), "\n";
+		} else {
+			print "\tNONE\n";
+		}
+	}
+}

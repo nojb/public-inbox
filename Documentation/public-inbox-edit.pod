@@ -1,0 +1,109 @@
+=head1 NAME
+
+public-inbox-edit - edit messages in a public inbox
+
+=head1 SYNOPSIS
+
+	public-inbox-edit -m MESSAGE-ID --all|INBOX_DIR
+
+	public-inbox-edit -F RAW_FILE --all|INBOX_DIR [.. INBOX_DIR]
+
+=head1 DESCRIPTION
+
+public-inbox-edit allows editing messages in a given inbox
+to remove sensitive information.  It is only intended as a
+last resort, as it will cause discontiguous git history and
+draw more attention to the sensitive data in mirrors.
+
+=head1 OPTIONS
+
+=over
+
+=item --all
+
+Edit the message in all inboxes configured in ~/.public-inbox/config.
+This is an alternative to specifying individual inboxes directories
+on the command-line.
+
+=item -m MESSAGE-ID
+
+Edits the message corresponding to the given C<MESSAGE-ID>.
+If the C<MESSAGE-ID> is ambiguous, C<--force> or using the
+C<--file> of the original will be required.
+
+=item -F FILE
+
+Edits the message corresponding to the Message-ID: header
+and content given in C<FILE>.  This requires the unmodified
+raw message, and the contents of C<FILE> will not itself
+be modified.  This is useful if a Message-ID is ambiguous
+due to filtering/munging rules or other edits.
+
+=item --force
+
+Forcibly perform the edit even if Message-ID is ambiguous.
+
+=item --raw
+
+Do not perform "From " line escaping.  By default, this
+generates a mboxrd variant file to detect unpurged messages
+in the new mbox.  This makes sense if your configured
+C<publicinbox.mailEditor> is a regular editor and not
+something like C<mutt -f>
+
+=back
+
+=head1 CONFIGURATION
+
+=over 8
+
+=item publicinbox.mailEditor
+
+The command to perform the edit with.  An example of this would be
+C<mutt -f>, and the user would then use the facilities in L<mutt(1)>
+to edit the mail.  This is useful for editing attachments or
+Base64-encoded emails which are more difficult to edit with a
+normal editor (configured via C<GIT_EDITOR>, C<VISUAL> or C<EDITOR>).
+
+Default: none
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=for comment MAIL_EDITOR is undocumented (unstable, don't want naming conflicts)
+
+=item GIT_EDITOR / VISUAL / EDITOR
+
+public-inbox-edit will fall back to using one of these variables
+(in that order) if C<publicinbox.mailEditor> is unset.
+
+=item PI_CONFIG
+
+The default config file, normally "~/.public-inbox/config".
+See L<public-inbox-config(5)>
+
+=back
+
+=head1 LIMITATIONS
+
+Only L<v2|public-inbox-v2-format(5)> repositories are supported.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2019 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-purge(1)|https://public-inbox.org/public-inbox-purge.html>

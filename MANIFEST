@@ -13,6 +13,7 @@ Documentation/public-inbox-compact.pod
 Documentation/public-inbox-config.pod
 Documentation/public-inbox-convert.pod
 Documentation/public-inbox-daemon.pod
+Documentation/public-inbox-edit.pod
 Documentation/public-inbox-httpd.pod
 Documentation/public-inbox-index.pod
 Documentation/public-inbox-mda.pod
@@ -150,6 +151,7 @@ sa_config/root/etc/spamassassin/public-inbox.pre
 sa_config/user/.spamassassin/user_prefs
 script/public-inbox-compact
 script/public-inbox-convert
+script/public-inbox-edit
 script/public-inbox-httpd
 script/public-inbox-index
 script/public-inbox-init
@@ -185,6 +187,7 @@ t/content_id.t
 t/convert-compact.t
 t/data/0001.patch
 t/ds-leak.t
+t/edit.t
 t/emergency.t
 t/fail-bin/spamc
 t/feed.t
