@@ -116,6 +116,18 @@ sub add {
 	});
 }
 
+# indexes a message, returns true if checkpointing is needed
+sub do_idx ($$$$$$$) {
+	my ($self, $msgref, $mime, $len, $num, $oid, $mid0) = @_;
+	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
+	my $npart = $self->{partitions};
+	my $part = $num % $npart;
+	my $idx = idx_part($self, $part);
+	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
+	my $n = $self->{transact_bytes} += $len;
+	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $npart);
+}
+
 sub _add {
 	my ($self, $mime, $check_cb) = @_;
 
@@ -141,13 +153,7 @@ sub _add {
 	$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 
 	my ($oid, $len, $msgref) = @{$im->{last_object}};
-	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
-	my $nparts = $self->{partitions};
-	my $part = $num % $nparts;
-	my $idx = $self->idx_part($part);
-	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
-	my $n = $self->{transact_bytes} += $len;
-	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
+	if (do_idx($self, $msgref, $mime, $len, $num, $oid, $mid0)) {
 		$self->checkpoint;
 	}
 
@@ -772,15 +778,8 @@ sub reindex_oid ($$$$) {
 	}
 	$sync->{mm_tmp}->mid_delete($mid0) or
 		die "failed to delete <$mid0> for article #$num\n";
-
-	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
-	my $nparts = $self->{partitions};
-	my $part = $num % $nparts;
-	my $idx = $self->idx_part($part);
-	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
-	my $n = $self->{transact_bytes} += $len;
 	$sync->{nr}++;
-	if ($n > (PublicInbox::SearchIdx::BATCH_BYTES * $nparts)) {
+	if (do_idx($self, $msgref, $mime, $len, $num, $oid, $mid0)) {
 		$git->cleanup;
 		$sync->{mm_tmp}->atfork_prepare;
 		$self->done; # release lock
