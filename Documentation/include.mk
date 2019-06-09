@@ -150,7 +150,7 @@ rsync-doc:
 	$(RSYNC) --chmod=Fugo=r -av $(rsync_docs) $(rsync_xdocs) $(RSYNC_DEST)
 
 clean-doc:
-	$(RM) $(man1) $(man5) $(man7) $(gz_docs) $(docs_html) $(mantxt)
+	$(RM) $(man1) $(man5) $(man7) $(man8) $(gz_docs) $(docs_html) $(mantxt)
 	$(RM) $(gz_xdocs) $(xdocs_html) $(xdocs)
 
 clean :: clean-doc
