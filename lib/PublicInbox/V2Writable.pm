@@ -298,7 +298,7 @@ sub idx_init {
 }
 
 sub purge_oids ($$) {
-	my ($self, $purge) = @_; # $purge = { $object_id => 1, ... }
+	my ($self, $purge) = @_; # $purge = { $object_id => \'', ... }
 	$self->done;
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $purges = [];
@@ -313,7 +313,7 @@ sub purge_oids ($$) {
 		-d $git_dir or next;
 		my $git = PublicInbox::Git->new($git_dir);
 		my $im = $self->import_init($git, 0, 1);
-		$purges->[$i] = $im->purge_oids($purge);
+		$purges->[$i] = $im->replace_oids($purge);
 		$im->done;
 	}
 	$purges;
@@ -386,7 +386,7 @@ sub remove_internal ($$$$) {
 			$removed = $smsg;
 			my $oid = $smsg->{blob};
 			if ($purge) {
-				$purge->{$oid} = 1;
+				$purge->{$oid} = \'';
 			} else {
 				($mark, undef) = $im->remove($orig, $cmt_msg);
 			}

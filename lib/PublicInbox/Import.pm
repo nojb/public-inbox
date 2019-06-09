@@ -501,16 +501,16 @@ sub clean_purge_buffer {
 	}
 }
 
-sub purge_oids {
-	my ($self, $purge) = @_;
-	my $tmp = "refs/heads/purge-".((keys %$purge)[0]);
+sub replace_oids {
+	my ($self, $replace) = @_; # oid => raw string
+	my $tmp = "refs/heads/replace-".((keys %$replace)[0]);
 	my $old = $self->{'ref'};
 	my $git = $self->{git};
 	my @export = (qw(fast-export --no-data --use-done-feature), $old);
 	my $rd = $git->popen(@export);
 	my ($r, $w) = $self->gfi_start;
 	my @buf;
-	my $npurge = 0;
+	my $nreplace = 0;
 	my @oids;
 	my ($done, $mark);
 	my $tree = $self->{-tree};
@@ -533,10 +533,13 @@ sub purge_oids {
 		} elsif (/^M 100644 ([a-f0-9]+) (\w+)/) {
 			my ($oid, $path) = ($1, $2);
 			$tree->{$path} = 1;
-			if ($purge->{$oid}) {
+			my $sref = $replace->{$oid};
+			if (defined $sref) {
 				push @oids, $oid;
-				my $cmd = "M 100644 inline $path\ndata 0\n\n";
-				push @buf, $cmd;
+				my $n = length($$sref);
+				push @buf, "M 100644 inline $path\ndata $n\n";
+				push @buf, $$sref; # hope CoW works...
+				push @buf, "\n";
 			} else {
 				push @buf, $_;
 			}
@@ -549,7 +552,7 @@ sub purge_oids {
 				$out =~ s/^/# /sgm;
 				warn "purge rewriting\n", $out, "\n";
 				clean_purge_buffer(\@oids, \@buf);
-				$npurge++;
+				$nreplace++;
 			}
 			$w->print(@buf, "\n") or wfail;
 			@buf = ();
@@ -567,28 +570,30 @@ sub purge_oids {
 		$w->print(@buf) or wfail;
 	}
 	die 'done\n not seen from fast-export' unless $done;
-	chomp(my $cmt = $self->get_mark(":$mark")) if $npurge;
+	chomp(my $cmt = $self->get_mark(":$mark")) if $nreplace;
 	$self->{nchg} = 0; # prevent _update_git_info until update-ref:
 	$self->done;
 	my @git = ('git', "--git-dir=$git->{git_dir}");
 
-	run_die([@git, qw(update-ref), $old, $tmp]) if $npurge;
+	run_die([@git, qw(update-ref), $old, $tmp]) if $nreplace;
 
 	run_die([@git, qw(update-ref -d), $tmp]);
 
-	return if $npurge == 0;
+	return if $nreplace == 0;
 
 	run_die([@git, qw(-c gc.reflogExpire=now gc --prune=all)]);
+
+	# check that old OIDs are gone
 	my $err = 0;
-	foreach my $oid (keys %$purge) {
+	foreach my $oid (keys %$replace) {
 		my @info = $git->check($oid);
 		if (@info) {
-			warn "$oid not purged\n";
+			warn "$oid not replaced\n";
 			$err++;
 		}
 	}
 	_update_git_info($self, 0);
-	die "Failed to purge $err object(s)\n" if $err;
+	die "Failed to replace $err object(s)\n" if $err;
 	$cmt;
 }
 
