@@ -10,25 +10,27 @@ use PublicInbox::Hval qw(ascii_html);
 use PublicInbox::Linkify;
 use PublicInbox::View;
 
-sub list_all ($$) {
-	my ($self, undef) = @_;
+sub list_all ($$$) {
+	my ($self, $env, $hide_key) = @_;
 	my @list;
 	$self->{pi_config}->each_inbox(sub {
 		my ($ibx) = @_;
-		push @list, $ibx unless $ibx->{-hide}->{www};
+		push @list, $ibx unless $ibx->{-hide}->{$hide_key};
 	});
 	\@list;
 }
 
-sub list_match_domain ($$) {
-	my ($self, $env) = @_;
+sub list_match_domain ($$$) {
+	my ($self, $env, $hide_key) = @_;
 	my @list;
 	my $host = $env->{HTTP_HOST} // $env->{SERVER_NAME};
 	$host =~ s/:[0-9]+\z//;
 	my $re = qr!\A(?:https?:)?//\Q$host\E(?::[0-9]+)?/!i;
 	$self->{pi_config}->each_inbox(sub {
 		my ($ibx) = @_;
-		push @list, $ibx if !$ibx->{-hide}->{www} && $ibx->{url} =~ $re;
+		if (!$ibx->{-hide}->{$hide_key} && $ibx->{url} =~ $re) {
+			push @list, $ibx;
+		}
 	});
 	\@list;
 }
@@ -78,7 +80,11 @@ sub ibx_entry {
 sub call {
 	my ($self, $env) = @_;
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
-	my $list = $self->{list_cb}->($self, $env);
+	my $hide_key = 'www';
+	if ($env->{PATH_INFO} =~ m!/manifest\.js(?:\.gz)\z/!) {
+		$hide_key = 'manifest';
+	}
+	my $list = $self->{list_cb}->($self, $env, $hide_key);
 	my $code = 404;
 	my $title = 'public-inbox';
 	my $out = '';
