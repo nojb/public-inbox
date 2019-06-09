@@ -88,7 +88,7 @@ sub call {
 	}
 
 	# top-level indices and feeds
-	if ($path_info eq '/') {
+	if ($path_info eq '/' || $path_info eq '/manifest.js.gz') {
 		www_listing($self)->call($env);
 	} elsif ($path_info =~ m!$INBOX_RE\z!o) {
 		invalid_inbox($ctx, $1) || r301($ctx, $1);

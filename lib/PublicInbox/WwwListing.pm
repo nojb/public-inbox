@@ -9,6 +9,11 @@ use warnings;
 use PublicInbox::Hval qw(ascii_html);
 use PublicInbox::Linkify;
 use PublicInbox::View;
+use bytes ();
+use HTTP::Date qw(time2str);
+require Digest::SHA;
+require File::Spec;
+{ no warnings 'once'; *try_cat = *PublicInbox::Inbox::try_cat };
 
 sub list_all ($$$) {
 	my ($self, $env, $hide_key) = @_;
@@ -44,21 +49,27 @@ my %VALID = (
 	404 => *list_404,
 );
 
-sub new {
-	my ($class, $www) = @_;
-	my $k = 'publicinbox.wwwListing';
-	my $pi_config = $www->{pi_config};
-	my $v = $pi_config->{lc($k)} // 404;
-	bless {
-		pi_config => $pi_config,
-		style => $www->style("\0"),
-		list_cb => $VALID{$v} || do {
-			warn <<"";
+sub set_cb ($$$) {
+	my ($pi_config, $k, $default) = @_;
+	my $v = $pi_config->{lc $k} // $default;
+	$VALID{$v} || do {
+		warn <<"";
 `$v' is not a valid value for `$k'
 $k be one of `all', `match=domain', or `404'
 
-			*list_404;
-		},
+		$VALID{$default};
+	};
+}
+
+sub new {
+	my ($class, $www) = @_;
+	my $pi_config = $www->{pi_config};
+	bless {
+		pi_config => $pi_config,
+		style => $www->style("\0"),
+		www_cb => set_cb($pi_config, 'publicInbox.wwwListing', 404),
+		manifest_cb => set_cb($pi_config, 'publicInbox.grokManifest',
+					'match=domain'),
 	}, $class;
 }
 
@@ -76,26 +87,20 @@ sub ibx_entry {
 	$tmp;
 }
 
-# not really a stand-alone PSGI app, but maybe it could be...
-sub call {
-	my ($self, $env) = @_;
-	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
-	my $hide_key = 'www';
-	if ($env->{PATH_INFO} =~ m!/manifest\.js(?:\.gz)\z/!) {
-		$hide_key = 'manifest';
-	}
-	my $list = $self->{list_cb}->($self, $env, $hide_key);
-	my $code = 404;
+sub html ($$) {
+	my ($env, $list) = @_;
 	my $title = 'public-inbox';
 	my $out = '';
+	my $code = 404;
 	if (@$list) {
+		$title .= ' - listing';
+		$code = 200;
+
 		# Swartzian transform since ->modified is expensive
 		@$list = sort {
 			$b->[0] <=> $a->[0]
 		} map { [ $_->modified, $_ ] } @$list;
 
-		$code = 200;
-		$title .= ' - listing';
 		my $tmp = join("\n", map { ibx_entry(@$_, $env) } @$list);
 		my $l = PublicInbox::Linkify->new;
 		$l->linkify_1($tmp);
@@ -104,7 +109,122 @@ sub call {
 	$out = "<html><head><title>$title</title></head><body>" . $out;
 	$out .= '<pre>'. PublicInbox::WwwStream::code_footer($env) .
 		'</pre></body></html>';
-	[ $code, $h, [ $out ] ]
+
+	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
+	[ $code, $h, [ $out ] ];
+}
+
+my $json;
+sub _json () {
+	for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
+		eval "require $mod" or next;
+		# ->ascii encodes non-ASCII to "\uXXXX"
+		return $mod->new->ascii(1);
+	}
+	die;
+}
+
+sub fingerprint ($) {
+	my ($git) = @_;
+	my $fh = $git->popen('show-ref') or
+		die "popen($git->{git_dir} show-ref) failed: $!";
+
+	my $dig = Digest::SHA->new(1);
+	while (read($fh, my $buf, 65536)) {
+		$dig->add($buf);
+	}
+	close $fh;
+	return if $?; # empty, uninitialized git repo
+	$dig->hexdigest;
+}
+
+sub manifest_add ($$;$) {
+	my ($manifest, $ibx, $epoch) = @_;
+	my $url_path = "/$ibx->{name}";
+	my $git_dir = $ibx->{mainrepo};
+	if (defined $epoch) {
+		$git_dir .= "/git/$epoch.git";
+		$url_path .= "/$epoch";
+	}
+	return unless -d $git_dir;
+	my $git = PublicInbox::Git->new($git_dir);
+	my $fingerprint = fingerprint($git) or return; # no empty repos
+
+	chomp(my $owner = $git->qx('config', 'gitweb.owner'));
+	chomp(my $desc = try_cat("$git_dir/description"));
+	$owner = undef if $owner eq '';
+	$desc = 'Unnamed repository' if $desc eq '';
+
+	my $reference;
+	chomp(my $alt = try_cat("$git_dir/objects/info/alternates"));
+	if ($alt) {
+		# n.b.: GitPython doesn't seem to handle comments or C-quoted
+		# strings like native git does; and we don't for now, either.
+		my @alt = split(/\n+/, $alt);
+
+		# grokmirror only supports 1 alternate for "reference",
+		if (scalar(@alt) == 1) {
+			my $objdir = "$git_dir/objects";
+			$reference = File::Spec->rel2abs($alt[0], $objdir);
+			$reference =~ s!/[^/]+/?\z!!; # basename
+		}
+	}
+	$manifest->{-abs2urlpath}->{$git_dir} = $url_path;
+	my $modified = $git->modified;
+	if ($modified > $manifest->{-mtime}) {
+		$manifest->{-mtime} = $modified;
+	}
+	$manifest->{$url_path} = {
+		owner => $owner,
+		reference => $reference,
+		description => $desc,
+		modified => $modified,
+		fingerprint => $fingerprint,
+	};
+}
+
+# manifest.js.gz
+sub js ($$) {
+	my ($env, $list) = @_;
+	eval { require IO::Compress::Gzip } or return [ 404, [], [] ];
+
+	my $manifest = { -abs2urlpath => {}, -mtime => 0 };
+	for my $ibx (@$list) {
+		if (defined(my $max = $ibx->max_git_part)) {
+			for my $epoch (0..$max) {
+				manifest_add($manifest, $ibx, $epoch);
+			}
+		} else {
+			manifest_add($manifest, $ibx);
+		}
+	}
+	my $abs2urlpath = delete $manifest->{-abs2urlpath};
+	my $mtime = delete $manifest->{-mtime};
+	while (my ($url_path, $repo) = each %$manifest) {
+		defined(my $abs = $repo->{reference}) or next;
+		$repo->{reference} = $abs2urlpath->{$abs};
+	}
+	my $out;
+	IO::Compress::Gzip::gzip(\(($json ||= _json())->encode($manifest)) =>
+				 \$out);
+	$manifest = undef;
+	[ 200, [ qw(Content-Type application/gzip),
+		 'Last-Modified', time2str($mtime),
+		 'Content-Length', bytes::length($out) ], [ $out ] ];
+}
+
+# not really a stand-alone PSGI app, but maybe it could be...
+sub call {
+	my ($self, $env) = @_;
+
+	if ($env->{PATH_INFO} eq '/manifest.js.gz') {
+		# grokmirror uses relative paths, so it's domain-dependent
+		my $list = $self->{manifest_cb}->($self, $env, 'manifest');
+		js($env, $list);
+	} else { # /
+		my $list = $self->{www_cb}->($self, $env, 'www');
+		html($env, $list);
+	}
 }
 
 1;
