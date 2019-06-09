@@ -320,7 +320,7 @@ sub modified ($) {
 		chomp $oid;
 		my $buf = cat_file($self, $oid) or next;
 		$$buf =~ /^committer .*?> ([0-9]+) [\+\-]?[0-9]+/sm or next;
-		my $cmt_time = $1;
+		my $cmt_time = $1 + 0;
 		$modified = $cmt_time if $cmt_time > $modified;
 	}
 	$modified || time;

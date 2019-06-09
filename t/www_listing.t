@@ -96,6 +96,7 @@ SKIP: {
 		$body .= $buf;
 	}
 	IO::Uncompress::Gunzip::gunzip(\$body => \$tmp);
+	unlike($tmp, qr/"modified":\s*"/, 'modified is an integer');
 	my $manifest = $json->decode($tmp);
 	ok(my $clone = $manifest->{'/alt'}, '/alt in manifest');
 	is($clone->{owner}, 'lorelei', 'owner set');
