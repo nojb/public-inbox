@@ -126,6 +126,8 @@ sub call {
 		get_text($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/([a-zA-Z0-9_\-\.]+)\.css\z!o) {
 		get_css($ctx, $1, $2);
+	} elsif ($path_info =~ m!$INBOX_RE/manifest\.js\.gz\z!o) {
+		get_inbox_manifest($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/
@@ -488,6 +490,15 @@ sub www_listing {
 		require PublicInbox::WwwListing;
 		PublicInbox::WwwListing->new($self);
 	}
+}
+
+# GET $INBOX/manifest.js.gz
+sub get_inbox_manifest ($$$) {
+	my ($ctx, $inbox, $key) = @_;
+	my $r404 = invalid_inbox($ctx, $inbox);
+	return $r404 if $r404;
+	require PublicInbox::WwwListing;
+	PublicInbox::WwwListing::js($ctx->{env}, [$ctx->{-inbox}]);
 }
 
 sub get_attach {

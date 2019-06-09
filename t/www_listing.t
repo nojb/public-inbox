@@ -133,6 +133,26 @@ mymanifest = $tmpdir/local-manifest.js.gz
 	for (qw(alt bare v2/0 v2/1 v2/2)) {
 		ok(-d "$tmpdir/mirror/$_", "grok-pull created $_");
 	}
+
+	# support per-inbox manifests, handy for v2:
+	# /$INBOX/v2/manifest.js.gz
+	open $fh, '>', "$tmpdir/per-inbox.conf" or die;
+	print $fh <<"" or die;
+# You can pull from multiple grok mirrors, just create
+# a separate section for each mirror. The name can be anything.
+[v2]
+site = http://$host:$port
+manifest = http://$host:$port/v2/manifest.js.gz
+toplevel = $tmpdir/per-inbox
+mymanifest = $tmpdir/per-inbox-manifest.js.gz
+
+	close $fh or die;
+	ok(mkdir("$tmpdir/per-inbox"), 'prepare single-v2-inbox mirror');
+	system(qw(grok-pull -c), "$tmpdir/per-inbox.conf");
+	is($? >> 8, 127, 'grok-pull exit code as expected');
+	for (qw(v2/0 v2/1 v2/2)) {
+		ok(-d "$tmpdir/per-inbox/$_", "grok-pull created $_");
+	}
 }
 
 done_testing();
