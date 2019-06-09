@@ -484,26 +484,38 @@ sub digest2mid ($$) {
 	"$dt.$b64" . '@z';
 }
 
-sub clean_purge_buffer {
-	my ($oids, $buf) = @_;
-	my $cmt_msg = 'purged '.join(' ',@$oids)."\n";
+sub rewrite_commit ($$$$) {
+	my ($self, $oids, $buf, $mime) = @_;
+	my ($name, $email, $at, $ct, $subject);
+	if ($mime) {
+		($name, $email, $at, $ct, $subject) = extract_cmt_info($mime);
+	} else {
+		$name = $email = '';
+		$subject = 'purged '.join(' ', @$oids);
+	}
 	@$oids = ();
-
+	$subject .= "\n";
 	foreach my $i (0..$#$buf) {
 		my $l = $buf->[$i];
 		if ($l =~ /^author .* ([0-9]+ [\+-]?[0-9]+)$/) {
-			$buf->[$i] = "author <> $1\n";
+			$at //= $1;
+			$buf->[$i] = "author $name <$email> $at\n";
+		} elsif ($l =~ /^committer .* ([0-9]+ [\+-]?[0-9]+)$/) {
+			$ct //= $1;
+			$buf->[$i] = "committer $self->{ident} $ct\n";
 		} elsif ($l =~ /^data ([0-9]+)/) {
-			$buf->[$i++] = "data " . length($cmt_msg) . "\n";
-			$buf->[$i] = $cmt_msg;
+			$buf->[$i++] = "data " . length($subject) . "\n";
+			$buf->[$i] = $subject;
 			last;
 		}
 	}
 }
 
+# returns the new commit OID if a replacement was done
+# returns undef if nothing was done
 sub replace_oids {
-	my ($self, $replace) = @_; # oid => raw string
-	my $tmp = "refs/heads/replace-".((keys %$replace)[0]);
+	my ($self, $mime, $replace_map) = @_; # oid => raw string
+	my $tmp = "refs/heads/replace-".((keys %$replace_map)[0]);
 	my $old = $self->{'ref'};
 	my $git = $self->{git};
 	my @export = (qw(fast-export --no-data --use-done-feature), $old);
@@ -533,7 +545,7 @@ sub replace_oids {
 		} elsif (/^M 100644 ([a-f0-9]+) (\w+)/) {
 			my ($oid, $path) = ($1, $2);
 			$tree->{$path} = 1;
-			my $sref = $replace->{$oid};
+			my $sref = $replace_map->{$oid};
 			if (defined $sref) {
 				push @oids, $oid;
 				my $n = length($$sref);
@@ -548,10 +560,12 @@ sub replace_oids {
 			push @buf, $_ if $tree->{$path};
 		} elsif ($_ eq "\n") {
 			if (@oids) {
-				my $out = join('', @buf);
-				$out =~ s/^/# /sgm;
-				warn "purge rewriting\n", $out, "\n";
-				clean_purge_buffer(\@oids, \@buf);
+				if (!$mime) {
+					my $out = join('', @buf);
+					$out =~ s/^/# /sgm;
+					warn "purge rewriting\n", $out, "\n";
+				}
+				rewrite_commit($self, \@oids, \@buf, $mime);
 				$nreplace++;
 			}
 			$w->print(@buf, "\n") or wfail;
@@ -585,7 +599,7 @@ sub replace_oids {
 
 	# check that old OIDs are gone
 	my $err = 0;
-	foreach my $oid (keys %$replace) {
+	foreach my $oid (keys %$replace_map) {
 		my @info = $git->check($oid);
 		if (@info) {
 			warn "$oid not replaced\n";
