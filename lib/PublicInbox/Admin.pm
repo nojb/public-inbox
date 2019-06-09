@@ -9,6 +9,8 @@ use warnings;
 use Cwd 'abs_path';
 use base qw(Exporter);
 our @EXPORT_OK = qw(resolve_repo_dir);
+my $CFG; # all the admin stuff is a singleton
+require PublicInbox::Config;
 
 sub resolve_repo_dir {
 	my ($cd, $ver) = @_;
@@ -78,24 +80,25 @@ sub unconfigured_ibx ($$) {
 	});
 }
 
+sub config () { $CFG //= eval { PublicInbox::Config->new } }
+
 sub resolve_inboxes ($;$) {
 	my ($argv, $opt) = @_;
-	require PublicInbox::Config;
 	require PublicInbox::Inbox;
 	$opt ||= {};
 
-	my $config = eval { PublicInbox::Config->new };
+	my $cfg = config();
 	if ($opt->{all}) {
 		my $cfgfile = PublicInbox::Config::default_file();
-		$config or die "--all specified, but $cfgfile not readable\n";
+		$cfg or die "--all specified, but $cfgfile not readable\n";
 		@$argv and die "--all specified, but directories specified\n";
 	}
 
 	my $min_ver = $opt->{-min_inbox_version} || 0;
 	my (@old, @ibxs);
 	my %dir2ibx;
-	if ($config) {
-		$config->each_inbox(sub {
+	if ($cfg) {
+		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
 			$ibx->{version} ||= 1;
 			$dir2ibx{abs_path($ibx->{mainrepo})} = $ibx;
