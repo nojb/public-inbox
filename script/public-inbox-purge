@@ -7,7 +7,7 @@
 use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use PublicInbox::Admin qw(resolve_repo_dir);
+use PublicInbox::AdminEdit;
 PublicInbox::Admin::check_require('-index');
 require PublicInbox::Filter::Base;
 require PublicInbox::Config;
@@ -19,25 +19,20 @@ require PublicInbox::V2Writable;
 my $usage = "$0 [--all] [INBOX_DIRS] </path/to/message";
 my $config = eval { PublicInbox::Config->new };
 my $cfgfile = PublicInbox::Config::default_file();
-my ($all, $force);
-my $verbose = 1;
-my %opts = (
-	'all' => \$all,
-	'force|f' => \$force,
-	'verbose|v!' => \$verbose,
-);
-GetOptions(%opts) or die "bad command-line args\n", $usage, "\n";
+my $opt = { verbose => 1 };
+GetOptions($opt, @PublicInbox::AdminEdit::OPT) or
+	die "bad command-line args\n$usage\n";
 
 # TODO: clean this up and share code with -index via ::Admin
 my %dir2ibx; # ( path => Inbox object )
 my @inboxes;
 $config and $config->each_inbox(sub {
 	my ($ibx) = @_;
-	push @inboxes, $ibx if $all && $ibx->{version} != 1;
+	push @inboxes, $ibx if $opt->{all} && $ibx->{version} != 1;
 	$dir2ibx{$ibx->{mainrepo}} = $ibx;
 });
 
-if ($all) {
+if ($opt->{all}) {
 	$config or die "--all specified, but $cfgfile not readable\n";
 	@ARGV and die "--all specified, but directories specified\n";
 } else {
@@ -47,7 +42,7 @@ if ($all) {
 
 	foreach my $dir (@dirs) {
 		my $v;
-		my $dir = resolve_repo_dir($dir, \$v);
+		my $dir = PublicInbox::Admin::resolve_repo_dir($dir, \$v);
 		if ($v == 1) {
 			push @err, $dir;
 			next;
@@ -127,7 +122,7 @@ foreach my $ibx (@inboxes) {
 
 	$v2w->done;
 
-	if ($verbose) { # should we consider this machine-parseable?
+	if ($opt->{verbose}) { # should we consider this machine-parseable?
 		print "$ibx->{mainrepo}:";
 		if (scalar @$commits) {
 			print join("\n\t", '', @$commits), "\n";
@@ -139,7 +134,7 @@ foreach my $ibx (@inboxes) {
 }
 
 # behave like "rm -f"
-exit(0) if ($force || $n_purged);
+exit(0) if ($opt->{force} || $n_purged);
 
-warn "Not found\n" if $verbose;
+warn "Not found\n" if $opt->{verbose};
 exit(1);
