@@ -52,8 +52,6 @@ C<$GIT_DIR/public-inbox/> directory.
 
 v2 repositories are described in L<public-inbox-v2-format>.
 
-=back
-
 =head1 ENVIRONMENT
 
 =over 8
