@@ -45,12 +45,7 @@ foreach my $ibx (@ibxs) {
 	$v2w->done;
 
 	if ($opt->{verbose}) { # should we consider this machine-parseable?
-		print "$ibx->{mainrepo}:";
-		if (scalar @$commits) {
-			print join("\n\t", '', @$commits), "\n";
-		} else {
-			print " NONE\n";
-		}
+		PublicInbox::AdminEdit::show_rewrites(\*STDOUT, $ibx, $commits);
 	}
 	$n_purged += scalar @$commits;
 }

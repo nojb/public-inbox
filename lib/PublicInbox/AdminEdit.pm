@@ -47,4 +47,21 @@ sub check_editable ($) {
 	}
 }
 
+# takes the output of V2Writable::purge and V2Writable::replace
+# $rewrites = [ array commits keyed by epoch ]
+sub show_rewrites ($$$) {
+	my ($fh, $ibx, $rewrites) = @_;
+	print $fh "$ibx->{mainrepo}:";
+	if (scalar @$rewrites) {
+		my $epoch = -1;
+		my @out = map {;
+			++$epoch;
+			"$epoch.git: ".(defined($_) ? $_ : '(unchanged)')
+		} @$rewrites;
+		print $fh join("\n\t", '', @out), "\n";
+	} else {
+		print $fh " NONE\n";
+	}
+}
+
 1;

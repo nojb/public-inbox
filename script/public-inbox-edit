@@ -207,7 +207,7 @@ W: possible message boundary splitting error
 
 		next unless $opt->{verbose};
 		# should we consider this machine-parseable?
-		print "$ibx->{mainrepo}:\n\tNONE\n";
+		PublicInbox::AdminEdit::show_rewrites(\*STDOUT, $ibx, []);
 		next;
 	}
 
@@ -223,11 +223,6 @@ W: possible message boundary splitting error
 		}
 		next unless $opt->{verbose};
 		# should we consider this machine-parseable?
-		print "$ibx->{mainrepo}:";
-		if (scalar @$commits) {
-			print join("\n\t", '', @$commits), "\n";
-		} else {
-			print "\tNONE\n";
-		}
+		PublicInbox::AdminEdit::show_rewrites(\*STDOUT, $ibx, $commits);
 	}
 }
