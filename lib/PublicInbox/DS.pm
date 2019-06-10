@@ -239,15 +239,18 @@ sub RunTimers {
     return $timeout;
 }
 
-# Placeholder callback when we hit POLLERR/POLLHUP or other unrecoverable
-# errors.  Shouldn't be needed in the future.
-sub event_end ($) {
+sub event_step ($) {
     my ($self) = @_;
     return if $self->{closed};
-    $self->{wbuf} = [];
-    $self->{wbuf_off} = 0;
 
-    # we're screwed if a read handler can't handle POLLERR/POLLHUP-type errors
+    my $wbuf = $self->{wbuf};
+    if (@$wbuf) {
+        $self->event_write;
+        return if $self->{closed} || scalar(@$wbuf);
+    }
+
+    # only read more requests if we've drained the write buffer,
+    # otherwise we can be buffering infinitely w/o backpressure
     $self->event_read;
 }
 
@@ -270,19 +273,7 @@ sub EpollEventLoop {
             # that ones in the front triggered unregister-interest actions.  if we
             # can't find the %sock entry, it's because we're no longer interested
             # in that event.
-            my PublicInbox::DS $pob = $DescriptorMap{$ev->[0]};
-            my $code;
-            my $state = $ev->[1];
-
-            DebugLevel >= 1 && $class->DebugMsg("Event: fd=%d (%s), state=%d \@ %s\n",
-                                                $ev->[0], ref($pob), $ev->[1], time);
-
-            # standard non-profiling codepat
-            $pob->event_read   if $state & EPOLLIN && ! $pob->{closed};
-            $pob->event_write  if $state & EPOLLOUT && ! $pob->{closed};
-            if ($state & (EPOLLERR|EPOLLHUP) && ! $pob->{closed}) {
-                event_end($pob);
-            }
+            event_step($DescriptorMap{$ev->[0]});
         }
         return unless PostEventLoop();
     }
@@ -327,11 +318,7 @@ sub PollEventLoop {
             my ($fd, $state) = splice(@poll, 0, 2);
             next unless $state;
 
-            $pob = $DescriptorMap{$fd};
-
-            $pob->event_read   if $state & POLLIN && ! $pob->{closed};
-            $pob->event_write  if $state & POLLOUT && ! $pob->{closed};
-            event_end($pob) if $state & (POLLERR|POLLHUP) && ! $pob->{closed};
+            event_step($DescriptorMap{$fd});
         }
 
         return unless PostEventLoop();
@@ -359,16 +346,7 @@ sub KQueueEventLoop {
 
         foreach my $kev (@ret) {
             my ($fd, $filter, $flags, $fflags) = @$kev;
-            my PublicInbox::DS $pob = $DescriptorMap{$fd};
-
-            DebugLevel >= 1 && $class->DebugMsg("Event: fd=%d (%s), flags=%d \@ %s\n",
-                                                        $fd, ref($pob), $flags, time);
-
-            $pob->event_read  if $filter == IO::KQueue::EVFILT_READ()  && !$pob->{closed};
-            $pob->event_write if $filter == IO::KQueue::EVFILT_WRITE() && !$pob->{closed};
-            if ($flags ==  IO::KQueue::EV_EOF() && !$pob->{closed}) {
-                event_end($pob);
-            }
+            event_step($DescriptorMap{$fd});
         }
         return unless PostEventLoop();
     }
@@ -672,11 +650,11 @@ sub on_incomplete_write {
 =head2 (VIRTUAL) C<< $obj->event_read() >>
 
 Readable event handler. Concrete deriviatives of PublicInbox::DS should
-provide an implementation of this. The default implementation will die if
-called.
+provide an implementation of this. The default implementation is a noop
+if called.
 
 =cut
-sub event_read  { die "Base class event_read called for $_[0]\n"; }
+sub event_read {} # noop
 
 =head2 C<< $obj->event_write() >>
 
