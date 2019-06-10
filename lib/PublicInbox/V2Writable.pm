@@ -533,6 +533,9 @@ W: $list
 	my ($oid, $type, $len) = $self->{-inbox}->git->check($expect_oid);
 	$oid eq $expect_oid or die "BUG: $expect_oid not found after replace";
 
+	# don't leak FDs to Xapian:
+	$self->{-inbox}->git->cleanup;
+
 	# reindex modified messages:
 	for my $smsg (@$need_reindex) {
 		my $num = $smsg->{num};
