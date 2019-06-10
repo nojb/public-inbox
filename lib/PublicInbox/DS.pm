@@ -663,36 +663,6 @@ sub on_incomplete_write {
     $self->watch_write(1);
 }
 
-=head2 C<< $obj->read( $bytecount ) >>
-
-Read at most I<bytecount> bytes from the underlying handle; returns scalar
-ref on read, or undef on connection closed.
-
-=cut
-sub read {
-    my PublicInbox::DS $self = shift;
-    return if $self->{closed};
-    my $bytes = shift;
-    my $buf;
-    my $sock = $self->{sock};
-
-    # if this is too high, perl quits(!!).  reports on mailing lists
-    # don't seem to point to a universal answer.  5MB worked for some,
-    # crashed for others.  1MB works for more people.  let's go with 1MB
-    # for now.  :/
-    my $req_bytes = $bytes > 1048576 ? 1048576 : $bytes;
-
-    my $res = sysread($sock, $buf, $req_bytes, 0);
-    DebugLevel >= 2 && $self->debugmsg("sysread = %d; \$! = %d", $res, $!);
-
-    if (! $res && $! != EAGAIN) {
-        # catches 0=conn closed or undef=error
-        return undef;
-    }
-
-    return \$buf;
-}
-
 =head2 (VIRTUAL) C<< $obj->event_read() >>
 
 Readable event handler. Concrete deriviatives of PublicInbox::DS should
