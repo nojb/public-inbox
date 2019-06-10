@@ -954,13 +954,20 @@ sub event_write {
 sub event_read {
 	my ($self) = @_;
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
+	my $rbuf = \($self->{rbuf});
+	my $r;
 
-	if (index($self->{rbuf}, "\n") < 0) {
-		my $buf = $self->read(LINE_MAX) or return $self->close;
-		$self->{rbuf} .= $$buf;
+	if (index($$rbuf, "\n") < 0) {
+		my $off = length($$rbuf);
+		$r = sysread($self->{sock}, $$rbuf, LINE_MAX, $off);
+		unless (defined $r) {
+			return if $!{EAGAIN};
+			return $self->close;
+		}
+		return $self->close if $r == 0;
 	}
-	my $r = 1;
-	while ($r > 0 && $self->{rbuf} =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
+	$r = 1;
+	while ($r > 0 && $$rbuf =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
@@ -972,7 +979,7 @@ sub event_read {
 	}
 
 	return $self->close if $r < 0;
-	my $len = length($self->{rbuf});
+	my $len = length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
 	update_idle_time($self);
 }
