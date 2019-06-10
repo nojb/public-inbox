@@ -14,6 +14,7 @@ use PublicInbox::MID qw(mid_clean mids);
 PublicInbox::Admin::check_require('-index');
 require PublicInbox::MIME;
 require PublicInbox::InboxWritable;
+require PublicInbox::Import;
 
 my $usage = "$0 -m MESSAGE_ID [--all] [INBOX_DIRS]";
 my $opt = { verbose => 1, all => 0, -min_inbox_version => 2, raw => 0 };
@@ -196,6 +197,11 @@ W: possible message boundary splitting error
 
 	my $new_mime = PublicInbox::MIME->new(\$new_raw);
 	my $old_mime = PublicInbox::MIME->new($old_raw);
+
+	# make sure we don't compare unwanted headers, since mutt adds
+	# Content-Length, Status, and Lines headers:
+	PublicInbox::Import::drop_unwanted_headers($new_mime);
+	PublicInbox::Import::drop_unwanted_headers($old_mime);
 
 	# allow changing Received: and maybe other headers which can
 	# contain sensitive info.

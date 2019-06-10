@@ -79,6 +79,24 @@ $t = 'no-op -m MESSAGE_ID'; {
 	is($after, $before, 'git head unchanged');
 }
 
+$t = 'no-op -m MESSAGE_ID w/Status: header'; { # because mutt does it
+	$in = $out = $err = '';
+	my $before = `git $__git_dir rev-parse HEAD`;
+	local $ENV{MAIL_EDITOR} =
+			"$^X -i -p -e 's/^Subject:.*/Status: RO\\n\$&/'";
+	$cmd = [ "$cmd_pfx-edit", "-m$mid", $mainrepo ];
+	ok(run($cmd, \$in, \$out, \$err), "$t succeeds");
+	my $prev = $cur;
+	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	is_deeply($cur, $prev, "$t makes no change");
+	like($cur->header('Subject'), qr/boolean prefix/,
+		"$t does not change message");
+	is($cur->header('Status'), undef, 'Status header not added');
+	like($out, qr/NONE/, 'noop shows NONE');
+	my $after = `git $__git_dir rev-parse HEAD`;
+	is($after, $before, 'git head unchanged');
+}
+
 $t = '-m MESSAGE_ID can change Received: headers'; {
 	$in = $out = $err = '';
 	my $before = `git $__git_dir rev-parse HEAD`;
