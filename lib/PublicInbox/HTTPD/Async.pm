@@ -76,8 +76,6 @@ sub async_pass {
 }
 
 sub event_read { $_[0]->{cb}->(@_) }
-sub event_hup { $_[0]->{cb}->(@_) }
-sub event_err { $_[0]->{cb}->(@_) }
 
 sub close {
 	my $self = shift;

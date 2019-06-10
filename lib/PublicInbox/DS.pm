@@ -239,6 +239,18 @@ sub RunTimers {
     return $timeout;
 }
 
+# Placeholder callback when we hit POLLERR/POLLHUP or other unrecoverable
+# errors.  Shouldn't be needed in the future.
+sub event_end ($) {
+    my ($self) = @_;
+    return if $self->{closed};
+    $self->{wbuf} = [];
+    $self->{wbuf_off} = 0;
+
+    # we're screwed if a read handler can't handle POLLERR/POLLHUP-type errors
+    $self->event_read;
+}
+
 ### The epoll-based event loop. Gets installed as EventLoop if IO::Epoll loads
 ### okay.
 sub EpollEventLoop {
@@ -268,9 +280,8 @@ sub EpollEventLoop {
             # standard non-profiling codepat
             $pob->event_read   if $state & EPOLLIN && ! $pob->{closed};
             $pob->event_write  if $state & EPOLLOUT && ! $pob->{closed};
-            if ($state & (EPOLLERR|EPOLLHUP)) {
-                $pob->event_err    if $state & EPOLLERR && ! $pob->{closed};
-                $pob->event_hup    if $state & EPOLLHUP && ! $pob->{closed};
+            if ($state & (EPOLLERR|EPOLLHUP) && ! $pob->{closed}) {
+                event_end($pob);
             }
         }
         return unless PostEventLoop();
@@ -320,8 +331,7 @@ sub PollEventLoop {
 
             $pob->event_read   if $state & POLLIN && ! $pob->{closed};
             $pob->event_write  if $state & POLLOUT && ! $pob->{closed};
-            $pob->event_err    if $state & POLLERR && ! $pob->{closed};
-            $pob->event_hup    if $state & POLLHUP && ! $pob->{closed};
+            event_end($pob) if $state & (POLLERR|POLLHUP) && ! $pob->{closed};
         }
 
         return unless PostEventLoop();
@@ -357,11 +367,7 @@ sub KQueueEventLoop {
             $pob->event_read  if $filter == IO::KQueue::EVFILT_READ()  && !$pob->{closed};
             $pob->event_write if $filter == IO::KQueue::EVFILT_WRITE() && !$pob->{closed};
             if ($flags ==  IO::KQueue::EV_EOF() && !$pob->{closed}) {
-                if ($fflags) {
-                    $pob->event_err;
-                } else {
-                    $pob->event_hup;
-                }
+                event_end($pob);
             }
         }
         return unless PostEventLoop();
@@ -671,24 +677,6 @@ called.
 
 =cut
 sub event_read  { die "Base class event_read called for $_[0]\n"; }
-
-=head2 (VIRTUAL) C<< $obj->event_err() >>
-
-Error event handler. Concrete deriviatives of PublicInbox::DS should
-provide an implementation of this. The default implementation will die if
-called.
-
-=cut
-sub event_err   { die "Base class event_err called for $_[0]\n"; }
-
-=head2 (VIRTUAL) C<< $obj->event_hup() >>
-
-'Hangup' event handler. Concrete deriviatives of PublicInbox::DS should
-provide an implementation of this. The default implementation will die if
-called.
-
-=cut
-sub event_hup   { die "Base class event_hup called for $_[0]\n"; }
 
 =head2 C<< $obj->event_write() >>
 

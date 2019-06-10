@@ -937,11 +937,6 @@ sub do_more ($$) {
 	do_write($self, $data);
 }
 
-# callbacks for PublicInbox::DS
-
-sub event_hup { $_[0]->close }
-sub event_err { $_[0]->close }
-
 sub event_write {
 	my ($self) = @_;
 	update_idle_time($self);

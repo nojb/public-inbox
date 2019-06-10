@@ -466,11 +466,6 @@ sub quit {
 	$self->close;
 }
 
-# callbacks for PublicInbox::DS
-
-sub event_hup { $_[0]->close }
-sub event_err { $_[0]->close }
-
 sub close {
 	my $self = shift;
 	my $forward = $self->{forward};
