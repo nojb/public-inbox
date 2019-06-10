@@ -26,7 +26,6 @@ use warnings;
 use PublicInbox::Syscall qw(:epoll);
 
 use fields ('sock',              # underlying socket
-            'fd',                # numeric file descriptor
             'wbuf',              # arrayref of scalars, scalarrefs, or coderefs to write
             'wbuf_off',  # offset into first element of wbuf to start writing at
             'closed',            # bool: socket is closed
@@ -440,13 +439,12 @@ sub new {
     my ($self, $sock, $exclusive) = @_;
     $self = fields::new($self) unless ref $self;
 
-    $self->{sock}        = $sock;
+    $self->{sock} = $sock;
     my $fd = fileno($sock);
 
     Carp::cluck("undef sock and/or fd in PublicInbox::DS->new.  sock=" . ($sock || "") . ", fd=" . ($fd || ""))
         unless $sock && $fd;
 
-    $self->{fd}          = $fd;
     $self->{wbuf} = [];
     $self->{wbuf_off} = 0;
     $self->{closed} = 0;
@@ -523,9 +521,8 @@ sub close {
 
     # defer closing the actual socket until the event loop is done
     # processing this round of events.  (otherwise we might reuse fds)
-    if ($self->{sock}) {
-        push @ToClose, $self->{sock};
-        $self->{sock} = undef;
+    if (my $sock = delete $self->{sock}) {
+        push @ToClose, $sock;
     }
 
     return 0;
@@ -546,11 +543,10 @@ sub _cleanup {
 
     # if we're using epoll, we have to remove this from our epoll fd so we stop getting
     # notifications about it
-    if ($HaveEpoll && $self->{fd}) {
-        if (epoll_ctl($Epoll, EPOLL_CTL_DEL, $self->{fd}, $self->{event_watch}) != 0) {
-            # dump_error prints a backtrace so we can try to figure out why this happened
-            $self->dump_error("epoll_ctl(): failure deleting fd=$self->{fd} during _cleanup(); $! (" . ($!+0) . ")");
-        }
+    if ($HaveEpoll && $self->{sock}) {
+        my $fd = fileno($self->{sock});
+        epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, $self->{event_watch}) and
+            confess("EPOLL_CTL_DEL: $!");
     }
 
     # we explicitly don't delete from DescriptorMap here until we
@@ -561,9 +557,6 @@ sub _cleanup {
     # looked at $pob->{closed} and ignore it.  but if it's an
     # un-accounted for fd, then it (understandably) freak out a bit
     # and emit warnings, thinking their state got off.
-
-    # and finally get rid of our fd so we can't use it anywhere else
-    $self->{fd} = undef;
 }
 
 =head2 C<< $obj->sock() >>
@@ -660,8 +653,6 @@ sub write {
 
             return $self->close;
         } elsif ($written != $to_write) {
-            DebugLevel >= 2 && $self->debugmsg("Wrote PARTIAL %d bytes to %d",
-                                               $written, $self->{fd});
             if ($need_queue) {
                 push @$wbuf, $bref;
             }
@@ -671,8 +662,6 @@ sub write {
             $self->on_incomplete_write;
             return 0;
         } elsif ($written == $to_write) {
-            DebugLevel >= 2 && $self->debugmsg("Wrote ALL %d bytes to %d (nq=%d)",
-                                               $written, $self->{fd}, $need_queue);
             $self->{wbuf_off} = 0;
             $self->watch_write(0);
 
@@ -718,7 +707,6 @@ sub read {
 
     if (! $res && $! != EAGAIN) {
         # catches 0=conn closed or undef=error
-        DebugLevel >= 2 && $self->debugmsg("Fd \#%d read hit the end of the road.", $self->{fd});
         return undef;
     }
 
@@ -779,16 +767,16 @@ sub watch_read {
     $event &= ~POLLIN if ! $val;
     $event |=  POLLIN if   $val;
 
+    my $fd = fileno($self->{sock});
     # If it changed, set it
     if ($event != $self->{event_watch}) {
         if ($HaveKQueue) {
-            $KQueue->EV_SET($self->{fd}, IO::KQueue::EVFILT_READ(),
+            $KQueue->EV_SET($fd, IO::KQueue::EVFILT_READ(),
                             $val ? IO::KQueue::EV_ENABLE() : IO::KQueue::EV_DISABLE());
         }
         elsif ($HaveEpoll) {
-            epoll_ctl($Epoll, EPOLL_CTL_MOD, $self->{fd}, $event)
-                and $self->dump_error("couldn't modify epoll settings for $self->{fd} " .
-                                      "from $self->{event_watch} -> $event: $! (" . ($!+0) . ")");
+            epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
+                confess("EPOLL_CTL_MOD: $!");
         }
         $self->{event_watch} = $event;
     }
@@ -808,17 +796,17 @@ sub watch_write {
 
     $event &= ~POLLOUT if ! $val;
     $event |=  POLLOUT if   $val;
+    my $fd = fileno($self->{sock});
 
     # If it changed, set it
     if ($event != $self->{event_watch}) {
         if ($HaveKQueue) {
-            $KQueue->EV_SET($self->{fd}, IO::KQueue::EVFILT_WRITE(),
+            $KQueue->EV_SET($fd, IO::KQueue::EVFILT_WRITE(),
                             $val ? IO::KQueue::EV_ENABLE() : IO::KQueue::EV_DISABLE());
         }
         elsif ($HaveEpoll) {
-            epoll_ctl($Epoll, EPOLL_CTL_MOD, $self->{fd}, $event)
-                and $self->dump_error("couldn't modify epoll settings for $self->{fd} " .
-                                      "from $self->{event_watch} -> $event: $! (" . ($!+0) . ")");
+            epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
+                    confess "EPOLL_CTL_MOD: $!";
         }
         $self->{event_watch} = $event;
     }

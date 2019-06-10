@@ -66,7 +66,8 @@ sub next_tick () {
 
 sub update_idle_time ($) {
 	my ($self) = @_;
-	my $fd = $self->{fd};
+        my $sock = $self->{sock} or return;
+	my $fd = fileno($sock);
 	defined $fd and $EXPMAP->{$fd} = [ now(), $self ];
 }
 
@@ -595,7 +596,7 @@ sub long_response ($$) {
 	my ($self, $cb) = @_;
 	die "BUG: nested long response" if $self->{long_res};
 
-	my $fd = $self->{fd};
+	my $fd = fileno($self->{sock});
 	defined $fd or return;
 	# make sure we disable reading during a long response,
 	# clients should not be sending us stuff and making us do more
@@ -963,7 +964,7 @@ sub event_read {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
-		my $fd = $self->{fd};
+		my $fd = fileno($self->{sock});
 		$r = eval { process_line($self, $line) };
 		my $d = $self->{long_res} ?
 			" deferred[$fd]" : '';
@@ -995,7 +996,8 @@ sub check_read {
 
 sub not_idle_long ($$) {
 	my ($self, $now) = @_;
-	defined(my $fd = $self->{fd}) or return;
+        my $sock = $self->{sock} or return;
+	defined(my $fd = fileno($sock)) or return;
 	my $ary = $EXPMAP->{$fd} or return;
 	my $exp_at = $ary->[0] + $EXPTIME;
 	$exp_at > $now;
