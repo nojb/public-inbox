@@ -487,26 +487,6 @@ retry:
 ### I N S T A N C E   M E T H O D S
 #####################################################################
 
-=head2 C<< $obj->steal_socket() >>
-
-Basically returns our socket and makes it so that we don't try to close it,
-but we do remove it from epoll handlers.  THIS CLOSES $self.  It is the same
-thing as calling close, except it gives you the socket to use.
-
-=cut
-sub steal_socket {
-    my PublicInbox::DS $self = $_[0];
-    return if $self->{closed};
-
-    # cleanup does most of the work of closing this socket
-    $self->_cleanup();
-
-    # now undef our internal sock and fd structures so we don't use them
-    my $sock = $self->{sock};
-    $self->{sock} = undef;
-    return $sock;
-}
-
 =head2 C<< $obj->close >>
 
 Close the socket.
