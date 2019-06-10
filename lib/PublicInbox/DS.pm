@@ -27,9 +27,8 @@ use PublicInbox::Syscall qw(:epoll);
 
 use fields ('sock',              # underlying socket
             'fd',                # numeric file descriptor
-            'write_buf',         # arrayref of scalars, scalarrefs, or coderefs to write
-            'write_buf_offset',  # offset into first array of write_buf to start writing at
-            'write_buf_size',    # total length of data in all write_buf items
+            'wbuf',              # arrayref of scalars, scalarrefs, or coderefs to write
+            'wbuf_off',  # offset into first element of wbuf to start writing at
             'closed',            # bool: socket is closed
             'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
             );
@@ -449,9 +448,8 @@ sub new {
         unless $sock && $fd;
 
     $self->{fd}          = $fd;
-    $self->{write_buf}      = [];
-    $self->{write_buf_offset} = 0;
-    $self->{write_buf_size} = 0;
+    $self->{wbuf} = [];
+    $self->{wbuf_off} = 0;
     $self->{closed} = 0;
 
     my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
@@ -552,7 +550,7 @@ sub _cleanup {
     # we need to flush our write buffer, as there may
     # be self-referential closures (sub { $client->close })
     # preventing the object from being destroyed
-    $self->{write_buf} = [];
+    @{$self->{wbuf}} = ();
 
     # if we're using epoll, we have to remove this from our epoll fd so we stop getting
     # notifications about it
@@ -612,12 +610,12 @@ sub write {
 
     # just queue data if there's already a wait
     my $need_queue;
+    my $wbuf = $self->{wbuf};
 
     if (defined $data) {
         $bref = ref $data ? $data : \$data;
-        if ($self->{write_buf_size}) {
-            push @{$self->{write_buf}}, $bref;
-            $self->{write_buf_size} += ref $bref eq "SCALAR" ? length($$bref) : 1;
+        if (scalar @$wbuf) {
+            push @$wbuf, $bref;
             return 0;
         }
 
@@ -629,7 +627,7 @@ sub write {
 
   WRITE:
     while (1) {
-        return 1 unless $bref ||= $self->{write_buf}[0];
+        return 1 unless $bref ||= $wbuf->[0];
 
         my $len;
         eval {
@@ -638,8 +636,7 @@ sub write {
         if ($@) {
             if (UNIVERSAL::isa($bref, "CODE")) {
                 unless ($need_queue) {
-                    $self->{write_buf_size}--; # code refs are worth 1
-                    shift @{$self->{write_buf}};
+                    shift @$wbuf;
                 }
                 $bref->();
 
@@ -654,9 +651,9 @@ sub write {
             die "Write error: $@ <$bref>";
         }
 
-        my $to_write = $len - $self->{write_buf_offset};
+        my $to_write = $len - $self->{wbuf_off};
         my $written = syswrite($self->{sock}, $$bref, $to_write,
-                               $self->{write_buf_offset});
+                               $self->{wbuf_off});
 
         if (! defined $written) {
             if ($! == EPIPE) {
@@ -665,8 +662,7 @@ sub write {
                 # since connection has stuff to write, it should now be
                 # interested in pending writes:
                 if ($need_queue) {
-                    push @{$self->{write_buf}}, $bref;
-                    $self->{write_buf_size} += $len;
+                    push @$wbuf, $bref;
                 }
                 $self->watch_write(1);
                 return 0;
@@ -681,19 +677,17 @@ sub write {
             DebugLevel >= 2 && $self->debugmsg("Wrote PARTIAL %d bytes to %d",
                                                $written, $self->{fd});
             if ($need_queue) {
-                push @{$self->{write_buf}}, $bref;
-                $self->{write_buf_size} += $len;
+                push @$wbuf, $bref;
             }
             # since connection has stuff to write, it should now be
             # interested in pending writes:
-            $self->{write_buf_offset} += $written;
-            $self->{write_buf_size} -= $written;
+            $self->{wbuf_off} += $written;
             $self->on_incomplete_write;
             return 0;
         } elsif ($written == $to_write) {
             DebugLevel >= 2 && $self->debugmsg("Wrote ALL %d bytes to %d (nq=%d)",
                                                $written, $self->{fd}, $need_queue);
-            $self->{write_buf_offset} = 0;
+            $self->{wbuf_off} = 0;
             $self->watch_write(0);
 
             # this was our only write, so we can return immediately
@@ -702,8 +696,7 @@ sub write {
             # can't be anything else to write.
             return 1 if $need_queue;
 
-            $self->{write_buf_size} -= $written;
-            shift @{$self->{write_buf}};
+            shift @$wbuf;
             undef $bref;
             next WRITE;
         }

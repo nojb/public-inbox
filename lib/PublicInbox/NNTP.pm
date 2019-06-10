@@ -619,7 +619,7 @@ sub long_response ($$) {
 				update_idle_time($self);
 				check_read($self);
 			}
-		} elsif ($more) { # $self->{write_buf_size}:
+		} elsif ($more) { # scalar @{$self->{wbuf}}:
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			update_idle_time($self);
@@ -925,7 +925,7 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
 sub do_more ($$) {
 	my ($self, $data) = @_;
-	if (MSG_MORE && !$self->{write_buf_size}) {
+	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
 		if (defined $n) {
 			my $dlen = length($data);
@@ -1004,8 +1004,8 @@ sub not_idle_long ($$) {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy {
 	my ($self, $now) = @_;
-	($self->{rbuf} ne '' || $self->{long_res} || $self->{write_buf_size} ||
-	 not_idle_long($self, $now));
+	($self->{rbuf} ne '' || $self->{long_res} ||
+		scalar(@{$self->{wbuf}}) || not_idle_long($self, $now));
 }
 
 1;

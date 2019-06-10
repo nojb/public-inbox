@@ -46,7 +46,7 @@ sub main_cb ($$$) {
 		if ($r) {
 			$fh->write($$bref);
 			unless ($http->{closed}) { # PublicInbox::DS sets this
-				if ($http->{write_buf_size}) {
+				if (scalar @{$http->{wbuf}}) {
 					$self->watch_read(0);
 					$http->write(restart_read_cb($self));
 				}
