@@ -138,7 +138,7 @@ foreach my $to_edit (values %$found) {
 
 	# run the editor, respecting spaces/quote
 retry_edit:
-	if (system(qw(sh -c), qq(eval "$editor" '"\$@"'), '--', $edit_fn)) {
+	if (system(qw(sh -c), $editor.' "$@"', $editor, $edit_fn)) {
 		if (!(-t STDIN) && !$opt->{force}) {
 			die "E: $editor failed: $?\n";
 		}
