@@ -121,7 +121,7 @@ $mids
 
 my $tmpl = 'public-inbox-edit-XXXXXX';
 foreach my $to_edit (values %$found) {
-	my ($edit_fh, $edit_fn) = tempfile($tmpl, TMPDIR => 1);
+	my ($edit_fh, $edit_fn) = tempfile($tmpl, TMPDIR => 1, UNLINK => 1);
 	$edit_fh->autoflush(1);
 	my ($ibx, $smsg) = @{$to_edit->[0]};
 	my $old_raw = $ibx->msg_by_smsg($smsg);
