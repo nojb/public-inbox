@@ -23,7 +23,14 @@ use IO::Handle;
 # an estimate of the post-packed size to the raw uncompressed size
 my $PACKING_FACTOR = 0.4;
 
-# assume 2 cores if GNU nproc(1) is not available
+# SATA storage lags behind what CPUs are capable of, so relying on
+# nproc(1) can be misleading and having extra Xapian partions is a
+# waste of FDs and space.  It can also lead to excessive IO latency
+# and slow things down.  Users on NVME or other fast storage can
+# use the NPROC env or switches in our script/public-inbox-* programs
+# to increase Xapian partitions.
+our $NPROC_MAX_DEFAULT = 4;
+
 sub nproc_parts ($) {
 	my ($creat_opt) = @_;
 	if (ref($creat_opt) eq 'HASH') {
@@ -32,7 +39,14 @@ sub nproc_parts ($) {
 		}
 	}
 
-	my $n = int($ENV{NPROC} || `nproc 2>/dev/null` || 2);
+	my $n = $ENV{NPROC};
+	if (!$n) {
+		chomp($n = `nproc 2>/dev/null`);
+		# assume 2 cores if GNU nproc(1) is not available
+		$n = 2 if !$n;
+		$n = $NPROC_MAX_DEFAULT if $NPROC_MAX_DEFAULT > 4;
+	}
+
 	# subtract for the main process and git-fast-import
 	$n -= 1;
 	$n < 1 ? 1 : $n;
