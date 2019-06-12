@@ -198,10 +198,11 @@ sub cpdb_retryable ($$) {
 }
 
 sub progress_pfx ($) {
-	my @p = split('/', $_[0]);
+	my ($wip) = @_; # tempdir v2: ([0-9])+-XXXXXXXX
+	my @p = split('/', $wip);
 
 	# return "xap15/0" for v2, or "xapian15" for v1:
-	($p[-1] =~ /\A[0-9]+\z/) ? "$p[-2]/$p[-1]" : $p[-1];
+	($p[-1] =~ /\A([0-9]+)/) ? "$p[-2]/$1" : $p[-1];
 }
 
 # xapian-compact wrapper
@@ -268,7 +269,7 @@ sub cpdb ($$) {
 	my ($it, $end);
 	my ($nr, $tot, $fmt); # progress output
 	my $pr = $opt->{-progress};
-	my $pfx = $opt->{-progress_pfx} = progress_pfx($old);
+	my $pfx = $opt->{-progress_pfx} = progress_pfx($new);
 
 	do {
 		eval {
