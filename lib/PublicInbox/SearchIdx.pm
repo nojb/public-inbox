@@ -117,7 +117,11 @@ sub _xdb_acquire {
 		}
 	}
 	return unless defined $flag;
-	$self->{xdb} = Search::Xapian::WritableDatabase->new($dir, $flag);
+	my $xdb = eval { Search::Xapian::WritableDatabase->new($dir, $flag) };
+	if ($@) {
+		die "Failed opening $dir: ", $@;
+	}
+	$self->{xdb} = $xdb;
 }
 
 sub add_val ($$$) {
