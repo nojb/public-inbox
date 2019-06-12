@@ -145,7 +145,8 @@ sub run {
 	if ($v == 1) {
 		my $old_parent = dirname($old);
 		same_fs_or_die($old_parent, $old);
-		$tmp->{$old} = tempdir('xapcmd-XXXXXXXX', DIR => $old_parent);
+		my $v = PublicInbox::Search::SCHEMA_VERSION();
+		$tmp->{$old} = tempdir("xapian$v-XXXXXXXX", DIR => $old_parent);
 		push @q, [ $old, $tmp->{$old} ];
 	} else {
 		opendir my $dh, $old or die "Failed to opendir $old: $!\n";
@@ -276,7 +277,7 @@ sub cpdb ($$) {
 			$dst->set_metadata('last_commit', $lc) if $lc;
 
 			# only the first xapian partition (0) gets 'indexlevel'
-			if ($old =~ m!(?:xapian[0-9]+|xap[0-9]+/0)\z!) {
+			if ($new =~ m!(?:xapian[0-9]+|xap[0-9]+/0)\b!) {
 				my $l = $src->get_metadata('indexlevel');
 				if ($l eq 'medium') {
 					$dst->set_metadata('indexlevel', $l);
