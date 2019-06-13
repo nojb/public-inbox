@@ -25,12 +25,6 @@ sub wrap {
 	bless { mid => $mid }, $class;
 }
 
-sub get {
-	my ($class, $head, $db, $mid) = @_;
-	my $doc_id = $head->get_docid;
-	load_expand(wrap($class, $mid), $db->get_document($doc_id));
-}
-
 sub get_val ($$) {
 	my ($doc, $col) = @_;
 	Search::Xapian::sortable_unserialise($doc->get_value($col));
