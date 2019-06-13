@@ -3,6 +3,8 @@
 
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use POSIX qw(dup2);
+use strict;
+use warnings;
 
 sub stream_to_string {
 	my ($res) = @_;
@@ -48,7 +50,7 @@ sub require_git ($;$) {
 	my $cur_int = ($cur_maj << 24) | ($cur_min << 16);
 	if ($cur_int < $req_int) {
 		return 0 if $maybe;
-		plan skip_all => "git $req+ required, have $git_ver";
+		plan skip_all => "git $req+ required, have $cur_maj.$cur_min";
 	}
 	1;
 }
