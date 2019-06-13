@@ -30,6 +30,17 @@ preferable for gigantic inboxes where the coarse-grained lock
 currently required for L<public-inbox-compact(1)> can cause
 the compaction to take hours at-a-time.
 
+=item --reshard=N / -R N
+
+Repartition the Xapian database on a L<v2|public-inbox-v2-format(5)>
+inbox to C<N> partitions.  Since L<xapian-compact(1)> is not suitable
+for merging, users can rely on this switch to repartition the
+existing Xapian database(s) to any positive value of C<N>.
+
+This is useful in case the Xapian DB was created with too few or
+too many partitions given the capabilities of the current
+hardware.
+
 =item --blocksize / --no-full / --fuller
 
 These options are passed directly to L<xapian-compact(1)> when

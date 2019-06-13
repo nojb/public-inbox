@@ -258,3 +258,4 @@ t/view.t
 t/watch_filter_rubylang.t
 t/watch_maildir.t
 t/watch_maildir_v2.t
+t/xcpdb-reshard.t
