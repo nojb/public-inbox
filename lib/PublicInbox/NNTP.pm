@@ -519,6 +519,13 @@ sub _header ($) {
 	my $hdr = $_[0]->header_obj->as_string;
 	utf8::encode($hdr);
 	$hdr =~ s/(?<!\r)\n/\r\n/sg;
+
+	# for leafnode compatibility, we need to ensure Message-ID headers
+	# are only a single line.  We can't subclass Email::Simple::Header
+	# and override _default_fold_at in here, either; since that won't
+	# affect messages already in the archive.
+	$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
+
 	$hdr
 }
 

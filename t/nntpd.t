@@ -231,6 +231,26 @@ EOF
 		ok($date >= $t0, 'valid date after start');
 		ok($date <= $t1, 'valid date before stop');
 	}
+	if ('leafnode interop') {
+		my $for_leafnode = PublicInbox::MIME->new(<<"");
+From: longheader\@example.com
+To: $addr
+Subject: none
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+		my $long_hdr = 'for-leafnode-'.('y'x200).'@example.com';
+		$for_leafnode->header_set('Message-ID', "<$long_hdr>");
+		$im->add($for_leafnode);
+		$im->done;
+		if ($version == 1) {
+			my $s = PublicInbox::SearchIdx->new($mainrepo, 1);
+			$s->index_sync;
+		}
+		my $hdr = $n->head("<$long_hdr>");
+		my $expect = qr/\AMessage-ID: /i . qr/\Q<$long_hdr>\E/;
+		ok(scalar(grep(/$expect/, @$hdr)), 'Message-ID not folded');
+		ok(scalar(grep(/^Path:/, @$hdr)), 'Path: header found');
+	}
 
 	# pipelined requests:
 	{
