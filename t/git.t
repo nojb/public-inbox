@@ -33,33 +33,7 @@ use_ok 'PublicInbox::Git';
 	my $raw = $gcf->cat_file($f);
 	is($x[2], length($$raw), 'length matches');
 
-	{
-		my $size;
-		my $rv = $gcf->cat_file($f, sub {
-			my ($in, $left) = @_;
-			$size = $$left;
-			'nothing'
-		});
-		is($rv, 'nothing', 'returned from callback without reading');
-		is($size, $x[2], 'set size for callback correctly');
-	}
-
-	eval { $gcf->cat_file($f, sub { die 'OMG' }) };
-	like($@, qr/\bOMG\b/, 'died in callback propagated');
 	is(${$gcf->cat_file($f)}, $$raw, 'not broken after failures');
-
-	{
-		my ($buf, $r);
-		my $rv = $gcf->cat_file($f, sub {
-			my ($in, $left) = @_;
-			$r = read($in, $buf, 2);
-			$$left -= $r;
-			'blah'
-		});
-		is($r, 2, 'only read 2 bytes');
-		is($buf, '--', 'partial read succeeded');
-		is($rv, 'blah', 'return value propagated');
-	}
 	is(${$gcf->cat_file($f)}, $$raw, 'not broken after partial read');
 }
 
@@ -79,44 +53,12 @@ if (1) {
 
 	my $gcf = PublicInbox::Git->new($dir);
 	my $rsize;
-	is($gcf->cat_file($buf, sub {
-		$rsize = ${$_[1]};
-		'x';
-	}), 'x', 'checked input');
-	is($rsize, $size, 'got correct size on big file');
-
 	my $x = $gcf->cat_file($buf, \$rsize);
 	is($rsize, $size, 'got correct size ref on big file');
 	is(length($$x), $size, 'read correct number of bytes');
 
-	my $rline;
-	$gcf->cat_file($buf, sub {
-		my ($in, $left) = @_;
-		$rline = <$in>;
-		$$left -= length($rline);
-	});
-	{
-		open my $fh, '<', $big_data or die "open failed: $!\n";
-		is($rline, <$fh>, 'first line matches');
-	};
-
-	my $all;
-	$gcf->cat_file($buf, sub {
-		my ($in, $left) = @_;
-		my $x = read($in, $all, $$left);
-		$$left -= $x;
-	});
-	{
-		open my $fh, '<', $big_data or die "open failed: $!\n";
-		local $/;
-		is($all, <$fh>, 'entire read matches');
-	};
-
 	my $ref = $gcf->qx(qw(cat-file blob), $buf);
-	is($all, $ref, 'qx read giant single string');
-
 	my @ref = $gcf->qx(qw(cat-file blob), $buf);
-	is($all, join('', @ref), 'qx returned array when wanted');
 	my $nl = scalar @ref;
 	ok($nl > 1, "qx returned array length of $nl");
 

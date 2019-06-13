@@ -145,41 +145,24 @@ again:
 		fail($self, "Unexpected result from git cat-file: $head");
 
 	my $size = $1;
-	my $ref_type = $ref ? ref($ref) : '';
-
 	my $rv;
 	my $left = $size;
-	$$ref = $size if ($ref_type eq 'SCALAR');
-	my $cb_err;
+	$$ref = $size if $ref;
 
-	if ($ref_type eq 'CODE') {
-		$rv = eval { $ref->($in, \$left) };
-		$cb_err = $@;
-		# drain the rest
-		my $max = 8192;
-		while ($left > 0) {
-			my $r = read($in, my $x, $left > $max ? $max : $left);
-			defined($r) or fail($self, "read failed: $!");
-			$r == 0 and fail($self, 'exited unexpectedly');
-			$left -= $r;
-		}
-	} else {
-		my $offset = 0;
-		my $buf = '';
-		while ($left > 0) {
-			my $r = read($in, $buf, $left, $offset);
-			defined($r) or fail($self, "read failed: $!");
-			$r == 0 and fail($self, 'exited unexpectedly');
-			$left -= $r;
-			$offset += $r;
-		}
-		$rv = \$buf;
+	my $offset = 0;
+	my $buf = '';
+	while ($left > 0) {
+		my $r = read($in, $buf, $left, $offset);
+		defined($r) or fail($self, "read failed: $!");
+		$r == 0 and fail($self, 'exited unexpectedly');
+		$left -= $r;
+		$offset += $r;
 	}
+	$rv = \$buf;
 
-	my $r = read($in, my $buf, 1);
+	my $r = read($in, my $lf, 1);
 	defined($r) or fail($self, "read failed: $!");
-	fail($self, 'newline missing after blob') if ($r != 1 || $buf ne "\n");
-	die $cb_err if $cb_err;
+	fail($self, 'newline missing after blob') if ($r != 1 || $lf ne "\n");
 
 	$rv;
 }
