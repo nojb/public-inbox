@@ -434,6 +434,10 @@ sub xref ($$$$) {
 sub set_nntp_headers ($$$$$) {
 	my ($self, $hdr, $ng, $n, $mid) = @_;
 
+	# why? leafnode requires a Path: header for some inexplicable
+	# reason.  We'll fake the shortest one possible.
+	$hdr->header_set('Path', 'y');
+
 	# clobber some
 	my $xref = xref($self, $ng, $n, $mid);
 	$hdr->header_set('Xref', $xref);
