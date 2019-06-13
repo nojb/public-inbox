@@ -28,6 +28,11 @@ WriteMakefile(
 		# We also depend on git.
 		# Keep this sorted and synced to the INSTALL document
 		'Date::Parse' => 0,
+
+		# libperl$PERL_VERSION,
+		# `perl5' on FreeBSD
+		# perl-Digest-SHA on RH-based
+		'Digest::SHA' => 0,
 		'Email::MIME' => 0,
 
 		# the following should be pulled in by Email::MIME:
@@ -44,6 +49,14 @@ WriteMakefile(
 
 		# We have more test dependencies, but do not force
 		# users to install them.  See INSTALL
+
+		# All Perl installs I know about have these, but RH-based
+		# distros make them separate even though 'perl' pulls them in
+		'File::Path' => 0,
+		'File::Temp' => 0,
+		'Getopt::Long' => 0,
+		'Exporter' => 0,
+		# ExtUtils::MakeMaker # this file won't run w/o it...
 	},
 	MAN3PODS => \%man3,
 );

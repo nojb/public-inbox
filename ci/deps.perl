@@ -9,9 +9,11 @@ my $usage = "$0 PKG_FMT PROFILE [PROFILE_MOD]";
 my $pkg_fmt = shift;
 @ARGV or die $usage, "\n";
 
+my @test_essential = qw(Test::Simple Plack::Test);
+
 # package profiles
 my $profiles = {
-	# the smallest possible profile
+	# the smallest possible profile for testing
 	# TODO: trim this, Plack pulls in Filesys::Notify::Simple,
 	# and we don't need that for mda-only installs
 	essential => [ qw(
@@ -19,14 +21,16 @@ my $profiles = {
 		perl
 		Date::Parse
 		Devel::Peek
+		Digest::SHA
 		Email::Simple
 		Email::MIME
 		Email::MIME::ContentType
 		Encode
+		ExtUtils::MakeMaker
 		Filesys::Notify::Simple
 		Plack
 		URI::Escape
-		) ],
+		), @test_essential ],
 
 	# everything optional for normal use
 	optional => [ qw(
@@ -44,10 +48,9 @@ my $profiles = {
 		xapian-compact
 		) ],
 
-	# developer stuff
+	# optional developer stuff
 	devtest => [ qw(
 		IPC::Run
-		Test::HTTP::Server::Simple
 		XML::Feed
 		curl
 		w3m
@@ -86,21 +89,40 @@ my $non_auto = {
 		deb => 'perl', # libperl5.XX, but the XX varies
 		pkg => 'perl5',
 	},
+	'Digest::SHA' => {
+		deb => 'perl', # libperl5.XX, but the XX varies
+		pkg => 'perl5',
+	},
 	'Encode' => {
 		deb => 'perl', # libperl5.XX, but the XX varies
 		pkg => 'perl5',
 		rpm => 'perl-Encode',
 	},
+	'ExtUtils::MakeMaker' => {
+		deb => 'perl', # perl-modules-5.xx
+		pkg => 'perl5',
+		rpm => 'perl-ExtUtils-MakeMaker',
+	},
 	'IO::Compress::Gzip' => {
 		deb => 'perl', # perl-modules-5.xx
 		pkg => 'perl5',
-		rpm => 'perl-PerlIO-gzip',
+		rpm => 'perl-IO-Compress',
 	},
 	'DBD::SQLite' => { deb => 'libdbd-sqlite3-perl' },
+	'Plack::Test' => {
+		deb => 'libplack-perl',
+		pkg => 'p5-Plack',
+		rpm => 'perl-Plack-Test',
+	},
 	'URI::Escape' => {
 		deb => 'liburi-perl',
 		pkg => 'p5-URI',
 		rpm => 'perl-URI',
+	},
+	'Test::Simple' => {
+		deb => 'perl', # perl-modules-5.XX, but the XX varies
+		pkg => 'perl5',
+		rpm => 'perl-Test-Simple',
 	},
 	'highlight.pm' => {
 		deb => 'libhighlight-perl',

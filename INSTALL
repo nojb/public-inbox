@@ -36,6 +36,9 @@ Beyond that, there is a long list of Perl modules required, starting with:
                                    pkg: p5-TimeDate
                                    rpm: perl-TimeDate
 
+* Digest::SHA                      typically installed with Perl
+                                   rpm: perl-Digest-SHA
+
 * Email::MIME                      deb: libemail-mime-perl
                                    pkg: p5-Email-MIME
                                    rpm: perl-Email-MIME
@@ -132,8 +135,8 @@ above, so there is no need to explicitly install them:
                                    (for public-inbox-watch, pulled in by Plack)
 
 - IO::Compress::Gzip               deb: perl-modules (or libio-compress-perl)
-                                   rpm: perl-PerlIO-gzip
                                    pkg: perl5
+                                   rpm: perl-IO-Compress
                                    (for gzipped mbox over HTTP)
 
 Uncommonly needed modules:
@@ -156,17 +159,24 @@ Optional packages testing and development:
                                    pkg: p5-IPC-Run
                                    rpm: perl-IPC-Run
 
+- Plack::Test                      deb: libplack-test-perl
+                                   pkg: p5-Plack
+                                   rpm: perl-Plack-Test
+
+- Test::Simple                     deb: perl-modules-5.$MINOR
+                                   pkg: perl5
+                                   rpm: perl-Test-Simple
+
 - XML::Feed                        deb: libxml-feed-perl
                                    pkg: p5-XML-Feed
                                    rpm: perl-XML-Feed
 
-- Test::HTTP::Server::Simple       deb: libtest-http-server-simple-perl
-                                   pkg: p5-Test-HTTP-Server-Simple
-                                   rpm: perl-Test-HTTP-Server-Simple
-                                   (XXX is this really needed?)
-
 standard MakeMaker installation (Perl)
 --------------------------------------
+
+To use MakeMaker, you need to ensure ExtUtils::MakeMaker is available.
+This is typically installed with Perl, but RPM-based systems will likely
+need to install the `perl-ExtUtils-MakeMaker' package.
 
 Once the dependencies are installed, you should be able to build and
 install the system (into /usr/local) with:
