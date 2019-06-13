@@ -70,13 +70,16 @@ N = \$\$(( \$\$(nproc 2>/dev/null || gnproc 2>/dev/null || echo 2) + 1 ))
 -include config.mak
 -include Documentation/include.mk
 SCRIPTS := scripts/ssoma-replay
-my_syntax := \$(addsuffix .syntax, $PM_FILES \$(EXE_FILES) \$(SCRIPTS))
-
+syn_files := $PM_FILES \$(EXE_FILES) \$(SCRIPTS)
+my_syntax := \$(addsuffix .syntax, \$(syn_files))
+changed = \$(shell git ls-files -m)
 
 %.syntax ::
-	@\$(PERL) -I lib -c \$(subst .syntax,,\$@)
+	@\$(PERL) -w -I lib -c \$(subst .syntax,,\$@)
 
 syntax:: \$(my_syntax)
+
+dsyn :: \$(addsuffix .syntax, \$(filter \$(changed), \$(syn_files)))
 
 check-manifest :: MANIFEST
 	if git ls-files >\$?.gen 2>&1; then diff -u \$? \$?.gen; fi
