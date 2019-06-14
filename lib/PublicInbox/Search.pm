@@ -170,17 +170,12 @@ sub xdb ($) {
 }
 
 sub new {
-	my ($class, $mainrepo, $altid) = @_;
-	my $version = 1;
-	my $ibx = $mainrepo;
-	if (ref $ibx) {
-		$version = $ibx->{version} || 1;
-		$mainrepo = $ibx->{mainrepo};
-	}
+	my ($class, $ibx) = @_;
+	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $self = bless {
-		mainrepo => $mainrepo,
-		altid => $altid,
-		version => $version,
+		mainrepo => $ibx->{mainrepo},
+		altid => $ibx->{altid},
+		version => $ibx->{version} // 1,
 	}, $class;
 	my $dir = xdir($self, 1);
 	$self->{over_ro} = PublicInbox::Over->new("$dir/over.sqlite3");

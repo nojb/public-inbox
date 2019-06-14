@@ -18,7 +18,7 @@ my $ibx = PublicInbox::Inbox->new({ mainrepo => $git_dir });
 my ($root_id, $last_id);
 
 is(0, system(qw(git init --shared -q --bare), $git_dir), "git init (main)");
-eval { PublicInbox::Search->new($git_dir)->xdb };
+eval { PublicInbox::Search->new($ibx)->xdb };
 ok($@, "exception raised on non-existent DB");
 
 my $rw = PublicInbox::SearchIdx->new($ibx, 1);
@@ -27,7 +27,7 @@ $ibx->with_umask(sub {
 	$rw->_xdb_release;
 });
 $rw = undef;
-my $ro = PublicInbox::Search->new($git_dir);
+my $ro = PublicInbox::Search->new($ibx);
 my $rw_commit = sub {
 	$rw->commit_txn_lazy if $rw;
 	$rw = PublicInbox::SearchIdx->new($ibx, 1);

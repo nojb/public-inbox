@@ -191,7 +191,7 @@ sub search ($;$) {
 	my $srch = $self->{search} ||= eval {
 		_cleanup_later($self);
 		require PublicInbox::Search;
-		PublicInbox::Search->new($self, $self->{altid});
+		PublicInbox::Search->new($self);
 	};
 	($over_only || eval { $srch->xdb }) ? $srch : undef;
 }

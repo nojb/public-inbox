@@ -17,6 +17,7 @@ my $tmpdir = tempdir('pi-altid-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
 my $alt_file = "$tmpdir/another-nntp.sqlite3";
 my $altid = [ "serial:gmane:file=$alt_file" ];
+my $ibx;
 
 {
 	my $mm = PublicInbox::Msgmap->new_file($alt_file, 1);
@@ -42,14 +43,14 @@ my $altid = [ "serial:gmane:file=$alt_file" ];
 	$im->done;
 }
 {
-	my $ibx = PublicInbox::Inbox->new({mainrepo => $git_dir});
+	$ibx = PublicInbox::Inbox->new({mainrepo => $git_dir});
 	$ibx->{altid} = $altid;
 	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 	$rw->index_sync;
 }
 
 {
-	my $ro = PublicInbox::Search->new($git_dir, $altid);
+	my $ro = PublicInbox::Search->new($ibx);
 	my $msgs = $ro->query("gmane:1234");
 	is_deeply([map { $_->mid } @$msgs], ['a@example.com'], 'got one match');
 
