@@ -1,8 +1,8 @@
 # Copyright (C) 2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# used to interface with a single Xapian partition in V2 repos.
-# See L<public-inbox-v2-format(5)> for more info on how we partition Xapian
+# used to interface with a single Xapian shard in V2 repos.
+# See L<public-inbox-v2-format(5)> for more info on how we shard Xapian
 package PublicInbox::SearchIdxPart;
 use strict;
 use warnings;
@@ -47,7 +47,7 @@ sub spawn_worker {
 
 sub partition_worker_loop ($$$$) {
 	my ($self, $r, $part, $bnote) = @_;
-	$0 = "pi-v2-partition[$part]";
+	$0 = "pi-v2-shard[$part]";
 	my $current_info = '';
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	local $SIG{__WARN__} = sub {
@@ -89,7 +89,7 @@ sub index_raw {
 	my ($self, $bytes, $msgref, $artnum, $oid, $mid0, $mime) = @_;
 	if (my $w = $self->{w}) {
 		print $w "$bytes $artnum $oid $mid0\n", $$msgref or die
-			"failed to write partition $!\n";
+			"failed to write shard $!\n";
 		$w->flush or die "failed to flush: $!\n";
 	} else {
 		$$msgref = undef;
