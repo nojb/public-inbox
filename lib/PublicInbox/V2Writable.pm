@@ -7,7 +7,7 @@ package PublicInbox::V2Writable;
 use strict;
 use warnings;
 use base qw(PublicInbox::Lock);
-use PublicInbox::SearchIdxPart;
+use PublicInbox::SearchIdxShard;
 use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
@@ -300,7 +300,7 @@ sub idx_init {
 		# idx_parts must be visible to all forked processes
 		my $idx = $self->{idx_parts} = [];
 		for my $i (0..$max) {
-			push @$idx, PublicInbox::SearchIdxPart->new($self, $i);
+			push @$idx, PublicInbox::SearchIdxShard->new($self, $i);
 		}
 
 		# Now that all subprocesses are up, we can open the FDs

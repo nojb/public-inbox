@@ -119,7 +119,7 @@ lib/PublicInbox/Reply.pm
 lib/PublicInbox/SaPlugin/ListMirror.pm
 lib/PublicInbox/Search.pm
 lib/PublicInbox/SearchIdx.pm
-lib/PublicInbox/SearchIdxPart.pm
+lib/PublicInbox/SearchIdxShard.pm
 lib/PublicInbox/SearchMsg.pm
 lib/PublicInbox/SearchThread.pm
 lib/PublicInbox/SearchView.pm
