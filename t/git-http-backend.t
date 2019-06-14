@@ -1,5 +1,8 @@
 # Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+#
+# Ensure buffering behavior in -httpd doesn't cause runaway memory use
+# or data corruption
 use strict;
 use warnings;
 use Test::More;
@@ -77,6 +80,8 @@ SKIP: {
 	my ($code, $mess, %h) = $http->read_response_headers;
 	is(200, $code, 'got 200 success for pack');
 	is($max, $h{'Content-Length'}, 'got expected Content-Length for pack');
+
+	# no $http->read_entity_body, here, since we want to force buffering
 	foreach my $i (1..3) {
 		sleep 1;
 		my $diff = $get_maxrss->() - $mem_a;
