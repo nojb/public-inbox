@@ -68,11 +68,11 @@ sub commit_changes ($$$) {
 			my $n = $im->count_partitions;
 			if (defined $new_parts && $n != $new_parts) {
 				die
-"BUG: counted $n partitions after repartioning to $new_parts";
+"BUG: counted $n shards after resharding to $new_parts";
 			}
 			my $prev = $im->{partitions};
 			if ($pr && $prev != $n) {
-				$pr->("partition count changed: $prev => $n\n");
+				$pr->("shard count changed: $prev => $n\n");
 				$im->{partitions} = $n;
 			}
 		}
@@ -177,7 +177,7 @@ sub run {
 	}
 
 	# we want temporary directories to be as deep as possible,
-	# so v2 partitions can keep "xap$SCHEMA_VERSION" on a separate FS.
+	# so v2 shards can keep "xap$SCHEMA_VERSION" on a separate FS.
 	if ($v == 1) {
 		if (defined $new_parts) {
 			warn
@@ -355,9 +355,9 @@ sub cpdb ($$) {
 	if (ref($old) eq 'ARRAY') {
 		($cur_part) = ($new =~ m!xap[0-9]+/([0-9]+)\b!);
 		defined $cur_part or
-			die "BUG: could not extract partition # from $new";
+			die "BUG: could not extract shard # from $new";
 		$new_parts = $opt->{reshard};
-		defined $new_parts or die 'BUG: got array src w/o --partition';
+		defined $new_parts or die 'BUG: got array src w/o --reshard';
 
 		# repartitioning, M:N copy means have full read access
 		foreach (@$old) {

@@ -207,7 +207,7 @@ sub index_inbox {
 				my $n = $v2w->{partitions};
 				if ($jobs != ($n + 1)) {
 					warn
-"Unable to respect --jobs=$jobs, inbox was created with $n partitions\n";
+"Unable to respect --jobs=$jobs, inbox was created with $n shards\n";
 				}
 			}
 		}
