@@ -70,8 +70,8 @@ N = \$\$(( \$\$(nproc 2>/dev/null || gnproc 2>/dev/null || echo 2) + 1 ))
 -include config.mak
 -include Documentation/include.mk
 SCRIPTS := scripts/ssoma-replay
-syn_files := $PM_FILES \$(EXE_FILES) \$(SCRIPTS)
-my_syntax := \$(addsuffix .syntax, \$(syn_files))
+syn_files = $PM_FILES \$(EXE_FILES) \$(SCRIPTS) \$(wildcard t/*.t)
+my_syntax = \$(addsuffix .syntax, \$(syn_files))
 changed = \$(shell git ls-files -m)
 
 %.syntax ::
