@@ -204,7 +204,7 @@ sub index_inbox {
 			if ($jobs == 0) {
 				$v2w->{parallel} = 0;
 			} else {
-				my $n = $v2w->{partitions};
+				my $n = $v2w->{shards};
 				if ($jobs != ($n + 1)) {
 					warn
 "Unable to respect --jobs=$jobs, inbox was created with $n shards\n";

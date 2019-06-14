@@ -103,7 +103,7 @@ sub new {
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git repo -> commit
 	};
-	$self->{partitions} = count_shards($self) || nproc_parts($creat);
+	$self->{shards} = count_shards($self) || nproc_parts($creat);
 	bless $self, $class;
 }
 
@@ -134,7 +134,7 @@ sub add {
 sub do_idx ($$$$$$$) {
 	my ($self, $msgref, $mime, $len, $num, $oid, $mid0) = @_;
 	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
-	my $npart = $self->{partitions};
+	my $npart = $self->{shards};
 	my $part = $num % $npart;
 	my $idx = idx_part($self, $part);
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
@@ -290,12 +290,12 @@ sub idx_init {
 
 		# xcpdb can change shard count while -watch is idle
 		my $nparts = count_shards($self);
-		if ($nparts && $nparts != $self->{partitions}) {
-			$self->{partitions} = $nparts;
+		if ($nparts && $nparts != $self->{shards}) {
+			$self->{shards} = $nparts;
 		}
 
 		# need to create all parts before initializing msgmap FD
-		my $max = $self->{partitions} - 1;
+		my $max = $self->{shards} - 1;
 
 		# idx_parts must be visible to all forked processes
 		my $idx = $self->{idx_parts} = [];

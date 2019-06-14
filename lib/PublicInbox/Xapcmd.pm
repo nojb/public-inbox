@@ -70,10 +70,10 @@ sub commit_changes ($$$) {
 				die
 "BUG: counted $n shards after resharding to $new_parts";
 			}
-			my $prev = $im->{partitions};
+			my $prev = $im->{shards};
 			if ($pr && $prev != $n) {
 				$pr->("shard count changed: $prev => $n\n");
-				$im->{partitions} = $n;
+				$im->{shards} = $n;
 			}
 		}
 
