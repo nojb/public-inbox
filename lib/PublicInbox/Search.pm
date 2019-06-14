@@ -131,9 +131,9 @@ sub xdir ($;$) {
 		my $dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
 		return $dir if $rdonly;
 
-		my $part = $self->{partition};
-		defined $part or die "partition not given";
-		$dir .= "/$part";
+		my $shard = $self->{shard};
+		defined $shard or die "shard not given";
+		$dir .= "/$shard";
 	}
 }
 

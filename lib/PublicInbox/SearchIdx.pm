@@ -29,7 +29,7 @@ use constant {
 my $xapianlevels = qr/\A(?:full|medium)\z/;
 
 sub new {
-	my ($class, $ibx, $creat, $part) = @_;
+	my ($class, $ibx, $creat, $shard) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $levels = qr/\A(?:full|medium|basic)\z/;
 	my $mainrepo = $ibx->{mainrepo};
@@ -62,9 +62,9 @@ sub new {
 		my $dir = $self->xdir;
 		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
 	} elsif ($version == 2) {
-		defined $part or die "partition is required for v2\n";
-		# partition is a number
-		$self->{partition} = $part;
+		defined $shard or die "shard is required for v2\n";
+		# shard is a number
+		$self->{shard} = $shard;
 		$self->{lock_path} = undef;
 	} else {
 		die "unsupported inbox version=$version\n";
@@ -102,8 +102,8 @@ sub _xdb_acquire {
 		$self->lock_acquire;
 
 		# don't create empty Xapian directories if we don't need Xapian
-		my $is_part = defined($self->{partition});
-		if (!$is_part || ($is_part && need_xapian($self))) {
+		my $is_shard = defined($self->{shard});
+		if (!$is_shard || ($is_shard && need_xapian($self))) {
 			File::Path::mkpath($dir);
 		}
 	}
@@ -824,9 +824,10 @@ sub commit_txn_lazy {
 	$self->{-inbox}->with_umask(sub {
 		if (my $xdb = $self->{xdb}) {
 
-			# store 'indexlevel=medium' in v2 part=0 and v1 (only part)
+			# store 'indexlevel=medium' in v2 shard=0 and
+			# v1 (only one shard)
 			# This metadata is read by Admin::detect_indexlevel:
-			if (!$self->{partition} # undef or 0, not >0
+			if (!$self->{shard} # undef or 0, not >0
 			    && $self->{indexlevel} eq 'medium') {
 				$xdb->set_metadata('indexlevel', 'medium');
 			}
