@@ -28,10 +28,10 @@ my $PACKING_FACTOR = 0.4;
 # waste of FDs and space.  It can also lead to excessive IO latency
 # and slow things down.  Users on NVME or other fast storage can
 # use the NPROC env or switches in our script/public-inbox-* programs
-# to increase Xapian partitions.
+# to increase Xapian shards
 our $NPROC_MAX_DEFAULT = 4;
 
-sub nproc_parts ($) {
+sub nproc_shards ($) {
 	my ($creat_opt) = @_;
 	if (ref($creat_opt) eq 'HASH') {
 		if (defined(my $n = $creat_opt->{nproc})) {
@@ -103,7 +103,7 @@ sub new {
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git repo -> commit
 	};
-	$self->{shards} = count_shards($self) || nproc_parts($creat);
+	$self->{shards} = count_shards($self) || nproc_shards($creat);
 	bless $self, $class;
 }
 
@@ -136,7 +136,7 @@ sub do_idx ($$$$$$$) {
 	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
 	my $npart = $self->{shards};
 	my $part = $num % $npart;
-	my $idx = idx_part($self, $part);
+	my $idx = idx_shard($self, $part);
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
 	my $n = $self->{transact_bytes} += $len;
 	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $npart);
@@ -252,15 +252,15 @@ sub num_for_harder {
 	$num;
 }
 
-sub idx_part {
+sub idx_shard {
 	my ($self, $part) = @_;
-	$self->{idx_parts}->[$part];
+	$self->{idx_shards}->[$part];
 }
 
 # idempotent
 sub idx_init {
 	my ($self, $opt) = @_;
-	return if $self->{idx_parts};
+	return if $self->{idx_shards};
 	my $ibx = $self->{-inbox};
 
 	# do not leak read-only FDs to child processes, we only have these
@@ -297,8 +297,8 @@ sub idx_init {
 		# need to create all parts before initializing msgmap FD
 		my $max = $self->{shards} - 1;
 
-		# idx_parts must be visible to all forked processes
-		my $idx = $self->{idx_parts} = [];
+		# idx_shards must be visible to all forked processes
+		my $idx = $self->{idx_shards} = [];
 		for my $i (0..$max) {
 			push @$idx, PublicInbox::SearchIdxShard->new($self, $i);
 		}
@@ -370,7 +370,7 @@ sub rewrite_internal ($$;$$$) {
 	}
 	my $over = $self->{over};
 	my $cids = content_ids($old_mime);
-	my $parts = $self->{idx_parts};
+	my $parts = $self->{idx_shards};
 	my $removed;
 	my $mids = mids($old_mime->header_obj);
 
@@ -605,7 +605,7 @@ sub checkpoint ($;$) {
 			$im->checkpoint;
 		}
 	}
-	my $parts = $self->{idx_parts};
+	my $parts = $self->{idx_shards};
 	if ($parts) {
 		my $dbh = $self->{mm}->{dbh};
 
@@ -652,7 +652,7 @@ sub done {
 	checkpoint($self);
 	my $mm = delete $self->{mm};
 	$mm->{dbh}->commit if $mm;
-	my $parts = delete $self->{idx_parts};
+	my $parts = delete $self->{idx_shards};
 	if ($parts) {
 		$_->remote_close for @$parts;
 	}
@@ -827,7 +827,7 @@ sub atfork_child {
 	my ($self) = @_;
 	my $fh = delete $self->{reindex_pipe};
 	close $fh if $fh;
-	if (my $parts = $self->{idx_parts}) {
+	if (my $parts = $self->{idx_shards}) {
 		$_->atfork_child foreach @$parts;
 	}
 	if (my $im = $self->{im}) {
@@ -1051,7 +1051,7 @@ sub sync_prepare ($$$) {
 
 sub unindex_oid_remote ($$$) {
 	my ($self, $oid, $mid) = @_;
-	$_->remote_remove($oid, $mid) foreach @{$self->{idx_parts}};
+	$_->remote_remove($oid, $mid) foreach @{$self->{idx_shards}};
 	$self->{over}->remove_oid($oid, $mid);
 }
 
