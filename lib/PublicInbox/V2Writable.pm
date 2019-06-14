@@ -54,22 +54,22 @@ sub nproc_shards ($) {
 
 sub count_shards ($) {
 	my ($self) = @_;
-	my $nparts = 0;
+	my $n = 0;
 	my $xpfx = $self->{xpfx};
 
 	# always load existing partitions in case core count changes:
 	# Also, shard count may change while -watch is running
 	# due to "xcpdb --reshard"
 	if (-d $xpfx) {
-		foreach my $part (<$xpfx/*>) {
-			-d $part && $part =~ m!/[0-9]+\z! or next;
+		foreach my $shard (<$xpfx/*>) {
+			-d $shard && $shard =~ m!/[0-9]+\z! or next;
 			eval {
-				Search::Xapian::Database->new($part)->close;
-				$nparts++;
+				Search::Xapian::Database->new($shard)->close;
+				$n++;
 			};
 		}
 	}
-	$nparts;
+	$n;
 }
 
 sub new {
@@ -134,12 +134,10 @@ sub add {
 sub do_idx ($$$$$$$) {
 	my ($self, $msgref, $mime, $len, $num, $oid, $mid0) = @_;
 	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
-	my $npart = $self->{shards};
-	my $part = $num % $npart;
-	my $idx = idx_shard($self, $part);
+	my $idx = idx_shard($self, $num % $self->{shards});
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
 	my $n = $self->{transact_bytes} += $len;
-	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $npart);
+	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
 }
 
 sub _add {
@@ -253,8 +251,8 @@ sub num_for_harder {
 }
 
 sub idx_shard {
-	my ($self, $part) = @_;
-	$self->{idx_shards}->[$part];
+	my ($self, $shard_i) = @_;
+	$self->{idx_shards}->[$shard_i];
 }
 
 # idempotent
@@ -289,9 +287,9 @@ sub idx_init {
 		$over->create;
 
 		# xcpdb can change shard count while -watch is idle
-		my $nparts = count_shards($self);
-		if ($nparts && $nparts != $self->{shards}) {
-			$self->{shards} = $nparts;
+		my $nshards = count_shards($self);
+		if ($nshards && $nshards != $self->{shards}) {
+			$self->{shards} = $nshards;
 		}
 
 		# need to create all parts before initializing msgmap FD
@@ -370,7 +368,6 @@ sub rewrite_internal ($$;$$$) {
 	}
 	my $over = $self->{over};
 	my $cids = content_ids($old_mime);
-	my $parts = $self->{idx_shards};
 	my $removed;
 	my $mids = mids($old_mime->header_obj);
 
@@ -590,7 +587,7 @@ sub barrier_wait {
 	while (scalar keys %$barrier) {
 		defined(my $l = $r->getline) or die "EOF on barrier_wait: $!";
 		$l =~ /\Abarrier (\d+)/ or die "bad line on barrier_wait: $l";
-		delete $barrier->{$1} or die "bad part[$1] on barrier wait";
+		delete $barrier->{$1} or die "bad shard[$1] on barrier wait";
 	}
 }
 
@@ -605,8 +602,8 @@ sub checkpoint ($;$) {
 			$im->checkpoint;
 		}
 	}
-	my $parts = $self->{idx_shards};
-	if ($parts) {
+	my $shards = $self->{idx_shards};
+	if ($shards) {
 		my $dbh = $self->{mm}->{dbh};
 
 		# SQLite msgmap data is second in importance
@@ -617,15 +614,15 @@ sub checkpoint ($;$) {
 
 		# Now deal with Xapian
 		if ($wait) {
-			my $barrier = $self->barrier_init(scalar @$parts);
+			my $barrier = $self->barrier_init(scalar @$shards);
 
 			# each partition needs to issue a barrier command
-			$_->remote_barrier for @$parts;
+			$_->remote_barrier for @$shards;
 
 			# wait for each Xapian partition
 			$self->barrier_wait($barrier);
 		} else {
-			$_->remote_commit for @$parts;
+			$_->remote_commit for @$shards;
 		}
 
 		# last_commit is special, don't commit these until
@@ -652,14 +649,14 @@ sub done {
 	checkpoint($self);
 	my $mm = delete $self->{mm};
 	$mm->{dbh}->commit if $mm;
-	my $parts = delete $self->{idx_shards};
-	if ($parts) {
-		$_->remote_close for @$parts;
+	my $shards = delete $self->{idx_shards};
+	if ($shards) {
+		$_->remote_close for @$shards;
 	}
 	$self->{over}->disconnect;
 	delete $self->{bnote};
 	$self->{transact_bytes} = 0;
-	$self->lock_release if $parts;
+	$self->lock_release if $shards;
 	$self->{-inbox}->git->cleanup;
 }
 
@@ -827,8 +824,8 @@ sub atfork_child {
 	my ($self) = @_;
 	my $fh = delete $self->{reindex_pipe};
 	close $fh if $fh;
-	if (my $parts = $self->{idx_shards}) {
-		$_->atfork_child foreach @$parts;
+	if (my $shards = $self->{idx_shards}) {
+		$_->atfork_child foreach @$shards;
 	}
 	if (my $im = $self->{im}) {
 		$im->atfork_child;
