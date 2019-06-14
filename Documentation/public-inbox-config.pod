@@ -234,6 +234,10 @@ C<publicinbox.cgitbin>, but may be overridden.
 Default: basename of C<publicinbox.cgitbin>, /var/www/htdocs/cgit/
 or /usr/share/cgit/
 
+=item publicinbox.mailEditor
+
+See L<public-inbox-edit(1)>
+
 =item publicinbox.wwwlisting
 
 Enable a HTML listing style when the root path of the URL '/' is accessed.

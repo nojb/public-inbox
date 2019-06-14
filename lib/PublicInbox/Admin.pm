@@ -9,6 +9,8 @@ use warnings;
 use Cwd 'abs_path';
 use base qw(Exporter);
 our @EXPORT_OK = qw(resolve_repo_dir);
+my $CFG; # all the admin stuff is a singleton
+require PublicInbox::Config;
 
 sub resolve_repo_dir {
 	my ($cd, $ver) = @_;
@@ -66,36 +68,65 @@ $ibx->{mainrepo} has unexpected indexlevel in Xapian: $m
 	$l;
 }
 
-sub resolve_inboxes {
-	my ($argv, $warn_on_unconfigured) = @_;
-	require PublicInbox::Config;
+sub unconfigured_ibx ($$) {
+	my ($dir, $i) = @_;
+	my $name = "unconfigured-$i";
+	PublicInbox::Inbox->new({
+		name => $name,
+		address => [ "$name\@example.com" ],
+		mainrepo => $dir,
+		# TODO: consumers may want to warn on this:
+		#-unconfigured => 1,
+	});
+}
+
+sub config () { $CFG //= eval { PublicInbox::Config->new } }
+
+sub resolve_inboxes ($;$) {
+	my ($argv, $opt) = @_;
 	require PublicInbox::Inbox;
+	$opt ||= {};
 
-	my @ibxs = map { resolve_repo_dir($_) } @$argv;
-	push(@ibxs, resolve_repo_dir()) unless @ibxs;
+	my $cfg = config();
+	if ($opt->{all}) {
+		my $cfgfile = PublicInbox::Config::default_file();
+		$cfg or die "--all specified, but $cfgfile not readable\n";
+		@$argv and die "--all specified, but directories specified\n";
+	}
 
+	my $min_ver = $opt->{-min_inbox_version} || 0;
+	my (@old, @ibxs);
 	my %dir2ibx;
-	if (my $config = eval { PublicInbox::Config->new }) {
-		$config->each_inbox(sub {
+	if ($cfg) {
+		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
+			$ibx->{version} ||= 1;
 			$dir2ibx{abs_path($ibx->{mainrepo})} = $ibx;
 		});
-	} elsif ($warn_on_unconfigured) {
-		# do we really care about this?  It's annoying...
-		warn $warn_on_unconfigured, "\n";
 	}
-	for my $i (0..$#ibxs) {
-		my $dir = $ibxs[$i];
-		$ibxs[$i] = $dir2ibx{$dir} ||= do {
-			my $name = "unconfigured-$i";
-			PublicInbox::Inbox->new({
-				name => $name,
-				address => [ "$name\@example.com" ],
-				mainrepo => $dir,
-				# TODO: consumers may want to warn on this:
-				#-unconfigured => 1,
-			});
-		};
+	if ($opt->{all}) {
+		my @all = values %dir2ibx;
+		@all = grep { $_->{version} >= $min_ver } @all;
+		push @ibxs, @all;
+	} else { # directories specified on the command-line
+		my $i = 0;
+		my @dirs = @$argv;
+		push @dirs, '.' unless @dirs;
+		foreach (@dirs) {
+			my $v;
+			my $dir = resolve_repo_dir($_, \$v);
+			if ($v < $min_ver) {
+				push @old, $dir;
+				next;
+			}
+			my $ibx = $dir2ibx{$dir} ||= unconfigured_ibx($dir, $i);
+			$i++;
+			push @ibxs, $ibx;
+		}
+	}
+	if (@old) {
+		die "inboxes $min_ver inboxes not supported by $0\n\t",
+		    join("\n\t", @old), "\n";
 	}
 	@ibxs;
 }

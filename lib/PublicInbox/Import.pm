@@ -277,7 +277,7 @@ sub git_timestamp {
 	"$ts $zone";
 }
 
-sub extract_author_info ($) {
+sub extract_cmt_info ($) {
 	my ($mime) = @_;
 
 	my $sender = '';
@@ -314,7 +314,17 @@ sub extract_author_info ($) {
 		$name = '';
 		warn "no name in From: $from or Sender: $sender\n";
 	}
-	($name, $email);
+
+	my $hdr = $mime->header_obj;
+
+	my $subject = $hdr->header('Subject');
+	$subject = '(no subject)' unless defined $subject;
+	# Mime decoding can create nulls replace them with spaces to protect git
+	$subject =~ tr/\0/ /;
+	utf8::encode($subject);
+	my $at = git_timestamp(my @at = msg_datestamp($hdr));
+	my $ct = git_timestamp(my @ct = msg_timestamp($hdr));
+	($name, $email, $at, $ct, $subject);
 }
 
 # kill potentially confusing/misleading headers
@@ -361,19 +371,7 @@ sub clean_tree_v2 ($$$) {
 sub add {
 	my ($self, $mime, $check_cb) = @_; # mime = Email::MIME
 
-	my ($name, $email) = extract_author_info($mime);
-	my $hdr = $mime->header_obj;
-	my @at = msg_datestamp($hdr);
-	my @ct = msg_timestamp($hdr);
-	my $author_time_raw = git_timestamp(@at);
-	my $commit_time_raw = git_timestamp(@ct);
-
-	my $subject = $mime->header('Subject');
-	$subject = '(no subject)' unless defined $subject;
-	# Mime decoding can create nulls replace them with spaces to protect git
-	$subject =~ tr/\0/ /;
-	utf8::encode($subject);
-
+	my ($name, $email, $at, $ct, $subject) = extract_cmt_info($mime);
 	my $path_type = $self->{path_type};
 	my $path;
 	if ($path_type eq '2/38') {
@@ -416,8 +414,8 @@ sub add {
 	}
 
 	print $w "commit $ref\nmark :$commit\n",
-		"author $name <$email> $author_time_raw\n",
-		"committer $self->{ident} $commit_time_raw\n" or wfail;
+		"author $name <$email> $at\n",
+		"committer $self->{ident} $ct\n" or wfail;
 	print $w "data ", (length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
 	if ($tip ne '') {
@@ -486,33 +484,45 @@ sub digest2mid ($$) {
 	"$dt.$b64" . '@z';
 }
 
-sub clean_purge_buffer {
-	my ($oids, $buf) = @_;
-	my $cmt_msg = 'purged '.join(' ',@$oids)."\n";
+sub rewrite_commit ($$$$) {
+	my ($self, $oids, $buf, $mime) = @_;
+	my ($name, $email, $at, $ct, $subject);
+	if ($mime) {
+		($name, $email, $at, $ct, $subject) = extract_cmt_info($mime);
+	} else {
+		$name = $email = '';
+		$subject = 'purged '.join(' ', @$oids);
+	}
 	@$oids = ();
-
+	$subject .= "\n";
 	foreach my $i (0..$#$buf) {
 		my $l = $buf->[$i];
 		if ($l =~ /^author .* ([0-9]+ [\+-]?[0-9]+)$/) {
-			$buf->[$i] = "author <> $1\n";
+			$at //= $1;
+			$buf->[$i] = "author $name <$email> $at\n";
+		} elsif ($l =~ /^committer .* ([0-9]+ [\+-]?[0-9]+)$/) {
+			$ct //= $1;
+			$buf->[$i] = "committer $self->{ident} $ct\n";
 		} elsif ($l =~ /^data ([0-9]+)/) {
-			$buf->[$i++] = "data " . length($cmt_msg) . "\n";
-			$buf->[$i] = $cmt_msg;
+			$buf->[$i++] = "data " . length($subject) . "\n";
+			$buf->[$i] = $subject;
 			last;
 		}
 	}
 }
 
-sub purge_oids {
-	my ($self, $purge) = @_;
-	my $tmp = "refs/heads/purge-".((keys %$purge)[0]);
+# returns the new commit OID if a replacement was done
+# returns undef if nothing was done
+sub replace_oids {
+	my ($self, $mime, $replace_map) = @_; # oid => raw string
+	my $tmp = "refs/heads/replace-".((keys %$replace_map)[0]);
 	my $old = $self->{'ref'};
 	my $git = $self->{git};
 	my @export = (qw(fast-export --no-data --use-done-feature), $old);
 	my $rd = $git->popen(@export);
 	my ($r, $w) = $self->gfi_start;
 	my @buf;
-	my $npurge = 0;
+	my $nreplace = 0;
 	my @oids;
 	my ($done, $mark);
 	my $tree = $self->{-tree};
@@ -535,10 +545,13 @@ sub purge_oids {
 		} elsif (/^M 100644 ([a-f0-9]+) (\w+)/) {
 			my ($oid, $path) = ($1, $2);
 			$tree->{$path} = 1;
-			if ($purge->{$oid}) {
+			my $sref = $replace_map->{$oid};
+			if (defined $sref) {
 				push @oids, $oid;
-				my $cmd = "M 100644 inline $path\ndata 0\n\n";
-				push @buf, $cmd;
+				my $n = length($$sref);
+				push @buf, "M 100644 inline $path\ndata $n\n";
+				push @buf, $$sref; # hope CoW works...
+				push @buf, "\n";
 			} else {
 				push @buf, $_;
 			}
@@ -547,11 +560,13 @@ sub purge_oids {
 			push @buf, $_ if $tree->{$path};
 		} elsif ($_ eq "\n") {
 			if (@oids) {
-				my $out = join('', @buf);
-				$out =~ s/^/# /sgm;
-				warn "purge rewriting\n", $out, "\n";
-				clean_purge_buffer(\@oids, \@buf);
-				$npurge++;
+				if (!$mime) {
+					my $out = join('', @buf);
+					$out =~ s/^/# /sgm;
+					warn "purge rewriting\n", $out, "\n";
+				}
+				rewrite_commit($self, \@oids, \@buf, $mime);
+				$nreplace++;
 			}
 			$w->print(@buf, "\n") or wfail;
 			@buf = ();
@@ -569,28 +584,30 @@ sub purge_oids {
 		$w->print(@buf) or wfail;
 	}
 	die 'done\n not seen from fast-export' unless $done;
-	chomp(my $cmt = $self->get_mark(":$mark")) if $npurge;
+	chomp(my $cmt = $self->get_mark(":$mark")) if $nreplace;
 	$self->{nchg} = 0; # prevent _update_git_info until update-ref:
 	$self->done;
 	my @git = ('git', "--git-dir=$git->{git_dir}");
 
-	run_die([@git, qw(update-ref), $old, $tmp]) if $npurge;
+	run_die([@git, qw(update-ref), $old, $tmp]) if $nreplace;
 
 	run_die([@git, qw(update-ref -d), $tmp]);
 
-	return if $npurge == 0;
+	return if $nreplace == 0;
 
 	run_die([@git, qw(-c gc.reflogExpire=now gc --prune=all)]);
+
+	# check that old OIDs are gone
 	my $err = 0;
-	foreach my $oid (keys %$purge) {
+	foreach my $oid (keys %$replace_map) {
 		my @info = $git->check($oid);
 		if (@info) {
-			warn "$oid not purged\n";
+			warn "$oid not replaced\n";
 			$err++;
 		}
 	}
 	_update_git_info($self, 0);
-	die "Failed to purge $err object(s)\n" if $err;
+	die "Failed to replace $err object(s)\n" if $err;
 	$cmt;
 }
 

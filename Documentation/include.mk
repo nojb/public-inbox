@@ -33,6 +33,7 @@ podtext = $(PODTEXT) $(PODTEXT_OPTS)
 m1 =
 m1 += public-inbox-compact
 m1 += public-inbox-convert
+m1 += public-inbox-edit
 m1 += public-inbox-httpd
 m1 += public-inbox-index
 m1 += public-inbox-mda

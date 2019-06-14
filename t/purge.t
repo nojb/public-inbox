@@ -57,7 +57,7 @@ is($? >> 8, 1, 'missed purge exits with 1');
 
 # a successful case:
 ok(IPC::Run::run([$purge, $mainrepo], \$raw, \$out, \$err), 'match OK');
-like($out, qr/^\t[a-f0-9]{40,}/m, 'removed commit noted');
+like($out, qr/\b[a-f0-9]{40,}/m, 'removed commit noted');
 
 # add (old) vger filter to config file
 print $cfg_fh <<EOF or die "print $!";
@@ -85,7 +85,7 @@ $out = $err = '';
 ok(chdir('/'), "chdir / OK for --all test");
 ok(IPC::Run::run([$purge, '--all'], \$pre_scrub, \$out, \$err),
 	'scrub purge OK');
-like($out, qr/^\t[a-f0-9]{40,}/m, 'removed commit noted');
+like($out, qr/\b[a-f0-9]{40,}/m, 'removed commit noted');
 # diag "out: $out"; diag "err: $err";
 
 $out = $err = '';
