@@ -205,7 +205,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/v2test/0.git/info/refs'));
 	is($res->code, 200, 'got info refs for dumb clones w/ .git suffix');
 	$res = $cb->(GET('/v2test/info/refs'));
-	is($res->code, 404, 'unpartitioned git URL fails');
+	is($res->code, 404, 'v2 git URL w/o shard fails');
 
 	# ensure conflicted attachments can be resolved
 	foreach my $body (qw(old new)) {

@@ -48,14 +48,14 @@ is(scalar(@parts), $nproc, 'got expected parts');
 my $orig = $ibx->over->query_xover(1, $ndoc);
 my %nums = map {; "$_->{num}" => 1 } @$orig;
 
-# ensure we can go up or down in partitions, or stay the same:
+# ensure we can go up or down in shards, or stay the same:
 for my $R (qw(2 4 1 3 3)) {
 	delete $ibx->{search}; # release old handles
 	is(system(@xcpdb, "-R$R", $ibx->{mainrepo}), 0, "xcpdb -R$R");
 	my @new_parts = grep(m!/\d+\z!, glob("$ibx->{mainrepo}/xap*/*"));
-	is(scalar(@new_parts), $R, 'repartitioned to two parts');
+	is(scalar(@new_parts), $R, 'resharded to two parts');
 	my $msgs = $ibx->search->query('s:this');
-	is(scalar(@$msgs), $ndoc, 'got expected docs after repartitioning');
+	is(scalar(@$msgs), $ndoc, 'got expected docs after resharding');
 	my %by_mid = map {; "$_->{mid}" => $_ } @$msgs;
 	ok($by_mid{"m$_\@example.com"}, "$_ exists") for (1..$ndoc);
 

@@ -138,7 +138,7 @@ sub import_index_incremental {
 
 	if ($v == 2 && $level eq 'basic') {
 		is_deeply([glob("$ibx->{mainrepo}/xap*/?/")], [],
-			 'no Xapian partition directories for v2 basic');
+			 'no Xapian shard directories for v2 basic');
 	}
 	if ($level ne 'basic') {
 		($nr, $msgs) = $ro_mirror->search->reopen->query('m:m@2');
