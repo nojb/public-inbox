@@ -556,7 +556,7 @@ W: $list
 	$rewritten->{rewrites};
 }
 
-sub last_commit_part ($$;$) {
+sub last_epoch_commit ($$;$) {
 	my ($self, $i, $cmt) = @_;
 	my $v = PublicInbox::Search::SCHEMA_VERSION();
 	$self->{mm}->last_commit_xap($v, $i, $cmt);
@@ -569,7 +569,7 @@ sub set_last_commits ($) {
 	foreach my $i (0..$epoch_max) {
 		defined(my $cmt = $last_commit->[$i]) or next;
 		$last_commit->[$i] = undef;
-		last_commit_part($self, $i, $cmt);
+		last_epoch_commit($self, $i, $cmt);
 	}
 }
 
@@ -927,13 +927,13 @@ sub reindex_oid ($$$$) {
 # only update last_commit for $i on reindex iff newer than current
 sub update_last_commit ($$$$) {
 	my ($self, $git, $i, $cmt) = @_;
-	my $last = last_commit_part($self, $i);
+	my $last = last_epoch_commit($self, $i);
 	if (defined $last && is_ancestor($git, $last, $cmt)) {
 		my @cmd = (qw(rev-list --count), "$last..$cmt");
 		chomp(my $n = $git->qx(@cmd));
 		return if $n ne '' && $n == 0;
 	}
-	last_commit_part($self, $i, $cmt);
+	last_epoch_commit($self, $i, $cmt);
 }
 
 sub git_dir_n ($$) { "$_[0]->{-inbox}->{mainrepo}/git/$_[1].git" }
@@ -942,7 +942,7 @@ sub last_commits ($$) {
 	my ($self, $epoch_max) = @_;
 	my $heads = [];
 	for (my $i = $epoch_max; $i >= 0; $i--) {
-		$heads->[$i] = last_commit_part($self, $i);
+		$heads->[$i] = last_epoch_commit($self, $i);
 	}
 	$heads;
 }
@@ -1013,7 +1013,7 @@ sub sync_prepare ($$$) {
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		die 'BUG: already indexing!' if $self->{reindex_pipe};
 		my $git_dir = git_dir_n($self, $i);
-		-d $git_dir or next; # missing parts are fine
+		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		if ($reindex_heads) {
 			$head = $reindex_heads->[$i] or next;
@@ -1123,7 +1123,7 @@ sub index_epoch ($$$) {
 
 	my $git_dir = git_dir_n($self, $i);
 	die 'BUG: already reindexing!' if $self->{reindex_pipe};
-	-d $git_dir or return; # missing parts are fine
+	-d $git_dir or return; # missing epochs are fine
 	fill_alternates($self, $i);
 	my $git = PublicInbox::Git->new($git_dir);
 	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) {
