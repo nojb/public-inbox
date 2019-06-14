@@ -250,6 +250,23 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		my $expect = qr/\AMessage-ID: /i . qr/\Q<$long_hdr>\E/;
 		ok(scalar(grep(/$expect/, @$hdr)), 'Message-ID not folded');
 		ok(scalar(grep(/^Path:/, @$hdr)), 'Path: header found');
+
+		# it's possible for v2 messages to have 2+ Message-IDs,
+		# but leafnode can't handle it
+		if ($version != 1) {
+			my @mids = ("<$long_hdr>", '<2mid@wtf>');
+			$for_leafnode->header_set('Message-ID', @mids);
+			$for_leafnode->body_set('not-a-dupe');
+			my $warn = '';
+			$SIG{__WARN__} = sub { $warn .= join('', @_) };
+			$im->add($for_leafnode);
+			$im->done;
+			like($warn, qr/reused/, 'warned for reused MID');
+			$hdr = $n->head('<2mid@wtf>');
+			my @hmids = grep(/\AMessage-ID: /i, @$hdr);
+			is(scalar(@hmids), 1, 'Single Message-ID in header');
+			like($hmids[0], qr/: <2mid\@wtf>/, 'got expected mid');
+		}
 	}
 
 	# pipelined requests:

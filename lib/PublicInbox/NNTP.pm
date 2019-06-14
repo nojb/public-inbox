@@ -438,6 +438,22 @@ sub set_nntp_headers ($$$$$) {
 	# reason.  We'll fake the shortest one possible.
 	$hdr->header_set('Path', 'y');
 
+	# leafnode (and maybe other NNTP clients) have trouble dealing
+	# with v2 messages which have multiple Message-IDs (either due
+	# to our own content-based dedupe or buggy git-send-email versions).
+	my @mids = $hdr->header('Message-ID');
+	if (scalar(@mids) > 1) {
+		my $mid0 = "<$mid>";
+		$hdr->header_set('Message-ID', $mid0);
+		my @alt = $hdr->header('X-Alt-Message-ID');
+		my %seen = map { $_ => 1 } (@alt, $mid0);
+		foreach my $m (@mids) {
+			next if $seen{$m}++;
+			push @alt, $m;
+		}
+		$hdr->header_set('X-Alt-Message-ID', @alt);
+	}
+
 	# clobber some
 	my $xref = xref($self, $ng, $n, $mid);
 	$hdr->header_set('Xref', $xref);
