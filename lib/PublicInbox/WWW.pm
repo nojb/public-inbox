@@ -74,7 +74,7 @@ sub call {
 	my $method = $env->{REQUEST_METHOD};
 
 	if ($method eq 'POST') {
-		if ($path_info =~ m!$INBOX_RE/(?:([0-9]+)/)?
+		if ($path_info =~ m!$INBOX_RE/(?:(?:git/)?([0-9]+)(?:\.git)?/)?
 					(git-upload-pack)\z!x) {
 			my ($part, $path) = ($2, $3);
 			return invalid_inbox($ctx, $1) ||
@@ -88,7 +88,7 @@ sub call {
 	}
 
 	# top-level indices and feeds
-	if ($path_info eq '/') {
+	if ($path_info eq '/' || $path_info eq '/manifest.js.gz') {
 		www_listing($self)->call($env);
 	} elsif ($path_info =~ m!$INBOX_RE\z!o) {
 		invalid_inbox($ctx, $1) || r301($ctx, $1);
@@ -98,7 +98,7 @@ sub call {
 		invalid_inbox($ctx, $1) || get_atom($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
 		invalid_inbox($ctx, $1) || get_new($ctx);
-	} elsif ($path_info =~ m!$INBOX_RE/(?:([0-9]+)/)?
+	} elsif ($path_info =~ m!$INBOX_RE/(?:(?:git/)?([0-9]+)(?:\.git)?/)?
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my ($part, $path) = ($2, $3);
 		invalid_inbox($ctx, $1) || serve_git($ctx, $part, $path);
@@ -126,6 +126,8 @@ sub call {
 		get_text($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/([a-zA-Z0-9_\-\.]+)\.css\z!o) {
 		get_css($ctx, $1, $2);
+	} elsif ($path_info =~ m!$INBOX_RE/manifest\.js\.gz\z!o) {
+		get_inbox_manifest($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/\z!o) {
 		get_vcs_object($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s/
@@ -488,6 +490,15 @@ sub www_listing {
 		require PublicInbox::WwwListing;
 		PublicInbox::WwwListing->new($self);
 	}
+}
+
+# GET $INBOX/manifest.js.gz
+sub get_inbox_manifest ($$$) {
+	my ($ctx, $inbox, $key) = @_;
+	my $r404 = invalid_inbox($ctx, $inbox);
+	return $r404 if $r404;
+	require PublicInbox::WwwListing;
+	PublicInbox::WwwListing::js($ctx->{env}, [$ctx->{-inbox}]);
 }
 
 sub get_attach {

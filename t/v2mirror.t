@@ -80,11 +80,13 @@ $sock = undef;
 
 my @cmd;
 foreach my $i (0..$epoch_max) {
-	@cmd = (qw(git clone --mirror -q), "http://$host:$port/v2/$i",
+	my $sfx = $i == 0 ? '.git' : '';
+	@cmd = (qw(git clone --mirror -q),
+		"http://$host:$port/v2/$i$sfx",
 		"$tmpdir/m/git/$i.git");
 
-	is(system(@cmd), 0, 'cloned OK');
-	ok(-d "$tmpdir/m/git/$i.git", 'mirror OK');
+	is(system(@cmd), 0, "cloned $i.git");
+	ok(-d "$tmpdir/m/git/$i.git", "mirror $i OK");
 }
 
 @cmd = ("$script-init", '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
