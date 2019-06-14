@@ -52,7 +52,7 @@ sub nproc_parts ($) {
 	$n < 1 ? 1 : $n;
 }
 
-sub count_partitions ($) {
+sub count_shards ($) {
 	my ($self) = @_;
 	my $nparts = 0;
 	my $xpfx = $self->{xpfx};
@@ -103,7 +103,7 @@ sub new {
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git repo -> commit
 	};
-	$self->{partitions} = count_partitions($self) || nproc_parts($creat);
+	$self->{partitions} = count_shards($self) || nproc_parts($creat);
 	bless $self, $class;
 }
 
@@ -289,7 +289,7 @@ sub idx_init {
 		$over->create;
 
 		# xcpdb can change shard count while -watch is idle
-		my $nparts = count_partitions($self);
+		my $nparts = count_shards($self);
 		if ($nparts && $nparts != $self->{partitions}) {
 			$self->{partitions} = $nparts;
 		}

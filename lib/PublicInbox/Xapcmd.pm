@@ -63,9 +63,9 @@ sub commit_changes ($$$) {
 	if (!$opt->{-coarse_lock}) {
 		$opt->{-skip_lock} = 1;
 
-		if ($im->can('count_partitions')) {
+		if ($im->can('count_shards')) {
 			my $pr = $opt->{-progress};
-			my $n = $im->count_partitions;
+			my $n = $im->count_shards;
 			if (defined $new_parts && $n != $new_parts) {
 				die
 "BUG: counted $n shards after resharding to $new_parts";
