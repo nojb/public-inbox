@@ -6,6 +6,7 @@ use Test::More;
 use File::Temp qw/tempdir/;
 use Email::MIME;
 use PublicInbox::Config;
+use PublicInbox::Inbox;
 use PublicInbox::WWW;
 use bytes (); # only for bytes::length
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
@@ -19,7 +20,8 @@ my $tmpdir = tempdir('pi-psgi-search.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
 
 is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
-my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
+my $ibx = PublicInbox::Inbox->new({mainrepo => $git_dir});
+my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 ok($rw, "search indexer created");
 my $digits = '10010260936330';
 my $ua = 'Pine.LNX.4.10';

@@ -9,18 +9,19 @@ foreach my $mod (@mods) {
 	plan skip_all => "missing $mod for $0" if $@;
 };
 require PublicInbox::SearchIdx;
+require PublicInbox::Inbox;
 use File::Temp qw/tempdir/;
 use Email::MIME;
 my $tmpdir = tempdir('pi-search-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
+my $ibx = PublicInbox::Inbox->new({ mainrepo => $git_dir });
 my ($root_id, $last_id);
 
 is(0, system(qw(git init --shared -q --bare), $git_dir), "git init (main)");
 eval { PublicInbox::Search->new($git_dir)->xdb };
 ok($@, "exception raised on non-existent DB");
 
-my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
-my $ibx = $rw->{-inbox};
+my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 $ibx->with_umask(sub {
 	$rw->_xdb_acquire;
 	$rw->_xdb_release;
@@ -29,7 +30,7 @@ $rw = undef;
 my $ro = PublicInbox::Search->new($git_dir);
 my $rw_commit = sub {
 	$rw->commit_txn_lazy if $rw;
-	$rw = PublicInbox::SearchIdx->new($git_dir, 1);
+	$rw = PublicInbox::SearchIdx->new($ibx, 1);
 	$rw->{qp_flags} = 0; # quiet a warning
 	$rw->begin_txn_lazy;
 };

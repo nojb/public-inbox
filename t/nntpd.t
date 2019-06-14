@@ -91,7 +91,7 @@ EOF
 		$im->add($mime);
 		$im->done;
 		if ($version == 1) {
-			my $s = PublicInbox::SearchIdx->new($mainrepo, 1);
+			my $s = PublicInbox::SearchIdx->new($ibx, 1);
 			$s->index_sync;
 		}
 	}
@@ -243,7 +243,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		$im->add($for_leafnode);
 		$im->done;
 		if ($version == 1) {
-			my $s = PublicInbox::SearchIdx->new($mainrepo, 1);
+			my $s = PublicInbox::SearchIdx->new($ibx, 1);
 			$s->index_sync;
 		}
 		my $hdr = $n->head("<$long_hdr>");

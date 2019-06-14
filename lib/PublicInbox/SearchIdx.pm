@@ -30,31 +30,22 @@ my $xapianlevels = qr/\A(?:full|medium)\z/;
 
 sub new {
 	my ($class, $ibx, $creat, $part) = @_;
+	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $levels = qr/\A(?:full|medium|basic)\z/;
-	my $mainrepo = $ibx; # for "public-inbox-index" w/o entry in config
-	my $git_dir = $mainrepo;
-	my ($altid, $git);
-	my $version = 1;
+	my $mainrepo = $ibx->{mainrepo};
+	my $version = $ibx->{version} || 1;
 	my $indexlevel = 'full';
-	if (ref $ibx) {
-		$mainrepo = $ibx->{mainrepo};
-		$altid = $ibx->{altid};
-		$version = $ibx->{version} || 1;
-		if ($altid) {
-			require PublicInbox::AltId;
-			$altid = [ map {
-				PublicInbox::AltId->new($ibx, $_);
-			} @$altid ];
+	my $altid = $ibx->{altid};
+	if ($altid) {
+		require PublicInbox::AltId;
+		$altid = [ map { PublicInbox::AltId->new($ibx, $_); } @$altid ];
+	}
+	if ($ibx->{indexlevel}) {
+		if ($ibx->{indexlevel} =~ $levels) {
+			$indexlevel = $ibx->{indexlevel};
+		} else {
+			die("Invalid indexlevel $ibx->{indexlevel}\n");
 		}
-		if ($ibx->{indexlevel}) {
-			if ($ibx->{indexlevel} =~ $levels) {
-				$indexlevel = $ibx->{indexlevel};
-			} else {
-				die("Invalid indexlevel $ibx->{indexlevel}\n");
-			}
-		}
-	} else { # FIXME: old tests: old tests
-		$ibx = { mainrepo => $git_dir, version => 1 };
 	}
 	$ibx = PublicInbox::InboxWritable->new($ibx);
 	my $self = bless {

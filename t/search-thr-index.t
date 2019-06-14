@@ -13,11 +13,13 @@ foreach my $mod (@mods) {
 	plan skip_all => "missing $mod for $0" if $@;
 }
 require PublicInbox::SearchIdx;
+require PublicInbox::Inbox;
 my $tmpdir = tempdir('pi-search-thr-index.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
 
 is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
-my $rw = PublicInbox::SearchIdx->new($git_dir, 1);
+my $ibx = PublicInbox::Inbox->new({mainrepo => $git_dir});
+my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 ok($rw, "search indexer created");
 my $data = <<'EOF';
 Subject: [RFC 00/14]
