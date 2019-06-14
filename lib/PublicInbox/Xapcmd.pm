@@ -40,7 +40,7 @@ sub commit_changes ($$$) {
 			$over = undef;
 		}
 
-		if (!defined($new)) { # culled partition
+		if (!defined($new)) { # culled shard
 			push @old_part, $old;
 			next;
 		}
@@ -359,7 +359,7 @@ sub cpdb ($$) {
 		$new_parts = $opt->{reshard};
 		defined $new_parts or die 'BUG: got array src w/o --reshard';
 
-		# repartitioning, M:N copy means have full read access
+		# resharding, M:N copy means have full read access
 		foreach (@$old) {
 			if ($src) {
 				my $sub = Search::Xapian::Database->new($_);
@@ -397,7 +397,7 @@ sub cpdb ($$) {
 			my $lc = $src->get_metadata('last_commit');
 			$dst->set_metadata('last_commit', $lc) if $lc;
 
-			# only the first xapian partition (0) gets 'indexlevel'
+			# only the first xapian shard (0) gets 'indexlevel'
 			if ($new =~ m!(?:xapian[0-9]+|xap[0-9]+/0)\b!) {
 				my $l = $src->get_metadata('indexlevel');
 				if ($l eq 'medium') {
@@ -407,7 +407,7 @@ sub cpdb ($$) {
 			if ($pr_data) {
 				my $tot = $src->get_doccount;
 
-				# we can only estimate when repartitioning,
+				# we can only estimate when resharding,
 				# because removed spam causes slight imbalance
 				my $est = '';
 				if (defined $cur_part && $new_parts > 1) {
@@ -459,7 +459,7 @@ sub new {
 	# http://www.tldp.org/LDP/abs/html/exitcodes.html
 	$SIG{INT} = sub { exit(130) };
 	$SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub { exit(1) };
-	my $self = bless {}, $_[0]; # old partition => new (tmp) partition
+	my $self = bless {}, $_[0]; # old shard => new (WIP) shard
 	$owner{"$self"} = $$;
 	$self;
 }
@@ -481,7 +481,7 @@ sub DESTROY {
 	my $owner_pid = delete $owner{"$self"} or return;
 	return if $owner_pid != $$;
 	foreach my $new (values %$self) {
-		defined $new or next; # may be undef if repartitioning
+		defined $new or next; # may be undef if resharding
 		remove_tree($new) unless -d "$new/old";
 	}
 	done($self);
