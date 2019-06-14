@@ -58,8 +58,8 @@ sub count_partitions ($) {
 	my $xpfx = $self->{xpfx};
 
 	# always load existing partitions in case core count changes:
-	# Also, partition count may change while -watch is running
-	# due to -compact
+	# Also, shard count may change while -watch is running
+	# due to "xcpdb --reshard"
 	if (-d $xpfx) {
 		foreach my $part (<$xpfx/*>) {
 			-d $part && $part =~ m!/[0-9]+\z! or next;
@@ -288,7 +288,7 @@ sub idx_init {
 		$self->lock_acquire unless ($opt && $opt->{-skip_lock});
 		$over->create;
 
-		# -compact can change partition count while -watch is idle
+		# xcpdb can change shard count while -watch is idle
 		my $nparts = count_partitions($self);
 		if ($nparts && $nparts != $self->{partitions}) {
 			$self->{partitions} = $nparts;
