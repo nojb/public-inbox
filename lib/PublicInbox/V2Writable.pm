@@ -44,7 +44,7 @@ sub nproc_parts ($) {
 		chomp($n = `nproc 2>/dev/null`);
 		# assume 2 cores if GNU nproc(1) is not available
 		$n = 2 if !$n;
-		$n = $NPROC_MAX_DEFAULT if $NPROC_MAX_DEFAULT > 4;
+		$n = $NPROC_MAX_DEFAULT if $n > $NPROC_MAX_DEFAULT;
 	}
 
 	# subtract for the main process and git-fast-import
