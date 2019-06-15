@@ -66,7 +66,8 @@ sub next_tick () {
 
 sub update_idle_time ($) {
 	my ($self) = @_;
-	my $fd = $self->{fd};
+        my $sock = $self->{sock} or return;
+	my $fd = fileno($sock);
 	defined $fd and $EXPMAP->{$fd} = [ now(), $self ];
 }
 
@@ -622,7 +623,7 @@ sub long_response ($$) {
 	my ($self, $cb) = @_;
 	die "BUG: nested long response" if $self->{long_res};
 
-	my $fd = $self->{fd};
+	my $fd = fileno($self->{sock});
 	defined $fd or return;
 	# make sure we disable reading during a long response,
 	# clients should not be sending us stuff and making us do more
@@ -646,7 +647,7 @@ sub long_response ($$) {
 				update_idle_time($self);
 				check_read($self);
 			}
-		} elsif ($more) { # $self->{write_buf_size}:
+		} elsif ($more) { # scalar @{$self->{wbuf}}:
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			update_idle_time($self);
@@ -952,7 +953,7 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
 sub do_more ($$) {
 	my ($self, $data) = @_;
-	if (MSG_MORE && !$self->{write_buf_size}) {
+	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
 		if (defined $n) {
 			my $dlen = length($data);
@@ -962,11 +963,6 @@ sub do_more ($$) {
 	}
 	do_write($self, $data);
 }
-
-# callbacks for PublicInbox::DS
-
-sub event_hup { $_[0]->close }
-sub event_err { $_[0]->close }
 
 sub event_write {
 	my ($self) = @_;
@@ -980,17 +976,24 @@ sub event_write {
 sub event_read {
 	my ($self) = @_;
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
+	my $rbuf = \($self->{rbuf});
+	my $r;
 
-	if (index($self->{rbuf}, "\n") < 0) {
-		my $buf = $self->read(LINE_MAX) or return $self->close;
-		$self->{rbuf} .= $$buf;
+	if (index($$rbuf, "\n") < 0) {
+		my $off = length($$rbuf);
+		$r = sysread($self->{sock}, $$rbuf, LINE_MAX, $off);
+		unless (defined $r) {
+			return if $!{EAGAIN};
+			return $self->close;
+		}
+		return $self->close if $r == 0;
 	}
-	my $r = 1;
-	while ($r > 0 && $self->{rbuf} =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
+	$r = 1;
+	while ($r > 0 && $$rbuf =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
-		my $fd = $self->{fd};
+		my $fd = fileno($self->{sock});
 		$r = eval { process_line($self, $line) };
 		my $d = $self->{long_res} ?
 			" deferred[$fd]" : '';
@@ -998,7 +1001,7 @@ sub event_read {
 	}
 
 	return $self->close if $r < 0;
-	my $len = length($self->{rbuf});
+	my $len = length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
 	update_idle_time($self);
 }
@@ -1022,7 +1025,8 @@ sub check_read {
 
 sub not_idle_long ($$) {
 	my ($self, $now) = @_;
-	defined(my $fd = $self->{fd}) or return;
+        my $sock = $self->{sock} or return;
+	defined(my $fd = fileno($sock)) or return;
 	my $ary = $EXPMAP->{$fd} or return;
 	my $exp_at = $ary->[0] + $EXPTIME;
 	$exp_at > $now;
@@ -1031,8 +1035,8 @@ sub not_idle_long ($$) {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy {
 	my ($self, $now) = @_;
-	($self->{rbuf} ne '' || $self->{long_res} || $self->{write_buf_size} ||
-	 not_idle_long($self, $now));
+	($self->{rbuf} ne '' || $self->{long_res} ||
+		scalar(@{$self->{wbuf}}) || not_idle_long($self, $now));
 }
 
 1;

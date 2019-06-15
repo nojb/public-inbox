@@ -260,7 +260,7 @@ sub getline_cb ($$$) {
 			$write->($buf); # may close in PublicInbox::DS::write
 			unless ($self->{closed}) {
 				my $next = $self->{pull};
-				if ($self->{write_buf_size}) {
+				if (scalar @{$self->{wbuf}}) {
 					$self->write($next);
 				} else {
 					PublicInbox::EvCleanup::asap($next);
@@ -315,7 +315,7 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 sub more ($$) {
 	my $self = $_[0];
 	return if $self->{closed};
-	if (MSG_MORE && !$self->{write_buf_size}) {
+	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
 		my $n = send($self->{sock}, $_[1], MSG_MORE);
 		if (defined $n) {
 			my $nlen = length($_[1]) - $n;
@@ -466,11 +466,6 @@ sub quit {
 	$self->close;
 }
 
-# callbacks for PublicInbox::DS
-
-sub event_hup { $_[0]->close }
-sub event_err { $_[0]->close }
-
 sub close {
 	my $self = shift;
 	my $forward = $self->{forward};
@@ -487,7 +482,7 @@ sub close {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy () {
 	my ($self) = @_;
-	($self->{rbuf} ne '' || $self->{env} || $self->{write_buf_size});
+	($self->{rbuf} ne '' || $self->{env} || scalar(@{$self->{wbuf}}));
 }
 
 1;

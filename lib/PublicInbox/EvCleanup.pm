@@ -6,7 +6,6 @@ package PublicInbox::EvCleanup;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(rd);
 
 my $ENABLED;
 sub enabled { $ENABLED }
@@ -25,7 +24,12 @@ sub once_init () {
 	pipe($r, $w) or die "pipe: $!";
 	fcntl($w, 1031, 4096) if $^O eq 'linux'; # 1031: F_SETPIPE_SZ
 	$self->SUPER::new($w);
-	$self->{rd} = $r; # never read, since we never write..
+
+	# always writable, since PublicInbox::EvCleanup::event_write
+	# never drains wbuf.  We can avoid wasting a hash slot by
+	# stuffing the read-end of the pipe into the never-to-be-touched
+	# wbuf
+	push @{$self->{wbuf}}, $r;
 	$self;
 }
 
