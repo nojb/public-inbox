@@ -232,7 +232,9 @@ sub search_nav_bot {
 	$rv .= qq{  <a\nhref="?$next"\nrel=next>next</a>} if $next;
 	$rv .= $join if $join;
 	$rv .= qq{<a\nhref="?$prev"\nrel=prev>prev</a>} if $prev;
-	$rv .= '</pre>';
+
+	my $rev = $q->qs_html(o => $o < 0 ? 0 : -1);
+	$rv .= qq{ | <a\nhref="?$rev">reverse results</a></pre>};
 }
 
 sub sort_relevance {
