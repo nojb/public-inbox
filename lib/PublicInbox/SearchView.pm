@@ -34,14 +34,21 @@ sub sres_top_html {
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
 	my $x = $q->{x};
 	my $query = $q->{'q'};
+	my $o = $q->{o};
+	my $asc;
+	if ($o < 0) {
+		$asc = 1;
+		$o = -($o + 1); # so [-1] is the last element, like Perl lists
+	}
 
 	my $code = 200;
 	# double the limit for expanded views:
 	my $opts = {
 		limit => $q->{l},
-		offset => $q->{o},
+		offset => $o,
 		mset => 1,
 		relevance => $q->{r},
+		asc => $asc,
 	};
 	my ($mset, $total, $err, $cb);
 retry:
@@ -184,29 +191,47 @@ sub search_nav_top {
 sub search_nav_bot {
 	my ($mset, $q) = @_;
 	my $total = $mset->get_matches_estimated;
-	my $o = $q->{o};
 	my $l = $q->{l};
-	my $end = $o + $mset->size;
-	my $beg = $o + 1;
 	my $rv = '</pre><hr><pre id=t>';
+	my $o = $q->{o};
+	my $off = $o < 0 ? -($o + 1) : $o;
+	my $end = $off + $mset->size;
+	my $beg = $off + 1;
+
 	if ($beg <= $end) {
 		$rv .= "Results $beg-$end of $total";
 		$rv .= ' (estimated)' if $end != $total;
 	} else {
 		$rv .= "No more results, only $total";
 	}
-	my $n = $o + $l;
+	my ($next, $join, $prev);
 
-	if ($n < $total) {
-		my $qs = $q->qs_html(o => $n, l => $l);
-		$rv .= qq{  <a\nhref="?$qs"\nrel=next>next</a>}
+	if ($o >= 0) { # sort descending
+		my $n = $o + $l;
+		if ($n < $total) {
+			$next = $q->qs_html(o => $n, l => $l);
+		}
+		if ($o > 0) {
+			$join = $n < $total ? '/' : '       ';
+			my $p = $o - $l;
+			$prev = $q->qs_html(o => ($p > 0 ? $p : 0));
+		}
+	} else { # o < 0, sort ascending
+		my $n = $o - $l;
+
+		if (-$n < $total) {
+			$next = $q->qs_html(o => $n, l => $l);
+		}
+		if ($o < -1) {
+			$join = -$n < $total ? '/' : '       ';
+			my $p = $o + $l;
+			$prev = $q->qs_html(o => ($p < 0 ? $p : 0));
+		}
 	}
-	if ($o > 0) {
-		$rv .= $n < $total ? '/' : '       ';
-		my $p = $o - $l;
-		my $qs = $q->qs_html(o => ($p > 0 ? $p : 0));
-		$rv .= qq{<a\nhref="?$qs"\nrel=prev>prev</a>};
-	}
+
+	$rv .= qq{  <a\nhref="?$next"\nrel=next>next</a>} if $next;
+	$rv .= $join if $join;
+	$rv .= qq{<a\nhref="?$prev"\nrel=prev>prev</a>} if $prev;
 	$rv .= '</pre>';
 }
 
@@ -313,7 +338,7 @@ sub new {
 	bless {
 		q => $qp->{'q'},
 		x => $qp->{x} || '',
-		o => (($qp->{o} || '0') =~ /([0-9]+)/),
+		o => (($qp->{o} || '0') =~ /(-?[0-9]+)/),
 		l => $l,
 		r => (defined $r && $r ne '0'),
 	}, $class;
