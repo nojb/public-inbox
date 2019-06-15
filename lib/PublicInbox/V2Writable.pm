@@ -24,7 +24,7 @@ use IO::Handle;
 my $PACKING_FACTOR = 0.4;
 
 # SATA storage lags behind what CPUs are capable of, so relying on
-# nproc(1) can be misleading and having extra Xapian partions is a
+# nproc(1) can be misleading and having extra Xapian shards is a
 # waste of FDs and space.  It can also lead to excessive IO latency
 # and slow things down.  Users on NVME or other fast storage can
 # use the NPROC env or switches in our script/public-inbox-* programs
@@ -57,7 +57,7 @@ sub count_shards ($) {
 	my $n = 0;
 	my $xpfx = $self->{xpfx};
 
-	# always load existing partitions in case core count changes:
+	# always load existing shards in case core count changes:
 	# Also, shard count may change while -watch is running
 	# due to "xcpdb --reshard"
 	if (-d $xpfx) {
@@ -292,7 +292,7 @@ sub idx_init {
 			$self->{shards} = $nshards;
 		}
 
-		# need to create all parts before initializing msgmap FD
+		# need to create all shards before initializing msgmap FD
 		my $max = $self->{shards} - 1;
 
 		# idx_shards must be visible to all forked processes
@@ -616,17 +616,17 @@ sub checkpoint ($;$) {
 		if ($wait) {
 			my $barrier = $self->barrier_init(scalar @$shards);
 
-			# each partition needs to issue a barrier command
+			# each shard needs to issue a barrier command
 			$_->remote_barrier for @$shards;
 
-			# wait for each Xapian partition
+			# wait for each Xapian shard
 			$self->barrier_wait($barrier);
 		} else {
 			$_->remote_commit for @$shards;
 		}
 
 		# last_commit is special, don't commit these until
-		# remote partitions are done:
+		# remote shards are done:
 		$dbh->begin_work;
 		set_last_commits($self);
 		$dbh->commit;

@@ -797,7 +797,7 @@ sub remote_close {
 sub remote_remove {
 	my ($self, $oid, $mid) = @_;
 	if (my $w = $self->{w}) {
-		# triggers remove_by_oid in a partition
+		# triggers remove_by_oid in a shard
 		print $w "D $oid $mid\n" or die "failed to write remove $!";
 	} else {
 		$self->begin_txn_lazy;
