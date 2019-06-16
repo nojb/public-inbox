@@ -31,7 +31,7 @@ sub new {
 }
 
 sub init_inbox {
-	my ($self, $partitions, $skip_epoch, $skip_artnum) = @_;
+	my ($self, $shards, $skip_epoch, $skip_artnum) = @_;
 	# TODO: honor skip_artnum
 	my $v = $self->{version} || 1;
 	if ($v == 1) {
@@ -39,7 +39,7 @@ sub init_inbox {
 		PublicInbox::Import::init_bare($dir);
 	} else {
 		my $v2w = importer($self);
-		$v2w->init_inbox($partitions, $skip_epoch, $skip_artnum);
+		$v2w->init_inbox($shards, $skip_epoch, $skip_artnum);
 	}
 }
 

@@ -190,7 +190,7 @@ sub js ($$) {
 
 	my $manifest = { -abs2urlpath => {}, -mtime => 0 };
 	for my $ibx (@$list) {
-		if (defined(my $max = $ibx->max_git_part)) {
+		if (defined(my $max = $ibx->max_git_epoch)) {
 			for my $epoch (0..$max) {
 				manifest_add($manifest, $ibx, $epoch);
 			}

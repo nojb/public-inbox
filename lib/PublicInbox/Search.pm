@@ -131,9 +131,9 @@ sub xdir ($;$) {
 		my $dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
 		return $dir if $rdonly;
 
-		my $part = $self->{partition};
-		defined $part or die "partition not given";
-		$dir .= "/$part";
+		my $shard = $self->{shard};
+		defined $shard or die "shard not given";
+		$dir .= "/$shard";
 	}
 }
 
@@ -143,15 +143,15 @@ sub _xdb ($) {
 	my ($xdb, $slow_phrase);
 	my $qpf = \($self->{qp_flags} ||= $QP_FLAGS);
 	if ($self->{version} >= 2) {
-		foreach my $part (<$dir/*>) {
-			-d $part && $part =~ m!/[0-9]+\z! or next;
-			my $sub = Search::Xapian::Database->new($part);
+		foreach my $shard (<$dir/*>) {
+			-d $shard && $shard =~ m!/[0-9]+\z! or next;
+			my $sub = Search::Xapian::Database->new($shard);
 			if ($xdb) {
 				$xdb->add_database($sub);
 			} else {
 				$xdb = $sub;
 			}
-			$slow_phrase ||= -f "$part/iamchert";
+			$slow_phrase ||= -f "$shard/iamchert";
 		}
 	} else {
 		$slow_phrase = -f "$dir/iamchert";

@@ -76,9 +76,9 @@ sub call {
 	if ($method eq 'POST') {
 		if ($path_info =~ m!$INBOX_RE/(?:(?:git/)?([0-9]+)(?:\.git)?/)?
 					(git-upload-pack)\z!x) {
-			my ($part, $path) = ($2, $3);
+			my ($epoch, $path) = ($2, $3);
 			return invalid_inbox($ctx, $1) ||
-				serve_git($ctx, $part, $path);
+				serve_git($ctx, $epoch, $path);
 		} elsif ($path_info =~ m!$INBOX_RE/!o) {
 			return invalid_inbox($ctx, $1) || mbox_results($ctx);
 		}
@@ -100,8 +100,8 @@ sub call {
 		invalid_inbox($ctx, $1) || get_new($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/(?:(?:git/)?([0-9]+)(?:\.git)?/)?
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
-		my ($part, $path) = ($2, $3);
-		invalid_inbox($ctx, $1) || serve_git($ctx, $part, $path);
+		my ($epoch, $path) = ($2, $3);
+		invalid_inbox($ctx, $1) || serve_git($ctx, $epoch, $path);
 	} elsif ($path_info =~ m!$INBOX_RE/([a-zA-Z0-9_\-]+).mbox\.gz\z!o) {
 		serve_mbox_range($ctx, $1, $2);
 	} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$END_RE\z!o) {
@@ -437,10 +437,10 @@ sub msg_page {
 }
 
 sub serve_git {
-	my ($ctx, $part, $path) = @_;
+	my ($ctx, $epoch, $path) = @_;
 	my $env = $ctx->{env};
 	my $ibx = $ctx->{-inbox};
-	my $git = defined $part ? $ibx->git_part($part) : $ibx->git;
+	my $git = defined $epoch ? $ibx->git_epoch($epoch) : $ibx->git;
 	$git ? PublicInbox::GitHTTPBackend::serve($env, $git, $path) : r404();
 }
 

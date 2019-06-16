@@ -17,13 +17,13 @@ our @COMPACT_OPT = qw(jobs|j=i quiet|q blocksize|b=s no-full|n fuller|F);
 
 sub commit_changes ($$$) {
 	my ($ibx, $tmp, $opt) = @_;
-	my $new_parts = $opt->{reshard};
+	my $reshard = $opt->{reshard};
 	my $reindex = $opt->{reindex};
 	my $im = $ibx->importer(0);
 	$im->lock_acquire if !$opt->{-coarse_lock};
 
 	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
-	my @old_part;
+	my @old_shard;
 
 	while (my ($old, $new) = each %$tmp) {
 		my @st = stat($old);
@@ -40,8 +40,8 @@ sub commit_changes ($$$) {
 			$over = undef;
 		}
 
-		if (!defined($new)) { # culled partition
-			push @old_part, $old;
+		if (!defined($new)) { # culled shard
+			push @old_shard, $old;
 			next;
 		}
 
@@ -58,22 +58,22 @@ sub commit_changes ($$$) {
 				die "failed to remove $prev: $!\n";
 		}
 	}
-	remove_tree(@old_part);
+	remove_tree(@old_shard);
 	$tmp->done;
 	if (!$opt->{-coarse_lock}) {
 		$opt->{-skip_lock} = 1;
 
-		if ($im->can('count_partitions')) {
+		if ($im->can('count_shards')) {
 			my $pr = $opt->{-progress};
-			my $n = $im->count_partitions;
-			if (defined $new_parts && $n != $new_parts) {
+			my $n = $im->count_shards;
+			if (defined $reshard && $n != $reshard) {
 				die
-"BUG: counted $n partitions after repartioning to $new_parts";
+"BUG: counted $n shards after resharding to $reshard";
 			}
-			my $prev = $im->{partitions};
+			my $prev = $im->{shards};
 			if ($pr && $prev != $n) {
-				$pr->("partition count changed: $prev => $n\n");
-				$im->{partitions} = $n;
+				$pr->("shard count changed: $prev => $n\n");
+				$im->{shards} = $n;
 			}
 		}
 
@@ -171,17 +171,17 @@ sub run {
 	my $tmp = PublicInbox::Xtmpdirs->new;
 	my $v = $ibx->{version} ||= 1;
 	my @q;
-	my $new_parts = $opt->{reshard};
-	if (defined $new_parts && $new_parts <= 0) {
+	my $reshard = $opt->{reshard};
+	if (defined $reshard && $reshard <= 0) {
 		die "--reshard must be a positive number\n";
 	}
 
 	# we want temporary directories to be as deep as possible,
-	# so v2 partitions can keep "xap$SCHEMA_VERSION" on a separate FS.
+	# so v2 shards can keep "xap$SCHEMA_VERSION" on a separate FS.
 	if ($v == 1) {
-		if (defined $new_parts) {
+		if (defined $reshard) {
 			warn
-"--reshard=$new_parts ignored for v1 $ibx->{mainrepo}\n";
+"--reshard=$reshard ignored for v1 $ibx->{mainrepo}\n";
 		}
 		my $old_parent = dirname($old);
 		same_fs_or_die($old_parent, $old);
@@ -191,28 +191,28 @@ sub run {
 		push @q, [ $old, $wip ];
 	} else {
 		opendir my $dh, $old or die "Failed to opendir $old: $!\n";
-		my @old_parts;
+		my @old_shards;
 		while (defined(my $dn = readdir($dh))) {
 			if ($dn =~ /\A[0-9]+\z/) {
-				push @old_parts, $dn;
+				push @old_shards, $dn;
 			} elsif ($dn eq '.' || $dn eq '..') {
 			} elsif ($dn =~ /\Aover\.sqlite3/) {
 			} else {
 				warn "W: skipping unknown dir: $old/$dn\n"
 			}
 		}
-		die "No Xapian parts found in $old\n" unless @old_parts;
+		die "No Xapian shards found in $old\n" unless @old_shards;
 
-		my ($src, $max_part);
-		if (!defined($new_parts) || $new_parts == scalar(@old_parts)) {
+		my ($src, $max_shard);
+		if (!defined($reshard) || $reshard == scalar(@old_shards)) {
 			# 1:1 copy
-			$max_part = scalar(@old_parts) - 1;
+			$max_shard = scalar(@old_shards) - 1;
 		} else {
 			# M:N copy
-			$max_part = $new_parts - 1;
-			$src = [ map { "$old/$_" } @old_parts ];
+			$max_shard = $reshard - 1;
+			$src = [ map { "$old/$_" } @old_shards ];
 		}
-		foreach my $dn (0..$max_part) {
+		foreach my $dn (0..$max_shard) {
 			my $tmpl = "$dn-XXXXXXXX";
 			my $wip = tempdir($tmpl, DIR => $old);
 			same_fs_or_die($old, $wip);
@@ -220,7 +220,7 @@ sub run {
 			push @q, [ $src // $cur , $wip ];
 			$tmp->{$cur} = $wip;
 		}
-		# mark old parts to be unlinked
+		# mark old shards to be unlinked
 		if ($src) {
 			$tmp->{$_} ||= undef for @$src;
 		}
@@ -305,7 +305,7 @@ sub compact ($$) {
 }
 
 sub cpdb_loop ($$$;$$) {
-	my ($src, $dst, $pr_data, $cur_part, $new_parts) = @_;
+	my ($src, $dst, $pr_data, $cur_shard, $reshard) = @_;
 	my ($pr, $fmt, $nr, $pfx);
 	if ($pr_data) {
 		$pr = $pr_data->{pr};
@@ -326,9 +326,9 @@ sub cpdb_loop ($$$;$$) {
 		eval {
 			for (; $it != $end; $it++) {
 				my $docid = $it->get_docid;
-				if (defined $new_parts) {
-					my $dst_part = $docid % $new_parts;
-					next if $dst_part != $cur_part;
+				if (defined $reshard) {
+					my $dst_shard = $docid % $reshard;
+					next if $dst_shard != $cur_shard;
 				}
 				my $doc = $src->get_document($docid);
 				$dst->replace_document($docid, $doc);
@@ -350,16 +350,16 @@ sub cpdb_loop ($$$;$$) {
 sub cpdb ($$) {
 	my ($args, $opt) = @_;
 	my ($old, $new) = @$args;
-	my ($src, $cur_part);
-	my $new_parts;
+	my ($src, $cur_shard);
+	my $reshard;
 	if (ref($old) eq 'ARRAY') {
-		($cur_part) = ($new =~ m!xap[0-9]+/([0-9]+)\b!);
-		defined $cur_part or
-			die "BUG: could not extract partition # from $new";
-		$new_parts = $opt->{reshard};
-		defined $new_parts or die 'BUG: got array src w/o --partition';
+		($cur_shard) = ($new =~ m!xap[0-9]+/([0-9]+)\b!);
+		defined $cur_shard or
+			die "BUG: could not extract shard # from $new";
+		$reshard = $opt->{reshard};
+		defined $reshard or die 'BUG: got array src w/o --reshard';
 
-		# repartitioning, M:N copy means have full read access
+		# resharding, M:N copy means have full read access
 		foreach (@$old) {
 			if ($src) {
 				my $sub = Search::Xapian::Database->new($_);
@@ -397,7 +397,7 @@ sub cpdb ($$) {
 			my $lc = $src->get_metadata('last_commit');
 			$dst->set_metadata('last_commit', $lc) if $lc;
 
-			# only the first xapian partition (0) gets 'indexlevel'
+			# only the first xapian shard (0) gets 'indexlevel'
 			if ($new =~ m!(?:xapian[0-9]+|xap[0-9]+/0)\b!) {
 				my $l = $src->get_metadata('indexlevel');
 				if ($l eq 'medium') {
@@ -407,11 +407,11 @@ sub cpdb ($$) {
 			if ($pr_data) {
 				my $tot = $src->get_doccount;
 
-				# we can only estimate when repartitioning,
+				# we can only estimate when resharding,
 				# because removed spam causes slight imbalance
 				my $est = '';
-				if (defined $cur_part && $new_parts > 1) {
-					$tot = int($tot/$new_parts);
+				if (defined $cur_shard && $reshard > 1) {
+					$tot = int($tot/$reshard);
 					$est = 'around ';
 				}
 				my $fmt = "$pfx % ".length($tot)."u/$tot\n";
@@ -422,15 +422,15 @@ sub cpdb ($$) {
 		};
 	} while (cpdb_retryable($src, $pfx));
 
-	if (defined $new_parts) {
+	if (defined $reshard) {
 		# we rely on document IDs matching NNTP article number,
-		# so we can't have the combined DB support rewriting
+		# so we can't have the Xapian sharding DB support rewriting
 		# document IDs.  Thus we iterate through each shard
 		# individually.
 		$src = undef;
 		foreach (@$old) {
 			my $old = Search::Xapian::Database->new($_);
-			cpdb_loop($old, $dst, $pr_data, $cur_part, $new_parts);
+			cpdb_loop($old, $dst, $pr_data, $cur_shard, $reshard);
 		}
 	} else {
 		cpdb_loop($src, $dst, $pr_data);
@@ -459,7 +459,7 @@ sub new {
 	# http://www.tldp.org/LDP/abs/html/exitcodes.html
 	$SIG{INT} = sub { exit(130) };
 	$SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub { exit(1) };
-	my $self = bless {}, $_[0]; # old partition => new (tmp) partition
+	my $self = bless {}, $_[0]; # old shard => new (WIP) shard
 	$owner{"$self"} = $$;
 	$self;
 }
@@ -481,7 +481,7 @@ sub DESTROY {
 	my $owner_pid = delete $owner{"$self"} or return;
 	return if $owner_pid != $$;
 	foreach my $new (values %$self) {
-		defined $new or next; # may be undef if repartitioning
+		defined $new or next; # may be undef if resharding
 		remove_tree($new) unless -d "$new/old";
 	}
 	done($self);

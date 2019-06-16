@@ -34,7 +34,7 @@ my $mime = PublicInbox::MIME->create(
 );
 
 my $im = PublicInbox::V2Writable->new($ibx, {nproc => 1});
-is($im->{partitions}, 1, 'one partition when forced');
+is($im->{shards}, 1, 'one shard when forced');
 ok($im->add($mime), 'ordinary message added');
 foreach my $f ("$mainrepo/msgmap.sqlite3",
 		glob("$mainrepo/xap*/*"),
@@ -199,7 +199,7 @@ EOF
 	my @before = $git0->qx(@log, qw(--pretty=oneline));
 	my $before = $git0->qx(@log, qw(--pretty=raw --raw -r));
 	$im = PublicInbox::V2Writable->new($ibx, {nproc => 2});
-	is($im->{partitions}, 1, 'detected single partition from previous');
+	is($im->{shards}, 1, 'detected single shard from previous');
 	my $smsg = $im->remove($mime, 'test removal');
 	$im->done;
 	my @after = $git0->qx(@log, qw(--pretty=oneline));

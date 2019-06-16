@@ -125,11 +125,11 @@ sub new {
 	bless $opts, $class;
 }
 
-sub git_part {
-	my ($self, $part) = @_;
+sub git_epoch {
+	my ($self, $epoch) = @_;
 	($self->{version} || 1) == 2 or return;
-	$self->{"$part.git"} ||= eval {
-		my $git_dir = "$self->{mainrepo}/git/$part.git";
+	$self->{"$epoch.git"} ||= eval {
+		my $git_dir = "$self->{mainrepo}/git/$epoch.git";
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
 		# no cleanup needed, we never cat-file off this, only clone
@@ -149,13 +149,13 @@ sub git {
 	};
 }
 
-sub max_git_part {
+sub max_git_epoch {
 	my ($self) = @_;
 	my $v = $self->{version};
 	return unless defined($v) && $v == 2;
-	my $part = $self->{-max_git_part};
+	my $cur = $self->{-max_git_epoch};
 	my $changed = git($self)->alternates_changed;
-	if (!defined($part) || $changed) {
+	if (!defined($cur) || $changed) {
 		$self->git->cleanup if $changed;
 		my $gits = "$self->{mainrepo}/git";
 		if (opendir my $dh, $gits) {
@@ -164,12 +164,12 @@ sub max_git_part {
 				$git_dir =~ m!\A([0-9]+)\.git\z! or next;
 				$max = $1 if $1 > $max;
 			}
-			$part = $self->{-max_git_part} = $max if $max >= 0;
+			$cur = $self->{-max_git_epoch} = $max if $max >= 0;
 		} else {
 			warn "opendir $gits failed: $!\n";
 		}
 	}
-	$part;
+	$cur;
 }
 
 sub mm {

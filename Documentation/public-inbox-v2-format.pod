@@ -16,7 +16,7 @@ Message-IDs.
 The key change in v2 is the inbox is no longer a bare git
 repository, but a directory with two or more git repositories.
 v2 divides git repositories by time "epochs" and Xapian
-databases for parallelism by "partitions".
+databases for parallelism by "shards".
 
 =head2 INBOX OVERVIEW AND DEFINITIONS
 
@@ -28,7 +28,7 @@ foo/ # assuming "foo" is the name of the list
 - inbox.lock                 # lock file (flock) to protect global state
 - git/$EPOCH.git             # normal git repositories
 - all.git                    # empty git repo, alternates to git/$EPOCH.git
-- xap$SCHEMA_VERSION/$PART   # per-partition Xapian DB
+- xap$SCHEMA_VERSION/$SHARD  # per-shard Xapian DB
 - xap$SCHEMA_VERSION/over.sqlite3 # OVER-view DB for NNTP and threading
 - msgmap.sqlite3             # same the v1 msgmap
 
@@ -95,16 +95,16 @@ are documented at:
 
 L<https://public-inbox.org/meta/20180209205140.GA11047@dcvr/>
 
-=head2 XAPIAN PARTITIONS
+=head2 XAPIAN SHARDS
 
 Another second scalability problem in v1 was the inability to
 utilize multiple CPU cores for Xapian indexing.  This is
-addressed by using partitions in Xapian to perform import
+addressed by using shards in Xapian to perform import
 indexing in parallel.
 
 As with git alternates, Xapian natively supports a read-only
 interface which transparently abstracts away the knowledge of
-multiple partitions.  This allows us to simplify our read-only
+multiple shards.  This allows us to simplify our read-only
 code paths.
 
 The performance of the storage device is now the bottleneck on

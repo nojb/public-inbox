@@ -7,7 +7,7 @@ package PublicInbox::V2Writable;
 use strict;
 use warnings;
 use base qw(PublicInbox::Lock);
-use PublicInbox::SearchIdxPart;
+use PublicInbox::SearchIdxShard;
 use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
@@ -24,14 +24,14 @@ use IO::Handle;
 my $PACKING_FACTOR = 0.4;
 
 # SATA storage lags behind what CPUs are capable of, so relying on
-# nproc(1) can be misleading and having extra Xapian partions is a
+# nproc(1) can be misleading and having extra Xapian shards is a
 # waste of FDs and space.  It can also lead to excessive IO latency
 # and slow things down.  Users on NVME or other fast storage can
 # use the NPROC env or switches in our script/public-inbox-* programs
-# to increase Xapian partitions.
+# to increase Xapian shards
 our $NPROC_MAX_DEFAULT = 4;
 
-sub nproc_parts ($) {
+sub nproc_shards ($) {
 	my ($creat_opt) = @_;
 	if (ref($creat_opt) eq 'HASH') {
 		if (defined(my $n = $creat_opt->{nproc})) {
@@ -52,24 +52,24 @@ sub nproc_parts ($) {
 	$n < 1 ? 1 : $n;
 }
 
-sub count_partitions ($) {
+sub count_shards ($) {
 	my ($self) = @_;
-	my $nparts = 0;
+	my $n = 0;
 	my $xpfx = $self->{xpfx};
 
-	# always load existing partitions in case core count changes:
-	# Also, partition count may change while -watch is running
-	# due to -compact
+	# always load existing shards in case core count changes:
+	# Also, shard count may change while -watch is running
+	# due to "xcpdb --reshard"
 	if (-d $xpfx) {
-		foreach my $part (<$xpfx/*>) {
-			-d $part && $part =~ m!/[0-9]+\z! or next;
+		foreach my $shard (<$xpfx/*>) {
+			-d $shard && $shard =~ m!/[0-9]+\z! or next;
 			eval {
-				Search::Xapian::Database->new($part)->close;
-				$nparts++;
+				Search::Xapian::Database->new($shard)->close;
+				$n++;
 			};
 		}
 	}
-	$nparts;
+	$n;
 }
 
 sub new {
@@ -103,7 +103,7 @@ sub new {
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git repo -> commit
 	};
-	$self->{partitions} = count_partitions($self) || nproc_parts($creat);
+	$self->{shards} = count_shards($self) || nproc_shards($creat);
 	bless $self, $class;
 }
 
@@ -134,12 +134,10 @@ sub add {
 sub do_idx ($$$$$$$) {
 	my ($self, $msgref, $mime, $len, $num, $oid, $mid0) = @_;
 	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
-	my $npart = $self->{partitions};
-	my $part = $num % $npart;
-	my $idx = idx_part($self, $part);
+	my $idx = idx_shard($self, $num % $self->{shards});
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
 	my $n = $self->{transact_bytes} += $len;
-	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $npart);
+	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
 }
 
 sub _add {
@@ -252,15 +250,15 @@ sub num_for_harder {
 	$num;
 }
 
-sub idx_part {
-	my ($self, $part) = @_;
-	$self->{idx_parts}->[$part];
+sub idx_shard {
+	my ($self, $shard_i) = @_;
+	$self->{idx_shards}->[$shard_i];
 }
 
 # idempotent
 sub idx_init {
 	my ($self, $opt) = @_;
-	return if $self->{idx_parts};
+	return if $self->{idx_shards};
 	my $ibx = $self->{-inbox};
 
 	# do not leak read-only FDs to child processes, we only have these
@@ -288,19 +286,19 @@ sub idx_init {
 		$self->lock_acquire unless ($opt && $opt->{-skip_lock});
 		$over->create;
 
-		# -compact can change partition count while -watch is idle
-		my $nparts = count_partitions($self);
-		if ($nparts && $nparts != $self->{partitions}) {
-			$self->{partitions} = $nparts;
+		# xcpdb can change shard count while -watch is idle
+		my $nshards = count_shards($self);
+		if ($nshards && $nshards != $self->{shards}) {
+			$self->{shards} = $nshards;
 		}
 
-		# need to create all parts before initializing msgmap FD
-		my $max = $self->{partitions} - 1;
+		# need to create all shards before initializing msgmap FD
+		my $max = $self->{shards} - 1;
 
-		# idx_parts must be visible to all forked processes
-		my $idx = $self->{idx_parts} = [];
+		# idx_shards must be visible to all forked processes
+		my $idx = $self->{idx_shards} = [];
 		for my $i (0..$max) {
-			push @$idx, PublicInbox::SearchIdxPart->new($self, $i);
+			push @$idx, PublicInbox::SearchIdxShard->new($self, $i);
 		}
 
 		# Now that all subprocesses are up, we can open the FDs
@@ -370,7 +368,6 @@ sub rewrite_internal ($$;$$$) {
 	}
 	my $over = $self->{over};
 	my $cids = content_ids($old_mime);
-	my $parts = $self->{idx_parts};
 	my $removed;
 	my $mids = mids($old_mime->header_obj);
 
@@ -559,7 +556,7 @@ W: $list
 	$rewritten->{rewrites};
 }
 
-sub last_commit_part ($$;$) {
+sub last_epoch_commit ($$;$) {
 	my ($self, $i, $cmt) = @_;
 	my $v = PublicInbox::Search::SCHEMA_VERSION();
 	$self->{mm}->last_commit_xap($v, $i, $cmt);
@@ -572,7 +569,7 @@ sub set_last_commits ($) {
 	foreach my $i (0..$epoch_max) {
 		defined(my $cmt = $last_commit->[$i]) or next;
 		$last_commit->[$i] = undef;
-		last_commit_part($self, $i, $cmt);
+		last_epoch_commit($self, $i, $cmt);
 	}
 }
 
@@ -590,7 +587,7 @@ sub barrier_wait {
 	while (scalar keys %$barrier) {
 		defined(my $l = $r->getline) or die "EOF on barrier_wait: $!";
 		$l =~ /\Abarrier (\d+)/ or die "bad line on barrier_wait: $l";
-		delete $barrier->{$1} or die "bad part[$1] on barrier wait";
+		delete $barrier->{$1} or die "bad shard[$1] on barrier wait";
 	}
 }
 
@@ -605,8 +602,8 @@ sub checkpoint ($;$) {
 			$im->checkpoint;
 		}
 	}
-	my $parts = $self->{idx_parts};
-	if ($parts) {
+	my $shards = $self->{idx_shards};
+	if ($shards) {
 		my $dbh = $self->{mm}->{dbh};
 
 		# SQLite msgmap data is second in importance
@@ -617,19 +614,19 @@ sub checkpoint ($;$) {
 
 		# Now deal with Xapian
 		if ($wait) {
-			my $barrier = $self->barrier_init(scalar @$parts);
+			my $barrier = $self->barrier_init(scalar @$shards);
 
-			# each partition needs to issue a barrier command
-			$_->remote_barrier for @$parts;
+			# each shard needs to issue a barrier command
+			$_->remote_barrier for @$shards;
 
-			# wait for each Xapian partition
+			# wait for each Xapian shard
 			$self->barrier_wait($barrier);
 		} else {
-			$_->remote_commit for @$parts;
+			$_->remote_commit for @$shards;
 		}
 
 		# last_commit is special, don't commit these until
-		# remote partitions are done:
+		# remote shards are done:
 		$dbh->begin_work;
 		set_last_commits($self);
 		$dbh->commit;
@@ -652,14 +649,14 @@ sub done {
 	checkpoint($self);
 	my $mm = delete $self->{mm};
 	$mm->{dbh}->commit if $mm;
-	my $parts = delete $self->{idx_parts};
-	if ($parts) {
-		$_->remote_close for @$parts;
+	my $shards = delete $self->{idx_shards};
+	if ($shards) {
+		$_->remote_close for @$shards;
 	}
 	$self->{over}->disconnect;
 	delete $self->{bnote};
 	$self->{transact_bytes} = 0;
-	$self->lock_release if $parts;
+	$self->lock_release if $shards;
 	$self->{-inbox}->git->cleanup;
 }
 
@@ -827,8 +824,8 @@ sub atfork_child {
 	my ($self) = @_;
 	my $fh = delete $self->{reindex_pipe};
 	close $fh if $fh;
-	if (my $parts = $self->{idx_parts}) {
-		$_->atfork_child foreach @$parts;
+	if (my $shards = $self->{idx_shards}) {
+		$_->atfork_child foreach @$shards;
 	}
 	if (my $im = $self->{im}) {
 		$im->atfork_child;
@@ -930,13 +927,13 @@ sub reindex_oid ($$$$) {
 # only update last_commit for $i on reindex iff newer than current
 sub update_last_commit ($$$$) {
 	my ($self, $git, $i, $cmt) = @_;
-	my $last = last_commit_part($self, $i);
+	my $last = last_epoch_commit($self, $i);
 	if (defined $last && is_ancestor($git, $last, $cmt)) {
 		my @cmd = (qw(rev-list --count), "$last..$cmt");
 		chomp(my $n = $git->qx(@cmd));
 		return if $n ne '' && $n == 0;
 	}
-	last_commit_part($self, $i, $cmt);
+	last_epoch_commit($self, $i, $cmt);
 }
 
 sub git_dir_n ($$) { "$_[0]->{-inbox}->{mainrepo}/git/$_[1].git" }
@@ -945,7 +942,7 @@ sub last_commits ($$) {
 	my ($self, $epoch_max) = @_;
 	my $heads = [];
 	for (my $i = $epoch_max; $i >= 0; $i--) {
-		$heads->[$i] = last_commit_part($self, $i);
+		$heads->[$i] = last_epoch_commit($self, $i);
 	}
 	$heads;
 }
@@ -1016,7 +1013,7 @@ sub sync_prepare ($$$) {
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		die 'BUG: already indexing!' if $self->{reindex_pipe};
 		my $git_dir = git_dir_n($self, $i);
-		-d $git_dir or next; # missing parts are fine
+		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		if ($reindex_heads) {
 			$head = $reindex_heads->[$i] or next;
@@ -1051,7 +1048,7 @@ sub sync_prepare ($$$) {
 
 sub unindex_oid_remote ($$$) {
 	my ($self, $oid, $mid) = @_;
-	$_->remote_remove($oid, $mid) foreach @{$self->{idx_parts}};
+	$_->remote_remove($oid, $mid) foreach @{$self->{idx_shards}};
 	$self->{over}->remove_oid($oid, $mid);
 }
 
@@ -1126,7 +1123,7 @@ sub index_epoch ($$$) {
 
 	my $git_dir = git_dir_n($self, $i);
 	die 'BUG: already reindexing!' if $self->{reindex_pipe};
-	-d $git_dir or return; # missing parts are fine
+	-d $git_dir or return; # missing epochs are fine
 	fill_alternates($self, $i);
 	my $git = PublicInbox::Git->new($git_dir);
 	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) {

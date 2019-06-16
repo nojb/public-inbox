@@ -85,11 +85,11 @@ sub _html_end {
 	my (%seen, @urls);
 	my $http = $ibx->base_url($ctx->{env});
 	chop $http; # no trailing slash for clone
-	my $part = $ibx->max_git_part;
+	my $max = $ibx->max_git_epoch;
 	my $dir = (split(m!/!, $http))[-1];
-	if (defined($part)) { # v2
+	if (defined($max)) { # v2
 		$seen{$http} = 1;
-		for my $i (0..$part) {
+		for my $i (0..$max) {
 			# old parts my be deleted:
 			-d "$ibx->{mainrepo}/git/$i.git" or next;
 			my $url = "$http/$i";
@@ -101,7 +101,7 @@ sub _html_end {
 		push @urls, $http;
 	}
 
-	# FIXME: partitioning in can be different in other repositories,
+	# FIXME: epoch splits can be different in other repositories,
 	# use the "cloneurl" file as-is for now:
 	foreach my $u (@{$ibx->cloneurl}) {
 		next if $seen{$u};
@@ -109,13 +109,13 @@ sub _html_end {
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
 	}
 
-	if (defined($part) || scalar(@urls) > 1) {
+	if (defined($max) || scalar(@urls) > 1) {
 		$urls .= "\n" .
 			join("\n", map { "\tgit clone --mirror $_" } @urls);
 	} else {
 		$urls .= " git clone --mirror $urls[0]";
 	}
-	if (defined $part) {
+	if (defined $max) {
 		my $addrs = $ibx->{address};
 		$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
 		$urls .=  <<EOF

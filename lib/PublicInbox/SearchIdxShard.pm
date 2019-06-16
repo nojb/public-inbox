@@ -1,25 +1,25 @@
 # Copyright (C) 2018 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# used to interface with a single Xapian partition in V2 repos.
-# See L<public-inbox-v2-format(5)> for more info on how we partition Xapian
-package PublicInbox::SearchIdxPart;
+# used to interface with a single Xapian shard in V2 repos.
+# See L<public-inbox-v2-format(5)> for more info on how we shard Xapian
+package PublicInbox::SearchIdxShard;
 use strict;
 use warnings;
 use base qw(PublicInbox::SearchIdx);
 
 sub new {
-	my ($class, $v2writable, $part) = @_;
-	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, $part);
+	my ($class, $v2writable, $shard) = @_;
+	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, $shard);
 	# create the DB before forking:
 	$self->_xdb_acquire;
 	$self->_xdb_release;
-	$self->spawn_worker($v2writable, $part) if $v2writable->{parallel};
+	$self->spawn_worker($v2writable, $shard) if $v2writable->{parallel};
 	$self;
 }
 
 sub spawn_worker {
-	my ($self, $v2writable, $part) = @_;
+	my ($self, $v2writable, $shard) = @_;
 	my ($r, $w);
 	pipe($r, $w) or die "pipe failed: $!\n";
 	binmode $r, ':raw';
@@ -35,8 +35,8 @@ sub spawn_worker {
 		# speeds V2Writable batch imports across 8 cores by nearly 20%
 		fcntl($r, 1031, 1048576) if $^O eq 'linux';
 
-		eval { partition_worker_loop($self, $r, $part, $bnote) };
-		die "worker $part died: $@\n" if $@;
+		eval { shard_worker_loop($self, $r, $shard, $bnote) };
+		die "worker $shard died: $@\n" if $@;
 		die "unexpected MM $self->{mm}" if $self->{mm};
 		exit;
 	}
@@ -45,14 +45,14 @@ sub spawn_worker {
 	close $r or die "failed to close: $!";
 }
 
-sub partition_worker_loop ($$$$) {
-	my ($self, $r, $part, $bnote) = @_;
-	$0 = "pi-v2-partition[$part]";
+sub shard_worker_loop ($$$$) {
+	my ($self, $r, $shard, $bnote) = @_;
+	$0 = "pi-v2-shard[$shard]";
 	my $current_info = '';
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	local $SIG{__WARN__} = sub {
 		chomp $current_info;
-		$warn_cb->("[$part] $current_info: ", @_);
+		$warn_cb->("[$shard] $current_info: ", @_);
 	};
 	$self->begin_txn_lazy;
 	while (my $line = $r->getline) {
@@ -64,7 +64,7 @@ sub partition_worker_loop ($$$$) {
 		} elsif ($line eq "barrier\n") {
 			$self->commit_txn_lazy;
 			# no need to lock < 512 bytes is atomic under POSIX
-			print $bnote "barrier $part\n" or
+			print $bnote "barrier $shard\n" or
 					die "write failed for barrier $!\n";
 		} elsif ($line =~ /\AD ([a-f0-9]{40,}) (.+)\n\z/s) {
 			my ($oid, $mid) = ($1, $2);
@@ -89,7 +89,7 @@ sub index_raw {
 	my ($self, $bytes, $msgref, $artnum, $oid, $mid0, $mime) = @_;
 	if (my $w = $self->{w}) {
 		print $w "$bytes $artnum $oid $mid0\n", $$msgref or die
-			"failed to write partition $!\n";
+			"failed to write shard $!\n";
 		$w->flush or die "failed to flush: $!\n";
 	} else {
 		$$msgref = undef;

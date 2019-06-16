@@ -29,15 +29,15 @@ sub check_editable ($) {
 
 		# $ibx->{search} is populated by $ibx->over call
 		my $xdir_ro = $ibx->{search}->xdir(1);
-		my $npart = 0;
-		foreach my $part (<$xdir_ro/*>) {
-			if (-d $part && $part =~ m!/[0-9]+\z!) {
+		my $nshard = 0;
+		foreach my $shard (<$xdir_ro/*>) {
+			if (-d $shard && $shard =~ m!/[0-9]+\z!) {
 				my $bytes = 0;
-				$bytes += -s $_ foreach glob("$part/*");
-				$npart++ if $bytes;
+				$bytes += -s $_ foreach glob("$shard/*");
+				$nshard++ if $bytes;
 			}
 		}
-		if ($npart) {
+		if ($nshard) {
 			PublicInbox::Admin::require_or_die('-search');
 		} else {
 			# somebody could "rm -r" all the Xapian directories;

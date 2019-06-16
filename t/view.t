@@ -18,7 +18,7 @@ my $ctx = {
 		base_url => sub { 'http://example.com/' },
 		cloneurl => sub {[]},
 		nntp_url => sub {[]},
-		max_git_part => sub { undef },
+		max_git_epoch => sub { undef },
 		description => sub { '' }),
 	www => Plack::Util::inline_object(style => sub { '' }),
 };

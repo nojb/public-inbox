@@ -43,19 +43,19 @@ for my $i (1..$ndoc) {
 	ok($im->add($mime), "message $i added");
 }
 $im->done;
-my @parts = grep(m!/\d+\z!, glob("$ibx->{mainrepo}/xap*/*"));
-is(scalar(@parts), $nproc, 'got expected parts');
+my @shards = grep(m!/\d+\z!, glob("$ibx->{mainrepo}/xap*/*"));
+is(scalar(@shards), $nproc, 'got expected shards');
 my $orig = $ibx->over->query_xover(1, $ndoc);
 my %nums = map {; "$_->{num}" => 1 } @$orig;
 
-# ensure we can go up or down in partitions, or stay the same:
+# ensure we can go up or down in shards, or stay the same:
 for my $R (qw(2 4 1 3 3)) {
 	delete $ibx->{search}; # release old handles
 	is(system(@xcpdb, "-R$R", $ibx->{mainrepo}), 0, "xcpdb -R$R");
-	my @new_parts = grep(m!/\d+\z!, glob("$ibx->{mainrepo}/xap*/*"));
-	is(scalar(@new_parts), $R, 'repartitioned to two parts');
+	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{mainrepo}/xap*/*"));
+	is(scalar(@new_shards), $R, 'resharded to two shards');
 	my $msgs = $ibx->search->query('s:this');
-	is(scalar(@$msgs), $ndoc, 'got expected docs after repartitioning');
+	is(scalar(@$msgs), $ndoc, 'got expected docs after resharding');
 	my %by_mid = map {; "$_->{mid}" => $_ } @$msgs;
 	ok($by_mid{"m$_\@example.com"}, "$_ exists") for (1..$ndoc);
 
@@ -64,7 +64,7 @@ for my $R (qw(2 4 1 3 3)) {
 	# ensure docids in Xapian match NNTP article numbers
 	my $tot = 0;
 	my %tmp = %nums;
-	foreach my $d (@new_parts) {
+	foreach my $d (@new_shards) {
 		my $xdb = Search::Xapian::Database->new($d);
 		$tot += $xdb->get_doccount;
 		my $it = $xdb->postlist_begin('');
