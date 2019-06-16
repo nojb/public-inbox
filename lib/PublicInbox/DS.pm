@@ -239,21 +239,6 @@ sub RunTimers {
     return $timeout;
 }
 
-sub event_step ($) {
-    my ($self) = @_;
-    return if $self->{closed};
-
-    my $wbuf = $self->{wbuf};
-    if (@$wbuf) {
-        $self->event_write;
-        return if $self->{closed} || scalar(@$wbuf);
-    }
-
-    # only read more requests if we've drained the write buffer,
-    # otherwise we can be buffering infinitely w/o backpressure
-    $self->event_read;
-}
-
 ### The epoll-based event loop. Gets installed as EventLoop if IO::Epoll loads
 ### okay.
 sub EpollEventLoop {
@@ -267,13 +252,11 @@ sub EpollEventLoop {
         # get up to 1000 events
         my $evcount = epoll_wait($Epoll, 1000, $timeout, \@events);
         for ($i=0; $i<$evcount; $i++) {
-            my $ev = $events[$i];
-
             # it's possible epoll_wait returned many events, including some at the end
             # that ones in the front triggered unregister-interest actions.  if we
             # can't find the %sock entry, it's because we're no longer interested
             # in that event.
-            event_step($DescriptorMap{$ev->[0]});
+            $DescriptorMap{$events[$i]->[0]}->event_step;
         }
         return unless PostEventLoop();
     }
@@ -316,9 +299,7 @@ sub PollEventLoop {
         # Fetch handles with read events
         while (@poll) {
             my ($fd, $state) = splice(@poll, 0, 2);
-            next unless $state;
-
-            event_step($DescriptorMap{$fd});
+            $DescriptorMap{$fd}->event_step if $state;
         }
 
         return unless PostEventLoop();
@@ -345,8 +326,7 @@ sub KQueueEventLoop {
         }
 
         foreach my $kev (@ret) {
-            my ($fd, $filter, $flags, $fflags) = @$kev;
-            event_step($DescriptorMap{$fd});
+            $DescriptorMap{$kev->[0]}->event_step;
         }
         return unless PostEventLoop();
     }
@@ -645,27 +625,6 @@ sub write {
 sub on_incomplete_write {
     my PublicInbox::DS $self = shift;
     $self->watch_write(1);
-}
-
-=head2 (VIRTUAL) C<< $obj->event_read() >>
-
-Readable event handler. Concrete deriviatives of PublicInbox::DS should
-provide an implementation of this. The default implementation is a noop
-if called.
-
-=cut
-sub event_read {} # noop
-
-=head2 C<< $obj->event_write() >>
-
-Writable event handler. Concrete deriviatives of PublicInbox::DS may wish to
-provide an implementation of this. The default implementation calls
-C<write()> with an C<undef>.
-
-=cut
-sub event_write {
-    my $self = shift;
-    $self->write(undef);
 }
 
 =head2 C<< $obj->watch_read( $boolean ) >>

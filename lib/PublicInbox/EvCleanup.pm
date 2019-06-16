@@ -25,7 +25,7 @@ sub once_init () {
 	fcntl($w, 1031, 4096) if $^O eq 'linux'; # 1031: F_SETPIPE_SZ
 	$self->SUPER::new($w);
 
-	# always writable, since PublicInbox::EvCleanup::event_write
+	# always writable, since PublicInbox::EvCleanup::event_step
 	# never drains wbuf.  We can avoid wasting a hash slot by
 	# stuffing the read-end of the pipe into the never-to-be-touched
 	# wbuf
@@ -57,7 +57,7 @@ sub _run_later () {
 }
 
 # Called by PublicInbox::DS
-sub event_write {
+sub event_step {
 	my ($self) = @_;
 	$self->watch_write(0);
 	_run_asap();

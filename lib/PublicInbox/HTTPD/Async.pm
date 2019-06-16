@@ -75,7 +75,7 @@ sub async_pass {
 	$self->{cb} = main_cb($http, $fh, $bref);
 }
 
-sub event_read { $_[0]->{cb}->(@_) }
+sub event_step { $_[0]->{cb}->(@_) }
 
 sub close {
 	my $self = shift;

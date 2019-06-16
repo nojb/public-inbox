@@ -53,7 +53,7 @@ sub next_tick () {
 		} else {
 			# pipelined request, we bypassed socket-readiness
 			# checks to get here:
-			event_read($nntp);
+			event_step($nntp);
 
 			# maybe there's more pipelined data, or we'll have
 			# to register it for socket-readiness notifications
@@ -964,17 +964,20 @@ sub do_more ($$) {
 	do_write($self, $data);
 }
 
-sub event_write {
+sub event_step {
 	my ($self) = @_;
-	update_idle_time($self);
-	# only continue watching for readability when we are done writing:
-	if ($self->write(undef) == 1 && !$self->{long_res}) {
-		$self->watch_read(1);
-	}
-}
+	return if $self->{closed};
 
-sub event_read {
-	my ($self) = @_;
+	my $wbuf = $self->{wbuf};
+	if (@$wbuf) {
+		update_idle_time($self);
+		$self->write(undef);
+		return if $self->{closed} || scalar(@$wbuf);
+	}
+	return if $self->{long_res};
+	# only read more requests if we've drained the write buffer,
+	# otherwise we can be buffering infinitely w/o backpressure
+
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
 	my $rbuf = \($self->{rbuf});
 	my $r;

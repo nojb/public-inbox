@@ -23,7 +23,7 @@ sub new ($$$) {
 	$self
 }
 
-sub event_read {
+sub event_step {
 	my ($self) = @_;
 	my $sock = $self->{sock};
 

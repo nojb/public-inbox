@@ -64,10 +64,18 @@ sub new ($$$) {
 	$self;
 }
 
-sub event_read { # called by PublicInbox::DS
+sub event_step { # called by PublicInbox::DS
 	my ($self) = @_;
 
-	return event_read_input($self) if defined $self->{env};
+	my $wbuf = $self->{wbuf};
+	if (@$wbuf) {
+		$self->write(undef);
+		return if $self->{closed} || scalar(@$wbuf);
+	}
+	# only read more requests if we've drained the write buffer,
+	# otherwise we can be buffering infinitely w/o backpressure
+
+	return read_input($self) if defined $self->{env};
 
 	my $off = length($self->{rbuf});
 	my $r = sysread($self->{sock}, $self->{rbuf}, 8192, $off);
@@ -101,13 +109,14 @@ sub rbuf_process {
 	my $len = input_prepare($self, \%env);
 	defined $len or return write_err($self, undef); # EMFILE/ENFILE
 
-	$len ? event_read_input($self) : app_dispatch($self);
+	$len ? read_input($self) : app_dispatch($self);
 }
 
-sub event_read_input ($) {
+sub read_input ($) {
 	my ($self) = @_;
 	my $env = $self->{env};
-	return event_read_input_chunked($self) if env_chunked($env);
+	return if $env->{REMOTE_ADDR}; # in app dispatch
+	return read_input_chunked($self) if env_chunked($env);
 
 	# env->{CONTENT_LENGTH} (identity)
 	my $sock = $self->{sock};
@@ -229,7 +238,6 @@ sub identity_wcb ($) {
 
 sub next_request ($) {
 	my ($self) = @_;
-	$self->watch_write(0);
 	if ($self->{rbuf} eq '') { # wait for next request
 		$self->watch_read(1);
 	} else { # avoid recursion for pipelined requests
@@ -392,7 +400,7 @@ sub write_in_full {
 	$rv
 }
 
-sub event_read_input_chunked { # unlikely...
+sub read_input_chunked { # unlikely...
 	my ($self) = @_;
 	my $input = $self->{env}->{'psgi.input'};
 	my $sock = $self->{sock};

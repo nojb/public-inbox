@@ -16,6 +16,6 @@ sub new ($$$) {
 	$self;
 }
 
-sub event_read { $_[0]->{cb}->($_[0]) }
+sub event_step { $_[0]->{cb}->($_[0]) }
 
 1;
