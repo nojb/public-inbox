@@ -7,6 +7,7 @@ use File::Temp qw/tempdir/;
 use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
+use PublicInbox::InboxWritable;
 use PublicInbox::WWW;
 use bytes (); # only for bytes::length
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
@@ -15,14 +16,18 @@ foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for psgi_search.t" if $@;
 }
+
 use_ok $_ foreach (@mods, qw(PublicInbox::SearchIdx));
 my $tmpdir = tempdir('pi-psgi-search.XXXXXX', TMPDIR => 1, CLEANUP => 1);
-my $git_dir = "$tmpdir/a.git";
 
-is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
-my $ibx = PublicInbox::Inbox->new({mainrepo => $git_dir});
-my $rw = PublicInbox::SearchIdx->new($ibx, 1);
-ok($rw, "search indexer created");
+my $ibx = PublicInbox::Inbox->new({
+	mainrepo => $tmpdir,
+	address => 'git@vger.kernel.org',
+	name => 'test',
+});
+$ibx = PublicInbox::InboxWritable->new($ibx);
+$ibx->init_inbox(1);
+my $im = $ibx->importer(0);
 my $digits = '10010260936330';
 my $ua = 'Pine.LNX.4.10';
 my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
@@ -34,24 +39,15 @@ To: git\@vger.kernel.org
 
 EOF
 
-my $num = 0;
-# nb. using internal API, fragile!
-$rw->begin_txn_lazy;
-
-foreach (reverse split(/\n\n/, $data)) {
-	$_ .= "\n";
-	my $mime = Email::MIME->new(\$_);
-	my $bytes = bytes::length($mime->as_string);
-	my $doc_id = $rw->add_message($mime, $bytes, ++$num, 'ignored');
-	ok($doc_id, 'message added');
-}
-
-$rw->commit_txn_lazy;
+my $mime = Email::MIME->new(\$data);
+$im->add($mime);
+$im->done;
+PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 
 my $cfgpfx = "publicinbox.test";
 my $config = PublicInbox::Config->new({
 	"$cfgpfx.address" => 'git@vger.kernel.org',
-	"$cfgpfx.mainrepo" => $git_dir,
+	"$cfgpfx.mainrepo" => $tmpdir,
 });
 my $www = PublicInbox::WWW->new($config);
 test_psgi(sub { $www->call(@_) }, sub {
