@@ -1,7 +1,7 @@
-# Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # note: our HTTP server should be standalone and capable of running
-# generic Rack apps.
+# generic PSGI/Plack apps.
 use strict;
 use warnings;
 use Test::More;
