@@ -138,8 +138,8 @@ sub fingerprint ($) {
 	$dig->hexdigest;
 }
 
-sub manifest_add ($$;$) {
-	my ($manifest, $ibx, $epoch) = @_;
+sub manifest_add ($$;$$) {
+	my ($manifest, $ibx, $epoch, $default_desc) = @_;
 	my $url_path = "/$ibx->{name}";
 	my $git_dir = $ibx->{mainrepo};
 	if (defined $epoch) {
@@ -154,6 +154,13 @@ sub manifest_add ($$;$) {
 	chomp(my $desc = try_cat("$git_dir/description"));
 	$owner = undef if $owner eq '';
 	$desc = 'Unnamed repository' if $desc eq '';
+
+	# templates/hooks--update.sample and git-multimail in git.git
+	# only match "Unnamed repository", not the full contents of
+	# templates/this--description in git.git
+	if ($desc =~ /\AUnnamed repository/) {
+		$desc = "$default_desc [epoch $epoch]" if defined($epoch);
+	}
 
 	my $reference;
 	chomp(my $alt = try_cat("$git_dir/objects/info/alternates"));
@@ -191,8 +198,9 @@ sub js ($$) {
 	my $manifest = { -abs2urlpath => {}, -mtime => 0 };
 	for my $ibx (@$list) {
 		if (defined(my $max = $ibx->max_git_epoch)) {
+			my $desc = $ibx->description;
 			for my $epoch (0..$max) {
-				manifest_add($manifest, $ibx, $epoch);
+				manifest_add($manifest, $ibx, $epoch, $desc);
 			}
 		} else {
 			manifest_add($manifest, $ibx);

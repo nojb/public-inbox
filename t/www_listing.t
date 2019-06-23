@@ -55,7 +55,12 @@ sub tiny_test {
 		$res->{headers}->{'last-modified'},
 		'modified field and Last-Modified header match');
 
-	ok($manifest->{'/v2/git/0.git'}, 'v2 epoch appeared');
+	ok(my $v2epoch0 = $manifest->{'/v2/git/0.git'}, 'v2 epoch 0 appeared');
+	like($v2epoch0->{description}, qr/ \[epoch 0\]\z/,
+		'epoch 0 in description');
+	ok(my $v2epoch1 = $manifest->{'/v2/git/1.git'}, 'v2 epoch 1 appeared');
+	like($v2epoch1->{description}, qr/ \[epoch 1\]\z/,
+		'epoch 1 in description');
 }
 
 my $pid;
