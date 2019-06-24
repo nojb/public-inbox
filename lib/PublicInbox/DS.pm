@@ -458,7 +458,7 @@ sub close {
     # notifications about it
     if ($HaveEpoll) {
         my $fd = fileno($sock);
-        epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, $self->{event_watch}) and
+        epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, 0) and
             confess("EPOLL_CTL_DEL: $!");
     }
 
