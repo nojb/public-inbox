@@ -473,6 +473,15 @@ next_buf:
     1; # all done
 }
 
+sub do_read ($$$$) {
+    my ($self, $rbuf, $len, $off) = @_;
+    my $r = sysread($self->{sock}, $$rbuf, $len, $off);
+    return ($r == 0 ? $self->close : $r) if defined $r;
+    # common for clients to break connections without warning,
+    # would be too noisy to log here:
+    $! == EAGAIN ? $self->watch_in1 : $self->close;
+}
+
 sub write_in_full ($$$$) {
     my ($fh, $bref, $len, $off) = @_;
     my $rv = 0;
@@ -583,6 +592,7 @@ sub watch ($$) {
         $KQueue->EV_SET($fd, EVFILT_READ(), kq_flag(EPOLLIN, $ev));
         $KQueue->EV_SET($fd, EVFILT_WRITE(), kq_flag(EPOLLOUT, $ev));
     }
+    0;
 }
 
 sub watch_in1 ($) { watch($_[0], EPOLLIN | EPOLLONESHOT) }

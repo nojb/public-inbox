@@ -941,17 +941,12 @@ sub event_step {
 
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
 	my $rbuf = \($self->{rbuf});
-	my $r;
+	my $r = 1;
 
 	if (index($$rbuf, "\n") < 0) {
 		my $off = bytes::length($$rbuf);
-		$r = sysread($self->{sock}, $$rbuf, LINE_MAX, $off);
-		unless (defined $r) {
-			return $! == EAGAIN ? $self->watch_in1 : $self->close;
-		}
-		return $self->close if $r == 0;
+		$r = $self->do_read($rbuf, LINE_MAX, $off) or return;
 	}
-	$r = 1;
 	while ($r > 0 && $$rbuf =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;

@@ -75,17 +75,9 @@ sub event_step { # called by PublicInbox::DS
 	# otherwise we can be buffering infinitely w/o backpressure
 
 	return read_input($self) if defined $self->{env};
-
-	my $off = bytes::length($self->{rbuf});
-	my $r = sysread($self->{sock}, $self->{rbuf}, 8192, $off);
-	if (defined $r) {
-		return $self->close if $r == 0;
-		return rbuf_process($self);
-	}
-
-	# common for clients to break connections without warning,
-	# would be too noisy to log here:
-	$! == EAGAIN ? $self->watch_in1 : $self->close;
+	my $rbuf = \($self->{rbuf});
+	my $off = bytes::length($$rbuf);
+	$self->do_read($rbuf, 8192, $off) and rbuf_process($self);
 }
 
 sub rbuf_process {
