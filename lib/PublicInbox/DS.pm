@@ -37,7 +37,7 @@ use Errno  qw(EAGAIN EINVAL);
 use Carp   qw(croak confess);
 use File::Temp qw(tempfile);
 
-our $HAVE_KQUEUE = eval { require IO::KQueue; 1 };
+our $HAVE_KQUEUE = eval { require IO::KQueue; IO::KQueue->import; 1 };
 
 our (
      $HaveEpoll,                 # Flag -- is epoll available?  initially undefined.
@@ -411,14 +411,10 @@ retry:
         }
     }
     elsif ($HaveKQueue) {
-        my $f = $ev & EPOLLIN ? IO::KQueue::EV_ENABLE()
-                              : IO::KQueue::EV_DISABLE();
-        $KQueue->EV_SET($fd, IO::KQueue::EVFILT_READ(),
-                        IO::KQueue::EV_ADD() | $f);
-        $f = $ev & EPOLLOUT ? IO::KQueue::EV_ENABLE()
-                            : IO::KQueue::EV_DISABLE();
-        $KQueue->EV_SET($fd, IO::KQueue::EVFILT_WRITE(),
-                        IO::KQueue::EV_ADD() | $f);
+        my $f = $ev & EPOLLIN ? EV_ENABLE() : EV_DISABLE();
+        $KQueue->EV_SET($fd, EVFILT_READ(), EV_ADD() | $f);
+        $f = $ev & EPOLLOUT ? EV_ENABLE() : EV_DISABLE();
+        $KQueue->EV_SET($fd, EVFILT_WRITE(), EV_ADD() | $f);
     }
 
     Carp::cluck("PublicInbox::DS::new blowing away existing descriptor map for fd=$fd ($DescriptorMap{$fd})")
@@ -645,8 +641,8 @@ sub watch_read {
     # If it changed, set it
     if ($event != $self->{event_watch}) {
         if ($HaveKQueue) {
-            $KQueue->EV_SET($fd, IO::KQueue::EVFILT_READ(),
-                            $val ? IO::KQueue::EV_ENABLE() : IO::KQueue::EV_DISABLE());
+            $KQueue->EV_SET($fd, EVFILT_READ(),
+                            $val ? EV_ENABLE() : EV_DISABLE());
         }
         elsif ($HaveEpoll) {
             epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
@@ -675,8 +671,8 @@ sub watch_write {
     # If it changed, set it
     if ($event != $self->{event_watch}) {
         if ($HaveKQueue) {
-            $KQueue->EV_SET($fd, IO::KQueue::EVFILT_WRITE(),
-                            $val ? IO::KQueue::EV_ENABLE() : IO::KQueue::EV_DISABLE());
+            $KQueue->EV_SET($fd, EVFILT_WRITE(),
+                            $val ? EV_ENABLE() : EV_DISABLE());
         }
         elsif ($HaveEpoll) {
             epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
