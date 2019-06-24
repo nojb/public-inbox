@@ -74,11 +74,17 @@ sub expire_old () {
 	my $exp = $EXPTIME;
 	my $old = $now - $exp;
 	my $nr = 0;
+	my $closed = 0;
 	my %new;
 	while (my ($fd, $v) = each %$EXPMAP) {
 		my ($idle_time, $nntp) = @$v;
 		if ($idle_time < $old) {
-			$nntp->close; # idempotent
+			if ($nntp->shutdn) {
+				$closed++;
+			} else {
+				++$nr;
+				$new{$fd} = $v;
+			}
 		} else {
 			++$nr;
 			$new{$fd} = $v;
@@ -91,7 +97,7 @@ sub expire_old () {
 		$expt = undef;
 		# noop to kick outselves out of the loop ASAP so descriptors
 		# really get closed
-		PublicInbox::EvCleanup::asap(sub {});
+		PublicInbox::EvCleanup::asap(sub {}) if $closed;
 	}
 }
 
@@ -410,7 +416,7 @@ sub cmd_post ($) {
 sub cmd_quit ($) {
 	my ($self) = @_;
 	res($self, '205 closing connection - goodbye!');
-	$self->close;
+	$self->shutdn;
 	undef;
 }
 

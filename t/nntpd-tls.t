@@ -118,6 +118,8 @@ for my $args (
 	my $c = Net::NNTP->new($nntps_addr, %o);
 	my $list = $c->list;
 	is_deeply($list, $expect, 'NNTPS LIST works');
+	is($c->command('QUIT')->response(), Net::Cmd::CMD_OK(), 'QUIT works');
+	is(0, sysread($c, my $buf, 1), 'got EOF after QUIT');
 
 	# STARTTLS
 	delete $o{SSL};

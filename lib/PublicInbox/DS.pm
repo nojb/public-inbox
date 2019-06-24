@@ -621,6 +621,30 @@ sub accept_tls_step ($) {
     drop($self, 'BUG? EAGAIN but '.PublicInbox::TLS::err());
 }
 
+sub shutdn_tls_step ($) {
+    my ($self) = @_;
+    my $sock = $self->{sock} or return;
+    return $self->close if $sock->stop_SSL(SSL_fast_shutdown => 1);
+    return $self->close if $! != EAGAIN;
+    if (my $ev = PublicInbox::TLS::epollbit()) {
+        unshift @{$self->{wbuf} ||= []}, \&shutdn_tls_step;
+        return watch($self, $ev | EPOLLONESHOT);
+    }
+    drop($self, 'BUG? EAGAIN but '.PublicInbox::TLS::err());
+}
+
+# don't bother with shutdown($sock, 2), we don't fork+exec w/o CLOEXEC
+# or fork w/o exec, so no inadvertant socket sharing
+sub shutdn ($) {
+    my ($self) = @_;
+    my $sock = $self->{sock} or return;
+    if (ref($sock) eq 'IO::Socket::SSL') {
+        shutdn_tls_step($self);
+    } else {
+	$self->close;
+    }
+}
+
 package PublicInbox::DS::Timer;
 # [$abs_float_firetime, $coderef];
 sub cancel {
