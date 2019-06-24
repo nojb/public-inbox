@@ -101,6 +101,8 @@ sub expire_old () {
 	}
 }
 
+sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
+
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
@@ -113,9 +115,7 @@ sub new ($$$) {
 	}
 	$self->SUPER::new($sock, $ev);
 	$self->{nntpd} = $nntpd;
-	my $greet = "201 $nntpd->{servername} ready - post via email\r\n";
-	open my $fh, '<:scalar',  \$greet or die "open :scalar: $!";
-	push @$wbuf, $fh;
+	push @$wbuf, \&greet;
 	$self->{wbuf} = $wbuf;
 	$self->{rbuf} = '';
 	update_idle_time($self);
