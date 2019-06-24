@@ -113,8 +113,13 @@ Returns a timer object which you can call C<< $timer->cancel >> on if you need t
 
 =cut
 sub AddTimer {
-    my $class = shift;
-    my ($secs, $coderef) = @_;
+    my ($class, $secs, $coderef) = @_;
+
+    if (!$secs) {
+        my $timer = bless([0, $coderef], 'PublicInbox::DS::Timer');
+        unshift(@Timers, $timer);
+        return $timer;
+    }
 
     my $fire_time = now() + $secs;
 
