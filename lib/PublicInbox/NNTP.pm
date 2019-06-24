@@ -107,7 +107,6 @@ sub new ($$$) {
 	$self->{nntpd} = $nntpd;
 	push @$wbuf, \&greet;
 	$self->{wbuf} = $wbuf;
-	$self->{rbuf} = '';
 	update_idle_time($self);
 	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
 	$self;
@@ -964,7 +963,7 @@ sub event_step {
 	# otherwise we can be buffering infinitely w/o backpressure
 
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
-	my $rbuf = \($self->{rbuf});
+	my $rbuf = $self->{rbuf} // (\(my $x = ''));
 	my $r = 1;
 
 	if (index($$rbuf, "\n") < 0) {
@@ -984,6 +983,11 @@ sub event_step {
 	return $self->close if $r < 0;
 	my $len = bytes::length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
+	if ($len) {
+		$self->{rbuf} = $rbuf;
+	} else {
+		delete $self->{rbuf};
+	}
 	update_idle_time($self);
 
 	# maybe there's more pipelined data, or we'll have
@@ -1002,7 +1006,7 @@ sub not_idle_long ($$) {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy {
 	my ($self, $now) = @_;
-	($self->{rbuf} ne '' || $self->{wbuf} || not_idle_long($self, $now));
+	($self->{rbuf} || $self->{wbuf} || not_idle_long($self, $now));
 }
 
 1;
