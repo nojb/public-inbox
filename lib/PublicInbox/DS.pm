@@ -168,11 +168,6 @@ sub _InitPoller
             *EventLoop = *EpollEventLoop;
         }
     }
-
-    if (!$HaveEpoll && !$HaveKQueue) {
-        require IO::Poll;
-        *EventLoop = *PollEventLoop;
-    }
 }
 
 =head2 C<< CLASS->EventLoop() >>
@@ -190,8 +185,6 @@ sub FirstTimeEventLoop {
         EpollEventLoop($class);
     } elsif ($HaveKQueue) {
         KQueueEventLoop($class);
-    } else {
-        PollEventLoop($class);
     }
 }
 
@@ -247,51 +240,6 @@ sub EpollEventLoop {
         }
         return unless PostEventLoop();
     }
-    exit 0;
-}
-
-### The fallback IO::Poll-based event loop. Gets installed as EventLoop if
-### IO::Epoll fails to load.
-sub PollEventLoop {
-    my $class = shift;
-
-    my PublicInbox::DS $pob;
-
-    while (1) {
-        my $timeout = RunTimers();
-
-        # the following sets up @poll as a series of ($poll,$event_mask)
-        # items, then uses IO::Poll::_poll, implemented in XS, which
-        # modifies the array in place with the even elements being
-        # replaced with the event masks that occured.
-        my @poll;
-        while ( my ($fd, $sock) = each %DescriptorMap ) {
-            push @poll, $fd, $sock->{event_watch};
-        }
-
-        # if nothing to poll, either end immediately (if no timeout)
-        # or just keep calling the callback
-        unless (@poll) {
-            select undef, undef, undef, ($timeout / 1000);
-            return unless PostEventLoop();
-            next;
-        }
-
-        my $count = IO::Poll::_poll($timeout, @poll);
-        unless ($count >= 0) {
-            return unless PostEventLoop();
-            next;
-        }
-
-        # Fetch handles with read events
-        while (@poll) {
-            my ($fd, $state) = splice(@poll, 0, 2);
-            $DescriptorMap{$fd}->event_step if $state;
-        }
-
-        return unless PostEventLoop();
-    }
-
     exit 0;
 }
 
