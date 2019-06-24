@@ -22,11 +22,47 @@ my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
 my %pids;
-my %listener_names;
+my %listener_names; # sockname => IO::Handle
+my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
 my $reexec_pid;
 my $cleanup;
 my ($uid, $gid);
+my ($default_cert, $default_key);
 END { $cleanup->() if $cleanup };
+
+sub tls_listen ($$$) {
+	my ($scheme, $sockname, $opt_str) = @_;
+	# opt_str: opt1=val1,opt2=val2 (opt may repeat for multi-value)
+	require PublicInbox::TLS;
+	my $o = {};
+	# allow ',' as delimiter since '&' is shell-unfriendly
+	foreach (split(/[,&]/, $opt_str)) {
+		my ($k, $v) = split(/=/, $_, 2);
+		push @{$o->{$k} ||= []}, $v;
+	}
+
+	# key may be a part of cert.  At least
+	# p5-io-socket-ssl/example/ssl_server.pl has this fallback:
+	$o->{cert} //= [ $default_cert ];
+	$o->{key} //= defined($default_key) ? [ $default_key ] : $o->{cert};
+	my %ctx_opt = (SSL_server => 1);
+	# parse out hostname:/path/to/ mappings:
+	foreach my $k (qw(cert key)) {
+		my $x = $ctx_opt{'SSL_'.$k.'_file'} = {};
+		foreach my $path (@{$o->{$k}}) {
+			my $host = '';
+			$path =~ s/\A([^:]+):// and $host = $1;
+			$x->{$host} = $path;
+		}
+	}
+	my $ctx = IO::Socket::SSL::SSL_Context->new(%ctx_opt) or
+		die 'SSL_Context->new: '.PublicInbox::TLS::err();
+	$tls_opt{"$scheme://$sockname"} = {
+		SSL_server => 1,
+		SSL_startHandshake => 0,
+		SSL_reuse_ctx => $ctx
+	};
+}
 
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
@@ -42,6 +78,8 @@ sub daemon_prepare ($) {
 		'u|user=s' => \$user,
 		'g|group=s' => \$group,
 		'D|daemonize' => \$daemonize,
+		'cert=s' => \$default_cert,
+		'key=s' => \$default_key,
 	);
 	GetOptions(%opts) or die "bad command-line args\n";
 
@@ -55,6 +93,18 @@ sub daemon_prepare ($) {
 	push @cfg_listen, $default_listen unless (@listeners || @cfg_listen);
 
 	foreach my $l (@cfg_listen) {
+		my $orig = $l;
+		my $scheme = '';
+		$l =~ s!\A([^:]+)://!! and $scheme = $1;
+		if ($l =~ s!/?\?(.+)\z!!) {
+			tls_listen($scheme, $l, $1);
+		} elsif (defined($default_cert)) {
+			tls_listen($scheme, $l, '');
+		} elsif ($scheme =~ /\A(?:nntps|https)\z/) {
+			die "$orig specified w/o cert=\n";
+		}
+		# TODO: use scheme to load either NNTP.pm or HTTP.pm
+
 		next if $listener_names{$l}; # already inherited
 		my (%o, $sock_pkg);
 		if (index($l, '/') == 0) {
@@ -461,9 +511,26 @@ sub master_loop {
 	exit # never gets here, just for documentation
 }
 
-sub daemon_loop ($$) {
-	my ($refresh, $post_accept) = @_;
+sub tls_start_cb ($$) {
+	my ($opt, $orig_post_accept) = @_;
+	sub {
+		my ($io, $addr, $srv) = @_;
+		my $ssl = IO::Socket::SSL->start_SSL($io, %$opt);
+		$orig_post_accept->($ssl, $addr, $srv);
+	}
+}
+
+sub daemon_loop ($$$) {
+	my ($refresh, $post_accept, $nntpd) = @_;
 	PublicInbox::EvCleanup::enable(); # early for $refresh
+	my %post_accept;
+	while (my ($k, $v) = each %tls_opt) {
+		if ($k =~ s!\A(?:nntps|https)://!!) {
+			$post_accept{$k} = tls_start_cb($v, $post_accept);
+		} elsif ($nntpd) { # STARTTLS, $k eq '' is OK
+			$nntpd->{accept_tls} = $v;
+		}
+	}
 	my $parent_pipe;
 	if ($worker_processes > 0) {
 		$refresh->(); # preload by default
@@ -484,18 +551,19 @@ sub daemon_loop ($$) {
 	$SIG{$_} = 'IGNORE' for qw(USR2 TTIN TTOU WINCH);
 	# this calls epoll_create:
 	@listeners = map {
-		PublicInbox::Listener->new($_, $post_accept)
+		PublicInbox::Listener->new($_,
+				$post_accept{sockname($_)} || $post_accept)
 	} @listeners;
 	PublicInbox::DS->EventLoop;
 	$parent_pipe = undef;
 }
 
 
-sub run ($$$) {
-	my ($default, $refresh, $post_accept) = @_;
+sub run ($$$;$) {
+	my ($default, $refresh, $post_accept, $nntpd) = @_;
 	daemon_prepare($default);
 	daemonize();
-	daemon_loop($refresh, $post_accept);
+	daemon_loop($refresh, $post_accept, $nntpd);
 }
 
 sub do_chown ($) {

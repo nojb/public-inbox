@@ -465,7 +465,11 @@ next_buf:
             }
         } else { #($ref eq 'CODE') {
             shift @$wbuf;
+            my $before = scalar(@$wbuf);
             $bref->($self);
+
+            # bref may be enqueueing more CODE to call (see accept_tls_step)
+            return 0 if (scalar(@$wbuf) > $before);
         }
     } # while @$wbuf
 
@@ -479,7 +483,14 @@ sub do_read ($$$$) {
     return ($r == 0 ? $self->close : $r) if defined $r;
     # common for clients to break connections without warning,
     # would be too noisy to log here:
-    $! == EAGAIN ? $self->watch_in1 : $self->close;
+    if (ref($self) eq 'IO::Socket::SSL') {
+        my $ev = PublicInbox::TLS::epollbit() or return $self->close;
+        watch($self, $ev | EPOLLONESHOT);
+    } elsif ($! == EAGAIN) {
+        watch($self, EPOLLIN | EPOLLONESHOT);
+    } else {
+        $self->close;
+    }
 }
 
 # drop the socket if we hit unrecoverable errors on our system which
@@ -566,7 +577,7 @@ sub msg_more ($$) {
     my $self = $_[0];
     my $sock = $self->{sock} or return 1;
 
-    if (MSG_MORE && !$self->{wbuf}) {
+    if (MSG_MORE && !$self->{wbuf} && ref($sock) ne 'IO::Socket::SSL') {
         my $n = send($sock, $_[1], MSG_MORE);
         if (defined $n) {
             my $nlen = bytes::length($_[1]) - $n;
@@ -596,6 +607,19 @@ sub watch ($$) {
 }
 
 sub watch_in1 ($) { watch($_[0], EPOLLIN | EPOLLONESHOT) }
+
+# return true if complete, false if incomplete (or failure)
+sub accept_tls_step ($) {
+    my ($self) = @_;
+    my $sock = $self->{sock} or return;
+    return 1 if $sock->accept_SSL;
+    return $self->close if $! != EAGAIN;
+    if (my $ev = PublicInbox::TLS::epollbit()) {
+        unshift @{$self->{wbuf} ||= []}, \&accept_tls_step;
+        return watch($self, $ev | EPOLLONESHOT);
+    }
+    drop($self, 'BUG? EAGAIN but '.PublicInbox::TLS::err());
+}
 
 package PublicInbox::DS::Timer;
 # [$abs_float_firetime, $coderef];

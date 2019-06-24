@@ -31,6 +31,8 @@ MANIFEST
 Makefile.PL
 README
 TODO
+certs/.gitignore
+certs/create-certs.perl
 ci/README
 ci/deps.perl
 ci/profiles.sh
@@ -129,6 +131,7 @@ lib/PublicInbox/Spamcheck/Spamc.pm
 lib/PublicInbox/Spawn.pm
 lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Syscall.pm
+lib/PublicInbox/TLS.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/UserContent.pm
 lib/PublicInbox/V2Writable.pm
@@ -222,6 +225,7 @@ t/msg_iter.t
 t/msgmap.t
 t/msgtime.t
 t/nntp.t
+t/nntpd-tls.t
 t/nntpd.t
 t/nulsubject.t
 t/over.t

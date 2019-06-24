@@ -25,6 +25,7 @@ sub new {
 		out => \*STDOUT,
 		grouplist => [],
 		servername => $name,
+		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
 	}, $class;
 }
 

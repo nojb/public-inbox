@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2015-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Each instance of this represents a NNTP client socket
@@ -98,11 +98,19 @@ sub expire_old () {
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock, EPOLLOUT | EPOLLONESHOT);
+	my $ev = EPOLLOUT | EPOLLONESHOT;
+	my $wbuf = [];
+	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
+		$ev = PublicInbox::TLS::epollbit() or return $sock->close;
+		$ev |= EPOLLONESHOT;
+		$wbuf->[0] = \&PublicInbox::DS::accept_tls_step;
+	}
+	$self->SUPER::new($sock, $ev);
 	$self->{nntpd} = $nntpd;
 	my $greet = "201 $nntpd->{servername} ready - post via email\r\n";
 	open my $fh, '<:scalar',  \$greet or die "open :scalar: $!";
-	$self->{wbuf} = [ $fh ];
+	push @$wbuf, $fh;
+	$self->{wbuf} = $wbuf;
 	$self->{rbuf} = '';
 	update_idle_time($self);
 	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
@@ -898,6 +906,19 @@ sub cmd_xover ($;$) {
 			} @$msgs));
 		$cur = $msgs->[-1]->{num} + 1;
 	});
+}
+
+sub cmd_starttls ($) {
+	my ($self) = @_;
+	my $sock = $self->{sock} or return;
+	# RFC 4642 2.2.1
+	(ref($sock) eq 'IO::Socket::SSL') and return '502 Command unavailable';
+	my $opt = $self->{nntpd}->{accept_tls} or
+		return '580 can not initiate TLS negotiation';
+	res($self, '382 Continue with TLS negotiation');
+	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
+	requeue($self) if PublicInbox::DS::accept_tls_step($self);
+	undef;
 }
 
 sub cmd_xpath ($$) {
