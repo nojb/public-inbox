@@ -29,9 +29,11 @@ my $cleanup;
 my ($uid, $gid);
 my ($default_cert, $default_key);
 END { $cleanup->() if $cleanup };
+my %KNOWN_TLS = ( 443 => 'https', 563 => 'nntps' );
+my %KNOWN_STARTTLS = ( 119 => 'nntp' );
 
-sub tls_listen ($$$) {
-	my ($scheme, $sockname, $opt_str) = @_;
+sub accept_tls_opt ($) {
+	my ($opt_str) = @_;
 	# opt_str: opt1=val1,opt2=val2 (opt may repeat for multi-value)
 	require PublicInbox::TLS;
 	my $o = {};
@@ -57,11 +59,7 @@ sub tls_listen ($$$) {
 	}
 	my $ctx = IO::Socket::SSL::SSL_Context->new(%ctx_opt) or
 		die 'SSL_Context->new: '.PublicInbox::TLS::err();
-	$tls_opt{"$scheme://$sockname"} = {
-		SSL_server => 1,
-		SSL_startHandshake => 0,
-		SSL_reuse_ctx => $ctx
-	};
+	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
 }
 
 sub daemon_prepare ($) {
@@ -87,6 +85,11 @@ sub daemon_prepare ($) {
 		die "--pid-file cannot end with '.oldbin'\n";
 	}
 	@listeners = inherit();
+
+	# allow socket-activation users to set certs once and not
+	# have to configure each socket:
+	my @inherited_names = keys(%listener_names) if defined($default_cert);
+
 	# ignore daemonize when inheriting
 	$daemonize = undef if scalar @listeners;
 
@@ -95,11 +98,16 @@ sub daemon_prepare ($) {
 	foreach my $l (@cfg_listen) {
 		my $orig = $l;
 		my $scheme = '';
-		$l =~ s!\A([^:]+)://!! and $scheme = $1;
+		if ($l =~ s!\A([^:]+)://!!) {
+			$scheme = $1;
+		} elsif ($l =~ /\A(?:\[[^\]]+\]|[^:]+):([0-9])+/) {
+			my $s = $KNOWN_TLS{$1} // $KNOWN_STARTTLS{$1};
+			$scheme = $s if defined $s;
+		}
 		if ($l =~ s!/?\?(.+)\z!!) {
-			tls_listen($scheme, $l, $1);
+			$tls_opt{"$scheme://$l"} = accept_tls_opt($1);
 		} elsif (defined($default_cert)) {
-			tls_listen($scheme, $l, '');
+			$tls_opt{"$scheme://$l"} = accept_tls_opt('');
 		} elsif ($scheme =~ /\A(?:nntps|https)\z/) {
 			die "$orig specified w/o cert=\n";
 		}
@@ -141,6 +149,20 @@ sub daemon_prepare ($) {
 			push @listeners, $s;
 		}
 	}
+
+	# cert/key options in @cfg_listen takes precedence when inheriting,
+	# but map well-known inherited ports if --listen isn't specified
+	# at all
+	for my $sockname (@inherited_names) {
+		$sockname =~ /:([0-9]+)\z/ or next;
+		if (my $scheme = $KNOWN_TLS{$1}) {
+			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
+		} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
+			next if $tls_opt{"$scheme://$sockname"};
+			$tls_opt{''} ||= accept_tls_opt('');
+		}
+	}
+
 	die "No listeners bound\n" unless @listeners;
 }
 
