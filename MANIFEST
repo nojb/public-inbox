@@ -78,6 +78,7 @@ lib/PublicInbox/Config.pm
 lib/PublicInbox/ContentId.pm
 lib/PublicInbox/DS.pm
 lib/PublicInbox/DSKQXS.pm
+lib/PublicInbox/DSPoll.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/EvCleanup.pm
@@ -191,6 +192,7 @@ t/content_id.t
 t/convert-compact.t
 t/data/0001.patch
 t/ds-leak.t
+t/ds-poll.t
 t/edit.t
 t/emergency.t
 t/fail-bin/spamc

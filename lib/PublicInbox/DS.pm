@@ -142,15 +142,17 @@ sub _InitPoller
     return if $DoneInit;
     $DoneInit = 1;
 
-    if (!PublicInbox::Syscall::epoll_defined())  {
-        $Epoll = eval {
-            require PublicInbox::DSKQXS;
-            PublicInbox::DSKQXS->import;
-            PublicInbox::DSKQXS->new;
-        };
-    } else {
+    if (PublicInbox::Syscall::epoll_defined())  {
         $Epoll = epoll_create();
         set_cloexec($Epoll) if (defined($Epoll) && $Epoll >= 0);
+    } else {
+        my $cls;
+        for (qw(DSKQXS DSPoll)) {
+            $cls = "PublicInbox::$_";
+            last if eval "require $cls";
+        }
+        $cls->import;
+        $Epoll = $cls->new;
     }
     *EventLoop = *EpollEventLoop;
 }
