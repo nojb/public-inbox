@@ -19,6 +19,7 @@ use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::Handle;
 require PublicInbox::EvCleanup;
+PublicInbox::DS->import('msg_more');
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
@@ -207,7 +208,7 @@ sub response_header_write {
 	$h .= 'Date: ' . http_date() . "\r\n\r\n";
 
 	if (($len || $chunked) && $env->{REQUEST_METHOD} ne 'HEAD') {
-		more($self, $h);
+		msg_more($self, $h);
 	} else {
 		$self->write(\$h);
 	}
@@ -219,12 +220,12 @@ sub chunked_wcb ($) {
 	my ($self) = @_;
 	sub {
 		return if $_[0] eq '';
-		more($self, sprintf("%x\r\n", bytes::length($_[0])));
-		more($self, $_[0]);
+		msg_more($self, sprintf("%x\r\n", bytes::length($_[0])));
+		msg_more($self, $_[0]);
 
 		# use $self->write(\"\n\n") if you care about real-time
 		# streaming responses, public-inbox WWW does not.
-		more($self, "\r\n");
+		msg_more($self, "\r\n");
 	}
 }
 
@@ -314,23 +315,6 @@ sub response_write {
 		# this is returned to the calling application:
 		Plack::Util::inline_object(write => $write, close => $close);
 	}
-}
-
-use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
-sub more ($$) {
-	my $self = $_[0];
-	return unless $self->{sock};
-	if (MSG_MORE && !$self->{wbuf}) {
-		my $n = send($self->{sock}, $_[1], MSG_MORE);
-		if (defined $n) {
-			my $nlen = length($_[1]) - $n;
-			return 1 if $nlen == 0; # all done!
-
-			# PublicInbox::DS::write queues the unwritten substring:
-			return $self->write(substr($_[1], $n, $nlen));
-		}
-	}
-	$self->write(\($_[1]));
 }
 
 sub input_prepare {

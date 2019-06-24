@@ -14,7 +14,7 @@ use PublicInbox::Git;
 require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
-PublicInbox::DS->import('now');
+PublicInbox::DS->import(qw(now msg_more));
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
 use constant {
@@ -159,12 +159,12 @@ sub cmd_xgtitle ($;$) {
 
 sub list_overview_fmt ($) {
 	my ($self) = @_;
-	do_more($self, $OVERVIEW_FMT);
+	msg_more($self, $OVERVIEW_FMT);
 }
 
 sub list_headers ($;$) {
 	my ($self) = @_;
-	do_more($self, $LIST_HEADERS);
+	msg_more($self, $LIST_HEADERS);
 }
 
 sub list_active ($;$) {
@@ -519,8 +519,8 @@ sub simple_body_write ($$) {
 	$s->body_set('');
 	$body =~ s/^\./../smg;
 	$body =~ s/(?<!\r)\n/\r\n/sg;
-	do_more($self, $body);
-	do_more($self, "\r\n") unless $body =~ /\r\n\z/s;
+	msg_more($self, $body);
+	msg_more($self, "\r\n") unless $body =~ /\r\n\z/s;
 	'.'
 }
 
@@ -550,8 +550,8 @@ sub cmd_article ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "220 $n <$mid> article retrieved - head and body follow");
-	do_more($self, _header($s));
-	do_more($self, "\r\n");
+	msg_more($self, _header($s));
+	msg_more($self, "\r\n");
 	simple_body_write($self, $s);
 }
 
@@ -562,7 +562,7 @@ sub cmd_head ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "221 $n <$mid> article retrieved - head follows");
-	do_more($self, _header($s));
+	msg_more($self, _header($s));
 	'.'
 }
 
@@ -762,7 +762,7 @@ sub hdr_searchmsg ($$$$) {
 				$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
 			}
 			utf8::encode($tmp);
-			do_more($self, $tmp);
+			msg_more($self, $tmp);
 			$cur = $msgs->[-1]->{num} + 1;
 		});
 	}
@@ -914,19 +914,13 @@ sub cmd_xpath ($$) {
 	'223 '.join(' ', @paths);
 }
 
-sub res ($$) {
-	my ($self, $line) = @_;
-	do_write($self, $line . "\r\n");
-}
+sub res ($$) { do_write($_[0], $_[1] . "\r\n") }
 
-sub more ($$) {
-	my ($self, $line) = @_;
-	do_more($self, $line . "\r\n");
-}
+sub more ($$) { msg_more($_[0], $_[1] . "\r\n") }
 
 sub do_write ($$) {
-	my ($self, $data) = @_;
-	my $done = $self->write($data);
+	my $self = $_[0];
+	my $done = $self->write(\($_[1]));
 	return 0 unless $self->{sock};
 
 	# Do not watch for readability if we have data in the queue,
@@ -944,21 +938,6 @@ sub err ($$;@) {
 sub out ($$;@) {
 	my ($self, $fmt, @args) = @_;
 	printf { $self->{nntpd}->{out} } $fmt."\n", @args;
-}
-
-use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
-
-sub do_more ($$) {
-	my ($self, $data) = @_;
-	if (MSG_MORE && !$self->{wbuf}) {
-		my $n = send($self->{sock}, $data, MSG_MORE);
-		if (defined $n) {
-			my $dlen = length($data);
-			return 1 if $n == $dlen; # all done!
-			$data = substr($data, $n, $dlen - $n);
-		}
-	}
-	do_write($self, $data);
 }
 
 sub event_step {

@@ -21,7 +21,7 @@ use IO::Handle qw();
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use parent qw(Exporter);
-our @EXPORT_OK = qw(now);
+our @EXPORT_OK = qw(now msg_more);
 use warnings;
 
 use PublicInbox::Syscall qw(:epoll);
@@ -559,6 +559,25 @@ sub write {
         }
         return 0;
     }
+}
+
+use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
+
+sub msg_more ($$) {
+    my $self = $_[0];
+    my $sock = $self->{sock} or return 1;
+
+    if (MSG_MORE && !$self->{wbuf}) {
+        my $n = send($sock, $_[1], MSG_MORE);
+        if (defined $n) {
+            my $nlen = bytes::length($_[1]) - $n;
+            return 1 if $nlen == 0; # all done!
+
+            # PublicInbox::DS::write queues the unwritten substring:
+            return $self->write(substr($_[1], $n, $nlen));
+        }
+    }
+    $self->write(\($_[1]));
 }
 
 =head2 C<< $obj->watch_read( $boolean ) >>
