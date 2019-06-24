@@ -571,7 +571,7 @@ sub write {
             # since connection has stuff to write, it should now be
             # interested in pending writes:
             $self->{wbuf_off} += $written;
-            $self->on_incomplete_write;
+            $self->watch_write(1);
             return 0;
         } elsif ($written == $to_write) {
             $self->{wbuf_off} = 0;
@@ -588,11 +588,6 @@ sub write {
             next WRITE;
         }
     }
-}
-
-sub on_incomplete_write {
-    my PublicInbox::DS $self = shift;
-    $self->watch_write(1);
 }
 
 =head2 C<< $obj->watch_read( $boolean ) >>
