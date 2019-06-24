@@ -45,7 +45,7 @@ sub main_cb ($$$) {
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
 			$fh->write($$bref);
-			unless ($http->{closed}) { # PublicInbox::DS sets this
+			if ($http->{sock}) { # !closed
 				if (scalar @{$http->{wbuf}}) {
 					$self->watch_read(0);
 					$http->write(restart_read_cb($self));

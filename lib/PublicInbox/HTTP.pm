@@ -33,7 +33,7 @@ sub process_pipelineq () {
 	$pipet = undef;
 	$pipelineq = [];
 	foreach (@$q) {
-		next if $_->{closed};
+		next unless $_->{sock};
 		rbuf_process($_);
 	}
 }
@@ -70,7 +70,7 @@ sub event_step { # called by PublicInbox::DS
 	my $wbuf = $self->{wbuf};
 	if (@$wbuf) {
 		$self->write(undef);
-		return if $self->{closed} || scalar(@$wbuf);
+		return if !$self->{sock} || scalar(@$wbuf);
 	}
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
@@ -266,7 +266,7 @@ sub getline_cb ($$$) {
 		my $buf = eval { $forward->getline };
 		if (defined $buf) {
 			$write->($buf); # may close in PublicInbox::DS::write
-			unless ($self->{closed}) {
+			if ($self->{sock}) {
 				my $next = $self->{pull};
 				if (scalar @{$self->{wbuf}}) {
 					$self->write($next);
@@ -322,7 +322,7 @@ sub response_write {
 use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 sub more ($$) {
 	my $self = $_[0];
-	return if $self->{closed};
+	return unless $self->{sock};
 	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
 		my $n = send($self->{sock}, $_[1], MSG_MORE);
 		if (defined $n) {

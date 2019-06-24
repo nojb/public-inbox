@@ -28,7 +28,6 @@ use PublicInbox::Syscall qw(:epoll);
 use fields ('sock',              # underlying socket
             'wbuf',              # arrayref of scalars, scalarrefs, or coderefs to write
             'wbuf_off',  # offset into first element of wbuf to start writing at
-            'closed',            # bool: socket is closed
             'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
             );
 
@@ -366,7 +365,7 @@ sub PostEventLoop {
         $sock->close;
 
         # and now we can finally remove the fd from the map.  see
-        # comment above in _cleanup.
+        # comment above in ->close.
         delete $DescriptorMap{$fd};
     }
 
@@ -411,7 +410,6 @@ sub new {
 
     $self->{wbuf} = [];
     $self->{wbuf_off} = 0;
-    $self->{closed} = 0;
 
     my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
 
@@ -457,28 +455,8 @@ Close the socket.
 
 =cut
 sub close {
-    my PublicInbox::DS $self = $_[0];
-    return if $self->{closed};
-
-    # this does most of the work of closing us
-    $self->_cleanup();
-
-    # defer closing the actual socket until the event loop is done
-    # processing this round of events.  (otherwise we might reuse fds)
-    if (my $sock = delete $self->{sock}) {
-        push @ToClose, $sock;
-    }
-
-    return 0;
-}
-
-### METHOD: _cleanup()
-### Called by our closers so we can clean internal data structures.
-sub _cleanup {
-    my PublicInbox::DS $self = $_[0];
-
-    # we're effectively closed; we have no fd and sock when we leave here
-    $self->{closed} = 1;
+    my ($self) = @_;
+    my $sock = delete $self->{sock} or return;
 
     # we need to flush our write buffer, as there may
     # be self-referential closures (sub { $client->close })
@@ -487,8 +465,8 @@ sub _cleanup {
 
     # if we're using epoll, we have to remove this from our epoll fd so we stop getting
     # notifications about it
-    if ($HaveEpoll && $self->{sock}) {
-        my $fd = fileno($self->{sock});
+    if ($HaveEpoll) {
+        my $fd = fileno($sock);
         epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, $self->{event_watch}) and
             confess("EPOLL_CTL_DEL: $!");
     }
@@ -498,9 +476,15 @@ sub _cleanup {
     # processing an epoll_wait/etc that returned hundreds of fds, one
     # of which is not yet processed and is what we're closing.  if we
     # keep it in DescriptorMap, then the event harnesses can just
-    # looked at $pob->{closed} and ignore it.  but if it's an
+    # looked at $pob->{sock} == undef and ignore it.  but if it's an
     # un-accounted for fd, then it (understandably) freak out a bit
     # and emit warnings, thinking their state got off.
+
+    # defer closing the actual socket until the event loop is done
+    # processing this round of events.  (otherwise we might reuse fds)
+    push @ToClose, $sock;
+
+    return 0;
 }
 
 =head2 C<< $obj->sock() >>
@@ -533,7 +517,7 @@ sub write {
     # now-dead object does its second write.  that is this case.  we
     # just lie and say it worked.  it'll be dead soon and won't be
     # hurt by this lie.
-    return 1 if $self->{closed};
+    return 1 unless $self->{sock};
 
     my $bref;
 
@@ -634,7 +618,7 @@ Turn 'readable' event notification on or off.
 =cut
 sub watch_read {
     my PublicInbox::DS $self = shift;
-    return if $self->{closed} || !$self->{sock};
+    my $sock = $self->{sock} or return;
 
     my $val = shift;
     my $event = $self->{event_watch};
@@ -642,7 +626,7 @@ sub watch_read {
     $event &= ~POLLIN if ! $val;
     $event |=  POLLIN if   $val;
 
-    my $fd = fileno($self->{sock});
+    my $fd = fileno($sock);
     # If it changed, set it
     if ($event != $self->{event_watch}) {
         if ($HaveKQueue) {
@@ -664,14 +648,14 @@ Turn 'writable' event notification on or off.
 =cut
 sub watch_write {
     my PublicInbox::DS $self = shift;
-    return if $self->{closed} || !$self->{sock};
+    my $sock = $self->{sock} or return;
 
     my $val = shift;
     my $event = $self->{event_watch};
 
     $event &= ~POLLOUT if ! $val;
     $event |=  POLLOUT if   $val;
-    my $fd = fileno($self->{sock});
+    my $fd = fileno($sock);
 
     # If it changed, set it
     if ($event != $self->{event_watch}) {
@@ -728,7 +712,7 @@ sub as_string {
     my PublicInbox::DS $self = shift;
     my $rw = "(" . ($self->{event_watch} & POLLIN ? 'R' : '') .
                    ($self->{event_watch} & POLLOUT ? 'W' : '') . ")";
-    my $ret = ref($self) . "$rw: " . ($self->{closed} ? "closed" : "open");
+    my $ret = ref($self) . "$rw: " . ($self->{sock} ? 'open' : 'closed');
     return $ret;
 }
 

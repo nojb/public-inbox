@@ -57,7 +57,7 @@ sub next_tick () {
 
 			# maybe there's more pipelined data, or we'll have
 			# to register it for socket-readiness notifications
-			if (!$nntp->{long_res} && !$nntp->{closed}) {
+			if (!$nntp->{long_res} && $nntp->{sock}) {
 				check_read($nntp);
 			}
 		}
@@ -66,9 +66,8 @@ sub next_tick () {
 
 sub update_idle_time ($) {
 	my ($self) = @_;
-        my $sock = $self->{sock} or return;
-	my $fd = fileno($sock);
-	defined $fd and $EXPMAP->{$fd} = [ now(), $self ];
+	my $sock = $self->{sock} or return;
+	$EXPMAP->{fileno($sock)} = [ now(), $self ];
 }
 
 sub expire_old () {
@@ -134,7 +133,7 @@ sub process_line ($$) {
 
 	my $res = eval { $req->($self, @args) };
 	my $err = $@;
-	if ($err && !$self->{closed}) {
+	if ($err && $self->{sock}) {
 		local $/ = "\n";
 		chomp($l);
 		err($self, 'error from: %s (%s)', $l, $err);
@@ -632,7 +631,7 @@ sub long_response ($$) {
 	my $t0 = now();
 	$self->{long_res} = sub {
 		my $more = eval { $cb->() };
-		if ($@ || $self->{closed}) {
+		if ($@ || !$self->{sock}) {
 			$self->{long_res} = undef;
 
 			if ($@) {
@@ -640,12 +639,12 @@ sub long_response ($$) {
 				    "%s during long response[$fd] - %0.6f",
 				    $@, now() - $t0);
 			}
-			if ($self->{closed}) {
-				out($self, " deferred[$fd] aborted - %0.6f",
-				           now() - $t0);
-			} else {
+			if ($self->{sock}) {
 				update_idle_time($self);
 				check_read($self);
+			} else {
+				out($self, " deferred[$fd] aborted - %0.6f",
+				           now() - $t0);
 			}
 		} elsif ($more) { # scalar @{$self->{wbuf}}:
 			# no recursion, schedule another call ASAP
@@ -930,7 +929,7 @@ sub more ($$) {
 sub do_write ($$) {
 	my ($self, $data) = @_;
 	my $done = $self->write($data);
-	return 0 if $self->{closed};
+	return 0 unless $self->{sock};
 
 	# Do not watch for readability if we have data in the queue,
 	# instead re-enable watching for readability when we can
@@ -966,13 +965,13 @@ sub do_more ($$) {
 
 sub event_step {
 	my ($self) = @_;
-	return if $self->{closed};
+	return unless $self->{sock};
 
 	my $wbuf = $self->{wbuf};
 	if (@$wbuf) {
 		update_idle_time($self);
 		$self->write(undef);
-		return if $self->{closed} || scalar(@$wbuf);
+		return if !$self->{sock} || scalar(@$wbuf);
 	}
 	return if $self->{long_res};
 	# only read more requests if we've drained the write buffer,
@@ -1028,9 +1027,8 @@ sub check_read {
 
 sub not_idle_long ($$) {
 	my ($self, $now) = @_;
-        my $sock = $self->{sock} or return;
-	defined(my $fd = fileno($sock)) or return;
-	my $ary = $EXPMAP->{$fd} or return;
+	my $sock = $self->{sock} or return;
+	my $ary = $EXPMAP->{fileno($sock)} or return;
 	my $exp_at = $ary->[0] + $EXPTIME;
 	$exp_at > $now;
 }
