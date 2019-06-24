@@ -19,7 +19,7 @@ use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::Handle;
 require PublicInbox::EvCleanup;
-PublicInbox::DS->import('msg_more');
+PublicInbox::DS->import(qw(msg_more write_in_full));
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
@@ -125,7 +125,7 @@ sub read_input ($) {
 
 	while ($len > 0) {
 		if ($$rbuf ne '') {
-			my $w = write_in_full($input, $rbuf, $len);
+			my $w = write_in_full($input, $rbuf, $len, 0);
 			return write_err($self, $len) unless $w;
 			$len -= $w;
 			die "BUG: $len < 0 (w=$w)" if $len < 0;
@@ -367,20 +367,6 @@ sub recv_err {
 	quit($self, 500);
 }
 
-sub write_in_full {
-	my ($fh, $rbuf, $len) = @_;
-	my $rv = 0;
-	my $off = 0;
-	while ($len > 0) {
-		my $w = syswrite($fh, $$rbuf, $len, $off);
-		return ($rv ? $rv : $w) unless $w; # undef or 0
-		$rv += $w;
-		$off += $w;
-		$len -= $w;
-	}
-	$rv
-}
-
 sub read_input_chunked { # unlikely...
 	my ($self) = @_;
 	my $input = $self->{env}->{'psgi.input'};
@@ -425,7 +411,7 @@ sub read_input_chunked { # unlikely...
 		# drain the current chunk
 		until ($len <= 0) {
 			if ($$rbuf ne '') {
-				my $w = write_in_full($input, $rbuf, $len);
+				my $w = write_in_full($input, $rbuf, $len, 0);
 				return write_err($self, "$len chunk") if !$w;
 				$len -= $w;
 				if ($len == 0) {
