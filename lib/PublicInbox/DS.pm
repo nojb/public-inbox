@@ -537,7 +537,8 @@ sub write {
     my $sock = $self->{sock} or return 1;
     my $ref = ref $data;
     my $bref = $ref ? $data : \$data;
-    if (my $wbuf = $self->{wbuf}) { # already buffering, can't write more...
+    my $wbuf = $self->{wbuf};
+    if ($wbuf && scalar(@$wbuf)) { # already buffering, can't write more...
         if ($ref eq 'CODE') {
             push @$wbuf, $bref;
         } else {
