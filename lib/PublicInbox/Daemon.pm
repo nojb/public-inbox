@@ -8,7 +8,8 @@ use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
-use Socket qw(IPPROTO_TCP);
+use Socket qw(IPPROTO_TCP SOL_SOCKET);
+sub SO_ACCEPTFILTER () { 0x1000 }
 use Cwd qw/abs_path/;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -553,20 +554,25 @@ sub tls_start_cb ($$) {
 	}
 }
 
-sub defer_accept ($) {
+sub defer_accept ($$) {
+	my ($s, $af_name) = @_;
+	return unless defined $af_name;
 	if ($^O eq 'linux') {
-		my ($s) = @_;
 		my $x = getsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT());
 		return unless defined $x; # may be Unix socket
 		my $sec = unpack('i', $x);
 		return if $sec > 0; # systemd users may set a higher value
 		setsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT(), 1);
+	} elsif ($^O eq 'freebsd') {
+		my $x = getsockopt($s, SOL_SOCKET, SO_ACCEPTFILTER);
+		return if defined $x; # don't change if set
+		my $accf_arg = pack('a16a240', $af_name, '');
+		setsockopt($s, SOL_SOCKET, SO_ACCEPTFILTER, $accf_arg);
 	}
-	# TODO FreeBSD accf_http / accf_data
 }
 
-sub daemon_loop ($$$) {
-	my ($refresh, $post_accept, $nntpd) = @_;
+sub daemon_loop ($$$$) {
+	my ($refresh, $post_accept, $nntpd, $af_default) = @_;
 	PublicInbox::EvCleanup::enable(); # early for $refresh
 	my %post_accept;
 	while (my ($k, $v) = each %tls_opt) {
@@ -599,7 +605,7 @@ sub daemon_loop ($$$) {
 
 		# NNTPS, HTTPS, HTTP, and POP3S are client-first traffic
 		# NNTP and POP3 are server-first
-		defer_accept($_) if $tls_cb || !$nntpd;
+		defer_accept($_, $tls_cb ? 'dataready' : $af_default);
 
 		# this calls epoll_create:
 		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
@@ -612,8 +618,9 @@ sub daemon_loop ($$$) {
 sub run ($$$;$) {
 	my ($default, $refresh, $post_accept, $nntpd) = @_;
 	daemon_prepare($default);
+	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
 	daemonize();
-	daemon_loop($refresh, $post_accept, $nntpd);
+	daemon_loop($refresh, $post_accept, $nntpd, $af_default);
 }
 
 sub do_chown ($) {

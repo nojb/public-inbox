@@ -18,7 +18,7 @@ use File::Temp qw/tempdir/;
 use IO::Socket;
 use IO::Socket::UNIX;
 use Fcntl qw(:seek);
-use Socket qw(IPPROTO_TCP TCP_NODELAY);
+use Socket qw(IPPROTO_TCP TCP_NODELAY SOL_SOCKET);
 use POSIX qw(mkfifo);
 require './t/common.perl';
 my $tmpdir = tempdir('httpd-corner-XXXXXX', TMPDIR => 1, CLEANUP => 1);
@@ -36,7 +36,10 @@ my %opts = (
 	Listen => 1024,
 );
 my $sock = IO::Socket::INET->new(%opts);
-my $defer_accept_val;
+
+# Make sure we don't clobber socket options set by systemd or similar
+# using socket activation:
+my ($defer_accept_val, $accf_arg);
 if ($^O eq 'linux') {
 	setsockopt($sock, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT(), 5) or die;
 	my $x = getsockopt($sock, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT());
@@ -45,6 +48,11 @@ if ($^O eq 'linux') {
 	if ($defer_accept_val <= 0) {
 		die "unexpected TCP_DEFER_ACCEPT value: $defer_accept_val";
 	}
+} elsif ($^O eq 'freebsd' && system('kldstat -m accf_data >/dev/null') == 0) {
+	require PublicInbox::Daemon;
+	my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
+	$accf_arg = pack('a16a240', 'dataready', '');
+	setsockopt($sock, SOL_SOCKET, $var, $accf_arg) or die "setsockopt: $!";
 }
 
 my $upath = "$tmpdir/s";
@@ -100,7 +108,7 @@ my $spawn_httpd = sub {
 	is(scalar(grep(/CLOSE FAIL/, @$after)), 1, 'body->close not called');
 }
 
-{
+SKIP: {
 	my $conn = conn_for($sock, 'excessive header');
 	$SIG{PIPE} = 'IGNORE';
 	$conn->write("GET /callback HTTP/1.0\r\n");
@@ -514,6 +522,13 @@ SKIP: {
 	defined(my $x = getsockopt($sock, IPPROTO_TCP, $var)) or die;
 	is(unpack('i', $x), $defer_accept_val,
 		'TCP_DEFER_ACCEPT unchanged if previously set');
+};
+SKIP: {
+	skip 'SO_ACCEPTFILTER is FreeBSD-only', 1 if $^O ne 'freebsd';
+	skip 'accf_data not loaded: kldload accf_data' if !defined $accf_arg;
+	my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
+	defined(my $x = getsockopt($sock, SOL_SOCKET, $var)) or die;
+	is($x, $accf_arg, 'SO_ACCEPTFILTER unchanged if previously set');
 };
 
 done_testing();

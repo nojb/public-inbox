@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use Socket qw(SOCK_STREAM IPPROTO_TCP);
+use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 # IO::Poll and Net::NNTP are part of the standard library, but
 # distros may split them off...
 foreach my $mod (qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll)) {
@@ -189,6 +189,18 @@ for my $args (
 		ok(unpack('i', $x) > 0, 'TCP_DEFER_ACCEPT set on NNTPS');
 		defined($x = getsockopt($starttls, IPPROTO_TCP, $var)) or die;
 		is(unpack('i', $x), 0, 'TCP_DEFER_ACCEPT is 0 on plain NNTP');
+	};
+	SKIP: {
+		skip 'SO_ACCEPTFILTER is FreeBSD-only', 2 if $^O ne 'freebsd';
+		if (system('kldstat -m accf_data >/dev/null')) {
+			skip 'accf_data not loaded? kldload accf_data', 2;
+		}
+		require PublicInbox::Daemon;
+		my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
+		my $x = getsockopt($nntps, SOL_SOCKET, $var);
+		like($x, qr/\Adataready\0+\z/, 'got dataready accf for NNTPS');
+		$x = getsockopt($starttls, IPPROTO_TCP, $var);
+		is($x, undef, 'no BSD accept filter for plain NNTP');
 	};
 
 	$c = undef;
