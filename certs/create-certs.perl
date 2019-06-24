@@ -6,7 +6,7 @@ use warnings;
 use IO::Socket::SSL::Utils;
 use Net::SSLeay;
 
-my $dir = "./";
+my $dir = -d 'certs' && -f 'Makefile.PL' ? './certs/' : './';
 my $now = time();
 my $later = 0x7fffffff; # 2038 problems on 32-bit :<
 
