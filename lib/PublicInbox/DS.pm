@@ -18,7 +18,7 @@ use strict;
 use bytes;
 use POSIX ();
 use IO::Handle qw();
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD SEEK_SET);
+use Fcntl qw(SEEK_SET :DEFAULT);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use parent qw(Exporter);
 our @EXPORT_OK = qw(now msg_more);
@@ -32,9 +32,9 @@ use fields ('sock',              # underlying socket
             'wbuf_off',  # offset into first element of wbuf to start writing at
             );
 
-use Errno  qw(EAGAIN EINVAL);
+use Errno  qw(EAGAIN EINVAL EEXIST);
 use Carp   qw(croak confess carp);
-use File::Temp qw(tempfile);
+require File::Spec;
 
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -440,12 +440,16 @@ sub drop {
 # PerlIO::mmap or PerlIO::scalar if needed
 sub tmpio ($$$) {
     my ($self, $bref, $off) = @_;
-    # open(my $fh, '+>>', undef) doesn't set O_APPEND
-    my ($fh, $path) = eval { tempfile('wbuf-XXXXXXX', TMPDIR => 1) };
-    $fh or return drop($self, "tempfile: $@");
-    open($fh, '+>>', $path) or return drop($self, "open: $!");
+    my $fh; # open(my $fh, '+>>', undef) doesn't set O_APPEND
+    do {
+        my $fn = File::Spec->tmpdir . '/wbuf-' . rand;
+        if (sysopen($fh, $fn, O_RDWR|O_CREAT|O_EXCL|O_APPEND, 0600)) { # likely
+            unlink($fn) or return drop($self, "unlink($fn) $!");
+        } elsif ($! != EEXIST) { # EMFILE/ENFILE/ENOSPC/ENOMEM
+            return drop($self, "open: $!");
+        }
+    } until (defined $fh);
     $fh->autoflush(1);
-    unlink($path) or return drop($self, "unlink: $!");
     my $len = bytes::length($$bref) - $off;
     $fh->write($$bref, $len, $off) or return drop($self, "write ($len): $!");
     $fh
