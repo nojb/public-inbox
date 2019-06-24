@@ -243,7 +243,7 @@ sub parse_time ($$;$) {
 	}
 	my @now = $gmt ? gmtime : localtime;
 	my ($YYYY, $MM, $DD);
-	if (length($date) == 8) { # RFC 3977 allows YYYYMMDD
+	if (bytes::length($date) == 8) { # RFC 3977 allows YYYYMMDD
 		($YYYY, $MM, $DD) = unpack('A4A2A2', $date);
 	} else { # legacy clients send YYMMDD
 		($YYYY, $MM, $DD) = unpack('A2A2A2', $date);
@@ -944,7 +944,7 @@ sub event_step {
 	my $r;
 
 	if (index($$rbuf, "\n") < 0) {
-		my $off = length($$rbuf);
+		my $off = bytes::length($$rbuf);
 		$r = sysread($self->{sock}, $$rbuf, LINE_MAX, $off);
 		unless (defined $r) {
 			return $! == EAGAIN ? $self->watch_in1 : $self->close;
@@ -964,7 +964,7 @@ sub event_step {
 	}
 
 	return $self->close if $r < 0;
-	my $len = length($$rbuf);
+	my $len = bytes::length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
 	update_idle_time($self);
 

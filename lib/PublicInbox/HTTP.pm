@@ -76,7 +76,7 @@ sub event_step { # called by PublicInbox::DS
 
 	return read_input($self) if defined $self->{env};
 
-	my $off = length($self->{rbuf});
+	my $off = bytes::length($self->{rbuf});
 	my $r = sysread($self->{sock}, $self->{rbuf}, 8192, $off);
 	if (defined $r) {
 		return $self->close if $r == 0;
@@ -98,7 +98,7 @@ sub rbuf_process {
 	# (they are rarely-used and git (as of 2.7.2) does not use them)
 	if ($r == -1 || $env{HTTP_TRAILER} ||
 			# this length-check is necessary for PURE_PERL=1:
-			($r == -2 && length($self->{rbuf}) > 0x4000)) {
+			($r == -2 && bytes::length($self->{rbuf}) > 0x4000)) {
 		return quit($self, 400);
 	}
 	return $self->watch_in1 if $r < 0; # incomplete
@@ -375,12 +375,12 @@ sub read_input_chunked { # unlikely...
 		if ($len == CHUNK_ZEND) {
 			$$rbuf =~ s/\A\r\n//s and
 				return app_dispatch($self, $input);
-			return quit($self, 400) if length($$rbuf) > 2;
+			return quit($self, 400) if bytes::length($$rbuf) > 2;
 		}
 		if ($len == CHUNK_END) {
 			if ($$rbuf =~ s/\A\r\n//s) {
 				$len = CHUNK_START;
-			} elsif (length($$rbuf) > 2) {
+			} elsif (bytes::length($$rbuf) > 2) {
 				return quit($self, 400);
 			}
 		}
@@ -390,14 +390,14 @@ sub read_input_chunked { # unlikely...
 				if (($len + -s $input) > $MAX_REQUEST_BUFFER) {
 					return quit($self, 413);
 				}
-			} elsif (length($$rbuf) > CHUNK_MAX_HDR) {
+			} elsif (bytes::length($$rbuf) > CHUNK_MAX_HDR) {
 				return quit($self, 400);
 			}
 			# will break from loop since $len >= 0
 		}
 
 		if ($len < 0) { # chunk header is trickled, read more
-			my $off = length($$rbuf);
+			my $off = bytes::length($$rbuf);
 			my $r = sysread($sock, $$rbuf, 8192, $off);
 			return recv_err($self, $r, $len) unless $r;
 			# (implicit) goto chunk_start if $r > 0;
