@@ -438,7 +438,7 @@ sub quit {
 }
 
 sub close {
-	my $self = shift;
+	my $self = $_[0];
 	if (my $env = delete $self->{env}) {
 		delete $env->{'psgix.io'}; # prevent circular references
 	}
@@ -447,7 +447,7 @@ sub close {
 		eval { $forward->close };
 		err($self, "forward ->close error: $@") if $@;
 	}
-	$self->SUPER::close(@_);
+	$self->SUPER::close; # PublicInbox::DS::close
 }
 
 # for graceful shutdown in PublicInbox::Daemon:

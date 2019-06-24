@@ -80,9 +80,9 @@ sub async_pass {
 sub event_step { $_[0]->{cb}->(@_) }
 
 sub close {
-	my $self = shift;
+	my $self = $_[0];
 	delete $self->{cb};
-	$self->SUPER::close(@_);
+	$self->SUPER::close;
 
 	# we defer this to the next timer loop since close is deferred
 	if (my $cleanup = delete $self->{cleanup}) {
