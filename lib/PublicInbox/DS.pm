@@ -239,7 +239,6 @@ sub EpollEventLoop {
         }
         return unless PostEventLoop();
     }
-    exit 0;
 }
 
 ### The kqueue-based event loop. Gets installed as EventLoop if IO::KQueue works
@@ -264,8 +263,6 @@ sub KQueueEventLoop {
         }
         return unless PostEventLoop();
     }
-
-    exit(0);
 }
 
 =head2 C<< CLASS->SetPostLoopCallback( CODEREF ) >>
