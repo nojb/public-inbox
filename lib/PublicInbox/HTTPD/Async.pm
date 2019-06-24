@@ -25,10 +25,9 @@ sub new {
 
 	my $self = fields::new($class);
 	IO::Handle::blocking($io, 0);
-	$self->SUPER::new($io);
+	$self->SUPER::new($io, PublicInbox::DS::EPOLLIN());
 	$self->{cb} = $cb;
 	$self->{cleanup} = $cleanup;
-	$self->watch_read(1);
 	$self;
 }
 

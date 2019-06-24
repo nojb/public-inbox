@@ -56,12 +56,11 @@ sub http_date () {
 sub new ($$$) {
 	my ($class, $sock, $addr, $httpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock);
+	$self->SUPER::new($sock, PublicInbox::DS::EPOLLIN());
 	$self->{httpd} = $httpd;
 	$self->{rbuf} = '';
 	($self->{remote_addr}, $self->{remote_port}) =
 		PublicInbox::Daemon::host_with_port($addr);
-	$self->watch_read(1);
 	$self;
 }
 

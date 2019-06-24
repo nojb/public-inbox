@@ -23,7 +23,7 @@ sub once_init () {
 	# fires in the next event loop iteration.
 	pipe($r, $w) or die "pipe: $!";
 	fcntl($w, 1031, 4096) if $^O eq 'linux'; # 1031: F_SETPIPE_SZ
-	$self->SUPER::new($w);
+	$self->SUPER::new($w, 0);
 
 	# always writable, since PublicInbox::EvCleanup::event_step
 	# never drains wbuf.  We can avoid wasting a hash slot by

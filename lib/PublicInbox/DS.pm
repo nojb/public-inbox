@@ -55,8 +55,6 @@ our (
      @Timers,                    # timers
      );
 
-# this may be set to zero with old kernels
-our $EPOLLEXCLUSIVE = EPOLLEXCLUSIVE;
 Reset();
 
 #####################################################################
@@ -389,7 +387,7 @@ This is normally (always?) called from your subclass via:
 
 =cut
 sub new {
-    my ($self, $sock, $exclusive) = @_;
+    my ($self, $sock, $ev) = @_;
     $self = fields::new($self) unless ref $self;
 
     $self->{sock} = $sock;
@@ -398,30 +396,29 @@ sub new {
     Carp::cluck("undef sock and/or fd in PublicInbox::DS->new.  sock=" . ($sock || "") . ", fd=" . ($fd || ""))
         unless $sock && $fd;
 
-    my $ev = $self->{event_watch} = 0;
+    $self->{event_watch} = $ev;
 
     _InitPoller();
 
     if ($HaveEpoll) {
-        if ($exclusive) {
-            $ev = $self->{event_watch} = EPOLLIN|$EPOLLEXCLUSIVE;
-        }
 retry:
         if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
-            if ($! == EINVAL && ($ev & $EPOLLEXCLUSIVE)) {
-                $EPOLLEXCLUSIVE = 0; # old kernel
-                $ev = $self->{event_watch} = EPOLLIN;
+            if ($! == EINVAL && ($ev & EPOLLEXCLUSIVE)) {
+                $self->{event_watch} = ($ev &= ~EPOLLEXCLUSIVE);
                 goto retry;
             }
             die "couldn't add epoll watch for $fd: $!\n";
         }
     }
     elsif ($HaveKQueue) {
-        # Add them to the queue but disabled for now
+        my $f = $ev & EPOLLIN ? IO::KQueue::EV_ENABLE()
+                              : IO::KQueue::EV_DISABLE();
         $KQueue->EV_SET($fd, IO::KQueue::EVFILT_READ(),
-                        IO::KQueue::EV_ADD() | IO::KQueue::EV_DISABLE());
+                        IO::KQueue::EV_ADD() | $f);
+        $f = $ev & EPOLLOUT ? IO::KQueue::EV_ENABLE()
+                            : IO::KQueue::EV_DISABLE();
         $KQueue->EV_SET($fd, IO::KQueue::EVFILT_WRITE(),
-                        IO::KQueue::EV_ADD() | IO::KQueue::EV_DISABLE());
+                        IO::KQueue::EV_ADD() | $f);
     }
 
     Carp::cluck("PublicInbox::DS::new blowing away existing descriptor map for fd=$fd ($DescriptorMap{$fd})")

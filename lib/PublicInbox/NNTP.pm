@@ -97,11 +97,10 @@ sub expire_old () {
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock);
+	$self->SUPER::new($sock, PublicInbox::DS::EPOLLIN());
 	$self->{nntpd} = $nntpd;
 	res($self, '201 ' . $nntpd->{servername} . ' ready - post via email');
 	$self->{rbuf} = '';
-	$self->watch_read(1);
 	update_idle_time($self);
 	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
 	$self;
