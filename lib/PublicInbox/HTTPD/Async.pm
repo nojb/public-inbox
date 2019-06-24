@@ -57,7 +57,7 @@ sub main_cb ($$$) {
 			}
 			# fall through to close below...
 		} elsif (!defined $r) {
-			return restart_read($self) if $!{EAGAIN} || $!{EINTR};
+			return restart_read($self) if $!{EAGAIN};
 		}
 
 		# Done! Error handling will happen in $fh->close
