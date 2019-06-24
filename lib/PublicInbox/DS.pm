@@ -29,18 +29,13 @@ use PublicInbox::Syscall qw(:epoll);
 use fields ('sock',              # underlying socket
             'wbuf',              # arrayref of coderefs or GLOB refs
             'wbuf_off',  # offset into first element of wbuf to start writing at
-            'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
+            'event_watch',       # bitmask of events the client is interested in
+                                 # (EPOLLIN,OUT,etc.)
             );
 
 use Errno  qw(EAGAIN EINVAL);
 use Carp   qw(croak confess);
 use File::Temp qw(tempfile);
-
-use constant POLLIN        => 1;
-use constant POLLOUT       => 4;
-use constant POLLERR       => 8;
-use constant POLLHUP       => 16;
-use constant POLLNVAL      => 32;
 
 our $HAVE_KQUEUE = eval { require IO::KQueue; 1 };
 
@@ -403,19 +398,19 @@ sub new {
     Carp::cluck("undef sock and/or fd in PublicInbox::DS->new.  sock=" . ($sock || "") . ", fd=" . ($fd || ""))
         unless $sock && $fd;
 
-    my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
+    my $ev = $self->{event_watch} = 0;
 
     _InitPoller();
 
     if ($HaveEpoll) {
         if ($exclusive) {
-            $ev = $self->{event_watch} = EPOLLIN|EPOLLERR|EPOLLHUP|$EPOLLEXCLUSIVE;
+            $ev = $self->{event_watch} = EPOLLIN|$EPOLLEXCLUSIVE;
         }
 retry:
         if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
             if ($! == EINVAL && ($ev & $EPOLLEXCLUSIVE)) {
                 $EPOLLEXCLUSIVE = 0; # old kernel
-                $ev = $self->{event_watch} = EPOLLIN|EPOLLERR|EPOLLHUP;
+                $ev = $self->{event_watch} = EPOLLIN;
                 goto retry;
             }
             die "couldn't add epoll watch for $fd: $!\n";
@@ -646,8 +641,8 @@ sub watch_read {
     my $val = shift;
     my $event = $self->{event_watch};
 
-    $event &= ~POLLIN if ! $val;
-    $event |=  POLLIN if   $val;
+    $event &= ~EPOLLIN if ! $val;
+    $event |=  EPOLLIN if   $val;
 
     my $fd = fileno($sock);
     # If it changed, set it
@@ -676,8 +671,8 @@ sub watch_write {
     my $val = shift;
     my $event = $self->{event_watch};
 
-    $event &= ~POLLOUT if ! $val;
-    $event |=  POLLOUT if   $val;
+    $event &= ~EPOLLOUT if ! $val;
+    $event |=  EPOLLOUT if   $val;
     my $fd = fileno($sock);
 
     # If it changed, set it
