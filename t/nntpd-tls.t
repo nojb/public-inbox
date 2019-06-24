@@ -5,7 +5,9 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use Socket qw(SOCK_STREAM);
-foreach my $mod (qw(DBD::SQLite IO::Socket::SSL Net::NNTP)) {
+# IO::Poll and Net::NNTP are part of the standard library, but
+# distros may split them off...
+foreach my $mod (qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for $0" if $@;
 }
@@ -108,21 +110,32 @@ for my $args (
 	my %o = (
 		SSL_hostname => 'server.local',
 		SSL_verifycn_name => 'server.local',
-		SSL => 1,
 		SSL_verify_mode => SSL_VERIFY_PEER(),
 		SSL_ca_file => 'certs/test-ca.pem',
 	);
 	my $expect = { $group => [qw(1 1 n)] };
 
+	# start negotiating a slow TLS connection
+	my $slow = IO::Socket::INET->new(
+		Proto => 'tcp',
+		PeerAddr => $nntps_addr,
+		Type => SOCK_STREAM,
+		Blocking => 0,
+	);
+	$slow = IO::Socket::SSL->start_SSL($slow, SSL_startHandshake => 0, %o);
+	my $slow_done = $slow->connect_SSL;
+	diag('W: connect_SSL early OK, slow client test invalid') if $slow_done;
+	my @poll = (fileno($slow), PublicInbox::TLS::epollbit());
+	# we should call connect_SSL much later...
+
 	# NNTPS
-	my $c = Net::NNTP->new($nntps_addr, %o);
+	my $c = Net::NNTP->new($nntps_addr, %o, SSL => 1);
 	my $list = $c->list;
 	is_deeply($list, $expect, 'NNTPS LIST works');
 	is($c->command('QUIT')->response(), Net::Cmd::CMD_OK(), 'QUIT works');
 	is(0, sysread($c, my $buf, 1), 'got EOF after QUIT');
 
 	# STARTTLS
-	delete $o{SSL};
 	$c = Net::NNTP->new($starttls_addr, %o);
 	$list = $c->list;
 	is_deeply($list, $expect, 'plain LIST works');
@@ -153,6 +166,21 @@ for my $args (
 	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.local';
 	$c = Net::NNTP->new($nntps_addr, %o, SSL => 1);
 	ok($c, 'NNTPS succeeds again with valid hostname');
+
+	# slow TLS connection did not block the other fast clients while
+	# connecting, finish it off:
+	until ($slow_done) {
+		IO::Poll::_poll(-1, @poll);
+		$slow_done = $slow->connect_SSL and last;
+		@poll = (fileno($slow), PublicInbox::TLS::epollbit());
+	}
+	$slow->blocking(1);
+	ok(sysread($slow, my $greet, 4096) > 0, 'slow got greeting');
+	like($greet, qr/\A201 /, 'got expected greeting');
+	is(syswrite($slow, "QUIT\r\n"), 6, 'slow wrote QUIT');
+	ok(sysread($slow, my $end, 4096) > 0, 'got EOF');
+	is(sysread($slow, my $eof, 4096), 0, 'got EOF');
+	$slow = undef;
 
 	$c = undef;
 	kill('TERM', $pid);
