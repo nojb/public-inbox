@@ -24,7 +24,7 @@ use constant {
 	r225 =>	'225 Headers follow (multi-line)',
 	r430 => '430 No article with that message-id',
 };
-use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
+use PublicInbox::Syscall qw(EPOLLOUT EPOLLONESHOT);
 use Errno qw(EAGAIN);
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
@@ -98,9 +98,11 @@ sub expire_old () {
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock, EPOLLIN | EPOLLONESHOT);
+	$self->SUPER::new($sock, EPOLLOUT | EPOLLONESHOT);
 	$self->{nntpd} = $nntpd;
-	res($self, '201 ' . $nntpd->{servername} . ' ready - post via email');
+	my $greet = "201 $nntpd->{servername} ready - post via email\r\n";
+	open my $fh, '<:scalar',  \$greet or die "open :scalar: $!";
+	$self->{wbuf} = [ $fh ];
 	$self->{rbuf} = '';
 	update_idle_time($self);
 	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
