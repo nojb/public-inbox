@@ -58,6 +58,11 @@ sub next_tick () {
 	}
 }
 
+sub requeue ($) {
+	push @$nextq, $_[0];
+	$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
+}
+
 sub update_idle_time ($) {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
@@ -633,7 +638,7 @@ sub long_response ($$) {
 			}
 			if ($self->{sock}) {
 				update_idle_time($self);
-				check_read($self);
+				requeue($self);
 			} else {
 				out($self, " deferred[$fd] aborted - %0.6f",
 				           now() - $t0);
@@ -642,14 +647,12 @@ sub long_response ($$) {
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			update_idle_time($self);
-
-			push @$nextq, $self;
-			$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
+			requeue($self);
 		} else { # all done!
 			delete $self->{long_res};
-			check_read($self);
 			res($self, '.');
 			out($self, " deferred[$fd] done - %0.6f", now() - $t0);
+			requeue($self);
 		}
 	};
 	$self->{long_res}->(); # kick off!
@@ -930,6 +933,7 @@ sub out ($$;@) {
 	printf { $self->{nntpd}->{out} } $fmt."\n", @args;
 }
 
+# callback used by PublicInbox::DS for any (e)poll (in/out/hup/err)
 sub event_step {
 	my ($self) = @_;
 
@@ -965,24 +969,7 @@ sub event_step {
 
 	# maybe there's more pipelined data, or we'll have
 	# to register it for socket-readiness notifications
-	check_read($self) unless ($self->{long_res} || $self->{wbuf});
-}
-
-sub check_read {
-	my ($self) = @_;
-	if (index($self->{rbuf}, "\n") >= 0) {
-		# Force another read if there is a pipelined request.
-		# We don't know if the socket has anything for us to read,
-		# and we must double-check again by the time the timer fires
-		# in case we really did dispatch a read event and started
-		# another long response.
-		push @$nextq, $self;
-		$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
-	} else {
-		# no pipelined requests available, let the kernel know
-		# to wake us up if there's more
-		$self->watch_in1; # PublicInbox::DS::watch_in1
-	}
+	requeue($self) unless ($self->{long_res} || $self->{wbuf});
 }
 
 sub not_idle_long ($$) {
