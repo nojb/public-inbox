@@ -8,7 +8,7 @@ use Net::SSLeay;
 
 my $dir = "./";
 my $now = time();
-my $later = $now + 100*365*86400;
+my $later = 0x7fffffff; # 2038 problems on 32-bit :<
 
 Net::SSLeay::SSLeay_add_ssl_algorithms();
 my $sha256 = Net::SSLeay::EVP_get_digestbyname('sha256') or die;
