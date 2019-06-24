@@ -293,8 +293,8 @@ sub PostEventLoop {
     while (my $sock = shift @ToClose) {
         my $fd = fileno($sock);
 
-        # close the socket.  (not a PublicInbox::DS close)
-        $sock->close;
+        # close the socket. (not a PublicInbox::DS close)
+        CORE::close($sock);
 
         # and now we can finally remove the fd from the map.  see
         # comment above in ->close.

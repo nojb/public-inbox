@@ -101,7 +101,7 @@ sub new ($$$) {
 	my $ev = EPOLLOUT | EPOLLONESHOT;
 	my $wbuf = [];
 	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
-		$ev = PublicInbox::TLS::epollbit() or return $sock->close;
+		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
 		$ev |= EPOLLONESHOT;
 		$wbuf->[0] = \&PublicInbox::DS::accept_tls_step;
 	}

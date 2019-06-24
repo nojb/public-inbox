@@ -135,6 +135,23 @@ for my $args (
 	is($n, Net::Cmd::CMD_ERROR(), 'error attempting STARTTLS again');
 	is($c->code, 502, '502 according to RFC 4642 sec#2.2.1');
 
+	# STARTTLS with bad hostname
+	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.invalid';
+	$c = Net::NNTP->new($starttls_addr, %o);
+	$list = $c->list;
+	is_deeply($list, $expect, 'plain LIST works again');
+	ok(!$c->starttls, 'STARTTLS fails with bad hostname');
+	$c = Net::NNTP->new($starttls_addr, %o);
+	$list = $c->list;
+	is_deeply($list, $expect, 'not broken after bad negotiation');
+
+	# NNTPS with bad hostname
+	$c = Net::NNTP->new($nntps_addr, %o, SSL => 1);
+	is($c, undef, 'NNTPS fails with bad hostname');
+	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.local';
+	$c = Net::NNTP->new($nntps_addr, %o, SSL => 1);
+	ok($c, 'NNTPS succeeds again with valid hostname');
+
 	$c = undef;
 	kill('TERM', $pid);
 	is($pid, waitpid($pid, 0), 'nntpd exited successfully');
