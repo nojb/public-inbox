@@ -63,7 +63,7 @@ sub main_cb ($$$) {
 
 		# Done! Error handling will happen in $fh->close
 		# called by the {cleanup} handler
-		$http->{forward} = undef;
+		delete $http->{forward};
 		$self->close;
 	}
 }
@@ -81,12 +81,13 @@ sub event_step { $_[0]->{cb}->(@_) }
 
 sub close {
 	my $self = shift;
-	my $cleanup = $self->{cleanup};
-	$self->{cleanup} = $self->{cb} = undef;
+	delete $self->{cb};
 	$self->SUPER::close(@_);
 
 	# we defer this to the next timer loop since close is deferred
-	PublicInbox::EvCleanup::next_tick($cleanup) if $cleanup;
+	if (my $cleanup = delete $self->{cleanup}) {
+		PublicInbox::EvCleanup::next_tick($cleanup);
+	}
 }
 
 1;

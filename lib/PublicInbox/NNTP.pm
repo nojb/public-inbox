@@ -624,7 +624,7 @@ sub long_response ($$) {
 	$self->{long_res} = sub {
 		my $more = eval { $cb->() };
 		if ($@ || !$self->{sock}) { # something bad happened...
-			$self->{long_res} = undef;
+			delete $self->{long_res};
 
 			if ($@) {
 				err($self,
@@ -646,7 +646,7 @@ sub long_response ($$) {
 			push @$nextq, $self;
 			$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
 		} else { # all done!
-			$self->{long_res} = undef;
+			delete $self->{long_res};
 			check_read($self);
 			res($self, '.');
 			out($self, " deferred[$fd] done - %0.6f", now() - $t0);

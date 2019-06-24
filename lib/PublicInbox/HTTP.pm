@@ -118,8 +118,7 @@ sub read_input ($) {
 
 	# env->{CONTENT_LENGTH} (identity)
 	my $sock = $self->{sock};
-	my $len = $self->{input_left};
-	$self->{input_left} = undef;
+	my $len = delete $self->{input_left};
 	my $rbuf = \($self->{rbuf});
 	my $input = $env->{'psgi.input'};
 
@@ -246,8 +245,7 @@ sub next_request ($) {
 sub response_done_cb ($$) {
 	my ($self, $alive) = @_;
 	sub {
-		my $env = $self->{env};
-		$self->{env} = undef;
+		my $env = delete $self->{env};
 		$self->write(\"0\r\n\r\n") if $alive == 2;
 		$self->write(sub{$alive ? next_request($self) : $self->close});
 	}
@@ -279,7 +277,7 @@ sub getline_cb ($$$) {
 		}
 	}
 
-	$self->{forward} = $self->{pull} = undef;
+	delete @$self{qw(forward pull)};
 	# avoid recursion
 	if ($forward) {
 		eval { $forward->close };
@@ -370,8 +368,7 @@ sub read_input_chunked { # unlikely...
 	my ($self) = @_;
 	my $input = $self->{env}->{'psgi.input'};
 	my $sock = $self->{sock};
-	my $len = $self->{input_left};
-	$self->{input_left} = undef;
+	my $len = delete $self->{input_left};
 	my $rbuf = \($self->{rbuf});
 
 	while (1) { # chunk start
@@ -442,11 +439,11 @@ sub quit {
 
 sub close {
 	my $self = shift;
-	my $forward = $self->{forward};
-	my $env = $self->{env};
-	delete $env->{'psgix.io'} if $env; # prevent circular references
-	$self->{pull} = $self->{forward} = $self->{env} = undef;
-	if ($forward) {
+	if (my $env = delete $self->{env}) {
+		delete $env->{'psgix.io'}; # prevent circular references
+	}
+	delete $self->{pull};
+	if (my $forward = delete $self->{forward}) {
 		eval { $forward->close };
 		err($self, "forward ->close error: $@") if $@;
 	}

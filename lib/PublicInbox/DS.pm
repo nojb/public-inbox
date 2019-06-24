@@ -23,6 +23,7 @@ use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use parent qw(Exporter);
 our @EXPORT_OK = qw(now msg_more write_in_full);
 use warnings;
+use 5.010_001;
 
 use PublicInbox::Syscall qw(:epoll);
 
