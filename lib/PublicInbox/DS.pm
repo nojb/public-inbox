@@ -505,7 +505,10 @@ sub write {
             return $self->close;
         }
         my $tmpio = tmpio($self, $bref, $written) or return 0;
-        $self->{wbuf} = [ $tmpio ];
+
+        # wbuf may be an empty array if we're being called inside
+        # ->flush_write via CODE bref:
+        push @{$self->{wbuf} ||= []}, $tmpio;
         watch($self, EPOLLOUT|EPOLLONESHOT);
         return 0;
     }
