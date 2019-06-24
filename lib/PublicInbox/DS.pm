@@ -17,10 +17,11 @@ package PublicInbox::DS;
 use strict;
 use bytes;
 use POSIX ();
-use Time::HiRes ();
 use IO::Handle qw();
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
-
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use parent qw(Exporter);
+our @EXPORT_OK = qw(now);
 use warnings;
 
 use PublicInbox::Syscall qw(:epoll);
@@ -115,7 +116,7 @@ sub AddTimer {
     my $class = shift;
     my ($secs, $coderef) = @_;
 
-    my $fire_time = Time::HiRes::time() + $secs;
+    my $fire_time = now() + $secs;
 
     my $timer = bless [$fire_time, $coderef], "PublicInbox::DS::Timer";
 
@@ -195,11 +196,13 @@ sub FirstTimeEventLoop {
     }
 }
 
+sub now () { clock_gettime(CLOCK_MONOTONIC) }
+
 # runs timers and returns milliseconds for next one, or next event loop
 sub RunTimers {
     return $LoopTimeout unless @Timers;
 
-    my $now = Time::HiRes::time();
+    my $now = now();
 
     # Run expired timers
     while (@Timers && $Timers[0][0] <= $now) {

@@ -14,7 +14,7 @@ use PublicInbox::Git;
 require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
-use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+PublicInbox::DS->import('now');
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
 use constant {
@@ -24,8 +24,6 @@ use constant {
 	r225 =>	'225 Headers follow (multi-line)',
 	r430 => '430 No article with that message-id',
 };
-
-sub now () { clock_gettime(CLOCK_MONOTONIC) };
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";

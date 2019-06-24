@@ -9,10 +9,9 @@ use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
 use Cwd qw/abs_path/;
-use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
-require PublicInbox::DS;
+use PublicInbox::DS qw(now);
 require PublicInbox::EvCleanup;
 require POSIX;
 require PublicInbox::Listener;
@@ -183,7 +182,7 @@ sub worker_quit {
 	PublicInbox::DS->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
 		my $n = 0;
-		my $now = clock_gettime(CLOCK_MONOTONIC);
+		my $now = now();
 
 		foreach my $s (values %$dmap) {
 			$s->can('busy') or next;
@@ -195,9 +194,9 @@ sub worker_quit {
 			}
 		}
 		if ($n) {
-			if (($warn + 5) < time) {
+			if (($warn + 5) < now()) {
 				warn "$$ quitting, $n client(s) left\n";
-				$warn = time;
+				$warn = now();
 			}
 			unless (defined $proc_name) {
 				$proc_name = (split(/\s+/, $0))[0];
