@@ -209,7 +209,7 @@ sub response_header_write {
 	if (($len || $chunked) && $env->{REQUEST_METHOD} ne 'HEAD') {
 		more($self, $h);
 	} else {
-		$self->write($h);
+		$self->write(\$h);
 	}
 	$alive;
 }
@@ -222,7 +222,7 @@ sub chunked_wcb ($) {
 		more($self, sprintf("%x\r\n", bytes::length($_[0])));
 		more($self, $_[0]);
 
-		# use $self->write("\n\n") if you care about real-time
+		# use $self->write(\"\n\n") if you care about real-time
 		# streaming responses, public-inbox WWW does not.
 		more($self, "\r\n");
 	}
@@ -248,7 +248,7 @@ sub response_done_cb ($$) {
 	sub {
 		my $env = $self->{env};
 		$self->{env} = undef;
-		$self->write("0\r\n\r\n") if $alive == 2;
+		$self->write(\"0\r\n\r\n") if $alive == 2;
 		$self->write(sub{$alive ? next_request($self) : $self->close});
 	}
 }
@@ -330,7 +330,7 @@ sub more ($$) {
 			return $self->write(substr($_[1], $n, $nlen));
 		}
 	}
-	$self->write($_[1]);
+	$self->write(\($_[1]));
 }
 
 sub input_prepare {
@@ -467,7 +467,7 @@ sub read_input_chunked { # unlikely...
 sub quit {
 	my ($self, $status) = @_;
 	my $h = "HTTP/1.1 $status " . status_message($status) . "\r\n\r\n";
-	$self->write($h);
+	$self->write(\$h);
 	$self->close;
 }
 
