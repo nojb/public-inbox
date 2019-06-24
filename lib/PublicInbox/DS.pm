@@ -21,7 +21,7 @@ use IO::Handle qw();
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD SEEK_SET);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use parent qw(Exporter);
-our @EXPORT_OK = qw(now msg_more write_in_full);
+our @EXPORT_OK = qw(now msg_more);
 use warnings;
 use 5.010_001;
 
@@ -422,8 +422,8 @@ sub close {
 sub psendfile ($$$) {
     my ($sock, $fh, $off) = @_;
 
-    sysseek($fh, $$off, SEEK_SET) or return;
-    defined(my $to_write = sysread($fh, my $buf, 16384)) or return;
+    seek($fh, $$off, SEEK_SET) or return;
+    defined(my $to_write = read($fh, my $buf, 16384)) or return;
     my $written = 0;
     while ($to_write > 0) {
         if (defined(my $w = syswrite($sock, $buf, $to_write, $written))) {
@@ -482,29 +482,18 @@ sub do_read ($$$$) {
     $! == EAGAIN ? $self->watch_in1 : $self->close;
 }
 
-sub write_in_full ($$$$) {
-    my ($fh, $bref, $len, $off) = @_;
-    my $rv = 0;
-    while ($len > 0) {
-        my $w = syswrite($fh, $$bref, $len, $off);
-        return ($rv ? $rv : $w) unless $w; # undef or 0
-        $rv += $w;
-        $len -= $w;
-        $off += $w;
-    }
-    $rv
-}
-
+# n.b.: use ->write/->read for this buffer to allow compatibility with
+# PerlIO::mmap or PerlIO::scalar if needed
 sub tmpbuf ($$) {
     my ($bref, $off) = @_;
     # open(my $fh, '+>>', undef) doesn't set O_APPEND
     my ($fh, $path) = tempfile('wbuf-XXXXXXX', TMPDIR => 1);
     open $fh, '+>>', $path or die "open: $!";
+    $fh->autoflush(1);
     unlink $path;
     my $to_write = bytes::length($$bref) - $off;
-    my $w = write_in_full($fh, $bref, $to_write, $off);
-    die "write_in_full ($to_write): $!" unless defined $w;
-    $w == $to_write ? $fh : die("short write $w < $to_write");
+    $fh->write($$bref, $to_write, $off) or die "write ($to_write): $!";
+    $fh;
 }
 
 =head2 C<< $obj->write( $data ) >>
@@ -534,7 +523,10 @@ sub write {
         } else {
             my $last = $wbuf->[-1];
             if (ref($last) eq 'GLOB') { # append to tmp file buffer
-                write_in_full($last, $bref, bytes::length($$bref), 0);
+                unless ($last->print($$bref)) {
+                    warn "error buffering: $!";
+                    return $self->close;
+                }
             } else {
                 push @$wbuf, tmpbuf($bref, 0);
             }

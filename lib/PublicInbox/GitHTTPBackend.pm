@@ -231,17 +231,15 @@ sub input_prepare {
 			return;
 		}
 		last if $r == 0;
-		my $off = 0;
-		while ($r > 0) {
-			my $w = syswrite($in, $buf, $r, $off);
-			if (defined $w) {
-				$r -= $w;
-				$off += $w;
-			} else {
-				err($env, "error writing temporary file: $!");
-				return;
-			}
+		unless (print $in $buf) {
+			err($env, "error writing temporary file: $!");
+			return;
 		}
+	}
+	# ensure it's visible to git-http-backend(1):
+	unless ($in->flush) {
+		err($env, "error writing temporary file: $!");
+		return;
 	}
 	unless (defined(sysseek($in, 0, SEEK_SET))) {
 		err($env, "error seeking temporary file: $!");

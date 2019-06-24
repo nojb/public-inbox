@@ -19,7 +19,7 @@ use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::Handle;
 require PublicInbox::EvCleanup;
-PublicInbox::DS->import(qw(msg_more write_in_full));
+PublicInbox::DS->import(qw(msg_more));
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
@@ -102,6 +102,15 @@ sub rbuf_process {
 	$len ? read_input($self) : app_dispatch($self);
 }
 
+# IO::Handle::write returns boolean, this returns bytes written:
+sub xwrite ($$$) {
+	my ($fh, $rbuf, $max) = @_;
+	my $w = bytes::length($$rbuf);
+	$w = $max if $w > $max;
+	$fh->write($$rbuf, $w) or return;
+	$w;
+}
+
 sub read_input ($) {
 	my ($self) = @_;
 	my $env = $self->{env};
@@ -116,7 +125,7 @@ sub read_input ($) {
 
 	while ($len > 0) {
 		if ($$rbuf ne '') {
-			my $w = write_in_full($input, $rbuf, $len, 0);
+			my $w = xwrite($input, $rbuf, $len);
 			return write_err($self, $len) unless $w;
 			$len -= $w;
 			die "BUG: $len < 0 (w=$w)" if $len < 0;
@@ -306,6 +315,11 @@ sub response_write {
 	}
 }
 
+sub input_tmpfile ($) {
+	open($_[0], '+>', undef);
+	$_[0]->autoflush(1);
+}
+
 sub input_prepare {
 	my ($self, $env) = @_;
 	my $input;
@@ -315,10 +329,10 @@ sub input_prepare {
 			quit($self, 413);
 			return;
 		}
-		open($input, '+>', undef);
+		input_tmpfile($input);
 	} elsif (env_chunked($env)) {
 		$len = CHUNK_START;
-		open($input, '+>', undef);
+		input_tmpfile($input);
 	} else {
 		$input = $null_io;
 	}
@@ -399,7 +413,7 @@ sub read_input_chunked { # unlikely...
 		# drain the current chunk
 		until ($len <= 0) {
 			if ($$rbuf ne '') {
-				my $w = write_in_full($input, $rbuf, $len, 0);
+				my $w = xwrite($input, $rbuf, $len);
 				return write_err($self, "$len chunk") if !$w;
 				$len -= $w;
 				if ($len == 0) {
