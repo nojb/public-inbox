@@ -59,7 +59,6 @@ sub _load_syscall {
     return $rv;
 }
 
-our ($sysname, $nodename, $release, $version, $machine) = POSIX::uname();
 
 our (
      $SYS_epoll_create,
@@ -71,6 +70,7 @@ our (
 our $no_deprecated = 0;
 
 if ($^O eq "linux") {
+    my $machine = (POSIX::uname())[-1];
     # whether the machine requires 64-bit numbers to be on 8-byte
     # boundaries.
     my $u64_mod_8 = 0;
