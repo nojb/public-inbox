@@ -59,6 +59,16 @@ sub accept_tls_opt ($) {
 	}
 	my $ctx = IO::Socket::SSL::SSL_Context->new(%ctx_opt) or
 		die 'SSL_Context->new: '.PublicInbox::TLS::err();
+
+	# save ~34K per idle connection (cf. SSL_CTX_set_mode(3ssl))
+	# RSS goes from 346MB to 171MB with 10K idle NNTPS clients on amd64
+	# cf. https://rt.cpan.org/Ticket/Display.html?id=129463
+	my $mode = eval { Net::SSLeay::MODE_RELEASE_BUFFERS() };
+	if ($mode && $ctx->{context}) {
+		eval { Net::SSLeay::CTX_set_mode($ctx->{context}, $mode) };
+		warn "W: $@ (setting SSL_MODE_RELEASE_BUFFERS)\n" if $@;
+	}
+
 	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
 }
 
