@@ -442,13 +442,13 @@ sub psendfile ($$$) {
 sub flush_write ($) {
     my ($self) = @_;
     my $wbuf = $self->{wbuf} or return 1;
-    my $sock = $self->{sock} or return 1;
+    my $sock = $self->{sock};
 
 next_buf:
     while (my $bref = $wbuf->[0]) {
         if (ref($bref) ne 'CODE') {
             my $off = delete($self->{wbuf_off}) // 0;
-            while (1) {
+            while ($sock) {
                 my $w = psendfile($sock, $bref, \$off);
                 if (defined $w) {
                     if ($w == 0) {
