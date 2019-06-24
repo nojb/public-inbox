@@ -46,7 +46,9 @@ sub _run_all ($) {
 # ensure PublicInbox::DS::ToClose processing after timers fire
 sub _asap_close () { $asapq->[1] ||= _asap_timer() }
 
-sub _run_asap () { _run_all($asapq) }
+# Called by PublicInbox::DS
+sub event_step { _run_all($asapq) }
+
 sub _run_next () {
 	_run_all($nextq);
 	_asap_close();
@@ -55,12 +57,6 @@ sub _run_next () {
 sub _run_later () {
 	_run_all($laterq);
 	_asap_close();
-}
-
-# Called by PublicInbox::DS
-sub event_step {
-	my ($self) = @_;
-	_run_asap();
 }
 
 sub _asap_timer () {
@@ -88,7 +84,7 @@ sub later ($) {
 }
 
 END {
-	_run_asap();
+	event_step();
 	_run_all($nextq);
 	_run_all($laterq);
 }
