@@ -122,7 +122,7 @@ sub psgi_qx {
 		eval { $qx_cb->($qx) };
 		$qx = undef;
 	};
-	my $rpipe;
+	my $rpipe; # comes from popen_rd
 	my $async = $env->{'pi-httpd.async'};
 	my $cb = sub {
 		my $r = sysread($rpipe, my $buf, 8192);
@@ -137,7 +137,7 @@ sub psgi_qx {
 	};
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
 	$self->start($limiter, sub { # may run later, much later...
-		($rpipe) = @_;
+		($rpipe) = @_; # popen_rd result
 		if ($async) {
 		# PublicInbox::HTTPD::Async->new($rpipe, $cb, $end)
 			$async = $async->($rpipe, $cb, $end);
