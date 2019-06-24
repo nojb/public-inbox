@@ -77,7 +77,7 @@ changed = \$(shell git ls-files -m)
 %.syntax ::
 	@\$(PERL) -w -I lib -c \$(subst .syntax,,\$@)
 
-syntax:: \$(my_syntax)
+syntax:: \$(filter-out lib/PublicInbox/DSKQXS.pm.syntax,\$(my_syntax))
 
 dsyn :: \$(addsuffix .syntax, \$(filter \$(changed), \$(syn_files)))
 
