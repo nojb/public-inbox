@@ -402,8 +402,6 @@ sub new {
     Carp::cluck("undef sock and/or fd in PublicInbox::DS->new.  sock=" . ($sock || "") . ", fd=" . ($fd || ""))
         unless $sock && $fd;
 
-    $self->{wbuf} = [];
-
     my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
 
     _InitPoller();
@@ -454,7 +452,7 @@ sub close {
     # we need to flush our write buffer, as there may
     # be self-referential closures (sub { $client->close })
     # preventing the object from being destroyed
-    @{$self->{wbuf}} = ();
+    delete $self->{wbuf};
 
     # if we're using epoll, we have to remove this from our epoll fd so we stop getting
     # notifications about it
@@ -483,8 +481,8 @@ sub close {
 # returns 1 if done, 0 if incomplete
 sub flush_write ($) {
     my ($self) = @_;
+    my $wbuf = $self->{wbuf} or return 1;
     my $sock = $self->{sock} or return 1;
-    my $wbuf = $self->{wbuf};
 
     while (my $bref = $wbuf->[0]) {
         my $ref = ref($bref);
@@ -512,6 +510,7 @@ sub flush_write ($) {
         }
     } # while @$wbuf
 
+    delete $self->{wbuf};
     $self->watch_write(0);
     1; # all done
 }
@@ -538,8 +537,7 @@ sub write {
     my $sock = $self->{sock} or return 1;
     my $ref = ref $data;
     my $bref = $ref ? $data : \$data;
-    my $wbuf = $self->{wbuf};
-    if (@$wbuf) { # already buffering, can't write more...
+    if (my $wbuf = $self->{wbuf}) { # already buffering, can't write more...
         push @$wbuf, $bref;
         return 0;
     } elsif ($ref eq 'CODE') {
@@ -552,10 +550,10 @@ sub write {
         if (defined $written) {
             return 1 if $written == $to_write;
             $self->{wbuf_off} = $written;
-            push @$wbuf, $bref;
+            $self->{wbuf} = [ $bref ];
             return flush_write($self); # try until EAGAIN
         } elsif ($! == EAGAIN) {
-            push @$wbuf, $bref;
+            $self->{wbuf} = [ $bref ];
             $self->watch_write(1);
         } else {
             $self->close;

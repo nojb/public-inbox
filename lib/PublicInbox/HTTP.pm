@@ -67,11 +67,8 @@ sub new ($$$) {
 sub event_step { # called by PublicInbox::DS
 	my ($self) = @_;
 
-	my $wbuf = $self->{wbuf};
-	if (@$wbuf) {
-		$self->write(undef);
-		return if !$self->{sock} || scalar(@$wbuf);
-	}
+	return unless $self->flush_write && $self->{sock};
+
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
@@ -268,7 +265,7 @@ sub getline_cb ($$$) {
 			$write->($buf); # may close in PublicInbox::DS::write
 			if ($self->{sock}) {
 				my $next = $self->{pull};
-				if (scalar @{$self->{wbuf}}) {
+				if ($self->{wbuf}) {
 					$self->write($next);
 				} else {
 					PublicInbox::EvCleanup::asap($next);
@@ -323,7 +320,7 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 sub more ($$) {
 	my $self = $_[0];
 	return unless $self->{sock};
-	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
+	if (MSG_MORE && !$self->{wbuf}) {
 		my $n = send($self->{sock}, $_[1], MSG_MORE);
 		if (defined $n) {
 			my $nlen = length($_[1]) - $n;
@@ -490,7 +487,7 @@ sub close {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy () {
 	my ($self) = @_;
-	($self->{rbuf} ne '' || $self->{env} || scalar(@{$self->{wbuf}}));
+	($self->{rbuf} ne '' || $self->{env} || $self->{wbuf});
 }
 
 1;

@@ -29,7 +29,7 @@ sub once_init () {
 	# never drains wbuf.  We can avoid wasting a hash slot by
 	# stuffing the read-end of the pipe into the never-to-be-touched
 	# wbuf
-	push @{$self->{wbuf}}, $r;
+	$self->{wbuf} = $r;
 	$self;
 }
 

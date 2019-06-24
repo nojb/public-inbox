@@ -644,7 +644,7 @@ sub long_response ($$) {
 				out($self, " deferred[$fd] aborted - %0.6f",
 				           now() - $t0);
 			}
-		} elsif ($more) { # scalar @{$self->{wbuf}}:
+		} elsif ($more) { # $self->{wbuf}:
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			update_idle_time($self);
@@ -950,7 +950,7 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 
 sub do_more ($$) {
 	my ($self, $data) = @_;
-	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
+	if (MSG_MORE && !$self->{wbuf}) {
 		my $n = send($self->{sock}, $data, MSG_MORE);
 		if (defined $n) {
 			my $dlen = length($data);
@@ -963,15 +963,11 @@ sub do_more ($$) {
 
 sub event_step {
 	my ($self) = @_;
-	return unless $self->{sock};
 
-	my $wbuf = $self->{wbuf};
-	if (@$wbuf) {
-		update_idle_time($self);
-		$self->write(undef);
-		return if !$self->{sock} || scalar(@$wbuf);
-	}
+	return unless $self->flush_write && $self->{sock};
 	return if $self->{long_res};
+
+	update_idle_time($self);
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
@@ -1035,7 +1031,7 @@ sub not_idle_long ($$) {
 sub busy {
 	my ($self, $now) = @_;
 	($self->{rbuf} ne '' || $self->{long_res} ||
-		scalar(@{$self->{wbuf}}) || not_idle_long($self, $now));
+		$self->{wbuf} || not_idle_long($self, $now));
 }
 
 1;

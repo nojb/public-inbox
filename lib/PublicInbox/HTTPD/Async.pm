@@ -46,7 +46,7 @@ sub main_cb ($$$) {
 		if ($r) {
 			$fh->write($$bref);
 			if ($http->{sock}) { # !closed
-				if (scalar @{$http->{wbuf}}) {
+				if ($http->{wbuf}) {
 					$self->watch_read(0);
 					$http->write(restart_read_cb($self));
 				}
