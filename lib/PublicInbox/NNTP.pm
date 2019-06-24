@@ -24,7 +24,7 @@ use constant {
 	r225 =>	'225 Headers follow (multi-line)',
 	r430 => '430 No article with that message-id',
 };
-use PublicInbox::Syscall qw(EPOLLOUT EPOLLONESHOT);
+use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use Errno qw(EAGAIN);
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
@@ -96,17 +96,19 @@ sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
-	my $ev = EPOLLOUT | EPOLLONESHOT;
-	my $wbuf = [];
+	my $ev = EPOLLIN;
+	my $wbuf;
 	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
 		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
-		$ev |= EPOLLONESHOT;
-		$wbuf->[0] = \&PublicInbox::DS::accept_tls_step;
+		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
 	}
-	$self->SUPER::new($sock, $ev);
+	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
 	$self->{nntpd} = $nntpd;
-	push @$wbuf, \&greet;
-	$self->{wbuf} = $wbuf;
+	if ($wbuf) {
+		$self->{wbuf} = $wbuf;
+	} else {
+		greet($self);
+	}
 	update_idle_time($self);
 	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
 	$self;
