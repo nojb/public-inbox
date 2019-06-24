@@ -468,7 +468,7 @@ next_buf:
             }
         } else { #($ref eq 'CODE') {
             shift @$wbuf;
-            $bref->();
+            $bref->($self);
         }
     } # while @$wbuf
 
@@ -535,7 +535,7 @@ sub write {
         }
         return 0;
     } elsif ($ref eq 'CODE') {
-        $bref->();
+        $bref->($self);
         return 1;
     } else {
         my $to_write = bytes::length($$bref);

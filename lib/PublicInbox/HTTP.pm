@@ -247,7 +247,7 @@ sub response_done_cb ($$) {
 	sub {
 		my $env = delete $self->{env};
 		$self->write(\"0\r\n\r\n") if $alive == 2;
-		$self->write(sub{$alive ? next_request($self) : $self->close});
+		$self->write($alive ? \&next_request : \&close);
 	}
 }
 
@@ -455,5 +455,12 @@ sub busy () {
 	my ($self) = @_;
 	($self->{rbuf} ne '' || $self->{env} || $self->{wbuf});
 }
+
+# fires after pending writes are complete:
+sub restart_pass ($) {
+	$_[0]->{forward}->restart_read; # see PublicInbox::HTTPD::Async
+}
+
+sub enqueue_restart_pass ($) { $_[0]->write(\&restart_pass) }
 
 1;

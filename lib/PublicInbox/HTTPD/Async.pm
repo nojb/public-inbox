@@ -34,23 +34,24 @@ sub new {
 
 sub restart_read ($) { $_[0]->watch(PublicInbox::DS::EPOLLIN()) }
 
-# fires after pending writes are complete:
-sub restart_read_cb ($) {
-	my ($self) = @_;
-	sub { restart_read($self) }
-}
-
 sub main_cb ($$$) {
 	my ($http, $fh, $bref) = @_;
 	sub {
 		my ($self) = @_;
 		my $r = sysread($self->{sock}, $$bref, 8192);
 		if ($r) {
-			$fh->write($$bref);
+			$fh->write($$bref); # may call $http->close
+
 			if ($http->{sock}) { # !closed
 				if ($http->{wbuf}) {
+					# HTTP client could not keep up, so
+					# stop reading and buffering.
 					$self->watch(0);
-					$http->write(restart_read_cb($self));
+
+					# Tell the HTTP socket to restart us
+					# when HTTP client is done draining
+					# $http->{wbuf}:
+					$http->enqueue_restart_pass;
 				}
 				# stay in EPOLLIN, but let other clients
 				# get some work done, too.
