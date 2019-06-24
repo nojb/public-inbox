@@ -403,7 +403,6 @@ sub new {
         unless $sock && $fd;
 
     $self->{wbuf} = [];
-    $self->{wbuf_off} = 0;
 
     my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
 
@@ -501,7 +500,7 @@ sub write {
     # now-dead object does its second write.  that is this case.  we
     # just lie and say it worked.  it'll be dead soon and won't be
     # hurt by this lie.
-    return 1 unless $self->{sock};
+    my $sock = $self->{sock} or return 1;
 
     my $bref;
 
@@ -548,9 +547,9 @@ sub write {
             die "Write error: $@ <$bref>";
         }
 
-        my $to_write = $len - $self->{wbuf_off};
-        my $written = syswrite($self->{sock}, $$bref, $to_write,
-                               $self->{wbuf_off});
+        my $off = $self->{wbuf_off} // 0;
+        my $to_write = $len - $off;
+        my $written = syswrite($sock, $$bref, $to_write, $off);
 
         if (! defined $written) {
             if ($! == EAGAIN) {
@@ -570,11 +569,11 @@ sub write {
             }
             # since connection has stuff to write, it should now be
             # interested in pending writes:
-            $self->{wbuf_off} += $written;
+            $self->{wbuf_off} = $off + $written;
             $self->watch_write(1);
             return 0;
         } elsif ($written == $to_write) {
-            $self->{wbuf_off} = 0;
+            delete $self->{wbuf_off};
             $self->watch_write(0);
 
             # this was our only write, so we can return immediately
