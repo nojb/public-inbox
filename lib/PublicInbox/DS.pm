@@ -321,7 +321,7 @@ sub kq_flag ($$) {
         my $fl = EV_ADD() | EV_ENABLE();
         ($ev & EPOLLONESHOT) ? ($fl|EV_ONESHOT()) : $fl;
     } else {
-        EV_DISABLE();
+        EV_ADD() | EV_DISABLE();
     }
 }
 
@@ -364,8 +364,8 @@ retry:
         }
     }
     elsif ($HaveKQueue) {
-        $KQueue->EV_SET($fd, EVFILT_READ(), EV_ADD() | kq_flag(EPOLLIN, $ev));
-        $KQueue->EV_SET($fd, EVFILT_WRITE(), EV_ADD() | kq_flag(EPOLLOUT, $ev));
+        $KQueue->EV_SET($fd, EVFILT_READ(), kq_flag(EPOLLIN, $ev));
+        $KQueue->EV_SET($fd, EVFILT_WRITE(), kq_flag(EPOLLOUT, $ev));
     }
 
     Carp::cluck("PublicInbox::DS::new blowing away existing descriptor map for fd=$fd ($DescriptorMap{$fd})")
