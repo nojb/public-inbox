@@ -248,13 +248,8 @@ sub sendfile_freebsd {
 
 sub epoll_defined { return $SYS_epoll_create ? 1 : 0; }
 
-# ARGS: (size) -- but in modern Linux 2.6, the
-# size doesn't even matter (radix tree now, not hash)
 sub epoll_create {
-    return -1 unless defined $SYS_epoll_create;
-    my $epfd = eval { syscall($SYS_epoll_create, $no_deprecated ? 0 : ($_[0]||100)+0) };
-    return -1 if $@;
-    return $epfd;
+	syscall($SYS_epoll_create, $no_deprecated ? 0 : ($_[0]||100)+0);
 }
 
 # epoll_ctl wrapper
