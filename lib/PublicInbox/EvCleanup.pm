@@ -6,6 +6,7 @@ package PublicInbox::EvCleanup;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
+use PublicInbox::Syscall qw(EPOLLOUT EPOLLONESHOT);
 
 my $ENABLED;
 sub enabled { $ENABLED }
@@ -59,13 +60,12 @@ sub _run_later () {
 # Called by PublicInbox::DS
 sub event_step {
 	my ($self) = @_;
-	$self->watch_write(0);
 	_run_asap();
 }
 
 sub _asap_timer () {
 	$singleton ||= once_init();
-	$singleton->watch_write(1);
+	$singleton->watch(EPOLLOUT|EPOLLONESHOT);
 	1;
 }
 

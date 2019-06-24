@@ -20,6 +20,7 @@ use HTTP::Date qw(time2str);
 use IO::Handle;
 require PublicInbox::EvCleanup;
 PublicInbox::DS->import(qw(msg_more write_in_full));
+use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
@@ -56,7 +57,7 @@ sub http_date () {
 sub new ($$$) {
 	my ($class, $sock, $addr, $httpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock, PublicInbox::DS::EPOLLIN());
+	$self->SUPER::new($sock, EPOLLIN | EPOLLONESHOT);
 	$self->{httpd} = $httpd;
 	$self->{rbuf} = '';
 	($self->{remote_addr}, $self->{remote_port}) =
@@ -80,7 +81,8 @@ sub event_step { # called by PublicInbox::DS
 		return $self->close if $r == 0;
 		return rbuf_process($self);
 	}
-	return if $!{EAGAIN}; # no need to call watch_read(1) again
+
+	return $self->watch_in1 if $!{EAGAIN};
 
 	# common for clients to break connections without warning,
 	# would be too noisy to log here:
@@ -100,7 +102,7 @@ sub rbuf_process {
 			($r == -2 && length($self->{rbuf}) > 0x4000)) {
 		return quit($self, 400);
 	}
-	return $self->watch_read(1) if $r < 0; # incomplete
+	return $self->watch_in1 if $r < 0; # incomplete
 	$self->{rbuf} = substr($self->{rbuf}, $r);
 
 	my $len = input_prepare($self, \%env);
@@ -143,7 +145,6 @@ sub read_input ($) {
 
 sub app_dispatch {
 	my ($self, $input) = @_;
-	$self->watch_read(0);
 	my $env = $self->{env};
 	$env->{REMOTE_ADDR} = $self->{remote_addr};
 	$env->{REMOTE_PORT} = $self->{remote_port};
@@ -236,7 +237,7 @@ sub identity_wcb ($) {
 sub next_request ($) {
 	my ($self) = @_;
 	if ($self->{rbuf} eq '') { # wait for next request
-		$self->watch_read(1);
+		$self->watch_in1;
 	} else { # avoid recursion for pipelined requests
 		push @$pipelineq, $self;
 		$pipet ||= PublicInbox::EvCleanup::asap(*process_pipelineq);
@@ -360,7 +361,7 @@ sub recv_err {
 	return $self->close if (defined $r && $r == 0);
 	if ($!{EAGAIN}) {
 		$self->{input_left} = $len;
-		return;
+		return $self->watch_in1;
 	}
 	err($self, "error reading for input: $! ($len bytes remaining)");
 	quit($self, 500);

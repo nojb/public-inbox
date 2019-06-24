@@ -24,6 +24,7 @@ use constant {
 	r225 =>	'225 Headers follow (multi-line)',
 	r430 => '430 No article with that message-id',
 };
+use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
@@ -52,12 +53,6 @@ sub next_tick () {
 			# pipelined request, we bypassed socket-readiness
 			# checks to get here:
 			event_step($nntp);
-
-			# maybe there's more pipelined data, or we'll have
-			# to register it for socket-readiness notifications
-			if (!$nntp->{long_res} && $nntp->{sock}) {
-				check_read($nntp);
-			}
 		}
 	}
 }
@@ -97,7 +92,7 @@ sub expire_old () {
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock, PublicInbox::DS::EPOLLIN());
+	$self->SUPER::new($sock, EPOLLIN | EPOLLONESHOT);
 	$self->{nntpd} = $nntpd;
 	res($self, '201 ' . $nntpd->{servername} . ' ready - post via email');
 	$self->{rbuf} = '';
@@ -624,11 +619,10 @@ sub long_response ($$) {
 	# make sure we disable reading during a long response,
 	# clients should not be sending us stuff and making us do more
 	# work while we are stream a response to them
-	$self->watch_read(0);
 	my $t0 = now();
 	$self->{long_res} = sub {
 		my $more = eval { $cb->() };
-		if ($@ || !$self->{sock}) {
+		if ($@ || !$self->{sock}) { # something bad happened...
 			$self->{long_res} = undef;
 
 			if ($@) {
@@ -922,10 +916,6 @@ sub do_write ($$) {
 	my $done = $self->write(\($_[1]));
 	return 0 unless $self->{sock};
 
-	# Do not watch for readability if we have data in the queue,
-	# instead re-enable watching for readability when we can
-	$self->watch_read(0) if (!$done || $self->{long_res});
-
 	$done;
 }
 
@@ -943,7 +933,6 @@ sub event_step {
 	my ($self) = @_;
 
 	return unless $self->flush_write && $self->{sock};
-	return if $self->{long_res};
 
 	update_idle_time($self);
 	# only read more requests if we've drained the write buffer,
@@ -957,7 +946,7 @@ sub event_step {
 		my $off = length($$rbuf);
 		$r = sysread($self->{sock}, $$rbuf, LINE_MAX, $off);
 		unless (defined $r) {
-			return if $!{EAGAIN};
+			return $self->watch_in1 if $!{EAGAIN};
 			return $self->close;
 		}
 		return $self->close if $r == 0;
@@ -978,6 +967,10 @@ sub event_step {
 	my $len = length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
 	update_idle_time($self);
+
+	# maybe there's more pipelined data, or we'll have
+	# to register it for socket-readiness notifications
+	check_read($self) unless ($self->{long_res} || $self->{wbuf});
 }
 
 sub check_read {
@@ -993,7 +986,7 @@ sub check_read {
 	} else {
 		# no pipelined requests available, let the kernel know
 		# to wake us up if there's more
-		$self->watch_read(1); # PublicInbox::DS::watch_read
+		$self->watch_in1; # PublicInbox::DS::watch_in1
 	}
 }
 

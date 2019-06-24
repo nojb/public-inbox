@@ -31,10 +31,12 @@ sub new {
 	$self;
 }
 
+sub restart_read ($) { $_[0]->watch(PublicInbox::DS::EPOLLIN()) }
+
 # fires after pending writes are complete:
 sub restart_read_cb ($) {
 	my ($self) = @_;
-	sub { $self->watch_read(1) }
+	sub { restart_read($self) }
 }
 
 sub main_cb ($$$) {
@@ -46,16 +48,16 @@ sub main_cb ($$$) {
 			$fh->write($$bref);
 			if ($http->{sock}) { # !closed
 				if ($http->{wbuf}) {
-					$self->watch_read(0);
+					$self->watch(0);
 					$http->write(restart_read_cb($self));
 				}
-				# stay in watch_read, but let other clients
+				# stay in EPOLLIN, but let other clients
 				# get some work done, too.
 				return;
 			}
 			# fall through to close below...
 		} elsif (!defined $r) {
-			return if $!{EAGAIN} || $!{EINTR};
+			return restart_read($self) if $!{EAGAIN} || $!{EINTR};
 		}
 
 		# Done! Error handling will happen in $fh->close
