@@ -622,65 +622,42 @@ sub msg_more ($$) {
     $self->write(\($_[1]));
 }
 
+sub watch_chg ($$$) {
+    my ($self, $bits, $set) = @_;
+    my $sock = $self->{sock} or return;
+    my $cur = $self->{event_watch};
+    my $changes = $cur;
+    if ($set) {
+        $changes |= $bits;
+    } else {
+        $changes &= ~$bits;
+    }
+    return if $changes == $cur;
+    my $fd = fileno($sock);
+    if ($HaveEpoll) {
+        epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $changes) and
+            confess("EPOLL_CTL_MOD $!");
+    } elsif ($HaveKQueue) {
+        my $flag = $set ? EV_ENABLE() : EV_DISABLE();
+        $KQueue->EV_SET($fd, EVFILT_READ(), $flag) if $bits & EPOLLIN;
+        $KQueue->EV_SET($fd, EVFILT_WRITE(), $flag) if $bits & EPOLLOUT;
+    }
+    $self->{event_watch} = $changes;
+}
+
 =head2 C<< $obj->watch_read( $boolean ) >>
 
 Turn 'readable' event notification on or off.
 
 =cut
-sub watch_read {
-    my PublicInbox::DS $self = shift;
-    my $sock = $self->{sock} or return;
-
-    my $val = shift;
-    my $event = $self->{event_watch};
-
-    $event &= ~EPOLLIN if ! $val;
-    $event |=  EPOLLIN if   $val;
-
-    my $fd = fileno($sock);
-    # If it changed, set it
-    if ($event != $self->{event_watch}) {
-        if ($HaveKQueue) {
-            $KQueue->EV_SET($fd, EVFILT_READ(),
-                            $val ? EV_ENABLE() : EV_DISABLE());
-        }
-        elsif ($HaveEpoll) {
-            epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
-                confess("EPOLL_CTL_MOD: $!");
-        }
-        $self->{event_watch} = $event;
-    }
-}
+sub watch_read ($$) { watch_chg($_[0], EPOLLIN, $_[1]) };
 
 =head2 C<< $obj->watch_write( $boolean ) >>
 
 Turn 'writable' event notification on or off.
 
 =cut
-sub watch_write {
-    my PublicInbox::DS $self = shift;
-    my $sock = $self->{sock} or return;
-
-    my $val = shift;
-    my $event = $self->{event_watch};
-
-    $event &= ~EPOLLOUT if ! $val;
-    $event |=  EPOLLOUT if   $val;
-    my $fd = fileno($sock);
-
-    # If it changed, set it
-    if ($event != $self->{event_watch}) {
-        if ($HaveKQueue) {
-            $KQueue->EV_SET($fd, EVFILT_WRITE(),
-                            $val ? EV_ENABLE() : EV_DISABLE());
-        }
-        elsif ($HaveEpoll) {
-            epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
-                    confess "EPOLL_CTL_MOD: $!";
-        }
-        $self->{event_watch} = $event;
-    }
-}
+sub watch_write ($$) { watch_chg($_[0], EPOLLOUT, $_[1]) };
 
 package PublicInbox::DS::Timer;
 # [$abs_float_firetime, $coderef];
