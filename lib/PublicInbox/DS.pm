@@ -34,8 +34,6 @@ use fields ('sock',              # underlying socket
 use Errno  qw(EAGAIN EINVAL);
 use Carp   qw(croak confess);
 
-use constant DebugLevel => 0;
-
 use constant POLLIN        => 1;
 use constant POLLOUT       => 4;
 use constant POLLERR       => 8;
@@ -103,18 +101,6 @@ immediately.
 =cut
 sub SetLoopTimeout {
     return $LoopTimeout = $_[1] + 0;
-}
-
-=head2 C<< CLASS->DebugMsg( $format, @args ) >>
-
-Print the debugging message specified by the C<sprintf>-style I<format> and
-I<args>
-
-=cut
-sub DebugMsg {
-    my ( $class, $fmt, @args ) = @_;
-    chomp $fmt;
-    printf STDERR ">>> $fmt\n", @args;
 }
 
 =head2 C<< CLASS->AddTimer( $seconds, $coderef ) >>
@@ -487,16 +473,6 @@ sub close {
     return 0;
 }
 
-=head2 C<< $obj->sock() >>
-
-Returns the underlying IO::Handle for the object.
-
-=cut
-sub sock {
-    my PublicInbox::DS $self = shift;
-    return $self->{sock};
-}
-
 =head2 C<< $obj->write( $data ) >>
 
 Write the specified data to the underlying handle.  I<data> may be scalar,
@@ -669,51 +645,6 @@ sub watch_write {
         }
         $self->{event_watch} = $event;
     }
-}
-
-=head2 C<< $obj->dump_error( $message ) >>
-
-Prints to STDERR a backtrace with information about this socket and what lead
-up to the dump_error call.
-
-=cut
-sub dump_error {
-    my $i = 0;
-    my @list;
-    while (my ($file, $line, $sub) = (caller($i++))[1..3]) {
-        push @list, "\t$file:$line called $sub\n";
-    }
-
-    warn "ERROR: $_[1]\n" .
-        "\t$_[0] = " . $_[0]->as_string . "\n" .
-        join('', @list);
-}
-
-=head2 C<< $obj->debugmsg( $format, @args ) >>
-
-Print the debugging message specified by the C<sprintf>-style I<format> and
-I<args>.
-
-=cut
-sub debugmsg {
-    my ( $self, $fmt, @args ) = @_;
-    confess "Not an object" unless ref $self;
-
-    chomp $fmt;
-    printf STDERR ">>> $fmt\n", @args;
-}
-
-=head2 C<< $obj->as_string() >>
-
-Returns a string describing this socket.
-
-=cut
-sub as_string {
-    my PublicInbox::DS $self = shift;
-    my $rw = "(" . ($self->{event_watch} & POLLIN ? 'R' : '') .
-                   ($self->{event_watch} & POLLOUT ? 'W' : '') . ")";
-    my $ret = ref($self) . "$rw: " . ($self->{sock} ? 'open' : 'closed');
-    return $ret;
 }
 
 package PublicInbox::DS::Timer;
