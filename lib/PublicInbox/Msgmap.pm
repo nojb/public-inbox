@@ -126,9 +126,9 @@ sub mid_insert {
 	my ($self, $mid) = @_;
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(<<'');
-INSERT OR IGNORE INTO msgmap (mid) VALUES (?)
+INSERT INTO msgmap (mid) VALUES (?)
 
-	return if $sth->execute($mid) == 0;
+	return unless eval { $sth->execute($mid) };
 	my $num = $dbh->last_insert_id(undef, undef, 'msgmap', 'num');
 	$self->num_highwater($num) if defined($num);
 	$num;

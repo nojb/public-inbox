@@ -30,6 +30,9 @@ $@ = undef;
 my $ret = $d->mid_insert('a@b');
 is($ret, undef, 'duplicate mid_insert in undef result');
 is($d->num_for('a@b'), $mid2num{'a@b'}, 'existing number not clobbered');
+my $next = (sort(keys %num2mid))[-1];
+is($d->mid_insert('ok@unique'), $next + 1,
+	'got expected num after failing mid_insert');
 
 foreach my $n (keys %num2mid) {
 	is($d->mid_for($n), $num2mid{$n}, "num:$n maps correctly");

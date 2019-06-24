@@ -118,6 +118,8 @@ if ('ensure git configs are correct') {
 	$mime->header_set('References', '<zz-mid@b>');
 	ok($im->add($mime), 'message with multiple Message-ID');
 	$im->done;
+	my ($total, undef) = $ibx->over->recent;
+	is($ibx->mm->num_highwater, $total, 'got expected highwater value');
 	my $srch = $ibx->search;
 	my $mset1 = $srch->reopen->query('m:abcde@1', { mset => 1 });
 	is($mset1->size, 1, 'message found by first MID');
