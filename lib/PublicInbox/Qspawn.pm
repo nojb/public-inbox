@@ -29,6 +29,9 @@ use warnings;
 use PublicInbox::Spawn qw(popen_rd);
 require Plack::Util;
 
+# n.b.: we get EAGAIN with public-inbox-httpd, and EINTR on other PSGI servers
+use Errno qw(EAGAIN EINTR);
+
 my $def_limiter;
 
 # declares a command to spawn (but does not spawn it).
@@ -131,7 +134,7 @@ sub psgi_qx {
 		} elsif (defined $r) {
 			$r ? $qx->write($buf) : $end->();
 		} else {
-			return if $!{EAGAIN} || $!{EINTR}; # loop again
+			return if $! == EAGAIN || $! == EINTR; # loop again
 			$end->();
 		}
 	};
@@ -193,7 +196,7 @@ sub psgi_return {
 	my $buf = '';
 	my $rd_hdr = sub {
 		my $r = sysread($rpipe, $buf, 1024, length($buf));
-		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
+		return if !defined($r) && $! == EAGAIN || $! == EINTR;
 		$parse_hdr->($r, \$buf);
 	};
 

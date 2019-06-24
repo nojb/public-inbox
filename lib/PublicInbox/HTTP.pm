@@ -27,6 +27,7 @@ use constant {
 	CHUNK_ZEND => -3,    # \r\n
 	CHUNK_MAX_HDR => 256,
 };
+use Errno qw(EAGAIN);
 
 my $pipelineq = [];
 my $pipet;
@@ -82,11 +83,9 @@ sub event_step { # called by PublicInbox::DS
 		return rbuf_process($self);
 	}
 
-	return $self->watch_in1 if $!{EAGAIN};
-
 	# common for clients to break connections without warning,
 	# would be too noisy to log here:
-	return $self->close;
+	$! == EAGAIN ? $self->watch_in1 : $self->close;
 }
 
 sub rbuf_process {
@@ -359,7 +358,7 @@ sub write_err {
 sub recv_err {
 	my ($self, $r, $len) = @_;
 	return $self->close if (defined $r && $r == 0);
-	if ($!{EAGAIN}) {
+	if ($! == EAGAIN) {
 		$self->{input_left} = $len;
 		return $self->watch_in1;
 	}

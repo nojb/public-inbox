@@ -25,6 +25,7 @@ use constant {
 	r430 => '430 No article with that message-id',
 };
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
+use Errno qw(EAGAIN);
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
@@ -946,8 +947,7 @@ sub event_step {
 		my $off = length($$rbuf);
 		$r = sysread($self->{sock}, $$rbuf, LINE_MAX, $off);
 		unless (defined $r) {
-			return $self->watch_in1 if $!{EAGAIN};
-			return $self->close;
+			return $! == EAGAIN ? $self->watch_in1 : $self->close;
 		}
 		return $self->close if $r == 0;
 	}

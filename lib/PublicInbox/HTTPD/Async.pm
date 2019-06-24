@@ -11,6 +11,7 @@ use warnings;
 use base qw(PublicInbox::DS);
 use fields qw(cb cleanup);
 require PublicInbox::EvCleanup;
+use Errno qw(EAGAIN);
 
 sub new {
 	my ($class, $io, $cb, $cleanup) = @_;
@@ -57,7 +58,7 @@ sub main_cb ($$$) {
 			}
 			# fall through to close below...
 		} elsif (!defined $r) {
-			return restart_read($self) if $!{EAGAIN};
+			return restart_read($self) if $! == EAGAIN;
 		}
 
 		# Done! Error handling will happen in $fh->close
