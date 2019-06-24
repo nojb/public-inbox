@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use Socket qw(SOCK_STREAM);
+use Socket qw(SOCK_STREAM IPPROTO_TCP);
 # IO::Poll and Net::NNTP are part of the standard library, but
 # distros may split them off...
 foreach my $mod (qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll)) {
@@ -181,6 +181,15 @@ for my $args (
 	ok(sysread($slow, my $end, 4096) > 0, 'got EOF');
 	is(sysread($slow, my $eof, 4096), 0, 'got EOF');
 	$slow = undef;
+
+	SKIP: {
+		skip 'TCP_DEFER_ACCEPT is Linux-only', 2 if $^O ne 'linux';
+		my $var = Socket::TCP_DEFER_ACCEPT();
+		defined(my $x = getsockopt($nntps, IPPROTO_TCP, $var)) or die;
+		ok(unpack('i', $x) > 0, 'TCP_DEFER_ACCEPT set on NNTPS');
+		defined($x = getsockopt($starttls, IPPROTO_TCP, $var)) or die;
+		is(unpack('i', $x), 0, 'TCP_DEFER_ACCEPT is 0 on plain NNTP');
+	};
 
 	$c = undef;
 	kill('TERM', $pid);

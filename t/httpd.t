@@ -10,6 +10,7 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 }
 use File::Temp qw/tempdir/;
 use IO::Socket::INET;
+use Socket qw(IPPROTO_TCP);
 require './t/common.perl';
 
 # FIXME: too much setup
@@ -98,6 +99,13 @@ EOF
 		  qw(fsck --no-verbose)), 0,
 		'fsck on cloned directory successful');
 }
+
+SKIP: {
+	skip 'TCP_DEFER_ACCEPT is Linux-only', 1 if $^O ne 'linux';
+	my $var = Socket::TCP_DEFER_ACCEPT();
+	defined(my $x = getsockopt($sock, IPPROTO_TCP, $var)) or die;
+	ok(unpack('i', $x) > 0, 'TCP_DEFER_ACCEPT set');
+};
 
 done_testing();
 

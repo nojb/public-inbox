@@ -36,6 +36,17 @@ my %opts = (
 	Listen => 1024,
 );
 my $sock = IO::Socket::INET->new(%opts);
+my $defer_accept_val;
+if ($^O eq 'linux') {
+	setsockopt($sock, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT(), 5) or die;
+	my $x = getsockopt($sock, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT());
+	defined $x or die "getsockopt: $!";
+	$defer_accept_val = unpack('i', $x);
+	if ($defer_accept_val <= 0) {
+		die "unexpected TCP_DEFER_ACCEPT value: $defer_accept_val";
+	}
+}
+
 my $upath = "$tmpdir/s";
 my $unix = IO::Socket::UNIX->new(
 	Listen => 1024,
@@ -496,6 +507,14 @@ SKIP: {
 	like($head, qr/\r\nContent-Length: 40\r\n/s, 'got expected length');
 	is($body, sha1_hex(''), 'read expected body #2');
 }
+
+SKIP: {
+	skip 'TCP_DEFER_ACCEPT is Linux-only', 1 if $^O ne 'linux';
+	my $var = Socket::TCP_DEFER_ACCEPT();
+	defined(my $x = getsockopt($sock, IPPROTO_TCP, $var)) or die;
+	is(unpack('i', $x), $defer_accept_val,
+		'TCP_DEFER_ACCEPT unchanged if previously set');
+};
 
 done_testing();
 

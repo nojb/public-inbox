@@ -8,6 +8,7 @@ use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
+use Socket qw(IPPROTO_TCP);
 use Cwd qw/abs_path/;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -552,6 +553,18 @@ sub tls_start_cb ($$) {
 	}
 }
 
+sub defer_accept ($) {
+	if ($^O eq 'linux') {
+		my ($s) = @_;
+		my $x = getsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT());
+		return unless defined $x; # may be Unix socket
+		my $sec = unpack('i', $x);
+		return if $sec > 0; # systemd users may set a higher value
+		setsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT(), 1);
+	}
+	# TODO FreeBSD accf_http / accf_data
+}
+
 sub daemon_loop ($$$) {
 	my ($refresh, $post_accept, $nntpd) = @_;
 	PublicInbox::EvCleanup::enable(); # early for $refresh
@@ -581,10 +594,15 @@ sub daemon_loop ($$$) {
 	$SIG{HUP} = $refresh;
 	$SIG{CHLD} = 'DEFAULT';
 	$SIG{$_} = 'IGNORE' for qw(USR2 TTIN TTOU WINCH);
-	# this calls epoll_create:
-	@listeners = map {
-		PublicInbox::Listener->new($_,
-				$post_accept{sockname($_)} || $post_accept)
+	@listeners = map {;
+		my $tls_cb = $post_accept{sockname($_)};
+
+		# NNTPS, HTTPS, HTTP, and POP3S are client-first traffic
+		# NNTP and POP3 are server-first
+		defer_accept($_) if $tls_cb || !$nntpd;
+
+		# this calls epoll_create:
+		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
 	} @listeners;
 	PublicInbox::DS->EventLoop;
 	$parent_pipe = undef;
