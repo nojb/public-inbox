@@ -518,14 +518,13 @@ sub flush_write ($) {
 =head2 C<< $obj->write( $data ) >>
 
 Write the specified data to the underlying handle.  I<data> may be scalar,
-scalar ref, code ref (to run when there), or undef just to kick-start.
+scalar ref, code ref (to run when there).
 Returns 1 if writes all went through, or 0 if there are writes in queue. If
 it returns 1, caller should stop waiting for 'writable' events)
 
 =cut
 sub write {
     my ($self, $data) = @_;
-    return flush_write($self) unless defined $data;
 
     # nobody should be writing to closed sockets, but caller code can
     # do two writes within an event, have the first fail and
