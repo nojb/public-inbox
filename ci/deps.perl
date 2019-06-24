@@ -60,7 +60,7 @@ my $profiles = {
 # account for granularity differences between package systems and OSes
 my @precious;
 if ($^O eq 'freebsd') {
-	@precious = qw(perl curl Socket6 IO::Compress::Gzip IO::KQueue);
+	@precious = qw(perl curl Socket6 IO::Compress::Gzip);
 } elsif ($pkg_fmt eq 'rpm') {
 	@precious = qw(perl curl);
 }
@@ -148,6 +148,9 @@ my $non_auto = {
 my (@pkg_install, @pkg_remove, %all);
 for my $ary (values %$profiles) {
 	$all{$_} = \@pkg_remove for @$ary;
+}
+if ($^O eq 'freebsd') {
+	$all{'IO::KQueue'} = \@pkg_remove;
 }
 $profiles->{all} = [ keys %all ]; # pseudo-profile for all packages
 

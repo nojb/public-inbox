@@ -54,7 +54,8 @@ esac
 case $ID-$VERSION_ID in
 freebsd-11|freebsd-12) sed "s/^/$PKG_FMT /" <<EOF
 all devtest-
-all devtest
+all devtest IO::KQueue-
+all devtest IO::KQueue
 v2essential
 essential
 essential devtest-
