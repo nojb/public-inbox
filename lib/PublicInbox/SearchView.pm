@@ -15,6 +15,7 @@ use PublicInbox::MIME;
 require PublicInbox::Git;
 require PublicInbox::SearchThread;
 our $LIM = 200;
+my %rmap_inc;
 
 sub noop {}
 
@@ -138,10 +139,27 @@ sub mset_summary {
 	*noop;
 }
 
+# shorten "/full/path/to/Foo/Bar.pm" to "Foo/Bar.pm" so error
+# messages don't reveal FS layout info in case people use non-standard
+# installation paths
+sub path2inc ($) {
+	my $full = $_[0];
+	if (my $short = $rmap_inc{$full}) {
+		return $short;
+	} elsif (!scalar(keys %rmap_inc) && -e $full) {
+		%rmap_inc = map {; "$INC{$_}" => $_ } keys %INC;
+		# fall back to basename as last resort
+		$rmap_inc{$full} // (split('/', $full))[-1];
+	} else {
+		$full;
+	}
+}
+
 sub err_txt {
 	my ($ctx, $err) = @_;
 	my $u = $ctx->{-inbox}->base_url($ctx->{env}) . '_/text/help/';
 	$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
+	$err =~ s!(\S+)!path2inc($1)!sge;
 	$err = ascii_html($err);
 	"\nBad query: <b>$err</b>\n" .
 		qq{See <a\nhref="$u">$u</a> for help on using search};
