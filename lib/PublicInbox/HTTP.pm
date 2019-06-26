@@ -19,12 +19,15 @@ use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::Handle;
 require PublicInbox::EvCleanup;
+PublicInbox::DS->import(qw(msg_more));
+use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
 	CHUNK_ZEND => -3,    # \r\n
 	CHUNK_MAX_HDR => 256,
 };
+use Errno qw(EAGAIN);
 
 my $pipelineq = [];
 my $pipet;
@@ -33,7 +36,7 @@ sub process_pipelineq () {
 	$pipet = undef;
 	$pipelineq = [];
 	foreach (@$q) {
-		next if $_->{closed};
+		next unless $_->{sock};
 		rbuf_process($_);
 	}
 }
@@ -55,39 +58,26 @@ sub http_date () {
 sub new ($$$) {
 	my ($class, $sock, $addr, $httpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock);
+	$self->SUPER::new($sock, EPOLLIN | EPOLLONESHOT);
 	$self->{httpd} = $httpd;
 	$self->{rbuf} = '';
 	($self->{remote_addr}, $self->{remote_port}) =
 		PublicInbox::Daemon::host_with_port($addr);
-	$self->watch_read(1);
 	$self;
 }
 
 sub event_step { # called by PublicInbox::DS
 	my ($self) = @_;
 
-	my $wbuf = $self->{wbuf};
-	if (@$wbuf) {
-		$self->write(undef);
-		return if $self->{closed} || scalar(@$wbuf);
-	}
+	return unless $self->flush_write && $self->{sock};
+
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
 	return read_input($self) if defined $self->{env};
-
-	my $off = length($self->{rbuf});
-	my $r = sysread($self->{sock}, $self->{rbuf}, 8192, $off);
-	if (defined $r) {
-		return $self->close if $r == 0;
-		return rbuf_process($self);
-	}
-	return if $!{EAGAIN}; # no need to call watch_read(1) again
-
-	# common for clients to break connections without warning,
-	# would be too noisy to log here:
-	return $self->close;
+	my $rbuf = \($self->{rbuf});
+	my $off = bytes::length($$rbuf);
+	$self->do_read($rbuf, 8192, $off) and rbuf_process($self);
 }
 
 sub rbuf_process {
@@ -100,16 +90,25 @@ sub rbuf_process {
 	# (they are rarely-used and git (as of 2.7.2) does not use them)
 	if ($r == -1 || $env{HTTP_TRAILER} ||
 			# this length-check is necessary for PURE_PERL=1:
-			($r == -2 && length($self->{rbuf}) > 0x4000)) {
+			($r == -2 && bytes::length($self->{rbuf}) > 0x4000)) {
 		return quit($self, 400);
 	}
-	return $self->watch_read(1) if $r < 0; # incomplete
+	return $self->watch_in1 if $r < 0; # incomplete
 	$self->{rbuf} = substr($self->{rbuf}, $r);
 
 	my $len = input_prepare($self, \%env);
 	defined $len or return write_err($self, undef); # EMFILE/ENFILE
 
 	$len ? read_input($self) : app_dispatch($self);
+}
+
+# IO::Handle::write returns boolean, this returns bytes written:
+sub xwrite ($$$) {
+	my ($fh, $rbuf, $max) = @_;
+	my $w = bytes::length($$rbuf);
+	$w = $max if $w > $max;
+	$fh->write($$rbuf, $w) or return;
+	$w;
 }
 
 sub read_input ($) {
@@ -120,14 +119,13 @@ sub read_input ($) {
 
 	# env->{CONTENT_LENGTH} (identity)
 	my $sock = $self->{sock};
-	my $len = $self->{input_left};
-	$self->{input_left} = undef;
+	my $len = delete $self->{input_left};
 	my $rbuf = \($self->{rbuf});
 	my $input = $env->{'psgi.input'};
 
 	while ($len > 0) {
 		if ($$rbuf ne '') {
-			my $w = write_in_full($input, $rbuf, $len);
+			my $w = xwrite($input, $rbuf, $len);
 			return write_err($self, $len) unless $w;
 			$len -= $w;
 			die "BUG: $len < 0 (w=$w)" if $len < 0;
@@ -146,7 +144,6 @@ sub read_input ($) {
 
 sub app_dispatch {
 	my ($self, $input) = @_;
-	$self->watch_read(0);
 	my $env = $self->{env};
 	$env->{REMOTE_ADDR} = $self->{remote_addr};
 	$env->{REMOTE_PORT} = $self->{remote_port};
@@ -210,9 +207,9 @@ sub response_header_write {
 	$h .= 'Date: ' . http_date() . "\r\n\r\n";
 
 	if (($len || $chunked) && $env->{REQUEST_METHOD} ne 'HEAD') {
-		more($self, $h);
+		msg_more($self, $h);
 	} else {
-		$self->write($h);
+		$self->write(\$h);
 	}
 	$alive;
 }
@@ -222,12 +219,12 @@ sub chunked_wcb ($) {
 	my ($self) = @_;
 	sub {
 		return if $_[0] eq '';
-		more($self, sprintf("%x\r\n", bytes::length($_[0])));
-		more($self, $_[0]);
+		msg_more($self, sprintf("%x\r\n", bytes::length($_[0])));
+		msg_more($self, $_[0]);
 
-		# use $self->write("\n\n") if you care about real-time
+		# use $self->write(\"\n\n") if you care about real-time
 		# streaming responses, public-inbox WWW does not.
-		more($self, "\r\n");
+		msg_more($self, "\r\n");
 	}
 }
 
@@ -239,7 +236,7 @@ sub identity_wcb ($) {
 sub next_request ($) {
 	my ($self) = @_;
 	if ($self->{rbuf} eq '') { # wait for next request
-		$self->watch_read(1);
+		$self->watch_in1;
 	} else { # avoid recursion for pipelined requests
 		push @$pipelineq, $self;
 		$pipet ||= PublicInbox::EvCleanup::asap(*process_pipelineq);
@@ -249,10 +246,9 @@ sub next_request ($) {
 sub response_done_cb ($$) {
 	my ($self, $alive) = @_;
 	sub {
-		my $env = $self->{env};
-		$self->{env} = undef;
-		$self->write("0\r\n\r\n") if $alive == 2;
-		$self->write(sub{$alive ? next_request($self) : $self->close});
+		my $env = delete $self->{env};
+		$self->write(\"0\r\n\r\n") if $alive == 2;
+		$self->write($alive ? \&next_request : \&close);
 	}
 }
 
@@ -266,9 +262,9 @@ sub getline_cb ($$$) {
 		my $buf = eval { $forward->getline };
 		if (defined $buf) {
 			$write->($buf); # may close in PublicInbox::DS::write
-			unless ($self->{closed}) {
+			if ($self->{sock}) {
 				my $next = $self->{pull};
-				if (scalar @{$self->{wbuf}}) {
+				if ($self->{wbuf}) {
 					$self->write($next);
 				} else {
 					PublicInbox::EvCleanup::asap($next);
@@ -282,7 +278,7 @@ sub getline_cb ($$$) {
 		}
 	}
 
-	$self->{forward} = $self->{pull} = undef;
+	delete @$self{qw(forward pull)};
 	# avoid recursion
 	if ($forward) {
 		eval { $forward->close };
@@ -319,21 +315,9 @@ sub response_write {
 	}
 }
 
-use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
-sub more ($$) {
-	my $self = $_[0];
-	return if $self->{closed};
-	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
-		my $n = send($self->{sock}, $_[1], MSG_MORE);
-		if (defined $n) {
-			my $nlen = length($_[1]) - $n;
-			return 1 if $nlen == 0; # all done!
-
-			# PublicInbox::DS::write queues the unwritten substring:
-			return $self->write(substr($_[1], $n, $nlen));
-		}
-	}
-	$self->write($_[1]);
+sub input_tmpfile ($) {
+	open($_[0], '+>', undef);
+	$_[0]->autoflush(1);
 }
 
 sub input_prepare {
@@ -345,10 +329,10 @@ sub input_prepare {
 			quit($self, 413);
 			return;
 		}
-		open($input, '+>', undef);
+		input_tmpfile($input);
 	} elsif (env_chunked($env)) {
 		$len = CHUNK_START;
-		open($input, '+>', undef);
+		input_tmpfile($input);
 	} else {
 		$input = $null_io;
 	}
@@ -378,46 +362,31 @@ sub write_err {
 sub recv_err {
 	my ($self, $r, $len) = @_;
 	return $self->close if (defined $r && $r == 0);
-	if ($!{EAGAIN}) {
+	if ($! == EAGAIN) {
 		$self->{input_left} = $len;
-		return;
+		return $self->watch_in1;
 	}
 	err($self, "error reading for input: $! ($len bytes remaining)");
 	quit($self, 500);
-}
-
-sub write_in_full {
-	my ($fh, $rbuf, $len) = @_;
-	my $rv = 0;
-	my $off = 0;
-	while ($len > 0) {
-		my $w = syswrite($fh, $$rbuf, $len, $off);
-		return ($rv ? $rv : $w) unless $w; # undef or 0
-		$rv += $w;
-		$off += $w;
-		$len -= $w;
-	}
-	$rv
 }
 
 sub read_input_chunked { # unlikely...
 	my ($self) = @_;
 	my $input = $self->{env}->{'psgi.input'};
 	my $sock = $self->{sock};
-	my $len = $self->{input_left};
-	$self->{input_left} = undef;
+	my $len = delete $self->{input_left};
 	my $rbuf = \($self->{rbuf});
 
 	while (1) { # chunk start
 		if ($len == CHUNK_ZEND) {
 			$$rbuf =~ s/\A\r\n//s and
 				return app_dispatch($self, $input);
-			return quit($self, 400) if length($$rbuf) > 2;
+			return quit($self, 400) if bytes::length($$rbuf) > 2;
 		}
 		if ($len == CHUNK_END) {
 			if ($$rbuf =~ s/\A\r\n//s) {
 				$len = CHUNK_START;
-			} elsif (length($$rbuf) > 2) {
+			} elsif (bytes::length($$rbuf) > 2) {
 				return quit($self, 400);
 			}
 		}
@@ -427,14 +396,14 @@ sub read_input_chunked { # unlikely...
 				if (($len + -s $input) > $MAX_REQUEST_BUFFER) {
 					return quit($self, 413);
 				}
-			} elsif (length($$rbuf) > CHUNK_MAX_HDR) {
+			} elsif (bytes::length($$rbuf) > CHUNK_MAX_HDR) {
 				return quit($self, 400);
 			}
 			# will break from loop since $len >= 0
 		}
 
 		if ($len < 0) { # chunk header is trickled, read more
-			my $off = length($$rbuf);
+			my $off = bytes::length($$rbuf);
 			my $r = sysread($sock, $$rbuf, 8192, $off);
 			return recv_err($self, $r, $len) unless $r;
 			# (implicit) goto chunk_start if $r > 0;
@@ -444,7 +413,7 @@ sub read_input_chunked { # unlikely...
 		# drain the current chunk
 		until ($len <= 0) {
 			if ($$rbuf ne '') {
-				my $w = write_in_full($input, $rbuf, $len);
+				my $w = xwrite($input, $rbuf, $len);
 				return write_err($self, "$len chunk") if !$w;
 				$len -= $w;
 				if ($len == 0) {
@@ -470,27 +439,34 @@ sub read_input_chunked { # unlikely...
 sub quit {
 	my ($self, $status) = @_;
 	my $h = "HTTP/1.1 $status " . status_message($status) . "\r\n\r\n";
-	$self->write($h);
+	$self->write(\$h);
 	$self->close;
 }
 
 sub close {
-	my $self = shift;
-	my $forward = $self->{forward};
-	my $env = $self->{env};
-	delete $env->{'psgix.io'} if $env; # prevent circular references
-	$self->{pull} = $self->{forward} = $self->{env} = undef;
-	if ($forward) {
+	my $self = $_[0];
+	if (my $env = delete $self->{env}) {
+		delete $env->{'psgix.io'}; # prevent circular references
+	}
+	delete $self->{pull};
+	if (my $forward = delete $self->{forward}) {
 		eval { $forward->close };
 		err($self, "forward ->close error: $@") if $@;
 	}
-	$self->SUPER::close(@_);
+	$self->SUPER::close; # PublicInbox::DS::close
 }
 
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy () {
 	my ($self) = @_;
-	($self->{rbuf} ne '' || $self->{env} || scalar(@{$self->{wbuf}}));
+	($self->{rbuf} ne '' || $self->{env} || $self->{wbuf});
 }
+
+# fires after pending writes are complete:
+sub restart_pass ($) {
+	$_[0]->{forward}->restart_read; # see PublicInbox::HTTPD::Async
+}
+
+sub enqueue_restart_pass ($) { $_[0]->write(\&restart_pass) }
 
 1;

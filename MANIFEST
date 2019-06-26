@@ -31,6 +31,8 @@ MANIFEST
 Makefile.PL
 README
 TODO
+certs/.gitignore
+certs/create-certs.perl
 ci/README
 ci/deps.perl
 ci/profiles.sh
@@ -75,6 +77,8 @@ lib/PublicInbox/Cgit.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/ContentId.pm
 lib/PublicInbox/DS.pm
+lib/PublicInbox/DSKQXS.pm
+lib/PublicInbox/DSPoll.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/EvCleanup.pm
@@ -129,6 +133,7 @@ lib/PublicInbox/Spamcheck/Spamc.pm
 lib/PublicInbox/Spawn.pm
 lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Syscall.pm
+lib/PublicInbox/TLS.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/UserContent.pm
 lib/PublicInbox/V2Writable.pm
@@ -187,6 +192,7 @@ t/content_id.t
 t/convert-compact.t
 t/data/0001.patch
 t/ds-leak.t
+t/ds-poll.t
 t/edit.t
 t/emergency.t
 t/fail-bin/spamc
@@ -222,6 +228,7 @@ t/msg_iter.t
 t/msgmap.t
 t/msgtime.t
 t/nntp.t
+t/nntpd-tls.t
 t/nntpd.t
 t/nulsubject.t
 t/over.t

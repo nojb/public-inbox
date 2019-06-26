@@ -10,6 +10,7 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 }
 use File::Temp qw/tempdir/;
 use IO::Socket::INET;
+use Socket qw(IPPROTO_TCP);
 require './t/common.perl';
 
 # FIXME: too much setup
@@ -98,6 +99,23 @@ EOF
 		  qw(fsck --no-verbose)), 0,
 		'fsck on cloned directory successful');
 }
+
+SKIP: {
+	skip 'TCP_DEFER_ACCEPT is Linux-only', 1 if $^O ne 'linux';
+	my $var = Socket::TCP_DEFER_ACCEPT();
+	defined(my $x = getsockopt($sock, IPPROTO_TCP, $var)) or die;
+	ok(unpack('i', $x) > 0, 'TCP_DEFER_ACCEPT set');
+};
+SKIP: {
+	skip 'SO_ACCEPTFILTER is FreeBSD-only', 1 if $^O ne 'freebsd';
+	if (system('kldstat -m accf_http >/dev/null') != 0) {
+		skip 'accf_http not loaded: kldload accf_http', 1;
+	}
+	require PublicInbox::Daemon;
+	my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
+	my $x = getsockopt($sock, SOL_SOCKET, $var);
+	like($x, qr/\Ahttpready\0+\z/, 'got httpready accf for HTTP');
+};
 
 done_testing();
 

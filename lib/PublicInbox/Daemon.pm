@@ -8,11 +8,12 @@ use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
+use Socket qw(IPPROTO_TCP SOL_SOCKET);
+sub SO_ACCEPTFILTER () { 0x1000 }
 use Cwd qw/abs_path/;
-use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
-require PublicInbox::DS;
+use PublicInbox::DS qw(now);
 require PublicInbox::EvCleanup;
 require POSIX;
 require PublicInbox::Listener;
@@ -23,11 +24,55 @@ my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
 my %pids;
-my %listener_names;
+my %listener_names; # sockname => IO::Handle
+my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
 my $reexec_pid;
 my $cleanup;
 my ($uid, $gid);
+my ($default_cert, $default_key);
 END { $cleanup->() if $cleanup };
+my %KNOWN_TLS = ( 443 => 'https', 563 => 'nntps' );
+my %KNOWN_STARTTLS = ( 119 => 'nntp' );
+
+sub accept_tls_opt ($) {
+	my ($opt_str) = @_;
+	# opt_str: opt1=val1,opt2=val2 (opt may repeat for multi-value)
+	require PublicInbox::TLS;
+	my $o = {};
+	# allow ',' as delimiter since '&' is shell-unfriendly
+	foreach (split(/[,&]/, $opt_str)) {
+		my ($k, $v) = split(/=/, $_, 2);
+		push @{$o->{$k} ||= []}, $v;
+	}
+
+	# key may be a part of cert.  At least
+	# p5-io-socket-ssl/example/ssl_server.pl has this fallback:
+	$o->{cert} //= [ $default_cert ];
+	$o->{key} //= defined($default_key) ? [ $default_key ] : $o->{cert};
+	my %ctx_opt = (SSL_server => 1);
+	# parse out hostname:/path/to/ mappings:
+	foreach my $k (qw(cert key)) {
+		my $x = $ctx_opt{'SSL_'.$k.'_file'} = {};
+		foreach my $path (@{$o->{$k}}) {
+			my $host = '';
+			$path =~ s/\A([^:]+):// and $host = $1;
+			$x->{$host} = $path;
+		}
+	}
+	my $ctx = IO::Socket::SSL::SSL_Context->new(%ctx_opt) or
+		die 'SSL_Context->new: '.PublicInbox::TLS::err();
+
+	# save ~34K per idle connection (cf. SSL_CTX_set_mode(3ssl))
+	# RSS goes from 346MB to 171MB with 10K idle NNTPS clients on amd64
+	# cf. https://rt.cpan.org/Ticket/Display.html?id=129463
+	my $mode = eval { Net::SSLeay::MODE_RELEASE_BUFFERS() };
+	if ($mode && $ctx->{context}) {
+		eval { Net::SSLeay::CTX_set_mode($ctx->{context}, $mode) };
+		warn "W: $@ (setting SSL_MODE_RELEASE_BUFFERS)\n" if $@;
+	}
+
+	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
+}
 
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
@@ -43,6 +88,8 @@ sub daemon_prepare ($) {
 		'u|user=s' => \$user,
 		'g|group=s' => \$group,
 		'D|daemonize' => \$daemonize,
+		'cert=s' => \$default_cert,
+		'key=s' => \$default_key,
 	);
 	GetOptions(%opts) or die "bad command-line args\n";
 
@@ -50,12 +97,34 @@ sub daemon_prepare ($) {
 		die "--pid-file cannot end with '.oldbin'\n";
 	}
 	@listeners = inherit();
+
+	# allow socket-activation users to set certs once and not
+	# have to configure each socket:
+	my @inherited_names = keys(%listener_names) if defined($default_cert);
+
 	# ignore daemonize when inheriting
 	$daemonize = undef if scalar @listeners;
 
 	push @cfg_listen, $default_listen unless (@listeners || @cfg_listen);
 
 	foreach my $l (@cfg_listen) {
+		my $orig = $l;
+		my $scheme = '';
+		if ($l =~ s!\A([^:]+)://!!) {
+			$scheme = $1;
+		} elsif ($l =~ /\A(?:\[[^\]]+\]|[^:]+):([0-9])+/) {
+			my $s = $KNOWN_TLS{$1} // $KNOWN_STARTTLS{$1};
+			$scheme = $s if defined $s;
+		}
+		if ($l =~ s!/?\?(.+)\z!!) {
+			$tls_opt{"$scheme://$l"} = accept_tls_opt($1);
+		} elsif (defined($default_cert)) {
+			$tls_opt{"$scheme://$l"} = accept_tls_opt('');
+		} elsif ($scheme =~ /\A(?:nntps|https)\z/) {
+			die "$orig specified w/o cert=\n";
+		}
+		# TODO: use scheme to load either NNTP.pm or HTTP.pm
+
 		next if $listener_names{$l}; # already inherited
 		my (%o, $sock_pkg);
 		if (index($l, '/') == 0) {
@@ -92,6 +161,20 @@ sub daemon_prepare ($) {
 			push @listeners, $s;
 		}
 	}
+
+	# cert/key options in @cfg_listen takes precedence when inheriting,
+	# but map well-known inherited ports if --listen isn't specified
+	# at all
+	for my $sockname (@inherited_names) {
+		$sockname =~ /:([0-9]+)\z/ or next;
+		if (my $scheme = $KNOWN_TLS{$1}) {
+			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
+		} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
+			next if $tls_opt{"$scheme://$sockname"};
+			$tls_opt{''} ||= accept_tls_opt('');
+		}
+	}
+
 	die "No listeners bound\n" unless @listeners;
 }
 
@@ -183,7 +266,7 @@ sub worker_quit {
 	PublicInbox::DS->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
 		my $n = 0;
-		my $now = clock_gettime(CLOCK_MONOTONIC);
+		my $now = now();
 
 		foreach my $s (values %$dmap) {
 			$s->can('busy') or next;
@@ -195,9 +278,9 @@ sub worker_quit {
 			}
 		}
 		if ($n) {
-			if (($warn + 5) < time) {
+			if (($warn + 5) < now()) {
 				warn "$$ quitting, $n client(s) left\n";
-				$warn = time;
+				$warn = now();
 			}
 			unless (defined $proc_name) {
 				$proc_name = (split(/\s+/, $0))[0];
@@ -462,9 +545,43 @@ sub master_loop {
 	exit # never gets here, just for documentation
 }
 
-sub daemon_loop ($$) {
-	my ($refresh, $post_accept) = @_;
+sub tls_start_cb ($$) {
+	my ($opt, $orig_post_accept) = @_;
+	sub {
+		my ($io, $addr, $srv) = @_;
+		my $ssl = IO::Socket::SSL->start_SSL($io, %$opt);
+		$orig_post_accept->($ssl, $addr, $srv);
+	}
+}
+
+sub defer_accept ($$) {
+	my ($s, $af_name) = @_;
+	return unless defined $af_name;
+	if ($^O eq 'linux') {
+		my $x = getsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT());
+		return unless defined $x; # may be Unix socket
+		my $sec = unpack('i', $x);
+		return if $sec > 0; # systemd users may set a higher value
+		setsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT(), 1);
+	} elsif ($^O eq 'freebsd') {
+		my $x = getsockopt($s, SOL_SOCKET, SO_ACCEPTFILTER);
+		return if defined $x; # don't change if set
+		my $accf_arg = pack('a16a240', $af_name, '');
+		setsockopt($s, SOL_SOCKET, SO_ACCEPTFILTER, $accf_arg);
+	}
+}
+
+sub daemon_loop ($$$$) {
+	my ($refresh, $post_accept, $nntpd, $af_default) = @_;
 	PublicInbox::EvCleanup::enable(); # early for $refresh
+	my %post_accept;
+	while (my ($k, $v) = each %tls_opt) {
+		if ($k =~ s!\A(?:nntps|https)://!!) {
+			$post_accept{$k} = tls_start_cb($v, $post_accept);
+		} elsif ($nntpd) { # STARTTLS, $k eq '' is OK
+			$nntpd->{accept_tls} = $v;
+		}
+	}
 	my $parent_pipe;
 	if ($worker_processes > 0) {
 		$refresh->(); # preload by default
@@ -483,20 +600,27 @@ sub daemon_loop ($$) {
 	$SIG{HUP} = $refresh;
 	$SIG{CHLD} = 'DEFAULT';
 	$SIG{$_} = 'IGNORE' for qw(USR2 TTIN TTOU WINCH);
-	# this calls epoll_create:
-	@listeners = map {
-		PublicInbox::Listener->new($_, $post_accept)
+	@listeners = map {;
+		my $tls_cb = $post_accept{sockname($_)};
+
+		# NNTPS, HTTPS, HTTP, and POP3S are client-first traffic
+		# NNTP and POP3 are server-first
+		defer_accept($_, $tls_cb ? 'dataready' : $af_default);
+
+		# this calls epoll_create:
+		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
 	} @listeners;
 	PublicInbox::DS->EventLoop;
 	$parent_pipe = undef;
 }
 
 
-sub run ($$$) {
-	my ($default, $refresh, $post_accept) = @_;
+sub run ($$$;$) {
+	my ($default, $refresh, $post_accept, $nntpd) = @_;
 	daemon_prepare($default);
+	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
 	daemonize();
-	daemon_loop($refresh, $post_accept);
+	daemon_loop($refresh, $post_accept, $nntpd, $af_default);
 }
 
 sub do_chown ($) {

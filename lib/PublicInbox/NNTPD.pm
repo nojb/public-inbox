@@ -25,6 +25,8 @@ sub new {
 		out => \*STDOUT,
 		grouplist => [],
 		servername => $name,
+		greet => \"201 $name ready - post via email\r\n",
+		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
 	}, $class;
 }
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2015-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Each instance of this represents a NNTP client socket
@@ -6,7 +6,7 @@ package PublicInbox::NNTP;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(nntpd article rbuf ng long_res);
+use fields qw(nntpd article rbuf ng);
 use PublicInbox::Search;
 use PublicInbox::Msgmap;
 use PublicInbox::MID qw(mid_escape);
@@ -14,7 +14,7 @@ use PublicInbox::Git;
 require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
-use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+PublicInbox::DS->import(qw(now msg_more));
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
 use constant {
@@ -24,8 +24,8 @@ use constant {
 	r225 =>	'225 Headers follow (multi-line)',
 	r430 => '430 No article with that message-id',
 };
-
-sub now () { clock_gettime(CLOCK_MONOTONIC) };
+use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
+use Errno qw(EAGAIN);
 
 my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
@@ -45,30 +45,18 @@ sub next_tick () {
 	$nextt = undef;
 	my $q = $nextq;
 	$nextq = [];
-	foreach my $nntp (@$q) {
-		# for request && response protocols, always finish writing
-		# before finishing reading:
-		if (my $long_cb = $nntp->{long_res}) {
-			$nntp->write($long_cb);
-		} else {
-			# pipelined request, we bypassed socket-readiness
-			# checks to get here:
-			event_step($nntp);
+	event_step($_) for @$q;
+}
 
-			# maybe there's more pipelined data, or we'll have
-			# to register it for socket-readiness notifications
-			if (!$nntp->{long_res} && !$nntp->{closed}) {
-				check_read($nntp);
-			}
-		}
-	}
+sub requeue ($) {
+	push @$nextq, $_[0];
+	$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
 }
 
 sub update_idle_time ($) {
 	my ($self) = @_;
-        my $sock = $self->{sock} or return;
-	my $fd = fileno($sock);
-	defined $fd and $EXPMAP->{$fd} = [ now(), $self ];
+	my $sock = $self->{sock} or return;
+	$EXPMAP->{fileno($sock)} = [ now(), $self ];
 }
 
 sub expire_old () {
@@ -76,11 +64,17 @@ sub expire_old () {
 	my $exp = $EXPTIME;
 	my $old = $now - $exp;
 	my $nr = 0;
+	my $closed = 0;
 	my %new;
 	while (my ($fd, $v) = each %$EXPMAP) {
 		my ($idle_time, $nntp) = @$v;
 		if ($idle_time < $old) {
-			$nntp->close; # idempotent
+			if ($nntp->shutdn) {
+				$closed++;
+			} else {
+				++$nr;
+				$new{$fd} = $v;
+			}
 		} else {
 			++$nr;
 			$new{$fd} = $v;
@@ -93,18 +87,28 @@ sub expire_old () {
 		$expt = undef;
 		# noop to kick outselves out of the loop ASAP so descriptors
 		# really get closed
-		PublicInbox::EvCleanup::asap(sub {});
+		PublicInbox::EvCleanup::asap(sub {}) if $closed;
 	}
 }
+
+sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
 
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock);
+	my $ev = EPOLLIN;
+	my $wbuf;
+	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
+		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
+		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
+	}
+	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
 	$self->{nntpd} = $nntpd;
-	res($self, '201 ' . $nntpd->{servername} . ' ready - post via email');
-	$self->{rbuf} = '';
-	$self->watch_read(1);
+	if ($wbuf) {
+		$self->{wbuf} = $wbuf;
+	} else {
+		greet($self);
+	}
 	update_idle_time($self);
 	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
 	$self;
@@ -134,7 +138,7 @@ sub process_line ($$) {
 
 	my $res = eval { $req->($self, @args) };
 	my $err = $@;
-	if ($err && !$self->{closed}) {
+	if ($err && $self->{sock}) {
 		local $/ = "\n";
 		chomp($l);
 		err($self, 'error from: %s (%s)', $l, $err);
@@ -162,12 +166,12 @@ sub cmd_xgtitle ($;$) {
 
 sub list_overview_fmt ($) {
 	my ($self) = @_;
-	do_more($self, $OVERVIEW_FMT);
+	msg_more($self, $OVERVIEW_FMT);
 }
 
 sub list_headers ($;$) {
 	my ($self) = @_;
-	do_more($self, $LIST_HEADERS);
+	msg_more($self, $LIST_HEADERS);
 }
 
 sub list_active ($;$) {
@@ -251,7 +255,7 @@ sub parse_time ($$;$) {
 	}
 	my @now = $gmt ? gmtime : localtime;
 	my ($YYYY, $MM, $DD);
-	if (length($date) == 8) { # RFC 3977 allows YYYYMMDD
+	if (bytes::length($date) == 8) { # RFC 3977 allows YYYYMMDD
 		($YYYY, $MM, $DD) = unpack('A4A2A2', $date);
 	} else { # legacy clients send YYMMDD
 		($YYYY, $MM, $DD) = unpack('A2A2A2', $date);
@@ -403,7 +407,7 @@ sub cmd_post ($) {
 sub cmd_quit ($) {
 	my ($self) = @_;
 	res($self, '205 closing connection - goodbye!');
-	$self->close;
+	$self->shutdn;
 	undef;
 }
 
@@ -522,8 +526,8 @@ sub simple_body_write ($$) {
 	$s->body_set('');
 	$body =~ s/^\./../smg;
 	$body =~ s/(?<!\r)\n/\r\n/sg;
-	do_more($self, $body);
-	do_more($self, "\r\n") unless $body =~ /\r\n\z/s;
+	msg_more($self, $body);
+	msg_more($self, "\r\n") unless $body =~ /\r\n\z/s;
 	'.'
 }
 
@@ -553,8 +557,8 @@ sub cmd_article ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "220 $n <$mid> article retrieved - head and body follow");
-	do_more($self, _header($s));
-	do_more($self, "\r\n");
+	msg_more($self, _header($s));
+	msg_more($self, "\r\n");
 	simple_body_write($self, $s);
 }
 
@@ -565,7 +569,7 @@ sub cmd_head ($;$) {
 	my ($n, $mid, $s) = @$r;
 	set_art($self, $art);
 	more($self, "221 $n <$mid> article retrieved - head follows");
-	do_more($self, _header($s));
+	msg_more($self, _header($s));
 	'.'
 }
 
@@ -620,48 +624,46 @@ sub get_range ($$) {
 }
 
 sub long_response ($$) {
-	my ($self, $cb) = @_;
-	die "BUG: nested long response" if $self->{long_res};
+	my ($self, $cb) = @_; # cb returns true if more, false if done
 
 	my $fd = fileno($self->{sock});
 	defined $fd or return;
 	# make sure we disable reading during a long response,
 	# clients should not be sending us stuff and making us do more
 	# work while we are stream a response to them
-	$self->watch_read(0);
 	my $t0 = now();
-	$self->{long_res} = sub {
+	my $long_cb; # DANGER: self-referential
+	$long_cb = sub {
+		# wbuf is unset or empty, here; $cb may add to it
 		my $more = eval { $cb->() };
-		if ($@ || $self->{closed}) {
-			$self->{long_res} = undef;
-
+		if ($@ || !$self->{sock}) { # something bad happened...
+			$long_cb = undef;
+			my $diff = now() - $t0;
 			if ($@) {
 				err($self,
 				    "%s during long response[$fd] - %0.6f",
-				    $@, now() - $t0);
+				    $@, $diff);
 			}
-			if ($self->{closed}) {
-				out($self, " deferred[$fd] aborted - %0.6f",
-				           now() - $t0);
-			} else {
-				update_idle_time($self);
-				check_read($self);
-			}
-		} elsif ($more) { # scalar @{$self->{wbuf}}:
-			# no recursion, schedule another call ASAP
-			# but only after all pending writes are done
+			out($self, " deferred[$fd] aborted - %0.6f", $diff);
+			$self->close;
+		} elsif ($more) { # $self->{wbuf}:
 			update_idle_time($self);
 
-			push @$nextq, $self;
-			$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
+			# no recursion, schedule another call ASAP
+			# but only after all pending writes are done
+			my $wbuf = $self->{wbuf} ||= [];
+			push @$wbuf, $long_cb;
+
+			# wbuf may be populated by $cb, no need to rearm if so:
+			requeue($self) if scalar(@$wbuf) == 1;
 		} else { # all done!
-			$self->{long_res} = undef;
-			check_read($self);
+			$long_cb = undef;
 			res($self, '.');
 			out($self, " deferred[$fd] done - %0.6f", now() - $t0);
+			requeue($self) unless $self->{wbuf};
 		}
 	};
-	$self->{long_res}->(); # kick off!
+	$self->write($long_cb); # kick off!
 	undef;
 }
 
@@ -765,7 +767,7 @@ sub hdr_searchmsg ($$$$) {
 				$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
 			}
 			utf8::encode($tmp);
-			do_more($self, $tmp);
+			msg_more($self, $tmp);
 			$cur = $msgs->[-1]->{num} + 1;
 		});
 	}
@@ -904,6 +906,19 @@ sub cmd_xover ($;$) {
 	});
 }
 
+sub cmd_starttls ($) {
+	my ($self) = @_;
+	my $sock = $self->{sock} or return;
+	# RFC 4642 2.2.1
+	(ref($sock) eq 'IO::Socket::SSL') and return '502 Command unavailable';
+	my $opt = $self->{nntpd}->{accept_tls} or
+		return '580 can not initiate TLS negotiation';
+	res($self, '382 Continue with TLS negotiation');
+	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
+	requeue($self) if PublicInbox::DS::accept_tls_step($self);
+	undef;
+}
+
 sub cmd_xpath ($$) {
 	my ($self, $mid) = @_;
 	return r501 unless $mid =~ /\A<(.+)>\z/;
@@ -917,24 +932,14 @@ sub cmd_xpath ($$) {
 	'223 '.join(' ', @paths);
 }
 
-sub res ($$) {
-	my ($self, $line) = @_;
-	do_write($self, $line . "\r\n");
-}
+sub res ($$) { do_write($_[0], $_[1] . "\r\n") }
 
-sub more ($$) {
-	my ($self, $line) = @_;
-	do_more($self, $line . "\r\n");
-}
+sub more ($$) { msg_more($_[0], $_[1] . "\r\n") }
 
 sub do_write ($$) {
-	my ($self, $data) = @_;
-	my $done = $self->write($data);
-	return 0 if $self->{closed};
-
-	# Do not watch for readability if we have data in the queue,
-	# instead re-enable watching for readability when we can
-	$self->watch_read(0) if (!$done || $self->{long_res});
+	my $self = $_[0];
+	my $done = $self->write(\($_[1]));
+	return 0 unless $self->{sock};
 
 	$done;
 }
@@ -949,88 +954,53 @@ sub out ($$;@) {
 	printf { $self->{nntpd}->{out} } $fmt."\n", @args;
 }
 
-use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
-
-sub do_more ($$) {
-	my ($self, $data) = @_;
-	if (MSG_MORE && !scalar(@{$self->{wbuf}})) {
-		my $n = send($self->{sock}, $data, MSG_MORE);
-		if (defined $n) {
-			my $dlen = length($data);
-			return 1 if $n == $dlen; # all done!
-			$data = substr($data, $n, $dlen - $n);
-		}
-	}
-	do_write($self, $data);
-}
-
+# callback used by PublicInbox::DS for any (e)poll (in/out/hup/err)
 sub event_step {
 	my ($self) = @_;
-	return if $self->{closed};
 
-	my $wbuf = $self->{wbuf};
-	if (@$wbuf) {
-		update_idle_time($self);
-		$self->write(undef);
-		return if $self->{closed} || scalar(@$wbuf);
-	}
-	return if $self->{long_res};
+	return unless $self->flush_write && $self->{sock};
+
+	update_idle_time($self);
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
 	use constant LINE_MAX => 512; # RFC 977 section 2.3
-	my $rbuf = \($self->{rbuf});
-	my $r;
+	my $rbuf = $self->{rbuf} // (\(my $x = ''));
+	my $r = 1;
 
 	if (index($$rbuf, "\n") < 0) {
-		my $off = length($$rbuf);
-		$r = sysread($self->{sock}, $$rbuf, LINE_MAX, $off);
-		unless (defined $r) {
-			return if $!{EAGAIN};
-			return $self->close;
-		}
-		return $self->close if $r == 0;
+		my $off = bytes::length($$rbuf);
+		$r = $self->do_read($rbuf, LINE_MAX, $off) or return;
 	}
-	$r = 1;
 	while ($r > 0 && $$rbuf =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
 		my $fd = fileno($self->{sock});
 		$r = eval { process_line($self, $line) };
-		my $d = $self->{long_res} ?
-			" deferred[$fd]" : '';
-		out($self, "[$fd] %s - %0.6f$d", $line, now() - $t0);
+		my $pending = $self->{wbuf} ? ' pending' : '';
+		out($self, "[$fd] %s - %0.6f$pending", $line, now() - $t0);
 	}
 
 	return $self->close if $r < 0;
-	my $len = length($$rbuf);
+	my $len = bytes::length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
-	update_idle_time($self);
-}
-
-sub check_read {
-	my ($self) = @_;
-	if (index($self->{rbuf}, "\n") >= 0) {
-		# Force another read if there is a pipelined request.
-		# We don't know if the socket has anything for us to read,
-		# and we must double-check again by the time the timer fires
-		# in case we really did dispatch a read event and started
-		# another long response.
-		push @$nextq, $self;
-		$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
+	if ($len) {
+		$self->{rbuf} = $rbuf;
 	} else {
-		# no pipelined requests available, let the kernel know
-		# to wake us up if there's more
-		$self->watch_read(1); # PublicInbox::DS::watch_read
+		delete $self->{rbuf};
 	}
+	update_idle_time($self);
+
+	# maybe there's more pipelined data, or we'll have
+	# to register it for socket-readiness notifications
+	requeue($self) unless $self->{wbuf};
 }
 
 sub not_idle_long ($$) {
 	my ($self, $now) = @_;
-        my $sock = $self->{sock} or return;
-	defined(my $fd = fileno($sock)) or return;
-	my $ary = $EXPMAP->{$fd} or return;
+	my $sock = $self->{sock} or return;
+	my $ary = $EXPMAP->{fileno($sock)} or return;
 	my $exp_at = $ary->[0] + $EXPTIME;
 	$exp_at > $now;
 }
@@ -1038,8 +1008,7 @@ sub not_idle_long ($$) {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy {
 	my ($self, $now) = @_;
-	($self->{rbuf} ne '' || $self->{long_res} ||
-		scalar(@{$self->{wbuf}}) || not_idle_long($self, $now));
+	($self->{rbuf} || $self->{wbuf} || not_idle_long($self, $now));
 }
 
 1;

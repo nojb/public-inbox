@@ -81,17 +81,6 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	isnt($?, 0, '$? set properly: '.$?);
 }
 
-{
-	my ($fh, $pid) = popen_rd([qw(sleep 60)], undef, { Blocking => 0 });
-	ok(defined $pid && $pid > 0, 'returned pid when array requested');
-	is(kill(0, $pid), 1, 'child process is running');
-	ok(!defined(sysread($fh, my $buf, 1)) && $!{EAGAIN},
-	   'sysread returned quickly with EAGAIN');
-	is(kill(9, $pid), 1, 'child process killed early');
-	is(waitpid($pid, 0), $pid, 'child process reapable');
-	isnt($?, 0, '$? set properly: '.$?);
-}
-
 SKIP: {
 	eval {
 		require BSD::Resource;

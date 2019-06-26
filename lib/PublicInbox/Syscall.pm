@@ -22,22 +22,24 @@ use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS $VERSION);
 $VERSION     = "0.25";
 @ISA         = qw(Exporter);
 @EXPORT_OK   = qw(sendfile epoll_ctl epoll_create epoll_wait
-                  EPOLLIN EPOLLOUT EPOLLERR EPOLLHUP EPOLLRDBAND
+                  EPOLLIN EPOLLOUT
                   EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
-                  EPOLLEXCLUSIVE);
+                  EPOLLONESHOT EPOLLEXCLUSIVE);
 %EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
-                             EPOLLIN EPOLLOUT EPOLLERR EPOLLHUP EPOLLRDBAND
+                             EPOLLIN EPOLLOUT
                              EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
-                             EPOLLEXCLUSIVE)],
+                             EPOLLONESHOT EPOLLEXCLUSIVE)],
                 sendfile => [qw(sendfile)],
                 );
 
 use constant EPOLLIN       => 1;
 use constant EPOLLOUT      => 4;
-use constant EPOLLERR      => 8;
-use constant EPOLLHUP      => 16;
-use constant EPOLLRDBAND   => 128;
+# use constant EPOLLERR      => 8;
+# use constant EPOLLHUP      => 16;
+# use constant EPOLLRDBAND   => 128;
 use constant EPOLLEXCLUSIVE => (1 << 28);
+use constant EPOLLONESHOT => (1 << 30);
+# use constant EPOLLET => (1 << 31);
 use constant EPOLL_CTL_ADD => 1;
 use constant EPOLL_CTL_DEL => 2;
 use constant EPOLL_CTL_MOD => 3;
@@ -57,7 +59,6 @@ sub _load_syscall {
     return $rv;
 }
 
-our ($sysname, $nodename, $release, $version, $machine) = POSIX::uname();
 
 our (
      $SYS_epoll_create,
@@ -69,6 +70,7 @@ our (
 our $no_deprecated = 0;
 
 if ($^O eq "linux") {
+    my $machine = (POSIX::uname())[-1];
     # whether the machine requires 64-bit numbers to be on 8-byte
     # boundaries.
     my $u64_mod_8 = 0;
@@ -246,13 +248,8 @@ sub sendfile_freebsd {
 
 sub epoll_defined { return $SYS_epoll_create ? 1 : 0; }
 
-# ARGS: (size) -- but in modern Linux 2.6, the
-# size doesn't even matter (radix tree now, not hash)
 sub epoll_create {
-    return -1 unless defined $SYS_epoll_create;
-    my $epfd = eval { syscall($SYS_epoll_create, $no_deprecated ? 0 : ($_[0]||100)+0) };
-    return -1 if $@;
-    return $epfd;
+	syscall($SYS_epoll_create, $no_deprecated ? 0 : ($_[0]||100)+0);
 }
 
 # epoll_ctl wrapper

@@ -29,6 +29,9 @@ use warnings;
 use PublicInbox::Spawn qw(popen_rd);
 require Plack::Util;
 
+# n.b.: we get EAGAIN with public-inbox-httpd, and EINTR on other PSGI servers
+use Errno qw(EAGAIN EINTR);
+
 my $def_limiter;
 
 # declares a command to spawn (but does not spawn it).
@@ -122,7 +125,7 @@ sub psgi_qx {
 		eval { $qx_cb->($qx) };
 		$qx = undef;
 	};
-	my $rpipe;
+	my $rpipe; # comes from popen_rd
 	my $async = $env->{'pi-httpd.async'};
 	my $cb = sub {
 		my $r = sysread($rpipe, my $buf, 8192);
@@ -131,13 +134,13 @@ sub psgi_qx {
 		} elsif (defined $r) {
 			$r ? $qx->write($buf) : $end->();
 		} else {
-			return if $!{EAGAIN} || $!{EINTR}; # loop again
+			return if $! == EAGAIN || $! == EINTR; # loop again
 			$end->();
 		}
 	};
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
 	$self->start($limiter, sub { # may run later, much later...
-		($rpipe) = @_;
+		($rpipe) = @_; # popen_rd result
 		if ($async) {
 		# PublicInbox::HTTPD::Async->new($rpipe, $cb, $end)
 			$async = $async->($rpipe, $cb, $end);
@@ -193,7 +196,7 @@ sub psgi_return {
 	my $buf = '';
 	my $rd_hdr = sub {
 		my $r = sysread($rpipe, $buf, 1024, length($buf));
-		return if !defined($r) && ($!{EINTR} || $!{EAGAIN});
+		return if !defined($r) && $! == EAGAIN || $! == EINTR;
 		$parse_hdr->($r, \$buf);
 	};
 

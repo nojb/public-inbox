@@ -229,8 +229,6 @@ sub popen_rd {
 	my ($cmd, $env, $opts) = @_;
 	pipe(my ($r, $w)) or die "pipe: $!\n";
 	$opts ||= {};
-	my $blocking = $opts->{Blocking};
-	IO::Handle::blocking($r, $blocking) if defined $blocking;
 	$opts->{1} = fileno($w);
 	my $pid = spawn($cmd, $env, $opts);
 	return unless defined $pid;

@@ -6,6 +6,7 @@ package PublicInbox::EvCleanup;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
+use PublicInbox::Syscall qw(EPOLLOUT EPOLLONESHOT);
 
 my $ENABLED;
 sub enabled { $ENABLED }
@@ -23,13 +24,13 @@ sub once_init () {
 	# fires in the next event loop iteration.
 	pipe($r, $w) or die "pipe: $!";
 	fcntl($w, 1031, 4096) if $^O eq 'linux'; # 1031: F_SETPIPE_SZ
-	$self->SUPER::new($w);
+	$self->SUPER::new($w, 0);
 
 	# always writable, since PublicInbox::EvCleanup::event_step
 	# never drains wbuf.  We can avoid wasting a hash slot by
 	# stuffing the read-end of the pipe into the never-to-be-touched
 	# wbuf
-	push @{$self->{wbuf}}, $r;
+	$self->{wbuf} = $r;
 	$self;
 }
 
@@ -45,7 +46,9 @@ sub _run_all ($) {
 # ensure PublicInbox::DS::ToClose processing after timers fire
 sub _asap_close () { $asapq->[1] ||= _asap_timer() }
 
-sub _run_asap () { _run_all($asapq) }
+# Called by PublicInbox::DS
+sub event_step { _run_all($asapq) }
+
 sub _run_next () {
 	_run_all($nextq);
 	_asap_close();
@@ -56,16 +59,9 @@ sub _run_later () {
 	_asap_close();
 }
 
-# Called by PublicInbox::DS
-sub event_step {
-	my ($self) = @_;
-	$self->watch_write(0);
-	_run_asap();
-}
-
 sub _asap_timer () {
 	$singleton ||= once_init();
-	$singleton->watch_write(1);
+	$singleton->watch(EPOLLOUT|EPOLLONESHOT);
 	1;
 }
 
@@ -88,7 +84,7 @@ sub later ($) {
 }
 
 END {
-	_run_asap();
+	event_step();
 	_run_all($nextq);
 	_run_all($laterq);
 }

@@ -17,40 +17,28 @@ package PublicInbox::DS;
 use strict;
 use bytes;
 use POSIX ();
-use Time::HiRes ();
 use IO::Handle qw();
-use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
-
+use Fcntl qw(SEEK_SET :DEFAULT);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use parent qw(Exporter);
+our @EXPORT_OK = qw(now msg_more);
 use warnings;
+use 5.010_001;
 
 use PublicInbox::Syscall qw(:epoll);
 
 use fields ('sock',              # underlying socket
-            'wbuf',              # arrayref of scalars, scalarrefs, or coderefs to write
+            'wbuf',              # arrayref of coderefs or GLOB refs
             'wbuf_off',  # offset into first element of wbuf to start writing at
-            'closed',            # bool: socket is closed
-            'event_watch',       # bitmask of events the client is interested in (POLLIN,OUT,etc.)
             );
 
-use Errno  qw(EAGAIN EINVAL);
-use Carp   qw(croak confess);
-
-use constant DebugLevel => 0;
-
-use constant POLLIN        => 1;
-use constant POLLOUT       => 4;
-use constant POLLERR       => 8;
-use constant POLLHUP       => 16;
-use constant POLLNVAL      => 32;
-
-our $HAVE_KQUEUE = eval { require IO::KQueue; 1 };
+use Errno  qw(EAGAIN EINVAL EEXIST);
+use Carp   qw(croak confess carp);
+require File::Spec;
 
 our (
-     $HaveEpoll,                 # Flag -- is epoll available?  initially undefined.
-     $HaveKQueue,
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
-     $Epoll,                     # Global epoll fd (for epoll mode only)
-     $KQueue,                    # Global kqueue fd ref (for kqueue mode only)
+     $Epoll,                     # Global epoll fd (or DSKQXS ref)
      $_io,                       # IO::Handle for Epoll
      @ToClose,                   # sockets to close when event loop is done
 
@@ -61,8 +49,6 @@ our (
      @Timers,                    # timers
      );
 
-# this may be set to zero with old kernels
-our $EPOLLEXCLUSIVE = EPOLLEXCLUSIVE;
 Reset();
 
 #####################################################################
@@ -83,13 +69,8 @@ sub Reset {
     $PostLoopCallback = undef;
     $DoneInit = 0;
 
-    # NOTE kqueue is close-on-fork, and we don't account for it, yet
-    # OTOH, we (public-inbox) don't need this sub outside of tests...
-    POSIX::close($$KQueue) if !$_io && $KQueue && $$KQueue >= 0;
-    $KQueue = undef;
-
-    $_io = undef; # close $Epoll
-    $Epoll = undef;
+    $_io = undef; # closes real $Epoll FD
+    $Epoll = undef; # may call DSKQXS::DESTROY
 
     *EventLoop = *FirstTimeEventLoop;
 }
@@ -106,18 +87,6 @@ sub SetLoopTimeout {
     return $LoopTimeout = $_[1] + 0;
 }
 
-=head2 C<< CLASS->DebugMsg( $format, @args ) >>
-
-Print the debugging message specified by the C<sprintf>-style I<format> and
-I<args>
-
-=cut
-sub DebugMsg {
-    my ( $class, $fmt, @args ) = @_;
-    chomp $fmt;
-    printf STDERR ">>> $fmt\n", @args;
-}
-
 =head2 C<< CLASS->AddTimer( $seconds, $coderef ) >>
 
 Add a timer to occur $seconds from now. $seconds may be fractional, but timers
@@ -127,10 +96,15 @@ Returns a timer object which you can call C<< $timer->cancel >> on if you need t
 
 =cut
 sub AddTimer {
-    my $class = shift;
-    my ($secs, $coderef) = @_;
+    my ($class, $secs, $coderef) = @_;
 
-    my $fire_time = Time::HiRes::time() + $secs;
+    if (!$secs) {
+        my $timer = bless([0, $coderef], 'PublicInbox::DS::Timer');
+        unshift(@Timers, $timer);
+        return $timer;
+    }
+
+    my $fire_time = now() + $secs;
 
     my $timer = bless [$fire_time, $coderef], "PublicInbox::DS::Timer";
 
@@ -168,26 +142,19 @@ sub _InitPoller
     return if $DoneInit;
     $DoneInit = 1;
 
-    if ($HAVE_KQUEUE) {
-        $KQueue = IO::KQueue->new();
-        $HaveKQueue = defined $KQueue;
-        if ($HaveKQueue) {
-            *EventLoop = *KQueueEventLoop;
+    if (PublicInbox::Syscall::epoll_defined())  {
+        $Epoll = epoll_create();
+        set_cloexec($Epoll) if (defined($Epoll) && $Epoll >= 0);
+    } else {
+        my $cls;
+        for (qw(DSKQXS DSPoll)) {
+            $cls = "PublicInbox::$_";
+            last if eval "require $cls";
         }
+        $cls->import;
+        $Epoll = $cls->new;
     }
-    elsif (PublicInbox::Syscall::epoll_defined()) {
-        $Epoll = eval { epoll_create(1024); };
-        $HaveEpoll = defined $Epoll && $Epoll >= 0;
-        if ($HaveEpoll) {
-            set_cloexec($Epoll);
-            *EventLoop = *EpollEventLoop;
-        }
-    }
-
-    if (!$HaveEpoll && !$HaveKQueue) {
-        require IO::Poll;
-        *EventLoop = *PollEventLoop;
-    }
+    *EventLoop = *EpollEventLoop;
 }
 
 =head2 C<< CLASS->EventLoop() >>
@@ -201,20 +168,16 @@ sub FirstTimeEventLoop {
 
     _InitPoller();
 
-    if ($HaveEpoll) {
-        EpollEventLoop($class);
-    } elsif ($HaveKQueue) {
-        KQueueEventLoop($class);
-    } else {
-        PollEventLoop($class);
-    }
+    EventLoop($class);
 }
+
+sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
 # runs timers and returns milliseconds for next one, or next event loop
 sub RunTimers {
     return $LoopTimeout unless @Timers;
 
-    my $now = Time::HiRes::time();
+    my $now = now();
 
     # Run expired timers
     while (@Timers && $Timers[0][0] <= $now) {
@@ -239,11 +202,7 @@ sub RunTimers {
     return $timeout;
 }
 
-### The epoll-based event loop. Gets installed as EventLoop if IO::Epoll loads
-### okay.
 sub EpollEventLoop {
-    my $class = shift;
-
     while (1) {
         my @events;
         my $i;
@@ -260,78 +219,6 @@ sub EpollEventLoop {
         }
         return unless PostEventLoop();
     }
-    exit 0;
-}
-
-### The fallback IO::Poll-based event loop. Gets installed as EventLoop if
-### IO::Epoll fails to load.
-sub PollEventLoop {
-    my $class = shift;
-
-    my PublicInbox::DS $pob;
-
-    while (1) {
-        my $timeout = RunTimers();
-
-        # the following sets up @poll as a series of ($poll,$event_mask)
-        # items, then uses IO::Poll::_poll, implemented in XS, which
-        # modifies the array in place with the even elements being
-        # replaced with the event masks that occured.
-        my @poll;
-        while ( my ($fd, $sock) = each %DescriptorMap ) {
-            push @poll, $fd, $sock->{event_watch};
-        }
-
-        # if nothing to poll, either end immediately (if no timeout)
-        # or just keep calling the callback
-        unless (@poll) {
-            select undef, undef, undef, ($timeout / 1000);
-            return unless PostEventLoop();
-            next;
-        }
-
-        my $count = IO::Poll::_poll($timeout, @poll);
-        unless ($count >= 0) {
-            return unless PostEventLoop();
-            next;
-        }
-
-        # Fetch handles with read events
-        while (@poll) {
-            my ($fd, $state) = splice(@poll, 0, 2);
-            $DescriptorMap{$fd}->event_step if $state;
-        }
-
-        return unless PostEventLoop();
-    }
-
-    exit 0;
-}
-
-### The kqueue-based event loop. Gets installed as EventLoop if IO::KQueue works
-### okay.
-sub KQueueEventLoop {
-    my $class = shift;
-
-    while (1) {
-        my $timeout = RunTimers();
-        my @ret = eval { $KQueue->kevent($timeout) };
-        if (my $err = $@) {
-            # workaround https://rt.cpan.org/Ticket/Display.html?id=116615
-            if ($err =~ /Interrupted system call/) {
-                @ret = ();
-            } else {
-                die $err;
-            }
-        }
-
-        foreach my $kev (@ret) {
-            $DescriptorMap{$kev->[0]}->event_step;
-        }
-        return unless PostEventLoop();
-    }
-
-    exit(0);
 }
 
 =head2 C<< CLASS->SetPostLoopCallback( CODEREF ) >>
@@ -362,11 +249,11 @@ sub PostEventLoop {
     while (my $sock = shift @ToClose) {
         my $fd = fileno($sock);
 
-        # close the socket.  (not a PublicInbox::DS close)
-        $sock->close;
+        # close the socket. (not a PublicInbox::DS close)
+        CORE::close($sock);
 
         # and now we can finally remove the fd from the map.  see
-        # comment above in _cleanup.
+        # comment above in ->close.
         delete $DescriptorMap{$fd};
     }
 
@@ -400,7 +287,7 @@ This is normally (always?) called from your subclass via:
 
 =cut
 sub new {
-    my ($self, $sock, $exclusive) = @_;
+    my ($self, $sock, $ev) = @_;
     $self = fields::new($self) unless ref $self;
 
     $self->{sock} = $sock;
@@ -409,36 +296,15 @@ sub new {
     Carp::cluck("undef sock and/or fd in PublicInbox::DS->new.  sock=" . ($sock || "") . ", fd=" . ($fd || ""))
         unless $sock && $fd;
 
-    $self->{wbuf} = [];
-    $self->{wbuf_off} = 0;
-    $self->{closed} = 0;
-
-    my $ev = $self->{event_watch} = POLLERR|POLLHUP|POLLNVAL;
-
     _InitPoller();
 
-    if ($HaveEpoll) {
-        if ($exclusive) {
-            $ev = $self->{event_watch} = EPOLLIN|EPOLLERR|EPOLLHUP|$EPOLLEXCLUSIVE;
+    if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
+        if ($! == EINVAL && ($ev & EPOLLEXCLUSIVE)) {
+            $ev &= ~EPOLLEXCLUSIVE;
+            goto retry;
         }
-retry:
-        if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
-            if ($! == EINVAL && ($ev & $EPOLLEXCLUSIVE)) {
-                $EPOLLEXCLUSIVE = 0; # old kernel
-                $ev = $self->{event_watch} = EPOLLIN|EPOLLERR|EPOLLHUP;
-                goto retry;
-            }
-            die "couldn't add epoll watch for $fd: $!\n";
-        }
+        die "couldn't add epoll watch for $fd: $!\n";
     }
-    elsif ($HaveKQueue) {
-        # Add them to the queue but disabled for now
-        $KQueue->EV_SET($fd, IO::KQueue::EVFILT_READ(),
-                        IO::KQueue::EV_ADD() | IO::KQueue::EV_DISABLE());
-        $KQueue->EV_SET($fd, IO::KQueue::EVFILT_WRITE(),
-                        IO::KQueue::EV_ADD() | IO::KQueue::EV_DISABLE());
-    }
-
     Carp::cluck("PublicInbox::DS::new blowing away existing descriptor map for fd=$fd ($DescriptorMap{$fd})")
         if $DescriptorMap{$fd};
 
@@ -457,74 +323,148 @@ Close the socket.
 
 =cut
 sub close {
-    my PublicInbox::DS $self = $_[0];
-    return if $self->{closed};
-
-    # this does most of the work of closing us
-    $self->_cleanup();
-
-    # defer closing the actual socket until the event loop is done
-    # processing this round of events.  (otherwise we might reuse fds)
-    if (my $sock = delete $self->{sock}) {
-        push @ToClose, $sock;
-    }
-
-    return 0;
-}
-
-### METHOD: _cleanup()
-### Called by our closers so we can clean internal data structures.
-sub _cleanup {
-    my PublicInbox::DS $self = $_[0];
-
-    # we're effectively closed; we have no fd and sock when we leave here
-    $self->{closed} = 1;
+    my ($self) = @_;
+    my $sock = delete $self->{sock} or return;
 
     # we need to flush our write buffer, as there may
     # be self-referential closures (sub { $client->close })
     # preventing the object from being destroyed
-    @{$self->{wbuf}} = ();
+    delete $self->{wbuf};
 
     # if we're using epoll, we have to remove this from our epoll fd so we stop getting
     # notifications about it
-    if ($HaveEpoll && $self->{sock}) {
-        my $fd = fileno($self->{sock});
-        epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, $self->{event_watch}) and
-            confess("EPOLL_CTL_DEL: $!");
-    }
+    my $fd = fileno($sock);
+    epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, 0) and
+        confess("EPOLL_CTL_DEL: $!");
 
     # we explicitly don't delete from DescriptorMap here until we
     # actually close the socket, as we might be in the middle of
     # processing an epoll_wait/etc that returned hundreds of fds, one
     # of which is not yet processed and is what we're closing.  if we
     # keep it in DescriptorMap, then the event harnesses can just
-    # looked at $pob->{closed} and ignore it.  but if it's an
+    # looked at $pob->{sock} == undef and ignore it.  but if it's an
     # un-accounted for fd, then it (understandably) freak out a bit
     # and emit warnings, thinking their state got off.
+
+    # defer closing the actual socket until the event loop is done
+    # processing this round of events.  (otherwise we might reuse fds)
+    push @ToClose, $sock;
+
+    return 0;
 }
 
-=head2 C<< $obj->sock() >>
+# portable, non-thread-safe sendfile emulation (no pread, yet)
+sub psendfile ($$$) {
+    my ($sock, $fh, $off) = @_;
 
-Returns the underlying IO::Handle for the object.
+    seek($fh, $$off, SEEK_SET) or return;
+    defined(my $to_write = read($fh, my $buf, 16384)) or return;
+    my $written = 0;
+    while ($to_write > 0) {
+        if (defined(my $w = syswrite($sock, $buf, $to_write, $written))) {
+            $written += $w;
+            $to_write -= $w;
+        } else {
+            return if $written == 0;
+            last;
+        }
+    }
+    $$off += $written;
+    $written;
+}
 
-=cut
-sub sock {
-    my PublicInbox::DS $self = shift;
-    return $self->{sock};
+# returns 1 if done, 0 if incomplete
+sub flush_write ($) {
+    my ($self) = @_;
+    my $wbuf = $self->{wbuf} or return 1;
+    my $sock = $self->{sock};
+
+next_buf:
+    while (my $bref = $wbuf->[0]) {
+        if (ref($bref) ne 'CODE') {
+            my $off = delete($self->{wbuf_off}) // 0;
+            while ($sock) {
+                my $w = psendfile($sock, $bref, \$off);
+                if (defined $w) {
+                    if ($w == 0) {
+                        shift @$wbuf;
+                        goto next_buf;
+                    }
+                } elsif ($! == EAGAIN) {
+                    $self->{wbuf_off} = $off;
+                    watch($self, EPOLLOUT|EPOLLONESHOT);
+                    return 0;
+                } else {
+                    return $self->close;
+                }
+            }
+        } else { #($ref eq 'CODE') {
+            shift @$wbuf;
+            my $before = scalar(@$wbuf);
+            $bref->($self);
+
+            # bref may be enqueueing more CODE to call (see accept_tls_step)
+            return 0 if (scalar(@$wbuf) > $before);
+        }
+    } # while @$wbuf
+
+    delete $self->{wbuf};
+    1; # all done
+}
+
+sub do_read ($$$$) {
+    my ($self, $rbuf, $len, $off) = @_;
+    my $r = sysread($self->{sock}, $$rbuf, $len, $off);
+    return ($r == 0 ? $self->close : $r) if defined $r;
+    # common for clients to break connections without warning,
+    # would be too noisy to log here:
+    if (ref($self) eq 'IO::Socket::SSL') {
+        my $ev = PublicInbox::TLS::epollbit() or return $self->close;
+        watch($self, $ev | EPOLLONESHOT);
+    } elsif ($! == EAGAIN) {
+        watch($self, EPOLLIN | EPOLLONESHOT);
+    } else {
+        $self->close;
+    }
+}
+
+# drop the socket if we hit unrecoverable errors on our system which
+# require BOFH attention: ENOSPC, EFBIG, EIO, EMFILE, ENFILE...
+sub drop {
+    my $self = shift;
+    carp(@_);
+    $self->close;
+}
+
+# n.b.: use ->write/->read for this buffer to allow compatibility with
+# PerlIO::mmap or PerlIO::scalar if needed
+sub tmpio ($$$) {
+    my ($self, $bref, $off) = @_;
+    my $fh; # open(my $fh, '+>>', undef) doesn't set O_APPEND
+    do {
+        my $fn = File::Spec->tmpdir . '/wbuf-' . rand;
+        if (sysopen($fh, $fn, O_RDWR|O_CREAT|O_EXCL|O_APPEND, 0600)) { # likely
+            unlink($fn) or return drop($self, "unlink($fn) $!");
+        } elsif ($! != EEXIST) { # EMFILE/ENFILE/ENOSPC/ENOMEM
+            return drop($self, "open: $!");
+        }
+    } until (defined $fh);
+    $fh->autoflush(1);
+    my $len = bytes::length($$bref) - $off;
+    $fh->write($$bref, $len, $off) or return drop($self, "write ($len): $!");
+    $fh
 }
 
 =head2 C<< $obj->write( $data ) >>
 
 Write the specified data to the underlying handle.  I<data> may be scalar,
-scalar ref, code ref (to run when there), or undef just to kick-start.
+scalar ref, code ref (to run when there).
 Returns 1 if writes all went through, or 0 if there are writes in queue. If
 it returns 1, caller should stop waiting for 'writable' events)
 
 =cut
 sub write {
-    my PublicInbox::DS $self;
-    my $data;
-    ($self, $data) = @_;
+    my ($self, $data) = @_;
 
     # nobody should be writing to closed sockets, but caller code can
     # do two writes within an event, have the first fail and
@@ -533,203 +473,113 @@ sub write {
     # now-dead object does its second write.  that is this case.  we
     # just lie and say it worked.  it'll be dead soon and won't be
     # hurt by this lie.
-    return 1 if $self->{closed};
-
-    my $bref;
-
-    # just queue data if there's already a wait
-    my $need_queue;
+    my $sock = $self->{sock} or return 1;
+    my $ref = ref $data;
+    my $bref = $ref ? $data : \$data;
     my $wbuf = $self->{wbuf};
-
-    if (defined $data) {
-        $bref = ref $data ? $data : \$data;
-        if (scalar @$wbuf) {
+    if ($wbuf && scalar(@$wbuf)) { # already buffering, can't write more...
+        if ($ref eq 'CODE') {
             push @$wbuf, $bref;
-            return 0;
-        }
-
-        # this flag says we're bypassing the queue system, knowing we're the
-        # only outstanding write, and hoping we don't ever need to use it.
-        # if so later, though, we'll need to queue
-        $need_queue = 1;
-    }
-
-  WRITE:
-    while (1) {
-        return 1 unless $bref ||= $wbuf->[0];
-
-        my $len;
-        eval {
-            $len = length($$bref); # this will die if $bref is a code ref, caught below
-        };
-        if ($@) {
-            if (UNIVERSAL::isa($bref, "CODE")) {
-                unless ($need_queue) {
-                    shift @$wbuf;
-                }
-                $bref->();
-
-                # code refs are just run and never get reenqueued
-                # (they're one-shot), so turn off the flag indicating the
-                # outstanding data needs queueing.
-                $need_queue = 0;
-
-                undef $bref;
-                next WRITE;
+        } else {
+            my $last = $wbuf->[-1];
+            if (ref($last) eq 'GLOB') { # append to tmp file buffer
+                $last->print($$bref) or return drop($self, "print: $!");
+            } else {
+                my $tmpio = tmpio($self, $bref, 0) or return 0;
+                push @$wbuf, $tmpio;
             }
-            die "Write error: $@ <$bref>";
         }
+        return 0;
+    } elsif ($ref eq 'CODE') {
+        $bref->($self);
+        return 1;
+    } else {
+        my $to_write = bytes::length($$bref);
+        my $written = syswrite($sock, $$bref, $to_write);
 
-        my $to_write = $len - $self->{wbuf_off};
-        my $written = syswrite($self->{sock}, $$bref, $to_write,
-                               $self->{wbuf_off});
-
-        if (! defined $written) {
-            if ($! == EAGAIN) {
-                # since connection has stuff to write, it should now be
-                # interested in pending writes:
-                if ($need_queue) {
-                    push @$wbuf, $bref;
-                }
-                $self->watch_write(1);
-                return 0;
-            }
-
+        if (defined $written) {
+            return 1 if $written == $to_write;
+        } elsif ($! == EAGAIN) {
+            $written = 0;
+        } else {
             return $self->close;
-        } elsif ($written != $to_write) {
-            if ($need_queue) {
-                push @$wbuf, $bref;
-            }
-            # since connection has stuff to write, it should now be
-            # interested in pending writes:
-            $self->{wbuf_off} += $written;
-            $self->on_incomplete_write;
+        }
+        my $tmpio = tmpio($self, $bref, $written) or return 0;
+
+        # wbuf may be an empty array if we're being called inside
+        # ->flush_write via CODE bref:
+        push @{$self->{wbuf} ||= []}, $tmpio;
+        watch($self, EPOLLOUT|EPOLLONESHOT);
+        return 0;
+    }
+}
+
+use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
+
+sub msg_more ($$) {
+    my $self = $_[0];
+    my $sock = $self->{sock} or return 1;
+
+    if (MSG_MORE && !$self->{wbuf} && ref($sock) ne 'IO::Socket::SSL') {
+        my $n = send($sock, $_[1], MSG_MORE);
+        if (defined $n) {
+            my $nlen = bytes::length($_[1]) - $n;
+            return 1 if $nlen == 0; # all done!
+            # queue up the unwritten substring:
+            my $tmpio = tmpio($self, \($_[1]), $n) or return 0;
+            $self->{wbuf} = [ $tmpio ];
+            watch($self, EPOLLOUT|EPOLLONESHOT);
             return 0;
-        } elsif ($written == $to_write) {
-            $self->{wbuf_off} = 0;
-            $self->watch_write(0);
-
-            # this was our only write, so we can return immediately
-            # since we avoided incrementing the buffer size or
-            # putting it in the buffer.  we also know there
-            # can't be anything else to write.
-            return 1 if $need_queue;
-
-            shift @$wbuf;
-            undef $bref;
-            next WRITE;
         }
     }
+    $self->write(\($_[1]));
 }
 
-sub on_incomplete_write {
-    my PublicInbox::DS $self = shift;
-    $self->watch_write(1);
+sub watch ($$) {
+    my ($self, $ev) = @_;
+    my $sock = $self->{sock} or return;
+    epoll_ctl($Epoll, EPOLL_CTL_MOD, fileno($sock), $ev) and
+        confess("EPOLL_CTL_MOD $!");
+    0;
 }
 
-=head2 C<< $obj->watch_read( $boolean ) >>
+sub watch_in1 ($) { watch($_[0], EPOLLIN | EPOLLONESHOT) }
 
-Turn 'readable' event notification on or off.
-
-=cut
-sub watch_read {
-    my PublicInbox::DS $self = shift;
-    return if $self->{closed} || !$self->{sock};
-
-    my $val = shift;
-    my $event = $self->{event_watch};
-
-    $event &= ~POLLIN if ! $val;
-    $event |=  POLLIN if   $val;
-
-    my $fd = fileno($self->{sock});
-    # If it changed, set it
-    if ($event != $self->{event_watch}) {
-        if ($HaveKQueue) {
-            $KQueue->EV_SET($fd, IO::KQueue::EVFILT_READ(),
-                            $val ? IO::KQueue::EV_ENABLE() : IO::KQueue::EV_DISABLE());
-        }
-        elsif ($HaveEpoll) {
-            epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
-                confess("EPOLL_CTL_MOD: $!");
-        }
-        $self->{event_watch} = $event;
+# return true if complete, false if incomplete (or failure)
+sub accept_tls_step ($) {
+    my ($self) = @_;
+    my $sock = $self->{sock} or return;
+    return 1 if $sock->accept_SSL;
+    return $self->close if $! != EAGAIN;
+    if (my $ev = PublicInbox::TLS::epollbit()) {
+        unshift @{$self->{wbuf} ||= []}, \&accept_tls_step;
+        return watch($self, $ev | EPOLLONESHOT);
     }
+    drop($self, 'BUG? EAGAIN but '.PublicInbox::TLS::err());
 }
 
-=head2 C<< $obj->watch_write( $boolean ) >>
-
-Turn 'writable' event notification on or off.
-
-=cut
-sub watch_write {
-    my PublicInbox::DS $self = shift;
-    return if $self->{closed} || !$self->{sock};
-
-    my $val = shift;
-    my $event = $self->{event_watch};
-
-    $event &= ~POLLOUT if ! $val;
-    $event |=  POLLOUT if   $val;
-    my $fd = fileno($self->{sock});
-
-    # If it changed, set it
-    if ($event != $self->{event_watch}) {
-        if ($HaveKQueue) {
-            $KQueue->EV_SET($fd, IO::KQueue::EVFILT_WRITE(),
-                            $val ? IO::KQueue::EV_ENABLE() : IO::KQueue::EV_DISABLE());
-        }
-        elsif ($HaveEpoll) {
-            epoll_ctl($Epoll, EPOLL_CTL_MOD, $fd, $event) and
-                    confess "EPOLL_CTL_MOD: $!";
-        }
-        $self->{event_watch} = $event;
+sub shutdn_tls_step ($) {
+    my ($self) = @_;
+    my $sock = $self->{sock} or return;
+    return $self->close if $sock->stop_SSL(SSL_fast_shutdown => 1);
+    return $self->close if $! != EAGAIN;
+    if (my $ev = PublicInbox::TLS::epollbit()) {
+        unshift @{$self->{wbuf} ||= []}, \&shutdn_tls_step;
+        return watch($self, $ev | EPOLLONESHOT);
     }
+    drop($self, 'BUG? EAGAIN but '.PublicInbox::TLS::err());
 }
 
-=head2 C<< $obj->dump_error( $message ) >>
-
-Prints to STDERR a backtrace with information about this socket and what lead
-up to the dump_error call.
-
-=cut
-sub dump_error {
-    my $i = 0;
-    my @list;
-    while (my ($file, $line, $sub) = (caller($i++))[1..3]) {
-        push @list, "\t$file:$line called $sub\n";
+# don't bother with shutdown($sock, 2), we don't fork+exec w/o CLOEXEC
+# or fork w/o exec, so no inadvertant socket sharing
+sub shutdn ($) {
+    my ($self) = @_;
+    my $sock = $self->{sock} or return;
+    if (ref($sock) eq 'IO::Socket::SSL') {
+        shutdn_tls_step($self);
+    } else {
+	$self->close;
     }
-
-    warn "ERROR: $_[1]\n" .
-        "\t$_[0] = " . $_[0]->as_string . "\n" .
-        join('', @list);
-}
-
-=head2 C<< $obj->debugmsg( $format, @args ) >>
-
-Print the debugging message specified by the C<sprintf>-style I<format> and
-I<args>.
-
-=cut
-sub debugmsg {
-    my ( $self, $fmt, @args ) = @_;
-    confess "Not an object" unless ref $self;
-
-    chomp $fmt;
-    printf STDERR ">>> $fmt\n", @args;
-}
-
-=head2 C<< $obj->as_string() >>
-
-Returns a string describing this socket.
-
-=cut
-sub as_string {
-    my PublicInbox::DS $self = shift;
-    my $rw = "(" . ($self->{event_watch} & POLLIN ? 'R' : '') .
-                   ($self->{event_watch} & POLLOUT ? 'W' : '') . ")";
-    my $ret = ref($self) . "$rw: " . ($self->{closed} ? "closed" : "open");
-    return $ret;
 }
 
 package PublicInbox::DS::Timer;

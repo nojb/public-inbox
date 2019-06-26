@@ -10,9 +10,8 @@ use fields qw(cb);
 sub new ($$$) {
 	my ($class, $pipe, $cb) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($pipe);
+	$self->SUPER::new($pipe, PublicInbox::DS::EPOLLIN());
 	$self->{cb} = $cb;
-	$self->watch_read(1);
 	$self;
 }
 
