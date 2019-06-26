@@ -17,7 +17,7 @@ use parent qw(IO::KQueue);
 use parent qw(Exporter);
 use IO::KQueue;
 use PublicInbox::Syscall qw(EPOLLONESHOT EPOLLIN EPOLLOUT EPOLL_CTL_DEL);
-our @EXPORT = qw(epoll_ctl epoll_wait);
+our @EXPORT_OK = qw(epoll_ctl epoll_wait);
 my $owner_pid = -1; # kqueue is close-on-fork (yes, fork, not exec)
 
 # map EPOLL* bits to kqueue EV_* flags for EV_SET

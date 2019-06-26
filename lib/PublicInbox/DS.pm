@@ -151,7 +151,7 @@ sub _InitPoller
             $cls = "PublicInbox::$_";
             last if eval "require $cls";
         }
-        $cls->import;
+        $cls->import(qw(epoll_ctl epoll_wait));
         $Epoll = $cls->new;
     }
     *EventLoop = *EpollEventLoop;

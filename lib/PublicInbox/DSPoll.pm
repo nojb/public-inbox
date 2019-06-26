@@ -14,7 +14,7 @@ use warnings;
 use parent qw(Exporter);
 use IO::Poll;
 use PublicInbox::Syscall qw(EPOLLONESHOT EPOLLIN EPOLLOUT EPOLL_CTL_DEL);
-our @EXPORT = qw(epoll_ctl epoll_wait);
+our @EXPORT_OK = qw(epoll_ctl epoll_wait);
 
 sub new { bless {}, $_[0] } # fd => events
 
