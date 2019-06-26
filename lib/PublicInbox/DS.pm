@@ -28,6 +28,7 @@ use 5.010_001;
 use PublicInbox::Syscall qw(:epoll);
 
 use fields ('sock',              # underlying socket
+            'rbuf',              # scalarref, usually undef
             'wbuf',              # arrayref of coderefs or GLOB refs
             'wbuf_off',  # offset into first element of wbuf to start writing at
             );
@@ -412,16 +413,27 @@ next_buf:
     1; # all done
 }
 
-sub do_read ($$$$) {
+sub rbuf_idle ($$) {
+    my ($self, $rbuf) = @_;
+    if ($$rbuf eq '') { # who knows how long till we can read again
+        delete $self->{rbuf};
+    } else {
+        $self->{rbuf} = $rbuf;
+    }
+}
+
+sub do_read ($$$;$) {
     my ($self, $rbuf, $len, $off) = @_;
-    my $r = sysread($self->{sock}, $$rbuf, $len, $off);
+    my $r = sysread($self->{sock}, $$rbuf, $len, $off // 0);
     return ($r == 0 ? $self->close : $r) if defined $r;
     # common for clients to break connections without warning,
     # would be too noisy to log here:
     if (ref($self) eq 'IO::Socket::SSL') {
         my $ev = PublicInbox::TLS::epollbit() or return $self->close;
+        rbuf_idle($self, $rbuf);
         watch($self, $ev | EPOLLONESHOT);
     } elsif ($! == EAGAIN) {
+        rbuf_idle($self, $rbuf);
         watch($self, EPOLLIN | EPOLLONESHOT);
     } else {
         $self->close;

@@ -11,7 +11,7 @@ package PublicInbox::HTTP;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(httpd env rbuf input_left remote_addr remote_port forward pull);
+use fields qw(httpd env input_left remote_addr remote_port forward pull);
 use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
@@ -60,7 +60,6 @@ sub new ($$$) {
 	my $self = fields::new($class);
 	$self->SUPER::new($sock, EPOLLIN | EPOLLONESHOT);
 	$self->{httpd} = $httpd;
-	$self->{rbuf} = '';
 	($self->{remote_addr}, $self->{remote_port}) =
 		PublicInbox::Daemon::host_with_port($addr);
 	$self;
@@ -75,31 +74,34 @@ sub event_step { # called by PublicInbox::DS
 	# otherwise we can be buffering infinitely w/o backpressure
 
 	return read_input($self) if defined $self->{env};
-	my $rbuf = \($self->{rbuf});
-	my $off = bytes::length($$rbuf);
-	$self->do_read($rbuf, 8192, $off) and rbuf_process($self);
+	my $rbuf = $self->{rbuf} // (\(my $x = ''));
+	$self->do_read($rbuf, 8192, bytes::length($$rbuf)) or return;
+	rbuf_process($self, $rbuf);
 }
 
 sub rbuf_process {
-	my ($self) = @_;
+	my ($self, $rbuf) = @_;
+	$rbuf //= $self->{rbuf} // (\(my $x = ''));
 
 	my %env = %{$self->{httpd}->{env}}; # full hash copy
-	my $r = parse_http_request($self->{rbuf}, \%env);
+	my $r = parse_http_request($$rbuf, \%env);
 
 	# We do not support Trailers in chunked requests, for now
 	# (they are rarely-used and git (as of 2.7.2) does not use them)
 	if ($r == -1 || $env{HTTP_TRAILER} ||
 			# this length-check is necessary for PURE_PERL=1:
-			($r == -2 && bytes::length($self->{rbuf}) > 0x4000)) {
+			($r == -2 && bytes::length($$rbuf) > 0x4000)) {
 		return quit($self, 400);
 	}
-	return $self->watch_in1 if $r < 0; # incomplete
-	$self->{rbuf} = substr($self->{rbuf}, $r);
-
+	if ($r < 0) { # incomplete
+		$self->rbuf_idle($rbuf);
+		return $self->watch_in1;
+	}
+	$$rbuf = substr($$rbuf, $r);
 	my $len = input_prepare($self, \%env);
 	defined $len or return write_err($self, undef); # EMFILE/ENFILE
 
-	$len ? read_input($self) : app_dispatch($self);
+	$len ? read_input($self, $rbuf) : app_dispatch($self, undef, $rbuf);
 }
 
 # IO::Handle::write returns boolean, this returns bytes written:
@@ -111,16 +113,15 @@ sub xwrite ($$$) {
 	$w;
 }
 
-sub read_input ($) {
-	my ($self) = @_;
+sub read_input ($;$) {
+	my ($self, $rbuf) = @_;
+	$rbuf //= $self->{rbuf} // (\(my $x = ''));
 	my $env = $self->{env};
 	return if $env->{REMOTE_ADDR}; # in app dispatch
-	return read_input_chunked($self) if env_chunked($env);
+	return read_input_chunked($self, $rbuf) if env_chunked($env);
 
 	# env->{CONTENT_LENGTH} (identity)
-	my $sock = $self->{sock};
 	my $len = delete $self->{input_left};
-	my $rbuf = \($self->{rbuf});
 	my $input = $env->{'psgi.input'};
 
 	while ($len > 0) {
@@ -135,15 +136,15 @@ sub read_input ($) {
 			}
 			$$rbuf = '';
 		}
-		my $r = sysread($sock, $$rbuf, 8192);
-		return recv_err($self, $r, $len) unless $r;
+		$self->do_read($rbuf, 8192) or return recv_err($self, $len);
 		# continue looping if $r > 0;
 	}
-	app_dispatch($self, $input);
+	app_dispatch($self, $input, $rbuf);
 }
 
 sub app_dispatch {
-	my ($self, $input) = @_;
+	my ($self, $input, $rbuf) = @_;
+	$self->rbuf_idle($rbuf);
 	my $env = $self->{env};
 	$env->{REMOTE_ADDR} = $self->{remote_addr};
 	$env->{REMOTE_PORT} = $self->{remote_port};
@@ -235,11 +236,12 @@ sub identity_wcb ($) {
 
 sub next_request ($) {
 	my ($self) = @_;
-	if ($self->{rbuf} eq '') { # wait for next request
-		$self->watch_in1;
-	} else { # avoid recursion for pipelined requests
+	if ($self->{rbuf}) {
+		# avoid recursion for pipelined requests
 		push @$pipelineq, $self;
 		$pipet ||= PublicInbox::EvCleanup::asap(*process_pipelineq);
+	} else { # wait for next request
+		$self->watch_in1;
 	}
 }
 
@@ -360,27 +362,25 @@ sub write_err {
 }
 
 sub recv_err {
-	my ($self, $r, $len) = @_;
-	return $self->close if (defined $r && $r == 0);
-	if ($! == EAGAIN) {
+	my ($self, $len) = @_;
+	if ($! == EAGAIN) { # epoll/kevent watch already set by do_read
 		$self->{input_left} = $len;
-		return $self->watch_in1;
+	} else {
+		err($self, "error reading input: $! ($len bytes remaining)");
 	}
-	err($self, "error reading for input: $! ($len bytes remaining)");
-	quit($self, 500);
 }
 
 sub read_input_chunked { # unlikely...
-	my ($self) = @_;
+	my ($self, $rbuf) = @_;
+	$rbuf //= $self->{rbuf} // (\(my $x = ''));
 	my $input = $self->{env}->{'psgi.input'};
-	my $sock = $self->{sock};
 	my $len = delete $self->{input_left};
-	my $rbuf = \($self->{rbuf});
 
 	while (1) { # chunk start
 		if ($len == CHUNK_ZEND) {
 			$$rbuf =~ s/\A\r\n//s and
-				return app_dispatch($self, $input);
+				return app_dispatch($self, $input, $rbuf);
+
 			return quit($self, 400) if bytes::length($$rbuf) > 2;
 		}
 		if ($len == CHUNK_END) {
@@ -403,9 +403,8 @@ sub read_input_chunked { # unlikely...
 		}
 
 		if ($len < 0) { # chunk header is trickled, read more
-			my $off = bytes::length($$rbuf);
-			my $r = sysread($sock, $$rbuf, 8192, $off);
-			return recv_err($self, $r, $len) unless $r;
+			$self->do_read($rbuf, 8192, bytes::length($$rbuf)) or
+				return recv_err($self, $len);
 			# (implicit) goto chunk_start if $r > 0;
 		}
 		$len = CHUNK_ZEND if $len == 0;
@@ -429,8 +428,8 @@ sub read_input_chunked { # unlikely...
 			}
 			if ($$rbuf eq '') {
 				# read more of current chunk
-				my $r = sysread($sock, $$rbuf, 8192);
-				return recv_err($self, $r, $len) unless $r;
+				$self->do_read($rbuf, 8192) or
+					return recv_err($self, $len);
 			}
 		}
 	}
@@ -459,7 +458,7 @@ sub close {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy () {
 	my ($self) = @_;
-	($self->{rbuf} ne '' || $self->{env} || $self->{wbuf});
+	($self->{rbuf} || $self->{env} || $self->{wbuf});
 }
 
 # fires after pending writes are complete:

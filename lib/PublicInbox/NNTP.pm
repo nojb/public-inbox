@@ -6,7 +6,7 @@ package PublicInbox::NNTP;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(nntpd article rbuf ng);
+use fields qw(nntpd article ng);
 use PublicInbox::Search;
 use PublicInbox::Msgmap;
 use PublicInbox::MID qw(mid_escape);
@@ -985,11 +985,7 @@ sub event_step {
 	return $self->close if $r < 0;
 	my $len = bytes::length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
-	if ($len) {
-		$self->{rbuf} = $rbuf;
-	} else {
-		delete $self->{rbuf};
-	}
+	$self->rbuf_idle($rbuf);
 	update_idle_time($self);
 
 	# maybe there's more pipelined data, or we'll have
