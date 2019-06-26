@@ -150,6 +150,12 @@ sub _try_path {
 	if (!ref($inboxes) && $inboxes eq 'watchspam') {
 		return _remove_spam($self, $path);
 	}
+
+	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	local $SIG{__WARN__} = sub {
+		$warn_cb->("path: $path\n");
+		$warn_cb->(@_);
+	};
 	foreach my $ibx (@$inboxes) {
 		my $mime = _path_to_mime($path) or next;
 		my $im = _importer_for($self, $ibx);
