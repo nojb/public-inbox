@@ -38,17 +38,18 @@ sub mb_stream {
 # called by PSGI server as body response
 sub getline {
 	my ($more) = @_; # self
-	my ($ctx, $id, $prev, $next, $cur) = @$more;
-	if ($cur) { # first
+	my ($ctx, $id, $prev, $next, $cur, $mref) = @$more;
+	if ($mref) { # first
 		pop @$more;
-		return msg_str($ctx, $cur);
+		pop @$more;
+		return msg_str($ctx, $cur, $mref);
 	}
 	$cur = $next or return;
 	my $ibx = $ctx->{-inbox};
 	$next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	@$more = ($ctx, $id, $prev, $next); # $next may be undef, here
-	my $mref = $ibx->msg_by_smsg($cur) or return;
-	msg_str($ctx, Email::Simple->new($mref));
+	$mref = $ibx->msg_by_smsg($cur) or return;
+	msg_str($ctx, Email::Simple->new($mref), $mref);
 }
 
 sub close {} # noop
@@ -57,18 +58,17 @@ sub emit_raw {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
-	my $first;
-	my $more;
+	my ($first, $mref, $more);
 	if (my $over = $ibx->over) {
 		my ($id, $prev);
 		my $smsg = $over->next_by_mid($mid, \$id, \$prev) or return;
-		my $mref = $ibx->msg_by_smsg($smsg) or return;
+		$mref = $ibx->msg_by_smsg($smsg) or return;
 		$first = Email::Simple->new($mref);
 		my $next = $over->next_by_mid($mid, \$id, \$prev);
 		# $more is for ->getline
-		$more = [ $ctx, $id, $prev, $next, $first ] if $next;
+		$more = [ $ctx, $id, $prev, $next, $first, $mref ] if $next;
 	} else {
-		my $mref = $ibx->msg_by_mid($mid) or return;
+		$mref = $ibx->msg_by_mid($mid) or return;
 		$first = Email::Simple->new($mref);
 	}
 	return unless defined $first;
@@ -83,11 +83,12 @@ sub emit_raw {
 		$fn .= '.txt';
 	}
 	push @hdr, 'Content-Disposition', "inline; filename=$fn";
-	[ 200, \@hdr, $more ? mb_stream($more) : [ msg_str($ctx, $first) ] ];
+	[ 200, \@hdr,
+		$more ? mb_stream($more) : [ msg_str($ctx, $first, $mref) ] ];
 }
 
 sub msg_str {
-	my ($ctx, $simple, $mid) = @_; # Email::Simple object
+	my ($ctx, $simple, $mref, $mid) = @_; # simple - Email::Simple object
 	my $header_obj = $simple->header_obj;
 
 	# drop potentially confusing headers, ssoma already should've dropped
@@ -104,7 +105,7 @@ sub msg_str {
 		'List-Archive', "<$base>",
 		'List-Post', "<mailto:$ibx->{-primary_address}>",
 	);
-	my $crlf = $simple->crlf;
+	my $crlf = $header_obj->crlf;
 	my $buf = "From mboxrd\@z Thu Jan  1 00:00:00 1970\n" .
 			$header_obj->as_string;
 	for (my $i = 0; $i < @append; $i += 2) {
@@ -123,9 +124,8 @@ sub msg_str {
 
 	# mboxrd quoting style
 	# ref: http://www.qmail.org/man/man5/mbox.html
-	my $body = $simple->body;
-	$body =~ s/^(>*From )/>$1/gm;
-	$buf .= $body;
+	$$mref =~ s/^(>*From )/>$1/gm;
+	$buf .= $$mref;
 	$buf .= "\n";
 }
 
@@ -268,9 +268,9 @@ sub getline {
 	my ($self) = @_;
 	my $ctx = $self->{ctx} or return;
 	while (my $smsg = $self->{cb}->()) {
-		my $msg = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
-		$msg = Email::Simple->new($msg);
-		$self->{gz}->write(PublicInbox::Mbox::msg_str($ctx, $msg,
+		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
+		my $s = Email::Simple->new($mref);
+		$self->{gz}->write(PublicInbox::Mbox::msg_str($ctx, $s, $mref,
 				$smsg->{mid}));
 		my $bref = $self->{buf};
 		if (length($$bref) >= 8192) {
