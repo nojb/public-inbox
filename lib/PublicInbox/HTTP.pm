@@ -95,7 +95,7 @@ sub rbuf_process {
 	}
 	if ($r < 0) { # incomplete
 		$self->rbuf_idle($rbuf);
-		return $self->watch_in1;
+		return $self->requeue;
 	}
 	$$rbuf = substr($$rbuf, $r);
 	my $len = input_prepare($self, \%env);
@@ -241,7 +241,7 @@ sub next_request ($) {
 		push @$pipelineq, $self;
 		$pipet ||= PublicInbox::EvCleanup::asap(*process_pipelineq);
 	} else { # wait for next request
-		$self->watch_in1;
+		$self->requeue;
 	}
 }
 

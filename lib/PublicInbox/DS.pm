@@ -557,8 +557,6 @@ sub watch ($$) {
     0;
 }
 
-sub watch_in1 ($) { watch($_[0], EPOLLIN | EPOLLONESHOT) }
-
 # return true if complete, false if incomplete (or failure)
 sub accept_tls_step ($) {
     my ($self) = @_;
