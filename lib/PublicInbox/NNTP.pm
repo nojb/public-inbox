@@ -510,24 +510,21 @@ find_mid:
 found:
 	my $smsg = $ng->over->get_art($n) or return $err;
 	my $msg = $ng->msg_by_smsg($smsg) or return $err;
-	my $s = Email::Simple->new($msg);
-	if ($set_headers) {
-		set_nntp_headers($self, $s->header_obj, $ng, $n, $mid);
 
-		# must be last
-		$s->body_set('') if ($set_headers == 2);
-	}
-	[ $n, $mid, $s, $smsg->bytes, $smsg->lines, $ng ];
+	# Email::Simple->new will modify $msg in-place as documented
+	# in its manpage, so what's left is the body and we won't need
+	# to call Email::Simple::body(), later
+	my $hdr = Email::Simple->new($msg)->header_obj;
+	set_nntp_headers($self, $hdr, $ng, $n, $mid) if $set_headers;
+	[ $n, $mid, $msg, $hdr ];
 }
 
-sub simple_body_write ($$) {
-	my ($self, $s) = @_;
-	my $body = $s->body;
-	$s->body_set('');
-	$body =~ s/^\./../smg;
-	$body =~ s/(?<!\r)\n/\r\n/sg;
-	msg_more($self, $body);
-	msg_more($self, "\r\n") unless $body =~ /\r\n\z/s;
+sub msg_body_write ($$) {
+	my ($self, $msg) = @_;
+	$$msg =~ s/^\./../smg;
+	$$msg =~ s/(?<!\r)\n/\r\n/sg;
+	msg_more($self, $$msg);
+	msg_more($self, "\r\n") unless $$msg =~ /\r\n\z/s;
 	'.'
 }
 
@@ -537,7 +534,7 @@ sub set_art {
 }
 
 sub _header ($) {
-	my $hdr = $_[0]->header_obj->as_string;
+	my $hdr = $_[0]->as_string;
 	utf8::encode($hdr);
 	$hdr =~ s/(?<!\r)\n/\r\n/sg;
 
@@ -554,22 +551,22 @@ sub cmd_article ($;$) {
 	my ($self, $art) = @_;
 	my $r = art_lookup($self, $art, 1);
 	return $r unless ref $r;
-	my ($n, $mid, $s) = @$r;
+	my ($n, $mid, $msg, $hdr) = @$r;
 	set_art($self, $art);
 	more($self, "220 $n <$mid> article retrieved - head and body follow");
-	msg_more($self, _header($s));
+	msg_more($self, _header($hdr));
 	msg_more($self, "\r\n");
-	simple_body_write($self, $s);
+	msg_body_write($self, $msg);
 }
 
 sub cmd_head ($;$) {
 	my ($self, $art) = @_;
 	my $r = art_lookup($self, $art, 2);
 	return $r unless ref $r;
-	my ($n, $mid, $s) = @$r;
+	my ($n, $mid, undef, $hdr) = @$r;
 	set_art($self, $art);
 	more($self, "221 $n <$mid> article retrieved - head follows");
-	msg_more($self, _header($s));
+	msg_more($self, _header($hdr));
 	'.'
 }
 
@@ -577,17 +574,17 @@ sub cmd_body ($;$) {
 	my ($self, $art) = @_;
 	my $r = art_lookup($self, $art, 0);
 	return $r unless ref $r;
-	my ($n, $mid, $s) = @$r;
+	my ($n, $mid, $msg) = @$r;
 	set_art($self, $art);
 	more($self, "222 $n <$mid> article retrieved - body follows");
-	simple_body_write($self, $s);
+	msg_body_write($self, $msg);
 }
 
 sub cmd_stat ($;$) {
 	my ($self, $art) = @_;
 	my $r = art_lookup($self, $art, 0);
 	return $r unless ref $r;
-	my ($n, $mid, undef) = @$r;
+	my ($n, $mid) = @$r;
 	set_art($self, $art);
 	"223 $n <$mid> article retrieved - request text separately";
 }
@@ -815,7 +812,7 @@ sub hdr_mid_prefix ($$$$$) {
 }
 
 sub hdr_mid_response ($$$$$$) {
-	my ($self, $xhdr, $ng, $n, $mid, $v) = @_; # r: art_lookup result
+	my ($self, $xhdr, $ng, $n, $mid, $v) = @_;
 	my $res = '';
 	if ($xhdr) {
 		$res .= r221 . "\r\n";
