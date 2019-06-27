@@ -521,10 +521,12 @@ found:
 
 sub msg_body_write ($$) {
 	my ($self, $msg) = @_;
+
+	# these can momentarily double the memory consumption :<
 	$$msg =~ s/^\./../smg;
-	$$msg =~ s/(?<!\r)\n/\r\n/sg;
+	$$msg =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
+	$$msg .= "\r\n" unless $$msg =~ /\r\n\z/s;
 	msg_more($self, $$msg);
-	msg_more($self, "\r\n") unless $$msg =~ /\r\n\z/s;
 	'.'
 }
 
@@ -533,18 +535,19 @@ sub set_art {
 	$self->{article} = $art if defined $art && $art =~ /\A[0-9]+\z/;
 }
 
-sub _header ($) {
-	my $hdr = $_[0]->as_string;
+sub msg_hdr_write ($$$) {
+	my ($self, $hdr, $body_follows) = @_;
+	$hdr = $hdr->as_string;
 	utf8::encode($hdr);
-	$hdr =~ s/(?<!\r)\n/\r\n/sg;
+	$hdr =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
 
 	# for leafnode compatibility, we need to ensure Message-ID headers
 	# are only a single line.  We can't subclass Email::Simple::Header
 	# and override _default_fold_at in here, either; since that won't
 	# affect messages already in the archive.
 	$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
-
-	$hdr
+	$hdr .= "\r\n" if $body_follows;
+	msg_more($self, $hdr);
 }
 
 sub cmd_article ($;$) {
@@ -554,8 +557,7 @@ sub cmd_article ($;$) {
 	my ($n, $mid, $msg, $hdr) = @$r;
 	set_art($self, $art);
 	more($self, "220 $n <$mid> article retrieved - head and body follow");
-	msg_more($self, _header($hdr));
-	msg_more($self, "\r\n");
+	msg_hdr_write($self, $hdr, 1);
 	msg_body_write($self, $msg);
 }
 
@@ -566,7 +568,7 @@ sub cmd_head ($;$) {
 	my ($n, $mid, undef, $hdr) = @$r;
 	set_art($self, $art);
 	more($self, "221 $n <$mid> article retrieved - head follows");
-	msg_more($self, _header($hdr));
+	msg_hdr_write($self, $hdr, 0);
 	'.'
 }
 
