@@ -37,6 +37,8 @@ use Errno  qw(EAGAIN EINVAL EEXIST);
 use Carp   qw(croak confess carp);
 require File::Spec;
 
+my $nextt; # timer for next_tick
+my $nextq = []; # queue for next_tick
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (or DSKQXS ref)
@@ -592,6 +594,18 @@ sub shutdn ($) {
     } else {
 	$self->close;
     }
+}
+
+sub next_tick () {
+	$nextt = undef;
+	my $q = $nextq;
+	$nextq = [];
+	$_->event_step for @$q;
+}
+
+sub requeue ($) {
+	push @$nextq, $_[0];
+	$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
 }
 
 package PublicInbox::DS::Timer;

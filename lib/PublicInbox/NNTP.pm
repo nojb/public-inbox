@@ -38,20 +38,6 @@ my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
 my $EXPMAP; # fd -> [ idle_time, $self ]
 my $expt;
 our $EXPTIME = 180; # 3 minutes
-my $nextt;
-
-my $nextq = [];
-sub next_tick () {
-	$nextt = undef;
-	my $q = $nextq;
-	$nextq = [];
-	event_step($_) for @$q;
-}
-
-sub requeue ($) {
-	push @$nextq, $_[0];
-	$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
-}
 
 sub update_idle_time ($) {
 	my ($self) = @_;
@@ -655,12 +641,12 @@ sub long_response ($$) {
 			push @$wbuf, $long_cb;
 
 			# wbuf may be populated by $cb, no need to rearm if so:
-			requeue($self) if scalar(@$wbuf) == 1;
+			$self->requeue if scalar(@$wbuf) == 1;
 		} else { # all done!
 			$long_cb = undef;
 			res($self, '.');
 			out($self, " deferred[$fd] done - %0.6f", now() - $t0);
-			requeue($self) unless $self->{wbuf};
+			$self->requeue unless $self->{wbuf};
 		}
 	};
 	$self->write($long_cb); # kick off!
@@ -915,7 +901,7 @@ sub cmd_starttls ($) {
 		return '580 can not initiate TLS negotiation';
 	res($self, '382 Continue with TLS negotiation');
 	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
-	requeue($self) if PublicInbox::DS::accept_tls_step($self);
+	$self->requeue if PublicInbox::DS::accept_tls_step($self);
 	undef;
 }
 
@@ -990,7 +976,7 @@ sub event_step {
 
 	# maybe there's more pipelined data, or we'll have
 	# to register it for socket-readiness notifications
-	requeue($self) unless $self->{wbuf};
+	$self->requeue unless $self->{wbuf};
 }
 
 sub not_idle_long ($$) {
