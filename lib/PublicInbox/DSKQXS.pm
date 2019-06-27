@@ -16,7 +16,8 @@ use warnings;
 use parent qw(IO::KQueue);
 use parent qw(Exporter);
 use IO::KQueue;
-use PublicInbox::Syscall qw(EPOLLONESHOT EPOLLIN EPOLLOUT EPOLL_CTL_DEL);
+use PublicInbox::Syscall qw(EPOLLONESHOT EPOLLIN EPOLLOUT EPOLLET
+	EPOLL_CTL_DEL);
 our @EXPORT_OK = qw(epoll_ctl epoll_wait);
 my $owner_pid = -1; # kqueue is close-on-fork (yes, fork, not exec)
 
@@ -25,6 +26,7 @@ sub kq_flag ($$) {
 	my ($bit, $ev) = @_;
 	if ($ev & $bit) {
 		my $fl = EV_ADD | EV_ENABLE;
+		$fl |= EV_CLEAR if $fl & EPOLLET;
 		($ev & EPOLLONESHOT) ? ($fl | EV_ONESHOT) : $fl;
 	} else {
 		EV_ADD | EV_DISABLE;

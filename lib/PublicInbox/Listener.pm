@@ -9,6 +9,7 @@ use base 'PublicInbox::DS';
 use Socket qw(SOL_SOCKET SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use fields qw(post_accept);
 require IO::Handle;
+use PublicInbox::Syscall qw(EPOLLIN EPOLLEXCLUSIVE EPOLLET);
 
 sub new ($$$) {
 	my ($class, $s, $cb) = @_;
@@ -17,15 +18,14 @@ sub new ($$$) {
 	listen($s, 1024);
 	IO::Handle::blocking($s, 0);
 	my $self = fields::new($class);
-	$self->SUPER::new($s, PublicInbox::DS::EPOLLIN()|
-	                      PublicInbox::DS::EPOLLEXCLUSIVE());
+	$self->SUPER::new($s, EPOLLIN|EPOLLET|EPOLLEXCLUSIVE);
 	$self->{post_accept} = $cb;
 	$self
 }
 
 sub event_step {
 	my ($self) = @_;
-	my $sock = $self->{sock};
+	my $sock = $self->{sock} or return;
 
 	# no loop here, we want to fairly distribute clients
 	# between multiple processes sharing the same socket
@@ -35,6 +35,7 @@ sub event_step {
 	if (my $addr = accept(my $c, $sock)) {
 		IO::Handle::blocking($c, 0); # no accept4 :<
 		$self->{post_accept}->($c, $addr, $sock);
+		$self->requeue;
 	}
 }
 
