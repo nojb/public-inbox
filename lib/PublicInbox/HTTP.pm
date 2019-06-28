@@ -56,8 +56,16 @@ sub http_date () {
 sub new ($$$) {
 	my ($class, $sock, $addr, $httpd) = @_;
 	my $self = fields::new($class);
-	$self->SUPER::new($sock, EPOLLIN | EPOLLONESHOT);
+	my $ev = EPOLLIN;
+	my $wbuf;
+	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
+		return CORE::close($sock) if $! != EAGAIN;
+		$ev = PublicInbox::TLS::epollbit();
+		$wbuf = [ \&PublicInbox::DS::accept_tls_step ];
+	}
+	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
 	$self->{httpd} = $httpd;
+	$self->{wbuf} = $wbuf if $wbuf;
 	($self->{remote_addr}, $self->{remote_port}) =
 		PublicInbox::Daemon::host_with_port($addr);
 	$self;
