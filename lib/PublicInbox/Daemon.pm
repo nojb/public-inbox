@@ -252,13 +252,11 @@ sub daemonize () {
 
 
 sub worker_quit {
-	my ($reason) = @_;
 	# killing again terminates immediately:
 	exit unless @listeners;
 
 	$_->close foreach @listeners; # call PublicInbox::DS::close
 	@listeners = ();
-	$reason->close if ref($reason) eq 'PublicInbox::ParentPipe';
 
 	my $proc_name;
 	my $warn = 0;
@@ -590,7 +588,7 @@ sub daemon_loop ($$$$) {
 	} else {
 		reopen_logs();
 		$set_user->() if $set_user;
-		$SIG{USR2} = sub { worker_quit('USR2') if upgrade() };
+		$SIG{USR2} = sub { worker_quit() if upgrade() };
 		$refresh->();
 	}
 	$uid = $gid = undef;

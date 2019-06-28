@@ -19,6 +19,9 @@ sub new ($$$) {
 }
 
 # master process died, time to call worker_quit ourselves
-sub event_step { $_[0]->{cb}->($_[0]) }
+sub event_step {
+	$_[0]->close; # PublicInbox::DS::close
+	$_[0]->{cb}->();
+}
 
 1;
