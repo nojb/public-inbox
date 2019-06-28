@@ -75,7 +75,8 @@ sub new ($$$) {
 	my $ev = EPOLLIN;
 	my $wbuf;
 	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
-		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
+		return CORE::close($sock) if $! != EAGAIN;
+		$ev = PublicInbox::TLS::epollbit();
 		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
 	}
 	$self->SUPER::new($sock, $ev | EPOLLONESHOT);

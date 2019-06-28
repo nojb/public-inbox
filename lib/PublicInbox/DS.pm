@@ -388,6 +388,10 @@ sub psendfile ($$$) {
     $written;
 }
 
+sub epbit ($$) { # (sock, default)
+    ref($_[0]) eq 'IO::Socket::SSL' ? PublicInbox::TLS::epollbit() : $_[1];
+}
+
 # returns 1 if done, 0 if incomplete
 sub flush_write ($) {
     my ($self) = @_;
@@ -406,8 +410,8 @@ next_buf:
                         goto next_buf;
                     }
                 } elsif ($! == EAGAIN) {
+                    epwait($sock, epbit($sock, EPOLLOUT) | EPOLLONESHOT);
                     $self->{wbuf_off} = $off;
-                    watch($self, EPOLLOUT|EPOLLONESHOT);
                     return 0;
                 } else {
                     return $self->close;
@@ -438,17 +442,13 @@ sub rbuf_idle ($$) {
 
 sub do_read ($$$;$) {
     my ($self, $rbuf, $len, $off) = @_;
-    my $r = sysread($self->{sock}, $$rbuf, $len, $off // 0);
+    my $r = sysread(my $sock = $self->{sock}, $$rbuf, $len, $off // 0);
     return ($r == 0 ? $self->close : $r) if defined $r;
     # common for clients to break connections without warning,
     # would be too noisy to log here:
-    if (ref($self) eq 'IO::Socket::SSL') {
-        my $ev = PublicInbox::TLS::epollbit() or return $self->close;
+    if ($! == EAGAIN) {
+        epwait($sock, epbit($sock, EPOLLIN) | EPOLLONESHOT);
         rbuf_idle($self, $rbuf);
-        watch($self, $ev | EPOLLONESHOT);
-    } elsif ($! == EAGAIN) {
-        rbuf_idle($self, $rbuf);
-        watch($self, EPOLLIN | EPOLLONESHOT);
     } else {
         $self->close;
     }
@@ -525,17 +525,20 @@ sub write {
 
         if (defined $written) {
             return 1 if $written == $to_write;
+            requeue($self); # runs: event_step -> flush_write
         } elsif ($! == EAGAIN) {
+            epwait($sock, epbit($sock, EPOLLOUT) | EPOLLONESHOT);
             $written = 0;
         } else {
             return $self->close;
         }
+
+        # deal with EAGAIN or partial write:
         my $tmpio = tmpio($self, $bref, $written) or return 0;
 
         # wbuf may be an empty array if we're being called inside
         # ->flush_write via CODE bref:
         push @{$self->{wbuf} ||= []}, $tmpio;
-        watch($self, EPOLLOUT|EPOLLONESHOT);
         return 0;
     }
 }
@@ -554,19 +557,24 @@ sub msg_more ($$) {
             # queue up the unwritten substring:
             my $tmpio = tmpio($self, \($_[1]), $n) or return 0;
             $self->{wbuf} = [ $tmpio ];
-            watch($self, EPOLLOUT|EPOLLONESHOT);
+            epwait($sock, EPOLLOUT|EPOLLONESHOT);
             return 0;
         }
     }
     $self->write(\($_[1]));
 }
 
-sub watch ($$) {
-    my ($self, $ev) = @_;
-    my $sock = $self->{sock} or return;
+sub epwait ($$) {
+    my ($sock, $ev) = @_;
     epoll_ctl($Epoll, EPOLL_CTL_MOD, fileno($sock), $ev) and
         confess("EPOLL_CTL_MOD $!");
     0;
+}
+
+sub watch ($$) {
+    my ($self, $ev) = @_;
+    my $sock = $self->{sock} or return;
+    epwait($sock, $ev);
 }
 
 # return true if complete, false if incomplete (or failure)
@@ -575,11 +583,8 @@ sub accept_tls_step ($) {
     my $sock = $self->{sock} or return;
     return 1 if $sock->accept_SSL;
     return $self->close if $! != EAGAIN;
-    if (my $ev = PublicInbox::TLS::epollbit()) {
-        unshift @{$self->{wbuf} ||= []}, \&accept_tls_step;
-        return watch($self, $ev | EPOLLONESHOT);
-    }
-    drop($self, 'BUG? EAGAIN but '.PublicInbox::TLS::err());
+    epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
+    unshift @{$self->{wbuf} ||= []}, \&accept_tls_step;
 }
 
 sub shutdn_tls_step ($) {
@@ -587,11 +592,8 @@ sub shutdn_tls_step ($) {
     my $sock = $self->{sock} or return;
     return $self->close if $sock->stop_SSL(SSL_fast_shutdown => 1);
     return $self->close if $! != EAGAIN;
-    if (my $ev = PublicInbox::TLS::epollbit()) {
-        unshift @{$self->{wbuf} ||= []}, \&shutdn_tls_step;
-        return watch($self, $ev | EPOLLONESHOT);
-    }
-    drop($self, 'BUG? EAGAIN but '.PublicInbox::TLS::err());
+    epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
+    unshift @{$self->{wbuf} ||= []}, \&shutdn_tls_step;
 }
 
 # don't bother with shutdown($sock, 2), we don't fork+exec w/o CLOEXEC

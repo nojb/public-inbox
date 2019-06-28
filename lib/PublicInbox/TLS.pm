@@ -13,12 +13,9 @@ sub err () { $SSL_ERROR }
 
 # returns the EPOLL event bit which matches the existing SSL error
 sub epollbit () {
-	if ($! == EAGAIN) {
-		return EPOLLIN if $SSL_ERROR == SSL_WANT_READ;
-		return EPOLLOUT if $SSL_ERROR == SSL_WANT_WRITE;
-		die "unexpected SSL error: $SSL_ERROR";
-	}
-	0;
+	return EPOLLIN if $SSL_ERROR == SSL_WANT_READ;
+	return EPOLLOUT if $SSL_ERROR == SSL_WANT_WRITE;
+	die "unexpected SSL error: $SSL_ERROR";
 }
 
 1;
