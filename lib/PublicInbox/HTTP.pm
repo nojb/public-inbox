@@ -467,11 +467,4 @@ sub busy () {
 	($self->{rbuf} || $self->{env} || $self->{wbuf});
 }
 
-# fires after pending writes are complete:
-sub restart_pass ($) {
-	$_[0]->{forward}->restart_read; # see PublicInbox::HTTPD::Async
-}
-
-sub enqueue_restart_pass ($) { $_[0]->write(\&restart_pass) }
-
 1;

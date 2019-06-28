@@ -571,12 +571,6 @@ sub epwait ($$) {
     0;
 }
 
-sub watch ($$) {
-    my ($self, $ev) = @_;
-    my $sock = $self->{sock} or return;
-    epwait($sock, $ev);
-}
-
 # return true if complete, false if incomplete (or failure)
 sub accept_tls_step ($) {
     my ($self) = @_;
