@@ -128,7 +128,7 @@ sub psgi_qx {
 	my $rpipe; # comes from popen_rd
 	my $async = $env->{'pi-httpd.async'};
 	my $cb = sub {
-		my $r = sysread($rpipe, my $buf, 8192);
+		my $r = sysread($rpipe, my $buf, 65536);
 		if ($async) {
 			$async->async_pass($env->{'psgix.io'}, $qx, \$buf);
 		} elsif (defined $r) {

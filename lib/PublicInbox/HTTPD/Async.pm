@@ -33,13 +33,13 @@ sub new {
 	$self;
 }
 
-sub main_cb ($$$) {
-	my ($http, $fh, $bref) = @_;
+sub main_cb ($$) {
+	my ($http, $fh) = @_;
 	sub {
 		my ($self) = @_;
-		my $r = sysread($self->{sock}, $$bref, 8192);
+		my $r = sysread($self->{sock}, my $buf, 65536);
 		if ($r) {
-			$fh->write($$bref); # may call $http->close
+			$fh->write($buf); # may call $http->close
 			if ($http->{sock}) { # !closed
 				$self->requeue;
 				# let other clients get some work done, too
@@ -64,7 +64,8 @@ sub async_pass {
 	# will automatically close this ($self) object.
 	$http->{forward} = $self;
 	$fh->write($$bref); # PublicInbox:HTTP::{chunked,identity}_wcb
-	my $cb = $self->{cb} = main_cb($http, $fh, $bref);
+	$$bref = undef; # we're done with this
+	my $cb = $self->{cb} = main_cb($http, $fh);
 	$cb->($self); # either hit EAGAIN or ->requeue to keep EPOLLET happy
 }
 
