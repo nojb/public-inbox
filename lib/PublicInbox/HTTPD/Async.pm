@@ -19,8 +19,8 @@ sub new {
 	# no $io? call $cb at the top of the next event loop to
 	# avoid recursion:
 	unless (defined($io)) {
-		PublicInbox::EvCleanup::asap($cb) if $cb;
-		PublicInbox::EvCleanup::next_tick($cleanup) if $cleanup;
+		PublicInbox::DS::requeue($cb);
+		die 'cleanup unsupported w/o $io' if $cleanup;
 		return;
 	}
 
@@ -87,7 +87,7 @@ sub close {
 
 	# we defer this to the next timer loop since close is deferred
 	if (my $cleanup = delete $self->{cleanup}) {
-		PublicInbox::EvCleanup::next_tick($cleanup);
+		PublicInbox::DS::requeue($cleanup);
 	}
 }
 

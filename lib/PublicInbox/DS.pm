@@ -37,7 +37,6 @@ use Errno  qw(EAGAIN EINVAL EEXIST);
 use Carp   qw(croak confess carp);
 require File::Spec;
 
-my $nextt; # timer for next_tick
 my $nextq = []; # queue for next_tick
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -100,12 +99,6 @@ Returns a timer object which you can call C<< $timer->cancel >> on if you need t
 =cut
 sub AddTimer {
     my ($class, $secs, $coderef) = @_;
-
-    if (!$secs) {
-        my $timer = bless([0, $coderef], 'PublicInbox::DS::Timer');
-        unshift(@Timers, $timer);
-        return $timer;
-    }
 
     my $fire_time = now() + $secs;
 
@@ -176,9 +169,23 @@ sub FirstTimeEventLoop {
 
 sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
+sub next_tick () {
+    my $q = $nextq;
+    $nextq = [];
+    for (@$q) {
+        if (ref($_) eq 'CODE') {
+            $_->();
+        } else {
+            $_->event_step;
+        }
+    }
+}
+
 # runs timers and returns milliseconds for next one, or next event loop
 sub RunTimers {
-    return $LoopTimeout unless @Timers;
+    next_tick();
+
+    return ((@$nextq || @ToClose) ? 0 : $LoopTimeout) unless @Timers;
 
     my $now = now();
 
@@ -187,6 +194,9 @@ sub RunTimers {
         my $to_run = shift(@Timers);
         $to_run->[1]->($now) if $to_run->[1];
     }
+
+    # timers may enqueue into nextq:
+    return 0 if (@$nextq || @ToClose);
 
     return $LoopTimeout unless @Timers;
 
@@ -319,6 +329,8 @@ sub new {
 #####################################################################
 ### I N S T A N C E   M E T H O D S
 #####################################################################
+
+sub requeue ($) { push @$nextq, $_[0] }
 
 =head2 C<< $obj->close >>
 
@@ -593,19 +605,6 @@ sub shutdn ($) {
 	$self->close;
     }
 }
-
-sub next_tick () {
-	$nextt = undef;
-	my $q = $nextq;
-	$nextq = [];
-	$_->event_step for @$q;
-}
-
-sub requeue ($) {
-	push @$nextq, $_[0];
-	$nextt ||= PublicInbox::EvCleanup::asap(*next_tick);
-}
-
 package PublicInbox::DS::Timer;
 # [$abs_float_firetime, $coderef];
 sub cancel {

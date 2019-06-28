@@ -30,10 +30,8 @@ use constant {
 use Errno qw(EAGAIN);
 
 my $pipelineq = [];
-my $pipet;
 sub process_pipelineq () {
 	my $q = $pipelineq;
-	$pipet = undef;
 	$pipelineq = [];
 	foreach (@$q) {
 		next unless $_->{sock};
@@ -238,8 +236,8 @@ sub next_request ($) {
 	my ($self) = @_;
 	if ($self->{rbuf}) {
 		# avoid recursion for pipelined requests
+		PublicInbox::DS::requeue(\&process_pipelineq) if !@$pipelineq;
 		push @$pipelineq, $self;
-		$pipet ||= PublicInbox::EvCleanup::asap(*process_pipelineq);
 	} else { # wait for next request
 		$self->requeue;
 	}
@@ -269,7 +267,7 @@ sub getline_cb ($$$) {
 				if ($self->{wbuf}) {
 					$self->write($next);
 				} else {
-					PublicInbox::EvCleanup::asap($next);
+					PublicInbox::DS::requeue($next);
 				}
 				return;
 			}

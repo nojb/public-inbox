@@ -50,14 +50,11 @@ sub expire_old () {
 	my $exp = $EXPTIME;
 	my $old = $now - $exp;
 	my $nr = 0;
-	my $closed = 0;
 	my %new;
 	while (my ($fd, $v) = each %$EXPMAP) {
 		my ($idle_time, $nntp) = @$v;
 		if ($idle_time < $old) {
-			if ($nntp->shutdn) {
-				$closed++;
-			} else {
+			if (!$nntp->shutdn) {
 				++$nr;
 				$new{$fd} = $v;
 			}
@@ -67,14 +64,7 @@ sub expire_old () {
 		}
 	}
 	$EXPMAP = \%new;
-	if ($nr) {
-		$expt = PublicInbox::EvCleanup::later(*expire_old);
-	} else {
-		$expt = undef;
-		# noop to kick outselves out of the loop ASAP so descriptors
-		# really get closed
-		PublicInbox::EvCleanup::asap(sub {}) if $closed;
-	}
+	$expt = PublicInbox::EvCleanup::later(*expire_old) if $nr;
 }
 
 sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
