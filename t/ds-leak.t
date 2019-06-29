@@ -15,9 +15,21 @@ if ('close-on-exec for epoll and kqueue') {
 
 	PublicInbox::DS->SetLoopTimeout(0);
 	PublicInbox::DS->SetPostLoopCallback(sub { 0 });
+
+	# make sure execve closes if we're using fork()
+	my ($r, $w);
+	pipe($r, $w) or die "pipe: $!";
+
 	PublicInbox::DS->AddTimer(0, sub { $pid = spawn([qw(sleep 10)]) });
 	PublicInbox::DS->EventLoop;
 	ok($pid, 'subprocess spawned');
+
+	# wait for execve, we need to ensure lsof sees sleep(1)
+	# and not the fork of this process:
+	close $w or die "close: $!";
+	my $l = <$r>;
+	is($l, undef, 'cloexec works and sleep(1) is running');
+
 	my @of = grep(/$evfd_re/, `lsof -p $pid 2>/dev/null`);
 	my $err = $?;
 	SKIP: {
