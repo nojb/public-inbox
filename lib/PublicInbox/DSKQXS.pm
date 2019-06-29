@@ -17,7 +17,7 @@ use parent qw(IO::KQueue);
 use parent qw(Exporter);
 use IO::KQueue;
 use PublicInbox::Syscall qw(EPOLLONESHOT EPOLLIN EPOLLOUT EPOLLET
-	EPOLL_CTL_DEL);
+	EPOLL_CTL_ADD EPOLL_CTL_MOD EPOLL_CTL_DEL);
 our @EXPORT_OK = qw(epoll_ctl epoll_wait);
 my $owner_pid = -1; # kqueue is close-on-fork (yes, fork, not exec)
 
@@ -25,11 +25,15 @@ my $owner_pid = -1; # kqueue is close-on-fork (yes, fork, not exec)
 sub kq_flag ($$) {
 	my ($bit, $ev) = @_;
 	if ($ev & $bit) {
-		my $fl = EV_ADD | EV_ENABLE;
+		my $fl = EV_ENABLE;
 		$fl |= EV_CLEAR if $fl & EPOLLET;
-		($ev & EPOLLONESHOT) ? ($fl | EV_ONESHOT) : $fl;
+
+		# EV_DISPATCH matches EPOLLONESHOT semantics more closely
+		# than EV_ONESHOT, in that EV_ADD is not required to
+		# re-enable a disabled watch.
+		($ev & EPOLLONESHOT) ? ($fl | EV_DISPATCH) : $fl;
 	} else {
-		EV_ADD | EV_DISABLE;
+		EV_DISABLE;
 	}
 }
 
@@ -42,9 +46,15 @@ sub new {
 
 sub epoll_ctl {
 	my ($self, $op, $fd, $ev) = @_;
-	if ($op != EPOLL_CTL_DEL) {
+	if ($op == EPOLL_CTL_MOD) {
 		$self->EV_SET($fd, EVFILT_READ, kq_flag(EPOLLIN, $ev));
 		$self->EV_SET($fd, EVFILT_WRITE, kq_flag(EPOLLOUT, $ev));
+	} elsif ($op == EPOLL_CTL_DEL) {
+		$self->EV_SET($fd, EVFILT_READ, EV_DISABLE);
+		$self->EV_SET($fd, EVFILT_WRITE, EV_DISABLE);
+	} else {
+		$self->EV_SET($fd, EVFILT_READ, EV_ADD|kq_flag(EPOLLIN, $ev));
+		$self->EV_SET($fd, EVFILT_WRITE, EV_ADD|kq_flag(EPOLLOUT, $ev));
 	}
 	0;
 }
