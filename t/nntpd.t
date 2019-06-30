@@ -106,8 +106,13 @@ EOF
 	is_deeply($list, { $group => [ qw(1 1 n) ] }, 'LIST works');
 	is_deeply([$n->group($group)], [ qw(0 1 1), $group ], 'GROUP works');
 	is_deeply($n->listgroup($group), [1], 'listgroup OK');
-	ok(!$n->starttls, 'STARTTLS fails when unconfigured');
-	is($n->code, 580, 'got 580 code on server w/o TLS');
+
+	SKIP: {
+		$n->can('starttls') or
+			skip('Net::NNTP too old to support STARTTLS', 2);
+		ok(!$n->starttls, 'STARTTLS fails when unconfigured');
+		is($n->code, 580, 'got 580 code on server w/o TLS');
+	};
 
 	%opts = (
 		PeerAddr => $host_port,

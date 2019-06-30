@@ -11,6 +11,9 @@ foreach my $mod (qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for $0" if $@;
 }
+Net::NNTP->can('starttls') or
+	plan skip_all => 'Net::NNTP does not support TLS';
+
 my $cert = 'certs/server-cert.pem';
 my $key = 'certs/server-key.pem';
 unless (-r $key && -r $cert) {
