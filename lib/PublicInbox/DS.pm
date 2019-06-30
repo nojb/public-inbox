@@ -259,17 +259,8 @@ sub PostEventLoop {
     # now we can close sockets that wanted to close during our event processing.
     # (we didn't want to close them during the loop, as we didn't want fd numbers
     #  being reused and confused during the event loop)
-    while (my $sock = shift @ToClose) {
-        my $fd = fileno($sock);
-
-        # close the socket. (not a PublicInbox::DS close)
-        CORE::close($sock);
-
-        # and now we can finally remove the fd from the map.  see
-        # comment above in ->close.
-        delete $DescriptorMap{$fd};
-    }
-
+    delete($DescriptorMap{fileno($_)}) for @ToClose;
+    @ToClose = (); # let refcounting drop everything all at once
 
     # by default we keep running, unless a postloop callback (either per-object
     # or global) cancels it
