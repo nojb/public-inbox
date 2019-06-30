@@ -108,7 +108,7 @@ diag "XHDR From ". timestr($t) . " for $n";
 my $date = $ENV{NEWNEWS_DATE};
 unless ($date) {
 	my (undef, undef, undef, $d, $m, $y) = gmtime(time - 30 * 86400);
-	$date = sprintf('%04u%02u%02u', $y + 1900, $m, $d);
+	$date = sprintf('%04u%02u%02u', $y + 1900, $m + 1, $d);
 	diag "NEWNEWS_DATE undefined, using $date";
 }
 $t = timeit(1, sub {
