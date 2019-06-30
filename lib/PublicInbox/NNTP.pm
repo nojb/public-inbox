@@ -31,6 +31,14 @@ my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
 my $LIST_HEADERS = join("\r\n", @OVERVIEW,
 			qw(:bytes :lines Xref To Cc)) . "\r\n";
+my $CAPABILITIES = <<"";
+101 Capability list:\r
+VERSION 2\r
+READER\r
+NEWNEWS\r
+LIST ACTIVE ACTIVE.TIMES NEWSGROUPS OVERVIEW.FMT\r
+HDR\r
+OVER\r
 
 my $EXPMAP; # fd -> [ idle_time, $self ]
 my $expt;
@@ -119,6 +127,17 @@ sub process_line ($$) {
 	}
 	return 0 unless defined $res;
 	res($self, $res);
+}
+
+# The keyword argument is not used (rfc3977 5.2.2)
+sub cmd_capabilities ($;$) {
+	my ($self, undef) = @_;
+	my $res = $CAPABILITIES;
+	if (ref($self->{sock}) ne 'IO::Socket::SSL' &&
+			$self->{nntpd}->{accept_tls}) {
+		$res .= "STARTTLS\r\n";
+	}
+	$res .= '.';
 }
 
 sub cmd_mode ($$) {

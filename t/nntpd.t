@@ -143,6 +143,11 @@ EOF
 		'got greeting');
 	$s->autoflush(1);
 
+	syswrite($s, "CAPABILITIES\r\n");
+	$buf = read_til_dot($s);
+	like($buf, qr/\r\nVERSION 2\r\n/s, 'CAPABILITIES works');
+	unlike($buf, qr/STARTTLS/s, 'STARTTLS not advertised');
+
 	syswrite($s, "NEWGROUPS 19990424 000000 GMT\r\n");
 	$buf = read_til_dot($s);
 	like($buf, qr/\A231 list of /, 'newgroups OK');

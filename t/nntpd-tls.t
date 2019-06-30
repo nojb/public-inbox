@@ -128,6 +128,8 @@ for my $args (
 	my $c = Net::NNTP->new($nntps_addr, %o, SSL => 1);
 	my $list = $c->list;
 	is_deeply($list, $expect, 'NNTPS LIST works');
+	unlike(get_capa($c), qr/\bSTARTTLS\r\n/,
+		'STARTTLS not advertised for NNTPS');
 	is($c->command('QUIT')->response(), Net::Cmd::CMD_OK(), 'QUIT works');
 	is(0, sysread($c, my $buf, 1), 'got EOF after QUIT');
 
@@ -139,6 +141,8 @@ for my $args (
 	is($c->code, 382, 'got 382 for STARTTLS');
 	$list = $c->list;
 	is_deeply($list, $expect, 'LIST works after STARTTLS');
+	unlike(get_capa($c), qr/\bSTARTTLS\r\n/,
+		'STARTTLS not advertised after STARTTLS');
 
 	# Net::NNTP won't let us do dumb things, but we need to test
 	# dumb things, so use Net::Cmd directly:
@@ -149,6 +153,7 @@ for my $args (
 	# STARTTLS with bad hostname
 	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.invalid';
 	$c = Net::NNTP->new($starttls_addr, %o);
+	like(get_capa($c), qr/\bSTARTTLS\r\n/, 'STARTTLS advertised');
 	$list = $c->list;
 	is_deeply($list, $expect, 'plain LIST works again');
 	ok(!$c->starttls, 'STARTTLS fails with bad hostname');
@@ -217,4 +222,17 @@ for my $args (
 	}
 }
 done_testing();
+
+sub get_capa {
+	my ($sock) = @_;
+	syswrite($sock, "CAPABILITIES\r\n");
+	my $capa = '';
+	do {
+		my $r = sysread($sock, $capa, 8192, length($capa));
+		die "unexpected: $!" unless defined($r);
+		die 'unexpected EOF' if $r == 0;
+	} until $capa =~ /\.\r\n\z/;
+	$capa;
+}
+
 1;
