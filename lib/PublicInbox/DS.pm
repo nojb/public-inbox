@@ -440,6 +440,7 @@ sub do_read ($$$;$) {
     if ($! == EAGAIN) {
         epwait($sock, epbit($sock, EPOLLIN) | EPOLLONESHOT);
         rbuf_idle($self, $rbuf);
+        0;
     } else {
         $self->close;
     }
@@ -559,7 +560,6 @@ sub epwait ($$) {
     my ($sock, $ev) = @_;
     epoll_ctl($Epoll, EPOLL_CTL_MOD, fileno($sock), $ev) and
         confess("EPOLL_CTL_MOD $!");
-    0;
 }
 
 # return true if complete, false if incomplete (or failure)
@@ -570,8 +570,10 @@ sub accept_tls_step ($) {
     return $self->close if $! != EAGAIN;
     epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
     unshift @{$self->{wbuf} ||= []}, \&accept_tls_step;
+    0;
 }
 
+# return true if complete, false if incomplete (or failure)
 sub shutdn_tls_step ($) {
     my ($self) = @_;
     my $sock = $self->{sock} or return;
@@ -579,6 +581,7 @@ sub shutdn_tls_step ($) {
     return $self->close if $! != EAGAIN;
     epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
     unshift @{$self->{wbuf} ||= []}, \&shutdn_tls_step;
+    0;
 }
 
 # don't bother with shutdown($sock, 2), we don't fork+exec w/o CLOEXEC
