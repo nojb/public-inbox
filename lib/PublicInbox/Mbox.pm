@@ -16,8 +16,8 @@ use Email::Simple;
 use Email::MIME::Encode;
 
 sub subject_fn ($) {
-	my ($simple) = @_;
-	my $fn = $simple->header('Subject');
+	my ($hdr) = @_;
+	my $fn = $hdr->header('Subject');
 	return 'no-subject' unless defined($fn);
 
 	# no need for full Email::MIME, here
@@ -36,19 +36,26 @@ sub mb_stream {
 }
 
 # called by PSGI server as body response
+# this gets called twice for every message, once to return the header,
+# once to retrieve the body
 sub getline {
 	my ($more) = @_; # self
-	my ($ctx, $id, $prev, $next, $cur) = @$more;
-	if ($cur) { # first
-		pop @$more;
-		return msg_str($ctx, $cur);
+	my ($ctx, $id, $prev, $next, $mref, $hdr) = @$more;
+	if ($hdr) { # first message hits this, only
+		pop @$more; # $hdr
+		return msg_hdr($ctx, $hdr);
 	}
-	$cur = $next or return;
+	if ($mref) { # all messages hit this
+		pop @$more; # $mref
+		return msg_body($$mref);
+	}
+	my $cur = $next or return;
 	my $ibx = $ctx->{-inbox};
 	$next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
-	@$more = ($ctx, $id, $prev, $next); # $next may be undef, here
-	my $mref = $ibx->msg_by_smsg($cur) or return;
-	msg_str($ctx, Email::Simple->new($mref));
+	$mref = $ibx->msg_by_smsg($cur) or return;
+	$hdr = Email::Simple->new($mref)->header_obj;
+	@$more = ($ctx, $id, $prev, $next, $mref); # $next may be undef, here
+	msg_hdr($ctx, $hdr); # all but first message hits this
 }
 
 sub close {} # noop
@@ -57,22 +64,17 @@ sub emit_raw {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
-	my $first;
-	my $more;
+	my ($mref, $more, $id, $prev, $next);
 	if (my $over = $ibx->over) {
-		my ($id, $prev);
 		my $smsg = $over->next_by_mid($mid, \$id, \$prev) or return;
-		my $mref = $ibx->msg_by_smsg($smsg) or return;
-		$first = Email::Simple->new($mref);
-		my $next = $over->next_by_mid($mid, \$id, \$prev);
-		# $more is for ->getline
-		$more = [ $ctx, $id, $prev, $next, $first ] if $next;
+		$mref = $ibx->msg_by_smsg($smsg) or return;
+		$next = $over->next_by_mid($mid, \$id, \$prev);
 	} else {
-		my $mref = $ibx->msg_by_mid($mid) or return;
-		$first = Email::Simple->new($mref);
+		$mref = $ibx->msg_by_mid($mid) or return;
 	}
-	return unless defined $first;
-	my $fn = subject_fn($first);
+	my $hdr = Email::Simple->new($mref)->header_obj;
+	$more = [ $ctx, $id, $prev, $next, $mref, $hdr ]; # for ->getline
+	my $fn = subject_fn($hdr);
 	my @hdr = ('Content-Type');
 	if ($ibx->{obfuscate}) {
 		# obfuscation is stupid, but maybe scrapers are, too...
@@ -83,12 +85,11 @@ sub emit_raw {
 		$fn .= '.txt';
 	}
 	push @hdr, 'Content-Disposition', "inline; filename=$fn";
-	[ 200, \@hdr, $more ? mb_stream($more) : [ msg_str($ctx, $first) ] ];
+	[ 200, \@hdr, mb_stream($more) ];
 }
 
-sub msg_str {
-	my ($ctx, $simple, $mid) = @_; # Email::Simple object
-	my $header_obj = $simple->header_obj;
+sub msg_hdr ($$;$) {
+	my ($ctx, $header_obj, $mid) = @_;
 
 	# drop potentially confusing headers, ssoma already should've dropped
 	# Lines and Content-Length
@@ -104,7 +105,7 @@ sub msg_str {
 		'List-Archive', "<$base>",
 		'List-Post', "<mailto:$ibx->{-primary_address}>",
 	);
-	my $crlf = $simple->crlf;
+	my $crlf = $header_obj->crlf;
 	my $buf = "From mboxrd\@z Thu Jan  1 00:00:00 1970\n" .
 			$header_obj->as_string;
 	for (my $i = 0; $i < @append; $i += 2) {
@@ -120,13 +121,13 @@ sub msg_str {
 		$buf .= "$k: $v$crlf" if defined $v;
 	}
 	$buf .= $crlf;
+}
 
+sub msg_body ($) {
 	# mboxrd quoting style
 	# ref: http://www.qmail.org/man/man5/mbox.html
-	my $body = $simple->body;
-	$body =~ s/^(>*From )/>$1/gm;
-	$buf .= $body;
-	$buf .= "\n";
+	$_[0] =~ s/^(>*From )/>$1/gm;
+	$_[0] .= "\n";
 }
 
 sub thread_mbox {
@@ -267,11 +268,13 @@ sub response {
 sub getline {
 	my ($self) = @_;
 	my $ctx = $self->{ctx} or return;
+	my $gz = $self->{gz};
 	while (my $smsg = $self->{cb}->()) {
-		my $msg = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
-		$msg = Email::Simple->new($msg);
-		$self->{gz}->write(PublicInbox::Mbox::msg_str($ctx, $msg,
-				$smsg->{mid}));
+		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
+		my $h = Email::Simple->new($mref)->header_obj;
+		$gz->write(PublicInbox::Mbox::msg_hdr($ctx, $h, $smsg->{mid}));
+		$gz->write(PublicInbox::Mbox::msg_body($$mref));
+
 		my $bref = $self->{buf};
 		if (length($$bref) >= 8192) {
 			my $ret = $$bref; # copy :<
