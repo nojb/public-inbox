@@ -155,9 +155,9 @@ sub daemon_prepare ($) {
 		my $s = eval { $sock_pkg->new(%o) };
 		warn "error binding $l: $! ($@)\n" unless $s;
 		umask $prev;
-
 		if ($s) {
 			$listener_names{sockname($s)} = $s;
+			$s->blocking(0);
 			push @listeners, $s;
 		}
 	}
@@ -363,6 +363,14 @@ sub inherit () {
 	foreach my $fd (3..$end) {
 		my $s = IO::Handle->new_from_fd($fd, 'r');
 		if (my $k = sockname($s)) {
+			if ($s->blocking) {
+				$s->blocking(0);
+				warn <<"";
+Inherited socket (fd=$fd) is blocking, making it non-blocking.
+Set 'NonBlocking = true' in the systemd.service unit to avoid stalled
+processes when multiple service instances start.
+
+			}
 			$listener_names{$k} = $s;
 			push @rv, $s;
 		} else {

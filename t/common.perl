@@ -24,15 +24,18 @@ sub tcp_server () {
 		Proto => 'tcp',
 		Type => Socket::SOCK_STREAM(),
 		Listen => 1024,
+		Blocking => 0,
 	)
 }
 
 sub unix_server ($) {
-	IO::Socket::UNIX->new(
+	my $s = IO::Socket::UNIX->new(
 		Listen => 1024,
 		Type => Socket::SOCK_STREAM(),
 		Local => $_[0],
-	)
+	);
+	$s->blocking(0);
+	$s;
 }
 
 sub spawn_listener {
