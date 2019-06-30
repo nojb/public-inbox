@@ -42,8 +42,9 @@ my $spawn_httpd = sub {
 
 ok(!-S $unix, 'UNIX socket does not exist, yet');
 $spawn_httpd->("-l$unix");
+my %o = (Peer => $unix, Type => SOCK_STREAM);
 for (1..1000) {
-	last if -S $unix;
+	last if -S $unix && IO::Socket::UNIX->new(%o);
 	select undef, undef, undef, 0.02
 }
 
