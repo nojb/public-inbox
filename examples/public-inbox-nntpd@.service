@@ -20,7 +20,12 @@ ExecStartPre = /bin/mkdir -p -m 1777 /tmp/.pub-inline
 ExecStart = /usr/local/bin/public-inbox-nntpd \
 -1 /var/log/public-inbox/nntpd.out.log
 StandardError = syslog
+
+# NonBlocking is REQUIRED to avoid a race condition if running
+# simultaneous services
+NonBlocking = true
 Sockets = public-inbox-nntpd.socket
+
 KillSignal = SIGQUIT
 User = nobody
 Group = nogroup
