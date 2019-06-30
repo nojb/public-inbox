@@ -17,6 +17,24 @@ sub stream_to_string {
 	$str;
 }
 
+sub tcp_server () {
+	IO::Socket::INET->new(
+		LocalAddr => '127.0.0.1',
+		ReuseAddr => 1,
+		Proto => 'tcp',
+		Type => Socket::SOCK_STREAM(),
+		Listen => 1024,
+	)
+}
+
+sub unix_server ($) {
+	IO::Socket::UNIX->new(
+		Listen => 1024,
+		Type => Socket::SOCK_STREAM(),
+		Local => $_[0],
+	)
+}
+
 sub spawn_listener {
 	my ($env, $cmd, $socks) = @_;
 	my $pid = fork;

@@ -36,14 +36,8 @@ SKIP: {
 	use_ok 'PublicInbox::V2Writable';
 }
 
-my %opts = (
-	LocalAddr => '127.0.0.1',
-	ReuseAddr => 1,
-	Proto => 'tcp',
-	Type => SOCK_STREAM,
-	Listen => 1024,
-);
-my $sock = IO::Socket::INET->new(%opts);
+my %opts;
+my $sock = tcp_server();
 my $pid;
 my $len;
 END { kill 'TERM', $pid if defined $pid };

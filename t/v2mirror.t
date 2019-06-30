@@ -60,17 +60,11 @@ my $epoch_max = $v2w->{epoch_max};
 ok($epoch_max > 0, "multiple epochs");
 $v2w->done;
 
-my %opts = (
-	LocalAddr => '127.0.0.1',
-	ReuseAddr => 1,
-	Proto => 'tcp',
-	Listen => 1024,
-);
 my ($sock, $pid);
 END { kill 'TERM', $pid if defined $pid };
 
 $! = 0;
-$sock = IO::Socket::INET->new(%opts);
+$sock = tcp_server();
 ok($sock, 'sock created');
 my $cmd = [ "$script-httpd", "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
 ok(defined($pid = spawn_listener(undef, $cmd, [ $sock ])),

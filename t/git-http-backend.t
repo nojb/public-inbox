@@ -24,14 +24,7 @@ my $tmpdir = tempdir('pi-git-http-backend-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $httpd = 'blib/script/public-inbox-httpd';
-my %opts = (
-	LocalAddr => '127.0.0.1',
-	ReuseAddr => 1,
-	Proto => 'tcp',
-	Type => SOCK_STREAM,
-	Listen => 1024,
-);
-my $sock = IO::Socket::INET->new(%opts);
+my $sock = tcp_server();
 my $host = $sock->sockhost;
 my $port = $sock->sockport;
 my $pid;

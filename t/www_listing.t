@@ -73,14 +73,7 @@ SKIP: {
 	my $v2 = "$tmpdir/v2";
 	my $httpd = 'blib/script/public-inbox-httpd';
 	use IO::Socket::INET;
-	my %opts = (
-		LocalAddr => '127.0.0.1',
-		ReuseAddr => 1,
-		Proto => 'tcp',
-		Type => SOCK_STREAM,
-		Listen => 1024,
-	);
-	my $sock = IO::Socket::INET->new(%opts);
+	my $sock = tcp_server();
 	ok($sock, 'sock created');
 	my ($host, $port) = ($sock->sockhost, $sock->sockport);
 	my @clone = qw(git clone -q -s --bare);

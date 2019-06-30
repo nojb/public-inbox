@@ -134,13 +134,6 @@ if ('ensure git configs are correct') {
 	use IO::Socket::INET;
 	my $err = "$mainrepo/stderr.log";
 	my $out = "$mainrepo/stdout.log";
-	my %opts = (
-		LocalAddr => '127.0.0.1',
-		ReuseAddr => 1,
-		Proto => 'tcp',
-		Type => SOCK_STREAM,
-		Listen => 1024,
-	);
 	my $group = 'inbox.comp.test.v2writable';
 	my $pi_config = "$mainrepo/pi_config";
 	open my $fh, '>', $pi_config or die "open: $!\n";
@@ -153,7 +146,7 @@ if ('ensure git configs are correct') {
 EOF
 	;
 	close $fh or die "close: $!\n";
-	my $sock = IO::Socket::INET->new(%opts);
+	my $sock = tcp_server();
 	ok($sock, 'sock created');
 	my $pid;
 	my $len;

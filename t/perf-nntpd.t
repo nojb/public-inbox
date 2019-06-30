@@ -44,14 +44,7 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 		close $fh or die "close($pi_config): $!";
 	}
 
-	%opts = (
-		LocalAddr => '127.0.0.1',
-		ReuseAddr => 1,
-		Proto => 'tcp',
-		Listen => 1024,
-	);
-	my $sock = IO::Socket::INET->new(%opts);
-
+	my $sock = tcp_server();
 	ok($sock, 'sock created');
 	my $cmd = [ $nntpd, '-W0' ];
 	$pid = spawn_listener({ PI_CONFIG => $pi_config }, $cmd, [$sock]);

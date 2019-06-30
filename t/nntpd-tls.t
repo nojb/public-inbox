@@ -37,15 +37,8 @@ my $pi_config = "$tmpdir/pi_config";
 my $group = 'test-nntpd-tls';
 my $addr = $group . '@example.com';
 my $nntpd = 'blib/script/public-inbox-nntpd';
-my %opts = (
-	LocalAddr => '127.0.0.1',
-	ReuseAddr => 1,
-	Proto => 'tcp',
-	Type => SOCK_STREAM,
-	Listen => 1024,
-);
-my $starttls = IO::Socket::INET->new(%opts);
-my $nntps = IO::Socket::INET->new(%opts);
+my $starttls = tcp_server();
+my $nntps = tcp_server();
 my ($pid, $tail_pid);
 END {
 	foreach ($pid, $tail_pid) {

@@ -28,14 +28,7 @@ my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $httpd = 'blib/script/public-inbox-httpd';
 my $psgi = "./t/httpd-corner.psgi";
-my %opts = (
-	LocalAddr => '127.0.0.1',
-	ReuseAddr => 1,
-	Proto => 'tcp',
-	Type => SOCK_STREAM,
-	Listen => 1024,
-);
-my $sock = IO::Socket::INET->new(%opts);
+my $sock = tcp_server();
 
 # Make sure we don't clobber socket options set by systemd or similar
 # using socket activation:
@@ -56,11 +49,7 @@ if ($^O eq 'linux') {
 }
 
 my $upath = "$tmpdir/s";
-my $unix = IO::Socket::UNIX->new(
-	Listen => 1024,
-	Type => SOCK_STREAM,
-	Local => $upath
-);
+my $unix = unix_server($upath);
 ok($unix, 'UNIX socket created');
 my $pid;
 END { kill 'TERM', $pid if defined $pid };

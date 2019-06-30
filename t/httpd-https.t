@@ -24,14 +24,7 @@ my $tmpdir = tempdir('pi-httpd-https-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $httpd = 'blib/script/public-inbox-httpd';
-my %opts = (
-	LocalAddr => '127.0.0.1',
-	ReuseAddr => 1,
-	Proto => 'tcp',
-	Type => SOCK_STREAM,
-	Listen => 1024,
-);
-my $https = IO::Socket::INET->new(%opts);
+my $https = tcp_server();
 my ($pid, $tail_pid);
 END {
 	foreach ($pid, $tail_pid) {

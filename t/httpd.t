@@ -24,15 +24,7 @@ my $addr = $group . '@example.com';
 my $cfgpfx = "publicinbox.$group";
 my $httpd = 'blib/script/public-inbox-httpd';
 my $init = 'blib/script/public-inbox-init';
-
-my %opts = (
-	LocalAddr => '127.0.0.1',
-	ReuseAddr => 1,
-	Proto => 'tcp',
-	Type => SOCK_STREAM,
-	Listen => 1024,
-);
-my $sock = IO::Socket::INET->new(%opts);
+my $sock = tcp_server();
 my $pid;
 use_ok 'PublicInbox::Git';
 use_ok 'PublicInbox::Import';
