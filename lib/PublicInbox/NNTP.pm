@@ -32,9 +32,6 @@ my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
 my $LIST_HEADERS = join("\r\n", @OVERVIEW,
 			qw(:bytes :lines Xref To Cc)) . "\r\n";
 
-# disable commands with easy DoS potential:
-my %DISABLED; # = map { $_ => 1 } qw(xover list_overview_fmt newnews xhdr);
-
 my $EXPMAP; # fd -> [ idle_time, $self ]
 my $expt;
 our $EXPTIME = 180; # 3 minutes
@@ -105,10 +102,9 @@ sub process_line ($$) {
 	my ($self, $l) = @_;
 	my ($req, @args) = split(/[ \t]/, $l);
 	return 1 unless defined($req); # skip blank line
-	$req = lc($req);
 	$req = eval {
 		no strict 'refs';
-		$req = $DISABLED{$req} ? undef : *{'cmd_'.$req}{CODE};
+		*{'cmd_'.lc($req)}{CODE};
 	};
 	return res($self, '500 command not recognized') unless $req;
 	return res($self, r501) unless args_ok($req, scalar @args);
@@ -187,7 +183,6 @@ sub cmd_list ($;$$) {
 		my $arg = shift @args;
 		$arg =~ tr/A-Z./a-z_/;
 		$arg = "list_$arg";
-		return r501 if $DISABLED{$arg};
 
 		$arg = eval {
 			no strict 'refs';
