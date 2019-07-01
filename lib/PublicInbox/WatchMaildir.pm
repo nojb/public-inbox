@@ -24,7 +24,9 @@ sub new {
 	# indefinitely...
 	foreach my $pfx (qw(publicinboxwatch publicinboxlearn)) {
 		my $k = "$pfx.watchspam";
-		if (my $dir = $config->{$k}) {
+		defined(my $dirs = $config->{$k}) or next;
+		$dirs = [ $dirs ] if !ref($dirs);
+		for my $dir (@$dirs) {
 			if (is_maildir($dir)) {
 				# skip "new", no MUA has seen it, yet.
 				my $cur = "$dir/cur";
