@@ -72,6 +72,19 @@ my $app = sub {
 			getline => sub { undef },
 			close => sub { die 'CLOSE FAIL' },
 		);
+	} elsif ($path eq '/async-big') {
+		require PublicInbox::Qspawn;
+		open my $null, '>', '/dev/null' or die;
+		my $rdr = { 2 => fileno($null) };
+		my $cmd = [qw(dd if=/dev/zero count=30 bs=1024k)];
+		my $qsp = PublicInbox::Qspawn->new($cmd, undef, $rdr);
+		return $qsp->psgi_return($env, undef, sub {
+			my ($r, $bref) = @_;
+			# make $rd_hdr retry sysread + $parse_hdr in Qspawn:
+			return until length($$bref) > 8000;
+			close $null;
+			[ 200, [ qw(Content-Type application/octet-stream) ]];
+		});
 	}
 
 	[ $code, $h, $body ]

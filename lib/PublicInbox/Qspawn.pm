@@ -195,9 +195,19 @@ sub psgi_return {
 
 	my $buf = '';
 	my $rd_hdr = sub {
-		my $r = sysread($rpipe, $buf, 1024, length($buf));
-		return if !defined($r) && $! == EAGAIN || $! == EINTR;
-		$parse_hdr->($r, \$buf);
+		# we must loop until EAGAIN for EPOLLET in HTTPD/Async.pm
+		# We also need to check EINTR for generic PSGI servers.
+		my $ret;
+		my $n = 0;
+		do {
+			my $r = sysread($rpipe, $buf, 4096, length($buf));
+			return if !defined($r) && $! == EAGAIN || $! == EINTR;
+
+			# $r may be undef, here:
+			$n += $r if $r;
+			$ret = $parse_hdr->($r ? $n : $r, \$buf);
+		} until (defined $ret);
+		$ret;
 	};
 
 	my $wcb = delete $env->{'qspawn.wcb'};

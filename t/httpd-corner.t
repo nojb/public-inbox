@@ -251,9 +251,10 @@ SKIP: {
 		$have_curl = 1;
 		last;
 	}
-	my $ntest = 2;
+	my $ntest = 4;
 	$have_curl or skip('curl(1) missing', $ntest);
-	my $url = 'http://' . $sock->sockhost . ':' . $sock->sockport . '/sha1';
+	my $base = 'http://' . $sock->sockhost . ':' . $sock->sockport;
+	my $url = "$base/sha1";
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
 	my $cmd = [qw(curl --tcp-nodelay --no-buffer -T- -HExpect: -sS), $url];
@@ -270,6 +271,17 @@ SKIP: {
 	is($?, 0, 'curl exited successfully');
 	is($err, '', 'no errors from curl');
 	is($out, sha1_hex($str), 'read expected body');
+
+	open my $fh, '-|', qw(curl -sS), "$base/async-big" or die $!;
+	my $n = 0;
+	my $non_zero = 0;
+	while (1) {
+		my $r = sysread($fh, my $buf, 4096) or last;
+		$n += $r;
+		$buf =~ /\A\0+\z/ or $non_zero++;
+	}
+	is($n, 30 * 1024 * 1024, 'got expected output from curl');
+	is($non_zero, 0, 'read all zeros');
 }
 
 {
