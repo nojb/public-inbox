@@ -13,7 +13,6 @@ use warnings;
 use File::Temp qw();
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Git qw(git_unquote git_quote);
-use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::MsgIter qw(msg_iter msg_part_text);
 use PublicInbox::Qspawn;
 use URI::Escape qw(uri_escape_utf8);
