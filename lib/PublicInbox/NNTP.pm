@@ -18,6 +18,7 @@ PublicInbox::DS->import(qw(now));
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
 use constant {
+	LINE_MAX => 512, # RFC 977 section 2.3
 	r501 => '501 command syntax error',
 	r221 => '221 Header follows',
 	r224 => '224 Overview information follows (multi-line)',
@@ -954,7 +955,6 @@ sub event_step {
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
-	use constant LINE_MAX => 512; # RFC 977 section 2.3
 	my $rbuf = $self->{rbuf} // (\(my $x = ''));
 	my $r = 1;
 
