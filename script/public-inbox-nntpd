@@ -6,7 +6,7 @@
 use strict;
 use warnings;
 require PublicInbox::Daemon;
-require PublicInbox::NNTP;
+use PublicInbox::NNTP; # need to call import
 require PublicInbox::NNTPD;
 my $nntpd = PublicInbox::NNTPD->new;
 PublicInbox::Daemon::run('0.0.0.0:119',

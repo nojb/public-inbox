@@ -20,6 +20,7 @@ use Time::Local qw(timegm timelocal);
 use constant {
 	LINE_MAX => 512, # RFC 977 section 2.3
 	r501 => '501 command syntax error',
+	r502 => '502 Command unavailable',
 	r221 => '221 Header follows',
 	r224 => '224 Overview information follows (multi-line)',
 	r225 =>	'225 Headers follow (multi-line)',
@@ -41,6 +42,7 @@ LIST ACTIVE ACTIVE.TIMES NEWSGROUPS OVERVIEW.FMT\r
 HDR\r
 OVER\r
 
+my $have_deflate;
 my $EXPMAP; # fd -> [ idle_time, $self ]
 my $expt;
 our $EXPTIME = 180; # 3 minutes
@@ -897,17 +899,30 @@ sub cmd_xover ($;$) {
 	});
 }
 
+sub compressed { undef }
+
 sub cmd_starttls ($) {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
 	# RFC 4642 2.2.1
-	(ref($sock) eq 'IO::Socket::SSL') and return '502 Command unavailable';
+	return r502 if (ref($sock) eq 'IO::Socket::SSL' || $self->compressed);
 	my $opt = $self->{nntpd}->{accept_tls} or
 		return '580 can not initiate TLS negotiation';
 	res($self, '382 Continue with TLS negotiation');
 	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
 	$self->requeue if PublicInbox::DS::accept_tls_step($self);
 	undef;
+}
+
+# RFC 8054
+sub cmd_compress ($$) {
+	my ($self, $alg) = @_;
+	return '503 Only the DEFLATE is supported' if uc($alg) ne 'DEFLATE';
+	return r502 if $self->compressed || !$have_deflate;
+	res($self, '206 Compression active');
+	PublicInbox::NNTPdeflate->enable($self);
+	$self->requeue;
+	undef
 }
 
 sub cmd_xpath ($$) {
@@ -995,6 +1010,12 @@ sub not_idle_long ($$) {
 sub busy {
 	my ($self, $now) = @_;
 	($self->{rbuf} || $self->{wbuf} || not_idle_long($self, $now));
+}
+
+# this is an import to prevent "perl -c" from complaining about fields
+sub import {
+	$have_deflate = eval { require PublicInbox::NNTPdeflate } and
+		$CAPABILITIES .= "COMPRESS DEFLATE\r\n";
 }
 
 1;

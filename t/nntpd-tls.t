@@ -29,6 +29,9 @@ require './t/common.perl';
 require PublicInbox::InboxWritable;
 require PublicInbox::MIME;
 require PublicInbox::SearchIdx;
+my $need_zlib;
+eval { require Compress::Raw::Zlib } or
+	$need_zlib = 'Compress::Raw::Zlib missing';
 my $version = 2; # v2 needs newer git
 require_git('2.6') if $version >= 2;
 my $tmpdir = tempdir('pi-nntpd-tls-XXXXXX', TMPDIR => 1, CLEANUP => 1);
@@ -234,6 +237,14 @@ sub get_capa {
 		die "unexpected: $!" unless defined($r);
 		die 'unexpected EOF' if $r == 0;
 	} until $capa =~ /\.\r\n\z/;
+
+	my $deflate_capa = qr/\r\nCOMPRESS DEFLATE\r\n/;
+	if ($need_zlib) {
+		unlike($capa, $deflate_capa,
+			'COMPRESS DEFLATE NOT advertised '.$need_zlib);
+	} else {
+		like($capa, $deflate_capa, 'COMPRESS DEFLATE advertised');
+	}
 	$capa;
 }
 

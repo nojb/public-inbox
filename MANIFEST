@@ -113,6 +113,7 @@ lib/PublicInbox/MsgTime.pm
 lib/PublicInbox/Msgmap.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
+lib/PublicInbox/NNTPdeflate.pm
 lib/PublicInbox/NewsWWW.pm
 lib/PublicInbox/Over.pm
 lib/PublicInbox/OverIdx.pm
@@ -230,6 +231,7 @@ t/msgmap.t
 t/msgtime.t
 t/nntp.t
 t/nntpd-tls.t
+t/nntpd-validate.t
 t/nntpd.t
 t/nulsubject.t
 t/over.t

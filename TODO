@@ -33,8 +33,6 @@ all need to be considered for everything we introduce)
   ensure things continue working as they should (or more better)
   while retaining compatibility with old versions.
 
-* NNTP COMPRESS extension (see innd)
-
 * Support more of RFC 3977 (NNTP)
 
 * Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
