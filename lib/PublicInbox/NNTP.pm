@@ -642,6 +642,11 @@ sub long_response ($$) {
 		} elsif ($more) { # $self->{wbuf}:
 			update_idle_time($self);
 
+			# COMPRESS users all share the same DEFLATE context.
+			# Flush it here to ensure clients don't see
+			# each other's data
+			$self->zflush;
+
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
 			my $wbuf = $self->{wbuf} ||= [];
@@ -924,6 +929,8 @@ sub cmd_compress ($$) {
 	$self->requeue;
 	undef
 }
+
+sub zflush {} # overridden by NNTPdeflate
 
 sub cmd_xpath ($$) {
 	my ($self, $mid) = @_;

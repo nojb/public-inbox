@@ -112,11 +112,17 @@ sub do_get_all {
 			}
 		}
 	}
+
+	# hacky bytes_read thing added to Net::NNTP for testing:
+	my $bytes_read = '';
+	if ($nntp->can('bytes_read')) {
+		$bytes_read .= ' '.$nntp->bytes_read.'b';
+	}
 	my $q = $nntp->quit;
 	print STDERR "# quit failed: ".$nntp->code."\n" if !$q;
 	my $elapsed = sprintf('%0.3f', clock_gettime(CLOCK_MONOTONIC) - $t0);
 	my $res = $dig->hexdigest;
-	print STDERR "# $desc - $res (${elapsed}s)\n";
+	print STDERR "# $desc - $res (${elapsed}s)$bytes_read\n";
 	$res;
 }
 my @tests = ([]);

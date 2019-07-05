@@ -553,7 +553,9 @@ sub msg_more ($$) {
             return 0;
         }
     }
-    $self->write(\($_[1]));
+
+    # don't redispatch into NNTPdeflate::write
+    PublicInbox::DS::write($self, \($_[1]));
 }
 
 sub epwait ($$) {
