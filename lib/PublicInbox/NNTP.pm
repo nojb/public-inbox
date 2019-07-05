@@ -14,7 +14,7 @@ use PublicInbox::Git;
 require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
-PublicInbox::DS->import(qw(now msg_more));
+PublicInbox::DS->import(qw(now));
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
 use constant {
@@ -158,12 +158,12 @@ sub cmd_xgtitle ($;$) {
 
 sub list_overview_fmt ($) {
 	my ($self) = @_;
-	msg_more($self, $OVERVIEW_FMT);
+	$self->msg_more($OVERVIEW_FMT);
 }
 
 sub list_headers ($;$) {
 	my ($self) = @_;
-	msg_more($self, $LIST_HEADERS);
+	$self->msg_more($LIST_HEADERS);
 }
 
 sub list_active ($;$) {
@@ -517,7 +517,7 @@ sub msg_body_write ($$) {
 	$$msg =~ s/^\./../smg;
 	$$msg =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
 	$$msg .= "\r\n" unless $$msg =~ /\r\n\z/s;
-	msg_more($self, $$msg);
+	$self->msg_more($$msg);
 	'.'
 }
 
@@ -538,7 +538,7 @@ sub msg_hdr_write ($$$) {
 	# affect messages already in the archive.
 	$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
 	$hdr .= "\r\n" if $body_follows;
-	msg_more($self, $hdr);
+	$self->msg_more($hdr);
 }
 
 sub cmd_article ($;$) {
@@ -757,7 +757,7 @@ sub hdr_searchmsg ($$$$) {
 				$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
 			}
 			utf8::encode($tmp);
-			msg_more($self, $tmp);
+			$self->msg_more($tmp);
 			$cur = $msgs->[-1]->{num} + 1;
 		});
 	}
@@ -924,7 +924,7 @@ sub cmd_xpath ($$) {
 
 sub res ($$) { do_write($_[0], $_[1] . "\r\n") }
 
-sub more ($$) { msg_more($_[0], $_[1] . "\r\n") }
+sub more ($$) { $_[0]->msg_more($_[1] . "\r\n") }
 
 sub do_write ($$) {
 	my $self = $_[0];
