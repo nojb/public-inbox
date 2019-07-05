@@ -41,6 +41,9 @@ my $OID_BLOB = '[a-f0-9]{7,40}';
 my $PATH_A = '"?a/.+|/dev/null';
 my $PATH_B = '"?b/.+|/dev/null';
 
+# cf. git diff.c :: get_compact_summary
+my $DIFFSTAT_COMMENT = qr/\((?:new|gone|(?:(?:new|mode) [\+\-][lx]))\)/;
+
 sub to_html ($$) {
 	$_[0]->linkify_1($_[1]);
 	$_[0]->linkify_2(ascii_html($_[1]));
@@ -89,7 +92,7 @@ sub anchor0 ($$$$$) {
 	# So only do best-effort handling of renames for common cases;
 	# which works well in practice. If projects put "=>", or trailing
 	# spaces in filenames, oh well :P
-	$fn =~ s/ +\z//s;
+	$fn =~ s/(?: *$DIFFSTAT_COMMENT)? *\z//so;
 	$fn =~ s/{(?:.+) => (.+)}/$1/ or $fn =~ s/.* => (.+)/$1/;
 	$fn = git_unquote($fn);
 
