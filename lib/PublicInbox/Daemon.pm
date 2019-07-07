@@ -8,6 +8,7 @@ use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
+use POSIX qw(WNOHANG);
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 sub SO_ACCEPTFILTER () { 0x1000 }
 use Cwd qw/abs_path/;
@@ -15,7 +16,6 @@ STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
 require PublicInbox::EvCleanup;
-require POSIX;
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
 my @CMD;
@@ -437,7 +437,7 @@ sub upgrade_aborted ($) {
 
 sub reap_children () {
 	while (1) {
-		my $p = waitpid(-1, &POSIX::WNOHANG) or return;
+		my $p = waitpid(-1, WNOHANG) or return;
 		if (defined $reexec_pid && $p == $reexec_pid) {
 			upgrade_aborted($p);
 		} elsif (defined(my $id = delete $pids{$p})) {
