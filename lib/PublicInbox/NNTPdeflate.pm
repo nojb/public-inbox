@@ -30,24 +30,33 @@ my %IN_OPT = (
 
 # global deflate context and buffer
 my $zbuf = \(my $buf = '');
-my $zout = Compress::Raw::Zlib::Deflate->new(
-	# nnrpd (INN) and Compress::Raw::Zlib favor MemLevel=9,
-	# but the zlib C library and git use MemLevel=8 as the default.
-	# FIXME: sometimes clients fail with 8, so we use 9
-	# -MemLevel => 9,
+my $zout;
+{
+	my $err;
+	($zout, $err) = Compress::Raw::Zlib::Deflate->new(
+		# nnrpd (INN) and Compress::Raw::Zlib favor MemLevel=9,
+		# the zlib C library and git use MemLevel=8 as the default
+		# -MemLevel => 9,
+		-Bufsize => 65536, # same as nnrpd
+		-WindowBits => -15, # RFC 1951
+		-AppendOutput => 1,
+	);
+	$err == Z_OK or die "Failed to initialize zlib deflate stream: $err";
+}
 
-	# needs more testing, nothing obviously different in terms of memory
-	-Bufsize => 65536,
-
-	-WindowBits => -15, # RFC 1951
-	-AppendOutput => 1,
-);
 
 sub enable {
 	my ($class, $self) = @_;
+	my ($in, $err) = Compress::Raw::Zlib::Inflate->new(%IN_OPT);
+	if ($err != Z_OK) {
+		$self->err("Inflate->new failed: $err");
+		$self->res('403 Unable to activate compression');
+		return;
+	}
 	unlock_hash(%$self);
+	$self->res('206 Compression active');
 	bless $self, $class;
-	$self->{zin} = [ Compress::Raw::Zlib::Inflate->new(%IN_OPT), '' ];
+	$self->{zin} = [ $in, '' ];
 }
 
 # overrides PublicInbox::NNTP::compressed

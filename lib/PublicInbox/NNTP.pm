@@ -922,9 +922,8 @@ sub cmd_starttls ($) {
 # RFC 8054
 sub cmd_compress ($$) {
 	my ($self, $alg) = @_;
-	return '503 Only the DEFLATE is supported' if uc($alg) ne 'DEFLATE';
+	return '503 Only DEFLATE is supported' if uc($alg) ne 'DEFLATE';
 	return r502 if $self->compressed || !$have_deflate;
-	res($self, '206 Compression active');
 	PublicInbox::NNTPdeflate->enable($self);
 	$self->requeue;
 	undef
