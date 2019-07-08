@@ -151,6 +151,13 @@ EOF
 	$buf = read_til_dot($s);
 	like($buf, qr/\r\nVERSION 2\r\n/s, 'CAPABILITIES works');
 	unlike($buf, qr/STARTTLS/s, 'STARTTLS not advertised');
+	my $deflate_capa = qr/\r\nCOMPRESS DEFLATE\r\n/;
+	if (eval { require Compress::Raw::Zlib }) {
+		like($buf, $deflate_capa, 'DEFLATE advertised');
+	} else {
+		unlike($buf, $deflate_capa,
+			'DEFLATE not advertised (Compress::Raw::Zlib missing)');
+	}
 
 	syswrite($s, "NEWGROUPS 19990424 000000 GMT\r\n");
 	$buf = read_til_dot($s);

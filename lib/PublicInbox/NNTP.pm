@@ -14,11 +14,13 @@ use PublicInbox::Git;
 require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
-PublicInbox::DS->import(qw(now msg_more));
+PublicInbox::DS->import(qw(now));
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
 use constant {
+	LINE_MAX => 512, # RFC 977 section 2.3
 	r501 => '501 command syntax error',
+	r502 => '502 Command unavailable',
 	r221 => '221 Header follows',
 	r224 => '224 Overview information follows (multi-line)',
 	r225 =>	'225 Headers follow (multi-line)',
@@ -40,6 +42,7 @@ LIST ACTIVE ACTIVE.TIMES NEWSGROUPS OVERVIEW.FMT\r
 HDR\r
 OVER\r
 
+my $have_deflate;
 my $EXPMAP; # fd -> [ idle_time, $self ]
 my $expt;
 our $EXPTIME = 180; # 3 minutes
@@ -158,12 +161,12 @@ sub cmd_xgtitle ($;$) {
 
 sub list_overview_fmt ($) {
 	my ($self) = @_;
-	msg_more($self, $OVERVIEW_FMT);
+	$self->msg_more($OVERVIEW_FMT);
 }
 
 sub list_headers ($;$) {
 	my ($self) = @_;
-	msg_more($self, $LIST_HEADERS);
+	$self->msg_more($LIST_HEADERS);
 }
 
 sub list_active ($;$) {
@@ -517,7 +520,7 @@ sub msg_body_write ($$) {
 	$$msg =~ s/^\./../smg;
 	$$msg =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
 	$$msg .= "\r\n" unless $$msg =~ /\r\n\z/s;
-	msg_more($self, $$msg);
+	$self->msg_more($$msg);
 	'.'
 }
 
@@ -538,7 +541,7 @@ sub msg_hdr_write ($$$) {
 	# affect messages already in the archive.
 	$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
 	$hdr .= "\r\n" if $body_follows;
-	msg_more($self, $hdr);
+	$self->msg_more($hdr);
 }
 
 sub cmd_article ($;$) {
@@ -638,6 +641,11 @@ sub long_response ($$) {
 			$self->close;
 		} elsif ($more) { # $self->{wbuf}:
 			update_idle_time($self);
+
+			# COMPRESS users all share the same DEFLATE context.
+			# Flush it here to ensure clients don't see
+			# each other's data
+			$self->zflush;
 
 			# no recursion, schedule another call ASAP
 			# but only after all pending writes are done
@@ -757,7 +765,7 @@ sub hdr_searchmsg ($$$$) {
 				$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
 			}
 			utf8::encode($tmp);
-			msg_more($self, $tmp);
+			$self->msg_more($tmp);
 			$cur = $msgs->[-1]->{num} + 1;
 		});
 	}
@@ -896,11 +904,13 @@ sub cmd_xover ($;$) {
 	});
 }
 
+sub compressed { undef }
+
 sub cmd_starttls ($) {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
 	# RFC 4642 2.2.1
-	(ref($sock) eq 'IO::Socket::SSL') and return '502 Command unavailable';
+	return r502 if (ref($sock) eq 'IO::Socket::SSL' || $self->compressed);
 	my $opt = $self->{nntpd}->{accept_tls} or
 		return '580 can not initiate TLS negotiation';
 	res($self, '382 Continue with TLS negotiation');
@@ -908,6 +918,18 @@ sub cmd_starttls ($) {
 	$self->requeue if PublicInbox::DS::accept_tls_step($self);
 	undef;
 }
+
+# RFC 8054
+sub cmd_compress ($$) {
+	my ($self, $alg) = @_;
+	return '503 Only DEFLATE is supported' if uc($alg) ne 'DEFLATE';
+	return r502 if $self->compressed || !$have_deflate;
+	PublicInbox::NNTPdeflate->enable($self);
+	$self->requeue;
+	undef
+}
+
+sub zflush {} # overridden by NNTPdeflate
 
 sub cmd_xpath ($$) {
 	my ($self, $mid) = @_;
@@ -924,7 +946,7 @@ sub cmd_xpath ($$) {
 
 sub res ($$) { do_write($_[0], $_[1] . "\r\n") }
 
-sub more ($$) { msg_more($_[0], $_[1] . "\r\n") }
+sub more ($$) { $_[0]->msg_more($_[1] . "\r\n") }
 
 sub do_write ($$) {
 	my $self = $_[0];
@@ -954,7 +976,6 @@ sub event_step {
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
-	use constant LINE_MAX => 512; # RFC 977 section 2.3
 	my $rbuf = $self->{rbuf} // (\(my $x = ''));
 	my $r = 1;
 
@@ -995,6 +1016,12 @@ sub not_idle_long ($$) {
 sub busy {
 	my ($self, $now) = @_;
 	($self->{rbuf} || $self->{wbuf} || not_idle_long($self, $now));
+}
+
+# this is an import to prevent "perl -c" from complaining about fields
+sub import {
+	$have_deflate = eval { require PublicInbox::NNTPdeflate } and
+		$CAPABILITIES .= "COMPRESS DEFLATE\r\n";
 }
 
 1;
