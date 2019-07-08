@@ -39,10 +39,7 @@ sub new {
 		# The rest of our PSGI code is generic, relying
 		# on "pull" model using "getline" to prevent
 		# over-buffering.
-		'pi-httpd.async' => do {
-			no warnings 'once';
-			*pi_httpd_async
-		},
+		'pi-httpd.async' => \&pi_httpd_async
 	);
 	bless {
 		app => $app,
