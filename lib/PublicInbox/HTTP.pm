@@ -19,7 +19,7 @@ use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::Handle;
 require PublicInbox::EvCleanup;
-PublicInbox::DS->import(qw(msg_more));
+use PublicInbox::DS qw(msg_more);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
