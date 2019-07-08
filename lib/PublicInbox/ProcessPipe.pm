@@ -20,8 +20,13 @@ sub CLOSE {
 	my $ret = defined $fh ? close($fh) : '';
 	my $pid = delete $_[0]->{pid};
 	if (defined $pid) {
-		waitpid($pid, 0);
-		$ret = '' if $?;
+		# PublicInbox::DS may not be loaded
+		eval { PublicInbox::DS::dwaitpid($pid, undef, undef) };
+
+		if ($@) { # ok, not in the event loop, work synchronously
+			waitpid($pid, 0);
+			$ret = '' if $?;
+		}
 	}
 	$ret;
 }

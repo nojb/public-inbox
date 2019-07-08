@@ -16,7 +16,7 @@
 package PublicInbox::DS;
 use strict;
 use bytes;
-use POSIX ();
+use POSIX qw(WNOHANG);
 use IO::Handle qw();
 use Fcntl qw(SEEK_SET :DEFAULT);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
@@ -38,6 +38,8 @@ use Carp   qw(croak confess carp);
 require File::Spec;
 
 my $nextq = []; # queue for next_tick
+my $WaitPids = [];               # list of [ pid, callback, callback_arg ]
+my $reap_timer;
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (or DSKQXS ref)
@@ -64,6 +66,8 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
+    $WaitPids = [];
+    $reap_timer = undef;
     @ToClose = ();
     $LoopTimeout = -1;  # no timeout by default
     @Timers = ();
@@ -215,7 +219,33 @@ sub RunTimers {
     return $timeout;
 }
 
+# We can't use waitpid(-1) safely here since it can hit ``, system(),
+# and other things.  So we scan the $WaitPids list, which is hopefully
+# not too big.
+sub reap_pids {
+    my $tmp = $WaitPids;
+    $WaitPids = [];
+    $reap_timer = undef;
+    foreach my $ary (@$tmp) {
+        my ($pid, $cb, $arg) = @$ary;
+        my $ret = waitpid($pid, WNOHANG);
+        if ($ret == 0) {
+            push @$WaitPids, $ary;
+        } elsif ($cb) {
+            eval { $cb->($arg, $pid) };
+        }
+    }
+    if (@$WaitPids) {
+        # we may not be donea, and we may miss our
+        $reap_timer = AddTimer(undef, 1, \&reap_pids);
+    }
+}
+
+# reentrant SIGCHLD handler (since reap_pids is not reentrant)
+sub enqueue_reap ($) { push @$nextq, \&reap_pids };
+
 sub EpollEventLoop {
+    local $SIG{CHLD} = \&enqueue_reap;
     while (1) {
         my @events;
         my $i;
@@ -595,6 +625,21 @@ sub shutdn ($) {
 	$self->close;
     }
 }
+
+# must be called with eval, PublicInbox::DS may not be loaded (see t/qspawn.t)
+sub dwaitpid ($$$) {
+    my ($pid, $cb, $arg) = @_;
+    my $chld = $SIG{CHLD};
+    if (defined($chld) && $chld eq \&enqueue_reap) {
+        push @$WaitPids, [ $pid, $cb, $arg ];
+
+        # We could've just missed our SIGCHLD, cover it, here:
+        requeue(\&reap_pids);
+    } else {
+        die "Not in EventLoop\n";
+    }
+}
+
 package PublicInbox::DS::Timer;
 # [$abs_float_firetime, $coderef];
 sub cancel {

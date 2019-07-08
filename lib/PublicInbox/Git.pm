@@ -198,7 +198,10 @@ sub _destroy {
 	my $p = delete $self->{$pid} or return;
 	delete @$self{($in, $out)};
 	delete $self->{$err} if $err; # `err_c'
-	waitpid $p, 0;
+
+	# PublicInbox::DS may not be loaded
+	eval { PublicInbox::DS::dwaitpid($p, undef, undef) };
+	waitpid($p, 0) if $@; # wait synchronously if not in event loop
 }
 
 sub fail {
