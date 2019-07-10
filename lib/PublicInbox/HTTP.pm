@@ -11,7 +11,7 @@ package PublicInbox::HTTP;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(httpd env input_left remote_addr remote_port forward pull);
+use fields qw(httpd env input_left remote_addr remote_port forward);
 use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
@@ -260,48 +260,49 @@ sub response_done_cb ($$) {
 	}
 }
 
-sub getline_cb ($$$) {
+sub getline_response ($$$) {
 	my ($self, $write, $close) = @_;
-	local $/ = \8192;
-	my $forward = $self->{forward};
-	# limit our own running time for fairness with other
-	# clients and to avoid buffering too much:
-	if ($forward) {
-		my $buf = eval { $forward->getline };
+	my $pull; # DANGER: self-referential
+	$pull = sub {
+		my $forward = $self->{forward};
+		# limit our own running time for fairness with other
+		# clients and to avoid buffering too much:
+		my $buf = eval {
+			local $/ = \8192;
+			$forward->getline;
+		} if $forward;
+
 		if (defined $buf) {
 			$write->($buf); # may close in PublicInbox::DS::write
+
 			if ($self->{sock}) {
-				my $next = $self->{pull};
-				if ($self->{wbuf}) {
-					$self->write($next);
-				} else {
-					PublicInbox::DS::requeue($next);
-				}
-				return;
+				my $wbuf = $self->{wbuf} ||= [];
+				push @$wbuf, $pull;
+
+				# wbuf may be populated by $write->($buf),
+				# no need to rearm if so:
+				$self->requeue if scalar(@$wbuf) == 1;
+				return; # likely
 			}
 		} elsif ($@) {
 			err($self, "response ->getline error: $@");
-			$forward = undef;
 			$self->close;
 		}
-	}
 
-	delete @$self{qw(forward pull)};
-	# avoid recursion
-	if ($forward) {
-		eval { $forward->close };
-		if ($@) {
-			err($self, "response ->close error: $@");
-			$self->close; # idempotent
+		$pull = undef; # all done!
+		# avoid recursion
+		if (delete $self->{forward}) {
+			eval { $forward->close };
+			if ($@) {
+				err($self, "response ->close error: $@");
+				$self->close; # idempotent
+			}
 		}
-	}
-	$close->();
-}
+		$forward = undef;
+		$close->(); # call response_done_cb
+	};
 
-sub getline_response ($$$) {
-	my ($self, $write, $close) = @_;
-	my $pull = $self->{pull} = sub { getline_cb($self, $write, $close) };
-	$pull->();
+	$pull->(); # kick-off!
 }
 
 sub response_write {
@@ -453,7 +454,6 @@ sub close {
 	if (my $env = delete $self->{env}) {
 		delete $env->{'psgix.io'}; # prevent circular references
 	}
-	delete $self->{pull};
 	if (my $forward = delete $self->{forward}) {
 		eval { $forward->close };
 		err($self, "forward ->close error: $@") if $@;

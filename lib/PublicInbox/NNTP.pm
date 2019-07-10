@@ -658,7 +658,8 @@ sub long_response ($$) {
 			$long_cb = undef;
 			res($self, '.');
 			out($self, " deferred[$fd] done - %0.6f", now() - $t0);
-			$self->requeue unless $self->{wbuf};
+			my $wbuf = $self->{wbuf};
+			$self->requeue unless $wbuf && @$wbuf;
 		}
 	};
 	$self->write($long_cb); # kick off!
