@@ -57,22 +57,20 @@ sub expire_old () {
 	my $now = now();
 	my $exp = $EXPTIME;
 	my $old = $now - $exp;
-	my $nr = 0;
 	my %new;
 	while (my ($fd, $v) = each %$EXPMAP) {
 		my ($idle_time, $nntp) = @$v;
 		if ($idle_time < $old) {
 			if (!$nntp->shutdn) {
-				++$nr;
 				$new{$fd} = $v;
 			}
 		} else {
-			++$nr;
 			$new{$fd} = $v;
 		}
 	}
 	$EXPMAP = \%new;
-	$expt = PublicInbox::EvCleanup::later(*expire_old) if $nr;
+	$expt = scalar(keys %new) ? PublicInbox::EvCleanup::later(*expire_old)
+	                          : undef;
 }
 
 sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
