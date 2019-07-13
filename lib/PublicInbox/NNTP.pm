@@ -221,22 +221,34 @@ sub cmd_list ($;$$) {
 	'.'
 }
 
-sub cmd_listgroup ($;$) {
-	my ($self, $group) = @_;
+sub cmd_listgroup ($;$$) {
+	my ($self, $group, $range) = @_;
 	if (defined $group) {
 		my $res = cmd_group($self, $group);
 		return $res if ($res !~ /\A211 /);
 		more($self, $res);
 	}
-
-	$self->{ng} or return '412 no newsgroup selected';
-	my $n = 0;
-	long_response($self, sub {
-		my $ary = $self->{ng}->mm->ids_after(\$n);
-		scalar @$ary or return;
-		more($self, join("\r\n", @$ary));
-		1;
-	});
+	my $ng = $self->{ng} or return '412 no newsgroup selected';
+	my $mm = $ng->mm;
+	if (defined $range) {
+		my $r = get_range($self, $range);
+		return $r unless ref $r;
+		my ($beg, $end) = @$r;
+		long_response($self, sub {
+			$r = $mm->msg_range(\$beg, $end, 'num');
+			scalar(@$r) or return;
+			more($self, join("\r\n", map { "$_->[0]\r\n" } @$r));
+			1;
+		});
+	} else { # grab every article number
+		my $n = 0;
+		long_response($self, sub {
+			my $ary = $mm->ids_after(\$n);
+			scalar(@$ary) or return;
+			more($self, join("\r\n", @$ary));
+			1;
+		});
+	}
 }
 
 sub parse_time ($$;$) {

@@ -100,6 +100,7 @@ EOF
 	is_deeply($list, { $group => [ qw(1 1 n) ] }, 'LIST works');
 	is_deeply([$n->group($group)], [ qw(0 1 1), $group ], 'GROUP works');
 	is_deeply($n->listgroup($group), [1], 'listgroup OK');
+	# TODO: Net::NNTP::listgroup does not support range at the moment
 
 	{
 		my $expect = [ qw(Subject: From: Date: Message-ID:

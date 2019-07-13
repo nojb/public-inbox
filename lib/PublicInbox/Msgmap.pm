@@ -211,11 +211,12 @@ ORDER BY num ASC LIMIT 1000
 }
 
 sub msg_range {
-	my ($self, $beg, $end) = @_;
+	my ($self, $beg, $end, $cols) = @_;
+	$cols //= 'num,mid';
 	my $dbh = $self->{dbh};
 	my $attr = { Columns => [] };
-	my $mids = $dbh->selectall_arrayref(<<'', $attr, $$beg, $end);
-SELECT num,mid FROM msgmap WHERE num >= ? AND num <= ?
+	my $mids = $dbh->selectall_arrayref(<<"", $attr, $$beg, $end);
+SELECT $cols FROM msgmap WHERE num >= ? AND num <= ?
 ORDER BY num ASC LIMIT 1000
 
 	$$beg = $mids->[-1]->[0] + 1 if @$mids;
