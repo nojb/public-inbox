@@ -101,6 +101,12 @@ EOF
 	is_deeply([$n->group($group)], [ qw(0 1 1), $group ], 'GROUP works');
 	is_deeply($n->listgroup($group), [1], 'listgroup OK');
 
+	{
+		my $expect = [ qw(Subject: From: Date: Message-ID:
+				References: Bytes: Lines: Xref:full) ];
+		is_deeply($n->overview_fmt, $expect,
+			'RFC3977 8.4.2 compliant LIST OVERVIEW.FMT');
+	}
 	SKIP: {
 		$n->can('starttls') or
 			skip('Net::NNTP too old to support STARTTLS', 2);

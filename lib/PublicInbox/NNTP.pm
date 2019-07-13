@@ -29,8 +29,9 @@ use constant {
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use Errno qw(EAGAIN);
 
-my @OVERVIEW = qw(Subject From Date Message-ID References Xref);
-my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines)) . ":\r\n";
+my @OVERVIEW = qw(Subject From Date Message-ID References);
+my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines), '') .
+		"Xref:full\r\n";
 my $LIST_HEADERS = join("\r\n", @OVERVIEW,
 			qw(:bytes :lines Xref To Cc)) . "\r\n";
 my $CAPABILITIES = <<"";
