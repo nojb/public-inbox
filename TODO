@@ -21,8 +21,6 @@ all need to be considered for everything we introduce)
   yet storing large amounts of data on computers without a
   public IP behind a home Internet connection.
 
-* TLS support for various daemons (including STARTTLS for NNTP and POP3)
-
 * optional Cache::FastMmap support so production deployments won't
   need Varnish (Varnish doesn't protect NNTP, either)
 
@@ -105,5 +103,8 @@ all need to be considered for everything we introduce)
 
 * support hooks, since low-level git-fast-import does not run them
   https://public-inbox.org/meta/20190405174329.GA21472@chatter.qube.local/
+  (note: may not be needed since we do grokmirror manifest.js.gz, now)
 
-* investigate native grokmirror support/integration
+* consider using HTTP::Date instead of Date::Parse, since we need the
+  former is capable of parsing RFC822-ish dates, used by Plack, and
+  the latter is missing from OpenBSD and maybe other distros.
