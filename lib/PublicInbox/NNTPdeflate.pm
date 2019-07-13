@@ -62,13 +62,13 @@ sub enable {
 # overrides PublicInbox::NNTP::compressed
 sub compressed { 1 }
 
-# SUPER is PublicInbox::DS::do_read, so $_[1] may be a reference or not
+# $_[1] may be a reference or not
 sub do_read ($$$$) {
 	my ($self, $rbuf, $len, $off) = @_;
 
 	my $zin = $self->{zin} or return; # closed
 	my $deflated = \($zin->[1]);
-	my $r = $self->SUPER::do_read($deflated, $len) or return;
+	my $r = PublicInbox::DS::do_read($self, $deflated, $len) or return;
 
 	# assert(length($$rbuf) == $off) as far as NNTP.pm is concerned
 	# -ConsumeInput is true, so $deflated is automatically emptied
