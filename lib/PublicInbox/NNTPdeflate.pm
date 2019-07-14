@@ -56,7 +56,7 @@ sub enable {
 	unlock_hash(%$self);
 	$self->res('206 Compression active');
 	bless $self, $class;
-	$self->{zin} = [ $in, '' ];
+	$self->{zin} = $in;
 }
 
 # overrides PublicInbox::NNTP::compressed
@@ -67,13 +67,16 @@ sub do_read ($$$$) {
 	my ($self, $rbuf, $len, $off) = @_;
 
 	my $zin = $self->{zin} or return; # closed
-	my $deflated = \($zin->[1]);
-	my $r = PublicInbox::DS::do_read($self, $deflated, $len) or return;
+	my $doff;
+	my $dbuf = delete($self->{dbuf}) // '';
+	$doff = length($dbuf);
+	my $r = PublicInbox::DS::do_read($self, \$dbuf, $len, $doff) or return;
 
 	# assert(length($$rbuf) == $off) as far as NNTP.pm is concerned
-	# -ConsumeInput is true, so $deflated is automatically emptied
-	my $err = $zin->[0]->inflate($deflated, $rbuf);
+	# -ConsumeInput is true, so $dbuf is automatically emptied
+	my $err = $zin->inflate($dbuf, $rbuf);
 	if ($err == Z_OK) {
+		$self->{dbuf} = $dbuf if $dbuf ne '';
 		$r = length($$rbuf) and return $r;
 		# nothing ready, yet, get more, later
 		$self->requeue;
