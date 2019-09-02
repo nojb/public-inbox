@@ -7,7 +7,6 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw/tempdir/;
-use IO::Socket::INET;
 use POSIX qw(setsid);
 
 my $git_dir = $ENV{GIANT_GIT_DIR};

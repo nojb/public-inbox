@@ -32,7 +32,6 @@ END {
 	}
 };
 my $https_addr = $https->sockhost . ':' . $https->sockport;
-my %opt = ( Proto => 'tcp', PeerAddr => $https_addr, Type => SOCK_STREAM );
 
 for my $args (
 	[ "-lhttps://$https_addr/?key=$key,cert=$cert" ],
@@ -56,7 +55,7 @@ for my $args (
 		SSL_ca_file => 'certs/test-ca.pem',
 	);
 	# start negotiating a slow TLS connection
-	my $slow = IO::Socket::INET->new(%opt, Blocking => 0);
+	my $slow = tcp_connect($https, Blocking => 0);
 	$slow = IO::Socket::SSL->start_SSL($slow, SSL_startHandshake => 0, %o);
 	my @poll = (fileno($slow));
 	my $slow_done = $slow->connect_SSL;
@@ -68,7 +67,7 @@ for my $args (
 	}
 
 	# normal HTTPS
-	my $c = IO::Socket::INET->new(%opt);
+	my $c = tcp_connect($https);
 	IO::Socket::SSL->start_SSL($c, %o);
 	ok($c->print("GET /empty HTTP/1.1\r\n\r\nHost: example.com\r\n\r\n"),
 		'wrote HTTP request');
@@ -77,13 +76,13 @@ for my $args (
 	like($buf, qr!\AHTTP/1\.1 200!, 'read HTTP response');
 
 	# HTTPS with bad hostname
-	$c = IO::Socket::INET->new(%opt);
+	$c = tcp_connect($https);
 	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.fail';
 	$c = IO::Socket::SSL->start_SSL($c, %o);
 	is($c, undef, 'HTTPS fails with bad hostname');
 
 	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.local';
-	$c = IO::Socket::INET->new(%opt);
+	$c = tcp_connect($https);
 	IO::Socket::SSL->start_SSL($c, %o);
 	ok($c, 'HTTPS succeeds again with valid hostname');
 

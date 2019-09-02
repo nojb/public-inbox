@@ -131,7 +131,6 @@ if ('ensure git configs are correct') {
 
 {
 	use Net::NNTP;
-	use IO::Socket::INET;
 	my $err = "$mainrepo/stderr.log";
 	my $out = "$mainrepo/stdout.log";
 	my $group = 'inbox.comp.test.v2writable';

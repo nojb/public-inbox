@@ -9,8 +9,7 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	plan skip_all => "$mod missing for httpd.t" if $@;
 }
 use File::Temp qw/tempdir/;
-use IO::Socket::INET;
-use Socket qw(IPPROTO_TCP);
+use Socket qw(IPPROTO_TCP SOL_SOCKET);
 require './t/common.perl';
 
 # FIXME: too much setup
@@ -58,10 +57,7 @@ EOF
 	$pid = spawn_listener(undef, $cmd, [$sock]);
 	my $host = $sock->sockhost;
 	my $port = $sock->sockport;
-	my $conn = IO::Socket::INET->new(PeerAddr => $host,
-				PeerPort => $port,
-				Proto => 'tcp',
-				Type => SOCK_STREAM);
+	my $conn = tcp_connect($sock);
 	ok($conn, 'connected');
 	ok($conn->write("GET / HTTP/1.0\r\n\r\n"), 'wrote data to socket');
 	{

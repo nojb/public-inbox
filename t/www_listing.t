@@ -72,7 +72,6 @@ SKIP: {
 	my $cfgfile = "$tmpdir/config";
 	my $v2 = "$tmpdir/v2";
 	my $httpd = 'blib/script/public-inbox-httpd';
-	use IO::Socket::INET;
 	my $sock = tcp_server();
 	ok($sock, 'sock created');
 	my ($host, $port) = ($sock->sockhost, $sock->sockport);

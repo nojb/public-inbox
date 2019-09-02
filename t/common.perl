@@ -1,10 +1,11 @@
-# Copyright (C) 2015-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2015-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD);
 use POSIX qw(dup2);
 use strict;
 use warnings;
+use IO::Socket::INET;
 
 sub stream_to_string {
 	my ($res) = @_;
@@ -35,6 +36,18 @@ sub unix_server ($) {
 		Local => $_[0],
 	);
 	$s->blocking(0);
+	$s;
+}
+
+sub tcp_connect {
+	my ($dest, %opt) = @_;
+	my $s = IO::Socket::INET->new(
+		Proto => 'tcp',
+		Type => Socket::SOCK_STREAM(),
+		PeerAddr => $dest->sockhost . ':' . $dest->sockport,
+		%opt,
+	);
+	$s->autoflush(1);
 	$s;
 }
 

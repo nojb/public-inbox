@@ -119,12 +119,6 @@ EOF
 		is($n->code, 580, 'got 580 code on server w/o TLS');
 	};
 
-	%opts = (
-		PeerAddr => $host_port,
-		Proto => 'tcp',
-		Type => SOCK_STREAM,
-		Timeout => 1,
-	);
 	my $mid = '<nntp@example.com>';
 	my %xhdr = (
 		'message-id' => $mid,
@@ -137,22 +131,20 @@ EOF
 		'references' => '<reftabsqueezed>',
 	);
 
-	my $s = IO::Socket::INET->new(%opts);
+	my $s = tcp_connect($sock);
 	sysread($s, my $buf, 4096);
 	is($buf, "201 " . hostname . " ready - post via email\r\n",
 		'got greeting');
-	$s->autoflush(1);
 
 	ok(syswrite($s, "   \r\n"), 'wrote spaces');
 	ok(syswrite($s, "\r\n"), 'wrote nothing');
 	syswrite($s, "NEWGROUPS\t19990424 000000 \033GMT\007\r\n");
 	is(0, sysread($s, $buf, 4096), 'GOT EOF on cntrl');
 
-	$s = IO::Socket::INET->new(%opts);
+	$s = tcp_connect($sock);
 	sysread($s, $buf, 4096);
 	is($buf, "201 " . hostname . " ready - post via email\r\n",
 		'got greeting');
-	$s->autoflush(1);
 
 	syswrite($s, "CAPABILITIES\r\n");
 	$buf = read_til_dot($s);

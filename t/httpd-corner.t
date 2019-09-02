@@ -157,14 +157,9 @@ SKIP: {
 }
 
 sub conn_for {
-	my ($sock, $msg) = @_;
-	my $conn = IO::Socket::INET->new(
-				PeerAddr => $sock->sockhost,
-				PeerPort => $sock->sockport,
-				Proto => 'tcp',
-				Type => SOCK_STREAM);
+	my ($dest, $msg) = @_;
+	my $conn = tcp_connect($dest);
 	ok($conn, "connected for $msg");
-	$conn->autoflush(1);
 	setsockopt($conn, IPPROTO_TCP, TCP_NODELAY, 1);
 	return $conn;
 }

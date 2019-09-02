@@ -117,12 +117,7 @@ for my $args (
 	my $expect = { $group => [qw(1 1 n)] };
 
 	# start negotiating a slow TLS connection
-	my $slow = IO::Socket::INET->new(
-		Proto => 'tcp',
-		PeerAddr => $nntps_addr,
-		Type => SOCK_STREAM,
-		Blocking => 0,
-	);
+	my $slow = tcp_connect($nntps, Blocking => 0);
 	$slow = IO::Socket::SSL->start_SSL($slow, SSL_startHandshake => 0, %o);
 	my $slow_done = $slow->connect_SSL;
 	diag('W: connect_SSL early OK, slow client test invalid') if $slow_done;
