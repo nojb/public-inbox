@@ -237,7 +237,7 @@ sub cmd_listgroup ($;$$) {
 		long_response($self, sub {
 			$r = $mm->msg_range(\$beg, $end, 'num');
 			scalar(@$r) or return;
-			more($self, join("\r\n", map { "$_->[0]\r\n" } @$r));
+			more($self, join("\r\n", map { $_->[0] } @$r));
 			1;
 		});
 	} else { # grab every article number
