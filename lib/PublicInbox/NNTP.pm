@@ -995,7 +995,7 @@ sub event_step {
 		my $off = bytes::length($$rbuf);
 		$r = $self->do_read($rbuf, LINE_MAX, $off) or return;
 	}
-	while ($r > 0 && $$rbuf =~ s/\A[ \t\r\n]*([^\r\n]*)\r?\n//) {
+	while ($r > 0 && $$rbuf =~ s/\A[ \t]*([^\n]*?)\r?\n//) {
 		my $line = $1;
 		return $self->close if $line =~ /[[:cntrl:]]/s;
 		my $t0 = now();
