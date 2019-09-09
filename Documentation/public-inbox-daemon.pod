@@ -42,6 +42,9 @@ like L<nginx(8)> to use.
 May be specified multiple times to allow listening on multiple
 sockets.
 
+This does not need to be specified at all if relying on
+L<systemd.socket(5)> or similar
+
 Default: server-dependent unless socket activation is used with
 L<systemd(1)> or similar (see L<systemd.socket(5)>).
 
