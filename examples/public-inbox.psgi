@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2014-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2014-2019 all contributors <meta@public-inbox.org>
 # License: GPL-3.0+ <https://www.gnu.org/licenses/gpl-3.0.txt>
 # Note: this is part of our test suite, update t/plack.t if this changes
 # Usage: plackup [OPTIONS] /path/to/this/file

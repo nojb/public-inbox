@@ -36,5 +36,5 @@ in /etc/postfix/main.cf:
   # This is not needed for mlmmj since mlmmj uses SMTP:
   # non_smtpd_milters = local:/var/spool/postfix/unsubscribe/unsubscribe.sock
 
-Copyright (C) 2016-2018 all contributors <meta@public-inbox.org>
+Copyright (C) 2016-2019 all contributors <meta@public-inbox.org>
 License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>

@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2017-2019 all contributors <meta@public-inbox.org>
 # This library is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 # Artistic or GPL-1+ <https://www.gnu.org/licenses/gpl-1.0.txt>

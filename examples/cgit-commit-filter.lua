@@ -1,4 +1,4 @@
--- Copyright (C) 2015-2018 all contributors <meta@public-inbox.org>
+-- Copyright (C) 2015-2019 all contributors <meta@public-inbox.org>
 -- License: GPLv2 or later <https://www.gnu.org/licenses/gpl-2.0.txt>
 -- This commit filter maps a subject line to a search URL of a public-inbox
 -- disclaimer: written by someone who does not know Lua.

@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2014-2019 all contributors <meta@public-inbox.org>
 # License: GPLv2 or later <https://www.gnu.org/licenses/gpl-2.0.txt>
 #
 # Used to read files from a git repository without excessive forking.

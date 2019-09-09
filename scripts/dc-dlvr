@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (C) 2008-2018 all contributors <meta@public-inbox.org>
+# Copyright (C) 2008-2019 all contributors <meta@public-inbox.org>
 # License: GPL-3.0+ <http://www.gnu.org/licenses/gpl-3.0.txt>
 # This is installed as /etc/dc-dcvr on my system
 # to use with postfix main.cf: mailbox_command = /etc/dc-dlvr "$EXTENSION"
