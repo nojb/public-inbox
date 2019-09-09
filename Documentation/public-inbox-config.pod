@@ -91,6 +91,23 @@ C<nntp://news.gmane.org/gmane.mail.public-inbox.general>
 
 Default: none
 
+=item publicinbox.<name>.indexlevel
+
+The indexing level for L<public-inbox-index(1)>
+
+C<basic> only requires L<DBD::SQLite(3pm)> and provides all
+NNTP functionality along with thread-awareness in the WWW
+interface.
+
+C<medium> requires L<Search::Xapian(3pm)> to provide full-text
+term search functionality in the WWW UI.
+
+C<full> also includes positional information used by Xapian to
+allow for searching for phrases using quoted text.
+(e.g. C<"looking for a complete sentence">)
+
+Default: C<full>
+
 =item publicinbox.<name>.httpbackendmax
 
 If a digit, the maximum number of parallel
