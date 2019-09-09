@@ -73,9 +73,9 @@ Default: none
 
 =over 8
 
-=for comment MAIL_EDITOR is undocumented (unstable, don't want naming conflicts)
-
 =item GIT_EDITOR / VISUAL / EDITOR
+
+=for comment MAIL_EDITOR is undocumented (unstable, don't want naming conflicts)
 
 public-inbox-edit will fall back to using one of these variables
 (in that order) if C<publicinbox.mailEditor> is unset.
