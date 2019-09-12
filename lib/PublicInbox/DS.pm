@@ -26,6 +26,7 @@ use warnings;
 use 5.010_001;
 
 use PublicInbox::Syscall qw(:epoll);
+use PublicInbox::Tmpfile;
 
 use fields ('sock',              # underlying socket
             'rbuf',              # scalarref, usually undef
@@ -33,7 +34,7 @@ use fields ('sock',              # underlying socket
             'wbuf_off',  # offset into first element of wbuf to start writing at
             );
 
-use Errno  qw(EAGAIN EINVAL EEXIST);
+use Errno  qw(EAGAIN EINVAL);
 use Carp   qw(croak confess carp);
 require File::Spec;
 
@@ -488,15 +489,8 @@ sub drop {
 # PerlIO::mmap or PerlIO::scalar if needed
 sub tmpio ($$$) {
     my ($self, $bref, $off) = @_;
-    my $fh; # open(my $fh, '+>>', undef) doesn't set O_APPEND
-    do {
-        my $fn = File::Spec->tmpdir . '/wbuf-' . rand;
-        if (sysopen($fh, $fn, O_RDWR|O_CREAT|O_EXCL|O_APPEND, 0600)) { # likely
-            unlink($fn) or return drop($self, "unlink($fn) $!");
-        } elsif ($! != EEXIST) { # EMFILE/ENFILE/ENOSPC/ENOMEM
-            return drop($self, "open: $!");
-        }
-    } until (defined $fh);
+    my $fh = tmpfile('wbuf', $self->{sock}, 1) or
+        return drop($self, "tmpfile $!");
     $fh->autoflush(1);
     my $len = bytes::length($$bref) - $off;
     $fh->write($$bref, $len, $off) or return drop($self, "write ($len): $!");

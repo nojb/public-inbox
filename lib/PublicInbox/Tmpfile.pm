@@ -12,10 +12,9 @@ require File::Spec;
 # use tmpfile instead of open(..., '+>', undef) so we can get an
 # unlinked filename which makes sense when viewed with lsof
 # (at least on Linux)
-# TODO: O_APPEND support (this is the reason I'm not using File::Temp)
 # And if we ever stop caring to have debuggable filenames, O_TMPFILE :)
-sub tmpfile ($;$) {
-	my ($id, $sock) = @_;
+sub tmpfile ($;$$) {
+	my ($id, $sock, $append) = @_;
 	if (defined $sock) {
 		# add the socket inode number so we can figure out which
 		# socket it belongs to
@@ -25,10 +24,11 @@ sub tmpfile ($;$) {
 	$id =~ tr!/!^!;
 
 	my $fl = O_RDWR | O_CREAT | O_EXCL;
+	$fl |= O_APPEND if $append;
 	do {
 		my $fn = File::Spec->tmpdir . "/$id-".time.'-'.rand;
 		if (sysopen(my $fh, $fn, $fl, 0600)) { # likely
-			unlink($fn) or die "unlink($fn): $!"; # FS broken
+			unlink($fn) or warn "unlink($fn): $!"; # FS broken
 			return $fh; # success
 		}
 	} while ($! == EEXIST);
