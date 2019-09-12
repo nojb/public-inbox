@@ -241,7 +241,7 @@ sub prepare_index ($) {
 	sysseek($in, 0, 0) or die "seek: $!";
 
 	dbg($self, 'preparing index');
-	my $rdr = { 0 => fileno($in) };
+	my $rdr = { 0 => fileno($in), -hold => $in };
 	my $cmd = [ qw(git update-index -z --index-info) ];
 	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
 	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
