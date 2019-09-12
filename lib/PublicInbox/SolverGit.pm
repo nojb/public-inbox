@@ -15,6 +15,7 @@ use Fcntl qw(SEEK_SET);
 use PublicInbox::Git qw(git_unquote git_quote);
 use PublicInbox::MsgIter qw(msg_iter msg_part_text);
 use PublicInbox::Qspawn;
+use PublicInbox::Tmpfile;
 use URI::Escape qw(uri_escape_utf8);
 
 # POSIX requires _POSIX_ARG_MAX >= 4096, and xargs is required to
@@ -235,7 +236,7 @@ sub prepare_index ($) {
 	my $path_a = $di->{path_a} or die "BUG: path_a missing for $oid_full";
 	my $mode_a = $di->{mode_a} || extract_old_mode($di);
 
-	open my $in, '+>', undef or die "open: $!";
+	my $in = tmpfile("update-index.$oid_full") or die "tmpfile: $!";
 	print $in "$mode_a $oid_full\t$path_a\0" or die "print: $!";
 	$in->flush or die "flush: $!";
 	sysseek($in, 0, 0) or die "seek: $!";

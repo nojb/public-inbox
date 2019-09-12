@@ -21,6 +21,7 @@ use IO::Handle;
 require PublicInbox::EvCleanup;
 use PublicInbox::DS qw(msg_more);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
+use PublicInbox::Tmpfile;
 use constant {
 	CHUNK_START => -1,   # [a-f0-9]+\r\n
 	CHUNK_END => -2,     # \r\n
@@ -325,8 +326,9 @@ sub response_write {
 }
 
 sub input_tmpfile ($) {
-	open($_[0], '+>', undef);
-	$_[0]->autoflush(1);
+	my $input = tmpfile('http.input', $_[0]->{sock}) or return;
+	$input->autoflush(1);
+	$input;
 }
 
 sub input_prepare {
@@ -338,10 +340,10 @@ sub input_prepare {
 			quit($self, 413);
 			return;
 		}
-		input_tmpfile($input);
+		$input = input_tmpfile($self);
 	} elsif (env_chunked($env)) {
 		$len = CHUNK_START;
-		input_tmpfile($input);
+		$input = input_tmpfile($self);
 	} else {
 		$input = $null_io;
 	}

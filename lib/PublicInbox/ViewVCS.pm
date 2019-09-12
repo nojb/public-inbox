@@ -20,6 +20,7 @@ use bytes (); # only for bytes::length
 use PublicInbox::SolverGit;
 use PublicInbox::WwwStream;
 use PublicInbox::Linkify;
+use PublicInbox::Tmpfile;
 use PublicInbox::Hval qw(ascii_html to_filename);
 my $hl = eval {
 	require PublicInbox::HlMod;
@@ -185,7 +186,7 @@ sub show ($$;$) {
 		$hints->{$to} = $v;
 	}
 
-	open my $log, '+>', undef or die "open: $!";
+	my $log = tmpfile("solve.$oid_b");
 	my $solver = PublicInbox::SolverGit->new($ctx->{-inbox}, sub {
 		solve_result($ctx, $_[0], $log, $hints, $fn);
 	});

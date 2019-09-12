@@ -12,6 +12,7 @@ use warnings;
 use POSIX qw(dup2);
 require IO::Handle;
 use PublicInbox::Spawn qw(spawn popen_rd);
+use PublicInbox::Tmpfile;
 use base qw(Exporter);
 our @EXPORT_OK = qw(git_unquote git_quote);
 
@@ -110,7 +111,8 @@ sub _bidi_pipe {
 			qw(-c core.abbrev=40 cat-file), $batch);
 	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
 	if ($err) {
-		open(my $fh, '+>', undef) or fail($self, "open.err failed: $!");
+		my $id = "git.$self->{git_dir}$batch.err";
+		my $fh = tmpfile($id) or fail($self, "tmpfile($id): $!");
 		$self->{$err} = $fh;
 		$redir->{2} = fileno($fh);
 	}

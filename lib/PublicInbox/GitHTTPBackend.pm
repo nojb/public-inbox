@@ -12,6 +12,7 @@ use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
 use Plack::Util;
 use PublicInbox::Qspawn;
+use PublicInbox::Tmpfile;
 
 # 32 is same as the git-daemon connection limit
 my $default_limiter = PublicInbox::Qspawn::Limiter->new(32);
@@ -218,7 +219,8 @@ sub input_prepare {
 	if (defined $fd && $fd >= 0) {
 		return { 0 => $fd };
 	}
-	open(my $in, '+>', undef);
+	my $id = "git-http.input.$env->{REMOTE_HOST}:$env->{REMOTE_PORT}";
+	my $in = tmpfile($id);
 	unless (defined $in) {
 		err($env, "could not open temporary file: $!");
 		return;
