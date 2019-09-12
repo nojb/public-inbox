@@ -219,7 +219,7 @@ sub input_prepare {
 	if (defined $fd && $fd >= 0) {
 		return { 0 => $fd };
 	}
-	my $id = "git-http.input.$env->{REMOTE_HOST}:$env->{REMOTE_PORT}";
+	my $id = "git-http.input.$env->{REMOTE_ADDR}:$env->{REMOTE_PORT}";
 	my $in = tmpfile($id);
 	unless (defined $in) {
 		err($env, "could not open temporary file: $!");
