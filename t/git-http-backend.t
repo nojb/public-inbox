@@ -44,7 +44,7 @@ my $get_maxrss = sub {
 
 {
 	ok($sock, 'sock created');
-	my $cmd = [ $httpd, "--stdout=$out", "--stderr=$err", $psgi ];
+	my $cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err", $psgi ];
 	ok(defined($pid = spawn_listener(undef, $cmd, [$sock])),
 	   'forked httpd process successfully');
 }
