@@ -526,6 +526,14 @@ SKIP: {
 	defined(my $x = getsockopt($sock, SOL_SOCKET, $var)) or die;
 	is($x, $accf_arg, 'SO_ACCEPTFILTER unchanged if previously set');
 };
+SKIP: {
+	use PublicInbox::Spawn qw(which);
+	skip 'only testing lsof(8) output on Linux', 1 if $^O ne 'linux';
+	skip 'no lsof in PATH', 1 unless which('lsof');
+	my @lsof = `lsof -p $pid`;
+	is_deeply([grep(/\bdeleted\b/, @lsof)], [], 'no lingering deleted inputs');
+	is_deeply([grep(/\bpipe\b/, @lsof)], [], 'no extra pipes with -W0');
+};
 
 done_testing();
 
