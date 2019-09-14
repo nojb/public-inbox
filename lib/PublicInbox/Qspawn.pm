@@ -230,6 +230,7 @@ sub psgi_return {
 
 	my $buf = '';
 	my $rd_hdr = sub {
+		# typically used for reading CGI headers
 		# we must loop until EAGAIN for EPOLLET in HTTPD/Async.pm
 		# We also need to check EINTR for generic PSGI servers.
 		my $ret;
@@ -250,7 +251,7 @@ sub psgi_return {
 
 	my $cb = sub {
 		my $r = $rd_hdr->() or return;
-		$rd_hdr = undef;
+		$rd_hdr = undef; # done reading headers
 		my $filter = delete $env->{'qspawn.filter'};
 		if (scalar(@$r) == 3) { # error
 			if ($async) {
@@ -261,6 +262,7 @@ sub psgi_return {
 			}
 			$wcb->($r);
 		} elsif ($async) {
+			# done reading headers, handoff to read body
 			$fh = $wcb->($r); # scalar @$r == 2
 			$fh = filter_fh($fh, $filter) if $filter;
 			$async->async_pass($env->{'psgix.io'}, $fh, \$buf);

@@ -10,26 +10,29 @@ package PublicInbox::HTTPD::Async;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(cb cleanup);
+use fields qw(cb end);
 use Errno qw(EAGAIN);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 
+# This is called via: $env->{'pi-httpd.async'}->()
+# $io is a read-only pipe ($rpipe) for now, but may be a
+# bidirectional socket in the future.
 sub new {
-	my ($class, $io, $cb, $cleanup) = @_;
+	my ($class, $io, $cb, $end) = @_;
 
 	# no $io? call $cb at the top of the next event loop to
 	# avoid recursion:
 	unless (defined($io)) {
 		PublicInbox::DS::requeue($cb);
-		die 'cleanup unsupported w/o $io' if $cleanup;
+		die '$end unsupported w/o $io' if $end;
 		return;
 	}
 
 	my $self = fields::new($class);
 	IO::Handle::blocking($io, 0);
 	$self->SUPER::new($io, EPOLLIN | EPOLLET);
-	$self->{cb} = $cb;
-	$self->{cleanup} = $cleanup;
+	$self->{cb} = $cb; # initial read callback, later replaced by main_cb
+	$self->{end} = $end; # like END {}, but only for this object
 	$self;
 }
 
@@ -37,6 +40,8 @@ sub main_cb ($$) {
 	my ($http, $fh) = @_;
 	sub {
 		my ($self) = @_;
+		# $self->{sock} is a read pipe for git-http-backend or cgit
+		# and 65536 is the default Linux pipe size
 		my $r = sysread($self->{sock}, my $buf, 65536);
 		if ($r) {
 			$fh->write($buf); # may call $http->close
@@ -52,19 +57,28 @@ sub main_cb ($$) {
 		}
 
 		# Done! Error handling will happen in $fh->close
-		# called by the {cleanup} handler
+		# called by the {end} handler
 		delete $http->{forward};
-		$self->close;
+		$self->close; # queues ->{end} to be called
 	}
 }
 
+# once this is called, all data we read is passed to the
+# to the PublicInbox::HTTP instance ($http) via $fh->write
 sub async_pass {
 	my ($self, $http, $fh, $bref) = @_;
 	# In case the client HTTP connection ($http) dies, it
 	# will automatically close this ($self) object.
 	$http->{forward} = $self;
+
+	# write anything we overread when we were reading headers
 	$fh->write($$bref); # PublicInbox:HTTP::{chunked,identity}_wcb
-	$$bref = undef; # we're done with this
+
+	# we're done with this, free this memory up ASAP since the
+	# calls after this may use much memory:
+	$$bref = undef;
+
+	# replace the header read callback with the main one
 	my $cb = $self->{cb} = main_cb($http, $fh);
 	$cb->($self); # either hit EAGAIN or ->requeue to keep EPOLLET happy
 }
@@ -75,14 +89,15 @@ sub event_step {
 	$cb->(@_);
 }
 
+# may be called as $forward->close in PublicInbox::HTTP or EOF (main_cb)
 sub close {
 	my $self = $_[0];
 	delete $self->{cb};
-	$self->SUPER::close;
+	$self->SUPER::close; # DS::close
 
 	# we defer this to the next timer loop since close is deferred
-	if (my $cleanup = delete $self->{cleanup}) {
-		PublicInbox::DS::requeue($cleanup);
+	if (my $end = delete $self->{end}) {
+		PublicInbox::DS::requeue($end);
 	}
 }
 
