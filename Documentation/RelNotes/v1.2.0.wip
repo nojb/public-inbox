@@ -1,0 +1,40 @@
+To: meta@public-inbox.org
+Subject: [WIP] public-inbox 1.2.0
+
+* first non-pre/rc release with v2 format support for scalability.
+  See public-inbox-v2-format(5) manpage for more details.
+
+* new admin tools for v2 repos:
+  - public-inbox-convert - converts v1 to v2 repo formats
+  - public-inbox-compact - v2 convenience wrapper for xapian-compact(1)
+  - public-inbox-purge - purges entire messages out of v2 history
+  - public-inbox-edit - edits sensitive data out messages from v2 history
+  - public-inbox-xcpdb - copydatabase(1) wrapper to upgrade Xapian formats
+                         (e.g. from "chert" to "glass") and resharding
+                         of v2 repos
+
+* SQLite3 support decoupled from Xapian support, and Xapian DBs may be
+  configured without phrase support to save space.  See "indexlevel" in
+  public-inbox-config(5) manpage for more info.
+
+* public-inbox-nntpd
+  - support STARTTLS and NNTPS
+  - support COMPRESS extension
+  - fix several RFC3977 compliance bugs
+  - improved interopability with picky clients such as leafnode
+
+* public-inbox-watch
+  - support multiple spam training directories
+  - support mapping multiple inboxes per Maildir
+
+* PublicInbox::WWW
+  - grokmirror-compatible manifest.js.gz endpoint generation
+  - user-configurable color support in $INBOX_URL/_/text/color/
+  - BOFHs may set default colors via "publicinbox.css"
+    (see public-inbox-config(5))
+
+* Danga::Socket is no longer a runtime dependency of daemons.
+
+* improved FreeBSD support
+
+See archives at https://public-inbox.org/meta/ for all history.

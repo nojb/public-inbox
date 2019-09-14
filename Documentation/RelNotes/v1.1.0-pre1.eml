@@ -1,0 +1,295 @@
+From e@80x24.org Wed May  9 20:23:03 2018
+Date: Wed, 9 May 2018 20:23:03 +0000
+From: Eric Wong <e@80x24.org>
+To: meta@public-inbox.org
+Cc: Konstantin Ryabitsev <konstantin@linuxfoundation.org>
+Subject: [ANNOUNCE] public-inbox 1.1.0-pre1
+Message-ID: <20180509202303.GA15156@dcvr>
+
+Pre-release for v2 repository support.
+Thanks to The Linux Foundation for supporting this work!
+
+https://public-inbox.org/releases/public-inbox-1.1.0-pre1.tar.gz
+
+SHA-256: d0023770a63ca109e6fe2c58b04c58987d4f81572ac69d18f95d6af0915fa009
+(only intended to guard against accidental file corruption)
+
+shortlog below:
+
+Eric Wong (27):
+      nntp: improve fairness during XOVER and similar commands
+      nntp: do not drain rbuf if there is a command pending
+      extmsg: use news.gmane.org for Message-ID lookups
+      searchview: fix non-numeric comparison
+      mbox: do not barf on queries which return no results
+      nntp: allow and ignore empty commands
+      ensure SQLite and Xapian files respect core.sharedRepository
+      TODO: a few more updates
+      filter/rubylang: do not set altid on spam training
+      import: cleanup git cat-file processes when ->done
+      disallow "\t" and "\n" in OVER headers
+      searchidx: release lock again during v1 batch callback
+      searchidx: remove leftover debugging code
+      convert: copy description and git config from v1 repo
+      view: untangle loop when showing message headers
+      view: wrap To: and Cc: headers in HTML display
+      view: drop redundant References: display code
+      TODO: add EPOLLEXCLUSIVE item
+      searchview: do not blindly append "l" parameter to URL
+      search: avoid repeated mbox results from search
+      msgmap: add limit to response for NNTP
+      thread: prevent hidden threads in /$INBOX/ landing page
+      thread: sort incoming messages by Date
+      searchidx: preserve umask when starting/committing transactions
+      scripts/import_slrnspool: support v2 repos
+      scripts/import_slrnspool: cleanup progress messages
+      public-inbox 1.1.0-pre1
+
+Eric Wong (Contractor, The Linux Foundation) (239):
+      AUTHORS: add The Linux Foundation
+      watch_maildir: allow '-' in mail filename
+      scripts/import_vger_from_mbox: relax From_ line match slightly
+      import: stop writing legacy ssoma.index by default
+      import: begin supporting this without ssoma.lock
+      import: initial handling for v2
+      t/import: test for last_object_id insertion
+      content_id: add test case
+      searchmsg: add mid_mime import for _extract_mid
+      scripts/import_vger_from_mbox: support --dry-run option
+      import: APIs to support v2 use
+      search: free up 'Q' prefix for a real unique identifier
+      searchidx: fix comment around next_thread_id
+      address: extract more characters from email addresses
+      import: pass "raw" dates to git-fast-import(1)
+      scripts/import_vger_from_mbox: use v2 layout for import
+      import: quiet down warnings from bogus From: lines
+      import: allow the epoch (0s) as a valid time
+      extmsg: fix broken Xapian MID lookup
+      search: stop assuming Message-ID is unique
+      www: stop assuming mainrepo == git_dir
+      v2writable: initial cut for repo-rotation
+      git: reload alternates file on missing blob
+      v2: support Xapian + SQLite indexing
+      import_vger_from_inbox: allow "-V" option
+      import_vger_from_mbox: use PublicInbox::MIME and avoid clobbering
+      v2: parallelize Xapian indexing
+      v2writable: round-robin to partitions based on article number
+      searchidxpart: increase pipe size for partitions
+      v2writable: warn on duplicate Message-IDs
+      searchidx: do not modify Xapian DB while iterating
+      v2/ui: some hacky things to get the PSGI UI to show up
+      v2/ui: retry DB reopens in a few more places
+      v2writable: cleanup unused pipes in partitions
+      searchidxpart: binmode
+      use PublicInbox::MIME consistently
+      searchidxpart: chomp line before splitting
+      searchidx*: name child subprocesses
+      searchidx: get rid of pointless index_blob wrapper
+      view: remove X-PI-TS reference
+      searchidxthread: load doc data for references
+      searchidxpart: force integers into add_message
+      search: reopen skeleton DB as well
+      searchidx: index values in the threader
+      search: use different Enquire object for skeleton queries
+      rename SearchIdxThread to SearchIdxSkeleton
+      v2writable: commit to skeleton via remote partitions
+      searchidxskeleton: extra error checking
+      searchidx: do not modify Xapian DB while iterating
+      search: query_xover uses skeleton DB iff available
+      v2/ui: get nntpd and init tests running on v2
+      v2writable: delete ::Import obj when ->done
+      search: remove informational "warning" message
+      searchidx: add PID to error message when die-ing
+      content_id: special treatment for Message-Id headers
+      evcleanup: disable outside of daemon
+      v2writable: deduplicate detection on add
+      evcleanup: do not create event loop if nothing was registered
+      mid: add `mids' and `references' methods for extraction
+      content_id: use `mids' and `references' for MID extraction
+      searchidx: use new `references' method for parsing References
+      content_id: no need to be human-friendly
+      v2writable: inject new Message-IDs on true duplicates
+      search: revert to using 'Q' as a uniQue id per-Xapian conventions
+      searchidx: support indexing multiple MIDs
+      mid: be strict with References, but loose on Message-Id
+      searchidx: avoid excessive XNQ indexing with diffs
+      searchidxskeleton: add a note about locking
+      v2writable: generated Message-ID goes first
+      searchidx: use add_boolean_term for internal terms
+      searchidx: add NNTP article number as a searchable term
+      mid: truncate excessively long MIDs early
+      nntp: use NNTP article numbers for lookups
+      nntp: fix NEWNEWS command
+      searchidx: store the primary MID in doc data for NNTP
+      import: consolidate object info for v2 imports
+      v2: avoid redundant/repeated configs for git partition repos
+      INSTALL: document more optional dependencies
+      search: favor skeleton DB for lookup_mail
+      search: each_smsg_by_mid uses skeleton if available
+      v2writable: remove unnecessary skeleton commit
+      favor Received: date over Date: header globally
+      import: fall back to Sender for extracting name and email
+      scripts/import_vger_from_mbox: perform mboxrd or mboxo escaping
+      v2writable: detect and use previous partition count
+      extmsg: rework partial MID matching to favor current inbox
+      extmsg: rework partial MID matching to favor current inbox
+      content_id: use Sender header if From is not available
+      v2writable: support "barrier" operation to avoid reforking
+      use string ref for Email::Simple->new
+      v2writable: remove unnecessary idx_init call
+      searchidx: do not delete documents while iterating
+      search: allow ->reopen to be chainable
+      v2writable: implement remove correctly
+      skeleton: barrier init requires a lock
+      import: (v2) delete writes the blob into history in subdir
+      import: (v2): write deletes to a separate '_' subdirectory
+      import: implement barrier operation for v1 repos
+      mid: mid_mime uses v2-compatible mids function
+      watchmaildir: use content_digest to generate Message-Id
+      import: force Message-ID generation for v1 here
+      import: switch to URL-safe Base64 for Message-IDs
+      v2writable: test for idempotent removals
+      import: enable locking under v2
+      index: s/GIT_DIR/REPO_DIR/
+      Lock: new base class for writable lockers
+      t/watch_maildir: note the reason for FIFO creation
+      v2writable: ensure ->done is idempotent
+      watchmaildir: support v2 repositories
+      searchidxpart: s/barrier/remote_barrier/
+      v2writable: allow disabling parallelization
+      scripts/import_vger_from_mbox: filter out same headers as MDA
+      v2writable: add DEBUG_DIFF env support
+      v2writable: remove "resent" message for duplicate Message-IDs
+      content_id: do not take Message-Id into account
+      introduce InboxWritable class
+      import: discard all the same headers as MDA
+      InboxWritable: add mbox/maildir parsing + import logic
+      use both Date: and Received: times
+      msgmap: add tmp_clone to create an anonymous copy
+      fix syntax warnings
+      v2writable: support reindexing Xapian
+      t/altid.t: extra tests for mid_set
+      v2writable: add NNTP article number regeneration support
+      v2writable: clarify header cleanups
+      v2writable: DEBUG_DIFF respects $TMPDIR
+      feed: $INBOX/new.atom endpoint supports v2 inboxes
+      import: consolidate mid prepend logic, here
+      www: $MESSAGE_ID/raw endpoint supports "duplicates"
+      search: reopen DB if each_smsg_by_mid fails
+      t/psgi_v2: minimal test for Atom feed and t.mbox.gz
+      feed: fix new.html for v2
+      view: permalink (per-message) view shows multiple messages
+      searchidx: warn about vivifying multiple ghosts
+      v2writable: warn on unseen deleted files
+      www: get rid of unnecessary 'inbox' name reference
+      searchview: remove unnecessary imports from MID module
+      view: depend on SearchMsg for Message-ID
+      http: fix modification of read-only value
+      githttpbackend: avoid infinite loop on generic PSGI servers
+      www: support cloning individual v2 git partitions
+      http: fix modification of read-only value
+      githttpbackend: avoid infinite loop on generic PSGI servers
+      www: remove unnecessary ghost checks
+      v2writable: append, instead of prepending generated Message-ID
+      lookup by Message-ID favors the "primary" one
+      www: fix attachment downloads for conflicted Message-IDs
+      searchmsg: document why we store To: and Cc: for NNTP
+      public-inbox-convert: tool for converting old to new inboxes
+      v2writable: support purging messages from git entirely
+      search: cleanup uniqueness checking
+      search: get rid of most lookup_* subroutines
+      search: move find_doc_ids to searchidx
+      v2writable: cleanup: get rid of unused fields
+      mbox: avoid extracting Message-ID for linkification
+      www: cleanup expensive fallback for legacy URLs
+      view: get rid of some unnecessary imports
+      search: retry_reopen on first_smsg_by_mid
+      import: run_die supports redirects as spawn does
+      v2writable: initializing an existing inbox is idempotent
+      public-inbox-compact: new tool for driving xapian-compact
+      mda: support v2 inboxes
+      search: warn on reopens and die on total failure
+      v2writable: allow gaps in git partitions
+      v2writable: convert some fatal reindex errors to warnings
+      wwwstream: flesh out clone instructions for v2
+      v2writable: go backwards through alternate Message-IDs
+      view: speed up homepage loading time with date clamp
+      view: drop load_results
+      feed: optimize query for feeds, too
+      msgtime: parse 3-digit years properly
+      convert: avoid redundant "done\n" statement for fast-import
+      search: move permissions handling to InboxWritable
+      t/v2writable: use simplify permissions reading
+      v2: respect core.sharedRepository in git configs
+      searchidx: correct warning for over-vivification
+      v2: one file, really
+      v2writable: fix parallel termination
+      truncate Message-IDs and References consistently
+      scripts/import_vger_from_mbox: set address properly
+      search: reduce columns stored in Xapian
+      replace Xapian skeleton with SQLite overview DB
+      v2writable: simplify barrier vs checkpoints
+      t/over: test empty Subject: line matching
+      www: rework query responses to avoid COUNT in SQLite
+      over: speedup get_thread by avoiding JOIN
+      nntp: fix NEWNEWS command
+      t/thread-all.t: modernize test to support modern inboxes
+      rename+rewrite test using Benchmark module
+      nntp: make XOVER, XHDR, OVER, HDR and NEWNEWS faster
+      view: avoid offset during pagination
+      mbox: remove remaining OFFSET usage in SQLite
+      msgmap: replace id_batch with ids_after
+      nntp: simplify the long_response API
+      searchidx: ensure duplicated Message-IDs can be linked together
+      init: s/GIT_DIR/REPO_DIR/ in usage
+      import: rewrite less history during purge
+      v2: support incremental indexing + purge
+      v2writable: do not modify DBs while iterating for ->remove
+      v2writable: recount partitions after acquiring lock
+      searchmsg: remove unused `tid' and `path' methods
+      search: remove unnecessary OP_AND of query
+      mbox: do not sort search results
+      searchview: minor cleanup
+      support altid mechanism for v2
+      compact: better handling of over.sqlite3* files
+      v2writable: remove redundant remove from Over DB
+      v2writable: allow tracking parallel versions
+      v2writable: refer to git each repository as "epoch"
+      over: use only supported and safe SQLite APIs
+      search: index and allow searching by date-time
+      altid: fix miscopied field name
+      nntp: set Xref across multiple inboxes
+      www: favor reading more from SQLite, and less from Xapian
+      ensure Xapian and SQLite are still optional for v1 tests
+      psgi: ensure /$INBOX/$MESSAGE_ID/T/ endpoint is chronological
+      over: avoid excessive SELECT
+      over: remove forked subprocess
+      v2writable: reduce barriers
+      index: allow specifying --jobs=0 to disable multiprocess
+      convert: support converting with altid defined
+      store less data in the Xapian document
+      msgmap: speed up minmax with separate queries
+      feed: respect feedmax, again
+      v1: remove articles from overview DB
+      compact: do not merge v2 repos by default
+      v2writable: reduce partititions by one
+      search: preserve References in Xapian smsg for x=t view
+      v2: generate better Message-IDs for duplicates
+      v2: improve deduplication checks
+      import: cat_blob drops leading 'From ' lines like Inbox
+      searchidx: regenerate and avoid article number gaps on full index
+      extmsg: remove expensive git path checks
+      use %H consistently to disable abbreviations
+      searchidx: increase term positions for all text terms
+      searchidx: revert default BATCH_BYTES to 1_000_000
+      Merge remote-tracking branch 'origin/master' into v2
+      fix tests to run without Xapian installed
+      extmsg: use Xapian only for partial matches
+
+Jonathan Corbet (3):
+      Don't use LIMIT in UPDATE statements
+      Update the installation instructions with Fedora package names
+      Allow specification of the number of search results to return
+-- 
+git clone https://public-inbox.org/ public-inbox
+(working on a homepage... sorta :)

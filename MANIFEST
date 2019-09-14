@@ -1,7 +1,11 @@
+.gitattributes
 .gitignore
 AUTHORS
 COPYING
 Documentation/.gitignore
+Documentation/RelNotes/v1.0.0.eml
+Documentation/RelNotes/v1.1.0-pre1.eml
+Documentation/RelNotes/v1.2.0.wip
 Documentation/dc-dlvr-spam-flow.txt
 Documentation/design_notes.txt
 Documentation/design_www.txt

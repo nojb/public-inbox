@@ -1,0 +1,21 @@
+From e@80x24.org Thu Feb  8 02:33:57 2018
+Date: Thu, 8 Feb 2018 02:33:57 +0000
+From: Eric Wong <e@80x24.org>
+To: meta@public-inbox.org
+Subject: [ANNOUNCE] public-inbox 1.0.0
+Message-ID: <20180208023357.GA32591@80x24.org>
+
+After some 3.5 odd years of working on this, I suppose now is
+as good a time as any to tar this up and call it 1.0.0.
+
+The TODO list is still very long and there'll be some new
+development in coming weeks :>
+
+So, here you have a release:
+
+        https://public-inbox.org/releases/public-inbox-1.0.0.tar.gz
+
+Checksums, mainly as a safeguard against accidental file corruption:
+
+SHA-256 4a08569f3d99310f713bb32bec0aa4819d6b41871e0421ec4eec0657a5582216
+	(in other words, don't trust me; instead read the code :>)
