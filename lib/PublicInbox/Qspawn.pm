@@ -153,11 +153,12 @@ sub start {
 # and safe to slurp.
 sub psgi_qx {
 	my ($self, $env, $limiter, $qx_cb) = @_;
-	my $qx = PublicInbox::Qspawn::Qx->new;
+	my $scalar = '';
+	open(my $qx, '+>', \$scalar) or die; # PerlIO::scalar
 	my $end = sub {
 		finish($self, $env);
-		eval { $qx_cb->($qx) };
-		$qx = undef;
+		eval { $qx_cb->(\$scalar) };
+		$qx = $scalar = undef;
 	};
 	my $rpipe; # comes from popen_rd
 	my $async = $env->{'pi-httpd.async'};
@@ -336,23 +337,6 @@ sub setup_rlimit {
 		}
 		$self->{$rlim} = \@rlimit;
 	}
-}
-
-# captures everything into a buffer and executes a callback when done
-package PublicInbox::Qspawn::Qx;
-use strict;
-use warnings;
-
-sub new {
-	my ($class) = @_;
-	my $buf = '';
-	bless \$buf, $class;
-}
-
-# called by PublicInbox::HTTPD::Async ($fh->write)
-sub write {
-	${$_[0]} .= $_[1];
-	undef;
 }
 
 1;
