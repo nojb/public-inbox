@@ -7,8 +7,8 @@
 
 [Unit]
 Description = public-inbox NNTP server %i
-Wants = public-inbox-nntpd.socket
-After = public-inbox-nntpd.socket
+Wants = public-inbox-nntpd.socket public-inbox-nntps.socket
+After = public-inbox-nntpd.socket public-inbox-nntps.socket
 
 [Service]
 Environment = PI_CONFIG=/home/pi/.public-inbox/config \
@@ -18,17 +18,20 @@ PERL_INLINE_DIRECTORY=/tmp/.pub-inline
 LimitNOFILE = 30000
 ExecStartPre = /bin/mkdir -p -m 1777 /tmp/.pub-inline
 ExecStart = /usr/local/bin/public-inbox-nntpd \
--1 /var/log/public-inbox/nntpd.out.log
+-1 /var/log/public-inbox/nntpd.out.log \
+--cert /etc/ssl/certs/news.example.com.pem \
+--key /etc/ssl/private/news.example.com.key
 StandardError = syslog
 
 # NonBlocking is REQUIRED to avoid a race condition if running
 # simultaneous services
 NonBlocking = true
-Sockets = public-inbox-nntpd.socket
+
+Sockets = public-inbox-nntpd.socket public-inbox-nntps.socket
 
 KillSignal = SIGQUIT
 User = nobody
-Group = nogroup
+Group = ssl-cert
 ExecReload = /bin/kill -HUP $MAINPID
 TimeoutStopSec = 86400
 KillMode = process
