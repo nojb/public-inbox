@@ -101,7 +101,14 @@ sub resolve_inboxes ($;$) {
 		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
 			$ibx->{version} ||= 1;
-			$dir2ibx{abs_path($ibx->{mainrepo})} = $ibx;
+			my $path = abs_path($ibx->{mainrepo});
+			if (defined($path)) {
+				$dir2ibx{$path} = $ibx;
+			} else {
+				warn <<EOF;
+W: $ibx->{name} $ibx->{mainrepo}: $!
+EOF
+			}
 		});
 	}
 	if ($opt->{all}) {
