@@ -6,6 +6,7 @@ use strict;
 use warnings;
 use Test::More;
 use Time::HiRes qw(gettimeofday tv_interval);
+use PublicInbox::Spawn qw(which);
 
 foreach my $mod (qw(Plack::Util Plack::Builder
 			HTTP::Date HTTP::Status IPC::Run)) {
@@ -240,14 +241,7 @@ my $check_self = sub {
 };
 
 SKIP: {
-	my $have_curl = 0;
-	foreach my $p (split(':', $ENV{PATH})) {
-		-x "$p/curl" or next;
-		$have_curl = 1;
-		last;
-	}
-	my $ntest = 4;
-	$have_curl or skip('curl(1) missing', $ntest);
+	which('curl') or skip('curl(1) missing', 4);
 	my $base = 'http://' . $sock->sockhost . ':' . $sock->sockport;
 	my $url = "$base/sha1";
 	my ($r, $w);
@@ -527,7 +521,6 @@ SKIP: {
 	is($x, $accf_arg, 'SO_ACCEPTFILTER unchanged if previously set');
 };
 SKIP: {
-	use PublicInbox::Spawn qw(which);
 	skip 'only testing lsof(8) output on Linux', 1 if $^O ne 'linux';
 	skip 'no lsof in PATH', 1 unless which('lsof');
 	my @lsof = `lsof -p $pid`;
