@@ -56,6 +56,11 @@ sub _do_spawn {
 	}
 
 	($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $env, \%opts);
+
+	# drop any IO handles opt was holding open via $opt->{hold}
+	# No need to hold onto the descriptor once the child process has it.
+	$self->{args} = $cmd; # keep this around for logging
+
 	if (defined $self->{pid}) {
 		$limiter->{running}++;
 	} else {
@@ -104,7 +109,7 @@ sub waitpid_err ($$) {
 	$self->{err} = $err;
 	my $env = $self->{env} or return;
 	if (!$env->{'qspawn.quiet'}) {
-		log_err($env, join(' ', @{$self->{args}->[0]}) . ": $err");
+		log_err($env, join(' ', @{$self->{args}}) . ": $err");
 	}
 }
 
