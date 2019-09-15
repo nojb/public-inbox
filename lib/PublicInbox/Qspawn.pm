@@ -73,6 +73,11 @@ sub child_err ($) {
 	$msg;
 }
 
+sub log_err ($$) {
+	my ($env, $msg) = @_;
+	$env->{'psgi.errors'}->print($msg, "\n");
+}
+
 # callback for dwaitpid
 sub waitpid_err ($$) {
 	my ($self, $pid) = @_;
@@ -99,8 +104,7 @@ sub waitpid_err ($$) {
 	$self->{err} = $err;
 	my $env = $self->{env} or return;
 	if (!$env->{'qspawn.quiet'}) {
-		$err = join(' ', @{$self->{args}->[0]}).": $err\n";
-		$env->{'psgi.errors'}->print($err);
+		log_err($env, join(' ', @{$self->{args}->[0]}) . ": $err");
 	}
 }
 
@@ -155,6 +159,8 @@ sub psgi_qx {
 	my $scalar = '';
 	open(my $qx, '+>', \$scalar) or die; # PerlIO::scalar
 	my $end = sub {
+		my $err = $_[0]; # $!
+		log_err($env, "psgi_qx: $err") if defined($err);
 		finish($self, $env);
 		eval { $qx_cb->(\$scalar) };
 		$qx = $scalar = undef;
@@ -162,14 +168,17 @@ sub psgi_qx {
 	my $rpipe; # comes from popen_rd
 	my $async = $env->{'pi-httpd.async'};
 	my $cb = sub {
-		my $r = sysread($rpipe, my $buf, 65536);
+		my ($r, $buf);
+reread:
+		$r = sysread($rpipe, $buf, 65536);
 		if ($async) {
 			$async->async_pass($env->{'psgix.io'}, $qx, \$buf);
 		} elsif (defined $r) {
 			$r ? $qx->write($buf) : $end->();
 		} else {
-			return if $! == EAGAIN || $! == EINTR; # loop again
-			$end->();
+			return if $! == EAGAIN; # try again when notified
+			goto reread if $! == EINTR;
+			$end->($!);
 		}
 	};
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
@@ -223,6 +232,8 @@ sub psgi_return {
 	my ($self, $env, $limiter, $parse_hdr) = @_;
 	my ($fh, $rpipe);
 	my $end = sub {
+		my $err = $_[0]; # $!
+		log_err($env, "psgi_return: $err") if defined($err);
 		finish($self, $env);
 		$fh->close if $fh; # async-only
 	};
@@ -233,14 +244,19 @@ sub psgi_return {
 		# we must loop until EAGAIN for EPOLLET in HTTPD/Async.pm
 		# We also need to check EINTR for generic PSGI servers.
 		my $ret;
-		my $n = 0;
+		my $total_rd = 0;
 		do {
 			my $r = sysread($rpipe, $buf, 4096, length($buf));
-			return if !defined($r) && $! == EAGAIN || $! == EINTR;
-
-			# $r may be undef, here:
-			$n += $r if $r;
-			$ret = $parse_hdr->($r ? $n : $r, \$buf);
+			if (defined($r)) {
+				$total_rd += $r;
+				$ret = $parse_hdr->($r ? $total_rd : 0, \$buf);
+			} else {
+				# caller should notify us when it's ready:
+				return if $! == EAGAIN;
+				next if $! == EINTR; # immediate retry
+				log_err($env, "error reading header: $!");
+				$ret = [ 500, [], [ "Internal error\n" ] ];
+			}
 		} until (defined $ret);
 		$ret;
 	};
