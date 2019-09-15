@@ -209,7 +209,7 @@ Default: 25
 
 A comma-delimited list of listings to hide the inbox from.
 
-Valid values are currently "www".
+Valid values are currently C<www> and C<manifest>.
 
 Default: none
 
@@ -278,7 +278,35 @@ support showing cgit listing
 
 =back
 
-Default: 404
+Default: C<404>
+
+=item publicinbox.grokmanifest
+
+Controls the generation of a grokmirror-compatible gzipped JSON file
+at the top-level of the PSGI interface.  You generally do not need to
+change this from the default.
+
+Valid values are:
+
+=over 8
+
+=item * match=domain
+- Only include inboxes with URLs which belong to the domain of
+the HTTP request.  This is compatible with virtual hosting where
+several domains come from the same host.
+
+=item * all
+- All inboxes are present in C<manifest.js.gz>, regardless of domain.
+Only use this if you're serving HTTP requests in a domain-agnostic manner.
+
+=item * 404
+- C<manifest.js.gz> will only contain an empty JSON array.
+This does NOT affect C<$INBOX_URL/manifest.js.gz>, which will
+always contain all git repos used by the inbox at C<$INBOX_URL>
+
+=back
+
+Default: C<match=domain>
 
 =back
 
@@ -376,4 +404,5 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 =head1 SEE ALSO
 
 L<git(1)>, L<git-config(1)>, L<public-inbox-daemon(8)>,
-L<public-inbox-mda(1)>, L<public-inbox-watch(1)>
+L<public-inbox-mda(1)>, L<public-inbox-watch(1)>,
+L<grokmirror|https://git.kernel.org/pub/scm/utils/grokmirror/grokmirror.git>
