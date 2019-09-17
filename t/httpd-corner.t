@@ -31,6 +31,10 @@ my $httpd = 'blib/script/public-inbox-httpd';
 my $psgi = "./t/httpd-corner.psgi";
 my $sock = tcp_server();
 
+# make sure stdin is not a pipe for lsof test to check for leaking pipes
+open(my $null, '<', '/dev/null') or die 'no /dev/null: $!';
+my $rdr = { 0 => fileno($null) };
+
 # Make sure we don't clobber socket options set by systemd or similar
 # using socket activation:
 my ($defer_accept_val, $accf_arg);
@@ -57,7 +61,7 @@ END { kill 'TERM', $pid if defined $pid };
 my $spawn_httpd = sub {
 	my (@args) = @_;
 	my $cmd = [ $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi ];
-	$pid = spawn_listener(undef, $cmd, [ $sock, $unix ]);
+	$pid = spawn_listener(undef, $cmd, [ $sock, $unix ], $rdr);
 	ok(defined $pid, 'forked httpd process successfully');
 };
 
