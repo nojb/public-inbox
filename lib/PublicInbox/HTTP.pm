@@ -453,9 +453,7 @@ sub quit {
 
 sub close {
 	my $self = $_[0];
-	if (my $env = delete $self->{env}) {
-		delete $env->{'psgix.io'}; # prevent circular references
-	}
+	delete $self->{env}; # prevent circular references
 	if (my $forward = delete $self->{forward}) {
 		eval { $forward->close };
 		err($self, "forward ->close error: $@") if $@;
