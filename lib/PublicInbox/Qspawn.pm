@@ -116,10 +116,9 @@ sub waitpid_err ($$) {
 sub do_waitpid ($;$) {
 	my ($self, $env) = @_;
 	my $pid = $self->{pid};
-	eval { # PublicInbox::DS may not be loaded
-		PublicInbox::DS::dwaitpid($pid, \&waitpid_err, $self);
-		$self->{env} = $env;
-	};
+	$self->{env} = $env;
+	# PublicInbox::DS may not be loaded
+	eval { PublicInbox::DS::dwaitpid($pid, \&waitpid_err, $self) };
 	# done if we're running in PublicInbox::DS::EventLoop
 	if ($@) {
 		# non public-inbox-{httpd,nntpd} callers may block:
