@@ -44,11 +44,11 @@ sub new ($$$;) {
 }
 
 sub _do_spawn {
-	my ($self, $cb) = @_;
+	my ($self, $cb, $limiter) = @_;
 	my $err;
 	my ($cmd, $env, $opts) = @{$self->{args}};
 	my %opts = %{$opts || {}};
-	my $limiter = $self->{limiter};
+	$self->{limiter} = $limiter;
 	foreach my $k (PublicInbox::Spawn::RLIMITS()) {
 		if (defined(my $rlimit = $limiter->{$k})) {
 			$opts{$k} = $rlimit;
@@ -94,21 +94,21 @@ sub waitpid_err ($$) {
 		$err = "W: waitpid($xpid, 0) => $pid: $!";
 	} # else should not be called with pid == 0
 
+	my $env = delete $self->{env};
+
 	# done, spawn whatever's in the queue
 	my $limiter = $self->{limiter};
 	my $running = --$limiter->{running};
 
-	# limiter->{max} may change dynamically
-	if (($running || $limiter->{running}) < $limiter->{max}) {
-		if (my $next = shift @{$limiter->{run_queue}}) {
-			_do_spawn(@$next);
+	if ($running < $limiter->{max}) {
+		if (my $next = shift(@{$limiter->{run_queue}})) {
+			_do_spawn(@$next, $limiter);
 		}
 	}
 
 	return unless $err;
 	$self->{err} = $err;
-	my $env = $self->{env} or return;
-	if (!$env->{'qspawn.quiet'}) {
+	if ($env && !$env->{'qspawn.quiet'}) {
 		log_err($env, join(' ', @{$self->{args}}) . ": $err");
 	}
 }
@@ -132,22 +132,12 @@ sub finish ($;$) {
 	if (delete $self->{rpipe}) {
 		do_waitpid($self, $env);
 	}
-
-	# limiter->{max} may change dynamically
-	my $limiter = $self->{limiter};
-	if ($limiter->{running} < $limiter->{max}) {
-		if (my $next = shift @{$limiter->{run_queue}}) {
-			_do_spawn(@$next);
-		}
-	}
 }
 
 sub start {
 	my ($self, $limiter, $cb) = @_;
-	$self->{limiter} = $limiter;
-
 	if ($limiter->{running} < $limiter->{max}) {
-		_do_spawn($self, $cb);
+		_do_spawn($self, $cb, $limiter);
 	} else {
 		push @{$limiter->{run_queue}}, [ $self, $cb ];
 	}
