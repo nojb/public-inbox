@@ -141,7 +141,6 @@ sub finish ($;$) {
 			_do_spawn(@$next);
 		}
 	}
-	$self->{err}; # may be meaningless if non-blocking
 }
 
 sub start {

@@ -11,6 +11,12 @@ use_ok 'PublicInbox::Qspawn';
 	is($res, "err\nout\n", 'captured stderr and stdout');
 }
 
+sub finish_err ($) {
+	my ($qsp) = @_;
+	$qsp->finish;
+	$qsp->{err};
+}
+
 my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 {
 	my $x = PublicInbox::Qspawn->new([qw(true)]);
@@ -18,7 +24,7 @@ my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 	$x->start($limiter, sub {
 		my ($rpipe) = @_;
 		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes');
-		ok(!$x->finish, 'no error on finish');
+		ok(!finish_err($x), 'no error on finish');
 		$run = 1;
 	});
 	is($run, 1, 'callback ran alright');
@@ -30,8 +36,7 @@ my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 	$x->start($limiter, sub {
 		my ($rpipe) = @_;
 		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes from false');
-		my $err = $x->finish;
-		ok($err, 'error on finish');
+		ok(finish_err($x), 'error on finish');
 		$run = 1;
 	});
 	is($run, 1, 'callback ran alright');
@@ -57,11 +62,11 @@ foreach my $cmd ([qw(sleep 1)], [qw(sh -c), 'sleep 1; false']) {
 	} (0..2);
 
 	if ($cmd->[-1] =~ /false\z/) {
-		ok($s->finish, 'got error on false after sleep');
+		ok(finish_err($s), 'got error on false after sleep');
 	} else {
-		ok(!$s->finish, 'no error on sleep');
+		ok(!finish_err($s), 'no error on sleep');
 	}
-	ok(!$_->[0]->finish, "true $_->[1] succeeded") foreach @t;
+	ok(!finish_err($_->[0]), "true $_->[1] succeeded") foreach @t;
 	is_deeply([qw(sleep 0 1 2)], \@run, 'ran in order');
 }
 
