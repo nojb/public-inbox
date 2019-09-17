@@ -255,7 +255,7 @@ sub next_request ($) {
 sub response_done_cb ($$) {
 	my ($self, $alive) = @_;
 	sub {
-		my $env = delete $self->{env};
+		delete $self->{env}; # we're no longer busy
 		$self->write(\"0\r\n\r\n") if $alive == 2;
 		$self->write($alive ? \&next_request : \&close);
 	}
