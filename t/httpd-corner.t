@@ -32,8 +32,7 @@ my $psgi = "./t/httpd-corner.psgi";
 my $sock = tcp_server();
 
 # make sure stdin is not a pipe for lsof test to check for leaking pipes
-open(my $null, '<', '/dev/null') or die 'no /dev/null: $!';
-my $rdr = { 0 => fileno($null) };
+open(STDIN, '<', '/dev/null') or die 'no /dev/null: $!';
 
 # Make sure we don't clobber socket options set by systemd or similar
 # using socket activation:
@@ -61,7 +60,7 @@ END { kill 'TERM', $pid if defined $pid };
 my $spawn_httpd = sub {
 	my (@args) = @_;
 	my $cmd = [ $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi ];
-	$pid = spawn_listener(undef, $cmd, [ $sock, $unix ], $rdr);
+	$pid = spawn_listener(undef, $cmd, [ $sock, $unix ]);
 	ok(defined $pid, 'forked httpd process successfully');
 };
 
