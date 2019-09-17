@@ -44,7 +44,7 @@ sub new ($$$;) {
 }
 
 sub _do_spawn {
-	my ($self, $cb, $limiter) = @_;
+	my ($self, $start_cb, $limiter) = @_;
 	my $err;
 	my ($cmd, $env, $opts) = @{$self->{args}};
 	my %opts = %{$opts || {}};
@@ -66,7 +66,7 @@ sub _do_spawn {
 	} else {
 		$self->{err} = $!;
 	}
-	$cb->($self->{rpipe});
+	$start_cb->($self->{rpipe});
 }
 
 sub child_err ($) {
@@ -135,11 +135,11 @@ sub finish ($;$) {
 }
 
 sub start {
-	my ($self, $limiter, $cb) = @_;
+	my ($self, $limiter, $start_cb) = @_;
 	if ($limiter->{running} < $limiter->{max}) {
-		_do_spawn($self, $cb, $limiter);
+		_do_spawn($self, $start_cb, $limiter);
 	} else {
-		push @{$limiter->{run_queue}}, [ $self, $cb ];
+		push @{$limiter->{run_queue}}, [ $self, $start_cb ];
 	}
 }
 
@@ -175,11 +175,12 @@ reread:
 		}
 	};
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
-	$self->start($limiter, sub { # may run later, much later...
+	$self->start($limiter, sub { # start_cb, may run later, much later...
 		($rpipe) = @_; # popen_rd result
 		if ($async) {
 		# PublicInbox::HTTPD::Async->new($rpipe, $cb, $end)
 			$async = $async->($rpipe, $cb, $end);
+			# $cb will call ->async_pass or ->close
 		} else { # generic PSGI
 			$cb->() while $qx;
 		}
@@ -254,7 +255,7 @@ sub psgi_return {
 		$ret;
 	};
 
-	my $wcb = delete $env->{'qspawn.wcb'};
+	my $wcb = delete $env->{'qspawn.wcb'}; # or PSGI server supplies it
 	my $async = $env->{'pi-httpd.async'};
 
 	my $cb = sub {
@@ -287,6 +288,7 @@ sub psgi_return {
 		if ($async) {
 			# PublicInbox::HTTPD::Async->new($rpipe, $cb, $end)
 			$async = $async->($rpipe, $cb, $end);
+			# $cb will call ->async_pass or ->close
 		} else { # generic PSGI
 			$cb->() while $rd_hdr;
 		}

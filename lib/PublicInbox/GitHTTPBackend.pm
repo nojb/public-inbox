@@ -204,7 +204,7 @@ sub serve_smart {
 	$env{PATH_TRANSLATED} = "$git->{git_dir}/$path";
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, $rdr);
-	$qsp->psgi_return($env, $limiter, sub {
+	$qsp->psgi_return($env, $limiter, sub { # parse_hdr
 		my ($r, $bref) = @_;
 		my $res = parse_cgi_headers($r, $bref) or return; # incomplete
 		$res->[0] == 403 ? serve_dumb($env, $git, $path) : $res;
