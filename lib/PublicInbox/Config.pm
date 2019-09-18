@@ -366,6 +366,17 @@ sub _fill_code_repo {
 	$git;
 }
 
+sub _git_config_bool ($) {
+	my ($val) = @_;
+	if ($val =~ /\A(?:false|no|off|[\-\+]?(?:0x)?0+)\z/i) {
+		0;
+	} elsif ($val =~ /\A(?:true|yes|on|[\-\+]?(?:0x)?[0-9]+)\z/i) {
+		1;
+	} else {
+		undef;
+	}
+}
+
 sub _fill {
 	my ($self, $pfx) = @_;
 	my $ibx = {};
@@ -379,10 +390,8 @@ sub _fill {
 	foreach my $k (qw(obfuscate)) {
 		my $v = $self->{"$pfx.$k"};
 		defined $v or next;
-		if ($v =~ /\A(?:false|no|off|0)\z/) {
-			$ibx->{$k} = 0;
-		} elsif ($v =~ /\A(?:true|yes|on|1)\z/) {
-			$ibx->{$k} = 1;
+		if (defined(my $bval = _git_config_bool($v))) {
+			$ibx->{$k} = $bval;
 		} else {
 			warn "Ignoring $pfx.$k=$v in config, not boolean\n";
 		}

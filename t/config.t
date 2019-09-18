@@ -190,4 +190,24 @@ for my $s (@valid) {
 		'inboxes share ::Git object');
 }
 
+{
+	my $check_git = !!$ENV{CHECK_GIT_BOOL};
+	for my $t (qw(TRUE true yes on 1 +1 -1 13 0x1 0x12 0X5)) {
+		is(PublicInbox::Config::_git_config_bool($t), 1, "$t is true");
+		if ($check_git) {
+			is(`git -c test.val=$t config --bool test.val`,
+				"true\n", "$t matches git-config behavior");
+		}
+	}
+	for my $f (qw(FALSE false no off 0 +0 +000 00 0x00 0X0)) {
+		is(PublicInbox::Config::_git_config_bool($f), 0, "$f is false");
+		if ($check_git) {
+			is(`git -c test.val=$f config --bool test.val`,
+				"false\n", "$f matches git-config behavior");
+		}
+	}
+	is(PublicInbox::Config::_git_config_bool('bogus'), undef,
+		'bogus is undef');
+}
+
 done_testing();
