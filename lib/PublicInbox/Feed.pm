@@ -31,9 +31,6 @@ sub generate_thread_atom {
 	my $msgs = $ibx->over->get_thread($mid);
 	return _no_thread() unless @$msgs;
 
-	my $html_url = $ibx->base_url($ctx->{env});
-	$html_url .= PublicInbox::Hval->new_msgid($mid)->{href};
-	$ctx->{-html_url} = $html_url;
 	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
 		while (my $smsg = shift @$msgs) {
 			$ibx->smsg_mime($smsg) and return $smsg;
