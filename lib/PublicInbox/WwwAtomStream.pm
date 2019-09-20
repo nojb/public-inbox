@@ -53,6 +53,15 @@ sub title_tag {
 	"<title$type>$title</title>";
 }
 
+sub to_uuid ($) {
+	my ($any) = @_;
+	utf8::encode($any); # really screwed up In-Reply-To fields exist
+	$any = sha1_hex($any);
+	my $h = '[a-f0-9]';
+	my (@uuid5) = ($any =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
+	'urn:uuid:' . join('-', @uuid5);
+}
+
 sub atom_header {
 	my ($ctx, $title) = @_;
 	my $ibx = $ctx->{-inbox};
@@ -60,16 +69,20 @@ sub atom_header {
 	my $search_q = $ctx->{search_query};
 	my $self_url = $base_url;
 	my $mid = $ctx->{mid};
+	my $page_id;
 	if (defined $mid) { # per-thread
 		$self_url .= mid_escape($mid).'/t.atom';
+		$page_id = to_uuid("t\n".$mid)
 	} elsif (defined $search_q) {
 		my $query = $search_q->{'q'};
 		$title = title_tag("$query - search results");
 		$base_url .= '?' . $search_q->qs_html(x => undef);
 		$self_url .= '?' . $search_q->qs_html;
+		$page_id = to_uuid("q\n".$query);
 	} else {
 		$title = title_tag($ibx->description);
 		$self_url .= 'new.atom';
+		$page_id = "mailto:$ibx->{-primary_address}";
 	}
 	my $mtime = (stat($ibx->{mainrepo}))[9] || time;
 
@@ -80,17 +93,8 @@ sub atom_header {
 	qq(<link\nrel="alternate"\ntype="text/html") .
 		qq(\nhref="$base_url"/>) .
 	qq(<link\nrel="self"\nhref="$self_url"/>) .
-	qq(<id>mailto:$ibx->{-primary_address}</id>) .
+	qq(<id>$page_id</id>) .
 	feed_updated(gmtime($mtime));
-}
-
-sub mid2uuid ($) {
-	my ($mid) = @_;
-	utf8::encode($mid); # really screwed up In-Reply-To fields exist
-	$mid = sha1_hex($mid);
-	my $h = '[a-f0-9]';
-	my (@uuid5) = ($mid =~ m!\A($h{8})($h{4})($h{4})($h{4})($h{12})!o);
-	'urn:uuid:' . join('-', @uuid5);
 }
 
 # returns undef or string
@@ -101,10 +105,10 @@ sub feed_entry {
 	my $hdr = $mime->header_obj;
 	my $mid = $smsg->mid;
 	my $irt = PublicInbox::View::in_reply_to($hdr);
-	my $uuid = mid2uuid($mid);
+	my $uuid = to_uuid($mid);
 	my $base = $ctx->{feed_base_url};
 	if (defined $irt) {
-		my $irt_uuid = mid2uuid($irt);
+		my $irt_uuid = to_uuid($irt);
 		$irt = mid_escape($irt);
 		$irt = qq(<thr:in-reply-to\nref="$irt_uuid"\n).
 			qq(href="$base$irt/"/>);
