@@ -5,7 +5,7 @@ performance, ease-of-setup, installation, maintainability, etc
 all need to be considered for everything we introduce)
 
 * general performance improvements, but without relying on
-  XS or compiled code any more than we currently do.
+  XS or pre-built modules any more than we currently do.
 
 * mailmap support (same as git) for remapping expired email addresses
 
@@ -101,10 +101,8 @@ all need to be considered for everything we introduce)
 * imperfect scraper importers for obfuscated list archives
   (e.g. obfuscated Mailman stuff, Google Groups, etc...)
 
-* support hooks, since low-level git-fast-import does not run them
-  https://public-inbox.org/meta/20190405174329.GA21472@chatter.qube.local/
-  (note: may not be needed since we do grokmirror manifest.js.gz, now)
-
 * consider using HTTP::Date instead of Date::Parse, since we need the
   former is capable of parsing RFC822-ish dates, used by Plack, and
   the latter is missing from OpenBSD and maybe other distros.
+
+* improve performance and avoid head-of-line blocking on slow storage
