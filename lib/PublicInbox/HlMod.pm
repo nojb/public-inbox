@@ -20,7 +20,7 @@ use PublicInbox::Hval qw(src_escape ascii_html);
 my $hl;
 
 sub _parse_filetypes ($) {
-	my $ft_conf = $_[0]->searchFile('filetypes.conf') or
+	my $ft_conf = $_[0]->getFiletypesConfPath('filetypes') or
 				die 'filetypes.conf not found by highlight';
 	open my $fh, '<', $ft_conf or die "failed to open($ft_conf): $!";
 	local $/;
