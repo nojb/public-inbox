@@ -38,11 +38,13 @@ sub pi_fork_exec ($$$$$$) {
 		}
 
 		if ($ENV{MOD_PERL}) {
-			exec qw(env -i), @$env, @$cmd;
+			exec which('env'), '-i', @$env, @$cmd;
 			die "exec env -i ... $cmd->[0] failed: $!\n";
 		} else {
 			local %ENV = map { split(/=/, $_, 2) } @$env;
-			exec @$cmd;
+			my @cmd = @$cmd;
+			$cmd[0] = $f;
+			exec @cmd;
 			die "exec $cmd->[0] failed: $!\n";
 		}
 	}
