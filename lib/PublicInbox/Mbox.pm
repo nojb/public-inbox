@@ -125,7 +125,9 @@ sub msg_hdr ($$;$) {
 
 sub msg_body ($) {
 	# mboxrd quoting style
-	# ref: http://www.qmail.org/man/man5/mbox.html
+	# https://en.wikipedia.org/wiki/Mbox#Modified_mbox
+	# https://www.loc.gov/preservation/digital/formats/fdd/fdd000385.shtml
+	# https://web.archive.org/http://www.qmail.org/man/man5/mbox.html
 	$_[0] =~ s/^(>*From )/>$1/gm;
 	$_[0] .= "\n";
 }
