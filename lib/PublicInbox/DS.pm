@@ -24,6 +24,7 @@ use parent qw(Exporter);
 our @EXPORT_OK = qw(now msg_more);
 use warnings;
 use 5.010_001;
+use Scalar::Util qw(blessed);
 
 use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::Tmpfile;
@@ -178,10 +179,12 @@ sub next_tick () {
     my $q = $nextq;
     $nextq = [];
     for (@$q) {
-        if (ref($_) eq 'CODE') {
-            $_->();
-        } else {
+        # we avoid "ref" on blessed refs to workaround a Perl 5.16.3 leak:
+        # https://rt.perl.org/Public/Bug/Display.html?id=114340
+        if (blessed($_)) {
             $_->event_step;
+        } else {
+            $_->();
         }
     }
 }
