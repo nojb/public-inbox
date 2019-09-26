@@ -665,14 +665,10 @@ sub fill_alternates ($$) {
 
 	my $pfx = "$self->{-inbox}->{mainrepo}/git";
 	my $all = "$self->{-inbox}->{mainrepo}/all.git";
-	my @cmd;
+
 	unless (-d $all) {
 		PublicInbox::Import::init_bare($all);
 	}
-	@cmd = (qw/git config/, "--file=$pfx/$epoch.git/config",
-			'include.path', '../../all.git/config');
-	PublicInbox::Import::run_die(\@cmd);
-
 	my $alt = "$all/objects/info/alternates";
 	my %alts;
 	my @add;
@@ -696,6 +692,9 @@ sub git_init {
 	my ($self, $epoch) = @_;
 	my $git_dir = "$self->{-inbox}->{mainrepo}/git/$epoch.git";
 	my @cmd = (qw(git init --bare -q), $git_dir);
+	PublicInbox::Import::run_die(\@cmd);
+	@cmd = (qw/git config/, "--file=$git_dir/config",
+			'include.path', '../../all.git/config');
 	PublicInbox::Import::run_die(\@cmd);
 	fill_alternates($self, $epoch);
 	$git_dir
