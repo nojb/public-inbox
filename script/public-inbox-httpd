@@ -24,7 +24,13 @@ my $refresh = sub {
 		my $www = PublicInbox::WWW->new;
 		$www->preload;
 		$app = builder {
-			eval {
+			# Perl 5.16.3 leaks in our "push" response code path
+			# (e.g. Qspawn) due to something in
+			# Plack::Util::response_cb, regardless of whether the
+			# client is sending Accept-Encoding:gzip requests.
+			# perl5180delta documents many leak fixes, so assume
+			# 5.18+ is safe for now and bump the check as-need:
+			$] >= 5.018000 and eval {
 				enable 'Deflater',
 					content_type => [ qw(
 						text/html
