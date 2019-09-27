@@ -281,6 +281,10 @@ sub psgi_return {
 								$buf, $filter);
 			$wcb->($r);
 		}
+
+		# Workaround a leak under Perl 5.16.3 when combined with
+		# Plack::Middleware::Deflater:
+		$wcb = undef;
 	};
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
 	my $start_cb = sub { # may run later, much later...
