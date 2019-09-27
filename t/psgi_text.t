@@ -34,6 +34,13 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/test/_/text/help/'));
 	like($res->content, qr!<title>public-inbox help.*</title>!,
 		'default help');
+	$res = $cb->(GET('/test/_/text/config/raw'));
+	my $f = "$tmpdir/cfg";
+	open my $fh, '>', $f or die;
+	print $fh $res->content or die;
+	close $fh or die;
+	my $cfg = PublicInbox::Config->new($f);
+	is($cfg->{"$cfgpfx.address"}, $addr, 'got expected address in config');
 });
 
 done_testing();

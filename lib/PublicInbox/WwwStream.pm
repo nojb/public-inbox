@@ -127,10 +127,15 @@ sub _html_end {
 		$addrs
 	public-inbox-index $dir
 EOF
+	} else { # v1
+		$urls .= "\n";
 	}
+
+	my $cfg_link = ($ctx->{-upfx} // '').'_/text/config/raw';
+	$urls .= qq(\nExample <a\nhref="$cfg_link">config snippet</a> for mirrors\n);
 	my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$ibx->nntp_url};
 	if (@nntp) {
-		$urls .= "\n\n";
+		$urls .= "\n";
 		$urls .= @nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
 		$urls .= ' available over NNTP:';
 		$urls .= "\n\t" . join("\n\t", @nntp) . "\n";

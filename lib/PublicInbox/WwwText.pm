@@ -9,6 +9,7 @@ use bytes (); # only for bytes::length
 use PublicInbox::Linkify;
 use PublicInbox::WwwStream;
 use PublicInbox::Hval qw(ascii_html);
+use URI::Escape qw(uri_escape_utf8);
 our $QP_URL = 'https://xapian.org/docs/queryparser.html';
 our $WIKI_URL = 'https://en.wikipedia.org/wiki';
 my $hl = eval {
@@ -29,14 +30,14 @@ sub get_text {
 	my $have_tslash = ($key =~ s!/\z!!) if !$raw;
 
 	my $txt = '';
-	if (!_default_text($ctx, $key, \$txt)) {
+	my $hdr = [ 'Content-Type', 'text/plain', 'Content-Length', undef ];
+	if (!_default_text($ctx, $key, $hdr, \$txt)) {
 		$code = 404;
 		$txt = "404 Not Found ($key)\n";
 	}
 	if ($raw) {
-		return [ $code, [ 'Content-Type', 'text/plain',
-				  'Content-Length', bytes::length($txt) ],
-			[ $txt ] ]
+		$hdr->[3] = bytes::length($txt);
+		return [ $code, $hdr, [ $txt ] ]
 	}
 
 	# enforce trailing slash for "wget -r" compatibility
@@ -123,9 +124,71 @@ EOF
 	$$txt .= PublicInbox::UserContent::sample($ibx, $env) . "```\n";
 }
 
-sub _default_text ($$$) {
-	my ($ctx, $key, $txt) = @_;
+# git-config section names are quoted in the config file, so escape them
+sub dq_escape ($) {
+	my ($name) = @_;
+	$name =~ s/\\/\\\\/g;
+	$name =~ s/"/\\"/g;
+	$name;
+}
+
+sub URI_PATH () { '^A-Za-z0-9\-\._~/' }
+
+# n.b. this is a perfect candidate for memoization
+sub inbox_config ($$$) {
+	my ($ctx, $hdr, $txt) = @_;
+	my $ibx = $ctx->{-inbox};
+	push @$hdr, 'Content-Disposition', 'inline; filename=inbox.config';
+	my $name = dq_escape($ibx->{name});
+	$$txt .= <<EOS;
+; example public-inbox config snippet for "$name"
+; see public-inbox-config(5) manpage for more details:
+; https://public-inbox.org/public-inbox-config.html
+[publicinbox "$name"]
+	mainrepo = /path/to/top-level-inbox
+EOS
+	for my $k (qw(address)) {
+		defined(my $v = $ibx->{$k}) or next;
+		$$txt .= "\t$k = $_\n" for @$v;
+	}
+
+	for my $k (qw(filter infourl newsgroup obfuscate replyto watchheader)) {
+		defined(my $v = $ibx->{$k}) or next;
+		$$txt .= "\t$k = $v\n";
+	}
+	$$txt .= "\tnntpmirror = $_\n" for (@{$ibx->nntp_url});
+
+	# note: this doesn't preserve cgitrc layout, since we parse cgitrc
+	# and drop the original structure
+	if (defined(my $cr = $ibx->{coderepo})) {
+		$$txt .= "\tcoderepo = $_\n" for @$cr;
+
+		my $pi_config = $ctx->{www}->{pi_config};
+		for my $cr_name (@$cr) {
+			my $url = $pi_config->{"coderepo.$cr_name.cgiturl"};
+			my $path = "/path/to/$cr_name";
+			$cr_name = dq_escape($cr_name);
+
+			$$txt .= qq([coderepo "$cr_name"]\n);
+			if (defined($url)) {
+				my $cpath = $path;
+				if ($path !~ m![a-z0-9_/\.\-]!i) {
+					$cpath = dq_escape($cpath);
+				}
+				$$txt .= qq(\t; git clone $url "$cpath"\n);
+			}
+			$$txt .= "\tdir = $path\n";
+			$$txt .= "\tcgiturl = https://example.com/";
+			$$txt .= uri_escape_utf8($cr_name, URI_PATH)."\n";
+		}
+	}
+	1;
+}
+
+sub _default_text ($$$$) {
+	my ($ctx, $key, $hdr, $txt) = @_;
 	return _colors_help($ctx, $txt) if $key eq 'color';
+	return inbox_config($ctx, $hdr, $txt) if $key eq 'config';
 	return if $key ne 'help'; # TODO more keys?
 
 	my $ibx = $ctx->{-inbox};
