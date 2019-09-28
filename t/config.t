@@ -9,12 +9,12 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 
 {
 	is(system(qw(git init -q --bare), $tmpdir), 0, "git init successful");
-	my @cmd = ('git', "--git-dir=$tmpdir", qw(config foo.bar hihi));
+	my @cmd = ('git', "--git-dir=$tmpdir", qw(config foo.bar), "hi\nhi");
 	is(system(@cmd), 0, "set config");
 
 	my $tmp = PublicInbox::Config->new("$tmpdir/config");
 
-	is("hihi", $tmp->{"foo.bar"}, "config read correctly");
+	is("hi\nhi", $tmp->{"foo.bar"}, "config read correctly");
 	is("true", $tmp->{"core.bare"}, "used --bare repo");
 }
 

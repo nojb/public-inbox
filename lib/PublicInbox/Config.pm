@@ -151,14 +151,14 @@ sub git_config_dump {
 	my ($file) = @_;
 	my (%section_seen, @section_order);
 	return {} unless -e $file;
-	my @cmd = (qw/git config/, "--file=$file", '-l');
+	my @cmd = (qw/git config -z -l/, "--file=$file");
 	my $cmd = join(' ', @cmd);
 	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
 	my %rv;
-	local $/ = "\n";
+	local $/ = "\0";
 	while (defined(my $line = <$fh>)) {
 		chomp $line;
-		my ($k, $v) = split(/=/, $line, 2);
+		my ($k, $v) = split(/\n/, $line, 2);
 
 		my ($section) = ($k =~ /\A(\S+)\.[^\.]+\z/);
 		unless (defined $section_seen{$section}) {
