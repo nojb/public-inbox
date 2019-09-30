@@ -125,8 +125,10 @@ gz_xdocs := $(addsuffix .gz, $(xdocs) $(xdocs_html))
 rsync_xdocs := $(gz_xdocs) $(xdocs_html) $(xdocs)
 xdoc: $(xdocs) $(xdocs_html)
 
-Documentation/.x/%.txt::
-	@-mkdir -p $(@D)
+Documentation/.x:
+	mkdir -p $@
+
+Documentation/.x/%.txt :: | Documentation/.x
 	$(PERL) -w Documentation/extman.perl $@ >$@+
 	mv $@+ $@
 
