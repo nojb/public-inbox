@@ -60,10 +60,12 @@ sub getline {
 
 sub close {} # noop
 
+# /$INBOX/$MESSAGE_ID/raw
 sub emit_raw {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
+	$ctx->{base_url} = $ibx->base_url($ctx->{env});
 	my ($mref, $more, $id, $prev, $next);
 	if (my $over = $ibx->over) {
 		my $smsg = $over->next_by_mid($mid, \$id, \$prev) or return;
@@ -97,7 +99,7 @@ sub msg_hdr ($$;$) {
 		$header_obj->header_set($d);
 	}
 	my $ibx = $ctx->{-inbox};
-	my $base = $ibx->base_url($ctx->{env});
+	my $base = $ctx->{base_url};
 	$mid = $ctx->{mid} unless defined $mid;
 	$mid = mid_escape($mid);
 	my @append = (
@@ -246,6 +248,7 @@ use PublicInbox::Hval qw/to_filename/;
 sub new {
 	my ($class, $ctx, $cb) = @_;
 	my $buf = '';
+	$ctx->{base_url} = $ctx->{-inbox}->base_url($ctx->{env});
 	bless {
 		buf => \$buf,
 		gz => IO::Compress::Gzip->new(\$buf, Time => 0),

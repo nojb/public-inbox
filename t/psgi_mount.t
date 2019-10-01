@@ -60,11 +60,24 @@ test_psgi($app, sub {
 	unlike($res->content, qr!\b\Qhttp://[^/]+/test/\E!,
 		'No URLs which are not mount-aware');
 
-	# redirects
+	$res = $cb->(GET('/a/test/new.html'));
+	like($res->content, qr!git clone --mirror http://[^/]+/a/test\b!,
+		'clone URL in new.html is mount-aware');
+
 	$res = $cb->(GET('/a/test/blah%40example.com/'));
 	is($res->code, 200, 'OK with URLMap mount');
+	like($res->content, qr!git clone --mirror http://[^/]+/a/test\b!,
+		'clone URL in /$INBOX/$MESSAGE_ID/ is mount-aware');
+
 	$res = $cb->(GET('/a/test/blah%40example.com/raw'));
 	is($res->code, 200, 'OK with URLMap mount');
+	like($res->content, qr!^List-Archive: <http://[^/]+/a/test/>!m,
+		'List-Archive set in /raw mboxrd');
+	like($res->content,
+		qr!^Archived-At: <http://[^/]+/a/test/blah\@example\.com/>!m,
+		'Archived-At set in /raw mboxrd');
+
+	# redirects
 	$res = $cb->(GET('/a/test/m/blah%40example.com.html'));
 	is($res->header('Location'),
 		'http://localhost/a/test/blah@example.com/',
@@ -72,7 +85,28 @@ test_psgi($app, sub {
 
 	$res = $cb->(GET('/test/blah%40example.com/'));
 	is($res->code, 404, 'intentional 404 with URLMap mount');
-
 });
+
+SKIP: {
+	my @mods = qw(DBI DBD::SQLite Search::Xapian IO::Uncompress::Gunzip);
+	foreach my $mod (@mods) {
+		eval "require $mod" or skip "$mod not available: $@", 2;
+	}
+	my $ibx = $config->lookup_name('test');
+	PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
+	test_psgi($app, sub {
+		my ($cb) = @_;
+		my $res = $cb->(GET('/a/test/blah@example.com/t.mbox.gz'));
+		my $gz = $res->content;
+		my $raw;
+		IO::Uncompress::Gunzip::gunzip(\$gz => \$raw);
+		like($raw, qr!^List-Archive: <http://[^/]+/a/test/>!m,
+			'List-Archive set in /t.mbox.gz mboxrd');
+		like($raw,
+			qr!^Archived-At:\x20
+				<http://[^/]+/a/test/blah\@example\.com/>!mx,
+			'Archived-At set in /t.mbox.gz mboxrd');
+	});
+}
 
 done_testing();

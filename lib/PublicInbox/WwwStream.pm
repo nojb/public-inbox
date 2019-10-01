@@ -19,7 +19,15 @@ sub close {}
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
-	bless { nr => 0, cb => $cb || *close, ctx => $ctx }, $class;
+
+	my $base_url = $ctx->{-inbox}->base_url($ctx->{env});
+	chop $base_url; # no trailing slash for clone
+	bless {
+		nr => 0,
+		cb => $cb || *close,
+		ctx => $ctx,
+		base_url => $base_url,
+	}, $class;
 }
 
 sub response {
@@ -83,8 +91,7 @@ sub _html_end {
 	my $desc = ascii_html($ibx->description);
 
 	my (%seen, @urls);
-	my $http = $ibx->base_url($ctx->{env});
-	chop $http; # no trailing slash for clone
+	my $http = $self->{base_url};
 	my $max = $ibx->max_git_epoch;
 	my $dir = (split(m!/!, $http))[-1];
 	if (defined($max)) { # v2
