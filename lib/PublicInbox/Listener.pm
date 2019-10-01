@@ -10,6 +10,13 @@ use Socket qw(SOL_SOCKET SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use fields qw(post_accept);
 require IO::Handle;
 use PublicInbox::Syscall qw(EPOLLIN EPOLLEXCLUSIVE EPOLLET);
+use Errno qw(EAGAIN ECONNABORTED EPERM);
+
+# Warn on transient errors, mostly resource limitations.
+# EINTR would indicate the failure to set NonBlocking in systemd or similar
+my %ERR_WARN = map {;
+	eval("Errno::$_()") => $_
+} qw(EMFILE ENFILE ENOBUFS ENOMEM EINTR);
 
 sub new ($$$) {
 	my ($class, $s, $cb) = @_;
@@ -35,6 +42,18 @@ sub event_step {
 		IO::Handle::blocking($c, 0); # no accept4 :<
 		$self->{post_accept}->($c, $addr, $sock);
 		$self->requeue;
+	} elsif ($! == EAGAIN || $! == ECONNABORTED || $! == EPERM) {
+		# EAGAIN is common and likely
+		# ECONNABORTED is common with bad connections
+		# EPERM happens if firewall rules prevent a connection
+		# on Linux (and everything that emulates Linux).
+		# Firewall rules are sometimes intentional, so we don't
+		# warn on EPERM to avoid being too noisy...
+		return;
+	} elsif (my $sym = $ERR_WARN{int($!)}) {
+		warn "W: accept(): $! ($sym)\n";
+	} else {
+		warn "BUG?: accept(): $!\n";
 	}
 }
 
