@@ -106,3 +106,9 @@ all need to be considered for everything we introduce)
   the latter is missing from OpenBSD and maybe other distros.
 
 * improve performance and avoid head-of-line blocking on slow storage
+
+* share "git cat-file --batch" processes across inboxes to avoid
+  bumping into /proc/sys/fs/pipe-user-pages-* limits
+
+* make "git cat-file --batch" detect unlinked packfiles so we don't
+  have to restart processes (very long-term)
