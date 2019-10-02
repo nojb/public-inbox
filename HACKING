@@ -50,3 +50,11 @@ requirements.
 
 See design_www.txt and design_notes.txt in the Documentation/
 directory for design decisions made during development.
+
+Perl notes
+----------
+
+* \w, \s, \d character classes all match Unicode characters;
+  so write out class ranges (e.g "[0-9]") if you only intend to
+  match ASCII.  Do not use the "/a" (ASCII) modifier, that requires
+  Perl 5.14 and we're only depending on 5.10.1 at the moment.
