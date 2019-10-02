@@ -20,7 +20,7 @@ my $cert = 'certs/server-cert.pem';
 my $key = 'certs/server-key.pem';
 unless (-r $key && -r $cert) {
 	plan skip_all =>
-		"certs/ missing for $0, run ./create-certs.perl in certs/";
+		"certs/ missing for $0, run $^X ./create-certs.perl in certs/";
 }
 
 use_ok 'PublicInbox::TLS';

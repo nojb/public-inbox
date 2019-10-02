@@ -32,7 +32,7 @@ my $test_tls = $ENV{TEST_SKIP_TLS} ? 0 : eval { require IO::Socket::SSL };
 my $cert = 'certs/server-cert.pem';
 my $key = 'certs/server-key.pem';
 if ($test_tls && !-r $key || !-r $cert) {
-	plan skip_all => "certs/ missing for $0, run ./certs/create-certs.perl";
+	plan skip_all => "certs/ missing for $0, run $^X ./certs/create-certs.perl";
 }
 require './t/common.perl';
 my $keep_tmp = !!$ENV{TEST_KEEP_TMP};
