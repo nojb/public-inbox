@@ -86,15 +86,15 @@ SKIP: {
 	for (1..2) {
 		@cmd = (pi_init, '-V2', '-S1', 'skip1', "$tmpdir/skip1",
 			   qw(http://example.com/skip1 skip1@example.com));
-		is(system(@cmd), 0, "--skip 1");
+		is(system(@cmd), 0, "--skip-epoch 1");
 		my $gits = [ glob("$tmpdir/skip1/git/*.git") ];
 		is_deeply($gits, ["$tmpdir/skip1/git/1.git"], 'skip OK');
 	}
 
 
-	@cmd = (pi_init, '-V2', '--skip=2', 'skip2', "$tmpdir/skip2",
+	@cmd = (pi_init, '-V2', '--skip-epoch=2', 'skip2', "$tmpdir/skip2",
 		   qw(http://example.com/skip2 skip2@example.com));
-	is(system(@cmd), 0, "--skip 2");
+	is(system(@cmd), 0, "--skip-epoch 2");
 	my $gits = [ glob("$tmpdir/skip2/git/*.git") ];
 	is_deeply($gits, ["$tmpdir/skip2/git/2.git"], 'skipping 2 works, too');
 }

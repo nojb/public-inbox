@@ -20,10 +20,11 @@ sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
 sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 my $version = undef;
 my $indexlevel = undef;
-my $skip;
-my %opts = ( 'V|version=i' => \$version,
-	     'L|indexlevel=s' => \$indexlevel,
-	     'S|skip=i' => \$skip,
+my $skip_epoch;
+my %opts = (
+	'V|version=i' => \$version,
+	'L|indexlevel=s' => \$indexlevel,
+	'S|skip|skip-epoch=i' => \$skip_epoch,
 );
 GetOptions(%opts) or usage();
 PublicInbox::Admin::indexlevel_ok_or_die($indexlevel) if defined $indexlevel;
@@ -104,8 +105,8 @@ if (-f "$mainrepo/inbox.lock") {
 
 $version = 1 unless defined $version;
 
-if ($version == 1 && defined $skip) {
-	die "--skip is only supported for -V2 repos\n";
+if ($version == 1 && defined $skip_epoch) {
+	die "--skip-epoch is only supported for -V2 repos\n";
 }
 
 my $ibx = PublicInbox::Inbox->new({
@@ -117,7 +118,7 @@ my $ibx = PublicInbox::Inbox->new({
 });
 
 my $creat_opt = {};
-PublicInbox::InboxWritable->new($ibx, $creat_opt)->init_inbox(0, $skip);
+PublicInbox::InboxWritable->new($ibx, $creat_opt)->init_inbox(0, $skip_epoch);
 
 # needed for git prior to v2.1.0
 umask(0077) if defined $perm;
