@@ -12,8 +12,10 @@ PublicInbox::Admin::require_or_die('-base');
 require PublicInbox::Config;
 require PublicInbox::InboxWritable;
 use File::Temp qw/tempfile/;
+use PublicInbox::Lock;
 use File::Basename qw/dirname/;
 use File::Path qw/mkpath/;
+use Fcntl qw(:DEFAULT);
 use Cwd qw/abs_path/;
 
 sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
@@ -38,7 +40,29 @@ my %seen;
 my $pi_config = PublicInbox::Config->default_file;
 my $dir = dirname($pi_config);
 mkpath($dir); # will croak on fatal errors
+
+# first, we grab a flock to prevent simultaneous public-inbox-init
+# processes from trampling over each other, or exiting with 255 on
+# O_EXCL failure below.  This gets unlocked automatically on exit:
+my $lock_obj = { lock_path => "$pi_config.flock" };
+PublicInbox::Lock::lock_acquire($lock_obj);
+
+# git-config will operate on this (and rename on success):
 my ($fh, $pi_config_tmp) = tempfile('pi-init-XXXXXXXX', DIR => $dir);
+
+# Now, we grab another lock to use git-config(1) locking, so it won't
+# wait on the lock, unlike some of our internal flock()-based locks.
+# This is to prevent direct git-config(1) usage from clobbering our
+# changes.
+my $lockfile = "$pi_config.lock";
+my $lockfh;
+sysopen($lockfh, $lockfile, O_RDWR|O_CREAT|O_EXCL) or do {
+	$lockfh = undef;
+	warn "could not open config file: $lockfile: $!\n";
+	exit(255);
+};
+END { unlink($lockfile) if $lockfh };
+
 my $perm;
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";

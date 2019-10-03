@@ -10,6 +10,8 @@ my $tmpdir = tempdir('pi-init-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use constant pi_init => 'blib/script/public-inbox-init';
 use PublicInbox::Import;
 use File::Basename;
+use PublicInbox::Spawn qw(spawn);
+use Cwd qw(getcwd);
 open my $null, '>>', '/dev/null';
 my $rdr = { 2 => fileno($null) };
 sub quiet_fail {
@@ -47,6 +49,16 @@ sub quiet_fail {
 	@cmd = (pi_init, 'clist', '-V2', "$tmpdir/clist",
 		   qw(http://example.com/clist clist@example.com));
 	quiet_fail(\@cmd, 'attempting to init V2 from V1 fails');
+
+	open my $lock, '+>', "$cfgfile.lock" or die;
+	@cmd = (getcwd(). '/'. pi_init, 'lock', "$tmpdir/lock",
+		qw(http://example.com/lock lock@example.com));
+	ok(-e "$cfgfile.lock", 'lock exists');
+	my $pid = spawn(\@cmd, undef, $rdr);
+	is(waitpid($pid, 0), $pid, 'lock init failed');
+	is($? >> 8, 255, 'got expected exit code on lock failure');
+	ok(unlink("$cfgfile.lock"),
+		'-init did not unlink lock on failure');
 }
 
 SKIP: {
