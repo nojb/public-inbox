@@ -36,6 +36,7 @@ m1 += public-inbox-convert
 m1 += public-inbox-edit
 m1 += public-inbox-httpd
 m1 += public-inbox-index
+m1 += public-inbox-init
 m1 += public-inbox-mda
 m1 += public-inbox-nntpd
 m1 += public-inbox-watch

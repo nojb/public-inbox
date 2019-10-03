@@ -1,0 +1,86 @@
+=head1 NAME
+
+public-inbox-init - create or reinitialize a public-inbox
+
+=head1 SYNOPSIS
+
+B<public-inbox-init> [OPTIONS] NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]
+
+=head1 DESCRIPTION
+
+Creates an empty public-inbox or reinitializes an existing one.
+It updates C<~/.public-inbox/config> by creating a
+C<[publicinbox "NAME"]> section where
+C<publicinbox.NAME.mainrepo> is C<INBOX_DIR>,
+C<publicinbox.NAME.url> is C<HTTP_URL>, and
+C<publicinbox.NAME.address> is C<ADDRESS>.  Multiple addresses
+may be specified for inboxes with multiple addresses.
+
+=head1 OPTIONS
+
+=over
+
+=item -V, --version FORMAT_VERSION
+
+Specify C<2> here to use the scalable L<public-inbox-v2-format(5)>
+if you have L<DBD::SQLite> installed.
+
+The default is C<1> for the old L<public-inbox-v1-format(5)>,
+but C<2> is strongly recommended for scalability if you have
+L<DBD::SQLite>.
+
+Default: C<1>
+
+=item --indexlevel <basic|medium|full>
+
+Controls the indexing level for L<public-inbox-index(1)>
+
+See L<public-inbox-config(5)> for more information.
+
+Default: C<full>
+
+=item -S, --skip-epoch
+
+For C<-V2> (L<public-inbox-v2-format(5)>) inboxes only, this option
+allows archivists to publish incomplete archives with newer
+mail while allowing "0.git" (or "1.git" and so on) epochs to be
+added-after-the-fact (without affecting "git clone" followers).
+
+Default: unset, no epochs are skipped
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+Used to override the default C<~/.public-inbox/config> value.
+
+=back
+
+=head1 LIMITATIONS
+
+This tool predates NNTP support in public-inbox and is missing
+C<newsgroup> and many of the options documented in
+L<public-inbox-config(5)>.  See L<public-inbox-config(5)> for all the
+options which may be applied to a given inbox.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2019 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<git-init(1)>, L<git-config(1)>, L<public-inbox-v1-format(5)>,
+L<public-inbox-v2-format(5)>
