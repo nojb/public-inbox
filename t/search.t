@@ -35,28 +35,30 @@ my $rw_commit = sub {
 	$rw->begin_txn_lazy;
 };
 
+sub oct_is ($$$) {
+	my ($got, $exp, $msg) = @_;
+	is(sprintf('0%03o', $got), sprintf('0%03o', $exp), $msg);
+}
+
 {
 	# git repository perms
-	is($ibx->_git_config_perm(), &PublicInbox::InboxWritable::PERM_GROUP,
-	   "undefined permission is group");
-	is(PublicInbox::InboxWritable::_umask_for(
-	     PublicInbox::InboxWritable->_git_config_perm('0644')),
-	   0022, "644 => umask(0022)");
-	is(PublicInbox::InboxWritable::_umask_for(
-	     PublicInbox::InboxWritable->_git_config_perm('0600')),
-	   0077, "600 => umask(0077)");
-	is(PublicInbox::InboxWritable::_umask_for(
-	     PublicInbox::InboxWritable->_git_config_perm('0640')),
-	   0027, "640 => umask(0027)");
-	is(PublicInbox::InboxWritable::_umask_for(
-	     PublicInbox::InboxWritable->_git_config_perm('group')),
-	   0007, 'group => umask(0007)');
-	is(PublicInbox::InboxWritable::_umask_for(
-	     PublicInbox::InboxWritable->_git_config_perm('everybody')),
-	   0002, 'everybody => umask(0002)');
-	is(PublicInbox::InboxWritable::_umask_for(
-	     PublicInbox::InboxWritable->_git_config_perm('umask')),
-	   umask, 'umask => existing umask');
+	oct_is($ibx->_git_config_perm(),
+		&PublicInbox::InboxWritable::PERM_GROUP,
+		'undefined permission is group');
+	my @t = (
+		[ '0644', 0022, '644 => umask(0022)' ],
+		[ '0600', 0077, '600 => umask(0077)' ],
+		[ '0640', 0027, '640 => umask(0027)' ],
+		[ 'group', 0007, 'group => umask(0007)' ],
+		[ 'everybody', 0002, 'everybody => umask(0002)' ],
+		[ 'umask', umask, 'umask => existing umask' ],
+	);
+	for (@t) {
+		my ($perm, $exp, $msg) = @$_;
+		my $got = PublicInbox::InboxWritable::_umask_for(
+			PublicInbox::InboxWritable->_git_config_perm($perm));
+		oct_is($got, $exp, $msg);
+	}
 }
 
 $ibx->with_umask(sub {
@@ -452,7 +454,7 @@ foreach my $f ("$git_dir/public-inbox/msgmap.sqlite3",
 		glob("$git_dir/public-inbox/xapian*/*")) {
 	my @st = stat($f);
 	my ($bn) = (split(m!/!, $f))[-1];
-	is($st[2] & $all_mask, -f _ ? 0660 : $dir_mask,
+	oct_is($st[2] & $all_mask, -f _ ? 0660 : $dir_mask,
 		"sharedRepository respected for $bn");
 }
 
