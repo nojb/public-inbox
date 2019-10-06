@@ -9,6 +9,7 @@ all::
 RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
 MAN = man
+XMLSTARLET = xmlstarlet
 
 # same as pod2text
 COLUMNS = 76
@@ -91,8 +92,9 @@ manuals += $(m8)
 mantxt = $(addprefix Documentation/, $(addsuffix .txt, $(manuals)))
 docs += $(mantxt)
 dtxt += $(mantxt)
+docs += NEWS
 
-all :: $(mantxt)
+all :: $(docs)
 
 Documentation/%.txt : Documentation/%.pod
 	$(podtext) $< $@+ && touch -r $< $@+ && mv $@+ $@
@@ -103,16 +105,29 @@ txt2pre = $(PERL) -I lib ./Documentation/txt2pre <$< >$@+ && \
 Documentation/standards.txt : Documentation/standards.perl
 	$(PERL) $< >$@+ && touch -r $< $@+ && mv $@+ $@
 
+RELEASES =
+RELEASES += v1.1.0-pre1
+RELEASES += v1.0.0
+
+NEWS NEWS.atom NEWS.html : Documentation/RelNotes
+	$(PERL) -w Documentation/mknews.perl $@ $(RELEASES)
+
+# check for internal API changes:
+check :: NEWS check-NEWS.atom NEWS.html
+
+check-NEWS.atom: NEWS.atom
+	$(XMLSTARLET) val $<; e=$$?; test $$e -eq 0 || test $$e -eq 127
+
 Documentation/%.html: Documentation/%.txt
 	$(txt2pre)
 
 %.html: %
 	$(txt2pre)
 
-docs_html := $(addsuffix .html, $(subst .txt,,$(dtxt)) $(txt))
+docs_html := $(addsuffix .html, $(subst .txt,,$(dtxt)) $(txt)) NEWS.html
 html: $(docs_html)
 gz_docs := $(addsuffix .gz, $(docs) $(docs_html))
-rsync_docs := $(gz_docs) $(docs) $(docs_html)
+rsync_docs := $(gz_docs) $(docs) $(docs_html) NEWS.atom NEWS.atom.gz
 
 # external manpages which we host ourselves, since some packages
 # (currently just Xapian) doesn't host manpages themselves.
@@ -147,7 +162,7 @@ gz-doc: $(gz_docs)
 
 gz-xdoc: $(gz_xdocs)
 
-rsync-doc:
+rsync-doc: NEWS.atom.gz
 	# /usr/share/doc/rsync/scripts/git-set-file-times{.gz} on Debian systems
 	# It is also at: https://yhbt.net/git-set-file-times
 	-git set-file-times $(docs) $(txt)
@@ -156,7 +171,7 @@ rsync-doc:
 
 clean-doc:
 	$(RM) $(man1) $(man5) $(man7) $(man8) $(gz_docs) $(docs_html) $(mantxt)
-	$(RM) $(gz_xdocs) $(xdocs_html) $(xdocs)
+	$(RM) $(gz_xdocs) $(xdocs_html) $(xdocs) NEWS NEWS.atom NEWS.html
 
 clean :: clean-doc
 

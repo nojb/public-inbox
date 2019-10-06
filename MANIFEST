@@ -13,6 +13,7 @@ Documentation/extman.perl
 Documentation/hosted.txt
 Documentation/include.mk
 Documentation/marketing.txt
+Documentation/mknews.perl
 Documentation/public-inbox-compact.pod
 Documentation/public-inbox-config.pod
 Documentation/public-inbox-convert.pod
