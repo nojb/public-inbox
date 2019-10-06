@@ -1,0 +1,108 @@
+#!/bin/sh
+# post_update_hook for repos.conf as used by grok-pull, takes a full
+# git repo path as it's first and only arg.
+full_git_dir="$1"
+
+# same default as other public-inbox-* tools
+PI_CONFIG=${PI_CONFIG-~/.public-inbox/config}
+
+# FreeBSD expr(1) only supports BRE, so no '+'
+EPOCH2MAIN='\(..*\)/git/[0-9][0-9]*\.git'
+
+# see if it's v2 or v1 based on tree contents, since somebody could
+# theoretically name a v1 inbox with a path that looks like a v2 epoch
+if git --git-dir="$full_git_dir" ls-tree --name-only HEAD | \
+	grep -E '^(m|d)$' >/dev/null
+then
+	inbox_fmt=2
+	inbox_mainrepo=$(expr "$full_git_dir" : "$EPOCH2MAIN")
+	inbox_name=$(basename "$inbox_mainrepo")
+	msgmap="$inbox_mainrepo"/msgmap.sqlite3
+else
+	inbox_fmt=1
+	inbox_mainrepo="$full_git_dir"
+	inbox_name=$(basename "$inbox_mainrepo" .git)
+	msgmap="$inbox_mainrepo"/public-inbox/msgmap.sqlite3
+fi
+
+# run public-inbox-init iff unconfigured
+cfg_mainrepo=$(git config -f "$PI_CONFIG" publicinbox."$inbox_name".mainrepo)
+case $cfg_mainrepo in
+'')
+	remote_git_url=$(git --git-dir="$full_git_dir" config remote.origin.url)
+	case $remote_git_url in
+	'')
+		echo >&2 "remote.origin.url unset in $full_git_dir/config"
+		exit 1
+		;;
+	esac
+
+	case $inbox_fmt in
+	1)
+		remote_inbox_url="$remote_git_url"
+		;;
+	2)
+		remote_inbox_url=$(expr "$remote_git_url" : "$EPOCH2MAIN")
+		;;
+	esac
+
+	config_url="$remote_inbox_url"/_/text/config/raw
+	remote_config="$inbox_mainrepo"/remote.config.$$
+	trap 'rm -f "$remote_config"' EXIT
+	if curl --compressed -sSf -v "$config_url" >"$remote_config"
+	then
+		# n.b. inbox_name on the remote may not match our local
+		# inbox_name, so we match all addresses in the remote config
+		addresses=$(git config -f "$remote_config" -l | \
+			sed -ne 's/^publicinbox\..\+\.address=//p')
+		case $addresses in
+		'')
+			echo >&2 'unable to extract address(es) from ' \
+				"$remote_config"
+			exit 1
+			;;
+		esac
+		newsgroups=$(git config -f "$remote_config" -l | \
+			sed -ne 's/^publicinbox\..\+\.newsgroup=//p')
+	else
+		newsgroups=
+		addresses="$inbox_name@$$.$(hostname).example.com"
+		echo >&2 "E: curl $config_url failed"
+		echo >&2 "E: using bogus <$addresses> for $inbox_mainrepo"
+	fi
+	local_url="http://127.0.0.1:8080/$inbox_name"
+	public-inbox-init -V$inbox_fmt "$inbox_name" \
+		"$inbox_mainrepo" "$local_url" $addresses
+
+	if test $? -ne 0
+	then
+		echo >&2 "E: public-inbox-init failed on $inbox_mainrepo"
+		exit 1
+	fi
+
+	for ng in $newsgroups
+	do
+		git config -f "$PI_CONFIG" \
+			"publicinbox.$inbox_name.newsgroup" "$ng"
+		# only one newsgroup per inbox
+		break
+	done
+	echo "I: $inbox_name at $inbox_mainrepo ($addresses) $local_url"
+	;;
+esac
+
+# only run public-inbox-index if an index exists and has messages,
+# since epochs may be cloned out-of-order by grokmirror and we also
+# don't know what indexlevel a user wants
+if test -f "$msgmap"
+then
+	n=$(echo 'SELECT COUNT(*) FROM msgmap' | sqlite3 -readonly "$msgmap")
+	case $n in
+	0|'')
+		: v2 inboxes may be init-ed with an empty msgmap
+		;;
+	*)
+		$EATMYDATA public-inbox-index -v "$inbox_mainrepo"
+		;;
+	esac
+fi

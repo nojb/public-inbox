@@ -57,6 +57,7 @@ examples/cgi-webrick.rb
 examples/cgit-commit-filter.lua
 examples/cgit-wwwhighlight-filter.lua
 examples/cgit.psgi
+examples/grok-pull.post_update_hook.sh
 examples/highlight.psgi
 examples/logrotate.conf
 examples/newswww.psgi
