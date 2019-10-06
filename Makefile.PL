@@ -90,5 +90,8 @@ check:: pure_all check-manifest
 lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
 	\$(PERL) -I lib \$@ \$?
 
+# Ensure new .pm files will always be installed:
+Makefile.PL :: MANIFEST
+
 EOF
 }
