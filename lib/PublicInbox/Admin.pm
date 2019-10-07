@@ -35,7 +35,7 @@ sub resolve_repo_dir {
 			local $/;
 			<$fh>;
 		};
-		close $fh or die "error in $cmd: $!\n";
+		close $fh or die "error in $cmd (cwd:$cd): $!\n";
 		chomp $dir;
 		$$ver = 1 if $ver;
 		return abs_path($cd) if ($dir eq '.' && defined $cd);
