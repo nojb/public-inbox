@@ -24,13 +24,13 @@ $EPOCH - Integer starting with 0 based on time
 $SCHEMA_VERSION - PublicInbox::Search::SCHEMA_VERSION used by Xapian
 $PART - Integer (0..NPROCESSORS)
 
-foo/ # assuming "foo" is the name of the list
-- inbox.lock                 # lock file (flock) to protect global state
-- git/$EPOCH.git             # normal git repositories
-- all.git                    # empty git repo, alternates to git/$EPOCH.git
-- xap$SCHEMA_VERSION/$SHARD  # per-shard Xapian DB
-- xap$SCHEMA_VERSION/over.sqlite3 # OVER-view DB for NNTP and threading
-- msgmap.sqlite3             # same the v1 msgmap
+	foo/                              # assuming "foo" is the name of the list
+	- inbox.lock                      # lock file (flock) to protect global state
+	- git/$EPOCH.git                  # normal git repositories
+	- all.git                         # empty git repo, alternates to git/$EPOCH.git
+	- xap$SCHEMA_VERSION/$SHARD       # per-shard Xapian DB
+	- xap$SCHEMA_VERSION/over.sqlite3 # OVER-view DB for NNTP and threading
+	- msgmap.sqlite3                  # same the v1 msgmap
 
 For blob lookups, the reader only needs to open the "all.git"
 repository with $GIT_DIR/objects/info/alternates which references
