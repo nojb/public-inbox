@@ -80,7 +80,6 @@ sub ext_msg {
 	my $mid = $ctx->{mid};
 
 	eval { require PublicInbox::Msgmap };
-	my $have_mm = $@ ? 0 : 1;
 	my (@ibx, @found);
 
 	$ctx->{www}->{pi_config}->each_inbox(sub {
