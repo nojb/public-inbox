@@ -120,3 +120,6 @@ all need to be considered for everything we introduce)
 
 * linter option and WWW endpoint to graph relationships and flows
   between inboxes, addresses maildirs, coderepos, etc...
+
+* pygments support - via Python script similar to `git cat-file --batch'
+  to avoid startup penalty.  pygments.rb (Ruby) can be inspiration, too.
