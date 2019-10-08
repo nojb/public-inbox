@@ -1,0 +1,114 @@
+=head1 NAME
+
+PublicInbox::SaPlugin::ListMirror - SpamAssassin plugin for mailing list mirrors
+
+=head1 SYNOPSIS
+
+  loadplugin PublicInbox::SaPlugin::ListMirror
+
+Declare some mailing lists based on the expected List-Id value,
+expected servers, and mailing list address:
+
+  list_mirror List-Id <foo.example.com> *.example.com foo@example.com
+  list_mirror List-Id <bar.example.com> *.example.com bar@example.com
+
+Bump the score for messages which come from unexpected servers:
+
+  header LIST_MIRROR_RECEIVED eval:check_list_mirror_received()
+  describe LIST_MIRROR_RECEIVED Received does not match expected
+  score LIST_MIRROR_RECEIVED 10
+
+Bump the score for messages which Bcc the list:
+
+  header LIST_MIRROR_BCC eval:check_list_mirror_bcc()
+  describe LIST_MIRROR_BCC Mailing list was Bcc-ed
+  score LIST_MIRROR_BCC 5
+
+=head1 DESCRIPTION
+
+This plugin contains common functions to provide accurate, ongoing
+mirrors of existing mailing lists.  It may be used independently of the
+rest of public-inbox, it does not depend on any public-inbox code, only
+SpamAssassin.
+
+=head1 ADMINISTRATOR SETTINGS
+
+This plugin has no administrator settings, aside from the need
+to load it via C<loadplugin> and enabling user rules
+C<allow_user_rules 1>
+
+=head1 USER SETTINGS
+
+=over 4
+
+=item list_mirror HEADER HEADER_VALUE HOSTNAME_GLOB [LIST_ADDRESS]
+
+Declare a list based on an expected C<HEADER> matching C<HEADER_NAME>
+exactly coming from C<HOSTNAME_GLOB>.  C<LIST_ADDRESS> is optional,
+but may specify the address of the mailing list being mirrored.
+
+C<List-Id> or C<X-Mailing-List> are common values of C<HEADER>
+
+An example of C<HEADER_VALUE> is C<E<lt>foo.example.orgE<gt>>
+if C<HEADER> is C<List-Id>.
+
+C<HOSTNAME_GLOB> may be a wildcard match for machines where mail can
+come from or an exact match.
+
+C<LIST_ADDRESS> is only required if using the L</check_list_mirror_bcc>
+eval rule
+
+C<list_mirror> may be specified multiple times.
+
+=back
+
+=head1 EVAL FUNCTIONS
+
+=over 4
+
+=item header LIST_MIRROR_RECEIVED eval:check_list_mirror_received()
+
+The C<check_list_mirror_received> function implements C<Received:>
+header checking based on L</list_mirror> configuration values.
+
+This rule can be used to score and prevent messages from being injected
+directly into your mirror without going through the expected mailing
+list servers:
+
+  ifplugin PublicInbox::SaPlugin::ListMirror
+    header LIST_MIRROR_RECEIVED eval:check_list_mirror_received()
+    describe LIST_MIRROR_RECEIVED Received does not match expected
+  endif
+
+=item header LIST_MIRROR_BCC eval:check_list_mirror_bcc()
+
+The C<check_list_mirror_bcc> function checks for Bcc to mailing lists
+declared with a C<LIST_ADDRESS> via L</list_mirror>
+
+Spammers will often Bcc mailing lists; while it's uncommon and
+strange for valid messages to be Bcc-ed to any public mailing list.
+This rule allows users to assign a score to Bcc-ed messages
+
+  ifplugin PublicInbox::SaPlugin::ListMirror
+    header LIST_MIRROR_BCC eval:check_list_mirror_bcc()
+    describe LIST_MIRROR_BCC Mailing list was Bcc-ed
+  endif
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2016-2019 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<Mail::SpamAssassin::Conf>

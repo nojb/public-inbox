@@ -102,7 +102,7 @@ score RCVD_IN_RP_CERTIFIED 0.0
 
 # this depends on PublicInbox::SaPlugin::ListMirror:
 # header LIST_MIRROR_RECEIVED eval:check_list_mirror_received()
-# describe LIST_MIRROR_RECEIVED Received does not match trusted list server
+# describe LIST_MIRROR_RECEIVED Received does not match expected
 # score LIST_MIRROR_RECEIVED 10
 #
 # this depends on PublicInbox::SaPlugin::ListMirror:
