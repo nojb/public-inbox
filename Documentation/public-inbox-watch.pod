@@ -15,7 +15,11 @@ In ~/.public-inbox/config:
 		mainrepo = /path/to/test.example.com.git
 
 		; config keys specific to public-inbox-watch:
+
 		watch = maildir:/path/to/maildirs/.INBOX.test/
+
+		; optional, emails that don't have a header matching
+		; value will be skipped
 		watchheader = List-Id:<test.example.com>
 
 	[publicinboxwatch]

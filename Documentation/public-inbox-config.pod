@@ -80,6 +80,9 @@ Default: none; only for L<public-inbox-watch(1)> users
 	[publicinbox "test"]
 		watchheader = List-Id:<test.example.com>
 
+If specified, L<public-inbox-watch(1)> will only process mail matching
+the given header.  Multiple values are not currently supported.
+
 Default: none; only for L<public-inbox-watch(1)> users
 
 =item publicinbox.<name>.nntpmirror
