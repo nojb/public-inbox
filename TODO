@@ -115,3 +115,8 @@ all need to be considered for everything we introduce)
 
 * support searching based on `git-patch-id --stable` to improve
   bidirectional mapping of commits <=> emails
+
+* linter to check validity of config file
+
+* linter option and WWW endpoint to graph relationships and flows
+  between inboxes, addresses maildirs, coderepos, etc...
