@@ -63,58 +63,24 @@ sub new {
 	$self;
 }
 
+sub _fill_all ($) { each_inbox($_[0], sub {}) }
+
+sub _lookup_fill ($$$) {
+	my ($self, $cache, $key) = @_;
+	$self->{$cache}->{$key} // do {
+		_fill_all($self);
+		$self->{$cache}->{$key};
+	}
+}
+
 sub lookup {
 	my ($self, $recipient) = @_;
-	my $addr = lc($recipient);
-	my $ibx = $self->{-by_addr}->{$addr};
-	return $ibx if $ibx;
-
-	my $pfx;
-
-	foreach my $k (keys %$self) {
-		$k =~ m!\A(publicinbox\.[^/]+)\.address\z! or next;
-		my $v = $self->{$k};
-		if (ref($v) eq "ARRAY") {
-			foreach my $alias (@$v) {
-				(lc($alias) eq $addr) or next;
-				$pfx = $1;
-				last;
-			}
-		} else {
-			(lc($v) eq $addr) or next;
-			$pfx = $1;
-			last;
-		}
-	}
-	defined $pfx or return;
-	_fill($self, $pfx);
+	_lookup_fill($self, '-by_addr', lc($recipient));
 }
 
 sub lookup_list_id {
 	my ($self, $list_id) = @_;
-	$list_id = lc($list_id);
-	my $ibx = $self->{-by_list_id}->{$list_id};
-	return $ibx if $ibx;
-
-	my $pfx;
-
-	foreach my $k (keys %$self) {
-		$k =~ /\A(publicinbox\.[\w-]+)\.listid\z/ or next;
-		my $v = $self->{$k};
-		if (ref($v) eq "ARRAY") {
-			foreach my $alias (@$v) {
-				(lc($alias) eq $list_id) or next;
-				$pfx = $1;
-				last;
-			}
-		} else {
-			(lc($v) eq $list_id) or next;
-			$pfx = $1;
-			last;
-		}
-	}
-	defined $pfx or return;
-	_fill($self, $pfx);
+	_lookup_fill($self, '-by_list_id', lc($list_id));
 }
 
 sub lookup_name ($$) {
@@ -135,20 +101,7 @@ sub each_inbox {
 
 sub lookup_newsgroup {
 	my ($self, $ng) = @_;
-	$ng = lc($ng);
-	my $ibx = $self->{-by_newsgroup}->{$ng};
-	return $ibx if $ibx;
-
-	foreach my $k (keys %$self) {
-		$k =~ m!\A(publicinbox\.[^/]+)\.newsgroup\z! or next;
-		my $v = $self->{$k};
-		my $pfx = $1;
-		if ($v eq $ng) {
-			$ibx = _fill($self, $pfx);
-			return $ibx;
-		}
-	}
-	undef;
+	_lookup_fill($self, '-by_newsgroup', lc($ng));
 }
 
 sub limiter {
@@ -461,7 +414,7 @@ sub _fill {
 	if ($ibx->{obfuscate}) {
 		$ibx->{-no_obfuscate} = $self->{-no_obfuscate};
 		$ibx->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
-		each_inbox($self, sub {}); # noop to populate -no_obfuscate
+		_fill_all($self); # noop to populate -no_obfuscate
 	}
 
 	if (my $ibx_code_repos = $ibx->{coderepo}) {
