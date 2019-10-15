@@ -171,4 +171,35 @@ EOF
 	is($both, $$msg, 'got original message back from v2');
 }
 
+{
+	my $want = <<'EOF';
+From: <u@example.com>
+List-Id: <i.want.you.to.want.me>
+Message-ID: <do.want@example.com>
+EOF
+	my $do_not_want = <<'EOF';
+From: <u@example.com>
+List-Id: <do.not.want>
+X-Mailing-List: no@example.com
+Message-ID: <do.not.want@example.com>
+EOF
+	my $cfg = $orig."$cfgpfx.listid=i.want.you.to.want.me\n";
+	PublicInbox::Emergency->new($maildir)->prepare(\$want);
+	PublicInbox::Emergency->new($maildir)->prepare(\$do_not_want);
+	my $config = PublicInbox::Config->new(\$cfg);
+	PublicInbox::WatchMaildir->new($config)->scan('full');
+	$ibx = $config->lookup_name('test');
+	my $num = $ibx->mm->num_for('do.want@example.com');
+	ok(defined $num, 'List-ID matched for watch');
+	$num = $ibx->mm->num_for('do.not.want@example.com');
+	is($num, undef, 'unaccepted List-ID matched for watch');
+
+	$cfg = $orig."$cfgpfx.watchheader=X-Mailing-List:no\@example.com\n";
+	$config = PublicInbox::Config->new(\$cfg);
+	PublicInbox::WatchMaildir->new($config)->scan('full');
+	$ibx = $config->lookup_name('test');
+	$num = $ibx->mm->num_for('do.not.want@example.com');
+	ok(defined $num, 'X-Mailing-List matched');
+}
+
 done_testing;

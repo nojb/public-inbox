@@ -36,10 +36,21 @@ my $config = PublicInbox::Config->new;
 my $key = 'publicinboxmda.spamcheck';
 my $default = 'PublicInbox::Spamcheck::Spamc';
 my $spamc = PublicInbox::Spamcheck::get($config, $key, $default);
+my $dst;
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
-defined $recipient or die "ORIGINAL_RECIPIENT not defined in ENV\n";
-my $dst = $config->lookup($recipient); # first check
-defined $dst or do_exit(67); # EX_NOUSER 5.1.1 user unknown
+if (defined $recipient) {
+	$dst = $config->lookup($recipient); # first check
+}
+if (!defined $dst) {
+	my $list_id = $simple->header('List-Id');
+	if (defined $list_id && $list_id =~ /<[ \t]*(.+)?[ \t]*>/) {
+		$dst = $config->lookup_list_id($1);
+	}
+	if (!defined $dst && !defined $recipient) {
+		die "ORIGINAL_RECIPIENT not defined in ENV\n";
+	}
+	defined $dst or do_exit(67); # EX_NOUSER 5.1.1 user unknown
+}
 $dst->{mainrepo} or do_exit(67);
 $dst = PublicInbox::InboxWritable->new($dst);
 

@@ -59,9 +59,19 @@ sub new {
 
 		my $watch = $ibx->{watch} or return;
 		if (is_maildir($watch)) {
-			if (my $wm = $ibx->{watchheader}) {
-				my ($k, $v) = split(/:/, $wm, 2);
-				$ibx->{-watchheader} = [ $k, qr/\Q$v\E/ ];
+			my $watch_hdrs = [];
+			if (my $wh = $ibx->{watchheader}) {
+				my ($k, $v) = split(/:/, $wh, 2);
+				push @$watch_hdrs, [ $k, qr/\Q$v\E/ ];
+			}
+			if (my $list_ids = $ibx->{listid}) {
+				for (@$list_ids) {
+					my $re = qr/<[ \t]*\Q$_\E[ \t]*>/;
+					push @$watch_hdrs, ['List-Id', $re ];
+				}
+			}
+			if (scalar @$watch_hdrs) {
+				$ibx->{-watchheaders} = $watch_hdrs;
 			}
 			my $new = "$watch/new";
 			my $cur = "$watch/cur";
@@ -159,10 +169,17 @@ sub _try_path {
 		my $mime = _path_to_mime($path) or next;
 		my $im = _importer_for($self, $ibx);
 
-		my $wm = $ibx->{-watchheader};
-		if ($wm) {
-			my $v = $mime->header_obj->header_raw($wm->[0]);
-			next unless ($v && $v =~ $wm->[1]);
+		# any header match means it's eligible for the inbox:
+		if (my $watch_hdrs = $ibx->{-watchheaders}) {
+			my $ok;
+			my $hdr = $mime->header_obj;
+			for my $wh (@$watch_hdrs) {
+				my $v = $hdr->header_raw($wh->[0]);
+				next unless defined($v) && $v =~ $wh->[1];
+				$ok = 1;
+				last;
+			}
+			next unless $ok;
 		}
 
 		if (my $scrub = $ibx->filter($im)) {

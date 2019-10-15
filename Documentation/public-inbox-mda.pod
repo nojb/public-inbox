@@ -25,6 +25,9 @@ L<public-inbox-config(5)/publicinboxmda.spamcheck>
 The original recipient email address, set by the MTA.  Postfix
 sets it by default, untested on other MTAs.
 
+This does not have to be set if relying on C<publicinbox.$NAME.listid>
+directives configured in L<public-inbox-config(5)>.
+
 =item PI_CONFIG
 
 Per-user config file parseable by L<git-config(1)>.

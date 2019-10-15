@@ -267,6 +267,34 @@ EOF
 	}
 }
 
+# List-ID based delivery
+{
+	local $ENV{PI_EMERGENCY} = $faildir;
+	local $ENV{HOME} = $home;
+	local $ENV{ORIGINAL_RECIPIENT} = undef;
+	local $ENV{PATH} = $main_path;
+	my $list_id = 'foo.example.com';
+	my $mid = 'list-id-delivery@example.com';
+	my $simple = Email::Simple->new(<<EOF);
+From: user <user\@example.com>
+To: You <you\@example.com>
+Cc: $addr
+Message-ID: <$mid>
+List-Id: <$list_id>
+Subject: this message will be trained as spam
+Date: Thu, 01 Jan 1970 00:00:00 +0000
+
+EOF
+	system(qw(git config --file), $pi_config, "$cfgpfx.listid", $list_id);
+	$? == 0 or die "failed to set listid $?";
+	my $in = $simple->as_string;
+	IPC::Run::run([$mda], \$in);
+	is($?, 0, 'mda OK with List-Id match');
+	my $path = mid2path($mid);
+	my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
+	like($msg, qr/\Q$list_id\E/, 'delivered message w/ List-ID matches');
+}
+
 done_testing();
 
 sub fail_bad_header {

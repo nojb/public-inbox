@@ -85,6 +85,24 @@ the given header.  Multiple values are not currently supported.
 
 Default: none; only for L<public-inbox-watch(1)> users
 
+=item publicinbox.<name>.listid
+
+The L<rfc2919|https://tools.ietf.org/html/rfc2919> header without
+angle brackets for L<public-inbox-mda(1)> deliveries and
+L<public-inbox-watch(1)>.
+
+For public-inbox-watch users, this is a shortcut for specifying
+C<publicinbox.$NAME.watchheader=List-Id:<foo.example.com>>
+
+For public-inbox-mda users, this may be used to avoid recipient
+matching via C<ORIGINAL_RECIPIENT> environment variable.
+
+This may be specified multiple times for merging multiple mailing
+lists into a single public-inbox, only one C<List-Id> header
+needs to match.
+
+Default: none
+
 =item publicinbox.<name>.nntpmirror
 
 This may be the full NNTP URL of an independently-run mirror.
