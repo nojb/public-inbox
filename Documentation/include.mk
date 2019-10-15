@@ -109,7 +109,7 @@ RELEASES =
 RELEASES += v1.1.0-pre1
 RELEASES += v1.0.0
 
-NEWS NEWS.atom NEWS.html : Documentation/RelNotes
+NEWS NEWS.atom NEWS.html :
 	$(PERL) -I lib -w Documentation/mknews.perl $@ $(RELEASES)
 
 # check for internal API changes:
