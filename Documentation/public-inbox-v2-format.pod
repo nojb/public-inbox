@@ -20,17 +20,17 @@ databases for parallelism by "shards".
 
 =head2 INBOX OVERVIEW AND DEFINITIONS
 
-$EPOCH - Integer starting with 0 based on time
-$SCHEMA_VERSION - PublicInbox::Search::SCHEMA_VERSION used by Xapian
-$PART - Integer (0..NPROCESSORS)
+  $EPOCH - Integer starting with 0 based on time
+  $SCHEMA_VERSION - DB schema version (for Xapian)
+  $SHARD - Integer starting with 0 based on parallelism
 
-	foo/                              # assuming "foo" is the name of the list
-	- inbox.lock                      # lock file (flock) to protect global state
-	- git/$EPOCH.git                  # normal git repositories
-	- all.git                         # empty git repo, alternates to git/$EPOCH.git
-	- xap$SCHEMA_VERSION/$SHARD       # per-shard Xapian DB
-	- xap$SCHEMA_VERSION/over.sqlite3 # OVER-view DB for NNTP and threading
-	- msgmap.sqlite3                  # same the v1 msgmap
+  foo/                              # "foo" is the name of the inbox
+  - inbox.lock                      # lock file to protect global state
+  - git/$EPOCH.git                  # normal git repositories
+  - all.git                         # empty, alternates to $EPOCH.git
+  - xap$SCHEMA_VERSION/$SHARD       # per-shard Xapian DB
+  - xap$SCHEMA_VERSION/over.sqlite3 # OVER-view DB for NNTP, threading
+  - msgmap.sqlite3                  # same the v1 msgmap
 
 For blob lookups, the reader only needs to open the "all.git"
 repository with $GIT_DIR/objects/info/alternates which references
