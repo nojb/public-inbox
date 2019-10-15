@@ -29,13 +29,13 @@ sub new {
 	}
 	bless $self, $class;
 	# caches
-	$self->{-by_addr} ||= {};
-	$self->{-by_list_id} ||= {};
-	$self->{-by_name} ||= {};
-	$self->{-by_newsgroup} ||= {};
-	$self->{-no_obfuscate} ||= {};
-	$self->{-limiters} ||= {};
-	$self->{-code_repos} ||= {}; # nick => PublicInbox::Git object
+	$self->{-by_addr} = {};
+	$self->{-by_list_id} = {};
+	$self->{-by_name} = {};
+	$self->{-by_newsgroup} = {};
+	$self->{-no_obfuscate} = {};
+	$self->{-limiters} = {};
+	$self->{-code_repos} = {}; # nick => PublicInbox::Git object
 	$self->{-cgitrc_unparsed} = $self->{'publicinbox.cgitrc'};
 
 	if (my $no = delete $self->{'publicinbox.noobfuscate'}) {
@@ -85,7 +85,7 @@ sub lookup_list_id {
 
 sub lookup_name ($$) {
 	my ($self, $name) = @_;
-	$self->{-by_name}->{$name} || _fill($self, "publicinbox.$name");
+	$self->{-by_name}->{$name} // _fill($self, "publicinbox.$name");
 }
 
 sub each_inbox {
@@ -106,7 +106,7 @@ sub lookup_newsgroup {
 
 sub limiter {
 	my ($self, $name) = @_;
-	$self->{-limiters}->{$name} ||= do {
+	$self->{-limiters}->{$name} //= do {
 		require PublicInbox::Qspawn;
 		my $max = $self->{"publicinboxlimiter.$name.max"} || 1;
 		my $limiter = PublicInbox::Qspawn::Limiter->new($max);
@@ -115,7 +115,7 @@ sub limiter {
 	};
 }
 
-sub config_dir { $ENV{PI_DIR} || "$ENV{HOME}/.public-inbox" }
+sub config_dir { $ENV{PI_DIR} // "$ENV{HOME}/.public-inbox" }
 
 sub default_file {
 	my $f = $ENV{PI_CONFIG};
@@ -206,8 +206,8 @@ sub cgit_repo_merge ($$$) {
 		$self->{-cgit_remove_suffix} and
 			$rel =~ s!/?\.git\z!!;
 	}
-	$self->{"coderepo.$rel.dir"} ||= $path;
-	$self->{"coderepo.$rel.cgiturl"} ||= $rel;
+	$self->{"coderepo.$rel.dir"} //= $path;
+	$self->{"coderepo.$rel.cgiturl"} //= $rel;
 }
 
 sub is_git_dir ($) {
@@ -338,7 +338,7 @@ sub _fill_code_repo {
 		# cgit supports "/blob/?id=%s", but it's only a plain-text
 		# display and requires an unabbreviated id=
 		foreach my $t (qw(blob commit tag)) {
-			$git->{$t.'_url_format'} ||= map {
+			$git->{$t.'_url_format'} //= map {
 				"$_/$t/?id=%s"
 			} @$cgits;
 		}
@@ -426,7 +426,7 @@ sub _fill {
 			$valid += valid_inbox_name($_) foreach (@parts);
 			$valid == scalar(@parts) or next;
 
-			my $repo = $code_repos->{$nick} ||=
+			my $repo = $code_repos->{$nick} //=
 						_fill_code_repo($self, $nick);
 			push @$repo_objs, $repo if $repo;
 		}
