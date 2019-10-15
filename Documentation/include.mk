@@ -13,6 +13,7 @@ MAN = man
 
 # this is "xml" on FreeBSD and maybe some other distros:
 XMLSTARLET = xmlstarlet
+AWK = awk
 
 # same as pod2text
 COLUMNS = 76
@@ -61,7 +62,9 @@ man8 := $(addsuffix .8, $(m8))
 
 all:: man html
 
-man: $(man1) $(man5) $(man7) $(man8)
+manpages = $(man1) $(man5) $(man7) $(man8)
+
+man: $(manpages)
 
 prefix ?= $(PREFIX)
 prefix ?= $(HOME)
@@ -85,6 +88,19 @@ doc_install :: install-man
 
 %.1 %.5 %.7 %.8 : Documentation/%.pod
 	$(podman) -s $(subst .,,$(suffix $@)) $< $@+ && mv $@+ $@
+
+# n.b. not sure if our usage of man(1) is portable or not, so not
+# enabled by default "check" target:
+# check :: check-man
+check_man = @echo CHECK80 $<;COLS=80 $(MAN) ./$^ | \
+	$(AWK) 'length>80{print;err=1}END{exit(err)}' >&2
+
+%.1.cols : %.1; $(check_man)
+%.5.cols : %.5; $(check_man)
+%.7.cols : %.7; $(check_man)
+%.8.cols : %.8; $(check_man)
+
+check-man :: $(addsuffix .cols, $(manpages))
 
 manuals :=
 manuals += $(m1)
