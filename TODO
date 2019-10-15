@@ -123,3 +123,13 @@ all need to be considered for everything we introduce)
 
 * pygments support - via Python script similar to `git cat-file --batch'
   to avoid startup penalty.  pygments.rb (Ruby) can be inspiration, too.
+
+* highlighting + linkification for "git format-patch --interdiff" output
+
+* highlighting + linkification for "git format-patch --range-diff" output
+  (requires mirroring of git repos)
+
+* parse and allow (semi)automatic-mirroring of "git request-pull" output
+  for coderepos
+
+* configurable diff output for solver-generated blobs
