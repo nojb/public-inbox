@@ -42,11 +42,11 @@ ok($im->add($mime), 'added broken multipart message');
 $im->done;
 
 my $cfgpfx = "publicinbox.v2test";
-my $cfg = {
-	"$cfgpfx.address" => $ibx->{-primary_address},
-	"$cfgpfx.mainrepo" => $repo,
-};
-my $config = PublicInbox::Config->new($cfg);
+my $cfg = <<EOF;
+$cfgpfx.address=$ibx->{-primary_address}
+$cfgpfx.mainrepo=$repo
+EOF
+my $config = PublicInbox::Config->new(\$cfg);
 my $www = PublicInbox::WWW->new($config);
 
 my ($res, $raw);

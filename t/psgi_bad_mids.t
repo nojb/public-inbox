@@ -53,11 +53,11 @@ Date: Fri, 02 Oct 1993 00:00:0$i +0000
 }
 $im->done;
 
-my $cfg = {
-	"$cfgpfx.address" => $ibx->{-primary_address},
-	"$cfgpfx.mainrepo" => $mainrepo,
-};
-my $config = PublicInbox::Config->new($cfg);
+my $cfg = <<EOF;
+$cfgpfx.address=$ibx->{-primary_address}
+$cfgpfx.mainrepo=$mainrepo
+EOF
+my $config = PublicInbox::Config->new(\$cfg);
 my $www = PublicInbox::WWW->new($config);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;

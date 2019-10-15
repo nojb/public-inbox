@@ -54,11 +54,11 @@ $new_mid = $mids->[1];
 $im->done;
 
 my $cfgpfx = "publicinbox.v2test";
-my $cfg = {
-	"$cfgpfx.address" => $ibx->{-primary_address},
-	"$cfgpfx.mainrepo" => $mainrepo,
-};
-my $config = PublicInbox::Config->new($cfg);
+my $cfg = <<EOF;
+$cfgpfx.address=$ibx->{-primary_address}
+$cfgpfx.mainrepo=$mainrepo
+EOF
+my $config = PublicInbox::Config->new(\$cfg);
 my $www = PublicInbox::WWW->new($config);
 my ($res, $raw, @from_);
 test_psgi(sub { $www->call(@_) }, sub {

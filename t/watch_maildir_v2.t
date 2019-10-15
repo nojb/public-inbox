@@ -40,14 +40,14 @@ ok(POSIX::mkfifo("$maildir/cur/fifo", 0777),
 	'create FIFO to ensure we do not get stuck on it :P');
 my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
-my %orig = (
-	"$cfgpfx.address" => $addr,
-	"$cfgpfx.mainrepo" => $mainrepo,
-	"$cfgpfx.watch" => "maildir:$maildir",
-	"$cfgpfx.filter" => 'PublicInbox::Filter::Vger',
-	"publicinboxlearn.watchspam" => "maildir:$spamdir"
-);
-my $config = PublicInbox::Config->new({%orig});
+my $orig = <<EOF;
+$cfgpfx.address=$addr
+$cfgpfx.mainrepo=$mainrepo
+$cfgpfx.watch=maildir:$maildir
+$cfgpfx.filter=PublicInbox::Filter::Vger
+publicinboxlearn.watchspam=maildir:$spamdir
+EOF
+my $config = PublicInbox::Config->new(\$orig);
 my $ibx = $config->lookup_name('test');
 ok($ibx, 'found inbox by name');
 my $srch = $ibx->search;
@@ -146,12 +146,12 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	my $v1pfx = "publicinbox.v1";
 	my $v1addr = 'v1-public@example.com';
 	is(system(qw(git init -q --bare), $v1repo), 0, 'v1 init OK');
-	my $config = PublicInbox::Config->new({
-		%orig,
-		"$v1pfx.address" => $v1addr,
-		"$v1pfx.mainrepo" => $v1repo,
-		"$v1pfx.watch" => "maildir:$maildir",
-	});
+	my $cfg2 = <<EOF;
+$orig$v1pfx.address=$v1addr
+$v1pfx.mainrepo=$v1repo
+$v1pfx.watch=maildir:$maildir
+EOF
+	my $config = PublicInbox::Config->new(\$cfg2);
 	my $both = <<EOF;
 From: user\@example.com
 To: $addr, $v1addr

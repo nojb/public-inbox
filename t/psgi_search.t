@@ -45,10 +45,10 @@ $im->done;
 PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 
 my $cfgpfx = "publicinbox.test";
-my $config = PublicInbox::Config->new({
-	"$cfgpfx.address" => 'git@vger.kernel.org',
-	"$cfgpfx.mainrepo" => $tmpdir,
-});
+my $config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=git\@vger.kernel.org
+$cfgpfx.mainrepo=$tmpdir
+EOF
 my $www = PublicInbox::WWW->new($config);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;

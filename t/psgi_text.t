@@ -21,10 +21,10 @@ use PublicInbox::Config;
 use PublicInbox::WWW;
 use_ok 'PublicInbox::WwwText';
 use Plack::Builder;
-my $config = PublicInbox::Config->new({
-	"$cfgpfx.address" => $addr,
-	"$cfgpfx.mainrepo" => $maindir,
-});
+my $config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=$addr
+$cfgpfx.mainrepo=$maindir
+EOF
 is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
 my $www = PublicInbox::WWW->new($config);
 

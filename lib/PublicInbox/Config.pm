@@ -20,9 +20,14 @@ sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }
 sub new {
 	my ($class, $file) = @_;
 	$file = default_file() unless defined($file);
-	$file = ref $file ? $file : git_config_dump($file);
-	my $self = bless $file, $class;
-
+	my $self;
+	if (ref($file) eq 'SCALAR') { # used by some tests
+		open my $fh, '<', $file or die;  # PerlIO::scalar
+		$self = config_fh_parse($fh, "\n", '=');
+	} else {
+		$self = git_config_dump($file);
+	}
+	bless $self, $class;
 	# caches
 	$self->{-by_addr} ||= {};
 	$self->{-by_list_id} ||= {};
@@ -119,22 +124,12 @@ sub lookup_name ($$) {
 
 sub each_inbox {
 	my ($self, $cb) = @_;
-	if (my $section_order = $self->{-section_order}) {
-		foreach my $section (@$section_order) {
-			next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
-			$self->{"publicinbox.$1.mainrepo"} or next;
-			my $ibx = lookup_name($self, $1) or next;
-			$cb->($ibx);
-		}
-	} else {
-		my %seen;
-		foreach my $k (keys %$self) {
-			$k =~ m!\Apublicinbox\.([^/]+)\.mainrepo\z! or next;
-			next if $seen{$1};
-			$seen{$1} = 1;
-			my $ibx = lookup_name($self, $1) or next;
-			$cb->($ibx);
-		}
+	# may auto-vivify if config file is non-existent:
+	foreach my $section (@{$self->{-section_order}}) {
+		next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
+		$self->{"publicinbox.$1.mainrepo"} or next;
+		my $ibx = lookup_name($self, $1) or next;
+		$cb->($ibx);
 	}
 }
 
@@ -175,19 +170,14 @@ sub default_file {
 	config_dir() . '/config';
 }
 
-sub git_config_dump {
-	my ($file) = @_;
-	my (%section_seen, @section_order);
-	return {} unless -e $file;
-	my @cmd = (qw/git config -z -l/, "--file=$file");
-	my $cmd = join(' ', @cmd);
-	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
+sub config_fh_parse ($$$) {
+	my ($fh, $rs, $fs) = @_;
 	my %rv;
-	local $/ = "\0";
+	my (%section_seen, @section_order);
+	local $/ = $rs;
 	while (defined(my $line = <$fh>)) {
 		chomp $line;
-		my ($k, $v) = split(/\n/, $line, 2);
-
+		my ($k, $v) = split($fs, $line, 2);
 		my ($section) = ($k =~ /\A(\S+)\.[^\.]+\z/);
 		unless (defined $section_seen{$section}) {
 			$section_seen{$section} = 1;
@@ -205,10 +195,20 @@ sub git_config_dump {
 			$rv{$k} = $v;
 		}
 	}
-	close $fh or die "failed to close ($cmd) pipe: $?";
 	$rv{-section_order} = \@section_order;
 
 	\%rv;
+}
+
+sub git_config_dump {
+	my ($file) = @_;
+	return {} unless -e $file;
+	my @cmd = (qw/git config -z -l/, "--file=$file");
+	my $cmd = join(' ', @cmd);
+	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
+	my $rv = config_fh_parse($fh, "\0", "\n");
+	close $fh or die "failed to close ($cmd) pipe: $?";
+	$rv;
 }
 
 sub valid_inbox_name ($) {

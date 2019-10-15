@@ -35,13 +35,13 @@ ok(POSIX::mkfifo("$maildir/cur/fifo", 0777),
 	'create FIFO to ensure we do not get stuck on it :P');
 my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
-my $config = PublicInbox::Config->new({
-	"$cfgpfx.address" => $addr,
-	"$cfgpfx.mainrepo" => $git_dir,
-	"$cfgpfx.watch" => "maildir:$maildir",
-	"$cfgpfx.filter" => 'PublicInbox::Filter::Vger',
-	"publicinboxlearn.watchspam" => "maildir:$spamdir",
-});
+my $config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=$addr
+$cfgpfx.mainrepo=$git_dir
+$cfgpfx.watch=maildir:$maildir
+$cfgpfx.filter=PublicInbox::Filter::Vger
+publicinboxlearn.watchspam=maildir:$spamdir
+EOF
 
 PublicInbox::WatchMaildir->new($config)->scan('full');
 my $git = PublicInbox::Git->new($git_dir);

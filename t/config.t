@@ -58,30 +58,33 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 {
 	my $cfgpfx = "publicinbox.test";
 	my @altid = qw(serial:gmane:file=a serial:enamg:file=b);
-	my $config = PublicInbox::Config->new({
-		"$cfgpfx.address" => 'test@example.com',
-		"$cfgpfx.mainrepo" => '/path/to/non/existent',
-		"$cfgpfx.altid" => [ @altid ],
-	});
+	my $config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=test\@example.com
+$cfgpfx.mainrepo=/path/to/non/existent
+$cfgpfx.altid=serial:gmane:file=a
+$cfgpfx.altid=serial:enamg:file=b
+EOF
 	my $ibx = $config->lookup_name('test');
 	is_deeply($ibx->{altid}, [ @altid ]);
 }
 
 {
 	my $pfx = "publicinbox.test";
-	my %h = (
-		"$pfx.address" => 'test@example.com',
-		"$pfx.mainrepo" => '/path/to/non/existent',
-		"publicinbox.nntpserver" => 'news.example.com',
-	);
-	my %tmp = %h;
-	my $cfg = PublicInbox::Config->new(\%tmp);
+	my $str = <<EOF;
+$pfx.address=test\@example.com
+$pfx.mainrepo=/path/to/non/existent
+publicinbox.nntpserver=news.example.com
+EOF
+	my $cfg = PublicInbox::Config->new(\$str);
 	my $ibx = $cfg->lookup_name('test');
 	is($ibx->{nntpserver}, 'news.example.com', 'global NNTP server');
 
-	delete $h{'publicinbox.nntpserver'};
-	$h{"$pfx.nntpserver"} = 'news.alt.example.com';
-	$cfg = PublicInbox::Config->new(\%h);
+	$str = <<EOF;
+$pfx.address=test\@example.com
+$pfx.mainrepo=/path/to/non/existent
+$pfx.nntpserver=news.alt.example.com
+EOF
+	$cfg = PublicInbox::Config->new(\$str);
 	$ibx = $cfg->lookup_name('test');
 	is($ibx->{nntpserver}, 'news.alt.example.com','per-inbox NNTP server');
 }
@@ -90,17 +93,15 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 {
 	my $pfx = "publicinbox.test";
 	my $pfx2 = "publicinbox.foo";
-	my %h = (
-		"$pfx.address" => 'test@example.com',
-		"$pfx.mainrepo" => '/path/to/non/existent',
-		"$pfx2.address" => 'foo@example.com',
-		"$pfx2.mainrepo" => '/path/to/foo',
-		lc("publicinbox.noObfuscate") =>
-			'public-inbox.org @example.com z@EXAMPLE.com',
-		"$pfx.obfuscate" => 'true', # :<
-	);
-	my %tmp = %h;
-	my $cfg = PublicInbox::Config->new(\%tmp);
+	my $str = <<EOF;
+$pfx.address=test\@example.com
+$pfx.mainrepo=/path/to/non/existent
+$pfx2.address=foo\@example.com
+$pfx2.mainrepo=/path/to/foo
+publicinbox.noobfuscate=public-inbox.org \@example.com z\@EXAMPLE.com
+$pfx.obfuscate=true
+EOF
+	my $cfg = PublicInbox::Config->new(\$str);
 	my $ibx = $cfg->lookup_name('test');
 	my $re = $ibx->{-no_obfuscate_re};
 	like('meta@public-inbox.org', $re,
@@ -174,16 +175,16 @@ for my $s (@valid) {
 {
 	my $pfx1 = "publicinbox.test1";
 	my $pfx2 = "publicinbox.test2";
-	my $h = {
-		"$pfx1.address" => 'test@example.com',
-		"$pfx1.mainrepo" => '/path/to/non/existent',
-		"$pfx2.address" => 'foo@example.com',
-		"$pfx2.mainrepo" => '/path/to/foo',
-		"$pfx1.coderepo" => 'project',
-		"$pfx2.coderepo" => 'project',
-		"coderepo.project.dir" => '/path/to/project.git',
-	};
-	my $cfg = PublicInbox::Config->new($h);
+	my $str = <<EOF;
+$pfx1.address=test\@example.com
+$pfx1.mainrepo=/path/to/non/existent
+$pfx2.address=foo\@example.com
+$pfx2.mainrepo=/path/to/foo
+$pfx1.coderepo=project
+$pfx2.coderepo=project
+coderepo.project.dir=/path/to/project.git
+EOF
+	my $cfg = PublicInbox::Config->new(\$str);
 	my $t1 = $cfg->lookup_name('test1');
 	my $t2 = $cfg->lookup_name('test2');
 	is($t1->{-repo_objs}->[0], $t2->{-repo_objs}->[0],
