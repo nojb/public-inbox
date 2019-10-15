@@ -8,7 +8,10 @@ all::
 # Maybe it's not worth it to support non-GNU make, though...
 RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
+AWK = awk
 MAN = man
+
+# this is "xml" on FreeBSD and maybe some other distros:
 XMLSTARLET = xmlstarlet
 
 # same as pod2text
@@ -116,7 +119,8 @@ NEWS NEWS.atom NEWS.html :
 check :: NEWS check-NEWS.atom NEWS.html
 
 check-NEWS.atom: NEWS.atom
-	$(XMLSTARLET) val $<; e=$$?; test $$e -eq 0 || test $$e -eq 127
+	$(XMLSTARLET) val NEWS.atom || \
+		{ e=$$?; test $$e -eq 0 || test $$e -eq 127; }
 
 Documentation/%.html: Documentation/%.txt
 	$(txt2pre)
