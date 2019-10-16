@@ -36,7 +36,7 @@ sub import_index_incremental {
 	my $this = "pi-$v-$level-indexlevels";
 	my $tmpdir = tempdir("$this-tmp-XXXXXX", TMPDIR => 1, CLEANUP => 1);
 	my $ibx = PublicInbox::Inbox->new({
-		mainrepo => "$tmpdir/testbox",
+		inboxdir => "$tmpdir/testbox",
 		name => $this,
 		version => $v,
 		-primary_address => 'test@example.com',
@@ -48,9 +48,9 @@ sub import_index_incremental {
 	$im->done;
 
 	# index master (required for v1)
-	is(system($index, $ibx->{mainrepo}, "-L$level"), 0, 'index master OK');
+	is(system($index, $ibx->{inboxdir}, "-L$level"), 0, 'index master OK');
 	my $ro_master = PublicInbox::Inbox->new({
-		mainrepo => $ibx->{mainrepo},
+		inboxdir => $ibx->{inboxdir},
 		indexlevel => $level
 	});
 	my ($nr, $msgs) = $ro_master->recent;
@@ -61,9 +61,9 @@ sub import_index_incremental {
 	my @cmd = (qw(git clone --mirror -q));
 	my $mirror = "$tmpdir/mirror-$v";
 	if ($v == 1) {
-		push @cmd, $ibx->{mainrepo}, $mirror;
+		push @cmd, $ibx->{inboxdir}, $mirror;
 	} else {
-		push @cmd, "$ibx->{mainrepo}/git/0.git", "$mirror/git/0.git";
+		push @cmd, "$ibx->{inboxdir}/git/0.git", "$mirror/git/0.git";
 	}
 	my $fetch_dir = $cmd[-1];
 	is(system(@cmd), 0, "v$v clone OK");
@@ -80,7 +80,7 @@ sub import_index_incremental {
 
 	# read-only access
 	my $ro_mirror = PublicInbox::Inbox->new({
-		mainrepo => $mirror,
+		inboxdir => $mirror,
 		indexlevel => $level,
 	});
 	($nr, $msgs) = $ro_mirror->recent;
@@ -101,7 +101,7 @@ sub import_index_incremental {
 		['m@1','m@2'], 'got both messages in mirror');
 
 	# incremental index master (required for v1)
-	is(system($index, $ibx->{mainrepo}, "-L$level"), 0, 'index master OK');
+	is(system($index, $ibx->{inboxdir}, "-L$level"), 0, 'index master OK');
 	($nr, $msgs) = $ro_master->recent;
 	is($nr, 2, '2nd message seen in master');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
@@ -137,7 +137,7 @@ sub import_index_incremental {
 		'message unavailable in mirror');
 
 	if ($v == 2 && $level eq 'basic') {
-		is_deeply([glob("$ibx->{mainrepo}/xap*/?/")], [],
+		is_deeply([glob("$ibx->{inboxdir}/xap*/?/")], [],
 			 'no Xapian shard directories for v2 basic');
 	}
 	if ($level ne 'basic') {

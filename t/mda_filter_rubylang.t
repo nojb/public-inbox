@@ -27,12 +27,12 @@ for my $v (qw(V1 V2)) {
 	my @warn;
 	$SIG{__WARN__} = sub { push @warn, @_ };
 	my $cfgpfx = "publicinbox.$v";
-	my $mainrepo = "$tmpdir/$v";
+	my $inboxdir = "$tmpdir/$v";
 	my $addr = "test-$v\@example.com";
-	my @cmd = ('blib/script/public-inbox-init', "-$v", $v, $mainrepo,
+	my @cmd = ('blib/script/public-inbox-init', "-$v", $v, $inboxdir,
 		"http://example.com/$v", $addr);
 	is(system(@cmd), 0, 'public-inbox init OK');
-	is(system('blib/script/public-inbox-index', $mainrepo), 0);
+	is(system('blib/script/public-inbox-index', $inboxdir), 0);
 	is(system(@cfg, "$cfgpfx.filter", 'PublicInbox::Filter::RubyLang'), 0);
 	is(system(@cfg, "$cfgpfx.altid",
 		'serial:alerts:file=msgmap.sqlite3'), 0);

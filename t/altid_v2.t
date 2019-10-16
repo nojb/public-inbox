@@ -14,12 +14,12 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 use_ok 'PublicInbox::V2Writable';
 use_ok 'PublicInbox::Inbox';
 my $tmpdir = tempdir('pi-altidv2-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-my $mainrepo = "$tmpdir/inbox";
+my $inboxdir = "$tmpdir/inbox";
 my $full = "$tmpdir/inbox/another-nntp.sqlite3";
 my $altid = [ 'serial:gmane:file=another-nntp.sqlite3' ];
 
 {
-	ok(mkdir($mainrepo), 'created repo for msgmap');
+	ok(mkdir($inboxdir), 'created repo for msgmap');
 	my $mm = PublicInbox::Msgmap->new_file($full, 1);
 	is($mm->mid_set(1234, 'a@example.com'), 1, 'mid_set once OK');
 	ok(0 == $mm->mid_set(1234, 'a@example.com'), 'mid_set not idempotent');
@@ -27,7 +27,7 @@ my $altid = [ 'serial:gmane:file=another-nntp.sqlite3' ];
 }
 
 my $ibx = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',

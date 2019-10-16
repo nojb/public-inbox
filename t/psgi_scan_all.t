@@ -19,12 +19,12 @@ my $cfg = '';
 foreach my $i (1..2) {
 	my $cfgpfx = "publicinbox.test-$i";
 	my $addr = "test-$i\@example.com";
-	my $mainrepo = "$tmp/$i";
+	my $inboxdir = "$tmp/$i";
 	$cfg .= "$cfgpfx.address=$addr\n";
-	$cfg .= "$cfgpfx.mainrepo=$mainrepo\n";
+	$cfg .= "$cfgpfx.inboxdir=$inboxdir\n";
 	$cfg .= "$cfgpfx.url=http://example.com/$i\n";
 	my $opt = {
-		mainrepo => $mainrepo,
+		inboxdir => $inboxdir,
 		name => "test-$i",
 		version => 2,
 		indexlevel => 'basic',

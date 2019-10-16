@@ -15,9 +15,9 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	plan skip_all => "$mod missing for v2reindex.t" if $@;
 }
 use_ok 'PublicInbox::V2Writable';
-my $mainrepo = tempdir('pi-v2reindex-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my $inboxdir = tempdir('pi-v2reindex-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx_config = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',
@@ -100,7 +100,7 @@ my ($mark1, $mark2, $mark3, $mark4);
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-my $xap = "$mainrepo/xap".PublicInbox::Search::SCHEMA_VERSION();
+my $xap = "$inboxdir/xap".PublicInbox::Search::SCHEMA_VERSION();
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed');
 {
@@ -120,7 +120,7 @@ ok(!-d $xap, 'Xapian directories removed');
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -143,7 +143,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 }
 
 my %sizes;
-ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -168,7 +168,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -207,7 +207,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -237,7 +237,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 
 
 # An incremental indexing test
-ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -347,7 +347,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 
 
 # Another incremental indexing test
-ok(unlink "$mainrepo/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {

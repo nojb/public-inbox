@@ -14,9 +14,9 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 }
 use_ok 'PublicInbox::V2Writable';
 umask 007;
-my $mainrepo = tempdir('pi-v2writable-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my $inboxdir = tempdir('pi-v2writable-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',
@@ -36,9 +36,9 @@ my $mime = PublicInbox::MIME->create(
 my $im = PublicInbox::V2Writable->new($ibx, {nproc => 1});
 is($im->{shards}, 1, 'one shard when forced');
 ok($im->add($mime), 'ordinary message added');
-foreach my $f ("$mainrepo/msgmap.sqlite3",
-		glob("$mainrepo/xap*/*"),
-		glob("$mainrepo/xap*/*/*")) {
+foreach my $f ("$inboxdir/msgmap.sqlite3",
+		glob("$inboxdir/xap*/*"),
+		glob("$inboxdir/xap*/*/*")) {
 	my @st = stat($f);
 	my ($bn) = (split(m!/!, $f))[-1];
 	is($st[2] & 07777, -f _ ? 0660 : 0770,
@@ -48,10 +48,10 @@ foreach my $f ("$mainrepo/msgmap.sqlite3",
 my $git0;
 
 if ('ensure git configs are correct') {
-	my @cmd = (qw(git config), "--file=$mainrepo/all.git/config",
+	my @cmd = (qw(git config), "--file=$inboxdir/all.git/config",
 		qw(core.sharedRepository 0644));
 	is(system(@cmd), 0, "set sharedRepository in all.git");
-	$git0 = PublicInbox::Git->new("$mainrepo/git/0.git");
+	$git0 = PublicInbox::Git->new("$inboxdir/git/0.git");
 	chomp(my $v = $git0->qx(qw(config core.sharedRepository)));
 	is($v, '0644', 'child repo inherited core.sharedRepository');
 	chomp($v = $git0->qx(qw(config --bool repack.writeBitmaps)));
@@ -131,14 +131,14 @@ if ('ensure git configs are correct') {
 
 {
 	use Net::NNTP;
-	my $err = "$mainrepo/stderr.log";
-	my $out = "$mainrepo/stdout.log";
+	my $err = "$inboxdir/stderr.log";
+	my $out = "$inboxdir/stdout.log";
 	my $group = 'inbox.comp.test.v2writable';
-	my $pi_config = "$mainrepo/pi_config";
+	my $pi_config = "$inboxdir/pi_config";
 	open my $fh, '>', $pi_config or die "open: $!\n";
 	print $fh <<EOF
 [publicinbox "test-v2writable"]
-	mainrepo = $mainrepo
+	inboxdir = $inboxdir
 	version = 2
 	address = test\@example.com
 	newsgroup = $group

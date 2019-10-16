@@ -18,9 +18,9 @@ foreach my $mod (@mods) {
 }
 use_ok($_) for @mods;
 use_ok 'PublicInbox::V2Writable';
-my $mainrepo = tempdir('pi-v2_dupes-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my $inboxdir = tempdir('pi-v2_dupes-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',
@@ -56,7 +56,7 @@ $im->done;
 my $cfgpfx = "publicinbox.v2test";
 my $cfg = <<EOF;
 $cfgpfx.address=$ibx->{-primary_address}
-$cfgpfx.mainrepo=$mainrepo
+$cfgpfx.inboxdir=$inboxdir
 EOF
 my $config = PublicInbox::Config->new(\$cfg);
 my $www = PublicInbox::WWW->new($config);

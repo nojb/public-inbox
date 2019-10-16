@@ -16,10 +16,10 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 }
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';
-my $mainrepo = tempdir('pi-v1reindex-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-is(system(qw(git init -q --bare), $mainrepo), 0);
+my $inboxdir = tempdir('pi-v1reindex-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+is(system(qw(git init -q --bare), $inboxdir), 0);
 my $ibx_config = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-v1reindex',
 	-primary_address => 'test@example.com',
 	indexlevel => 'full',
@@ -96,7 +96,7 @@ my ($mark1, $mark2, $mark3, $mark4);
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-my $xap = "$mainrepo/public-inbox/xapian".PublicInbox::Search::SCHEMA_VERSION();
+my $xap = "$inboxdir/public-inbox/xapian".PublicInbox::Search::SCHEMA_VERSION();
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed');
 {
@@ -118,7 +118,7 @@ ok(!-d $xap, 'Xapian directories removed');
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -141,7 +141,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -164,7 +164,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -190,7 +190,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
 }
 
-ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -239,7 +239,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 }
 
 # An incremental indexing test
-ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {
@@ -349,7 +349,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 
 
 # Another incremental indexing test
-ok(unlink "$mainrepo/public-inbox/msgmap.sqlite3", 'remove msgmap');
+ok(unlink "$inboxdir/public-inbox/msgmap.sqlite3", 'remove msgmap');
 remove_tree($xap);
 ok(!-d $xap, 'Xapian directories removed again');
 {

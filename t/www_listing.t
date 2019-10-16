@@ -91,15 +91,15 @@ SKIP: {
 	open $fh, '>', $cfgfile or die;
 	print $fh <<"" or die;
 [publicinbox "bare"]
-	mainrepo = $bare->{git_dir}
+	inboxdir = $bare->{git_dir}
 	url = http://$host/bare
 	address = bare\@example.com
 [publicinbox "alt"]
-	mainrepo = $alt
+	inboxdir = $alt
 	url = http://$host/alt
 	address = alt\@example.com
 [publicinbox "v2"]
-	mainrepo = $v2
+	inboxdir = $v2
 	url = http://$host/v2
 	address = v2\@example.com
 

@@ -109,7 +109,7 @@ sub new {
 	_set_limiter($opts, $pi_config, 'httpbackend');
 	_set_uint($opts, 'feedmax', 25);
 	$opts->{nntpserver} ||= $pi_config->{'publicinbox.nntpserver'};
-	my $dir = $opts->{mainrepo};
+	my $dir = $opts->{inboxdir};
 	if (defined $dir && -f "$dir/inbox.lock") {
 		$opts->{version} = 2;
 	}
@@ -129,7 +129,7 @@ sub git_epoch {
 	my ($self, $epoch) = @_;
 	($self->{version} || 1) == 2 or return;
 	$self->{"$epoch.git"} ||= eval {
-		my $git_dir = "$self->{mainrepo}/git/$epoch.git";
+		my $git_dir = "$self->{inboxdir}/git/$epoch.git";
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
 		# no cleanup needed, we never cat-file off this, only clone
@@ -140,7 +140,7 @@ sub git_epoch {
 sub git {
 	my ($self) = @_;
 	$self->{git} ||= eval {
-		my $git_dir = $self->{mainrepo};
+		my $git_dir = $self->{inboxdir};
 		$git_dir .= '/all.git' if (($self->{version} || 1) == 2);
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
@@ -157,7 +157,7 @@ sub max_git_epoch {
 	my $changed = git($self)->alternates_changed;
 	if (!defined($cur) || $changed) {
 		$self->git->cleanup if $changed;
-		my $gits = "$self->{mainrepo}/git";
+		my $gits = "$self->{inboxdir}/git";
 		if (opendir my $dh, $gits) {
 			my $max = -1;
 			while (defined(my $git_dir = readdir($dh))) {
@@ -177,7 +177,7 @@ sub mm {
 	$self->{mm} ||= eval {
 		require PublicInbox::Msgmap;
 		_cleanup_later($self);
-		my $dir = $self->{mainrepo};
+		my $dir = $self->{inboxdir};
 		if (($self->{version} || 1) >= 2) {
 			PublicInbox::Msgmap->new_file("$dir/msgmap.sqlite3");
 		} else {
@@ -220,7 +220,7 @@ sub description {
 	my ($self) = @_;
 	my $desc = $self->{description};
 	return $desc if defined $desc;
-	$desc = try_cat("$self->{mainrepo}/description");
+	$desc = try_cat("$self->{inboxdir}/description");
 	local $/ = "\n";
 	chomp $desc;
 	$desc =~ s/\s+/ /smg;
@@ -232,7 +232,7 @@ sub cloneurl {
 	my ($self) = @_;
 	my $url = $self->{cloneurl};
 	return $url if $url;
-	$url = try_cat("$self->{mainrepo}/cloneurl");
+	$url = try_cat("$self->{inboxdir}/cloneurl");
 	my @url = split(/\s+/s, $url);
 	local $/ = "\n";
 	chomp @url;

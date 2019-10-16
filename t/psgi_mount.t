@@ -23,7 +23,7 @@ use Plack::Builder;
 use Plack::App::URLMap;
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
-$cfgpfx.mainrepo=$maindir
+$cfgpfx.inboxdir=$maindir
 EOF
 is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
 my $git = PublicInbox::Git->new($maindir);

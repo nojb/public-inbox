@@ -43,7 +43,7 @@ my $ibx;
 	$im->done;
 }
 {
-	$ibx = PublicInbox::Inbox->new({mainrepo => $git_dir});
+	$ibx = PublicInbox::Inbox->new({inboxdir => $git_dir});
 	$ibx->{altid} = $altid;
 	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 	$rw->index_sync;

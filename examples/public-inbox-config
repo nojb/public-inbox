@@ -4,9 +4,11 @@
 	address = try@public-inbox.org
 	address = sandbox@public-inbox.org
 	address = test@public-inbox.org
-	mainrepo = /home/pi/test-main.git
+	; note: "mainrepo" is the old name for "inboxdir", both
+	; remain supported for backwards compatibility.
+	inboxdir = /home/pi/test-main.git
 	url = http://example.com/test
 [publicinbox "meta"]
 	address = meta@public-inbox.org
-	mainrepo = /home/pi/meta-main.git
+	inboxdir = /home/pi/meta-main.git
 	url = http://example.com/meta

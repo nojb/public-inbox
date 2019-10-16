@@ -18,7 +18,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 use_ok 'PublicInbox::V2Writable';
 my $tmpdir = tempdir('pi-v2mda-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = {
-	mainrepo => "$tmpdir/inbox",
+	inboxdir => "$tmpdir/inbox",
 	name => 'test-v2writable',
 	address => [ 'test@example.com' ],
 };
@@ -45,7 +45,7 @@ my $faildir = "$tmpdir/fail";
 local $ENV{PI_EMERGENCY} = $faildir;
 ok(mkdir $faildir);
 my @cmd = (qw(public-inbox-init), "-V$V", $ibx->{name},
-		$ibx->{mainrepo}, 'http://localhost/test',
+		$ibx->{inboxdir}, 'http://localhost/test',
 		$ibx->{address}->[0]);
 ok(PublicInbox::Import::run_die(\@cmd), 'initialized v2 inbox');
 

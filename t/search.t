@@ -14,7 +14,7 @@ use File::Temp qw/tempdir/;
 use Email::MIME;
 my $tmpdir = tempdir('pi-search-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $git_dir = "$tmpdir/a.git";
-my $ibx = PublicInbox::Inbox->new({ mainrepo => $git_dir });
+my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir });
 my ($root_id, $last_id);
 
 is(0, system(qw(git init --shared -q --bare), $git_dir), "git init (main)")

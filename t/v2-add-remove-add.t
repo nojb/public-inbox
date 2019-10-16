@@ -13,9 +13,9 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	plan skip_all => "$mod missing for v2-add-remove-add.t" if $@;
 }
 use_ok 'PublicInbox::V2Writable';
-my $mainrepo = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my $inboxdir = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = {
-	mainrepo => "$mainrepo/v2",
+	inboxdir => "$inboxdir/v2",
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',

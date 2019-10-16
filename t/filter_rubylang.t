@@ -30,7 +30,7 @@ SKIP: {
 				TMPDIR => 1, CLEANUP => 1);
 	is(mkdir("$git_dir/public-inbox"), 1, "created public-inbox dir");
 	my $altid = [ "serial:ruby-core:file=msgmap.sqlite3" ];
-	my $ibx = PublicInbox::Inbox->new({ mainrepo => $git_dir,
+	my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir,
 						altid => $altid });
 	$f = PublicInbox::Filter::RubyLang->new(-inbox => $ibx);
 	$msg = <<'EOF';

@@ -30,14 +30,14 @@ $old_dir = abs_path($old_dir);
 my $old;
 if ($config) {
 	$config->each_inbox(sub {
-		$old = $_[0] if abs_path($_[0]->{mainrepo}) eq $old_dir;
+		$old = $_[0] if abs_path($_[0]->{inboxdir}) eq $old_dir;
 	});
 }
 unless ($old) {
 	warn "W: $old_dir not configured in " .
 		PublicInbox::Config::default_file() . "\n";
 	$old = {
-		mainrepo => $old_dir,
+		inboxdir => $old_dir,
 		name => 'ignored',
 		address => [ 'old@example.com' ],
 	};
@@ -48,7 +48,7 @@ if (($old->{version} || 1) >= 2) {
 	die "Only conversion from v1 inboxes is supported\n";
 }
 my $new = { %$old };
-$new->{mainrepo} = abs_path($new_dir);
+$new->{inboxdir} = abs_path($new_dir);
 $new->{version} = 2;
 $new = PublicInbox::InboxWritable->new($new);
 my $v2w;
@@ -62,9 +62,9 @@ sub link_or_copy ($$) {
 }
 
 $old->with_umask(sub {
-	my $old_cfg = "$old->{mainrepo}/config";
+	my $old_cfg = "$old->{inboxdir}/config";
 	local $ENV{GIT_CONFIG} = $old_cfg;
-	my $new_cfg = "$new->{mainrepo}/all.git/config";
+	my $new_cfg = "$new->{inboxdir}/all.git/config";
 	$v2w = PublicInbox::V2Writable->new($new, 1);
 	$v2w->init_inbox($jobs);
 	unlink $new_cfg;
@@ -79,9 +79,9 @@ $old->with_umask(sub {
 			$src->mm_alt->{dbh}->sqlite_backup_to_file($dst);
 		}
 	}
-	my $desc = "$old->{mainrepo}/description";
-	link_or_copy($desc, "$new->{mainrepo}/description") if -e $desc;
-	my $clone = "$old->{mainrepo}/cloneurl";
+	my $desc = "$old->{inboxdir}/description";
+	link_or_copy($desc, "$new->{inboxdir}/description") if -e $desc;
+	my $clone = "$old->{inboxdir}/cloneurl";
 	if (-e $clone) {
 		warn <<"";
 $clone may not be valid after migrating to v2, not copying

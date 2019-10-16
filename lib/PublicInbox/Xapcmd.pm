@@ -153,7 +153,7 @@ sub run {
 	my ($ibx, $task, $opt) = @_; # task = 'cpdb' or 'compact'
 	my $cb = \&${\"PublicInbox::Xapcmd::$task"};
 	PublicInbox::Admin::progress_prepare($opt ||= {});
-	my $dir = $ibx->{mainrepo} or die "no mainrepo in inbox\n";
+	my $dir = $ibx->{inboxdir} or die "no inboxdir in inbox\n";
 	runnable_or_die($XAPIAN_COMPACT) if $opt->{compact};
 	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
 	my $from; # per-epoch ranges
@@ -181,7 +181,7 @@ sub run {
 	if ($v == 1) {
 		if (defined $reshard) {
 			warn
-"--reshard=$reshard ignored for v1 $ibx->{mainrepo}\n";
+"--reshard=$reshard ignored for v1 $ibx->{inboxdir}\n";
 		}
 		my $old_parent = dirname($old);
 		same_fs_or_die($old_parent, $old);

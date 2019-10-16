@@ -20,15 +20,15 @@ use_ok 'PublicInbox::V2Writable';
 use PublicInbox::Import;
 my $tmpdir = tempdir('convert-compact-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = {
-	mainrepo => "$tmpdir/v1",
+	inboxdir => "$tmpdir/v1",
 	name => 'test-v1',
 	-primary_address => 'test@example.com',
 };
 
-ok(PublicInbox::Import::run_die([qw(git init --bare -q), $ibx->{mainrepo}]),
+ok(PublicInbox::Import::run_die([qw(git init --bare -q), $ibx->{inboxdir}]),
 	'initialized v1 repo');
 ok(umask(077), 'set restrictive umask');
-ok(PublicInbox::Import::run_die([qw(git) , "--git-dir=$ibx->{mainrepo}",
+ok(PublicInbox::Import::run_die([qw(git) , "--git-dir=$ibx->{inboxdir}",
 	qw(config core.sharedRepository 0644)]), 'set sharedRepository');
 $ibx = PublicInbox::Inbox->new($ibx);
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
@@ -51,11 +51,11 @@ for (1..2) {
 	is($@, '', 'no errors syncing');
 }
 
-is(((stat("$ibx->{mainrepo}/public-inbox"))[2]) & 07777, 0755,
+is(((stat("$ibx->{inboxdir}/public-inbox"))[2]) & 07777, 0755,
 	'sharedRepository respected for v1');
-is(((stat("$ibx->{mainrepo}/public-inbox/msgmap.sqlite3"))[2]) & 07777, 0644,
+is(((stat("$ibx->{inboxdir}/public-inbox/msgmap.sqlite3"))[2]) & 07777, 0644,
 	'sharedRepository respected for v1 msgmap');
-my @xdir = glob("$ibx->{mainrepo}/public-inbox/xap*/*");
+my @xdir = glob("$ibx->{inboxdir}/public-inbox/xap*/*");
 foreach (@xdir) {
 	my @st = stat($_);
 	is($st[2] & 07777, -f _ ? 0644 : 0755,
@@ -68,15 +68,15 @@ open my $err, '>>', "$tmpdir/err.log" or die "open: err.log $!\n";
 open my $out, '>>', "$tmpdir/out.log" or die "open: out.log $!\n";
 my $rdr = { 1 => fileno($out), 2 => fileno($err) };
 
-my $cmd = [ 'public-inbox-compact', $ibx->{mainrepo} ];
+my $cmd = [ 'public-inbox-compact', $ibx->{inboxdir} ];
 ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'v1 compact works');
 
-@xdir = glob("$ibx->{mainrepo}/public-inbox/xap*");
+@xdir = glob("$ibx->{inboxdir}/public-inbox/xap*");
 is(scalar(@xdir), 1, 'got one xapian directory after compact');
 is(((stat($xdir[0]))[2]) & 07777, 0755,
 	'sharedRepository respected on v1 compact');
 
-$cmd = [ 'public-inbox-convert', $ibx->{mainrepo}, "$tmpdir/v2" ];
+$cmd = [ 'public-inbox-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
 ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'convert works');
 @xdir = glob("$tmpdir/v2/xap*/*");
 foreach (@xdir) {
@@ -88,7 +88,7 @@ foreach (@xdir) {
 $cmd = [ 'public-inbox-compact', "$tmpdir/v2" ];
 my $env = { NPROC => 2 };
 ok(PublicInbox::Import::run_die($cmd, $env, $rdr), 'v2 compact works');
-$ibx->{mainrepo} = "$tmpdir/v2";
+$ibx->{inboxdir} = "$tmpdir/v2";
 $ibx->{version} = 2;
 
 @xdir = glob("$tmpdir/v2/xap*/*");

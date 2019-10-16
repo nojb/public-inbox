@@ -31,7 +31,7 @@ my %opts = (
 GetOptions(%opts) or usage();
 PublicInbox::Admin::indexlevel_ok_or_die($indexlevel) if defined $indexlevel;
 my $name = shift @ARGV or usage();
-my $mainrepo = shift @ARGV or usage();
+my $inboxdir = shift @ARGV or usage();
 my $http_url = shift @ARGV or usage();
 my (@address) = @ARGV;
 @address or usage();
@@ -112,18 +112,18 @@ close $fh or die "failed to close $pi_config_tmp: $!\n";
 my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
 
-$mainrepo = abs_path($mainrepo);
-if (-f "$mainrepo/inbox.lock") {
+$inboxdir = abs_path($inboxdir);
+if (-f "$inboxdir/inbox.lock") {
 	if (!defined $version) {
 		$version = 2;
 	} elsif ($version != 2) {
-		die "$mainrepo is a -V2 repo, -V$version specified\n"
+		die "$inboxdir is a -V2 repo, -V$version specified\n"
 	}
-} elsif (-d "$mainrepo/objects") {
+} elsif (-d "$inboxdir/objects") {
 	if (!defined $version) {
 		$version = 1;
 	} elsif ($version != 1) {
-		die "$mainrepo is a -V1 repo, -V$version specified\n"
+		die "$inboxdir is a -V1 repo, -V$version specified\n"
 	}
 }
 
@@ -134,7 +134,7 @@ if ($version == 1 && defined $skip_epoch) {
 }
 
 my $ibx = PublicInbox::Inbox->new({
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => $name,
 	version => $version,
 	-primary_address => $address[0],
@@ -152,7 +152,7 @@ foreach my $addr (@address) {
 	x(@x, "--add", "$pfx.address", $addr);
 }
 x(@x, "$pfx.url", $http_url);
-x(@x, "$pfx.mainrepo", $mainrepo);
+x(@x, "$pfx.inboxdir", $inboxdir);
 
 if (defined($indexlevel)) {
 	x(@x, "$pfx.indexlevel", $indexlevel);

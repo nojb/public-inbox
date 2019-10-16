@@ -56,7 +56,7 @@ SKIP: {
 	use_ok 'PublicInbox::V2Writable';
 	use_ok 'PublicInbox::Inbox';
 	my $ibx = PublicInbox::Inbox->new({
-			mainrepo => $v2_dir,
+			inboxdir => $v2_dir,
 			name => 'test-v2writable',
 			version => 2,
 			-primary_address => 'test@example.com',

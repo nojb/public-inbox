@@ -14,14 +14,14 @@ foreach my $mod (@mods) {
 }
 require PublicInbox::V2Writable;
 my $tmpdir = tempdir('watch_maildir-v2-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-my $mainrepo = "$tmpdir/v2";
+my $inboxdir = "$tmpdir/v2";
 my $maildir = "$tmpdir/md";
 my $spamdir = "$tmpdir/spam";
 use_ok 'PublicInbox::WatchMaildir';
 use_ok 'PublicInbox::Emergency';
 my $cfgpfx = "publicinbox.test";
 my $addr = 'test-public@example.com';
-my @cmd = ('blib/script/public-inbox-init', '-V2', 'test', $mainrepo,
+my @cmd = ('blib/script/public-inbox-init', '-V2', 'test', $inboxdir,
 	'http://example.com/v2list', $addr);
 local $ENV{PI_CONFIG} = "$tmpdir/pi_config";
 is(system(@cmd), 0, 'public-inbox init OK');
@@ -42,7 +42,7 @@ my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
 my $orig = <<EOF;
 $cfgpfx.address=$addr
-$cfgpfx.mainrepo=$mainrepo
+$cfgpfx.inboxdir=$inboxdir
 $cfgpfx.watch=maildir:$maildir
 $cfgpfx.filter=PublicInbox::Filter::Vger
 publicinboxlearn.watchspam=maildir:$spamdir
@@ -56,7 +56,7 @@ PublicInbox::WatchMaildir->new($config)->scan('full');
 my ($total, undef) = $srch->reopen->query('');
 is($total, 1, 'got one revision');
 
-# my $git = PublicInbox::Git->new("$mainrepo/git/0.git");
+# my $git = PublicInbox::Git->new("$inboxdir/git/0.git");
 # my @list = $git->qx(qw(rev-list refs/heads/master));
 # is(scalar @list, 1, 'one revision in rev-list');
 
@@ -148,7 +148,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	is(system(qw(git init -q --bare), $v1repo), 0, 'v1 init OK');
 	my $cfg2 = <<EOF;
 $orig$v1pfx.address=$v1addr
-$v1pfx.mainrepo=$v1repo
+$v1pfx.inboxdir=$v1repo
 $v1pfx.watch=maildir:$maildir
 EOF
 	my $config = PublicInbox::Config->new(\$cfg2);

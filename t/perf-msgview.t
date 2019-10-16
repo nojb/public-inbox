@@ -20,7 +20,7 @@ if (require_git(2.19, 1)) {
 }
 
 use_ok 'Plack::Util';
-my $ibx = PublicInbox::Inbox->new({ mainrepo => $pi_dir, name => 'name' });
+my $ibx = PublicInbox::Inbox->new({ inboxdir => $pi_dir, name => 'name' });
 my $git = $ibx->git;
 my $fh = $git->popen(@cat);
 my $vec = '';

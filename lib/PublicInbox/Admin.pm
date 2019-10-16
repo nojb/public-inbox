@@ -61,7 +61,7 @@ sub detect_indexlevel ($) {
 			$l = $m;
 		} elsif ($m ne '') {
 			warn <<"";
-$ibx->{mainrepo} has unexpected indexlevel in Xapian: $m
+$ibx->{inboxdir} has unexpected indexlevel in Xapian: $m
 
 		}
 	}
@@ -74,7 +74,7 @@ sub unconfigured_ibx ($$) {
 	PublicInbox::Inbox->new({
 		name => $name,
 		address => [ "$name\@example.com" ],
-		mainrepo => $dir,
+		inboxdir => $dir,
 		# TODO: consumers may want to warn on this:
 		#-unconfigured => 1,
 	});
@@ -101,12 +101,12 @@ sub resolve_inboxes ($;$) {
 		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
 			$ibx->{version} ||= 1;
-			my $path = abs_path($ibx->{mainrepo});
+			my $path = abs_path($ibx->{inboxdir});
 			if (defined($path)) {
 				$dir2ibx{$path} = $ibx;
 			} else {
 				warn <<EOF;
-W: $ibx->{name} $ibx->{mainrepo}: $!
+W: $ibx->{name} $ibx->{inboxdir}: $!
 EOF
 			}
 		});

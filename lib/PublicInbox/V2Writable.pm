@@ -76,7 +76,7 @@ sub new {
 	# $creat may be any true value, or 0/undef.  A hashref is true,
 	# and $creat->{nproc} may be set to an integer
 	my ($class, $v2ibx, $creat) = @_;
-	my $dir = $v2ibx->{mainrepo} or die "no mainrepo in inbox\n";
+	my $dir = $v2ibx->{inboxdir} or die "no inboxdir in inbox\n";
 	unless (-d $dir) {
 		if ($creat) {
 			require File::Path;
@@ -304,7 +304,7 @@ sub idx_init {
 		# Now that all subprocesses are up, we can open the FDs
 		# for SQLite:
 		my $mm = $self->{mm} = PublicInbox::Msgmap->new_file(
-			"$self->{-inbox}->{mainrepo}/msgmap.sqlite3", 1);
+			"$self->{-inbox}->{inboxdir}/msgmap.sqlite3", 1);
 		$mm->{dbh}->begin_work;
 	});
 }
@@ -315,7 +315,7 @@ sub idx_init {
 sub _replace_oids ($$$) {
 	my ($self, $mime, $replace_map) = @_;
 	$self->done;
-	my $pfx = "$self->{-inbox}->{mainrepo}/git";
+	my $pfx = "$self->{-inbox}->{inboxdir}/git";
 	my $rewrites = []; # epoch => commit
 	my $max = $self->{epoch_max};
 
@@ -663,8 +663,8 @@ sub done {
 sub fill_alternates ($$) {
 	my ($self, $epoch) = @_;
 
-	my $pfx = "$self->{-inbox}->{mainrepo}/git";
-	my $all = "$self->{-inbox}->{mainrepo}/all.git";
+	my $pfx = "$self->{-inbox}->{inboxdir}/git";
+	my $all = "$self->{-inbox}->{inboxdir}/all.git";
 
 	unless (-d $all) {
 		PublicInbox::Import::init_bare($all);
@@ -690,7 +690,7 @@ sub fill_alternates ($$) {
 
 sub git_init {
 	my ($self, $epoch) = @_;
-	my $git_dir = "$self->{-inbox}->{mainrepo}/git/$epoch.git";
+	my $git_dir = "$self->{-inbox}->{inboxdir}/git/$epoch.git";
 	my @cmd = (qw(git init --bare -q), $git_dir);
 	PublicInbox::Import::run_die(\@cmd);
 	@cmd = (qw/git config/, "--file=$git_dir/config",
@@ -703,7 +703,7 @@ sub git_init {
 sub git_dir_latest {
 	my ($self, $max) = @_;
 	$$max = -1;
-	my $pfx = "$self->{-inbox}->{mainrepo}/git";
+	my $pfx = "$self->{-inbox}->{inboxdir}/git";
 	return unless -d $pfx;
 	my $latest;
 	opendir my $dh, $pfx or die "opendir $pfx: $!\n";
@@ -935,7 +935,7 @@ sub update_last_commit ($$$$) {
 	last_epoch_commit($self, $i, $cmt);
 }
 
-sub git_dir_n ($$) { "$_[0]->{-inbox}->{mainrepo}/git/$_[1].git" }
+sub git_dir_n ($$) { "$_[0]->{-inbox}->{inboxdir}/git/$_[1].git" }
 
 sub last_commits ($$) {
 	my ($self, $epoch_max) = @_;

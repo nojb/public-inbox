@@ -12,10 +12,10 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	plan skip_all => "$mod missing for v1-add-remove-add.t" if $@;
 }
 require PublicInbox::SearchIdx;
-my $mainrepo = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-is(system(qw(git init --bare), $mainrepo), 0);
+my $inboxdir = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+is(system(qw(git init --bare), $inboxdir), 0);
 my $ibx = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-add-remove-add',
 	-primary_address => 'test@example.com',
 };
