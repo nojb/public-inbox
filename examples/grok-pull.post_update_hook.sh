@@ -15,19 +15,19 @@ if git --git-dir="$full_git_dir" ls-tree --name-only HEAD | \
 	grep -E '^(m|d)$' >/dev/null
 then
 	inbox_fmt=2
-	inbox_mainrepo=$(expr "$full_git_dir" : "$EPOCH2MAIN")
-	inbox_name=$(basename "$inbox_mainrepo")
-	msgmap="$inbox_mainrepo"/msgmap.sqlite3
+	inbox_dir=$(expr "$full_git_dir" : "$EPOCH2MAIN")
+	inbox_name=$(basename "$inbox_dir")
+	msgmap="$inbox_dir"/msgmap.sqlite3
 else
 	inbox_fmt=1
-	inbox_mainrepo="$full_git_dir"
-	inbox_name=$(basename "$inbox_mainrepo" .git)
-	msgmap="$inbox_mainrepo"/public-inbox/msgmap.sqlite3
+	inbox_dir="$full_git_dir"
+	inbox_name=$(basename "$inbox_dir" .git)
+	msgmap="$inbox_dir"/public-inbox/msgmap.sqlite3
 fi
 
 # run public-inbox-init iff unconfigured
-cfg_mainrepo=$(git config -f "$PI_CONFIG" publicinbox."$inbox_name".mainrepo)
-case $cfg_mainrepo in
+cfg_dir=$(git config -f "$PI_CONFIG" publicinbox."$inbox_name".dir)
+case $cfg_dir in
 '')
 	remote_git_url=$(git --git-dir="$full_git_dir" config remote.origin.url)
 	case $remote_git_url in
@@ -47,7 +47,7 @@ case $cfg_mainrepo in
 	esac
 
 	config_url="$remote_inbox_url"/_/text/config/raw
-	remote_config="$inbox_mainrepo"/remote.config.$$
+	remote_config="$inbox_dir"/remote.config.$$
 	trap 'rm -f "$remote_config"' EXIT
 	if curl --compressed -sSf -v "$config_url" >"$remote_config"
 	then
@@ -68,15 +68,15 @@ case $cfg_mainrepo in
 		newsgroups=
 		addresses="$inbox_name@$$.$(hostname).example.com"
 		echo >&2 "E: curl $config_url failed"
-		echo >&2 "E: using bogus <$addresses> for $inbox_mainrepo"
+		echo >&2 "E: using bogus <$addresses> for $inbox_dir"
 	fi
 	local_url="http://127.0.0.1:8080/$inbox_name"
 	public-inbox-init -V$inbox_fmt "$inbox_name" \
-		"$inbox_mainrepo" "$local_url" $addresses
+		"$inbox_dir" "$local_url" $addresses
 
 	if test $? -ne 0
 	then
-		echo >&2 "E: public-inbox-init failed on $inbox_mainrepo"
+		echo >&2 "E: public-inbox-init failed on $inbox_dir"
 		exit 1
 	fi
 
@@ -87,7 +87,7 @@ case $cfg_mainrepo in
 		# only one newsgroup per inbox
 		break
 	done
-	echo "I: $inbox_name at $inbox_mainrepo ($addresses) $local_url"
+	echo "I: $inbox_name at $inbox_dir ($addresses) $local_url"
 	;;
 esac
 
@@ -102,7 +102,7 @@ then
 		: v2 inboxes may be init-ed with an empty msgmap
 		;;
 	*)
-		$EATMYDATA public-inbox-index -v "$inbox_mainrepo"
+		$EATMYDATA public-inbox-index -v "$inbox_dir"
 		;;
 	esac
 fi
