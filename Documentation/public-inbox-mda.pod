@@ -16,6 +16,31 @@ By default, it relies on L<spamc(1)> for filtering mail,
 but may be disabled via
 L<public-inbox-config(5)/publicinboxmda.spamcheck>
 
+=head1 OPTIONS
+
+=over 8
+
+=item --no-precheck
+
+By default, public-inbox-mda does some simple checks before
+invoking L<spamc(1)> since it is intended to receive mail before
+it goes to a mailing list.
+
+However, some users prefer to use public-inbox-mda to mirror
+mailing lists.  This option exists to support those users.
+
+Using this option, the following prechecks are disabled:
+
+  * multiple Message-IDs
+  * non-existent Message-IDs
+  * Message-IDs longer than 244 characters long
+  * From: header shorter than 3 characters
+  * Subject: header shorter than 2 characters
+  * unusable Date: headers
+  * inbox address specified in To: or Cc: header
+
+=back
+
 =head1 ENVIRONMENT
 
 =over 8

@@ -293,6 +293,21 @@ EOF
 	my $path = mid2path($mid);
 	my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
 	like($msg, qr/\Q$list_id\E/, 'delivered message w/ List-ID matches');
+
+	# try a message w/o precheck
+	$simple = Email::Simple->new(<<EOF);
+To: You <you\@example.com>
+List-Id: <$list_id>
+
+this message would not be accepted without --no-precheck
+EOF
+	$in = $simple->as_string;
+	my ($out, $err) = ('', '');
+	IPC::Run::run([$mda, '--no-precheck'], \$in, \$out, \$err);
+	is($?, 0, 'mda OK with List-Id match and --no-precheck');
+	my $cur = `git --git-dir=$maindir diff HEAD~1..HEAD`;
+	like($cur, qr/this message would not be accepted without --no-precheck/,
+		'--no-precheck delivered message anyways');
 }
 
 done_testing();

@@ -5,7 +5,8 @@
 # Mail delivery agent for public-inbox, run from your MTA upon mail delivery
 use strict;
 use warnings;
-my $usage = 'public-inbox-mda < rfc2822_message';
+my $usage = 'public-inbox-mda [OPTIONS] < rfc2822_message';
+my $precheck = grep(/\A--no-precheck\z/, @ARGV) ? 0 : 1;
 my ($ems, $emm);
 
 sub do_exit {
@@ -55,7 +56,9 @@ $dst->{mainrepo} or do_exit(67);
 $dst = PublicInbox::InboxWritable->new($dst);
 
 # pre-check, MDA has stricter rules than an importer might;
-do_exit(0) unless PublicInbox::MDA->precheck($simple, $dst->{address});
+if ($precheck && !PublicInbox::MDA->precheck($simple, $dst->{address})) {
+	do_exit(0);
+}
 $simple = undef;
 my $spam_ok;
 if ($spamc) {
