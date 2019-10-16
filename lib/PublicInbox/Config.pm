@@ -20,16 +20,22 @@ sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }
 sub new {
 	my ($class, $file) = @_;
 	$file = default_file() unless defined($file);
-	$file = ref $file ? $file : git_config_dump($file);
-	my $self = bless $file, $class;
-
+	my $self;
+	if (ref($file) eq 'SCALAR') { # used by some tests
+		open my $fh, '<', $file or die;  # PerlIO::scalar
+		$self = config_fh_parse($fh, "\n", '=');
+	} else {
+		$self = git_config_dump($file);
+	}
+	bless $self, $class;
 	# caches
-	$self->{-by_addr} ||= {};
-	$self->{-by_name} ||= {};
-	$self->{-by_newsgroup} ||= {};
-	$self->{-no_obfuscate} ||= {};
-	$self->{-limiters} ||= {};
-	$self->{-code_repos} ||= {}; # nick => PublicInbox::Git object
+	$self->{-by_addr} = {};
+	$self->{-by_list_id} = {};
+	$self->{-by_name} = {};
+	$self->{-by_newsgroup} = {};
+	$self->{-no_obfuscate} = {};
+	$self->{-limiters} = {};
+	$self->{-code_repos} = {}; # nick => PublicInbox::Git object
 	$self->{-cgitrc_unparsed} = $self->{'publicinbox.cgitrc'};
 
 	if (my $no = delete $self->{'publicinbox.noobfuscate'}) {
@@ -57,80 +63,50 @@ sub new {
 	$self;
 }
 
+sub _fill_all ($) { each_inbox($_[0], sub {}) }
+
+sub _lookup_fill ($$$) {
+	my ($self, $cache, $key) = @_;
+	$self->{$cache}->{$key} // do {
+		_fill_all($self);
+		$self->{$cache}->{$key};
+	}
+}
+
 sub lookup {
 	my ($self, $recipient) = @_;
-	my $addr = lc($recipient);
-	my $ibx = $self->{-by_addr}->{$addr};
-	return $ibx if $ibx;
+	_lookup_fill($self, '-by_addr', lc($recipient));
+}
 
-	my $pfx;
-
-	foreach my $k (keys %$self) {
-		$k =~ m!\A(publicinbox\.[^/]+)\.address\z! or next;
-		my $v = $self->{$k};
-		if (ref($v) eq "ARRAY") {
-			foreach my $alias (@$v) {
-				(lc($alias) eq $addr) or next;
-				$pfx = $1;
-				last;
-			}
-		} else {
-			(lc($v) eq $addr) or next;
-			$pfx = $1;
-			last;
-		}
-	}
-	defined $pfx or return;
-	_fill($self, $pfx);
+sub lookup_list_id {
+	my ($self, $list_id) = @_;
+	_lookup_fill($self, '-by_list_id', lc($list_id));
 }
 
 sub lookup_name ($$) {
 	my ($self, $name) = @_;
-	$self->{-by_name}->{$name} || _fill($self, "publicinbox.$name");
+	$self->{-by_name}->{$name} // _fill($self, "publicinbox.$name");
 }
 
 sub each_inbox {
 	my ($self, $cb) = @_;
-	if (my $section_order = $self->{-section_order}) {
-		foreach my $section (@$section_order) {
-			next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
-			$self->{"publicinbox.$1.mainrepo"} or next;
-			my $ibx = lookup_name($self, $1) or next;
-			$cb->($ibx);
-		}
-	} else {
-		my %seen;
-		foreach my $k (keys %$self) {
-			$k =~ m!\Apublicinbox\.([^/]+)\.mainrepo\z! or next;
-			next if $seen{$1};
-			$seen{$1} = 1;
-			my $ibx = lookup_name($self, $1) or next;
-			$cb->($ibx);
-		}
+	# may auto-vivify if config file is non-existent:
+	foreach my $section (@{$self->{-section_order}}) {
+		next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
+		defined($self->{"publicinbox.$1.mainrepo"}) or next;
+		my $ibx = lookup_name($self, $1) or next;
+		$cb->($ibx);
 	}
 }
 
 sub lookup_newsgroup {
 	my ($self, $ng) = @_;
-	$ng = lc($ng);
-	my $ibx = $self->{-by_newsgroup}->{$ng};
-	return $ibx if $ibx;
-
-	foreach my $k (keys %$self) {
-		$k =~ m!\A(publicinbox\.[^/]+)\.newsgroup\z! or next;
-		my $v = $self->{$k};
-		my $pfx = $1;
-		if ($v eq $ng) {
-			$ibx = _fill($self, $pfx);
-			return $ibx;
-		}
-	}
-	undef;
+	_lookup_fill($self, '-by_newsgroup', lc($ng));
 }
 
 sub limiter {
 	my ($self, $name) = @_;
-	$self->{-limiters}->{$name} ||= do {
+	$self->{-limiters}->{$name} //= do {
 		require PublicInbox::Qspawn;
 		my $max = $self->{"publicinboxlimiter.$name.max"} || 1;
 		my $limiter = PublicInbox::Qspawn::Limiter->new($max);
@@ -139,7 +115,7 @@ sub limiter {
 	};
 }
 
-sub config_dir { $ENV{PI_DIR} || "$ENV{HOME}/.public-inbox" }
+sub config_dir { $ENV{PI_DIR} // "$ENV{HOME}/.public-inbox" }
 
 sub default_file {
 	my $f = $ENV{PI_CONFIG};
@@ -147,19 +123,14 @@ sub default_file {
 	config_dir() . '/config';
 }
 
-sub git_config_dump {
-	my ($file) = @_;
-	my (%section_seen, @section_order);
-	return {} unless -e $file;
-	my @cmd = (qw/git config -z -l/, "--file=$file");
-	my $cmd = join(' ', @cmd);
-	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
+sub config_fh_parse ($$$) {
+	my ($fh, $rs, $fs) = @_;
 	my %rv;
-	local $/ = "\0";
+	my (%section_seen, @section_order);
+	local $/ = $rs;
 	while (defined(my $line = <$fh>)) {
 		chomp $line;
-		my ($k, $v) = split(/\n/, $line, 2);
-
+		my ($k, $v) = split($fs, $line, 2);
 		my ($section) = ($k =~ /\A(\S+)\.[^\.]+\z/);
 		unless (defined $section_seen{$section}) {
 			$section_seen{$section} = 1;
@@ -177,10 +148,20 @@ sub git_config_dump {
 			$rv{$k} = $v;
 		}
 	}
-	close $fh or die "failed to close ($cmd) pipe: $?";
 	$rv{-section_order} = \@section_order;
 
 	\%rv;
+}
+
+sub git_config_dump {
+	my ($file) = @_;
+	return {} unless -e $file;
+	my @cmd = (qw/git config -z -l/, "--file=$file");
+	my $cmd = join(' ', @cmd);
+	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
+	my $rv = config_fh_parse($fh, "\0", "\n");
+	close $fh or die "failed to close ($cmd) pipe: $?";
+	$rv;
 }
 
 sub valid_inbox_name ($) {
@@ -225,8 +206,8 @@ sub cgit_repo_merge ($$$) {
 		$self->{-cgit_remove_suffix} and
 			$rel =~ s!/?\.git\z!!;
 	}
-	$self->{"coderepo.$rel.dir"} ||= $path;
-	$self->{"coderepo.$rel.cgiturl"} ||= $rel;
+	$self->{"coderepo.$rel.dir"} //= $path;
+	$self->{"coderepo.$rel.cgiturl"} //= $rel;
 }
 
 sub is_git_dir ($) {
@@ -357,7 +338,7 @@ sub _fill_code_repo {
 		# cgit supports "/blob/?id=%s", but it's only a plain-text
 		# display and requires an unabbreviated id=
 		foreach my $t (qw(blob commit tag)) {
-			$git->{$t.'_url_format'} ||= map {
+			$git->{$t.'_url_format'} //= map {
 				"$_/$t/?id=%s"
 			} @$cgits;
 		}
@@ -398,7 +379,7 @@ sub _fill {
 	}
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	foreach my $k (qw(address altid nntpmirror coderepo hide)) {
+	foreach my $k (qw(address altid nntpmirror coderepo hide listid)) {
 		if (defined(my $v = $self->{"$pfx.$k"})) {
 			$ibx->{$k} = _array($v);
 		}
@@ -421,6 +402,11 @@ sub _fill {
 		$self->{-by_addr}->{$lc_addr} = $ibx;
 		$self->{-no_obfuscate}->{$lc_addr} = 1;
 	}
+	if (my $listids = $ibx->{listid}) {
+		foreach my $list_id (@$listids) {
+			$self->{-by_list_id}->{$list_id} = $ibx;
+		}
+	}
 	if (my $ng = $ibx->{newsgroup}) {
 		$self->{-by_newsgroup}->{$ng} = $ibx;
 	}
@@ -428,7 +414,7 @@ sub _fill {
 	if ($ibx->{obfuscate}) {
 		$ibx->{-no_obfuscate} = $self->{-no_obfuscate};
 		$ibx->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
-		each_inbox($self, sub {}); # noop to populate -no_obfuscate
+		_fill_all($self); # noop to populate -no_obfuscate
 	}
 
 	if (my $ibx_code_repos = $ibx->{coderepo}) {
@@ -440,7 +426,7 @@ sub _fill {
 			$valid += valid_inbox_name($_) foreach (@parts);
 			$valid == scalar(@parts) or next;
 
-			my $repo = $code_repos->{$nick} ||=
+			my $repo = $code_repos->{$nick} //=
 						_fill_code_repo($self, $nick);
 			push @$repo_objs, $repo if $repo;
 		}

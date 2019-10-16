@@ -21,10 +21,10 @@ use PublicInbox::Config;
 use PublicInbox::WWW;
 use Plack::Builder;
 use Plack::App::URLMap;
-my $config = PublicInbox::Config->new({
-	"$cfgpfx.address" => $addr,
-	"$cfgpfx.mainrepo" => $maindir,
-});
+my $config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=$addr
+$cfgpfx.mainrepo=$maindir
+EOF
 is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
 my $git = PublicInbox::Git->new($maindir);
 my $im = PublicInbox::Import->new($git, 'test', $addr);

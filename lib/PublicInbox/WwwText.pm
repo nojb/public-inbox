@@ -147,7 +147,7 @@ sub inbox_config ($$$) {
 [publicinbox "$name"]
 	mainrepo = /path/to/top-level-inbox
 EOS
-	for my $k (qw(address)) {
+	for my $k (qw(address listid)) {
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $_\n" for @$v;
 	}

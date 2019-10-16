@@ -40,14 +40,14 @@ ok(POSIX::mkfifo("$maildir/cur/fifo", 0777),
 	'create FIFO to ensure we do not get stuck on it :P');
 my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
-my %orig = (
-	"$cfgpfx.address" => $addr,
-	"$cfgpfx.mainrepo" => $mainrepo,
-	"$cfgpfx.watch" => "maildir:$maildir",
-	"$cfgpfx.filter" => 'PublicInbox::Filter::Vger',
-	"publicinboxlearn.watchspam" => "maildir:$spamdir"
-);
-my $config = PublicInbox::Config->new({%orig});
+my $orig = <<EOF;
+$cfgpfx.address=$addr
+$cfgpfx.mainrepo=$mainrepo
+$cfgpfx.watch=maildir:$maildir
+$cfgpfx.filter=PublicInbox::Filter::Vger
+publicinboxlearn.watchspam=maildir:$spamdir
+EOF
+my $config = PublicInbox::Config->new(\$orig);
 my $ibx = $config->lookup_name('test');
 ok($ibx, 'found inbox by name');
 my $srch = $ibx->search;
@@ -146,12 +146,12 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	my $v1pfx = "publicinbox.v1";
 	my $v1addr = 'v1-public@example.com';
 	is(system(qw(git init -q --bare), $v1repo), 0, 'v1 init OK');
-	my $config = PublicInbox::Config->new({
-		%orig,
-		"$v1pfx.address" => $v1addr,
-		"$v1pfx.mainrepo" => $v1repo,
-		"$v1pfx.watch" => "maildir:$maildir",
-	});
+	my $cfg2 = <<EOF;
+$orig$v1pfx.address=$v1addr
+$v1pfx.mainrepo=$v1repo
+$v1pfx.watch=maildir:$maildir
+EOF
+	my $config = PublicInbox::Config->new(\$cfg2);
 	my $both = <<EOF;
 From: user\@example.com
 To: $addr, $v1addr
@@ -169,6 +169,37 @@ EOF
 	is($both, $$msg, 'got original message back from v1');
 	$msg = $ibx->git->cat_file($msgs->[0]->{blob});
 	is($both, $$msg, 'got original message back from v2');
+}
+
+{
+	my $want = <<'EOF';
+From: <u@example.com>
+List-Id: <i.want.you.to.want.me>
+Message-ID: <do.want@example.com>
+EOF
+	my $do_not_want = <<'EOF';
+From: <u@example.com>
+List-Id: <do.not.want>
+X-Mailing-List: no@example.com
+Message-ID: <do.not.want@example.com>
+EOF
+	my $cfg = $orig."$cfgpfx.listid=i.want.you.to.want.me\n";
+	PublicInbox::Emergency->new($maildir)->prepare(\$want);
+	PublicInbox::Emergency->new($maildir)->prepare(\$do_not_want);
+	my $config = PublicInbox::Config->new(\$cfg);
+	PublicInbox::WatchMaildir->new($config)->scan('full');
+	$ibx = $config->lookup_name('test');
+	my $num = $ibx->mm->num_for('do.want@example.com');
+	ok(defined $num, 'List-ID matched for watch');
+	$num = $ibx->mm->num_for('do.not.want@example.com');
+	is($num, undef, 'unaccepted List-ID matched for watch');
+
+	$cfg = $orig."$cfgpfx.watchheader=X-Mailing-List:no\@example.com\n";
+	$config = PublicInbox::Config->new(\$cfg);
+	PublicInbox::WatchMaildir->new($config)->scan('full');
+	$ibx = $config->lookup_name('test');
+	$num = $ibx->mm->num_for('do.not.want@example.com');
+	ok(defined $num, 'X-Mailing-List matched');
 }
 
 done_testing;

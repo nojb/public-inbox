@@ -6,11 +6,11 @@ use Test::More;
 use PublicInbox::Config;
 my $cfgpfx = "publicinbox.test";
 {
-	my $config = PublicInbox::Config->new({
-		"$cfgpfx.address" => 'test@example.com',
-		"$cfgpfx.mainrepo" => '/path/to/non/existent',
-		"$cfgpfx.httpbackendmax" => 12,
-	});
+	my $config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=test\@example.com
+$cfgpfx.mainrepo=/path/to/non/existent
+$cfgpfx.httpbackendmax=12
+EOF
 	my $ibx = $config->lookup_name('test');
 	my $git = $ibx->git;
 	my $old = "$git";
@@ -24,16 +24,16 @@ my $cfgpfx = "publicinbox.test";
 }
 
 {
-	my $config = PublicInbox::Config->new({
-		'publicinboxlimiter.named.max' => 3,
-		"$cfgpfx.address" => 'test@example.com',
-		"$cfgpfx.mainrepo" => '/path/to/non/existent',
-		"$cfgpfx.httpbackendmax" => 'named',
-	});
+	my $config = PublicInbox::Config->new(\<<EOF);
+publicinboxlimiter.named.max=3
+$cfgpfx.address=test\@example.com
+$cfgpfx.mainrepo=/path/to/non/existent
+$cfgpfx.httpbackendmax=named
+EOF
 	my $ibx = $config->lookup_name('test');
 	my $git = $ibx->git;
 	ok($git, 'got git object');
-	my $old = "$git";
+	my $old = "$git"; # stringify object ref "Git(0xDEADBEEF)"
 	my $lim = $git->{-httpbackend_limiter};
 	ok($lim, 'Limiter exists');
 	is($lim->{max}, 3, 'limiter has expected slots');

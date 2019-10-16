@@ -70,15 +70,15 @@ spam
 EOF
 	PublicInbox::Emergency->new($maildir)->prepare(\"$spam");
 
-	my %orig = (
-		"$cfgpfx.address" => $addr,
-		"$cfgpfx.mainrepo" => $mainrepo,
-		"$cfgpfx.watch" => "maildir:$maildir",
-		"$cfgpfx.filter" => 'PublicInbox::Filter::RubyLang',
-		"$cfgpfx.altid" => 'serial:alerts:file=msgmap.sqlite3',
-		"publicinboxwatch.watchspam" => "maildir:$spamdir",
-	);
-	my $config = PublicInbox::Config->new({%orig});
+	my $orig = <<EOF;
+$cfgpfx.address=$addr
+$cfgpfx.mainrepo=$mainrepo
+$cfgpfx.watch=maildir:$maildir
+$cfgpfx.filter=PublicInbox::Filter::RubyLang
+$cfgpfx.altid=serial:alerts:file=msgmap.sqlite3
+publicinboxwatch.watchspam=maildir:$spamdir
+EOF
+	my $config = PublicInbox::Config->new(\$orig);
 	my $ibx = $config->lookup_name($v);
 	ok($ibx, 'found inbox by name');
 
@@ -108,7 +108,7 @@ EOF
 	}
 	$w->scan('full');
 
-	$config = PublicInbox::Config->new({%orig});
+	$config = PublicInbox::Config->new(\$orig);
 	$ibx = $config->lookup_name($v);
 	($tot, undef) = $ibx->search->reopen->query('b:spam');
 	is($tot, 0, 'spam removed');

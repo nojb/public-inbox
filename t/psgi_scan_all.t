@@ -14,13 +14,15 @@ foreach my $mod (@mods) {
 use_ok 'PublicInbox::V2Writable';
 foreach my $mod (@mods) { use_ok $mod; }
 my $tmp = tempdir('pi-scan_all-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-my $cfg = {};
+my $cfg = '';
 
 foreach my $i (1..2) {
 	my $cfgpfx = "publicinbox.test-$i";
-	my $addr = $cfg->{"$cfgpfx.address"} = "test-$i\@example.com";
-	my $mainrepo = $cfg->{"$cfgpfx.mainrepo"} = "$tmp/$i";
-	$cfg->{"$cfgpfx.url"} = "http://example.com/$i";
+	my $addr = "test-$i\@example.com";
+	my $mainrepo = "$tmp/$i";
+	$cfg .= "$cfgpfx.address=$addr\n";
+	$cfg .= "$cfgpfx.mainrepo=$mainrepo\n";
+	$cfg .= "$cfgpfx.url=http://example.com/$i\n";
 	my $opt = {
 		mainrepo => $mainrepo,
 		name => "test-$i",
@@ -45,7 +47,7 @@ EOF
 	ok($im->add($mime), "added message to $i");
 	$im->done;
 }
-my $config = PublicInbox::Config->new($cfg);
+my $config = PublicInbox::Config->new(\$cfg);
 use_ok 'PublicInbox::WWW';
 my $www = PublicInbox::WWW->new($config);
 
