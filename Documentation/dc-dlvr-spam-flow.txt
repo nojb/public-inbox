@@ -45,4 +45,4 @@ delivery path as well as removing the message from the git tree.
 * spamc / spamd - SpamAssassin: http://spamassassin.apache.org/
 
 * report-spam / dc-dlvr - distributed with public-inbox in the scripts/
-  directory: git clone https://public-inbox.org/ public-inbox
+  directory: git clone https://public-inbox.org/public-inbox.git

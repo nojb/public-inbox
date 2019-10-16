@@ -91,8 +91,8 @@ Hacking
 
 AGPL source code is available via git:
 
-	git clone https://public-inbox.org/ public-inbox
-	git clone git://repo.or.cz/public-inbox
+	git clone https://public-inbox.org/public-inbox.git
+	git clone https://repo.or.cz/public-inbox.git
 	torsocks git clone http://hjrcffqmbrq6wope.onion/public-inbox
 
 See below for contact info.

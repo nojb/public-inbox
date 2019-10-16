@@ -11,8 +11,7 @@ use strict;
 use warnings;
 use PublicInbox::Hval qw(ascii_html);
 our $TOR_URL = 'https://www.torproject.org/';
-our $CODE_URL = 'https://public-inbox.org/';
-our $PROJECT = 'public-inbox';
+our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
 # noop for HTTP.pm (and any other PSGI servers)
 sub close {}
@@ -80,7 +79,7 @@ sub _html_top ($) {
 sub code_footer ($) {
 	my ($env) = @_;
 	my $u = PublicInbox::Hval::prurl($env, $CODE_URL);
-	qq(AGPL code for this site: git clone <a\nhref="$u">$u</a> $PROJECT)
+	qq(AGPL code for this site: git clone <a\nhref="$u">$u</a>)
 }
 
 sub _html_end {

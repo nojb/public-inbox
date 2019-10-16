@@ -1,6 +1,6 @@
 This list only includes major contributors.
 
-See history in git (via `git clone https://public-inbox.org/public-inbox')
+See history in git (via `git clone https://public-inbox.org/public-inbox.git')
 for a full history of the project.
 
 * Eric Wong <e@80x24.org> (BDFL)
