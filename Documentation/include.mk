@@ -92,7 +92,7 @@ doc_install :: install-man
 # n.b. not sure if our usage of man(1) is portable or not, so not
 # enabled by default "check" target:
 # check :: check-man
-check_man = @echo CHECK80 $<;COLS=80 $(MAN) ./$^ | \
+check_man = @echo CHECK80 $<;COLUMNS=80 $(MAN) ./$^ | \
 	$(AWK) '{gsub(/\b./,"")}length>80{print;err=1}END{exit(err)}' >&2
 
 %.1.cols : %.1; $(check_man)
