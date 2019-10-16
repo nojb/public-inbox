@@ -93,7 +93,6 @@ sub each_inbox {
 	# may auto-vivify if config file is non-existent:
 	foreach my $section (@{$self->{-section_order}}) {
 		next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
-		defined($self->{"publicinbox.$1.inboxdir"}) or next;
 		my $ibx = lookup_name($self, $1) or next;
 		$cb->($ibx);
 	}
@@ -389,7 +388,7 @@ sub _fill {
 		}
 	}
 
-	return unless $ibx->{inboxdir};
+	return unless defined($ibx->{inboxdir});
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
 
