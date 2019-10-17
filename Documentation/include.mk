@@ -13,7 +13,6 @@ MAN = man
 
 # this is "xml" on FreeBSD and maybe some other distros:
 XMLSTARLET = xmlstarlet
-AWK = awk
 
 # same as pod2text
 COLUMNS = 76
@@ -89,9 +88,7 @@ doc_install :: install-man
 %.1 %.5 %.7 %.8 : Documentation/%.pod
 	$(podman) -s $(subst .,,$(suffix $@)) $< $@+ && mv $@+ $@
 
-# n.b. not sure if our usage of man(1) is portable or not, so not
-# enabled by default "check" target:
-# check :: check-man
+check :: check-man
 check_man = @echo CHECK80 $<;COLUMNS=80 $(MAN) ./$^ | \
 	$(AWK) '{gsub(/\b./,"")}length>80{print;err=1}END{exit(err)}' >&2
 
