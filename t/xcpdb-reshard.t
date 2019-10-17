@@ -27,7 +27,7 @@ my $mime = PublicInbox::MIME->create(
 my ($this) = (split('/', $0))[-1];
 my $tmpdir = tempdir($this.'-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = PublicInbox::Inbox->new({
-	mainrepo => "$tmpdir/testbox",
+	inboxdir => "$tmpdir/testbox",
 	name => $this,
 	version => 2,
 	-primary_address => 'test@example.com',
@@ -43,7 +43,7 @@ for my $i (1..$ndoc) {
 	ok($im->add($mime), "message $i added");
 }
 $im->done;
-my @shards = grep(m!/\d+\z!, glob("$ibx->{mainrepo}/xap*/*"));
+my @shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
 is(scalar(@shards), $nproc, 'got expected shards');
 my $orig = $ibx->over->query_xover(1, $ndoc);
 my %nums = map {; "$_->{num}" => 1 } @$orig;
@@ -51,8 +51,8 @@ my %nums = map {; "$_->{num}" => 1 } @$orig;
 # ensure we can go up or down in shards, or stay the same:
 for my $R (qw(2 4 1 3 3)) {
 	delete $ibx->{search}; # release old handles
-	is(system(@xcpdb, "-R$R", $ibx->{mainrepo}), 0, "xcpdb -R$R");
-	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{mainrepo}/xap*/*"));
+	is(system(@xcpdb, "-R$R", $ibx->{inboxdir}), 0, "xcpdb -R$R");
+	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
 	is(scalar(@new_shards), $R, 'resharded to two shards');
 	my $msgs = $ibx->search->query('s:this');
 	is(scalar(@$msgs), $ndoc, 'got expected docs after resharding');

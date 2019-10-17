@@ -27,7 +27,7 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	$host_port .= ":119" unless index($host_port, ':') > 0;
 } else {
 	$group = 'inbox.test.perf.nntpd';
-	my $ibx = { mainrepo => $pi_dir, newsgroup => $group };
+	my $ibx = { inboxdir => $pi_dir, newsgroup => $group };
 	$ibx = PublicInbox::Inbox->new($ibx);
 	my $nntpd = 'blib/script/public-inbox-nntpd';
 	my $tmpdir = tempdir('perf-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
@@ -38,7 +38,7 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 		print $fh <<"" or die "print $pi_config: $!";
 [publicinbox "test"]
 	newsgroup = $group
-	mainrepo = $pi_dir
+	inboxdir = $pi_dir
 	address = test\@example.com
 
 		close $fh or die "close($pi_config): $!";

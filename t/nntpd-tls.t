@@ -37,7 +37,7 @@ require_git('2.6') if $version >= 2;
 my $tmpdir = tempdir('pi-nntpd-tls-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $mainrepo = "$tmpdir";
+my $inboxdir = "$tmpdir";
 my $pi_config = "$tmpdir/pi_config";
 my $group = 'test-nntpd-tls';
 my $addr = $group . '@example.com';
@@ -52,7 +52,7 @@ END {
 };
 
 my $ibx = PublicInbox::Inbox->new({
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'nntpd-tls',
 	version => $version,
 	-primary_address => $addr,
@@ -64,7 +64,7 @@ $ibx->init_inbox(0);
 	open my $fh, '>', $pi_config or die "open: $!\n";
 	print $fh <<EOF
 [publicinbox "nntpd-tls"]
-	mainrepo = $mainrepo
+	inboxdir = $inboxdir
 	address = $addr
 	indexlevel = basic
 	newsgroup = $group

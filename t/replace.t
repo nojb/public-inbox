@@ -19,7 +19,7 @@ sub test_replace ($$$) {
 	my $this = "pi-$v-$level-replace";
 	my $tmpdir = tempdir("$this-tmp-XXXXXX", TMPDIR => 1, CLEANUP => 1);
 	my $ibx = PublicInbox::Inbox->new({
-		mainrepo => "$tmpdir/testbox",
+		inboxdir => "$tmpdir/testbox",
 		name => $this,
 		version => $v,
 		-primary_address => 'test@example.com',
@@ -95,7 +95,7 @@ EOF
 	my $t19931002 = qr/ 749520000 /;
 	is_deeply([grep(/$t19931002/, @all)], [], "nothing matches $t19931002");
 
-	for my $dir (glob("$ibx->{mainrepo}/git/*.git")) {
+	for my $dir (glob("$ibx->{inboxdir}/git/*.git")) {
 		my ($bn) = ($dir =~ m!([^/]+)\z!);
 		is(system(qw(git --git-dir), $dir, qw(fsck --strict)), 0,
 			"git fsck is clean in epoch $bn");

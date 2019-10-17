@@ -24,7 +24,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 
 	my $cfg = PublicInbox::Config->new($f);
 	is_deeply($cfg->lookup('meta@public-inbox.org'), {
-		'mainrepo' => '/home/pi/meta-main.git',
+		'inboxdir' => '/home/pi/meta-main.git',
 		'address' => [ 'meta@public-inbox.org' ],
 		'domain' => 'public-inbox.org',
 		'url' => 'http://example.com/meta',
@@ -44,7 +44,7 @@ my $tmpdir = tempdir('pi-config-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 		              'sandbox@public-inbox.org',
 			      'test@public-inbox.org'],
 		-primary_address => 'try@public-inbox.org',
-		'mainrepo' => '/home/pi/test-main.git',
+		'inboxdir' => '/home/pi/test-main.git',
 		'domain' => 'public-inbox.org',
 		'name' => 'test',
 		feedmax => 25,
@@ -66,13 +66,29 @@ $cfgpfx.altid=serial:enamg:file=b
 EOF
 	my $ibx = $config->lookup_name('test');
 	is_deeply($ibx->{altid}, [ @altid ]);
+
+	$config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=test\@example.com
+$cfgpfx.mainrepo=/path/to/non/existent
+EOF
+	$ibx = $config->lookup_name('test');
+	is($ibx->{inboxdir}, '/path/to/non/existent', 'mainrepo still works');
+
+	$config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=test\@example.com
+$cfgpfx.inboxdir=/path/to/non/existent
+$cfgpfx.mainrepo=/path/to/deprecated
+EOF
+	$ibx = $config->lookup_name('test');
+	is($ibx->{inboxdir}, '/path/to/non/existent',
+		'inboxdir takes precedence');
 }
 
 {
 	my $pfx = "publicinbox.test";
 	my $str = <<EOF;
 $pfx.address=test\@example.com
-$pfx.mainrepo=/path/to/non/existent
+$pfx.inboxdir=/path/to/non/existent
 publicinbox.nntpserver=news.example.com
 EOF
 	my $cfg = PublicInbox::Config->new(\$str);
@@ -81,7 +97,7 @@ EOF
 
 	$str = <<EOF;
 $pfx.address=test\@example.com
-$pfx.mainrepo=/path/to/non/existent
+$pfx.inboxdir=/path/to/non/existent
 $pfx.nntpserver=news.alt.example.com
 EOF
 	$cfg = PublicInbox::Config->new(\$str);
@@ -95,9 +111,9 @@ EOF
 	my $pfx2 = "publicinbox.foo";
 	my $str = <<EOF;
 $pfx.address=test\@example.com
-$pfx.mainrepo=/path/to/non/existent
+$pfx.inboxdir=/path/to/non/existent
 $pfx2.address=foo\@example.com
-$pfx2.mainrepo=/path/to/foo
+$pfx2.inboxdir=/path/to/foo
 publicinbox.noobfuscate=public-inbox.org \@example.com z\@EXAMPLE.com
 $pfx.obfuscate=true
 EOF
@@ -161,7 +177,7 @@ for my $s (@valid) {
 		push @expect, "$i";
 		print $fh <<"" or die "print: $!";
 [publicinbox "$i"]
-	mainrepo = /path/to/$i.git
+	inboxdir = /path/to/$i.git
 	address = $i\@example.com
 
 	}
@@ -177,9 +193,9 @@ for my $s (@valid) {
 	my $pfx2 = "publicinbox.test2";
 	my $str = <<EOF;
 $pfx1.address=test\@example.com
-$pfx1.mainrepo=/path/to/non/existent
+$pfx1.inboxdir=/path/to/non/existent
 $pfx2.address=foo\@example.com
-$pfx2.mainrepo=/path/to/foo
+$pfx2.inboxdir=/path/to/foo
 $pfx1.coderepo=project
 $pfx2.coderepo=project
 coderepo.project.dir=/path/to/project.git

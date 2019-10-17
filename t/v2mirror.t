@@ -28,7 +28,7 @@ my $pi_config = "$tmpdir/config";
 	open my $fh, '>', $pi_config or die "open($pi_config): $!";
 	print $fh <<"" or die "print $pi_config: $!";
 [publicinbox "v2"]
-	mainrepo = $tmpdir/in
+	inboxdir = $tmpdir/in
 	address = test\@example.com
 
 	close $fh or die "close($pi_config): $!";
@@ -88,7 +88,7 @@ foreach my $i (0..$epoch_max) {
 is(system(@cmd), 0, 'initialized public-inbox -V2');
 is(system("$script-index", "$tmpdir/m"), 0, 'indexed');
 
-my $mibx = { mainrepo => "$tmpdir/m", address => 'alt@example.com' };
+my $mibx = { inboxdir => "$tmpdir/m", address => 'alt@example.com' };
 $mibx = PublicInbox::Inbox->new($mibx);
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'index synched minmax');
 

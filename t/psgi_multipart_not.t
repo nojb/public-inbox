@@ -17,7 +17,7 @@ use_ok($_) for @mods;
 use_ok 'PublicInbox::V2Writable';
 my $repo = tempdir('pi-psgi-multipart-not.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $ibx = PublicInbox::Inbox->new({
-	mainrepo => $repo,
+	inboxdir => $repo,
 	name => 'multipart-not',
 	version => 2,
 	-primary_address => 'test@example.com',
@@ -44,7 +44,7 @@ $im->done;
 my $cfgpfx = "publicinbox.v2test";
 my $cfg = <<EOF;
 $cfgpfx.address=$ibx->{-primary_address}
-$cfgpfx.mainrepo=$repo
+$cfgpfx.inboxdir=$repo
 EOF
 my $config = PublicInbox::Config->new(\$cfg);
 my $www = PublicInbox::WWW->new($config);

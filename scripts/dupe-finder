@@ -14,7 +14,7 @@ my $ibx;
 if (index($repo, '@') > 0) {
 	$ibx = PublicInbox::Config->new->lookup($repo);
 } elsif (-d $repo) {
-	$ibx = { mainrepo => $repo, address => 'unnamed@example.com' };
+	$ibx = { inboxdir => $repo, address => 'unnamed@example.com' };
 	$ibx = PublicInbox::Inbox->new($ibx);
 } else {
 	$ibx = PublicInbox::Config->new->lookup_name($repo);

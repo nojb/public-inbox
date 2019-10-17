@@ -29,7 +29,7 @@ my $cfgpfx = "publicinbox.test";
 	close $fh or die "close: $!\n";
 	my %cfg = (
 		"$cfgpfx.address" => $addr,
-		"$cfgpfx.mainrepo" => $maindir,
+		"$cfgpfx.inboxdir" => $maindir,
 		"$cfgpfx.indexlevel" => 'basic',
 	);
 	while (my ($k,$v) = each %cfg) {

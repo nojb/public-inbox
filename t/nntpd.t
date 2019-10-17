@@ -26,7 +26,7 @@ my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $mainrepo = "$tmpdir/main.git";
+my $inboxdir = "$tmpdir/main.git";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
 my $nntpd = 'blib/script/public-inbox-nntpd';
@@ -43,7 +43,7 @@ my $len;
 END { kill 'TERM', $pid if defined $pid };
 
 my $ibx = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => $group,
 	version => $version,
 	-primary_address => $addr,
@@ -52,7 +52,7 @@ my $ibx = {
 $ibx = PublicInbox::Inbox->new($ibx);
 {
 	local $ENV{HOME} = $home;
-	my @cmd = ($init, $group, $mainrepo, 'http://example.com/', $addr);
+	my @cmd = ($init, $group, $inboxdir, 'http://example.com/', $addr);
 	push @cmd, "-V$version", '-Lbasic';
 	is(system(@cmd), 0, 'init OK');
 	is(system(qw(git config), "--file=$home/.public-inbox/config",

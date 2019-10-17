@@ -29,7 +29,7 @@ foreach my $mod (@mods) { use_ok $mod; }
 	close $fh or die "close: $!\n";
 	my %cfg = (
 		"$cfgpfx.address" => $addr,
-		"$cfgpfx.mainrepo" => $maindir,
+		"$cfgpfx.inboxdir" => $maindir,
 		"$cfgpfx.url" => 'http://example.com/test/',
 		"$cfgpfx.newsgroup" => 'inbox.test',
 	);

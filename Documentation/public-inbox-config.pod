@@ -17,12 +17,16 @@ all public-inboxes used by a particular user.
 =head2 EXAMPLE
 
 	[publicinbox "test"]
-		mainrepo = /home/user/path/to/test.git
+		inboxdir = /home/user/path/to/test.git
 		; multiple addresses are supported
 		address = test@example.com
 		; address = alternate@example.com
 		url = http://example.com/test
 		newsgroup = inbox.test
+
+		; backwards compatibility with public-inbox pre-1.2.0,
+		; "inboxdir" takes precedence over "mainrepo"
+		mainrepo = /home/user/path/to/test.git
 
 =head2 VARIABLES
 
@@ -38,10 +42,13 @@ informational purposes.
 
 Default: none, required
 
-=item publicinbox.<name>.mainrepo
+=item publicinbox.<name>.inboxdir
 
 The absolute path to the directory which hosts the
 public-inbox.  This must be specified once.
+
+This was previously known as "mainrepo", which remains supported,
+but "inboxdir" takes precedence.
 
 Default: none, required
 
@@ -373,20 +380,20 @@ RLIMIT_CPU, and RLIMIT_DATA for you operating system.
 
 	; big inboxes which require lots of memory to clone:
 	[publicinbox "big1"]
-		mainrepo = /path/to/big1
+		inboxdir = /path/to/big1
 		address = big1@example.com
 		httpbackendmax = big
 	[publicinbox "big2"]
-		mainrepo = /path/to/big2
+		inboxdir = /path/to/big2
 		address = big2@example.com
 		httpbackendmax = big
 
 	; tiny inboxes which are easily cloned:
 	[publicinbox "tiny1"]
-		mainrepo = /path/to/tiny1
+		inboxdir = /path/to/tiny1
 		address = tiny1@example.com
 	[publicinbox "tiny2"]
-		mainrepo = /path/to/tiny2
+		inboxdir = /path/to/tiny2
 		address = tiny2@example.com
 
 	[publicinboxlimiter "big"]

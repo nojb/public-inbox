@@ -8,7 +8,7 @@ my $cfgpfx = "publicinbox.test";
 {
 	my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=test\@example.com
-$cfgpfx.mainrepo=/path/to/non/existent
+$cfgpfx.inboxdir=/path/to/non/existent
 $cfgpfx.httpbackendmax=12
 EOF
 	my $ibx = $config->lookup_name('test');
@@ -27,7 +27,7 @@ EOF
 	my $config = PublicInbox::Config->new(\<<EOF);
 publicinboxlimiter.named.max=3
 $cfgpfx.address=test\@example.com
-$cfgpfx.mainrepo=/path/to/non/existent
+$cfgpfx.inboxdir=/path/to/non/existent
 $cfgpfx.httpbackendmax=named
 EOF
 	my $ibx = $config->lookup_name('test');

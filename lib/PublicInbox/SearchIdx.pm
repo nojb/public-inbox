@@ -32,7 +32,7 @@ sub new {
 	my ($class, $ibx, $creat, $shard) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $levels = qr/\A(?:full|medium|basic)\z/;
-	my $mainrepo = $ibx->{mainrepo};
+	my $inboxdir = $ibx->{inboxdir};
 	my $version = $ibx->{version} || 1;
 	my $indexlevel = 'full';
 	my $altid = $ibx->{altid};
@@ -49,7 +49,7 @@ sub new {
 	}
 	$ibx = PublicInbox::InboxWritable->new($ibx);
 	my $self = bless {
-		mainrepo => $mainrepo,
+		inboxdir => $inboxdir,
 		-inbox => $ibx,
 		git => $ibx->git,
 		-altid => $altid,
@@ -58,7 +58,7 @@ sub new {
 	}, $class;
 	$ibx->umask_prepare;
 	if ($version == 1) {
-		$self->{lock_path} = "$mainrepo/ssoma.lock";
+		$self->{lock_path} = "$inboxdir/ssoma.lock";
 		my $dir = $self->xdir;
 		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
 	} elsif ($version == 2) {
@@ -603,7 +603,7 @@ sub _msgmap_init {
 	die "BUG: _msgmap_init is only for v1\n" if $self->{version} != 1;
 	$self->{mm} ||= eval {
 		require PublicInbox::Msgmap;
-		PublicInbox::Msgmap->new($self->{mainrepo}, 1);
+		PublicInbox::Msgmap->new($self->{inboxdir}, 1);
 	};
 }
 

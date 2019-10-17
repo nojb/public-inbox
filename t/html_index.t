@@ -14,7 +14,7 @@ my $git_dir = "$tmpdir/gittest";
 my $ibx = PublicInbox::Inbox->new({
 	address => 'test@example',
 	name => 'tester',
-	mainrepo => $git_dir,
+	inboxdir => $git_dir,
 	url => 'http://example.com/test',
 });
 my $git = $ibx->git;

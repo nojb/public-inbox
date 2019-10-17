@@ -35,7 +35,7 @@ sub init_inbox {
 	# TODO: honor skip_artnum
 	my $v = $self->{version} || 1;
 	if ($v == 1) {
-		my $dir = $self->{mainrepo} or die "no mainrepo in inbox\n";
+		my $dir = $self->{inboxdir} or die "no inboxdir in inbox\n";
 		PublicInbox::Import::init_bare($dir);
 	} else {
 		my $v2w = importer($self);

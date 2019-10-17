@@ -25,7 +25,7 @@ sub check_editable ($) {
 		# it's possible for a Xapian directory to exist,
 		# but Search::Xapian to go missing/broken.
 		# Make sure it's purged in that case:
-		$ibx->over or die "no over.sqlite3 in $ibx->{mainrepo}\n";
+		$ibx->over or die "no over.sqlite3 in $ibx->{inboxdir}\n";
 
 		# $ibx->{search} is populated by $ibx->over call
 		my $xdir_ro = $ibx->{search}->xdir(1);
@@ -51,7 +51,7 @@ sub check_editable ($) {
 # $rewrites = [ array commits keyed by epoch ]
 sub show_rewrites ($$$) {
 	my ($fh, $ibx, $rewrites) = @_;
-	print $fh "$ibx->{mainrepo}:";
+	print $fh "$ibx->{inboxdir}:";
 	if (scalar @$rewrites) {
 		my $epoch = -1;
 		my @out = map {;

@@ -141,7 +141,7 @@ sub fingerprint ($) {
 sub manifest_add ($$;$$) {
 	my ($manifest, $ibx, $epoch, $default_desc) = @_;
 	my $url_path = "/$ibx->{name}";
-	my $git_dir = $ibx->{mainrepo};
+	my $git_dir = $ibx->{inboxdir};
 	if (defined $epoch) {
 		$git_dir .= "/git/$epoch.git";
 		$url_path .= "/git/$epoch.git";

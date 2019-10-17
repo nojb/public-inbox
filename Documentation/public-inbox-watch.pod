@@ -12,7 +12,7 @@ In ~/.public-inbox/config:
 		; generic public-inbox-config keys:
 		address = test@example.com
 		url = http://example.com/test
-		mainrepo = /path/to/test.example.com.git
+		inboxdir = /path/to/test.example.com.git
 
 		; config keys specific to public-inbox-watch:
 
@@ -28,7 +28,7 @@ In ~/.public-inbox/config:
 
 		; optional, emails marked as read which appear
 		; here will be trained as spam and deleted from
-		; the mainrepos of any public-inboxes which are
+		; the inboxdirs of any public-inboxes which are
 		; configured for watch.
 		; This is global for all publicinbox.* sections
 		watchspam = maildir:/path/to/maildirs/.INBOX.spam

@@ -145,6 +145,9 @@ sub inbox_config ($$$) {
 ; see public-inbox-config(5) manpage for more details:
 ; https://public-inbox.org/public-inbox-config.html
 [publicinbox "$name"]
+	inboxdir = /path/to/top-level-inbox
+	; note: public-inbox before v1.2.0 used "mainrepo"
+	; instead of "inboxdir", both remain supported after 1.2
 	mainrepo = /path/to/top-level-inbox
 EOS
 	for my $k (qw(address listid)) {

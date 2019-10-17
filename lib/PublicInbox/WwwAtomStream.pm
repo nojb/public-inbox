@@ -84,7 +84,7 @@ sub atom_header {
 		$self_url .= 'new.atom';
 		$page_id = "mailto:$ibx->{-primary_address}";
 	}
-	my $mtime = (stat($ibx->{mainrepo}))[9] || time;
+	my $mtime = (stat($ibx->{inboxdir}))[9] || time;
 
 	qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
 	qq(<feed\nxmlns="http://www.w3.org/2005/Atom"\n) .

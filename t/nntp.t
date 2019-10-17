@@ -99,7 +99,7 @@ use_ok 'PublicInbox::Inbox';
 	require Email::MIME;
 	my $u = 'https://example.com/a/';
 	my $ng = PublicInbox::Inbox->new({ name => 'test',
-					mainrepo => 'test.git',
+					inboxdir => 'test.git',
 					address => 'a@example.com',
 					-primary_address => 'a@example.com',
 					newsgroup => 'test',

@@ -126,9 +126,9 @@ chomp @HELP;
 sub xdir ($;$) {
 	my ($self, $rdonly) = @_;
 	if ($self->{version} == 1) {
-		"$self->{mainrepo}/public-inbox/xapian" . SCHEMA_VERSION;
+		"$self->{inboxdir}/public-inbox/xapian" . SCHEMA_VERSION;
 	} else {
-		my $dir = "$self->{mainrepo}/xap" . SCHEMA_VERSION;
+		my $dir = "$self->{inboxdir}/xap" . SCHEMA_VERSION;
 		return $dir if $rdonly;
 
 		my $shard = $self->{shard};
@@ -173,7 +173,7 @@ sub new {
 	my ($class, $ibx) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $self = bless {
-		mainrepo => $ibx->{mainrepo},
+		inboxdir => $ibx->{inboxdir},
 		altid => $ibx->{altid},
 		version => $ibx->{version} // 1,
 	}, $class;

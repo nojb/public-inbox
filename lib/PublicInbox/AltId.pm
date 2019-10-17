@@ -32,9 +32,9 @@ sub new {
 	my $f = $params{file} or die "file: required for $type spec $spec\n";
 	unless (index($f, '/') == 0) {
 		if (($ibx->{version} || 1) == 1) {
-			$f = "$ibx->{mainrepo}/public-inbox/$f";
+			$f = "$ibx->{inboxdir}/public-inbox/$f";
 		} else {
-			$f = "$ibx->{mainrepo}/$f";
+			$f = "$ibx->{inboxdir}/$f";
 		}
 	}
 	bless {

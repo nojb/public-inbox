@@ -9,7 +9,7 @@ use Benchmark qw(:all);
 use PublicInbox::Inbox;
 my $pi_dir = $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
-my $ibx = PublicInbox::Inbox->new({ mainrepo => $pi_dir });
+my $ibx = PublicInbox::Inbox->new({ inboxdir => $pi_dir });
 eval { require PublicInbox::Search };
 my $srch = $ibx->search;
 plan skip_all => "$pi_dir not configured for search $0 $@" unless $srch;

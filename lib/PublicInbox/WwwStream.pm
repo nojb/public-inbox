@@ -97,7 +97,7 @@ sub _html_end {
 		$seen{$http} = 1;
 		for my $i (0..$max) {
 			# old parts my be deleted:
-			-d "$ibx->{mainrepo}/git/$i.git" or next;
+			-d "$ibx->{inboxdir}/git/$i.git" or next;
 			my $url = "$http/$i";
 			$seen{$url} = 1;
 			push @urls, "$url $dir/git/$i.git";

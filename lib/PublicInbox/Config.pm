@@ -93,7 +93,6 @@ sub each_inbox {
 	# may auto-vivify if config file is non-existent:
 	foreach my $section (@{$self->{-section_order}}) {
 		next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
-		defined($self->{"publicinbox.$1.mainrepo"}) or next;
 		my $ibx = lookup_name($self, $1) or next;
 		$cb->($ibx);
 	}
@@ -362,12 +361,16 @@ sub _fill {
 	my ($self, $pfx) = @_;
 	my $ibx = {};
 
-	foreach my $k (qw(mainrepo filter url newsgroup
+	foreach my $k (qw(inboxdir filter url newsgroup
 			infourl watch watchheader httpbackendmax
 			replyto feedmax nntpserver indexlevel)) {
 		my $v = $self->{"$pfx.$k"};
 		$ibx->{$k} = $v if defined $v;
 	}
+
+	# backwards compatibility:
+	$ibx->{inboxdir} //= $self->{"$pfx.mainrepo"};
+
 	foreach my $k (qw(obfuscate)) {
 		my $v = $self->{"$pfx.$k"};
 		defined $v or next;
@@ -385,7 +388,7 @@ sub _fill {
 		}
 	}
 
-	return unless $ibx->{mainrepo};
+	return unless defined($ibx->{inboxdir});
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
 

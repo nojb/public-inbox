@@ -22,7 +22,7 @@ my $git_dir = "$tmpdir/gittest";
 my $ibx = PublicInbox::Inbox->new({
 	address => 'test@example',
 	name => 'testbox',
-	mainrepo => $git_dir,
+	inboxdir => $git_dir,
 	url => 'http://example.com/test',
 	feedmax => 3,
 });

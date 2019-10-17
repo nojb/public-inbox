@@ -21,7 +21,7 @@ use_ok $_ foreach (@mods, qw(PublicInbox::SearchIdx));
 my $tmpdir = tempdir('pi-psgi-search.XXXXXX', TMPDIR => 1, CLEANUP => 1);
 
 my $ibx = PublicInbox::Inbox->new({
-	mainrepo => $tmpdir,
+	inboxdir => $tmpdir,
 	address => 'git@vger.kernel.org',
 	name => 'test',
 });
@@ -47,7 +47,7 @@ PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 my $cfgpfx = "publicinbox.test";
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=git\@vger.kernel.org
-$cfgpfx.mainrepo=$tmpdir
+$cfgpfx.inboxdir=$tmpdir
 EOF
 my $www = PublicInbox::WWW->new($config);
 test_psgi(sub { $www->call(@_) }, sub {

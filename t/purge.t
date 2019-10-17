@@ -15,9 +15,9 @@ use Cwd qw(abs_path);
 my $purge = abs_path('blib/script/public-inbox-purge');
 my $tmpdir = tempdir('pi-purge-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use_ok 'PublicInbox::V2Writable';
-my $mainrepo = "$tmpdir/v2";
+my $inboxdir = "$tmpdir/v2";
 my $ibx = PublicInbox::Inbox->new({
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-v2purge',
 	version => 2,
 	-primary_address => 'test@example.com',
@@ -47,22 +47,22 @@ $v2w->done;
 # failing cases, first:
 my $in = "$raw\nMOAR\n";
 my ($out, $err) = ('', '');
-ok(IPC::Run::run([$purge, '-f', $mainrepo], \$in, \$out, \$err),
+ok(IPC::Run::run([$purge, '-f', $inboxdir], \$in, \$out, \$err),
 	'purge -f OK');
 
 $out = $err = '';
-ok(!IPC::Run::run([$purge, $mainrepo], \$in, \$out, \$err),
+ok(!IPC::Run::run([$purge, $inboxdir], \$in, \$out, \$err),
 	'mismatch fails without -f');
 is($? >> 8, 1, 'missed purge exits with 1');
 
 # a successful case:
-ok(IPC::Run::run([$purge, $mainrepo], \$raw, \$out, \$err), 'match OK');
+ok(IPC::Run::run([$purge, $inboxdir], \$raw, \$out, \$err), 'match OK');
 like($out, qr/\b[a-f0-9]{40,}/m, 'removed commit noted');
 
 # add (old) vger filter to config file
 print $cfg_fh <<EOF or die "print $!";
 [publicinbox "test-v2purge"]
-	mainrepo = $mainrepo
+	inboxdir = $inboxdir
 	address = test\@example.com
 	indexlevel = basic
 	filter = PublicInbox::Filter::Vger

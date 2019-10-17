@@ -37,7 +37,7 @@ my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
-$cfgpfx.mainrepo=$git_dir
+$cfgpfx.inboxdir=$git_dir
 $cfgpfx.watch=maildir:$maildir
 $cfgpfx.filter=PublicInbox::Filter::Vger
 publicinboxlearn.watchspam=maildir:$spamdir

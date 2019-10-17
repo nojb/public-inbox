@@ -10,7 +10,7 @@ public-inbox-convert - convert v1 inboxes to v2
 
 public-inbox-convert copies the contents of an old "v1" inbox
 into a new "v2" inbox.  It makes no changes to the old inbox
-and users are expected to update the "mainrepo" path in
+and users are expected to update the "inboxdir" path in
 L<public-inbox-config(5)> to point to the path of NEW_DIR
 once they are satisfied with the conversion.
 

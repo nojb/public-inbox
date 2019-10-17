@@ -11,7 +11,7 @@ B<public-inbox-init> [OPTIONS] NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]
 Creates an empty public-inbox or reinitializes an existing one.
 It updates C<~/.public-inbox/config> by creating a
 C<[publicinbox "NAME"]> section where
-C<publicinbox.NAME.mainrepo> is C<INBOX_DIR>,
+C<publicinbox.NAME.inboxdir> is C<INBOX_DIR>,
 C<publicinbox.NAME.url> is C<HTTP_URL>, and
 C<publicinbox.NAME.address> is C<ADDRESS>.  Multiple addresses
 may be specified for inboxes with multiple addresses.

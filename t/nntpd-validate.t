@@ -147,7 +147,7 @@ done_testing();
 sub make_local_server {
 	require PublicInbox::Inbox;
 	$group = 'inbox.test.perf.nntpd';
-	my $ibx = { mainrepo => $inbox_dir, newsgroup => $group };
+	my $ibx = { inboxdir => $inbox_dir, newsgroup => $group };
 	$ibx = PublicInbox::Inbox->new($ibx);
 	my $nntpd = 'blib/script/public-inbox-nntpd';
 	my $pi_config = "$tmpdir/config";
@@ -156,7 +156,7 @@ sub make_local_server {
 		print $fh <<"" or die "print $pi_config: $!";
 [publicinbox "test"]
 	newsgroup = $group
-	mainrepo = $inbox_dir
+	inboxdir = $inbox_dir
 	address = test\@example.com
 
 		close $fh or die "close($pi_config): $!";

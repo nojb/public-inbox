@@ -23,9 +23,9 @@ if ($variant ne 'mboxrd' && $variant ne 'mboxo') {
 }
 my $name = shift or die $usage; # git
 my $email = shift or die $usage; # git@vger.kernel.org
-my $mainrepo = shift or die $usage; # /path/to/v2/repo
+my $inboxdir = shift or die $usage; # /path/to/v2/repo
 my $ibx = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => $name,
 	version => $version,
 	address => [ $email ],
@@ -37,7 +37,7 @@ unless ($dry_run) {
 		require PublicInbox::V2Writable;
 		PublicInbox::V2Writable->new($ibx, 1)->init_inbox(0);
 	} else {
-		system(qw(git init --bare -q), $mainrepo) == 0 or die;
+		system(qw(git init --bare -q), $inboxdir) == 0 or die;
 	}
 }
 $ibx = PublicInbox::InboxWritable->new($ibx);

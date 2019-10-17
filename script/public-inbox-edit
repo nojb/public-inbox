@@ -65,7 +65,7 @@ sub find_mid ($) {
 
 sub show_cmd ($$) {
 	my ($ibx, $smsg) = @_;
-	" GIT_DIR=$ibx->{mainrepo}/all.git \\\n    git show $smsg->{blob}\n";
+	" GIT_DIR=$ibx->{inboxdir}/all.git \\\n    git show $smsg->{blob}\n";
 }
 
 sub show_found () {

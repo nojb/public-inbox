@@ -52,7 +52,7 @@ if (!defined $dst) {
 	}
 	defined $dst or do_exit(67); # EX_NOUSER 5.1.1 user unknown
 }
-$dst->{mainrepo} or do_exit(67);
+$dst->{inboxdir} or do_exit(67);
 $dst = PublicInbox::InboxWritable->new($dst);
 
 # pre-check, MDA has stricter rules than an importer might;

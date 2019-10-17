@@ -38,7 +38,7 @@ my $mime;
 
 	my %cfg = (
 		"$cfgpfx.address" => $addr,
-		"$cfgpfx.mainrepo" => $maindir,
+		"$cfgpfx.inboxdir" => $maindir,
 	);
 	while (my ($k,$v) = each %cfg) {
 		is(0, system(qw(git config --file), $pi_config, $k, $v),

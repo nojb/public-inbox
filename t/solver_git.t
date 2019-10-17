@@ -22,9 +22,9 @@ $git_dir = abs_path($git_dir);
 
 use_ok "PublicInbox::$_" for (qw(Inbox V2Writable MIME Git SolverGit));
 
-my $mainrepo = tempdir('pi-solver-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my $inboxdir = tempdir('pi-solver-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $opts = {
-	mainrepo => $mainrepo,
+	inboxdir => $inboxdir,
 	name => 'test-v2writable',
 	version => 2,
 	-primary_address => 'test@example.com',
@@ -52,7 +52,7 @@ is(undef, $git->commit_title('impossible'), 'undef on impossible object');
 $ibx->{-repo_objs} = [ $git ];
 my $res;
 my $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
-open my $log, '+>>', "$mainrepo/solve.log" or die "open: $!";
+open my $log, '+>>', "$inboxdir/solve.log" or die "open: $!";
 my $psgi_env = { 'psgi.errors' => *STDERR };
 $solver->solve($psgi_env, $log, '69df7d5', {});
 ok($res, 'solved a blob!');
