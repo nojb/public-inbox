@@ -26,7 +26,13 @@ else
 fi
 
 # run public-inbox-init iff unconfigured
-cfg_dir=$(git config -f "$PI_CONFIG" publicinbox."$inbox_name".dir)
+cfg_dir=$(git config -f "$PI_CONFIG" publicinbox."$inbox_name".inboxdir)
+
+# check legacy name for "inboxdir"
+case $cfg_dir in
+'') cfg_dir=$(git config -f "$PI_CONFIG" publicinbox."$inbox_name".mainrepo) ;;
+esac
+
 case $cfg_dir in
 '')
 	remote_git_url=$(git --git-dir="$full_git_dir" config remote.origin.url)
