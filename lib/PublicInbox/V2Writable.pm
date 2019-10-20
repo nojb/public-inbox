@@ -155,8 +155,7 @@ sub _add {
 	# leaking FDs to it...
 	$self->idx_init;
 
-	my $mid0;
-	my $num = num_for($self, $mime, \$mid0);
+	my ($num, $mid0) = v2_num_for($self, $mime);
 	defined $num or return; # duplicate
 	defined $mid0 or die "BUG: $mid0 undefined\n";
 	my $im = $self->importer;
@@ -172,16 +171,15 @@ sub _add {
 	$cmt;
 }
 
-sub num_for {
-	my ($self, $mime, $mid0) = @_;
+sub v2_num_for {
+	my ($self, $mime) = @_;
 	my $mids = mids($mime->header_obj);
 	if (@$mids) {
 		my $mid = $mids->[0];
 		my $num = $self->{mm}->mid_insert($mid);
 		if (defined $num) { # common case
-			$$mid0 = $mid;
-			return $num;
-		};
+			return ($num, $mid);
+		}
 
 		# crap, Message-ID is already known, hope somebody just resent:
 		foreach my $m (@$mids) {
@@ -190,7 +188,7 @@ sub num_for {
 			# easy, don't store duplicates
 			# note: do not add more diagnostic info here since
 			# it gets noisy on public-inbox-watch restarts
-			return if $existing;
+			return () if $existing;
 		}
 
 		# AltId may pre-populate article numbers (e.g. X-Mail-Count
@@ -201,8 +199,7 @@ sub num_for {
 			my $num = $self->{mm}->num_for($mid);
 
 			if (defined $num && !$self->{over}->get_art($num)) {
-				$$mid0 = $mid;
-				return $num;
+				return ($num, $mid);
 			}
 		}
 
@@ -215,39 +212,38 @@ sub num_for {
 			$num = $self->{mm}->mid_insert($m);
 			if (defined $num) {
 				warn "alternative <$m> for <$mid> found\n";
-				$$mid0 = $m;
-				return $num;
+				return ($num, $m);
 			}
 		}
 	}
 	# none of the existing Message-IDs are good, generate a new one:
-	num_for_harder($self, $mime, $mid0);
+	v2_num_for_harder($self, $mime);
 }
 
-sub num_for_harder {
-	my ($self, $mime, $mid0) = @_;
+sub v2_num_for_harder {
+	my ($self, $mime) = @_;
 
 	my $hdr = $mime->header_obj;
 	my $dig = content_digest($mime);
-	$$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
-	my $num = $self->{mm}->mid_insert($$mid0);
+	my $mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+	my $num = $self->{mm}->mid_insert($mid0);
 	unless (defined $num) {
 		# it's hard to spoof the last Received: header
 		my @recvd = $hdr->header_raw('Received');
 		$dig->add("Received: $_") foreach (@recvd);
-		$$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
-		$num = $self->{mm}->mid_insert($$mid0);
+		$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+		$num = $self->{mm}->mid_insert($mid0);
 
 		# fall back to a random Message-ID and give up determinism:
 		until (defined($num)) {
 			$dig->add(rand);
-			$$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
-			warn "using random Message-ID <$$mid0> as fallback\n";
-			$num = $self->{mm}->mid_insert($$mid0);
+			$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+			warn "using random Message-ID <$mid0> as fallback\n";
+			$num = $self->{mm}->mid_insert($mid0);
 		}
 	}
-	PublicInbox::Import::append_mid($hdr, $$mid0);
-	$num;
+	PublicInbox::Import::append_mid($hdr, $mid0);
+	($num, $mid0);
 }
 
 sub idx_shard {
