@@ -1072,7 +1072,7 @@ sub unindex_oid ($$$) {
 				join(',',sort keys %gone), "\n";
 		}
 		foreach my $num (keys %gone) {
-			$self->{unindexed}->{$_}++;
+			$self->{unindexed}->{$num}++;
 			$self->{mm}->num_delete($num);
 		}
 		unindex_oid_remote($self, $oid, $mid);
