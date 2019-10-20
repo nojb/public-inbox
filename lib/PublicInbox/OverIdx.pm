@@ -343,6 +343,20 @@ sub remove_oid {
 	$nr;
 }
 
+sub num_mid0_for_oid {
+	my ($self, $oid, $mid) = @_;
+	my ($num, $mid0);
+	$self->begin_lazy;
+	each_by_mid($self, $mid, ['ddd'], sub {
+		my ($smsg) = @_;
+		my $blob = $smsg->{blob};
+		return 1 if (!defined($blob) || $blob ne $oid); # continue;
+		($num, $mid0) = ($smsg->{num}, $smsg->{mid});
+		0; # done
+	});
+	($num, $mid0);
+}
+
 sub create_tables {
 	my ($dbh) = @_;
 
