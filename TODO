@@ -21,6 +21,9 @@ all need to be considered for everything we introduce)
   yet storing large amounts of data on computers without a
   public IP behind a home Internet connection.
 
+* DHT (distributed hash table) for mapping Message-IDs to various
+  archive locations to avoid SPOF.
+
 * optional Cache::FastMmap support so production deployments won't
   need Varnish (Varnish doesn't protect NNTP, either)
 
