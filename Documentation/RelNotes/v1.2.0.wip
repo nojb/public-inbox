@@ -4,37 +4,68 @@ Subject: [WIP] public-inbox 1.2.0
 * first non-pre/rc release with v2 format support for scalability.
   See public-inbox-v2-format(5) manpage for more details.
 
-* new admin tools for v2 repos:
+* new admin tools for v2 inboxes:
   - public-inbox-convert - converts v1 to v2 repo formats
   - public-inbox-compact - v2 convenience wrapper for xapian-compact(1)
   - public-inbox-purge - purges entire messages out of v2 history
   - public-inbox-edit - edits sensitive data out messages from v2 history
   - public-inbox-xcpdb - copydatabase(1) wrapper to upgrade Xapian formats
                          (e.g. from "chert" to "glass") and resharding
-                         of v2 repos
+                         of v2 inboxes
 
 * SQLite3 support decoupled from Xapian support, and Xapian DBs may be
   configured without phrase support to save space.  See "indexlevel" in
   public-inbox-config(5) manpage for more info.
+
+* codebase now uses Perl 5.10.1+ features (e.g. "//")
 
 * public-inbox-nntpd
   - support STARTTLS and NNTPS
   - support COMPRESS extension
   - fix several RFC3977 compliance bugs
   - improved interopability with picky clients such as leafnode
+    and Alpine
 
 * public-inbox-watch
   - support multiple spam training directories
   - support mapping multiple inboxes per Maildir
+  - List-ID header support (see "listid" in public-inbox-config(5))
+
+* public-inbox-mda
+  - List-ID header support (see above)
 
 * PublicInbox::WWW
   - grokmirror-compatible manifest.js.gz endpoint generation
   - user-configurable color support in $INBOX_URL/_/text/color/
   - BOFHs may set default colors via "publicinbox.css"
     (see public-inbox-config(5))
+  - ability to map git code repositories and run cgit
+    (see "coderepo" and "cgitrc" in public-inbox-config(5))
+  - able to recreate blobs with coderepo associations and Xapian
+  - search results may be reversed
+  - reduce memory usage when rendering large threads
+  - syntax highlighting for patches and blobs
 
-* Danga::Socket is no longer a runtime dependency of daemons.
+* public-inbox-httpd / public-inbox-nntpd:
+  - lower memory usage in C10K scenarios
+  - buffers slow clients to filesystem (TMPDIR) instead of RAM
+  - improved FreeBSD support
+  - Danga::Socket is no longer a runtime dependency
 
-* improved FreeBSD support
+* many documentation updates, new manpages for:
+  - PublicInbox::SaPlugin::ListMirror
+  - public-inbox-init
+
+* workaround memory leaks on Perl 5.16.3 (on CentOS/RHEL 7.x)
+
+Thanks to Ali Alnubani, Alyssa Ross, Amitai Schleier, Dave Taht,
+Dmitry Alexandrov, Eric W. Biederman, Jan Kiszka, Jonathan Corbet,
+Kyle Meyer, Leah Neukirchen, Mateusz Łoskot, Nicolás Ojeda Bär,
+SZEDER Gábor, Urs Janßen, Wang Kang, and edef for all their help,
+bug reports, patches and suggestions.
+
+Special thanks to Konstantin Ryabitsev and The Linux Foundation
+for their sponsorship and support over the past two years.
 
 See archives at https://public-inbox.org/meta/ for all history.
+See https://public-inbox.org/TODO for what the future holds.
