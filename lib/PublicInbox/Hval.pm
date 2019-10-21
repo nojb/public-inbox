@@ -32,14 +32,6 @@ sub new_msgid {
 	$class->new($msgid, mid_escape($msgid));
 }
 
-sub new_oneline {
-	my ($class, $raw) = @_;
-	$raw = '' unless defined $raw;
-	$raw =~ tr/\t\n / /s; # squeeze spaces
-	$raw =~ tr/\r//d; # kill CR
-	$class->new($raw);
-}
-
 # some of these overrides are standard C escapes so they're
 # easy-to-understand when rendered.
 my %escape_sequence = (
