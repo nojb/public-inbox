@@ -261,17 +261,6 @@ sub local_nick ($) {
 	wantarray ? ($ret) : $ret;
 }
 
-# show the blob URL for cgit/gitweb/whatever
-sub src_blob_url {
-	my ($self, $oid) = @_;
-	# blob_url_format = "https://example.com/foo.git/blob/%s"
-	if (my $bfu = $self->{blob_url_format}) {
-		return map { sprintf($_, $oid) } @$bfu if wantarray;
-		return sprintf($bfu->[0], $oid);
-	}
-	local_nick($self);
-}
-
 sub host_prefix_url ($$) {
 	my ($env, $url) = @_;
 	return $url if index($url, '//') >= 0;
