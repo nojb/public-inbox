@@ -13,6 +13,7 @@ use File::Temp qw//;
 use PublicInbox::Filter::Base;
 use PublicInbox::Spamcheck;
 *REJECT = *PublicInbox::Filter::Base::REJECT;
+*maildir_path_load = *PublicInbox::InboxWritable::maildir_path_load;
 
 sub new {
 	my ($class, $config) = @_;
@@ -124,7 +125,7 @@ sub _remove_spam {
 	my ($self, $path) = @_;
 	# path must be marked as (S)een
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
-	my $mime = _path_to_mime($path) or return;
+	my $mime = maildir_path_load($path) or return;
 	$self->{config}->each_inbox(sub {
 		my ($ibx) = @_;
 		eval {
@@ -166,7 +167,7 @@ sub _try_path {
 		$warn_cb->(@_);
 	};
 	foreach my $ibx (@$inboxes) {
-		my $mime = _path_to_mime($path) or next;
+		my $mime = maildir_path_load($path) or next;
 		my $im = _importer_for($self, $ibx);
 
 		# any header match means it's eligible for the inbox:
@@ -257,21 +258,6 @@ sub scan {
 	_done_for_now($self);
 	# do we have more work to do?
 	trigger_scan($self, 'cont') if keys %$opendirs;
-}
-
-sub _path_to_mime {
-	my ($path) = @_;
-	if (open my $fh, '<', $path) {
-		local $/;
-		my $str = <$fh>;
-		$str or return;
-		return PublicInbox::MIME->new(\$str);
-	} elsif ($!{ENOENT}) {
-		return;
-	} else {
-		warn "failed to open $path: $!\n";
-		return;
-	}
 }
 
 sub _importer_for {
