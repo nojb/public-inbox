@@ -300,13 +300,6 @@ sub get_vcs_object ($$$;$) {
 	PublicInbox::ViewVCS::show($ctx, $oid, $filename);
 }
 
-sub ctx_get {
-	my ($ctx, $key) = @_;
-	my $val = $ctx->{$key};
-	(defined $val && $val ne '') or die "BUG: bad ctx, $key unusable";
-	$val;
-}
-
 sub need {
 	my ($ctx, $extra) = @_;
 	my $msg = <<EOF;
