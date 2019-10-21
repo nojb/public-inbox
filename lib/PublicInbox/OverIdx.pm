@@ -320,12 +320,6 @@ INSERT INTO id2num (id, num) VALUES (?,?)
 	}
 }
 
-sub delete_articles {
-	my ($self, $nums) = @_;
-	my $dbh = $self->connect;
-	$self->delete_by_num($_) foreach @$nums;
-}
-
 # returns number of removed messages
 # $oid may be undef to match only on $mid
 sub remove_oid {
