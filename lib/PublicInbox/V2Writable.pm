@@ -1280,8 +1280,8 @@ sub index_sync {
 			$self->{current_info} = "multi_mid $oid";
 			reindex_oid_m($self, $sync, $git, $oid);
 		}
-		$git->cleanup if $git;
 	}
+	$git->cleanup if $git;
 	$self->done;
 
 	if (my $nr = $sync->{nr}) {
