@@ -134,7 +134,7 @@ sub import_maildir {
 		opendir my $dh, "$dir/$sub" or die "opendir $dir/$sub: $!\n";
 		while (defined(my $fn = readdir($dh))) {
 			next unless is_maildir_basename($fn);
-			my $mime = maildir_file_load("$dir/$fn") or next;
+			my $mime = maildir_path_load("$dir/$fn") or next;
 
 			if (my $filter = $self->filter($im)) {
 				my $ret = $filter->scrub($mime) or return;
