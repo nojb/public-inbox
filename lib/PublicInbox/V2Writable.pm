@@ -19,6 +19,7 @@ use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::SearchIdx;
 use IO::Handle;
+use File::Temp qw(tempfile);
 
 # an estimate of the post-packed size to the raw uncompressed size
 my $PACKING_FACTOR = 0.4;
@@ -155,8 +156,7 @@ sub _add {
 	# leaking FDs to it...
 	$self->idx_init;
 
-	my $mid0;
-	my $num = num_for($self, $mime, \$mid0);
+	my ($num, $mid0) = v2_num_for($self, $mime);
 	defined $num or return; # duplicate
 	defined $mid0 or die "BUG: $mid0 undefined\n";
 	my $im = $self->importer;
@@ -172,16 +172,15 @@ sub _add {
 	$cmt;
 }
 
-sub num_for {
-	my ($self, $mime, $mid0) = @_;
+sub v2_num_for {
+	my ($self, $mime) = @_;
 	my $mids = mids($mime->header_obj);
 	if (@$mids) {
 		my $mid = $mids->[0];
 		my $num = $self->{mm}->mid_insert($mid);
 		if (defined $num) { # common case
-			$$mid0 = $mid;
-			return $num;
-		};
+			return ($num, $mid);
+		}
 
 		# crap, Message-ID is already known, hope somebody just resent:
 		foreach my $m (@$mids) {
@@ -190,7 +189,7 @@ sub num_for {
 			# easy, don't store duplicates
 			# note: do not add more diagnostic info here since
 			# it gets noisy on public-inbox-watch restarts
-			return if $existing;
+			return () if $existing;
 		}
 
 		# AltId may pre-populate article numbers (e.g. X-Mail-Count
@@ -201,8 +200,7 @@ sub num_for {
 			my $num = $self->{mm}->num_for($mid);
 
 			if (defined $num && !$self->{over}->get_art($num)) {
-				$$mid0 = $mid;
-				return $num;
+				return ($num, $mid);
 			}
 		}
 
@@ -215,39 +213,38 @@ sub num_for {
 			$num = $self->{mm}->mid_insert($m);
 			if (defined $num) {
 				warn "alternative <$m> for <$mid> found\n";
-				$$mid0 = $m;
-				return $num;
+				return ($num, $m);
 			}
 		}
 	}
 	# none of the existing Message-IDs are good, generate a new one:
-	num_for_harder($self, $mime, $mid0);
+	v2_num_for_harder($self, $mime);
 }
 
-sub num_for_harder {
-	my ($self, $mime, $mid0) = @_;
+sub v2_num_for_harder {
+	my ($self, $mime) = @_;
 
 	my $hdr = $mime->header_obj;
 	my $dig = content_digest($mime);
-	$$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
-	my $num = $self->{mm}->mid_insert($$mid0);
+	my $mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+	my $num = $self->{mm}->mid_insert($mid0);
 	unless (defined $num) {
 		# it's hard to spoof the last Received: header
 		my @recvd = $hdr->header_raw('Received');
 		$dig->add("Received: $_") foreach (@recvd);
-		$$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
-		$num = $self->{mm}->mid_insert($$mid0);
+		$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+		$num = $self->{mm}->mid_insert($mid0);
 
 		# fall back to a random Message-ID and give up determinism:
 		until (defined($num)) {
 			$dig->add(rand);
-			$$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
-			warn "using random Message-ID <$$mid0> as fallback\n";
-			$num = $self->{mm}->mid_insert($$mid0);
+			$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+			warn "using random Message-ID <$mid0> as fallback\n";
+			$num = $self->{mm}->mid_insert($mid0);
 		}
 	}
-	PublicInbox::Import::append_mid($hdr, $$mid0);
-	$num;
+	PublicInbox::Import::append_mid($hdr, $mid0);
+	($num, $mid0);
 }
 
 sub idx_shard {
@@ -767,7 +764,6 @@ sub import_init {
 # XXX experimental
 sub diff ($$$) {
 	my ($mid, $cur, $new) = @_;
-	use File::Temp qw(tempfile);
 
 	my ($ah, $an) = tempfile('email-cur-XXXXXXXX', TMPDIR => 1);
 	print $ah $cur->as_string or die "print: $!";
@@ -845,81 +841,184 @@ sub mark_deleted ($$$$) {
 	}
 }
 
-sub reindex_oid ($$$$) {
-	my ($self, $sync, $git, $oid) = @_;
-	my $len;
+sub reindex_checkpoint ($$$) {
+	my ($self, $sync, $git) = @_;
+
+	$git->cleanup;
+	$sync->{mm_tmp}->atfork_prepare;
+	$self->done; # release lock
+
+	if (my $pr = $sync->{-opt}->{-progress}) {
+		my ($bn) = (split('/', $git->{git_dir}))[-1];
+		$pr->("$bn ".sprintf($sync->{-regen_fmt}, $sync->{nr}));
+	}
+
+	# allow -watch or -mda to write...
+	$self->idx_init; # reacquire lock
+	$sync->{mm_tmp}->atfork_parent;
+}
+
+# only for a few odd messages with multiple Message-IDs
+sub reindex_oid_m ($$$$;$) {
+	my ($self, $sync, $git, $oid, $regen_num) = @_;
+	$self->{current_info} = "multi_mid $oid";
+	my ($num, $mid0, $len);
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::MIME->new($$msgref);
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
+	die "BUG: reindex_oid_m called for <=1 mids" if scalar(@$mids) <= 1;
 
-	# get the NNTP article number we used before, highest number wins
-	# and gets deleted from sync->{mm_tmp};
-	my $mid0;
-	my $num = -1;
-	my $del = 0;
-	foreach my $mid (@$mids) {
-		$del += delete($sync->{D}->{"$mid\0$cid"}) ? 1 : 0;
-		my $n = $sync->{mm_tmp}->num_for($mid);
-		if (defined $n && $n > $num) {
+	for my $mid (reverse @$mids) {
+		delete($sync->{D}->{"$mid\0$cid"}) and
+			die "BUG: reindex_oid should handle <$mid> delete";
+	}
+	my $over = $self->{over};
+	for my $mid (reverse @$mids) {
+		($num, $mid0) = $over->num_mid0_for_oid($oid, $mid);
+		next unless defined $num;
+		if (defined($regen_num) && $regen_num != $num) {
+			die "BUG: regen(#$regen_num) != over(#$num)";
+		}
+	}
+	unless (defined($num)) {
+		for my $mid (reverse @$mids) {
+			# is this a number we got before?
+			my $n = $sync->{mm_tmp}->num_for($mid);
+			next unless defined $n;
+			next if defined($regen_num) && $regen_num != $n;
+			($num, $mid0) = ($n, $mid);
+			last;
+		}
+	}
+	if (defined($num)) {
+		$sync->{mm_tmp}->num_delete($num);
+	} elsif (defined $regen_num) {
+		$num = $regen_num;
+		for my $mid (reverse @$mids) {
+			$self->{mm}->mid_set($num, $mid) == 1 or next;
 			$mid0 = $mid;
-			$num = $n;
-			$self->{mm}->mid_set($num, $mid0);
+			last;
+		}
+		unless (defined $mid0) {
+			warn "E: cannot regen #$num\n";
+			return;
+		}
+	} else { # fixup bugs in old mirrors on reindex
+		for my $mid (reverse @$mids) {
+			$num = $self->{mm}->mid_insert($mid);
+			next unless defined $num;
+			$mid0 = $mid;
+			last;
+		}
+		if (defined $mid0) {
+			if ($sync->{reindex}) {
+				warn "reindex added #$num <$mid0>\n";
+			}
+		} else {
+			warn "E: cannot find article #\n";
+			return;
 		}
 	}
-	if (!defined($mid0) && !$del) {
-		$num = $sync->{regen}--;
-		die "BUG: ran out of article numbers\n" if $num <= 0;
-		my $mm = $self->{mm};
-		foreach my $mid (reverse @$mids) {
-			if ($mm->mid_set($num, $mid) == 1) {
-				$mid0 = $mid;
-				last;
-			}
-		}
-		if (!defined($mid0)) {
-			my $id = '<' . join('> <', @$mids) . '>';
-			warn "Message-ID $id unusable for $num\n";
-			foreach my $mid (@$mids) {
-				defined(my $n = $mm->num_for($mid)) or next;
-				warn "#$n previously mapped for <$mid>\n";
-			}
-		}
+	$sync->{nr}++;
+	if (do_idx($self, $msgref, $mime, $len, $num, $oid, $mid0)) {
+		reindex_checkpoint($self, $sync, $git);
 	}
+}
 
-	if (!defined($mid0) || $del) {
-		if (!defined($mid0) && $del) { # expected for deletes
+sub check_unindexed ($$$) {
+	my ($self, $num, $mid0) = @_;
+	my $unindexed = $self->{unindexed} // {};
+	my $n = delete($unindexed->{$mid0});
+	defined $n or return;
+	if ($n != $num) {
+		die "BUG: unindexed $n != $num <$mid0>\n";
+	} else {
+		$self->{mm}->mid_set($num, $mid0);
+	}
+}
+
+# reuse Msgmap to store num => oid mapping (rather than num => mid)
+sub multi_mid_q_new () {
+	my ($fh, $fn) = tempfile('multi_mid-XXXXXXX', EXLOCK => 0, TMPDIR => 1);
+	my $multi_mid = PublicInbox::Msgmap->new_file($fn, 1);
+	$multi_mid->{dbh}->do('PRAGMA synchronous = OFF');
+	# for Msgmap->DESTROY:
+	$multi_mid->{tmp_name} = $fn;
+	$multi_mid->{pid} = $$;
+	close $fh or die "failed to close $fn: $!";
+	$multi_mid
+}
+
+sub multi_mid_q_push ($$) {
+	my ($sync, $oid) = @_;
+	my $multi_mid = $sync->{multi_mid} //= multi_mid_q_new();
+	if ($sync->{reindex}) { # no regen on reindex
+		$multi_mid->mid_insert($oid);
+	} else {
+		my $num = $sync->{regen}--;
+		die "BUG: ran out of article numbers" if $num <= 0;
+		$multi_mid->mid_set($num, $oid);
+	}
+}
+
+sub reindex_oid ($$$$) {
+	my ($self, $sync, $git, $oid) = @_;
+	my ($num, $mid0, $len);
+	my $msgref = $git->cat_file($oid, \$len);
+	return if $len == 0; # purged
+	my $mime = PublicInbox::MIME->new($$msgref);
+	my $mids = mids($mime->header_obj);
+	my $cid = content_id($mime);
+
+	if (scalar(@$mids) == 0) {
+		warn "E: $oid has no Message-ID, skipping\n";
+		return;
+	} elsif (scalar(@$mids) == 1) {
+		my $mid = $mids->[0];
+
+		# was the file previously marked as deleted?, skip if so
+		if (delete($sync->{D}->{"$mid\0$cid"})) {
+			if (!$sync->{reindex}) {
+				$num = $sync->{regen}--;
+				$self->{mm}->num_highwater($num);
+			}
+			return;
+		}
+
+		# is this a number we got before?
+		$num = $sync->{mm_tmp}->num_for($mid);
+		if (defined $num) {
+			$mid0 = $mid;
+			check_unindexed($self, $num, $mid0);
+		} else {
 			$num = $sync->{regen}--;
-			$self->{mm}->num_highwater($num) if !$sync->{reindex};
-			return
+			die "BUG: ran out of article numbers" if $num <= 0;
+			if ($self->{mm}->mid_set($num, $mid) != 1) {
+				warn "E: unable to assign $num => <$mid>\n";
+				return;
+			}
+			$mid0 = $mid;
 		}
-
-		my $id = '<' . join('> <', @$mids) . '>';
-		defined($mid0) or
-			warn "Skipping $id, no article number found\n";
-		if ($del && defined($mid0)) {
-			warn "$id was deleted $del " .
-				"time(s) but mapped to article #$num\n";
+	} else { # multiple MIDs are a weird case:
+		my $del = 0;
+		for (@$mids) {
+			$del += delete($sync->{D}->{"$_\0$cid"}) // 0;
+		}
+		if ($del) {
+			unindex_oid_remote($self, $oid, $_) for @$mids;
+			# do not delete from {mm_tmp}, since another
+			# single-MID message may use it.
+		} else { # handle them at the end:
+			multi_mid_q_push($sync, $oid);
 		}
 		return;
-
 	}
 	$sync->{mm_tmp}->mid_delete($mid0) or
 		die "failed to delete <$mid0> for article #$num\n";
 	$sync->{nr}++;
 	if (do_idx($self, $msgref, $mime, $len, $num, $oid, $mid0)) {
-		$git->cleanup;
-		$sync->{mm_tmp}->atfork_prepare;
-		$self->done; # release lock
-
-		if (my $pr = $sync->{-opt}->{-progress}) {
-			my ($bn) = (split('/', $git->{git_dir}))[-1];
-			$pr->("$bn ".sprintf($sync->{-regen_fmt}, $sync->{nr}));
-		}
-
-		# allow -watch or -mda to write...
-		$self->idx_init; # reacquire lock
-		$sync->{mm_tmp}->atfork_parent;
+		reindex_checkpoint($self, $sync, $git);
 	}
 }
 
@@ -1051,8 +1150,9 @@ sub unindex_oid_remote ($$$) {
 	$self->{over}->remove_oid($oid, $mid);
 }
 
-sub unindex_oid ($$$) {
-	my ($self, $git, $oid) = @_;
+sub unindex_oid ($$$;$) {
+	my ($self, $git, $oid, $unindexed) = @_;
+	my $mm = $self->{mm};
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::MIME->new($msgref);
 	my $mids = mids($mime->header_obj);
@@ -1072,8 +1172,11 @@ sub unindex_oid ($$$) {
 				join(',',sort keys %gone), "\n";
 		}
 		foreach my $num (keys %gone) {
-			$self->{unindexed}->{$_}++;
-			$self->{mm}->num_delete($num);
+			if ($unindexed) {
+				my $mid0 = $mm->mid_for($num);
+				$unindexed->{$mid0} = $num;
+			}
+			$mm->num_delete($num);
 		}
 		unindex_oid_remote($self, $oid, $mid);
 	}
@@ -1082,20 +1185,21 @@ sub unindex_oid ($$$) {
 my $x40 = qr/[a-f0-9]{40}/;
 sub unindex ($$$$) {
 	my ($self, $sync, $git, $unindex_range) = @_;
-	my $un = $self->{unindexed} ||= {}; # num => removal count
-	my $before = scalar keys %$un;
+	my $unindexed = $self->{unindexed} ||= {}; # $mid0 => $num
+	my $before = scalar keys %$unindexed;
+	# order does not matter, here:
 	my @cmd = qw(log --raw -r
 			--no-notes --no-color --no-abbrev --no-renames);
 	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $unindex_range);
 	while (<$fh>) {
 		/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o or next;
-		unindex_oid($self, $git, $1);
+		unindex_oid($self, $git, $1, $unindexed);
 	}
 	delete $self->{reindex_pipe};
 	$fh = undef;
 
 	return unless $sync->{-opt}->{prune};
-	my $after = scalar keys %$un;
+	my $after = scalar keys %$unindexed;
 	return if $before == $after;
 
 	# ensure any blob can not longer be accessed via dumb HTTP
@@ -1188,11 +1292,34 @@ sub index_sync {
 
 	# unindex is required for leftovers if "deletes" affect messages
 	# in a previous fetch+index window:
+	my $git;
 	if (my @leftovers = values %{delete $sync->{D}}) {
-		my $git = $self->{-inbox}->git;
-		unindex_oid($self, $git, $_) for @leftovers;
-		$git->cleanup;
+		$git = $self->{-inbox}->git;
+		for my $oid (@leftovers) {
+			$self->{current_info} = "leftover $oid";
+			unindex_oid($self, $git, $oid);
+		}
 	}
+	if (my $multi_mid = delete $sync->{multi_mid}) {
+		$git //= $self->{-inbox}->git;
+		my ($min, $max) = $multi_mid->minmax;
+		if ($sync->{reindex}) {
+			# we may need to create new Message-IDs if mirrors
+			# were initially indexed with old versions
+			for (my $i = $max; $i >= $min; $i--) {
+				my $oid = $multi_mid->mid_for($i);
+				next unless defined $oid;
+				reindex_oid_m($self, $sync, $git, $oid);
+			}
+		} else { # regen on initial index
+			for my $num ($min..$max) {
+				my $oid = $multi_mid->mid_for($num);
+				next unless defined $oid;
+				reindex_oid_m($self, $sync, $git, $oid, $num);
+			}
+		}
+	}
+	$git->cleanup if $git;
 	$self->done;
 
 	if (my $nr = $sync->{nr}) {

@@ -431,4 +431,70 @@ ok(!-d $xap, 'Xapian directories removed again');
 		  ], 'msgmap as expected' );
 }
 
+# A real example from linux-renesas-soc on lore where a 3-headed monster
+# of a message has 3 sets of common headers.  Another normal message
+# previously existed with a single Message-ID that conflicts with one
+# of the Message-IDs in the 3-headed monster.
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	$config{indexlevel} = 'basic';
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $im = PublicInbox::V2Writable->new($ibx);
+	my $m3 = PublicInbox::MIME->new(<<'EOF');
+Date: Tue, 24 May 2016 14:34:22 -0700 (PDT)
+Message-Id: <20160524.143422.552507610109476444.d@example.com>
+To: t@example.com
+Cc: c@example.com
+Subject: Re: [PATCH v2 2/2]
+From: <f@example.com>
+In-Reply-To: <1463825855-7363-2-git-send-email-y@example.com>
+References: <1463825855-7363-1-git-send-email-y@example.com>
+	<1463825855-7363-2-git-send-email-y@example.com>
+Date: Wed, 25 May 2016 10:01:51 +0900
+From: h@example.com
+To: g@example.com
+Cc: m@example.com
+Subject: Re: [PATCH]
+Message-ID: <20160525010150.GD7292@example.com>
+References: <1463498133-23918-1-git-send-email-g+r@example.com>
+In-Reply-To: <1463498133-23918-1-git-send-email-g+r@example.com>
+From: s@example.com
+To: h@example.com
+Cc: m@example.com
+Subject: [PATCH 12/13]
+Date: Wed, 01 Jun 2016 01:32:35 +0300
+Message-ID: <1923946.Jvi0TDUXFC@wasted.example.com>
+In-Reply-To: <13205049.n7pM8utpHF@wasted.example.com>
+References: <13205049.n7pM8utpHF@wasted.example.com>
+
+Somehow we got a message with 3 sets of headers into one
+message, could've been something broken on the archiver side.
+EOF
+
+	my $m1 = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: t@example.com
+Subject: [PATCH 12/13]
+Date: Wed, 01 Jun 2016 01:32:35 +0300
+Message-ID: <1923946.Jvi0TDUXFC@wasted.example.com>
+In-Reply-To: <13205049.n7pM8utpHF@wasted.example.com>
+References: <13205049.n7pM8utpHF@wasted.example.com>
+
+This is probably one of the original messages
+
+EOF
+	$im->add($m1);
+	$im->add($m3);
+	$im->done;
+	remove_tree($xap);
+	eval { $im->index_sync() };
+	is($@, '', 'no error from initial indexing');
+	is_deeply(\@warn, [], 'no warnings from initial index');
+	eval { $im->index_sync({reindex=>1}) };
+	is($@, '', 'no error from reindexing after reused Message-ID (x3)');
+	is_deeply(\@warn, [], 'no warnings on reindex');
+}
+
 done_testing();
