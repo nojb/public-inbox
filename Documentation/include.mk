@@ -188,7 +188,8 @@ rsync-doc: NEWS.atom.gz
 
 clean-doc:
 	$(RM) $(man1) $(man5) $(man7) $(man8) $(gz_docs) $(docs_html) $(mantxt)
-	$(RM) $(gz_xdocs) $(xdocs_html) $(xdocs) NEWS NEWS.atom NEWS.html
+	$(RM) $(gz_xdocs) $(xdocs_html) $(xdocs)
+	$(RM) NEWS NEWS.atom NEWS.html Documentation/standards.txt
 
 clean :: clean-doc
 
