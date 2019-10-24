@@ -691,14 +691,11 @@ sub _msg_html_prepare {
 		$rv .= "Message-ID: &lt;$mhtml&gt; ";
 		$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
 	} else {
-		foreach (@$mids) {
-			my $mid = PublicInbox::Hval->new_msgid($_);
-			my $mhtml = $mid->as_html;
-			my $href = $mid->{href};
-			$rv .= "Message-ID: ";
-			$rv .= "&lt;<a\nhref=\"../$href/\">$mhtml</a>&gt; ";
-			$rv .= "(<a\nhref=\"../$href/raw\">raw</a>)\n";
-		}
+		my $lnk = PublicInbox::Linkify->new;
+		my $s = '';
+		$s .= "Message-ID: $_\n" for ($hdr->header_raw('Message-ID'));
+		$lnk->linkify_mids('..', \$s, 1);
+		$rv .= $s;
 	}
 	$rv .= _parent_headers($hdr, $over);
 	$rv .= "\n";
