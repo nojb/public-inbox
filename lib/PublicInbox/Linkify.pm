@@ -89,4 +89,33 @@ sub linkify_2 {
 	$_[1];
 }
 
+# single pass linkification of <Message-ID@example.com> within $str
+# with $pfx being the URL prefix
+sub linkify_mids {
+	my ($self, $pfx, $str) = @_;
+	$$str =~ s!<([^>]+)>!
+		my $msgid = PublicInbox::Hval->new_msgid($1);
+		my $html = $msgid->as_html;
+		my $href = $msgid->{href};
+		$href = ascii_html($href); # for IDN
+
+		# salt this, as this could be exploited to show
+		# links in the HTML which don't show up in the raw mail.
+		my $key = sha1_hex($html . $SALT);
+		$self->{$key} = [ $href, $html ];
+		'<PI-LINK-'. $key . '>';
+		!ge;
+	$$str = ascii_html($$str);
+	$$str =~ s!\bPI-LINK-([a-f0-9]{40})\b!
+		my $key = $1;
+		my $repl = $_[0]->{$key};
+		if (defined $repl) {
+			"<a\nhref=\"$pfx/$repl->[0]/\">$repl->[1]</a>";
+		} else {
+			# false positive or somebody tried to mess with us
+			$key;
+		}
+	!ge;
+}
+
 1;
