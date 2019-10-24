@@ -43,6 +43,11 @@ distribute and verify.  public-inbox itself will only be implemented
 in scripting languages (currently Perl 5) and optional JIT-compiled C
 (via Inline::C)
 
+Do not recurse on user-supplied data.  Neither Perl or C handle
+deep recursion gracefully.  See lib/PublicInbox/SearchThread.pm
+and lib/PublicInbox/MsgIter.pm for examples of non-recursive
+alternatives to previously-recursive algorithms.
+
 Performance should be reasonably good for server administrators, too,
 and we will sacrifice features to achieve predictable performance.
 Encouraging folks to self-host will be easier with lower hardware
