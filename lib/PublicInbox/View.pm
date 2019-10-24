@@ -10,7 +10,7 @@ use bytes (); # only for bytes::length
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/id_compress mid_escape mids references/;
+use PublicInbox::MID qw/id_compress mid_escape mids mids_for_index references/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -629,7 +629,7 @@ sub _msg_html_prepare {
 	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
-	my $mids = mids($hdr);
+	my $mids = mids_for_index($hdr);
 	if ($nr == 0) {
 		if ($more) {
 			$rv .=
@@ -691,9 +691,13 @@ sub _msg_html_prepare {
 		$rv .= "Message-ID: &lt;$mhtml&gt; ";
 		$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
 	} else {
+		# X-Alt-Message-ID can happen if a message is injected from
+		# public-inbox-nntpd because of multiple Message-ID headers.
 		my $lnk = PublicInbox::Linkify->new;
 		my $s = '';
-		$s .= "Message-ID: $_\n" for ($hdr->header_raw('Message-ID'));
+		for my $h (qw(Message-ID X-Alt-Message-ID)) {
+			$s .= "$h: $_\n" for ($hdr->header_raw($h));
+		}
 		$lnk->linkify_mids('..', \$s, 1);
 		$rv .= $s;
 	}
