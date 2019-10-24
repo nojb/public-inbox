@@ -168,7 +168,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 	@from_ = ($raw =~ m/>From: /mg);
 	is(scalar(@from_), 3, 'three From: lines');
 	foreach my $mid ('a-mid@b', $new_mid, $third) {
-		like($raw, qr/&lt;\Q$mid\E&gt;/s, "Message-ID $mid shown");
+		like($raw, qr!>\Q$mid\E</a>!s, "Message-ID $mid shown");
 	}
 	like($raw, qr/\b3\+ messages\b/, 'thread overview shown');
 

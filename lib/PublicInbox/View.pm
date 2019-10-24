@@ -630,7 +630,6 @@ sub _msg_html_prepare {
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
 	my $mids = mids($hdr);
-	my $multiple = scalar(@$mids) > 1; # zero, one, infinity
 	if ($nr == 0) {
 		if ($more) {
 			$rv .=
@@ -686,18 +685,19 @@ sub _msg_html_prepare {
 		$rv .= "Date: $v\n";
 	}
 	$ctx->{-title_html} = join(' - ', @title);
-	foreach (@$mids) {
-		my $mid = PublicInbox::Hval->new_msgid($_) ;
+	if (scalar(@$mids) == 1) { # common case
+		my $mid = PublicInbox::Hval->new_msgid($mids->[0]);
 		my $mhtml = $mid->as_html;
-		if ($multiple) {
+		$rv .= "Message-ID: &lt;$mhtml&gt; ";
+		$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
+	} else {
+		foreach (@$mids) {
+			my $mid = PublicInbox::Hval->new_msgid($_);
+			my $mhtml = $mid->as_html;
 			my $href = $mid->{href};
 			$rv .= "Message-ID: ";
-			$rv .= "<a\nhref=\"../$href/\">";
-			$rv .= "&lt;$mhtml&gt;</a> ";
+			$rv .= "&lt;<a\nhref=\"../$href/\">$mhtml</a>&gt; ";
 			$rv .= "(<a\nhref=\"../$href/raw\">raw</a>)\n";
-		} else {
-			$rv .= "Message-ID: &lt;$mhtml&gt; ";
-			$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
 		}
 	}
 	$rv .= _parent_headers($hdr, $over);
