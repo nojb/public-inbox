@@ -107,8 +107,8 @@ sub __hdr ($$) {
 	return $val if defined $val;
 
 	my $mime = $self->{mime} or return;
-	$val = $mime->header($field);
-	$val = '' unless defined $val;
+	my @raw = $mime->header($field);
+	$val = join(', ', @raw);
 	$val =~ tr/\t\n/  /;
 	$val =~ tr/\r//d;
 	$self->{$field} = $val;

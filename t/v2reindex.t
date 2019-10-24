@@ -439,7 +439,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
 	my %config = %$ibx_config;
-	$config{indexlevel} = 'basic';
+	$config{indexlevel} = 'medium';
 	my $ibx = PublicInbox::Inbox->new(\%config);
 	my $im = PublicInbox::V2Writable->new($ibx);
 	my $m3 = PublicInbox::MIME->new(<<'EOF');
@@ -447,7 +447,7 @@ Date: Tue, 24 May 2016 14:34:22 -0700 (PDT)
 Message-Id: <20160524.143422.552507610109476444.d@example.com>
 To: t@example.com
 Cc: c@example.com
-Subject: Re: [PATCH v2 2/2]
+Subject: Re: [PATCH v2 2/2] uno
 From: <f@example.com>
 In-Reply-To: <1463825855-7363-2-git-send-email-y@example.com>
 References: <1463825855-7363-1-git-send-email-y@example.com>
@@ -456,14 +456,14 @@ Date: Wed, 25 May 2016 10:01:51 +0900
 From: h@example.com
 To: g@example.com
 Cc: m@example.com
-Subject: Re: [PATCH]
+Subject: Re: [PATCH] dos
 Message-ID: <20160525010150.GD7292@example.com>
 References: <1463498133-23918-1-git-send-email-g+r@example.com>
 In-Reply-To: <1463498133-23918-1-git-send-email-g+r@example.com>
 From: s@example.com
 To: h@example.com
 Cc: m@example.com
-Subject: [PATCH 12/13]
+Subject: [PATCH 12/13] tres
 Date: Wed, 01 Jun 2016 01:32:35 +0300
 Message-ID: <1923946.Jvi0TDUXFC@wasted.example.com>
 In-Reply-To: <13205049.n7pM8utpHF@wasted.example.com>
@@ -495,6 +495,14 @@ EOF
 	eval { $im->index_sync({reindex=>1}) };
 	is($@, '', 'no error from reindexing after reused Message-ID (x3)');
 	is_deeply(\@warn, [], 'no warnings on reindex');
+
+	my %uniq;
+	for my $s (qw(uno dos tres)) {
+		my $msgs = $ibx->search->query("s:$s");
+		is(scalar(@$msgs), 1, "only one result for `$s'");
+		$uniq{$msgs->[0]->{num}}++;
+	}
+	is_deeply([values %uniq], [3], 'search on different subjects');
 }
 
 done_testing();
