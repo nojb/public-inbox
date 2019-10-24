@@ -13,7 +13,7 @@ use warnings;
 use base qw(PublicInbox::Over);
 use IO::Handle;
 use DBI qw(:sql_types); # SQL_BLOB
-use PublicInbox::MID qw/id_compress mids references/;
+use PublicInbox::MID qw/id_compress mids_for_index references/;
 use PublicInbox::SearchMsg qw(subject_normalized);
 use Compress::Zlib qw(compress);
 use PublicInbox::Search;
@@ -256,7 +256,7 @@ sub add_overview {
 		lines => $lines,
 		blob => $oid,
 	}, 'PublicInbox::SearchMsg';
-	my $mids = mids($mime->header_obj);
+	my $mids = mids_for_index($mime->header_obj);
 	my $refs = parse_references($smsg, $mid0, $mids);
 	my $subj = $smsg->subject;
 	my $xpath;

@@ -12,7 +12,7 @@ use warnings;
 use base qw(PublicInbox::Search PublicInbox::Lock);
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
-use PublicInbox::MID qw/mid_clean id_compress mid_mime mids/;
+use PublicInbox::MID qw/mid_clean id_compress mid_mime mids_for_index/;
 use PublicInbox::MsgIter;
 use Carp qw(croak);
 use POSIX qw(strftime);
@@ -344,7 +344,7 @@ sub add_xapian ($$$$$) {
 sub add_message {
 	# mime = Email::MIME object
 	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
-	my $mids = mids($mime->header_obj);
+	my $mids = mids_for_index($mime->header_obj);
 	$mid0 = $mids->[0] unless defined $mid0; # v1 compatibility
 	unless (defined $num) { # v1
 		$self->_msgmap_init;

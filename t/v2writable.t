@@ -115,6 +115,7 @@ if ('ensure git configs are correct') {
 
 {
 	$mime->header_set('Message-Id', '<abcde@1>', '<abcde@2>');
+	$mime->header_set('X-Alt-Message-Id', '<alt-id-for-nntp>');
 	$mime->header_set('References', '<zz-mid@b>');
 	ok($im->add($mime), 'message with multiple Message-ID');
 	$im->done;
@@ -127,6 +128,21 @@ if ('ensure git configs are correct') {
 	is($mset2->size, 1, 'message found by second MID');
 	is((($mset1->items)[0])->get_docid, (($mset2->items)[0])->get_docid,
 		'same document') if ($mset1->size);
+
+	my $alt = $srch->reopen->query('m:alt-id-for-nntp', { mset => 1 });
+	is($alt->size, 1, 'message found by alt MID (NNTP)');
+	is((($alt->items)[0])->get_docid, (($mset1->items)[0])->get_docid,
+		'same document') if ($mset1->size);
+	$mime->header_set('X-Alt-Message-Id');
+
+	my %uniq;
+	for my $mid (qw(abcde@1 abcde@2 alt-id-for-nntp)) {
+		my $msgs = $ibx->over->get_thread($mid);
+		my $key = join(' ', sort(map { $_->{num} } @$msgs));
+		$uniq{$key}++;
+	}
+	is(scalar(keys(%uniq)), 1, 'all alt Message-ID queries give same smsg');
+	is_deeply([values(%uniq)], [3], '3 queries, 3 results');
 }
 
 {

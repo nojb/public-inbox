@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape MID_ESC
-	mids references/;
+	mids references mids_for_index/;
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
 require PublicInbox::Address;
@@ -54,11 +54,10 @@ sub mid2path {
 # Only for v1 code paths:
 sub mid_mime ($) { mids($_[0]->header_obj)->[0] }
 
-sub mids ($) {
-	my ($hdr) = @_;
+# only intended for Message-ID and X-Alt-Message-ID
+sub extract_mids {
 	my @mids;
-	my @v = $hdr->header_raw('Message-Id');
-	foreach my $v (@v) {
+	for my $v (@_) {
 		my @cur = ($v =~ /<([^>]+)>/sg);
 		if (@cur) {
 			push(@mids, @cur);
@@ -66,7 +65,23 @@ sub mids ($) {
 			push(@mids, $v);
 		}
 	}
-	uniq_mids(\@mids);
+	\@mids;
+}
+
+sub mids ($) {
+	my ($hdr) = @_;
+	my @mids = $hdr->header_raw('Message-Id');
+	uniq_mids(extract_mids(@mids));
+}
+
+# we allow searching on X-Alt-Message-ID since PublicInbox::NNTP uses them
+# to placate some clients, and we want to ensure NNTP-only clients can
+# import and index without relying on HTTP endpoints
+sub mids_for_index ($) {
+	my ($hdr) = @_;
+	my @mids = $hdr->header_raw('Message-Id');
+	my @alts = $hdr->header_raw('X-Alt-Message-ID');
+	uniq_mids(extract_mids(@mids, @alts));
 }
 
 # last References should be IRT, but some mail clients do things
