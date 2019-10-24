@@ -633,7 +633,7 @@ sub _msg_html_prepare {
 	if ($nr == 0) {
 		if ($more) {
 			$rv .=
-"<pre>WARNING: multiple messages refer to this Message-ID\n</pre>";
+"<pre>WARNING: multiple messages have this Message-ID\n</pre>";
 		}
 		$rv .= "<pre\nid=b>"; # anchor for body start
 	} else {
