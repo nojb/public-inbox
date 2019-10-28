@@ -65,8 +65,8 @@ if ($train eq 'spam') {
 		next unless ref($dst);
 		# We do not touch GIT_COMMITTER_* env here so we can track
 		# who trained the message.
-		$dst->{name} = $ENV{GIT_COMMITTER_NAME} || $dst->{name};
-		$dst->{-primary_address} = $ENV{GIT_COMMITTER_EMAIL} || $addr;
+		$dst->{name} = $ENV{GIT_COMMITTER_NAME} // $dst->{name};
+		$dst->{-primary_address} = $ENV{GIT_COMMITTER_EMAIL} // $addr;
 		$dst = PublicInbox::InboxWritable->new($dst);
 		my $im = $dst->importer(0);
 
