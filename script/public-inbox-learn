@@ -39,6 +39,34 @@ my $mime = PublicInbox::MIME->new(eval {
 	$data
 });
 
+sub remove_or_add ($$$) {
+	my ($ibx, $train, $addr) = @_;
+
+	# We do not touch GIT_COMMITTER_* env here so we can track
+	# who trained the message.
+	$ibx->{name} = $ENV{GIT_COMMITTER_NAME} // $ibx->{name};
+	$ibx->{-primary_address} = $ENV{GIT_COMMITTER_EMAIL} // $addr;
+	$ibx = PublicInbox::InboxWritable->new($ibx);
+	my $im = $ibx->importer(0);
+
+	if ($train eq "rm") {
+		# This needs to be idempotent, as my inotify trainer
+		# may train for each cross-posted message, and this
+		# script already learns for every list in
+		# ~/.public-inbox/config
+		$im->remove($mime, $train);
+	} elsif ($train eq "ham") {
+		# no checking for spam here, we assume the message has
+		# been reviewed by a human at this point:
+		PublicInbox::MDA->set_list_headers($mime, $ibx);
+
+		# Ham messages are trained when they're marked into
+		# a SEEN state, so this is idempotent:
+		$im->add($mime);
+	}
+	$im->done;
+}
+
 # spam is removed from all known inboxes since it is often Bcc:-ed
 if ($train eq 'spam') {
 	$pi_config->each_inbox(sub {
@@ -61,31 +89,9 @@ if ($train eq 'spam') {
 	}
 
 	# n.b. message may be cross-posted to multiple public-inboxes
-	while (my ($addr, $dst) = each %dests) {
-		next unless ref($dst);
-		# We do not touch GIT_COMMITTER_* env here so we can track
-		# who trained the message.
-		$dst->{name} = $ENV{GIT_COMMITTER_NAME} // $dst->{name};
-		$dst->{-primary_address} = $ENV{GIT_COMMITTER_EMAIL} // $addr;
-		$dst = PublicInbox::InboxWritable->new($dst);
-		my $im = $dst->importer(0);
-
-		if ($train eq "rm") {
-			# This needs to be idempotent, as my inotify trainer
-			# may train for each cross-posted message, and this
-			# script already learns for every list in
-			# ~/.public-inbox/config
-			$im->remove($mime, $train);
-		} elsif ($train eq "ham") {
-			# no checking for spam here, we assume the message has
-			# been reviewed by a human at this point:
-			PublicInbox::MDA->set_list_headers($mime, $dst);
-
-			# Ham messages are trained when they're marked into
-			# a SEEN state, so this is idempotent:
-			$im->add($mime);
-		}
-		$im->done;
+	while (my ($addr, $ibx) = each %dests) {
+		next unless ref($ibx); # $ibx may be 0
+		remove_or_add($ibx, $train, $addr);
 	}
 }
 
