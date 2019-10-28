@@ -6,7 +6,6 @@ package PublicInbox::Filter::Base;
 use strict;
 use warnings;
 use PublicInbox::MsgIter;
-use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 
 sub No ($) { "*** We only accept plain-text mail, No $_[0] ***" }
 
