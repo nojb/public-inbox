@@ -44,12 +44,11 @@ if (defined $recipient) {
 	push @$dests, $ibx if $ibx;
 }
 if (!scalar(@$dests)) {
-	my $ibx = PublicInbox::MDA->inbox_for_list_id($config, $simple);
-	if (!defined($ibx) && !defined($recipient)) {
+	$dests = PublicInbox::MDA->inboxes_for_list_id($config, $simple);
+	if (!scalar(@$dests) && !defined($recipient)) {
 		die "ORIGINAL_RECIPIENT not defined in ENV\n";
 	}
-	defined($ibx) or do_exit(67); # EX_NOUSER 5.1.1 user unknown
-	push @$dests, $ibx;
+	scalar(@$dests) or do_exit(67); # EX_NOUSER 5.1.1 user unknown
 }
 
 my $err;

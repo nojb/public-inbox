@@ -95,8 +95,9 @@ if ($train eq 'spam') {
 		next if $seen{"$ibx"}++;
 		remove_or_add($ibx, $train, $addr);
 	}
-	my $ibx = PublicInbox::MDA->inbox_for_list_id($pi_config, $mime);
-	if ($ibx && !$seen{"$ibx"}) {
+	my $dests = PublicInbox::MDA->inboxes_for_list_id($pi_config, $mime);
+	for my $ibx (@$dests) {
+		next if !$seen{"$ibx"}++;
 		remove_or_add($ibx, $train, $ibx->{-primary_address});
 	}
 }
