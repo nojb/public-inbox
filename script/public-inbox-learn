@@ -77,7 +77,7 @@ if ($train eq 'spam') {
 		$im->done;
 	});
 } else {
-	require PublicInbox::MDA if $train eq "ham";
+	require PublicInbox::MDA;
 
 	# get all recipients
 	my %dests; # address => <PublicInbox::Inbox|0(false)>
@@ -89,9 +89,15 @@ if ($train eq 'spam') {
 	}
 
 	# n.b. message may be cross-posted to multiple public-inboxes
+	my %seen;
 	while (my ($addr, $ibx) = each %dests) {
 		next unless ref($ibx); # $ibx may be 0
+		next if $seen{"$ibx"}++;
 		remove_or_add($ibx, $train, $addr);
+	}
+	my $ibx = PublicInbox::MDA->inbox_for_list_id($pi_config, $mime);
+	if ($ibx && !$seen{"$ibx"}) {
+		remove_or_add($ibx, $train, $ibx->{-primary_address});
 	}
 }
 

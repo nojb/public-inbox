@@ -83,4 +83,19 @@ sub set_list_headers {
 	}
 }
 
+# TODO: deal with multiple List-ID headers?
+sub inbox_for_list_id ($$) {
+	my ($klass, $config, $simple) = @_;
+
+	# newer Email::Simple allows header_raw, as does Email::MIME:
+	my $list_id = $simple->can('header_raw') ?
+			$simple->header_raw('List-Id') :
+			$simple->header('List-Id');
+	my $ibx;
+	if (defined $list_id && $list_id =~ /<[ \t]*(.+)?[ \t]*>/) {
+		$ibx = $config->lookup_list_id($1);
+	}
+	$ibx;
+}
+
 1;

@@ -43,10 +43,7 @@ if (defined $recipient) {
 	$dst = $config->lookup($recipient); # first check
 }
 if (!defined $dst) {
-	my $list_id = $simple->header('List-Id');
-	if (defined $list_id && $list_id =~ /<[ \t]*(.+)?[ \t]*>/) {
-		$dst = $config->lookup_list_id($1);
-	}
+	$dst = PublicInbox::MDA->inbox_for_list_id($config, $simple);
 	if (!defined $dst && !defined $recipient) {
 		die "ORIGINAL_RECIPIENT not defined in ENV\n";
 	}
