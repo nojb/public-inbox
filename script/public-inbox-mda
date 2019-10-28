@@ -75,13 +75,19 @@ if ($spamc) {
 my $mime = PublicInbox::MIME->new(\$str);
 do_exit(0) unless $spam_ok;
 
-my $fcfg = $dst->{filter} || '';
-# -mda defaults to the strict base filter
-if ($fcfg eq '') {
-	$dst->{filter} = 'PublicInbox::Filter::Base';
-} elsif ($fcfg eq 'scrub') { # legacy alias, undocumented, remove?
-	$dst->{filter} = 'PublicInbox::Filter::Mirror';
+# -mda defaults to the strict base filter which we won't use anywhere else
+sub mda_filter_adjust ($) {
+	my ($ibx) = @_;
+	my $fcfg = $ibx->{filter} || '';
+	if ($fcfg eq '') {
+		$ibx->{filter} = 'PublicInbox::Filter::Base';
+	} elsif ($fcfg eq 'scrub') { # legacy alias, undocumented, remove?
+		$ibx->{filter} = 'PublicInbox::Filter::Mirror';
+	}
 }
+
+mda_filter_adjust($dst);
+
 my $filter = $dst->filter;
 my $ret = $filter->delivery($mime);
 if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
