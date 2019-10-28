@@ -37,27 +37,39 @@ my $config = PublicInbox::Config->new;
 my $key = 'publicinboxmda.spamcheck';
 my $default = 'PublicInbox::Spamcheck::Spamc';
 my $spamc = PublicInbox::Spamcheck::get($config, $key, $default);
-my $dst;
+my $dests = [];
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 if (defined $recipient) {
-	$dst = $config->lookup($recipient); # first check
+	my $ibx = $config->lookup($recipient); # first check
+	push @$dests, $ibx if $ibx;
 }
-if (!defined $dst) {
-	$dst = PublicInbox::MDA->inbox_for_list_id($config, $simple);
-	if (!defined $dst && !defined $recipient) {
+if (!scalar(@$dests)) {
+	my $ibx = PublicInbox::MDA->inbox_for_list_id($config, $simple);
+	if (!defined($ibx) && !defined($recipient)) {
 		die "ORIGINAL_RECIPIENT not defined in ENV\n";
 	}
-	defined $dst or do_exit(67); # EX_NOUSER 5.1.1 user unknown
+	defined($ibx) or do_exit(67); # EX_NOUSER 5.1.1 user unknown
+	push @$dests, $ibx;
 }
 
-$dst = PublicInbox::InboxWritable->new($dst);
-eval { $dst->assert_usable_dir };
-do_exit(67) if $@;
+my $err;
+@$dests = grep {
+	my $ibx = PublicInbox::InboxWritable->new($_);
+	eval { $ibx->assert_usable_dir };
+	if ($@) {
+		warn $@;
+		$err = 1;
+		0;
+	# pre-check, MDA has stricter rules than an importer might;
+	} elsif ($precheck) {
+		!!PublicInbox::MDA->precheck($simple, $ibx->{address});
+	} else {
+		1;
+	}
+} @$dests;
 
-# pre-check, MDA has stricter rules than an importer might;
-if ($precheck && !PublicInbox::MDA->precheck($simple, $dst->{address})) {
-	do_exit(0);
-}
+do_exit(67) if $err && scalar(@$dests) == 0;
+
 $simple = undef;
 my $spam_ok;
 if ($spamc) {
@@ -75,8 +87,6 @@ if ($spamc) {
 }
 do_exit(0) unless $spam_ok;
 
-my $mime = PublicInbox::MIME->new(\$str);
-
 # -mda defaults to the strict base filter which we won't use anywhere else
 sub mda_filter_adjust ($) {
 	my ($ibx) = @_;
@@ -88,30 +98,38 @@ sub mda_filter_adjust ($) {
 	}
 }
 
-mda_filter_adjust($dst);
+my @rejects;
+for my $ibx (@$dests) {
+	mda_filter_adjust($ibx);
+	my $filter = $ibx->filter;
+	my $mime = PublicInbox::MIME->new($str);
+	my $ret = $filter->delivery($mime);
+	if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
+		$mime = $ret;
+	} elsif ($ret == PublicInbox::Filter::Base::IGNORE) {
+		next; # nothing, keep looping
+	} elsif ($ret == PublicInbox::Filter::Base::REJECT) {
+		push @rejects, $filter->err;
+		next;
+	}
 
-my $filter = $dst->filter;
-my $ret = $filter->delivery($mime);
-if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
-	$mime = $ret;
-} elsif ($ret == PublicInbox::Filter::Base::IGNORE) {
-	do_exit(0); # chuck it to emergency
-} elsif ($ret == PublicInbox::Filter::Base::REJECT) {
-	$! = 65; # EX_DATAERR 5.6.0 data format error
-	die $filter->err, "\n";
-} # else { accept
-$filter = undef;
-
-PublicInbox::MDA->set_list_headers($mime, $dst);
-my $im = $dst->importer(0);
-if (defined $im->add($mime)) {
-	$emm = $emm->abort;
-} else {
-	# this message is similar to what ssoma-mda shows:
-	print STDERR "CONFLICT: Message-ID: ",
-			$mime->header_obj->header_raw('Message-ID'),
-			" exists\n";
+	PublicInbox::MDA->set_list_headers($mime, $ibx);
+	my $im = $ibx->importer(0);
+	if (defined $im->add($mime)) {
+		# ->abort is idempotent, no emergency if a single
+		# destination succeeds
+		$emm->abort;
+	} else { # v1-only
+		my $mid = $mime->header_obj->header_raw('Message-ID');
+		# this message is similar to what ssoma-mda shows:
+		print STDERR "CONFLICT: Message-ID: $mid exists\n";
+	}
+	$im->done;
 }
 
-$im->done;
+if (scalar(@rejects) && scalar(@rejects) == scalar(@$dests)) {
+	$! = 65; # EX_DATAERR 5.6.0 data format error
+	die join("\n", @rejects, '');
+}
+
 do_exit(0);
