@@ -77,7 +77,8 @@ sub new {
 	# $creat may be any true value, or 0/undef.  A hashref is true,
 	# and $creat->{nproc} may be set to an integer
 	my ($class, $v2ibx, $creat) = @_;
-	my $dir = $v2ibx->{inboxdir} or die "no inboxdir in inbox\n";
+	$v2ibx = PublicInbox::InboxWritable->new($v2ibx);
+	my $dir = $v2ibx->assert_usable_dir;
 	unless (-d $dir) {
 		if ($creat) {
 			require File::Path;
@@ -86,8 +87,6 @@ sub new {
 			die "$dir does not exist\n";
 		}
 	}
-
-	$v2ibx = PublicInbox::InboxWritable->new($v2ibx);
 	$v2ibx->umask_prepare;
 
 	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;

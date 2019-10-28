@@ -49,8 +49,10 @@ if (!defined $dst) {
 	}
 	defined $dst or do_exit(67); # EX_NOUSER 5.1.1 user unknown
 }
-$dst->{inboxdir} or do_exit(67);
+
 $dst = PublicInbox::InboxWritable->new($dst);
+eval { $dst->assert_usable_dir };
+do_exit(67) if $@;
 
 # pre-check, MDA has stricter rules than an importer might;
 if ($precheck && !PublicInbox::MDA->precheck($simple, $dst->{address})) {

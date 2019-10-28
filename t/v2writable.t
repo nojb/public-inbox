@@ -260,4 +260,16 @@ EOF
 	$im->done;
 }
 
+my $tmp = {
+	inboxdir => "$inboxdir/non-existent/subdir",
+	name => 'nope',
+	version => 2,
+	-primary_address => 'test@example.com',
+};
+eval {
+	my $nope = PublicInbox::V2Writable->new($tmp);
+	$nope->add($mime);
+};
+ok($@, 'V2Writable fails on non-existent dir');
+
 done_testing();

@@ -96,4 +96,12 @@ is(undef, $im->checkpoint, 'checkpoint works before ->done');
 $im->done;
 is(undef, $im->checkpoint, 'checkpoint works after ->done');
 $im->checkpoint;
+
+my $nogit = PublicInbox::Git->new("$dir/non-existent/dir");
+eval {
+	my $nope = PublicInbox::Import->new($nogit, 'nope', 'no@example.com');
+	$nope->add($mime);
+};
+ok($@, 'Import->add fails on non-existent dir');
+
 done_testing();

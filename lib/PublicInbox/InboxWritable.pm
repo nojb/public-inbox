@@ -30,12 +30,19 @@ sub new {
 	$self;
 }
 
+sub assert_usable_dir {
+	my ($self) = @_;
+	my $dir = $self->{inboxdir};
+	return $dir if defined($dir) && $dir ne '';
+	die "no inboxdir defined for $self->{name}\n";
+}
+
 sub init_inbox {
 	my ($self, $shards, $skip_epoch, $skip_artnum) = @_;
 	# TODO: honor skip_artnum
 	my $v = $self->{version} || 1;
 	if ($v == 1) {
-		my $dir = $self->{inboxdir} or die "no inboxdir in inbox\n";
+		my $dir = assert_usable_dir($self);
 		PublicInbox::Import::init_bare($dir);
 	} else {
 		my $v2w = importer($self);
