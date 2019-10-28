@@ -1,0 +1,86 @@
+=head1 NAME
+
+public-inbox-learn - spam trainer and remover for public-inbox
+
+=head1 SYNOPSIS
+
+B<public-inbox-learn> <spam|ham|rm> E<lt>MESSAGE
+
+=head1 DESCRIPTION
+
+public-inbox-learn can remove spam or inject ham messages into
+an inbox while training a SpamAssassin instance.
+
+It is intended for users of L<public-inbox-mda(1)> or
+L<public-inbox-watch(1)>, but not users relying on
+L<git-fetch(1)> to mirror inboxes.
+
+It reads one message from standard input and operates on it
+depending on the command given:
+
+=head1 COMMANDS
+
+public-inbox-learn takes one of the following commands as its
+first and only argument:
+
+=over 8
+
+=item spam
+
+Treat the message as spam.  This will mark the message as
+removed so it becomes inaccessible via NNTP or WWW endpoints
+for all configured inboxes.
+
+The message remains accessible in git history.
+
+It will also be fed to L<spamc(1)> for training purposes unless
+C<publicinboxmda.spamcheck> is C<none> in L<public-inbox-config(5)>.
+
+=item ham
+
+Treat standard input as ham.  This is useful for manually injecting
+messages into the archives which failed the spam check run by
+L<public-inbox-mda(1)> or L<public-inbox-watch(1)>.
+
+It relies on the C<To:>, C<Cc:>, and C<List-ID:> headers
+to match configured inbox addresses and C<listid> directives.
+
+It will also be fed to L<spamc(1)> for training purposes unless
+C<publicinboxmda.spamcheck> is C<none> in L<public-inbox-config(5)>.
+
+=item rm
+
+This is identical to the C<spam> command above, but does
+not feed the message to L<spamc(1)>
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+Per-user config file parseable by L<git-config(1)>.
+See L<public-inbox-config(5)>.
+
+Default: ~/.public-inbox/config
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2019 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<spamc(1)>, L<public-inbox-mda(1)>, L<public-inbox-watch(1)>
