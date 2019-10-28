@@ -71,9 +71,9 @@ if ($spamc) {
 	my $fh = $emm->fh;
 	read($fh, $str, -s $fh);
 }
+do_exit(0) unless $spam_ok;
 
 my $mime = PublicInbox::MIME->new(\$str);
-do_exit(0) unless $spam_ok;
 
 # -mda defaults to the strict base filter which we won't use anywhere else
 sub mda_filter_adjust ($) {
