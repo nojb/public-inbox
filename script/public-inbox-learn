@@ -4,7 +4,7 @@
 #
 # Used for training spam (via SpamAssassin) and removing messages from a
 # public-inbox
-my $usage = "$0 (spam|ham) < /path/to/message";
+my $usage = "$0 <spam|ham|rm> </path/to/message";
 use strict;
 use warnings;
 use PublicInbox::Config;
@@ -39,7 +39,7 @@ my $mime = PublicInbox::MIME->new(eval {
 	$data
 });
 
-# spam is removed from all known inboxes
+# spam is removed from all known inboxes since it is often Bcc:-ed
 if ($train eq 'spam') {
 	$pi_config->each_inbox(sub {
 		my ($ibx) = @_;
