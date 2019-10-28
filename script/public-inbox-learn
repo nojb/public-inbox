@@ -42,9 +42,11 @@ my $mime = PublicInbox::MIME->new(eval {
 # get all recipients
 my %dests;
 foreach my $h (qw(Cc To)) {
-	my $val = $mime->header($h) or next;
-	foreach my $email (PublicInbox::Address::emails($val)) {
-		$dests{lc($email)} = 1;
+	my @val = $mime->header($h) or next;
+	for (@val) {
+		foreach my $email (PublicInbox::Address::emails($_)) {
+			$dests{lc($email)} = 1;
+		}
 	}
 }
 
