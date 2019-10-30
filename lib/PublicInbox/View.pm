@@ -10,7 +10,7 @@ use bytes (); # only for bytes::length
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/id_compress mid_escape mids references/;
+use PublicInbox::MID qw/id_compress mid_escape mids mids_for_index references/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -190,8 +190,8 @@ sub fold_addresses ($) {
 
 sub _hdr_names_html ($$) {
 	my ($hdr, $field) = @_;
-	my $val = $hdr->header($field) or return '';
-	ascii_html(join(', ', PublicInbox::Address::names($val)));
+	my @vals = $hdr->header($field) or return '';
+	ascii_html(join(', ', PublicInbox::Address::names(join(',', @vals))));
 }
 
 sub nr_to_s ($$$) {
@@ -629,12 +629,11 @@ sub _msg_html_prepare {
 	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
-	my $mids = mids($hdr);
-	my $multiple = scalar(@$mids) > 1; # zero, one, infinity
+	my $mids = mids_for_index($hdr);
 	if ($nr == 0) {
 		if ($more) {
 			$rv .=
-"<pre>WARNING: multiple messages refer to this Message-ID\n</pre>";
+"<pre>WARNING: multiple messages have this Message-ID\n</pre>";
 		}
 		$rv .= "<pre\nid=b>"; # anchor for body start
 	} else {
@@ -643,12 +642,11 @@ sub _msg_html_prepare {
 	if ($over) {
 		$ctx->{-upfx} = '../';
 	}
-	my @title;
-	my $v;
-	if (defined($v = $hdr->header('From'))) {
+	my @title; # (Subject[0], From[0])
+	for my $v ($hdr->header('From')) {
 		$v = PublicInbox::Hval->new($v);
 		my @n = PublicInbox::Address::names($v->raw);
-		$title[1] = ascii_html(join(', ', @n));
+		$title[1] //= ascii_html(join(', ', @n));
 		$v = $v->as_html;
 		if ($obfs_ibx) {
 			obfuscate_addrs($obfs_ibx, $v);
@@ -657,44 +655,51 @@ sub _msg_html_prepare {
 		$rv .= "From: $v\n" if $v ne '';
 	}
 	foreach my $h (qw(To Cc)) {
-		defined($v = $hdr->header($h)) or next;
-		fold_addresses($v);
-		$v = ascii_html($v);
-		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-		$rv .= "$h: $v\n" if $v ne '';
-	}
-	if (defined($v = $hdr->header('Subject')) && ($v ne '')) {
-		$v = ascii_html($v);
-		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-		if ($over) {
-			$rv .= qq(Subject: <a\nhref="#r"\nid=t>$v</a>\n);
-		} else {
-			$rv .= "Subject: $v\n";
+		for my $v ($hdr->header($h)) {
+			fold_addresses($v);
+			$v = ascii_html($v);
+			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
+			$rv .= "$h: $v\n" if $v ne '';
 		}
-		$title[0] = $v;
+	}
+	my @subj = $hdr->header('Subject');
+	if (@subj) {
+		for my $v (@subj) {
+			$v = ascii_html($v);
+			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
+			$rv .= 'Subject: ';
+			if ($over) {
+				$rv .= qq(<a\nhref="#r"\nid=t>$v</a>\n);
+			} else {
+				$rv .= "$v\n";
+			}
+			$title[0] //= $v;
+		}
 	} else { # dummy anchor for thread skeleton at bottom of page
 		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $over;
 		$title[0] = '(no subject)';
 	}
-	if (defined($v = $hdr->header('Date'))) {
+	for my $v ($hdr->header('Date')) {
 		$v = ascii_html($v);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx; # possible :P
 		$rv .= "Date: $v\n";
 	}
 	$ctx->{-title_html} = join(' - ', @title);
-	foreach (@$mids) {
-		my $mid = PublicInbox::Hval->new_msgid($_) ;
+	if (scalar(@$mids) == 1) { # common case
+		my $mid = PublicInbox::Hval->new_msgid($mids->[0]);
 		my $mhtml = $mid->as_html;
-		if ($multiple) {
-			my $href = $mid->{href};
-			$rv .= "Message-ID: ";
-			$rv .= "<a\nhref=\"../$href/\">";
-			$rv .= "&lt;$mhtml&gt;</a> ";
-			$rv .= "(<a\nhref=\"../$href/raw\">raw</a>)\n";
-		} else {
-			$rv .= "Message-ID: &lt;$mhtml&gt; ";
-			$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
+		$rv .= "Message-ID: &lt;$mhtml&gt; ";
+		$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
+	} else {
+		# X-Alt-Message-ID can happen if a message is injected from
+		# public-inbox-nntpd because of multiple Message-ID headers.
+		my $lnk = PublicInbox::Linkify->new;
+		my $s = '';
+		for my $h (qw(Message-ID X-Alt-Message-ID)) {
+			$s .= "$h: $_\n" for ($hdr->header_raw($h));
 		}
+		$lnk->linkify_mids('..', \$s, 1);
+		$rv .= $s;
 	}
 	$rv .= _parent_headers($hdr, $over);
 	$rv .= "\n";
@@ -727,8 +732,9 @@ sub thread_skel {
 	$$dst .= "$nr+ messages / $expand";
 	$$dst .= qq!  <a\nhref="#b">top</a>\n!;
 
-	my $subj = $hdr->header('Subject');
-	defined $subj or $subj = '';
+	# nb: mutt only shows the first Subject in the index pane
+	# when multiple Subject: headers are present, so we follow suit:
+	my $subj = $hdr->header('Subject') // '';
 	$subj = '(no subject)' if $subj eq '';
 	$ctx->{prev_subj} = [ split(/ /, subject_normalized($subj)) ];
 	$ctx->{cur} = $mid;
@@ -746,21 +752,29 @@ sub thread_skel {
 sub _parent_headers {
 	my ($hdr, $over) = @_;
 	my $rv = '';
-
-	my $refs = references($hdr);
-	my $irt = pop @$refs;
-	if (defined $irt) {
-		my $v = PublicInbox::Hval->new_msgid($irt);
-		my $html = $v->as_html;
-		my $href = $v->{href};
-		$rv .= "In-Reply-To: &lt;";
-		$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
+	my @irt = $hdr->header_raw('In-Reply-To');
+	my $refs;
+	if (@irt) {
+		my $lnk = PublicInbox::Linkify->new;
+		$rv .= "In-Reply-To: $_\n" for @irt;
+		$lnk->linkify_mids('..', \$rv);
+	} else {
+		$refs = references($hdr);
+		my $irt = pop @$refs;
+		if (defined $irt) {
+			my $v = PublicInbox::Hval->new_msgid($irt);
+			my $html = $v->as_html;
+			my $href = $v->{href};
+			$rv .= "In-Reply-To: &lt;";
+			$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
+		}
 	}
 
 	# do not display References: if search is present,
 	# we show the thread skeleton at the bottom, instead.
 	return $rv if $over;
 
+	$refs //= references($hdr);
 	if (@$refs) {
 		@$refs = map { linkify_ref_no_over($_) } @$refs;
 		$rv .= 'References: '. join("\n\t", @$refs) . "\n";
