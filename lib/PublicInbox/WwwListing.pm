@@ -96,7 +96,7 @@ sub html ($$) {
 		$title .= ' - listing';
 		$code = 200;
 
-		# Swartzian transform since ->modified is expensive
+		# Schwartzian transform since Inbox->modified is expensive
 		@$list = sort {
 			$b->[0] <=> $a->[0]
 		} map { [ $_->modified, $_ ] } @$list;
