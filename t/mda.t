@@ -308,6 +308,25 @@ EOF
 	my $cur = `git --git-dir=$maindir diff HEAD~1..HEAD`;
 	like($cur, qr/this message would not be accepted without --no-precheck/,
 		'--no-precheck delivered message anyways');
+
+	# try a message with multiple List-ID headers
+	$in = <<EOF;
+List-ID: <foo.bar>
+List-ID: <$list_id>
+Message-ID: <2lids\@example>
+Subject: two List-IDs
+From: user <user\@example.com>
+To: $addr
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+EOF
+	($out, $err) = ('', '');
+	IPC::Run::run([$mda], \$in, \$out, \$err);
+	is($?, 0, 'mda OK with multiple List-Id matches');
+	$cur = `git --git-dir=$maindir diff HEAD~1..HEAD`;
+	like($cur, qr/Message-ID: <2lids\@example>/,
+		'multi List-ID match delivered');
+	like($err, qr/multiple List-ID/, 'warned about multiple List-ID');
 }
 
 done_testing();

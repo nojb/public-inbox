@@ -4,7 +4,7 @@
 #
 # Used for training spam (via SpamAssassin) and removing messages from a
 # public-inbox
-my $usage = "$0 (spam|ham) < /path/to/message";
+my $usage = "$0 <spam|ham|rm> </path/to/message";
 use strict;
 use warnings;
 use PublicInbox::Config;
@@ -39,15 +39,35 @@ my $mime = PublicInbox::MIME->new(eval {
 	$data
 });
 
-# get all recipients
-my %dests;
-foreach my $h (qw(Cc To)) {
-	my $val = $mime->header($h) or next;
-	foreach my $email (PublicInbox::Address::emails($val)) {
-		$dests{lc($email)} = 1;
+sub remove_or_add ($$$) {
+	my ($ibx, $train, $addr) = @_;
+
+	# We do not touch GIT_COMMITTER_* env here so we can track
+	# who trained the message.
+	$ibx->{name} = $ENV{GIT_COMMITTER_NAME} // $ibx->{name};
+	$ibx->{-primary_address} = $ENV{GIT_COMMITTER_EMAIL} // $addr;
+	$ibx = PublicInbox::InboxWritable->new($ibx);
+	my $im = $ibx->importer(0);
+
+	if ($train eq "rm") {
+		# This needs to be idempotent, as my inotify trainer
+		# may train for each cross-posted message, and this
+		# script already learns for every list in
+		# ~/.public-inbox/config
+		$im->remove($mime, $train);
+	} elsif ($train eq "ham") {
+		# no checking for spam here, we assume the message has
+		# been reviewed by a human at this point:
+		PublicInbox::MDA->set_list_headers($mime, $ibx);
+
+		# Ham messages are trained when they're marked into
+		# a SEEN state, so this is idempotent:
+		$im->add($mime);
 	}
+	$im->done;
 }
 
+# spam is removed from all known inboxes since it is often Bcc:-ed
 if ($train eq 'spam') {
 	$pi_config->each_inbox(sub {
 		my ($ibx) = @_;
@@ -56,36 +76,30 @@ if ($train eq 'spam') {
 		$im->remove($mime, 'spam');
 		$im->done;
 	});
-}
+} else {
+	require PublicInbox::MDA;
 
-require PublicInbox::MDA if $train eq "ham";
-
-# n.b. message may be cross-posted to multiple public-inboxes
-foreach my $recipient (keys %dests) {
-	my $dst = $pi_config->lookup($recipient) or next;
-	# We do not touch GIT_COMMITTER_* env here so we can track
-	# who trained the message.
-	$dst->{name} = $ENV{GIT_COMMITTER_NAME} || $dst->{name};
-	$dst->{-primary_address} = $ENV{GIT_COMMITTER_EMAIL} || $recipient;
-	$dst = PublicInbox::InboxWritable->new($dst);
-	my $im = $dst->importer(0);
-
-	if ($train eq "spam" || $train eq "rm") {
-		# This needs to be idempotent, as my inotify trainer
-		# may train for each cross-posted message, and this
-		# script already learns for every list in
-		# ~/.public-inbox/config
-		$im->remove($mime, $train);
-	} else { # $train eq "ham"
-		# no checking for spam here, we assume the message has
-		# been reviewed by a human at this point:
-		PublicInbox::MDA->set_list_headers($mime, $dst);
-
-		# Ham messages are trained when they're marked into
-		# a SEEN state, so this is idempotent:
-		$im->add($mime);
+	# get all recipients
+	my %dests; # address => <PublicInbox::Inbox|0(false)>
+	for ($mime->header('Cc'), $mime->header('To')) {
+		foreach my $addr (PublicInbox::Address::emails($_)) {
+			$addr = lc($addr);
+			$dests{$addr} //= $pi_config->lookup($addr) // 0;
+		}
 	}
-	$im->done;
+
+	# n.b. message may be cross-posted to multiple public-inboxes
+	my %seen;
+	while (my ($addr, $ibx) = each %dests) {
+		next unless ref($ibx); # $ibx may be 0
+		next if $seen{"$ibx"}++;
+		remove_or_add($ibx, $train, $addr);
+	}
+	my $dests = PublicInbox::MDA->inboxes_for_list_id($pi_config, $mime);
+	for my $ibx (@$dests) {
+		next if !$seen{"$ibx"}++;
+		remove_or_add($ibx, $train, $ibx->{-primary_address});
+	}
 }
 
 if ($err) {

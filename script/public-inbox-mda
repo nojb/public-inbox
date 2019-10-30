@@ -37,28 +37,38 @@ my $config = PublicInbox::Config->new;
 my $key = 'publicinboxmda.spamcheck';
 my $default = 'PublicInbox::Spamcheck::Spamc';
 my $spamc = PublicInbox::Spamcheck::get($config, $key, $default);
-my $dst;
+my $dests = [];
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 if (defined $recipient) {
-	$dst = $config->lookup($recipient); # first check
+	my $ibx = $config->lookup($recipient); # first check
+	push @$dests, $ibx if $ibx;
 }
-if (!defined $dst) {
-	my $list_id = $simple->header('List-Id');
-	if (defined $list_id && $list_id =~ /<[ \t]*(.+)?[ \t]*>/) {
-		$dst = $config->lookup_list_id($1);
-	}
-	if (!defined $dst && !defined $recipient) {
+if (!scalar(@$dests)) {
+	$dests = PublicInbox::MDA->inboxes_for_list_id($config, $simple);
+	if (!scalar(@$dests) && !defined($recipient)) {
 		die "ORIGINAL_RECIPIENT not defined in ENV\n";
 	}
-	defined $dst or do_exit(67); # EX_NOUSER 5.1.1 user unknown
+	scalar(@$dests) or do_exit(67); # EX_NOUSER 5.1.1 user unknown
 }
-$dst->{inboxdir} or do_exit(67);
-$dst = PublicInbox::InboxWritable->new($dst);
 
-# pre-check, MDA has stricter rules than an importer might;
-if ($precheck && !PublicInbox::MDA->precheck($simple, $dst->{address})) {
-	do_exit(0);
-}
+my $err;
+@$dests = grep {
+	my $ibx = PublicInbox::InboxWritable->new($_);
+	eval { $ibx->assert_usable_dir };
+	if ($@) {
+		warn $@;
+		$err = 1;
+		0;
+	# pre-check, MDA has stricter rules than an importer might;
+	} elsif ($precheck) {
+		!!PublicInbox::MDA->precheck($simple, $ibx->{address});
+	} else {
+		1;
+	}
+} @$dests;
+
+do_exit(67) if $err && scalar(@$dests) == 0;
+
 $simple = undef;
 my $spam_ok;
 if ($spamc) {
@@ -74,39 +84,51 @@ if ($spamc) {
 	my $fh = $emm->fh;
 	read($fh, $str, -s $fh);
 }
-
-my $mime = PublicInbox::MIME->new(\$str);
 do_exit(0) unless $spam_ok;
 
-my $fcfg = $dst->{filter} || '';
-# -mda defaults to the strict base filter
-if ($fcfg eq '') {
-	$dst->{filter} = 'PublicInbox::Filter::Base';
-} elsif ($fcfg eq 'scrub') { # legacy alias, undocumented, remove?
-	$dst->{filter} = 'PublicInbox::Filter::Mirror';
+# -mda defaults to the strict base filter which we won't use anywhere else
+sub mda_filter_adjust ($) {
+	my ($ibx) = @_;
+	my $fcfg = $ibx->{filter} || '';
+	if ($fcfg eq '') {
+		$ibx->{filter} = 'PublicInbox::Filter::Base';
+	} elsif ($fcfg eq 'scrub') { # legacy alias, undocumented, remove?
+		$ibx->{filter} = 'PublicInbox::Filter::Mirror';
+	}
 }
-my $filter = $dst->filter;
-my $ret = $filter->delivery($mime);
-if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
-	$mime = $ret;
-} elsif ($ret == PublicInbox::Filter::Base::IGNORE) {
-	do_exit(0); # chuck it to emergency
-} elsif ($ret == PublicInbox::Filter::Base::REJECT) {
+
+my @rejects;
+for my $ibx (@$dests) {
+	mda_filter_adjust($ibx);
+	my $filter = $ibx->filter;
+	my $mime = PublicInbox::MIME->new($str);
+	my $ret = $filter->delivery($mime);
+	if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
+		$mime = $ret;
+	} elsif ($ret == PublicInbox::Filter::Base::IGNORE) {
+		next; # nothing, keep looping
+	} elsif ($ret == PublicInbox::Filter::Base::REJECT) {
+		push @rejects, $filter->err;
+		next;
+	}
+
+	PublicInbox::MDA->set_list_headers($mime, $ibx);
+	my $im = $ibx->importer(0);
+	if (defined $im->add($mime)) {
+		# ->abort is idempotent, no emergency if a single
+		# destination succeeds
+		$emm->abort;
+	} else { # v1-only
+		my $mid = $mime->header_obj->header_raw('Message-ID');
+		# this message is similar to what ssoma-mda shows:
+		print STDERR "CONFLICT: Message-ID: $mid exists\n";
+	}
+	$im->done;
+}
+
+if (scalar(@rejects) && scalar(@rejects) == scalar(@$dests)) {
 	$! = 65; # EX_DATAERR 5.6.0 data format error
-	die $filter->err, "\n";
-} # else { accept
-$filter = undef;
-
-PublicInbox::MDA->set_list_headers($mime, $dst);
-my $im = $dst->importer(0);
-if (defined $im->add($mime)) {
-	$emm = $emm->abort;
-} else {
-	# this message is similar to what ssoma-mda shows:
-	print STDERR "CONFLICT: Message-ID: ",
-			$mime->header_obj->header_raw('Message-ID'),
-			" exists\n";
+	die join("\n", @rejects, '');
 }
 
-$im->done;
 do_exit(0);

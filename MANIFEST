@@ -22,6 +22,7 @@ Documentation/public-inbox-edit.pod
 Documentation/public-inbox-httpd.pod
 Documentation/public-inbox-index.pod
 Documentation/public-inbox-init.pod
+Documentation/public-inbox-learn.pod
 Documentation/public-inbox-mda.pod
 Documentation/public-inbox-nntpd.pod
 Documentation/public-inbox-overview.pod
