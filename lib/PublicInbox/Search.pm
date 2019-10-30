@@ -54,6 +54,9 @@ use constant {
 	# 13 - fix threading for empty References/In-Reply-To
 	#      (commit 83425ef12e4b65cdcecd11ddcb38175d4a91d5a0)
 	# 14 - fix ghost root vivification
+	# 15 - see public-inbox-v2-format(5)
+	#      further bumps likely unnecessary, we'll suggest in-place
+	#      "--reindex" use for further fixes and tweaks
 	SCHEMA_VERSION => 15,
 };
 
