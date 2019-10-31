@@ -45,7 +45,8 @@ sub msg_part_text ($$) {
 	# times when it should not have been:
 	#   <87llgalspt.fsf@free.fr>
 	#   <200308111450.h7BEoOu20077@mail.osdl.org>
-	if ($ct =~ m!\btext/plain\b!i || $ct =~ m!\bmultipart/mixed\b!i) {
+	if ($err && ($ct =~ m!\btext/plain\b!i ||
+			$ct =~ m!\bmultipart/mixed\b!i)) {
 		# Try to assume UTF-8 because Alpine seems to
 		# do wacky things and set charset=X-UNKNOWN
 		$part->charset_set('UTF-8');

@@ -40,5 +40,23 @@ use_ok('PublicInbox::MsgIter');
 		'nested part shows up properly');
 }
 
+{
+	my $f = 't/iso-2202-jp.mbox';
+	my $mime = Email::MIME->new(do {
+		open my $fh, '<', $f or die "open($f): $!";
+		local $/;
+		<$fh>;
+	});
+	my $raw = '';
+	msg_iter($mime, sub {
+		my ($part, $level, @ex) = @{$_[0]};
+		my ($s, $err) = msg_part_text($part, 'text/plain');
+		ok(!$err, 'no error');
+		$raw .= $s;
+	});
+	ok(length($raw) > 0, 'got non-empty message');
+	is(index($raw, '$$$'), -1, 'no unescaped $$$');
+}
+
 done_testing();
 1;

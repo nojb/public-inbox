@@ -231,6 +231,7 @@ t/inbox.t
 t/indexlevels-mirror-v1.t
 t/indexlevels-mirror.t
 t/init.t
+t/iso-2202-jp.mbox
 t/linkify.t
 t/main-bin/spamc
 t/mda.t
