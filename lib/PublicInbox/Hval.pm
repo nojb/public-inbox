@@ -58,8 +58,11 @@ my %xhtml_map = (
 $xhtml_map{chr($_)} = sprintf('\\x%02x', $_) for (0..31);
 %xhtml_map = (%xhtml_map, %escape_sequence);
 
+# for post-processing the output of highlight.pm and perhaps other
+# highlighers in the future
 sub src_escape ($) {
 	$_[0] =~ s/\r\n/\n/sg;
+	$_[0] =~ s/&apos;/&#39;/sg; # workaround https://bugs.debian.org/927409
 	$_[0] =~ s/([\x7f\x00-\x1f])/$xhtml_map{$1}/sge;
 	$_[0] = $enc_ascii->encode($_[0], Encode::HTMLCREF);
 }
