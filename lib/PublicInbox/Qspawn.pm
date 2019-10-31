@@ -106,17 +106,22 @@ sub waitpid_err ($$) {
 		}
 	}
 
-	return unless $err;
-	$self->{err} = $err;
-	if ($env && !$env->{'qspawn.quiet'}) {
-		log_err($env, join(' ', @{$self->{args}}) . ": $err");
+	if ($err) {
+		$self->{err} = $err;
+		if ($env && !$env->{'qspawn.quiet'}) {
+			log_err($env, join(' ', @{$self->{args}}) . ": $err");
+		}
+	}
+	if (my $fin_cb = delete $self->{fin_cb}) {
+		eval { $fin_cb->() }
 	}
 }
 
-sub do_waitpid ($;$) {
-	my ($self, $env) = @_;
+sub do_waitpid ($;$$) {
+	my ($self, $env, $fin_cb) = @_;
 	my $pid = $self->{pid};
 	$self->{env} = $env;
+	$self->{fin_cb} = $fin_cb;
 	# PublicInbox::DS may not be loaded
 	eval { PublicInbox::DS::dwaitpid($pid, \&waitpid_err, $self) };
 	# done if we're running in PublicInbox::DS::EventLoop
@@ -127,10 +132,12 @@ sub do_waitpid ($;$) {
 	}
 }
 
-sub finish ($;$) {
-	my ($self, $env) = @_;
+sub finish ($;$$) {
+	my ($self, $env, $fin_cb) = @_;
 	if (delete $self->{rpipe}) {
-		do_waitpid($self, $env);
+		do_waitpid($self, $env, $fin_cb);
+	} elsif ($fin_cb) {
+		eval { $fin_cb->() };
 	}
 }
 
@@ -154,9 +161,8 @@ sub psgi_qx {
 	my $end = sub {
 		my $err = $_[0]; # $!
 		log_err($env, "psgi_qx: $err") if defined($err);
-		finish($self, $env);
-		eval { $qx_cb->(\$scalar) };
-		$qx = $scalar = undef;
+		finish($self, $env, sub { $qx_cb->(\$scalar) });
+		$qx = undef;
 	};
 	my $rpipe; # comes from popen_rd
 	my $async = $env->{'pi-httpd.async'};
