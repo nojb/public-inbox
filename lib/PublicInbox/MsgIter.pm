@@ -45,12 +45,18 @@ sub msg_part_text ($$) {
 	# times when it should not have been:
 	#   <87llgalspt.fsf@free.fr>
 	#   <200308111450.h7BEoOu20077@mail.osdl.org>
-	if ($err && ($ct =~ m!\btext/plain\b!i ||
+	if ($err && ($ct =~ m!\btext/\b!i ||
 			$ct =~ m!\bmultipart/mixed\b!i)) {
-		# Try to assume UTF-8 because Alpine seems to
-		# do wacky things and set charset=X-UNKNOWN
-		$part->charset_set('UTF-8');
-		$s = eval { $part->body_str };
+		my $cte = $part->header_raw('Content-Transfer-Encoding');
+		if (defined($cte) && $cte =~ /\b7bit\b/i) {
+			$s = $part->body;
+			$err = undef if $s =~ /\A[[:ascii:]]+\z/s;
+		} else {
+			# Try to assume UTF-8 because Alpine seems to
+			# do wacky things and set charset=X-UNKNOWN
+			$part->charset_set('UTF-8');
+			$s = eval { $part->body_str };
+		}
 
 		# If forcing charset=UTF-8 failed,
 		# caller will warn further down...
