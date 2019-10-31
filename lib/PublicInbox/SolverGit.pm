@@ -44,6 +44,7 @@ my $MAX_PATCH = 9999;
 #	smsg => PublicInbox::SearchMsg object containing diff
 #	path_a => pre-image path
 #	path_b => post-image path
+#	n => numeric path of the patch (relative to worktree)
 # }
 
 # don't bother if somebody sends us a patch with these path components,
@@ -122,8 +123,9 @@ sub extract_diff ($$$$$) {
 
 
 			# start writing the diff out to a tempfile
-			my $pn = ++$self->{tot};
-			open($tmp, '>', $self->{tmp}->dirname . "/$pn") or
+			my $path = ++$self->{tot};
+			$di->{n} = $path;
+			open($tmp, '>', $self->{tmp}->dirname . "/$path") or
 							die "open(tmp): $!";
 
 			push @$hdr_lines, $l;
@@ -180,7 +182,7 @@ sub filename_query ($) {
 	join('', map { qq( dfn:"$_") } split(/\.\./, $_[0]));
 }
 
-sub find_extract_diff ($$$) {
+sub find_extract_diffs ($$$) {
 	my ($self, $ibx, $want) = @_;
 	my $srch = $ibx->search or return;
 
@@ -208,14 +210,15 @@ sub find_extract_diff ($$$) {
 	my $msgs = $srch->query($q, { relevance => 1 });
 	my $re = qr/\Aindex ($pre[a-f0-9]*)\.\.($post[a-f0-9]*)(?: ([0-9]+))?/;
 
-	my $di;
+	my @di;
 	foreach my $smsg (@$msgs) {
 		$ibx->smsg_mime($smsg) or next;
 		msg_iter(delete($smsg->{mime}), sub {
-			$di ||= extract_diff($self, $_[0], $re, $ibx, $smsg);
+			my $di = extract_diff($self, $_[0], $re, $ibx, $smsg);
+			push @di, $di if defined($di);
 		});
-		return $di if $di;
 	}
+	@di ? \@di : undef;
 }
 
 sub prepare_index ($) {
@@ -423,6 +426,23 @@ sub start_ls_files ($$) {
 	});
 }
 
+sub oids_same_ish ($$) {
+	(index($_[0], $_[1]) == 0) || (index($_[1], $_[0]) == 0);
+}
+
+sub skip_identical ($$$) {
+	my ($self, $patches, $cur_oid_b) = @_;
+	while (my $nxt = $patches->[0]) {
+		if (oids_same_ish($cur_oid_b, $nxt->{oid_b})) {
+			dbg($self, 'skipping '.di_url($self, $nxt).
+				" for $cur_oid_b");
+			shift @$patches;
+		} else {
+			return;
+		}
+	}
+}
+
 sub do_git_apply ($) {
 	my ($self) = @_;
 	my $dn = $self->{tmp}->dirname;
@@ -434,16 +454,19 @@ sub do_git_apply ($) {
 	my $len = length(join(' ', @cmd));
 	my $total = $self->{tot};
 	my $di; # keep track of the last one for "git ls-files"
+	my $prv_oid_b;
 
 	do {
 		my $i = ++$self->{nr};
 		$di = shift @$patches;
 		dbg($self, "\napplying [$i/$total] " . di_url($self, $di) .
 			"\n" . join('', @{$di->{hdr_lines}}));
-		my $path = $total + 1 - $i;
+		my $path = $di->{n};
 		$len += length($path) + 1;
 		push @cmd, $path;
-	} while (@$patches && $len < $ARG_SIZE_MAX);
+		$prv_oid_b = $di->{oid_b};
+	} while (@$patches && $len < $ARG_SIZE_MAX &&
+		 !oids_same_ish($patches->[0]->{oid_b}, $prv_oid_b));
 
 	my $rdr = { 2 => 1 };
 	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $rdr);
@@ -451,7 +474,16 @@ sub do_git_apply ($) {
 		my ($bref) = @_;
 		dbg($self, $$bref);
 		if (my $err = $qsp->{err}) {
-			ERR($self, "git apply error: $err");
+			my $msg = "git apply error: $err";
+			my $nxt = $patches->[0];
+			if ($nxt && oids_same_ish($nxt->{oid_b}, $prv_oid_b)) {
+				dbg($self, $msg);
+				dbg($self, 'trying '.di_url($self, $nxt));
+			} else {
+				ERR($self, $msg);
+			}
+		} else {
+			skip_identical($self, $patches, $di->{oid_b});
 		}
 		eval { start_ls_files($self, $di) };
 		ERR($self, $@) if $@;
@@ -497,15 +529,16 @@ sub resolve_patch ($$) {
 
 	# scan through inboxes to look for emails which results in
 	# the oid we want:
-	my $di;
 	foreach my $ibx (@{$self->{inboxes}}) {
-		$di = find_extract_diff($self, $ibx, $want) or next;
+		my $diffs = find_extract_diffs($self, $ibx, $want) or next;
 
-		unshift @{$self->{patches}}, $di;
-		dbg($self, "found $cur_want in ".di_url($self, $di));
+		unshift @{$self->{patches}}, @$diffs;
+		dbg($self, "found $cur_want in ".
+			join("\n\t", map { di_url($self, $_) } @$diffs));
 
 		# good, we can find a path to the oid we $want, now
 		# lets see if we need to apply more patches:
+		my $di = $diffs->[0];
 		my $src = $di->{oid_a};
 
 		unless ($src =~ /\A0+\z/) {
