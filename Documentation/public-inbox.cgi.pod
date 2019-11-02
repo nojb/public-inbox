@@ -1,0 +1,34 @@
+=head1 NAME
+
+public-inbox.cgi - CGI wrapper for PublicInbox::WWW
+
+=head1 SYNOPSIS
+
+You generally want to run public-inbox-httpd, instead
+
+=head1 DESCRIPTION
+
+public-inbox.cgi provides a CGI interface wrapper on top of the
+PSGI/Plack L<PublicInbox::WWW> module.  It is only provided for
+compatibility reasons and NOT recommended.
+
+CGI with Perl is slow due to code loading overhead and web servers lack
+the scheduling fairness of L<public-inbox-httpd(1)> for handling git
+clones and streaming large mbox downloads.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2019 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-httpd(1)>, L<PublicInbox::WWW>, L<public-inbox-daemon(8)>,

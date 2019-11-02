@@ -31,6 +31,7 @@ Documentation/public-inbox-v1-format.pod
 Documentation/public-inbox-v2-format.pod
 Documentation/public-inbox-watch.pod
 Documentation/public-inbox-xcpdb.pod
+Documentation/public-inbox.cgi.pod
 Documentation/standards.perl
 Documentation/txt2pre
 HACKING
