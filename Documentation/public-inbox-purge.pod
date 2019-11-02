@@ -1,0 +1,69 @@
+=head1 NAME
+
+public-inbox-purge - erase messages from a public inbox and its history
+
+=head1 SYNOPSIS
+
+	# requires ~/.public-inbox/config
+	public-inbox-purge --all </path/to/message-to-purge
+
+	# for testing with unconfigured inboxes:
+	public-inbox-purge $INBOX_DIR </path/to/message-to-purge
+
+=head1 DESCRIPTION
+
+public-inbox-purge allows removing entire messages in a given
+inbox from history.  It is only intended as a last resort, as it
+will cause discontiguous git history and draw more attention to
+the sensitive data in mirrors.
+
+For removing spam, L<public-inbox-learn(1)> is preferable as it
+preserves contiguous git history.
+
+For editing sensitive information out of messages, consider
+L<public-inbox-edit(1)>, instead, but keep in mind it still
+leads to discontiguous git history.
+
+=head1 OPTIONS
+
+=over
+
+=item --all
+
+Purge the message in all inboxes configured in ~/.public-inbox/config.
+This is an alternative to specifying individual inboxes directories
+on the command-line.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PI_CONFIG
+
+The default config file, normally "~/.public-inbox/config".
+See L<public-inbox-config(5)>
+
+=back
+
+=head1 LIMITATIONS
+
+Only L<public-inbox-v2-format(5)> inboxes are supported.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2019 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-edit(1)>, L<public-inbox-learn(1)>

@@ -44,6 +44,7 @@ m1 += public-inbox-init
 m1 += public-inbox-learn
 m1 += public-inbox-mda
 m1 += public-inbox-nntpd
+m1 += public-inbox-purge
 m1 += public-inbox-watch
 m1 += public-inbox-xcpdb
 m5 =

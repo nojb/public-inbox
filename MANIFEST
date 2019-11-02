@@ -26,6 +26,7 @@ Documentation/public-inbox-learn.pod
 Documentation/public-inbox-mda.pod
 Documentation/public-inbox-nntpd.pod
 Documentation/public-inbox-overview.pod
+Documentation/public-inbox-purge.pod
 Documentation/public-inbox-v1-format.pod
 Documentation/public-inbox-v2-format.pod
 Documentation/public-inbox-watch.pod
