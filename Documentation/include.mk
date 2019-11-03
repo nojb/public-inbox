@@ -128,7 +128,7 @@ RELEASES =
 RELEASES += v1.1.0-pre1
 RELEASES += v1.0.0
 
-NEWS NEWS.atom NEWS.html :
+NEWS NEWS.atom NEWS.html : Documentation/include.mk
 	$(PERL) -I lib -w Documentation/mknews.perl $@ $(RELEASES)
 
 # check for internal API changes:
@@ -199,3 +199,17 @@ clean :: clean-doc
 pure_all ::
 	@if test x"$(addprefix g, make)" != xgmake; then \
 	echo W: gmake is currently required to build manpages; fi
+
+# No camel-cased tarballs or pathnames which MakeMaker creates,
+# this may not always be a Perl project.
+git-dist :: ver = $(shell git describe |sed -ne 's/v//p')
+git-dist :: pkgpfx := public-inbox-$(ver)
+git-dist :: NEWS
+	git archive --prefix=$(pkgpfx)/ --format=tar HEAD^{tree} >$(pkgpfx).tar
+	mkdir -p $(pkgpfx)
+	cp NEWS $(pkgpfx)/NEWS
+	$(TAR) rf $(pkgpfx).tar $(pkgpfx)/NEWS
+	$(RM) $(pkgpfx)/NEWS
+	rmdir $(pkgpfx)
+	gzip -9 $(pkgpfx).tar
+	@echo $(pkgpfx).tar.gz created
