@@ -1,5 +1,8 @@
+From: Eric Wong <e@80x24.org>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.2.0
+Subject: [ANNOUNCE] public-inbox 1.2.0
+Content-Type: text/plain; charset=utf-8
+Message-ID: <20191103030500.public-inbox-1.2.0@released>
 
 * first non-pre/rc release with v2 format support for scalability.
   See public-inbox-v2-format(5) manpage for more details.
@@ -55,6 +58,7 @@ Subject: [WIP] public-inbox 1.2.0
 * many documentation updates, new manpages for:
   - PublicInbox::SaPlugin::ListMirror
   - public-inbox-init
+  - public-inbox-learn
 
 * workaround memory leaks on Perl 5.16.3 (on CentOS/RHEL 7.x)
 
@@ -66,6 +70,8 @@ bug reports, patches and suggestions.
 
 Special thanks to Konstantin Ryabitsev and The Linux Foundation
 for their sponsorship and support over the past two years.
+
+https://public-inbox.org/releases/public-inbox-1.2.0.tar.gz
 
 See archives at https://public-inbox.org/meta/ for all history.
 See https://public-inbox.org/TODO for what the future holds.

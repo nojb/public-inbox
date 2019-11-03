@@ -20,7 +20,7 @@ my %man3 = map {; # semi-colon tells Perl this is a BLOCK (and not EXPR)
 
 WriteMakefile(
 	NAME => 'PublicInbox',
-	VERSION => '1.1.0-pre1',
+	VERSION => '1.2.0',
 	AUTHOR => 'Eric Wong <e@80x24.org>',
 	ABSTRACT => 'public-inbox server infrastructure',
 	EXE_FILES => \@EXE_FILES,

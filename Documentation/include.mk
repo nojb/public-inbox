@@ -125,6 +125,7 @@ Documentation/standards.txt : Documentation/standards.perl
 	$(PERL) $< >$@+ && touch -r $< $@+ && mv $@+ $@
 
 RELEASES =
+RELEASES += v1.2.0
 RELEASES += v1.1.0-pre1
 RELEASES += v1.0.0
 
