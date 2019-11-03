@@ -26,7 +26,7 @@ my $mtime = msg_datestamp($mime_latest->header_obj);
 my $tmp = "$dst+";
 my $out;
 if ($dst eq 'NEWS') {
-	open $out, '>', $tmp or die;
+	open $out, '>:encoding(utf8)', $tmp or die;
 	mime2txt($out, $mime_latest);
 	for my $v (@releases) {
 		print $out "\n" or die;
