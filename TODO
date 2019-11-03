@@ -137,5 +137,5 @@ all need to be considered for everything we introduce)
 
 * configurable diff output for solver-generated blobs
 
-* fix search for messages with multiple Subject:/To:/From:/Date:
-  headers (some wacky examples out there...)
+* figure out how search for messages with multiple Date: headers
+  should work (some wacky examples out there...)
