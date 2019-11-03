@@ -19,7 +19,7 @@ sub new {
 }
 
 sub spawn_worker {
-	my ($self, $v2writable, $shard) = @_;
+	my ($self, $v2w, $shard) = @_;
 	my ($r, $w);
 	pipe($r, $w) or die "pipe failed: $!\n";
 	binmode $r, ':raw';
@@ -27,15 +27,14 @@ sub spawn_worker {
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
-		my $bnote = $v2writable->atfork_child;
-		$v2writable = undef;
+		my $bnote = $v2w->atfork_child;
 		close $w or die "failed to close: $!";
 
 		# F_SETPIPE_SZ = 1031 on Linux; increasing the pipe size here
 		# speeds V2Writable batch imports across 8 cores by nearly 20%
 		fcntl($r, 1031, 1048576) if $^O eq 'linux';
 
-		eval { shard_worker_loop($self, $r, $shard, $bnote) };
+		eval { shard_worker_loop($self, $v2w, $r, $shard, $bnote) };
 		die "worker $shard died: $@\n" if $@;
 		die "unexpected MM $self->{mm}" if $self->{mm};
 		exit;
@@ -45,18 +44,12 @@ sub spawn_worker {
 	close $r or die "failed to close: $!";
 }
 
-sub shard_worker_loop ($$$$) {
-	my ($self, $r, $shard, $bnote) = @_;
+sub shard_worker_loop ($$$$$) {
+	my ($self, $v2w, $r, $shard, $bnote) = @_;
 	$0 = "pi-v2-shard[$shard]";
-	my $current_info = '';
-	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
-	local $SIG{__WARN__} = sub {
-		chomp $current_info;
-		$warn_cb->("[$shard] $current_info: ", @_);
-	};
 	$self->begin_txn_lazy;
 	while (my $line = $r->getline) {
-		$current_info = $line;
+		$v2w->{current_info} = "[$shard] $line";
 		if ($line eq "commit\n") {
 			$self->commit_txn_lazy;
 		} elsif ($line eq "close\n") {
