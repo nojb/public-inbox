@@ -144,7 +144,7 @@ SKIP: {
 	$conn->write($payload . "\r\n0\r\n\r\nGET /empty HTTP/1.0\r\n\r\n");
 	$conn->read(my $buf, 4096);
 	my $lim = 0;
-	$lim++ while ($conn->read($buf, 4096, bytes::length($buf)) && $lim < 9);
+	$lim++ while ($conn->read($buf, 4096, length($buf)) && $lim < 9);
 	my $exp = sha1_hex($payload);
 	like($buf, qr!\r\n\r\n${exp}HTTP/1\.0 200 OK\r\n!s,
 		'chunk parser can handled pipelined requests');
