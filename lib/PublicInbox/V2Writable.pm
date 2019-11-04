@@ -1128,6 +1128,7 @@ sub sync_prepare ($$$) {
 				--no-notes --no-color --no-renames
 				--diff-filter=AM), $range, '--', 'm');
 		++$n while <$fh>;
+		close $fh or die "git log failed: \$?=$?";
 		$pr->("$n\n") if $pr;
 		$regen_max += $n;
 	}
@@ -1195,7 +1196,7 @@ sub unindex ($$$$) {
 		unindex_oid($self, $git, $1, $unindexed);
 	}
 	delete $self->{reindex_pipe};
-	$fh = undef;
+	close $fh or die "git log failed: \$?=$?";
 
 	return unless $sync->{-opt}->{prune};
 	my $after = scalar keys %$unindexed;
@@ -1251,7 +1252,7 @@ sub index_epoch ($$$) {
 			mark_deleted($self, $sync, $git, $1);
 		}
 	}
-	$fh = undef;
+	close $fh or die "git log failed: \$?=$?";
 	delete $self->{reindex_pipe};
 	update_last_commit($self, $git, $i, $cmt) if defined $cmt;
 }

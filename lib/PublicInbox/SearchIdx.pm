@@ -590,6 +590,7 @@ sub read_log {
 			$newest ||= $latest;
 		}
 	}
+	close($log) or die "git log failed: \$?=$?";
 	# get the leftovers
 	foreach my $blob (keys %D) {
 		my $mime = do_cat_mail($git, $blob, \$bytes) or next;
@@ -632,7 +633,7 @@ sub _git_log {
 			     --no-notes --no-color --no-renames
 			     --diff-filter=AM), $range);
 	++$fcount while <$fh>;
-	close $fh;
+	close $fh or die "git log failed: \$?=$?";
 	my $high = $self->{mm}->num_highwater;
 	$pr->("$fcount\n") if $pr; # continue previous line
 	$self->{ntodo} = $fcount;
@@ -713,7 +714,10 @@ sub _index_sync {
 	my $xdb = $self->begin_txn_lazy;
 	my $mm = _msgmap_init($self);
 	do {
-		$xlog = undef;
+		if ($xlog) {
+			close($xlog) or die "git log failed: \$?=$?";
+			$xlog = undef;
+		}
 		$last_commit = _last_x_commit($self, $mm);
 		$lx = reindex_from($opts->{reindex}, $last_commit);
 

@@ -71,13 +71,13 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	is($buf, "hello\n", 'tied gets works');
 	is(sysread($fh, $buf, 6), 0, 'sysread got EOF');
 	$? = 1;
-	close $fh;
+	ok(close($fh), 'close succeeds');
 	is($?, 0, '$? set properly');
 }
 
 {
 	my $fh = popen_rd([qw(false)]);
-	close $fh;
+	ok(!close($fh), 'close fails on false');
 	isnt($?, 0, '$? set properly: '.$?);
 }
 
