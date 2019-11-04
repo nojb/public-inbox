@@ -272,6 +272,7 @@ SKIP: {
 		$n += $r;
 		$buf =~ /\A\0+\z/ or $non_zero++;
 	}
+	close $fh or die "curl errored out \$?=$?";
 	is($n, 30 * 1024 * 1024, 'got expected output from curl');
 	is($non_zero, 0, 'read all zeros');
 }
