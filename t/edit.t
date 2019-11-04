@@ -41,7 +41,7 @@ my $mid = mid_clean($mime->header('Message-Id'));
 ok($im->add($mime), 'add message to be edited');
 $im->done;
 my ($in, $out, $err, $cmd, $cur, $t);
-my $__git_dir = "--git-dir=$ibx->{inboxdir}/git/0.git";
+my $git = PublicInbox::Git->new("$ibx->{inboxdir}/git/0.git");
 
 $t = '-F FILE'; {
 	$in = $out = $err = '';
@@ -65,7 +65,7 @@ $t = '-m MESSAGE_ID'; {
 
 $t = 'no-op -m MESSAGE_ID'; {
 	$in = $out = $err = '';
-	my $before = `git $__git_dir rev-parse HEAD`;
+	my $before = $git->qx(qw(rev-parse HEAD));
 	local $ENV{MAIL_EDITOR} = "$^X -i -p -e 's/bool pfx/boolean prefix/'";
 	$cmd = [ "$cmd_pfx-edit", "-m$mid", $inboxdir ];
 	ok(run($cmd, \$in, \$out, \$err), "$t succeeds");
@@ -75,13 +75,13 @@ $t = 'no-op -m MESSAGE_ID'; {
 	like($cur->header('Subject'), qr/boolean prefix/,
 		"$t does not change message");
 	like($out, qr/NONE/, 'noop shows NONE');
-	my $after = `git $__git_dir rev-parse HEAD`;
+	my $after = $git->qx(qw(rev-parse HEAD));
 	is($after, $before, 'git head unchanged');
 }
 
 $t = 'no-op -m MESSAGE_ID w/Status: header'; { # because mutt does it
 	$in = $out = $err = '';
-	my $before = `git $__git_dir rev-parse HEAD`;
+	my $before = $git->qx(qw(rev-parse HEAD));
 	local $ENV{MAIL_EDITOR} =
 			"$^X -i -p -e 's/^Subject:.*/Status: RO\\n\$&/'";
 	$cmd = [ "$cmd_pfx-edit", "-m$mid", $inboxdir ];
@@ -93,13 +93,12 @@ $t = 'no-op -m MESSAGE_ID w/Status: header'; { # because mutt does it
 		"$t does not change message");
 	is($cur->header('Status'), undef, 'Status header not added');
 	like($out, qr/NONE/, 'noop shows NONE');
-	my $after = `git $__git_dir rev-parse HEAD`;
+	my $after = $git->qx(qw(rev-parse HEAD));
 	is($after, $before, 'git head unchanged');
 }
 
 $t = '-m MESSAGE_ID can change Received: headers'; {
 	$in = $out = $err = '';
-	my $before = `git $__git_dir rev-parse HEAD`;
 	local $ENV{MAIL_EDITOR} =
 			"$^X -i -p -e 's/^Subject:.*/Received: x\\n\$&/'";
 	$cmd = [ "$cmd_pfx-edit", "-m$mid", $inboxdir ];
@@ -187,7 +186,7 @@ $t .= ' and --force'; {
 	$cmd = [ "$cmd_pfx-edit", "-m$mid", '--force', $inboxdir ];
 	ok(run($cmd, \$in, \$out, \$err), "$t succeeds");
 	like($err, qr/Will edit all of them/, "$t notes all will be edited");
-	my @dump = `git $__git_dir cat-file --batch --batch-all-objects`;
+	my @dump = $git->qx(qw(cat-file --batch --batch-all-objects));
 	chomp @dump;
 	is_deeply([grep(/^Subject:/i, @dump)], [qw(Subject:x Subject:x)],
 		"$t edited both messages");
