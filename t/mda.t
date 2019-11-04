@@ -7,6 +7,7 @@ use Email::MIME;
 use File::Temp qw/tempdir/;
 use Cwd qw(getcwd);
 use PublicInbox::MID qw(mid2path);
+use PublicInbox::Git;
 eval { require IPC::Run };
 plan skip_all => "missing IPC::Run for t/mda.t" if $@;
 
@@ -25,6 +26,7 @@ my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
 my $faildir = "$home/faildir/";
 my $mime;
+my $git = PublicInbox::Git->new($maindir);
 
 {
 	ok(-x "$main_bin/spamc",
@@ -91,13 +93,13 @@ EOF
 	{
 		local $ENV{PATH} = $main_path;
 		IPC::Run::run([$mda], \$in);
-		my $rev = `git --git-dir=$maindir rev-list HEAD`;
+		my $rev = $git->qx(qw(rev-list HEAD));
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 		chomp $rev;
-		my $cmt = `git --git-dir=$maindir cat-file commit $rev`;
-		like($cmt, qr/^author Me <me\@example\.com> 0 \+0000\n/m,
+		my $cmt = $git->cat_file($rev);
+		like($$cmt, qr/^author Me <me\@example\.com> 0 \+0000\n/m,
 			"author info set correctly");
-		like($cmt, qr/^committer test <test-public\@example\.com>/m,
+		like($$cmt, qr/^committer test <test-public\@example\.com>/m,
 			"committer info set correctly");
 		$good_rev = $rev;
 	}
@@ -108,7 +110,7 @@ EOF
 		is(scalar @prev, 0 , "nothing in PI_EMERGENCY before");
 		local $ENV{PATH} = $fail_path;
 		IPC::Run::run([$mda], \$in);
-		my @revs = `git --git-dir=$maindir rev-list HEAD`;
+		my @revs = $git->qx(qw(rev-list HEAD));
 		is(scalar @revs, 1, "bad revision not committed");
 		my @new = <$faildir/new/*>;
 		is(scalar @new, 1, "PI_EMERGENCY is written to");
@@ -181,16 +183,16 @@ EOF
 		# deliver the spam message, first
 		IPC::Run::run([$mda], \$in);
 		my $path = mid2path($mid);
-		my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
-		like($msg, qr/\Q$mid\E/, "message delivered");
+		my $msg = $git->cat_file("HEAD:$path");
+		like($$msg, qr/\Q$mid\E/, "message delivered");
 
 		# now train it
 		local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
 		local $ENV{GIT_COMMITTER_EMAIL} = 'trainer@example.com';
 		local $ENV{GIT_COMMITTER_NAME} = undef;
-		IPC::Run::run([$learn, "spam"], \$msg);
+		IPC::Run::run([$learn, "spam"], $msg);
 		is($?, 0, "no failure from learning spam");
-		IPC::Run::run([$learn, "spam"], \$msg);
+		IPC::Run::run([$learn, "spam"], $msg);
 		is($?, 0, "no failure from learning spam idempotently");
 	}
 }
@@ -221,8 +223,8 @@ EOF
 	IPC::Run::run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham without failure");
 	my $path = mid2path($mid);
-	my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
-	like($msg, qr/\Q$mid\E/, "ham message delivered");
+	my $msg = $git->cat_file("HEAD:$path");
+	like($$msg, qr/\Q$mid\E/, "ham message delivered");
 	IPC::Run::run([$learn, "ham"], \$in);
 	is($?, 0, "learned ham idempotently ");
 
@@ -261,9 +263,9 @@ EOF
 		IPC::Run::run([$learn, "ham"], \$in);
 		is($?, 0, "learned ham without failure");
 		my $path = mid2path($mid);
-		$msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
-		like($msg, qr/<\Q$mid\E>/, "ham message delivered");
-		unlike($msg, qr/<html>/i, '<html> filtered');
+		$msg = $git->cat_file("HEAD:$path");
+		like($$msg, qr/<\Q$mid\E>/, "ham message delivered");
+		unlike($$msg, qr/<html>/i, '<html> filtered');
 	}
 }
 
@@ -272,6 +274,7 @@ EOF
 	local $ENV{PI_EMERGENCY} = $faildir;
 	local $ENV{HOME} = $home;
 	local $ENV{ORIGINAL_RECIPIENT} = undef;
+	delete $ENV{ORIGINAL_RECIPIENT};
 	local $ENV{PATH} = $main_path;
 	my $list_id = 'foo.example.com';
 	my $mid = 'list-id-delivery@example.com';
@@ -291,8 +294,8 @@ EOF
 	IPC::Run::run([$mda], \$in);
 	is($?, 0, 'mda OK with List-Id match');
 	my $path = mid2path($mid);
-	my $msg = `git --git-dir=$maindir cat-file blob HEAD:$path`;
-	like($msg, qr/\Q$list_id\E/, 'delivered message w/ List-ID matches');
+	my $msg = $git->cat_file("HEAD:$path");
+	like($$msg, qr/\Q$list_id\E/, 'delivered message w/ List-ID matches');
 
 	# try a message w/o precheck
 	$simple = Email::Simple->new(<<EOF);
@@ -305,7 +308,7 @@ EOF
 	my ($out, $err) = ('', '');
 	IPC::Run::run([$mda, '--no-precheck'], \$in, \$out, \$err);
 	is($?, 0, 'mda OK with List-Id match and --no-precheck');
-	my $cur = `git --git-dir=$maindir diff HEAD~1..HEAD`;
+	my $cur = $git->qx(qw(diff HEAD~1..HEAD));
 	like($cur, qr/this message would not be accepted without --no-precheck/,
 		'--no-precheck delivered message anyways');
 
@@ -323,7 +326,7 @@ EOF
 	($out, $err) = ('', '');
 	IPC::Run::run([$mda], \$in, \$out, \$err);
 	is($?, 0, 'mda OK with multiple List-Id matches');
-	$cur = `git --git-dir=$maindir diff HEAD~1..HEAD`;
+	$cur = $git->qx(qw(diff HEAD~1..HEAD));
 	like($cur, qr/Message-ID: <2lids\@example>/,
 		'multi List-ID match delivered');
 	like($err, qr/multiple List-ID/, 'warned about multiple List-ID');
@@ -338,7 +341,7 @@ sub fail_bad_header {
 	my ($out, $err) = ("", "");
 	local $ENV{PATH} = $main_path;
 	IPC::Run::run([$mda], \$in, \$out, \$err);
-	my $rev = `git --git-dir=$maindir rev-list HEAD`;
+	my $rev = $git->qx(qw(rev-list HEAD));
 	chomp $rev;
 	is($rev, $good_rev, "bad revision not commited ($msg)");
 	@f = glob("$faildir/*/*");

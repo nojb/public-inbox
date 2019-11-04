@@ -54,9 +54,9 @@ EOF
 		my $im = PublicInbox::Import->new($git, 'test', $addr);
 		$im->add($mime);
 		$im->done;
-		my $rev = `git --git-dir="$maindir" rev-list HEAD`;
+		my $rev = $git->qx(qw(rev-list HEAD));
 		like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
-		@ls = `git --git-dir="$maindir" ls-tree -r --name-only HEAD`;
+		@ls = $git->qx(qw(ls-tree -r --name-only HEAD));
 		chomp @ls;
 	}
 	my $app = eval {
