@@ -4,8 +4,10 @@
 use strict;
 use warnings;
 use Test::More;
+use PublicInbox::Spawn qw(which spawn);
+use Fcntl qw(:seek);
 eval { require highlight } or
-	plan skip_all => 'failed to load highlight.pm';
+	plan skip_all => "failed to load highlight.pm for $0";
 use_ok 'PublicInbox::HlMod';
 my $hls = PublicInbox::HlMod->new;
 ok($hls, 'initialized OK');
@@ -21,20 +23,26 @@ my $orig = $str;
 	is(ref($ref), 'SCALAR', 'got a scalar reference back');
 	ok(utf8::valid($$ref), 'resulting string is utf8::valid');
 	like($$ref, qr/I can see you!/, 'we can see ourselves in output');
-	like($$ref, qr/&amp;&amp;/, 'escaped');
+	like($$ref, qr/&amp;&amp;/, 'escaped &&');
 	my $lref = $hls->do_hl_lang(\$str, 'perl');
 	is($$ref, $$lref, 'do_hl_lang matches do_hl');
 
-	use PublicInbox::Spawn qw(which);
-	if (eval { require IPC::Run } && which('w3m')) {
-		require File::Temp;
+	SKIP: {
+		which('w3m') or skip 'w3m(1) missing to check output', 1;
 		my $cmd = [ qw(w3m -T text/html -dump -config /dev/null) ];
-		my ($out, $err) = ('', '');
-
-		IPC::Run::run($cmd, \('<pre>'.$$ref.'</pre>'), \$out, \$err);
+		open my $in, '+>', undef or die;
+		open my $out, '+>', undef or die;
+		my $rdr = { 0 => fileno($in), 1 => fileno($out) };
+		$in->autoflush(1);
+		print $in '<pre>', $$ref, '</pre>' or die;
+		$in->seek(0, SEEK_SET) or die;
+		my $pid = spawn($cmd, undef, $rdr);
+		waitpid($pid, 0);
 		# expand tabs and normalize whitespace,
 		# w3m doesn't preserve tabs
 		$orig =~ s/\t/        /gs;
+		$out->seek(0, SEEK_SET) or die;
+		$out = do { local $/; <$out> };
 		$out =~ s/\s*\z//sg;
 		$orig =~ s/\s*\z//sg;
 		is($out, $orig, 'w3m output matches');
