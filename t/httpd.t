@@ -53,7 +53,7 @@ EOF
 		$im->done($mime);
 	}
 	ok($sock, 'sock created');
-	my $cmd = [ $httpd, "--stdout=$out", "--stderr=$err" ];
+	my $cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err" ];
 	$pid = spawn_listener(undef, $cmd, [$sock]);
 	my $host = $sock->sockhost;
 	my $port = $sock->sockport;

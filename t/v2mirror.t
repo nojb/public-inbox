@@ -66,7 +66,8 @@ END { kill 'TERM', $pid if defined $pid };
 $! = 0;
 $sock = tcp_server();
 ok($sock, 'sock created');
-my $cmd = [ "$script-httpd", "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
+my $httpd = "$script-httpd";
+my $cmd = [ $httpd, '-W0', "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
 ok(defined($pid = spawn_listener(undef, $cmd, [ $sock ])),
 	'spawned httpd process successfully');
 my ($host, $port) = ($sock->sockhost, $sock->sockport);

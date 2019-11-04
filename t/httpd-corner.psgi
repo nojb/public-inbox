@@ -85,6 +85,9 @@ my $app = sub {
 			close $null;
 			[ 200, [ qw(Content-Type application/octet-stream) ]];
 		});
+	} elsif ($path eq '/pid') {
+		$code = 200;
+		push @$body, $$;
 	}
 
 	[ $code, $h, $body ]

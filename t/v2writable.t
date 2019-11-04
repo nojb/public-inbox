@@ -167,7 +167,7 @@ EOF
 	my $len;
 	END { kill 'TERM', $pid if defined $pid };
 	my $nntpd = 'blib/script/public-inbox-nntpd';
-	my $cmd = [ $nntpd, "--stdout=$out", "--stderr=$err" ];
+	my $cmd = [ $nntpd, '-W0', "--stdout=$out", "--stderr=$err" ];
 	$pid = spawn_listener({ PI_CONFIG => $pi_config }, $cmd, [ $sock ]);
 	my $host_port = $sock->sockhost . ':' . $sock->sockport;
 	my $n = Net::NNTP->new($host_port);

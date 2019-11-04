@@ -28,7 +28,7 @@ my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $httpd = 'blib/script/public-inbox-httpd';
 my $psgi = "./t/httpd-corner.psgi";
-my $sock = tcp_server();
+my $sock = tcp_server() or die;
 
 # make sure stdin is not a pipe for lsof test to check for leaking pipes
 open(STDIN, '<', '/dev/null') or die 'no /dev/null: $!';
@@ -63,9 +63,22 @@ my $spawn_httpd = sub {
 	ok(defined $pid, 'forked httpd process successfully');
 };
 
-{
-	ok($sock, 'sock created');
-	$spawn_httpd->('-W0');
+$spawn_httpd->();
+if ('test worker death') {
+	my $conn = conn_for($sock, 'killed worker');
+	$conn->write("GET /pid HTTP/1.0\r\n\r\n");
+	ok($conn->read(my $buf, 8192), 'read response');
+	my ($head, $body) = split(/\r\n\r\n/, $buf);
+	like($body, qr/\A[0-9]+\z/, '/pid response');
+	my $pid = $body;
+	is(kill('KILL', $pid), 1, 'killed worker');
+
+	$conn = conn_for($sock, 'respawned worker');
+	$conn->write("GET /pid HTTP/1.0\r\n\r\n");
+	ok($conn->read($buf, 8192), 'read response');
+	($head, $body) = split(/\r\n\r\n/, $buf);
+	like($body, qr/\A[0-9]+\z/, '/pid response');
+	isnt($body, $pid, 'respawned worker');
 }
 
 {

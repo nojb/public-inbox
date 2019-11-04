@@ -106,7 +106,7 @@ SKIP: {
 
 	close $fh or die;
 	my $env = { PI_CONFIG => $cfgfile };
-	my $cmd = [ $httpd, "--stdout=$out", "--stderr=$err" ];
+	my $cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err" ];
 	$pid = spawn_listener($env, $cmd, [$sock]);
 	$sock = undef;
 
