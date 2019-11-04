@@ -6,10 +6,9 @@ use strict;
 use warnings;
 use Test::More;
 use Time::HiRes qw(gettimeofday tv_interval);
-use PublicInbox::Spawn qw(which);
+use PublicInbox::Spawn qw(which spawn);
 
-foreach my $mod (qw(Plack::Util Plack::Builder
-			HTTP::Date HTTP::Status IPC::Run)) {
+foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd-corner.t" if $@;
 }
@@ -250,19 +249,21 @@ SKIP: {
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
 	my $cmd = [qw(curl --tcp-nodelay --no-buffer -T- -HExpect: -sS), $url];
-	my ($out, $err) = ('', '');
-	my $h = IPC::Run::start($cmd, $r, \$out, \$err);
-	$w->autoflush(1);
+	open my $cout, '+>', undef or die;
+	open my $cerr, '>', undef or die;
+	my $rdr = { 0 => fileno($r), 1 => fileno($cout), 2 => fileno($cerr) };
+	my $pid = spawn($cmd, undef, $rdr);
+	close $r or die "close read pipe: $!";
 	foreach my $c ('a'..'z') {
 		print $w $c or die "failed to write to curl: $!";
 		delay();
 	}
 	close $w or die "close write pipe: $!";
-	close $r or die "close read pipe: $!";
-	IPC::Run::finish($h);
+	waitpid($pid, 0);
 	is($?, 0, 'curl exited successfully');
-	is($err, '', 'no errors from curl');
-	is($out, sha1_hex($str), 'read expected body');
+	is(-s $cerr, 0, 'no errors from curl');
+	$cout->seek(0, SEEK_SET);
+	is(<$cout>, sha1_hex($str), 'read expected body');
 
 	open my $fh, '-|', qw(curl -sS), "$base/async-big" or die $!;
 	my $n = 0;
