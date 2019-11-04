@@ -7,7 +7,7 @@ use Test::More;
 use PublicInbox::Spawn qw(which);
 use File::Temp qw/tempdir/;
 require './t/common.perl';
-my @mods = qw(URI::Escape Plack::Builder IPC::Run Digest::SHA
+my @mods = qw(URI::Escape Plack::Builder Digest::SHA
 		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny);
 foreach my $mod (@mods) {
 	eval("require $mod") or plan skip_all => "$mod missing for $0";
@@ -19,15 +19,16 @@ plan skip_all => "JSON module missing: $@" if $@;
 
 use_ok 'PublicInbox::Git';
 
-my $fi_data = './t/git.fast-import-data';
 my $tmpdir = tempdir('www_listing-tmp-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $bare = PublicInbox::Git->new("$tmpdir/bare.git");
 is(system(qw(git init -q --bare), $bare->{git_dir}), 0, 'git init --bare');
 is(PublicInbox::WwwListing::fingerprint($bare), undef,
 	'empty repo has no fingerprint');
-
-my $cmd = [ 'git', "--git-dir=$bare->{git_dir}", qw(fast-import --quiet) ];
-ok(IPC::Run::run($cmd, '<', $fi_data), 'fast-import');
+{
+	my $fi_data = './t/git.fast-import-data';
+	local $ENV{GIT_DIR} = $bare->{git_dir};
+	is(system("git fast-import --quiet <$fi_data"), 0, 'fast-import');
+}
 
 like(PublicInbox::WwwListing::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
 	'got fingerprint with non-empty repo');

@@ -7,16 +7,14 @@ use File::Temp qw/tempdir/;
 my $dir = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use PublicInbox::Spawn qw(popen_rd);
 
-eval { require IPC::Run } or plan skip_all => 'IPC::Run missing';
 use_ok 'PublicInbox::Git';
 
 {
 	is(system(qw(git init -q --bare), $dir), 0, 'created git directory');
-	my $cmd = [ 'git', "--git-dir=$dir", 'fast-import', '--quiet' ];
-
 	my $fi_data = './t/git.fast-import-data';
 	ok(-r $fi_data, "fast-import data readable (or run test at top level)");
-	IPC::Run::run($cmd, '<', $fi_data);
+	local $ENV{GIT_DIR} = $dir;
+	system("git fast-import --quiet <$fi_data");
 	is($?, 0, 'fast-import succeeded');
 }
 
@@ -46,8 +44,10 @@ if (1) {
 	my $size = -s $big_data;
 	ok($size > 8192, 'file is big enough');
 
-	my $buf = '';
-	IPC::Run::run($cmd, '<', $big_data, '>', \$buf);
+	my $buf = do {
+		local $ENV{GIT_DIR} = $dir;
+		`git hash-object -w --stdin <$big_data`;
+	};
 	is(0, $?, 'hashed object successfully');
 	chomp $buf;
 
