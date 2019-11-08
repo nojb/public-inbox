@@ -149,7 +149,11 @@ retry_edit:
 			chomp(my $op = <STDIN> || '');
 			$op = lc($op);
 			goto retry_edit if $op eq 'r';
-			exit $? if $op eq 'q';
+			if ($op eq 'q') {
+				# n.b. we'll lose the exit signal, here,
+				# oh well; "q" is user-specified anyways.
+				exit($? >> 8);
+			}
 			last if $op eq 'c'; # continuing
 			print STDERR "\`$op' not recognized\n";
 		}
