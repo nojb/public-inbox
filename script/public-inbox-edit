@@ -130,7 +130,8 @@ foreach my $to_edit (values %$found) {
 	my $tmp = $$old_raw;
 	if (!$opt->{raw}) {
 		my $oid = $smsg->{blob};
-		print $edit_fh "From mboxrd\@$oid Thu Jan  1 00:00:00 1970\n";
+		print $edit_fh "From mboxrd\@$oid Thu Jan  1 00:00:00 1970\n"
+			or die "failed to write From_ line: $!";
 		$tmp =~ s/^(>*From )/>$1/gm;
 	}
 	print $edit_fh $tmp or
