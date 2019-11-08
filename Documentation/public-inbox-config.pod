@@ -202,17 +202,21 @@ L<spamc(1)> for filtering spam before it is imported into git
 history.  Other spam filtering backends may be supported in
 the future.
 
+This requires L<public-inbox-watch(1)>, but affects all configured
+public-inboxes in PI_CONFIG.
+
 Default: none
 
 =item publicinboxwatch.watchspam
 
-This may be set to C<spamc> to enable the use of SpamAssassin
-L<spamc(1)> for filtering spam before it is imported into git
-history.  Other spam filtering backends may be supported in
-the future.  This requires L<public-inbox-watch(1)>, but affects
-all configured public-inboxes in PI_CONFIG.
+A Maildir to watch for for confirmed spam messages to appear in.
+Messages which appear in this folder with the (S)een Maildir flag
+will be hidden from all configured inboxes based on Message-ID
+and content matching.
 
-Default: none
+Messages without the (S)een Maildir flag are not considered for hiding.
+
+Default: none; only for L<public-inbox-watch(1)> users
 
 =item publicinbox.nntpserver
 
