@@ -209,7 +209,7 @@ Default: none
 
 =item publicinboxwatch.watchspam
 
-A Maildir to watch for for confirmed spam messages to appear in.
+A Maildir to watch for confirmed spam messages to appear in.
 Messages which appear in this folder with the (S)een Maildir flag
 will be hidden from all configured inboxes based on Message-ID
 and content matching.
