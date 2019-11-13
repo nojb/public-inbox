@@ -26,6 +26,7 @@ sub commit_changes ($$$) {
 	my @old_shard;
 
 	while (my ($old, $new) = each %$tmp) {
+		next if $old eq ''; # no invalid paths
 		my @st = stat($old);
 		if (!@st && !defined($opt->{reshard})) {
 			die "failed to stat($old): $!";
@@ -59,7 +60,7 @@ sub commit_changes ($$$) {
 		}
 	}
 	remove_tree(@old_shard);
-	$tmp->done;
+	$tmp = undef;
 	if (!$opt->{-coarse_lock}) {
 		$opt->{-skip_lock} = 1;
 
@@ -175,6 +176,9 @@ sub run {
 	if (defined $reshard && $reshard <= 0) {
 		die "--reshard must be a positive number\n";
 	}
+
+	local %SIG = %SIG;
+	$tmp->setup_signals;
 
 	# we want temporary directories to be as deep as possible,
 	# so v2 shards can keep "xap$SCHEMA_VERSION" on a separate FS.
@@ -373,11 +377,13 @@ sub cpdb ($$) {
 	}
 
 	my ($xtmp, $tmp);
+	local %SIG = %SIG;
 	if ($opt->{compact}) {
 		my $newdir = dirname($new);
 		same_fs_or_die($newdir, $new);
 		$tmp = tempdir("$new.compact-XXXXXX", DIR => $newdir);
 		$xtmp = PublicInbox::Xtmpdirs->new;
+		$xtmp->setup_signals;
 		$xtmp->{$new} = $tmp;
 	} else {
 		$tmp = $new;
@@ -445,7 +451,7 @@ sub cpdb ($$) {
 	# since $dst isn't readable by HTTP or NNTP clients, yet:
 	compact([ $tmp, $new ], $opt);
 	remove_tree($tmp) or die "failed to remove $tmp: $!\n";
-	$xtmp->done;
+	$xtmp = undef;
 }
 
 # slightly easier-to-manage manage than END{} blocks
@@ -453,38 +459,25 @@ package PublicInbox::Xtmpdirs;
 use strict;
 use warnings;
 use File::Path qw(remove_tree);
-my %owner;
 
-sub new {
+sub setup_signals () {
 	# http://www.tldp.org/LDP/abs/html/exitcodes.html
 	$SIG{INT} = sub { exit(130) };
 	$SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub { exit(1) };
-	my $self = bless {}, $_[0]; # old shard => new (WIP) shard
-	$owner{"$self"} = $$;
-	$self;
 }
 
-sub done {
-	my ($self) = @_;
-	delete $owner{"$self"};
-
-	my %known_pids;
-	$known_pids{$_}++ foreach values %owner;
-	if (!$known_pids{$$}) {
-		$SIG{INT} = $SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = 'DEFAULT';
-	}
-	%$self = ();
+sub new {
+	bless { '' => $$ }, $_[0]; # old shard => new (WIP) shard
 }
 
 sub DESTROY {
 	my ($self) = @_;
-	my $owner_pid = delete $owner{"$self"} or return;
+	my $owner_pid = delete($self->{''}) or return;
 	return if $owner_pid != $$;
 	foreach my $new (values %$self) {
 		defined $new or next; # may be undef if resharding
 		remove_tree($new) unless -d "$new/old";
 	}
-	done($self);
 }
 
 1;
