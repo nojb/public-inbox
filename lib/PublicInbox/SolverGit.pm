@@ -450,7 +450,7 @@ sub do_git_apply ($) {
 
 	# we need --ignore-whitespace because some patches are CRLF
 	my @cmd = (qw(git -C), $dn, qw(apply --cached --ignore-whitespace
-			--whitespace=warn --verbose));
+			--unidiff-zero --whitespace=warn --verbose));
 	my $len = length(join(' ', @cmd));
 	my $total = $self->{tot};
 	my $di; # keep track of the last one for "git ls-files"
