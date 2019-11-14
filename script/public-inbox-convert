@@ -20,7 +20,6 @@ my %opts = (
 	'--index!' => \$index,
 );
 GetOptions(%opts) or die "bad command-line args\n$usage";
-GetOptions(%opts) or die "bad command-line args\n$usage";
 my $old_dir = shift or die $usage;
 my $new_dir = shift or die $usage;
 die "$new_dir exists\n" if -d $new_dir;
