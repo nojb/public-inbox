@@ -80,7 +80,7 @@ sub release2mime {
 
 sub mime2txt {
 	my ($out, $mime) = @_;
-	my $title = $mime->header_str('Subject');
+	my $title = $mime->header('Subject');
 	$title =~ s/^\s*\[\w+\]\s*//g; # [ANNOUNCE] or [ANN]
 	my $dtime = msg_datestamp($mime->header_obj);
 	$title .= ' - ' . PublicInbox::View::fmt_ts($dtime) . ' UTC';
