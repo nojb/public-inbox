@@ -90,9 +90,10 @@ test_psgi($app, sub {
 SKIP: {
 	my @mods = qw(DBI DBD::SQLite Search::Xapian IO::Uncompress::Gunzip);
 	foreach my $mod (@mods) {
-		eval "require $mod" or skip "$mod not available: $@", 2;
+		eval "require $mod" or skip "$mod not available: $@", 3;
 	}
 	my $ibx = $config->lookup_name('test');
+	require_ok 'PublicInbox::SearchIdx';
 	PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 	test_psgi($app, sub {
 		my ($cb) = @_;
