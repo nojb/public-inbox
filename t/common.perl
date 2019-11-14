@@ -18,16 +18,6 @@ sub tcp_server () {
 	)
 }
 
-sub unix_server ($) {
-	my $s = IO::Socket::UNIX->new(
-		Listen => 1024,
-		Type => Socket::SOCK_STREAM(),
-		Local => $_[0],
-	);
-	$s->blocking(0);
-	$s;
-}
-
 sub tcp_connect {
 	my ($dest, %opt) = @_;
 	my $s = IO::Socket::INET->new(

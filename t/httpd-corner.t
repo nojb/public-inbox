@@ -51,6 +51,16 @@ if ($^O eq 'linux') {
 	setsockopt($sock, SOL_SOCKET, $var, $accf_arg) or die "setsockopt: $!";
 }
 
+sub unix_server ($) {
+	my $s = IO::Socket::UNIX->new(
+		Listen => 1024,
+		Type => Socket::SOCK_STREAM(),
+		Local => $_[0],
+	);
+	$s->blocking(0);
+	$s;
+}
+
 my $upath = "$tmpdir/s";
 my $unix = unix_server($upath);
 ok($unix, 'UNIX socket created');
