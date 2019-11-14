@@ -14,7 +14,14 @@ my $have_xml_feed = eval { require XML::Feed; 1 };
 require './t/common.perl';
 
 sub string_feed {
-	stream_to_string(PublicInbox::Feed::generate($_[0]));
+	my $res = PublicInbox::Feed::generate($_[0]);
+	my $body = $res->[2];
+	my $str = '';
+	while (defined(my $chunk = $body->getline)) {
+		$str .= $chunk;
+	}
+	$body->close;
+	$str;
 }
 
 my $tmpdir = tempdir('pi-feed-XXXXXX', TMPDIR => 1, CLEANUP => 1);

@@ -7,17 +7,6 @@ use strict;
 use warnings;
 use IO::Socket::INET;
 
-sub stream_to_string {
-	my ($res) = @_;
-	my $body = $res->[2];
-	my $str = '';
-	while (defined(my $chunk = $body->getline)) {
-		$str .= $chunk;
-	}
-	$body->close;
-	$str;
-}
-
 sub tcp_server () {
 	IO::Socket::INET->new(
 		LocalAddr => '127.0.0.1',
