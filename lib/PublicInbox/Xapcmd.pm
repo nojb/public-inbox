@@ -15,12 +15,10 @@ use File::Basename qw(dirname);
 our $XAPIAN_COMPACT = $ENV{XAPIAN_COMPACT} || 'xapian-compact';
 our @COMPACT_OPT = qw(jobs|j=i quiet|q blocksize|b=s no-full|n fuller|F);
 
-sub commit_changes ($$$) {
-	my ($ibx, $tmp, $opt) = @_;
+sub commit_changes ($$$$) {
+	my ($ibx, $im, $tmp, $opt) = @_;
 	my $reshard = $opt->{reshard};
 	my $reindex = $opt->{reindex};
-	my $im = $ibx->importer(0);
-	$im->lock_acquire if !$opt->{-coarse_lock};
 
 	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
 	my @old_shard;
@@ -78,10 +76,7 @@ sub commit_changes ($$$) {
 			}
 		}
 
-		PublicInbox::Admin::index_inbox($ibx, $opt);
-		# implicit lock_release
-	} else {
-		$im->lock_release;
+		PublicInbox::Admin::index_inbox($ibx, $im, $opt);
 	}
 }
 
@@ -98,8 +93,8 @@ sub runnable_or_die ($) {
 	which($exe) or die "$exe not found in PATH\n";
 }
 
-sub prepare_reindex ($$) {
-	my ($ibx, $reindex) = @_;
+sub prepare_reindex ($$$) {
+	my ($ibx, $im, $reindex) = @_;
 	if ($ibx->{version} == 1) {
 		my $dir = $ibx->search->xdir(1);
 		my $xdb = Search::Xapian::Database->new($dir);
@@ -107,9 +102,8 @@ sub prepare_reindex ($$) {
 			$reindex->{from} = $lc;
 		}
 	} else { # v2
-		my $v2w = $ibx->importer(0);
 		my $max;
-		$v2w->git_dir_latest(\$max) or return;
+		$im->git_dir_latest(\$max) or return;
 		my $from = $reindex->{from};
 		my $mm = $ibx->mm;
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
@@ -229,20 +223,21 @@ sub run {
 			$tmp->{$_} ||= undef for @$src;
 		}
 	}
-	my $im = $ibx->importer(0);
 	my $max = $opt->{jobs} || scalar(@q);
 	$ibx->with_umask(sub {
+		my $im = $ibx->importer(0);
 		$im->lock_acquire;
 
 		# fine-grained locking if we prepare for reindex
 		if (!$opt->{-coarse_lock}) {
-			prepare_reindex($ibx, $reindex);
+			prepare_reindex($ibx, $im, $reindex);
 			$im->lock_release;
 		}
 
 		delete($ibx->{$_}) for (qw(mm over search)); # cleanup
 		process_queue(\@q, $cb, $max, $opt);
-		commit_changes($ibx, $tmp, $opt);
+		$im->lock_acquire if !$opt->{-coarse_lock};
+		commit_changes($ibx, $im, $tmp, $opt);
 	});
 }
 

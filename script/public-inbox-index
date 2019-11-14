@@ -33,4 +33,4 @@ foreach my $ibx (@ibxs) {
 
 PublicInbox::Admin::require_or_die(keys %$mods);
 PublicInbox::Admin::progress_prepare($opt);
-PublicInbox::Admin::index_inbox($_, $opt) for @ibxs;
+PublicInbox::Admin::index_inbox($_, undef, $opt) for @ibxs;

@@ -199,12 +199,12 @@ invalid indexlevel=$indexlevel (must be `basic', `medium', or `full')
 }
 
 sub index_inbox {
-	my ($ibx, $opt) = @_;
+	my ($ibx, $im, $opt) = @_;
 	my $jobs = delete $opt->{jobs} if $opt;
 	if (ref($ibx) && ($ibx->{version} || 1) == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
-		my $v2w = eval { $ibx->importer(0) } || eval {
+		my $v2w = $im // eval { $ibx->importer(0) } || eval {
 			PublicInbox::V2Writable->new($ibx, {nproc=>$jobs});
 		};
 		if (defined $jobs) {
