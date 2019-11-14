@@ -12,6 +12,7 @@
 *.8
 *.html
 *.gz
+.*.cols
 /NEWS.html
 /NEWS.atom
 /NEWS

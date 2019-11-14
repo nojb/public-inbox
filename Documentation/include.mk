@@ -93,14 +93,15 @@ doc_install :: install-man
 
 check :: check-man
 check_man = @echo CHECK80 $<;COLUMNS=80 $(MAN) ./$^ | \
-	$(AWK) '{gsub(/\b./,"")}length>80{print;err=1}END{exit(err)}' >&2
+	$(AWK) '{gsub(/\b./,"")}length>80{print;err=1}END{exit(err)}' >&2 \
+	&& >$@
 
-%.1.cols : %.1; $(check_man)
-%.5.cols : %.5; $(check_man)
-%.7.cols : %.7; $(check_man)
-%.8.cols : %.8; $(check_man)
+.%.1.cols : %.1; $(check_man)
+.%.5.cols : %.5; $(check_man)
+.%.7.cols : %.7; $(check_man)
+.%.8.cols : %.8; $(check_man)
 
-check-man :: $(addsuffix .cols, $(manpages))
+check-man :: $(addprefix .,$(addsuffix .cols, $(manpages)))
 
 manuals :=
 manuals += $(m1)
