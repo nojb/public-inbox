@@ -9,6 +9,7 @@ use PublicInbox::Search;
 use File::Temp qw(tempdir);
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);
+use POSIX ();
 
 # support testing with dev versions of Xapian which installs
 # commands with a version number suffix (e.g. "xapian-compact-1.5")
@@ -85,7 +86,7 @@ sub cb_spawn {
 	defined(my $pid = fork) or die "fork: $!";
 	return $pid if $pid > 0;
 	$cb->($args, $opt);
-	exit 0;
+	POSIX::_exit(0);
 }
 
 sub runnable_or_die ($) {
