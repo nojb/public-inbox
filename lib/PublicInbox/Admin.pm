@@ -9,7 +9,6 @@ use warnings;
 use Cwd 'abs_path';
 use base qw(Exporter);
 our @EXPORT_OK = qw(resolve_repo_dir);
-my $CFG; # all the admin stuff is a singleton
 require PublicInbox::Config;
 
 sub resolve_repo_dir {
@@ -80,14 +79,12 @@ sub unconfigured_ibx ($$) {
 	});
 }
 
-sub config () { $CFG //= eval { PublicInbox::Config->new } }
-
-sub resolve_inboxes ($;$) {
-	my ($argv, $opt) = @_;
+sub resolve_inboxes ($;$$) {
+	my ($argv, $opt, $cfg) = @_;
 	require PublicInbox::Inbox;
 	$opt ||= {};
 
-	my $cfg = config();
+	$cfg //= eval { PublicInbox::Config->new };
 	if ($opt->{all}) {
 		my $cfgfile = PublicInbox::Config::default_file();
 		$cfg or die "--all specified, but $cfgfile not readable\n";

@@ -22,12 +22,11 @@ my @opt = qw(mid|m=s file|F=s raw);
 GetOptions($opt, @PublicInbox::AdminEdit::OPT, @opt) or
 	die "bad command-line args\n$usage\n";
 
+my $cfg = eval { PublicInbox::Config->new };
 my $editor = $ENV{MAIL_EDITOR}; # e.g. "mutt -f"
 unless (defined $editor) {
 	my $k = 'publicinbox.mailEditor';
-	if (my $cfg = PublicInbox::Admin::config()) {
-		$editor = $cfg->{lc($k)};
-	}
+	$editor = $cfg->{lc($k)} if $cfg;
 	unless (defined $editor) {
 		warn "\`$k' not configured, trying \`git var GIT_EDITOR'\n";
 		chomp($editor = `git var GIT_EDITOR`);
@@ -41,7 +40,7 @@ if (defined $mid && defined $file) {
 	die "the --mid and --file options are mutually exclusive\n";
 }
 
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::AdminEdit::check_editable(\@ibxs);
 
 my $found = {}; # cid => [ [ibx, smsg] [, [ibx, smsg] ] ]
