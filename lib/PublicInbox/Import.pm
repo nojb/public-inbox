@@ -179,9 +179,9 @@ sub _update_git_info ($$) {
 		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
 	}
 	run_die([@cmd, 'update-server-info'], undef);
-	($self->{path_type} eq '2/38') and eval {
+	my $ibx = $self->{-inbox};
+	($ibx && $self->{path_type} eq '2/38') and eval {
 		require PublicInbox::SearchIdx;
-		my $ibx = $self->{-inbox} || $git_dir;
 		my $s = PublicInbox::SearchIdx->new($ibx);
 		$s->index_sync({ ref => $self->{ref} });
 	};
