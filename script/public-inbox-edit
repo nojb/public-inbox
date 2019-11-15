@@ -46,9 +46,9 @@ PublicInbox::AdminEdit::check_editable(\@ibxs);
 
 my $found = {}; # cid => [ [ibx, smsg] [, [ibx, smsg] ] ]
 
-sub find_mid ($) {
-	my ($mid) = @_;
-	foreach my $ibx (@ibxs) {
+sub find_mid ($$$) {
+	my ($found, $mid, $ibxs) = @_;
+	foreach my $ibx (@$ibxs) {
 		my $over = $ibx->over;
 		my ($id, $prev);
 		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
@@ -68,7 +68,8 @@ sub show_cmd ($$) {
 	" GIT_DIR=$ibx->{inboxdir}/all.git \\\n    git show $smsg->{blob}\n";
 }
 
-sub show_found () {
+sub show_found ($) {
+	my ($found) = @_;
 	foreach my $to_edit (values %$found) {
 		foreach my $tuple (@$to_edit) {
 			my ($ibx, $smsg) = @$tuple;
@@ -79,7 +80,7 @@ sub show_found () {
 
 if (defined($mid)) {
 	$mid = mid_clean($mid);
-	$found = find_mid($mid);
+	find_mid($found, $mid, \@ibxs);
 	my $nr = scalar(keys %$found);
 	die "No message found for <$mid>\n" unless $nr;
 	if ($nr > 1) {
@@ -87,7 +88,7 @@ if (defined($mid)) {
 Multiple messages with different content found matching
 <$mid>:
 
-		show_found();
+		show_found($found);
 		die "Use --force to edit all of them\n" if !$opt->{force};
 		warn "Will edit all of them\n";
 	}
@@ -96,7 +97,7 @@ Multiple messages with different content found matching
 	my $orig = do { local $/; <$fh> };
 	my $mime = PublicInbox::MIME->new(\$orig);
 	my $mids = mids($mime->header_obj);
-	find_mid($_) for (@$mids); # populates $found
+	find_mid($found, $_, \@ibxs) for (@$mids); # populates $found
 	my $cid = content_id($mime);
 	my $to_edit = $found->{$cid};
 	unless ($to_edit) {
@@ -106,7 +107,7 @@ Multiple messages with different content found matching
 $nr matches to Message-ID(s) in $file, but none matched content
 Partial matches below:
 
-			show_found();
+			show_found($found);
 		} elsif ($nr == 0) {
 			$mids = join('', map { "  <$_>\n" } @$mids);
 			warn <<"";
