@@ -34,8 +34,6 @@ my $mime = PublicInbox::MIME->create(
 	body => "hello world\n",
 );
 
-my $mda = "blib/script/public-inbox-mda";
-ok(-f "blib/script/public-inbox-mda", '-mda exists');
 my $main_bin = getcwd()."/t/main-bin";
 my $fail_bin = getcwd()."/t/fail-bin";
 local $ENV{PI_DIR} = "$tmpdir/foo";
@@ -44,26 +42,19 @@ local $ENV{PATH} = "$main_bin:blib/script:$ENV{PATH}";
 my $faildir = "$tmpdir/fail";
 local $ENV{PI_EMERGENCY} = $faildir;
 ok(mkdir $faildir);
-my @cmd = (qw(public-inbox-init), "-V$V", $ibx->{name},
+my @cmd = (qw(-init), "-V$V", $ibx->{name},
 		$ibx->{inboxdir}, 'http://localhost/test',
 		$ibx->{address}->[0]);
-ok(PublicInbox::Import::run_die(\@cmd), 'initialized v2 inbox');
+ok(run_script(\@cmd), 'initialized v2 inbox');
 
-open my $tmp, '+>', undef or die "failed to open anonymous tempfile: $!";
-ok($tmp->print($mime->as_string), 'wrote to temporary file');
-ok($tmp->flush, 'flushed temporary file');
-ok($tmp->sysseek(0, SEEK_SET), 'seeked');
-
-my $rdr = { 0 => fileno($tmp) };
+my $rdr = { 0 => \($mime->as_string) };
 local $ENV{ORIGINAL_RECIPIENT} = 'test@example.com';
-ok(PublicInbox::Import::run_die(['public-inbox-mda'], undef, $rdr),
-	'mda delivered a message');
+ok(run_script(['-mda'], undef, $rdr), 'mda delivered a message');
 
 $ibx = PublicInbox::Inbox->new($ibx);
 
 if ($V == 1) {
-	my $cmd = [ 'public-inbox-index', "$tmpdir/inbox" ];
-	ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'v1 indexed');
+	ok(run_script([ '-index', "$tmpdir/inbox" ]), 'v1 indexed');
 }
 my $msgs = $ibx->search->query('');
 is(scalar(@$msgs), 1, 'only got one message');
@@ -75,15 +66,8 @@ is($saved->{mime}->as_string, $mime->as_string, 'injected message');
 	is_deeply(\@new, [], 'nothing in faildir');
 	local $ENV{PATH} = $fail_path;
 	$mime->header_set('Message-ID', '<bar@foo>');
-	ok($tmp->sysseek(0, SEEK_SET) &&
-			$tmp->truncate(0) &&
-			$tmp->print($mime->as_string) &&
-			$tmp->flush &&
-			$tmp->sysseek(0, SEEK_SET),
-		'rewound and rewrite temporary file');
-	my $cmd = ['public-inbox-mda'];
-	ok(PublicInbox::Import::run_die($cmd, undef, $rdr),
-		'mda did not die on "spam"');
+	$rdr->{0} = \($mime->as_string);
+	ok(run_script(['-mda'], undef, $rdr), 'mda did not die on "spam"');
 	@new = glob("$faildir/new/*");
 	is(scalar(@new), 1, 'got a message in faildir');
 	$msgs = $ibx->search->reopen->query('');
@@ -94,9 +78,8 @@ is($saved->{mime}->as_string, $mime->as_string, 'injected message');
 	my $k = 'publicinboxmda.spamcheck';
 	is(system('git', 'config', "--file=$config", $k, 'none'), 0,
 		'disabled spamcheck for mda');
-	ok($tmp->sysseek(0, SEEK_SET), 'rewound input file');
 
-	ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'mda did not die');
+	ok(run_script(['-mda'], undef, $rdr), 'mda did not die');
 	my @again = glob("$faildir/new/*");
 	is_deeply(\@again, \@new, 'no new message in faildir');
 	$msgs = $ibx->search->reopen->query('');
@@ -106,9 +89,8 @@ is($saved->{mime}->as_string, $mime->as_string, 'injected message');
 {
 	my $patch = 't/data/0001.patch';
 	open my $fh, '<', $patch or die "failed to open $patch: $!\n";
-	$rdr = { 0 => fileno($fh) };
-	ok(PublicInbox::Import::run_die(['public-inbox-mda'], undef, $rdr),
-		'mda delivered a patch');
+	$rdr->{0} = \(do { local $/; <$fh> });
+	ok(run_script(['-mda'], undef, $rdr), 'mda delivered a patch');
 	my $post = $ibx->search->reopen->query('dfpost:6e006fd7');
 	is(scalar(@$post), 1, 'got one result for dfpost');
 	my $pre = $ibx->search->query('dfpre:090d998');
