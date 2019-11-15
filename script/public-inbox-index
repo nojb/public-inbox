@@ -18,11 +18,10 @@ GetOptions($opt, qw(verbose|v+ reindex jobs|j=i prune indexlevel|L=s))
 	or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $opt->{jobs} && $opt->{jobs} <= 0;
 
-sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV);
 PublicInbox::Admin::require_or_die('-index');
-usage() unless @ibxs;
+unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
 my $mods = {};
 foreach my $ibx (@ibxs) {
 	# XXX: users can shoot themselves in the foot, with opt->{indexlevel}
