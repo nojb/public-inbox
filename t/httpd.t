@@ -22,7 +22,6 @@ my $group = 'test-httpd';
 my $addr = $group . '@example.com';
 my $cfgpfx = "publicinbox.$group";
 my $httpd = 'blib/script/public-inbox-httpd';
-my $init = 'blib/script/public-inbox-init';
 my $sock = tcp_server();
 my $pid;
 use_ok 'PublicInbox::Git';
@@ -31,8 +30,8 @@ use_ok 'Email::MIME';
 END { kill 'TERM', $pid if defined $pid };
 {
 	local $ENV{HOME} = $home;
-	ok(!system($init, $group, $maindir, 'http://example.com/', $addr),
-		'init ran properly');
+	my $cmd = [ '-init', $group, $maindir, 'http://example.com/', $addr ];
+	ok(run_script($cmd), 'init ran properly');
 
 	# ensure successful message delivery
 	{
@@ -53,7 +52,7 @@ EOF
 		$im->done($mime);
 	}
 	ok($sock, 'sock created');
-	my $cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err" ];
+	$cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err" ];
 	$pid = spawn_listener(undef, $cmd, [$sock]);
 	my $host = $sock->sockhost;
 	my $port = $sock->sockport;
