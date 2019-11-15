@@ -7,55 +7,44 @@ use PublicInbox::Config;
 use File::Temp qw/tempdir/;
 require './t/common.perl';
 my $tmpdir = tempdir('pi-init-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-use constant pi_init => 'blib/script/public-inbox-init';
-use PublicInbox::Import;
 use File::Basename;
-use PublicInbox::Spawn qw(spawn);
-use Cwd qw(getcwd);
-open my $null, '>>', '/dev/null';
-my $rdr = { 2 => fileno($null) };
 sub quiet_fail {
 	my ($cmd, $msg) = @_;
-	# run_die doesn't take absolute paths:
-	my $path = $ENV{PATH};
-	if (index($cmd->[0], '/') >= 0) {
-		my ($dir, $base) = ($cmd->[0] =~ m!\A(.+)/([^/]+)\z!);
-		$path = "$dir:$path";
-		$cmd->[0] = $base;
-	}
-	local $ENV{PATH} = $path;
-	eval { PublicInbox::Import::run_die($cmd, undef, $rdr) };
-	isnt($@, '', $msg);
+	my $err = '';
+	ok(!run_script($cmd, undef, { 2 => \$err, 1 => \$err }), $msg);
 }
 
 {
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
 	my $cfgfile = "$ENV{PI_DIR}/config";
-	my @cmd = (pi_init, 'blist', "$tmpdir/blist",
-		   qw(http://example.com/blist blist@example.com));
-	is(system(@cmd), 0, 'public-inbox-init OK');
+	my $cmd = [ '-init', 'blist', "$tmpdir/blist",
+		   qw(http://example.com/blist blist@example.com) ];
+	ok(run_script($cmd), 'public-inbox-init OK');
 
 	is(read_indexlevel('blist'), '', 'indexlevel unset by default');
 
 	ok(-e $cfgfile, "config exists, now");
-	is(system(@cmd), 0, 'public-inbox-init OK (idempotent)');
+	ok(run_script($cmd), 'public-inbox-init OK (idempotent)');
 
 	chmod 0666, $cfgfile or die "chmod failed: $!";
-	@cmd = (pi_init, 'clist', "$tmpdir/clist",
-		   qw(http://example.com/clist clist@example.com));
-	is(system(@cmd), 0, 'public-inbox-init clist OK');
+	$cmd = [ '-init', 'clist', "$tmpdir/clist",
+		   qw(http://example.com/clist clist@example.com)];
+	ok(run_script($cmd), 'public-inbox-init clist OK');
 	is((stat($cfgfile))[2] & 07777, 0666, "permissions preserved");
 
-	@cmd = (pi_init, 'clist', '-V2', "$tmpdir/clist",
-		   qw(http://example.com/clist clist@example.com));
-	quiet_fail(\@cmd, 'attempting to init V2 from V1 fails');
+	$cmd = [ '-init', 'clist', '-V2', "$tmpdir/clist",
+		   qw(http://example.com/clist clist@example.com) ];
+	quiet_fail($cmd, 'attempting to init V2 from V1 fails');
+	ok(!-e "$cfgfile.lock", 'no lock leftover after init');
 
 	open my $lock, '+>', "$cfgfile.lock" or die;
-	@cmd = (getcwd(). '/'. pi_init, 'lock', "$tmpdir/lock",
-		qw(http://example.com/lock lock@example.com));
+	$cmd = [ '-init', 'lock', "$tmpdir/lock",
+		qw(http://example.com/lock lock@example.com) ];
 	ok(-e "$cfgfile.lock", 'lock exists');
-	my $pid = spawn(\@cmd, undef, $rdr);
-	is(waitpid($pid, 0), $pid, 'lock init failed');
+
+	# this calls exit():
+	my $err = '';
+	ok(!run_script($cmd, undef, {2 => \$err}), 'lock init failed');
 	is($? >> 8, 255, 'got expected exit code on lock failure');
 	ok(unlink("$cfgfile.lock"),
 		'-init did not unlink lock on failure');
@@ -69,44 +58,44 @@ SKIP: {
 	require_git(2.6, 1) or skip "git 2.6+ required", 2;
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
 	my $cfgfile = "$ENV{PI_DIR}/config";
-	my @cmd = (pi_init, '-V2', 'v2list', "$tmpdir/v2list",
-		   qw(http://example.com/v2list v2list@example.com));
-	is(system(@cmd), 0, 'public-inbox-init -V2 OK');
+	my $cmd = [ '-init', '-V2', 'v2list', "$tmpdir/v2list",
+		   qw(http://example.com/v2list v2list@example.com) ];
+	ok(run_script($cmd), 'public-inbox-init -V2 OK');
 	ok(-d "$tmpdir/v2list", 'v2list directory exists');
 	ok(-f "$tmpdir/v2list/msgmap.sqlite3", 'msgmap exists');
 	ok(-d "$tmpdir/v2list/all.git", 'catch-all.git directory exists');
-	@cmd = (pi_init, 'v2list', "$tmpdir/v2list",
-		   qw(http://example.com/v2list v2list@example.com));
-	is(system(@cmd), 0, 'public-inbox-init is idempotent');
+	$cmd = [ '-init', 'v2list', "$tmpdir/v2list",
+		   qw(http://example.com/v2list v2list@example.com) ];
+	ok(run_script($cmd), 'public-inbox-init is idempotent');
 	ok(! -d "$tmpdir/public-inbox" && !-d "$tmpdir/objects",
 		'idempotent invocation w/o -V2 does not make inbox v1');
 	is(read_indexlevel('v2list'), '', 'indexlevel unset by default');
 
-	@cmd = (pi_init, 'v2list', "-V1", "$tmpdir/v2list",
-		   qw(http://example.com/v2list v2list@example.com));
-	quiet_fail(\@cmd, 'initializing V2 as V1 fails');
+	$cmd = [ '-init', 'v2list', "-V1", "$tmpdir/v2list",
+		   qw(http://example.com/v2list v2list@example.com) ];
+	quiet_fail($cmd, 'initializing V2 as V1 fails');
 
 	foreach my $lvl (qw(medium basic)) {
-		@cmd = (pi_init, "v2$lvl", '-V2', '-L', $lvl,
+		$cmd = [ '-init', "v2$lvl", '-V2', '-L', $lvl,
 			"$tmpdir/v2$lvl", "http://example.com/v2$lvl",
-			"v2$lvl\@example.com");
-		is(system(@cmd), 0, "-init -L $lvl");
+			"v2$lvl\@example.com" ];
+		ok(run_script($cmd), "-init -L $lvl");
 		is(read_indexlevel("v2$lvl"), $lvl, "indexlevel set to '$lvl'");
 	}
 
 	# loop for idempotency
 	for (1..2) {
-		@cmd = (pi_init, '-V2', '-S1', 'skip1', "$tmpdir/skip1",
-			   qw(http://example.com/skip1 skip1@example.com));
-		is(system(@cmd), 0, "--skip-epoch 1");
+		$cmd = [ '-init', '-V2', '-S1', 'skip1', "$tmpdir/skip1",
+			   qw(http://example.com/skip1 skip1@example.com) ];
+		ok(run_script($cmd), "--skip-epoch 1");
 		my $gits = [ glob("$tmpdir/skip1/git/*.git") ];
 		is_deeply($gits, ["$tmpdir/skip1/git/1.git"], 'skip OK');
 	}
 
 
-	@cmd = (pi_init, '-V2', '--skip-epoch=2', 'skip2', "$tmpdir/skip2",
-		   qw(http://example.com/skip2 skip2@example.com));
-	is(system(@cmd), 0, "--skip-epoch 2");
+	$cmd = [ '-init', '-V2', '--skip-epoch=2', 'skip2', "$tmpdir/skip2",
+		   qw(http://example.com/skip2 skip2@example.com) ];
+	ok(run_script($cmd), "--skip-epoch 2");
 	my $gits = [ glob("$tmpdir/skip2/git/*.git") ];
 	is_deeply($gits, ["$tmpdir/skip2/git/2.git"], 'skipping 2 works, too');
 }
