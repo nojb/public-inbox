@@ -21,10 +21,10 @@ use_ok 'PublicInbox::WatchMaildir';
 use_ok 'PublicInbox::Emergency';
 my $cfgpfx = "publicinbox.test";
 my $addr = 'test-public@example.com';
-my @cmd = ('blib/script/public-inbox-init', '-V2', 'test', $inboxdir,
+my @cmd = ('-init', '-V2', 'test', $inboxdir,
 	'http://example.com/v2list', $addr);
 local $ENV{PI_CONFIG} = "$tmpdir/pi_config";
-is(system(@cmd), 0, 'public-inbox init OK');
+ok(run_script(\@cmd), 'public-inbox init OK');
 
 my $msg = <<EOF;
 From: user\@example.com
