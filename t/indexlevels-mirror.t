@@ -17,9 +17,7 @@ foreach my $mod (qw(DBD::SQLite)) {
 	plan skip_all => "$mod missing for $0" if $@;
 }
 
-my $path = 'blib/script';
-my $index = "$path/public-inbox-index";
-my @xcpdb = ("$path/public-inbox-xcpdb", '-q');
+my @xcpdb = qw(-xcpdb -q);
 
 my $mime = PublicInbox::MIME->create(
 	header => [
@@ -48,7 +46,8 @@ sub import_index_incremental {
 	$im->done;
 
 	# index master (required for v1)
-	is(system($index, $ibx->{inboxdir}, "-L$level"), 0, 'index master OK');
+	ok(run_script(['-index', $ibx->{inboxdir}, "-L$level"]),
+		'index master OK');
 	my $ro_master = PublicInbox::Inbox->new({
 		inboxdir => $ibx->{inboxdir},
 		indexlevel => $level
@@ -70,13 +69,13 @@ sub import_index_incremental {
 
 	# inbox init
 	local $ENV{PI_CONFIG} = "$tmpdir/.picfg";
-	@cmd = ("$path/public-inbox-init", '-L', $level,
+	@cmd = ('-init', '-L', $level,
 		'mirror', $mirror, '//example.com/test', 'test@example.com');
 	push @cmd, '-V2' if $v == 2;
-	is(system(@cmd), 0, "v$v init OK");
+	ok(run_script(\@cmd), "v$v init OK");
 
 	# index mirror
-	is(system($index, $mirror), 0, "v$v index mirror OK");
+	ok(run_script(['-index', $mirror]), "v$v index mirror OK");
 
 	# read-only access
 	my $ro_mirror = PublicInbox::Inbox->new({
@@ -94,14 +93,15 @@ sub import_index_incremental {
 
 	# mirror updates
 	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
-	is(system($index, $mirror), 0, "v$v index mirror again OK");
+	ok(run_script(['-index', $mirror]), "v$v index mirror again OK");
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 2, '2nd message seen in mirror');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
 		['m@1','m@2'], 'got both messages in mirror');
 
 	# incremental index master (required for v1)
-	is(system($index, $ibx->{inboxdir}, "-L$level"), 0, 'index master OK');
+	ok(run_script(['-index', $ibx->{inboxdir}, "-L$level"]),
+		'index master OK');
 	($nr, $msgs) = $ro_master->recent;
 	is($nr, 2, '2nd message seen in master');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
@@ -120,7 +120,7 @@ sub import_index_incremental {
 	is_deeply(\@rw_nums, [1], 'unindex NNTP article'.$v.$level);
 
 	if ($level ne 'basic') {
-		is(system(@xcpdb, $mirror), 0, "v$v xcpdb OK");
+		ok(run_script([@xcpdb, $mirror]), "v$v xcpdb OK");
 		is(PublicInbox::Admin::detect_indexlevel($ro_mirror), $level,
 		   'indexlevel detectable by Admin after xcpdb v' .$v.$level);
 		delete $ro_mirror->{$_} for (qw(over search));
@@ -130,7 +130,7 @@ sub import_index_incremental {
 
 	# sync the mirror
 	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
-	is(system($index, $mirror), 0, "v$v index mirror again OK");
+	ok(run_script(['-index', $mirror]), "v$v index mirror again OK");
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 1, '2nd message gone from mirror');
 	is_deeply([map { $_->{mid} } @$msgs], ['m@1'],
@@ -155,7 +155,7 @@ sub import_index_incremental {
 	}
 	$im->done;
 	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
-	is(system($index, '--reindex', $mirror), 0,
+	ok(run_script(['-index', '--reindex', $mirror]),
 		"v$v index --reindex mirror OK");
 	@ro_nums = map { $_->{num} } @{$ro_mirror->over->query_ts(0, 0)};
 	@rw_nums = map { $_->{num} } @{$ibx->over->query_ts(0, 0)};
