@@ -33,8 +33,7 @@ my $ibx = PublicInbox::Inbox->new({
 	-primary_address => 'test@example.com',
 	indexlevel => 'medium',
 });
-my $path = 'blib/script';
-my @xcpdb = ("$path/public-inbox-xcpdb", '-q');
+my @xcpdb = qw(-xcpdb -q);
 my $nproc = 8;
 my $ndoc = 13;
 my $im = PublicInbox::InboxWritable->new($ibx, {nproc => $nproc})->importer(1);
@@ -51,7 +50,7 @@ my %nums = map {; "$_->{num}" => 1 } @$orig;
 # ensure we can go up or down in shards, or stay the same:
 for my $R (qw(2 4 1 3 3)) {
 	delete $ibx->{search}; # release old handles
-	is(system(@xcpdb, "-R$R", $ibx->{inboxdir}), 0, "xcpdb -R$R");
+	ok(run_script([@xcpdb, "-R$R", $ibx->{inboxdir}]), "xcpdb -R$R");
 	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
 	is(scalar(@new_shards), $R, 'resharded to two shards');
 	my $msgs = $ibx->search->query('s:this');
