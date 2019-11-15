@@ -39,8 +39,8 @@ my $mime = PublicInbox::MIME->new(eval {
 	$data
 });
 
-sub remove_or_add ($$$) {
-	my ($ibx, $train, $addr) = @_;
+sub remove_or_add ($$$$) {
+	my ($ibx, $train, $mime, $addr) = @_;
 
 	# We do not touch GIT_COMMITTER_* env here so we can track
 	# who trained the message.
@@ -93,12 +93,12 @@ if ($train eq 'spam') {
 	while (my ($addr, $ibx) = each %dests) {
 		next unless ref($ibx); # $ibx may be 0
 		next if $seen{"$ibx"}++;
-		remove_or_add($ibx, $train, $addr);
+		remove_or_add($ibx, $train, $mime, $addr);
 	}
 	my $dests = PublicInbox::MDA->inboxes_for_list_id($pi_config, $mime);
 	for my $ibx (@$dests) {
 		next if !$seen{"$ibx"}++;
-		remove_or_add($ibx, $train, $ibx->{-primary_address});
+		remove_or_add($ibx, $train, $mime, $ibx->{-primary_address});
 	}
 }
 
