@@ -62,22 +62,20 @@ foreach (@xdir) {
 		'sharedRepository respected on file after convert');
 }
 
-local $ENV{PATH} = "blib/script:$ENV{PATH}";
 local $ENV{PI_CONFIG} = '/dev/null';
-open my $err, '>>', "$tmpdir/err.log" or die "open: err.log $!\n";
-open my $out, '>>', "$tmpdir/out.log" or die "open: out.log $!\n";
-my $rdr = { 1 => fileno($out), 2 => fileno($err) };
+my ($out, $err) = ('', '');
+my $rdr = { 1 => \$out, 2 => \$err };
 
-my $cmd = [ 'public-inbox-compact', $ibx->{inboxdir} ];
-ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'v1 compact works');
+my $cmd = [ '-compact', $ibx->{inboxdir} ];
+ok(run_script($cmd, undef, $rdr), 'v1 compact works');
 
 @xdir = glob("$ibx->{inboxdir}/public-inbox/xap*");
 is(scalar(@xdir), 1, 'got one xapian directory after compact');
 is(((stat($xdir[0]))[2]) & 07777, 0755,
 	'sharedRepository respected on v1 compact');
 
-$cmd = [ 'public-inbox-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
-ok(PublicInbox::Import::run_die($cmd, undef, $rdr), 'convert works');
+$cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
+ok(run_script($cmd, undef, $rdr), 'convert works');
 @xdir = glob("$tmpdir/v2/xap*/*");
 foreach (@xdir) {
 	my @st = stat($_);
@@ -85,9 +83,9 @@ foreach (@xdir) {
 		'sharedRepository respected after convert');
 }
 
-$cmd = [ 'public-inbox-compact', "$tmpdir/v2" ];
+$cmd = [ '-compact', "$tmpdir/v2" ];
 my $env = { NPROC => 2 };
-ok(PublicInbox::Import::run_die($cmd, $env, $rdr), 'v2 compact works');
+ok(run_script($cmd, $env, $rdr), 'v2 compact works');
 $ibx->{inboxdir} = "$tmpdir/v2";
 $ibx->{version} = 2;
 
