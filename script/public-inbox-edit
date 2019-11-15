@@ -57,7 +57,7 @@ sub find_mid ($$$) {
 			my $tuple = [ $ibx, $smsg ];
 			push @{$found->{$cid} ||= []}, $tuple
 		}
-		delete @$ibx{qw(over mm git search)}; # cleanup
+		PublicInbox::InboxWritable::cleanup($ibx);
 	}
 	$found;
 }
@@ -131,7 +131,7 @@ foreach my $to_edit (values %$found) {
 	my $edit_fn = $edit_fh->filename;
 	my ($ibx, $smsg) = @{$to_edit->[0]};
 	my $old_raw = $ibx->msg_by_smsg($smsg);
-	delete @$ibx{qw(over mm git search)}; # cleanup
+	PublicInbox::InboxWritable::cleanup($ibx);
 
 	my $tmp = $$old_raw;
 	if (!$opt->{raw}) {

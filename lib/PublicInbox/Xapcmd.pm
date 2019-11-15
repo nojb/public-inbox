@@ -234,7 +234,7 @@ sub run {
 			$im->lock_release;
 		}
 
-		delete($ibx->{$_}) for (qw(mm over search)); # cleanup
+		$ibx->cleanup;
 		process_queue(\@q, $cb, $max, $opt);
 		$im->lock_acquire if !$opt->{-coarse_lock};
 		commit_changes($ibx, $im, $tmp, $opt);

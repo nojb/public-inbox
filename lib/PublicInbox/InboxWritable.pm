@@ -257,4 +257,8 @@ sub umask_prepare {
 	$self->{umask} = $umask;
 }
 
+sub cleanup ($) {
+	delete @{$_[0]}{qw(over mm git search)};
+}
+
 1;
