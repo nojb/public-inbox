@@ -5,7 +5,12 @@
 # Initializes a public-inbox, basically a wrapper for git-init(1)
 use strict;
 use warnings;
-my $usage = "public-inbox-init NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]";
+sub usage {
+	print STDERR <<EOF;
+Usage: public-inbox-init NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]
+EOF
+	exit 1;
+}
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-base');
@@ -19,7 +24,6 @@ use Fcntl qw(:DEFAULT);
 use Cwd qw/abs_path/;
 
 sub x { system(@_) and die join(' ', @_). " failed: $?\n" }
-sub usage { print STDERR "Usage: $usage\n"; exit 1 }
 my $version = undef;
 my $indexlevel = undef;
 my $skip_epoch;
@@ -57,12 +61,10 @@ my ($fh, $pi_config_tmp) = tempfile('pi-init-XXXXXXXX', DIR => $dir);
 my $lockfile = "$pi_config.lock";
 my $lockfh;
 sysopen($lockfh, $lockfile, O_RDWR|O_CREAT|O_EXCL) or do {
-	$lockfh = undef;
 	warn "could not open config file: $lockfile: $!\n";
 	exit(255);
 };
-END { unlink($lockfile) if $lockfh };
-
+my $auto_unlink = UnlinkMe->new($lockfile);
 my $perm;
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
@@ -166,3 +168,18 @@ if (defined $perm) {
 
 rename $pi_config_tmp, $pi_config or
 	die "failed to rename `$pi_config_tmp' to `$pi_config': $!\n";
+$auto_unlink->DESTROY;
+
+package UnlinkMe;
+use strict;
+
+sub new {
+	my ($klass, $file) = @_;
+	bless { file => $file }, $klass;
+}
+
+sub DESTROY {
+	my $f = delete($_[0]->{file});
+	unlink($f) if defined($f);
+}
+1;
