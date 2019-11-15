@@ -36,11 +36,11 @@ for my $v (@v) {
 	my $maildir = "$tmpdir/md-$v";
 	my $spamdir = "$tmpdir/spam-$v";
 	my $addr = "test-$v\@example.com";
-	my @cmd = ('blib/script/public-inbox-init', "-$v", $v, $inboxdir,
+	my @cmd = ('-init', "-$v", $v, $inboxdir,
 		"http://example.com/$v", $addr);
-	is(system(@cmd), 0, 'public-inbox init OK');
+	ok(run_script(\@cmd), 'public-inbox init OK');
 	if ($v eq 'V1') {
-		is(system('blib/script/public-inbox-index', $inboxdir), 0);
+		ok(run_script(['-index', $inboxdir]), 'v1 indexed');
 	}
 	PublicInbox::Emergency->new($spamdir);
 
