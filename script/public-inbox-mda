@@ -9,11 +9,11 @@ my $usage = 'public-inbox-mda [OPTIONS] < rfc2822_message';
 my $precheck = grep(/\A--no-precheck\z/, @ARGV) ? 0 : 1;
 my ($ems, $emm);
 
-sub do_exit {
+my $do_exit = sub {
 	my ($code) = shift;
 	$emm = $ems = undef; # trigger DESTROY
 	exit $code;
-}
+};
 
 use Email::Simple;
 use PublicInbox::MIME;
@@ -48,7 +48,7 @@ if (!scalar(@$dests)) {
 	if (!scalar(@$dests) && !defined($recipient)) {
 		die "ORIGINAL_RECIPIENT not defined in ENV\n";
 	}
-	scalar(@$dests) or do_exit(67); # EX_NOUSER 5.1.1 user unknown
+	scalar(@$dests) or $do_exit->(67); # EX_NOUSER 5.1.1 user unknown
 }
 
 my $err;
@@ -67,7 +67,7 @@ my $err;
 	}
 } @$dests;
 
-do_exit(67) if $err && scalar(@$dests) == 0;
+$do_exit->(67) if $err && scalar(@$dests) == 0;
 
 $simple = undef;
 my $spam_ok;
@@ -84,7 +84,7 @@ if ($spamc) {
 	my $fh = $emm->fh;
 	read($fh, $str, -s $fh);
 }
-do_exit(0) unless $spam_ok;
+$do_exit->(0) unless $spam_ok;
 
 # -mda defaults to the strict base filter which we won't use anywhere else
 sub mda_filter_adjust ($) {
@@ -131,4 +131,4 @@ if (scalar(@rejects) && scalar(@rejects) == scalar(@$dests)) {
 	die join("\n", @rejects, '');
 }
 
-do_exit(0);
+$do_exit->(0);
