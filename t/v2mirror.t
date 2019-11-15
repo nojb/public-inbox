@@ -8,8 +8,7 @@ require_git(2.6);
 
 # Integration tests for HTTP cloning + mirroring
 foreach my $mod (qw(Plack::Util Plack::Builder
-			HTTP::Date HTTP::Status Search::Xapian DBD::SQLite
-			IPC::Run)) {
+			HTTP::Date HTTP::Status Search::Xapian DBD::SQLite)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for v2mirror.t" if $@;
 }
@@ -84,10 +83,10 @@ foreach my $i (0..$epoch_max) {
 	ok(-d "$tmpdir/m/git/$i.git", "mirror $i OK");
 }
 
-@cmd = ("$script-init", '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
+@cmd = ("-init", '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
 	'alt@example.com');
-is(system(@cmd), 0, 'initialized public-inbox -V2');
-is(system("$script-index", "$tmpdir/m"), 0, 'indexed');
+ok(run_script(\@cmd, undef, {run_mode => 0}), 'initialized public-inbox -V2');
+ok(run_script(['-index', "$tmpdir/m"], undef, { run_mode => 0}), 'indexed');
 
 my $mibx = { inboxdir => "$tmpdir/m", address => 'alt@example.com' };
 $mibx = PublicInbox::Inbox->new($mibx);
@@ -113,7 +112,7 @@ fetch_each_epoch();
 
 my $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 0, 'new message not found in mirror, yet');
-is(system("$script-index", "$tmpdir/m"), 0, 'index updated');
+ok(run_script(["-index", "$tmpdir/m"], undef, {run_mode=>0}), 'index updated');
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'index synched minmax');
 $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 1, 'found message in mirror');
@@ -141,9 +140,10 @@ is(scalar($mset->items), 0, 'purged message gone from origin');
 
 fetch_each_epoch();
 {
-	my $cmd = [ "$script-index", '--prune', "$tmpdir/m" ];
-	my ($in, $out, $err) = ('', '', '');
-	ok(IPC::Run::run($cmd, \$in, \$out, \$err), '-index --prune');
+	my $cmd = [ '-index', '--prune', "$tmpdir/m" ];
+	my ($out, $err) = ('', '');
+	my $opt = { 1 => \$out, 2 => \$err, run_mode => 0 };
+	ok(run_script($cmd, undef, $opt), '-index --prune');
 	like($err, qr/discontiguous range/, 'warned about discontiguous range');
 	unlike($err, qr/fatal/, 'no scary fatal error shown');
 }
@@ -174,9 +174,10 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	$v2w->done;
 	fetch_each_epoch();
 
-	my ($in, $out, $err) = ('', '', '');
-	my $cmd = [ "$script-index", "$tmpdir/m" ];
-	ok(IPC::Run::run($cmd, \$in, \$out, \$err), 'index ran');
+	my $cmd = [ "-index", "$tmpdir/m" ];
+	my ($out, $err) = ('', '');
+	my $opt = { 1 => \$out, 2 => \$err, run_mode => 0 };
+	ok(run_script($cmd, undef, $opt), 'index ran');
 	is($err, '', 'no errors reported by index');
 	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
 	is(scalar($mset->items), 0, '1@example.com no longer visible in mirror');
