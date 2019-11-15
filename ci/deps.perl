@@ -50,7 +50,6 @@ my $profiles = {
 
 	# optional developer stuff
 	devtest => [ qw(
-		IPC::Run
 		XML::Feed
 		curl
 		w3m

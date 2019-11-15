@@ -162,10 +162,6 @@ Uncommonly needed modules:
 
 Optional packages testing and development:
 
-- IPC::Run                         deb: libipc-run-perl
-                                   pkg: p5-IPC-Run
-                                   rpm: perl-IPC-Run
-
 - Plack::Test                      deb: libplack-test-perl
                                    pkg: p5-Plack
                                    rpm: perl-Plack-Test
