@@ -7,10 +7,7 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use File::Temp qw/tempdir/;
-eval { require IPC::Run };
-plan skip_all => "missing IPC::Run for t/cgi.t" if $@;
-
-use constant CGI => "blib/script/public-inbox.cgi";
+require './t/common.perl';
 my $tmpdir = tempdir('pi-cgi-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
@@ -145,11 +142,6 @@ EOF
 
 done_testing();
 
-sub run_with_env {
-	my ($env, @args) = @_;
-	IPC::Run::run(@args, init => sub { %ENV = (%ENV, %$env) });
-}
-
 sub cgi_run {
 	my %env = (
 		PATH_INFO => $_[0],
@@ -162,7 +154,9 @@ sub cgi_run {
 		HTTP_HOST => 'test.example.com',
 	);
 	my ($in, $out, $err) = ("", "", "");
-	my $rc = run_with_env(\%env, [CGI], \$in, \$out, \$err);
+	my $rdr = { 0 => \$in, 1 => \$out, 2 => \$err };
+	run_script(['.cgi'], \%env, $rdr);
+	die "unexpected error: \$?=$?" if $?;
 	my ($head, $body) = split(/\r\n\r\n/, $out, 2);
-	{ head => $head, body => $body, rc => $rc, err => $err }
+	{ head => $head, body => $body, err => $err }
 }
