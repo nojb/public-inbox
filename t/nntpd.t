@@ -30,7 +30,6 @@ my $inboxdir = "$tmpdir/main.git";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
 my $nntpd = 'blib/script/public-inbox-nntpd';
-my $init = 'blib/script/public-inbox-init';
 SKIP: {
 	skip "git 2.6+ required for V2Writable", 1 if $version == 1;
 	use_ok 'PublicInbox::V2Writable';
@@ -52,9 +51,9 @@ my $ibx = {
 $ibx = PublicInbox::Inbox->new($ibx);
 {
 	local $ENV{HOME} = $home;
-	my @cmd = ($init, $group, $inboxdir, 'http://example.com/', $addr);
+	my @cmd = ('-init', $group, $inboxdir, 'http://example.com/', $addr);
 	push @cmd, "-V$version", '-Lbasic';
-	is(system(@cmd), 0, 'init OK');
+	ok(run_script(\@cmd), 'init OK');
 	is(system(qw(git config), "--file=$home/.public-inbox/config",
 			"publicinbox.$group.newsgroup", $group),
 		0, 'enabled newsgroup');
