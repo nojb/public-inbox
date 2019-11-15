@@ -58,9 +58,13 @@ for my $i (1..9) {
 my $epoch_max = $v2w->{epoch_max};
 ok($epoch_max > 0, "multiple epochs");
 $v2w->done;
+$ibx->cleanup;
 
 my ($sock, $pid);
-END { kill 'TERM', $pid if defined $pid };
+
+# TODO: replace this with ->DESTROY:
+my $owner_pid = $$;
+END { kill('TERM', $pid) if defined($pid) && $owner_pid == $$ };
 
 $! = 0;
 $sock = tcp_server();
@@ -85,8 +89,9 @@ foreach my $i (0..$epoch_max) {
 
 @cmd = ("-init", '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
 	'alt@example.com');
-ok(run_script(\@cmd, undef, {run_mode => 0}), 'initialized public-inbox -V2');
-ok(run_script(['-index', "$tmpdir/m"], undef, { run_mode => 0}), 'indexed');
+ok(run_script(\@cmd), 'initialized public-inbox -V2');
+
+ok(run_script(['-index', "$tmpdir/m"]), 'indexed');
 
 my $mibx = { inboxdir => "$tmpdir/m", address => 'alt@example.com' };
 $mibx = PublicInbox::Inbox->new($mibx);
@@ -98,7 +103,8 @@ for my $i (10..15) {
 	$mime->header_set('Subject', "subject = $i");
 	ok($v2w->add($mime), "add msg $i OK");
 }
-$v2w->barrier;
+$v2w->done;
+$ibx->cleanup;
 
 sub fetch_each_epoch {
 	foreach my $i (0..$epoch_max) {
@@ -112,7 +118,7 @@ fetch_each_epoch();
 
 my $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 0, 'new message not found in mirror, yet');
-ok(run_script(["-index", "$tmpdir/m"], undef, {run_mode=>0}), 'index updated');
+ok(run_script(["-index", "$tmpdir/m"]), 'index updated');
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'index synched minmax');
 $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 1, 'found message in mirror');
@@ -130,7 +136,7 @@ $mime->header_set('Subject', 'subject = 10');
 	is_deeply(\@subj, ["# subject = 10"], "only rewrote one");
 }
 
-$v2w->barrier;
+$v2w->done;
 
 my $msgs = $mibx->search->{over_ro}->get_thread('10@example.com');
 my $to_purge = $msgs->[0]->{blob};
@@ -140,9 +146,12 @@ is(scalar($mset->items), 0, 'purged message gone from origin');
 
 fetch_each_epoch();
 {
+	$ibx->cleanup;
+	PublicInbox::InboxWritable::cleanup($mibx);
+	$v2w->done;
 	my $cmd = [ '-index', '--prune', "$tmpdir/m" ];
 	my ($out, $err) = ('', '');
-	my $opt = { 1 => \$out, 2 => \$err, run_mode => 0 };
+	my $opt = { 1 => \$out, 2 => \$err };
 	ok(run_script($cmd, undef, $opt), '-index --prune');
 	like($err, qr/discontiguous range/, 'warned about discontiguous range');
 	unlike($err, qr/fatal/, 'no scary fatal error shown');
@@ -172,11 +181,13 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	$mime->header_set('Subject', 'subject = 1');
 	ok($v2w->remove($mime), 'removed <1@example.com> from source');
 	$v2w->done;
+	$ibx->cleanup;
 	fetch_each_epoch();
+	PublicInbox::InboxWritable::cleanup($mibx);
 
 	my $cmd = [ "-index", "$tmpdir/m" ];
 	my ($out, $err) = ('', '');
-	my $opt = { 1 => \$out, 2 => \$err, run_mode => 0 };
+	my $opt = { 1 => \$out, 2 => \$err };
 	ok(run_script($cmd, undef, $opt), 'index ran');
 	is($err, '', 'no errors reported by index');
 	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
