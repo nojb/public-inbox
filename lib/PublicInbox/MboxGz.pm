@@ -7,17 +7,15 @@ use Email::Simple;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Mbox;
 use IO::Compress::Gzip;
+use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
+my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
-	my $buf = '';
 	$ctx->{base_url} = $ctx->{-inbox}->base_url($ctx->{env});
-	bless {
-		buf => \$buf,
-		gz => IO::Compress::Gzip->new(\$buf, Time => 0),
-		cb => $cb,
-		ctx => $ctx,
-	}, $class;
+	my ($gz, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
+	$err == Z_OK or die "Deflate->new failed: $err";
+	bless { gz => $gz, cb => $cb, ctx => $ctx }, $class;
 }
 
 sub response {
@@ -32,31 +30,40 @@ sub response {
 	[ 200, \@h, $body ];
 }
 
+sub gzip_fail ($$) {
+	my ($ctx, $err) = @_;
+	$ctx->{env}->{'psgi.errors'}->print("deflate failed: $err\n");
+	'';
+}
+
 # called by Plack::Util::foreach or similar
 sub getline {
 	my ($self) = @_;
 	my $ctx = $self->{ctx} or return;
 	my $gz = $self->{gz};
+	my $buf = delete($self->{buf});
 	while (my $smsg = $self->{cb}->()) {
 		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
 		my $h = Email::Simple->new($mref)->header_obj;
-		$gz->write(PublicInbox::Mbox::msg_hdr($ctx, $h, $smsg->{mid}));
-		$gz->write(PublicInbox::Mbox::msg_body($$mref));
 
-		my $bref = $self->{buf};
-		if (length($$bref) >= 8192) {
-			my $ret = $$bref; # copy :<
-			${$self->{buf}} = '';
-			return $ret;
-		}
+		my $err = $gz->deflate(
+			PublicInbox::Mbox::msg_hdr($ctx, $h, $smsg->{mid}),
+		        $buf);
+		return gzip_fail($ctx, $err) if $err != Z_OK;
+
+		$err = $gz->deflate(PublicInbox::Mbox::msg_body($$mref), $buf);
+		return gzip_fail($ctx, $err) if $err != Z_OK;
+
+		return $buf if length($buf) >= 8192;
 
 		# be fair to other clients on public-inbox-httpd:
+		$self->{buf} = $buf;
 		return '';
 	}
-	delete($self->{gz})->close;
 	# signal that we're done and can return undef next call:
 	delete $self->{ctx};
-	${delete $self->{buf}};
+	my $err = $gz->flush($buf, Z_FINISH);
+	$err == Z_OK ? $buf : gzip_fail($ctx, $err);
 }
 
 sub close {} # noop

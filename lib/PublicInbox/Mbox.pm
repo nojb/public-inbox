@@ -231,7 +231,7 @@ sub need_gzip {
 	my $title = 'gzipped mbox not available';
 	$fh->write(<<EOF);
 <html><head><title>$title</title><body><pre>$title
-The administrator needs to install the IO::Compress::Gzip Perl module
+The administrator needs to install the Compress::Raw::Zlib Perl module
 to support gzipped mboxes.
 <a href="../">Return to index</a></pre></body></html>
 EOF
