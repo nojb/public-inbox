@@ -10,7 +10,7 @@
 package PublicInbox::Mbox;
 use strict;
 use warnings;
-use PublicInbox::MID qw/mid_clean mid_escape/;
+use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use Email::Simple;
 use Email::MIME::Encode;
