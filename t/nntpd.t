@@ -90,7 +90,7 @@ EOF
 	}
 
 	ok($sock, 'sock created');
-	my $cmd = [ $nntpd, "--stdout=$out", "--stderr=$err" ];
+	my $cmd = [ $nntpd, '-W0', "--stdout=$out", "--stderr=$err" ];
 	$pid = spawn_listener(undef, $cmd, [ $sock ]);
 	ok(defined $pid, 'forked nntpd process successfully');
 	my $host_port = $sock->sockhost . ':' . $sock->sockport;

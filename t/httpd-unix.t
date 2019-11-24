@@ -24,6 +24,7 @@ END { kill 'TERM', $pid if defined $pid };
 
 my $spawn_httpd = sub {
 	my (@args) = @_;
+	push @args, '-W0';
 	$pid = fork;
 	if ($pid == 0) {
 		exec $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi;
