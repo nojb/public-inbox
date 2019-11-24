@@ -8,7 +8,7 @@ use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use IO::Handle;
 use IO::Socket;
-use POSIX qw(WNOHANG);
+use POSIX qw(WNOHANG :signal_h);
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 sub SO_ACCEPTFILTER () { 0x1000 }
 use Cwd qw/abs_path/;
@@ -19,7 +19,7 @@ require PublicInbox::EvCleanup;
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
 my @CMD;
-my $set_user;
+my ($set_user, $oldset);
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
@@ -76,9 +76,11 @@ sub accept_tls_opt ($) {
 
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
+	$oldset = POSIX::SigSet->new();
+	my $newset = POSIX::SigSet->new();
+	$newset->fillset or die "fillset: $!";
+	sigprocmask(SIG_SETMASK, $newset, $oldset) or die "sigprocmask: $!";
 	@CMD = ($0, @ARGV);
-	$SIG{HUP} = $SIG{USR1} = $SIG{USR2} = $SIG{PIPE} =
-		$SIG{TTIN} = $SIG{TTOU} = $SIG{WINCH} = 'IGNORE';
 	my %opts = (
 		'l|listen=s' => \@cfg_listen,
 		'1|stdout=s' => \$stdout,
@@ -482,6 +484,7 @@ sub master_loop {
 			syswrite($w, '.');
 		};
 	}
+	sigprocmask(SIG_SETMASK, $oldset) or die "sigprocmask: $!";
 	reopen_logs();
 	# main loop
 	my $quit = 0;
@@ -616,6 +619,7 @@ sub daemon_loop ($$$$) {
 		# this calls epoll_create:
 		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
 	} @listeners;
+	sigprocmask(SIG_SETMASK, $oldset) or die "sigprocmask: $!";
 	PublicInbox::DS->EventLoop;
 	$parent_pipe = undef;
 }
