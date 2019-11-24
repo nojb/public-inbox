@@ -6,8 +6,8 @@ use Test::More;
 use Benchmark qw(:all :hireswallclock);
 use PublicInbox::Inbox;
 use Net::NNTP;
-my $pi_dir = $ENV{GIANT_PI_DIR};
-plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
+my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
+plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless defined($inboxdir);
 eval { require PublicInbox::Search };
 my ($host_port, $group, %opts, $s, $td, $tmp_obj);
 require './t/common.perl';
@@ -17,7 +17,7 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	$host_port .= ":119" unless index($host_port, ':') > 0;
 } else {
 	$group = 'inbox.test.perf.nntpd';
-	my $ibx = { inboxdir => $pi_dir, newsgroup => $group };
+	my $ibx = { inboxdir => $inboxdir, newsgroup => $group };
 	$ibx = PublicInbox::Inbox->new($ibx);
 	my $tmpdir;
 	($tmpdir, $tmp_obj) = tmpdir();
@@ -28,7 +28,7 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 		print $fh <<"" or die "print $pi_config: $!";
 [publicinbox "test"]
 	newsgroup = $group
-	inboxdir = $pi_dir
+	inboxdir = $inboxdir
 	address = test\@example.com
 
 		close $fh or die "close($pi_config): $!";

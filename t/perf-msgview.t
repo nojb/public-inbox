@@ -8,8 +8,8 @@ use PublicInbox::Inbox;
 use PublicInbox::View;
 require './t/common.perl';
 
-my $pi_dir = $ENV{GIANT_PI_DIR};
-plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
+my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
+plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inboxdir;
 
 my @cat = qw(cat-file --buffer --batch-check --batch-all-objects);
 if (require_git(2.19, 1)) {
@@ -20,7 +20,7 @@ if (require_git(2.19, 1)) {
 }
 
 use_ok 'Plack::Util';
-my $ibx = PublicInbox::Inbox->new({ inboxdir => $pi_dir, name => 'name' });
+my $ibx = PublicInbox::Inbox->new({ inboxdir => $inboxdir, name => 'name' });
 my $git = $ibx->git;
 my $fh = $git->popen(@cat);
 my $vec = '';

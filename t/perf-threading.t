@@ -7,12 +7,12 @@ use warnings;
 use Test::More;
 use Benchmark qw(:all);
 use PublicInbox::Inbox;
-my $pi_dir = $ENV{GIANT_PI_DIR};
-plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
-my $ibx = PublicInbox::Inbox->new({ inboxdir => $pi_dir });
+my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
+plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inboxdir;
+my $ibx = PublicInbox::Inbox->new({ inboxdir => $inboxdir });
 eval { require PublicInbox::Search };
 my $srch = $ibx->search;
-plan skip_all => "$pi_dir not configured for search $0 $@" unless $srch;
+plan skip_all => "$inboxdir not configured for search $0 $@" unless $srch;
 
 require PublicInbox::View;
 
