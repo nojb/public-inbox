@@ -6,8 +6,8 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 use POSIX qw(setsid);
+require './t/common.perl';
 
 my $git_dir = $ENV{GIANT_GIT_DIR};
 plan 'skip_all' => 'GIANT_GIT_DIR not defined' unless $git_dir;
@@ -17,9 +17,8 @@ foreach my $mod (qw(BSD::Resource
 	eval "require $mod";
 	plan skip_all => "$mod missing for git-http-backend.t" if $@;
 }
-require './t/common.perl';
 my $psgi = "./t/git-http-backend.psgi";
-my $tmpdir = tempdir('pi-git-http-backend-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $sock = tcp_server();

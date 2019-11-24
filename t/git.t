@@ -3,8 +3,8 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
-my $dir = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+require './t/common.perl';
+my ($dir, $for_destroy) = tmpdir();
 use PublicInbox::Spawn qw(popen_rd);
 
 use_ok 'PublicInbox::Git';
@@ -67,7 +67,7 @@ if (1) {
 }
 
 if ('alternates reloaded') {
-	my $alt = tempdir('pi-git-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+	my ($alt, $alt_obj) = tmpdir();
 	my @cmd = ('git', "--git-dir=$alt", qw(hash-object -w --stdin));
 	is(system(qw(git init -q --bare), $alt), 0, 'create alt directory');
 	open my $fh, '<', "$alt/config" or die "open failed: $!\n";

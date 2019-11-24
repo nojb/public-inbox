@@ -9,7 +9,6 @@ use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
-use File::Temp qw/tempdir/;
 my $have_xml_feed = eval { require XML::Feed; 1 };
 require './t/common.perl';
 
@@ -24,7 +23,7 @@ sub string_feed {
 	$str;
 }
 
-my $tmpdir = tempdir('pi-feed-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/gittest";
 my $ibx = PublicInbox::Inbox->new({
 	address => 'test@example',

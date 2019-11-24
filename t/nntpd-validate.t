@@ -4,7 +4,6 @@
 # Integration test to validate compression.
 use strict;
 use warnings;
-use File::Temp qw(tempdir);
 use Test::More;
 use Symbol qw(gensym);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
@@ -31,8 +30,8 @@ if ($test_tls && !-r $key || !-r $cert) {
 	plan skip_all => "certs/ missing for $0, run $^X ./certs/create-certs.perl";
 }
 require './t/common.perl';
-my $keep_tmp = !!$ENV{TEST_KEEP_TMP};
-my $tmpdir = tempdir('nntpd-validate-XXXXXX',TMPDIR => 1,CLEANUP => $keep_tmp);
+my ($tmpdir, $ftd) = tmpdir();
+$File::Temp::KEEP_ALL = !!$ENV{TEST_KEEP_TMP};
 my (%OPT, $td, $host_port, $group);
 my $batch = 1000;
 if (($ENV{NNTP_TEST_URL} // '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
@@ -63,7 +62,7 @@ sub do_get_all {
 	my $dig = Digest::SHA->new(1);
 	my $digfh = gensym;
 	my $tmpfh;
-	if ($keep_tmp) {
+	if ($File::Temp::KEEP_ALL) {
 		open $tmpfh, '>', "$tmpdir/$desc.raw" or die $!;
 	}
 	my $tmp = { dig => $dig, tmpfh => $tmpfh };

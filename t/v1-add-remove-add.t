@@ -5,15 +5,15 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Import;
-use File::Temp qw/tempdir/;
+require './t/common.perl';
 
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for v1-add-remove-add.t" if $@;
 }
 require PublicInbox::SearchIdx;
-my $inboxdir = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-is(system(qw(git init -q --bare), $inboxdir), 0);
+my ($inboxdir, $for_destroy) = tmpdir();
+is(system(qw(git init --bare -q), $inboxdir), 0);
 my $ibx = {
 	inboxdir => $inboxdir,
 	name => 'test-add-remove-add',

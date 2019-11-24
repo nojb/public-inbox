@@ -5,9 +5,9 @@ use warnings;
 use Test::More;
 use Email::Simple;
 use IO::File;
-use File::Temp qw/tempdir/;
 use Fcntl qw(:DEFAULT SEEK_SET);
-my $tmpdir = tempdir('spamcheck_spamc-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+require './t/common.perl';
+my ($tmpdir, $for_destroy) = tmpdir();
 
 use_ok 'PublicInbox::Spamcheck::Spamc';
 my $spamc = PublicInbox::Spamcheck::Spamc->new;

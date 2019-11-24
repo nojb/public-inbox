@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6);
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
@@ -13,7 +12,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 
 use_ok 'PublicInbox::V2Writable';
 use_ok 'PublicInbox::Inbox';
-my $tmpdir = tempdir('pi-altidv2-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/inbox";
 my $full = "$tmpdir/inbox/another-nntp.sqlite3";
 my $altid = [ 'serial:gmane:file=another-nntp.sqlite3' ];

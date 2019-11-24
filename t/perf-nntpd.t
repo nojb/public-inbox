@@ -5,12 +5,11 @@ use warnings;
 use Test::More;
 use Benchmark qw(:all :hireswallclock);
 use PublicInbox::Inbox;
-use File::Temp qw/tempdir/;
 use Net::NNTP;
 my $pi_dir = $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
 eval { require PublicInbox::Search };
-my ($host_port, $group, %opts, $s, $td);
+my ($host_port, $group, %opts, $s, $td, $tmp_obj);
 require './t/common.perl';
 
 if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
@@ -20,7 +19,8 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	$group = 'inbox.test.perf.nntpd';
 	my $ibx = { inboxdir => $pi_dir, newsgroup => $group };
 	$ibx = PublicInbox::Inbox->new($ibx);
-	my $tmpdir = tempdir('perf-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+	my $tmpdir;
+	($tmpdir, $tmp_obj) = tmpdir();
 
 	my $pi_config = "$tmpdir/config";
 	{

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
+require './t/common.perl';
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for altid.t" if $@;
@@ -13,7 +13,7 @@ use_ok 'PublicInbox::Msgmap';
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Inbox';
-my $tmpdir = tempdir('pi-altid-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 my $alt_file = "$tmpdir/another-nntp.sqlite3";
 my $altid = [ "serial:gmane:file=$alt_file" ];

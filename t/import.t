@@ -9,9 +9,9 @@ use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
 use IO::File;
 use Fcntl qw(:DEFAULT);
-use File::Temp qw/tempdir tempfile/;
-my $dir = tempdir('pi-import-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+use File::Temp qw/tempfile/;
 require './t/common.perl';
+my ($dir, $for_destroy) = tmpdir();
 
 is(system(qw(git init -q --bare), $dir), 0, 'git init successful');
 my $git = PublicInbox::Git->new($dir);

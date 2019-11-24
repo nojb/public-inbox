@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use Cwd qw(abs_path);
 require './t/common.perl';
 require_git(2.6);
@@ -22,7 +21,7 @@ $git_dir = abs_path($git_dir);
 
 use_ok "PublicInbox::$_" for (qw(Inbox V2Writable MIME Git SolverGit));
 
-my $inboxdir = tempdir('pi-solver-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($inboxdir, $for_destroy) = tmpdir();
 my $opts = {
 	inboxdir => $inboxdir,
 	name => 'test-v2writable',

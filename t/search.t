@@ -10,9 +10,9 @@ foreach my $mod (@mods) {
 };
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
-use File::Temp qw/tempdir/;
+require './t/common.perl';
 use Email::MIME;
-my $tmpdir = tempdir('pi-search-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir });
 my ($root_id, $last_id);

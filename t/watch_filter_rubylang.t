@@ -4,7 +4,6 @@ use strict;
 use warnings;
 require './t/common.perl';
 use Test::More;
-use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 my @mods = qw(Filesys::Notify::Simple DBD::SQLite Search::Xapian);
@@ -15,7 +14,7 @@ foreach my $mod (@mods) {
 
 use_ok 'PublicInbox::WatchMaildir';
 use_ok 'PublicInbox::Emergency';
-my $tmpdir = tempdir('watch-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{PI_CONFIG} = "$tmpdir/pi_config";
 
 my @v = qw(V1);

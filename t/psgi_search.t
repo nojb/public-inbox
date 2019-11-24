@@ -3,13 +3,13 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
 use PublicInbox::WWW;
 use bytes (); # only for bytes::length
+require './t/common.perl';
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {
@@ -18,7 +18,7 @@ foreach my $mod (@mods) {
 }
 
 use_ok $_ foreach (@mods, qw(PublicInbox::SearchIdx));
-my $tmpdir = tempdir('pi-psgi-search.XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 
 my $ibx = PublicInbox::Inbox->new({
 	inboxdir => $tmpdir,

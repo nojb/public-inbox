@@ -4,7 +4,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6);
 require PublicInbox::Inbox;
@@ -18,7 +17,7 @@ foreach my $mod (@mods) {
 	plan skip_all => "missing $mod for $0" if $@;
 };
 
-my $tmpdir = tempdir('pi-edit-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";
 my $ibx = PublicInbox::Inbox->new({
 	inboxdir => $inboxdir,

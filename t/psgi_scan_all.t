@@ -4,8 +4,8 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-use File::Temp qw/tempdir/;
 use PublicInbox::Config;
+require './t/common.perl';
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape DBD::SQLite);
 foreach my $mod (@mods) {
 	eval "require $mod";
@@ -13,7 +13,7 @@ foreach my $mod (@mods) {
 }
 use_ok 'PublicInbox::V2Writable';
 foreach my $mod (@mods) { use_ok $mod; }
-my $tmp = tempdir('pi-scan_all-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmp, $for_destroy) = tmpdir();
 my $cfg = '';
 
 foreach my $i (1..2) {

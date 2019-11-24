@@ -8,12 +8,11 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for httpd.t" if $@;
 }
-use File::Temp qw/tempdir/;
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 require './t/common.perl';
 
 # FIXME: too much setup
-my $tmpdir = tempdir('pi-httpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";

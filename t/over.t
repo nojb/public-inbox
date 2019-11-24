@@ -3,15 +3,15 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 use Compress::Zlib qw(compress);
+require './t/common.perl';
 foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for over.t" if $@;
 }
 
 use_ok 'PublicInbox::OverIdx';
-my $tmpdir = tempdir('pi-over-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");
 $over->connect;
 my $x = $over->next_tid;

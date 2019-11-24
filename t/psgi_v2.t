@@ -5,7 +5,6 @@ use warnings;
 use Test::More;
 require './t/common.perl';
 require_git(2.6);
-use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
@@ -18,7 +17,7 @@ foreach my $mod (@mods) {
 }
 use_ok($_) for @mods;
 use_ok 'PublicInbox::V2Writable';
-my $inboxdir = tempdir('pi-v2_dupes-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {
 	inboxdir => $inboxdir,
 	name => 'test-v2writable',

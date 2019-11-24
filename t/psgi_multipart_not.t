@@ -3,10 +3,10 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
+require './t/common.perl';
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common
               Plack::Test URI::Escape Plack::Builder Plack::Test);
 foreach my $mod (@mods) {
@@ -15,7 +15,7 @@ foreach my $mod (@mods) {
 }
 use_ok($_) for @mods;
 use_ok 'PublicInbox::V2Writable';
-my $repo = tempdir('pi-psgi-multipart-not.XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($repo, $for_destroy) = tmpdir();
 my $ibx = PublicInbox::Inbox->new({
 	inboxdir => $repo,
 	name => 'multipart-not',

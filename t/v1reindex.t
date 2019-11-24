@@ -5,7 +5,6 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::ContentId qw(content_digest);
-use File::Temp qw/tempdir/;
 use File::Path qw(remove_tree);
 require './t/common.perl';
 require_git(2.6);
@@ -16,7 +15,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 }
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';
-my $inboxdir = tempdir('pi-v1reindex-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($inboxdir, $for_destroy) = tmpdir();
 is(system(qw(git init -q --bare), $inboxdir), 0);
 my $ibx_config = {
 	inboxdir => $inboxdir,

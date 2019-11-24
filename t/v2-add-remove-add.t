@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::MIME;
-use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6);
 
@@ -13,7 +12,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	plan skip_all => "$mod missing for v2-add-remove-add.t" if $@;
 }
 use_ok 'PublicInbox::V2Writable';
-my $inboxdir = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {
 	inboxdir => "$inboxdir/v2",
 	name => 'test-v2writable',

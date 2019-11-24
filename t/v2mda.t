@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::MIME;
-use File::Temp qw/tempdir/;
 use Fcntl qw(SEEK_SET);
 use Cwd;
 require './t/common.perl';
@@ -16,7 +15,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	plan skip_all => "$mod missing for v2mda.t" if $@;
 }
 use_ok 'PublicInbox::V2Writable';
-my $tmpdir = tempdir('pi-v2mda-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $ibx = {
 	inboxdir => "$tmpdir/inbox",
 	name => 'test-v2writable',

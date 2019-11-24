@@ -12,7 +12,6 @@ foreach my $mod (qw(Plack::Util Plack::Builder
 	eval "require $mod";
 	plan skip_all => "$mod missing for v2mirror.t" if $@;
 }
-use File::Temp qw/tempdir/;
 use IO::Socket;
 use POSIX qw(dup2);
 use_ok 'PublicInbox::V2Writable';
@@ -20,7 +19,7 @@ use PublicInbox::InboxWritable;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 # FIXME: too much setup
-my $tmpdir = tempdir('pi-v2mirror-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $pi_config = "$tmpdir/config";
 {
 	open my $fh, '>', $pi_config or die "open($pi_config): $!";

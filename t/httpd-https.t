@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 # IO::Poll is part of the standard library, but distros may split them off...
 foreach my $mod (qw(IO::Socket::SSL IO::Poll)) {
@@ -20,7 +19,7 @@ use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
 require './t/common.perl';
 my $psgi = "./t/httpd-corner.psgi";
-my $tmpdir = tempdir('pi-httpd-https-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $https = tcp_server();

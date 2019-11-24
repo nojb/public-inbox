@@ -5,7 +5,6 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::ContentId qw(content_digest);
-use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6);
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
@@ -14,7 +13,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 }
 use_ok 'PublicInbox::V2Writable';
 umask 007;
-my $inboxdir = tempdir('pi-v2writable-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {
 	inboxdir => $inboxdir,
 	name => 'test-v2writable',

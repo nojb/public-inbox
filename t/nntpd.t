@@ -13,7 +13,6 @@ require PublicInbox::InboxWritable;
 use Email::Simple;
 use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
-use File::Temp qw/tempdir/;
 use Net::NNTP;
 use Sys::Hostname;
 require './t/common.perl';
@@ -22,7 +21,7 @@ require './t/common.perl';
 my $version = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $version == 2;
 
-my $tmpdir = tempdir('pi-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";

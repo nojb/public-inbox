@@ -5,7 +5,6 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which);
-use File::Temp qw/tempdir/;
 require './t/common.perl';
 my @mods = qw(URI::Escape Plack::Builder Digest::SHA
 		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny);
@@ -19,7 +18,7 @@ plan skip_all => "JSON module missing: $@" if $@;
 
 use_ok 'PublicInbox::Git';
 
-my $tmpdir = tempdir('www_listing-tmp-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $bare = PublicInbox::Git->new("$tmpdir/bare.git");
 is(system(qw(git init -q --bare), $bare->{git_dir}), 0, 'git init --bare');
 is(PublicInbox::WwwListing::fingerprint($bare), undef,

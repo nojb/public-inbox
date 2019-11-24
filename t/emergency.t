@@ -3,8 +3,8 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
-my $tmpdir = tempdir('emergency-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+require './t/common.perl';
+my ($tmpdir, $for_destroy) = tmpdir();
 use_ok 'PublicInbox::Emergency';
 
 {

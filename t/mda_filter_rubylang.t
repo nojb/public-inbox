@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 require './t/common.perl';
@@ -15,7 +14,7 @@ foreach my $mod (@mods) {
 }
 
 use_ok 'PublicInbox::V2Writable';
-my $tmpdir = tempdir('mda-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $pi_config = "$tmpdir/pi_config";
 local $ENV{PI_CONFIG} = $pi_config;
 local $ENV{PI_EMERGENCY} = "$tmpdir/emergency";

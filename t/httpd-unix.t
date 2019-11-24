@@ -12,9 +12,8 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	plan skip_all => "$mod missing for httpd-unix.t" if $@;
 }
 
-use File::Temp qw/tempdir/;
 use IO::Socket::UNIX;
-my $tmpdir = tempdir('httpd-unix-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $unix = "$tmpdir/unix.sock";
 my $psgi = './t/httpd-corner.psgi';
 my $out = "$tmpdir/out.log";

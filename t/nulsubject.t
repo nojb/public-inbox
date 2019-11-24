@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
+require './t/common.perl';
 
 use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Git';
-my $tmpdir = tempdir('pi-nulsubject-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 
 {

@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
 use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 # IO::Poll and Net::NNTP are part of the standard library, but
 # distros may split them off...
@@ -34,7 +33,7 @@ eval { require Compress::Raw::Zlib } or
 	$need_zlib = 'Compress::Raw::Zlib missing';
 my $version = 2; # v2 needs newer git
 require_git('2.6') if $version >= 2;
-my $tmpdir = tempdir('pi-nntpd-tls-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $inboxdir = "$tmpdir";

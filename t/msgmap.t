@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
+require './t/common.perl';
 
 foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
@@ -11,7 +11,7 @@ foreach my $mod (qw(DBD::SQLite)) {
 }
 
 use_ok 'PublicInbox::Msgmap';
-my $tmpdir = tempdir('pi-msgmap-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $d = PublicInbox::Msgmap->new($tmpdir, 1);
 
 my %mid2num;

@@ -7,6 +7,16 @@ use strict;
 use warnings;
 use IO::Socket::INET;
 
+sub tmpdir (;$) {
+	my ($base) = @_;
+	require File::Temp;
+	unless (defined $base) {
+		($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
+	}
+	my $tmpdir = File::Temp->newdir("pi-$base-$$-XXXXXX", TMPDIR => 1);
+	($tmpdir->dirname, $tmpdir);
+}
+
 sub tcp_server () {
 	IO::Socket::INET->new(
 		LocalAddr => '127.0.0.1',

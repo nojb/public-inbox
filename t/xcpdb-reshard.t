@@ -10,7 +10,6 @@ foreach my $mod (@mods) {
 };
 require './t/common.perl';
 require_git('2.6');
-use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
 
@@ -25,7 +24,7 @@ my $mime = PublicInbox::MIME->create(
 );
 
 my ($this) = (split('/', $0))[-1];
-my $tmpdir = tempdir($this.'-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $ibx = PublicInbox::Inbox->new({
 	inboxdir => "$tmpdir/testbox",
 	name => $this,

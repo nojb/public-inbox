@@ -4,10 +4,9 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Config;
-use File::Temp qw/tempdir/;
 require './t/common.perl';
-my $tmpdir = tempdir('pi-init-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 use File::Basename;
+my ($tmpdir, $for_destroy) = tmpdir();
 sub quiet_fail {
 	my ($cmd, $msg) = @_;
 	my $err = '';

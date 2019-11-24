@@ -2,17 +2,17 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
-use File::Temp qw/tempdir/;
 use Email::MIME;
 use Cwd;
 use PublicInbox::Config;
+require './t/common.perl';
 my @mods = qw(Filesys::Notify::Simple);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for watch_maildir.t" if $@;
 }
 
-my $tmpdir = tempdir('watch_maildir-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/test.git";
 my $maildir = "$tmpdir/md";
 my $spamdir = "$tmpdir/spam";

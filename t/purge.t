@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6);
 my @mods = qw(DBI DBD::SQLite);
@@ -13,7 +12,7 @@ foreach my $mod (@mods) {
 };
 use Cwd qw(abs_path); # we need this since we chdir below
 my $purge = abs_path('blib/script/public-inbox-purge');
-my $tmpdir = tempdir('pi-purge-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 use_ok 'PublicInbox::V2Writable';
 my $inboxdir = "$tmpdir/v2";
 my $ibx = PublicInbox::Inbox->new({

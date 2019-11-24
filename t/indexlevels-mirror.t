@@ -6,7 +6,6 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
-use File::Temp qw/tempdir/;
 require PublicInbox::Admin;
 require './t/common.perl';
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
@@ -32,7 +31,7 @@ my $mime = PublicInbox::MIME->create(
 sub import_index_incremental {
 	my ($v, $level) = @_;
 	my $this = "pi-$v-$level-indexlevels";
-	my $tmpdir = tempdir("$this-tmp-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+	my ($tmpdir, $for_destroy) = tmpdir();
 	my $ibx = PublicInbox::Inbox->new({
 		inboxdir => "$tmpdir/testbox",
 		name => $this,

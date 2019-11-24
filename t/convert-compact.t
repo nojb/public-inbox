@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use PublicInbox::Spawn qw(which);
 require './t/common.perl';
@@ -18,7 +17,7 @@ which('xapian-compact') or
 
 use_ok 'PublicInbox::V2Writable';
 use PublicInbox::Import;
-my $tmpdir = tempdir('convert-compact-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $ibx = {
 	inboxdir => "$tmpdir/v1",
 	name => 'test-v1',

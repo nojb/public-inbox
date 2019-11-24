@@ -14,14 +14,13 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 }
 
 use Digest::SHA qw(sha1_hex);
-use File::Temp qw/tempdir/;
 use IO::Socket;
 use IO::Socket::UNIX;
 use Fcntl qw(:seek);
 use Socket qw(IPPROTO_TCP TCP_NODELAY SOL_SOCKET);
 use POSIX qw(mkfifo);
 require './t/common.perl';
-my $tmpdir = tempdir('httpd-corner-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $fifo = "$tmpdir/fifo";
 ok(defined mkfifo($fifo, 0777), 'created FIFO');
 my $err = "$tmpdir/stderr.log";

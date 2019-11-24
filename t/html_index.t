@@ -8,8 +8,8 @@ use PublicInbox::Feed;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Inbox;
-use File::Temp qw/tempdir/;
-my $tmpdir = tempdir('pi-http-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+require './t/common.perl';
+my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/gittest";
 my $ibx = PublicInbox::Inbox->new({
 	address => 'test@example',

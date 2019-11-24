@@ -2,7 +2,6 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
-use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
 use Cwd;
 use PublicInbox::Config;
@@ -14,7 +13,7 @@ foreach my $mod (@mods) {
 	plan skip_all => "$mod missing for watch_maildir_v2.t" if $@;
 }
 require PublicInbox::V2Writable;
-my $tmpdir = tempdir('watch_maildir-v2-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";
 my $maildir = "$tmpdir/md";
 my $spamdir = "$tmpdir/spam";

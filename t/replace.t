@@ -5,7 +5,6 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
-use File::Temp qw/tempdir/;
 require './t/common.perl';
 require_git(2.6); # replace is v2 only, for now...
 foreach my $mod (qw(DBD::SQLite)) {
@@ -17,7 +16,7 @@ sub test_replace ($$$) {
 	my ($v, $level, $opt) = @_;
 	diag "v$v $level replace";
 	my $this = "pi-$v-$level-replace";
-	my $tmpdir = tempdir("$this-tmp-XXXXXX", TMPDIR => 1, CLEANUP => 1);
+	my ($tmpdir, $for_destroy) = tmpdir($this);
 	my $ibx = PublicInbox::Inbox->new({
 		inboxdir => "$tmpdir/testbox",
 		name => $this,

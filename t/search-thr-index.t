@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use bytes (); # only for bytes::length
 use Test::More;
-use File::Temp qw/tempdir/;
 use PublicInbox::MID qw(mids);
 use Email::MIME;
 my @mods = qw(DBI DBD::SQLite Search::Xapian);
@@ -14,7 +13,8 @@ foreach my $mod (@mods) {
 }
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
-my $tmpdir = tempdir('pi-search-thr-index.XXXXXX', TMPDIR => 1, CLEANUP => 1);
+require './t/common.perl';
+my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 
 is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");

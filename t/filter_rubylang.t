@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-use File::Temp qw/tempdir/;
+require './t/common.perl';
 use_ok 'PublicInbox::Filter::RubyLang';
 
 my $f = PublicInbox::Filter::RubyLang->new;
@@ -26,8 +26,7 @@ SKIP: {
 	eval 'require DBD::SQLite';
 	skip 'DBD::SQLite missing for altid mapping', 4 if $@;
 	use_ok 'PublicInbox::Inbox';
-	my $git_dir = tempdir('pi-filter_rubylang-XXXXXX',
-				TMPDIR => 1, CLEANUP => 1);
+	my ($git_dir, $for_destroy) = tmpdir();
 	is(mkdir("$git_dir/public-inbox"), 1, "created public-inbox dir");
 	my $altid = [ "serial:ruby-core:file=msgmap.sqlite3" ];
 	my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir,
