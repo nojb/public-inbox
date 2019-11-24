@@ -13,7 +13,7 @@ foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 }
 require PublicInbox::SearchIdx;
 my $inboxdir = tempdir('pi-add-remove-add-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-is(system(qw(git init --bare), $inboxdir), 0);
+is(system(qw(git init -q --bare), $inboxdir), 0);
 my $ibx = {
 	inboxdir => $inboxdir,
 	name => 'test-add-remove-add',
