@@ -54,7 +54,7 @@ WriteMakefile(
 		# All Perl installs I know about have these, but RH-based
 		# distros make them separate even though 'perl' pulls them in
 		'File::Path' => 0,
-		'File::Temp' => 0,
+		'File::Temp' => '0.19',
 		'Getopt::Long' => 0,
 		'Exporter' => 0,
 		# ExtUtils::MakeMaker # this file won't run w/o it...

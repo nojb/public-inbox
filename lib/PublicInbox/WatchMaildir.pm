@@ -9,7 +9,7 @@ use warnings;
 use PublicInbox::MIME;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::InboxWritable;
-use File::Temp qw//;
+use File::Temp 0.19 ();
 use PublicInbox::Filter::Base;
 use PublicInbox::Spamcheck;
 *REJECT = *PublicInbox::Filter::Base::REJECT;

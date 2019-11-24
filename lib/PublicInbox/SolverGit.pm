@@ -10,7 +10,7 @@
 package PublicInbox::SolverGit;
 use strict;
 use warnings;
-use File::Temp qw();
+use File::Temp 0.19 ();
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Git qw(git_unquote git_quote);
 use PublicInbox::MsgIter qw(msg_iter msg_part_text);
