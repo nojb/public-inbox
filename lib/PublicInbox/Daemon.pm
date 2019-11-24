@@ -19,7 +19,7 @@ require PublicInbox::EvCleanup;
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
 my @CMD;
-my ($set_user, $oldset);
+my ($set_user, $oldset, $newset);
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
@@ -77,7 +77,7 @@ sub accept_tls_opt ($) {
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
 	$oldset = POSIX::SigSet->new();
-	my $newset = POSIX::SigSet->new();
+	$newset = POSIX::SigSet->new();
 	$newset->fillset or die "fillset: $!";
 	sigprocmask(SIG_SETMASK, $newset, $oldset) or die "sigprocmask: $!";
 	@CMD = ($0, @ARGV);
@@ -536,6 +536,7 @@ sub master_loop {
 			}
 			$n = $worker_processes;
 		}
+		sigprocmask(SIG_SETMASK, $newset) or die "sigprocmask: $!";
 		foreach my $i ($n..($worker_processes - 1)) {
 			my $pid = fork;
 			if (!defined $pid) {
@@ -548,6 +549,7 @@ sub master_loop {
 				$pids{$pid} = $i;
 			}
 		}
+		sigprocmask(SIG_SETMASK, $oldset) or die "sigprocmask: $!";
 		# just wait on signal events here:
 		sysread($r, my $buf, 8);
 	}
