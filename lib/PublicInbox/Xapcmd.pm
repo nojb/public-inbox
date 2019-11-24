@@ -6,7 +6,7 @@ use warnings;
 use PublicInbox::Spawn qw(which spawn);
 use PublicInbox::Over;
 use PublicInbox::Search;
-use File::Temp qw(tempdir);
+use File::Temp ();
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);
 use POSIX ();
@@ -24,13 +24,14 @@ sub commit_changes ($$$$) {
 	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
 	my @old_shard;
 
-	while (my ($old, $new) = each %$tmp) {
+	while (my ($old, $newdir) = each %$tmp) {
 		next if $old eq ''; # no invalid paths
 		my @st = stat($old);
 		if (!@st && !defined($opt->{reshard})) {
 			die "failed to stat($old): $!";
 		}
 
+		my $new = $newdir->dirname if defined($newdir);
 		my $over = "$old/over.sqlite3";
 		if (-f $over) { # only for v1, v2 over is untouched
 			defined $new or die "BUG: $over exists when culling v2";
@@ -145,6 +146,12 @@ sub process_queue {
 	}
 }
 
+sub setup_signals () {
+	# http://www.tldp.org/LDP/abs/html/exitcodes.html
+	$SIG{INT} = sub { exit(130) };
+	$SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub { exit(1) };
+}
+
 sub run {
 	my ($ibx, $task, $opt) = @_; # task = 'cpdb' or 'compact'
 	my $cb = \&${\"PublicInbox::Xapcmd::$task"};
@@ -164,7 +171,7 @@ sub run {
 	my $old = $ibx->search->xdir(1);
 	-d $old or die "$old does not exist\n";
 
-	my $tmp = PublicInbox::Xtmpdirs->new;
+	my $tmp = {};
 	my $v = $ibx->{version} ||= 1;
 	my @q;
 	my $reshard = $opt->{reshard};
@@ -173,7 +180,7 @@ sub run {
 	}
 
 	local %SIG = %SIG;
-	$tmp->setup_signals;
+	setup_signals();
 
 	# we want temporary directories to be as deep as possible,
 	# so v2 shards can keep "xap$SCHEMA_VERSION" on a separate FS.
@@ -182,10 +189,10 @@ sub run {
 			warn
 "--reshard=$reshard ignored for v1 $ibx->{inboxdir}\n";
 		}
-		my $old_parent = dirname($old);
-		same_fs_or_die($old_parent, $old);
+		my $dir = dirname($old);
+		same_fs_or_die($dir, $old);
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
-		my $wip = tempdir("xapian$v-XXXXXXXX", DIR => $old_parent);
+		my $wip = File::Temp->newdir("xapian$v-XXXXXXXX", DIR => $dir);
 		$tmp->{$old} = $wip;
 		push @q, [ $old, $wip ];
 	} else {
@@ -213,8 +220,8 @@ sub run {
 		}
 		foreach my $dn (0..$max_shard) {
 			my $tmpl = "$dn-XXXXXXXX";
-			my $wip = tempdir($tmpl, DIR => $old);
-			same_fs_or_die($old, $wip);
+			my $wip = File::Temp->newdir($tmpl, DIR => $old);
+			same_fs_or_die($old, $wip->dirname);
 			my $cur = "$old/$dn";
 			push @q, [ $src // $cur , $wip ];
 			$tmp->{$cur} = $wip;
@@ -267,7 +274,8 @@ sub progress_pfx ($) {
 # xapian-compact wrapper
 sub compact ($$) {
 	my ($args, $opt) = @_;
-	my ($src, $dst) = @$args;
+	my ($src, $newdir) = @$args;
+	my $dst = ref($newdir) ? $newdir->dirname : $newdir;
 	my ($r, $w);
 	my $pfx = $opt->{-progress_pfx} ||= progress_pfx($src);
 	my $pr = $opt->{-progress};
@@ -349,7 +357,8 @@ sub cpdb_loop ($$$;$$) {
 # to the overhead of Perl.
 sub cpdb ($$) {
 	my ($args, $opt) = @_;
-	my ($old, $new) = @$args;
+	my ($old, $newdir) = @$args;
+	my $new = $newdir->dirname;
 	my ($src, $cur_shard);
 	my $reshard;
 	if (ref($old) eq 'ARRAY') {
@@ -372,15 +381,14 @@ sub cpdb ($$) {
 		$src = Search::Xapian::Database->new($old);
 	}
 
-	my ($xtmp, $tmp);
+	my ($tmp, $ft);
 	local %SIG = %SIG;
 	if ($opt->{compact}) {
-		my $newdir = dirname($new);
-		same_fs_or_die($newdir, $new);
-		$tmp = tempdir("$new.compact-XXXXXX", DIR => $newdir);
-		$xtmp = PublicInbox::Xtmpdirs->new;
-		$xtmp->setup_signals;
-		$xtmp->{$new} = $tmp;
+		my $dir = dirname($new);
+		same_fs_or_die($dir, $new);
+		$ft = File::Temp->newdir("$new.compact-XXXXXX", DIR => $dir);
+		setup_signals();
+		$tmp = $ft->dirname;
 	} else {
 		$tmp = $new;
 	}
@@ -439,7 +447,7 @@ sub cpdb ($$) {
 	}
 
 	$pr->(sprintf($pr_data->{fmt}, $pr_data->{nr})) if $pr;
-	return unless $xtmp;
+	return unless $opt->{compact};
 
 	$src = $dst = undef; # flushes and closes
 
@@ -447,33 +455,6 @@ sub cpdb ($$) {
 	# since $dst isn't readable by HTTP or NNTP clients, yet:
 	compact([ $tmp, $new ], $opt);
 	remove_tree($tmp) or die "failed to remove $tmp: $!\n";
-	$xtmp = undef;
-}
-
-# slightly easier-to-manage manage than END{} blocks
-package PublicInbox::Xtmpdirs;
-use strict;
-use warnings;
-use File::Path qw(remove_tree);
-
-sub setup_signals () {
-	# http://www.tldp.org/LDP/abs/html/exitcodes.html
-	$SIG{INT} = sub { exit(130) };
-	$SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub { exit(1) };
-}
-
-sub new {
-	bless { '' => $$ }, $_[0]; # old shard => new (WIP) shard
-}
-
-sub DESTROY {
-	my ($self) = @_;
-	my $owner_pid = delete($self->{''}) or return;
-	return if $owner_pid != $$;
-	foreach my $new (values %$self) {
-		defined $new or next; # may be undef if resharding
-		remove_tree($new) unless -d "$new/old";
-	}
 }
 
 1;
