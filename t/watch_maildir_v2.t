@@ -1,5 +1,6 @@
 # Copyright (C) 2018-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+use strict;
 use Test::More;
 use File::Temp qw/tempdir/;
 use PublicInbox::MIME;
@@ -106,7 +107,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 		local $SIG{__WARN__} = sub {}; # quiet spam check warning
 		PublicInbox::WatchMaildir->new($config)->scan('full');
 	}
-	($nr, $msgs) = $srch->reopen->query('');
+	my ($nr, $msgs) = $srch->reopen->query('');
 	is($nr, 0, 'inbox is still empty');
 	is(unlink(glob("$maildir/new/*")), 1);
 }
@@ -119,7 +120,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	($nr, $msgs) = $srch->reopen->query('');
+	my ($nr, $msgs) = $srch->reopen->query('');
 	is($nr, 1, 'inbox has one mail after spamc OK-ed a message');
 	my $mref = $ibx->msg_by_smsg($msgs->[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
@@ -132,7 +133,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	$msg = eval { local $/; <$fh> };
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	($nr, $msgs) = $srch->reopen->query('dfpost:6e006fd7');
+	my ($nr, $msgs) = $srch->reopen->query('dfpost:6e006fd7');
 	is($nr, 1, 'diff postimage found');
 	my $post = $msgs->[0];
 	($nr, $msgs) = $srch->query('dfpre:090d998b6c2c');
