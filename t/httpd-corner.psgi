@@ -87,7 +87,7 @@ my $app = sub {
 		});
 	} elsif ($path eq '/pid') {
 		$code = 200;
-		push @$body, $$;
+		push @$body, "$$\n";
 	}
 
 	[ $code, $h, $body ]

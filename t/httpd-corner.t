@@ -76,17 +76,22 @@ my $spawn_httpd = sub {
 $spawn_httpd->();
 if ('test worker death') {
 	my $conn = conn_for($sock, 'killed worker');
-	$conn->write("GET /pid HTTP/1.0\r\n\r\n");
-	ok($conn->read(my $buf, 8192), 'read response');
-	my ($head, $body) = split(/\r\n\r\n/, $buf);
-	like($body, qr/\A[0-9]+\z/, '/pid response');
-	my $pid = $body;
+	$conn->write("GET /pid HTTP/1.1\r\nHost:example.com\r\n\r\n");
+	my $pid;
+	while (defined(my $line = $conn->getline)) {
+		next unless $line eq "\r\n";
+		chomp($pid = $conn->getline);
+		last;
+	}
+	like($pid, qr/\A[0-9]+\z/, '/pid response');
 	is(kill('KILL', $pid), 1, 'killed worker');
+	is($conn->getline, undef, 'worker died and EOF-ed client');
 
 	$conn = conn_for($sock, 'respawned worker');
 	$conn->write("GET /pid HTTP/1.0\r\n\r\n");
-	ok($conn->read($buf, 8192), 'read response');
-	($head, $body) = split(/\r\n\r\n/, $buf);
+	ok($conn->read(my $buf, 8192), 'read response');
+	my ($head, $body) = split(/\r\n\r\n/, $buf);
+	chomp($body);
 	like($body, qr/\A[0-9]+\z/, '/pid response');
 	isnt($body, $pid, 'respawned worker');
 }
