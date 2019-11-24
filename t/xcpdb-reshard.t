@@ -50,7 +50,9 @@ my %nums = map {; "$_->{num}" => 1 } @$orig;
 # ensure we can go up or down in shards, or stay the same:
 for my $R (qw(2 4 1 3 3)) {
 	delete $ibx->{search}; # release old handles
-	ok(run_script([@xcpdb, "-R$R", $ibx->{inboxdir}]), "xcpdb -R$R");
+	my $cmd = [@xcpdb, "-R$R", $ibx->{inboxdir}];
+	push @$cmd, '--compact' if $R == 1;
+	ok(run_script($cmd), "xcpdb -R$R");
 	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
 	is(scalar(@new_shards), $R, 'resharded to two shards');
 	my $msgs = $ibx->search->query('s:this');
