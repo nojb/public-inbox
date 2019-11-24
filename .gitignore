@@ -1,3 +1,5 @@
+/.prove
+/.proverc
 /config.mak
 /MANIFEST.gen
 /Makefile.old
