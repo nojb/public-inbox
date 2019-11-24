@@ -120,8 +120,14 @@ for my $args (
 	my $slow = tcp_connect($nntps, Blocking => 0);
 	$slow = IO::Socket::SSL->start_SSL($slow, SSL_startHandshake => 0, %o);
 	my $slow_done = $slow->connect_SSL;
-	diag('W: connect_SSL early OK, slow client test invalid') if $slow_done;
-	my @poll = (fileno($slow), PublicInbox::TLS::epollbit());
+	my @poll;
+	if ($slow_done) {
+		diag('W: connect_SSL early OK, slow client test invalid');
+		use PublicInbox::Syscall qw(EPOLLIN EPOLLOUT);
+		@poll = (fileno($slow), EPOLLIN | EPOLLOUT);
+	} else {
+		@poll = (fileno($slow), PublicInbox::TLS::epollbit());
+	}
 	# we should call connect_SSL much later...
 
 	# NNTPS
