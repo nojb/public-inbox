@@ -219,7 +219,6 @@ t/filter_rubylang.t
 t/filter_subjecttag.t
 t/filter_vger.t
 t/git-http-backend.psgi
-t/git-http-backend.t
 t/git.fast-import-data
 t/git.t
 t/hl_mod.t
@@ -247,13 +246,9 @@ t/msgmap.t
 t/msgtime.t
 t/nntp.t
 t/nntpd-tls.t
-t/nntpd-validate.t
 t/nntpd.t
 t/nulsubject.t
 t/over.t
-t/perf-msgview.t
-t/perf-nntpd.t
-t/perf-threading.t
 t/plack.t
 t/precheck.t
 t/psgi_attach.t
@@ -291,3 +286,8 @@ t/watch_maildir.t
 t/watch_maildir_v2.t
 t/www_listing.t
 t/xcpdb-reshard.t
+xt/git-http-backend.t
+xt/nntpd-validate.t
+xt/perf-msgview.t
+xt/perf-nntpd.t
+xt/perf-threading.t
