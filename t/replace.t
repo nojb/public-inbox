@@ -6,11 +6,14 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
 require './t/common.perl';
+use Cwd qw(abs_path);
 require_git(2.6); # replace is v2 only, for now...
 foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for $0" if $@;
 }
+
+local $ENV{HOME} = abs_path('t');
 
 sub test_replace ($$$) {
 	my ($v, $level, $opt) = @_;

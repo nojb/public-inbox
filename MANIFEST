@@ -194,6 +194,7 @@ scripts/report-spam
 scripts/slrnspool2maildir
 scripts/ssoma-replay
 scripts/xhdr-num2mid
+t/.gitconfig
 t/address.t
 t/admin.t
 t/altid.t

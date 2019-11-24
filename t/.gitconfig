@@ -1,0 +1,4 @@
+; this becomes ~/.gitconfig for tests where we use
+; "$ENV{HOME} = '/path/to/worktree/t'" in tests
+[gc]
+	writeCommitGraph = false

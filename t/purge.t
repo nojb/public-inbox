@@ -11,6 +11,7 @@ foreach my $mod (@mods) {
 	plan skip_all => "missing $mod for t/purge.t" if $@;
 };
 use Cwd qw(abs_path); # we need this since we chdir below
+local $ENV{HOME} = abs_path('t');
 my $purge = abs_path('blib/script/public-inbox-purge');
 my ($tmpdir, $for_destroy) = tmpdir();
 use_ok 'PublicInbox::V2Writable';

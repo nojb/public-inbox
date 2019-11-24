@@ -6,11 +6,13 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::ContentId qw(content_digest);
 require './t/common.perl';
+use Cwd qw(abs_path);
 require_git(2.6);
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for nntpd.t" if $@;
 }
+local $ENV{HOME} = abs_path('t');
 use_ok 'PublicInbox::V2Writable';
 umask 007;
 my ($inboxdir, $for_destroy) = tmpdir();

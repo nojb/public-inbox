@@ -4,7 +4,9 @@ use strict;
 use warnings;
 use Test::More;
 require './t/common.perl';
+use Cwd qw(abs_path);
 require_git(2.6);
+local $ENV{HOME} = abs_path('t');
 
 # Integration tests for HTTP cloning + mirroring
 foreach my $mod (qw(Plack::Util Plack::Builder
