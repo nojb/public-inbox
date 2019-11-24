@@ -26,7 +26,6 @@ my $fifo = "$tmpdir/fifo";
 ok(defined mkfifo($fifo, 0777), 'created FIFO');
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $httpd = 'blib/script/public-inbox-httpd';
 my $psgi = "./t/httpd-corner.psgi";
 my $sock = tcp_server() or die;
 
@@ -64,13 +63,11 @@ sub unix_server ($) {
 my $upath = "$tmpdir/s";
 my $unix = unix_server($upath);
 ok($unix, 'UNIX socket created');
-my $pid;
-END { kill 'TERM', $pid if defined $pid };
+my $td;
 my $spawn_httpd = sub {
 	my (@args) = @_;
-	my $cmd = [ $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi ];
-	$pid = spawn_listener(undef, $cmd, [ $sock, $unix ]);
-	ok(defined $pid, 'forked httpd process successfully');
+	my $cmd = [ '-httpd', @args, "--stdout=$out", "--stderr=$err", $psgi ];
+	$td = start_script($cmd, undef, { 3 => $sock, 4 => $unix });
 };
 
 $spawn_httpd->();
@@ -213,16 +210,14 @@ sub conn_for {
 	open my $f, '>', $fifo or die "open $fifo: $!\n";
 	$f->autoflush(1);
 	ok(print($f "hello\n"), 'wrote something to fifo');
-	my $kpid = $pid;
-	$pid = undef;
-	is(kill('TERM', $kpid), 1, 'started graceful shutdown');
+	is($td->kill, 1, 'started graceful shutdown');
 	ok(print($f "world\n"), 'wrote else to fifo');
 	close $f or die "close fifo: $!\n";
 	$conn->read(my $buf, 8192);
 	my ($head, $body) = split(/\r\n\r\n/, $buf, 2);
 	like($head, qr!\AHTTP/1\.[01] 200 OK!, 'got 200 for slow-header');
 	is($body, "hello\nworld\n", 'read expected body');
-	is(waitpid($kpid, 0), $kpid, 'reaped httpd');
+	$td->join;
 	is($?, 0, 'no error');
 	$spawn_httpd->('-W0');
 }
@@ -244,15 +239,13 @@ sub conn_for {
 		$conn->sysread($buf, 8192);
 		is($buf, $c, 'got trickle for reading');
 	}
-	my $kpid = $pid;
-	$pid = undef;
-	is(kill('TERM', $kpid), 1, 'started graceful shutdown');
+	is($td->kill, 1, 'started graceful shutdown');
 	ok(print($f "world\n"), 'wrote else to fifo');
 	close $f or die "close fifo: $!\n";
 	$conn->sysread($buf, 8192);
 	is($buf, "world\n", 'read expected body');
 	is($conn->sysread($buf, 8192), 0, 'got EOF from server');
-	is(waitpid($kpid, 0), $kpid, 'reaped httpd');
+	$td->join;
 	is($?, 0, 'no error');
 	$spawn_httpd->('-W0');
 }
@@ -346,9 +339,7 @@ SKIP: {
 	$conn->write("Content-Length: $len\r\n");
 	delay();
 	$conn->write("\r\n");
-	my $kpid = $pid;
-	$pid = undef;
-	is(kill('TERM', $kpid), 1, 'started graceful shutdown');
+	is($td->kill, 1, 'started graceful shutdown');
 	delay();
 	my $n = 0;
 	foreach my $c ('a'..'z') {
@@ -356,7 +347,7 @@ SKIP: {
 	}
 	is($n, $len, 'wrote alphabet');
 	$check_self->($conn);
-	is(waitpid($kpid, 0), $kpid, 'reaped httpd');
+	$td->join;
 	is($?, 0, 'no error');
 	$spawn_httpd->('-W0');
 }
@@ -553,12 +544,29 @@ SKIP: {
 	defined(my $x = getsockopt($sock, SOL_SOCKET, $var)) or die;
 	is($x, $accf_arg, 'SO_ACCEPTFILTER unchanged if previously set');
 };
+
 SKIP: {
 	skip 'only testing lsof(8) output on Linux', 1 if $^O ne 'linux';
 	skip 'no lsof in PATH', 1 unless which('lsof');
-	my @lsof = `lsof -p $pid`;
+	my @lsof = `lsof -p $td->{pid}`;
 	is_deeply([grep(/\bdeleted\b/, @lsof)], [], 'no lingering deleted inputs');
-	is_deeply([grep(/\bpipe\b/, @lsof)], [], 'no extra pipes with -W0');
+
+	# filter out pipes inherited from the parent
+	my @this = `lsof -p $$`;
+	my $bad;
+	sub extract_inodes {
+		map {;
+			my @f = split(' ', $_);
+			my $inode = $f[-2];
+			$bad = $_ if $inode !~ /\A[0-9]+\z/;
+			$inode => 1;
+		} grep (/\bpipe\b/, @_);
+	}
+	my %child = extract_inodes(@lsof);
+	my %parent = extract_inodes(@this);
+	skip("inode not in expected format: $bad", 1) if defined($bad);
+	delete @child{(keys %parent)};
+	is_deeply([], [keys %child], 'no extra pipes with -W0');
 };
 
 done_testing();

@@ -10,17 +10,8 @@ use Net::NNTP;
 my $pi_dir = $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_PI_DIR not defined for $0" unless $pi_dir;
 eval { require PublicInbox::Search };
-my ($host_port, $group, %opts, $s, $pid);
+my ($host_port, $group, %opts, $s, $td);
 require './t/common.perl';
-
-END {
-	if ($s) {
-		$s->print("QUIT\r\n");
-		$s->getline;
-		$s = undef;
-	}
-	kill 'TERM', $pid if defined $pid;
-};
 
 if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	($host_port, $group) = ($1, $2);
@@ -29,7 +20,6 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	$group = 'inbox.test.perf.nntpd';
 	my $ibx = { inboxdir => $pi_dir, newsgroup => $group };
 	$ibx = PublicInbox::Inbox->new($ibx);
-	my $nntpd = 'blib/script/public-inbox-nntpd';
 	my $tmpdir = tempdir('perf-nntpd-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 
 	my $pi_config = "$tmpdir/config";
@@ -46,8 +36,8 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 
 	my $sock = tcp_server();
 	ok($sock, 'sock created');
-	my $cmd = [ $nntpd, '-W0' ];
-	$pid = spawn_listener({ PI_CONFIG => $pi_config }, $cmd, [$sock]);
+	my $cmd = [ '-nntpd', '-W0' ];
+	$td = start_script($cmd, { PI_CONFIG => $pi_config }, { 3 => $sock });
 	$host_port = $sock->sockhost . ':' . $sock->sockport;
 }
 %opts = (
@@ -109,6 +99,12 @@ $t = timeit(1, sub {
 	$n = read_until_dot($s);
 });
 diag 'newnews took: ' . timestr($t) . " for $n";
+
+if ($s) {
+	$s->print("QUIT\r\n");
+	$s->getline;
+}
+
 
 done_testing();
 

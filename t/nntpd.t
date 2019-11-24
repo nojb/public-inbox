@@ -29,7 +29,6 @@ my $out = "$tmpdir/stdout.log";
 my $inboxdir = "$tmpdir/main.git";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
-my $nntpd = 'blib/script/public-inbox-nntpd';
 SKIP: {
 	skip "git 2.6+ required for V2Writable", 1 if $version == 1;
 	use_ok 'PublicInbox::V2Writable';
@@ -37,9 +36,8 @@ SKIP: {
 
 my %opts;
 my $sock = tcp_server();
-my $pid;
+my $td;
 my $len;
-END { kill 'TERM', $pid if defined $pid };
 
 my $ibx = {
 	inboxdir => $inboxdir,
@@ -90,9 +88,8 @@ EOF
 	}
 
 	ok($sock, 'sock created');
-	my $cmd = [ $nntpd, '-W0', "--stdout=$out", "--stderr=$err" ];
-	$pid = spawn_listener(undef, $cmd, [ $sock ]);
-	ok(defined $pid, 'forked nntpd process successfully');
+	my $cmd = [ '-nntpd', '-W0', "--stdout=$out", "--stderr=$err" ];
+	$td = start_script($cmd, undef, { 3 => $sock });
 	my $host_port = $sock->sockhost . ':' . $sock->sockport;
 	my $n = Net::NNTP->new($host_port);
 	my $list = $n->list;
@@ -306,7 +303,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		is($? >> 8, 0, 'no errors');
 	}
 	SKIP: {
-		my @of = `lsof -p $pid 2>/dev/null`;
+		my @of = `lsof -p $td->{pid} 2>/dev/null`;
 		skip('lsof broken', 1) if (!scalar(@of) || $?);
 		my @xap = grep m!Search/Xapian!, @of;
 		is_deeply(\@xap, [], 'Xapian not loaded in nntpd');
@@ -315,7 +312,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
 		syswrite($s, 'HDR List-id 1-');
 		select(undef, undef, undef, 0.15);
-		ok(kill('TERM', $pid), 'killed nntpd');
+		ok($td->kill, 'killed nntpd');
 		select(undef, undef, undef, 0.15);
 		syswrite($s, "\r\n");
 		$buf = '';
@@ -329,7 +326,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 	}
 
 	$n = $s = undef;
-	is($pid, waitpid($pid, 0), 'nntpd exited successfully');
+	$td->join;
 	my $eout = eval {
 		local $/;
 		open my $fh, '<', $err or die "open $err failed: $!";
@@ -339,6 +336,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 	unlike($eout, qr/wide/i, 'no Wide character warnings');
 }
 
+$td = undef;
 done_testing();
 
 sub read_til_dot {

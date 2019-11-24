@@ -23,14 +23,8 @@ my $psgi = "./t/httpd-corner.psgi";
 my $tmpdir = tempdir('pi-httpd-https-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $httpd = 'blib/script/public-inbox-httpd';
 my $https = tcp_server();
-my ($pid, $tail_pid);
-END {
-	foreach ($pid, $tail_pid) {
-		kill 'TERM', $_ if defined $_;
-	}
-};
+my $td;
 my $https_addr = $https->sockhost . ':' . $https->sockport;
 
 for my $args (
@@ -39,15 +33,9 @@ for my $args (
 	for ($out, $err) {
 		open my $fh, '>', $_ or die "truncate: $!";
 	}
-	if (my $tail_cmd = $ENV{TAIL}) { # don't assume GNU tail
-		$tail_pid = fork;
-		if (defined $tail_pid && $tail_pid == 0) {
-			exec(split(' ', $tail_cmd), $out, $err);
-		}
-	}
-	my $cmd = [ $httpd, '-W0', @$args,
+	my $cmd = [ '-httpd', '-W0', @$args,
 			"--stdout=$out", "--stderr=$err", $psgi ];
-	$pid = spawn_listener(undef, $cmd, [ $https ]);
+	$td = start_script($cmd, undef, { 3 => $https });
 	my %o = (
 		SSL_hostname => 'server.local',
 		SSL_verifycn_name => 'server.local',
@@ -119,15 +107,9 @@ for my $args (
 	};
 
 	$c = undef;
-	kill('TERM', $pid);
-	is($pid, waitpid($pid, 0), 'httpd exited successfully');
+	$td->kill;
+	$td->join;
 	is($?, 0, 'no error in exited process');
-	$pid = undef;
-	if (defined $tail_pid) {
-		kill 'TERM', $tail_pid;
-		waitpid($tail_pid, 0);
-		$tail_pid = undef;
-	}
 }
 done_testing();
 1;

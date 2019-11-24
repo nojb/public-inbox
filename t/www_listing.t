@@ -64,15 +64,13 @@ sub tiny_test {
 		'epoch 1 in description');
 }
 
-my $pid;
-END { kill 'TERM', $pid if defined $pid };
+my $td;
 SKIP: {
 	my $err = "$tmpdir/stderr.log";
 	my $out = "$tmpdir/stdout.log";
 	my $alt = "$tmpdir/alt.git";
 	my $cfgfile = "$tmpdir/config";
 	my $v2 = "$tmpdir/v2";
-	my $httpd = 'blib/script/public-inbox-httpd';
 	my $sock = tcp_server();
 	ok($sock, 'sock created');
 	my ($host, $port) = ($sock->sockhost, $sock->sockport);
@@ -106,8 +104,8 @@ SKIP: {
 
 	close $fh or die;
 	my $env = { PI_CONFIG => $cfgfile };
-	my $cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err" ];
-	$pid = spawn_listener($env, $cmd, [$sock]);
+	my $cmd = [ '-httpd', '-W0', "--stdout=$out", "--stderr=$err" ];
+	$td = start_script($cmd, $env, { 3 => $sock });
 	$sock = undef;
 
 	tiny_test($host, $port);

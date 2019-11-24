@@ -22,12 +22,10 @@ my $psgi = "./t/git-http-backend.psgi";
 my $tmpdir = tempdir('pi-git-http-backend-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $httpd = 'blib/script/public-inbox-httpd';
 my $sock = tcp_server();
 my $host = $sock->sockhost;
 my $port = $sock->sockport;
-my $pid;
-END { kill 'TERM', $pid if defined $pid };
+my $td;
 
 my $get_maxrss = sub {
         my $http = Net::HTTP->new(Host => "$host:$port");
@@ -44,9 +42,8 @@ my $get_maxrss = sub {
 
 {
 	ok($sock, 'sock created');
-	my $cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err", $psgi ];
-	ok(defined($pid = spawn_listener(undef, $cmd, [$sock])),
-	   'forked httpd process successfully');
+	my $cmd = [ '-httpd', '-W0', "--stdout=$out", "--stderr=$err", $psgi ];
+	$td = start_script($cmd, undef, { 3 => $sock });
 }
 my $mem_a = $get_maxrss->();
 
@@ -113,9 +110,8 @@ SKIP: {
 }
 
 {
-	ok(kill('TERM', $pid), 'killed httpd');
-	$pid = undef;
-	waitpid(-1, 0);
+	ok($td->kill, 'killed httpd');
+	$td->join;
 }
 
 done_testing();

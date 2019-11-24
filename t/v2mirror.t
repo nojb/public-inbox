@@ -21,7 +21,6 @@ use PublicInbox::MIME;
 use PublicInbox::Config;
 # FIXME: too much setup
 my $tmpdir = tempdir('pi-v2mirror-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-my $script = 'blib/script/public-inbox';
 my $pi_config = "$tmpdir/config";
 {
 	open my $fh, '>', $pi_config or die "open($pi_config): $!";
@@ -60,19 +59,10 @@ ok($epoch_max > 0, "multiple epochs");
 $v2w->done;
 $ibx->cleanup;
 
-my ($sock, $pid);
-
-# TODO: replace this with ->DESTROY:
-my $owner_pid = $$;
-END { kill('TERM', $pid) if defined($pid) && $owner_pid == $$ };
-
-$! = 0;
-$sock = tcp_server();
+my $sock = tcp_server();
 ok($sock, 'sock created');
-my $httpd = "$script-httpd";
-my $cmd = [ $httpd, '-W0', "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
-ok(defined($pid = spawn_listener(undef, $cmd, [ $sock ])),
-	'spawned httpd process successfully');
+my $cmd = [ '-httpd', '-W0', "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
+my $td = start_script($cmd, undef, { 3 => $sock });
 my ($host, $port) = ($sock->sockhost, $sock->sockport);
 $sock = undef;
 
@@ -194,9 +184,8 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	is(scalar($mset->items), 0, '1@example.com no longer visible in mirror');
 }
 
-ok(kill('TERM', $pid), 'killed httpd');
-$pid = undef;
-waitpid(-1, 0);
+ok($td->kill, 'killed httpd');
+$td->join;
 
 done_testing();
 

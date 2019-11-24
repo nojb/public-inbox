@@ -30,30 +30,6 @@ sub tcp_connect {
 	$s;
 }
 
-sub spawn_listener {
-	my ($env, $cmd, $socks) = @_;
-	my $pid = fork;
-	defined $pid or die "fork failed: $!\n";
-	if ($pid == 0) {
-		# pretend to be systemd (cf. sd_listen_fds(3))
-		my $fd = 3; # 3 == SD_LISTEN_FDS_START
-		foreach my $s (@$socks) {
-			my $fl = fcntl($s, F_GETFD, 0);
-			if (($fl & FD_CLOEXEC) != FD_CLOEXEC) {
-				warn "got FD:".fileno($s)." w/o CLOEXEC\n";
-			}
-			fcntl($s, F_SETFD, $fl &= ~FD_CLOEXEC);
-			dup2(fileno($s), $fd++) or die "dup2 failed: $!\n";
-		}
-		$ENV{LISTEN_PID} = $$;
-		$ENV{LISTEN_FDS} = scalar @$socks;
-		%ENV = (%ENV, %$env) if $env;
-		exec @$cmd;
-		die "FAIL: ",join(' ', @$cmd), ": $!\n";
-	}
-	$pid;
-}
-
 sub require_git ($;$) {
 	my ($req, $maybe) = @_;
 	my ($req_maj, $req_min) = split(/\./, $req);
@@ -68,7 +44,6 @@ sub require_git ($;$) {
 	1;
 }
 
-my %cached_scripts;
 sub key2script ($) {
 	my ($key) = @_;
 	return $key if $key =~ m!\A/!;
@@ -105,11 +80,10 @@ sub run_script_exit (;$) {
 	die RUN_SCRIPT_EXIT;
 }
 
-sub run_script ($;$$) {
-	my ($cmd, $env, $opt) = @_;
-	my ($key, @argv) = @$cmd;
-	my $run_mode = $ENV{TEST_RUN_MODE} // $opt->{run_mode} // 1;
-	my $sub = $run_mode == 0 ? undef : ($cached_scripts{$key} //= do {
+my %cached_scripts;
+sub key2sub ($) {
+	my ($key) = @_;
+	$cached_scripts{$key} //= do {
 		my $f = key2script($key);
 		open my $fh, '<', $f or die "open $f: $!";
 		my $str = do { local $/; <$fh> };
@@ -129,8 +103,34 @@ $str
 1;
 EOF
 		$pkg->can('main');
-	}); # do
+	}
+}
 
+sub _run_sub ($$$) {
+	my ($sub, $key, $argv) = @_;
+	local @ARGV = @$argv;
+	$run_script_exit_code = undef;
+	my $exit_code = eval { $sub->(@$argv) };
+	if ($@ eq RUN_SCRIPT_EXIT) {
+		$@ = '';
+		$exit_code = $run_script_exit_code;
+		$? = ($exit_code << 8);
+	} elsif (defined($exit_code)) {
+		$? = ($exit_code << 8);
+	} elsif ($@) { # mimic die() behavior when uncaught
+		warn "E: eval-ed $key: $@\n";
+		$? = ($! << 8) if $!;
+		$? = (255 << 8) if $? == 0;
+	} else {
+		die "BUG: eval-ed $key: no exit code or \$@\n";
+	}
+}
+
+sub run_script ($;$$) {
+	my ($cmd, $env, $opt) = @_;
+	my ($key, @argv) = @$cmd;
+	my $run_mode = $ENV{TEST_RUN_MODE} // $opt->{run_mode} // 1;
+	my $sub = $run_mode == 0 ? undef : key2sub($key);
 	my $fhref = [];
 	my $spawn_opt = {};
 	for my $fd (0..2) {
@@ -162,22 +162,7 @@ EOF
 		local %ENV = $env ? (%ENV, %$env) : %ENV;
 		local %SIG = %SIG;
 		_prepare_redirects($fhref);
-		local @ARGV = @argv;
-		$run_script_exit_code = undef;
-		my $exit_code = eval { $sub->(@argv) };
-		if ($@ eq RUN_SCRIPT_EXIT) {
-			$@ = '';
-			$exit_code = $run_script_exit_code;
-			$? = ($exit_code << 8);
-		} elsif (defined($exit_code)) {
-			$? = ($exit_code << 8);
-		} elsif ($@) { # mimic die() behavior when uncaught
-			warn "E: eval-ed $key: $@\n";
-			$? = ($! << 8) if $!;
-			$? = (255 << 8) if $? == 0;
-		} else {
-			die "BUG: eval-ed $key: no exit code or \$@\n";
-		}
+		_run_sub($sub, $key, \@argv);
 	}
 
 	# slurp the redirects back into user-supplied strings
@@ -189,6 +174,101 @@ EOF
 		$$redir = <$fh>;
 	}
 	$? == 0;
+}
+
+sub wait_for_tail () { sleep(2) }
+
+sub start_script {
+	my ($cmd, $env, $opt) = @_;
+	my ($key, @argv) = @$cmd;
+	my $run_mode = $ENV{TEST_RUN_MODE} // $opt->{run_mode} // 1;
+	my $sub = $run_mode == 0 ? undef : key2sub($key);
+	my $tail_pid;
+	if (my $tail_cmd = $ENV{TAIL}) {
+		my @paths;
+		for (@argv) {
+			next unless /\A--std(?:err|out)=(.+)\z/;
+			push @paths, $1;
+		}
+		if (@paths) {
+			defined($tail_pid = fork) or die "fork: $!\n";
+			if ($tail_pid == 0) {
+				# make sure files exist, first
+				open my $fh, '>>', $_ for @paths;
+				open(STDOUT, '>&STDERR') or die "1>&2: $!";
+				exec(split(' ', $tail_cmd), @paths);
+				die "$tail_cmd failed: $!";
+			}
+			wait_for_tail();
+		}
+	}
+	defined(my $pid = fork) or die "fork: $!\n";
+	if ($pid == 0) {
+		# pretend to be systemd (cf. sd_listen_fds(3))
+		# 3 == SD_LISTEN_FDS_START
+		my $fd;
+		for ($fd = 0; 1; $fd++) {
+			my $s = $opt->{$fd};
+			last if $fd >= 3 && !defined($s);
+			next unless $s;
+			my $fl = fcntl($s, F_GETFD, 0);
+			if (($fl & FD_CLOEXEC) != FD_CLOEXEC) {
+				warn "got FD:".fileno($s)." w/o CLOEXEC\n";
+			}
+			fcntl($s, F_SETFD, $fl &= ~FD_CLOEXEC);
+			dup2(fileno($s), $fd) or die "dup2 failed: $!\n";
+		}
+		%ENV = (%ENV, %$env) if $env;
+		my $fds = $fd - 3;
+		if ($fds > 0) {
+			$ENV{LISTEN_PID} = $$;
+			$ENV{LISTEN_FDS} = $fds;
+		}
+		$0 = join(' ', @$cmd);
+		if ($sub) {
+			_run_sub($sub, $key, \@argv);
+			POSIX::_exit($? >> 8);
+		} else {
+			exec(key2script($key), @argv);
+			die "FAIL: ",join(' ', $key, @argv), ": $!\n";
+		}
+	}
+	TestProcess->new($pid, $tail_pid);
+}
+
+package TestProcess;
+use strict;
+
+# prevent new threads from inheriting these objects
+sub CLONE_SKIP { 1 }
+
+sub new {
+	my ($klass, $pid, $tail_pid) = @_;
+	bless { pid => $pid, tail_pid => $tail_pid, owner => $$ }, $klass;
+}
+
+sub kill {
+	my ($self, $sig) = @_;
+	CORE::kill($sig // 'TERM', $self->{pid});
+}
+
+sub join {
+	my ($self) = @_;
+	my $pid = delete $self->{pid} or return;
+	my $ret = waitpid($pid, 0);
+	defined($ret) or die "waitpid($pid): $!";
+	$ret == $pid or die "waitpid($pid) != $ret";
+}
+
+sub DESTROY {
+	my ($self) = @_;
+	return if $self->{owner} != $$;
+	if (my $tail = delete $self->{tail_pid}) {
+		::wait_for_tail();
+		CORE::kill('TERM', $tail);
+	}
+	my $pid = delete $self->{pid} or return;
+	CORE::kill('TERM', $pid);
 }
 
 1;

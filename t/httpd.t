@@ -21,13 +21,11 @@ my $maindir = "$tmpdir/main.git";
 my $group = 'test-httpd';
 my $addr = $group . '@example.com';
 my $cfgpfx = "publicinbox.$group";
-my $httpd = 'blib/script/public-inbox-httpd';
 my $sock = tcp_server();
-my $pid;
+my $td;
 use_ok 'PublicInbox::Git';
 use_ok 'PublicInbox::Import';
 use_ok 'Email::MIME';
-END { kill 'TERM', $pid if defined $pid };
 {
 	local $ENV{HOME} = $home;
 	my $cmd = [ '-init', $group, $maindir, 'http://example.com/', $addr ];
@@ -52,8 +50,8 @@ EOF
 		$im->done($mime);
 	}
 	ok($sock, 'sock created');
-	$cmd = [ $httpd, '-W0', "--stdout=$out", "--stderr=$err" ];
-	$pid = spawn_listener(undef, $cmd, [$sock]);
+	$cmd = [ '-httpd', '-W0', "--stdout=$out", "--stderr=$err" ];
+	$td = start_script($cmd, undef, { 3 => $sock });
 	my $host = $sock->sockhost;
 	my $port = $sock->sockport;
 	my $conn = tcp_connect($sock);
@@ -78,9 +76,8 @@ EOF
 			"http://$host:$port/$group", "$tmpdir/dumb.git"),
 		0, 'clone successful');
 
-	ok(kill('TERM', $pid), 'killed httpd');
-	$pid = undef;
-	waitpid(-1, 0);
+	ok($td->kill, 'killed httpd');
+	$td->join;
 
 	is(system('git', "--git-dir=$tmpdir/clone.git",
 		  qw(fsck --no-verbose)), 0,

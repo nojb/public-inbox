@@ -41,16 +41,8 @@ my $inboxdir = "$tmpdir";
 my $pi_config = "$tmpdir/pi_config";
 my $group = 'test-nntpd-tls';
 my $addr = $group . '@example.com';
-my $nntpd = 'blib/script/public-inbox-nntpd';
 my $starttls = tcp_server();
 my $nntps = tcp_server();
-my ($pid, $tail_pid);
-END {
-	foreach ($pid, $tail_pid) {
-		kill 'TERM', $_ if defined $_;
-	}
-};
-
 my $ibx = PublicInbox::Inbox->new({
 	inboxdir => $inboxdir,
 	name => 'nntpd-tls',
@@ -91,6 +83,7 @@ EOF
 my $nntps_addr = $nntps->sockhost . ':' . $nntps->sockport;
 my $starttls_addr = $starttls->sockhost . ':' . $starttls->sockport;
 my $env = { PI_CONFIG => $pi_config };
+my $td;
 
 for my $args (
 	[ "--cert=$cert", "--key=$key",
@@ -100,14 +93,8 @@ for my $args (
 	for ($out, $err) {
 		open my $fh, '>', $_ or die "truncate: $!";
 	}
-	if (my $tail_cmd = $ENV{TAIL}) { # don't assume GNU tail
-		$tail_pid = fork;
-		if (defined $tail_pid && $tail_pid == 0) {
-			exec(split(' ', $tail_cmd), $out, $err);
-		}
-	}
-	my $cmd = [ $nntpd, '-W0', @$args, "--stdout=$out", "--stderr=$err" ];
-	$pid = spawn_listener($env, $cmd, [ $starttls, $nntps ]);
+	my $cmd = [ '-nntpd', '-W0', @$args, "--stdout=$out", "--stderr=$err" ];
+	$td = start_script($cmd, $env, { 3 => $starttls, 4 => $nntps });
 	my %o = (
 		SSL_hostname => 'server.local',
 		SSL_verifycn_name => 'server.local',
@@ -211,21 +198,15 @@ for my $args (
 	};
 
 	$c = undef;
-	kill('TERM', $pid);
-	is($pid, waitpid($pid, 0), 'nntpd exited successfully');
+	$td->kill;
+	$td->join;
 	is($?, 0, 'no error in exited process');
-	$pid = undef;
 	my $eout = eval {
 		open my $fh, '<', $err or die "open $err failed: $!";
 		local $/;
 		<$fh>;
 	};
 	unlike($eout, qr/wide/i, 'no Wide character warnings');
-	if (defined $tail_pid) {
-		kill 'TERM', $tail_pid;
-		waitpid($tail_pid, 0);
-		$tail_pid = undef;
-	}
 }
 done_testing();
 

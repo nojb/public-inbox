@@ -10,9 +10,15 @@ use Symbol qw(gensym);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 my $inbox_dir = $ENV{GIANT_INBOX_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inbox_dir;
+if (my $m = $ENV{TEST_RUN_MODE}) {
+	plan skip_all => "threads conflict w/ TEST_RUN_MODE=$m";
+}
 my $mid = $ENV{TEST_MID};
 
 # This test is also an excuse for me to experiment with Perl threads :P
+# TODO: get rid of threads, I was reading an old threads(3perl) manpage
+# and missed the WARNING in the newer ones about it being "discouraged"
+# in perlpolicy(1).
 unless (eval 'use threads; 1') {
 	plan skip_all => "$0 requires a threaded perl" if $@;
 }
@@ -37,13 +43,8 @@ if ($test_tls && !-r $key || !-r $cert) {
 require './t/common.perl';
 my $keep_tmp = !!$ENV{TEST_KEEP_TMP};
 my $tmpdir = tempdir('nntpd-validate-XXXXXX',TMPDIR => 1,CLEANUP => $keep_tmp);
-my (%OPT, $pid, $tail_pid, $host_port, $group);
+my (%OPT, $td, $host_port, $group);
 my $batch = 1000;
-END {
-	foreach ($pid, $tail_pid) {
-		kill 'TERM', $_ if defined $_;
-	}
-};
 if (($ENV{NNTP_TEST_URL} // '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	($host_port, $group) = ($1, $2);
 	$host_port .= ":119" unless index($host_port, ':') > 0;
@@ -149,7 +150,6 @@ sub make_local_server {
 	$group = 'inbox.test.perf.nntpd';
 	my $ibx = { inboxdir => $inbox_dir, newsgroup => $group };
 	$ibx = PublicInbox::Inbox->new($ibx);
-	my $nntpd = 'blib/script/public-inbox-nntpd';
 	my $pi_config = "$tmpdir/config";
 	{
 		open my $fh, '>', $pi_config or die "open($pi_config): $!";
@@ -165,20 +165,13 @@ sub make_local_server {
 	for ($out, $err) {
 		open my $fh, '>', $_ or die "truncate: $!";
 	}
-	if (my $tail_cmd = $ENV{TAIL}) { # don't assume GNU tail
-		$tail_pid = fork;
-		if (defined $tail_pid && $tail_pid == 0) {
-			open STDOUT, '>&STDERR' or die ">&2 failed: $!";
-			exec(split(' ', $tail_cmd), $out, $err);
-		}
-	}
 	my $sock = tcp_server();
 	ok($sock, 'sock created');
 	$host_port = $sock->sockhost . ':' . $sock->sockport;
 
 	# not using multiple workers, here, since we want to increase
 	# the chance of tripping concurrency bugs within PublicInbox/NNTP*.pm
-	my $cmd = [ $nntpd, "--stdout=$out", "--stderr=$err", '-W0' ];
+	my $cmd = [ '-nntpd', "--stdout=$out", "--stderr=$err", '-W0' ];
 	push @$cmd, "-lnntp://$host_port";
 	if ($test_tls) {
 		push @$cmd, "--cert=$cert", "--key=$key";
@@ -190,7 +183,9 @@ sub make_local_server {
 		);
 	}
 	print STDERR "# CMD ". join(' ', @$cmd). "\n";
-	$pid = spawn_listener({ PI_CONFIG => $pi_config }, $cmd, [$sock]);
+	my $env = { PI_CONFIG => $pi_config };
+	# perl threads and run_mode != 0 don't get along
+	$td = start_script($cmd, $env, { run_mode => 0, 3 => $sock });
 }
 
 package DigestPipe;

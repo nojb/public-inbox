@@ -4,6 +4,8 @@
 use strict;
 use warnings;
 use Test::More;
+require './t/common.perl';
+use Errno qw(EADDRINUSE);
 
 foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	eval "require $mod";
@@ -14,23 +16,16 @@ use File::Temp qw/tempdir/;
 use IO::Socket::UNIX;
 my $tmpdir = tempdir('httpd-unix-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 my $unix = "$tmpdir/unix.sock";
-my $httpd = 'blib/script/public-inbox-httpd';
 my $psgi = './t/httpd-corner.psgi';
 my $out = "$tmpdir/out.log";
 my $err = "$tmpdir/err.log";
-
-my $pid;
-END { kill 'TERM', $pid if defined $pid };
+my $td;
 
 my $spawn_httpd = sub {
 	my (@args) = @_;
 	push @args, '-W0';
-	$pid = fork;
-	if ($pid == 0) {
-		exec $httpd, @args, "--stdout=$out", "--stderr=$err", $psgi;
-		die "FAIL: $!\n";
-	}
-	ok(defined $pid, 'forked httpd process successfully');
+	my $cmd = [ '-httpd', @args, "--stdout=$out", "--stderr=$err", $psgi ];
+	$td = start_script($cmd);
 };
 
 {
@@ -65,15 +60,18 @@ sub check_sock ($) {
 check_sock($unix);
 
 { # do not clobber existing socket
-	my $fpid = fork;
-	if ($fpid == 0) {
-		open STDOUT, '>>', "$tmpdir/1" or die "redirect failed: $!";
-		open STDERR, '>>', "$tmpdir/2" or die "redirect failed: $!";
-		exec $httpd, '-l', $unix, '-W0', $psgi;
-		die "FAIL: $!\n";
-	}
-	is($fpid, waitpid($fpid, 0), 'second httpd exits');
-	isnt($?, 0, 'httpd failed with failure to bind');
+	my %err = ( 'linux' => EADDRINUSE );
+	open my $out, '>>', "$tmpdir/1" or die "redirect failed: $!";
+	open my $err, '>>', "$tmpdir/2" or die "redirect failed: $!";
+	my $cmd = ['-httpd', '-l', $unix, '-W0', $psgi];
+	my $ftd = start_script($cmd, undef, { 1 => $out, 2 => $err });
+	$ftd->join;
+	isnt($?, 0, 'httpd failure set $?');
+	SKIP: {
+		my $ec = $err{$^O} or
+			skip("not sure if $^O fails with EADDRINUSE", 1);
+		is($? >> 8, $ec, 'httpd failed with EADDRINUSE');
+	};
 	open my $fh, "$tmpdir/2" or die "failed to open $tmpdir/2: $!";
 	local $/;
 	my $e = <$fh>;
@@ -82,10 +80,8 @@ check_sock($unix);
 }
 
 {
-	my $kpid = $pid;
-	$pid = undef;
-	is(kill('TERM', $kpid), 1, 'terminate existing process');
-	is(waitpid($kpid, 0), $kpid, 'existing httpd terminated');
+	is($td->kill, 1, 'terminate existing process');
+	$td->join;
 	is($?, 0, 'existing httpd exited successfully');
 	ok(-S $unix, 'unix socket still exists');
 }
@@ -96,9 +92,8 @@ SKIP: {
 
 	# wait for daemonization
 	$spawn_httpd->("-l$unix", '-D', '-P', "$tmpdir/pid");
-	my $kpid = $pid;
-	$pid = undef;
-	is(waitpid($kpid, 0), $kpid, 'existing httpd terminated');
+	$td->join;
+	is($?, 0, 'daemonized process OK');
 	check_sock($unix);
 
 	ok(-f "$tmpdir/pid", 'pid file written');

@@ -163,12 +163,10 @@ EOF
 	close $fh or die "close: $!\n";
 	my $sock = tcp_server();
 	ok($sock, 'sock created');
-	my $pid;
 	my $len;
-	END { kill 'TERM', $pid if defined $pid };
-	my $nntpd = 'blib/script/public-inbox-nntpd';
-	my $cmd = [ $nntpd, '-W0', "--stdout=$out", "--stderr=$err" ];
-	$pid = spawn_listener({ PI_CONFIG => $pi_config }, $cmd, [ $sock ]);
+	my $cmd = [ '-nntpd', '-W0', "--stdout=$out", "--stderr=$err" ];
+	my $env = { PI_CONFIG => $pi_config };
+	my $td = start_script($cmd, $env, { 3 => $sock });
 	my $host_port = $sock->sockhost . ':' . $sock->sockport;
 	my $n = Net::NNTP->new($host_port);
 	$n->group($group);
