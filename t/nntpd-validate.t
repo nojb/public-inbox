@@ -8,20 +8,10 @@ use File::Temp qw(tempdir);
 use Test::More;
 use Symbol qw(gensym);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use POSIX qw(_exit);
 my $inbox_dir = $ENV{GIANT_INBOX_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inbox_dir;
-if (my $m = $ENV{TEST_RUN_MODE}) {
-	plan skip_all => "threads conflict w/ TEST_RUN_MODE=$m";
-}
 my $mid = $ENV{TEST_MID};
-
-# This test is also an excuse for me to experiment with Perl threads :P
-# TODO: get rid of threads, I was reading an old threads(3perl) manpage
-# and missed the WARNING in the newer ones about it being "discouraged"
-# in perlpolicy(1).
-unless (eval 'use threads; 1') {
-	plan skip_all => "$0 requires a threaded perl" if $@;
-}
 
 # Net::NNTP is part of the standard library, but distros may split it off...
 foreach my $mod (qw(DBD::SQLite Net::NNTP Compress::Raw::Zlib)) {
@@ -134,11 +124,29 @@ my (@keys, %thr, %res);
 for my $m (@tests) {
 	my $key = join(',', @$m);
 	push @keys, $key;
-	diag "$key start";
-	$thr{$key} = threads->create(\&do_get_all, $m);
+	pipe(my ($r, $w)) or die;
+	my $pid = fork;
+	if ($pid == 0) {
+		close $r or die;
+		my $res = do_get_all($m);
+		print $w $res or die;
+		$w->flush;
+		_exit(0);
+	}
+	close $w or die;
+	$thr{$key} = [ $pid, $r ];
+}
+for my $key (@keys) {
+	my ($pid, $r) = @{delete $thr{$key}};
+	local $/;
+	$res{$key} = <$r>;
+	defined $res{$key} or die "nothing for $key";
+	my $w = waitpid($pid, 0);
+	defined($w) or die;
+	$w == $pid or die "waitpid($pid) != $w)";
+	is($?, 0, "`$key' exited successfully")
 }
 
-$res{$_} = $thr{$_}->join for @keys;
 my $plain = $res{''};
 ok($plain, "plain got $plain");
 is($res{$_}, $plain, "$_ matches '' result") for @keys;
@@ -184,8 +192,7 @@ sub make_local_server {
 	}
 	print STDERR "# CMD ". join(' ', @$cmd). "\n";
 	my $env = { PI_CONFIG => $pi_config };
-	# perl threads and run_mode != 0 don't get along
-	$td = start_script($cmd, $env, { run_mode => 0, 3 => $sock });
+	$td = start_script($cmd, $env, { 3 => $sock });
 }
 
 package DigestPipe;
