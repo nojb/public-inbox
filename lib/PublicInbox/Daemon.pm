@@ -252,6 +252,11 @@ sub daemonize () {
 	}
 }
 
+sub shrink_pipes {
+	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ, 4096: page size
+		fcntl($_, 1031, 4096) for @_;
+	}
+}
 
 sub worker_quit {
 	# killing again terminates immediately:
@@ -260,6 +265,17 @@ sub worker_quit {
 	$_->close foreach @listeners; # call PublicInbox::DS::close
 	@listeners = ();
 
+	# create a lazy self-pipe which kicks us out of the EventLoop
+	# so DS::PostEventLoop can fire
+	if (pipe(my ($r, $w))) {
+		shrink_pipes($w);
+
+		# shrink_pipes == noop
+		PublicInbox::ParentPipe->new($r, *shrink_pipes);
+		close $w; # wake up from the event loop
+	} else {
+		warn "E: pipe failed ($!), quit unreliable\n";
+	}
 	my $proc_name;
 	my $warn = 0;
 	# drop idle connections and try to quit gracefully
@@ -468,10 +484,7 @@ sub unlink_pid_file_safe_ish ($$) {
 sub master_loop {
 	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!";
 	pipe(my ($r, $w)) or die "failed to create self-pipe: $!";
-
-	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ = 1031
-		fcntl($_, 1031, 4096) for ($w, $p1);
-	}
+	shrink_pipes($w, $p1);
 
 	IO::Handle::blocking($w, 0);
 	my $set_workers = $worker_processes;
