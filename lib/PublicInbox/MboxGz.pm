@@ -63,7 +63,7 @@ sub getline {
 	# signal that we're done and can return undef next call:
 	delete $self->{ctx};
 	my $err = $gz->flush($buf, Z_FINISH);
-	$err == Z_OK ? $buf : gzip_fail($ctx, $err);
+	($err == Z_OK) ? $buf : gzip_fail($ctx, $err);
 }
 
 sub close {} # noop
