@@ -23,6 +23,10 @@ sub str2date_zone ($) {
 	my $sign = ($off < 0) ? '-' : '+';
 	my $hour = abs(int($off / 3600));
 	my $min  = ($off / 60) % 60;
+
+	# deal with weird offsets like '-0420' properly
+	$min = 60 - $min if ($min && $off < 0);
+
 	my $zone = sprintf('%s%02d%02d', $sign, $hour, $min);
 
 	# "-1200" is the furthest westermost zone offset,
