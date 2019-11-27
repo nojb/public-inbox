@@ -86,13 +86,16 @@ check-manifest :: MANIFEST
 	if git ls-files >\$?.gen 2>&1; then diff -u \$? \$?.gen; fi
 
 check:: pure_all check-manifest
-	\$(EATMYDATA) prove -lvw -j\$(N)
+	\$(EATMYDATA) prove -bvw -j\$(N)
 
 lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
 	\$(PERL) -I lib \$@ \$?
 
-# Ensure new .pm files will always be installed:
-Makefile.PL :: MANIFEST
+# Ensure new .pm files will always be installed by updating
+# the timestamp of Makefile.PL which forces Makefile to be remade
+Makefile.PL : MANIFEST
+	touch -r \$< \$@
+	\$(PERLRUN) \$@
 
 EOF
 }
