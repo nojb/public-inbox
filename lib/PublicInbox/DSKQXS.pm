@@ -21,6 +21,8 @@ use PublicInbox::Syscall qw(EPOLLONESHOT EPOLLIN EPOLLOUT EPOLLET
 our @EXPORT_OK = qw(epoll_ctl epoll_wait);
 my $owner_pid = -1; # kqueue is close-on-fork (yes, fork, not exec)
 
+sub EV_DISPATCH () { 0x0080 }
+
 # map EPOLL* bits to kqueue EV_* flags for EV_SET
 sub kq_flag ($$) {
 	my ($bit, $ev) = @_;

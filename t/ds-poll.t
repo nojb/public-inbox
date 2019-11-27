@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Syscall qw(:epoll);
-my $cls = 'PublicInbox::DSPoll';
+my $cls = $ENV{TEST_IOPOLLER} // 'PublicInbox::DSPoll';
 use_ok $cls;
 my $p = $cls->new;
 
@@ -43,16 +43,8 @@ my @fds = sort(map { $_->[0] } @$events);
 my @exp = sort((fileno($r), fileno($x)));
 is_deeply(\@fds, \@exp, 'got both ready FDs');
 
-# EPOLL_CTL_DEL doesn't matter for kqueue, we do it in native epoll
-# to avoid a kernel-wide lock; but its not needed for native kqueue
-# paths so DSKQXS makes it a noop (as did Danga::Socket::close).
-SKIP: {
-	if ($cls ne 'PublicInbox::DSPoll') {
-		skip "$cls doesn't handle EPOLL_CTL_DEL", 2;
-	}
-	is($p->epoll_ctl(EPOLL_CTL_DEL, fileno($r), 0), 0, 'EPOLL_CTL_DEL OK');
-	$n = $p->epoll_wait(9, 0, $events);
-	is($n, 0, 'nothing ready after EPOLL_CTL_DEL');
-};
+is($p->epoll_ctl(EPOLL_CTL_DEL, fileno($r), 0), 0, 'EPOLL_CTL_DEL OK');
+$n = $p->epoll_wait(9, 0, $events);
+is($n, 0, 'nothing ready after EPOLL_CTL_DEL');
 
 done_testing;
