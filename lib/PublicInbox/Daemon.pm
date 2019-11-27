@@ -15,9 +15,11 @@ use Cwd qw/abs_path/;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
+use PublicInbox::Syscall qw(SFD_NONBLOCK);
 require PublicInbox::EvCleanup;
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
+require PublicInbox::Sigfd;
 my @CMD;
 my ($set_user, $oldset, $newset);
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
@@ -74,12 +76,14 @@ sub accept_tls_opt ($) {
 	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
 }
 
+sub sig_setmask { sigprocmask(SIG_SETMASK, @_) or die "sigprocmask: $!" }
+
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
 	$oldset = POSIX::SigSet->new();
 	$newset = POSIX::SigSet->new();
 	$newset->fillset or die "fillset: $!";
-	sigprocmask(SIG_SETMASK, $newset, $oldset) or die "sigprocmask: $!";
+	sig_setmask($newset, $oldset);
 	@CMD = ($0, @ARGV);
 	my %opts = (
 		'l|listen=s' => \@cfg_listen,
@@ -252,30 +256,12 @@ sub daemonize () {
 	}
 }
 
-sub shrink_pipes {
-	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ, 4096: page size
-		fcntl($_, 1031, 4096) for @_;
-	}
-}
-
-sub worker_quit {
+sub worker_quit { # $_[0] = signal name or number (unused)
 	# killing again terminates immediately:
 	exit unless @listeners;
 
 	$_->close foreach @listeners; # call PublicInbox::DS::close
 	@listeners = ();
-
-	# create a lazy self-pipe which kicks us out of the EventLoop
-	# so DS::PostEventLoop can fire
-	if (pipe(my ($r, $w))) {
-		shrink_pipes($w);
-
-		# shrink_pipes == noop
-		PublicInbox::ParentPipe->new($r, *shrink_pipes);
-		close $w; # wake up from the event loop
-	} else {
-		warn "E: pipe failed ($!), quit unreliable\n";
-	}
 	my $proc_name;
 	my $warn = 0;
 	# drop idle connections and try to quit gracefully
@@ -398,7 +384,7 @@ processes when multiple service instances start.
 	@rv
 }
 
-sub upgrade () {
+sub upgrade { # $_[0] = signal name or number (unused)
 	if ($reexec_pid) {
 		warn "upgrade in-progress: $reexec_pid\n";
 		return;
@@ -453,7 +439,7 @@ sub upgrade_aborted ($) {
 	warn $@, "\n" if $@;
 }
 
-sub reap_children () {
+sub reap_children { # $_[0] = 'CHLD' or POSIX::SIGCHLD()
 	while (1) {
 		my $p = waitpid(-1, WNOHANG) or return;
 		if (defined $reexec_pid && $p == $reexec_pid) {
@@ -483,60 +469,50 @@ sub unlink_pid_file_safe_ish ($$) {
 
 sub master_loop {
 	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!";
-	pipe(my ($r, $w)) or die "failed to create self-pipe: $!";
-	shrink_pipes($w, $p1);
-
-	IO::Handle::blocking($w, 0);
+	# 1031: F_SETPIPE_SZ, 4096: page size
+	fcntl($p1, 1031, 4096) if $^O eq 'linux';
 	my $set_workers = $worker_processes;
-	my @caught;
-	my $master_pid = $$;
-	foreach my $s (qw(HUP CHLD QUIT INT TERM USR1 USR2 TTIN TTOU WINCH)) {
-		$SIG{$s} = sub {
-			return if $$ != $master_pid;
-			push @caught, $s;
-			syswrite($w, '.');
-		};
-	}
-	sigprocmask(SIG_SETMASK, $oldset) or die "sigprocmask: $!";
 	reopen_logs();
-	# main loop
 	my $quit = 0;
-	while (1) {
-		while (my $s = shift @caught) {
-			if ($s eq 'USR1') {
-				reopen_logs();
-				kill_workers($s);
-			} elsif ($s eq 'USR2') {
-				upgrade();
-			} elsif ($s =~ /\A(?:QUIT|TERM|INT)\z/) {
-				exit if $quit++;
-				kill_workers($s);
-			} elsif ($s eq 'WINCH') {
-				if (-t STDIN || -t STDOUT || -t STDERR) {
-					warn
-"ignoring SIGWINCH since we are not daemonized\n";
-					$SIG{WINCH} = 'IGNORE';
-				} else {
-					$worker_processes = 0;
-				}
-			} elsif ($s eq 'HUP') {
-				$worker_processes = $set_workers;
-				kill_workers($s);
-			} elsif ($s eq 'TTIN') {
-				if ($set_workers > $worker_processes) {
-					++$worker_processes;
-				} else {
-					$worker_processes = ++$set_workers;
-				}
-			} elsif ($s eq 'TTOU') {
-				if ($set_workers > 0) {
-					$worker_processes = --$set_workers;
-				}
-			} elsif ($s eq 'CHLD') {
-				reap_children();
+	my $ignore_winch;
+	my $quit_cb = sub { exit if $quit++; kill_workers($_[0]) };
+	my $sig = {
+		USR1 => sub { reopen_logs(); kill_workers($_[0]); },
+		USR2 => \&upgrade,
+		QUIT => $quit_cb,
+		INT => $quit_cb,
+		TERM => $quit_cb,
+		WINCH => sub {
+			return if $ignore_winch;
+			if (-t STDIN || -t STDOUT || -t STDERR) {
+				$ignore_winch = 1;
+				warn <<EOF;
+ignoring SIGWINCH since we are not daemonized
+EOF
+			} else {
+				$worker_processes = 0;
 			}
-		}
-
+		},
+		HUP => sub {
+			$worker_processes = $set_workers;
+			kill_workers($_[0]);
+		},
+		TTIN => sub {
+			if ($set_workers > $worker_processes) {
+				++$worker_processes;
+			} else {
+				$worker_processes = ++$set_workers;
+			}
+		},
+		TTOU => sub {
+			$worker_processes = --$set_workers if $set_workers > 0;
+		},
+		CHLD => \&reap_children,
+	};
+	my $sigfd = PublicInbox::Sigfd->new($sig, 0);
+	local %SIG = (%SIG, %$sig) if !$sigfd;
+	sig_setmask($oldset) if !$sigfd;
+	while (1) { # main loop
 		my $n = scalar keys %pids;
 		if ($quit) {
 			exit if $n == 0;
@@ -549,22 +525,29 @@ sub master_loop {
 			}
 			$n = $worker_processes;
 		}
-		sigprocmask(SIG_SETMASK, $newset) or die "sigprocmask: $!";
-		foreach my $i ($n..($worker_processes - 1)) {
-			my $pid = fork;
-			if (!defined $pid) {
-				warn "failed to fork worker[$i]: $!\n";
-			} elsif ($pid == 0) {
-				$set_user->() if $set_user;
-				return $p0; # run normal work code
-			} else {
-				warn "PID=$pid is worker[$i]\n";
-				$pids{$pid} = $i;
+		my $want = $worker_processes - 1;
+		if ($n <= $want) {
+			sig_setmask($newset) if !$sigfd;
+			for my $i ($n..$want) {
+				my $pid = fork;
+				if (!defined $pid) {
+					warn "failed to fork worker[$i]: $!\n";
+				} elsif ($pid == 0) {
+					$set_user->() if $set_user;
+					return $p0; # run normal work code
+				} else {
+					warn "PID=$pid is worker[$i]\n";
+					$pids{$pid} = $i;
+				}
 			}
+			sig_setmask($oldset) if !$sigfd;
 		}
-		sigprocmask(SIG_SETMASK, $oldset) or die "sigprocmask: $!";
-		# just wait on signal events here:
-		sysread($r, my $buf, 8);
+
+		if ($sigfd) { # Linux and IO::KQueue users:
+			$sigfd->wait_once;
+		} else { # wake up every second
+			sleep(1);
+		}
 	}
 	exit # never gets here, just for documentation
 }
@@ -606,6 +589,18 @@ sub daemon_loop ($$$$) {
 			$nntpd->{accept_tls} = $v;
 		}
 	}
+	my $sig = {
+		HUP => $refresh,
+		INT => \&worker_quit,
+		QUIT => \&worker_quit,
+		TERM => \&worker_quit,
+		TTIN => 'IGNORE',
+		TTOU => 'IGNORE',
+		USR1 => \&reopen_logs,
+		USR2 => 'IGNORE',
+		WINCH => 'IGNORE',
+		CHLD => \&PublicInbox::DS::enqueue_reap,
+	};
 	my $parent_pipe;
 	if ($worker_processes > 0) {
 		$refresh->(); # preload by default
@@ -614,16 +609,11 @@ sub daemon_loop ($$$$) {
 	} else {
 		reopen_logs();
 		$set_user->() if $set_user;
-		$SIG{USR2} = sub { worker_quit() if upgrade() };
+		$sig->{USR2} = sub { worker_quit() if upgrade() };
 		$refresh->();
 	}
 	$uid = $gid = undef;
 	reopen_logs();
-	$SIG{QUIT} = $SIG{INT} = $SIG{TERM} = *worker_quit;
-	$SIG{USR1} = *reopen_logs;
-	$SIG{HUP} = $refresh;
-	$SIG{CHLD} = 'DEFAULT';
-	$SIG{$_} = 'IGNORE' for qw(USR2 TTIN TTOU WINCH);
 	@listeners = map {;
 		my $tls_cb = $post_accept{sockname($_)};
 
@@ -634,7 +624,14 @@ sub daemon_loop ($$$$) {
 		# this calls epoll_create:
 		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
 	} @listeners;
-	sigprocmask(SIG_SETMASK, $oldset) or die "sigprocmask: $!";
+	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
+	local %SIG = (%SIG, %$sig) if !$sigfd;
+	if (!$sigfd) {
+		# wake up every second to accept signals if we don't
+		# have signalfd or IO::KQueue:
+		sig_setmask($oldset);
+		PublicInbox::DS->SetLoopTimeout(1000);
+	}
 	PublicInbox::DS->EventLoop;
 	$parent_pipe = undef;
 }

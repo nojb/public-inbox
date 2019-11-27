@@ -24,7 +24,8 @@ $VERSION     = "0.25";
 @EXPORT_OK   = qw(epoll_ctl epoll_create epoll_wait
                   EPOLLIN EPOLLOUT EPOLLET
                   EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
-                  EPOLLONESHOT EPOLLEXCLUSIVE);
+                  EPOLLONESHOT EPOLLEXCLUSIVE
+                  signalfd SFD_NONBLOCK);
 %EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
                              EPOLLIN EPOLLOUT
                              EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
@@ -42,6 +43,11 @@ use constant EPOLLET => (1 << 31);
 use constant EPOLL_CTL_ADD => 1;
 use constant EPOLL_CTL_DEL => 2;
 use constant EPOLL_CTL_MOD => 3;
+use constant {
+	SFD_CLOEXEC => 02000000,
+	SFD_NONBLOCK => 00004000,
+};
+
 
 our $loaded_syscall = 0;
 
@@ -63,6 +69,7 @@ our (
      $SYS_epoll_create,
      $SYS_epoll_ctl,
      $SYS_epoll_wait,
+     $SYS_signalfd4,
      );
 
 our $no_deprecated = 0;
@@ -88,63 +95,75 @@ if ($^O eq "linux") {
         $SYS_epoll_create = 254;
         $SYS_epoll_ctl    = 255;
         $SYS_epoll_wait   = 256;
+        $SYS_signalfd4 = 327;
     } elsif ($machine eq "x86_64") {
         $SYS_epoll_create = 213;
         $SYS_epoll_ctl    = 233;
         $SYS_epoll_wait   = 232;
+        $SYS_signalfd4 = 289;
     } elsif ($machine =~ m/^parisc/) {
         $SYS_epoll_create = 224;
         $SYS_epoll_ctl    = 225;
         $SYS_epoll_wait   = 226;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 309;
     } elsif ($machine =~ m/^ppc64/) {
         $SYS_epoll_create = 236;
         $SYS_epoll_ctl    = 237;
         $SYS_epoll_wait   = 238;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 313;
     } elsif ($machine eq "ppc") {
         $SYS_epoll_create = 236;
         $SYS_epoll_ctl    = 237;
         $SYS_epoll_wait   = 238;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 313;
     } elsif ($machine =~ m/^s390/) {
         $SYS_epoll_create = 249;
         $SYS_epoll_ctl    = 250;
         $SYS_epoll_wait   = 251;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 322;
     } elsif ($machine eq "ia64") {
         $SYS_epoll_create = 1243;
         $SYS_epoll_ctl    = 1244;
         $SYS_epoll_wait   = 1245;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 289;
     } elsif ($machine eq "alpha") {
         # natural alignment, ints are 32-bits
         $SYS_epoll_create = 407;
         $SYS_epoll_ctl    = 408;
         $SYS_epoll_wait   = 409;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 484;
     } elsif ($machine eq "aarch64") {
         $SYS_epoll_create = 20;  # (sys_epoll_create1)
         $SYS_epoll_ctl    = 21;
         $SYS_epoll_wait   = 22;  # (sys_epoll_pwait)
         $u64_mod_8        = 1;
         $no_deprecated    = 1;
+        $SYS_signalfd4 = 74;
     } elsif ($machine =~ m/arm(v\d+)?.*l/) {
         # ARM OABI
         $SYS_epoll_create = 250;
         $SYS_epoll_ctl    = 251;
         $SYS_epoll_wait   = 252;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 355;
     } elsif ($machine =~ m/^mips64/) {
         $SYS_epoll_create = 5207;
         $SYS_epoll_ctl    = 5208;
         $SYS_epoll_wait   = 5209;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 5283;
     } elsif ($machine =~ m/^mips/) {
         $SYS_epoll_create = 4248;
         $SYS_epoll_ctl    = 4249;
         $SYS_epoll_wait   = 4250;
         $u64_mod_8        = 1;
+        $SYS_signalfd4 = 4324;
     } else {
         # as a last resort, try using the *.ph files which may not
         # exist or may be wrong
@@ -152,6 +171,11 @@ if ($^O eq "linux") {
         $SYS_epoll_create = eval { &SYS_epoll_create; } || 0;
         $SYS_epoll_ctl    = eval { &SYS_epoll_ctl;    } || 0;
         $SYS_epoll_wait   = eval { &SYS_epoll_wait;   } || 0;
+
+	# Note: do NOT add new syscalls to depend on *.ph, here.
+	# Better to miss syscalls (so we can fallback to IO::Poll)
+	# than to use wrong ones, since the names are not stable
+	# (at least not on FreeBSD), if the actual numbers are.
     }
 
     if ($u64_mod_8) {
@@ -226,6 +250,22 @@ sub epoll_wait_mod8 {
         @{$_[3]->[$_]}[1,2,0] = unpack("LLL", substr($epoll_wait_events, 16*$_, 12));
     }
     return $ct;
+}
+
+sub signalfd ($$$) {
+	my ($fd, $signos, $flags) = @_;
+	if ($SYS_signalfd4) {
+		# Not sure if there's a way to get pack/unpack to get the
+		# contents of POSIX::SigSet to a buffer, but prepping the
+		# bitmap like one would for select() works:
+		my $buf = "\0" x 8;
+		vec($buf, $_ - 1, 1) = 1 for @$signos;
+
+		syscall($SYS_signalfd4, $fd, $buf, 8, $flags|SFD_CLOEXEC);
+	} else {
+		$! = ENOSYS;
+		undef;
+	}
 }
 
 1;

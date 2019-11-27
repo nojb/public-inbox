@@ -53,6 +53,7 @@ our (
      $LoopTimeout,               # timeout of event loop in milliseconds
      $DoneInit,                  # if we've done the one-time module init yet
      @Timers,                    # timers
+     $in_loop,
      );
 
 Reset();
@@ -249,7 +250,7 @@ sub reap_pids {
 sub enqueue_reap ($) { push @$nextq, \&reap_pids };
 
 sub EpollEventLoop {
-    local $SIG{CHLD} = \&enqueue_reap;
+    local $in_loop = 1;
     while (1) {
         my @events;
         my $i;
@@ -628,8 +629,7 @@ sub shutdn ($) {
 # must be called with eval, PublicInbox::DS may not be loaded (see t/qspawn.t)
 sub dwaitpid ($$$) {
     my ($pid, $cb, $arg) = @_;
-    my $chld = $SIG{CHLD};
-    if (defined($chld) && $chld eq \&enqueue_reap) {
+    if ($in_loop) {
         push @$WaitPids, [ $pid, $cb, $arg ];
 
         # We could've just missed our SIGCHLD, cover it, here:
