@@ -595,7 +595,7 @@ sub replace_oids {
 
 	return if $nreplace == 0;
 
-	run_die([@git, qw(-c gc.reflogExpire=now gc --prune=all)]);
+	run_die([@git, qw(-c gc.reflogExpire=now gc --prune=all --quiet)]);
 
 	# check that old OIDs are gone
 	my $err = 0;

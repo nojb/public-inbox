@@ -1204,7 +1204,7 @@ sub unindex ($$$$) {
 
 	# ensure any blob can not longer be accessed via dumb HTTP
 	PublicInbox::Import::run_die(['git', "--git-dir=$git->{git_dir}",
-		qw(-c gc.reflogExpire=now gc --prune=all)]);
+		qw(-c gc.reflogExpire=now gc --prune=all --quiet)]);
 }
 
 sub sync_ranges ($$$) {
