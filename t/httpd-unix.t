@@ -59,7 +59,7 @@ sub check_sock ($) {
 check_sock($unix);
 
 { # do not clobber existing socket
-	my %err = ( 'linux' => EADDRINUSE );
+	my %err = ( 'linux' => EADDRINUSE, 'freebsd' => EADDRINUSE );
 	open my $out, '>>', "$tmpdir/1" or die "redirect failed: $!";
 	open my $err, '>>', "$tmpdir/2" or die "redirect failed: $!";
 	my $cmd = ['-httpd', '-l', $unix, '-W0', $psgi];
