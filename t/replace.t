@@ -99,8 +99,9 @@ EOF
 
 	for my $dir (glob("$ibx->{inboxdir}/git/*.git")) {
 		my ($bn) = ($dir =~ m!([^/]+)\z!);
-		is(system(qw(git --git-dir), $dir, qw(fsck --strict)), 0,
-			"git fsck is clean in epoch $bn");
+		is(system(qw(git --git-dir), $dir,
+					qw(fsck --strict --no-progress)),
+			0, "git fsck is clean in epoch $bn");
 	}
 
 	my $thread_b = $ibx->over->get_thread('replace@example.com');
