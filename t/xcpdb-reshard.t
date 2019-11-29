@@ -25,6 +25,7 @@ my $mime = PublicInbox::MIME->create(
 
 my ($this) = (split('/', $0))[-1];
 my ($tmpdir, $for_destroy) = tmpdir();
+local $ENV{PI_CONFIG} = "$tmpdir/config";
 my $ibx = PublicInbox::Inbox->new({
 	inboxdir => "$tmpdir/testbox",
 	name => $this,

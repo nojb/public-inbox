@@ -32,6 +32,7 @@ sub import_index_incremental {
 	my ($v, $level) = @_;
 	my $this = "pi-$v-$level-indexlevels";
 	my ($tmpdir, $for_destroy) = tmpdir();
+	local $ENV{PI_CONFIG} = "$tmpdir/config";
 	my $ibx = PublicInbox::Inbox->new({
 		inboxdir => "$tmpdir/testbox",
 		name => $this,
