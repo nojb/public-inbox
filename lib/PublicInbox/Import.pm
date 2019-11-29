@@ -178,14 +178,14 @@ sub _update_git_info ($$) {
 		my $env = { GIT_INDEX_FILE => $index };
 		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
 	}
-	run_die([@cmd, 'update-server-info'], undef);
+	run_die([@cmd, 'update-server-info']);
 	my $ibx = $self->{-inbox};
 	($ibx && $self->{path_type} eq '2/38') and eval {
 		require PublicInbox::SearchIdx;
 		my $s = PublicInbox::SearchIdx->new($ibx);
 		$s->index_sync({ ref => $self->{ref} });
 	};
-	eval { run_die([@cmd, qw(gc --auto)], undef) } if $do_gc;
+	eval { run_die([@cmd, qw(gc --auto)]) } if $do_gc;
 }
 
 sub barrier {
