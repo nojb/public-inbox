@@ -171,6 +171,7 @@ sub run_script ($;$$) {
 		local *STDERR = *STDERR;
 		local %ENV = $env ? (%ENV, %$env) : %ENV;
 		local %SIG = %SIG;
+		local $0 = join(' ', @$cmd);
 		_prepare_redirects($fhref);
 		_run_sub($sub, $key, \@argv);
 	}
