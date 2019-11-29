@@ -16,6 +16,11 @@ use PublicInbox::Tmpfile;
 use base qw(Exporter);
 our @EXPORT_OK = qw(git_unquote git_quote);
 
+use constant MAX_INFLIGHT =>
+	($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF())
+	/
+	65; # SHA-256 hex size + "\n" in preparation for git using non-SHA1
+
 my %GIT_ESC = (
 	a => "\a",
 	b => "\b",
@@ -124,10 +129,50 @@ sub _bidi_pipe {
 	$self->{$in} = $in_r;
 }
 
+sub read_cat_in_full ($$$) {
+	my ($self, $in, $left) = @_;
+	my $offset = 0;
+	my $buf = '';
+	while ($left > 0) {
+		my $r = read($in, $buf, $left, $offset);
+		defined($r) or fail($self, "read failed: $!");
+		$r == 0 and fail($self, 'exited unexpectedly');
+		$left -= $r;
+		$offset += $r;
+	}
+	my $r = read($in, my $lf, 1);
+	defined($r) or fail($self, "read failed: $!");
+	fail($self, 'newline missing after blob') if ($r != 1 || $lf ne "\n");
+	\$buf;
+}
+
+sub _cat_async_step ($$$) {
+	my ($self, $inflight, $in) = @_;
+	my $cb = shift @$inflight or die 'BUG: inflight empty';
+	local $/ = "\n";
+	my $head = $in->getline;
+	return eval { $cb->(undef) } if $head =~ / missing$/;
+
+	$head =~ /^([0-9a-f]{40}) (\S+) ([0-9]+)$/ or
+		fail($self, "Unexpected result from async git cat-file: $head");
+	my ($oid_hex, $type, $size) = ($1, $2, $3 + 0);
+	my $bref = read_cat_in_full($self, $in, $size);
+	eval { $cb->($bref, $oid_hex, $type, $size) };
+}
+
+sub cat_async_wait ($) {
+	my ($self) = @_;
+	my $inflight = delete $self->{inflight} or return;
+	my $in = $self->{in};
+	while (scalar(@$inflight)) {
+		_cat_async_step($self, $inflight, $in);
+	}
+}
+
 sub cat_file {
 	my ($self, $obj, $ref) = @_;
 	my ($retried, $in, $head);
-
+	cat_async_wait($self);
 again:
 	batch_prepare($self);
 	$self->{out}->print($obj, "\n") or fail($self, "write error: $!");
@@ -147,26 +192,8 @@ again:
 		fail($self, "Unexpected result from git cat-file: $head");
 
 	my $size = $1;
-	my $rv;
-	my $left = $size;
 	$$ref = $size if $ref;
-
-	my $offset = 0;
-	my $buf = '';
-	while ($left > 0) {
-		my $r = read($in, $buf, $left, $offset);
-		defined($r) or fail($self, "read failed: $!");
-		$r == 0 and fail($self, 'exited unexpectedly');
-		$left -= $r;
-		$offset += $r;
-	}
-	$rv = \$buf;
-
-	my $r = read($in, my $lf, 1);
-	defined($r) or fail($self, "read failed: $!");
-	fail($self, 'newline missing after blob') if ($r != 1 || $lf ne "\n");
-
-	$rv;
+	read_cat_in_full($self, $in, $size);
 }
 
 sub batch_prepare ($) { _bidi_pipe($_[0], qw(--batch in out pid)) }
@@ -206,9 +233,15 @@ sub _destroy {
 	waitpid($p, 0) if $@; # wait synchronously if not in event loop
 }
 
+sub cat_async_abort ($) {
+	my ($self) = @_;
+	my $inflight = delete $self->{inflight} or die 'BUG: not in async';
+	cleanup($self);
+}
+
 sub fail {
 	my ($self, $msg) = @_;
-	cleanup($self);
+	$self->{inflight} ? cat_async_abort($self) : cleanup($self);
 	die $msg;
 }
 
@@ -276,6 +309,25 @@ sub pub_urls {
 		return map { host_prefix_url($env, $_) } @$urls;
 	}
 	local_nick($self);
+}
+
+sub cat_async_begin {
+	my ($self) = @_;
+	cleanup($self) if alternates_changed($self);
+	batch_prepare($self);
+	die 'BUG: already in async' if $self->{inflight};
+	$self->{inflight} = [];
+}
+
+sub cat_async ($$$) {
+	my ($self, $oid, $cb) = @_;
+	my $inflight = $self->{inflight} or die 'BUG: not in async';
+	if (scalar(@$inflight) >= MAX_INFLIGHT) {
+		_cat_async_step($self, $inflight, $self->{in});
+	}
+
+	$self->{out}->print($oid, "\n") or fail($self, "write error: $!");
+	push @$inflight, $cb;
 }
 
 sub commit_title ($$) {
