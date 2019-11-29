@@ -6,8 +6,12 @@ all need to be considered for everything we introduce)
 
 * general performance improvements, but without relying on
   XS or pre-built modules any more than we currently do.
+  (Optional Inline::C and user-compiled re2c acceptable)
 
 * mailmap support (same as git) for remapping expired email addresses
+
+* support remapping of expired URLs similar to mailmap
+  (coordinate with git.git with this?)
 
 * POP3 server, since some webmail providers support external POP3:
   https://public-inbox.org/meta/20160411034104.GA7817@dcvr.yhbt.net/
@@ -20,6 +24,9 @@ all need to be considered for everything we introduce)
   for offering a publically accessible IP with a cheap VPS,
   yet storing large amounts of data on computers without a
   public IP behind a home Internet connection.
+
+* support HTTP(S) CONNECT proxying to NNTP for users with
+  firewall problems
 
 * DHT (distributed hash table) for mapping Message-IDs to various
   archive locations to avoid SPOF.
@@ -68,10 +75,9 @@ all need to be considered for everything we introduce)
 * linkify thread skeletons better
   https://public-inbox.org/git/6E3699DEA672430CAEA6DEFEDE6918F4@PhilipOakley/
 
-* streaming Email::MIME replacement: currently we generate many
+* low-memory Email::MIME replacement: currently we generate many
   allocations/strings for headers we never look at and slurp
-  entire message bodies into memory.
-  (this is pie-in-the-sky territory...)
+  entire message bodies into memory.  GMime+Inline::C could work.
 
 * use REQUEST_URI properly for CGI / mod_perl2 compatibility
   with Message-IDs which include '%' (done?)
