@@ -291,6 +291,7 @@ t/www_listing.t
 t/xcpdb-reshard.t
 xt/git-http-backend.t
 xt/git_async_cmp.t
+xt/msgtime_cmp.t
 xt/nntpd-validate.t
 xt/perf-msgview.t
 xt/perf-nntpd.t
