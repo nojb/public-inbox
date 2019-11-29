@@ -6,7 +6,7 @@ package PublicInbox::MDA;
 use strict;
 use warnings;
 use Email::Simple;
-use Date::Parse qw(strptime);
+use PublicInbox::MsgTime;
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 
@@ -51,8 +51,7 @@ sub usable_str {
 }
 
 sub usable_date {
-	my @t = eval { strptime(@_) };
-	scalar @t;
+	defined(eval { PublicInbox::MsgTime::str2date_zone($_[0]) });
 }
 
 sub alias_specified {

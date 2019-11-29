@@ -110,10 +110,6 @@ all need to be considered for everything we introduce)
 * imperfect scraper importers for obfuscated list archives
   (e.g. obfuscated Mailman stuff, Google Groups, etc...)
 
-* consider using HTTP::Date instead of Date::Parse, since we need the
-  former is capable of parsing RFC822-ish dates, used by Plack, and
-  the latter is missing from OpenBSD and maybe other distros.
-
 * improve performance and avoid head-of-line blocking on slow storage
 
 * share "git cat-file --batch" processes across inboxes to avoid

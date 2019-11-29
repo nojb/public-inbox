@@ -110,7 +110,6 @@ WriteMakefile(
 		# note: we use spamc(1), NOT the Perl modules
 		# We also depend on git.
 		# Keep this sorted and synced to the INSTALL document
-		'Date::Parse' => 0,
 
 		# libperl$PERL_VERSION,
 		# `perl5' on FreeBSD

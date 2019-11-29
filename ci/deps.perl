@@ -19,7 +19,6 @@ my $profiles = {
 	essential => [ qw(
 		git
 		perl
-		Date::Parse
 		Devel::Peek
 		Digest::SHA
 		Email::Simple
@@ -34,6 +33,7 @@ my $profiles = {
 
 	# everything optional for normal use
 	optional => [ qw(
+		Date::Parse
 		BSD::Resource
 		DBD::SQLite
 		DBI
