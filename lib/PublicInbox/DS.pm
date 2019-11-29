@@ -39,8 +39,8 @@ use Errno  qw(EAGAIN EINVAL);
 use Carp   qw(croak confess carp);
 require File::Spec;
 
-my $nextq = []; # queue for next_tick
-my $WaitPids = [];               # list of [ pid, callback, callback_arg ]
+my $nextq; # queue for next_tick
+my $WaitPids; # list of [ pid, callback, callback_arg ]
 my $reap_timer;
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -69,6 +69,7 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
+    $nextq = [];
     $WaitPids = [];
     $reap_timer = undef;
     @ToClose = ();
