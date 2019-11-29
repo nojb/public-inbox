@@ -39,16 +39,6 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 }
 
 {
-	my ($r, $w);
-	pipe $r, $w or die "pipe failed: $!";
-	my $pid = spawn(['env'], {}, { -env => 1, 1 => fileno($w) });
-	close $w or die "close pipe[1] failed: $!";
-	ok(!defined(<$r>), 'read stdout of spawned from pipe');
-	is(waitpid($pid, 0), $pid, 'waitpid succeeds on spawned process');
-	is($?, 0, 'env(1) exited successfully');
-}
-
-{
 	my $fh = popen_rd([qw(echo hello)]);
 	ok(fileno($fh) >= 0, 'tied fileno works');
 	my $l = <$fh>;

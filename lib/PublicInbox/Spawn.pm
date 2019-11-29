@@ -193,17 +193,7 @@ sub spawn ($;$$) {
 	my @env;
 	$opts ||= {};
 
-	my %env = $opts->{-env} ? () : %ENV;
-	if ($env) {
-		foreach my $k (keys %$env) {
-			my $v = $env->{$k};
-			if (defined $v) {
-				$env{$k} = $v;
-			} else {
-				delete $env{$k};
-			}
-		}
-	}
+	my %env = $env ? (%ENV, %$env) : %ENV;
 	while (my ($k, $v) = each %env) {
 		push @env, "$k=$v";
 	}
