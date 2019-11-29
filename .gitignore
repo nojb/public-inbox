@@ -15,6 +15,7 @@
 *.html
 *.gz
 .*.cols
+.*.check
 /NEWS.html
 /NEWS.atom
 /NEWS

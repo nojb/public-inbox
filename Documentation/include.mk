@@ -134,11 +134,12 @@ NEWS NEWS.atom NEWS.html : Documentation/include.mk
 	$(PERL) -I lib -w Documentation/mknews.perl $@ $(RELEASES)
 
 # check for internal API changes:
-check :: NEWS check-NEWS.atom NEWS.html
+check :: NEWS .NEWS.atom.check NEWS.html
 
-check-NEWS.atom: NEWS.atom
+.NEWS.atom.check: NEWS.atom
 	$(XMLSTARLET) val NEWS.atom || \
 		{ e=$$?; test $$e -eq 0 || test $$e -eq 127; }
+	>$@
 
 Documentation/%.html: Documentation/%.txt
 	$(txt2pre)
