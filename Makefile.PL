@@ -6,7 +6,89 @@ use ExtUtils::MakeMaker;
 open my $m, '<', 'MANIFEST' or die "open(MANIFEST): $!\n";
 chomp(my @manifest = (<$m>));
 my @EXE_FILES = grep(m!^script/!, @manifest);
-my $PM_FILES = join(' ', grep(m!^lib/.*\.pm$!, @manifest));
+my $v = {};
+my $t = {};
+$v->{txt} = [ qw(INSTALL README COPYING TODO HACKING) ];
+my @dtxt = grep(m!\ADocumentation/.*\.txt\z!, @manifest);
+push @dtxt, 'Documentation/standards.txt';
+for my $txt (@dtxt) {
+	my $html = $txt;
+	$html =~ s/\.txt\z/.html/;
+	$t->{"$html : $txt"} = [ "\$(txt2pre) <$txt" ];
+}
+$v->{t_slash_star_dot_t} = [ grep(m!\At/.*\.t\z!, @manifest) ];
+my @scripts = qw(scripts/ssoma-replay); # legacy
+my @syn = (@EXE_FILES, grep(m!^lib/.*\.pm$!, @manifest), @scripts);
+@syn = grep(!/DSKQXS\.pm/, @syn) if !eval { require IO::KQueue };
+@syn = grep(!/Unsubscribe\.pm/, @syn) if !eval { require Crypt::CBC };
+@syn = grep(!/SaPlugin/, @syn) if !eval { require Mail::SpamAssasin };
+$v->{my_syntax} = [map { "$_.syntax" } @syn];
+$v->{-m1} = [ map { (split('/'))[-1] } @EXE_FILES ];
+$v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
+		public-inbox-v2-format) ];
+$v->{-m7} = [ qw(public-inbox-overview) ];
+$v->{-m8} = [ qw(public-inbox-daemon) ];
+my @sections = (1, 5, 7, 8);
+$v->{check_80} = [];
+$v->{manuals} = [];
+$v->{mantxt} = [];
+for my $i (@sections) {
+	my $ary = $v->{"-m$i"};
+	$v->{"m$i"} = $ary;
+	for my $m (@$ary) {
+		my $pod = "Documentation/$m.pod";
+		my $txt = "Documentation/$m.txt";
+		$t->{"$m.$i : $pod"} = [ "\$(podman) -s$i $pod \$@" ];
+		$t->{"$txt : $pod"} = [ "\$(podtext) $pod \$\@+",
+					"touch -r $pod \$\@+",
+					"mv \$\@+ \$@" ];
+		$t->{"Documentation/$m.html : $txt"} = [ "\$(txt2pre) <$txt" ];
+		$t->{".$m.cols : $m.$i"} = [
+			"\@echo CHECK80 $m.$i;".
+			"COLUMNS=80 \$(MAN) ./$m.$i | \$(check_man)" ];
+	}
+	push @{$v->{check_80}}, map { ".$_.cols" } @$ary;
+	my $manuals = $v->{"man$i"} = [ map { "$_.$i" } @$ary ];
+	push @{$v->{manuals}}, @$manuals;
+	push @{$v->{mantxt}}, map { "Documentation/$_.txt" } @$ary;
+}
+push @dtxt, @{$v->{mantxt}};
+$v->{docs} = [ @dtxt, 'NEWS' ];
+$v->{docs_html} = [ map {;
+		my $x = $_;
+		$x =~ s/\.txt\z//;
+		"$x.html"
+	} @{$v->{docs}} ];
+$v->{gz_docs} = [ map { "$_.gz" } (@{$v->{docs}},@{$v->{docs_html}}) ];
+$v->{rsync_docs} = [ @{$v->{gz_docs}}, @{$v->{docs}},
+	@{$v->{docs_html}}, qw(NEWS.atom NEWS.atom.gz)];
+
+# external manpages which we host ourselves, since some packages
+# (currently just Xapian) doesn't host manpages themselves.
+my @xman = qw(copydatabase.1 xapian-compact.1);
+$v->{xdocs} = [ map { "Documentation/.x/.$_.txt" } @xman ];
+$v->{xdocs_html} = [ map { "Documentation/.x/.$_.html" } @xman ];
+for (@{$v->{xdocs}}) {
+	$t->{"$_ : | Documentation/.x"} = [
+		'$(PERL) -w Documentation/extman.perl >$@',
+	];
+	my $html = $_;
+	$html =~ s/\.txt\z/.html/;
+	$t->{"$html : $_"} = [ "\$(txt2pre) <$_" ];
+}
+$v->{gz_xdocs} = [ map { "$_.gz" } (@{$v->{xdocs_html}}, @{$v->{xdocs}}) ];
+$v->{rsync_xdocs} = [ @{$v->{gz_xdocs}}, @{$v->{xdocs_html}}, @{$v->{xdocs}} ];
+
+my $TGTS = join("\n", map {;
+	my $tgt_prereq = $_;
+	my $cmds = $t->{$_};
+	"$tgt_prereq\n".join('', map { "\t$_\n" } @$cmds);
+} keys %$t);
+
+my $VARS = join("\n", map {;
+	my $varname = $_;
+	join('', map { "$varname += $_\n" } @{$v->{$varname}});
+} grep(!/^-/, keys %$v));
 
 # Don't waste user's disk space by installing some pods from
 # imported code or internal use only
@@ -69,17 +151,17 @@ sub MY::postamble {
 EATMYDATA =
 N = \$\$(( \$\$(nproc 2>/dev/null || gnproc 2>/dev/null || echo 2) + 1 ))
 -include config.mak
+$VARS
 -include Documentation/include.mk
-SCRIPTS := scripts/ssoma-replay
-syn_files = $PM_FILES \$(EXE_FILES) \$(SCRIPTS) \$(wildcard t/*.t)
-my_syntax = \$(addsuffix .syntax, \$(syn_files))
+$TGTS
+
+# syntax checks are currently GNU make only:
+%.syntax :: %
+	@\$(PERL) -w -I lib -c \$<
+
+syntax:: \$(my_syntax)
+
 changed = \$(shell git ls-files -m)
-
-%.syntax ::
-	@\$(PERL) -w -I lib -c \$(subst .syntax,,\$@)
-
-syntax:: \$(filter-out lib/PublicInbox/DSKQXS.pm.syntax,\$(my_syntax))
-
 dsyn :: \$(addsuffix .syntax, \$(filter \$(changed), \$(syn_files)))
 
 check-manifest :: MANIFEST
@@ -94,7 +176,7 @@ lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
 # Ensure new .pm files will always be installed by updating
 # the timestamp of Makefile.PL which forces Makefile to be remade
 Makefile.PL : MANIFEST
-	touch -r \$< \$@
+	touch -r MANIFEST \$@
 	\$(PERLRUN) \$@
 
 EOF

@@ -185,7 +185,7 @@ Once the dependencies are installed, you should be able to build and
 install the system (into /usr/local) with:
 
         perl Makefile.PL
-        make # GNU make is preferred, `gmake' on BSD systems
+        make
         make test
         make install # root permissions may be needed
 
