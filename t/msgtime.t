@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::MsgTime;
-
+our $received_date = 'Mon, 22 Jan 2007 13:16:24 -0500';
 sub datestamp ($) {
 	my ($date) = @_;
 	local $SIG{__WARN__} = sub {};  # Suppress warnings
@@ -17,7 +17,11 @@ sub datestamp ($) {
 			Subject => 'this is a subject',
 			'Message-ID' => '<a@example.com>',
 			Date => $date,
-			'Received' => '(majordomo@vger.kernel.org) by vger.kernel.org via listexpand\n\tid S932173AbXAVSQY (ORCPT <rfc822;w@1wt.eu>);\n\tMon, 22 Jan 2007 13:16:24 -0500',
+			'Received' => <<EOF,
+(majordomo\@vger.kernel.org) by vger.kernel.org via listexpand
+\tid S932173AbXAVSQY (ORCPT <rfc822;w\@1wt.eu>);
+\t$received_date
+EOF
 		],
 		body => "hello world\n",
 	    );
@@ -103,5 +107,11 @@ for (qw(UT GMT Z)) {
 	is_datestamp('Fri, 02 Oct 1993 00:00:00 '.$_, [ 749520000, '+0000']);
 }
 is_datestamp('Fri, 02 Oct 1993 00:00:00 EDT', [ 749534400, '-0400']);
+
+# fallback to Received: header if Date: is out-of-range:
+is_datestamp('Fri, 1 Jan 1904 10:12:31 +0100',
+	PublicInbox::MsgTime::str2date_zone($received_date));
+is_datestamp('Fri, 9 Mar 71685 18:45:56 +0000', # Y10K is not my problem :P
+	PublicInbox::MsgTime::str2date_zone($received_date));
 
 done_testing();

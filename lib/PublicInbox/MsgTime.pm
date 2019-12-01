@@ -38,7 +38,7 @@ sub str2date_zone ($) {
 	if ($date =~ /(?:[A-Za-z]+,?\s+)? # day-of-week
 			([0-9]+),?\s+  # dd
 			([A-Za-z]+)\s+ # mon
-			([0-9]{2,})\s+ # YYYY or YY (or YYY :P)
+			([0-9]{2,4})\s+ # YYYY or YY (or YYY :P)
 			([0-9]+)[:\.] # HH:
 				((?:[0-9]{2})|(?:\s?[0-9])) # MM
 				(?:[:\.]((?:[0-9]{2})|(?:\s?[0-9])))? # :SS
@@ -66,6 +66,10 @@ sub str2date_zone ($) {
 		}
 
 		$ts = timegm($ss // 0, $mm, $hh, $dd, $mon, $yyyy);
+
+		# 4-digit dates in non-spam from 1900s and 1910s exist in
+		# lore archives
+		return if $ts < 0;
 
 		# Compute the time offset from [+-]HHMM
 		$tz //= 0;
