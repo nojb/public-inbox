@@ -41,7 +41,8 @@ require File::Spec;
 
 my $nextq; # queue for next_tick
 my $WaitPids; # list of [ pid, callback, callback_arg ]
-my $reap_timer;
+my $later_queue; # callbacks
+my ($later_timer, $reap_timer);
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (or DSKQXS ref)
@@ -71,7 +72,8 @@ sub Reset {
     %DescriptorMap = ();
     $nextq = [];
     $WaitPids = [];
-    $reap_timer = undef;
+    $later_queue = [];
+    $reap_timer = $later_timer = undef;
     @ToClose = ();
     $LoopTimeout = -1;  # no timeout by default
     @Timers = ();
@@ -250,9 +252,11 @@ sub reap_pids {
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
 sub enqueue_reap ($) { push @$nextq, \&reap_pids };
 
+sub running () { ($SIG{CHLD} // '') eq \&enqueue_reap }
+
 sub EpollEventLoop {
     local $in_loop = 1;
-    while (1) {
+    do {
         my @events;
         my $i;
         my $timeout = RunTimers();
@@ -266,8 +270,8 @@ sub EpollEventLoop {
             # in that event.
             $DescriptorMap{$events[$i]->[0]}->event_step;
         }
-        return unless PostEventLoop();
-    }
+    } while (PostEventLoop());
+    _run_later();
 }
 
 =head2 C<< CLASS->SetPostLoopCallback( CODEREF ) >>
@@ -638,6 +642,19 @@ sub dwaitpid ($$$) {
     } else {
         die "Not in EventLoop\n";
     }
+}
+
+sub _run_later () {
+    my $run = $later_queue;
+    $later_timer = undef;
+    $later_queue = [];
+    $_->() for @$run;
+}
+
+sub later ($) {
+    my ($cb) = @_;
+    push @$later_queue, $cb;
+    $later_timer //= AddTimer(undef, 60, \&_run_later);
 }
 
 package PublicInbox::DS::Timer;

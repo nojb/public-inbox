@@ -16,7 +16,6 @@ STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
 use PublicInbox::Syscall qw(SFD_NONBLOCK);
-require PublicInbox::EvCleanup;
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
 require PublicInbox::Sigfd;
@@ -580,7 +579,6 @@ sub defer_accept ($$) {
 
 sub daemon_loop ($$$$) {
 	my ($refresh, $post_accept, $nntpd, $af_default) = @_;
-	PublicInbox::EvCleanup::enable(); # early for $refresh
 	my %post_accept;
 	while (my ($k, $v) = each %tls_opt) {
 		if ($k =~ s!\A(?:nntps|https)://!!) {

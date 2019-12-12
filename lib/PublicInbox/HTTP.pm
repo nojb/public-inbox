@@ -18,7 +18,6 @@ use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
 use IO::Handle;
-require PublicInbox::EvCleanup;
 use PublicInbox::DS qw(msg_more);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::Tmpfile;

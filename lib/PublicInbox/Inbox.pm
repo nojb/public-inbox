@@ -50,9 +50,9 @@ sub cleanup_task () {
 }
 
 sub cleanup_possible () {
-	# no need to require EvCleanup, here, if it were enabled another
+	# no need to require DS, here, if it were enabled another
 	# module would've require'd it, already
-	eval { PublicInbox::EvCleanup::enabled() } or return 0;
+	eval { PublicInbox::DS::running() } or return 0;
 
 	eval {
 		require Devel::Peek; # needs separate package in Fedora
@@ -65,7 +65,7 @@ sub _cleanup_later ($) {
 	my ($self) = @_;
 	$cleanup_avail = cleanup_possible() if $cleanup_avail < 0;
 	return if $cleanup_avail != 1;
-	$cleanup_timer ||= PublicInbox::EvCleanup::later(*cleanup_task);
+	$cleanup_timer ||= PublicInbox::DS::later(*cleanup_task);
 	$CLEANUP->{"$self"} = $self;
 }
 

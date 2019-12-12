@@ -11,7 +11,6 @@ use PublicInbox::Search;
 use PublicInbox::Msgmap;
 use PublicInbox::MID qw(mid_escape);
 use PublicInbox::Git;
-require PublicInbox::EvCleanup;
 use Email::Simple;
 use POSIX qw(strftime);
 use PublicInbox::DS qw(now);
@@ -70,7 +69,7 @@ sub expire_old () {
 		}
 	}
 	$EXPMAP = \%new;
-	$expt = scalar(keys %new) ? PublicInbox::EvCleanup::later(*expire_old)
+	$expt = scalar(keys %new) ? PublicInbox::DS::later(*expire_old)
 	                          : undef;
 }
 
@@ -94,7 +93,7 @@ sub new ($$$) {
 		greet($self);
 	}
 	update_idle_time($self);
-	$expt ||= PublicInbox::EvCleanup::later(*expire_old);
+	$expt ||= PublicInbox::DS::later(*expire_old);
 	$self;
 }
 

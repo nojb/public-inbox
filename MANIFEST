@@ -92,7 +92,6 @@ lib/PublicInbox/DSKQXS.pm
 lib/PublicInbox/DSPoll.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/Emergency.pm
-lib/PublicInbox/EvCleanup.pm
 lib/PublicInbox/ExtMsg.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm
