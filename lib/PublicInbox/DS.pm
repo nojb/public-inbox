@@ -42,7 +42,9 @@ require File::Spec;
 my $nextq; # queue for next_tick
 my $WaitPids; # list of [ pid, callback, callback_arg ]
 my $later_queue; # callbacks
-my ($later_timer, $reap_timer);
+my $EXPMAP; # fd -> [ idle_time, $self ]
+our $EXPTIME = 180; # 3 minutes
+my ($later_timer, $reap_timer, $exp_timer);
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (or DSKQXS ref)
@@ -73,7 +75,8 @@ sub Reset {
     $nextq = [];
     $WaitPids = [];
     $later_queue = [];
-    $reap_timer = $later_timer = undef;
+    $EXPMAP = {};
+    $reap_timer = $later_timer = $exp_timer = undef;
     @ToClose = ();
     $LoopTimeout = -1;  # no timeout by default
     @Timers = ();
@@ -655,6 +658,40 @@ sub later ($) {
     my ($cb) = @_;
     push @$later_queue, $cb;
     $later_timer //= AddTimer(undef, 60, \&_run_later);
+}
+
+sub expire_old () {
+    my $now = now();
+    my $exp = $EXPTIME;
+    my $old = $now - $exp;
+    my %new;
+    while (my ($fd, $v) = each %$EXPMAP) {
+        my ($idle_time, $ds_obj) = @$v;
+        if ($idle_time < $old) {
+            if (!$ds_obj->shutdn) {
+                $new{$fd} = $v;
+            }
+        } else {
+            $new{$fd} = $v;
+        }
+    }
+    $EXPMAP = \%new;
+    $exp_timer = scalar(keys %new) ? later(\&expire_old) : undef;
+}
+
+sub update_idle_time {
+    my ($self) = @_;
+    my $sock = $self->{sock} or return;
+    $EXPMAP->{fileno($sock)} = [ now(), $self ];
+    $exp_timer //= later(\&expire_old);
+}
+
+sub not_idle_long {
+    my ($self, $now) = @_;
+    my $sock = $self->{sock} or return;
+    my $ary = $EXPMAP->{fileno($sock)} or return;
+    my $exp_at = $ary->[0] + $EXPTIME;
+    $exp_at > $now;
 }
 
 package PublicInbox::DS::Timer;

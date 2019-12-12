@@ -43,35 +43,6 @@ HDR\r
 OVER\r
 
 my $have_deflate;
-my $EXPMAP; # fd -> [ idle_time, $self ]
-my $expt;
-our $EXPTIME = 180; # 3 minutes
-
-sub update_idle_time ($) {
-	my ($self) = @_;
-	my $sock = $self->{sock} or return;
-	$EXPMAP->{fileno($sock)} = [ now(), $self ];
-}
-
-sub expire_old () {
-	my $now = now();
-	my $exp = $EXPTIME;
-	my $old = $now - $exp;
-	my %new;
-	while (my ($fd, $v) = each %$EXPMAP) {
-		my ($idle_time, $nntp) = @$v;
-		if ($idle_time < $old) {
-			if (!$nntp->shutdn) {
-				$new{$fd} = $v;
-			}
-		} else {
-			$new{$fd} = $v;
-		}
-	}
-	$EXPMAP = \%new;
-	$expt = scalar(keys %new) ? PublicInbox::DS::later(*expire_old)
-	                          : undef;
-}
 
 sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
 
@@ -92,8 +63,7 @@ sub new ($$$) {
 	} else {
 		greet($self);
 	}
-	update_idle_time($self);
-	$expt ||= PublicInbox::DS::later(*expire_old);
+	$self->update_idle_time;
 	$self;
 }
 
@@ -650,7 +620,7 @@ sub long_response ($$) {
 			out($self, " deferred[$fd] aborted - %0.6f", $diff);
 			$self->close;
 		} elsif ($more) { # $self->{wbuf}:
-			update_idle_time($self);
+			$self->update_idle_time;
 
 			# COMPRESS users all share the same DEFLATE context.
 			# Flush it here to ensure clients don't see
@@ -983,7 +953,7 @@ sub event_step {
 
 	return unless $self->flush_write && $self->{sock};
 
-	update_idle_time($self);
+	$self->update_idle_time;
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
@@ -1008,25 +978,17 @@ sub event_step {
 	my $len = bytes::length($$rbuf);
 	return $self->close if ($len >= LINE_MAX);
 	$self->rbuf_idle($rbuf);
-	update_idle_time($self);
+	$self->update_idle_time;
 
 	# maybe there's more pipelined data, or we'll have
 	# to register it for socket-readiness notifications
 	$self->requeue unless $self->{wbuf};
 }
 
-sub not_idle_long ($$) {
-	my ($self, $now) = @_;
-	my $sock = $self->{sock} or return;
-	my $ary = $EXPMAP->{fileno($sock)} or return;
-	my $exp_at = $ary->[0] + $EXPTIME;
-	$exp_at > $now;
-}
-
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy {
 	my ($self, $now) = @_;
-	($self->{rbuf} || $self->{wbuf} || not_idle_long($self, $now));
+	($self->{rbuf} || $self->{wbuf} || $self->not_idle_long($now));
 }
 
 # this is an import to prevent "perl -c" from complaining about fields
