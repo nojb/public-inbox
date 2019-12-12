@@ -28,10 +28,8 @@ my %pids;
 my %listener_names; # sockname => IO::Handle
 my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
 my $reexec_pid;
-my $cleanup;
 my ($uid, $gid);
 my ($default_cert, $default_key);
-END { $cleanup->() if $cleanup };
 my %KNOWN_TLS = ( 443 => 'https', 563 => 'nntps' );
 my %KNOWN_STARTTLS = ( 119 => 'nntp' );
 
@@ -245,14 +243,11 @@ sub daemonize () {
 		die "could not fork: $!\n" unless defined $pid;
 		exit if $pid;
 	}
-	if (defined $pid_file) {
-		write_pid($pid_file);
-		my $unlink_pid = $$;
-		$cleanup = sub {
-			$cleanup = undef; # avoid cyclic reference
-			unlink_pid_file_safe_ish($unlink_pid, $pid_file);
-		};
-	}
+	return unless defined $pid_file;
+
+	write_pid($pid_file);
+	# for ->DESTROY:
+	bless { pid => $$, pid_file => $pid_file }, __PACKAGE__;
 }
 
 sub worker_quit { # $_[0] = signal name or number (unused)
@@ -631,16 +626,16 @@ sub daemon_loop ($$$$) {
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	PublicInbox::DS->EventLoop;
-	$parent_pipe = undef;
 }
-
 
 sub run ($$$;$) {
 	my ($default, $refresh, $post_accept, $nntpd) = @_;
 	daemon_prepare($default);
 	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
-	daemonize();
+	my $for_destroy = daemonize();
 	daemon_loop($refresh, $post_accept, $nntpd, $af_default);
+	PublicInbox::DS->Reset;
+	# ->DESTROY runs when $for_destroy goes out-of-scope
 }
 
 sub do_chown ($) {
@@ -654,6 +649,10 @@ sub write_pid ($) {
 	my ($path) = @_;
 	Net::Server::Daemonize::create_pid_file($path);
 	do_chown($path);
+}
+
+sub DESTROY {
+	unlink_pid_file_safe_ish($_[0]->{pid}, $_[0]->{pid_file});
 }
 
 1;

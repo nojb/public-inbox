@@ -22,7 +22,6 @@ my $td;
 
 my $spawn_httpd = sub {
 	my (@args) = @_;
-	push @args, '-W0';
 	my $cmd = [ '-httpd', @args, "--stdout=$out", "--stderr=$err", $psgi ];
 	$td = start_script($cmd);
 };
@@ -36,7 +35,7 @@ my $spawn_httpd = sub {
 }
 
 ok(!-S $unix, 'UNIX socket does not exist, yet');
-$spawn_httpd->("-l$unix");
+$spawn_httpd->("-l$unix", '-W0');
 my %o = (Peer => $unix, Type => SOCK_STREAM);
 for (1..1000) {
 	last if -S $unix && IO::Socket::UNIX->new(%o);
@@ -87,26 +86,28 @@ check_sock($unix);
 
 SKIP: {
 	eval 'require Net::Server::Daemonize';
-	skip('Net::Server missing for pid-file/daemonization test', 10) if $@;
+	skip('Net::Server missing for pid-file/daemonization test', 20) if $@;
+	my $pid_file = "$tmpdir/pid";
+	for my $w (qw(-W0 -W1)) {
+		# wait for daemonization
+		$spawn_httpd->("-l$unix", '-D', '-P', $pid_file, $w);
+		$td->join;
+		is($?, 0, "daemonized $w process");
+		check_sock($unix);
 
-	# wait for daemonization
-	$spawn_httpd->("-l$unix", '-D', '-P', "$tmpdir/pid");
-	$td->join;
-	is($?, 0, 'daemonized process OK');
-	check_sock($unix);
-
-	ok(-f "$tmpdir/pid", 'pid file written');
-	open my $fh, '<', "$tmpdir/pid" or die "open failed: $!";
-	local $/ = "\n";
-	my $rpid = <$fh>;
-	chomp $rpid;
-	like($rpid, qr/\A\d+\z/s, 'pid file looks like a pid');
-	is(kill('TERM', $rpid), 1, 'signalled daemonized process');
-	for (1..100) {
-		kill(0, $rpid) or last;
-		select undef, undef, undef, 0.02;
+		ok(-f $pid_file, "$w pid file written");
+		open my $fh, '<', "$tmpdir/pid" or die "open failed: $!";
+		my $rpid = do { local $/; <$fh> };
+		chomp $rpid;
+		like($rpid, qr/\A\d+\z/s, "$w pid file looks like a pid");
+		is(kill('TERM', $rpid), 1, "signaled daemonized $w process");
+		for (1..100) {
+			kill(0, $rpid) or last;
+			select undef, undef, undef, 0.02;
+		}
+		is(kill(0, $rpid), 0, "daemonized $w process exited");
+		ok(!-e $pid_file, "$w pid file unlinked at exit");
 	}
-	is(kill(0, $rpid), 0, 'daemonized process exited')
 }
 
 done_testing();
