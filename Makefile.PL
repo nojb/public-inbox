@@ -22,6 +22,7 @@ my @syn = (@EXE_FILES, grep(m!^lib/.*\.pm$!, @manifest), @scripts);
 @syn = grep(!/DSKQXS\.pm/, @syn) if !eval { require IO::KQueue };
 @syn = grep(!/Unsubscribe\.pm/, @syn) if !eval { require Crypt::CBC };
 @syn = grep(!/SaPlugin/, @syn) if !eval { require Mail::SpamAssasin };
+$v->{syn_files} = \@syn;
 $v->{my_syntax} = [map { "$_.syntax" } @syn];
 $v->{-m1} = [ map { (split('/'))[-1] } @EXE_FILES ];
 $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
