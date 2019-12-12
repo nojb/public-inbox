@@ -18,7 +18,7 @@ use Email::MIME::Encode;
 sub subject_fn ($) {
 	my ($hdr) = @_;
 	my $fn = $hdr->header('Subject');
-	return 'no-subject' unless defined($fn);
+	return 'no-subject' if (!defined($fn) || $fn eq '');
 
 	# no need for full Email::MIME, here
 	if ($fn =~ /=\?/) {

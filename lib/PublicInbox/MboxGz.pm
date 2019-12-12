@@ -23,7 +23,7 @@ sub response {
 	my $body = $class->new($ctx, $cb);
 	# http://www.iana.org/assignments/media-types/application/gzip
 	my @h = qw(Content-Type application/gzip);
-	if ($fn) {
+	if (defined $fn && $fn ne '') {
 		$fn = to_filename($fn);
 		push @h, 'Content-Disposition', "inline; filename=$fn.mbox.gz";
 	}
