@@ -13,16 +13,26 @@ sub emails {
 }
 
 sub names {
-	map {
-		tr/\r\n\t/ /;
-		s/\s*<([^<]+)\z//;
-		my $e = $1;
-		s/\A['"\s]*//;
-		s/['"\s]*\z//;
-		$e = $_ =~ /\S/ ? $_ : $e;
-		$e =~ s/\@\S+\z//;
-		$e;
-	} split(/\@+[\w\.\-]+>?\s*(?:\(.*?\))?(?:,\s*|\z)/, $_[0]);
+	my @p = split(/<?([^@<>]+)\@[\w\.\-]+>?\s*(\(.*?\))?(?:,\s*|\z)/,
+			$_[0]);
+	my @ret;
+	for (my $i = 0; $i <= $#p;) {
+		my $phrase = $p[$i++];
+		$phrase =~ tr/\r\n\t / /s;
+		$phrase =~ s/\A['"\s]*//;
+		$phrase =~ s/['"\s]*\z//;
+		my $user = $p[$i++] // '';
+		my $comment = $p[$i++] // '';
+		if ($phrase =~ /\S/) {
+			$phrase =~ s/\@\S+\z//;
+			push @ret, $phrase;
+		} elsif ($comment =~ /\A\((.*?)\)\z/) {
+			push @ret, $1;
+		} else {
+			push @ret, $user;
+		}
+	}
+	@ret;
 }
 
 1;
