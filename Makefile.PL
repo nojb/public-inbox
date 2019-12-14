@@ -146,6 +146,7 @@ WriteMakefile(
 
 sub MY::postamble {
   <<EOF;
+PROVE = prove
 # support using eatmydata to speed up tests (apt-get install eatmydata):
 # https://www.flamingspork.com/projects/libeatmydata/
 EATMYDATA =
@@ -168,7 +169,7 @@ check-manifest :: MANIFEST
 	if git ls-files >\$?.gen 2>&1; then diff -u \$? \$?.gen; fi
 
 check:: pure_all check-manifest
-	\$(EATMYDATA) prove -bvw -j\$(N)
+	\$(EATMYDATA) \$(PROVE) -bvw -j\$(N)
 
 lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
 	\$(PERL) -I lib \$@ \$?
