@@ -4,12 +4,15 @@ package PublicInbox::Address;
 use strict;
 use warnings;
 
-sub xs_emails { map { $_->address() } parse_email_addresses($_[0]) }
+sub xs_emails {
+	grep { defined } map { $_->address() } parse_email_addresses($_[0])
+}
 
 sub xs_names {
-	map {
+	grep { defined } map {
 		my $n = $_->name;
-		$n = $_->user if $n eq $_->address;
+		my $addr = $_->address;
+		$n = $_->user if defined($addr) && $n eq $addr;
 		$n;
 	} parse_email_addresses($_[0]);
 }

@@ -38,6 +38,11 @@ sub test_pkg {
 
 	@names = $names->('"Quote Unneeded" <user@example.com>');
 	is_deeply(['Quote Unneeded'], \@names, 'extra quotes dropped');
+
+	my @emails = $emails->('Local User <user>');
+	is_deeply([], \@emails , 'no address for local address');
+	@names = $emails->('Local User <user>');
+	is_deeply([], \@names, 'no address, no name');
 }
 
 test_pkg('PublicInbox::Address');
