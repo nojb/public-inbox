@@ -4,35 +4,27 @@ package PublicInbox::Address;
 use strict;
 use warnings;
 
-# very loose regexes, here.  We don't need RFC-compliance,
-# just enough to make thing sanely displayable and pass to git
+sub xs_emails { map { $_->address() } parse_email_addresses($_[0]) }
 
-sub emails {
-	($_[0] =~ /([\w\.\+=\?"\(\)\-!#\$%&'\*\/\^\`\|\{\}~]+\@[\w\.\-\(\)]+)
-		(?:\s[^>]*)?>?\s*(?:\(.*?\))?(?:,\s*|\z)/gx)
+sub xs_names {
+	map {
+		my $n = $_->name;
+		$n = $_->user if $n eq $_->address;
+		$n;
+	} parse_email_addresses($_[0]);
 }
 
-sub names {
-	my @p = split(/<?([^@<>]+)\@[\w\.\-]+>?\s*(\(.*?\))?(?:,\s*|\z)/,
-			$_[0]);
-	my @ret;
-	for (my $i = 0; $i <= $#p;) {
-		my $phrase = $p[$i++];
-		$phrase =~ tr/\r\n\t / /s;
-		$phrase =~ s/\A['"\s]*//;
-		$phrase =~ s/['"\s]*\z//;
-		my $user = $p[$i++] // '';
-		my $comment = $p[$i++] // '';
-		if ($phrase =~ /\S/) {
-			$phrase =~ s/\@\S+\z//;
-			push @ret, $phrase;
-		} elsif ($comment =~ /\A\((.*?)\)\z/) {
-			push @ret, $1;
-		} else {
-			push @ret, $user;
-		}
-	}
-	@ret;
+eval {
+	require Email::Address::XS;
+	Email::Address::XS->import(qw(parse_email_addresses));
+	*emails = \&xs_emails;
+	*names = \&xs_names;
+};
+
+if ($@) {
+	require PublicInbox::AddressPP;
+	*emails = \&PublicInbox::AddressPP::emails;
+	*names = \&PublicInbox::AddressPP::names;
 }
 
 1;
