@@ -52,7 +52,7 @@ sub cleanup_task () {
 sub cleanup_possible () {
 	# no need to require DS, here, if it were enabled another
 	# module would've require'd it, already
-	eval { PublicInbox::DS::running() } or return 0;
+	eval { $PublicInbox::DS::in_loop } or return 0;
 
 	eval {
 		require Devel::Peek; # needs separate package in Fedora
