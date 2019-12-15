@@ -25,7 +25,6 @@ my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
 my %pids;
-my %listener_names; # sockname => IO::Handle
 my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
 my $reexec_pid;
 my ($uid, $gid);
@@ -77,6 +76,7 @@ sub sig_setmask { sigprocmask(SIG_SETMASK, @_) or die "sigprocmask: $!" }
 
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
+	my $listener_names = {}; # sockname => IO::Handle
 	$oldset = POSIX::SigSet->new();
 	$newset = POSIX::SigSet->new();
 	$newset->fillset or die "fillset: $!";
@@ -99,11 +99,11 @@ sub daemon_prepare ($) {
 	if (defined $pid_file && $pid_file =~ /\.oldbin\z/) {
 		die "--pid-file cannot end with '.oldbin'\n";
 	}
-	@listeners = inherit();
+	@listeners = inherit($listener_names);
 
 	# allow socket-activation users to set certs once and not
 	# have to configure each socket:
-	my @inherited_names = keys(%listener_names) if defined($default_cert);
+	my @inherited_names = keys(%$listener_names) if defined($default_cert);
 
 	# ignore daemonize when inheriting
 	$daemonize = undef if scalar @listeners;
@@ -128,7 +128,7 @@ sub daemon_prepare ($) {
 		}
 		# TODO: use scheme to load either NNTP.pm or HTTP.pm
 
-		next if $listener_names{$l}; # already inherited
+		next if $listener_names->{$l}; # already inherited
 		my (%o, $sock_pkg);
 		if (index($l, '/') == 0) {
 			$sock_pkg = 'IO::Socket::UNIX';
@@ -159,7 +159,7 @@ sub daemon_prepare ($) {
 		warn "error binding $l: $! ($@)\n" unless $s;
 		umask $prev;
 		if ($s) {
-			$listener_names{sockname($s)} = $s;
+			$listener_names->{sockname($s)} = $s;
 			$s->blocking(0);
 			push @listeners, $s;
 		}
@@ -353,7 +353,8 @@ sub host_with_port ($) {
 	$@ ? ('127.0.0.1', 0) : ($host, $port);
 }
 
-sub inherit () {
+sub inherit ($) {
+	my ($listener_names) = @_;
 	return () if ($ENV{LISTEN_PID} || 0) != $$;
 	my $fds = $ENV{LISTEN_FDS} or return ();
 	my $end = $fds + 2; # LISTEN_FDS_START - 1
@@ -369,7 +370,7 @@ Set 'NonBlocking = true' in the systemd.service unit to avoid stalled
 processes when multiple service instances start.
 
 			}
-			$listener_names{$k} = $s;
+			$listener_names->{$k} = $s;
 			push @rv, $s;
 		} else {
 			warn "failed to inherit fd=$fd (LISTEN_FDS=$fds)";
