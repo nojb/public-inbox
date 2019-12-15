@@ -204,11 +204,13 @@ sub index_diff ($$$) {
 			$in_diff = $self->index_old_diff_fn(\%seen, $fa, $fb,
 							$xnq);
 		} elsif (m!^--- ("?a/.+)!) {
-			my $fn = (split('/', git_unquote($1), 2))[1];
+			my $fn = $1;
+			$fn = (split('/', git_unquote($fn), 2))[1];
 			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (m!^\+\+\+ ("?b/.+)!)  {
-			my $fn = (split('/', git_unquote($1), 2))[1];
+			my $fn = $1;
+			$fn = (split('/', git_unquote($fn), 2))[1];
 			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (/^--- (\S+)/) {
