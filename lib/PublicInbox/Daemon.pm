@@ -462,23 +462,27 @@ sub unlink_pid_file_safe_ish ($$) {
 	}
 }
 
+sub master_quit ($) {
+	exit unless @listeners;
+	@listeners = ();
+	kill_workers($_[0]);
+}
+
 sub master_loop {
 	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!";
 	# 1031: F_SETPIPE_SZ, 4096: page size
 	fcntl($p1, 1031, 4096) if $^O eq 'linux';
 	my $set_workers = $worker_processes;
 	reopen_logs();
-	my $quit = 0;
 	my $ignore_winch;
-	my $quit_cb = sub { exit if $quit++; kill_workers($_[0]) };
 	my $sig = {
 		USR1 => sub { reopen_logs(); kill_workers($_[0]); },
 		USR2 => \&upgrade,
-		QUIT => $quit_cb,
-		INT => $quit_cb,
-		TERM => $quit_cb,
+		QUIT => \&master_quit,
+		INT => \&master_quit,
+		TERM => \&master_quit,
 		WINCH => sub {
-			return if $ignore_winch;
+			return if $ignore_winch || !@listeners;
 			if (-t STDIN || -t STDOUT || -t STDERR) {
 				$ignore_winch = 1;
 				warn <<EOF;
@@ -489,10 +493,12 @@ EOF
 			}
 		},
 		HUP => sub {
+			return unless @listeners;
 			$worker_processes = $set_workers;
 			kill_workers($_[0]);
 		},
 		TTIN => sub {
+			return unless @listeners;
 			if ($set_workers > $worker_processes) {
 				++$worker_processes;
 			} else {
@@ -509,7 +515,7 @@ EOF
 	sig_setmask($oldset) if !$sigfd;
 	while (1) { # main loop
 		my $n = scalar keys %pids;
-		if ($quit) {
+		unless (@listeners) {
 			exit if $n == 0;
 			$set_workers = $worker_processes = $n = 0;
 		}
