@@ -129,7 +129,6 @@ $t = 'mailEditor set in config'; {
 	is($rc, 0, 'set publicinbox.mailEditor');
 	local $ENV{MAIL_EDITOR};
 	delete $ENV{MAIL_EDITOR};
-	delete local $ENV{MAIL_EDITOR};
 	local $ENV{GIT_EDITOR} = 'echo should not run';
 	$cmd = [ '-edit', "-m$mid", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t edited message");
