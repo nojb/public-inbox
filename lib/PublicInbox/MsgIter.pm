@@ -38,6 +38,11 @@ sub msg_iter ($$) {
 sub msg_part_text ($$) {
 	my ($part, $ct) = @_;
 
+	# TODO: we may offer a separate sub for people who need to index
+	# HTML-only mail, but the majority of HTML mail is multipart/alternative
+	# with a text part which we don't have to waste cycles decoding
+	return if $ct =~ m!\btext/x?html\b!;
+
 	my $s = eval { $part->body_str };
 	my $err = $@;
 
