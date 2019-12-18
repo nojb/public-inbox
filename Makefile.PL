@@ -84,12 +84,12 @@ my $TGTS = join("\n", map {;
 	my $tgt_prereq = $_;
 	my $cmds = $t->{$_};
 	"$tgt_prereq\n".join('', map { "\t$_\n" } @$cmds);
-} keys %$t);
+} sort keys %$t);
 
 my $VARS = join("\n", map {;
 	my $varname = $_;
-	join('', map { "$varname += $_\n" } @{$v->{$varname}});
-} grep(!/^-/, keys %$v));
+	join('', map { "$varname += $_\n" } sort @{$v->{$varname}});
+} grep(!/^-/, sort keys %$v));
 
 # Don't waste user's disk space by installing some pods from
 # imported code or internal use only
