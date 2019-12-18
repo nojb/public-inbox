@@ -6,9 +6,9 @@ use Test::More;
 use Cwd qw(abs_path);
 require './t/common.perl';
 require_git(2.6);
+use PublicInbox::Spawn qw(spawn);
 
-my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
-		URI::Escape Plack::Builder);
+my @mods = qw(DBD::SQLite Search::Xapian);
 foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for $0" if $@;
@@ -19,7 +19,7 @@ plan skip_all => "$0 must be run from a git working tree" if $?;
 # needed for alternates, and --absolute-git-dir is only in git 2.13+
 $git_dir = abs_path($git_dir);
 
-use_ok "PublicInbox::$_" for (qw(Inbox V2Writable MIME Git SolverGit));
+use_ok "PublicInbox::$_" for (qw(Inbox V2Writable MIME Git SolverGit WWW));
 
 my ($inboxdir, $for_destroy) = tmpdir();
 my $opts = {
@@ -40,10 +40,10 @@ sub deliver_patch ($) {
 }
 
 deliver_patch('t/solve/0001-simple-mod.patch');
-
+my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
 my $git = PublicInbox::Git->new($git_dir);
 is('public-inbox 1.0.0',
-	$git->commit_title('cb7c42b1e15577ed2215356a2bf925aef59cdd8d'),
+	$git->commit_title($v1_0_0_tag),
 	'commit_title works on 1.0.0');
 
 is(undef, $git->commit_title('impossible'), 'undef on impossible object');
@@ -112,5 +112,72 @@ my $hinted = $res;
 # don't compare ::Git objects:
 shift @$res; shift @$hinted;
 is_deeply($res, $hinted, 'hints work (or did not hurt :P');
+
+my @psgi = qw(HTTP::Request::Common Plack::Test URI::Escape Plack::Builder);
+SKIP: {
+	my @missing;
+	for my $mod (@psgi) {
+		eval("require $mod") or push(@missing, $mod);
+	}
+	skip("missing: ".join(', ', @missing), 7 + scalar(@psgi)) if @missing;
+	use_ok($_) for @psgi;
+	my $binfoo = "$inboxdir/binfoo.git";
+	system(qw(git init --bare -q), $binfoo) == 0 or die "git init: $?";
+	require_ok 'PublicInbox::ViewVCS';
+	my $big_size = do {
+		no warnings 'once';
+		$PublicInbox::ViewVCS::MAX_SIZE + 1;
+	};
+	my %bin = (big => $big_size, small => 1);
+	my %oid; # (small|big) => OID
+	my $cmd = [ qw(git hash-object -w --stdin) ];
+	my $env = { GIT_DIR => $binfoo };
+	while (my ($label, $size) = each %bin) {
+		pipe(my ($rout, $wout)) or die;
+		pipe(my ($rin, $win)) or die;
+		my $rdr = { 0 => fileno($rin), 1 => fileno($wout) };
+		my $pid = spawn($cmd , $env, $rdr);
+		$wout = $rin = undef;
+		print { $win } ("\0" x $size) or die;
+		close $win or die;
+		chomp($oid{$label} = <$rout>);
+	}
+
+	# ensure the PSGI frontend (ViewVCS) works:
+	my $name = $ibx->{name};
+	my $cfgpfx = "publicinbox.$name";
+	my $cfg = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=$ibx->{address};
+$cfgpfx.inboxdir=$inboxdir
+$cfgpfx.coderepo=public-inbox
+$cfgpfx.coderepo=binfoo
+coderepo.public-inbox.dir=$git_dir
+coderepo.public-inbox.cgiturl=http://example.com/public-inbox
+coderepo.binfoo.dir=$binfoo
+coderepo.binfoo.cgiturl=http://example.com/binfoo
+EOF
+	my $www = PublicInbox::WWW->new($cfg);
+	test_psgi(sub { $www->call(@_) }, sub {
+		my ($cb) = @_;
+		my $res = $cb->(GET("/$name/3435775/s/"));
+		is($res->code, 200, 'success with existing blob');
+
+		$res = $cb->(GET("/$name/".('0'x40).'/s/'));
+		is($res->code, 404, 'failure with null OID');
+
+		$res = $cb->(GET("/$name/$v1_0_0_tag/s/"));
+		is($res->code, 200, 'shows commit');
+		while (my ($label, $size) = each %bin) {
+			$res = $cb->(GET("/$name/$oid{$label}/s/"));
+			is($res->code, 200, "$label binary file");
+			ok(index($res->content, "blob $size bytes") >= 0,
+				"showed $label binary blob size");
+			$res = $cb->(GET("/$name/$oid{$label}/s/raw"));
+			is($res->code, 200, "$label raw binary download");
+			is($res->content, "\0" x $size,
+				"$label content matches");
+		}
+	});
+}
 
 done_testing();

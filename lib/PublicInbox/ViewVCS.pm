@@ -28,7 +28,7 @@ my $hl = eval {
 };
 
 my %QP_MAP = ( A => 'oid_a', B => 'oid_b', a => 'path_a', b => 'path_b' );
-my $max_size = 1024 * 1024; # TODO: configurable
+our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
 
 sub html_page ($$$) {
@@ -76,7 +76,7 @@ sub stream_large_blob ($$$$) {
 sub show_other ($$$$) {
 	my ($ctx, $res, $logref, $fn) = @_;
 	my ($git, $oid, $type, $size) = @$res;
-	if ($size > $max_size) {
+	if ($size > $MAX_SIZE) {
 		$$logref = "$oid is too big to show\n" . $$logref;
 		return html_page($ctx, 200, $logref);
 	}
@@ -122,11 +122,11 @@ sub solve_result {
 	return show_other($ctx, $res, \$log, $fn) if $type ne 'blob';
 	my $path = to_filename($di->{path_b} || $hints->{path_b} || 'blob');
 	my $raw_link = "(<a\nhref=$path>raw</a>)";
-	if ($size > $max_size) {
+	if ($size > $MAX_SIZE) {
 		return stream_large_blob($ctx, $res, \$log, $fn) if defined $fn;
 		$log = "<pre><b>Too big to show, download available</b>\n" .
 			"$oid $type $size bytes $raw_link</pre>" . $log;
-		return html_page($ctx, 500, \$log);
+		return html_page($ctx, 200, \$log);
 	}
 
 	my $blob = $git->cat_file($oid);
