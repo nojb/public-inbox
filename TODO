@@ -141,3 +141,5 @@ all need to be considered for everything we introduce)
 
 * figure out how search for messages with multiple Date: headers
   should work (some wacky examples out there...)
+
+* support UUCP addresses for legacy archives
