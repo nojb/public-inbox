@@ -168,8 +168,16 @@ dsyn :: \$(addsuffix .syntax, \$(filter \$(changed), \$(syn_files)))
 check-manifest :: MANIFEST
 	if git ls-files >\$?.gen 2>&1; then diff -u \$? \$?.gen; fi
 
-check:: pure_all check-manifest
-	\$(EATMYDATA) \$(PROVE) -bvw -j\$(N)
+# the traditional way running per-*.t processes:
+check-each :: pure_all check-manifest
+	\$(EATMYDATA) \$(PROVE) --state=save -bvw -j\$(N)
+
+# lightly-tested way to runn tests, relies "--state=save" in check-each
+# for best performance
+check-run :: pure_all check-manifest
+	\$(EATMYDATA) \$(PROVE) -bvw t/run.perl :: -j\$(N)
+
+check :: check-each
 
 lib/PublicInbox/UserContent.pm :: contrib/css/216dark.css
 	\$(PERL) -I lib \$@ \$?

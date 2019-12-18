@@ -265,6 +265,7 @@ t/purge.t
 t/qspawn.t
 t/replace.t
 t/reply.t
+t/run.perl
 t/search-thr-index.t
 t/search.t
 t/sigfd.t

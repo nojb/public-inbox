@@ -60,7 +60,7 @@ sub require_git ($;$) {
 
 sub key2script ($) {
 	my ($key) = @_;
-	return $key if $key =~ m!\A/!;
+	return $key if (index($key, '/') >= 0);
 	# n.b. we may have scripts which don't start with "public-inbox" in
 	# the future:
 	$key =~ s/\A([-\.])/public-inbox$1/;
@@ -101,9 +101,11 @@ sub key2sub ($) {
 		my $f = key2script($key);
 		open my $fh, '<', $f or die "open $f: $!";
 		my $str = do { local $/; <$fh> };
-		my ($fc, $rest) = ($key =~ m/([a-z])([a-z0-9]+)\z/);
-		$fc = uc($fc);
-		my $pkg = "PublicInbox::TestScript::$fc$rest";
+		my $pkg = (split(m!/!, $f))[-1];
+		$pkg =~ s/([a-z])([a-z0-9]+)(\.t)?\z/\U$1\E$2/;
+		$pkg .= "_T" if $3;
+		$pkg =~ tr/-.//d;
+		$pkg = "PublicInbox::TestScript::$pkg";
 		eval <<EOF;
 package $pkg;
 use strict;
@@ -111,6 +113,8 @@ use subs qw(exit);
 
 *exit = *PublicInbox::TestCommon::run_script_exit;
 sub main {
+# the below "line" directive is a magic comment, see perlsyn(1) manpage
+# line 1 "$f"
 $str
 	0;
 }
