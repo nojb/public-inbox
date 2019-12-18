@@ -97,15 +97,15 @@ for my $i (10..15) {
 $v2w->done;
 $ibx->cleanup;
 
-sub fetch_each_epoch {
+my $fetch_each_epoch = sub {
 	foreach my $i (0..$epoch_max) {
 		my $dir = "$tmpdir/m/git/$i.git";
 		is(system('git', "--git-dir=$dir", 'fetch', '-q'), 0,
 			'fetch successful');
 	}
-}
+};
 
-fetch_each_epoch();
+$fetch_each_epoch->();
 
 my $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 0, 'new message not found in mirror, yet');
@@ -135,7 +135,7 @@ like($to_purge, qr/\A[a-f0-9]{40,}\z/, 'read blob to be purged');
 $mset = $ibx->search->reopen->query('m:10@example.com', {mset => 1});
 is(scalar($mset->items), 0, 'purged message gone from origin');
 
-fetch_each_epoch();
+$fetch_each_epoch->();
 {
 	$ibx->cleanup;
 	PublicInbox::InboxWritable::cleanup($mibx);
@@ -173,7 +173,7 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	ok($v2w->remove($mime), 'removed <1@example.com> from source');
 	$v2w->done;
 	$ibx->cleanup;
-	fetch_each_epoch();
+	$fetch_each_epoch->();
 	PublicInbox::InboxWritable::cleanup($mibx);
 
 	my $cmd = [ "-index", "$tmpdir/m" ];

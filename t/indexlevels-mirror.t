@@ -16,8 +16,6 @@ foreach my $mod (qw(DBD::SQLite)) {
 	plan skip_all => "$mod missing for $0" if $@;
 }
 
-my @xcpdb = qw(-xcpdb -q);
-
 my $mime = PublicInbox::MIME->create(
 	header => [
 		From => 'a@example.com',
@@ -29,7 +27,7 @@ my $mime = PublicInbox::MIME->create(
 );
 
 sub import_index_incremental {
-	my ($v, $level) = @_;
+	my ($v, $level, $mime) = @_;
 	my $this = "pi-$v-$level-indexlevels";
 	my ($tmpdir, $for_destroy) = tmpdir();
 	local $ENV{PI_CONFIG} = "$tmpdir/config";
@@ -120,7 +118,7 @@ sub import_index_incremental {
 	is_deeply(\@rw_nums, [1], 'unindex NNTP article'.$v.$level);
 
 	if ($level ne 'basic') {
-		ok(run_script([@xcpdb, $mirror]), "v$v xcpdb OK");
+		ok(run_script(['-xcpdb', '-q', $mirror]), "v$v xcpdb OK");
 		is(PublicInbox::Admin::detect_indexlevel($ro_mirror), $level,
 		   'indexlevel detectable by Admin after xcpdb v' .$v.$level);
 		delete $ro_mirror->{$_} for (qw(over search));
@@ -167,13 +165,13 @@ sub import_index_incremental {
 }
 
 # we can probably cull some other tests
-import_index_incremental($PI_TEST_VERSION, 'basic');
+import_index_incremental($PI_TEST_VERSION, 'basic', $mime);
 
 SKIP: {
 	require PublicInbox::Search;
 	PublicInbox::Search::load_xapian() or skip 'Search::Xapian missing', 2;
 	foreach my $l (qw(medium full)) {
-		import_index_incremental($PI_TEST_VERSION, $l);
+		import_index_incremental($PI_TEST_VERSION, $l, $mime);
 	}
 }
 

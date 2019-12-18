@@ -32,15 +32,16 @@ my $ibx = PublicInbox::Inbox->new($opts);
 my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 
-sub deliver_patch ($) {
+my $deliver_patch = sub ($) {
 	open my $fh, '<', $_[0] or die "open: $!";
 	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
 	$im->add($mime);
 	$im->done;
-}
+};
 
-deliver_patch('t/solve/0001-simple-mod.patch');
+$deliver_patch->('t/solve/0001-simple-mod.patch');
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
+
 my $git = PublicInbox::Git->new($git_dir);
 is('public-inbox 1.0.0',
 	$git->commit_title($v1_0_0_tag),
@@ -96,7 +97,7 @@ $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
 $solver->solve($psgi_env, $log, $git_v2_20_1_tag, {});
 is($res, undef, 'no error on a tag not in our repo');
 
-deliver_patch('t/solve/0002-rename-with-modifications.patch');
+$deliver_patch->('t/solve/0002-rename-with-modifications.patch');
 $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
 $solver->solve($psgi_env, $log, '0a92431', {});
 ok($res, 'resolved without hints');

@@ -553,16 +553,16 @@ SKIP: {
 	# filter out pipes inherited from the parent
 	my @this = `lsof -p $$`;
 	my $bad;
-	sub extract_inodes {
+	my $extract_inodes = sub {
 		map {;
 			my @f = split(' ', $_);
 			my $inode = $f[-2];
 			$bad = $_ if $inode !~ /\A[0-9]+\z/;
 			$inode => 1;
 		} grep (/\bpipe\b/, @_);
-	}
-	my %child = extract_inodes(@lsof);
-	my %parent = extract_inodes(@this);
+	};
+	my %child = $extract_inodes->(@lsof);
+	my %parent = $extract_inodes->(@this);
 	skip("inode not in expected format: $bad", 1) if defined($bad);
 	delete @child{(keys %parent)};
 	is_deeply([], [keys %child], 'no extra pipes with -W0');

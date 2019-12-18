@@ -33,7 +33,7 @@ like(PublicInbox::WwwListing::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
 	'got fingerprint with non-empty repo');
 
 sub tiny_test {
-	my ($host, $port) = @_;
+	my ($json, $host, $port) = @_;
 	my $http = HTTP::Tiny->new;
 	my $res = $http->get("http://$host:$port/manifest.js.gz");
 	is($res->{status}, 200, 'got manifest');
@@ -107,7 +107,7 @@ SKIP: {
 	$td = start_script($cmd, $env, { 3 => $sock });
 	$sock = undef;
 
-	tiny_test($host, $port);
+	tiny_test($json, $host, $port);
 
 	skip 'skipping grok-pull integration test', 2 if !which('grok-pull');
 

@@ -23,6 +23,23 @@ my $faildir = "$home/faildir/";
 my $mime;
 my $git = PublicInbox::Git->new($maindir);
 
+my $fail_bad_header = sub ($$$) {
+	my ($good_rev, $msg, $in) = @_;
+	my @f = glob("$faildir/*/*");
+	unlink @f if @f;
+	my ($out, $err) = ("", "");
+	my $opt = { 0 => \$in, 1 => \$out, 2 => \$err };
+	local $ENV{PATH} = $main_path;
+	ok(run_script(['-mda'], undef, $opt),
+		"no error on undeliverable ($msg)");
+	my $rev = $git->qx(qw(rev-list HEAD));
+	chomp $rev;
+	is($rev, $good_rev, "bad revision not commited ($msg)");
+	@f = glob("$faildir/*/*");
+	is(scalar @f, 1, "faildir written to");
+	[ $in, $out, $err ];
+};
+
 {
 	ok(-x "$main_bin/spamc",
 		"spamc ham mock found (run in top of source tree");
@@ -110,14 +127,14 @@ EOF
 		is(scalar @new, 1, "PI_EMERGENCY is written to");
 	}
 
-	fail_bad_header($good_rev, "bad recipient", <<"");
+	$fail_bad_header->($good_rev, "bad recipient", <<"");
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Message-Id: <bad-recipient\@example.com>
 Subject: hihi
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
-	my $fail = fail_bad_header($good_rev, "duplicate Message-ID", <<"");
+	my $fail = $fail_bad_header->($good_rev, "duplicate Message-ID", <<"");
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -127,26 +144,26 @@ Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 	like($fail->[2], qr/CONFLICT/, "duplicate Message-ID message");
 
-	fail_bad_header($good_rev, "missing From:", <<"");
+	$fail_bad_header->($good_rev, "missing From:", <<"");
 To: $addr
 Message-ID: <missing-from\@example.com>
 Subject: hihi
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
-	fail_bad_header($good_rev, "short subject:", <<"");
+	$fail_bad_header->($good_rev, "short subject:", <<"");
 To: $addr
 From: cat\@example.com
 Message-ID: <short-subject\@example.com>
 Subject: a
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
-	fail_bad_header($good_rev, "no date", <<"");
+	$fail_bad_header->($good_rev, "no date", <<"");
 To: $addr
 From: u\@example.com
 Message-ID: <no-date\@example.com>
 Subject: hihi
 
-	fail_bad_header($good_rev, "bad date", <<"");
+	$fail_bad_header->($good_rev, "bad date", <<"");
 To: $addr
 From: u\@example.com
 Message-ID: <bad-date\@example.com>
@@ -329,20 +346,3 @@ EOF
 }
 
 done_testing();
-
-sub fail_bad_header {
-	my ($good_rev, $msg, $in) = @_;
-	my @f = glob("$faildir/*/*");
-	unlink @f if @f;
-	my ($out, $err) = ("", "");
-	my $opt = { 0 => \$in, 1 => \$out, 2 => \$err };
-	local $ENV{PATH} = $main_path;
-	ok(run_script(['-mda'], undef, $opt),
-		"no error on undeliverable ($msg)");
-	my $rev = $git->qx(qw(rev-list HEAD));
-	chomp $rev;
-	is($rev, $good_rev, "bad revision not commited ($msg)");
-	@f = glob("$faildir/*/*");
-	is(scalar @f, 1, "faildir written to");
-	[ $in, $out, $err ];
-}

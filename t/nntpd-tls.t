@@ -28,7 +28,7 @@ require './t/common.perl';
 require PublicInbox::InboxWritable;
 require PublicInbox::MIME;
 require PublicInbox::SearchIdx;
-my $need_zlib;
+our $need_zlib;
 eval { require Compress::Raw::Zlib } or
 	$need_zlib = 'Compress::Raw::Zlib missing';
 my $version = 2; # v2 needs newer git

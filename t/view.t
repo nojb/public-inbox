@@ -24,8 +24,8 @@ my $ctx = {
 };
 $ctx->{-inbox}->{-primary_address} = 'test@example.com';
 
-sub msg_html ($) {
-	my ($mime) = @_;
+sub msg_html ($$) {
+	my ($ctx, $mime) = @_;
 
 	my $s = '';
 	my $r = PublicInbox::View::msg_html($ctx, $mime);
@@ -72,7 +72,7 @@ EOF
 		body => $body,
 	)->as_string;
 	my $mime = Email::MIME->new($s);
-	my $html = msg_html($mime);
+	my $html = msg_html($ctx, $mime);
 
 	# ghetto tests
 	like($html, qr!<a\nhref="raw"!s, "raw link present");
@@ -102,7 +102,7 @@ EOF
 		parts => $parts,
 	);
 
-	my $html = msg_html($mime);
+	my $html = msg_html($ctx, $mime);
 	like($html, qr/hi\n.*-- Attachment #2.*\nbye\n/s, "multipart split");
 }
 
@@ -131,7 +131,7 @@ EOF
 		parts => $parts,
 	);
 
-	my $html = msg_html($mime);
+	my $html = msg_html($ctx, $mime);
 	like($html, qr!.*Attachment #2: foo&(?:amp|#38);\.patch --!,
 		"parts split with filename");
 }
@@ -157,7 +157,7 @@ EOF
 	);
 
 	my $orig = $mime->body_raw;
-	my $html = msg_html($mime);
+	my $html = msg_html($ctx, $mime);
 	like($orig, qr/hi =3D bye=/, "our test used QP correctly");
 	like($html, qr/\bhi = bye\b/, "HTML output decoded QP");
 }
