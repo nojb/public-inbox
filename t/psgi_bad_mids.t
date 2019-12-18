@@ -6,7 +6,7 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {

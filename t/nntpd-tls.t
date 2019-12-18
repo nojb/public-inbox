@@ -24,7 +24,7 @@ unless (-r $key && -r $cert) {
 
 use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require PublicInbox::InboxWritable;
 require PublicInbox::MIME;
 require PublicInbox::SearchIdx;

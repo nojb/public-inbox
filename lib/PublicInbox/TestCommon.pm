@@ -1,11 +1,15 @@
 # Copyright (C) 2015-2019 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
+# internal APIs used only for tests
+package PublicInbox::TestCommon;
+use strict;
+use parent qw(Exporter);
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
-use strict;
-use warnings;
 use IO::Socket::INET;
+our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git
+	run_script start_script key2sub);
 
 sub tmpdir (;$) {
 	my ($base) = @_;
@@ -49,7 +53,7 @@ sub require_git ($;$) {
 	my $cur_int = ($cur_maj << 24) | ($cur_min << 16);
 	if ($cur_int < $req_int) {
 		return 0 if $maybe;
-		plan skip_all => "git $req+ required, have $cur_maj.$cur_min";
+		plan(skip_all => "git $req+ required, have $cur_maj.$cur_min");
 	}
 	1;
 }
@@ -105,7 +109,7 @@ package $pkg;
 use strict;
 use subs qw(exit);
 
-*exit = *::run_script_exit;
+*exit = *PublicInbox::TestCommon::run_script_exit;
 sub main {
 $str
 	0;
@@ -244,10 +248,10 @@ sub start_script {
 			die "FAIL: ",join(' ', $key, @argv), ": $!\n";
 		}
 	}
-	TestProcess->new($pid, $tail_pid);
+	PublicInboxTestProcess->new($pid, $tail_pid);
 }
 
-package TestProcess;
+package PublicInboxTestProcess;
 use strict;
 
 # prevent new threads from inheriting these objects
@@ -275,7 +279,7 @@ sub DESTROY {
 	my ($self) = @_;
 	return if $self->{owner} != $$;
 	if (my $tail = delete $self->{tail_pid}) {
-		::wait_for_tail();
+		PublicInbox::TestCommon::wait_for_tail();
 		CORE::kill('TERM', $tail);
 	}
 	my $pid = delete $self->{pid} or return;

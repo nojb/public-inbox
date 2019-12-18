@@ -6,7 +6,7 @@ use Test::More;
 use Email::Simple;
 use IO::File;
 use Fcntl qw(:DEFAULT SEEK_SET);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 
 use_ok 'PublicInbox::Spamcheck::Spamc';

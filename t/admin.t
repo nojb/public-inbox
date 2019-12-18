@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use_ok 'PublicInbox::Admin', qw(resolve_repo_dir);
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/v1";

@@ -8,7 +8,7 @@ use PublicInbox::Feed;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Inbox;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/gittest";
 my $ibx = PublicInbox::Inbox->new({

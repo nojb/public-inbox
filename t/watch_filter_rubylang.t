@@ -2,7 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use warnings;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Config;

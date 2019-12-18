@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use PublicInbox::Config;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape DBD::SQLite);
 foreach my $mod (@mods) {
 	eval "require $mod";

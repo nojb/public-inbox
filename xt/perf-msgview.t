@@ -6,7 +6,7 @@ use Test::More;
 use Benchmark qw(:all);
 use PublicInbox::Inbox;
 use PublicInbox::View;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inboxdir;

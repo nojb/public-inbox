@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git(2.6);
 my @mods = qw(DBI DBD::SQLite);
 foreach my $mod (@mods) {

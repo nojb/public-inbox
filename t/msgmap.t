@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";

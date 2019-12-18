@@ -10,7 +10,7 @@ foreach my $mod (@mods) {
 };
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use Email::MIME;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";

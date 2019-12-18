@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';

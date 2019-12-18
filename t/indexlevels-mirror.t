@@ -7,7 +7,7 @@ use PublicInbox::MIME;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
 require PublicInbox::Admin;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
 

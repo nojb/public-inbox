@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($dir, $for_destroy) = tmpdir();
 use PublicInbox::Spawn qw(popen_rd);
 

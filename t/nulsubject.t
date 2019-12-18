@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Git';

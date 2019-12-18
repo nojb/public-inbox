@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my $psgi = "./examples/public-inbox.psgi";
 my ($tmpdir, $for_destroy) = tmpdir();
 my $pi_config = "$tmpdir/config";

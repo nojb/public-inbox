@@ -149,6 +149,7 @@ lib/PublicInbox/Spawn.pm
 lib/PublicInbox/SpawnPP.pm
 lib/PublicInbox/Syscall.pm
 lib/PublicInbox/TLS.pm
+lib/PublicInbox/TestCommon.pm
 lib/PublicInbox/Tmpfile.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/UserContent.pm
@@ -202,7 +203,6 @@ t/altid.t
 t/altid_v2.t
 t/cgi.t
 t/check-www-inbox.perl
-t/common.perl
 t/config.t
 t/config_limiter.t
 t/content_id.t

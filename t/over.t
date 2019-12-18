@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Compress::Zlib qw(compress);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 foreach my $mod (qw(DBD::SQLite)) {
 	eval "require $mod";
 	plan skip_all => "$mod missing for over.t" if $@;

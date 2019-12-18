@@ -17,7 +17,7 @@ unless (-r $key && -r $cert) {
 }
 use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my $psgi = "./t/httpd-corner.psgi";
 my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";

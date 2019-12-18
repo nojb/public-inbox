@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
 local $ENV{HOME} = abs_path('t');

@@ -10,7 +10,7 @@ use PublicInbox::Spawn qw(spawn);
 use IO::File;
 use Fcntl qw(:DEFAULT);
 use File::Temp qw/tempfile/;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($dir, $for_destroy) = tmpdir();
 
 is(system(qw(git init -q --bare), $dir), 0, 'git init successful');

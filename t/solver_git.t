@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Cwd qw(abs_path);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git(2.6);
 use PublicInbox::Spawn qw(spawn);
 

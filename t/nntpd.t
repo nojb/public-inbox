@@ -15,7 +15,7 @@ use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use Net::NNTP;
 use Sys::Hostname;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 # FIXME: make easier to test both versions
 my $version = $ENV{PI_TEST_VERSION} || 2;

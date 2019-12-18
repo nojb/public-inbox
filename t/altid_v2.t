@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git(2.6);
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";

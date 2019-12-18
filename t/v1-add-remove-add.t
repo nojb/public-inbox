@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Import;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
 	eval "require $mod";

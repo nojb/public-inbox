@@ -9,7 +9,7 @@ foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
 	plan skip_all => "$mod missing for httpd.t" if $@;
 }
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 # FIXME: too much setup
 my ($tmpdir, $for_destroy) = tmpdir();

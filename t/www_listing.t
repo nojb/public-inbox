@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my @mods = qw(URI::Escape Plack::Builder Digest::SHA
 		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny);
 foreach my $mod (@mods) {

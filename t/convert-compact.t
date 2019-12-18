@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Spawn qw(which);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git(2.6);
 my @mods = qw(DBD::SQLite Search::Xapian);
 foreach my $mod (@mods) {

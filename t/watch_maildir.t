@@ -5,7 +5,7 @@ use Test::More;
 use Email::MIME;
 use Cwd;
 use PublicInbox::Config;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my @mods = qw(Filesys::Notify::Simple);
 foreach my $mod (@mods) {
 	eval "require $mod";

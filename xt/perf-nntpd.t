@@ -10,7 +10,7 @@ my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless defined($inboxdir);
 eval { require PublicInbox::Search };
 my ($host_port, $group, %opts, $s, $td, $tmp_obj);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	($host_port, $group) = ($1, $2);

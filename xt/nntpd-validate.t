@@ -29,7 +29,7 @@ my $key = 'certs/server-key.pem';
 if ($test_tls && !-r $key || !-r $cert) {
 	plan skip_all => "certs/ missing for $0, run $^X ./certs/create-certs.perl";
 }
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($tmpdir, $ftd) = tmpdir();
 $File::Temp::KEEP_ALL = !!$ENV{TEST_KEEP_TMP};
 my (%OPT, $td, $host_port, $group);

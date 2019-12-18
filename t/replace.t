@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6); # replace is v2 only, for now...
 foreach my $mod (qw(DBD::SQLite)) {

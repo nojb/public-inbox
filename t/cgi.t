@@ -6,7 +6,7 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";

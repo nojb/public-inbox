@@ -5,7 +5,7 @@ use Test::More;
 use PublicInbox::MIME;
 use Cwd;
 use PublicInbox::Config;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git(2.6);
 my @mods = qw(Search::Xapian DBD::SQLite Filesys::Notify::Simple);
 foreach my $mod (@mods) {

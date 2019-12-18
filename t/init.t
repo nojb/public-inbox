@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Config;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use File::Basename;
 my ($tmpdir, $for_destroy) = tmpdir();
 sub quiet_fail {

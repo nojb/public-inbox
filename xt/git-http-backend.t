@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use Test::More;
 use POSIX qw(setsid);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 my $git_dir = $ENV{GIANT_GIT_DIR};
 plan 'skip_all' => 'GIANT_GIT_DIR not defined' unless $git_dir;

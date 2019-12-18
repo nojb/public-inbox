@@ -19,7 +19,7 @@ use IO::Socket::UNIX;
 use Fcntl qw(:seek);
 use Socket qw(IPPROTO_TCP TCP_NODELAY SOL_SOCKET);
 use POSIX qw(mkfifo);
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $fifo = "$tmpdir/fifo";
 ok(defined mkfifo($fifo, 0777), 'created FIFO');

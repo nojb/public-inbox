@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use_ok 'PublicInbox::Filter::RubyLang';
 
 my $f = PublicInbox::Filter::RubyLang->new;

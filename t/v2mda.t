@@ -6,7 +6,7 @@ use Test::More;
 use PublicInbox::MIME;
 use Fcntl qw(SEEK_SET);
 use Cwd;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git(2.6);
 
 my $V = 2;

@@ -10,7 +10,7 @@ use PublicInbox::Import;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 my $have_xml_feed = eval { require XML::Feed; 1 };
-require './t/common.perl';
+use PublicInbox::TestCommon;
 
 sub string_feed {
 	my $res = PublicInbox::Feed::generate($_[0]);

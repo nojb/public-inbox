@@ -8,7 +8,7 @@ foreach my $mod (@mods) {
 	eval "require $mod";
 	plan skip_all => "missing $mod for $0" if $@;
 };
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git('2.6');
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;

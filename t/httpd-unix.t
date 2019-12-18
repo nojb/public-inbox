@@ -4,7 +4,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 use Errno qw(EADDRINUSE);
 
 foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {

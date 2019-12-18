@@ -9,7 +9,7 @@ use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
 use PublicInbox::WWW;
 use bytes (); # only for bytes::length
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 foreach my $mod (@mods) {

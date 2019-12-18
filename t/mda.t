@@ -7,7 +7,7 @@ use Email::MIME;
 use Cwd qw(getcwd);
 use PublicInbox::MID qw(mid2path);
 use PublicInbox::Git;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";

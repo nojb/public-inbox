@@ -4,7 +4,7 @@
 use strict;
 use warnings;
 use Test::More;
-require './t/common.perl';
+use PublicInbox::TestCommon;
 require_git(2.6);
 require PublicInbox::Inbox;
 require PublicInbox::InboxWritable;
