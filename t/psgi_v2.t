@@ -155,7 +155,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 	is($res->code, 200, 'success with threaded search');
 	my $raw = $res->content;
 	ok($raw =~ s/\A.*>Results 1-3 of 3\b//s, 'got all results');
-	my @over = ($raw =~ m/\d{4}-\d+-\d+\s+\d+:\d+ (.+)$/gm);
+	my @over = ($raw =~ m/\d{4}-\d+-\d+\s+\d+:\d+ +(?:\d+\% )?(.+)$/gm);
 	is_deeply(\@over, [ '<a', '` <a', '` <a' ], 'threaded messages show up');
 
 	local $SIG{__WARN__} = 'DEFAULT';

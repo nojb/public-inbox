@@ -950,7 +950,18 @@ sub skel_dump {
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	obfuscate_addrs($obfs_ibx, $f) if $obfs_ibx;
 
-	my $d = fmt_ts($smsg->{ds}) . ' ' . indent_for($level) . th_pfx($level);
+	my $d = fmt_ts($smsg->{ds});
+	my $unmatched; # if lazy-loaded by SearchThread::Msg::visible()
+	if (my $pct = $ctx->{pct}) {
+		$pct = $pct->{$smsg->{mid}};
+		if (defined $pct) {
+			$d .= (sprintf(' % 3u', $pct) . '%');
+		} else {
+			$unmatched = 1;
+			$d .= '     ';
+		}
+	}
+	$d .= ' ' . indent_for($level) . th_pfx($level);
 	my $attr = $f;
 	$ctx->{first_level} ||= $level;
 
@@ -976,7 +987,6 @@ sub skel_dump {
 	# our Xapian which would've resulted in '' if it were
 	# really missing (and Filter rejects empty subjects)
 	my @subj = split(/ /, subject_normalized($smsg->subject));
-
 	# remove common suffixes from the subject if it matches the previous,
 	# so we do not show redundant text at the end.
 	my $prev_subj = $ctx->{prev_subj} || [];
@@ -993,7 +1003,7 @@ sub skel_dump {
 	}
 	my $m;
 	my $id = '';
-	my $mapping = $ctx->{mapping};
+	my $mapping = $unmatched ? undef : $ctx->{mapping};
 	if ($mapping) {
 		my $map = $mapping->{$mid};
 		$id = id_compress($mid, 1);
@@ -1011,8 +1021,8 @@ sub _skel_ghost {
 	my ($ctx, $level, $node) = @_;
 
 	my $mid = $node->{id};
-	my $d = $ctx->{pct} ? '    [irrelevant] ' # search result
-			    : '     [not found] ';
+	my $d = '     [not found] ';
+	$d .= '     '  if exists $ctx->{pct};
 	$d .= indent_for($level) . th_pfx($level);
 	my $upfx = $ctx->{-upfx};
 	my $m = PublicInbox::Hval->new_msgid($mid);
