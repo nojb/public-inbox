@@ -67,12 +67,27 @@ sub key2script ($) {
 	'blib/script/'.$key;
 }
 
+my @io_mode = ([ *STDIN{IO}, '<&' ], [ *STDOUT{IO}, '>&' ],
+		[ *STDERR{IO}, '>&' ]);
+
 sub _prepare_redirects ($) {
 	my ($fhref) = @_;
-	my @x = ([ \*STDIN, '<&' ], [ \*STDOUT, '>&' ], [ \*STDERR, '>&' ]);
-	for (my $fd = 0; $fd <= $#x; $fd++) {
+	my $orig_io = [];
+	for (my $fd = 0; $fd <= $#io_mode; $fd++) {
 		my $fh = $fhref->[$fd] or next;
-		my ($oldfh, $mode) = @{$x[$fd]};
+		my ($oldfh, $mode) = @{$io_mode[$fd]};
+		open my $orig, $mode, $oldfh or die "$$oldfh $mode stash: $!";
+		$orig_io->[$fd] = $orig;
+		open $oldfh, $mode, $fh or die "$$oldfh $mode redirect: $!";
+	}
+	$orig_io;
+}
+
+sub _undo_redirects ($) {
+	my ($orig_io) = @_;
+	for (my $fd = 0; $fd <= $#io_mode; $fd++) {
+		my $fh = $orig_io->[$fd] or next;
+		my ($oldfh, $mode) = @{$io_mode[$fd]};
 		open $oldfh, $mode, $fh or die "$$oldfh $mode redirect: $!";
 	}
 }
@@ -174,14 +189,14 @@ sub run_script ($;$$) {
 			$r == $pid or die "waitpid: expected $pid, got $r";
 		}
 	} else { # localize and run everything in the same process:
-		local *STDIN = *STDIN;
-		local *STDOUT = *STDOUT;
-		local *STDERR = *STDERR;
+		# note: "local *STDIN = *STDIN;" and so forth did not work in
+		# old versions of perl
 		local %ENV = $env ? (%ENV, %$env) : %ENV;
 		local %SIG = %SIG;
 		local $0 = join(' ', @$cmd);
-		_prepare_redirects($fhref);
+		my $orig_io = _prepare_redirects($fhref);
 		_run_sub($sub, $key, \@argv);
+		_undo_redirects($orig_io);
 	}
 
 	# slurp the redirects back into user-supplied strings
