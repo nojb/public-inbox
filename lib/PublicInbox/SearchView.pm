@@ -276,7 +276,7 @@ sub mset_thread {
 	} ($mset->items) ]});
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
-		$r ? sort_relevance(\%pct) : *PublicInbox::View::sort_ds,
+		$r ? sort_relevance(\%pct) : \&PublicInbox::View::sort_ds,
 		$ctx);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	$ctx->{-upfx} = '';

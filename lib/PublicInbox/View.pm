@@ -881,8 +881,7 @@ sub strict_loose_note ($) {
 sub thread_results {
 	my ($ctx, $msgs) = @_;
 	require PublicInbox::SearchThread;
-	my $ibx = $ctx->{-inbox};
-	my $rootset = PublicInbox::SearchThread::thread($msgs, *sort_ds, $ibx);
+	my $rootset = PublicInbox::SearchThread::thread($msgs, \&sort_ds, $ctx);
 
 	# FIXME: `tid' is broken on --reindex, so that needs to be fixed
 	# and preserved in the future.  This bug is hidden by `sid' matches

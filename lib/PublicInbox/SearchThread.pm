@@ -22,7 +22,7 @@ use strict;
 use warnings;
 
 sub thread {
-	my ($msgs, $ordersub, $ibx) = @_;
+	my ($msgs, $ordersub, $ctx) = @_;
 	my $id_table = {};
 
 	# Sadly, we sort here anyways since the fill-in-the-blanks References:
@@ -32,12 +32,13 @@ sub thread {
 	# We'll trust the client Date: header here instead of the Received:
 	# time since this is for display (and not retrieval)
 	_add_message($id_table, $_) for sort { $a->{ds} <=> $b->{ds} } @$msgs;
+	my $ibx = $ctx->{-inbox};
 	my $rootset = [ grep {
 			!delete($_->{parent}) && $_->visible($ibx)
 		} values %$id_table ];
 	$id_table = undef;
 	$rootset = $ordersub->($rootset);
-	$_->order_children($ordersub, $ibx) for @$rootset;
+	$_->order_children($ordersub, $ctx) for @$rootset;
 	$rootset;
 }
 
@@ -151,10 +152,11 @@ sub visible ($$) {
 }
 
 sub order_children {
-	my ($cur, $ordersub, $ibx) = @_;
+	my ($cur, $ordersub, $ctx) = @_;
 
 	my %seen = ($cur => 1); # self-referential loop prevention
 	my @q = ($cur);
+	my $ibx = $ctx->{-inbox};
 	while (defined($cur = shift @q)) {
 		my $c = $cur->{children}; # The hashref here...
 
