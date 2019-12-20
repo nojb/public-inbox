@@ -113,7 +113,7 @@ sub mset_summary {
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
-		my $pct = $m->get_percent;
+		my $pct = get_pct($m);
 		my $smsg = load_doc_retry($srch, $m);
 		unless ($smsg) {
 			eval {
@@ -264,6 +264,14 @@ sub sort_relevance {
 	} @{$_[0]} ] };
 }
 
+sub get_pct ($) {
+	# Capped at "99%" since "100%" takes an extra column in the
+	# thread skeleton view.  <xapian/mset.h> says the value isn't
+	# very meaningful, anyways.
+	my $n = $_[0]->get_percent;
+	$n > 99 ? 99 : $n;
+}
+
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my %pct;
@@ -271,7 +279,7 @@ sub mset_thread {
 	my $msgs = $ibx->search->retry_reopen(sub { [ map {
 		my $i = $_;
 		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
-		$pct{$smsg->mid} = $i->get_percent;
+		$pct{$smsg->mid} = get_pct($i);
 		$smsg;
 	} ($mset->items) ]});
 	my $r = $q->{r};

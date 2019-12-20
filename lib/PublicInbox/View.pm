@@ -955,10 +955,10 @@ sub skel_dump {
 	if (my $pct = $ctx->{pct}) {
 		$pct = $pct->{$smsg->{mid}};
 		if (defined $pct) {
-			$d .= (sprintf(' % 3u', $pct) . '%');
+			$d .= (sprintf(' % 2u', $pct) . '%');
 		} else {
 			$unmatched = 1;
-			$d .= '     ';
+			$d .= '    ';
 		}
 	}
 	$d .= ' ' . indent_for($level) . th_pfx($level);
@@ -1022,7 +1022,7 @@ sub _skel_ghost {
 
 	my $mid = $node->{id};
 	my $d = '     [not found] ';
-	$d .= '     '  if exists $ctx->{pct};
+	$d .= '    '  if exists $ctx->{pct};
 	$d .= indent_for($level) . th_pfx($level);
 	my $upfx = $ctx->{-upfx};
 	my $m = PublicInbox::Hval->new_msgid($mid);
