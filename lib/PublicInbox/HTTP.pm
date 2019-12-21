@@ -222,22 +222,20 @@ sub response_header_write {
 }
 
 # middlewares such as Deflater may write empty strings
-sub chunked_wcb ($) {
-	my ($self) = @_;
-	sub {
-		return if $_[0] eq '';
-		msg_more($self, sprintf("%x\r\n", bytes::length($_[0])));
-		msg_more($self, $_[0]);
+sub chunked_write ($$) {
+	my $self = $_[0];
+	return if $_[1] eq '';
+	msg_more($self, sprintf("%x\r\n", bytes::length($_[1])));
+	msg_more($self, $_[1]);
 
-		# use $self->write(\"\n\n") if you care about real-time
-		# streaming responses, public-inbox WWW does not.
-		msg_more($self, "\r\n");
-	}
+	# use $self->write(\"\n\n") if you care about real-time
+	# streaming responses, public-inbox WWW does not.
+	msg_more($self, "\r\n");
 }
 
-sub identity_wcb ($) {
-	my ($self) = @_;
-	sub { $self->write(\($_[0])) if $_[0] ne '' }
+sub identity_write ($$) {
+	my $self = $_[0];
+	$self->write(\($_[1])) if $_[1] ne '';
 }
 
 sub next_request ($) {
@@ -251,17 +249,16 @@ sub next_request ($) {
 	}
 }
 
-sub response_done_cb ($$) {
+sub response_done {
 	my ($self, $alive) = @_;
-	sub {
-		delete $self->{env}; # we're no longer busy
-		$self->write(\"0\r\n\r\n") if $alive == 2;
-		$self->write($alive ? \&next_request : \&close);
-	}
+	delete $self->{env}; # we're no longer busy
+	$self->write(\"0\r\n\r\n") if $alive == 2;
+	$self->write($alive ? \&next_request : \&close);
 }
 
-sub getline_response ($$$) {
-	my ($self, $write, $close) = @_;
+sub getline_response ($$) {
+	my ($self, $alive) = @_;
+	my $write = $alive == 2 ? \&chunked_write : \&identity_write;
 	my $pull; # DANGER: self-referential
 	$pull = sub {
 		my $forward = $self->{forward};
@@ -273,13 +270,14 @@ sub getline_response ($$$) {
 		} if $forward;
 
 		if (defined $buf) {
-			$write->($buf); # may close in PublicInbox::DS::write
+			# may close in PublicInbox::DS::write
+			$write->($self, $buf);
 
 			if ($self->{sock}) {
 				my $wbuf = $self->{wbuf} ||= [];
 				push @$wbuf, $pull;
 
-				# wbuf may be populated by $write->($buf),
+				# wbuf may be populated by $write->(...$buf),
 				# no need to rearm if so:
 				$self->requeue if scalar(@$wbuf) == 1;
 				return; # likely
@@ -299,7 +297,7 @@ sub getline_response ($$$) {
 			}
 		}
 		$forward = undef;
-		$close->(); # call response_done_cb
+		response_done($self, $alive);
 	};
 
 	$pull->(); # kick-off!
@@ -308,19 +306,23 @@ sub getline_response ($$$) {
 sub response_write {
 	my ($self, $env, $res) = @_;
 	my $alive = response_header_write($self, $env, $res);
-	my $close = response_done_cb($self, $alive);
-	my $write = $alive == 2 ? chunked_wcb($self) : identity_wcb($self);
 	if (defined(my $body = $res->[2])) {
 		if (ref $body eq 'ARRAY') {
-			$write->($_) foreach @$body;
-			$close->();
+			if ($alive == 2) {
+				chunked_write($self, $_) for @$body;
+			} else {
+				identity_write($self, $_) for @$body;
+			}
+			response_done($self, $alive);
 		} else {
 			$self->{forward} = $body;
-			getline_response($self, $write, $close);
+			getline_response($self, $alive);
 		}
+	# these are returned to the calling application:
+	} elsif ($alive == 2) {
+		bless [ $self, $alive ], 'PublicInbox::HTTP::Chunked';
 	} else {
-		# this is returned to the calling application:
-		Plack::Util::inline_object(write => $write, close => $close);
+		bless [ $self, $alive ], 'PublicInbox::HTTP::Identity';
 	}
 }
 
@@ -464,6 +466,31 @@ sub close {
 sub busy () {
 	my ($self) = @_;
 	($self->{rbuf} || $self->{env} || $self->{wbuf});
+}
+
+# Chunked and Identity packages are used for writing responses.
+# They may be exposed to the PSGI application when the PSGI app
+# returns a CODE ref for "push"-based responses
+package PublicInbox::HTTP::Chunked;
+use strict;
+
+sub write {
+	# ([$http], $buf) = @_;
+	PublicInbox::HTTP::chunked_write($_[0]->[0], $_[1])
+}
+
+sub close {
+	# $_[0] = [$http, $alive]
+	PublicInbox::HTTP::response_done(@{$_[0]});
+}
+
+package PublicInbox::HTTP::Identity;
+use strict;
+our @ISA = qw(PublicInbox::HTTP::Chunked);
+
+sub write {
+	# ([$http], $buf) = @_;
+	PublicInbox::HTTP::identity_write($_[0]->[0], $_[1]);
 }
 
 1;
