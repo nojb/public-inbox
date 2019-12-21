@@ -803,6 +803,13 @@ sub hdr_mid_response ($$$$$$) {
 	undef;
 }
 
+sub xrover_i {
+	my ($self, $beg, $end) = @_;
+	my $h = over_header_for($self->{ng}->over, $$beg, 'references');
+	more($self, "$$beg $h") if defined($h);
+	$$beg++ < $end;
+}
+
 sub cmd_xrover ($;$) {
 	my ($self, $range) = @_;
 	my $ng = $self->{ng} or return '412 no newsgroup selected';
@@ -812,16 +819,8 @@ sub cmd_xrover ($;$) {
 	$range = $self->{article} unless defined $range;
 	my $r = get_range($self, $range);
 	return $r unless ref $r;
-	my ($beg, $end) = @$r;
-	my $mm = $ng->mm;
-	my $over = $ng->over;
 	more($self, '224 Overview information follows');
-
-	long_response($self, sub {
-		my $h = over_header_for($over, $$beg, 'references');
-		more($self, "$$beg $h") if defined($h);
-		$$beg++ < $end;
-	});
+	long_response($self, \&xrover_i, @$r);
 }
 
 sub over_line ($$$$) {
