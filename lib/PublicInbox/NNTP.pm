@@ -6,7 +6,7 @@ package PublicInbox::NNTP;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(nntpd article ng);
+use fields qw(nntpd article ng long_cb);
 use PublicInbox::MID qw(mid_escape);
 use Email::Simple;
 use POSIX qw(strftime);
@@ -586,53 +586,57 @@ sub get_range ($$) {
 	[ \$beg, $end ];
 }
 
-sub long_response ($$) {
-	my ($self, $cb) = @_; # cb returns true if more, false if done
+sub long_step {
+	my ($self) = @_;
+	# wbuf is unset or empty, here; {long} may add to it
+	my ($cb, $t0, @args) = @{$self->{long_cb}};
+	my $more = eval { $cb->($self, @args) };
+	if ($@ || !$self->{sock}) { # something bad happened...
+		delete $self->{long_cb};
+		my $elapsed = now() - $t0;
+		my $fd = fileno($self->{sock});
+		if ($@) {
+			err($self,
+			    "%s during long response[$fd] - %0.6f",
+			    $@, $elapsed);
+		}
+		out($self, " deferred[$fd] aborted - %0.6f", $elapsed);
+		$self->close;
+	} elsif ($more) { # $self->{wbuf}:
+		$self->update_idle_time;
 
-	my $fd = fileno($self->{sock});
-	defined $fd or return;
+		# COMPRESS users all share the same DEFLATE context.
+		# Flush it here to ensure clients don't see
+		# each other's data
+		$self->zflush;
+
+		# no recursion, schedule another call ASAP
+		# but only after all pending writes are done
+		my $wbuf = $self->{wbuf} ||= [];
+		push @$wbuf, \&long_step;
+
+		# wbuf may be populated by $cb, no need to rearm if so:
+		$self->requeue if scalar(@$wbuf) == 1;
+	} else { # all done!
+		delete $self->{long_cb};
+		res($self, '.');
+		my $elapsed = now() - $t0;
+		my $fd = fileno($self->{sock});
+		out($self, " deferred[$fd] done - %0.6f", $elapsed);
+		my $wbuf = $self->{wbuf};
+		$self->requeue unless $wbuf && @$wbuf;
+	}
+}
+
+sub long_response ($$;@) {
+	my ($self, $cb, @args) = @_; # cb returns true if more, false if done
+
+	$self->{sock} or return;
 	# make sure we disable reading during a long response,
 	# clients should not be sending us stuff and making us do more
 	# work while we are stream a response to them
-	my $t0 = now();
-	my $long_cb; # DANGER: self-referential
-	$long_cb = sub {
-		# wbuf is unset or empty, here; $cb may add to it
-		my $more = eval { $cb->() };
-		if ($@ || !$self->{sock}) { # something bad happened...
-			$long_cb = undef;
-			my $diff = now() - $t0;
-			if ($@) {
-				err($self,
-				    "%s during long response[$fd] - %0.6f",
-				    $@, $diff);
-			}
-			out($self, " deferred[$fd] aborted - %0.6f", $diff);
-			$self->close;
-		} elsif ($more) { # $self->{wbuf}:
-			$self->update_idle_time;
-
-			# COMPRESS users all share the same DEFLATE context.
-			# Flush it here to ensure clients don't see
-			# each other's data
-			$self->zflush;
-
-			# no recursion, schedule another call ASAP
-			# but only after all pending writes are done
-			my $wbuf = $self->{wbuf} ||= [];
-			push @$wbuf, $long_cb;
-
-			# wbuf may be populated by $cb, no need to rearm if so:
-			$self->requeue if scalar(@$wbuf) == 1;
-		} else { # all done!
-			$long_cb = undef;
-			res($self, '.');
-			out($self, " deferred[$fd] done - %0.6f", now() - $t0);
-			my $wbuf = $self->{wbuf};
-			$self->requeue unless $wbuf && @$wbuf;
-		}
-	};
-	$self->write($long_cb); # kick off!
+	$self->{long_cb} = [ $cb, now(), @args ];
+	long_step($self); # kick off!
 	undef;
 }
 
@@ -676,6 +680,18 @@ sub mid_lookup ($$) {
 	(undef, undef);
 }
 
+sub xref_range_i {
+	my ($self, $beg, $end) = @_;
+	my $ng = $self->{ng};
+	my $r = $ng->mm->msg_range($beg, $end);
+	@$r or return;
+	more($self, join("\r\n", map {
+		my $num = $_->[0];
+		"$num ".xref($self, $ng, $num, $_->[1]);
+	} @$r));
+	1;
+}
+
 sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 	my ($self, $xhdr, $range) = @_;
 
@@ -689,19 +705,8 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
-		my $ng = $self->{ng};
-		my $mm = $ng->mm;
-		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		long_response($self, sub {
-			my $r = $mm->msg_range($beg, $end);
-			@$r or return;
-			more($self, join("\r\n", map {
-				my $num = $_->[0];
-				"$num ".xref($self, $ng, $num, $_->[1]);
-			} @$r));
-			1;
-		});
+		long_response($self, \&xref_range_i, @$r);
 	}
 }
 
