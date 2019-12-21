@@ -194,7 +194,7 @@ sub cmd_listgroup ($;$$) {
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
 		long_response($self, sub {
-			$r = $mm->msg_range(\$beg, $end, 'num');
+			$r = $mm->msg_range($beg, $end, 'num');
 			scalar(@$r) or return;
 			more($self, join("\r\n", map { $_->[0] } @$r));
 			1;
@@ -583,7 +583,7 @@ sub get_range ($$) {
 	$beg = $min if ($beg < $min);
 	$end = $max if ($end > $max);
 	return '420 No article(s) selected' if ($beg > $end);
-	[ $beg, $end ];
+	[ \$beg, $end ];
 }
 
 sub long_response ($$) {
@@ -651,7 +651,7 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
 		long_response($self, sub {
-			my $r = $mm->msg_range(\$beg, $end);
+			my $r = $mm->msg_range($beg, $end);
 			@$r or return;
 			more($self, join("\r\n", map {
 				"$_->[0] <$_->[1]>"
@@ -694,7 +694,7 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
 		long_response($self, sub {
-			my $r = $mm->msg_range(\$beg, $end);
+			my $r = $mm->msg_range($beg, $end);
 			@$r or return;
 			more($self, join("\r\n", map {
 				my $num = $_->[0];
@@ -727,7 +727,7 @@ sub hdr_searchmsg ($$$$) {
 		return $r unless ref $r;
 		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		my $cur = $beg;
+		my $cur = $$beg;
 		long_response($self, sub {
 			my $msgs = $over->query_xover($cur, $end);
 			my $nr = scalar @$msgs or return;
@@ -813,9 +813,9 @@ sub cmd_xrover ($;$) {
 	more($self, '224 Overview information follows');
 
 	long_response($self, sub {
-		my $h = over_header_for($over, $beg, 'references');
-		more($self, "$beg $h") if defined($h);
-		$beg++ < $end;
+		my $h = over_header_for($over, $$beg, 'references');
+		more($self, "$$beg $h") if defined($h);
+		$$beg++ < $end;
 	});
 }
 
@@ -860,9 +860,9 @@ sub cmd_xover ($;$) {
 	my $r = get_range($self, $range);
 	return $r unless ref $r;
 	my ($beg, $end) = @$r;
-	more($self, "224 Overview information follows for $beg to $end");
+	more($self, "224 Overview information follows for $$beg to $end");
 	my $over = $self->{ng}->over;
-	my $cur = $beg;
+	my $cur = $$beg;
 	long_response($self, sub {
 		my $msgs = $over->query_xover($cur, $end);
 		my $nr = scalar @$msgs or return;
