@@ -646,6 +646,14 @@ sub long_response ($$;@) {
 	undef;
 }
 
+sub hdr_msgid_range_i {
+	my ($self, $beg, $end) = @_;
+	my $r = $self->{ng}->mm->msg_range($beg, $end);
+	@$r or return;
+	more($self, join("\r\n", map { "$_->[0] <$_->[1]>" } @$r));
+	1;
+}
+
 sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 	my ($self, $xhdr, $range) = @_;
 
@@ -657,17 +665,8 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
-		my $mm = $self->{ng}->mm;
-		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		long_response($self, sub {
-			my $r = $mm->msg_range($beg, $end);
-			@$r or return;
-			more($self, join("\r\n", map {
-				"$_->[0] <$_->[1]>"
-			} @$r));
-			1;
-		});
+		long_response($self, \&hdr_msgid_range_i, @$r);
 	}
 }
 
