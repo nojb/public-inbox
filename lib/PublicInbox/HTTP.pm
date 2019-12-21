@@ -11,7 +11,7 @@ package PublicInbox::HTTP;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(httpd env input_left remote_addr remote_port forward);
+use fields qw(httpd env input_left remote_addr remote_port forward alive);
 use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
@@ -256,51 +256,47 @@ sub response_done {
 	$self->write($alive ? \&next_request : \&close);
 }
 
-sub getline_response ($$) {
-	my ($self, $alive) = @_;
-	my $write = $alive == 2 ? \&chunked_write : \&identity_write;
-	my $pull; # DANGER: self-referential
-	$pull = sub {
-		my $forward = $self->{forward};
-		# limit our own running time for fairness with other
-		# clients and to avoid buffering too much:
-		my $buf = eval {
-			local $/ = \8192;
-			$forward->getline;
-		} if $forward;
+sub getline_pull {
+	my ($self) = @_;
+	my $forward = $self->{forward};
 
-		if (defined $buf) {
-			# may close in PublicInbox::DS::write
-			$write->($self, $buf);
+	# limit our own running time for fairness with other
+	# clients and to avoid buffering too much:
+	my $buf = eval {
+		local $/ = \8192;
+		$forward->getline;
+	} if $forward;
 
-			if ($self->{sock}) {
-				my $wbuf = $self->{wbuf} ||= [];
-				push @$wbuf, $pull;
-
-				# wbuf may be populated by $write->(...$buf),
-				# no need to rearm if so:
-				$self->requeue if scalar(@$wbuf) == 1;
-				return; # likely
-			}
-		} elsif ($@) {
-			err($self, "response ->getline error: $@");
-			$self->close;
+	if (defined $buf) {
+		# may close in PublicInbox::DS::write
+		if ($self->{alive} == 2) {
+			chunked_write($self, $buf);
+		} else {
+			identity_write($self, $buf);
 		}
 
-		$pull = undef; # all done!
-		# avoid recursion
-		if (delete $self->{forward}) {
-			eval { $forward->close };
-			if ($@) {
-				err($self, "response ->close error: $@");
-				$self->close; # idempotent
-			}
-		}
-		$forward = undef;
-		response_done($self, $alive);
-	};
+		if ($self->{sock}) {
+			my $wbuf = $self->{wbuf} //= [];
+			push @$wbuf, \&getline_pull;
 
-	$pull->(); # kick-off!
+			# wbuf may be populated by {chunked,identity}_write()
+			# above, no need to rearm if so:
+			$self->requeue if scalar(@$wbuf) == 1;
+			return; # likely
+		}
+	} elsif ($@) {
+		err($self, "response ->getline error: $@");
+		$self->close;
+	}
+	# avoid recursion
+	if (delete $self->{forward}) {
+		eval { $forward->close };
+		if ($@) {
+			err($self, "response ->close error: $@");
+			$self->close; # idempotent
+		}
+	}
+	response_done($self, delete $self->{alive});
 }
 
 sub response_write {
@@ -316,7 +312,8 @@ sub response_write {
 			response_done($self, $alive);
 		} else {
 			$self->{forward} = $body;
-			getline_response($self, $alive);
+			$self->{alive} = $alive;
+			getline_pull($self); # kick-off!
 		}
 	# these are returned to the calling application:
 	} elsif ($alive == 2) {
