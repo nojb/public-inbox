@@ -290,6 +290,26 @@ sub ngpat2re (;$) {
 	$_[0] = qr/\A(?:$_[0])\z/;
 }
 
+sub newnews_i {
+	my ($self, $overs, $ts, $prev) = @_;
+	my $over = $overs->[0];
+	my $msgs = $over->query_ts($ts, $$prev);
+	if (scalar @$msgs) {
+		more($self, '<' .
+			join(">\r\n<", map { $_->mid } @$msgs ).
+			'>');
+		$$prev = $msgs->[-1]->{num};
+	} else {
+		shift @$overs;
+		if (@$overs) { # continue onto next newsgroup
+			$$prev = 0;
+			return 1;
+		} else { # break out of the long response.
+			return;
+		}
+	}
+}
+
 sub cmd_newnews ($$$$;$$) {
 	my ($self, $newsgroups, $date, $time, $gmt, $dists) = @_;
 	my $ts = eval { parse_time($date, $time, $gmt) };
@@ -298,34 +318,17 @@ sub cmd_newnews ($$$$;$$) {
 	my ($keep, $skip) = split('!', $newsgroups, 2);
 	ngpat2re($keep);
 	ngpat2re($skip);
-	my @over;
+	my @overs;
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{newsgroup} =~ $keep or next;
 		$ng->{newsgroup} =~ $skip and next;
 		my $over = $ng->over or next;
-		push @over, $over;
+		push @overs, $over;
 	};
-	return '.' unless @over;
+	return '.' unless @overs;
 
 	my $prev = 0;
-	long_response($self, sub {
-		my $over = $over[0];
-		my $msgs = $over->query_ts($ts, $prev);
-		if (scalar @$msgs) {
-			more($self, '<' .
-				join(">\r\n<", map { $_->mid } @$msgs ).
-				'>');
-			$prev = $msgs->[-1]->{num};
-		} else {
-			shift @over;
-			if (@over) { # continue onto next newsgroup
-				$prev = 0;
-				return 1;
-			} else { # break out of the long response.
-				return;
-			}
-		}
-	});
+	long_response($self, \&newnews_i, \@overs, $ts, \$prev);
 }
 
 sub cmd_group ($$) {
