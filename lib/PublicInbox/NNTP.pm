@@ -863,6 +863,19 @@ sub cmd_over ($;$) {
 	}
 }
 
+sub xover_i {
+	my ($self, $beg, $end) = @_;
+	my $ng = $self->{ng};
+	my $msgs = $ng->over->query_xover($$beg, $end);
+	my $nr = scalar @$msgs or return;
+
+	# OVERVIEW.FMT
+	more($self, join("\r\n", map {
+		over_line($self, $ng, $_->{num}, $_);
+		} @$msgs));
+	$$beg = $msgs->[-1]->{num} + 1;
+}
+
 sub cmd_xover ($;$) {
 	my ($self, $range) = @_;
 	$range = $self->{article} unless defined $range;
@@ -870,18 +883,7 @@ sub cmd_xover ($;$) {
 	return $r unless ref $r;
 	my ($beg, $end) = @$r;
 	more($self, "224 Overview information follows for $$beg to $end");
-	my $over = $self->{ng}->over;
-	my $cur = $$beg;
-	long_response($self, sub {
-		my $msgs = $over->query_xover($cur, $end);
-		my $nr = scalar @$msgs or return;
-
-		# OVERVIEW.FMT
-		more($self, join("\r\n", map {
-			over_line($self, $self->{ng}, $_->{num}, $_);
-			} @$msgs));
-		$cur = $msgs->[-1]->{num} + 1;
-	});
+	long_response($self, \&xover_i, @$r);
 }
 
 sub compressed { undef }
