@@ -717,6 +717,20 @@ sub over_header_for {
 	$smsg->{$field};
 }
 
+sub searchmsg_range_i {
+	my ($self, $beg, $end, $field) = @_;
+	my $over = $self->{ng}->over;
+	my $msgs = $over->query_xover($$beg, $end);
+	scalar(@$msgs) or return;
+	my $tmp = '';
+	foreach my $s (@$msgs) {
+		$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
+	}
+	utf8::encode($tmp);
+	$self->msg_more($tmp);
+	$$beg = $msgs->[-1]->{num} + 1;
+}
+
 sub hdr_searchmsg ($$$$) {
 	my ($self, $xhdr, $field, $range) = @_;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
@@ -726,24 +740,10 @@ sub hdr_searchmsg ($$$$) {
 		hdr_mid_response($self, $xhdr, $ng, $n, $range, $v);
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
-		my $over = $self->{ng}->over;
-		my $mm = $self->{ng}->mm;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
-		my ($beg, $end) = @$r;
 		more($self, $xhdr ? r221 : r225);
-		my $cur = $$beg;
-		long_response($self, sub {
-			my $msgs = $over->query_xover($cur, $end);
-			my $nr = scalar @$msgs or return;
-			my $tmp = '';
-			foreach my $s (@$msgs) {
-				$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
-			}
-			utf8::encode($tmp);
-			$self->msg_more($tmp);
-			$cur = $msgs->[-1]->{num} + 1;
-		});
+		long_response($self, \&searchmsg_range_i, @$r, $field);
 	}
 }
 
