@@ -384,7 +384,7 @@ sub batch_do {
 		my ($head, $tail) = $self->find_doc_ids($termval);
 		return if $head == $tail;
 		my @ids;
-		for (; $head != $tail && @ids < $batch_size; $head->inc) {
+		for (; $head != $tail && @ids < $batch_size; $head++) {
 			push @ids, $head->get_docid;
 		}
 		$cb->(\@ids);
@@ -439,7 +439,7 @@ sub remove_by_oid {
 	# there is only ONE element in @delete unless we
 	# have bugs in our v2writable deduplication check
 	my @delete;
-	for (; $head != $tail; $head->inc) {
+	for (; $head != $tail; $head++) {
 		my $docid = $head->get_docid;
 		my $doc = $db->get_document($docid);
 		my $smsg = PublicInbox::SearchMsg->wrap($mid);
