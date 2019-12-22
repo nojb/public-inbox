@@ -10,11 +10,7 @@ require PublicInbox::Admin;
 use PublicInbox::TestCommon;
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
-
-foreach my $mod (qw(DBD::SQLite)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for $0" if $@;
-}
+require_mods(qw(DBD::SQLite));
 
 my $mime = PublicInbox::MIME->create(
 	header => [

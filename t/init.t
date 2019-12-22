@@ -50,10 +50,7 @@ sub quiet_fail {
 }
 
 SKIP: {
-	foreach my $mod (qw(DBD::SQLite Search::Xapian::WritableDatabase)) {
-		eval "require $mod";
-		skip "$mod missing for v2", 2 if $@;
-	}
+	require_mods(qw(DBD::SQLite Search::Xapian::WritableDatabase), 2);
 	require_git(2.6, 1) or skip "git 2.6+ required", 2;
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
 	my $cfgfile = "$ENV{PI_DIR}/config";

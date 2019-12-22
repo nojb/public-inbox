@@ -7,10 +7,7 @@ use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape DBD::SQLite);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for psgi_scan_all.t" if $@;
-}
+require_mods(@mods);
 use_ok 'PublicInbox::V2Writable';
 foreach my $mod (@mods) { use_ok $mod; }
 my ($tmp, $for_destroy) = tmpdir();

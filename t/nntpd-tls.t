@@ -4,12 +4,10 @@ use strict;
 use warnings;
 use Test::More;
 use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
+use PublicInbox::TestCommon;
 # IO::Poll and Net::NNTP are part of the standard library, but
 # distros may split them off...
-foreach my $mod (qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for $0" if $@;
-}
+require_mods(qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll));
 Net::NNTP->can('starttls') or
 	plan skip_all => 'Net::NNTP does not support TLS';
 IO::Socket::SSL->VERSION(2.007) or
@@ -24,7 +22,6 @@ unless (-r $key && -r $cert) {
 
 use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
-use PublicInbox::TestCommon;
 require PublicInbox::InboxWritable;
 require PublicInbox::MIME;
 require PublicInbox::SearchIdx;

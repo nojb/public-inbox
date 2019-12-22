@@ -9,7 +9,7 @@ use PublicInbox::Inbox;
 use PublicInbox::Git;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use POSIX qw(strftime);
-eval { require Date::Parse } or plan skip_all => "Date::Parse missing for $0";
+require_mods('Date::Parse');
 my $git;
 my ($inboxdir, $git_dir) = @ENV{qw(GIANT_INBOX_DIR GIANT_GIT_DIR)};
 if (defined $inboxdir) {

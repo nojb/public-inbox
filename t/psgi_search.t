@@ -12,11 +12,7 @@ use bytes (); # only for bytes::length
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for psgi_search.t" if $@;
-}
-
+require_mods(@mods);
 use_ok $_ foreach (@mods, qw(PublicInbox::SearchIdx));
 my ($tmpdir, $for_destroy) = tmpdir();
 

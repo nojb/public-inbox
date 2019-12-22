@@ -10,10 +10,7 @@ my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for plack.t" if $@;
-}
+require_mods(@mods);
 use_ok $_ foreach @mods;
 use PublicInbox::Import;
 use PublicInbox::Git;

@@ -3,12 +3,8 @@
 use strict;
 use warnings;
 use Test::More;
-
-foreach my $mod (qw(DBD::SQLite Data::Dumper)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for nntp.t" if $@;
-}
-
+use PublicInbox::TestCommon;
+require_mods(qw(DBD::SQLite Data::Dumper));
 use_ok 'PublicInbox::NNTP';
 use_ok 'PublicInbox::Inbox';
 

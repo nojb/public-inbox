@@ -9,10 +9,7 @@ use PublicInbox::WWW;
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for psgi_bad_mids.t" if $@;
-}
+require_mods(@mods);
 use_ok($_) for @mods;
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();

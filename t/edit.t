@@ -11,12 +11,7 @@ require PublicInbox::InboxWritable;
 require PublicInbox::Config;
 use PublicInbox::MID qw(mid_clean);
 
-my @mods = qw(DBI DBD::SQLite);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "missing $mod for $0" if $@;
-};
-
+require_mods('DBD::SQLite');
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";
 my $ibx = PublicInbox::Inbox->new({

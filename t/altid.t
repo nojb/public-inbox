@@ -4,11 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for altid.t" if $@;
-}
-
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::Msgmap';
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';

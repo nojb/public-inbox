@@ -6,12 +6,7 @@ use PublicInbox::TestCommon;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Config;
-my @mods = qw(Filesys::Notify::Simple DBD::SQLite Search::Xapian);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for watch_filter_rubylang_v2.t" if $@;
-}
-
+require_mods(qw(Filesys::Notify::Simple DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::WatchMaildir';
 use_ok 'PublicInbox::Emergency';
 my ($tmpdir, $for_destroy) = tmpdir();

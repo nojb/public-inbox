@@ -23,8 +23,7 @@ is($ret, $mime, "delivery successful");
 is($mime->body, "keep this\n", 'normal message filtered OK');
 
 SKIP: {
-	eval 'require DBD::SQLite';
-	skip 'DBD::SQLite missing for altid mapping', 4 if $@;
+	require_mods('DBD::SQLite', 4);
 	use_ok 'PublicInbox::Inbox';
 	my ($git_dir, $for_destroy) = tmpdir();
 	is(mkdir("$git_dir/public-inbox"), 1, "created public-inbox dir");

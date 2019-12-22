@@ -7,12 +7,7 @@ use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 require_git(2.6);
-my @mods = qw(DBD::SQLite Search::Xapian);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for mda_filter_rubylang.t" if $@;
-}
-
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $pi_config = "$tmpdir/pi_config";

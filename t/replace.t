@@ -8,11 +8,7 @@ use PublicInbox::InboxWritable;
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6); # replace is v2 only, for now...
-foreach my $mod (qw(DBD::SQLite)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for $0" if $@;
-}
-
+require_mods(qw(DBD::SQLite));
 local $ENV{HOME} = abs_path('t');
 
 sub test_replace ($$$) {

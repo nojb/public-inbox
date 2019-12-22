@@ -3,13 +3,9 @@
 use strict;
 use warnings;
 use Test::More;
-
-foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for httpd.t" if $@;
-}
-use Socket qw(IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
+use Socket qw(IPPROTO_TCP SOL_SOCKET);
+require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 
 # FIXME: too much setup
 my ($tmpdir, $for_destroy) = tmpdir();

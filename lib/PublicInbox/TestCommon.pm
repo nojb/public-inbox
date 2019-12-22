@@ -8,7 +8,7 @@ use parent qw(Exporter);
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
-our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git
+our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 	run_script start_script key2sub);
 
 sub tmpdir (;$) {
@@ -57,6 +57,20 @@ sub require_git ($;$) {
 				"git $req+ required, have $cur_maj.$cur_min");
 	}
 	1;
+}
+
+sub require_mods {
+	my @mods = @_;
+	my $maybe = pop @mods if $mods[-1] =~ /\A[0-9]+\z/;
+	my @need;
+	for my $mod (@mods) {
+		eval "require $mod";
+		push @need, $mod if $@;
+	}
+	return unless @need;
+	my $m = join(', ', @need)." missing for $0";
+	Test::More::skip($m, $maybe) if $maybe;
+	Test::More::plan(skip_all => $m)
 }
 
 sub key2script ($) {

@@ -10,10 +10,7 @@ my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for plack.t" if $@;
-}
+require_mods(@mods);
 use_ok $_ foreach @mods;
 use PublicInbox::Import;
 use PublicInbox::Git;
@@ -88,10 +85,7 @@ test_psgi($app, sub {
 });
 
 SKIP: {
-	my @mods = qw(DBI DBD::SQLite Search::Xapian IO::Uncompress::Gunzip);
-	foreach my $mod (@mods) {
-		eval "require $mod" or skip "$mod not available: $@", 3;
-	}
+	require_mods(qw(DBD::SQLite Search::Xapian IO::Uncompress::Gunzip), 3);
 	my $ibx = $config->lookup_name('test');
 	require_ok 'PublicInbox::SearchIdx';
 	PublicInbox::SearchIdx->new($ibx, 1)->index_sync;

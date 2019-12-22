@@ -3,10 +3,8 @@
 use strict;
 use warnings;
 use Test::More;
-foreach my $mod (qw(DBD::SQLite)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for nntpd.t" if $@;
-}
+use PublicInbox::TestCommon;
+require_mods(qw(DBD::SQLite));
 require PublicInbox::SearchIdx;
 require PublicInbox::Msgmap;
 require PublicInbox::InboxWritable;
@@ -15,7 +13,6 @@ use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use Net::NNTP;
 use Sys::Hostname;
-use PublicInbox::TestCommon;
 
 # FIXME: make easier to test both versions
 my $version = $ENV{PI_TEST_VERSION} || 2;
@@ -106,10 +103,12 @@ EOF
 	SKIP: {
 		$n->can('starttls') or
 			skip('Net::NNTP too old to support STARTTLS', 2);
+		require_mods('IO::Socket::SSL', 2);
 		eval {
-			require IO::Socket::SSL;
 			IO::Socket::SSL->VERSION(2.007);
-		} or skip('IO::Socket::SSL <2.007 not supported by Net::NNTP');
+		} or skip(<<EOF, 2);
+IO::Socket::SSL <2.007 not supported by Net::NNTP
+EOF
 		ok(!$n->starttls, 'STARTTLS fails when unconfigured');
 		is($n->code, 580, 'got 580 code on server w/o TLS');
 	};

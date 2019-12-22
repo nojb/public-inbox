@@ -5,11 +5,7 @@ use warnings;
 use Test::More;
 use Compress::Zlib qw(compress);
 use PublicInbox::TestCommon;
-foreach my $mod (qw(DBD::SQLite)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for over.t" if $@;
-}
-
+require_mods('DBD::SQLite');
 use_ok 'PublicInbox::OverIdx';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");

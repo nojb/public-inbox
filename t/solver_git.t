@@ -7,12 +7,7 @@ use Cwd qw(abs_path);
 use PublicInbox::TestCommon;
 require_git(2.6);
 use PublicInbox::Spawn qw(spawn);
-
-my @mods = qw(DBD::SQLite Search::Xapian);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for $0" if $@;
-}
+require_mods(qw(DBD::SQLite Search::Xapian));
 chomp(my $git_dir = `git rev-parse --git-dir 2>/dev/null`);
 plan skip_all => "$0 must be run from a git working tree" if $?;
 
@@ -116,11 +111,7 @@ is_deeply($res, $hinted, 'hints work (or did not hurt :P');
 
 my @psgi = qw(HTTP::Request::Common Plack::Test URI::Escape Plack::Builder);
 SKIP: {
-	my @missing;
-	for my $mod (@psgi) {
-		eval("require $mod") or push(@missing, $mod);
-	}
-	skip("missing: ".join(', ', @missing), 7 + scalar(@psgi)) if @missing;
+	require_mods(@psgi, 7 + scalar(@psgi));
 	use_ok($_) for @psgi;
 	my $binfoo = "$inboxdir/binfoo.git";
 	system(qw(git init --bare -q), $binfoo) == 0 or die "git init: $?";

@@ -6,12 +6,7 @@ use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
 use Errno qw(EADDRINUSE);
-
-foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for httpd-unix.t" if $@;
-}
-
+require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 use IO::Socket::UNIX;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $unix = "$tmpdir/unix.sock";
@@ -85,8 +80,7 @@ check_sock($unix);
 }
 
 SKIP: {
-	eval 'require Net::Server::Daemonize';
-	skip('Net::Server missing for pid-file/daemonization test', 20) if $@;
+	require_mods('Net::Server::Daemonize', 20);
 	my $pid_file = "$tmpdir/pid";
 	for my $w (qw(-W0 -W1)) {
 		# wait for daemonization

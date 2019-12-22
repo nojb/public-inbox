@@ -9,11 +9,8 @@ require_git(2.6);
 local $ENV{HOME} = abs_path('t');
 
 # Integration tests for HTTP cloning + mirroring
-foreach my $mod (qw(Plack::Util Plack::Builder
-			HTTP::Date HTTP::Status Search::Xapian DBD::SQLite)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for v2mirror.t" if $@;
-}
+require_mods(qw(Plack::Util Plack::Builder
+		HTTP::Date HTTP::Status Search::Xapian DBD::SQLite));
 use IO::Socket;
 use POSIX qw(dup2);
 use_ok 'PublicInbox::V2Writable';

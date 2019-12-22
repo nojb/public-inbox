@@ -8,11 +8,7 @@ use PublicInbox::ContentId qw(content_digest);
 use File::Path qw(remove_tree);
 use PublicInbox::TestCommon;
 require_git(2.6);
-
-foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for v1reindex.t" if $@;
-}
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';
 my ($inboxdir, $for_destroy) = tmpdir();

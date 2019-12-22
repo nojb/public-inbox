@@ -6,12 +6,8 @@ use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
-my @mods = qw(URI::Escape Plack::Builder Digest::SHA
-		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny);
-foreach my $mod (@mods) {
-	eval("require $mod") or plan skip_all => "$mod missing for $0";
-}
-
+require_mods(qw(URI::Escape Plack::Builder Digest::SHA
+		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny));
 require PublicInbox::WwwListing;
 my $json = eval { PublicInbox::WwwListing::_json() };
 plan skip_all => "JSON module missing: $@" if $@;

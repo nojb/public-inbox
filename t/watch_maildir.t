@@ -6,12 +6,7 @@ use Email::MIME;
 use Cwd;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
-my @mods = qw(Filesys::Notify::Simple);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for watch_maildir.t" if $@;
-}
-
+require_mods(qw(Filesys::Notify::Simple));
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/test.git";
 my $maildir = "$tmpdir/md";

@@ -8,16 +8,13 @@ use Test::More;
 use Symbol qw(gensym);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use POSIX qw(_exit);
+use PublicInbox::TestCommon;
 my $inbox_dir = $ENV{GIANT_INBOX_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inbox_dir;
 my $mid = $ENV{TEST_MID};
 
 # Net::NNTP is part of the standard library, but distros may split it off...
-foreach my $mod (qw(DBD::SQLite Net::NNTP Compress::Raw::Zlib)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for $0" if $@;
-}
-
+require_mods(qw(DBD::SQLite Net::NNTP Compress::Raw::Zlib));
 my $test_compress = Net::NNTP->can('compress');
 if (!$test_compress) {
 	diag 'Your Net::NNTP does not yet support compression';
@@ -29,7 +26,6 @@ my $key = 'certs/server-key.pem';
 if ($test_tls && !-r $key || !-r $cert) {
 	plan skip_all => "certs/ missing for $0, run $^X ./certs/create-certs.perl";
 }
-use PublicInbox::TestCommon;
 my ($tmpdir, $ftd) = tmpdir();
 $File::Temp::KEEP_ALL = !!$ENV{TEST_KEEP_TMP};
 my (%OPT, $td, $host_port, $group);

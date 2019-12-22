@@ -5,11 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
 require_git(2.6);
-my @mods = qw(DBI DBD::SQLite);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "missing $mod for t/purge.t" if $@;
-};
+require_mods(qw(DBD::SQLite));
 use Cwd qw(abs_path); # we need this since we chdir below
 local $ENV{HOME} = abs_path('t');
 my $purge = abs_path('blib/script/public-inbox-purge');

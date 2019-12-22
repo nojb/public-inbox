@@ -4,12 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-
-foreach my $mod (qw(DBD::SQLite)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for nntpd.t" if $@;
-}
-
+require_mods('DBD::SQLite');
 use_ok 'PublicInbox::Msgmap';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $d = PublicInbox::Msgmap->new($tmpdir, 1);

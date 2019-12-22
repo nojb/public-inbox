@@ -7,11 +7,7 @@ use PublicInbox::MIME;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
 require_git(2.6);
-my @mods = qw(DBD::SQLite Search::Xapian);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for convert-compact.t" if $@;
-}
+require_mods(qw(DBD::SQLite Search::Xapian));
 which('xapian-compact') or
 	plan skip_all => 'xapian-compact missing for '.__FILE__;
 

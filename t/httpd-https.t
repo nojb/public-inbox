@@ -4,11 +4,9 @@ use strict;
 use warnings;
 use Test::More;
 use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
+use PublicInbox::TestCommon;
 # IO::Poll is part of the standard library, but distros may split them off...
-foreach my $mod (qw(IO::Socket::SSL IO::Poll)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for $0" if $@;
-}
+require_mods(qw(IO::Socket::SSL IO::Poll));
 my $cert = 'certs/server-cert.pem';
 my $key = 'certs/server-key.pem';
 unless (-r $key && -r $cert) {
@@ -17,7 +15,6 @@ unless (-r $key && -r $cert) {
 }
 use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
-use PublicInbox::TestCommon;
 my $psgi = "./t/httpd-corner.psgi";
 my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";

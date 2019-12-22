@@ -7,19 +7,14 @@ use warnings;
 use Test::More;
 use Time::HiRes qw(gettimeofday tv_interval);
 use PublicInbox::Spawn qw(which spawn);
-
-foreach my $mod (qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for httpd-corner.t" if $@;
-}
-
+use PublicInbox::TestCommon;
+require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 use Digest::SHA qw(sha1_hex);
 use IO::Socket;
 use IO::Socket::UNIX;
 use Fcntl qw(:seek);
 use Socket qw(IPPROTO_TCP TCP_NODELAY SOL_SOCKET);
 use POSIX qw(mkfifo);
-use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $fifo = "$tmpdir/fifo";
 ok(defined mkfifo($fifo, 0777), 'created FIFO');

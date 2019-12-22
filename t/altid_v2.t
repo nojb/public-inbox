@@ -5,11 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
 require_git(2.6);
-foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for altid_v2.t" if $@;
-}
-
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
 use_ok 'PublicInbox::Inbox';
 my ($tmpdir, $for_destroy) = tmpdir();

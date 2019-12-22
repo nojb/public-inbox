@@ -7,11 +7,7 @@ use Cwd;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 require_git(2.6);
-my @mods = qw(Search::Xapian DBD::SQLite Filesys::Notify::Simple);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for watch_maildir_v2.t" if $@;
-}
+require_mods(qw(Search::Xapian DBD::SQLite Filesys::Notify::Simple));
 require PublicInbox::V2Writable;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";

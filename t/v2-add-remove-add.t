@@ -6,11 +6,7 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::TestCommon;
 require_git(2.6);
-
-foreach my $mod (qw(DBD::SQLite Search::Xapian)) {
-	eval "require $mod";
-	plan skip_all => "$mod missing for v2-add-remove-add.t" if $@;
-}
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {

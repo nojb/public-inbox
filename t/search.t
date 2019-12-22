@@ -3,14 +3,10 @@
 use strict;
 use warnings;
 use Test::More;
-my @mods = qw(DBI DBD::SQLite Search::Xapian);
-foreach my $mod (@mods) {
-	eval "require $mod";
-	plan skip_all => "missing $mod for $0" if $@;
-};
+use PublicInbox::TestCommon;
+require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
-use PublicInbox::TestCommon;
 use Email::MIME;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
