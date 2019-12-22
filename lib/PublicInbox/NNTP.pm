@@ -81,10 +81,7 @@ sub process_line ($$) {
 	my ($self, $l) = @_;
 	my ($req, @args) = split(/[ \t]/, $l);
 	return 1 unless defined($req); # skip blank line
-	$req = eval {
-		no strict 'refs';
-		*{'cmd_'.lc($req)}{CODE};
-	};
+	$req = $self->can('cmd_'.lc($req));
 	return res($self, '500 command not recognized') unless $req;
 	return res($self, r501) unless args_ok($req, scalar @args);
 
@@ -173,11 +170,7 @@ sub cmd_list ($;$$) {
 		my $arg = shift @args;
 		$arg =~ tr/A-Z./a-z_/;
 		$arg = "list_$arg";
-
-		$arg = eval {
-			no strict 'refs';
-			*{$arg}{CODE};
-		};
+		$arg = $self->can($arg);
 		return r501 unless $arg && args_ok($arg, scalar @args);
 		more($self, '215 information follows');
 		$arg->($self, @args);
