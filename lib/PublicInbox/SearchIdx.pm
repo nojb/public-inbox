@@ -19,7 +19,8 @@ use POSIX qw(strftime);
 use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::Git qw(git_unquote);
-
+my $X = \%PublicInbox::Search::X;
+my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 use constant {
 	BATCH_BYTES => defined($ENV{XAPIAN_FLUSH_THRESHOLD}) ?
 			0x7fffffff : 1_000_000,
@@ -85,17 +86,28 @@ sub _xdb_release {
 	undef;
 }
 
+sub load_xapian_writable () {
+	return 1 if $X->{WritableDatabase};
+	PublicInbox::Search::load_xapian() or return;
+	my $xap = $PublicInbox::Search::Xap;
+	for (qw(Document TermGenerator WritableDatabase)) {
+		$X->{$_} = $xap.'::'.$_;
+	}
+	eval 'require '.$X->{WritableDatabase} or die;
+	*sortable_serialise = $xap.'::sortable_serialise';
+	$DB_CREATE_OR_OPEN = eval($xap.'::DB_CREATE_OR_OPEN()');
+	$DB_OPEN = eval($xap.'::DB_OPEN()');
+	1;
+}
+
 sub _xdb_acquire {
 	my ($self) = @_;
 	my $flag;
 	my $dir = $self->xdir;
 	if (need_xapian($self)) {
 		croak 'already acquired' if $self->{xdb};
-		PublicInbox::Search::load_xapian();
-		require Search::Xapian::WritableDatabase;
-		$flag = $self->{creat} ?
-			Search::Xapian::DB_CREATE_OR_OPEN() :
-			Search::Xapian::DB_OPEN();
+		load_xapian_writable();
+		$flag = $self->{creat} ? $DB_CREATE_OR_OPEN : $DB_OPEN;
 	}
 	if ($self->{creat}) {
 		require File::Path;
@@ -108,7 +120,7 @@ sub _xdb_acquire {
 		}
 	}
 	return unless defined $flag;
-	my $xdb = eval { Search::Xapian::WritableDatabase->new($dir, $flag) };
+	my $xdb = eval { ($X->{WritableDatabase})->new($dir, $flag) };
 	if ($@) {
 		die "Failed opening $dir: ", $@;
 	}
@@ -117,7 +129,7 @@ sub _xdb_acquire {
 
 sub add_val ($$$) {
 	my ($doc, $col, $num) = @_;
-	$num = Search::Xapian::sortable_serialise($num);
+	$num = sortable_serialise($num);
 	$doc->add_value($col, $num);
 }
 
@@ -274,7 +286,7 @@ sub index_body ($$$) {
 sub add_xapian ($$$$$) {
 	my ($self, $mime, $num, $oid, $mids, $mid0) = @_;
 	my $smsg = PublicInbox::SearchMsg->new($mime);
-	my $doc = Search::Xapian::Document->new;
+	my $doc = $X->{Document}->new;
 	my $subj = $smsg->subject;
 	add_val($doc, PublicInbox::Search::TS(), $smsg->ts);
 	my @ds = gmtime($smsg->ds);
@@ -458,7 +470,7 @@ sub term_generator { # write-only
 	my $tg = $self->{term_generator};
 	return $tg if $tg;
 
-	$tg = Search::Xapian::TermGenerator->new;
+	$tg = $X->{TermGenerator}->new;
 	$tg->set_stemmer($self->stemmer);
 
 	$self->{term_generator} = $tg;

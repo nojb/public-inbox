@@ -159,6 +159,10 @@ sub check_require {
 	while (my $mod = shift @mods) {
 		if (my $groups = $mod_groups{$mod}) {
 			push @mods, @$groups;
+		} elsif ($mod eq 'Search::Xapian') {
+			require PublicInbox::Search;
+			PublicInbox::Search::load_xapian() or
+				$err->{'Search::Xapian || Xapian'} = $@;
 		} else {
 			eval "require $mod";
 			$err->{$mod} = $@ if $@;

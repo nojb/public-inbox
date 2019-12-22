@@ -27,7 +27,8 @@ sub wrap {
 
 sub get_val ($$) {
 	my ($doc, $col) = @_;
-	Search::Xapian::sortable_unserialise($doc->get_value($col));
+	# sortable_unserialise is defined by PublicInbox::Search::load_xapian()
+	sortable_unserialise($doc->get_value($col));
 }
 
 sub to_doc_data {

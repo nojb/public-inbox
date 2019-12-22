@@ -8,6 +8,7 @@ require_mods(qw(DBD::SQLite Search::Xapian));
 require_git('2.6');
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
+use PublicInbox::Search;
 
 my $mime = PublicInbox::MIME->create(
 	header => [
@@ -61,8 +62,9 @@ for my $R (qw(2 4 1 3 3)) {
 	# ensure docids in Xapian match NNTP article numbers
 	my $tot = 0;
 	my %tmp = %nums;
+	my $XapianDatabase = $PublicInbox::Search::X{Database};
 	foreach my $d (@new_shards) {
-		my $xdb = Search::Xapian::Database->new($d);
+		my $xdb = $XapianDatabase->new($d);
 		$tot += $xdb->get_doccount;
 		my $it = $xdb->postlist_begin('');
 		my $end = $xdb->postlist_end('');

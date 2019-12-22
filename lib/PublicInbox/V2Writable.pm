@@ -62,10 +62,13 @@ sub count_shards ($) {
 	# Also, shard count may change while -watch is running
 	# due to "xcpdb --reshard"
 	if (-d $xpfx) {
+		require PublicInbox::Search;
+		PublicInbox::Search::load_xapian();
+		my $XapianDatabase = $PublicInbox::Search::X{Database};
 		foreach my $shard (<$xpfx/*>) {
 			-d $shard && $shard =~ m!/[0-9]+\z! or next;
 			eval {
-				Search::Xapian::Database->new($shard)->close;
+				$XapianDatabase->new($shard)->close;
 				$n++;
 			};
 		}

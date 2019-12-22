@@ -64,7 +64,15 @@ sub require_mods {
 	my $maybe = pop @mods if $mods[-1] =~ /\A[0-9]+\z/;
 	my @need;
 	for my $mod (@mods) {
-		eval "require $mod";
+		if ($mod eq 'Search::Xapian') {
+			require PublicInbox::Search;
+			PublicInbox::Search::load_xapian() and next;
+		} elsif ($mod eq 'Search::Xapian::WritableDatabase') {
+			require PublicInbox::SearchIdx;
+			PublicInbox::SearchIdx::load_xapian_writable() and next;
+		} else {
+			eval "require $mod";
+		}
 		push @need, $mod if $@;
 	}
 	return unless @need;

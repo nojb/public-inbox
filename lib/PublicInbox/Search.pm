@@ -17,20 +17,42 @@ use PublicInbox::MIME;
 use PublicInbox::MID qw/id_compress/;
 use PublicInbox::Over;
 my $QP_FLAGS;
-sub load_xapian () {
-	$QP_FLAGS ||= eval {
-		require Search::Xapian;
-		Search::Xapian->import(qw(:standard));
+our %X = map { $_ => 0 } qw(BoolWeight Database Enquire
+			NumberValueRangeProcessor QueryParser Stem);
+our $Xap; # 'Search::Xapian' or 'Xapian'
+my $ENQ_ASCENDING;
 
+sub load_xapian () {
+	return 1 if defined $Xap;
+	for my $x (qw(Search::Xapian Xapian)) {
+		eval "require $x";
+		next if $@;
+
+		$x->import(qw(:standard));
+		$Xap = $x;
+		$X{$_} = $Xap.'::'.$_ for (keys %X);
+
+		# ENQ_ASCENDING doesn't seem exported by SWIG Xapian.pm,
+		# so lets hope this part of the ABI is stable because it's
+		# just an integer:
+		$ENQ_ASCENDING = $x eq 'Xapian' ?
+				1 : Search::Xapian::ENQ_ASCENDING();
+
+		# for SearchMsg:
+		*PublicInbox::SearchMsg::sortable_unserialise =
+						$Xap.'::sortable_unserialise';
 		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
 		# website as it could become a denial-of-service vector
 		# FLAG_PHRASE also seems to cause performance problems chert
 		# (and probably earlier Xapian DBs).  glass seems fine...
 		# TODO: make this an option, maybe?
 		# or make indexlevel=medium as default
-		FLAG_PHRASE()|FLAG_BOOLEAN()|FLAG_LOVEHATE()|FLAG_WILDCARD();
-	};
-};
+		$QP_FLAGS = FLAG_PHRASE() | FLAG_BOOLEAN() | FLAG_LOVEHATE() |
+				FLAG_WILDCARD();
+		last;
+	}
+	undef;
+}
 
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
@@ -148,7 +170,7 @@ sub _xdb ($) {
 	if ($self->{version} >= 2) {
 		foreach my $shard (<$dir/*>) {
 			-d $shard && $shard =~ m!/[0-9]+\z! or next;
-			my $sub = Search::Xapian::Database->new($shard);
+			my $sub = $X{Database}->new($shard);
 			if ($xdb) {
 				$xdb->add_database($sub);
 			} else {
@@ -158,7 +180,7 @@ sub _xdb ($) {
 		}
 	} else {
 		$slow_phrase = -f "$dir/iamchert";
-		$xdb = Search::Xapian::Database->new($dir);
+		$xdb = $X{Database}->new($dir);
 	}
 	$$qpf |= FLAG_PHRASE() unless $slow_phrase;
 	$xdb;
@@ -222,7 +244,7 @@ sub retry_reopen {
 		}
 		# Exception: The revision being read has been discarded -
 		# you should call Xapian::Database::reopen()
-		if (ref($@) eq 'Search::Xapian::DatabaseModifiedError') {
+		if (ref($@) =~ /\bDatabaseModifiedError\b/) {
 			warn "reopen try #$i on $@\n";
 			reopen($self);
 		} else {
@@ -243,13 +265,13 @@ sub _do_enquire {
 sub _enquire_once {
 	my ($self, $query, $opts) = @_;
 	my $xdb = xdb($self);
-	my $enquire = Search::Xapian::Enquire->new($xdb);
+	my $enquire = $X{Enquire}->new($xdb);
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
 	if (($opts->{mset} || 0) == 2) {
-		$enquire->set_docid_order(Search::Xapian::ENQ_ASCENDING());
-		$enquire->set_weighting_scheme(Search::Xapian::BoolWeight->new);
+		$enquire->set_docid_order($ENQ_ASCENDING);
+		$enquire->set_weighting_scheme($X{BoolWeight}->new);
 	} elsif ($opts->{relevance}) {
 		$enquire->set_sort_by_relevance_then_value(TS, $desc);
 	} else {
@@ -268,7 +290,7 @@ sub _enquire_once {
 }
 
 # read-write
-sub stemmer { Search::Xapian::Stem->new($LANG) }
+sub stemmer { $X{Stem}->new($LANG) }
 
 # read-only
 sub qp {
@@ -278,16 +300,15 @@ sub qp {
 	return $qp if $qp;
 	my $xdb = xdb($self);
 	# new parser
-	$qp = Search::Xapian::QueryParser->new;
+	$qp = $X{QueryParser}->new;
 	$qp->set_default_op(OP_AND());
 	$qp->set_database($xdb);
 	$qp->set_stemmer($self->stemmer);
 	$qp->set_stemming_strategy(STEM_SOME());
 	$qp->set_max_wildcard_expansion(100);
-	$qp->add_valuerangeprocessor(
-		Search::Xapian::NumberValueRangeProcessor->new(YYYYMMDD, 'd:'));
-	$qp->add_valuerangeprocessor(
-		Search::Xapian::NumberValueRangeProcessor->new(DT, 'dt:'));
+	my $nvrp = $X{NumberValueRangeProcessor};
+	$qp->add_valuerangeprocessor($nvrp->new(YYYYMMDD, 'd:'));
+	$qp->add_valuerangeprocessor($nvrp->new(DT, 'dt:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $_) foreach split(/ /, $prefix);

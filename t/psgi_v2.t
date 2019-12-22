@@ -9,10 +9,9 @@ use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::WWW;
 use PublicInbox::MID qw(mids);
-my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
-		URI::Escape Plack::Builder);
-require_mods(@mods);
-use_ok($_) for @mods;
+require_mods(qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
+		URI::Escape Plack::Builder));
+use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {

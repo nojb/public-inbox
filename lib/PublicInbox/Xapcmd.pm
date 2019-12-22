@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use PublicInbox::Spawn qw(which spawn);
 use PublicInbox::Over;
-use PublicInbox::Search;
+use PublicInbox::SearchIdx;
 use File::Temp ();
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);
@@ -99,7 +99,7 @@ sub prepare_reindex ($$$) {
 	my ($ibx, $im, $reindex) = @_;
 	if ($ibx->{version} == 1) {
 		my $dir = $ibx->search->xdir(1);
-		my $xdb = Search::Xapian::Database->new($dir);
+		my $xdb = $PublicInbox::Search::X{Database}->new($dir);
 		if (my $lc = $xdb->get_metadata('last_commit')) {
 			$reindex->{from} = $lc;
 		}
@@ -164,7 +164,8 @@ sub run {
 	if (!$opt->{-coarse_lock}) {
 		$reindex = $opt->{reindex} = {};
 		$from = $reindex->{from} = [];
-		require Search::Xapian::WritableDatabase;
+		require PublicInbox::SearchIdx;
+		PublicInbox::SearchIdx::load_xapian_writable();
 	}
 
 	$ibx->umask_prepare;
@@ -251,7 +252,7 @@ sub run {
 
 sub cpdb_retryable ($$) {
 	my ($src, $pfx) = @_;
-	if (ref($@) eq 'Search::Xapian::DatabaseModifiedError') {
+	if (ref($@) =~ /\bDatabaseModifiedError\b/) {
 		warn "$pfx Xapian DB modified, reopening and retrying\n";
 		$src->reopen;
 		return 1;
@@ -361,6 +362,8 @@ sub cpdb ($$) {
 	my $new = $newdir->dirname;
 	my ($src, $cur_shard);
 	my $reshard;
+	PublicInbox::SearchIdx::load_xapian_writable() or die;
+	my $XapianDatabase = $PublicInbox::Search::X{Database};
 	if (ref($old) eq 'ARRAY') {
 		($cur_shard) = ($new =~ m!xap[0-9]+/([0-9]+)\b!);
 		defined $cur_shard or
@@ -371,14 +374,14 @@ sub cpdb ($$) {
 		# resharding, M:N copy means have full read access
 		foreach (@$old) {
 			if ($src) {
-				my $sub = Search::Xapian::Database->new($_);
+				my $sub = $XapianDatabase->new($_);
 				$src->add_database($sub);
 			} else {
-				$src = Search::Xapian::Database->new($_);
+				$src = $XapianDatabase->new($_);
 			}
 		}
 	} else {
-		$src = Search::Xapian::Database->new($old);
+		$src = $XapianDatabase->new($old);
 	}
 
 	my ($tmp, $ft);
@@ -395,8 +398,10 @@ sub cpdb ($$) {
 
 	# like copydatabase(1), be sure we don't overwrite anything in case
 	# of other bugs:
-	my $creat = Search::Xapian::DB_CREATE();
-	my $dst = Search::Xapian::WritableDatabase->new($tmp, $creat);
+	my $creat = eval($PublicInbox::Search::Xap.'::DB_CREATE()');
+	die if $@;
+	my $XapianWritableDatabase = $PublicInbox::Search::X{WritableDatabase};
+	my $dst = $XapianWritableDatabase->new($tmp, $creat);
 	my $pr = $opt->{-progress};
 	my $pfx = $opt->{-progress_pfx} = progress_pfx($new);
 	my $pr_data = { pr => $pr, pfx => $pfx, nr => 0 } if $pr;
@@ -439,7 +444,7 @@ sub cpdb ($$) {
 		# individually.
 		$src = undef;
 		foreach (@$old) {
-			my $old = Search::Xapian::Database->new($_);
+			my $old = $XapianDatabase->new($_);
 			cpdb_loop($old, $dst, $pr_data, $cur_shard, $reshard);
 		}
 	} else {
