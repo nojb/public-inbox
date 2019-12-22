@@ -53,7 +53,8 @@ sub require_git ($;$) {
 	my $cur_int = ($cur_maj << 24) | ($cur_min << 16);
 	if ($cur_int < $req_int) {
 		return 0 if $maybe;
-		plan(skip_all => "git $req+ required, have $cur_maj.$cur_min");
+		Test::More::plan(skip_all =>
+				"git $req+ required, have $cur_maj.$cur_min");
 	}
 	1;
 }
