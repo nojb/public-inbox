@@ -438,9 +438,9 @@ $ibx->with_umask(sub {
 my $all_mask = 07777;
 my $dir_mask = 02770;
 
-# FreeBSD does not allow non-root users to set S_ISGID, so
-# git doesn't set it, either (see DIR_HAS_BSD_GROUP_SEMANTICS in git.git)
-if ($^O =~ /freebsd/i) {
+# FreeBSD and apparently OpenBSD does not allow non-root users to set S_ISGID,
+# so git doesn't set it, either (see DIR_HAS_BSD_GROUP_SEMANTICS in git.git)
+if ($^O =~ /(?:free|open)bsd/i) {
 	$all_mask = 0777;
 	$dir_mask = 0770;
 }
