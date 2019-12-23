@@ -172,8 +172,7 @@ if (defined $vfork_spawn) {
 
 unless (defined $vfork_spawn) {
 	require PublicInbox::SpawnPP;
-	no warnings 'once';
-	*pi_fork_exec = *PublicInbox::SpawnPP::pi_fork_exec
+	*pi_fork_exec = \&PublicInbox::SpawnPP::pi_fork_exec
 }
 
 sub which ($) {

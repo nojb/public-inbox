@@ -9,11 +9,12 @@ use warnings;
 use PublicInbox::Hval qw(ascii_html);
 use PublicInbox::Linkify;
 use PublicInbox::View;
+use PublicInbox::Inbox;
 use bytes ();
 use HTTP::Date qw(time2str);
 require Digest::SHA;
 require File::Spec;
-{ no warnings 'once'; *try_cat = *PublicInbox::Inbox::try_cat };
+*try_cat = \&PublicInbox::Inbox::try_cat;
 
 sub list_all ($$$) {
 	my ($self, $env, $hide_key) = @_;
