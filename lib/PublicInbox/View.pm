@@ -279,8 +279,8 @@ sub index_entry {
 		" <a\nhref=\"${mhref}#R\">reply</a>";
 
 	my $hr;
-	if (my $pct = $ctx->{pct}) { # used by SearchView.pm
-		$rv .= "\t[relevance $pct->{$mid_raw}%]";
+	if (defined(my $pct = $smsg->{pct})) { # used by SearchView.pm
+		$rv .= "\t[relevance $pct%]";
 		$hr = 1;
 	} elsif ($mapping) {
 		my $nested = 'nested';
@@ -961,9 +961,8 @@ sub skel_dump {
 
 	my $d = fmt_ts($smsg->{ds});
 	my $unmatched; # if lazy-loaded by SearchThread::Msg::visible()
-	if (my $pct = $ctx->{pct}) {
-		$pct = $pct->{$smsg->{mid}};
-		if (defined $pct) {
+	if (exists $ctx->{searchview}) {
+		if (defined(my $pct = $smsg->{pct})) {
 			$d .= (sprintf(' % 2u', $pct) . '%');
 		} else {
 			$unmatched = 1;
@@ -1031,7 +1030,7 @@ sub _skel_ghost {
 
 	my $mid = $node->{id};
 	my $d = '     [not found] ';
-	$d .= '    '  if exists $ctx->{pct};
+	$d .= '    '  if exists $ctx->{searchview};
 	$d .= indent_for($level) . th_pfx($level);
 	my $upfx = $ctx->{-upfx};
 	my $m = PublicInbox::Hval->new_msgid($mid);

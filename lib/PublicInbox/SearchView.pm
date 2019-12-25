@@ -256,12 +256,10 @@ sub search_nav_bot {
 }
 
 sub sort_relevance {
-	my ($pct) = @_;
-	sub {
-		[ sort { (eval { $pct->{$b->topmost->{id}} } || 0)
-				<=>
-			(eval { $pct->{$a->topmost->{id}} } || 0)
-	} @{$_[0]} ] };
+	[ sort {
+		(eval { $b->topmost->{smsg}->{pct} } // 0) <=>
+		(eval { $a->topmost->{smsg}->{pct} } // 0)
+	} @{$_[0]} ]
 }
 
 sub get_pct ($) {
@@ -274,16 +272,15 @@ sub get_pct ($) {
 
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
-	my %pct;
 	my $msgs = $ctx->{-inbox}->search->retry_reopen(sub { [ map {
 		my $i = $_;
 		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
-		$pct{$smsg->mid} = get_pct($i);
+		$smsg->{pct} = get_pct($i);
 		$smsg;
 	} ($mset->items) ]});
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
-		$r ? sort_relevance(\%pct) : \&PublicInbox::View::sort_ds,
+		$r ? \&sort_relevance : \&PublicInbox::View::sort_ds,
 		$ctx);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	$ctx->{-upfx} = '';
@@ -291,7 +288,7 @@ sub mset_thread {
 	$ctx->{cur_level} = 0;
 	$ctx->{dst} = \$skel;
 	$ctx->{mapping} = {};
-	$ctx->{pct} = \%pct;
+	$ctx->{searchview} = 1;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{s_nr} = scalar(@$msgs).'+ results';
