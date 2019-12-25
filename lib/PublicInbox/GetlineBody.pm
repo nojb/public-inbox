@@ -13,13 +13,13 @@ use strict;
 use warnings;
 
 sub new {
-	my ($class, $rpipe, $end, $end_arg, $buf, $filter) = @_;
+	my ($class, $rpipe, $end, $end_arg, $buf) = @_;
 	bless {
 		rpipe => $rpipe,
 		end => $end,
 		end_arg => $end_arg,
 		buf => $buf,
-		filter => $filter || 0,
+		filter => 0,
 	}, $class;
 }
 
@@ -36,7 +36,7 @@ sub getline {
 	my $buf = delete $self->{buf}; # initial buffer
 	$buf = $self->{rpipe}->getline unless defined $buf;
 	$self->{filter} = -1 unless defined $buf; # set EOF for next call
-	$filter ? $filter->($buf) : $buf;
+	$buf;
 }
 
 sub close {

@@ -27,7 +27,6 @@ package PublicInbox::Qspawn;
 use strict;
 use warnings;
 use PublicInbox::Spawn qw(popen_rd);
-require Plack::Util;
 
 # n.b.: we get EAGAIN with public-inbox-httpd, and EINTR on other PSGI servers
 use Errno qw(EAGAIN EINTR);
@@ -197,19 +196,6 @@ sub psgi_qx {
 	start($self, $limiter, \&psgi_qx_start);
 }
 
-# create a filter for "push"-based streaming PSGI writes used by HTTPD::Async
-sub filter_fh ($$) {
-	my ($fh, $filter) = @_;
-	Plack::Util::inline_object(
-		close => sub {
-			$fh->write($filter->(undef));
-			$fh->close;
-		},
-		write => sub {
-			$fh->write($filter->($_[0]));
-		});
-}
-
 # this is called on pipe EOF to reap the process, may be called
 # via PublicInbox::DS event loop OR via GetlineBody for generic
 # PSGI servers.
@@ -251,7 +237,6 @@ sub psgi_return_init_cb {
 	my ($self) = @_;
 	my $r = rd_hdr($self) or return;
 	my $env = $self->{psgi_env};
-	my $filter = delete $env->{'qspawn.filter'};
 	my $wcb = delete $env->{'qspawn.wcb'};
 	my $async = delete $self->{async};
 	if (scalar(@$r) == 3) { # error
@@ -266,7 +251,6 @@ sub psgi_return_init_cb {
 	} elsif ($async) {
 		# done reading headers, handoff to read body
 		my $fh = $wcb->($r); # scalar @$r == 2
-		$fh = filter_fh($fh, $filter) if $filter;
 		$self->{fh} = $fh;
 		$async->async_pass($env->{'psgix.io'}, $fh,
 					delete($self->{hdr_buf}));
@@ -274,7 +258,7 @@ sub psgi_return_init_cb {
 		require PublicInbox::GetlineBody;
 		$r->[2] = PublicInbox::GetlineBody->new($self->{rpipe},
 					\&event_step, $self,
-					${$self->{hdr_buf}}, $filter);
+					${$self->{hdr_buf}});
 		$wcb->($r);
 	}
 
@@ -303,9 +287,6 @@ sub psgi_return_start { # may run later, much later...
 #                          captured it elsewhere.  If not given,
 #                          psgi_return will return an anonymous
 #                          sub for the PSGI server to call
-#
-#   $env->{'qspawn.filter'} - filter callback, receives a string as input,
-#                             undef on EOF
 #
 # $limiter - the Limiter object to use (uses the def_limiter if not given)
 #
