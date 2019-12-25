@@ -66,7 +66,7 @@ sub _do_spawn {
 	} else {
 		$self->{err} = $!;
 	}
-	$start_cb->($self->{rpipe});
+	$start_cb->($self);
 }
 
 sub child_err ($) {
@@ -140,7 +140,7 @@ sub finish ($) {
 	}
 }
 
-sub start {
+sub start ($$$) {
 	my ($self, $limiter, $start_cb) = @_;
 	if ($limiter->{running} < $limiter->{max}) {
 		_do_spawn($self, $start_cb, $limiter);
@@ -275,6 +275,17 @@ sub psgi_return_init_cb {
 	$wcb = undef;
 }
 
+sub psgi_return_start { # may run later, much later...
+	my ($self) = @_;
+	if (my $async = $self->{psgi_env}->{'pi-httpd.async'}) {
+		# PublicInbox::HTTPD::Async->new(rpipe, $cb, $cb_arg, $end_obj)
+		$self->{async} = $async->($self->{rpipe},
+					\&psgi_return_init_cb, $self, $self);
+	} else { # generic PSGI
+		psgi_return_init_cb($self) while $self->{parse_hdr};
+	}
+}
+
 # Used for streaming the stdout of one process as a PSGI response.
 #
 # $env is the PSGI env.
@@ -303,30 +314,20 @@ sub psgi_return {
 	$self->{hdr_buf} = \(my $hdr_buf = '');
 	$self->{parse_hdr} = $parse_hdr;
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
-	my $start_cb = sub { # may run later, much later...
-		if (my $async = $env->{'pi-httpd.async'}) {
-			# PublicInbox::HTTPD::Async->new(rpipe, $cb, $cb_arg,
-			#				 $end_obj)
-			$self->{async} = $async->($self->{rpipe},
-						\&psgi_return_init_cb, $self,
-						$self);
-		} else { # generic PSGI
-			psgi_return_init_cb($self) while $self->{parse_hdr};
-		}
-	};
 
 	# the caller already captured the PSGI write callback from
 	# the PSGI server, so we can call ->start, here:
-	return $self->start($limiter, $start_cb) if $env->{'qspawn.wcb'};
+	$env->{'qspawn.wcb'} and
+		return start($self, $limiter, \&psgi_return_start);
 
 	# the caller will return this sub to the PSGI server, so
-	# it can set the response callback (that is, for PublicInbox::HTTP,
-	# the chunked_wcb or identity_wcb callback), but other HTTP servers
-	# are supported:
+	# it can set the response callback (that is, for
+	# PublicInbox::HTTP, the chunked_wcb or identity_wcb callback),
+	# but other HTTP servers are supported:
 	sub {
-		$self->{psgi_env}->{'qspawn.wcb'} = $_[0];
-		$self->start($limiter, $start_cb);
-	};
+		$env->{'qspawn.wcb'} = $_[0];
+		start($self, $limiter, \&psgi_return_start);
+	}
 }
 
 package PublicInbox::Qspawn::Limiter;
