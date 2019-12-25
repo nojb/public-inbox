@@ -148,16 +148,18 @@ sub read_cat_in_full ($$$) {
 
 sub _cat_async_step ($$$) {
 	my ($self, $inflight, $in) = @_;
-	my $cb = shift @$inflight or die 'BUG: inflight empty';
+	my $pair = shift @$inflight or die 'BUG: inflight empty';
+	my ($cb, $arg) = @$pair;
 	local $/ = "\n";
 	my $head = $in->getline;
-	return eval { $cb->(undef) } if $head =~ / missing$/;
+	$head =~ / missing$/ and return
+		eval { $cb->(undef, undef, undef, undef, $arg) };
 
 	$head =~ /^([0-9a-f]{40}) (\S+) ([0-9]+)$/ or
 		fail($self, "Unexpected result from async git cat-file: $head");
 	my ($oid_hex, $type, $size) = ($1, $2, $3 + 0);
 	my $bref = read_cat_in_full($self, $in, $size);
-	eval { $cb->($bref, $oid_hex, $type, $size) };
+	eval { $cb->($bref, $oid_hex, $type, $size, $arg) };
 }
 
 sub cat_async_wait ($) {
@@ -319,15 +321,15 @@ sub cat_async_begin {
 	$self->{inflight} = [];
 }
 
-sub cat_async ($$$) {
-	my ($self, $oid, $cb) = @_;
+sub cat_async ($$$;$) {
+	my ($self, $oid, $cb, $arg) = @_;
 	my $inflight = $self->{inflight} or die 'BUG: not in async';
 	if (scalar(@$inflight) >= MAX_INFLIGHT) {
 		_cat_async_step($self, $inflight, $self->{in});
 	}
 
 	$self->{out}->print($oid, "\n") or fail($self, "write error: $!");
-	push @$inflight, $cb;
+	push(@$inflight, [ $cb, $arg ]);
 }
 
 sub commit_title ($$) {
