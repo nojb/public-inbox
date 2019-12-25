@@ -93,8 +93,9 @@ sub solve_existing ($$) {
 	scalar(@ambiguous) ? \@ambiguous : undef;
 }
 
-sub extract_diff ($$$$$) {
-	my ($self, $p, $re, $ibx, $smsg) = @_;
+sub extract_diff ($$) {
+	my ($p, $arg) = @_;
+	my ($self, $diffs, $re, $ibx, $smsg) = @$arg;
 	my ($part) = @$p; # ignore $depth and @idx;
 	my $hdr_lines; # diff --git a/... b/...
 	my $tmp;
@@ -170,7 +171,7 @@ sub extract_diff ($$$$$) {
 	}
 	return undef unless $tmp;
 	close $tmp or die "close(tmp): $!";
-	$di;
+	push @$diffs, $di;
 }
 
 sub path_searchable ($) { defined($_[0]) && $_[0] =~ m!\A[\w/\. \-]+\z! }
@@ -209,16 +210,14 @@ sub find_extract_diffs ($$$) {
 
 	my $msgs = $srch->query($q, { relevance => 1 });
 	my $re = qr/\Aindex ($pre[a-f0-9]*)\.\.($post[a-f0-9]*)(?: ([0-9]+))?/;
-
-	my @di;
+	my $diffs = [];
 	foreach my $smsg (@$msgs) {
 		$ibx->smsg_mime($smsg) or next;
-		msg_iter(delete($smsg->{mime}), sub {
-			my $di = extract_diff($self, $_[0], $re, $ibx, $smsg);
-			push @di, $di if defined($di);
-		});
+		my $mime = delete $smsg->{mime};
+		msg_iter($mime, \&extract_diff,
+				[$self, $diffs, $re, $ibx, $smsg]);
 	}
-	@di ? \@di : undef;
+	@$diffs ? $diffs : undef;
 }
 
 sub update_index_result ($$) {
