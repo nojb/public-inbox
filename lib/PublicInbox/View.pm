@@ -269,8 +269,10 @@ sub index_entry {
 	$rv .= "\n";
 
 	# scan through all parts, looking for displayable text
-	my $ibx = $ctx->{-inbox};
-	msg_iter($mime, sub { $rv .= add_text_body($mhref, $ctx, $_[0]) });
+	$ctx->{mhref} = $mhref;
+	$ctx->{rv} = \$rv;
+	msg_iter($mime, \&add_text_body, $ctx);
+	delete $ctx->{rv};
 
 	# add the footer
 	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
@@ -500,12 +502,13 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 }
 
 sub multipart_text_as_html {
-	my ($mime, $upfx, $ctx) = @_;
-	my $rv = "";
+	my ($mime, $mhref, $ctx) = @_;
+	$ctx->{mhref} = $mhref;
+	$ctx->{rv} = \(my $rv = '');
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, sub { $rv .= add_text_body($upfx, $ctx, $_[0]) });
-	$rv;
+	msg_iter($mime, \&add_text_body, $ctx);
+	${delete $ctx->{rv}};
 }
 
 sub flush_quote {
@@ -523,7 +526,7 @@ sub flush_quote {
 }
 
 sub attach_link ($$$$;$) {
-	my ($upfx, $ct, $p, $fn, $err) = @_;
+	my ($ctx, $ct, $p, $fn, $err) = @_;
 	my ($part, $depth, @idx) = @$p;
 	my $nl = $idx[-1] > 1 ? "\n" : '';
 	my $idx = join('.', @idx);
@@ -544,29 +547,29 @@ sub attach_link ($$$$;$) {
 	} else {
 		$sfn = 'a.bin';
 	}
-	my $ret = qq($nl<a\nhref="$upfx$idx-$sfn">);
+	my $rv = $ctx->{rv};
+	$$rv .= qq($nl<a\nhref="$ctx->{mhref}$idx-$sfn">);
 	if ($err) {
-		$ret .=
-"[-- Warning: decoded text below may be mangled --]\n";
+		$$rv .= "[-- Warning: decoded text below may be mangled --]\n";
 	}
-	$ret .= "[-- Attachment #$idx: ";
+	$$rv .= "[-- Attachment #$idx: ";
 	my $ts = "Type: $ct, Size: $size bytes";
 	$desc = ascii_html($desc);
-	$ret .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
-	$ret .= "</a>\n";
+	$$rv .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
+	$$rv .= "</a>\n";
+	undef;
 }
 
-sub add_text_body {
-	my ($upfx, $ctx, $p) = @_;
+sub add_text_body { # callback for msg_iter
+	my ($p, $ctx) = @_;
+	my $upfx = $ctx->{mhref};
 	my $ibx = $ctx->{-inbox};
-	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	# $p - from msg_iter: [ Email::MIME, depth, @idx ]
 	my ($part, $depth, @idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	my ($s, $err) = msg_part_text($part, $ct);
-
-	return attach_link($upfx, $ct, $p, $fn) unless defined $s;
+	return attach_link($ctx, $ct, $p, $fn) unless defined $s;
 
 	# makes no difference to browsers, and don't screw up filename
 	# link generation in diffs with the extra '%0D'
@@ -607,29 +610,29 @@ sub add_text_body {
 	# split off quoted and unquoted blocks:
 	my @sections = split(/((?:^>[^\n]*\n)+)/sm, $s);
 	$s = '';
+	my $rv = $ctx->{rv};
 	if (defined($fn) || $depth > 0 || $err) {
 		# badly-encoded message with $err? tell the world about it!
-		$s .= attach_link($upfx, $ct, $p, $fn, $err);
-		$s .= "\n";
+		attach_link($ctx, $ct, $p, $fn, $err);
+		$$rv .= "\n";
 	}
 	my $l = PublicInbox::Linkify->new;
 	foreach my $cur (@sections) {
 		if ($cur =~ /\A>/) {
-			flush_quote(\$s, $l, \$cur);
+			flush_quote($rv, $l, \$cur);
 		} elsif ($diff) {
 			@$diff = split(/^/m, $cur);
 			$cur = undef;
-			flush_diff(\$s, $ctx, $l);
+			flush_diff($rv, $ctx, $l);
 		} else {
 			# regular lines, OK
 			$l->linkify_1($cur);
-			$s .= $l->linkify_2(ascii_html($cur));
+			$$rv .= $l->linkify_2(ascii_html($cur));
 			$cur = undef;
 		}
 	}
 
-	obfuscate_addrs($obfs_ibx, $s) if $obfs_ibx;
-	$s;
+	obfuscate_addrs($ibx, $$rv) if $ibx->{obfuscate};
 }
 
 sub _msg_html_prepare {
