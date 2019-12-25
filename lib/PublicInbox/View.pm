@@ -24,37 +24,44 @@ use constant INDENT => '  ';
 use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
+sub msg_html_i {
+	my ($nr, $ctx) = @_;
+	my $more = $ctx->{more};
+	if ($nr == 1) {
+		# $more cannot be true w/o $smsg being defined:
+		my $upfx = $more ? '../'.mid_escape($ctx->{smsg}->mid).'/' : '';
+		$ctx->{tip} .
+			multipart_text_as_html($ctx->{mime}, $upfx, $ctx) .
+			'</pre><hr>'
+	} elsif ($more && @$more) {
+		++$ctx->{end_nr};
+		msg_html_more($ctx, $more, $nr);
+	} elsif ($nr == $ctx->{end_nr}) {
+		# fake an EOF if generating the footer fails;
+		# we want to at least show the message if something
+		# here crashes:
+		eval {
+			my $hdr = delete($ctx->{mime})->header_obj;
+			'<pre>' . html_footer($hdr, 1, $ctx) .
+			'</pre>' . msg_reply($ctx, $hdr)
+		};
+	} else {
+		undef
+	}
+}
+
 # public functions: (unstable)
 
 sub msg_html {
 	my ($ctx, $mime, $more, $smsg) = @_;
-	my $hdr = $mime->header_obj;
 	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	my $tip = _msg_html_prepare($hdr, $ctx, $more, 0);
-	my $end = 2;
-	PublicInbox::WwwStream->response($ctx, 200, sub {
-		my ($nr, undef) = @_;
-		if ($nr == 1) {
-			# $more cannot be true w/o $smsg being defined:
-			my $upfx = $more ? '../'.mid_escape($smsg->mid).'/' : '';
-			$tip . multipart_text_as_html($mime, $upfx, $ctx) .
-				'</pre><hr>'
-		} elsif ($more && @$more) {
-			++$end;
-			msg_html_more($ctx, $more, $nr);
-		} elsif ($nr == $end) {
-			# fake an EOF if generating the footer fails;
-			# we want to at least show the message if something
-			# here crashes:
-			eval {
-				'<pre>' . html_footer($hdr, 1, $ctx) .
-				'</pre>' . msg_reply($ctx, $hdr)
-			};
-		} else {
-			undef
-		}
-	});
+	$ctx->{tip} = _msg_html_prepare($mime->header_obj, $ctx, $more, 0);
+	$ctx->{more} = $more;
+	$ctx->{end_nr} = 2;
+	$ctx->{smsg} = $smsg;
+	$ctx->{mime} = $mime;
+	PublicInbox::WwwStream->response($ctx, 200, \&msg_html_i);
 }
 
 sub msg_page {
