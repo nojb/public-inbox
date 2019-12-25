@@ -29,6 +29,10 @@ our @EXT_URL = map { ascii_html($_) } (
 
 sub PARTIAL_MAX () { 100 }
 
+sub mids_from_mset { # Search::retry_reopen callback
+	[ map { PublicInbox::SearchMsg::from_mitem($_)->mid } $_[0]->items ];
+}
+
 sub search_partial ($$) {
 	my ($srch, $mid) = @_;
 	return if length($mid) < $MIN_PARTIAL_LEN;
@@ -65,12 +69,8 @@ sub search_partial ($$) {
 		# Search::Xapian::QueryParserError or even:
 		# "something terrible happened at ../Search/Xapian/Enquire.pm"
 		my $mset = eval { $srch->query($m, $opt) } or next;
-
-		my @mids = map {
-			my $doc = $_->get_document;
-			PublicInbox::SearchMsg->load_doc($doc)->mid;
-		} $mset->items;
-		return \@mids if scalar(@mids);
+		my $mids = $srch->retry_reopen(\&mids_from_mset, $mset);
+		return $mids if scalar(@$mids);
 	}
 }
 

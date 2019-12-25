@@ -92,10 +92,11 @@ sub psgi_cull ($) {
 }
 
 # Only called by PSGI interface, not NNTP
-sub load_doc {
-	my ($class, $doc) = @_;
-	my $self = bless {}, $class;
-	psgi_cull(load_expand($self, $doc));
+sub from_mitem {
+	my ($mitem, $srch) = @_;
+	return $srch->retry_reopen(\&from_mitem, $mitem) if $srch;
+	my $self = bless {}, __PACKAGE__;
+	psgi_cull(load_expand($self, $mitem->get_document));
 }
 
 # :bytes and :lines metadata in RFC 3977

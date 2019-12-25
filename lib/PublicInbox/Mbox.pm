@@ -12,6 +12,7 @@ use strict;
 use warnings;
 use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
+use PublicInbox::SearchMsg;
 use Email::Simple;
 use Email::MIME::Encode;
 
@@ -204,10 +205,8 @@ sub results_cb {
 	my $srch = $ctx->{srch};
 	while (1) {
 		while (my $mi = (($mset->items)[$ctx->{iter}++])) {
-			my $doc = $mi->get_document;
-			my $smsg = $srch->retry_reopen(sub {
-				PublicInbox::SearchMsg->load_doc($doc);
-			}) or next;
+			my $smsg = PublicInbox::SearchMsg::from_mitem($mi,
+								$srch) or next;
 			return $smsg;
 		}
 		# refill result set

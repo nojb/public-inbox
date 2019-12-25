@@ -88,17 +88,6 @@ retry:
 	PublicInbox::WwwStream->response($ctx, $code, $cb);
 }
 
-# allow undef for individual doc loads...
-sub load_doc_retry {
-	my ($srch, $mitem) = @_;
-
-	eval {
-		$srch->retry_reopen(sub {
-			PublicInbox::SearchMsg->load_doc($mitem->get_document)
-		});
-	}
-}
-
 # display non-nested search results similar to what users expect from
 # regular WWW search engines:
 sub mset_summary {
@@ -114,7 +103,7 @@ sub mset_summary {
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = get_pct($m);
-		my $smsg = load_doc_retry($srch, $m);
+		my $smsg = PublicInbox::SearchMsg::from_mitem($m, $srch);
 		unless ($smsg) {
 			eval {
 				$m = "$m ".$m->get_docid . " expired\n";
@@ -270,14 +259,19 @@ sub get_pct ($) {
 	$n > 99 ? 99 : $n;
 }
 
+sub load_msgs {
+	my ($mset) = @_;
+	[ map {
+		my $mi = $_;
+		my $smsg = PublicInbox::SearchMsg::from_mitem($mi);
+		$smsg->{pct} = get_pct($mi);
+		$smsg;
+	} ($mset->items) ]
+}
+
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
-	my $msgs = $ctx->{-inbox}->search->retry_reopen(sub { [ map {
-		my $i = $_;
-		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
-		$smsg->{pct} = get_pct($i);
-		$smsg;
-	} ($mset->items) ]});
+	my $msgs = $ctx->{-inbox}->search->retry_reopen(\&load_msgs, $mset);
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
 		$r ? \&sort_relevance : \&PublicInbox::View::sort_ds,
@@ -345,7 +339,9 @@ sub adump {
 sub adump_i {
 	my ($ctx) = @_;
 	while (my $mi = shift @{$ctx->{items}}) {
-		my $smsg = load_doc_retry($ctx->{srch}, $mi) or next;
+		my $smsg = eval {
+			PublicInbox::SearchMsg::from_mitem($mi, $ctx->{srch});
+		} or next;
 		$ctx->{-inbox}->smsg_mime($smsg) and return $smsg;
 	}
 }

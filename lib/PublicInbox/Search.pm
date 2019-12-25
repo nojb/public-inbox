@@ -231,15 +231,15 @@ sub query {
 }
 
 sub retry_reopen {
-	my ($self, $cb) = @_;
+	my ($self, $cb, $arg) = @_;
 	for my $i (1..10) {
 		if (wantarray) {
 			my @ret;
-			eval { @ret = $cb->() };
+			eval { @ret = $cb->($arg) };
 			return @ret unless $@;
 		} else {
 			my $ret;
-			eval { $ret = $cb->() };
+			eval { $ret = $cb->($arg) };
 			return $ret unless $@;
 		}
 		# Exception: The revision being read has been discarded -
@@ -259,11 +259,11 @@ sub retry_reopen {
 
 sub _do_enquire {
 	my ($self, $query, $opts) = @_;
-	retry_reopen($self, sub { _enquire_once($self, $query, $opts) });
+	retry_reopen($self, \&_enquire_once, [ $self, $query, $opts ]);
 }
 
-sub _enquire_once {
-	my ($self, $query, $opts) = @_;
+sub _enquire_once { # retry_reopen callback
+	my ($self, $query, $opts) = @{$_[0]};
 	my $xdb = xdb($self);
 	my $enquire = $X{Enquire}->new($xdb);
 	$enquire->set_query($query);
@@ -281,9 +281,7 @@ sub _enquire_once {
 	my $limit = $opts->{limit} || 50;
 	my $mset = $enquire->get_mset($offset, $limit);
 	return $mset if $opts->{mset};
-	my @msgs = map {
-		PublicInbox::SearchMsg->load_doc($_->get_document);
-	} $mset->items;
+	my @msgs = map { PublicInbox::SearchMsg::from_mitem($_) } $mset->items;
 	return \@msgs unless wantarray;
 
 	($mset->get_matches_estimated, \@msgs)
