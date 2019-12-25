@@ -36,7 +36,7 @@ sub response {
 sub getline {
 	my ($self) = @_;
 	if (my $middle = $self->{cb}) {
-		my $smsg = $middle->();
+		my $smsg = $middle->($self->{ctx});
 		return feed_entry($self, $smsg) if $smsg;
 	}
 	delete $self->{cb} ? '</feed>' : undef;
