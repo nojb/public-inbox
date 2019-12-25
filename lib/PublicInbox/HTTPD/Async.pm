@@ -10,7 +10,7 @@ package PublicInbox::HTTPD::Async;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(cb arg end_obj);
+use fields qw(http fh cb arg end_obj);
 use Errno qw(EAGAIN);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 
@@ -31,21 +31,24 @@ sub new {
 	my $self = fields::new($class);
 	IO::Handle::blocking($io, 0);
 	$self->SUPER::new($io, EPOLLIN | EPOLLET);
-	$self->{cb} = $cb; # initial read callback, later replaced by main_cb
+	$self->{cb} = $cb; # initial read callback
 	$self->{arg} = $arg; # arg for $cb
 	$self->{end_obj} = $end_obj; # like END{}, can ->event_step
 	$self;
 }
 
-sub main_cb ($$) {
-	my ($http, $fh) = @_;
-	sub {
-		my ($self) = @_;
+sub event_step {
+	my ($self) = @_;
+	if (my $cb = delete $self->{cb}) {
+		# this may call async_pass when headers are done
+		$cb->(delete $self->{arg});
+	} elsif (my $sock = $self->{sock}) {
+		my $http = $self->{http};
 		# $self->{sock} is a read pipe for git-http-backend or cgit
 		# and 65536 is the default Linux pipe size
-		my $r = sysread($self->{sock}, my $buf, 65536);
+		my $r = sysread($sock, my $buf, 65536);
 		if ($r) {
-			$fh->write($buf); # may call $http->close
+			$self->{fh}->write($buf); # may call $http->close
 			if ($http->{sock}) { # !closed
 				$self->requeue;
 				# let other clients get some work done, too
@@ -57,11 +60,11 @@ sub main_cb ($$) {
 			return; # EPOLLET means we'll be notified
 		}
 
-		# Done! Error handling will happen in $fh->close
-		# called by the {end} handler
+		# Done! Error handling will happen in $self->{fh}->close
+		# called by end_obj->event_step handler
 		delete $http->{forward};
-		$self->close; # queues ->{end} to be called
-	}
+		$self->close; # queues end_obj->event_step to be called
+	} # else { # we may've been requeued but closed by $http
 }
 
 # once this is called, all data we read is passed to the
@@ -79,21 +82,16 @@ sub async_pass {
 	# calls after this may use much memory:
 	$$bref = undef;
 
-	# replace the header read callback with the main one
-	my $cb = $self->{cb} = main_cb($http, $fh);
-	$cb->($self); # either hit EAGAIN or ->requeue to keep EPOLLET happy
+	$self->{http} = $http;
+	$self->{fh} = $fh;
+
+	# either hit EAGAIN or ->requeue to keep EPOLLET happy
+	event_step($self);
 }
 
-sub event_step {
-	# {cb} may be undef after ->requeue due to $http->close happening
-	my $cb = $_[0]->{cb} or return;
-	$cb->(@_);
-}
-
-# may be called as $forward->close in PublicInbox::HTTP or EOF (main_cb)
+# may be called as $forward->close in PublicInbox::HTTP or EOF (event_step)
 sub close {
 	my $self = $_[0];
-	delete $self->{cb};
 	$self->SUPER::close; # DS::close
 
 	# we defer this to the next timer loop since close is deferred
