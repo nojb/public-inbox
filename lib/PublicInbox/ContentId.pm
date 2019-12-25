@@ -25,6 +25,33 @@ sub digest_addr ($$$) {
 	$dig->add("$h\0$v\0");
 }
 
+sub content_dig_i {
+	my ($dig) = $_[1];
+	my ($part, $depth, @idx) = @{$_[0]};
+	$dig->add("\0$depth:".join('.', @idx)."\0");
+	my $fn = $part->filename;
+	if (defined $fn) {
+		utf8::encode($fn);
+		$dig->add("fn\0$fn\0");
+	}
+	my @d = $part->header('Content-Description');
+	foreach my $d (@d) {
+		utf8::encode($d);
+		$dig->add("d\0$d\0");
+	}
+	$dig->add("b\0");
+	my $ct = $part->content_type || 'text/plain';
+	my ($s, undef) = msg_part_text($part, $ct);
+	if (defined $s) {
+		$s =~ s/\r\n/\n/gs;
+		$s =~ s/\s*\z//s;
+		utf8::encode($s);
+	} else {
+		$s = $part->body;
+	}
+	$dig->add($s);
+}
+
 sub content_digest ($) {
 	my ($mime) = @_;
 	my $dig = Digest::SHA->new(256);
@@ -65,31 +92,7 @@ sub content_digest ($) {
 		my @v = $hdr->header($h);
 		digest_addr($dig, $h, $_) foreach @v;
 	}
-	msg_iter($mime, sub {
-		my ($part, $depth, @idx) = @{$_[0]};
-		$dig->add("\0$depth:".join('.', @idx)."\0");
-		my $fn = $part->filename;
-		if (defined $fn) {
-			utf8::encode($fn);
-			$dig->add("fn\0$fn\0");
-		}
-		my @d = $part->header('Content-Description');
-		foreach my $d (@d) {
-			utf8::encode($d);
-			$dig->add("d\0$d\0");
-		}
-		$dig->add("b\0");
-		my $ct = $part->content_type || 'text/plain';
-		my ($s, undef) = msg_part_text($part, $ct);
-		if (defined $s) {
-			$s =~ s/\r\n/\n/gs;
-			$s =~ s/\s*\z//s;
-			utf8::encode($s);
-		} else {
-			$s = $part->body;
-		}
-		$dig->add($s);
-	});
+	msg_iter($mime, \&content_dig_i, $dig);
 	$dig;
 }
 
