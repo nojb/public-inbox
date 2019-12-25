@@ -13,10 +13,11 @@ use strict;
 use warnings;
 
 sub new {
-	my ($class, $rpipe, $end, $buf, $filter) = @_;
+	my ($class, $rpipe, $end, $end_arg, $buf, $filter) = @_;
 	bless {
 		rpipe => $rpipe,
 		end => $end,
+		end_arg => $end_arg,
 		buf => $buf,
 		filter => $filter || 0,
 	}, $class;
@@ -40,10 +41,9 @@ sub getline {
 
 sub close {
 	my ($self) = @_;
-	my $rpipe = delete $self->{rpipe};
+	my ($rpipe, $end, $end_arg) = delete @$self{qw(rpipe end end_arg)};
 	close $rpipe if $rpipe;
-	my $end = delete $self->{end};
-	$end->() if $end;
+	$end->($end_arg) if $end;
 }
 
 1;
