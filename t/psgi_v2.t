@@ -154,6 +154,16 @@ test_psgi(sub { $www->call(@_) }, sub {
 	my @over = ($raw =~ m/\d{4}-\d+-\d+\s+\d+:\d+ +(?:\d+\% )?(.+)$/gm);
 	is_deeply(\@over, [ '<a', '` <a', '` <a' ], 'threaded messages show up');
 
+	$res = $cb->(GET('/v2test/?q=m:a-mid@b&x=A'));
+	is($res->code, 200, 'success with Atom search');
+	SKIP: {
+		require_mods(qw(XML::Feed), 2);
+		$raw = $res->content;
+		my $p = XML::Feed->parse(\$raw);
+		is($p->format, "Atom", "parsed atom feed");
+		is(scalar $p->entries, 3, "parsed three entries");
+	};
+
 	local $SIG{__WARN__} = 'DEFAULT';
 	$res = $cb->(GET('/v2test/a-mid@b/'));
 	$raw = $res->content;
