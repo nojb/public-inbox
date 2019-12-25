@@ -275,8 +275,7 @@ sub get_pct ($) {
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my %pct;
-	my $ibx = $ctx->{-inbox};
-	my $msgs = $ibx->search->retry_reopen(sub { [ map {
+	my $msgs = $ctx->{-inbox}->search->retry_reopen(sub { [ map {
 		my $i = $_;
 		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
 		$pct{$smsg->mid} = get_pct($i);
@@ -303,19 +302,21 @@ sub mset_thread {
 		*PublicInbox::View::pre_thread);
 
 	@$msgs = reverse @$msgs if $r;
-	sub {
-		return unless $msgs;
-		my $smsg;
-		while (my $m = pop @$msgs) {
-			$smsg = $ibx->smsg_mime($m) and last;
-		}
-		if ($smsg) {
-			return PublicInbox::View::index_entry($smsg, $ctx,
-				scalar @$msgs);
-		}
-		$msgs = undef;
-		$skel .= "\n</pre>";
-	};
+	$ctx->{msgs} = $msgs;
+	\&mset_thread_i;
+}
+
+# callback for PublicInbox::WwwStream::getline
+sub mset_thread_i {
+	my ($nr, $ctx) = @_;
+	my $msgs = $ctx->{msgs} or return;
+	while (my $smsg = pop @$msgs) {
+		$ctx->{-inbox}->smsg_mime($smsg) or next;
+		return PublicInbox::View::index_entry($smsg, $ctx,
+							scalar @$msgs);
+	}
+	my ($skel) = delete @$ctx{qw(dst msgs)};
+	$$skel .= "\n</pre>";
 }
 
 sub ctx_prepare {
@@ -337,17 +338,19 @@ sub ctx_prepare {
 
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
-	my $ibx = $ctx->{-inbox};
-	my @items = $mset->items;
-	$ctx->{search_query} = $q;
-	my $srch = $ibx->search;
-	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
-		while (my $x = shift @items) {
-			$x = load_doc_retry($srch, $x);
-			$x = $ibx->smsg_mime($x) and return $x;
-		}
-		return undef;
-	});
+	$ctx->{items} = [ $mset->items ];
+	$ctx->{search_query} = $q; # used by WwwAtomStream::atom_header
+	$ctx->{srch} = $ctx->{-inbox}->search;
+	PublicInbox::WwwAtomStream->response($ctx, 200, \&adump_i);
+}
+
+# callback for PublicInbox::WwwAtomStream::getline
+sub adump_i {
+	my ($ctx) = @_;
+	while (my $mi = shift @{$ctx->{items}}) {
+		my $smsg = load_doc_retry($ctx->{srch}, $mi) or next;
+		$ctx->{-inbox}->smsg_mime($smsg) and return $smsg;
+	}
 }
 
 package PublicInbox::SearchQuery;
