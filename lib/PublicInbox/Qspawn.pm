@@ -185,7 +185,7 @@ reread:
 		($rpipe) = @_; # popen_rd result
 		if ($async) {
 		# PublicInbox::HTTPD::Async->new($rpipe, $cb, $end)
-			$async = $async->($rpipe, $cb, $end);
+			$async = $async->($rpipe, $cb, undef, $end);
 			# $cb will call ->async_pass or ->close
 		} else { # generic PSGI
 			$cb->() while $qx;
@@ -297,7 +297,7 @@ sub psgi_return {
 		($rpipe) = @_;
 		if ($async) {
 			# PublicInbox::HTTPD::Async->new($rpipe, $cb, $end)
-			$async = $async->($rpipe, $cb, $end);
+			$async = $async->($rpipe, $cb, undef, $end);
 			# $cb will call ->async_pass or ->close
 		} else { # generic PSGI
 			$cb->() while $rd_hdr;

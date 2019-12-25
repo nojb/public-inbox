@@ -327,7 +327,7 @@ sub do_finish ($$) {
 	$user_cb->(undef);
 }
 
-sub do_step ($) {
+sub event_step ($) {
 	my ($self) = @_;
 	eval {
 		# step 1: resolve blobs to patches in the todo queue
@@ -363,18 +363,13 @@ sub do_step ($) {
 	}
 }
 
-sub step_cb ($) {
-	my ($self) = @_;
-	sub { do_step($self) };
-}
-
 sub next_step ($) {
 	my ($self) = @_;
 	# if outside of public-inbox-httpd, caller is expected to be
-	# looping step_cb, anyways
+	# looping event_step, anyways
 	my $async = $self->{psgi_env}->{'pi-httpd.async'} or return;
 	# PublicInbox::HTTPD::Async->new
-	$async->(undef, step_cb($self));
+	$async->(undef, undef, $self);
 }
 
 sub mark_found ($$$) {
@@ -598,12 +593,11 @@ sub solve ($$$$$) {
 	$self->{tmp} = File::Temp->newdir("solver.$oid_want-XXXXXXXX", TMPDIR => 1);
 
 	dbg($self, "solving $oid_want ...");
-	my $step_cb = step_cb($self);
 	if (my $async = $env->{'pi-httpd.async'}) {
 		# PublicInbox::HTTPD::Async->new
-		$async->(undef, $step_cb);
+		$async->(undef, undef, $self);
 	} else {
-		$step_cb->() while $self->{user_cb};
+		event_step($self) while $self->{user_cb};
 	}
 }
 

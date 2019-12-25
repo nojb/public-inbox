@@ -10,7 +10,7 @@ package PublicInbox::HTTPD::Async;
 use strict;
 use warnings;
 use base qw(PublicInbox::DS);
-use fields qw(cb end);
+use fields qw(cb arg end end_arg);
 use Errno qw(EAGAIN);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 
@@ -18,12 +18,12 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 # $io is a read-only pipe ($rpipe) for now, but may be a
 # bidirectional socket in the future.
 sub new {
-	my ($class, $io, $cb, $end) = @_;
+	my ($class, $io, $cb, $arg, $end, $end_arg) = @_;
 
 	# no $io? call $cb at the top of the next event loop to
 	# avoid recursion:
 	unless (defined($io)) {
-		PublicInbox::DS::requeue($cb);
+		PublicInbox::DS::requeue($cb ? $cb : $arg);
 		die '$end unsupported w/o $io' if $end;
 		return;
 	}
@@ -32,7 +32,9 @@ sub new {
 	IO::Handle::blocking($io, 0);
 	$self->SUPER::new($io, EPOLLIN | EPOLLET);
 	$self->{cb} = $cb; # initial read callback, later replaced by main_cb
+	$self->{arg} = $arg; # arg for $cb
 	$self->{end} = $end; # like END {}, but only for this object
+	$self->{end_arg} = $end_arg; # arg for $end
 	$self;
 }
 
