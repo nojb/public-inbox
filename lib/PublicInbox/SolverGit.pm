@@ -221,6 +221,16 @@ sub find_extract_diffs ($$$) {
 	@di ? \@di : undef;
 }
 
+sub update_index_result ($$) {
+	my ($bref, $self) = @_;
+	my ($qsp, $msg) = delete @$self{qw(-qsp -msg)};
+	if (my $err = $qsp->{err}) {
+		ERR($self, "git update-index error: $err");
+	}
+	dbg($self, $msg);
+	next_step($self); # onto do_git_apply
+}
+
 sub prepare_index ($) {
 	my ($self) = @_;
 	my $patches = $self->{patches};
@@ -248,15 +258,10 @@ sub prepare_index ($) {
 	my $rdr = { 0 => fileno($in), -hold => $in };
 	my $cmd = [ qw(git update-index -z --index-info) ];
 	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
-	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
-		my ($bref) = @_;
-		if (my $err = $qsp->{err}) {
-			ERR($self, "git update-index error: $err");
-		}
-		dbg($self, "index prepared:\n" .
-			"$mode_a $oid_full\t" . git_quote($path_a));
-		next_step($self); # onto do_git_apply
-	});
+	$path_a = git_quote($path_a);
+	$self->{-qsp} = $qsp;
+	$self->{-msg} = "index prepared:\n$mode_a $oid_full\t$path_a";
+	$qsp->psgi_qx($self->{psgi_env}, undef, \&update_index_result, $self);
 }
 
 # pure Perl "git init"
@@ -383,8 +388,9 @@ sub mark_found ($$$) {
 	}
 }
 
-sub parse_ls_files ($$$$) {
-	my ($self, $qsp, $bref, $di) = @_;
+sub parse_ls_files ($$) {
+	my ($self, $bref) = @_;
+	my ($qsp, $di) = delete @$self{qw(-qsp -cur_di)};
 	if (my $err = $qsp->{err}) {
 		die "git ls-files error: $err";
 	}
@@ -410,15 +416,10 @@ sub parse_ls_files ($$$$) {
 	next_step($self); # onto the next patch
 }
 
-sub start_ls_files ($$) {
-	my ($self, $di) = @_;
-	my $cmd = [qw(git ls-files -s -z)];
-	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env});
-	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
-		my ($bref) = @_;
-		eval { parse_ls_files($self, $qsp, $bref, $di) };
-		ERR($self, $@) if $@;
-	});
+sub ls_files_result {
+	my ($bref, $self) = @_;
+	eval { parse_ls_files($self, $bref) };
+	ERR($self, $@) if $@;
 }
 
 sub oids_same_ish ($$) {
@@ -436,6 +437,31 @@ sub skip_identical ($$$) {
 			return;
 		}
 	}
+}
+
+sub apply_result ($$) {
+	my ($bref, $self) = @_;
+	my ($qsp, $di) = delete @$self{qw(-qsp -cur_di)};
+	dbg($self, $$bref);
+	my $patches = $self->{patches};
+	if (my $err = $qsp->{err}) {
+		my $msg = "git apply error: $err";
+		my $nxt = $patches->[0];
+		if ($nxt && oids_same_ish($nxt->{oid_b}, $di->{oid_b})) {
+			dbg($self, $msg);
+			dbg($self, 'trying '.di_url($self, $nxt));
+		} else {
+			ERR($self, $msg);
+		}
+	} else {
+		skip_identical($self, $patches, $di->{oid_b});
+	}
+
+	my @cmd = qw(git ls-files -s -z);
+	$qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env});
+	$self->{-cur_di} = $di;
+	$self->{-qsp} = $qsp;
+	$qsp->psgi_qx($self->{psgi_env}, undef, \&ls_files_result, $self);
 }
 
 sub do_git_apply ($) {
@@ -465,24 +491,9 @@ sub do_git_apply ($) {
 
 	my $rdr = { 2 => 1 };
 	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $rdr);
-	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
-		my ($bref) = @_;
-		dbg($self, $$bref);
-		if (my $err = $qsp->{err}) {
-			my $msg = "git apply error: $err";
-			my $nxt = $patches->[0];
-			if ($nxt && oids_same_ish($nxt->{oid_b}, $prv_oid_b)) {
-				dbg($self, $msg);
-				dbg($self, 'trying '.di_url($self, $nxt));
-			} else {
-				ERR($self, $msg);
-			}
-		} else {
-			skip_identical($self, $patches, $di->{oid_b});
-		}
-		eval { start_ls_files($self, $di) };
-		ERR($self, $@) if $@;
-	});
+	$self->{-cur_di} = $di;
+	$self->{-qsp} = $qsp;
+	$qsp->psgi_qx($self->{psgi_env}, undef, \&apply_result, $self);
 }
 
 sub di_url ($$) {
@@ -564,6 +575,7 @@ sub new {
 	bless {
 		gits => $ibx->{-repo_objs},
 		user_cb => $user_cb,
+		# -cur_di, -qsp, -msg => temporary fields for Qspawn callbacks
 
 		# TODO: config option for searching related inboxes
 		inboxes => [ $ibx ],

@@ -155,13 +155,13 @@ sub start {
 # $env is the PSGI env.  As with ``/qx; only use this when output is small
 # and safe to slurp.
 sub psgi_qx {
-	my ($self, $env, $limiter, $qx_cb) = @_;
+	my ($self, $env, $limiter, $qx_cb, $cb_arg) = @_;
 	my $scalar = '';
 	open(my $qx, '+>', \$scalar) or die; # PerlIO::scalar
 	my $end = sub {
 		my $err = $_[0]; # $!
 		log_err($env, "psgi_qx: $err") if defined($err);
-		finish($self, $env, sub { $qx_cb->(\$scalar) });
+		finish($self, $env, sub { $qx_cb->(\$scalar, $cb_arg) });
 		$qx = undef;
 	};
 	my $rpipe; # comes from popen_rd

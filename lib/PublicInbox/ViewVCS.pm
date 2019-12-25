@@ -73,6 +73,22 @@ sub stream_large_blob ($$$$) {
 	});
 }
 
+sub show_other_result ($$) {
+	my ($bref, $ctx) = @_;
+	my ($qsp, $logref) = delete @$ctx{qw(-qsp -logref)};
+	if (my $err = $qsp->{err}) {
+		utf8::decode($$err);
+		$$logref .= "git show error: $err";
+		return html_page($ctx, 500, $logref);
+	}
+	my $l = PublicInbox::Linkify->new;
+	utf8::decode($$bref);
+	$l->linkify_1($$bref);
+	$$bref = '<pre>'. $l->linkify_2(ascii_html($$bref));
+	$$bref .= '</pre><hr>' . $$logref;
+	html_page($ctx, 200, $bref);
+}
+
 sub show_other ($$$$) {
 	my ($ctx, $res, $logref, $fn) = @_;
 	my ($git, $oid, $type, $size) = @$res;
@@ -84,20 +100,9 @@ sub show_other ($$$$) {
 		qw(show --encoding=UTF-8 --no-color --no-abbrev), $oid ];
 	my $qsp = PublicInbox::Qspawn->new($cmd);
 	my $env = $ctx->{env};
-	$qsp->psgi_qx($env, undef, sub {
-		my ($bref) = @_;
-		if (my $err = $qsp->{err}) {
-			utf8::decode($$err);
-			$$logref .= "git show error: $err";
-			return html_page($ctx, 500, $logref);
-		}
-		my $l = PublicInbox::Linkify->new;
-		utf8::decode($$bref);
-		$l->linkify_1($$bref);
-		$$bref = '<pre>'. $l->linkify_2(ascii_html($$bref));
-		$$bref .= '</pre><hr>' . $$logref;
-		html_page($ctx, 200, $bref);
-	});
+	$ctx->{-qsp} = $qsp;
+	$ctx->{-logref} = $logref;
+	$qsp->psgi_qx($env, undef, \&show_other_result, $ctx);
 }
 
 sub solve_result {
