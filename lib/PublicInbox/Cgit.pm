@@ -63,7 +63,7 @@ sub new {
 		pi_config => $pi_config,
 	}, $class;
 
-	$pi_config->each_inbox(sub {}); # fill in -code_repos mapped to inboxes
+	$pi_config->fill_all; # fill in -code_repos mapped to inboxes
 
 	# some cgit repos may not be mapped to inboxes, so ensure those exist:
 	my $code_repos = $pi_config->{-code_repos};

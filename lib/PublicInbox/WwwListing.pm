@@ -16,29 +16,36 @@ require Digest::SHA;
 require File::Spec;
 *try_cat = \&PublicInbox::Inbox::try_cat;
 
+sub list_all_i {
+	my ($ibx, $arg) = @_;
+	my ($list, $hide_key) = @$arg;
+	push @$list, $ibx unless $ibx->{-hide}->{$hide_key};
+}
+
 sub list_all ($$$) {
 	my ($self, $env, $hide_key) = @_;
-	my @list;
-	$self->{pi_config}->each_inbox(sub {
-		my ($ibx) = @_;
-		push @list, $ibx unless $ibx->{-hide}->{$hide_key};
-	});
-	\@list;
+	my $list = [];
+	$self->{pi_config}->each_inbox(\&list_all_i, [ $list, $hide_key ]);
+	$list;
+}
+
+sub list_match_domain_i {
+	my ($ibx, $arg) = @_;
+	my ($list, $hide_key, $re) = @$arg;
+	if (!$ibx->{-hide}->{$hide_key} && $ibx->{url} =~ $re) {
+		push @$list, $ibx;
+	}
 }
 
 sub list_match_domain ($$$) {
 	my ($self, $env, $hide_key) = @_;
-	my @list;
+	my $list = [];
 	my $host = $env->{HTTP_HOST} // $env->{SERVER_NAME};
 	$host =~ s/:[0-9]+\z//;
-	my $re = qr!\A(?:https?:)?//\Q$host\E(?::[0-9]+)?/!i;
-	$self->{pi_config}->each_inbox(sub {
-		my ($ibx) = @_;
-		if (!$ibx->{-hide}->{$hide_key} && $ibx->{url} =~ $re) {
-			push @list, $ibx;
-		}
-	});
-	\@list;
+	my $arg = [ $list, $hide_key,
+		qr!\A(?:https?:)?//\Q$host\E(?::[0-9]+)?/!i ];
+	$self->{pi_config}->each_inbox(\&list_match_domain_i, $arg);
+	$list;
 }
 
 sub list_404 ($$) { [] }
