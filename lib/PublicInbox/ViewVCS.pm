@@ -112,8 +112,10 @@ sub show_other ($$$$) {
 	$qsp->psgi_qx($env, undef, \&show_other_result, $ctx);
 }
 
+# user_cb for SolverGit, called as: user_cb->($result_or_error, $uarg)
 sub solve_result {
-	my ($ctx, $res, $log, $hints, $fn) = @_;
+	my ($res, $ctx) = @_;
+	my ($log, $hints, $fn) = delete @$ctx{qw(log hints fn)};
 
 	unless (seek($log, 0, 0)) {
 		$ctx->{env}->{'psgi.errors'}->print("seek(log): $!\n");
@@ -192,21 +194,20 @@ sub solve_result {
 sub show ($$;$) {
 	my ($ctx, $oid_b, $fn) = @_;
 	my $qp = $ctx->{qp};
-	my $hints = {};
+	my $hints = $ctx->{hints} = {};
 	while (my ($from, $to) = each %QP_MAP) {
 		defined(my $v = $qp->{$from}) or next;
 		$hints->{$to} = $v;
 	}
 
-	my $log = tmpfile("solve.$oid_b");
-	my $solver = PublicInbox::SolverGit->new($ctx->{-inbox}, sub {
-		solve_result($ctx, $_[0], $log, $hints, $fn);
-	});
-
-	# PSGI server will call this and give us a callback
+	$ctx->{'log'} = tmpfile("solve.$oid_b");
+	$ctx->{fn} = $fn;
+	my $solver = PublicInbox::SolverGit->new($ctx->{-inbox},
+						\&solve_result, $ctx);
+	# PSGI server will call this immediately and give us a callback (-wcb)
 	sub {
 		$ctx->{-wcb} = $_[0]; # HTTP write callback
-		$solver->solve($ctx->{env}, $log, $oid_b, $hints);
+		$solver->solve($ctx->{env}, $ctx->{log}, $oid_b, $hints);
 	};
 }
 

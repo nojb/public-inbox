@@ -55,11 +55,16 @@ sub dbg ($$) {
 	print { $_[0]->{out} } $_[1], "\n" or ERR($_[0], "print(dbg): $!");
 }
 
+sub done ($$) {
+	my ($self, $res) = @_;
+	my $ucb = delete($self->{user_cb}) or return;
+	$ucb->($res, $self->{uarg});
+}
+
 sub ERR ($$) {
 	my ($self, $err) = @_;
 	print { $self->{out} } $err, "\n";
-	my $ucb = delete($self->{user_cb});
-	eval { $ucb->($err) } if $ucb;
+	eval { done($self, $err) };
 	die $err;
 }
 
@@ -311,24 +316,23 @@ sub extract_old_mode ($) {
 	'100644';
 }
 
-sub do_finish ($$) {
-	my ($self, $user_cb) = @_;
-	my $found = $self->{found};
-	my $oid_want = $self->{oid_want};
+sub do_finish ($) {
+	my ($self) = @_;
+	my ($found, $oid_want) = @$self{qw(found oid_want)};
 	if (my $exists = $found->{$oid_want}) {
-		return $user_cb->($exists);
+		return done($self, $exists);
 	}
 
 	# let git disambiguate if oid_want was too short,
 	# but long enough to be unambiguous:
 	my $tmp_git = $self->{tmp_git};
 	if (my @res = $tmp_git->check($oid_want)) {
-		return $user_cb->($found->{$res[0]});
+		return done($self, $found->{$res[0]});
 	}
 	if (my $err = $tmp_git->last_check_err) {
 		dbg($self, $err);
 	}
-	$user_cb->(undef);
+	done($self, undef);
 }
 
 sub event_step ($) {
@@ -352,8 +356,8 @@ sub event_step ($) {
 		# our result: (which may be undef)
 		# Other steps may call user_cb to terminate prematurely
 		# on error
-		} elsif (my $user_cb = delete($self->{user_cb})) {
-			do_finish($self, $user_cb);
+		} elsif (exists $self->{user_cb}) {
+			do_finish($self);
 		} else {
 			die 'about to call user_cb twice'; # Oops :x
 		}
@@ -362,8 +366,7 @@ sub event_step ($) {
 	if ($err) {
 		$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
 		dbg($self, "E: $err");
-		my $ucb = delete($self->{user_cb});
-		eval { $ucb->($err) } if $ucb;
+		eval { done($self, $err) };
 	}
 }
 
@@ -524,7 +527,7 @@ sub resolve_patch ($$) {
 			join("\n", $found_git->pub_urls($self->{psgi_env})));
 
 		if ($cur_want eq $self->{oid_want} || $type ne 'blob') {
-			eval { delete($self->{user_cb})->($existing) };
+			eval { done($self, $existing) };
 			die "E: $@" if $@;
 			return;
 		}
@@ -562,18 +565,19 @@ sub resolve_patch ($$) {
 	}
 
 	dbg($self, "could not find $cur_want");
-	eval { delete($self->{user_cb})->(undef) }; # not found! :<
+	eval { done($self, undef) };
 	die "E: $@" if $@;
 }
 
 # this API is designed to avoid creating self-referential structures;
 # so user_cb never references the SolverGit object
 sub new {
-	my ($class, $ibx, $user_cb) = @_;
+	my ($class, $ibx, $user_cb, $uarg) = @_;
 
 	bless {
 		gits => $ibx->{-repo_objs},
 		user_cb => $user_cb,
+		uarg => $uarg,
 		# -cur_di, -qsp, -msg => temporary fields for Qspawn callbacks
 
 		# TODO: config option for searching related inboxes
@@ -591,7 +595,7 @@ sub solve ($$$$$) {
 
 	# should we even get here? Probably not, but somebody
 	# could be manually typing URLs:
-	return (delete $self->{user_cb})->(undef) if $oid_want =~ /\A0+\z/;
+	return done($self, undef) if $oid_want =~ /\A0+\z/;
 
 	$self->{oid_want} = $oid_want;
 	$self->{out} = $out;
