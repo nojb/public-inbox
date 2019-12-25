@@ -13,9 +13,9 @@ use PublicInbox::GitHTTPBackend;
 *input_prepare = *PublicInbox::GitHTTPBackend::input_prepare;
 *parse_cgi_headers = *PublicInbox::GitHTTPBackend::parse_cgi_headers;
 *serve = *PublicInbox::GitHTTPBackend::serve;
-*static_result = *PublicInbox::GitHTTPBackend::static_result;
 use warnings;
 use PublicInbox::Qspawn;
+use PublicInbox::WwwStatic;
 use Plack::MIME;
 
 sub locate_cgit ($) {
@@ -115,8 +115,8 @@ sub call {
 	} elsif ($path_info =~ m!$self->{static}! &&
 		 defined($cgit_data = $self->{cgit_data})) {
 		my $f = $1;
-		my $type = Plack::MIME->mime_type($f);
-		return static_result($env, [], $cgit_data.$f, $type);
+		return PublicInbox::WwwStatic::response($env, [], $cgit_data.$f,
+						Plack::MIME->mime_type($f));
 	}
 
 	my $cgi_env = { PATH_INFO => $path_info };
