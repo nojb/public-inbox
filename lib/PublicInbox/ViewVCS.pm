@@ -42,35 +42,39 @@ sub html_page ($$$) {
 	$wcb ? $wcb->($res) : $res;
 }
 
+sub stream_blob_parse_hdr { # {parse_hdr} for Qspawn
+	my ($r, $bref, $ctx) = @_;
+	my ($res, $logref) = delete @$ctx{qw(-res -logref)};
+	my ($git, $oid, $type, $size, $di) = @$res;
+	my @cl = ('Content-Length', $size);
+	if (!defined $r) { # error
+		html_page($ctx, 500, $logref);
+	} elsif (index($$bref, "\0") >= 0) {
+		[200, [qw(Content-Type application/octet-stream), @cl] ];
+	} else {
+		my $n = bytes::length($$bref);
+		if ($n >= $BIN_DETECT || $n == $size) {
+			return [200, [ 'Content-Type',
+				'text/plain; charset=UTF-8', @cl ] ];
+		}
+		if ($r == 0) {
+			warn "premature EOF on $oid $$logref\n";
+			return html_page($ctx, 500, $logref);
+		}
+		undef; # bref keeps growing
+	}
+}
+
 sub stream_large_blob ($$$$) {
 	my ($ctx, $res, $logref, $fn) = @_;
+	$ctx->{-logref} = $logref;
+	$ctx->{-res} = $res;
 	my ($git, $oid, $type, $size, $di) = @$res;
 	my $cmd = ['git', "--git-dir=$git->{git_dir}", 'cat-file', $type, $oid];
 	my $qsp = PublicInbox::Qspawn->new($cmd);
-	my @cl = ('Content-Length', $size);
 	my $env = $ctx->{env};
-	$env->{'public-inbox.tmpgit'} = $git; # for {-tmp}/File::Temp::Dir
 	$env->{'qspawn.wcb'} = delete $ctx->{-wcb};
-	$qsp->psgi_return($env, undef, sub {
-		my ($r, $bref) = @_;
-		if (!defined $r) { # error
-			html_page($ctx, 500, $logref);
-		} elsif (index($$bref, "\0") >= 0) {
-			my $ct = 'application/octet-stream';
-			[200, ['Content-Type', $ct, @cl ] ];
-		} else {
-			my $n = bytes::length($$bref);
-			if ($n >= $BIN_DETECT || $n == $size) {
-				my $ct = 'text/plain; charset=UTF-8';
-				return [200, ['Content-Type', $ct, @cl] ];
-			}
-			if ($r == 0) {
-				warn "premature EOF on $oid $$logref\n";
-				return html_page($ctx, 500, $logref);
-			}
-			undef; # bref keeps growing
-		}
-	});
+	$qsp->psgi_return($env, undef, \&stream_blob_parse_hdr, $ctx);
 }
 
 sub show_other_result ($$) {

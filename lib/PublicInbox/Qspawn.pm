@@ -215,12 +215,13 @@ sub rd_hdr ($) {
 	my $ret;
 	my $total_rd = 0;
 	my $hdr_buf = $self->{hdr_buf};
+	my ($ph_cb, $ph_arg) = @{$self->{parse_hdr}};
 	do {
 		my $r = sysread($self->{rpipe}, $$hdr_buf, 4096,
 				length($$hdr_buf));
 		if (defined($r)) {
 			$total_rd += $r;
-			$ret = $self->{parse_hdr}->($total_rd, $hdr_buf);
+			$ret = $ph_cb->($total_rd, $hdr_buf, $ph_arg);
 		} else {
 			# caller should notify us when it's ready:
 			return if $! == EAGAIN;
@@ -298,10 +299,10 @@ sub psgi_return_start { # may run later, much later...
 #              psgix.io.  3-element arrays means the body is available
 #              immediately (or streamed via ->getline (pull-based)).
 sub psgi_return {
-	my ($self, $env, $limiter, $parse_hdr) = @_;
+	my ($self, $env, $limiter, $parse_hdr, $hdr_arg) = @_;
 	$self->{psgi_env} = $env;
 	$self->{hdr_buf} = \(my $hdr_buf = '');
-	$self->{parse_hdr} = $parse_hdr;
+	$self->{parse_hdr} = [ $parse_hdr, $hdr_arg ];
 	$limiter ||= $def_limiter ||= PublicInbox::Qspawn::Limiter->new(32);
 
 	# the caller already captured the PSGI write callback from

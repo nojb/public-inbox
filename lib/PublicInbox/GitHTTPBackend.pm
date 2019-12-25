@@ -184,6 +184,12 @@ sub prepare_range {
 	($code, $len);
 }
 
+sub git_parse_hdr { # {parse_hdr} for Qspawn
+	my ($r, $bref, $dumb_args) = @_;
+	my $res = parse_cgi_headers($r, $bref) or return; # incomplete
+	$res->[0] == 403 ? serve_dumb(@$dumb_args) : $res;
+}
+
 # returns undef if 403 so it falls back to dumb HTTP
 sub serve_smart {
 	my ($env, $git, $path) = @_;
@@ -204,11 +210,7 @@ sub serve_smart {
 	$env{PATH_TRANSLATED} = "$git->{git_dir}/$path";
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, $rdr);
-	$qsp->psgi_return($env, $limiter, sub { # parse_hdr
-		my ($r, $bref) = @_;
-		my $res = parse_cgi_headers($r, $bref) or return; # incomplete
-		$res->[0] == 403 ? serve_dumb($env, $git, $path) : $res;
-	});
+	$qsp->psgi_return($env, $limiter, \&git_parse_hdr, [$env, $git, $path]);
 }
 
 sub input_prepare {

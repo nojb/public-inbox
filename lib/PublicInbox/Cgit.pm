@@ -95,6 +95,12 @@ my @PASS_ENV = qw(
 );
 # XXX: cgit filters may care about more variables...
 
+sub cgit_parse_hdr { # {parse_hdr} for Qspawn
+	my ($r, $bref) = @_;
+	my $res = parse_cgi_headers($r, $bref) or return; # incomplete
+	$res;
+}
+
 sub call {
 	my ($self, $env) = @_;
 	my $path_info = $env->{PATH_INFO};
@@ -123,11 +129,7 @@ sub call {
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new($self->{cmd}, $cgi_env, $rdr);
 	my $limiter = $self->{pi_config}->limiter('-cgit');
-	$qsp->psgi_return($env, $limiter, sub {
-		my ($r, $bref) = @_;
-		my $res = parse_cgi_headers($r, $bref) or return; # incomplete
-		$res;
-	});
+	$qsp->psgi_return($env, $limiter, \&cgit_parse_hdr);
 }
 
 1;
