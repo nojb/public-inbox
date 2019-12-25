@@ -484,17 +484,19 @@ sub thread_html {
 	return missing_thread($ctx) unless $smsg;
 	$ctx->{-title_html} = ascii_html($smsg->subject);
 	$ctx->{-html_tip} = '<pre>'.index_entry($smsg, $ctx, scalar @$msgs);
-	$smsg = undef;
-	PublicInbox::WwwStream->response($ctx, 200, sub {
-		return unless $msgs;
-		$smsg = undef;
-		while (my $m = shift @$msgs) {
-			$smsg = $ibx->smsg_mime($m) and last;
-		}
-		return index_entry($smsg, $ctx, scalar @$msgs) if $smsg;
-		$msgs = undef;
-		$skel;
-	});
+	$ctx->{msgs} = $msgs;
+	PublicInbox::WwwStream->response($ctx, 200, \&thread_html_i);
+}
+
+sub thread_html_i { # PublicInbox::WwwStream::getline callback
+	my ($nr, $ctx) = @_;
+	my $msgs = $ctx->{msgs} or return;
+	while (my $smsg = shift @$msgs) {
+		$ctx->{-inbox}->smsg_mime($smsg) or next;
+		return index_entry($smsg, $ctx, scalar @$msgs);
+	}
+	my ($skel) = delete @$ctx{qw(dst msgs)};
+	$$skel;
 }
 
 sub multipart_text_as_html {
