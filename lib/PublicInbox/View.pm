@@ -397,12 +397,29 @@ sub thread_index_entry {
 	$beg . '<pre>' . index_entry($smsg, $ctx, 0) . '</pre>' . $end;
 }
 
+sub stream_thread_i { # PublicInbox::WwwStream::getline callback
+	my ($nr, $ctx) = @_;
+	return unless exists($ctx->{dst});
+	my $q = $ctx->{-queue};
+	while (@$q) {
+		my $level = shift @$q;
+		my $node = shift @$q or next;
+		my $cl = $level + 1;
+		unshift @$q, map { ($cl, $_) } @{$node->{children}};
+		if (my $smsg = $ctx->{-inbox}->smsg_mime($node->{smsg})) {
+			return thread_index_entry($ctx, $level, $smsg);
+		} else {
+			return ghost_index_entry($ctx, $level, $node);
+		}
+	}
+	join('', thread_adj_level($ctx, 0)) . ${delete $ctx->{dst}}; # skel
+}
+
 sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
 	my $ibx = $ctx->{-inbox};
 	my @q = map { (0, $_) } @$rootset;
-	my $level;
-	my $smsg;
+	my ($smsg, $level);
 	while (@q) {
 		$level = shift @q;
 		my $node = shift @q or next;
@@ -415,25 +432,8 @@ sub stream_thread ($$) {
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	$ctx->{-title_html} = ascii_html($smsg->subject);
 	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $smsg);
-	$smsg = undef;
-	PublicInbox::WwwStream->response($ctx, 200, sub {
-		return unless $ctx;
-		while (@q) {
-			$level = shift @q;
-			my $node = shift @q or next;
-			my $cl = $level + 1;
-			unshift @q, map { ($cl, $_) } @{$node->{children}};
-			if ($smsg = $ibx->smsg_mime($node->{smsg})) {
-				return thread_index_entry($ctx, $level, $smsg);
-			} else {
-				return ghost_index_entry($ctx, $level, $node);
-			}
-		}
-		my $ret = join('', thread_adj_level($ctx, 0));
-		$ret .= ${$ctx->{dst}}; # skel
-		$ctx = undef;
-		$ret;
-	});
+	$ctx->{-queue} = \@q;
+	PublicInbox::WwwStream->response($ctx, 200, \&stream_thread_i);
 }
 
 sub thread_html {
