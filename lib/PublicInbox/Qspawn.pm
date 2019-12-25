@@ -36,17 +36,17 @@ my $def_limiter;
 
 # declares a command to spawn (but does not spawn it).
 # $cmd is the command to spawn
-# $env is the environ for the child process
+# $cmd_env is the environ for the child process (not PSGI env)
 # $opt can include redirects and perhaps other process spawning options
 sub new ($$$;) {
-	my ($class, $cmd, $env, $opt) = @_;
-	bless { args => [ $cmd, $env, $opt ] }, $class;
+	my ($class, $cmd, $cmd_env, $opt) = @_;
+	bless { args => [ $cmd, $cmd_env, $opt ] }, $class;
 }
 
 sub _do_spawn {
 	my ($self, $start_cb, $limiter) = @_;
 	my $err;
-	my ($cmd, $env, $opts) = @{$self->{args}};
+	my ($cmd, $cmd_env, $opts) = @{$self->{args}};
 	my %opts = %{$opts || {}};
 	$self->{limiter} = $limiter;
 	foreach my $k (PublicInbox::Spawn::RLIMITS()) {
@@ -55,7 +55,7 @@ sub _do_spawn {
 		}
 	}
 
-	($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $env, \%opts);
+	($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $cmd_env, \%opts);
 
 	# drop any IO handles opt was holding open via $opt->{hold}
 	# No need to hold onto the descriptor once the child process has it.
@@ -94,7 +94,7 @@ sub waitpid_err ($$) {
 		$err = "W: waitpid($xpid, 0) => $pid: $!";
 	} # else should not be called with pid == 0
 
-	my $env = delete $self->{env};
+	my $env = delete $self->{psgi_env};
 
 	# done, spawn whatever's in the queue
 	my $limiter = $self->{limiter};
@@ -118,9 +118,8 @@ sub waitpid_err ($$) {
 }
 
 sub do_waitpid ($;$$) {
-	my ($self, $env, $fin_cb) = @_;
+	my ($self, $fin_cb) = @_;
 	my $pid = $self->{pid};
-	$self->{env} = $env;
 	$self->{fin_cb} = $fin_cb;
 	# PublicInbox::DS may not be loaded
 	eval { PublicInbox::DS::dwaitpid($pid, \&waitpid_err, $self) };
@@ -132,10 +131,10 @@ sub do_waitpid ($;$$) {
 	}
 }
 
-sub finish ($;$$) {
-	my ($self, $env, $fin_cb) = @_;
+sub finish ($;$) {
+	my ($self, $fin_cb) = @_;
 	if (delete $self->{rpipe}) {
-		do_waitpid($self, $env, $fin_cb);
+		do_waitpid($self, $fin_cb);
 	} elsif ($fin_cb) {
 		eval { $fin_cb->() };
 	}
@@ -156,12 +155,13 @@ sub start {
 # and safe to slurp.
 sub psgi_qx {
 	my ($self, $env, $limiter, $qx_cb, $cb_arg) = @_;
+	$self->{psgi_env} = $env;
 	my $scalar = '';
 	open(my $qx, '+>', \$scalar) or die; # PerlIO::scalar
 	my $end = sub {
 		my $err = $_[0]; # $!
 		log_err($env, "psgi_qx: $err") if defined($err);
-		finish($self, $env, sub { $qx_cb->(\$scalar, $cb_arg) });
+		finish($self, sub { $qx_cb->(\$scalar, $cb_arg) });
 		$qx = undef;
 	};
 	my $rpipe; # comes from popen_rd
@@ -230,11 +230,12 @@ sub filter_fh ($$) {
 #              immediately (or streamed via ->getline (pull-based)).
 sub psgi_return {
 	my ($self, $env, $limiter, $parse_hdr) = @_;
+	$self->{psgi_env} = $env;
 	my ($fh, $rpipe);
 	my $end = sub {
 		my $err = $_[0]; # $!
 		log_err($env, "psgi_return: $err") if defined($err);
-		finish($self, $env);
+		finish($self);
 		$fh->close if $fh; # async-only
 	};
 
