@@ -15,7 +15,6 @@ use 5.010_001;
 use strict;
 use warnings;
 use bytes (); # only for bytes::length
-use Plack::Util;
 use PublicInbox::Config;
 use PublicInbox::Hval;
 use URI::Escape qw(uri_unescape);
@@ -472,6 +471,7 @@ sub cgit {
 			require PublicInbox::Cgit;
 			PublicInbox::Cgit->new($pi_config);
 		} else {
+			require Plack::Util;
 			Plack::Util::inline_object(call => sub { r404() });
 		}
 	}
