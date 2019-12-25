@@ -134,28 +134,30 @@ sub msg_body ($) {
 	$_[0] .= "\n";
 }
 
+sub thread_cb {
+	my ($ctx) = @_;
+	my $msgs = $ctx->{msgs};
+	while (1) {
+		if (my $smsg = shift @$msgs) {
+			return $smsg;
+		}
+		# refill result set
+		$ctx->{msgs} = $msgs = $ctx->{over}->get_thread($ctx->{mid},
+								$ctx->{prev});
+		return unless @$msgs;
+		$ctx->{prev} = $msgs->[-1];
+	}
+}
+
 sub thread_mbox {
 	my ($ctx, $over, $sfx) = @_;
 	eval { require PublicInbox::MboxGz };
-	return sub { need_gzip(@_) } if $@;
-	my $mid = $ctx->{mid};
-	my $msgs = $over->get_thread($mid, {});
+	return need_gzip() if $@;
+	my $msgs = $ctx->{msgs} = $over->get_thread($ctx->{mid}, {});
 	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
-	my $prev = $msgs->[-1];
-	my $i = 0;
-	my $cb = sub {
-		while (1) {
-			if (my $smsg = $msgs->[$i++]) {
-				return $smsg;
-			}
-			# refill result set
-			$msgs = $over->get_thread($mid, $prev);
-			return unless @$msgs;
-			$prev = $msgs->[-1];
-			$i = 0;
-		}
-	};
-	PublicInbox::MboxGz->response($ctx, $cb, $msgs->[0]->subject);
+	$ctx->{prev} = $msgs->[-1];
+	$ctx->{over} = $over; # bump refcnt
+	PublicInbox::MboxGz->response($ctx, \&thread_cb, $msgs->[0]->subject);
 }
 
 sub emit_range {
@@ -170,72 +172,82 @@ sub emit_range {
 	mbox_all($ctx, $query);
 }
 
+sub all_ids_cb {
+	my ($ctx) = @_;
+	my $ids = $ctx->{ids};
+	do {
+		while ((my $num = shift @$ids)) {
+			my $smsg = $ctx->{over}->get_art($num) or next;
+			return $smsg;
+		}
+		$ctx->{ids} = $ids = $ctx->{mm}->ids_after(\($ctx->{prev}));
+	} while (@$ids);
+}
+
 sub mbox_all_ids {
 	my ($ctx) = @_;
-	my $prev = 0;
 	my $ibx = $ctx->{-inbox};
-	my $ids = $ibx->mm->ids_after(\$prev) or return
+	my $prev = 0;
+	my $mm = $ctx->{mm} = $ibx->mm;
+	my $ids = $mm->ids_after(\$prev) or return
 		[404, [qw(Content-Type text/plain)], ["No results found\n"]];
-	my $i = 0;
-	my $over = $ibx->over or
+	$ctx->{over} = $ibx->over or
 		return PublicInbox::WWW::need($ctx, 'Overview');
-	my $cb = sub {
-		do {
-			while ((my $num = $ids->[$i++])) {
-				my $smsg = $over->get_art($num) or next;
-				return $smsg;
-			}
-			$ids = $ibx->mm->ids_after(\$prev);
-			$i = 0;
-		} while (@$ids);
-		undef;
-	};
-	return PublicInbox::MboxGz->response($ctx, $cb, 'all');
+	$ctx->{ids} = $ids;
+	$ctx->{prev} = $prev;
+	return PublicInbox::MboxGz->response($ctx, \&all_ids_cb, 'all');
+}
+
+sub results_cb {
+	my ($ctx) = @_;
+	my $mset = $ctx->{mset};
+	my $srch = $ctx->{srch};
+	while (1) {
+		while (my $mi = (($mset->items)[$ctx->{iter}++])) {
+			my $doc = $mi->get_document;
+			my $smsg = $srch->retry_reopen(sub {
+				PublicInbox::SearchMsg->load_doc($doc);
+			}) or next;
+			return $smsg;
+		}
+		# refill result set
+		$mset = $ctx->{mset} = $srch->query($ctx->{query},
+							$ctx->{qopts});
+		my $size = $mset->size or return;
+		$ctx->{qopts}->{offset} += $size;
+		$ctx->{iter} = 0;
+	}
 }
 
 sub mbox_all {
 	my ($ctx, $query) = @_;
 
 	eval { require PublicInbox::MboxGz };
-	return sub { need_gzip(@_) } if $@;
+	return need_gzip() if $@;
 	return mbox_all_ids($ctx) if $query eq '';
-	my $opts = { mset => 2 };
-	my $srch = $ctx->{-inbox}->search or
+	my $qopts = $ctx->{qopts} = { mset => 2 };
+	my $srch = $ctx->{srch} = $ctx->{-inbox}->search or
 		return PublicInbox::WWW::need($ctx, 'Search');;
-	my $mset = $srch->query($query, $opts);
-	$opts->{offset} = $mset->size or
+	my $mset = $ctx->{mset} = $srch->query($query, $qopts);
+	$qopts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],
 				["No results found\n"]];
-	my $i = 0;
-	my $cb = sub { # called by MboxGz->getline
-		while (1) {
-			while (my $mi = (($mset->items)[$i++])) {
-				my $doc = $mi->get_document;
-				my $smsg = $srch->retry_reopen(sub {
-					PublicInbox::SearchMsg->load_doc($doc);
-				}) or next;
-				return $smsg;
-			}
-			# refill result set
-			$mset = $srch->query($query, $opts);
-			my $size = $mset->size or return;
-			$opts->{offset} += $size;
-			$i = 0;
-		}
-	};
-	PublicInbox::MboxGz->response($ctx, $cb, 'results-'.$query);
+	$ctx->{iter} = 0;
+	$ctx->{query} = $query;
+	PublicInbox::MboxGz->response($ctx, \&results_cb, 'results-'.$query);
 }
 
 sub need_gzip {
-	my $fh = $_[0]->([501, ['Content-Type' => 'text/html']]);
 	my $title = 'gzipped mbox not available';
-	$fh->write(<<EOF);
+	my $body = <<EOF;
 <html><head><title>$title</title><body><pre>$title
 The administrator needs to install the Compress::Raw::Zlib Perl module
 to support gzipped mboxes.
 <a href="../">Return to index</a></pre></body></html>
 EOF
-	$fh->close;
+
+	[501,[qw(Content-Type text/html Content-Length), bytes::length($body)],
+	[ $body ] ];
 }
 
 1;
