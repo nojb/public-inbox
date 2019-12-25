@@ -53,27 +53,25 @@ sub get_text {
 	# Follow git commit message conventions,
 	# first line is the Subject/title
 	my ($title) = ($txt =~ /\A([^\n]*)/s);
-	_do_linkify($txt);
+	$ctx->{txt} = \$txt;
 	$ctx->{-title_html} = ascii_html($title);
-
 	my $nslash = ($key =~ tr!/!/!);
 	$ctx->{-upfx} = '../../../' . ('../' x $nslash);
-
-	PublicInbox::WwwStream->response($ctx, $code, sub {
-		my ($nr, undef) = @_;
-		$nr == 1 ? '<pre>'.$txt.'</pre>' : undef
-	});
+	PublicInbox::WwwStream->response($ctx, $code, \&_do_linkify);
 }
 
 sub _do_linkify {
+	my ($nr, $ctx) = @_;
+	return unless $nr == 1;
 	my $l = PublicInbox::Linkify->new;
-	$l->linkify_1($_[0]);
+	my $txt = delete $ctx->{txt};
+	$l->linkify_1($$txt);
 	if ($hl) {
-		$hl->do_hl_text(\($_[0]));
+		$hl->do_hl_text($txt);
 	} else {
-		$_[0] = ascii_html($_[0]);
+		$$txt = ascii_html($$txt);
 	}
-	$_[0] = $l->linkify_2($_[0]);
+	'<pre>' . $l->linkify_2($$txt) . '</pre>';
 }
 
 sub _srch_prefix ($$) {
