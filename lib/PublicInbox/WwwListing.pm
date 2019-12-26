@@ -127,7 +127,9 @@ sub _json () {
 
 sub fingerprint ($) {
 	my ($git) = @_;
-	my $fh = $git->popen('show-ref') or
+	# TODO: convert to qspawn for fairness when there's
+	# thousands of repos
+	my ($fh, $pid) = $git->popen('show-ref') or
 		die "popen($git->{git_dir} show-ref) failed: $!";
 
 	my $dig = Digest::SHA->new(1);
@@ -135,6 +137,7 @@ sub fingerprint ($) {
 		$dig->add($buf);
 	}
 	close $fh;
+	waitpid($pid, 0);
 	return if $?; # empty, uninitialized git repo
 	$dig->hexdigest;
 }
