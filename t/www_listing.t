@@ -72,6 +72,7 @@ SKIP: {
 	my @clone = qw(git clone -q -s --bare);
 	is(system(@clone, $bare->{git_dir}, $alt), 0, 'clone shared repo');
 
+	system(qw(git init --bare -q), "$v2/all.git") == 0 or die;
 	for my $i (0..2) {
 		is(system(@clone, $alt, "$v2/git/$i.git"), 0, "clone epoch $i");
 	}
