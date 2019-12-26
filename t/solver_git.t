@@ -138,18 +138,26 @@ SKIP: {
 	# ensure the PSGI frontend (ViewVCS) works:
 	my $name = $ibx->{name};
 	my $cfgpfx = "publicinbox.$name";
-	my $cfg = PublicInbox::Config->new(\<<EOF);
-$cfgpfx.address=$ibx->{address};
-$cfgpfx.inboxdir=$inboxdir
-$cfgpfx.coderepo=public-inbox
-$cfgpfx.coderepo=binfoo
-coderepo.public-inbox.dir=$git_dir
-coderepo.public-inbox.cgiturl=http://example.com/public-inbox
-coderepo.binfoo.dir=$binfoo
-coderepo.binfoo.cgiturl=http://example.com/binfoo
+	my $cfgpath = "$inboxdir/httpd-config";
+	open my $cfgfh, '>', $cfgpath or die;
+	print $cfgfh <<EOF or die;
+[publicinbox "$name"]
+	address = $ibx->{address};
+	inboxdir = $inboxdir
+	coderepo = public-inbox
+	coderepo = binfoo
+	url = http://example.com/$name
+[coderepo "public-inbox"]
+	dir = $git_dir
+	cgiturl = http://example.com/public-inbox
+[coderepo "binfoo"]
+	dir = $binfoo
+	cgiturl = http://example.com/binfoo
 EOF
+	close $cfgfh or die;
+	my $cfg = PublicInbox::Config->new($cfgpath);
 	my $www = PublicInbox::WWW->new($cfg);
-	test_psgi(sub { $www->call(@_) }, sub {
+	my $client = sub {
 		my ($cb) = @_;
 		my $res = $cb->(GET("/$name/3435775/s/"));
 		is($res->code, 200, 'success with existing blob');
@@ -169,7 +177,19 @@ EOF
 			is($res->content, "\0" x $size,
 				"$label content matches");
 		}
-	});
+	};
+	test_psgi(sub { $www->call(@_) }, $client);
+	SKIP: {
+		require_mods(qw(Plack::Test::ExternalServer), 7);
+		my $env = { PI_CONFIG => $cfgpath };
+		my $sock = tcp_server() or die;
+		my ($out, $err) = map { "$inboxdir/std$_.log" } qw(out err);
+		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
+		my $td = start_script($cmd, $env, { 3 => $sock });
+		my ($h, $p) = ($sock->sockhost, $sock->sockport);
+		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
+		Plack::Test::ExternalServer::test_psgi(client => $client);
+	}
 }
 
 done_testing();
