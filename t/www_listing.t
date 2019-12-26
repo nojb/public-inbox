@@ -31,7 +31,10 @@ like(PublicInbox::WwwListing::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
 sub tiny_test {
 	my ($json, $host, $port) = @_;
 	my $http = HTTP::Tiny->new;
-	my $res = $http->get("http://$host:$port/manifest.js.gz");
+	my $res = $http->get("http://$host:$port/");
+	is($res->{status}, 200, 'got HTML listing');
+	like($res->{content}, qr!</html>!si, 'listing looks like HTML');
+	$res = $http->get("http://$host:$port/manifest.js.gz");
 	is($res->{status}, 200, 'got manifest');
 	my $tmp;
 	IO::Uncompress::Gunzip::gunzip(\(delete $res->{content}) => \$tmp);
@@ -85,6 +88,8 @@ SKIP: {
 	ok(unlink("$bare->{git_dir}/description"), 'removed bare/description');
 	open $fh, '>', $cfgfile or die;
 	print $fh <<"" or die;
+[publicinbox]
+	wwwlisting = all
 [publicinbox "bare"]
 	inboxdir = $bare->{git_dir}
 	url = http://$host/bare
