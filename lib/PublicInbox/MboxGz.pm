@@ -42,7 +42,7 @@ sub getline {
 	my $ctx = $self->{ctx} or return;
 	my $gz = $self->{gz};
 	my $buf = delete($self->{buf});
-	while (my $smsg = $self->{cb}->()) {
+	while (my $smsg = $self->{cb}->($ctx)) {
 		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
 		my $h = Email::Simple->new($mref)->header_obj;
 

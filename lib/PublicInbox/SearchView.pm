@@ -88,17 +88,6 @@ retry:
 	PublicInbox::WwwStream->response($ctx, $code, $cb);
 }
 
-# allow undef for individual doc loads...
-sub load_doc_retry {
-	my ($srch, $mitem) = @_;
-
-	eval {
-		$srch->retry_reopen(sub {
-			PublicInbox::SearchMsg->load_doc($mitem->get_document)
-		});
-	}
-}
-
 # display non-nested search results similar to what users expect from
 # regular WWW search engines:
 sub mset_summary {
@@ -114,7 +103,7 @@ sub mset_summary {
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = get_pct($m);
-		my $smsg = load_doc_retry($srch, $m);
+		my $smsg = PublicInbox::SearchMsg::from_mitem($m, $srch);
 		unless ($smsg) {
 			eval {
 				$m = "$m ".$m->get_docid . " expired\n";
@@ -256,12 +245,10 @@ sub search_nav_bot {
 }
 
 sub sort_relevance {
-	my ($pct) = @_;
-	sub {
-		[ sort { (eval { $pct->{$b->topmost->{id}} } || 0)
-				<=>
-			(eval { $pct->{$a->topmost->{id}} } || 0)
-	} @{$_[0]} ] };
+	[ sort {
+		(eval { $b->topmost->{smsg}->{pct} } // 0) <=>
+		(eval { $a->topmost->{smsg}->{pct} } // 0)
+	} @{$_[0]} ]
 }
 
 sub get_pct ($) {
@@ -272,19 +259,22 @@ sub get_pct ($) {
 	$n > 99 ? 99 : $n;
 }
 
+sub load_msgs {
+	my ($mset) = @_;
+	[ map {
+		my $mi = $_;
+		my $smsg = PublicInbox::SearchMsg::from_mitem($mi);
+		$smsg->{pct} = get_pct($mi);
+		$smsg;
+	} ($mset->items) ]
+}
+
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
-	my %pct;
-	my $ibx = $ctx->{-inbox};
-	my $msgs = $ibx->search->retry_reopen(sub { [ map {
-		my $i = $_;
-		my $smsg = PublicInbox::SearchMsg->load_doc($i->get_document);
-		$pct{$smsg->mid} = get_pct($i);
-		$smsg;
-	} ($mset->items) ]});
+	my $msgs = $ctx->{-inbox}->search->retry_reopen(\&load_msgs, $mset);
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
-		$r ? sort_relevance(\%pct) : \&PublicInbox::View::sort_ds,
+		$r ? \&sort_relevance : \&PublicInbox::View::sort_ds,
 		$ctx);
 	my $skel = search_nav_bot($mset, $q). "<pre>";
 	$ctx->{-upfx} = '';
@@ -292,7 +282,7 @@ sub mset_thread {
 	$ctx->{cur_level} = 0;
 	$ctx->{dst} = \$skel;
 	$ctx->{mapping} = {};
-	$ctx->{pct} = \%pct;
+	$ctx->{searchview} = 1;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{s_nr} = scalar(@$msgs).'+ results';
@@ -303,19 +293,21 @@ sub mset_thread {
 		*PublicInbox::View::pre_thread);
 
 	@$msgs = reverse @$msgs if $r;
-	sub {
-		return unless $msgs;
-		my $smsg;
-		while (my $m = pop @$msgs) {
-			$smsg = $ibx->smsg_mime($m) and last;
-		}
-		if ($smsg) {
-			return PublicInbox::View::index_entry($smsg, $ctx,
-				scalar @$msgs);
-		}
-		$msgs = undef;
-		$skel .= "\n</pre>";
-	};
+	$ctx->{msgs} = $msgs;
+	\&mset_thread_i;
+}
+
+# callback for PublicInbox::WwwStream::getline
+sub mset_thread_i {
+	my ($nr, $ctx) = @_;
+	my $msgs = $ctx->{msgs} or return;
+	while (my $smsg = pop @$msgs) {
+		$ctx->{-inbox}->smsg_mime($smsg) or next;
+		return PublicInbox::View::index_entry($smsg, $ctx,
+							scalar @$msgs);
+	}
+	my ($skel) = delete @$ctx{qw(dst msgs)};
+	$$skel .= "\n</pre>";
 }
 
 sub ctx_prepare {
@@ -337,17 +329,21 @@ sub ctx_prepare {
 
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
-	my $ibx = $ctx->{-inbox};
-	my @items = $mset->items;
-	$ctx->{search_query} = $q;
-	my $srch = $ibx->search;
-	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
-		while (my $x = shift @items) {
-			$x = load_doc_retry($srch, $x);
-			$x = $ibx->smsg_mime($x) and return $x;
-		}
-		return undef;
-	});
+	$ctx->{items} = [ $mset->items ];
+	$ctx->{search_query} = $q; # used by WwwAtomStream::atom_header
+	$ctx->{srch} = $ctx->{-inbox}->search;
+	PublicInbox::WwwAtomStream->response($ctx, 200, \&adump_i);
+}
+
+# callback for PublicInbox::WwwAtomStream::getline
+sub adump_i {
+	my ($ctx) = @_;
+	while (my $mi = shift @{$ctx->{items}}) {
+		my $smsg = eval {
+			PublicInbox::SearchMsg::from_mitem($mi, $ctx->{srch});
+		} or next;
+		$ctx->{-inbox}->smsg_mime($smsg) and return $smsg;
+	}
 }
 
 package PublicInbox::SearchQuery;

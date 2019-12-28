@@ -13,9 +13,9 @@ use PublicInbox::GitHTTPBackend;
 *input_prepare = *PublicInbox::GitHTTPBackend::input_prepare;
 *parse_cgi_headers = *PublicInbox::GitHTTPBackend::parse_cgi_headers;
 *serve = *PublicInbox::GitHTTPBackend::serve;
-*static_result = *PublicInbox::GitHTTPBackend::static_result;
 use warnings;
 use PublicInbox::Qspawn;
+use PublicInbox::WwwStatic;
 use Plack::MIME;
 
 sub locate_cgit ($) {
@@ -63,7 +63,7 @@ sub new {
 		pi_config => $pi_config,
 	}, $class;
 
-	$pi_config->each_inbox(sub {}); # fill in -code_repos mapped to inboxes
+	$pi_config->fill_all; # fill in -code_repos mapped to inboxes
 
 	# some cgit repos may not be mapped to inboxes, so ensure those exist:
 	my $code_repos = $pi_config->{-code_repos};
@@ -95,6 +95,12 @@ my @PASS_ENV = qw(
 );
 # XXX: cgit filters may care about more variables...
 
+sub cgit_parse_hdr { # {parse_hdr} for Qspawn
+	my ($r, $bref) = @_;
+	my $res = parse_cgi_headers($r, $bref) or return; # incomplete
+	$res;
+}
+
 sub call {
 	my ($self, $env) = @_;
 	my $path_info = $env->{PATH_INFO};
@@ -109,8 +115,8 @@ sub call {
 	} elsif ($path_info =~ m!$self->{static}! &&
 		 defined($cgit_data = $self->{cgit_data})) {
 		my $f = $1;
-		my $type = Plack::MIME->mime_type($f);
-		return static_result($env, [], $cgit_data.$f, $type);
+		return PublicInbox::WwwStatic::response($env, [], $cgit_data.$f,
+						Plack::MIME->mime_type($f));
 	}
 
 	my $cgi_env = { PATH_INFO => $path_info };
@@ -123,11 +129,7 @@ sub call {
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new($self->{cmd}, $cgi_env, $rdr);
 	my $limiter = $self->{pi_config}->limiter('-cgit');
-	$qsp->psgi_return($env, $limiter, sub {
-		my ($r, $bref) = @_;
-		my $res = parse_cgi_headers($r, $bref) or return; # incomplete
-		$res;
-	});
+	$qsp->psgi_return($env, $limiter, \&cgit_parse_hdr);
 }
 
 1;

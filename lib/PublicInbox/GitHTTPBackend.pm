@@ -10,9 +10,9 @@ use Fcntl qw(:seek);
 use IO::Handle;
 use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
-use Plack::Util;
 use PublicInbox::Qspawn;
 use PublicInbox::Tmpfile;
+use PublicInbox::WwwStatic;
 
 # 32 is same as the git-daemon connection limit
 my $default_limiter = PublicInbox::Qspawn::Limiter->new(32);
@@ -66,12 +66,6 @@ sub err ($@) {
 	$env->{'psgi.errors'}->print(@msg, "\n");
 }
 
-sub drop_client ($) {
-	if (my $io = $_[0]->{'psgix.io'}) {
-		$io->close; # this is PublicInbox::DS::close
-	}
-}
-
 my $prev = 0;
 my $exp;
 sub cache_one_year {
@@ -79,44 +73,6 @@ sub cache_one_year {
 	my $t = time + 31536000;
 	push @$h, 'Expires', $t == $prev ? $exp : ($exp = time2str($prev = $t)),
 		'Cache-Control', 'public, max-age=31536000';
-}
-
-sub static_result ($$$$) {
-	my ($env, $h, $f, $type) = @_;
-	return r(404) unless -f $f && -r _; # just in case it's a FIFO :P
-
-	# TODO: If-Modified-Since and Last-Modified?
-	open my $in, '<', $f or return r(404);
-	my $size = -s $in;
-	my $len = $size;
-	my $code = 200;
-	push @$h, 'Content-Type', $type;
-	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=([0-9]*)-([0-9]*)\z/) {
-		($code, $len) = prepare_range($env, $in, $h, $1, $2, $size);
-		if ($code == 416) {
-			push @$h, 'Content-Range', "bytes */$size";
-			return [ 416, $h, [] ];
-		}
-	}
-	push @$h, 'Content-Length', $len;
-	my $n = 65536;
-	[ $code, $h, Plack::Util::inline_object(close => sub { close $in },
-		getline => sub {
-			return if $len == 0;
-			$n = $len if $len < $n;
-			my $r = sysread($in, my $buf, $n);
-			if (!defined $r) {
-				err($env, "$f read error: $!");
-			} elsif ($r <= 0) {
-				err($env, "$f EOF with $len bytes left");
-			} else {
-				$len -= $r;
-				$n = 8192;
-				return $buf;
-			}
-			drop_client($env);
-			return;
-		})]
 }
 
 sub serve_dumb {
@@ -139,49 +95,14 @@ sub serve_dumb {
 	} else {
 		return r(404);
 	}
-
-	static_result($env, $h, "$git->{git_dir}/$path", $type);
+	$path = "$git->{git_dir}/$path";
+	PublicInbox::WwwStatic::response($env, $h, $path, $type) // r(404);
 }
 
-sub prepare_range {
-	my ($env, $in, $h, $beg, $end, $size) = @_;
-	my $code = 200;
-	my $len = $size;
-	if ($beg eq '') {
-		if ($end ne '') { # "bytes=-$end" => last N bytes
-			$beg = $size - $end;
-			$beg = 0 if $beg < 0;
-			$end = $size - 1;
-			$code = 206;
-		} else {
-			$code = 416;
-		}
-	} else {
-		if ($beg > $size) {
-			$code = 416;
-		} elsif ($end eq '' || $end >= $size) {
-			$end = $size - 1;
-			$code = 206;
-		} elsif ($end < $size) {
-			$code = 206;
-		} else {
-			$code = 416;
-		}
-	}
-	if ($code == 206) {
-		$len = $end - $beg + 1;
-		if ($len <= 0) {
-			$code = 416;
-		} else {
-			sysseek($in, $beg, SEEK_SET) or return [ 500, [], [] ];
-			push @$h, qw(Accept-Ranges bytes Content-Range);
-			push @$h, "bytes $beg-$end/$size";
-
-			# FIXME: Plack::Middleware::Deflater bug?
-			$env->{'psgix.no-compress'} = 1;
-		}
-	}
-	($code, $len);
+sub git_parse_hdr { # {parse_hdr} for Qspawn
+	my ($r, $bref, $dumb_args) = @_;
+	my $res = parse_cgi_headers($r, $bref) or return; # incomplete
+	$res->[0] == 403 ? serve_dumb(@$dumb_args) : $res;
 }
 
 # returns undef if 403 so it falls back to dumb HTTP
@@ -204,11 +125,7 @@ sub serve_smart {
 	$env{PATH_TRANSLATED} = "$git->{git_dir}/$path";
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new([qw(git http-backend)], \%env, $rdr);
-	$qsp->psgi_return($env, $limiter, sub { # parse_hdr
-		my ($r, $bref) = @_;
-		my $res = parse_cgi_headers($r, $bref) or return; # incomplete
-		$res->[0] == 403 ? serve_dumb($env, $git, $path) : $res;
-	});
+	$qsp->psgi_return($env, $limiter, \&git_parse_hdr, [$env, $git, $path]);
 }
 
 sub input_prepare {

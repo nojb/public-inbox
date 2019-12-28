@@ -63,12 +63,13 @@ sub new {
 	$self;
 }
 
-sub _fill_all ($) { each_inbox($_[0], sub {}) }
+sub noop {}
+sub fill_all ($) { each_inbox($_[0], \&noop) }
 
 sub _lookup_fill ($$$) {
 	my ($self, $cache, $key) = @_;
 	$self->{$cache}->{$key} // do {
-		_fill_all($self);
+		fill_all($self);
 		$self->{$cache}->{$key};
 	}
 }
@@ -89,12 +90,12 @@ sub lookup_name ($$) {
 }
 
 sub each_inbox {
-	my ($self, $cb) = @_;
+	my ($self, $cb, $arg) = @_;
 	# may auto-vivify if config file is non-existent:
 	foreach my $section (@{$self->{-section_order}}) {
 		next if $section !~ m!\Apublicinbox\.([^/]+)\z!;
 		my $ibx = lookup_name($self, $1) or next;
-		$cb->($ibx);
+		$cb->($ibx, $arg);
 	}
 }
 
@@ -417,7 +418,7 @@ sub _fill {
 	if ($ibx->{obfuscate}) {
 		$ibx->{-no_obfuscate} = $self->{-no_obfuscate};
 		$ibx->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
-		_fill_all($self); # noop to populate -no_obfuscate
+		fill_all($self); # noop to populate -no_obfuscate
 	}
 
 	if (my $ibx_code_repos = $ibx->{coderepo}) {

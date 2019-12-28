@@ -55,11 +55,16 @@ sub dbg ($$) {
 	print { $_[0]->{out} } $_[1], "\n" or ERR($_[0], "print(dbg): $!");
 }
 
+sub done ($$) {
+	my ($self, $res) = @_;
+	my $ucb = delete($self->{user_cb}) or return;
+	$ucb->($res, $self->{uarg});
+}
+
 sub ERR ($$) {
 	my ($self, $err) = @_;
 	print { $self->{out} } $err, "\n";
-	my $ucb = delete($self->{user_cb});
-	eval { $ucb->($err) } if $ucb;
+	eval { done($self, $err) };
 	die $err;
 }
 
@@ -93,8 +98,9 @@ sub solve_existing ($$) {
 	scalar(@ambiguous) ? \@ambiguous : undef;
 }
 
-sub extract_diff ($$$$$) {
-	my ($self, $p, $re, $ibx, $smsg) = @_;
+sub extract_diff ($$) {
+	my ($p, $arg) = @_;
+	my ($self, $diffs, $re, $ibx, $smsg) = @$arg;
 	my ($part) = @$p; # ignore $depth and @idx;
 	my $hdr_lines; # diff --git a/... b/...
 	my $tmp;
@@ -170,7 +176,7 @@ sub extract_diff ($$$$$) {
 	}
 	return undef unless $tmp;
 	close $tmp or die "close(tmp): $!";
-	$di;
+	push @$diffs, $di;
 }
 
 sub path_searchable ($) { defined($_[0]) && $_[0] =~ m!\A[\w/\. \-]+\z! }
@@ -209,16 +215,24 @@ sub find_extract_diffs ($$$) {
 
 	my $msgs = $srch->query($q, { relevance => 1 });
 	my $re = qr/\Aindex ($pre[a-f0-9]*)\.\.($post[a-f0-9]*)(?: ([0-9]+))?/;
-
-	my @di;
+	my $diffs = [];
 	foreach my $smsg (@$msgs) {
 		$ibx->smsg_mime($smsg) or next;
-		msg_iter(delete($smsg->{mime}), sub {
-			my $di = extract_diff($self, $_[0], $re, $ibx, $smsg);
-			push @di, $di if defined($di);
-		});
+		my $mime = delete $smsg->{mime};
+		msg_iter($mime, \&extract_diff,
+				[$self, $diffs, $re, $ibx, $smsg]);
 	}
-	@di ? \@di : undef;
+	@$diffs ? $diffs : undef;
+}
+
+sub update_index_result ($$) {
+	my ($bref, $self) = @_;
+	my ($qsp, $msg) = delete @$self{qw(-qsp -msg)};
+	if (my $err = $qsp->{err}) {
+		ERR($self, "git update-index error: $err");
+	}
+	dbg($self, $msg);
+	next_step($self); # onto do_git_apply
 }
 
 sub prepare_index ($) {
@@ -248,15 +262,10 @@ sub prepare_index ($) {
 	my $rdr = { 0 => fileno($in), -hold => $in };
 	my $cmd = [ qw(git update-index -z --index-info) ];
 	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
-	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
-		my ($bref) = @_;
-		if (my $err = $qsp->{err}) {
-			ERR($self, "git update-index error: $err");
-		}
-		dbg($self, "index prepared:\n" .
-			"$mode_a $oid_full\t" . git_quote($path_a));
-		next_step($self); # onto do_git_apply
-	});
+	$path_a = git_quote($path_a);
+	$self->{-qsp} = $qsp;
+	$self->{-msg} = "index prepared:\n$mode_a $oid_full\t$path_a";
+	$qsp->psgi_qx($self->{psgi_env}, undef, \&update_index_result, $self);
 }
 
 # pure Perl "git init"
@@ -307,27 +316,26 @@ sub extract_old_mode ($) {
 	'100644';
 }
 
-sub do_finish ($$) {
-	my ($self, $user_cb) = @_;
-	my $found = $self->{found};
-	my $oid_want = $self->{oid_want};
+sub do_finish ($) {
+	my ($self) = @_;
+	my ($found, $oid_want) = @$self{qw(found oid_want)};
 	if (my $exists = $found->{$oid_want}) {
-		return $user_cb->($exists);
+		return done($self, $exists);
 	}
 
 	# let git disambiguate if oid_want was too short,
 	# but long enough to be unambiguous:
 	my $tmp_git = $self->{tmp_git};
 	if (my @res = $tmp_git->check($oid_want)) {
-		return $user_cb->($found->{$res[0]});
+		return done($self, $found->{$res[0]});
 	}
 	if (my $err = $tmp_git->last_check_err) {
 		dbg($self, $err);
 	}
-	$user_cb->(undef);
+	done($self, undef);
 }
 
-sub do_step ($) {
+sub event_step ($) {
 	my ($self) = @_;
 	eval {
 		# step 1: resolve blobs to patches in the todo queue
@@ -348,8 +356,8 @@ sub do_step ($) {
 		# our result: (which may be undef)
 		# Other steps may call user_cb to terminate prematurely
 		# on error
-		} elsif (my $user_cb = delete($self->{user_cb})) {
-			do_finish($self, $user_cb);
+		} elsif (exists $self->{user_cb}) {
+			do_finish($self);
 		} else {
 			die 'about to call user_cb twice'; # Oops :x
 		}
@@ -358,23 +366,17 @@ sub do_step ($) {
 	if ($err) {
 		$err =~ s/^\s*Exception:\s*//; # bad word to show users :P
 		dbg($self, "E: $err");
-		my $ucb = delete($self->{user_cb});
-		eval { $ucb->($err) } if $ucb;
+		eval { done($self, $err) };
 	}
-}
-
-sub step_cb ($) {
-	my ($self) = @_;
-	sub { do_step($self) };
 }
 
 sub next_step ($) {
 	my ($self) = @_;
 	# if outside of public-inbox-httpd, caller is expected to be
-	# looping step_cb, anyways
+	# looping event_step, anyways
 	my $async = $self->{psgi_env}->{'pi-httpd.async'} or return;
 	# PublicInbox::HTTPD::Async->new
-	$async->(undef, step_cb($self));
+	$async->(undef, undef, $self);
 }
 
 sub mark_found ($$$) {
@@ -388,8 +390,9 @@ sub mark_found ($$$) {
 	}
 }
 
-sub parse_ls_files ($$$$) {
-	my ($self, $qsp, $bref, $di) = @_;
+sub parse_ls_files ($$) {
+	my ($self, $bref) = @_;
+	my ($qsp, $di) = delete @$self{qw(-qsp -cur_di)};
 	if (my $err = $qsp->{err}) {
 		die "git ls-files error: $err";
 	}
@@ -415,15 +418,10 @@ sub parse_ls_files ($$$$) {
 	next_step($self); # onto the next patch
 }
 
-sub start_ls_files ($$) {
-	my ($self, $di) = @_;
-	my $cmd = [qw(git ls-files -s -z)];
-	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env});
-	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
-		my ($bref) = @_;
-		eval { parse_ls_files($self, $qsp, $bref, $di) };
-		ERR($self, $@) if $@;
-	});
+sub ls_files_result {
+	my ($bref, $self) = @_;
+	eval { parse_ls_files($self, $bref) };
+	ERR($self, $@) if $@;
 }
 
 sub oids_same_ish ($$) {
@@ -441,6 +439,31 @@ sub skip_identical ($$$) {
 			return;
 		}
 	}
+}
+
+sub apply_result ($$) {
+	my ($bref, $self) = @_;
+	my ($qsp, $di) = delete @$self{qw(-qsp -cur_di)};
+	dbg($self, $$bref);
+	my $patches = $self->{patches};
+	if (my $err = $qsp->{err}) {
+		my $msg = "git apply error: $err";
+		my $nxt = $patches->[0];
+		if ($nxt && oids_same_ish($nxt->{oid_b}, $di->{oid_b})) {
+			dbg($self, $msg);
+			dbg($self, 'trying '.di_url($self, $nxt));
+		} else {
+			ERR($self, $msg);
+		}
+	} else {
+		skip_identical($self, $patches, $di->{oid_b});
+	}
+
+	my @cmd = qw(git ls-files -s -z);
+	$qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env});
+	$self->{-cur_di} = $di;
+	$self->{-qsp} = $qsp;
+	$qsp->psgi_qx($self->{psgi_env}, undef, \&ls_files_result, $self);
 }
 
 sub do_git_apply ($) {
@@ -470,24 +493,9 @@ sub do_git_apply ($) {
 
 	my $rdr = { 2 => 1 };
 	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $rdr);
-	$qsp->psgi_qx($self->{psgi_env}, undef, sub {
-		my ($bref) = @_;
-		dbg($self, $$bref);
-		if (my $err = $qsp->{err}) {
-			my $msg = "git apply error: $err";
-			my $nxt = $patches->[0];
-			if ($nxt && oids_same_ish($nxt->{oid_b}, $prv_oid_b)) {
-				dbg($self, $msg);
-				dbg($self, 'trying '.di_url($self, $nxt));
-			} else {
-				ERR($self, $msg);
-			}
-		} else {
-			skip_identical($self, $patches, $di->{oid_b});
-		}
-		eval { start_ls_files($self, $di) };
-		ERR($self, $@) if $@;
-	});
+	$self->{-cur_di} = $di;
+	$self->{-qsp} = $qsp;
+	$qsp->psgi_qx($self->{psgi_env}, undef, \&apply_result, $self);
 }
 
 sub di_url ($$) {
@@ -519,7 +527,7 @@ sub resolve_patch ($$) {
 			join("\n", $found_git->pub_urls($self->{psgi_env})));
 
 		if ($cur_want eq $self->{oid_want} || $type ne 'blob') {
-			eval { delete($self->{user_cb})->($existing) };
+			eval { done($self, $existing) };
 			die "E: $@" if $@;
 			return;
 		}
@@ -557,18 +565,20 @@ sub resolve_patch ($$) {
 	}
 
 	dbg($self, "could not find $cur_want");
-	eval { delete($self->{user_cb})->(undef) }; # not found! :<
+	eval { done($self, undef) };
 	die "E: $@" if $@;
 }
 
 # this API is designed to avoid creating self-referential structures;
 # so user_cb never references the SolverGit object
 sub new {
-	my ($class, $ibx, $user_cb) = @_;
+	my ($class, $ibx, $user_cb, $uarg) = @_;
 
 	bless {
 		gits => $ibx->{-repo_objs},
 		user_cb => $user_cb,
+		uarg => $uarg,
+		# -cur_di, -qsp, -msg => temporary fields for Qspawn callbacks
 
 		# TODO: config option for searching related inboxes
 		inboxes => [ $ibx ],
@@ -585,7 +595,7 @@ sub solve ($$$$$) {
 
 	# should we even get here? Probably not, but somebody
 	# could be manually typing URLs:
-	return (delete $self->{user_cb})->(undef) if $oid_want =~ /\A0+\z/;
+	return done($self, undef) if $oid_want =~ /\A0+\z/;
 
 	$self->{oid_want} = $oid_want;
 	$self->{out} = $out;
@@ -598,12 +608,11 @@ sub solve ($$$$$) {
 	$self->{tmp} = File::Temp->newdir("solver.$oid_want-XXXXXXXX", TMPDIR => 1);
 
 	dbg($self, "solving $oid_want ...");
-	my $step_cb = step_cb($self);
 	if (my $async = $env->{'pi-httpd.async'}) {
 		# PublicInbox::HTTPD::Async->new
-		$async->(undef, $step_cb);
+		$async->(undef, undef, $self);
 	} else {
-		$step_cb->() while $self->{user_cb};
+		event_step($self) while $self->{user_cb};
 	}
 }
 

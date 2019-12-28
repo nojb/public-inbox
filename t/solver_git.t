@@ -157,12 +157,16 @@ EOF
 	close $cfgfh or die;
 	my $cfg = PublicInbox::Config->new($cfgpath);
 	my $www = PublicInbox::WWW->new($cfg);
+	my $non_existent = 'ee5e32211bf62ab6531bdf39b84b6920d0b6775a';
 	my $client = sub {
 		my ($cb) = @_;
 		my $res = $cb->(GET("/$name/3435775/s/"));
 		is($res->code, 200, 'success with existing blob');
 
 		$res = $cb->(GET("/$name/".('0'x40).'/s/'));
+		is($res->code, 404, 'failure with null OID');
+
+		$res = $cb->(GET("/$name/$non_existent/s/"));
 		is($res->code, 404, 'failure with null OID');
 
 		$res = $cb->(GET("/$name/$v1_0_0_tag/s/"));

@@ -10,32 +10,26 @@ use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::SearchMsg; # this loads w/o Search::Xapian
 
+sub generate_i {
+	my ($ctx) = @_;
+	while (my $smsg = shift @{$ctx->{msgs}}) {
+		$ctx->{-inbox}->smsg_mime($smsg) and return $smsg;
+	}
+}
+
 # main function
 sub generate {
 	my ($ctx) = @_;
-	my $msgs = recent_msgs($ctx);
+	my $msgs = $ctx->{msgs} = recent_msgs($ctx);
 	return _no_thread() unless @$msgs;
-
-	my $ibx = $ctx->{-inbox};
-	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
-		while (my $smsg = shift @$msgs) {
-			$ibx->smsg_mime($smsg) and return $smsg;
-		}
-	});
+	PublicInbox::WwwAtomStream->response($ctx, 200, \&generate_i);
 }
 
 sub generate_thread_atom {
 	my ($ctx) = @_;
-	my $mid = $ctx->{mid};
-	my $ibx = $ctx->{-inbox};
-	my $msgs = $ibx->over->get_thread($mid);
+	my $msgs = $ctx->{msgs} = $ctx->{-inbox}->over->get_thread($ctx->{mid});
 	return _no_thread() unless @$msgs;
-
-	PublicInbox::WwwAtomStream->response($ctx, 200, sub {
-		while (my $smsg = shift @$msgs) {
-			$ibx->smsg_mime($smsg) and return $smsg;
-		}
-	});
+	PublicInbox::WwwAtomStream->response($ctx, 200, \&generate_i);
 }
 
 sub generate_html_index {
@@ -56,9 +50,20 @@ sub generate_html_index {
 		[ "Redirecting to $url\n" ] ];
 }
 
+sub new_html_i {
+	my ($nr, $ctx) = @_;
+	my $msgs = $ctx->{msgs};
+	while (my $smsg = shift @$msgs) {
+		my $m = $ctx->{-inbox}->smsg_mime($smsg) or next;
+		my $more = scalar @$msgs;
+		return PublicInbox::View::index_entry($m, $ctx, $more);
+	}
+	PublicInbox::View::pagination_footer($ctx, './new.html');
+}
+
 sub new_html {
 	my ($ctx) = @_;
-	my $msgs = recent_msgs($ctx);
+	my $msgs = $ctx->{msgs} = recent_msgs($ctx);
 	if (!@$msgs) {
 		return [404, ['Content-Type', 'text/plain'],
 			["No messages, yet\n"] ];
@@ -66,15 +71,7 @@ sub new_html {
 	$ctx->{-html_tip} = '<pre>';
 	$ctx->{-upfx} = '';
 	$ctx->{-hr} = 1;
-	my $ibx = $ctx->{-inbox};
-	PublicInbox::WwwStream->response($ctx, 200, sub {
-		while (my $smsg = shift @$msgs) {
-			my $m = $ibx->smsg_mime($smsg) or next;
-			my $more = scalar @$msgs;
-			return PublicInbox::View::index_entry($m, $ctx, $more);
-		}
-		PublicInbox::View::pagination_footer($ctx, './new.html');
-	});
+	PublicInbox::WwwStream->response($ctx, 200, \&new_html_i);
 }
 
 # private subs

@@ -23,9 +23,9 @@ my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 	my $x = PublicInbox::Qspawn->new([qw(true)]);
 	my $run = 0;
 	$x->start($limiter, sub {
-		my ($rpipe) = @_;
-		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes');
-		ok(!finish_err($x), 'no error on finish');
+		my ($self) = @_;
+		is(0, sysread($self->{rpipe}, my $buf, 1), 'read zero bytes');
+		ok(!finish_err($self), 'no error on finish');
 		$run = 1;
 	});
 	is($run, 1, 'callback ran alright');
@@ -35,9 +35,10 @@ my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 	my $x = PublicInbox::Qspawn->new([qw(false)]);
 	my $run = 0;
 	$x->start($limiter, sub {
-		my ($rpipe) = @_;
-		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes from false');
-		ok(finish_err($x), 'error on finish');
+		my ($self) = @_;
+		is(0, sysread($self->{rpipe}, my $buf, 1),
+				'read zero bytes from false');
+		ok(finish_err($self), 'error on finish');
 		$run = 1;
 	});
 	is($run, 1, 'callback ran alright');
@@ -47,16 +48,16 @@ foreach my $cmd ([qw(sleep 1)], [qw(sh -c), 'sleep 1; false']) {
 	my $s = PublicInbox::Qspawn->new($cmd);
 	my @run;
 	$s->start($limiter, sub {
-		my ($rpipe) = @_;
+		my ($self) = @_;
 		push @run, 'sleep';
-		is(0, sysread($rpipe, my $buf, 1), 'read zero bytes');
+		is(0, sysread($self->{rpipe}, my $buf, 1), 'read zero bytes');
 	});
 	my $n = 0;
 	my @t = map {
 		my $i = $n++;
 		my $x = PublicInbox::Qspawn->new([qw(true)]);
 		$x->start($limiter, sub {
-			my ($rpipe) = @_;
+			my ($self) = @_;
 			push @run, $i;
 		});
 		[$x, $i]

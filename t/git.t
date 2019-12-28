@@ -33,6 +33,27 @@ use_ok 'PublicInbox::Git';
 
 	is(${$gcf->cat_file($f)}, $$raw, 'not broken after failures');
 	is(${$gcf->cat_file($f)}, $$raw, 'not broken after partial read');
+
+	my $oid = $x[0];
+	my $arg = { 'foo' => 'bar' };
+	my $res = [];
+	my $missing = [];
+	$gcf->cat_async_begin;
+	$gcf->cat_async($oid, sub {
+		my ($bref, $oid_hex, $type, $size, $arg) = @_;
+		$res = [ @_ ];
+	}, $arg);
+	$gcf->cat_async('non-existent', sub {
+		my ($bref, $oid_hex, $type, $size, $arg) = @_;
+		$missing = [ @_ ];
+	}, $arg);
+	$gcf->cat_async_wait;
+	my ($bref, $oid_hex, $type, $size, $arg_res) = @$res;
+	is_deeply([$oid_hex, $type, $size], \@x, 'got expected header');
+	is($arg_res, $arg, 'arg passed to cat_async');
+	is_deeply($raw, $bref, 'blob result matches');
+	is_deeply($missing, [ undef, undef, undef, undef, $arg],
+		'non-existent blob gives expected result');
 }
 
 if (1) {

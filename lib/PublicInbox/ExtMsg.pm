@@ -29,6 +29,10 @@ our @EXT_URL = map { ascii_html($_) } (
 
 sub PARTIAL_MAX () { 100 }
 
+sub mids_from_mset { # Search::retry_reopen callback
+	[ map { PublicInbox::SearchMsg::from_mitem($_)->mid } $_[0]->items ];
+}
+
 sub search_partial ($$) {
 	my ($srch, $mid) = @_;
 	return if length($mid) < $MIN_PARTIAL_LEN;
@@ -65,12 +69,28 @@ sub search_partial ($$) {
 		# Search::Xapian::QueryParserError or even:
 		# "something terrible happened at ../Search/Xapian/Enquire.pm"
 		my $mset = eval { $srch->query($m, $opt) } or next;
+		my $mids = $srch->retry_reopen(\&mids_from_mset, $mset);
+		return $mids if scalar(@$mids);
+	}
+}
 
-		my @mids = map {
-			my $doc = $_->get_document;
-			PublicInbox::SearchMsg->load_doc($doc)->mid;
-		} $mset->items;
-		return \@mids if scalar(@mids);
+sub ext_msg_i {
+	my ($other, $arg) = @_;
+	my ($cur, $mid, $ibxs, $found) = @$arg;
+
+	return if $other->{name} eq $cur->{name} || !$other->base_url;
+
+	my $mm = $other->mm or return;
+
+	# try to find the URL with Msgmap to avoid forking
+	my $num = $mm->num_for($mid);
+	if (defined $num) {
+		push @$found, $other;
+	} else {
+		# no point in trying the fork fallback if we
+		# know Xapian is up-to-date but missing the
+		# message in the current repo
+		push @$ibxs, $other;
 	}
 }
 
@@ -80,27 +100,13 @@ sub ext_msg {
 	my $mid = $ctx->{mid};
 
 	eval { require PublicInbox::Msgmap };
-	my (@ibx, @found);
+	my $ibxs = [];
+	my $found = [];
+	my $arg = [ $cur, $mid, $ibxs, $found ];
 
-	$ctx->{www}->{pi_config}->each_inbox(sub {
-		my ($other) = @_;
-		return if $other->{name} eq $cur->{name} || !$other->base_url;
+	$ctx->{www}->{pi_config}->each_inbox(\&ext_msg_i, $arg);
 
-		my $mm = $other->mm or return;
-
-		# try to find the URL with Msgmap to avoid forking
-		my $num = $mm->num_for($mid);
-		if (defined $num) {
-			push @found, $other;
-		} else {
-			# no point in trying the fork fallback if we
-			# know Xapian is up-to-date but missing the
-			# message in the current repo
-			push @ibx, $other;
-		}
-	});
-
-	return exact($ctx, \@found, $mid) if @found;
+	return exact($ctx, $found, $mid) if @$found;
 
 	# fall back to partial MID matching
 	my @partial;
@@ -114,7 +120,7 @@ sub ext_msg {
 
 	# can't find a partial match in current inbox, try the others:
 	if (!$n_partial && length($mid) >= $MIN_PARTIAL_LEN) {
-		foreach my $ibx (@ibx) {
+		foreach my $ibx (@$ibxs) {
 			$srch = $ibx->search or next;
 			$mids = search_partial($srch, $mid) or next;
 			$n_partial += scalar(@$mids);

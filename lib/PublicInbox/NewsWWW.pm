@@ -24,16 +24,19 @@ sub redirect ($$) {
 	  [ "Redirecting to $url\n" ] ]
 }
 
-sub try_inbox ($$) {
-	my ($ibx, $mid) = @_;
+sub try_inbox {
+	my ($ibx, $arg) = @_;
+	return if scalar(@$arg) > 1;
+
 	# do not pass $env since HTTP_HOST may differ
 	my $url = $ibx->base_url or return;
 
+	my ($mid) = @$arg;
 	eval { $ibx->mm->num_for($mid) } or return;
 
 	# 302 since the same message may show up on
 	# multiple inboxes and inboxes can be added/reordered
-	redirect(302, $url .= mid_escape($mid) . '/');
+	$arg->[1] = redirect(302, $url .= mid_escape($mid) . '/');
 }
 
 sub call {
@@ -70,10 +73,9 @@ sub call {
 	}
 
 	foreach my $mid (@try) {
-		$pi_config->each_inbox(sub {
-			$res ||= try_inbox($_[0], $mid);
-		});
-		last if defined $res;
+		my $arg = [ $mid ];
+		$pi_config->each_inbox(\&try_inbox, $arg);
+		defined($res = $arg->[1]) and last;
 	}
 	$res || [ 404, [qw(Content-Type text/plain)], ["404 Not Found\n"] ];
 }

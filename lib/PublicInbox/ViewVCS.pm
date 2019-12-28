@@ -31,46 +31,69 @@ my %QP_MAP = ( A => 'oid_a', B => 'oid_b', a => 'path_a', b => 'path_b' );
 our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
 
+sub html_i { # WwwStream::getline callback
+	my ($nr, $ctx) =  @_;
+	$nr == 1 ? ${delete $ctx->{rv}} : undef;
+}
+
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
 	my $wcb = delete $ctx->{-wcb};
 	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
-	my $res = PublicInbox::WwwStream->response($ctx, $code, sub {
-		my ($nr, undef) =  @_;
-		$nr == 1 ? $$strref : undef;
-	});
+	$ctx->{rv} = $strref;
+	my $res = PublicInbox::WwwStream->response($ctx, $code, \&html_i);
 	$wcb ? $wcb->($res) : $res;
+}
+
+sub stream_blob_parse_hdr { # {parse_hdr} for Qspawn
+	my ($r, $bref, $ctx) = @_;
+	my ($res, $logref) = delete @$ctx{qw(-res -logref)};
+	my ($git, $oid, $type, $size, $di) = @$res;
+	my @cl = ('Content-Length', $size);
+	if (!defined $r) { # error
+		html_page($ctx, 500, $logref);
+	} elsif (index($$bref, "\0") >= 0) {
+		[200, [qw(Content-Type application/octet-stream), @cl] ];
+	} else {
+		my $n = bytes::length($$bref);
+		if ($n >= $BIN_DETECT || $n == $size) {
+			return [200, [ 'Content-Type',
+				'text/plain; charset=UTF-8', @cl ] ];
+		}
+		if ($r == 0) {
+			warn "premature EOF on $oid $$logref\n";
+			return html_page($ctx, 500, $logref);
+		}
+		undef; # bref keeps growing
+	}
 }
 
 sub stream_large_blob ($$$$) {
 	my ($ctx, $res, $logref, $fn) = @_;
+	$ctx->{-logref} = $logref;
+	$ctx->{-res} = $res;
 	my ($git, $oid, $type, $size, $di) = @$res;
 	my $cmd = ['git', "--git-dir=$git->{git_dir}", 'cat-file', $type, $oid];
 	my $qsp = PublicInbox::Qspawn->new($cmd);
-	my @cl = ('Content-Length', $size);
 	my $env = $ctx->{env};
-	$env->{'public-inbox.tmpgit'} = $git; # for {-tmp}/File::Temp::Dir
 	$env->{'qspawn.wcb'} = delete $ctx->{-wcb};
-	$qsp->psgi_return($env, undef, sub {
-		my ($r, $bref) = @_;
-		if (!defined $r) { # error
-			html_page($ctx, 500, $logref);
-		} elsif (index($$bref, "\0") >= 0) {
-			my $ct = 'application/octet-stream';
-			[200, ['Content-Type', $ct, @cl ] ];
-		} else {
-			my $n = bytes::length($$bref);
-			if ($n >= $BIN_DETECT || $n == $size) {
-				my $ct = 'text/plain; charset=UTF-8';
-				return [200, ['Content-Type', $ct, @cl] ];
-			}
-			if ($r == 0) {
-				warn "premature EOF on $oid $$logref\n";
-				return html_page($ctx, 500, $logref);
-			}
-			undef; # bref keeps growing
-		}
-	});
+	$qsp->psgi_return($env, undef, \&stream_blob_parse_hdr, $ctx);
+}
+
+sub show_other_result ($$) {
+	my ($bref, $ctx) = @_;
+	my ($qsp, $logref) = delete @$ctx{qw(-qsp -logref)};
+	if (my $err = $qsp->{err}) {
+		utf8::decode($$err);
+		$$logref .= "git show error: $err";
+		return html_page($ctx, 500, $logref);
+	}
+	my $l = PublicInbox::Linkify->new;
+	utf8::decode($$bref);
+	$l->linkify_1($$bref);
+	$$bref = '<pre>'. $l->linkify_2(ascii_html($$bref));
+	$$bref .= '</pre><hr>' . $$logref;
+	html_page($ctx, 200, $bref);
 }
 
 sub show_other ($$$$) {
@@ -84,24 +107,15 @@ sub show_other ($$$$) {
 		qw(show --encoding=UTF-8 --no-color --no-abbrev), $oid ];
 	my $qsp = PublicInbox::Qspawn->new($cmd);
 	my $env = $ctx->{env};
-	$qsp->psgi_qx($env, undef, sub {
-		my ($bref) = @_;
-		if (my $err = $qsp->{err}) {
-			utf8::decode($$err);
-			$$logref .= "git show error: $err";
-			return html_page($ctx, 500, $logref);
-		}
-		my $l = PublicInbox::Linkify->new;
-		utf8::decode($$bref);
-		$l->linkify_1($$bref);
-		$$bref = '<pre>'. $l->linkify_2(ascii_html($$bref));
-		$$bref .= '</pre><hr>' . $$logref;
-		html_page($ctx, 200, $bref);
-	});
+	$ctx->{-qsp} = $qsp;
+	$ctx->{-logref} = $logref;
+	$qsp->psgi_qx($env, undef, \&show_other_result, $ctx);
 }
 
+# user_cb for SolverGit, called as: user_cb->($result_or_error, $uarg)
 sub solve_result {
-	my ($ctx, $res, $log, $hints, $fn) = @_;
+	my ($res, $ctx) = @_;
+	my ($log, $hints, $fn) = delete @$ctx{qw(log hints fn)};
 
 	unless (seek($log, 0, 0)) {
 		$ctx->{env}->{'psgi.errors'}->print("seek(log): $!\n");
@@ -180,21 +194,20 @@ sub solve_result {
 sub show ($$;$) {
 	my ($ctx, $oid_b, $fn) = @_;
 	my $qp = $ctx->{qp};
-	my $hints = {};
+	my $hints = $ctx->{hints} = {};
 	while (my ($from, $to) = each %QP_MAP) {
 		defined(my $v = $qp->{$from}) or next;
 		$hints->{$to} = $v;
 	}
 
-	my $log = tmpfile("solve.$oid_b");
-	my $solver = PublicInbox::SolverGit->new($ctx->{-inbox}, sub {
-		solve_result($ctx, $_[0], $log, $hints, $fn);
-	});
-
-	# PSGI server will call this and give us a callback
+	$ctx->{'log'} = tmpfile("solve.$oid_b");
+	$ctx->{fn} = $fn;
+	my $solver = PublicInbox::SolverGit->new($ctx->{-inbox},
+						\&solve_result, $ctx);
+	# PSGI server will call this immediately and give us a callback (-wcb)
 	sub {
 		$ctx->{-wcb} = $_[0]; # HTTP write callback
-		$solver->solve($ctx->{env}, $log, $oid_b, $hints);
+		$solver->solve($ctx->{env}, $ctx->{log}, $oid_b, $hints);
 	};
 }
 
