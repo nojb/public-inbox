@@ -574,15 +574,18 @@ use constant MSG_MORE => ($^O eq 'linux') ? 0x8000 : 0;
 sub msg_more ($$) {
     my $self = $_[0];
     my $sock = $self->{sock} or return 1;
+    my $wbuf = $self->{wbuf};
 
-    if (MSG_MORE && !$self->{wbuf} && ref($sock) ne 'IO::Socket::SSL') {
+    if (MSG_MORE && (!defined($wbuf) || !scalar(@$wbuf)) &&
+		ref($sock) ne 'IO::Socket::SSL') {
         my $n = send($sock, $_[1], MSG_MORE);
         if (defined $n) {
             my $nlen = bytes::length($_[1]) - $n;
             return 1 if $nlen == 0; # all done!
             # queue up the unwritten substring:
             my $tmpio = tmpio($self, \($_[1]), $n) or return 0;
-            $self->{wbuf} = [ $tmpio ];
+            $self->{wbuf} //= $wbuf //= [];
+            push @$wbuf, $tmpio;
             epwait($sock, EPOLLOUT|EPOLLONESHOT);
             return 0;
         }
