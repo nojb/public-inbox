@@ -49,7 +49,7 @@ sub load_xapian () {
 		# or make indexlevel=medium as default
 		$QP_FLAGS = FLAG_PHRASE() | FLAG_BOOLEAN() | FLAG_LOVEHATE() |
 				FLAG_WILDCARD();
-		last;
+		return 1;
 	}
 	undef;
 }
