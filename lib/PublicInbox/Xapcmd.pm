@@ -286,7 +286,7 @@ sub compact ($$) {
 		defined(my $dfd = $opt->{$fd}) or next;
 		$rdr->{$fd} = $dfd;
 	}
-	$rdr->{1} = fileno($w) if $pr && pipe($r, $w);
+	$rdr->{1} = $w if $pr && pipe($r, $w);
 
 	# we rely on --no-renumber to keep docids synched to NNTP
 	my $cmd = [ $XAPIAN_COMPACT, '--no-renumber' ];

@@ -44,7 +44,7 @@ if ($v2) {
 	$in->flush or die "flush failed: $!";
 	$in->seek(0, SEEK_SET);
 	my $out = tempfile();
-	my $pid = spawn(\@cmd, {}, { 0 => fileno($in), 1 => fileno($out)});
+	my $pid = spawn(\@cmd, {}, { 0 => $in, 1 => $out });
 	is(waitpid($pid, 0), $pid, 'waitpid succeeds on hash-object');
 	is($?, 0, 'hash-object');
 	$out->seek(0, SEEK_SET);

@@ -9,8 +9,8 @@ use warnings;
 use POSIX qw(dup2 :signal_h);
 
 # Pure Perl implementation for folks that do not use Inline::C
-sub pi_fork_exec ($$$$$$) {
-	my ($in, $out, $err, $f, $cmd, $env, $rlim) = @_;
+sub pi_fork_exec ($$$$$) {
+	my ($redir, $f, $cmd, $env, $rlim) = @_;
 	my $old = POSIX::SigSet->new();
 	my $set = POSIX::SigSet->new();
 	$set->fillset or die "fillset failed: $!";
@@ -27,16 +27,12 @@ sub pi_fork_exec ($$$$$$) {
 			BSD::Resource::setrlimit($r, $soft, $hard) or
 			  warn "failed to set $r=[$soft,$hard]\n";
 		}
-		if ($in != 0) {
-			dup2($in, 0) or die "dup2 failed for stdin: $!";
+		for my $child_fd (0..$#$redir) {
+			my $parent_fd = $redir->[$child_fd];
+			next if $parent_fd == $child_fd;
+			dup2($parent_fd, $child_fd) or
+				die "dup2($parent_fd, $child_fd): $!\n";
 		}
-		if ($out != 1) {
-			dup2($out, 1) or die "dup2 failed for stdout: $!";
-		}
-		if ($err != 2) {
-			dup2($err, 2) or die "dup2 failed for stderr: $!";
-		}
-
 		if ($ENV{MOD_PERL}) {
 			exec which('env'), '-i', @$env, @$cmd;
 			die "exec env -i ... $cmd->[0] failed: $!\n";

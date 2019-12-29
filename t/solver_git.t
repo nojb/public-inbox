@@ -127,7 +127,7 @@ SKIP: {
 	while (my ($label, $size) = each %bin) {
 		pipe(my ($rout, $wout)) or die;
 		pipe(my ($rin, $win)) or die;
-		my $rdr = { 0 => fileno($rin), 1 => fileno($wout) };
+		my $rdr = { 0 => $rin, 1 => $wout };
 		my $pid = spawn($cmd , $env, $rdr);
 		$wout = $rin = undef;
 		print { $win } ("\0" x $size) or die;

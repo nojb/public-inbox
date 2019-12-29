@@ -473,7 +473,7 @@ sub git_hash_raw ($$) {
 
 	my ($r, $w);
 	pipe($r, $w) or die "failed to create pipe: $!";
-	my $rdr = { 0 => fileno($tmp_fh), 1 => fileno($w) };
+	my $rdr = { 0 => $tmp_fh, 1 => $w };
 	my $git_dir = $self->{-inbox}->git->{git_dir};
 	my $cmd = ['git', "--git-dir=$git_dir", qw(hash-object --stdin)];
 	my $pid = spawn($cmd, undef, $rdr);

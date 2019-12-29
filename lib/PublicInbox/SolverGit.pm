@@ -259,7 +259,7 @@ sub prepare_index ($) {
 	sysseek($in, 0, 0) or die "seek: $!";
 
 	dbg($self, 'preparing index');
-	my $rdr = { 0 => fileno($in), -hold => $in };
+	my $rdr = { 0 => $in };
 	my $cmd = [ qw(git update-index -z --index-info) ];
 	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
 	$path_a = git_quote($path_a);

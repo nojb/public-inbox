@@ -79,20 +79,14 @@ static void xerr(const char *msg)
 	_exit(1);
 }
 
-#define REDIR(var,fd) do { \
-	if (var != fd && dup2(var, fd) < 0) \
-		xerr("error redirecting std"#var ": "); \
-} while (0)
-
 /*
- * unstable internal API.  This was easy to implement but does not
- * support arbitrary redirects.  It'll be updated depending on
+ * unstable internal API.  It'll be updated depending on
  * whatever we'll need in the future.
  * Be sure to update PublicInbox::SpawnPP if this changes
  */
-int pi_fork_exec(int in, int out, int err,
-			SV *file, SV *cmdref, SV *envref, SV *rlimref)
+int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref)
 {
+	AV *redir = (AV *)SvRV(redirref);
 	AV *cmd = (AV *)SvRV(cmdref);
 	AV *env = (AV *)SvRV(envref);
 	AV *rlim = (AV *)SvRV(rlimref);
@@ -112,11 +106,16 @@ int pi_fork_exec(int in, int out, int err,
 	pid = vfork();
 	if (pid == 0) {
 		int sig;
-		I32 i, max;
+		I32 i, child_fd, max = av_len(redir);
 
-		REDIR(in, 0);
-		REDIR(out, 1);
-		REDIR(err, 2);
+		for (child_fd = 0; child_fd <= max; child_fd++) {
+			SV **parent = av_fetch(redir, child_fd, 0);
+			int parent_fd = SvIV(*parent);
+			if (parent_fd == child_fd)
+				continue;
+			if (dup2(parent_fd, child_fd) < 0)
+				xerr("dup2");
+		}
 		for (sig = 1; sig < NSIG; sig++)
 			signal(sig, SIG_DFL); /* ignore errors on signals */
 
@@ -196,9 +195,16 @@ sub spawn ($;$$) {
 	while (my ($k, $v) = each %env) {
 		push @env, "$k=$v";
 	}
-	my $in = $opts->{0} || 0;
-	my $out = $opts->{1} || 1;
-	my $err = $opts->{2} || 2;
+	my $redir = [];
+	for my $child_fd (0..2) {
+		my $parent_fd = $opts->{$child_fd};
+		if (defined($parent_fd) && $parent_fd !~ /\A[0-9]+\z/) {
+			defined(my $fd = fileno($parent_fd)) or
+					die "$parent_fd not an IO GLOB? $!";
+			$parent_fd = $fd;
+		}
+		$redir->[$child_fd] = $parent_fd // $child_fd;
+	}
 	my $rlim = [];
 
 	foreach my $l (RLIMITS()) {
@@ -210,7 +216,7 @@ sub spawn ($;$$) {
 		}
 		push @$rlim, $r, @$v;
 	}
-	my $pid = pi_fork_exec($in, $out, $err, $f, $cmd, \@env, $rlim);
+	my $pid = pi_fork_exec($redir, $f, $cmd, \@env, $rlim);
 	$pid < 0 ? undef : $pid;
 }
 

@@ -31,7 +31,7 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	my ($r, $w);
 	pipe $r, $w or die "pipe failed: $!";
 	my $pid = spawn(['sh', '-c', 'echo $HELLO'],
-		{ 'HELLO' => 'world' }, { 1 => fileno($w) });
+		{ 'HELLO' => 'world' }, { 1 => $w });
 	close $w or die "close pipe[1] failed: $!";
 	is(<$r>, "world\n", 'read stdout of spawned from pipe');
 	is(waitpid($pid, 0), $pid, 'waitpid succeeds on spawned process');

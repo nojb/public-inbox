@@ -10,6 +10,11 @@ use_ok 'PublicInbox::Qspawn';
 	my $res;
 	$qsp->psgi_qx({}, undef, sub { $res = ${$_[0]} });
 	is($res, "err\nout\n", 'captured stderr and stdout');
+
+	$res = undef;
+	$qsp = PublicInbox::Qspawn->new($cmd, {}, { 2 => \*STDOUT });
+	$qsp->psgi_qx({}, undef, sub { $res = ${$_[0]} });
+	is($res, "err\nout\n", 'captured stderr and stdout');
 }
 
 sub finish_err ($) {

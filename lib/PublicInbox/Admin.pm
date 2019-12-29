@@ -241,8 +241,7 @@ sub progress_prepare ($) {
 	if ($opt->{quiet}) {
 		open my $null, '>', '/dev/null' or
 			die "failed to open /dev/null: $!\n";
-		$opt->{1} = fileno($null); # suitable for spawn() redirect
-		$opt->{-dev_null} = $null;
+		$opt->{1} = $null; # suitable for spawn() redirect
 	} else {
 		$opt->{verbose} ||= 1;
 		$opt->{-progress} = sub { print STDERR @_ };

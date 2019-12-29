@@ -194,7 +194,7 @@ sub run_script ($;$$) {
 		next unless ref($redir);
 		open my $fh, '+>', undef or die "open: $!";
 		$fhref->[$fd] = $fh;
-		$spawn_opt->{$fd} = fileno($fh);
+		$spawn_opt->{$fd} = $fh;
 		next if $fd > 0;
 		$fh->autoflush(1);
 		print $fh $$redir or die "print: $!";

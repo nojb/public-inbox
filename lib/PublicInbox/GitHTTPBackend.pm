@@ -164,7 +164,7 @@ sub input_prepare {
 		err($env, "error seeking temporary file: $!");
 		return;
 	}
-	{ 0 => fileno($in), -hold => $in };
+	{ 0 => $in };
 }
 
 sub parse_cgi_headers {

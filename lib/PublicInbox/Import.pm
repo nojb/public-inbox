@@ -66,7 +66,7 @@ sub gfi_start {
 	my $git_dir = $git->{git_dir};
 	my @cmd = ('git', "--git-dir=$git_dir", qw(fast-import
 			--quiet --done --date-format=raw));
-	my $rdr = { 0 => fileno($out_r), 1 => fileno($in_w) };
+	my $rdr = { 0 => $out_r, 1 => $in_w };
 	my $pid = spawn(\@cmd, undef, $rdr);
 	die "spawn fast-import failed: $!" unless defined $pid;
 	$out_w->autoflush(1);

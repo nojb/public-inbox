@@ -114,12 +114,12 @@ sub _bidi_pipe {
 
 	my @cmd = (qw(git), "--git-dir=$self->{git_dir}",
 			qw(-c core.abbrev=40 cat-file), $batch);
-	my $redir = { 0 => fileno($out_r), 1 => fileno($in_w) };
+	my $redir = { 0 => $out_r, 1 => $in_w };
 	if ($err) {
 		my $id = "git.$self->{git_dir}$batch.err";
 		my $fh = tmpfile($id) or fail($self, "tmpfile($id): $!");
 		$self->{$err} = $fh;
-		$redir->{2} = fileno($fh);
+		$redir->{2} = $fh;
 	}
 	my $p = spawn(\@cmd, undef, $redir);
 	defined $p or fail($self, "spawn failed: $!");

@@ -92,7 +92,7 @@ if ('alternates reloaded') {
 	my @cmd = ('git', "--git-dir=$alt", qw(hash-object -w --stdin));
 	is(system(qw(git init -q --bare), $alt), 0, 'create alt directory');
 	open my $fh, '<', "$alt/config" or die "open failed: $!\n";
-	my $rd = popen_rd(\@cmd, {}, { 0 => fileno($fh) } );
+	my $rd = popen_rd(\@cmd, {}, { 0 => $fh } );
 	close $fh or die "close failed: $!";
 	chomp(my $remote = <$rd>);
 	my $gcf = PublicInbox::Git->new($dir);
