@@ -56,26 +56,10 @@ my $vfork_spawn = <<'VFORK_SPAWN';
 	dst[real_len] = 0; \
 } while (0)
 
-static void *deconst(const char *s)
-{
-	union { const char *in; void *out; } u;
-	u.in = s;
-	return u.out;
-}
-
 /* needs to be safe inside a vfork'ed process */
-static void xerr(const char *msg)
+static void exit_err(int *cerrnum)
 {
-	struct iovec iov[3];
-	const char *err = strerror(errno); /* should be safe in practice */
-
-	iov[0].iov_base = deconst(msg);
-	iov[0].iov_len = strlen(msg);
-	iov[1].iov_base = deconst(err);
-	iov[1].iov_len = strlen(err);
-	iov[2].iov_base = deconst("\n");
-	iov[2].iov_len = 1;
-	writev(2, iov, 3);
+	*cerrnum = errno;
 	_exit(1);
 }
 
@@ -95,7 +79,7 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	pid_t pid;
 	char **argv, **envp;
 	sigset_t set, old;
-	int ret, errnum;
+	int ret, perrnum, cerrnum = 0;
 
 	AV2C_COPY(argv, cmd);
 	AV2C_COPY(envp, env);
@@ -115,12 +99,12 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 			if (parent_fd == child_fd)
 				continue;
 			if (dup2(parent_fd, child_fd) < 0)
-				xerr("dup2");
+				exit_err(&cerrnum);
 		}
 		for (sig = 1; sig < NSIG; sig++)
 			signal(sig, SIG_DFL); /* ignore errors on signals */
 		if (*cd && chdir(cd) < 0)
-			xerr("chdir");
+			exit_err(&cerrnum);
 
 		max = av_len(rlim);
 		for (i = 0; i < max; i += 3) {
@@ -132,7 +116,7 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 			rl.rlim_cur = SvIV(*soft);
 			rl.rlim_max = SvIV(*hard);
 			if (setrlimit(SvIV(*res), &rl) < 0)
-				xerr("sertlimit");
+				exit_err(&cerrnum);
 		}
 
 		/*
@@ -140,13 +124,19 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 		 * to the group taking out a subprocess
 		 */
 		execve(filename, argv, envp);
-		xerr("execve failed");
+		exit_err(&cerrnum);
 	}
-	errnum = errno;
+	perrnum = errno;
 	ret = sigprocmask(SIG_SETMASK, &old, NULL);
 	assert(ret == 0 && "BUG calling sigprocmask to restore");
-	errno = errnum;
-
+	if (cerrnum) {
+		if (pid > 0)
+			waitpid(pid, NULL, 0);
+		pid = -1;
+		errno = cerrnum;
+	} else if (perrnum) {
+		errno = perrnum;
+	}
 	return (int)pid;
 }
 VFORK_SPAWN
