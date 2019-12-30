@@ -9,8 +9,8 @@ use warnings;
 use POSIX qw(dup2 :signal_h);
 
 # Pure Perl implementation for folks that do not use Inline::C
-sub pi_fork_exec ($$$$$) {
-	my ($redir, $f, $cmd, $env, $rlim) = @_;
+sub pi_fork_exec ($$$$$$) {
+	my ($redir, $f, $cmd, $env, $rlim, $cd) = @_;
 	my $old = POSIX::SigSet->new();
 	my $set = POSIX::SigSet->new();
 	$set->fillset or die "fillset failed: $!";
@@ -32,6 +32,9 @@ sub pi_fork_exec ($$$$$) {
 			next if $parent_fd == $child_fd;
 			dup2($parent_fd, $child_fd) or
 				die "dup2($parent_fd, $child_fd): $!\n";
+		}
+		if ($cd ne '') {
+			chdir $cd or die "chdir $cd: $!";
 		}
 		if ($ENV{MOD_PERL}) {
 			exec which('env'), '-i', @$env, @$cmd;

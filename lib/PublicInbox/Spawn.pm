@@ -84,7 +84,8 @@ static void xerr(const char *msg)
  * whatever we'll need in the future.
  * Be sure to update PublicInbox::SpawnPP if this changes
  */
-int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref)
+int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
+		 const char *cd)
 {
 	AV *redir = (AV *)SvRV(redirref);
 	AV *cmd = (AV *)SvRV(cmdref);
@@ -118,6 +119,8 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref)
 		}
 		for (sig = 1; sig < NSIG; sig++)
 			signal(sig, SIG_DFL); /* ignore errors on signals */
+		if (*cd && chdir(cd) < 0)
+			xerr("chdir");
 
 		max = av_len(rlim);
 		for (i = 0; i < max; i += 3) {
@@ -216,7 +219,8 @@ sub spawn ($;$$) {
 		}
 		push @$rlim, $r, @$v;
 	}
-	my $pid = pi_fork_exec($redir, $f, $cmd, \@env, $rlim);
+	my $cd = $opts->{'-C'} // ''; # undef => NULL mapping doesn't work?
+	my $pid = pi_fork_exec($redir, $f, $cmd, \@env, $rlim, $cd);
 	$pid < 0 ? undef : $pid;
 }
 

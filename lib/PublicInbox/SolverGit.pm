@@ -472,7 +472,7 @@ sub do_git_apply ($) {
 	my $patches = $self->{patches};
 
 	# we need --ignore-whitespace because some patches are CRLF
-	my @cmd = (qw(git -C), $dn, qw(apply --cached --ignore-whitespace
+	my @cmd = (qw(git apply --cached --ignore-whitespace
 			--unidiff-zero --whitespace=warn --verbose));
 	my $len = length(join(' ', @cmd));
 	my $total = $self->{tot};
@@ -491,8 +491,8 @@ sub do_git_apply ($) {
 	} while (@$patches && $len < $ARG_SIZE_MAX &&
 		 !oids_same_ish($patches->[0]->{oid_b}, $prv_oid_b));
 
-	my $rdr = { 2 => 1 };
-	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $rdr);
+	my $opt = { 2 => 1, -C => $dn };
+	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $opt);
 	$self->{-cur_di} = $di;
 	$self->{-qsp} = $qsp;
 	$qsp->psgi_qx($self->{psgi_env}, undef, \&apply_result, $self);

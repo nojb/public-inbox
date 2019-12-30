@@ -10,6 +10,7 @@ use Cwd 'abs_path';
 use base qw(Exporter);
 our @EXPORT_OK = qw(resolve_repo_dir);
 require PublicInbox::Config;
+use PublicInbox::Spawn qw(popen_rd);
 
 sub resolve_repo_dir {
 	my ($cd, $ver) = @_;
@@ -18,28 +19,14 @@ sub resolve_repo_dir {
 		$$ver = 2 if $ver;
 		return abs_path($prefix);
 	}
-
-	my @cmd = qw(git rev-parse --git-dir);
-	my $cmd = join(' ', @cmd);
-	my $pid = open my $fh, '-|';
-	defined $pid or die "forking $cmd failed: $!\n";
-	if ($pid == 0) {
-		if (defined $cd) {
-			chdir $cd or die "chdir $cd failed: $!\n";
-		}
-		exec @cmd;
-		die "Failed to exec $cmd: $!\n";
-	} else {
-		my $dir = eval {
-			local $/;
-			<$fh>;
-		};
-		close $fh or die "error in $cmd (cwd:$cd): $!\n";
-		chomp $dir;
-		$$ver = 1 if $ver;
-		return abs_path($cd) if ($dir eq '.' && defined $cd);
-		abs_path($dir);
-	}
+	my $cmd = [ qw(git rev-parse --git-dir) ];
+	my $fh = popen_rd($cmd, undef, {-C => $cd});
+	my $dir = do { local $/; <$fh> };
+	close $fh or die "error in ".join(' ', @$cmd)." (cwd:$cd): $!\n";
+	chomp $dir;
+	$$ver = 1 if $ver;
+	return abs_path($cd) if ($dir eq '.' && defined $cd);
+	abs_path($dir);
 }
 
 # for unconfigured inboxes
