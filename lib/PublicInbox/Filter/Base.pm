@@ -6,6 +6,8 @@ package PublicInbox::Filter::Base;
 use strict;
 use warnings;
 use PublicInbox::MsgIter;
+use parent qw(Exporter);
+our @EXPORT_OK = qw(REJECT); # we may export IGNORE if/when needed
 
 sub No ($) { "*** We only accept plain-text mail, No $_[0] ***" }
 

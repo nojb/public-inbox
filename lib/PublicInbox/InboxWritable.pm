@@ -7,8 +7,7 @@ use strict;
 use warnings;
 use base qw(PublicInbox::Inbox);
 use PublicInbox::Import;
-use PublicInbox::Filter::Base;
-*REJECT = *PublicInbox::Filter::Base::REJECT;
+use PublicInbox::Filter::Base qw(REJECT);
 
 use constant {
 	PERM_UMASK => 0,

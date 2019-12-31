@@ -10,9 +10,8 @@ use PublicInbox::MIME;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::InboxWritable;
 use File::Temp 0.19 ();
-use PublicInbox::Filter::Base;
+use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
-*REJECT = *PublicInbox::Filter::Base::REJECT;
 *maildir_path_load = *PublicInbox::InboxWritable::maildir_path_load;
 
 sub new {
