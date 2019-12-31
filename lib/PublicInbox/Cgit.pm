@@ -8,6 +8,7 @@
 package PublicInbox::Cgit;
 use strict;
 use PublicInbox::GitHTTPBackend;
+use PublicInbox::Git;
 # not bothering with Exporter for a one-off
 *r = *PublicInbox::GitHTTPBackend::r;
 *input_prepare = *PublicInbox::GitHTTPBackend::input_prepare;
@@ -109,7 +110,7 @@ sub call {
 	# handle requests without spawning cgit iff possible:
 	if ($path_info =~ m!\A/(.+?)/($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my ($nick, $path) = ($1, $2);
-		if (my $git = $self->{"\0$nick"}) {
+		if (my PublicInbox::Git $git = $self->{"\0$nick"}) {
 			return serve($env, $git, $path);
 		}
 	} elsif ($path_info =~ m!$self->{static}! &&
