@@ -47,9 +47,6 @@ sub r ($;$) {
 sub serve {
 	my ($env, $git, $path) = @_;
 
-	# XXX compatibility... ugh, can we stop supporting this?
-	$git = PublicInbox::Git->new($git) unless ref($git);
-
 	# Documentation/technical/http-protocol.txt in git.git
 	# requires one and exactly one query parameter:
 	if ($env->{QUERY_STRING} =~ /\Aservice=git-[A-Za-z0-9_]+-pack\z/ ||
