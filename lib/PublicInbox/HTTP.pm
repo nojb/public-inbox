@@ -164,7 +164,7 @@ sub app_dispatch {
 	}
 	# note: NOT $self->{sock}, we want our close (+ PublicInbox::DS::close),
 	# to do proper cleanup:
-	$env->{'psgix.io'} = $self; # only for ->close
+	$env->{'psgix.io'} = $self; # for ->close or async_pass
 	my $res = Plack::Util::run_app($self->{httpd}->{app}, $env);
 	eval {
 		if (ref($res) eq 'CODE') {
