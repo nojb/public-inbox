@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use PublicInbox::Spawn qw(popen_rd spawn);
 use IO::Handle;
-use Fcntl qw(:DEFAULT SEEK_SET);
+use Fcntl qw(SEEK_SET);
 
 sub new {
 	my ($class) = @_;
@@ -21,9 +21,7 @@ sub new {
 sub spamcheck {
 	my ($self, $msg, $out) = @_;
 
-	my $tmp;
-	my $fd = _msg_to_fd($self, $msg, \$tmp);
-	my $rdr = { 0 => $fd };
+	my $rdr = { 0 => _msg_to_fh($self, $msg) };
 	my ($fh, $pid) = popen_rd($self->{checkcmd}, undef, $rdr);
 	defined $pid or die "failed to popen_rd spamc: $!\n";
 	my $r;
@@ -57,10 +55,9 @@ sub spamlearn {
 sub _learn {
 	my ($self, $msg, $rdr, $field) = @_;
 	$rdr ||= {};
+	$rdr->{0} = _msg_to_fh($self, $msg);
 	$rdr->{1} ||= $self->_devnull;
 	$rdr->{2} ||= $self->_devnull;
-	my $tmp;
-	$rdr->{0} = _msg_to_fd($self, $msg, \$tmp);
 	my $pid = spawn($self->{$field}, undef, $rdr);
 	waitpid($pid, 0);
 	!$?;
@@ -68,20 +65,18 @@ sub _learn {
 
 sub _devnull {
 	my ($self) = @_;
-	my $fd = $self->{-devnullfd};
-	return $fd if defined $fd;
-	open my $fh, '+>', '/dev/null' or
+	$self->{-devnull} //= do {
+		open my $fh, '+>', '/dev/null' or
 				die "failed to open /dev/null: $!";
-	$self->{-devnull} = $fh;
-	$self->{-devnullfd} = fileno($fh);
+		$fh
+	}
 }
 
-sub _msg_to_fd {
-	my ($self, $msg, $tmpref) = @_;
-	my $fd;
+sub _msg_to_fh {
+	my ($self, $msg) = @_;
 	if (my $ref = ref($msg)) {
-		my $fileno = eval { fileno($msg) };
-		return $fileno if defined $fileno;
+		my $fd = eval { fileno($msg) };
+		return $msg if defined($fd) && $fd >= 0;
 
 		open(my $tmpfh, '+>', undef) or die "failed to open: $!";
 		$tmpfh->autoflush(1);
@@ -89,9 +84,8 @@ sub _msg_to_fd {
 		print $tmpfh $$msg or die "failed to print: $!";
 		sysseek($tmpfh, 0, SEEK_SET) or
 			die "sysseek(fh) failed: $!";
-		$$tmpref = $tmpfh;
 
-		return fileno($tmpfh);
+		return $tmpfh;
 	}
 	$msg;
 }
