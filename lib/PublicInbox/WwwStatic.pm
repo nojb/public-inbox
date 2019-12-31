@@ -77,25 +77,23 @@ sub response {
 # called by PSGI servers:
 sub getline {
 	my ($self) = @_;
-	my $len = $self->{len};
-	return if $len == 0;
+	my $len = $self->{len} or return; # undef, tells server we're done
 	my $n = delete($self->{initial_rd}) // 8192;
 	$n = $len if $len < $n;
 	my $r = sysread($self->{in}, my $buf, $n);
-	if (!defined $r) {
-		$self->{env}->{'psgi.errors'}->print(
-			"$self->{path} read error: $!\n");
-	} elsif ($r > 0) { # success!
+	if (defined $r && $r > 0) { # success!
 		$self->{len} = $len - $r;
 		return $buf;
-	} else {
-		$self->{env}->{'psgi.errors'}->print(
-			"$self->{path} EOF with $len bytes left\n");
 	}
+	my $m = defined $r ? "EOF with $len bytes left" : "read error: $!";
+	my $env = $self->{env};
+	$env->{'psgi.errors'}->print("$self->{path} $m\n");
 
 	# drop the client on error
-	if (my $io = $self->{env}->{'psgix.io'}) {
-		$io->close; # this is PublicInbox::DS::close
+	if (my $io = $env->{'psgix.io'}) {
+		$io->close; # this is likely PublicInbox::DS::close
+	} else { # for some PSGI servers w/o psgix.io
+		die "dropping client socket\n";
 	}
 	undef;
 }
