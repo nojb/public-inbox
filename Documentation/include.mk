@@ -109,15 +109,14 @@ clean-doc:
 clean :: clean-doc
 
 # No camel-cased tarballs or pathnames which MakeMaker creates,
-# this may not always be a Perl project.
-git-dist :: ver = $(shell git describe |sed -ne 's/v//p')
-git-dist :: pkgpfx := public-inbox-$(ver)
-git-dist :: NEWS
-	git archive --prefix=$(pkgpfx)/ --format=tar HEAD^{tree} >$(pkgpfx).tar
-	mkdir -p $(pkgpfx)
-	cp NEWS $(pkgpfx)/NEWS
-	$(TAR) rf $(pkgpfx).tar $(pkgpfx)/NEWS
-	$(RM) $(pkgpfx)/NEWS
-	rmdir $(pkgpfx)
-	gzip -9 $(pkgpfx).tar
-	@echo $(pkgpfx).tar.gz created
+# this may not always be a Perl project.  This should match what
+# cgit generate, since git maintainers ensure git-archive has
+# stable tar output
+DIST_TREE = HEAD^{tree}
+DIST_VER =
+git-dist :
+	ver=$$(git describe $(DIST_VER) | sed -ne s/v//p); \
+	pkgpfx=public-inbox-$$ver; \
+	git archive --prefix=$$pkgpfx/ --format=tar $(DIST_TREE) \
+		| gzip -n >$$pkgpfx.tar.gz; \
+	echo $$pkgpfx.tar.gz created
