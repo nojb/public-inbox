@@ -22,6 +22,7 @@ print '<html><head>',
   qq(<meta\nhttp-equiv="Content-Type"\ncontent="text/html; charset=utf-8"\n/>),
   "<title>$title</title>",
   "</head><body><pre>",  $str , '</pre></body></html>';
+STDOUT->flush;
 
 # keep mtime on website consistent so clients can cache
 if (-f STDIN && -f STDOUT) {
