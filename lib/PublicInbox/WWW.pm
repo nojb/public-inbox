@@ -42,15 +42,17 @@ sub run {
 	PublicInbox::WWW->new->call($req->env);
 }
 
+# PATH_INFO is decoded, and we want the undecoded original
 my %path_re_cache;
-
-sub path_re ($) {
-	my $sn = $_[0]->{SCRIPT_NAME};
-	$path_re_cache{$sn} ||= do {
+sub path_info_raw ($) {
+	my ($env) = @_;
+	my $sn = $env->{SCRIPT_NAME};
+	my $re = $path_re_cache{$sn} ||= do {
 		$sn = '/'.$sn unless index($sn, '/') == 0;
 		$sn =~ s!/\z!!;
 		qr!\A(?:https?://[^/]+)?\Q$sn\E(/[^\?\#]+)!;
 	};
+	$env->{REQUEST_URI} =~ $re ? $1 : $env->{PATH_INFO};
 }
 
 sub call {
@@ -67,9 +69,7 @@ sub call {
 		$k => $v;
 	} split(/[&;]+/, $env->{QUERY_STRING});
 
-	# avoiding $env->{PATH_INFO} here since that's already decoded
-	my ($path_info) = ($env->{REQUEST_URI} =~ path_re($env));
-	$path_info //= $env->{PATH_INFO};
+	my $path_info = path_info_raw($env);
 	my $method = $env->{REQUEST_METHOD};
 
 	if ($method eq 'POST') {
