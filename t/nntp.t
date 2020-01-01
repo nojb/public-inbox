@@ -69,11 +69,9 @@ use_ok 'PublicInbox::Inbox';
 		my $m = join(' ', @_);
 		my $ts = PublicInbox::NNTP::parse_time(@_);
 		my @t = gmtime($ts);
-		my ($d, $t);
-		if (length($date) == 8) {
-			($d, $t) = split(' ', strftime('%Y%m%d %H%M%S', @t));
-		} else {
-			($d, $t) = split(' ', strftime('%g%m%d %H%M%S', @t));
+		my ($d, $t) = split(' ', strftime('%Y%m%d %H%M%S', @t));
+		if (length($date) != 8) { # Net::NNTP uses YYMMDD :<
+			$d =~ s/^[0-9]{2}//;
 		}
 		is_deeply([$d, $t], [$date, $time], "roundtripped: $m");
 		$ts;
@@ -81,13 +79,19 @@ use_ok 'PublicInbox::Inbox';
 	my $x1 = time_roundtrip(qw(20141109 060606 GMT));
 	my $x2 = time_roundtrip(qw(141109 060606 GMT));
 	my $x3 = time_roundtrip(qw(930724 060606 GMT));
-
+	my $x5 = time_roundtrip(qw(710101 000000));
+	my $x6 = time_roundtrip(qw(720101 000000));
 	SKIP: {
-		skip('YYMMDD test needs updating', 2) if (time > 0x7fffffff);
+		skip('YYMMDD test needs updating', 6) if (time > 0x7fffffff);
 		# our world probably ends in 2038, but if not we'll try to
 		# remember to update the test then
 		is($x1, $x2, 'YYYYMMDD and YYMMDD parse identically');
 		is(strftime('%Y', gmtime($x3)), '1993', '930724 was in 1993');
+
+		my $epoch = time_roundtrip(qw(700101 000000 GMT));
+		is($epoch, 0, 'epoch parsed correctly');
+		ok($x6 > $x5, '1972 > 1971');
+		ok($x5 > $epoch, '1971 > Unix epoch');
 	}
 }
 

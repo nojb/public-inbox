@@ -220,16 +220,17 @@ sub parse_time ($$;$) {
 		$gmt =~ /\A(?:UTC|GMT)\z/i or die "GM invalid: $gmt";
 		$gmt = 1;
 	}
-	my @now = $gmt ? gmtime : localtime;
 	my ($YYYY, $MM, $DD);
 	if (bytes::length($date) == 8) { # RFC 3977 allows YYYYMMDD
 		($YYYY, $MM, $DD) = unpack('A4A2A2', $date);
 	} else { # legacy clients send YYMMDD
-		($YYYY, $MM, $DD) = unpack('A2A2A2', $date);
+		my $YY;
+		($YY, $MM, $DD) = unpack('A2A2A2', $date);
+		my @now = $gmt ? gmtime : localtime;
 		my $cur_year = $now[5] + 1900;
-		if ($YYYY > $cur_year) {
-			$YYYY += int($cur_year / 1000) * 1000 - 100;
-		}
+		my $cur_cent = int($cur_year / 100) * 100;
+		$YYYY = (($YY + $cur_cent) > $cur_year) ?
+			($YY + 1900) : ($YY + $cur_cent);
 	}
 	if ($gmt) {
 		timegm($ss, $mm, $hh, $DD, $MM - 1, $YYYY);
