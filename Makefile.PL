@@ -71,7 +71,8 @@ $v->{xdocs} = [ map { "Documentation/.x/.$_.txt" } @xman ];
 $v->{xdocs_html} = [ map { "Documentation/.x/.$_.html" } @xman ];
 for (@{$v->{xdocs}}) {
 	$t->{"$_ : | Documentation/.x"} = [
-		'$(PERL) -w Documentation/extman.perl >$@',
+		'$(PERL) -w Documentation/extman.perl $@ >$@+',
+		'mv $@+ $@'
 	];
 	my $html = $_;
 	$html =~ s/\.txt\z/.html/;
