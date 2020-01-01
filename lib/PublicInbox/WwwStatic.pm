@@ -4,6 +4,7 @@
 package PublicInbox::WwwStatic;
 use strict;
 use Fcntl qw(:seek);
+use HTTP::Date qw(time2str);
 
 sub prepare_range {
 	my ($env, $in, $h, $beg, $end, $size) = @_;
@@ -50,9 +51,14 @@ sub response {
 	my ($env, $h, $path, $type) = @_;
 	return unless -f $path && -r _; # just in case it's a FIFO :P
 
-	# TODO: If-Modified-Since and Last-Modified?
 	open my $in, '<', $path or return;
 	my $size = -s $in;
+	my $mtime = time2str((stat(_))[9]);
+
+	if (my $ims = $env->{HTTP_IF_MODIFIED_SINCE}) {
+		return [ 304, [], [] ] if $mtime eq $ims;
+	}
+
 	my $len = $size;
 	my $code = 200;
 	push @$h, 'Content-Type', $type;
@@ -63,7 +69,7 @@ sub response {
 			return [ 416, $h, [] ];
 		}
 	}
-	push @$h, 'Content-Length', $len;
+	push @$h, 'Content-Length', $len, 'Last-Modified', $mtime;
 	my $body = bless {
 		initial_rd => 65536,
 		len => $len,

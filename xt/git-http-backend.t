@@ -8,6 +8,7 @@ use warnings;
 use Test::More;
 use POSIX qw(setsid);
 use PublicInbox::TestCommon;
+use PublicInbox::Spawn qw(which);
 
 my $git_dir = $ENV{GIANT_GIT_DIR};
 plan 'skip_all' => 'GIANT_GIT_DIR not defined' unless $git_dir;
@@ -72,6 +73,25 @@ SKIP: {
 		note "${diff}K memory increase after $i seconds";
 		ok($diff < 1024, 'no bloating caused by slow dumb client');
 	}
+}
+
+SKIP: { # make sure Last-Modified + If-Modified-Since works with curl
+	my $nr = 6;
+	skip 'no description', $nr unless -f "$git_dir/description";
+	my $mtime = (stat(_))[9];
+	my $curl = which('curl');
+	skip 'curl(1) not found', $nr unless $curl;
+	my $url = "http://$host:$port/description";
+	my $dst = "$tmpdir/desc";
+	is(system($curl, qw(-RsSf), '-o', $dst, $url), 0, 'curl -R');
+	is((stat($dst))[9], $mtime, 'curl used remote mtime');
+	is(system($curl, qw(-sSf), '-z', $dst, '-o', "$dst.2", $url), 0,
+		'curl -z noop');
+	ok(!-e "$dst.2", 'no modification, nothing retrieved');
+	utime(0, 0, $dst) or die "utime failed: $!";
+	is(system($curl, qw(-sSfR), '-z', $dst, '-o', "$dst.2", $url), 0,
+		'curl -z updates');
+	ok(-e "$dst.2", 'faked modification, got new file retrieved');
 }
 
 {
