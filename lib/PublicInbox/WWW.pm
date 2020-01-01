@@ -22,6 +22,7 @@ use PublicInbox::MID qw(mid_escape);
 require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 use PublicInbox::UserContent;
+use PublicInbox::WwwStatic qw(r);
 
 # TODO: consider a routing tree now that we have more endpoints:
 our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
@@ -83,7 +84,7 @@ sub call {
 		}
 	}
 	elsif ($method !~ /\AGET|HEAD\z/) {
-		return r(405, 'Method Not Allowed');
+		return r(405);
 	}
 
 	# top-level indices and feeds
@@ -176,11 +177,8 @@ sub r404 {
 		require PublicInbox::ExtMsg;
 		return PublicInbox::ExtMsg::ext_msg($ctx);
 	}
-	r(404, 'Not Found');
+	r(404);
 }
-
-# simple response for errors
-sub r { [ $_[0], ['Content-Type' => 'text/plain'], [ join(' ', @_, "\n") ] ] }
 
 sub news_cgit_fallback ($) {
 	my ($ctx) = @_;

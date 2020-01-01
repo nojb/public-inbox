@@ -3,8 +3,23 @@
 
 package PublicInbox::WwwStatic;
 use strict;
+use parent qw(Exporter);
 use Fcntl qw(:seek);
 use HTTP::Date qw(time2str);
+use HTTP::Status qw(status_message);
+our @EXPORT_OK = qw(@NO_CACHE r);
+
+our @NO_CACHE = ('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT',
+		'Pragma', 'no-cache',
+		'Cache-Control', 'no-cache, max-age=0, must-revalidate');
+
+sub r ($;$) {
+	my ($code, $msg) = @_;
+	$msg ||= status_message($code);
+	[ $code, [ qw(Content-Type text/plain), 'Content-Length', length($msg),
+		@NO_CACHE ],
+	  [ $msg ] ]
+}
 
 sub prepare_range {
 	my ($env, $in, $h, $beg, $end, $size) = @_;
@@ -36,7 +51,7 @@ sub prepare_range {
 		if ($len <= 0) {
 			$code = 416;
 		} else {
-			sysseek($in, $beg, SEEK_SET) or return [ 500, [], [] ];
+			sysseek($in, $beg, SEEK_SET) or return r(500);
 			push @$h, qw(Accept-Ranges bytes Content-Range);
 			push @$h, "bytes $beg-$end/$size";
 
@@ -44,12 +59,16 @@ sub prepare_range {
 			$env->{'psgix.no-compress'} = 1;
 		}
 	}
+	if ($code == 416) {
+		push @$h, 'Content-Range', "bytes */$size";
+		return [ 416, $h, [] ];
+	}
 	($code, $len);
 }
 
 sub response {
 	my ($env, $h, $path, $type) = @_;
-	return unless -f $path && -r _; # just in case it's a FIFO :P
+	return r(404) unless -f $path && -r _; # just in case it's a FIFO :P
 
 	open my $in, '<', $path or return;
 	my $size = -s $in;
@@ -64,10 +83,7 @@ sub response {
 	push @$h, 'Content-Type', $type;
 	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=([0-9]*)-([0-9]*)\z/) {
 		($code, $len) = prepare_range($env, $in, $h, $1, $2, $size);
-		if ($code == 416) {
-			push @$h, 'Content-Range', "bytes */$size";
-			return [ 416, $h, [] ];
-		}
+		return $code if ref($code);
 	}
 	push @$h, 'Content-Length', $len, 'Last-Modified', $mtime;
 	my $body = bless {

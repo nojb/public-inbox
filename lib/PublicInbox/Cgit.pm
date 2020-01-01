@@ -10,13 +10,12 @@ use strict;
 use PublicInbox::GitHTTPBackend;
 use PublicInbox::Git;
 # not bothering with Exporter for a one-off
-*r = *PublicInbox::GitHTTPBackend::r;
 *input_prepare = *PublicInbox::GitHTTPBackend::input_prepare;
 *parse_cgi_headers = *PublicInbox::GitHTTPBackend::parse_cgi_headers;
 *serve = *PublicInbox::GitHTTPBackend::serve;
 use warnings;
 use PublicInbox::Qspawn;
-use PublicInbox::WwwStatic;
+use PublicInbox::WwwStatic qw(r);
 use Plack::MIME;
 
 sub locate_cgit ($) {

@@ -9,10 +9,9 @@ use warnings;
 use Fcntl qw(:seek);
 use IO::Handle;
 use HTTP::Date qw(time2str);
-use HTTP::Status qw(status_message);
 use PublicInbox::Qspawn;
 use PublicInbox::Tmpfile;
-use PublicInbox::WwwStatic;
+use PublicInbox::WwwStatic qw(r @NO_CACHE);
 
 # 32 is same as the git-daemon connection limit
 my $default_limiter = PublicInbox::Qspawn::Limiter->new(32);
@@ -31,18 +30,6 @@ my @binary = qw!
 our $ANY = join('|', @binary, @text, 'git-upload-pack');
 my $BIN = join('|', @binary);
 my $TEXT = join('|', @text);
-
-my @no_cache = ('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT',
-		'Pragma', 'no-cache',
-		'Cache-Control', 'no-cache, max-age=0, must-revalidate');
-
-sub r ($;$) {
-	my ($code, $msg) = @_;
-	$msg ||= status_message($code);
-	my $len = length($msg);
-	[ $code, [qw(Content-Type text/plain Content-Length), $len, @no_cache],
-		[$msg] ]
-}
 
 sub serve {
 	my ($env, $git, $path) = @_;
@@ -88,12 +75,12 @@ sub serve_dumb {
 		cache_one_year($h);
 	} elsif ($path =~ /\A(?:$TEXT)\z/o) {
 		$type = 'text/plain';
-		push @$h, @no_cache;
+		push @$h, @NO_CACHE;
 	} else {
 		return r(404);
 	}
 	$path = "$git->{git_dir}/$path";
-	PublicInbox::WwwStatic::response($env, $h, $path, $type) // r(404);
+	PublicInbox::WwwStatic::response($env, $h, $path, $type);
 }
 
 sub git_parse_hdr { # {parse_hdr} for Qspawn

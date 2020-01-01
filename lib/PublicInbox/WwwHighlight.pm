@@ -22,21 +22,14 @@ package PublicInbox::WwwHighlight;
 use strict;
 use warnings;
 use bytes (); # only for bytes::length
-use HTTP::Status qw(status_message);
 use parent qw(PublicInbox::HlMod);
 use PublicInbox::Linkify qw();
 use PublicInbox::Hval qw(ascii_html);
+use PublicInbox::WwwStatic qw(r);
 
 # TODO: support highlight(1) for distros which don't package the
 # SWIG extension.  Also, there may be admins who don't want to
 # have ugly SWIG-generated code in a long-lived Perl process.
-
-sub r ($) {
-	my ($code) = @_;
-	my $msg = status_message($code);
-	my $len = length($msg);
-	[ $code, [qw(Content-Type text/plain Content-Length), $len], [$msg] ]
-}
 
 # another slurp API hogging up all my memory :<
 # This is capped by whatever the PSGI server allows,
