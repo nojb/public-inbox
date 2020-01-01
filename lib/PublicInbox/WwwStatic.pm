@@ -51,7 +51,9 @@ sub prepare_range {
 		if ($len <= 0) {
 			$code = 416;
 		} else {
-			sysseek($in, $beg, SEEK_SET) or return r(500);
+			if ($in) {
+				sysseek($in, $beg, SEEK_SET) or return r(500);
+			}
 			push @$h, qw(Accept-Ranges bytes Content-Range);
 			push @$h, "bytes $beg-$end/$size";
 
@@ -70,8 +72,13 @@ sub response {
 	my ($env, $h, $path, $type) = @_;
 	return r(404) unless -f $path && -r _; # just in case it's a FIFO :P
 
-	open my $in, '<', $path or return;
-	my $size = -s $in;
+	my ($size, $in);
+	if ($env->{REQUEST_METHOD} eq 'HEAD') {
+		$size = -s _;
+	} else { # GET, callers should've already filtered out other methods
+		open $in, '<', $path or return r(403);
+		$size = -s $in;
+	}
 	my $mtime = time2str((stat(_))[9]);
 
 	if (my $ims = $env->{HTTP_IF_MODIFIED_SINCE}) {
@@ -86,13 +93,13 @@ sub response {
 		return $code if ref($code);
 	}
 	push @$h, 'Content-Length', $len, 'Last-Modified', $mtime;
-	my $body = bless {
+	my $body = $in ? bless {
 		initial_rd => 65536,
 		len => $len,
 		in => $in,
 		path => $path,
 		env => $env,
-	}, __PACKAGE__;
+	}, __PACKAGE__ : [];
 	[ $code, $h, $body ];
 }
 
