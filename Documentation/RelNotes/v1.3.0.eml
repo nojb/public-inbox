@@ -1,0 +1,50 @@
+From: Eric Wong <e@80x24.org>
+To: meta@public-inbox.org
+Subject: [WIP] public-inbox 1.3.0
+Content-Type: text/plain; charset=utf-8
+
+Many internal improvements to improve the developer experience
+and long-term maintainability.
+
+Many of the internal improvements focused on being able to avoid
+Perl startup time in tests.  "make check" now runs about 50%
+faster than before, and the new "make check-run" can be around
+30% faster after being primed by "make check".
+
+Most closures (anonymous subroutines) are purged from the
+-nntpd, -httpd and WWW code paths to make checking for memory
+leaks easier.
+
+* documentation now builds on BSD make
+
+* Date::Parse (TimeDate CPAN distribution) is now optional, allowing
+  installation from OpenBSD systems via "pkg".
+
+* the work-in-progress Xapian.pm SWIG bindings are now supported
+  in addition to the traditional Search::Xapian XS bindings.
+  Only SWIG bindings are packaged for OpenBSD.
+
+* IPC::Run is no longer used in tests
+
+* improved internal error checking and reporting in numerous places
+  
+* PublicInbox::WWW
+  - "nested" search results page now shows relevancy percentages
+  - solver works on "-U0" patches using "git apply --unidiff-zero"
+  - raw HTML no longer shown inline in multipart/alternative messages
+    (v1.2.0 regression)
+
+* public-inbox-httpd / public-inbox-nntpd:
+  - MSG_MORE used consistently in long responses
+  - fixed IO::KQueue usage on *BSDs
+
+* public-inbox-watch
+  - avoid memory leak from cyclic reference on SIGHUP
+  - fix documentation of publicinboxwatch.watchspam
+
+Release tarballs will be available for download at
+
+	https://public-inbox.org/public-inbox.git
+
+See archives at https://public-inbox.org/meta/ for all history.
+See https://public-inbox.org/TODO for what the future holds.

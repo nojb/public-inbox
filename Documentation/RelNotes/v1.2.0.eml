@@ -1,3 +1,5 @@
+From e@80x24.org Sun Nov  3 03:12:41 2019
+Date: Sun, 3 Nov 2019 03:12:41 +0000
 From: Eric Wong <e@80x24.org>
 To: meta@public-inbox.org
 Subject: [ANNOUNCE] public-inbox 1.2.0
@@ -72,6 +74,13 @@ Special thanks to Konstantin Ryabitsev and The Linux Foundation
 for their sponsorship and support over the past two years.
 
 https://public-inbox.org/releases/public-inbox-1.2.0.tar.gz
+
+SHA256: dabc735a5cfe396f457ac721559de26ae38abbaaa74612eb786e9e2e1ca94269
+
+  Chances are: You don't know me and never will.  Everybody else
+  can verify the tarball and sign a reply saying they've
+  verified it, instead.  The more who do this, the better, but
+  don't trust the BOFH :P
 
 See archives at https://public-inbox.org/meta/ for all history.
 See https://public-inbox.org/TODO for what the future holds.
