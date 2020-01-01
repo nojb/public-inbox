@@ -7,9 +7,9 @@
 use strict;
 use PublicInbox::MIME;
 use PublicInbox::View;
-use Plack::Util;
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::MID qw(mids mid_escape);
+END { $INC{'Plack/Util.pm'} and warn "$0 should not have loaded Plack::Util\n" }
 my $dst = shift @ARGV or die "Usage: $0 <NEWS|NEWS.atom|NEWS.html>";
 
 # newest to oldest
@@ -34,11 +34,11 @@ if ($dst eq 'NEWS') {
 	}
 } elsif ($dst eq 'NEWS.atom' || $dst eq 'NEWS.html') {
 	open $out, '>', $tmp or die;
-	my $ibx = Plack::Util::inline_object(
-		description => sub { 'public-inbox releases' },
-		over => sub { undef },
-		search => sub { 1 }, # for WwwStream:_html_top
-		base_url => sub { "$base_url/" },
+	my $ibx = My::MockObject->new(
+		description => 'public-inbox releases',
+		over => undef,
+		search => 1, # for WwwStream:_html_top
+		base_url => "$base_url/",
 	);
 	$ibx->{-primary_address} = $addr;
 	my $ctx = {
@@ -102,7 +102,7 @@ sub mime2html {
 sub html_start {
 	my ($out, $ctx) = @_;
 	require PublicInbox::WwwStream;
-	$ctx->{www} = Plack::Util::inline_object(style => sub { '' });
+	$ctx->{www} = My::MockObject->new(style => '');
 	my $www_stream = PublicInbox::WwwStream->new($ctx);
 	print $out $www_stream->_html_top, '<pre>' or die;
 }
@@ -144,3 +144,19 @@ sub mime2atom  {
 		print $out $str or die;
 	}
 }
+package My::MockObject;
+use strict;
+our $AUTOLOAD;
+
+sub new {
+	my ($class, %values) = @_;
+	bless \%values, $class;
+}
+
+sub AUTOLOAD {
+	my ($self) = @_;
+	my $attr = (split(/::/, $AUTOLOAD))[-1];
+	$self->{$attr};
+}
+
+1;
