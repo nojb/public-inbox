@@ -623,7 +623,7 @@ PublicInbox::Import - message importer for public-inbox v1 inboxes
 
 version 1.0
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
 	use Email::MIME;
 	use PublicInbox::Git;

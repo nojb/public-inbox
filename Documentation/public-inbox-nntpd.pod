@@ -49,7 +49,7 @@ automatically gets STARTTLS support.
 
 =item --key /path/to/key
 
-The default private TLS certicate key for optional STARTTLS and NNTPS
+The default private TLS certificate key for optional STARTTLS and NNTPS
 support if the C<key> option is not given with C<--listen>.  The private
 key may concatenated into the path used by C<--cert>, in which case this
 option is not needed.
