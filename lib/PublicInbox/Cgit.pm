@@ -16,7 +16,6 @@ use PublicInbox::Git;
 use warnings;
 use PublicInbox::Qspawn;
 use PublicInbox::WwwStatic qw(r);
-use Plack::MIME;
 
 sub locate_cgit ($) {
 	my ($pi_config) = @_;
@@ -114,9 +113,8 @@ sub call {
 		}
 	} elsif ($path_info =~ m!$self->{static}! &&
 		 defined($cgit_data = $self->{cgit_data})) {
-		my $f = $1;
-		return PublicInbox::WwwStatic::response($env, [], $cgit_data.$f,
-						Plack::MIME->mime_type($f));
+		my $f = $cgit_data.$1; # {static} only matches leading slash
+		return PublicInbox::WwwStatic::response($env, [], $f);
 	}
 
 	my $cgi_env = { PATH_INFO => $path_info };

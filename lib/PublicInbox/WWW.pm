@@ -22,7 +22,7 @@ use PublicInbox::MID qw(mid_escape);
 require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 use PublicInbox::UserContent;
-use PublicInbox::WwwStatic qw(r);
+use PublicInbox::WwwStatic qw(r path_info_raw);
 
 # TODO: consider a routing tree now that we have more endpoints:
 our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
@@ -41,19 +41,6 @@ sub new {
 sub run {
 	my ($req, $method) = @_;
 	PublicInbox::WWW->new->call($req->env);
-}
-
-# PATH_INFO is decoded, and we want the undecoded original
-my %path_re_cache;
-sub path_info_raw ($) {
-	my ($env) = @_;
-	my $sn = $env->{SCRIPT_NAME};
-	my $re = $path_re_cache{$sn} ||= do {
-		$sn = '/'.$sn unless index($sn, '/') == 0;
-		$sn =~ s!/\z!!;
-		qr!\A(?:https?://[^/]+)?\Q$sn\E(/[^\?\#]+)!;
-	};
-	$env->{REQUEST_URI} =~ $re ? $1 : $env->{PATH_INFO};
 }
 
 sub call {
