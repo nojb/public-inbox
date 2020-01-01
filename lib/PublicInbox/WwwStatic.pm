@@ -4,9 +4,10 @@
 package PublicInbox::WwwStatic;
 use strict;
 use parent qw(Exporter);
-use Fcntl qw(:seek);
+use Fcntl qw(SEEK_SET O_RDONLY O_NONBLOCK);
 use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
+use Errno qw(EACCES ENOTDIR ENOENT);
 our @EXPORT_OK = qw(@NO_CACHE r);
 
 our @NO_CACHE = ('Expires', 'Fri, 01 Jan 1980 00:00:00 GMT',
@@ -70,15 +71,19 @@ sub prepare_range {
 
 sub response {
 	my ($env, $h, $path, $type) = @_;
-	return r(404) unless -f $path && -r _; # just in case it's a FIFO :P
 
-	my ($size, $in);
+	my $in;
 	if ($env->{REQUEST_METHOD} eq 'HEAD') {
-		$size = -s _;
+		return r(404) unless -f $path && -r _; # in case it's a FIFO :P
 	} else { # GET, callers should've already filtered out other methods
-		open $in, '<', $path or return r(403);
-		$size = -s $in;
+		if (!sysopen($in, $path, O_RDONLY|O_NONBLOCK)) {
+			return r(404) if $! == ENOENT || $! == ENOTDIR;
+			return r(403) if $! == EACCES;
+			return r(500);
+		}
+		return r(404) unless -f $in;
 	}
+	my $size = -s _; # bare "_" reuses "struct stat" from "-f" above
 	my $mtime = time2str((stat(_))[9]);
 
 	if (my $ims = $env->{HTTP_IF_MODIFIED_SINCE}) {
