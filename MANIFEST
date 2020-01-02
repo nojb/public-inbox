@@ -63,6 +63,7 @@ examples/cgit-wwwhighlight-filter.lua
 examples/cgit.psgi
 examples/grok-pull.post_update_hook.sh
 examples/highlight.psgi
+examples/lib/.gitignore
 examples/logrotate.conf
 examples/newswww.psgi
 examples/nginx_proxy
