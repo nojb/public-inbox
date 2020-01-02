@@ -89,8 +89,8 @@ sub ibx_entry {
 * $ts - $url
   ${\$ibx->description}
 
-	if (defined(my $info_url = $ibx->{info_url})) {
-		$tmp .= "\n$info_url";
+	if (defined(my $info_url = $ibx->{infourl})) {
+		$tmp .= '  ' . $info_url . "\n";
 	}
 	$tmp;
 }
