@@ -499,7 +499,7 @@ sub do_git_apply ($) {
 	} while (@$patches && $len < $ARG_SIZE_MAX &&
 		 !oids_same_ish($patches->[0]->{oid_b}, $prv_oid_b));
 
-	my $opt = { 2 => 1, -C => $dn };
+	my $opt = { 2 => 1, -C => $dn, quiet => 1 };
 	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $opt);
 	$self->{-cur_di} = $di;
 	$self->{-qsp} = $qsp;
