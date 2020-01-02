@@ -452,6 +452,7 @@ sub apply_result ($$) {
 		if ($nxt && oids_same_ish($nxt->{oid_b}, $di->{oid_b})) {
 			dbg($self, $msg);
 			dbg($self, 'trying '.di_url($self, $nxt));
+			return do_git_apply($self);
 		} else {
 			ERR($self, $msg);
 		}
