@@ -362,8 +362,8 @@ sub _fill {
 	my ($self, $pfx) = @_;
 	my $ibx = {};
 
-	foreach my $k (qw(inboxdir filter url newsgroup
-			infourl watch watchheader httpbackendmax
+	foreach my $k (qw(inboxdir filter newsgroup
+			watch watchheader httpbackendmax
 			replyto feedmax nntpserver indexlevel)) {
 		my $v = $self->{"$pfx.$k"};
 		$ibx->{$k} = $v if defined $v;
@@ -383,7 +383,8 @@ sub _fill {
 	}
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	foreach my $k (qw(address altid nntpmirror coderepo hide listid)) {
+	foreach my $k (qw(address altid nntpmirror coderepo hide listid url
+			infourl)) {
 		if (defined(my $v = $self->{"$pfx.$k"})) {
 			$ibx->{$k} = _array($v);
 		}

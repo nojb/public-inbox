@@ -32,7 +32,7 @@ sub list_all ($$$) {
 sub list_match_domain_i {
 	my ($ibx, $arg) = @_;
 	my ($list, $hide_key, $re) = @$arg;
-	if (!$ibx->{-hide}->{$hide_key} && $ibx->{url} =~ $re) {
+	if (!$ibx->{-hide}->{$hide_key} && grep($re, @{$ibx->{url}})) {
 		push @$list, $ibx;
 	}
 }
@@ -90,7 +90,7 @@ sub ibx_entry {
   ${\$ibx->description}
 
 	if (defined(my $info_url = $ibx->{infourl})) {
-		$tmp .= '  ' . $info_url . "\n";
+		$tmp .= '  ' . PublicInbox::Hval::prurl($env, $info_url) . "\n";
 	}
 	$tmp;
 }

@@ -104,7 +104,7 @@ use_ok 'PublicInbox::Inbox';
 					-primary_address => 'a@example.com',
 					newsgroup => 'test',
 					domain => 'example.com',
-					url => '//example.com/a'});
+					url => [ '//example.com/a' ]});
 	is($ng->base_url, $u, 'URL expanded');
 	my $mid = 'a@b';
 	my $mime = Email::MIME->new("Message-ID: <$mid>\r\n\r\n");

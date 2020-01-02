@@ -252,7 +252,7 @@ sub base_url {
 	} else {
 		# either called from a non-PSGI environment (e.g. NNTP/POP3)
 		$self->{-base_url} ||= do {
-			my $url = $self->{url} or return undef;
+			my $url = $self->{url}->[0] or return undef;
 			# expand protocol-relative URLs to HTTPS if we're
 			# not inside a web server
 			$url = "https:$url" if $url =~ m!\A//!;

@@ -29,7 +29,7 @@ my $ibx = PublicInbox::Inbox->new({
 	address => 'test@example',
 	name => 'testbox',
 	inboxdir => $git_dir,
-	url => 'http://example.com/test',
+	url => [ 'http://example.com/test' ],
 	feedmax => 3,
 });
 my $git = $ibx->git;

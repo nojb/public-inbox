@@ -86,6 +86,12 @@ sub raw {
 
 sub prurl {
 	my ($env, $u) = @_;
+	if (ref($u) eq 'ARRAY') {
+		my $h = $env->{HTTP_HOST} // $env->{SERVER_NAME};
+		my @host_match = grep(/\b\Q$h\E\b/, @$u);
+		$u = $host_match[0] // $u->[0];
+		# fall through to below:
+	}
 	index($u, '//') == 0 ? "$env->{'psgi.url_scheme'}:$u" : $u;
 }
 
