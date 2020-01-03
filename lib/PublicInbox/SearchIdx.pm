@@ -133,10 +133,19 @@ sub add_val ($$$) {
 	$doc->add_value($col, $num);
 }
 
-sub index_text ($$$$)
-{
+sub term_generator ($) { # write-only
+	my ($self) = @_;
+
+	$self->{term_generator} //= do {
+		my $tg = $X->{TermGenerator}->new;
+		$tg->set_stemmer($self->stemmer);
+		$tg;
+	}
+}
+
+sub index_text ($$$$) {
 	my ($self, $field, $n, $text) = @_;
-	my $tg = $self->term_generator;
+	my $tg = term_generator($self);
 
 	if ($self->{indexlevel} eq 'full') {
 		$tg->index_text($field, $n, $text);
@@ -153,18 +162,18 @@ sub index_users ($$) {
 	my $to = $smsg->to;
 	my $cc = $smsg->cc;
 
-	$self->index_text($from, 1, 'A'); # A - author
-	$self->index_text($to, 1, 'XTO') if $to ne '';
-	$self->index_text($cc, 1, 'XCC') if $cc ne '';
+	index_text($self, $from, 1, 'A'); # A - author
+	index_text($self, $to, 1, 'XTO') if $to ne '';
+	index_text($self, $cc, 1, 'XCC') if $cc ne '';
 }
 
 sub index_diff_inc ($$$$) {
 	my ($self, $text, $pfx, $xnq) = @_;
 	if (@$xnq) {
-		$self->index_text(join("\n", @$xnq), 1, 'XNQ');
+		index_text($self, join("\n", @$xnq), 1, 'XNQ');
 		@$xnq = ();
 	}
-	$self->index_text($text, 1, $pfx);
+	index_text($self, $text, 1, $pfx);
 }
 
 sub index_old_diff_fn {
@@ -179,7 +188,7 @@ sub index_old_diff_fn {
 		$fb = join('/', @fb);
 		if ($fa eq $fb) {
 			unless ($seen->{$fa}++) {
-				$self->index_diff_inc($fa, 'XDFN', $xnq);
+				index_diff_inc($self, $fa, 'XDFN', $xnq);
 			}
 			return 1;
 		}
@@ -197,15 +206,15 @@ sub index_diff ($$$) {
 	my $xnq = \@xnq;
 	foreach (@$lines) {
 		if ($in_diff && s/^ //) { # diff context
-			$self->index_diff_inc($_, 'XDFCTX', $xnq);
+			index_diff_inc($self, $_, 'XDFCTX', $xnq);
 		} elsif (/^-- $/) { # email signature begins
 			$in_diff = undef;
 		} elsif (m!^diff --git ("?a/.+) ("?b/.+)\z!) {
 			my ($fa, $fb) = ($1, $2);
 			my $fn = (split('/', git_unquote($fa), 2))[1];
-			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
+			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$fn = (split('/', git_unquote($fb), 2))[1];
-			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
+			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		# traditional diff:
 		} elsif (m/^diff -(.+) (\S+) (\S+)$/) {
@@ -213,28 +222,28 @@ sub index_diff ($$$) {
 			push @xnq, $_;
 			# only support unified:
 			next unless $opt =~ /[uU]/;
-			$in_diff = $self->index_old_diff_fn(\%seen, $fa, $fb,
+			$in_diff = index_old_diff_fn($self, \%seen, $fa, $fb,
 							$xnq);
 		} elsif (m!^--- ("?a/.+)!) {
 			my $fn = $1;
 			$fn = (split('/', git_unquote($fn), 2))[1];
-			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
+			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (m!^\+\+\+ ("?b/.+)!)  {
 			my $fn = $1;
 			$fn = (split('/', git_unquote($fn), 2))[1];
-			$seen{$fn}++ or $self->index_diff_inc($fn, 'XDFN', $xnq);
+			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (/^--- (\S+)/) {
 			$in_diff = $1;
 			push @xnq, $_;
 		} elsif (defined $in_diff && /^\+\+\+ (\S+)/) {
-			$in_diff = $self->index_old_diff_fn(\%seen, $in_diff, $1,
-							$xnq);
+			$in_diff = index_old_diff_fn($self, \%seen, $in_diff,
+							$1, $xnq);
 		} elsif ($in_diff && s/^\+//) { # diff added
-			$self->index_diff_inc($_, 'XDFB', $xnq);
+			index_diff_inc($self, $_, 'XDFB', $xnq);
 		} elsif ($in_diff && s/^-//) { # diff removed
-			$self->index_diff_inc($_, 'XDFA', $xnq);
+			index_diff_inc($self, $_, 'XDFA', $xnq);
 		} elsif (m!^index ([a-f0-9]+)\.\.([a-f0-9]+)!) {
 			my ($ba, $bb) = ($1, $2);
 			index_git_blob_id($doc, 'XDFPRE', $ba);
@@ -244,7 +253,7 @@ sub index_diff ($$$) {
 			# traditional diff w/o -p
 		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*(\S+.*)$/) {
 			# hunk header context
-			$self->index_diff_inc($1, 'XDFHH', $xnq);
+			index_diff_inc($self, $1, 'XDFHH', $xnq);
 		# ignore the following lines:
 		} elsif (/^(?:dis)similarity index/ ||
 				/^(?:old|new) mode/ ||
@@ -265,7 +274,7 @@ sub index_diff ($$$) {
 		}
 	}
 
-	$self->index_text(join("\n", @xnq), 1, 'XNQ');
+	index_text($self, join("\n", @xnq), 1, 'XNQ');
 }
 
 sub index_body ($$$) {
@@ -275,12 +284,12 @@ sub index_body ($$$) {
 		# does it look like a diff?
 		if ($txt =~ /^(?:diff|---|\+\+\+) /ms) {
 			$txt = undef;
-			$self->index_diff($lines, $doc);
+			index_diff($self, $lines, $doc);
 		} else {
-			$self->index_text($txt, 1, 'XNQ');
+			index_text($self, $txt, 1, 'XNQ');
 		}
 	} else {
-		$self->index_text($txt, 0, 'XQUOT');
+		index_text($self, $txt, 0, 'XQUOT');
 	}
 	@$lines = ();
 }
@@ -291,7 +300,7 @@ sub index_xapian { # msg_iter callback
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	if (defined $fn && $fn ne '') {
-		$self->index_text($fn, 1, 'XFN');
+		index_text($self, $fn, 1, 'XFN');
 	}
 
 	my ($s, undef) = msg_part_text($part, $ct);
@@ -301,18 +310,18 @@ sub index_xapian { # msg_iter callback
 	my @lines = split(/\n/, $s);
 	while (defined(my $l = shift @lines)) {
 		if ($l =~ /^>/) {
-			$self->index_body(\@orig, $doc) if @orig;
+			index_body($self, \@orig, $doc) if @orig;
 			push @quot, $l;
 		} else {
-			$self->index_body(\@quot, 0) if @quot;
+			index_body($self, \@quot, 0) if @quot;
 			push @orig, $l;
 		}
 	}
-	$self->index_body(\@quot, 0) if @quot;
-	$self->index_body(\@orig, $doc) if @orig;
+	index_body($self, \@quot, 0) if @quot;
+	index_body($self, \@orig, $doc) if @orig;
 }
 
-sub add_xapian ($$$$$) {
+sub add_xapian ($$$$$$) {
 	my ($self, $mime, $num, $oid, $mids, $mid0) = @_;
 	my $smsg = PublicInbox::SearchMsg->new($mime);
 	my $doc = $X->{Document}->new;
@@ -324,21 +333,21 @@ sub add_xapian ($$$$$) {
 	my $dt = strftime('%Y%m%d%H%M%S', @ds);
 	add_val($doc, PublicInbox::Search::DT(), $dt);
 
-	my $tg = $self->term_generator;
+	my $tg = term_generator($self);
 
 	$tg->set_document($doc);
-	$self->index_text($subj, 1, 'S') if $subj;
-	$self->index_users($smsg);
+	index_text($self, $subj, 1, 'S') if $subj;
+	index_users($self, $smsg);
 
 	msg_iter($mime, \&index_xapian, [ $self, $doc ]);
 	foreach my $mid (@$mids) {
-		$self->index_text($mid, 1, 'XM');
+		index_text($self, $mid, 1, 'XM');
 
 		# because too many Message-IDs are prefixed with
 		# "Pine.LNX."...
 		if ($mid =~ /\w{12,}/) {
 			my @long = ($mid =~ /(\w{3,}+)/g);
-			$self->index_text(join(' ', @long), 1, 'XM');
+			index_text($self, join(' ', @long), 1, 'XM');
 		}
 	}
 	$smsg->{to} = $smsg->{cc} = '';
@@ -359,18 +368,27 @@ sub add_xapian ($$$$$) {
 	$self->{xdb}->replace_document($num, $doc);
 }
 
+sub _msgmap_init ($) {
+	my ($self) = @_;
+	die "BUG: _msgmap_init is only for v1\n" if $self->{version} != 1;
+	$self->{mm} //= eval {
+		require PublicInbox::Msgmap;
+		PublicInbox::Msgmap->new($self->{inboxdir}, 1);
+	};
+}
+
 sub add_message {
 	# mime = Email::MIME object
 	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
 	my $mids = mids_for_index($mime->header_obj);
-	$mid0 = $mids->[0] unless defined $mid0; # v1 compatibility
-	unless (defined $num) { # v1
-		$self->_msgmap_init;
-		$num = index_mm($self, $mime);
-	}
+	$mid0 //= $mids->[0]; # v1 compatibility
+	$num //= do { # v1
+		_msgmap_init($self);
+		index_mm($self, $mime);
+	};
 	eval {
 		if (need_xapian($self)) {
-			$self->add_xapian($mime, $num, $oid, $mids, $mid0)
+			add_xapian($self, $mime, $num, $oid, $mids, $mid0);
 		}
 		if (my $over = $self->{over}) {
 			$over->add_overview($mime, $bytes, $num, $oid, $mid0);
@@ -466,18 +484,6 @@ sub remove_by_oid {
 	}
 	$db->delete_document($_) foreach @delete;
 	scalar(@delete);
-}
-
-sub term_generator { # write-only
-	my ($self) = @_;
-
-	my $tg = $self->{term_generator};
-	return $tg if $tg;
-
-	$tg = $X->{TermGenerator}->new;
-	$tg->set_stemmer($self->stemmer);
-
-	$self->{term_generator} = $tg;
 }
 
 sub index_git_blob_id {
@@ -615,15 +621,6 @@ sub read_log {
 		$del_cb->($self, $mime);
 	}
 	$batch_cb->($nr, $latest, $newest);
-}
-
-sub _msgmap_init {
-	my ($self) = @_;
-	die "BUG: _msgmap_init is only for v1\n" if $self->{version} != 1;
-	$self->{mm} ||= eval {
-		require PublicInbox::Msgmap;
-		PublicInbox::Msgmap->new($self->{inboxdir}, 1);
-	};
 }
 
 sub _git_log {
