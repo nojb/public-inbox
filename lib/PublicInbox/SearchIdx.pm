@@ -285,6 +285,33 @@ sub index_body ($$$) {
 	@$lines = ();
 }
 
+sub index_xapian { # msg_iter callback
+	my ($part, $depth, @idx) = @{$_[0]};
+	my ($self, $doc) = @{$_[1]};
+	my $ct = $part->content_type || 'text/plain';
+	my $fn = $part->filename;
+	if (defined $fn && $fn ne '') {
+		$self->index_text($fn, 1, 'XFN');
+	}
+
+	my ($s, undef) = msg_part_text($part, $ct);
+	defined $s or return;
+
+	my (@orig, @quot);
+	my @lines = split(/\n/, $s);
+	while (defined(my $l = shift @lines)) {
+		if ($l =~ /^>/) {
+			$self->index_body(\@orig, $doc) if @orig;
+			push @quot, $l;
+		} else {
+			$self->index_body(\@quot, 0) if @quot;
+			push @orig, $l;
+		}
+	}
+	$self->index_body(\@quot, 0) if @quot;
+	$self->index_body(\@orig, $doc) if @orig;
+}
+
 sub add_xapian ($$$$$) {
 	my ($self, $mime, $num, $oid, $mids, $mid0) = @_;
 	my $smsg = PublicInbox::SearchMsg->new($mime);
@@ -303,32 +330,7 @@ sub add_xapian ($$$$$) {
 	$self->index_text($subj, 1, 'S') if $subj;
 	$self->index_users($smsg);
 
-	msg_iter($mime, sub {
-		my ($part, $depth, @idx) = @{$_[0]};
-		my $ct = $part->content_type || 'text/plain';
-		my $fn = $part->filename;
-		if (defined $fn && $fn ne '') {
-			$self->index_text($fn, 1, 'XFN');
-		}
-
-		my ($s, undef) = msg_part_text($part, $ct);
-		defined $s or return;
-
-		my (@orig, @quot);
-		my @lines = split(/\n/, $s);
-		while (defined(my $l = shift @lines)) {
-			if ($l =~ /^>/) {
-				$self->index_body(\@orig, $doc) if @orig;
-				push @quot, $l;
-			} else {
-				$self->index_body(\@quot, 0) if @quot;
-				push @orig, $l;
-			}
-		}
-		$self->index_body(\@quot, 0) if @quot;
-		$self->index_body(\@orig, $doc) if @orig;
-	});
-
+	msg_iter($mime, \&index_xapian, [ $self, $doc ]);
 	foreach my $mid (@$mids) {
 		$self->index_text($mid, 1, 'XM');
 
