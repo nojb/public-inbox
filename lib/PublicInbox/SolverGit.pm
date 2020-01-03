@@ -10,6 +10,7 @@
 package PublicInbox::SolverGit;
 use strict;
 use warnings;
+use 5.010_001;
 use File::Temp 0.19 ();
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Git qw(git_unquote git_quote);
@@ -38,7 +39,7 @@ my $MAX_PATCH = 9999;
 #	oid_a => abbreviated pre-image oid,
 #	oid_b => abbreviated post-image oid,
 #	tmp => anonymous file handle with the diff,
-#	hdr_lines => arrayref of various header lines for mode information
+#	hdr_lines => string of various header lines for mode information
 #	mode_a => original mode of oid_a (string, not integer),
 #	ibx => PublicInbox::Inbox object containing the diff
 #	smsg => PublicInbox::SearchMsg object containing diff
@@ -46,10 +47,6 @@ my $MAX_PATCH = 9999;
 #	path_b => post-image path
 #	n => numeric path of the patch (relative to worktree)
 # }
-
-# don't bother if somebody sends us a patch with these path components,
-# it's junk at best, an attack attempt at worse:
-my %bad_component = map { $_ => 1 } ('', '.', '..');
 
 sub dbg ($$) {
 	print { $_[0]->{out} } $_[1], "\n" or ERR($_[0], "print(dbg): $!");
@@ -100,10 +97,8 @@ sub solve_existing ($$) {
 
 sub extract_diff ($$) {
 	my ($p, $arg) = @_;
-	my ($self, $diffs, $re, $ibx, $smsg) = @$arg;
+	my ($self, $diffs, $pre, $post, $ibx, $smsg) = @$arg;
 	my ($part) = @$p; # ignore $depth and @idx;
-	my $hdr_lines; # diff --git a/... b/...
-	my $tmp;
 	my $ct = $part->content_type || 'text/plain';
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
@@ -116,66 +111,87 @@ sub extract_diff ($$) {
 		$s =~ s/\r\n/\n/sg;
 	}
 
-	foreach my $l (split(/^/m, $s)) {
-		if ($l =~ $re) {
-			$di->{oid_a} = $1;
-			$di->{oid_b} = $2;
-			if (defined($3)) {
-				my $mode_a = $3;
-				if ($mode_a =~ /\A(?:100644|120000|100755)\z/) {
-					$di->{mode_a} = $mode_a;
-				}
-			}
+	state $LF = qr!\r?\n!;
+	state $FN = qr!(?:("?[^/\n]+/[^\r\n]+)|/dev/null)!;
 
+	$s =~ m!( # $1 start header lines we save for debugging:
 
-			# start writing the diff out to a tempfile
-			my $path = ++$self->{tot};
-			$di->{n} = $path;
-			open($tmp, '>', $self->{tmp}->dirname . "/$path") or
-							die "open(tmp): $!";
+		# everything before ^index is optional, but we don't
+		# want to match ^(old|copy|rename|deleted|...) unless
+		# we match /^diff --git/ first:
+		(?: # begin optional stuff:
 
-			push @$hdr_lines, $l;
-			$di->{hdr_lines} = $hdr_lines;
-			utf8::encode($_) for @$hdr_lines;
-			print $tmp @$hdr_lines or die "print(tmp): $!";
+		# try to get the pre-and-post filenames as $2 and $3
+		(?:^diff\x20--git\x20$FN\x20$FN$LF)
 
-			# for debugging/diagnostics:
-			$di->{ibx} = $ibx;
-			$di->{smsg} = $smsg;
-		} elsif ($l =~ m!\Adiff --git ("?[^/]+/.+) ("?[^/]+/.+)$!) {
-			last if $tmp; # got our blob, done!
+		# old mode $4
+		(?:^old mode\x20(100644|120000|100755)$LF)?
 
-			my ($path_a, $path_b) = ($1, $2);
+		# ignore other info
+		(?:^(?:copy|rename|deleted|dissimilarity|similarity).*$LF)?
 
-			# diff header lines won't have \r because git
-			# will quote them, but Email::MIME gives CRLF
-			# for quoted-printable:
-			$path_b =~ tr/\r//d;
+		# new mode (possibly new file) ($5)
+		(?:^new\x20(?:file\x20)?mode\x20(100644|120000|100755)$LF)?
 
-			# don't care for leading 'a/' and 'b/'
-			my (undef, @a) = split(m{/}, git_unquote($path_a));
-			my (undef, @b) = split(m{/}, git_unquote($path_b));
+		# ignore other info
+		(?:^(?:copy|rename|deleted|dissimilarity|similarity).*$LF)?
 
-			# get rid of path-traversal attempts and junk patches:
-			foreach (@a, @b) {
-				return if $bad_component{$_};
-			}
+		)? # end of optional stuff, everything below is required
 
-			$di->{path_a} = join('/', @a);
-			$di->{path_b} = join('/', @b);
-			$hdr_lines = [ $l ];
-		} elsif ($tmp) {
-			utf8::encode($l);
-			print $tmp $l or die "print(tmp): $!";
-		} elsif ($hdr_lines) {
-			push @$hdr_lines, $l;
-			if ($l =~ /\Anew file mode (100644|120000|100755)$/) {
-				$di->{mode_a} = $1;
-			}
-		}
-	}
-	return undef unless $tmp;
+		# match the pre and post-image OIDs as $6 $7
+		^index\x20(${pre}[a-f0-9]*)\.\.(${post}[a-f0-9]*)
+			# mode if unchanged $8
+			(?:\x20(100644|120000|100755))?$LF
+	) # end of header lines ($1)
+	( # $9 is the patch body
+		# "--- a/foo.c" sets pre-filename ($10) in case
+		# $2 is missing
+		(?:^---\x20$FN$LF)
+
+		# "+++ b/foo.c" sets post-filename ($11) in case
+		# $3 is missing
+		(?:^\+{3}\x20$FN$LF)
+
+		# the meat of the diff, including "^\\No newline ..."
+		# We also allow for totally blank lines w/o leading spaces,
+		# because git-apply(1) handles that case, too
+		(?:^(?:[\@\+\x20\-\\][^\r\n]*|)$LF)+
+	)!smx or return;
+
+	my $hdr_lines = $1;
+	my $path_a = $2 // $10;
+	my $path_b = $3 // $11;
+	$di->{oid_a} = $6;
+	$di->{oid_b} = $7;
+	$di->{mode_a} = $5 // $8 // $4; # new (file) // unchanged // old
+	my $patch = $9;
+
+	# don't care for leading 'a/' and 'b/'
+	my (undef, @a) = split(m{/}, git_unquote($path_a));
+	my (undef, @b) = split(m{/}, git_unquote($path_b));
+
+	# get rid of path-traversal attempts and junk patches:
+	# it's junk at best, an attack attempt at worse:
+	state $bad_component = { map { $_ => 1 } ('', '.', '..') };
+	foreach (@a, @b) { return if $bad_component->{$_} }
+
+	$di->{path_a} = join('/', @a);
+	$di->{path_b} = join('/', @b);
+
+	utf8::encode($hdr_lines);
+	utf8::encode($patch);
+	my $path = ++$self->{tot};
+	$di->{n} = $path;
+	open(my $tmp, '>', $self->{tmp}->dirname . "/$path") or
+		die "open(tmp): $!";
+	print $tmp $hdr_lines, $patch or die "print(tmp): $!";
 	close $tmp or die "close(tmp): $!";
+
+	# for debugging/diagnostics:
+	$di->{ibx} = $ibx;
+	$di->{smsg} = $smsg;
+	$di->{hdr_lines} = $hdr_lines;
+
 	push @$diffs, $di;
 }
 
@@ -214,13 +230,13 @@ sub find_extract_diffs ($$$) {
 	}
 
 	my $msgs = $srch->query($q, { relevance => 1 });
-	my $re = qr/\Aindex ($pre[a-f0-9]*)\.\.($post[a-f0-9]*)(?: ([0-9]+))?/;
+
 	my $diffs = [];
 	foreach my $smsg (@$msgs) {
 		$ibx->smsg_mime($smsg) or next;
 		my $mime = delete $smsg->{mime};
 		msg_iter($mime, \&extract_diff,
-				[$self, $diffs, $re, $ibx, $smsg]);
+				[$self, $diffs, $pre, $post, $ibx, $smsg]);
 	}
 	@$diffs ? $diffs : undef;
 }
@@ -251,7 +267,7 @@ sub prepare_index ($) {
 
 	my $oid_full = $existing->[1];
 	my $path_a = $di->{path_a} or die "BUG: path_a missing for $oid_full";
-	my $mode_a = $di->{mode_a} || extract_old_mode($di);
+	my $mode_a = $di->{mode_a} // '100644';
 
 	my $in = tmpfile("update-index.$oid_full") or die "tmpfile: $!";
 	print $in "$mode_a $oid_full\t$path_a\0" or die "print: $!";
@@ -305,15 +321,6 @@ EOF
 		GIT_INDEX_FILE => "$git_dir/index",
 	};
 	prepare_index($self);
-}
-
-sub extract_old_mode ($) {
-	my ($di) = @_;
-	if (join('', @{$di->{hdr_lines}}) =~
-			/^old mode (100644|100755|120000)\b/) {
-		return $1;
-	}
-	'100644';
 }
 
 sub do_finish ($) {
@@ -484,7 +491,7 @@ sub do_git_apply ($) {
 		my $i = ++$self->{nr};
 		$di = shift @$patches;
 		dbg($self, "\napplying [$i/$total] " . di_url($self, $di) .
-			"\n" . join('', @{$di->{hdr_lines}}));
+			"\n" . $di->{hdr_lines});
 		my $path = $di->{n};
 		$len += length($path) + 1;
 		push @cmd, $path;
