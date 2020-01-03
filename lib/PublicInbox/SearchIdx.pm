@@ -433,7 +433,7 @@ sub remove_message {
 		batch_do($self, 'Q' . $mid, sub {
 			my ($ids) = @_;
 			$db->delete_document($_) for @$ids;
-			$nr = scalar @$ids;
+			$nr += scalar @$ids;
 		});
 	};
 	if ($@) {
