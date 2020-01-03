@@ -255,7 +255,9 @@ sub index_diff ($$$) {
 				/^Binary files .* differ/) {
 			push @xnq, $_;
 		} elsif ($_ eq '') {
-			$in_diff = undef;
+			# possible to be in diff context, some mail may be
+			# stripped by MUA or even GNU diff(1).  "git apply"
+			# treats a bare "\n" as diff context, too
 		} else {
 			push @xnq, $_;
 			warn "non-diff line: $_\n" if DEBUG && $_ ne '';
