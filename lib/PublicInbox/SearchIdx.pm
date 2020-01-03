@@ -199,12 +199,12 @@ sub index_old_diff_fn {
 }
 
 sub index_diff ($$$) {
-	my ($self, $lines, $doc) = @_;
+	my ($self, $txt, $doc) = @_;
 	my %seen;
 	my $in_diff;
 	my @xnq;
 	my $xnq = \@xnq;
-	foreach (@$lines) {
+	foreach (split(/\n/, $txt)) {
 		if ($in_diff && s/^ //) { # diff context
 			index_diff_inc($self, $_, 'XDFCTX', $xnq);
 		} elsif (/^-- $/) { # email signature begins
@@ -278,20 +278,17 @@ sub index_diff ($$$) {
 }
 
 sub index_body ($$$) {
-	my ($self, $lines, $doc) = @_;
-	my $txt = join("\n", @$lines);
+	my ($self, $txt, $doc) = @_;
 	if ($doc) {
 		# does it look like a diff?
 		if ($txt =~ /^(?:diff|---|\+\+\+) /ms) {
-			$txt = undef;
-			index_diff($self, $lines, $doc);
+			index_diff($self, $txt, $doc);
 		} else {
 			index_text($self, $txt, 1, 'XNQ');
 		}
 	} else {
 		index_text($self, $txt, 0, 'XQUOT');
 	}
-	@$lines = ();
 }
 
 sub index_xapian { # msg_iter callback
@@ -306,19 +303,10 @@ sub index_xapian { # msg_iter callback
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
 
-	my (@orig, @quot);
-	my @lines = split(/\n/, $s);
-	while (defined(my $l = shift @lines)) {
-		if ($l =~ /^>/) {
-			index_body($self, \@orig, $doc) if @orig;
-			push @quot, $l;
-		} else {
-			index_body($self, \@quot, 0) if @quot;
-			push @orig, $l;
-		}
-	}
-	index_body($self, \@quot, 0) if @quot;
-	index_body($self, \@orig, $doc) if @orig;
+	# split off quoted and unquoted blocks:
+	my @sections = split(/((?:^>[^\n]*\n)+)/sm, $s);
+	$part = $s = undef;
+	index_body($self, $_, /\A>/ ? 0 : $doc) for @sections;
 }
 
 sub add_xapian ($$$$$$) {
