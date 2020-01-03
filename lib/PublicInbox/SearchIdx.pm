@@ -144,14 +144,14 @@ sub term_generator ($) { # write-only
 }
 
 sub index_text ($$$$) {
-	my ($self, $field, $n, $text) = @_;
-	my $tg = term_generator($self);
+	my ($self, $text, $wdf_inc, $prefix) = @_;
+	my $tg = term_generator($self); # man Search::Xapian::TermGenerator
 
 	if ($self->{indexlevel} eq 'full') {
-		$tg->index_text($field, $n, $text);
+		$tg->index_text($text, $wdf_inc, $prefix);
 		$tg->increase_termpos;
 	} else {
-		$tg->index_text_without_positions($field, $n, $text);
+		$tg->index_text_without_positions($text, $wdf_inc, $prefix);
 	}
 }
 
