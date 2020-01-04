@@ -112,6 +112,8 @@ sub extract_diff ($$) {
 	}
 
 	state $LF = qr!\r?\n!;
+	state $ANY = qr![^\r\n]+!;
+	state $MODE = '100644|120000|100755';
 	state $FN = qr!(?:("?[^/\n]+/[^\r\n]+)|/dev/null)!;
 
 	$s =~ m!( # $1 start header lines we save for debugging:
@@ -124,17 +126,16 @@ sub extract_diff ($$) {
 		# try to get the pre-and-post filenames as $2 and $3
 		(?:^diff\x20--git\x20$FN\x20$FN$LF)
 
-		# old mode $4
-		(?:^old mode\x20(100644|120000|100755)$LF)?
-
-		# ignore other info
-		(?:^(?:copy|rename|deleted|dissimilarity|similarity).*$LF)?
-
-		# new mode (possibly new file) ($5)
-		(?:^new\x20(?:file\x20)?mode\x20(100644|120000|100755)$LF)?
-
-		# ignore other info
-		(?:^(?:copy|rename|deleted|dissimilarity|similarity).*$LF)?
+		(?:^(?: # pass all this to git-apply:
+			# old mode $4
+			(?:old\x20mode\x20($MODE))
+			|
+			# new mode (possibly new file) ($5)
+			(?:new\x20(?:file\x20)?mode\x20($MODE))
+			|
+			(?:(?:copy|rename|deleted|
+				dissimilarity|similarity)$ANY)
+		)$LF)*
 
 		)? # end of optional stuff, everything below is required
 

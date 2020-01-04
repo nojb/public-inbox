@@ -20,7 +20,7 @@ my $app = sub {
 # TODO: convert these to self-contained test cases
 my $todo = {
 	'git' => [
-		# 'eebf7a8/s/?b=t%2Ftest-lib.sh', TODO
+		'eebf7a8/s/?b=t%2Ftest-lib.sh',
 		'eb580ca513/s/?b=remote-odb.c',
 		'776fa90f7f/s/?b=contrib/git-jump/git-jump',
 		'5cd8845/s/?b=submodule.c',
