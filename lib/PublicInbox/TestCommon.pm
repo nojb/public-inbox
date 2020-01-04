@@ -65,11 +65,15 @@ sub require_mods {
 	my @need;
 	for my $mod (@mods) {
 		if ($mod eq 'Search::Xapian') {
-			require PublicInbox::Search;
-			PublicInbox::Search::load_xapian() and next;
+			if (eval { require PublicInbox::Search } &&
+				PublicInbox::Search::load_xapian()) {
+				next;
+			}
 		} elsif ($mod eq 'Search::Xapian::WritableDatabase') {
-			require PublicInbox::SearchIdx;
-			PublicInbox::SearchIdx::load_xapian_writable() and next;
+			if (eval { require PublicInbox::SearchIdx } &&
+				PublicInbox::SearchIdx::load_xapian_writable()){
+					next;
+			}
 		} else {
 			eval "require $mod";
 		}
