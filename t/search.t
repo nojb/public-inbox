@@ -319,14 +319,14 @@ $ibx->with_umask(sub {
 	my $mset = $ro->query('t:list@example.com', {mset => 1});
 	is($mset->size, 6, 'searched To: successfully');
 	foreach my $m ($mset->items) {
-		my $smsg = $ro->lookup_article($m->get_docid);
+		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
 		like($smsg->to, qr/\blist\@example\.com\b/, 'to appears');
 	}
 
 	$mset = $ro->query('tc:list@example.com', {mset => 1});
 	is($mset->size, 6, 'searched To+Cc: successfully');
 	foreach my $m ($mset->items) {
-		my $smsg = $ro->lookup_article($m->get_docid);
+		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
 		my $tocc = join("\n", $smsg->to, $smsg->cc);
 		like($tocc, qr/\blist\@example\.com\b/, 'tocc appears');
 	}
@@ -335,7 +335,7 @@ $ibx->with_umask(sub {
 		my $mset = $ro->query($pfx . 'foo@example.com', { mset => 1 });
 		is($mset->items, 1, "searched $pfx successfully for Cc:");
 		foreach my $m ($mset->items) {
-			my $smsg = $ro->lookup_article($m->get_docid);
+			my $smsg = $ro->{over_ro}->get_art($m->get_docid);
 			like($smsg->cc, qr/\bfoo\@example\.com\b/,
 				'cc appears');
 		}
@@ -432,7 +432,11 @@ $ibx->with_umask(sub {
 	}
 	$rw->unindex_blob($amsg);
 	$rw->commit_txn_lazy;
-	is($ro->lookup_article($art->{num}), undef, 'gone from OVER DB') if defined($art);
+	SKIP: {
+		skip('$art not defined', 1) unless defined $art;
+		is($ro->{over_ro}->get_art($art->{num}), undef,
+			'gone from OVER DB');
+	};
 });
 
 my $all_mask = 07777;

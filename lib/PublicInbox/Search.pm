@@ -336,11 +336,6 @@ EOF
 	$self->{query_parser} = $qp;
 }
 
-sub lookup_article {
-	my ($self, $num) = @_;
-	$self->{over_ro}->get_art($num);
-}
-
 sub help {
 	my ($self) = @_;
 	$self->qp; # parse altids
