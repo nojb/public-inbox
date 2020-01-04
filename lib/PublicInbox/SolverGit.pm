@@ -102,7 +102,6 @@ sub extract_diff ($$) {
 	my $ct = $part->content_type || 'text/plain';
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
-	my $di = {};
 
 	# Email::MIME::Encodings forces QP to be CRLF upon decoding,
 	# change it back to LF:
@@ -159,12 +158,14 @@ sub extract_diff ($$) {
 		(?:^(?:[\@\+\x20\-\\][^\r\n]*|)$LF)+
 	)!smx or return;
 
-	my $hdr_lines = $1;
+	my $di = {
+		hdr_lines => $1,
+		oid_a => $6,
+		oid_b => $7,
+		mode_a => $5 // $8 // $4, # new (file) // unchanged // old
+	};
 	my $path_a = $2 // $10;
 	my $path_b = $3 // $11;
-	$di->{oid_a} = $6;
-	$di->{oid_b} = $7;
-	$di->{mode_a} = $5 // $8 // $4; # new (file) // unchanged // old
 	my $patch = $9;
 
 	# don't care for leading 'a/' and 'b/'
@@ -179,19 +180,16 @@ sub extract_diff ($$) {
 	$di->{path_a} = join('/', @a);
 	$di->{path_b} = join('/', @b);
 
-	utf8::encode($hdr_lines);
-	utf8::encode($patch);
 	my $path = ++$self->{tot};
 	$di->{n} = $path;
-	open(my $tmp, '>', $self->{tmp}->dirname . "/$path") or
+	open(my $tmp, '>:utf8', $self->{tmp}->dirname . "/$path") or
 		die "open(tmp): $!";
-	print $tmp $hdr_lines, $patch or die "print(tmp): $!";
+	print $tmp $di->{hdr_lines}, $patch or die "print(tmp): $!";
 	close $tmp or die "close(tmp): $!";
 
 	# for debugging/diagnostics:
 	$di->{ibx} = $ibx;
 	$di->{smsg} = $smsg;
-	$di->{hdr_lines} = $hdr_lines;
 
 	push @$diffs, $di;
 }
