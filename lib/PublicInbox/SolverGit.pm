@@ -155,7 +155,7 @@ sub extract_diff ($$) {
 		# the meat of the diff, including "^\\No newline ..."
 		# We also allow for totally blank lines w/o leading spaces,
 		# because git-apply(1) handles that case, too
-		(?:^(?:[\@\+\x20\-\\][^\r\n]*|)$LF)+
+		(?:^(?:[\@\+\x20\-\\][^\n]*|)$LF)+
 	)!smx or return;
 
 	my $di = {

@@ -20,6 +20,8 @@ my $app = sub {
 # TODO: convert these to self-contained test cases
 my $todo = {
 	'git' => [
+		'9e9048b02bd04d287461543d85db0bb715b89f8c'
+			.'/s/?b=t%2Ft3420%2Fremove-ids.sed',
 		'eebf7a8/s/?b=t%2Ftest-lib.sh',
 		'eb580ca513/s/?b=remote-odb.c',
 		'776fa90f7f/s/?b=contrib/git-jump/git-jump',
