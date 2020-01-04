@@ -10,7 +10,6 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $pi_config = "$tmpdir/config";
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
-my $cfgpfx = "publicinbox.test";
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
 require_mods(@mods);
 use_ok 'PublicInbox::Import';
@@ -24,16 +23,15 @@ foreach my $mod (@mods) { use_ok $mod; }
 	open my $fh, '>', "$maindir/description" or die "open: $!\n";
 	print $fh "test for public-inbox\n";
 	close $fh or die "close: $!\n";
-	my %cfg = (
-		"$cfgpfx.address" => $addr,
-		"$cfgpfx.inboxdir" => $maindir,
-		"$cfgpfx.url" => 'http://example.com/test/',
-		"$cfgpfx.newsgroup" => 'inbox.test',
-	);
-	while (my ($k,$v) = each %cfg) {
-		is(0, system(qw(git config --file), $pi_config, $k, $v),
-			"setup $k");
-	}
+	open $fh, '>>', $pi_config or die;
+	print $fh <<EOF or die;
+[publicinbox "test"]
+	address = $addr
+	inboxdir = $maindir
+	url = http://example.com/test/
+	newsgroup = inbox.test
+EOF
+	close $fh or die;
 
 	# ensure successful message delivery
 	{

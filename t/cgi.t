@@ -13,7 +13,6 @@ my $pi_home = "$home/.public-inbox";
 my $pi_config = "$pi_home/config";
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
-my $cfgpfx = "publicinbox.test";
 
 {
 	is(1, mkdir($home, 0755), "setup ~/ for testing");
@@ -23,15 +22,14 @@ my $cfgpfx = "publicinbox.test";
 	open my $fh, '>', "$maindir/description" or die "open: $!\n";
 	print $fh "test for public-inbox\n";
 	close $fh or die "close: $!\n";
-	my %cfg = (
-		"$cfgpfx.address" => $addr,
-		"$cfgpfx.inboxdir" => $maindir,
-		"$cfgpfx.indexlevel" => 'basic',
-	);
-	while (my ($k,$v) = each %cfg) {
-		is(0, system(qw(git config --file), $pi_config, $k, $v),
-			"setup $k");
-	}
+	open $fh, '>>', $pi_config or die;
+	print $fh <<EOF or die;
+[publicinbox "test"]
+	address = $addr
+	inboxdir = $maindir
+	indexlevel = basic
+EOF
+	close $fh or die "close: $!\n";
 }
 
 use_ok 'PublicInbox::Git';

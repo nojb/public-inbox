@@ -49,14 +49,13 @@ my $fail_bad_header = sub ($$$) {
 	is(1, mkdir($pi_home, 0755), "setup ~/.public-inbox");
 	is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
 
-	my %cfg = (
-		"$cfgpfx.address" => $addr,
-		"$cfgpfx.inboxdir" => $maindir,
-	);
-	while (my ($k,$v) = each %cfg) {
-		is(0, system(qw(git config --file), $pi_config, $k, $v),
-			"setup $k");
-	}
+	open my $fh, '>>', $pi_config or die;
+	print $fh <<EOF or die;
+[publicinbox "test"]
+	address = $addr
+	inboxdir = $maindir
+EOF
+	close $fh or die;
 }
 
 local $ENV{GIT_COMMITTER_NAME} = eval {
