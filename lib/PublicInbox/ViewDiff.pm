@@ -104,8 +104,9 @@ sub anchor0 ($$$$$) {
 
 	if (my $attr = to_attr($ctx->{-apfx}.$fn)) {
 		$ctx->{-anchors}->{$attr} = 1;
+		my $spaces = ($orig =~ s/( +)\z//) ? $1 : '';
 		$$dst .= " <a\nid=i$attr\nhref=#$attr>" .
-			ascii_html($orig) . '</a>'.
+			ascii_html($orig) . '</a>' . $spaces .
 			to_html($linkify, $rest);
 		return 1;
 	}
