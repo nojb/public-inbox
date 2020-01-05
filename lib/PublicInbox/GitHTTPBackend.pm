@@ -7,7 +7,7 @@ package PublicInbox::GitHTTPBackend;
 use strict;
 use warnings;
 use Fcntl qw(:seek);
-use IO::Handle;
+use IO::Handle; # ->flush
 use HTTP::Date qw(time2str);
 use PublicInbox::Qspawn;
 use PublicInbox::Tmpfile;

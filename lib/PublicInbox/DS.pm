@@ -35,9 +35,8 @@ use fields ('sock',              # underlying socket
             'wbuf_off',  # offset into first element of wbuf to start writing at
             );
 
-use Errno  qw(EAGAIN EINVAL);
-use Carp   qw(croak confess carp);
-require File::Spec;
+use Errno qw(EAGAIN EINVAL);
+use Carp qw(confess carp);
 
 my $nextq; # queue for next_tick
 my $WaitPids; # list of [ pid, callback, callback_arg ]

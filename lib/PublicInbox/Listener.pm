@@ -8,7 +8,7 @@ use warnings;
 use base 'PublicInbox::DS';
 use Socket qw(SOL_SOCKET SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use fields qw(post_accept);
-require IO::Handle;
+use IO::Handle;
 use PublicInbox::Syscall qw(EPOLLIN EPOLLEXCLUSIVE EPOLLET);
 use Errno qw(EAGAIN ECONNABORTED EPERM);
 

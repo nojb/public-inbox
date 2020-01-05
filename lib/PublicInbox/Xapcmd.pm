@@ -6,7 +6,7 @@ use warnings;
 use PublicInbox::Spawn qw(which spawn);
 use PublicInbox::Over;
 use PublicInbox::SearchIdx;
-use File::Temp ();
+use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);
 use POSIX ();

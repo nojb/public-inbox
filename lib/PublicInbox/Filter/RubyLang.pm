@@ -22,7 +22,6 @@ sub new {
 		$altid ||= $ibx->{altid}->[0];
 	}
 	if ($altid) {
-		require PublicInbox::MID; # mid_clean
 		require PublicInbox::AltId;
 		$self->{-altid} = PublicInbox::AltId->new($ibx, $altid, 1);
 	}

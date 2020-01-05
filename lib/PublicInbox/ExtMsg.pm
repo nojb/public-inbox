@@ -9,7 +9,6 @@ package PublicInbox::ExtMsg;
 use strict;
 use warnings;
 use PublicInbox::Hval qw(ascii_html prurl);
-use PublicInbox::MID qw/mid2path/;
 use PublicInbox::WwwStream;
 our $MIN_PARTIAL_LEN = 16;
 

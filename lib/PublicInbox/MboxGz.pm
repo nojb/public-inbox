@@ -6,7 +6,6 @@ use warnings;
 use Email::Simple;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Mbox;
-use IO::Compress::Gzip;
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
 my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
 

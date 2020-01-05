@@ -15,9 +15,10 @@ use fields qw(httpd env input_left remote_addr remote_port forward alive);
 use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
+use Plack::Util;
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
-use IO::Handle;
+use IO::Handle; # ->write
 use PublicInbox::DS qw(msg_more);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::Tmpfile;

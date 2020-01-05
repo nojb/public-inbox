@@ -5,8 +5,6 @@
 package PublicInbox::TLS;
 use strict;
 use IO::Socket::SSL;
-require Carp;
-use Errno qw(EAGAIN);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLOUT);
 
 sub err () { $SSL_ERROR }

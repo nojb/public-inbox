@@ -10,7 +10,7 @@ use strict;
 use warnings;
 use base qw(PublicInbox::Lock);
 use PublicInbox::Spawn qw(spawn);
-use PublicInbox::MID qw(mids mid_mime mid2path);
+use PublicInbox::MID qw(mids mid2path);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use PublicInbox::ContentId qw(content_digest);

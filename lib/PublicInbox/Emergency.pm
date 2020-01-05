@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use Fcntl qw(:DEFAULT SEEK_SET);
 use Sys::Hostname qw(hostname);
-use IO::Handle;
+use IO::Handle; # ->flush, ->autoflush
 
 sub new {
 	my ($class, $dir) = @_;

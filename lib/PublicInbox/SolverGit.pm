@@ -11,7 +11,7 @@ package PublicInbox::SolverGit;
 use strict;
 use warnings;
 use 5.010_001;
-use File::Temp 0.19 ();
+use File::Temp 0.19 (); # 0.19 for ->newdir
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Git qw(git_unquote git_quote);
 use PublicInbox::MsgIter qw(msg_iter msg_part_text);

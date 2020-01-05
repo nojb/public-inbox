@@ -12,7 +12,7 @@ use warnings;
 use base qw(Exporter);
 our @EXPORT_OK = qw(flush_diff);
 use URI::Escape qw(uri_escape_utf8);
-use PublicInbox::Hval qw(ascii_html to_attr from_attr);
+use PublicInbox::Hval qw(ascii_html to_attr);
 use PublicInbox::Git qw(git_unquote);
 
 # keep track of state so we can avoid redundant HTML tags for

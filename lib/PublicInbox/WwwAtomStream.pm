@@ -13,7 +13,7 @@ use POSIX qw(strftime);
 use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
 use PublicInbox::Hval qw(ascii_html);
-use PublicInbox::MID qw/mid_clean mid_escape/;
+use PublicInbox::MID qw(mid_escape);
 use PublicInbox::MsgTime qw(msg_timestamp);
 
 # called by PSGI server after getline:

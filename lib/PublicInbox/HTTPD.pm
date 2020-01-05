@@ -7,8 +7,8 @@ package PublicInbox::HTTPD;
 use strict;
 use warnings;
 use Plack::Util;
-require PublicInbox::HTTPD::Async;
-require PublicInbox::Daemon;
+use PublicInbox::HTTPD::Async;
+use PublicInbox::Daemon;
 
 sub pi_httpd_async { PublicInbox::HTTPD::Async->new(@_) }
 

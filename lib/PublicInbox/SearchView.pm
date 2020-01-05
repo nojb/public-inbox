@@ -10,10 +10,7 @@ use PublicInbox::SearchMsg;
 use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
-use PublicInbox::MID qw(MID_ESC);
-use PublicInbox::MIME;
-require PublicInbox::Git;
-require PublicInbox::SearchThread;
+use PublicInbox::SearchThread;
 our $LIM = 200;
 my %rmap_inc;
 
@@ -350,7 +347,6 @@ package PublicInbox::SearchQuery;
 use strict;
 use warnings;
 use URI::Escape qw(uri_escape);
-use PublicInbox::Hval;
 use PublicInbox::MID qw(MID_ESC);
 
 sub new {

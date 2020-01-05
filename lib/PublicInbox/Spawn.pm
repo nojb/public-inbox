@@ -15,7 +15,6 @@ use strict;
 use warnings;
 use base qw(Exporter);
 use Symbol qw(gensym);
-use IO::Handle;
 use PublicInbox::ProcessPipe;
 our @EXPORT_OK = qw/which spawn popen_rd/;
 sub RLIMITS () { qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA) }

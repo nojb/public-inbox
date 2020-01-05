@@ -18,7 +18,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::SearchIdx;
-use IO::Handle;
+use IO::Handle; # ->autoflush
 use File::Temp qw(tempfile);
 
 # an estimate of the post-packed size to the raw uncompressed size

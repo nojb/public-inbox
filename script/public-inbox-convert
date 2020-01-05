@@ -4,11 +4,9 @@
 use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
 use PublicInbox::Config;
 use PublicInbox::V2Writable;
-use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
 use Cwd 'abs_path';
 use File::Copy 'cp'; # preserves permissions:

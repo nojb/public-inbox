@@ -8,13 +8,13 @@ use strict;
 use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::AdminEdit;
-use File::Temp 0.19 ();
+use File::Temp 0.19 (); # 0.19 for TMPDIR
 use PublicInbox::ContentId qw(content_id);
 use PublicInbox::MID qw(mid_clean mids);
 PublicInbox::Admin::check_require('-index');
-require PublicInbox::MIME;
-require PublicInbox::InboxWritable;
-require PublicInbox::Import;
+use PublicInbox::MIME;
+use PublicInbox::InboxWritable;
+use PublicInbox::Import;
 
 my $usage = "$0 -m MESSAGE_ID [--all] [INBOX_DIRS]";
 my $opt = { verbose => 1, all => 0, -min_inbox_version => 2, raw => 0 };

@@ -7,7 +7,7 @@ use base qw(Exporter);
 our @EXPORT = qw(tmpfile);
 use Fcntl qw(:DEFAULT);
 use Errno qw(EEXIST);
-require File::Spec;
+use File::Spec;
 
 # use tmpfile instead of open(..., '+>', undef) so we can get an
 # unlinked filename which makes sense when viewed with lsof

@@ -10,7 +10,7 @@ package PublicInbox::Git;
 use strict;
 use warnings;
 use POSIX qw(dup2);
-require IO::Handle;
+use IO::Handle; # ->autoflush
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::Tmpfile;
 use base qw(Exporter);

@@ -6,7 +6,7 @@ package PublicInbox::Daemon;
 use strict;
 use warnings;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
-use IO::Handle;
+use IO::Handle; # ->autoflush
 use IO::Socket;
 use POSIX qw(WNOHANG :signal_h);
 use Socket qw(IPPROTO_TCP SOL_SOCKET);

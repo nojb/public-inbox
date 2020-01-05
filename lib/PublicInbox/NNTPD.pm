@@ -7,7 +7,7 @@ package PublicInbox::NNTPD;
 use strict;
 use warnings;
 use Sys::Hostname;
-require PublicInbox::Config;
+use PublicInbox::Config;
 
 sub new {
 	my ($class) = @_;

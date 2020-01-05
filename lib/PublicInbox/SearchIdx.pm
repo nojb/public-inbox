@@ -12,7 +12,7 @@ use warnings;
 use base qw(PublicInbox::Search PublicInbox::Lock);
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
-use PublicInbox::MID qw/mid_clean id_compress mid_mime mids_for_index/;
+use PublicInbox::MID qw/mid_clean mid_mime mids_for_index/;
 use PublicInbox::MsgIter;
 use Carp qw(croak);
 use POSIX qw(strftime);

@@ -32,8 +32,6 @@ EOF
 	close $fh or die "close: $!\n";
 }
 
-use_ok 'PublicInbox::Git';
-use_ok 'PublicInbox::Import';
 use_ok 'PublicInbox::Inbox';
 use_ok 'PublicInbox::InboxWritable';
 use_ok 'PublicInbox::Config';

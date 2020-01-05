@@ -13,8 +13,6 @@ use constant YYYYMMDD => 1; # Date: header for searching in the WWW UI
 use constant DT => 2; # Date: YYYYMMDDHHMMSS
 
 use PublicInbox::SearchMsg;
-use PublicInbox::MIME;
-use PublicInbox::MID qw/id_compress/;
 use PublicInbox::Over;
 my $QP_FLAGS;
 our %X = map { $_ => 0 } qw(BoolWeight Database Enquire
