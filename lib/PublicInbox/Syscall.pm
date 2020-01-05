@@ -13,41 +13,38 @@
 # License or the Artistic License, as specified in the Perl README file.
 package PublicInbox::Syscall;
 use strict;
+use parent qw(Exporter);
 use POSIX qw(ENOSYS SEEK_CUR);
 use Config;
 
-require Exporter;
-use vars qw(@ISA @EXPORT_OK %EXPORT_TAGS $VERSION);
-
-$VERSION     = "0.25";
-@ISA         = qw(Exporter);
-@EXPORT_OK   = qw(epoll_ctl epoll_create epoll_wait
+# $VERSION = '0.25'; # Sys::Syscall version
+our @EXPORT_OK = qw(epoll_ctl epoll_create epoll_wait
                   EPOLLIN EPOLLOUT EPOLLET
                   EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
                   EPOLLONESHOT EPOLLEXCLUSIVE
                   signalfd SFD_NONBLOCK);
-%EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
+our %EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
                              EPOLLIN EPOLLOUT
                              EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
                              EPOLLONESHOT EPOLLEXCLUSIVE)],
                 );
 
-use constant EPOLLIN       => 1;
-use constant EPOLLOUT      => 4;
-# use constant EPOLLERR      => 8;
-# use constant EPOLLHUP      => 16;
-# use constant EPOLLRDBAND   => 128;
-use constant EPOLLEXCLUSIVE => (1 << 28);
-use constant EPOLLONESHOT => (1 << 30);
-use constant EPOLLET => (1 << 31);
-use constant EPOLL_CTL_ADD => 1;
-use constant EPOLL_CTL_DEL => 2;
-use constant EPOLL_CTL_MOD => 3;
 use constant {
+	EPOLLIN => 1,
+	EPOLLOUT => 4,
+	# EPOLLERR => 8,
+	# EPOLLHUP => 16,
+	# EPOLLRDBAND => 128,
+	EPOLLEXCLUSIVE => (1 << 28),
+	EPOLLONESHOT => (1 << 30),
+	EPOLLET => (1 << 31),
+	EPOLL_CTL_ADD => 1,
+	EPOLL_CTL_DEL => 2,
+	EPOLL_CTL_MOD => 3,
+
 	SFD_CLOEXEC => 02000000,
 	SFD_NONBLOCK => 00004000,
 };
-
 
 our $loaded_syscall = 0;
 
