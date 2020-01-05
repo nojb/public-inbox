@@ -16,7 +16,7 @@ use PublicInbox::Address;
 use PublicInbox::WwwStream;
 use PublicInbox::Reply;
 use PublicInbox::ViewDiff qw(flush_diff);
-require POSIX;
+use POSIX qw(strftime);
 use Time::Local qw(timegm);
 use PublicInbox::SearchMsg qw(subject_normalized);
 use constant COLS => 72;
@@ -207,6 +207,9 @@ sub nr_to_s ($$$) {
 	return "0 $plural" if $nr == 0;
 	$nr == 1 ? "$nr $singular" : "$nr $plural";
 }
+
+# human-friendly format
+sub fmt_ts ($) { strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 # this is already inside a <pre>
 sub index_entry {
@@ -926,8 +929,6 @@ sub missing_thread {
 	PublicInbox::ExtMsg::ext_msg($ctx);
 }
 
-sub fmt_ts { POSIX::strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
-
 sub dedupe_subject {
 	my ($prev_subj, $subj, $val) = @_;
 
@@ -1159,10 +1160,8 @@ sub dump_topics {
 	200;
 }
 
-sub ts2str ($) {
-	my ($ts) = @_;
-	POSIX::strftime('%Y%m%d%H%M%S', gmtime($ts));
-}
+# only for the t= query parameter passed to overview DB
+sub ts2str ($) { strftime('%Y%m%d%H%M%S', gmtime($_[0])) };
 
 sub str2ts ($) {
 	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $_[0]);
