@@ -195,14 +195,20 @@ sub run_script ($;$$) {
 	my $spawn_opt = {};
 	for my $fd (0..2) {
 		my $redir = $opt->{$fd};
-		next unless ref($redir);
-		open my $fh, '+>', undef or die "open: $!";
-		$fhref->[$fd] = $fh;
-		$spawn_opt->{$fd} = $fh;
-		next if $fd > 0;
-		$fh->autoflush(1);
-		print $fh $$redir or die "print: $!";
-		seek($fh, 0, SEEK_SET) or die "seek: $!";
+		my $ref = ref($redir);
+		if ($ref eq 'SCALAR') {
+			open my $fh, '+>', undef or die "open: $!";
+			$fhref->[$fd] = $fh;
+			$spawn_opt->{$fd} = $fh;
+			next if $fd > 0;
+			$fh->autoflush(1);
+			print $fh $$redir or die "print: $!";
+			seek($fh, 0, SEEK_SET) or die "seek: $!";
+		} elsif ($ref eq 'GLOB') {
+			$spawn_opt->{$fd} = $fhref->[$fd] = $redir;
+		} elsif ($ref) {
+			die "unable to deal with $ref $redir";
+		}
 	}
 	if ($run_mode == 0) {
 		# spawn an independent new process, like real-world use cases:

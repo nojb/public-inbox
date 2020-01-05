@@ -31,8 +31,8 @@ sub msg_html_i {
 		# $more cannot be true w/o $smsg being defined:
 		my $upfx = $more ? '../'.mid_escape($ctx->{smsg}->mid).'/' : '';
 		$ctx->{tip} .
-			multipart_text_as_html($ctx->{mime}, $upfx, $ctx) .
-			'</pre><hr>'
+			multipart_text_as_html(delete $ctx->{mime}, $upfx,
+						$ctx) . '</pre><hr>'
 	} elsif ($more && @$more) {
 		++$ctx->{end_nr};
 		msg_html_more($ctx, $more, $nr);
@@ -41,7 +41,7 @@ sub msg_html_i {
 		# we want to at least show the message if something
 		# here crashes:
 		eval {
-			my $hdr = delete($ctx->{mime})->header_obj;
+			my $hdr = delete($ctx->{hdr});
 			'<pre>' . html_footer($hdr, 1, $ctx) .
 			'</pre>' . msg_reply($ctx, $hdr)
 		};
@@ -56,7 +56,8 @@ sub msg_html {
 	my ($ctx, $mime, $more, $smsg) = @_;
 	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	$ctx->{tip} = _msg_html_prepare($mime->header_obj, $ctx, $more, 0);
+	my $hdr = $ctx->{hdr} = $mime->header_obj;
+	$ctx->{tip} = _msg_html_prepare($hdr, $ctx, $more, 0);
 	$ctx->{more} = $more;
 	$ctx->{end_nr} = 2;
 	$ctx->{smsg} = $smsg;
@@ -95,8 +96,8 @@ sub msg_html_more {
 		my $next = $ibx->over->next_by_mid($mid, \$id, \$prev);
 		@$more = $next ? ($id, $prev, $next) : ();
 		if ($smsg) {
-			my $mime = $smsg->{mime};
 			my $upfx = '../' . mid_escape($smsg->mid) . '/';
+			my $mime = delete $smsg->{mime};
 			_msg_html_prepare($mime->header_obj, $ctx, $more, $nr) .
 				multipart_text_as_html($mime, $upfx, $ctx) .
 				'</pre><hr>'
