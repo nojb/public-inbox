@@ -10,6 +10,7 @@ use strict;
 use warnings;
 use PublicInbox::Config;
 use PublicInbox::MID qw(mid_escape);
+use PublicInbox::Hval qw(prurl);
 
 sub new {
 	my ($class, $pi_config) = @_;
@@ -48,7 +49,7 @@ sub call {
 	my ($ng, $article) = @parts;
 	my $pi_config = $self->{pi_config};
 	if (my $ibx = $pi_config->lookup_newsgroup($ng)) {
-		my $url = PublicInbox::Hval::prurl($env, $ibx->{url});
+		my $url = prurl($env, $ibx->{url});
 		my $code = 301;
 		if (defined $article && $article =~ /\A[0-9]+\z/) {
 			my $mid = eval { $ibx->mm->mid_for($article) };

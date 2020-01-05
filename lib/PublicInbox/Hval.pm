@@ -10,7 +10,7 @@ use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape
-		to_attr from_attr/;
+		to_attr from_attr prurl/;
 my $enc_ascii = find_encoding('us-ascii');
 
 # safe-ish acceptable filename pattern for portability
@@ -84,7 +84,8 @@ sub raw {
 	}
 }
 
-sub prurl {
+# returns a protocol-relative URL string
+sub prurl ($$) {
 	my ($env, $u) = @_;
 	if (ref($u) eq 'ARRAY') {
 		my $h = $env->{HTTP_HOST} // $env->{SERVER_NAME};

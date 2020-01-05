@@ -8,7 +8,7 @@
 package PublicInbox::ExtMsg;
 use strict;
 use warnings;
-use PublicInbox::Hval qw/ascii_html/;
+use PublicInbox::Hval qw(ascii_html prurl);
 use PublicInbox::MID qw/mid2path/;
 use PublicInbox::WwwStream;
 our $MIN_PARTIAL_LEN = 16;
@@ -172,7 +172,7 @@ sub ext_urls {
 		my $env = $ctx->{env};
 		my $e = "\nPerhaps try an external site:\n\n";
 		foreach my $url (@EXT_URL) {
-			my $u = PublicInbox::Hval::prurl($env, $url);
+			my $u = prurl($env, $url);
 			my $r = sprintf($u, $href);
 			my $t = sprintf($u, $html);
 			$e .= qq{<a\nhref="$r">$t</a>\n};

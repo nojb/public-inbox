@@ -6,7 +6,7 @@
 package PublicInbox::WwwListing;
 use strict;
 use warnings;
-use PublicInbox::Hval qw(ascii_html);
+use PublicInbox::Hval qw(ascii_html prurl);
 use PublicInbox::Linkify;
 use PublicInbox::View;
 use PublicInbox::Inbox;
@@ -84,13 +84,13 @@ sub new {
 sub ibx_entry {
 	my ($mtime, $ibx, $env) = @_;
 	my $ts = PublicInbox::View::fmt_ts($mtime);
-	my $url = PublicInbox::Hval::prurl($env, $ibx->{url});
+	my $url = prurl($env, $ibx->{url});
 	my $tmp = <<"";
 * $ts - $url
   ${\$ibx->description}
 
 	if (defined(my $info_url = $ibx->{infourl})) {
-		$tmp .= '  ' . PublicInbox::Hval::prurl($env, $info_url) . "\n";
+		$tmp .= '  ' . prurl($env, $info_url) . "\n";
 	}
 	$tmp;
 }

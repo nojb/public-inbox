@@ -9,7 +9,7 @@
 package PublicInbox::WwwStream;
 use strict;
 use warnings;
-use PublicInbox::Hval qw(ascii_html);
+use PublicInbox::Hval qw(ascii_html prurl);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
@@ -78,7 +78,7 @@ sub _html_top ($) {
 
 sub code_footer ($) {
 	my ($env) = @_;
-	my $u = PublicInbox::Hval::prurl($env, $CODE_URL);
+	my $u = prurl($env, $CODE_URL);
 	qq(AGPL code for this site: git clone <a\nhref="$u">$u</a>)
 }
 
