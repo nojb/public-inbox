@@ -13,6 +13,7 @@ package PublicInbox::AltId;
 use strict;
 use warnings;
 use URI::Escape qw(uri_unescape);
+use PublicInbox::Msgmap;
 
 # spec: TYPE:PREFIX:param1=value1&param2=value2&...
 # The PREFIX will be a searchable boolean prefix in Xapian
@@ -21,8 +22,6 @@ sub new {
 	my ($class, $ibx, $spec, $writable) = @_;
 	my ($type, $prefix, $query) = split(/:/, $spec, 3);
 	$type eq 'serial' or die "non-serial not supported, yet\n";
-
-	require PublicInbox::Msgmap;
 
 	my %params = map {
 		my ($k, $v) = split(/=/, uri_unescape($_), 2);
