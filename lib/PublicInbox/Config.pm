@@ -10,7 +10,7 @@
 package PublicInbox::Config;
 use strict;
 use warnings;
-require PublicInbox::Inbox;
+use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
 
 sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }

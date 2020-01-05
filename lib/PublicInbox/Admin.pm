@@ -9,7 +9,8 @@ use warnings;
 use Cwd 'abs_path';
 use base qw(Exporter);
 our @EXPORT_OK = qw(resolve_repo_dir);
-require PublicInbox::Config;
+use PublicInbox::Config;
+use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
 
 sub resolve_repo_dir {
@@ -68,7 +69,6 @@ sub unconfigured_ibx ($$) {
 
 sub resolve_inboxes ($;$$) {
 	my ($argv, $opt, $cfg) = @_;
-	require PublicInbox::Inbox;
 	$opt ||= {};
 
 	$cfg //= eval { PublicInbox::Config->new };
