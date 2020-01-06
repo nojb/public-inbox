@@ -12,7 +12,7 @@ use strict;
 use parent qw(Exporter);
 use bytes ();
 use Fcntl qw(SEEK_SET O_RDONLY O_NONBLOCK);
-use POSIX qw(strftime lround);
+use POSIX qw(strftime);
 use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
 use Errno qw(EACCES ENOTDIR ENOENT);
@@ -238,7 +238,7 @@ sub human_size ($) {
 			last;
 		}
 	}
-	lround($size).$suffix;
+	sprintf('%lu', $size).$suffix;
 }
 
 # by default, this returns "index.html" if it exists for a given directory
