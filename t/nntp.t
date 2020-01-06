@@ -68,7 +68,7 @@ use_ok 'PublicInbox::Inbox';
 		my ($date, $time, $gmt) = @_;
 		my $m = join(' ', @_);
 		my $ts = PublicInbox::NNTP::parse_time(@_);
-		my @t = gmtime($ts);
+		my @t = $gmt ? gmtime($ts) : localtime($ts);
 		my ($d, $t) = split(' ', strftime('%Y%m%d %H%M%S', @t));
 		if (length($date) != 8) { # Net::NNTP uses YYMMDD :<
 			$d =~ s/^[0-9]{2}//;
