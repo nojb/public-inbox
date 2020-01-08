@@ -596,12 +596,11 @@ sub get_range ($$) {
 sub long_step {
 	my ($self) = @_;
 	# wbuf is unset or empty, here; {long} may add to it
-	my ($cb, $t0, @args) = @{$self->{long_cb}};
+	my ($fd, $cb, $t0, @args) = @{$self->{long_cb}};
 	my $more = eval { $cb->($self, @args) };
 	if ($@ || !$self->{sock}) { # something bad happened...
 		delete $self->{long_cb};
 		my $elapsed = now() - $t0;
-		my $fd = fileno($self->{sock});
 		if ($@) {
 			err($self,
 			    "%s during long response[$fd] - %0.6f",
@@ -638,11 +637,11 @@ sub long_step {
 sub long_response ($$;@) {
 	my ($self, $cb, @args) = @_; # cb returns true if more, false if done
 
-	$self->{sock} or return;
+	my $sock = $self->{sock} or return;
 	# make sure we disable reading during a long response,
 	# clients should not be sending us stuff and making us do more
 	# work while we are stream a response to them
-	$self->{long_cb} = [ $cb, now(), @args ];
+	$self->{long_cb} = [ fileno($sock), $cb, now(), @args ];
 	long_step($self); # kick off!
 	undef;
 }
