@@ -637,6 +637,7 @@ sub daemon_loop ($$$$) {
 
 sub run ($$$;$) {
 	my ($default, $refresh, $post_accept, $nntpd) = @_;
+	local $SIG{PIPE} = 'IGNORE';
 	daemon_prepare($default);
 	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
 	my $for_destroy = daemonize();
