@@ -40,7 +40,8 @@ sub event_step {
 	# on high-traffic sites.
 	if (my $addr = accept(my $c, $sock)) {
 		IO::Handle::blocking($c, 0); # no accept4 :<
-		$self->{post_accept}->($c, $addr, $sock);
+		eval { $self->{post_accept}->($c, $addr, $sock) };
+		warn "E: $@\n" if $@;
 		$self->requeue;
 	} elsif ($! == EAGAIN || $! == ECONNABORTED || $! == EPERM) {
 		# EAGAIN is common and likely
