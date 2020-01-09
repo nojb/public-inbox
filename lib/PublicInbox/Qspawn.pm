@@ -45,25 +45,28 @@ sub new ($$$;) {
 sub _do_spawn {
 	my ($self, $start_cb, $limiter) = @_;
 	my $err;
-	my ($cmd, $cmd_env, $opts) = @{$self->{args}};
-	my %opts = %{$opts || {}};
+	my ($cmd, $cmd_env, $opt) = @{$self->{args}};
+	my %o = %{$opt || {}};
 	$self->{limiter} = $limiter;
 	foreach my $k (PublicInbox::Spawn::RLIMITS()) {
 		if (defined(my $rlimit = $limiter->{$k})) {
-			$opts{$k} = $rlimit;
+			$o{$k} = $rlimit;
 		}
 	}
+	eval {
+		# popen_rd may die on EMFILE, ENFILE
+		($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $cmd_env, \%o);
+		$self->{args} = $o{quiet} ? undef : $cmd;
 
-	($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $cmd_env, \%opts);
+		die "E: $!" unless defined($self->{pid});
 
-	$self->{args} = $opts{quiet} ? undef : $cmd;
-
-	if (defined $self->{pid}) {
 		$limiter->{running}++;
-	} else {
-		$self->{err} = $!;
+		$start_cb->($self); # EPOLL_CTL_ADD may ENOSPC/ENOMEM
+	};
+	if ($@) {
+		$self->{err} = $@;
+		finish($self);
 	}
-	$start_cb->($self);
 }
 
 sub child_err ($) {
@@ -105,7 +108,11 @@ sub waitpid_err ($$) {
 	}
 
 	if ($err) {
-		$self->{err} = $err;
+		if ($self->{err}) {
+			$self->{err} .= "; $err";
+		} else {
+			$self->{err} = $err;
+		}
 		if ($env && $self->{args}) {
 			log_err($env, join(' ', @{$self->{args}}) . ": $err");
 		}
