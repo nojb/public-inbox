@@ -174,7 +174,10 @@ sub app_dispatch {
 			response_write($self, $env, $res);
 		}
 	};
-	$self->close if $@;
+	if ($@) {
+		err($self, "response_write error: $@");
+		$self->close;
+	}
 }
 
 sub response_header_write {
