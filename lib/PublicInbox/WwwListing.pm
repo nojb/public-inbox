@@ -136,9 +136,7 @@ sub fingerprint ($) {
 	my ($git) = @_;
 	# TODO: convert to qspawn for fairness when there's
 	# thousands of repos
-	my ($fh, $pid) = $git->popen('show-ref') or
-		die "popen($git->{git_dir} show-ref) failed: $!";
-
+	my ($fh, $pid) = $git->popen('show-ref');
 	my $dig = Digest::SHA->new(1);
 	while (read($fh, my $buf, 65536)) {
 		$dig->add($buf);

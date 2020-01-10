@@ -666,7 +666,6 @@ sub is_ancestor ($$$) {
 	my $cmd = [ 'git', "--git-dir=$git->{git_dir}",
 		qw(merge-base --is-ancestor), $cur, $tip ];
 	my $pid = spawn($cmd);
-	defined $pid or die "spawning ".join(' ', @$cmd)." failed: $!";
 	waitpid($pid, 0) == $pid or die join(' ', @$cmd) .' did not finish';
 	$? == 0;
 }

@@ -219,7 +219,6 @@ sub popen_rd {
 	$opts ||= {};
 	$opts->{1} = fileno($w);
 	my $pid = spawn($cmd, $env, $opts);
-	return unless defined $pid;
 	return ($r, $pid) if wantarray;
 	my $ret = gensym;
 	tie *$ret, 'PublicInbox::ProcessPipe', $pid, $r;

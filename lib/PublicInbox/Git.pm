@@ -122,7 +122,6 @@ sub _bidi_pipe {
 		$redir->{2} = $fh;
 	}
 	my $p = spawn(\@cmd, undef, $redir);
-	defined $p or fail($self, "spawn failed: $!");
 	$self->{$pid} = $p;
 	$out_w->autoflush(1);
 	$self->{$out} = $out_w;
@@ -256,7 +255,6 @@ sub popen {
 sub qx {
 	my ($self, @cmd) = @_;
 	my $fh = $self->popen(@cmd);
-	defined $fh or return;
 	local $/ = "\n";
 	return <$fh> if wantarray;
 	local $/;
@@ -347,7 +345,6 @@ sub modified ($) {
 	my ($self) = @_;
 	my $modified = 0;
 	my $fh = popen($self, qw(rev-parse --branches));
-	defined $fh or return $modified;
 	cat_async_begin($self);
 	local $/ = "\n";
 	foreach my $oid (<$fh>) {

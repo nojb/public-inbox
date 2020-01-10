@@ -48,7 +48,6 @@ my $atom_check = eval {
 			2 => fileno($err_fh),
 		};
 		my $pid = spawn($cmd, undef, $rdr);
-		defined $pid or die "spawn failure: $!";
 		while (waitpid($pid, 0) != $pid) {
 			next if $!{EINTR};
 			warn "waitpid(xmlstarlet, $pid) $!";

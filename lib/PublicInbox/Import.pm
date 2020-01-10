@@ -68,7 +68,6 @@ sub gfi_start {
 			--quiet --done --date-format=raw));
 	my $rdr = { 0 => $out_r, 1 => $in_w };
 	my $pid = spawn(\@cmd, undef, $rdr);
-	die "spawn fast-import failed: $!" unless defined $pid;
 	$out_w->autoflush(1);
 	$self->{in} = $in_r;
 	$self->{out} = $out_w;
@@ -430,7 +429,6 @@ sub add {
 sub run_die ($;$$) {
 	my ($cmd, $env, $rdr) = @_;
 	my $pid = spawn($cmd, $env, $rdr);
-	defined $pid or die "spawning ".join(' ', @$cmd)." failed: $!";
 	waitpid($pid, 0) == $pid or die join(' ', @$cmd) .' did not finish';
 	$? == 0 or die join(' ', @$cmd) . " failed: $?\n";
 }

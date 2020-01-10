@@ -215,7 +215,6 @@ sub run_script ($;$$) {
 		require PublicInbox::Spawn;
 		my $cmd = [ key2script($key), @argv ];
 		my $pid = PublicInbox::Spawn::spawn($cmd, $env, $spawn_opt);
-		defined($pid) or die "spawn: $!";
 		if (defined $pid) {
 			my $r = waitpid($pid, 0);
 			defined($r) or die "waitpid: $!";

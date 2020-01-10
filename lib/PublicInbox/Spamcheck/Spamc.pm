@@ -23,7 +23,6 @@ sub spamcheck {
 
 	my $rdr = { 0 => _msg_to_fh($self, $msg) };
 	my ($fh, $pid) = popen_rd($self->{checkcmd}, undef, $rdr);
-	defined $pid or die "failed to popen_rd spamc: $!\n";
 	my $r;
 	unless (ref $out) {
 		my $buf = '';

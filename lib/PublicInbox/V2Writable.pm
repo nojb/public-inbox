@@ -777,7 +777,6 @@ sub diff ($$$) {
 	my $cmd = [ qw(diff -u), $an, $bn ];
 	print STDERR "# MID conflict <$mid>\n";
 	my $pid = spawn($cmd, undef, { 1 => 2 });
-	defined $pid or die "diff failed to spawn $!";
 	waitpid($pid, 0) == $pid or die "diff did not finish";
 	unlink($an, $bn);
 }

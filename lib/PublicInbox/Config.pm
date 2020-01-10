@@ -158,7 +158,7 @@ sub git_config_dump {
 	return {} unless -e $file;
 	my @cmd = (qw/git config -z -l/, "--file=$file");
 	my $cmd = join(' ', @cmd);
-	my $fh = popen_rd(\@cmd) or die "popen_rd failed for $file: $!\n";
+	my $fh = popen_rd(\@cmd);
 	my $rv = config_fh_parse($fh, "\0", "\n");
 	close $fh or die "failed to close ($cmd) pipe: $?";
 	$rv;
