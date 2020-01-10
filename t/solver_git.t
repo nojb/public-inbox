@@ -38,12 +38,6 @@ $deliver_patch->('t/solve/0001-simple-mod.patch');
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
 
 my $git = PublicInbox::Git->new($git_dir);
-is('public-inbox 1.0.0',
-	$git->commit_title($v1_0_0_tag),
-	'commit_title works on 1.0.0');
-
-is(undef, $git->commit_title('impossible'), 'undef on impossible object');
-
 $ibx->{-repo_objs} = [ $git ];
 my $res;
 my $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });

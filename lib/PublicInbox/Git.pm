@@ -332,13 +332,6 @@ sub cat_async ($$$;$) {
 	push(@$inflight, [ $cb, $arg ]);
 }
 
-sub commit_title ($$) {
-	my ($self, $oid) = @_; # PublicInbox::Git, $sha1hex
-	my $buf = cat_file($self, $oid) or return;
-	utf8::decode($$buf);
-	($$buf =~ /\r?\n\r?\n([^\r\n]+)\r?\n?/)[0]
-}
-
 sub extract_cmt_time {
 	my ($bref, undef, undef, undef, $modified) = @_;
 
