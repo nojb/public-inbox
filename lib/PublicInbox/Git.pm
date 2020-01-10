@@ -339,6 +339,15 @@ sub commit_title ($$) {
 	($$buf =~ /\r?\n\r?\n([^\r\n]+)\r?\n?/)[0]
 }
 
+sub extract_cmt_time {
+	my ($bref, undef, undef, undef, $modified) = @_;
+
+	if ($$bref =~ /^committer .*?> ([0-9]+) [\+\-]?[0-9]+/sm) {
+		my $cmt_time = $1 + 0;
+		$$modified = $cmt_time if $cmt_time > $$modified;
+	}
+}
+
 # returns the modified time of a git repo, same as the "modified" field
 # of a grokmirror manifest
 sub modified ($) {
@@ -346,14 +355,13 @@ sub modified ($) {
 	my $modified = 0;
 	my $fh = popen($self, qw(rev-parse --branches));
 	defined $fh or return $modified;
+	cat_async_begin($self);
 	local $/ = "\n";
 	foreach my $oid (<$fh>) {
 		chomp $oid;
-		my $buf = cat_file($self, $oid) or next;
-		$$buf =~ /^committer .*?> ([0-9]+) [\+\-]?[0-9]+/sm or next;
-		my $cmt_time = $1 + 0;
-		$modified = $cmt_time if $cmt_time > $modified;
+		cat_async($self, $oid, \&extract_cmt_time, \$modified);
 	}
+	cat_async_wait($self);
 	$modified || time;
 }
 
