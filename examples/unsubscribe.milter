@@ -75,7 +75,7 @@ $cbs{header} = sub {
 # We don't want people unsubscribing archivers:
 sub archive_addr {
 	my ($addr) = @_;
-	return 1 if ($addr =~ /\@m\.gmane\.org\z/);
+	return 1 if ($addr =~ /\@m\.gmane(?:-mx)?\.org\z/);
 	return 1 if ($addr eq 'archive@mail-archive.com');
 	0
 }
