@@ -6,7 +6,7 @@ use Test::More;
 use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
 # IO::Poll is part of the standard library, but distros may split them off...
-require_mods(qw(IO::Socket::SSL IO::Poll));
+require_mods(qw(IO::Socket::SSL IO::Poll Plack::Util));
 my $cert = 'certs/server-cert.pem';
 my $key = 'certs/server-key.pem';
 unless (-r $key && -r $cert) {

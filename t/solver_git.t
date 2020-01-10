@@ -7,7 +7,7 @@ use Cwd qw(abs_path);
 use PublicInbox::TestCommon;
 require_git(2.6);
 use PublicInbox::Spawn qw(spawn);
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
 chomp(my $git_dir = `git rev-parse --git-dir 2>/dev/null`);
 plan skip_all => "$0 must be run from a git working tree" if $?;
 

@@ -39,11 +39,6 @@ Beyond that, there is a long list of Perl modules required, starting with:
                                    pkg: p5-Email-MIME
                                    rpm: perl-Email-MIME
 
-* Plack                            deb: libplack-perl
-                                   pkg: p5-Plack
-                                   rpm: perl-Plack, perl-Plack-Test,
-                                   (for HTML/Atom generation)
-
 * URI::Escape                      deb: liburi-perl
                                    pkg: p5-URI
                                    rpm: perl-URI
@@ -54,6 +49,11 @@ Where "deb" indicates package names for Debian-derived distributions,
 "rpm" is for RPM-based distributions (only known to work on Fedora).
 
 Numerous optional modules are likely to be useful as well:
+
+* Plack                            deb: libplack-perl
+                                   pkg: p5-Plack
+                                   rpm: perl-Plack, perl-Plack-Test,
+                                   (for HTML/Atom generation)
 
 - DBD::SQLite                      deb: libdbd-sqlite3-perl
                                    pkg: p5-DBD-SQLite

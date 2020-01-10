@@ -3,8 +3,9 @@
 use strict;
 use warnings;
 use Test::More;
+use PublicInbox::TestCommon;
 use Email::MIME;
-use Plack::Util;
+require_mods('Plack::Util');
 use_ok 'PublicInbox::View';
 use_ok 'PublicInbox::Config';
 

@@ -6,9 +6,8 @@ use IO::Handle; # ->flush
 use Fcntl qw(SEEK_SET);
 use PublicInbox::TestCommon;
 use PublicInbox::Tmpfile;
-use PublicInbox::WWW;
 use Test::More;
-my @mods = qw(DBD::SQLite BSD::Resource);
+my @mods = qw(DBD::SQLite BSD::Resource PublicInbox::WWW);
 require_mods(@mods);
 use_ok($_) for @mods;
 my $lines = $ENV{NR_LINES} // 100000;

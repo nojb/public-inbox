@@ -7,6 +7,7 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use PublicInbox::TestCommon;
+require_mods(qw(Plack::Handler::CGI Plack::Util));
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";

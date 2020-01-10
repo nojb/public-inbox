@@ -9,15 +9,14 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
-my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
+my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape
+	Plack::Builder Plack::App::URLMap);
 require_mods(@mods);
 use_ok $_ foreach @mods;
+use_ok 'PublicInbox::WWW';
 use PublicInbox::Import;
 use PublicInbox::Git;
 use PublicInbox::Config;
-use PublicInbox::WWW;
-use Plack::Builder;
-use Plack::App::URLMap;
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$maindir
@@ -41,11 +40,11 @@ EOF
 }
 
 my $www = PublicInbox::WWW->new($config);
-my $app = builder {
-	enable 'Head';
-	mount '/a' => builder { sub { $www->call(@_) } };
-	mount '/b' => builder { sub { $www->call(@_) } };
-};
+my $app = builder(sub {
+	enable('Head');
+	mount('/a' => builder(sub { sub { $www->call(@_) } }));
+	mount('/b' => builder(sub { sub { $www->call(@_) } }));
+});
 
 test_psgi($app, sub {
 	my ($cb) = @_;

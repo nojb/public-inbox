@@ -9,15 +9,14 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
-my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
+my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape Plack::Builder);
 require_mods(@mods);
 use_ok $_ foreach @mods;
 use PublicInbox::Import;
 use PublicInbox::Git;
 use PublicInbox::Config;
-use PublicInbox::WWW;
+use_ok 'PublicInbox::WWW';
 use_ok 'PublicInbox::WwwText';
-use Plack::Builder;
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$maindir

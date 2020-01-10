@@ -7,11 +7,11 @@ use PublicInbox::TestCommon;
 require_git(2.6);
 use PublicInbox::MIME;
 use PublicInbox::Config;
-use PublicInbox::WWW;
 use PublicInbox::MID qw(mids);
 require_mods(qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder));
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
+use_ok 'PublicInbox::WWW';
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {

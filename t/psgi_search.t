@@ -7,13 +7,13 @@ use Email::MIME;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
-use PublicInbox::WWW;
 use bytes (); # only for bytes::length
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 require_mods(@mods);
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
+use_ok 'PublicInbox::WWW';
 my ($tmpdir, $for_destroy) = tmpdir();
 
 my $ibx = PublicInbox::Inbox->new({

@@ -9,7 +9,7 @@ my $usage = "$0 PKG_FMT PROFILE [PROFILE_MOD]";
 my $pkg_fmt = shift;
 @ARGV or die $usage, "\n";
 
-my @test_essential = qw(Test::Simple Plack::Test);
+my @test_essential = qw(Test::Simple); # we actually use Test::More
 
 # package profiles
 my $profiles = {
@@ -27,7 +27,6 @@ my $profiles = {
 		Encode
 		ExtUtils::MakeMaker
 		Filesys::Notify::Simple
-		Plack
 		URI::Escape
 		), @test_essential ],
 
@@ -40,6 +39,8 @@ my $profiles = {
 		IO::Compress::Gzip
 		Inline::C
 		Net::Server
+		Plack
+		Plack::Test
 		Plack::Middleware::Deflater
 		Plack::Middleware::ReverseProxy
 		Search::Xapian

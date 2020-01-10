@@ -9,15 +9,14 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
-my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
+my @mods = qw(HTTP::Request::Common Plack::Builder Plack::Test URI::Escape);
 require_mods(@mods);
 use_ok $_ foreach @mods;
+use_ok 'PublicInbox::WWW';
 use PublicInbox::Import;
 use PublicInbox::Git;
 use PublicInbox::Config;
-use PublicInbox::WWW;
 use_ok 'PublicInbox::WwwAttach';
-use Plack::Builder;
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$maindir
@@ -108,7 +107,6 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 		ok(length($dot_res) >= length($dot), 'dot almost matches');
 		$res = $cb->(GET('/test/Z%40B/4-any-filename.txt'));
 		is($res->content, $dot_res, 'user-specified filename is OK');
-
 	});
 }
 done_testing();

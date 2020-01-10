@@ -5,12 +5,12 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::Config;
-use PublicInbox::WWW;
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite HTTP::Request::Common Plack::Test
-		URI::Escape Plack::Builder);
+		URI::Escape Plack::Builder PublicInbox::WWW);
 require_mods(@mods);
 use_ok($_) for @mods;
+use_ok 'PublicInbox::WWW';
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $cfgpfx = "publicinbox.bad-mids";

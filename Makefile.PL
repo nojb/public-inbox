@@ -127,8 +127,14 @@ WriteMakefile(
 		# `perl5' on FreeBSD
 		'Encode' => 0,
 
-		# TODO: these should really be made optional...
-		'Plack' => 0,
+		# Plack is needed for public-inbox-httpd and PublicInbox::WWW
+		# 'Plack' => 0,
+
+		# Filesys::Notify::Simple is pulled in by Plack, but also
+		# needed by public-inbox-watch (for now)
+		'Filesys::Notify::Simple' => 0,
+
+		# TODO: this should really be made optional...
 		'URI::Escape' => 0,
 
 		# We have more test dependencies, but do not force

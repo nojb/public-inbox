@@ -1,14 +1,17 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2014-2019 all contributors <meta@public-inbox.org>
+# Copyright (C) 2014-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ or later <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Enables using PublicInbox::WWW as a CGI script
 use strict;
-use warnings;
-use Plack::Builder;
-use Plack::Handler::CGI;
-use PublicInbox::WWW;
-BEGIN { PublicInbox::WWW->preload if $ENV{MOD_PERL} }
+BEGIN {
+	for (qw(Plack::Builder Plack::Handler::CGI)) {
+		eval("require $_") or die "E: Plack is required for $0\n";
+	}
+	Plack::Builder->import;
+	require PublicInbox::WWW;
+	PublicInbox::WWW->preload if $ENV{MOD_PERL};
+}
 my $www = PublicInbox::WWW->new;
 my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
 my $app = builder {

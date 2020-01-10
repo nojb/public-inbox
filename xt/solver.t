@@ -5,10 +5,10 @@ use strict;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config; # this relies on PI_CONFIG // ~/.public-inbox/config
-use PublicInbox::WWW;
 my @psgi = qw(HTTP::Request::Common Plack::Test URI::Escape Plack::Builder);
 require_mods(qw(DBD::SQLite Search::Xapian), @psgi);
 use_ok($_) for @psgi;
+use_ok 'PublicInbox::WWW';
 my $cfg = PublicInbox::Config->new;
 my $www = PublicInbox::WWW->new($cfg);
 my $app = sub {
