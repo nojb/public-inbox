@@ -14,8 +14,7 @@ my @test_essential = qw(Test::Simple); # we actually use Test::More
 # package profiles
 my $profiles = {
 	# the smallest possible profile for testing
-	# TODO: trim this, Plack pulls in Filesys::Notify::Simple,
-	# and we don't need that for mda-only installs
+	# TODO: trim URI::Escape from this, maybe
 	essential => [ qw(
 		git
 		perl
@@ -26,7 +25,6 @@ my $profiles = {
 		Email::MIME::ContentType
 		Encode
 		ExtUtils::MakeMaker
-		Filesys::Notify::Simple
 		URI::Escape
 		), @test_essential ],
 
@@ -36,6 +34,7 @@ my $profiles = {
 		BSD::Resource
 		DBD::SQLite
 		DBI
+		Filesys::Notify::Simple
 		IO::Compress::Gzip
 		Inline::C
 		Net::Server

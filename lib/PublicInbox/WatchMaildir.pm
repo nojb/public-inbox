@@ -202,7 +202,8 @@ sub watch {
 
 	# lazy load here, we may support watching via IMAP IDLE
 	# in the future...
-	require Filesys::Notify::Simple;
+	eval { require Filesys::Notify::Simple } or
+		die "Filesys::Notify::Simple is currently required for $0\n";
 	my $fsn = Filesys::Notify::Simple->new([@{$self->{mdir}}, $scandir]);
 	$fsn->wait($cb) until $self->{quit};
 }
