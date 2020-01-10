@@ -240,26 +240,22 @@ sub cloneurl {
 }
 
 sub base_url {
-	my ($self, $env) = @_;
-	my $scheme;
-	if ($env && ($scheme = $env->{'psgi.url_scheme'})) { # PSGI env
-		my $host_port = $env->{HTTP_HOST} ||
-			"$env->{SERVER_NAME}:$env->{SERVER_PORT}";
-		my $url = "$scheme://$host_port". ($env->{SCRIPT_NAME} || '/');
+	my ($self, $env) = @_; # env - PSGI env
+	if ($env) {
+		my $url = PublicInbox::Git::host_prefix_url($env, '');
 		# for mount in Plack::Builder
 		$url .= '/' if $url !~ m!/\z!;
-		$url .= $self->{name} . '/';
-	} else {
-		# either called from a non-PSGI environment (e.g. NNTP/POP3)
-		$self->{-base_url} ||= do {
-			my $url = $self->{url}->[0] or return undef;
-			# expand protocol-relative URLs to HTTPS if we're
-			# not inside a web server
-			$url = "https:$url" if $url =~ m!\A//!;
-			$url .= '/' if $url !~ m!/\z!;
-			$url;
-		};
+		return $url .= $self->{name} . '/';
 	}
+	# called from a non-PSGI environment (e.g. NNTP/POP3):
+	$self->{-base_url} ||= do {
+		my $url = $self->{url}->[0] or return undef;
+		# expand protocol-relative URLs to HTTPS if we're
+		# not inside a web server
+		$url = "https:$url" if $url =~ m!\A//!;
+		$url .= '/' if $url !~ m!/\z!;
+		$url;
+	};
 }
 
 sub nntp_url {
