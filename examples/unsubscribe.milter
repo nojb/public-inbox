@@ -16,6 +16,10 @@ if (read($fh, $key, 8) != 8 || read($fh, $iv, 8) != 8 ||
 	die "KEY_FILE must be 16 bytes\n";
 }
 
+# optionally support unique mailto: subject in List-Unsubscribe,
+# requires a custom rule in front of mlmmj, see __END__
+my $unique_mailto = $ENV{UNIQUE_MAILTO};
+
 # these parameters were chosen to generate shorter parameters
 # to reduce the possibility of copy+paste errors
 my $crypt = Crypt::CBC->new(-key => $key,
@@ -102,6 +106,12 @@ $cbs{eom} = sub {
 			next unless $k && $v && $list && $domain;
 			my $u = $crypt->encrypt($rcpt[0]);
 			$u = encode_base64url($u);
+			if ($unique_mailto) {
+				# $u needs to be in the Subject: header since
+				# +$EXTENSION is case-insensitive
+				my $s = "subject=$u";
+				$v = "<mailto:$list+unique-unsub\@$domain?$s>";
+			}
 			$v .= ",\n <https://$domain/u/$u/$list>";
 
 			$ctx->chgheader($k, $index, $v);
@@ -132,3 +142,28 @@ if ($fds && (($ENV{LISTEN_PID} || 0) == $$)) {
 
 $milter->register('unsubscribe', \%cbs, SMFI_CURR_ACTS);
 $milter->main();
+__END__
+# TMPMSG comes from dc-dlvr, it's populated before the above runs:
+# TMPMSG=$(mktemp -t dc-dlvr.orig.$USER.XXXXXX || exit 1)
+# cat >$TMPMSG
+
+# I use something like this in front of mlmmj for UNIQUE_MAILTO
+# $EXTENSION and $ORIGINAL_RECIPIENT are set by postfix, $list
+# is a local mapping of addresses to mailing list names.
+case $ORIGINAL_RECIPIENT in
+foo+*) list=foo ;;
+# ...
+esac
+
+case $EXTENSION in
+unique-unsub)
+	u="$(formail -z -c -x Subject <$TMPMSG)"
+	d=$(expr "$ORIGINAL_RECIPIENT" : '^.*@\(.*\)')
+
+	# forward this to the unsubscribe.psgi service
+	curl -sSf https://$d/u/$u/$list >/dev/null
+	exit
+	;;
+esac
+/usr/bin/mlmmj-receive -L /path/to/mlmmj-spool/$list <"$TMPMSG"
+exit

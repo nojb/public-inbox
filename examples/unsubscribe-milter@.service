@@ -14,6 +14,12 @@ After = unsubscribe-milter.socket
 # copy+paste errors
 # umask 077 && dd if=/dev/urandom bs=16 count=1 of=.unsubscribe.key
 ExecStart = /usr/local/sbin/unsubscribe.milter /home/mlmmj/.unsubscribe.key
+
+# UNIQUE_MAILTO makes the List-Unsubscribe mailto: header unique
+# so unsubcribing becomes one-step (requires MDA/MTA configuration,
+# see the bottom of examples/unsubscribe.milter
+# Environment = UNIQUE_MAILTO=1
+
 Sockets = unsubscribe-milter.socket
 
 # the corresponding PSGI app needs permissions to modify the
