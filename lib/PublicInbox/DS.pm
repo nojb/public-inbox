@@ -3,15 +3,15 @@
 #
 # This license differs from the rest of public-inbox
 #
-# This is a fork of the (for now) unmaintained Danga::Socket 1.61.
-# Unused features will be removed, and updates will be made to take
-# advantage of newer kernels.
+# This is a fork of the unmaintained Danga::Socket (1.61) with
+# significant changes.  See Documentation/technical/ds.txt in our
+# source for details.
 #
-# API changes to diverge from Danga::Socket will happen to better
-# accomodate new features and improve scalability.  Do not expect
-# this to be a stable API like Danga::Socket.
-# Bugs encountered (and likely fixed) are reported to
-# bug-Danga-Socket@rt.cpan.org and visible at:
+# Do not expect this to be a stable API like Danga::Socket,
+# but it will evolve to suite our needs and to take advantage of
+# newer Linux and *BSD features.
+# Bugs encountered were reported to bug-Danga-Socket@rt.cpan.org,
+# fixed in Danga::Socket 1.62 and visible at:
 # https://rt.cpan.org/Public/Dist/Display.html?Name=Danga-Socket
 package PublicInbox::DS;
 use strict;

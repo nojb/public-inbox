@@ -1,0 +1,112 @@
+PublicInbox::DS - event loop and async I/O base class
+
+Our PublicInbox::DS event loop which powers public-inbox-nntpd
+and public-inbox-httpd diverges significantly from the
+unmaintained Danga::Socket package we forked from.  In fact,
+it's probably different from most other event loops out there.
+
+Most notably:
+
+* There is one and only one callback: ->event_step.  Unlike other
+  event loops, there are no separate callbacks for read, write,
+  error or hangup events.  In fact, we never care which kevent
+  filter or poll/epoll event flag (e.g. POLLIN/POLLOUT/POLLHUP)
+  triggers a call.
+
+  The lack of read/write callback distinction is driven by the
+  fact TLS libraries (e.g. OpenSSL via IO::Socket::SSL) may
+  declare SSL_WANT_READ on SSL_write(), and SSL_WANT_READ on
+  SSL_read().  So we end up having to let each user object decide
+  whether it wants to make read or write calls depending on its
+  internal state, completely independent of the event loop.
+
+  Error and hangup (POLLERR and POLLHUP) callbacks are redundant and
+  only triggered in rare cases.  They're redundant because the
+  result of every read and write call in ->event_step must be
+  checked, anyways.  At best, callbacks for POLLHUP and POLLERR can
+  save one syscall per socket lifetime and not worth the extra code
+  it imposes.
+
+  Reducing the user-supplied code down to a single callback allows
+  subclasses to keep their logic self-contained.  The combination
+  of this change and one-shot wakeups (see below) for bidirectional
+  data flows make asynchronous code easier to reason about.
+
+Other divergences:
+
+* ->write buffering uses temporary files whereas Danga::Socket used
+  the heap.  The rationale for this is the kernel already provides
+  ample (and configurable) space for socket buffers.  Modern kernels
+  also cache FS operations aggressively, so systems with ample RAM
+  are unlikely to notice degradation, while small systems are less
+  likely to suffer unpredictable heap fragmentation, swap and OOM
+  penalties.
+
+  In the future, we may introduce sendfile and mmap+SSL_write to
+  reduce data copies, and use FALLOC_FL_PUNCH_HOLE on Linux to
+  release space after the buffer is partially cleared.
+
+Augmented features:
+
+* obj->write(CODEREF) passes the object itself to the CODEREF
+  Being able to enqueue subroutine calls is a powerful feature in
+  Danga::Socket for keeping linear logic in an asynchronous environment.
+  Unfortunately, each subroutine takes several kilobytes of memory.
+  One small change to Danga::Socket is to pass the receiver object
+  (aka "$self") to the CODEREF.  $self can store any necessary
+  state it needs for a normal (named) subroutine.  This allows us to
+  put the same sub into multiple queues without paying a large
+  memory penalty for each one.
+
+  This idea is also more easily ported to C or other languages which
+  lack anonymous subroutines (aka "closures").
+
+* ->requeue support.  An optimization of the AddTimer(0, ...) idiom
+  for immediately dispatching code at the next event loop iteration.
+  public-inbox uses this for fairly generating large responses
+  iteratively (see PublicInbox::NNTP::long_response or the use of
+  ->getline callbacks for generating gigantic gzipped mboxes).
+
+New features
+
+* One-shot wakeups allowed via EPOLLONESHOT or EV_DISPATCH.  These
+  flags allow us to simplify code in ->event_step callbacks for
+  bidirectional sockets (NNTP and HTTP).  Instead of merely reacting
+  to events, control is handed over at ->event_step in one-shot scenarios.
+  The event_step caller (NNTP || HTTP) then becomes proactive in declaring
+  which (if any) events it's interested in for the next loop iteration.
+
+* Edge-triggering available via EPOLLET or EV_CLEAR.  These reduce wakeups
+  for unidirectional classes (e.g. PublicInbox::Listener sockets,
+  and pipes via PublicInbox::HTTPD::Async).
+
+* IO::Socket::SSL support (for NNTPS, STARTTLS+NNTP, HTTPS)
+
+* dwaitpid (waitpid wrapper) support for reaping dead children
+
+* reliable signal wakeups are supported via signalfd on Linux,
+  EVFILT_SIGNAL on *BSDs via IO::KQueue.
+
+Removed features
+
+* Many fields removed or moved to subclasses, so the underlying
+  hash is smaller and suitable for FDs other than stream sockets.
+  Some fields we enforce (e.g. wbuf, wbuf_off) are autovivified
+  on an as-needed basis to save memory when they're not needed.
+
+* TCP_CORK support removed, instead we use MSG_MORE on non-TLS sockets
+  and we may use vectored I/O support via GnuTLS in the future
+  for TLS sockets.
+
+* per-FD PLCMap (post-loop callback) removed, we got ->requeue
+  support where no extra hash lookups or assignments are necessary.
+
+* read push backs removed.  Some subclasses use a read buffer ({rbuf})
+  but they control it, not this event loop.
+
+* Profiling and debug logging removed.  Perl and OS-specific tracers
+  and profilers are sufficient.
+
+* ->AddOtherFds support removed, everything watched is a subclass of
+  PublicInbox::DS, but we've slimmed down the fields to eliminate
+  the memory penalty for objects.
