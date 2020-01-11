@@ -11,7 +11,6 @@ use PublicInbox::GitHTTPBackend;
 use PublicInbox::Git;
 # not bothering with Exporter for a one-off
 *input_prepare = *PublicInbox::GitHTTPBackend::input_prepare;
-*parse_cgi_headers = *PublicInbox::GitHTTPBackend::parse_cgi_headers;
 *serve = *PublicInbox::GitHTTPBackend::serve;
 use warnings;
 use PublicInbox::Qspawn;
@@ -94,11 +93,7 @@ my @PASS_ENV = qw(
 );
 # XXX: cgit filters may care about more variables...
 
-sub cgit_parse_hdr { # {parse_hdr} for Qspawn
-	my ($r, $bref) = @_;
-	my $res = parse_cgi_headers($r, $bref) or return; # incomplete
-	$res;
-}
+my $parse_cgi_headers = \&PublicInbox::GitHTTPBackend::parse_cgi_headers;
 
 sub call {
 	my ($self, $env) = @_;
@@ -127,7 +122,7 @@ sub call {
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new($self->{cmd}, $cgi_env, $rdr);
 	my $limiter = $self->{pi_config}->limiter('-cgit');
-	$qsp->psgi_return($env, $limiter, \&cgit_parse_hdr);
+	$qsp->psgi_return($env, $limiter, $parse_cgi_headers);
 }
 
 1;
