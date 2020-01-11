@@ -249,7 +249,7 @@ sub scan_projects_coderepo ($$$) {
 		warn "failed to open cgit projectlist=$list: $!\n";
 		return;
 	};
-	foreach (<$fh>) {
+	while (<$fh>) {
 		chomp;
 		scan_path_coderepo($self, $path, "$path/$_");
 	}
@@ -274,7 +274,7 @@ sub parse_cgitrc {
 
 	# FIXME: this doesn't support macro expansion via $VARS, yet
 	my $repo;
-	foreach (<$fh>) {
+	while (<$fh>) {
 		chomp;
 		if (m!\Arepo\.url=(.+?)/*\z!) {
 			my $nick = $1;
