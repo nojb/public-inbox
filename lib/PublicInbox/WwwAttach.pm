@@ -40,7 +40,7 @@ sub get_attach ($$$) {
 	my $mime = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return $res;
 	$mime = PublicInbox::MIME->new($mime);
 	$res->[3] = $idx;
-	msg_iter($mime, \&get_attach_i, $res);
+	msg_iter($mime, \&get_attach_i, $res, 1);
 	pop @$res; # cleanup before letting PSGI server see it
 	$res
 }

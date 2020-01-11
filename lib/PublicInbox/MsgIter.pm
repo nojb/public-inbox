@@ -12,10 +12,11 @@ use PublicInbox::MIME;
 # Like Email::MIME::walk_parts, but this is:
 # * non-recursive
 # * passes depth and indices to the iterator callback
-sub msg_iter ($$;$) {
-	my ($mime, $cb, $cb_arg) = @_;
+sub msg_iter ($$;$$) {
+	my ($mime, $cb, $cb_arg, $do_undef) = @_;
 	my @parts = $mime->subparts;
 	if (@parts) {
+		$mime = $_[0] = undef if $do_undef; # saves some memory
 		my $i = 0;
 		@parts = map { [ $_, 1, ++$i ] } @parts;
 		while (my $p = shift @parts) {

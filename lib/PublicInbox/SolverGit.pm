@@ -233,9 +233,8 @@ sub find_extract_diffs ($$$) {
 	my $diffs = [];
 	foreach my $smsg (@$msgs) {
 		$ibx->smsg_mime($smsg) or next;
-		my $mime = delete $smsg->{mime};
-		msg_iter($mime, \&extract_diff,
-				[$self, $diffs, $pre, $post, $ibx, $smsg]);
+		msg_iter(delete $smsg->{mime}, \&extract_diff,
+				[$self, $diffs, $pre, $post, $ibx, $smsg], 1);
 	}
 	@$diffs ? $diffs : undef;
 }

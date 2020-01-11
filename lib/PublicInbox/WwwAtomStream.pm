@@ -101,9 +101,9 @@ sub atom_header {
 sub feed_entry {
 	my ($self, $smsg) = @_;
 	my $ctx = $self->{ctx};
-	my $mime = $smsg->{mime};
+	my $mid = $smsg->mid; # may extract Message-ID from {mime}
+	my $mime = delete $smsg->{mime};
 	my $hdr = $mime->header_obj;
-	my $mid = $smsg->mid;
 	my $irt = PublicInbox::View::in_reply_to($hdr);
 	my $uuid = to_uuid($mid);
 	my $base = $ctx->{feed_base_url};

@@ -275,7 +275,7 @@ sub index_entry {
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
 	$ctx->{rv} = \$rv;
-	msg_iter($mime, \&add_text_body, $ctx);
+	msg_iter($mime, \&add_text_body, $ctx, 1);
 	delete $ctx->{rv};
 
 	# add the footer
@@ -506,12 +506,12 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 }
 
 sub multipart_text_as_html {
-	my ($mime, $mhref, $ctx) = @_;
+	my (undef, $mhref, $ctx) = @_; # $mime = $_[0]
 	$ctx->{mhref} = $mhref;
 	$ctx->{rv} = \(my $rv = '');
 
 	# scan through all parts, looking for displayable text
-	msg_iter($mime, \&add_text_body, $ctx);
+	msg_iter($_[0], \&add_text_body, $ctx, 1);
 	${delete $ctx->{rv}};
 }
 
