@@ -3,7 +3,7 @@
 package PublicInbox::Xapcmd;
 use strict;
 use warnings;
-use PublicInbox::Spawn qw(which spawn);
+use PublicInbox::Spawn qw(which popen_rd);
 use PublicInbox::Over;
 use PublicInbox::SearchIdx;
 use File::Temp 0.19 (); # ->newdir
@@ -277,7 +277,6 @@ sub compact ($$) {
 	my ($args, $opt) = @_;
 	my ($src, $newdir) = @$args;
 	my $dst = ref($newdir) ? $newdir->dirname : $newdir;
-	my ($r, $w);
 	my $pfx = $opt->{-progress_pfx} ||= progress_pfx($src);
 	my $pr = $opt->{-progress};
 	my $rdr = {};
@@ -286,7 +285,6 @@ sub compact ($$) {
 		defined(my $dfd = $opt->{$fd}) or next;
 		$rdr->{$fd} = $dfd;
 	}
-	$rdr->{1} = $w if $pr && pipe($r, $w);
 
 	# we rely on --no-renumber to keep docids synched to NNTP
 	my $cmd = [ $XAPIAN_COMPACT, '--no-renumber' ];
@@ -299,18 +297,14 @@ sub compact ($$) {
 	}
 	$pr->("$pfx `".join(' ', @$cmd)."'\n") if $pr;
 	push @$cmd, $src, $dst;
-	my $pid = spawn($cmd, undef, $rdr);
-	if ($pr) {
-		close $w or die "close: \$w: $!";
-		foreach (<$r>) {
+	my $rd = popen_rd($cmd, undef, $rdr);
+	while (<$rd>) {
+		if ($pr) {
 			s/\r/\r$pfx /g;
 			$pr->("$pfx $_");
 		}
 	}
-	my $rp = waitpid($pid, 0);
-	if ($? || $rp != $pid) {
-		die join(' ', @$cmd)." failed: $? (pid=$pid, reaped=$rp)\n";
-	}
+	close $rd or die join(' ', @$cmd)." failed: $?n";
 }
 
 sub cpdb_loop ($$$;$$) {
