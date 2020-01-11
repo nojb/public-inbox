@@ -11,6 +11,7 @@ use strict;
 use warnings;
 use POSIX qw(dup2);
 use IO::Handle; # ->autoflush
+use File::Glob qw(bsd_glob GLOB_NOSORT);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::Tmpfile;
 use base qw(Exporter);
@@ -276,7 +277,7 @@ sub packed_bytes {
 	my ($self) = @_;
 	my $n = 0;
 	my $pack_dir = git_path($self, 'objects/pack');
-	foreach my $p (glob("$pack_dir/*.pack")) {
+	foreach my $p (bsd_glob("$pack_dir/*.pack", GLOB_NOSORT)) {
 		$n += -s $p;
 	}
 	$n
