@@ -347,7 +347,7 @@ sub modified ($) {
 	my $fh = popen($self, qw(rev-parse --branches));
 	cat_async_begin($self);
 	local $/ = "\n";
-	foreach my $oid (<$fh>) {
+	while (my $oid = <$fh>) {
 		chomp $oid;
 		cat_async($self, $oid, \&extract_cmt_time, \$modified);
 	}
