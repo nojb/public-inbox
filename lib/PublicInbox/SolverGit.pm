@@ -169,7 +169,7 @@ sub extract_diff ($$) {
 	my $patch = $9;
 
 	# don't care for leading 'a/' and 'b/'
-	my (undef, @a) = split(m{/}, git_unquote($path_a));
+	my (undef, @a) = split(m{/}, git_unquote($path_a)) if defined($path_a);
 	my (undef, @b) = split(m{/}, git_unquote($path_b));
 
 	# get rid of path-traversal attempts and junk patches:
@@ -177,7 +177,7 @@ sub extract_diff ($$) {
 	state $bad_component = { map { $_ => 1 } ('', '.', '..') };
 	foreach (@a, @b) { return if $bad_component->{$_} }
 
-	$di->{path_a} = join('/', @a);
+	$di->{path_a} = join('/', @a) if @a;
 	$di->{path_b} = join('/', @b);
 
 	my $path = ++$self->{tot};
