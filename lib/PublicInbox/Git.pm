@@ -12,7 +12,7 @@ use warnings;
 use POSIX qw(dup2);
 use IO::Handle; # ->autoflush
 use File::Glob qw(bsd_glob GLOB_NOSORT);
-use PublicInbox::Spawn qw(spawn popen_rd);
+use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::Tmpfile;
 use base qw(Exporter);
 our @EXPORT_OK = qw(git_unquote git_quote);
@@ -104,27 +104,24 @@ sub _bidi_pipe {
 		}
 		return;
 	}
-	my ($in_r, $in_w, $out_r, $out_w);
-
-	pipe($in_r, $in_w) or fail($self, "pipe failed: $!");
+	my ($out_r, $out_w);
 	pipe($out_r, $out_w) or fail($self, "pipe failed: $!");
-	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ
-		fcntl($out_w, 1031, 4096);
-		fcntl($in_w, 1031, 4096) if $batch eq '--batch-check';
-	}
-
 	my @cmd = (qw(git), "--git-dir=$self->{git_dir}",
 			qw(-c core.abbrev=40 cat-file), $batch);
-	my $redir = { 0 => $out_r, 1 => $in_w };
+	my $redir = { 0 => $out_r };
 	if ($err) {
 		my $id = "git.$self->{git_dir}$batch.err";
 		my $fh = tmpfile($id) or fail($self, "tmpfile($id): $!");
 		$self->{$err} = $fh;
 		$redir->{2} = $fh;
 	}
-	my $p = spawn(\@cmd, undef, $redir);
+	my ($in_r, $p) = popen_rd(\@cmd, undef, $redir);
 	$self->{$pid} = $p;
 	$out_w->autoflush(1);
+	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ
+		fcntl($out_w, 1031, 4096);
+		fcntl($in_r, 1031, 4096) if $batch eq '--batch-check';
+	}
 	$self->{$out} = $out_w;
 	$self->{$in} = $in_r;
 }

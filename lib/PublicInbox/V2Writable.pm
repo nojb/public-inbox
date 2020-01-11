@@ -16,7 +16,7 @@ use PublicInbox::ContentId qw(content_id content_digest);
 use PublicInbox::Inbox;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
-use PublicInbox::Spawn qw(spawn);
+use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::SearchIdx;
 use IO::Handle; # ->autoflush
 use File::Temp qw(tempfile);
@@ -471,17 +471,12 @@ sub git_hash_raw ($$) {
 	print $tmp_fh $$raw or die "print \$tmp_fh: $!";
 	sysseek($tmp_fh, 0, 0) or die "seek failed: $!";
 
-	my ($r, $w);
-	pipe($r, $w) or die "failed to create pipe: $!";
-	my $rdr = { 0 => $tmp_fh, 1 => $w };
 	my $git_dir = $self->{-inbox}->git->{git_dir};
 	my $cmd = ['git', "--git-dir=$git_dir", qw(hash-object --stdin)];
-	my $pid = spawn($cmd, undef, $rdr);
-	close $w;
+	my $r = popen_rd($cmd, undef, { 0 => $tmp_fh });
 	local $/ = "\n";
 	chomp(my $oid = <$r>);
-	waitpid($pid, 0) == $pid or die "git hash-object did not finish";
-	die "git hash-object failed: $?" if $?;
+	close $r or die "git hash-object failed: $?";
 	$oid =~ /\A[a-f0-9]{40}\z/ or die "OID not expected: $oid";
 	$oid;
 }

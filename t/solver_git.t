@@ -6,7 +6,7 @@ use Test::More;
 use Cwd qw(abs_path);
 use PublicInbox::TestCommon;
 require_git(2.6);
-use PublicInbox::Spawn qw(spawn);
+use PublicInbox::Spawn qw(popen_rd);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
 chomp(my $git_dir = `git rev-parse --git-dir 2>/dev/null`);
 plan skip_all => "$0 must be run from a git working tree" if $?;
@@ -120,14 +120,13 @@ SKIP: {
 	my $cmd = [ qw(git hash-object -w --stdin) ];
 	my $env = { GIT_DIR => $binfoo };
 	while (my ($label, $size) = each %bin) {
-		pipe(my ($rout, $wout)) or die;
 		pipe(my ($rin, $win)) or die;
-		my $rdr = { 0 => $rin, 1 => $wout };
-		my $pid = spawn($cmd , $env, $rdr);
-		$wout = $rin = undef;
+		my $rout = popen_rd($cmd , $env, { 0 => $rin });
+		$rin = undef;
 		print { $win } ("\0" x $size) or die;
 		close $win or die;
 		chomp($oid{$label} = <$rout>);
+		close $rout or die "$?";
 	}
 
 	# ensure the PSGI frontend (ViewVCS) works:

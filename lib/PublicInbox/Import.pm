@@ -9,7 +9,7 @@ package PublicInbox::Import;
 use strict;
 use warnings;
 use base qw(PublicInbox::Lock);
-use PublicInbox::Spawn qw(spawn);
+use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::MID qw(mids mid2path);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
@@ -46,8 +46,7 @@ sub gfi_start {
 
 	return ($self->{in}, $self->{out}) if $self->{pid};
 
-	my ($in_r, $in_w, $out_r, $out_w);
-	pipe($in_r, $in_w) or die "pipe failed: $!";
+	my ($out_r, $out_w);
 	pipe($out_r, $out_w) or die "pipe failed: $!";
 	my $git = $self->{git};
 
@@ -66,8 +65,7 @@ sub gfi_start {
 	my $git_dir = $git->{git_dir};
 	my @cmd = ('git', "--git-dir=$git_dir", qw(fast-import
 			--quiet --done --date-format=raw));
-	my $rdr = { 0 => $out_r, 1 => $in_w };
-	my $pid = spawn(\@cmd, undef, $rdr);
+	my ($in_r, $pid) = popen_rd(\@cmd, undef, { 0 => $out_r });
 	$out_w->autoflush(1);
 	$self->{in} = $in_r;
 	$self->{out} = $out_w;
