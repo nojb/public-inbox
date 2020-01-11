@@ -27,7 +27,7 @@ my $async = timeit($nr, sub {
 	my $cat = $git->popen(@cat);
 	$git->cat_async_begin;
 
-	foreach (<$cat>) {
+	while (<$cat>) {
 		my ($oid, undef, undef) = split(/ /);
 		$git->cat_async($oid, $cb);
 	}
@@ -39,7 +39,7 @@ my $async = timeit($nr, sub {
 my $sync = timeit($nr, sub {
 	my $dig = Digest::SHA->new(1);
 	my $cat = $git->popen(@cat);
-	foreach (<$cat>) {
+	while (<$cat>) {
 		my ($oid, undef, undef) = split(/ /);
 		my $bref = $git->cat_file($oid);
 		$dig->add($$bref);
