@@ -71,11 +71,10 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
-    $nextq = [];
     $WaitPids = [];
     $later_queue = [];
     $EXPMAP = {};
-    $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
+    $nextq = $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
     $LoopTimeout = -1;  # no timeout by default
     @Timers = ();
 
@@ -179,8 +178,8 @@ sub FirstTimeEventLoop {
 sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
 sub next_tick () {
-    my $q = $nextq;
-    $nextq = [];
+    my $q = $nextq or return;
+    $nextq = undef;
     for (@$q) {
         # we avoid "ref" on blessed refs to workaround a Perl 5.16.3 leak:
         # https://rt.perl.org/Public/Bug/Display.html?id=114340
@@ -196,7 +195,7 @@ sub next_tick () {
 sub RunTimers {
     next_tick();
 
-    return ((@$nextq || $ToClose) ? 0 : $LoopTimeout) unless @Timers;
+    return (($nextq || $ToClose) ? 0 : $LoopTimeout) unless @Timers;
 
     my $now = now();
 
@@ -207,7 +206,7 @@ sub RunTimers {
     }
 
     # timers may enqueue into nextq:
-    return 0 if (@$nextq || $ToClose);
+    return 0 if ($nextq || $ToClose);
 
     return $LoopTimeout unless @Timers;
 
@@ -249,7 +248,7 @@ sub reap_pids {
 }
 
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
-sub enqueue_reap ($) { push @$nextq, \&reap_pids };
+sub enqueue_reap ($) { push @$nextq, \&reap_pids }; # autovivifies
 
 sub in_loop () { $in_loop }
 
@@ -353,7 +352,7 @@ sub new {
 ### I N S T A N C E   M E T H O D S
 #####################################################################
 
-sub requeue ($) { push @$nextq, $_[0] }
+sub requeue ($) { push @$nextq, $_[0] } # autovivifies
 
 =head2 C<< $obj->close >>
 
