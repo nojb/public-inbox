@@ -39,7 +39,7 @@ use Errno qw(EAGAIN EINVAL);
 use Carp qw(confess carp);
 
 my $nextq; # queue for next_tick
-my $WaitPids; # list of [ pid, callback, callback_arg ]
+my $wait_pids; # list of [ pid, callback, callback_arg ]
 my $later_queue; # callbacks
 my $EXPMAP; # fd -> [ idle_time, $self ]
 our $EXPTIME = 180; # 3 minutes
@@ -71,7 +71,7 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
-    $WaitPids = [];
+    $wait_pids = undef;
     $later_queue = [];
     $EXPMAP = {};
     $nextq = $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
@@ -226,25 +226,23 @@ sub RunTimers {
 }
 
 # We can't use waitpid(-1) safely here since it can hit ``, system(),
-# and other things.  So we scan the $WaitPids list, which is hopefully
-# not too big.
+# and other things.  So we scan the $wait_pids list, which is hopefully
+# not too big.  We keep $wait_pids small by not calling dwaitpid()
+# until we've hit EOF when reading the stdout of the child.
 sub reap_pids {
-    my $tmp = $WaitPids;
-    $WaitPids = [];
-    $reap_timer = undef;
+    my $tmp = $wait_pids or return;
+    $wait_pids = $reap_timer = undef;
     foreach my $ary (@$tmp) {
         my ($pid, $cb, $arg) = @$ary;
         my $ret = waitpid($pid, WNOHANG);
         if ($ret == 0) {
-            push @$WaitPids, $ary;
+            push @$wait_pids, $ary; # autovivifies @$wait_pids
         } elsif ($cb) {
             eval { $cb->($arg, $pid) };
         }
     }
-    if (@$WaitPids) {
-        # we may not be donea, and we may miss our
-        $reap_timer = add_timer(1, \&reap_pids);
-    }
+    # we may not be done, yet, and could've missed/masked a SIGCHLD:
+    $reap_timer = add_timer(1, \&reap_pids) if $wait_pids;
 }
 
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
@@ -626,15 +624,11 @@ sub shutdn ($) {
 
 # must be called with eval, PublicInbox::DS may not be loaded (see t/qspawn.t)
 sub dwaitpid ($$$) {
-    my ($pid, $cb, $arg) = @_;
-    if ($in_loop) {
-        push @$WaitPids, [ $pid, $cb, $arg ];
+	die "Not in EventLoop\n" unless $in_loop;
+	push @$wait_pids, [ @_ ]; # [ $pid, $cb, $arg ]
 
-        # We could've just missed our SIGCHLD, cover it, here:
-        requeue(\&reap_pids);
-    } else {
-        die "Not in EventLoop\n";
-    }
+	# We could've just missed our SIGCHLD, cover it, here:
+	requeue(\&reap_pids);
 }
 
 sub _run_later () {
