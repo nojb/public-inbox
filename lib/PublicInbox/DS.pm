@@ -40,7 +40,7 @@ use Carp qw(confess carp);
 
 my $nextq; # queue for next_tick
 my $wait_pids; # list of [ pid, callback, callback_arg ]
-my $later_queue; # callbacks
+my $later_queue; # list of callbacks to run at some later interval
 my $EXPMAP; # fd -> [ idle_time, $self ]
 our $EXPTIME = 180; # 3 minutes
 my ($later_timer, $reap_timer, $exp_timer);
@@ -71,8 +71,7 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
-    $wait_pids = undef;
-    $later_queue = [];
+    $wait_pids = $later_queue = undef;
     $EXPMAP = {};
     $nextq = $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
     $LoopTimeout = -1;  # no timeout by default
@@ -632,16 +631,14 @@ sub dwaitpid ($$$) {
 }
 
 sub _run_later () {
-    my $run = $later_queue;
-    $later_timer = undef;
-    $later_queue = [];
-    $_->() for @$run;
+	my $run = $later_queue or return;
+	$later_timer = $later_queue = undef;
+	$_->() for @$run;
 }
 
 sub later ($) {
-    my ($cb) = @_;
-    push @$later_queue, $cb;
-    $later_timer //= add_timer(60, \&_run_later);
+	push @$later_queue, $_[0]; # autovivifies @$later_queue
+	$later_timer //= add_timer(60, \&_run_later);
 }
 
 sub expire_old () {
