@@ -20,7 +20,7 @@ if ('close-on-exec for epoll and kqueue') {
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
 
-	PublicInbox::DS->AddTimer(0, sub { $pid = spawn([qw(sleep 10)]) });
+	PublicInbox::DS::add_timer(0, sub { $pid = spawn([qw(sleep 10)]) });
 	PublicInbox::DS->EventLoop;
 	ok($pid, 'subprocess spawned');
 

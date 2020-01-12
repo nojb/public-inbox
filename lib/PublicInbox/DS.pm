@@ -101,16 +101,17 @@ sub SetLoopTimeout {
     return $LoopTimeout = $_[1] + 0;
 }
 
-=head2 C<< CLASS->AddTimer( $seconds, $coderef ) >>
+=head2 C<< PublicInbox::DS::add_timer( $seconds, $coderef ) >>
 
 Add a timer to occur $seconds from now. $seconds may be fractional, but timers
 are not guaranteed to fire at the exact time you ask for.
 
-Returns a timer object which you can call C<< $timer->cancel >> on if you need to.
+Returns a timer object which you can call C<< $timer->cancel >> on if you need
+to.
 
 =cut
-sub AddTimer {
-    my ($class, $secs, $coderef) = @_;
+sub add_timer ($$) {
+    my ($secs, $coderef) = @_;
 
     my $fire_time = now() + $secs;
 
@@ -247,7 +248,7 @@ sub reap_pids {
     }
     if (@$WaitPids) {
         # we may not be donea, and we may miss our
-        $reap_timer = AddTimer(undef, 1, \&reap_pids);
+        $reap_timer = add_timer(1, \&reap_pids);
     }
 }
 
@@ -653,7 +654,7 @@ sub _run_later () {
 sub later ($) {
     my ($cb) = @_;
     push @$later_queue, $cb;
-    $later_timer //= AddTimer(undef, 60, \&_run_later);
+    $later_timer //= add_timer(60, \&_run_later);
 }
 
 sub expire_old () {
