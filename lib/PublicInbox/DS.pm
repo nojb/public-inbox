@@ -106,16 +106,13 @@ sub SetLoopTimeout {
 Add a timer to occur $seconds from now. $seconds may be fractional, but timers
 are not guaranteed to fire at the exact time you ask for.
 
-Returns a timer object which you can call C<< $timer->cancel >> on if you need
-to.
-
 =cut
 sub add_timer ($$) {
     my ($secs, $coderef) = @_;
 
     my $fire_time = now() + $secs;
 
-    my $timer = bless [$fire_time, $coderef], "PublicInbox::DS::Timer";
+    my $timer = [$fire_time, $coderef];
 
     if (!@Timers || $fire_time >= $Timers[-1][0]) {
         push @Timers, $timer;
@@ -691,12 +688,6 @@ sub not_idle_long {
     my $ary = $EXPMAP->{fileno($sock)} or return;
     my $exp_at = $ary->[0] + $EXPTIME;
     $exp_at > $now;
-}
-
-package PublicInbox::DS::Timer;
-# [$abs_float_firetime, $coderef];
-sub cancel {
-    $_[0][1] = undef;
 }
 
 1;
