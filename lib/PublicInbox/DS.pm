@@ -44,11 +44,11 @@ my $later_queue; # callbacks
 my $EXPMAP; # fd -> [ idle_time, $self ]
 our $EXPTIME = 180; # 3 minutes
 my ($later_timer, $reap_timer, $exp_timer);
+my $ToClose; # sockets to close when event loop is done
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (or DSKQXS ref)
      $_io,                       # IO::Handle for Epoll
-     @ToClose,                   # sockets to close when event loop is done
 
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
 
@@ -75,8 +75,7 @@ sub Reset {
     $WaitPids = [];
     $later_queue = [];
     $EXPMAP = {};
-    $reap_timer = $later_timer = $exp_timer = undef;
-    @ToClose = ();
+    $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
     $LoopTimeout = -1;  # no timeout by default
     @Timers = ();
 
@@ -197,7 +196,7 @@ sub next_tick () {
 sub RunTimers {
     next_tick();
 
-    return ((@$nextq || @ToClose) ? 0 : $LoopTimeout) unless @Timers;
+    return ((@$nextq || $ToClose) ? 0 : $LoopTimeout) unless @Timers;
 
     my $now = now();
 
@@ -208,7 +207,7 @@ sub RunTimers {
     }
 
     # timers may enqueue into nextq:
-    return 0 if (@$nextq || @ToClose);
+    return 0 if (@$nextq || $ToClose);
 
     return $LoopTimeout unless @Timers;
 
@@ -254,6 +253,25 @@ sub enqueue_reap ($) { push @$nextq, \&reap_pids };
 
 sub in_loop () { $in_loop }
 
+# Internal function: run the post-event callback, send read events
+# for pushed-back data, and close pending connections.  returns 1
+# if event loop should continue, or 0 to shut it all down.
+sub PostEventLoop () {
+	# now we can close sockets that wanted to close during our event
+	# processing.  (we didn't want to close them during the loop, as we
+	# didn't want fd numbers being reused and confused during the event
+	# loop)
+	if (my $close_now = $ToClose) {
+		$ToClose = undef; # will be autovivified on push
+		# ->DESTROY methods may populate ToClose
+		delete($DescriptorMap{fileno($_)}) for @$close_now;
+		# let refcounting drop everything in $close_now at once
+	}
+
+	# by default we keep running, unless a postloop callback cancels it
+	$PostLoopCallback ? $PostLoopCallback->(\%DescriptorMap) : 1;
+}
+
 sub EpollEventLoop {
     local $in_loop = 1;
     do {
@@ -290,28 +308,6 @@ sub SetPostLoopCallback {
 
     # global callback
     $PostLoopCallback = (defined $ref && ref $ref eq 'CODE') ? $ref : undef;
-}
-
-# Internal function: run the post-event callback, send read events
-# for pushed-back data, and close pending connections.  returns 1
-# if event loop should continue, or 0 to shut it all down.
-sub PostEventLoop {
-    # now we can close sockets that wanted to close during our event processing.
-    # (we didn't want to close them during the loop, as we didn't want fd numbers
-    #  being reused and confused during the event loop)
-    delete($DescriptorMap{fileno($_)}) for @ToClose;
-    @ToClose = (); # let refcounting drop everything all at once
-
-    # by default we keep running, unless a postloop callback (either per-object
-    # or global) cancels it
-    my $keep_running = 1;
-
-    # now we're at the very end, call callback if defined
-    if (defined $PostLoopCallback) {
-        $keep_running &&= $PostLoopCallback->(\%DescriptorMap);
-    }
-
-    return $keep_running;
 }
 
 #####################################################################
@@ -390,7 +386,7 @@ sub close {
 
     # defer closing the actual socket until the event loop is done
     # processing this round of events.  (otherwise we might reuse fds)
-    push @ToClose, $sock;
+    push @$ToClose, $sock; # autovivifies $ToClose
 
     return 0;
 }
