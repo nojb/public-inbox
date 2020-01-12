@@ -41,7 +41,7 @@ use Carp qw(confess carp);
 my $nextq; # queue for next_tick
 my $wait_pids; # list of [ pid, callback, callback_arg ]
 my $later_queue; # list of callbacks to run at some later interval
-my $EXPMAP; # fd -> [ idle_time, $self ]
+my $EXPMAP; # fd -> idle_time
 our $EXPTIME = 180; # 3 minutes
 my ($later_timer, $reap_timer, $exp_timer);
 my $ToClose; # sockets to close when event loop is done
@@ -259,9 +259,13 @@ sub PostEventLoop () {
 	# loop)
 	if (my $close_now = $ToClose) {
 		$ToClose = undef; # will be autovivified on push
+		@$close_now = map { fileno($_) } @$close_now;
+
+		# order matters, destroy expiry times, first:
+		delete @$EXPMAP{@$close_now};
+
 		# ->DESTROY methods may populate ToClose
-		delete($DescriptorMap{fileno($_)}) for @$close_now;
-		# let refcounting drop everything in $close_now at once
+		delete @DescriptorMap{@$close_now};
 	}
 
 	# by default we keep running, unless a postloop callback cancels it
@@ -642,37 +646,34 @@ sub later ($) {
 }
 
 sub expire_old () {
-    my $now = now();
-    my $exp = $EXPTIME;
-    my $old = $now - $exp;
-    my %new;
-    while (my ($fd, $v) = each %$EXPMAP) {
-        my ($idle_time, $ds_obj) = @$v;
-        if ($idle_time < $old) {
-            if (!$ds_obj->shutdn) {
-                $new{$fd} = $v;
-            }
-        } else {
-            $new{$fd} = $v;
-        }
-    }
-    $EXPMAP = \%new;
-    $exp_timer = scalar(keys %new) ? later(\&expire_old) : undef;
+	my $now = now();
+	my $exp = $EXPTIME;
+	my $old = $now - $exp;
+	my %new;
+	while (my ($fd, $idle_at) = each %$EXPMAP) {
+		if ($idle_at < $old) {
+			my $ds_obj = $DescriptorMap{$fd};
+			$new{$fd} = $idle_at if !$ds_obj->shutdn;
+		} else {
+			$new{$fd} = $idle_at;
+		}
+	}
+	$EXPMAP = \%new;
+	$exp_timer = scalar(keys %new) ? later(\&expire_old) : undef;
 }
 
 sub update_idle_time {
-    my ($self) = @_;
-    my $sock = $self->{sock} or return;
-    $EXPMAP->{fileno($sock)} = [ now(), $self ];
-    $exp_timer //= later(\&expire_old);
+	my ($self) = @_;
+	my $sock = $self->{sock} or return;
+	$EXPMAP->{fileno($sock)} = now();
+	$exp_timer //= later(\&expire_old);
 }
 
 sub not_idle_long {
-    my ($self, $now) = @_;
-    my $sock = $self->{sock} or return;
-    my $ary = $EXPMAP->{fileno($sock)} or return;
-    my $exp_at = $ary->[0] + $EXPTIME;
-    $exp_at > $now;
+	my ($self, $now) = @_;
+	my $sock = $self->{sock} or return;
+	my $idle_at = $EXPMAP->{fileno($sock)} or return;
+	($idle_at + $EXPTIME) > $now;
 }
 
 1;
