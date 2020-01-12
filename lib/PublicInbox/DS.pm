@@ -255,6 +255,8 @@ sub reap_pids {
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
 sub enqueue_reap ($) { push @$nextq, \&reap_pids };
 
+sub in_loop () { $in_loop }
+
 sub EpollEventLoop {
     local $in_loop = 1;
     do {
