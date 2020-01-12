@@ -280,12 +280,12 @@ sub getline_pull {
 		}
 
 		if ($self->{sock}) {
-			my $wbuf = $self->{wbuf} //= [];
-			push @$wbuf, \&getline_pull;
+			# autovivify wbuf
+			my $new_size = push(@{$self->{wbuf}}, \&getline_pull);
 
 			# wbuf may be populated by {chunked,identity}_write()
 			# above, no need to rearm if so:
-			$self->requeue if scalar(@$wbuf) == 1;
+			$self->requeue if $new_size == 1;
 			return; # likely
 		}
 	} elsif ($@) {

@@ -616,20 +616,19 @@ sub long_step {
 		# each other's data
 		$self->zflush;
 
-		# no recursion, schedule another call ASAP
-		# but only after all pending writes are done
-		my $wbuf = $self->{wbuf} ||= [];
-		push @$wbuf, \&long_step;
+		# no recursion, schedule another call ASAP, but only after
+		# all pending writes are done.  autovivify wbuf:
+		my $new_size = push(@{$self->{wbuf}}, \&long_step);
 
 		# wbuf may be populated by $cb, no need to rearm if so:
-		$self->requeue if scalar(@$wbuf) == 1;
+		$self->requeue if $new_size == 1;
 	} else { # all done!
 		delete $self->{long_cb};
 		res($self, '.');
 		my $elapsed = now() - $t0;
 		my $fd = fileno($self->{sock});
 		out($self, " deferred[$fd] done - %0.6f", $elapsed);
-		my $wbuf = $self->{wbuf};
+		my $wbuf = $self->{wbuf}; # do NOT autovivify
 		$self->requeue unless $wbuf && @$wbuf;
 	}
 }

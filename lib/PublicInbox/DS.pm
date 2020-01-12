@@ -31,7 +31,7 @@ use PublicInbox::Tmpfile;
 
 use fields ('sock',              # underlying socket
             'rbuf',              # scalarref, usually undef
-            'wbuf',              # arrayref of coderefs or GLOB refs
+            'wbuf', # arrayref of coderefs or GLOB refs (autovivified)
             'wbuf_off',  # offset into first element of wbuf to start writing at
             );
 
@@ -555,7 +555,7 @@ sub write {
 
         # wbuf may be an empty array if we're being called inside
         # ->flush_write via CODE bref:
-        push @{$self->{wbuf} ||= []}, $tmpio;
+        push @{$self->{wbuf}}, $tmpio; # autovivifies
         return 0;
     }
 }
@@ -575,8 +575,7 @@ sub msg_more ($$) {
             return 1 if $nlen == 0; # all done!
             # queue up the unwritten substring:
             my $tmpio = tmpio($self, \($_[1]), $n) or return 0;
-            $self->{wbuf} //= $wbuf //= [];
-            push @$wbuf, $tmpio;
+            push @{$self->{wbuf}}, $tmpio; # autovivifies
             epwait($sock, EPOLLOUT|EPOLLONESHOT);
             return 0;
         }
@@ -599,7 +598,7 @@ sub accept_tls_step ($) {
     return 1 if $sock->accept_SSL;
     return $self->close if $! != EAGAIN;
     epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
-    unshift @{$self->{wbuf} ||= []}, \&accept_tls_step;
+    unshift(@{$self->{wbuf}}, \&accept_tls_step); # autovivifies
     0;
 }
 
@@ -610,7 +609,7 @@ sub shutdn_tls_step ($) {
     return $self->close if $sock->stop_SSL(SSL_fast_shutdown => 1);
     return $self->close if $! != EAGAIN;
     epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
-    unshift @{$self->{wbuf} ||= []}, \&shutdn_tls_step;
+    unshift(@{$self->{wbuf}}, \&shutdn_tls_step); # autovivifies
     0;
 }
 
