@@ -337,9 +337,6 @@ sub new {
     $self->{sock} = $sock;
     my $fd = fileno($sock);
 
-    Carp::cluck("undef sock and/or fd in PublicInbox::DS->new.  sock=" . ($sock || "") . ", fd=" . ($fd || ""))
-        unless $sock && $fd;
-
     _InitPoller();
 
     if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
@@ -349,11 +346,10 @@ sub new {
         }
         die "couldn't add epoll watch for $fd: $!\n";
     }
-    Carp::cluck("PublicInbox::DS::new blowing away existing descriptor map for fd=$fd ($DescriptorMap{$fd})")
-        if $DescriptorMap{$fd};
+    confess("DescriptorMap{$fd} defined ($DescriptorMap{$fd})")
+        if defined($DescriptorMap{$fd});
 
     $DescriptorMap{$fd} = $self;
-    return $self;
 }
 
 
