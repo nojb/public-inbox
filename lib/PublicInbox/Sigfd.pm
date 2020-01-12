@@ -42,14 +42,15 @@ sub new {
 # PublicInbox::Daemon in master main loop (blocking)
 sub wait_once ($) {
 	my ($self) = @_;
+	# 128 == sizeof(struct signalfd_siginfo)
 	my $r = sysread($self->{sock}, my $buf, 128 * 64);
 	if (defined($r)) {
-		while (1) {
-			my $sig = unpack('L', $buf);
-			my $cb = $self->{sig}->{$sig};
-			$cb->($sig) if $cb ne 'IGNORE';
-			return $r if length($buf) == 128;
-			$buf = substr($buf, 128);
+		my $nr = $r / 128 - 1; # $nr may be -1
+		for my $off (0..$nr) {
+			# the first uint32_t of signalfd_siginfo: ssi_signo
+			my $signo = unpack('L', substr($buf, 128 * $off, 4));
+			my $cb = $self->{sig}->{$signo};
+			$cb->($signo) if $cb ne 'IGNORE';
 		}
 	}
 	$r;
