@@ -6,10 +6,10 @@ Content-Type: text/plain; charset=utf-8
 Many internal improvements to improve the developer experience
 and long-term maintainability.
 
-Many of the internal improvements focused on being able to avoid
-Perl startup time in tests.  "make check" now runs about 50%
-faster than before, and the new "make check-run" can be around
-30% faster after being primed by "make check".
+Some of the internal improvements involve avoiding Perl startup
+time in tests.  "make check" now runs about 50% faster than
+before, and the new "make check-run" can be around 30% faster
+than "make check" after being primed by "make check".
 
 Most closures (anonymous subroutines) are purged from the
 -nntpd, -httpd and WWW code paths to make checking for memory
@@ -22,21 +22,39 @@ leaks easier.
 
 * the work-in-progress Xapian.pm SWIG bindings are now supported
   in addition to the traditional Search::Xapian XS bindings.
-  Only SWIG bindings are packaged for OpenBSD.
+  Only the SWIG bindings are packaged for OpenBSD.
+
+* Plack is optional for users who wish to avoid web-related components
+
+* Filesys::Notify::Simple is optional for non-watch users
+  (but Plack will pull it in)
+
+* improved internal error checking and reporting in numerous places
 
 * IPC::Run is no longer used in tests
 
-* improved internal error checking and reporting in numerous places
-  
+* Email::Address::XS used if available (newer Email::MIME
+  requires it), it should handle more corner cases.
+
 * PublicInbox::WWW
   - "nested" search results page now shows relevancy percentages
+  - many solver bugs fixed
   - solver works on "-U0" patches using "git apply --unidiff-zero"
+  - solver now compatible with git < v1.8.5 (but >= v1.8.0)
   - raw HTML no longer shown inline in multipart/alternative messages
     (v1.2.0 regression)
+  - reduced memory usage for displaying multipart messages
+  - static file responses support Last-Modified/If-Modified-Since
+  - avoid trailing underlines in diffstat linkification
 
 * public-inbox-httpd / public-inbox-nntpd:
   - MSG_MORE used consistently in long responses
   - fixed IO::KQueue usage on *BSDs
+  - listen sockets are closed immediately on graceful shutdown
+  - missed signals avoided with signalfd or EVFILT_SIGNAL
+
+* public-inbox-nntpd:
+  Y2020 workaround for Time::Local
 
 * public-inbox-watch
   - avoid memory leak from cyclic reference on SIGHUP
