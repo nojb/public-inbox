@@ -3,7 +3,20 @@
 use strict;
 use warnings;
 use Test::More;
-use_ok 'PublicInbox::Hval', qw(from_attr to_attr);
+use_ok 'PublicInbox::Hval', qw(to_attr);
+
+# reverse the result of to_attr
+sub from_attr ($) {
+	my ($str) = @_;
+	my $first = '';
+	if ($str =~ s/\AZ([a-f0-9]{2})//ms) {
+		$first = chr(hex($1));
+	}
+	$str =~ s!::([a-f0-9]{2})!chr(hex($1))!egms;
+	$str =~ tr!:!/!;
+	utf8::decode($str);
+	$first . $str;
+}
 
 my $ibx = {
 	-no_obfuscate_re => qr/(?:example\.com)\z/i,

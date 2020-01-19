@@ -10,7 +10,7 @@ use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape
-		to_attr from_attr prurl/;
+		to_attr prurl/;
 my $enc_ascii = find_encoding('us-ascii');
 
 # safe-ish acceptable filename pattern for portability
@@ -145,19 +145,6 @@ sub to_attr ($) {
 	}
 	$str =~ s/([^A-Za-z0-9_\.\-])/$ESCAPES{$1}/egms;
 	utf8::decode($str); # allow wide chars
-	$first . $str;
-}
-
-# reverse the result of to_attr
-sub from_attr ($) {
-	my ($str) = @_;
-	my $first = '';
-	if ($str =~ s/\AZ([a-f0-9]{2})//ms) {
-		$first = chr(hex($1));
-	}
-	$str =~ s!::([a-f0-9]{2})!chr(hex($1))!egms;
-	$str =~ tr!:!/!;
-	utf8::decode($str);
 	$first . $str;
 }
 
