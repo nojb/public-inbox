@@ -3,9 +3,11 @@ To: meta@public-inbox.org
 Subject: [PATCH] TODO: take expert web design advice
 Date: Mon, 1 Apr 2019 08:15:20 +0000
 Message-Id: <20190401081523.16213-1-BOFH@YHBT.net>
+Content-Type: text/plain; charset=utf-8
 
 ---
  TODO | 2 ++
+ Ω    | 5 --
  1 file changed, 2 insertions(+)
 
 diff --git a/TODO b/TODO

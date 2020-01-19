@@ -139,10 +139,12 @@ sub to_attr ($) {
 	return if index($str, '//') >= 0;
 
 	my $first = '';
+	utf8::encode($str); # to octets
 	if ($str =~ s/\A([^A-Ya-z])//ms) { # start with a letter
 		  $first = sprintf('Z%02x', ord($1));
 	}
 	$str =~ s/([^A-Za-z0-9_\.\-])/$ESCAPES{$1}/egms;
+	utf8::decode($str); # allow wide chars
 	$first . $str;
 }
 
@@ -155,6 +157,7 @@ sub from_attr ($) {
 	}
 	$str =~ s!::([a-f0-9]{2})!chr(hex($1))!egms;
 	$str =~ tr!:!/!;
+	utf8::decode($str);
 	$first . $str;
 }
 

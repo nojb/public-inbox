@@ -154,7 +154,16 @@ EOF
 	my $non_existent = 'ee5e32211bf62ab6531bdf39b84b6920d0b6775a';
 	my $client = sub {
 		my ($cb) = @_;
-		my $res = $cb->(GET("/$name/3435775/s/"));
+		my $mid = '20190401081523.16213-1-BOFH@YHBT.net';
+		my @warn;
+		my $res = do {
+			local $SIG{__WARN__} = sub { push @warn, @_ };
+			$cb->(GET("/$name/$mid/"));
+		};
+		is_deeply(\@warn, [], 'no warnings from rendering diff');
+		like($res->content, qr!>&#937;</a>!, 'omega escaped');
+
+		$res = $cb->(GET("/$name/3435775/s/"));
 		is($res->code, 200, 'success with existing blob');
 
 		$res = $cb->(GET("/$name/".('0'x40).'/s/'));
