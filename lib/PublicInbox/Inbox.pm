@@ -293,12 +293,11 @@ sub nntp_url {
 				# nntp://news.example.com/alt.example
 				push @m, $u;
 			}
-			my %seen = map { $_ => 1 } @urls;
-			foreach my $u (@m) {
-				next if $seen{$u};
-				$seen{$u} = 1;
-				push @urls, $u;
-			}
+
+			# List::Util::uniq requires Perl 5.26+, maybe we
+			# can use it by 2030 or so
+			my %seen;
+			@urls = grep { !$seen{$_}++ } (@urls, @m);
 		}
 		\@urls;
 	};
