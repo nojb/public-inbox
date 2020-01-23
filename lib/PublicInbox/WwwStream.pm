@@ -89,12 +89,12 @@ sub _html_end {
 	my $ibx = $ctx->{-inbox};
 	my $desc = ascii_html($ibx->description);
 
-	my (%seen, @urls);
+	my @urls;
 	my $http = $self->{base_url};
 	my $max = $ibx->max_git_epoch;
 	my $dir = (split(m!/!, $http))[-1];
+	my %seen = ($http => 1);
 	if (defined($max)) { # v2
-		$seen{$http} = 1;
 		for my $i (0..$max) {
 			# old parts my be deleted:
 			-d "$ibx->{inboxdir}/git/$i.git" or next;
@@ -103,15 +103,13 @@ sub _html_end {
 			push @urls, "$url $dir/git/$i.git";
 		}
 	} else { # v1
-		$seen{$http} = 1;
 		push @urls, $http;
 	}
 
 	# FIXME: epoch splits can be different in other repositories,
 	# use the "cloneurl" file as-is for now:
 	foreach my $u (@{$ibx->cloneurl}) {
-		next if $seen{$u};
-		$seen{$u} = 1;
+		next if $seen{$u}++;
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
 	}
 
