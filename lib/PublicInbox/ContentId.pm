@@ -60,12 +60,9 @@ sub content_digest ($) {
 	# References: and In-Reply-To: get used interchangeably
 	# in some "duplicates" in LKML.  We treat them the same
 	# in SearchIdx, so treat them the same for this:
-	my %seen;
-	foreach my $mid (@{mids($hdr)}) {
-		# do NOT consider the Message-ID as part of the content_id
-		# if we got here, we've already got Message-ID reuse
-		$seen{$mid} = 1;
-	}
+	# do NOT consider the Message-ID as part of the content_id
+	# if we got here, we've already got Message-ID reuse
+	my %seen = map { $_ => 1 } @{mids($hdr)};
 	foreach my $mid (@{references($hdr)}) {
 		next if $seen{$mid};
 		$dig->add("ref\0$mid\0");
