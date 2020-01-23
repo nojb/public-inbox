@@ -423,10 +423,7 @@ sub set_nntp_headers ($$$$$) {
 		$hdr->header_set('Message-ID', $mid0);
 		my @alt = $hdr->header('X-Alt-Message-ID');
 		my %seen = map { $_ => 1 } (@alt, $mid0);
-		foreach my $m (@mids) {
-			next if $seen{$m}++;
-			push @alt, $m;
-		}
+		push(@alt, grep { !$seen{$_}++ } @mids);
 		$hdr->header_set('X-Alt-Message-ID', @alt);
 	}
 
