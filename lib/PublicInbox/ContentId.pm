@@ -64,8 +64,7 @@ sub content_digest ($) {
 	# if we got here, we've already got Message-ID reuse
 	my %seen = map { $_ => 1 } @{mids($hdr)};
 	foreach my $mid (@{references($hdr)}) {
-		next if $seen{$mid};
-		$dig->add("ref\0$mid\0");
+		$dig->add("ref\0$mid\0") unless $seen{$mid}++;
 	}
 
 	# Only use Sender: if From is not present

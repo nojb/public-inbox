@@ -230,8 +230,7 @@ sub parse_references ($$$) {
 			warn "References: <$ref> too long, ignoring\n";
 			next;
 		}
-		next if $seen{$ref}++;
-		push @keep, $ref;
+		push(@keep, $ref) unless $seen{$ref}++;
 	}
 	$smsg->{references} = '<'.join('> <', @keep).'>' if @keep;
 	\@keep;
