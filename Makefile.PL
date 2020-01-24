@@ -13,9 +13,10 @@ $v->{news_deps} = [ map { "Documentation/RelNotes/$_.eml" } @RELEASES ];
 $v->{txt} = [ qw(INSTALL README COPYING TODO HACKING) ];
 my @dtxt = grep(m!\ADocumentation/.*\.txt\z!, @manifest);
 push @dtxt, 'Documentation/standards.txt';
+push @dtxt, @{$v->{txt}};
 for my $txt (@dtxt) {
 	my $html = $txt;
-	$html =~ s/\.txt\z/.html/;
+	$html =~ s/\.txt\z/.html/ or $html .= '.html';
 	$t->{"$html : $txt"} = [ "\$(txt2pre) <$txt" ];
 }
 $v->{t_slash_star_dot_t} = [ grep(m!\At/.*\.t\z!, @manifest) ];
