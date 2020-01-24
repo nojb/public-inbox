@@ -44,16 +44,24 @@ Beyond that, there is a long list of Perl modules required, starting with:
                                    rpm: perl-URI
                                    (for HTML/Atom generation)
 
-Where "deb" indicates package names for Debian-derived distributions,
-"pkg" is for the FreeBSD package (maybe other common BSDs, too), and
-"rpm" is for RPM-based distributions (only known to work on Fedora).
-
-Numerous optional modules are likely to be useful as well:
+Plack and Date::Parse will be optional when v1.3.0 is released,
+but required for current and older releases:
 
 * Plack                            deb: libplack-perl
                                    pkg: p5-Plack
                                    rpm: perl-Plack, perl-Plack-Test,
                                    (for HTML/Atom generation)
+
+- Date::Parse                      deb: libtimedate-perl
+                                   pkg: p5-TimeDate
+                                   rpm: perl-TimeDate
+                                   (for broken, mostly historical emails)
+
+Where "deb" indicates package names for Debian-derived distributions,
+"pkg" is for the FreeBSD package (maybe other common BSDs, too), and
+"rpm" is for RPM-based distributions (only known to work on Fedora).
+
+Numerous optional modules are likely to be useful as well:
 
 - DBD::SQLite                      deb: libdbd-sqlite3-perl
                                    pkg: p5-DBD-SQLite
@@ -76,11 +84,6 @@ Numerous optional modules are likely to be useful as well:
                                    pkg: pkg-Inline-C
                                    (speeds up process spawning on Linux,
                                     see public-inbox-daemon(8))
-
-- Date::Parse                      deb: libtimedate-perl
-                                   pkg: p5-TimeDate
-                                   rpm: perl-TimeDate
-                                   (for broken, mostly historical emails)
 
 - Plack::Middleware::ReverseProxy  deb: libplack-middleware-reverseproxy-perl
                                    pkg: p5-Plack-Middleware-ReverseProxy
