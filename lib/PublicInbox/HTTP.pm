@@ -80,7 +80,7 @@ sub event_step { # called by PublicInbox::DS
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
-	return read_input($self) if defined $self->{env};
+	return read_input($self) if ref($self->{env});
 	my $rbuf = $self->{rbuf} // (\(my $x = ''));
 	$self->do_read($rbuf, 8192, bytes::length($$rbuf)) or return;
 	rbuf_process($self, $rbuf);
@@ -124,7 +124,6 @@ sub read_input ($;$) {
 	my ($self, $rbuf) = @_;
 	$rbuf //= $self->{rbuf} // (\(my $x = ''));
 	my $env = $self->{env};
-	return if $env->{REMOTE_ADDR}; # in app dispatch
 	return read_input_chunked($self, $rbuf) if env_chunked($env);
 
 	# env->{CONTENT_LENGTH} (identity)
@@ -153,6 +152,7 @@ sub app_dispatch {
 	my ($self, $input, $rbuf) = @_;
 	$self->rbuf_idle($rbuf);
 	my $env = $self->{env};
+	$self->{env} = undef; # for exists() check in ->busy
 	$env->{REMOTE_ADDR} = $self->{remote_addr};
 	$env->{REMOTE_PORT} = $self->{remote_port};
 	if (defined(my $host = $env->{HTTP_HOST})) {
@@ -455,7 +455,6 @@ sub quit {
 
 sub close {
 	my $self = $_[0];
-	delete $self->{env}; # prevent circular references
 	if (my $forward = delete $self->{forward}) {
 		eval { $forward->close };
 		err($self, "forward ->close error: $@") if $@;
@@ -466,7 +465,7 @@ sub close {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy () {
 	my ($self) = @_;
-	($self->{rbuf} || $self->{env} || $self->{wbuf});
+	($self->{rbuf} || exists($self->{env}) || $self->{wbuf});
 }
 
 # Chunked and Identity packages are used for writing responses.
