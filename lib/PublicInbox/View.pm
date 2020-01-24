@@ -149,7 +149,7 @@ EOF
 <hr><pre
 id=R><b>Reply instructions:</b>
 
-You may reply publically to <a
+You may reply publicly to <a
 href=#t>this message</a> via plain-text email
 using any one of the following methods:
 

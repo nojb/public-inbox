@@ -5,7 +5,7 @@
 # searching inboxes for post-image blobs.
 
 # this emits a lot of debugging/tracing information which may be
-# publically viewed over HTTP(S).  Be careful not to expose
+# publicly viewed over HTTP(S).  Be careful not to expose
 # local filesystem layouts in the process.
 package PublicInbox::SolverGit;
 use strict;

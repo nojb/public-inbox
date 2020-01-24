@@ -21,7 +21,7 @@ all need to be considered for everything we introduce)
 
 * HTTP and NNTP proxy support.  Allow us to be a frontend for
   firewalled off (or Tor-exclusive) instances.  The use case is
-  for offering a publically accessible IP with a cheap VPS,
+  for offering a publicly accessible IP with a cheap VPS,
   yet storing large amounts of data on computers without a
   public IP behind a home Internet connection.
 

@@ -168,7 +168,7 @@ easier.  object_id and Message-ID are already known.
 =item object_id
 
 The blob identifier git uses (currently SHA-1).  No need to
-publically expose this outside of normal git ops (cloning) and
+publicly expose this outside of normal git ops (cloning) and
 there's no need to make this searchable.  As with v1 of
 public-inbox, this is stored as part of the Xapian document so
 expensive name lookups can be avoided for document retrieval.
