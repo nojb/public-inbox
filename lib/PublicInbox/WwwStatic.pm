@@ -51,7 +51,19 @@ sub r ($;$) {
 	  [ $msg ] ]
 }
 
-sub prepare_range {
+sub getline_response ($$$$$) {
+	my ($env, $in, $off, $len, $path) = @_;
+	my $r = bless {}, __PACKAGE__;
+	if ($env->{'pi-httpd.async'}) { # public-inbox-httpd-only mode
+		$env->{'psgix.no-compress'} = 1; # do not chunk response
+		%$r = ( bypass => [$in, $off, $len, $env->{'psgix.io'}] );
+	} else {
+		%$r = ( in => $in, off => $off, len => $len, path => $path );
+	}
+	$r;
+}
+
+sub setup_range {
 	my ($env, $in, $h, $beg, $end, $size) = @_;
 	my $code = 200;
 	my $len = $size;
@@ -81,9 +93,6 @@ sub prepare_range {
 		if ($len <= 0) {
 			$code = 416;
 		} else {
-			if ($in) {
-				sysseek($in, $beg, SEEK_SET) or return r(500);
-			}
 			push @$h, qw(Accept-Ranges bytes Content-Range);
 			push @$h, "bytes $beg-$end/$size";
 
@@ -95,7 +104,7 @@ sub prepare_range {
 		push @$h, 'Content-Range', "bytes */$size";
 		return [ 416, $h, [] ];
 	}
-	($code, $len);
+	($code, $beg, $len);
 }
 
 # returns a PSGI arrayref response iff .gz and non-.gz mtimes match
@@ -142,30 +151,37 @@ sub response ($$$;$) {
 	my $len = $size;
 	my $code = 200;
 	push @$h, 'Content-Type', $type;
+	my $off = 0;
 	if (($env->{HTTP_RANGE} || '') =~ /\bbytes=([0-9]*)-([0-9]*)\z/) {
-		($code, $len) = prepare_range($env, $in, $h, $1, $2, $size);
+		($code, $off, $len) = setup_range($env, $in, $h, $1, $2, $size);
 		return $code if ref($code);
 	}
 	push @$h, 'Content-Length', $len, 'Last-Modified', $mtime;
-	my $body = $in ? bless {
-		initial_rd => 65536,
-		len => $len,
-		in => $in,
-		path => $path,
-		env => $env,
-	}, __PACKAGE__ : [];
-	[ $code, $h, $body ];
+	[ $code, $h, $in ? getline_response($env, $in, $off, $len, $path) : [] ]
 }
 
 # called by PSGI servers on each response chunk:
 sub getline {
 	my ($self) = @_;
+
+	# avoid buffering, by becoming the buffer! (public-inbox-httpd)
+	if (my $tmpio = delete $self->{bypass}) {
+		my $http = pop @$tmpio; # PublicInbox::HTTP
+		push @{$http->{wbuf}}, $tmpio; # [ $in, $off, $len ]
+		$http->flush_write;
+		return; # undef, EOF
+	}
+
+	# generic PSGI runs this:
 	my $len = $self->{len} or return; # undef, tells server we're done
-	my $n = delete($self->{initial_rd}) // 8192;
+	my $n = 8192;
 	$n = $len if $len < $n;
-	my $r = sysread($self->{in}, my $buf, $n);
+	seek($self->{in}, $self->{off}, SEEK_SET) or
+			die "seek ($self->{path}): $!";
+	my $r = read($self->{in}, my $buf, $n);
 	if (defined $r && $r > 0) { # success!
 		$self->{len} = $len - $r;
+		$self->{off} += $r;
 		return $buf;
 	}
 	my $m = defined $r ? "EOF with $len bytes left" : "read error: $!";
