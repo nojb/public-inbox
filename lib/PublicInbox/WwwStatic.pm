@@ -169,16 +169,7 @@ sub getline {
 		return $buf;
 	}
 	my $m = defined $r ? "EOF with $len bytes left" : "read error: $!";
-	my $env = $self->{env};
-	$env->{'psgi.errors'}->print("$self->{path} $m\n");
-
-	# drop the client on error
-	if (my $io = $env->{'psgix.io'}) {
-		$io->close; # this is likely PublicInbox::DS::close
-	} else { # for some PSGI servers w/o psgix.io
-		die "dropping client socket\n";
-	}
-	undef;
+	die "$self->{path} $m, dropping client socket\n";
 }
 
 sub close {} # noop, called by PSGI server, just let everything go out-of-scope
