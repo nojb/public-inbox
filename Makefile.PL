@@ -11,7 +11,7 @@ my $t = {};
 my @RELEASES = qw(v1.2.0 v1.1.0-pre1 v1.0.0); # do not sort
 $v->{news_deps} = [ map { "Documentation/RelNotes/$_.eml" } @RELEASES ];
 $v->{txt} = [ qw(INSTALL README COPYING TODO HACKING) ];
-my @dtxt = grep(m!\ADocumentation/.*\.txt\z!, @manifest);
+my @dtxt = grep(m!\ADocumentation/[^/]+\.txt\z!, @manifest);
 push @dtxt, 'Documentation/standards.txt';
 push @dtxt, @{$v->{txt}};
 for my $txt (@dtxt) {
