@@ -62,12 +62,7 @@ Documentation/standards.txt : Documentation/standards.perl
 	touch -r Documentation/standards.perl $@+
 	mv $@+ $@
 
-RELEASES =
-RELEASES += v1.2.0
-RELEASES += v1.1.0-pre1
-RELEASES += v1.0.0
-
-NEWS NEWS.atom NEWS.html : Documentation/include.mk
+NEWS NEWS.atom NEWS.html : $(news_deps)
 	$(PERL) -I lib -w Documentation/mknews.perl $@ $(RELEASES)
 
 # check for internal API changes:

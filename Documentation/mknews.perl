@@ -21,8 +21,8 @@ my $atom_url = 'https://public-inbox.org/NEWS.atom';
 my $addr = 'meta@public-inbox.org';
 
 my $latest = shift(@releases) or die 'no releases?';
-my $mime_latest = release2mime($latest);
-my $mtime = msg_datestamp($mime_latest->header_obj);
+my $mtime;
+my $mime_latest = release2mime($latest, \$mtime);
 my $tmp = "$dst+";
 my $out;
 if ($dst eq 'NEWS') {
@@ -73,9 +73,17 @@ rename($tmp, $dst) or die;
 exit 0;
 
 sub release2mime {
-	my $f = "$dir/$_[0].eml";
+	my ($release, $mtime_ref) = @_;
+	my $f = "$dir/$release.eml";
 	open(my $fh, '<', $f) or die "open($f): $!";
-	PublicInbox::MIME->new(do { local $/; <$fh> });
+	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
+	# Documentation/include.mk relies on mtimes of each .eml file
+	# to trigger rebuild, so make sure we sync the mtime to the Date:
+	# header in the .eml
+	my $mtime = msg_datestamp($mime->header_obj);
+	utime($mtime, $mtime, $fh) or warn "futimes $f: $!";
+	$$mtime_ref = $mtime if $mtime_ref;
+	$mime;
 }
 
 sub mime2txt {
