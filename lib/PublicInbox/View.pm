@@ -719,32 +719,34 @@ sub _msg_html_prepare {
 	$rv .= "\n";
 }
 
-sub thread_skel {
-	my ($skel, $ctx, $hdr, $tpfx) = @_;
+sub SKEL_EXPAND () {
+	qq(expand[<a\nhref="T/#u">flat</a>) .
+		qq(|<a\nhref="t/#u">nested</a>]  ) .
+		qq(<a\nhref="t.mbox.gz">mbox.gz</a>  ) .
+		qq(<a\nhref="t.atom">Atom feed</a>);
+}
+
+sub thread_skel ($$$) {
+	my ($skel, $ctx, $hdr) = @_;
 	my $mid = mids($hdr)->[0];
 	my $ibx = $ctx->{-inbox};
 	my ($nr, $msgs) = $ibx->over->get_thread($mid);
-	my $expand = qq(expand[<a\nhref="${tpfx}T/#u">flat</a>) .
-	                qq(|<a\nhref="${tpfx}t/#u">nested</a>]  ) .
-			qq(<a\nhref="${tpfx}t.mbox.gz">mbox.gz</a>  ) .
-			qq(<a\nhref="${tpfx}t.atom">Atom feed</a>);
-
 	my $parent = in_reply_to($hdr);
 	$$skel .= "\n<b>Thread overview: </b>";
 	if ($nr <= 1) {
 		if (defined $parent) {
-			$$skel .= "$expand\n ";
-			$$skel .= ghost_parent("$tpfx../", $parent) . "\n";
+			$$skel .= SKEL_EXPAND."\n ";
+			$$skel .= ghost_parent('../', $parent) . "\n";
 		} else {
-			$$skel .= "[no followups] $expand\n";
+			$$skel .= '[no followups] '.SKEL_EXPAND."\n";
 		}
 		$ctx->{next_msg} = undef;
 		$ctx->{parent_msg} = $parent;
 		return;
 	}
 
-	$$skel .= "$nr+ messages / $expand";
-	$$skel .= qq!  <a\nhref="#b">top</a>\n!;
+	$$skel .= $nr;
+	$$skel .= '+ messages / '.SKEL_EXPAND.qq!  <a\nhref="#b">top</a>\n!;
 
 	# nb: mutt only shows the first Subject in the index pane
 	# when multiple Subject: headers are present, so we follow suit:
@@ -806,7 +808,7 @@ sub html_footer {
 	my $rv = '<pre>';
 	if ($ibx->over) {
 		$skel .= "\n";
-		thread_skel(\$skel, $ctx, $hdr, '');
+		thread_skel(\$skel, $ctx, $hdr);
 		my ($next, $prev);
 		my $parent = '       ';
 		$next = $prev = '    ';
