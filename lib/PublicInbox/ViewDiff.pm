@@ -38,8 +38,7 @@ sub UNSAFE () { "^A-Za-z0-9\-\._~/" }
 
 my $OID_NULL = '0{7,40}';
 my $OID_BLOB = '[a-f0-9]{7,40}';
-my $PATH_A = '"?a/.+|/dev/null';
-my $PATH_B = '"?b/.+|/dev/null';
+my $PATH_X = '"?[^/]+/.+|/dev/null';
 
 # cf. git diff.c :: get_compact_summary
 my $DIFFSTAT_COMMENT = qr/\((?:new|gone|(?:(?:new|mode) [\+\-][lx]))\)/;
@@ -158,7 +157,7 @@ sub flush_diff ($$$) {
 			$state == DSTATE_INIT or
 				to_state($dst, $state, DSTATE_INIT);
 			$$dst .= $s;
-		} elsif ($s =~ m!^diff --git ($PATH_A) ($PATH_B)$!o) {
+		} elsif ($s =~ m!^diff --git ($PATH_X) ($PATH_X)$!o) {
 			my ($pa, $pb) = ($1, $2);
 			if ($state != DSTATE_HEAD) {
 				to_state($dst, $state, DSTATE_HEAD);
@@ -193,8 +192,8 @@ sub flush_diff ($$$) {
 			$$dst .= '</span>';
 			$state = DSTATE_CTX;
 			$$dst .= $linkify->to_html($s);
-		} elsif ($s =~ m!^--- (?:$PATH_A)!o ||
-		         $s =~ m!^\+{3} (?:$PATH_B)!o)  {
+		} elsif ($s =~ m!^--- (?:$PATH_X)!o ||
+		         $s =~ m!^\+{3} (?:$PATH_X)!o)  {
 			# color only (no oid link) if missing dctx->{oid_*}
 			$state <= DSTATE_STAT and
 				to_state($dst, $state, DSTATE_HEAD);

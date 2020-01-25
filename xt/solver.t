@@ -27,7 +27,7 @@ my $todo = {
 		'776fa90f7f/s/?b=contrib/git-jump/git-jump',
 		'5cd8845/s/?b=submodule.c',
 		'81c1164ae5/s/?b=builtin/log.c',
-		'6aa8857a11/s/?b=protocol.c', # TODO: i/, w/ instead of a/ b/
+		'6aa8857a11/s/?b=protocol.c',
 		'96f1c7f/s/', # TODO: b=contrib/completion/git-completion.bash
 		'b76f2c0/s/?b=po/zh_CN.po',
 	],
