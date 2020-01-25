@@ -40,11 +40,7 @@ sub msg_html_i {
 		# fake an EOF if generating the footer fails;
 		# we want to at least show the message if something
 		# here crashes:
-		eval {
-			my $hdr = delete($ctx->{hdr});
-			'<pre>' . html_footer($hdr, 1, $ctx) .
-			'</pre>' . msg_reply($ctx, $hdr)
-		};
+		eval { html_footer($ctx) };
 	} else {
 		undef
 	}
@@ -113,7 +109,7 @@ sub msg_html_more {
 }
 
 # /$INBOX/$MESSAGE_ID/#R
-sub msg_reply {
+sub msg_reply ($$) {
 	my ($ctx, $hdr) = @_;
 	my $se_url =
 	 'https://kernel.org/pub/software/scm/git/docs/git-send-email.html';
@@ -800,17 +796,17 @@ sub _parent_headers {
 	$rv;
 }
 
+# returns a string buffer via ->getline
 sub html_footer {
-	my ($hdr, $standalone, $ctx, $rhref) = @_;
-
-	my $ibx = $ctx->{-inbox} if $ctx;
+	my ($ctx) = @_;
+	my $ibx = $ctx->{-inbox};
+	my $hdr = delete $ctx->{hdr};
 	my $upfx = '../';
-	my $tpfx = '';
-	my $skel = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
-	my $irt = '';
-	if ($skel && $ibx->over) {
+	my $skel = " <a\nhref=\"$upfx\">index</a>";
+	my $rv = '<pre>';
+	if ($ibx->over) {
 		$skel .= "\n";
-		thread_skel(\$skel, $ctx, $hdr, $tpfx);
+		thread_skel(\$skel, $ctx, $hdr, '');
 		my ($next, $prev);
 		my $parent = '       ';
 		$next = $prev = '    ';
@@ -839,13 +835,12 @@ sub html_footer {
 		} elsif ($u) { # unlikely
 			$parent = " <a\nhref=\"$u\"\nrel=prev>parent</a>";
 		}
-		$irt = "$next $prev$parent ";
-	} else {
-		$irt = '';
+		$rv .= "$next $prev$parent ";
 	}
-	$rhref ||= '#R';
-	$irt .= qq(<a\nhref="$rhref">reply</a>);
-	$irt .= $skel;
+	$rv .= qq(<a\nhref="#R">reply</a>);
+	$rv .= $skel;
+	$rv .= '</pre>';
+	$rv .= msg_reply($ctx, $hdr);
 }
 
 sub linkify_ref_no_over {
