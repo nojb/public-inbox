@@ -209,12 +209,8 @@ sub index_diff ($$$) {
 			index_diff_inc($self, $_, 'XDFCTX', $xnq);
 		} elsif (/^-- $/) { # email signature begins
 			$in_diff = undef;
-		} elsif (m!^diff --git ("?a/.+) ("?b/.+)\z!) {
-			my ($fa, $fb) = ($1, $2);
-			my $fn = (split('/', git_unquote($fa), 2))[1];
-			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
-			$fn = (split('/', git_unquote($fb), 2))[1];
-			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
+		} elsif (m!^diff --git "?[^/]+/.+ "?[^/]+/.+\z!) {
+			# wait until "---" and "+++" to capture filenames
 			$in_diff = 1;
 		# traditional diff:
 		} elsif (m/^diff -(.+) (\S+) (\S+)$/) {
