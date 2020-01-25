@@ -17,7 +17,7 @@ our @EXT_URL = map { ascii_html($_) } (
 	# leading "//" denotes protocol-relative (http:// or https://)
 	'//marc.info/?i=%s',
 	'//www.mail-archive.com/search?l=mid&q=%s',
-	'nntp://news.gmane.org/%s',
+	'nntp://news.gmane.io/%s',
 	'https://lists.debian.org/msgid-search/%s',
 	'//docs.FreeBSD.org/cgi/mid.cgi?db=mid&id=%s',
 	'https://www.w3.org/mid/%s',

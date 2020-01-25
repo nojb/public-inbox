@@ -47,7 +47,7 @@ all need to be considered for everything we introduce)
 
 * Configurable linkification for per-inbox shorthands:
   "$gmane/123456" could be configured to expand to the
-  appropriate link pointing to the gmane.org list archives,
+  appropriate link pointing to the gmane.io list archives,
   likewise "[Bug #123456]" could be configured to expand to
   point to some project's bug tracker at http://example.com/bug/123456
 

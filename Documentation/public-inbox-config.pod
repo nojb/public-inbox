@@ -115,7 +115,7 @@ Default: none
 This may be the full NNTP URL of an independently-run mirror.
 For example, the https://public-inbox.org/meta/ inbox is
 mirrored by Gmane at
-C<nntp://news.gmane.org/gmane.mail.public-inbox.general>
+C<nntp://news.gmane.io/gmane.mail.public-inbox.general>
 
 Default: none
 
