@@ -14,7 +14,7 @@ use PublicInbox::SearchThread;
 our $LIM = 200;
 my %rmap_inc;
 
-sub noop {}
+my $noop = sub {};
 
 sub mbox_results {
 	my ($ctx) = @_;
@@ -59,7 +59,7 @@ retry:
 	if ($err) {
 		$code = 400;
 		$ctx->{-html_tip} = '<pre>'.err_txt($ctx, $err).'</pre><hr>';
-		$cb = *noop;
+		$cb = $noop;
 	} elsif ($total == 0) {
 		if (defined($ctx->{-uxs_retried})) {
 			# undo retry damage:
@@ -71,7 +71,7 @@ retry:
 		}
 		$code = 404;
 		$ctx->{-html_tip} = "<pre>\n[No results found]</pre><hr>";
-		$cb = *noop;
+		$cb = $noop;
 	} else {
 		return adump($_[0], $mset, $q, $ctx) if $x eq 'A';
 
@@ -122,7 +122,7 @@ sub mset_summary {
 		$$res .= "$pfx  - by $f @ $date UTC [$pct%]\n\n";
 	}
 	$$res .= search_nav_bot($mset, $q);
-	*noop;
+	$noop;
 }
 
 # shorten "/full/path/to/Foo/Bar.pm" to "Foo/Bar.pm" so error
