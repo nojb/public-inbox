@@ -133,6 +133,17 @@ sub anchor1 ($$$$$) {
 	undef
 }
 
+sub missing_diff_git_line ($$) {
+	my ($dctx, $pb) = @_;
+	# missing "diff --git ..."
+	$dctx->{path_b} = $pb;
+	$dctx->{Q} = '?b='.uri_escape_utf8($pb, UNSAFE);
+	my $pa = $dctx->{path_a};
+	if (defined($pa) && $pa ne $pb) {
+		$dctx->{Q} .= '&amp;a='. uri_escape_utf8($pa, UNSAFE);
+	}
+}
+
 sub flush_diff ($$$) {
 	my ($dst, $ctx, $linkify) = @_;
 	my $diff = $ctx->{-diff};
@@ -192,8 +203,24 @@ sub flush_diff ($$$) {
 			$$dst .= '</span>';
 			$state = DSTATE_CTX;
 			$$dst .= $linkify->to_html($s);
-		} elsif ($s =~ m!^--- (?:$PATH_X)!o ||
-		         $s =~ m!^\+{3} (?:$PATH_X)!o)  {
+		} elsif ($s =~ m!^--- ($PATH_X)!o) {
+			my $pa = $1;
+			$pa = (split('/', git_unquote($pa), 2))[1];
+			if (($dctx->{path_a} // '') ne $pa) {
+				# missing "diff --git ..." ?
+				$dctx->{path_a} = $pa;
+			}
+			# color only (no oid link) if missing dctx->{oid_*}
+			$state <= DSTATE_STAT and
+				to_state($dst, $state, DSTATE_HEAD);
+			$$dst .= $linkify->to_html($s);
+		} elsif ($s =~ m!^\+{3} ($PATH_X)!o) {
+			my $pb = $1;
+			$pb = (split('/', git_unquote($pb), 2))[1];
+			if (($dctx->{path_b} // '') ne $pb) {
+				missing_diff_git_line($dctx, $pb);
+			}
+
 			# color only (no oid link) if missing dctx->{oid_*}
 			$state <= DSTATE_STAT and
 				to_state($dst, $state, DSTATE_HEAD);
