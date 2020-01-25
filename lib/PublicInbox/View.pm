@@ -24,7 +24,7 @@ use constant INDENT => '  ';
 use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
-sub msg_html_i {
+sub msg_page_i {
 	my ($nr, $ctx) = @_;
 	my $more = $ctx->{more};
 	if ($nr == 1) {
@@ -35,7 +35,7 @@ sub msg_html_i {
 	} elsif ($more) {
 		++$ctx->{end_nr};
 		# fake an EOF if {more} retrieval fails fails;
-		eval { msg_html_more($ctx, $nr) };
+		eval { msg_page_more($ctx, $nr) };
 	} elsif ($nr == $ctx->{end_nr}) {
 		# fake an EOF if generating the footer fails;
 		# we want to at least show the message if something
@@ -47,18 +47,6 @@ sub msg_html_i {
 }
 
 # public functions: (unstable)
-
-sub msg_html {
-	my ($ctx, $mime, $smsg) = @_;
-	my $ibx = $ctx->{-inbox};
-	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	my $hdr = $ctx->{hdr} = $mime->header_obj;
-	_msg_html_prepare_obuf($hdr, $ctx, 0);
-	$ctx->{end_nr} = 2;
-	$ctx->{smsg} = $smsg;
-	$ctx->{mime} = $mime;
-	PublicInbox::WwwStream->response($ctx, 200, \&msg_html_i);
-}
 
 sub msg_page {
 	my ($ctx) = @_;
@@ -78,10 +66,16 @@ sub msg_page {
 	} else {
 		$first = $ibx->msg_by_mid($mid) or return;
 	}
-	msg_html($ctx, PublicInbox::MIME->new($first), $smsg);
+	my $mime = $ctx->{mime} = PublicInbox::MIME->new($first);
+	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
+	my $hdr = $ctx->{hdr} = $mime->header_obj;
+	_msg_page_prepare_obuf($hdr, $ctx, 0);
+	$ctx->{end_nr} = 2;
+	$ctx->{smsg} = $smsg;
+	PublicInbox::WwwStream->response($ctx, 200, \&msg_page_i);
 }
 
-sub msg_html_more {
+sub msg_page_more {
 	my ($ctx, $nr) = @_;
 	my ($id, $prev, $smsg) = @{$ctx->{more}};
 	my $ibx = $ctx->{-inbox};
@@ -91,7 +85,7 @@ sub msg_html_more {
 	return '' unless $smsg;
 	my $upfx = '../' . mid_escape($smsg->mid) . '/';
 	my $mime = delete $smsg->{mime};
-	_msg_html_prepare_obuf($mime->header_obj, $ctx, $nr);
+	_msg_page_prepare_obuf($mime->header_obj, $ctx, $nr);
 	multipart_text_as_html($mime, $upfx, $ctx);
 	${delete $ctx->{obuf}} .= '</pre><hr>';
 }
@@ -623,7 +617,7 @@ sub add_text_body { # callback for msg_iter
 	obfuscate_addrs($ibx, $$rv) if $ibx->{obfuscate};
 }
 
-sub _msg_html_prepare_obuf {
+sub _msg_page_prepare_obuf {
 	my ($hdr, $ctx, $nr) = @_;
 	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
