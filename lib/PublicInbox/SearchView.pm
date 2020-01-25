@@ -287,7 +287,7 @@ sub mset_thread {
 	# reduce hash lookups in skel_dump
 	$ctx->{-obfuscate} = $ctx->{-inbox}->{obfuscate};
 	PublicInbox::View::walk_thread($rootset, $ctx,
-		*PublicInbox::View::pre_thread);
+		\&PublicInbox::View::pre_thread);
 
 	@$msgs = reverse @$msgs if $r;
 	$ctx->{msgs} = $msgs;

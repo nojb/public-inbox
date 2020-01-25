@@ -385,7 +385,8 @@ sub _th_index_lite {
 	$rv .= $pad ."<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
 }
 
-sub walk_thread {
+# non-recursive thread walker
+sub walk_thread ($$$) {
 	my ($rootset, $ctx, $cb) = @_;
 	my @q = map { (0, $_, -1) } @$rootset;
 	while (@q) {
@@ -398,7 +399,7 @@ sub walk_thread {
 	}
 }
 
-sub pre_thread  {
+sub pre_thread  { # walk_thread callback
 	my ($ctx, $level, $node, $idx) = @_;
 	$ctx->{mapping}->{$node->{id}} = [ '', $node, $idx, $level ];
 	skel_dump($ctx, $level, $node);
@@ -478,7 +479,7 @@ sub thread_html {
 
 	# reduce hash lookups in pre_thread->skel_dump
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	walk_thread($rootset, $ctx, *pre_thread);
+	walk_thread($rootset, $ctx, \&pre_thread);
 
 	$skel .= '</pre>';
 	return stream_thread($rootset, $ctx) unless $ctx->{flat};
@@ -761,7 +762,7 @@ sub thread_skel {
 
 	# reduce hash lookups in skel_dump
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	walk_thread(thread_results($ctx, $msgs), $ctx, *skel_dump);
+	walk_thread(thread_results($ctx, $msgs), $ctx, \&skel_dump);
 
 	$ctx->{parent_msg} = $parent;
 }
@@ -912,7 +913,7 @@ sub thread_results {
 	if (defined($mid) && scalar(@$rootset) > 1) {
 		$ctx->{root_idx} = -1;
 		my $nr = scalar @$msgs;
-		walk_thread($rootset, $ctx, *find_mid_root);
+		walk_thread($rootset, $ctx, \&find_mid_root);
 		my $idx = $ctx->{found_mid_at};
 		if (defined($idx) && $idx != 0) {
 			my $tip = splice(@$rootset, $idx, 1);
@@ -949,7 +950,7 @@ sub dedupe_subject {
 	$omit;
 }
 
-sub skel_dump {
+sub skel_dump { # walk_thread callback
 	my ($ctx, $level, $node) = @_;
 	my $smsg = $node->{smsg} or return _skel_ghost($ctx, $level, $node);
 
@@ -1065,7 +1066,7 @@ sub sort_ds {
 
 # accumulate recent topics if search is supported
 # returns 200 if done, 404 if not
-sub acc_topic {
+sub acc_topic { # walk_thread callback
 	my ($ctx, $level, $node) = @_;
 	my $mid = $node->{id};
 	my $x = $node->{smsg} || $ctx->{-inbox}->smsg_by_mid($mid);
@@ -1231,9 +1232,9 @@ sub index_topics {
 	my ($ctx) = @_;
 	my $msgs = paginate_recent($ctx, 200); # 200 is our window
 	if (@$msgs) {
-		walk_thread(thread_results($ctx, $msgs), $ctx, *acc_topic);
+		walk_thread(thread_results($ctx, $msgs), $ctx, \&acc_topic);
 	}
-	PublicInbox::WwwStream->response($ctx, dump_topics($ctx), *index_nav);
+	PublicInbox::WwwStream->response($ctx, dump_topics($ctx), \&index_nav);
 }
 
 sub thread_adj_level {
