@@ -70,7 +70,7 @@ sub linkify_1 {
 
 		$_[0]->{$key} = $url;
 		$beg . 'PI-LINK-'. $key . $end;
-	^ge;
+	^geo;
 	$_[1];
 }
 
