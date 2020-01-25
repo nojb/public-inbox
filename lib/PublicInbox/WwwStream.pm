@@ -23,7 +23,7 @@ sub new {
 	chop $base_url; # no trailing slash for clone
 	bless {
 		nr => 0,
-		cb => $cb || *close,
+		cb => $cb || \&close,
 		ctx => $ctx,
 		base_url => $base_url,
 	}, $class;

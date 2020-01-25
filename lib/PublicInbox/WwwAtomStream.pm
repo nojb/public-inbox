@@ -23,7 +23,7 @@ sub new {
 	my ($class, $ctx, $cb) = @_;
 	$ctx->{emit_header} = 1;
 	$ctx->{feed_base_url} = $ctx->{-inbox}->base_url($ctx->{env});
-	bless { cb => $cb || *close, ctx => $ctx }, $class;
+	bless { cb => $cb || \&close, ctx => $ctx }, $class;
 }
 
 sub response {
