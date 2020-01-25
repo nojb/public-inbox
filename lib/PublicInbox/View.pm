@@ -33,9 +33,10 @@ sub msg_html_i {
 		$ctx->{tip} .
 			multipart_text_as_html(delete $ctx->{mime}, $upfx,
 						$ctx) . '</pre><hr>'
-	} elsif ($more && @$more) {
+	} elsif ($more) {
 		++$ctx->{end_nr};
-		msg_html_more($ctx, $more, $nr);
+		# fake an EOF if {more} retrieval fails fails;
+		eval { msg_html_more($ctx, $nr) };
 	} elsif ($nr == $ctx->{end_nr}) {
 		# fake an EOF if generating the footer fails;
 		# we want to at least show the message if something
@@ -49,12 +50,11 @@ sub msg_html_i {
 # public functions: (unstable)
 
 sub msg_html {
-	my ($ctx, $mime, $more, $smsg) = @_;
+	my ($ctx, $mime, $smsg) = @_;
 	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	my $hdr = $ctx->{hdr} = $mime->header_obj;
-	$ctx->{tip} = _msg_html_prepare($hdr, $ctx, $more, 0);
-	$ctx->{more} = $more;
+	$ctx->{tip} = _msg_html_prepare($hdr, $ctx, 0);
 	$ctx->{end_nr} = 2;
 	$ctx->{smsg} = $smsg;
 	$ctx->{mime} = $mime;
@@ -65,7 +65,7 @@ sub msg_page {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
-	my ($first, $more);
+	my ($first);
 	my $smsg;
 	if (my $over = $ibx->over) {
 		my ($id, $prev);
@@ -73,39 +73,28 @@ sub msg_page {
 		$first = $ibx->msg_by_smsg($smsg) if $smsg;
 		if ($first) {
 			my $next = $over->next_by_mid($mid, \$id, \$prev);
-			$more = [ $id, $prev, $next ] if $next;
+			$ctx->{more} = [ $id, $prev, $next ] if $next;
 		}
 		return unless $first;
 	} else {
 		$first = $ibx->msg_by_mid($mid) or return;
 	}
-	msg_html($ctx, PublicInbox::MIME->new($first), $more, $smsg);
+	msg_html($ctx, PublicInbox::MIME->new($first), $smsg);
 }
 
 sub msg_html_more {
-	my ($ctx, $more, $nr) = @_;
-	my $str = eval {
-		my ($id, $prev, $smsg) = @$more;
-		my $mid = $ctx->{mid};
-		my $ibx = $ctx->{-inbox};
-		$smsg = $ibx->smsg_mime($smsg);
-		my $next = $ibx->over->next_by_mid($mid, \$id, \$prev);
-		@$more = $next ? ($id, $prev, $next) : ();
-		if ($smsg) {
-			my $upfx = '../' . mid_escape($smsg->mid) . '/';
-			my $mime = delete $smsg->{mime};
-			_msg_html_prepare($mime->header_obj, $ctx, $more, $nr) .
-				multipart_text_as_html($mime, $upfx, $ctx) .
-				'</pre><hr>'
-		} else {
-			'';
-		}
-	};
-	if ($@) {
-		warn "Error lookup up additional messages: $@\n";
-		$str = '<pre>Error looking up additional messages</pre>';
-	}
-	$str;
+	my ($ctx, $nr) = @_;
+	my ($id, $prev, $smsg) = @{$ctx->{more}};
+	my $ibx = $ctx->{-inbox};
+	$smsg = $ibx->smsg_mime($smsg);
+	my $next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
+	$ctx->{more} = $next ? [ $id, $prev, $next ] : undef;
+	return '' unless $smsg;
+	my $upfx = '../' . mid_escape($smsg->mid) . '/';
+	my $mime = delete $smsg->{mime};
+	_msg_html_prepare($mime->header_obj, $ctx, $nr) .
+		multipart_text_as_html($mime, $upfx, $ctx) .
+		'</pre><hr>'
 }
 
 # /$INBOX/$MESSAGE_ID/#R
@@ -638,14 +627,14 @@ sub add_text_body { # callback for msg_iter
 }
 
 sub _msg_html_prepare {
-	my ($hdr, $ctx, $more, $nr) = @_;
+	my ($hdr, $ctx, $nr) = @_;
 	my $atom = '';
 	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
 	my $mids = mids_for_index($hdr);
 	if ($nr == 0) {
-		if ($more) {
+		if ($ctx->{more}) {
 			$rv .=
 "<pre>WARNING: multiple messages have this Message-ID\n</pre>";
 		}
