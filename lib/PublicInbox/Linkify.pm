@@ -120,4 +120,6 @@ sub linkify_mids {
 	!ge;
 }
 
+sub to_html { linkify_2($_[0], ascii_html(linkify_1(@_))) }
+
 1;

@@ -111,8 +111,7 @@ sub html ($$) {
 
 		my $tmp = join("\n", map { ibx_entry(@$_, $env) } @$list);
 		my $l = PublicInbox::Linkify->new;
-		$l->linkify_1($tmp);
-		$out = '<pre>'.$l->linkify_2(ascii_html($tmp)).'</pre><hr>';
+		$out = '<pre>'.$l->to_html($tmp).'</pre><hr>';
 	}
 	$out = "<html><head><title>$title</title></head><body>" . $out;
 	$out .= '<pre>'. PublicInbox::WwwStream::code_footer($env) .

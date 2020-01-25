@@ -496,13 +496,10 @@ sub multipart_text_as_html {
 sub flush_quote {
 	my ($s, $l, $quot) = @_;
 
-	# show everything in the full version with anchor from
-	# short version (see above)
-	my $rv = $l->linkify_1($$quot);
+	my $rv = $l->to_html($$quot);
 
 	# we use a <span> here to allow users to specify their own
 	# color for quoted text
-	$rv = $l->linkify_2(ascii_html($rv));
 	$$quot = undef;
 	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
 }
@@ -608,8 +605,7 @@ sub add_text_body { # callback for msg_iter
 			flush_diff($rv, $ctx, $l);
 		} else {
 			# regular lines, OK
-			$l->linkify_1($cur);
-			$$rv .= $l->linkify_2(ascii_html($cur));
+			$$rv .= $l->to_html($cur);
 			$cur = undef;
 		}
 	}

@@ -90,8 +90,7 @@ sub show_other_result ($$) {
 	}
 	my $l = PublicInbox::Linkify->new;
 	utf8::decode($$bref);
-	$l->linkify_1($$bref);
-	$$bref = '<pre>'. $l->linkify_2(ascii_html($$bref));
+	$$bref = '<pre>'. $l->to_html($$bref);
 	$$bref .= '</pre><hr>' . $$logref;
 	html_page($ctx, 200, $bref);
 }
@@ -125,9 +124,8 @@ sub solve_result {
 
 	my $ref = ref($res);
 	my $l = PublicInbox::Linkify->new;
-	$l->linkify_1($log);
 	$log = '<pre>debug log:</pre><hr /><pre>' .
-		$l->linkify_2(ascii_html($log)) . '</pre>';
+		$l->to_html($log) . '</pre>';
 
 	$res or return html_page($ctx, 404, \$log);
 	$ref eq 'ARRAY' or return html_page($ctx, 500, \$log);

@@ -44,11 +44,6 @@ my $PATH_B = '"?b/.+|/dev/null';
 # cf. git diff.c :: get_compact_summary
 my $DIFFSTAT_COMMENT = qr/\((?:new|gone|(?:(?:new|mode) [\+\-][lx]))\)/;
 
-sub to_html ($$) {
-	$_[0]->linkify_1($_[1]);
-	$_[0]->linkify_2(ascii_html($_[1]));
-}
-
 # link to line numbers in blobs
 sub diff_hunk ($$$$) {
 	my ($dctx, $spfx, $ca, $cb) = @_;
@@ -107,7 +102,7 @@ sub anchor0 ($$$$$) {
 		my $spaces = ($orig =~ s/( +)\z//) ? $1 : '';
 		$$dst .= " <a\nid=i$attr\nhref=#$attr>" .
 			ascii_html($orig) . '</a>' . $spaces .
-			to_html($linkify, $rest);
+			$linkify->to_html($rest);
 		return 1;
 	}
 	undef;
@@ -116,7 +111,7 @@ sub anchor0 ($$$$$) {
 sub anchor1 ($$$$$) {
 	my ($dst, $ctx, $linkify, $pb, $s) = @_;
 	my $attr = to_attr($ctx->{-apfx}.$pb) or return;
-	my $line = to_html($linkify, $s);
+	my $line = $linkify->to_html($s);
 
 	my $ok = delete $ctx->{-anchors}->{$attr};
 
@@ -158,7 +153,7 @@ sub flush_diff ($$$) {
 			} elsif ($state2class[$state]) {
 				to_state($dst, $state, DSTATE_CTX);
 			}
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} elsif ($s =~ /^-- $/) { # email signature begins
 			$state == DSTATE_INIT or
 				to_state($dst, $state, DSTATE_INIT);
@@ -178,53 +173,53 @@ sub flush_diff ($$$) {
 					uri_escape_utf8($pa, UNSAFE);
 			}
 			anchor1($dst, $ctx, $linkify, $pb, $s) and next;
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} elsif ($s =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b//o) {
 			$$dst .= $1 . oid($dctx, $spfx, $2);
 			$dctx = { Q => '' };
-			$$dst .= to_html($linkify, $s) ;
+			$$dst .= $linkify->to_html($s) ;
 		} elsif ($s =~ s/^index ($OID_BLOB)(\.\.$OID_NULL)\b//o) {
 			$$dst .= 'index ' . oid($dctx, $spfx, $1) . $2;
 			$dctx = { Q => '' };
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} elsif ($s =~ /^index ($OID_BLOB)\.\.($OID_BLOB)/o) {
 			$dctx->{oid_a} = $1;
 			$dctx->{oid_b} = $2;
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} elsif ($s =~ s/^@@ (\S+) (\S+) @@//) {
 			$$dst .= '</span>' if $state2class[$state];
 			$$dst .= qq(<span\nclass="hunk">);
 			$$dst .= diff_hunk($dctx, $spfx, $1, $2);
 			$$dst .= '</span>';
 			$state = DSTATE_CTX;
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} elsif ($s =~ m!^--- (?:$PATH_A)!o ||
 		         $s =~ m!^\+{3} (?:$PATH_B)!o)  {
 			# color only (no oid link) if missing dctx->{oid_*}
 			$state <= DSTATE_STAT and
 				to_state($dst, $state, DSTATE_HEAD);
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} elsif ($s =~ /^\+/) {
 			if ($state != DSTATE_ADD && $state > DSTATE_STAT) {
 				to_state($dst, $state, DSTATE_ADD);
 			}
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} elsif ($s =~ /^-/) {
 			if ($state != DSTATE_DEL && $state > DSTATE_STAT) {
 				to_state($dst, $state, DSTATE_DEL);
 			}
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		# ignore the following lines in headers:
 		} elsif ($s =~ /^(?:dis)similarity index/ ||
 			 $s =~ /^(?:old|new) mode/ ||
 			 $s =~ /^(?:deleted|new) file mode/ ||
 			 $s =~ /^(?:copy|rename) (?:from|to) / ||
 			 $s =~ /^(?:dis)?similarity index /) {
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		} else {
 			$state <= DSTATE_STAT or
 				to_state($dst, $state, DSTATE_INIT);
-			$$dst .= to_html($linkify, $s);
+			$$dst .= $linkify->to_html($s);
 		}
 	}
 	@$diff = ();
