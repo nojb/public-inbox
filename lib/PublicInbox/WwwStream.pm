@@ -40,25 +40,20 @@ sub _html_top ($) {
 	my $ctx = $self->{ctx};
 	my $ibx = $ctx->{-inbox};
 	my $desc = ascii_html($ibx->description);
-	my $title = $ctx->{-title_html} || $desc;
+	my $title = delete($ctx->{-title_html}) // $desc;
 	my $upfx = $ctx->{-upfx} || '';
 	my $help = $upfx.'_/text/help';
 	my $color = $upfx.'_/text/color';
 	my $atom = $ctx->{-atom} || $upfx.'new.atom';
-	my $tip = $ctx->{-html_tip} || '';
 	my $top = "<b>$desc</b>";
 	my $links = "<a\nhref=\"$help\">help</a> / ".
 			"<a\nhref=\"$color\">color</a> / ".
 			"<a\nhref=\"$atom\">Atom feed</a>";
 	if ($ibx->search) {
-		my $q_val = $ctx->{-q_value_html};
-		if (defined $q_val && $q_val ne '') {
-			$q_val = qq(\nvalue="$q_val");
-		} else {
-			$q_val = '';
-		}
+		my $q_val = delete($ctx->{-q_value_html}) // '';
+		$q_val = qq(\nvalue="$q_val") if $q_val ne '';
 		# XXX gross, for SearchView.pm
-		my $extra = $ctx->{-extra_form_html} || '';
+		my $extra = delete($ctx->{-extra_form_html}) // '';
 		my $action = $upfx eq '' ? './' : $upfx;
 		$top = qq{<form\naction="$action"><pre>$top} .
 			  qq{\n<input\nname=q\ntype=text$q_val />} .
@@ -70,10 +65,10 @@ sub _html_top ($) {
 		$top = '<pre>' . $top . "\n" . $links . '</pre>';
 	}
 	"<html><head><title>$title</title>" .
-		"<link\nrel=alternate\ntitle=\"Atom feed\"\n".
-		"href=\"$atom\"\ntype=\"application/atom+xml\"/>" .
+		qq(<link\nrel=alternate\ntitle="Atom feed"\n).
+		qq(href="$atom"\ntype="application/atom+xml"/>) .
 	        $ctx->{www}->style($upfx) .
-		"</head><body>". $top . $tip;
+		'</head><body>'. $top . (delete($ctx->{-html_tip}) // '');
 }
 
 sub code_footer ($) {
