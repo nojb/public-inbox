@@ -30,9 +30,8 @@ sub msg_html_i {
 	if ($nr == 1) {
 		# $more cannot be true w/o $smsg being defined:
 		my $upfx = $more ? '../'.mid_escape($ctx->{smsg}->mid).'/' : '';
-		$ctx->{tip} .
-			multipart_text_as_html(delete $ctx->{mime}, $upfx,
-						$ctx) . '</pre><hr>'
+		multipart_text_as_html(delete $ctx->{mime}, $upfx, $ctx);
+		${delete $ctx->{obuf}} .= '</pre><hr>';
 	} elsif ($more) {
 		++$ctx->{end_nr};
 		# fake an EOF if {more} retrieval fails fails;
@@ -54,7 +53,7 @@ sub msg_html {
 	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	my $hdr = $ctx->{hdr} = $mime->header_obj;
-	$ctx->{tip} = _msg_html_prepare($hdr, $ctx, 0);
+	_msg_html_prepare_obuf($hdr, $ctx, 0);
 	$ctx->{end_nr} = 2;
 	$ctx->{smsg} = $smsg;
 	$ctx->{mime} = $mime;
@@ -92,9 +91,9 @@ sub msg_html_more {
 	return '' unless $smsg;
 	my $upfx = '../' . mid_escape($smsg->mid) . '/';
 	my $mime = delete $smsg->{mime};
-	_msg_html_prepare($mime->header_obj, $ctx, $nr) .
-		multipart_text_as_html($mime, $upfx, $ctx) .
-		'</pre><hr>'
+	_msg_html_prepare_obuf($mime->header_obj, $ctx, $nr);
+	multipart_text_as_html($mime, $upfx, $ctx);
+	${delete $ctx->{obuf}} .= '</pre><hr>';
 }
 
 # /$INBOX/$MESSAGE_ID/#R
@@ -259,9 +258,9 @@ sub index_entry {
 
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
-	$ctx->{rv} = \$rv;
+	$ctx->{obuf} = \$rv;
 	msg_iter($mime, \&add_text_body, $ctx, 1);
-	delete $ctx->{rv};
+	delete $ctx->{obuf};
 
 	# add the footer
 	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
@@ -495,11 +494,9 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 sub multipart_text_as_html {
 	my (undef, $mhref, $ctx) = @_; # $mime = $_[0]
 	$ctx->{mhref} = $mhref;
-	$ctx->{rv} = \(my $rv = '');
 
 	# scan through all parts, looking for displayable text
 	msg_iter($_[0], \&add_text_body, $ctx, 1);
-	${delete $ctx->{rv}};
 }
 
 sub flush_quote {
@@ -538,7 +535,7 @@ sub attach_link ($$$$;$) {
 	} else {
 		$sfn = 'a.bin';
 	}
-	my $rv = $ctx->{rv};
+	my $rv = $ctx->{obuf};
 	$$rv .= qq($nl<a\nhref="$ctx->{mhref}$idx-$sfn">);
 	if ($err) {
 		$$rv .= "[-- Warning: decoded text below may be mangled --]\n";
@@ -601,7 +598,7 @@ sub add_text_body { # callback for msg_iter
 	# split off quoted and unquoted blocks:
 	my @sections = split(/((?:^>[^\n]*\n)+)/sm, $s);
 	$s = '';
-	my $rv = $ctx->{rv};
+	my $rv = $ctx->{obuf};
 	if (defined($fn) || $depth > 0 || $err) {
 		# badly-encoded message with $err? tell the world about it!
 		attach_link($ctx, $ct, $p, $fn, $err);
@@ -626,9 +623,8 @@ sub add_text_body { # callback for msg_iter
 	obfuscate_addrs($ibx, $$rv) if $ibx->{obfuscate};
 }
 
-sub _msg_html_prepare {
+sub _msg_html_prepare_obuf {
 	my ($hdr, $ctx, $nr) = @_;
-	my $atom = '';
 	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
@@ -706,6 +702,7 @@ sub _msg_html_prepare {
 	}
 	$rv .= _parent_headers($hdr, $over);
 	$rv .= "\n";
+	$ctx->{obuf} = \$rv;
 }
 
 sub SKEL_EXPAND () {

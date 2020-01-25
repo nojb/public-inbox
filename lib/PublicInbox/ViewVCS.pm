@@ -33,14 +33,14 @@ my $BIN_DETECT = 8000; # same as git
 
 sub html_i { # WwwStream::getline callback
 	my ($nr, $ctx) =  @_;
-	$nr == 1 ? ${delete $ctx->{rv}} : undef;
+	$nr == 1 ? ${delete $ctx->{obuf}} : undef;
 }
 
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
 	my $wcb = delete $ctx->{-wcb};
 	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
-	$ctx->{rv} = $strref;
+	$ctx->{obuf} = $strref;
 	my $res = PublicInbox::WwwStream->response($ctx, $code, \&html_i);
 	$wcb ? $wcb->($res) : $res;
 }

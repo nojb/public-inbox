@@ -140,9 +140,11 @@ sub feed_entry {
 		"<id>$uuid</id>$irt" .
 		qq{<content\ntype="xhtml">} .
 		qq{<div\nxmlns="http://www.w3.org/1999/xhtml">} .
-		qq(<pre\nstyle="white-space:pre-wrap">) .
-		PublicInbox::View::multipart_text_as_html($mime, $href, $ctx) .
-		'</pre></div></content></entry>';
+		qq(<pre\nstyle="white-space:pre-wrap">);
+	$ctx->{obuf} = \$s;
+	PublicInbox::View::multipart_text_as_html($mime, $href, $ctx);
+	delete $ctx->{obuf};
+	$s .= '</pre></div></content></entry>';
 }
 
 sub feed_updated {
