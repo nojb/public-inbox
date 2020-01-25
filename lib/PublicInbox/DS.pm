@@ -395,10 +395,10 @@ sub close {
 sub send_tmpio ($$) {
     my ($sock, $tmpio) = @_;
 
-    seek($tmpio->[0], $tmpio->[1], SEEK_SET) or return;
+    sysseek($tmpio->[0], $tmpio->[1], SEEK_SET) or return;
     my $n = $tmpio->[2] // 65536;
     $n = 65536 if $n > 65536;
-    defined(my $to_write = read($tmpio->[0], my $buf, $n)) or return;
+    defined(my $to_write = sysread($tmpio->[0], my $buf, $n)) or return;
     my $written = 0;
     while ($to_write > 0) {
         if (defined(my $w = syswrite($sock, $buf, $to_write, $written))) {

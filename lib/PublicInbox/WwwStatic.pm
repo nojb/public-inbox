@@ -176,9 +176,9 @@ sub getline {
 	my $len = $self->{len} or return; # undef, tells server we're done
 	my $n = 8192;
 	$n = $len if $len < $n;
-	seek($self->{in}, $self->{off}, SEEK_SET) or
-			die "seek ($self->{path}): $!";
-	my $r = read($self->{in}, my $buf, $n);
+	sysseek($self->{in}, $self->{off}, SEEK_SET) or
+			die "sysseek ($self->{path}): $!";
+	my $r = sysread($self->{in}, my $buf, $n);
 	if (defined $r && $r > 0) { # success!
 		$self->{len} = $len - $r;
 		$self->{off} += $r;
