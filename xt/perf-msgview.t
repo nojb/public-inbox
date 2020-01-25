@@ -35,18 +35,18 @@ my $ctx = {
 my ($str, $mime, $res, $cmt, $type);
 my $n = 0;
 my $t = timeit(1, sub {
+	my $obuf = '';
+	$ctx->{obuf} = \$obuf;
 	while (<$fh>) {
 		($cmt, $type) = split / /;
 		next if $type ne 'blob';
 		++$n;
 		$str = $git->cat_file($cmt);
 		$mime = PublicInbox::MIME->new($str);
-		$res = PublicInbox::View::msg_html($ctx, $mime);
-		$res = $res->[2];
-		while (defined($res->getline)) {}
-		$res->close;
+		PublicInbox::View::multipart_text_as_html($mime, '../', $ctx);
+		$obuf = '';
 	}
 });
-diag 'msg_html took '.timestr($t)." for $n messages";
+diag 'multipart_text_as_html took '.timestr($t)." for $n messages";
 ok 1;
 done_testing();
