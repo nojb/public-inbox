@@ -220,12 +220,12 @@ sub index_diff ($$$) {
 			next unless $opt =~ /[uU]/;
 			$in_diff = index_old_diff_fn($self, \%seen, $fa, $fb,
 							$xnq);
-		} elsif (m!^--- ("?a/.+)!) {
+		} elsif (m!^--- ("?[^/]+/.+)!) {
 			my $fn = $1;
 			$fn = (split('/', git_unquote($fn), 2))[1];
 			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
-		} elsif (m!^\+\+\+ ("?b/.+)!)  {
+		} elsif (m!^\+\+\+ ("?[^/]+/.+)!)  {
 			my $fn = $1;
 			$fn = (split('/', git_unquote($fn), 2))[1];
 			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
