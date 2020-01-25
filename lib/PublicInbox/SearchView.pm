@@ -277,7 +277,7 @@ sub mset_thread {
 	$ctx->{-upfx} = '';
 	$ctx->{anchor_idx} = 1;
 	$ctx->{cur_level} = 0;
-	$ctx->{dst} = \$skel;
+	$ctx->{skel} = \$skel;
 	$ctx->{mapping} = {};
 	$ctx->{searchview} = 1;
 	$ctx->{prev_attr} = '';
@@ -303,7 +303,7 @@ sub mset_thread_i {
 		return PublicInbox::View::index_entry($smsg, $ctx,
 							scalar @$msgs);
 	}
-	my ($skel) = delete @$ctx{qw(dst msgs)};
+	my ($skel) = delete @$ctx{qw(skel msgs)};
 	$$skel .= "\n</pre>";
 }
 

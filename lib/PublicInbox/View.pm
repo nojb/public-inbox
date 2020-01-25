@@ -412,7 +412,7 @@ sub thread_index_entry {
 
 sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 	my ($nr, $ctx) = @_;
-	return unless exists($ctx->{dst});
+	return unless exists($ctx->{skel});
 	my $q = $ctx->{-queue};
 	while (@$q) {
 		my $level = shift @$q;
@@ -425,7 +425,7 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 			return ghost_index_entry($ctx, $level, $node);
 		}
 	}
-	join('', thread_adj_level($ctx, 0)) . ${delete $ctx->{dst}}; # skel
+	join('', thread_adj_level($ctx, 0)) . ${delete $ctx->{skel}};
 }
 
 sub stream_thread ($$) {
@@ -449,6 +449,7 @@ sub stream_thread ($$) {
 	PublicInbox::WwwStream->response($ctx, 200, \&stream_thread_i);
 }
 
+# /$INBOX/$MESSAGE_ID/t/
 sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
@@ -465,7 +466,7 @@ sub thread_html {
 	$skel .= "-- links below jump to the message on this page --\n";
 	$ctx->{-upfx} = '../../';
 	$ctx->{cur_level} = 0;
-	$ctx->{dst} = \$skel;
+	$ctx->{skel} = \$skel;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
 	$ctx->{root_anchor} = anchor_for($mid);
@@ -501,7 +502,7 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 		$ctx->{-inbox}->smsg_mime($smsg) or next;
 		return index_entry($smsg, $ctx, scalar @$msgs);
 	}
-	my ($skel) = delete @$ctx{qw(dst msgs)};
+	my ($skel) = delete @$ctx{qw(skel msgs)};
 	$$skel;
 }
 
@@ -722,7 +723,7 @@ sub _msg_html_prepare {
 }
 
 sub thread_skel {
-	my ($dst, $ctx, $hdr, $tpfx) = @_;
+	my ($skel, $ctx, $hdr, $tpfx) = @_;
 	my $mid = mids($hdr)->[0];
 	my $ibx = $ctx->{-inbox};
 	my ($nr, $msgs) = $ibx->over->get_thread($mid);
@@ -732,21 +733,21 @@ sub thread_skel {
 			qq(<a\nhref="${tpfx}t.atom">Atom feed</a>);
 
 	my $parent = in_reply_to($hdr);
-	$$dst .= "\n<b>Thread overview: </b>";
+	$$skel .= "\n<b>Thread overview: </b>";
 	if ($nr <= 1) {
 		if (defined $parent) {
-			$$dst .= "$expand\n ";
-			$$dst .= ghost_parent("$tpfx../", $parent) . "\n";
+			$$skel .= "$expand\n ";
+			$$skel .= ghost_parent("$tpfx../", $parent) . "\n";
 		} else {
-			$$dst .= "[no followups] $expand\n";
+			$$skel .= "[no followups] $expand\n";
 		}
 		$ctx->{next_msg} = undef;
 		$ctx->{parent_msg} = $parent;
 		return;
 	}
 
-	$$dst .= "$nr+ messages / $expand";
-	$$dst .= qq!  <a\nhref="#b">top</a>\n!;
+	$$skel .= "$nr+ messages / $expand";
+	$$skel .= qq!  <a\nhref="#b">top</a>\n!;
 
 	# nb: mutt only shows the first Subject in the index pane
 	# when multiple Subject: headers are present, so we follow suit:
@@ -756,7 +757,7 @@ sub thread_skel {
 	$ctx->{cur} = $mid;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
-	$ctx->{dst} = $dst;
+	$ctx->{skel} = $skel;
 
 	# reduce hash lookups in skel_dump
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
@@ -804,11 +805,11 @@ sub html_footer {
 	my $ibx = $ctx->{-inbox} if $ctx;
 	my $upfx = '../';
 	my $tpfx = '';
-	my $idx = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
+	my $skel = $standalone ? " <a\nhref=\"$upfx\">index</a>" : '';
 	my $irt = '';
-	if ($idx && $ibx->over) {
-		$idx .= "\n";
-		thread_skel(\$idx, $ctx, $hdr, $tpfx);
+	if ($skel && $ibx->over) {
+		$skel .= "\n";
+		thread_skel(\$skel, $ctx, $hdr, $tpfx);
 		my ($next, $prev);
 		my $parent = '       ';
 		$next = $prev = '    ';
@@ -843,7 +844,7 @@ sub html_footer {
 	}
 	$rhref ||= '#R';
 	$irt .= qq(<a\nhref="$rhref">reply</a>);
-	$irt .= $idx;
+	$irt .= $skel;
 }
 
 sub linkify_ref_no_over {
@@ -952,12 +953,12 @@ sub skel_dump {
 	my ($ctx, $level, $node) = @_;
 	my $smsg = $node->{smsg} or return _skel_ghost($ctx, $level, $node);
 
-	my $dst = $ctx->{dst};
+	my $skel = $ctx->{skel};
 	my $cur = $ctx->{cur};
 	my $mid = $smsg->{mid};
 
 	if ($level == 0 && $ctx->{skel_dump_roots}++) {
-		$$dst .= delete $ctx->{sl_note} || '';
+		$$skel .= delete($ctx->{sl_note}) || '';
 	}
 
 	my $f = ascii_html($smsg->from_name);
@@ -986,7 +987,7 @@ sub skel_dump {
 	if ($cur) {
 		if ($cur eq $mid) {
 			delete $ctx->{cur};
-			$$dst .= "<b>$d<a\nid=r\nhref=\"#t\">".
+			$$skel .= "<b>$d<a\nid=r\nhref=\"#t\">".
 				 "$attr [this message]</a></b>\n";
 			return 1;
 		} else {
@@ -1026,7 +1027,7 @@ sub skel_dump {
 	} else {
 		$m = $ctx->{-upfx}.mid_escape($mid).'/';
 	}
-	$$dst .=  $d . "<a\nhref=\"$m\"$id>" . $end;
+	$$skel .=  $d . "<a\nhref=\"$m\"$id>" . $end;
 	1;
 }
 
@@ -1051,8 +1052,7 @@ sub _skel_ghost {
 	} else {
 		$d .= qq{&lt;<a\nhref="$href">$html</a>&gt;\n};
 	}
-	my $dst = $ctx->{dst};
-	$$dst .= $d;
+	${$ctx->{skel}} .= $d;
 	1;
 }
 
