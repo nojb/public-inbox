@@ -40,6 +40,7 @@ Message-Id: <blah\@example.com>
 Subject: hihi
 Date: Fri, 02 Oct 1993 00:00:00 +0000
 
+> quoted text
 zzzzzz
 EOF
 	$im->add($mime);
@@ -48,6 +49,67 @@ EOF
 	like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
 	@ls = $git->qx(qw(ls-tree -r --name-only HEAD));
 	chomp @ls;
+
+	# multipart with two text bodies
+	my %attr_text = (attributes => { content_type => 'text/plain' });
+	my $parts = [
+		Email::MIME->create(%attr_text, body => 'hi'),
+		Email::MIME->create(%attr_text, body => 'bye')
+	];
+	$mime = Email::MIME->create(
+		header_str => [
+			From => 'a@example.com',
+			Subject => 'blargh',
+			'Message-ID' => '<multipart@example.com>',
+			'In-Reply-To' => '<irp@example.com>'
+		],
+		parts => $parts,
+	);
+	$im->add($mime);
+
+	# multipart with attached patch + filename
+	$parts = [ Email::MIME->create(%attr_text, body => 'hi, see attached'),
+		Email::MIME->create(
+			attributes => {
+					content_type => 'text/plain',
+					filename => "foo&.patch",
+			},
+			body => "--- a/file\n+++ b/file\n" .
+				"@@ -49, 7 +49,34 @@\n"
+			)
+	];
+	$mime = Email::MIME->create(
+		header_str => [
+			From => 'a@example.com',
+			Subject => '[PATCH] asdf',
+			'Message-ID' => '<patch@example.com>'
+		],
+		parts => $parts
+	);
+	$im->add($mime);
+
+	# multipart collapsed to single quoted-printable text/plain
+	$parts = [
+		Email::MIME->create(
+			attributes => {
+				content_type => 'text/plain',
+				encoding => 'quoted-printable'
+			},
+			body => 'hi = bye',
+		)
+	];
+	$mime = Email::MIME->create(
+		header_str => [
+			From => 'qp@example.com',
+			Subject => 'QP',
+			'Message-ID' => '<qp@example.com>',
+			],
+		parts => $parts,
+	);
+	like($mime->body_raw, qr/hi =3D bye=/, 'our test used QP correctly');
+	$im->add($mime);
+
+	$im->done;
 }
 
 test_psgi($app, sub {
@@ -134,8 +196,10 @@ test_psgi($app, sub {
 	my $path = '/blah@example.com/';
 	my $res = $cb->(GET($pfx . $path));
 	is(200, $res->code, "success for $path");
-	like($res->content, qr!<title>hihi - Me</title>!,
-		"HTML returned");
+	my $html = $res->content;
+	like($html, qr!<title>hihi - Me</title>!, 'HTML returned');
+	like($html, qr!<a\nhref="raw"!s, 'raw link present');
+	like($html, qr!&gt; quoted text!s, 'quoted text inline');
 
 	$path .= 'f/';
 	$res = $cb->(GET($pfx . $path));
@@ -143,6 +207,19 @@ test_psgi($app, sub {
 	my $location = $res->header('Location');
 	like($location, qr!/blah\@example\.com/\z!,
 		'/$MESSAGE_ID/f/ redirected to /$MESSAGE_ID/');
+
+	$res = $cb->(GET($pfx . '/multipart@example.com/'));
+	like($res->content,
+		qr/hi\n.*-- Attachment #2.*\nbye\n/s, 'multipart split');
+
+	$res = $cb->(GET($pfx . '/patch@example.com/'));
+	$html = $res->content;
+	like($html, qr!see attached!, 'original body');
+	like($html, qr!.*Attachment #2: foo&(?:amp|#38);\.patch --!,
+		'parts split with filename');
+
+	$res = $cb->(GET($pfx . '/qp@example.com/'));
+	like($res->content, qr/\bhi = bye\b/, "HTML output decoded QP");
 });
 
 test_psgi($app, sub {

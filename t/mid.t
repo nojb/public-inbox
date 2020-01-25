@@ -2,11 +2,17 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
-use PublicInbox::MID qw(mid_escape mids references mids_for_index);
+use PublicInbox::MID qw(mid_escape mids references mids_for_index id_compress);
 
 is(mid_escape('foo!@(bar)'), 'foo!@(bar)');
 is(mid_escape('foo%!@(bar)'), 'foo%25!@(bar)');
 is(mid_escape('foo%!@(bar)'), 'foo%25!@(bar)');
+
+# n.b: this is probably invalid since we dropped CGI for PSGI:
+like(id_compress('foo%bar@wtf'), qr/\A[a-f0-9]{40}\z/,
+	"percent always converted to sha1 to workaround buggy httpds");
+
+is(id_compress('foobar-wtf'), 'foobar-wtf', 'regular ID not compressed');
 
 {
 	use Email::MIME;
