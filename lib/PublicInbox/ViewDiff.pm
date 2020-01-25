@@ -92,8 +92,7 @@ sub anchor0 ($$$$$) {
 
 	# long filenames will require us to walk backwards in anchor1
 	if ($fn =~ s!\A\.\.\./?!!) {
-		my $lp = $ctx->{-long_path} ||= {};
-		$lp->{$fn} = qr/\Q$fn\E\z/s;
+		$ctx->{-long_path}->{$fn} = qr/\Q$fn\E\z/s;
 	}
 
 	if (my $attr = to_attr($ctx->{-apfx}.$fn)) {
