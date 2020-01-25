@@ -562,7 +562,7 @@ sub add_text_body { # callback for msg_iter
 		$idx[0] = $upfx . $idx[0] if $upfx ne '';
 		$ctx->{-apfx} = join('/', @idx);
 		$ctx->{-anchors} = {}; # attr => filename
-		$ctx->{-diff} = $diff = [];
+		$diff = 1;
 		delete $ctx->{-long_path};
 		my $spfx;
 		if ($ibx->{-repo_objs}) {
@@ -595,14 +595,12 @@ sub add_text_body { # callback for msg_iter
 		attach_link($ctx, $ct, $p, $fn, $err);
 		$$rv .= "\n";
 	}
-	my $l = PublicInbox::Linkify->new;
+	my $l = $ctx->{-linkify} //= PublicInbox::Linkify->new;
 	foreach my $cur (@sections) {
 		if ($cur =~ /\A>/) {
 			flush_quote($rv, $l, \$cur);
 		} elsif ($diff) {
-			@$diff = split(/^/m, $cur);
-			$cur = undef;
-			flush_diff($rv, $ctx, $l);
+			flush_diff($rv, $ctx, \$cur);
 		} else {
 			# regular lines, OK
 			$$rv .= $l->to_html($cur);
