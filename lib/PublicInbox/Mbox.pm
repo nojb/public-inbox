@@ -24,11 +24,10 @@ sub subject_fn ($) {
 	# no need for full Email::MIME, here
 	if ($fn =~ /=\?/) {
 		eval { $fn = Encode::decode('MIME-Header', $fn) };
-		$fn = 'no-subject' if $@;
+		return 'no-subject' if $@;
 	}
 	$fn =~ s/^re:\s+//i;
-	$fn = to_filename($fn);
-	$fn eq '' ? 'no-subject' : $fn;
+	$fn eq '' ? 'no-subject' : to_filename($fn);
 }
 
 sub mb_stream {
