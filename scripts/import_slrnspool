@@ -26,7 +26,7 @@ my $config = PublicInbox::Config->new;
 my $ibx = $config->lookup($recipient);
 my $git = $ibx->git;
 my $im;
-if (($ibx->{version} || 1) == 2) {
+if ($ibx->version == 2) {
 	require PublicInbox::V2Writable;
 	$im = PublicInbox::V2Writable->new($ibx);
 	$im->{parallel} = 0; # pointless to be parallel for a single message

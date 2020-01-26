@@ -97,7 +97,7 @@ sub runnable_or_die ($) {
 
 sub prepare_reindex ($$$) {
 	my ($ibx, $im, $reindex) = @_;
-	if ($ibx->{version} == 1) {
+	if ($ibx->version == 1) {
 		my $dir = $ibx->search->xdir(1);
 		my $xdb = $PublicInbox::Search::X{Database}->new($dir);
 		if (my $lc = $xdb->get_metadata('last_commit')) {
@@ -173,7 +173,6 @@ sub run {
 	-d $old or die "$old does not exist\n";
 
 	my $tmp = {};
-	my $v = $ibx->{version} ||= 1;
 	my @q;
 	my $reshard = $opt->{reshard};
 	if (defined $reshard && $reshard <= 0) {
@@ -185,7 +184,7 @@ sub run {
 
 	# we want temporary directories to be as deep as possible,
 	# so v2 shards can keep "xap$SCHEMA_VERSION" on a separate FS.
-	if ($v == 1) {
+	if ($ibx->version == 1) {
 		if (defined $reshard) {
 			warn
 "--reshard=$reshard ignored for v1 $ibx->{inboxdir}\n";

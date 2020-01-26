@@ -84,7 +84,6 @@ sub resolve_inboxes ($;$$) {
 	if ($cfg) {
 		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
-			$ibx->{version} ||= 1;
 			my $path = abs_path($ibx->{inboxdir});
 			if (defined($path)) {
 				$dir2ibx{$path} = $ibx;
@@ -97,7 +96,7 @@ EOF
 	}
 	if ($opt->{all}) {
 		my @all = values %dir2ibx;
-		@all = grep { $_->{version} >= $min_ver } @all;
+		@all = grep { $_->version >= $min_ver } @all;
 		push @ibxs, @all;
 	} else { # directories specified on the command-line
 		my $i = 0;
@@ -189,7 +188,7 @@ invalid indexlevel=$indexlevel (must be `basic', `medium', or `full')
 sub index_inbox {
 	my ($ibx, $im, $opt) = @_;
 	my $jobs = delete $opt->{jobs} if $opt;
-	if (ref($ibx) && ($ibx->{version} || 1) == 2) {
+	if (ref($ibx) && $ibx->version == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
 		my $v2w = $im // eval { $ibx->importer(0) } || eval {

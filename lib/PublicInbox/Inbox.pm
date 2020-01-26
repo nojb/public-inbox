@@ -125,9 +125,11 @@ sub new {
 	bless $opts, $class;
 }
 
+sub version { $_[0]->{version} // 1 }
+
 sub git_epoch {
 	my ($self, $epoch) = @_;
-	($self->{version} || 1) == 2 or return;
+	$self->version == 2 or return;
 	$self->{"$epoch.git"} ||= eval {
 		my $git_dir = "$self->{inboxdir}/git/$epoch.git";
 		my $g = PublicInbox::Git->new($git_dir);
@@ -141,7 +143,7 @@ sub git {
 	my ($self) = @_;
 	$self->{git} ||= eval {
 		my $git_dir = $self->{inboxdir};
-		$git_dir .= '/all.git' if (($self->{version} || 1) == 2);
+		$git_dir .= '/all.git' if $self->version == 2;
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
 		_cleanup_later($self);
@@ -151,8 +153,7 @@ sub git {
 
 sub max_git_epoch {
 	my ($self) = @_;
-	my $v = $self->{version};
-	return unless defined($v) && $v == 2;
+	return if $self->version < 2;
 	my $cur = $self->{-max_git_epoch};
 	my $changed = git($self)->alternates_changed;
 	if (!defined($cur) || $changed) {
@@ -178,7 +179,7 @@ sub mm {
 		require PublicInbox::Msgmap;
 		_cleanup_later($self);
 		my $dir = $self->{inboxdir};
-		if (($self->{version} || 1) >= 2) {
+		if ($self->version >= 2) {
 			PublicInbox::Msgmap->new_file("$dir/msgmap.sqlite3");
 		} else {
 			PublicInbox::Msgmap->new($dir);

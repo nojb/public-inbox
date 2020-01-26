@@ -85,7 +85,7 @@ sub recent_msgs {
 	my $ibx = $ctx->{-inbox};
 	my $max = $ibx->{feedmax};
 	my $qp = $ctx->{qp};
-	my $v = $ibx->{version} || 1;
+	my $v = $ibx->version;
 	if ($v > 2) {
 		die "BUG: unsupported inbox version: $v\n";
 	}

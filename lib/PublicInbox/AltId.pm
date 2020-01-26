@@ -30,7 +30,7 @@ sub new {
 	} split(/[&;]/, $query);
 	my $f = $params{file} or die "file: required for $type spec $spec\n";
 	unless (index($f, '/') == 0) {
-		if (($ibx->{version} || 1) == 1) {
+		if ($ibx->version == 1) {
 			$f = "$ibx->{inboxdir}/public-inbox/$f";
 		} else {
 			$f = "$ibx->{inboxdir}/$f";

@@ -41,7 +41,7 @@ unless ($old) {
 	$old = PublicInbox::Inbox->new($old);
 }
 $old = PublicInbox::InboxWritable->new($old);
-if (($old->{version} || 1) >= 2) {
+if ($old->version >= 2) {
 	die "Only conversion from v1 inboxes is supported\n";
 }
 my $new = { %$old };

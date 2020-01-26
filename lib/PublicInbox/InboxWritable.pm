@@ -24,7 +24,7 @@ sub new {
 	# TODO: maybe stop supporting this
 	if ($creat_opt) { # for { nproc => $N }
 		$self->{-creat_opt} = $creat_opt;
-		init_inbox($self) if ($self->{version} || 1) == 1;
+		init_inbox($self) if $self->version == 1;
 	}
 	$self;
 }
@@ -39,8 +39,7 @@ sub assert_usable_dir {
 sub init_inbox {
 	my ($self, $shards, $skip_epoch, $skip_artnum) = @_;
 	# TODO: honor skip_artnum
-	my $v = $self->{version} || 1;
-	if ($v == 1) {
+	if ($self->version == 1) {
 		my $dir = assert_usable_dir($self);
 		PublicInbox::Import::init_bare($dir);
 	} else {
@@ -51,7 +50,7 @@ sub init_inbox {
 
 sub importer {
 	my ($self, $parallel) = @_;
-	my $v = $self->{version} || 1;
+	my $v = $self->version;
 	if ($v == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 not supported: $@\n" if $@;
@@ -75,7 +74,7 @@ sub filter {
 		# v2 keeps msgmap open, which causes conflicts for filters
 		# such as PublicInbox::Filter::RubyLang which overload msgmap
 		# for a predictable serial number.
-		if ($im && ($self->{version} || 1) >= 2 && $self->{altid}) {
+		if ($im && $self->version >= 2 && $self->{altid}) {
 			$im->done;
 		}
 

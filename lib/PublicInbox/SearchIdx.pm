@@ -34,7 +34,7 @@ sub new {
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $levels = qr/\A(?:full|medium|basic)\z/;
 	my $inboxdir = $ibx->{inboxdir};
-	my $version = $ibx->{version} || 1;
+	my $version = $ibx->version;
 	my $indexlevel = 'full';
 	my $altid = $ibx->{altid};
 	if ($altid) {

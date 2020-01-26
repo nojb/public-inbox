@@ -198,7 +198,7 @@ sub new {
 	my $self = bless {
 		inboxdir => $ibx->{inboxdir},
 		altid => $ibx->{altid},
-		version => $ibx->{version} // 1,
+		version => $ibx->version,
 	}, $class;
 	my $dir = xdir($self, 1);
 	$self->{over_ro} = PublicInbox::Over->new("$dir/over.sqlite3");
