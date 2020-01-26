@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which spawn);
+use IO::Handle; # ->autoflush
 use Fcntl qw(:seek);
 eval { require highlight } or
 	plan skip_all => "failed to load highlight.pm for $0";
