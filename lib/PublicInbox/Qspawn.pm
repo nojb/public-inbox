@@ -164,7 +164,7 @@ reread:
 		$async->async_pass($self->{psgi_env}->{'psgix.io'},
 					$qx_fh, \$buf);
 	} elsif (defined $r) {
-		$r ? $qx_fh->write($buf) : event_step($self, undef);
+		$r ? (print $qx_fh $buf) : event_step($self, undef);
 	} else {
 		return if $! == EAGAIN; # try again when notified
 		goto reread if $! == EINTR;

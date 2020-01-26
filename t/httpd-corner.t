@@ -278,7 +278,7 @@ SKIP: {
 	waitpid($pid, 0);
 	is($?, 0, 'curl exited successfully');
 	is(-s $cerr, 0, 'no errors from curl');
-	$cout->seek(0, SEEK_SET);
+	seek($cout, 0, SEEK_SET);
 	is(<$cout>, sha1_hex($str), 'read expected body');
 
 	open my $fh, '-|', qw(curl -sS), "$base/async-big" or die $!;

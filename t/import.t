@@ -7,8 +7,7 @@ use PublicInbox::MIME;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
-use IO::File;
-use Fcntl qw(:DEFAULT);
+use Fcntl qw(:DEFAULT SEEK_SET);
 use File::Temp qw/tempfile/;
 use PublicInbox::TestCommon;
 my ($dir, $for_destroy) = tmpdir();
@@ -42,12 +41,12 @@ if ($v2) {
 	my $in = tempfile();
 	print $in $mime->as_string or die "write failed: $!";
 	$in->flush or die "flush failed: $!";
-	$in->seek(0, SEEK_SET);
+	seek($in, 0, SEEK_SET);
 	my $out = tempfile();
 	my $pid = spawn(\@cmd, {}, { 0 => $in, 1 => $out });
 	is(waitpid($pid, 0), $pid, 'waitpid succeeds on hash-object');
 	is($?, 0, 'hash-object');
-	$out->seek(0, SEEK_SET);
+	seek($out, 0, SEEK_SET);
 	chomp(my $hashed_obj = <$out>);
 	is($hashed_obj, $info->[0], "last object_id matches exp");
 }
