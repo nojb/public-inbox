@@ -28,10 +28,11 @@ open(STDIN, '<', '/dev/null') or die 'no /dev/null: $!';
 
 # Make sure we don't clobber socket options set by systemd or similar
 # using socket activation:
-my ($defer_accept_val, $accf_arg);
+my ($defer_accept_val, $accf_arg, $TCP_DEFER_ACCEPT);
 if ($^O eq 'linux') {
-	setsockopt($sock, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT(), 5) or die;
-	my $x = getsockopt($sock, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT());
+	$TCP_DEFER_ACCEPT = eval { Socket::TCP_DEFER_ACCEPT() } // 9;
+	setsockopt($sock, IPPROTO_TCP, $TCP_DEFER_ACCEPT, 5) or die;
+	my $x = getsockopt($sock, IPPROTO_TCP, $TCP_DEFER_ACCEPT);
 	defined $x or die "getsockopt: $!";
 	$defer_accept_val = unpack('i', $x);
 	if ($defer_accept_val <= 0) {
@@ -526,7 +527,7 @@ SKIP: {
 
 SKIP: {
 	skip 'TCP_DEFER_ACCEPT is Linux-only', 1 if $^O ne 'linux';
-	my $var = Socket::TCP_DEFER_ACCEPT();
+	my $var = $TCP_DEFER_ACCEPT;
 	defined(my $x = getsockopt($sock, IPPROTO_TCP, $var)) or die;
 	is(unpack('i', $x), $defer_accept_val,
 		'TCP_DEFER_ACCEPT unchanged if previously set');

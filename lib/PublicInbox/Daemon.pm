@@ -566,11 +566,12 @@ sub defer_accept ($$) {
 	my ($s, $af_name) = @_;
 	return unless defined $af_name;
 	if ($^O eq 'linux') {
-		my $x = getsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT());
+		my $TCP_DEFER_ACCEPT = 9; # Socket::TCP_DEFER_ACCEPT is in 5.14+
+		my $x = getsockopt($s, IPPROTO_TCP, $TCP_DEFER_ACCEPT);
 		return unless defined $x; # may be Unix socket
 		my $sec = unpack('i', $x);
 		return if $sec > 0; # systemd users may set a higher value
-		setsockopt($s, IPPROTO_TCP, Socket::TCP_DEFER_ACCEPT(), 1);
+		setsockopt($s, IPPROTO_TCP, $TCP_DEFER_ACCEPT, 1);
 	} elsif ($^O eq 'freebsd') {
 		my $x = getsockopt($s, SOL_SOCKET, SO_ACCEPTFILTER);
 		return if defined $x; # don't change if set

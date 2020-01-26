@@ -87,7 +87,7 @@ for my $args (
 
 	SKIP: {
 		skip 'TCP_DEFER_ACCEPT is Linux-only', 2 if $^O ne 'linux';
-		my $var = Socket::TCP_DEFER_ACCEPT();
+		my $var = eval { Socket::TCP_DEFER_ACCEPT() } // 9;
 		defined(my $x = getsockopt($https, IPPROTO_TCP, $var)) or die;
 		ok(unpack('i', $x) > 0, 'TCP_DEFER_ACCEPT set on https');
 	};

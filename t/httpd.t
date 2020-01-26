@@ -81,7 +81,7 @@ EOF
 
 SKIP: {
 	skip 'TCP_DEFER_ACCEPT is Linux-only', 1 if $^O ne 'linux';
-	my $var = Socket::TCP_DEFER_ACCEPT();
+	my $var = eval { Socket::TCP_DEFER_ACCEPT() } // 9;
 	defined(my $x = getsockopt($sock, IPPROTO_TCP, $var)) or die;
 	ok(unpack('i', $x) > 0, 'TCP_DEFER_ACCEPT set');
 };
