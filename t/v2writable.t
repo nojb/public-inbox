@@ -284,4 +284,28 @@ eval {
 };
 ok($@, 'V2Writable fails on non-existent dir');
 
+{
+	my $v2w = PublicInbox::V2Writable->new($tmp, 1);
+	ok($v2w, 'creat flag works');
+	$v2w->{parallel} = 0;
+	$v2w->init_inbox(0);
+	my $alt = "$tmp->{inboxdir}/all.git/objects/info/alternates";
+	open my $fh, '>>', $alt or die $!;
+	print $fh "$inboxdir/all.git/objects\n" or die $!;
+	chmod(0664, $fh) or die "fchmod: $!";
+	close $fh or die $!;
+	open $fh, '<', $alt or die $!;
+	my $before = do { local $/; <$fh> };
+
+	ok($v2w->git_init(3), 'init a new epoch');
+	open $fh, '<', $alt or die $!;
+	my $after = do { local $/; <$fh> };
+	ok(index($after, $before) > 0,
+		'old contents preserved after adding epoch');
+	like($after, qr!\A[^\n]+?/3\.git/objects\n!s,
+		'first line is newest epoch');
+	my $mode = (stat($alt))[2] & 07777;
+	is($mode, 0664, sprintf('0%03o', $mode).' is 0664');
+}
+
 done_testing();

@@ -663,23 +663,43 @@ sub fill_alternates ($$) {
 	unless (-d $all) {
 		PublicInbox::Import::init_bare($all);
 	}
-	my $alt = "$all/objects/info/alternates";
-	my %alts;
-	my @add;
+	my $info_dir = "$all/objects/info";
+	my $alt = "$info_dir/alternates";
+	my (%alt, $new);
+	my $mode = 0644;
 	if (-e $alt) {
 		open(my $fh, '<', $alt) or die "open < $alt: $!\n";
-		%alts = map { chomp; $_ => 1 } (<$fh>);
+		$mode = (stat($fh))[2] & 07777;
+
+		# we assign a sort score to every alternate and favor
+		# the newest (highest numbered) one when we
+		my $score;
+		my $other = 0; # in case admin adds non-epoch repos
+		%alt = map {;
+			if (m!\A\Q../../\E([0-9]+)\.git/objects\z!) {
+				$score = $1 + 0;
+			} else {
+				$score = --$other;
+			}
+			$_ => $score;
+		} split(/\n+/, do { local $/; <$fh> });
 	}
+
 	foreach my $i (0..$epoch) {
 		my $dir = "../../git/$i.git/objects";
-		push @add, $dir if !$alts{$dir} && -d "$pfx/$i.git";
+		if (!exists($alt{$dir}) && -d "$pfx/$i.git") {
+			$alt{$dir} = $i;
+			$new = 1;
+		}
 	}
-	return unless @add;
-	open my $fh, '>>', $alt or die "open >> $alt: $!\n";
-	foreach my $dir (@add) {
-		print $fh "$dir\n" or die "print >> $alt: $!\n";
-	}
-	close $fh or die "close $alt: $!\n";
+	return unless $new;
+
+	my ($fh, $tmp) = tempfile('alt-XXXXXXXX', DIR => $info_dir);
+	print $fh join("\n", sort { $alt{$b} <=> $alt{$a} } keys %alt), "\n"
+		or die "print $tmp: $!\n";
+	chmod($mode, $fh) or die "fchmod $tmp: $!\n";
+	close $fh or die "close $tmp $!\n";
+	rename($tmp, $alt) or die "rename $tmp => $alt: $!\n";
 }
 
 sub git_init {
