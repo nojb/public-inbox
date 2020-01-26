@@ -157,7 +157,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
 	my $mset = $ibx->search->query($phrase, {mset=>1});
 	isnt($mset->size, 0, "phrase search succeeds on indexlevel=full");
-	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+	for (glob("$xap/*/*")) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 
 	my ($min, $max) = $ibx->mm->minmax;
 	is_deeply($ibx->mm->msg_range(\$min, $max), $msgmap, 'msgmap unchanged');
@@ -193,7 +193,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	$words =~ tr/"'//d;
 	my $mset = $ibx->search->query($words, {mset=>1});
 	isnt($mset->size, 0, "normal search works on indexlevel=medium");
-	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+	for (glob("$xap/*/*")) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 
 	ok($sizes{full} > $sizes{medium}, 'medium is smaller than full');
 
@@ -223,7 +223,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 
 	isnt($ibx->search, 'no search for basic');
 
-	for (<"$xap/*/*">) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
+	for (glob("$xap/*/*")) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 	ok($sizes{medium} > $sizes{basic}, 'basic is smaller than medium');
 
 	my ($min, $max) = $ibx->mm->minmax;
