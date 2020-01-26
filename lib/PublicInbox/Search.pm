@@ -148,7 +148,7 @@ chomp @HELP;
 
 sub xdir ($;$) {
 	my ($self, $rdonly) = @_;
-	if ($self->{version} == 1) {
+	if ($self->{ibx_ver} == 1) {
 		"$self->{inboxdir}/public-inbox/xapian" . SCHEMA_VERSION;
 	} else {
 		my $dir = "$self->{inboxdir}/xap" . SCHEMA_VERSION;
@@ -165,7 +165,7 @@ sub _xdb ($) {
 	my $dir = xdir($self, 1);
 	my ($xdb, $slow_phrase);
 	my $qpf = \($self->{qp_flags} ||= $QP_FLAGS);
-	if ($self->{version} >= 2) {
+	if ($self->{ibx_ver} >= 2) {
 		foreach my $shard (<$dir/*>) {
 			-d $shard && $shard =~ m!/[0-9]+\z! or next;
 			my $sub = $X{Database}->new($shard);
@@ -198,7 +198,7 @@ sub new {
 	my $self = bless {
 		inboxdir => $ibx->{inboxdir},
 		altid => $ibx->{altid},
-		version => $ibx->version,
+		ibx_ver => $ibx->version,
 	}, $class;
 	my $dir = xdir($self, 1);
 	$self->{over_ro} = PublicInbox::Over->new("$dir/over.sqlite3");

@@ -54,7 +54,7 @@ sub new {
 		-inbox => $ibx,
 		git => $ibx->git,
 		-altid => $altid,
-		version => $version,
+		ibx_ver => $version,
 		indexlevel => $indexlevel,
 	}, $class;
 	$ibx->umask_prepare;
@@ -358,7 +358,7 @@ sub add_xapian ($$$$$$) {
 
 sub _msgmap_init ($) {
 	my ($self) = @_;
-	die "BUG: _msgmap_init is only for v1\n" if $self->{version} != 1;
+	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx_ver} != 1;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
 		PublicInbox::Msgmap->new($self->{inboxdir}, 1);
