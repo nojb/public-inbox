@@ -138,7 +138,7 @@ above, so there is no need to explicitly install them:
                                    rpm: perl-Filesys-Notify-Simple
                                    (for public-inbox-watch, pulled in by Plack)
 
-- Linux::Inotify                   deb: liblinux-inotify2-perl
+- Linux::Inotify2                  deb: liblinux-inotify2-perl
                                    rpm: perl-Linux-Inotify2
                                    (for public-inbox-watch on Linux)
 
