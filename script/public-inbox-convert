@@ -7,6 +7,7 @@ use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::InboxWritable;
 use PublicInbox::Config;
 use PublicInbox::V2Writable;
+use PublicInbox::Git;
 use PublicInbox::Spawn qw(spawn);
 use Cwd 'abs_path';
 use File::Copy 'cp'; # preserves permissions:
@@ -144,10 +145,19 @@ $w = $r = undef;
 close $rd or die "close fast-export: $!\n";
 waitpid($pid, 0) or die "waitpid failed: $!\n";
 $? == 0 or die "fast-export failed: $?\n";
-my $mm = $old->mm;
-$mm->{dbh}->sqlite_backup_to_file("$new_dir/msgmap.sqlite3") if $mm;
 $v2w->done;
+if (my $mm = $old->mm) {
+	$old->cleanup;
+	$mm->{dbh}->sqlite_backup_to_file("$new_dir/msgmap.sqlite3");
+
+	# we want to trigger a reindex, not a from scratch index if
+	# we're reusing the msgmap from an existing v1 installation.
+	$v2w->idx_init;
+	my $epoch0 = PublicInbox::Git->new($v2w->git_init(0));
+	chop(my $cmt = $epoch0->qx(qw(rev-parse --verify), $head));
+	$v2w->last_epoch_commit(0, $cmt);
+}
 if ($index) {
-	$v2w->index_sync;
+	$v2w->index_sync({reindex => 1});
 	$v2w->done;
 }

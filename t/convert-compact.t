@@ -69,6 +69,13 @@ is(scalar(@xdir), 1, 'got one xapian directory after compact');
 is(((stat($xdir[0]))[2]) & 07777, 0755,
 	'sharedRepository respected on v1 compact');
 
+my $hwm = do {
+	my $mm = $ibx->mm;
+	$ibx->cleanup;
+	$mm->num_highwater;
+};
+ok(defined($hwm) && $hwm > 0, "highwater mark set #$hwm");
+
 $cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
 ok(run_script($cmd, undef, $rdr), 'convert works');
 @xdir = glob("$tmpdir/v2/xap*/*");
@@ -83,6 +90,7 @@ my $env = { NPROC => 2 };
 ok(run_script($cmd, $env, $rdr), 'v2 compact works');
 $ibx->{inboxdir} = "$tmpdir/v2";
 $ibx->{version} = 2;
+is($ibx->mm->num_highwater, $hwm, 'highwater mark unchanged in v2 inbox');
 
 @xdir = glob("$tmpdir/v2/xap*/*");
 foreach (@xdir) {
