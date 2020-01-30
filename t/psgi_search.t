@@ -107,6 +107,12 @@ test_psgi(sub { $www->call(@_) }, sub {
 		'subject-less message linked from "/$INBOX/?q=..."');
 	like($html, qr/\bhref="blank-subject[^>]+>\(no subject\)</,
 		'blank subject message linked from "/$INBOX/?q=..."');
+	$res = $cb->(GET('/test/no-subject-at-all@example.com/raw'));
+	like($res->header('Content-Disposition'),
+		qr/filename=no-subject\.txt/);
+	$res = $cb->(GET('/test/no-subject-at-all@example.com/t.mbox.gz'));
+	like($res->header('Content-Disposition'),
+		qr/filename=no-subject\.mbox\.gz/);
 });
 
 done_testing();

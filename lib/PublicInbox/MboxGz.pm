@@ -21,12 +21,10 @@ sub response {
 	my ($class, $ctx, $cb, $fn) = @_;
 	my $body = $class->new($ctx, $cb);
 	# http://www.iana.org/assignments/media-types/application/gzip
-	my @h = qw(Content-Type application/gzip);
-	if (defined $fn && $fn ne '') {
-		$fn = to_filename($fn);
-		push @h, 'Content-Disposition', "inline; filename=$fn.mbox.gz";
-	}
-	[ 200, \@h, $body ];
+	$fn = defined($fn) && $fn ne '' ? to_filename($fn) : 'no-subject';
+	my $h = [ qw(Content-Type application/gzip),
+		'Content-Disposition', "inline; filename=$fn.mbox.gz" ];
+	[ 200, $h, $body ];
 }
 
 sub gzip_fail ($$) {
