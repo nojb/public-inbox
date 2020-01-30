@@ -27,16 +27,32 @@ my $im = $ibx->importer(0);
 my $digits = '10010260936330';
 my $ua = 'Pine.LNX.4.10';
 my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
-my $data = <<"EOF";
+my $mime = PublicInbox::MIME->new(<<EOF);
 Subject: test
 Message-ID: <$mid>
 From: Ævar Arnfjörð Bjarmason <avarab\@example>
 To: git\@vger.kernel.org
 
 EOF
-
-my $mime = Email::MIME->new(\$data);
 $im->add($mime);
+
+$mime = PublicInbox::MIME->new(<<'EOF');
+Subject:
+Message-ID: <blank-subject@example.com>
+From: blank subject <blank-subject@example.com>
+To: git@vger.kernel.org
+
+EOF
+$im->add($mime);
+
+$mime = PublicInbox::MIME->new(<<'EOF');
+Message-ID: <no-subject-at-all@example.com>
+From: no subject at all <no-subject-at-all@example.com>
+To: git@vger.kernel.org
+
+EOF
+$im->add($mime);
+
 $im->done;
 PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 
@@ -78,6 +94,19 @@ test_psgi(sub { $www->call(@_) }, sub {
 		like($res->content, $mid_re, 'found mid in response');
 		chop($digits);
 	}
+
+	$res = $cb->(GET('/test/'));
+	$html = $res->content;
+	like($html, qr/\bhref="no-subject-at-all[^>]+>\(no subject\)</,
+		'subject-less message linked from "/$INBOX/"');
+	like($html, qr/\bhref="blank-subject[^>]+>\(no subject\)</,
+		'blank subject message linked from "/$INBOX/"');
+
+	$res = $cb->(GET('/test/?q=tc:git'));
+	like($html, qr/\bhref="no-subject-at-all[^>]+>\(no subject\)</,
+		'subject-less message linked from "/$INBOX/?q=..."');
+	like($html, qr/\bhref="blank-subject[^>]+>\(no subject\)</,
+		'blank subject message linked from "/$INBOX/?q=..."');
 });
 
 done_testing();
