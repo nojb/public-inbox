@@ -3,8 +3,9 @@ To: meta@public-inbox.org
 Subject: [WIP] public-inbox 1.3.0
 Content-Type: text/plain; charset=utf-8
 
-Many internal improvements to improve the developer experience
-and long-term maintainability.
+Many internal improvements to improve the developer experience,
+long-term maintainability, ease-of-installation and compatibility.
+There are also several bugfixes.
 
 Some of the internal improvements involve avoiding Perl startup
 time in tests.  "make check" now runs about 50% faster than
@@ -27,16 +28,18 @@ leaks easier.
 * Plack is optional for users who wish to avoid web-related components
 
 * Filesys::Notify::Simple is optional for non-watch users
-  (but Plack will pull it in)
+  (but Plack will still pull it in)
 
 * improved internal error checking and reporting in numerous places
+
+* fixed Perl 5.10.1 compatibility (tested with Devel::PatchPerl)
 
 * IPC::Run is no longer used in tests
 
 * Email::Address::XS used if available (newer Email::MIME
   requires it), it should handle more corner cases.
 
-* PublicInbox::WWW
+* PublicInbox::WWW:
   - "nested" search results page now shows relevancy percentages
   - many solver bugs fixed
   - solver works on "-U0" patches using "git apply --unidiff-zero"
@@ -46,6 +49,7 @@ leaks easier.
   - reduced memory usage for displaying multipart messages
   - static file responses support Last-Modified/If-Modified-Since
   - avoid trailing underlines in diffstat linkification
+  - more consistent handling of messages without Subjects
 
 * public-inbox-httpd / public-inbox-nntpd:
   - MSG_MORE used consistently in long responses
@@ -54,15 +58,27 @@ leaks easier.
   - missed signals avoided with signalfd or EVFILT_SIGNAL
 
 * public-inbox-nntpd:
-  Y2020 workaround for Time::Local
+  - Y2020 workaround for Time::Local
 
-* public-inbox-watch
+* public-inbox-watch:
   - avoid memory leak from cyclic reference on SIGHUP
   - fix documentation of publicinboxwatch.watchspam
+
+* public-inbox-convert:
+  - avoid article number jumps when converting indexed v1 inboxes
+
+* public-inbox-compact / public-inbox-xcpdb:
+  - concurrent invocations of -compact and -xcpdb commands,
+    not just -mda, -watch, -learn, -purge
+
+* examples/unsubscribe.milter:
+  - support unique mailto: unsubscribe
 
 Release tarballs will be available for download at
 
 	https://public-inbox.org/public-inbox.git
+
+Please report bugs via plain-text mail to: meta@public-inbox.org
 
 See archives at https://public-inbox.org/meta/ for all history.
 See https://public-inbox.org/TODO for what the future holds.
