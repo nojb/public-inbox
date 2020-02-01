@@ -148,12 +148,12 @@ sub inbox_config ($$$) {
 	; instead of "inboxdir", both remain supported after 1.2
 	mainrepo = /path/to/top-level-inbox
 EOS
-	for my $k (qw(address listid)) {
+	for my $k (qw(address listid infourl)) {
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $_\n" for @$v;
 	}
 
-	for my $k (qw(filter infourl newsgroup obfuscate replyto watchheader)) {
+	for my $k (qw(filter newsgroup obfuscate replyto watchheader)) {
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $v\n";
 	}
