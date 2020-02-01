@@ -530,7 +530,8 @@ sub resolve_patch ($$) {
 	if (my $existing = solve_existing($self, $want)) {
 		my ($found_git, undef, $type, undef) = @$existing;
 		dbg($self, "found $cur_want in " .
-			join("\n", $found_git->pub_urls($self->{psgi_env})));
+			join(" ||\n\t",
+				$found_git->pub_urls($self->{psgi_env})));
 
 		if ($cur_want eq $self->{oid_want} || $type ne 'blob') {
 			eval { done($self, $existing) };
@@ -548,7 +549,7 @@ sub resolve_patch ($$) {
 
 		unshift @{$self->{patches}}, @$diffs;
 		dbg($self, "found $cur_want in ".
-			join("\n\t", map { di_url($self, $_) } @$diffs));
+			join(" ||\n\t", map { di_url($self, $_) } @$diffs));
 
 		# good, we can find a path to the oid we $want, now
 		# lets see if we need to apply more patches:
