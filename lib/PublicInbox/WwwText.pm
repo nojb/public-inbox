@@ -147,6 +147,8 @@ sub inbox_config ($$$) {
 	; note: public-inbox before v1.2.0 used "mainrepo"
 	; instead of "inboxdir", both remain supported after 1.2
 	mainrepo = /path/to/top-level-inbox
+	url = https://example.com/$name/
+	url = http://example.onion/$name/
 EOS
 	for my $k (qw(address listid infourl)) {
 		defined(my $v = $ibx->{$k}) or next;
