@@ -168,17 +168,21 @@ EOS
 
 		my $pi_config = $ctx->{www}->{pi_config};
 		for my $cr_name (@$cr) {
-			my $url = $pi_config->{"coderepo.$cr_name.cgiturl"};
+			my $urls = $pi_config->{"coderepo.$cr_name.cgiturl"};
 			my $path = "/path/to/$cr_name";
 			$cr_name = dq_escape($cr_name);
 
 			$$txt .= qq([coderepo "$cr_name"]\n);
-			if (defined($url)) {
-				my $cpath = $path;
-				if ($path !~ m![a-z0-9_/\.\-]!i) {
-					$cpath = dq_escape($cpath);
-				}
-				$$txt .= qq(\t; git clone $url "$cpath"\n);
+			if ($urls && scalar(@$urls)) {
+				$$txt .= "\t; ";
+				$$txt .= join(" ||\n\t;\t", map {;
+					my $cpath = $path;
+					if ($path !~ m![a-z0-9_/\.\-]!i) {
+						$cpath = dq_escape($cpath);
+					}
+					qq(git clone $_ "$cpath");
+				} @$urls);
+				$$txt .= "\n";
 			}
 			$$txt .= "\tdir = $path\n";
 			$$txt .= "\tcgiturl = https://example.com/";

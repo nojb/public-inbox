@@ -190,6 +190,9 @@ sub cgit_repo_merge ($$$) {
 		return unless -e "$path/$se";
 	}
 	return if -e "$path/noweb";
+	# this comes from the cgit config, and AFAIK cgit only allows
+	# repos to have one URL, but that's just the PATH_INFO component,
+	# not the Host: portion
 	# $repo = { url => 'foo.git', dir => '/path/to/foo.git' }
 	my $rel = $repo->{url};
 	unless (defined $rel) {
@@ -207,7 +210,7 @@ sub cgit_repo_merge ($$$) {
 			$rel =~ s!/?\.git\z!!;
 	}
 	$self->{"coderepo.$rel.dir"} //= $path;
-	$self->{"coderepo.$rel.cgiturl"} //= $rel;
+	$self->{"coderepo.$rel.cgiturl"} //= _array($rel);
 }
 
 sub is_git_dir ($) {
@@ -332,8 +335,9 @@ sub _fill_code_repo {
 				_array($self->{lc("$pfx.${t}UrlFormat")});
 	}
 
-	if (my $cgits = $self->{lc("$pfx.cgitUrl")}) {
+	if (defined(my $cgits = $self->{"$pfx.cgiturl"})) {
 		$git->{cgit_url} = $cgits = _array($cgits);
+		$self->{"$pfx.cgiturl"} = $cgits;
 
 		# cgit supports "/blob/?id=%s", but it's only a plain-text
 		# display and requires an unabbreviated id=
