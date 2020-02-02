@@ -7,6 +7,7 @@ package PublicInbox::SearchIdxShard;
 use strict;
 use warnings;
 use base qw(PublicInbox::SearchIdx);
+use IO::Handle (); # autoflush
 
 sub new {
 	my ($class, $v2writable, $shard) = @_;
@@ -24,6 +25,7 @@ sub spawn_worker {
 	pipe($r, $w) or die "pipe failed: $!\n";
 	binmode $r, ':raw';
 	binmode $w, ':raw';
+	$w->autoflush(1);
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
@@ -83,7 +85,6 @@ sub index_raw {
 	if (my $w = $self->{w}) {
 		print $w "$bytes $artnum $oid $mid0\n", $$msgref or die
 			"failed to write shard $!\n";
-		$w->flush or die "failed to flush: $!\n";
 	} else {
 		$$msgref = undef;
 		$self->begin_txn_lazy;
@@ -100,7 +101,6 @@ sub remote_barrier {
 	my ($self) = @_;
 	if (my $w = $self->{w}) {
 		print $w "barrier\n" or die "failed to print: $!";
-		$w->flush or die "failed to flush: $!";
 	} else {
 		$self->commit_txn_lazy;
 	}
