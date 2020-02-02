@@ -7,6 +7,7 @@ package PublicInbox::V2Writable;
 use strict;
 use warnings;
 use base qw(PublicInbox::Lock);
+use 5.010_001;
 use PublicInbox::SearchIdxShard;
 use PublicInbox::MIME;
 use PublicInbox::Git;
@@ -32,14 +33,29 @@ my $PACKING_FACTOR = 0.4;
 # to increase Xapian shards
 our $NPROC_MAX_DEFAULT = 4;
 
+sub detect_nproc () {
+	for my $nproc (qw(nproc gnproc)) { # GNU coreutils nproc
+		`$nproc 2>/dev/null` =~ /^(\d+)$/ and return $1;
+	}
+
+	# getconf(1) is POSIX, but *NPROCESSORS* vars are not
+	for (qw(_NPROCESSORS_ONLN NPROCESSORS_ONLN)) {
+		`getconf $_ 2>/dev/null` =~ /^(\d+)$/ and return $1;
+	}
+
+	# should we bother with `sysctl hw.ncpu`?  Those only give
+	# us total processor count, not online processor count.
+	undef
+}
+
 sub nproc_shards ($) {
 	my ($creat_opt) = @_;
 	my $n = $creat_opt->{nproc} if ref($creat_opt) eq 'HASH';
 	$n //= $ENV{NPROC};
 	if (!$n) {
-		chomp($n = `nproc 2>/dev/null`);
-		# assume 2 cores if GNU nproc(1) is not available
-		$n = 2 if !$n;
+		# assume 2 cores if not detectable or zero
+		state $NPROC_DETECTED = detect_nproc() || 2;
+		$n = $NPROC_DETECTED;
 		$n = $NPROC_MAX_DEFAULT if $n > $NPROC_MAX_DEFAULT;
 	}
 
