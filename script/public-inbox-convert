@@ -87,7 +87,6 @@ $clone may not be valid after migrating to v2, not copying
 	}
 });
 my $state = '';
-my ($prev, $from);
 my $head = $old->{ref_head} || 'HEAD';
 my ($rd, $pid) = $old->git->popen(qw(fast-export --use-done-feature), $head);
 $v2w->idx_init;
@@ -131,11 +130,6 @@ while (<$rd>) {
 			$w->print("M 100644 :$mark d\n") or $im->wfail;
 			$last = 'd';
 			next;
-		}
-		if (m{^from (:[0-9]+)}) {
-			$prev = $from;
-			$from = $1;
-			# no next
 		}
 	}
 	last if $_ eq "done\n";
