@@ -40,7 +40,7 @@ for my $i (1..$ndoc) {
 }
 $im->done;
 my @shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
-is(scalar(@shards), $nproc, 'got expected shards');
+is(scalar(@shards), $nproc - 1, 'got expected shards');
 my $orig = $ibx->over->query_xover(1, $ndoc);
 my %nums = map {; "$_->{num}" => 1 } @$orig;
 

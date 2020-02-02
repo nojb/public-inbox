@@ -34,13 +34,8 @@ our $NPROC_MAX_DEFAULT = 4;
 
 sub nproc_shards ($) {
 	my ($creat_opt) = @_;
-	if (ref($creat_opt) eq 'HASH') {
-		if (defined(my $n = $creat_opt->{nproc})) {
-			return $n
-		}
-	}
-
-	my $n = $ENV{NPROC};
+	my $n = $creat_opt->{nproc} if ref($creat_opt) eq 'HASH';
+	$n //= $ENV{NPROC};
 	if (!$n) {
 		chomp($n = `nproc 2>/dev/null`);
 		# assume 2 cores if GNU nproc(1) is not available
