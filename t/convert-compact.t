@@ -76,6 +76,9 @@ my $hwm = do {
 };
 ok(defined($hwm) && $hwm > 0, "highwater mark set #$hwm");
 
+$cmd = [ '-convert', '--no-index', $ibx->{inboxdir}, "$tmpdir/no-index" ];
+ok(run_script($cmd, undef, $rdr), 'convert --no-index works');
+
 $cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
 ok(run_script($cmd, undef, $rdr), 'convert works');
 @xdir = glob("$tmpdir/v2/xap*/*");

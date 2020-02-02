@@ -151,7 +151,5 @@ if (my $mm = $old->mm) {
 	chop(my $cmt = $epoch0->qx(qw(rev-parse --verify), $head));
 	$v2w->last_epoch_commit(0, $cmt);
 }
-if ($index) {
-	$v2w->index_sync({reindex => 1});
-	$v2w->done;
-}
+$v2w->index_sync({reindex => 1}) if $index;
+$v2w->done;
