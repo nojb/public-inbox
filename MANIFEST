@@ -250,6 +250,7 @@ t/mime.t
 t/msg_iter.t
 t/msgmap.t
 t/msgtime.t
+t/multi-mid.t
 t/nntp.t
 t/nntpd-tls.t
 t/nntpd.t
