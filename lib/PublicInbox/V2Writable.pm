@@ -107,8 +107,11 @@ sub new {
 
 # public (for now?)
 sub init_inbox {
-	my ($self, $parallel, $skip_epoch) = @_;
-	$self->{parallel} = $parallel;
+	my ($self, $shards, $skip_epoch) = @_;
+	if (defined $shards) {
+		$self->{parallel} = 0 if $shards == 0;
+		$self->{shards} = $shards if $shards > 0;
+	}
 	$self->idx_init;
 	my $epoch_max = -1;
 	git_dir_latest($self, \$epoch_max);
