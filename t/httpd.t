@@ -49,6 +49,11 @@ EOF
 	$td = start_script($cmd, undef, { 3 => $sock });
 	my $host = $sock->sockhost;
 	my $port = $sock->sockport;
+	{
+		my $bad = tcp_connect($sock);
+		print $bad "GETT / HTTP/1.0\r\n\r\n" or die;
+		like(<$bad>, qr!\AHTTP/1\.[01] 405\b!, 'got 405 on bad req');
+	}
 	my $conn = tcp_connect($sock);
 	ok($conn, 'connected');
 	ok($conn->write("GET / HTTP/1.0\r\n\r\n"), 'wrote data to socket');

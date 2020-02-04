@@ -70,7 +70,7 @@ sub call {
 			return invalid_inbox($ctx, $1) || mbox_results($ctx);
 		}
 	}
-	elsif ($method !~ /\AGET|HEAD\z/) {
+	elsif ($method !~ /\A(?:GET|HEAD)\z/) {
 		return r(405);
 	}
 
