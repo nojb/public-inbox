@@ -38,7 +38,8 @@ Forces a search engine re-index of all messages in the
 repository.  This can be used for in-place upgrades while
 NNTP/HTTP server processes are utilizing the index.  Keep in
 mind this roughly doubles the size of the already-large
-Xapian database.
+Xapian database.  Running L<public-inbox-compact(1)>
+afterwards is recommended to release free space.
 
 This does not touch the NNTP article number database.
 
