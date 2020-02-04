@@ -189,6 +189,8 @@ test_psgi($app, sub {
 	like($body, qr/<title>test for public-inbox/,
 		"set title in XML feed");
 	like($body, qr/zzzzzz/, 'body included');
+	$res = $cb->(GET($pfx . '/description'));
+	like($res->content, qr/test for public-inbox/, 'got description');
 });
 
 test_psgi($app, sub {

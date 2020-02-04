@@ -58,6 +58,9 @@ my $www = PublicInbox::WWW->new($config);
 my ($res, $raw, @from_);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;
+	$res = $cb->(GET('/v2test/description'));
+	like($res->content, qr!\$INBOX_DIR/description missing!,
+		'got v2 description missing message');
 	$res = $cb->(GET('/v2test/a-mid@b/raw'));
 	$raw = $res->content;
 	like($raw, qr/^hello world$/m, 'got first message');

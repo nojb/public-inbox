@@ -85,6 +85,8 @@ sub call {
 		invalid_inbox($ctx, $1) || get_atom($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE/new\.html\z!o) {
 		invalid_inbox($ctx, $1) || get_new($ctx);
+	} elsif ($path_info =~ m!$INBOX_RE/description\z!o) {
+		get_description($ctx, $1);
 	} elsif ($path_info =~ m!$INBOX_RE/(?:(?:git/)?([0-9]+)(?:\.git)?/)?
 				($PublicInbox::GitHTTPBackend::ANY)\z!ox) {
 		my ($epoch, $path) = ($2, $3);
@@ -619,6 +621,15 @@ sub get_css ($$$) {
 		'Content-Type', 'text/css' ];
 	PublicInbox::GitHTTPBackend::cache_one_year($h);
 	[ 200, $h, [ $css ] ];
+}
+
+sub get_description {
+	my ($ctx, $inbox) = @_;
+	invalid_inbox($ctx, $inbox) || do {
+		my $d = $ctx->{-inbox}->description . "\n";
+		[ 200, [ 'Content-Length', bytes::length($d),
+			'Content-Type', 'text/plain' ], [ $d ] ];
+	};
 }
 
 1;
