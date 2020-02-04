@@ -220,12 +220,12 @@ Default: none; only for L<public-inbox-watch(1)> users
 
 =item publicinbox.nntpserver
 
-Set this to point to the address of the L<public-inbox-nntpd(1)>
+Set this to point to the hostname of the L<public-inbox-nntpd(1)>
 instance.  This is used to advertise the existence of the NNTP
-presnce in the L<PublicInbox::WWW> HTML interface.
+endpoint in the L<PublicInbox::WWW> HTML interface.
 
-Multiple values are allowed for servers with multiple
-addresses or mirrors.
+Multiple values are allowed for instances with multiple hostnames
+or mirrors.
 
 Default: none
 

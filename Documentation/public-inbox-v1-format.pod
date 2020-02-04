@@ -131,7 +131,7 @@ Automatically updated by L<public-inbox-mda(1)>,
 L<public-inbox-learn(1)> and L<public-inbox-watch(1)>.
 
 This directory can always be regenerated with L<public-inbox-index(1)>.
-If lost or damaaged, there is no need to back it up unless the
+If lost or damaged, there is no need to back it up unless the
 CPU/memory cost of regenerating it outweighs the storage/transfer cost.
 
 Since SCHEMA_VERSION 15 and the development of the v2 format,
