@@ -18,9 +18,14 @@ is($y, $x+1, 'tid increases');
 $x = $over->sid('hello-world');
 is(int($x), $x, 'integer sid');
 $y = $over->sid('hello-WORLD');
-is($y, $x+1, 'sid ncreases');
+is($y, $x+1, 'sid increases');
 is($over->sid('hello-world'), $x, 'idempotent');
+ok(!$over->{dbh}->{ReadOnly}, 'OverIdx is not ReadOnly');
 $over->disconnect;
+
+$over = PublicInbox::Over->new("$tmpdir/over.sqlite3");
+$over->connect;
+ok($over->{dbh}->{ReadOnly}, 'Over is ReadOnly');
 
 $over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");
 $over->connect;

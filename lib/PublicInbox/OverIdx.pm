@@ -20,7 +20,7 @@ use PublicInbox::Search;
 
 sub dbh_new {
 	my ($self) = @_;
-	my $dbh = $self->SUPER::dbh_new;
+	my $dbh = $self->SUPER::dbh_new(1);
 	$dbh->do('PRAGMA journal_mode = TRUNCATE');
 	$dbh->do('PRAGMA cache_size = 80000');
 	create_tables($dbh);

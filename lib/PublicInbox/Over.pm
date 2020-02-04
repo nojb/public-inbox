@@ -14,17 +14,16 @@ use Compress::Zlib qw(uncompress);
 use constant DEFAULT_LIMIT => 1000;
 
 sub dbh_new {
-	my ($self) = @_;
-	my $ro = ref($self) eq 'PublicInbox::Over';
+	my ($self, $rw) = @_;
 	my $f = $self->{filename};
-	if (!$ro && !-f $f) { # SQLite defaults mode to 0644, we want 0666
+	if ($rw && !-f $f) { # SQLite defaults mode to 0644, we want 0666
 		open my $fh, '+>>', $f or die "failed to open $f: $!";
 	}
 	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,
 		RaiseError => 1,
 		PrintError => 0,
-		ReadOnly => $ro,
+		ReadOnly => !$rw,
 		sqlite_use_immediate_transaction => 1,
 	});
 	$dbh->{sqlite_unicode} = 1;
