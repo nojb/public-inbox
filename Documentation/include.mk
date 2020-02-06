@@ -89,9 +89,6 @@ check :: NEWS .NEWS.atom.check NEWS.html
 
 html: $(docs_html)
 
-Documentation/.x:
-	mkdir -p $@
-
 doc: $(docs)
 
 %.gz: %

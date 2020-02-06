@@ -71,10 +71,10 @@ $v->{rsync_docs} = [ @{$v->{gz_docs}}, @{$v->{docs}},
 # external manpages which we host ourselves, since some packages
 # (currently just Xapian) doesn't host manpages themselves.
 my @xman = qw(copydatabase.1 xapian-compact.1);
-$v->{xdocs} = [ map { "Documentation/.x/.$_.txt" } @xman ];
-$v->{xdocs_html} = [ map { "Documentation/.x/.$_.html" } @xman ];
+$v->{xdocs} = [ map { "Documentation/.$_.txt" } @xman ];
+$v->{xdocs_html} = [ map { "Documentation/.$_.html" } @xman ];
 for (@{$v->{xdocs}}) {
-	$t->{"$_ : | Documentation/.x"} = [
+	$t->{"$_:"} = [
 		'$(PERL) -w Documentation/extman.perl $@ >$@+',
 		'mv $@+ $@'
 	];
