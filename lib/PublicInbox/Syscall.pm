@@ -78,9 +78,9 @@ if ($^O eq "linux") {
     my $u64_mod_8 = 0;
 
     # if we're running on an x86_64 kernel, but a 32-bit process,
-    # we need to use the i386 syscall numbers.
+    # we need to use the x32 or i386 syscall numbers.
     if ($machine eq "x86_64" && $Config{ptrsize} == 4) {
-        $machine = "i386";
+        $machine = $Config{cppsymbols} =~ /\b__ILP32__=1\b/ ? 'x32' : 'i386';
     }
 
     # Similarly for mips64 vs mips
@@ -98,6 +98,11 @@ if ($^O eq "linux") {
         $SYS_epoll_ctl    = 233;
         $SYS_epoll_wait   = 232;
         $SYS_signalfd4 = 289;
+    } elsif ($machine eq 'x32') {
+        $SYS_epoll_create = 1073742037;
+        $SYS_epoll_ctl = 1073742057;
+        $SYS_epoll_wait = 1073742056;
+        $SYS_signalfd4 = 1073742113;
     } elsif ($machine =~ m/^parisc/) {
         $SYS_epoll_create = 224;
         $SYS_epoll_ctl    = 225;

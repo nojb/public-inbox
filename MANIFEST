@@ -219,6 +219,7 @@ t/ds-leak.t
 t/ds-poll.t
 t/edit.t
 t/emergency.t
+t/epoll.t
 t/fail-bin/spamc
 t/feed.t
 t/filter_base.t
