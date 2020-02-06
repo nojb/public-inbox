@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2019 all contributors <meta@public-inbox.org>
+# Copyright (C) 2014-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # FIXME: this test is too slow and most non-CGI-requirements
 # should be moved over to things which use test_psgi

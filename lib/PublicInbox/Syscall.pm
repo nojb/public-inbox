@@ -5,7 +5,7 @@
 # This license differs from the rest of public-inbox
 #
 # This module is Copyright (c) 2005 Six Apart, Ltd.
-# Copyright (C) 2019 all contributors <meta@public-inbox.org>
+# Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 #
 # All rights reserved.
 #

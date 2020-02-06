@@ -1,4 +1,4 @@
-# Copyright (C) 2019 all contributors <meta@public-inbox.org>
+# Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 use strict;
 use Test::More;
 use IO::Handle;

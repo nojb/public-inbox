@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (C) 2019 all contributors <meta@public-inbox.org>
+# Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 set -e
 SUDO=${SUDO-'sudo'} PERL=${PERL-'perl'} MAKE=${MAKE-'make'}

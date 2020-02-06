@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2019 all contributors <meta@public-inbox.org>
+# Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 # License: GPL-3.0+ <https://www.gnu.org/licenses/gpl-3.0.txt>
 #
 # NewsWWW may be used independently of WWW.  This can be useful

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 use strict;
-# Copyright 2019 all contributors <meta@public-inbox.org>
+# Copyright 2019-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 print <<EOF;

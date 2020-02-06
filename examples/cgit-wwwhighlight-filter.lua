@@ -1,4 +1,4 @@
--- Copyright (C) 2019 all contributors <meta@public-inbox.org>
+-- Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 -- License: GPL-2.0+ <https://www.gnu.org/licenses/gpl-2.0.txt>
 --
 -- This filter accesses the PublicInbox::WwwHighlight PSGI endpoint

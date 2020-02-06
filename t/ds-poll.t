@@ -1,4 +1,4 @@
-# Copyright (C) 2019 all contributors <meta@public-inbox.org>
+# Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 # Licensed the same as Danga::Socket (and Perl5)
 # License: GPL-1.0+ or Artistic-1.0-Perl
 #  <https://www.gnu.org/licenses/gpl-1.0.txt>
