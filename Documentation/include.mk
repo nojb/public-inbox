@@ -10,6 +10,9 @@ MAN = man
 # this is "xml" on FreeBSD and maybe some other distros:
 XMLSTARLET = xmlstarlet
 
+# libgraph-easy-perl from Debian, Graph::Easy from CPAN
+GRAPH_EASY = graph-easy
+
 # same as pod2text
 COLUMNS = 76
 
@@ -62,6 +65,17 @@ Documentation/standards.txt : Documentation/standards.perl
 	touch -r Documentation/standards.perl $@+
 	mv $@+ $@
 
+# flow.txt is checked into git since Graph::Easy isn't in many distros
+Documentation/flow.txt : Documentation/flow.ge
+	(sed -ne '1,/^$$/p' <Documentation/flow.ge; \
+		$(GRAPH_EASY) Documentation/flow.ge || \
+			cat Documentation/flow.txt; \
+		echo; \
+		sed -ne '/^# Copyright/,$$p' <Documentation/flow.ge \
+		) >$@+
+	touch -r Documentation/flow.ge $@+
+	mv $@+ $@
+
 NEWS NEWS.atom NEWS.html : $(news_deps)
 	$(PERL) -I lib -w Documentation/mknews.perl $@ $(RELEASES)
 
@@ -99,7 +113,9 @@ rsync-doc: NEWS.atom.gz
 clean-doc:
 	$(RM_F) $(man1) $(man5) $(man7) $(man8) $(gz_docs) $(docs_html) \
 		$(mantxt) $(rsync_xdocs) \
-		NEWS NEWS.atom NEWS.html Documentation/standards.txt
+		NEWS NEWS.atom NEWS.html Documentation/standards.txt \
+		Documentation/flow.html Documentation/flow.html.gz \
+		Documentation/flow.txt.gz
 
 clean :: clean-doc
 

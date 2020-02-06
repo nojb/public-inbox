@@ -1,0 +1,32 @@
+# public-inbox data flow
+#
+# Note: choose either "delivery tools" OR "git mirroring tools"
+# for a given inboxdir.  Combining them for the SAME inboxdir
+# will cause conflicts.  Of course, different inboxdirs may
+# choose different means of getting mail into them.
+
+                                                 +--------------------+
+                                                 |  delivery tools:   |
+                                                 |  public-inbox-mda  |
+                                                 | public-inbox-watch |
+                                                 | public-inbox-learn |
+                                                 +--------------------+
+                                                   |
+                                                   |
+                                                   v
++----------------------+                         +--------------------+
+| git mirroring tools: |  git (clone|fetch) &&   |                    |
+|      grok-pull,      |  public-inbox-index     |      inboxdir      |
+|   various scripts    | ----------------------> |                    |
++----------------------+                         +--------------------+
+                                                   |
+                                                   |
+                                                   v
+                                                 +--------------------+
+                                                 | read-only daemons: |
+                                                 | public-inbox-httpd |
+                                                 | public-inbox-nntpd |
+                                                 +--------------------+
+
+# Copyright 2020 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>

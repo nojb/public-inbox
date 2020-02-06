@@ -13,6 +13,7 @@ $v->{news_deps} = [ map { "Documentation/RelNotes/$_.eml" } @RELEASES ];
 $v->{txt} = [ qw(INSTALL README COPYING TODO HACKING) ];
 my @dtxt = grep(m!\ADocumentation/[^/]+\.txt\z!, @manifest);
 push @dtxt, 'Documentation/standards.txt';
+push @dtxt, 'Documentation/flow.txt';
 push @dtxt, @{$v->{txt}};
 for my $txt (@dtxt) {
 	my $html = $txt;
