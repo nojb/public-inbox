@@ -48,8 +48,8 @@ for my $order ([$bad, $good], [$good, $bad]) {
 	}
 	my $rdr = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 	my $cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
-	ok(run_script($cmd, undef, $rdr),
-		'convert to v2');
+	my $env = { PI_DIR => "$tmpdir/.public-inbox" };
+	ok(run_script($cmd, $env, $rdr), 'convert to v2');
 	$err =~ s!\AW: $tmpdir/v1 not configured[^\n]+\n!!s;
 	is($err, '', 'no errors or warnings from -convert');
 	$ibx->{version} = 2;
