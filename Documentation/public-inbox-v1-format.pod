@@ -169,7 +169,8 @@ there may be many files.
 
 It is impossible to completely expunge messages, even spam, as git
 retains full history.  Projects may (with adequate notice) cycle to new
-repositories/branches with history cleaned up via L<git-filter-branch(1)>.
+repositories/branches with history cleaned up via L<git-filter-repo(1)>
+or L<git-filter-branch(1)>.
 This is up to the administrators.
 
 =head1 COPYRIGHT

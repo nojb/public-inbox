@@ -77,6 +77,8 @@ $xurls{'spamc(1)'} =
 $xurls{'grok-pull'} =
 	'https://git.kernel.org/pub/scm/utils/grokmirror/grokmirror.git' .
 	'/tree/man/grok-pull.1.rst';
+$xurls{'git-filter-repo(1)'} = 'https://github.com/newren/git-filter-repo'.
+			'./blob/master/Documentation/git-filter-repo.txt';
 $xurls{'ssoma(1)'} = 'https://ssoma.public-inbox.org/ssoma.txt';
 $xurls{'cgitrc(5)'} = 'https://git.zx2c4.com/cgit/tree/cgitrc.5.txt';
 
