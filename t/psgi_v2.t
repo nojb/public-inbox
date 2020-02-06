@@ -160,11 +160,11 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/v2test/?q=m:a-mid@b&x=A'));
 	is($res->code, 200, 'success with Atom search');
 	SKIP: {
-		require_mods(qw(XML::Feed), 2);
-		$raw = $res->content;
-		my $p = XML::Feed->parse(\$raw);
-		is($p->format, "Atom", "parsed atom feed");
-		is(scalar $p->entries, 3, "parsed three entries");
+		require_mods(qw(XML::TreePP), 2);
+		my $t = XML::TreePP->new->parse($res->content);
+		like($t->{feed}->{-xmlns}, qr/\bAtom\b/,
+			'looks like an an Atom feed');
+		is(scalar @{$t->{feed}->{entry}}, 3, 'parsed three entries');
 	};
 
 	local $SIG{__WARN__} = 'DEFAULT';

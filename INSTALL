@@ -174,9 +174,9 @@ Optional packages testing and development:
                                    pkg: perl5
                                    rpm: perl-Test-Simple
 
-- XML::Feed                        deb: libxml-feed-perl
-                                   pkg: p5-XML-Feed
-                                   rpm: perl-XML-Feed
+- XML::TreePP                      deb: libxml-treepp-perl
+                                   pkg: p5-XML-TreePP
+                                   rpm: perl-XML-TreePP
 
 standard MakeMaker installation (Perl)
 --------------------------------------

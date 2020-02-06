@@ -7,7 +7,7 @@ use Email::MIME;
 use PublicInbox::Feed;
 use PublicInbox::Import;
 use PublicInbox::Inbox;
-my $have_xml_feed = eval { require XML::Feed; 1 };
+my $have_xml_treepp = eval { require XML::TreePP; 1 };
 use PublicInbox::TestCommon;
 
 sub string_feed {
@@ -79,12 +79,14 @@ EOF
 	{
 		my $feed = string_feed({ -inbox => $ibx });
 		SKIP: {
-			skip 'XML::Feed missing', 2 unless $have_xml_feed;
-			my $p = XML::Feed->parse(\$feed);
-			is($p->format, "Atom", "parsed atom feed");
-			is(scalar $p->entries, 3, "parsed three entries");
-			is($p->id, 'mailto:test@example',
-				"id is set to default");
+			skip 'XML::TreePP missing', 3 unless $have_xml_treepp;
+			my $t = XML::TreePP->new->parse($feed);
+			like($t->{feed}->{-xmlns}, qr/\bAtom\b/,
+				'looks like an an Atom feed');
+			is(scalar @{$t->{feed}->{entry}}, 3,
+				'parsed three entries');
+			is($t->{feed}->{id}, 'mailto:test@example',
+				'id is set to default');
 		}
 
 		like($feed, qr/drop me/, "long quoted text kept");
@@ -111,10 +113,12 @@ EOF
 	{
 		my $spammy_feed = string_feed({ -inbox => $ibx });
 		SKIP: {
-			skip 'XML::Feed missing', 2 unless $have_xml_feed;
-			my $p = XML::Feed->parse(\$spammy_feed);
-			is($p->format, "Atom", "parsed atom feed");
-			is(scalar $p->entries, 3, "parsed three entries");
+			skip 'XML::TreePP missing', 2 unless $have_xml_treepp;
+			my $t = XML::TreePP->new->parse($spammy_feed);
+			like($t->{feed}->{-xmlns}, qr/\bAtom\b/,
+				'looks like an an Atom feed');
+			is(scalar @{$t->{feed}->{entry}}, 3,
+				'parsed three entries');
 		}
 		like($spammy_feed, qr/SPAM/s, "spam showed up :<");
 	}
@@ -127,10 +131,12 @@ EOF
 	{
 		my $feed = string_feed({ -inbox => $ibx });
 		SKIP: {
-			skip 'XML::Feed missing', 2 unless $have_xml_feed;
-			my $p = XML::Feed->parse(\$feed);
-			is($p->format, "Atom", "parsed atom feed");
-			is(scalar $p->entries, 3, "parsed three entries");
+			skip 'XML::TreePP missing', 2 unless $have_xml_treepp;
+			my $t = XML::TreePP->new->parse($feed);
+			like($t->{feed}->{-xmlns}, qr/\bAtom\b/,
+				'looks like an an Atom feed');
+			is(scalar @{$t->{feed}->{entry}}, 3,
+				'parsed three entries');
 		}
 		unlike($feed, qr/SPAM/, "spam gone :>");
 	}

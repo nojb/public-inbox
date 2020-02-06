@@ -121,18 +121,19 @@ EOF
 		SKIP: { skip 'DBD::SQLite not available', 2 };
 	}
 
-	my $have_xml_feed = eval { require XML::Feed; 1 } if $indexed;
-	if ($have_xml_feed) {
+	my $have_xml_treepp = eval { require XML::TreePP; 1 } if $indexed;
+	if ($have_xml_treepp) {
 		$path = "/test/blahblah\@example.com/t.atom";
 		$res = cgi_run($path);
 		like($res->{head}, qr/^Status: 200 /, "atom returned 200");
 		like($res->{head}, qr!^Content-Type: application/atom\+xml!m,
 			"search returned atom");
-		my $p = XML::Feed->parse(\($res->{body}));
-		is($p->format, "Atom", "parsed atom feed");
-		is(scalar $p->entries, 3, "parsed three entries");
+		my $t = XML::TreePP->new->parse($res->{body});
+		is(scalar @{$t->{feed}->{entry}}, 3, "parsed three entries");
+		like($t->{feed}->{-xmlns}, qr/\bAtom\b/,
+				'looks like an an Atom feed');
 	} else {
-		SKIP: { skip 'DBD::SQLite or XML::Feed missing', 2 };
+		SKIP: { skip 'DBD::SQLite or XML::TreePP missing', 2 };
 	}
 }
 

@@ -50,7 +50,7 @@ my $profiles = {
 
 	# optional developer stuff
 	devtest => [ qw(
-		XML::Feed
+		XML::TreePP
 		curl
 		w3m
 		) ],
