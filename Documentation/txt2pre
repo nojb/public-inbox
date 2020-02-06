@@ -9,13 +9,97 @@ use strict;
 use warnings;
 use PublicInbox::Linkify;
 use PublicInbox::Hval qw(ascii_html);
+my %xurls;
+for (qw[public-inbox.cgi(1)
+	public-inbox-compact(1)
+	public-inbox-config(5)
+	public-inbox-convert(1)
+	public-inbox-daemon(8)
+	public-inbox-edit(1)
+	public-inbox-httpd(1)
+	public-inbox-index(1)
+	public-inbox-init(1)
+	public-inbox-learn(1)
+	public-inbox-mda(1)
+	public-inbox-nntpd(1)
+	public-inbox-overview(7)
+	public-inbox-purge(1)
+	public-inbox-v1-format(5)
+	public-inbox-v2-format(5)
+	public-inbox-watch(1)
+	public-inbox-xcpdb(1)
+]) {
+	my ($n) = (/([\w\-\.]+)/);
+	$xurls{$_} = "$n.html";
+	$xurls{$n} = "$n.html";
+}
 
-my $str = eval { local $/; <> };
+for (qw[copydatabase(1) xapian-compact(1)]) {
+	my ($n) = (/([\w\-\.]+)/);
+	$xurls{$_} = ".$n.1.html"
+}
+
+for (qw[flock(2) setrlimit(2) vfork(2)]) {
+	my ($n, $s) = (/([\w\-]+)\((\d)\)/);
+	$xurls{$_} = "http://www.man7.org/linux/man-pages/man2/$n.$s.html";
+}
+
+for (qw[git(1)
+	git-am(1)
+	git-config(1)
+	git-daemon(1)
+	git-fetch(1)
+	git-filter-branch(1)
+	git-format-patch(1)
+	git-gc(1)
+	git-http-backend(1)
+	git-imap-send(1)
+	git-init(1)
+	git-send-email(1)
+	gitrepository-layout(5)
+]) {
+	my ($n) = (/([\w\-\.]+)/);
+	$xurls{$_} = "https://kernel.org/pub/software/scm/git/docs/$n.html"
+}
+
+for (qw[
+	sd_listen_fds(3)
+	systemd(1)
+	systemd.unit(5)
+	systemd.socket(5)
+]) {
+	my ($n) = (/([\w\-\.]+)/);
+	$xurls{$_} = "https://www.freedesktop.org/software/systemd/man/$n.html";
+}
+
+$xurls{'spamc(1)'} =
+	'https://spamassassin.apache.org/full/3.4.x/doc/spamc.html';
+$xurls{'grok-pull'} =
+	'https://git.kernel.org/pub/scm/utils/grokmirror/grokmirror.git' .
+	'/tree/man/grok-pull.1.rst';
+$xurls{'ssoma(1)'} = 'https://ssoma.public-inbox.org/ssoma.txt';
+$xurls{'cgitrc(5)'} = 'https://git.zx2c4.com/cgit/tree/cgitrc.5.txt';
+
+my $str = do { local $/; <STDIN> };
 my ($title) = ($str =~ /\A([^\n]+)/);
+if ($str =~ /^NAME\n\s+([^\n]+)/sm) {
+	# don't link to ourselves
+	$title = $1;
+	if ($title =~ /([\w\.\-]+)/) {
+		delete $xurls{$1};
+	}
+}
 $title = ascii_html($title);
 my $l = PublicInbox::Linkify->new;
 $str = $l->linkify_1($str);
 $str = ascii_html($str);
+
+# longest matches, first
+my @keys = sort { length($b) <=> length($a) } keys %xurls;
+my $xkeys = join('|', map { quotemeta } @keys);
+$str =~ s,(?<![>\w_])($xkeys)(?!(?:[\w<\-]|\.html)),
+	qq(<a\nhref=").$xurls{$1}.qq(">$1).($2//'').'</a>',sge;
+
 $str = $l->linkify_2($str);
 
 print '<html><head>',
