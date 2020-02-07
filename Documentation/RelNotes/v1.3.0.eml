@@ -34,7 +34,8 @@ leaks easier.
 
 * fixed Perl 5.10.1 compatibility (tested with Devel::PatchPerl)
 
-* IPC::Run is no longer used in tests
+* IPC::Run and XML::Feed are no longer used in tests,
+  though XML::TreePP becomes an optional test dependency.
 
 * Email::Address::XS used if available (newer Email::MIME
   requires it), it should handle more corner cases.
@@ -56,6 +57,7 @@ leaks easier.
   - fixed IO::KQueue usage on *BSDs
   - listen sockets are closed immediately on graceful shutdown
   - missed signals avoided with signalfd or EVFILT_SIGNAL
+  - Linux x32 ABI support
 
 * public-inbox-nntpd:
   - Y2020 workaround for Time::Local
