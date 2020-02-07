@@ -103,7 +103,7 @@ all need to be considered for everything we introduce)
   Sometimes an indexing bug only affects a handful of messages,
   so it's not worth the trouble of doing a full reindex.
 
-* code repository integration (with cgit, gitweb, etc...)
+* code repository integration (cgit: done, TODO: gitweb, etc...)
 
 * migration path to v2 without breaking v1 "git fetch" cronjobs
 

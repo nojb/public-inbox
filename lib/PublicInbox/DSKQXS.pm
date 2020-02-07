@@ -10,8 +10,6 @@
 # support cases public-inbox-nntpd/httpd care about.
 #
 # It also implements signalfd(2) emulation via "tie".
-#
-# A pure-Perl version using syscall() is planned.
 package PublicInbox::DSKQXS;
 use strict;
 use warnings;
