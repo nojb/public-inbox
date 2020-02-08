@@ -6,6 +6,7 @@ use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::InboxWritable;
 use PublicInbox::Config;
+use PublicInbox::Admin;
 use PublicInbox::V2Writable;
 use PublicInbox::Git;
 use PublicInbox::Spawn qw(spawn);
@@ -45,6 +46,14 @@ $old = PublicInbox::InboxWritable->new($old);
 if ($old->version >= 2) {
 	die "Only conversion from v1 inboxes is supported\n";
 }
+
+$old->{indexlevel} //= PublicInbox::Admin::detect_indexlevel($old);
+if ($index) {
+	my $mods = {};
+	PublicInbox::Admin::scan_ibx_modules($mods, $old);
+	PublicInbox::Admin::require_or_die(keys %$mods);
+}
+
 my $new = { %$old };
 $new->{inboxdir} = abs_path($new_dir);
 $new->{version} = 2;
