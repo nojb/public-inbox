@@ -4,9 +4,9 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::TestCommon;
 use PublicInbox::InboxWritable;
-use PublicInbox::SearchIdx;
 require_git(2.6);
 require_mods(qw(DBD::SQLite));
+require PublicInbox::SearchIdx;
 
 my $addr = 'test@example.com';
 my $bad = PublicInbox::MIME->new(<<EOF);
