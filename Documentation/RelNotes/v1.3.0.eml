@@ -1,8 +1,10 @@
 From: Eric Wong <e@yhbt.net>
 To: meta@public-inbox.org
 Subject: [ANNOUNCE] public-inbox 1.3.0
+Date: Mon, 10 Feb 2020 05:52:41 +0000
+Message-Id: <20200210055200.public-inbox-1.3.0-rele@sed>
+MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
-Message-ID: <20200210055200.public-inbox-1.3.0-rele@sed>
 
 Many internal improvements to improve the developer experience,
 long-term maintainability, ease-of-installation and compatibility.
