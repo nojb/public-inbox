@@ -1,7 +1,8 @@
-From: Eric Wong <e@80x24.org>
+From: Eric Wong <e@yhbt.net>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.3.0
+Subject: [ANNOUNCE] public-inbox 1.3.0
 Content-Type: text/plain; charset=utf-8
+Message-ID: <20200210055200.public-inbox-1.3.0-rele@sed>
 
 Many internal improvements to improve the developer experience,
 long-term maintainability, ease-of-installation and compatibility.
@@ -76,9 +77,9 @@ leaks easier.
 * examples/unsubscribe.milter:
   - support unique mailto: unsubscribe
 
-Release tarballs will be available for download at
+Release tarball available for download at:
 
-	https://public-inbox.org/public-inbox.git
+https://public-inbox.org/public-inbox.git/snapshot/public-inbox-1.3.0.tar.gz
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 
