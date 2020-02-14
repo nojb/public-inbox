@@ -1,0 +1,21 @@
+Date:	Sat, 13 Aug 2016 12:14:15 +0200 (CEST)
+From:	Alpine User <a@example.com>
+To: <list@example.com>
+Subject: charset=X-UNKNOWN test
+Message-ID: <alpine.DEB.2.20.1608131214070.4924@example>
+User-Agent: Alpine 2.20 (DEB 67 2015-01-07)
+MIME-Version: 1.0
+Content-Type: multipart/mixed; BOUNDARY="8323329-703494712-1471083256=:4924"
+
+  This message is in MIME format.  The first part should be readable text,
+  while the remaining parts are likely unreadable without MIME-aware tools.
+
+--8323329-703494712-1471083256=:4924
+Content-Type: text/plain; charset=X-UNKNOWN
+Content-Transfer-Encoding: QUOTED-PRINTABLE
+
+=09https://example.com/
+
+  =E2=80=A2 bullet point
+
+--8323329-703494712-1471083256=:4924--

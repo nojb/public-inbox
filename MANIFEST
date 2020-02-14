@@ -299,6 +299,7 @@ t/watch_maildir.t
 t/watch_maildir_v2.t
 t/www_listing.t
 t/www_static.t
+t/x-unknown-alpine.eml
 t/xcpdb-reshard.t
 xt/git-http-backend.t
 xt/git_async_cmp.t

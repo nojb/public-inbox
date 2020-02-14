@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Email::MIME;
+use PublicInbox::Hval qw(ascii_html);
 use_ok('PublicInbox::MsgIter');
 
 {
@@ -56,6 +57,25 @@ use_ok('PublicInbox::MsgIter');
 	});
 	ok(length($raw) > 0, 'got non-empty message');
 	is(index($raw, '$$$'), -1, 'no unescaped $$$');
+}
+
+{
+	my $f = 't/x-unknown-alpine.eml';
+	my $mime = Email::MIME->new(do {
+		open my $fh, '<', $f or die "open($f): $!";
+		local $/;
+		binmode $fh;
+		<$fh>;
+	});
+	my $raw = '';
+	msg_iter($mime, sub {
+		my ($part, $level, @ex) = @{$_[0]};
+		my ($s, $err) = msg_part_text($part, 'text/plain');
+		$raw .= $s;
+	});
+	like($raw, qr!^\thttps://!ms, 'tab expanded with X-UNKNOWN');
+	like(ascii_html($raw), qr/&#8226; bullet point/s,
+		'got bullet point when X-UNKNOWN assumes UTF-8');
 }
 
 done_testing();
