@@ -1039,35 +1039,32 @@ sub sort_ds {
 sub acc_topic { # walk_thread callback
 	my ($ctx, $level, $node) = @_;
 	my $mid = $node->{id};
-	my $x = $node->{smsg} || $ctx->{-inbox}->smsg_by_mid($mid);
-	my ($subj, $ds);
-	my $topic;
-	if ($x) {
-		$subj = $x->subject;
-		$subj = subject_normalized($subj);
+	my $smsg = $node->{smsg} // $ctx->{-inbox}->smsg_by_mid($mid);
+	if ($smsg) {
+		my $subj = subject_normalized($smsg->subject);
 		$subj = '(no subject)' if $subj eq '';
-		$ds = $x->ds;
-		if ($level == 0) {
-			$topic = [ $ds, 1, { $subj => $mid }, $subj ];
+		my $ds = $smsg->{ds};
+		if ($level == 0) { # new, top-level topic
+			my $topic = [ $ds, 1, { $subj => $mid }, $subj ];
 			$ctx->{-cur_topic} = $topic;
 			push @{$ctx->{order}}, $topic;
 			return 1;
 		}
 
-		$topic = $ctx->{-cur_topic}; # should never be undef
+		# continue existing topic
+		my $topic = $ctx->{-cur_topic}; # should never be undef
 		$topic->[0] = $ds if $ds > $topic->[0];
-		$topic->[1]++;
+		$topic->[1]++; # bump N+ message counter
 		my $seen = $topic->[2];
 		if (scalar(@$topic) == 3) { # parent was a ghost
 			push @$topic, $subj;
-		} elsif (!$seen->{$subj}) {
-			push @$topic, $level, $subj;
+		} elsif (!defined($seen->{$subj})) {
+			push @$topic, $level, $subj; # @extra messages
 		}
 		$seen->{$subj} = $mid; # latest for subject
 	} else { # ghost message
 		return 1 if $level != 0; # ignore child ghosts
-		$topic = [ -666, 0, {} ];
-		$ctx->{-cur_topic} = $topic;
+		my $topic = $ctx->{-cur_topic} = [ -666, 0, {} ];
 		push @{$ctx->{order}}, $topic;
 	}
 	1;
@@ -1087,7 +1084,7 @@ sub dump_topics {
 
 	# sort by recency, this allows new posts to "bump" old topics...
 	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
-		my ($ds, $n, $seen, $top_subj, @ex) = @$topic;
+		my ($ds, $n, $seen, $top_subj, @extra) = @$topic;
 		@$topic = ();
 		next unless defined $top_subj;  # ghost topic
 		my $mid = delete $seen->{$top_subj};
@@ -1111,19 +1108,19 @@ sub dump_topics {
 		my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
 		my $s = "<a\nhref=\"$href/T/$anchor\">$top_subj</a>\n" .
 			" $ds UTC $n - $mbox / $atom\n";
-		for (my $i = 0; $i < scalar(@ex); $i += 2) {
-			my $level = $ex[$i];
-			my $subj = $ex[$i + 1];
+		for (my $i = 0; $i < scalar(@extra); $i += 2) {
+			my $level = $extra[$i];
+			my $subj = $extra[$i + 1]; # already normalized
 			$mid = delete $seen->{$subj};
-			my @subj = split(/ /, subject_normalized($subj));
+			my @subj = split(/ /, $subj);
 			my @next_prev = @subj; # full copy
 			my $omit = dedupe_subject($prev_subj, \@subj, ' &#34;');
 			$prev_subj = \@next_prev;
-			$subj = ascii_html(join(' ', @subj));
+			$subj = ascii_html($subj);
 			obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
 			$href = mid_escape($mid);
 			$s .= indent_for($level) . TCHILD;
-			$s .= "<a\nhref=\"$href/T/#u\">$subj</a>$omit\n";
+			$s .= qq(<a\nhref="$href/T/#u">$subj</a>$omit\n);
 		}
 		push @out, $s;
 	}
