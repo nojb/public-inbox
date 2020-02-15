@@ -1090,7 +1090,7 @@ sub dump_topics {
 		my $mid = delete $seen->{$top_subj};
 		my $href = mid_escape($mid);
 		my $prev_subj = [ split(/ /, $top_subj) ];
-		$top_subj = PublicInbox::Hval->new($top_subj)->as_html;
+		$top_subj = ascii_html($top_subj);
 		$ds = fmt_ts($ds);
 
 		# $n isn't the total number of posts on the topic,
