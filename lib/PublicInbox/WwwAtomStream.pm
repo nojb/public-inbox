@@ -12,8 +12,7 @@ use warnings;
 use POSIX qw(strftime);
 use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
-use PublicInbox::Hval qw(ascii_html);
-use PublicInbox::MID qw(mid_escape);
+use PublicInbox::Hval qw(ascii_html mid_href);
 use PublicInbox::MsgTime qw(msg_timestamp);
 
 # called by PSGI server after getline:
@@ -71,7 +70,7 @@ sub atom_header {
 	my $mid = $ctx->{mid};
 	my $page_id;
 	if (defined $mid) { # per-thread
-		$self_url .= mid_escape($mid).'/t.atom';
+		$self_url .= mid_href($mid).'/t.atom';
 		$page_id = to_uuid("t\n".$mid)
 	} elsif (defined $search_q) {
 		my $query = $search_q->{'q'};
@@ -109,13 +108,13 @@ sub feed_entry {
 	my $base = $ctx->{feed_base_url};
 	if (defined $irt) {
 		my $irt_uuid = to_uuid($irt);
-		$irt = mid_escape($irt);
+		$irt = mid_href($irt);
 		$irt = qq(<thr:in-reply-to\nref="$irt_uuid"\n).
 			qq(href="$base$irt/"/>);
 	} else {
 		$irt = '';
 	}
-	my $href = $base . mid_escape($mid) . '/';
+	my $href = $base . mid_href($mid) . '/';
 	my $t = msg_timestamp($hdr);
 	my @t = gmtime(defined $t ? $t : time);
 	my $updated = feed_updated(@t);

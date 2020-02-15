@@ -10,7 +10,7 @@ use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape
-		to_attr prurl/;
+		to_attr prurl mid_href/;
 my $enc_ascii = find_encoding('us-ascii');
 
 # safe-ish acceptable filename pattern for portability
@@ -27,10 +27,7 @@ sub new {
 	}, $class;
 }
 
-sub new_msgid {
-	my ($class, $msgid) = @_;
-	$class->new($msgid, mid_escape($msgid));
-}
+sub mid_href { ascii_html(mid_escape($_[0])) }
 
 # some of these overrides are standard C escapes so they're
 # easy-to-understand when rendered.

@@ -28,6 +28,7 @@ $im->{parallel} = 0;
 my $msgs = <<'';
 F1V5OR6NMF.3M649JTLO9IXD@tux.localdomain/hehe1"'<foo
 F1V5NB0PTU.3U0DCVGAJ750Z@tux.localdomain"'<>/foo
+F1V5NB0PTU.3U0DCVGAJ750Z@tux&.ampersand
 F1V5MIHGCU.2ABINKW6WBE8N@tux.localdomain/raw
 F1V5LF9D9C.2QT5PGXZQ050E@tux.localdomain/t.atom
 F1V58X3CMU.2DCCVAKQZGADV@tux.localdomain/../../../../foo
@@ -70,9 +71,13 @@ test_psgi(sub { $www->call(@_) }, sub {
 		'got escaped links to all messages');
 
 	@xmids = reverse @xmids;
+	my %uxs = ( gt => '>', lt => '<' );
 	foreach my $i (0..$#xmids) {
-		$res = $cb->(GET("/bad-mids/$xmids[$i]/raw"));
-		is($res->code, 200, 'got 200 OK raw message');
+		my $uri = $xmids[$i];
+		$uri =~ s/&#([0-9]+);/sprintf("%c", $1)/sge;
+		$uri =~ s/&(lt|gt);/$uxs{$1}/sge;
+		$res = $cb->(GET("/bad-mids/$uri/raw"));
+		is($res->code, 200, 'got 200 OK raw message '.$uri);
 		like($res->content, qr/Message-ID: <\Q$mids[$i]\E>/s,
 			'retrieved correct message');
 	}

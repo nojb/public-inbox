@@ -8,9 +8,9 @@ use strict;
 use warnings;
 use bytes (); # only for bytes::length
 use PublicInbox::MsgTime qw(msg_datestamp);
-use PublicInbox::Hval qw(ascii_html obfuscate_addrs prurl);
+use PublicInbox::Hval qw(ascii_html obfuscate_addrs prurl mid_href);
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/id_compress mid_escape mids mids_for_index references/;
+use PublicInbox::MID qw/id_compress mids mids_for_index references/;
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -29,7 +29,7 @@ sub msg_page_i {
 	my $more = $ctx->{more};
 	if ($nr == 1) {
 		# $more cannot be true w/o $smsg being defined:
-		$ctx->{mhref} = $more ? '../'.mid_escape($ctx->{smsg}->mid).'/'
+		$ctx->{mhref} = $more ? '../'.mid_href($ctx->{smsg}->{mid}).'/'
 				      : '';
 		multipart_text_as_html(delete $ctx->{mime}, $ctx);
 		${delete $ctx->{obuf}} .= '</pre><hr>';
@@ -84,7 +84,7 @@ sub msg_page_more {
 	my $next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	$ctx->{more} = $next ? [ $id, $prev, $next ] : undef;
 	return '' unless $smsg;
-	$ctx->{mhref} = '../' . mid_escape($smsg->{mid}) . '/';
+	$ctx->{mhref} = '../' . mid_href($smsg->{mid}) . '/';
 	my $mime = delete $smsg->{mime};
 	_msg_page_prepare_obuf($mime->header_obj, $ctx, $nr);
 	multipart_text_as_html($mime, $ctx);
@@ -220,7 +220,7 @@ sub index_entry {
 	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
 	$rv .= "From: $from @ ".fmt_ts($ds)." UTC";
 	my $upfx = $ctx->{-upfx};
-	my $mhref = $upfx . mid_escape($mid_raw) . '/';
+	my $mhref = $upfx . mid_href($mid_raw) . '/';
 	$rv .= qq{ (<a\nhref="$mhref">permalink</a> / };
 	$rv .= qq{<a\nhref="${mhref}raw">raw</a>)\n};
 	my $to = fold_addresses(_hdr_names_html($hdr, 'To'));
@@ -244,9 +244,8 @@ sub index_entry {
 
 	my $mapping = $ctx->{mapping};
 	if (!$mapping && (defined($irt) || defined($irt = in_reply_to($hdr)))) {
-		my $mirt = PublicInbox::Hval->new_msgid($irt);
-		my $href = $upfx . $mirt->{href}. '/';
-		my $html = $mirt->as_html;
+		my $href = $upfx . mid_href($irt) . '/';
+		my $html = ascii_html($irt);
 		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href">$html</a>&gt;\n)
 	}
 	$rv .= "\n";
@@ -672,8 +671,7 @@ sub _msg_page_prepare_obuf {
 	}
 	$ctx->{-title_html} = join(' - ', @title);
 	if (scalar(@$mids) == 1) { # common case
-		my $mid = PublicInbox::Hval->new_msgid($mids->[0]);
-		my $mhtml = $mid->as_html;
+		my $mhtml = ascii_html($mids->[0]);
 		$rv .= "Message-ID: &lt;$mhtml&gt; ";
 		$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
 	} else {
@@ -751,9 +749,8 @@ sub _parent_headers {
 		$refs = references($hdr);
 		my $irt = pop @$refs;
 		if (defined $irt) {
-			my $v = PublicInbox::Hval->new_msgid($irt);
-			my $html = $v->as_html;
-			my $href = $v->{href};
+			my $html = ascii_html($irt);
+			my $href = mid_href($irt);
 			$rv .= "In-Reply-To: &lt;";
 			$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
 		}
@@ -787,17 +784,17 @@ sub html_footer {
 		$next = $prev = '    ';
 
 		if (my $n = $ctx->{next_msg}) {
-			$n = PublicInbox::Hval->new_msgid($n)->{href};
+			$n = mid_href($n);
 			$next = "<a\nhref=\"$upfx$n/\"\nrel=next>next</a>";
 		}
 		my $u;
 		my $par = $ctx->{parent_msg};
 		if ($par) {
-			$u = PublicInbox::Hval->new_msgid($par)->{href};
+			$u = mid_href($par);
 			$u = "$upfx$u/";
 		}
 		if (my $p = $ctx->{prev_msg}) {
-			$prev = PublicInbox::Hval->new_msgid($p)->{href};
+			$prev = mid_href($p);
 			if ($p && $par && $p eq $par) {
 				$prev = "<a\nhref=\"$upfx$prev/\"\n" .
 					'rel=prev>prev parent</a>';
@@ -819,9 +816,9 @@ sub html_footer {
 }
 
 sub linkify_ref_no_over {
-	my $v = PublicInbox::Hval->new_msgid($_[0]);
-	my $html = $v->as_html;
-	my $href = $v->{href};
+	my ($mid) = @_;
+	my $href = mid_href($mid);
+	my $html = ascii_html($mid);
 	"&lt;<a\nhref=\"../$href/\">$html</a>&gt;";
 }
 
@@ -833,9 +830,8 @@ sub anchor_for {
 sub ghost_parent {
 	my ($upfx, $mid) = @_;
 
-	$mid = PublicInbox::Hval->new_msgid($mid);
-	my $href = $mid->{href};
-	my $html = $mid->as_html;
+	my $href = mid_href($mid);
+	my $html = ascii_html($mid);
 	qq{[parent not found: &lt;<a\nhref="$upfx$href/">$html</a>&gt;]};
 }
 
@@ -996,7 +992,7 @@ sub skel_dump { # walk_thread callback
 		$map->[0] = "$d<a\nhref=\"$m\">$end";
 		$id = "\nid=r".$id;
 	} else {
-		$m = $ctx->{-upfx}.mid_escape($mid).'/';
+		$m = $ctx->{-upfx}.mid_href($mid).'/';
 	}
 	$$skel .=  $d . "<a\nhref=\"$m\"$id>" . $end;
 	1;
@@ -1010,9 +1006,8 @@ sub _skel_ghost {
 	$d .= '    '  if exists $ctx->{searchview};
 	$d .= indent_for($level) . th_pfx($level);
 	my $upfx = $ctx->{-upfx};
-	my $m = PublicInbox::Hval->new_msgid($mid);
-	my $href = $upfx . $m->{href} . '/';
-	my $html = $m->as_html;
+	my $href = $upfx . mid_href($mid) . '/';
+	my $html = ascii_html($mid);
 
 	my $mapping = $ctx->{mapping};
 	my $map = $mapping->{$mid} if $mapping;
@@ -1088,7 +1083,7 @@ sub dump_topics {
 		@$topic = ();
 		next unless defined $top_subj;  # ghost topic
 		my $mid = delete $seen->{$top_subj};
-		my $href = mid_escape($mid);
+		my $href = mid_href($mid);
 		my $prev_subj = [ split(/ /, $top_subj) ];
 		$top_subj = ascii_html($top_subj);
 		$ds = fmt_ts($ds);
@@ -1118,7 +1113,7 @@ sub dump_topics {
 			$prev_subj = \@next_prev;
 			$subj = ascii_html($subj);
 			obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
-			$href = mid_escape($mid);
+			$href = mid_href($mid);
 			$s .= indent_for($level) . TCHILD;
 			$s .= qq(<a\nhref="$href/T/#u">$subj</a>$omit\n);
 		}

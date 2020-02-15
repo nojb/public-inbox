@@ -13,7 +13,7 @@ package PublicInbox::Linkify;
 use strict;
 use warnings;
 use Digest::SHA qw/sha1_hex/;
-use PublicInbox::Hval qw(ascii_html);
+use PublicInbox::Hval qw(ascii_html mid_href);
 
 my $SALT = rand;
 my $LINK_RE = qr{([\('!])?\b((?:ftps?|https?|nntps?|gopher)://
@@ -94,10 +94,9 @@ sub linkify_2 {
 sub linkify_mids {
 	my ($self, $pfx, $str, $raw) = @_;
 	$$str =~ s!<([^>]+)>!
-		my $msgid = PublicInbox::Hval->new_msgid($1);
-		my $html = $msgid->as_html;
-		my $href = $msgid->{href};
-		$href = ascii_html($href); # for IDN
+		my $mid = $1;
+		my $html = ascii_html($mid);
+		my $href = mid_href($mid);
 
 		# salt this, as this could be exploited to show
 		# links in the HTML which don't show up in the raw mail.

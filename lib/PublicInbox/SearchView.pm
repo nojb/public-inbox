@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use URI::Escape qw(uri_unescape uri_escape);
 use PublicInbox::SearchMsg;
-use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
+use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::SearchThread;
@@ -115,7 +115,7 @@ sub mset_summary {
 			obfuscate_addrs($obfs_ibx, $f);
 		}
 		my $date = PublicInbox::View::fmt_ts($smsg->{ds});
-		my $mid = PublicInbox::Hval->new_msgid($smsg->{mid})->{href};
+		my $mid = mid_href($smsg->{mid});
 		$s = '(no subject)' if $s eq '';
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s . "</a></b>\n";

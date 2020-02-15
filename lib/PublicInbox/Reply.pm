@@ -6,9 +6,9 @@ package PublicInbox::Reply;
 use strict;
 use warnings;
 use URI::Escape qw/uri_escape_utf8/;
-use PublicInbox::Hval qw/ascii_html obfuscate_addrs/;
+use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
 use PublicInbox::Address;
-use PublicInbox::MID qw/mid_clean mid_escape/;
+use PublicInbox::MID qw(mid_clean);
 
 sub squote_maybe ($) {
 	my ($val) = @_;
@@ -76,7 +76,7 @@ sub mailto_arg_link {
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
 	my $mid = $hdr->header_raw('Message-ID');
 	push @arg, '--in-reply-to='.squote_maybe(mid_clean($mid));
-	my $irt = mid_escape($mid);
+	my $irt = mid_href($mid);
 	delete $cc->{$to};
 	if ($obfs) {
 		my $arg_to = $to;
