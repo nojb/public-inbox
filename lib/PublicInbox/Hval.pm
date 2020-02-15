@@ -16,17 +16,6 @@ my $enc_ascii = find_encoding('us-ascii');
 # safe-ish acceptable filename pattern for portability
 our $FN = '[a-zA-Z0-9][a-zA-Z0-9_\-\.]+[a-zA-Z0-9]'; # needs \z anchor
 
-sub new {
-	my ($class, $raw, $href) = @_;
-
-	# we never care about trailing whitespace
-	$raw =~ s/\s*\z//;
-	bless {
-		raw => $raw,
-		href => defined $href ? $href : $raw,
-	}, $class;
-}
-
 sub mid_href { ascii_html(mid_escape($_[0])) }
 
 # some of these overrides are standard C escapes so they're
@@ -69,16 +58,6 @@ sub ascii_html {
 	$s =~ s/\r\n/\n/sg; # fixup bad line endings
 	$s =~ s/([<>&'"\x7f\x00-\x1f])/$xhtml_map{$1}/sge;
 	$enc_ascii->encode($s, Encode::HTMLCREF);
-}
-
-sub as_html { ascii_html($_[0]->{raw}) }
-
-sub raw {
-	if (defined $_[1]) {
-		$_[0]->{raw} = $_[1];
-	} else {
-		$_[0]->{raw};
-	}
 }
 
 # returns a protocol-relative URL string

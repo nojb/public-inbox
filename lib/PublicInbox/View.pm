@@ -630,10 +630,9 @@ sub _msg_page_prepare_obuf {
 	}
 	my @title; # (Subject[0], From[0])
 	for my $v ($hdr->header('From')) {
-		$v = PublicInbox::Hval->new($v);
-		my @n = PublicInbox::Address::names($v->raw);
+		my @n = PublicInbox::Address::names($v);
+		$v = ascii_html($v);
 		$title[1] //= ascii_html(join(', ', @n));
-		$v = $v->as_html;
 		if ($obfs_ibx) {
 			obfuscate_addrs($obfs_ibx, $v);
 			obfuscate_addrs($obfs_ibx, $title[1]);
