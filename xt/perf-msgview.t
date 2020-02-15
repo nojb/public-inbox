@@ -37,13 +37,14 @@ my $n = 0;
 my $t = timeit(1, sub {
 	my $obuf = '';
 	$ctx->{obuf} = \$obuf;
+	$ctx->{mhref} = '../';
 	while (<$fh>) {
 		($cmt, $type) = split / /;
 		next if $type ne 'blob';
 		++$n;
 		$str = $git->cat_file($cmt);
 		$mime = PublicInbox::MIME->new($str);
-		PublicInbox::View::multipart_text_as_html($mime, '../', $ctx);
+		PublicInbox::View::multipart_text_as_html($mime, $ctx);
 		$obuf = '';
 	}
 });

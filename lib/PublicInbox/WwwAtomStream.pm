@@ -142,7 +142,8 @@ sub feed_entry {
 		qq{<div\nxmlns="http://www.w3.org/1999/xhtml">} .
 		qq(<pre\nstyle="white-space:pre-wrap">);
 	$ctx->{obuf} = \$s;
-	PublicInbox::View::multipart_text_as_html($mime, $href, $ctx);
+	$ctx->{mhref} = $href;
+	PublicInbox::View::multipart_text_as_html($mime, $ctx);
 	delete $ctx->{obuf};
 	$s .= '</pre></div></content></entry>';
 }

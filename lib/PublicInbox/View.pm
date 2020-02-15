@@ -29,8 +29,9 @@ sub msg_page_i {
 	my $more = $ctx->{more};
 	if ($nr == 1) {
 		# $more cannot be true w/o $smsg being defined:
-		my $upfx = $more ? '../'.mid_escape($ctx->{smsg}->mid).'/' : '';
-		multipart_text_as_html(delete $ctx->{mime}, $upfx, $ctx);
+		$ctx->{mhref} = $more ? '../'.mid_escape($ctx->{smsg}->mid).'/'
+				      : '';
+		multipart_text_as_html(delete $ctx->{mime}, $ctx);
 		${delete $ctx->{obuf}} .= '</pre><hr>';
 	} elsif ($more) {
 		++$ctx->{end_nr};
@@ -83,10 +84,10 @@ sub msg_page_more {
 	my $next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	$ctx->{more} = $next ? [ $id, $prev, $next ] : undef;
 	return '' unless $smsg;
-	my $upfx = '../' . mid_escape($smsg->mid) . '/';
+	$ctx->{mhref} = '../' . mid_escape($smsg->mid) . '/';
 	my $mime = delete $smsg->{mime};
 	_msg_page_prepare_obuf($mime->header_obj, $ctx, $nr);
-	multipart_text_as_html($mime, $upfx, $ctx);
+	multipart_text_as_html($mime, $ctx);
 	${delete $ctx->{obuf}} .= '</pre><hr>';
 }
 
@@ -486,11 +487,10 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 }
 
 sub multipart_text_as_html {
-	my (undef, $mhref, $ctx) = @_; # $mime = $_[0]
-	$ctx->{mhref} = $mhref;
+	# ($mime, $ctx) = @_; # msg_iter will do "$_[0] = undef"
 
 	# scan through all parts, looking for displayable text
-	msg_iter($_[0], \&add_text_body, $ctx, 1);
+	msg_iter($_[0], \&add_text_body, $_[1], 1);
 }
 
 sub flush_quote {
