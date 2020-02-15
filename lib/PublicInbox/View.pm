@@ -1087,13 +1087,13 @@ sub dump_topics {
 
 	# sort by recency, this allows new posts to "bump" old topics...
 	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
-		my ($ds, $n, $seen, $top, @ex) = @$topic;
+		my ($ds, $n, $seen, $top_subj, @ex) = @$topic;
 		@$topic = ();
-		next unless defined $top;  # ghost topic
-		my $mid = delete $seen->{$top};
+		next unless defined $top_subj;  # ghost topic
+		my $mid = delete $seen->{$top_subj};
 		my $href = mid_escape($mid);
-		my $prev_subj = [ split(/ /, $top) ];
-		$top = PublicInbox::Hval->new($top)->as_html;
+		my $prev_subj = [ split(/ /, $top_subj) ];
+		$top_subj = PublicInbox::Hval->new($top_subj)->as_html;
 		$ds = fmt_ts($ds);
 
 		# $n isn't the total number of posts on the topic,
@@ -1109,7 +1109,7 @@ sub dump_topics {
 
 		my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
 		my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
-		my $s = "<a\nhref=\"$href/T/$anchor\">$top</a>\n" .
+		my $s = "<a\nhref=\"$href/T/$anchor\">$top_subj</a>\n" .
 			" $ds UTC $n - $mbox / $atom\n";
 		for (my $i = 0; $i < scalar(@ex); $i += 2) {
 			my $level = $ex[$i];
