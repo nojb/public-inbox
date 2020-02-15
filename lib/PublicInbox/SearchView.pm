@@ -108,14 +108,14 @@ sub mset_summary {
 			};
 			next;
 		}
-		my $s = ascii_html($smsg->subject);
-		my $f = ascii_html($smsg->from_name);
+		my $s = ascii_html($smsg->{subject});
+		my $f = ascii_html($smsg->{from_name});
 		if ($obfs_ibx) {
 			obfuscate_addrs($obfs_ibx, $s);
 			obfuscate_addrs($obfs_ibx, $f);
 		}
-		my $date = PublicInbox::View::fmt_ts($smsg->ds);
-		my $mid = PublicInbox::Hval->new_msgid($smsg->mid)->{href};
+		my $date = PublicInbox::View::fmt_ts($smsg->{ds});
+		my $mid = PublicInbox::Hval->new_msgid($smsg->{mid})->{href};
 		$s = '(no subject)' if $s eq '';
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s . "</a></b>\n";

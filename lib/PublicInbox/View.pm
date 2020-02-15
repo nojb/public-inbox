@@ -84,7 +84,7 @@ sub msg_page_more {
 	my $next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	$ctx->{more} = $next ? [ $id, $prev, $next ] : undef;
 	return '' unless $smsg;
-	$ctx->{mhref} = '../' . mid_escape($smsg->mid) . '/';
+	$ctx->{mhref} = '../' . mid_escape($smsg->{mid}) . '/';
 	my $mime = delete $smsg->{mime};
 	_msg_page_prepare_obuf($mime->header_obj, $ctx, $nr);
 	multipart_text_as_html($mime, $ctx);
@@ -423,7 +423,7 @@ sub stream_thread ($$) {
 	return missing_thread($ctx) unless $smsg;
 
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	$ctx->{-title_html} = ascii_html($smsg->subject);
+	$ctx->{-title_html} = ascii_html($smsg->{subject});
 	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $smsg);
 	$ctx->{-queue} = \@q;
 	PublicInbox::WwwStream->response($ctx, 200, \&stream_thread_i);
@@ -469,7 +469,7 @@ sub thread_html {
 		$smsg = $ibx->smsg_mime($m) and last;
 	}
 	return missing_thread($ctx) unless $smsg;
-	$ctx->{-title_html} = ascii_html($smsg->subject);
+	$ctx->{-title_html} = ascii_html($smsg->{subject});
 	$ctx->{-html_tip} = '<pre>'.index_entry($smsg, $ctx, scalar @$msgs);
 	$ctx->{msgs} = $msgs;
 	PublicInbox::WwwStream->response($ctx, 200, \&thread_html_i);
@@ -932,7 +932,7 @@ sub skel_dump { # walk_thread callback
 		$$skel .= delete($ctx->{sl_note}) || '';
 	}
 
-	my $f = ascii_html($smsg->from_name);
+	my $f = ascii_html($smsg->{from_name});
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	obfuscate_addrs($obfs_ibx, $f) if $obfs_ibx;
 
@@ -971,7 +971,7 @@ sub skel_dump { # walk_thread callback
 	# Subject is never undef, this mail was loaded from
 	# our Xapian which would've resulted in '' if it were
 	# really missing (and Filter rejects empty subjects)
-	my @subj = split(/ /, subject_normalized($smsg->subject));
+	my @subj = split(/ /, subject_normalized($smsg->{subject}));
 	# remove common suffixes from the subject if it matches the previous,
 	# so we do not show redundant text at the end.
 	my $prev_subj = $ctx->{prev_subj} || [];
@@ -1029,8 +1029,8 @@ sub _skel_ghost {
 
 sub sort_ds {
 	[ sort {
-		(eval { $a->topmost->{smsg}->ds } || 0) <=>
-		(eval { $b->topmost->{smsg}->ds } || 0)
+		(eval { $a->topmost->{smsg}->{ds} } || 0) <=>
+		(eval { $b->topmost->{smsg}->{ds} } || 0)
 	} @{$_[0]} ];
 }
 
@@ -1041,7 +1041,7 @@ sub acc_topic { # walk_thread callback
 	my $mid = $node->{id};
 	my $smsg = $node->{smsg} // $ctx->{-inbox}->smsg_by_mid($mid);
 	if ($smsg) {
-		my $subj = subject_normalized($smsg->subject);
+		my $subj = subject_normalized($smsg->{subject});
 		$subj = '(no subject)' if $subj eq '';
 		my $ds = $smsg->{ds};
 		if ($level == 0) { # new, top-level topic
