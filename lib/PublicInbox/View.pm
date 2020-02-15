@@ -651,16 +651,15 @@ sub _msg_page_prepare_obuf {
 	}
 	my @subj = $hdr->header('Subject');
 	if (@subj) {
-		for my $v (@subj) {
+		my $v = ascii_html(shift @subj);
+		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
+		$rv .= 'Subject: ';
+		$rv .= $over ? qq(<a\nhref="#r"\nid=t>$v</a>\n) : "$v\n";
+		$title[0] = $v;
+		for $v (@subj) { # multi-Subject message :<
 			$v = ascii_html($v);
 			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-			$rv .= 'Subject: ';
-			if ($over) {
-				$rv .= qq(<a\nhref="#r"\nid=t>$v</a>\n);
-			} else {
-				$rv .= "$v\n";
-			}
-			$title[0] //= $v;
+			$rv .= "Subject: $v\n";
 		}
 	} else { # dummy anchor for thread skeleton at bottom of page
 		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $over;
