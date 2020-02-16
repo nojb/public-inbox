@@ -7,7 +7,7 @@ URL and anchor naming
 /$INBOX/?r=$GIT_COMMIT                 -> HTML only
 /$INBOX/new.atom                       -> Atom feed
 
-#### Optional, relies on Search::Xapian
+#### Optional, relies on Search::Xapian (or Xapian SWIG binding)
 /$INBOX/$MESSAGE_ID/t/                 -> HTML content of thread (nested)
 /$INBOX/$MESSAGE_ID/T/                 -> HTML content of thread (flat)
 	anchors:
@@ -20,6 +20,16 @@ URL and anchor naming
 
 /$INBOX/$MESSAGE_ID/t.atom             -> Atom feed for thread
 /$INBOX/$MESSAGE_ID/t.mbox.gz          -> gzipped mbox of thread
+
+/$INBOX/$GIT_OID/s/                    -> "git show" (via "git apply")
+	This endpoint requires "coderepo" entries configured for
+	a given inbox.  It can recreate ("solve") blobs from
+	patch emails using Xapian and git-apply(1).  It can also
+	display non-blob content, but that remains a
+	work-in-progress.
+
+/$INBOX/$GIT_OID/s/$FILENAME           -> "git show", raw output
+	As above, but shows the raw (usually text/plain) output.
 
 ### Stable endpoints
 /$INBOX/$MESSAGE_ID/                   -> HTML content

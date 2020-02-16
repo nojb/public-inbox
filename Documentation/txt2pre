@@ -46,6 +46,7 @@ for (qw[flock(2) setrlimit(2) vfork(2)]) {
 
 for (qw[git(1)
 	git-am(1)
+	git-apply(1)
 	git-config(1)
 	git-daemon(1)
 	git-fetch(1)
