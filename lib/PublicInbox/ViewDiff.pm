@@ -106,17 +106,18 @@ sub diff_header ($$$$) {
 	my (undef, undef, $pa, $pb) = splice(@$top, 0, 4); # ignore oid_{a,b}
 	my $spfx = $ctx->{-spfx};
 	my $dctx = { spfx => $spfx };
+
+	# get rid of leading "a/" or "b/" (or whatever --{src,dst}-prefix are)
+	$pa = (split('/', git_unquote($pa), 2))[1] if $pa ne '/dev/null';
+	$pb = (split('/', git_unquote($pb), 2))[1] if $pb ne '/dev/null';
 	if ($pa eq $pb && $pb ne '/dev/null') {
-		$pa = $pb = (split('/', git_unquote($pb), 2))[1];
 		$dctx->{Q} = "?b=".uri_escape_utf8($pb, UNSAFE);
 	} else {
 		my @q;
 		if ($pb ne '/dev/null') {
-			$pb = (split('/', git_unquote($pb), 2))[1];
 			push @q, 'b='.uri_escape_utf8($pb, UNSAFE);
 		}
 		if ($pa ne '/dev/null') {
-			$pa = (split('/', git_unquote($pa), 2))[1];
 			push @q, 'a='.uri_escape_utf8($pa, UNSAFE);
 		}
 		$dctx->{Q} = '?'.join('&amp;', @q);
