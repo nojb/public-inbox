@@ -26,22 +26,14 @@ sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
 sub msg_page_i {
 	my ($nr, $ctx) = @_;
-	my $more = $ctx->{more};
-	if ($nr == 1) {
-		# $more cannot be true w/o $smsg being defined:
-		$ctx->{mhref} = $more ? '../'.mid_href($ctx->{smsg}->{mid}).'/'
-				      : '';
-		multipart_text_as_html(delete $ctx->{mime}, $ctx);
-		${delete $ctx->{obuf}} .= '</pre><hr>';
-	} elsif ($more) {
-		++$ctx->{end_nr};
-		# fake an EOF if {more} retrieval fails fails;
-		eval { msg_page_more($ctx, $nr) };
-	} elsif ($nr == $ctx->{end_nr}) {
+	if (my $more = delete $ctx->{more}) { # unlikely
+		# fake an EOF if $more retrieval fails;
+		eval { msg_page_more($ctx, $nr, @$more) };
+	} elsif (my $hdr = delete $ctx->{hdr}) {
 		# fake an EOF if generating the footer fails;
 		# we want to at least show the message if something
 		# here crashes:
-		eval { html_footer($ctx) };
+		eval { html_footer($ctx, $hdr) };
 	} else {
 		undef
 	}
@@ -53,40 +45,37 @@ sub msg_page {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
-	my ($first);
-	my $smsg;
+	my ($smsg, $first, $next);
 	if (my $over = $ibx->over) {
 		my ($id, $prev);
-		$smsg = $over->next_by_mid($mid, \$id, \$prev);
-		$first = $ibx->msg_by_smsg($smsg) if $smsg;
-		if ($first) {
-			my $next = $over->next_by_mid($mid, \$id, \$prev);
-			$ctx->{more} = [ $id, $prev, $next ] if $next;
-		}
-		return unless $first;
+		$smsg = $over->next_by_mid($mid, \$id, \$prev) or return;
+		$first = $ibx->msg_by_smsg($smsg) or return;
+		$next = $over->next_by_mid($mid, \$id, \$prev);
+		$ctx->{more} = [ $id, $prev, $next ] if $next;
 	} else {
 		$first = $ibx->msg_by_mid($mid) or return;
 	}
-	my $mime = $ctx->{mime} = PublicInbox::MIME->new($first);
+	my $mime = PublicInbox::MIME->new($first);
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	my $hdr = $ctx->{hdr} = $mime->header_obj;
-	_msg_page_prepare_obuf($hdr, $ctx, 0);
-	$ctx->{end_nr} = 2;
+	$ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx, 0);
 	$ctx->{smsg} = $smsg;
+	# $next cannot be true w/o $smsg being defined:
+	$ctx->{mhref} = $next ? '../'.mid_href($smsg->{mid}).'/' : '';
+	multipart_text_as_html($mime, $ctx);
+	$ctx->{-html_tip} = (${delete $ctx->{obuf}} .= '</pre><hr>');
 	PublicInbox::WwwStream->response($ctx, 200, \&msg_page_i);
 }
 
-sub msg_page_more {
-	my ($ctx, $nr) = @_;
-	my ($id, $prev, $smsg) = @{$ctx->{more}};
+sub msg_page_more { # cold
+	my ($ctx, $nr, $id, $prev, $smsg) = @_;
 	my $ibx = $ctx->{-inbox};
-	$smsg = $ibx->smsg_mime($smsg);
 	my $next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
-	$ctx->{more} = $next ? [ $id, $prev, $next ] : undef;
-	return '' unless $smsg;
+	$ctx->{more} = [ $id, $prev, $next ] if $next;
+	$smsg = $ibx->smsg_mime($smsg) or return '';
 	$ctx->{mhref} = '../' . mid_href($smsg->{mid}) . '/';
 	my $mime = delete $smsg->{mime};
-	_msg_page_prepare_obuf($mime->header_obj, $ctx, $nr);
+	$ctx->{obuf} = _msg_page_prepare_obuf($mime->header_obj, $ctx, $nr);
 	multipart_text_as_html($mime, $ctx);
 	${delete $ctx->{obuf}} .= '</pre><hr>';
 }
@@ -686,7 +675,7 @@ sub _msg_page_prepare_obuf {
 	}
 	$rv .= _parent_headers($hdr, $over);
 	$rv .= "\n";
-	$ctx->{obuf} = \$rv;
+	\$rv;
 }
 
 sub SKEL_EXPAND () {
@@ -769,9 +758,8 @@ sub _parent_headers {
 
 # returns a string buffer via ->getline
 sub html_footer {
-	my ($ctx) = @_;
+	my ($ctx, $hdr) = @_;
 	my $ibx = $ctx->{-inbox};
-	my $hdr = delete $ctx->{hdr};
 	my $upfx = '../';
 	my $skel = " <a\nhref=\"$upfx\">index</a>";
 	my $rv = '<pre>';
