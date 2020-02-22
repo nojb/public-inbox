@@ -32,7 +32,7 @@ may be too difficult to upgrade due to resource demands.
 Only depend on Free Software packages which exist in the "main"
 section of Debian "stable" distribution.  That is Debian 9.x
 ("stretch") as of this writing, but "oldstable" (8.x, "jessie")
-remains supported for v1 repositories.
+remains supported for v1 inboxes.
 
 In general, we favor mature and well-tested old things rather than
 the shiny new.

@@ -70,7 +70,7 @@ your mirror to other readers.
 Mirroring mailing lists may be done by any reader
 of a mailing list using L<public-inbox-watch(1)>.
 
-	# This will create a new git repository:
+	# This will create a new v2 inbox:
 	public-inbox-init -V2 NAME INBOX_DIR MY_URL LIST_ADDRESS
 
 Then, see the L<public-inbox-watch(1)> manual for configuring
@@ -109,8 +109,7 @@ See L<public-inbox-httpd(1)> and L<public-inbox-nntpd(1)>
 for more information on using these daemons.
 
 Hosting a public-inbox over HTTP or NNTP will never require
-write access to any files in the git repository, including
-the search indices or article number map database.
+write access to any files in the inbox directory.
 
 Users familiar with PSGI and L<Plack> may also use
 L<PublicInbox::WWW> with the preferred server instead of

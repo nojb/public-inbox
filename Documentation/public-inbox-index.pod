@@ -34,8 +34,8 @@ normal search functionality.
 
 =item --reindex
 
-Forces a search engine re-index of all messages in the
-repository.  This can be used for in-place upgrades while
+Forces a re-index of all messages in the inbox.
+This can be used for in-place upgrades and bugfixes while
 NNTP/HTTP server processes are utilizing the index.  Keep in
 mind this roughly doubles the size of the already-large
 Xapian database.  Running L<public-inbox-compact(1)>
@@ -58,7 +58,7 @@ For v1 (ssoma) repositories described in L<public-inbox-v1-format>.
 All public-inbox-specific files are contained within the
 C<$GIT_DIR/public-inbox/> directory.
 
-v2 repositories are described in L<public-inbox-v2-format>.
+v2 inboxes are described in L<public-inbox-v2-format>.
 
 =head1 ENVIRONMENT
 

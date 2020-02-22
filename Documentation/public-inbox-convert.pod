@@ -20,9 +20,9 @@ once they are satisfied with the conversion.
 
 =item --no-index
 
-Disables Xapian and overview DB indexing on the new repository.
-By default, public-inbox-convert creates a new index in the v2
-repository and indexes all existing messages, a lengthy
+Disables Xapian and overview DB indexing on the new inbox.
+By default, public-inbox-convert creates a new index in the
+v2 inbox and indexes all existing messages, a lengthy
 operation for large inboxes.
 
 =item -j JOBS, --jobs=JOBS

@@ -12,8 +12,7 @@ public-inbox-daemon - common usage for public-inbox network daemons
 This manual describes common options and behavior for
 public-inbox network daemons.  Network daemons for public-inbox
 provide read-only NNTP and HTTP access to public-inboxes.  Write
-access to a public-inbox repository will never be required to
-run these.
+access to a public-inbox will never be required to run these.
 
 These daemons are implemented with a common core using
 non-blocking sockets and optimized for fairness; even with

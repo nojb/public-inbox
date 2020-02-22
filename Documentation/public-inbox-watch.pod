@@ -37,7 +37,7 @@ In ~/.public-inbox/config:
 
 public-inbox-watch allows watching a mailbox (currently only
 Maildir) for the arrival of new messages and automatically
-importing them into a public-inbox (git) repository.
+importing them into public-inbox git repositories and indices.
 public-inbox-watch is useful in situations when a user wishes to
 mirror an existing mailing list, but has no access to run
 L<public-inbox-mda(1)> on a server.  Unlike public-inbox-mda

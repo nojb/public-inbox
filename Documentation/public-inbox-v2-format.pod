@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-public-inbox v2 repository description
+public-inbox v2 format description
 
 =head1 DESCRIPTION
 
@@ -226,7 +226,7 @@ no sense in a public archive.
 =head1 THANKS
 
 Thanks to the Linux Foundation for sponsoring the development
-and testing of the v2 repository format.
+and testing of the v2 format.
 
 =head1 COPYRIGHT
 
