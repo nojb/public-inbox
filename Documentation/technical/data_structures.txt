@@ -1,0 +1,228 @@
+Internal data structures of public-inbox
+
+This is a guide for hackers new to our code base.  Do not
+consider our internal data structures stable for external
+consumers, this document should be updated when internals
+change.  I recommend reading this document from the source tree,
+with the source code easily accessible if you need examples.
+
+This mainly documents in-memory data structures.  If you're
+interested in the stable on-filesystem formats, see the
+public-inbox-config(5), public-inbox-v1-format(5) and
+public-inbox-v2-format(5) manpages.
+
+Common abbreviations when used outside of their packages are
+documented.  `$self' is the common variable name when used
+within their package.
+
+PublicInbox::Config
+-------------------
+
+PublicInbox::Config is the root class which loads a
+public-inbox-config file and instantiates PublicInbox::Inbox,
+PublicInbox::WWW, PublicInbox::NNTPD, and other top-level
+classes.
+
+Outside of tests, this is typically a singleton.
+
+Per-message classes
+-------------------
+
+* PublicInbox::MIME - Email::MIME subclass
+  Common abbreviation: $mime
+  Used by: PublicInbox::WWW, PublicInbox::SearchIdx
+
+  An representation of an entire email, multipart or not.  It's
+  a subclass of Email::MIME to workaround bugs in old
+  Email::MIME versions.  An option to use libgmime or libmailutils
+  may be supported in the future for performance and memory use.
+
+  This can be a memory hog with big messages and giant
+  attachments, so our PublicInbox::WWW interface only keeps
+  one object of this class in memory at-a-time.
+
+  In other words, this is the "meat" of the message, whereas
+  $smsg (below) is just the "skeleton".
+
+  Our PublicInbox::V2Writable class may have two objects of this
+  type in memory at-a-time for deduplication.
+
+* PublicInbox::SearchMsg - small message skeleton
+  Used by: PublicInbox::{NNTP,WWW,SearchIdx}
+  Common abbreviation: $smsg
+
+  Represents headers shown in NNTP overview and PSGI message
+  summaries (thread skeleton).
+
+  This is loaded from either the overview DB (over.sqlite3) or
+  the Xapian DB (docdata.glass), though the Xapian docdata
+  is won't hold NNTP-only fields (Cc:/To:)
+
+  There may be hundreds or thousands of these objects in memory
+  at-a-time, so fields are pruned if unneeded.
+
+* PublicInbox::SearchThread::Msg - container for message threading
+  Common abbreviation: $cont or $node
+  Used by: PublicInbox::WWW
+
+  The container we use for a non-recursive[1] variant of
+  JWZ's algorithm: <https://www.jwz.org/doc/threading.html>.
+  This holds a $smsg and is only used for message threading.
+  This wrapper class may go away in the future and handled
+  directly by PublicInbox::SearchMsg to save memory.
+
+  As with $smsg objects, there may be hundreds or thousands
+  of these objects in memory at-a-time.
+
+  We also do not use a linked-list for storing children as JWZ
+  describes, but instead a Perl hashref for {children} which
+  becomes an arrayref upon sorting.
+
+  [1] https://rt.cpan.org/Ticket/Display.html?id=116727
+
+Per-inbox classes
+-----------------
+
+* PublicInbox::Inbox - represents a single public-inbox
+  Common abbreviation: $ibx
+  Used everywhere
+
+  This represents a "publicinbox" section in the config
+  file, see public-inbox-config(5) for details.
+
+* PublicInbox::Git - represents a single git repository
+  Common abbreviation: $git, $ibx->git
+  Used everywhere.
+
+  Each configured "publicinbox" or "coderepo" has one of these.
+
+* PublicInbox::Msgmap - msgmap.sqlite3 read-write interface
+  Common abbreviation: $mm, $ibx->mm
+  Used everywhere if SQLite is available.
+
+  Each indexed inbox has one of these, see
+  public-inbox-v1-format(5) and public-inbox-v2-format(5)
+  manpages for details.
+
+* PublicInbox::Over - over.sqlite3 read-only interface
+  Common abbreviation: $over, $ibx->over
+  Used everywhere if SQLite is available.
+
+  Each indexed inbox has one of these, see
+  public-inbox-v1-format(5) and public-inbox-v2-format(5)
+  manpages for details.
+
+* PublicInbox::Search - Xapian read-only interface
+  Common abbreviation: $srch, $ibx->search
+  Used everywhere if Search::Xapian (or Xapian.pm) is available.
+
+  Each indexed inbox has one of these, see
+  public-inbox-v1-format(5) and public-inbox-v2-format(5)
+  manpages for details.
+
+PublicInbox::WWW
+----------------
+
+The main PSGI web interface, uses several other packages to
+form our web interface.
+
+PublicInbox::SolverGit
+----------------------
+
+This is instantiated from the $INBOX/$BLOB_OID/s/ WWW endpoint
+and represents the stages and states for "solving" a blob by
+searching for and applying patches.  See the code and comments
+in PublicInbox/SolverGit.pm
+
+PublicInbox::Qspawn
+-------------------
+
+This is instantiated from various WWW endpoints and represents
+the stages and states for running and managing subprocesses
+in a way which won't exceed configured process limits defined
+via "publicinboxlimiter.*" directives in public-inbox-config(5).
+
+ad-hoc structures shared across packages
+----------------------------------------
+
+* $ctx - PublicInbox::WWW app request context
+  This holds the PSGI $env as well as any internal variables
+  used by various modules of PublicInbox::WWW.
+
+  As with the PSGI $env, there is one per-active WWW
+  request+response cycle.  It does not exist for idle HTTP
+  clients.
+
+daemon classes
+--------------
+
+* PublicInbox::NNTP - a NNTP client socket
+  Common abbreviation: $nntp
+  Used by: PublicInbox::DS, public-inbox-nntpd
+
+  Unlike PublicInbox::HTTP, all of the NNTP client logic for
+  serving to NNTP clients is here, including what would be
+  in $ctx on the HTTP or WWW side.
+
+  There may be thousands of these since we support thousands of
+  NNTP clients.
+
+* PublicInbox::HTTP - a HTTP client socket
+  Common abbreviation: $http
+  Used by: PublicInbox::DS, public-inbox-httpd
+
+  Unlike PublicInbox::NNTP, this class no knowledge of any of
+  the email or git-specific parts of public-inbox, only PSGI.
+  However, it supports APIs and behaviors (e.g. streaming large
+  responses) which PublicInbox::WWW may take advantage of.
+
+  There may be thousands of these since we support thousands of
+  HTTP clients.
+
+* PublicInbox::Listener - a SOCK_STREAM listen socket (TCP or Unix)
+  Used by: PublicInbox::DS, public-inbox-httpd, public-inbox-nntpd
+  Common abbreviation: @listeners in PublicInbox::Daemon
+
+  This class calls non-blocking accept(2) or accept4(2) on a
+  listen socket to create new PublicInbox::HTTP and
+  PublicInbox::HTTP instances.
+
+* PublicInbox::HTTPD
+  Common abbreviation: $httpd
+
+  Represents an HTTP daemon which creates PublicInbox::HTTP
+  wrappers around client sockets accepted from
+  PublicInbox::Listener.
+
+  Since the SERVER_NAME and SERVER_PORT PSGI variables needs to be
+  exposed for HTTP/1.0 requests when Host: headers are missing,
+  this is per-Listener socket.
+
+* PublicInbox::HTTPD::Async
+  Common abbreviation: $async
+
+  Used for implementing an asynchronous "push" interface for
+  slow, expensive responses which may require spawning
+  git-httpd-backend(1), git-apply(1) or other commands.
+  This will also be used for dealing with future asynchronous
+  operations such as HTTP reverse proxying and slow storage
+  retrieval operations.
+
+* PublicInbox::NNTPD
+  Common abbreviation: $nntpd
+
+  Represents an NNTP daemon which creates PublicInbox::NNTP
+  wrappers around client sockets accepted from
+  PublicInbox::Listener.
+
+  This is currently a singleton, but it is associated with a
+  given PublicInbox::Config which may be instantiated more than
+  once in the future.
+
+* PublicInbox::ParentPipe
+
+  Per-worker process class to detect shutdown of master process.
+  This is not used if using -W0 to disable worker processes
+  in public-inbox-httpd or public-inbox-nntpd.
+
+  This is a per-worker singleton.
