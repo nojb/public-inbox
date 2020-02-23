@@ -268,7 +268,8 @@ sub load_msgs {
 
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
-	my $msgs = $ctx->{-inbox}->search->retry_reopen(\&load_msgs, $mset);
+	my $ibx = $ctx->{-inbox};
+	my $msgs = $ibx->search->retry_reopen(\&load_msgs, $mset);
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
 		$r ? \&sort_relevance : \&PublicInbox::View::sort_ds,
@@ -285,7 +286,7 @@ sub mset_thread {
 	$ctx->{s_nr} = scalar(@$msgs).'+ results';
 
 	# reduce hash lookups in skel_dump
-	$ctx->{-obfuscate} = $ctx->{-inbox}->{obfuscate};
+	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	PublicInbox::View::walk_thread($rootset, $ctx,
 		\&PublicInbox::View::pre_thread);
 
