@@ -150,8 +150,8 @@ sub diff_header ($$$$) {
 sub diff_before_or_after ($$$) {
 	my ($dst, $ctx, $x) = @_;
 	my $linkify = $ctx->{-linkify};
-	for my $y (split(/(^---\r?\n)/sm, $$x)) {
-		if ($y =~ /\A---\r?\n\z/s) {
+	for my $y (split(/(^---\n)/sm, $$x)) {
+		if ($y =~ /\A---\n\z/s) {
 			$$dst .= "---\n"; # all HTML is "\r\n" => "\n"
 		} elsif ($y =~ /^ [0-9]+ files? changed, /sm) {
 			# ok, looks like a diffstat, go line-by-line:
@@ -167,11 +167,12 @@ sub diff_before_or_after ($$$) {
 	}
 }
 
+# callers must do CRLF => LF conversion before calling this
 sub flush_diff ($$$) {
 	my ($dst, $ctx, $cur) = @_;
-	state $LF = qr!\r?\n!;
-	state $ANY = qr![^\r\n]!;
-	state $FN = qr!(?:"?[^/\n]+/[^\r\n]+|/dev/null)!;
+	state $LF = qr!\n!;
+	state $ANY = qr![^\n]!;
+	state $FN = qr!(?:"?[^/\n]+/[^\n]+|/dev/null)!;
 
 	my @top = split(/(
 		(?:	# begin header stuff, don't capture filenames, here,
