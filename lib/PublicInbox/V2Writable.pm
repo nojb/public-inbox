@@ -381,7 +381,7 @@ sub rewrite_internal ($$;$$$) {
 	}
 	my $over = $self->{over};
 	my $cids = content_ids($old_mime);
-	my $removed;
+	my @removed;
 	my $mids = mids($old_mime->header_obj);
 
 	# We avoid introducing new blobs into git since the raw content
@@ -391,7 +391,7 @@ sub rewrite_internal ($$;$$$) {
 	my $mark;
 
 	foreach my $mid (@$mids) {
-		my %gone; # num => [ smsg, raw ]
+		my %gone; # num => [ smsg, $mime, raw ]
 		my ($id, $prev);
 		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
 			my $msg = get_blob($self, $smsg);
@@ -402,8 +402,7 @@ sub rewrite_internal ($$;$$$) {
 			my $orig = $$msg;
 			my $cur = PublicInbox::MIME->new($msg);
 			if (content_matches($cids, $cur)) {
-				$smsg->{mime} = $cur;
-				$gone{$smsg->{num}} = [ $smsg, \$orig ];
+				$gone{$smsg->{num}} = [ $smsg, $cur, \$orig ];
 			}
 		}
 		my $n = scalar keys %gone;
@@ -413,15 +412,16 @@ sub rewrite_internal ($$;$$$) {
 				join(',', sort keys %gone), "\n";
 		}
 		foreach my $num (keys %gone) {
-			my ($smsg, $orig) = @{$gone{$num}};
-			# $removed should only be set once assuming
+			my ($smsg, $mime, $orig) = @{$gone{$num}};
+			# @removed should only be set once assuming
 			# no bugs in our deduplication code:
-			$removed = $smsg;
+			@removed = (undef, $mime, $smsg);
 			my $oid = $smsg->{blob};
 			if ($replace_map) {
 				$replace_map->{$oid} = $sref;
 			} else {
 				($mark, undef) = $im->remove($orig, $cmt_msg);
+				$removed[0] = $mark;
 			}
 			$orig = undef;
 			if ($need_reindex) { # ->replace
@@ -441,15 +441,18 @@ sub rewrite_internal ($$;$$$) {
 		my $rewrites = _replace_oids($self, $new_mime, $replace_map);
 		return { rewrites => $rewrites, need_reindex => $need_reindex };
 	}
-	$removed;
+	defined($mark) ? @removed : undef;
 }
 
-# public
+# public (see PublicInbox::Import->remove), but note the 3rd element
+# (retval[2]) is not part of the stable API shared with Import->remove
 sub remove {
 	my ($self, $mime, $cmt_msg) = @_;
+	my @ret;
 	$self->{-inbox}->with_umask(sub {
-		rewrite_internal($self, $mime, $cmt_msg);
+		@ret = rewrite_internal($self, $mime, $cmt_msg);
 	});
+	defined($ret[0]) ? @ret : undef;
 }
 
 sub _replace ($$;$$) {
