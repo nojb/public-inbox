@@ -201,11 +201,10 @@ sub v2_num_for {
 		# crap, Message-ID is already known, hope somebody just resent:
 		foreach my $m (@$mids) {
 			# read-only lookup now safe to do after above barrier
-			my $existing = lookup_content($self, $mime, $m);
 			# easy, don't store duplicates
 			# note: do not add more diagnostic info here since
 			# it gets noisy on public-inbox-watch restarts
-			return () if $existing;
+			return () if content_exists($self, $mime, $m);
 		}
 
 		# AltId may pre-populate article numbers (e.g. X-Mail-Count
@@ -824,7 +823,7 @@ sub get_blob ($$) {
 	$ibx->msg_by_smsg($smsg);
 }
 
-sub lookup_content ($$$) {
+sub content_exists ($$$) {
 	my ($self, $mime, $mid) = @_;
 	my $over = $self->{over};
 	my $cids = content_ids($mime);
@@ -836,11 +835,7 @@ sub lookup_content ($$$) {
 			next;
 		}
 		my $cur = PublicInbox::MIME->new($msg);
-		if (content_matches($cids, $cur)) {
-			$smsg->{mime} = $cur;
-			return $smsg;
-		}
-
+		return 1 if content_matches($cids, $cur);
 
 		# XXX DEBUG_DIFF is experimental and may be removed
 		diff($mid, $cur, $mime) if $ENV{DEBUG_DIFF};
