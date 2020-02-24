@@ -164,7 +164,7 @@ sub solve_result {
 
 	# TODO: detect + convert to ensure validity
 	utf8::decode($$blob);
-	my $nl = ($$blob =~ tr/\n/\n/);
+	my $nl = ($$blob =~ s/\r?\n/\n/sg);
 	my $pad = length($nl);
 
 	$l->linkify_1($$blob);

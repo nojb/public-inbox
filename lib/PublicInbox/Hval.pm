@@ -55,7 +55,6 @@ sub src_escape ($) {
 
 sub ascii_html {
 	my ($s) = @_;
-	$s =~ s/\r\n/\n/sg; # fixup bad line endings
 	$s =~ s/([<>&'"\x7f\x00-\x1f])/$xhtml_map{$1}/sge;
 	$enc_ascii->encode($s, Encode::HTMLCREF);
 }

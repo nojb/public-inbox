@@ -109,6 +109,23 @@ EOF
 	like($mime->body_raw, qr/hi =3D bye=/, 'our test used QP correctly');
 	$im->add($mime);
 
+	my $crlf = <<EOF;
+From: Me
+  <me\@example.com>
+To: $addr
+Message-Id: <crlf\@example.com>
+Subject: carriage
+  return
+  in
+  long
+  subject
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+:(
+EOF
+	$crlf =~ s/\n/\r\n/sg;
+	$im->add(Email::MIME->new($crlf));
+
 	$im->done;
 }
 
@@ -118,6 +135,16 @@ test_psgi($app, sub {
 		my $res = $cb->(GET("http://example.com/$u"));
 		is($res->code, 404, "$u is missing");
 	}
+});
+
+test_psgi($app, sub {
+	my ($cb) = @_;
+	my $res = $cb->(GET('http://example.com/test/crlf@example.com/'));
+	is($res->code, 200, 'retrieved CRLF as HTML');
+	unlike($res->content, qr/\r/, 'no CR in HTML');
+	$res = $cb->(GET('http://example.com/test/crlf@example.com/raw'));
+	is($res->code, 200, 'retrieved CRLF raw');
+	like($res->content, qr/\r/, 'CR preserved in raw message');
 });
 
 # redirect with newsgroup
