@@ -9,10 +9,12 @@ my $usage = "usage: $0 NAME EMAIL DIR <MBOX\n";
 my $dry_run;
 my $version = 2;
 my $variant = 'mboxrd';
+my $filter = 'PublicInbox::Filter::Vger';
 my %opts = (
 	'n|dry-run' => \$dry_run,
 	'V|version=i' => \$version,
 	'F|format=s' => \$variant,
+	'filter=s' => \$filter,
 );
 GetOptions(%opts) or die $usage;
 if ($variant ne 'mboxrd' && $variant ne 'mboxo') {
@@ -26,7 +28,7 @@ my $ibx = {
 	name => $name,
 	version => $version,
 	address => [ $email ],
-	filter => 'PublicInbox::Filter::Vger',
+	filter => $filter,
 };
 $ibx = PublicInbox::Inbox->new($ibx);
 unless ($dry_run) {
