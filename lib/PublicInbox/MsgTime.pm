@@ -104,7 +104,8 @@ sub str2date_zone ($) {
 		# off is the time zone offset in seconds from GMT
 		my ($ss,$mm,$hh,$day,$month,$year,$off) =
 					Date::Parse::strptime($date);
-		return undef unless(defined $off);
+		return unless defined($year);
+		$off //= 0;
 
 		# Compute the time zone from offset
 		my $sign = ($off < 0) ? '-' : '+';

@@ -5,6 +5,8 @@ use warnings;
 use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::MsgTime;
+use PublicInbox::TestCommon;
+
 our $received_date = 'Mon, 22 Jan 2007 13:16:24 -0500';
 sub datestamp ($) {
 	my ($date) = @_;
@@ -101,6 +103,11 @@ is_datestamp('Wed, 20 Dec 2006 05:32:58 +0420', [1166577178, '+0420']);
 is_datestamp('Thu, 14 Dec 2006 00:20:24 +0480', [1166036424, '+0520']);
 is_datestamp('Thu, 14 Dec 2006 00:20:24 -0480', [1166074824, '-0520']);
 is_datestamp('Mon, 14 Apr 2014 07:59:01 -0007', [1397462761, '-0007']);
+
+SKIP: {
+	require_mods('Date::Parse', 1);
+	is_datestamp('Sat, 27 Sep 1997 10:02:32', [875354552, '+0000']);
+}
 
 # obsolete formats described in RFC2822
 for (qw(UT GMT Z)) {
