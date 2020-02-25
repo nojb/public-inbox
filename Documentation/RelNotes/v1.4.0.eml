@@ -4,7 +4,11 @@ Subject: [WIP] public-inbox 1.4.0
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
-TBD
+* PublicInbox::WWW:
+  - reduced memory use for single message "permalink" view
+  - remove redundant "a=" parameter in links to solver
+  - escape '&' in hrefs properly
+  - fix optional address obfuscation in search results
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 
