@@ -293,6 +293,10 @@ sub extract_cmt_info ($) {
 		}
 	}
 	if (defined $email) {
+		# Email::Address::XS may leave quoted '<' in addresses,
+		# which git-fast-import doesn't like
+		$email =~ tr/<>//d;
+
 		# quiet down wide character warnings with utf8::encode
 		utf8::encode($email);
 	} else {

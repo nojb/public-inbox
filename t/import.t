@@ -55,6 +55,8 @@ $im->done;
 my @revs = $git->qx(qw(rev-list HEAD));
 is(scalar @revs, 1, 'one revision created');
 
+my $odd = '"=?iso-8859-1?Q?J_K=FCpper?= <usenet"@example.de';
+$mime->header_set('From', $odd);
 $mime->header_set('Message-ID', '<b@example.com>');
 $mime->header_set('Subject', 'msg2');
 like($im->add($mime, sub { $mime }), qr/\A:\d+\z/, 'added 2nd message');
