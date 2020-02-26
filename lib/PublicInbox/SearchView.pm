@@ -366,14 +366,10 @@ sub new {
 }
 
 sub qs_html {
-	my ($self, %over) = @_;
+	my ($self, %override) = @_;
 
-	if (keys %over) {
-		my $tmp = bless { %$self }, ref($self);
-		foreach my $k (keys %over) {
-			$tmp->{$k} = $over{$k};
-		}
-		$self = $tmp;
+	if (scalar(keys(%override))) {
+		$self = bless { (%$self, %override) }, ref($self);
 	}
 
 	my $q = uri_escape($self->{'q'}, MID_ESC);
