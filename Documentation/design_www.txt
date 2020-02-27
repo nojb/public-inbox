@@ -77,6 +77,23 @@ installed to render uncommon characters.
 Plain text (raw message) endpoints display in the original encoding(s)
 of the original email.
 
+Offline friendly
+----------------
+
+The "/t/", "/T/", "t.mbox.gz" endpoints are designed to be
+useful for reading long threads for users with intermittent
+connections or saved for offline viewing.
+
+Date displays are always absolute, not the "X hours ago"
+pattern commonly seen because readers may be reading a
+previously-saved or cached copy.
+
+HTML URLs end with '/' or "$FILENAME.html".  The reason many
+URLs end with the '/' character is so it can trivially be saved
+to a directory via wget or similar tools as "index.html", making
+it easy to mirror all files ending in ".html" using any static
+web server.
+
 Guidelines for using limited HTML
 ---------------------------------
 
