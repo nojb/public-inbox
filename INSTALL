@@ -44,8 +44,8 @@ Beyond that, there is a long list of Perl modules required, starting with:
                                    rpm: perl-URI
                                    (for HTML/Atom generation)
 
-Plack and Date::Parse will be optional when v1.3.0 is released,
-but required for current and older releases:
+Plack and Date::Parse are optional as of public-inbox v1.3.0,
+but required for older releases:
 
 * Plack                            deb: libplack-perl
                                    pkg: p5-Plack
@@ -145,10 +145,10 @@ above, so there is no need to explicitly install them:
 - Filesys::Notify::KQueue          pkg: p5-Filesys-Notify-KQueue
                                    (for public-inbox-watch on FreeBSD)
 
-- IO::Compress::Gzip               deb: perl-modules (or libio-compress-perl)
+- IO::Compress (::Gzip)            deb: perl-modules (or libio-compress-perl)
                                    pkg: perl5
                                    rpm: perl-IO-Compress
-                                   (for gzipped mbox over HTTP)
+                                   (for gzipped mbox over HTTP, v2 format)
 
 Uncommonly needed modules:
 
