@@ -210,7 +210,7 @@ sub spawn ($;$$) {
 	}
 	my $cd = $opts->{'-C'} // ''; # undef => NULL mapping doesn't work?
 	my $pid = pi_fork_exec($redir, $f, $cmd, \@env, $rlim, $cd);
-	die "fork_exec failed: $!\n" unless defined $pid;
+	die "fork_exec failed: $!\n" unless $pid > 0;
 	$pid;
 }
 
