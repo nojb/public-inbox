@@ -7,7 +7,8 @@ if they want to import mail into their personal inboxes.
 
 public-inbox is developed on Debian GNU/Linux systems and will
 never depend on packages outside of the "main" component of
-the "stable" distribution, currently Debian 9.x ("stretch")
+the "stable" distribution, currently Debian 10.x ("buster"),
+but older versions of Debian remain supported.
 
 Most packages are available in other GNU/Linux distributions
 and FreeBSD.
@@ -80,7 +81,7 @@ Numerous optional modules are likely to be useful as well:
                                     not needed as systemd services or
                                     foreground servers)
 
-- Inline::C[7]                     deb: libinline-c-perl
+- Inline::C                        deb: libinline-c-perl
                                    pkg: pkg-Inline-C
                                    (speeds up process spawning on Linux,
                                     see public-inbox-daemon(8))
