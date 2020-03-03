@@ -9,7 +9,7 @@
 package PublicInbox::Git;
 use strict;
 use warnings;
-use POSIX qw(dup2);
+use POSIX ();
 use IO::Handle; # ->autoflush
 use File::Glob qw(bsd_glob GLOB_NOSORT);
 use PublicInbox::Spawn qw(popen_rd);
