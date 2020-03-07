@@ -42,8 +42,8 @@ sub to_doc_data {
 		$self->cc,
 		$oid,
 		$mid0,
-		$self->{bytes} || '',
-		$self->{lines} || ''
+		$self->{bytes} // '',
+		$self->{lines} // ''
 	);
 }
 

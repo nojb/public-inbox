@@ -55,6 +55,11 @@ for my $i (1..9) {
 my $epoch_max = $v2w->{epoch_max};
 ok($epoch_max > 0, "multiple epochs");
 $v2w->done;
+{
+	my $smsg = $ibx->over->get_art(1);
+	like($smsg->{lines}, qr/\A[0-9]+\z/, 'lines is a digit');
+	like($smsg->{bytes}, qr/\A[0-9]+\z/, 'bytes is a digit');
+}
 $ibx->cleanup;
 
 my $sock = tcp_server();
