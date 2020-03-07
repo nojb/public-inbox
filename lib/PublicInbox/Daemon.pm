@@ -602,11 +602,10 @@ sub daemon_loop ($$$$) {
 		WINCH => 'IGNORE',
 		CHLD => \&PublicInbox::DS::enqueue_reap,
 	};
-	my $parent_pipe;
 	if ($worker_processes > 0) {
 		$refresh->(); # preload by default
 		my $fh = master_loop(); # returns if in child process
-		$parent_pipe = PublicInbox::ParentPipe->new($fh, *worker_quit);
+		PublicInbox::ParentPipe->new($fh, \&worker_quit);
 	} else {
 		reopen_logs();
 		$set_user->() if $set_user;
