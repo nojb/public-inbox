@@ -155,6 +155,38 @@ SKIP: {
 }
 
 {
+	my $conn = conn_for($sock, '1.1 Transfer-Encoding bogus');
+	$conn->write("PUT /sha1 HTTP/1.1\r\nTransfer-Encoding: bogus\r\n\r\n");
+	$conn->read(my $buf, 4096);
+	like($buf, qr!\AHTTP/1\.[0-9] 400 !, 'got 400 response on bogus TE');
+}
+{
+	my $conn = conn_for($sock, '1.1 Content-Length bogus');
+	$conn->write("PUT /sha1 HTTP/1.1\r\nContent-Length: 3.3\r\n\r\n");
+	$conn->read(my $buf, 4096);
+	like($buf, qr!\AHTTP/1\.[0-9] 400 !, 'got 400 response on bad length');
+}
+
+{
+	my $req = "PUT /sha1 HTTP/1.1\r\nContent-Length: 3\r\n" .
+			"Content-Length: 3\r\n\r\n";
+	# this is stricter than it needs to be.  Due to the way
+	# Plack::HTTPParser, PSGI specs, and how hash tables work in common
+	# languages; it's not possible to tell the difference between folded
+	# and intentionally bad commas (e.g. "Content-Length: 3, 3")
+	if (0) {
+		require Plack::HTTPParser; # XS or pure Perl
+		require Data::Dumper;
+		Plack::HTTPParser::parse_http_request($req, my $env = {});
+		diag Data::Dumper::Dumper($env); # "Content-Length: 3, 3"
+	}
+	my $conn = conn_for($sock, '1.1 Content-Length dupe');
+	$conn->write($req);
+	$conn->read(my $buf, 4096);
+	like($buf, qr!\AHTTP/1\.[0-9] 400 !, 'got 400 response on dupe length');
+}
+
+{
 	my $conn = conn_for($sock, 'chunk with pipeline');
 	my $n = 10;
 	my $payload = 'b'x$n;

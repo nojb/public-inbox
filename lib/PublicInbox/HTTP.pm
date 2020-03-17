@@ -335,19 +335,31 @@ sub input_tmpfile ($) {
 
 sub input_prepare {
 	my ($self, $env) = @_;
-	my $input;
-	my $len = $env->{CONTENT_LENGTH};
-	if ($len) {
-		if ($len > $MAX_REQUEST_BUFFER) {
-			quit($self, 413);
-			return;
-		}
-		$input = input_tmpfile($self);
-	} elsif (env_chunked($env)) {
+	my ($input, $len);
+
+	# rfc 7230 3.3.2, 3.3.3,: favor Transfer-Encoding over Content-Length
+	my $hte = $env->{HTTP_TRANSFER_ENCODING};
+	if (defined $hte) {
+		# rfc7230 3.3.3, point 3 says only chunked is accepted
+		# as the final encoding.  Since neither public-inbox-httpd,
+		# git-http-backend, or our WWW-related code uses "gzip",
+		# "deflate" or "compress" as the Transfer-Encoding, we'll
+		# reject them:
+		return quit($self, 400) if $hte !~ /\Achunked\z/i;
+
 		$len = CHUNK_START;
 		$input = input_tmpfile($self);
 	} else {
-		$input = $null_io;
+		$len = $env->{CONTENT_LENGTH};
+		if (defined $len) {
+			# rfc7230 3.3.3.4
+			return quit($self, 400) if $len !~ /\A[0-9]+\z/;
+
+			return quit($self, 413) if $len > $MAX_REQUEST_BUFFER;
+			$input = $len ? input_tmpfile($self) : $null_io;
+		} else {
+			$input = $null_io;
+		}
 	}
 
 	# TODO: expire idle clients on ENFILE / EMFILE
@@ -358,7 +370,7 @@ sub input_prepare {
 	$self->{input_left} = $len || 0;
 }
 
-sub env_chunked { ($_[0]->{HTTP_TRANSFER_ENCODING} || '') =~ /\bchunked\b/i }
+sub env_chunked { ($_[0]->{HTTP_TRANSFER_ENCODING} // '') =~ /\Achunked\z/i }
 
 sub err ($$) {
 	eval { $_[0]->{httpd}->{env}->{'psgi.errors'}->print($_[1]."\n") };
@@ -451,6 +463,7 @@ sub quit {
 	my $h = "HTTP/1.1 $status " . status_message($status) . "\r\n\r\n";
 	$self->write(\$h);
 	$self->close;
+	undef; # input_prepare expects this
 }
 
 sub close {
