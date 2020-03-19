@@ -19,7 +19,6 @@ use PublicInbox::Config;
 use PublicInbox::Hval;
 use URI::Escape qw(uri_unescape);
 use PublicInbox::MID qw(mid_escape);
-require PublicInbox::Git;
 use PublicInbox::GitHTTPBackend;
 use PublicInbox::UserContent;
 use PublicInbox::WwwStatic qw(r path_info_raw);
@@ -136,18 +135,21 @@ sub call {
 # for CoW-friendliness, MOOOOO!
 sub preload {
 	my ($self) = @_;
+	require PublicInbox::ExtMsg;
 	require PublicInbox::Feed;
 	require PublicInbox::View;
 	require PublicInbox::SearchThread;
 	require PublicInbox::MIME;
-	require Digest::SHA;
-	require POSIX;
+	require PublicInbox::Mbox;
+	require PublicInbox::ViewVCS;
+	require PublicInbox::WwwText;
+	require PublicInbox::WwwAttach;
 	eval {
 		require PublicInbox::Search;
 		PublicInbox::Search::load_xapian();
 	};
 	foreach (qw(PublicInbox::SearchView
-			PublicInbox::Mbox IO::Compress::Gzip
+			PublicInbox::MboxGz
 			PublicInbox::NewsWWW)) {
 		eval "require $_;";
 	}
