@@ -25,7 +25,23 @@ my $ANY = qr![^\n]!;
 my $FN = qr!(?:"?[^/\n]+/[^\n]+|/dev/null)!;
 
 # cf. git diff.c :: get_compact_summary
-my $DIFFSTAT_COMMENT = qr/\((?:new|gone|(?:(?:new|mode) [\+\-][lx]))\)/;
+my $DIFFSTAT_COMMENT =
+	qr/(?: *\((?:new|gone|(?:(?:new|mode) [\+\-][lx]))\))? *\z/s;
+my $NULL_TO_BLOB = qr/^(index $OID_NULL\.\.)($OID_BLOB)\b/ms;
+my $BLOB_TO_NULL = qr/^index ($OID_BLOB)(\.\.$OID_NULL)\b/ms;
+my $BLOB_TO_BLOB = qr/^index ($OID_BLOB)\.\.($OID_BLOB)/ms;
+my $EXTRACT_DIFFS = qr/(
+		(?:	# begin header stuff, don't capture filenames, here,
+			# but instead wait for the --- and +++ lines.
+			(?:^diff\x20--git\x20$FN\x20$FN$LF)
+
+			# old mode || new mode || copy|rename|deleted|...
+			(?:^[a-z]$ANY+$LF)*
+		)? # end of optional stuff, everything below is required
+		^index\x20($OID_BLOB)\.\.($OID_BLOB)$ANY*$LF
+		^---\x20($FN)$LF
+		^\+{3}\x20($FN)$LF)/msx;
+my $IS_OID = qr/\A$OID_BLOB\z/s;
 
 # link to line numbers in blobs
 sub diff_hunk ($$$$) {
@@ -62,7 +78,7 @@ sub anchor0 ($$$$) {
 	# So only do best-effort handling of renames for common cases;
 	# which works well in practice. If projects put "=>", or trailing
 	# spaces in filenames, oh well :P
-	$fn =~ s/(?: *$DIFFSTAT_COMMENT)? *\z//so;
+	$fn =~ s/$DIFFSTAT_COMMENT//;
 	$fn =~ s/{(?:.+) => (.+)}/$1/ or $fn =~ s/.* => (.+)/$1/;
 	$fn = git_unquote($fn);
 
@@ -132,18 +148,17 @@ sub diff_header ($$$$) {
 
 	# no need to capture oid_a and oid_b on add/delete,
 	# we just linkify OIDs directly via s///e in conditional
-	if (($$x =~ s/^(index $OID_NULL\.\.)($OID_BLOB)\b/
-			$1 . oid($dctx, $spfx, $2)/emos) ||
-		($$x =~ s/^index ($OID_BLOB)(\.\.$OID_NULL)\b/
-			'index ' . oid($dctx, $spfx, $1) . $2/emos)) {
-	} elsif ($$x =~ /^index ($OID_BLOB)\.\.($OID_BLOB)/mos) {
+	if (($$x =~ s/$NULL_TO_BLOB/$1 . oid($dctx, $spfx, $2)/e) ||
+		($$x =~ s/$BLOB_TO_NULL/
+			'index ' . oid($dctx, $spfx, $1) . $2/e)) {
+	} elsif ($$x =~ $BLOB_TO_BLOB) {
 		# modification-only, not add/delete:
 		# linkify hunk headers later using oid_a and oid_b
 		@$dctx{qw(oid_a oid_b)} = ($1, $2);
 	} else {
 		warn "BUG? <$$x> had no ^index line";
 	}
-	$$x =~ s!^diff --git!anchor1($ctx, $pb) // 'diff --git'!emos;
+	$$x =~ s!^diff --git!anchor1($ctx, $pb) // 'diff --git'!ems;
 	$$dst .= qq(<span\nclass="head">);
 	$$dst .= $$x;
 	$$dst .= '</span>';
@@ -174,17 +189,7 @@ sub diff_before_or_after ($$$) {
 sub flush_diff ($$$) {
 	my ($dst, $ctx, $cur) = @_;
 
-	my @top = split(/(
-		(?:	# begin header stuff, don't capture filenames, here,
-			# but instead wait for the --- and +++ lines.
-			(?:^diff\x20--git\x20$FN\x20$FN$LF)
-
-			# old mode || new mode || copy|rename|deleted|...
-			(?:^[a-z]$ANY+$LF)*
-		)? # end of optional stuff, everything below is required
-		^index\x20($OID_BLOB)\.\.($OID_BLOB)$ANY*$LF
-		^---\x20($FN)$LF
-		^\+{3}\x20($FN)$LF)/smxo, $$cur);
+	my @top = split($EXTRACT_DIFFS, $$cur);
 	$$cur = undef;
 
 	my $linkify = $ctx->{-linkify};
@@ -192,8 +197,8 @@ sub flush_diff ($$$) {
 
 	while (defined(my $x = shift @top)) {
 		if (scalar(@top) >= 4 &&
-				$top[1] =~ /\A$OID_BLOB\z/os &&
-				$top[0] =~ /\A$OID_BLOB\z/os) {
+				$top[1] =~ $IS_OID &&
+				$top[0] =~ $IS_OID) {
 			$dctx = diff_header($dst, \$x, $ctx, \@top);
 		} elsif ($dctx) {
 			my $after = '';
