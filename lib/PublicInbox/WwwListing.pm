@@ -10,11 +10,19 @@ use PublicInbox::Hval qw(ascii_html prurl);
 use PublicInbox::Linkify;
 use PublicInbox::View;
 use PublicInbox::Inbox;
-use bytes ();
+use bytes (); # bytes::length
 use HTTP::Date qw(time2str);
 use Digest::SHA ();
 use File::Spec ();
 *try_cat = \&PublicInbox::Inbox::try_cat;
+our $json;
+if (eval { require IO::Compress::Gzip }) {
+	for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
+		eval "require $mod" or next;
+		# ->ascii encodes non-ASCII to "\uXXXX"
+		$json = $mod->new->ascii(1);
+	}
+}
 
 sub list_all_i {
 	my ($ibx, $arg) = @_;
@@ -121,16 +129,6 @@ sub html ($$) {
 	[ $code, $h, [ $out ] ];
 }
 
-my $json;
-sub _json () {
-	for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
-		eval "require $mod" or next;
-		# ->ascii encodes non-ASCII to "\uXXXX"
-		return $mod->new->ascii(1);
-	}
-	die;
-}
-
 sub fingerprint ($) {
 	my ($git) = @_;
 	# TODO: convert to qspawn for fairness when there's
@@ -201,7 +199,8 @@ sub manifest_add ($$;$$) {
 # manifest.js.gz
 sub js ($$) {
 	my ($env, $list) = @_;
-	eval { require IO::Compress::Gzip } or return [ 404, [], [] ];
+	# $json won't be defined if IO::Compress::Gzip is missing
+	$json or return [ 404, [], [] ];
 
 	my $manifest = { -abs2urlpath => {}, -mtime => 0 };
 	for my $ibx (@$list) {
@@ -221,8 +220,7 @@ sub js ($$) {
 		$repo->{reference} = $abs2urlpath->{$abs};
 	}
 	my $out;
-	IO::Compress::Gzip::gzip(\(($json ||= _json())->encode($manifest)) =>
-				 \$out);
+	IO::Compress::Gzip::gzip(\($json->encode($manifest)) => \$out);
 	$manifest = undef;
 	[ 200, [ qw(Content-Type application/gzip),
 		 'Last-Modified', time2str($mtime),

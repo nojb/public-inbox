@@ -9,8 +9,8 @@ use PublicInbox::TestCommon;
 require_mods(qw(URI::Escape Plack::Builder Digest::SHA
 		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny));
 require PublicInbox::WwwListing;
-my $json = eval { PublicInbox::WwwListing::_json() };
-plan skip_all => "JSON module missing: $@" if $@;
+my $json = $PublicInbox::WwwListing::json or
+	plan skip_all => "JSON module missing";
 
 use_ok 'PublicInbox::Git';
 
