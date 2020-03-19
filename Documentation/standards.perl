@@ -39,7 +39,9 @@ my $rfcs = [
 	2616 => 'HTTP/1.1 (newer updates should apply, too)',
 	7230 => 'HTTP/1.1 message syntax and routing',
 	7231 => 'HTTP/1.1 semantics and content',
-	2822 => 'Internet message format',
+	822 => 'Internet message format (1982)',
+	2822 => 'Internet message format (2001)',
+	5322 => 'Internet message format (2008)',
 	# TODO: flesh this out
 
 ];
