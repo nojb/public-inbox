@@ -20,6 +20,9 @@ sub UNSAFE () { "^A-Za-z0-9\-\._~/" }
 
 my $OID_NULL = '0{7,40}';
 my $OID_BLOB = '[a-f0-9]{7,40}';
+my $LF = qr!\n!;
+my $ANY = qr![^\n]!;
+my $FN = qr!(?:"?[^/\n]+/[^\n]+|/dev/null)!;
 
 # cf. git diff.c :: get_compact_summary
 my $DIFFSTAT_COMMENT = qr/\((?:new|gone|(?:(?:new|mode) [\+\-][lx]))\)/;
@@ -170,9 +173,6 @@ sub diff_before_or_after ($$$) {
 # callers must do CRLF => LF conversion before calling this
 sub flush_diff ($$$) {
 	my ($dst, $ctx, $cur) = @_;
-	state $LF = qr!\n!;
-	state $ANY = qr![^\n]!;
-	state $FN = qr!(?:"?[^/\n]+/[^\n]+|/dev/null)!;
 
 	my @top = split(/(
 		(?:	# begin header stuff, don't capture filenames, here,

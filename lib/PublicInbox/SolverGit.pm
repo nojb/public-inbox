@@ -34,6 +34,12 @@ my $OID_MIN = 7;
 # work fairly.  Other PSGI servers may have trouble, though.
 my $MAX_PATCH = 9999;
 
+my $LF = qr!\r?\n!;
+my $ANY = qr![^\r\n]+!;
+my $MODE = '100644|120000|100755';
+my $FN = qr!(?:("?[^/\n]+/[^\r\n]+)|/dev/null)!;
+my %BAD_COMPONENT = ('' => 1, '.' => 1, '..' => 1);
+
 # di = diff info / a hashref with information about a diff ($di):
 # {
 #	oid_a => abbreviated pre-image oid,
@@ -110,10 +116,6 @@ sub extract_diff ($$) {
 		$s =~ s/\r\n/\n/sg;
 	}
 
-	state $LF = qr!\r?\n!;
-	state $ANY = qr![^\r\n]+!;
-	state $MODE = '100644|120000|100755';
-	state $FN = qr!(?:("?[^/\n]+/[^\r\n]+)|/dev/null)!;
 
 	$s =~ m!( # $1 start header lines we save for debugging:
 
@@ -174,8 +176,7 @@ sub extract_diff ($$) {
 
 	# get rid of path-traversal attempts and junk patches:
 	# it's junk at best, an attack attempt at worse:
-	state $bad_component = { map { $_ => 1 } ('', '.', '..') };
-	foreach (@a, @b) { return if $bad_component->{$_} }
+	foreach (@a, @b) { return if $BAD_COMPONENT{$_} }
 
 	$di->{path_a} = join('/', @a) if @a;
 	$di->{path_b} = join('/', @b);
