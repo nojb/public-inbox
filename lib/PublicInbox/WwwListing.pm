@@ -12,8 +12,8 @@ use PublicInbox::View;
 use PublicInbox::Inbox;
 use bytes ();
 use HTTP::Date qw(time2str);
-require Digest::SHA;
-require File::Spec;
+use Digest::SHA ();
+use File::Spec ();
 *try_cat = \&PublicInbox::Inbox::try_cat;
 
 sub list_all_i {
