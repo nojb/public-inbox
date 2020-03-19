@@ -3,8 +3,13 @@
 # License: GPL-3.0+ <https://www.gnu.org/licenses/gpl-3.0.txt>
 # Note: this is part of our test suite, update t/plack.t if this changes
 # Usage: plackup [OPTIONS] /path/to/this/file
+#
 # A startup command for development which monitors changes:
 #	plackup -I lib -o 127.0.0.1 -R lib -r examples/public-inbox.psgi
+#
+# .psgi paths may also be passed to public-inbox-httpd(1) for
+# production deployments:
+#	public-inbox-httpd [OPTIONS] /path/to/examples/public-inbox.psgi
 use strict;
 use warnings;
 use PublicInbox::WWW;

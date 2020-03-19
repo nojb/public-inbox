@@ -8,8 +8,11 @@
 # inbox.  NewsWWW exists because people (or software) can mishandle
 # "nntp://" or "news://" URLs as "http://" (or "https://")
 #
-# Usage:
+# Usage (development, with auto-reload):
 #	plackup -I lib -o 127.0.0.1 -R lib -r examples/newswww.psgi
+#
+# Usage (production, with public-inbox-httpd(1)):
+#	public-inbox-httpd [OPTIONS] /path/to/examples/newsww.psgi
 use strict;
 use warnings;
 use Plack::Builder;
