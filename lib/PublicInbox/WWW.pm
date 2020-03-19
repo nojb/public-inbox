@@ -132,7 +132,9 @@ sub call {
 	}
 }
 
-# for CoW-friendliness, MOOOOO!
+# for CoW-friendliness, MOOOOO!  Even for single-process setups,
+# we want to get all immortal allocations done early to avoid heap
+# fragmentation since common allocators favor a large contiguous heap.
 sub preload {
 	my ($self) = @_;
 	require PublicInbox::ExtMsg;
@@ -148,16 +150,27 @@ sub preload {
 		require PublicInbox::Search;
 		PublicInbox::Search::load_xapian();
 	};
-	foreach (qw(PublicInbox::SearchView
-			PublicInbox::MboxGz
-			PublicInbox::NewsWWW)) {
+	foreach (qw(PublicInbox::SearchView PublicInbox::MboxGz)) {
 		eval "require $_;";
 	}
 	if (ref($self)) {
+		my $pi_config = $self->{pi_config};
+		if (defined($pi_config->{'publicinbox.cgitrc'})) {
+			$pi_config->limiter('-cgit');
+		}
 		$self->cgit;
 		$self->stylesheets_prepare($_) for ('', '../', '../../');
 		$self->www_listing;
+		$self->news_www;
+		$pi_config->each_inbox(\&preload_inbox);
 	}
+}
+
+sub preload_inbox {
+	my $ibx = shift;
+	$ibx->cloneurl;
+	$ibx->description;
+	$ibx->base_url;
 }
 
 # private functions below

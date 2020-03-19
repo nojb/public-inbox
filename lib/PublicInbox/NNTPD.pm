@@ -45,6 +45,10 @@ sub refresh_groups () {
 			# Only valid if msgmap and search works
 			$new->{$ngname} = $ng;
 			push @list, $ng;
+
+			# preload to avoid fragmentation:
+			$ng->description;
+			$ng->base_url;
 		}
 	});
 	@list =	sort { $a->{newsgroup} cmp $b->{newsgroup} } @list;
