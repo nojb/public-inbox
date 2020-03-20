@@ -24,7 +24,7 @@ sub make_objs {
 			'References' => $msg->{references},
 		]);
 		push @simples, $simple;
-		bless $msg, 'PublicInbox::SearchMsg'
+		bless $msg, 'PublicInbox::Smsg'
 	} @_;
 	(\@simples, \@msgs);
 }

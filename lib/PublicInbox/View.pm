@@ -18,7 +18,7 @@ use PublicInbox::Reply;
 use PublicInbox::ViewDiff qw(flush_diff);
 use POSIX qw(strftime);
 use Time::Local qw(timegm);
-use PublicInbox::SearchMsg qw(subject_normalized);
+use PublicInbox::Smsg qw(subject_normalized);
 use constant COLS => 72;
 use constant INDENT => '  ';
 use constant TCHILD => '` ';

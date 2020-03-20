@@ -47,7 +47,7 @@ Per-message classes
   Our PublicInbox::V2Writable class may have two objects of this
   type in memory at-a-time for deduplication.
 
-* PublicInbox::SearchMsg - small message skeleton
+* PublicInbox::Smsg - small message skeleton
   Used by: PublicInbox::{NNTP,WWW,SearchIdx}
   Common abbreviation: $smsg
 
@@ -69,7 +69,7 @@ Per-message classes
   JWZ's algorithm: <https://www.jwz.org/doc/threading.html>.
   This holds a $smsg and is only used for message threading.
   This wrapper class may go away in the future and handled
-  directly by PublicInbox::SearchMsg to save memory.
+  directly by PublicInbox::Smsg to save memory.
 
   As with $smsg objects, there may be hundreds or thousands
   of these objects in memory at-a-time.

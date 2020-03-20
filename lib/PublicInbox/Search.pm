@@ -12,7 +12,7 @@ use constant TS => 0;  # Received: header in Unix time
 use constant YYYYMMDD => 1; # Date: header for searching in the WWW UI
 use constant DT => 2; # Date: YYYYMMDDHHMMSS
 
-use PublicInbox::SearchMsg;
+use PublicInbox::Smsg;
 use PublicInbox::Over;
 my $QP_FLAGS;
 our %X = map { $_ => 0 } qw(BoolWeight Database Enquire
@@ -36,8 +36,8 @@ sub load_xapian () {
 		$ENQ_ASCENDING = $x eq 'Xapian' ?
 				1 : Search::Xapian::ENQ_ASCENDING();
 
-		# for SearchMsg:
-		*PublicInbox::SearchMsg::sortable_unserialise =
+		# for Smsg:
+		*PublicInbox::Smsg::sortable_unserialise =
 						$Xap.'::sortable_unserialise';
 		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
 		# website as it could become a denial-of-service vector
@@ -279,7 +279,7 @@ sub _enquire_once { # retry_reopen callback
 	my $limit = $opts->{limit} || 50;
 	my $mset = $enquire->get_mset($offset, $limit);
 	return $mset if $opts->{mset};
-	my @msgs = map { PublicInbox::SearchMsg::from_mitem($_) } $mset->items;
+	my @msgs = map { PublicInbox::Smsg::from_mitem($_) } $mset->items;
 	return \@msgs unless wantarray;
 
 	($mset->get_matches_estimated, \@msgs)

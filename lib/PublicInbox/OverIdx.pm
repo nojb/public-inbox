@@ -14,7 +14,7 @@ use base qw(PublicInbox::Over);
 use IO::Handle;
 use DBI qw(:sql_types); # SQL_BLOB
 use PublicInbox::MID qw/id_compress mids_for_index references/;
-use PublicInbox::SearchMsg qw(subject_normalized);
+use PublicInbox::Smsg qw(subject_normalized);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use Compress::Zlib qw(compress);
 use PublicInbox::Search;
@@ -255,7 +255,7 @@ sub add_overview {
 		bytes => $bytes,
 		lines => $lines,
 		blob => $oid,
-	}, 'PublicInbox::SearchMsg';
+	}, 'PublicInbox::Smsg';
 	my $hdr = $mime->header_obj;
 	my $mids = mids_for_index($hdr);
 	my $refs = parse_references($smsg, $mid0, $mids);

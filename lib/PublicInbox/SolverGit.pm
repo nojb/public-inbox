@@ -48,7 +48,7 @@ my %BAD_COMPONENT = ('' => 1, '.' => 1, '..' => 1);
 #	hdr_lines => string of various header lines for mode information
 #	mode_a => original mode of oid_a (string, not integer),
 #	ibx => PublicInbox::Inbox object containing the diff
-#	smsg => PublicInbox::SearchMsg object containing diff
+#	smsg => PublicInbox::Smsg object containing diff
 #	path_a => pre-image path
 #	path_b => post-image path
 #	n => numeric path of the patch (relative to worktree)

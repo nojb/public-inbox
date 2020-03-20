@@ -145,10 +145,10 @@ lib/PublicInbox/SaPlugin/ListMirror.pod
 lib/PublicInbox/Search.pm
 lib/PublicInbox/SearchIdx.pm
 lib/PublicInbox/SearchIdxShard.pm
-lib/PublicInbox/SearchMsg.pm
 lib/PublicInbox/SearchThread.pm
 lib/PublicInbox/SearchView.pm
 lib/PublicInbox/Sigfd.pm
+lib/PublicInbox/Smsg.pm
 lib/PublicInbox/SolverGit.pm
 lib/PublicInbox/Spamcheck.pm
 lib/PublicInbox/Spamcheck/Spamc.pm

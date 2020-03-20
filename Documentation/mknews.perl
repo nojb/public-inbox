@@ -103,7 +103,7 @@ sub mime2txt {
 
 sub mime2html {
 	my ($out, $mime, $ctx) = @_;
-	my $smsg = bless { mime => $mime }, 'PublicInbox::SearchMsg';
+	my $smsg = bless { mime => $mime }, 'PublicInbox::Smsg';
 	print $out PublicInbox::View::index_entry($smsg, $ctx, 1) or die;
 }
 
@@ -147,7 +147,7 @@ EOF
 
 sub mime2atom  {
 	my ($out, $astream, $mime, $ctx) = @_;
-	my $smsg = bless { mime => $mime }, 'PublicInbox::SearchMsg';
+	my $smsg = bless { mime => $mime }, 'PublicInbox::Smsg';
 	if (defined(my $str = $astream->feed_entry($smsg))) {
 		print $out $str or die;
 	}

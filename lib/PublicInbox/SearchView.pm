@@ -6,7 +6,7 @@ package PublicInbox::SearchView;
 use strict;
 use warnings;
 use URI::Escape qw(uri_unescape uri_escape);
-use PublicInbox::SearchMsg;
+use PublicInbox::Smsg;
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
@@ -100,7 +100,7 @@ sub mset_summary {
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = get_pct($m);
-		my $smsg = PublicInbox::SearchMsg::from_mitem($m, $srch);
+		my $smsg = PublicInbox::Smsg::from_mitem($m, $srch);
 		unless ($smsg) {
 			eval {
 				$m = "$m ".$m->get_docid . " expired\n";
@@ -260,7 +260,7 @@ sub load_msgs {
 	my ($mset) = @_;
 	[ map {
 		my $mi = $_;
-		my $smsg = PublicInbox::SearchMsg::from_mitem($mi);
+		my $smsg = PublicInbox::Smsg::from_mitem($mi);
 		$smsg->{pct} = get_pct($mi);
 		$smsg;
 	} ($mset->items) ]
@@ -338,7 +338,7 @@ sub adump_i {
 	my ($ctx) = @_;
 	while (my $mi = shift @{$ctx->{items}}) {
 		my $smsg = eval {
-			PublicInbox::SearchMsg::from_mitem($mi, $ctx->{srch});
+			PublicInbox::Smsg::from_mitem($mi, $ctx->{srch});
 		} or next;
 		$ctx->{-inbox}->smsg_mime($smsg) and return $smsg;
 	}

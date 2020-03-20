@@ -346,7 +346,7 @@ sub smsg_by_mid ($$) {
 	# favor the Message-ID we used for the NNTP article number:
 	defined(my $num = mid2num($self, $mid)) or return;
 	my $smsg = $over->get_art($num) or return;
-	PublicInbox::SearchMsg::psgi_cull($smsg);
+	PublicInbox::Smsg::psgi_cull($smsg);
 }
 
 sub msg_by_mid ($$;$) {

@@ -10,6 +10,7 @@ use strict;
 use warnings;
 use PublicInbox::Hval qw(ascii_html prurl mid_href);
 use PublicInbox::WwwStream;
+use PublicInbox::Smsg;
 our $MIN_PARTIAL_LEN = 16;
 
 # TODO: user-configurable
@@ -29,7 +30,7 @@ our @EXT_URL = map { ascii_html($_) } (
 sub PARTIAL_MAX () { 100 }
 
 sub mids_from_mset { # Search::retry_reopen callback
-	[ map { PublicInbox::SearchMsg::from_mitem($_)->mid } $_[0]->items ];
+	[ map { PublicInbox::Smsg::from_mitem($_)->mid } $_[0]->items ];
 }
 
 sub search_partial ($$) {

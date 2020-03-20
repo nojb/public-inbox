@@ -8,7 +8,7 @@ use warnings;
 use PublicInbox::MIME;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
-use PublicInbox::SearchMsg; # this loads w/o Search::Xapian
+use PublicInbox::Smsg; # this loads w/o Search::Xapian
 
 sub generate_i {
 	my ($ctx) = @_;
@@ -142,7 +142,7 @@ sub recent_msgs {
 	}
 
 	$ctx->{next_page} = "r=$last_commit" if $last_commit;
-	[ map { bless {blob => $_ }, 'PublicInbox::SearchMsg' } @oids ];
+	[ map { bless {blob => $_ }, 'PublicInbox::Smsg' } @oids ];
 }
 
 1;

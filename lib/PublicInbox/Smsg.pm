@@ -1,11 +1,13 @@
 # Copyright (C) 2015-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-# based on notmuch, but with no concept of folders, files or flags
 #
-# Wraps a document inside our Xapian search index.
-# There may be many of these objects loaded in memory at once
-# for large threads in our WWW UI.
-package PublicInbox::SearchMsg;
+# A small/skeleton/slim representation of a message.
+
+# This used to be "SearchMsg", but we split out overview
+# indexing into over.sqlite3 so it's not just "search".  There
+# may be many of these objects loaded in memory at once for
+# large threads in our WWW UI and the NNTP range responses.
+package PublicInbox::Smsg;
 use strict;
 use warnings;
 use base qw(Exporter);

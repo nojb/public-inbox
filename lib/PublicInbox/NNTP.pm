@@ -714,11 +714,11 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 sub over_header_for {
 	my ($over, $num, $field) = @_;
 	my $smsg = $over->get_art($num) or return;
-	return PublicInbox::SearchMsg::date($smsg) if $field eq 'date';
+	return PublicInbox::Smsg::date($smsg) if $field eq 'date';
 	$smsg->{$field};
 }
 
-sub searchmsg_range_i {
+sub smsg_range_i {
 	my ($self, $beg, $end, $field) = @_;
 	my $over = $self->{ng}->over;
 	my $msgs = $over->query_xover($$beg, $end);
@@ -732,7 +732,7 @@ sub searchmsg_range_i {
 	$$beg = $msgs->[-1]->{num} + 1;
 }
 
-sub hdr_searchmsg ($$$$) {
+sub hdr_smsg ($$$$) {
 	my ($self, $xhdr, $field, $range) = @_;
 	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
 		my ($ng, $n) = mid_lookup($self, $1);
@@ -744,7 +744,7 @@ sub hdr_searchmsg ($$$$) {
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		more($self, $xhdr ? r221 : r225);
-		long_response($self, \&searchmsg_range_i, @$r, $field);
+		long_response($self, \&smsg_range_i, @$r, $field);
 	}
 }
 
@@ -757,9 +757,9 @@ sub do_hdr ($$$;$) {
 		hdr_xref($self, $xhdr, $range);
 	} elsif ($sub =~ /\A(?:subject|references|date|from|to|cc|
 				bytes|lines)\z/x) {
-		hdr_searchmsg($self, $xhdr, $sub, $range);
+		hdr_smsg($self, $xhdr, $sub, $range);
 	} elsif ($sub =~ /\A:(bytes|lines)\z/) {
-		hdr_searchmsg($self, $xhdr, $1, $range);
+		hdr_smsg($self, $xhdr, $1, $range);
 	} else {
 		$xhdr ? (r221 . "\r\n.") : "503 HDR not permitted on $header";
 	}
@@ -831,7 +831,7 @@ sub over_line ($$$$) {
 	my $s = join("\t", $num,
 		$smsg->{subject},
 		$smsg->{from},
-		PublicInbox::SearchMsg::date($smsg),
+		PublicInbox::Smsg::date($smsg),
 		"<$smsg->{mid}>",
 		$smsg->{references},
 		$smsg->{bytes},

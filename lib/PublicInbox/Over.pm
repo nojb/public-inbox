@@ -9,7 +9,7 @@ use strict;
 use warnings;
 use DBI;
 use DBD::SQLite;
-use PublicInbox::SearchMsg;
+use PublicInbox::Smsg;
 use Compress::Zlib qw(uncompress);
 use constant DEFAULT_LIMIT => 1000;
 
@@ -41,14 +41,14 @@ sub connect { $_[0]->{dbh} ||= $_[0]->dbh_new }
 
 sub load_from_row ($;$) {
 	my ($smsg, $cull) = @_;
-	bless $smsg, 'PublicInbox::SearchMsg';
+	bless $smsg, 'PublicInbox::Smsg';
 	if (defined(my $data = delete $smsg->{ddd})) {
 		$data = uncompress($data);
 		utf8::decode($data);
-		PublicInbox::SearchMsg::load_from_data($smsg, $data);
+		PublicInbox::Smsg::load_from_data($smsg, $data);
 
 		# saves over 600K for 1000+ message threads
-		PublicInbox::SearchMsg::psgi_cull($smsg) if $cull;
+		PublicInbox::Smsg::psgi_cull($smsg) if $cull;
 	}
 	$smsg
 }
