@@ -67,20 +67,19 @@ sub shard_worker_loop ($$$$$) {
 			$self->remove_by_oid($oid, $mid);
 		} else {
 			chomp $line;
-			my ($len, $artnum, $oid, $mid0, $autime, $cotime) =
+			my ($bytes, $num, $blob, $mid, $autime, $cotime) =
 							split(/ /, $line);
 			$self->begin_txn_lazy;
-			my $n = read($r, my $msg, $len) or die "read: $!\n";
-			$n == $len or die "short read: $n != $len\n";
+			my $n = read($r, my $msg, $bytes) or die "read: $!\n";
+			$n == $bytes or die "short read: $n != $bytes\n";
 			my $mime = PublicInbox::MIME->new(\$msg);
-			$artnum = int($artnum);
 			$self->{autime} = $autime;
 			$self->{cotime} = $cotime;
 			my $smsg = bless {
-				bytes => $len,
-				num => $artnum,
-				blob => $oid,
-				mid => $mid0,
+				bytes => $bytes,
+				num => $num + 0,
+				blob => $blob,
+				mid => $mid,
 			}, 'PublicInbox::Smsg';
 			$self->add_message($mime, $smsg);
 		}
@@ -90,23 +89,17 @@ sub shard_worker_loop ($$$$$) {
 
 # called by V2Writable
 sub index_raw {
-	my ($self, $bytes, $msgref, $artnum, $oid, $mid0, $mime, $times) = @_;
+	my ($self, $msgref, $mime, $smsg, $times) = @_;
 	my $at = $times->{autime} // time;
 	my $ct = $times->{cotime} // time;
 	if (my $w = $self->{w}) {
-		print $w "$bytes $artnum $oid $mid0 $at $ct\n", $$msgref or
-			die "failed to write shard $!\n";
+		print $w join(' ', @$smsg{qw(bytes num blob mid)}, $at, $ct),
+			"\n", $$msgref or die "failed to write shard $!\n";
 	} else {
 		$$msgref = undef;
 		$self->begin_txn_lazy;
 		$self->{autime} = $at;
 		$self->{cotime} = $ct;
-		my $smsg = bless {
-			bytes => $bytes,
-			num => $artnum,
-			blob => $oid,
-			mid => $mid0,
-		}, 'PublicInbox::Smsg';
 		$self->add_message($mime, $smsg);
 	}
 }

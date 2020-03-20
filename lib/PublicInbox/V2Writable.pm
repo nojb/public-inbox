@@ -148,18 +148,12 @@ sub add {
 }
 
 # indexes a message, returns true if checkpointing is needed
-sub do_idx ($$$$$$$) {
-	my ($self, $msgref, $mime, $len, $num, $oid, $mid0) = @_;
-	my $smsg = bless {
-		bytes => $len,
-		num => $num,
-		blob => $oid,
-		mid => $mid0,
-	}, 'PublicInbox::Smsg';
+sub do_idx ($$$$) {
+	my ($self, $msgref, $mime, $smsg) = @_;
 	$self->{over}->add_overview($mime, $smsg, $self);
-	my $idx = idx_shard($self, $num % $self->{shards});
-	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime, $self);
-	my $n = $self->{transact_bytes} += $len;
+	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
+	$idx->index_raw($msgref, $mime, $smsg, $self);
+	my $n = $self->{transact_bytes} += $smsg->{bytes};
 	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
 }
 
@@ -186,8 +180,10 @@ sub _add {
 	$cmt = $im->get_mark($cmt);
 	$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 
-	my ($oid, $len, $msgref) = @{$im->{last_object}};
-	if (do_idx($self, $msgref, $mime, $len, $num, $oid, $mid0)) {
+	my $msgref;
+	my $smsg = bless { mid => $mid0, num => $num }, 'PublicInbox::Smsg';
+	($smsg->{blob}, $smsg->{bytes}, $msgref) = @{$im->{last_object}};
+	if (do_idx($self, $msgref, $mime, $smsg)) {
 		$self->checkpoint;
 	}
 
@@ -557,17 +553,21 @@ W: $list
 	}
 
 	# make sure we really got the OID:
-	my ($oid, $type, $len) = $self->{-inbox}->git->check($expect_oid);
-	$oid eq $expect_oid or die "BUG: $expect_oid not found after replace";
+	my ($blob, $type, $bytes) = $self->{-inbox}->git->check($expect_oid);
+	$blob eq $expect_oid or die "BUG: $expect_oid not found after replace";
 
 	# don't leak FDs to Xapian:
 	$self->{-inbox}->git->cleanup;
 
 	# reindex modified messages:
 	for my $smsg (@$need_reindex) {
-		my $num = $smsg->{num};
-		my $mid0 = $smsg->{mid};
-		do_idx($self, \$raw, $new_mime, $len, $num, $oid, $mid0);
+		my $new_smsg = bless {
+			blob => $blob,
+			bytes => $bytes,
+			num => $smsg->{num},
+			mid => $smsg->{mid},
+		}, 'PublicInbox::Smsg';
+		do_idx($self, \$raw, $new_mime, $new_smsg);
 	}
 	$rewritten->{rewrites};
 }
@@ -955,7 +955,13 @@ sub reindex_oid_m ($$$$;$) {
 		}
 	}
 	$sync->{nr}++;
-	if (do_idx($self, $msgref, $mime, $len, $num, $oid, $mid0)) {
+	my $smsg = bless {
+		bytes => $len,
+		num => $num,
+		blob => $oid,
+		mid => $mid0,
+	}, 'PublicInbox::Smsg';
+	if (do_idx($self, $msgref, $mime, $smsg)) {
 		reindex_checkpoint($self, $sync, $git);
 	}
 }
@@ -1051,7 +1057,13 @@ sub reindex_oid ($$$$) {
 	$sync->{mm_tmp}->mid_delete($mid0) or
 		die "failed to delete <$mid0> for article #$num\n";
 	$sync->{nr}++;
-	if (do_idx($self, $msgref, $mime, $len, $num, $oid, $mid0)) {
+	my $smsg = bless {
+		bytes => $len,
+		num => $num,
+		blob => $oid,
+		mid => $mid0,
+	}, 'PublicInbox::Smsg';
+	if (do_idx($self, $msgref, $mime, $smsg)) {
 		reindex_checkpoint($self, $sync, $git);
 	}
 }
