@@ -20,6 +20,7 @@ use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::SearchIdx;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
+use PublicInbox::MultiMidQueue;
 use IO::Handle; # ->autoflush
 use File::Temp qw(tempfile);
 
@@ -991,15 +992,15 @@ sub multi_mid_q_new () {
 	$multi_mid
 }
 
-sub multi_mid_q_push ($$) {
-	my ($sync, $oid) = @_;
-	my $multi_mid = $sync->{multi_mid} //= multi_mid_q_new();
+sub multi_mid_q_push ($$$) {
+	my ($self, $sync, $oid) = @_;
+	my $multi_mid = $sync->{multi_mid} //= PublicInbox::MultiMidQueue->new;
 	if ($sync->{reindex}) { # no regen on reindex
-		$multi_mid->mid_insert($oid);
+		$multi_mid->push_oid($oid, $self);
 	} else {
 		my $num = $sync->{regen}--;
 		die "BUG: ran out of article numbers" if $num <= 0;
-		$multi_mid->mid_set($num, $oid);
+		$multi_mid->set_oid($num, $oid, $self);
 	}
 }
 
@@ -1051,7 +1052,7 @@ sub reindex_oid ($$$$) {
 			# do not delete from {mm_tmp}, since another
 			# single-MID message may use it.
 		} else { # handle them at the end:
-			multi_mid_q_push($sync, $oid);
+			multi_mid_q_push($self, $sync, $oid);
 		}
 		return;
 	}
@@ -1352,19 +1353,21 @@ sub index_sync {
 	}
 	if (my $multi_mid = delete $sync->{multi_mid}) {
 		$git //= $self->{-inbox}->git;
-		my ($min, $max) = $multi_mid->minmax;
+		my $min = $multi_mid->{min};
+		my $max = $multi_mid->{max};
 		if ($sync->{reindex}) {
 			# we may need to create new Message-IDs if mirrors
 			# were initially indexed with old versions
 			for (my $i = $max; $i >= $min; $i--) {
-				my $oid = $multi_mid->mid_for($i);
+				my $oid;
+				$oid = $multi_mid->get_oid($i, $self) or next;
 				next unless defined $oid;
 				reindex_oid_m($self, $sync, $git, $oid);
 			}
 		} else { # regen on initial index
 			for my $num ($min..$max) {
-				my $oid = $multi_mid->mid_for($num);
-				next unless defined $oid;
+				my $oid;
+				$oid = $multi_mid->get_oid($num, $self) or next;
 				reindex_oid_m($self, $sync, $git, $oid, $num);
 			}
 		}
