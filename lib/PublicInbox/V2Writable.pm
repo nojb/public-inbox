@@ -150,9 +150,9 @@ sub add {
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$$$$) {
 	my ($self, $msgref, $mime, $len, $num, $oid, $mid0) = @_;
-	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0);
+	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0, $self);
 	my $idx = idx_shard($self, $num % $self->{shards});
-	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime);
+	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime, $self);
 	my $n = $self->{transact_bytes} += $len;
 	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
 }
@@ -1266,15 +1266,17 @@ sub index_epoch ($$$) {
 		$pr->("$i.git indexing $range\n");
 	}
 
-	my @cmd = qw(log --raw -r --pretty=tformat:%H
+	my @cmd = qw(log --raw -r --pretty=tformat:%H.%at.%ct
 			--no-notes --no-color --no-abbrev --no-renames);
 	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
 	my $cmt;
 	while (<$fh>) {
 		chomp;
 		$self->{current_info} = "$i.git $_";
-		if (/\A$x40$/o && !defined($cmt)) {
-			$cmt = $_;
+		if (/\A($x40)\.([0-9]+)\.([0-9]+)$/o) {
+			$cmt //= $1;
+			$self->{autime} = $2;
+			$self->{cotime} = $3;
 		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
 			reindex_oid($self, $sync, $git, $1);
 		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {

@@ -167,21 +167,21 @@ sub msg_date_only ($) {
 }
 
 # Favors Received header for sorting globally
-sub msg_timestamp ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+sub msg_timestamp ($;$) {
+	my ($hdr, $fallback) = @_; # Email::MIME::Header
 	my $ret;
 	$ret = msg_received_at($hdr) and return time_response($ret);
 	$ret = msg_date_only($hdr) and return time_response($ret);
-	wantarray ? (time, '+0000') : time;
+	time_response([ $fallback // time, '+0000' ]);
 }
 
 # Favors the Date: header for display and sorting within a thread
-sub msg_datestamp ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+sub msg_datestamp ($;$) {
+	my ($hdr, $fallback) = @_; # Email::MIME::Header
 	my $ret;
 	$ret = msg_date_only($hdr) and return time_response($ret);
 	$ret = msg_received_at($hdr) and return time_response($ret);
-	wantarray ? (time, '+0000') : time;
+	time_response([ $fallback // time, '+0000' ]);
 }
 
 1;

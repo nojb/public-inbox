@@ -242,6 +242,7 @@ t/httpd.t
 t/hval.t
 t/import.t
 t/inbox.t
+t/index-git-times.t
 t/indexlevels-mirror-v1.t
 t/indexlevels-mirror.t
 t/init.t

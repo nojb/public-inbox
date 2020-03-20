@@ -15,6 +15,7 @@ use IO::Handle;
 use DBI qw(:sql_types); # SQL_BLOB
 use PublicInbox::MID qw/id_compress mids_for_index references/;
 use PublicInbox::SearchMsg qw(subject_normalized);
+use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use Compress::Zlib qw(compress);
 use PublicInbox::Search;
 
@@ -246,7 +247,7 @@ sub subject_path ($) {
 }
 
 sub add_overview {
-	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
+	my ($self, $mime, $bytes, $num, $oid, $mid0, $times) = @_;
 	my $lines = $mime->body_raw =~ tr!\n!\n!;
 	my $smsg = bless {
 		mime => $mime,
@@ -255,7 +256,8 @@ sub add_overview {
 		lines => $lines,
 		blob => $oid,
 	}, 'PublicInbox::SearchMsg';
-	my $mids = mids_for_index($mime->header_obj);
+	my $hdr = $mime->header_obj;
+	my $mids = mids_for_index($hdr);
 	my $refs = parse_references($smsg, $mid0, $mids);
 	my $subj = $smsg->subject;
 	my $xpath;
@@ -266,7 +268,9 @@ sub add_overview {
 	my $dd = $smsg->to_doc_data($oid, $mid0);
 	utf8::encode($dd);
 	$dd = compress($dd);
-	my $values = [ $smsg->ts, $smsg->ds, $num, $mids, $refs, $xpath, $dd ];
+	my $ds = msg_timestamp($hdr, $times->{autime});
+	my $ts = msg_datestamp($hdr, $times->{cotime});
+	my $values = [ $ts, $ds, $num, $mids, $refs, $xpath, $dd ];
 	add_over($self, $values);
 }
 

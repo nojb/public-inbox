@@ -19,6 +19,7 @@ use POSIX qw(strftime);
 use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::Git qw(git_unquote);
+use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 use constant {
@@ -308,10 +309,13 @@ sub index_xapian { # msg_iter callback
 sub add_xapian ($$$$$$) {
 	my ($self, $mime, $num, $oid, $mids, $mid0) = @_;
 	my $smsg = PublicInbox::SearchMsg->new($mime);
+	my $hdr = $mime->header_obj;
+	$smsg->{ds} = msg_datestamp($hdr, $self->{autime});
+	$smsg->{ts} = msg_timestamp($hdr, $self->{cotime});
 	my $doc = $X->{Document}->new;
 	my $subj = $smsg->subject;
-	add_val($doc, PublicInbox::Search::TS(), $smsg->ts);
-	my @ds = gmtime($smsg->ds);
+	add_val($doc, PublicInbox::Search::TS(), $smsg->{ts});
+	my @ds = gmtime($smsg->{ds});
 	my $yyyymmdd = strftime('%Y%m%d', @ds);
 	add_val($doc, PublicInbox::Search::YYYYMMDD(), $yyyymmdd);
 	my $dt = strftime('%Y%m%d%H%M%S', @ds);
@@ -375,7 +379,8 @@ sub add_message {
 			add_xapian($self, $mime, $num, $oid, $mids, $mid0);
 		}
 		if (my $over = $self->{over}) {
-			$over->add_overview($mime, $bytes, $num, $oid, $mid0);
+			$over->add_overview($mime, $bytes, $num, $oid, $mid0,
+						$self);
 		}
 	};
 
@@ -596,6 +601,10 @@ sub read_log {
 		} elsif ($line =~ /^commit ($h40)/o) {
 			$latest = $1;
 			$newest ||= $latest;
+		} elsif ($line =~ /^author .*? ([0-9]+) [\-\+][0-9]+$/) {
+			$self->{over}->{autime} = $self->{autime} = $1;
+		} elsif ($line =~ /^committer .*? ([0-9]+) [\-\+][0-9]+$/) {
+			$self->{over}->{cotime} = $self->{cotime} = $1;
 		}
 	}
 	close($log) or die "git log failed: \$?=$?";
@@ -651,7 +660,7 @@ sub _git_log {
 		$self->{regen_down} = $high + $fcount;
 	}
 
-	$git->popen(qw/log --no-notes --no-color --no-renames
+	$git->popen(qw/log --pretty=raw --no-notes --no-color --no-renames
 				--raw -r --no-abbrev/, $range);
 }
 
