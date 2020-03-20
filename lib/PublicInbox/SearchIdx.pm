@@ -310,8 +310,6 @@ sub add_xapian ($$$$) {
 	my ($self, $mime, $smsg, $mids) = @_;
 	$smsg->{mime} = $mime; # XXX dangerous
 	my $hdr = $mime->header_obj;
-	$smsg->{ds} = msg_datestamp($hdr, $self->{autime});
-	$smsg->{ts} = msg_timestamp($hdr, $self->{cotime});
 	my $doc = $X->{Document}->new;
 	my $subj = $smsg->subject;
 	add_val($doc, PublicInbox::Search::TS(), $smsg->{ts});
@@ -368,13 +366,19 @@ sub _msgmap_init ($) {
 sub add_message {
 	# mime = Email::MIME object
 	my ($self, $mime, $smsg) = @_;
-	my $mids = mids_for_index($mime->header_obj);
+	my $hdr = $mime->header_obj;
+	my $mids = mids_for_index($hdr);
 	$smsg //= bless { blob => '' }, 'PublicInbox::Smsg'; # test-only compat
 	$smsg->{mid} //= $mids->[0]; # v1 compatibility
 	$smsg->{num} //= do { # v1
 		_msgmap_init($self);
 		index_mm($self, $mime);
 	};
+
+	# v1 and tests only:
+	$smsg->{ds} //= msg_datestamp($hdr, $self->{autime});
+	$smsg->{ts} //= msg_timestamp($hdr, $self->{cotime});
+
 	eval {
 		# order matters, overview stores every possible piece of
 		# data in doc_data (deflated).  Xapian only stores a subset
@@ -382,7 +386,7 @@ sub add_message {
 		# storing doc_data in Xapian sometime after we get multi-inbox
 		# search working.
 		if (my $over = $self->{over}) { # v1 only
-			$over->add_overview($mime, $smsg, $self);
+			$over->add_overview($mime, $smsg);
 		}
 		if (need_xapian($self)) {
 			add_xapian($self, $mime, $smsg, $mids);
@@ -611,9 +615,9 @@ sub read_log {
 			$latest = $1;
 			$newest ||= $latest;
 		} elsif ($line =~ /^author .*? ([0-9]+) [\-\+][0-9]+$/) {
-			$self->{over}->{autime} = $self->{autime} = $1;
+			$self->{autime} = $1;
 		} elsif ($line =~ /^committer .*? ([0-9]+) [\-\+][0-9]+$/) {
-			$self->{over}->{cotime} = $self->{cotime} = $1;
+			$self->{cotime} = $1;
 		}
 	}
 	close($log) or die "git log failed: \$?=$?";

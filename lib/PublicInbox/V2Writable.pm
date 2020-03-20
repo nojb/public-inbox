@@ -19,6 +19,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::SearchIdx;
+use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use IO::Handle; # ->autoflush
 use File::Temp qw(tempfile);
 
@@ -150,9 +151,11 @@ sub add {
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$) {
 	my ($self, $msgref, $mime, $smsg) = @_;
-	$self->{over}->add_overview($mime, $smsg, $self);
+	$smsg->{ds} //= msg_datestamp($mime->header_obj, $self->{autime});
+	$smsg->{ts} //= msg_timestamp($mime->header_obj, $self->{cotime});
+	$self->{over}->add_overview($mime, $smsg);
 	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
-	$idx->index_raw($msgref, $mime, $smsg, $self);
+	$idx->index_raw($msgref, $mime, $smsg);
 	my $n = $self->{transact_bytes} += $smsg->{bytes};
 	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
 }
@@ -176,13 +179,12 @@ sub _add {
 	defined $num or return; # duplicate
 	defined $mid0 or die "BUG: $mid0 undefined\n";
 	my $im = $self->importer;
-	my $cmt = $im->add($mime, undef, $self); # sets $self->{(au|co)time}
+	my $smsg = bless { mid => $mid0, num => $num }, 'PublicInbox::Smsg';
+	my $cmt = $im->add($mime, undef, $smsg); # sets $smsg->{ds|ts|blob}
 	$cmt = $im->get_mark($cmt);
 	$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 
-	my $msgref;
-	my $smsg = bless { mid => $mid0, num => $num }, 'PublicInbox::Smsg';
-	($smsg->{blob}, $smsg->{bytes}, $msgref) = @{$im->{last_object}};
+	my $msgref = delete $smsg->{-raw_email};
 	if (do_idx($self, $msgref, $mime, $smsg)) {
 		$self->checkpoint;
 	}
@@ -793,7 +795,6 @@ sub import_init {
 	my ($self, $git, $packed_bytes, $tmp) = @_;
 	my $im = PublicInbox::Import->new($git, undef, undef, $self->{-inbox});
 	$im->{bytes_added} = int($packed_bytes / $PACKING_FACTOR);
-	$im->{want_object_info} = 1;
 	$im->{lock_path} = undef;
 	$im->{path_type} = 'v2';
 	$self->{im} = $im unless $tmp;

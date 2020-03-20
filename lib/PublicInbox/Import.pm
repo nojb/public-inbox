@@ -275,7 +275,7 @@ sub git_timestamp {
 }
 
 sub extract_cmt_info ($;$) {
-	my ($mime, $v2w) = @_;
+	my ($mime, $smsg) = @_;
 
 	my $sender = '';
 	my $from = $mime->header('From');
@@ -325,9 +325,9 @@ sub extract_cmt_info ($;$) {
 	utf8::encode($subject);
 	my $at = git_timestamp(my @at = msg_datestamp($hdr));
 	my $ct = git_timestamp(my @ct = msg_timestamp($hdr));
-	if ($v2w) { # set fallbacks in case message had no date
-		$v2w->{autime} = $at[0];
-		$v2w->{cotime} = $ct[0];
+	if ($smsg) {
+		$smsg->{ds} = $at[0];
+		$smsg->{ts} = $ct[0];
 	}
 	($name, $email, $at, $ct, $subject);
 }
@@ -374,9 +374,9 @@ sub clean_tree_v2 ($$$) {
 # returns undef on duplicate
 # returns the :MARK of the most recent commit
 sub add {
-	my ($self, $mime, $check_cb, $v2w) = @_; # mime = Email::MIME
+	my ($self, $mime, $check_cb, $smsg) = @_; # mime = Email::MIME
 
-	my ($name, $email, $at, $ct, $subject) = extract_cmt_info($mime, $v2w);
+	my ($name, $email, $at, $ct, $subject) = extract_cmt_info($mime, $smsg);
 	my $path_type = $self->{path_type};
 	my $path;
 	if ($path_type eq '2/38') {
@@ -406,9 +406,10 @@ sub add {
 	print $w $raw_email, "\n" or wfail;
 
 	# v2: we need this for Xapian
-	if ($self->{want_object_info}) {
-		my $oid = $self->get_mark(":$blob");
-		$self->{last_object} = [ $oid, $n, \$raw_email ];
+	if ($smsg) {
+		$smsg->{blob} = $self->get_mark(":$blob");
+		$smsg->{bytes} = $n;
+		$smsg->{-raw_email} = \$raw_email;
 	}
 	my $ref = $self->{ref};
 	my $commit = $self->{mark}++;
