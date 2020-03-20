@@ -176,7 +176,7 @@ sub _add {
 	defined $num or return; # duplicate
 	defined $mid0 or die "BUG: $mid0 undefined\n";
 	my $im = $self->importer;
-	my $cmt = $im->add($mime);
+	my $cmt = $im->add($mime, undef, $self); # sets $self->{(au|co)time}
 	$cmt = $im->get_mark($cmt);
 	$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 
