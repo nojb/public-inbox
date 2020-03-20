@@ -245,15 +245,9 @@ sub subject_path ($) {
 }
 
 sub add_overview {
-	my ($self, $mime, $bytes, $num, $oid, $mid0, $times) = @_;
-	my $lines = $mime->body_raw =~ tr!\n!\n!;
-	my $smsg = bless {
-		mime => $mime,
-		mid => $mid0,
-		bytes => $bytes,
-		lines => $lines,
-		blob => $oid,
-	}, 'PublicInbox::Smsg';
+	my ($self, $mime, $smsg, $times) = @_;
+	$smsg->{lines} = $mime->body_raw =~ tr!\n!\n!;
+	$smsg->{mime} = $mime; # XXX temporary?
 	my $hdr = $mime->header_obj;
 	my $mids = mids_for_index($hdr);
 	my $refs = parse_references($smsg, $hdr, $mids);
@@ -268,7 +262,7 @@ sub add_overview {
 	$dd = compress($dd);
 	my $ds = msg_timestamp($hdr, $times->{autime});
 	my $ts = msg_datestamp($hdr, $times->{cotime});
-	my $values = [ $ts, $ds, $num, $mids, $refs, $xpath, $dd ];
+	my $values = [ $ts, $ds, $smsg->{num}, $mids, $refs, $xpath, $dd ];
 	add_over($self, $values);
 }
 

@@ -76,7 +76,13 @@ sub shard_worker_loop ($$$$$) {
 			$artnum = int($artnum);
 			$self->{autime} = $autime;
 			$self->{cotime} = $cotime;
-			$self->add_message($mime, $n, $artnum, $oid, $mid0);
+			my $smsg = bless {
+				bytes => $len,
+				num => $artnum,
+				blob => $oid,
+				mid => $mid0,
+			}, 'PublicInbox::Smsg';
+			$self->add_message($mime, $smsg);
 		}
 	}
 	$self->worker_done;
@@ -95,7 +101,13 @@ sub index_raw {
 		$self->begin_txn_lazy;
 		$self->{autime} = $at;
 		$self->{cotime} = $ct;
-		$self->add_message($mime, $bytes, $artnum, $oid, $mid0);
+		my $smsg = bless {
+			bytes => $bytes,
+			num => $artnum,
+			blob => $oid,
+			mid => $mid0,
+		}, 'PublicInbox::Smsg';
+		$self->add_message($mime, $smsg);
 	}
 }
 

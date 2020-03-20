@@ -306,9 +306,9 @@ sub index_xapian { # msg_iter callback
 	index_body($self, $_, /\A>/ ? 0 : $doc) for @sections;
 }
 
-sub add_xapian ($$$$$$) {
-	my ($self, $mime, $num, $oid, $mids, $mid0) = @_;
-	my $smsg = PublicInbox::Smsg->new($mime);
+sub add_xapian ($$$$) {
+	my ($self, $mime, $smsg, $mids) = @_;
+	$smsg->{mime} = $mime; # XXX dangerous
 	my $hdr = $mime->header_obj;
 	$smsg->{ds} = msg_datestamp($hdr, $self->{autime});
 	$smsg->{ts} = msg_timestamp($hdr, $self->{cotime});
@@ -338,9 +338,7 @@ sub add_xapian ($$$$$$) {
 			index_text($self, join(' ', @long), 1, 'XM');
 		}
 	}
-	$smsg->{to} = $smsg->{cc} = '';
-	$smsg->{blob} = $oid;
-	$smsg->{mid} = $mid0;
+	$smsg->{to} = $smsg->{cc} = ''; # WWW doesn't need these, only NNTP
 	PublicInbox::OverIdx::parse_references($smsg, $hdr, $mids);
 	my $data = $smsg->to_doc_data;
 	$doc->set_data($data);
@@ -355,7 +353,7 @@ sub add_xapian ($$$$$$) {
 		}
 	}
 	$doc->add_boolean_term('Q' . $_) foreach @$mids;
-	$self->{xdb}->replace_document($num, $doc);
+	$self->{xdb}->replace_document($smsg->{num}, $doc);
 }
 
 sub _msgmap_init ($) {
@@ -369,20 +367,25 @@ sub _msgmap_init ($) {
 
 sub add_message {
 	# mime = Email::MIME object
-	my ($self, $mime, $bytes, $num, $oid, $mid0) = @_;
+	my ($self, $mime, $smsg) = @_;
 	my $mids = mids_for_index($mime->header_obj);
-	$mid0 //= $mids->[0]; # v1 compatibility
-	$num //= do { # v1
+	$smsg //= bless { blob => '' }, 'PublicInbox::Smsg'; # test-only compat
+	$smsg->{mid} //= $mids->[0]; # v1 compatibility
+	$smsg->{num} //= do { # v1
 		_msgmap_init($self);
 		index_mm($self, $mime);
 	};
 	eval {
-		if (need_xapian($self)) {
-			add_xapian($self, $mime, $num, $oid, $mids, $mid0);
+		# order matters, overview stores every possible piece of
+		# data in doc_data (deflated).  Xapian only stores a subset
+		# of the fields which exist in over.sqlite3.  We may stop
+		# storing doc_data in Xapian sometime after we get multi-inbox
+		# search working.
+		if (my $over = $self->{over}) { # v1 only
+			$over->add_overview($mime, $smsg, $self);
 		}
-		if (my $over = $self->{over}) {
-			$over->add_overview($mime, $bytes, $num, $oid, $mid0,
-						$self);
+		if (need_xapian($self)) {
+			add_xapian($self, $mime, $smsg, $mids);
 		}
 	};
 
@@ -390,7 +393,7 @@ sub add_message {
 		warn "failed to index message <".join('> <',@$mids).">: $@\n";
 		return undef;
 	}
-	$num;
+	$smsg->{num};
 }
 
 # returns begin and end PostingIterator
@@ -530,9 +533,10 @@ sub unindex_mm {
 }
 
 sub index_both {
-	my ($self, $mime, $bytes, $blob) = @_;
+	my ($self, $mime, $smsg) = @_;
 	my $num = index_mm($self, $mime);
-	add_message($self, $mime, $bytes, $num, $blob);
+	$smsg->{num} = $num;
+	add_message($self, $mime, $smsg);
 }
 
 sub unindex_both {
@@ -595,8 +599,11 @@ sub read_log {
 				next;
 			}
 			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
+			my $smsg = bless {}, 'PublicInbox::Smsg';
 			batch_adjust(\$max, $bytes, $batch_cb, $latest, ++$nr);
-			$add_cb->($self, $mime, $bytes, $blob);
+			$smsg->{blob} = $blob;
+			$smsg->{bytes} = $bytes;
+			$add_cb->($self, $mime, $smsg);
 		} elsif ($line =~ /$delmsg/o) {
 			my $blob = $1;
 			$D{$blob} = 1;

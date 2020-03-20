@@ -9,6 +9,7 @@ use PublicInbox::MID qw(mids);
 use Email::MIME;
 require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
+require PublicInbox::Smsg;
 require PublicInbox::Inbox;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
@@ -45,7 +46,13 @@ foreach (reverse split(/\n\n/, $data)) {
 	$mime->header_set('To' => 'git@vger.kernel.org');
 	my $bytes = bytes::length($mime->as_string);
 	my $mid = mids($mime->header_obj)->[0];
-	my $doc_id = $rw->add_message($mime, $bytes, ++$num, 'ignored', $mid);
+	my $smsg = bless {
+		bytes => $bytes,
+		num => ++$num,
+		mid => $mid,
+		blob => '',
+	}, 'PublicInbox::Smsg';
+	my $doc_id = $rw->add_message($mime, $smsg);
 	push @mids, $mid;
 	ok($doc_id, 'message added: '. $mid);
 }
@@ -86,7 +93,13 @@ SELECT tid FROM over WHERE num = ? LIMIT 1
 
 	my $bytes = bytes::length($mime->as_string);
 	my $mid = mids($mime->header_obj)->[0];
-	my $doc_id = $rw->add_message($mime, $bytes, $num, 'ignored', $mid);
+	my $smsg = bless {
+		bytes => $bytes,
+		num => $num,
+		mid => $mid,
+		blob => '',
+	}, 'PublicInbox::Smsg';
+	my $doc_id = $rw->add_message($mime, $smsg);
 	ok($doc_id, 'message reindexed'. $mid);
 	is($doc_id, $num, "article number unchanged: $num");
 

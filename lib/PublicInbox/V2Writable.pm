@@ -150,7 +150,13 @@ sub add {
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$$$$) {
 	my ($self, $msgref, $mime, $len, $num, $oid, $mid0) = @_;
-	$self->{over}->add_overview($mime, $len, $num, $oid, $mid0, $self);
+	my $smsg = bless {
+		bytes => $len,
+		num => $num,
+		blob => $oid,
+		mid => $mid0,
+	}, 'PublicInbox::Smsg';
+	$self->{over}->add_overview($mime, $smsg, $self);
 	my $idx = idx_shard($self, $num % $self->{shards});
 	$idx->index_raw($len, $msgref, $num, $oid, $mid0, $mime, $self);
 	my $n = $self->{transact_bytes} += $len;
