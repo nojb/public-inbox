@@ -339,9 +339,9 @@ sub add_xapian ($$$$$$) {
 		}
 	}
 	$smsg->{to} = $smsg->{cc} = '';
-	PublicInbox::OverIdx::parse_references($smsg, $mid0, $mids);
 	$smsg->{blob} = $oid;
 	$smsg->{mid} = $mid0;
+	PublicInbox::OverIdx::parse_references($smsg, $hdr, $mids);
 	my $data = $smsg->to_doc_data;
 	$doc->set_data($data);
 	if (my $altid = $self->{-altid}) {

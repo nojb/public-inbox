@@ -216,15 +216,13 @@ sub link_refs {
 }
 
 sub parse_references ($$$) {
-	my ($smsg, $mid0, $mids) = @_;
-	my $mime = $smsg->{mime};
-	my $hdr = $mime->header_obj;
+	my ($smsg, $hdr, $mids) = @_;
 	my $refs = references($hdr);
 	push(@$refs, @$mids) if scalar(@$mids) > 1;
 	return $refs if scalar(@$refs) == 0;
 
 	# prevent circular references here:
-	my %seen = ( $mid0 => 1 );
+	my %seen = ( $smsg->{mid} => 1 );
 	my @keep;
 	foreach my $ref (@$refs) {
 		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {
@@ -258,7 +256,7 @@ sub add_overview {
 	}, 'PublicInbox::Smsg';
 	my $hdr = $mime->header_obj;
 	my $mids = mids_for_index($hdr);
-	my $refs = parse_references($smsg, $mid0, $mids);
+	my $refs = parse_references($smsg, $hdr, $mids);
 	my $subj = $smsg->subject;
 	my $xpath;
 	if ($subj ne '') {
