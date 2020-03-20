@@ -34,16 +34,15 @@ sub get_val ($$) {
 }
 
 sub to_doc_data {
-	my ($self, $oid, $mid0) = @_;
-	$oid = '' unless defined $oid;
+	my ($self) = @_;
 	join("\n",
 		$self->subject,
 		$self->from,
 		$self->references,
 		$self->to,
 		$self->cc,
-		$oid,
-		$mid0,
+		$self->{blob},
+		$self->{mid},
 		$self->{bytes} // '',
 		$self->{lines} // ''
 	);

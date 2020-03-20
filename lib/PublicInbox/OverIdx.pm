@@ -265,7 +265,7 @@ sub add_overview {
 		$xpath = subject_path($subj);
 		$xpath = id_compress($xpath);
 	}
-	my $dd = $smsg->to_doc_data($oid, $mid0);
+	my $dd = $smsg->to_doc_data;
 	utf8::encode($dd);
 	$dd = compress($dd);
 	my $ds = msg_timestamp($hdr, $times->{autime});

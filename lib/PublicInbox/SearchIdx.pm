@@ -340,7 +340,9 @@ sub add_xapian ($$$$$$) {
 	}
 	$smsg->{to} = $smsg->{cc} = '';
 	PublicInbox::OverIdx::parse_references($smsg, $mid0, $mids);
-	my $data = $smsg->to_doc_data($oid, $mid0);
+	$smsg->{blob} = $oid;
+	$smsg->{mid} = $mid0;
+	my $data = $smsg->to_doc_data;
 	$doc->set_data($data);
 	if (my $altid = $self->{-altid}) {
 		foreach my $alt (@$altid) {
