@@ -106,6 +106,10 @@ is_datestamp('Mon, 14 Apr 2014 07:59:01 -0007', [1397462761, '-0007']);
 
 SKIP: {
 	require_mods('Date::Parse', 1);
+	my $now = time;
+	if (join("\0", gmtime($now)) ne join("\0", localtime($now))) {
+		skip('needs TZ=UTC to test zone-less parsing', 1);
+	}
 	is_datestamp('Sat, 27 Sep 1997 10:02:32', [875354552, '+0000']);
 }
 
