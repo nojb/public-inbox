@@ -169,6 +169,7 @@ lib/PublicInbox/ViewVCS.pm
 lib/PublicInbox/WWW.pm
 lib/PublicInbox/WWW.pod
 lib/PublicInbox/WatchMaildir.pm
+lib/PublicInbox/WwwAltId.pm
 lib/PublicInbox/WwwAtomStream.pm
 lib/PublicInbox/WwwAttach.pm
 lib/PublicInbox/WwwHighlight.pm
@@ -302,6 +303,7 @@ t/view.t
 t/watch_filter_rubylang.t
 t/watch_maildir.t
 t/watch_maildir_v2.t
+t/www_altid.t
 t/www_listing.t
 t/www_static.t
 t/x-unknown-alpine.eml

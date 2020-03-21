@@ -39,6 +39,7 @@ sub new {
 	bless {
 		filename => $f,
 		writable => $writable,
+		prefix => $prefix,
 		xprefix => 'X'.uc($prefix),
 	}, $class;
 }

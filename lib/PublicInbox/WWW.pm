@@ -65,6 +65,8 @@ sub call {
 			my ($epoch, $path) = ($2, $3);
 			return invalid_inbox($ctx, $1) ||
 				serve_git($ctx, $epoch, $path);
+		} elsif ($path_info =~ m!$INBOX_RE/(\w+)\.sql\.gz\z!o) {
+			return get_altid_dump($ctx, $1, $2);
 		} elsif ($path_info =~ m!$INBOX_RE/!o) {
 			return invalid_inbox($ctx, $1) || mbox_results($ctx);
 		}
@@ -150,8 +152,8 @@ sub preload {
 		require PublicInbox::Search;
 		PublicInbox::Search::load_xapian();
 	};
-	foreach (qw(PublicInbox::SearchView PublicInbox::MboxGz)) {
-		eval "require $_;";
+	for (qw(SearchView MboxGz WwwAltId)) {
+		eval "require PublicInbox::$_;";
 	}
 	if (ref($self)) {
 		my $pi_config = $self->{pi_config};
@@ -299,6 +301,14 @@ sub get_vcs_object ($$$;$) {
 	return $r404 if $r404;
 	require PublicInbox::ViewVCS;
 	PublicInbox::ViewVCS::show($ctx, $oid, $filename);
+}
+
+sub get_altid_dump {
+	my ($ctx, $inbox, $altid_pfx) =@_;
+	my $r404 = invalid_inbox($ctx, $inbox);
+	return $r404 if $r404;
+	eval { require PublicInbox::WwwAltId } or return need($ctx, 'sqlite3');
+	PublicInbox::WwwAltId::sqldump($ctx, $altid_pfx);
 }
 
 sub need {
