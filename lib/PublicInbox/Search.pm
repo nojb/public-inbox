@@ -313,7 +313,7 @@ sub qp {
 	# we do not actually create AltId objects,
 	# just parse the spec to avoid the extra DB handles for now.
 	if (my $altid = $self->{altid}) {
-		my $user_pfx = $self->{-user_pfx} ||= [];
+		my $user_pfx = $self->{-user_pfx} = [];
 		for (@$altid) {
 			# $_ = 'serial:gmane:/path/to/gmane.msgmap.sqlite3'
 			/\Aserial:(\w+):/ or next;
