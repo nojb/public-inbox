@@ -28,7 +28,7 @@ sub new {
 
 	bless {
 		nr => 0,
-		cb => $cb || \&close,
+		cb => $cb,
 		ctx => $ctx,
 		base_url => base_url($ctx),
 	}, $class;
@@ -175,8 +175,9 @@ sub oneshot {
 		ctx => $ctx,
 		base_url => base_url($ctx),
 	}, __PACKAGE__;
-	[ $code, [ 'Content-Type', 'text/html; charset=UTF-8' ],
-		[ _html_top($self), $$strref, _html_end($self) ] ]
+	[ $code, [ 'Content-Type', 'text/html; charset=UTF-8' ], [
+		_html_top($self), $strref ? $$strref : (), _html_end($self)
+	] ]
 }
 
 1;

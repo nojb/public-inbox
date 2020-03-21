@@ -159,7 +159,7 @@ sub ext_msg {
 	$ctx->{-html_tip} = $s .= '</pre>';
 	$ctx->{-title_html} = $title;
 	$ctx->{-upfx} = '../';
-	PublicInbox::WwwStream->response($ctx, $code);
+	PublicInbox::WwwStream::oneshot($ctx, $code);
 }
 
 sub ext_urls {
@@ -197,7 +197,7 @@ sub exact {
 					qq(<a\nhref="$u$href/">$u$html/</a>\n)
 				} @$found),
 			$ext_urls, '</pre>');
-	PublicInbox::WwwStream->response($ctx, $code);
+	PublicInbox::WwwStream::oneshot($ctx, $code);
 }
 
 1;
