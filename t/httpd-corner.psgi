@@ -85,6 +85,15 @@ my $app = sub {
 			close $null;
 			[ 200, [ qw(Content-Type application/octet-stream) ]];
 		});
+	} elsif ($path eq '/psgi-return-gzip') {
+		require PublicInbox::Qspawn;
+		require PublicInbox::GzipFilter;
+		my $cmd = [qw(echo hello world)];
+		my $qsp = PublicInbox::Qspawn->new($cmd);
+		$env->{'qspawn.filter'} = PublicInbox::GzipFilter->new;
+		return $qsp->psgi_return($env, undef, sub {
+			[ 200, [ qw(Content-Type application/octet-stream)]]
+		});
 	} elsif ($path eq '/pid') {
 		$code = 200;
 		push @$body, "$$\n";

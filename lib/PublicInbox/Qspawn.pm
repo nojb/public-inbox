@@ -243,6 +243,7 @@ sub psgi_return_init_cb {
 	my ($self) = @_;
 	my $r = rd_hdr($self) or return;
 	my $env = $self->{psgi_env};
+	my $filter = delete $env->{'qspawn.filter'};
 	my $wcb = delete $env->{'qspawn.wcb'};
 	my $async = delete $self->{async};
 	if (scalar(@$r) == 3) { # error
@@ -257,6 +258,7 @@ sub psgi_return_init_cb {
 	} elsif ($async) {
 		# done reading headers, handoff to read body
 		my $fh = $wcb->($r); # scalar @$r == 2
+		$fh = $filter->attach($fh) if $filter;
 		$self->{fh} = $fh;
 		$async->async_pass($env->{'psgix.io'}, $fh,
 					delete($self->{hdr_buf}));
@@ -264,7 +266,7 @@ sub psgi_return_init_cb {
 		require PublicInbox::GetlineBody;
 		$r->[2] = PublicInbox::GetlineBody->new($self->{rpipe},
 					\&event_step, $self,
-					${$self->{hdr_buf}});
+					${$self->{hdr_buf}}, $filter);
 		$wcb->($r);
 	}
 
@@ -293,6 +295,10 @@ sub psgi_return_start { # may run later, much later...
 #                          captured it elsewhere.  If not given,
 #                          psgi_return will return an anonymous
 #                          sub for the PSGI server to call
+#
+#   $env->{'qspawn.filter'} - filter object, responds to ->attach for
+#                             pi-httpd.async and ->translate for generic
+#                             PSGI servers
 #
 # $limiter - the Limiter object to use (uses the def_limiter if not given)
 #

@@ -13,13 +13,13 @@ use strict;
 use warnings;
 
 sub new {
-	my ($class, $rpipe, $end, $end_arg, $buf) = @_;
+	my ($class, $rpipe, $end, $end_arg, $buf, $filter) = @_;
 	bless {
 		rpipe => $rpipe,
 		end => $end,
 		end_arg => $end_arg,
-		buf => $buf,
-		filter => 0,
+		initial_buf => $buf,
+		filter => $filter,
 	}, $class;
 }
 
@@ -30,19 +30,18 @@ sub DESTROY { $_[0]->close }
 
 sub getline {
 	my ($self) = @_;
-	my $filter = $self->{filter};
-	return if $filter == -1; # last call was EOF
-
-	my $buf = delete $self->{buf}; # initial buffer
-	$buf = $self->{rpipe}->getline unless defined $buf;
-	$self->{filter} = -1 unless defined $buf; # set EOF for next call
+	my $rpipe = $self->{rpipe} or return; # EOF was set on previous call
+	my $buf = delete($self->{initial_buf}) // $rpipe->getline;
+	delete($self->{rpipe}) unless defined $buf; # set EOF for next call
+	if (my $filter = $self->{filter}) {
+		$buf = $filter->translate($buf);
+	}
 	$buf;
 }
 
 sub close {
 	my ($self) = @_;
-	my ($rpipe, $end, $end_arg) = delete @$self{qw(rpipe end end_arg)};
-	close $rpipe if $rpipe;
+	my ($end, $end_arg) = delete @$self{qw(end end_arg)};
 	$end->($end_arg) if $end;
 }
 

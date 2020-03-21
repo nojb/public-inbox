@@ -22,6 +22,7 @@ my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $psgi = "./t/httpd-corner.psgi";
 my $sock = tcp_server() or die;
+my @zmods = qw(PublicInbox::GzipFilter IO::Uncompress::Gunzip);
 
 # make sure stdin is not a pipe for lsof test to check for leaking pipes
 open(STDIN, '<', '/dev/null') or die 'no /dev/null: $!';
@@ -324,6 +325,14 @@ SKIP: {
 	close $fh or die "curl errored out \$?=$?";
 	is($n, 30 * 1024 * 1024, 'got expected output from curl');
 	is($non_zero, 0, 'read all zeros');
+
+	require_mods(@zmods, 1);
+	open $fh, '-|', qw(curl -sS), "$base/psgi-return-gzip" or die;
+	binmode $fh;
+	my $buf = do { local $/; <$fh> };
+	close $fh or die "curl errored out \$?=$?";
+	IO::Uncompress::Gunzip::gunzip(\$buf => \(my $out));
+	is($out, "hello world\n");
 }
 
 {
@@ -595,6 +604,22 @@ SKIP: {
 	delete @child{(keys %parent)};
 	is_deeply([], [keys %child], 'no extra pipes with -W0');
 };
+
+# ensure compatibility with other PSGI servers
+SKIP: {
+	require_mods(@zmods, qw(Plack::Test HTTP::Request::Common), 3);
+	use_ok 'HTTP::Request::Common';
+	use_ok 'Plack::Test';
+	my $app = require $psgi;
+	test_psgi($app, sub {
+		my ($cb) = @_;
+		my $req = GET('http://example.com/psgi-return-gzip');
+		my $res = $cb->($req);
+		my $buf = $res->content;
+		IO::Uncompress::Gunzip::gunzip(\$buf => \(my $out));
+		is($out, "hello world\n");
+	});
+}
 
 done_testing();
 

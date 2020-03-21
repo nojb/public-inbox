@@ -111,6 +111,7 @@ lib/PublicInbox/Filter/Vger.pm
 lib/PublicInbox/GetlineBody.pm
 lib/PublicInbox/Git.pm
 lib/PublicInbox/GitHTTPBackend.pm
+lib/PublicInbox/GzipFilter.pm
 lib/PublicInbox/HTTP.pm
 lib/PublicInbox/HTTPD.pm
 lib/PublicInbox/HTTPD/Async.pm
@@ -233,6 +234,7 @@ t/filter_vger.t
 t/git-http-backend.psgi
 t/git.fast-import-data
 t/git.t
+t/gzip_filter.t
 t/hl_mod.t
 t/html_index.t
 t/httpd-corner.psgi
