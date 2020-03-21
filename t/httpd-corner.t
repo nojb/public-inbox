@@ -10,6 +10,7 @@ use PublicInbox::Spawn qw(which spawn);
 use PublicInbox::TestCommon;
 require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 use Digest::SHA qw(sha1_hex);
+use IO::Handle ();
 use IO::Socket;
 use IO::Socket::UNIX;
 use Fcntl qw(:seek);
@@ -336,6 +337,14 @@ SKIP: {
 }
 
 {
+	my $conn = conn_for($sock, 'psgi_return ENOENT');
+	print $conn "GET /psgi-return-enoent HTTP/1.1\r\n\r\n" or die;
+	my $buf = '';
+	sysread($conn, $buf, 16384, length($buf)) until $buf =~ /\r\n\r\n/;
+	like($buf, qr!HTTP/1\.[01] 500\b!, 'got 500 error on ENOENT');
+}
+
+{
 	my $conn = conn_for($sock, '1.1 pipeline together');
 	$conn->write("PUT /sha1 HTTP/1.1\r\nUser-agent: hello\r\n\r\n" .
 			"PUT /sha1 HTTP/1.1\r\n\r\n");
@@ -610,6 +619,11 @@ SKIP: {
 	require_mods(@zmods, qw(Plack::Test HTTP::Request::Common), 3);
 	use_ok 'HTTP::Request::Common';
 	use_ok 'Plack::Test';
+	STDERR->flush;
+	open my $olderr, '>&', \*STDERR or die "dup stderr: $!";
+	open my $tmperr, '+>', undef or die;
+	open STDERR, '>&', $tmperr or die;
+	STDERR->autoflush(1);
 	my $app = require $psgi;
 	test_psgi($app, sub {
 		my ($cb) = @_;
@@ -617,8 +631,17 @@ SKIP: {
 		my $res = $cb->($req);
 		my $buf = $res->content;
 		IO::Uncompress::Gunzip::gunzip(\$buf => \(my $out));
-		is($out, "hello world\n");
+		is($out, "hello world\n", 'got expected output');
+
+		$req = GET('http://example.com/psgi-return-enoent');
+		$res = $cb->($req);
+		is($res->code, 500, 'got error on ENOENT');
+		seek($tmperr, 0, SEEK_SET) or die;
+		my $errbuf = do { local $/; <$tmperr> };
+		like($errbuf, qr/this-better-not-exist/,
+			'error logged about missing command');
 	});
+	open STDERR, '>&', $olderr or die "restore stderr: $!";
 }
 
 done_testing();

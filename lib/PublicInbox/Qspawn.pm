@@ -45,7 +45,7 @@ sub new ($$$;) {
 sub _do_spawn {
 	my ($self, $start_cb, $limiter) = @_;
 	my $err;
-	my ($cmd, $cmd_env, $opt) = @{$self->{args}};
+	my ($cmd, $cmd_env, $opt) = @{delete $self->{args}};
 	my %o = %{$opt || {}};
 	$self->{limiter} = $limiter;
 	foreach my $k (PublicInbox::Spawn::RLIMITS()) {
@@ -53,20 +53,17 @@ sub _do_spawn {
 			$o{$k} = $rlimit;
 		}
 	}
+	$self->{cmd} = $o{quiet} ? undef : $cmd;
 	eval {
 		# popen_rd may die on EMFILE, ENFILE
 		($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $cmd_env, \%o);
-		$self->{args} = $o{quiet} ? undef : $cmd;
 
 		die "E: $!" unless defined($self->{pid});
 
 		$limiter->{running}++;
 		$start_cb->($self); # EPOLL_CTL_ADD may ENOSPC/ENOMEM
 	};
-	if ($@) {
-		$self->{err} = $@;
-		finish($self);
-	}
+	finish($self, $@) if $@;
 }
 
 sub child_err ($) {
@@ -83,16 +80,8 @@ sub log_err ($$) {
 	$env->{'psgi.errors'}->print($msg, "\n");
 }
 
-# callback for dwaitpid
-sub waitpid_err ($$) {
-	my ($self, $pid) = @_;
-	my $xpid = delete $self->{pid};
-	my $err;
-	if ($pid > 0) { # success!
-		$err = child_err($?);
-	} elsif ($pid < 0) { # ??? does this happen in our case?
-		$err = "W: waitpid($xpid, 0) => $pid: $!";
-	} # else should not be called with pid == 0
+sub finalize ($$) {
+	my ($self, $err) = @_;
 
 	my ($env, $qx_cb, $qx_arg, $qx_buf) =
 		delete @$self{qw(psgi_env qx_cb qx_arg qx_buf)};
@@ -108,16 +97,37 @@ sub waitpid_err ($$) {
 	}
 
 	if ($err) {
-		if ($self->{err}) {
+		if (defined $self->{err}) {
 			$self->{err} .= "; $err";
 		} else {
 			$self->{err} = $err;
 		}
-		if ($env && $self->{args}) {
-			log_err($env, join(' ', @{$self->{args}}) . ": $err");
+		if ($env && $self->{cmd}) {
+			log_err($env, join(' ', @{$self->{cmd}}) . ": $err");
 		}
 	}
-	eval { $qx_cb->($qx_buf, $qx_arg) } if $qx_cb;
+	if ($qx_cb) {
+		eval { $qx_cb->($qx_buf, $qx_arg) };
+	} elsif (my $wcb = delete $env->{'qspawn.wcb'}) {
+		# have we started writing, yet?
+		require PublicInbox::WwwStatic;
+		$wcb->(PublicInbox::WwwStatic::r(500));
+	}
+}
+
+# callback for dwaitpid
+sub waitpid_err ($$) {
+	my ($self, $pid) = @_;
+	my $xpid = delete $self->{pid};
+	my $err;
+	if (defined $pid) {
+		if ($pid > 0) { # success!
+			$err = child_err($?);
+		} elsif ($pid < 0) { # ??? does this happen in our case?
+			$err = "W: waitpid($xpid, 0) => $pid: $!";
+		} # else should not be called with pid == 0
+	}
+	finalize($self, $err);
 }
 
 sub do_waitpid ($) {
@@ -133,14 +143,12 @@ sub do_waitpid ($) {
 	}
 }
 
-sub finish ($) {
-	my ($self) = @_;
+sub finish ($;$) {
+	my ($self, $err) = @_;
 	if (delete $self->{rpipe}) {
 		do_waitpid($self);
 	} else {
-		my ($env, $qx_cb, $qx_arg, $qx_buf) =
-			delete @$self{qw(psgi_env qx_cb qx_arg qx_buf)};
-		eval { $qx_cb->($qx_buf, $qx_arg) } if $qx_cb;
+		finalize($self, $err);
 	}
 }
 
