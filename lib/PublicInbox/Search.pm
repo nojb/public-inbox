@@ -316,6 +316,8 @@ sub qp {
 		my $user_pfx = $self->{-user_pfx} = [];
 		for (@$altid) {
 			# $_ = 'serial:gmane:/path/to/gmane.msgmap.sqlite3'
+			# note: Xapian supports multibyte UTF-8, /^[0-9]+$/,
+			# and '_' with prefixes matching \w+
 			/\Aserial:(\w+):/ or next;
 			my $pfx = $1;
 			push @$user_pfx, "$pfx:", <<EOF;

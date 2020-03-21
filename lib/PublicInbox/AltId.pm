@@ -22,7 +22,7 @@ sub new {
 	my ($class, $ibx, $spec, $writable) = @_;
 	my ($type, $prefix, $query) = split(/:/, $spec, 3);
 	$type eq 'serial' or die "non-serial not supported, yet\n";
-
+	$prefix =~ /\A\w+\z/ or warn "non-word prefix not searchable\n";
 	my %params = map {
 		my ($k, $v) = split(/=/, uri_unescape($_), 2);
 		$v = '' unless defined $v;
