@@ -152,7 +152,7 @@ sub thread_cb {
 sub thread_mbox {
 	my ($ctx, $over, $sfx) = @_;
 	eval { require PublicInbox::MboxGz };
-	return need_gzip() if $@;
+	return need_gzip($ctx) if $@;
 	my $msgs = $ctx->{msgs} = $over->get_thread($ctx->{mid}, {});
 	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
 	$ctx->{prev} = $msgs->[-1];
@@ -221,7 +221,7 @@ sub mbox_all {
 	my ($ctx, $query) = @_;
 
 	eval { require PublicInbox::MboxGz };
-	return need_gzip() if $@;
+	return need_gzip($ctx) if $@;
 	return mbox_all_ids($ctx) if $query eq '';
 	my $qopts = $ctx->{qopts} = { mset => 2 };
 	my $srch = $ctx->{srch} = $ctx->{-inbox}->search or
@@ -236,16 +236,14 @@ sub mbox_all {
 }
 
 sub need_gzip {
-	my $title = 'gzipped mbox not available';
-	my $body = <<EOF;
-<html><head><title>$title</title><body><pre>$title
+	PublicInbox::WwwStream::oneshot($_[0], 501, \<<EOF);
+<pre>gzipped mbox not available
+
 The administrator needs to install the Compress::Raw::Zlib Perl module
 to support gzipped mboxes.
-<a href="../">Return to index</a></pre></body></html>
-EOF
 
-	[501,[qw(Content-Type text/html Content-Length), bytes::length($body)],
-	[ $body ] ];
+<a href="../">Return to index</a></pre>
+EOF
 }
 
 1;
