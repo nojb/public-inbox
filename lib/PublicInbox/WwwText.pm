@@ -256,6 +256,11 @@ EOF
 
 	$QP_URL
 
+EOF
+	} # $srch
+	my $over = $ibx->over;
+	if ($over) {
+		$$txt .= <<EOF;
 message threading
 -----------------
 
@@ -301,6 +306,10 @@ message threading
 
 	$WIKI_URL/Mbox
 
+EOF
+	} # $over
+
+	$$txt .= <<EOF;
 contact
 -------
 
@@ -309,7 +318,6 @@ contact
 
 EOF
 	# TODO: support admin contact info in ~/.public-inbox/config
-	}
 	1;
 }
 
