@@ -31,17 +31,11 @@ my %QP_MAP = ( A => 'oid_a', B => 'oid_b', a => 'path_a', b => 'path_b' );
 our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
 
-sub html_i { # WwwStream::getline callback
-	my ($nr, $ctx) =  @_;
-	$nr == 1 ? ${delete $ctx->{obuf}} : undef;
-}
-
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
 	my $wcb = delete $ctx->{-wcb};
 	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
-	$ctx->{obuf} = $strref;
-	my $res = PublicInbox::WwwStream->response($ctx, $code, \&html_i);
+	my $res = PublicInbox::WwwStream::oneshot($ctx, $code, $strref);
 	$wcb ? $wcb->($res) : $res;
 }
 

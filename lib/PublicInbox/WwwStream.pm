@@ -16,16 +16,21 @@ our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 # noop for HTTP.pm (and any other PSGI servers)
 sub close {}
 
+sub base_url ($) {
+	my $ctx = shift;
+	my $base_url = $ctx->{-inbox}->base_url($ctx->{env});
+	chop $base_url; # no trailing slash for clone
+	$base_url;
+}
+
 sub new {
 	my ($class, $ctx, $cb) = @_;
 
-	my $base_url = $ctx->{-inbox}->base_url($ctx->{env});
-	chop $base_url; # no trailing slash for clone
 	bless {
 		nr => 0,
 		cb => $cb || \&close,
 		ctx => $ctx,
-		base_url => $base_url,
+		base_url => base_url($ctx),
 	}, $class;
 }
 
@@ -162,6 +167,16 @@ sub getline {
 	}
 
 	delete $self->{cb} ? _html_end($self) : undef;
+}
+
+sub oneshot {
+	my ($ctx, $code, $strref) = @_;
+	my $self = bless {
+		ctx => $ctx,
+		base_url => base_url($ctx),
+	}, __PACKAGE__;
+	[ $code, [ 'Content-Type', 'text/html; charset=UTF-8' ],
+		[ _html_top($self), $$strref, _html_end($self) ] ]
 }
 
 1;
