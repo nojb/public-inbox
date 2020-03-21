@@ -20,7 +20,7 @@ if (eval { require IO::Compress::Gzip }) {
 	for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
 		eval "require $mod" or next;
 		# ->ascii encodes non-ASCII to "\uXXXX"
-		$json = $mod->new->ascii(1);
+		$json = $mod->new->ascii(1) and last;
 	}
 }
 
