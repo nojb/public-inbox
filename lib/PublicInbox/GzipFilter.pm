@@ -8,11 +8,7 @@ use bytes (); # length
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
 my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
 
-sub new {
-	my ($gz, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
-	$err == Z_OK or die "Deflate->new failed: $err";
-	bless { gz => $gz }, shift;
-}
+sub new { bless {}, shift }
 
 # for Qspawn if using $env->{'pi-httpd.async'}
 sub attach {
@@ -24,6 +20,15 @@ sub attach {
 # for GetlineBody (via Qspawn) when NOT using $env->{'pi-httpd.async'}
 sub translate ($$) {
 	my $self = $_[0];
+
+	# allocate the zlib context lazily here, instead of in ->new.
+	# Deflate contexts are memory-intensive and this object may
+	# be sitting in the Qspawn limiter queue for a while.
+	my $gz = $self->{gz} ||= do {
+		my ($g, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
+		$err == Z_OK or die "Deflate->new failed: $err";
+		$g;
+	};
 	my $zbuf = delete($self->{zbuf});
 	if (defined $_[1]) { # my $buf = $_[1];
 		my $err = $self->{gz}->deflate($_[1], $zbuf);
