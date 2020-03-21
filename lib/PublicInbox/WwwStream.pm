@@ -9,6 +9,7 @@
 package PublicInbox::WwwStream;
 use strict;
 use warnings;
+use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
@@ -170,14 +171,18 @@ sub getline {
 }
 
 sub oneshot {
-	my ($ctx, $code, $strref) = @_;
+	my ($ctx, $code, $sref) = @_;
 	my $self = bless {
 		ctx => $ctx,
 		base_url => base_url($ctx),
 	}, __PACKAGE__;
-	[ $code, [ 'Content-Type', 'text/html; charset=UTF-8' ], [
-		_html_top($self), $strref ? $$strref : (), _html_end($self)
-	] ]
+	my @x = (_html_top($self), $sref ? $$sref : (), _html_end($self));
+	my $len = 0;
+	$len += bytes::length($_) for @x;
+	[ $code, [
+		'Content-Type' => 'text/html; charset=UTF-8',
+		'Content-Length' => $len
+	], \@x ];
 }
 
 1;
