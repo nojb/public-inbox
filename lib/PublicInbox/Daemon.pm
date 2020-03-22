@@ -403,6 +403,9 @@ sub upgrade { # $_[0] = signal name or number (unused)
 		$ENV{LISTEN_FDS} = scalar @listeners;
 		$ENV{LISTEN_PID} = $$;
 		foreach my $s (@listeners) {
+			# @listeners are globs with workers, PI::L w/o workers
+			$s = $s->{sock} if ref($s) eq 'PublicInbox::Listener';
+
 			my $fl = fcntl($s, F_GETFD, 0);
 			fcntl($s, F_SETFD, $fl &= ~FD_CLOEXEC);
 		}
