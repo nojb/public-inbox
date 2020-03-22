@@ -247,7 +247,7 @@ sub daemonize () {
 
 	write_pid($pid_file);
 	# for ->DESTROY:
-	bless { pid => $$, pid_file => $pid_file }, __PACKAGE__;
+	bless { pid => $$, pid_file => \$pid_file }, __PACKAGE__;
 }
 
 sub worker_quit { # $_[0] = signal name or number (unused)
@@ -663,7 +663,7 @@ sub write_pid ($) {
 }
 
 sub DESTROY {
-	unlink_pid_file_safe_ish($_[0]->{pid}, $_[0]->{pid_file});
+	unlink_pid_file_safe_ish($_[0]->{pid}, ${$_[0]->{pid_file}});
 }
 
 1;

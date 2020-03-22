@@ -163,6 +163,7 @@ SKIP: {
 	# drop the old parent
 	kill('QUIT', $old_pid) or die "QUIT failed: $!";
 	delay_until(sub { !kill(0, $old_pid) });
+	ok(!-f "$pid_file.oldbin", '.oldbin PID file gone');
 
 	# drop the new child
 	check_sock($unix);
