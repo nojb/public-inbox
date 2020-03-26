@@ -38,12 +38,29 @@ sub check_output {
 # and thus not usable from DBD::SQLite.
 sub sqldump ($$) {
 	my ($ctx, $altid_pfx) = @_;
+	my $env = $ctx->{env};
 	my $ibx = $ctx->{-inbox};
 	my $altid_map = $ibx->altid_map;
 	my $fn = $altid_map->{$altid_pfx};
 	unless (defined $fn) {
 		return PublicInbox::WwwStream::oneshot($ctx, 404, \<<EOF);
 <pre>`$altid_pfx' is not a valid altid for this inbox</pre>
+EOF
+	}
+
+	if ($env->{REQUEST_METHOD} ne 'POST') {
+		my $url = $ibx->base_url($ctx->{env}) . "$altid_pfx.sql.gz";
+		return PublicInbox::WwwStream::oneshot($ctx, 405, \<<EOF);
+<pre>A POST request required to retrieve $altid_pfx.sql.gz
+
+	curl -XPOST -O $url
+
+or
+
+	curl -XPOST $url | \\
+		gzip -dc | \\
+		sqlite3 /path/to/$altid_pfx.sqlite3
+</pre>
 EOF
 	}
 
@@ -73,7 +90,6 @@ EOF
 
 	# TODO: use -readonly if available with newer sqlite3(1)
 	my $qsp = PublicInbox::Qspawn->new([$sqlite3, $fn], undef, { 0 => $r });
-	my $env = $ctx->{env};
 	$ctx->{altid_pfx} = $altid_pfx;
 	$env->{'qspawn.filter'} = PublicInbox::GzipFilter->new;
 	$qsp->psgi_return($env, undef, \&check_output, $ctx);

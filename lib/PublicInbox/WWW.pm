@@ -125,6 +125,8 @@ sub call {
 		get_vcs_object($ctx, $1, $2, $3);
 	} elsif ($path_info =~ m!$INBOX_RE/($OID_RE)/s\z!o) {
 		r301($ctx, $1, $2, 's/');
+	} elsif ($path_info =~ m!$INBOX_RE/(\w+)\.sql\.gz\z!o) {
+		get_altid_dump($ctx, $1, $2);
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$INBOX_RE/([^/]{2,})\z!o) {
 		r301($ctx, $1, $2);
