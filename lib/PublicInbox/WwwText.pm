@@ -138,21 +138,37 @@ sub inbox_config ($$$) {
 	my $ibx = $ctx->{-inbox};
 	push @$hdr, 'Content-Disposition', 'inline; filename=inbox.config';
 	my $name = dq_escape($ibx->{name});
+	my $inboxdir = '/path/to/top-level-inbox';
 	$$txt .= <<EOS;
 ; example public-inbox config snippet for "$name"
 ; see public-inbox-config(5) manpage for more details:
 ; https://public-inbox.org/public-inbox-config.html
 [publicinbox "$name"]
-	inboxdir = /path/to/top-level-inbox
+	inboxdir = $inboxdir
 	; note: public-inbox before v1.2.0 used "mainrepo"
 	; instead of "inboxdir", both remain supported after 1.2
-	mainrepo = /path/to/top-level-inbox
+	mainrepo = $inboxdir
 	url = https://example.com/$name/
 	url = http://example.onion/$name/
 EOS
 	for my $k (qw(address listid infourl)) {
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $_\n" for @$v;
+	}
+	if (my $altid = $ibx->{altid}) {
+		my $base_url = $ibx->base_url($ctx->{env});
+		my $altid_map = $ibx->altid_map;
+		$$txt .= <<EOF;
+	; altid DBs may be used to provide numeric article ID lookup from
+	; old, pre-existing sources.  You can recreate them via curl(1),
+	; gzip(1), and sqlite3(1) as documented:
+EOF
+		for (sort keys %$altid_map) {
+			$$txt .= "\t;\tcurl -XPOST $base_url$_.sql.gz | \\\n" .
+				"\t;\tgzip -dc | \\\n" .
+				"\t;\tsqlite3 $inboxdir/$_.sqlite3\n";
+			$$txt .= "\taltid = serial:$_:file=$_.sqlite3\n";
+		}
 	}
 
 	for my $k (qw(filter newsgroup obfuscate replyto watchheader)) {
