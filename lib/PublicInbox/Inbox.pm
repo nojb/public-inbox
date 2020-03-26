@@ -376,4 +376,19 @@ sub modified {
 	git($self)->modified; # v1
 }
 
+# returns prefix => pathname mapping
+# (pathname is NOT public, but prefix is used for Xapian queries)
+sub altid_map ($) {
+	my ($self) = @_;
+	$self->{-altid_map} //= eval {
+		require PublicInbox::AltId;
+		my $altid = $self->{altid} or return {};
+		my %h = map {;
+			my $x = PublicInbox::AltId->new($self, $_);
+			"$x->{prefix}" => $x->{filename}
+		} @$altid;
+		\%h;
+	} // {};
+}
+
 1;

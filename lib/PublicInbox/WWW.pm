@@ -170,6 +170,7 @@ sub preload {
 
 sub preload_inbox {
 	my $ibx = shift;
+	$ibx->altid_map;
 	$ibx->cloneurl;
 	$ibx->description;
 	$ibx->base_url;

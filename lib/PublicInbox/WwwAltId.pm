@@ -10,18 +10,6 @@ use PublicInbox::AltId;
 use PublicInbox::Spawn qw(which);
 our $sqlite3 = $ENV{SQLITE3};
 
-# returns prefix => pathname mapping
-# (pathname is NOT public, but prefix is used for Xapian queries)
-sub altid_map ($) {
-	my ($ibx) = @_;
-	my $altid = $ibx->{altid} or return {};
-	my %h = map {;
-		my $x = PublicInbox::AltId->new($ibx, $_);
-		"$x->{prefix}" => $x->{filename}
-	} @$altid;
-	\%h;
-}
-
 sub sqlite3_missing ($) {
 	PublicInbox::WwwResponse::oneshot($_[0], 501, \<<EOF);
 <pre>sqlite3 not available
@@ -51,7 +39,7 @@ sub check_output {
 sub sqldump ($$) {
 	my ($ctx, $altid_pfx) = @_;
 	my $ibx = $ctx->{-inbox};
-	my $altid_map = $ibx->{-altid_map} //= altid_map($ibx);
+	my $altid_map = $ibx->altid_map;
 	my $fn = $altid_map->{$altid_pfx};
 	unless (defined $fn) {
 		return PublicInbox::WwwStream::oneshot($ctx, 404, \<<EOF);
