@@ -115,4 +115,17 @@ my $msgs = $ibx->recent({limit => 1000});
 is($msgs->[0]->{mid}, 'a-mid@b', 'message exists in history');
 is(scalar @$msgs, 1, 'only one message in history');
 
+$ibx = undef;
+$err = '';
+$cmd = [ qw(-index --reindex -c), "$tmpdir/v2" ];
+ok(run_script($cmd, undef, $rdr), '--reindex -c');
+like($err, qr/xapian-compact/, 'xapian-compact ran (-c)');
+
+$rdr->{2} = \(my $err2 = '');
+$cmd = [ qw(-index --reindex -cc), "$tmpdir/v2" ];
+ok(run_script($cmd, undef, $rdr), '--reindex -c -c');
+like($err2, qr/xapian-compact/, 'xapian-compact ran (-c -c)');
+ok(scalar(split(/\n/, $err2)) > scalar(split(/\n/, $err)),
+	'-compacted twice');
+
 done_testing();

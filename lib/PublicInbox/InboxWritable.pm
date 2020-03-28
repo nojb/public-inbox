@@ -19,6 +19,7 @@ use constant {
 
 sub new {
 	my ($class, $ibx, $creat_opt) = @_;
+	return $ibx if ref($ibx) eq $class;
 	my $self = bless $ibx, $class;
 
 	# TODO: maybe stop supporting this

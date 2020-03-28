@@ -11,12 +11,19 @@ use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $usage = "public-inbox-index INBOX_DIR";
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
+use PublicInbox::Xapcmd;
 
-my $opt = { quiet => -1 };
-GetOptions($opt, qw(verbose|v+ reindex jobs|j=i prune indexlevel|L=s))
+my $compact_opt;
+my $opt = { quiet => -1, compact => 0 };
+GetOptions($opt, qw(verbose|v+ reindex compact|c+ jobs|j=i prune indexlevel|L=s))
 	or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $opt->{jobs} && $opt->{jobs} <= 0;
 
+if ($opt->{compact}) {
+	require PublicInbox::Xapcmd;
+	PublicInbox::Xapcmd::check_compact();
+	$compact_opt = { -coarse_lock => 1, compact => 1 };
+}
 
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV);
 PublicInbox::Admin::require_or_die('-index');
@@ -31,4 +38,11 @@ foreach my $ibx (@ibxs) {
 
 PublicInbox::Admin::require_or_die(keys %$mods);
 PublicInbox::Admin::progress_prepare($opt);
-PublicInbox::Admin::index_inbox($_, undef, $opt) for @ibxs;
+for my $ibx (@ibxs) {
+	$ibx = PublicInbox::InboxWritable->new($ibx);
+	if ($opt->{compact} >= 2) {
+		PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt);
+	}
+	PublicInbox::Admin::index_inbox($ibx, undef, $opt);
+	PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt) if $compact_opt;
+}

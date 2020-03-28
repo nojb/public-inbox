@@ -217,13 +217,15 @@ sub prepare_run {
 	($tmp, \@queue);
 }
 
+sub check_compact () { runnable_or_die($XAPIAN_COMPACT) }
+
 sub run {
 	my ($ibx, $task, $opt) = @_; # task = 'cpdb' or 'compact'
 	my $cb = \&${\"PublicInbox::Xapcmd::$task"};
 	PublicInbox::Admin::progress_prepare($opt ||= {});
 	defined(my $dir = $ibx->{inboxdir}) or die "no inboxdir defined\n";
 	-d $dir or die "inboxdir=$dir does not exist\n";
-	runnable_or_die($XAPIAN_COMPACT) if $opt->{compact};
+	check_compact() if $opt->{compact};
 	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
 
 	if (!$opt->{-coarse_lock}) {

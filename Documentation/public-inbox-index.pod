@@ -4,7 +4,7 @@ public-inbox-index - create and update search indices
 
 =head1 SYNOPSIS
 
-public-inbox-index [OPTIONS] INBOX_DIR
+public-inbox-index [OPTIONS] INBOX_DIR...
 
 =head1 DESCRIPTION
 
@@ -32,16 +32,32 @@ normal search functionality.
 
 =over
 
+=item --compact / -c
+
+Compacts the Xapian DBs after indexing.  This is recommended
+when using C<--reindex> to avoid running out of disk space
+while indexing multiple inboxes.
+
+While option takes a negligible amount of time compared to
+C<--reindex>, it requires temporarily duplicating the entire
+contents of the Xapian DB.
+
+This switch may be specified twice, in which case compaction
+happens both before and after indexing to minimize the temporal
+footprint of the (re)indexing operation.
+
 =item --reindex
 
 Forces a re-index of all messages in the inbox.
 This can be used for in-place upgrades and bugfixes while
 NNTP/HTTP server processes are utilizing the index.  Keep in
 mind this roughly doubles the size of the already-large
-Xapian database.  Running L<public-inbox-compact(1)>
-afterwards is recommended to release free space.
+Xapian database.  Using this with C<--compact> or running
+L<public-inbox-compact(1)> afterwards is recommended to
+release free space.
 
-This does not touch the NNTP article number database.
+This does not touch the NNTP article number database or
+affect threading.
 
 =item --prune
 
