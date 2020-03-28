@@ -11,9 +11,11 @@ use IO::Handle (); # autoflush
 
 sub new {
 	my ($class, $v2writable, $shard) = @_;
-	my $self = $class->SUPER::new($v2writable->{-inbox}, 1, $shard);
+	my $ibx = $v2writable->{-inbox};
+	my $self = $class->SUPER::new($ibx, 1, $shard);
 	# create the DB before forking:
 	$self->_xdb_acquire;
+	$self->set_indexlevel;
 	$self->_xdb_release;
 	$self->spawn_worker($v2writable, $shard) if $v2writable->{parallel};
 	$self;

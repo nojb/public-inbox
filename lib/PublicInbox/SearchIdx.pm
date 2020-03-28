@@ -58,6 +58,7 @@ sub new {
 		ibx_ver => $version,
 		indexlevel => $indexlevel,
 	}, $class;
+	$self->{-set_indexlevel_once} = 1 if $indexlevel eq 'medium';
 	$ibx->umask_prepare;
 	if ($version == 1) {
 		$self->{lock_path} = "$inboxdir/ssoma.lock";
@@ -842,20 +843,27 @@ sub begin_txn_lazy {
 	});
 }
 
+# store 'indexlevel=medium' in v2 shard=0 and v1 (only one shard)
+# This metadata is read by Admin::detect_indexlevel:
+sub set_indexlevel {
+	my ($self) = @_;
+
+	if (!$self->{shard} && # undef or 0, not >0
+			delete($self->{-set_indexlevel_once})) {
+		my $xdb = $self->{xdb};
+		my $level = $xdb->get_metadata('indexlevel');
+		if (!$level || $level ne 'medium') {
+			$xdb->set_metadata('indexlevel', 'medium');
+		}
+	}
+}
+
 sub commit_txn_lazy {
 	my ($self) = @_;
 	delete $self->{txn} or return;
 	$self->{-inbox}->with_umask(sub {
 		if (my $xdb = $self->{xdb}) {
-
-			# store 'indexlevel=medium' in v2 shard=0 and
-			# v1 (only one shard)
-			# This metadata is read by Admin::detect_indexlevel:
-			if (!$self->{shard} # undef or 0, not >0
-			    && $self->{indexlevel} eq 'medium') {
-				$xdb->set_metadata('indexlevel', 'medium');
-			}
-
+			set_indexlevel($self);
 			$xdb->commit_transaction;
 		}
 		$self->{over}->commit_lazy if $self->{over};

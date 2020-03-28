@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
+use PublicInbox::Admin;
 use File::Basename;
 my ($tmpdir, $for_destroy) = tmpdir();
 sub quiet_fail {
@@ -72,11 +73,15 @@ SKIP: {
 	quiet_fail($cmd, 'initializing V2 as V1 fails');
 
 	foreach my $lvl (qw(medium basic)) {
+		my $dir = "$tmpdir/v2$lvl";
 		$cmd = [ '-init', "v2$lvl", '-V2', '-L', $lvl,
-			"$tmpdir/v2$lvl", "http://example.com/v2$lvl",
+			$dir, "http://example.com/v2$lvl",
 			"v2$lvl\@example.com" ];
 		ok(run_script($cmd), "-init -L $lvl");
 		is(read_indexlevel("v2$lvl"), $lvl, "indexlevel set to '$lvl'");
+		my $ibx = PublicInbox::Inbox->new({ inboxdir => $dir });
+		is(PublicInbox::Admin::detect_indexlevel($ibx), $lvl,
+			'detected expected level w/o config');
 	}
 
 	# loop for idempotency
