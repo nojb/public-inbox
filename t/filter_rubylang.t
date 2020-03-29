@@ -27,7 +27,12 @@ SKIP: {
 	use_ok 'PublicInbox::Inbox';
 	my ($git_dir, $for_destroy) = tmpdir();
 	is(mkdir("$git_dir/public-inbox"), 1, "created public-inbox dir");
-	my $altid = [ "serial:ruby-core:file=msgmap.sqlite3" ];
+	my $altid = [
+		# 'serial:ruby-core:file=msgmap.sqlite3' can be used here
+		# for documentation purposes, but Xapian ignores everything
+		# up to and including the '-'
+		'serial:core:file=msgmap.sqlite3'
+	];
 	my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir,
 						altid => $altid });
 	$f = PublicInbox::Filter::RubyLang->new(-inbox => $ibx);
