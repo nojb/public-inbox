@@ -234,7 +234,11 @@ sub rd_hdr ($) {
 				length($$hdr_buf));
 		if (defined($r)) {
 			$total_rd += $r;
-			$ret = $ph_cb->($total_rd, $hdr_buf, $ph_arg);
+			eval { $ret = $ph_cb->($total_rd, $hdr_buf, $ph_arg) };
+			if ($@) {
+				log_err($self->{psgi_env}, "parse_hdr: $@");
+				$ret = [ 500, [], [ "Internal error\n" ] ];
+			}
 		} else {
 			# caller should notify us when it's ready:
 			return if $! == EAGAIN;
