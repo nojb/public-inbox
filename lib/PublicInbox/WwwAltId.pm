@@ -5,13 +5,13 @@
 package PublicInbox::WwwAltId;
 use strict;
 use PublicInbox::Qspawn;
-use PublicInbox::WwwStream;
+use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::AltId;
 use PublicInbox::Spawn qw(which);
 our $sqlite3 = $ENV{SQLITE3};
 
 sub sqlite3_missing ($) {
-	PublicInbox::WwwResponse::oneshot($_[0], 501, \<<EOF);
+	html_oneshot($_[0], 501, \<<EOF);
 <pre>sqlite3 not available
 
 The administrator needs to install the sqlite3(1) binary
@@ -22,11 +22,11 @@ EOF
 
 sub check_output {
 	my ($r, $bref, $ctx) = @_;
-	return PublicInbox::WwwResponse::oneshot($ctx, 500) if !defined($r);
+	return html_oneshot($ctx, 500) if !defined($r);
 	if ($r == 0) {
 		my $err = eval { $ctx->{env}->{'psgi.errors'} } // \*STDERR;
 		$err->print("unexpected EOF from sqlite3\n");
-		return PublicInbox::WwwResponse::oneshot($ctx, 501);
+		return html_oneshot($ctx, 501);
 	}
 	[200, [ qw(Content-Type application/gzip), 'Content-Disposition',
 		"inline; filename=$ctx->{altid_pfx}.sql.gz" ] ]
@@ -43,14 +43,14 @@ sub sqldump ($$) {
 	my $altid_map = $ibx->altid_map;
 	my $fn = $altid_map->{$altid_pfx};
 	unless (defined $fn) {
-		return PublicInbox::WwwStream::oneshot($ctx, 404, \<<EOF);
+		return html_oneshot($ctx, 404, \<<EOF);
 <pre>`$altid_pfx' is not a valid altid for this inbox</pre>
 EOF
 	}
 
 	if ($env->{REQUEST_METHOD} ne 'POST') {
 		my $url = $ibx->base_url($ctx->{env}) . "$altid_pfx.sql.gz";
-		return PublicInbox::WwwStream::oneshot($ctx, 405, \<<EOF);
+		return html_oneshot($ctx, 405, \<<EOF);
 <pre>A POST request required to retrieve $altid_pfx.sql.gz
 
 	curl -XPOST -O $url
@@ -65,7 +65,7 @@ EOF
 	}
 
 	eval { require PublicInbox::GzipFilter } or
-		return PublicInbox::WwwStream::oneshot($ctx, 501, \<<EOF);
+		return html_oneshot($ctx, 501, \<<EOF);
 <pre>gzip output not available
 
 The administrator needs to install the Compress::Raw::Zlib Perl module
@@ -73,7 +73,7 @@ to support gzipped sqlite3 dumps.</pre>
 EOF
 	$sqlite3 //= which('sqlite3');
 	if (!defined($sqlite3)) {
-		return PublicInbox::WwwStream::oneshot($ctx, 501, \<<EOF);
+		return html_oneshot($ctx, 501, \<<EOF);
 <pre>sqlite3 not available
 
 The administrator needs to install the sqlite3(1) binary

@@ -13,6 +13,7 @@ use warnings;
 use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Smsg;
+use PublicInbox::WwwStream qw(html_oneshot);
 use Email::Simple;
 use Email::MIME::Encode;
 
@@ -236,7 +237,7 @@ sub mbox_all {
 }
 
 sub need_gzip {
-	PublicInbox::WwwStream::oneshot($_[0], 501, \<<EOF);
+	html_oneshot($_[0], 501, \<<EOF);
 <pre>gzipped mbox not available
 
 The administrator needs to install the Compress::Raw::Zlib Perl module

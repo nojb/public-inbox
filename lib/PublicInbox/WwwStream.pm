@@ -9,6 +9,8 @@
 package PublicInbox::WwwStream;
 use strict;
 use warnings;
+use base qw(Exporter);
+our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl);
 our $TOR_URL = 'https://www.torproject.org/';
@@ -170,7 +172,7 @@ sub getline {
 	delete $self->{cb} ? _html_end($self) : undef;
 }
 
-sub oneshot {
+sub html_oneshot ($$;$) {
 	my ($ctx, $code, $sref) = @_;
 	my $self = bless {
 		ctx => $ctx,

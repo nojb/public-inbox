@@ -18,7 +18,7 @@ use strict;
 use warnings;
 use bytes (); # only for bytes::length
 use PublicInbox::SolverGit;
-use PublicInbox::WwwStream;
+use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Linkify;
 use PublicInbox::Tmpfile;
 use PublicInbox::Hval qw(ascii_html to_filename);
@@ -35,7 +35,7 @@ sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
 	my $wcb = delete $ctx->{-wcb};
 	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
-	my $res = PublicInbox::WwwStream::oneshot($ctx, $code, $strref);
+	my $res = html_oneshot($ctx, $code, $strref);
 	$wcb ? $wcb->($res) : $res;
 }
 
