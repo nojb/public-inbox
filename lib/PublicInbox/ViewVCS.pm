@@ -58,6 +58,7 @@ sub stream_blob_parse_hdr { # {parse_hdr} for Qspawn
 			warn "premature EOF on $oid $$logref\n";
 			return html_page($ctx, 500, $logref);
 		}
+		@$ctx{qw(-res -logref)} = ($res, $logref);
 		undef; # bref keeps growing
 	}
 }
