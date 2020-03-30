@@ -67,7 +67,7 @@ for my $order ([$bad, $good], [$good, $bad]) {
 
 	system(qw(git clone -sq --mirror), "$tmpdir/v2/git/0.git",
 		"$tmpdir/v2-clone/git/0.git") == 0 or die "clone: $?";
-	$cmd = [ '-init', '-V2', 'v2c', "$tmpdir/v2-clone",
+	$cmd = [ '-init', '-Lbasic', '-V2', 'v2c', "$tmpdir/v2-clone",
 		'http://example.com/v2c', 'v2c@example.com' ];
 	ok(run_script($cmd, $env), 'init clone');
 	$cmd = [ '-index', "$tmpdir/v2-clone" ];
