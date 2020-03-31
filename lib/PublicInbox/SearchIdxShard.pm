@@ -69,8 +69,9 @@ sub shard_worker_loop ($$$$$) {
 			$self->remove_by_oid($oid, $mid);
 		} else {
 			chomp $line;
-			my ($bytes, $num, $blob, $mid, $ds, $ts) =
-							split(/ /, $line);
+			# n.b. $mid may contain spaces(!)
+			my ($bytes, $num, $blob, $ds, $ts, $mid) =
+							split(/ /, $line, 6);
 			$self->begin_txn_lazy;
 			my $n = read($r, my $msg, $bytes) or die "read: $!\n";
 			$n == $bytes or die "short read: $n != $bytes\n";
@@ -93,7 +94,8 @@ sub shard_worker_loop ($$$$$) {
 sub index_raw {
 	my ($self, $msgref, $mime, $smsg) = @_;
 	if (my $w = $self->{w}) {
-		print $w join(' ', @$smsg{qw(bytes num blob mid ds ts)}),
+		# mid must be last, it can contain spaces (but not LF)
+		print $w join(' ', @$smsg{qw(bytes num blob ds ts mid)}),
 			"\n", $$msgref or die "failed to write shard $!\n";
 	} else {
 		$$msgref = undef;

@@ -109,6 +109,11 @@ if ('ensure git configs are correct') {
 	@mids = $mime->header_obj->header_raw('Message-Id');
 	like($mids[0], $sane_mid, 'mid was generated');
 	is(scalar(@mids), 1, 'new generated');
+
+	@warn = ();
+	$mime->header_set('Message-Id', '<space@ (NXDOMAIN) >');
+	ok($im->add($mime), 'message added with space in Message-Id');
+	is_deeply([], \@warn);
 }
 
 {
@@ -175,8 +180,13 @@ EOF
 		is($uniq{$mid}++, 0, "MID for $num is unique in XOVER");
 		is_deeply($n->xhdr('Message-ID', $num),
 			 { $num => $mid }, "XHDR lookup OK on num $num");
+
+		# FIXME PublicInbox::NNTP (server) doesn't handle spaces in
+		# Message-ID, but neither does Net::NNTP (client)
+		next if $mid =~ / /;
+
 		is_deeply($n->xhdr('Message-ID', $mid),
-			 { $mid => $mid }, "XHDR lookup OK on MID $num");
+			 { $mid => $mid }, "XHDR lookup OK on MID $mid ($num)");
 	}
 	my %nn;
 	foreach my $mid (@{$n->newnews(0, $group)}) {
