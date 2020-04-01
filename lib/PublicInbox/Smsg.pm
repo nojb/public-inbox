@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use base qw(Exporter);
 our @EXPORT_OK = qw(subject_normalized);
-use PublicInbox::MID qw/mid_clean mid_mime/;
+use PublicInbox::MID qw/mid_mime/;
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use Time::Local qw(timegm);
@@ -178,11 +178,9 @@ sub mid ($;$) {
 		$rv;
 	} else {
 		die "NO {mime} for mid\n" unless $self->{mime};
-		$self->_extract_mid; # v1 w/o Xapian
+		mid_mime($self->{mime}) # v1 w/o Xapian
 	}
 }
-
-sub _extract_mid { mid_clean(mid_mime($_[0]->{mime})) }
 
 our $REPLY_RE = qr/^re:\s+/i;
 
