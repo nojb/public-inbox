@@ -52,7 +52,7 @@ if (defined $list_id) {
 	if (defined $domain) {
 		$archive_url = "https://$domain/$user/";
 		my $mid = $header_obj->header('Message-Id');
-		if ($mid =~ /\A<(.+)>\z/) {
+		if ($mid =~ /<[ \t]*([^>]+)?[ \t]*>/s) {
 			$mid = $1;
 		}
 		$mid = uri_escape_utf8($mid,

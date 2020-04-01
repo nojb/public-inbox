@@ -14,6 +14,7 @@ use strict;
 use warnings;
 use Digest::SHA qw/sha1_hex/;
 use PublicInbox::Hval qw(ascii_html mid_href);
+use PublicInbox::MID qw($MID_EXTRACT);
 
 my $SALT = rand;
 my $LINK_RE = qr{([\('!])?\b((?:ftps?|https?|nntps?|gopher)://
@@ -93,7 +94,7 @@ sub linkify_2 {
 # with $pfx being the URL prefix
 sub linkify_mids {
 	my ($self, $pfx, $str, $raw) = @_;
-	$$str =~ s!<([^>]+)>!
+	$$str =~ s!$MID_EXTRACT!
 		my $mid = $1;
 		my $html = ascii_html($mid);
 		my $href = mid_href($mid);

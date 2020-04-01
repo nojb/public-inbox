@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use base qw(PublicInbox::DS);
 use fields qw(nntpd article ng long_cb);
-use PublicInbox::MID qw(mid_escape);
+use PublicInbox::MID qw(mid_escape $MID_EXTRACT);
 use Email::Simple;
 use POSIX qw(strftime);
 use PublicInbox::DS qw(now);
@@ -24,7 +24,7 @@ use constant {
 };
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use Errno qw(EAGAIN);
-
+my $ONE_MSGID = qr/\A$MID_EXTRACT\z/;
 my @OVERVIEW = qw(Subject From Date Message-ID References);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines), '') .
 		"Xref:full\r\n";
@@ -450,7 +450,7 @@ sub art_lookup ($$$) {
 			$err = '423 no such article number in this group';
 			$n = int($art);
 			goto find_mid;
-		} elsif ($art =~ /\A<([^>]+)>\z/) {
+		} elsif ($art =~ $ONE_MSGID) {
 			$mid = $1;
 			$err = r430;
 			$n = $ng->mm->num_for($mid) if $ng;
@@ -653,7 +653,7 @@ sub hdr_msgid_range_i {
 sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 	my ($self, $xhdr, $range) = @_;
 
-	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
+	if (defined $range && $range =~ $ONE_MSGID) {
 		my ($ng, $n) = mid_lookup($self, $1);
 		return r430 unless $n;
 		hdr_mid_response($self, $xhdr, $ng, $n, $range, $range);
@@ -696,7 +696,7 @@ sub xref_range_i {
 sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 	my ($self, $xhdr, $range) = @_;
 
-	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
+	if (defined $range && $range =~ $ONE_MSGID) {
 		my $mid = $1;
 		my ($ng, $n) = mid_lookup($self, $mid);
 		return r430 unless $n;
@@ -734,7 +734,7 @@ sub smsg_range_i {
 
 sub hdr_smsg ($$$$) {
 	my ($self, $xhdr, $field, $range) = @_;
-	if (defined $range && $range =~ /\A<(.+)>\z/) { # Message-ID
+	if (defined $range && $range =~ $ONE_MSGID) {
 		my ($ng, $n) = mid_lookup($self, $1);
 		return r430 unless defined $n;
 		my $v = over_header_for($ng->over, $n, $field);
@@ -843,7 +843,7 @@ sub over_line ($$$$) {
 
 sub cmd_over ($;$) {
 	my ($self, $range) = @_;
-	if ($range && $range =~ /\A<(.+)>\z/) {
+	if ($range && $range =~ $ONE_MSGID) {
 		my ($ng, $n) = mid_lookup($self, $1);
 		defined $n or return r430;
 		my $smsg = $ng->over->get_art($n) or return r430;
@@ -911,7 +911,7 @@ sub zflush {} # overridden by NNTPdeflate
 
 sub cmd_xpath ($$) {
 	my ($self, $mid) = @_;
-	return r501 unless $mid =~ /\A<(.+)>\z/;
+	return r501 unless $mid =~ $ONE_MSGID;
 	$mid = $1;
 	my @paths;
 	foreach my $ng (values %{$self->{nntpd}->{groups}}) {

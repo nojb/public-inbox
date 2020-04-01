@@ -6,8 +6,8 @@ package PublicInbox::MID;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/mid_clean id_compress mid2path mid_mime mid_escape MID_ESC
-	mids references mids_for_index/;
+our @EXPORT_OK = qw(mid_clean id_compress mid2path mid_mime mid_escape MID_ESC
+	mids references mids_for_index $MID_EXTRACT);
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
 require PublicInbox::Address;
@@ -16,11 +16,13 @@ use constant {
 	MAX_MID_SIZE => 244, # max term size (Xapian limitation) - length('Q')
 };
 
+our $MID_EXTRACT = qr/<([^>]+)>/s;
+
 sub mid_clean {
 	my ($mid) = @_;
 	defined($mid) or die "no Message-ID";
 	# MDA->precheck did more checking for us
-	if ($mid =~ /<([^>]+)>/) {
+	if ($mid =~ $MID_EXTRACT) {
 		$mid = $1;
 	}
 	$mid;
@@ -58,7 +60,7 @@ sub mid_mime ($) { mids($_[0]->header_obj)->[0] }
 sub extract_mids {
 	my @mids;
 	for my $v (@_) {
-		my @cur = ($v =~ /<([^>]+)>/sg);
+		my @cur = ($v =~ /$MID_EXTRACT/g);
 		if (@cur) {
 			push(@mids, @cur);
 		} else {
@@ -92,7 +94,7 @@ sub references ($) {
 	foreach my $f (qw(References In-Reply-To)) {
 		my @v = $hdr->header_raw($f);
 		foreach my $v (@v) {
-			push(@mids, ($v =~ /<([^>]+)>/sg));
+			push(@mids, ($v =~ /$MID_EXTRACT/g));
 		}
 	}
 

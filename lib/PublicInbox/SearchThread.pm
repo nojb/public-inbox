@@ -20,6 +20,7 @@
 package PublicInbox::SearchThread;
 use strict;
 use warnings;
+use PublicInbox::MID qw($MID_EXTRACT);
 
 sub thread {
 	my ($msgs, $ordersub, $ctx) = @_;
@@ -67,7 +68,7 @@ sub _add_message ($$) {
 	# everything is perfectly referenced, only the last ref
 	# matters.
 	my $prev;
-	foreach my $ref ($refs =~ m/<([^>]+)>/g) {
+	foreach my $ref ($refs =~ m/$MID_EXTRACT/go) {
 		# Find a Container object for the given Message-ID
 		my $cont = _get_cont_for_id($id_table, $ref);
 

@@ -10,7 +10,8 @@ use bytes (); # only for bytes::length
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs prurl mid_href);
 use PublicInbox::Linkify;
-use PublicInbox::MID qw/id_compress mids mids_for_index references/;
+use PublicInbox::MID qw(id_compress mids mids_for_index references
+			$MID_EXTRACT);
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
 use PublicInbox::WwwStream;
@@ -299,7 +300,7 @@ sub _th_index_lite {
 	if (my $smsg = $node->{smsg}) {
 		# delete saves about 200KB on a 1K message thread
 		if (my $refs = delete $smsg->{references}) {
-			($$irt) = ($refs =~ m/<([^>]+)>\z/);
+			($$irt) = ($refs =~ m/$MID_EXTRACT\z/o);
 		}
 	}
 	my $irt_map = $mapping->{$$irt} if defined $$irt;
