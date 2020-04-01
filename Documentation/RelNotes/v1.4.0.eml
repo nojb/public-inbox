@@ -4,11 +4,68 @@ Subject: [WIP] public-inbox 1.4.0
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
+This release focuses on reproducibility improvements and
+bugfixes for corner-cases.  Busy instances of PublicInbox::WWW
+may also notice memory usage reductions.
+
+Rare messages lacking Date and/or Received headers, mirrors now
+fallback to using the git author/commit times to reindex those
+messages to ensure search and filtering queries behave the same
+in mirrors as they do on the original machine.
+
+"altid" SQLite dumps are now accessible to all over the WWW
+interface via `POST /$INBOX/$ALTID.sql.gz'.
+
+Busy instances of PublicInbox::WWW (whether via
+public-inbox-httpd or another PSGI server) may notice
+significant memory usage reductions from the single message
+"permalink" lifetime optimization.  There also ongoing work to
+improve memory lifetime management to reduce the potential for
+memory fragmentation in daemons.
+
+* general changes:
+
+  - `include.*' directives in the public-inbox-config(5) file
+    are now honored as documented in git-config(1),
+    thanks to Andreas Rottmann.
+
+  - `+0000' is assumed for dates missing TZ offsets;
+    thanks to Leah Neukirchen for spotting this regression from
+    v1.2.0.
+
+  - `<' and `>' characters are dropped to avoid errors in git
+    in addresses for git, thanks again to Leah for noticing
+    this long-standing bug.
+
 * PublicInbox::WWW:
+
   - reduced memory use for single message "permalink" view
+  - code preload improved to reduce memory fragmentation
   - remove redundant "a=" parameter in links to solver
   - escape '&' in hrefs properly
   - fix optional address obfuscation in search results
+  - `POST /$INBOX/$ALTID.sql.gz' endpoint to retrieve SQLite dumps
+
+* public-inbox-httpd + public-inbox-nntpd:
+
+  - fix SIGUSR2 upgrade in worker-less instances (-W0)
+
+* public-inbox-httpd:
+
+  - fix RFC 7230 conformance when Content-Length and "chunked"
+    are both specified
+
+* public-inbox-index:
+
+  - reproduce original date and time stamps in mirrors for messages
+    lacking Date: and/or Received: headers
+
+  - new `--compact' (or `-c') switch to perform the equivalent of
+    public-inbox-compact(1) after indexing each inbox
+
+* documentation:
+
+  - Documentation/technical/data_structures.txt add for new hackers.
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 

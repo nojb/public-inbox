@@ -56,6 +56,9 @@ requirements.
 See design_www.txt and design_notes.txt in the Documentation/
 directory for design decisions made during development.
 
+See Documentation/technical/ in the source tree for more details
+on specific topics, in particular data_structures.txt
+
 Perl notes
 ----------
 
