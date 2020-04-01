@@ -497,13 +497,13 @@ sub index_git_blob_id {
 
 sub unindex_blob {
 	my ($self, $mime) = @_;
-	my $mid = eval { mid_clean(mid_mime($mime)) };
+	my $mid = eval { mid_mime($mime) };
 	$self->remove_message($mid) if defined $mid;
 }
 
 sub index_mm {
 	my ($self, $mime) = @_;
-	my $mid = mid_clean(mid_mime($mime));
+	my $mid = mid_mime($mime);
 	my $mm = $self->{mm};
 	my $num;
 
@@ -534,7 +534,7 @@ sub index_mm {
 
 sub unindex_mm {
 	my ($self, $mime) = @_;
-	$self->{mm}->mid_delete(mid_clean(mid_mime($mime)));
+	$self->{mm}->mid_delete(mid_mime($mime));
 }
 
 sub index_both {
