@@ -15,7 +15,7 @@ public-inbox spawned around three main ideas:
 
 * Graphical user interfaces should not be required for text-based
   communication.  Users may have broken graphics drivers, limited
-  eyesight, or unable to afford modern hardware.
+  eyesight, or be unable to afford modern hardware.
 
 public-inbox aims to be easy-to-deploy and manage; encouraging projects
 to run their own instances with minimal overhead.
