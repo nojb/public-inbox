@@ -76,7 +76,7 @@ sub args_ok ($$) {
 # returns 1 if we can continue, 0 if not due to buffered writes or disconnect
 sub process_line ($$) {
 	my ($self, $l) = @_;
-	my ($req, @args) = split(/[ \t]/, $l);
+	my ($req, @args) = split(/[ \t]+/, $l);
 	return 1 unless defined($req); # skip blank line
 	$req = $self->can('cmd_'.lc($req));
 	return res($self, '500 command not recognized') unless $req;
