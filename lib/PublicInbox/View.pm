@@ -1056,7 +1056,7 @@ sub acc_topic { # walk_thread callback
 sub dump_topics {
 	my ($ctx) = @_;
 	my $order = delete $ctx->{order}; # [ ds, subj1, subj2, subj3, ... ]
-	if (!@$order) {
+	unless ($order) {
 		$ctx->{-html_tip} = '<pre>[No topics in range]</pre>';
 		return 404;
 	}

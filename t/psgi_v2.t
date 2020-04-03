@@ -250,6 +250,8 @@ test_psgi(sub { $www->call(@_) }, sub {
 		is($old->content, 'old', 'got expected old content');
 		is($new->content, 'new', 'got expected new content');
 	}
+	$res = $cb->(GET('/v2test/?t=1970'.'01'.'01'.'000000'));
+	is($res->code, 404, '404 for out-of-range t= param');
 });
 
 done_testing();
