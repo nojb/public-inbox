@@ -576,7 +576,7 @@ sub add_text_body { # callback for msg_iter
 	$s .= "\n" unless $s =~ /\n\z/s;
 
 	# split off quoted and unquoted blocks:
-	my @sections = split(/((?:^>[^\n]*\n)+)/sm, $s);
+	my @sections = PublicInbox::MsgIter::split_quotes($s);
 	$s = '';
 	my $rv = $ctx->{obuf};
 	if (defined($fn) || $depth > 0 || $err) {

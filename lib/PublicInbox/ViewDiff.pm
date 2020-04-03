@@ -202,6 +202,17 @@ sub flush_diff ($$$) {
 			$dctx = diff_header($dst, \$x, $ctx, \@top);
 		} elsif ($dctx) {
 			my $after = '';
+
+			# Quiet "Complex regular subexpression recursion limit"
+			# warning.  Perl will truncate matches upon hitting
+			# that limit, giving us more (and shorter) scalars than
+			# would be ideal, but otherwise it's harmless.
+			#
+			# We could replace the `+' metacharacter with `{1,100}'
+			# to limit the matches ourselves to 100, but we can
+			# let Perl do it for us, quietly.
+			no warnings 'regexp';
+
 			for my $s (split(/((?:(?:^\+[^\n]*\n)+)|
 					(?:(?:^-[^\n]*\n)+)|
 					(?:^@@ [^\n]+\n))/xsm, $x)) {

@@ -78,5 +78,35 @@ use_ok('PublicInbox::MsgIter');
 		'got bullet point when X-UNKNOWN assumes UTF-8');
 }
 
+{ # API not finalized
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, [ @_ ] };
+	my $attr = "So and so wrote:\n";
+	my $q = "> hello world\n" x 10;
+	my $nq = "hello world\n" x 10;
+	my @sections = PublicInbox::MsgIter::split_quotes($attr . $q . $nq);
+	is($sections[0], $attr, 'attribution matches');
+	is($sections[1], $q, 'quoted section matches');
+	is($sections[2], $nq, 'non-quoted section matches');
+	is(scalar(@sections), 3, 'only three sections for short message');
+	is_deeply(\@warn, [], 'no warnings');
+
+	$q x= 3300;
+	$nq x= 3300;
+	@sections = PublicInbox::MsgIter::split_quotes($attr . $q . $nq);
+	is_deeply(\@warn, [], 'no warnings on giant message');
+	is(join('', @sections), $attr . $q . $nq, 'result matches expected');
+	is(shift(@sections), $attr, 'attribution is first section');
+	my @check = ('', '');
+	while (defined(my $l = shift @sections)) {
+		next if $l eq '';
+		like($l, qr/\n\z/s, 'section ends with newline');
+		my $idx = ($l =~ /\A>/) ? 0 : 1;
+		$check[$idx] .= $l;
+	}
+	is($check[0], $q, 'long quoted section matches');
+	is($check[1], $nq, 'long quoted section matches');
+}
+
 done_testing();
 1;

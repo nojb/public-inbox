@@ -71,4 +71,14 @@ sub msg_part_text ($$) {
 	($s, $err);
 }
 
+# returns an array of quoted or unquoted sections
+sub split_quotes {
+	# Quiet "Complex regular subexpression recursion limit" warning
+	# in case an inconsiderate sender quotes 32K of text at once.
+	# The warning from Perl is harmless for us since our callers can
+	# tolerate less-than-ideal matches which work within Perl limits.
+	no warnings 'regexp';
+	split(/((?:^>[^\n]*\n)+)/sm, shift);
+}
+
 1;

@@ -302,7 +302,7 @@ sub index_xapian { # msg_iter callback
 	defined $s or return;
 
 	# split off quoted and unquoted blocks:
-	my @sections = split(/((?:^>[^\n]*\n)+)/sm, $s);
+	my @sections = PublicInbox::MsgIter::split_quotes($s);
 	$part = $s = undef;
 	index_body($self, $_, /\A>/ ? 0 : $doc) for @sections;
 }
