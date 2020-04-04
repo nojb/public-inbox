@@ -518,7 +518,9 @@ sub attach_link ($$$$;$) {
 	my $rv = $ctx->{obuf};
 	$$rv .= qq($nl<a\nhref="$ctx->{mhref}$idx-$sfn">);
 	if ($err) {
-		$$rv .= "[-- Warning: decoded text below may be mangled --]\n";
+		$$rv .= <<EOF;
+[-- Warning: decoded text below may be mangled, UTF-8 assumed --]
+EOF
 	}
 	$$rv .= "[-- Attachment #$idx: ";
 	my $ts = "Type: $ct, Size: $size bytes";
