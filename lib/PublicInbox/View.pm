@@ -589,7 +589,7 @@ sub add_text_body { # callback for msg_iter
 		if ($cur =~ /\A>/) {
 			flush_quote($rv, $l, \$cur);
 		} elsif ($diff) {
-			flush_diff($rv, $ctx, \$cur);
+			flush_diff($ctx, \$cur);
 		} else {
 			# regular lines, OK
 			$$rv .= $l->to_html($cur);

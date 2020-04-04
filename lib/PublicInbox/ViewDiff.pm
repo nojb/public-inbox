@@ -120,8 +120,8 @@ sub anchor1 ($$) {
 	$ok ? "<a\nhref=#i$attr\nid=$attr>diff</a> --git" : undef
 }
 
-sub diff_header ($$$$) {
-	my ($dst, $x, $ctx, $top) = @_;
+sub diff_header ($$$) {
+	my ($x, $ctx, $top) = @_;
 	my (undef, undef, $pa, $pb) = splice(@$top, 0, 4); # ignore oid_{a,b}
 	my $spfx = $ctx->{-spfx};
 	my $dctx = { spfx => $spfx };
@@ -159,15 +159,17 @@ sub diff_header ($$$$) {
 		warn "BUG? <$$x> had no ^index line";
 	}
 	$$x =~ s!^diff --git!anchor1($ctx, $pb) // 'diff --git'!ems;
+	my $dst = $ctx->{obuf};
 	$$dst .= qq(<span\nclass="head">);
 	$$dst .= $$x;
 	$$dst .= '</span>';
 	$dctx;
 }
 
-sub diff_before_or_after ($$$) {
-	my ($dst, $ctx, $x) = @_;
+sub diff_before_or_after ($$) {
+	my ($ctx, $x) = @_;
 	my $linkify = $ctx->{-linkify};
+	my $dst = $ctx->{obuf};
 	for my $y (split(/(^---\n)/sm, $$x)) {
 		if ($y =~ /\A---\n\z/s) {
 			$$dst .= "---\n"; # all HTML is "\r\n" => "\n"
@@ -186,20 +188,21 @@ sub diff_before_or_after ($$$) {
 }
 
 # callers must do CRLF => LF conversion before calling this
-sub flush_diff ($$$) {
-	my ($dst, $ctx, $cur) = @_;
+sub flush_diff ($$) {
+	my ($ctx, $cur) = @_;
 
 	my @top = split($EXTRACT_DIFFS, $$cur);
 	$$cur = undef;
 
 	my $linkify = $ctx->{-linkify};
+	my $dst = $ctx->{obuf};
 	my $dctx; # {}, keys: Q, oid_a, oid_b
 
 	while (defined(my $x = shift @top)) {
 		if (scalar(@top) >= 4 &&
 				$top[1] =~ $IS_OID &&
 				$top[0] =~ $IS_OID) {
-			$dctx = diff_header($dst, \$x, $ctx, \@top);
+			$dctx = diff_header(\$x, $ctx, \@top);
 		} elsif ($dctx) {
 			my $after = '';
 
@@ -238,9 +241,9 @@ sub flush_diff ($$$) {
 					$$dst .= $linkify->to_html($s);
 				}
 			}
-			diff_before_or_after($dst, $ctx, \$after) unless $dctx;
+			diff_before_or_after($ctx, \$after) unless $dctx;
 		} else {
-			diff_before_or_after($dst, $ctx, \$x);
+			diff_before_or_after($ctx, \$x);
 		}
 	}
 }
