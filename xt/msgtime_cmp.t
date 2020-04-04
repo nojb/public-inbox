@@ -82,6 +82,13 @@ sub str2date_zone ($) {
 
 	# off is the time zone offset in seconds from GMT
 	my ($ss,$mm,$hh,$day,$month,$year,$off) = Date::Parse::strptime($date);
+
+	# new behavior which wasn't in the original old version:
+	if ('commit d857e7dc0d816b635a7ead09c3273f8c2d2434be') {
+		# "msgtime: assume +0000 if TZ missing when using Date::Parse"
+		$off //= '+0000';
+	}
+
 	return undef unless(defined $off);
 
 	# Compute the time zone from offset
