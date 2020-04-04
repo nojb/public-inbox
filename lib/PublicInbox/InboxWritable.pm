@@ -157,12 +157,12 @@ my $from_strict = qr/^From \S+ +\S+ \S+ +\S+ [^:]+:[^:]+:[^:]+ [^:]+/;
 sub mb_add ($$$$) {
 	my ($im, $variant, $filter, $msg) = @_;
 	$$msg =~ s/(\r?\n)+\z/$1/s;
-	my $mime = PublicInbox::MIME->new($msg);
 	if ($variant eq 'mboxrd') {
-		$$msg =~ s/^>(>*From )/$1/sm;
+		$$msg =~ s/^>(>*From )/$1/gms;
 	} elsif ($variant eq 'mboxo') {
-		$$msg =~ s/^>From /From /sm;
+		$$msg =~ s/^>From /From /gms;
 	}
+	my $mime = PublicInbox::MIME->new($msg);
 	if ($filter) {
 		my $ret = $filter->scrub($mime) or return;
 		return if $ret == REJECT();
