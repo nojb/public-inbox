@@ -888,20 +888,20 @@ sub missing_thread {
 sub dedupe_subject {
 	my ($prev_subj, $subj, $val) = @_;
 
-	my $omit = ''; # '"' denotes identical text omitted
+	my $omit; # '"' denotes identical text omitted
 	my (@prev_pop, @curr_pop);
 	while (@$prev_subj && @$subj && $subj->[-1] eq $prev_subj->[-1]) {
 		push(@prev_pop, pop(@$prev_subj));
 		push(@curr_pop, pop(@$subj));
-		$omit ||= $val;
+		$omit //= $val;
 	}
 	pop @$subj if @$subj && $subj->[-1] =~ /^re:\s*/i;
 	if (scalar(@curr_pop) == 1) {
-		$omit = '';
+		$omit = undef;
 		push @$prev_subj, @prev_pop;
 		push @$subj, @curr_pop;
 	}
-	$omit;
+	$omit // '';
 }
 
 sub skel_dump { # walk_thread callback
