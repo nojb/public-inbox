@@ -482,17 +482,6 @@ sub multipart_text_as_html {
 	msg_iter($_[0], \&add_text_body, $_[1], 1);
 }
 
-sub flush_quote {
-	my ($s, $l, $quot) = @_;
-
-	my $rv = $l->to_html($$quot);
-
-	# we use a <span> here to allow users to specify their own
-	# color for quoted text
-	$$quot = undef;
-	$$s .= qq(<span\nclass="q">) . $rv . '</span>'
-}
-
 sub attach_link ($$$$;$) {
 	my ($ctx, $ct, $p, $fn, $err) = @_;
 	my ($part, $depth, @idx) = @$p;
@@ -587,14 +576,18 @@ sub add_text_body { # callback for msg_iter
 	my $l = $ctx->{-linkify} //= PublicInbox::Linkify->new;
 	foreach my $cur (@sections) {
 		if ($cur =~ /\A>/) {
-			flush_quote($rv, $l, \$cur);
+			# we use a <span> here to allow users to specify
+			# their own color for quoted text
+			$$rv .= qq(<span\nclass="q">);
+			$$rv .= $l->to_html($cur);
+			$$rv .= '</span>';
 		} elsif ($diff) {
 			flush_diff($ctx, \$cur);
 		} else {
 			# regular lines, OK
 			$$rv .= $l->to_html($cur);
-			$cur = undef;
 		}
+		$cur = undef;
 	}
 
 	obfuscate_addrs($ibx, $$rv) if $ibx->{obfuscate};
