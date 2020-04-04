@@ -504,9 +504,6 @@ sub attach_link ($$$$;$) {
 	# spotting MUA problems:
 	$ct =~ s/;.*// unless $err;
 	$ct = ascii_html($ct);
-	my $desc = $part->header('Content-Description');
-	$desc = $fn unless defined $desc;
-	$desc = '' unless defined $desc;
 	my $sfn;
 	if (defined $fn && $fn =~ /\A$PublicInbox::Hval::FN\z/o) {
 		$sfn = $fn;
@@ -524,6 +521,7 @@ EOF
 	}
 	$$rv .= "[-- Attachment #$idx: ";
 	my $ts = "Type: $ct, Size: $size bytes";
+	my $desc = $part->header('Content-Description') // $fn // '';
 	$desc = ascii_html($desc);
 	$$rv .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
 	$$rv .= "</a>\n";
