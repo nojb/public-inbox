@@ -44,19 +44,16 @@ sub getline {
 	my ($ctx, $id, $prev, $next, $mref, $hdr) = @$more;
 	if ($hdr) { # first message hits this, only
 		pop @$more; # $hdr
-		return msg_hdr($ctx, $hdr);
-	}
-	if ($mref) { # all messages hit this
 		pop @$more; # $mref
-		return msg_body($$mref);
+		return msg_hdr($ctx, $hdr) . msg_body($$mref);
 	}
 	my $cur = $next or return;
 	my $ibx = $ctx->{-inbox};
 	$next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	$mref = $ibx->msg_by_smsg($cur) or return;
 	$hdr = Email::Simple->new($mref)->header_obj;
-	@$more = ($ctx, $id, $prev, $next, $mref); # $next may be undef, here
-	msg_hdr($ctx, $hdr); # all but first message hits this
+	@$more = ($ctx, $id, $prev, $next); # $next may be undef, here
+	msg_hdr($ctx, $hdr) . msg_body($$mref);
 }
 
 sub close {} # noop
