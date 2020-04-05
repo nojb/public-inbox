@@ -117,7 +117,9 @@ sub try_gzip_static ($$$$) {
 	return unless -f $gz && (stat(_))[9] == $mtime;
 	my $res = response($env, $h, $gz, $type);
 	return if ($res->[0] > 300 || $res->[0] < 200);
-	push @{$res->[1]}, qw(Cache-Control no-transform Content-Encoding gzip);
+	push @{$res->[1]}, qw(Cache-Control no-transform
+				Content-Encoding gzip
+				Vary Accept-Encoding);
 	$res;
 }
 
