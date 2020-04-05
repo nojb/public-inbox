@@ -55,10 +55,8 @@ sub git_quote ($) {
 
 sub new {
 	my ($class, $git_dir) = @_;
-	my @st;
-	$st[7] = $st[10] = 0;
 	# may contain {-tmp} field for File::Temp::Dir
-	bless { git_dir => $git_dir, st => \@st, -git_path => {} }, $class
+	bless { git_dir => $git_dir, alt_st => '', -git_path => {} }, $class
 }
 
 sub git_path ($$) {
@@ -79,10 +77,11 @@ sub alternates_changed {
 	my ($self) = @_;
 	my $alt = git_path($self, 'objects/info/alternates');
 	my @st = stat($alt) or return 0;
-	my $old_st = $self->{st};
-	# 10 - ctime, 7 - size
-	return 0 if ($st[10] == $old_st->[10] && $st[7] == $old_st->[7]);
-	$self->{st} = \@st;
+
+	# can't rely on 'q' on some 32-bit builds, but `d' works
+	my $st = pack('dd', $st[10], $st[7]); # 10: ctime, 7: size
+	return 0 if $self->{alt_st} eq $st;
+	$self->{alt_st} = $st; # always a true value
 }
 
 sub last_check_err {
