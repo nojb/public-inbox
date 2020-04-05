@@ -566,7 +566,7 @@ sub add_text_body { # callback for msg_iter
 
 	# split off quoted and unquoted blocks:
 	my @sections = PublicInbox::MsgIter::split_quotes($s);
-	$s = '';
+	undef $s; # free memory
 	my $rv = $ctx->{obuf};
 	if (defined($fn) || $depth > 0 || $err) {
 		# badly-encoded message with $err? tell the world about it!
@@ -587,7 +587,7 @@ sub add_text_body { # callback for msg_iter
 			# regular lines, OK
 			$$rv .= $l->to_html($cur);
 		}
-		$cur = undef;
+		undef $cur; # free memory
 	}
 
 	obfuscate_addrs($ibx, $$rv) if $ibx->{obfuscate};

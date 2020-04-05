@@ -192,7 +192,7 @@ sub flush_diff ($$) {
 	my ($ctx, $cur) = @_;
 
 	my @top = split($EXTRACT_DIFFS, $$cur);
-	$$cur = undef;
+	undef $$cur; # free memory
 
 	my $linkify = $ctx->{-linkify};
 	my $dst = $ctx->{obuf};

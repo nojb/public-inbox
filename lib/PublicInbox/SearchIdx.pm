@@ -275,22 +275,8 @@ sub index_diff ($$$) {
 	index_text($self, join("\n", @xnq), 1, 'XNQ');
 }
 
-sub index_body ($$$) {
-	my ($self, $txt, $doc) = @_;
-	if ($doc) {
-		# does it look like a diff?
-		if ($txt =~ /^(?:diff|---|\+\+\+) /ms) {
-			index_diff($self, $txt, $doc);
-		} else {
-			index_text($self, $txt, 1, 'XNQ');
-		}
-	} else {
-		index_text($self, $txt, 0, 'XQUOT');
-	}
-}
-
 sub index_xapian { # msg_iter callback
-	my ($part, $depth, @idx) = @{$_[0]};
+	my $part = $_[0]->[0]; # ignore $depth and @idx
 	my ($self, $doc) = @{$_[1]};
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
@@ -300,11 +286,24 @@ sub index_xapian { # msg_iter callback
 
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
+	$_[0]->[0] = $part = undef; # free memory
 
 	# split off quoted and unquoted blocks:
 	my @sections = PublicInbox::MsgIter::split_quotes($s);
-	$part = $s = undef;
-	index_body($self, $_, /\A>/ ? 0 : $doc) for @sections;
+	undef $s; # free memory
+	for my $txt (@sections) {
+		if ($txt =~ /\A>/) {
+			index_text($self, $txt, 0, 'XQUOT');
+		} else {
+			# does it look like a diff?
+			if ($txt =~ /^(?:diff|---|\+\+\+) /ms) {
+				index_diff($self, $txt, $doc);
+			} else {
+				index_text($self, $txt, 1, 'XNQ');
+			}
+		}
+		undef $txt; # free memory
+	}
 }
 
 sub add_xapian ($$$$) {
