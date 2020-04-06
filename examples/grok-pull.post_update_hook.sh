@@ -3,6 +3,8 @@
 # git repo path as it's first and only arg.
 full_git_dir="$1"
 
+url_base=http://127.0.0.1:8080/
+
 # same default as other public-inbox-* tools
 PI_CONFIG=${PI_CONFIG-~/.public-inbox/config}
 
@@ -79,7 +81,7 @@ case $cfg_dir in
 		echo >&2 "E: curl $config_url failed"
 		echo >&2 "E: using bogus <$addresses> for $inbox_dir"
 	fi
-	local_url="http://127.0.0.1:8080/$inbox_name"
+	local_url="$url_base$inbox_name"
 	public-inbox-init -V$inbox_fmt "$inbox_name" \
 		"$inbox_dir" "$local_url" $addresses
 
