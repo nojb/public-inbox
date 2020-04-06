@@ -93,6 +93,7 @@ case $cfg_dir in
 		# only one newsgroup per inbox
 		break
 	done
+	curl -sSfv "remote_inbox_url"/description >"$inbox_dir"/description
 	echo "I: $inbox_name at $inbox_dir ($addresses) $local_url"
 	;;
 esac
