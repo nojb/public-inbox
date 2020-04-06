@@ -32,22 +32,30 @@ my $ctx = {
 	-inbox => $ibx,
 	www => Plack::Util::inline_object(style => sub {''}),
 };
-my ($str, $mime, $res, $cmt, $type);
+my ($mime, $res, $oid, $type);
 my $n = 0;
+my $obuf = '';
+my $m = 0;
+
+my $cb = sub {
+	$mime = PublicInbox::MIME->new(shift);
+	PublicInbox::View::multipart_text_as_html($mime, $ctx);
+	++$m;
+	$obuf = '';
+};
+
+$git->cat_async_begin;
 my $t = timeit(1, sub {
-	my $obuf = '';
 	$ctx->{obuf} = \$obuf;
 	$ctx->{mhref} = '../';
 	while (<$fh>) {
-		($cmt, $type) = split / /;
+		($oid, $type) = split / /;
 		next if $type ne 'blob';
 		++$n;
-		$str = $git->cat_file($cmt);
-		$mime = PublicInbox::MIME->new($str);
-		PublicInbox::View::multipart_text_as_html($mime, $ctx);
-		$obuf = '';
+		$git->cat_async($oid, $cb);
 	}
+	$git->cat_async_wait;
 });
-diag 'multipart_text_as_html took '.timestr($t)." for $n messages";
-ok 1;
+diag 'multipart_text_as_html took '.timestr($t)." for $n <=> $m messages";
+is($m, $n, 'rendered all messages');
 done_testing();
