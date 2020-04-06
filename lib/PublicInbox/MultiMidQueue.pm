@@ -8,7 +8,12 @@ use strict;
 use SDBM_File; # part of Perl standard library
 use Fcntl qw(O_RDWR O_CREAT);
 use File::Temp 0.19 (); # 0.19 for ->newdir
-my %e = (freebsd => 0x100000, linux => 0x80000, openbsd => 0x10000);
+my %e = (
+	freebsd => 0x100000,
+	linux => 0x80000,
+	netbsd => 0x400000,
+	openbsd => 0x10000,
+);
 my $O_CLOEXEC = $e{$^O} // 0;
 
 sub new {
