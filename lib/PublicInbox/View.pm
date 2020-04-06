@@ -532,6 +532,9 @@ sub add_text_body { # callback for msg_iter
 	# link generation in diffs with the extra '%0D'
 	$s =~ s/\r\n/\n/sg;
 
+	# will be escaped to `&#8226;' in HTML
+	obfuscate_addrs($ibx, $s, "\x{2022}") if $ibx->{obfuscate};
+
 	# always support diff-highlighting, but we can't linkify hunk
 	# headers for solver unless some coderepo are configured:
 	my $diff;
@@ -589,8 +592,6 @@ sub add_text_body { # callback for msg_iter
 		}
 		undef $cur; # free memory
 	}
-
-	obfuscate_addrs($ibx, $$rv) if $ibx->{obfuscate};
 }
 
 sub _msg_page_prepare_obuf {

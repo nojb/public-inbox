@@ -78,7 +78,7 @@ sub prurl ($$) {
 # However, &#8226; was chosen to make copy+paste errors more obvious
 sub obfuscate_addrs ($$;$) {
 	my $ibx = $_[0];
-	my $repl = $_[2] || '&#8226;';
+	my $repl = $_[2] // '&#8226;';
 	my $re = $ibx->{-no_obfuscate_re}; # regex of domains
 	my $addrs = $ibx->{-no_obfuscate}; # { adddress => 1 }
 	$_[1] =~ s/(([\w\.\+=\-]+)\@([\w\-]+\.[\w\.\-]+))/
