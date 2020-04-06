@@ -54,6 +54,7 @@ case $cfg_dir in
 
 	config_url="$remote_inbox_url"/_/text/config/raw
 	remote_config="$inbox_dir"/remote.config.$$
+	infourls=
 	trap 'rm -f "$remote_config"' EXIT
 	if curl --compressed -sSf -v "$config_url" >"$remote_config"
 	then
@@ -70,6 +71,8 @@ case $cfg_dir in
 		esac
 		newsgroups=$(git config -f "$remote_config" -l | \
 			sed -ne 's/^publicinbox\..\+\.newsgroup=//p')
+		infourls=$(git config -f "$remote_config" -l | \
+			sed -ne 's/^publicinbox\..\+.infourl=//p')
 	else
 		newsgroups=
 		addresses="$inbox_name@$$.$(hostname).example.com"
@@ -92,6 +95,11 @@ case $cfg_dir in
 			"publicinbox.$inbox_name.newsgroup" "$ng"
 		# only one newsgroup per inbox
 		break
+	done
+	for url in $infourls
+	do
+		git config -f "$PI_CONFIG" \
+			"publicinbox.$inbox_name.infourl" "$url"
 	done
 	curl -sSfv "remote_inbox_url"/description >"$inbox_dir"/description
 	echo "I: $inbox_name at $inbox_dir ($addresses) $local_url"
