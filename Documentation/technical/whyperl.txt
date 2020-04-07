@@ -1,0 +1,171 @@
+why public-inbox is currently implemented in Perl 5
+---------------------------------------------------
+
+While Perl has many detractors and there's a lot not to like
+about Perl, we use it anyways because it offers benefits not
+(yet) available from other languages.
+
+This document is somewhat inspired by https://sqlite.org/whyc.html
+
+Other languages and runtimes may eventually be a possibility
+for us, and this document can serve as our requirements list
+for possible replacements.
+
+As always, comments and corrections and additions welcome at
+<meta@public-inbox.org>.  We're not Perl experts, either.
+
+Good Things
+-----------
+
+* Availability
+
+  Perl 5 is installed on many, if not most GNU/Linux and
+  BSD-based servers and workstations.  It is likely the most
+  widely-installed programming environment that offers a
+  significant amount of POSIX functionality.  Users won't
+  have to waste bandwidth or space with giant toolchains or
+  architecture-specific binaries.
+
+  Furthermore, Perl documentation is typically installed as
+  manpages, allowing users to quickly access and learn it
+  offline.
+
+* Scripted, always editable by the end user
+
+  Users cannot lose access to the source code.  Code written
+  entirely in any scripting language automatically satisfies
+  the GPL-2.0, making it easier to satisfy the AGPL-3.0.
+
+  Use of a scripting language improves auditability for
+  malicious changes.  It also reduces storage and bandwidth
+  requirements for distributors, as the same scripts can be
+  shared across multiple OSes and architectures.
+
+  Perl's availability and the low barrier to entry of
+  scripting ensures it's easy for users to exercise their
+  software freedom.
+
+* Predictable performance
+
+  While Perl is neither fast or memory-efficient, its
+  performance and memory use are predictable and does not
+  require GC tuning by the user.
+
+  public-inbox is developed for (and mostly on) old
+  hardware.  Perl was fast enough to power the web of the
+  late 1990s, and any cheap VPS today has more than enough
+  RAM and CPU for handling plain-text email.
+
+  Low hardware requirements increases the reach of our software
+  to more users, improving centralization resistance.
+
+* Compatibility
+
+  Unlike similarly powerful scripting languages, there is no
+  forced migration to a major new version.  From 2000-2020,
+  Perl had fewer breaking changes than Python or Ruby; we
+  expect that trend to continue given the inertia of Perl 5.
+
+* Built for text processing
+
+  Our focus is plain-text mail, and Perl has many built-ins
+  optimized for text processing.  It also has good support
+  for UTF-8 and legacy encodings found in old mail archives.
+
+* Integration with distros and non-Perl libraries
+
+  Perl modules and bindings to common libraries such as
+  SQLite and Xapian are already distributed by many
+  GNU/Linux distros and BSD ports.
+
+  There should be no need to rely on language-specific
+  package managers such as cpan(1), those systems increase
+  the learning curve for users and systems administrators.
+
+* Compactness and terseness
+
+  Less code generally means less bugs.  We try to avoid the
+  "line noise" stereotype of some Perl codebases, yet still
+  manage to write less code than one would with
+  non-scripting languages.
+
+* Performance ceiling and escape hatch
+
+  With optional Inline::C, we can be "as fast as C" in some
+  cases.  Inline::C is widely-packaged by distros and it
+  gives us an escape hatch for dealing with missing bindings
+  or performance problems should they arise.  Inline::C use
+  (as opposed to XS) also preserves the software freedom and
+  auditability benefits to all users.
+
+  Unfortunately, most C toolchains are big; so Inline::C
+  will always be optional for users who cannot afford the
+  bandwidth or space.
+
+
+Bad Things
+----------
+
+* Slow startup time.  Tokenization, parsing, and compilation of
+  pure Perl is not cached.  Inline::C does cache its results,
+  however.
+
+  We work around slow startup times in tests by preloading
+  code, similar to how mod_perl works for CGI.
+
+* High space overhead and poor locality of small data
+  structures, including the optree.  This may not be fixable
+  in Perl itself given compatibility requirements of the C API.
+
+  These problems are exacerbated on modern 64-bit platforms,
+  though the Linux x32 ABI offers promise.
+
+* Lack of vectored I/O support (writev, sendmmsg, etc. syscalls)
+  and "newer" POSIX functions in general.  APIs end up being
+  slurpy, favoring large buffers and memory copies for
+  concatenation rather than rope (aka "cord") structures.
+
+* While mmap(2) is available via PerlIO::mmap, string ops
+  (m//, substr(), index(), etc.) still require memory copies
+  into userspace, negating a benefit of zero-copy.
+
+* The XS/C API make it difficult to improve internals while
+  preserving compatibility.
+
+* Lack of optional type checking.  This may be a blessing in
+  disguise, though, as it encourages us to simplify our data
+  models and lowers cognitive overhead.
+
+* SMP support is mostly limited to fork(), since many
+  libraries (including much of the standard library) are not
+  thread-safe.  Even with threads.pm, sharing data between
+  interpreters within the same process is inefficient due to
+  the lack of lock-free and wait-free data structures from
+  projects such as Userspace RCU.
+
+* Process spawning speed degrades as memory use increases.
+  We work around this optionally via Inline::C and vfork(2),
+  since Perl lacks an approximation of posix_spawn(3).
+
+  We also use `undef' and `delete' ops to free large buffers
+  as soon as we're done using them to save memory.
+
+
+Red herrings to ignore when evaluating other runtimes
+-----------------------------------------------------
+
+These don't discount a language or runtime from being
+being used, they're just not interesting.
+
+* Lightweight threading
+
+  While lightweight threading implementations are
+  convenient, they tend to be significantly heavier than a
+  pure event-loop systems (or multi-threaded event-loop
+  systems)
+
+  Lightweight threading implementations have stack overhead
+  and growth typically measured in kilobytes.  The userspace
+  state overhead of event-based systems is an order of
+  magnitude less, and a sunk cost regardless of concurrency
+  model.
