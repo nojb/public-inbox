@@ -97,8 +97,8 @@ SKIP: {
 		my $f = shift;
 		open my $fh, '<', $f or die "open $f failed: $!";
 		my $pid = do { local $/; <$fh> };
-		chomp $pid;
-		$pid || 0;
+		chomp($pid) or die("pid file not ready $!");
+		$pid;
 	};
 
 	for my $w (qw(-W0 -W1)) {
@@ -107,8 +107,7 @@ SKIP: {
 		$td->join;
 		is($?, 0, "daemonized $w process");
 		check_sock($unix);
-
-		ok(-f $pid_file, "$w pid file written");
+		ok(-s $pid_file, "$w pid file written");
 		my $pid = $read_pid->($pid_file);
 		is(kill('TERM', $pid), 1, "signaled daemonized $w process");
 		delay_until(sub { !kill(0, $pid) });
@@ -126,6 +125,7 @@ SKIP: {
 	$td->join;
 	is($?, 0, "daemonized process again");
 	check_sock($unix);
+	ok(-s $pid_file, 'pid file written');
 	my $pid = $read_pid->($pid_file);
 
 	# stop worker to ensure check_sock below hits $new_pid
@@ -137,6 +137,7 @@ SKIP: {
 	});
 	my $new_pid = $read_pid->($pid_file);
 	isnt($new_pid, $pid, 'new child started');
+	delay_until(sub { -s "$pid_file.oldbin" });
 	my $old_pid = $read_pid->("$pid_file.oldbin");
 	is($old_pid, $pid, '.oldbin pid file written');
 
