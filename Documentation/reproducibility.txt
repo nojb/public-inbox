@@ -1,0 +1,29 @@
+reproducibility => forkability
+------------------------------
+
+The ability to fork a project is a checks and balances
+system for free software projects.  Reproducibility is key
+to forkability since every mirror is potential fork.
+
+git makes the code history of projects fully reproducible.
+public-inbox uses git to make the email history of projects
+reproducible.
+
+Keeping all communications as email ensures the full history
+of the entire project can be mirrored by anyone with the
+resources to do so.  Compact, low-complexity data requires
+less resources to mirror, so sticking with plain-text
+ensures more parties can mirror and potentially fork the
+project with all its data.
+
+Any private or irreproducible data is a barrier to forking.
+These include mailing list subscriber information and
+non-federated user identities.  The "pull" subscriber model
+of NNTP and Atom feeds combined with open-to-all posting
+means there's no need for private data.
+
+If these things make power hungry project leaders and admins
+uncomfortable, good.  That was the point.  It's how checks
+and balances ought to work.
+
+Comments, corrections, etc welcome: meta@public-inbox.org
