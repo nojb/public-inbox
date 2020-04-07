@@ -95,7 +95,7 @@ sub str2date_zone ($) {
 		$sign = '+' if $off == 0;
 		$zone = sprintf('%s%02d%02d', $sign, $tz_hh, $tz_mm);
 
-	# Time::Zone and Date::Parse are part of the same distibution,
+	# Time::Zone and Date::Parse are part of the same distribution,
 	# and we need Time::Zone to deal with tz names like "EDT"
 	} elsif (eval { require Date::Parse }) {
 		$ts = Date::Parse::str2time($date);

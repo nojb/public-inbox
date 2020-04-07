@@ -634,7 +634,7 @@ sub _git_log {
 	my $git = $self->{git};
 
 	if (index($range, '..') < 0) {
-		# don't show annoying git errrors to users who run -index
+		# don't show annoying git errors to users who run -index
 		# on empty inboxes
 		$git->qx(qw(rev-parse -q --verify), "$range^0");
 		if ($?) {

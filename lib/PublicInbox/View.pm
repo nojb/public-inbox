@@ -150,7 +150,7 @@ sub in_reply_to {
 sub fold_addresses ($) {
 	return $_[0] if length($_[0]) <= COLS;
 	# try to fold on commas after non-word chars before $lim chars,
-	# Try to get the "," preceeded by ">" or ")", but avoid folding
+	# Try to get the "," preceded by ">" or ")", but avoid folding
 	# on the comma where somebody uses "Lastname, Firstname".
 	# We also try to keep the last and penultimate addresses in
 	# the list on the same line if possible, hence the extra \z

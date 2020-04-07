@@ -34,7 +34,7 @@ my $fail_bad_header = sub ($$$) {
 		"no error on undeliverable ($msg)");
 	my $rev = $git->qx(qw(rev-list HEAD));
 	chomp $rev;
-	is($rev, $good_rev, "bad revision not commited ($msg)");
+	is($rev, $good_rev, "bad revision not committed ($msg)");
 	@f = glob("$faildir/*/*");
 	is(scalar @f, 1, "faildir written to");
 	[ $in, $out, $err ];

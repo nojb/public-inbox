@@ -544,7 +544,7 @@ SKIP: {
 }
 
 {
-	my $conn = conn_for($sock, '1.1 Connnection: close');
+	my $conn = conn_for($sock, '1.1 Connection: close');
 	$conn->write("PUT /sha1 HTTP/1.1\r\nConnection:close\r\n");
 	delay();
 	$conn->write("Content-Length: $len\r\n\r\n$str");

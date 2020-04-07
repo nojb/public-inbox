@@ -12,7 +12,7 @@ still allows probabilistic searches on everything that's in a
 "git diff", including the blob names which were just made
 boolean.
 
-Note, attachment filenames ("n:" prefix) will stil use
+Note, attachment filenames ("n:" prefix) will still use
 probabilistic search, as they're hardly standardized.
 ---
  lib/PublicInbox/Search.pm | 6 +++---

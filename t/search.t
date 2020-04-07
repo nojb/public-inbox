@@ -229,7 +229,7 @@ $ibx->with_umask(sub {
 	$rw_commit->();
 	$ro->reopen;
 	my $t = $ro->{over_ro}->get_thread('root@s');
-	is(scalar(@$t), 4, "got all 4 mesages in thread");
+	is(scalar(@$t), 4, "got all 4 messages in thread");
 	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_mid);
 	@res = filter_mids($t);
 	is_deeply(\@res, \@exp, "get_thread works");

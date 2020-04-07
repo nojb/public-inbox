@@ -615,7 +615,7 @@ sub shutdn_tls_step ($) {
 }
 
 # don't bother with shutdown($sock, 2), we don't fork+exec w/o CLOEXEC
-# or fork w/o exec, so no inadvertant socket sharing
+# or fork w/o exec, so no inadvertent socket sharing
 sub shutdn ($) {
     my ($self) = @_;
     my $sock = $self->{sock} or return;
