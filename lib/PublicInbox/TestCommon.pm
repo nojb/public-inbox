@@ -119,11 +119,11 @@ sub _undo_redirects ($) {
 	}
 }
 
-# $opt->{run_mode} (or $ENV{TEST_RUN_MODE}) allows chosing between
+# $opt->{run_mode} (or $ENV{TEST_RUN_MODE}) allows choosing between
 # three ways to spawn our own short-lived Perl scripts for testing:
 #
 # 0 - (fork|vfork) + execve, the most realistic but slowest
-# 1 - preloading and running in a forked subprocess (fast)
+# 1 - (not currently implemented)
 # 2 - preloading and running in current process (slightly faster than 1)
 #
 # 2 is not compatible with scripts which use "exit" (which we'll try to
@@ -247,7 +247,7 @@ sub wait_for_tail () { sleep(2) }
 sub start_script {
 	my ($cmd, $env, $opt) = @_;
 	my ($key, @argv) = @$cmd;
-	my $run_mode = $ENV{TEST_RUN_MODE} // $opt->{run_mode} // 1;
+	my $run_mode = $ENV{TEST_RUN_MODE} // $opt->{run_mode} // 2;
 	my $sub = $run_mode == 0 ? undef : key2sub($key);
 	my $tail_pid;
 	if (my $tail_cmd = $ENV{TAIL}) {

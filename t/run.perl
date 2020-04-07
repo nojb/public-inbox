@@ -26,7 +26,7 @@ GetOptions('j|jobs=i' => \$jobs,
 	'log=s' => \$log_suffix,
 	's|shuffle' => \$shuffle,
 ) or die "Usage: $0 [-j JOBS] [--log=SUFFIX] [--repeat RUNS]";
-if (($ENV{TEST_RUN_MODE} // 1) == 0) {
+if (($ENV{TEST_RUN_MODE} // 2) == 0) {
 	die "$0 is not compatible with TEST_RUN_MODE=0\n";
 }
 my @tests = scalar(@ARGV) ? @ARGV : glob('t/*.t');
