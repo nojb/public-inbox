@@ -18,7 +18,7 @@ is(system(@cfg, 'publicinboxmda.spamcheck', 'none'), 0);
 
 for my $v (qw(V1 V2)) {
 	my @warn;
-	$SIG{__WARN__} = sub { push @warn, @_ };
+	local $SIG{__WARN__} = sub { push @warn, @_ };
 	my $cfgpfx = "publicinbox.$v";
 	my $inboxdir = "$tmpdir/$v";
 	my $addr = "test-$v\@example.com";

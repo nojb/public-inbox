@@ -24,7 +24,7 @@ SKIP: {
 
 for my $v (@v) {
 	my @warn;
-	$SIG{__WARN__} = sub { push @warn, @_ };
+	local $SIG{__WARN__} = sub { push @warn, @_ };
 	my $cfgpfx = "publicinbox.$v";
 	my $inboxdir = "$tmpdir/$v";
 	my $maildir = "$tmpdir/md-$v";

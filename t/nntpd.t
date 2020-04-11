@@ -268,7 +268,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 			$for_leafnode->header_set('Message-ID', @mids);
 			$for_leafnode->body_set('not-a-dupe');
 			my $warn = '';
-			$SIG{__WARN__} = sub { $warn .= join('', @_) };
+			local $SIG{__WARN__} = sub { $warn .= join('', @_) };
 			$im->add($for_leafnode);
 			$im->done;
 			like($warn, qr/reused/, 'warned for reused MID');
