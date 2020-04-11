@@ -99,7 +99,7 @@ angle brackets for L<public-inbox-mda(1)> deliveries and
 L<public-inbox-watch(1)>.
 
 For public-inbox-watch users, this is a shortcut for specifying
-C<publicinbox.$NAME.watchheader=List-Id:<foo.example.com>>
+C<publicinbox.$NAME.watchheader=List-Id:E<lt>foo.example.comE<gt>>
 
 For public-inbox-mda users, this may be used to avoid recipient
 matching via C<ORIGINAL_RECIPIENT> environment variable.
