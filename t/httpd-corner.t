@@ -122,36 +122,48 @@ if ('test worker death') {
 	is(scalar(grep(/CLOSE FAIL/, @$after)), 1, 'body->close not called');
 }
 
-SKIP: {
+sub check_400 {
+	my ($conn) = @_;
+	my $r = $conn->read(my $buf, 8192);
+	# ECONNRESET and $r==0 are both observed on FreeBSD 11.2
+	if (!defined($r)) {
+		ok($!{ECONNRESET}, 'ECONNRESET on read (BSD sometimes)');
+	} elsif ($r > 0) {
+		like($buf, qr!\AHTTP/1\.\d 400 !, 'got 400 response');
+	} else {
+		is($r, 0, 'got EOF (BSD sometimes)');
+	}
+	close($conn); # ensure we don't get SIGPIPE later
+}
+
+{
+	local $SIG{PIPE} = 'IGNORE';
 	my $conn = conn_for($sock, 'excessive header');
-	$SIG{PIPE} = 'IGNORE';
 	$conn->write("GET /callback HTTP/1.0\r\n");
 	foreach my $i (1..500000) {
 		last unless $conn->write("X-xxxxxJunk-$i: omg\r\n");
 	}
 	ok(!$conn->write("\r\n"), 'broken request');
-	ok($conn->read(my $buf, 8192), 'read response');
-	my ($head, $body) = split(/\r\n\r\n/, $buf);
-	like($head, qr/\b400\b/, 'got 400 response');
+	check_400($conn);
 }
 
 {
 	my $conn = conn_for($sock, 'excessive body Content-Length');
-	$SIG{PIPE} = 'IGNORE';
 	my $n = (10 * 1024 * 1024) + 1;
 	$conn->write("PUT /sha1 HTTP/1.0\r\nContent-Length: $n\r\n\r\n");
-	ok($conn->read(my $buf, 8192), 'read response');
+	my $r = $conn->read(my $buf, 8192);
+	ok($r > 0, 'read response');
 	my ($head, $body) = split(/\r\n\r\n/, $buf);
 	like($head, qr/\b413\b/, 'got 413 response');
 }
 
 {
 	my $conn = conn_for($sock, 'excessive body chunked');
-	$SIG{PIPE} = 'IGNORE';
 	my $n = (10 * 1024 * 1024) + 1;
 	$conn->write("PUT /sha1 HTTP/1.1\r\nTransfer-Encoding: chunked\r\n");
 	$conn->write("\r\n".sprintf("%x\r\n", $n));
-	ok($conn->read(my $buf, 8192), 'read response');
+	my $r = $conn->read(my $buf, 8192);
+	ok($r > 0, 'read response');
 	my ($head, $body) = split(/\r\n\r\n/, $buf);
 	like($head, qr/\b413\b/, 'got 413 response');
 }
@@ -410,10 +422,7 @@ SKIP: {
 	ok($!, 'got error set in $!');
 	is($w, undef, 'write error happened');
 	ok($n > 0, 'was able to write');
-	my $r = $conn->read(my $buf, 66666);
-	ok($r > 0, 'got non-empty response');
-	like($buf, qr!HTTP/1\.\d 400 !, 'got 400 response');
-
+	check_400($conn);
 	$conn = conn_for($sock, '1.1 chunk trailer excessive');
 	$conn->write("PUT /sha1 HTTP/1.1\r\nTransfer-Encoding:chunked\r\n\r\n");
 	is($conn->syswrite("1\r\na"), 4, 'wrote first header + chunk');
@@ -424,9 +433,7 @@ SKIP: {
 	}
 	ok($!, 'got error set in $!');
 	ok($n > 0, 'wrote part of chunk end (\r)');
-	$r = $conn->read($buf, 66666);
-	ok($r > 0, 'got non-empty response');
-	like($buf, qr!HTTP/1\.\d 400 !, 'got 400 response');
+	check_400($conn);
 }
 
 {
