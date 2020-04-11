@@ -142,7 +142,11 @@ sub process_queue {
 		while (scalar keys %pids) {
 			my $pid = waitpid(-1, 0);
 			my $args = delete $pids{$pid};
-			die join(' ', @$args)." failed: $?\n" if $?;
+			if ($args) {
+				die join(' ', @$args)." failed: $?\n" if $?;
+			} else {
+				warn "unknown PID($pid) reaped: $?\n";
+			}
 		}
 	}
 }

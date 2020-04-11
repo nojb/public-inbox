@@ -319,8 +319,9 @@ sub kill {
 }
 
 sub join {
-	my ($self) = @_;
+	my ($self, $sig) = @_;
 	my $pid = delete $self->{pid} or return;
+	CORE::kill($sig, $pid) if defined $sig;
 	my $ret = waitpid($pid, 0);
 	defined($ret) or die "waitpid($pid): $!";
 	$ret == $pid or die "waitpid($pid) != $ret";
@@ -333,8 +334,7 @@ sub DESTROY {
 		PublicInbox::TestCommon::wait_for_tail();
 		CORE::kill('TERM', $tail);
 	}
-	my $pid = delete $self->{pid} or return;
-	CORE::kill('TERM', $pid);
+	$self->join('TERM');
 }
 
 1;
