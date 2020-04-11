@@ -105,10 +105,10 @@ sub epoll_ctl {
 	my $kq = $self->{kq};
 	if ($op == EPOLL_CTL_MOD) {
 		$kq->EV_SET($fd, EVFILT_READ, kq_flag(EPOLLIN, $ev));
-		$kq->EV_SET($fd, EVFILT_WRITE, kq_flag(EPOLLOUT, $ev));
+		eval { $kq->EV_SET($fd, EVFILT_WRITE, kq_flag(EPOLLOUT, $ev)) };
 	} elsif ($op == EPOLL_CTL_DEL) {
 		$kq->EV_SET($fd, EVFILT_READ, EV_DISABLE);
-		$kq->EV_SET($fd, EVFILT_WRITE, EV_DISABLE);
+		eval { $kq->EV_SET($fd, EVFILT_WRITE, EV_DISABLE) };
 	} else { # EPOLL_CTL_ADD
 		$kq->EV_SET($fd, EVFILT_READ, EV_ADD|kq_flag(EPOLLIN, $ev));
 
