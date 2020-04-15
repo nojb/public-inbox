@@ -36,9 +36,11 @@ Documentation/public-inbox-v2-format.pod
 Documentation/public-inbox-watch.pod
 Documentation/public-inbox-xcpdb.pod
 Documentation/public-inbox.cgi.pod
+Documentation/reproducibility.txt
 Documentation/standards.perl
 Documentation/technical/data_structures.txt
 Documentation/technical/ds.txt
+Documentation/technical/whyperl.txt
 Documentation/txt2pre
 HACKING
 INSTALL
