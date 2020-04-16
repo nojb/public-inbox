@@ -16,6 +16,7 @@ use IO::Socket::UNIX;
 use Fcntl qw(:seek);
 use Socket qw(IPPROTO_TCP TCP_NODELAY SOL_SOCKET);
 use POSIX qw(mkfifo);
+use Carp ();
 my ($tmpdir, $for_destroy) = tmpdir();
 my $fifo = "$tmpdir/fifo";
 ok(defined mkfifo($fifo, 0777), 'created FIFO');
@@ -298,6 +299,8 @@ my $len = length $str;
 is($len, 26, 'got the alphabet');
 my $check_self = sub {
 	my ($conn) = @_;
+	vec(my $rbits, fileno($conn), 1) = 1;
+	select($rbits, undef, undef, 30) or Carp::confess('timed out');
 	$conn->read(my $buf, 4096);
 	my ($head, $body) = split(/\r\n\r\n/, $buf, 2);
 	like($head, qr/\r\nContent-Length: 40\r\n/s, 'got expected length');
@@ -391,17 +394,20 @@ SKIP: {
 
 {
 	my $conn = conn_for($sock, 'graceful termination during slow request');
-	$conn->write("PUT /sha1 HTTP/1.0\r\n");
-	delay();
-	$conn->write("Content-Length: $len\r\n");
-	delay();
-	$conn->write("\r\n");
-	is($td->kill, 1, 'started graceful shutdown');
-	delay();
+	$conn->write("PUT /sha1 HTTP/1.0\r\nContent-Length: $len\r\n\r\n");
+
+	# XXX ugh, want a reliable and non-intrusive way to detect
+	# that the server has started buffering our partial request so we
+	# can reliably test graceful termination.  Maybe making this and
+	# similar tests dependent on Linux strace is a possibility?
+	delay(0.1);
+
+	is($td->kill, 1, 'start graceful shutdown');
 	my $n = 0;
 	foreach my $c ('a'..'z') {
 		$n += $conn->write($c);
 	}
+	ok(kill(0, $td->{pid}), 'graceful shutdown did not kill httpd');
 	is($n, $len, 'wrote alphabet');
 	$check_self->($conn);
 	$td->join;
