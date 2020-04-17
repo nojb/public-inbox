@@ -1,0 +1,50 @@
+semi-automatic memory management in public-inbox
+------------------------------------------------
+
+The majority of public-inbox is implemented in Perl 5, a
+language and interpreter not particularly known for being
+memory-efficient.
+
+We strive to keep processes small to improve locality, allow
+the kernel to cache more files, and to be a good neighbor to
+other processes running on the machine.  Taking advantage of
+automatic reference counting (ARC) in Perl allows us
+deterministically release memory back to the heap.
+
+We start with a simple data model with few circular
+references.  This both eases human understanding and reduces
+the likelyhood of bugs.
+
+Knowing the relative sizes and quantities of our data
+structures, we limit the scope of allocations as much as
+possible and keep large allocations shortest-lived.  This
+minimizes both the cognitive overhead on humans in addition
+to reducing memory pressure on the machine.
+
+Short-lived non-immortal closures (aka "anonymous subs") are
+avoided in long-running daemons unless required for
+compatibility with PSGI.  Closures are memory-intensive and
+may make allocation lifetimes less obvious to humans.  They
+are also the source of memory leaks in older versions of
+Perl, including 5.16.3 found in enterprise distros.
+
+We also use Perl's `delete' and `undef' built-ins to drop
+reference counts sooner than scope allows.  These functions
+are required to break the few reference cycles we have that
+would otherwise lead to leaks.
+
+Of note, `undef' may be used in two ways:
+
+1. to free(3) the underlying buffer:
+
+	undef $scalar;
+
+2. to reset a buffer but reduce realloc(3) on subsequent growth:
+
+	$scalar = "";		# useful when repeated appending
+	$scalar = undef;	# usually not needed
+
+In the future, our internal data model will be further
+flattened and simplified to reduce the overhead imposed by
+small objects.  Large allocations may also be avoided by
+optionally using Inline::C.
