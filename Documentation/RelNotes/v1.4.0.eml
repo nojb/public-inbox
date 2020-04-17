@@ -1,6 +1,7 @@
 From: Eric Wong <e@yhbt.net>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.4.0
+Subject: [ANNOUNCE] public-inbox 1.4.0
+Message-Id: <20200417084800.public-inbox-1.4.0-rele@sed>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 
@@ -8,10 +9,10 @@ This release focuses on reproducibility improvements and
 bugfixes for corner-cases.  Busy instances of PublicInbox::WWW
 may also notice memory usage reductions.
 
-Rare messages lacking Date and/or Received headers, mirrors now
-fallback to using the git author/commit times to reindex those
-messages to ensure search and filtering queries behave the same
-in mirrors as they do on the original machine.
+For rare messages lacking Date and/or Received headers, mirrors
+now fall back to using the git author/commit times to reindex
+them.  This ensures search and filtering queries behave
+identically on mirrors as they do on the original machine.
 
 "altid" SQLite dumps are now accessible to all over the WWW
 interface via `POST /$INBOX/$ALTID.sql.gz'.
@@ -39,7 +40,7 @@ memory fragmentation in daemons.
 
 * PublicInbox::WWW:
 
-  - reduced memory use for single message "permalink" view
+  - memory reductions for message display and rendering
   - code preload improved to reduce memory fragmentation
   - remove redundant "a=" parameter in links to solver
   - escape '&' in hrefs properly
@@ -65,7 +66,19 @@ memory fragmentation in daemons.
 
 * documentation:
 
-  - Documentation/technical/data_structures.txt add for new hackers.
+  - add Documentation/technical/data_structures.txt for new hackers
+
+* scripts/import_vger_from_mbox: (not really a production-level script)
+
+  - fix ">From" unescaping thanks to a bug report from Kyle Meyer
+
+Thanks to Andreas Rottmann, Leah Neukirchen and Kyle Meyer
+for their contributions to this release.
+
+Release tarball available for download over HTTPS or Tor .onion:
+
+https://yhbt.net/public-inbox.git/snapshot/public-inbox-1.4.0.tar.gz
+http://ou63pmih66umazou.onion/public-inbox.git/snapshot/public-inbox-1.4.0.tar.gz
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 
