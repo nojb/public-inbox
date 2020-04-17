@@ -81,17 +81,23 @@ check_sock($unix);
 	ok(-S $unix, 'unix socket still exists');
 }
 
+# portable Perl can delay or miss signal dispatches due to races,
+# so disable some tests on systems lacking signalfd(2) or EVFILT_SIGNAL
+my $has_sigfd = PublicInbox::Sigfd->new({}, 0) ? 1 : $ENV{TEST_UNRELIABLE};
+
 sub delay_until {
 	my $cond = shift;
-	for (1..1000) {
+	my $end = time + 30;
+	do {
 		return if $cond->();
 		select undef, undef, undef, 0.012;
-	}
-	Carp::croak('condition failed');
+	} until (time > $end);
+	Carp::confess('condition failed');
 }
 
 SKIP: {
-	require_mods('Net::Server::Daemonize', 20);
+	require_mods('Net::Server::Daemonize', 52);
+	$has_sigfd or skip('signalfd / EVFILT_SIGNAL not available', 52);
 	my $pid_file = "$tmpdir/pid";
 	my $read_pid = sub {
 		my $f = shift;
@@ -137,9 +143,11 @@ SKIP: {
 	});
 	my $new_pid = $read_pid->($pid_file);
 	isnt($new_pid, $pid, 'new child started');
+	ok($new_pid > 0, '$new_pid valid');
 	delay_until(sub { -s "$pid_file.oldbin" });
 	my $old_pid = $read_pid->("$pid_file.oldbin");
 	is($old_pid, $pid, '.oldbin pid file written');
+	ok($old_pid > 0, '$old_pid valid');
 
 	check_sock($unix); # ensures $new_pid is ready to receive signals
 
