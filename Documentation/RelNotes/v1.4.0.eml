@@ -1,9 +1,11 @@
+Date: Fri, 17 Apr 2020 08:48:59 +0000
 From: Eric Wong <e@yhbt.net>
 To: meta@public-inbox.org
 Subject: [ANNOUNCE] public-inbox 1.4.0
-Message-Id: <20200417084800.public-inbox-1.4.0-rele@sed>
+Message-ID: <20200417084800.public-inbox-1.4.0-rele@sed>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
 
 This release focuses on reproducibility improvements and
 bugfixes for corner-cases.  Busy instances of PublicInbox::WWW
