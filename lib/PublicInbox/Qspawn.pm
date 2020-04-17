@@ -281,10 +281,6 @@ sub psgi_return_init_cb {
 					${$self->{hdr_buf}}, $filter);
 		$wcb->($r);
 	}
-
-	# Workaround a leak under Perl 5.16.3 when combined with
-	# Plack::Middleware::Deflater:
-	$wcb = undef;
 }
 
 sub psgi_return_start { # may run later, much later...
