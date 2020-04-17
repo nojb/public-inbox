@@ -297,11 +297,9 @@ sub _th_index_lite {
 	my $nr_c = scalar @$children;
 	my $nr_s = 0;
 	my $siblings;
-	if (my $smsg = $node->{smsg}) {
-		# delete saves about 200KB on a 1K message thread
-		if (my $refs = delete $smsg->{references}) {
-			($$irt) = ($refs =~ m/$MID_EXTRACT\z/o);
-		}
+	# delete saves about 200KB on a 1K message thread
+	if (my $refs = delete $node->{references}) {
+		($$irt) = ($refs =~ m/$MID_EXTRACT\z/o);
 	}
 	my $irt_map = $mapping->{$$irt} if defined $$irt;
 	if (defined $irt_map) {
@@ -310,12 +308,12 @@ sub _th_index_lite {
 		$rv .= $pad . $irt_map->[0];
 		if ($idx > 0) {
 			my $prev = $siblings->[$idx - 1];
-			my $pmid = $prev->{id};
+			my $pmid = $prev->{mid};
 			if ($idx > 2) {
 				my $s = ($idx - 1). ' preceding siblings ...';
 				$rv .= pad_link($pmid, $level, $s);
 			} elsif ($idx == 2) {
-				my $ppmid = $siblings->[0]->{id};
+				my $ppmid = $siblings->[0]->{mid};
 				$rv .= $pad . $mapping->{$ppmid}->[0];
 			}
 			$rv .= $pad . $mapping->{$pmid}->[0];
@@ -328,26 +326,26 @@ sub _th_index_lite {
 	$attr =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
 	$rv .= "<b>@ $attr";
 	if ($nr_c) {
-		my $cmid = $children->[0]->{id};
+		my $cmid = $children->[0]->{mid};
 		$rv .= $pad . $mapping->{$cmid}->[0];
 		if ($nr_c > 2) {
 			my $s = ($nr_c - 1). ' more replies';
 			$rv .= pad_link($cmid, $level + 1, $s);
 		} elsif (my $cn = $children->[1]) {
-			$rv .= $pad . $mapping->{$cn->{id}}->[0];
+			$rv .= $pad . $mapping->{$cn->{mid}}->[0];
 		}
 	}
 
 	my $next = $siblings->[$idx+1] if $siblings && $idx >= 0;
 	if ($next) {
-		my $nmid = $next->{id};
+		my $nmid = $next->{mid};
 		$rv .= $pad . $mapping->{$nmid}->[0];
 		my $nnext = $nr_s - $idx;
 		if ($nnext > 2) {
 			my $s = ($nnext - 1).' subsequent siblings';
 			$rv .= pad_link($nmid, $level, $s);
 		} elsif (my $nn = $siblings->[$idx + 2]) {
-			$rv .= $pad . $mapping->{$nn->{id}}->[0];
+			$rv .= $pad . $mapping->{$nn->{mid}}->[0];
 		}
 	}
 	$rv .= $pad ."<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
@@ -369,7 +367,7 @@ sub walk_thread ($$$) {
 
 sub pre_thread  { # walk_thread callback
 	my ($ctx, $level, $node, $idx) = @_;
-	$ctx->{mapping}->{$node->{id}} = [ '', $node, $idx, $level ];
+	$ctx->{mapping}->{$node->{mid}} = [ '', $node, $idx, $level ];
 	skel_dump($ctx, $level, $node);
 }
 
@@ -388,8 +386,8 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 		my $node = shift @$q or next;
 		my $cl = $level + 1;
 		unshift @$q, map { ($cl, $_) } @{$node->{children}};
-		if (my $smsg = $ctx->{-inbox}->smsg_mime($node->{smsg})) {
-			return thread_index_entry($ctx, $level, $smsg);
+		if ($ctx->{-inbox}->smsg_mime($node)) {
+			return thread_index_entry($ctx, $level, $node);
 		} else {
 			return ghost_index_entry($ctx, $level, $node);
 		}
@@ -407,7 +405,7 @@ sub stream_thread ($$) {
 		my $node = shift @q or next;
 		my $cl = $level + 1;
 		unshift @q, map { ($cl, $_) } @{$node->{children}};
-		$smsg = $ibx->smsg_mime($node->{smsg}) and last;
+		$smsg = $ibx->smsg_mime($node) and last;
 	}
 	return missing_thread($ctx) unless $smsg;
 
@@ -825,7 +823,7 @@ sub indent_for {
 sub find_mid_root {
 	my ($ctx, $level, $node, $idx) = @_;
 	++$ctx->{root_idx} if $level == 0;
-	if ($node->{id} eq $ctx->{mid}) {
+	if ($node->{mid} eq $ctx->{mid}) {
 		$ctx->{found_mid_at} = $ctx->{root_idx};
 		return 0;
 	}
@@ -899,8 +897,8 @@ sub dedupe_subject {
 }
 
 sub skel_dump { # walk_thread callback
-	my ($ctx, $level, $node) = @_;
-	my $smsg = $node->{smsg} or return _skel_ghost($ctx, $level, $node);
+	my ($ctx, $level, $smsg) = @_;
+	$smsg->{blob} or return _skel_ghost($ctx, $level, $smsg);
 
 	my $skel = $ctx->{skel};
 	my $cur = $ctx->{cur};
@@ -983,7 +981,7 @@ sub skel_dump { # walk_thread callback
 sub _skel_ghost {
 	my ($ctx, $level, $node) = @_;
 
-	my $mid = $node->{id};
+	my $mid = $node->{mid};
 	my $d = '     [not found] ';
 	$d .= '    '  if exists $ctx->{searchview};
 	$d .= indent_for($level) . th_pfx($level);
@@ -1006,18 +1004,23 @@ sub _skel_ghost {
 
 sub sort_ds {
 	[ sort {
-		(eval { $a->topmost->{smsg}->{ds} } || 0) <=>
-		(eval { $b->topmost->{smsg}->{ds} } || 0)
+		(eval { $a->topmost->{ds} } || 0) <=>
+		(eval { $b->topmost->{ds} } || 0)
 	} @{$_[0]} ];
 }
 
 # accumulate recent topics if search is supported
 # returns 200 if done, 404 if not
 sub acc_topic { # walk_thread callback
-	my ($ctx, $level, $node) = @_;
-	my $mid = $node->{id};
-	my $smsg = $node->{smsg} // $ctx->{-inbox}->smsg_by_mid($mid);
-	if ($smsg) {
+	my ($ctx, $level, $smsg) = @_;
+	my $mid = $smsg->{mid};
+	my $has_blob = $smsg->{blob} // do {
+		if (my $by_mid = $ctx->{-inbox}->smsg_by_mid($mid)) {
+			%$smsg = (%$smsg, %$by_mid);
+			1;
+		}
+	};
+	if ($has_blob) {
 		my $subj = subject_normalized($smsg->{subject});
 		$subj = '(no subject)' if $subj eq '';
 		my $ds = $smsg->{ds};
@@ -1208,7 +1211,7 @@ sub thread_adj_level {
 sub ghost_index_entry {
 	my ($ctx, $level, $node) = @_;
 	my ($beg, $end) = thread_adj_level($ctx,  $level);
-	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $node->{id})
+	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $node->{mid})
 		. '</pre>' . $end;
 }
 

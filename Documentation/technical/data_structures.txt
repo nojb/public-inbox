@@ -61,15 +61,13 @@ Per-message classes
   There may be hundreds or thousands of these objects in memory
   at-a-time, so fields are pruned if unneeded.
 
-* PublicInbox::SearchThread::Msg - container for message threading
+* PublicInbox::SearchThread::Msg - subclass of Smsg
   Common abbreviation: $cont or $node
   Used by: PublicInbox::WWW
 
-  The container we use for a non-recursive[1] variant of
+  The structure we use for a non-recursive[1] variant of
   JWZ's algorithm: <https://www.jwz.org/doc/threading.html>.
-  This holds a $smsg and is only used for message threading.
-  This wrapper class may go away in the future and handled
-  directly by PublicInbox::Smsg to save memory.
+  Nowadays, this is a re-blessed $smsg with additional fields.
 
   As with $smsg objects, there may be hundreds or thousands
   of these objects in memory at-a-time.

@@ -243,8 +243,8 @@ sub search_nav_bot {
 
 sub sort_relevance {
 	[ sort {
-		(eval { $b->topmost->{smsg}->{pct} } // 0) <=>
-		(eval { $a->topmost->{smsg}->{pct} } // 0)
+		(eval { $b->topmost->{pct} } // 0) <=>
+		(eval { $a->topmost->{pct} } // 0)
 	} @{$_[0]} ]
 }
 

@@ -19,6 +19,7 @@ sub make_objs {
 		my $msg = $_;
 		$msg->{ds} ||= ++$n;
 		$msg->{references} =~ s/\s+/ /sg if $msg->{references};
+		$msg->{blob} = '0'x40; # any dummy value will do, here
 		my $simple = Email::Simple->create(header => [
 			'Message-ID' => "<$msg->{mid}>",
 			'References' => $msg->{references},
@@ -100,13 +101,13 @@ done_testing();
 sub thread_to_s {
 	my ($msgs) = @_;
 	my $rootset = PublicInbox::SearchThread::thread($msgs, sub {
-		[ sort { $a->{id} cmp $b->{id} } @{$_[0]} ] });
+		[ sort { $a->{mid} cmp $b->{mid} } @{$_[0]} ] });
 	my $st = '';
 	my @q = map { (0, $_) } @$rootset;
 	while (@q) {
 		my $level = shift @q;
 		my $node = shift @q or next;
-		$st .= (" "x$level). "$node->{id}\n";
+		$st .= (" "x$level). "$node->{mid}\n";
 		my $cl = $level + 1;
 		unshift @q, map { ($cl, $_) } @{$node->{children}};
 	}
