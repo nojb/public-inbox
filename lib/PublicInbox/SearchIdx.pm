@@ -551,13 +551,11 @@ sub unindex_both {
 
 sub do_cat_mail {
 	my ($git, $blob, $sizeref) = @_;
-	my $mime = eval {
-		my $str = $git->cat_file($blob, $sizeref);
-		# fixup bugs from import:
-		$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
-		PublicInbox::MIME->new($str);
-	};
-	$@ ? undef : $mime;
+	my $str = $git->cat_file($blob, $sizeref) or
+		die "BUG: $blob not found in $git->{git_dir}";
+	# fixup bugs from import:
+	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+	PublicInbox::MIME->new($str);
 }
 
 # called by public-inbox-index
@@ -602,7 +600,7 @@ sub read_log {
 				}
 				next;
 			}
-			my $mime = do_cat_mail($git, $blob, \$bytes) or next;
+			my $mime = do_cat_mail($git, $blob, \$bytes);
 			my $smsg = bless {}, 'PublicInbox::Smsg';
 			batch_adjust(\$max, $bytes, $batch_cb, $latest, ++$nr);
 			$smsg->{blob} = $blob;
@@ -623,7 +621,7 @@ sub read_log {
 	close($log) or die "git log failed: \$?=$?";
 	# get the leftovers
 	foreach my $blob (keys %D) {
-		my $mime = do_cat_mail($git, $blob, \$bytes) or next;
+		my $mime = do_cat_mail($git, $blob, \$bytes);
 		$del_cb->($self, $mime);
 	}
 	$batch_cb->($nr, $latest, $newest);
