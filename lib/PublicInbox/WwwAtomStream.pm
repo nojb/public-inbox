@@ -20,9 +20,8 @@ sub close {}
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
-	$ctx->{emit_header} = 1;
 	$ctx->{feed_base_url} = $ctx->{-inbox}->base_url($ctx->{env});
-	bless { cb => $cb || \&close, ctx => $ctx }, $class;
+	bless { cb => $cb || \&close, ctx => $ctx, emit_header => 1 }, $class;
 }
 
 sub response {
@@ -130,7 +129,7 @@ sub feed_entry {
 	$email = ascii_html($email);
 
 	my $s = '';
-	if (delete $ctx->{emit_header}) {
+	if (delete $self->{emit_header}) {
 		$s .= atom_header($ctx, $title);
 	}
 	$s .= "<entry><author><name>$name</name><email>$email</email>" .

@@ -127,7 +127,7 @@ sub atom_start {
 	require PublicInbox::WwwAtomStream;
 	# WwwAtomStream stats this dir for mtime
 	my $astream = PublicInbox::WwwAtomStream->new($ctx);
-	delete $ctx->{emit_header};
+	delete $astream->{emit_header};
 	my $ibx = $ctx->{-inbox};
 	my $title = PublicInbox::WwwAtomStream::title_tag($ibx->description);
 	my $updated = PublicInbox::WwwAtomStream::feed_updated(gmtime($mtime));
