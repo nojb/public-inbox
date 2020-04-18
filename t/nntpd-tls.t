@@ -63,11 +63,9 @@ EOF
 
 {
 	my $im = $ibx->importer(0);
-	my $mime = PublicInbox::MIME->new(do {
-		open my $fh, '<', 't/data/0001.patch' or die;
-		local $/;
-		<$fh>
-	});
+	my $eml = 't/data/0001.patch';
+	my $mime = PublicInbox::InboxWritable::mime_from_path($eml) or
+		die "open $eml: $!";
 	ok($im->add($mime), 'message added');
 	$im->done;
 	if ($version == 1) {

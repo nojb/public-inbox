@@ -28,8 +28,8 @@ my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 
 my $deliver_patch = sub ($) {
-	open my $fh, '<', $_[0] or die "open: $!";
-	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
+	my $mime = PublicInbox::InboxWritable::mime_from_path($_[0]) or
+		die "open $_[0]: $!";
 	$im->add($mime);
 	$im->done;
 };

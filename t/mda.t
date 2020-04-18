@@ -7,6 +7,7 @@ use Email::MIME;
 use Cwd qw(getcwd);
 use PublicInbox::MID qw(mid2path);
 use PublicInbox::Git;
+use PublicInbox::InboxWritable;
 use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
@@ -62,12 +63,9 @@ local $ENV{GIT_COMMITTER_NAME} = eval {
 	use PublicInbox::MDA;
 	use PublicInbox::Address;
 	use Encode qw/encode/;
-	my $mbox = 't/utf8.mbox';
-	open(my $fh, '<', $mbox) or die "failed to open mbox: $mbox\n";
-	my $str = eval { local $/; <$fh> };
-	close $fh;
-	my $msg = Email::MIME->new($str);
-
+	my $eml = 't/utf8.eml';
+	my $msg = PublicInbox::InboxWritable::mime_from_path($eml) or
+		die "failed to open $eml: $!";
 	my $from = $msg->header('From');
 	my ($author) = PublicInbox::Address::names($from);
 	my ($email) = PublicInbox::Address::emails($from);

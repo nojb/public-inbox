@@ -111,7 +111,7 @@ sub is_maildir_path ($) {
 	(is_maildir_basename($p[-1]) && -f $path) ? 1 : 0;
 }
 
-sub maildir_path_load ($) {
+sub mime_from_path ($) {
 	my ($path) = @_;
 	if (open my $fh, '<', $path) {
 		local $/;
@@ -138,7 +138,7 @@ sub import_maildir {
 		opendir my $dh, "$dir/$sub" or die "opendir $dir/$sub: $!\n";
 		while (defined(my $fn = readdir($dh))) {
 			next unless is_maildir_basename($fn);
-			my $mime = maildir_path_load("$dir/$fn") or next;
+			my $mime = mime_from_path("$dir/$fn") or next;
 
 			if (my $filter = $self->filter($im)) {
 				my $ret = $filter->scrub($mime) or return;

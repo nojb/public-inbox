@@ -11,7 +11,7 @@ use PublicInbox::InboxWritable;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
-*maildir_path_load = *PublicInbox::InboxWritable::maildir_path_load;
+*mime_from_path = \&PublicInbox::InboxWritable::mime_from_path;
 
 sub new {
 	my ($class, $config) = @_;
@@ -123,7 +123,7 @@ sub _remove_spam {
 	my ($self, $path) = @_;
 	# path must be marked as (S)een
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
-	my $mime = maildir_path_load($path) or return;
+	my $mime = mime_from_path($path) or return;
 	$self->{config}->each_inbox(sub {
 		my ($ibx) = @_;
 		eval {
@@ -165,7 +165,7 @@ sub _try_path {
 		$warn_cb->(@_);
 	};
 	foreach my $ibx (@$inboxes) {
-		my $mime = maildir_path_load($path) or next;
+		my $mime = mime_from_path($path) or next;
 		my $im = _importer_for($self, $ibx);
 
 		# any header match means it's eligible for the inbox:

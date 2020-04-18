@@ -253,7 +253,7 @@ t/index-git-times.t
 t/indexlevels-mirror-v1.t
 t/indexlevels-mirror.t
 t/init.t
-t/iso-2202-jp.mbox
+t/iso-2202-jp.eml
 t/linkify.t
 t/main-bin/spamc
 t/mda.t
@@ -294,7 +294,7 @@ t/spamcheck_spamc.t
 t/spawn.t
 t/thread-cycle.t
 t/time.t
-t/utf8.mbox
+t/utf8.eml
 t/v1-add-remove-add.t
 t/v1reindex.t
 t/v2-add-remove-add.t

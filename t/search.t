@@ -7,6 +7,7 @@ use PublicInbox::TestCommon;
 require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
+require PublicInbox::InboxWritable;
 use Email::MIME;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
@@ -290,14 +291,9 @@ $ibx->with_umask(sub {
 });
 
 $ibx->with_umask(sub {
-	my $str = eval {
-		my $mbox = 't/utf8.mbox';
-		open(my $fh, '<', $mbox) or die "failed to open mbox: $mbox\n";
-		local $/;
-		<$fh>
-	};
-	$str =~ s/\AFrom [^\n]+\n//s;
-	my $mime = Email::MIME->new($str);
+	my $eml = 't/utf8.eml';
+	my $mime = PublicInbox::InboxWritable::mime_from_path($eml) or
+		die "open $eml: $!";
 	my $doc_id = $rw->add_message($mime);
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
 	my $msg = $rw->query('m:testmessage@example.com', {limit => 1})->[0];

@@ -92,9 +92,8 @@ Multiple messages with different content found matching
 		warn "Will edit all of them\n";
 	}
 } else {
-	open my $fh, '<', $file or die "open($file) failed: $!";
-	my $orig = do { local $/; <$fh> };
-	my $mime = PublicInbox::MIME->new(\$orig);
+	my $mime = PublicInbox::InboxWritable::mime_from_path($file) or
+		die "open($file) failed: $!";
 	my $mids = mids($mime->header_obj);
 	find_mid($found, $_, \@ibxs) for (@$mids); # populates $found
 	my $cid = content_id($mime);

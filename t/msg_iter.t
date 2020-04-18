@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use PublicInbox::Hval qw(ascii_html);
+use PublicInbox::InboxWritable;
 use_ok('PublicInbox::MsgIter');
 
 {
@@ -42,12 +43,9 @@ use_ok('PublicInbox::MsgIter');
 }
 
 {
-	my $f = 't/iso-2202-jp.mbox';
-	my $mime = Email::MIME->new(do {
-		open my $fh, '<', $f or die "open($f): $!";
-		local $/;
-		<$fh>;
-	});
+	my $f = 't/iso-2202-jp.eml';
+	my $mime = PublicInbox::InboxWritable::mime_from_path($f) or
+		die "open $f: $!";
 	my $raw = '';
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
@@ -61,12 +59,8 @@ use_ok('PublicInbox::MsgIter');
 
 {
 	my $f = 't/x-unknown-alpine.eml';
-	my $mime = Email::MIME->new(do {
-		open my $fh, '<', $f or die "open($f): $!";
-		local $/;
-		binmode $fh;
-		<$fh>;
-	});
+	my $mime = PublicInbox::InboxWritable::mime_from_path($f) or
+		die "open $f: $!";
 	my $raw = '';
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
