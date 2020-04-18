@@ -82,7 +82,7 @@ sub _set_uint ($$$) {
 sub _set_limiter ($$$) {
 	my ($self, $pi_config, $pfx) = @_;
 	my $lkey = "-${pfx}_limiter";
-	$self->{$lkey} ||= eval {
+	$self->{$lkey} ||= do {
 		# full key is: publicinbox.$NAME.httpbackendmax
 		my $mkey = $pfx.'max';
 		my $val = $self->{$mkey} or return;
@@ -130,7 +130,7 @@ sub version { $_[0]->{version} // 1 }
 sub git_epoch {
 	my ($self, $epoch) = @_;
 	$self->version == 2 or return;
-	$self->{"$epoch.git"} ||= eval {
+	$self->{"$epoch.git"} ||= do {
 		my $git_dir = "$self->{inboxdir}/git/$epoch.git";
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
@@ -141,7 +141,7 @@ sub git_epoch {
 
 sub git {
 	my ($self) = @_;
-	$self->{git} ||= eval {
+	$self->{git} ||= do {
 		my $git_dir = $self->{inboxdir};
 		$git_dir .= '/all.git' if $self->version == 2;
 		my $g = PublicInbox::Git->new($git_dir);
