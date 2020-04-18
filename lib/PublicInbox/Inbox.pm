@@ -219,19 +219,22 @@ sub try_cat {
 
 sub description {
 	my ($self) = @_;
-	$self->{description} //= do {
+	($self->{description} //= do {
 		my $desc = try_cat("$self->{inboxdir}/description");
 		local $/ = "\n";
 		chomp $desc;
 		$desc =~ s/\s+/ /smg;
-		$desc eq '' ? '($INBOX_DIR/description missing)' : $desc;
-	};
+		$desc eq '' ? undef : $desc;
+	}) // '($INBOX_DIR/description missing)';
 }
 
 sub cloneurl {
 	my ($self) = @_;
-	$self->{cloneurl} //=
-		[ split(/\s+/s, try_cat("$self->{inboxdir}/cloneurl")) ];
+	($self->{cloneurl} //= do {
+		my $s = try_cat("$self->{inboxdir}/cloneurl");
+		my @urls = split(/\s+/s, $s);
+		scalar(@urls) ? \@urls : undef
+	}) // [];
 }
 
 sub base_url {

@@ -4,12 +4,31 @@ use strict;
 use warnings;
 use Test::More;
 use_ok 'PublicInbox::Inbox';
+use File::Temp 0.19 ();
 my $x = PublicInbox::Inbox->new({url => [ '//example.com/test/' ]});
 is($x->base_url, 'https://example.com/test/', 'expanded protocol-relative');
 $x = PublicInbox::Inbox->new({url => [ 'http://example.com/test' ]});
 is($x->base_url, 'http://example.com/test/', 'added trailing slash');
 
 $x = PublicInbox::Inbox->new({});
+
 is($x->base_url, undef, 'undef base_url allowed');
+my $tmpdir = File::Temp->newdir('pi-inbox-XXXXXX', TMPDIR => 1);
+$x->{inboxdir} = $tmpdir->dirname;
+is_deeply($x->cloneurl, [], 'no cloneurls');
+is($x->description, '($INBOX_DIR/description missing)', 'default description');
+{
+	open my $fh, '>', "$x->{inboxdir}/cloneurl" or die;
+	print $fh "https://example.com/inbox\n" or die;
+	close $fh or die;
+	open $fh, '>', "$x->{inboxdir}/description" or die;
+	print $fh "blah\n" or die;
+	close $fh or die;
+}
+is_deeply($x->cloneurl, ['https://example.com/inbox'], 'cloneurls update');
+is($x->description, 'blah', 'description updated');
+is(unlink(glob("$x->{inboxdir}/*")), 2, 'unlinked cloneurl & description');
+is_deeply($x->cloneurl, ['https://example.com/inbox'], 'cloneurls memoized');
+is($x->description, 'blah', 'description memoized');
 
 done_testing();
