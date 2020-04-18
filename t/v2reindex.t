@@ -18,12 +18,11 @@ my $ibx_config = {
 	-primary_address => 'test@example.com',
 	indexlevel => 'full',
 };
-my $agpl = eval {
+my $agpl = do {
 	open my $fh, '<', 'COPYING' or die "can't open COPYING: $!";
 	local $/;
 	<$fh>;
 };
-$agpl or die "AGPL or die :P\n";
 my $phrase = q("defending all users' freedom");
 my $mime = PublicInbox::MIME->create(
 	header => [

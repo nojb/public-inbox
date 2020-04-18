@@ -23,7 +23,7 @@ foreach my $sub (qw(cur new tmp)) {
 
 foreach my $n (grep(/\d+\z/, glob("$spool/*"))) {
 	if (open my $fh, '<', $n) {
-		my $f = Email::Filter->new(data => eval { local $/; <$fh> });
+		my $f = Email::Filter->new(data => do { local $/; <$fh> });
 		my $s = $f->simple;
 
 		# gmane rewrites Received headers, which increases spamminess

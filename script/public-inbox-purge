@@ -21,7 +21,7 @@ GetOptions($opt, @PublicInbox::AdminEdit::OPT) or
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
 PublicInbox::AdminEdit::check_editable(\@ibxs);
 
-my $data = do { local $/; scalar <STDIN> };
+my $data = do { local $/; <STDIN> };
 $data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 my $n_purged = 0;
 

@@ -20,9 +20,9 @@ if ($train !~ /\A(?:ham|spam|rm)\z/) {
 my $spamc = PublicInbox::Spamcheck::Spamc->new;
 my $pi_config = PublicInbox::Config->new;
 my $err;
-my $mime = PublicInbox::MIME->new(eval {
+my $mime = PublicInbox::MIME->new(do{
 	local $/;
-	my $data = scalar <STDIN>;
+	my $data = <STDIN>;
 	$data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 
 	if ($train ne 'rm') {
@@ -36,7 +36,7 @@ my $mime = PublicInbox::MIME->new(eval {
 		};
 		$err = $@;
 	}
-	$data
+	\$data
 });
 
 sub remove_or_add ($$$$) {

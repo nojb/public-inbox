@@ -70,7 +70,7 @@ for (; $exit == 0 && $n < $max; $n++) {
 	$max = $n + $max_gap;
 	print STDERR $fn, "\n";
 
-	my $mime = PublicInbox::MIME->new(eval { local $/; <$fh> });
+	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
 	$filter->scrub($mime);
 	$im->add($mime);
 

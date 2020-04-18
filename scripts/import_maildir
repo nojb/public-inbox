@@ -28,7 +28,7 @@ my @msgs;
 foreach my $sub (qw(cur new)) {
 	foreach my $fn (glob("$dir/$sub/*")) {
 		open my $fh, '<', $fn or next;
-		my $s = Email::Simple->new(eval { local $/; <$fh> });
+		my $s = Email::Simple->new(do { local $/; <$fh> });
 		my $date = $s->header('Date');
 		my $t = eval { str2time($date) };
 		defined $t or next;
@@ -45,7 +45,7 @@ my $im = PublicInbox::Import->new($git, $name, $email);
 while (my $ary = pop @msgs) {
 	my $fn = "$dir/$ary->[1]";
 	open my $fh, '<', $fn or next;
-	my $mime = PublicInbox::MIME->new(eval { local $/; <$fh> });
+	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
 	$im->add($mime);
 }
 $im->done;

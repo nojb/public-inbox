@@ -30,10 +30,7 @@ use Email::Simple;
 use URI::Escape qw/uri_escape_utf8/;
 use File::Temp qw/tempfile/;
 my ($fh, $filename) = tempfile('ssoma-replay-XXXXXXXX', TMPDIR => 1);
-my $msg = eval {
-	local $/;
-	Email::Simple->new(<STDIN>);
-};
+my $msg = Email::Simple->new(do { local $/; <STDIN> });
 select $fh;
 
 # Note: the archive URL makes assumptions about where the

@@ -125,7 +125,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 {
 	my $patch = 't/data/0001.patch';
 	open my $fh, '<', $patch or die "failed to open $patch: $!\n";
-	$msg = eval { local $/; <$fh> };
+	$msg = do { local $/; <$fh> };
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	PublicInbox::WatchMaildir->new($config)->scan('full');
 	my ($nr, $msgs) = $srch->reopen->query('dfpost:6e006fd7');

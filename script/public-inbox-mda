@@ -29,7 +29,7 @@ use PublicInbox::Spamcheck;
 # in case there's bugs in our code or user error.
 my $emergency = $ENV{PI_EMERGENCY} || "$ENV{HOME}/.public-inbox/emergency/";
 $ems = PublicInbox::Emergency->new($emergency);
-my $str = eval { local $/; <STDIN> };
+my $str = do { local $/; <STDIN> };
 $str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 $ems->prepare(\$str);
 my $simple = Email::Simple->new(\$str);
