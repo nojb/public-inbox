@@ -26,16 +26,16 @@ my $new_mid;
 my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 
-my $mime = PublicInbox::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		'Message-ID' => '<a-mid@b>',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From oldbug-pre-a0c07cba0e5d8b6a Fri Oct  2 00:00:00 1993
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Message-ID: <a-mid@b>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
 ok($im->add($mime), 'added one message');
 $mime->body_set("hello world!\n");
 
@@ -47,6 +47,10 @@ is(scalar(@warn), 1, 'got one warning');
 my $mids = mids($mime->header_obj);
 $new_mid = $mids->[1];
 $im->done;
+
+my $msg = $ibx->msg_by_mid('a-mid@b');
+like($$msg, qr/\AFrom oldbug/s,
+	'"From_" line stored to test old bug workaround');
 
 my $cfgpfx = "publicinbox.v2test";
 my $cfg = <<EOF;
@@ -63,6 +67,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		'got v2 description missing message');
 	$res = $cb->(GET('/v2test/a-mid@b/raw'));
 	$raw = $res->content;
+	unlike($raw, qr/^From oldbug/sm, 'buggy "From_" line omitted');
 	like($raw, qr/^hello world$/m, 'got first message');
 	like($raw, qr/^hello world!$/m, 'got second message');
 	@from_ = ($raw =~ m/^From /mg);
@@ -123,6 +128,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		my $out;
 		my $in = $res->content;
 		my $status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		unlike($out, qr/^From oldbug/sm, 'buggy "From_" line omitted');
 		like($out, qr/^hello world$/m, 'got first in t.mbox.gz');
 		like($out, qr/^hello world!$/m, 'got second in t.mbox.gz');
 		like($out, qr/^hello ghosts$/m, 'got third in t.mbox.gz');
@@ -133,6 +139,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		$res = $cb->(POST('/v2test/?q=m:a-mid@b&x=m'));
 		$in = $res->content;
 		$status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		unlike($out, qr/^From oldbug/sm, 'buggy "From_" line omitted');
 		like($out, qr/^hello world$/m, 'got first in mbox POST');
 		like($out, qr/^hello world!$/m, 'got second in mbox POST');
 		like($out, qr/^hello ghosts$/m, 'got third in mbox POST');
@@ -143,6 +150,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		$res = $cb->(GET('/v2test/all.mbox.gz'));
 		$in = $res->content;
 		$status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		unlike($out, qr/^From oldbug/sm, 'buggy "From_" line omitted');
 		like($out, qr/^hello world$/m, 'got first in all.mbox');
 		like($out, qr/^hello world!$/m, 'got second in all.mbox');
 		like($out, qr/^hello ghosts$/m, 'got third in all.mbox');

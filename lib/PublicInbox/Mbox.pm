@@ -106,8 +106,11 @@ sub msg_hdr ($$;$) {
 		'List-Post', "<mailto:$ibx->{-primary_address}>",
 	);
 	my $crlf = $header_obj->crlf;
-	my $buf = 'From mboxrd@z Thu Jan  1 00:00:00 1970' . $crlf .
-			$header_obj->as_string;
+	my $buf = $header_obj->as_string;
+	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
+	$buf =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+	$buf = "From mboxrd\@z Thu Jan  1 00:00:00 1970" . $crlf . $buf;
+
 	for (my $i = 0; $i < @append; $i += 2) {
 		my $k = $append[$i];
 		my $v = $append[$i + 1];

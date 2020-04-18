@@ -506,6 +506,8 @@ sub set_art {
 sub msg_hdr_write ($$$) {
 	my ($self, $hdr, $body_follows) = @_;
 	$hdr = $hdr->as_string;
+	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
+	$hdr =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 	utf8::encode($hdr);
 	$hdr =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
 

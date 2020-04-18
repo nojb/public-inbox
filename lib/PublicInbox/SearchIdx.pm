@@ -553,8 +553,6 @@ sub do_cat_mail {
 	my ($git, $blob, $sizeref) = @_;
 	my $str = $git->cat_file($blob, $sizeref) or
 		die "BUG: $blob not found in $git->{git_dir}";
-	# fixup bugs from import:
-	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 	PublicInbox::MIME->new($str);
 }
 

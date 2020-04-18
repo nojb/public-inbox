@@ -311,9 +311,7 @@ sub nntp_usable {
 # for v1 users w/o SQLite only
 sub msg_by_path ($$;$) {
 	my ($self, $path, $ref) = @_;
-	my $str = git($self)->cat_file('HEAD:'.$path, $ref);
-	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s if $str;
-	$str;
+	git($self)->cat_file('HEAD:'.$path, $ref);
 }
 
 sub msg_by_smsg ($$;$) {
@@ -324,9 +322,7 @@ sub msg_by_smsg ($$;$) {
 	return unless defined $smsg;
 	defined(my $blob = $smsg->{blob}) or return;
 
-	my $str = git($self)->cat_file($blob, $ref);
-	$$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s if $str;
-	$str;
+	git($self)->cat_file($blob, $ref);
 }
 
 sub smsg_mime {
