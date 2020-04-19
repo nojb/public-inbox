@@ -28,7 +28,7 @@ my $mime = PublicInbox::MIME->create(
 );
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
 ok($im->add($mime), 'message added');
-ok($im->remove($mime), 'message added');
+ok($im->remove($mime), 'message removed');
 ok($im->add($mime), 'message added again');
 $im->done;
 my $rw = PublicInbox::SearchIdx->new($ibx, 1);

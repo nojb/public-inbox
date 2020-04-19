@@ -29,7 +29,7 @@ my $mime = PublicInbox::MIME->create(
 my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 ok($im->add($mime), 'message added');
-ok($im->remove($mime), 'message added');
+ok($im->remove($mime), 'message removed');
 ok($im->add($mime), 'message added again');
 $im->done;
 my $msgs = $ibx->recent({limit => 1000});
