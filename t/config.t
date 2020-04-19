@@ -11,7 +11,7 @@ my ($tmpdir, $for_destroy) = tmpdir();
 {
 	PublicInbox::Import::init_bare($tmpdir);
 	my @cmd = ('git', "--git-dir=$tmpdir", qw(config foo.bar), "hi\nhi");
-	is(system(@cmd), 0, "set config");
+	is(xsys(@cmd), 0, "set config");
 
 	my $tmp = PublicInbox::Config->new("$tmpdir/config");
 

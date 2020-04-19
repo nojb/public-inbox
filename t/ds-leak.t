@@ -10,7 +10,7 @@ use PublicInbox::TestCommon;
 use_ok 'PublicInbox::DS';
 
 if ('close-on-exec for epoll and kqueue') {
-	use PublicInbox::Spawn qw(spawn);
+	use PublicInbox::Spawn qw(spawn which);
 	my $pid;
 	my $evfd_re = qr/(?:kqueue|eventpoll)/i;
 
@@ -31,10 +31,12 @@ if ('close-on-exec for epoll and kqueue') {
 	my $l = <$r>;
 	is($l, undef, 'cloexec works and sleep(1) is running');
 
-	my @of = grep(/$evfd_re/, `lsof -p $pid 2>/dev/null`);
-	my $err = $?;
 	SKIP: {
-		skip "lsof missing? (\$?=$err)", 1 if $err;
+		my $lsof = which('lsof') or skip 'lsof missing', 1;
+		my $rdr = { 2 => \(my $null) };
+		my @of = grep(/$evfd_re/, xqx([$lsof, '-p', $pid], {}, $rdr));
+		my $err = $?;
+		skip "lsof broken ? (\$?=$err)", 1 if $err;
 		is_deeply(\@of, [], 'no FDs leaked to subprocess');
 	};
 	if (defined $pid) {

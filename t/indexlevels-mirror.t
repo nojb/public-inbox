@@ -59,7 +59,7 @@ sub import_index_incremental {
 		push @cmd, "$ibx->{inboxdir}/git/0.git", "$mirror/git/0.git";
 	}
 	my $fetch_dir = $cmd[-1];
-	is(system(@cmd), 0, "v$v clone OK");
+	is(xsys(@cmd), 0, "v$v clone OK");
 
 	# inbox init
 	local $ENV{PI_CONFIG} = "$tmpdir/.picfg";
@@ -86,7 +86,7 @@ sub import_index_incremental {
 	$im->done;
 
 	# mirror updates
-	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
+	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	ok(run_script(['-index', $mirror]), "v$v index mirror again OK");
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 2, '2nd message seen in mirror');
@@ -123,7 +123,7 @@ sub import_index_incremental {
 	}
 
 	# sync the mirror
-	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
+	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	ok(run_script(['-index', $mirror]), "v$v index mirror again OK");
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 1, '2nd message gone from mirror');
@@ -148,7 +148,7 @@ sub import_index_incremental {
 		push @expect, $i;
 	}
 	$im->done;
-	is(system('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
+	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	ok(run_script(['-index', '--reindex', $mirror]),
 		"v$v index --reindex mirror OK");
 	@ro_nums = map { $_->{num} } @{$ro_mirror->over->query_ts(0, 0)};

@@ -48,7 +48,7 @@ $ibx = PublicInbox::Inbox->new($ibx);
 	my @cmd = ('-init', $group, $inboxdir, 'http://example.com/', $addr);
 	push @cmd, "-V$version", '-Lbasic';
 	ok(run_script(\@cmd), 'init OK');
-	is(system(qw(git config), "--file=$home/.public-inbox/config",
+	is(xsys(qw(git config), "--file=$home/.public-inbox/config",
 			"publicinbox.$group.newsgroup", $group),
 		0, 'enabled newsgroup');
 	my $len;
@@ -304,7 +304,8 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		if ($INC{'Search/Xapian.pm'} && ($ENV{TEST_RUN_MODE}//2)) {
 			skip 'Search/Xapian.pm pre-loaded (by t/run.perl?)', 1;
 		}
-		my @of = `lsof -p $td->{pid} 2>/dev/null`;
+		my $rdr = { 2 => \(my $null) };
+		my @of = xqx(['lsof', '-p', $td->{pid}], undef, $rdr);
 		skip('lsof broken', 1) if (!scalar(@of) || $?);
 		my @xap = grep m!Search/Xapian!, @of;
 		is_deeply(\@xap, [], 'Xapian not loaded in nntpd');

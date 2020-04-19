@@ -9,7 +9,7 @@ use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
 our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
-	run_script start_script key2sub);
+	run_script start_script key2sub xsys xqx);
 
 sub tmpdir (;$) {
 	my ($base) = @_;
@@ -87,7 +87,7 @@ sub require_mods {
 
 sub key2script ($) {
 	my ($key) = @_;
-	return $key if (index($key, '/') >= 0);
+	return $key if ($key eq 'git' || index($key, '/') >= 0);
 	# n.b. we may have scripts which don't start with "public-inbox" in
 	# the future:
 	$key =~ s/\A([-\.])/public-inbox$1/;
@@ -243,6 +243,28 @@ sub run_script ($;$$) {
 }
 
 sub wait_for_tail () { sleep(2) }
+
+# like system() built-in, but uses spawn() for env/rdr + vfork
+sub xsys {
+	my ($cmd, $env, $rdr) = @_;
+	if (ref($cmd)) {
+		$rdr ||= {};
+	} else {
+		$cmd = [ @_ ];
+		$env = undef;
+		$rdr = {};
+	}
+	run_script($cmd, $env, { %$rdr, run_mode => 0 });
+	$? >> 8
+}
+
+# like `backtick` or qx{} op, but uses spawn() for env/rdr + vfork
+sub xqx {
+	my ($cmd, $env, $rdr) = @_;
+	$rdr //= {};
+	run_script($cmd, $env, { %$rdr, run_mode => 0, 1 => \(my $out) });
+	wantarray ? split(/^/m, $out) : $out;
+}
 
 sub start_script {
 	my ($cmd, $env, $opt) = @_;

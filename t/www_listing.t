@@ -24,8 +24,10 @@ is(PublicInbox::WwwListing::fingerprint($bare), undef,
 	'empty repo has no fingerprint');
 {
 	my $fi_data = './t/git.fast-import-data';
-	local $ENV{GIT_DIR} = $bare->{git_dir};
-	is(system("git fast-import --quiet <$fi_data"), 0, 'fast-import');
+	open my $fh, '<', $fi_data or die "open $fi_data: $!";
+	my $env = { GIT_DIR => $bare->{git_dir} };
+	is(xsys([qw(git fast-import --quiet)], $env, { 0 => $fh }), 0,
+		'fast-import');
 }
 
 like(PublicInbox::WwwListing::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
@@ -76,17 +78,17 @@ SKIP: {
 	ok($sock, 'sock created');
 	my ($host, $port) = ($sock->sockhost, $sock->sockport);
 	my @clone = qw(git clone -q -s --bare);
-	is(system(@clone, $bare->{git_dir}, $alt), 0, 'clone shared repo');
+	is(xsys(@clone, $bare->{git_dir}, $alt), 0, 'clone shared repo');
 
 	PublicInbox::Import::init_bare("$v2/all.git");
 	for my $i (0..2) {
-		is(system(@clone, $alt, "$v2/git/$i.git"), 0, "clone epoch $i");
+		is(xsys(@clone, $alt, "$v2/git/$i.git"), 0, "clone epoch $i")
 	}
 	ok(open(my $fh, '>', "$v2/inbox.lock"), 'mock a v2 inbox');
 	open $fh, '>', "$alt/description" or die;
 	print $fh "we're all clones\n" or die;
 	close $fh or die;
-	is(system('git', "--git-dir=$alt", qw(config gitweb.owner lorelei)), 0,
+	is(xsys('git', "--git-dir=$alt", qw(config gitweb.owner lorelei)), 0,
 		'set gitweb user');
 	ok(unlink("$bare->{git_dir}/description"), 'removed bare/description');
 	open $fh, '>', $cfgfile or die;
@@ -114,7 +116,8 @@ SKIP: {
 
 	tiny_test($json, $host, $port);
 
-	skip 'skipping grok-pull integration test', 2 if !which('grok-pull');
+	my $grok_pull = which('grok-pull') or
+		skip('skipping grok-pull integration test', 2);
 
 	ok(mkdir("$tmpdir/mirror"), 'prepare grok mirror dest');
 	open $fh, '>', "$tmpdir/repos.conf" or die;
@@ -129,7 +132,7 @@ mymanifest = $tmpdir/local-manifest.js.gz
 
 	close $fh or die;
 
-	system(qw(grok-pull -c), "$tmpdir/repos.conf");
+	xsys($grok_pull, '-c', "$tmpdir/repos.conf");
 	is($? >> 8, 127, 'grok-pull exit code as expected');
 	for (qw(alt bare v2/git/0.git v2/git/1.git v2/git/2.git)) {
 		ok(-d "$tmpdir/mirror/$_", "grok-pull created $_");
@@ -149,7 +152,7 @@ mymanifest = $tmpdir/per-inbox-manifest.js.gz
 
 	close $fh or die;
 	ok(mkdir("$tmpdir/per-inbox"), 'prepare single-v2-inbox mirror');
-	system(qw(grok-pull -c), "$tmpdir/per-inbox.conf");
+	xsys($grok_pull, '-c', "$tmpdir/per-inbox.conf");
 	is($? >> 8, 127, 'grok-pull exit code as expected');
 	for (qw(v2/git/0.git v2/git/1.git v2/git/2.git)) {
 		ok(-d "$tmpdir/per-inbox/$_", "grok-pull created $_");

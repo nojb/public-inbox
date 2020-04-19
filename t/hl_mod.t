@@ -4,7 +4,8 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::Spawn qw(which spawn);
+use PublicInbox::Spawn qw(which);
+use PublicInbox::TestCommon;
 use IO::Handle; # ->autoflush
 use Fcntl qw(:seek);
 eval { require highlight } or
@@ -29,21 +30,14 @@ my $orig = $str;
 	is($$ref, $$lref, 'do_hl_lang matches do_hl');
 
 	SKIP: {
-		which('w3m') or skip 'w3m(1) missing to check output', 1;
-		my $cmd = [ qw(w3m -T text/html -dump -config /dev/null) ];
-		open my $in, '+>', undef or die;
-		open my $out, '+>', undef or die;
-		my $rdr = { 0 => fileno($in), 1 => fileno($out) };
-		$in->autoflush(1);
-		print $in '<pre>', $$ref, '</pre>' or die;
-		$in->seek(0, SEEK_SET) or die;
-		my $pid = spawn($cmd, undef, $rdr);
-		waitpid($pid, 0);
+		my $w3m = which('w3m') or
+			skip('w3m(1) missing to check output', 1);
+		my $cmd = [ $w3m, qw(-T text/html -dump -config /dev/null) ];
+		my $in = '<pre>' . $$ref . '</pre>';
+		my $out = xqx($cmd, undef, { 0 => \$in });
 		# expand tabs and normalize whitespace,
 		# w3m doesn't preserve tabs
 		$orig =~ s/\t/        /gs;
-		$out->seek(0, SEEK_SET) or die;
-		$out = do { local $/; <$out> };
 		$out =~ s/\s*\z//sg;
 		$orig =~ s/\s*\z//sg;
 		is($out, $orig, 'w3m output matches');

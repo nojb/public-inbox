@@ -95,7 +95,7 @@ EOF
 
 	for my $dir (glob("$ibx->{inboxdir}/git/*.git")) {
 		my ($bn) = ($dir =~ m!([^/]+)\z!);
-		is(system(qw(git --git-dir), $dir,
+		is(xsys(qw(git --git-dir), $dir,
 					qw(fsck --strict --no-progress)),
 			0, "git fsck is clean in epoch $bn");
 	}

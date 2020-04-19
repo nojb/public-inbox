@@ -25,7 +25,8 @@ my $git_dir = "$tmpdir/a.git";
 		body => "hello world\n",
 	));
 	$im->done;
-	is(system(qw(git --git-dir), $git_dir, 'fsck', '--strict'), 0, 'git fsck ok');
+	is(xsys(qw(git --git-dir), $git_dir, 'fsck', '--strict'), 0,
+		'git fsck ok');
 }
 
 done_testing();

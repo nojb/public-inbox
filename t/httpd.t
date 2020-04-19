@@ -64,22 +64,22 @@ EOF
 		is($conn->read($buf, 1), 0, "EOF");
 	}
 
-	is(system(qw(git clone -q --mirror),
+	is(xsys(qw(git clone -q --mirror),
 			"http://$host:$port/$group", "$tmpdir/clone.git"),
 		0, 'smart clone successful');
 
 	# ensure dumb cloning works, too:
-	is(system('git', "--git-dir=$maindir",
+	is(xsys('git', "--git-dir=$maindir",
 		qw(config http.uploadpack false)),
 		0, 'disable http.uploadpack');
-	is(system(qw(git clone -q --mirror),
+	is(xsys(qw(git clone -q --mirror),
 			"http://$host:$port/$group", "$tmpdir/dumb.git"),
 		0, 'clone successful');
 
 	ok($td->kill, 'killed httpd');
 	$td->join;
 
-	is(system('git', "--git-dir=$tmpdir/clone.git",
+	is(xsys('git', "--git-dir=$tmpdir/clone.git",
 		  qw(fsck --no-verbose)), 0,
 		'fsck on cloned directory successful');
 }

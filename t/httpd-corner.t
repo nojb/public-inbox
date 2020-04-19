@@ -6,7 +6,7 @@ use strict;
 use warnings;
 use Test::More;
 use Time::HiRes qw(gettimeofday tv_interval);
-use PublicInbox::Spawn qw(which spawn);
+use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::TestCommon;
 require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 use Digest::SHA qw(sha1_hex);
@@ -25,9 +25,6 @@ my $out = "$tmpdir/stdout.log";
 my $psgi = "./t/httpd-corner.psgi";
 my $sock = tcp_server() or die;
 my @zmods = qw(PublicInbox::GzipFilter IO::Uncompress::Gunzip);
-
-# make sure stdin is not a pipe for lsof test to check for leaking pipes
-open(STDIN, '<', '/dev/null') or die 'no /dev/null: $!';
 
 # Make sure we don't clobber socket options set by systemd or similar
 # using socket activation:
@@ -308,12 +305,12 @@ my $check_self = sub {
 };
 
 SKIP: {
-	which('curl') or skip('curl(1) missing', 4);
+	my $curl = which('curl') or skip('curl(1) missing', 4);
 	my $base = 'http://' . $sock->sockhost . ':' . $sock->sockport;
 	my $url = "$base/sha1";
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
-	my $cmd = [qw(curl --tcp-nodelay --no-buffer -T- -HExpect: -sS), $url];
+	my $cmd = [$curl, qw(--tcp-nodelay -T- -HExpect: -sSN), $url];
 	open my $cout, '+>', undef or die;
 	open my $cerr, '>', undef or die;
 	my $rdr = { 0 => $r, 1 => $cout, 2 => $cerr };
@@ -330,7 +327,7 @@ SKIP: {
 	seek($cout, 0, SEEK_SET);
 	is(<$cout>, sha1_hex($str), 'read expected body');
 
-	open my $fh, '-|', qw(curl -sS), "$base/async-big" or die $!;
+	my $fh = popen_rd([$curl, '-sS', "$base/async-big"]);
 	my $n = 0;
 	my $non_zero = 0;
 	while (1) {
@@ -338,15 +335,14 @@ SKIP: {
 		$n += $r;
 		$buf =~ /\A\0+\z/ or $non_zero++;
 	}
-	close $fh or die "curl errored out \$?=$?";
+	close $fh or die "close curl pipe: $!";
+	is($?, 0, 'curl succesful');
 	is($n, 30 * 1024 * 1024, 'got expected output from curl');
 	is($non_zero, 0, 'read all zeros');
 
-	require_mods(@zmods, 1);
-	open $fh, '-|', qw(curl -sS), "$base/psgi-return-gzip" or die;
-	binmode $fh;
-	my $buf = do { local $/; <$fh> };
-	close $fh or die "curl errored out \$?=$?";
+	require_mods(@zmods, 2);
+	my $buf = xqx([$curl, '-sS', "$base/psgi-return-gzip"]);
+	is($?, 0, 'curl succesful');
 	IO::Uncompress::Gunzip::gunzip(\$buf => \(my $out));
 	is($out, "hello world\n");
 }
@@ -605,12 +601,14 @@ SKIP: {
 
 SKIP: {
 	skip 'only testing lsof(8) output on Linux', 1 if $^O ne 'linux';
-	skip 'no lsof in PATH', 1 unless which('lsof');
-	my @lsof = `lsof -p $td->{pid}`;
+	my $lsof = which('lsof') or skip 'no lsof in PATH', 1;
+	my $null_in = '';
+	my $rdr = { 2 => \(my $null_err), 0 => \$null_in };
+	my @lsof = xqx([$lsof, '-p', $td->{pid}], undef, $rdr);
 	is_deeply([grep(/\bdeleted\b/, @lsof)], [], 'no lingering deleted inputs');
 
 	# filter out pipes inherited from the parent
-	my @this = `lsof -p $$`;
+	my @this = xqx([$lsof, '-p', $$], undef, $rdr);
 	my $bad;
 	my $extract_inodes = sub {
 		map {;

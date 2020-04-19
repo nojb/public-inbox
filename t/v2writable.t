@@ -48,7 +48,7 @@ my $git0;
 if ('ensure git configs are correct') {
 	my @cmd = (qw(git config), "--file=$inboxdir/all.git/config",
 		qw(core.sharedRepository 0644));
-	is(system(@cmd), 0, "set sharedRepository in all.git");
+	is(xsys(@cmd), 0, "set sharedRepository in all.git");
 	$git0 = PublicInbox::Git->new("$inboxdir/git/0.git");
 	chomp(my $v = $git0->qx(qw(config core.sharedRepository)));
 	is($v, '0644', 'child repo inherited core.sharedRepository');

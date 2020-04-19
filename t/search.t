@@ -14,7 +14,7 @@ my $git_dir = "$tmpdir/a.git";
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir });
 my ($root_id, $last_id);
 
-is(0, system(qw(git init --shared -q --bare), $git_dir), "git init (main)")
+is(0, xsys(qw(git init --shared -q --bare), $git_dir), "git init (main)")
 	or BAIL_OUT("`git init --shared' failed, weird FS or seccomp?");
 eval { PublicInbox::Search->new($ibx)->xdb };
 ok($@, "exception raised on non-existent DB");

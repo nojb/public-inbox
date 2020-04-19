@@ -298,7 +298,7 @@ Subject: this message will be trained as spam
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 EOF
-	system(qw(git config --file), $pi_config, "$cfgpfx.listid", $list_id);
+	xsys(qw(git config --file), $pi_config, "$cfgpfx.listid", $list_id);
 	$? == 0 or die "failed to set listid $?";
 	my $in = $simple->as_string;
 	ok(run_script(['-mda'], undef, { 0 => \$in }),

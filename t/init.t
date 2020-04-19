@@ -105,7 +105,8 @@ done_testing();
 
 sub read_indexlevel {
 	my ($inbox) = @_;
-	local $ENV{GIT_CONFIG} = "$ENV{PI_DIR}/config";
-	chomp(my $lvl = `git config publicinbox.$inbox.indexlevel`);
+	my $cmd = [ qw(git config), "publicinbox.$inbox.indexlevel" ];
+	my $env = { GIT_CONFIG => "$ENV{PI_DIR}/config" };
+	chomp(my $lvl = xqx($cmd, $env));
 	$lvl;
 }

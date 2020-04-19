@@ -65,7 +65,7 @@ for my $order ([$bad, $good], [$good, $bad]) {
 	my @v2 = ($ibx->over->get_art(1), $ibx->over->get_art(2));
 	is_deeply(\@v2, \@old, 'v2 conversion times match');
 
-	system(qw(git clone -sq --mirror), "$tmpdir/v2/git/0.git",
+	xsys(qw(git clone -sq --mirror), "$tmpdir/v2/git/0.git",
 		"$tmpdir/v2-clone/git/0.git") == 0 or die "clone: $?";
 	$cmd = [ '-init', '-Lbasic', '-V2', 'v2c', "$tmpdir/v2-clone",
 		'http://example.com/v2c', 'v2c@example.com' ];

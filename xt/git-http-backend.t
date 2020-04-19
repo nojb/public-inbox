@@ -83,13 +83,13 @@ SKIP: { # make sure Last-Modified + If-Modified-Since works with curl
 	skip 'curl(1) not found', $nr unless $curl;
 	my $url = "http://$host:$port/description";
 	my $dst = "$tmpdir/desc";
-	is(system($curl, qw(-RsSf), '-o', $dst, $url), 0, 'curl -R');
+	is(xsys($curl, qw(-RsSf), '-o', $dst, $url), 0, 'curl -R');
 	is((stat($dst))[9], $mtime, 'curl used remote mtime');
-	is(system($curl, qw(-sSf), '-z', $dst, '-o', "$dst.2", $url), 0,
+	is(xsys($curl, qw(-sSf), '-z', $dst, '-o', "$dst.2", $url), 0,
 		'curl -z noop');
 	ok(!-e "$dst.2", 'no modification, nothing retrieved');
 	utime(0, 0, $dst) or die "utime failed: $!";
-	is(system($curl, qw(-sSfR), '-z', $dst, '-o', "$dst.2", $url), 0,
+	is(xsys($curl, qw(-sSfR), '-z', $dst, '-o', "$dst.2", $url), 0,
 		'curl -z updates');
 	ok(-e "$dst.2", 'faked modification, got new file retrieved');
 }

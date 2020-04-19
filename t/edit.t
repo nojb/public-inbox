@@ -118,7 +118,7 @@ $t = 'non-interactive editor failure'; {
 
 $t = 'mailEditor set in config'; {
 	$in = $out = $err = '';
-	my $rc = system(qw(git config), "--file=$cfgfile",
+	my $rc = xsys(qw(git config), "--file=$cfgfile",
 			'publicinbox.maileditor',
 			"$^X -i -p -e 's/boolean prefix/bool pfx/'");
 	is($rc, 0, 'set publicinbox.mailEditor');

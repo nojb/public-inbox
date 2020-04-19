@@ -14,7 +14,7 @@ my $pi_config = "$tmpdir/pi_config";
 local $ENV{PI_CONFIG} = $pi_config;
 local $ENV{PI_EMERGENCY} = "$tmpdir/emergency";
 my @cfg = ('git', 'config', "--file=$pi_config");
-is(system(@cfg, 'publicinboxmda.spamcheck', 'none'), 0);
+is(xsys(@cfg, 'publicinboxmda.spamcheck', 'none'), 0);
 
 for my $v (qw(V1 V2)) {
 	my @warn;
@@ -26,8 +26,8 @@ for my $v (qw(V1 V2)) {
 		"http://example.com/$v", $addr ];
 	ok(run_script($cmd), 'public-inbox-init');
 	ok(run_script(['-index', $inboxdir]), 'public-inbox-index');
-	is(system(@cfg, "$cfgpfx.filter", 'PublicInbox::Filter::RubyLang'), 0);
-	is(system(@cfg, "$cfgpfx.altid",
+	is(xsys(@cfg, "$cfgpfx.filter", 'PublicInbox::Filter::RubyLang'), 0);
+	is(xsys(@cfg, "$cfgpfx.altid",
 		'serial:alerts:file=msgmap.sqlite3'), 0);
 
 	for my $i (1..2) {

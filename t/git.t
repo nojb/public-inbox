@@ -13,9 +13,10 @@ use_ok 'PublicInbox::Git';
 {
 	PublicInbox::Import::init_bare($dir);
 	my $fi_data = './t/git.fast-import-data';
-	ok(-r $fi_data, "fast-import data readable (or run test at top level)");
-	local $ENV{GIT_DIR} = $dir;
-	system("git fast-import --quiet <$fi_data");
+	open my $fh, '<', $fi_data or die
+		"fast-import data readable (or run test at top level: $!";
+	my $rdr = { 0 => $fh };
+	xsys([qw(git fast-import --quiet)], { GIT_DIR => $dir }, $rdr);
 	is($?, 0, 'fast-import succeeded');
 }
 
@@ -58,18 +59,14 @@ use_ok 'PublicInbox::Git';
 }
 
 if (1) {
-	my $cmd = [ 'git', "--git-dir=$dir", qw(hash-object -w --stdin) ];
-
 	# need a big file, use the AGPL-3.0 :p
 	my $big_data = './COPYING';
 	ok(-r $big_data, 'COPYING readable');
 	my $size = -s $big_data;
 	ok($size > 8192, 'file is big enough');
-
-	my $buf = do {
-		local $ENV{GIT_DIR} = $dir;
-		`git hash-object -w --stdin <$big_data`;
-	};
+	open my $fh, '<', $big_data or die;
+	my $cmd = [ 'git', "--git-dir=$dir", qw(hash-object -w --stdin) ];
+	my $buf = xqx($cmd, { GIT_DIR => $dir }, { 0 => $fh });
 	is(0, $?, 'hashed object successfully');
 	chomp $buf;
 

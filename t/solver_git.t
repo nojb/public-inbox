@@ -8,8 +8,9 @@ use PublicInbox::TestCommon;
 require_git(2.6);
 use PublicInbox::Spawn qw(popen_rd);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
-chomp(my $git_dir = `git rev-parse --git-dir 2>/dev/null`);
-plan skip_all => "$0 must be run from a git working tree" if $?;
+my $git_dir = xqx([qw(git rev-parse --git-dir)], undef, {2 => \(my $null)});
+$? == 0 or plan skip_all => "$0 must be run from a git working tree";
+chomp $git_dir;
 
 # needed for alternates, and --absolute-git-dir is only in git 2.13+
 $git_dir = abs_path($git_dir);

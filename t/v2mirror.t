@@ -76,7 +76,7 @@ foreach my $i (0..$epoch_max) {
 		"http://$host:$port/v2/$i$sfx",
 		"$tmpdir/m/git/$i.git");
 
-	is(system(@cmd), 0, "cloned $i.git");
+	is(xsys(@cmd), 0, "cloned $i.git");
 	ok(-d "$tmpdir/m/git/$i.git", "mirror $i OK");
 }
 
@@ -102,7 +102,7 @@ $ibx->cleanup;
 my $fetch_each_epoch = sub {
 	foreach my $i (0..$epoch_max) {
 		my $dir = "$tmpdir/m/git/$i.git";
-		is(system('git', "--git-dir=$dir", 'fetch', '-q'), 0,
+		is(xsys('git', "--git-dir=$dir", 'fetch', '-q'), 0,
 			'fetch successful');
 	}
 };

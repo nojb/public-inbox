@@ -72,7 +72,7 @@ is($saved->{mime}->as_string, $mime->as_string, 'injected message');
 	my $config = "$ENV{PI_DIR}/config";
 	ok(-f $config, 'config exists');
 	my $k = 'publicinboxmda.spamcheck';
-	is(system('git', 'config', "--file=$config", $k, 'none'), 0,
+	is(xsys('git', 'config', "--file=$config", $k, 'none'), 0,
 		'disabled spamcheck for mda');
 
 	ok(run_script(['-mda'], undef, $rdr), 'mda did not die');
