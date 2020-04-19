@@ -440,15 +440,31 @@ sub run_die ($;$$) {
 	$? == 0 or die join(' ', @$cmd) . " failed: $?\n";
 }
 
+my @INIT_FILES = ('HEAD' => "ref: refs/heads/master\n",
+		'description' => <<EOD,
+Unnamed repository; edit this file 'description' to name the repository.
+EOD
+		'config' => <<EOC);
+[core]
+	repositoryFormatVersion = 0
+	filemode = true
+	bare = true
+[repack]
+	writeBitmaps = true
+EOC
+
 sub init_bare {
 	my ($dir) = @_; # or self
 	$dir = $dir->{git}->{git_dir} if ref($dir);
-	my @cmd = (qw(git init --bare -q), $dir);
-	run_die(\@cmd);
-	# set a reasonable default:
-	@cmd = (qw/git config/, "--file=$dir/config",
-		'repack.writeBitmaps', 'true');
-	run_die(\@cmd);
+	require File::Path;
+	File::Path::mkpath([ map { "$dir/$_" } qw(objects/info refs/heads) ]);
+	for (my $i = 0; $i < @INIT_FILES; $i++) {
+		my $f = $dir.'/'.$INIT_FILES[$i++];
+		next if -f $f;
+		open my $fh, '>', $f or die "open $f: $!";
+		print $fh $INIT_FILES[$i] or die "print $f: $!";
+		close $fh or die "close $f: $!";
+	}
 }
 
 sub done {
