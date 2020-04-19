@@ -34,7 +34,7 @@ my $git = $ibx->git;
 my $im = PublicInbox::Import->new($git, $ibx->{name}, 'test@example');
 
 {
-	is(0, system(qw(git init -q --bare), $git_dir), "git init");
+	$im->init_bare;
 	local $ENV{GIT_DIR} = $git_dir;
 
 	foreach my $i (1..6) {

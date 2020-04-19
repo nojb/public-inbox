@@ -441,7 +441,8 @@ sub run_die ($;$$) {
 }
 
 sub init_bare {
-	my ($dir) = @_;
+	my ($dir) = @_; # or self
+	$dir = $dir->{git}->{git_dir} if ref($dir);
 	my @cmd = (qw(git init --bare -q), $dir);
 	run_die(\@cmd);
 	# set a reasonable default:

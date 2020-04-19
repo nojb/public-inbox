@@ -4,13 +4,14 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
 use_ok 'PublicInbox::Admin', qw(resolve_repo_dir);
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/v1";
 my $v2_dir = "$tmpdir/v2";
 my ($res, $err, $v);
 
-is(0, system(qw(git init -q --bare), $git_dir), 'git init v1');
+PublicInbox::Import::init_bare($git_dir);
 
 # v1
 is(resolve_repo_dir($git_dir), $git_dir, 'top-level GIT_DIR resolved');

@@ -22,7 +22,7 @@ my $im = PublicInbox::Import->new($git, 'tester', 'test@example');
 
 # setup
 {
-	is(0, system(qw(git init -q --bare), $git_dir), "git init");
+	$im->init_bare;
 	my $prev = "";
 
 	foreach my $i (1..6) {

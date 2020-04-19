@@ -730,9 +730,8 @@ sub fill_alternates ($$) {
 sub git_init {
 	my ($self, $epoch) = @_;
 	my $git_dir = "$self->{-inbox}->{inboxdir}/git/$epoch.git";
-	my @cmd = (qw(git init --bare -q), $git_dir);
-	PublicInbox::Import::run_die(\@cmd);
-	@cmd = (qw/git config/, "--file=$git_dir/config",
+	PublicInbox::Import::init_bare($git_dir);
+	my @cmd = (qw/git config/, "--file=$git_dir/config",
 			'include.path', '../../all.git/config');
 	PublicInbox::Import::run_die(\@cmd);
 	fill_alternates($self, $epoch);

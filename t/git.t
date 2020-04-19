@@ -6,11 +6,12 @@ use Test::More;
 use PublicInbox::TestCommon;
 my ($dir, $for_destroy) = tmpdir();
 use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::Import;
 
 use_ok 'PublicInbox::Git';
 
 {
-	is(system(qw(git init -q --bare), $dir), 0, 'created git directory');
+	PublicInbox::Import::init_bare($dir);
 	my $fi_data = './t/git.fast-import-data';
 	ok(-r $fi_data, "fast-import data readable (or run test at top level)");
 	local $ENV{GIT_DIR} = $dir;
@@ -90,7 +91,7 @@ if (1) {
 if ('alternates reloaded') {
 	my ($alt, $alt_obj) = tmpdir();
 	my @cmd = ('git', "--git-dir=$alt", qw(hash-object -w --stdin));
-	is(system(qw(git init -q --bare), $alt), 0, 'create alt directory');
+	PublicInbox::Import::init_bare($alt);
 	open my $fh, '<', "$alt/config" or die "open failed: $!\n";
 	my $rd = popen_rd(\@cmd, {}, { 0 => $fh } );
 	close $fh or die "close failed: $!";

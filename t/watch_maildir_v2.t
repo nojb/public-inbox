@@ -6,6 +6,7 @@ use PublicInbox::MIME;
 use Cwd;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
 require_git(2.6);
 require_mods(qw(Search::Xapian DBD::SQLite Filesys::Notify::Simple));
 require PublicInbox::V2Writable;
@@ -141,7 +142,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	my $v1repo = "$tmpdir/v1";
 	my $v1pfx = "publicinbox.v1";
 	my $v1addr = 'v1-public@example.com';
-	is(system(qw(git init -q --bare), $v1repo), 0, 'v1 init OK');
+	PublicInbox::Import::init_bare($v1repo);
 	my $cfg2 = <<EOF;
 $orig$v1pfx.address=$v1addr
 $v1pfx.inboxdir=$v1repo

@@ -12,7 +12,6 @@ require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';
 my ($inboxdir, $for_destroy) = tmpdir();
-is(system(qw(git init -q --bare), $inboxdir), 0);
 my $ibx_config = {
 	inboxdir => $inboxdir,
 	name => 'test-v1reindex',
@@ -35,6 +34,7 @@ my ($mark1, $mark2, $mark3, $mark4);
 	my %config = %$ibx_config;
 	my $ibx = PublicInbox::Inbox->new(\%config);
 	my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+	$im->init_bare;
 	foreach my $i (1..10) {
 		$mime->header_set('Message-Id', "<$i\@example.com>");
 		ok($im->add($mime), "message $i added");

@@ -9,7 +9,6 @@ use PublicInbox::TestCommon;
 require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 my ($inboxdir, $for_destroy) = tmpdir();
-is(system(qw(git init --bare -q), $inboxdir), 0);
 my $ibx = {
 	inboxdir => $inboxdir,
 	name => 'test-add-remove-add',
@@ -27,6 +26,7 @@ my $mime = PublicInbox::MIME->create(
 	body => "hello world\n",
 );
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
+$im->init_bare;
 ok($im->add($mime), 'message added');
 ok($im->remove($mime), 'message removed');
 ok($im->add($mime), 'message added again');

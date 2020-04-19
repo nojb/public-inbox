@@ -5,10 +5,11 @@ use warnings;
 use Test::More;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
 my ($tmpdir, $for_destroy) = tmpdir();
 
 {
-	is(system(qw(git init -q --bare), $tmpdir), 0, "git init successful");
+	PublicInbox::Import::init_bare($tmpdir);
 	my @cmd = ('git', "--git-dir=$tmpdir", qw(config foo.bar), "hi\nhi");
 	is(system(@cmd), 0, "set config");
 

@@ -21,7 +21,7 @@ my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$maindir
 EOF
-is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
+PublicInbox::Import::init_bare($maindir);
 my $www = PublicInbox::WWW->new($config);
 
 test_psgi(sub { $www->call(@_) }, sub {

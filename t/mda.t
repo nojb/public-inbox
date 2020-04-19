@@ -9,6 +9,7 @@ use PublicInbox::MID qw(mid2path);
 use PublicInbox::Git;
 use PublicInbox::InboxWritable;
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
@@ -48,7 +49,7 @@ my $fail_bad_header = sub ($$$) {
 		"spamc mock found (run in top of source tree");
 	is(1, mkdir($home, 0755), "setup ~/ for testing");
 	is(1, mkdir($pi_home, 0755), "setup ~/.public-inbox");
-	is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
+	PublicInbox::Import::init_bare($maindir);
 
 	open my $fh, '>>', $pi_config or die;
 	print $fh <<EOF or die;

@@ -6,6 +6,7 @@ use Email::MIME;
 use Cwd;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
 require_mods(qw(Filesys::Notify::Simple));
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/test.git";
@@ -15,7 +16,7 @@ use_ok 'PublicInbox::WatchMaildir';
 use_ok 'PublicInbox::Emergency';
 my $cfgpfx = "publicinbox.test";
 my $addr = 'test-public@example.com';
-is(system(qw(git init -q --bare), $git_dir), 0, 'initialized git dir');
+PublicInbox::Import::init_bare($git_dir);
 
 my $msg = <<EOF;
 From: user\@example.com

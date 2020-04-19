@@ -6,6 +6,7 @@ use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
 require_mods(qw(URI::Escape Plack::Builder Digest::SHA
 		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny));
 require PublicInbox::WwwListing;
@@ -18,7 +19,7 @@ use_ok 'PublicInbox::Git';
 
 my ($tmpdir, $for_destroy) = tmpdir();
 my $bare = PublicInbox::Git->new("$tmpdir/bare.git");
-is(system(qw(git init -q --bare), $bare->{git_dir}), 0, 'git init --bare');
+PublicInbox::Import::init_bare($bare->{git_dir});
 is(PublicInbox::WwwListing::fingerprint($bare), undef,
 	'empty repo has no fingerprint');
 {
@@ -77,7 +78,7 @@ SKIP: {
 	my @clone = qw(git clone -q -s --bare);
 	is(system(@clone, $bare->{git_dir}, $alt), 0, 'clone shared repo');
 
-	system(qw(git init --bare -q), "$v2/all.git") == 0 or die;
+	PublicInbox::Import::init_bare("$v2/all.git");
 	for my $i (0..2) {
 		is(system(@clone, $alt, "$v2/git/$i.git"), 0, "clone epoch $i");
 	}

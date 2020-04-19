@@ -12,10 +12,9 @@ use File::Temp qw/tempfile/;
 use PublicInbox::TestCommon;
 my ($dir, $for_destroy) = tmpdir();
 
-is(system(qw(git init -q --bare), $dir), 0, 'git init successful');
 my $git = PublicInbox::Git->new($dir);
-
 my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
+$im->init_bare;
 my $mime = PublicInbox::MIME->create(
 	header => [
 		From => 'a@example.com',

@@ -23,9 +23,9 @@ my $ibx;
 }
 
 {
-	is(system(qw(git init -q --bare), $git_dir), 0, 'git init ok');
 	my $git = PublicInbox::Git->new($git_dir);
 	my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
+	$im->init_bare;
 	$im->add(Email::MIME->create(
 		header => [
 			From => 'a@example.com',

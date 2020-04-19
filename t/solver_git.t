@@ -109,7 +109,8 @@ SKIP: {
 	require_mods(@psgi, 7 + scalar(@psgi));
 	use_ok($_) for @psgi;
 	my $binfoo = "$inboxdir/binfoo.git";
-	system(qw(git init --bare -q), $binfoo) == 0 or die "git init: $?";
+	require PublicInbox::Import;
+	PublicInbox::Import::init_bare($binfoo);
 	require_ok 'PublicInbox::ViewVCS';
 	my $big_size = do {
 		no warnings 'once';

@@ -7,6 +7,7 @@ use warnings;
 use Test::More;
 use Email::MIME;
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
 require_mods(qw(Plack::Handler::CGI Plack::Util));
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
@@ -18,7 +19,7 @@ my $addr = 'test-public@example.com';
 {
 	is(1, mkdir($home, 0755), "setup ~/ for testing");
 	is(1, mkdir($pi_home, 0755), "setup ~/.public-inbox");
-	is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
+	PublicInbox::Import::init_bare($maindir);
 
 	open my $fh, '>', "$maindir/description" or die "open: $!\n";
 	print $fh "test for public-inbox\n";

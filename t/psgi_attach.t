@@ -21,9 +21,9 @@ my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$maindir
 EOF
-is(0, system(qw(git init -q --bare), $maindir), "git init (main)");
 my $git = PublicInbox::Git->new($maindir);
 my $im = PublicInbox::Import->new($git, 'test', $addr);
+$im->init_bare;
 
 {
 	open my $fh, '<', '/dev/urandom' or die "unable to open urandom: $!\n";

@@ -11,10 +11,11 @@ require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 require PublicInbox::Smsg;
 require PublicInbox::Inbox;
+use PublicInbox::Import;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 
-is(0, system(qw(git init -q --bare), $git_dir), "git init (main)");
+PublicInbox::Import::init_bare($git_dir);
 my $ibx = PublicInbox::Inbox->new({inboxdir => $git_dir});
 my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 ok($rw, "search indexer created");

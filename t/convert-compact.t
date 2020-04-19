@@ -20,8 +20,7 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 
-ok(PublicInbox::Import::run_die([qw(git init --bare -q), $ibx->{inboxdir}]),
-	'initialized v1 repo');
+PublicInbox::Import::init_bare($ibx->{inboxdir});
 ok(umask(077), 'set restrictive umask');
 ok(PublicInbox::Import::run_die([qw(git) , "--git-dir=$ibx->{inboxdir}",
 	qw(config core.sharedRepository 0644)]), 'set sharedRepository');
