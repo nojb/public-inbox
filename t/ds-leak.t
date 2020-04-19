@@ -6,6 +6,7 @@
 use strict;
 use warnings;
 use Test::More;
+use PublicInbox::TestCommon;
 use_ok 'PublicInbox::DS';
 
 if ('close-on-exec for epoll and kqueue') {
@@ -44,8 +45,9 @@ if ('close-on-exec for epoll and kqueue') {
 }
 
 SKIP: {
-	# not bothering with BSD::Resource
-	chomp(my $n = `/bin/sh -c 'ulimit -n'`);
+	require_mods('BSD::Resource', 1);
+	my $rlim = BSD::Resource::RLIMIT_NOFILE();
+	my ($n,undef) = BSD::Resource::getrlimit($rlim);
 
 	# FreeBSD 11.2 with 2GB RAM gives RLIMIT_NOFILE=57987!
 	if ($n > 1024 && !$ENV{TEST_EXPENSIVE}) {
