@@ -71,7 +71,7 @@ sub resolve_inboxes ($;$$) {
 	my ($argv, $opt, $cfg) = @_;
 	$opt ||= {};
 
-	$cfg //= eval { PublicInbox::Config->new };
+	$cfg //= PublicInbox::Config->new;
 	if ($opt->{all}) {
 		my $cfgfile = PublicInbox::Config::default_file();
 		$cfg or die "--all specified, but $cfgfile not readable\n";

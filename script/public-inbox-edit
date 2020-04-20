@@ -22,7 +22,7 @@ my @opt = qw(mid|m=s file|F=s raw);
 GetOptions($opt, @PublicInbox::AdminEdit::OPT, @opt) or
 	die "bad command-line args\n$usage\n";
 
-my $cfg = eval { PublicInbox::Config->new };
+my $cfg = PublicInbox::Config->new;
 my $editor = $ENV{MAIL_EDITOR}; # e.g. "mutt -f"
 unless (defined $editor) {
 	my $k = 'publicinbox.mailEditor';

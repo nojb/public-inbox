@@ -24,7 +24,7 @@ my $old_dir = shift(@ARGV) or die $usage;
 my $new_dir = shift(@ARGV) or die $usage;
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
-my $config = eval { PublicInbox::Config->new };
+my $config = PublicInbox::Config->new;
 $old_dir = abs_path($old_dir);
 my $old;
 if ($config) {
