@@ -59,9 +59,11 @@ sub new {
 		my $watch = $ibx->{watch} or return;
 		if (is_maildir($watch)) {
 			my $watch_hdrs = [];
-			if (my $wh = $ibx->{watchheader}) {
-				my ($k, $v) = split(/:/, $wh, 2);
-				push @$watch_hdrs, [ $k, qr/\Q$v\E/ ];
+			if (my $whs = $ibx->{watchheader}) {
+				for (@$whs) {
+					my ($k, $v) = split(/:/, $_, 2);
+					push @$watch_hdrs, [ $k, qr/\Q$v\E/ ];
+				}
 			}
 			if (my $list_ids = $ibx->{listid}) {
 				for (@$list_ids) {

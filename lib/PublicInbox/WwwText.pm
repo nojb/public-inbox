@@ -151,7 +151,7 @@ sub inbox_config ($$$) {
 	url = https://example.com/$name/
 	url = http://example.onion/$name/
 EOS
-	for my $k (qw(address listid infourl)) {
+	for my $k (qw(address listid infourl watchheader)) {
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $_\n" for @$v;
 	}
@@ -171,7 +171,7 @@ EOF
 		}
 	}
 
-	for my $k (qw(filter newsgroup obfuscate replyto watchheader)) {
+	for my $k (qw(filter newsgroup obfuscate replyto)) {
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $v\n";
 	}

@@ -307,6 +307,7 @@ t/view.t
 t/watch_filter_rubylang.t
 t/watch_maildir.t
 t/watch_maildir_v2.t
+t/watch_multiple_headers.t
 t/www_altid.t
 t/www_listing.t
 t/www_static.t
