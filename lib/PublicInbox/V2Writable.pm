@@ -979,18 +979,6 @@ sub check_unindexed ($$$) {
 	}
 }
 
-# reuse Msgmap to store num => oid mapping (rather than num => mid)
-sub multi_mid_q_new () {
-	my ($fh, $fn) = tempfile('multi_mid-XXXXXXX', EXLOCK => 0, TMPDIR => 1);
-	my $multi_mid = PublicInbox::Msgmap->new_file($fn, 1);
-	$multi_mid->{dbh}->do('PRAGMA synchronous = OFF');
-	# for Msgmap->DESTROY:
-	$multi_mid->{tmp_name} = $fn;
-	$multi_mid->{pid} = $$;
-	close $fh or die "failed to close $fn: $!";
-	$multi_mid
-}
-
 sub multi_mid_q_push ($$$) {
 	my ($self, $sync, $oid) = @_;
 	my $multi_mid = $sync->{multi_mid} //= PublicInbox::MultiMidQueue->new;
