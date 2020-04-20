@@ -120,6 +120,7 @@ sub new {
 		last_commit => [], # git repo -> commit
 	};
 	$self->{shards} = count_shards($self) || nproc_shards($creat);
+	$self->{index_max_size} = $v2ibx->{index_max_size};
 	bless $self, $class;
 }
 
@@ -867,6 +868,7 @@ sub atfork_child {
 
 sub mark_deleted ($$$$) {
 	my ($self, $sync, $git, $oid) = @_;
+	return if PublicInbox::SearchIdx::too_big($self, $git, $oid);
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::MIME->new($$msgref);
 	my $mids = mids($mime->header_obj);
@@ -993,6 +995,7 @@ sub multi_mid_q_push ($$$) {
 
 sub reindex_oid ($$$$) {
 	my ($self, $sync, $git, $oid) = @_;
+	return if PublicInbox::SearchIdx::too_big($self, $git, $oid);
 	my ($num, $mid0, $len);
 	my $msgref = $git->cat_file($oid, \$len);
 	return if $len == 0; # purged

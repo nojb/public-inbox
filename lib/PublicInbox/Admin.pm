@@ -234,4 +234,15 @@ sub progress_prepare ($) {
 	}
 }
 
+# same unit factors as git:
+sub parse_unsigned ($) {
+	my ($max_size) = @_;
+
+	$$max_size =~ /\A([0-9]+)([kmg])?\z/i or return;
+	my ($n, $unit_factor) = ($1, $2 // '');
+	my %u = ( k => 1024, m => 1024**2, g => 1024**3 );
+	$$max_size = $n * ($u{lc($unit_factor)} // 1);
+	1;
+}
+
 1;

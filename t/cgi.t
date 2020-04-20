@@ -55,10 +55,14 @@ Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 zzzzzz
 EOF
-	$im->add($mime);
+	ok($im->add($mime), 'added initial message');
+
+	$mime->header_set('Message-ID', '<toobig@example.com>');
+	$mime->body_str_set("z\n" x 1024);
+	ok($im->add($mime), 'added big message');
 
 	# deliver a reply, too
-	my $reply = Email::MIME->new(<<EOF);
+	$mime = Email::MIME->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr
@@ -72,7 +76,7 @@ Me wrote:
 
 what?
 EOF
-	$im->add($reply);
+	ok($im->add($mime), 'added reply');
 
 	my $slashy_mid = 'slashy/asdf@example.com';
 	my $slashy = Email::MIME->new(<<EOF);
@@ -85,7 +89,7 @@ Date: Thu, 01 Jan 1970 00:00:01 +0000
 
 slashy
 EOF
-	$im->add($slashy);
+	ok($im->add($slashy), 'added slash');
 	$im->done;
 
 	my $res = cgi_run("/test/slashy/asdf\@example.com/raw");
@@ -99,14 +103,9 @@ EOF
 	my $path = "/test/blahblah\@example.com/t.mbox.gz";
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
-	my $indexed;
-	eval {
-		require DBD::SQLite;
-		require PublicInbox::SearchIdx;
-		my $s = PublicInbox::SearchIdx->new($ibx, 1);
-		$s->index_sync;
-		$indexed = 1;
-	};
+	my $cmd = ['-index', $ibx->{inboxdir}, '--max-size=2k'];
+	my $opt = { 2 => \(my $err) };
+	my $indexed = run_script($cmd, undef, $opt);
 	if ($indexed) {
 		$res = cgi_run($path);
 		like($res->{head}, qr/^Status: 200 /, "search returned mbox");
@@ -117,9 +116,14 @@ EOF
 			IO::Uncompress::Gunzip::gunzip(\$in => \$out);
 			like($out, qr/^From /m, "From lines in mbox");
 		};
+		$res = cgi_run('/test/toobig@example.com/');
+		like($res->{head}, qr/^Status: 300 /,
+			'did not index or return >max-size message');
+		like($err, qr/skipping [a-f0-9]{40,}/,
+			'warned about skipping large OID');
 	} else {
 		like($res->{head}, qr/^Status: 501 /, "search not available");
-		SKIP: { skip 'DBD::SQLite not available', 2 };
+		SKIP: { skip 'DBD::SQLite not available', 4 };
 	}
 
 	my $have_xml_treepp = eval { require XML::TreePP; 1 } if $indexed;

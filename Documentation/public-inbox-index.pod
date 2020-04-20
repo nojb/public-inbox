@@ -66,6 +66,12 @@ is detected.  This is intended to be used in mirrors after running
 L<public-inbox-edit(1)> or L<public-inbox-purge(1)> to ensure data
 is expunged from mirrors.
 
+=item --max-size SIZE
+
+Sets or overrides L</publicinbox.indexMaxSize> on a
+per-invocation basis.  See L</publicinbox.indexMaxSize>
+below.
+
 =back
 
 =head1 FILES
@@ -75,6 +81,23 @@ All public-inbox-specific files are contained within the
 C<$GIT_DIR/public-inbox/> directory.
 
 v2 inboxes are described in L<public-inbox-v2-format>.
+
+=head1 CONFIGURATION
+
+=over 8
+
+=item publicinbox.indexMaxSize
+
+Prevents indexing of messages larger than the specified size
+value.  A single suffix modifier of C<k>, C<m> or C<g> is
+supported, thus the value of C<1m> to prevents indexing of
+messages larger than one megabyte.
+
+This is useful for avoiding memory exhaustion in mirrors.
+
+Default: none
+
+=back
 
 =head1 ENVIRONMENT
 

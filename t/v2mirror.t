@@ -187,6 +187,37 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	is(scalar($mset->items), 0, '1@example.com no longer visible in mirror');
 }
 
+if ('max size') {
+	$mime->header_set('Message-ID', '<2big@a>');
+	my $max = '2k';
+	$mime->body_str_set("z\n" x 1024);
+	ok($v2w->add($mime), "add big message");
+	$v2w->done;
+	$ibx->cleanup;
+	$fetch_each_epoch->();
+	PublicInbox::InboxWritable::cleanup($mibx);
+	my $cmd = ['-index', "$tmpdir/m", "--max-size=$max" ];
+	my $opt = { 2 => \(my $err) };
+	ok(run_script($cmd, undef, $opt), 'indexed with --max-size');
+	like($err, qr/skipping [a-f0-9]{40,}/, 'warned about skipping message');
+	$mset = $mibx->search->reopen->query('m:2big@a', {mset =>1});
+	is(scalar($mset->items), 0, 'large message not indexed');
+
+	{
+		open my $fh, '>>', $pi_config or die;
+		print $fh <<EOF or die;
+[publicinbox]
+	indexMaxSize = 2k
+EOF
+		close $fh or die;
+	}
+	$cmd = ['-index', "$tmpdir/m", "--reindex" ];
+	ok(run_script($cmd, undef, $opt), 'reindexed w/ indexMaxSize in file');
+	like($err, qr/skipping [a-f0-9]{40,}/, 'warned about skipping message');
+	$mset = $mibx->search->reopen->query('m:2big@a', {mset =>1});
+	is(scalar($mset->items), 0, 'large message not re-indexed');
+}
+
 ok($td->kill, 'killed httpd');
 $td->join;
 

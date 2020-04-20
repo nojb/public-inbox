@@ -64,6 +64,7 @@ sub new {
 		$self->{lock_path} = "$inboxdir/ssoma.lock";
 		my $dir = $self->xdir;
 		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
+		$self->{index_max_size} = $ibx->{index_max_size};
 	} elsif ($version == 2) {
 		defined $shard or die "shard is required for v2\n";
 		# shard is a number
@@ -572,6 +573,16 @@ sub batch_adjust ($$$$$) {
 	}
 }
 
+sub too_big ($$$) {
+	my ($self, $git, $oid) = @_;
+	my $max_size = $self->{index_max_size} or return;
+	my (undef, undef, $size) = $git->check($oid);
+	die "E: bad $oid in $git->{git_dir}\n" if !defined($size);
+	return if $size <= $max_size;
+	warn "W: skipping $oid ($size > $max_size)\n";
+	1;
+}
+
 # only for v1
 sub read_log {
 	my ($self, $log, $add_cb, $del_cb, $batch_cb) = @_;
@@ -598,6 +609,7 @@ sub read_log {
 				}
 				next;
 			}
+			next if too_big($self, $git, $blob);
 			my $mime = do_cat_mail($git, $blob, \$bytes);
 			my $smsg = bless {}, 'PublicInbox::Smsg';
 			batch_adjust(\$max, $bytes, $batch_cb, $latest, ++$nr);
@@ -606,7 +618,7 @@ sub read_log {
 			$add_cb->($self, $mime, $smsg);
 		} elsif ($line =~ /$delmsg/o) {
 			my $blob = $1;
-			$D{$blob} = 1;
+			$D{$blob} = 1 unless too_big($self, $git, $blob);
 		} elsif ($line =~ /^commit ($h40)/o) {
 			$latest = $1;
 			$newest ||= $latest;

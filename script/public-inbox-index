@@ -14,8 +14,9 @@ PublicInbox::Admin::require_or_die('-index');
 use PublicInbox::Xapcmd;
 
 my $compact_opt;
-my $opt = { quiet => -1, compact => 0 };
-GetOptions($opt, qw(verbose|v+ reindex compact|c+ jobs|j=i prune indexlevel|L=s))
+my $opt = { quiet => -1, compact => 0, maxsize => undef };
+GetOptions($opt, qw(verbose|v+ reindex compact|c+ jobs|j=i prune
+		indexlevel|L=s maxsize|max-size=s))
 	or die "bad command-line args\n$usage";
 die "--jobs must be positive\n" if defined $opt->{jobs} && $opt->{jobs} <= 0;
 
@@ -25,14 +26,22 @@ if ($opt->{compact}) {
 	$compact_opt = { -coarse_lock => 1, compact => 1 };
 }
 
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV);
+my $cfg = PublicInbox::Config->new;
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, undef, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
 my $mods = {};
+my $max_size = $opt->{maxsize} // $cfg->{lc('publicInbox.indexMaxSize')};
+if (defined $max_size) {
+	PublicInbox::Admin::parse_unsigned(\$max_size) or
+		die "`publicInbox.indexMaxSize=$max_size' not parsed\n";
+}
+
 foreach my $ibx (@ibxs) {
 	# XXX: users can shoot themselves in the foot, with opt->{indexlevel}
 	$ibx->{indexlevel} //= $opt->{indexlevel} //
 			PublicInbox::Admin::detect_indexlevel($ibx);
+	$ibx->{index_max_size} = $max_size;
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
 

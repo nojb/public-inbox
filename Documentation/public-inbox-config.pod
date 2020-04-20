@@ -288,6 +288,10 @@ or /usr/share/cgit/
 
 See L<public-inbox-edit(1)>
 
+=item publicinbox.indexMaxSize
+
+See L<public-inbox-index(1)>
+
 =item publicinbox.wwwlisting
 
 Enable a HTML listing style when the root path of the URL '/' is accessed.

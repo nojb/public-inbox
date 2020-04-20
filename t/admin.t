@@ -78,4 +78,24 @@ SKIP: {
 }
 
 chdir '/';
+
+my @pairs = (
+	'1g' => 1024 ** 3,
+	666 => 666,
+	'1500K' => 1500 * 1024,
+	'15m' => 15 * (1024 ** 2),
+);
+
+while (@pairs) {
+	my ($in, $out) = splice(@pairs, 0, 2);
+	my $orig = $in;
+	ok(PublicInbox::Admin::parse_unsigned(\$in), "parse_unsigned $orig");
+	is($in, $out, "got $orig => ($in == $out)");
+}
+
+for my $v ('', 'bogus', '1p', '1gig') {
+	ok(!PublicInbox::Admin::parse_unsigned(\$v),
+		"parse_unsigned rejects $v");
+}
+
 done_testing();
