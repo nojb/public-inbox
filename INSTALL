@@ -191,7 +191,7 @@ install the system (into /usr/local) with:
 
         perl Makefile.PL
         make
-        make test
+        make test    # see HACKING for faster tests for hackers
         make install # root permissions may be needed
 
 When installing Search::Xapian, make sure the underlying Xapian

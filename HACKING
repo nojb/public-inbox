@@ -59,6 +59,24 @@ directory for design decisions made during development.
 See Documentation/technical/ in the source tree for more details
 on specific topics, in particular data_structures.txt
 
+Faster tests
+------------
+
+The `make test' target provided by MakeMaker does not run in
+parallel.  Our `make check' target supports parallel runs, and
+it also creates a `.prove' file to optimize `make check-run'.
+
+The prove(1) command (distributed with Perl) may also be used
+for finer-grained testing: prove -bvw t/foo.t
+
+If using a make(1) (e.g. GNU make) with `include' support, the
+`config.mak' Makefile snippet can be used to set environment
+variables such as PERL_INLINE_DIRECTORY and TMPDIR.
+
+With PERL_INLINE_DIRECTORY set to enable Inline::C support and
+TMPDIR pointed to a tmpfs(5) mount, `make check-run' takes 6-10s
+(load-dependent) on a busy workstation built in 2010.
+
 Perl notes
 ----------
 
