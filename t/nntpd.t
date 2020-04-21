@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
+use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite));
 require PublicInbox::SearchIdx;
 require PublicInbox::Msgmap;
@@ -304,8 +305,9 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		if ($INC{'Search/Xapian.pm'} && ($ENV{TEST_RUN_MODE}//2)) {
 			skip 'Search/Xapian.pm pre-loaded (by t/run.perl?)', 1;
 		}
+		my $lsof = which('lsof') or skip 'lsof missing', 1;
 		my $rdr = { 2 => \(my $null) };
-		my @of = xqx(['lsof', '-p', $td->{pid}], undef, $rdr);
+		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $rdr);
 		skip('lsof broken', 1) if (!scalar(@of) || $?);
 		my @xap = grep m!Search/Xapian!, @of;
 		is_deeply(\@xap, [], 'Xapian not loaded in nntpd');
