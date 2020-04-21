@@ -6,8 +6,6 @@ use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite));
-require PublicInbox::SearchIdx;
-require PublicInbox::Msgmap;
 require PublicInbox::InboxWritable;
 use Email::Simple;
 use IO::Socket;
@@ -79,8 +77,8 @@ EOF
 		$im->add($mime);
 		$im->done;
 		if ($version == 1) {
-			my $s = PublicInbox::SearchIdx->new($ibx, 1);
-			$s->index_sync;
+			ok(run_script(['-index', $ibx->{inboxdir}]),
+				'indexed v1');
 		}
 	}
 
@@ -254,8 +252,8 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		$im->add($for_leafnode);
 		$im->done;
 		if ($version == 1) {
-			my $s = PublicInbox::SearchIdx->new($ibx, 1);
-			$s->index_sync;
+			ok(run_script(['-index', $ibx->{inboxdir}]),
+				'indexed v1');
 		}
 		my $hdr = $n->head("<$long_hdr>");
 		my $expect = qr/\AMessage-ID: /i . qr/\Q<$long_hdr>\E/;
