@@ -8,7 +8,7 @@ use PublicInbox::ContentId qw(content_digest content_id);
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+require_mods(qw(DBD::SQLite Search::Xapian));
 local $ENV{HOME} = abs_path('t');
 use_ok 'PublicInbox::V2Writable';
 umask 007;
@@ -20,17 +20,15 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		'Message-ID' => '<a-mid@b>',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Message-ID: <a-mid@b>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
 
+hello world
+EOF
 my $im = PublicInbox::V2Writable->new($ibx, {nproc => 1});
 is($im->{shards}, 1, 'one shard when forced');
 ok($im->add($mime), 'ordinary message added');

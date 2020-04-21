@@ -4,11 +4,11 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
 require PublicInbox::InboxWritable;
-use Email::MIME;
+use PublicInbox::MIME;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir });
@@ -60,27 +60,26 @@ sub oct_is ($$$) {
 }
 
 $ibx->with_umask(sub {
-	my $root = Email::MIME->create(
-		header_str => [
-			Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-			Subject => 'Hello world',
-			'Message-ID' => '<root@s>',
-			From => 'John Smith <js@example.com>',
-			To => 'list@example.com',
-		],
-		body => "\\m/\n");
-	my $last = Email::MIME->create(
-		header_str => [
-			Date => 'Sat, 02 Oct 2010 00:00:00 +0000',
-			Subject => 'Re: Hello world',
-			'In-Reply-To' => '<root@s>',
-			'Message-ID' => '<last@s>',
-			From => 'John Smith <js@example.com>',
-			To => 'list@example.com',
-			Cc => 'foo@example.com',
-		],
-		body => "goodbye forever :<\n");
+	my $root = PublicInbox::MIME->new(<<'EOF');
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+Subject: Hello world
+Message-ID: <root@s>
+From: John Smith <js@example.com>
+To: list@example.com
 
+\m/
+EOF
+	my $last = PublicInbox::MIME->new(<<'EOF');
+Date: Sat, 02 Oct 2010 00:00:00 +0000
+Subject: Re: Hello world
+In-Reply-To: <root@s>
+Message-ID: <last@s>
+From: John Smith <js@example.com>
+To: list@example.com
+Cc: foo@example.com
+
+goodbye forever :<
+EOF
 	my $rv;
 	$rw_commit->();
 	$root_id = $rw->add_message($root);
@@ -127,31 +126,29 @@ sub filter_mids {
 $ibx->with_umask(sub {
 	$rw_commit->();
 	my $rmid = '<ghost-message@s>';
-	my $reply_to_ghost = Email::MIME->create(
-		header_str => [
-			Date => 'Sat, 02 Oct 2010 00:00:00 +0000',
-			Subject => 'Re: ghosts',
-			'Message-ID' => '<ghost-reply@s>',
-			'In-Reply-To' => $rmid,
-			From => 'Time Traveler <tt@example.com>',
-			To => 'list@example.com',
-		],
-		body => "-_-\n");
+	my $reply_to_ghost = PublicInbox::MIME->new(<<"EOF");
+Date: Sat, 02 Oct 2010 00:00:00 +0000
+Subject: Re: ghosts
+Message-ID: <ghost-reply\@s>
+In-Reply-To: $rmid
+From: Time Traveler <tt\@example.com>
+To: list\@example.com
 
+-_-
+EOF
 	my $rv;
 	my $reply_id = $rw->add_message($reply_to_ghost);
 	is($reply_id, int($reply_id), "reply_id is an integer: $reply_id");
 
-	my $was_ghost = Email::MIME->create(
-		header_str => [
-			Date => 'Sat, 02 Oct 2010 00:00:01 +0000',
-			Subject => 'ghosts',
-			'Message-ID' => $rmid,
-			From => 'Laggy Sender <lag@example.com>',
-			To => 'list@example.com',
-		],
-		body => "are real\n");
+	my $was_ghost = PublicInbox::MIME->new(<<"EOF");
+Date: Sat, 02 Oct 2010 00:00:01 +0000
+Subject: ghosts
+Message-ID: $rmid
+From: Laggy Sender <lag\@example.com>
+To: list\@example.com
 
+are real
+EOF
 	my $ghost_id = $rw->add_message($was_ghost);
 	is($ghost_id, int($ghost_id), "ghost_id is an integer: $ghost_id");
 	my $msgs = $rw->{over}->get_thread('ghost-message@s');
@@ -192,18 +189,17 @@ $ibx->with_umask(sub {
 	$rw_commit->();
 	$ro->reopen;
 	my $long_mid = 'last' . ('x' x 60). '@s';
+	my $long = PublicInbox::MIME->new(<<EOF);
+Date: Sat, 02 Oct 2010 00:00:00 +0000
+Subject: long message ID
+References: <root\@s> <last\@s>
+In-Reply-To: <last\@s>
+Message-ID: <$long_mid>,
+From: "Long I.D." <long-id\@example.com>
+To: list\@example.com
 
-	my $long = Email::MIME->create(
-		header_str => [
-			Date => 'Sat, 02 Oct 2010 00:00:00 +0000',
-			Subject => 'long message ID',
-			'References' => '<root@s> <last@s>',
-			'In-Reply-To' => '<last@s>',
-			'Message-ID' => "<$long_mid>",
-			From => '"Long I.D." <long-id@example.com>',
-			To => 'list@example.com',
-		],
-		body => "wut\n");
+wut
+EOF
 	my $long_id = $rw->add_message($long);
 	is($long_id, int($long_id), "long_id is an integer: $long_id");
 
@@ -213,18 +209,16 @@ $ibx->with_umask(sub {
 	my @res;
 
 	my $long_reply_mid = 'reply-to-long@1';
-	my $long_reply = Email::MIME->create(
-		header_str => [
-			Subject => 'I break references',
-			Date => 'Sat, 02 Oct 2010 00:00:00 +0000',
-			'Message-ID' => "<$long_reply_mid>",
-			# No References:
-			# 'References' => '<root@s> <last@s> <'.$long_mid.'>',
-			'In-Reply-To' => "<$long_mid>",
-			From => 'no1 <no1@example.com>',
-			To => 'list@example.com',
-		],
-		body => "no References\n");
+	my $long_reply = PublicInbox::MIME->new(<<EOF);
+Subject: I break references
+Date: Sat, 02 Oct 2010 00:00:00 +0000
+Message-ID: <$long_reply_mid>
+In-Reply-To: <$long_mid>
+From: no1 <no1\@example.com>
+To: list\@example.com
+
+no References
+EOF
 	ok($rw->add_message($long_reply) > $long_id, "inserted long reply");
 
 	$rw_commit->();
@@ -239,25 +233,26 @@ $ibx->with_umask(sub {
 # quote prioritization
 $ibx->with_umask(sub {
 	$rw_commit->();
-	$rw->add_message(Email::MIME->create(
-		header_str => [
-			Date => 'Sat, 02 Oct 2010 00:00:01 +0000',
-			Subject => 'Hello',
-			'Message-ID' => '<quote@a>',
-			From => 'Quoter <quoter@example.com>',
-			To => 'list@example.com',
-		],
-		body => "> theatre illusions\nfade\n"));
+	$rw->add_message(PublicInbox::MIME->new(<<'EOF'));
+Date: Sat, 02 Oct 2010 00:00:01 +0000
+Subject: Hello
+Message-ID: <quote@a>
+From: Quoter <quoter@example.com>
+To: list@example.com
 
-	$rw->add_message(Email::MIME->create(
-		header_str => [
-			Date => 'Sat, 02 Oct 2010 00:00:02 +0000',
-			Subject => 'Hello',
-			'Message-ID' => '<nquote@a>',
-			From => 'Non-Quoter<non-quoter@example.com>',
-			To => 'list@example.com',
-		],
-		body => "theatre\nfade\n"));
+> theatre illusions
+fade
+EOF
+	$rw->add_message(PublicInbox::MIME->new(<<'EOF'));
+Date: Sat, 02 Oct 2010 00:00:02 +0000
+Subject: Hello
+Message-ID: <nquote@a>
+From: Non-Quoter<non-quoter@example.com>
+To: list@example.com
+
+theatre
+fade
+EOF
 	my $res = $rw->query("theatre");
 	is(scalar(@$res), 2, "got both matches");
 	is($res->[0]->mid, 'nquote@a', "non-quoted scores higher") if scalar(@$res);
@@ -272,17 +267,17 @@ $ibx->with_umask(sub {
 # circular references
 $ibx->with_umask(sub {
 	my $s = 'foo://'. ('Circle' x 15).'/foo';
-	my $doc_id = $rw->add_message(Email::MIME->create(
-		header => [ Subject => $s ],
-		header_str => [
-			Date => 'Sat, 02 Oct 2010 00:00:01 +0000',
-			'Message-ID' => '<circle@a>',
-			'References' => '<circle@a>',
-			'In-Reply-To' => '<circle@a>',
-			From => 'Circle <circle@example.com>',
-			To => 'list@example.com',
-		],
-		body => "LOOP!\n"));
+	my $doc_id = $rw->add_message(PublicInbox::MIME->new(<<EOF));
+Subject: $s
+Date: Sat, 02 Oct 2010 00:00:01 +0000
+Message-ID: <circle\@a>
+References: <circle\@a>
+In-Reply-To: <circle\@a>
+From: Circle <circle\@example.com>
+To: list\@example.com
+
+LOOP!
+EOF
 	ok($doc_id > 0, "doc_id defined with circular reference");
 	my $smsg = $rw->query('m:circle@a', {limit=>1})->[0];
 	is(defined($smsg), 1, 'found m:circl@a');
@@ -462,15 +457,13 @@ $ibx->with_umask(sub {
 	my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
 	is($ro->reopen->query("m:$digits", { mset => 1})->size, 0,
 		'no results yet');
-	my $pine = Email::MIME->create(
-		header_str => [
-			Subject => 'blah',
-			'Message-ID' => "<$mid>",
-			From => 'torvalds@transmeta',
-			To => 'list@example.com',
-		],
-		body => ""
-	);
+	my $pine = PublicInbox::MIME->new(<<EOF);
+Subject: blah
+Message-ID: <$mid>
+From: torvalds\@transmeta
+To: list\@example.com
+
+EOF
 	my $x = $rw->add_message($pine);
 	$rw->commit_txn_lazy;
 	is($ro->reopen->query("m:$digits", { mset => 1})->size, 1,

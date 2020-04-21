@@ -8,7 +8,7 @@ use PublicInbox::ContentId qw(content_digest);
 use File::Path qw(remove_tree);
 use PublicInbox::TestCommon;
 require_git(2.6);
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx_config = {
@@ -24,15 +24,13 @@ my $agpl = do {
 	<$fh>;
 };
 my $phrase = q("defending all users' freedom");
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => $agpl,
-);
+my $mime = PublicInbox::MIME->new(<<'EOF'.$agpl);
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+EOF
 my $minmax;
 my $msgmap;
 my ($mark1, $mark2, $mark3, $mark4);

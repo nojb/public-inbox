@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::MIME;
 use PublicInbox::Feed;
 use PublicInbox::Import;
 use PublicInbox::Inbox;
@@ -36,7 +36,7 @@ my $im = PublicInbox::Import->new($git, $ibx->{name}, 'test@example');
 {
 	$im->init_bare;
 	foreach my $i (1..6) {
-		my $mime = Email::MIME->new(<<EOF);
+		my $mime = PublicInbox::MIME->new(<<EOF);
 From: ME <me\@example.com>
 To: U <u\@example.com>
 Message-Id: <$i\@example.com>
@@ -95,7 +95,7 @@ EOF
 	# add a new spam message
 	my $spam;
 	{
-		$spam = Email::MIME->new(<<EOF);
+		$spam = PublicInbox::MIME->new(<<EOF);
 From: SPAMMER <spammer\@example.com>
 To: U <u\@example.com>
 Message-Id: <this-is-spam\@example.com>

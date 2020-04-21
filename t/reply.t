@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::MIME;
 use_ok 'PublicInbox::Reply';
 
 my @q = (
@@ -19,7 +19,7 @@ while (@q) {
 	is($res, $expect, "quote $input => $res");
 }
 
-my $mime = Email::MIME->new(<<'EOF');
+my $mime = PublicInbox::MIME->new(<<'EOF');
 From: from <from@example.com>
 To: to <to@example.com>
 Cc: cc@example.com

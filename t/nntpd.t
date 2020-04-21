@@ -7,7 +7,7 @@ use PublicInbox::TestCommon;
 use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite));
 require PublicInbox::InboxWritable;
-use Email::Simple;
+use PublicInbox::MIME;
 use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use Net::NNTP;
@@ -57,7 +57,7 @@ $ibx = PublicInbox::Inbox->new($ibx);
 
 	# ensure successful message delivery
 	{
-		my $mime = Email::MIME->new(<<EOF);
+		my $mime = PublicInbox::MIME->new(<<EOF);
 To: =?utf-8?Q?El=C3=A9anor?= <you\@example.com>
 From: =?utf-8?Q?El=C3=A9anor?= <me\@example.com>
 Cc: $addr

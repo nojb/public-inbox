@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
+use PublicInbox::MIME;
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 
@@ -20,7 +21,6 @@ my $sock = tcp_server();
 my $td;
 use_ok 'PublicInbox::Git';
 use_ok 'PublicInbox::Import';
-use_ok 'Email::MIME';
 {
 	local $ENV{HOME} = $home;
 	my $cmd = [ '-init', $group, $maindir, 'http://example.com/', $addr ];
@@ -28,7 +28,7 @@ use_ok 'Email::MIME';
 
 	# ensure successful message delivery
 	{
-		my $mime = Email::MIME->new(<<EOF);
+		my $mime = PublicInbox::MIME->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr

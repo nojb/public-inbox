@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
+use PublicInbox::MIME;
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::Msgmap';
 use_ok 'PublicInbox::SearchIdx';
@@ -26,16 +27,14 @@ my $ibx;
 	my $git = PublicInbox::Git->new($git_dir);
 	my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 	$im->init_bare;
-	$im->add(Email::MIME->create(
-		header => [
-			From => 'a@example.com',
-			To => 'b@example.com',
-			'Content-Type' => 'text/plain',
-			Subject => 'boo!',
-			'Message-ID' => '<a@example.com>',
-		],
-		body => "hello world gmane:666\n",
-	));
+	$im->add(PublicInbox::MIME->new(<<'EOF'));
+From: a@example.com
+To: b@example.com
+Subject: boo!
+Message-ID: <a@example.com>
+
+hello world gmane:666
+EOF
 	$im->done;
 }
 {

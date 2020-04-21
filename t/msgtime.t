@@ -6,28 +6,23 @@ use Test::More;
 use PublicInbox::MIME;
 use PublicInbox::MsgTime;
 use PublicInbox::TestCommon;
-require_mods(qw(Email::MIME));
 
 our $received_date = 'Mon, 22 Jan 2007 13:16:24 -0500';
 sub datestamp ($) {
 	my ($date) = @_;
 	local $SIG{__WARN__} = sub {};  # Suppress warnings
-	my $mime = Email::MIME->create(
-		header => [
-			From => 'a@example.com',
-			To => 'b@example.com',
-			'Content-Type' => 'text/plain',
-			Subject => 'this is a subject',
-			'Message-ID' => '<a@example.com>',
-			Date => $date,
-			'Received' => <<EOF,
-(majordomo\@vger.kernel.org) by vger.kernel.org via listexpand
-\tid S932173AbXAVSQY (ORCPT <rfc822;w\@1wt.eu>);
-\t$received_date
+	my $mime = PublicInbox::MIME->new(<<"EOF");
+From: a\@example.com
+To: b\@example.com
+Subject: this is a subject
+Message-ID: <a\@example.com>
+Date: $date
+Received: (majordomo\@vger.kernel.org) by vger.kernel.org via listexpand
+	id S932173AbXAVSQY (ORCPT <rfc822;w\@1wt.eu>);
+	$received_date
+
+hello world
 EOF
-		],
-		body => "hello world\n",
-	    );
 	my @ts = PublicInbox::MsgTime::msg_datestamp($mime->header_obj);
 	return \@ts;
 }
@@ -35,18 +30,18 @@ EOF
 sub timestamp ($) {
 	my ($received) = @_;
 	local $SIG{__WARN__} = sub {};  # Suppress warnings
-	my $mime = Email::MIME->create(
-		header => [
-			From => 'a@example.com',
-			To => 'b@example.com',
-			'Content-Type' => 'text/plain',
-			Subject => 'this is a subject',
-			'Message-ID' => '<a@example.com>',
-			Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-			'Received' => '(majordomo@vger.kernel.org) by vger.kernel.org via listexpand\n\tid S932173AbXAVSQY (ORCPT <rfc822;w@1wt.eu>);\n\t' . $received,
-		],
-		body => "hello world\n",
-	    );
+	my $mime = PublicInbox::MIME->new(<<"EOF");
+From: a\@example.com
+To: b\@example.com
+Subject: this is a subject
+Message-ID: <a\@example.com>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+Received: (majordomo\@vger.kernel.org) by vger.kernel.org via listexpand
+	id S932173AbXAVSQY (ORCPT <rfc822;w\@1wt.eu>);
+	$received
+
+hello world
+EOF
 	my @ts = PublicInbox::MsgTime::msg_timestamp($mime->header_obj);
 	return \@ts;
 }

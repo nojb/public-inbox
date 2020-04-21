@@ -7,7 +7,7 @@ use PublicInbox::MIME;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
 require_git(2.6);
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+require_mods(qw(DBD::SQLite Search::Xapian));
 which('xapian-compact') or
 	plan skip_all => 'xapian-compact missing for '.__FILE__;
 
@@ -26,16 +26,16 @@ ok(PublicInbox::Import::run_die([qw(git) , "--git-dir=$ibx->{inboxdir}",
 	qw(config core.sharedRepository 0644)]), 'set sharedRepository');
 $ibx = PublicInbox::Inbox->new($ibx);
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		'Message-ID' => '<a-mid@b>',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: b@example.com
+Subject: this is a subject
+Message-ID: <a-mid@b>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
+
 ok($im->add($mime), 'added one message');
 ok($im->remove($mime), 'remove message');
 ok($im->add($mime), 'added message again');

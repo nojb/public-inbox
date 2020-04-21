@@ -3,9 +3,10 @@
 use strict;
 use warnings;
 use Test::More;
+use PublicInbox::MIME;
 use PublicInbox::TestCommon;
 require_git(2.6);
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {
@@ -15,16 +16,15 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-		'Message-ID' => '<a-mid@b>',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+Message-ID: <a-mid@b>
+
+hello world
+EOF
 my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 ok($im->add($mime), 'message added');

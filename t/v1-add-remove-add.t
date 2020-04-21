@@ -5,7 +5,8 @@ use warnings;
 use Test::More;
 use PublicInbox::Import;
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+use PublicInbox::MIME;
+require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {
@@ -14,16 +15,15 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-		'Message-ID' => '<a-mid@b>',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Message-ID: <a-mid@b>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
 $im->init_bare;
 ok($im->add($mime), 'message added');

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape DBD::SQLite);

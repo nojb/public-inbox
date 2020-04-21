@@ -4,22 +4,19 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+require_mods(qw(DBD::SQLite Search::Xapian));
 require_git('2.6');
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
 require PublicInbox::Search;
 
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => '',
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Date: Fri, 02 Oct 1993 00:00:00 +0000
 
+EOF
 my ($this) = (split('/', $0))[-1];
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{PI_CONFIG} = "$tmpdir/config";

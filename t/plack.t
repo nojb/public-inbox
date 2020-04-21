@@ -32,7 +32,7 @@ my $git = PublicInbox::Git->new($inboxdir);
 my $im = PublicInbox::Import->new($git, 'test', $addr);
 # ensure successful message delivery
 {
-	my $mime = Email::MIME->new(<<EOF);
+	my $mime = PublicInbox::MIME->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -124,7 +124,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 :(
 EOF
 	$crlf =~ s/\n/\r\n/sg;
-	$im->add(Email::MIME->new($crlf));
+	$im->add(PublicInbox::MIME->new($crlf));
 
 	$im->done;
 }

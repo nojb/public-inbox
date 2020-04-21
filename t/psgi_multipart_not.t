@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common

@@ -4,22 +4,20 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::ContentId qw(content_id);
-use Email::MIME;
+use PublicInbox::MIME;
 
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'b@example.com',
-		'Content-Type' => 'text/plain',
-		Subject => 'this is a subject',
-		'Message-ID' => '<a@example.com>',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: b@example.com
+Subject: this is a subject
+Message-ID: <a@example.com>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
 
 my $orig = content_id($mime);
-my $reload = content_id(Email::MIME->new($mime->as_string));
+my $reload = content_id(PublicInbox::MIME->new($mime->as_string));
 is($orig, $reload, 'content_id matches after serialization');
 
 foreach my $h (qw(From To Cc)) {

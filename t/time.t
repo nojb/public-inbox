@@ -3,21 +3,20 @@
 use strict;
 use warnings;
 use Test::More;
-use_ok 'Email::MIME';
+use POSIX qw(strftime);
+use PublicInbox::MIME;
 use PublicInbox::MsgTime qw(msg_datestamp);
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		'Message-ID' => '<a-mid@b>',
-		Date => 'Fri, 02 Oct 93 00:00:00 +0000',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: b@example.com
+Subject: this is a subject
+Message-ID: <a@example.com>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
 
 my $ts = msg_datestamp($mime->header_obj);
-use POSIX qw(strftime);
 is(strftime('%Y-%m-%d %H:%M:%S', gmtime($ts)), '1993-10-02 00:00:00',
 	'got expected date with 2 digit year');
 $mime->header_set(Date => 'Fri, 02 Oct 101 01:02:03 +0000');

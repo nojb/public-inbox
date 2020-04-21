@@ -10,17 +10,16 @@ require PublicInbox::Admin;
 use PublicInbox::TestCommon;
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
-require_mods(qw(DBD::SQLite Email::MIME));
+require_mods(qw(DBD::SQLite));
 
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
 
 sub import_index_incremental {
 	my ($v, $level, $mime) = @_;

@@ -10,23 +10,21 @@ use PublicInbox::Spawn qw(spawn);
 use Fcntl qw(:DEFAULT SEEK_SET);
 use File::Temp qw/tempfile/;
 use PublicInbox::TestCommon;
-require_mods(qw(Email::MIME));
 my ($dir, $for_destroy) = tmpdir();
 
 my $git = PublicInbox::Git->new($dir);
 my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 $im->init_bare;
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'b@example.com',
-		'Content-Type' => 'text/plain',
-		Subject => 'this is a subject',
-		'Message-ID' => '<a@example.com>',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: b@example.com
+Subject: this is a subject
+Message-ID: <a@example.com>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
+
 my $v2 = require_git(2.6, 1);
 my $smsg = {} if $v2;
 like($im->add($mime, undef, $smsg), qr/\A:[0-9]+\z/, 'added one message');

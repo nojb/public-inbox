@@ -14,16 +14,14 @@ my $git_dir = "$tmpdir/a.git";
 	my $git = PublicInbox::Git->new($git_dir);
 	my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 	$im->init_bare;
-	$im->add(Email::MIME->create(
-		header => [
-			From => 'a@example.com',
-			To => 'b@example.com',
-			'Content-Type' => 'text/plain',
-			Subject => ' A subject line with a null =?iso-8859-1?q?=00?= see!',
-			'Message-ID' => '<null-test.a@example.com>',
-		],
-		body => "hello world\n",
-	));
+	$im->add(PublicInbox::MIME->new(<<'EOF'));
+From: a@example.com
+To: b@example.com
+Subject: A subject line with a null =?iso-8859-1?q?=00?= see!
+Message-ID: <null-test.a@example.com>
+
+hello world
+EOF
 	$im->done;
 	is(xsys(qw(git --git-dir), $git_dir, 'fsck', '--strict'), 0,
 		'git fsck ok');

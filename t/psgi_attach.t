@@ -68,7 +68,7 @@ $im->init_bare;
 	);
 	$mime = $mime->as_string;
 	$mime =~ s/\r\n/\n/g; # normalize to LF only
-	$mime = Email::MIME->new($mime);
+	$mime = PublicInbox::MIME->new($mime);
 	$im->add($mime);
 	$im->done;
 

@@ -6,10 +6,11 @@ use Test::More;
 use Fcntl qw(SEEK_SET);
 use Cwd;
 use PublicInbox::TestCommon;
+use PublicInbox::MIME;
 require_git(2.6);
 
 my $V = 2;
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $ibx = {
@@ -17,18 +18,16 @@ my $ibx = {
 	name => 'test-v2writable',
 	address => [ 'test@example.com' ],
 };
-my $mime = Email::MIME->create(
-	header => [
-		From => 'a@example.com',
-		To => 'test@example.com',
-		Subject => 'this is a subject',
-		Date => 'Fri, 02 Oct 1993 00:00:00 +0000',
-		'Message-ID' => '<foo@bar>',
-		'List-ID' => '<test.example.com>',
-	],
-	body => "hello world\n",
-);
+my $mime = PublicInbox::MIME->new(<<'EOF');
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+Message-ID: <foo@bar>
+List-ID: <test.example.com>
 
+hello world
+EOF
 my $main_bin = getcwd()."/t/main-bin";
 my $fail_bin = getcwd()."/t/fail-bin";
 local $ENV{PI_DIR} = "$tmpdir/foo";

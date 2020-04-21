@@ -6,7 +6,7 @@ use bytes (); # only for bytes::length
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::MID qw(mids);
-use Email::MIME;
+use PublicInbox::MIME;
 require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 require PublicInbox::Smsg;
@@ -42,7 +42,7 @@ my @mids;
 
 foreach (reverse split(/\n\n/, $data)) {
 	$_ .= "\n";
-	my $mime = Email::MIME->new(\$_);
+	my $mime = PublicInbox::MIME->new(\$_);
 	$mime->header_set('From' => 'bw@g');
 	$mime->header_set('To' => 'git@vger.kernel.org');
 	my $bytes = bytes::length($mime->as_string);
@@ -78,7 +78,7 @@ $rw->commit_txn_lazy;
 
 $xdb = $rw->begin_txn_lazy;
 {
-	my $mime = Email::MIME->new(<<'');
+	my $mime = PublicInbox::MIME->new(<<'');
 Subject: [RFC 00/14]
 Message-Id: <1-bw@g>
 From: bw@g
