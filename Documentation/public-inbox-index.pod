@@ -94,6 +94,7 @@ supported, thus the value of C<1m> to prevents indexing of
 messages larger than one megabyte.
 
 This is useful for avoiding memory exhaustion in mirrors.
+This option is only available in public-inbox 1.5 or later.
 
 Default: none
 

@@ -5,7 +5,20 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline
 
-TBD
+* public-inbox-index
+
+  - `--max-size=SIZE' CLI switch and `publicinbox.indexMaxSize'
+     config file option added
+
+* public-inbox-watch
+
+  - multiple values of `publicinbox.<name>.watchheader' are
+    supported, thanks to Kyle Meyer
+
+* PublicInbox::WWW
+
+  - $INBOX_DIR/description and $INBOX_DIR/cloneurl are not
+    memoized if missing
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 

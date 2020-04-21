@@ -87,9 +87,11 @@ Default: none; only for L<public-inbox-watch(1)> users
 	[publicinbox "test"]
 		watchheader = List-Id:<test.example.com>
 
-If specified, L<public-inbox-watch(1)> will only process mail matching
-the given header.  If specified multiple times, mail will be processed
-if it matches any of the values.
+If specified, L<public-inbox-watch(1)> will only process mail
+matching the given header.  If specified multiple times in
+public-inbox 1.5 or later, mail will be processed if it matches
+any of the values.  Only the last value was used in public-inbox
+1.4 and earlier.
 
 Default: none; only for L<public-inbox-watch(1)> users
 
