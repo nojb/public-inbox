@@ -329,12 +329,12 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 
 	$n = $s = undef;
 	$td->join;
-	my $eout = eval {
-		local $/;
+	is($?, 0, 'no error in exited process');
+	my $eout = do {
 		open my $fh, '<', $err or die "open $err failed: $!";
+		local $/;
 		<$fh>;
 	};
-	is($?, 0, 'no error in exited process');
 	unlike($eout, qr/wide/i, 'no Wide character warnings');
 }
 
