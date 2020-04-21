@@ -25,6 +25,7 @@ my $profiles = {
 		Email::MIME::ContentType
 		Encode
 		ExtUtils::MakeMaker
+		IO::Compress::Gzip
 		URI::Escape
 		), @test_essential ],
 
@@ -35,7 +36,6 @@ my $profiles = {
 		DBD::SQLite
 		DBI
 		Filesys::Notify::Simple
-		IO::Compress::Gzip
 		Inline::C
 		Net::Server
 		Plack

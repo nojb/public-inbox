@@ -14,14 +14,13 @@ use bytes (); # bytes::length
 use HTTP::Date qw(time2str);
 use Digest::SHA ();
 use File::Spec ();
+use IO::Compress::Gzip qw(gzip);
 *try_cat = \&PublicInbox::Inbox::try_cat;
 our $json;
-if (eval { require IO::Compress::Gzip }) {
-	for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
-		eval "require $mod" or next;
-		# ->ascii encodes non-ASCII to "\uXXXX"
-		$json = $mod->new->ascii(1) and last;
-	}
+for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
+	eval "require $mod" or next;
+	# ->ascii encodes non-ASCII to "\uXXXX"
+	$json = $mod->new->ascii(1) and last;
 }
 
 sub list_all_i {
@@ -220,7 +219,7 @@ sub js ($$) {
 		$repo->{reference} = $abs2urlpath->{$abs};
 	}
 	my $out;
-	IO::Compress::Gzip::gzip(\($json->encode($manifest)) => \$out);
+	gzip(\($json->encode($manifest)) => \$out);
 	$manifest = undef;
 	[ 200, [ qw(Content-Type application/gzip),
 		 'Last-Modified', time2str($mtime),

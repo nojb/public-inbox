@@ -38,8 +38,7 @@ NEWNEWS\r
 LIST ACTIVE ACTIVE.TIMES NEWSGROUPS OVERVIEW.FMT\r
 HDR\r
 OVER\r
-
-my $have_deflate;
+COMPRESS DEFLATE\r
 
 sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
 
@@ -903,7 +902,7 @@ sub cmd_starttls ($) {
 sub cmd_compress ($$) {
 	my ($self, $alg) = @_;
 	return '503 Only DEFLATE is supported' if uc($alg) ne 'DEFLATE';
-	return r502 if $self->compressed || !$have_deflate;
+	return r502 if $self->compressed;
 	PublicInbox::NNTPdeflate->enable($self);
 	$self->requeue;
 	undef
@@ -988,12 +987,6 @@ sub event_step {
 sub busy {
 	my ($self, $now) = @_;
 	($self->{rbuf} || $self->{wbuf} || $self->not_idle_long($now));
-}
-
-# this is an import to prevent "perl -c" from complaining about fields
-sub import {
-	$have_deflate = eval { require PublicInbox::NNTPdeflate } and
-		$CAPABILITIES .= "COMPRESS DEFLATE\r\n";
 }
 
 1;

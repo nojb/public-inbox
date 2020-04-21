@@ -8,6 +8,7 @@ use PublicInbox::Qspawn;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::AltId;
 use PublicInbox::Spawn qw(which);
+use PublicInbox::GzipFilter;
 our $sqlite3 = $ENV{SQLITE3};
 
 sub sqlite3_missing ($) {
@@ -64,13 +65,6 @@ or
 EOF
 	}
 
-	eval { require PublicInbox::GzipFilter } or
-		return html_oneshot($ctx, 501, \<<EOF);
-<pre>gzip output not available
-
-The administrator needs to install the Compress::Raw::Zlib Perl module
-to support gzipped sqlite3 dumps.</pre>
-EOF
 	$sqlite3 //= which('sqlite3');
 	if (!defined($sqlite3)) {
 		return html_oneshot($ctx, 501, \<<EOF);

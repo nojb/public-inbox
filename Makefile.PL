@@ -132,6 +132,11 @@ WriteMakefile(
 		# `perl5' on FreeBSD
 		'Encode' => 0,
 
+		# libperl$PERL_VERSION + perl-modules-$PERL_VERSION
+		'Compress::Raw::Zlib' => 0,
+		'Compress::Zlib' => 0,
+		'IO::Compress::Gzip' => 0,
+
 		# Plack is needed for public-inbox-httpd and PublicInbox::WWW
 		# 'Plack' => 0,
 
