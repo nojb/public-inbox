@@ -87,7 +87,7 @@ die $@ if $@;
 	local $ENV{PI_EMERGENCY} = $faildir;
 	local $ENV{HOME} = $home;
 	local $ENV{ORIGINAL_RECIPIENT} = $addr;
-	my $simple = Email::Simple->new(<<EOF);
+	my $in = <<EOF;
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -96,8 +96,6 @@ Subject: hihi
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 EOF
-	my $in = $simple->as_string;
-
 	# ensure successful message delivery
 	{
 		local $ENV{PATH} = $main_path;
@@ -177,7 +175,7 @@ Date: deadbeef
 	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
 	my $mid = 'spam-train@example.com';
-	my $simple = Email::Simple->new(<<EOF);
+	my $in = <<EOF;
 From: Spammer <spammer\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -186,8 +184,6 @@ Subject: this message will be trained as spam
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 EOF
-	my $in = $simple->as_string;
-
 	{
 		# deliver the spam message, first
 		ok(run_script(['-mda'], undef, { 0 => \$in }));
@@ -214,7 +210,7 @@ EOF
 	local $ENV{ORIGINAL_RECIPIENT} = $addr;
 	local $ENV{PATH} = $main_path;
 	my $mid = 'ham-train@example.com';
-	my $simple = Email::Simple->new(<<EOF);
+	my $in = <<EOF;
 From: False-positive <hammer\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -223,8 +219,6 @@ Subject: this message will be trained as spam
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 EOF
-	my $in = $simple->as_string;
-
 	# now train it
 	# these should be overridden
 	local $ENV{GIT_AUTHOR_EMAIL} = 'trainer@example.com';
@@ -288,7 +282,7 @@ EOF
 	local $ENV{PATH} = $main_path;
 	my $list_id = 'foo.example.com';
 	my $mid = 'list-id-delivery@example.com';
-	my $simple = Email::Simple->new(<<EOF);
+	my $in = <<EOF;
 From: user <user\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -300,7 +294,6 @@ Date: Thu, 01 Jan 1970 00:00:00 +0000
 EOF
 	xsys(qw(git config --file), $pi_config, "$cfgpfx.listid", $list_id);
 	$? == 0 or die "failed to set listid $?";
-	my $in = $simple->as_string;
 	ok(run_script(['-mda'], undef, { 0 => \$in }),
 		'mda OK with List-Id match');
 	my $path = mid2path($mid);
@@ -308,13 +301,12 @@ EOF
 	like($$msg, qr/\Q$list_id\E/, 'delivered message w/ List-ID matches');
 
 	# try a message w/o precheck
-	$simple = Email::Simple->new(<<EOF);
+	$in = <<EOF;
 To: You <you\@example.com>
 List-Id: <$list_id>
 
 this message would not be accepted without --no-precheck
 EOF
-	$in = $simple->as_string;
 	my ($out, $err) = ('', '');
 	my $rdr = { 0 => \$in, 1 => \$out, 2 => \$err };
 	ok(run_script(['-mda', '--no-precheck'], undef, $rdr),
