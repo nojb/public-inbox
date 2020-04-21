@@ -10,12 +10,13 @@ use PublicInbox::Spawn qw(spawn);
 use Fcntl qw(:DEFAULT SEEK_SET);
 use File::Temp qw/tempfile/;
 use PublicInbox::TestCommon;
+require_mods(qw(Email::MIME));
 my ($dir, $for_destroy) = tmpdir();
 
 my $git = PublicInbox::Git->new($dir);
 my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 $im->init_bare;
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'b@example.com',

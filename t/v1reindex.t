@@ -3,12 +3,11 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
 use PublicInbox::ContentId qw(content_digest);
 use File::Path qw(remove_tree);
 use PublicInbox::TestCommon;
 require_git(2.6);
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';
 my ($inboxdir, $for_destroy) = tmpdir();
@@ -18,7 +17,7 @@ my $ibx_config = {
 	-primary_address => 'test@example.com',
 	indexlevel => 'full',
 };
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'test@example.com',

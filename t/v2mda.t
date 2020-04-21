@@ -3,14 +3,13 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
 use Fcntl qw(SEEK_SET);
 use Cwd;
 use PublicInbox::TestCommon;
 require_git(2.6);
 
 my $V = 2;
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
 use_ok 'PublicInbox::V2Writable';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $ibx = {
@@ -18,7 +17,7 @@ my $ibx = {
 	name => 'test-v2writable',
 	address => [ 'test@example.com' ],
 };
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'test@example.com',

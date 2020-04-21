@@ -10,9 +10,9 @@ require PublicInbox::Admin;
 use PublicInbox::TestCommon;
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
-require_mods(qw(DBD::SQLite));
+require_mods(qw(DBD::SQLite Email::MIME));
 
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'test@example.com',

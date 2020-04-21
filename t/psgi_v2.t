@@ -9,7 +9,7 @@ use PublicInbox::MIME;
 use PublicInbox::Config;
 use PublicInbox::MID qw(mids);
 require_mods(qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
-		URI::Escape Plack::Builder));
+		URI::Escape Plack::Builder Email::MIME));
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::WWW';
 use_ok 'PublicInbox::V2Writable';
@@ -226,11 +226,11 @@ test_psgi(sub { $www->call(@_) }, sub {
 	# ensure conflicted attachments can be resolved
 	foreach my $body (qw(old new)) {
 		my $parts = [
-			PublicInbox::MIME->create(
+			Email::MIME->create(
 				attributes => { content_type => 'text/plain' },
 				body => 'blah',
 			),
-			PublicInbox::MIME->create(
+			Email::MIME->create(
 				attributes => {
 					filename => 'attach.txt',
 					content_type => 'text/plain',
@@ -238,7 +238,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 				body => $body
 			)
 		];
-		$mime = PublicInbox::MIME->create(
+		$mime = Email::MIME->create(
 			parts => $parts,
 			header_str => [ From => 'root@z',
 				'Message-ID' => '<a@dup>',

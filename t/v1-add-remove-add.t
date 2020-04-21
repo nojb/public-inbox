@@ -3,10 +3,9 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
 use PublicInbox::Import;
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
 require PublicInbox::SearchIdx;
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx = {
@@ -15,7 +14,7 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'test@example.com',

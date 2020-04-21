@@ -8,7 +8,7 @@ use PublicInbox::ContentId qw(content_digest content_id);
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
 local $ENV{HOME} = abs_path('t');
 use_ok 'PublicInbox::V2Writable';
 umask 007;
@@ -20,7 +20,7 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'test@example.com',

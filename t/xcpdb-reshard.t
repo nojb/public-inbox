@@ -4,13 +4,13 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
 require_git('2.6');
 use PublicInbox::MIME;
 use PublicInbox::InboxWritable;
 require PublicInbox::Search;
 
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'test@example.com',

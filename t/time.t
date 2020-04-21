@@ -3,9 +3,9 @@
 use strict;
 use warnings;
 use Test::More;
-use_ok 'PublicInbox::MIME';
+use_ok 'Email::MIME';
 use PublicInbox::MsgTime qw(msg_datestamp);
-my $mime = PublicInbox::MIME->create(
+my $mime = Email::MIME->create(
 	header => [
 		From => 'a@example.com',
 		To => 'test@example.com',
