@@ -35,8 +35,6 @@ my $im = PublicInbox::Import->new($git, $ibx->{name}, 'test@example');
 
 {
 	$im->init_bare;
-	local $ENV{GIT_DIR} = $git_dir;
-
 	foreach my $i (1..6) {
 		my $mime = Email::MIME->new(<<EOF);
 From: ME <me\@example.com>
