@@ -1096,6 +1096,7 @@ sub dump_topics {
 			my @next_prev = @subj; # full copy
 			my $omit = dedupe_subject($prev_subj, \@subj, ' &#34;');
 			$prev_subj = \@next_prev;
+			$subj = join(' ', @subj);
 			$subj = ascii_html($subj);
 			obfuscate_addrs($obfs_ibx, $subj) if $obfs_ibx;
 			$href = mid_href($mid);
