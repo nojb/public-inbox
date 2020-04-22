@@ -322,7 +322,7 @@ sub _th_index_lite {
 	my $s_s = nr_to_s($nr_s, 'sibling', 'siblings');
 	my $s_c = nr_to_s($nr_c, 'reply', 'replies');
 	$attr =~ s!\n\z!</b>\n!s;
-	$attr =~ s!<a\nhref.*</a> !!s; # no point in duplicating subject
+	$attr =~ s!<a\nhref.*</a> (?:&#34; )?!!s; # no point in dup subject
 	$attr =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
 	$rv .= "<b>@ $attr";
 	if ($nr_c) {
