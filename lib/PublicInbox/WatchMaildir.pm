@@ -175,10 +175,8 @@ sub _try_path {
 			my $ok;
 			my $hdr = $mime->header_obj;
 			for my $wh (@$watch_hdrs) {
-				my $v = $hdr->header_raw($wh->[0]);
-				next unless defined($v) && $v =~ $wh->[1];
-				$ok = 1;
-				last;
+				my @v = $hdr->header_raw($wh->[0]);
+				$ok = grep(/$wh->[1]/, @v) and last;
 			}
 			next unless $ok;
 		}
