@@ -62,12 +62,17 @@ sub new {
 			if (my $whs = $ibx->{watchheader}) {
 				for (@$whs) {
 					my ($k, $v) = split(/:/, $_, 2);
+					# XXX should this be case-insensitive?
+					# Or, mutt-style, case-sensitive iff
+					# a capital letter exists?
 					push @$watch_hdrs, [ $k, qr/\Q$v\E/ ];
 				}
 			}
 			if (my $list_ids = $ibx->{listid}) {
 				for (@$list_ids) {
-					my $re = qr/<[ \t]*\Q$_\E[ \t]*>/;
+					# RFC2919 section 6 stipulates
+					# "case insensitive equality"
+					my $re = qr/<[ \t]*\Q$_\E[ \t]*>/i;
 					push @$watch_hdrs, ['List-Id', $re ];
 				}
 			}
