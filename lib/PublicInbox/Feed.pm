@@ -84,15 +84,10 @@ sub recent_msgs {
 	my ($ctx) = @_;
 	my $ibx = $ctx->{-inbox};
 	my $max = $ibx->{feedmax};
-	my $qp = $ctx->{qp};
-	my $v = $ibx->version;
-	if ($v > 2) {
-		die "BUG: unsupported inbox version: $v\n";
-	}
-	if ($ibx->over) {
-		return PublicInbox::View::paginate_recent($ctx, $max);
-	}
+	return PublicInbox::View::paginate_recent($ctx, $max) if $ibx->over;
 
+	# only for rare v1 inboxes which aren't indexed at all
+	my $qp = $ctx->{qp};
 	my $hex = '[a-f0-9]';
 	my $addmsg = qr!^:000000 100644 \S+ (\S+) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 (\S+) \S+ D\t(${hex}{2}/${hex}{38})$!;
