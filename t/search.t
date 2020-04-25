@@ -286,9 +286,7 @@ EOF
 });
 
 $ibx->with_umask(sub {
-	my $eml = 't/utf8.eml';
-	my $mime = PublicInbox::InboxWritable::mime_from_path($eml) or
-		die "open $eml: $!";
+	my $mime = mime_load 't/utf8.eml';
 	my $doc_id = $rw->add_message($mime);
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
 	my $msg = $rw->query('m:testmessage@example.com', {limit => 1})->[0];

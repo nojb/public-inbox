@@ -62,9 +62,7 @@ local $ENV{GIT_COMMITTER_NAME} = eval {
 	use PublicInbox::MDA;
 	use PublicInbox::Address;
 	use Encode qw/encode/;
-	my $eml = 't/utf8.eml';
-	my $msg = PublicInbox::InboxWritable::mime_from_path($eml) or
-		die "failed to open $eml: $!";
+	my $msg = mime_load 't/utf8.eml';
 	my $from = $msg->header('From');
 	my ($author) = PublicInbox::Address::names($from);
 	my ($email) = PublicInbox::Address::emails($from);

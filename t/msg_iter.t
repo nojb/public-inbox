@@ -5,7 +5,6 @@ use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Hval qw(ascii_html);
-use PublicInbox::InboxWritable;
 use_ok('PublicInbox::MsgIter');
 
 {
@@ -34,9 +33,7 @@ use_ok('PublicInbox::MsgIter');
 }
 
 {
-	my $f = 't/iso-2202-jp.eml';
-	my $mime = PublicInbox::InboxWritable::mime_from_path($f) or
-		die "open $f: $!";
+	my $mime = mime_load 't/iso-2202-jp.eml';
 	my $raw = '';
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
@@ -49,9 +46,7 @@ use_ok('PublicInbox::MsgIter');
 }
 
 {
-	my $f = 't/x-unknown-alpine.eml';
-	my $mime = PublicInbox::InboxWritable::mime_from_path($f) or
-		die "open $f: $!";
+	my $mime = mime_load 't/x-unknown-alpine.eml';
 	my $raw = '';
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
