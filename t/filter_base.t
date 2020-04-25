@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::TestCommon;
 use_ok 'PublicInbox::Filter::Base';
 
 {
@@ -21,6 +21,7 @@ use_ok 'PublicInbox::Filter::Base';
 
 {
 	my $f = PublicInbox::Filter::Base->new;
+	my $email = mime_load 't/filter_base-xhtml.eml', sub {
 	my $html_body = "<html><body>hi</body></html>";
 	my $parts = [
 		Email::MIME->create(
@@ -38,19 +39,20 @@ use_ok 'PublicInbox::Filter::Base';
 			body => 'hi = "bye"',
 		)
 	];
-	my $email = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 		  From => 'a@example.com',
 		  Subject => 'blah',
 		  'Content-Type' => 'multipart/alternative'
 		],
 		parts => $parts,
-	);
+	)}; # mime_load sub
 	is($f->delivery($email), 100, "xhtml rejected");
 }
 
 {
 	my $f = PublicInbox::Filter::Base->new;
+	my $email = mime_load 't/filter_base-junk.eml', sub {
 	my $parts = [
 		Email::MIME->create(
 			attributes => {
@@ -67,14 +69,14 @@ use_ok 'PublicInbox::Filter::Base';
 			body => 'junk',
 		)
 	];
-	my $email = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 		  From => 'a@example.com',
 		  Subject => 'blah',
 		  'Content-Type' => 'multipart/mixed'
 		],
 		parts => $parts,
-	);
+	)}; # mime_load sub
 	is($f->delivery($email), 100, 'proprietary format rejected on glob');
 }
 

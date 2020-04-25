@@ -225,6 +225,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 
 	# ensure conflicted attachments can be resolved
 	foreach my $body (qw(old new)) {
+		$mime = mime_load "t/psgi_v2-$body.eml", sub {
 		my $parts = [
 			Email::MIME->create(
 				attributes => { content_type => 'text/plain' },
@@ -238,12 +239,12 @@ test_psgi(sub { $www->call(@_) }, sub {
 				body => $body
 			)
 		];
-		$mime = Email::MIME->create(
+		Email::MIME->create(
 			parts => $parts,
 			header_str => [ From => 'root@z',
 				'Message-ID' => '<a@dup>',
 				Subject => 'hi']
-		);
+		)}; # mime_load sub
 		ok($im->add($mime), "added attachment $body");
 	}
 	$im->done;

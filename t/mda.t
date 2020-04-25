@@ -233,6 +233,7 @@ EOF
 		"learned ham idempotently ");
 
 	# ensure trained email is filtered, too
+	$mime = mime_load 't/mda-mime.eml', sub {
 	my $html_body = "<html><body>hi</body></html>";
 	my $parts = [
 		Email::MIME->create(
@@ -251,7 +252,7 @@ EOF
 		)
 	];
 	$mid = 'multipart-html-sucks@11';
-	$mime = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 		  From => 'a@example.com',
 		  Subject => 'blah',
@@ -260,7 +261,7 @@ EOF
 		  'Content-Type' => 'multipart/alternative',
 		],
 		parts => $parts,
-	);
+	)}; # mime_load sub
 
 	{
 		$in = $mime->as_string;

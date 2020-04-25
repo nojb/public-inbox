@@ -52,11 +52,12 @@ EOF
 
 	# multipart with two text bodies
 	my %attr_text = (attributes => { content_type => 'text/plain' });
+	$mime = mime_load 't/plack-2-txt-bodies.eml', sub {
 	my $parts = [
 		Email::MIME->create(%attr_text, body => 'hi'),
 		Email::MIME->create(%attr_text, body => 'bye')
 	];
-	$mime = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 			From => 'a@example.com',
 			Subject => 'blargh',
@@ -64,11 +65,13 @@ EOF
 			'In-Reply-To' => '<irp@example.com>'
 		],
 		parts => $parts,
-	);
+	)}; # mime_load sub
 	$im->add($mime);
 
 	# multipart with attached patch + filename
-	$parts = [ Email::MIME->create(%attr_text, body => 'hi, see attached'),
+	$mime = mime_load 't/plack-attached-patch.eml', sub {
+	my $parts = [
+		Email::MIME->create(%attr_text, body => 'hi, see attached'),
 		Email::MIME->create(
 			attributes => {
 					content_type => 'text/plain',
@@ -78,18 +81,19 @@ EOF
 				"@@ -49, 7 +49,34 @@\n"
 			)
 	];
-	$mime = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 			From => 'a@example.com',
 			Subject => '[PATCH] asdf',
 			'Message-ID' => '<patch@example.com>'
 		],
 		parts => $parts
-	);
+	)}; # mime_load sub
 	$im->add($mime);
 
 	# multipart collapsed to single quoted-printable text/plain
-	$parts = [
+	$mime = mime_load 't/plack-qp.eml', sub {
+	my $parts = [
 		Email::MIME->create(
 			attributes => {
 				content_type => 'text/plain',
@@ -98,14 +102,14 @@ EOF
 			body => 'hi = bye',
 		)
 	];
-	$mime = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 			From => 'qp@example.com',
 			Subject => 'QP',
 			'Message-ID' => '<qp@example.com>',
 			],
 		parts => $parts,
-	);
+	)};
 	like($mime->body_raw, qr/hi =3D bye=/, 'our test used QP correctly');
 	$im->add($mime);
 

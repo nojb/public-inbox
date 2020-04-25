@@ -371,6 +371,7 @@ $ibx->with_umask(sub {
 }
 
 $ibx->with_umask(sub {
+	my $amsg = mime_load 't/search-amsg.eml', sub {
 	my $part1 = Email::MIME->create(
                  attributes => {
                      content_type => 'text/plain',
@@ -391,7 +392,7 @@ $ibx->with_umask(sub {
                  },
                  body_str => 'inside another',
 	);
-	my $amsg = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 			Subject => 'see attachment',
 			'Message-ID' => '<file@attached>',
@@ -399,7 +400,8 @@ $ibx->with_umask(sub {
 			To => 'list@example.com',
 		],
 		parts => [ $part1, $part2 ],
-	);
+	)}; # mime_load sub
+
 	ok($rw->add_message($amsg), 'added attachment');
 	$rw_commit->();
 	$ro->reopen;

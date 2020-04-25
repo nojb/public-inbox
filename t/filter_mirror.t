@@ -3,12 +3,13 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::TestCommon;
 use_ok 'PublicInbox::Filter::Mirror';
 
 my $f = PublicInbox::Filter::Mirror->new;
 ok($f, 'created PublicInbox::Filter::Mirror object');
 {
+	my $email = mime_load 't/filter_mirror.eml', sub {
 	my $html_body = "<html><body>hi</body></html>";
 	my $parts = [
 		Email::MIME->create(
@@ -26,15 +27,15 @@ ok($f, 'created PublicInbox::Filter::Mirror object');
 			body => 'hi = "bye"',
 		)
 	];
-	my $email = Email::MIME->create(
+	Email::MIME->create(
 		header_str => [
 		  From => 'a@example.com',
 		  Subject => 'blah',
 		  'Content-Type' => 'multipart/alternative'
 		],
 		parts => $parts,
-	);
+	)}; # mime_laod sub
 	is($f->ACCEPT, $f->delivery($email), 'accept any trash that comes');
 }
 
-done_testing();
+ done_testing();

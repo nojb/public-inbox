@@ -3,16 +3,18 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
+use PublicInbox::TestCommon;
 use PublicInbox::Hval qw(ascii_html);
 use PublicInbox::InboxWritable;
 use_ok('PublicInbox::MsgIter');
 
 {
+	my $mime = mime_load 't/msg_iter-order.eml', sub {
 	my $parts = [ Email::MIME->create(body => "a\n"),
 			Email::MIME->create(body => "b\n") ];
-	my $mime = Email::MIME->create(parts => $parts,
+	Email::MIME->create(parts => $parts,
 				header_str => [ From => 'root@localhost' ]);
+	}; # mime_load sub
 	my @parts;
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
@@ -24,13 +26,15 @@ use_ok('PublicInbox::MsgIter');
 }
 
 {
+	my $mime = mime_load 't/msg_iter-nested.eml', sub {
 	my $parts = [ Email::MIME->create(body => 'a'),
 			Email::MIME->create(body => 'b') ];
 	$parts = [ Email::MIME->create(parts => $parts,
 				header_str => [ From => 'sub@localhost' ]),
 			Email::MIME->create(body => 'sig') ];
-	my $mime = Email::MIME->create(parts => $parts,
+	Email::MIME->create(parts => $parts,
 				header_str => [ From => 'root@localhost' ]);
+	}; # mime_load sub
 	my @parts;
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};

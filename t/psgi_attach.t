@@ -26,13 +26,11 @@ my $im = PublicInbox::Import->new($git, 'test', $addr);
 $im->init_bare;
 
 {
-	open my $fh, '<', '/dev/urandom' or die "unable to open urandom: $!\n";
-	sysread($fh, my $buf, 8);
-	is(8, length($buf), 'read some random data');
 	my $qp = "abcdef=g\n==blah\n";
-	my $b64 = 'b64'.$buf."\n";
+	my $b64 = "b64\xde\xad\xbe\xef\n";
 	my $txt = "plain\ntext\npass\nthrough\n";
 	my $dot = "dotfile\n";
+	my $mime = mime_load 't/psgi_attach.eml', sub {
 	my $parts = [
 		Email::MIME->create(
 			attributes => {
@@ -61,14 +59,11 @@ $im->init_bare;
 			},
 			body => $dot),
 	];
-	my $mime = Email::MIME->create(
+	Email::MIME->create(
 		parts => $parts,
 		header_str => [ From => 'root@z', 'Message-Id' => '<Z@B>',
 			Subject => 'hi']
-	);
-	$mime = $mime->as_string;
-	$mime =~ s/\r\n/\n/g; # normalize to LF only
-	$mime = PublicInbox::MIME->new($mime);
+	)}; # mime_load sub
 	$im->add($mime);
 	$im->done;
 
