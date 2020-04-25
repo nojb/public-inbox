@@ -1,0 +1,17 @@
+From: root@z
+Message-ID: <a@dup>
+Subject: hi
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain
+
+blah
+--b
+Content-Type: text/plain
+Content-Disposition: inline; filename="attach.txt"
+
+new
+--b--

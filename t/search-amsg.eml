@@ -1,0 +1,23 @@
+Subject: see attachment
+Message-ID: <file@attached>
+From: "John Smith" <js@example.com>
+To: list@example.com
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain; charset="US-ASCII"
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: attachment; filename="attached_fart.txt"
+
+inside the attachment=
+
+--b
+Content-Type: text/plain; charset="US-ASCII"
+Content-Disposition: attachment; filename="part_deux.txt"
+Content-Transfer-Encoding: quoted-printable
+
+inside another=
+
+--b--

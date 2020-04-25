@@ -1,0 +1,16 @@
+From: root@localhost
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+MIME-Version: 1.0
+
+a
+
+--b
+MIME-Version: 1.0
+
+b
+
+--b--

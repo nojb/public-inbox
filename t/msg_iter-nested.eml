@@ -1,0 +1,26 @@
+From: root@localhost
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="outer"
+
+--outer
+From: sub@localhost
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="inner"
+
+--inner
+MIME-Version: 1.0
+
+a
+--inner
+MIME-Version: 1.0
+
+b
+--inner--
+
+--outer
+MIME-Version: 1.0
+
+sig
+--outer--

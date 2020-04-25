@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
 use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $maindir = "$tmpdir/main.git";
@@ -30,41 +29,7 @@ $im->init_bare;
 	my $b64 = "b64\xde\xad\xbe\xef\n";
 	my $txt = "plain\ntext\npass\nthrough\n";
 	my $dot = "dotfile\n";
-	my $mime = mime_load 't/psgi_attach.eml', sub {
-	my $parts = [
-		Email::MIME->create(
-			attributes => {
-				filename => 'queue-pee',
-				content_type => 'text/plain',
-				encoding => 'quoted-printable'
-			},
-			body => $qp),
-		Email::MIME->create(
-			attributes => {
-				filename => 'bayce-sixty-four',
-				content_type => 'appication/octet-stream',
-				encoding => 'base64',
-			},
-			body => $b64),
-		Email::MIME->create(
-			attributes => {
-				filename => 'noop.txt',
-				content_type => 'text/plain',
-			},
-			body => $txt),
-		Email::MIME->create(
-			attributes => {
-				filename => '.dotfile',
-				content_type => 'text/plain',
-			},
-			body => $dot),
-	];
-	Email::MIME->create(
-		parts => $parts,
-		header_str => [ From => 'root@z', 'Message-Id' => '<Z@B>',
-			Subject => 'hi']
-	)}; # mime_load sub
-	$im->add($mime);
+	$im->add(mime_load('t/psgi_attach.eml'));
 	$im->done;
 
 	my $www = PublicInbox::WWW->new($config);

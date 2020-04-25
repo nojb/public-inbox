@@ -21,62 +21,13 @@ use_ok 'PublicInbox::Filter::Base';
 
 {
 	my $f = PublicInbox::Filter::Base->new;
-	my $email = mime_load 't/filter_base-xhtml.eml', sub {
-	my $html_body = "<html><body>hi</body></html>";
-	my $parts = [
-		Email::MIME->create(
-			attributes => {
-				content_type => 'text/xhtml; charset=UTF-8',
-				encoding => 'base64',
-			},
-			body => $html_body,
-		),
-		Email::MIME->create(
-			attributes => {
-				content_type => 'text/plain',
-				encoding => 'quoted-printable',
-			},
-			body => 'hi = "bye"',
-		)
-	];
-	Email::MIME->create(
-		header_str => [
-		  From => 'a@example.com',
-		  Subject => 'blah',
-		  'Content-Type' => 'multipart/alternative'
-		],
-		parts => $parts,
-	)}; # mime_load sub
+	my $email = mime_load 't/filter_base-xhtml.eml';
 	is($f->delivery($email), 100, "xhtml rejected");
 }
 
 {
 	my $f = PublicInbox::Filter::Base->new;
-	my $email = mime_load 't/filter_base-junk.eml', sub {
-	my $parts = [
-		Email::MIME->create(
-			attributes => {
-				content_type => 'application/vnd.ms-excel',
-				encoding => 'base64',
-			},
-			body => 'junk',
-		),
-		Email::MIME->create(
-			attributes => {
-				content_type => 'text/plain',
-				encoding => 'quoted-printable',
-			},
-			body => 'junk',
-		)
-	];
-	Email::MIME->create(
-		header_str => [
-		  From => 'a@example.com',
-		  Subject => 'blah',
-		  'Content-Type' => 'multipart/mixed'
-		],
-		parts => $parts,
-	)}; # mime_load sub
+	my $email = mime_load 't/filter_base-junk.eml';
 	is($f->delivery($email), 100, 'proprietary format rejected on glob');
 }
 

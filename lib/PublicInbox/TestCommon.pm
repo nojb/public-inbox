@@ -11,27 +11,10 @@ use IO::Socket::INET;
 our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 	run_script start_script key2sub xsys xqx mime_load);
 
-sub mime_load ($;&) {
+sub mime_load ($) {
 	my ($path, $cb) = @_;
-	if (open(my $fh, '<', $path)) {
-		PublicInbox::MIME->new(\(do { local $/; <$fh> }));
-	} elsif ($cb) {
-		require File::Temp;
-
-		my $mime = $cb->();
-		my ($dir) = ($path =~ m!(.+)/(?:[^/]+)\z!);
-		-d $dir or die "BUG: dir=$dir is not the dir of $path";
-		my $fh = File::Temp->new(DIR => $dir);
-		$fh->autoflush(1);
-		print $fh $mime->as_string or die "print: $!";
-		my $fn = $fh->filename;
-		rename($fn, $path) or die "link $fn => $path: $!";
-		$fh->unlink_on_destroy(0);
-		pop @_; # retry via tail recursion
-		goto &mime_load;
-	} else {
-		die "open $path: $!";
-	}
+	open(my $fh, '<', $path) or die "open $path: $!";
+	PublicInbox::MIME->new(\(do { local $/; <$fh> }));
 }
 
 sub tmpdir (;$) {

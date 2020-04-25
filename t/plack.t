@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
 use PublicInbox::TestCommon;
 my $psgi = "./examples/public-inbox.psgi";
 my ($tmpdir, $for_destroy) = tmpdir();
@@ -51,65 +50,15 @@ EOF
 	chomp @ls;
 
 	# multipart with two text bodies
-	my %attr_text = (attributes => { content_type => 'text/plain' });
-	$mime = mime_load 't/plack-2-txt-bodies.eml', sub {
-	my $parts = [
-		Email::MIME->create(%attr_text, body => 'hi'),
-		Email::MIME->create(%attr_text, body => 'bye')
-	];
-	Email::MIME->create(
-		header_str => [
-			From => 'a@example.com',
-			Subject => 'blargh',
-			'Message-ID' => '<multipart@example.com>',
-			'In-Reply-To' => '<irp@example.com>'
-		],
-		parts => $parts,
-	)}; # mime_load sub
+	$mime = mime_load 't/plack-2-txt-bodies.eml';
 	$im->add($mime);
 
 	# multipart with attached patch + filename
-	$mime = mime_load 't/plack-attached-patch.eml', sub {
-	my $parts = [
-		Email::MIME->create(%attr_text, body => 'hi, see attached'),
-		Email::MIME->create(
-			attributes => {
-					content_type => 'text/plain',
-					filename => "foo&.patch",
-			},
-			body => "--- a/file\n+++ b/file\n" .
-				"@@ -49, 7 +49,34 @@\n"
-			)
-	];
-	Email::MIME->create(
-		header_str => [
-			From => 'a@example.com',
-			Subject => '[PATCH] asdf',
-			'Message-ID' => '<patch@example.com>'
-		],
-		parts => $parts
-	)}; # mime_load sub
+	$mime = mime_load 't/plack-attached-patch.eml';
 	$im->add($mime);
 
 	# multipart collapsed to single quoted-printable text/plain
-	$mime = mime_load 't/plack-qp.eml', sub {
-	my $parts = [
-		Email::MIME->create(
-			attributes => {
-				content_type => 'text/plain',
-				encoding => 'quoted-printable'
-			},
-			body => 'hi = bye',
-		)
-	];
-	Email::MIME->create(
-		header_str => [
-			From => 'qp@example.com',
-			Subject => 'QP',
-			'Message-ID' => '<qp@example.com>',
-			],
-		parts => $parts,
-	)};
+	$mime = mime_load 't/plack-qp.eml';
 	like($mime->body_raw, qr/hi =3D bye=/, 'our test used QP correctly');
 	$im->add($mime);
 

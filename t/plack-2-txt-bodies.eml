@@ -1,0 +1,17 @@
+From: a@example.com
+Subject: blargh
+Message-ID: <multipart@example.com>
+In-Reply-To: <irp@example.com>
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain
+
+hi
+--b
+Content-Type: text/plain
+
+bye
+--b--

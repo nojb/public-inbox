@@ -1,0 +1,38 @@
+From: root@z
+Message-Id: <Z@B>
+Subject: hi
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="b"
+
+--b
+Content-Type: text/plain
+Content-Transfer-Encoding: quoted-printable
+Content-Disposition: inline; filename="queue-pee"
+
+abcdef=3Dg
+=3D=3Dblah
+
+--b
+Content-Type: appication/octet-stream
+Content-Transfer-Encoding: base64
+Content-Disposition: inline; filename="bayce-sixty-four"
+
+YjY03q2+7wo=
+
+--b
+Content-Type: text/plain
+Content-Disposition: inline; filename="noop.txt"
+
+plain
+text
+pass
+through
+
+--b
+Content-Type: text/plain
+Content-Disposition: inline; filename=".dotfile"
+
+dotfile
+
+--b--

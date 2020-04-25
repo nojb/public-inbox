@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::MIME;
 use Cwd qw(getcwd);
 use PublicInbox::MID qw(mid2path);
 use PublicInbox::Git;
@@ -22,7 +21,6 @@ my $fail_path = "$fail_bin:$ENV{PATH}"; # for spamc spam mock
 my $addr = 'test-public@example.com';
 my $cfgpfx = "publicinbox.test";
 my $faildir = "$home/faildir/";
-my $mime;
 my $git = PublicInbox::Git->new($maindir);
 
 my $fail_bad_header = sub ($$$) {
@@ -233,36 +231,8 @@ EOF
 		"learned ham idempotently ");
 
 	# ensure trained email is filtered, too
-	$mime = mime_load 't/mda-mime.eml', sub {
-	my $html_body = "<html><body>hi</body></html>";
-	my $parts = [
-		Email::MIME->create(
-			attributes => {
-				content_type => 'text/html; charset=UTF-8',
-				encoding => 'base64',
-			},
-			body => $html_body,
-		),
-		Email::MIME->create(
-			attributes => {
-				content_type => 'text/plain',
-				encoding => 'quoted-printable',
-			},
-			body => 'hi = "bye"',
-		)
-	];
-	$mid = 'multipart-html-sucks@11';
-	Email::MIME->create(
-		header_str => [
-		  From => 'a@example.com',
-		  Subject => 'blah',
-		  Cc => $addr,
-		  'Message-ID' => "<$mid>",
-		  'Content-Type' => 'multipart/alternative',
-		],
-		parts => $parts,
-	)}; # mime_load sub
-
+	my $mime = mime_load 't/mda-mime.eml';
+	($mid) = ($mime->header_raw('message-id') =~ /<([^>]+)>/);
 	{
 		$in = $mime->as_string;
 		ok(run_script(['-learn', 'ham'], undef, { 0 => \$in }),

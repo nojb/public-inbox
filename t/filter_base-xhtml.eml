@@ -1,0 +1,19 @@
+From: a@example.com
+Subject: blah
+Content-Type: multipart/alternative; boundary="b"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+
+--b
+Content-Type: text/xhtml; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+aGk8L2JvZHk+PC9odG1sPg==
+
+--b
+Content-Type: text/plain
+Content-Transfer-Encoding: quoted-printable
+
+hi =3D "bye"=
+
+--b--

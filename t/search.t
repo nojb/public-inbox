@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Search::Xapian Email::MIME));
+require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
 require PublicInbox::InboxWritable;
@@ -371,37 +371,7 @@ $ibx->with_umask(sub {
 }
 
 $ibx->with_umask(sub {
-	my $amsg = mime_load 't/search-amsg.eml', sub {
-	my $part1 = Email::MIME->create(
-                 attributes => {
-                     content_type => 'text/plain',
-                     disposition  => 'attachment',
-                     charset => 'US-ASCII',
-		     encoding => 'quoted-printable',
-		     filename => 'attached_fart.txt',
-                 },
-                 body_str => 'inside the attachment',
-	);
-	my $part2 = Email::MIME->create(
-                 attributes => {
-                     content_type => 'text/plain',
-                     disposition  => 'attachment',
-                     charset => 'US-ASCII',
-		     encoding => 'quoted-printable',
-		     filename => 'part_deux.txt',
-                 },
-                 body_str => 'inside another',
-	);
-	Email::MIME->create(
-		header_str => [
-			Subject => 'see attachment',
-			'Message-ID' => '<file@attached>',
-			From => 'John Smith <js@example.com>',
-			To => 'list@example.com',
-		],
-		parts => [ $part1, $part2 ],
-	)}; # mime_load sub
-
+	my $amsg = mime_load 't/search-amsg.eml';
 	ok($rw->add_message($amsg), 'added attachment');
 	$rw_commit->();
 	$ro->reopen;

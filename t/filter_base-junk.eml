@@ -1,0 +1,19 @@
+From: a@example.com
+Subject: blah
+Content-Type: multipart/mixed; boundary="b"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+
+--b
+Content-Type: application/vnd.ms-excel
+Content-Transfer-Encoding: base64
+
+anVuaw==
+
+--b
+Content-Type: text/plain
+Content-Transfer-Encoding: quoted-printable
+
+junk=
+
+--b--
