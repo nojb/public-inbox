@@ -12,7 +12,7 @@ our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 	run_script start_script key2sub xsys xqx mime_load);
 
 sub mime_load ($) {
-	my ($path, $cb) = @_;
+	my ($path) = @_;
 	open(my $fh, '<', $path) or die "open $path: $!";
 	PublicInbox::MIME->new(\(do { local $/; <$fh> }));
 }
