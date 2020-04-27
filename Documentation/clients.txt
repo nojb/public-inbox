@@ -1,0 +1,38 @@
+clients and tools related to public-inbox
+-----------------------------------------
+
+While public-inbox exposes NNTP and gzipped mboxrd over HTTP,
+some public-inbox-specific/aware tools have sprung up.
+
+Below is a non-exhaustive list of them.  Feel free to send
+additions, corrections and discussions to meta@public-inbox.org
+Discussions will be visible from our own public-inbox instance:
+https://public-inbox.org/meta/
+
+Disclaimer: public-inbox itself comes with no warranty or
+guarantees; so don't treat any of these links as endorsements,
+either.
+
+* l2md - Maildir and procmail importer using C + libgit2
+  https://git.kernel.org/pub/scm/linux/kernel/git/dborkman/l2md.git
+
+* b4 - helper utility for patch-based workflows
+  https://git.kernel.org/pub/scm/utils/b4/b4.git
+
+* impibe - Perl script to import v1 or v2 to Maildir
+  https://leahneukirchen.org/dotfiles/bin/impibe
+  discussion: https://public-inbox.org/meta/87v9m0l8t1.fsf@vuxu.org/
+
+* kernel.org helpers - various scripts used by *.kernel.org
+  https://git.kernel.org/pub/scm/linux/kernel/git/mricon/korg-helpers.git
+
+* grokmirror - git mirroring tool (not public-inbox-specific)
+  https://git.kernel.org/pub/scm/utils/grokmirror/grokmirror.git
+
+* ssoma - v1 only, abandoned in favor of NNTP
+  https://80x24.org/ssoma.git
+
+There's also a bunch of random scripts in the scripts/ directory
+of our source tree at:
+
+	git clone https://public-inbox.org/public-inbox.git
