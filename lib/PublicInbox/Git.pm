@@ -125,59 +125,48 @@ sub _bidi_pipe {
 	$self->{$in} = $in_r;
 }
 
-sub read_cat_in_full ($$$) {
-	my ($self, $in, $left) = @_;
-	my $offset = 0;
-	my $buf = '';
-	while ($left > 0) {
-		my $r = read($in, $buf, $left, $offset);
-		defined($r) or fail($self, "read failed: $!");
-		$r == 0 and fail($self, 'exited unexpectedly');
-		$left -= $r;
-		$offset += $r;
-	}
-	my $r = read($in, my $lf, 1);
-	defined($r) or fail($self, "read failed: $!");
-	fail($self, 'newline missing after blob') if ($r != 1 || $lf ne "\n");
+sub read_cat_in_full ($$) {
+	my ($self, $len) = @_;
+	++$len; # for final "\n" added by git
+	read($self->{in}, my $buf, $len) == $len or fail($self, 'short read');
+	chop($buf) eq "\n" or fail($self, 'newline missing after blob');
 	\$buf;
 }
 
-sub _cat_async_step ($$$) {
-	my ($self, $inflight, $in) = @_;
+sub _cat_async_step ($$) {
+	my ($self, $inflight) = @_;
 	my $pair = shift @$inflight or die 'BUG: inflight empty';
 	my ($cb, $arg) = @$pair;
 	local $/ = "\n";
-	my $head = $in->getline;
+	my $head = readline($self->{in});
 	$head =~ / missing$/ and return
 		eval { $cb->(undef, undef, undef, undef, $arg) };
 
 	$head =~ /^([0-9a-f]{40}) (\S+) ([0-9]+)$/ or
 		fail($self, "Unexpected result from async git cat-file: $head");
 	my ($oid_hex, $type, $size) = ($1, $2, $3 + 0);
-	my $bref = read_cat_in_full($self, $in, $size);
+	my $bref = read_cat_in_full($self, $size);
 	eval { $cb->($bref, $oid_hex, $type, $size, $arg) };
 }
 
 sub cat_async_wait ($) {
 	my ($self) = @_;
 	my $inflight = delete $self->{inflight} or return;
-	my $in = $self->{in};
 	while (scalar(@$inflight)) {
-		_cat_async_step($self, $inflight, $in);
+		_cat_async_step($self, $inflight);
 	}
 }
 
 sub cat_file {
 	my ($self, $obj, $ref) = @_;
-	my ($retried, $in, $head);
+	my ($retried, $head);
 	cat_async_wait($self);
 again:
 	batch_prepare($self);
-	$self->{out}->print($obj, "\n") or fail($self, "write error: $!");
+	print { $self->{out} } $obj, "\n" or fail($self, "write error: $!");
 
-	$in = $self->{in};
 	local $/ = "\n";
-	$head = $in->getline;
+	$head = readline($self->{in});
 	if ($head =~ / missing$/) {
 		if (!$retried && alternates_changed($self)) {
 			$retried = 1;
@@ -191,7 +180,7 @@ again:
 
 	my $size = $1;
 	$$ref = $size if $ref;
-	read_cat_in_full($self, $in, $size);
+	read_cat_in_full($self, $size);
 }
 
 sub batch_prepare ($) { _bidi_pipe($_[0], qw(--batch in out pid)) }
@@ -199,9 +188,9 @@ sub batch_prepare ($) { _bidi_pipe($_[0], qw(--batch in out pid)) }
 sub check {
 	my ($self, $obj) = @_;
 	_bidi_pipe($self, qw(--batch-check in_c out_c pid_c err_c));
-	$self->{out_c}->print($obj, "\n") or fail($self, "write error: $!");
+	print { $self->{out_c} } $obj, "\n" or fail($self, "write error: $!");
 	local $/ = "\n";
-	chomp(my $line = $self->{in_c}->getline);
+	chomp(my $line = readline($self->{in_c}));
 	my ($hex, $type, $size) = split(' ', $line);
 
 	# Future versions of git.git may show 'ambiguous', but for now,
@@ -320,10 +309,10 @@ sub cat_async ($$$;$) {
 	my ($self, $oid, $cb, $arg) = @_;
 	my $inflight = $self->{inflight} or die 'BUG: not in async';
 	if (scalar(@$inflight) >= MAX_INFLIGHT) {
-		_cat_async_step($self, $inflight, $self->{in});
+		_cat_async_step($self, $inflight);
 	}
 
-	$self->{out}->print($oid, "\n") or fail($self, "write error: $!");
+	print { $self->{out} } $oid, "\n" or fail($self, "write error: $!");
 	push(@$inflight, [ $cb, $arg ]);
 }
 
