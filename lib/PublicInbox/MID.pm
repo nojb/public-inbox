@@ -72,7 +72,7 @@ sub extract_mids {
 
 sub mids ($) {
 	my ($hdr) = @_;
-	my @mids = $hdr->header_raw('Message-Id');
+	my @mids = $hdr->header_raw('Message-ID');
 	uniq_mids(extract_mids(@mids));
 }
 
@@ -81,7 +81,7 @@ sub mids ($) {
 # import and index without relying on HTTP endpoints
 sub mids_for_index ($) {
 	my ($hdr) = @_;
-	my @mids = $hdr->header_raw('Message-Id');
+	my @mids = $hdr->header_raw('Message-ID');
 	my @alts = $hdr->header_raw('X-Alt-Message-ID');
 	uniq_mids(extract_mids(@mids, @alts));
 }

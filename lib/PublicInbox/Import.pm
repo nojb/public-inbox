@@ -354,7 +354,7 @@ sub v1_mid0 ($) {
 	my $hdr = $mime->header_obj;
 	my $mids = mids($hdr);
 
-	if (!scalar(@$mids)) { # spam often has no Message-Id
+	if (!scalar(@$mids)) { # spam often has no Message-ID
 		my $mid0 = digest2mid(content_digest($mime), $hdr);
 		append_mid($hdr, $mid0);
 		return $mid0;
