@@ -27,65 +27,61 @@ sub do_checks {
 }
 
 {
-	my $s = Email::Simple->create(
-		header => [
-			From => 'abc@example.com',
-			To => 'abc@example.com',
-			Cc => 'c@example.com, another-list@example.com',
-			'Content-Type' => 'text/plain',
-			Subject => 'list is fine',
-			'Message-ID' => '<MID@host>',
-			Date => 'Wed, 09 Apr 2014 01:28:34 +0000',
-		],
-		body => "hello world\n",
-	);
+	my $s = Email::Simple->new(<<'EOF');
+From: abc@example.com
+To: abc@example.com
+Cc: c@example.com, another-list@example.com
+Content-Type: text/plain
+Subject: list is fine
+Message-ID: <MID@host>
+Date: Wed, 09 Apr 2014 01:28:34 +0000
+
+hello world
+EOF
 	my $addr = [ 'c@example.com', 'd@example.com' ];
 	ok(PublicInbox::MDA->precheck($s, $addr), 'Cc list is OK');
 }
 
 {
-	do_checks(Email::Simple->create(
-		header => [
-			From => 'a@example.com',
-			To => 'b@example.com',
-			Cc => 'c@example.com',
-			'Content-Type' => 'text/plain',
-			Subject => 'this is a subject',
-			'Message-ID' => '<MID@host>',
-			Date => 'Wed, 09 Apr 2014 01:28:34 +0000',
-		],
-		body => "hello world\n",
-	));
+	do_checks(Email::Simple->new(<<'EOF'));
+From: a@example.com
+To: b@example.com
+Cc: c@example.com
+Content-Type: text/plain
+Subject: this is a subject
+Message-ID: <MID@host>
+Date: Wed, 09 Apr 2014 01:28:34 +0000
+
+hello world
+EOF
 }
 
 {
-	do_checks(Email::Simple->create(
-		header => [
-			From => 'a@example.com',
-			To => 'b+plus@example.com',
-			Cc => 'John Doe <c@example.com>',
-			'Content-Type' => 'text/plain',
-			Subject => 'this is a subject',
-			'Message-ID' => '<MID@host>',
-			Date => 'Wed, 09 Apr 2014 01:28:34 +0000',
-		],
-		body => "hello world\n",
-	));
+	do_checks(Email::Simple->new(<<'EOF'));
+From: a@example.com
+To: b+plus@example.com
+Cc: John Doe <c@example.com>
+Content-Type: text/plain
+Subject: this is a subject
+Message-ID: <MID@host>
+Date: Wed, 09 Apr 2014 01:28:34 +0000
+
+hello world
+EOF
 }
 
 {
 	my $recipient = 'b@example.com';
-	my $s = Email::Simple->create(
-		header => [
-			To => 'b@example.com',
-			Cc => 'c@example.com',
-			'Content-Type' => 'text/plain',
-			Subject => 'this is a subject',
-			'Message-ID' => '<MID@host>',
-			Date => 'Wed, 09 Apr 2014 01:28:34 +0000',
-		],
-		body => "hello world\n",
-	);
+	my $s = Email::Simple->new(<<'EOF');
+To: b@example.com
+Cc: c@example.com
+Content-Type: text/plain
+Subject: this is a subject
+Message-ID: <MID@host>
+Date: Wed, 09 Apr 2014 01:28:34 +0000
+
+hello world
+EOF
 	ok(!PublicInbox::MDA->precheck($s, $recipient),
 		"missing From: is rejected");
 }
