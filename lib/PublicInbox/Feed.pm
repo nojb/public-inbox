@@ -5,7 +5,6 @@
 package PublicInbox::Feed;
 use strict;
 use warnings;
-use PublicInbox::MIME;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::Smsg; # this loads w/o Search::Xapian
