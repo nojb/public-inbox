@@ -296,7 +296,7 @@ my $len = length $str;
 is($len, 26, 'got the alphabet');
 my $check_self = sub {
 	my ($conn) = @_;
-	vec(my $rbits, fileno($conn), 1) = 1;
+	vec(my $rbits = '', fileno($conn), 1) = 1;
 	select($rbits, undef, undef, 30) or Carp::confess('timed out');
 	$conn->read(my $buf, 4096);
 	my ($head, $body) = split(/\r\n\r\n/, $buf, 2);
