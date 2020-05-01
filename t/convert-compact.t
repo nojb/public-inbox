@@ -124,7 +124,6 @@ $rdr->{2} = \(my $err2 = '');
 $cmd = [ qw(-index --reindex -cc), "$tmpdir/v2" ];
 ok(run_script($cmd, undef, $rdr), '--reindex -c -c');
 like($err2, qr/xapian-compact/, 'xapian-compact ran (-c -c)');
-ok(scalar(split(/\n/, $err2)) > scalar(split(/\n/, $err)),
-	'-compacted twice');
+ok(($err2 =~ tr/\n/\n/) > ($err =~ tr/\n/\n/), '-compacted twice');
 
 done_testing();
