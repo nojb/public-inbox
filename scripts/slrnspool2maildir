@@ -10,6 +10,7 @@ use strict;
 use warnings;
 use Email::Filter;
 use Email::LocalDelivery;
+use File::Glob qw(bsd_glob GLOB_NOSORT);
 sub usage { "Usage:\n".join('',grep(/\t/, `head -n 12 $0`)) }
 my $spool = shift @ARGV or die usage();
 my $dir = shift @ARGV or die usage();
@@ -21,7 +22,7 @@ foreach my $sub (qw(cur new tmp)) {
 	mkdir $nd or die "mkdir $nd failed: $!\n";
 }
 
-foreach my $n (grep(/\d+\z/, glob("$spool/*"))) {
+foreach my $n (grep(/\d+\z/, bsd_glob("$spool/*", GLOB_NOSORT))) {
 	if (open my $fh, '<', $n) {
 		my $f = Email::Filter->new(data => do { local $/; <$fh> });
 		my $s = $f->simple;
