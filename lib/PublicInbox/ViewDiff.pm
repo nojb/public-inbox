@@ -82,10 +82,8 @@ sub anchor0 ($$$$) {
 	$fn =~ s/{(?:.+) => (.+)}/$1/ or $fn =~ s/.* => (.+)/$1/;
 	$fn = git_unquote($fn);
 
-	# long filenames will require us to walk backwards in anchor1
-	if ($fn =~ s!\A\.\.\./?!!) {
-		$ctx->{-long_path}->{$fn} = qr/\Q$fn\E\z/s;
-	}
+	# long filenames will require us to check in anchor1()
+	push(@{$ctx->{-long_path}}, $fn) if $fn =~ s!\A\.\.\./?!!;
 
 	if (my $attr = to_attr($ctx->{-apfx}.$fn)) {
 		$ctx->{-anchors}->{$attr} = 1;
@@ -105,17 +103,14 @@ sub anchor1 ($$) {
 
 	my $ok = delete $ctx->{-anchors}->{$attr};
 
-	# unlikely, check the end of all long path names we captured:
+	# unlikely, check the end of long path names we captured,
+	# assume diffstat and diff output follow the same order,
+	# and ignore different ordering (could be malicious input)
 	unless ($ok) {
-		my $lp = $ctx->{-long_path} or return;
-		foreach my $fn (keys %$lp) {
-			$pb =~ $lp->{$fn} or next;
-
-			delete $lp->{$fn};
-			$attr = to_attr($ctx->{-apfx}.$fn) or return;
-			$ok = delete $ctx->{-anchors}->{$attr} or return;
-			last;
-		}
+		my $fn = shift(@{$ctx->{-long_path}}) or return;
+		$pb =~ /\Q$fn\E\z/s or return;
+		$attr = to_attr($ctx->{-apfx}.$fn) or return;
+		$ok = delete $ctx->{-anchors}->{$attr} or return;
 	}
 	$ok ? "<a\nhref=#i$attr\nid=$attr>diff</a> --git" : undef
 }
