@@ -165,10 +165,12 @@ sub diff_before_or_after ($$) {
 	my ($ctx, $x) = @_;
 	my $linkify = $ctx->{-linkify};
 	my $dst = $ctx->{obuf};
+	my $anchors = exists($ctx->{-anchors}) ? 1 : 0;
 	for my $y (split(/(^---\n)/sm, $$x)) {
 		if ($y =~ /\A---\n\z/s) {
 			$$dst .= "---\n"; # all HTML is "\r\n" => "\n"
-		} elsif ($y =~ /^ [0-9]+ files? changed, /sm) {
+			$anchors |= 2;
+		} elsif ($anchors == 3 && $y =~ /^ [0-9]+ files? changed, /sm) {
 			# ok, looks like a diffstat, go line-by-line:
 			for my $l (split(/^/m, $y)) {
 				if ($l =~ /^ (.+)( +\| .*\z)/s) {

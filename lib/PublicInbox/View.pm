@@ -536,11 +536,14 @@ sub add_text_body { # callback for msg_iter
 	# always support diff-highlighting, but we can't linkify hunk
 	# headers for solver unless some coderepo are configured:
 	my $diff;
-	if ($s =~ /^(?:diff|---|\+{3}) /ms) {
+	if ($s =~ /^--- [^\n]+\n\+{3} [^\n]+\n@@ /ms) {
 		# diffstat anchors do not link across attachments or messages:
 		$idx[0] = $upfx . $idx[0] if $upfx ne '';
 		$ctx->{-apfx} = join('/', @idx);
-		$ctx->{-anchors} = {}; # attr => filename
+
+		# do attr => filename mappings for diffstats in git diffs:
+		$ctx->{-anchors} = {} if $s =~ /^diff --git /sm;
+
 		$diff = 1;
 		delete $ctx->{-long_path};
 		my $spfx;
