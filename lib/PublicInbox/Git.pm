@@ -147,6 +147,7 @@ sub _cat_async_step ($$) {
 	my ($oid_hex, $type, $size) = ($1, $2, $3 + 0);
 	my $bref = read_cat_in_full($self, $size);
 	eval { $cb->($bref, $oid_hex, $type, $size, $arg) };
+	warn "E: $oid_hex $@\n" if $@;
 }
 
 sub cat_async_wait ($) {
