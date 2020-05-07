@@ -30,18 +30,24 @@ use v5.10.1;
 use Carp qw(croak);
 use Encode qw(find_encoding decode encode); # stdlib
 use Text::Wrap qw(wrap); # stdlib, we need Perl 5.6+ for $huge
+use MIME::Base64 3.05; # Perl 5.10.0 / 5.9.2
+use MIME::QuotedPrint 3.05; # ditto
 
 my $MIME_Header = find_encoding('MIME-Header');
 
 use PublicInbox::EmlContentFoo qw(parse_content_type parse_content_disposition);
-use Email::MIME::Encodings;
 $PublicInbox::EmlContentFoo::STRICT_PARAMS = 0;
 
 our $MAXPARTS = 1000; # same as SpamAssassin
 our $MAXDEPTH = 20; # seems enough, Perl sucks, here
 our $MAXBOUNDLEN = 2048; # same as postfix
 
-my $NO_ENCODE_RE = qr/\A(?:7bit|8bit|binary)[ \t]*(?:;|$)?/i;
+my %MIME_ENC = (qp => \&enc_qp, base64 => \&encode_base64);
+my %MIME_DEC = (qp => \&dec_qp, base64 => \&decode_base64);
+$MIME_ENC{quotedprint} = $MIME_ENC{'quoted-printable'} = $MIME_ENC{qp};
+$MIME_DEC{quotedprint} = $MIME_DEC{'quoted-printable'} = $MIME_DEC{qp};
+$MIME_ENC{$_} = \&identity_codec for qw(7bit 8bit binary);
+
 my %DECODE_ADDRESS = map { $_ => 1 } qw(From To Cc Sender Reply-To);
 my %DECODE_FULL = (
 	Subject => 1,
@@ -109,13 +115,6 @@ sub header_raw {
 sub ct ($) {
 	# PublicInbox::EmlContentFoo::content_type:
 	$_[0]->{ct} //= parse_content_type(header($_[0], 'Content-Type'));
-}
-
-sub body_decode ($$) {
-	my $cte = header_raw($_[0], 'Content-Transfer-Encoding');
-	($cte) = ($cte =~ /([a-zA-Z0-9\-]+)/) if $cte; # For S/MIME, etc
-	(!$cte || $cte =~ $NO_ENCODE_RE) ?
-		$_[1] : Email::MIME::Encodings::decode($cte, $_[1], '7bit');
 }
 
 # returns a queue of sub-parts iff it's worth descending into
@@ -197,6 +196,22 @@ sub each_part {
 	}
 }
 
+sub enc_qp {
+	# prevent MIME::QuotedPrint from encoding CR as =0D since it's
+	# against RFCs and breaks MUAs
+	$_[0] =~ s/\r\n/\n/sg;
+	encode_qp($_[0], "\r\n");
+}
+
+sub dec_qp {
+	# RFC 2822 requires all lines to end in CRLF, though... :<
+	$_[0] = decode_qp($_[0]);
+	$_[0] =~ s/\n/\r\n/sg;
+	$_[0]
+}
+
+sub identity_codec { $_[0] }
+
 ########### compatibility section for existing Email::MIME uses #########
 
 sub header_obj {
@@ -240,9 +255,9 @@ EOF
 sub body_set {
 	my ($self, $body) = @_;
 	my $bdy = $self->{bdy} = ref($body) ? $body : \$body;
-	my $cte = header_raw($self, 'Content-Transfer-Encoding');
-	if ($cte && $cte !~ $NO_ENCODE_RE) {
-		$$bdy = Email::MIME::Encodings::encode($cte, $$bdy)
+	if (my $cte = header_raw($self, 'Content-Transfer-Encoding')) {
+		my $enc = $MIME_ENC{lc($cte)} or croak("can't encode `$cte'");
+		$$bdy = $enc->($$bdy); # in-place
 	}
 	undef;
 }
@@ -351,7 +366,13 @@ sub header_str {
 
 sub body_raw { ${$_[0]->{bdy} // \''}; }
 
-sub body { body_decode($_[0], body_raw($_[0])) }
+sub body {
+	my $raw = body_raw($_[0]);
+	my $cte = header_raw($_[0], 'Content-Transfer-Encoding') or return $raw;
+	($cte) = ($cte =~ /([a-zA-Z0-9\-]+)/) or return $raw; # For S/MIME, etc
+	my $dec = $MIME_DEC{lc($cte)} or return $raw;
+	$dec->($raw);
+}
 
 sub body_str {
 	my ($self) = @_;
