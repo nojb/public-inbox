@@ -14,7 +14,7 @@ use 5.010_001;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Git qw(git_unquote git_quote);
-use PublicInbox::MsgIter qw(msg_iter msg_part_text);
+use PublicInbox::MsgIter qw(msg_part_text);
 use PublicInbox::Qspawn;
 use PublicInbox::Tmpfile;
 use URI::Escape qw(uri_escape_utf8);
@@ -234,7 +234,7 @@ sub find_extract_diffs ($$$) {
 	my $diffs = [];
 	foreach my $smsg (@$msgs) {
 		$ibx->smsg_mime($smsg) or next;
-		msg_iter(delete $smsg->{mime}, \&extract_diff,
+		delete($smsg->{mime})->each_part(\&extract_diff,
 				[$self, $diffs, $pre, $post, $ibx, $smsg], 1);
 	}
 	@$diffs ? $diffs : undef;

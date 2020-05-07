@@ -7,12 +7,12 @@ use strict;
 use warnings;
 use base qw(Exporter);
 our @EXPORT = qw(msg_iter msg_part_text);
-use PublicInbox::MIME;
 
+# This becomes PublicInbox::MIME->each_part:
 # Like Email::MIME::walk_parts, but this is:
 # * non-recursive
 # * passes depth and indices to the iterator callback
-sub msg_iter ($$;$$) {
+sub em_each_part ($$;$$) {
 	my ($mime, $cb, $cb_arg, $do_undef) = @_;
 	my @parts = $mime->subparts;
 	if (@parts) {
@@ -33,6 +33,17 @@ sub msg_iter ($$;$$) {
 		}
 	} else {
 		$cb->([$mime, 0, 0], $cb_arg);
+	}
+}
+
+# Use this when we may accept Email::MIME from user scripts
+# (not just PublicInbox::MIME)
+sub msg_iter ($$;$$) { # $_[0] = PublicInbox::MIME/Email::MIME-like obj
+	my (undef, $cb, $cb_arg, $once) = @_;
+	if (my $ep = $_[0]->can('each_part')) { # PublicInbox::{MIME,*}
+		$ep->($_[0], $cb, $cb_arg, $once);
+	} else { # for compatibility with existing Email::MIME users:
+		em_each_part($_[0], $cb, $cb_arg, $once);
 	}
 }
 

@@ -24,6 +24,7 @@ use strict;
 use warnings;
 use base qw(Email::MIME);
 use Email::MIME::ContentType;
+use PublicInbox::MsgIter ();
 $Email::MIME::ContentType::STRICT_PARAMS = 0;
 
 if ($Email::MIME::VERSION <= 1.937) {
@@ -101,4 +102,6 @@ sub parts_multipart {
 }
 }
 
+no warnings 'once';
+*each_part = \&PublicInbox::MsgIter::em_each_part;
 1;

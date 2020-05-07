@@ -10,7 +10,7 @@ use Email::MIME::ContentType qw(parse_content_type);
 use PublicInbox::MIME;
 use PublicInbox::MsgIter;
 
-sub get_attach_i { # msg_iter callback
+sub get_attach_i { # ->each_part callback
 	my ($part, $depth, @idx) = @{$_[0]};
 	my $res = $_[1];
 	return if join('.', @idx) ne $res->[3]; # $idx
@@ -40,7 +40,7 @@ sub get_attach ($$$) {
 	my $mime = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return $res;
 	$mime = PublicInbox::MIME->new($mime);
 	$res->[3] = $idx;
-	msg_iter($mime, \&get_attach_i, $res, 1);
+	$mime->each_part(\&get_attach_i, $res, 1);
 	pop @$res; # cleanup before letting PSGI server see it
 	$res
 }

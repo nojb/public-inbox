@@ -243,7 +243,7 @@ sub index_entry {
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
 	$ctx->{obuf} = \$rv;
-	msg_iter($mime, \&add_text_body, $ctx, 1);
+	$mime->each_part(\&add_text_body, $ctx, 1);
 	delete $ctx->{obuf};
 
 	# add the footer
@@ -474,10 +474,10 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 }
 
 sub multipart_text_as_html {
-	# ($mime, $ctx) = @_; # msg_iter will do "$_[0] = undef"
+	# ($mime, $ctx) = @_; # each_part may do "$_[0] = undef"
 
 	# scan through all parts, looking for displayable text
-	msg_iter($_[0], \&add_text_body, $_[1], 1);
+	$_[0]->each_part(\&add_text_body, $_[1], 1);
 }
 
 sub attach_link ($$$$;$) {
@@ -515,11 +515,11 @@ EOF
 	undef;
 }
 
-sub add_text_body { # callback for msg_iter
+sub add_text_body { # callback for each_part
 	my ($p, $ctx) = @_;
 	my $upfx = $ctx->{mhref};
 	my $ibx = $ctx->{-inbox};
-	# $p - from msg_iter: [ Email::MIME, depth, @idx ]
+	# $p - from each_part: [ Email::MIME-like, depth, @idx ]
 	my ($part, $depth, @idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
