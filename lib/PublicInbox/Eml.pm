@@ -33,10 +33,9 @@ use Text::Wrap qw(wrap); # stdlib, we need Perl 5.6+ for $huge
 
 my $MIME_Header = find_encoding('MIME-Header');
 
-# TODO remove these dependencies
-use Email::MIME::ContentType;
+use PublicInbox::EmlContentFoo qw(parse_content_type parse_content_disposition);
 use Email::MIME::Encodings;
-$Email::MIME::ContentType::STRICT_PARAMS = 0;
+$PublicInbox::EmlContentFoo::STRICT_PARAMS = 0;
 
 our $MAXPARTS = 1000; # same as SpamAssassin
 our $MAXDEPTH = 20; # seems enough, Perl sucks, here
@@ -108,7 +107,7 @@ sub header_raw {
 # pick the first Content-Type header to match Email::MIME behavior.
 # It's usually the right one based on historical archives.
 sub ct ($) {
-	# Email::MIME::ContentType::content_type:
+	# PublicInbox::EmlContentFoo::content_type:
 	$_[0]->{ct} //= parse_content_type(header($_[0], 'Content-Type'));
 }
 

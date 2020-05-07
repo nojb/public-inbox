@@ -6,7 +6,7 @@ package PublicInbox::WwwAttach; # internal package
 use strict;
 use warnings;
 use bytes (); # only for bytes::length
-use Email::MIME::ContentType qw(parse_content_type);
+use PublicInbox::EmlContentFoo qw(parse_content_type);
 use PublicInbox::Eml;
 
 sub get_attach_i { # ->each_part callback

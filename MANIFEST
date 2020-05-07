@@ -106,6 +106,7 @@ lib/PublicInbox/DSPoll.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/Eml.pm
+lib/PublicInbox/EmlContentFoo.pm
 lib/PublicInbox/ExtMsg.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm
@@ -231,6 +232,8 @@ t/ds-poll.t
 t/edit.t
 t/emergency.t
 t/eml.t
+t/eml_content_disposition.t
+t/eml_content_type.t
 t/epoll.t
 t/fail-bin/spamc
 t/feed.t
