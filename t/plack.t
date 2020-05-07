@@ -31,7 +31,7 @@ my $git = PublicInbox::Git->new($inboxdir);
 my $im = PublicInbox::Import->new($git, 'test', $addr);
 # ensure successful message delivery
 {
-	my $mime = PublicInbox::MIME->new(<<EOF);
+	my $mime = PublicInbox::Eml->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -50,15 +50,15 @@ EOF
 	chomp @ls;
 
 	# multipart with two text bodies
-	$mime = mime_load 't/plack-2-txt-bodies.eml';
+	$mime = eml_load 't/plack-2-txt-bodies.eml';
 	$im->add($mime);
 
 	# multipart with attached patch + filename
-	$mime = mime_load 't/plack-attached-patch.eml';
+	$mime = eml_load 't/plack-attached-patch.eml';
 	$im->add($mime);
 
 	# multipart collapsed to single quoted-printable text/plain
-	$mime = mime_load 't/plack-qp.eml';
+	$mime = eml_load 't/plack-qp.eml';
 	like($mime->body_raw, qr/hi =3D bye=/, 'our test used QP correctly');
 	$im->add($mime);
 
@@ -77,7 +77,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 :(
 EOF
 	$crlf =~ s/\n/\r\n/sg;
-	$im->add(PublicInbox::MIME->new($crlf));
+	$im->add(PublicInbox::Eml->new($crlf));
 
 	$im->done;
 }

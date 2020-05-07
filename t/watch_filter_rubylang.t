@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use PublicInbox::TestCommon;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 require_mods(qw(Filesys::Notify::Simple DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::WatchMaildir';

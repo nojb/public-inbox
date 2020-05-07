@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::TestCommon;
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
@@ -31,7 +31,7 @@ my $ibx = {
 };
 $ibx = PublicInbox::Inbox->new($ibx);
 my $v2w = PublicInbox::V2Writable->new($ibx, 1);
-$v2w->add(PublicInbox::MIME->new(<<'EOF'));
+$v2w->add(PublicInbox::Eml->new(<<'EOF'));
 From: a@example.com
 To: b@example.com
 Subject: boo!

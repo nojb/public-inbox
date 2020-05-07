@@ -14,7 +14,7 @@ my $git_dir = "$tmpdir/a.git";
 	my $git = PublicInbox::Git->new($git_dir);
 	my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 	$im->init_bare;
-	$im->add(PublicInbox::MIME->new(<<'EOF'));
+	$im->add(PublicInbox::Eml->new(<<'EOF'));
 From: a@example.com
 To: b@example.com
 Subject: A subject line with a null =?iso-8859-1?q?=00?= see!

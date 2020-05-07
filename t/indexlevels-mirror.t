@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
 require PublicInbox::Admin;
@@ -12,7 +12,7 @@ my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
 require_mods(qw(DBD::SQLite));
 
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: test@example.com
 Subject: this is a subject

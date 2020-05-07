@@ -3,8 +3,9 @@
 use strict;
 use warnings;
 use Test::More;
+use PublicInbox::TestCommon;
+require_mods 'Email::Simple';
 use_ok('PublicInbox::SearchThread');
-use Email::Simple;
 my $mt = eval {
 	require Mail::Thread;
 	no warnings 'once';

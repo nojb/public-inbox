@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
 require_git(2.6);
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::MID qw(mids);
 require_mods(qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
@@ -26,7 +26,7 @@ my $new_mid;
 my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From oldbug-pre-a0c07cba0e5d8b6a Fri Oct  2 00:00:00 1993
 From: a@example.com
 To: test@example.com
@@ -225,7 +225,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 
 	# ensure conflicted attachments can be resolved
 	foreach my $body (qw(old new)) {
-		$mime = mime_load "t/psgi_v2-$body.eml";
+		$mime = eml_load "t/psgi_v2-$body.eml";
 		ok($im->add($mime), "added attachment $body");
 	}
 	$im->done;

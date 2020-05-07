@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::Simple;
+use PublicInbox::Eml;
 use PublicInbox::MDA;
 
 sub do_checks {
@@ -27,7 +27,7 @@ sub do_checks {
 }
 
 {
-	my $s = Email::Simple->new(<<'EOF');
+	my $s = PublicInbox::Eml->new(<<'EOF');
 From: abc@example.com
 To: abc@example.com
 Cc: c@example.com, another-list@example.com
@@ -43,7 +43,7 @@ EOF
 }
 
 {
-	do_checks(Email::Simple->new(<<'EOF'));
+	do_checks(PublicInbox::Eml->new(<<'EOF'));
 From: a@example.com
 To: b@example.com
 Cc: c@example.com
@@ -57,7 +57,7 @@ EOF
 }
 
 {
-	do_checks(Email::Simple->new(<<'EOF'));
+	do_checks(PublicInbox::Eml->new(<<'EOF'));
 From: a@example.com
 To: b+plus@example.com
 Cc: John Doe <c@example.com>
@@ -72,7 +72,7 @@ EOF
 
 {
 	my $recipient = 'b@example.com';
-	my $s = Email::Simple->new(<<'EOF');
+	my $s = PublicInbox::Eml->new(<<'EOF');
 To: b@example.com
 Cc: c@example.com
 Content-Type: text/plain

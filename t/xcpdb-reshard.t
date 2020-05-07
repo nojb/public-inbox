@@ -6,11 +6,11 @@ use Test::More;
 use PublicInbox::TestCommon;
 require_mods(qw(DBD::SQLite Search::Xapian));
 require_git('2.6');
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
 require PublicInbox::Search;
 
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: test@example.com
 Subject: this is a subject

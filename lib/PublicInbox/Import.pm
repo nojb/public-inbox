@@ -213,13 +213,13 @@ sub get_mark {
 }
 
 # returns undef on non-existent
-# ('MISMATCH', Email::MIME) on mismatch
-# (:MARK, Email::MIME) on success
+# ('MISMATCH', PublicInbox::Eml) on mismatch
+# (:MARK, PublicInbox::Eml) on success
 #
 # v2 callers should check with Xapian before calling this as
 # it is not idempotent.
 sub remove {
-	my ($self, $mime, $msg) = @_; # mime = Email::MIME
+	my ($self, $mime, $msg) = @_; # mime = PublicInbox::Eml or Email::MIME
 
 	my $path_type = $self->{path_type};
 	my ($path, $err, $cur, $blob);
@@ -375,7 +375,7 @@ sub clean_tree_v2 ($$$) {
 # returns undef on duplicate
 # returns the :MARK of the most recent commit
 sub add {
-	my ($self, $mime, $check_cb, $smsg) = @_; # mime = Email::MIME
+	my ($self, $mime, $check_cb, $smsg) = @_;
 
 	my ($name, $email, $at, $ct, $subject) = extract_cmt_info($mime, $smsg);
 	my $path_type = $self->{path_type};

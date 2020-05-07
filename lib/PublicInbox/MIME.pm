@@ -3,6 +3,9 @@
 #
 # The license for this file differs from the rest of public-inbox.
 #
+# We no longer load this in any of our code outside of maintainer
+# tests for compatibility.
+#
 # It monkey patches the "parts_multipart" subroutine with patches
 # from Matthew Horsfall <wolfsage@gmail.com> at:
 #

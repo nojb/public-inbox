@@ -5,7 +5,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
 require_mods(qw(Plack::Handler::CGI Plack::Util));
@@ -45,7 +45,7 @@ my $im = PublicInbox::InboxWritable->new($ibx)->importer;
 	local $ENV{HOME} = $home;
 
 	# inject some messages:
-	my $mime = PublicInbox::MIME->new(<<EOF);
+	my $mime = PublicInbox::Eml->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -62,7 +62,7 @@ EOF
 	ok($im->add($mime), 'added big message');
 
 	# deliver a reply, too
-	$mime = PublicInbox::MIME->new(<<EOF);
+	$mime = PublicInbox::Eml->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr
@@ -79,7 +79,7 @@ EOF
 	ok($im->add($mime), 'added reply');
 
 	my $slashy_mid = 'slashy/asdf@example.com';
-	my $slashy = PublicInbox::MIME->new(<<EOF);
+	my $slashy = PublicInbox::Eml->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
 Cc: $addr

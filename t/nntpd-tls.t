@@ -23,7 +23,7 @@ unless (-r $key && -r $cert) {
 use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
 require PublicInbox::InboxWritable;
-require PublicInbox::MIME;
+require PublicInbox::Eml;
 require PublicInbox::SearchIdx;
 our $need_zlib;
 eval { require Compress::Raw::Zlib } or
@@ -63,7 +63,7 @@ EOF
 
 {
 	my $im = $ibx->importer(0);
-	my $mime = mime_load 't/data/0001.patch';
+	my $mime = eml_load 't/data/0001.patch';
 	ok($im->add($mime), 'message added');
 	$im->done;
 	if ($version == 1) {

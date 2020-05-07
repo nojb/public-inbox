@@ -38,7 +38,7 @@ my $obuf = '';
 my $m = 0;
 
 my $cb = sub {
-	$mime = PublicInbox::MIME->new(shift);
+	$mime = PublicInbox::Eml->new(shift);
 	PublicInbox::View::multipart_text_as_html($mime, $ctx);
 	++$m;
 	$obuf = '';

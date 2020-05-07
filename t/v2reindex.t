@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::ContentId qw(content_digest);
 use File::Path qw(remove_tree);
 use PublicInbox::TestCommon;
@@ -24,7 +24,7 @@ my $agpl = do {
 	<$fh>;
 };
 my $phrase = q("defending all users' freedom");
-my $mime = PublicInbox::MIME->new(<<'EOF'.$agpl);
+my $mime = PublicInbox::Eml->new(<<'EOF'.$agpl);
 From: a@example.com
 To: test@example.com
 Subject: this is a subject
@@ -434,7 +434,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	$config{indexlevel} = 'medium';
 	my $ibx = PublicInbox::Inbox->new(\%config);
 	my $im = PublicInbox::V2Writable->new($ibx);
-	my $m3 = PublicInbox::MIME->new(<<'EOF');
+	my $m3 = PublicInbox::Eml->new(<<'EOF');
 Date: Tue, 24 May 2016 14:34:22 -0700 (PDT)
 Message-Id: <20160524.143422.552507610109476444.d@example.com>
 To: t@example.com
@@ -465,7 +465,7 @@ Somehow we got a message with 3 sets of headers into one
 message, could've been something broken on the archiver side.
 EOF
 
-	my $m1 = PublicInbox::MIME->new(<<'EOF');
+	my $m1 = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: t@example.com
 Subject: [PATCH 12/13]

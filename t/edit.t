@@ -28,7 +28,7 @@ my $file = 't/data/0001.patch';
 open my $fh, '<', $file or die "open: $!";
 my $raw = do { local $/; <$fh> };
 my $im = $ibx->importer(0);
-my $mime = PublicInbox::MIME->new($raw);
+my $mime = PublicInbox::Eml->new($raw);
 my $mid = mid_clean($mime->header('Message-Id'));
 ok($im->add($mime), 'add message to be edited');
 $im->done;
@@ -41,7 +41,7 @@ $t = '-F FILE'; {
 	local $ENV{MAIL_EDITOR} = "$^X -i -p -e 's/boolean prefix/bool pfx/'";
 	$cmd = [ '-edit', "-F$file", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t edit OK");
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->header('Subject'), qr/bool pfx/, "$t message edited");
 	like($out, qr/[a-f0-9]{40}/, "$t shows commit on success");
 }
@@ -51,7 +51,7 @@ $t = '-m MESSAGE_ID'; {
 	local $ENV{MAIL_EDITOR} = "$^X -i -p -e 's/bool pfx/boolean prefix/'";
 	$cmd = [ '-edit', "-m$mid", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t edit OK");
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->header('Subject'), qr/boolean prefix/, "$t message edited");
 	like($out, qr/[a-f0-9]{40}/, "$t shows commit on success");
 }
@@ -63,7 +63,7 @@ $t = 'no-op -m MESSAGE_ID'; {
 	$cmd = [ '-edit', "-m$mid", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t succeeds");
 	my $prev = $cur;
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	is_deeply($cur, $prev, "$t makes no change");
 	like($cur->header('Subject'), qr/boolean prefix/,
 		"$t does not change message");
@@ -79,7 +79,7 @@ $t = 'no-op -m MESSAGE_ID w/Status: header'; { # because mutt does it
 	$cmd = [ '-edit', "-m$mid", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t succeeds");
 	my $prev = $cur;
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	is_deeply($cur, $prev, "$t makes no change");
 	like($cur->header('Subject'), qr/boolean prefix/,
 		"$t does not change message");
@@ -94,7 +94,7 @@ $t = '-m MESSAGE_ID can change Received: headers'; {
 	local $ENV{MAIL_EDITOR} = "$^X -i -p -e 's/^Subject:.*/Received: x\\n\$&/'";
 	$cmd = [ '-edit', "-m$mid", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t succeeds");
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->header('Subject'), qr/boolean prefix/,
 		"$t does not change Subject");
 	is($cur->header('Received'), 'x', 'added Received header');
@@ -127,7 +127,7 @@ $t = 'mailEditor set in config'; {
 	local $ENV{GIT_EDITOR} = 'echo should not run';
 	$cmd = [ '-edit', "-m$mid", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t edited message");
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->header('Subject'), qr/bool pfx/, "$t message edited");
 	unlike($out, qr/should not run/, 'did not run GIT_EDITOR');
 }
@@ -137,20 +137,20 @@ $t = '--raw and mbox escaping'; {
 	local $ENV{MAIL_EDITOR} = "$^X -i -p -e 's/^\$/\\nFrom not mbox\\n/'";
 	$cmd = [ '-edit', "-m$mid", '--raw', $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t succeeds");
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->body, qr/^From not mbox/sm, 'put "From " line into body');
 
 	local $ENV{MAIL_EDITOR} = "$^X -i -p -e 's/^>From not/\$& an/'";
 	$cmd = [ '-edit', "-m$mid", $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t succeeds with mbox escaping");
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->body, qr/^From not an mbox/sm,
 		'changed "From " line unescaped');
 
 	local $ENV{MAIL_EDITOR} = "$^X -i -p -e 's/^From not an mbox\\n//s'";
 	$cmd = [ '-edit', "-m$mid", '--raw', $inboxdir ];
 	ok(run_script($cmd, undef, $opt), "$t succeeds again");
-	$cur = PublicInbox::MIME->new($ibx->msg_by_mid($mid));
+	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	unlike($cur->body, qr/^From not an mbox/sm, "$t restored body");
 }
 

@@ -6,7 +6,7 @@ use Test::More;
 use PublicInbox::ContentId qw(content_digest);
 use File::Path qw(remove_tree);
 use PublicInbox::TestCommon;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::SearchIdx';
@@ -18,7 +18,7 @@ my $ibx_config = {
 	-primary_address => 'test@example.com',
 	indexlevel => 'full',
 };
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: test@example.com
 Subject: this is a subject

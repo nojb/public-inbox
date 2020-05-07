@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 require_git(2.6);

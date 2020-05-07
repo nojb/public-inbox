@@ -4,9 +4,9 @@ use strict;
 use warnings;
 use Test::More;
 use POSIX qw(strftime);
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::MsgTime qw(msg_datestamp);
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: b@example.com
 Subject: this is a subject

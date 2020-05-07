@@ -20,9 +20,6 @@ my $profiles = {
 		perl
 		Devel::Peek
 		Digest::SHA
-		Email::Simple
-		Email::MIME
-		Email::MIME::ContentType
 		Encode
 		ExtUtils::MakeMaker
 		IO::Compress::Gzip

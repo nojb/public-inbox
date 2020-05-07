@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common
@@ -22,7 +22,7 @@ my $ibx = PublicInbox::Inbox->new({
 my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 Message-Id: <200308111450.h7BEoOu20077@mail.osdl.org>
 To: linux-kernel@vger.kernel.org
 Subject: [OSDL] linux-2.6.0-test3 reaim results

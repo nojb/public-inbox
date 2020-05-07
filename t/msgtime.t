@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::MsgTime;
 use PublicInbox::TestCommon;
 
@@ -11,7 +11,7 @@ our $received_date = 'Mon, 22 Jan 2007 13:16:24 -0500';
 sub datestamp ($) {
 	my ($date) = @_;
 	local $SIG{__WARN__} = sub {};  # Suppress warnings
-	my $mime = PublicInbox::MIME->new(<<"EOF");
+	my $mime = PublicInbox::Eml->new(<<"EOF");
 From: a\@example.com
 To: b\@example.com
 Subject: this is a subject
@@ -30,7 +30,7 @@ EOF
 sub timestamp ($) {
 	my ($received) = @_;
 	local $SIG{__WARN__} = sub {};  # Suppress warnings
-	my $mime = PublicInbox::MIME->new(<<"EOF");
+	my $mime = PublicInbox::Eml->new(<<"EOF");
 From: a\@example.com
 To: b\@example.com
 Subject: this is a subject

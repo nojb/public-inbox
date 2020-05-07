@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite HTTP::Request::Common Plack::Test
@@ -45,7 +45,7 @@ To: b\@example.com
 Date: Fri, 02 Oct 1993 00:00:0$i +0000
 
 
-	my $mime = PublicInbox::MIME->new(\$data);
+	my $mime = PublicInbox::Eml->new(\$data);
 	ok($im->add($mime), "added $mid");
 	$i++
 }

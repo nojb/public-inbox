@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use_ok 'PublicInbox::Filter::Vger';
 
 my $f = PublicInbox::Filter::Vger->new;
@@ -21,7 +21,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html
 Please read the FAQ at  http://www.tux.org/lkml/
 EOF
 
-	my $mime = PublicInbox::MIME->new($lkml);
+	my $mime = PublicInbox::Eml->new($lkml);
 	$mime = $f->delivery($mime);
 	is("keep this\n", $mime->body, 'normal message filtered OK');
 }
@@ -37,7 +37,7 @@ the body of a message to majordomo@vger.kernel.org
 More majordomo info at  http://vger.kernel.org/majordomo-info.html
 EOF
 
-	my $mime = PublicInbox::MIME->new($no_nl);
+	my $mime = PublicInbox::Eml->new($no_nl);
 	$mime = $f->delivery($mime);
 	is('OSX users :P', $mime->body, 'missing trailing LF in original OK');
 }

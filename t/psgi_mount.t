@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $maindir = "$tmpdir/main.git";
@@ -25,7 +25,7 @@ my $git = PublicInbox::Git->new($maindir);
 my $im = PublicInbox::Import->new($git, 'test', $addr);
 $im->init_bare;
 {
-	my $mime = PublicInbox::MIME->new(<<EOF);
+	my $mime = PublicInbox::Eml->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr

@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
 require_git(2.6);
@@ -26,7 +26,7 @@ ok(PublicInbox::Import::run_die([qw(git) , "--git-dir=$ibx->{inboxdir}",
 	qw(config core.sharedRepository 0644)]), 'set sharedRepository');
 $ibx = PublicInbox::Inbox->new($ibx);
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: b@example.com
 Subject: this is a subject

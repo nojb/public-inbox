@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 
@@ -28,7 +28,7 @@ use_ok 'PublicInbox::Import';
 
 	# ensure successful message delivery
 	{
-		my $mime = PublicInbox::MIME->new(<<EOF);
+		my $mime = PublicInbox::Eml->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr

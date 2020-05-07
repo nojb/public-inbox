@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use Email::Simple;
+use PublicInbox::Eml;
 use IO::File;
 use Fcntl qw(:DEFAULT SEEK_SET);
 use PublicInbox::TestCommon;
@@ -28,19 +28,19 @@ Subject: test
 Message-ID: <testmessage@example.com>
 
 EOF
-ok($spamc->spamcheck(Email::Simple->new($src), \$dst), 'Email::Simple works');
+ok($spamc->spamcheck(PublicInbox::Eml->new($src), \$dst), 'PublicInbox::Eml works');
 is($dst, $src, 'input == output');
 
 $dst = '';
 $spamc->{checkcmd} = ['sh', '-c', 'cat; false'];
-ok(!$spamc->spamcheck(Email::Simple->new($src), \$dst), 'Failed check works');
+ok(!$spamc->spamcheck(PublicInbox::Eml->new($src), \$dst), 'Failed check works');
 is($dst, $src, 'input == output for spammy example');
 
 for my $l (qw(ham spam)) {
 	my $file = "$tmpdir/$l.out";
 	$spamc->{$l.'cmd'} = ['tee', $file ];
 	my $method = $l.'learn';
-	ok($spamc->$method(Email::Simple->new($src)), "$method OK");
+	ok($spamc->$method(PublicInbox::Eml->new($src)), "$method OK");
 	open my $fh, '<', $file or die "failed to open $file: $!";
 	is(eval { local $/, <$fh> }, $src, "$l command ran alright");
 }

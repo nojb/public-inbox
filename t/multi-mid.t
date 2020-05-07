@@ -2,7 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::TestCommon;
 use PublicInbox::InboxWritable;
 require_git(2.6);
@@ -11,7 +11,7 @@ require PublicInbox::SearchIdx;
 my $delay = $ENV{TEST_DELAY_CONVERT};
 
 my $addr = 'test@example.com';
-my $bad = PublicInbox::MIME->new(<<EOF);
+my $bad = PublicInbox::Eml->new(<<EOF);
 Message-ID: <a\@example.com>
 Message-ID: <b\@example.com>
 From: a\@example.com
@@ -20,7 +20,7 @@ Subject: bad
 
 EOF
 
-my $good = PublicInbox::MIME->new(<<EOF);
+my $good = PublicInbox::Eml->new(<<EOF);
 Message-ID: <b\@example.com>
 From: b\@example.com
 To: $addr

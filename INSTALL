@@ -36,14 +36,17 @@ Beyond that, there is a long list of Perl modules required, starting with:
 * Digest::SHA                      typically installed with Perl
                                    rpm: perl-Digest-SHA
 
-* Email::MIME                      deb: libemail-mime-perl
-                                   pkg: p5-Email-MIME
-                                   rpm: perl-Email-MIME
-
 * URI::Escape                      deb: liburi-perl
                                    pkg: p5-URI
                                    rpm: perl-URI
                                    (for HTML/Atom generation)
+
+Email::MIME will be optional as of public-inbox v1.5.0,
+it may still be used in maintainer comparison tests:
+
+* Email::MIME                      deb: libemail-mime-perl
+                                   pkg: p5-Email-MIME
+                                   rpm: perl-Email-MIME
 
 Plack and Date::Parse are optional as of public-inbox v1.3.0,
 but required for older releases:
@@ -86,6 +89,11 @@ Numerous optional modules are likely to be useful as well:
                                    (speeds up process spawning on Linux,
                                     see public-inbox-daemon(8))
 
+- Email::Address::XS               deb: libemail-address-xs-perl
+                                   pkg: pkg-Email-Address-XS
+                                   (correct parsing of tricky email
+                                    addresses, phrases and comments)
+
 - Plack::Middleware::ReverseProxy  deb: libplack-middleware-reverseproxy-perl
                                    pkg: p5-Plack-Middleware-ReverseProxy
                                    rpm: perl-Plack-Middleware-ReverseProxy
@@ -107,16 +115,6 @@ Numerous optional modules are likely to be useful as well:
 
 The following modules are typically pulled in by dependencies listed
 above, so there is no need to explicitly install them:
-
-- Email::MIME::ContentType         deb: libemail-mime-contenttype-perl
-                                   pkg: p5-Email-MIME-ContentType
-                                   rpm: perl-Email-MIME-ContentType
-                                   (pulled in by Email::MIME)
-
-- Email::Simple                    deb: libemail-simple-perl
-                                   pkg: p5-Email-Simple
-                                   rpm: perl-Email-Simple
-                                   (pulled in by Email::MIME)
 
 * Encode                           deb: libperl5.$MINOR (or libencode-perl)
                                    pkg: perl5

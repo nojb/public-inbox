@@ -29,7 +29,7 @@ $im->init_bare;
 	my $b64 = "b64\xde\xad\xbe\xef\n";
 	my $txt = "plain\ntext\npass\nthrough\n";
 	my $dot = "dotfile\n";
-	$im->add(mime_load('t/psgi_attach.eml'));
+	$im->add(eml_load('t/psgi_attach.eml'));
 	$im->done;
 
 	my $www = PublicInbox::WWW->new($config);

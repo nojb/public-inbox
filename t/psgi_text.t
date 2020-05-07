@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $maindir = "$tmpdir/main.git";

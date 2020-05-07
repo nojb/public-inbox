@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use PublicInbox::Import;
 use PublicInbox::TestCommon;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 my ($inboxdir, $for_destroy) = tmpdir();
@@ -15,7 +15,7 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: test@example.com
 Subject: this is a subject

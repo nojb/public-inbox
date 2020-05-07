@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Feed;
 use PublicInbox::Git;
 use PublicInbox::Import;
@@ -32,7 +32,7 @@ my $im = PublicInbox::Import->new($git, 'tester', 'test@example');
 			$mid_line .= "In-Reply-To: $prev";
 		}
 		$prev = $mid;
-		my $mime = PublicInbox::MIME->new(<<EOF);
+		my $mime = PublicInbox::Eml->new(<<EOF);
 From: ME <me\@example.com>
 To: U <u\@example.com>
 $mid_line

@@ -2,7 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::MID qw(mid_escape mids references mids_for_index id_compress);
 
 is(mid_escape('foo!@(bar)'), 'foo!@(bar)');
@@ -16,7 +16,7 @@ like(id_compress('foo%bar@wtf'), qr/\A[a-f0-9]{40}\z/,
 is(id_compress('foobar-wtf'), 'foobar-wtf', 'regular ID not compressed');
 
 {
-	my $mime = PublicInbox::MIME->new("Message-ID: <mid-1\@a>\n\n");
+	my $mime = PublicInbox::Eml->new("Message-ID: <mid-1\@a>\n\n");
 	$mime->header_set('X-Alt-Message-ID', '<alt-id-for-nntp>');
 	is_deeply(['mid-1@a'], mids($mime->header_obj), 'mids in common case');
 	$mime->header_set('Message-Id', '<mid-1@a>', '<mid-2@b>');

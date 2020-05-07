@@ -62,7 +62,7 @@ local $ENV{GIT_COMMITTER_NAME} = eval {
 	use PublicInbox::MDA;
 	use PublicInbox::Address;
 	use Encode qw/encode/;
-	my $msg = mime_load 't/utf8.eml';
+	my $msg = eml_load 't/utf8.eml';
 	my $from = $msg->header('From');
 	my ($author) = PublicInbox::Address::names($from);
 	my ($email) = PublicInbox::Address::emails($from);
@@ -229,7 +229,7 @@ EOF
 		"learned ham idempotently ");
 
 	# ensure trained email is filtered, too
-	my $mime = mime_load 't/mda-mime.eml';
+	my $mime = eml_load 't/mda-mime.eml';
 	($mid) = ($mime->header_raw('message-id') =~ /<([^>]+)>/);
 	{
 		$in = $mime->as_string;

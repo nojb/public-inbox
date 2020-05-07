@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
@@ -24,7 +24,7 @@ sub test_replace ($$$) {
 		indexlevel => $level,
 	});
 
-	my $orig = PublicInbox::MIME->new(<<'EOF');
+	my $orig = PublicInbox::Eml->new(<<'EOF');
 From: Barbra Streisand <effect@example.com>
 To: test@example.com
 Subject: confidential
@@ -49,7 +49,7 @@ EOF
 	my $thread_a = $ibx->over->get_thread('replace@example.com');
 
 	my %before = map {; delete($_->{blob}) => $_ } @{$ibx->recent};
-	my $reject = PublicInbox::MIME->new($orig->as_string);
+	my $reject = PublicInbox::Eml->new($orig->as_string);
 	foreach my $mid (['<replace@example.com>', '<extra@example.com>'],
 				[], ['<replaced@example.com>']) {
 		$reject->header_set('Message-ID', @$mid);
@@ -61,7 +61,7 @@ EOF
 
 	# prepare the replacement
 	my $expect = "Move along, nothing to see here\n";
-	my $repl = PublicInbox::MIME->new($orig->as_string);
+	my $repl = PublicInbox::Eml->new($orig->as_string);
 	$repl->header_set('From', '<redactor@example.com>');
 	$repl->header_set('Subject', 'redacted');
 	$repl->header_set('Date', 'Sat, 02 Oct 2010 00:00:00 +0000');
@@ -80,7 +80,7 @@ EOF
 	is($changed_epochs, 1, 'only one epoch changed');
 
 	$im->done;
-	my $m = PublicInbox::MIME->new($ibx->msg_by_mid('replace@example.com'));
+	my $m = PublicInbox::Eml->new($ibx->msg_by_mid('replace@example.com'));
 	is($m->body, $expect, 'replaced message');
 	is_deeply(\@warn, [], 'no warnings on noop');
 
@@ -159,7 +159,7 @@ sub pad_msgs {
 			($i, $irt) = each %$i;
 		}
 		my $sec = sprintf('%0d', $i);
-		my $mime = PublicInbox::MIME->new(<<EOF);
+		my $mime = PublicInbox::Eml->new(<<EOF);
 From: foo\@example.com
 To: test\@example.com
 Message-ID: <$i\@example.com>

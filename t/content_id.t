@@ -4,9 +4,9 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::ContentId qw(content_id);
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: b@example.com
 Subject: this is a subject
@@ -17,7 +17,7 @@ hello world
 EOF
 
 my $orig = content_id($mime);
-my $reload = content_id(PublicInbox::MIME->new($mime->as_string));
+my $reload = content_id(PublicInbox::Eml->new($mime->as_string));
 is($orig, $reload, 'content_id matches after serialization');
 
 foreach my $h (qw(From To Cc)) {

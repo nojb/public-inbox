@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
@@ -15,7 +15,7 @@ my ($dir, $for_destroy) = tmpdir();
 my $git = PublicInbox::Git->new($dir);
 my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 $im->init_bare;
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: b@example.com
 Subject: this is a subject

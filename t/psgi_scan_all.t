@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape DBD::SQLite);
@@ -31,7 +31,7 @@ foreach my $i (1..2) {
 	my $im = PublicInbox::V2Writable->new($ibx, 1);
 	$im->{parallel} = 0;
 	$im->init_inbox(0);
-	my $mime = PublicInbox::MIME->new(<<EOF);
+	my $mime = PublicInbox::Eml->new(<<EOF);
 From: a\@example.com
 To: $addr
 Subject: s$i

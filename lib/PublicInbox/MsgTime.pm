@@ -138,7 +138,7 @@ sub time_response ($) {
 }
 
 sub msg_received_at ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+	my ($hdr) = @_; # PublicInbox::Eml
 	my @recvd = $hdr->header_raw('Received');
 	my ($ts);
 	foreach my $r (@recvd) {
@@ -153,7 +153,7 @@ sub msg_received_at ($) {
 }
 
 sub msg_date_only ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+	my ($hdr) = @_; # PublicInbox::Eml
 	my @date = $hdr->header_raw('Date');
 	my ($ts);
 	foreach my $d (@date) {
@@ -168,7 +168,7 @@ sub msg_date_only ($) {
 
 # Favors Received header for sorting globally
 sub msg_timestamp ($;$) {
-	my ($hdr, $fallback) = @_; # Email::MIME::Header
+	my ($hdr, $fallback) = @_; # PublicInbox::Eml
 	my $ret;
 	$ret = msg_received_at($hdr) and return time_response($ret);
 	$ret = msg_date_only($hdr) and return time_response($ret);
@@ -177,7 +177,7 @@ sub msg_timestamp ($;$) {
 
 # Favors the Date: header for display and sorting within a thread
 sub msg_datestamp ($;$) {
-	my ($hdr, $fallback) = @_; # Email::MIME::Header
+	my ($hdr, $fallback) = @_; # PublicInbox::Eml
 	my $ret;
 	$ret = msg_date_only($hdr) and return time_response($ret);
 	$ret = msg_received_at($hdr) and return time_response($ret);

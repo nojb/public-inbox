@@ -1,16 +1,23 @@
+#!perl -w
 # Copyright (C) 2017-2020 all contributors <meta@public-inbox.org>
 # This library is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.
 # Artistic or GPL-1+ <https://www.gnu.org/licenses/gpl-1.0.txt>
 use strict;
-use warnings;
 use Test::More;
-use_ok 'PublicInbox::MIME';
+use PublicInbox::TestCommon;
 use PublicInbox::MsgIter;
+my @classes = qw(PublicInbox::Eml);
+SKIP: {
+	require_mods('Email::MIME', 1);
+	push @classes, 'PublicInbox::MIME';
+};
+use_ok $_ for @classes;
+local $SIG{__WARN__} = sub {}; # needed for old Email::Simple (used by E::M)
 
-local $SIG{__WARN__} = sub {};
-my $msg = PublicInbox::MIME->new(
-'From:   Richard Hansen <hansenr@google.com>
+for my $cls (@classes) {
+	my $msg = PublicInbox::MIME->new(<<'EOF');
+From:   Richard Hansen <hansenr@google.com>
 To:     git@vger.kernel.org
 Cc:     Richard Hansen <hansenr@google.com>
 Subject: [PATCH 0/2] minor diff orderfile documentation improvements
@@ -40,10 +47,11 @@ Content-Description: (truncated) S/MIME Cryptographic Signature
 dkTlB69771K2eXK4LcHSH/2LqX+VYa3K44vrx1ruzjXdNWzIpKBy0weFNiwnJCGofvCysM2RCSI1
 --94eb2c0bc864b76ba30545b2bca9--
 
-');
+EOF
 
-my @parts = $msg->parts;
-my $exp = 'Richard Hansen (2):
+	my @parts = $msg->parts;
+	my $exp = <<EOF;
+Richard Hansen (2):
   diff: document behavior of relative diff.orderFile
   diff: document the pattern format for diff.orderFile
 
@@ -51,13 +59,12 @@ my $exp = 'Richard Hansen (2):
  Documentation/diff-options.txt | 3 ++-
  2 files changed, 6 insertions(+), 2 deletions(-)
 
-';
+EOF
 
-ok($msg->isa('Email::MIME'), 'compatible with Email::MIME');
-is($parts[0]->body, $exp, 'body matches expected');
+	is($parts[0]->body, $exp, 'body matches expected');
 
-
-my $raw = q^Date:   Wed, 18 Jan 2017 13:28:32 -0500
+	my $raw = <<'EOF';
+Date:   Wed, 18 Jan 2017 13:28:32 -0500
 From:   Santiago Torres <santiago@nyu.edu>
 To:     Junio C Hamano <gitster@pobox.com>
 Cc:     git@vger.kernel.org, peff@peff.net, sunshine@sunshineco.com,
@@ -92,28 +99,30 @@ Content-Type: application/pgp-signature; name="signature.asc"
 
 --r24xguofrazenjwe--
 
-^;
+EOF
 
-$msg = PublicInbox::MIME->new($raw);
-my $nr = 0;
-msg_iter($msg, sub {
-	my ($part, $level, @ex) = @{$_[0]};
-	is($level, 1, 'at expected level');
-	if (join('fail if $#ex > 0', @ex) eq '1') {
-		is($part->body_str, "your tree directly? \r\n", 'body OK');
-	} elsif (join('fail if $#ex > 0', @ex) eq '2') {
-		is($part->body, "-----BEGIN PGP SIGNATURE-----\n\n" .
-				"=7wIb\n" .
-				"-----END PGP SIGNATURE-----\n",
-			'sig "matches"');
-	} else {
-		fail "unexpected part\n";
-	}
-	$nr++;
-});
+	$msg = $cls->new($raw);
+	my $nr = 0;
+	msg_iter($msg, sub {
+		my ($part, $level, @ex) = @{$_[0]};
+		is($level, 1, 'at expected level');
+		if (join('fail if $#ex > 0', @ex) eq '1') {
+			is($part->body_str, "your tree directly? \r\n",
+			'body OK');
+		} elsif (join('fail if $#ex > 0', @ex) eq '2') {
+			is($part->body, "-----BEGIN PGP SIGNATURE-----\n\n" .
+					"=7wIb\n" .
+					"-----END PGP SIGNATURE-----\n",
+				'sig "matches"');
+		} else {
+			fail "unexpected part\n";
+		}
+		$nr++;
+	});
 
-is($nr, 2, 'got 2 parts');
-is($msg->as_string, $raw,
-	'stringified sufficiently close to original');
+	is($nr, 2, 'got 2 parts');
+	is($msg->as_string, $raw,
+		'stringified sufficiently close to original');
+}
 
 done_testing();

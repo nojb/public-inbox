@@ -6,7 +6,7 @@ use Test::More;
 use Fcntl qw(SEEK_SET);
 use Cwd;
 use PublicInbox::TestCommon;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 require_git(2.6);
 
 my $V = 2;
@@ -18,7 +18,7 @@ my $ibx = {
 	name => 'test-v2writable',
 	address => [ 'test@example.com' ],
 };
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: test@example.com
 Subject: this is a subject

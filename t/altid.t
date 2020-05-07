@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::Msgmap';
 use_ok 'PublicInbox::SearchIdx';
@@ -27,7 +27,7 @@ my $ibx;
 	my $git = PublicInbox::Git->new($git_dir);
 	my $im = PublicInbox::Import->new($git, 'testbox', 'test@example');
 	$im->init_bare;
-	$im->add(PublicInbox::MIME->new(<<'EOF'));
+	$im->add(PublicInbox::Eml->new(<<'EOF'));
 From: a@example.com
 To: b@example.com
 Subject: boo!

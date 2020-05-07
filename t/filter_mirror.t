@@ -9,7 +9,7 @@ use_ok 'PublicInbox::Filter::Mirror';
 my $f = PublicInbox::Filter::Mirror->new;
 ok($f, 'created PublicInbox::Filter::Mirror object');
 {
-	my $email = mime_load 't/mda-mime.eml';
+	my $email = eml_load 't/mda-mime.eml';
 	is($f->ACCEPT, $f->delivery($email), 'accept any trash that comes');
 }
 

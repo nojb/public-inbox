@@ -122,11 +122,6 @@ WriteMakefile(
 		# `perl5' on FreeBSD
 		# perl-Digest-SHA on RH-based
 		'Digest::SHA' => 0,
-		'Email::MIME' => 0,
-
-		# the following should be pulled in by Email::MIME:
-		'Email::MIME::ContentType' => 0,
-		'Email::Simple' => 0,
 
 		# libperl$PERL_VERSION or libencode-perl on Debian,
 		# `perl5' on FreeBSD

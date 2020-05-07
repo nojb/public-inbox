@@ -15,7 +15,7 @@ use IO::Socket;
 use POSIX qw(dup2);
 use_ok 'PublicInbox::V2Writable';
 use PublicInbox::InboxWritable;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 # FIXME: too much setup
 my ($tmpdir, $for_destroy) = tmpdir();
@@ -38,7 +38,7 @@ $ibx->{version} = 2;
 my $v2w = PublicInbox::V2Writable->new($ibx, 1);
 ok $v2w, 'v2w loaded';
 $v2w->{parallel} = 0;
-my $mime = PublicInbox::MIME->new(<<'');
+my $mime = PublicInbox::Eml->new(<<'');
 From: Me <me@example.com>
 To: You <you@example.com>
 Subject: a

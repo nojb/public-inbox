@@ -26,7 +26,7 @@ if ('setup') {
 	my $ibx = PublicInbox::Inbox->new($opts);
 	$ibx = PublicInbox::InboxWritable->new($ibx, 1);
 	my $im = $ibx->importer(0);
-	my $mime = PublicInbox::MIME->new(<<'EOF');
+	my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 Message-Id: <a@example.com>
 

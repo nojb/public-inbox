@@ -15,7 +15,7 @@ chomp $git_dir;
 # needed for alternates, and --absolute-git-dir is only in git 2.13+
 $git_dir = abs_path($git_dir);
 
-use_ok "PublicInbox::$_" for (qw(Inbox V2Writable MIME Git SolverGit WWW));
+use_ok "PublicInbox::$_" for (qw(Inbox V2Writable Git SolverGit WWW));
 
 my ($inboxdir, $for_destroy) = tmpdir();
 my $opts = {
@@ -29,7 +29,7 @@ my $im = PublicInbox::V2Writable->new($ibx, 1);
 $im->{parallel} = 0;
 
 my $deliver_patch = sub ($) {
-	$im->add(mime_load($_[0]));
+	$im->add(eml_load($_[0]));
 	$im->done;
 };
 

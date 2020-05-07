@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 require_mods(qw(DBD::SQLite Data::Dumper));
 use_ok 'PublicInbox::NNTP';
 use_ok 'PublicInbox::Inbox';
@@ -107,7 +107,7 @@ use_ok 'PublicInbox::Inbox';
 					url => [ '//example.com/a' ]});
 	is($ng->base_url, $u, 'URL expanded');
 	my $mid = 'a@b';
-	my $mime = PublicInbox::MIME->new("Message-ID: <$mid>\r\n\r\n");
+	my $mime = PublicInbox::Eml->new("Message-ID: <$mid>\r\n\r\n");
 	my $hdr = $mime->header_obj;
 	my $mock_self = { nntpd => { grouplist => [], 
 				     servername => 'example.com' } };

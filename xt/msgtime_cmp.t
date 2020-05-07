@@ -4,7 +4,7 @@
 use strict;
 use Test::More;
 use PublicInbox::TestCommon;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Inbox;
 use PublicInbox::Git;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
@@ -48,7 +48,7 @@ sub quiet_is_deeply ($$$$$) {
 sub compare {
 	my ($bref, $oid, $type, $size) = @_;
 	local $SIG{__WARN__} = sub { diag "$oid: ", @_ };
-	my $mime = PublicInbox::MIME->new($$bref);
+	my $mime = PublicInbox::Eml->new($$bref);
 	my $hdr = $mime->header_obj;
 	my @cur = msg_datestamp($hdr);
 	my @old = Old::msg_datestamp($hdr);
@@ -116,7 +116,7 @@ sub time_response ($) {
 }
 
 sub msg_received_at ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+	my ($hdr) = @_; # PublicInbox::Eml
 	my @recvd = $hdr->header_raw('Received');
 	my ($ts);
 	foreach my $r (@recvd) {
@@ -131,7 +131,7 @@ sub msg_received_at ($) {
 }
 
 sub msg_date_only ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+	my ($hdr) = @_; # PublicInbox::Eml
 	my @date = $hdr->header_raw('Date');
 	my ($ts);
 	foreach my $d (@date) {
@@ -149,7 +149,7 @@ sub msg_date_only ($) {
 
 # Favors Received header for sorting globally
 sub msg_timestamp ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+	my ($hdr) = @_; # PublicInbox::Eml
 	my $ret;
 	$ret = msg_received_at($hdr) and return time_response($ret);
 	$ret = msg_date_only($hdr) and return time_response($ret);
@@ -158,7 +158,7 @@ sub msg_timestamp ($) {
 
 # Favors the Date: header for display and sorting within a thread
 sub msg_datestamp ($) {
-	my ($hdr) = @_; # Email::MIME::Header
+	my ($hdr) = @_; # PublicInbox::Eml
 	my $ret;
 	$ret = msg_date_only($hdr) and return time_response($ret);
 	$ret = msg_received_at($hdr) and return time_response($ret);

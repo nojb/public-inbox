@@ -8,7 +8,7 @@ use PublicInbox::Hval qw(ascii_html);
 use_ok('PublicInbox::MsgIter');
 
 {
-	my $mime = mime_load 't/msg_iter-order.eml';
+	my $mime = eml_load 't/msg_iter-order.eml';
 	my @parts;
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
@@ -20,7 +20,7 @@ use_ok('PublicInbox::MsgIter');
 }
 
 {
-	my $mime = mime_load 't/msg_iter-nested.eml';
+	my $mime = eml_load 't/msg_iter-nested.eml';
 	my @parts;
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
@@ -33,7 +33,7 @@ use_ok('PublicInbox::MsgIter');
 }
 
 {
-	my $mime = mime_load 't/iso-2202-jp.eml';
+	my $mime = eml_load 't/iso-2202-jp.eml';
 	my $raw = '';
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};
@@ -46,7 +46,7 @@ use_ok('PublicInbox::MsgIter');
 }
 
 {
-	my $mime = mime_load 't/x-unknown-alpine.eml';
+	my $mime = eml_load 't/x-unknown-alpine.eml';
 	my $raw = '';
 	msg_iter($mime, sub {
 		my ($part, $level, @ex) = @{$_[0]};

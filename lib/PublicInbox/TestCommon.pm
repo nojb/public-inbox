@@ -8,7 +8,6 @@ use parent qw(Exporter);
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
-use PublicInbox::MIME; # temporary
 our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 	run_script start_script key2sub xsys xqx mime_load eml_load);
 
@@ -23,7 +22,7 @@ sub mime_load ($) {
 sub eml_load ($) {
 	my ($path, $cb) = @_;
 	open(my $fh, '<', $path) or die "open $path: $!";
-	binmode $fh;
+	require PublicInbox::Eml;
 	PublicInbox::Eml->new(\(do { local $/; <$fh> }));
 }
 

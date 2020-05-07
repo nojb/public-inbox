@@ -36,7 +36,7 @@ local $ENV{PI_CONFIG} = $cfgfile;
 open my $cfg_fh, '>', $cfgfile or die "open: $!";
 
 my $v2w = PublicInbox::V2Writable->new($ibx, {nproc => 1});
-my $mime = PublicInbox::MIME->new($raw);
+my $mime = PublicInbox::Eml->new($raw);
 ok($v2w->add($mime), 'add message to be purged');
 $v2w->done;
 

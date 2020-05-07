@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::ContentId qw(content_digest content_id);
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
@@ -20,7 +20,7 @@ my $ibx = {
 	-primary_address => 'test@example.com',
 };
 $ibx = PublicInbox::Inbox->new($ibx);
-my $mime = PublicInbox::MIME->new(<<'EOF');
+my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
 To: test@example.com
 Subject: this is a subject
@@ -63,7 +63,7 @@ if ('ensure git configs are correct') {
 	@warn = ();
 	$mime->header_set('Message-Id', '<a-mid@b>', '<c@d>');
 	is($im->add($mime), undef, 'secondary MID ignored if first matches');
-	my $sec = PublicInbox::MIME->new($mime->as_string);
+	my $sec = PublicInbox::Eml->new($mime->as_string);
 	$sec->header_set('Date');
 	$sec->header_set('Message-Id', '<a-mid@b>', '<c@d>');
 	ok($im->add($sec), 'secondary MID used if data is different');
@@ -90,7 +90,7 @@ if ('ensure git configs are correct') {
 	my $hdr = $mime->header_obj;
 	my $gen = PublicInbox::Import::digest2mid(content_digest($mime), $hdr);
 	unlike($gen, qr![\+/=]!, 'no URL-unfriendly chars in Message-Id');
-	my $fake = PublicInbox::MIME->new($mime->as_string);
+	my $fake = PublicInbox::Eml->new($mime->as_string);
 	$fake->header_set('Message-Id', "<$gen>");
 	ok($im->add($fake), 'fake added easily');
 	is_deeply(\@warn, [], 'no warnings from a faker');

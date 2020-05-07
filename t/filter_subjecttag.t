@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use_ok 'PublicInbox::Filter::SubjectTag';
 
 my $f = eval { PublicInbox::Filter::SubjectTag->new };
@@ -11,7 +11,7 @@ like($@, qr/tag not defined/, 'error without args');
 $f = PublicInbox::Filter::SubjectTag->new('-tag', '[foo]');
 is(ref $f, 'PublicInbox::Filter::SubjectTag', 'new object created');
 
-my $mime = PublicInbox::MIME->new(<<EOF);
+my $mime = PublicInbox::Eml->new(<<EOF);
 To: you <you\@example.com>
 Subject: =?UTF-8?B?UmU6IFtmb29dIEVsw4PCqWFub3I=?=
 

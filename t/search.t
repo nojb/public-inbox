@@ -8,7 +8,7 @@ require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
 require PublicInbox::InboxWritable;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir });
@@ -60,7 +60,7 @@ sub oct_is ($$$) {
 }
 
 $ibx->with_umask(sub {
-	my $root = PublicInbox::MIME->new(<<'EOF');
+	my $root = PublicInbox::Eml->new(<<'EOF');
 Date: Fri, 02 Oct 1993 00:00:00 +0000
 Subject: Hello world
 Message-ID: <root@s>
@@ -70,7 +70,7 @@ List-Id: I'm not mad <i.m.just.bored>
 
 \m/
 EOF
-	my $last = PublicInbox::MIME->new(<<'EOF');
+	my $last = PublicInbox::Eml->new(<<'EOF');
 Date: Sat, 02 Oct 2010 00:00:00 +0000
 Subject: Re: Hello world
 In-Reply-To: <root@s>
@@ -128,7 +128,7 @@ sub filter_mids {
 $ibx->with_umask(sub {
 	$rw_commit->();
 	my $rmid = '<ghost-message@s>';
-	my $reply_to_ghost = PublicInbox::MIME->new(<<"EOF");
+	my $reply_to_ghost = PublicInbox::Eml->new(<<"EOF");
 Date: Sat, 02 Oct 2010 00:00:00 +0000
 Subject: Re: ghosts
 Message-ID: <ghost-reply\@s>
@@ -142,7 +142,7 @@ EOF
 	my $reply_id = $rw->add_message($reply_to_ghost);
 	is($reply_id, int($reply_id), "reply_id is an integer: $reply_id");
 
-	my $was_ghost = PublicInbox::MIME->new(<<"EOF");
+	my $was_ghost = PublicInbox::Eml->new(<<"EOF");
 Date: Sat, 02 Oct 2010 00:00:01 +0000
 Subject: ghosts
 Message-ID: $rmid
@@ -191,7 +191,7 @@ $ibx->with_umask(sub {
 	$rw_commit->();
 	$ro->reopen;
 	my $long_mid = 'last' . ('x' x 60). '@s';
-	my $long = PublicInbox::MIME->new(<<EOF);
+	my $long = PublicInbox::Eml->new(<<EOF);
 Date: Sat, 02 Oct 2010 00:00:00 +0000
 Subject: long message ID
 References: <root\@s> <last\@s>
@@ -211,7 +211,7 @@ EOF
 	my @res;
 
 	my $long_reply_mid = 'reply-to-long@1';
-	my $long_reply = PublicInbox::MIME->new(<<EOF);
+	my $long_reply = PublicInbox::Eml->new(<<EOF);
 Subject: I break references
 Date: Sat, 02 Oct 2010 00:00:00 +0000
 Message-ID: <$long_reply_mid>
@@ -235,7 +235,7 @@ EOF
 # quote prioritization
 $ibx->with_umask(sub {
 	$rw_commit->();
-	$rw->add_message(PublicInbox::MIME->new(<<'EOF'));
+	$rw->add_message(PublicInbox::Eml->new(<<'EOF'));
 Date: Sat, 02 Oct 2010 00:00:01 +0000
 Subject: Hello
 Message-ID: <quote@a>
@@ -245,7 +245,7 @@ To: list@example.com
 > theatre illusions
 fade
 EOF
-	$rw->add_message(PublicInbox::MIME->new(<<'EOF'));
+	$rw->add_message(PublicInbox::Eml->new(<<'EOF'));
 Date: Sat, 02 Oct 2010 00:00:02 +0000
 Subject: Hello
 Message-ID: <nquote@a>
@@ -269,7 +269,7 @@ EOF
 # circular references
 $ibx->with_umask(sub {
 	my $s = 'foo://'. ('Circle' x 15).'/foo';
-	my $doc_id = $rw->add_message(PublicInbox::MIME->new(<<EOF));
+	my $doc_id = $rw->add_message(PublicInbox::Eml->new(<<EOF));
 Subject: $s
 Date: Sat, 02 Oct 2010 00:00:01 +0000
 Message-ID: <circle\@a>
@@ -288,7 +288,7 @@ EOF
 });
 
 $ibx->with_umask(sub {
-	my $mime = mime_load 't/utf8.eml';
+	my $mime = eml_load 't/utf8.eml';
 	my $doc_id = $rw->add_message($mime);
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
 	my $msg = $rw->query('m:testmessage@example.com', {limit => 1})->[0];
@@ -371,7 +371,7 @@ $ibx->with_umask(sub {
 }
 
 $ibx->with_umask(sub {
-	my $amsg = mime_load 't/search-amsg.eml';
+	my $amsg = eml_load 't/search-amsg.eml';
 	ok($rw->add_message($amsg), 'added attachment');
 	$rw_commit->();
 	$ro->reopen;
@@ -429,7 +429,7 @@ $ibx->with_umask(sub {
 	my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
 	is($ro->reopen->query("m:$digits", { mset => 1})->size, 0,
 		'no results yet');
-	my $pine = PublicInbox::MIME->new(<<EOF);
+	my $pine = PublicInbox::Eml->new(<<EOF);
 Subject: blah
 Message-ID: <$mid>
 From: torvalds\@transmeta

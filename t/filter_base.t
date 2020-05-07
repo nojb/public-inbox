@@ -21,13 +21,13 @@ use_ok 'PublicInbox::Filter::Base';
 
 {
 	my $f = PublicInbox::Filter::Base->new;
-	my $email = mime_load 't/filter_base-xhtml.eml';
+	my $email = eml_load 't/filter_base-xhtml.eml';
 	is($f->delivery($email), 100, "xhtml rejected");
 }
 
 {
 	my $f = PublicInbox::Filter::Base->new;
-	my $email = mime_load 't/filter_base-junk.eml';
+	my $email = eml_load 't/filter_base-junk.eml';
 	is($f->delivery($email), 100, 'proprietary format rejected on glob');
 }
 

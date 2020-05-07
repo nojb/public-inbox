@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
@@ -27,7 +27,7 @@ my $im = $ibx->importer(0);
 my $digits = '10010260936330';
 my $ua = 'Pine.LNX.4.10';
 my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
-my $mime = PublicInbox::MIME->new(<<EOF);
+my $mime = PublicInbox::Eml->new(<<EOF);
 Subject: test
 Message-ID: <$mid>
 From: Ævar Arnfjörð Bjarmason <avarab\@example>
@@ -36,7 +36,7 @@ To: git\@vger.kernel.org
 EOF
 $im->add($mime);
 
-$mime = PublicInbox::MIME->new(<<'EOF');
+$mime = PublicInbox::Eml->new(<<'EOF');
 Subject:
 Message-ID: <blank-subject@example.com>
 From: blank subject <blank-subject@example.com>
@@ -45,7 +45,7 @@ To: git@vger.kernel.org
 EOF
 $im->add($mime);
 
-$mime = PublicInbox::MIME->new(<<'EOF');
+$mime = PublicInbox::Eml->new(<<'EOF');
 Message-ID: <no-subject-at-all@example.com>
 From: no subject at all <no-subject-at-all@example.com>
 To: git@vger.kernel.org
