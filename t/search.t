@@ -66,6 +66,7 @@ Subject: Hello world
 Message-ID: <root@s>
 From: John Smith <js@example.com>
 To: list@example.com
+List-Id: I'm not mad <i.m.just.bored>
 
 \m/
 EOF
@@ -77,6 +78,7 @@ Message-ID: <last@s>
 From: John Smith <js@example.com>
 To: list@example.com
 Cc: foo@example.com
+List-Id: there's nothing <left.for.me.to.do>
 
 goodbye forever :<
 EOF
@@ -447,6 +449,35 @@ EOF
 	}
 	is($ro->query("m:Pine m:LNX m:10010260936330", {mset=>1})->size, 1);
 });
+
+{ # List-Id searching
+	my $found = $ro->query('lid:i.m.just.bored');
+	is_deeply([ filter_mids($found) ], [ 'root@s' ],
+		'got expected mid on exact lid: search');
+
+	$found = $ro->query('lid:just.bored');
+	is_deeply($found, [], 'got nothing on lid: search');
+
+	$found = $ro->query('lid:*.just.bored');
+	is_deeply($found, [], 'got nothing on lid: search');
+
+	$found = $ro->query('l:i.m.just.bored');
+	is_deeply([ filter_mids($found) ], [ 'root@s' ],
+		'probabilistic search works on full List-Id contents');
+
+	$found = $ro->query('l:just.bored');
+	is_deeply([ filter_mids($found) ], [ 'root@s' ],
+		'probabilistic search works on partial List-Id contents');
+
+	$found = $ro->query('lid:mad');
+	is_deeply($found, [], 'no match on phrase with lid:');
+
+	$found = $ro->query('lid:bored');
+	is_deeply($found, [], 'no match on partial List-Id with lid:');
+
+	$found = $ro->query('l:nothing');
+	is_deeply($found, [], 'matched on phrase with l:');
+}
 
 done_testing();
 

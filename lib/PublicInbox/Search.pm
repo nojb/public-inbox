@@ -77,11 +77,17 @@ use constant {
 	# 15 - see public-inbox-v2-format(5)
 	#      further bumps likely unnecessary, we'll suggest in-place
 	#      "--reindex" use for further fixes and tweaks
+	#
+	#      public-inbox v1.5.0 adds (still SCHEMA_VERSION=15):
+	#      * "lid:" and "l:" for List-Id searches
 	SCHEMA_VERSION => 15,
 };
 
+# note: the non-X term prefix allocations are shared with
+# Xapian omega, see xapian-applications/omega/docs/termprefixes.rst
 my %bool_pfx_external = (
 	mid => 'Q', # Message-ID (full/exact), this is mostly uniQue
+	lid => 'G', # newsGroup (or similar entity), just inside <>
 	dfpre => 'XDFPRE',
 	dfpost => 'XDFPOST',
 	dfblob => 'XDFPRE XDFPOST',
@@ -92,6 +98,7 @@ my %prob_prefix = (
 	# for mairix compatibility
 	s => 'S',
 	m => 'XM', # 'mid:' (bool) is exact, 'm:' (prob) can do partial
+	l => 'XL', # 'lid:' (bool) is exact, 'l:' (prob) can do partial
 	f => 'A',
 	t => 'XTO',
 	tc => 'XTO XCC',
@@ -134,6 +141,8 @@ EOF
 	'f:' => 'match within the From header',
 	'a:' => 'match within the To, Cc, and From headers',
 	'tc:' => 'match within the To and Cc headers',
+	'lid:' => 'exact contents of the List-Id',
+	'l:' => 'partial match contents of the List-Id header',
 	'bs:' => 'match within the Subject and body',
 	'dfn:' => 'match filename from diff',
 	'dfa:' => 'match diff removed (-) lines',

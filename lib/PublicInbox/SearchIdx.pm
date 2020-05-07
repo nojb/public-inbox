@@ -352,6 +352,12 @@ sub add_xapian ($$$$) {
 		}
 	}
 	$doc->add_boolean_term('Q' . $_) foreach @$mids;
+	for my $l ($hdr->header_raw('List-Id')) {
+		$l =~ /<([^>]+)>/ or next;
+		my $lid = $1;
+		$doc->add_boolean_term('G' . $lid);
+		index_text($self, $lid, 1, 'XL'); # probabilistic
+	}
 	$self->{xdb}->replace_document($smsg->{num}, $doc);
 }
 
