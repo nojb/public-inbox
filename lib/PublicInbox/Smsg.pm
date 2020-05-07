@@ -106,20 +106,18 @@ sub lines ($) { $_[0]->{lines} }
 
 sub __hdr ($$) {
 	my ($self, $field) = @_;
-	my $val = $self->{$field};
-	return $val if defined $val;
-
-	my $mime = $self->{mime} or return;
-	my @raw = $mime->header($field);
-	$val = join(', ', @raw);
-	$val =~ tr/\t\n/  /;
-	$val =~ tr/\r//d;
-	$self->{$field} = $val;
+	$self->{lc($field)} //= do {
+		my $mime = $self->{mime} or return;
+		my $val = join(', ', $mime->header($field));
+		$val =~ tr/\r//d;
+		$val =~ tr/\t\n/  /;
+		$val;
+	};
 }
 
-sub subject ($) { __hdr($_[0], 'subject') }
-sub to ($) { __hdr($_[0], 'to') }
-sub cc ($) { __hdr($_[0], 'cc') }
+sub subject ($) { __hdr($_[0], 'Subject') }
+sub to ($) { __hdr($_[0], 'To') }
+sub cc ($) { __hdr($_[0], 'Cc') }
 
 # no strftime, that is locale-dependent and not for RFC822
 my @DoW = qw(Sun Mon Tue Wed Thu Fri Sat);
@@ -137,7 +135,7 @@ sub date ($) {
 
 sub from ($) {
 	my ($self) = @_;
-	my $from = __hdr($self, 'from');
+	my $from = __hdr($self, 'From');
 	if (defined $from && !defined $self->{from_name}) {
 		my @n = PublicInbox::Address::names($from);
 		$self->{from_name} = join(', ', @n);
