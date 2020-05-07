@@ -15,8 +15,7 @@ my $do_exit = sub {
 	exit $code;
 };
 
-use Email::Simple;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::MDA;
 use PublicInbox::Config;
 use PublicInbox::Emergency;
@@ -32,7 +31,7 @@ $ems = PublicInbox::Emergency->new($emergency);
 my $str = do { local $/; <STDIN> };
 $str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 $ems->prepare(\$str);
-my $simple = Email::Simple->new(\$str);
+my $eml = PublicInbox::Eml->new(\$str);
 my $config = PublicInbox::Config->new;
 my $key = 'publicinboxmda.spamcheck';
 my $default = 'PublicInbox::Spamcheck::Spamc';
@@ -44,7 +43,7 @@ if (defined $recipient) {
 	push @$dests, $ibx if $ibx;
 }
 if (!scalar(@$dests)) {
-	$dests = PublicInbox::MDA->inboxes_for_list_id($config, $simple);
+	$dests = PublicInbox::MDA->inboxes_for_list_id($config, $eml);
 	if (!scalar(@$dests) && !defined($recipient)) {
 		die "ORIGINAL_RECIPIENT not defined in ENV\n";
 	}
@@ -61,7 +60,7 @@ my $err;
 		0;
 	# pre-check, MDA has stricter rules than an importer might;
 	} elsif ($precheck) {
-		!!PublicInbox::MDA->precheck($simple, $ibx->{address});
+		!!PublicInbox::MDA->precheck($eml, $ibx->{address});
 	} else {
 		1;
 	}
@@ -69,7 +68,7 @@ my $err;
 
 $do_exit->(67) if $err && scalar(@$dests) == 0;
 
-$simple = undef;
+$eml = undef;
 my $spam_ok;
 if ($spamc) {
 	$str = '';
@@ -101,9 +100,10 @@ my @rejects;
 for my $ibx (@$dests) {
 	mda_filter_adjust($ibx);
 	my $filter = $ibx->filter;
-	my $mime = PublicInbox::MIME->new($str);
+	my $mime = PublicInbox::Eml->new($str);
 	my $ret = $filter->delivery($mime);
-	if (ref($ret) && $ret->isa('Email::MIME')) { # filter altered message
+	if (ref($ret) && ($ret->isa('PublicInbox::Eml') ||
+			$ret->isa('Email::MIME'))) { # filter altered message
 		$mime = $ret;
 	} elsif ($ret == PublicInbox::Filter::Base::IGNORE) {
 		next; # nothing, keep looping

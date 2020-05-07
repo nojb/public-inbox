@@ -152,7 +152,7 @@ sub preload {
 	require PublicInbox::Feed;
 	require PublicInbox::View;
 	require PublicInbox::SearchThread;
-	require PublicInbox::MIME;
+	require PublicInbox::Eml;
 	require PublicInbox::Mbox;
 	require PublicInbox::ViewVCS;
 	require PublicInbox::WwwText;

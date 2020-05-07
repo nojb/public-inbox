@@ -9,7 +9,7 @@ use strict;
 use warnings;
 use PublicInbox::Config;
 use PublicInbox::InboxWritable;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Address;
 use PublicInbox::Spamcheck::Spamc;
 my $train = shift or die "usage: $usage\n";
@@ -20,7 +20,7 @@ if ($train !~ /\A(?:ham|spam|rm)\z/) {
 my $spamc = PublicInbox::Spamcheck::Spamc->new;
 my $pi_config = PublicInbox::Config->new;
 my $err;
-my $mime = PublicInbox::MIME->new(do{
+my $mime = PublicInbox::Eml->new(do{
 	local $/;
 	my $data = <STDIN>;
 	$data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;

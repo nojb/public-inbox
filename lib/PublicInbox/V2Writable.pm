@@ -9,7 +9,7 @@ use warnings;
 use base qw(PublicInbox::Lock);
 use 5.010_001;
 use PublicInbox::SearchIdxShard;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MID qw(mids references);
@@ -357,9 +357,10 @@ sub content_ids ($) {
 	my ($mime) = @_;
 	my @cids = ( content_id($mime) );
 
+	# We still support Email::MIME, here, and
 	# Email::MIME->as_string doesn't always round-trip, so we may
 	# use a second content_id
-	my $rt = content_id(PublicInbox::MIME->new(\($mime->as_string)));
+	my $rt = content_id(PublicInbox::Eml->new(\($mime->as_string)));
 	push @cids, $rt if $cids[0] ne $rt;
 	\@cids;
 }
@@ -405,7 +406,7 @@ sub rewrite_internal ($$;$$$) {
 				next; # continue
 			}
 			my $orig = $$msg;
-			my $cur = PublicInbox::MIME->new($msg);
+			my $cur = PublicInbox::Eml->new($msg);
 			if (content_matches($cids, $cur)) {
 				$gone{$smsg->{num}} = [ $smsg, $cur, \$orig ];
 			}
@@ -842,7 +843,7 @@ sub content_exists ($$$) {
 			warn "broken smsg for $mid\n";
 			next;
 		}
-		my $cur = PublicInbox::MIME->new($msg);
+		my $cur = PublicInbox::Eml->new($msg);
 		return 1 if content_matches($cids, $cur);
 
 		# XXX DEBUG_DIFF is experimental and may be removed
@@ -870,7 +871,7 @@ sub mark_deleted ($$$$) {
 	my ($self, $sync, $git, $oid) = @_;
 	return if PublicInbox::SearchIdx::too_big($self, $git, $oid);
 	my $msgref = $git->cat_file($oid);
-	my $mime = PublicInbox::MIME->new($$msgref);
+	my $mime = PublicInbox::Eml->new($$msgref);
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
 	foreach my $mid (@$mids) {
@@ -901,7 +902,7 @@ sub reindex_oid_m ($$$$;$) {
 	$self->{current_info} = "multi_mid $oid";
 	my ($num, $mid0, $len);
 	my $msgref = $git->cat_file($oid, \$len);
-	my $mime = PublicInbox::MIME->new($$msgref);
+	my $mime = PublicInbox::Eml->new($$msgref);
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
 	die "BUG: reindex_oid_m called for <=1 mids" if scalar(@$mids) <= 1;
@@ -999,7 +1000,7 @@ sub reindex_oid ($$$$) {
 	my ($num, $mid0, $len);
 	my $msgref = $git->cat_file($oid, \$len);
 	return if $len == 0; # purged
-	my $mime = PublicInbox::MIME->new($$msgref);
+	my $mime = PublicInbox::Eml->new($$msgref);
 	my $mids = mids($mime->header_obj);
 	my $cid = content_id($mime);
 
@@ -1193,7 +1194,7 @@ sub unindex_oid ($$$;$) {
 	my ($self, $git, $oid, $unindexed) = @_;
 	my $mm = $self->{mm};
 	my $msgref = $git->cat_file($oid);
-	my $mime = PublicInbox::MIME->new($msgref);
+	my $mime = PublicInbox::Eml->new($msgref);
 	my $mids = mids($mime->header_obj);
 	$mime = $msgref = undef;
 	my $over = $self->{over};

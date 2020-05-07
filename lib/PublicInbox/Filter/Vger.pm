@@ -5,7 +5,7 @@
 package PublicInbox::Filter::Vger;
 use base qw(PublicInbox::Filter::Base);
 use strict;
-use warnings;
+use PublicInbox::Eml;
 
 my $l0 = qr/-+/; # older messages only had one '-'
 my $l1 =
@@ -25,7 +25,7 @@ sub scrub {
 	# so in multipart (e.g. GPG-signed) messages, the list trailer
 	# becomes invisible to MIME-aware email clients.
 	if ($s =~ s/$l0\n$l1\n$l2\n$l3\n($l4\n)?\z//os) {
-		$mime = PublicInbox::MIME->new(\$s);
+		$mime = PublicInbox::Eml->new(\$s);
 	}
 	$self->ACCEPT($mime);
 }

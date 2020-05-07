@@ -56,7 +56,7 @@ sub msg_page {
 	} else {
 		$first = $ibx->msg_by_mid($mid) or return;
 	}
-	my $mime = PublicInbox::MIME->new($first);
+	my $mime = PublicInbox::Eml->new($first);
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	my $hdr = $ctx->{hdr} = $mime->header_obj;
 	$ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx, 0);

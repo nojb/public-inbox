@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::TestCommon;
 use_ok 'PublicInbox::Filter::RubyLang';
 
@@ -17,7 +17,7 @@ keep this
 Unsubscribe: <mailto:ruby-core-request@ruby-lang.org?subject=unsubscribe>
 <http://lists.ruby-lang.org/cgi-bin/mailman/options/ruby-core>
 EOF
-my $mime = PublicInbox::MIME->new($msg);
+my $mime = PublicInbox::Eml->new($msg);
 my $ret = $f->delivery($mime);
 is($ret, $mime, "delivery successful");
 is($mime->body, "keep this\n", 'normal message filtered OK');
@@ -41,7 +41,7 @@ X-Mail-Count: 12
 Message-ID: <a@b>
 
 EOF
-	$mime = PublicInbox::MIME->new($msg);
+	$mime = PublicInbox::Eml->new($msg);
 	$ret = $f->delivery($mime);
 	is($ret, $mime, "delivery successful");
 	my $mm = PublicInbox::Msgmap->new($git_dir);
@@ -53,7 +53,7 @@ Message-ID: <b@b>
 
 EOF
 
-	$mime = PublicInbox::MIME->new($msg);
+	$mime = PublicInbox::Eml->new($msg);
 	$ret = $f->delivery($mime);
 	is($ret, 100, "delivery rejected without X-Mail-Count");
 }

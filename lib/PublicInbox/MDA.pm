@@ -5,7 +5,6 @@
 package PublicInbox::MDA;
 use strict;
 use warnings;
-use Email::Simple;
 use PublicInbox::MsgTime;
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian

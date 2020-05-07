@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 
 # Long-running "git-cat-file --batch" processes won't notice
 # unlinked packs, so we need to restart those processes occasionally.
@@ -328,7 +328,7 @@ sub msg_by_smsg ($$;$) {
 sub smsg_mime {
 	my ($self, $smsg, $ref) = @_;
 	if (my $s = msg_by_smsg($self, $smsg, $ref)) {
-		$smsg->{mime} = PublicInbox::MIME->new($s);
+		$smsg->{mime} = PublicInbox::Eml->new($s);
 		return $smsg;
 	}
 }

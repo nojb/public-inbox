@@ -12,7 +12,7 @@ use File::Temp 0.19 (); # 0.19 for TMPDIR
 use PublicInbox::ContentId qw(content_id);
 use PublicInbox::MID qw(mid_clean mids);
 PublicInbox::Admin::check_require('-index');
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
 use PublicInbox::Import;
 
@@ -52,7 +52,7 @@ sub find_mid ($$$) {
 		my ($id, $prev);
 		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
 			my $ref = $ibx->msg_by_smsg($smsg);
-			my $mime = PublicInbox::MIME->new($ref);
+			my $mime = PublicInbox::Eml->new($ref);
 			my $cid = content_id($mime);
 			my $tuple = [ $ibx, $smsg ];
 			push @{$found->{$cid} ||= []}, $tuple
@@ -205,8 +205,8 @@ W: possible message boundary splitting error
 		$new_raw =~ s/^>(>*From )/$1/gm;
 	}
 
-	my $new_mime = PublicInbox::MIME->new(\$new_raw);
-	my $old_mime = PublicInbox::MIME->new($old_raw);
+	my $new_mime = PublicInbox::Eml->new(\$new_raw);
+	my $old_mime = PublicInbox::Eml->new($old_raw);
 
 	# make sure we don't compare unwanted headers, since mutt adds
 	# Content-Length, Status, and Lines headers:

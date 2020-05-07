@@ -8,6 +8,7 @@ use strict;
 use warnings;
 use base qw(PublicInbox::SearchIdx);
 use IO::Handle (); # autoflush
+use PublicInbox::Eml;
 
 sub new {
 	my ($class, $v2writable, $shard) = @_;
@@ -75,7 +76,7 @@ sub shard_worker_loop ($$$$$) {
 			$self->begin_txn_lazy;
 			my $n = read($r, my $msg, $bytes) or die "read: $!\n";
 			$n == $bytes or die "short read: $n != $bytes\n";
-			my $mime = PublicInbox::MIME->new(\$msg);
+			my $mime = PublicInbox::Eml->new(\$msg);
 			my $smsg = bless {
 				bytes => $bytes,
 				num => $num + 0,

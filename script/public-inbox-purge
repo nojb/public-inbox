@@ -10,7 +10,7 @@ use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::AdminEdit;
 PublicInbox::Admin::check_require('-index');
 use PublicInbox::Filter::Base qw(REJECT);
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 require PublicInbox::V2Writable;
 
 my $usage = "$0 [--all] [INBOX_DIRS] </path/to/message";
@@ -26,7 +26,7 @@ $data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 my $n_purged = 0;
 
 foreach my $ibx (@ibxs) {
-	my $mime = PublicInbox::MIME->new($data);
+	my $mime = PublicInbox::Eml->new($data);
 	my $v2w = PublicInbox::V2Writable->new($ibx, 0);
 
 	my $commits = $v2w->purge($mime) || [];

@@ -122,7 +122,7 @@ EOF
 }
 
 # TODO: make Devel::Peek optional, only used for daemon
-my @base_mod = qw(Email::MIME Devel::Peek);
+my @base_mod = qw(Devel::Peek);
 my @over_mod = qw(DBD::SQLite DBI);
 my %mod_groups = (
 	-index => [ @base_mod, @over_mod ],

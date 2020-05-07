@@ -6,7 +6,7 @@
 package PublicInbox::WatchMaildir;
 use strict;
 use warnings;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use PublicInbox::Filter::Base qw(REJECT);
@@ -282,7 +282,7 @@ sub _spamcheck_cb {
 		my ($mime) = @_;
 		my $tmp = '';
 		if ($sc->spamcheck($mime, \$tmp)) {
-			return PublicInbox::MIME->new(\$tmp);
+			return PublicInbox::Eml->new(\$tmp);
 		}
 		warn $mime->header('Message-ID')." failed spam check\n";
 		undef;

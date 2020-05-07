@@ -5,7 +5,7 @@
 # this uses unstable internal APIs of public-inbox, and this script
 # needs to be updated if they change.
 use strict;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::View;
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::MID qw(mids mid_escape);
@@ -76,7 +76,7 @@ sub release2mime {
 	my ($release, $mtime_ref) = @_;
 	my $f = "$dir/$release.eml";
 	open(my $fh, '<', $f) or die "open($f): $!";
-	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
+	my $mime = PublicInbox::Eml->new(\(do { local $/; <$fh> }));
 	# Documentation/include.mk relies on mtimes of each .eml file
 	# to trigger rebuild, so make sure we sync the mtime to the Date:
 	# header in the .eml

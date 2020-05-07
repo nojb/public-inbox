@@ -75,7 +75,7 @@ $im->done;
 is(scalar @revs, 26, '26 revisions exist after mass import');
 my ($mark, $msg) = $im->remove($mime);
 like($mark, qr/\A:\d+\z/, 'got mark');
-is(ref($msg), 'PublicInbox::MIME', 'got old message deleted');
+like(ref($msg), qr/\bPublicInbox::(?:Eml|MIME)\b/, 'got old message deleted');
 
 is(undef, $im->remove($mime), 'remove is idempotent');
 

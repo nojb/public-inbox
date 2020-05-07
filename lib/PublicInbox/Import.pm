@@ -15,6 +15,7 @@ use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use PublicInbox::ContentId qw(content_digest);
 use PublicInbox::MDA;
+use PublicInbox::Eml;
 use POSIX qw(strftime);
 
 sub new {
@@ -137,7 +138,7 @@ sub check_remove_v1 {
 	$info =~ m!\A100644 blob ([a-f0-9]{40})\t!s or die "not blob: $info";
 	my $oid = $1;
 	my $msg = _cat_blob($r, $w, $oid) or die "BUG: cat-blob $1 failed";
-	my $cur = PublicInbox::MIME->new($msg);
+	my $cur = PublicInbox::Eml->new($msg);
 	my $cur_s = $cur->header('Subject');
 	$cur_s = '' unless defined $cur_s;
 	my $cur_m = $mime->header('Subject');

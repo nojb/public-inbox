@@ -117,7 +117,7 @@ sub mime_from_path ($) {
 		local $/;
 		my $str = <$fh>;
 		$str or return;
-		return PublicInbox::MIME->new(\$str);
+		return PublicInbox::Eml->new(\$str);
 	} elsif ($!{ENOENT}) {
 		# common with Maildir
 		return;
@@ -162,7 +162,7 @@ sub mb_add ($$$$) {
 	} elsif ($variant eq 'mboxo') {
 		$$msg =~ s/^>From /From /gms;
 	}
-	my $mime = PublicInbox::MIME->new($msg);
+	my $mime = PublicInbox::Eml->new($msg);
 	if ($filter) {
 		my $ret = $filter->scrub($mime) or return;
 		return if $ret == REJECT();

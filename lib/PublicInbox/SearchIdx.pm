@@ -10,7 +10,7 @@ package PublicInbox::SearchIdx;
 use strict;
 use warnings;
 use base qw(PublicInbox::Search PublicInbox::Lock);
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
 use PublicInbox::MID qw/mid_clean mid_mime mids_for_index/;
 use PublicInbox::MsgIter;
@@ -371,7 +371,7 @@ sub _msgmap_init ($) {
 }
 
 sub add_message {
-	# mime = Email::MIME object
+	# mime = PublicInbox::Eml or Email::MIME object
 	my ($self, $mime, $smsg) = @_;
 	my $hdr = $mime->header_obj;
 	my $mids = mids_for_index($hdr);
@@ -560,7 +560,7 @@ sub do_cat_mail {
 	my ($git, $blob, $sizeref) = @_;
 	my $str = $git->cat_file($blob, $sizeref) or
 		die "BUG: $blob not found in $git->{git_dir}";
-	PublicInbox::MIME->new($str);
+	PublicInbox::Eml->new($str);
 }
 
 # called by public-inbox-index
