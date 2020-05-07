@@ -3,7 +3,7 @@
 package PublicInbox::MboxGz;
 use strict;
 use warnings;
-use Email::Simple;
+use PublicInbox::Eml;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Mbox;
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
@@ -41,7 +41,7 @@ sub getline {
 	my $buf = delete($self->{buf});
 	while (my $smsg = $self->{cb}->($ctx)) {
 		my $mref = $ctx->{-inbox}->msg_by_smsg($smsg) or next;
-		my $h = Email::Simple->new($mref)->header_obj;
+		my $h = PublicInbox::Eml->new($mref)->header_obj;
 
 		my $err = $gz->deflate(
 			PublicInbox::Mbox::msg_hdr($ctx, $h, $smsg->{mid}),

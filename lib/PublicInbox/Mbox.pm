@@ -14,19 +14,13 @@ use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Smsg;
 use PublicInbox::WwwStream qw(html_oneshot);
-use Email::Simple;
-use Email::MIME::Encode;
+use PublicInbox::Eml;
 
 sub subject_fn ($) {
 	my ($hdr) = @_;
-	my $fn = $hdr->header('Subject');
+	my $fn = $hdr->header_str('Subject');
 	return 'no-subject' if (!defined($fn) || $fn eq '');
 
-	# no need for full Email::MIME, here
-	if ($fn =~ /=\?/) {
-		eval { $fn = Encode::decode('MIME-Header', $fn) };
-		return 'no-subject' if $@;
-	}
 	$fn =~ s/^re:\s+//i;
 	$fn eq '' ? 'no-subject' : to_filename($fn);
 }
@@ -51,7 +45,7 @@ sub getline {
 	my $ibx = $ctx->{-inbox};
 	$next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	$mref = $ibx->msg_by_smsg($cur) or return;
-	$hdr = Email::Simple->new($mref)->header_obj;
+	$hdr = PublicInbox::Eml->new($mref)->header_obj;
 	@$more = ($ctx, $id, $prev, $next); # $next may be undef, here
 	msg_hdr($ctx, $hdr) . msg_body($$mref);
 }
@@ -72,7 +66,7 @@ sub emit_raw {
 	} else {
 		$mref = $ibx->msg_by_mid($mid) or return;
 	}
-	my $hdr = Email::Simple->new($mref)->header_obj;
+	my $hdr = PublicInbox::Eml->new($mref)->header_obj;
 	$more = [ $ctx, $id, $prev, $next, $mref, $hdr ]; # for ->getline
 	my $fn = subject_fn($hdr);
 	my @hdr = ('Content-Type');
@@ -114,7 +108,7 @@ sub msg_hdr ($$;$) {
 	for (my $i = 0; $i < @append; $i += 2) {
 		my $k = $append[$i];
 		my $v = $append[$i + 1];
-		my @v = $header_obj->header($k);
+		my @v = $header_obj->header_raw($k);
 		foreach (@v) {
 			if ($v eq $_) {
 				$v = undef;

@@ -22,6 +22,7 @@ use PublicInbox::MID qw(mid_escape);
 use PublicInbox::GitHTTPBackend;
 use PublicInbox::UserContent;
 use PublicInbox::WwwStatic qw(r path_info_raw);
+use PublicInbox::Eml;
 
 # TODO: consider a routing tree now that we have more endpoints:
 our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
@@ -231,9 +232,8 @@ sub invalid_inbox_mid {
 		my ($x2, $x38) = ($1, $2);
 		# this is horrifically wasteful for legacy URLs:
 		my $str = $ctx->{-inbox}->msg_by_path("$x2/$x38") or return;
-		require Email::Simple;
-		my $s = Email::Simple->new($str);
-		$mid = PublicInbox::MID::mid_clean($s->header('Message-ID'));
+		my $s = PublicInbox::Eml->new($str);
+		$mid = PublicInbox::MID::mid_clean($s->header_raw('Message-ID'));
 		return r301($ctx, $inbox, mid_escape($mid));
 	}
 	undef;

@@ -8,7 +8,7 @@ use warnings;
 use base qw(PublicInbox::DS);
 use fields qw(nntpd article ng long_cb);
 use PublicInbox::MID qw(mid_escape $MID_EXTRACT);
-use Email::Simple;
+use PublicInbox::Eml;
 use POSIX qw(strftime);
 use PublicInbox::DS qw(now);
 use Digest::SHA qw(sha1_hex);
@@ -383,7 +383,7 @@ sub cmd_quit ($) {
 
 sub header_append ($$$) {
 	my ($hdr, $k, $v) = @_;
-	my @v = $hdr->header($k);
+	my @v = $hdr->header_raw($k);
 	foreach (@v) {
 		return if $v eq $_;
 	}
@@ -416,11 +416,11 @@ sub set_nntp_headers ($$$$$) {
 	# leafnode (and maybe other NNTP clients) have trouble dealing
 	# with v2 messages which have multiple Message-IDs (either due
 	# to our own content-based dedupe or buggy git-send-email versions).
-	my @mids = $hdr->header('Message-ID');
+	my @mids = $hdr->header_raw('Message-ID');
 	if (scalar(@mids) > 1) {
 		my $mid0 = "<$mid>";
 		$hdr->header_set('Message-ID', $mid0);
-		my @alt = $hdr->header('X-Alt-Message-ID');
+		my @alt = $hdr->header_raw('X-Alt-Message-ID');
 		my %seen = map { $_ => 1 } (@alt, $mid0);
 		push(@alt, grep { !$seen{$_}++ } @mids);
 		$hdr->header_set('X-Alt-Message-ID', @alt);
@@ -478,10 +478,9 @@ found:
 	my $smsg = $ng->over->get_art($n) or return $err;
 	my $msg = $ng->msg_by_smsg($smsg) or return $err;
 
-	# Email::Simple->new will modify $msg in-place as documented
-	# in its manpage, so what's left is the body and we won't need
-	# to call Email::Simple::body(), later
-	my $hdr = Email::Simple->new($msg)->header_obj;
+	# PublicInbox::Eml->new will modify $msg in-place, so what's
+	# left is the body and we won't need to call ->body(), later
+	my $hdr = PublicInbox::Eml->new($msg)->header_obj;
 	set_nntp_headers($self, $hdr, $ng, $n, $mid) if $set_headers;
 	[ $n, $mid, $msg, $hdr ];
 }
@@ -511,9 +510,7 @@ sub msg_hdr_write ($$$) {
 	$hdr =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
 
 	# for leafnode compatibility, we need to ensure Message-ID headers
-	# are only a single line.  We can't subclass Email::Simple::Header
-	# and override _default_fold_at in here, either; since that won't
-	# affect messages already in the archive.
+	# are only a single line.
 	$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
 	$hdr .= "\r\n" if $body_follows;
 	$self->msg_more($hdr);
