@@ -28,19 +28,29 @@ sub new {
 	$self;
 }
 
+sub scrub_part ($) {
+	my ($part) = @_;
+	my $ct = $part->content_type;
+	if (!$ct || $ct =~ m{\btext/plain\b}i) {
+		my $s = eval { $part->body_str };
+		if (defined $s && $s =~ s/\n?$l1\n$l2\n\z//os) {
+			$part->body_str_set($s);
+			return 1;
+		}
+	}
+	0;
+}
+
 sub scrub {
 	my ($self, $mime, $for_remove) = @_;
-	# no msg_iter here, that is only for read-only access
-	$mime->walk_parts(sub {
-		my ($part) = $_[0];
-		my $ct = $part->content_type;
-		if (!$ct || $ct =~ m{\btext/plain\b}i) {
-			my $s = eval { $part->body_str };
-			if (defined $s && $s =~ s/\n?$l1\n$l2\n\z//os) {
-				$part->body_str_set($s);
-			}
-		}
-	});
+	# no msg_iter here, msg_iter is only for read-only access
+	if (my @sub = $mime->subparts) {
+		my $changed = 0;
+		$changed |= scrub_part($_) for @sub;
+		$mime->parts_set(\@sub) if $changed;
+	} else {
+		scrub_part($mime);
+	}
 	my $altid = $self->{-altid};
 	if ($altid && !$for_remove) {
 		my $hdr = $mime->header_obj;
