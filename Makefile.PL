@@ -130,7 +130,7 @@ WriteMakefile(
 
 		# libperl$PERL_VERSION or libencode-perl on Debian,
 		# `perl5' on FreeBSD
-		'Encode' => 0,
+		'Encode' => 2.35, # 2.35 shipped with 5.10.1
 
 		# libperl$PERL_VERSION + perl-modules-$PERL_VERSION
 		'Compress::Raw::Zlib' => 0,

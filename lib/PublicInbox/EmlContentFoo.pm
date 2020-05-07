@@ -9,15 +9,38 @@
 #
 # This license differs from the rest of public-inbox
 #
+# ABSTRACT: Parse a MIME Content-Type or Content-Disposition Header
+#
 # This is a fork of the Email::MIME::ContentType 1.022 with
 # minor improvements and incompatibilities; namely changes to
 # quiet warnings with legacy data.
 package PublicInbox::EmlContentFoo;
 use strict;
 use parent qw(Exporter);
-# ABSTRACT: Parse a MIME Content-Type or Content-Disposition Header
+use v5.10.1;
 
-use Encode 2.87 qw(find_mime_encoding);
+# find_mime_encoding() only appeared in Encode 2.87+ (Perl 5.26+),
+# while we support 2.35 shipped with Perl 5.10.1
+use Encode 2.35 qw(find_encoding);
+my %mime_name_map; # $enc->mime_name => $enc object
+BEGIN {
+	eval { Encode->import('find_mime_encoding') };
+	if ($@) {
+		*find_mime_encoding = sub { $mime_name_map{lc($_[0])} };
+		%mime_name_map = map {;
+			my $enc = find_encoding($_);
+			my $m = lc($enc->mime_name // '');
+			$m => $enc;
+		} Encode->encodings(':all');
+
+		# delete fallback for encodings w/o ->mime_name:
+		delete $mime_name_map{''};
+
+		# an extra alias see Encode::MIME::NAME
+		$mime_name_map{'utf8'} = find_encoding('UTF-8');
+	}
+}
+
 our @EXPORT_OK = qw(parse_content_type parse_content_disposition);
 
 our $STRICT_PARAMS = 1;
