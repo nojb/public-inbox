@@ -11,9 +11,9 @@ use PublicInbox::MIME;
 use PublicInbox::MsgIter;
 
 sub get_attach_i { # ->each_part callback
-	my ($part, $depth, @idx) = @{$_[0]};
+	my ($part, $depth, $idx) = @{$_[0]};
 	my $res = $_[1];
-	return if join('.', @idx) ne $res->[3]; # $idx
+	return if $idx ne $res->[3]; # [0-9]+(?:\.[0-9]+)+
 	$res->[0] = 200;
 	my $ct = $part->content_type;
 	$ct = parse_content_type($ct) if $ct;

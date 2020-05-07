@@ -277,7 +277,7 @@ sub index_diff ($$$) {
 }
 
 sub index_xapian { # msg_iter callback
-	my $part = $_[0]->[0]; # ignore $depth and @idx
+	my $part = $_[0]->[0]; # ignore $depth and $idx
 	my ($self, $doc) = @{$_[1]};
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;

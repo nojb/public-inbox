@@ -20,12 +20,14 @@ sub em_each_part ($$;$$) {
 		my $i = 0;
 		@parts = map { [ $_, 1, ++$i ] } @parts;
 		while (my $p = shift @parts) {
-			my ($part, $depth, @idx) = @$p;
+			my ($part, $depth, $idx) = @$p;
 			my @sub = $part->subparts;
 			if (@sub) {
 				$depth++;
 				$i = 0;
-				@sub = map { [ $_, $depth, @idx, ++$i ] } @sub;
+				@sub = map {
+					[ $_, $depth, "$idx.".(++$i) ]
+				} @sub;
 				@parts = (@sub, @parts);
 			} else {
 				$cb->($p, $cb_arg);

@@ -28,7 +28,7 @@ use_ok('PublicInbox::MsgIter');
 		$s =~ s/\s+//s;
 		push @parts, [ $s, $level, @ex ];
 	});
-	is_deeply(\@parts, [ [qw(a 2 1 1)], [qw(b 2 1 2)], [qw(sig 1 2)] ],
+	is_deeply(\@parts, [ [qw(a 2 1.1)], [qw(b 2 1.2)], [qw(sig 1 2)] ],
 		'nested part shows up properly');
 }
 

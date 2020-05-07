@@ -98,9 +98,10 @@ $msg = PublicInbox::MIME->new($raw);
 my $nr = 0;
 msg_iter($msg, sub {
 	my ($part, $level, @ex) = @{$_[0]};
-	if ($ex[0] == 1) {
+	is($level, 1, 'at expected level');
+	if (join('fail if $#ex > 0', @ex) eq '1') {
 		is($part->body_str, "your tree directly? \r\n", 'body OK');
-	} elsif ($ex[0] == 2) {
+	} elsif (join('fail if $#ex > 0', @ex) eq '2') {
 		is($part->body, "-----BEGIN PGP SIGNATURE-----\n\n" .
 				"=7wIb\n" .
 				"-----END PGP SIGNATURE-----\n",

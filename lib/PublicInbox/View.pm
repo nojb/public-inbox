@@ -482,9 +482,8 @@ sub multipart_text_as_html {
 
 sub attach_link ($$$$;$) {
 	my ($ctx, $ct, $p, $fn, $err) = @_;
-	my ($part, $depth, @idx) = @$p;
-	my $nl = $idx[-1] > 1 ? "\n" : '';
-	my $idx = join('.', @idx);
+	my ($part, $depth, $idx) = @$p;
+	my $nl = substr($idx, -2) eq '.1' ? '' : "\n"; # like join("\n", ...)
 	my $size = bytes::length($part->body);
 
 	# hide attributes normally, unless we want to aid users in
@@ -519,8 +518,8 @@ sub add_text_body { # callback for each_part
 	my ($p, $ctx) = @_;
 	my $upfx = $ctx->{mhref};
 	my $ibx = $ctx->{-inbox};
-	# $p - from each_part: [ Email::MIME-like, depth, @idx ]
-	my ($part, $depth, @idx) = @$p;
+	# $p - from each_part: [ Email::MIME-like, depth, $idx ]
+	my ($part, $depth, $idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	my ($s, $err) = msg_part_text($part, $ct);
@@ -537,13 +536,14 @@ sub add_text_body { # callback for each_part
 	# headers for solver unless some coderepo are configured:
 	my $diff;
 	if ($s =~ /^--- [^\n]+\n\+{3} [^\n]+\n@@ /ms) {
-		# diffstat anchors do not link across attachments or messages:
-		$idx[0] = $upfx . $idx[0] if $upfx ne '';
-		$ctx->{-apfx} = join('/', @idx);
+		# diffstat anchors do not link across attachments or messages,
+		# -apfx is just a stable prefix for making diffstat anchors
+		# linkable to the first diff hunk w/o crossing attachments
+		$idx =~ tr!.!/!; # compatibility with previous versions
+		$ctx->{-apfx} = $upfx . $idx;
 
 		# do attr => filename mappings for diffstats in git diffs:
 		$ctx->{-anchors} = {} if $s =~ /^diff --git /sm;
-
 		$diff = 1;
 		delete $ctx->{-long_path};
 		my $spfx;
