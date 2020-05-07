@@ -131,8 +131,12 @@ sub mp_descend ($$) {
 	# Cut at the the first epilogue, not subsequent ones.
 	# *sigh* just the regexp match alone seems to bump RSS by
 	# length($$bdy) on a ~30M string:
-	$$bdy =~ /((?:\r?\n)?^--$bnd--[ \t]*\r?$)/gsm and
+	my $epilogue_missing;
+	if ($$bdy =~ /((?:\r?\n)?^--$bnd--[ \t]*\r?$)/gsm) {
 		substr($$bdy, pos($$bdy) - length($1)) = '';
+	} else {
+		$epilogue_missing = 1;
+	}
 
 	# *Sigh* split() doesn't work in-place and return CoW strings
 	# because Perl wants to "\0"-terminate strings.  So split()
@@ -150,6 +154,10 @@ sub mp_descend ($$) {
 
 	if (@parts) { # the usual path if we got this far:
 		undef $bdy; # release memory ASAP if $nr > 0
+
+		# compatibility with Email::MIME
+		$parts[-1] =~ s/\n\r?\n\z/\n/s if $epilogue_missing;
+
 		@parts = grep /[^ \t\r\n]/s, @parts; # ignore empty parts
 
 		# Keep "From: someone..." from preamble in old,
