@@ -141,6 +141,12 @@ sub call {
 # fragmentation since common allocators favor a large contiguous heap.
 sub preload {
 	my ($self) = @_;
+
+	# populate caches used by Encode internally, since emails
+	# may show up with any encoding.
+	require Encode;
+	Encode::find_encoding($_) for Encode->encodings(':all');
+
 	require PublicInbox::ExtMsg;
 	require PublicInbox::Feed;
 	require PublicInbox::View;
