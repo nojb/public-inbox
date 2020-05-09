@@ -71,11 +71,11 @@ sub re_memo ($) {
 # compatible with our uses of Email::MIME
 sub new {
 	my $ref = ref($_[1]) ? $_[1] : \(my $cpy = $_[1]);
-	if ($$ref =~ /(?:\r?\n(\r?\n))/gs) { # likely
+	if ($$ref =~ /\r?\n(\r?\n)/s) { # likely
 		# This can modify $$ref in-place and to avoid memcpy/memmove
 		# on a potentially large $$ref.  It does need to make a
 		# copy for $hdr, though.  Idea stolen from Email::Simple
-		my $hdr = substr($$ref, 0, pos($$ref), ''); # sv_chop on $$ref
+		my $hdr = substr($$ref, 0, $+[0], ''); # sv_chop on $$ref
 		substr($hdr, -(length($1))) = ''; # lower SvCUR
 		bless { hdr => \$hdr, crlf => $1, bdy => $ref }, __PACKAGE__;
 	} elsif ($$ref =~ /^[a-z0-9-]+[ \t]*:/ims && $$ref =~ /(\r?\n)\z/s) {
@@ -90,8 +90,8 @@ sub new {
 sub new_sub {
 	my (undef, $ref) = @_;
 	# special case for messages like <85k5su9k59.fsf_-_@lola.goethe.zz>
-	$$ref =~ /\A(?:(\r?\n))/gs or goto &new;
-	my $hdr = substr($$ref, 0, pos($$ref), ''); # sv_chop on $$ref
+	$$ref =~ /\A(\r?\n)/s or goto &new;
+	my $hdr = substr($$ref, 0, $+[0], ''); # sv_chop on $$ref
 	bless { hdr => \$hdr, crlf => $1, bdy => $ref }, __PACKAGE__;
 }
 
@@ -132,8 +132,8 @@ sub mp_descend ($$) {
 	# *sigh* just the regexp match alone seems to bump RSS by
 	# length($$bdy) on a ~30M string:
 	my $epilogue_missing;
-	if ($$bdy =~ /((?:\r?\n)?^--$bnd--[ \t]*\r?$)/gsm) {
-		substr($$bdy, pos($$bdy) - length($1)) = '';
+	if ($$bdy =~ /(?:\r?\n)?^--$bnd--[ \t]*\r?$/sm) {
+		substr($$bdy, $-[0]) = '';
 	} else {
 		$epilogue_missing = 1;
 	}
