@@ -122,6 +122,9 @@ my %prob_prefix = (
 );
 
 # not documenting m: and mid: for now, the using the URLs works w/o Xapian
+# not documenting lid: for now, either, it is probably redundant with l:,
+# especially since we don't offer boolean searches for To/Cc/From
+# headers, either
 our @HELP = (
 	's:' => 'match within Subject  e.g. s:"a quick brown fox"',
 	'd:' => <<EOF,
@@ -141,8 +144,7 @@ EOF
 	'f:' => 'match within the From header',
 	'a:' => 'match within the To, Cc, and From headers',
 	'tc:' => 'match within the To and Cc headers',
-	'lid:' => 'exact contents of the List-Id',
-	'l:' => 'partial match contents of the List-Id header',
+	'l:' => 'match contents of the List-Id header',
 	'bs:' => 'match within the Subject and body',
 	'dfn:' => 'match filename from diff',
 	'dfa:' => 'match diff removed (-) lines',
