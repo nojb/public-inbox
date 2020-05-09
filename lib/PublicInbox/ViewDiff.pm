@@ -50,12 +50,12 @@ sub diff_hunk ($$$$) {
 
 	if (defined($spfx) && defined($oid_a) && defined($oid_b)) {
 		my ($n) = ($ca =~ /^-([0-9]+)/);
-		$n = defined($n) ? do { ++$n; "#n$n" } : '';
+		$n = defined($n) ? "#n$n" : '';
 
 		$$dst .= qq(@@ <a\nhref="$spfx$oid_a/s/$dctx->{Q}$n">$ca</a>);
 
 		($n) = ($cb =~ /^\+([0-9]+)/);
-		$n = defined($n) ? do { ++$n; "#n$n" } : '';
+		$n = defined($n) ? "#n$n" : '';
 		$$dst .= qq( <a\nhref="$spfx$oid_b/s/$dctx->{Q}$n">$cb</a> @@);
 	} else {
 		$$dst .= "@@ $ca $cb @@";
