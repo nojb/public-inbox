@@ -190,7 +190,7 @@ sub _process_rfc2231 {
 	foreach (keys %{$attribs}) {
 		next unless $_ =~ m/^(.*)\*$/;
 		my $key = $1;
-		next unless $attribs->{$_} =~ m/^$re_exvalue$/;
+		next unless ($attribs->{$_} // '') =~ m/^$re_exvalue$/;
 		my ($charset, $value) = ($1, $2);
 		$value =~ s/%([0-9A-Fa-f]{2})/pack('C', hex($1))/eg;
 		if (length $charset) {
