@@ -28,14 +28,13 @@ Outside of tests, this is typically a singleton.
 Per-message classes
 -------------------
 
-* PublicInbox::MIME - Email::MIME subclass
-  Common abbreviation: $mime
+* PublicInbox::Eml - Email::MIME-like class
+  Common abbreviation: $mime, $eml
   Used by: PublicInbox::WWW, PublicInbox::SearchIdx
 
-  An representation of an entire email, multipart or not.  It's
-  a subclass of Email::MIME to workaround bugs in old
-  Email::MIME versions.  An option to use libgmime or libmailutils
-  may be supported in the future for performance and memory use.
+  An representation of an entire email, multipart or not.
+  An option to use libgmime or libmailutils may be supported
+  in the future for performance and memory use.
 
   This can be a memory hog with big messages and giant
   attachments, so our PublicInbox::WWW interface only keeps
@@ -46,6 +45,12 @@ Per-message classes
 
   Our PublicInbox::V2Writable class may have two objects of this
   type in memory at-a-time for deduplication.
+
+  In public-inbox 1.4 and earlier, Email::MIME and its subclass,
+  PublicInbox::MIME were used.  Despite still slurping,
+  PublicInbox::Eml is faster and uses less memory due to
+  lazy header parsing and lazy subpart instantiation with
+  shorter object lifetimes.
 
 * PublicInbox::Smsg - small message skeleton
   Used by: PublicInbox::{NNTP,WWW,SearchIdx}

@@ -42,6 +42,7 @@ all need to be considered for everything we introduce)
   while retaining compatibility with old versions.
 
 * Support more of RFC 3977 (NNTP)
+  Is there anything left for read-only support?
 
 * Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
 
@@ -75,9 +76,9 @@ all need to be considered for everything we introduce)
 * linkify thread skeletons better
   https://public-inbox.org/git/6E3699DEA672430CAEA6DEFEDE6918F4@PhilipOakley/
 
-* low-memory Email::MIME replacement: currently we generate many
-  allocations/strings for headers we never look at and slurp
-  entire message bodies into memory.  GMime+Inline::C could work.
+* Further lower mail parser memory usage.  We still slurp entire
+  message bodies into memory and incur 2-3x overhead on
+  multipart messages.  Inline::C (and maybe gmime) could work.
 
 * use REQUEST_URI properly for CGI / mod_perl2 compatibility
   with Message-IDs which include '%' (done?)

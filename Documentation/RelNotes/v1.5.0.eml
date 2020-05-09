@@ -5,20 +5,56 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline
 
+This release introduces a new pure-Perl lazy email parser,
+PublicInbox::Eml, which uses roughly 10% less memory and
+is up to 2x faster than Email::MIME.   This is a major
+internal change
+
+Limits commonly enforced by MTAs are also enforced in the
+new parser, as messages may bypass MTA transports.
+
+Email::MIME and other Email::* modules are no longer
+dependencies nor used at all outside of maintainer validation
+tests.
+
 * public-inbox-index
 
   - `--max-size=SIZE' CLI switch and `publicinbox.indexMaxSize'
-     config file option added
+    config file option added to prevent indexing of overly
+    large messages.
+
+  - List-Id headers are indexed in new messages, old messages
+    can be found after `--reindex'.
 
 * public-inbox-watch
 
   - multiple values of `publicinbox.<name>.watchheader' are
-    supported, thanks to Kyle Meyer
+    now supported, thanks to Kyle Meyer
+
+  - List-Id headers are matched case-insensitively as specified
+    by RFC 2919
 
 * PublicInbox::WWW
 
   - $INBOX_DIR/description and $INBOX_DIR/cloneurl are not
     memoized if missing
+
+  - improved display of threads, thanks to Kyle Meyer
+
+  - search for List-Id is available via `l:' prefix if indexed
+
+  - all encodings are preloaded at startup to reduce fragmentation
+
+  - diffstat linkification and highlighting are stricter and
+    less likely to linkify tables in cover letters
+
+  - fix hunk header links to solver which were off-by-one line,
+    thanks again to Kyle Meyer
+
+Release tarball available for download over HTTPS or Tor .onion:
+
+https://yhbt.net/public-inbox.git/snapshot/public-inbox-1.5.0.tar.gz
+http://ou63pmih66umazou.onion/public-inbox.git/snapshot/public-inbox-1.5.0.tar.gz
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 
