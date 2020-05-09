@@ -71,10 +71,18 @@ sub re_memo ($) {
 # compatible with our uses of Email::MIME
 sub new {
 	my $ref = ref($_[1]) ? $_[1] : \(my $cpy = $_[1]);
-	if ($$ref =~ /\r?\n(\r?\n)/s) { # likely
-		# This can modify $$ref in-place and to avoid memcpy/memmove
-		# on a potentially large $$ref.  It does need to make a
-		# copy for $hdr, though.  Idea stolen from Email::Simple
+	# substr() can modify the first arg in-place and to avoid
+	# memcpy/memmove on a potentially large scalar.  It does need
+	# to make a copy for $hdr, though.  Idea stolen from Email::Simple.
+
+	# We also prefer index() on common LFLF emails since it's faster
+	# and re scan can bump RSS by length($$ref) on big strings
+	if (index($$ref, "\r\n") < 0 && (my $pos = index($$ref, "\n\n")) >= 0) {
+		# likely on *nix
+		my $hdr = substr($$ref, 0, $pos + 2, ''); # sv_chop on $$ref
+		chop($hdr); # lower SvCUR
+		bless { hdr => \$hdr, crlf => "\n", bdy => $ref }, __PACKAGE__;
+	} elsif ($$ref =~ /\r?\n(\r?\n)/s) {
 		my $hdr = substr($$ref, 0, $+[0], ''); # sv_chop on $$ref
 		substr($hdr, -(length($1))) = ''; # lower SvCUR
 		bless { hdr => \$hdr, crlf => $1, bdy => $ref }, __PACKAGE__;
