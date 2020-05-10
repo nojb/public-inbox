@@ -282,7 +282,7 @@ if ('maxparts is a feature unique to us') {
 	my @orig;
 	$eml->each_part(sub { push @orig, $_[0]->[0] });
 
-	local $PublicInbox::Eml::MAXPARTS = scalar(@orig);
+	local $PublicInbox::Eml::mime_parts_limit = scalar(@orig);
 	my $i = 0;
 	$eml->each_part(sub {
 		my $cur = $_[0]->[0];
@@ -290,7 +290,7 @@ if ('maxparts is a feature unique to us') {
 		is($cur->body_raw, $prv->body_raw, "part #$i matches");
 	});
 	is($i, scalar(@orig), 'maxparts honored');
-	$PublicInbox::Eml::MAXPARTS--;
+	$PublicInbox::Eml::mime_parts_limit--;
 	my @ltd;
 	$eml->each_part(sub { push @ltd, $_[0]->[0] });
 	for ($i = 0; $i <= $#ltd; $i++) {

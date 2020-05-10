@@ -38,9 +38,11 @@ my $MIME_Header = find_encoding('MIME-Header');
 use PublicInbox::EmlContentFoo qw(parse_content_type parse_content_disposition);
 $PublicInbox::EmlContentFoo::STRICT_PARAMS = 0;
 
-our $MAXPARTS = 1000; # same as SpamAssassin
-our $MAXDEPTH = 20; # seems enough, Perl sucks, here
-our $MAXBOUNDLEN = 2048; # same as postfix
+our $mime_parts_limit = 1000; # same as SpamAssassin (not in postfix AFAIK)
+
+# the rest of the limit names are taken from postfix:
+our $mime_nesting_limit = 20; # seems enough, Perl sucks, here
+our $mime_boundary_length_limit = 2048; # same as postfix
 our $header_size_limit = 102400; # same as postfix
 
 my %MIME_ENC = (qp => \&enc_qp, base64 => \&encode_base64);
@@ -151,7 +153,7 @@ sub ct ($) {
 sub mp_descend ($$) {
 	my ($self, $nr) = @_; # or $once for top-level
 	my $bnd = ct($self)->{attributes}->{boundary} // return; # single-part
-	return if $bnd eq '' || length($bnd) >= $MAXBOUNDLEN;
+	return if $bnd eq '' || length($bnd) >= $mime_boundary_length_limit;
 	$bnd = quotemeta($bnd);
 
 	# "multipart" messages can exist w/o a body
@@ -179,7 +181,7 @@ sub mp_descend ($$) {
 				# + 3 since we don't want the last part
 				# processed to include any other excluded
 				# parts ($nr starts at 1, and I suck at math)
-				$MAXPARTS + 3 - $nr);
+				$mime_parts_limit + 3 - $nr);
 
 	if (@parts) { # the usual path if we got this far:
 		undef $bdy; # release memory ASAP if $nr > 0
@@ -218,13 +220,15 @@ sub each_part {
 	$p = [ $p, 0 ];
 	my @s; # our virtual stack
 	my $nr = 0;
-	while ((scalar(@{$p->[0]}) || ($p = pop @s)) && ++$nr <= $MAXPARTS) {
+	while ((scalar(@{$p->[0]}) || ($p = pop @s)) &&
+			++$nr <= $mime_parts_limit) {
 		++$p->[-1]; # bump index
 		my (undef, @idx) = @$p;
 		@idx = (join('.', @idx));
 		my $depth = ($idx[0] =~ tr/././) + 1;
 		my $sub = new_sub(undef, \(shift @{$p->[0]}));
-		if ($depth < $MAXDEPTH && (my $nxt = mp_descend($sub, $nr))) {
+		if ($depth < $mime_nesting_limit &&
+				(my $nxt = mp_descend($sub, $nr))) {
 			push(@s, $p) if scalar @{$p->[0]};
 			$p = [ $nxt, @idx, 0 ];
 		} else { # a leaf node
