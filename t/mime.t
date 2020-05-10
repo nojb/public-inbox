@@ -16,7 +16,7 @@ use_ok $_ for @classes;
 local $SIG{__WARN__} = sub {}; # needed for old Email::Simple (used by E::M)
 
 for my $cls (@classes) {
-	my $msg = PublicInbox::MIME->new(<<'EOF');
+	my $msg = $cls->new(<<'EOF');
 From:   Richard Hansen <hansenr@google.com>
 To:     git@vger.kernel.org
 Cc:     Richard Hansen <hansenr@google.com>
@@ -49,7 +49,7 @@ dkTlB69771K2eXK4LcHSH/2LqX+VYa3K44vrx1ruzjXdNWzIpKBy0weFNiwnJCGofvCysM2RCSI1
 
 EOF
 
-	my @parts = $msg->parts;
+	my @parts = $msg->subparts;
 	my $exp = <<EOF;
 Richard Hansen (2):
   diff: document behavior of relative diff.orderFile
