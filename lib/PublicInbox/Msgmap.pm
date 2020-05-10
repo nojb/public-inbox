@@ -48,6 +48,10 @@ sub new_file {
 
 	if ($writable) {
 		create_tables($dbh);
+
+		# TRUNCATE reduces I/O compared to the default (DELETE)
+		$dbh->do('PRAGMA journal_mode = TRUNCATE');
+
 		$dbh->begin_work;
 		$self->created_at(time) unless $self->created_at;
 
