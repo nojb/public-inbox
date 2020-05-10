@@ -180,18 +180,22 @@ syntax:: \$(my_syntax)
 changed = \$(shell git ls-files -m)
 dsyn :: \$(addsuffix .syntax, \$(filter \$(changed), \$(syn_files)))
 
-check-manifest :: MANIFEST
-	if test -e .git && git ls-files >\$?.gen 2>&1; then \\
-		diff -u \$? \$?.gen; fi
+check_manifest := if test -e .git && git ls-files >MANIFEST.gen 2>&1; then \\
+		diff -u MANIFEST MANIFEST.gen; fi
+
+check-manifest : MANIFEST
+	\$(check_manifest)
 
 # the traditional way running per-*.t processes:
-check-each :: pure_all check-manifest
+check-each :: pure_all
 	\$(EATMYDATA) \$(PROVE) --state=save -bvw -j\$(N)
+	-@\$(check_manifest)
 
 # lightly-tested way to run tests, relies "--state=save" in check-each
 # for best performance
-check-run :: pure_all check-manifest
+check-run :: pure_all
 	\$(EATMYDATA) \$(PROVE) -bvw t/run.perl :: -j\$(N)
+	-@\$(check_manifest)
 
 check :: check-each
 
