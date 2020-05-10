@@ -21,8 +21,16 @@ use PublicInbox::Search;
 sub dbh_new {
 	my ($self) = @_;
 	my $dbh = $self->SUPER::dbh_new(1);
+
+	# TRUNCATE reduces I/O compared to the default (DELETE)
 	$dbh->do('PRAGMA journal_mode = TRUNCATE');
+
+	# 80000 pages (80MiB on SQLite <3.12.0, 320MiB on 3.12.0+)
+	# was found to be good in 2018 during the large LKML import
+	# at the time.  This ought to be configurable based on HW
+	# and inbox size; I suspect it's overkill for many inboxes.
 	$dbh->do('PRAGMA cache_size = 80000');
+
 	create_tables($dbh);
 	$dbh;
 }
