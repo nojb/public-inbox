@@ -41,6 +41,7 @@ $PublicInbox::EmlContentFoo::STRICT_PARAMS = 0;
 our $MAXPARTS = 1000; # same as SpamAssassin
 our $MAXDEPTH = 20; # seems enough, Perl sucks, here
 our $MAXBOUNDLEN = 2048; # same as postfix
+our $header_size_limit = 102400; # same as postfix
 
 my %MIME_ENC = (qp => \&enc_qp, base64 => \&encode_base64);
 my %MIME_DEC = (qp => \&dec_qp, base64 => \&decode_base64);
@@ -68,6 +69,22 @@ sub re_memo ($) {
 					/ismx
 }
 
+sub hdr_truncate ($) {
+	my $len = length($_[0]);
+	substr($_[0], $header_size_limit, $len) = '';
+	my $end = rindex($_[0], "\n");
+	if ($end >= 0) {
+		++$end;
+		substr($_[0], $end, $len) = '';
+		warn "header of $len bytes truncated to $end bytes\n";
+	} else {
+		$_[0] = '';
+		warn <<EOF
+header of $len bytes without `\\n' within $header_size_limit ignored
+EOF
+	}
+}
+
 # compatible with our uses of Email::MIME
 sub new {
 	my $ref = ref($_[1]) ? $_[1] : \(my $cpy = $_[1]);
@@ -81,14 +98,18 @@ sub new {
 		# likely on *nix
 		my $hdr = substr($$ref, 0, $pos + 2, ''); # sv_chop on $$ref
 		chop($hdr); # lower SvCUR
+		hdr_truncate($hdr) if length($hdr) > $header_size_limit;
 		bless { hdr => \$hdr, crlf => "\n", bdy => $ref }, __PACKAGE__;
 	} elsif ($$ref =~ /\r?\n(\r?\n)/s) {
 		my $hdr = substr($$ref, 0, $+[0], ''); # sv_chop on $$ref
 		substr($hdr, -(length($1))) = ''; # lower SvCUR
+		hdr_truncate($hdr) if length($hdr) > $header_size_limit;
 		bless { hdr => \$hdr, crlf => $1, bdy => $ref }, __PACKAGE__;
 	} elsif ($$ref =~ /^[a-z0-9-]+[ \t]*:/ims && $$ref =~ /(\r?\n)\z/s) {
 		# body is optional :P
-		bless { hdr => \($$ref), crlf => $1 }, __PACKAGE__;
+		my $hdr = substr($$ref, 0, $header_size_limit + 1);
+		hdr_truncate($hdr) if length($hdr) > $header_size_limit;
+		bless { hdr => \$hdr, crlf => $1 }, __PACKAGE__;
 	} else { # nothing useful
 		my $hdr = $$ref = '';
 		bless { hdr => \$hdr, crlf => "\n" }, __PACKAGE__;

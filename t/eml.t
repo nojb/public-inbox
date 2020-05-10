@@ -252,6 +252,31 @@ EOF
 		'final "\n" preserved on missing epilogue');
 }
 
+if ('header_size_limit stolen from postfix') {
+	local $PublicInbox::Eml::header_size_limit = 4;
+	my @w;
+	local $SIG{__WARN__} = sub { push @w, @_ };
+	my $eml = PublicInbox::Eml->new("a:b\na:d\n\nzz");
+	is_deeply([$eml->header('a')], ['b'], 'no overrun header');
+	is($eml->body_raw, 'zz', 'body not damaged');
+	is($eml->header_obj->as_string, "a:b\n", 'header truncated');
+	is(grep(/truncated/, @w), 1, 'truncation warned');
+
+	$eml = PublicInbox::Eml->new("a:b\na:d\n");
+	is_deeply([$eml->header('a')], ['b'], 'no overrun header w/o body');
+
+	local $PublicInbox::Eml::header_size_limit = 5;
+	$eml = PublicInbox::Eml->new("a:b\r\na:d\r\n\nzz");
+	is_deeply([$eml->header('a')], ['b'], 'no overrun header on CRLF');
+	is($eml->body_raw, 'zz', 'body not damaged');
+
+	@w = ();
+	$eml = PublicInbox::Eml->new("too:long\n");
+	$eml = PublicInbox::Eml->new("too:long\n\n");
+	$eml = PublicInbox::Eml->new("too:long\r\n\r\n");
+	is(grep(/ignored/, @w), 3, 'ignored header warned');
+}
+
 if ('maxparts is a feature unique to us') {
 	my $eml = eml_load 't/psgi_attach.eml';
 	my @orig;
