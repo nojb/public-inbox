@@ -9,7 +9,7 @@ use warnings;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use PublicInbox::AdminEdit;
 use File::Temp 0.19 (); # 0.19 for TMPDIR
-use PublicInbox::ContentId qw(content_id);
+use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::MID qw(mid_clean mids);
 PublicInbox::Admin::check_require('-index');
 use PublicInbox::Eml;
@@ -43,7 +43,7 @@ if (defined $mid && defined $file) {
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::AdminEdit::check_editable(\@ibxs);
 
-my $found = {}; # cid => [ [ibx, smsg] [, [ibx, smsg] ] ]
+my $found = {}; # chash => [ [ibx, smsg] [, [ibx, smsg] ] ]
 
 sub find_mid ($$$) {
 	my ($found, $mid, $ibxs) = @_;
@@ -53,9 +53,9 @@ sub find_mid ($$$) {
 		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
 			my $ref = $ibx->msg_by_smsg($smsg);
 			my $mime = PublicInbox::Eml->new($ref);
-			my $cid = content_id($mime);
+			my $chash = content_hash($mime);
 			my $tuple = [ $ibx, $smsg ];
-			push @{$found->{$cid} ||= []}, $tuple
+			push @{$found->{$chash} ||= []}, $tuple
 		}
 		PublicInbox::InboxWritable::cleanup($ibx);
 	}
@@ -96,8 +96,8 @@ Multiple messages with different content found matching
 		die "open($file) failed: $!";
 	my $mids = mids($mime->header_obj);
 	find_mid($found, $_, \@ibxs) for (@$mids); # populates $found
-	my $cid = content_id($mime);
-	my $to_edit = $found->{$cid};
+	my $chash = content_hash($mime);
+	my $to_edit = $found->{$chash};
 	unless ($to_edit) {
 		my $nr = scalar(keys %$found);
 		if ($nr > 0) {
@@ -115,7 +115,7 @@ $mids
 		}
 		exit 1;
 	}
-	$found = { $cid => $to_edit };
+	$found = { $chash => $to_edit };
 }
 
 my %tmpopt = (
@@ -218,7 +218,7 @@ W: possible message boundary splitting error
 	my $nhdr = $new_mime->header_obj;
 	my $ohdr = $old_mime->header_obj;
 	if (($nhdr->as_string eq $ohdr->as_string) &&
-	    (content_id($new_mime) eq content_id($old_mime))) {
+	    (content_hash($new_mime) eq content_hash($old_mime))) {
 		warn "No change detected to:\n", show_cmd($ibx, $smsg);
 
 		next unless $opt->{verbose};

@@ -159,7 +159,7 @@ top-level of the directory.
 
 =head1 OBJECT IDENTIFIERS
 
-There are three distinct type of identifiers.  content_id is the
+There are three distinct type of identifiers.  content_hash is the
 new one for v2 and should make message removal and deduplication
 easier.  object_id and Message-ID are already known.
 
@@ -179,11 +179,11 @@ The email header; duplicates allowed for archival purposes.
 This remains a searchable field in Xapian.  Note: it's possible
 for emails to have multiple Message-ID headers (and L<git-send-email(1)>
 had that bug for a bit); so we take all of them into account.
-In case of conflicts detected by content_id below, we generate a new
-Message-ID based on content_id; if the generated Message-ID still
+In case of conflicts detected by content_hash below, we generate a new
+Message-ID based on content_hash; if the generated Message-ID still
 conflicts, a random one is generated.
 
-=item content_id
+=item content_hash
 
 A hash of relevant headers and raw body content for
 purging of unwanted content.  This is not stored anywhere,
@@ -193,7 +193,7 @@ For now, the relevant headers are:
 
 	Subject, From, Date, References, In-Reply-To, To, Cc
 
-Received, List-Id, and similar headers are NOT part of content_id as
+Received, List-Id, and similar headers are NOT part of content_hash as
 they differ across lists and we will want removal to be able to cross
 lists.
 
@@ -203,7 +203,7 @@ raw body risks being broken by list signatures; but we can use
 filters (e.g. PublicInbox::Filter::Vger) to clean the body for
 imports.
 
-content_id is SHA-256 for now; but can be changed at any time
+content_hash is SHA-256 for now; but can be changed at any time
 without making DB changes.
 
 =back

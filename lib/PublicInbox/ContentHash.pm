@@ -6,11 +6,11 @@
 # This is not stored in any database anywhere and may change
 # as changes in duplicate detection are needed.
 # See L<public-inbox-v2-format(5)> manpage for more details.
-package PublicInbox::ContentId;
+package PublicInbox::ContentHash;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw/content_id content_digest/;
+our @EXPORT_OK = qw/content_hash content_digest/;
 use PublicInbox::MID qw(mids references);
 use PublicInbox::MsgIter;
 
@@ -60,7 +60,7 @@ sub content_digest ($) {
 	# References: and In-Reply-To: get used interchangeably
 	# in some "duplicates" in LKML.  We treat them the same
 	# in SearchIdx, so treat them the same for this:
-	# do NOT consider the Message-ID as part of the content_id
+	# do NOT consider the Message-ID as part of the content_hash
 	# if we got here, we've already got Message-ID reuse
 	my %seen = map { $_ => 1 } @{mids($hdr)};
 	foreach my $mid (@{references($hdr)}) {
@@ -92,7 +92,7 @@ sub content_digest ($) {
 	$dig;
 }
 
-sub content_id ($) {
+sub content_hash ($) {
 	content_digest($_[0])->digest;
 }
 

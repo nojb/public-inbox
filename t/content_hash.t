@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::ContentId qw(content_id);
+use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::Eml;
 
 my $mime = PublicInbox::Eml->new(<<'EOF');
@@ -16,17 +16,17 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 hello world
 EOF
 
-my $orig = content_id($mime);
-my $reload = content_id(PublicInbox::Eml->new($mime->as_string));
-is($orig, $reload, 'content_id matches after serialization');
+my $orig = content_hash($mime);
+my $reload = content_hash(PublicInbox::Eml->new($mime->as_string));
+is($orig, $reload, 'content_hash matches after serialization');
 
 foreach my $h (qw(From To Cc)) {
 	my $n = q("Quoted N'Ame" <foo@EXAMPLE.com>);
 	$mime->header_set($h, "$n");
-	my $q = content_id($mime);
-	is($mime->header($h), $n, "content_id does not mutate $h:");
+	my $q = content_hash($mime);
+	is($mime->header($h), $n, "content_hash does not mutate $h:");
 	$mime->header_set($h, 'Quoted N\'Ame <foo@example.com>');
-	my $nq = content_id($mime);
+	my $nq = content_hash($mime);
 	is($nq, $q, "quotes ignored in $h:");
 }
 

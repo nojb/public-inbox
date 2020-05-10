@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use PublicInbox::ContentId qw(content_digest);
+use PublicInbox::ContentHash qw(content_digest);
 use File::Path qw(remove_tree);
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;

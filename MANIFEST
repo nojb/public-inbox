@@ -99,7 +99,7 @@ lib/PublicInbox/AdminEdit.pm
 lib/PublicInbox/AltId.pm
 lib/PublicInbox/Cgit.pm
 lib/PublicInbox/Config.pm
-lib/PublicInbox/ContentId.pm
+lib/PublicInbox/ContentHash.pm
 lib/PublicInbox/DS.pm
 lib/PublicInbox/DSKQXS.pm
 lib/PublicInbox/DSPoll.pm
@@ -223,7 +223,7 @@ t/cgi.t
 t/check-www-inbox.perl
 t/config.t
 t/config_limiter.t
-t/content_id.t
+t/content_hash.t
 t/convert-compact.t
 t/data/0001.patch
 t/ds-kqxs.t

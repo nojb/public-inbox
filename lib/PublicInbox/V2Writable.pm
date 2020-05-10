@@ -13,7 +13,7 @@ use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MID qw(mids references);
-use PublicInbox::ContentId qw(content_id content_digest);
+use PublicInbox::ContentHash qw(content_hash content_digest);
 use PublicInbox::Inbox;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
@@ -353,23 +353,23 @@ sub _replace_oids ($$$) {
 	$rewrites;
 }
 
-sub content_ids ($) {
+sub content_hashes ($) {
 	my ($mime) = @_;
-	my @cids = ( content_id($mime) );
+	my @chashes = ( content_hash($mime) );
 
 	# We still support Email::MIME, here, and
 	# Email::MIME->as_string doesn't always round-trip, so we may
-	# use a second content_id
-	my $rt = content_id(PublicInbox::Eml->new(\($mime->as_string)));
-	push @cids, $rt if $cids[0] ne $rt;
-	\@cids;
+	# use a second content_hash
+	my $rt = content_hash(PublicInbox::Eml->new(\($mime->as_string)));
+	push @chashes, $rt if $chashes[0] ne $rt;
+	\@chashes;
 }
 
 sub content_matches ($$) {
-	my ($cids, $existing) = @_;
-	my $cid = content_id($existing);
-	foreach (@$cids) {
-		return 1 if $_ eq $cid
+	my ($chashes, $existing) = @_;
+	my $chash = content_hash($existing);
+	foreach (@$chashes) {
+		return 1 if $_ eq $chash
 	}
 	0
 }
@@ -386,13 +386,13 @@ sub rewrite_internal ($$;$$$) {
 		$im = $self->importer;
 	}
 	my $over = $self->{over};
-	my $cids = content_ids($old_mime);
+	my $chashes = content_hashes($old_mime);
 	my @removed;
 	my $mids = mids($old_mime->header_obj);
 
 	# We avoid introducing new blobs into git since the raw content
 	# can be slightly different, so we do not need the user-supplied
-	# message now that we have the mids and content_id
+	# message now that we have the mids and content_hash
 	$old_mime = undef;
 	my $mark;
 
@@ -407,7 +407,7 @@ sub rewrite_internal ($$;$$$) {
 			}
 			my $orig = $$msg;
 			my $cur = PublicInbox::Eml->new($msg);
-			if (content_matches($cids, $cur)) {
+			if (content_matches($chashes, $cur)) {
 				$gone{$smsg->{num}} = [ $smsg, $cur, \$orig ];
 			}
 		}
@@ -835,7 +835,7 @@ sub get_blob ($$) {
 sub content_exists ($$$) {
 	my ($self, $mime, $mid) = @_;
 	my $over = $self->{over};
-	my $cids = content_ids($mime);
+	my $chashes = content_hashes($mime);
 	my ($id, $prev);
 	while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
 		my $msg = get_blob($self, $smsg);
@@ -844,7 +844,7 @@ sub content_exists ($$$) {
 			next;
 		}
 		my $cur = PublicInbox::Eml->new($msg);
-		return 1 if content_matches($cids, $cur);
+		return 1 if content_matches($chashes, $cur);
 
 		# XXX DEBUG_DIFF is experimental and may be removed
 		diff($mid, $cur, $mime) if $ENV{DEBUG_DIFF};
@@ -873,9 +873,9 @@ sub mark_deleted ($$$$) {
 	my $msgref = $git->cat_file($oid);
 	my $mime = PublicInbox::Eml->new($$msgref);
 	my $mids = mids($mime->header_obj);
-	my $cid = content_id($mime);
+	my $chash = content_hash($mime);
 	foreach my $mid (@$mids) {
-		$sync->{D}->{"$mid\0$cid"} = $oid;
+		$sync->{D}->{"$mid\0$chash"} = $oid;
 	}
 }
 
@@ -904,11 +904,11 @@ sub reindex_oid_m ($$$$;$) {
 	my $msgref = $git->cat_file($oid, \$len);
 	my $mime = PublicInbox::Eml->new($$msgref);
 	my $mids = mids($mime->header_obj);
-	my $cid = content_id($mime);
+	my $chash = content_hash($mime);
 	die "BUG: reindex_oid_m called for <=1 mids" if scalar(@$mids) <= 1;
 
 	for my $mid (reverse @$mids) {
-		delete($sync->{D}->{"$mid\0$cid"}) and
+		delete($sync->{D}->{"$mid\0$chash"}) and
 			die "BUG: reindex_oid should handle <$mid> delete";
 	}
 	my $over = $self->{over};
@@ -1002,7 +1002,7 @@ sub reindex_oid ($$$$) {
 	return if $len == 0; # purged
 	my $mime = PublicInbox::Eml->new($$msgref);
 	my $mids = mids($mime->header_obj);
-	my $cid = content_id($mime);
+	my $chash = content_hash($mime);
 
 	if (scalar(@$mids) == 0) {
 		warn "E: $oid has no Message-ID, skipping\n";
@@ -1011,7 +1011,7 @@ sub reindex_oid ($$$$) {
 		my $mid = $mids->[0];
 
 		# was the file previously marked as deleted?, skip if so
-		if (delete($sync->{D}->{"$mid\0$cid"})) {
+		if (delete($sync->{D}->{"$mid\0$chash"})) {
 			if (!$sync->{reindex}) {
 				$num = $sync->{regen}--;
 				$self->{mm}->num_highwater($num);
@@ -1036,7 +1036,7 @@ sub reindex_oid ($$$$) {
 	} else { # multiple MIDs are a weird case:
 		my $del = 0;
 		for (@$mids) {
-			$del += delete($sync->{D}->{"$_\0$cid"}) // 0;
+			$del += delete($sync->{D}->{"$_\0$chash"}) // 0;
 		}
 		if ($del) {
 			unindex_oid_remote($self, $oid, $_) for @$mids;
@@ -1309,7 +1309,7 @@ sub index_sync {
 	return unless defined $latest;
 	$self->idx_init($opt); # acquire lock
 	my $sync = {
-		D => {}, # "$mid\0$cid" => $oid
+		D => {}, # "$mid\0$chash" => $oid
 		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
 		-opt => $opt

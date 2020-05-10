@@ -13,7 +13,7 @@ use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::MID qw(mids mid2path);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-use PublicInbox::ContentId qw(content_digest);
+use PublicInbox::ContentHash qw(content_digest);
 use PublicInbox::MDA;
 use PublicInbox::Eml;
 use POSIX qw(strftime);

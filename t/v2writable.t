@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Eml;
-use PublicInbox::ContentId qw(content_digest content_id);
+use PublicInbox::ContentHash qw(content_digest content_hash);
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
@@ -215,7 +215,7 @@ EOF
 	$im = PublicInbox::V2Writable->new($ibx, {nproc => 2});
 	is($im->{shards}, 1, 'detected single shard from previous');
 	my ($mark, $rm_mime, $smsg) = $im->remove($mime, 'test removal');
-	is(content_id($rm_mime), content_id($mime),
+	is(content_hash($rm_mime), content_hash($mime),
 			'removed object returned matches');
 	ok(defined($mark), 'mark set');
 	$im->done;
