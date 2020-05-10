@@ -260,10 +260,6 @@ my %non_strict_ct_tests = (
 sub test {
 	my ($string, $expect, $info) = @_;
 
-	# So stupid. -- rjbs, 2013-08-10
-	$expect->{discrete}  = $expect->{type};
-	$expect->{composite} = $expect->{subtype};
-
 	local $_;
 	$info =~ s/\r/\\r/g;
 	$info =~ s/\n/\\n/g;

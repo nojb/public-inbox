@@ -17,8 +17,7 @@ sub get_attach_i { # ->each_part callback
 	my $ct = $part->content_type;
 	$ct = parse_content_type($ct) if $ct;
 
-	# discrete == type, we remain Debian wheezy-compatible
-	if ($ct && (($ct->{discrete} || '') eq 'text')) {
+	if ($ct && (($ct->{type} || '') eq 'text')) {
 		# display all text as text/plain:
 		my $cset = $ct->{attributes}->{charset};
 		if ($cset && ($cset =~ /\A[a-zA-Z0-9_\-]+\z/)) {

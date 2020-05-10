@@ -102,11 +102,6 @@ sub parse_content_type {
 		type	   => $type,
 		subtype	=> $subtype,
 		attributes => $attributes,
-
-		# This is dumb.  Really really dumb.  For backcompat. -- rjbs,
-		# 2013-08-10
-		discrete   => $type,
-		composite  => $subtype,
 	};
 }
 
@@ -300,11 +295,6 @@ This routine parses email content type headers according to section 5.1 of RFC
 2045 and also RFC 2231 (Character Set and Parameter Continuations).  It returns
 a hash as above, with entries for the C<type>, the C<subtype>, and a hash of
 C<attributes>.
-
-For backward compatibility with a really unfortunate misunderstanding of RFC
-2045 by the early implementors of this module, C<discrete> and C<composite> are
-also present in the returned hashref, with the values of C<type> and C<subtype>
-respectively.
 
 =func parse_content_disposition
 
