@@ -1,6 +1,8 @@
 From: Eric Wong <e@yhbt.net>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.5.0
+Subject: [ANNOUNCE] public-inbox 1.5.0
+Date: Sun, 10 May 2020 07:04:00 +0000
+Message-ID: <20200510.public-inbox-1.5.0-rele@sed>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline
