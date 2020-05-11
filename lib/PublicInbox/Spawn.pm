@@ -2,7 +2,8 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # This allows vfork to be used for spawning subprocesses if
-# PERL_INLINE_DIRECTORY is explicitly defined in the environment.
+# ~/.cache/public-inbox/inline-c is writable or if PERL_INLINE_DIRECTORY
+# is explicitly defined in the environment (and writable).
 # Under Linux, vfork can make a big difference in spawning performance
 # as process size increases (fork still needs to mark pages for CoW use).
 # Currently, we only use this for code intended for long running
@@ -140,8 +141,12 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 }
 VFORK_SPAWN
 
-my $inline_dir = $ENV{PERL_INLINE_DIRECTORY};
-$vfork_spawn = undef unless defined $inline_dir && -d $inline_dir && -w _;
+my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} // (
+		$ENV{XDG_CACHE_HOME} //
+		( ($ENV{HOME} // '/nonexistent').'/.cache' )
+	).'/public-inbox/inline-c';
+
+$vfork_spawn = undef unless -d $inline_dir && -w _;
 if (defined $vfork_spawn) {
 	# Inline 0.64 or later has locking in multi-process env,
 	# but we support 0.5 on Debian wheezy
@@ -150,7 +155,7 @@ if (defined $vfork_spawn) {
 		my $f = "$inline_dir/.public-inbox.lock";
 		open my $fh, '>', $f or die "failed to open $f: $!\n";
 		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-		eval 'use Inline C => $vfork_spawn'; #, BUILD_NOISY => 1';
+		eval 'use Inline C => $vfork_spawn, directory => $inline_dir';
 		my $err = $@;
 		flock($fh, LOCK_UN) or die "LOCK_UN failed on $f: $!\n";
 		die $err if $err;
