@@ -102,7 +102,7 @@ sub _set_limiter ($$$) {
 
 sub new {
 	my ($class, $opts) = @_;
-	my $v = $opts->{address} ||= 'public-inbox@example.com';
+	my $v = $opts->{address} ||= [ 'public-inbox@example.com' ];
 	my $p = $opts->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
 	$opts->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
 	my $pi_config = delete $opts->{-pi_config};
