@@ -15,6 +15,7 @@ use_ok 'PublicInbox::WWW';
 use PublicInbox::Import;
 use PublicInbox::Git;
 use PublicInbox::Config;
+use PublicInbox::Eml;
 use_ok 'PublicInbox::WwwAttach';
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
@@ -30,6 +31,7 @@ $im->init_bare;
 	my $txt = "plain\ntext\npass\nthrough\n";
 	my $dot = "dotfile\n";
 	$im->add(eml_load('t/psgi_attach.eml'));
+	$im->add(eml_load('t/data/message_embed.eml'));
 	$im->done;
 
 	my $www = PublicInbox::WWW->new($config);
@@ -67,6 +69,22 @@ $im->init_bare;
 		ok(length($dot_res) >= length($dot), 'dot almost matches');
 		$res = $cb->(GET('/test/Z%40B/4-any-filename.txt'));
 		is($res->content, $dot_res, 'user-specified filename is OK');
+
+		my $mid = '20200418222508.GA13918@dcvr';
+		my $irt = '20200418222020.GA2745@dcvr';
+		$res = $cb->(GET("/test/$mid/"));
+		like($res->content, qr/\bhref="2-embed2x\.eml"/s,
+			'href to message/rfc822 attachment visible');
+		$res = $cb->(GET("/test/$mid/2-embed2x.eml"));
+		my $eml = PublicInbox::Eml->new(\($res->content));
+		is_deeply([ $eml->header_raw('Message-ID') ], [ "<$irt>" ],
+			'got attached eml');
+		my @subs = $eml->subparts;
+		is(scalar(@subs), 2, 'attachment had 2 subparts');
+		like($subs[0]->body_str, qr/^testing embedded message\n*\z/sm,
+			'1st attachment is as expected');
+		is($subs[1]->header('Content-Type'), 'message/rfc822',
+			'2nd attachment is as expected');
 	});
 }
 done_testing();

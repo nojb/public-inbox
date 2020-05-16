@@ -226,6 +226,7 @@ t/config_limiter.t
 t/content_hash.t
 t/convert-compact.t
 t/data/0001.patch
+t/data/message_embed.eml
 t/ds-kqxs.t
 t/ds-leak.t
 t/ds-poll.t

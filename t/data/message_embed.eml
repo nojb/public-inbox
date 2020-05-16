@@ -1,0 +1,163 @@
+Received: from localhost (dcvr.yhbt.net [127.0.0.1])
+	by dcvr.yhbt.net (Postfix) with ESMTP id 977481F45A;
+	Sat, 18 Apr 2020 22:25:08 +0000 (UTC)
+Date: Sat, 18 Apr 2020 22:25:08 +0000
+From: Eric Wong <e@yhbt.net>
+To: test@public-inbox.org
+Subject: Re: embedded message test
+Message-ID: <20200418222508.GA13918@dcvr>
+References: <20200418222020.GA2745@dcvr>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="TB36FDmn/VVEgNH/"
+Content-Disposition: inline
+In-Reply-To: <20200418222020.GA2745@dcvr>
+
+
+--TB36FDmn/VVEgNH/
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+
+testing embedded message harder
+
+--TB36FDmn/VVEgNH/
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="embed2x.eml"
+
+Date: Sat, 18 Apr 2020 22:20:20 +0000
+From: Eric Wong <e@yhbt.net>
+To: test@public-inbox.org
+Subject: embedded message test
+Message-ID: <20200418222020.GA2745@dcvr>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="/04w6evG8XlLl3ft"
+Content-Disposition: inline
+
+--/04w6evG8XlLl3ft
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+
+testing embedded message
+
+--/04w6evG8XlLl3ft
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="test.eml"
+
+From: Eric Wong <e@yhbt.net>
+To: spew@80x24.org
+Subject: [PATCH] mail header experiments
+Date: Sat, 18 Apr 2020 21:41:14 +0000
+Message-Id: <20200418214114.7575-1-e@yhbt.net>
+MIME-Version: 1.0
+Content-Transfer-Encoding: 8bit
+
+---
+ lib/PublicInbox/MailHeader.pm | 55 +++++++++++++++++++++++++++++++++++
+ t/mail_header.t               | 31 ++++++++++++++++++++
+ 2 files changed, 86 insertions(+)
+ create mode 100644 lib/PublicInbox/MailHeader.pm
+ create mode 100644 t/mail_header.t
+
+diff --git a/lib/PublicInbox/MailHeader.pm b/lib/PublicInbox/MailHeader.pm
+new file mode 100644
+index 00000000..166baf91
+--- /dev/null
++++ b/lib/PublicInbox/MailHeader.pm
+@@ -0,0 +1,55 @@
++# Copyright (C) 2020 all contributors <meta@public-inbox.org>
++# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
++package PublicInbox::MailHeader;
++use strict;
++use HTTP::Parser::XS qw(parse_http_response HEADERS_AS_ARRAYREF);
++use bytes (); #bytes::length
++my %casemap;
++
++sub _headerx_to_list {
++	my (undef, $head, $crlf) = @_;
++
++	# picohttpparser uses `int' as the return value, so the
++	# actual limit is 2GB on most platforms.  However, headers
++	# exceeding (or even close to) 1MB seems unreasonable
++	die 'headers too big' if bytes::length($$head) > 0x100000;
++	my ($ret, undef, undef, undef, $headers) =
++		parse_http_response('HTTP/1.0 1 X'. $crlf . $$head,
++					HEADERS_AS_ARRAYREF);
++	die 'failed to parse headers' if $ret <= 0;
++	# %casemap = map {; lc($_) => $_ } ($$head =~ m/^([^:]+):/gsm);
++	# my $nr = @$headers;
++	for (my $i = 0; $i < @$headers; $i += 2) {
++		my $key = $headers->[$i]; # = $casemap{$headers->[$i]};
++		my $val = $headers->[$i + 1];
++		(my $trimmed = $val) =~ s/\r?\n\s+/ /;
++		$headers->[$i + 1] = [
++			$trimmed,
++			"$key: $val"
++		]
++	}
++	$headers;
++}
++
++sub _header_to_list {
++	my (undef, $head, $crlf) = @_;
++	my @tmp = ($$head =~ m/^(([^ \t:][^:\n]*):[ \t]*
++			([^\n]*\n(?:[ \t]+[^\n]*\n)*))/gsmx);
++	my @headers;
++	$#headers = scalar @tmp;
++	@headers = ();
++	while (@tmp) {
++		my ($orig, $key, $val) = splice(@tmp, 0, 3);
++		# my $v = $tmp[$i + 2];
++		# $v =~ s/\r?\n[ \t]+/ /sg;
++		# $v =~ s/\r?\n\z//s;
++		$val =~ s/\n[ \t]+/ /sg;
++		chomp($val, $orig);
++		# $val =~ s/\r?\n\z//s;
++		# $orig =~ s/\r?\n\z//s;
++		push @headers, $key, [ $val, $orig ];
++	}
++	\@headers;
++}
++
++1;
+diff --git a/t/mail_header.t b/t/mail_header.t
+new file mode 100644
+index 00000000..4dc62c50
+--- /dev/null
++++ b/t/mail_header.t
+@@ -0,0 +1,31 @@
++# Copyright (C) 2020 all contributors <meta@public-inbox.org>
++# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
++use strict;
++use Test::More;
++use PublicInbox::TestCommon;
++require_mods('PublicInbox::MailHeader');
++
++my $head = <<'EOF';
++From d0147582e289fdd4cdd84e91d8b0f8ae9c230124 Mon Sep 17 00:00:00 2001
++From: Eric Wong <e@yhbt.net>
++Date: Fri, 17 Apr 2020 09:28:49 +0000
++Subject: [PATCH] searchthread: reduce indirection by removing container
++
++EOF
++my $orig = $head;
++use Email::Simple;
++my $xshdr = PublicInbox::MailHeader->_header_to_list(\$head, "\n");
++my $simpl = Email::Simple::Header->_header_to_list(\$head, "\n");
++is_deeply($xshdr, $simpl);
++use Benchmark qw(:all);
++my $res = timethese(100000, {
++	pmh => sub {
++		PublicInbox::MailHeader->_header_to_list(\$head, "\n");
++	},
++	esh =>  sub {
++		PublicInbox::MailHeader->_header_to_list(\$head, "\n");
++	}
++});
++is($head, $orig);
++use Data::Dumper; diag Dumper($res);
++done_testing;
+
+
+--/04w6evG8XlLl3ft--
+
+
+--TB36FDmn/VVEgNH/--
