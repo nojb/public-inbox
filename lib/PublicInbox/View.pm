@@ -483,7 +483,7 @@ sub multipart_text_as_html {
 sub attach_link ($$$$;$) {
 	my ($ctx, $ct, $p, $fn, $err) = @_;
 	my ($part, $depth, $idx) = @$p;
-	my $nl = substr($idx, -2) eq '.1' ? '' : "\n"; # like join("\n", ...)
+	my $nl = $idx eq '1' ? '' : "\n"; # like join("\n", ...)
 	my $size = bytes::length($part->body);
 
 	# hide attributes normally, unless we want to aid users in
