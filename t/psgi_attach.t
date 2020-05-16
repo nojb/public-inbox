@@ -75,6 +75,9 @@ $im->init_bare;
 		$res = $cb->(GET("/test/$mid/"));
 		like($res->content, qr/\bhref="2-embed2x\.eml"/s,
 			'href to message/rfc822 attachment visible');
+		like($res->content, qr/\bhref="2\.1\.2-test\.eml"/s,
+			'href to nested message/rfc822 attachment visible');
+
 		$res = $cb->(GET("/test/$mid/2-embed2x.eml"));
 		my $eml = PublicInbox::Eml->new(\($res->content));
 		is_deeply([ $eml->header_raw('Message-ID') ], [ "<$irt>" ],
@@ -85,6 +88,12 @@ $im->init_bare;
 			'1st attachment is as expected');
 		is($subs[1]->header('Content-Type'), 'message/rfc822',
 			'2nd attachment is as expected');
+
+		$res = $cb->(GET("/test/$mid/2.1.2-test.eml"));
+		$eml = PublicInbox::Eml->new(\($res->content));
+		is_deeply([ $eml->header_raw('Message-ID') ],
+			[ '<20200418214114.7575-1-e@yhbt.net>' ],
+			'nested eml retrieved');
 	});
 }
 done_testing();

@@ -60,6 +60,14 @@ my %DECODE_FULL = (
 our %STR_TYPE = (text => 1);
 our %STR_SUBTYPE = (plain => 1, html => 1);
 
+# message/* subtypes we descend into
+our %MESSAGE_DESCEND = (
+	news => 1, # RFC 1849 (obsolete, but archives are forever)
+	rfc822 => 1, # RFC 2046
+	rfc2822 => 1, # gmime handles this (but not rfc5322)
+	global => 1, # RFC 6532
+);
+
 my %re_memo;
 sub re_memo ($) {
 	my ($k) = @_;
@@ -149,12 +157,24 @@ sub ct ($) {
 }
 
 # returns a queue of sub-parts iff it's worth descending into
-# TODO: descend into message/rfc822 parts (Email::MIME didn't)
 sub mp_descend ($$) {
 	my ($self, $nr) = @_; # or $once for top-level
-	my $bnd = ct($self)->{attributes}->{boundary} // return; # single-part
+	my $ct = ct($self);
+	my $type = lc($ct->{type});
+	if ($type eq 'message' && $MESSAGE_DESCEND{lc($ct->{subtype})}) {
+		my $nxt = new(undef, body_raw($self));
+		$self->{-call_cb} = $nxt->{is_submsg} = 1;
+		return [ $nxt ];
+	}
+	return if $type ne 'multipart';
+	my $bnd = $ct->{attributes}->{boundary} // return; # single-part
 	return if $bnd eq '' || length($bnd) >= $mime_boundary_length_limit;
 	$bnd = quotemeta($bnd);
+
+	# this is a multipart message that didn't get descended into in
+	# public-inbox <= 1.5.0, so ensure we call the user callback for
+	# this part to not break PSGI downloads.
+	$self->{-call_cb} = $self->{is_submsg};
 
 	# "multipart" messages can exist w/o a body
 	my $bdy = ($nr ? delete($self->{bdy}) : \(body_raw($self))) or return;
@@ -189,14 +209,15 @@ sub mp_descend ($$) {
 		# compatibility with Email::MIME
 		$parts[-1] =~ s/\n\r?\n\z/\n/s if $epilogue_missing;
 
-		@parts = grep /[^ \t\r\n]/s, @parts; # ignore empty parts
+		# ignore empty parts
+		@parts = map { new_sub(undef, \$_) } grep /[^ \t\r\n]/s, @parts;
 
 		# Keep "From: someone..." from preamble in old,
 		# buggy versions of git-send-email, otherwise drop it
 		# There's also a case where quoted text showed up in the
 		# preamble
 		# <20060515162817.65F0F1BBAE@citi.umich.edu>
-		unshift(@parts, $pre) if $pre =~ /:/s;
+		unshift(@parts, new_sub(undef, \$pre)) if $pre =~ /:/s;
 		return \@parts;
 	}
 	# "multipart", but no boundary found, treat as single part
@@ -217,6 +238,9 @@ sub each_part {
 	my ($self, $cb, $arg, $once) = @_;
 	my $p = mp_descend($self, $once // 0) or
 					return $cb->([$self, 0, 0], $arg);
+
+	$cb->([$self, 0, 0], $arg) if $self->{-call_cb}; # rare
+
 	$p = [ $p, 0 ];
 	my @s; # our virtual stack
 	my $nr = 0;
@@ -226,11 +250,12 @@ sub each_part {
 		my (undef, @idx) = @$p;
 		@idx = (join('.', @idx));
 		my $depth = ($idx[0] =~ tr/././) + 1;
-		my $sub = new_sub(undef, \(shift @{$p->[0]}));
+		my $sub = shift @{$p->[0]};
 		if ($depth < $mime_nesting_limit &&
 				(my $nxt = mp_descend($sub, $nr))) {
 			push(@s, $p) if scalar @{$p->[0]};
 			$p = [ $nxt, @idx, 0 ];
+			$cb->([$sub, $depth, @idx], $arg) if $sub->{-call_cb};
 		} else { # a leaf node
 			$cb->([$sub, $depth, @idx], $arg);
 		}
@@ -270,7 +295,7 @@ sub subparts {
 	if ($$bdy =~ /^--\Q$bnd\E--[ \t]*\r?\n(.+)\z/sm) {
 		$self->{epilogue} = $1;
 	}
-	map { new_sub(undef, \$_) } @$parts;
+	@$parts;
 }
 
 sub parts_set {

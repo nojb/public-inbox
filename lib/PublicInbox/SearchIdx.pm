@@ -284,6 +284,13 @@ sub index_xapian { # msg_iter callback
 	if (defined $fn && $fn ne '') {
 		index_text($self, $fn, 1, 'XFN');
 	}
+	if ($part->{is_submsg}) {
+		my $mids = mids_for_index($part);
+		index_ids($self, $doc, $part, $mids);
+		my $smsg = PublicInbox::Smsg->new($part);
+		index_users($self, $smsg);
+		index_text($self, $smsg->subject, 1, 'S') if $smsg->subject;
+	}
 
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
@@ -307,6 +314,27 @@ sub index_xapian { # msg_iter callback
 	}
 }
 
+sub index_ids ($$$$) {
+	my ($self, $doc, $hdr, $mids) = @_;
+	for my $mid (@$mids) {
+		index_text($self, $mid, 1, 'XM');
+
+		# because too many Message-IDs are prefixed with
+		# "Pine.LNX."...
+		if ($mid =~ /\w{12,}/) {
+			my @long = ($mid =~ /(\w{3,}+)/g);
+			index_text($self, join(' ', @long), 1, 'XM');
+		}
+	}
+	$doc->add_boolean_term('Q' . $_) for @$mids;
+	for my $l ($hdr->header_raw('List-Id')) {
+		$l =~ /<([^>]+)>/ or next;
+		my $lid = $1;
+		$doc->add_boolean_term('G' . $lid);
+		index_text($self, $lid, 1, 'XL'); # probabilistic
+	}
+}
+
 sub add_xapian ($$$$) {
 	my ($self, $mime, $smsg, $mids) = @_;
 	$smsg->{mime} = $mime; # XXX dangerous
@@ -321,22 +349,12 @@ sub add_xapian ($$$$) {
 	add_val($doc, PublicInbox::Search::DT(), $dt);
 
 	my $tg = term_generator($self);
-
 	$tg->set_document($doc);
 	index_text($self, $subj, 1, 'S') if $subj;
 	index_users($self, $smsg);
 
 	msg_iter($mime, \&index_xapian, [ $self, $doc ]);
-	foreach my $mid (@$mids) {
-		index_text($self, $mid, 1, 'XM');
-
-		# because too many Message-IDs are prefixed with
-		# "Pine.LNX."...
-		if ($mid =~ /\w{12,}/) {
-			my @long = ($mid =~ /(\w{3,}+)/g);
-			index_text($self, join(' ', @long), 1, 'XM');
-		}
-	}
+	index_ids($self, $doc, $hdr, $mids);
 	$smsg->{to} = $smsg->{cc} = ''; # WWW doesn't need these, only NNTP
 	PublicInbox::OverIdx::parse_references($smsg, $hdr, $mids);
 	my $data = $smsg->to_doc_data;
@@ -350,13 +368,6 @@ sub add_xapian ($$$$) {
 				$doc->add_boolean_term($pfx . $id);
 			}
 		}
-	}
-	$doc->add_boolean_term('Q' . $_) foreach @$mids;
-	for my $l ($hdr->header_raw('List-Id')) {
-		$l =~ /<([^>]+)>/ or next;
-		my $lid = $1;
-		$doc->add_boolean_term('G' . $lid);
-		index_text($self, $lid, 1, 'XL'); # probabilistic
 	}
 	$self->{xdb}->replace_document($smsg->{num}, $doc);
 }

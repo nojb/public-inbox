@@ -64,8 +64,12 @@ sub msg_part_text ($$) {
 	# times when it should not have been:
 	#   <87llgalspt.fsf@free.fr>
 	#   <200308111450.h7BEoOu20077@mail.osdl.org>
+	# But also do not try this with ->{is_submsg} (message/rfc822),
+	# since a broken multipart/mixed inside a message/rfc822 part
+	# has not been seen in the wild, yet...
 	if ($err && ($ct =~ m!\btext/\b!i ||
-			$ct =~ m!\bmultipart/mixed\b!i)) {
+			(!$part->{is_submsg} &&
+				$ct =~ m!\bmultipart/mixed\b!i) ) ) {
 		my $cte = $part->header_raw('Content-Transfer-Encoding');
 		if (defined($cte) && $cte =~ /\b7bit\b/i) {
 			$s = $part->body;

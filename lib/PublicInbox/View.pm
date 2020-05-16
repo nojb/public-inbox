@@ -17,6 +17,7 @@ use PublicInbox::Address;
 use PublicInbox::WwwStream;
 use PublicInbox::Reply;
 use PublicInbox::ViewDiff qw(flush_diff);
+use PublicInbox::Eml;
 use POSIX qw(strftime);
 use Time::Local qw(timegm);
 use PublicInbox::Smsg qw(subject_normalized);
@@ -480,6 +481,21 @@ sub multipart_text_as_html {
 	$_[0]->each_part(\&add_text_body, $_[1], 1);
 }
 
+sub submsg_hdr ($$) {
+	my ($ctx, $eml) = @_;
+	my $obfs_ibx = $ctx->{-obfs_ibx};
+	my $rv = $ctx->{obuf};
+	$$rv .= "\n";
+	for my $h (qw(From To Cc Subject Date Message-ID X-Alt-Message-ID)) {
+		my @v = $eml->header($h);
+		for my $v (@v) {
+			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
+			$v = ascii_html($v);
+			$$rv .= "$h: $v\n";
+		}
+	}
+}
+
 sub attach_link ($$$$;$) {
 	my ($ctx, $ct, $p, $fn, $err) = @_;
 	my ($part, $depth, $idx) = @$p;
@@ -511,6 +527,9 @@ EOF
 	$desc = ascii_html($desc);
 	$$rv .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
 	$$rv .= "</a>\n";
+
+	submsg_hdr($ctx, $part) if $part->{is_submsg};
+
 	undef;
 }
 
@@ -518,12 +537,19 @@ sub add_text_body { # callback for each_part
 	my ($p, $ctx) = @_;
 	my $upfx = $ctx->{mhref};
 	my $ibx = $ctx->{-inbox};
+	my $l = $ctx->{-linkify} //= PublicInbox::Linkify->new;
 	# $p - from each_part: [ Email::MIME-like, depth, $idx ]
 	my ($part, $depth, $idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	my ($s, $err) = msg_part_text($part, $ct);
 	return attach_link($ctx, $ct, $p, $fn) unless defined $s;
+
+	my $rv = $ctx->{obuf};
+	if ($part->{is_submsg}) {
+		submsg_hdr($ctx, $part);
+		$$rv .= "\n";
+	}
 
 	# makes no difference to browsers, and don't screw up filename
 	# link generation in diffs with the extra '%0D'
@@ -571,13 +597,11 @@ sub add_text_body { # callback for each_part
 	# split off quoted and unquoted blocks:
 	my @sections = PublicInbox::MsgIter::split_quotes($s);
 	undef $s; # free memory
-	my $rv = $ctx->{obuf};
-	if (defined($fn) || $depth > 0 || $err) {
+	if (defined($fn) || ($depth > 0 && !$part->{is_submsg}) || $err) {
 		# badly-encoded message with $err? tell the world about it!
 		attach_link($ctx, $ct, $p, $fn, $err);
 		$$rv .= "\n";
 	}
-	my $l = $ctx->{-linkify} //= PublicInbox::Linkify->new;
 	foreach my $cur (@sections) {
 		if ($cur =~ /\A>/) {
 			# we use a <span> here to allow users to specify

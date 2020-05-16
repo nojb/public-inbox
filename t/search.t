@@ -479,6 +479,31 @@ EOF
 	is_deeply($found, [], 'matched on phrase with l:');
 }
 
+$ibx->with_umask(sub {
+	$rw_commit->();
+	my $doc_id = $rw->add_message(eml_load('t/data/message_embed.eml'));
+	ok($doc_id > 0, 'messages within messages');
+	$rw->commit_txn_lazy;
+	$ro->reopen;
+	my $n_test_eml = $ro->query('n:test.eml');
+	is(scalar(@$n_test_eml), 1, 'got a result');
+	my $n_embed2x_eml = $ro->query('n:embed2x.eml');
+	is_deeply($n_test_eml, $n_embed2x_eml, '.eml filenames searchable');
+	for my $m (qw(20200418222508.GA13918@dcvr 20200418222020.GA2745@dcvr
+			20200418214114.7575-1-e@yhbt.net)) {
+		is($ro->query("m:$m")->[0]->{mid},
+			'20200418222508.GA13918@dcvr', 'probabilistic m:'.$m);
+		is($ro->query("mid:$m")->[0]->{mid},
+			'20200418222508.GA13918@dcvr', 'boolean mid:'.$m);
+	}
+	is($ro->query('dfpost:4dc62c50')->[0]->{mid},
+		'20200418222508.GA13918@dcvr',
+		'diff search reaches inside message/rfc822');
+	is($ro->query('s:"mail header experiments"')->[0]->{mid},
+		'20200418222508.GA13918@dcvr',
+		'Subject search reaches inside message/rfc822');
+});
+
 done_testing();
 
 1;

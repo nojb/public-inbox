@@ -117,6 +117,34 @@ EOF
 		'', 'each_part can clobber body');
 }
 
+if ('descend into message/rfc822') {
+	my $eml = eml_load 't/data/message_embed.eml';
+	my @parts;
+	$eml->each_part(sub {
+		my ($part, $level, @ex) = @{$_[0]};
+		push @parts, [ $part, $level, @ex ];
+	});
+	is(scalar(@parts), 6, 'got all parts');
+	like($parts[0]->[0]->body, qr/^testing embedded message harder\n/sm,
+		'first part found');
+	is_deeply([ @{$parts[0]}[1..2] ], [ 1, '1' ],
+		'got expected depth and level for part #0');
+	is($parts[1]->[0]->filename, 'embed2x.eml',
+		'attachment filename found');
+	is_deeply([ @{$parts[1]}[1..2] ], [ 1, '2' ],
+		'got expected depth and level for part #1');
+	is_deeply([ @{$parts[2]}[1..2] ], [ 2, '2.1' ],
+		'got expected depth and level for part #2');
+	is_deeply([ @{$parts[3]}[1..2] ], [ 3, '2.1.1' ],
+		'got expected depth and level for part #3');
+	is_deeply([ @{$parts[4]}[1..2] ], [ 3, '2.1.2' ],
+		'got expected depth and level for part #4');
+	is($parts[4]->[0]->filename, 'test.eml',
+		'another attachment filename found');
+	is_deeply([ @{$parts[5]}[1..2] ], [ 4, '2.1.2.1' ],
+		'got expected depth and level for part #5');
+}
+
 # body-less, boundary-less
 for my $cls (@classes) {
 	my $call = 0;
