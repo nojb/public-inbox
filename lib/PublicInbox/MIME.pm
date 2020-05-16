@@ -4,7 +4,9 @@
 # The license for this file differs from the rest of public-inbox.
 #
 # We no longer load this in any of our code outside of maintainer
-# tests for compatibility.
+# tests for compatibility.  PublicInbox::Eml is favored throughout
+# our codebase for performance and safety reasons, though we maintain
+# Email::MIME-compatibility in mail injection and indexing code paths.
 #
 # It monkey patches the "parts_multipart" subroutine with patches
 # from Matthew Horsfall <wolfsage@gmail.com> at:

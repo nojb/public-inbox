@@ -12,6 +12,12 @@ SKIP: {
 };
 use_ok $_ for @classes;
 
+sub mime_load ($) {
+	my ($path) = @_;
+	open(my $fh, '<', $path) or die "open $path: $!";
+	PublicInbox::MIME->new(\(do { local $/; <$fh> }));
+}
+
 {
 	my $eml = PublicInbox::Eml->new(\(my $str = "a: b\n\nhi\n"));
 	is($str, "hi\n", '->new modified body like Email::Simple');

@@ -648,7 +648,10 @@ version 1.0
 
 =head1 SYNOPSIS
 
-	use Email::MIME;
+	use PublicInbox::Eml;
+	# PublicInbox::Eml exists as of public-inbox 1.5.0,
+	# Email::MIME was used in older versions
+
 	use PublicInbox::Git;
 	use PublicInbox::Import;
 
@@ -664,7 +667,7 @@ version 1.0
 		"Date: Thu, 01 Jan 1970 00:00:00 +0000\n" .
 		"Message-ID: <m\@example.org>\n".
 		"\ntest message";
-	my $parsed = Email::MIME->new($message);
+	my $parsed = PublicInbox::Eml->new($message);
 	my $ret = $im->add($parsed);
 	if (!defined $ret) {
 		warn "duplicate: ",
@@ -675,7 +678,7 @@ version 1.0
 	$im->done;
 
 	# to remove a message
-	my $junk = Email::MIME->new($message);
+	my $junk = PublicInbox::Eml->new($message);
 	my ($mark, $orig) = $im->remove($junk);
 	if ($mark eq 'MISSING') {
 		print "not found\n";
@@ -690,8 +693,8 @@ version 1.0
 
 =head1 DESCRIPTION
 
-An importer and remover for public-inboxes which takes L<Email::MIME>
-messages as input and stores them in a git repository as
+An importer and remover for public-inboxes which takes C<PublicInbox::Eml>
+or L<Email::MIME> messages as input and stores them in a git repository as
 documented in L<https://public-inbox.org/public-inbox-v1-format.txt>,
 except it does not allow duplicate Message-IDs.
 
@@ -709,7 +712,7 @@ Initialize a new PublicInbox::Import object.
 
 =head2 add
 
-	my $parsed = Email::MIME->new($message);
+	my $parsed = PublicInbox::Eml->new($message);
 	$im->add($parsed);
 
 Adds a message to to the git repository.  This will acquire
@@ -720,12 +723,13 @@ is called, but L</remove> may be called on them.
 
 =head2 remove
 
-	my $junk = Email::MIME->new($message);
+	my $junk = PublicInbox::Eml->new($message);
 	my ($code, $orig) = $im->remove($junk);
 
 Removes a message from the repository.  On success, it returns
 a ':'-prefixed numeric code representing the git-fast-import
-mark and the original messages as an Email::MIME object.
+mark and the original messages as a PublicInbox::Eml
+(or Email::MIME) object.
 If the message could not be found, the code is "MISSING"
 and the original message is undef.  If there is a mismatch where
 the "Message-ID" is matched but the subject and body do not match,
@@ -749,7 +753,7 @@ The mail archives are hosted at L<https://public-inbox.org/meta/>
 
 =head1 COPYRIGHT
 
-Copyright (C) 2016 all contributors L<mailto:meta@public-inbox.org>
+Copyright (C) 2016-2020 all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
 
