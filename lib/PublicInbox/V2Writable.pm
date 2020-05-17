@@ -159,7 +159,7 @@ sub do_idx ($$$$) {
 	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
 	$idx->index_raw($msgref, $mime, $smsg);
 	my $n = $self->{transact_bytes} += $smsg->{bytes};
-	$n >= (PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
+	$n >= ($PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
 }
 
 sub _add {

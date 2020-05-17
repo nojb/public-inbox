@@ -22,11 +22,9 @@ use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
-use constant {
-	BATCH_BYTES => defined($ENV{XAPIAN_FLUSH_THRESHOLD}) ?
-			0x7fffffff : 1_000_000,
-	DEBUG => !!$ENV{DEBUG},
-};
+our $BATCH_BYTES = defined($ENV{XAPIAN_FLUSH_THRESHOLD}) ?
+			0x7fffffff : 1_000_000;
+use constant DEBUG => !!$ENV{DEBUG};
 
 my $xapianlevels = qr/\A(?:full|medium)\z/;
 
@@ -585,7 +583,7 @@ sub batch_adjust ($$$$$) {
 	my ($max, $bytes, $batch_cb, $latest, $nr) = @_;
 	$$max -= $bytes;
 	if ($$max <= 0) {
-		$$max = BATCH_BYTES;
+		$$max = $BATCH_BYTES;
 		$batch_cb->($nr, $latest);
 	}
 }
@@ -610,7 +608,7 @@ sub read_log {
 	my $git = $self->{git};
 	my $latest;
 	my $bytes;
-	my $max = BATCH_BYTES;
+	my $max = $BATCH_BYTES;
 	local $/ = "\n";
 	my %D;
 	my $line;
