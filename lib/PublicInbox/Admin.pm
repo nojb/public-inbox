@@ -191,9 +191,8 @@ sub index_inbox {
 	if (ref($ibx) && $ibx->version == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
-		my $v2w = $im // eval { $ibx->importer(0) } || eval {
-			PublicInbox::V2Writable->new($ibx, {nproc=>$jobs});
-		};
+		$ibx->{-creat_opt}->{nproc} = $jobs;
+		my $v2w = $im // $ibx->importer($opt->{reindex} // $jobs);
 		if (defined $jobs) {
 			if ($jobs == 0) {
 				$v2w->{parallel} = 0;
