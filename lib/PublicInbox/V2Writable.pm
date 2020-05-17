@@ -606,7 +606,7 @@ sub barrier_wait {
 	my $bnote = $self->{bnote} or return;
 	my $r = $bnote->[0];
 	while (scalar keys %$barrier) {
-		defined(my $l = $r->getline) or die "EOF on barrier_wait: $!";
+		defined(my $l = readline($r)) or die "EOF on barrier_wait: $!";
 		$l =~ /\Abarrier (\d+)/ or die "bad line on barrier_wait: $l";
 		delete $barrier->{$1} or die "bad shard[$1] on barrier wait";
 	}

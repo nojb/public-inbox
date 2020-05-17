@@ -111,12 +111,12 @@ while (<$rd>) {
 		$state = 'commit';
 	} elsif (/^data ([0-9]+)/) {
 		my $len = $1;
-		$w->print($_) or $im->wfail;
+		print $w $_ or $im->wfail;
 		while ($len) {
 			my $n = read($rd, my $tmp, $len) or die "read: $!";
 			warn "$n != $len\n" if $n != $len;
 			$len -= $n;
-			$w->print($tmp) or $im->wfail;
+			print $w $tmp or $im->wfail;
 		}
 		next;
 	} elsif ($state eq 'commit') {
@@ -124,9 +124,9 @@ while (<$rd>) {
 			my ($mark, $path) = ($1, $2);
 			$D{$path} = $mark;
 			if ($last && $last ne 'm') {
-				$w->print("D $last\n") or $im->wfail;
+				print $w "D $last\n" or $im->wfail;
 			}
-			$w->print("M 100644 :$mark m\n") or $im->wfail;
+			print $w "M 100644 :$mark m\n" or $im->wfail;
 			$last = 'm';
 			next;
 		}
@@ -134,15 +134,15 @@ while (<$rd>) {
 			my $mark = delete $D{$1};
 			defined $mark or die "undeleted path: $1\n";
 			if ($last && $last ne 'd') {
-				$w->print("D $last\n") or $im->wfail;
+				print $w "D $last\n" or $im->wfail;
 			}
-			$w->print("M 100644 :$mark d\n") or $im->wfail;
+			print $w "M 100644 :$mark d\n" or $im->wfail;
 			$last = 'd';
 			next;
 		}
 	}
 	last if $_ eq "done\n";
-	$w->print($_) or $im->wfail;
+	print $w $_ or $im->wfail;
 }
 $w = $r = undef;
 close $rd or die "close fast-export: $!\n";

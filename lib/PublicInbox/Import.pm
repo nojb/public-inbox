@@ -160,7 +160,7 @@ sub progress {
 	my ($self, $msg) = @_;
 	return unless $self->{pid};
 	print { $self->{out} } "progress $msg\n" or wfail;
-	$self->{in}->getline eq "progress $msg\n" or die
+	readline($self->{in}) eq "progress $msg\n" or die
 		"progress $msg not received\n";
 	undef;
 }
@@ -554,7 +554,7 @@ sub replace_oids {
 			push @buf, "reset $tmp\n";
 		} elsif (/^commit (?:.+)/) {
 			if (@buf) {
-				$w->print(@buf) or wfail;
+				print $w @buf or wfail;
 				@buf = ();
 			}
 			push @buf, "commit $tmp\n";
@@ -591,7 +591,7 @@ sub replace_oids {
 				rewrite_commit($self, \@oids, \@buf, $mime);
 				$nreplace++;
 			}
-			$w->print(@buf, "\n") or wfail;
+			print $w @buf, "\n" or wfail;
 			@buf = ();
 		} elsif ($_ eq "done\n") {
 			$done = 1;
@@ -604,7 +604,7 @@ sub replace_oids {
 	}
 	close $rd or die "close fast-export failed: $?";
 	if (@buf) {
-		$w->print(@buf) or wfail;
+		print $w @buf or wfail;
 	}
 	die 'done\n not seen from fast-export' unless $done;
 	chomp(my $cmt = $self->get_mark(":$mark")) if $nreplace;

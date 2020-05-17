@@ -53,7 +53,7 @@ sub shard_worker_loop ($$$$$) {
 	my ($self, $v2w, $r, $shard, $bnote) = @_;
 	$0 = "pi-v2-shard[$shard]";
 	$self->begin_txn_lazy;
-	while (my $line = $r->getline) {
+	while (my $line = readline($r)) {
 		$v2w->{current_info} = "[$shard] $line";
 		if ($line eq "commit\n") {
 			$self->commit_txn_lazy;
