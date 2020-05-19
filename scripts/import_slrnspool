@@ -11,7 +11,7 @@
 use strict;
 use warnings;
 use PublicInbox::Config;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Import;
 use PublicInbox::Git;
 sub usage { "Usage:\n".join('',grep(/\t/, `head -n 10 $0`)) }
@@ -70,7 +70,7 @@ for (; $exit == 0 && $n < $max; $n++) {
 	$max = $n + $max_gap;
 	print STDERR $fn, "\n";
 
-	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
+	my $mime = PublicInbox::Eml->new(do { local $/; <$fh> });
 	$filter->scrub($mime);
 	$im->add($mime);
 

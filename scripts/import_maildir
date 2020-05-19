@@ -11,9 +11,8 @@
 =cut
 use strict;
 use warnings;
-use Email::Simple;
 use Date::Parse qw/str2time/;
-use PublicInbox::MIME;
+use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
 sub usage { "Usage:\n".join('', grep(/\t/, `head -n 24 $0`)) }
@@ -28,7 +27,7 @@ my @msgs;
 foreach my $sub (qw(cur new)) {
 	foreach my $fn (glob("$dir/$sub/*")) {
 		open my $fh, '<', $fn or next;
-		my $s = Email::Simple->new(do { local $/; <$fh> });
+		my $s = PublicInbox::Eml->new(do { local $/; <$fh> });
 		my $date = $s->header('Date');
 		my $t = eval { str2time($date) };
 		defined $t or next;
@@ -45,7 +44,7 @@ my $im = PublicInbox::Import->new($git, $name, $email);
 while (my $ary = pop @msgs) {
 	my $fn = "$dir/$ary->[1]";
 	open my $fh, '<', $fn or next;
-	my $mime = PublicInbox::MIME->new(do { local $/; <$fh> });
+	my $mime = PublicInbox::Eml->new(do { local $/; <$fh> });
 	$im->add($mime);
 }
 $im->done;
