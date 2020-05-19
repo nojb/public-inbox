@@ -23,19 +23,11 @@ sub spamcheck {
 
 	my $rdr = { 0 => _msg_to_fh($self, $msg) };
 	my ($fh, $pid) = popen_rd($self->{checkcmd}, undef, $rdr);
-	my $r;
 	unless (ref $out) {
 		my $buf = '';
 		$out = \$buf;
 	}
-again:
-	do {
-		$r = sysread($fh, $$out, 65536, length($$out));
-	} while (defined($r) && $r != 0);
-	unless (defined $r) {
-		goto again if $!{EINTR};
-		die "read failed: $!";
-	}
+	$$out = do { local $/; <$fh> };
 	close $fh or die "close failed: $!";
 	waitpid($pid, 0);
 	($? || $$out eq '') ? 0 : 1;
