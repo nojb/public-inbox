@@ -24,11 +24,9 @@ my $ibx = PublicInbox::Inbox->new({
 $ibx = PublicInbox::InboxWritable->new($ibx, {nproc=>1});
 my $cfgfile = "$tmpdir/config";
 local $ENV{PI_CONFIG} = $cfgfile;
-my $file = 't/data/0001.patch';
-open my $fh, '<', $file or die "open: $!";
-my $raw = do { local $/; <$fh> };
 my $im = $ibx->importer(0);
-my $mime = PublicInbox::Eml->new($raw);
+my $file = 't/data/0001.patch';
+my $mime = eml_load($file);
 my $mid = mid_clean($mime->header('Message-Id'));
 ok($im->add($mime), 'add message to be edited');
 $im->done;
