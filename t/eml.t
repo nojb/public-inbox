@@ -80,7 +80,7 @@ for my $cls (@classes) {
 	$eml->header_str_set('Subject', "\x{100}");
 	like($eml->header_raw('Subject'), qr/utf-8\?B\?/i,
 		'MIME-B encoded UTF-8 Subject');
-	is_deeply([$eml->header_str('Subject')], [ "\x{100}" ],
+	is_deeply([$eml->header('Subject')], [ "\x{100}" ],
 		'got wide character back');
 }
 
