@@ -144,10 +144,10 @@ while (<$rd>) {
 	last if $_ eq "done\n";
 	print $w $_ or $im->wfail;
 }
-$w = $r = undef;
 close $rd or die "close fast-export: $!\n";
 waitpid($pid, 0) or die "waitpid failed: $!\n";
 $? == 0 or die "fast-export failed: $?\n";
+$r = $w = undef; # v2w->done does the actual close and error checking
 $v2w->done;
 if (my $mm = $old->mm) {
 	$old->cleanup;
