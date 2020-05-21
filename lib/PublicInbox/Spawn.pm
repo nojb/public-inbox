@@ -141,7 +141,7 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 }
 VFORK_SPAWN
 
-my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} // (
+my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
 		$ENV{XDG_CACHE_HOME} //
 		( ($ENV{HOME} // '/nonexistent').'/.cache' )
 	).'/public-inbox/inline-c';
@@ -155,7 +155,7 @@ if (defined $vfork_spawn) {
 		my $f = "$inline_dir/.public-inbox.lock";
 		open my $fh, '>', $f or die "failed to open $f: $!\n";
 		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-		eval 'use Inline C => $vfork_spawn, directory => $inline_dir';
+		eval 'use Inline C => $vfork_spawn';
 		my $err = $@;
 		flock($fh, LOCK_UN) or die "LOCK_UN failed on $f: $!\n";
 		die $err if $err;
