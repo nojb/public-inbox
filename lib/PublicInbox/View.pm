@@ -499,6 +499,11 @@ sub submsg_hdr ($$) {
 sub attach_link ($$$$;$) {
 	my ($ctx, $ct, $p, $fn, $err) = @_;
 	my ($part, $depth, $idx) = @$p;
+
+	# Eml iteration clobbers multipart ->{bdy}, so do not offer
+	# downloads for 0-byte multipart attachments
+	return unless $part->{bdy};
+
 	my $nl = $idx eq '1' ? '' : "\n"; # like join("\n", ...)
 	my $size = bytes::length($part->body);
 

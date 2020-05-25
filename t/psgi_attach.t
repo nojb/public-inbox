@@ -73,6 +73,8 @@ $im->init_bare;
 		my $mid = '20200418222508.GA13918@dcvr';
 		my $irt = '20200418222020.GA2745@dcvr';
 		$res = $cb->(GET("/test/$mid/"));
+		unlike($res->content, qr! multipart/mixed, Size: 0 bytes!,
+			'0-byte download not offered');
 		like($res->content, qr/\bhref="2-embed2x\.eml"/s,
 			'href to message/rfc822 attachment visible');
 		like($res->content, qr/\bhref="2\.1\.2-test\.eml"/s,
