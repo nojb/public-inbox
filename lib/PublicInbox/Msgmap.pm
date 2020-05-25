@@ -70,6 +70,7 @@ sub tmp_clone {
 	$self->{dbh}->sqlite_backup_to_file($fn);
 	my $tmp = ref($self)->new_file($fn, 1);
 	$tmp->{dbh}->do('PRAGMA synchronous = OFF');
+	$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
 	$tmp->{tmp_name} = $fn; # SQLite won't work if unlinked, apparently
 	$tmp->{pid} = $$;
 	close $fh or die "failed to close $fn: $!";
