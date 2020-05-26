@@ -50,8 +50,12 @@ C<publicinboxmda.spamcheck> is C<none> in L<public-inbox-config(5)>.
 
 =item rm
 
-This is identical to the C<spam> command above, but does
-not feed the message to L<spamc(1)>
+This is similar to the C<spam> command above, but does
+not feed the message to L<spamc(1)> and only removes messages
+which match on any of the C<To:>, C<Cc:>, and C<List-ID:> headers.
+
+The C<--all> option may be used match C<spam> semantics in removing
+the message from all configured inboxes.
 
 =back
 

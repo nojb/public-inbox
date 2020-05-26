@@ -12,10 +12,15 @@ use PublicInbox::InboxWritable;
 use PublicInbox::Eml;
 use PublicInbox::Address;
 use PublicInbox::Spamcheck::Spamc;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+my %opt = (all => 0);
+GetOptions(\%opt, 'all') or die "bad command-line args\n";
+
 my $train = shift or die "usage: $usage\n";
 if ($train !~ /\A(?:ham|spam|rm)\z/) {
 	die "`$train' not recognized.\nusage: $usage\n";
 }
+die "--all only works with `rm'\n" if $opt{all} && $train ne 'rm';
 
 my $spamc = PublicInbox::Spamcheck::Spamc->new;
 my $pi_config = PublicInbox::Config->new;
@@ -68,12 +73,12 @@ sub remove_or_add ($$$$) {
 }
 
 # spam is removed from all known inboxes since it is often Bcc:-ed
-if ($train eq 'spam') {
+if ($train eq 'spam' || ($train eq 'rm' && $opt{all})) {
 	$pi_config->each_inbox(sub {
 		my ($ibx) = @_;
 		$ibx = PublicInbox::InboxWritable->new($ibx);
 		my $im = $ibx->importer(0);
-		$im->remove($mime, 'spam');
+		$im->remove($mime, $train);
 		$im->done;
 	});
 } else {
