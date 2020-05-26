@@ -299,9 +299,17 @@ EOF
 	ok(run_script(['-mda'], undef, $rdr),
 		'mda OK with multiple List-Id matches');
 	$cur = $git->qx(qw(diff HEAD~1..HEAD));
-	like($cur, qr/Message-ID: <2lids\@example>/,
+	like($cur, qr/^\+Message-ID: <2lids\@example>/sm,
 		'multi List-ID match delivered');
 	like($err, qr/multiple List-ID/, 'warned about multiple List-ID');
+
+	# ensure -learn rm works after inbox address is updated
+	($out, $err) = ('', '');
+	xsys(qw(git config --file), $pi_config, "$cfgpfx.address",
+		'updated-address@example.com');
+	ok(run_script(['-learn', 'rm'], undef, $rdr), 'rm-ed via -learn');
+	$cur = $git->qx(qw(diff HEAD~1..HEAD));
+	like($cur, qr/^-Message-ID: <2lids\@example>/sm, 'changed in git');
 }
 
 done_testing();
