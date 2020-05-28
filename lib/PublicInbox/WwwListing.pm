@@ -159,6 +159,8 @@ sub manifest_add ($$;$$) {
 	chomp(my $desc = try_cat("$git_dir/description"));
 	$owner = undef if $owner eq '';
 	$desc = 'Unnamed repository' if $desc eq '';
+	utf8::decode($desc);
+	utf8::decode($owner);
 
 	# templates/hooks--update.sample and git-multimail in git.git
 	# only match "Unnamed repository", not the full contents of

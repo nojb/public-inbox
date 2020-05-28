@@ -22,13 +22,14 @@ is($x->description, '($INBOX_DIR/description missing)', 'default description');
 	print $fh "https://example.com/inbox\n" or die;
 	close $fh or die;
 	open $fh, '>', "$x->{inboxdir}/description" or die;
-	print $fh "blah\n" or die;
+	print $fh "\xc4\x80blah\n" or die;
 	close $fh or die;
 }
 is_deeply($x->cloneurl, ['https://example.com/inbox'], 'cloneurls update');
-is($x->description, 'blah', 'description updated');
+ok(utf8::valid($x->description), 'description is utf8::valid');
+is($x->description, "\x{100}blah", 'description updated');
 is(unlink(glob("$x->{inboxdir}/*")), 2, 'unlinked cloneurl & description');
 is_deeply($x->cloneurl, ['https://example.com/inbox'], 'cloneurls memoized');
-is($x->description, 'blah', 'description memoized');
+is($x->description, "\x{100}blah", 'description memoized');
 
 done_testing();

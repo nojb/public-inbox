@@ -223,6 +223,7 @@ sub description {
 		my $desc = try_cat("$self->{inboxdir}/description");
 		local $/ = "\n";
 		chomp $desc;
+		utf8::decode($desc);
 		$desc =~ s/\s+/ /smg;
 		$desc eq '' ? undef : $desc;
 	}) // '($INBOX_DIR/description missing)';

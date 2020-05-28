@@ -46,7 +46,7 @@ sub tiny_test {
 	unlike($tmp, qr/"modified":\s*"/, 'modified is an integer');
 	my $manifest = $json->decode($tmp);
 	ok(my $clone = $manifest->{'/alt'}, '/alt in manifest');
-	is($clone->{owner}, 'lorelei', 'owner set');
+	is($clone->{owner}, "lorelei \x{100}", 'owner set');
 	is($clone->{reference}, '/bare', 'reference detected');
 	is($clone->{description}, "we're all clones", 'description read');
 	ok(my $bare = $manifest->{'/bare'}, '/bare in manifest');
@@ -88,7 +88,8 @@ SKIP: {
 	open $fh, '>', "$alt/description" or die;
 	print $fh "we're all clones\n" or die;
 	close $fh or die;
-	is(xsys('git', "--git-dir=$alt", qw(config gitweb.owner lorelei)), 0,
+	is(xsys('git', "--git-dir=$alt", qw(config gitweb.owner),
+		"lorelei \xc4\x80"), 0,
 		'set gitweb user');
 	ok(unlink("$bare->{git_dir}/description"), 'removed bare/description');
 	open $fh, '>', $cfgfile or die;
