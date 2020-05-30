@@ -5,6 +5,7 @@
 package PublicInbox::TestCommon;
 use strict;
 use parent qw(Exporter);
+use v5.10.1;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
@@ -249,7 +250,39 @@ sub run_script ($;$$) {
 	$? == 0;
 }
 
-sub wait_for_tail () { sleep(2) }
+sub tick (;$) {
+	my $tick = shift // 0.1;
+	select undef, undef, undef, $tick;
+	1;
+}
+
+sub wait_for_tail ($;$) {
+	my ($tail_pid, $stop) = @_;
+	my $wait = 2;
+	if ($^O eq 'linux') { # GNU tail may use inotify
+		state $tail_has_inotify;
+		return tick if $stop && $tail_has_inotify;
+		my $end = time + $wait;
+		my @ino;
+		do {
+			@ino = grep {
+				readlink($_) =~ /\binotify\b/
+			} glob("/proc/$tail_pid/fd/*");
+		} while (!@ino && time <= $end and tick);
+		return if !@ino;
+		$tail_has_inotify = 1;
+		$ino[0] =~ s!/fd/!/fdinfo/!;
+		my @info;
+		do {
+			if (open my $fh, '<', $ino[0]) {
+				local $/ = "\n";
+				@info = grep(/^inotify wd:/, <$fh>);
+			}
+		} while (scalar(@info) < 2 && time <= $end and tick);
+	} else {
+		sleep($wait);
+	}
+}
 
 # like system() built-in, but uses spawn() for env/rdr + vfork
 sub xsys {
@@ -294,7 +327,7 @@ sub start_script {
 				exec(split(' ', $tail_cmd), @paths);
 				die "$tail_cmd failed: $!";
 			}
-			wait_for_tail();
+			wait_for_tail($tail_pid);
 		}
 	}
 	defined(my $pid = fork) or die "fork: $!\n";
@@ -359,9 +392,9 @@ sub join {
 sub DESTROY {
 	my ($self) = @_;
 	return if $self->{owner} != $$;
-	if (my $tail = delete $self->{tail_pid}) {
-		PublicInbox::TestCommon::wait_for_tail();
-		CORE::kill('TERM', $tail);
+	if (my $tail_pid = delete $self->{tail_pid}) {
+		PublicInbox::TestCommon::wait_for_tail($tail_pid, 1);
+		CORE::kill('TERM', $tail_pid);
 	}
 	$self->join('TERM');
 }
