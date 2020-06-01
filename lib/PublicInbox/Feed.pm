@@ -53,9 +53,9 @@ sub new_html_i {
 	my ($nr, $ctx) = @_;
 	my $msgs = $ctx->{msgs};
 	while (my $smsg = shift @$msgs) {
-		my $m = $ctx->{-inbox}->smsg_mime($smsg) or next;
-		my $more = scalar @$msgs;
-		return PublicInbox::View::index_entry($m, $ctx, $more);
+		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
+		return PublicInbox::View::eml_entry($ctx, $smsg, $eml,
+							scalar @$msgs);
 	}
 	PublicInbox::View::pagination_footer($ctx, './new.html');
 }

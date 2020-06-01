@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use base qw(Exporter);
 our @EXPORT_OK = qw(subject_normalized);
-use PublicInbox::MID qw/mid_mime/;
+use PublicInbox::MID qw(mid_mime mids);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use Time::Local qw(timegm);
@@ -105,7 +105,7 @@ sub __hdr ($$) {
 	};
 }
 
-# for Import and v1 WWW code paths
+# for Import and v1 non-SQLite WWW code paths
 sub populate {
 	my ($self, $hdr, $v2w) = @_;
 	for my $f (qw(From To Cc Subject)) {
@@ -133,6 +133,9 @@ sub populate {
 	$self->{-ts} = [ my @ts = msg_timestamp($hdr, $v2w->{cotime}) ];
 	$self->{ds} //= $ds[0]; # no zone
 	$self->{ts} //= $ts[0];
+
+	# for v1 users w/o SQLite
+	$self->{mid} //= eval { mids($hdr)->[0] } // '';
 }
 
 sub subject ($) { __hdr($_[0], 'Subject') }

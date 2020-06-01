@@ -52,8 +52,8 @@ if ($V == 1) {
 }
 my $msgs = $ibx->search->query('');
 is(scalar(@$msgs), 1, 'only got one message');
-my $saved = $ibx->smsg_mime($msgs->[0]);
-is($saved->{mime}->as_string, $mime->as_string, 'injected message');
+my $eml = $ibx->smsg_eml($msgs->[0]);
+is($eml->as_string, $mime->as_string, 'injected message');
 
 {
 	my @new = glob("$faildir/new/*");

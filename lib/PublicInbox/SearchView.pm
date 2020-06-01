@@ -300,8 +300,8 @@ sub mset_thread_i {
 	my ($nr, $ctx) = @_;
 	my $msgs = $ctx->{msgs} or return;
 	while (my $smsg = pop @$msgs) {
-		$ctx->{-inbox}->smsg_mime($smsg) or next;
-		return PublicInbox::View::index_entry($smsg, $ctx,
+		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
+		return PublicInbox::View::eml_entry($ctx, $smsg, $eml,
 							scalar @$msgs);
 	}
 	my ($skel) = delete @$ctx{qw(skel msgs)};

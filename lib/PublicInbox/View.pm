@@ -74,11 +74,10 @@ sub msg_page_more { # cold
 	my $ibx = $ctx->{-inbox};
 	my $next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
 	$ctx->{more} = [ $id, $prev, $next ] if $next;
-	$smsg = $ibx->smsg_mime($smsg) or return '';
+	my $eml = $ibx->smsg_eml($smsg) or return '';
 	$ctx->{mhref} = '../' . mid_href($smsg->{mid}) . '/';
-	my $mime = delete $smsg->{mime};
-	$ctx->{obuf} = _msg_page_prepare_obuf($mime->header_obj, $ctx, $nr);
-	multipart_text_as_html($mime, $ctx);
+	$ctx->{obuf} = _msg_page_prepare_obuf($eml->header_obj, $ctx, $nr);
+	multipart_text_as_html($eml, $ctx);
 	${delete $ctx->{obuf}} .= '</pre><hr>';
 }
 
@@ -181,14 +180,14 @@ sub nr_to_s ($$$) {
 # human-friendly format
 sub fmt_ts ($) { strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
+# Displays the text of of the message for /$INBOX/$MSGID/[Tt]/ endpoint
 # this is already inside a <pre>
-sub index_entry {
-	my ($smsg, $ctx, $more) = @_;
-	my $subj = $smsg->subject;
-	my $mid_raw = $smsg->mid;
+sub eml_entry {
+	my ($ctx, $smsg, $eml, $more) = @_;
+	my $subj = delete $smsg->{subject};
+	my $mid_raw = $smsg->{mid};
 	my $id = id_compress($mid_raw, 1);
 	my $id_m = 'm'.$id;
-
 	my $root_anchor = $ctx->{root_anchor} || '';
 	my $irt;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
@@ -201,12 +200,12 @@ sub index_entry {
 	$rv .= $subj . "\n";
 	$rv .= _th_index_lite($mid_raw, \$irt, $id, $ctx);
 	my @tocc;
-	my $ds = $smsg->ds; # for v1 non-Xapian/SQLite users
-	# deleting {mime} is critical to memory use,
-	# the rest of the fields saves about 400K as we iterate across 1K msgs
-	my ($mime) = delete @$smsg{qw(mime ds ts blob subject)};
+	my $ds = delete $smsg->{ds}; # for v1 non-Xapian/SQLite users
 
-	my $hdr = $mime->header_obj;
+	# Deleting these fields saves about 400K as we iterate across 1K msgs
+	delete @$smsg{qw(ts blob)};
+
+	my $hdr = $eml->header_obj;
 	my $from = _hdr_names_html($hdr, 'From');
 	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
 	$rv .= "From: $from @ ".fmt_ts($ds)." UTC";
@@ -244,7 +243,7 @@ sub index_entry {
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
 	$ctx->{obuf} = \$rv;
-	$mime->each_part(\&add_text_body, $ctx, 1);
+	$eml->each_part(\&add_text_body, $ctx, 1);
 	delete $ctx->{obuf};
 
 	# add the footer
@@ -372,10 +371,10 @@ sub pre_thread  { # walk_thread callback
 	skel_dump($ctx, $level, $node);
 }
 
-sub thread_index_entry {
-	my ($ctx, $level, $smsg) = @_;
+sub thread_eml_entry {
+	my ($ctx, $level, $smsg, $eml) = @_;
 	my ($beg, $end) = thread_adj_level($ctx, $level);
-	$beg . '<pre>' . index_entry($smsg, $ctx, 0) . '</pre>' . $end;
+	$beg . '<pre>' . eml_entry($ctx, $smsg, $eml, 0) . '</pre>' . $end;
 }
 
 sub stream_thread_i { # PublicInbox::WwwStream::getline callback
@@ -387,8 +386,8 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 		my $node = shift @$q or next;
 		my $cl = $level + 1;
 		unshift @$q, map { ($cl, $_) } @{$node->{children}};
-		if ($ctx->{-inbox}->smsg_mime($node)) {
-			return thread_index_entry($ctx, $level, $node);
+		if (my $eml = $ctx->{-inbox}->smsg_eml($node)) {
+			return thread_eml_entry($ctx, $level, $node, $eml);
 		} else {
 			return ghost_index_entry($ctx, $level, $node);
 		}
@@ -400,19 +399,19 @@ sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
 	my $ibx = $ctx->{-inbox};
 	my @q = map { (0, $_) } @$rootset;
-	my ($smsg, $level);
+	my ($smsg, $eml, $level);
 	while (@q) {
 		$level = shift @q;
-		my $node = shift @q or next;
+		$smsg = shift @q or next;
 		my $cl = $level + 1;
-		unshift @q, map { ($cl, $_) } @{$node->{children}};
-		$smsg = $ibx->smsg_mime($node) and last;
+		unshift @q, map { ($cl, $_) } @{$smsg->{children}};
+		$eml = $ibx->smsg_eml($smsg) and last;
 	}
-	return missing_thread($ctx) unless $smsg;
+	return missing_thread($ctx) unless $eml;
 
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	$ctx->{-title_html} = ascii_html($smsg->{subject});
-	$ctx->{-html_tip} = thread_index_entry($ctx, $level, $smsg);
+	$ctx->{-html_tip} = thread_eml_entry($ctx, $level, $smsg, $eml);
 	$ctx->{-queue} = \@q;
 	PublicInbox::WwwStream->response($ctx, 200, \&stream_thread_i);
 }
@@ -452,13 +451,13 @@ sub thread_html {
 	return stream_thread($rootset, $ctx) unless $ctx->{flat};
 
 	# flat display: lazy load the full message from smsg
-	my $smsg;
-	while (my $m = shift @$msgs) {
-		$smsg = $ibx->smsg_mime($m) and last;
+	my ($smsg, $eml);
+	while ($smsg = shift @$msgs) {
+		$eml = $ibx->smsg_eml($smsg) and last;
 	}
 	return missing_thread($ctx) unless $smsg;
 	$ctx->{-title_html} = ascii_html($smsg->{subject});
-	$ctx->{-html_tip} = '<pre>'.index_entry($smsg, $ctx, scalar @$msgs);
+	$ctx->{-html_tip} = '<pre>'.eml_entry($ctx, $smsg, $eml, scalar @$msgs);
 	$ctx->{msgs} = $msgs;
 	PublicInbox::WwwStream->response($ctx, 200, \&thread_html_i);
 }
@@ -467,8 +466,8 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 	my ($nr, $ctx) = @_;
 	my $msgs = $ctx->{msgs} or return;
 	while (my $smsg = shift @$msgs) {
-		$ctx->{-inbox}->smsg_mime($smsg) or next;
-		return index_entry($smsg, $ctx, scalar @$msgs);
+		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
+		return eml_entry($ctx, $smsg, $eml, scalar @$msgs);
 	}
 	my ($skel) = delete @$ctx{qw(skel msgs)};
 	$$skel;

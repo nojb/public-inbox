@@ -326,18 +326,12 @@ sub msg_by_smsg ($$) {
 	git($self)->cat_file($blob);
 }
 
-sub smsg_mime {
-	my ($self, $smsg) = @_;
-	if (my $s = msg_by_smsg($self, $smsg)) {
-		$smsg->{mime} = PublicInbox::Eml->new($s);
-		return $smsg;
-	}
-}
-
 sub smsg_eml {
 	my ($self, $smsg) = @_;
 	my $bref = msg_by_smsg($self, $smsg) or return;
-	PublicInbox::Eml->new($bref);
+	my $eml = PublicInbox::Eml->new($bref);
+	$smsg->populate($eml) unless exists($smsg->{num}); # v1 w/o SQLite
+	$eml;
 }
 
 sub mid2num($$) {

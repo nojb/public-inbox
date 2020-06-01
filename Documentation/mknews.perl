@@ -102,9 +102,10 @@ sub mime2txt {
 }
 
 sub mime2html {
-	my ($out, $mime, $ctx) = @_;
-	my $smsg = bless { mime => $mime }, 'PublicInbox::Smsg';
-	print $out PublicInbox::View::index_entry($smsg, $ctx, 1) or die;
+	my ($out, $eml, $ctx) = @_;
+	my $smsg = bless {}, 'PublicInbox::Smsg';
+	$smsg->populate($eml);
+	print $out PublicInbox::View::eml_entry($ctx, $smsg, $eml, 1) or die;
 }
 
 sub html_start {
