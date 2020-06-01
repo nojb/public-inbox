@@ -722,8 +722,16 @@ sub smsg_range_i {
 	my $msgs = $over->query_xover($$beg, $end);
 	scalar(@$msgs) or return;
 	my $tmp = '';
-	foreach my $s (@$msgs) {
-		$tmp .= $s->{num} . ' ' . $s->$field . "\r\n";
+
+	# ->{$field} is faster than ->$field invocations, so favor that.
+	if ($field eq 'date') {
+		for my $s (@$msgs) {
+			$tmp .= "$s->{num} ".PublicInbox::Smsg::date($s)."\r\n"
+		}
+	} else {
+		for my $s (@$msgs) {
+			$tmp .= "$s->{num} $s->{$field}\r\n";
+		}
 	}
 	utf8::encode($tmp);
 	$self->msg_more($tmp);
