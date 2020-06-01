@@ -310,25 +310,25 @@ sub nntp_usable {
 }
 
 # for v1 users w/o SQLite only
-sub msg_by_path ($$;$) {
-	my ($self, $path, $ref) = @_;
-	git($self)->cat_file('HEAD:'.$path, $ref);
+sub msg_by_path ($$) {
+	my ($self, $path) = @_;
+	git($self)->cat_file('HEAD:'.$path);
 }
 
-sub msg_by_smsg ($$;$) {
-	my ($self, $smsg, $ref) = @_;
+sub msg_by_smsg ($$) {
+	my ($self, $smsg) = @_;
 
 	# ghosts may have undef smsg (from SearchThread.node) or
 	# no {blob} field
 	return unless defined $smsg;
 	defined(my $blob = $smsg->{blob}) or return;
 
-	git($self)->cat_file($blob, $ref);
+	git($self)->cat_file($blob);
 }
 
 sub smsg_mime {
-	my ($self, $smsg, $ref) = @_;
-	if (my $s = msg_by_smsg($self, $smsg, $ref)) {
+	my ($self, $smsg) = @_;
+	if (my $s = msg_by_smsg($self, $smsg)) {
 		$smsg->{mime} = PublicInbox::Eml->new($s);
 		return $smsg;
 	}
@@ -355,14 +355,14 @@ sub smsg_by_mid ($$) {
 	PublicInbox::Smsg::psgi_cull($smsg);
 }
 
-sub msg_by_mid ($$;$) {
-	my ($self, $mid, $ref) = @_;
+sub msg_by_mid ($$) {
+	my ($self, $mid) = @_;
 
 	over($self) or
-		return msg_by_path($self, mid2path($mid), $ref);
+		return msg_by_path($self, mid2path($mid));
 
 	my $smsg = smsg_by_mid($self, $mid);
-	$smsg ? msg_by_smsg($self, $smsg, $ref) : undef;
+	$smsg ? msg_by_smsg($self, $smsg) : undef;
 }
 
 sub recent {
