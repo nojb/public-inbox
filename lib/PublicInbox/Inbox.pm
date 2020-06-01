@@ -334,6 +334,12 @@ sub smsg_mime {
 	}
 }
 
+sub smsg_eml {
+	my ($self, $smsg) = @_;
+	my $bref = msg_by_smsg($self, $smsg) or return;
+	PublicInbox::Eml->new($bref);
+}
+
 sub mid2num($$) {
 	my ($self, $mid) = @_;
 	my $mm = mm($self) or return;
