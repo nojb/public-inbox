@@ -182,7 +182,7 @@ sub _add {
 
 	my ($num, $mid0) = v2_num_for($self, $mime);
 	defined $num or return; # duplicate
-	defined $mid0 or die "BUG: $mid0 undefined\n";
+	defined $mid0 or die "BUG: \$mid0 undefined\n";
 	my $im = $self->importer;
 	my $smsg = bless { mid => $mid0, num => $num }, 'PublicInbox::Smsg';
 	my $cmt = $im->add($mime, undef, $smsg); # sets $smsg->{ds|ts|blob}
