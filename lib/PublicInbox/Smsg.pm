@@ -17,11 +17,6 @@ use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use Time::Local qw(timegm);
 
-sub wrap {
-	my ($class, $mid) = @_;
-	bless { mid => $mid }, $class;
-}
-
 sub get_val ($$) {
 	my ($doc, $col) = @_;
 	# sortable_unserialise is defined by PublicInbox::Search::load_xapian()

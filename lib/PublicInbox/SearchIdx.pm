@@ -484,7 +484,7 @@ sub remove_by_oid {
 	for (; $head != $tail; $head++) {
 		my $docid = $head->get_docid;
 		my $doc = $db->get_document($docid);
-		my $smsg = PublicInbox::Smsg->wrap($mid);
+		my $smsg = bless { mid => $mid }, 'PublicInbox::Smsg';
 		$smsg->load_expand($doc);
 		if ($smsg->{blob} eq $oid) {
 			push(@delete, $docid);
