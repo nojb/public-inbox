@@ -7,8 +7,8 @@
 # requires read-only access.
 package PublicInbox::Import;
 use strict;
-use warnings;
-use base qw(PublicInbox::Lock);
+use parent qw(PublicInbox::Lock);
+use v5.10.1;
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::MID qw(mids mid2path);
 use PublicInbox::Address;
@@ -24,10 +24,10 @@ sub new {
 	my ($class, $git, $name, $email, $ibx) = @_;
 	my $ref = 'refs/heads/master';
 	if ($ibx) {
-		$ref = $ibx->{ref_head} || 'refs/heads/master';
-		$name ||= $ibx->{name};
-		$email ||= $ibx->{-primary_address};
-		$git ||= $ibx->git;
+		$ref = $ibx->{ref_head} // 'refs/heads/master';
+		$name //= $ibx->{name};
+		$email //= $ibx->{-primary_address};
+		$git //= $ibx->git;
 	}
 	bless {
 		git => $git,
@@ -252,7 +252,7 @@ sub remove {
 	}
 	my $ident = $self->{ident};
 	my $now = now_raw();
-	$msg ||= 'rm';
+	$msg //= 'rm';
 	my $len = length($msg) + 1;
 	print $w "commit $ref\nmark :$commit\n",
 		"author $ident $now\n",
@@ -277,21 +277,17 @@ sub git_timestamp {
 
 sub extract_cmt_info ($;$) {
 	my ($mime, $smsg) = @_;
+	# $mime is PublicInbox::Eml, but remains Email::MIME-compatible
 
 	my $sender = '';
-	my $from = $mime->header('From');
-	$from ||= '';
+	my $hdr = $mime->header_obj;
+	my $from = $hdr->header('From') // '';
 	my ($email) = PublicInbox::Address::emails($from);
 	my ($name) = PublicInbox::Address::names($from);
 	if (!defined($name) || !defined($email)) {
-		$sender = $mime->header('Sender');
-		$sender ||= '';
-		if (!defined($name)) {
-			($name) = PublicInbox::Address::names($sender);
-		}
-		if (!defined($email)) {
-			($email) = PublicInbox::Address::emails($sender);
-		}
+		$sender = $hdr->header('Sender') // '';
+		$name //= (PublicInbox::Address::names($sender))[0];
+		$email //= (PublicInbox::Address::emails($sender))[0];
 	}
 	if (defined $email) {
 		# Email::Address::XS may leave quoted '<' in addresses,
@@ -317,11 +313,8 @@ sub extract_cmt_info ($;$) {
 		warn "no name in From: $from or Sender: $sender\n";
 	}
 
-	my $hdr = $mime->header_obj;
-
-	my $subject = $hdr->header('Subject');
-	$subject = '(no subject)' unless defined $subject;
-	# Mime decoding can create nulls replace them with spaces to protect git
+	my $subject = $hdr->header('Subject') // '(no subject)';
+	# MIME decoding can create nulls replace them with spaces to protect git
 	$subject =~ tr/\0/ /;
 	utf8::encode($subject);
 	my $at = git_timestamp(my @at = msg_datestamp($hdr));
