@@ -90,10 +90,6 @@ sub from_mitem {
 	psgi_cull(load_expand($self, $mitem->get_document));
 }
 
-# :bytes and :lines metadata in RFC 3977
-sub bytes ($) { $_[0]->{bytes} }
-sub lines ($) { $_[0]->{lines} }
-
 sub __hdr ($$) {
 	my ($self, $field) = @_;
 	$self->{lc($field)};
