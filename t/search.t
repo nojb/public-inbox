@@ -92,7 +92,7 @@ EOF
 
 sub filter_mids {
 	my ($msgs) = @_;
-	sort(map { $_->mid } @$msgs);
+	sort(map { $_->{mid} } @$msgs);
 }
 
 {
@@ -100,7 +100,7 @@ sub filter_mids {
 	$ro->reopen;
 	my $found = $ro->query('m:root@s');
 	is(scalar(@$found), 1, "message found");
-	is($found->[0]->mid, 'root@s', 'mid set correctly') if scalar(@$found);
+	is($found->[0]->{mid}, 'root@s', 'mid set correctly') if @$found;
 
 	my ($res, @res);
 	my @exp = sort qw(root@s last@s);
@@ -176,7 +176,7 @@ EOF
 	# body
 	$res = $ro->query('goodbye');
 	is(scalar(@$res), 1, "goodbye message found");
-	is($res->[0]->mid, 'last@s', 'got goodbye message body') if scalar(@$res);
+	is($res->[0]->{mid}, 'last@s', 'got goodbye message body') if @$res;
 
 	# datestamp
 	$res = $ro->query('dt:20101002000001..20101002000001');
@@ -257,12 +257,13 @@ fade
 EOF
 	my $res = $rw->query("theatre");
 	is(scalar(@$res), 2, "got both matches");
-	is($res->[0]->mid, 'nquote@a', "non-quoted scores higher") if scalar(@$res);
-	is($res->[1]->mid, 'quote@a', "quoted result still returned") if scalar(@$res);
-
+	if (@$res == 2) {
+		is($res->[0]->{mid}, 'nquote@a', 'non-quoted scores higher');
+		is($res->[1]->{mid}, 'quote@a', 'quoted result still returned');
+	}
 	$res = $rw->query("illusions");
 	is(scalar(@$res), 1, "got a match for quoted text");
-	is($res->[0]->mid, 'quote@a',
+	is($res->[0]->{mid}, 'quote@a',
 		"quoted result returned if nothing else") if scalar(@$res);
 });
 
@@ -283,8 +284,10 @@ EOF
 	ok($doc_id > 0, "doc_id defined with circular reference");
 	my $smsg = $rw->query('m:circle@a', {limit=>1})->[0];
 	is(defined($smsg), 1, 'found m:circl@a');
-	is($smsg->references, '', "no references created") if defined($smsg);
-	is($smsg->subject, $s, 'long subject not rewritten') if defined($smsg);
+	if (defined $smsg) {
+		is($smsg->{references}, '', "no references created");
+		is($smsg->{subject}, $s, 'long subject not rewritten');
+	}
 });
 
 $ibx->with_umask(sub {
@@ -293,7 +296,10 @@ $ibx->with_umask(sub {
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
 	my $msg = $rw->query('m:testmessage@example.com', {limit => 1})->[0];
 	is(defined($msg), 1, 'found testmessage@example.com');
-	is($mime->header('Subject'), $msg->subject, 'UTF-8 subject preserved') if defined($msg);
+	if (defined $msg) {
+		is($mime->header('Subject'), $msg->{subject},
+			'UTF-8 subject preserved');
+	}
 });
 
 {
@@ -311,14 +317,14 @@ $ibx->with_umask(sub {
 	is($mset->size, 6, 'searched To: successfully');
 	foreach my $m ($mset->items) {
 		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
-		like($smsg->to, qr/\blist\@example\.com\b/, 'to appears');
+		like($smsg->{to}, qr/\blist\@example\.com\b/, 'to appears');
 	}
 
 	$mset = $ro->query('tc:list@example.com', {mset => 1});
 	is($mset->size, 6, 'searched To+Cc: successfully');
 	foreach my $m ($mset->items) {
 		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
-		my $tocc = join("\n", $smsg->to, $smsg->cc);
+		my $tocc = join("\n", $smsg->{to}, $smsg->{cc});
 		like($tocc, qr/\blist\@example\.com\b/, 'tocc appears');
 	}
 
@@ -327,7 +333,7 @@ $ibx->with_umask(sub {
 		is($mset->items, 1, "searched $pfx successfully for Cc:");
 		foreach my $m ($mset->items) {
 			my $smsg = $ro->{over_ro}->get_art($m->get_docid);
-			like($smsg->cc, qr/\bfoo\@example\.com\b/,
+			like($smsg->{cc}, qr/\bfoo\@example\.com\b/,
 				'cc appears');
 		}
 	}
@@ -337,7 +343,7 @@ $ibx->with_umask(sub {
 		is(scalar(@$res), 1,
 			"searched $pfx successfully for From:");
 		foreach my $smsg (@$res) {
-			like($smsg->from_name, qr/Laggy Sender/,
+			like($smsg->{from_name}, qr/Laggy Sender/,
 				"From appears with $pfx");
 		}
 	}
@@ -354,18 +360,18 @@ $ibx->with_umask(sub {
 
 	$res = $ro->query('q:theatre');
 	is(scalar(@$res), 1, 'only one quoted body');
-	like($res->[0]->from_name, qr/\AQuoter/,
+	like($res->[0]->{from_name}, qr/\AQuoter/,
 		'got quoted body') if (scalar(@$res));
 
 	$res = $ro->query('nq:theatre');
 	is(scalar @$res, 1, 'only one non-quoted body');
-	like($res->[0]->from_name, qr/\ANon-Quoter/,
+	like($res->[0]->{from_name}, qr/\ANon-Quoter/,
 		'got non-quoted body') if (scalar(@$res));
 
 	foreach my $pfx (qw(b: bs:)) {
 		$res = $ro->query($pfx . 'theatre');
 		is(scalar @$res, 2, "searched both bodies for $pfx");
-		like($res->[0]->from_name, qr/\ANon-Quoter/,
+		like($res->[0]->{from_name}, qr/\ANon-Quoter/,
 			"non-quoter first for $pfx") if scalar(@$res);
 	}
 }
@@ -379,16 +385,16 @@ $ibx->with_umask(sub {
 	is(scalar @$n, 1, 'got result for n:');
 	my $res = $ro->query('part_deux.txt');
 	is(scalar @$res, 1, 'got result without n:');
-	is($n->[0]->mid, $res->[0]->mid,
+	is($n->[0]->{mid}, $res->[0]->{mid},
 		'same result with and without') if scalar(@$res);
 	my $txt = $ro->query('"inside another"');
 	is(scalar @$txt, 1, 'found inside another');
-	is($txt->[0]->mid, $res->[0]->mid,
+	is($txt->[0]->{mid}, $res->[0]->{mid},
 		'search inside text attachments works') if scalar(@$txt);
 
 	my $art;
 	if (scalar(@$n) >= 1) {
-		my $mid = $n->[0]->mid;
+		my $mid = $n->[0]->{mid};
 		my ($id, $prev);
 		$art = $ro->{over_ro}->next_by_mid($mid, \$id, \$prev);
 		ok($art, 'article exists in OVER DB');

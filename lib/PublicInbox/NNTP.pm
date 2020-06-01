@@ -296,7 +296,7 @@ sub newnews_i {
 	my $msgs = $over->query_ts($ts, $$prev);
 	if (scalar @$msgs) {
 		more($self, '<' .
-			join(">\r\n<", map { $_->mid } @$msgs ).
+			join(">\r\n<", map { $_->{mid} } @$msgs ).
 			'>');
 		$$prev = $msgs->[-1]->{num};
 	} else {

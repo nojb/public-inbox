@@ -257,7 +257,7 @@ sub add_overview {
 	my $hdr = $mime->header_obj;
 	my $mids = mids_for_index($hdr);
 	my $refs = parse_references($smsg, $hdr, $mids);
-	my $subj = $smsg->subject;
+	my $subj = $smsg->{subject};
 	my $xpath;
 	if ($subj ne '') {
 		$xpath = subject_path($subj);

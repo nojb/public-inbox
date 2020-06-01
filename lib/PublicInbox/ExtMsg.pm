@@ -30,7 +30,7 @@ our @EXT_URL = map { ascii_html($_) } (
 sub PARTIAL_MAX () { 100 }
 
 sub mids_from_mset { # Search::retry_reopen callback
-	[ map { PublicInbox::Smsg::from_mitem($_)->mid } $_[0]->items ];
+	[ map { PublicInbox::Smsg::from_mitem($_)->{mid} } $_[0]->items ];
 }
 
 sub search_partial ($$) {

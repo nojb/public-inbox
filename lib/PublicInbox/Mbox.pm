@@ -151,7 +151,7 @@ sub thread_mbox {
 	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
 	$ctx->{prev} = $msgs->[-1];
 	$ctx->{over} = $over; # bump refcnt
-	PublicInbox::MboxGz->response($ctx, \&thread_cb, $msgs->[0]->subject);
+	PublicInbox::MboxGz->response($ctx, \&thread_cb, $msgs->[0]->{subject});
 }
 
 sub emit_range {

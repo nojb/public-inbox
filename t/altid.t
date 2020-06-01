@@ -47,7 +47,8 @@ EOF
 {
 	my $ro = PublicInbox::Search->new($ibx);
 	my $msgs = $ro->query("gmane:1234");
-	is_deeply([map { $_->mid } @$msgs], ['a@example.com'], 'got one match');
+	$msgs = [ map { $_->{mid} } @$msgs ];
+	is_deeply($msgs, ['a@example.com'], 'got one match');
 
 	$msgs = $ro->query("gmane:666");
 	is_deeply([], $msgs, 'body did NOT match');

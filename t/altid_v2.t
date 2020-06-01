@@ -42,7 +42,8 @@ EOF
 $v2w->done;
 
 my $msgs = $ibx->search->reopen->query("gmane:1234");
-is_deeply([map { $_->mid } @$msgs], ['a@example.com'], 'got one match');
+$msgs = [ map { $_->{mid} } @$msgs ];
+is_deeply($msgs, ['a@example.com'], 'got one match');
 $msgs = $ibx->search->query("gmane:666");
 is_deeply([], $msgs, 'body did NOT match');
 

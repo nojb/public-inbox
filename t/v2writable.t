@@ -224,12 +224,13 @@ EOF
 	like($tip, qr/\A[a-f0-9]+ test removal\n\z/s,
 		'commit message propagated to git');
 	is_deeply(\@after, \@before, 'only one commit written to git');
-	is($ibx->mm->num_for($smsg->mid), undef, 'no longer in Msgmap by mid');
+	my $mid = $smsg->{mid};
+	is($ibx->mm->num_for($mid), undef, 'no longer in Msgmap by mid');
 	my $num = $smsg->{num};
 	like($num, qr/\A\d+\z/, 'numeric number in return message');
 	is($ibx->mm->mid_for($num), undef, 'no longer in Msgmap by num');
 	my $srch = $ibx->search->reopen;
-	my $mset = $srch->query('m:'.$smsg->mid, { mset => 1});
+	my $mset = $srch->query('m:'.$mid, { mset => 1});
 	is($mset->size, 0, 'no longer found in Xapian');
 	my @log1 = (@log, qw(-1 --pretty=raw --raw -r --no-renames));
 	is($srch->{over_ro}->get_art($num), undef,

@@ -28,7 +28,7 @@ sub to_doc_data {
 	join("\n",
 		$self->{subject},
 		$self->{from},
-		$self->references,
+		$self->{references} // '',
 		$self->{to},
 		$self->{cc},
 		$self->{blob},
@@ -74,11 +74,15 @@ sub load_expand {
 
 sub psgi_cull ($) {
 	my ($self) = @_;
-	from_name($self); # fill in {from_name} so we can delete {from}
+
+	# ghosts don't have ->{from}
+	my $from = delete($self->{from}) // '';
+	my @n = PublicInbox::Address::names($from);
+	$self->{from_name} = join(', ', @n);
 
 	# drop NNTP-only fields which aren't relevant to PSGI results:
 	# saves ~80K on a 200 item search result:
-	delete @$self{qw(from ts to cc bytes lines)};
+	delete @$self{qw(ts to cc bytes lines)};
 	$self;
 }
 
@@ -88,11 +92,6 @@ sub from_mitem {
 	return $srch->retry_reopen(\&from_mitem, $mitem) if $srch;
 	my $self = bless {}, __PACKAGE__;
 	psgi_cull(load_expand($self, $mitem->get_document));
-}
-
-sub __hdr ($$) {
-	my ($self, $field) = @_;
-	$self->{lc($field)};
 }
 
 # for Import and v1 non-SQLite WWW code paths
@@ -128,10 +127,6 @@ sub populate {
 	$self->{mid} //= eval { mids($hdr)->[0] } // '';
 }
 
-sub subject ($) { __hdr($_[0], 'Subject') }
-sub to ($) { __hdr($_[0], 'To') }
-sub cc ($) { __hdr($_[0], 'Cc') }
-
 # no strftime, that is locale-dependent and not for RFC822
 my @DoW = qw(Sun Mon Tue Wed Thu Fri Sat);
 my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
@@ -145,32 +140,6 @@ sub date ($) {
 				$mday, $year+1900, $hour, $min, $sec);
 
 }
-
-sub from ($) {
-	my ($self) = @_;
-	my $from = __hdr($self, 'From');
-	if (defined $from && !defined $self->{from_name}) {
-		my @n = PublicInbox::Address::names($from);
-		$self->{from_name} = join(', ', @n);
-	}
-	$from;
-}
-
-sub from_name {
-	my ($self) = @_;
-	my $from_name = $self->{from_name};
-	return $from_name if defined $from_name;
-	$self->from;
-	$self->{from_name};
-}
-
-sub references {
-	my ($self) = @_;
-	my $x = $self->{references};
-	defined $x ? $x : '';
-}
-
-sub mid { $_[0]->{mid} }
 
 our $REPLY_RE = qr/^re:\s+/i;
 
