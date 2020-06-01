@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use base qw(Exporter);
 our @EXPORT_OK = qw(subject_normalized);
-use PublicInbox::MID qw(mid_mime mids);
+use PublicInbox::MID qw(mids);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use Time::Local qw(timegm);
@@ -96,13 +96,7 @@ sub lines ($) { $_[0]->{lines} }
 
 sub __hdr ($$) {
 	my ($self, $field) = @_;
-	$self->{lc($field)} //= do {
-		my $mime = $self->{mime} or return;
-		my $val = join(', ', $mime->header($field));
-		$val =~ tr/\r//d;
-		$val =~ tr/\t\n/  /;
-		$val;
-	};
+	$self->{lc($field)};
 }
 
 # for Import and v1 non-SQLite WWW code paths
@@ -174,34 +168,13 @@ sub from_name {
 	$self->{from_name};
 }
 
-sub ts {
-	my ($self) = @_;
-	$self->{ts} ||= eval { msg_timestamp($self->{mime}->header_obj) } || 0;
-}
-
-sub ds {
-	my ($self) = @_;
-	$self->{ds} ||= eval { msg_datestamp($self->{mime}->header_obj); } || 0;
-}
-
 sub references {
 	my ($self) = @_;
 	my $x = $self->{references};
 	defined $x ? $x : '';
 }
 
-sub mid ($;$) {
-	my ($self, $mid) = @_;
-
-	if (defined $mid) {
-		$self->{mid} = $mid;
-	} elsif (defined(my $rv = $self->{mid})) {
-		$rv;
-	} else {
-		die "NO {mime} for mid\n" unless $self->{mime};
-		mid_mime($self->{mime}) # v1 w/o Xapian
-	}
-}
+sub mid { $_[0]->{mid} }
 
 our $REPLY_RE = qr/^re:\s+/i;
 

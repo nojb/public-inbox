@@ -254,7 +254,6 @@ sub subject_path ($) {
 sub add_overview {
 	my ($self, $mime, $smsg) = @_;
 	$smsg->{lines} = $mime->body_raw =~ tr!\n!\n!;
-	$smsg->{mime} = $mime; # XXX temporary?
 	my $hdr = $mime->header_obj;
 	my $mids = mids_for_index($hdr);
 	my $refs = parse_references($smsg, $hdr, $mids);
