@@ -12,7 +12,6 @@ use warnings;
 use POSIX qw(strftime);
 use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
-use PublicInbox::MID qw(mids);
 use PublicInbox::Hval qw(ascii_html mid_href);
 use PublicInbox::MsgTime qw(msg_timestamp);
 
@@ -102,7 +101,7 @@ sub feed_entry {
 	my $ctx = $self->{ctx};
 	my $eml = $ctx->{-inbox}->smsg_eml($smsg) or return '';
 	my $hdr = $eml->header_obj;
-	my $mid = $smsg->{mid} // mids($hdr)->[0];
+	my $mid = $smsg->{mid};
 	my $irt = PublicInbox::View::in_reply_to($hdr);
 	my $uuid = to_uuid($mid);
 	my $base = $ctx->{feed_base_url};
