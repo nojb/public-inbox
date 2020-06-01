@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Eml;
+use PublicInbox::Smsg;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
@@ -26,7 +27,7 @@ hello world
 EOF
 
 my $v2 = require_git(2.6, 1);
-my $smsg = {} if $v2;
+my $smsg = bless {}, 'PublicInbox::Smsg' if $v2;
 like($im->add($mime, undef, $smsg), qr/\A:[0-9]+\z/, 'added one message');
 
 if ($v2) {

@@ -19,7 +19,6 @@ use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::SearchIdx;
-use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use PublicInbox::MultiMidQueue;
 use IO::Handle; # ->autoflush
 use File::Temp qw(tempfile);
@@ -156,8 +155,6 @@ sub add {
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$) {
 	my ($self, $msgref, $mime, $smsg) = @_;
-	$smsg->{ds} //= msg_datestamp($mime->header_obj, $self->{autime});
-	$smsg->{ts} //= msg_timestamp($mime->header_obj, $self->{cotime});
 	$self->{over}->add_overview($mime, $smsg);
 	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
 	$idx->index_raw($msgref, $mime, $smsg);
@@ -575,6 +572,8 @@ W: $list
 			num => $smsg->{num},
 			mid => $smsg->{mid},
 		}, 'PublicInbox::Smsg';
+		my $v2w = { autime => $smsg->{ds}, cotime => $smsg->{ts} };
+		$new_smsg->populate($new_mime, $v2w);
 		do_idx($self, \$raw, $new_mime, $new_smsg);
 	}
 	$rewritten->{rewrites};
@@ -968,6 +967,7 @@ sub reindex_oid_m ($$$$;$) {
 		blob => $oid,
 		mid => $mid0,
 	}, 'PublicInbox::Smsg';
+	$smsg->populate($mime, $self);
 	if (do_idx($self, $msgref, $mime, $smsg)) {
 		reindex_checkpoint($self, $sync, $git);
 	}
@@ -1059,6 +1059,7 @@ sub reindex_oid ($$$$) {
 		blob => $oid,
 		mid => $mid0,
 	}, 'PublicInbox::Smsg';
+	$smsg->populate($mime, $self);
 	if (do_idx($self, $msgref, $mime, $smsg)) {
 		reindex_checkpoint($self, $sync, $git);
 	}
@@ -1298,7 +1299,7 @@ sub index_epoch ($$$) {
 		}
 	}
 	close $fh or die "git log failed: \$?=$?";
-	delete $self->{reindex_pipe};
+	delete @$self{qw(reindex_pipe autime cotime)};
 	update_last_commit($self, $git, $i, $cmt) if defined $cmt;
 }
 

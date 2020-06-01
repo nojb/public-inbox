@@ -12,7 +12,8 @@ use v5.10.1;
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::MID qw(mids mid2path);
 use PublicInbox::Address;
-use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
+use PublicInbox::Smsg;
+use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::ContentHash qw(content_digest);
 use PublicInbox::MDA;
 use PublicInbox::Eml;
@@ -269,8 +270,8 @@ sub remove {
 	(($self->{tip} = ":$commit"), $cur);
 }
 
-sub git_timestamp {
-	my ($ts, $zone) = @_;
+sub git_timestamp ($) {
+	my ($ts, $zone) = @{$_[0]};
 	$ts = 0 if $ts < 0; # git uses unsigned times
 	"$ts $zone";
 }
@@ -278,10 +279,13 @@ sub git_timestamp {
 sub extract_cmt_info ($;$) {
 	my ($mime, $smsg) = @_;
 	# $mime is PublicInbox::Eml, but remains Email::MIME-compatible
+	$smsg //= bless {}, 'PublicInbox::Smsg';
+
+	my $hdr = $mime->header_obj;
+	$smsg->populate($hdr);
 
 	my $sender = '';
-	my $hdr = $mime->header_obj;
-	my $from = $hdr->header('From') // '';
+	my $from = delete($smsg->{From}) // '';
 	my ($email) = PublicInbox::Address::emails($from);
 	my ($name) = PublicInbox::Address::names($from);
 	if (!defined($name) || !defined($email)) {
@@ -313,17 +317,11 @@ sub extract_cmt_info ($;$) {
 		warn "no name in From: $from or Sender: $sender\n";
 	}
 
-	my $subject = $hdr->header('Subject') // '(no subject)';
-	# MIME decoding can create nulls replace them with spaces to protect git
-	$subject =~ tr/\0/ /;
+	my $subject = delete($smsg->{Subject}) // '(no subject)';
 	utf8::encode($subject);
-	my $at = git_timestamp(my @at = msg_datestamp($hdr));
-	my $ct = git_timestamp(my @ct = msg_timestamp($hdr));
-	if ($smsg) {
-		$smsg->{ds} = $at[0];
-		$smsg->{ts} = $ct[0];
-	}
-	($name, $email, $at, $ct, $subject);
+	my $at = git_timestamp(delete $smsg->{-ds});
+	my $ct = git_timestamp(delete $smsg->{-ts});
+	("$name <$email>", $at, $ct, $subject);
 }
 
 # kill potentially confusing/misleading headers
@@ -370,7 +368,7 @@ sub clean_tree_v2 ($$$) {
 sub add {
 	my ($self, $mime, $check_cb, $smsg) = @_;
 
-	my ($name, $email, $at, $ct, $subject) = extract_cmt_info($mime, $smsg);
+	my ($author, $at, $ct, $subject) = extract_cmt_info($mime, $smsg);
 	my $path_type = $self->{path_type};
 	my $path;
 	if ($path_type eq '2/38') {
@@ -414,7 +412,7 @@ sub add {
 	}
 
 	print $w "commit $ref\nmark :$commit\n",
-		"author $name <$email> $at\n",
+		"author $author $at\n",
 		"committer $self->{ident} $ct\n" or wfail;
 	print $w "data ", (length($subject) + 1), "\n",
 		$subject, "\n\n" or wfail;
@@ -502,11 +500,11 @@ sub digest2mid ($$) {
 
 sub rewrite_commit ($$$$) {
 	my ($self, $oids, $buf, $mime) = @_;
-	my ($name, $email, $at, $ct, $subject);
+	my ($author, $at, $ct, $subject);
 	if ($mime) {
-		($name, $email, $at, $ct, $subject) = extract_cmt_info($mime);
+		($author, $at, $ct, $subject) = extract_cmt_info($mime);
 	} else {
-		$name = $email = '';
+		$author = '<>';
 		$subject = 'purged '.join(' ', @$oids);
 	}
 	@$oids = ();
@@ -515,7 +513,7 @@ sub rewrite_commit ($$$$) {
 		my $l = $buf->[$i];
 		if ($l =~ /^author .* ([0-9]+ [\+-]?[0-9]+)$/) {
 			$at //= $1;
-			$buf->[$i] = "author $name <$email> $at\n";
+			$buf->[$i] = "author $author $at\n";
 		} elsif ($l =~ /^committer .* ([0-9]+ [\+-]?[0-9]+)$/) {
 			$ct //= $1;
 			$buf->[$i] = "committer $self->{ident} $ct\n";

@@ -156,16 +156,14 @@ sub index_text ($$$$) {
 	}
 }
 
-sub index_users ($$) {
+sub index_headers ($$) {
 	my ($self, $smsg) = @_;
-
-	my $from = $smsg->from;
-	my $to = $smsg->to;
-	my $cc = $smsg->cc;
-
-	index_text($self, $from, 1, 'A'); # A - author
-	index_text($self, $to, 1, 'XTO') if $to ne '';
-	index_text($self, $cc, 1, 'XCC') if $cc ne '';
+	my @x = (from => 'A', # Author
+		subject => 'S', to => 'XTO', cc => 'XCC');
+	while (my ($field, $pfx) = splice(@x, 0, 2)) {
+		my $val = $smsg->{$field};
+		index_text($self, $val, 1, $pfx) if $val ne '';
+	}
 }
 
 sub index_diff_inc ($$$$) {
@@ -285,9 +283,9 @@ sub index_xapian { # msg_iter callback
 	if ($part->{is_submsg}) {
 		my $mids = mids_for_index($part);
 		index_ids($self, $doc, $part, $mids);
-		my $smsg = PublicInbox::Smsg->new($part);
-		index_users($self, $smsg);
-		index_text($self, $smsg->subject, 1, 'S') if $smsg->subject;
+		my $smsg = bless {}, 'PublicInbox::Smsg';
+		$smsg->populate($part);
+		index_headers($self, $smsg);
 	}
 
 	my ($s, undef) = msg_part_text($part, $ct);
@@ -335,10 +333,8 @@ sub index_ids ($$$$) {
 
 sub add_xapian ($$$$) {
 	my ($self, $mime, $smsg, $mids) = @_;
-	$smsg->{mime} = $mime; # XXX dangerous
 	my $hdr = $mime->header_obj;
 	my $doc = $X->{Document}->new;
-	my $subj = $smsg->subject;
 	add_val($doc, PublicInbox::Search::TS(), $smsg->{ts});
 	my @ds = gmtime($smsg->{ds});
 	my $yyyymmdd = strftime('%Y%m%d', @ds);
@@ -348,8 +344,7 @@ sub add_xapian ($$$$) {
 
 	my $tg = term_generator($self);
 	$tg->set_document($doc);
-	index_text($self, $subj, 1, 'S') if $subj;
-	index_users($self, $smsg);
+	index_headers($self, $smsg);
 
 	msg_iter($mime, \&index_xapian, [ $self, $doc ]);
 	index_ids($self, $doc, $hdr, $mids);
@@ -392,8 +387,7 @@ sub add_message {
 	};
 
 	# v1 and tests only:
-	$smsg->{ds} //= msg_datestamp($hdr, $self->{autime});
-	$smsg->{ts} //= msg_timestamp($hdr, $self->{cotime});
+	$smsg->populate($hdr, $self);
 
 	eval {
 		# order matters, overview stores every possible piece of
@@ -649,6 +643,7 @@ sub read_log {
 		my $mime = do_cat_mail($git, $blob, \$bytes);
 		$del_cb->($self, $mime);
 	}
+	delete @$self{qw(autime cotime)};
 	$batch_cb->($nr, $latest, $newest);
 }
 

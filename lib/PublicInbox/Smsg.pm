@@ -17,11 +17,6 @@ use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use Time::Local qw(timegm);
 
-sub new {
-	my ($class, $mime) = @_;
-	bless { mime => $mime }, $class;
-}
-
 sub wrap {
 	my ($class, $mid) = @_;
 	bless { mid => $mid }, $class;
@@ -36,11 +31,11 @@ sub get_val ($$) {
 sub to_doc_data {
 	my ($self) = @_;
 	join("\n",
-		$self->subject,
-		$self->from,
+		$self->{subject},
+		$self->{from},
 		$self->references,
-		$self->to,
-		$self->cc,
+		$self->{to},
+		$self->{cc},
 		$self->{blob},
 		$self->{mid},
 		$self->{bytes} // '',
@@ -113,6 +108,36 @@ sub __hdr ($$) {
 		$val =~ tr/\t\n/  /;
 		$val;
 	};
+}
+
+# for Import and v1 WWW code paths
+sub populate {
+	my ($self, $hdr, $v2w) = @_;
+	for my $f (qw(From To Cc Subject)) {
+		my @all = $hdr->header($f);
+		my $val = join(', ', @all);
+		$val =~ tr/\r//d;
+		# MIME decoding can create NULs, replace them with spaces
+		# to protect git and NNTP clients
+		$val =~ tr/\0\t\n/   /;
+
+		# lower-case fields for read-only stuff
+		$self->{lc($f)} = $val;
+
+		# Capitalized From/Subject for git-fast-import
+		next if $f eq 'To' || $f eq 'Cc';
+		if (scalar(@all) > 1) {
+			$val = $all[0];
+			$val =~ tr/\r//d;
+			$val =~ tr/\0\t\n/   /;
+		}
+		$self->{$f} = $val if $val ne '';
+	}
+	$v2w //= {};
+	$self->{-ds} = [ my @ds = msg_datestamp($hdr, $v2w->{autime}) ];
+	$self->{-ts} = [ my @ts = msg_timestamp($hdr, $v2w->{cotime}) ];
+	$self->{ds} //= $ds[0]; # no zone
+	$self->{ts} //= $ts[0];
 }
 
 sub subject ($) { __hdr($_[0], 'Subject') }
