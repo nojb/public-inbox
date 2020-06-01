@@ -12,6 +12,7 @@ use warnings;
 use POSIX qw(strftime);
 use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
+use PublicInbox::MID qw(mids);
 use PublicInbox::Hval qw(ascii_html mid_href);
 use PublicInbox::MsgTime qw(msg_timestamp);
 
@@ -99,9 +100,9 @@ sub atom_header {
 sub feed_entry {
 	my ($self, $smsg) = @_;
 	my $ctx = $self->{ctx};
-	my $mid = $smsg->mid; # may extract Message-ID from {mime}
-	my $mime = delete $smsg->{mime};
-	my $hdr = $mime->header_obj;
+	my $eml = $ctx->{-inbox}->smsg_eml($smsg) or return '';
+	my $hdr = $eml->header_obj;
+	my $mid = $smsg->{mid} // mids($hdr)->[0];
 	my $irt = PublicInbox::View::in_reply_to($hdr);
 	my $uuid = to_uuid($mid);
 	my $base = $ctx->{feed_base_url};
@@ -141,7 +142,7 @@ sub feed_entry {
 		qq(<pre\nstyle="white-space:pre-wrap">);
 	$ctx->{obuf} = \$s;
 	$ctx->{mhref} = $href;
-	PublicInbox::View::multipart_text_as_html($mime, $ctx);
+	PublicInbox::View::multipart_text_as_html($eml, $ctx);
 	delete $ctx->{obuf};
 	$s .= '</pre></div></content></entry>';
 }

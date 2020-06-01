@@ -12,7 +12,7 @@ use PublicInbox::Smsg; # this loads w/o Search::Xapian
 sub generate_i {
 	my ($ctx) = @_;
 	while (my $smsg = shift @{$ctx->{msgs}}) {
-		$ctx->{-inbox}->smsg_mime($smsg) and return $smsg;
+		return $smsg;
 	}
 }
 

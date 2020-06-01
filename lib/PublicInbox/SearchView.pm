@@ -340,7 +340,7 @@ sub adump_i {
 		my $smsg = eval {
 			PublicInbox::Smsg::from_mitem($mi, $ctx->{srch});
 		} or next;
-		$ctx->{-inbox}->smsg_mime($smsg) and return $smsg;
+		return $smsg;
 	}
 }
 
