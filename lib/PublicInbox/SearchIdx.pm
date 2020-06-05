@@ -752,10 +752,7 @@ sub _index_sync {
 	my $xdb = $self->begin_txn_lazy;
 	my $mm = _msgmap_init($self);
 	do {
-		if ($xlog) {
-			close($xlog) or die "git log failed: \$?=$?";
-			$xlog = undef;
-		}
+		$xlog = undef; # stop previous git-log via SIGPIPE
 		$last_commit = _last_x_commit($self, $mm);
 		$lx = reindex_from($opts->{reindex}, $last_commit);
 
