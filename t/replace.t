@@ -33,7 +33,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 
 Top secret info about my house in Malibu...
 EOF
-	my $im = PublicInbox::InboxWritable->new($ibx, {nproc=>1})->importer;
+	my $im = PublicInbox::InboxWritable->new($ibx, {nproc=>1})->importer(0);
 	# fake a bunch of epochs
 	$im->{rotate_bytes} = $opt->{rotate_bytes} if $opt->{rotate_bytes};
 
@@ -145,10 +145,12 @@ EOF
 		is($smsg->{subject}, 'redacted', 'after subject');
 		is($smsg->{mid}, 'replace@example.com', 'before MID');
 	}
+	# $git->cleanup; # needed if $im->{parallel};
 	@warn = ();
 	is($im->replace($orig, $repl), undef, 'no-op replace returns undef');
 	is($im->purge($orig), undef, 'no-op purge returns undef');
 	is_deeply(\@warn, [], 'no warnings on noop');
+	# $im->done; # needed if $im->{parallel}
 }
 
 sub pad_msgs {

@@ -38,7 +38,7 @@ my ($mark1, $mark2, $mark3, $mark4);
 	my %config = %$ibx_config;
 	my $ibx = PublicInbox::Inbox->new(\%config);
 	my $im = PublicInbox::V2Writable->new($ibx, {nproc => 1});
-	my $im0 = $im->importer();
+	my $im0 = $im->importer(0);
 	foreach my $i (1..10) {
 		$mime->header_set('Message-Id', "<$i\@example.com>");
 		ok($im->add($mime), "message $i added");

@@ -30,7 +30,7 @@ my $ibx = PublicInbox::Inbox->new({
 my @xcpdb = qw(-xcpdb -q);
 my $nproc = 8;
 my $ndoc = 13;
-my $im = PublicInbox::InboxWritable->new($ibx, {nproc => $nproc})->importer(1);
+my $im = PublicInbox::InboxWritable->new($ibx, {nproc => $nproc})->importer;
 for my $i (1..$ndoc) {
 	$mime->header_set('Message-ID', "<m$i\@example.com>");
 	ok($im->add($mime), "message $i added");

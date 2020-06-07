@@ -57,7 +57,7 @@ sub importer {
 		die "v2 not supported: $@\n" if $@;
 		my $opt = $self->{-creat_opt};
 		my $v2w = PublicInbox::V2Writable->new($self, $opt);
-		$v2w->{parallel} = $parallel;
+		$v2w->{parallel} = $parallel if defined $parallel;
 		$v2w;
 	} elsif ($v == 1) {
 		my @arg = (undef, undef, undef, $self);

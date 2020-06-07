@@ -33,13 +33,13 @@ sub import_index_incremental {
 		-primary_address => 'test@example.com',
 		indexlevel => $level,
 	});
-	my $im = PublicInbox::InboxWritable->new($ibx, {nproc=>1})->importer;
+	my $im = PublicInbox::InboxWritable->new($ibx, {nproc=>1})->importer(0);
 	$mime->header_set('Message-ID', '<m@1>');
 	ok($im->add($mime), 'first message added');
 	$im->done;
 
 	# index master (required for v1)
-	ok(run_script(['-index', $ibx->{inboxdir}, "-L$level"]),
+	ok(run_script([qw(-index -j0), $ibx->{inboxdir}, "-L$level"]),
 		'index master OK');
 	my $ro_master = PublicInbox::Inbox->new({
 		inboxdir => $ibx->{inboxdir},
@@ -68,7 +68,7 @@ sub import_index_incremental {
 	ok(run_script(\@cmd), "v$v init OK");
 
 	# index mirror
-	ok(run_script(['-index', $mirror]), "v$v index mirror OK");
+	ok(run_script([qw(-index -j0), $mirror]), "v$v index mirror OK");
 
 	# read-only access
 	my $ro_mirror = PublicInbox::Inbox->new({
@@ -86,14 +86,14 @@ sub import_index_incremental {
 
 	# mirror updates
 	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
-	ok(run_script(['-index', $mirror]), "v$v index mirror again OK");
+	ok(run_script([qw(-index -j0), $mirror]), "v$v index mirror again OK");
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 2, '2nd message seen in mirror');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
 		['m@1','m@2'], 'got both messages in mirror');
 
 	# incremental index master (required for v1)
-	ok(run_script(['-index', $ibx->{inboxdir}, "-L$level"]),
+	ok(run_script([qw(-index -j0), $ibx->{inboxdir}, "-L$level"]),
 		'index master OK');
 	($nr, $msgs) = $ro_master->recent;
 	is($nr, 2, '2nd message seen in master');
@@ -123,7 +123,7 @@ sub import_index_incremental {
 
 	# sync the mirror
 	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
-	ok(run_script(['-index', $mirror]), "v$v index mirror again OK");
+	ok(run_script([qw(-index -j0), $mirror]), "v$v index mirror again OK");
 	($nr, $msgs) = $ro_mirror->recent;
 	is($nr, 1, '2nd message gone from mirror');
 	is_deeply([map { $_->{mid} } @$msgs], ['m@1'],
@@ -148,7 +148,7 @@ sub import_index_incremental {
 	}
 	$im->done;
 	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
-	ok(run_script(['-index', '--reindex', $mirror]),
+	ok(run_script([qw(-index -j0 --reindex), $mirror]),
 		"v$v index --reindex mirror OK");
 	@ro_nums = map { $_->{num} } @{$ro_mirror->over->query_ts(0, 0)};
 	@rw_nums = map { $_->{num} } @{$ibx->over->query_ts(0, 0)};

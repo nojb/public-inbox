@@ -84,7 +84,7 @@ foreach my $i (0..$epoch_max) {
 	'alt@example.com');
 ok(run_script(\@cmd), 'initialized public-inbox -V2');
 
-ok(run_script(['-index', "$tmpdir/m"]), 'indexed');
+ok(run_script([qw(-index -j0), "$tmpdir/m"]), 'indexed');
 
 my $mibx = { inboxdir => "$tmpdir/m", address => 'alt@example.com' };
 $mibx = PublicInbox::Inbox->new($mibx);
@@ -111,7 +111,7 @@ $fetch_each_epoch->();
 
 my $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 0, 'new message not found in mirror, yet');
-ok(run_script(["-index", "$tmpdir/m"]), 'index updated');
+ok(run_script([qw(-index -j0), "$tmpdir/m"]), 'index updated');
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'index synched minmax');
 $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
 is(scalar($mset->items), 1, 'found message in mirror');
@@ -142,7 +142,7 @@ $fetch_each_epoch->();
 	$ibx->cleanup;
 	PublicInbox::InboxWritable::cleanup($mibx);
 	$v2w->done;
-	my $cmd = [ '-index', '--prune', "$tmpdir/m" ];
+	my $cmd = [ qw(-index --prune -j0), "$tmpdir/m" ];
 	my ($out, $err) = ('', '');
 	my $opt = { 1 => \$out, 2 => \$err };
 	ok(run_script($cmd, undef, $opt), '-index --prune');
@@ -178,7 +178,7 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	$fetch_each_epoch->();
 	PublicInbox::InboxWritable::cleanup($mibx);
 
-	my $cmd = [ "-index", "$tmpdir/m" ];
+	my $cmd = [ qw(-index -j0), "$tmpdir/m" ];
 	my ($out, $err) = ('', '');
 	my $opt = { 1 => \$out, 2 => \$err };
 	ok(run_script($cmd, undef, $opt), 'index ran');
@@ -196,7 +196,7 @@ if ('max size') {
 	$ibx->cleanup;
 	$fetch_each_epoch->();
 	PublicInbox::InboxWritable::cleanup($mibx);
-	my $cmd = ['-index', "$tmpdir/m", "--max-size=$max" ];
+	my $cmd = [qw(-index -j0), "$tmpdir/m", "--max-size=$max" ];
 	my $opt = { 2 => \(my $err) };
 	ok(run_script($cmd, undef, $opt), 'indexed with --max-size');
 	like($err, qr/skipping [a-f0-9]{40,}/, 'warned about skipping message');
@@ -211,7 +211,7 @@ if ('max size') {
 EOF
 		close $fh or die;
 	}
-	$cmd = ['-index', "$tmpdir/m", "--reindex" ];
+	$cmd = [ qw(-index -j0 --reindex), "$tmpdir/m" ];
 	ok(run_script($cmd, undef, $opt), 'reindexed w/ indexMaxSize in file');
 	like($err, qr/skipping [a-f0-9]{40,}/, 'warned about skipping message');
 	$mset = $mibx->search->reopen->query('m:2big@a', {mset =>1});

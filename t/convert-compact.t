@@ -116,12 +116,12 @@ is(scalar @$msgs, 1, 'only one message in history');
 
 $ibx = undef;
 $err = '';
-$cmd = [ qw(-index --reindex -c), "$tmpdir/v2" ];
+$cmd = [ qw(-index -j0 --reindex -c), "$tmpdir/v2" ];
 ok(run_script($cmd, undef, $rdr), '--reindex -c');
 like($err, qr/xapian-compact/, 'xapian-compact ran (-c)');
 
 $rdr->{2} = \(my $err2 = '');
-$cmd = [ qw(-index --reindex -cc), "$tmpdir/v2" ];
+$cmd = [ qw(-index -j0 --reindex -cc), "$tmpdir/v2" ];
 ok(run_script($cmd, undef, $rdr), '--reindex -c -c');
 like($err2, qr/xapian-compact/, 'xapian-compact ran (-c -c)');
 ok(($err2 =~ tr/\n/\n/) > ($err =~ tr/\n/\n/), '-compacted twice');

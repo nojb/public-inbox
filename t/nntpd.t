@@ -53,7 +53,7 @@ $ibx = PublicInbox::Inbox->new($ibx);
 	my $len;
 
 	$ibx = PublicInbox::InboxWritable->new($ibx);
-	my $im = $ibx->importer;
+	my $im = $ibx->importer(0);
 
 	# ensure successful message delivery
 	{

@@ -70,7 +70,7 @@ for my $order ([$bad, $good], [$good, $bad]) {
 	$cmd = [ '-init', '-Lbasic', '-V2', 'v2c', "$tmpdir/v2-clone",
 		'http://example.com/v2c', 'v2c@example.com' ];
 	ok(run_script($cmd, $env), 'init clone');
-	$cmd = [ '-index', "$tmpdir/v2-clone" ];
+	$cmd = [ qw(-index -j0), "$tmpdir/v2-clone" ];
 	sleep($delay) if $delay;
 	ok(run_script($cmd, $env), 'index the clone');
 	$ibx->cleanup;

@@ -39,7 +39,7 @@ use_ok 'PublicInbox::InboxWritable';
 use_ok 'PublicInbox::Config';
 my $cfg = PublicInbox::Config->new($pi_config);
 my $ibx = $cfg->lookup_name('test');
-my $im = PublicInbox::InboxWritable->new($ibx)->importer;
+my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
 
 {
 	local $ENV{HOME} = $home;

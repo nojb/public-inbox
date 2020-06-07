@@ -25,7 +25,7 @@ for my $v (qw(V1 V2)) {
 	my $cmd = [ '-init', "-$v", $v, $inboxdir,
 		"http://example.com/$v", $addr ];
 	ok(run_script($cmd), 'public-inbox-init');
-	ok(run_script(['-index', $inboxdir]), 'public-inbox-index');
+	ok(run_script([qw(-index -j0), $inboxdir]), 'public-inbox-index');
 	is(xsys(@cfg, "$cfgpfx.filter", 'PublicInbox::Filter::RubyLang'), 0);
 	is(xsys(@cfg, "$cfgpfx.altid",
 		'serial:alerts:file=msgmap.sqlite3'), 0);
