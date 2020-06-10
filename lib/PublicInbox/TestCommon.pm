@@ -37,17 +37,18 @@ sub tcp_server () {
 		Type => Socket::SOCK_STREAM(),
 		Listen => 1024,
 		Blocking => 0,
-	)
+	) or Test::More::BAIL_OUT("failed to create TCP server: $!");
 }
 
 sub tcp_connect {
 	my ($dest, %opt) = @_;
+	my $addr = $dest->sockhost . ':' . $dest->sockport;
 	my $s = IO::Socket::INET->new(
 		Proto => 'tcp',
 		Type => Socket::SOCK_STREAM(),
-		PeerAddr => $dest->sockhost . ':' . $dest->sockport,
+		PeerAddr => $addr,
 		%opt,
-	);
+	) or Test::More::BAIL_OUT("failed to connect to $addr: $!");
 	$s->autoflush(1);
 	$s;
 }
