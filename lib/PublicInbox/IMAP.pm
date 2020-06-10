@@ -9,8 +9,9 @@
 # data notes:
 # * NNTP article numbers are UIDs and message sequence numbers (MSNs)
 # * Message sequence numbers (MSNs) can be stable since we're read-only.
-#   Most IMAP clients use UIDs (I hope), and we can return a dummy
-#   message if a client requests a non-existent MSN.
+#   Most IMAP clients use UIDs (I hope).  We may return a dummy message
+#   in the future if a client requests a non-existent MSN, but that seems
+#   unecessary with mutt.
 
 package PublicInbox::IMAP;
 use strict;
@@ -398,22 +399,6 @@ sub fetch_body ($;$) {
 	join('', @hold);
 }
 
-sub dummy_message ($$) {
-	my ($self, $seqno) = @_;
-	my $ret = <<EOF;
-From: nobody\@localhost\r
-To: nobody\@localhost\r
-Date: Thu, 01 Jan 1970 00:00:00 +0000\r
-Message-ID: <dummy-$seqno\@$self->{ibx}->{newsgroup}>\r
-Subject: dummy message #$seqno\r
-\r
-You're seeing this message because your IMAP client didn't use UIDs.\r
-The message which used to use this sequence number was likely spam\r
-and removed by the administrator.\r
-EOF
-	\$ret;
-}
-
 sub requeue_once ($) {
 	my ($self) = @_;
 	# COMPRESS users all share the same DEFLATE context.
@@ -437,8 +422,7 @@ sub uid_fetch_cb { # called by git->cat_async via git_async_cat
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
-		return requeue_once($self) unless defined $want->{-seqno};
-		$bref = dummy_message($self, $smsg->{num});
+		return requeue_once($self);
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
@@ -763,42 +747,6 @@ sub cmd_uid_fetch ($$$;@) {
 		long_response($self, \&uid_fetch_m, @$args) :
 		$args; # error
 }
-
-sub seq_fetch_m { # long_response
-	my ($self, $tag, $msgs, $range_info, $want) = @_;
-	while (!@$msgs) { # rare
-		if (my $end = refill_range($self, $msgs, $range_info)) {
-			$self->write(\"$tag $end\r\n");
-			return;
-		}
-	}
-	my $seq = $want->{-seqno}++;
-	my $cur_num = $msgs->[0]->{num};
-	if ($cur_num == $seq) { # as expected
-		git_async_cat($self->{ibx}->git, $msgs->[0]->{blob},
-				\&uid_fetch_cb, \@_);
-	} elsif ($cur_num > $seq) {
-		# send dummy messages until $seq catches up to $cur_num
-		my $smsg = bless { num => $seq, ts => 0 }, 'PublicInbox::Smsg';
-		unshift @$msgs, $smsg;
-		my $bref = dummy_message($self, $seq);
-		uid_fetch_cb($bref, undef, undef, undef, \@_);
-		$smsg; # blessed response since uid_fetch_cb requeues
-	} else { # should not happen
-		die "BUG: cur_num=$cur_num < seq=$seq";
-	}
-}
-
-sub cmd_fetch ($$$;@) {
-	my ($self, $tag, $range_csv, @want) = @_;
-	my $args = fetch_common($self, $tag, $range_csv, \@want);
-	ref($args) eq 'ARRAY' ? do {
-		my $want = $args->[-1];
-		$want->{-seqno} = $args->[2]->[0]; # $beg == $range_info->[0];
-		long_response($self, \&seq_fetch_m, @$args)
-	} : $args; # error
-}
-
 
 sub parse_date ($) { # 02-Oct-1993
 	my ($date_text) = @_;
@@ -1147,5 +1095,6 @@ sub close {
 # we're read-only, so SELECT and EXAMINE do the same thing
 no warnings 'once';
 *cmd_select = \&cmd_examine;
+*cmd_fetch = \&cmd_uid_fetch;
 
 1;

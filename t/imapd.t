@@ -348,8 +348,7 @@ is(scalar keys %$ret, 3, 'got all 3 messages');
 	run_script(\@cmd, $env, $rdr) or BAIL_OUT('-learn rm');
 }
 my $r2 = $mic->fetch_hash('1:*', 'BODY.PEEK[]') or BAIL_OUT "FETCH $@";
-is(scalar keys %$r2, 3, 'still got all 3 messages');
-like($r2->{1}->{'BODY[]'}, qr/dummy message #1/, 'got dummy message 1');
+is(scalar keys %$r2, 2, 'did not get all 3 messages');
 is($r2->{2}->{'BODY[]'}, $ret->{2}->{RFC822}, 'message 2 unchanged');
 is($r2->{3}->{'BODY[]'}, $ret->{3}->{RFC822}, 'message 3 unchanged');
 $r2 = $mic->fetch_hash(2, 'BODY.PEEK[HEADER.FIELDS (message-id)]')
