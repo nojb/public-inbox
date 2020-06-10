@@ -388,7 +388,7 @@ sub requeue_once ($) {
 	$self->requeue if $new_size == 1;
 }
 
-sub uid_fetch_cb { # called by git->cat_async via git_async_msg
+sub uid_fetch_cb { # called by git->cat_async via git_async_cat
 	my ($bref, $oid, $type, $size, $fetch_m_arg) = @_;
 	my ($self, undef, $ibx, $msgs, undef, $want) = @$fetch_m_arg;
 	my $smsg = shift @$msgs or die 'BUG: no smsg';
@@ -400,6 +400,7 @@ sub uid_fetch_cb { # called by git->cat_async via git_async_msg
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
+
 	$$bref =~ s/(?<!\r)\n/\r\n/sg; # make strict clients happy
 
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
@@ -487,7 +488,7 @@ sub uid_fetch_m { # long_response
 			return;
 		}
 	}
-	git_async_msg($ibx, $msgs->[0], \&uid_fetch_cb, \@_);
+	git_async_cat($ibx->git, $msgs->[0]->{blob}, \&uid_fetch_cb, \@_);
 }
 
 sub cmd_status ($$$;@) {
@@ -719,7 +720,8 @@ sub seq_fetch_m { # long_response
 	my $seq = $want->{-seqno}++;
 	my $cur_num = $msgs->[0]->{num};
 	if ($cur_num == $seq) { # as expected
-		git_async_msg($ibx, $msgs->[0], \&uid_fetch_cb, \@_);
+		git_async_cat($ibx->git, $msgs->[0]->{blob},
+				\&uid_fetch_cb, \@_);
 	} elsif ($cur_num > $seq) {
 		# send dummy messages until $seq catches up to $cur_num
 		my $smsg = bless { num => $seq, ts => 0 }, 'PublicInbox::Smsg';

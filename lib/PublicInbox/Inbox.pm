@@ -22,9 +22,6 @@ my $CLEANUP = {}; # string(inbox) -> inbox
 sub git_cleanup ($) {
 	my ($self) = @_;
 	my $git = $self->{git} or return;
-	if (my $async_cat = delete $self->{async_cat}) {
-		$async_cat->close;
-	}
 	$git->cleanup;
 }
 

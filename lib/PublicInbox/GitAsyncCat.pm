@@ -13,7 +13,7 @@ use strict;
 use parent qw(PublicInbox::DS Exporter);
 use fields qw(git);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
-our @EXPORT = qw(git_async_msg);
+our @EXPORT = qw(git_async_cat);
 
 sub new {
 	my ($class, $git) = @_;
@@ -36,14 +36,16 @@ sub event_step {
 
 sub close {
 	my ($self) = @_;
-	delete $self->{git};
+	if (my $git = delete $self->{git}) {
+		delete $git->{async_cat}; # drop circular reference
+	}
 	$self->SUPER::close; # PublicInbox::DS::close
 }
 
-sub git_async_msg ($$$$) {
-	my ($ibx, $smsg, $cb, $arg) = @_;
-	$ibx->git->cat_async($smsg->{blob}, $cb, $arg);
-	$ibx->{async_cat} //= new(__PACKAGE__, $ibx->{git});
+sub git_async_cat ($$$$) {
+	my ($git, $oid, $cb, $arg) = @_;
+	$git->cat_async($oid, $cb, $arg);
+	$git->{async_cat} //= new(__PACKAGE__, $git); # circular reference
 }
 
 1;

@@ -283,6 +283,9 @@ sub qx {
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
 	my ($self) = @_;
+	if (my $ac = $self->{async_cat}) {
+		$ac->close; # PublicInbox::GitAsyncCat::close -> EPOLL_CTL_DEL
+	}
 	cat_async_wait($self);
 	_destroy($self, qw(cat_rbuf in out pid));
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));
