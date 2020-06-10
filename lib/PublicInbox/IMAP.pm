@@ -348,11 +348,34 @@ sub fetch_body ($;$) {
 	join('', @hold);
 }
 
+sub dummy_message ($$) {
+	my ($seqno, $ibx) = @_;
+	my $ret = <<EOF;
+From: nobody\@localhost\r
+To: nobody\@localhost\r
+Date: Thu, 01 Jan 1970 00:00:00 +0000\r
+Message-ID: <dummy-$seqno\@$ibx->{newsgroup}>\r
+Subject: dummy message #$seqno\r
+\r
+You're seeing this message because your IMAP client didn't use UIDs.\r
+The message which used to use this sequence number was likely spam\r
+and removed by the administrator.\r
+EOF
+	\$ret;
+}
+
 sub uid_fetch_cb { # called by git->cat_async
 	my ($bref, $oid, $type, $size, $fetch_m_arg) = @_;
 	my ($self, undef, $ibx, undef, undef, $msgs, $want) = @$fetch_m_arg;
 	my $smsg = shift @$msgs or die 'BUG: no smsg';
-	$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
+	if (!defined($oid)) {
+		# it's possible to have TOCTOU if an admin runs
+		# public-inbox-(edit|purge), just move onto the next message
+		return unless defined $want->{-seqno};
+		$bref = dummy_message($smsg->{num}, $ibx);
+	} else {
+		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
+	}
 	$$bref =~ s/(?<!\r)\n/\r\n/sg; # make strict clients happy
 
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
@@ -591,19 +614,19 @@ sub partial_emit ($$$) {
 	}
 }
 
-sub cmd_uid_fetch ($$$;@) {
-	my ($self, $tag, $range, @want) = @_;
+sub fetch_common ($$$$) {
+	my ($self, $tag, $range, $want) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
-	if ($want[0] =~ s/\A\(//s) {
-		$want[-1] =~ s/\)\z//s or return "$tag BAD no rparen\r\n";
+	if ($want->[0] =~ s/\A\(//s) {
+		$want->[-1] =~ s/\)\z//s or return "$tag BAD no rparen\r\n";
 	}
 	my (%partial, %want);
-	while (defined(my $att = shift @want)) {
+	while (defined(my $att = shift @$want)) {
 		$att = uc($att);
 		my $x = $FETCH_ATT{$att};
 		if ($x) {
 			%want = (%want, %$x);
-		} elsif (!partial_prepare(\%partial, \@want, $att)) {
+		} elsif (!partial_prepare(\%partial, $want, $att)) {
 			return "$tag BAD param: $att\r\n";
 		}
 	}
@@ -629,8 +652,54 @@ sub cmd_uid_fetch ($$$;@) {
 	} else {
 		return "$tag BAD fetch range\r\n";
 	}
-	long_response($self, \&uid_fetch_m, $tag, $ibx,
-				\$beg, $end, $msgs, \%want);
+	[ $tag, $ibx, \$beg, $end, $msgs, \%want ];
+}
+
+sub cmd_uid_fetch ($$$;@) {
+	my ($self, $tag, $range, @want) = @_;
+	my $args = fetch_common($self, $tag, $range, \@want);
+	ref($args) eq 'ARRAY' ?
+		long_response($self, \&uid_fetch_m, @$args) :
+		$args; # error
+}
+
+sub seq_fetch_m { # long_response
+	my ($self, $tag, $ibx, $beg, $end, $msgs, $want) = @_;
+	if (!@$msgs) { # refill
+		@$msgs = @{$ibx->over->query_xover($$beg, $end)};
+		if (!@$msgs) {
+			$self->write(\"$tag OK Fetch done\r\n");
+			return;
+		}
+		$$beg = $msgs->[-1]->{num} + 1;
+	}
+	my $seq = $want->{-seqno}++;
+	my $cur_num = $msgs->[0]->{num};
+	if ($cur_num == $seq) { # as expected
+		my $git = $ibx->git;
+		$git->cat_async_begin; # TODO: actually make async
+		$git->cat_async($msgs->[0]->{blob}, \&uid_fetch_cb, \@_);
+		$git->cat_async_wait;
+	} elsif ($cur_num > $seq) {
+		# send dummy messages until $seq catches up to $cur_num
+		my $smsg = bless { num => $seq, ts => 0 }, 'PublicInbox::Smsg';
+		unshift @$msgs, $smsg;
+		my $bref = dummy_message($seq, $ibx);
+		uid_fetch_cb($bref, undef, undef, undef, \@_);
+	} else { # should not happen
+		die "BUG: cur_num=$cur_num < seq=$seq";
+	}
+	1; # more messages on the way
+}
+
+sub cmd_fetch ($$$;@) {
+	my ($self, $tag, $range, @want) = @_;
+	my $args = fetch_common($self, $tag, $range, \@want);
+	ref($args) eq 'ARRAY' ? do {
+		my $want = $args->[-1];
+		$want->{-seqno} = ${$args->[2]}; # $$beg
+		long_response($self, \&seq_fetch_m, @$args)
+	} : $args; # error
 }
 
 sub uid_search_all { # long_response

@@ -306,6 +306,24 @@ Content-Disposition: attachment; filename="embed2x\.eml"\r
 EOF
 }); # each_inbox
 
+# message sequence numbers :<
+is($mic->Uid(0), 0, 'disable UID on '.ref($mic));
+ok($mic->reconnect, 'reconnected');
+$ret = $mic->fetch_hash('1:*', 'RFC822') or BAIL_OUT "FETCH $@";
+is(scalar keys %$ret, 3, 'got all 3 messages');
+{
+	my $rdr = { 0 => \($ret->{1}->{RFC822}) };
+	my $env = { HOME => $ENV{HOME} };
+	my @cmd = qw(-learn rm --all);
+	run_script(\@cmd, $env, $rdr) or BAIL_OUT('-learn rm');
+}
+my $r2 = $mic->fetch_hash('1:*', 'RFC822') or BAIL_OUT "FETCH $@";
+is(scalar keys %$r2, 3, 'still got all 3 messages');
+like($r2->{1}->{RFC822}, qr/dummy message #1/, 'got dummy message 1');
+is($r2->{2}->{RFC822}, $ret->{2}->{RFC822}, 'message 2 unchanged');
+is($r2->{3}->{RFC822}, $ret->{3}->{RFC822}, 'message 3 unchanged');
+ok($mic->logout, 'logged out');
+
 $td->kill;
 $td->join;
 is($?, 0, 'no error in exited process');
