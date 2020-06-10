@@ -10,6 +10,8 @@ use_ok 'PublicInbox::OverIdx';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");
 $over->connect;
+is($over->max, 0, 'max is zero on new DB (scalar context)');
+is_deeply([$over->max], [0], 'max is zero on new DB (list context)');
 my $x = $over->next_tid;
 is(int($x), $x, 'integer tid');
 my $y = $over->next_tid;
@@ -58,6 +60,7 @@ foreach my $mid (qw(a b)) {
 	my $msgs = [ map { $_->{num} } @{$over->get_thread($mid)} ];
 	is_deeply([98, 99], $msgs, "linked messages by Message-ID: <$mid>");
 }
+isnt($over->max, 0, 'max is non-zero');
 
 $over->rollback_lazy;
 

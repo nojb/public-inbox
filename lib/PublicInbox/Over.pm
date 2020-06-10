@@ -229,4 +229,34 @@ sub uid_range {
 	$dbh->selectcol_arrayref($q, undef, $beg, $end);
 }
 
+sub max {
+	my ($self) = @_;
+	my $sth = $self->connect->prepare_cached(<<'', undef, 1);
+SELECT MAX(num) FROM over WHERE num > 0
+
+	$sth->execute;
+	$sth->fetchrow_array // 0;
+}
+
+sub imap_status {
+	my ($self, $uid_base, $uid_end) = @_;
+	my $dbh = $self->connect;
+	my $sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT COUNT(num) FROM over WHERE num > ? AND num <= ?
+
+	$sth->execute($uid_base, $uid_end);
+	my $exists = $sth->fetchrow_array;
+
+	$sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT MAX(num) + 1 FROM over WHERE num <= ?
+
+	$sth->execute($uid_end);
+	my $uidnext = $sth->fetchrow_array;
+
+	$sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT MAX(num) FROM over WHERE num > 0
+
+	($exists, $uidnext, $sth->fetchrow_array // 0);
+}
+
 1;

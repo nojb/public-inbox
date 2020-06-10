@@ -9,13 +9,14 @@ use strict;
 
 sub created_at { 0 } # Msgmap::created_at
 sub mm { shift }
-sub max { undef } # Msgmap::max
-sub msg_range { [] } # Msgmap::msg_range
+sub uid_range { [] } # Over::uid_range
+sub subscribe_unlock { undef };
 
 no warnings 'once';
-*uid_range = *query_xover = \&msg_range;
+*max = \&created_at;
+*query_xover = \&uid_range;
 *over = \&mm;
-*subscribe_unlock = *unsubscribe_unlock =
-	*get_art = *description = *base_url = \&max;
+*unsubscribe_unlock =
+	*get_art = *description = *base_url = \&subscribe_unlock;
 
 1;

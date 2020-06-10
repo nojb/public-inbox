@@ -183,7 +183,7 @@ sub cmd_noop ($$) { "$_[1] OK Noop done\r\n" }
 # called by PublicInbox::InboxIdle
 sub on_inbox_unlock {
 	my ($self, $ibx) = @_;
-	my $new = $ibx->mm->max;
+	my $new = $ibx->over->max;
 	my $uid_base = $self->{uid_base} // 0;
 	my $uid_end = $uid_base + UID_BLOCK;
 	defined(my $old = $self->{-idle_max}) or die 'BUG: -idle_max unset';
@@ -223,7 +223,7 @@ sub cmd_idle ($$) {
 	# IDLE seems allowed by dovecot w/o a mailbox selected *shrug*
 	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
 	$self->{-idle_tag} = $tag;
-	my $max = $ibx->mm->max // 0;
+	my $max = $ibx->over->max;
 	my $uid_end = $self->{uid_base} + UID_BLOCK;
 	my $sock = $self->{sock} or return;
 	my $fd = fileno($sock);
@@ -283,14 +283,20 @@ sub inbox_lookup ($$) {
 		my $mb_top = $1;
 		$uid_base = $2 * UID_BLOCK;
 		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
-		$exists = $ibx->mm->max // 0;
-		ensure_ranges_exist($self->{imapd}, $ibx, $exists);
-		my $uid_end = $uid_base + UID_BLOCK;
-		$exists = $uid_end if $exists > $uid_end;
-		$uidnext = $exists + 1;
-		$exists -= $uid_base;
+		my $max;
+		($exists, $uidnext, $max) = $ibx->over->imap_status($uid_base,
+							$uid_base + UID_BLOCK);
+		ensure_ranges_exist($self->{imapd}, $ibx, $max);
 	} else { # check for dummy inboxes
-		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
+		$mailbox = lc $mailbox;
+		$ibx = $self->{imapd}->{mailboxes}->{$mailbox} or return;
+
+		# if "INBOX.foo.bar" is selected and "INBOX.foo.bar.0",
+		# check for new UID ranges (e.g. "INBOX.foo.bar.1")
+		if (my $z = $self->{imapd}->{mailboxes}->{"$mailbox.0"}) {
+			ensure_ranges_exist($self->{imapd}, $z, $z->over->max);
+		}
+
 		$uid_base = $exists = 0;
 		$uidnext = 1;
 	}
@@ -590,7 +596,7 @@ sub range_step ($$) {
 		($beg, $end) = ($1 + 0, $2 + 0);
 	} elsif ($range =~ /\A([0-9]+):\*\z/) {
 		$beg = $1 + 0;
-		$end = $self->{ibx}->mm->max // 0;
+		$end = $self->{ibx}->over->max;
 		my $uid_end = $self->{uid_base} + UID_BLOCK;
 		$end = $uid_end if $end > $uid_end;
 		$beg = $end if $beg > $end;
@@ -1093,14 +1099,14 @@ sub cmd_uid_search ($$$;) {
 	if (!scalar(keys %$q)) {
 		$self->msg_more('* SEARCH');
 		my $beg = 1;
-		my $end = $ibx->mm->max // 0;
+		my $end = $ibx->over->max;
 		uid_clamp($self, \$beg, \$end);
 		long_response($self, \&uid_search_uid_range,
 				$tag, \$beg, $end, $sql);
 	} elsif (my $uid = $q->{uid}) {
 		if ($uid =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
 			my ($beg, $end) = ($1, $2);
-			$end = $ibx->mm->max if $end eq '*';
+			$end = $ibx->over->max if $end eq '*';
 			uid_clamp($self, \$beg, \$end);
 			$self->msg_more('* SEARCH');
 			long_response($self, \&uid_search_uid_range,
