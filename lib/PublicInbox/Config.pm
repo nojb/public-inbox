@@ -105,13 +105,16 @@ sub iterate_start {
 	$self->{-iter} = [ \$i, $cb, $arg ];
 }
 
-# for PublicInbox::DS::next_tick
+# for PublicInbox::DS::next_tick, we only call this is if
+# PublicInbox::DS is already loaded
 sub event_step {
 	my ($self) = @_;
 	my ($i, $cb, $arg) = @{$self->{-iter}};
 	my $section = $self->{-section_order}->[$$i++];
 	delete($self->{-iter}) unless defined($section);
-	$cb->($self, $section, $arg);
+	eval { $cb->($self, $section, $arg) };
+	warn "E: $@ in ${self}::event_step" if $@;
+	PublicInbox::DS::requeue($self) if defined($section);
 }
 
 sub lookup_newsgroup {

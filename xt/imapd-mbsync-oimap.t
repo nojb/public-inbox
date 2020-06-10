@@ -13,12 +13,13 @@ my $inboxdir = $ENV{GIANT_INBOX_DIR};
 plan skip_all => "bad characters in $inboxdir" if $inboxdir =~ m![^\w\.\-/]!;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $cfg = "$tmpdir/cfg";
-my $mailbox = 'inbox.test';
+my $newsgroup = 'inbox.test';
+my $mailbox = "$newsgroup.1-50000";
 {
 	open my $fh, '>', $cfg or BAIL_OUT "open: $!";
 	print $fh <<EOF or BAIL_OUT "print: $!";
 [publicinbox "test"]
-	newsgroup = $mailbox
+	newsgroup = $newsgroup
 	address = oimap\@example.com
 	inboxdir = $inboxdir
 EOF

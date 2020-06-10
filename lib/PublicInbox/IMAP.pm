@@ -192,26 +192,23 @@ sub cmd_done ($$) {
 	"$idle_tag OK Idle done\r\n";
 }
 
-sub ensure_old_ranges_exist ($$$) {
-	my ($self, $ibx, $uid_min) = @_;
-	my $groups = $self->{imapd}->{groups};
-	my $mailbox = $ibx->{newsgroup};
+sub ensure_ranges_exist ($$$) {
+	my ($imapd, $ibx, $max) = @_;
+	my $mailboxes = $imapd->{mailboxes};
+	my $mb_top = $ibx->{newsgroup};
 	my @created;
-	$uid_min -= UID_BLOCK;
+	my $uid_min = UID_BLOCK * int($max/UID_BLOCK) + 1;
 	my $uid_end = $uid_min + UID_BLOCK - 1;
 	while ($uid_min > 0) {
-		my $sub_mailbox = "$mailbox.$uid_min-$uid_end";
-		last if exists $groups->{$sub_mailbox};
-		$groups->{$sub_mailbox} = $ibx;
+		my $sub_mailbox = "$mb_top.$uid_min-$uid_end";
+		last if exists $mailboxes->{$sub_mailbox};
+		$mailboxes->{$sub_mailbox} = $ibx;
 		$uid_end -= UID_BLOCK;
 		$uid_min -= UID_BLOCK;
 		push @created, $sub_mailbox;
 	}
 	return unless @created;
-	my $l = $self->{imapd}->{inboxlist};
-	grep {
-		/ \Q$mailbox\E\r\n\z/ and s/\(\\HasNoChildren/\(\\HasChildren/;
-	} @$l;
+	my $l = $imapd->{inboxlist} or return;
 	push @$l, map { qq[* LIST (\\HasNoChildren) "." $_\r\n] } @created;
 }
 
@@ -222,41 +219,23 @@ sub cmd_examine ($$$) {
 	if ($mailbox =~ /\A(.+)\.([0-9]+)-([0-9]+)\z/) {
 		# old mail: inbox.comp.foo.$uid_min-$uid_end
 		my ($mb_top, $uid_min, $uid_end) = ($1, $2 + 0, $3 + 0);
-		$ibx = $self->{imapd}->{groups}->{lc $mb_top};
-		if (!$ibx || ($uid_end % UID_BLOCK) != 0 ||
-				($uid_min + UID_BLOCK - 1) != $uid_end) {
+
+		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
 			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
-		}
+
 		$mm = $ibx->mm;
 		$max = $mm->max // 0;
-
-		# don't let users create inboxes w/ not-yet-possible range:
-		$uid_min > $max and
-			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
-
-		$max = $uid_min + UID_BLOCK + 1;
 		$self->{uid_min} = $uid_min;
-		ensure_old_ranges_exist($self, $ibx, $uid_min);
-	} else { # current mailbox (most recent UID_BLOCK messages)
-		$ibx = $self->{imapd}->{groups}->{lc $mailbox} or
+		ensure_ranges_exist($self->{imapd}, $ibx, $max);
+		$max = $uid_end if $max > $uid_end;
+	} else { # check for dummy inboxes
+		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
 			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
-
+		delete $self->{uid_min};
+		$max = 0;
 		$mm = $ibx->mm;
-		$max = $mm->max // 0;
-
-		my $uid_min = UID_BLOCK * int($max/UID_BLOCK) + 1;
-		if ($uid_min == 1) { # normal inbox with <UID_BLOCK messages
-			delete $self->{uid_min}; # implicit cmd_close
-		} else { # we have a giant inbox:
-			$self->{uid_min} = $uid_min;
-			ensure_old_ranges_exist($self, $ibx, $uid_min);
-		}
 	}
 
-	# RFC 3501 2.3.1.1 -  "A good UIDVALIDITY value to use in
-	# this case is a 32-bit representation of the creation
-	# date/time of the mailbox"
-	my $uidvalidity = $mm->created_at or return "$tag BAD UIDVALIDITY\r\n";
 	my $uidnext = $max + 1;
 
 	# XXX: do we need this? RFC 5162/7162
@@ -269,7 +248,7 @@ sub cmd_examine ($$$) {
 * OK [PERMANENTFLAGS ()] Read-only mailbox\r
 * OK [UNSEEN $max]\r
 * OK [UIDNEXT $uidnext]\r
-* OK [UIDVALIDITY $uidvalidity]\r
+* OK [UIDVALIDITY $ibx->{uidvalidity}]\r
 $tag OK [READ-ONLY] EXAMINE/SELECT done\r
 EOF
 }
@@ -561,7 +540,7 @@ sub uid_fetch_m { # long_response
 
 sub cmd_status ($$$;@) {
 	my ($self, $tag, $mailbox, @items) = @_;
-	my $ibx = $self->{imapd}->{groups}->{$mailbox} or
+	my $ibx = $self->{imapd}->{mailboxes}->{$mailbox} or
 		return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
 	return "$tag BAD no items\r\n" if !scalar(@items);
 	($items[0] !~ s/\A\(//s || $items[-1] !~ s/\)\z//s) and
@@ -577,8 +556,7 @@ sub cmd_status ($$$;@) {
 		} elsif ($it eq 'UIDNEXT') {
 			push(@it, ($max //= $mm->max // 0) + 1);
 		} elsif ($it eq 'UIDVALIDITY') {
-			push(@it, $mm->created_at //
-				return("$tag BAD UIDVALIDITY\r\n"));
+			push(@it, $ibx->{uidvalidity});
 		} else {
 			return "$tag BAD invalid item\r\n";
 		}

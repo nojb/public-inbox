@@ -30,7 +30,7 @@ if ($test_tls && !-r $key || !-r $cert) {
 }
 my ($tmpdir, $for_destroy) = tmpdir();
 my %OPT = qw(User u Password p);
-my (%STARTTLS_OPT, %IMAPS_OPT, $td, $mailbox, $make_local_server);
+my (%STARTTLS_OPT, %IMAPS_OPT, $td, $newsgroup, $mailbox, $make_local_server);
 if (($ENV{IMAP_TEST_URL} // '') =~ m!\Aimap://([^/]+)/(.+)\z!) {
 	($OPT{Server}, $mailbox) = ($1, $2);
 	$OPT{Server} =~ s/:([0-9]+)\z// and $OPT{Port} = $1 + 0;
@@ -39,6 +39,7 @@ if (($ENV{IMAP_TEST_URL} // '') =~ m!\Aimap://([^/]+)/(.+)\z!) {
 } else {
 	require_mods(qw(DBD::SQLite));
 	$make_local_server->();
+	$mailbox = "$newsgroup.1-50000";
 }
 
 my %opts = (imap => \%OPT, 'imap+compress' => { %OPT, Compress => 1 });
@@ -124,15 +125,15 @@ BEGIN {
 
 $make_local_server = sub {
 	require PublicInbox::Inbox;
-	$mailbox = 'inbox.test';
-	my $ibx = { inboxdir => $inbox_dir, newsgroup => $mailbox };
+	$newsgroup = 'inbox.test';
+	my $ibx = { inboxdir => $inbox_dir, newsgroup => $newsgroup };
 	$ibx = PublicInbox::Inbox->new($ibx);
 	my $pi_config = "$tmpdir/config";
 	{
 		open my $fh, '>', $pi_config or die "open($pi_config): $!";
 		print $fh <<"" or die "print $pi_config: $!";
 [publicinbox "test"]
-	newsgroup = $mailbox
+	newsgroup = $newsgroup
 	inboxdir = $inbox_dir
 	address = test\@example.com
 

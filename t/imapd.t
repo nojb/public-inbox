@@ -16,6 +16,9 @@ if ($can_compress) { # hope this gets fixed upstream, soon
 	$imap_client = 'PublicInbox::IMAPClient';
 }
 
+require_ok 'PublicInbox::IMAP';
+my $first_range = '1-'.PublicInbox::IMAP::UID_BLOCK();
+
 my $level = '-Lbasic';
 SKIP: {
 	require_mods('Search::Xapian', 1);
@@ -87,11 +90,13 @@ ok(!$mic->examine('foo') && ($e = $@), 'EXAMINE non-existent');
 like($e, qr/\bNO\b/, 'got a NO on EXAMINE for non-existent');
 ok(!$mic->select('foo') && ($e = $@), 'EXAMINE non-existent');
 like($e, qr/\bNO\b/, 'got a NO on EXAMINE for non-existent');
-ok($mic->select('inbox.i1'), 'SELECT succeeds');
-ok($mic->examine('INBOX.i1'), 'EXAMINE succeeds');
-my @raw = $mic->status('inbox.i1', qw(Messages uidnext uidvalidity));
+my $mailbox1 = "inbox.i1.$first_range";
+ok($mic->select('inbox.i1'), 'SELECT on parent succeeds');
+ok($mic->select($mailbox1), 'SELECT succeeds');
+ok($mic->examine($mailbox1), 'EXAMINE succeeds');
+my @raw = $mic->status($mailbox1, qw(Messages uidnext uidvalidity));
 is(scalar(@raw), 2, 'got status response');
-like($raw[0], qr/\A\*\x20STATUS\x20inbox\.i1\x20
+like($raw[0], qr/\A\*\x20STATUS\x20inbox\.i1\.$first_range\x20
 	\(MESSAGES\x20\d+\x20UIDNEXT\x20\d+\x20UIDVALIDITY\x20\d+\)\r\n/sx);
 like($raw[1], qr/\A\S+ OK /, 'finished status response');
 
@@ -99,7 +104,7 @@ like($raw[1], qr/\A\S+ OK /, 'finished status response');
 like($raw[0], qr/^\* LIST \(.*?\) "\." inbox/,
 	'got an inbox');
 like($raw[-1], qr/^\S+ OK /, 'response ended with OK');
-is(scalar(@raw), scalar(@V) + 2, 'default LIST response');
+is(scalar(@raw), scalar(@V) + 4, 'default LIST response');
 @raw = $mic->list('', 'inbox.i1');
 is(scalar(@raw), 2, 'limited LIST response');
 like($raw[0], qr/^\* LIST \(.*?\) "\." inbox/,
@@ -199,7 +204,7 @@ SKIP: {
 	skip 'Mail::IMAPClient too old for ->compress', 2 if !$can_compress;
 	my $c = $imap_client->new(%mic_opt);
 	ok($c && $c->compress, 'compress enabled');
-	ok($c->examine('inbox.i1'), 'EXAMINE succeeds after COMPRESS');
+	ok($c->examine($mailbox1), 'EXAMINE succeeds after COMPRESS');
 	$ret = $c->search('uid 1:*') or BAIL_OUT "SEARCH FAIL $@";
 	is_deeply($ret, [ 1 ], 'search UID 1:* works after compression');
 }
@@ -216,11 +221,12 @@ $pi_config->each_inbox(sub {
 	my $ng = $ibx->{newsgroup};
 	my $mic = $imap_client->new(%mic_opt);
 	ok($mic && $mic->login && $mic->IsAuthenticated, "authed $name");
-	my $uidnext = $mic->uidnext($ng); # we'll fetch BODYSTRUCTURE on this
+	my $mb = "$ng.$first_range";
+	my $uidnext = $mic->uidnext($mb); # we'll fetch BODYSTRUCTURE on this
 	ok($uidnext, 'got uidnext for later fetch');
 	is_deeply([$mic->has_capability('IDLE')], ['IDLE'], "IDLE capa $name");
 	ok(!$mic->idle, "IDLE fails w/o SELECT/EXAMINE $name");
-	ok($mic->examine($ng), "EXAMINE $ng succeeds");
+	ok($mic->examine($mb), "EXAMINE $ng succeeds");
 	ok(my $idle_tag = $mic->idle, "IDLE succeeds on $ng");
 
 	open(my $fh, '<', 't/data/message_embed.eml') or BAIL_OUT("open: $!");

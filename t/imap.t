@@ -6,16 +6,39 @@ use strict;
 use Test::More;
 use PublicInbox::IMAP;
 use PublicInbox::IMAPD;
+use PublicInbox::TestCommon;
+require_mods(qw(DBD::SQLite));
+require_git 2.6;
 
-{ # make sure we get '%' globbing right
+my ($tmpdir, $for_destroy) = tmpdir();
+my $cfgfile = "$tmpdir/config";
+{
+	open my $fh, '>', $cfgfile or BAIL_OUT $!;
+	print $fh <<EOF or BAIL_OUT $!;
+[publicinbox "a"]
+	inboxdir = $tmpdir/a
+	newsgroup = x.y.z
+[publicinbox "b"]
+	inboxdir = $tmpdir/b
+	newsgroup = x.z.y
+[publicinbox "c"]
+	inboxdir = $tmpdir/c
+	newsgroup = IGNORE.THIS
+EOF
+	close $fh or BAIL_OUT $!;
+	local $ENV{PI_CONFIG} = $cfgfile;
+	for my $x (qw(a b c)) {
+		ok(run_script(['-init', '-Lbasic', '-V2', $x, "$tmpdir/$x",
+				"https://example.com/$x", "$x\@example.com"]),
+			"init $x");
+	}
+	my $imapd = PublicInbox::IMAPD->new;
 	my @w;
 	local $SIG{__WARN__} = sub { push @w, @_ };
-	my @n = map { { newsgroup => $_ } } (qw(x.y.z x.z.y IGNORE.THIS));
-	my $self = { imapd => { grouplist => \@n } };
-	PublicInbox::IMAPD::refresh_inboxlist($self->{imapd});
+	$imapd->refresh_groups;
+	my $self = { imapd => $imapd };
 	is(scalar(@w), 1, 'got a warning for upper-case');
 	like($w[0], qr/IGNORE\.THIS/, 'warned about upper-case');
-
 	my $res = PublicInbox::IMAP::cmd_list($self, 'tag', 'x', '%');
 	is(scalar($$res =~ tr/\n/\n/), 2, 'only one result');
 	like($$res, qr/ x\r\ntag OK/, 'saw expected');

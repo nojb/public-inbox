@@ -105,6 +105,7 @@ lib/PublicInbox/DS.pm
 lib/PublicInbox/DSKQXS.pm
 lib/PublicInbox/DSPoll.pm
 lib/PublicInbox/Daemon.pm
+lib/PublicInbox/DummyInbox.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/Eml.pm
 lib/PublicInbox/EmlContentFoo.pm
@@ -357,7 +358,6 @@ xt/imapd-validate.t
 xt/mem-msgview.t
 xt/msgtime_cmp.t
 xt/nntpd-validate.t
-xt/perf-imap-list.t
 xt/perf-msgview.t
 xt/perf-nntpd.t
 xt/perf-threading.t
