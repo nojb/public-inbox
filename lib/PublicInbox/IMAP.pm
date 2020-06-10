@@ -569,8 +569,8 @@ sub partial_prepare ($$$) {
 
 sub partial_emit ($$$) {
 	my ($self, $partial, $eml) = @_;
-	for my $k (sort keys %$partial) {
-		my ($cb, @args) = @{$partial->{$k}};
+	for (@$partial) {
+		my ($k, $cb, @args) = @$_;
 		my ($offset, $len) = splice(@args, -2);
 		# $cb is partial_body|partial_hdr_get|partial_hdr_not
 		my $str = $cb->($eml, @args) // '';
@@ -607,7 +607,14 @@ sub cmd_uid_fetch ($$$;@) {
 			return "$tag BAD param: $att\r\n";
 		}
 	}
-	$want{-partial} = \%partial if scalar keys %partial;
+
+	# stabilize partial order for consistency and ease-of-debugging:
+	if (scalar keys %partial) {
+		$want{-partial} = [ map {
+			[ $_, @{$partial{$_}} ]
+		} sort keys %partial ];
+	}
+
 	my ($beg, $end);
 	my $msgs = [];
 	if ($range =~ /\A([0-9]+):([0-9]+)\z/s) {
