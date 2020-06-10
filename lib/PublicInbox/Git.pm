@@ -156,7 +156,7 @@ sub my_readline ($$) {
 	}
 }
 
-sub _cat_async_step ($$) {
+sub cat_async_step ($$) {
 	my ($self, $inflight) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 2;
 	my ($cb, $arg) = splice(@$inflight, 0, 2);
@@ -178,7 +178,7 @@ sub cat_async_wait ($) {
 	my ($self) = @_;
 	my $inflight = delete $self->{inflight} or return;
 	while (scalar(@$inflight)) {
-		_cat_async_step($self, $inflight);
+		cat_async_step($self, $inflight);
 	}
 }
 
@@ -277,6 +277,7 @@ sub qx {
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
 	my ($self) = @_;
+	cat_async_wait($self);
 	_destroy($self, qw(--batch in out pid));
 	_destroy($self, qw(--batch-check in_c out_c pid_c err_c));
 	!!($self->{pid} || $self->{pid_c});
@@ -334,9 +335,9 @@ sub cat_async_begin {
 
 sub cat_async ($$$;$) {
 	my ($self, $oid, $cb, $arg) = @_;
-	my $inflight = $self->{inflight} or die 'BUG: not in async';
+	my $inflight = $self->{inflight} // cat_async_begin($self);
 	if (scalar(@$inflight) >= MAX_INFLIGHT) {
-		_cat_async_step($self, $inflight);
+		cat_async_step($self, $inflight);
 	}
 
 	print { $self->{out} } $oid, "\n" or fail($self, "write error: $!");
@@ -358,7 +359,6 @@ sub modified ($) {
 	my ($self) = @_;
 	my $modified = 0;
 	my $fh = popen($self, qw(rev-parse --branches));
-	cat_async_begin($self);
 	local $/ = "\n";
 	while (my $oid = <$fh>) {
 		chomp $oid;

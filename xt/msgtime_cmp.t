@@ -59,7 +59,6 @@ sub compare {
 }
 
 my $fh = $git->popen(@cat);
-$git->cat_async_begin;
 while (<$fh>) {
 	my ($oid, $type) = split / /;
 	next if $type ne 'blob';

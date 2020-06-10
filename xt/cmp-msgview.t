@@ -77,7 +77,6 @@ my $git_cb = sub {
 		is_deeply($eml_cmp, $mime_cmp, "$inboxdir $oid match");
 	}
 };
-$git->cat_async_begin;
 my $t = timeit(1, sub {
 	while (<$fh>) {
 		my ($oid, $type) = split / /;

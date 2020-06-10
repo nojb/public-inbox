@@ -40,7 +40,6 @@ use_ok 'PublicInbox::Git';
 	my $arg = { 'foo' => 'bar' };
 	my $res = [];
 	my $missing = [];
-	$gcf->cat_async_begin;
 	$gcf->cat_async($oid, sub {
 		my ($bref, $oid_hex, $type, $size, $arg) = @_;
 		$res = [ @_ ];

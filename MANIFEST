@@ -119,6 +119,7 @@ lib/PublicInbox/Filter/SubjectTag.pm
 lib/PublicInbox/Filter/Vger.pm
 lib/PublicInbox/GetlineBody.pm
 lib/PublicInbox/Git.pm
+lib/PublicInbox/GitAsyncCat.pm
 lib/PublicInbox/GitHTTPBackend.pm
 lib/PublicInbox/GzipFilter.pm
 lib/PublicInbox/HTTP.pm

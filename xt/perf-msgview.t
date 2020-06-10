@@ -44,7 +44,6 @@ my $cb = sub {
 	$obuf = '';
 };
 
-$git->cat_async_begin;
 my $t = timeit(1, sub {
 	$ctx->{obuf} = \$obuf;
 	$ctx->{mhref} = '../';

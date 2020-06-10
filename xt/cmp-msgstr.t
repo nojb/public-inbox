@@ -93,7 +93,6 @@ my $git_cb = sub {
 		diag xqx([qw(git diff), "$tmpdir/mime", "$tmpdir/eml"]);
 	}
 };
-$git->cat_async_begin;
 my $t = timeit(1, sub {
 	while (<$fh>) {
 		my ($oid, $type) = split / /;

@@ -55,7 +55,6 @@ my $cat_cb = sub {
 };
 
 my $t = timeit(1, sub {
-	$git->cat_async_begin;
 	my ($blob, $type);
 	while (<$fh>) {
 		($blob, $type) = split / /;

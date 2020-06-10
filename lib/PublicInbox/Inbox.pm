@@ -18,6 +18,16 @@ my $cleanup_timer;
 my $cleanup_avail = -1; # 0, or 1
 my $have_devel_peek;
 my $CLEANUP = {}; # string(inbox) -> inbox
+
+sub git_cleanup ($) {
+	my ($self) = @_;
+	my $git = $self->{git} or return;
+	if (my $async_cat = delete $self->{async_cat}) {
+		$async_cat->close;
+	}
+	$git->cleanup;
+}
+
 sub cleanup_task () {
 	$cleanup_timer = undef;
 	my $next = {};
@@ -32,9 +42,7 @@ sub cleanup_task () {
 				# refcnt is zero when tmp is out-of-scope
 			}
 		}
-		if (my $git = $ibx->{git}) {
-			$again = $git->cleanup;
-		}
+		git_cleanup($ibx);
 		if (my $gits = $ibx->{-repo_objs}) {
 			foreach my $git (@$gits) {
 				$again = 1 if $git->cleanup;
@@ -157,7 +165,7 @@ sub max_git_epoch {
 	my $cur = $self->{-max_git_epoch};
 	my $changed = git($self)->alternates_changed;
 	if (!defined($cur) || $changed) {
-		$self->git->cleanup if $changed;
+		git_cleanup($self) if $changed;
 		my $gits = "$self->{inboxdir}/git";
 		if (opendir my $dh, $gits) {
 			my $max = -1;

@@ -25,7 +25,6 @@ my $async = timeit($nr, sub {
 		$dig->add($$bref);
 	};
 	my $cat = $git->popen(@cat);
-	$git->cat_async_begin;
 
 	while (<$cat>) {
 		my ($oid, undef, undef) = split(/ /);
