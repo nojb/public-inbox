@@ -317,11 +317,17 @@ is(scalar keys %$ret, 3, 'got all 3 messages');
 	my @cmd = qw(-learn rm --all);
 	run_script(\@cmd, $env, $rdr) or BAIL_OUT('-learn rm');
 }
-my $r2 = $mic->fetch_hash('1:*', 'RFC822') or BAIL_OUT "FETCH $@";
+my $r2 = $mic->fetch_hash('1:*', 'BODY.PEEK[]') or BAIL_OUT "FETCH $@";
 is(scalar keys %$r2, 3, 'still got all 3 messages');
-like($r2->{1}->{RFC822}, qr/dummy message #1/, 'got dummy message 1');
-is($r2->{2}->{RFC822}, $ret->{2}->{RFC822}, 'message 2 unchanged');
-is($r2->{3}->{RFC822}, $ret->{3}->{RFC822}, 'message 3 unchanged');
+like($r2->{1}->{'BODY[]'}, qr/dummy message #1/, 'got dummy message 1');
+is($r2->{2}->{'BODY[]'}, $ret->{2}->{RFC822}, 'message 2 unchanged');
+is($r2->{3}->{'BODY[]'}, $ret->{3}->{RFC822}, 'message 3 unchanged');
+$r2 = $mic->fetch_hash(2, 'BODY.PEEK[HEADER.FIELDS (message-id)]')
+			or BAIL_OUT "FETCH $@";
+is($r2->{2}->{'BODY[HEADER.FIELDS (MESSAGE-ID)]'},
+	'Message-ID: <20200418222508.GA13918@dcvr>'."\r\n\r\n",
+	'BODY.PEEK[HEADER.FIELDS ...] drops .PEEK');
+
 ok($mic->logout, 'logged out');
 
 $td->kill;

@@ -33,9 +33,6 @@ die "neither Email::Address::XS nor Mail::Address loaded: $@" if !$Address;
 sub LINE_MAX () { 512 } # does RFC 3501 have a limit like RFC 977?
 
 my %FETCH_NEED_BLOB = ( # for future optimization
-	'BODY.PEEK[HEADER]' => 1,
-	'BODY.PEEK[TEXT]' => 1,
-	'BODY.PEEK[]' => 1,
 	'BODY[HEADER]' => 1,
 	'BODY[TEXT]' => 1,
 	'BODY[]' => 1,
@@ -388,8 +385,8 @@ sub uid_fetch_cb { # called by git->cat_async
 	$want->{INTERNALDATE} and
 		$self->msg_more(' INTERNALDATE "'.$smsg->internaldate.'"');
 	$want->{FLAGS} and $self->msg_more(' FLAGS ()');
-	for ('RFC822', 'BODY[]', 'BODY.PEEK[]') {
-		next unless $want->{$_};
+	for ('RFC822', 'BODY[]') {
+		$want->{$_} or next;
 		$self->msg_more(" $_ {".length($$bref)."}\r\n");
 		$self->msg_more($$bref);
 	}
@@ -399,14 +396,14 @@ sub uid_fetch_cb { # called by git->cat_async
 	$want->{ENVELOPE} and
 		$self->msg_more(' ENVELOPE '.eml_envelope($eml));
 
-	for my $f ('RFC822.HEADER', 'BODY[HEADER]', 'BODY.PEEK[HEADER]') {
-		next unless $want->{$f};
-		$self->msg_more(" $f {".length(${$eml->{hdr}})."}\r\n");
+	for ('RFC822.HEADER', 'BODY[HEADER]') {
+		$want->{$_} or next;
+		$self->msg_more(" $_ {".length(${$eml->{hdr}})."}\r\n");
 		$self->msg_more(${$eml->{hdr}});
 	}
-	for my $f ('RFC822.TEXT', 'BODY[TEXT]') {
-		next unless $want->{$f};
-		$self->msg_more(" $f {".length($$bref)."}\r\n");
+	for ('RFC822.TEXT', 'BODY[TEXT]') {
+		$want->{$_} or next;
+		$self->msg_more(" $_ {".length($$bref)."}\r\n");
 		$self->msg_more($$bref);
 	}
 	$want->{BODYSTRUCTURE} and
@@ -567,18 +564,16 @@ sub partial_prepare ($$$) {
 
 	# recombine [ "BODY[1.HEADER.FIELDS", "(foo", "bar)]" ]
 	# back to: "BODY[1.HEADER.FIELDS (foo bar)]"
-	return unless $att =~ /\ABODY(?:\.PEEK)?\[/s;
+	return unless $att =~ /\ABODY\[/s;
 	until (rindex($att, ']') >= 0) {
 		my $next = shift @$want or return;
 		$att .= ' ' . uc($next);
 	}
-	if ($att =~ /\ABODY(?:\.PEEK)?\[
-				([0-9]+(?:\.[0-9]+)*)? # 1 - section_idx
-				(?:\.(HEADER|MIME|TEXT))? # 2 - section_name
+	if ($att =~ /\ABODY\[([0-9]+(?:\.[0-9]+)*)? # 1 - section_idx
+			(?:\.(HEADER|MIME|TEXT))? # 2 - section_name
 			\](?:<([0-9]+)(?:\.([0-9]+))?>)?\z/sx) { # 3, 4
 		$partial->{$att} = [ \&partial_body, $1, $2, $3, $4 ];
-	} elsif ($att =~ /\ABODY(?:\.PEEK)?\[
-				(?:([0-9]+(?:\.[0-9]+)*)\.)? # 1 - section_idx
+	} elsif ($att =~ /\ABODY\[(?:([0-9]+(?:\.[0-9]+)*)\.)? # 1 - section_idx
 				(?:HEADER\.FIELDS(\.NOT)?)\x20 # 2
 				\(([A-Z0-9\-\x20]+)\) # 3 - hdrs
 			\](?:<([0-9]+)(?:\.([0-9]+))?>)?\z/sx) { # 4 5
@@ -623,6 +618,7 @@ sub fetch_common ($$$$) {
 	my (%partial, %want);
 	while (defined(my $att = shift @$want)) {
 		$att = uc($att);
+		$att =~ s/\ABODY\.PEEK\[/BODY\[/; # we're read-only
 		my $x = $FETCH_ATT{$att};
 		if ($x) {
 			%want = (%want, %$x);
@@ -633,7 +629,7 @@ sub fetch_common ($$$$) {
 
 	# stabilize partial order for consistency and ease-of-debugging:
 	if (scalar keys %partial) {
-		$want{-partial} = [ map {
+		$want{-partial} = [ map {;
 			[ $_, @{$partial{$_}} ]
 		} sort keys %partial ];
 	}

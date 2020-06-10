@@ -27,11 +27,11 @@ use PublicInbox::IMAPD;
 {
 	my $partial_prepare = \&PublicInbox::IMAP::partial_prepare;
 	my $x = {};
-	my $r = $partial_prepare->($x, [], my $p = 'BODY.PEEK[9]');
+	my $r = $partial_prepare->($x, [], my $p = 'BODY[9]');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY.PEEK[9]<5>');
+	$r = $partial_prepare->($x, [], $p = 'BODY[9]<5>');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY.PEEK[9]<5.1>');
+	$r = $partial_prepare->($x, [], $p = 'BODY[9]<5.1>');
 	ok($r, $p);
 	$r = $partial_prepare->($x, [], $p = 'BODY[1.1]');
 	ok($r, $p);
@@ -47,9 +47,9 @@ use PublicInbox::IMAPD;
 	my $partial_hdr_get = \&PublicInbox::IMAP::partial_hdr_get;
 	my $partial_hdr_not = \&PublicInbox::IMAP::partial_hdr_not;
 	is_deeply($x, {
-		'BODY.PEEK[9]' => [ $partial_body, 9, undef, undef, undef ],
-		'BODY.PEEK[9]<5>' => [ $partial_body, 9, undef, 5, undef ],
-		'BODY.PEEK[9]<5.1>' => [ $partial_body, 9, undef, 5, 1 ],
+		'BODY[9]' => [ $partial_body, 9, undef, undef, undef ],
+		'BODY[9]<5>' => [ $partial_body, 9, undef, 5, undef ],
+		'BODY[9]<5.1>' => [ $partial_body, 9, undef, 5, 1 ],
 		'BODY[1.1]' => [ $partial_body, '1.1', undef, undef, undef ],
 		'BODY[HEADER.FIELDS (DATE FROM)]' => [ $partial_hdr_get,
 					undef, 'DATE FROM', undef, undef ],
