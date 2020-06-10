@@ -537,7 +537,7 @@ sub uid_fetch_m { # long_response
 
 sub cmd_status ($$$;@) {
 	my ($self, $tag, $mailbox, @items) = @_;
-	my $ibx = $self->{imapd}->{mailboxes}->{$mailbox} or
+	my $ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
 		return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
 	return "$tag BAD no items\r\n" if !scalar(@items);
 	($items[0] !~ s/\A\(//s || $items[-1] !~ s/\)\z//s) and
@@ -571,7 +571,8 @@ sub cmd_list ($$$$) {
 		# request for hierarchy delimiter
 		$l = [ qq[* LIST (\\Noselect) "." ""\r\n] ];
 	} elsif ($refname ne '' || $wildcard ne '*') {
-		$wildcard =~ s!([^a-z0-9_])!$patmap{$1} // "\Q$1"!eig;
+		$wildcard = lc $wildcard;
+		$wildcard =~ s!([^a-z0-9_])!$patmap{$1} // "\Q$1"!eg;
 		$l = [ grep(/ \Q$refname\E$wildcard\r\n\z/s, @$l) ];
 	}
 	\(join('', @$l, "$tag OK List done\r\n"));
