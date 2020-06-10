@@ -291,7 +291,7 @@ $pi_config->each_inbox(sub {
 		 qr/done_testing;(?:\r\n){1,2}\z/,
 		'BODY[2.1.2] tail matched');
 
-	$ret = $mic->fetch_hash($uidnext, 'BODY[2.HEADER]') or
+	$ret = $mic->fetch_hash("1:$uidnext", 'BODY[2.HEADER]') or
 						BAIL_OUT "2.HEADER $@";
 	like($ret->{$uidnext}->{'BODY[2.HEADER]'},
 		qr/\ADate: Sat, 18 Apr 2020 22:20:20 /,

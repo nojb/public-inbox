@@ -390,7 +390,7 @@ sub uid_fetch_cb { # called by git->cat_async
 		$self->msg_more(' BODYSTRUCTURE '.fetch_body($eml, 1));
 	$want->{BODY} and
 		$self->msg_more(' BODY '.fetch_body($eml));
-	if (my $partial = delete $want->{-partial}) {
+	if (my $partial = $want->{-partial}) {
 		partial_emit($self, $partial, $eml);
 	}
 	$self->msg_more(")\r\n");
