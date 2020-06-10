@@ -360,43 +360,6 @@ is(scalar keys %$ret, 3, 'got all 3 messages with comma-separated sequence');
 $ret = $mic->fetch_hash('1:*', 'RFC822') or BAIL_OUT "FETCH $@";
 is(scalar keys %$ret, 3, 'got all 3 messages');
 
-SKIP: {
-	# do any clients use non-UID IMAP SEARCH?
-	skip 'Xapian missing', 2 if $level eq 'basic';
-	my $x = $mic->search('all');
-	is_deeply($x, [1, 2, 3], 'MSN SEARCH works before rm');
-	$x = $mic->search(qw(header subject embedded));
-	is_deeply($x, [2], 'MSN SEARCH on Subject works before rm');
-}
-
-{
-	my $rdr = { 0 => \($ret->{1}->{RFC822}) };
-	my $env = { HOME => $ENV{HOME} };
-	my @cmd = qw(-learn rm --all);
-	run_script(\@cmd, $env, $rdr) or BAIL_OUT('-learn rm');
-}
-
-SKIP: {
-	# do any clients use non-UID IMAP SEARCH?  We only ensure
-	# MSN "SEARCH" can return a result which can be retrieved
-	# via MSN "FETCH"
-	skip 'Xapian missing', 3 if $level eq 'basic';
-	my $x = $mic->search(qw(header subject embedded));
-	is(scalar(@$x), 1, 'MSN SEARCH on Subject works after rm');
-	$x = $mic->message_string($x->[0]);
-	is($x, $ret->{2}->{RFC822}, 'message 2 unchanged');
-}
-
-my $r2 = $mic->fetch_hash('1:*', 'BODY.PEEK[]') or BAIL_OUT "FETCH $@";
-is(scalar keys %$r2, 2, 'did not get all 3 messages');
-is($r2->{1}->{'BODY[]'}, $ret->{2}->{RFC822}, 'message 2 unchanged');
-is($r2->{2}->{'BODY[]'}, $ret->{3}->{RFC822}, 'message 3 unchanged');
-$r2 = $mic->fetch_hash(2, 'BODY.PEEK[HEADER.FIELDS (message-id)]')
-			or BAIL_OUT "FETCH $@";
-is($r2->{2}->{'BODY[HEADER.FIELDS (MESSAGE-ID)]'},
-	'Message-ID: <20200418222508.GA13918@dcvr>'."\r\n\r\n",
-	'BODY.PEEK[HEADER.FIELDS ...] drops .PEEK');
-
 {
 	my @new_list = $mic->list;
 	# tag differs in [-1]
