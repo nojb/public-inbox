@@ -40,20 +40,27 @@ sub UID_BLOCK () { 50_000 }
 # these values area also used for sorting
 sub NEED_SMSG () { 1 }
 sub NEED_BLOB () { NEED_SMSG|2 }
-sub NEED_EML () { NEED_BLOB|4 }
-my $OP_EML_NEW = [ NEED_EML - 1, \&op_eml_new ];
+sub CRLF_BREF () { 4 }
+sub EML_HDR () { 8 }
+sub CRLF_HDR () { 16 }
+sub EML_BDY () { 32 }
+sub CRLF_BDY () { 64 }
+my $OP_EML_NEW = [ EML_HDR - 1, \&op_eml_new ];
+my $OP_CRLF_BREF = [ CRLF_BREF, \&op_crlf_bref ];
+my $OP_CRLF_HDR = [ CRLF_HDR, \&op_crlf_hdr ];
+my $OP_CRLF_BDY = [ CRLF_BDY, \&op_crlf_bdy ];
 
 my %FETCH_NEED = (
-	'BODY[HEADER]' => [ NEED_EML, \&emit_rfc822_header ],
-	'BODY[TEXT]' => [ NEED_EML, \&emit_rfc822_text ],
-	'BODY[]' => [ NEED_BLOB, \&emit_rfc822 ],
-	'RFC822.HEADER' => [ NEED_EML, \&emit_rfc822_header ],
-	'RFC822.TEXT' => [ NEED_EML, \&emit_rfc822_text ],
+	'BODY[HEADER]' => [ NEED_BLOB|EML_HDR|CRLF_HDR, \&emit_rfc822_header ],
+	'BODY[TEXT]' => [ NEED_BLOB|EML_BDY|CRLF_BDY, \&emit_rfc822_text ],
+	'BODY[]' => [ NEED_BLOB|CRLF_BREF, \&emit_rfc822 ],
+	'RFC822.HEADER' => [ NEED_BLOB|EML_HDR|CRLF_HDR, \&emit_rfc822_header ],
+	'RFC822.TEXT' => [ NEED_BLOB|EML_BDY|CRLF_BDY, \&emit_rfc822_text ],
 	'RFC822.SIZE' => [ NEED_SMSG, \&emit_rfc822_size ],
-	RFC822 => [ NEED_BLOB, \&emit_rfc822 ],
-	BODY => [ NEED_EML, \&emit_body ],
-	BODYSTRUCTURE => [ NEED_EML, \&emit_bodystructure ],
-	ENVELOPE => [ NEED_EML, \&emit_envelope ],
+	RFC822 => [ NEED_BLOB|CRLF_BREF, \&emit_rfc822 ],
+	BODY => [ NEED_BLOB|EML_HDR|EML_BDY, \&emit_body ],
+	BODYSTRUCTURE => [ NEED_BLOB|EML_HDR|EML_BDY, \&emit_bodystructure ],
+	ENVELOPE => [ NEED_BLOB|EML_HDR, \&emit_envelope ],
 	FLAGS => [ 0, \&emit_flags ],
 	INTERNALDATE => [ NEED_SMSG, \&emit_internaldate ],
 );
@@ -494,10 +501,6 @@ sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
-	$$bref =~ s/(?<!\r)\n/\r\n/sg; # make strict clients happy
-
-	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
-	$$bref =~ s/\A[\r\n]*From [^\r\n]*\r\n//s;
 	fetch_run_ops($self, $self->{uid_base}, $smsg, $bref, $ops, $partial);
 	requeue_once($self);
 }
@@ -553,6 +556,18 @@ sub emit_body {
 
 # set $eml once ($_[4] == $eml, $_[3] == $bref)
 sub op_eml_new { $_[4] = PublicInbox::Eml->new($_[3]) }
+
+# s/From / fixes old bug from import (pre-a0c07cba0e5d8b6a)
+sub to_crlf_full {
+	${$_[0]} =~ s/(?<!\r)\n/\r\n/sg;
+	${$_[0]} =~ s/\A[\r\n]*From [^\r\n]*\r\n//s;
+}
+
+sub op_crlf_bref { to_crlf_full($_[3]) }
+
+sub op_crlf_hdr { to_crlf_full($_[4]->{hdr}) }
+
+sub op_crlf_bdy { ${$_[4]->{bdy}} =~ s/(?<!\r)\n/\r\n/sg if $_[4]->{bdy} }
 
 sub uid_clamp ($$$) {
 	my ($self, $beg, $end) = @_;
@@ -790,8 +805,8 @@ sub partial_hdr_get {
 	join('', ($str =~ m/($hdrs_re)/g), "\r\n");
 }
 
-sub partial_prepare ($$$) {
-	my ($partial, $want, $att) = @_;
+sub partial_prepare ($$$$) {
+	my ($need, $partial, $want, $att) = @_;
 
 	# recombine [ "BODY[1.HEADER.FIELDS", "(foo", "bar)]" ]
 	# back to: "BODY[1.HEADER.FIELDS (foo bar)]"
@@ -804,6 +819,7 @@ sub partial_prepare ($$$) {
 			(?:\.(HEADER|MIME|TEXT))? # 2 - section_name
 			\](?:<([0-9]+)(?:\.([0-9]+))?>)?\z/sx) { # 3, 4
 		$partial->{$att} = [ \&partial_body, $1, $2, $3, $4 ];
+		$$need |= CRLF_BREF|EML_HDR|EML_BDY;
 	} elsif ($att =~ /\ABODY\[(?:([0-9]+(?:\.[0-9]+)*)\.)? # 1 - section_idx
 				(?:HEADER\.FIELDS(\.NOT)?)\x20 # 2
 				\(([A-Z0-9\-\x20]+)\) # 3 - hdrs
@@ -812,6 +828,7 @@ sub partial_prepare ($$$) {
 						: \&partial_hdr_get,
 						$1, undef, $4, $5 ];
 		$tmp->[2] = hdrs_regexp($3);
+		$$need |= CRLF_HDR|EML_HDR;
 	} else {
 		undef;
 	}
@@ -857,16 +874,9 @@ sub fetch_compile ($) {
 			while (my ($k, $fl_cb) = each %$x) {
 				next if $seen{$k}++;
 				$need |= $fl_cb->[0];
-
-				# insert a special op to convert $bref to $eml
-				# the first time we need it
-				if ($need == NEED_EML && !$seen{$need}++) {
-					push @op, $OP_EML_NEW;
-				}
-				# $fl_cb = [ flags, \&emit_foo ]
-				push @op, [ @$fl_cb , $k ];
+				push @op, [ @$fl_cb, $k ];
 			}
-		} elsif (!partial_prepare(\%partial, $want, $att)) {
+		} elsif (!partial_prepare(\$need, \%partial, $want, $att)) {
 			return "BAD param: $att";
 		}
 	}
@@ -874,9 +884,23 @@ sub fetch_compile ($) {
 
 	# stabilize partial order for consistency and ease-of-debugging:
 	if (scalar keys %partial) {
-		$need = NEED_EML;
-		push @op, $OP_EML_NEW if !$seen{$need}++;
+		$need |= NEED_BLOB;
 		$r[2] = [ map { [ $_, @{$partial{$_}} ] } sort keys %partial ];
+	}
+
+	push @op, $OP_EML_NEW if ($need & (EML_HDR|EML_BDY));
+
+	# do we need CRLF conversion?
+	if ($need & CRLF_BREF) {
+		push @op, $OP_CRLF_BREF;
+	} elsif (my $crlf = ($need & (CRLF_HDR|CRLF_BDY))) {
+		if ($crlf == (CRLF_HDR|CRLF_BDY)) {
+			push @op, $OP_CRLF_BREF;
+		} elsif ($need & CRLF_HDR) {
+			push @op, $OP_CRLF_HDR;
+		} else {
+			push @op, $OP_CRLF_BDY;
+		}
 	}
 
 	$r[0] = $need & NEED_BLOB ? \&fetch_blob :

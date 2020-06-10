@@ -70,21 +70,26 @@ EOF
 {
 	my $partial_prepare = \&PublicInbox::IMAP::partial_prepare;
 	my $x = {};
-	my $r = $partial_prepare->($x, [], my $p = 'BODY[9]');
+	my $n = 0;
+	my $r = $partial_prepare->(\$n, $x, [], my $p = 'BODY[9]');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY[9]<5>');
+	$r = $partial_prepare->(\$n, $x, [], $p = 'BODY[9]<5>');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY[9]<5.1>');
+	$r = $partial_prepare->(\$n, $x, [], $p = 'BODY[9]<5.1>');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY[1.1]');
+	$r = $partial_prepare->(\$n, $x, [], $p = 'BODY[1.1]');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY[HEADER.FIELDS (DATE FROM)]');
+	$r = $partial_prepare->(\$n, $x, [],
+				$p = 'BODY[HEADER.FIELDS (DATE FROM)]');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY[HEADER.FIELDS.NOT (TO)]');
+	$r = $partial_prepare->(\$n, $x, [],
+				$p = 'BODY[HEADER.FIELDS.NOT (TO)]');
 	ok($r, $p);
-	$r = $partial_prepare->($x, [], $p = 'BODY[HEDDER.FIELDS.NOT (TO)]');
+	$r = $partial_prepare->(\$n, $x, [],
+				$p = 'BODY[HEDDER.FIELDS.NOT (TO)]');
 	ok(!$r, "rejected misspelling $p");
-	$r = $partial_prepare->($x, [], $p = 'BODY[1.1.HEADER.FIELDS (TO)]');
+	$r = $partial_prepare->(\$n, $x, [],
+				$p = 'BODY[1.1.HEADER.FIELDS (TO)]');
 	ok($r, $p);
 	my $partial_body = \&PublicInbox::IMAP::partial_body;
 	my $partial_hdr_get = \&PublicInbox::IMAP::partial_hdr_get;
@@ -111,12 +116,14 @@ EOF
 	my $fetch_compile = \&PublicInbox::IMAP::fetch_compile;
 	my ($cb, $ops, $partial) = $fetch_compile->(['BODY[]']);
 	is($partial, undef, 'no partial fetch data');
-	is_deeply($ops,
-		[ 'BODY[]', \&PublicInbox::IMAP::emit_rfc822 ],
-		'proper key and op compiled for BODY[]');
+	is_deeply($ops, [
+		undef, \&PublicInbox::IMAP::op_crlf_bref,
+		'BODY[]', \&PublicInbox::IMAP::emit_rfc822
+	], 'proper key and op compiled for BODY[]');
 
 	($cb, $ops, $partial) = $fetch_compile->(['BODY', 'BODY[]']);
 	is_deeply($ops, [
+		undef, \&PublicInbox::IMAP::op_crlf_bref,
 		'BODY[]', \&PublicInbox::IMAP::emit_rfc822,
 		undef, \&PublicInbox::IMAP::op_eml_new,
 		'BODY', \&PublicInbox::IMAP::emit_body,
