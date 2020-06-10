@@ -9,6 +9,12 @@ use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite Mail::IMAPClient Mail::IMAPClient::BodyStructure));
+my $imap_client = 'Mail::IMAPClient';
+my $can_compress = $imap_client->can('compress');
+if ($can_compress) { # hope this gets fixed upstream, soon
+	require PublicInbox::IMAPClient;
+	$imap_client = 'PublicInbox::IMAPClient';
+}
 
 my $level = '-Lbasic';
 SKIP: {
@@ -57,7 +63,7 @@ my %mic_opt = (
 	Port => $sock->sockport,
 	Uid => 1,
 );
-my $mic = Mail::IMAPClient->new(%mic_opt);
+my $mic = $imap_client->new(%mic_opt);
 my $pre_login_capa = $mic->capability;
 is(grep(/\AAUTH=ANONYMOUS\z/, @$pre_login_capa), 1,
 	'AUTH=ANONYMOUS advertised pre-login');
@@ -71,7 +77,7 @@ ok(join("\n", @$pre_login_capa) ne join("\n", @$post_login_capa),
 
 $mic_opt{Authmechanism} = 'ANONYMOUS';
 $mic_opt{Authcallback} = sub { '' };
-$mic = Mail::IMAPClient->new(%mic_opt);
+$mic = $imap_client->new(%mic_opt);
 ok($mic && $mic->login && $mic->IsAuthenticated, 'AUTHENTICATE ANONYMOUS');
 my $post_auth_anon_capa = $mic->capability;
 is_deeply($post_auth_anon_capa, $post_login_capa,
@@ -175,20 +181,17 @@ for my $r ('1:*', '1') {
 	is(lc($bs->bodyenc), '8bit', '->bodyenc');
 }
 
-# Mail::IMAPClient ->compress creates cyclic reference:
-# https://rt.cpan.org/Ticket/Display.html?id=132654
-my $compress_logout = sub {
-	my ($c) = @_;
-	ok($c->logout, 'logout ok after ->compress');
-	# all documented in Mail::IMAPClient manpage:
-	for (qw(Readmoremethod Readmethod Prewritemethod)) {
-		$c->$_(undef);
-	}
-};
-
 is_deeply([$mic->has_capability('COMPRESS')], ['DEFLATE'], 'deflate cap');
-ok($mic->compress, 'compress enabled');
-$compress_logout->($mic);
+SKIP: {
+	skip 'Mail::IMAPClient too old for ->compress', 2 if !$can_compress;
+	my $c = $imap_client->new(%mic_opt);
+	ok($c && $c->compress, 'compress enabled');
+	ok($c->examine('inbox.i1'), 'EXAMINE succeeds after COMPRESS');
+	$ret = $c->search('uid 1:*') or BAIL_OUT "SEARCH FAIL $@";
+	is_deeply($ret, [ 1 ], 'search UID 1:* works after compression');
+}
+
+ok($mic->logout, 'logout works');
 
 my $have_inotify = eval { require Linux::Inotify2; 1 };
 
@@ -198,7 +201,7 @@ $pi_config->each_inbox(sub {
 	my $env = { ORIGINAL_RECIPIENT => $ibx->{-primary_address} };
 	my $name = $ibx->{name};
 	my $ng = $ibx->{newsgroup};
-	my $mic = Mail::IMAPClient->new(%mic_opt);
+	my $mic = $imap_client->new(%mic_opt);
 	ok($mic && $mic->login && $mic->IsAuthenticated, "authed $name");
 	my $uidnext = $mic->uidnext($ng); # we'll fetch BODYSTRUCTURE on this
 	ok($uidnext, 'got uidnext for later fetch');

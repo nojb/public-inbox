@@ -128,6 +128,7 @@ lib/PublicInbox/HTTPD/Async.pm
 lib/PublicInbox/HlMod.pm
 lib/PublicInbox/Hval.pm
 lib/PublicInbox/IMAP.pm
+lib/PublicInbox/IMAPClient.pm
 lib/PublicInbox/IMAPD.pm
 lib/PublicInbox/IMAPdeflate.pm
 lib/PublicInbox/Import.pm

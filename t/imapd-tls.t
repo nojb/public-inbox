@@ -7,8 +7,15 @@ use Socket qw(IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
 # IO::Poll is part of the standard library, but distros may split it off...
 require_mods(qw(DBD::SQLite IO::Socket::SSL Mail::IMAPClient IO::Poll));
-Mail::IMAPClient->can('starttls') or
+my $imap_client = 'Mail::IMAPClient';
+$imap_client->can('starttls') or
 	plan skip_all => 'Mail::IMAPClient does not support TLS';
+my $can_compress = $imap_client->can('compress');
+if ($can_compress) { # hope this gets fixed upstream, soon
+	require PublicInbox::IMAPClient;
+	$imap_client = 'PublicInbox::IMAPClient';
+}
+
 my $cert = 'certs/server-cert.pem';
 my $key = 'certs/server-key.pem';
 unless (-r $key && -r $cert) {
@@ -67,18 +74,6 @@ my $starttls_addr = $starttls->sockhost . ':' . $starttls->sockport;
 my $env = { PI_CONFIG => $pi_config };
 my $td;
 
-# Mail::IMAPClient ->compress creates cyclic reference:
-# https://rt.cpan.org/Ticket/Display.html?id=132654
-my $compress_logout = sub {
-	my ($c) = @_;
-	ok($c->logout, 'logout ok after ->compress');
-	# all documented in Mail::IMAPClient manpage:
-	for (qw(Readmoremethod Readmethod Prewritemethod)) {
-		$c->$_(undef);
-	}
-};
-
-
 for my $args (
 	[ "--cert=$cert", "--key=$key",
 		"-limaps://$imaps_addr",
@@ -112,7 +107,7 @@ for my $args (
 			Server => $imaps->sockhost,
 			Port => $imaps->sockport);
 	# IMAPS
-	my $c = Mail::IMAPClient->new(%imaps_opt, Ssl => [ %o ]);
+	my $c = $imap_client->new(%imaps_opt, Ssl => [ %o ]);
 	ok($c && $c->IsAuthenticated, 'authenticated');
 	ok($c->select($group), 'SELECT works');
 	ok(!(scalar $c->has_capability('STARTTLS')),
@@ -122,12 +117,12 @@ for my $args (
 	ok($c->compress, 'compression enabled with IMAPS');
 	ok(!$c->starttls, 'starttls still fails');
 	ok($c->noop, 'noop succeeds');
-	$compress_logout->($c);
+	ok($c->logout, 'logout succeeds');
 
 	# STARTTLS
 	my %imap_opt = (Server => $starttls->sockhost,
 			Port => $starttls->sockport);
-	$c = Mail::IMAPClient->new(%imap_opt);
+	$c = $imap_client->new(%imap_opt);
 	ok(scalar $c->has_capability('STARTTLS'),
 		'starttls advertised');
 	ok($c->Starttls([ %o ]), 'set starttls options');
@@ -141,25 +136,25 @@ for my $args (
 	ok($c->noop, 'NOOP works');
 	ok($c->compress, 'compression enabled with IMAPS');
 	ok($c->noop, 'NOOP works after compress');
-	$compress_logout->($c);
+	ok($c->logout, 'logout succeeds after compress');
 
 	# STARTTLS with bad hostname
 	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.invalid';
-	$c = Mail::IMAPClient->new(%imap_opt);
+	$c = $imap_client->new(%imap_opt);
 	ok(scalar $c->has_capability('STARTTLS'), 'starttls advertised');
 	ok($c->Starttls([ %o ]), 'set starttls options');
 	ok(!$c->starttls, '->starttls fails with bad hostname');
 
-	$c = Mail::IMAPClient->new(%imap_opt);
+	$c = $imap_client->new(%imap_opt);
 	ok($c->noop, 'NOOP still works from plain IMAP');
 
 	# IMAPS with bad hostname
-	$c = Mail::IMAPClient->new(%imaps_opt, Ssl => [ %o ]);
+	$c = $imap_client->new(%imaps_opt, Ssl => [ %o ]);
 	is($c, undef, 'IMAPS fails with bad hostname');
 
 	# make hostname valid
 	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server.local';
-	$c = Mail::IMAPClient->new(%imaps_opt, Ssl => [ %o ]);
+	$c = $imap_client->new(%imaps_opt, Ssl => [ %o ]);
 	ok($c, 'IMAPS succeeds again with valid hostname');
 
 	# slow TLS connection did not block the other fast clients while
