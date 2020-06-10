@@ -31,6 +31,7 @@ sub watch {
 	} else {
 		die "TODO Not implemented: $mask";
 	}
+	bless \$fh, 'PublicInbox::KQNotify::Watch';
 }
 
 # emulate Linux::Inotify::fileno
@@ -56,5 +57,10 @@ sub poll {
 		}
 	}
 }
+
+package PublicInbox::KQNotify::Watch;
+use strict;
+
+sub cancel { close ${$_[0]} or die "close: $!" }
 
 1;

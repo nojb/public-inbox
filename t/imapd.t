@@ -7,7 +7,8 @@ use Time::HiRes ();
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(which);
-require_mods(qw(DBD::SQLite Mail::IMAPClient Linux::Inotify2));
+require_mods(qw(DBD::SQLite Mail::IMAPClient));
+
 my $level = '-Lbasic';
 SKIP: {
 	require_mods('Search::Xapian', 1);

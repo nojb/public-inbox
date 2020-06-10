@@ -8,13 +8,30 @@ use strict;
 use Time::HiRes qw(stat);
 my $IN_CLOSE = 0x08 | 0x10; # match Linux inotify
 
-sub new { bless { watch => {} }, __PACKAGE__ }
+my $poll_intvl = 2; # same as Filesys::Notify::Simple
+my $for_cancel = bless \(my $x), 'PublicInbox::FakeInotify::Watch';
+
+sub poll_once {
+	my ($self) = @_;
+	sub {
+		eval { $self->poll };
+		warn "E: FakeInotify->poll: $@\n" if $@;
+		PublicInbox::DS::add_timer($poll_intvl, poll_once($self));
+	};
+}
+
+sub new {
+	my $self = bless { watch => {} }, __PACKAGE__;
+	PublicInbox::DS::add_timer($poll_intvl, poll_once($self));
+	$self;
+}
 
 # behaves like Linux::Inotify2->watch
 sub watch {
 	my ($self, $path, $mask, $cb) = @_;
 	my @st = stat($path) or return;
 	$self->{watch}->{"$path\0$mask"} = [ @st, $cb ];
+	$for_cancel;
 }
 
 # behaves like non-blocking Linux::Inotify2->poll
@@ -35,5 +52,8 @@ sub poll {
 		@$prv = (@now, $cb);
 	}
 }
+
+package PublicInbox::FakeInotify::Watch;
+sub cancel {} # noop
 
 1;
