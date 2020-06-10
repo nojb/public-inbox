@@ -549,11 +549,23 @@ sub unindex_mm {
 	$self->{mm}->mid_delete(mid_mime($mime));
 }
 
+# returns the number of bytes to add if given a non-CRLF arg
+sub crlf_adjust ($) {
+	if (index($_[0], "\r\n") < 0) {
+		# common case is LF-only, every \n needs an \r;
+		# so favor a cheap tr// over an expensive m//g
+		$_[0] =~ tr/\n/\n/;
+	} else { # count number of '\n' w/o '\r', expensive:
+		scalar(my @n = ($_[0] =~ m/(?<!\r)\n/g));
+	}
+}
+
 sub index_both { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $sync) = @_;
 	my ($nr, $max) = @$sync{qw(nr max)};
 	++$$nr;
 	$$max -= $size;
+	$size += crlf_adjust($$bref);
 	my $smsg = bless { bytes => $size, blob => $oid }, 'PublicInbox::Smsg';
 	my $self = $sync->{sidx};
 	my $eml = PublicInbox::Eml->new($bref);

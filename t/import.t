@@ -32,8 +32,9 @@ like($im->add($mime, undef, $smsg), qr/\A:[0-9]+\z/, 'added one message');
 
 if ($v2) {
 	like($smsg->{blob}, qr/\A[a-f0-9]{40}\z/, 'got last object_id');
-	is($mime->as_string, ${$smsg->{-raw_email}}, 'string matches');
-	is($smsg->{bytes}, length(${$smsg->{-raw_email}}), 'length matches');
+	my $raw_email = $smsg->{-raw_email};
+	is($mime->as_string, $$raw_email, 'string matches');
+	is($smsg->{raw_bytes}, length($$raw_email), 'length matches');
 	my @cmd = ('git', "--git-dir=$git->{git_dir}", qw(hash-object --stdin));
 	my $in = tempfile();
 	print $in $mime->as_string or die "write failed: $!";

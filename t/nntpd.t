@@ -73,7 +73,10 @@ EOF
 		my $list_id = $addr;
 		$list_id =~ s/@/./;
 		$mime->header_set('List-Id', "<$list_id>");
-		$len = length($mime->as_string);
+		my $str = $mime->as_string;
+		$str =~ s/(?<!\r)\n/\r\n/sg;
+		$len = length($str);
+		undef $str;
 		$im->add($mime);
 		$im->done;
 		if ($version == 1) {

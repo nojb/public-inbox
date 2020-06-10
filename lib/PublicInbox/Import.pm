@@ -400,7 +400,7 @@ sub add {
 	# v2: we need this for Xapian
 	if ($smsg) {
 		$smsg->{blob} = $self->get_mark(":$blob");
-		$smsg->{bytes} = $n;
+		$smsg->{raw_bytes} = $n;
 		$smsg->{-raw_email} = \$raw_email;
 	}
 	my $ref = $self->{ref};

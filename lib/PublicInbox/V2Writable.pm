@@ -155,10 +155,12 @@ sub add {
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$) {
 	my ($self, $msgref, $mime, $smsg) = @_;
+	$smsg->{bytes} = $smsg->{raw_bytes} +
+			PublicInbox::SearchIdx::crlf_adjust($$msgref);
 	$self->{over}->add_overview($mime, $smsg);
 	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
 	$idx->index_raw($msgref, $mime, $smsg);
-	my $n = $self->{transact_bytes} += $smsg->{bytes};
+	my $n = $self->{transact_bytes} += $smsg->{raw_bytes};
 	$n >= ($PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
 }
 
@@ -568,7 +570,7 @@ W: $list
 	for my $smsg (@$need_reindex) {
 		my $new_smsg = bless {
 			blob => $blob,
-			bytes => $bytes,
+			raw_bytes => $bytes,
 			num => $smsg->{num},
 			mid => $smsg->{mid},
 		}, 'PublicInbox::Smsg';
@@ -962,7 +964,7 @@ sub reindex_oid_m ($$$$;$) {
 	}
 	$sync->{nr}++;
 	my $smsg = bless {
-		bytes => $len,
+		raw_bytes => $len,
 		num => $num,
 		blob => $oid,
 		mid => $mid0,
@@ -1054,7 +1056,7 @@ sub reindex_oid ($$$$) {
 		die "failed to delete <$mid0> for article #$num\n";
 	$sync->{nr}++;
 	my $smsg = bless {
-		bytes => $len,
+		raw_bytes => $len,
 		num => $num,
 		blob => $oid,
 		mid => $mid0,
