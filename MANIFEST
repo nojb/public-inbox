@@ -346,6 +346,7 @@ t/www_listing.t
 t/www_static.t
 t/x-unknown-alpine.eml
 t/xcpdb-reshard.t
+xt/cmp-imapd-compress.t
 xt/cmp-msgstr.t
 xt/cmp-msgview.t
 xt/eml_check_limits.t
