@@ -16,7 +16,7 @@
 package PublicInbox::IMAP;
 use strict;
 use base qw(PublicInbox::DS);
-use fields qw(imapd logged_in ibx long_cb -login_tag
+use fields qw(imapd ibx long_cb -login_tag
 	uid_min -idle_tag -idle_max);
 use PublicInbox::Eml;
 use PublicInbox::EmlContentFoo qw(parse_content_disposition);
@@ -27,6 +27,7 @@ use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
 use Time::Local qw(timegm);
 use POSIX qw(strftime);
+use Hash::Util qw(unlock_hash); # dependency of fields for perl 5.10+, anyways
 
 my $Address;
 for my $mod (qw(Email::Address::XS Mail::Address)) {
@@ -91,7 +92,8 @@ sub greet ($) {
 
 sub new ($$$) {
 	my ($class, $sock, $imapd) = @_;
-	my $self = fields::new($class);
+	my $self = fields::new('PublicInbox::IMAP_preauth');
+	unlock_hash(%$self);
 	my $ev = EPOLLIN;
 	my $wbuf;
 	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
@@ -110,13 +112,15 @@ sub new ($$$) {
 	$self;
 }
 
+sub logged_in { 1 }
+
 sub capa ($) {
 	my ($self) = @_;
 
 	# dovecot advertises IDLE pre-login; perhaps because some clients
 	# depend on it, so we'll do the same
 	my $capa = 'CAPABILITY IMAP4rev1 IDLE';
-	if ($self->{logged_in}) {
+	if ($self->logged_in) {
 		$capa .= ' COMPRESS=DEFLATE';
 	} else {
 		if (!($self->{sock} // $self)->can('accept_SSL') &&
@@ -129,7 +133,7 @@ sub capa ($) {
 
 sub login_success ($$) {
 	my ($self, $tag) = @_;
-	$self->{logged_in} = 1;
+	bless $self, 'PublicInbox::IMAP';
 	my $capa = capa($self);
 	"$tag OK [$capa] Logged in\r\n";
 }
@@ -154,7 +158,7 @@ sub cmd_close ($$) {
 
 sub cmd_logout ($$) {
 	my ($self, $tag) = @_;
-	delete @$self{qw(logged_in -idle_tag)};
+	delete $self->{-idle_tag};
 	$self->write(\"* BYE logging out\r\n$tag OK Logout done\r\n");
 	$self->shutdn; # PublicInbox::DS::shutdn
 	undef;
@@ -1237,5 +1241,10 @@ sub close {
 no warnings 'once';
 *cmd_select = \&cmd_examine;
 *cmd_fetch = \&cmd_uid_fetch;
+
+package PublicInbox::IMAP_preauth;
+our @ISA = qw(PublicInbox::IMAP);
+
+sub logged_in { 0 }
 
 1;

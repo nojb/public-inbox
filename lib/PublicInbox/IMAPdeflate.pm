@@ -9,7 +9,6 @@ use warnings;
 use 5.010_001;
 use base qw(PublicInbox::IMAP);
 use Compress::Raw::Zlib;
-use Hash::Util qw(unlock_hash); # dependency of fields for perl 5.10+, anyways
 
 my %IN_OPT = (
 	-Bufsize => 1024,
@@ -41,7 +40,6 @@ sub enable {
 		$self->write(\"$tag BAD failed to activate compression\r\n");
 		return;
 	}
-	unlock_hash(%$self);
 	$self->write(\"$tag OK DEFLATE active\r\n");
 	bless $self, $class;
 	$self->{zin} = $in;
