@@ -208,42 +208,43 @@ sub ensure_ranges_exist ($$$) {
 	push @$l, map { qq[* LIST (\\HasNoChildren) "." $_\r\n] } @created;
 }
 
-sub cmd_examine ($$$) {
-	my ($self, $tag, $mailbox) = @_;
-	my ($ibx, $mm, $max);
-
+sub inbox_lookup ($$) {
+	my ($self, $mailbox) = @_;
+	my ($ibx, $exists, $uidnext);
 	if ($mailbox =~ /\A(.+)\.([0-9]+)\z/) {
 		# old mail: inbox.comp.foo.$uid_block_idx
 		my ($mb_top, $uid_min) = ($1, $2 * UID_BLOCK + 1);
 
-		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
-			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
-
-		$mm = $ibx->mm;
-		$max = $mm->max // 0;
+		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
+		$exists = $ibx->mm->max // 0;
 		$self->{uid_min} = $uid_min;
-		ensure_ranges_exist($self->{imapd}, $ibx, $max);
+		ensure_ranges_exist($self->{imapd}, $ibx, $exists);
 		my $uid_end = $uid_min + UID_BLOCK - 1;
-		$max = $uid_end if $max > $uid_end;
+		$exists = $uid_end if $exists > $uid_end;
+		$uidnext = $exists + 1;
 	} else { # check for dummy inboxes
-		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
-			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
+		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
 		delete $self->{uid_min};
-		$max = 0;
-		$mm = $ibx->mm;
+		$exists = 0;
+		$uidnext = 1;
 	}
+	($ibx, $exists, $uidnext);
+}
 
-	my $uidnext = $max + 1;
+sub cmd_examine ($$$) {
+	my ($self, $tag, $mailbox) = @_;
+	my ($ibx, $exists, $uidnext) = inbox_lookup($self, $mailbox);
+	return "$tag NO Mailbox doesn't exist: $mailbox\r\n" if !$ibx;
 
 	# XXX: do we need this? RFC 5162/7162
 	my $ret = $self->{ibx} ? "* OK [CLOSED] previous closed\r\n" : '';
 	$self->{ibx} = $ibx;
 	$ret .= <<EOF;
-* $max EXISTS\r
-* $max RECENT\r
+* $exists EXISTS\r
+* $exists RECENT\r
 * FLAGS (\\Seen)\r
 * OK [PERMANENTFLAGS ()] Read-only mailbox\r
-* OK [UNSEEN $max]\r
+* OK [UNSEEN $exists]\r
 * OK [UIDNEXT $uidnext]\r
 * OK [UIDVALIDITY $ibx->{uidvalidity}]\r
 $tag OK [READ-ONLY] EXAMINE/SELECT done\r
@@ -537,23 +538,21 @@ sub uid_fetch_m { # long_response
 
 sub cmd_status ($$$;@) {
 	my ($self, $tag, $mailbox, @items) = @_;
-	my $ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
-		return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
 	return "$tag BAD no items\r\n" if !scalar(@items);
 	($items[0] !~ s/\A\(//s || $items[-1] !~ s/\)\z//s) and
 		return "$tag BAD invalid args\r\n";
-
-	my $mm = $ibx->mm;
-	my ($max, @it);
+	my ($ibx, $exists, $uidnext) = inbox_lookup($self, $mailbox);
+	return "$tag NO Mailbox doesn't exist: $mailbox\r\n" if !$ibx;
+	my @it;
 	for my $it (@items) {
 		$it = uc($it);
 		push @it, $it;
 		if ($it =~ /\A(?:MESSAGES|UNSEEN|RECENT)\z/) {
-			push(@it, ($max //= $mm->max // 0));
+			push @it, $exists;
 		} elsif ($it eq 'UIDNEXT') {
-			push(@it, ($max //= $mm->max // 0) + 1);
+			push @it, $uidnext;
 		} elsif ($it eq 'UIDVALIDITY') {
-			push(@it, $ibx->{uidvalidity});
+			push @it, $ibx->{uidvalidity};
 		} else {
 			return "$tag BAD invalid item\r\n";
 		}
