@@ -45,7 +45,7 @@ sub NEED_BLOB () { 1 }
 sub NEED_EML () { NEED_BLOB|2 }
 my $OP_EML_NEW = [ NEED_EML - 1, \&op_eml_new ];
 
-my %FETCH_NEED = ( # for future optimization
+my %FETCH_NEED = (
 	'BODY[HEADER]' => [ NEED_EML, \&emit_rfc822_header ],
 	'BODY[TEXT]' => [ NEED_EML, \&emit_rfc822_text ],
 	'BODY[]' => [ NEED_BLOB, \&emit_rfc822 ],
@@ -546,7 +546,7 @@ sub refill_range ($$$) {
 	undef; # keep looping
 }
 
-sub uid_fetch_m { # long_response
+sub uid_fetch_msg { # long_response
 	my ($self, $tag, $msgs, $range_info) = @_; # \@ops, \@partial
 	while (!@$msgs) { # rare
 		if (my $end = refill_range($self, $msgs, $range_info)) {
@@ -556,6 +556,26 @@ sub uid_fetch_m { # long_response
 	}
 	git_async_cat($self->{ibx}->git, $msgs->[0]->{blob},
 			\&uid_fetch_cb, \@_);
+}
+
+sub uid_fetch_smsg { # long_response
+	my ($self, $tag, $msgs, $range_info, $ops) = @_;
+	while (!@$msgs) { # rare
+		if (my $end = refill_range($self, $msgs, $range_info)) {
+			$self->write(\"$tag $end\r\n");
+			return;
+		}
+	}
+	for my $smsg (@$msgs) {
+		$self->msg_more("* $smsg->{num} FETCH (UID $smsg->{num}");
+		for (my $i = 0; $i < @$ops;) {
+			my $k = $ops->[$i++];
+			$ops->[$i++]->($self, $k, $smsg);
+		}
+		$self->msg_more(")\r\n");
+	}
+	@$msgs = ();
+	1; # more
 }
 
 sub cmd_status ($$$;@) {
@@ -774,7 +794,7 @@ sub fetch_compile ($) {
 		$r[2] = [ map { [ $_, @{$partial{$_}} ] } sort keys %partial ];
 	}
 
-	$r[0] = $need;
+	$r[0] = $need ? \&uid_fetch_msg : \&uid_fetch_smsg;
 
 	# r[1] = [ $key1, $cb1, $key2, $cb2, ... ]
 	use sort 'stable'; # makes output more consistent
@@ -785,15 +805,13 @@ sub fetch_compile ($) {
 sub cmd_uid_fetch ($$$;@) {
 	my ($self, $tag, $range_csv, @want) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
-	my ($need, $ops, $partial) = fetch_compile(\@want);
-	return "$tag $need\r\n" unless $ops;
+	my ($cb, $ops, $partial) = fetch_compile(\@want);
+	return "$tag $cb\r\n" unless $ops;
 
 	$range_csv = 'bad' if $range_csv !~ $valid_range;
 	my $range_info = range_step($self, \$range_csv);
 	return "$tag $range_info\r\n" if !ref($range_info);
-
-	long_response($self, \&uid_fetch_m,
-			$tag, [], $range_info, $ops, $partial);
+	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
 }
 
 sub parse_date ($) { # 02-Oct-1993
