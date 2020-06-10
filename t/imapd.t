@@ -327,7 +327,8 @@ $r2 = $mic->fetch_hash(2, 'BODY.PEEK[HEADER.FIELDS (message-id)]')
 is($r2->{2}->{'BODY[HEADER.FIELDS (MESSAGE-ID)]'},
 	'Message-ID: <20200418222508.GA13918@dcvr>'."\r\n\r\n",
 	'BODY.PEEK[HEADER.FIELDS ...] drops .PEEK');
-
+ok($mic->close, 'CLOSE works');
+ok(!$mic->close, 'CLOSE not idempotent');
 ok($mic->logout, 'logged out');
 
 $td->kill;

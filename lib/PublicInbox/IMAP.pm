@@ -121,6 +121,12 @@ sub cmd_login ($$$$) {
 	login_success($self, $tag);
 }
 
+sub cmd_close ($$) {
+	my ($self, $tag) = @_;
+	delete $self->{ibx} ? "$tag OK Close done\r\n"
+				: "$tag BAD No mailbox\r\n";
+}
+
 sub cmd_logout ($$) {
 	my ($self, $tag) = @_;
 	delete $self->{logged_in};
