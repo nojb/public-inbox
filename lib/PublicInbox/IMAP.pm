@@ -16,7 +16,7 @@ package PublicInbox::IMAP;
 use strict;
 use base qw(PublicInbox::DS);
 use fields qw(imapd logged_in ibx long_cb -login_tag
-	-idle_tag -idle_max);
+	uid_min -idle_tag -idle_max);
 use PublicInbox::Eml;
 use PublicInbox::EmlContentFoo qw(parse_content_disposition);
 use PublicInbox::DS qw(now);
@@ -33,6 +33,9 @@ for my $mod (qw(Email::Address::XS Mail::Address)) {
 die "neither Email::Address::XS nor Mail::Address loaded: $@" if !$Address;
 
 sub LINE_MAX () { 512 } # does RFC 3501 have a limit like RFC 977?
+
+# changing this will cause grief for clients which cache
+sub UID_BLOCK () { 50_000 }
 
 my %FETCH_NEED_BLOB = ( # for future optimization
 	'BODY[HEADER]' => 1,
@@ -128,6 +131,7 @@ sub cmd_login ($$$$) {
 
 sub cmd_close ($$) {
 	my ($self, $tag) = @_;
+	delete $self->{uid_min};
 	delete $self->{ibx} ? "$tag OK Close done\r\n"
 				: "$tag BAD No mailbox\r\n";
 }
@@ -188,12 +192,67 @@ sub cmd_done ($$) {
 	"$idle_tag OK Idle done\r\n";
 }
 
+sub ensure_old_ranges_exist ($$$) {
+	my ($self, $ibx, $uid_min) = @_;
+	my $groups = $self->{imapd}->{groups};
+	my $mailbox = $ibx->{newsgroup};
+	my @created;
+	$uid_min -= UID_BLOCK;
+	my $uid_end = $uid_min + UID_BLOCK - 1;
+	while ($uid_min > 0) {
+		my $sub_mailbox = "$mailbox.$uid_min-$uid_end";
+		last if exists $groups->{$sub_mailbox};
+		$groups->{$sub_mailbox} = $ibx;
+		$uid_end -= UID_BLOCK;
+		$uid_min -= UID_BLOCK;
+		push @created, $sub_mailbox;
+	}
+	return unless @created;
+	my $l = $self->{imapd}->{inboxlist};
+	grep {
+		/ \Q$mailbox\E\r\n\z/ and s/\(\\HasNoChildren/\(\\HasChildren/;
+	} @$l;
+	push @$l, map { qq[* LIST (\\HasNoChildren) "." $_\r\n] } @created;
+}
+
 sub cmd_examine ($$$) {
 	my ($self, $tag, $mailbox) = @_;
-	my $ibx = $self->{imapd}->{groups}->{$mailbox} or
-		return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
-	my $mm = $ibx->mm;
-	my $max = $mm->max // 0;
+	my ($ibx, $mm, $max);
+
+	if ($mailbox =~ /\A(.+)\.([0-9]+)-([0-9]+)\z/) {
+		# old mail: inbox.comp.foo.$uid_min-$uid_end
+		my ($mb_top, $uid_min, $uid_end) = ($1, $2 + 0, $3 + 0);
+		$ibx = $self->{imapd}->{groups}->{lc $mb_top};
+		if (!$ibx || ($uid_end % UID_BLOCK) != 0 ||
+				($uid_min + UID_BLOCK - 1) != $uid_end) {
+			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
+		}
+		$mm = $ibx->mm;
+		$max = $mm->max // 0;
+
+		# don't let users create inboxes w/ not-yet-possible range:
+		$uid_min > $max and
+			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
+
+		$max = $uid_min + UID_BLOCK + 1;
+		$self->{uid_min} = $uid_min;
+		ensure_old_ranges_exist($self, $ibx, $uid_min);
+	} else { # current mailbox (most recent UID_BLOCK messages)
+		$ibx = $self->{imapd}->{groups}->{lc $mailbox} or
+			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
+
+		$mm = $ibx->mm;
+		$max = $mm->max // 0;
+
+		my $uid_min = UID_BLOCK * int($max/UID_BLOCK) + 1;
+		if ($uid_min == 1) { # normal inbox with <UID_BLOCK messages
+			delete $self->{uid_min}; # implicit cmd_close
+		} else { # we have a giant inbox:
+			$self->{uid_min} = $uid_min;
+			ensure_old_ranges_exist($self, $ibx, $uid_min);
+		}
+	}
+
 	# RFC 3501 2.3.1.1 -  "A good UIDVALIDITY value to use in
 	# this case is a 32-bit representation of the creation
 	# date/time of the mailbox"
@@ -208,11 +267,11 @@ sub cmd_examine ($$$) {
 * $max RECENT\r
 * FLAGS (\\Seen)\r
 * OK [PERMANENTFLAGS ()] Read-only mailbox\r
+* OK [UNSEEN $max]\r
+* OK [UIDNEXT $uidnext]\r
+* OK [UIDVALIDITY $uidvalidity]\r
+$tag OK [READ-ONLY] EXAMINE/SELECT done\r
 EOF
-	$ret .= "* OK [UNSEEN $max]\r\n" if $max;
-	$ret .= "* OK [UIDNEXT $uidnext]\r\n" if defined $uidnext;
-	$ret .= "* OK [UIDVALIDITY $uidvalidity]\r\n" if defined $uidvalidity;
-	$ret .= "$tag OK [READ-ONLY] EXAMINE/SELECT done\r\n";
 }
 
 sub _esc ($) {
@@ -357,12 +416,12 @@ sub fetch_body ($;$) {
 }
 
 sub dummy_message ($$) {
-	my ($seqno, $ibx) = @_;
+	my ($self, $seqno) = @_;
 	my $ret = <<EOF;
 From: nobody\@localhost\r
 To: nobody\@localhost\r
 Date: Thu, 01 Jan 1970 00:00:00 +0000\r
-Message-ID: <dummy-$seqno\@$ibx->{newsgroup}>\r
+Message-ID: <dummy-$seqno\@$self->{ibx}->{newsgroup}>\r
 Subject: dummy message #$seqno\r
 \r
 You're seeing this message because your IMAP client didn't use UIDs.\r
@@ -390,13 +449,13 @@ sub requeue_once ($) {
 
 sub uid_fetch_cb { # called by git->cat_async via git_async_cat
 	my ($bref, $oid, $type, $size, $fetch_m_arg) = @_;
-	my ($self, undef, $ibx, $msgs, undef, $want) = @$fetch_m_arg;
+	my ($self, undef, $msgs, undef, $want) = @$fetch_m_arg;
 	my $smsg = shift @$msgs or die 'BUG: no smsg';
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
 		return requeue_once($self) unless defined $want->{-seqno};
-		$bref = dummy_message($smsg->{num}, $ibx);
+		$bref = dummy_message($self, $smsg->{num});
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
@@ -446,7 +505,7 @@ sub uid_fetch_cb { # called by git->cat_async via git_async_cat
 }
 
 sub range_step ($$) {
-	my ($ibx, $range_csv) = @_;
+	my ($self, $range_csv) = @_;
 	my ($beg, $end, $range);
 	if ($$range_csv =~ s/\A([^,]+),//) {
 		$range = $1;
@@ -458,39 +517,46 @@ sub range_step ($$) {
 		($beg, $end) = ($1 + 0, $2 + 0);
 	} elsif ($range =~ /\A([0-9]+):\*\z/) {
 		$beg = $1 + 0;
-		$end = $ibx->mm->max // 0;
+		$end = $self->{ibx}->mm->max // 0;
 		$beg = $end if $beg > $end;
 	} elsif ($range =~ /\A[0-9]+\z/) {
 		$beg = $end = $range + 0;
+		undef $range;
 	} else {
 		return 'BAD fetch range';
+	}
+	if (defined($range) && (my $uid_min = $self->{uid_min})) {
+		my $uid_end = $uid_min + UID_BLOCK - 1;
+		$beg = $uid_min if $beg < $uid_min;
+		$end = $uid_end if $end > $uid_end;
 	}
 	[ $beg, $end, $$range_csv ];
 }
 
 sub refill_range ($$$) {
-	my ($ibx, $msgs, $range_info) = @_;
+	my ($self, $msgs, $range_info) = @_;
 	my ($beg, $end, $range_csv) = @$range_info;
-	if (scalar(@$msgs = @{$ibx->over->query_xover($beg, $end)})) {
+	if (scalar(@$msgs = @{$self->{ibx}->over->query_xover($beg, $end)})) {
 		$range_info->[0] = $msgs->[-1]->{num} + 1;
 		return;
 	}
 	return 'OK Fetch done' if !$range_csv;
-	my $next_range = range_step($ibx, \$range_csv);
+	my $next_range = range_step($self, \$range_csv);
 	return $next_range if !ref($next_range); # error
 	@$range_info = @$next_range;
 	undef; # keep looping
 }
 
 sub uid_fetch_m { # long_response
-	my ($self, $tag, $ibx, $msgs, $range_info, $want) = @_;
+	my ($self, $tag, $msgs, $range_info, $want) = @_;
 	while (!@$msgs) { # rare
-		if (my $end = refill_range($ibx, $msgs, $range_info)) {
+		if (my $end = refill_range($self, $msgs, $range_info)) {
 			$self->write(\"$tag $end\r\n");
 			return;
 		}
 	}
-	git_async_cat($ibx->git, $msgs->[0]->{blob}, \&uid_fetch_cb, \@_);
+	git_async_cat($self->{ibx}->git, $msgs->[0]->{blob},
+			\&uid_fetch_cb, \@_);
 }
 
 sub cmd_status ($$$;@) {
@@ -698,9 +764,9 @@ sub fetch_common ($$$$) {
 		} sort keys %partial ];
 	}
 	$range_csv = 'bad' if $range_csv !~ $valid_range;
-	my $range_info = range_step($ibx, \$range_csv);
+	my $range_info = range_step($self, \$range_csv);
 	return "$tag $range_info\r\n" if !ref($range_info);
-	[ $tag, $ibx, [], $range_info, \%want ];
+	[ $tag, [], $range_info, \%want ];
 }
 
 sub cmd_uid_fetch ($$$;@) {
@@ -712,9 +778,9 @@ sub cmd_uid_fetch ($$$;@) {
 }
 
 sub seq_fetch_m { # long_response
-	my ($self, $tag, $ibx, $msgs, $range_info, $want) = @_;
+	my ($self, $tag, $msgs, $range_info, $want) = @_;
 	while (!@$msgs) { # rare
-		if (my $end = refill_range($ibx, $msgs, $range_info)) {
+		if (my $end = refill_range($self, $msgs, $range_info)) {
 			$self->write(\"$tag $end\r\n");
 			return;
 		}
@@ -722,13 +788,13 @@ sub seq_fetch_m { # long_response
 	my $seq = $want->{-seqno}++;
 	my $cur_num = $msgs->[0]->{num};
 	if ($cur_num == $seq) { # as expected
-		git_async_cat($ibx->git, $msgs->[0]->{blob},
+		git_async_cat($self->{ibx}->git, $msgs->[0]->{blob},
 				\&uid_fetch_cb, \@_);
 	} elsif ($cur_num > $seq) {
 		# send dummy messages until $seq catches up to $cur_num
 		my $smsg = bless { num => $seq, ts => 0 }, 'PublicInbox::Smsg';
 		unshift @$msgs, $smsg;
-		my $bref = dummy_message($seq, $ibx);
+		my $bref = dummy_message($self, $seq);
 		uid_fetch_cb($bref, undef, undef, undef, \@_);
 		$smsg; # blessed response since uid_fetch_cb requeues
 	} else { # should not happen
@@ -741,14 +807,14 @@ sub cmd_fetch ($$$;@) {
 	my $args = fetch_common($self, $tag, $range_csv, \@want);
 	ref($args) eq 'ARRAY' ? do {
 		my $want = $args->[-1];
-		$want->{-seqno} = $args->[3]->[0]; # $beg == $range_info->[0];
+		$want->{-seqno} = $args->[2]->[0]; # $beg == $range_info->[0];
 		long_response($self, \&seq_fetch_m, @$args)
 	} : $args; # error
 }
 
 sub uid_search_all { # long_response
-	my ($self, $tag, $ibx, $num) = @_;
-	my $uids = $ibx->mm->ids_after($num);
+	my ($self, $tag, $num) = @_;
+	my $uids = $self->{ibx}->mm->ids_after($num);
 	if (scalar(@$uids)) {
 		$self->msg_more(join(' ', '', @$uids));
 	} else {
@@ -758,8 +824,8 @@ sub uid_search_all { # long_response
 }
 
 sub uid_search_uid_range { # long_response
-	my ($self, $tag, $ibx, $beg, $end) = @_;
-	my $uids = $ibx->mm->msg_range($beg, $end, 'num');
+	my ($self, $tag, $beg, $end) = @_;
+	my $uids = $self->{ibx}->mm->msg_range($beg, $end, 'num');
 	if (@$uids) {
 		$self->msg_more(join('', map { " $_->[0]" } @$uids));
 	} else {
@@ -775,14 +841,14 @@ sub cmd_uid_search ($$$;) {
 	if ($arg eq 'ALL' && !@rest) {
 		$self->msg_more('* SEARCH');
 		my $num = 0;
-		long_response($self, \&uid_search_all, $tag, $ibx, \$num);
+		long_response($self, \&uid_search_all, $tag, \$num);
 	} elsif ($arg eq 'UID' && scalar(@rest) == 1) {
 		if ($rest[0] =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
 			my ($beg, $end) = ($1, $2);
 			$end = $ibx->mm->max if $end eq '*';
 			$self->msg_more('* SEARCH');
 			long_response($self, \&uid_search_uid_range,
-					$tag, $ibx, \$beg, $end);
+					$tag, \$beg, $end);
 		} elsif ($rest[0] =~ /\A[0-9]+\z/s) {
 			my $uid = $rest[0];
 			$uid = $ibx->over->get_art($uid) ? " $uid" : '';
