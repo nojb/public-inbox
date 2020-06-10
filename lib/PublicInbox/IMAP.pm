@@ -20,6 +20,7 @@ use fields qw(imapd logged_in ibx long_cb -login_tag
 use PublicInbox::Eml;
 use PublicInbox::DS qw(now);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
+use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
 my $Address;
 for my $mod (qw(Email::Address::XS Mail::Address)) {
@@ -423,7 +424,8 @@ sub args_ok ($$) { # duplicated from PublicInbox::NNTP
 # returns 1 if we can continue, 0 if not due to buffered writes or disconnect
 sub process_line ($$) {
 	my ($self, $l) = @_;
-	my ($tag, $req, @args) = split(/[ \t]+/, $l);
+	my ($tag, $req, @args) = parse_line('[ \t]+', 0, $l);
+	pop(@args) if (@args && !defined($args[-1]));
 	if (@args && uc($req) eq 'UID') {
 		$req .= "_".(shift @args);
 	}
