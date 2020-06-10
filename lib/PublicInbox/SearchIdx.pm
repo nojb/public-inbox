@@ -341,6 +341,7 @@ sub add_xapian ($$$$) {
 	add_val($doc, PublicInbox::Search::YYYYMMDD(), $yyyymmdd);
 	my $dt = strftime('%Y%m%d%H%M%S', @ds);
 	add_val($doc, PublicInbox::Search::DT(), $dt);
+	add_val($doc, PublicInbox::Search::BYTES(), $smsg->{bytes});
 
 	my $tg = term_generator($self);
 	$tg->set_document($doc);
@@ -388,6 +389,7 @@ sub add_message {
 
 	# v1 and tests only:
 	$smsg->populate($hdr, $self);
+	$smsg->{bytes} //= length($mime->as_string);
 
 	eval {
 		# order matters, overview stores every possible piece of

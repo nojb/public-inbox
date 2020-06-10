@@ -318,6 +318,12 @@ $ibx->with_umask(sub {
 	foreach my $m ($mset->items) {
 		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
 		like($smsg->{to}, qr/\blist\@example\.com\b/, 'to appears');
+		my $doc = $m->get_document;
+		my $col = PublicInbox::Search::BYTES();
+		my $bytes = PublicInbox::Smsg::get_val($doc, $col);
+		like($bytes, qr/\A[0-9]+\z/, '$bytes stored as digit');
+		ok($bytes > 0, '$bytes is > 0');
+		is($bytes, $smsg->{bytes}, 'bytes Xapian value matches Over');
 	}
 
 	$mset = $ro->query('tc:list@example.com', {mset => 1});

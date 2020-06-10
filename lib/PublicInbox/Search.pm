@@ -5,12 +5,16 @@
 # Read-only search interface for use by the web and NNTP interfaces
 package PublicInbox::Search;
 use strict;
-use warnings;
 
 # values for searching
-use constant TS => 0;  # Received: header in Unix time
-use constant YYYYMMDD => 1; # Date: header for searching in the WWW UI
-use constant DT => 2; # Date: YYYYMMDDHHMMSS
+use constant {
+	TS => 0, # Received: header in Unix time (IMAP INTERNALDATE)
+	YYYYMMDD => 1, # Date: header for searching in the WWW UI
+	DT => 2, # Date: YYYYMMDDHHMMSS
+	BYTES => 3, # IMAP RFC822.SIZE
+	# TODO
+	# REPLYCNT => 4, # IMAP ANSWERED
+};
 
 use PublicInbox::Smsg;
 use PublicInbox::Over;
