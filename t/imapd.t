@@ -7,7 +7,7 @@ use Time::HiRes ();
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(which);
-require_mods(qw(DBD::SQLite Mail::IMAPClient));
+require_mods(qw(DBD::SQLite Mail::IMAPClient Mail::IMAPClient::BodyStructure));
 
 my $level = '-Lbasic';
 SKIP: {
@@ -190,6 +190,11 @@ for my $r ('1:*', '1') {
 
 	$ret = $mic->fetch_hash($r, 'FLAGS') or BAIL_OUT "FETCH $@";
 	is_deeply($ret->{1}->{FLAGS}, '', 'no flags');
+
+	my $bs = $mic->get_bodystructure($r) or BAIL_OUT("bodystructure: $@");
+	ok($bs, 'got a bodystructure');
+	is(lc($bs->bodytype), 'text', '->bodytype');
+	is(lc($bs->bodyenc), '8bit', '->bodyenc');
 }
 
 # Mail::IMAPClient ->compress creates cyclic reference:
@@ -217,10 +222,12 @@ $pi_config->each_inbox(sub {
 	my $ng = $ibx->{newsgroup};
 	my $mic = Mail::IMAPClient->new(%mic_opt);
 	ok($mic && $mic->login && $mic->IsAuthenticated, "authed $name");
+	my $uidnext = $mic->uidnext($ng); # we'll fetch BODYSTRUCTURE on this
+	ok($uidnext, 'got uidnext for later fetch');
 	is_deeply([$mic->has_capability('IDLE')], ['IDLE'], "IDLE capa $name");
 	ok(!$mic->idle, "IDLE fails w/o SELECT/EXAMINE $name");
 	ok($mic->examine($ng), "EXAMINE $ng succeeds");
-	ok($mic->idle, "IDLE succeeds on $ng");
+	ok(my $idle_tag = $mic->idle, "IDLE succeeds on $ng");
 
 	open(my $fh, '<', 't/data/message_embed.eml') or BAIL_OUT("open: $!");
 	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
@@ -280,6 +287,11 @@ $pi_config->each_inbox(sub {
 	ok(@res = $mic->idle_data(11), "IDLE succeeds on $ng after HUP");
 	is(grep(/\A\* [0-9] EXISTS\b/, @res), 1, 'got EXISTS message');
 	ok((Time::HiRes::time() - $t0) < 10, 'IDLE client notified');
+	ok($mic->done($idle_tag), 'IDLE DONE');
+	my $bs = $mic->get_bodystructure($uidnext);
+	ok($bs, 'BODYSTRUCTURE ok for deeply nested');
+	$ret = $mic->fetch_hash($uidnext, 'BODY') or BAIL_OUT "FETCH $@";
+	ok($ret->{$uidnext}->{BODY}, 'got something in BODY');
 });
 
 $td->kill;

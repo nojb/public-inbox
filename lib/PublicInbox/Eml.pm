@@ -235,11 +235,11 @@ sub mp_descend ($$) {
 # $arg - user-supplied arg (think pthread_create)
 # $once - unref body scalar during iteration
 sub each_part {
-	my ($self, $cb, $arg, $once) = @_;
+	my ($self, $cb, $arg, $once, $all) = @_;
 	my $p = mp_descend($self, $once // 0) or
 					return $cb->([$self, 0, 0], $arg);
 
-	$cb->([$self, 0, 0], $arg) if $self->{-call_cb}; # rare
+	$cb->([$self, 0, 0], $arg) if ($all || $self->{-call_cb}); # rare
 
 	$p = [ $p, 0 ];
 	my @s; # our virtual stack
@@ -255,7 +255,8 @@ sub each_part {
 				(my $nxt = mp_descend($sub, $nr))) {
 			push(@s, $p) if scalar @{$p->[0]};
 			$p = [ $nxt, @idx, 0 ];
-			$cb->([$sub, $depth, @idx], $arg) if $sub->{-call_cb};
+			($all || $sub->{-call_cb}) and
+				$cb->([$sub, $depth, @idx], $arg);
 		} else { # a leaf node
 			$cb->([$sub, $depth, @idx], $arg);
 		}

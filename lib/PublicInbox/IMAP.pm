@@ -18,6 +18,7 @@ use base qw(PublicInbox::DS);
 use fields qw(imapd logged_in ibx long_cb -login_tag
 	-idle_tag -idle_max);
 use PublicInbox::Eml;
+use PublicInbox::EmlContentFoo qw(parse_content_disposition);
 use PublicInbox::DS qw(now);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use Text::ParseWords qw(parse_line);
@@ -248,6 +249,105 @@ sub eml_envelope ($) {
 	) . ')';
 }
 
+sub _esc_hash ($) {
+	my ($hash) = @_;
+	if ($hash && scalar keys %$hash) {
+		$hash = [ %$hash ]; # flatten hash into 1-dimensional array
+		'(' . join(' ', map { _esc($_) } @$hash) . ')';
+	} else {
+		'NIL';
+	}
+}
+
+sub body_disposition ($) {
+	my ($eml) = @_;
+	my $cd = $eml->header_raw('Content-Disposition') or return 'NIL';
+	$cd = parse_content_disposition($cd);
+	my $buf = '('._esc($cd->{type});
+	$buf .= ' ' . _esc_hash(delete $cd->{attributes});
+	$buf .= ')';
+}
+
+sub body_leaf ($$;$) {
+	my ($eml, $structure, $hold) = @_;
+	my $buf = '';
+	$eml->{is_submsg} and # parent was a message/(rfc822|news|global)
+		$buf .= eml_envelope($eml). ' ';
+	my $ct = $eml->ct;
+	$buf .= '('._esc($ct->{type}).' ';
+	$buf .= _esc($ct->{subtype});
+	$buf .= ' ' . _esc_hash(delete $ct->{attributes});
+	$buf .= ' ' . _esc($eml->header_raw('Content-ID'));
+	$buf .= ' ' . _esc($eml->header_raw('Content-Description'));
+	my $cte = $eml->header_raw('Content-Transfer-Encoding') // '7bit';
+	$buf .= ' ' . _esc($cte);
+	$buf .= ' ' . $eml->{imap_body_len};
+	$buf .= ' '.($eml->body_raw =~ tr/\n/\n/) if lc($ct->{type}) eq 'text';
+
+	# for message/(rfc822|global|news), $hold[0] should have envelope
+	$buf .= ' ' . (@$hold ? join('', @$hold) : 'NIL') if $hold;
+
+	if ($structure) {
+		$buf .= ' '._esc($eml->header_raw('Content-MD5'));
+		$buf .= ' '. body_disposition($eml);
+		$buf .= ' '._esc($eml->header_raw('Content-Language'));
+		$buf .= ' '._esc($eml->header_raw('Content-Location'));
+	}
+	$buf .= ')';
+}
+
+sub body_parent ($$$) {
+	my ($eml, $structure, $hold) = @_;
+	my $ct = $eml->ct;
+	my $type = lc($ct->{type});
+	if ($type eq 'multipart') {
+		my $buf = '(';
+		$buf .= @$hold ? join('', @$hold) : 'NIL';
+		$buf .= ' '._esc($ct->{subtype});
+		if ($structure) {
+			$buf .= ' '._esc_hash(delete $ct->{attributes});
+			$buf .= ' '.body_disposition($eml);
+			$buf .= ' '._esc($eml->header_raw('Content-Language'));
+			$buf .= ' '._esc($eml->header_raw('Content-Location'));
+		}
+		$buf .= ')';
+		@$hold = ($buf);
+	} else { # message/(rfc822|global|news)
+		@$hold = (body_leaf($eml, $structure, $hold));
+	}
+}
+
+# this is gross, but we need to process the parent part AFTER
+# the child parts are done
+sub bodystructure_prep {
+	my ($p, $q) = @_;
+	my ($eml, $depth) = @$p; # ignore idx
+	# set length here, as $eml->{bdy} gets deleted for message/rfc822
+	$eml->{imap_body_len} = length($eml->body_raw);
+	push @$q, $eml, $depth;
+}
+
+# for FETCH BODY and FETCH BODYSTRUCTURE
+sub fetch_body ($;$) {
+	my ($eml, $structure) = @_;
+	my @q;
+	$eml->each_part(\&bodystructure_prep, \@q, 0, 1);
+	my $cur_depth = 0;
+	my @hold;
+	do {
+		my ($part, $depth) = splice(@q, -2);
+		my $is_mp_parent = $depth == ($cur_depth - 1);
+		$cur_depth = $depth;
+
+		if ($is_mp_parent) {
+			body_parent($part, $structure, \@hold);
+		} else {
+			unshift @hold, body_leaf($part, $structure);
+		}
+	} while (@q);
+	join('', @hold);
+}
+
 sub uid_fetch_cb { # called by git->cat_async
 	my ($bref, $oid, $type, $size, $fetch_m_arg) = @_;
 	my ($self, undef, $ibx, undef, undef, $msgs, $want) = @$fetch_m_arg;
@@ -286,7 +386,11 @@ sub uid_fetch_cb { # called by git->cat_async
 		$self->msg_more(" $f {".length($$bref)."}\r\n");
 		$self->msg_more($$bref);
 	}
-	# TODO BODY/BODYSTRUCTURE, specific headers
+	$want->{BODYSTRUCTURE} and
+		$self->msg_more(' BODYSTRUCTURE '.fetch_body($eml, 1));
+	$want->{BODY} and
+		$self->msg_more(' BODY '.fetch_body($eml));
+
 	$self->msg_more(")\r\n");
 }
 
