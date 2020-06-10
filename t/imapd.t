@@ -191,6 +191,31 @@ for my $r ('1:*', '1') {
 	$ret = $mic->fetch_hash($r, 'FLAGS') or BAIL_OUT "FETCH $@";
 	is_deeply($ret->{1}->{FLAGS}, '', 'no flags');
 
+	$ret = $mic->fetch_hash($r, 'BODY[1]') or BAIL_OUT "FETCH $@";
+	like($ret->{1}->{'BODY[1]'}, qr/\AThis is a test message/, 'BODY[1]');
+
+	$ret = $mic->fetch_hash($r, 'BODY[1]<1>') or BAIL_OUT "FETCH $@";
+	like($ret->{1}->{'BODY[1]<1>'}, qr/\Ahis is a test message/,
+			'BODY[1]<1>');
+
+	$ret = $mic->fetch_hash($r, 'BODY[1]<2.3>') or BAIL_OUT "FETCH $@";
+	is($ret->{1}->{'BODY[1]<2>'}, "is ", 'BODY[1]<2.3>');
+	$ret = $mic->bodypart_string($r, 1, 3, 2) or
+					BAIL_OUT "bodypart_string $@";
+	is($ret, "is ", 'bodypart string');
+
+	$ret = $mic->fetch_hash($r, 'BODY[HEADER.FIELDS.NOT (Message-ID)]')
+		or BAIL_OUT "FETCH $@";
+	$ret = $ret->{1}->{'BODY[HEADER.FIELDS.NOT (MESSAGE-ID)]'};
+	unlike($ret, qr/message-id/i, 'Message-ID excluded');
+	like($ret, qr/\r\n\r\n\z/s, 'got header end');
+
+	$ret = $mic->fetch_hash($r, 'BODY[HEADER.FIELDS (Message-ID)]')
+		or BAIL_OUT "FETCH $@";
+	is($ret->{1}->{'BODY[HEADER.FIELDS (MESSAGE-ID)]'},
+		'Message-ID: <testmessage@example.com>'."\r\n\r\n",
+		'got only Message-ID');
+
 	my $bs = $mic->get_bodystructure($r) or BAIL_OUT("bodystructure: $@");
 	ok($bs, 'got a bodystructure');
 	is(lc($bs->bodytype), 'text', '->bodytype');
@@ -292,7 +317,41 @@ $pi_config->each_inbox(sub {
 	ok($bs, 'BODYSTRUCTURE ok for deeply nested');
 	$ret = $mic->fetch_hash($uidnext, 'BODY') or BAIL_OUT "FETCH $@";
 	ok($ret->{$uidnext}->{BODY}, 'got something in BODY');
-});
+
+	# this matches dovecot behavior
+	$ret = $mic->fetch_hash($uidnext, 'BODY[1]') or BAIL_OUT "FETCH $@";
+	is($ret->{$uidnext}->{'BODY[1]'},
+		"testing embedded message harder\r\n", 'BODY[1]');
+	$ret = $mic->fetch_hash($uidnext, 'BODY[2]') or BAIL_OUT "FETCH $@";
+	like($ret->{$uidnext}->{'BODY[2]'},
+		qr/\ADate: Sat, 18 Apr 2020 22:20:20 /, 'BODY[2]');
+
+	$ret = $mic->fetch_hash($uidnext, 'BODY[2.1.1]') or BAIL_OUT "FETCH $@";
+	is($ret->{$uidnext}->{'BODY[2.1.1]'},
+		"testing embedded message\r\n", 'BODY[2.1.1]');
+
+	$ret = $mic->fetch_hash($uidnext, 'BODY[2.1.2]') or BAIL_OUT "FETCH $@";
+	like($ret->{$uidnext}->{'BODY[2.1.2]'}, qr/\AFrom: /,
+		'BODY[2.1.2] tip matched');
+	like($ret->{$uidnext}->{'BODY[2.1.2]'},
+		 # trailing CRLF may vary depending on MIME parser
+		 qr/done_testing;(?:\r\n){1,2}\z/,
+		'BODY[2.1.2] tail matched');
+
+	$ret = $mic->fetch_hash($uidnext, 'BODY[2.HEADER]') or
+						BAIL_OUT "2.HEADER $@";
+	like($ret->{$uidnext}->{'BODY[2.HEADER]'},
+		qr/\ADate: Sat, 18 Apr 2020 22:20:20 /,
+		'2.HEADER of message/rfc822');
+
+	$ret = $mic->fetch_hash($uidnext, 'BODY[2.MIME]') or
+		BAIL_OUT "2.MIME $@";
+	is($ret->{$uidnext}->{'BODY[2.MIME]'}, <<EOF, 'BODY[2.MIME]');
+Content-Type: message/rfc822\r
+Content-Disposition: attachment; filename="embed2x\.eml"\r
+\r
+EOF
+}); # each_inbox
 
 $td->kill;
 $td->join;

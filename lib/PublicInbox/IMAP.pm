@@ -390,7 +390,9 @@ sub uid_fetch_cb { # called by git->cat_async
 		$self->msg_more(' BODYSTRUCTURE '.fetch_body($eml, 1));
 	$want->{BODY} and
 		$self->msg_more(' BODY '.fetch_body($eml));
-
+	if (my $partial = delete $want->{-partial}) {
+		partial_emit($self, $partial, $eml);
+	}
 	$self->msg_more(")\r\n");
 }
 
@@ -454,16 +456,158 @@ sub cmd_list ($$$$) {
 	\(join('', @$l, "$tag OK List complete\r\n"));
 }
 
+sub eml_index_offs_i { # PublicInbox::Eml::each_part callback
+	my ($p, $all) = @_;
+	my ($eml, undef, $idx) = @$p;
+	if ($idx && lc($eml->ct->{type}) eq 'multipart') {
+		$eml->{imap_bdy} = $eml->{bdy} // \'';
+	}
+	$all->{$idx} = $eml; # $idx => Eml
+}
+
+# prepares an index for BODY[$SECTION_IDX] fetches
+sub eml_body_idx ($$) {
+	my ($eml, $section_idx) = @_;
+	my $idx = $eml->{imap_all_parts} //= do {
+		my $all = {};
+		$eml->each_part(\&eml_index_offs_i, $all, 0, 1);
+		# top-level of multipart, BODY[0] not allowed (nz-number)
+		delete $all->{0};
+		$all;
+	};
+	$idx->{$section_idx};
+}
+
+# BODY[($SECTION_IDX)?(.$SECTION_NAME)?]<$offset.$bytes>
+sub partial_body {
+	my ($eml, $section_idx, $section_name) = @_;
+	if (defined $section_idx) {
+		$eml = eml_body_idx($eml, $section_idx) or return;
+	}
+	if (defined $section_name) {
+		if ($section_name eq 'MIME') {
+			# RFC 3501 6.4.5 states:
+			#	The MIME part specifier MUST be prefixed
+			#	by one or more numeric part specifiers
+			return unless defined $section_idx;
+			return $eml->header_obj->as_string . "\r\n";
+		}
+		my $bdy = $eml->{bdy} // $eml->{imap_bdy} // \'';
+		$eml = PublicInbox::Eml->new($$bdy);
+		if ($section_name eq 'TEXT') {
+			return $eml->body_raw;
+		} elsif ($section_name eq 'HEADER') {
+			return $eml->header_obj->as_string . "\r\n";
+		} else {
+			die "BUG: bad section_name=$section_name";
+		}
+	}
+	${$eml->{bdy} // $eml->{imap_bdy} // \''};
+}
+
+# similar to what's in PublicInbox::Eml::re_memo, but doesn't memoize
+# to avoid OOM with malicious users
+sub hdrs_regexp ($) {
+	my ($hdrs) = @_;
+	my $names = join('|', map { "\Q$_" } split(/[ \t]+/, $hdrs));
+	qr/^(?:$names):[ \t]*[^\n]*\r?\n # 1st line
+		# continuation lines:
+		(?:[^:\n]*?[ \t]+[^\n]*\r?\n)*
+		/ismx;
+}
+
+# BODY[($SECTION_IDX.)?HEADER.FIELDS.NOT ($HDRS)]<$offset.$bytes>
+sub partial_hdr_not {
+	my ($eml, $section_idx, $hdrs) = @_;
+	if (defined $section_idx) {
+		$eml = eml_body_idx($eml, $section_idx) or return;
+	}
+	my $str = $eml->header_obj->as_string;
+	my $re = hdrs_regexp($hdrs);
+	$str =~ s/$re//g;
+	$str .= "\r\n";
+}
+
+# BODY[($SECTION_IDX.)?HEADER.FIELDS ($HDRS)]<$offset.$bytes>
+sub partial_hdr_get {
+	my ($eml, $section_idx, $hdrs) = @_;
+	if (defined $section_idx) {
+		$eml = eml_body_idx($eml, $section_idx) or return;
+	}
+	my $str = $eml->header_obj->as_string;
+	my $re = hdrs_regexp($hdrs);
+	join('', ($str =~ m/($re)/g), "\r\n");
+}
+
+sub partial_prepare ($$$) {
+	my ($partial, $want, $att) = @_;
+
+	# recombine [ "BODY[1.HEADER.FIELDS", "(foo", "bar)]" ]
+	# back to: "BODY[1.HEADER.FIELDS (foo bar)]"
+	return unless $att =~ /\ABODY(?:\.PEEK)?\[/s;
+	until (rindex($att, ']') >= 0) {
+		my $next = shift @$want or return;
+		$att .= ' ' . uc($next);
+	}
+	if ($att =~ /\ABODY(?:\.PEEK)?\[
+				([0-9]+(?:\.[0-9]+)*)? # 1 - section_idx
+				(?:\.(HEADER|MIME|TEXT))? # 2 - section_name
+			\](?:<([0-9]+)(?:\.([0-9]+))?>)?\z/sx) { # 3, 4
+		$partial->{$att} = [ \&partial_body, $1, $2, $3, $4 ];
+	} elsif ($att =~ /\ABODY(?:\.PEEK)?\[
+				(?:([0-9]+(?:\.[0-9]+)*)\.)? # 1 - section_idx
+				(?:HEADER\.FIELDS(\.NOT)?)\x20 # 2
+				\(([A-Z0-9\-\x20]+)\) # 3 - hdrs
+			\](?:<([0-9]+)(?:\.([0-9]+))?>)?\z/sx) { # 4 5
+		$partial->{$att} = [ $2 ? \&partial_hdr_not
+					: \&partial_hdr_get,
+					$1, $3, $4, $5 ];
+	} else {
+		undef;
+	}
+}
+
+sub partial_emit ($$$) {
+	my ($self, $partial, $eml) = @_;
+	for my $k (sort keys %$partial) {
+		my ($cb, @args) = @{$partial->{$k}};
+		my ($offset, $len) = splice(@args, -2);
+		# $cb is partial_body|partial_hdr_get|partial_hdr_not
+		my $str = $cb->($eml, @args) // '';
+		if (defined $offset) {
+			if (defined $len) {
+				$str = substr($str, $offset, $len);
+				$k =~ s/\.$len>\z/>/ or warn
+"BUG: unable to remove `.$len>' from `$k'";
+			} else {
+				$str = substr($str, $offset);
+				$len = length($str);
+			}
+		} else {
+			$len = length($str);
+		}
+		$self->msg_more(" $k {$len}\r\n");
+		$self->msg_more($str);
+	}
+}
+
 sub cmd_uid_fetch ($$$;@) {
 	my ($self, $tag, $range, @want) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
 	if ($want[0] =~ s/\A\(//s) {
 		$want[-1] =~ s/\)\z//s or return "$tag BAD no rparen\r\n";
 	}
-	my %want = map {;
-		my $x = $FETCH_ATT{uc($_)} or return "$tag BAD param: $_\r\n";
-		%$x;
-	} @want;
+	my (%partial, %want);
+	while (defined(my $att = shift @want)) {
+		$att = uc($att);
+		my $x = $FETCH_ATT{$att};
+		if ($x) {
+			%want = (%want, %$x);
+		} elsif (!partial_prepare(\%partial, \@want, $att)) {
+			return "$tag BAD param: $att\r\n";
+		}
+	}
+	$want{-partial} = \%partial if scalar keys %partial;
 	my ($beg, $end);
 	my $msgs = [];
 	if ($range =~ /\A([0-9]+):([0-9]+)\z/s) {

@@ -266,6 +266,7 @@ t/httpd-https.t
 t/httpd-unix.t
 t/httpd.t
 t/hval.t
+t/imap.t
 t/imapd-tls.t
 t/imapd.t
 t/import.t
