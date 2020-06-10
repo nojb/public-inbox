@@ -237,7 +237,7 @@ sub mp_descend ($$) {
 sub each_part {
 	my ($self, $cb, $arg, $once, $all) = @_;
 	my $p = mp_descend($self, $once // 0) or
-					return $cb->([$self, 0, 0], $arg);
+					return $cb->([$self, 0, 1], $arg);
 
 	$cb->([$self, 0, 0], $arg) if ($all || $self->{-call_cb}); # rare
 

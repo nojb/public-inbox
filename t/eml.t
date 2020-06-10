@@ -169,7 +169,7 @@ EOF
 	is(scalar(@tmp), 1, 'got one part even w/o boundary');
 	is($tmp[0]->[0]->[0]->body, "hello world\n", 'body preserved');
 	is($tmp[0]->[0]->[1], 0, '$depth is zero');
-	is($tmp[0]->[0]->[2], 0, '@idx is zero');
+	is($tmp[0]->[0]->[2], 1, '@idx is one');
 }
 
 # I guess the following only worked in PI::M because of a happy accident

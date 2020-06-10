@@ -34,7 +34,7 @@ sub em_each_part ($$;$$) {
 			}
 		}
 	} else {
-		$cb->([$mime, 0, 0], $cb_arg);
+		$cb->([$mime, 0, 1], $cb_arg);
 	}
 }
 
