@@ -26,6 +26,7 @@ Documentation/public-inbox-convert.pod
 Documentation/public-inbox-daemon.pod
 Documentation/public-inbox-edit.pod
 Documentation/public-inbox-httpd.pod
+Documentation/public-inbox-imapd.pod
 Documentation/public-inbox-index.pod
 Documentation/public-inbox-init.pod
 Documentation/public-inbox-learn.pod
@@ -124,6 +125,9 @@ lib/PublicInbox/HTTPD.pm
 lib/PublicInbox/HTTPD/Async.pm
 lib/PublicInbox/HlMod.pm
 lib/PublicInbox/Hval.pm
+lib/PublicInbox/IMAP.pm
+lib/PublicInbox/IMAPD.pm
+lib/PublicInbox/IMAPdeflate.pm
 lib/PublicInbox/Import.pm
 lib/PublicInbox/Inbox.pm
 lib/PublicInbox/InboxWritable.pm
@@ -193,6 +197,7 @@ script/public-inbox-compact
 script/public-inbox-convert
 script/public-inbox-edit
 script/public-inbox-httpd
+script/public-inbox-imapd
 script/public-inbox-index
 script/public-inbox-init
 script/public-inbox-learn
@@ -257,6 +262,8 @@ t/httpd-https.t
 t/httpd-unix.t
 t/httpd.t
 t/hval.t
+t/imapd-tls.t
+t/imapd.t
 t/import.t
 t/inbox.t
 t/index-git-times.t

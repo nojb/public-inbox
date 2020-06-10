@@ -131,14 +131,20 @@ sub populate {
 my @DoW = qw(Sun Mon Tue Wed Thu Fri Sat);
 my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
-sub date ($) {
+sub date ($) { # for NNTP
 	my ($self) = @_;
 	my $ds = $self->{ds};
 	return unless defined $ds;
 	my ($sec, $min, $hour, $mday, $mon, $year, $wday) = gmtime($ds);
 	"$DoW[$wday], " . sprintf("%02d $MoY[$mon] %04d %02d:%02d:%02d +0000",
 				$mday, $year+1900, $hour, $min, $sec);
+}
 
+sub internaldate { # for IMAP
+	my ($self) = @_;
+	my ($sec, $min, $hour, $mday, $mon, $year) = gmtime($self->{ts} // 0);
+	sprintf("%02d-$MoY[$mon]-%04d %02d:%02d:%02d +0000",
+				$mday, $year+1900, $hour, $min, $sec);
 }
 
 our $REPLY_RE = qr/^re:\s+/i;

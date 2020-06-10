@@ -1,6 +1,6 @@
 # Copyright (C) 2015-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-# contains common daemon code for the nntpd and httpd servers.
+# contains common daemon code for the httpd, imapd, and nntpd servers.
 # This may be used for read-only IMAP server if we decide to implement it.
 package PublicInbox::Daemon;
 use strict;
@@ -29,8 +29,8 @@ my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
 my $reexec_pid;
 my ($uid, $gid);
 my ($default_cert, $default_key);
-my %KNOWN_TLS = ( 443 => 'https', 563 => 'nntps' );
-my %KNOWN_STARTTLS = ( 119 => 'nntp' );
+my %KNOWN_TLS = ( 443 => 'https', 563 => 'nntps', 993 => 'imaps' );
+my %KNOWN_STARTTLS = ( 119 => 'nntp', 143 => 'imap' );
 
 sub accept_tls_opt ($) {
 	my ($opt_str) = @_;
@@ -123,7 +123,7 @@ sub daemon_prepare ($) {
 			$tls_opt{"$scheme://$l"} = accept_tls_opt($1);
 		} elsif (defined($default_cert)) {
 			$tls_opt{"$scheme://$l"} = accept_tls_opt('');
-		} elsif ($scheme =~ /\A(?:nntps|https)\z/) {
+		} elsif ($scheme =~ /\A(?:https|imaps|imaps)\z/) {
 			die "$orig specified w/o cert=\n";
 		}
 		# TODO: use scheme to load either NNTP.pm or HTTP.pm
@@ -584,13 +584,13 @@ sub defer_accept ($$) {
 }
 
 sub daemon_loop ($$$$) {
-	my ($refresh, $post_accept, $nntpd, $af_default) = @_;
+	my ($refresh, $post_accept, $tlsd, $af_default) = @_;
 	my %post_accept;
 	while (my ($k, $v) = each %tls_opt) {
-		if ($k =~ s!\A(?:nntps|https)://!!) {
+		if ($k =~ s!\A(?:https|imaps|nntps)://!!) {
 			$post_accept{$k} = tls_start_cb($v, $post_accept);
-		} elsif ($nntpd) { # STARTTLS, $k eq '' is OK
-			$nntpd->{accept_tls} = $v;
+		} elsif ($tlsd) { # STARTTLS, $k eq '' is OK
+			$tlsd->{accept_tls} = $v;
 		}
 	}
 	my $sig = {
@@ -620,8 +620,8 @@ sub daemon_loop ($$$$) {
 	@listeners = map {;
 		my $tls_cb = $post_accept{sockname($_)};
 
-		# NNTPS, HTTPS, HTTP, and POP3S are client-first traffic
-		# NNTP and POP3 are server-first
+		# NNTPS, HTTPS, HTTP, IMAPS and POP3S are client-first traffic
+		# IMAP, NNTP and POP3 are server-first
 		defer_accept($_, $tls_cb ? 'dataready' : $af_default);
 
 		# this calls epoll_create:
@@ -639,12 +639,12 @@ sub daemon_loop ($$$$) {
 }
 
 sub run ($$$;$) {
-	my ($default, $refresh, $post_accept, $nntpd) = @_;
+	my ($default, $refresh, $post_accept, $tlsd) = @_;
 	local $SIG{PIPE} = 'IGNORE';
 	daemon_prepare($default);
 	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
 	my $for_destroy = daemonize();
-	daemon_loop($refresh, $post_accept, $nntpd, $af_default);
+	daemon_loop($refresh, $post_accept, $tlsd, $af_default);
 	PublicInbox::DS->Reset;
 	# ->DESTROY runs when $for_destroy goes out-of-scope
 }
