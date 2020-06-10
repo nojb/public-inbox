@@ -21,10 +21,35 @@ sub new {
 	}, $class;
 }
 
+sub refresh_inboxlist ($) {
+	my ($self) = @_;
+	my @names = map { $_->{newsgroup} } @{delete $self->{grouplist}};
+	my %ns; # "\Noselect \HasChildren"
+	for (@names) {
+		my $up = $_;
+		while ($up =~ s/\.[^\.]+\z//) {
+			$ns{$up} = '\\Noselect \\HasChildren';
+		}
+	}
+	@names = map {;
+		my $at = delete($ns{$_}) ? '\\HasChildren' : '\\HasNoChildren';
+		qq[* LIST ($at) "." $_\r\n]
+	} @names;
+	push(@names, map { qq[* LIST ($ns{$_}) "." $_\r\n] } keys %ns);
+	@names = sort {
+		my ($xa) = ($a =~ / (\S+)\r\n/g);
+		my ($xb) = ($b =~ / (\S+)\r\n/g);
+		length($xa) <=> length($xb);
+	} @names;
+	$self->{inboxlist} = \@names;
+}
+
 sub refresh_groups {
 	my ($self) = @_;
 	my $pi_config = $self->{pi_config} = PublicInbox::Config->new;
 	$self->SUPER::refresh_groups($pi_config);
+	refresh_inboxlist($self);
+
 	if (my $idler = $self->{idler}) {
 		$idler->refresh($pi_config);
 	}

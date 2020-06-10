@@ -336,6 +336,20 @@ sub cmd_status ($$$;@) {
 	"$tag OK Status complete\r\n";
 }
 
+my %patmap = ('*' => '.*', '%' => '[^\.]*');
+sub cmd_list ($$$$) {
+	my ($self, $tag, $refname, $wildcard) = @_;
+	my $l = $self->{imapd}->{inboxlist};
+	if ($refname eq '' && $wildcard eq '') {
+		# request for hierarchy delimiter
+		$l = [ qq[* LIST (\\Noselect) "." ""\r\n] ];
+	} elsif ($refname ne '' || $wildcard ne '*') {
+		$wildcard =~ s!([^a-z0-9_])!$patmap{$1} // "\Q$1"!eig;
+		$l = [ grep(/ \Q$refname\E$wildcard\r\n\z/s, @$l) ];
+	}
+	\(join('', @$l, "$tag OK List complete\r\n"));
+}
+
 sub cmd_uid_fetch ($$$;@) {
 	my ($self, $tag, $range, @want) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";

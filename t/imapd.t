@@ -87,6 +87,65 @@ like($raw[0], qr/\A\*\x20STATUS\x20inbox\.i1\x20
 	\(MESSAGES\x20\d+\x20UIDNEXT\x20\d+\x20UIDVALIDITY\x20\d+\)\r\n/sx);
 like($raw[1], qr/\A\S+ OK /, 'finished status response');
 
+@raw = $mic->list;
+like($raw[0], qr/^\* LIST \(.*?\) "\." inbox/,
+	'got an inbox');
+like($raw[-1], qr/^\S+ OK /, 'response ended with OK');
+is(scalar(@raw), scalar(@V) + 2, 'default LIST response');
+@raw = $mic->list('', 'inbox.i1');
+is(scalar(@raw), 2, 'limited LIST response');
+like($raw[0], qr/^\* LIST \(.*?\) "\." inbox/,
+		'got an inbox.i1');
+like($raw[-1], qr/^\S+ OK /, 'response ended with OK');
+
+{ # make sure we get '%' globbing right
+	my @n = map { { newsgroup => $_ } } (qw(x.y.z x.z.y));
+	my $self = { imapd => { grouplist => \@n } };
+	PublicInbox::IMAPD::refresh_inboxlist($self->{imapd});
+	my $res = PublicInbox::IMAP::cmd_list($self, 'tag', 'x', '%');
+	is(scalar($$res =~ tr/\n/\n/), 2, 'only one result');
+	like($$res, qr/ x\r\ntag OK/, 'saw expected');
+	$res = PublicInbox::IMAP::cmd_list($self, 'tag', 'x.', '%');
+	is(scalar($$res =~ tr/\n/\n/), 3, 'only one result');
+	is(scalar(my @x = ($$res =~ m/ x\.[zy]\r\n/g)), 2, 'match expected');
+
+	$res = PublicInbox::IMAP::cmd_list($self, 't', 'x.(?{die "RCE"})', '%');
+	like($$res, qr/\At OK /, 'refname does not match attempted RCE');
+	$res = PublicInbox::IMAP::cmd_list($self, 't', '', '(?{die "RCE"})%');
+	like($$res, qr/\At OK /, 'wildcard does not match attempted RCE');
+}
+
+if ($ENV{TEST_BENCHMARK}) {
+	use Benchmark qw(:all);
+	my @n = map { { newsgroup => "inbox.comp.foo.bar.$_" } } (0..50000);
+	push @n, map { { newsgroup => "xobni.womp.foo.bar.$_" } } (0..50000);
+	my $self = { imapd => { grouplist => \@n } };
+	PublicInbox::IMAPD::refresh_inboxlist($self->{imapd});
+
+	my $n = scalar @n;
+	open my $null, '>', '/dev/null' or die;
+	my $ds = { sock => $null };
+	my $nr = 200;
+	diag "starting benchmark...";
+	my $t = timeit(1, sub {
+		for (0..$nr) {
+			my $res = PublicInbox::IMAP::cmd_list($self, 'tag',
+								'', '*');
+			PublicInbox::DS::write($ds, $res);
+		}
+	});
+	diag timestr($t). "list all for $n inboxes $nr times";
+	$nr = 20;
+	$t = timeit(1, sub {
+		for (0..$nr) {
+			my $res = PublicInbox::IMAP::cmd_list($self, 'tag',
+								'inbox.', '%');
+			PublicInbox::DS::write($ds, $res);
+		}
+	});
+	diag timestr($t). "list partial for $n inboxes $nr times";
+}
+
 my $ret = $mic->search('all') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search all works');
 $ret = $mic->search('uid 1') or BAIL_OUT "SEARCH FAIL $@";
