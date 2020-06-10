@@ -80,6 +80,9 @@ my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 my %MoY;
 @MoY{@MoY} = (0..11);
 
+# RFC 3501 5.4. Autologout Timer needs to be >= 30min
+$PublicInbox::DS::EXPTIME = 60 * 30;
+
 sub greet ($) {
 	my ($self) = @_;
 	my $capa = capa($self);
