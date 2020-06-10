@@ -544,25 +544,23 @@ sub hdrs_regexp ($) {
 
 # BODY[($SECTION_IDX.)?HEADER.FIELDS.NOT ($HDRS)]<$offset.$bytes>
 sub partial_hdr_not {
-	my ($eml, $section_idx, $hdrs) = @_;
+	my ($eml, $section_idx, $hdrs_re) = @_;
 	if (defined $section_idx) {
 		$eml = eml_body_idx($eml, $section_idx) or return;
 	}
 	my $str = $eml->header_obj->as_string;
-	my $re = hdrs_regexp($hdrs);
-	$str =~ s/$re//g;
+	$str =~ s/$hdrs_re//g;
 	$str .= "\r\n";
 }
 
 # BODY[($SECTION_IDX.)?HEADER.FIELDS ($HDRS)]<$offset.$bytes>
 sub partial_hdr_get {
-	my ($eml, $section_idx, $hdrs) = @_;
+	my ($eml, $section_idx, $hdrs_re) = @_;
 	if (defined $section_idx) {
 		$eml = eml_body_idx($eml, $section_idx) or return;
 	}
 	my $str = $eml->header_obj->as_string;
-	my $re = hdrs_regexp($hdrs);
-	join('', ($str =~ m/($re)/g), "\r\n");
+	join('', ($str =~ m/($hdrs_re)/g), "\r\n");
 }
 
 sub partial_prepare ($$$) {
@@ -583,9 +581,10 @@ sub partial_prepare ($$$) {
 				(?:HEADER\.FIELDS(\.NOT)?)\x20 # 2
 				\(([A-Z0-9\-\x20]+)\) # 3 - hdrs
 			\](?:<([0-9]+)(?:\.([0-9]+))?>)?\z/sx) { # 4 5
-		$partial->{$att} = [ $2 ? \&partial_hdr_not
-					: \&partial_hdr_get,
-					$1, $3, $4, $5 ];
+		my $tmp = $partial->{$att} = [ $2 ? \&partial_hdr_not
+						: \&partial_hdr_get,
+						$1, undef, $4, $5 ];
+		$tmp->[2] = hdrs_regexp($3);
 	} else {
 		undef;
 	}
