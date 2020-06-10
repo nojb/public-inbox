@@ -487,6 +487,14 @@ sub uid_fetch_cb { # called by git->cat_async via git_async_cat
 	requeue_once($self);
 }
 
+sub uid_clamp ($$$) {
+	my ($self, $beg, $end) = @_;
+	my $uid_min = $self->{uid_min} or return;
+	my $uid_end = $uid_min + UID_BLOCK - 1;
+	$$beg = $uid_min if $$beg < $uid_min;
+	$$end = $uid_end if $$end > $uid_end;
+}
+
 sub range_step ($$) {
 	my ($self, $range_csv) = @_;
 	my ($beg, $end, $range);
@@ -501,6 +509,8 @@ sub range_step ($$) {
 	} elsif ($range =~ /\A([0-9]+):\*\z/) {
 		$beg = $1 + 0;
 		$end = $self->{ibx}->mm->max // 0;
+		my $uid_end = ($self->{uid_min} // 1) - 1 + UID_BLOCK;
+		$end = $uid_end if $end > $uid_end;
 		$beg = $end if $beg > $end;
 	} elsif ($range =~ /\A[0-9]+\z/) {
 		$beg = $end = $range + 0;
@@ -508,11 +518,7 @@ sub range_step ($$) {
 	} else {
 		return 'BAD fetch range';
 	}
-	if (defined($range) && (my $uid_min = $self->{uid_min})) {
-		my $uid_end = $uid_min + UID_BLOCK - 1;
-		$beg = $uid_min if $beg < $uid_min;
-		$end = $uid_end if $end > $uid_end;
-	}
+	uid_clamp($self, \$beg, \$end) if defined($range);
 	[ $beg, $end, $$range_csv ];
 }
 
@@ -804,17 +810,6 @@ sub parse_date ($) { # 02-Oct-1993
 	timegm(0, 0, 0, $dd, $mm, $yyyy);
 }
 
-sub uid_search_all { # long_response
-	my ($self, $tag, $num) = @_;
-	my $uids = $self->{ibx}->mm->ids_after($num);
-	if (scalar(@$uids)) {
-		$self->msg_more(join(' ', '', @$uids));
-	} else {
-		$self->write(\"\r\n$tag OK Search done\r\n");
-		undef;
-	}
-}
-
 sub uid_search_uid_range { # long_response
 	my ($self, $tag, $beg, $end) = @_;
 	my $uids = $self->{ibx}->mm->msg_range($beg, $end, 'num');
@@ -944,12 +939,15 @@ sub cmd_uid_search ($$$;) {
 
 	if (!scalar(keys %$q)) {
 		$self->msg_more('* SEARCH');
-		my $num = 0;
-		long_response($self, \&uid_search_all, $tag, \$num);
+		my $beg = $self->{uid_min} // 1;
+		my $end = $ibx->mm->max;
+		uid_clamp($self, \$beg, \$end);
+		long_response($self, \&uid_search_uid_range, $tag, \$beg, $end);
 	} elsif (my $uid = $q->{uid}) {
 		if ($uid =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
 			my ($beg, $end) = ($1, $2);
 			$end = $ibx->mm->max if $end eq '*';
+			uid_clamp($self, \$beg, \$end);
 			$self->msg_more('* SEARCH');
 			long_response($self, \&uid_search_uid_range,
 					$tag, \$beg, $end);
