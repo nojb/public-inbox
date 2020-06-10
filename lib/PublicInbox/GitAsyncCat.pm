@@ -30,7 +30,7 @@ sub event_step {
 	my $inflight = $git->{inflight};
 	if (@$inflight) {
 		$git->cat_async_step($inflight);
-		$self->requeue if @$inflight || length(${$git->{'--batch'}});
+		$self->requeue if @$inflight || exists $git->{cat_rbuf};
 	}
 }
 
