@@ -59,6 +59,16 @@ sub do_read ($$$$) {
 	$doff = length($dbuf);
 	my $r = PublicInbox::DS::do_read($self, \$dbuf, $len, $doff) or return;
 
+	# Workaround inflate bug appending to OOK scalars:
+	# <https://rt.cpan.org/Ticket/Display.html?id=132734>
+	# We only have $off if the client is pipelining, and pipelining
+	# is where our substr() OOK optimization in event_step makes sense.
+	if ($off) {
+		my $copy = $$rbuf;
+		undef $$rbuf;
+		$$rbuf = $copy;
+	}
+
 	# assert(length($$rbuf) == $off) as far as NNTP.pm is concerned
 	# -ConsumeInput is true, so $dbuf is automatically emptied
 	my $err = $zin->inflate($dbuf, $rbuf);
