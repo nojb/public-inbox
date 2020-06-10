@@ -53,7 +53,7 @@ use_ok 'PublicInbox::Git';
 	is_deeply([$oid_hex, $type, $size], \@x, 'got expected header');
 	is($arg_res, $arg, 'arg passed to cat_async');
 	is_deeply($raw, $bref, 'blob result matches');
-	is_deeply($missing, [ undef, undef, undef, undef, $arg],
+	is_deeply($missing, [ undef, 'non-existent', 'missing', undef, $arg],
 		'non-existent blob gives expected result');
 }
 

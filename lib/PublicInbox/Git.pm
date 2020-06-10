@@ -20,7 +20,7 @@ use Errno qw(EINTR);
 our $PIPE_BUFSIZ = 65536; # Linux default
 
 use constant MAX_INFLIGHT =>
-	(($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF()) * 2)
+	(($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF()) * 3)
 	/
 	65; # SHA-256 hex size + "\n" in preparation for git using non-SHA1
 
@@ -157,8 +157,8 @@ sub my_readline ($$) {
 
 sub cat_async_step ($$) {
 	my ($self, $inflight) = @_;
-	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 2;
-	my ($cb, $arg) = splice(@$inflight, 0, 2);
+	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 3;
+	my ($req, $cb, $arg) = splice(@$inflight, 0, 3);
 	my $rbuf = delete($self->{cat_rbuf}) // \(my $new = '');
 	my ($bref, $oid, $type, $size);
 	my $head = my_readline($self->{in}, $rbuf);
@@ -167,7 +167,10 @@ sub cat_async_step ($$) {
 		$bref = my_read($self->{in}, $rbuf, $size + 1) or
 			fail($self, defined($bref) ? 'read EOF' : "read: $!");
 		chop($$bref) eq "\n" or fail($self, 'LF missing after blob');
-	} elsif ($head !~ / missing$/) {
+	} elsif ($head =~ / missing$/) {
+		$type = 'missing';
+		$oid = $req;
+	} else {
 		fail($self, "Unexpected result from async git cat-file: $head");
 	}
 	eval { $cb->($bref, $oid, $type, $size, $arg) };
@@ -344,7 +347,7 @@ sub cat_async ($$$;$) {
 	}
 
 	print { $self->{out} } $oid, "\n" or fail($self, "write error: $!");
-	push(@$inflight, $cb, $arg);
+	push(@$inflight, $oid, $cb, $arg);
 }
 
 sub extract_cmt_time {
