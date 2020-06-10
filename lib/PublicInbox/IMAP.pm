@@ -160,6 +160,7 @@ sub cmd_idle ($$) {
 	# IDLE seems allowed by dovecot w/o a mailbox selected *shrug*
 	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
 	$ibx->subscribe_unlock(fileno($self->{sock}), $self);
+	$self->{imapd}->idler_start;
 	$self->{-idle_tag} = $tag;
 	$self->{-idle_max} = $ibx->mm->max // 0;
 	"+ idling\r\n"

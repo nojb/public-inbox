@@ -16,18 +16,22 @@ sub new {
 		out => \*STDOUT,
 		grouplist => [],
 		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
+		# pi_config => PublicInbox::Config
 		# idler => PublicInbox::InboxIdle
 	}, $class;
 }
 
 sub refresh_groups {
 	my ($self) = @_;
-	if (my $old_idler = delete $self->{idler}) {
-		$old_idler->close; # PublicInbox::DS::close
-	}
-	my $pi_config = PublicInbox::Config->new;
-	$self->{idler} = PublicInbox::InboxIdle->new($pi_config);
+	my $pi_config = $self->{pi_config} = PublicInbox::Config->new;
 	$self->SUPER::refresh_groups($pi_config);
+	if (my $idler = $self->{idler}) {
+		$idler->refresh($pi_config);
+	}
+}
+
+sub idler_start {
+	$_[0]->{idler} //= PublicInbox::InboxIdle->new($_[0]->{pi_config});
 }
 
 1;

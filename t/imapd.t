@@ -6,6 +6,7 @@ use Test::More;
 use Time::HiRes ();
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
+use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite Mail::IMAPClient Linux::Inotify2));
 my $level = '-Lbasic';
 SKIP: {
@@ -141,9 +142,12 @@ is_deeply([$mic->has_capability('COMPRESS')], ['DEFLATE'], 'deflate cap');
 ok($mic->compress, 'compress enabled');
 $compress_logout->($mic);
 
+my $have_inotify = eval { require Linux::Inotify2; 1 };
+
 my $pi_config = PublicInbox::Config->new;
 $pi_config->each_inbox(sub {
 	my ($ibx) = @_;
+	my $env = { ORIGINAL_RECIPIENT => $ibx->{-primary_address} };
 	my $name = $ibx->{name};
 	my $ng = $ibx->{newsgroup};
 	my $mic = Mail::IMAPClient->new(%mic_opt);
@@ -154,12 +158,62 @@ $pi_config->each_inbox(sub {
 	ok($mic->idle, "IDLE succeeds on $ng");
 
 	open(my $fh, '<', 't/data/message_embed.eml') or BAIL_OUT("open: $!");
-	my $env = { ORIGINAL_RECIPIENT => $ibx->{-primary_address} };
 	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
 		BAIL_OUT('-mda delivery');
 	my $t0 = Time::HiRes::time();
 	ok(my @res = $mic->idle_data(11), "IDLE succeeds on $ng");
-	ok(grep(/\A\* [0-9] EXISTS\b/, @res), 'got EXISTS message');
+	is(grep(/\A\* [0-9] EXISTS\b/, @res), 1, 'got EXISTS message');
+	ok((Time::HiRes::time() - $t0) < 10, 'IDLE client notified');
+
+	my (@ino_info, $ino_fdinfo);
+	SKIP: {
+		skip 'no inotify support', 1 unless $have_inotify;
+		skip 'missing /proc/$PID/fd', 1 if !-d "/proc/$td->{pid}/fd";
+		my @ino = grep {
+			readlink($_) =~ /\binotify\b/
+		} glob("/proc/$td->{pid}/fd/*");
+		is(scalar(@ino), 1, 'only one inotify FD');
+		my $ino_fd = (split('/', $ino[0]))[-1];
+		$ino_fdinfo = "/proc/$td->{pid}/fdinfo/$ino_fd";
+		if (open my $fh, '<', $ino_fdinfo) {
+			local $/ = "\n";
+			@ino_info = grep(/^inotify wd:/, <$fh>);
+			ok(scalar(@ino_info), 'inotify has watches');
+		} else {
+			skip "$ino_fdinfo missing: $!", 1;
+		}
+	};
+
+	# ensure IDLE persists across HUP, w/o extra watches or FDs
+	$td->kill('HUP') or BAIL_OUT "failed to kill -imapd: $!";
+	SKIP: {
+		skip 'no inotify fdinfo (or support)', 2 if !@ino_info;
+		my (@tmp, %prev);
+		local $/ = "\n";
+		my $end = time + 5;
+		until (time > $end) {
+			select undef, undef, undef, 0.01;
+			open my $fh, '<', $ino_fdinfo or
+						BAIL_OUT "$ino_fdinfo: $!";
+			%prev = map { $_ => 1 } @ino_info;
+			@tmp = grep(/^inotify wd:/, <$fh>);
+			if (scalar(@tmp) == scalar(@ino_info)) {
+				delete @prev{@tmp};
+				last if scalar(keys(%prev)) == @ino_info;
+			}
+		}
+		is(scalar @tmp, scalar @ino_info,
+			'old inotify watches replaced');
+		is(scalar keys %prev, scalar @ino_info,
+			'no previous watches overlap');
+	};
+
+	open($fh, '<', 't/data/0001.patch') or BAIL_OUT("open: $!");
+	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
+		BAIL_OUT('-mda delivery');
+	$t0 = Time::HiRes::time();
+	ok(@res = $mic->idle_data(11), "IDLE succeeds on $ng after HUP");
+	is(grep(/\A\* [0-9] EXISTS\b/, @res), 1, 'got EXISTS message');
 	ok((Time::HiRes::time() - $t0) < 10, 'IDLE client notified');
 });
 
