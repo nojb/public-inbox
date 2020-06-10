@@ -16,6 +16,8 @@ use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::Tmpfile;
 use base qw(Exporter);
 our @EXPORT_OK = qw(git_unquote git_quote);
+use Errno qw(EINTR);
+our $PIPE_BUFSIZ = 65536; # Linux default
 
 use constant MAX_INFLIGHT =>
 	(($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF()) * 2)
@@ -121,32 +123,54 @@ sub _bidi_pipe {
 		fcntl($out_w, 1031, 4096);
 		fcntl($in_r, 1031, 4096) if $batch eq '--batch-check';
 	}
+	$self->{$batch} = \(my $rbuf = '');
 	$self->{$out} = $out_w;
 	$self->{$in} = $in_r;
 }
 
-sub read_cat_in_full ($$) {
-	my ($self, $len) = @_;
-	++$len; # for final "\n" added by git
-	read($self->{in}, my $buf, $len) == $len or fail($self, 'short read');
-	chop($buf) eq "\n" or fail($self, 'newline missing after blob');
-	\$buf;
+sub my_read ($$$) {
+	my ($fh, $rbuf, $len) = @_;
+	my $left = $len - length($$rbuf);
+	my $r;
+	while ($left > 0) {
+		$r = sysread($fh, $$rbuf, $PIPE_BUFSIZ, length($$rbuf));
+		if ($r) {
+			$left -= $r;
+		} else {
+			next if (!defined($r) && $! == EINTR);
+			return $r;
+		}
+	}
+	\substr($$rbuf, 0, $len, '');
+}
+
+sub my_readline ($$) {
+	my ($fh, $rbuf) = @_;
+	while (1) {
+		if ((my $n = index($$rbuf, "\n")) >= 0) {
+			return substr($$rbuf, 0, $n + 1, '');
+		}
+		my $r = sysread($fh, $$rbuf, $PIPE_BUFSIZ, length($$rbuf));
+		next if $r || (!defined($r) && $! == EINTR);
+		return defined($r) ? '' : undef; # EOF or error
+	}
 }
 
 sub _cat_async_step ($$) {
 	my ($self, $inflight) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 2;
 	my ($cb, $arg) = splice(@$inflight, 0, 2);
-	local $/ = "\n";
-	my $head = readline($self->{in});
+	my $head = my_readline($self->{in}, $self->{'--batch'});
 	$head =~ / missing$/ and return
 		eval { $cb->(undef, undef, undef, undef, $arg) };
 
 	$head =~ /^([0-9a-f]{40}) (\S+) ([0-9]+)$/ or
 		fail($self, "Unexpected result from async git cat-file: $head");
 	my ($oid_hex, $type, $size) = ($1, $2, $3 + 0);
-	my $bref = read_cat_in_full($self, $size);
-	eval { $cb->($bref, $oid_hex, $type, $size, $arg) };
+	my $ret = my_read($self->{in}, $self->{'--batch'}, $size + 1);
+	fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
+	chop($$ret) eq "\n" or fail($self, 'newline missing after blob');
+	eval { $cb->($ret, $oid_hex, $type, $size, $arg) };
 	warn "E: $oid_hex $@\n" if $@;
 }
 
@@ -158,16 +182,18 @@ sub cat_async_wait ($) {
 	}
 }
 
+sub batch_prepare ($) {
+	_bidi_pipe($_[0], qw(--batch in out pid));
+}
+
 sub cat_file {
-	my ($self, $obj, $ref) = @_;
+	my ($self, $obj, $sizeref) = @_;
 	my ($retried, $head);
 	cat_async_wait($self);
 again:
 	batch_prepare($self);
 	print { $self->{out} } $obj, "\n" or fail($self, "write error: $!");
-
-	local $/ = "\n";
-	$head = readline($self->{in});
+	$head = my_readline($self->{in}, $self->{'--batch'});
 	if ($head =~ / missing$/) {
 		if (!$retried && alternates_changed($self)) {
 			$retried = 1;
@@ -179,19 +205,19 @@ again:
 	$head =~ /^[0-9a-f]{40} \S+ ([0-9]+)$/ or
 		fail($self, "Unexpected result from git cat-file: $head");
 
-	my $size = $1;
-	$$ref = $size if $ref;
-	read_cat_in_full($self, $size);
+	my $size = $1 + 0;
+	$$sizeref = $size if $sizeref;
+	my $ret = my_read($self->{in}, $self->{'--batch'}, $size + 1);
+	fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
+	chop($$ret) eq "\n" or fail($self, 'newline missing after blob');
+	$ret;
 }
-
-sub batch_prepare ($) { _bidi_pipe($_[0], qw(--batch in out pid)) }
 
 sub check {
 	my ($self, $obj) = @_;
 	_bidi_pipe($self, qw(--batch-check in_c out_c pid_c err_c));
 	print { $self->{out_c} } $obj, "\n" or fail($self, "write error: $!");
-	local $/ = "\n";
-	chomp(my $line = readline($self->{in_c}));
+	chomp(my $line = my_readline($self->{in_c}, $self->{'--batch-check'}));
 	my ($hex, $type, $size) = split(' ', $line);
 
 	# Future versions of git.git may show 'ambiguous', but for now,
@@ -201,9 +227,9 @@ sub check {
 	return if $type eq 'missing' || $type eq 'ambiguous';
 
 	if ($hex eq 'dangling' || $hex eq 'notdir' || $hex eq 'loop') {
-		$size = $type + length("\n");
-		my $r = read($self->{in_c}, my $buf, $size);
-		defined($r) or fail($self, "read failed: $!");
+		my $ret = my_read($self->{in_c}, $self->{'--batch-check'},
+				$type + 1);
+		fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
 		return;
 	}
 
@@ -211,9 +237,9 @@ sub check {
 }
 
 sub _destroy {
-	my ($self, $in, $out, $pid, $err) = @_;
+	my ($self, $batch, $in, $out, $pid, $err) = @_;
 	my $p = delete $self->{$pid} or return;
-	delete @$self{($in, $out)};
+	delete @$self{($batch, $in, $out)};
 	delete $self->{$err} if $err; # `err_c'
 
 	# PublicInbox::DS may not be loaded
@@ -251,8 +277,8 @@ sub qx {
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
 	my ($self) = @_;
-	_destroy($self, qw(in out pid));
-	_destroy($self, qw(in_c out_c pid_c err_c));
+	_destroy($self, qw(--batch in out pid));
+	_destroy($self, qw(--batch-check in_c out_c pid_c err_c));
 	!!($self->{pid} || $self->{pid_c});
 }
 
