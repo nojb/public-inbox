@@ -7,6 +7,8 @@ package PublicInbox::IMAPD;
 use strict;
 use parent qw(PublicInbox::NNTPD);
 use PublicInbox::InboxIdle;
+use PublicInbox::IMAP;
+# *UID_BLOCK = \&PublicInbox::IMAP::UID_BLOCK;
 
 sub new {
 	my ($class) = @_;
@@ -51,14 +53,61 @@ sub refresh_inboxlist ($) {
 	$self->{inboxlist} = \@names;
 }
 
-sub refresh_groups {
-	my ($self) = @_;
-	my $pi_config = $self->{pi_config} = PublicInbox::Config->new;
-	$self->SUPER::refresh_groups($pi_config);
-	refresh_inboxlist($self);
+sub imapd_refresh_ibx { # pi_config->each_inbox cb
+	my ($ibx, $imapd) = @_;
+	my $ngname = $ibx->{newsgroup} or return;
+	if (ref $ngname) {
+		warn 'multiple newsgroups not supported: '.
+			join(', ', @$ngname). "\n";
+	} elsif ($ngname =~ m![^a-z0-9/_\.\-\~\@\+\=:]! ||
+		 $ngname =~ /\.[0-9]+-[0-9]+\z/) {
+		warn "mailbox name invalid: `$ngname'\n";
+	}
 
-	if (my $idler = $self->{idler}) {
+	my $mm = $ibx->mm or return;
+	$ibx->{mm} = undef;
+	defined($ibx->{uidvalidity} = $mm->created_at) or return;
+	$imapd->{tmp_groups}->{$ngname} = $ibx;
+
+	# preload to avoid fragmentation:
+	$ibx->description;
+	$ibx->base_url;
+	# my $max = $mm->max // 0;
+	# my $uid_min = UID_BLOCK * int($max/UID_BLOCK) + 1;
+}
+
+sub imapd_refresh_finalize {
+	my ($imapd, $pi_config) = @_;
+	$imapd->{groups} = delete $imapd->{tmp_groups};
+	$imapd->{grouplist} = [ values %{$imapd->{groups}} ];
+	refresh_inboxlist($imapd);
+	$imapd->{pi_config} = $pi_config;
+	if (my $idler = $imapd->{idler}) {
 		$idler->refresh($pi_config);
+	}
+}
+
+sub imapd_refresh_step { # pi_config->iterate_start cb
+	my ($pi_config, $section, $imapd) = @_;
+	if (defined($section)) {
+		return if $section !~ m!\Apublicinbox\.([^/]+)\z!;
+		my $ibx = $pi_config->lookup_name($1) or return;
+		imapd_refresh_ibx($ibx, $imapd);
+	} else { # "EOF"
+		imapd_refresh_finalize($imapd, $pi_config);
+	}
+}
+
+sub refresh_groups {
+	my ($self, $sig) = @_;
+	my $pi_config = PublicInbox::Config->new;
+	$self->{tmp_groups} = {};
+	if (0 && $sig) { # SIGHUP
+		$pi_config->iterate_start(\&imapd_refresh_step, $self);
+		PublicInbox::DS::requeue($pi_config); # call event_step
+	} else { # initial start
+		$pi_config->each_inbox(\&imapd_refresh_ibx, $self);
+		imapd_refresh_finalize($self, $pi_config);
 	}
 }
 

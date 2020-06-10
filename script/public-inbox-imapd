@@ -9,6 +9,6 @@ use PublicInbox::IMAPdeflate; # loads PublicInbox::IMAP
 use PublicInbox::IMAPD;
 my $imapd = PublicInbox::IMAPD->new;
 PublicInbox::Daemon::run('0.0.0.0:143',
-	sub { $imapd->refresh_groups }, # refresh
+	sub { $imapd->refresh_groups(@_) }, # refresh
 	sub ($$$) { PublicInbox::IMAP->new($_[0], $imapd) }, # post_accept
 	$imapd);
