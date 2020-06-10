@@ -455,11 +455,13 @@ sub range_step ($$) {
 		$$range_csv = undef;
 	}
 	if ($range =~ /\A([0-9]+):([0-9]+)\z/) {
-		($beg, $end) = ($1, $2);
+		($beg, $end) = ($1 + 0, $2 + 0);
 	} elsif ($range =~ /\A([0-9]+):\*\z/) {
-		($beg, $end) =  ($1, $ibx->mm->max // 0);
+		$beg = $1 + 0;
+		$end = $ibx->mm->max // 0;
+		$beg = $end if $beg > $end;
 	} elsif ($range =~ /\A[0-9]+\z/) {
-		$beg = $end = $range;
+		$beg = $end = $range + 0;
 	} else {
 		return 'BAD fetch range';
 	}

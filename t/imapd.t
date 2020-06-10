@@ -116,6 +116,19 @@ $ret = $mic->search('uid 1:*') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search UID 1:* works');
 
 is_deeply(scalar $mic->flags('1'), [], '->flags works');
+{
+	# RFC 3501 section 6.4.8 states:
+	# Also note that a UID range of 559:* always includes the
+	# UID of the last message in the mailbox, even if 559 is
+	# higher than any assigned UID value.
+	my $exp = $mic->fetch_hash(1, 'UID');
+	$ret = $mic->fetch_hash('559:*', 'UID');
+	is_deeply($ret, $exp, 'beginning range too big');
+	for my $r (qw(559:558 558:559)) {
+		$ret = $mic->fetch_hash($r, 'UID');
+		is_deeply($ret, {}, "out-of-range UID FETCH $r");
+	}
+}
 
 for my $r ('1:*', '1') {
 	$ret = $mic->fetch_hash($r, 'RFC822') or BAIL_OUT "FETCH $@";
