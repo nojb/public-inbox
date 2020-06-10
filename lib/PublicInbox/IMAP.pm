@@ -475,12 +475,12 @@ sub requeue_once ($) {
 	$self->requeue if $new_size == 1;
 }
 
-# my ($uid_base, $UID) = @_;
-sub fetch_msn_uid ($$) { '* '.($_[1] - $_[0]).' FETCH (UID '.$_[1] }
+# my ($msn, $UID) = @_;
+sub fetch_msn_uid ($$) { '* '.(${$_[0]}++).' FETCH (UID '.$_[1] }
 
 sub fetch_run_ops {
-	my ($self, $uid_base, $smsg, $bref, $ops, $partial) = @_;
-	$self->msg_more(fetch_msn_uid($uid_base, $smsg->{num}));
+	my ($self, $msn, $smsg, $bref, $ops, $partial) = @_;
+	$self->msg_more(fetch_msn_uid($msn, $smsg->{num}));
 	my ($eml, $k);
 	for (my $i = 0; $i < @$ops;) {
 		$k = $ops->[$i++];
@@ -492,7 +492,7 @@ sub fetch_run_ops {
 
 sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	my ($bref, $oid, $type, $size, $fetch_arg) = @_;
-	my ($self, undef, $msgs, undef, $ops, $partial) = @$fetch_arg;
+	my ($self, undef, $msgs, $range_info, $ops, $partial) = @$fetch_arg;
 	my $smsg = shift @$msgs or die 'BUG: no smsg';
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
@@ -501,7 +501,7 @@ sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
-	fetch_run_ops($self, $self->{uid_base}, $smsg, $bref, $ops, $partial);
+	fetch_run_ops($self, $range_info->[3], $smsg, $bref, $ops, $partial);
 	requeue_once($self);
 }
 
@@ -601,7 +601,8 @@ sub range_step ($$) {
 		return 'BAD fetch range';
 	}
 	uid_clamp($self, \$beg, \$end) if defined($range);
-	[ $beg, $end, $$range_csv ];
+	my $msn = $beg - $self->{uid_base};
+	[ $beg, $end, $$range_csv, \$msn ];
 }
 
 sub refill_range ($$$) {
@@ -638,8 +639,7 @@ sub fetch_smsg { # long_response
 			return;
 		}
 	}
-	my $uid_base = $self->{uid_base};
-	fetch_run_ops($self, $uid_base, $_, undef, $ops) for @$msgs;
+	fetch_run_ops($self, $range_info->[3], $_, undef, $ops) for @$msgs;
 	@$msgs = ();
 	1; # more
 }
@@ -665,10 +665,10 @@ sub fetch_uid { # long_response
 		}
 		# continue looping
 	}
-	my $uid_base = $self->{uid_base};
 	my ($i, $k);
+	my $msn = $range_info->[3];
 	for (@$uids) {
-		$self->msg_more(fetch_msn_uid($uid_base, $_));
+		$self->msg_more(fetch_msn_uid($msn, $_));
 		for ($i = 0; $i < @$ops;) {
 			$k = $ops->[$i++];
 			$ops->[$i++]->($self, $k);

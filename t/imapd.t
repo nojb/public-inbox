@@ -349,8 +349,8 @@ is(scalar keys %$ret, 3, 'got all 3 messages');
 }
 my $r2 = $mic->fetch_hash('1:*', 'BODY.PEEK[]') or BAIL_OUT "FETCH $@";
 is(scalar keys %$r2, 2, 'did not get all 3 messages');
-is($r2->{2}->{'BODY[]'}, $ret->{2}->{RFC822}, 'message 2 unchanged');
-is($r2->{3}->{'BODY[]'}, $ret->{3}->{RFC822}, 'message 3 unchanged');
+is($r2->{1}->{'BODY[]'}, $ret->{2}->{RFC822}, 'message 2 unchanged');
+is($r2->{2}->{'BODY[]'}, $ret->{3}->{RFC822}, 'message 3 unchanged');
 $r2 = $mic->fetch_hash(2, 'BODY.PEEK[HEADER.FIELDS (message-id)]')
 			or BAIL_OUT "FETCH $@";
 is($r2->{2}->{'BODY[HEADER.FIELDS (MESSAGE-ID)]'},
