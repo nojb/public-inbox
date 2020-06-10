@@ -24,6 +24,8 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::GitAsyncCat;
 use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
+use Time::Local qw(timegm);
+use POSIX qw(strftime);
 
 my $Address;
 for my $mod (qw(Email::Address::XS Mail::Address)) {
@@ -66,6 +68,10 @@ for my $att (keys %FETCH_ATT) {
 
 my $valid_range = '[0-9]+|[0-9]+:[0-9]+|[0-9]+:\*';
 $valid_range = qr/\A(?:$valid_range)(?:,(?:$valid_range))*\z/;
+
+my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+my %MoY;
+@MoY{@MoY} = (0..11);
 
 sub greet ($) {
 	my ($self) = @_;
@@ -787,6 +793,17 @@ sub cmd_fetch ($$$;@) {
 	} : $args; # error
 }
 
+
+sub parse_date ($) { # 02-Oct-1993
+	my ($date_text) = @_;
+	my ($dd, $mon, $yyyy) = split(/-/, $_[0], 3);
+	defined($yyyy) or return;
+	my $mm = $MoY{$mon} // return;
+	$dd =~ /\A[0123]?[0-9]\z/ or return;
+	$yyyy =~ /\A[0-9]{4,}\z/ or return; # Y10K-compatible!
+	timegm(0, 0, 0, $dd, $mm, $yyyy);
+}
+
 sub uid_search_all { # long_response
 	my ($self, $tag, $num) = @_;
 	my $uids = $self->{ibx}->mm->ids_after($num);
@@ -809,23 +826,134 @@ sub uid_search_uid_range { # long_response
 	}
 }
 
+sub date_search {
+	my ($q, $k, $d) = @_;
+	my $sql = $q->{sql};
+
+	# Date: header
+	if ($k eq 'SENTON') {
+		my $end = $d + 86399; # no leap day...
+		my $da = strftime('%Y%m%d%H%M%S', gmtime($d));
+		my $db = strftime('%Y%m%d%H%M%S', gmtime($end));
+		$q->{xap} .= " dt:$da..$db";
+		$$sql .= " AND ds >= $d AND ds <= $end" if defined($sql);
+	} elsif ($k eq 'SENTBEFORE') {
+		$q->{xap} .= ' d:..'.strftime('%Y%m%d', gmtime($d));
+		$$sql .= " AND ds <= $d" if defined($sql);
+	} elsif ($k eq 'SENTSINCE') {
+		$q->{xap} .= ' d:'.strftime('%Y%m%d', gmtime($d)).'..';
+		$$sql .= " AND ds >= $d" if defined($sql);
+
+	# INTERNALDATE (Received)
+	} elsif ($k eq 'ON') {
+		my $end = $d + 86399; # no leap day...
+		$q->{xap} .= " ts:$d..$end";
+		$$sql .= " AND ts >= $d AND ts <= $end" if defined($sql);
+	} elsif ($k eq 'BEFORE') {
+		$q->{xap} .= " ts:..$d";
+		$$sql .= " AND ts <= $d" if defined($sql);
+	} elsif ($k eq 'SINCE') {
+		$q->{xap} .= " ts:$d..";
+		$$sql .= " AND ts >= $d" if defined($sql);
+	} else {
+		die "BUG: $k not recognized";
+	}
+}
+
+# IMAP to Xapian search key mapping
+my %I2X = (
+	SUBJECT => 's:',
+	BODY => 'b:',
+	FROM => 'f:',
+	TEXT => '', # n.b. does not include all headers
+	TO => 't:',
+	CC => 'c:',
+	# BCC => 'bcc:', # TODO
+	# KEYWORD # TODO ? dfpre,dfpost,...
+);
+
+sub parse_query {
+	my ($self, $rest) = @_;
+	if (uc($rest->[0]) eq 'CHARSET') {
+		shift @$rest;
+		defined(my $c = shift @$rest) or return 'BAD missing charset';
+		$c =~ /\A(?:UTF-8|US-ASCII)\z/ or return 'NO [BADCHARSET]';
+	}
+
+	my $sql = ''; # date conditions, {sql} deleted if Xapian is needed
+	my $q = { xap => '', sql => \$sql };
+	while (@$rest) {
+		my $k = uc(shift @$rest);
+		# default criteria
+		next if $k =~ /\A(?:ALL|RECENT|UNSEEN|NEW)\z/;
+		next if $k eq 'AND'; # the default, until we support OR
+		if ($k =~ $valid_range) { # sequence numbers == UIDs
+			push @{$q->{uid}}, $k;
+		} elsif ($k eq 'UID') {
+			$k = shift(@$rest) // '';
+			$k =~ $valid_range or return 'BAD UID range';
+			push @{$q->{uid}}, $k;
+		} elsif ($k =~ /\A(?:SENT)?(?:SINCE|ON|BEFORE)\z/) {
+			my $d = parse_date(shift(@$rest) // '');
+			defined $d or return "BAD $k date format";
+			date_search($q, $k, $d);
+		} elsif ($k =~ /\A(?:SMALLER|LARGER)\z/) {
+			delete $q->{sql}; # can't use over.sqlite3
+			my $bytes = shift(@$rest) // '';
+			$bytes =~ /\A[0-9]+\z/ or return "BAD $k not a number";
+			$q->{xap} .= ' bytes:' . ($k eq 'SMALLER' ?
+							'..'.(--$bytes) :
+							(++$bytes).'..');
+		} elsif (defined(my $xk = $I2X{$k})) {
+			delete $q->{sql}; # can't use over.sqlite3
+			my $arg = shift @$rest;
+			defined($arg) or return "BAD $k no arg";
+
+			# Xapian can't handle [*"] in probabilistic terms
+			$arg =~ tr/*"//d;
+			$q->{xap} .= qq[ $xk:"$arg"];
+		} else {
+			# TODO: parentheses, OR, NOT ...
+			return "BAD $k not supported (yet?)";
+		}
+	}
+
+	# favor using over.sqlite3 if possible, since Xapian is optional
+	if (exists $q->{sql}) {
+		delete($q->{xap});
+		delete($q->{sql}) if $sql eq '';
+	} elsif (!$self->{ibx}->search) {
+		return 'BAD Xapian not configured for mailbox';
+	}
+
+	if (my $uid = $q->{uid}) {
+		((@$uid > 1) || $uid->[0] =~ /,/) and
+			return 'BAD multiple ranges not supported, yet';
+		($q->{sql} // $q->{xap}) and
+			return 'BAD ranges and queries do not mix, yet';
+		$q->{uid} = join(',', @$uid); # TODO: multiple ranges
+	}
+	$q;
+}
+
 sub cmd_uid_search ($$$;) {
-	my ($self, $tag, $arg, @rest) = @_;
+	my ($self, $tag) = splice(@_, 0, 2);
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
-	$arg = uc($arg);
-	if ($arg eq 'ALL' && !@rest) {
+	my $q = parse_query($self, \@_);
+	return "$tag $q\r\n" if !ref($q);
+
+	if (!scalar(keys %$q)) {
 		$self->msg_more('* SEARCH');
 		my $num = 0;
 		long_response($self, \&uid_search_all, $tag, \$num);
-	} elsif ($arg eq 'UID' && scalar(@rest) == 1) {
-		if ($rest[0] =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
+	} elsif (my $uid = $q->{uid}) {
+		if ($uid =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
 			my ($beg, $end) = ($1, $2);
 			$end = $ibx->mm->max if $end eq '*';
 			$self->msg_more('* SEARCH');
 			long_response($self, \&uid_search_uid_range,
 					$tag, \$beg, $end);
-		} elsif ($rest[0] =~ /\A[0-9]+\z/s) {
-			my $uid = $rest[0];
+		} elsif ($uid =~ /\A[0-9]+\z/s) {
 			$uid = $ibx->over->get_art($uid) ? " $uid" : '';
 			"* SEARCH$uid\r\n$tag OK Search done\r\n";
 		} else {

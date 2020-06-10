@@ -9,6 +9,21 @@ use PublicInbox::IMAPD;
 use PublicInbox::TestCommon;
 require_mods(qw(DBD::SQLite));
 require_git 2.6;
+use POSIX qw(strftime);
+
+{
+	my $parse_date = \&PublicInbox::IMAP::parse_date;
+	is(strftime('%Y-%m-%d', gmtime($parse_date->('02-Oct-1993'))),
+		'1993-10-02', 'parse_date works');
+	is(strftime('%Y-%m-%d', gmtime($parse_date->('2-Oct-1993'))),
+		'1993-10-02', 'parse_date works w/o leading zero');
+
+	is($parse_date->('2-10-1993'), undef, 'bad month');
+
+	# from what I can tell, RFC 3501 says nothing about date-month
+	# case-insensitivity, so be case-sensitive for now
+	is($parse_date->('02-oct-1993'), undef, 'case-sensitive month');
+}
 
 my ($tmpdir, $for_destroy) = tmpdir();
 my $cfgfile = "$tmpdir/config";
