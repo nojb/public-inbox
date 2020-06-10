@@ -179,11 +179,12 @@ SELECT COUNT(num) FROM over WHERE num > 0
 sub get_art {
 	my ($self, $num) = @_;
 	my $dbh = $self->connect;
-	my $smsg = $dbh->selectrow_hashref(<<'', undef, $num);
+	my $sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT num,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 
-	return load_from_row($smsg) if $smsg;
-	undef;
+	$sth->execute($num);
+	my $smsg = $sth->fetchrow_hashref;
+	$smsg ? load_from_row($smsg) : undef;
 }
 
 sub next_by_mid {
