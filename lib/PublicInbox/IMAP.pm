@@ -40,22 +40,26 @@ sub LINE_MAX () { 512 } # does RFC 3501 have a limit like RFC 977?
 # changing this will cause grief for clients which cache
 sub UID_BLOCK () { 50_000 }
 
-my %FETCH_NEED_BLOB = ( # for future optimization
-	'BODY[HEADER]' => 1,
-	'BODY[TEXT]' => 1,
-	'BODY[]' => 1,
-	'RFC822.HEADER' => 1,
-	'RFC822.SIZE' => 1, # needs CRLF conversion :<
-	'RFC822.TEXT' => 1,
-	BODY => 1,
-	BODYSTRUCTURE => 1,
-	ENVELOPE => 1,
-	FLAGS => 0,
-	INTERNALDATE => 0,
-	RFC822 => 1,
-	UID => 0,
+# these values area also used for sorting
+sub NEED_BLOB () { 1 }
+sub NEED_EML () { NEED_BLOB|2 }
+my $OP_EML_NEW = [ NEED_EML - 1, \&op_eml_new ];
+
+my %FETCH_NEED = ( # for future optimization
+	'BODY[HEADER]' => [ NEED_EML, \&emit_rfc822_header ],
+	'BODY[TEXT]' => [ NEED_EML, \&emit_rfc822_text ],
+	'BODY[]' => [ NEED_BLOB, \&emit_rfc822 ],
+	'RFC822.HEADER' => [ NEED_EML, \&emit_rfc822_header ],
+	'RFC822.TEXT' => [ NEED_EML, \&emit_rfc822_text ],
+	'RFC822.SIZE' => [ NEED_BLOB, \&emit_rfc822_size ],
+	RFC822 => [ NEED_BLOB, \&emit_rfc822 ],
+	BODY => [ NEED_EML, \&emit_body ],
+	BODYSTRUCTURE => [ NEED_EML, \&emit_bodystructure ],
+	ENVELOPE => [ NEED_EML, \&emit_envelope ],
+	FLAGS => [ 0, \&emit_flags ],
+	INTERNALDATE => [ 0, \&emit_internaldate ],
 );
-my %FETCH_ATT = map { $_ => [ $_ ] } keys %FETCH_NEED_BLOB;
+my %FETCH_ATT = map { $_ => [ $_ ] } keys %FETCH_NEED;
 
 # aliases (RFC 3501 section 6.4.5)
 $FETCH_ATT{FAST} = [ qw(FLAGS INTERNALDATE RFC822.SIZE) ];
@@ -63,9 +67,10 @@ $FETCH_ATT{ALL} = [ @{$FETCH_ATT{FAST}}, 'ENVELOPE' ];
 $FETCH_ATT{FULL} = [ @{$FETCH_ATT{ALL}}, 'BODY' ];
 
 for my $att (keys %FETCH_ATT) {
-	my %h = map { $_ => 1 } @{$FETCH_ATT{$att}};
+	my %h = map { $_ => $FETCH_NEED{$_} } @{$FETCH_ATT{$att}};
 	$FETCH_ATT{$att} = \%h;
 }
+undef %FETCH_NEED;
 
 my $valid_range = '[0-9]+|[0-9]+:[0-9]+|[0-9]+:\*';
 $valid_range = qr/\A(?:$valid_range)(?:,(?:$valid_range))*\z/;
@@ -417,7 +422,7 @@ sub requeue_once ($) {
 
 sub uid_fetch_cb { # called by git->cat_async via git_async_cat
 	my ($bref, $oid, $type, $size, $fetch_m_arg) = @_;
-	my ($self, undef, $msgs, undef, $want) = @$fetch_m_arg;
+	my ($self, undef, $msgs, undef, $ops, $partial) = @$fetch_m_arg;
 	my $smsg = shift @$msgs or die 'BUG: no smsg';
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
@@ -426,50 +431,71 @@ sub uid_fetch_cb { # called by git->cat_async via git_async_cat
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
-
 	$$bref =~ s/(?<!\r)\n/\r\n/sg; # make strict clients happy
 
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
 	$$bref =~ s/\A[\r\n]*From [^\r\n]*\r\n//s;
-
 	$self->msg_more("* $smsg->{num} FETCH (UID $smsg->{num}");
-
-	$want->{'RFC822.SIZE'} and
-		$self->msg_more(' RFC822.SIZE '.length($$bref));
-	$want->{INTERNALDATE} and
-		$self->msg_more(' INTERNALDATE "'.$smsg->internaldate.'"');
-	$want->{FLAGS} and $self->msg_more(' FLAGS ()');
-	for ('RFC822', 'BODY[]') {
-		$want->{$_} or next;
-		$self->msg_more(" $_ {".length($$bref)."}\r\n");
-		$self->msg_more($$bref);
+	my $eml;
+	for (my $i = 0; $i < @$ops;) {
+		my $k = $ops->[$i++];
+		$ops->[$i++]->($self, $k, $smsg, $bref, $eml);
 	}
-
-	my $eml = PublicInbox::Eml->new($bref);
-
-	$want->{ENVELOPE} and
-		$self->msg_more(' ENVELOPE '.eml_envelope($eml));
-
-	for ('RFC822.HEADER', 'BODY[HEADER]') {
-		$want->{$_} or next;
-		$self->msg_more(" $_ {".length(${$eml->{hdr}})."}\r\n");
-		$self->msg_more(${$eml->{hdr}});
-	}
-	for ('RFC822.TEXT', 'BODY[TEXT]') {
-		$want->{$_} or next;
-		$self->msg_more(" $_ {".length($$bref)."}\r\n");
-		$self->msg_more($$bref);
-	}
-	$want->{BODYSTRUCTURE} and
-		$self->msg_more(' BODYSTRUCTURE '.fetch_body($eml, 1));
-	$want->{BODY} and
-		$self->msg_more(' BODY '.fetch_body($eml));
-	if (my $partial = $want->{-partial}) {
-		partial_emit($self, $partial, $eml);
-	}
+	partial_emit($self, $partial, $eml) if $partial;
 	$self->msg_more(")\r\n");
 	requeue_once($self);
 }
+
+sub emit_rfc822 {
+	my ($self, $k, undef, $bref) = @_;
+	$self->msg_more(" $k {" . length($$bref)."}\r\n");
+	$self->msg_more($$bref);
+}
+
+# Mail::IMAPClient::message_string cares about this by default
+# (->Ignoresizeerrors attribute)
+sub emit_rfc822_size {
+	my ($self, $k, undef, $bref) = @_;
+	$self->msg_more(' RFC822.SIZE ' . length($$bref));
+}
+
+sub emit_internaldate {
+	my ($self, undef, $smsg) = @_;
+	$self->msg_more(' INTERNALDATE "'.$smsg->internaldate.'"');
+}
+
+sub emit_flags { $_[0]->msg_more(' FLAGS ()') }
+
+sub emit_envelope {
+	my ($self, undef, undef, undef, $eml) = @_;
+	$self->msg_more(' ENVELOPE '.eml_envelope($eml));
+}
+
+sub emit_rfc822_header {
+	my ($self, $k, undef, undef, $eml) = @_;
+	$self->msg_more(" $k {".length(${$eml->{hdr}})."}\r\n");
+	$self->msg_more(${$eml->{hdr}});
+}
+
+# n.b. this is sorted to be after any emit_eml_new ops
+sub emit_rfc822_text {
+	my ($self, $k, undef, $bref) = @_;
+	$self->msg_more(" $k {".length($$bref)."}\r\n");
+	$self->msg_more($$bref);
+}
+
+sub emit_bodystructure {
+	my ($self, undef, undef, undef, $eml) = @_;
+	$self->msg_more(' BODYSTRUCTURE '.fetch_body($eml, 1));
+}
+
+sub emit_body {
+	my ($self, undef, undef, undef, $eml) = @_;
+	$self->msg_more(' BODY '.fetch_body($eml));
+}
+
+# set $eml once ($_[4] == $eml, $_[3] == $bref)
+sub op_eml_new { $_[4] = PublicInbox::Eml->new($_[3]) }
 
 sub uid_clamp ($$$) {
 	my ($self, $beg, $end) = @_;
@@ -521,7 +547,7 @@ sub refill_range ($$$) {
 }
 
 sub uid_fetch_m { # long_response
-	my ($self, $tag, $msgs, $range_info, $want) = @_;
+	my ($self, $tag, $msgs, $range_info) = @_; # \@ops, \@partial
 	while (!@$msgs) { # rare
 		if (my $end = refill_range($self, $msgs, $range_info)) {
 			$self->write(\"$tag $end\r\n");
@@ -710,42 +736,64 @@ sub partial_emit ($$$) {
 	}
 }
 
-sub fetch_common ($$$$) {
-	my ($self, $tag, $range_csv, $want) = @_;
-	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
+sub fetch_compile ($) {
+	my ($want) = @_;
 	if ($want->[0] =~ s/\A\(//s) {
-		$want->[-1] =~ s/\)\z//s or return "$tag BAD no rparen\r\n";
+		$want->[-1] =~ s/\)\z//s or return 'BAD no rparen';
 	}
-	my (%partial, %want);
+	my (%partial, %seen, @op);
+	my $need = 0;
 	while (defined(my $att = shift @$want)) {
 		$att = uc($att);
+		next if $att eq 'UID'; # always returned
 		$att =~ s/\ABODY\.PEEK\[/BODY\[/; # we're read-only
 		my $x = $FETCH_ATT{$att};
 		if ($x) {
-			%want = (%want, %$x);
+			while (my ($k, $fl_cb) = each %$x) {
+				next if $seen{$k}++;
+				$need |= $fl_cb->[0];
+
+				# insert a special op to convert $bref to $eml
+				# the first time we need it
+				if ($need == NEED_EML && !$seen{$need}++) {
+					push @op, $OP_EML_NEW;
+				}
+				# $fl_cb = [ flags, \&emit_foo ]
+				push @op, [ @$fl_cb , $k ];
+			}
 		} elsif (!partial_prepare(\%partial, $want, $att)) {
-			return "$tag BAD param: $att\r\n";
+			return "BAD param: $att";
 		}
 	}
+	my @r;
 
 	# stabilize partial order for consistency and ease-of-debugging:
 	if (scalar keys %partial) {
-		$want{-partial} = [ map {;
-			[ $_, @{$partial{$_}} ]
-		} sort keys %partial ];
+		$need = NEED_EML;
+		push @op, $OP_EML_NEW if !$seen{$need}++;
+		$r[2] = [ map { [ $_, @{$partial{$_}} ] } sort keys %partial ];
 	}
-	$range_csv = 'bad' if $range_csv !~ $valid_range;
-	my $range_info = range_step($self, \$range_csv);
-	return "$tag $range_info\r\n" if !ref($range_info);
-	[ $tag, [], $range_info, \%want ];
+
+	$r[0] = $need;
+
+	# r[1] = [ $key1, $cb1, $key2, $cb2, ... ]
+	use sort 'stable'; # makes output more consistent
+	$r[1] = [ map { ($_->[2], $_->[1]) } sort { $a->[0] <=> $b->[0] } @op ];
+	@r;
 }
 
 sub cmd_uid_fetch ($$$;@) {
 	my ($self, $tag, $range_csv, @want) = @_;
-	my $args = fetch_common($self, $tag, $range_csv, \@want);
-	ref($args) eq 'ARRAY' ?
-		long_response($self, \&uid_fetch_m, @$args) :
-		$args; # error
+	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
+	my ($need, $ops, $partial) = fetch_compile(\@want);
+	return "$tag $need\r\n" unless $ops;
+
+	$range_csv = 'bad' if $range_csv !~ $valid_range;
+	my $range_info = range_step($self, \$range_csv);
+	return "$tag $range_info\r\n" if !ref($range_info);
+
+	long_response($self, \&uid_fetch_m,
+			$tag, [], $range_info, $ops, $partial);
 }
 
 sub parse_date ($) { # 02-Oct-1993

@@ -107,4 +107,20 @@ EOF
 	}, 'structure matches expected');
 }
 
+{
+	my $fetch_compile = \&PublicInbox::IMAP::fetch_compile;
+	my ($cb, $ops, $partial) = $fetch_compile->(['BODY[]']);
+	is($partial, undef, 'no partial fetch data');
+	is_deeply($ops,
+		[ 'BODY[]', \&PublicInbox::IMAP::emit_rfc822 ],
+		'proper key and op compiled for BODY[]');
+
+	($cb, $ops, $partial) = $fetch_compile->(['BODY', 'BODY[]']);
+	is_deeply($ops, [
+		'BODY[]', \&PublicInbox::IMAP::emit_rfc822,
+		undef, \&PublicInbox::IMAP::op_eml_new,
+		'BODY', \&PublicInbox::IMAP::emit_body,
+	], 'placed op_eml_new before emit_body');
+}
+
 done_testing;
