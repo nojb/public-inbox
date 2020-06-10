@@ -378,7 +378,7 @@ sub _msgmap_init ($) {
 
 sub add_message {
 	# mime = PublicInbox::Eml or Email::MIME object
-	my ($self, $mime, $smsg) = @_;
+	my ($self, $mime, $smsg, $sync) = @_;
 	my $hdr = $mime->header_obj;
 	my $mids = mids_for_index($hdr);
 	$smsg //= bless { blob => '' }, 'PublicInbox::Smsg'; # test-only compat
@@ -389,7 +389,7 @@ sub add_message {
 	};
 
 	# v1 and tests only:
-	$smsg->populate($hdr, $self);
+	$smsg->populate($hdr, $sync);
 	$smsg->{bytes} //= length($mime->as_string);
 
 	eval {
@@ -549,24 +549,24 @@ sub unindex_mm {
 	$self->{mm}->mid_delete(mid_mime($mime));
 }
 
-sub index_both {
-	my ($self, $mime, $smsg) = @_;
-	my $num = index_mm($self, $mime);
+sub index_both { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $sync) = @_;
+	my ($nr, $max) = @$sync{qw(nr max)};
+	++$$nr;
+	$$max -= $size;
+	my $smsg = bless { bytes => $size, blob => $oid }, 'PublicInbox::Smsg';
+	my $self = $sync->{sidx};
+	my $eml = PublicInbox::Eml->new($bref);
+	my $num = index_mm($self, $eml);
 	$smsg->{num} = $num;
-	add_message($self, $mime, $smsg);
+	add_message($self, $eml, $smsg, $sync);
 }
 
-sub unindex_both {
-	my ($self, $mime) = @_;
-	unindex_blob($self, $mime);
-	unindex_mm($self, $mime);
-}
-
-sub do_cat_mail {
-	my ($git, $blob, $sizeref) = @_;
-	my $str = $git->cat_file($blob, $sizeref) or
-		die "BUG: $blob not found in $git->{git_dir}";
-	PublicInbox::Eml->new($str);
+sub unindex_both { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $self) = @_;
+	my $eml = PublicInbox::Eml->new($bref);
+	unindex_blob($self, $eml);
+	unindex_mm($self, $eml);
 }
 
 # called by public-inbox-index
@@ -574,15 +574,6 @@ sub index_sync {
 	my ($self, $opts) = @_;
 	delete $self->{lock_path} if $opts->{-skip_lock};
 	$self->{-inbox}->with_umask(sub { $self->_index_sync($opts) })
-}
-
-sub batch_adjust ($$$$$) {
-	my ($max, $bytes, $batch_cb, $latest, $nr) = @_;
-	$$max -= $bytes;
-	if ($$max <= 0) {
-		$$max = $BATCH_BYTES;
-		$batch_cb->($nr, $latest);
-	}
 }
 
 sub too_big ($$$) {
@@ -597,24 +588,28 @@ sub too_big ($$$) {
 
 # only for v1
 sub read_log {
-	my ($self, $log, $add_cb, $del_cb, $batch_cb) = @_;
+	my ($self, $log, $batch_cb) = @_;
 	my $hex = '[a-f0-9]';
 	my $h40 = $hex .'{40}';
 	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
 	my $git = $self->{git};
 	my $latest;
-	my $bytes;
 	my $max = $BATCH_BYTES;
 	local $/ = "\n";
 	my %D;
 	my $line;
 	my $newest;
 	my $nr = 0;
+	my $sync = { sidx => $self, nr => \$nr, max => \$max };
 	while (defined($line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $blob = $1;
 			if (delete $D{$blob}) {
+				# make sure pending index writes are done
+				# before writing to ->mm
+				$git->cat_async_wait;
+
 				if (defined $self->{regen_down}) {
 					my $num = $self->{regen_down}--;
 					$self->{mm}->num_highwater($num);
@@ -622,12 +617,12 @@ sub read_log {
 				next;
 			}
 			next if too_big($self, $git, $blob);
-			my $mime = do_cat_mail($git, $blob, \$bytes);
-			my $smsg = bless {}, 'PublicInbox::Smsg';
-			batch_adjust(\$max, $bytes, $batch_cb, $latest, ++$nr);
-			$smsg->{blob} = $blob;
-			$smsg->{bytes} = $bytes;
-			$add_cb->($self, $mime, $smsg);
+			$git->cat_async($blob, \&index_both, { %$sync });
+			if ($max <= 0) {
+				$git->cat_async_wait;
+				$max = $BATCH_BYTES;
+				$batch_cb->($nr, $latest);
+			}
 		} elsif ($line =~ /$delmsg/o) {
 			my $blob = $1;
 			$D{$blob} = 1 unless too_big($self, $git, $blob);
@@ -635,18 +630,17 @@ sub read_log {
 			$latest = $1;
 			$newest ||= $latest;
 		} elsif ($line =~ /^author .*? ([0-9]+) [\-\+][0-9]+$/) {
-			$self->{autime} = $1;
+			$sync->{autime} = $1;
 		} elsif ($line =~ /^committer .*? ([0-9]+) [\-\+][0-9]+$/) {
-			$self->{cotime} = $1;
+			$sync->{cotime} = $1;
 		}
 	}
 	close($log) or die "git log failed: \$?=$?";
 	# get the leftovers
 	foreach my $blob (keys %D) {
-		my $mime = do_cat_mail($git, $blob, \$bytes);
-		$del_cb->($self, $mime);
+		$git->cat_async($blob, \&unindex_both, $self);
 	}
-	delete @$self{qw(autime cotime)};
+	$git->cat_async_wait;
 	$batch_cb->($nr, $latest, $newest);
 }
 
@@ -774,7 +768,7 @@ sub _index_sync {
 	} while (_last_x_commit($self, $mm) ne $last_commit);
 
 	my $dbh = $mm->{dbh} if $mm;
-	my $cb = sub {
+	my $batch_cb = sub {
 		my ($nr, $commit, $newest) = @_;
 		if ($dbh) {
 			if ($newest) {
@@ -803,7 +797,7 @@ sub _index_sync {
 	};
 
 	$dbh->begin_work;
-	read_log($self, $xlog, *index_both, *unindex_both, $cb);
+	read_log($self, $xlog, $batch_cb);
 }
 
 sub DESTROY {
