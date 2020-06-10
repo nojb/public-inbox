@@ -41,6 +41,12 @@ sub refresh_groups () {
 		if (ref $ngname) {
 			warn 'multiple newsgroups not supported: '.
 				join(', ', @$ngname). "\n";
+		# Newsgroup name needs to be compatible with RFC 3977
+		# wildmat-exact and RFC 3501 (IMAP) ATOM-CHAR.
+		# Leave out a few chars likely to cause problems or conflicts:
+		# '|', '<', '>', ';', '#', '$', '&',
+		} elsif ($ngname =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]!) {
+			warn "newsgroup name invalid: `$ngname'\n";
 		} elsif ($ng->nntp_usable) {
 			# Only valid if msgmap and search works
 			$new->{$ngname} = $ng;
