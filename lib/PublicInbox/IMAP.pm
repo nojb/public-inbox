@@ -217,7 +217,7 @@ sub cmd_idle ($$) {
 	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
 	$self->{-idle_tag} = $tag;
 	my $max = $ibx->mm->max // 0;
-	my $uid_end = ($self->{uid_base} // 0) + UID_BLOCK;
+	my $uid_end = $self->{uid_base} + UID_BLOCK;
 	my $sock = $self->{sock} or return;
 	my $fd = fileno($sock);
 	# only do inotify on most recent slice
@@ -270,14 +270,13 @@ sub ensure_ranges_exist ($$$) {
 
 sub inbox_lookup ($$) {
 	my ($self, $mailbox) = @_;
-	my ($ibx, $exists, $uidnext);
+	my ($ibx, $exists, $uidnext, $uid_base);
 	if ($mailbox =~ /\A(.+)\.([0-9]+)\z/) {
 		# old mail: inbox.comp.foo.$uid_block_idx
-		my ($mb_top, $uid_base) = ($1, $2 * UID_BLOCK);
-
+		my $mb_top = $1;
+		$uid_base = $2 * UID_BLOCK;
 		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
 		$exists = $ibx->mm->max // 0;
-		$self->{uid_base} = $uid_base;
 		ensure_ranges_exist($self->{imapd}, $ibx, $exists);
 		my $uid_end = $uid_base + UID_BLOCK;
 		$exists = $uid_end if $exists > $uid_end;
@@ -285,17 +284,17 @@ sub inbox_lookup ($$) {
 		$exists -= $uid_base;
 	} else { # check for dummy inboxes
 		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
-		delete $self->{uid_base};
-		$exists = 0;
+		$uid_base = $exists = 0;
 		$uidnext = 1;
 	}
-	($ibx, $exists, $uidnext);
+	($ibx, $exists, $uidnext, $uid_base);
 }
 
 sub cmd_examine ($$$) {
 	my ($self, $tag, $mailbox) = @_;
-	my ($ibx, $exists, $uidnext) = inbox_lookup($self, $mailbox);
+	my ($ibx, $exists, $uidnext, $base) = inbox_lookup($self, $mailbox);
 	return "$tag NO Mailbox doesn't exist: $mailbox\r\n" if !$ibx;
+	$self->{uid_base} = $base;
 
 	# XXX: do we need this? RFC 5162/7162
 	my $ret = $self->{ibx} ? "* OK [CLOSED] previous closed\r\n" : '';
@@ -499,8 +498,7 @@ sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
 	$$bref =~ s/\A[\r\n]*From [^\r\n]*\r\n//s;
-	fetch_run_ops($self, $self->{uid_base} // 0,
-			$smsg, $bref, $ops, $partial);
+	fetch_run_ops($self, $self->{uid_base}, $smsg, $bref, $ops, $partial);
 	requeue_once($self);
 }
 
@@ -558,7 +556,7 @@ sub op_eml_new { $_[4] = PublicInbox::Eml->new($_[3]) }
 
 sub uid_clamp ($$$) {
 	my ($self, $beg, $end) = @_;
-	my $uid_min = ($self->{uid_base} // 0) + 1;
+	my $uid_min = $self->{uid_base} + 1;
 	my $uid_end = $uid_min + UID_BLOCK - 1;
 	$$beg = $uid_min if $$beg < $uid_min;
 	$$end = $uid_end if $$end > $uid_end;
@@ -625,7 +623,7 @@ sub fetch_smsg { # long_response
 			return;
 		}
 	}
-	my $uid_base = $self->{uid_base} // 0;
+	my $uid_base = $self->{uid_base};
 	fetch_run_ops($self, $uid_base, $_, undef, $ops) for @$msgs;
 	@$msgs = ();
 	1; # more
@@ -652,7 +650,7 @@ sub fetch_uid { # long_response
 		}
 		# continue looping
 	}
-	my $uid_base = $self->{uid_base} // 0;
+	my $uid_base = $self->{uid_base};
 	my ($i, $k);
 	for (@$uids) {
 		$self->msg_more(fetch_msn_uid($uid_base, $_));
@@ -903,7 +901,7 @@ sub cmd_uid_fetch ($$$$;@) {
 }
 
 sub msn_to_uid_range ($$) {
-	my $uid_base = $_[0]->{uid_base} // 0;
+	my $uid_base = $_[0]->{uid_base};
 	$_[1] =~ s/([0-9]+)/$uid_base + $1/sge;
 }
 
