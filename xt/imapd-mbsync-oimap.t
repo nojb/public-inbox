@@ -14,7 +14,7 @@ plan skip_all => "bad characters in $inboxdir" if $inboxdir =~ m![^\w\.\-/]!;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $cfg = "$tmpdir/cfg";
 my $newsgroup = 'inbox.test';
-my $mailbox = "$newsgroup.1-50000";
+my $mailbox = "$newsgroup.0";
 {
 	open my $fh, '>', $cfg or BAIL_OUT "open: $!";
 	print $fh <<EOF or BAIL_OUT "print: $!";

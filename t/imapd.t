@@ -17,7 +17,7 @@ if ($can_compress) { # hope this gets fixed upstream, soon
 }
 
 require_ok 'PublicInbox::IMAP';
-my $first_range = '1-'.PublicInbox::IMAP::UID_BLOCK();
+my $first_range = '0';
 
 my $level = '-Lbasic';
 SKIP: {

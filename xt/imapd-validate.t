@@ -39,7 +39,7 @@ if (($ENV{IMAP_TEST_URL} // '') =~ m!\Aimap://([^/]+)/(.+)\z!) {
 } else {
 	require_mods(qw(DBD::SQLite));
 	$make_local_server->();
-	$mailbox = "$newsgroup.1-50000";
+	$mailbox = "$newsgroup.0";
 }
 
 my %opts = (imap => \%OPT, 'imap+compress' => { %OPT, Compress => 1 });

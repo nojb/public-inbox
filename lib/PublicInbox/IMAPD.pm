@@ -31,7 +31,7 @@ sub imapd_refresh_ibx { # pi_config->each_inbox cb
 			join(', ', @$ngname). "\n";
 		return;
 	} elsif ($ngname =~ m![^a-z0-9/_\.\-\~\@\+\=:]! ||
-		 $ngname =~ /\.[0-9]+-[0-9]+\z/) {
+		 $ngname =~ /\.[0-9]+\z/) {
 		warn "mailbox name invalid: newsgroup=`$ngname'\n";
 		return;
 	}

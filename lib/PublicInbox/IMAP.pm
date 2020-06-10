@@ -197,14 +197,10 @@ sub ensure_ranges_exist ($$$) {
 	my $mailboxes = $imapd->{mailboxes};
 	my $mb_top = $ibx->{newsgroup};
 	my @created;
-	my $uid_min = UID_BLOCK * int($max/UID_BLOCK) + 1;
-	my $uid_end = $uid_min + UID_BLOCK - 1;
-	while ($uid_min > 0) {
-		my $sub_mailbox = "$mb_top.$uid_min-$uid_end";
+	for (my $i = int($max/UID_BLOCK); $i >= 0; --$i) {
+		my $sub_mailbox = "$mb_top.$i";
 		last if exists $mailboxes->{$sub_mailbox};
 		$mailboxes->{$sub_mailbox} = $ibx;
-		$uid_end -= UID_BLOCK;
-		$uid_min -= UID_BLOCK;
 		push @created, $sub_mailbox;
 	}
 	return unless @created;
@@ -216,9 +212,9 @@ sub cmd_examine ($$$) {
 	my ($self, $tag, $mailbox) = @_;
 	my ($ibx, $mm, $max);
 
-	if ($mailbox =~ /\A(.+)\.([0-9]+)-([0-9]+)\z/) {
-		# old mail: inbox.comp.foo.$uid_min-$uid_end
-		my ($mb_top, $uid_min, $uid_end) = ($1, $2 + 0, $3 + 0);
+	if ($mailbox =~ /\A(.+)\.([0-9]+)\z/) {
+		# old mail: inbox.comp.foo.$uid_block_idx
+		my ($mb_top, $uid_min) = ($1, $2 * UID_BLOCK + 1);
 
 		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
 			return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
@@ -227,6 +223,7 @@ sub cmd_examine ($$$) {
 		$max = $mm->max // 0;
 		$self->{uid_min} = $uid_min;
 		ensure_ranges_exist($self->{imapd}, $ibx, $max);
+		my $uid_end = $uid_min + UID_BLOCK - 1;
 		$max = $uid_end if $max > $uid_end;
 	} else { # check for dummy inboxes
 		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or
