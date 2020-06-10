@@ -72,7 +72,12 @@ sub imapd_refresh_finalize {
 		map {
 			my $no = $mailboxes->{$_} == $dummy ? '' : 'No';
 			qq[* LIST (\\Has${no}Children) "." $_\r\n]
-		} sort { length($a) <=> length($b) } keys %$mailboxes
+		} sort {
+			# shortest names first, alphabetically if lengths match
+			length($a) == length($b) ?
+				($a cmp $b) :
+				(length($a) <=> length($b))
+		} keys %$mailboxes
 	];
 	$imapd->{pi_config} = $pi_config;
 	if (my $idler = $imapd->{idler}) {

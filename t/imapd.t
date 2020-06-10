@@ -100,7 +100,7 @@ like($raw[0], qr/\A\*\x20STATUS\x20inbox\.i1\.$first_range\x20
 	\(MESSAGES\x20\d+\x20UIDNEXT\x20\d+\x20UIDVALIDITY\x20\d+\)\r\n/sx);
 like($raw[1], qr/\A\S+ OK /, 'finished status response');
 
-@raw = $mic->list;
+my @orig_list = @raw = $mic->list;
 like($raw[0], qr/^\* LIST \(.*?\) "\." inbox/,
 	'got an inbox');
 like($raw[-1], qr/^\S+ OK /, 'response ended with OK');
@@ -351,6 +351,18 @@ $r2 = $mic->fetch_hash(2, 'BODY.PEEK[HEADER.FIELDS (message-id)]')
 is($r2->{2}->{'BODY[HEADER.FIELDS (MESSAGE-ID)]'},
 	'Message-ID: <20200418222508.GA13918@dcvr>'."\r\n\r\n",
 	'BODY.PEEK[HEADER.FIELDS ...] drops .PEEK');
+
+{
+	my @new_list = $mic->list;
+	# tag differs in [-1]
+	like($orig_list[-1], qr/\A\S+ OK List done\r\n/, 'orig LIST');
+	like($new_list[-1], qr/\A\S+ OK List done\r\n/, 'new LIST');
+	pop @new_list;
+	pop @orig_list;
+	# TODO: not sure if sort order matters, imapd_refresh_finalize
+	# sorts, for now, but maybe clients don't care...
+	is_deeply(\@new_list, \@orig_list, 'LIST identical');
+}
 ok($mic->close, 'CLOSE works');
 ok(!$mic->close, 'CLOSE not idempotent');
 ok($mic->logout, 'logged out');
