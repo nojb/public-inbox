@@ -151,7 +151,7 @@ sub cmd_close ($$) {
 
 sub cmd_logout ($$) {
 	my ($self, $tag) = @_;
-	delete $self->{logged_in};
+	delete @$self{qw(logged_in -idle_tag)};
 	$self->write(\"* BYE logging out\r\n$tag OK Logout done\r\n");
 	$self->shutdn; # PublicInbox::DS::shutdn
 	undef;
@@ -174,23 +174,63 @@ sub cmd_noop ($$) { "$_[1] OK Noop done\r\n" }
 sub on_inbox_unlock {
 	my ($self, $ibx) = @_;
 	my $new = $ibx->mm->max;
+	my $uid_end = ($self->{uid_min} // 1) - 1 + UID_BLOCK;
 	defined(my $old = $self->{-idle_max}) or die 'BUG: -idle_max unset';
+	$new = $uid_end if $new > $uid_end;
 	if ($new > $old) {
 		$self->{-idle_max} = $new;
 		$self->msg_more("* $_ EXISTS\r\n") for (($old + 1)..($new - 1));
 		$self->write(\"* $new EXISTS\r\n");
+	} elsif ($new == $uid_end) { # max exceeded $uid_end
+		# continue idling w/o inotify
+		delete $self->{-idle_max};
+		my $sock = $self->{sock} or return;
+		$ibx->unsubscribe_unlock(fileno($sock));
 	}
+}
+
+# called every X minute(s) or so by PublicInbox::DS::later
+my $IDLERS = {};
+my $idle_timer;
+sub idle_tick_all {
+	my $old = $IDLERS;
+	$IDLERS = {};
+	for my $i (values %$old) {
+		next if ($i->{wbuf} || !exists($i->{-idle_tag}));
+		$i->update_idle_time or next;
+		$IDLERS->{fileno($i->{sock})} = $i;
+		$i->write(\"* OK Still here\r\n");
+	}
+	$idle_timer = scalar keys %$IDLERS ?
+			PublicInbox::DS::later(\&idle_tick_all) : undef;
 }
 
 sub cmd_idle ($$) {
 	my ($self, $tag) = @_;
 	# IDLE seems allowed by dovecot w/o a mailbox selected *shrug*
 	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
-	$ibx->subscribe_unlock(fileno($self->{sock}), $self);
-	$self->{imapd}->idler_start;
 	$self->{-idle_tag} = $tag;
-	$self->{-idle_max} = $ibx->mm->max // 0;
-	"+ idling\r\n"
+	my $max = $ibx->mm->max // 0;
+	my $uid_end = ($self->{uid_min} // 1) - 1 + UID_BLOCK;
+	my $sock = $self->{sock} or return;
+	my $fd = fileno($sock);
+	# only do inotify on most recent slice
+	if ($max < $uid_end) {
+		$ibx->subscribe_unlock($fd, $self);
+		$self->{imapd}->idler_start;
+		$self->{-idle_max} = $max;
+	}
+	$idle_timer //= PublicInbox::DS::later(\&idle_tick_all);
+	$IDLERS->{$fd} = $self;
+	\"+ idling\r\n"
+}
+
+sub stop_idle ($$) {
+	my ($self, $ibx);
+	my $sock = $self->{sock} or return;
+	my $fd = fileno($sock);
+	delete $IDLERS->{$fd};
+	$ibx->unsubscribe_unlock($fd);
 }
 
 sub cmd_done ($$) {
@@ -201,7 +241,7 @@ sub cmd_done ($$) {
 		warn "BUG: idle_tag set w/o inbox";
 		return "$tag BAD internal bug\r\n";
 	};
-	$ibx->unsubscribe_unlock(fileno($self->{sock}));
+	stop_idle($self, $ibx);
 	"$idle_tag OK Idle done\r\n";
 }
 
@@ -1185,9 +1225,7 @@ sub busy {
 sub close {
 	my ($self) = @_;
 	if (my $ibx = delete $self->{ibx}) {
-		if (my $sock = $self->{sock}) {;
-			$ibx->unsubscribe_unlock(fileno($sock));
-		}
+		stop_idle($self, $ibx);
 	}
 	$self->SUPER::close; # PublicInbox::DS::close
 }
