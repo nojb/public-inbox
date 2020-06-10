@@ -127,7 +127,7 @@ sub cmd_login ($$$$) {
 sub cmd_logout ($$) {
 	my ($self, $tag) = @_;
 	delete $self->{logged_in};
-	$self->write(\"* BYE logging out\r\n$tag OK logout completed\r\n");
+	$self->write(\"* BYE logging out\r\n$tag OK Logout done\r\n");
 	$self->shutdn; # PublicInbox::DS::shutdn
 	undef;
 }
@@ -140,10 +140,10 @@ sub cmd_authenticate ($$$) {
 
 sub cmd_capability ($$) {
 	my ($self, $tag) = @_;
-	'* '.capa($self)."\r\n$tag OK\r\n";
+	'* '.capa($self)."\r\n$tag OK Capability done\r\n";
 }
 
-sub cmd_noop ($$) { "$_[1] OK NOOP completed\r\n" }
+sub cmd_noop ($$) { "$_[1] OK Noop done\r\n" }
 
 # called by PublicInbox::InboxIdle
 sub on_inbox_unlock {
@@ -177,7 +177,7 @@ sub cmd_done ($$) {
 		return "$tag BAD internal bug\r\n";
 	};
 	$ibx->unsubscribe_unlock(fileno($self->{sock}));
-	"$idle_tag OK Idle completed\r\n";
+	"$idle_tag OK Idle done\r\n";
 }
 
 sub cmd_examine ($$$) {
@@ -204,7 +204,7 @@ EOF
 	$ret .= "* OK [UNSEEN $max]\r\n" if $max;
 	$ret .= "* OK [UIDNEXT $uidnext]\r\n" if defined $uidnext;
 	$ret .= "* OK [UIDVALIDITY $uidvalidity]\r\n" if defined $uidvalidity;
-	$ret .= "$tag OK [READ-ONLY] EXAMINE/SELECT complete\r\n";
+	$ret .= "$tag OK [READ-ONLY] EXAMINE/SELECT done\r\n";
 }
 
 sub _esc ($) {
@@ -439,7 +439,7 @@ sub cmd_status ($$$;@) {
 	}
 	return "$tag BAD no items\r\n" if !@it;
 	"* STATUS $mailbox (".join(' ', @it).")\r\n" .
-	"$tag OK Status complete\r\n";
+	"$tag OK Status done\r\n";
 }
 
 my %patmap = ('*' => '.*', '%' => '[^\.]*');
@@ -453,7 +453,7 @@ sub cmd_list ($$$$) {
 		$wildcard =~ s!([^a-z0-9_])!$patmap{$1} // "\Q$1"!eig;
 		$l = [ grep(/ \Q$refname\E$wildcard\r\n\z/s, @$l) ];
 	}
-	\(join('', @$l, "$tag OK List complete\r\n"));
+	\(join('', @$l, "$tag OK List done\r\n"));
 }
 
 sub eml_index_offs_i { # PublicInbox::Eml::each_part callback
@@ -615,11 +615,12 @@ sub cmd_uid_fetch ($$$;@) {
 	} elsif ($range =~ /\A([0-9]+):\*\z/s) {
 		($beg, $end) =  ($1, $ibx->mm->max // 0);
 	} elsif ($range =~ /\A[0-9]+\z/) {
-		my $smsg = $ibx->over->get_art($range) or return "$tag OK\r\n";
+		my $smsg = $ibx->over->get_art($range) or
+			return "$tag OK Fetch done\r\n"; # really OK(!)
 		push @$msgs, $smsg;
 		($beg, $end) = ($range, 0);
 	} else {
-		return "$tag BAD\r\n";
+		return "$tag BAD fetch range\r\n";
 	}
 	long_response($self, \&uid_fetch_m, $tag, $ibx,
 				\$beg, $end, $msgs, \%want);
@@ -631,7 +632,7 @@ sub uid_search_all { # long_response
 	if (scalar(@$uids)) {
 		$self->msg_more(join(' ', '', @$uids));
 	} else {
-		$self->write(\"\r\n$tag OK\r\n");
+		$self->write(\"\r\n$tag OK Search done\r\n");
 		undef;
 	}
 }
@@ -642,7 +643,7 @@ sub uid_search_uid_range { # long_response
 	if (@$uids) {
 		$self->msg_more(join('', map { " $_->[0]" } @$uids));
 	} else {
-		$self->write(\"\r\n$tag OK\r\n");
+		$self->write(\"\r\n$tag OK Search done\r\n");
 		undef;
 	}
 }
@@ -665,12 +666,12 @@ sub cmd_uid_search ($$$;) {
 		} elsif ($rest[0] =~ /\A[0-9]+\z/s) {
 			my $uid = $rest[0];
 			$uid = $ibx->over->get_art($uid) ? " $uid" : '';
-			"* SEARCH$uid\r\n$tag OK\r\n";
+			"* SEARCH$uid\r\n$tag OK Search done\r\n";
 		} else {
-			"$tag BAD\r\n";
+			"$tag BAD Error\r\n";
 		}
 	} else {
-		"$tag BAD\r\n";
+		"$tag BAD Error\r\n";
 	}
 }
 
