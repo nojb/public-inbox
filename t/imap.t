@@ -8,9 +8,14 @@ use PublicInbox::IMAP;
 use PublicInbox::IMAPD;
 
 { # make sure we get '%' globbing right
-	my @n = map { { newsgroup => $_ } } (qw(x.y.z x.z.y));
+	my @w;
+	local $SIG{__WARN__} = sub { push @w, @_ };
+	my @n = map { { newsgroup => $_ } } (qw(x.y.z x.z.y IGNORE.THIS));
 	my $self = { imapd => { grouplist => \@n } };
 	PublicInbox::IMAPD::refresh_inboxlist($self->{imapd});
+	is(scalar(@w), 1, 'got a warning for upper-case');
+	like($w[0], qr/IGNORE\.THIS/, 'warned about upper-case');
+
 	my $res = PublicInbox::IMAP::cmd_list($self, 'tag', 'x', '%');
 	is(scalar($$res =~ tr/\n/\n/), 2, 'only one result');
 	like($$res, qr/ x\r\ntag OK/, 'saw expected');

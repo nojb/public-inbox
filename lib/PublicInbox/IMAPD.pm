@@ -25,6 +25,13 @@ sub refresh_inboxlist ($) {
 	my ($self) = @_;
 	my @names = map { $_->{newsgroup} } @{delete $self->{grouplist}};
 	my %ns; # "\Noselect \HasChildren"
+
+	if (my @uc = grep(/[A-Z]/, @names)) {
+		warn "Uppercase not allowed for IMAP newsgroup(s):\n",
+			map { "\t$_\n" } @uc;
+		my %uc = map { $_ => 1 } @uc;
+		@names = grep { !$uc{$_} } @names;
+	}
 	for (@names) {
 		my $up = $_;
 		while ($up =~ s/\.[^\.]+\z//) {
