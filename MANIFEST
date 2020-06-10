@@ -109,6 +109,7 @@ lib/PublicInbox/Emergency.pm
 lib/PublicInbox/Eml.pm
 lib/PublicInbox/EmlContentFoo.pm
 lib/PublicInbox/ExtMsg.pm
+lib/PublicInbox/FakeInotify.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm
 lib/PublicInbox/Filter/Gmane.pm
@@ -129,8 +130,11 @@ lib/PublicInbox/IMAP.pm
 lib/PublicInbox/IMAPD.pm
 lib/PublicInbox/IMAPdeflate.pm
 lib/PublicInbox/Import.pm
+lib/PublicInbox/In2Tie.pm
 lib/PublicInbox/Inbox.pm
+lib/PublicInbox/InboxIdle.pm
 lib/PublicInbox/InboxWritable.pm
+lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
 lib/PublicInbox/Lock.pm
@@ -266,6 +270,7 @@ t/imapd-tls.t
 t/imapd.t
 t/import.t
 t/inbox.t
+t/inbox_idle.t
 t/index-git-times.t
 t/indexlevels-mirror-v1.t
 t/indexlevels-mirror.t

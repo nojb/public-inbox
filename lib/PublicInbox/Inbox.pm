@@ -391,4 +391,24 @@ sub altid_map ($) {
 	} // {};
 }
 
+# $obj must respond to ->on_inbox_unlock, which takes Inbox ($self) as an arg
+sub subscribe_unlock {
+	my ($self, $ident, $obj) = @_;
+	$self->{unlock_subs}->{$ident} = $obj;
+}
+
+sub unsubscribe_unlock {
+	my ($self, $ident) = @_;
+	delete $self->{unlock_subs}->{$ident};
+}
+
+# called by inotify
+sub on_unlock {
+	my ($self) = @_;
+	my $subs = $self->{unlock_subs} or return;
+	for (values %$subs) {
+		eval { $_->on_inbox_unlock($self) };
+	}
+}
+
 1;
