@@ -53,7 +53,7 @@ my %FETCH_NEED = (
 	'BODY[]' => [ NEED_BLOB, \&emit_rfc822 ],
 	'RFC822.HEADER' => [ NEED_EML, \&emit_rfc822_header ],
 	'RFC822.TEXT' => [ NEED_EML, \&emit_rfc822_text ],
-	'RFC822.SIZE' => [ NEED_BLOB, \&emit_rfc822_size ],
+	'RFC822.SIZE' => [ NEED_SMSG, \&emit_rfc822_size ],
 	RFC822 => [ NEED_BLOB, \&emit_rfc822 ],
 	BODY => [ NEED_EML, \&emit_body ],
 	BODYSTRUCTURE => [ NEED_EML, \&emit_bodystructure ],
@@ -500,11 +500,12 @@ sub emit_rfc822 {
 	$self->msg_more($$bref);
 }
 
-# Mail::IMAPClient::message_string cares about this by default
-# (->Ignoresizeerrors attribute)
+# Mail::IMAPClient::message_string cares about this by default,
+# (->Ignoresizeerrors attribute).  Admins are encouraged to
+# --reindex for IMAP support, anyways.
 sub emit_rfc822_size {
-	my ($self, $k, undef, $bref) = @_;
-	$self->msg_more(' RFC822.SIZE ' . length($$bref));
+	my ($self, $k, $smsg) = @_;
+	$self->msg_more(' RFC822.SIZE ' . $smsg->{bytes});
 }
 
 sub emit_internaldate {
