@@ -792,6 +792,7 @@ sub partial_hdr_not {
 	}
 	my $str = $eml->header_obj->as_string;
 	$str =~ s/$hdrs_re//g;
+	$str =~ s/(?<!\r)\n/\r\n/sg;
 	$str .= "\r\n";
 }
 
@@ -802,7 +803,9 @@ sub partial_hdr_get {
 		$eml = eml_body_idx($eml, $section_idx) or return;
 	}
 	my $str = $eml->header_obj->as_string;
-	join('', ($str =~ m/($hdrs_re)/g), "\r\n");
+	$str = join('', ($str =~ m/($hdrs_re)/g));
+	$str =~ s/(?<!\r)\n/\r\n/sg;
+	$str .= "\r\n";
 }
 
 sub partial_prepare ($$$$) {
@@ -828,7 +831,11 @@ sub partial_prepare ($$$$) {
 						: \&partial_hdr_get,
 						$1, undef, $4, $5 ];
 		$tmp->[2] = hdrs_regexp($3);
-		$$need |= CRLF_HDR|EML_HDR;
+
+		# don't emit CRLF_HDR instruction, here, partial_hdr_*
+		# will do CRLF conversion with only the extracted result
+		# and not waste time converting lines we don't care about.
+		$$need |= EML_HDR;
 	} else {
 		undef;
 	}
