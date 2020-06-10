@@ -367,11 +367,22 @@ ok($mic->close, 'CLOSE works');
 ok(!$mic->close, 'CLOSE not idempotent');
 ok($mic->logout, 'logged out');
 
+{
+	my $c = tcp_connect($sock);
+	$c->autoflush(1);
+	like(<$c>, qr/\* OK/, 'got a greeting');
+	print $c "\r\n";
+	like(<$c>, qr/\A\* BAD Error in IMAP command/, 'empty line');
+	print $c "tagonly\r\n";
+	like(<$c>, qr/\Atagonly BAD Error in IMAP command/, 'tag-only line');
+}
+
 $td->kill;
 $td->join;
 is($?, 0, 'no error in exited process');
 open my $fh, '<', $err or BAIL_OUT("open $err failed: $!");
 my $eout = do { local $/; <$fh> };
 unlike($eout, qr/wide/i, 'no Wide character warnings');
+unlike($eout, qr/uninitialized/i, 'no uninitialized warnings');
 
 done_testing;

@@ -862,14 +862,17 @@ sub process_line ($$) {
 			cmd_done($self, $tag);
 		} else { # this is weird
 			auth_challenge_ok($self) //
-				"$tag BAD Error in IMAP command $req: ".
-				"Unknown command\r\n";
+					($tag // '*') .
+					' BAD Error in IMAP command '.
+					($req // '(???)').
+					": Unknown command\r\n";
 		}
 	};
 	my $err = $@;
 	if ($err && $self->{sock}) {
 		$l =~ s/\r?\n//s;
 		err($self, 'error from: %s (%s)', $l, $err);
+		$tag //= '*';
 		$res = "$tag BAD program fault - command not performed\r\n";
 	}
 	return 0 unless defined $res;
