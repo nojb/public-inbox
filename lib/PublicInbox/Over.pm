@@ -216,7 +216,7 @@ SELECT num,ts,ds,ddd FROM over WHERE num = ? LIMIT 1
 	load_from_row($smsg);
 }
 
-# IMAP search
+# IMAP search, this is limited by callers to UID_SLICE size (50K)
 sub uid_range {
 	my ($self, $beg, $end, $sql) = @_;
 	my $dbh = $self->connect;
@@ -225,7 +225,7 @@ sub uid_range {
 	# This is read-only, anyways; but caller should verify it's
 	# only sending \A[0-9]+\z for ds and ts column ranges
 	$q .= $$sql if $sql;
-	$q .= ' ORDER BY num ASC LIMIT ' . DEFAULT_LIMIT;
+	$q .= ' ORDER BY num ASC';
 	$dbh->selectcol_arrayref($q, undef, $beg, $end);
 }
 
