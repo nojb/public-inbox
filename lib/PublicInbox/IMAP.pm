@@ -650,26 +650,31 @@ sub fetch_smsg { # long_response
 	1; # more
 }
 
-sub fetch_uid { # long_response
-	my ($self, $tag, $uids, $range_info, $ops) = @_;
-
-	while (!@$uids) { # rare
-		my ($beg, $end, $range_csv) = @$range_info;
-		if (scalar(@$uids = @{$self->{ibx}->over->
-					uid_range($beg, $end)})) {
-			$range_info->[0] = $uids->[-1] + 1;
-		} elsif (!$range_csv) {
-			$self->write(\"$tag OK Fetch done\r\n");
+sub refill_uids ($$$;$) {
+	my ($self, $uids, $range_info, $sql) = @_;
+	my ($beg, $end, $range_csv) = @$range_info;
+	my $over = $self->{ibx}->over;
+	while (1) {
+		if (scalar(@$uids = @{$over->uid_range($beg, $end, $sql)})) {
+			$range_info->[0] = $uids->[-1] + 1; # update $beg
 			return;
+		} elsif (!$range_csv) {
+			return 0;
 		} else {
 			my $next_range = range_step($self, \$range_csv);
-			if (!ref($next_range)) { # error
-				$self->write(\"$tag $next_range\r\n");
-				return;
-			}
-			@$range_info = @$next_range;
+			return $next_range if !ref($next_range); # error
+			($beg, $end, $range_csv) = @$range_info = @$next_range;
+			# continue looping
 		}
-		# continue looping
+	}
+}
+
+sub fetch_uid { # long_response
+	my ($self, $tag, $uids, $range_info, $ops) = @_;
+	if (defined(my $err = refill_uids($self, $uids, $range_info))) {
+		$err ||= 'OK Fetch done';
+		$self->write("$tag $err\r\n");
+		return;
 	}
 	my ($i, $k);
 	my $msn = $range_info->[3];
@@ -967,15 +972,15 @@ sub parse_date ($) { # 02-Oct-1993
 }
 
 sub uid_search_uid_range { # long_response
-	my ($self, $tag, $beg, $end, $sql) = @_;
-	my $uids = $self->{ibx}->over->uid_range($$beg, $end, $sql);
-	if (@$uids) {
-		$$beg = $uids->[-1] + 1;
-		$self->msg_more(join(' ', '', @$uids));
-	} else {
-		$self->write(\"\r\n$tag OK Search done\r\n");
-		undef;
+	my ($self, $tag, $uids, $sql, $range_info) = @_;
+	if (defined(my $err = refill_uids($self, $uids, $range_info, $sql))) {
+		$err ||= 'OK Search done';
+		$self->write("\r\n$tag $err\r\n");
+		return;
 	}
+	$self->msg_more(join(' ', '', @$uids));
+	@$uids = ();
+	1; # more
 }
 
 sub date_search {
@@ -1079,12 +1084,8 @@ sub parse_query {
 		return 'BAD Xapian not configured for mailbox';
 	}
 
-	if (my $uid = $q->{uid}) {
-		((@$uid > 1) || $uid->[0] =~ /,/) and
-			return 'BAD multiple ranges not supported, yet';
-		($q->{sql} // $q->{xap}) and
-			return 'BAD ranges and queries do not mix, yet';
-		$q->{uid} = join(',', @$uid); # TODO: multiple ranges
+	if (my $uid = delete $q->{uid}) {
+		$q->{uid} = join(',', @$uid);
 	}
 	$q;
 }
@@ -1095,28 +1096,13 @@ sub cmd_uid_search ($$$;) {
 	my $q = parse_query($self, \@_);
 	return "$tag $q\r\n" if !ref($q);
 	my $sql = delete $q->{sql};
-
+	my $range_csv = delete $q->{uid} // '1:*';
+	my $range_info = range_step($self, \$range_csv);
+	return "$tag $range_info\r\n" if !ref($range_info);
 	if (!scalar(keys %$q)) {
 		$self->msg_more('* SEARCH');
-		my $beg = 1;
-		my $end = $ibx->over->max;
-		uid_clamp($self, \$beg, \$end);
 		long_response($self, \&uid_search_uid_range,
-				$tag, \$beg, $end, $sql);
-	} elsif (my $uid = $q->{uid}) {
-		if ($uid =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
-			my ($beg, $end) = ($1, $2);
-			$end = $ibx->over->max if $end eq '*';
-			uid_clamp($self, \$beg, \$end);
-			$self->msg_more('* SEARCH');
-			long_response($self, \&uid_search_uid_range,
-					$tag, \$beg, $end, $sql);
-		} elsif ($uid =~ /\A[0-9]+\z/s) {
-			$uid = $ibx->over->get_art($uid) ? " $uid" : '';
-			"* SEARCH$uid\r\n$tag OK Search done\r\n";
-		} else {
-			"$tag BAD Error\r\n";
-		}
+				$tag, [], $sql, $range_info);
 	} else {
 		"$tag BAD Error\r\n";
 	}
