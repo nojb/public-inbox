@@ -146,7 +146,7 @@ sub cmd_noop ($$) { "$_[1] OK NOOP completed\r\n" }
 # called by PublicInbox::InboxIdle
 sub on_inbox_unlock {
 	my ($self, $ibx) = @_;
-	my $new = ($ibx->mm->minmax)[1];
+	my $new = $ibx->mm->max;
 	defined(my $old = $self->{-idle_max}) or die 'BUG: -idle_max unset';
 	if ($new > $old) {
 		$self->{-idle_max} = $new;
@@ -161,7 +161,7 @@ sub cmd_idle ($$) {
 	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
 	$ibx->subscribe_unlock(fileno($self->{sock}), $self);
 	$self->{-idle_tag} = $tag;
-	$self->{-idle_max} = ($ibx->mm->minmax)[1] // 0;
+	$self->{-idle_max} = $ibx->mm->max // 0;
 	"+ idling\r\n"
 }
 
@@ -182,7 +182,7 @@ sub cmd_examine ($$$) {
 	my $ibx = $self->{imapd}->{groups}->{$mailbox} or
 		return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
 	my $mm = $ibx->mm;
-	my $max = $mm->num_highwater // 0;
+	my $max = $mm->max // 0;
 	# RFC 3501 2.3.1.1 -  "A good UIDVALIDITY value to use in
 	# this case is a 32-bit representation of the creation
 	# date/time of the mailbox"
@@ -320,7 +320,7 @@ sub cmd_uid_fetch ($$$;@) {
 	if ($range =~ /\A([0-9]+):([0-9]+)\z/s) {
 		($beg, $end) = ($1, $2);
 	} elsif ($range =~ /\A([0-9]+):\*\z/s) {
-		($beg, $end) =  ($1, $ibx->mm->num_highwater // 0);
+		($beg, $end) =  ($1, $ibx->mm->max // 0);
 	} elsif ($range =~ /\A[0-9]+\z/) {
 		my $smsg = $ibx->over->get_art($range) or return "$tag OK\r\n";
 		push @$msgs, $smsg;
@@ -365,7 +365,7 @@ sub cmd_uid_search ($$$;) {
 	} elsif ($arg eq 'UID' && scalar(@rest) == 1) {
 		if ($rest[0] =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
 			my ($beg, $end) = ($1, $2);
-			$end = ($ibx->mm->minmax)[1] if $end eq '*';
+			$end = $ibx->mm->max if $end eq '*';
 			$self->msg_more('* SEARCH');
 			long_response($self, \&uid_search_uid_range,
 					$tag, $ibx, \$beg, $end);

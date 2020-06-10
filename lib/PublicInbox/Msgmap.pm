@@ -55,8 +55,7 @@ sub new_file {
 		$dbh->begin_work;
 		$self->created_at(time) unless $self->created_at;
 
-		my (undef, $max) = $self->minmax();
-		$max ||= 0;
+		my $max = $self->max // 0;
 		$self->num_highwater($max);
 		$dbh->commit;
 	}
@@ -159,17 +158,20 @@ sub num_for {
 	$sth->fetchrow_array;
 }
 
+sub max {
+	my $sth = $_[0]->{dbh}->prepare_cached('SELECT MAX(num) FROM msgmap',
+						undef, 1);
+	$sth->execute;
+	$sth->fetchrow_array;
+}
+
 sub minmax {
-	my ($self) = @_;
-	my $dbh = $self->{dbh};
 	# breaking MIN and MAX into separate queries speeds up from 250ms
 	# to around 700us with 2.7million messages.
-	my $sth = $dbh->prepare_cached('SELECT MIN(num) FROM msgmap', undef, 1);
+	my $sth = $_[0]->{dbh}->prepare_cached('SELECT MIN(num) FROM msgmap',
+						undef, 1);
 	$sth->execute;
-	my $min = $sth->fetchrow_array;
-	$sth = $dbh->prepare_cached('SELECT MAX(num) FROM msgmap', undef, 1);
-	$sth->execute;
-	($min, $sth->fetchrow_array);
+	($sth->fetchrow_array, max($_[0]));
 }
 
 sub mid_delete {
