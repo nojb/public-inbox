@@ -19,7 +19,7 @@ all need to be considered for everything we introduce)
   Meaning users can run this without needing a full copy of the
   archives in git repositories.
 
-* HTTP and NNTP proxy support.  Allow us to be a frontend for
+* HTTP, IMAP and NNTP proxy support.  Allow us to be a frontend for
   firewalled off (or Tor-exclusive) instances.  The use case is
   for offering a publicly accessible IP with a cheap VPS,
   yet storing large amounts of data on computers without a
@@ -32,7 +32,7 @@ all need to be considered for everything we introduce)
   archive locations to avoid SPOF.
 
 * optional Cache::FastMmap support so production deployments won't
-  need Varnish (Varnish doesn't protect NNTP, either)
+  need Varnish (Varnish doesn't protect NNTP or IMAP, either)
 
 * dogfood and take advantage of new kernel APIs (while maintaining
   portability to older Linux, free BSDs and maybe Hurd).
@@ -44,7 +44,8 @@ all need to be considered for everything we introduce)
 * Support more of RFC 3977 (NNTP)
   Is there anything left for read-only support?
 
-* Combined "super server" for NNTP/HTTP/POP3 to reduce memory overhead
+* Combined "super server" for NNTP/HTTP/POP3/IMAP to reduce memory,
+  process, and FD overhead
 
 * Configurable linkification for per-inbox shorthands:
   "$gmane/123456" could be configured to expand to the
@@ -111,7 +112,30 @@ all need to be considered for everything we introduce)
 * imperfect scraper importers for obfuscated list archives
   (e.g. obfuscated Mailman stuff, Google Groups, etc...)
 
+* extend public-inbox-watch to support IMAP, NNTP
+
 * improve performance and avoid head-of-line blocking on slow storage
+
+* HTTP(S) search API (likely JMAP, but GraphQL could be an option)
+  It should support git-specific prefixes (dfpre:, dfpost:, dfn:, etc)
+  as extensions.  If JMAP, it should have HTTP(S) analogues to
+  various IMAP extensions.
+
+* search across multiple inboxes, or admin-definable groups of inboxes
+
+* scalability to tens/hundreds of thousands of inboxes
+
+  - pagination for WwwListing
+
+  - inotify-based manifest.js.gz updates
+
+  - process/FD reduction (needs to be slow-storage friendly)
+
+  ...
+
+* command-line tool (similar to mairix/notmuch, but solver+git-aware)
+
+* consider removing doc_data from Xapian, redundant with over.sqlite3
 
 * share "git cat-file --batch" processes across inboxes to avoid
   bumping into /proc/sys/fs/pipe-user-pages-* limits
@@ -125,7 +149,8 @@ all need to be considered for everything we introduce)
 * linter to check validity of config file
 
 * linter option and WWW endpoint to graph relationships and flows
-  between inboxes, addresses maildirs, coderepos, etc...
+  between inboxes, addresses, Maildirs, coderepos, newsgroups,
+  IMAP mailboxes, etc...
 
 * pygments support - via Python script similar to `git cat-file --batch'
   to avoid startup penalty.  pygments.rb (Ruby) can be inspiration, too.

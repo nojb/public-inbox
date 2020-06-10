@@ -1,0 +1,45 @@
+From: Eric Wong <e@yhbt.net>
+To: meta@public-inbox.org
+Subject: [WIP] public-inbox 1.6.0
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+
+* General changes:
+
+  - ~/.cache/public-inbox/inline-c is automatically used for Inline::C
+    if it exists.  PERL_INLINE_DIRECTORY in env remains supported
+    and prioritized to support `nobody'-type users without HOME.
+
+  - msgmap.sqlite3 uses journal_mode=TRUNCATE, matching over.sqlite3
+    behavior for a minor reduction in VFS traffic
+
+  - message/{rfc822,news,global} attachments are decoded recursively
+    and indexed for search.  Use `public-inbox-index --reindex' to
+    ensure these attachments are indexed in old messages.
+
+* public-inbox-index
+
+  - --batch-size=BYTES or publicinbox.indexBatchSize parameter
+
+  - parallelize updates by default, "-j0" is (once again) allowed
+    parallelization
+
+* public-inbox-learn
+
+  - `rm' supports `--all' to remove from all configured inboxes
+
+* PublicInbox::WWW
+
+  - use consistent blank line around attachment links
+
+  - Attachments in message/{rfc822,news,global} messages can be
+    individually downloaded.  Downloading the entire message/rfc822
+    file in full remains supported
+
+  - $INBOX_DIR/description is treated as UTF-8
+
+Please report bugs via plain-text mail to: meta@public-inbox.org
+
+See archives at https://public-inbox.org/meta/ for all history.
+See https://public-inbox.org/TODO for what the future holds.
