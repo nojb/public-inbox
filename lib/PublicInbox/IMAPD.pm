@@ -74,11 +74,6 @@ sub imapd_refresh_finalize {
 			my $u = $_; # capitalize "INBOX" for user-familiarity
 			$u =~ s/\Ainbox(\.|\z)/INBOX$1/i;
 			qq[* LIST (\\Has${no}Children) "." $u\r\n]
-		} sort {
-			# shortest names first, alphabetically if lengths match
-			length($a) == length($b) ?
-				($a cmp $b) :
-				(length($a) <=> length($b))
 		} keys %$mailboxes
 	];
 	$imapd->{pi_config} = $pi_config;

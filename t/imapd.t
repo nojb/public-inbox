@@ -405,7 +405,9 @@ is($r2->{2}->{'BODY[HEADER.FIELDS (MESSAGE-ID)]'},
 	pop @new_list;
 	pop @orig_list;
 	# TODO: not sure if sort order matters, imapd_refresh_finalize
-	# sorts, for now, but maybe clients don't care...
+	# doesn't sort, hopefully clients don't care...
+	@new_list = sort @new_list;
+	@orig_list = sort @orig_list;
 	is_deeply(\@new_list, \@orig_list, 'LIST identical');
 }
 ok($mic->close, 'CLOSE works');
