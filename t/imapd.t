@@ -101,13 +101,13 @@ like($raw[0], qr/\A\*\x20STATUS\x20inbox\.i1\.$first_range\x20
 like($raw[1], qr/\A\S+ OK /, 'finished status response');
 
 my @orig_list = @raw = $mic->list;
-like($raw[0], qr/^\* LIST \(.*?\) "\." inbox/,
+like($raw[0], qr/^\* LIST \(.*?\) "\." INBOX/,
 	'got an inbox');
 like($raw[-1], qr/^\S+ OK /, 'response ended with OK');
 is(scalar(@raw), scalar(@V) + 4, 'default LIST response');
 @raw = $mic->list('', 'inbox.i1');
 is(scalar(@raw), 2, 'limited LIST response');
-like($raw[0], qr/^\* LIST \(.*?\) "\." inbox/,
+like($raw[0], qr/^\* LIST \(.*?\) "\." INBOX/,
 		'got an inbox.i1');
 like($raw[-1], qr/^\S+ OK /, 'response ended with OK');
 

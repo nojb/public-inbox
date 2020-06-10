@@ -254,13 +254,14 @@ sub cmd_done ($$) {
 
 sub ensure_ranges_exist ($$$) {
 	my ($imapd, $ibx, $max) = @_;
+	defined(my $mb_top = $ibx->{newsgroup}) or return;
 	my $mailboxes = $imapd->{mailboxes};
-	my $mb_top = $ibx->{newsgroup};
 	my @created;
 	for (my $i = int($max/UID_BLOCK); $i >= 0; --$i) {
 		my $sub_mailbox = "$mb_top.$i";
 		last if exists $mailboxes->{$sub_mailbox};
 		$mailboxes->{$sub_mailbox} = $ibx;
+		$sub_mailbox =~ s/\Ainbox\./INBOX./i; # more familiar to users
 		push @created, $sub_mailbox;
 	}
 	return unless @created;
@@ -693,9 +694,8 @@ sub cmd_list ($$$$) {
 		# request for hierarchy delimiter
 		$l = [ qq[* LIST (\\Noselect) "." ""\r\n] ];
 	} elsif ($refname ne '' || $wildcard ne '*') {
-		$wildcard = lc $wildcard;
-		$wildcard =~ s!([^a-z0-9_])!$patmap{$1} // "\Q$1"!eg;
-		$l = [ grep(/ \Q$refname\E$wildcard\r\n\z/s, @$l) ];
+		$wildcard =~ s!([^a-z0-9_])!$patmap{$1} // "\Q$1"!egi;
+		$l = [ grep(/ \Q$refname\E$wildcard\r\n\z/is, @$l) ];
 	}
 	\(join('', @$l, "$tag OK List done\r\n"));
 }

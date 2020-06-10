@@ -71,7 +71,9 @@ sub imapd_refresh_finalize {
 	$imapd->{inboxlist} = [
 		map {
 			my $no = $mailboxes->{$_} == $dummy ? '' : 'No';
-			qq[* LIST (\\Has${no}Children) "." $_\r\n]
+			my $u = $_; # capitalize "INBOX" for user-familiarity
+			$u =~ s/\Ainbox(\.|\z)/INBOX$1/i;
+			qq[* LIST (\\Has${no}Children) "." $u\r\n]
 		} sort {
 			# shortest names first, alphabetically if lengths match
 			length($a) == length($b) ?
