@@ -182,6 +182,7 @@ sub _xdb ($) {
 	my ($xdb, $slow_phrase);
 	my $qpf = \($self->{qp_flags} ||= $QP_FLAGS);
 	if ($self->{ibx_ver} >= 2) {
+		my $n = 0;
 		foreach my $shard (<$dir/*>) {
 			-d $shard && $shard =~ m!/[0-9]+\z! or next;
 			my $sub = $X{Database}->new($shard);
@@ -191,13 +192,24 @@ sub _xdb ($) {
 				$xdb = $sub;
 			}
 			$slow_phrase ||= -f "$shard/iamchert";
+			++$n;
 		}
+		$self->{nshard} = $n;
 	} else {
 		$slow_phrase = -f "$dir/iamchert";
 		$xdb = $X{Database}->new($dir);
 	}
 	$$qpf |= FLAG_PHRASE() unless $slow_phrase;
 	$xdb;
+}
+
+# v2 Xapian docids don't conflict, so they're identical to
+# NNTP article numbers and IMAP UIDs.
+# https://trac.xapian.org/wiki/FAQ/MultiDatabaseDocumentID
+sub mdocid {
+	my ($nshard, $mitem) = @_;
+	my $docid = $mitem->get_docid;
+	int(($docid - 1) / $nshard) + 1;
 }
 
 sub xdb ($) {
@@ -283,7 +295,7 @@ sub _enquire_once { # retry_reopen callback
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
-	if (($opts->{mset} || 0) == 2) {
+	if (($opts->{mset} || 0) == 2) { # mset == 2: ORDER BY docid/UID
 		$enquire->set_docid_order($ENQ_ASCENDING);
 		$enquire->set_weighting_scheme($X{BoolWeight}->new);
 	} elsif ($opts->{relevance}) {
@@ -321,6 +333,11 @@ sub qp {
 	my $nvrp = $X{NumberValueRangeProcessor};
 	$qp->add_valuerangeprocessor($nvrp->new(YYYYMMDD, 'd:'));
 	$qp->add_valuerangeprocessor($nvrp->new(DT, 'dt:'));
+
+	# for IMAP, undocumented for WWW and may be split off go away
+	$qp->add_valuerangeprocessor($nvrp->new(BYTES, 'bytes:'));
+	$qp->add_valuerangeprocessor($nvrp->new(TS, 'ts:'));
+	$qp->add_valuerangeprocessor($nvrp->new(UID, 'uid:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $_) foreach split(/ /, $prefix);

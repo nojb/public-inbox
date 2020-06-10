@@ -19,10 +19,10 @@ if ($can_compress) { # hope this gets fixed upstream, soon
 require_ok 'PublicInbox::IMAP';
 my $first_range = '0';
 
-my $level = '-Lbasic';
+my $level = 'basic';
 SKIP: {
 	require_mods('Search::Xapian', 1);
-	$level = '-Lmedium';
+	$level = 'medium';
 };
 
 my @V = (1);
@@ -38,7 +38,7 @@ for my $V (@V) {
 	my $url = "http://example.com/i$V";
 	my $inboxdir = "$tmpdir/$name";
 	my $folder = "inbox.i$V";
-	my $cmd = ['-init', "-V$V", $level, $name, $inboxdir, $url, $addr];
+	my $cmd = ['-init', "-V$V", "-L$level", $name, $inboxdir, $url, $addr];
 	run_script($cmd) or BAIL_OUT("init $name");
 	xsys(qw(git config), "--file=$ENV{HOME}/.public-inbox/config",
 			"publicinbox.$name.newsgroup", $folder) == 0 or
@@ -119,6 +119,24 @@ $ret = $mic->search('uid 1:1') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search UID 1:1 works');
 $ret = $mic->search('uid 1:*') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search UID 1:* works');
+
+SKIP: {
+	skip 'Xapian missing', 6 if $level eq 'basic';
+	my $x = $mic->search(qw(smaller 99999));
+	is_deeply($x, [1], 'SMALLER works with Xapian (hit)');
+	$x = $mic->search(qw(smaller 9));
+	is_deeply($x, [], 'SMALLER works with Xapian (miss)');
+
+	$x = $mic->search(qw(larger 99999));
+	is_deeply($x, [], 'LARGER works with Xapian (miss)');
+	$x = $mic->search(qw(larger 9));
+	is_deeply($x, [1], 'LARGER works with Xapian (hit)');
+
+	$x = $mic->search(qw(HEADER Message-ID testmessage@example.com));
+	is_deeply($x, [1], 'HEADER Message-ID works');
+	$x = $mic->search(qw(HEADER Message-ID miss));
+	is_deeply($x, [], 'HEADER Message-ID can miss');
+}
 
 is_deeply(scalar $mic->flags('1'), [], '->flags works');
 {
@@ -341,12 +359,34 @@ $ret = $mic->fetch_hash('1,2:3', 'RFC822') or BAIL_OUT "FETCH $@";
 is(scalar keys %$ret, 3, 'got all 3 messages with comma-separated sequence');
 $ret = $mic->fetch_hash('1:*', 'RFC822') or BAIL_OUT "FETCH $@";
 is(scalar keys %$ret, 3, 'got all 3 messages');
+
+SKIP: {
+	# do any clients use non-UID IMAP SEARCH?
+	skip 'Xapian missing', 2 if $level eq 'basic';
+	my $x = $mic->search('all');
+	is_deeply($x, [1, 2, 3], 'MSN SEARCH works before rm');
+	$x = $mic->search(qw(header subject embedded));
+	is_deeply($x, [2], 'MSN SEARCH on Subject works before rm');
+}
+
 {
 	my $rdr = { 0 => \($ret->{1}->{RFC822}) };
 	my $env = { HOME => $ENV{HOME} };
 	my @cmd = qw(-learn rm --all);
 	run_script(\@cmd, $env, $rdr) or BAIL_OUT('-learn rm');
 }
+
+SKIP: {
+	# do any clients use non-UID IMAP SEARCH?  We only ensure
+	# MSN "SEARCH" can return a result which can be retrieved
+	# via MSN "FETCH"
+	skip 'Xapian missing', 3 if $level eq 'basic';
+	my $x = $mic->search(qw(header subject embedded));
+	is(scalar(@$x), 1, 'MSN SEARCH on Subject works after rm');
+	$x = $mic->message_string($x->[0]);
+	is($x, $ret->{2}->{RFC822}, 'message 2 unchanged');
+}
+
 my $r2 = $mic->fetch_hash('1:*', 'BODY.PEEK[]') or BAIL_OUT "FETCH $@";
 is(scalar keys %$r2, 2, 'did not get all 3 messages');
 is($r2->{1}->{'BODY[]'}, $ret->{2}->{RFC822}, 'message 2 unchanged');

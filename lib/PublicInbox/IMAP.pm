@@ -24,6 +24,8 @@ use Errno qw(EAGAIN);
 use Time::Local qw(timegm);
 use POSIX qw(strftime);
 use Hash::Util qw(unlock_hash); # dependency of fields for perl 5.10+, anyways
+use PublicInbox::Search;
+*mdocid = \&PublicInbox::Search::mdocid;
 
 my $Address;
 for my $mod (qw(Email::Address::XS Mail::Address)) {
@@ -592,22 +594,26 @@ sub range_step ($$) {
 		$range = $$range_csv;
 		$$range_csv = undef;
 	}
+	my $uid_base = $self->{uid_base};
+	my $uid_end = $uid_base + UID_BLOCK;
 	if ($range =~ /\A([0-9]+):([0-9]+)\z/) {
 		($beg, $end) = ($1 + 0, $2 + 0);
+		uid_clamp($self, \$beg, \$end);
 	} elsif ($range =~ /\A([0-9]+):\*\z/) {
 		$beg = $1 + 0;
 		$end = $self->{ibx}->over->max;
-		my $uid_end = $self->{uid_base} + UID_BLOCK;
 		$end = $uid_end if $end > $uid_end;
 		$beg = $end if $beg > $end;
+		uid_clamp($self, \$beg, \$end);
 	} elsif ($range =~ /\A[0-9]+\z/) {
 		$beg = $end = $range + 0;
-		undef $range;
+		# just let the caller do an out-of-range query if a single
+		# UID is out-of-range
+		++$beg if ($beg <= $uid_base || $end > $uid_end);
 	} else {
 		return 'BAD fetch range';
 	}
-	uid_clamp($self, \$beg, \$end) if defined($range);
-	my $msn = $beg - $self->{uid_base};
+	my $msn = $beg - $uid_base;
 	[ $beg, $end, $$range_csv, \$msn ];
 }
 
@@ -971,15 +977,22 @@ sub parse_date ($) { # 02-Oct-1993
 	timegm(0, 0, 0, $dd, $mm, $yyyy);
 }
 
-sub uid_search_uid_range { # long_response
-	my ($self, $tag, $uids, $sql, $range_info) = @_;
+sub msn_convert ($$) {
+	my ($self, $uids) = @_;
+	my $adj = $self->{uid_base};
+	$_ -= $adj for @$uids;
+}
+
+sub search_uid_range { # long_response
+	my ($self, $tag, $sql, $range_info, $want_msn) = @_;
+	my $uids = [];
 	if (defined(my $err = refill_uids($self, $uids, $range_info, $sql))) {
 		$err ||= 'OK Search done';
 		$self->write("\r\n$tag $err\r\n");
 		return;
 	}
+	msn_convert($self, $uids) if $want_msn;
 	$self->msg_more(join(' ', '', @$uids));
-	@$uids = ();
 	1; # more
 }
 
@@ -1029,6 +1042,21 @@ my %I2X = (
 	# KEYWORD # TODO ? dfpre,dfpost,...
 );
 
+# IMAP allows searching arbitrary headers via "HEADER $HDR_NAME $HDR_VAL"
+# which gets silly expensive.  We only allow the headers we already index.
+my %H2X = (%I2X, 'MESSAGE-ID' => 'm:', 'LIST-ID' => 'l:');
+
+sub xap_append ($$$$) {
+	my ($q, $rest, $k, $xk) = @_;
+	delete $q->{sql}; # can't use over.sqlite3
+	defined(my $arg = shift @$rest) or return "BAD $k no arg";
+
+	# AFAIK Xapian can't handle [*"] in probabilistic terms
+	$arg =~ tr/*"//d;
+	${$q->{xap}} .= qq[ $xk"$arg"];
+	undef;
+}
+
 sub parse_query {
 	my ($self, $rest) = @_;
 	if (uc($rest->[0]) eq 'CHARSET') {
@@ -1038,7 +1066,8 @@ sub parse_query {
 	}
 
 	my $sql = ''; # date conditions, {sql} deleted if Xapian is needed
-	my $q = { xap => '', sql => \$sql };
+	my $xap = '';
+	my $q = { sql => \$sql, xap => \$xap };
 	while (@$rest) {
 		my $k = uc(shift @$rest);
 		# default criteria
@@ -1059,17 +1088,18 @@ sub parse_query {
 			delete $q->{sql}; # can't use over.sqlite3
 			my $bytes = shift(@$rest) // '';
 			$bytes =~ /\A[0-9]+\z/ or return "BAD $k not a number";
-			$q->{xap} .= ' bytes:' . ($k eq 'SMALLER' ?
+			$xap .= ' bytes:' . ($k eq 'SMALLER' ?
 							'..'.(--$bytes) :
 							(++$bytes).'..');
+		} elsif ($k eq 'HEADER') {
+			$k = uc(shift(@$rest) // '');
+			my $xk = $H2X{$k} or
+				return "BAD HEADER $k not supported";
+			my $err = xap_append($q, $rest, $k, $xk);
+			return $err if $err;
 		} elsif (defined(my $xk = $I2X{$k})) {
-			delete $q->{sql}; # can't use over.sqlite3
-			my $arg = shift @$rest;
-			defined($arg) or return "BAD $k no arg";
-
-			# Xapian can't handle [*"] in probabilistic terms
-			$arg =~ tr/*"//d;
-			$q->{xap} .= qq[ $xk:"$arg"];
+			my $err = xap_append($q, $rest, $k, $xk);
+			return $err if $err;
 		} else {
 			# TODO: parentheses, OR, NOT ...
 			return "BAD $k not supported (yet?)";
@@ -1083,29 +1113,85 @@ sub parse_query {
 	} elsif (!$self->{ibx}->search) {
 		return 'BAD Xapian not configured for mailbox';
 	}
-
+	my $max = $self->{ibx}->over->max;
 	if (my $uid = delete $q->{uid}) {
-		$q->{uid} = join(',', @$uid);
+		my $range_csv = join(',', @$uid);
+		do {
+			my $nxt = range_step($self, \$range_csv);
+			my ($beg, $end) = @$nxt;
+			if ($xap) {
+				$xap .= " uid:$beg..$end";
+			} elsif ($beg == $end) {
+				$sql .= " AND num = $beg";
+			} else {
+				$sql .= " AND num >= $beg AND num <= $end";
+			}
+		} while ($range_csv);
 	}
+	my $beg = 1;
+	uid_clamp($self, \$beg, \$max);
+	$q->{range_info} = [ $beg, $max ];
 	$q;
+}
+
+sub refill_xap ($$$$) {
+	my ($self, $uids, $range_info, $q) = @_;
+	my ($beg, $end) = @$range_info;
+	my $srch = $self->{ibx}->search;
+	my $opt = { mset => 2, limit => 1000 };
+	my $nshard = $srch->{nshard} // 1;
+	while (1) {
+		my $mset = $srch->query("$$q uid:$beg..$end", $opt);
+		@$uids = map { mdocid($nshard, $_) } $mset->items;
+		if (@$uids) {
+			$range_info->[0] = $uids->[-1] + 1; # update $beg
+			return;
+		} else { # all done
+			return 0;
+		}
+	}
+}
+
+sub search_xap_range { # long_response
+	my ($self, $tag, $q, $range_info, $want_msn) = @_;
+	my $uids = [];
+	if (defined(my $err = refill_xap($self, $uids, $range_info, $q))) {
+		$err ||= 'OK Search done';
+		$self->write("\r\n$tag $err\r\n");
+		return;
+	}
+	msn_convert($self, $uids) if $want_msn;
+	$self->msg_more(join(' ', '', @$uids));
+	1; # more
+}
+
+sub search_common {
+	my ($self, $tag, $rest, $want_msn) = @_;
+	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
+	my $q = parse_query($self, $rest);
+	return "$tag $q\r\n" if !ref($q);
+	my ($sql, $range_info) = delete @$q{qw(sql range_info)};
+	if (!scalar(keys %$q)) { # overview.sqlite3
+		$self->msg_more('* SEARCH');
+		long_response($self, \&search_uid_range,
+				$tag, $sql, $range_info, $want_msn);
+	} elsif ($q = $q->{xap}) {
+		$self->msg_more('* SEARCH');
+		long_response($self, \&search_xap_range,
+				$tag, $q, $range_info, $want_msn);
+	} else {
+		"$tag BAD Error\r\n";
+	}
 }
 
 sub cmd_uid_search ($$$;) {
 	my ($self, $tag) = splice(@_, 0, 2);
-	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
-	my $q = parse_query($self, \@_);
-	return "$tag $q\r\n" if !ref($q);
-	my $sql = delete $q->{sql};
-	my $range_csv = delete $q->{uid} // '1:*';
-	my $range_info = range_step($self, \$range_csv);
-	return "$tag $range_info\r\n" if !ref($range_info);
-	if (!scalar(keys %$q)) {
-		$self->msg_more('* SEARCH');
-		long_response($self, \&uid_search_uid_range,
-				$tag, [], $sql, $range_info);
-	} else {
-		"$tag BAD Error\r\n";
-	}
+	search_common($self, $tag, \@_);
+}
+
+sub cmd_search ($$$;) {
+	my ($self, $tag) = splice(@_, 0, 2);
+	search_common($self, $tag, \@_, 1);
 }
 
 sub args_ok ($$) { # duplicated from PublicInbox::NNTP
