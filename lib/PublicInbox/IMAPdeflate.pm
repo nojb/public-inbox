@@ -50,7 +50,6 @@ sub enable {
 # overrides PublicInbox::NNTP::compressed
 sub compressed { 1 }
 
-# $_[1] may be a reference or not
 sub do_read ($$$$) {
 	my ($self, $rbuf, $len, $off) = @_;
 
