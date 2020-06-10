@@ -44,7 +44,7 @@ sub imapd_refresh_ibx { # pi_config->each_inbox cb
 	# this case is a 32-bit representation of the creation
 	# date/time of the mailbox"
 	defined($ibx->{uidvalidity} = $mm->created_at) or return;
-	PublicInbox::IMAP::ensure_ranges_exist($imapd, $ibx, $mm->max // 0);
+	PublicInbox::IMAP::ensure_slices_exist($imapd, $ibx, $mm->max // 0);
 
 	# preload to avoid fragmentation:
 	$ibx->description;

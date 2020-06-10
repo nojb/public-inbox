@@ -7,7 +7,16 @@
 # slow storage.
 #
 # data notes:
-# * NNTP article numbers are UIDs
+#
+# * NNTP article numbers are UIDs, mm->created_at is UIDVALIDITY
+#
+# * public-inboxes are sliced into mailboxes of 50K messages
+#   to not overload MUAs: $NEWSGROUP_NAME.$SLICE_INDEX
+#   Slices are similar in concept to v2 "epochs".  Epochs
+#   are for the limitations of git clients, while slices are
+#   for the limitations of IMAP clients.
+#
+# * sequence numbers are estimated based on slice
 
 package PublicInbox::IMAP;
 use strict;
@@ -37,7 +46,7 @@ die "neither Email::Address::XS nor Mail::Address loaded: $@" if !$Address;
 sub LINE_MAX () { 8000 } # RFC 2683 3.2.1.5
 
 # changing this will cause grief for clients which cache
-sub UID_BLOCK () { 50_000 }
+sub UID_SLICE () { 50_000 }
 
 # these values area also used for sorting
 sub NEED_SMSG () { 1 }
@@ -187,7 +196,7 @@ sub on_inbox_unlock {
 	my ($self, $ibx) = @_;
 	my $new = $ibx->over->max;
 	my $uid_base = $self->{uid_base} // 0;
-	my $uid_end = $uid_base + UID_BLOCK;
+	my $uid_end = $uid_base + UID_SLICE;
 	defined(my $old = $self->{-idle_max}) or die 'BUG: -idle_max unset';
 	$new = $uid_end if $new > $uid_end;
 	if ($new > $old) {
@@ -226,7 +235,7 @@ sub cmd_idle ($$) {
 	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
 	$self->{-idle_tag} = $tag;
 	my $max = $ibx->over->max;
-	my $uid_end = $self->{uid_base} + UID_BLOCK;
+	my $uid_end = $self->{uid_base} + UID_SLICE;
 	my $sock = $self->{sock} or return;
 	my $fd = fileno($sock);
 	# only do inotify on most recent slice
@@ -260,12 +269,12 @@ sub cmd_done ($$) {
 	"$idle_tag OK Idle done\r\n";
 }
 
-sub ensure_ranges_exist ($$$) {
+sub ensure_slices_exist ($$$) {
 	my ($imapd, $ibx, $max) = @_;
 	defined(my $mb_top = $ibx->{newsgroup}) or return;
 	my $mailboxes = $imapd->{mailboxes};
 	my @created;
-	for (my $i = int($max/UID_BLOCK); $i >= 0; --$i) {
+	for (my $i = int($max/UID_SLICE); $i >= 0; --$i) {
 		my $sub_mailbox = "$mb_top.$i";
 		last if exists $mailboxes->{$sub_mailbox};
 		$mailboxes->{$sub_mailbox} = $ibx;
@@ -281,14 +290,14 @@ sub inbox_lookup ($$) {
 	my ($self, $mailbox) = @_;
 	my ($ibx, $exists, $uidnext, $uid_base);
 	if ($mailbox =~ /\A(.+)\.([0-9]+)\z/) {
-		# old mail: inbox.comp.foo.$uid_block_idx
+		# old mail: inbox.comp.foo.$SLICE_IDX
 		my $mb_top = $1;
-		$uid_base = $2 * UID_BLOCK;
+		$uid_base = $2 * UID_SLICE;
 		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
 		my $max;
 		($exists, $uidnext, $max) = $ibx->over->imap_status($uid_base,
-							$uid_base + UID_BLOCK);
-		ensure_ranges_exist($self->{imapd}, $ibx, $max);
+							$uid_base + UID_SLICE);
+		ensure_slices_exist($self->{imapd}, $ibx, $max);
 	} else { # check for dummy inboxes
 		$mailbox = lc $mailbox;
 		$ibx = $self->{imapd}->{mailboxes}->{$mailbox} or return;
@@ -296,7 +305,7 @@ sub inbox_lookup ($$) {
 		# if "INBOX.foo.bar" is selected and "INBOX.foo.bar.0",
 		# check for new UID ranges (e.g. "INBOX.foo.bar.1")
 		if (my $z = $self->{imapd}->{mailboxes}->{"$mailbox.0"}) {
-			ensure_ranges_exist($self->{imapd}, $z, $z->over->max);
+			ensure_slices_exist($self->{imapd}, $z, $z->over->max);
 		}
 
 		$uid_base = $exists = 0;
@@ -580,7 +589,7 @@ sub op_crlf_bdy { ${$_[4]->{bdy}} =~ s/(?<!\r)\n/\r\n/sg if $_[4]->{bdy} }
 sub uid_clamp ($$$) {
 	my ($self, $beg, $end) = @_;
 	my $uid_min = $self->{uid_base} + 1;
-	my $uid_end = $uid_min + UID_BLOCK - 1;
+	my $uid_end = $uid_min + UID_SLICE - 1;
 	$$beg = $uid_min if $$beg < $uid_min;
 	$$end = $uid_end if $$end > $uid_end;
 }
@@ -595,7 +604,7 @@ sub range_step ($$) {
 		$$range_csv = undef;
 	}
 	my $uid_base = $self->{uid_base};
-	my $uid_end = $uid_base + UID_BLOCK;
+	my $uid_end = $uid_base + UID_SLICE;
 	if ($range =~ /\A([0-9]+):([0-9]+)\z/) {
 		($beg, $end) = ($1 + 0, $2 + 0);
 		uid_clamp($self, \$beg, \$end);
@@ -1206,6 +1215,9 @@ sub args_ok ($$) { # duplicated from PublicInbox::NNTP
 # returns 1 if we can continue, 0 if not due to buffered writes or disconnect
 sub process_line ($$) {
 	my ($self, $l) = @_;
+
+	# TODO: IMAP allows literals for big requests to upload messages
+	# (which we don't support) but maybe some big search queries use it.
 	my ($tag, $req, @args) = parse_line('[ \t]+', 0, $l);
 	pop(@args) if (@args && !defined($args[-1]));
 	if (@args && uc($req) eq 'UID') {
