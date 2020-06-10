@@ -18,7 +18,7 @@ use base qw(Exporter);
 our @EXPORT_OK = qw(git_unquote git_quote);
 
 use constant MAX_INFLIGHT =>
-	($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF())
+	(($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF()) * 2)
 	/
 	65; # SHA-256 hex size + "\n" in preparation for git using non-SHA1
 
@@ -135,8 +135,8 @@ sub read_cat_in_full ($$) {
 
 sub _cat_async_step ($$) {
 	my ($self, $inflight) = @_;
-	my $pair = shift @$inflight or die 'BUG: inflight empty';
-	my ($cb, $arg) = @$pair;
+	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 2;
+	my ($cb, $arg) = splice(@$inflight, 0, 2);
 	local $/ = "\n";
 	my $head = readline($self->{in});
 	$head =~ / missing$/ and return
@@ -314,7 +314,7 @@ sub cat_async ($$$;$) {
 	}
 
 	print { $self->{out} } $oid, "\n" or fail($self, "write error: $!");
-	push(@$inflight, [ $cb, $arg ]);
+	push(@$inflight, $cb, $arg);
 }
 
 sub extract_cmt_time {
