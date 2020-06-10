@@ -41,8 +41,9 @@ sub LINE_MAX () { 512 } # does RFC 3501 have a limit like RFC 977?
 sub UID_BLOCK () { 50_000 }
 
 # these values area also used for sorting
-sub NEED_BLOB () { 1 }
-sub NEED_EML () { NEED_BLOB|2 }
+sub NEED_SMSG () { 1 }
+sub NEED_BLOB () { NEED_SMSG|2 }
+sub NEED_EML () { NEED_BLOB|4 }
 my $OP_EML_NEW = [ NEED_EML - 1, \&op_eml_new ];
 
 my %FETCH_NEED = (
@@ -57,7 +58,7 @@ my %FETCH_NEED = (
 	BODYSTRUCTURE => [ NEED_EML, \&emit_bodystructure ],
 	ENVELOPE => [ NEED_EML, \&emit_envelope ],
 	FLAGS => [ 0, \&emit_flags ],
-	INTERNALDATE => [ 0, \&emit_internaldate ],
+	INTERNALDATE => [ NEED_SMSG, \&emit_internaldate ],
 );
 my %FETCH_ATT = map { $_ => [ $_ ] } keys %FETCH_NEED;
 
@@ -578,6 +579,38 @@ sub uid_fetch_smsg { # long_response
 	1; # more
 }
 
+sub uid_fetch_uid { # long_response
+	my ($self, $tag, $uids, $range_info, $ops) = @_;
+	while (!@$uids) { # rare
+		my ($beg, $end, $range_csv) = @$range_info;
+		if (scalar(@$uids = @{$self->{ibx}->over->
+					uid_range($beg, $end)})) {
+			$range_info->[0] = $uids->[-1] + 1;
+		} elsif (!$range_csv) {
+			$self->write(\"$tag OK Fetch done\r\n");
+			return;
+		} else {
+			my $next_range = range_step($self, \$range_csv);
+			if (!ref($next_range)) { # error
+				$self->write(\"$tag $next_range\r\n");
+				return;
+			}
+			@$range_info = @$next_range;
+		}
+		# continue looping
+	}
+	for (@$uids) {
+		$self->msg_more("* $_ FETCH (UID $_");
+		for (my $i = 0; $i < @$ops;) {
+			my $k = $ops->[$i++];
+			$ops->[$i++]->($self, $k);
+		}
+		$self->msg_more(")\r\n");
+	}
+	@$uids = ();
+	1; # more
+}
+
 sub cmd_status ($$$;@) {
 	my ($self, $tag, $mailbox, @items) = @_;
 	return "$tag BAD no items\r\n" if !scalar(@items);
@@ -794,7 +827,8 @@ sub fetch_compile ($) {
 		$r[2] = [ map { [ $_, @{$partial{$_}} ] } sort keys %partial ];
 	}
 
-	$r[0] = $need ? \&uid_fetch_msg : \&uid_fetch_smsg;
+	$r[0] = $need & NEED_BLOB ? \&uid_fetch_msg :
+		($need & NEED_SMSG ? \&uid_fetch_smsg : \&uid_fetch_uid);
 
 	# r[1] = [ $key1, $cb1, $key2, $cb2, ... ]
 	use sort 'stable'; # makes output more consistent
