@@ -342,6 +342,7 @@ sub add_xapian ($$$$) {
 	my $dt = strftime('%Y%m%d%H%M%S', @ds);
 	add_val($doc, PublicInbox::Search::DT(), $dt);
 	add_val($doc, PublicInbox::Search::BYTES(), $smsg->{bytes});
+	add_val($doc, PublicInbox::Search::UID(), $smsg->{num});
 
 	my $tg = term_generator($self);
 	$tg->set_document($doc);

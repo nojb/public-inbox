@@ -12,6 +12,7 @@ use constant {
 	YYYYMMDD => 1, # Date: header for searching in the WWW UI
 	DT => 2, # Date: YYYYMMDDHHMMSS
 	BYTES => 3, # IMAP RFC822.SIZE
+	UID => 4, # IMAP UID == NNTP article number == Xapian docid
 	# TODO
 	# REPLYCNT => 4, # IMAP ANSWERED
 };

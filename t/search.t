@@ -324,6 +324,11 @@ $ibx->with_umask(sub {
 		like($bytes, qr/\A[0-9]+\z/, '$bytes stored as digit');
 		ok($bytes > 0, '$bytes is > 0');
 		is($bytes, $smsg->{bytes}, 'bytes Xapian value matches Over');
+
+		$col = PublicInbox::Search::UID();
+		my $uid = PublicInbox::Smsg::get_val($doc, $col);
+		is($uid, $smsg->{num}, 'UID column matches {num}');
+		is($uid, $m->get_docid, 'UID column matches docid');
 	}
 
 	$mset = $ro->query('tc:list@example.com', {mset => 1});
