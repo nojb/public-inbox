@@ -16,7 +16,12 @@
 #   are for the limitations of git clients, while slices are
 #   for the limitations of IMAP clients.
 #
-# * sequence numbers are estimated based on slice
+# * sequence numbers are estimated based on slice.  If they
+#   wrong, they're higher than than the corresponding UID
+#   because UIDs have gaps due to spam removals.
+#   We only support an ephemeral mapping non-UID "FETCH"
+#   because mutt header caching relies on it; mutt uses
+#   UID requests everywhere else.
 
 package PublicInbox::IMAP;
 use strict;
@@ -957,9 +962,17 @@ sub cmd_uid_fetch ($$$$;@) {
 	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
 }
 
+# returns an arrayref of UIDs, so MSNs can be translated via:
+# $msn2uid->[$MSN-1] => $UID
+sub msn2uid ($) {
+	my ($self) = @_;
+	my $x = $self->{uid_base};
+	$self->{ibx}->over->uid_range($x + 1, $x + UID_SLICE);
+}
+
 sub msn_to_uid_range ($$) {
-	my $uid_base = $_[0]->{uid_base};
-	$_[1] =~ s/([0-9]+)/$uid_base + $1/sge;
+	my $msn2uid = $_[0];
+	$_[1] =~ s!([0-9]+)!$msn2uid->[$1 - 1] // ($msn2uid->[-1] + 1)!sge;
 }
 
 sub cmd_fetch ($$$$;@) {
@@ -970,7 +983,7 @@ sub cmd_fetch ($$$$;@) {
 
 	# cb is one of fetch_blob, fetch_smsg, fetch_uid
 	$range_csv = 'bad' if $range_csv !~ $valid_range;
-	msn_to_uid_range($self, $range_csv);
+	msn_to_uid_range(msn2uid($self), $range_csv);
 	my $range_info = range_step($self, \$range_csv);
 	return "$tag $range_info\r\n" if !ref($range_info);
 	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
@@ -1070,13 +1083,14 @@ sub parse_query {
 	my $sql = ''; # date conditions, {sql} deleted if Xapian is needed
 	my $xap = '';
 	my $q = { sql => \$sql, xap => \$xap };
+	my $msn2uid;
 	while (@$rest) {
 		my $k = uc(shift @$rest);
 		# default criteria
 		next if $k =~ /\A(?:ALL|RECENT|UNSEEN|NEW)\z/;
 		next if $k eq 'AND'; # the default, until we support OR
 		if ($k =~ $valid_range) { # convert sequence numbers to UIDs
-			msn_to_uid_range($self, $k);
+			msn_to_uid_range($msn2uid //= msn2uid($self), $k);
 			push @{$q->{uid}}, $k;
 		} elsif ($k eq 'UID') {
 			$k = shift(@$rest) // '';
