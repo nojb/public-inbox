@@ -884,7 +884,7 @@ sub fetch_compile ($) {
 	@r;
 }
 
-sub cmd_uid_fetch ($$$;@) {
+sub cmd_uid_fetch ($$$$;@) {
 	my ($self, $tag, $range_csv, @want) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
 	my ($cb, $ops, $partial) = fetch_compile(\@want);
