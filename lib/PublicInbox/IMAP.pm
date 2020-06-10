@@ -306,6 +306,35 @@ sub uid_fetch_m { # long_response
 	1;
 }
 
+sub cmd_status ($$$;@) {
+	my ($self, $tag, $mailbox, @items) = @_;
+	my $ibx = $self->{imapd}->{groups}->{$mailbox} or
+		return "$tag NO Mailbox doesn't exist: $mailbox\r\n";
+	return "$tag BAD no items\r\n" if !scalar(@items);
+	($items[0] !~ s/\A\(//s || $items[-1] !~ s/\)\z//s) and
+		return "$tag BAD invalid args\r\n";
+
+	my $mm = $ibx->mm;
+	my ($max, @it);
+	for my $it (@items) {
+		$it = uc($it);
+		push @it, $it;
+		if ($it =~ /\A(?:MESSAGES|UNSEEN|RECENT)\z/) {
+			push(@it, ($max //= $mm->max // 0));
+		} elsif ($it eq 'UIDNEXT') {
+			push(@it, ($max //= $mm->max // 0) + 1);
+		} elsif ($it eq 'UIDVALIDITY') {
+			push(@it, $mm->created_at //
+				return("$tag BAD UIDVALIDITY\r\n"));
+		} else {
+			return "$tag BAD invalid item\r\n";
+		}
+	}
+	return "$tag BAD no items\r\n" if !@it;
+	"* STATUS $mailbox (".join(' ', @it).")\r\n" .
+	"$tag OK Status complete\r\n";
+}
+
 sub cmd_uid_fetch ($$$;@) {
 	my ($self, $tag, $range, @want) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";

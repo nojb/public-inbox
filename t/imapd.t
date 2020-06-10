@@ -81,6 +81,11 @@ ok(!$mic->select('foo') && ($e = $@), 'EXAMINE non-existent');
 like($e, qr/\bNO\b/, 'got a NO on EXAMINE for non-existent');
 ok($mic->select('inbox.i1'), 'SELECT succeeds');
 ok($mic->examine('inbox.i1'), 'EXAMINE succeeds');
+my @raw = $mic->status('inbox.i1', qw(Messages uidnext uidvalidity));
+is(scalar(@raw), 2, 'got status response');
+like($raw[0], qr/\A\*\x20STATUS\x20inbox\.i1\x20
+	\(MESSAGES\x20\d+\x20UIDNEXT\x20\d+\x20UIDVALIDITY\x20\d+\)\r\n/sx);
+like($raw[1], qr/\A\S+ OK /, 'finished status response');
 
 my $ret = $mic->search('all') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search all works');
