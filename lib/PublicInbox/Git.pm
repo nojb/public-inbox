@@ -18,6 +18,7 @@ use base qw(Exporter);
 our @EXPORT_OK = qw(git_unquote git_quote);
 use Errno qw(EINTR);
 our $PIPE_BUFSIZ = 65536; # Linux default
+our $in_cleanup;
 
 use constant MAX_INFLIGHT =>
 	(($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF()) * 3)
@@ -155,6 +156,26 @@ sub my_readline ($$) {
 	}
 }
 
+sub cat_async_retry ($$$$$) {
+	my ($self, $inflight, $req, $cb, $arg) = @_;
+
+	# {inflight} may be non-existent, but if it isn't we delete it
+	# here to prevent cleanup() from waiting:
+	delete $self->{inflight};
+	cleanup($self);
+
+	$self->{inflight} = $inflight;
+	batch_prepare($self);
+	my $buf = "$req\n";
+	for (my $i = 0; $i < @$inflight; $i += 3) {
+		$buf .= "$inflight->[$i]\n";
+	}
+	print { $self->{out} } $buf or fail($self, "write error: $!");
+	unshift(@$inflight, \$req, $cb, $arg); # \$ref to indicate retried
+
+	cat_async_step($self, $inflight); # take one step
+}
+
 sub cat_async_step ($$) {
 	my ($self, $inflight) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 3;
@@ -168,8 +189,13 @@ sub cat_async_step ($$) {
 			fail($self, defined($bref) ? 'read EOF' : "read: $!");
 		chop($$bref) eq "\n" or fail($self, 'LF missing after blob');
 	} elsif ($head =~ / missing$/) {
+		# ref($req) indicates it's already been retried
+		if (!ref($req) && !$in_cleanup && alternates_changed($self)) {
+			return cat_async_retry($self, $inflight,
+						$req, $cb, $arg);
+		}
 		$type = 'missing';
-		$oid = $req;
+		$oid = ref($req) ? $$req : $req;
 	} else {
 		fail($self, "Unexpected result from async git cat-file: $head");
 	}
@@ -190,33 +216,18 @@ sub batch_prepare ($) {
 	_bidi_pipe($_[0], qw(--batch in out pid));
 }
 
-sub cat_file {
-	my ($self, $obj, $sizeref) = @_;
-	my ($retried, $head, $rbuf);
-	cat_async_wait($self);
-again:
-	batch_prepare($self);
-	$rbuf = delete($self->{cat_rbuf}) // \(my $new = '');
-	print { $self->{out} } $obj, "\n" or fail($self, "write error: $!");
-	$head = my_readline($self->{in}, $rbuf);
-	if ($head =~ / missing$/) {
-		if (!$retried && alternates_changed($self)) {
-			$retried = 1;
-			cleanup($self);
-			goto again;
-		}
-		return;
-	}
-	$head =~ /^[0-9a-f]{40} \S+ ([0-9]+)$/ or
-		fail($self, "Unexpected result from git cat-file: $head");
+sub _cat_file_cb {
+	my ($bref, undef, undef, $size, $result) = @_;
+	@$result = ($bref, $size);
+}
 
-	my $size = $1 + 0;
-	$$sizeref = $size if $sizeref;
-	my $ret = my_read($self->{in}, $rbuf, $size + 1);
-	$self->{cat_rbuf} = $rbuf if $$rbuf ne '';
-	fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
-	chop($$ret) eq "\n" or fail($self, 'newline missing after blob');
-	$ret;
+sub cat_file {
+	my ($self, $oid, $sizeref) = @_;
+	my $result = [];
+	cat_async($self, $oid, \&_cat_file_cb, $result);
+	cat_async_wait($self);
+	$$sizeref = $result->[1] if $sizeref;
+	$result->[0];
 }
 
 sub check {
@@ -283,6 +294,7 @@ sub qx {
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
 	my ($self) = @_;
+	local $in_cleanup = 1;
 	if (my $ac = $self->{async_cat}) {
 		$ac->close; # PublicInbox::GitAsyncCat::close -> EPOLL_CTL_DEL
 	}

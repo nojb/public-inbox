@@ -86,22 +86,49 @@ if (1) {
 
 if ('alternates reloaded') {
 	my ($alt, $alt_obj) = tmpdir();
-	my @cmd = ('git', "--git-dir=$alt", qw(hash-object -w --stdin));
+	my $hash_obj = [ 'git', "--git-dir=$alt", qw(hash-object -w --stdin) ];
 	PublicInbox::Import::init_bare($alt);
 	open my $fh, '<', "$alt/config" or die "open failed: $!\n";
-	my $rd = popen_rd(\@cmd, {}, { 0 => $fh } );
-	close $fh or die "close failed: $!";
-	chomp(my $remote = <$rd>);
+	chomp(my $remote = xqx($hash_obj, undef, { 0 => $fh }));
 	my $gcf = PublicInbox::Git->new($dir);
 	is($gcf->cat_file($remote), undef, "remote file not found");
 	open $fh, '>>', "$dir/objects/info/alternates" or
 			die "open failed: $!\n";
-	print $fh "$alt/objects" or die "print failed: $!\n";
+	print $fh "$alt/objects\n" or die "print failed: $!\n";
 	close $fh or die "close failed: $!";
 	my $found = $gcf->cat_file($remote);
 	open $fh, '<', "$alt/config" or die "open failed: $!\n";
 	my $config = eval { local $/; <$fh> };
 	is($$found, $config, 'alternates reloaded');
+
+	# with the async interface
+	my ($async_alt, $async_dir_obj) = tmpdir();
+	PublicInbox::Import::init_bare($async_alt);
+	my @exist = map { chomp; [ split / / ] } (xqx(['git', "--git-dir=$dir",
+			qw(cat-file --batch-all-objects --batch-check)]));
+	my $results = [];
+	my $cb = sub {
+		my ($bref, $oid, $type, $size) = @_;
+		push @$results, [ $oid, $type, $size ];
+	};
+	for my $i (0..5) {
+		$gcf->cat_async($exist[$i]->[0], $cb, $results);
+		next if $i != 3;
+
+		# stick a new alternate into a running async pipeline
+		$hash_obj->[1] = "--git-dir=$async_alt";
+		$remote = xqx($hash_obj, undef, { 0 => \'async' });
+		chomp $remote;
+		open $fh, '>>', "$dir/objects/info/alternates" or
+				die "open failed: $!\n";
+		print $fh "$async_alt/objects\n" or die "print failed: $!\n";
+		close $fh or die "close failed: $!";
+		# trigger cat_async_retry:
+		$gcf->cat_async($remote, $cb, $results);
+	}
+	$gcf->cat_async_wait;
+	my $expect = [ @exist[0..3], [ $remote, 'blob', 5 ], @exist[4..5] ];
+	is_deeply($results, $expect, 'got expected results');
 
 	ok(!$gcf->cleanup, 'cleanup can expire');
 	ok(!$gcf->cleanup, 'cleanup idempotent');
