@@ -6,10 +6,28 @@
 package PublicInbox::IMAPD;
 use strict;
 use parent qw(PublicInbox::NNTPD);
+use PublicInbox::InboxIdle;
 
 sub new {
 	my ($class) = @_;
-	$class->SUPER::new; # PublicInbox::NNTPD->new
+	bless {
+		groups => {},
+		err => \*STDERR,
+		out => \*STDOUT,
+		grouplist => [],
+		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
+		# idler => PublicInbox::InboxIdle
+	}, $class;
+}
+
+sub refresh_groups {
+	my ($self) = @_;
+	if (my $old_idler = delete $self->{idler}) {
+		$old_idler->close; # PublicInbox::DS::close
+	}
+	my $pi_config = PublicInbox::Config->new;
+	$self->{idler} = PublicInbox::InboxIdle->new($pi_config);
+	$self->SUPER::refresh_groups($pi_config);
 }
 
 1;

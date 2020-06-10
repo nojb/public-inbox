@@ -3,8 +3,10 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
+use Time::HiRes ();
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Mail::IMAPClient));
+use PublicInbox::Config;
+require_mods(qw(DBD::SQLite Mail::IMAPClient Linux::Inotify2));
 my $level = '-Lbasic';
 SKIP: {
 	require_mods('Search::Xapian', 1);
@@ -12,7 +14,7 @@ SKIP: {
 };
 
 my @V = (1);
-#push(@V, 2) if require_git('2.6', 1);
+push(@V, 2) if require_git('2.6', 1);
 
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/home";
@@ -138,6 +140,28 @@ my $compress_logout = sub {
 is_deeply([$mic->has_capability('COMPRESS')], ['DEFLATE'], 'deflate cap');
 ok($mic->compress, 'compress enabled');
 $compress_logout->($mic);
+
+my $pi_config = PublicInbox::Config->new;
+$pi_config->each_inbox(sub {
+	my ($ibx) = @_;
+	my $name = $ibx->{name};
+	my $ng = $ibx->{newsgroup};
+	my $mic = Mail::IMAPClient->new(%mic_opt);
+	ok($mic && $mic->login && $mic->IsAuthenticated, "authed $name");
+	is_deeply([$mic->has_capability('IDLE')], ['IDLE'], "IDLE capa $name");
+	ok(!$mic->idle, "IDLE fails w/o SELECT/EXAMINE $name");
+	ok($mic->examine($ng), "EXAMINE $ng succeeds");
+	ok($mic->idle, "IDLE succeeds on $ng");
+
+	open(my $fh, '<', 't/data/message_embed.eml') or BAIL_OUT("open: $!");
+	my $env = { ORIGINAL_RECIPIENT => $ibx->{-primary_address} };
+	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
+		BAIL_OUT('-mda delivery');
+	my $t0 = Time::HiRes::time();
+	ok(my @res = $mic->idle_data(11), "IDLE succeeds on $ng");
+	ok(grep(/\A\* [0-9] EXISTS\b/, @res), 'got EXISTS message');
+	ok((Time::HiRes::time() - $t0) < 10, 'IDLE client notified');
+});
 
 $td->kill;
 $td->join;

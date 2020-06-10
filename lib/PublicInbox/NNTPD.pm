@@ -30,9 +30,9 @@ sub new {
 	}, $class;
 }
 
-sub refresh_groups () {
-	my ($self) = @_;
-	my $pi_config = PublicInbox::Config->new;
+sub refresh_groups {
+	my ($self, $pi_config) = @_;
+	$pi_config //= PublicInbox::Config->new;
 	my $new = {};
 	my @list;
 	$pi_config->each_inbox(sub {

@@ -15,7 +15,8 @@
 package PublicInbox::IMAP;
 use strict;
 use base qw(PublicInbox::DS);
-use fields qw(imapd logged_in ibx long_cb -login_tag);
+use fields qw(imapd logged_in ibx long_cb -login_tag
+	-idle_tag -idle_max);
 use PublicInbox::Eml;
 use PublicInbox::DS qw(now);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
@@ -88,7 +89,10 @@ sub new ($$$) {
 
 sub capa ($) {
 	my ($self) = @_;
-	my $capa = 'CAPABILITY IMAP4rev1';
+
+	# dovecot advertises IDLE pre-login; perhaps because some clients
+	# depend on it, so we'll do the same
+	my $capa = 'CAPABILITY IMAP4rev1 IDLE';
 	if ($self->{logged_in}) {
 		$capa .= ' COMPRESS=DEFLATE';
 	} else {
@@ -138,6 +142,40 @@ sub cmd_capability ($$) {
 }
 
 sub cmd_noop ($$) { "$_[1] OK NOOP completed\r\n" }
+
+# called by PublicInbox::InboxIdle
+sub on_inbox_unlock {
+	my ($self, $ibx) = @_;
+	my $new = ($ibx->mm->minmax)[1];
+	defined(my $old = $self->{-idle_max}) or die 'BUG: -idle_max unset';
+	if ($new > $old) {
+		$self->{-idle_max} = $new;
+		$self->msg_more("* $_ EXISTS\r\n") for (($old + 1)..($new - 1));
+		$self->write(\"* $new EXISTS\r\n");
+	}
+}
+
+sub cmd_idle ($$) {
+	my ($self, $tag) = @_;
+	# IDLE seems allowed by dovecot w/o a mailbox selected *shrug*
+	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
+	$ibx->subscribe_unlock(fileno($self->{sock}), $self);
+	$self->{-idle_tag} = $tag;
+	$self->{-idle_max} = ($ibx->mm->minmax)[1] // 0;
+	"+ idling\r\n"
+}
+
+sub cmd_done ($$) {
+	my ($self, $tag) = @_; # $tag is "DONE" (case-insensitive)
+	defined(my $idle_tag = delete $self->{-idle_tag}) or
+		return "$tag BAD not idle\r\n";
+	my $ibx = $self->{ibx} or do {
+		warn "BUG: idle_tag set w/o inbox";
+		return "$tag BAD internal bug\r\n";
+	};
+	$ibx->unsubscribe_unlock(fileno($self->{sock}));
+	"$idle_tag OK Idle completed\r\n";
+}
 
 sub cmd_examine ($$$) {
 	my ($self, $tag, $mailbox) = @_;
@@ -361,7 +399,11 @@ sub process_line ($$) {
 	}
 	my $res = eval {
 		if (my $cmd = $self->can('cmd_'.lc($req // ''))) {
-			$cmd->($self, $tag, @args);
+			defined($self->{-idle_tag}) ?
+				"$self->{-idle_tag} BAD expected DONE\r\n" :
+				$cmd->($self, $tag, @args);
+		} elsif (uc($tag // '') eq 'DONE' && !defined($req)) {
+			cmd_done($self, $tag);
 		} else { # this is weird
 			auth_challenge_ok($self) //
 				"$tag BAD Error in IMAP command $req: ".
@@ -514,6 +556,16 @@ sub cmd_starttls ($$) {
 sub busy {
 	my ($self, $now) = @_;
 	($self->{rbuf} || $self->{wbuf} || $self->not_idle_long($now));
+}
+
+sub close {
+	my ($self) = @_;
+	if (my $ibx = delete $self->{ibx}) {
+		if (my $sock = $self->{sock}) {;
+			$ibx->unsubscribe_unlock(fileno($sock));
+		}
+	}
+	$self->SUPER::close; # PublicInbox::DS::close
 }
 
 # we're read-only, so SELECT and EXAMINE do the same thing
