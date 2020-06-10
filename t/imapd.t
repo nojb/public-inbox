@@ -309,6 +309,8 @@ EOF
 # message sequence numbers :<
 is($mic->Uid(0), 0, 'disable UID on '.ref($mic));
 ok($mic->reconnect, 'reconnected');
+$ret = $mic->fetch_hash('1,2:3', 'RFC822') or BAIL_OUT "FETCH $@";
+is(scalar keys %$ret, 3, 'got all 3 messages with comma-separated sequence');
 $ret = $mic->fetch_hash('1:*', 'RFC822') or BAIL_OUT "FETCH $@";
 is(scalar keys %$ret, 3, 'got all 3 messages');
 {

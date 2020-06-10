@@ -61,6 +61,9 @@ for my $att (keys %FETCH_ATT) {
 	$FETCH_ATT{$att} = \%h;
 }
 
+my $valid_range = '[0-9]+|[0-9]+:[0-9]+|[0-9]+:\*';
+$valid_range = qr/\A(?:$valid_range)(?:,(?:$valid_range))*\z/;
+
 sub greet ($) {
 	my ($self) = @_;
 	my $capa = capa($self);
@@ -387,7 +390,7 @@ sub requeue_once ($) {
 
 sub uid_fetch_cb { # called by git->cat_async via git_async_msg
 	my ($bref, $oid, $type, $size, $fetch_m_arg) = @_;
-	my ($self, undef, $ibx, undef, undef, $msgs, $want) = @$fetch_m_arg;
+	my ($self, undef, $ibx, $msgs, undef, $want) = @$fetch_m_arg;
 	my $smsg = shift @$msgs or die 'BUG: no smsg';
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
@@ -441,15 +444,48 @@ sub uid_fetch_cb { # called by git->cat_async via git_async_msg
 	requeue_once($self);
 }
 
+sub range_step ($$) {
+	my ($ibx, $range_csv) = @_;
+	my ($beg, $end, $range);
+	if ($$range_csv =~ s/\A([^,]+),//) {
+		$range = $1;
+	} else {
+		$range = $$range_csv;
+		$$range_csv = undef;
+	}
+	if ($range =~ /\A([0-9]+):([0-9]+)\z/) {
+		($beg, $end) = ($1, $2);
+	} elsif ($range =~ /\A([0-9]+):\*\z/) {
+		($beg, $end) =  ($1, $ibx->mm->max // 0);
+	} elsif ($range =~ /\A[0-9]+\z/) {
+		$beg = $end = $range;
+	} else {
+		return 'BAD fetch range';
+	}
+	[ $beg, $end, $$range_csv ];
+}
+
+sub refill_range ($$$) {
+	my ($ibx, $msgs, $range_info) = @_;
+	my ($beg, $end, $range_csv) = @$range_info;
+	if (scalar(@$msgs = @{$ibx->over->query_xover($beg, $end)})) {
+		$range_info->[0] = $msgs->[-1]->{num} + 1;
+		return;
+	}
+	return 'OK Fetch done' if !$range_csv;
+	my $next_range = range_step($ibx, \$range_csv);
+	return $next_range if !ref($next_range); # error
+	@$range_info = @$next_range;
+	undef; # keep looping
+}
+
 sub uid_fetch_m { # long_response
-	my ($self, $tag, $ibx, $beg, $end, $msgs, $want) = @_;
-	if (!@$msgs) { # refill
-		@$msgs = @{$ibx->over->query_xover($$beg, $end)};
-		if (!@$msgs) {
-			$self->write(\"$tag OK Fetch done\r\n");
+	my ($self, $tag, $ibx, $msgs, $range_info, $want) = @_;
+	while (!@$msgs) { # rare
+		if (my $end = refill_range($ibx, $msgs, $range_info)) {
+			$self->write(\"$tag $end\r\n");
 			return;
 		}
-		$$beg = $msgs->[-1]->{num} + 1;
 	}
 	git_async_msg($ibx, $msgs->[0], \&uid_fetch_cb, \@_);
 }
@@ -635,7 +671,7 @@ sub partial_emit ($$$) {
 }
 
 sub fetch_common ($$$$) {
-	my ($self, $tag, $range, $want) = @_;
+	my ($self, $tag, $range_csv, $want) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
 	if ($want->[0] =~ s/\A\(//s) {
 		$want->[-1] =~ s/\)\z//s or return "$tag BAD no rparen\r\n";
@@ -658,41 +694,27 @@ sub fetch_common ($$$$) {
 			[ $_, @{$partial{$_}} ]
 		} sort keys %partial ];
 	}
-
-	my ($beg, $end);
-	my $msgs = [];
-	if ($range =~ /\A([0-9]+):([0-9]+)\z/s) {
-		($beg, $end) = ($1, $2);
-	} elsif ($range =~ /\A([0-9]+):\*\z/s) {
-		($beg, $end) =  ($1, $ibx->mm->max // 0);
-	} elsif ($range =~ /\A[0-9]+\z/) {
-		my $smsg = $ibx->over->get_art($range) or
-			return "$tag OK Fetch done\r\n"; # really OK(!)
-		push @$msgs, $smsg;
-		($beg, $end) = ($range, 0);
-	} else {
-		return "$tag BAD fetch range\r\n";
-	}
-	[ $tag, $ibx, \$beg, $end, $msgs, \%want ];
+	$range_csv = 'bad' if $range_csv !~ $valid_range;
+	my $range_info = range_step($ibx, \$range_csv);
+	return "$tag $range_info\r\n" if !ref($range_info);
+	[ $tag, $ibx, [], $range_info, \%want ];
 }
 
 sub cmd_uid_fetch ($$$;@) {
-	my ($self, $tag, $range, @want) = @_;
-	my $args = fetch_common($self, $tag, $range, \@want);
+	my ($self, $tag, $range_csv, @want) = @_;
+	my $args = fetch_common($self, $tag, $range_csv, \@want);
 	ref($args) eq 'ARRAY' ?
 		long_response($self, \&uid_fetch_m, @$args) :
 		$args; # error
 }
 
 sub seq_fetch_m { # long_response
-	my ($self, $tag, $ibx, $beg, $end, $msgs, $want) = @_;
-	if (!@$msgs) { # refill
-		@$msgs = @{$ibx->over->query_xover($$beg, $end)};
-		if (!@$msgs) {
-			$self->write(\"$tag OK Fetch done\r\n");
+	my ($self, $tag, $ibx, $msgs, $range_info, $want) = @_;
+	while (!@$msgs) { # rare
+		if (my $end = refill_range($ibx, $msgs, $range_info)) {
+			$self->write(\"$tag $end\r\n");
 			return;
 		}
-		$$beg = $msgs->[-1]->{num} + 1;
 	}
 	my $seq = $want->{-seqno}++;
 	my $cur_num = $msgs->[0]->{num};
@@ -711,11 +733,11 @@ sub seq_fetch_m { # long_response
 }
 
 sub cmd_fetch ($$$;@) {
-	my ($self, $tag, $range, @want) = @_;
-	my $args = fetch_common($self, $tag, $range, \@want);
+	my ($self, $tag, $range_csv, @want) = @_;
+	my $args = fetch_common($self, $tag, $range_csv, \@want);
 	ref($args) eq 'ARRAY' ? do {
 		my $want = $args->[-1];
-		$want->{-seqno} = ${$args->[2]}; # $$beg
+		$want->{-seqno} = $args->[3]->[0]; # $beg == $range_info->[0];
 		long_response($self, \&seq_fetch_m, @$args)
 	} : $args; # error
 }
