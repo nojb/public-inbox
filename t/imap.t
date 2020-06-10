@@ -1,9 +1,29 @@
 #!perl -w
 # Copyright (C) 2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+# unit tests (no network) for IMAP, see t/imapd.t for end-to-end tests
 use strict;
 use Test::More;
 use PublicInbox::IMAP;
+use PublicInbox::IMAPD;
+
+{ # make sure we get '%' globbing right
+	my @n = map { { newsgroup => $_ } } (qw(x.y.z x.z.y));
+	my $self = { imapd => { grouplist => \@n } };
+	PublicInbox::IMAPD::refresh_inboxlist($self->{imapd});
+	my $res = PublicInbox::IMAP::cmd_list($self, 'tag', 'x', '%');
+	is(scalar($$res =~ tr/\n/\n/), 2, 'only one result');
+	like($$res, qr/ x\r\ntag OK/, 'saw expected');
+	$res = PublicInbox::IMAP::cmd_list($self, 'tag', 'x.', '%');
+	is(scalar($$res =~ tr/\n/\n/), 3, 'only one result');
+	is(scalar(my @x = ($$res =~ m/ x\.[zy]\r\n/g)), 2, 'match expected');
+
+	$res = PublicInbox::IMAP::cmd_list($self, 't', 'x.(?{die "RCE"})', '%');
+	like($$res, qr/\At OK /, 'refname does not match attempted RCE');
+	$res = PublicInbox::IMAP::cmd_list($self, 't', '', '(?{die "RCE"})%');
+	like($$res, qr/\At OK /, 'wildcard does not match attempted RCE');
+}
+
 {
 	my $partial_prepare = \&PublicInbox::IMAP::partial_prepare;
 	my $x = {};
