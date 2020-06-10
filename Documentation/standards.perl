@@ -42,6 +42,15 @@ my $rfcs = [
 	822 => 'Internet message format (1982)',
 	2822 => 'Internet message format (2001)',
 	5322 => 'Internet message format (2008)',
+	3501 => 'IMAP4rev1',
+	2177 => 'IMAP IDLE', # TODO
+	# 5032 = 'WITHIN search extension for IMAP',
+	4978 => 'IMAP COMPRESS Extension',
+	# 5182 = 'IMAP Extension for Referencing the Last SEARCH Result',
+	# 5738 =>  'IMAP Support for UTF-8',
+	# 8474 => 'IMAP Extension for Object Identifiers',
+	# ...
+
 	# TODO: flesh this out
 
 ];
