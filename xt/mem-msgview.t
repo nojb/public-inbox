@@ -13,6 +13,7 @@ my @mods = qw(DBD::SQLite BSD::Resource PublicInbox::WWW);
 require_mods(@mods);
 use_ok($_) for @mods;
 my $lines = $ENV{NR_LINES} // 50000;
+diag "NR_LINES=$lines";
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxname = 'big';
 my $inboxdir = "$tmpdir/big";

@@ -18,6 +18,7 @@ if (require_git(2.19, 1)) {
 }
 my @dig;
 my $nr = $ENV{NR} || 1;
+diag "NR=$nr";
 my $async = timeit($nr, sub {
 	my $dig = Digest::SHA->new(1);
 	my $cb = sub {

@@ -13,7 +13,10 @@ require_git(2.19); # for --unordered
 require_mods(qw(BSD::Resource));
 BSD::Resource->import(qw(getrusage));
 my $cls = $ENV{TEST_CLASS};
-require_mods($cls) if $cls;
+if ($cls) {
+	diag "TEST_CLASS=$cls";
+	require_mods($cls);
+}
 $cls //= 'PublicInbox::Eml';
 my $inboxdir = $ENV{GIANT_INBOX_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inboxdir;

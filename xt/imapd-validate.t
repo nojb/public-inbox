@@ -13,6 +13,7 @@ plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inbox_dir;
 # how many emails to read into memory at once per-process
 my $BATCH = $ENV{TEST_BATCH} // 100;
 my $REPEAT = $ENV{TEST_REPEAT} // 1;
+diag "TEST_BATCH=$BATCH TEST_REPEAT=$REPEAT";
 
 require_mods(qw(Mail::IMAPClient));
 my $imap_client = 'Mail::IMAPClient';

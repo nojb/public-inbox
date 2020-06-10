@@ -116,7 +116,9 @@ while (scalar keys %pids) {
 	is($?, 0, join(' ', @$cmd, 'done'));
 }
 
-if (my $sec = $ENV{TEST_PERSIST}) {
+my $sec = $ENV{TEST_PERSIST} // 0;
+diag "TEST_PERSIST=$sec";
+if ($sec) {
 	diag "sleeping ${sec}s, imap://$host:$port/$mailbox available";
 	diag "tmpdir=$tmpdir (Maildirs available)";
 	diag "stdout=$out";
