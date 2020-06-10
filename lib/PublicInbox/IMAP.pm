@@ -497,6 +497,11 @@ sub cmd_list ($$$$) {
 	\(join('', @$l, "$tag OK List done\r\n"));
 }
 
+sub cmd_lsub ($$$$) {
+	my (undef, $tag) = @_; # same args as cmd_list
+	"$tag OK Lsub done\r\n";
+}
+
 sub eml_index_offs_i { # PublicInbox::Eml::each_part callback
 	my ($p, $all) = @_;
 	my ($eml, undef, $idx) = @$p;
