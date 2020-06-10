@@ -36,7 +36,7 @@ for my $mod (qw(Email::Address::XS Mail::Address)) {
 }
 die "neither Email::Address::XS nor Mail::Address loaded: $@" if !$Address;
 
-sub LINE_MAX () { 512 } # does RFC 3501 have a limit like RFC 977?
+sub LINE_MAX () { 8000 } # RFC 2683 3.2.1.5
 
 # changing this will cause grief for clients which cache
 sub UID_BLOCK () { 50_000 }
@@ -1170,7 +1170,10 @@ sub event_step {
 	my $rbuf = $self->{rbuf} // \(my $x = '');
 	my $line = index($$rbuf, "\n");
 	while ($line < 0) {
-		return $self->close if length($$rbuf) >= LINE_MAX;
+		if (length($$rbuf) >= LINE_MAX) {
+			$self->write(\"\* BAD request too long\r\n");
+			return $self->close;
+		}
 		$self->do_read($rbuf, LINE_MAX, length($$rbuf)) or return;
 		$line = index($$rbuf, "\n");
 	}

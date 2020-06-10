@@ -44,6 +44,7 @@ my $rfcs = [
 	5322 => 'Internet message format (2008)',
 	3501 => 'IMAP4rev1',
 	2177 => 'IMAP IDLE',
+	2683 => 'IMAP4 Implementation Recommendations',
 	# 5032 = 'WITHIN search extension for IMAP',
 	4978 => 'IMAP COMPRESS Extension',
 	# 5182 = 'IMAP Extension for Referencing the Last SEARCH Result',
