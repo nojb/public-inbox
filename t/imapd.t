@@ -326,6 +326,12 @@ Content-Type: message/rfc822\r
 Content-Disposition: attachment; filename="embed2x\.eml"\r
 \r
 EOF
+
+	my @hits = $mic->search('SENTON' => '18-Apr-2020');
+	is_deeply(\@hits, [ $uidnext ], 'search with date condition works');
+	ok($mic->examine($ng), 'EXAMINE on dummy');
+	@hits = $mic->search('SENTSINCE' => '18-Apr-2020');
+	is_deeply(\@hits, [], 'search on dummy with condition works');
 }); # each_inbox
 
 # message sequence numbers :<

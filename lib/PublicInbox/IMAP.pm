@@ -811,10 +811,11 @@ sub parse_date ($) { # 02-Oct-1993
 }
 
 sub uid_search_uid_range { # long_response
-	my ($self, $tag, $beg, $end) = @_;
-	my $uids = $self->{ibx}->mm->msg_range($beg, $end, 'num');
+	my ($self, $tag, $beg, $end, $sql) = @_;
+	my $uids = $self->{ibx}->over->uid_range($$beg, $end, $sql);
 	if (@$uids) {
-		$self->msg_more(join('', map { " $_->[0]" } @$uids));
+		$$beg = $uids->[-1] + 1;
+		$self->msg_more(join(' ', '', @$uids));
 	} else {
 		$self->write(\"\r\n$tag OK Search done\r\n");
 		undef;
@@ -936,13 +937,15 @@ sub cmd_uid_search ($$$;) {
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
 	my $q = parse_query($self, \@_);
 	return "$tag $q\r\n" if !ref($q);
+	my $sql = delete $q->{sql};
 
 	if (!scalar(keys %$q)) {
 		$self->msg_more('* SEARCH');
 		my $beg = $self->{uid_min} // 1;
 		my $end = $ibx->mm->max;
 		uid_clamp($self, \$beg, \$end);
-		long_response($self, \&uid_search_uid_range, $tag, \$beg, $end);
+		long_response($self, \&uid_search_uid_range,
+				$tag, \$beg, $end, $sql);
 	} elsif (my $uid = $q->{uid}) {
 		if ($uid =~ /\A([0-9]+):([0-9]+|\*)\z/s) {
 			my ($beg, $end) = ($1, $2);
@@ -950,7 +953,7 @@ sub cmd_uid_search ($$$;) {
 			uid_clamp($self, \$beg, \$end);
 			$self->msg_more('* SEARCH');
 			long_response($self, \&uid_search_uid_range,
-					$tag, \$beg, $end);
+					$tag, \$beg, $end, $sql);
 		} elsif ($uid =~ /\A[0-9]+\z/s) {
 			$uid = $ibx->over->get_art($uid) ? " $uid" : '';
 			"* SEARCH$uid\r\n$tag OK Search done\r\n";

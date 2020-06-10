@@ -215,4 +215,17 @@ SELECT num,ts,ds,ddd FROM over WHERE num = ? LIMIT 1
 	load_from_row($smsg);
 }
 
+# IMAP search
+sub uid_range {
+	my ($self, $beg, $end, $sql) = @_;
+	my $dbh = $self->connect;
+	my $q = 'SELECT num FROM over WHERE num >= ? AND num <= ?';
+
+	# This is read-only, anyways; but caller should verify it's
+	# only sending \A[0-9]+\z for ds and ts column ranges
+	$q .= $$sql if $sql;
+	$q .= ' ORDER BY num ASC LIMIT ' . DEFAULT_LIMIT;
+	$dbh->selectcol_arrayref($q, undef, $beg, $end);
+}
+
 1;

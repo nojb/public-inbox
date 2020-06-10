@@ -13,7 +13,7 @@ sub max { undef } # Msgmap::max
 sub msg_range { [] } # Msgmap::msg_range
 
 no warnings 'once';
-*query_xover = \&msg_range;
+*uid_range = *query_xover = \&msg_range;
 *over = \&mm;
 *subscribe_unlock = *unsubscribe_unlock =
 	*get_art = *description = *base_url = \&max;
