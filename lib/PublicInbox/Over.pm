@@ -19,13 +19,23 @@ sub dbh_new {
 	if ($rw && !-f $f) { # SQLite defaults mode to 0644, we want 0666
 		open my $fh, '+>>', $f or die "failed to open $f: $!";
 	}
-	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
-		AutoCommit => 1,
-		RaiseError => 1,
-		PrintError => 0,
-		ReadOnly => !$rw,
-		sqlite_use_immediate_transaction => 1,
-	});
+	my (@st, $st, $dbh);
+	my $tries = 0;
+	do {
+		@st = stat($f) or die "failed to stat $f: $!";
+		$st = pack('dd', $st[0], $st[1]); # 0: dev, 1: inode
+		$dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
+			AutoCommit => 1,
+			RaiseError => 1,
+			PrintError => 0,
+			ReadOnly => !$rw,
+			sqlite_use_immediate_transaction => 1,
+		});
+		$self->{st} = $st;
+		@st = stat($f) or die "failed to stat $f: $!";
+		$st = pack('dd', $st[0], $st[1]);
+	} while ($st ne $self->{st} && $tries++ < 3);
+	warn "W: $f: .st_dev, .st_ino unstable\n" if $st ne $self->{st};
 	$dbh->{sqlite_unicode} = 1;
 	$dbh;
 }
@@ -257,6 +267,18 @@ SELECT MAX(num) + 1 FROM over WHERE num <= ?
 SELECT MAX(num) FROM over WHERE num > 0
 
 	($exists, $uidnext, $sth->fetchrow_array // 0);
+}
+
+sub check_inodes {
+	my ($self) = @_;
+	if (my @st = stat($self->{filename})) { # did st_dev, st_ino change?
+		my $st = pack('dd', $st[0], $st[1]);
+
+		# don't actually reopen, just let {dbh} be recreated later
+		delete($self->{dbh}) if ($st ne ($self->{st} // $st));
+	} else {
+		warn "W: stat $self->{filename}: $!\n";
+	}
 }
 
 1;

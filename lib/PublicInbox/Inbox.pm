@@ -31,7 +31,7 @@ sub cleanup_task () {
 	for my $ibx (values %$CLEANUP) {
 		my $again;
 		if ($have_devel_peek) {
-			foreach my $f (qw(mm search over)) {
+			foreach my $f (qw(mm search)) {
 				# we bump refcnt by assigning tmp, here:
 				my $tmp = $ibx->{$f} or next;
 				next if Devel::Peek::SvREFCNT($tmp) > 2;
@@ -45,9 +45,9 @@ sub cleanup_task () {
 				$again = 1 if $git->cleanup;
 			}
 		}
+		check_inodes($ibx);
 		if ($have_devel_peek) {
-			$again ||= !!($ibx->{over} || $ibx->{mm} ||
-			              $ibx->{search});
+			$again ||= !!($ibx->{mm} || $ibx->{search});
 		}
 		$next->{"$ibx"} = $ibx if $again;
 	}
@@ -407,9 +407,17 @@ sub unsubscribe_unlock {
 	delete $self->{unlock_subs}->{$ident};
 }
 
+sub check_inodes ($) {
+	my ($self) = @_;
+	for (qw(over)) { # TODO: search, mm
+		$self->{$_}->check_inodes if $self->{$_};
+	}
+}
+
 # called by inotify
 sub on_unlock {
 	my ($self) = @_;
+	check_inodes($self);
 	my $subs = $self->{unlock_subs} or return;
 	for (values %$subs) {
 		eval { $_->on_inbox_unlock($self) };

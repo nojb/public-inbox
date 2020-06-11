@@ -14,8 +14,11 @@ use Net::NNTP;
 use Sys::Hostname;
 
 # FIXME: make easier to test both versions
-my $version = $ENV{PI_TEST_VERSION} || 2;
+my $version = $ENV{PI_TEST_VERSION} || 1;
 require_git('2.6') if $version == 2;
+my $lsof = which('lsof');
+my $fast_idle = eval { require Linux::Inotify2; 1 } //
+		eval { require IO::KQueue; 1 };
 
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
@@ -302,13 +305,13 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		is($rdr, waitpid($rdr, 0), 'reader done');
 		is($? >> 8, 0, 'no errors');
 	}
+	my $noerr = { 2 => \(my $null) };
 	SKIP: {
 		if ($INC{'Search/Xapian.pm'} && ($ENV{TEST_RUN_MODE}//2)) {
 			skip 'Search/Xapian.pm pre-loaded (by t/run.perl?)', 1;
 		}
-		my $lsof = which('lsof') or skip 'lsof missing', 1;
-		my $rdr = { 2 => \(my $null) };
-		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $rdr);
+		$lsof or skip 'lsof missing', 1;
+		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $noerr);
 		skip('lsof broken', 1) if (!scalar(@of) || $?);
 		my @xap = grep m!Search/Xapian!, @of;
 		is_deeply(\@xap, [], 'Xapian not loaded in nntpd');
@@ -329,6 +332,30 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 			'got 5xx response for unoptimized HDR');
 		is(scalar @r, 1, 'only one response line');
 	}
+
+	# -compact requires Xapian
+	SKIP: {
+		require_mods('Search::Xapian', 2);
+		which('xapian-compact') or skip 'xapian-compact missing', 2;
+		is(xsys(qw(git config), "--file=$home/.public-inbox/config",
+				"publicinbox.$group.indexlevel", 'medium'),
+			0, 'upgraded indexlevel');
+		my $ex = eml_load('t/data/0001.patch');
+		is($n->article($ex->header('Message-ID')), undef,
+			'article did not exist');
+		$im->add($ex);
+		$im->done;
+		ok(run_script([qw(-index --reindex -c), $ibx->{inboxdir}],
+				undef, $noerr), '-compacted');
+		select(undef, undef, undef, $fast_idle ? 0.1 : 2.1);
+		$art = $n->article($ex->header('Message-ID'));
+		ok($art, 'new article retrieved after compact');
+		$lsof or skip 'lsof missing', 1;
+		($^O =~ /\A(?:linux)\z/) or
+			skip "lsof /(deleted)/ check untested on $^O", 1;
+		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $noerr);
+		is(scalar(grep(/\(deleted\)/, @of)), 0, 'no deleted files');
+	};
 
 	$n = $s = undef;
 	$td->join;

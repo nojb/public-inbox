@@ -334,7 +334,9 @@ sub cmd_newnews ($$$$;$$) {
 sub cmd_group ($$) {
 	my ($self, $group) = @_;
 	my $no_such = '411 no such news group';
-	my $ng = $self->{nntpd}->{groups}->{$group} or return $no_such;
+	my $nntpd = $self->{nntpd};
+	my $ng = $nntpd->{groups}->{$group} or return $no_such;
+	$nntpd->idler_start;
 
 	$self->{ng} = $ng;
 	my ($min, $max) = $ng->mm->minmax;

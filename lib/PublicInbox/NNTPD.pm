@@ -8,6 +8,7 @@ use strict;
 use warnings;
 use Sys::Hostname;
 use PublicInbox::Config;
+use PublicInbox::InboxIdle;
 
 sub new {
 	my ($class) = @_;
@@ -24,15 +25,17 @@ sub new {
 		err => \*STDERR,
 		out => \*STDOUT,
 		grouplist => [],
+		pi_config => $pi_config,
 		servername => $name,
 		greet => \"201 $name ready - post via email\r\n",
 		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
+		# idler => PublicInbox::InboxIdle
 	}, $class;
 }
 
 sub refresh_groups {
-	my ($self, $pi_config) = @_;
-	$pi_config //= PublicInbox::Config->new;
+	my ($self, $sig) = @_;
+	my $pi_config = $sig ? PublicInbox::Config->new : $self->{pi_config};
 	my $new = {};
 	my @list;
 	$pi_config->each_inbox(sub {
@@ -59,8 +62,13 @@ sub refresh_groups {
 	});
 	@list =	sort { $a->{newsgroup} cmp $b->{newsgroup} } @list;
 	$self->{grouplist} = \@list;
+	$self->{pi_config} = $pi_config;
 	# this will destroy old groups that got deleted
 	%{$self->{groups}} = %$new;
+}
+
+sub idler_start {
+	$_[0]->{idler} //= PublicInbox::InboxIdle->new($_[0]->{pi_config});
 }
 
 1;
