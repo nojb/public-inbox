@@ -130,4 +130,47 @@ EOF
 	], 'placed op_eml_new before emit_body');
 }
 
+# UID <=> MSN mapping
+
+sub uo2m_str_new ($) {
+	no warnings 'uninitialized'; # uom2m_ary_new may have may have undef
+	pack('S*', @{$_[0]->uo2m_ary_new}); # 2 bytes per-MSN
+}
+
+{
+	my $ibx = bless { uid_range => [ 1, 2, 4 ] }, 'Uo2mTestInbox';
+	my $imap = bless { uid_base => 0, ibx => $ibx }, 'PublicInbox::IMAP';
+	my $uo2m = $imap->uo2m_ary_new;
+	is_deeply($uo2m, [ 1, 2, undef, 3 ], 'uo2m ary');
+	$uo2m = uo2m_str_new($imap);
+	is_deeply([ unpack('S*', $uo2m) ], [ 1, 2, 0, 3 ], 'uo2m str');
+
+	$ibx->{uid_range} = [ 1, 2, 4, 5, 6 ];
+	for ([ 1, 2, undef, 3 ], $uo2m) {
+		$imap->{uo2m} = $_;
+		is($imap->uid2msn(1), 1, 'uid2msn');
+		is($imap->uid2msn(4), 3, 'uid2msn');
+		is($imap->uo2m_last_uid, 4, 'uo2m_last_uid');
+		$imap->uo2m_extend(6);
+		is($imap->uid2msn(5), 4, 'uid2msn 5 => 4');
+		is($imap->uid2msn(6), 5, 'uid2msn 6 => 5');
+		is($imap->uo2m_last_uid, 6, 'uo2m_last_uid');
+
+		my $msn2uid = $imap->msn2uid;
+		my $range = '1,4:5';
+		$imap->can('msn_to_uid_range')->($msn2uid, $range);
+		is($range, '1,5:6', 'range converted');
+	}
+}
+
 done_testing;
+
+package Uo2mTestInbox;
+use strict;
+require PublicInbox::DummyInbox;
+our @ISA = qw(PublicInbox::DummyInbox);
+sub over { shift }
+sub uid_range {
+	my ($self, $beg, $end, undef) = @_;
+	[ grep { $_ >= $beg && $_ <= $end } @{$self->{uid_range}} ];
+}

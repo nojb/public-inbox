@@ -16,18 +16,17 @@
 #   are for the limitations of git clients, while slices are
 #   for the limitations of IMAP clients.
 #
-# * sequence numbers are estimated based on slice.  If they
-#   wrong, they're higher than than the corresponding UID
-#   because UIDs have gaps due to spam removals.
-#   We only support an ephemeral mapping non-UID "FETCH"
-#   because mutt header caching relies on it; mutt uses
-#   UID requests everywhere else.
+# * We also take advantage of slices being only 50K to store
+#   "UID offset" to message sequence number (MSN) mapping
+#   as a 50K uint16_t array (via pack("S*", ...)).  "UID offset"
+#   is the offset from {uid_base} which determines the start of
+#   the mailbox slice.
 
 package PublicInbox::IMAP;
 use strict;
 use base qw(PublicInbox::DS);
 use fields qw(imapd ibx long_cb -login_tag
-	uid_base -idle_tag -idle_max);
+	uid_base -idle_tag uo2m);
 use PublicInbox::Eml;
 use PublicInbox::EmlContentFoo qw(parse_content_disposition);
 use PublicInbox::DS qw(now);
@@ -50,7 +49,9 @@ die "neither Email::Address::XS nor Mail::Address loaded: $@" if !$Address;
 
 sub LINE_MAX () { 8000 } # RFC 2683 3.2.1.5
 
-# changing this will cause grief for clients which cache
+# Changing UID_SLICE will cause grief for clients which cache.
+# This also needs to be <64K: we pack it into a uint16_t
+# for long_response UID (offset) => MSN mappings
 sub UID_SLICE () { 50_000 }
 
 # these values area also used for sorting
@@ -196,23 +197,118 @@ sub cmd_capability ($$) {
 
 sub cmd_noop ($$) { "$_[1] OK Noop done\r\n" }
 
+# uo2m: UID Offset to MSN, this is an arrayref by default,
+# but uo2m_hibernate can compact and deduplicate it
+sub uo2m_ary_new ($) {
+	my ($self) = @_;
+	my $base = $self->{uid_base};
+	my $uids = $self->{ibx}->over->uid_range($base + 1, $base + UID_SLICE);
+
+	# convert UIDs to offsets from {base}
+	my @tmp; # [$UID_OFFSET] => $MSN
+	my $msn = 0;
+	++$base;
+	$tmp[$_ - $base] = ++$msn for @$uids;
+	\@tmp;
+}
+
+# changes UID-offset-to-MSN mapping into a deduplicated scalar:
+# uint16_t uo2m[UID_SLICE].
+# May be swapped out for idle clients if THP is disabled.
+sub uo2m_hibernate ($) {
+	my ($self) = @_;
+	ref(my $uo2m = $self->{uo2m}) or return;
+	my %dedupe = ( uo2m_pack($uo2m) => undef );
+	$self->{uo2m} = (keys(%dedupe))[0];
+	undef;
+}
+
+sub uo2m_last_uid ($) {
+	my ($self) = @_;
+	my $uo2m = $self->{uo2m} or die 'BUG: uo2m_last_uid w/o {uo2m}';
+	(ref($uo2m) ? @$uo2m : (length($uo2m) >> 1)) + $self->{uid_base};
+}
+
+sub uo2m_pack ($) {
+	# $_[0] is an arrayref of MSNs, it may have undef gaps if there
+	# are gaps in the corresponding UIDs: [ msn1, msn2, undef, msn3 ]
+	no warnings 'uninitialized';
+	pack('S*', @{$_[0]});
+}
+
+# extend {uo2m} to account for new messages which arrived since
+# {uo2m} was created.
+sub uo2m_extend ($$) {
+	my ($self, $new_uid_max) = @_;
+	defined(my $uo2m = $self->{uo2m}) or
+		return($self->{uo2m} = uo2m_ary_new($self));
+	my $beg = uo2m_last_uid($self); # last UID we've learned
+	return $uo2m if $beg >= $new_uid_max; # fast path
+
+	# need to extend the current range:
+	my $base = $self->{uid_base};
+	++$beg;
+	my $uids = $self->{ibx}->over->uid_range($beg, $base + UID_SLICE);
+	my @tmp; # [$UID_OFFSET] => $MSN
+	if (ref($uo2m)) {
+		my $msn = $uo2m->[-1];
+		$tmp[$_ - $beg] = ++$msn for @$uids;
+		push @$uo2m, @tmp;
+		$uo2m;
+	} else {
+		my $msn = unpack('S', substr($uo2m, -2, 2));
+		$tmp[$_ - $beg] = ++$msn for @$uids;
+		$uo2m .= uo2m_pack(\@tmp);
+		my %dedupe = ($uo2m => undef);
+		$self->{uo2m} = (keys %dedupe)[0];
+	}
+}
+
+# the flexible version which works on scalars and array refs.
+# Must call uo2m_extend before this
+sub uid2msn ($$) {
+	my ($self, $uid) = @_;
+	my $uo2m = $self->{uo2m};
+	my $off = $uid - $self->{uid_base} - 1;
+	ref($uo2m) ? $uo2m->[$off] : unpack('S', substr($uo2m, $off << 1, 2));
+}
+
+# returns an arrayref of UIDs, so MSNs can be translated to UIDs via:
+# $msn2uid->[$MSN-1] => $UID.  The result of this is always ephemeral
+# and does not live beyond the event loop.
+sub msn2uid ($) {
+	my ($self) = @_;
+	my $base = $self->{uid_base};
+	my $uo2m = uo2m_extend($self, $base + UID_SLICE);
+	$uo2m = [ unpack('S*', $uo2m) ] if !ref($uo2m);
+
+	my $uo = 0;
+	my @msn2uid;
+	for my $msn (@$uo2m) {
+		++$uo;
+		$msn2uid[$msn - 1] = $uo + $base if $msn;
+	}
+	\@msn2uid;
+}
+
+# converts a set of message sequence numbers in requests to UIDs:
+sub msn_to_uid_range ($$) {
+	my $msn2uid = $_[0];
+	$_[1] =~ s!([0-9]+)!$msn2uid->[$1 - 1] // ($msn2uid->[-1] + 1)!sge;
+}
+
 # called by PublicInbox::InboxIdle
 sub on_inbox_unlock {
 	my ($self, $ibx) = @_;
-	my $new = $ibx->over->max;
-	my $uid_base = $self->{uid_base} // 0;
-	my $uid_end = $uid_base + UID_SLICE;
-	defined(my $old = $self->{-idle_max}) or die 'BUG: -idle_max unset';
-	$new = $uid_end if $new > $uid_end;
+	my $old = uo2m_last_uid($self);
+	my $uid_end = $self->{uid_base} + UID_SLICE;
+	uo2m_extend($self, $uid_end);
+	my $new = uo2m_last_uid($self);
 	if ($new > $old) {
-		$self->{-idle_max} = $new;
-		$new -= $uid_base;
-		$old -= $uid_base;
-		$self->msg_more("* $_ EXISTS\r\n") for (($old + 1)..($new - 1));
-		$self->write(\"* $new EXISTS\r\n");
+		my $msn = uid2msn($self, $new);
+		$self->write(\"* $msn EXISTS\r\n");
 	} elsif ($new == $uid_end) { # max exceeded $uid_end
 		# continue idling w/o inotify
-		delete $self->{-idle_max};
 		my $sock = $self->{sock} or return;
 		$ibx->unsubscribe_unlock(fileno($sock));
 	}
@@ -245,9 +341,9 @@ sub cmd_idle ($$) {
 	my $fd = fileno($sock);
 	# only do inotify on most recent slice
 	if ($max < $uid_end) {
+		uo2m_extend($self, $uid_end);
 		$ibx->subscribe_unlock($fd, $self);
 		$self->{imapd}->idler_start;
-		$self->{-idle_max} = $max;
 	}
 	$idle_timer //= PublicInbox::DS::later(\&idle_tick_all);
 	$IDLERS->{$fd} = $self;
@@ -497,12 +593,10 @@ sub requeue_once ($) {
 	$self->requeue if $new_size == 1;
 }
 
-# my ($msn, $UID) = @_;
-sub fetch_msn_uid ($$) { '* '.(${$_[0]}++).' FETCH (UID '.$_[1] }
-
 sub fetch_run_ops {
-	my ($self, $msn, $smsg, $bref, $ops, $partial) = @_;
-	$self->msg_more(fetch_msn_uid($msn, $smsg->{num}));
+	my ($self, $smsg, $bref, $ops, $partial) = @_;
+	my $uid = $smsg->{num};
+	$self->msg_more('* '.uid2msn($self, $uid)." FETCH (UID $uid");
 	my ($eml, $k);
 	for (my $i = 0; $i < @$ops;) {
 		$k = $ops->[$i++];
@@ -523,7 +617,7 @@ sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
-	fetch_run_ops($self, $range_info->[3], $smsg, $bref, $ops, $partial);
+	fetch_run_ops($self, $smsg, $bref, $ops, $partial);
 	requeue_once($self);
 }
 
@@ -627,8 +721,7 @@ sub range_step ($$) {
 	} else {
 		return 'BAD fetch range';
 	}
-	my $msn = $beg - $uid_base;
-	[ $beg, $end, $$range_csv, \$msn ];
+	[ $beg, $end, $$range_csv ];
 }
 
 sub refill_range ($$$) {
@@ -653,6 +746,7 @@ sub fetch_blob { # long_response
 			return;
 		}
 	}
+	uo2m_extend($self, $msgs->[-1]->{num});
 	git_async_cat($self->{ibx}->git, $msgs->[0]->{blob},
 			\&fetch_blob_cb, \@_);
 }
@@ -665,7 +759,8 @@ sub fetch_smsg { # long_response
 			return;
 		}
 	}
-	fetch_run_ops($self, $range_info->[3], $_, undef, $ops) for @$msgs;
+	uo2m_extend($self, $msgs->[-1]->{num});
+	fetch_run_ops($self, $_, undef, $ops) for @$msgs;
 	@$msgs = ();
 	1; # more
 }
@@ -696,10 +791,12 @@ sub fetch_uid { # long_response
 		$self->write("$tag $err\r\n");
 		return;
 	}
+	my $adj = $self->{uid_base} + 1;
+	my $uo2m = uo2m_extend($self, $uids->[-1]);
+	$uo2m = [ unpack('S*', $uo2m) ] if !ref($uo2m);
 	my ($i, $k);
-	my $msn = $range_info->[3];
 	for (@$uids) {
-		$self->msg_more(fetch_msn_uid($msn, $_));
+		$self->msg_more("* $uo2m->[$_ - $adj] FETCH (UID $_");
 		for ($i = 0; $i < @$ops;) {
 			$k = $ops->[$i++];
 			$ops->[$i++]->($self, $k);
@@ -956,23 +1053,12 @@ sub cmd_uid_fetch ($$$$;@) {
 	my ($cb, $ops, $partial) = fetch_compile(\@want);
 	return "$tag $cb\r\n" unless $ops;
 
+	# cb is one of fetch_blob, fetch_smsg, fetch_uid
 	$range_csv = 'bad' if $range_csv !~ $valid_range;
 	my $range_info = range_step($self, \$range_csv);
 	return "$tag $range_info\r\n" if !ref($range_info);
+	uo2m_hibernate($self) if $cb == \&fetch_blob; # slow, save RAM
 	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
-}
-
-# returns an arrayref of UIDs, so MSNs can be translated via:
-# $msn2uid->[$MSN-1] => $UID
-sub msn2uid ($) {
-	my ($self) = @_;
-	my $x = $self->{uid_base};
-	$self->{ibx}->over->uid_range($x + 1, $x + UID_SLICE);
-}
-
-sub msn_to_uid_range ($$) {
-	my $msn2uid = $_[0];
-	$_[1] =~ s!([0-9]+)!$msn2uid->[$1 - 1] // ($msn2uid->[-1] + 1)!sge;
 }
 
 sub cmd_fetch ($$$$;@) {
@@ -986,6 +1072,7 @@ sub cmd_fetch ($$$$;@) {
 	msn_to_uid_range(msn2uid($self), $range_csv);
 	my $range_info = range_step($self, \$range_csv);
 	return "$tag $range_info\r\n" if !ref($range_info);
+	uo2m_hibernate($self) if $cb == \&fetch_blob; # slow, save RAM
 	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
 }
 
@@ -1318,7 +1405,8 @@ sub event_step {
 			$self->write(\"\* BAD request too long\r\n");
 			return $self->close;
 		}
-		$self->do_read($rbuf, LINE_MAX, length($$rbuf)) or return;
+		$self->do_read($rbuf, LINE_MAX, length($$rbuf)) or
+				return uo2m_hibernate($self);
 		$line = index($$rbuf, "\n");
 	}
 	$line = substr($$rbuf, 0, $line + 1, '');
