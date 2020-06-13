@@ -148,10 +148,16 @@ is_deeply(scalar $mic->flags('1'), [], '->flags works');
 	my $exp = $mic->fetch_hash(1, 'UID');
 	$ret = $mic->fetch_hash('559:*', 'UID');
 	is_deeply($ret, $exp, 'beginning range too big');
-	for my $r (qw(559:558 558:559)) {
-		$ret = $mic->fetch_hash($r, 'UID');
+	{
+		my @w; # Mail::IMAPClient hits a warning via overload
+		local $SIG{__WARN__} = sub { push @w, @_ };
+		$ret = $mic->fetch_hash(my $r = '559:558', 'UID');
 		is_deeply($ret, {}, "out-of-range UID FETCH $r");
+		@w = grep(!/\boverload\.pm\b/, @w);
+		is_deeply(\@w, [], 'no unexpected warning');
 	}
+	$ret = $mic->fetch_hash(my $r = '558:559', 'UID');
+	is_deeply($ret, {}, "out-of-range UID FETCH $r");
 }
 
 for my $r ('1:*', '1') {
