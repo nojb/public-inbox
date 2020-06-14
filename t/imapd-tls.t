@@ -114,7 +114,9 @@ for my $args (
 	ok(!(scalar $c->has_capability('STARTTLS')),
 		'starttls not advertised with IMAPS');
 	ok(!$c->starttls, "starttls fails");
-	ok($c->has_capability('COMPRESS'), 'compress advertised');
+	ok($c->has_capability('COMPRESS') ||
+		$c->has_capability('COMPRESS=DEFLATE'),
+		'compress advertised');
 	ok($c->compress, 'compression enabled with IMAPS');
 	ok(!$c->starttls, 'starttls still fails');
 	ok($c->noop, 'noop succeeds');

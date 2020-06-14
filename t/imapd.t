@@ -217,8 +217,8 @@ for my $r ('1:*', '1') {
 	is(lc($bs->bodytype), 'text', '->bodytype');
 	is(lc($bs->bodyenc), '8bit', '->bodyenc');
 }
-
-is_deeply([$mic->has_capability('COMPRESS')], ['DEFLATE'], 'deflate cap');
+ok($mic->has_capability('COMPRESS') ||
+	$mic->has_capability('COMPRESS=DEFLATE'), 'deflate cap');
 SKIP: {
 	skip 'Mail::IMAPClient too old for ->compress', 2 if !$can_compress;
 	my $c = $imap_client->new(%mic_opt);
@@ -243,7 +243,7 @@ $pi_config->each_inbox(sub {
 	my $mb = "$ng.$first_range";
 	my $uidnext = $mic->uidnext($mb); # we'll fetch BODYSTRUCTURE on this
 	ok($uidnext, 'got uidnext for later fetch');
-	is_deeply([$mic->has_capability('IDLE')], ['IDLE'], "IDLE capa $name");
+	ok($mic->has_capability('IDLE'), "IDLE capa $name");
 	ok(!$mic->idle, "IDLE fails w/o SELECT/EXAMINE $name");
 	ok($mic->examine($mb), "EXAMINE $ng succeeds");
 	ok(my $idle_tag = $mic->idle, "IDLE succeeds on $ng");
