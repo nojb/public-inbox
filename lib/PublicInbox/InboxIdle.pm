@@ -58,7 +58,10 @@ sub new {
 		my $sock = gensym;
 		tie *$sock, 'PublicInbox::In2Tie', $inot;
 		$inot->blocking(0);
-		$inot->on_overflow(undef); # broadcasts everything on overflow
+		if ($inot->can('on_overflow')) {
+			 # broadcasts everything on overflow
+			$inot->on_overflow(undef);
+		}
 		$self->SUPER::new($sock, EPOLLIN | EPOLLET);
 	} else {
 		require PublicInbox::FakeInotify;
