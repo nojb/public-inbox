@@ -4,10 +4,10 @@
 # unit tests (no network) for IMAP, see t/imapd.t for end-to-end tests
 use strict;
 use Test::More;
-use PublicInbox::IMAP;
-use PublicInbox::IMAPD;
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite));
+require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address));
+require_ok 'PublicInbox::IMAP';
+require_ok 'PublicInbox::IMAPD';
 require_git 2.6;
 use POSIX qw(strftime);
 

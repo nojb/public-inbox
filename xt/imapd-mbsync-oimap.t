@@ -7,6 +7,7 @@ use Test::More;
 use File::Path qw(mkpath);
 use PublicInbox::TestCommon;
 use PublicInbox::Spawn qw(which spawn);
+require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address));
 my $inboxdir = $ENV{GIANT_INBOX_DIR};
 (defined($inboxdir) && -d $inboxdir) or
 	plan skip_all => "GIANT_INBOX_DIR not defined for $0";

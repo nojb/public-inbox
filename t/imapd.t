@@ -8,7 +8,8 @@ use Time::HiRes ();
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(which);
-require_mods(qw(DBD::SQLite Mail::IMAPClient Mail::IMAPClient::BodyStructure));
+require_mods(qw(DBD::SQLite Mail::IMAPClient Mail::IMAPClient::BodyStructure
+	Email::Address::XS||Mail::Address));
 my $imap_client = 'Mail::IMAPClient';
 my $can_compress = $imap_client->can('compress');
 if ($can_compress) { # hope this gets fixed upstream, soon

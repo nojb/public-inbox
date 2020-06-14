@@ -15,7 +15,7 @@ my $BATCH = $ENV{TEST_BATCH} // 100;
 my $REPEAT = $ENV{TEST_REPEAT} // 1;
 diag "TEST_BATCH=$BATCH TEST_REPEAT=$REPEAT";
 
-require_mods(qw(Mail::IMAPClient));
+require_mods(qw(Mail::IMAPClient Email::Address::XS||Mail::Address));
 my $imap_client = 'Mail::IMAPClient';
 my $can_compress = $imap_client->can('compress');
 if ($can_compress) { # hope this gets fixed upstream, soon

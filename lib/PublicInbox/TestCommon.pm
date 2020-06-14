@@ -72,7 +72,7 @@ sub require_mods {
 	my @mods = @_;
 	my $maybe = pop @mods if $mods[-1] =~ /\A[0-9]+\z/;
 	my @need;
-	for my $mod (@mods) {
+	while (my $mod = shift(@mods)) {
 		if ($mod eq 'Search::Xapian') {
 			if (eval { require PublicInbox::Search } &&
 				PublicInbox::Search::load_xapian()) {
@@ -83,6 +83,15 @@ sub require_mods {
 				PublicInbox::SearchIdx::load_xapian_writable()){
 					next;
 			}
+		} elsif (index($mod, '||') >= 0) { # "Foo||Bar"
+			my $ok;
+			for my $m (split(/\Q||\E/, $mod)) {
+				eval "require $m";
+				next if $@;
+				$ok = $m;
+				last;
+			}
+			next if $ok;
 		} else {
 			eval "require $mod";
 		}
