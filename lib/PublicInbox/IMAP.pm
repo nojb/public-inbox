@@ -351,7 +351,7 @@ sub cmd_idle ($$) {
 }
 
 sub stop_idle ($$) {
-	my ($self, $ibx);
+	my ($self, $ibx) = @_;
 	my $sock = $self->{sock} or return;
 	my $fd = fileno($sock);
 	delete $IDLERS->{$fd};
