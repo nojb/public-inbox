@@ -358,7 +358,7 @@ sub stop_idle ($$) {
 	$ibx->unsubscribe_unlock($fd);
 }
 
-sub cmd_done ($$) {
+sub idle_done ($$) {
 	my ($self, $tag) = @_; # $tag is "DONE" (case-insensitive)
 	defined(my $idle_tag = delete $self->{-idle_tag}) or
 		return "$tag BAD not idle\r\n";
@@ -1310,12 +1310,12 @@ sub process_line ($$) {
 		$req .= "_".(shift @args);
 	}
 	my $res = eval {
-		if (my $cmd = $self->can('cmd_'.lc($req // ''))) {
-			defined($self->{-idle_tag}) ?
-				"$self->{-idle_tag} BAD expected DONE\r\n" :
-				$cmd->($self, $tag, @args);
-		} elsif (uc($tag // '') eq 'DONE' && !defined($req)) {
-			cmd_done($self, $tag);
+		if (defined(my $idle_tag = $self->{-idle_tag})) {
+			(uc($tag // '') eq 'DONE' && !defined($req)) ?
+				idle_done($self, $tag) :
+				"$idle_tag BAD expected DONE\r\n";
+		} elsif (my $cmd = $self->can('cmd_'.lc($req // ''))) {
+			$cmd->($self, $tag, @args);
 		} else { # this is weird
 			auth_challenge_ok($self) //
 					($tag // '*') .
