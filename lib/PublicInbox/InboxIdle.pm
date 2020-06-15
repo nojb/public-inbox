@@ -79,4 +79,8 @@ sub event_step {
 	warn "$self->{inot}->poll err: $@\n" if $@;
 }
 
+# for graceful shutdown in PublicInbox::Daemon,
+# just ensure the FD gets closed ASAP and subscribers
+sub busy { 0 }
+
 1;

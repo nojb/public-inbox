@@ -316,23 +316,6 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		my @xap = grep m!Search/Xapian!, @of;
 		is_deeply(\@xap, [], 'Xapian not loaded in nntpd');
 	}
-	{
-		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
-		syswrite($s, 'HDR List-id 1-');
-		select(undef, undef, undef, 0.15);
-		ok($td->kill, 'killed nntpd');
-		select(undef, undef, undef, 0.15);
-		syswrite($s, "\r\n");
-		$buf = '';
-		do {
-			sysread($s, $buf, 4096, length($buf));
-		} until ($buf =~ /\r\n\z/);
-		my @r = split("\r\n", $buf);
-		like($r[0], qr/^5\d\d /,
-			'got 5xx response for unoptimized HDR');
-		is(scalar @r, 1, 'only one response line');
-	}
-
 	# -compact requires Xapian
 	SKIP: {
 		require_mods('Search::Xapian', 2);
@@ -356,7 +339,22 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $noerr);
 		is(scalar(grep(/\(deleted\)/, @of)), 0, 'no deleted files');
 	};
-
+	{
+		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
+		syswrite($s, 'HDR List-id 1-');
+		select(undef, undef, undef, 0.15);
+		ok($td->kill, 'killed nntpd');
+		select(undef, undef, undef, 0.15);
+		syswrite($s, "\r\n");
+		$buf = '';
+		do {
+			sysread($s, $buf, 4096, length($buf));
+		} until ($buf =~ /\r\n\z/);
+		my @r = split("\r\n", $buf);
+		like($r[0], qr/^5\d\d /,
+			'got 5xx response for unoptimized HDR');
+		is(scalar @r, 1, 'only one response line');
+	}
 	$n = $s = undef;
 	$td->join;
 	is($?, 0, 'no error in exited process');

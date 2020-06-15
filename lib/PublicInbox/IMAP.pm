@@ -1462,6 +1462,10 @@ sub cmd_starttls ($$) {
 # for graceful shutdown in PublicInbox::Daemon:
 sub busy {
 	my ($self, $now) = @_;
+	if (defined($self->{-idle_tag})) {
+		$self->write(\"* BYE server shutting down\r\n");
+		return; # not busy anymore
+	}
 	($self->{rbuf} || $self->{wbuf} || $self->not_idle_long($now));
 }
 
