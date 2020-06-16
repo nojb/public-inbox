@@ -166,7 +166,7 @@ sub cmd_login ($$$$) {
 
 sub cmd_close ($$) {
 	my ($self, $tag) = @_;
-	delete $self->{uid_base};
+	delete @$self{qw(uid_base uo2m)};
 	delete $self->{ibx} ? "$tag OK Close done\r\n"
 				: "$tag BAD No mailbox\r\n";
 }
@@ -220,7 +220,7 @@ sub uo2m_hibernate ($) {
 
 sub uo2m_last_uid ($) {
 	my ($self) = @_;
-	my $uo2m = $self->{uo2m} or die 'BUG: uo2m_last_uid w/o {uo2m}';
+	defined(my $uo2m = $self->{uo2m}) or die 'BUG: uo2m_last_uid w/o {uo2m}';
 	(ref($uo2m) ? @$uo2m : (length($uo2m) >> 1)) + $self->{uid_base};
 }
 
@@ -415,6 +415,7 @@ sub cmd_examine ($$$) {
 	my ($ibx, $exists, $uidnext, $base) = inbox_lookup($self, $mailbox);
 	return "$tag NO Mailbox doesn't exist: $mailbox\r\n" if !$ibx;
 	$self->{uid_base} = $base;
+	delete $self->{uo2m};
 
 	# XXX: do we need this? RFC 5162/7162
 	my $ret = $self->{ibx} ? "* OK [CLOSED] previous closed\r\n" : '';
