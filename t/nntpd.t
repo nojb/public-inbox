@@ -12,6 +12,8 @@ use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use Net::NNTP;
 use Sys::Hostname;
+use POSIX qw(_exit);
+use Digest::SHA;
 
 # FIXME: make easier to test both versions
 my $version = $ENV{PI_TEST_VERSION} || 1;
@@ -287,21 +289,37 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 	# pipelined requests:
 	{
 		my $nreq = 90;
+		my $nart = 2;
 		syswrite($s, "GROUP $group\r\n");
 		my $res = <$s>;
 		my $rdr = fork;
 		if ($rdr == 0) {
-			use POSIX qw(_exit);
 			for (1..$nreq) {
 				<$s> =~ /\A224 / or _exit(1);
 				<$s> =~ /\A1/ or _exit(2);
 				<$s> eq ".\r\n" or _exit(3);
+			}
+			my %sums;
+			for (1..$nart) {
+				<$s> =~ /\A220 / or _exit(4);
+				my $dig = Digest::SHA->new(1);
+				while (my $l = <$s>) {
+					last if $l eq ".\r\n";
+					$dig->add($l);
+				}
+				$dig = $dig->hexdigest;
+				$sums{$dig}++;
+			}
+			if ($nart) {
+				scalar(keys(%sums)) == 1 or _exit(5);
+				(values(%sums))[0] == $nart or _exit(6);
 			}
 			_exit(0);
 		}
 		for (1..$nreq) {
 			syswrite($s, "XOVER 1\r\n");
 		}
+		syswrite($s, "ARTICLE 1\r\n" x $nart);
 		is($rdr, waitpid($rdr, 0), 'reader done');
 		is($? >> 8, 0, 'no errors');
 	}

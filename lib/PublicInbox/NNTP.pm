@@ -13,6 +13,7 @@ use POSIX qw(strftime);
 use PublicInbox::DS qw(now);
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
+use PublicInbox::GitAsyncCat;
 use constant {
 	LINE_MAX => 512, # RFC 977 section 2.3
 	r501 => '501 command syntax error',
@@ -408,8 +409,9 @@ sub xref ($$$$) {
 	$ret;
 }
 
-sub set_nntp_headers ($$$$$) {
-	my ($self, $hdr, $ng, $n, $mid) = @_;
+sub set_nntp_headers ($$$) {
+	my ($self, $hdr, $smsg) = @_;
+	my ($mid) = $smsg->{mid};
 
 	# why? leafnode requires a Path: header for some inexplicable
 	# reason.  We'll fake the shortest one possible.
@@ -429,7 +431,8 @@ sub set_nntp_headers ($$$$$) {
 	}
 
 	# clobber some
-	my $xref = xref($self, $ng, $n, $mid);
+	my $ng = $self->{ng};
+	my $xref = xref($self, $ng, $smsg->{num}, $mid);
 	$hdr->header_set('Xref', $xref);
 	$xref =~ s/:[0-9]+//g;
 	$hdr->header_set('Newsgroups', (split(/ /, $xref, 2))[1]);
@@ -441,8 +444,8 @@ sub set_nntp_headers ($$$$$) {
 	}
 }
 
-sub art_lookup ($$$) {
-	my ($self, $art, $set_headers) = @_;
+sub art_lookup ($$) {
+	my ($self, $art) = @_;
 	my $ng = $self->{ng};
 	my ($n, $mid);
 	my $err;
@@ -478,13 +481,7 @@ find_mid:
 	}
 found:
 	my $smsg = $ng->over->get_art($n) or return $err;
-	my $msg = $ng->msg_by_smsg($smsg) or return $err;
-
-	# PublicInbox::Eml->new will modify $msg in-place, so what's
-	# left is the body and we won't need to call ->body(), later
-	my $hdr = PublicInbox::Eml->new($msg)->header_obj;
-	set_nntp_headers($self, $hdr, $ng, $n, $mid) if $set_headers;
-	[ $n, $mid, $msg, $hdr ];
+	$smsg;
 }
 
 sub msg_body_write ($$) {
@@ -495,7 +492,6 @@ sub msg_body_write ($$) {
 	$$msg =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
 	$$msg .= "\r\n" unless $$msg =~ /\r\n\z/s;
 	$self->msg_more($$msg);
-	'.'
 }
 
 sub set_art {
@@ -504,55 +500,88 @@ sub set_art {
 }
 
 sub msg_hdr_write ($$$) {
-	my ($self, $hdr, $body_follows) = @_;
-	$hdr = $hdr->as_string;
+	my ($self, $eml, $smsg) = @_;
+	set_nntp_headers($self, $eml, $smsg);
+
+	my $hdr = $eml->{hdr} // \(my $x = '');
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
-	$hdr =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
-	utf8::encode($hdr);
-	$hdr =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
+	$$hdr =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+	$$hdr =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
 
 	# for leafnode compatibility, we need to ensure Message-ID headers
 	# are only a single line.
-	$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
-	$hdr .= "\r\n" if $body_follows;
-	$self->msg_more($hdr);
+	$$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
+	$self->msg_more($$hdr);
+}
+
+sub blob_cb { # called by git->cat_async via git_async_cat
+	my ($bref, $oid, $type, $size, $smsg) = @_;
+	my $self = $smsg->{nntp};
+	my $code = $smsg->{nntp_code} // 220;
+	if (!defined($oid)) {
+		# it's possible to have TOCTOU if an admin runs
+		# public-inbox-(edit|purge), just move onto the next message
+		return $self->requeue;
+	} elsif ($smsg->{blob} ne $oid) {
+		$self->close;
+		die "BUG: $smsg->{blob} != $oid";
+	}
+	my $r = "$code $smsg->{num} <$smsg->{mid}> article retrieved - ";
+	my $eml = PublicInbox::Eml->new($bref);
+	if ($code == 220) {
+		more($self, $r .= 'head and body follow');
+		msg_hdr_write($self, $eml, $smsg);
+		$self->msg_more("\r\n");
+		msg_body_write($self, $bref);
+	} elsif ($code == 221) {
+		more($self, $r .= 'head follows');
+		msg_hdr_write($self, $eml, $smsg);
+	} elsif ($code == 222) {
+		more($self, $r .= 'body follows');
+		msg_body_write($self, $bref);
+	} else {
+		$self->close;
+		die "BUG: bad code: $r";
+	}
+	$self->write(\".\r\n"); # flushes (includes ->zflush)
+	$self->requeue;
 }
 
 sub cmd_article ($;$) {
 	my ($self, $art) = @_;
-	my $r = art_lookup($self, $art, 1);
-	return $r unless ref $r;
-	my ($n, $mid, $msg, $hdr) = @$r;
+	my $smsg = art_lookup($self, $art);
+	return $smsg unless ref $smsg;
 	set_art($self, $art);
-	more($self, "220 $n <$mid> article retrieved - head and body follow");
-	msg_hdr_write($self, $hdr, 1);
-	msg_body_write($self, $msg);
+	$smsg->{nntp} = $self;
+	git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg);
+	undef;
 }
 
 sub cmd_head ($;$) {
 	my ($self, $art) = @_;
-	my $r = art_lookup($self, $art, 2);
-	return $r unless ref $r;
-	my ($n, $mid, undef, $hdr) = @$r;
+	my $smsg = art_lookup($self, $art);
+	return $smsg unless ref $smsg;
 	set_art($self, $art);
-	more($self, "221 $n <$mid> article retrieved - head follows");
-	msg_hdr_write($self, $hdr, 0);
-	'.'
+	$smsg->{nntp} = $self;
+	$smsg->{nntp_code} = 221;
+	git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg);
+	undef;
 }
 
 sub cmd_body ($;$) {
 	my ($self, $art) = @_;
-	my $r = art_lookup($self, $art, 0);
-	return $r unless ref $r;
-	my ($n, $mid, $msg) = @$r;
+	my $smsg = art_lookup($self, $art);
+	return $smsg unless ref $smsg;
 	set_art($self, $art);
-	more($self, "222 $n <$mid> article retrieved - body follows");
-	msg_body_write($self, $msg);
+	$smsg->{nntp} = $self;
+	$smsg->{nntp_code} = 222;
+	git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg);
+	undef;
 }
 
 sub cmd_stat ($;$) {
 	my ($self, $art) = @_;
-	my $r = art_lookup($self, $art, 0);
+	my $r = art_lookup($self, $art);
 	return $r unless ref $r;
 	my ($n, $mid) = @$r;
 	set_art($self, $art);

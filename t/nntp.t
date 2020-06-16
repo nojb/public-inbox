@@ -109,9 +109,12 @@ use_ok 'PublicInbox::Inbox';
 	my $mid = 'a@b';
 	my $mime = PublicInbox::Eml->new("Message-ID: <$mid>\r\n\r\n");
 	my $hdr = $mime->header_obj;
-	my $mock_self = { nntpd => { grouplist => [], 
-				     servername => 'example.com' } };
-	PublicInbox::NNTP::set_nntp_headers($mock_self, $hdr, $ng, 1, $mid);
+	my $mock_self = {
+		nntpd => { grouplist => [], servername => 'example.com' },
+		ng => $ng,
+	};
+	my $smsg = { num => 1, mid => $mid };
+	PublicInbox::NNTP::set_nntp_headers($mock_self, $hdr, $smsg);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');
 	is_deeply([ $mime->header('Archived-At') ], [ "<${u}a\@b/>" ],
@@ -126,7 +129,8 @@ use_ok 'PublicInbox::Inbox';
 		'Xref: set');
 
 	$ng->{-base_url} = 'http://mirror.example.com/m/';
-	PublicInbox::NNTP::set_nntp_headers($mock_self, $hdr, $ng, 2, $mid);
+	$smsg->{num} = 2;
+	PublicInbox::NNTP::set_nntp_headers($mock_self, $hdr, $smsg);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');
 	is_deeply([ $mime->header('Archived-At') ],
