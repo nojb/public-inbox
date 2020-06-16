@@ -398,6 +398,8 @@ SKIP: {
 	is(scalar(@$x), 1, 'MSN SEARCH on Subject works after rm');
 	$x = $mic->message_string($x->[0]);
 	is($x, $ret->{2}->{RFC822}, 'message 2 unchanged');
+	$x = $mic->search(qw(text embedded));
+	is(scalar(@$x), 1, 'MSN SEARCH on TEXT works after rm');
 }
 
 # FIXME? no EXPUNGE response, yet

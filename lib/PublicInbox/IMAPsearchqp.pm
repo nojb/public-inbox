@@ -16,7 +16,6 @@ my %MM = map {; $MoY[$_-1] => sprintf('%02u', $_) } (1..12);
 
 # IMAP to Xapian header search key mapping
 my %IH2X = (
-	TEXT => '',
 	SUBJECT => 's:',
 	BODY => 'b:',
 	FROM => 'f:',
@@ -183,6 +182,7 @@ search_key1 : "ALL" | "RECENT" | "UNSEEN" | "NEW"
 	| CC_string
 	| BCC_string
 	| SUBJECT_string
+	| TEXT_string
 	| UID_set
 	| MSN_set
 	| sub_query
@@ -239,6 +239,7 @@ TO_string : "TO" string { $q->ih2x('TO', $item{string}) }
 CC_string : "CC" string { $q->ih2x('CC', $item{string}) }
 BCC_string : "BCC" string { $q->ih2x('BCC', $item{string}) }
 SUBJECT_string : "SUBJECT" string { $q->ih2x('SUBJECT', $item{string}) }
+TEXT_string : "TEXT" string { $q->ih2x(undef, $item{string}) }
 op_subq_enter : '(' { $q->subq_enter }
 sub_query : op_subq_enter search_key1(s) ')' { $q->subq_leave }
 
