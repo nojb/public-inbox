@@ -1086,14 +1086,23 @@ sub parse_date ($) { # 02-Oct-1993
 	timegm(0, 0, 0, $dd, $mm, $yyyy);
 }
 
+sub msn_convert ($$) {
+	my ($self, $uids) = @_;
+	my $adj = $self->{uid_base} + 1;
+	my $uo2m = uo2m_extend($self, $uids->[-1]);
+	$uo2m = [ unpack('S*', $uo2m) ] if !ref($uo2m);
+	$_ = $uo2m->[$_ - $adj] for @$uids;
+}
+
 sub search_uid_range { # long_response
-	my ($self, $tag, $sql, $range_info) = @_;
+	my ($self, $tag, $sql, $range_info, $want_msn) = @_;
 	my $uids = [];
 	if (defined(my $err = refill_uids($self, $uids, $range_info, $sql))) {
 		$err ||= 'OK Search done';
 		$self->write("\r\n$tag $err\r\n");
 		return;
 	}
+	msn_convert($self, $uids) if $want_msn;
 	$self->msg_more(join(' ', '', @$uids));
 	1; # more
 }
@@ -1256,38 +1265,46 @@ sub refill_xap ($$$$) {
 }
 
 sub search_xap_range { # long_response
-	my ($self, $tag, $q, $range_info) = @_;
+	my ($self, $tag, $q, $range_info, $want_msn) = @_;
 	my $uids = [];
 	if (defined(my $err = refill_xap($self, $uids, $range_info, $q))) {
 		$err ||= 'OK Search done';
 		$self->write("\r\n$tag $err\r\n");
 		return;
 	}
+	msn_convert($self, $uids) if $want_msn;
 	$self->msg_more(join(' ', '', @$uids));
 	1; # more
 }
 
-sub cmd_uid_search ($$$;) {
-	my ($self, $tag) = splice(@_, 0, 2);
+sub search_common {
+	my ($self, $tag, $rest, $want_msn) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
-	my $q = parse_query($self, \@_);
+	my $q = parse_query($self, $rest);
 	return "$tag $q\r\n" if !ref($q);
 	my ($sql, $range_info) = delete @$q{qw(sql range_info)};
 	if (!scalar(keys %$q)) { # overview.sqlite3
 		$self->msg_more('* SEARCH');
 		long_response($self, \&search_uid_range,
-				$tag, $sql, $range_info);
+				$tag, $sql, $range_info, $want_msn);
 	} elsif ($q = $q->{xap}) {
 		$self->msg_more('* SEARCH');
 		long_response($self, \&search_xap_range,
-				$tag, $q, $range_info);
+				$tag, $q, $range_info, $want_msn);
 	} else {
 		"$tag BAD Error\r\n";
 	}
 }
 
-# note: MSN SEARCH is NOT supported.  Do any widely-used MUAs
-# rely on MSNs from SEARCH results?  Let us know at meta@public-inbox.org
+sub cmd_uid_search ($$$;) {
+	my ($self, $tag) = splice(@_, 0, 2);
+	search_common($self, $tag, \@_);
+}
+
+sub cmd_search ($$$;) {
+	my ($self, $tag) = splice(@_, 0, 2);
+	search_common($self, $tag, \@_, 1);
+}
 
 sub args_ok ($$) { # duplicated from PublicInbox::NNTP
 	my ($cb, $argc) = @_;
