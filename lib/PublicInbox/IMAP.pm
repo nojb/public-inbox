@@ -34,10 +34,9 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::GitAsyncCat;
 use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
-use Time::Local qw(timegm);
-use POSIX qw(strftime);
 use Hash::Util qw(unlock_hash); # dependency of fields for perl 5.10+, anyways
 use PublicInbox::Search;
+use PublicInbox::IMAPsearchqp;
 *mdocid = \&PublicInbox::Search::mdocid;
 
 my $Address;
@@ -96,10 +95,6 @@ undef %FETCH_NEED;
 
 my $valid_range = '[0-9]+|[0-9]+:[0-9]+|[0-9]+:\*';
 $valid_range = qr/\A(?:$valid_range)(?:,(?:$valid_range))*\z/;
-
-my @MoY = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
-my %MoY;
-@MoY{@MoY} = (0..11);
 
 # RFC 3501 5.4. Autologout Timer needs to be >= 30min
 $PublicInbox::DS::EXPTIME = 60 * 30;
@@ -1076,16 +1071,6 @@ sub cmd_fetch ($$$$;@) {
 	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
 }
 
-sub parse_date ($) { # 02-Oct-1993
-	my ($date_text) = @_;
-	my ($dd, $mon, $yyyy) = split(/-/, $_[0], 3);
-	defined($yyyy) or return;
-	my $mm = $MoY{$mon} // return;
-	$dd =~ /\A[0123]?[0-9]\z/ or return;
-	$yyyy =~ /\A[0-9]{4,}\z/ or return; # Y10K-compatible!
-	timegm(0, 0, 0, $dd, $mm, $yyyy);
-}
-
 sub msn_convert ($$) {
 	my ($self, $uids) = @_;
 	my $adj = $self->{uid_base} + 1;
@@ -1168,81 +1153,20 @@ sub xap_append ($$$$) {
 	undef;
 }
 
-sub parse_query {
+sub parse_query ($$) {
 	my ($self, $rest) = @_;
 	if (uc($rest->[0]) eq 'CHARSET') {
 		shift @$rest;
 		defined(my $c = shift @$rest) or return 'BAD missing charset';
 		$c =~ /\A(?:UTF-8|US-ASCII)\z/ or return 'NO [BADCHARSET]';
 	}
-
-	my $sql = ''; # date conditions, {sql} deleted if Xapian is needed
-	my $xap = '';
-	my $q = { sql => \$sql, xap => \$xap };
-	my $msn2uid;
-	while (@$rest) {
-		my $k = uc(shift @$rest);
-		# default criteria
-		next if $k =~ /\A(?:ALL|RECENT|UNSEEN|NEW)\z/;
-		next if $k eq 'AND'; # the default, until we support OR
-		if ($k =~ $valid_range) { # convert sequence numbers to UIDs
-			msn_to_uid_range($msn2uid //= msn2uid($self), $k);
-			push @{$q->{uid}}, $k;
-		} elsif ($k eq 'UID') {
-			$k = shift(@$rest) // '';
-			$k =~ $valid_range or return 'BAD UID range';
-			push @{$q->{uid}}, $k;
-		} elsif ($k =~ /\A(?:SENT)?(?:SINCE|ON|BEFORE)\z/) {
-			my $d = parse_date(shift(@$rest) // '');
-			defined $d or return "BAD $k date format";
-			date_search($q, $k, $d);
-		} elsif ($k =~ /\A(?:SMALLER|LARGER)\z/) {
-			delete $q->{sql}; # can't use over.sqlite3
-			my $bytes = shift(@$rest) // '';
-			$bytes =~ /\A[0-9]+\z/ or return "BAD $k not a number";
-			$xap .= ' bytes:' . ($k eq 'SMALLER' ?
-							'..'.(--$bytes) :
-							(++$bytes).'..');
-		} elsif ($k eq 'HEADER') {
-			$k = uc(shift(@$rest) // '');
-			my $xk = $H2X{$k} or
-				return "BAD HEADER $k not supported";
-			my $err = xap_append($q, $rest, $k, $xk);
-			return $err if $err;
-		} elsif (defined(my $xk = $I2X{$k})) {
-			my $err = xap_append($q, $rest, $k, $xk);
-			return $err if $err;
-		} else {
-			# TODO: parentheses, OR, NOT ...
-			return "BAD $k not supported (yet?)";
-		}
+	my $q = PublicInbox::IMAPsearchqp::parse($self, join(' ', @$rest));
+	if (ref($q)) {
+		my $max = $self->{ibx}->over->max;
+		my $beg = 1;
+		uid_clamp($self, \$beg, \$max);
+		$q->{range_info} = [ $beg, $max ];
 	}
-
-	# favor using over.sqlite3 if possible, since Xapian is optional
-	if (exists $q->{sql}) {
-		delete($q->{xap});
-		delete($q->{sql}) if $sql eq '';
-	} elsif (!$self->{ibx}->search) {
-		return 'BAD Xapian not configured for mailbox';
-	}
-	my $max = $self->{ibx}->over->max;
-	if (my $uid = delete $q->{uid}) {
-		my $range_csv = join(',', @$uid);
-		do {
-			my $nxt = range_step($self, \$range_csv);
-			my ($beg, $end) = @$nxt;
-			if ($xap) {
-				$xap .= " uid:$beg..$end";
-			} elsif ($beg == $end) {
-				$sql .= " AND num = $beg";
-			} else {
-				$sql .= " AND num >= $beg AND num <= $end";
-			}
-		} while ($range_csv);
-	}
-	my $beg = 1;
-	uid_clamp($self, \$beg, \$max);
-	$q->{range_info} = [ $beg, $max ];
 	$q;
 }
 
@@ -1253,7 +1177,7 @@ sub refill_xap ($$$$) {
 	my $opt = { mset => 2, limit => 1000 };
 	my $nshard = $srch->{nshard} // 1;
 	while (1) {
-		my $mset = $srch->query("$$q uid:$beg..$end", $opt);
+		my $mset = $srch->query("$q uid:$beg..$end", $opt);
 		@$uids = map { mdocid($nshard, $_) } $mset->items;
 		if (@$uids) {
 			$range_info->[0] = $uids->[-1] + 1; # update $beg
@@ -1288,6 +1212,8 @@ sub search_common {
 		long_response($self, \&search_uid_range,
 				$tag, $sql, $range_info, $want_msn);
 	} elsif ($q = $q->{xap}) {
+		$self->{ibx}->search or
+			return "$tag BAD search not available for mailbox\r\n";
 		$self->msg_more('* SEARCH');
 		long_response($self, \&search_xap_range,
 				$tag, $q, $range_info, $want_msn);
@@ -1321,6 +1247,7 @@ sub process_line ($$) {
 
 	# TODO: IMAP allows literals for big requests to upload messages
 	# (which we don't support) but maybe some big search queries use it.
+	# RFC 3501 9 (2) doesn't permit TAB or multiple SP
 	my ($tag, $req, @args) = parse_line('[ \t]+', 0, $l);
 	pop(@args) if (@args && !defined($args[-1]));
 	if (@args && uc($req) eq 'UID') {
@@ -1332,6 +1259,10 @@ sub process_line ($$) {
 				idle_done($self, $tag) :
 				"$idle_tag BAD expected DONE\r\n";
 		} elsif (my $cmd = $self->can('cmd_'.lc($req // ''))) {
+			if ($cmd == \&cmd_uid_search || $cmd == \&cmd_search) {
+				# preserve user-supplied quotes for search
+				(undef, @args) = split(/ search /i, $l, 2);
+			}
 			$cmd->($self, $tag, @args);
 		} else { # this is weird
 			auth_challenge_ok($self) //

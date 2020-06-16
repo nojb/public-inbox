@@ -7,7 +7,7 @@ use Socket qw(IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
 # IO::Poll is part of the standard library, but distros may split it off...
 require_mods(qw(DBD::SQLite IO::Socket::SSL Mail::IMAPClient IO::Poll
-	Email::Address::XS||Mail::Address));
+	Email::Address::XS||Mail::Address Parse::RecDescent));
 my $imap_client = 'Mail::IMAPClient';
 $imap_client->can('starttls') or
 	plan skip_all => 'Mail::IMAPClient does not support TLS';

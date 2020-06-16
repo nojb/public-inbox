@@ -133,6 +133,7 @@ lib/PublicInbox/IMAP.pm
 lib/PublicInbox/IMAPClient.pm
 lib/PublicInbox/IMAPD.pm
 lib/PublicInbox/IMAPdeflate.pm
+lib/PublicInbox/IMAPsearchqp.pm
 lib/PublicInbox/Import.pm
 lib/PublicInbox/In2Tie.pm
 lib/PublicInbox/Inbox.pm
@@ -271,6 +272,7 @@ t/httpd-unix.t
 t/httpd.t
 t/hval.t
 t/imap.t
+t/imap_searchqp.t
 t/imapd-tls.t
 t/imapd.t
 t/import.t

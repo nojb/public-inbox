@@ -9,7 +9,8 @@ use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
 use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::DS;
-require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address));
+require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address
+	Parse::RecDescent));
 my $inboxdir = $ENV{GIANT_INBOX_DIR};
 my $TEST_TLS;
 SKIP: {

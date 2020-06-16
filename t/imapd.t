@@ -9,7 +9,7 @@ use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite Mail::IMAPClient Mail::IMAPClient::BodyStructure
-	Email::Address::XS||Mail::Address));
+	Email::Address::XS||Mail::Address Parse::RecDescent));
 my $imap_client = 'Mail::IMAPClient';
 my $can_compress = $imap_client->can('compress');
 if ($can_compress) { # hope this gets fixed upstream, soon
@@ -122,7 +122,7 @@ $ret = $mic->search('uid 1:*') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search UID 1:* works');
 
 SKIP: {
-	skip 'Xapian missing', 6 if $level eq 'basic';
+	skip 'Xapian missing', 7 if $level eq 'basic';
 	my $x = $mic->search(qw(smaller 99999));
 	is_deeply($x, [1], 'SMALLER works with Xapian (hit)');
 	$x = $mic->search(qw(smaller 9));
@@ -137,6 +137,11 @@ SKIP: {
 	is_deeply($x, [1], 'HEADER Message-ID works');
 	$x = $mic->search(qw(HEADER Message-ID miss));
 	is_deeply($x, [], 'HEADER Message-ID can miss');
+
+	my @q = qw[OR HEADER Message-ID testmessage@example.com
+			(OR FROM Ryan (OR TO Joe CC Scott))];
+	$x = $mic->search(join(' ', @q));
+	is_deeply($x, [1], 'nested query works');
 }
 
 is_deeply(scalar $mic->flags('1'), [], '->flags works');
@@ -357,6 +362,7 @@ EOF
 	ok($mic->examine($ng), 'EXAMINE on dummy');
 	@hits = $mic->search('SENTSINCE' => '18-Apr-2020');
 	is_deeply(\@hits, [], 'search on dummy with condition works');
+	ok(!$mic->search('SENTSINCE' => '18-Abr-2020'), 'bad month fails');
 }); # each_inbox
 
 # message sequence numbers :<
