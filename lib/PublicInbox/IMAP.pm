@@ -1154,13 +1154,8 @@ sub xap_append ($$$$) {
 }
 
 sub parse_query ($$) {
-	my ($self, $rest) = @_;
-	if (uc($rest->[0]) eq 'CHARSET') {
-		shift @$rest;
-		defined(my $c = shift @$rest) or return 'BAD missing charset';
-		$c =~ /\A(?:UTF-8|US-ASCII)\z/ or return 'NO [BADCHARSET]';
-	}
-	my $q = PublicInbox::IMAPsearchqp::parse($self, join(' ', @$rest));
+	my ($self, $query) = @_;
+	my $q = PublicInbox::IMAPsearchqp::parse($self, $query);
 	if (ref($q)) {
 		my $max = $self->{ibx}->over->max;
 		my $beg = 1;
@@ -1202,9 +1197,9 @@ sub search_xap_range { # long_response
 }
 
 sub search_common {
-	my ($self, $tag, $rest, $want_msn) = @_;
+	my ($self, $tag, $query, $want_msn) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
-	my $q = parse_query($self, $rest);
+	my $q = parse_query($self, $query);
 	return "$tag $q\r\n" if !ref($q);
 	my ($sql, $range_info) = delete @$q{qw(sql range_info)};
 	if (!scalar(keys %$q)) { # overview.sqlite3
@@ -1222,14 +1217,14 @@ sub search_common {
 	}
 }
 
-sub cmd_uid_search ($$$;) {
-	my ($self, $tag) = splice(@_, 0, 2);
-	search_common($self, $tag, \@_);
+sub cmd_uid_search ($$$) {
+	my ($self, $tag, $query) = @_;
+	search_common($self, $tag, $query);
 }
 
 sub cmd_search ($$$;) {
-	my ($self, $tag) = splice(@_, 0, 2);
-	search_common($self, $tag, \@_, 1);
+	my ($self, $tag, $query) = @_;
+	search_common($self, $tag, $query, 1);
 }
 
 sub args_ok ($$) { # duplicated from PublicInbox::NNTP

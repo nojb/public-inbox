@@ -21,6 +21,18 @@ is($q->{xap}, '(t:"brian" OR (f:"ryan" OR (t:"joe" OR c:"scott")))',
 $q = $parse->(qq{HEADER CC b SENTSINCE 2-Oct-1993});
 is($q->{xap}, 'c:"b" d:19931002..', 'compound query');
 
+$q = $parse->(qq{CHARSET UTF-8 From b});
+is($q->{xap}, 'f:"b"', 'charset handled');
+$q = $parse->(qq{CHARSET WTF-8 From b});
+like($q, qr/\ANO \[/, 'bad charset rejected');
+{
+	# TODO: squelch errors by default? clients could flood logs
+	open my $fh, '>:scalar', \(my $buf) or die;
+	local *STDERR = $fh;
+	$q = $parse->(qq{CHARSET});
+}
+like($q, qr/\ABAD /, 'bad charset rejected');
+
 $q = $parse->(qq{HEADER CC B (SENTBEFORE 2-Oct-1993)});
 is($q->{xap}, 'c:"b" d:..19931002', 'compound query w/ parens');
 

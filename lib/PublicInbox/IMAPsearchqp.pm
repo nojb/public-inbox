@@ -165,7 +165,7 @@ sub msn_set {
 my $prd = Parse::RecDescent->new(<<'EOG');
 <nocheck>
 { my $q = $PublicInbox::IMAPsearchqp::q; }
-search_key : search_key1(s) { $return = $q }
+search_key : CHARSET(?) search_key1(s) { $return = $q }
 search_key1 : "ALL" | "RECENT" | "UNSEEN" | "NEW"
 	| OR_search_keys
 	| NOT_search_key
@@ -187,6 +187,10 @@ search_key1 : "ALL" | "RECENT" | "UNSEEN" | "NEW"
 	| MSN_set
 	| sub_query
 	| <error>
+
+charset : /\S+/
+CHARSET : 'CHARSET' charset
+{ $item{charset} =~ /\A(?:UTF-8|US-ASCII)\z/ ? 1 : die('NO [BADCHARSET]'); }
 
 SENTSINCE_date : 'SENTSINCE' date { $q->SENTSINCE(\%item) }
 SENTON_date : 'SENTON' date { $q->SENTON(\%item) }
@@ -253,7 +257,7 @@ sub parse {
 	%$q = (sql => \$sql, imap => $imap); # imap = PublicInbox::IMAP obj
 	# $::RD_TRACE = 1;
 	my $res = eval { $prd->search_key(uc($query)) };
-	return $@ if $@ && $@ =~ /\ABAD /;
+	return $@ if $@ && $@ =~ /\A(?:BAD|NO) /;
 	return 'BAD unexpected result' if !$res || $res != $q;
 	if (exists $q->{sql}) {
 		delete $q->{xap};
