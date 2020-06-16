@@ -956,38 +956,35 @@ sub out ($$;@) {
 sub event_step {
 	my ($self) = @_;
 
-	return unless $self->flush_write && $self->{sock};
+	return unless $self->flush_write && $self->{sock} && !$self->{long_cb};
 
 	$self->update_idle_time;
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
-	my $rbuf = $self->{rbuf} // (\(my $x = ''));
-	my $r = 1;
-
-	if (index($$rbuf, "\n") < 0) {
-		my $off = bytes::length($$rbuf);
-		$r = $self->do_read($rbuf, LINE_MAX, $off) or return;
+	my $rbuf = $self->{rbuf} // \(my $x = '');
+	my $line = index($$rbuf, "\n");
+	while ($line < 0) {
+		return $self->close if length($$rbuf) >= LINE_MAX;
+		$self->do_read($rbuf, LINE_MAX, length($$rbuf)) or return;
+		$line = index($$rbuf, "\n");
 	}
-	while ($r > 0 && $$rbuf =~ s/\A[ \t]*([^\n]*?)\r?\n//) {
-		my $line = $1;
-		return $self->close if $line =~ /[[:cntrl:]]/s;
-		my $t0 = now();
-		my $fd = fileno($self->{sock});
-		$r = eval { process_line($self, $line) };
-		my $pending = $self->{wbuf} ? ' pending' : '';
-		out($self, "[$fd] %s - %0.6f$pending", $line, now() - $t0);
-	}
+	$line = substr($$rbuf, 0, $line + 1, '');
+	$line =~ s/\r?\n\z//s;
+	return $self->close if $line =~ /[[:cntrl:]]/s;
 
+	my $t0 = now();
+	my $fd = fileno($self->{sock});
+	my $r = eval { process_line($self, $line) };
+	my $pending = $self->{wbuf} ? ' pending' : '';
+	out($self, "[$fd] %s - %0.6f$pending", $line, now() - $t0);
 	return $self->close if $r < 0;
-	my $len = bytes::length($$rbuf);
-	return $self->close if ($len >= LINE_MAX);
 	$self->rbuf_idle($rbuf);
 	$self->update_idle_time;
 
 	# maybe there's more pipelined data, or we'll have
 	# to register it for socket-readiness notifications
-	$self->requeue unless $self->{wbuf};
+	$self->requeue unless $pending;
 }
 
 # for graceful shutdown in PublicInbox::Daemon:
