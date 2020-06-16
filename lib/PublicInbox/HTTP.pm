@@ -59,7 +59,7 @@ sub new ($$$) {
 	my $self = fields::new($class);
 	my $ev = EPOLLIN;
 	my $wbuf;
-	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
+	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
 		return CORE::close($sock) if $! != EAGAIN;
 		$ev = PublicInbox::TLS::epollbit();
 		$wbuf = [ \&PublicInbox::DS::accept_tls_step ];

@@ -415,7 +415,7 @@ sub send_tmpio ($$) {
 }
 
 sub epbit ($$) { # (sock, default)
-    ref($_[0]) eq 'IO::Socket::SSL' ? PublicInbox::TLS::epollbit() : $_[1];
+	$_[0]->can('stop_SSL') ? PublicInbox::TLS::epollbit() : $_[1];
 }
 
 # returns 1 if done, 0 if incomplete
@@ -569,7 +569,7 @@ sub msg_more ($$) {
     my $wbuf = $self->{wbuf};
 
     if (MSG_MORE && (!defined($wbuf) || !scalar(@$wbuf)) &&
-		ref($sock) ne 'IO::Socket::SSL') {
+		!$sock->can('stop_SSL')) {
         my $n = send($sock, $_[1], MSG_MORE);
         if (defined $n) {
             my $nlen = bytes::length($_[1]) - $n;
@@ -619,7 +619,7 @@ sub shutdn_tls_step ($) {
 sub shutdn ($) {
     my ($self) = @_;
     my $sock = $self->{sock} or return;
-    if (ref($sock) eq 'IO::Socket::SSL') {
+    if ($sock->can('stop_SSL')) {
         shutdn_tls_step($self);
     } else {
 	$self->close;

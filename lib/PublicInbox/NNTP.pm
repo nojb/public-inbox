@@ -47,7 +47,7 @@ sub new ($$$) {
 	my $self = fields::new($class);
 	my $ev = EPOLLIN;
 	my $wbuf;
-	if (ref($sock) eq 'IO::Socket::SSL' && !$sock->accept_SSL) {
+	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
 		return CORE::close($sock) if $! != EAGAIN;
 		$ev = PublicInbox::TLS::epollbit();
 		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
@@ -97,7 +97,7 @@ sub process_line ($$) {
 sub cmd_capabilities ($;$) {
 	my ($self, undef) = @_;
 	my $res = $CAPABILITIES;
-	if (ref($self->{sock}) ne 'IO::Socket::SSL' &&
+	if (!$self->{sock}->can('accept_SSL') &&
 			$self->{nntpd}->{accept_tls}) {
 		$res .= "STARTTLS\r\n";
 	}
@@ -896,7 +896,7 @@ sub cmd_starttls ($) {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
 	# RFC 4642 2.2.1
-	return r502 if (ref($sock) eq 'IO::Socket::SSL' || $self->compressed);
+	return r502 if ($sock->can('accept_SSL') || $self->compressed);
 	my $opt = $self->{nntpd}->{accept_tls} or
 		return '580 can not initiate TLS negotiation';
 	res($self, '382 Continue with TLS negotiation');
