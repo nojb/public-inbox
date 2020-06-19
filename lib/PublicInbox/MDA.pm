@@ -6,6 +6,7 @@ package PublicInbox::MDA;
 use strict;
 use warnings;
 use PublicInbox::MsgTime;
+use PublicInbox::Address;
 use constant MAX_SIZE => 1024 * 500; # same as spamc default, should be tunable
 use constant MAX_MID_SIZE => 244; # max term size - 1 in Xapian
 
@@ -62,7 +63,7 @@ sub alias_specified {
 	} @address;
 
 	foreach my $line ($simple->header('Cc'), $simple->header('To')) {
-		my @addrs = ($line =~ /([^,<\s]+\@[^,>\s]+)/g);
+		my @addrs = PublicInbox::Address::emails($line);
 		foreach my $addr (@addrs) {
 			if ($ok{lc(__drop_plus($addr))}) {
 				return 1;
