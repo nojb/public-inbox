@@ -4,10 +4,10 @@
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
+require_git 2.6;
 require_mods(qw(DBD::SQLite));
 require PublicInbox::SearchIdx;
 use_ok 'PublicInbox::InboxIdle';
-require_git('2.6');
 use PublicInbox::InboxWritable;
 my ($tmpdir, $for_destroy) = tmpdir();
 

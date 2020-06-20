@@ -7,6 +7,7 @@ use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape DBD::SQLite);
+require_git 2.6;
 require_mods(@mods);
 use_ok 'PublicInbox::V2Writable';
 foreach my $mod (@mods) { use_ok $mod; }

@@ -6,6 +6,7 @@ use Test::More;
 use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
+require_git 2.6;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common
               Plack::Test URI::Escape Plack::Builder Plack::Test);
 require_mods(@mods);

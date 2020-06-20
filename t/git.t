@@ -84,7 +84,8 @@ if (1) {
 	ok($gcf->packed_bytes > 0, 'packed size is positive');
 }
 
-if ('alternates reloaded') {
+SKIP: {
+	require_git(2.6, 7) or skip('need git 2.6+ for --batch-all-objects', 7);
 	my ($alt, $alt_obj) = tmpdir();
 	my $hash_obj = [ 'git', "--git-dir=$alt", qw(hash-object -w --stdin) ];
 	PublicInbox::Import::init_bare($alt);

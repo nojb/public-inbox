@@ -8,6 +8,7 @@ use PublicInbox::Config;
 use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder PublicInbox::WWW);
+require_git 2.6;
 require_mods(@mods);
 use_ok($_) for @mods;
 use_ok 'PublicInbox::WWW';

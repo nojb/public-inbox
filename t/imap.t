@@ -5,11 +5,11 @@
 use strict;
 use Test::More;
 use PublicInbox::TestCommon;
+require_git 2.6;
 require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address
 	Parse::RecDescent));
 require_ok 'PublicInbox::IMAP';
 require_ok 'PublicInbox::IMAPD';
-require_git 2.6;
 
 my ($tmpdir, $for_destroy) = tmpdir();
 my $cfgfile = "$tmpdir/config";

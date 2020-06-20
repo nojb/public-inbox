@@ -105,7 +105,7 @@ my @orig_list = @raw = $mic->list;
 like($raw[0], qr/^\* LIST \(.*?\) "\." INBOX/,
 	'got an inbox');
 like($raw[-1], qr/^\S+ OK /, 'response ended with OK');
-is(scalar(@raw), scalar(@V) + 4, 'default LIST response');
+is(scalar(@raw), scalar(@V) * 2 + 2, 'default LIST response');
 @raw = $mic->list('', 'inbox.i1');
 is(scalar(@raw), 2, 'limited LIST response');
 like($raw[0], qr/^\* LIST \(.*?\) "\." INBOX/,
