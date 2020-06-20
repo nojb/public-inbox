@@ -95,7 +95,15 @@ sub require_mods {
 		} else {
 			eval "require $mod";
 		}
-		push @need, $mod if $@;
+		if ($@) {
+			push @need, $mod;
+		} elsif ($mod eq 'IO::Socket::SSL' &&
+			# old versions of IO::Socket::SSL aren't supported
+			# by libnet, at least:
+			# https://rt.cpan.org/Ticket/Display.html?id=100529
+				!eval{ IO::Socket::SSL->VERSION(2.007); 1 }) {
+			push @need, $@;
+		}
 	}
 	return unless @need;
 	my $m = join(', ', @need)." missing for $0";

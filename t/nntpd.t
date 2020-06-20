@@ -111,11 +111,6 @@ EOF
 		$n->can('starttls') or
 			skip('Net::NNTP too old to support STARTTLS', 2);
 		require_mods('IO::Socket::SSL', 2);
-		eval {
-			IO::Socket::SSL->VERSION(2.007);
-		} or skip(<<EOF, 2);
-IO::Socket::SSL <2.007 not supported by Net::NNTP
-EOF
 		ok(!$n->starttls, 'STARTTLS fails when unconfigured');
 		is($n->code, 580, 'got 580 code on server w/o TLS');
 	};

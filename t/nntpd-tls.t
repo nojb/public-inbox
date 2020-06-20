@@ -10,8 +10,6 @@ use PublicInbox::TestCommon;
 require_mods(qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll));
 Net::NNTP->can('starttls') or
 	plan skip_all => 'Net::NNTP does not support TLS';
-IO::Socket::SSL->VERSION(2.007) or
-	plan skip_all => 'IO::Socket::SSL <2.007 not supported by Net::NNTP';
 
 my $cert = 'certs/server-cert.pem';
 my $key = 'certs/server-key.pem';
