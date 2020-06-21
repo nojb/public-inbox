@@ -1172,16 +1172,13 @@ sub refill_xap ($$$$) {
 	my $srch = $self->{ibx}->search;
 	my $opt = { mset => 2, limit => 1000 };
 	my $nshard = $srch->{nshard} // 1;
-	while (1) {
-		my $mset = $srch->query("$q uid:$beg..$end", $opt);
-		@$uids = map { mdocid($nshard, $_) } $mset->items;
-		if (@$uids) {
-			$range_info->[0] = $uids->[-1] + 1; # update $beg
-			return;
-		} else { # all done
-			return 0;
-		}
+	my $mset = $srch->query("$q uid:$beg..$end", $opt);
+	@$uids = map { mdocid($nshard, $_) } $mset->items;
+	if (@$uids) {
+		$range_info->[0] = $uids->[-1] + 1; # update $beg
+		return; # possibly more
 	}
+	0; # all done
 }
 
 sub search_xap_range { # long_response
