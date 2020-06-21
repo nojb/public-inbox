@@ -80,9 +80,11 @@ foreach my $i (0..$epoch_max) {
 	ok(-d "$tmpdir/m/git/$i.git", "mirror $i OK");
 }
 
-@cmd = ("-init", '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
+@cmd = ("-init", '-j1', '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
 	'alt@example.com');
 ok(run_script(\@cmd), 'initialized public-inbox -V2');
+my @shards = glob("$tmpdir/m/xap*/?");
+is(scalar(@shards), 1, 'got a single shard on init');
 
 ok(run_script([qw(-index -j0), "$tmpdir/m"]), 'indexed');
 

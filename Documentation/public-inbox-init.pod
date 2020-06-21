@@ -48,6 +48,20 @@ added-after-the-fact (without affecting "git clone" followers).
 
 Default: unset, no epochs are skipped
 
+=item -j, --jobs=JOBS
+
+Control the number of Xapian index shards in a
+C<-V2> (L<public-inbox-v2-format(5)>) inbox.
+
+It is useful to use a single shard (C<-j1>) for inboxes on
+high-latency storage (e.g. rotational HDD) unless the system has
+enough RAM to cache 5-10x the size of the git repository.
+
+It is generally not useful to specify higher values than the
+default due to contention in the top-level producer process.
+
+Default: the number of online CPUs, up to 4
+
 =back
 
 =head1 ENVIRONMENT

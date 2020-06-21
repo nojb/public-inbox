@@ -27,10 +27,12 @@ use Cwd qw/abs_path/;
 my $version = undef;
 my $indexlevel = undef;
 my $skip_epoch;
+my $jobs;
 my %opts = (
 	'V|version=i' => \$version,
 	'L|indexlevel=s' => \$indexlevel,
 	'S|skip|skip-epoch=i' => \$skip_epoch,
+	'j|jobs=i' => \$jobs,
 );
 GetOptions(%opts) or usage();
 PublicInbox::Admin::indexlevel_ok_or_die($indexlevel) if defined $indexlevel;
@@ -144,6 +146,12 @@ my $ibx = PublicInbox::Inbox->new({
 });
 
 my $creat_opt = {};
+if (defined $jobs) {
+	die "--jobs is only supported for -V2 inboxes\n" if $version == 1;
+	die "--jobs=$jobs must be >= 1\n" if $jobs <= 0;
+	$creat_opt->{nproc} = $jobs;
+}
+
 PublicInbox::InboxWritable->new($ibx, $creat_opt)->init_inbox(0, $skip_epoch);
 
 # needed for git prior to v2.1.0
