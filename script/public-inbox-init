@@ -121,20 +121,20 @@ if (-f "$inboxdir/inbox.lock") {
 	if (!defined $version) {
 		$version = 2;
 	} elsif ($version != 2) {
-		die "$inboxdir is a -V2 repo, -V$version specified\n"
+		die "$inboxdir is a -V2 inbox, -V$version specified\n"
 	}
 } elsif (-d "$inboxdir/objects") {
 	if (!defined $version) {
 		$version = 1;
 	} elsif ($version != 1) {
-		die "$inboxdir is a -V1 repo, -V$version specified\n"
+		die "$inboxdir is a -V1 inbox, -V$version specified\n"
 	}
 }
 
 $version = 1 unless defined $version;
 
 if ($version == 1 && defined $skip_epoch) {
-	die "--skip-epoch is only supported for -V2 repos\n";
+	die "--skip-epoch is only supported for -V2 inboxes\n";
 }
 
 my $ibx = PublicInbox::Inbox->new({
