@@ -24,14 +24,12 @@ use File::Path qw/mkpath/;
 use Fcntl qw(:DEFAULT);
 use Cwd qw/abs_path/;
 
-my $version = undef;
-my $indexlevel = undef;
-my $skip_epoch;
-my $jobs;
+my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs);
 my %opts = (
 	'V|version=i' => \$version,
 	'L|indexlevel=s' => \$indexlevel,
 	'S|skip|skip-epoch=i' => \$skip_epoch,
+	'N|skip-artnum=i' => \$skip_artnum,
 	'j|jobs=i' => \$jobs,
 );
 GetOptions(%opts) or usage();
@@ -152,7 +150,8 @@ if (defined $jobs) {
 	$creat_opt->{nproc} = $jobs;
 }
 
-PublicInbox::InboxWritable->new($ibx, $creat_opt)->init_inbox(0, $skip_epoch);
+$ibx = PublicInbox::InboxWritable->new($ibx, $creat_opt);
+$ibx->init_inbox(0, $skip_epoch, $skip_artnum);
 
 # needed for git prior to v2.1.0
 umask(0077) if defined $perm;

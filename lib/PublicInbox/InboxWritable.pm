@@ -39,10 +39,21 @@ sub assert_usable_dir {
 
 sub init_inbox {
 	my ($self, $shards, $skip_epoch, $skip_artnum) = @_;
-	# TODO: honor skip_artnum
 	if ($self->version == 1) {
 		my $dir = assert_usable_dir($self);
 		PublicInbox::Import::init_bare($dir);
+		if (defined($self->{indexlevel}) || defined($skip_artnum)) {
+			require PublicInbox::SearchIdx;
+			my $sidx = PublicInbox::SearchIdx->new($self, 1); # just create
+			$sidx->begin_txn_lazy;
+			$self->with_umask(sub {
+				my $mm = PublicInbox::Msgmap->new($dir, 1);
+				$mm->{dbh}->begin_work;
+				$mm->skip_artnum($skip_artnum);
+				$mm->{dbh}->commit;
+			}) if defined($skip_artnum);
+			$sidx->commit_txn_lazy;
+		}
 	} else {
 		my $v2w = importer($self);
 		$v2w->init_inbox($shards, $skip_epoch, $skip_artnum);

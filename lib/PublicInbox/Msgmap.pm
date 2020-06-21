@@ -270,4 +270,30 @@ sub atfork_prepare {
 	%$self = (tmp_name => $f, pid => $$);
 }
 
+sub skip_artnum {
+	my ($self, $skip_artnum) = @_;
+	return meta_accessor($self, 'skip_artnum') if !defined($skip_artnum);
+
+	my $cur = num_highwater($self) // 0;
+	if ($skip_artnum < $cur) {
+		die "E: current article number $cur ",
+			"exceeds --skip-artnum=$skip_artnum\n";
+	} else {
+		my $ok;
+		for (1..10) {
+			my $mid = 'skip'.rand.'@'.rand.'.example.com';
+			$ok = mid_set($self, $skip_artnum, $mid);
+			if ($ok) {
+				mid_delete($self, $mid);
+				last;
+			}
+		}
+		$ok or die '--skip-artnum failed';
+
+		# in the future, the indexer may use this value for
+		# new messages in old epochs
+		meta_accessor($self, 'skip_artnum', $skip_artnum);
+	}
+}
+
 1;

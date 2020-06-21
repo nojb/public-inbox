@@ -39,6 +39,20 @@ See L<public-inbox-config(5)> for more information.
 
 Default: C<full>
 
+=item -N, --skip-artnum
+
+This option allows archivists to publish incomplete archives
+with only new mail while allowing NNTP article numbers
+to be reserved for yet-to-be-archived old mail.
+
+This is mainly intended for users of C<--skip-epoch> (documented below)
+but may be of use to L<public-inbox-v1-format(5)> users.
+
+There is no automatic way to use reserved NNTP article numbers
+when old mail is found, yet.
+
+Default: unset, no NNTP article numbers are skipped
+
 =item -S, --skip-epoch
 
 For C<-V2> (L<public-inbox-v2-format(5)>) inboxes only, this option

@@ -694,6 +694,7 @@ sub _git_log {
 		} else {
 			# normal regen is for for fresh data
 			$self->{regen_down} = $fcount;
+			$self->{regen_down} += $high unless $opts->{reindex};
 		}
 	} else {
 		# Give oldest messages the smallest numbers

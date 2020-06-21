@@ -128,12 +128,13 @@ sub new {
 
 # public (for now?)
 sub init_inbox {
-	my ($self, $shards, $skip_epoch) = @_;
+	my ($self, $shards, $skip_epoch, $skip_artnum) = @_;
 	if (defined $shards) {
 		$self->{parallel} = 0 if $shards == 0;
 		$self->{shards} = $shards if $shards > 0;
 	}
 	$self->idx_init;
+	$self->{mm}->skip_artnum($skip_artnum) if defined $skip_artnum;
 	my $epoch_max = -1;
 	git_dir_latest($self, \$epoch_max);
 	if (defined $skip_epoch && $epoch_max == -1) {

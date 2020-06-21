@@ -93,12 +93,38 @@ SKIP: {
 		is_deeply($gits, ["$tmpdir/skip1/git/1.git"], 'skip OK');
 	}
 
-
 	$cmd = [ '-init', '-V2', '--skip-epoch=2', 'skip2', "$tmpdir/skip2",
 		   qw(http://example.com/skip2 skip2@example.com) ];
 	ok(run_script($cmd), "--skip-epoch 2");
 	my $gits = [ glob("$tmpdir/skip2/git/*.git") ];
 	is_deeply($gits, ["$tmpdir/skip2/git/2.git"], 'skipping 2 works, too');
+
+	xsys(qw(git config), "--file=$ENV{PI_DIR}/config",
+			'publicinboxmda.spamcheck', 'none') == 0 or
+			BAIL_OUT "git config $?";
+	my $addr = 'skip3@example.com';
+	$cmd = [ qw(-init -V2 -Lbasic -N12 skip3), "$tmpdir/skip3",
+		   qw(http://example.com/skip3), $addr ];
+	ok(run_script($cmd), '--skip-artnum -V2');
+	my $env = { ORIGINAL_RECIPIENT => $addr };
+	my $mid = 'skip-artnum@example.com';
+	my $msg = "Message-ID: <$mid>\n\n";
+	my $rdr = { 0 => \$msg, 2 => \(my $err = '')  };
+	ok(run_script([qw(-mda --no-precheck)], $env, $rdr), 'deliver V1');
+	my $mm = PublicInbox::Msgmap->new_file("$tmpdir/skip3/msgmap.sqlite3");
+	my $n = $mm->num_for($mid);
+	is($n, 13, 'V2 NNTP article numbers skipped via --skip-artnum');
+
+	$addr = 'skip4@example.com';
+	$env = { ORIGINAL_RECIPIENT => $addr };
+	$cmd = [ qw(-init -V1 -N12 -Lmedium skip4), "$tmpdir/skip4",
+		   qw(http://example.com/skip4), $addr ];
+	ok(run_script($cmd), '--skip-artnum -V1');
+	ok(run_script([qw(-mda --no-precheck)], $env, $rdr), 'deliver V1');
+	$mm = PublicInbox::Msgmap->new("$tmpdir/skip4");
+	system "find $tmpdir/skip4 >&2";
+	$n = $mm->num_for($mid);
+	is($n, 13, 'V1 NNTP article numbers skipped via --skip-artnum');
 }
 
 done_testing();
