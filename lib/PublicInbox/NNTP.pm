@@ -553,8 +553,7 @@ sub cmd_article ($;$) {
 	return $smsg unless ref $smsg;
 	set_art($self, $art);
 	$smsg->{nntp} = $self;
-	git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg);
-	undef;
+	${git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg)};
 }
 
 sub cmd_head ($;$) {
@@ -564,8 +563,7 @@ sub cmd_head ($;$) {
 	set_art($self, $art);
 	$smsg->{nntp} = $self;
 	$smsg->{nntp_code} = 221;
-	git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg);
-	undef;
+	${git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg)};
 }
 
 sub cmd_body ($;$) {
@@ -575,8 +573,7 @@ sub cmd_body ($;$) {
 	set_art($self, $art);
 	$smsg->{nntp} = $self;
 	$smsg->{nntp_code} = 222;
-	git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg);
-	undef;
+	${git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg)};
 }
 
 sub cmd_stat ($;$) {

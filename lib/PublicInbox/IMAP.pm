@@ -1294,7 +1294,7 @@ sub long_step {
 	} elsif ($more) { # $self->{wbuf}:
 		$self->update_idle_time;
 
-		# control passed to $more may be a GitAsyncCat object
+		# control passed to git_async_cat if $more == \undef
 		requeue_once($self) if !ref($more);
 	} else { # all done!
 		delete $self->{long_cb};

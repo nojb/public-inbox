@@ -295,9 +295,7 @@ sub qx {
 sub cleanup {
 	my ($self) = @_;
 	local $in_cleanup = 1;
-	if (my $ac = $self->{async_cat}) {
-		$ac->close; # PublicInbox::GitAsyncCat::close -> EPOLL_CTL_DEL
-	}
+	delete $self->{async_cat};
 	cat_async_wait($self);
 	_destroy($self, qw(cat_rbuf in out pid));
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));

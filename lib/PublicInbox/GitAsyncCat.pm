@@ -15,20 +15,20 @@ use fields qw(git);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 our @EXPORT = qw(git_async_cat);
 
-sub new {
+sub _add {
 	my ($class, $git) = @_;
 	my $self = fields::new($class);
 	$git->batch_prepare;
 	$self->SUPER::new($git->{in}, EPOLLIN|EPOLLET);
 	$self->{git} = $git;
-	$self;
+	\undef; # this is a true ref()
 }
 
 sub event_step {
 	my ($self) = @_;
 	my $git = $self->{git} or return; # ->close-ed
 	my $inflight = $git->{inflight};
-	if (@$inflight) {
+	if ($inflight && @$inflight) {
 		$git->cat_async_step($inflight);
 		$self->requeue if @$inflight || exists $git->{cat_rbuf};
 	}
@@ -37,7 +37,7 @@ sub event_step {
 sub close {
 	my ($self) = @_;
 	if (my $git = delete $self->{git}) {
-		delete $git->{async_cat}; # drop circular reference
+		delete $git->{async_cat};
 	}
 	$self->SUPER::close; # PublicInbox::DS::close
 }
@@ -45,7 +45,7 @@ sub close {
 sub git_async_cat ($$$$) {
 	my ($git, $oid, $cb, $arg) = @_;
 	$git->cat_async($oid, $cb, $arg);
-	$git->{async_cat} //= new(__PACKAGE__, $git); # circular reference
+	$git->{async_cat} //= _add(__PACKAGE__, $git);
 }
 
 1;
