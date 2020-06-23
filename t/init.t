@@ -122,7 +122,6 @@ SKIP: {
 	ok(run_script($cmd), '--skip-artnum -V1');
 	ok(run_script([qw(-mda --no-precheck)], $env, $rdr), 'deliver V1');
 	$mm = PublicInbox::Msgmap->new("$tmpdir/skip4");
-	system "find $tmpdir/skip4 >&2";
 	$n = $mm->num_for($mid);
 	is($n, 13, 'V1 NNTP article numbers skipped via --skip-artnum');
 }
