@@ -421,8 +421,8 @@ sub epbit ($$) { # (sock, default)
 # returns 1 if done, 0 if incomplete
 sub flush_write ($) {
     my ($self) = @_;
+    my $sock = $self->{sock} or return;
     my $wbuf = $self->{wbuf} or return 1;
-    my $sock = $self->{sock};
 
 next_buf:
     while (my $bref = $wbuf->[0]) {
