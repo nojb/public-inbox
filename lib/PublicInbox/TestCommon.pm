@@ -372,6 +372,7 @@ sub start_script {
 		}
 		$0 = join(' ', @$cmd);
 		if ($sub) {
+			eval { PublicInbox::DS->Reset };
 			_run_sub($sub, $key, \@argv);
 			POSIX::_exit($? >> 8);
 		} else {
