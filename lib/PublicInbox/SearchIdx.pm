@@ -78,12 +78,12 @@ sub new {
 sub need_xapian ($) { $_[0]->{indexlevel} =~ $xapianlevels }
 
 sub _xdb_release {
-	my ($self) = @_;
+	my ($self, $wake) = @_;
 	if (need_xapian($self)) {
 		my $xdb = delete $self->{xdb} or croak 'not acquired';
 		$xdb->close;
 	}
-	$self->lock_release if $self->{creat};
+	$self->lock_release($wake) if $self->{creat};
 	undef;
 }
 
@@ -800,7 +800,7 @@ sub _index_sync {
 		}
 		$self->commit_txn_lazy;
 		$git->cleanup;
-		$xdb = _xdb_release($self);
+		$xdb = _xdb_release($self, $nr);
 		# let another process do some work... <
 		$pr->("indexed $nr/$self->{ntodo}\n") if $pr && $nr;
 		if (!$newest) {

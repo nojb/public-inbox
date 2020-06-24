@@ -8,13 +8,13 @@ use fields qw(pi_config inot pathmap);
 use Cwd qw(abs_path);
 use Symbol qw(gensym);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
-my $IN_CLOSE = 0x08 | 0x10; # match Linux inotify
+my $IN_MODIFY = 0x02; # match Linux inotify
 my $ino_cls;
 if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
-	$IN_CLOSE = Linux::Inotify2::IN_CLOSE();
+	$IN_MODIFY = Linux::Inotify2::IN_MODIFY();
 	$ino_cls = 'Linux::Inotify2';
 } elsif (eval { require PublicInbox::KQNotify }) {
-	$IN_CLOSE = PublicInbox::KQNotify::IN_CLOSE();
+	$IN_MODIFY = PublicInbox::KQNotify::NOTE_WRITE();
 	$ino_cls = 'PublicInbox::KQNotify';
 }
 require PublicInbox::In2Tie if $ino_cls;
@@ -39,7 +39,7 @@ sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 	$cur->[0] = $ibx;
 
 	my $lock = "$dir/".($ibx->version >= 2 ? 'inbox.lock' : 'ssoma.lock');
-	$cur->[1] = $inot->watch($lock, $IN_CLOSE, sub { $ibx->on_unlock });
+	$cur->[1] = $inot->watch($lock, $IN_MODIFY, sub { $ibx->on_unlock });
 
 	# TODO: detect deleted packs (and possibly other files)
 }

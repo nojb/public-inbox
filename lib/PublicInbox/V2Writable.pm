@@ -113,6 +113,7 @@ sub new {
 		im => undef, #  PublicInbox::Import
 		parallel => 1,
 		transact_bytes => 0,
+		total_bytes => 0,
 		current_info => '',
 		xpfx => $xpfx,
 		over => PublicInbox::OverIdx->new("$xpfx/over.sqlite3", 1),
@@ -659,6 +660,7 @@ sub checkpoint ($;$) {
 
 		$dbh->begin_work;
 	}
+	$self->{total_bytes} += $self->{transact_bytes};
 	$self->{transact_bytes} = 0;
 }
 
@@ -681,8 +683,9 @@ sub done {
 	}
 	$self->{over}->disconnect;
 	delete $self->{bnote};
-	$self->{transact_bytes} = 0;
-	$self->lock_release if $shards;
+	my $nbytes = $self->{total_bytes};
+	$self->{total_bytes} = 0;
+	$self->lock_release(!!$nbytes) if $shards;
 	$self->{-inbox}->git->cleanup;
 }
 

@@ -21,16 +21,12 @@ sub lock_acquire {
 }
 
 sub lock_release {
-	my ($self) = @_;
+	my ($self, $wake) = @_;
 	return unless $self->{lock_path};
 	my $lockfh = delete $self->{lockfh} or croak 'not locked';
 
-	# NetBSD 8.1 and OpenBSD 6.5 (and maybe other versions/*BSDs) lack
-	# NOTE_CLOSE_WRITE from FreeBSD 11+, so trigger NOTE_WRITE, instead.
-	# We also need to change the ctime on Linux systems w/o inotify
-	if ($^O ne 'linux' || !eval { require Linux::Inotify2; 1 }) {
-		syswrite($lockfh, '.');
-	}
+	syswrite($lockfh, '.') if $wake;
+
 	flock($lockfh, LOCK_UN) or die "unlock failed: $!\n";
 	close $lockfh or die "close failed: $!\n";
 }

@@ -468,9 +468,9 @@ sub done {
 	waitpid($pid, 0) == $pid or die 'fast-import did not finish';
 	$? == 0 or die "fast-import failed: $?";
 
-	_update_git_info($self, 1) if delete $self->{nchg};
-
-	$self->lock_release;
+	my $nchg = delete $self->{nchg};
+	_update_git_info($self, 1) if $nchg;
+	$self->lock_release(!!$nchg);
 
 	$self->{git}->cleanup;
 }

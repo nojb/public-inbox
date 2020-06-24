@@ -8,10 +8,6 @@ use strict;
 use IO::KQueue;
 use PublicInbox::DSKQXS; # wraps IO::KQueue for fork-safe DESTROY
 
-# only true as far as public-inbox is concerned with .lock files:
-sub IN_CLOSE () { NOTE_WRITE }
-#sub IN_CLOSE () { 0x200 } # NOTE_CLOSE_WRITE (FreeBSD 11+ only)
-
 sub new {
 	my ($class) = @_;
 	bless { dskq => PublicInbox::DSKQXS->new, watch => {} }, $class;
@@ -26,7 +22,7 @@ sub watch {
 		EV_ADD | EV_CLEAR, # flags
 		$mask, # fflags
 		0, 0); # data, udata
-	if ($mask == IN_CLOSE) {
+	if ($mask == NOTE_WRITE) {
 		$self->{watch}->{$ident} = [ $fh, $cb ];
 	} else {
 		die "TODO Not implemented: $mask";
@@ -52,7 +48,7 @@ sub poll {
 	for my $kev (@kevents) {
 		my $ident = $kev->[KQ_IDENT];
 		my $mask = $kev->[KQ_FFLAGS];
-		if (($mask & IN_CLOSE) == IN_CLOSE) {
+		if (($mask & NOTE_WRITE) == NOTE_WRITE) {
 			eval { $self->{watch}->{$ident}->[1]->() };
 		}
 	}

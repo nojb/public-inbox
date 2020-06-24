@@ -39,6 +39,7 @@ sub commit_changes ($$$$) {
 			my $tmp_over = "$new/over.sqlite3";
 			$over->connect->sqlite_backup_to_file($tmp_over);
 			$over = undef;
+			syswrite($im->{lockfh}, '.'); # trigger ->check_inodes
 		}
 
 		if (!defined($new)) { # culled shard
