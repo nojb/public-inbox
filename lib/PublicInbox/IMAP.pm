@@ -192,8 +192,8 @@ sub cmd_capability ($$) {
 
 # uo2m: UID Offset to MSN, this is an arrayref by default,
 # but uo2m_hibernate can compact and deduplicate it
-sub uo2m_ary_new ($) {
-	my ($self) = @_;
+sub uo2m_ary_new ($;$) {
+	my ($self, $exists) = @_;
 	my $base = $self->{uid_base};
 	my $uids = $self->{ibx}->over->uid_range($base + 1, $base + UID_SLICE);
 
@@ -202,6 +202,7 @@ sub uo2m_ary_new ($) {
 	my $msn = 0;
 	++$base;
 	$tmp[$_ - $base] = ++$msn for @$uids;
+	$$exists = $msn if $exists;
 	\@tmp;
 }
 
@@ -385,44 +386,48 @@ sub ensure_slices_exist ($$$) {
 	push @$l, map { qq[* LIST (\\HasNoChildren) "." $_\r\n] } @created;
 }
 
-sub inbox_lookup ($$) {
-	my ($self, $mailbox) = @_;
-	my ($ibx, $exists, $uidnext, $uid_base);
-	if ($mailbox =~ /\A(.+)\.([0-9]+)\z/) {
-		# old mail: inbox.comp.foo.$SLICE_IDX
-		my $mb_top = $1;
-		$uid_base = $2 * UID_SLICE;
-		$ibx = $self->{imapd}->{mailboxes}->{lc $mailbox} or return;
-		my $max;
-		($exists, $uidnext, $max) = $ibx->over->imap_status($uid_base,
-							$uid_base + UID_SLICE);
-		ensure_slices_exist($self->{imapd}, $ibx, $max);
-	} else { # check for dummy inboxes
-		$mailbox = lc $mailbox;
-		$ibx = $self->{imapd}->{mailboxes}->{$mailbox} or return;
+sub inbox_lookup ($$;$) {
+	my ($self, $mailbox, $examine) = @_;
+	my ($ibx, $exists, $uidmax, $uid_base) = (undef, 0, 0, 0);
+	$mailbox = lc $mailbox;
+	$ibx = $self->{imapd}->{mailboxes}->{$mailbox} or return;
+	my $over = $ibx->over;
+	if ($over != $ibx) { # not a dummy
+		$mailbox =~ /\.([0-9]+)\z/ or
+				die "BUG: unexpected dummy mailbox: $mailbox\n";
+		$uid_base = $1 * UID_SLICE;
 
+		# ->num_highwater caches for writers, so use ->meta_accessor
+		$uidmax = $ibx->mm->meta_accessor('num_highwater') // 0;
+		if ($examine) {
+			$self->{uid_base} = $uid_base;
+			$self->{ibx} = $ibx;
+			$self->{uo2m} = uo2m_ary_new($self, \$exists);
+		} else {
+			$exists = $over->imap_exists;
+		}
+		ensure_slices_exist($self->{imapd}, $ibx, $over->max);
+	} else {
+		if ($examine) {
+			$self->{uid_base} = $uid_base;
+			$self->{ibx} = $ibx;
+			delete $self->{uo2m};
+		}
 		# if "INBOX.foo.bar" is selected and "INBOX.foo.bar.0",
 		# check for new UID ranges (e.g. "INBOX.foo.bar.1")
 		if (my $z = $self->{imapd}->{mailboxes}->{"$mailbox.0"}) {
 			ensure_slices_exist($self->{imapd}, $z, $z->over->max);
 		}
-
-		$uid_base = $exists = 0;
-		$uidnext = 1;
 	}
-	($ibx, $exists, $uidnext, $uid_base);
+	($ibx, $exists, $uidmax + 1, $uid_base);
 }
 
 sub cmd_examine ($$$) {
 	my ($self, $tag, $mailbox) = @_;
-	my ($ibx, $exists, $uidnext, $base) = inbox_lookup($self, $mailbox);
-	return "$tag NO Mailbox doesn't exist: $mailbox\r\n" if !$ibx;
-	$self->{uid_base} = $base;
-	delete $self->{uo2m};
-
 	# XXX: do we need this? RFC 5162/7162
 	my $ret = $self->{ibx} ? "* OK [CLOSED] previous closed\r\n" : '';
-	$self->{ibx} = $ibx;
+	my ($ibx, $exists, $uidnext, $base) = inbox_lookup($self, $mailbox, 1);
+	return "$tag NO Mailbox doesn't exist: $mailbox\r\n" if !$ibx;
 	$ret .= <<EOF;
 * $exists EXISTS\r
 * $exists RECENT\r
