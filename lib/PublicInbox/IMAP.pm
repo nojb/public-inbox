@@ -190,8 +190,6 @@ sub cmd_capability ($$) {
 	'* '.capa($self)."\r\n$tag OK Capability done\r\n";
 }
 
-sub cmd_noop ($$) { "$_[1] OK Noop done\r\n" }
-
 # uo2m: UID Offset to MSN, this is an arrayref by default,
 # but uo2m_hibernate can compact and deduplicate it
 sub uo2m_ary_new ($) {
@@ -233,7 +231,7 @@ sub uo2m_pack ($) {
 
 # extend {uo2m} to account for new messages which arrived since
 # {uo2m} was created.
-sub uo2m_extend ($$) {
+sub uo2m_extend ($$;$) {
 	my ($self, $new_uid_max) = @_;
 	defined(my $uo2m = $self->{uo2m}) or
 		return($self->{uo2m} = uo2m_ary_new($self));
@@ -245,18 +243,28 @@ sub uo2m_extend ($$) {
 	++$beg;
 	my $uids = $self->{ibx}->over->uid_range($beg, $base + UID_SLICE);
 	my @tmp; # [$UID_OFFSET] => $MSN
+	my $write_method = $_[2] // 'msg_more';
 	if (ref($uo2m)) {
 		my $msn = $uo2m->[-1];
 		$tmp[$_ - $beg] = ++$msn for @$uids;
+		$self->$write_method("* $msn EXISTS\r\n");
 		push @$uo2m, @tmp;
 		$uo2m;
 	} else {
 		my $msn = unpack('S', substr($uo2m, -2, 2));
 		$tmp[$_ - $beg] = ++$msn for @$uids;
+		$self->$write_method("* $msn EXISTS\r\n");
 		$uo2m .= uo2m_pack(\@tmp);
 		my %dedupe = ($uo2m => undef);
 		$self->{uo2m} = (keys %dedupe)[0];
 	}
+}
+
+sub cmd_noop ($$) {
+	my ($self, $tag) = @_;
+	defined($self->{uid_base}) and
+		uo2m_extend($self, $self->{uid_base} + UID_SLICE);
+	\"$tag OK Noop done\r\n";
 }
 
 # the flexible version which works on scalars and array refs.
@@ -295,14 +303,10 @@ sub msn_to_uid_range ($$) {
 # called by PublicInbox::InboxIdle
 sub on_inbox_unlock {
 	my ($self, $ibx) = @_;
-	my $old = uo2m_last_uid($self);
 	my $uid_end = $self->{uid_base} + UID_SLICE;
-	uo2m_extend($self, $uid_end);
+	uo2m_extend($self, $uid_end, 'write');
 	my $new = uo2m_last_uid($self);
-	if ($new > $old) {
-		my $msn = uid2msn($self, $new);
-		$self->write(\"* $msn EXISTS\r\n");
-	} elsif ($new == $uid_end) { # max exceeded $uid_end
+	if ($new == $uid_end) { # max exceeded $uid_end
 		# continue idling w/o inotify
 		my $sock = $self->{sock} or return;
 		$ibx->unsubscribe_unlock(fileno($sock));
@@ -329,14 +333,13 @@ sub cmd_idle ($$) {
 	my ($self, $tag) = @_;
 	# IDLE seems allowed by dovecot w/o a mailbox selected *shrug*
 	my $ibx = $self->{ibx} or return "$tag BAD no mailbox selected\r\n";
-	$self->{-idle_tag} = $tag;
-	my $max = $ibx->over->max;
 	my $uid_end = $self->{uid_base} + UID_SLICE;
+	uo2m_extend($self, $uid_end);
 	my $sock = $self->{sock} or return;
 	my $fd = fileno($sock);
+	$self->{-idle_tag} = $tag;
 	# only do inotify on most recent slice
-	if ($max < $uid_end) {
-		uo2m_extend($self, $uid_end);
+	if ($ibx->over->max < $uid_end) {
 		$ibx->subscribe_unlock($fd, $self);
 		$self->{imapd}->idler_start;
 	}
