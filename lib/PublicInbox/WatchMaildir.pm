@@ -274,6 +274,15 @@ sub imap_common_init ($) {
 		$self->{imap_opt}->{$sec}->{poll_intvl} = $to if $to;
 		$to = cfg_intvl($cfg, 'imap', 'IdleInterval', $sec, $url);
 		$self->{imap_opt}->{$sec}->{idle_intvl} = $to if $to;
+
+		my $key = lc("imap.$sec.fetchBatchSize");
+		my $bs = $cfg->{lc($key)} //
+			$cfg->urlmatch('imap.fetchBatchSize', $url) // next;
+		if ($bs =~ /\A([0-9]+)\z/) {
+			$self->{imap_opt}->{$sec}->{batch_size} = $bs;
+		} else {
+			warn "W: $key=$bs is not an integer\n";
+		}
 	}
 	$mic_args;
 }
@@ -389,25 +398,31 @@ sub imap_fetch_all ($$$) {
 
 	warn "I: $url fetching UID $l_uid:$r_uid\n";
 	$mic->Uid(1); # the default, we hope
-	my $uids;
+	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 1;
 	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
+
+	# TODO: FLAGS may be useful for personal use
 	my $key = $req;
 	$key =~ s/\.PEEK//;
-	my $uid;
+	my ($uids, $batch);
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	local $SIG{__WARN__} = sub {
-		$uid //= -1;
-		$warn_cb->("$url UID:$uid\n");
+		$batch //= '?';
+		$warn_cb->("$url UID:$batch\n");
 		$warn_cb->(@_);
 	};
 	my $err;
 	do {
+		# I wish "UID FETCH $START:*" could work, but:
+		# 1) servers do not need to return results in any order
+		# 2) Mail::IMAPClient doesn't offer a streaming API
 		$uids = $mic->search("UID $l_uid:*") or
 			return "E: $url UID SEARCH $l_uid:* error: $!";
 		return if scalar(@$uids) == 0;
 
 		# RFC 3501 doesn't seem to indicate order of UID SEARCH
-		# responses, so sort it ourselves
+		# responses, so sort it ourselves.  Order matters so
+		# IMAPTracker can store the newest UID.
 		@$uids = sort { $a <=> $b } @$uids;
 
 		# Did we actually get new messages?
@@ -416,17 +431,23 @@ sub imap_fetch_all ($$$) {
 		$l_uid = $uids->[-1] + 1; # for next search
 		my $last_uid;
 
-		while (defined(($uid = shift(@$uids)))) {
-			local $0 = "UID:$uid $mbx $sec";
-			my $r = $mic->fetch_hash($uid, $req);
+		while (scalar @$uids) {
+			my @batch = splice(@$uids, 0, $bs);
+			$batch = join(',', @batch);
+			local $0 = "UID:$batch $mbx $sec";
+			my $r = $mic->fetch_hash($batch, $req);
 			unless ($r) { # network error?
-				$err = "E: $url UID FETCH $uid error: $!";
+				$err = "E: $url UID FETCH $batch error: $!";
 				last;
 			}
-			# messages get deleted, so holes appear
-			defined(my $raw = delete $r->{$uid}->{$key}) or next;
-			imap_import_msg($self, $url, $uid, \$raw);
-			$last_uid = $uid;
+			for my $uid (@batch) {
+				# messages get deleted, so holes appear
+				my $per_uid = delete $r->{$uid} // next;
+				my $raw = delete($per_uid->{$key}) // next;
+				imap_import_msg($self, $url, $uid, \$raw);
+				$last_uid = $uid;
+				last if $self->{quit};
+			}
 			last if $self->{quit};
 		}
 		_done_for_now($self);
