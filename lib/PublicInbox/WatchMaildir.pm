@@ -335,12 +335,12 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 	$mic;
 }
 
-sub imap_import_msg ($$$$$) {
-	my ($self, $itrk, $r_uidval, $uid, $raw) = @_;
+sub imap_import_msg ($$$$) {
+	my ($self, $url, $uid, $raw) = @_;
 	# our target audience expects LF-only, save storage
 	$$raw =~ s/\r\n/\n/sg;
 
-	my $inboxes = $self->{imap}->{$itrk->{url}};
+	my $inboxes = $self->{imap}->{$url};
 	if (ref($inboxes)) {
 		for my $ibx (@$inboxes) {
 			my $eml = PublicInbox::Eml->new($$raw);
@@ -348,12 +348,11 @@ sub imap_import_msg ($$$$$) {
 		}
 	} elsif ($inboxes eq 'watchspam') {
 		my $eml = PublicInbox::Eml->new($raw);
-		my $arg = [ $self, $eml, "$itrk->{url} UID:$uid" ];
+		my $arg = [ $self, $eml, "$url UID:$uid" ];
 		$self->{config}->each_inbox(\&remove_eml_i, $arg);
 	} else {
 		die "BUG: destination unknown $inboxes";
 	}
-	$itrk->update_last($r_uidval, $uid);
 }
 
 sub imap_fetch_all ($$$) {
@@ -415,8 +414,8 @@ sub imap_fetch_all ($$$) {
 		return if $uids->[0] < $l_uid;
 
 		$l_uid = $uids->[-1] + 1; # for next search
+		my $last_uid;
 
-		$itrk->{dbh}->begin_work;
 		while (defined(($uid = shift(@$uids)))) {
 			local $0 = "UID:$uid $mbx $sec";
 			my $r = $mic->fetch_hash($uid, $req);
@@ -426,11 +425,12 @@ sub imap_fetch_all ($$$) {
 			}
 			# messages get deleted, so holes appear
 			defined(my $raw = delete $r->{$uid}->{$key}) or next;
-			imap_import_msg($self, $itrk, $r_uidval, $uid, \$raw);
+			imap_import_msg($self, $url, $uid, \$raw);
+			$last_uid = $uid;
 			last if $self->{quit};
 		}
 		_done_for_now($self);
-		$itrk->{dbh}->commit;
+		$itrk->update_last($r_uidval, $last_uid) if defined $last_uid;
 	} until ($err || $self->{quit});
 	$err;
 }
