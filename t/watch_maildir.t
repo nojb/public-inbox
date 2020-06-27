@@ -184,10 +184,10 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 			my $ino_fdinfo = "/proc/$wm->{pid}/fdinfo/$ino_fd";
 			while (time < $end && open(my $fh, '<', $ino_fdinfo)) {
 				@ino_info = grep(/^inotify wd:/, <$fh>);
-				last if @ino_info >= 4;
+				last if @ino_info >= 3;
 				tick;
 			}
-			$sleep = undef if @ino_info >= 4;
+			$sleep = undef if @ino_info >= 3;
 		}
 	}
 	if ($sleep) {

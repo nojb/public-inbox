@@ -18,9 +18,9 @@ use PublicInbox::DS qw(now);
 use PublicInbox::Syscall qw(SFD_NONBLOCK);
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
-require PublicInbox::Sigfd;
+use PublicInbox::Sigfd;
 my @CMD;
-my ($set_user, $oldset, $newset);
+my ($set_user, $oldset);
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
@@ -72,15 +72,10 @@ sub accept_tls_opt ($) {
 	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
 }
 
-sub sig_setmask { sigprocmask(SIG_SETMASK, @_) or die "sigprocmask: $!" }
-
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
 	my $listener_names = {}; # sockname => IO::Handle
-	$oldset = POSIX::SigSet->new();
-	$newset = POSIX::SigSet->new();
-	$newset->fillset or die "fillset: $!";
-	sig_setmask($newset, $oldset);
+	my $oldset = PublicInbox::Sigfd::block_signals();
 	@CMD = ($0, @ARGV);
 	my %opts = (
 		'l|listen=s' => \@cfg_listen,
@@ -515,7 +510,7 @@ EOF
 	};
 	my $sigfd = PublicInbox::Sigfd->new($sig, 0);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
-	sig_setmask($oldset) if !$sigfd;
+	PublicInbox::restore_signals($oldset) if !$sigfd;
 	while (1) { # main loop
 		my $n = scalar keys %pids;
 		unless (@listeners) {
@@ -531,7 +526,7 @@ EOF
 		}
 		my $want = $worker_processes - 1;
 		if ($n <= $want) {
-			sig_setmask($newset) if !$sigfd;
+			PublicInbox::Sigfd::block_signals() if !$sigfd;
 			for my $i ($n..$want) {
 				my $pid = fork;
 				if (!defined $pid) {
@@ -544,7 +539,7 @@ EOF
 					$pids{$pid} = $i;
 				}
 			}
-			sig_setmask($oldset) if !$sigfd;
+			PubliInbox::Sigfd::set_sigmask($oldset) if !$sigfd;
 		}
 
 		if ($sigfd) { # Linux and IO::KQueue users:
@@ -632,7 +627,7 @@ sub daemon_loop ($$$$) {
 	if (!$sigfd) {
 		# wake up every second to accept signals if we don't
 		# have signalfd or IO::KQueue:
-		sig_setmask($oldset);
+		PublicInbox::Sigfd::set_sigmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	PublicInbox::DS->EventLoop;

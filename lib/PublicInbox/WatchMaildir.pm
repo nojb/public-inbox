@@ -8,9 +8,9 @@ use strict;
 use warnings;
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
-use File::Temp 0.19 (); # 0.19 for ->newdir
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
+use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now);
 use POSIX qw(_exit WNOHANG);
 *mime_from_path = \&PublicInbox::InboxWritable::mime_from_path;
@@ -108,6 +108,7 @@ sub new {
 		imap => scalar keys %imap ? \%imap : undef,
 		importers => {},
 		opendirs => {}, # dirname => dirhandle (in progress scans)
+		ops => [], # 'quit', 'full'
 	}, $class;
 }
 
@@ -195,7 +196,9 @@ sub _try_path {
 
 sub quit {
 	my ($self) = @_;
-	trigger_scan($self, 'quit') or $self->{quit} = 1;
+	$self->{quit} = 1;
+	%{$self->{opendirs}} = ();
+	_done_for_now($self);
 	if (my $imap_pid = $self->{-imap_pid}) {
 		kill('QUIT', $imap_pid);
 	}
@@ -213,24 +216,15 @@ sub quit {
 sub watch_fs {
 	my ($self) = @_;
 	require PublicInbox::DirIdle;
-	my $scan = File::Temp->newdir("public-inbox-watch.$$.scan.XXXXXX",
-					TMPDIR => 1);
-	my $scandir = $self->{scandir} = $scan->dirname;
-	my $scan_re = qr!\A$scandir/!;
 	my $done = sub {
 		delete $self->{done_timer};
 		_done_for_now($self);
 	};
 	my $cb = sub {
-		my $path = $_[0]->fullname;
-		if ($path =~ $scan_re) {
-			scan($self, $path);
-		} else {
-			_try_path($self, $path);
-		}
+		_try_path($self, $_[0]->fullname);
 		$self->{done_timer} //= PublicInbox::DS::requeue($done);
 	};
-	my $di = PublicInbox::DirIdle->new([@{$self->{mdir}}, $scandir], $cb);
+	my $di = PublicInbox::DirIdle->new($self->{mdir}, $cb);
 	PublicInbox::DS->SetPostLoopCallback(sub { !$self->{quit} });
 	PublicInbox::DS->EventLoop;
 	_done_for_now($self);
@@ -485,6 +479,12 @@ sub watch_imap_idle_1 ($$$) {
 	}
 }
 
+sub watch_atfork_child ($) {
+	my ($self) = @_;
+	PublicInbox::Sigfd::sig_setmask($self->{oldset});
+	%SIG = (%SIG, %{$self->{sig}});
+}
+
 sub watch_imap_idle_all ($$) {
 	my ($self, $idle) = @_; # $idle = [[ uri1, intvl1 ], [ uri2, intvl2 ]]
 	$self->{mics} = {}; # going to be forking, so disconnect
@@ -494,6 +494,7 @@ sub watch_imap_idle_all ($$) {
 			my ($uri, $intvl) = @$uri_intvl;
 			defined(my $pid = fork) or die "fork: $!";
 			if ($pid == 0) {
+				watch_atfork_child($self);
 				delete $self->{idle_pids};
 				watch_imap_idle_1($self, $uri, $intvl);
 				_exit(0);
@@ -564,15 +565,20 @@ sub watch_imap ($) {
 }
 
 sub watch {
-	my ($self) = @_;
+	my ($self, $sig, $oldset) = @_;
+	$self->{oldset} = $oldset;
+	$self->{sig} = $sig;
 	if ($self->{mdre} && $self->{imap}) {
 		defined(my $pid = fork) or die "fork: $!";
 		if ($pid == 0) {
+			watch_atfork_child($self);
 			imap_start($self);
 			goto &watch_imap;
 		}
 		$self->{-imap_pid} = $pid;
 	} elsif ($self->{imap}) {
+		# not a child process, but no signalfd, yet:
+		watch_atfork_child($self);
 		imap_start($self);
 		goto &watch_imap;
 	}
@@ -580,23 +586,18 @@ sub watch {
 }
 
 sub trigger_scan {
-	my ($self, $base) = @_;
-	my $dir = $self->{scandir} or return;
-	open my $fh, '>', "$dir/$base" or die "open $dir/$base failed: $!\n";
-	close $fh or die "close $dir/$base failed: $!\n";
+	my ($self, $op) = @_;
+	push @{$self->{ops}}, $op;
+	PublicInbox::DS::requeue($self);
 }
 
-sub scan {
-	my ($self, $path) = @_;
-	if ($path =~ /quit\z/) {
-		%{$self->{opendirs}} = ();
-		_done_for_now($self);
-		delete $self->{scandir};
-		$self->{quit} = 1;
-		return;
-	}
-	# else: $path =~ /(cont|full)\z/
+# called directly, and by PublicInbox::DS
+sub event_step ($) {
+	my ($self) = @_;
 	return if $self->{quit};
+	my $op = shift @{$self->{ops}};
+
+	# continue existing scan
 	my $max = 10;
 	my $opendirs = $self->{opendirs};
 	my @dirnames = keys %$opendirs;
@@ -609,7 +610,7 @@ sub scan {
 		}
 		$opendirs->{$dir} = $dh if $n < 0;
 	}
-	if ($path =~ /full\z/) {
+	if ($op && $op eq 'full') {
 		foreach my $dir (@{$self->{mdir}}) {
 			next if $opendirs->{$dir}; # already in progress
 			my $ok = opendir(my $dh, $dir);
@@ -627,7 +628,13 @@ sub scan {
 	}
 	_done_for_now($self);
 	# do we have more work to do?
-	trigger_scan($self, 'cont') if keys %$opendirs;
+	PublicInbox::DS::requeue($self) if keys %$opendirs;
+}
+
+sub scan {
+	my ($self, $op) = @_;
+	push @{$self->{ops}}, $op;
+	goto &event_step;
 }
 
 sub _importer_for {

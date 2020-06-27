@@ -5,6 +5,10 @@ use strict;
 use warnings;
 use PublicInbox::WatchMaildir;
 use PublicInbox::Config;
+use PublicInbox::DS;
+use PublicInbox::Sigfd;
+use PublicInbox::Syscall qw(SFD_NONBLOCK);
+my $oldset = PublicInbox::Sigfd::block_signals();
 my ($config, $watch_md);
 my $reload = sub {
 	$config = PublicInbox::Config->new;
@@ -14,14 +18,22 @@ my $reload = sub {
 $reload->();
 if ($watch_md) {
 	my $scan = sub { $watch_md->trigger_scan('full') if $watch_md };
-	$SIG{HUP} = $reload;
-	$SIG{USR1} = $scan;
-	$SIG{ALRM} = sub { $SIG{ALRM} = 'DEFAULT'; $scan->() };
-	$SIG{QUIT} = $SIG{TERM} = $SIG{INT} = sub {
+	my $quit = sub {
 		$watch_md->quit if $watch_md;
 		$watch_md = undef;
 	};
+	my $sig = { HUP => $reload, USR1 => $scan };
+	$sig->{QUIT} = $sig->{TERM} = $sig->{INT} = $quit;
+
 	# --no-scan is only intended for testing atm, undocumented.
-	alarm(1) unless (grep(/\A--no-scan\z/, @ARGV));
-	$watch_md->watch while ($watch_md);
+	unless (grep(/\A--no-scan\z/, @ARGV)) {
+		PublicInbox::DS::requeue($scan);
+	}
+	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
+	local %SIG = (%SIG, %$sig) if !$sigfd;
+	if (!$sigfd) {
+		PublicInbox::Sigfd::set_sigmask($oldset);
+		PublicInbox::DS->SetLoopTimeout(1000);
+	}
+	$watch_md->watch($sig, $oldset) while ($watch_md);
 }

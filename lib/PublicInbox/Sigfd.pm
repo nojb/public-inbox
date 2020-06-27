@@ -5,7 +5,7 @@ use strict;
 use parent qw(PublicInbox::DS);
 use fields qw(sig); # hashref similar to %SIG, but signal numbers as keys
 use PublicInbox::Syscall qw(signalfd EPOLLIN EPOLLET SFD_NONBLOCK);
-use POSIX ();
+use POSIX qw(:signal_h);
 use IO::Handle ();
 
 # returns a coderef to unblock signals if neither signalfd or kqueue
@@ -60,6 +60,16 @@ sub wait_once ($) {
 # called by PublicInbox::DS in epoll_wait loop
 sub event_step {
 	while (wait_once($_[0])) {} # non-blocking
+}
+
+sub sig_setmask { sigprocmask(SIG_SETMASK, @_) or die "sigprocmask: $!" }
+
+sub block_signals () {
+	my $oldset = POSIX::SigSet->new;
+	my $newset = POSIX::SigSet->new;
+	$newset->fillset or die "fillset: $!";
+	sig_setmask($newset, $oldset);
+	$oldset;
 }
 
 1;
