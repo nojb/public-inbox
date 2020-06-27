@@ -443,6 +443,7 @@ ok($mic->logout, 'logged out');
 {
 	use_ok 'PublicInbox::WatchMaildir';
 	use_ok 'PublicInbox::InboxIdle';
+	my $old_env = { HOME => $ENV{HOME} };
 	my $home = "$tmpdir/watch_home";
 	mkdir $home or BAIL_OUT $!;
 	mkdir "$home/.public-inbox" or BAIL_OUT $!;
@@ -464,13 +465,45 @@ ok($mic->logout, 'logged out');
 	my $cb = sub { PublicInbox::DS->SetPostLoopCallback(sub {}) };
 	my $obj = bless \$cb, 'PublicInbox::TestCommon::InboxWakeup';
 	$cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
-	open my $err, '+>', undef or BAIL_OUT $!;
-	my $w = start_script(['-watch'], undef, { 2 => $err });
+	my $watcherr = "$tmpdir/watcherr";
+	open my $err_wr, '>', $watcherr or BAIL_OUT $!;
+	open my $err, '<', $watcherr or BAIL_OUT $!;
+	my $w = start_script(['-watch'], undef, { 2 => $err_wr });
+
+	diag 'waiting for initial fetch...';
 	PublicInbox::DS->EventLoop;
-	diag 'inbox unlocked';
+	diag 'inbox unlocked on initial fetch, waiting for IDLE';
+
+	tick until (grep(/I: \S+ idling/, <$err>));
+	open my $fh, '<', 't/iso-2202-jp.eml' or BAIL_OUT $!;
+	$old_env->{ORIGINAL_RECIPIENT} = $addr;
+	ok(run_script([qw(-mda --no-precheck)], $old_env, { 0 => $fh }),
+		'delivered a message for IDLE to kick -watch');
+	diag 'waiting for IMAP IDLE wakeup';
+	PublicInbox::DS->SetPostLoopCallback(undef);
+	PublicInbox::DS->EventLoop;
+	diag 'inbox unlocked on IDLE wakeup';
+
+	# try again with polling
+	xsys(qw(git config), "--file=$home/.public-inbox/config",
+		"imap.imap://$ihost:$iport.PollInterval", 0.11) == 0
+		or BAIL_OUT "git config $?";
+	$w->kill('HUP');
+	diag 'waiting for -watch reload + initial fetch';
+	tick until (grep(/I: will check/, <$err>));
+
+	open $fh, '<', 't/psgi_attach.eml' or BAIL_OUT $!;
+	ok(run_script([qw(-mda --no-precheck)], $old_env, { 0 => $fh }),
+		'delivered a message for -watch PollInterval');
+
+	diag 'waiting for PollInterval wakeup';
+	PublicInbox::DS->SetPostLoopCallback(undef);
+	PublicInbox::DS->EventLoop;
+	diag 'inbox unlocked (poll)';
 	$w->kill;
 	$w->join;
 	is($?, 0, 'no error in exited -watch process');
+
 	$cfg->each_inbox(sub { shift->unsubscribe_unlock('ident') });
 	$ii->close;
 	PublicInbox::DS->Reset;
