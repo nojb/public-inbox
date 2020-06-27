@@ -465,9 +465,16 @@ sub watch_atfork_child ($) {
 	my ($self) = @_;
 	delete $self->{idle_pids};
 	delete $self->{poll_pids};
+	delete $self->{opendirs};
 	PublicInbox::DS->Reset;
 	PublicInbox::Sigfd::sig_setmask($self->{oldset});
 	%SIG = (%SIG, %{$self->{sig}});
+}
+
+sub watch_atfork_parent ($) {
+	my ($self) = @_;
+	_done_for_now($self);
+	$self->{mics} = {}; # going to be forking, so disconnect
 }
 
 sub imap_idle_reap { # PublicInbox::DS::dwaitpid callback
@@ -501,7 +508,7 @@ sub event_step {
 	return if $self->{quit};
 	my $idle_todo = $self->{idle_todo};
 	if ($idle_todo && @$idle_todo) {
-		$self->{mics} = {}; # going to be forking, so disconnect
+		watch_atfork_parent($self);
 		while (my $uri_intvl = shift(@$idle_todo)) {
 			imap_idle_fork($self, $uri_intvl);
 		}
@@ -525,7 +532,7 @@ sub watch_imap_fetch_all ($$) {
 sub imap_fetch_fork ($$$) {
 	my ($self, $intvl, $uris) = @_;
 	return if $self->{quit};
-	$self->{mics} = {}; # going to be forking, so disconnect
+	watch_atfork_parent($self);
 	defined(my $pid = fork) or die "fork: $!";
 	if ($pid == 0) {
 		watch_atfork_child($self);
