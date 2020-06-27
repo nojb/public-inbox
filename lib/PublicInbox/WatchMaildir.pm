@@ -11,6 +11,8 @@ use PublicInbox::InboxWritable;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
+use PublicInbox::DS qw(now);
+use POSIX qw(_exit WNOHANG);
 *mime_from_path = \&PublicInbox::InboxWritable::mime_from_path;
 
 sub compile_watchheaders ($) {
@@ -39,7 +41,8 @@ sub compile_watchheaders ($) {
 sub new {
 	my ($class, $config) = @_;
 	my (%mdmap, @mdir, $spamc);
-	my %uniq;
+	my %uniq; # directory => count
+	my %imap; # url => [inbox objects] or 'watchspam'
 
 	# "publicinboxwatch" is the documented namespace
 	# "publicinboxlearn" is legacy but may be supported
@@ -55,6 +58,8 @@ sub new {
 				push @mdir, $cur;
 				$uniq{$cur}++;
 				$mdmap{$cur} = 'watchspam';
+			} elsif (my $url = imap_url($dir)) {
+				$imap{$url} = 'watchspam';
 			} else {
 				warn "unsupported $k=$dir\n";
 			}
@@ -73,33 +78,34 @@ sub new {
 		my $watch = $ibx->{watch} or return;
 		if (is_maildir($watch)) {
 			compile_watchheaders($ibx);
-			my $new = "$watch/new";
-			my $cur = "$watch/cur";
-			my $ws = $mdmap{$cur};
-			if ($ws && !ref($ws) && $ws eq 'watchspam') {
-				warn <<EOF;
-E: $cur is a spam folder and cannot be used for `$ibx->{name}' input
-EOF
-				return; # onto next inbox
-			}
+			my ($new, $cur) = ("$watch/new", "$watch/cur");
+			return if is_watchspam($cur, $mdmap{$cur}, $ibx);
 			push @mdir, $new unless $uniq{$new}++;
 			push @mdir, $cur unless $uniq{$cur}++;
 			push @{$mdmap{$new} ||= []}, $ibx;
 			push @{$mdmap{$cur} ||= []}, $ibx;
+		} elsif (my $url = imap_url($watch)) {
+			return if is_watchspam($url, $imap{$url}, $ibx);
+			compile_watchheaders($ibx);
+			push @{$imap{$url} ||= []}, $ibx;
 		} else {
 			warn "watch unsupported: $k=$watch\n";
 		}
 	});
-	return unless @mdir;
+	return unless scalar(@mdir) || scalar(keys %imap);
 
-	my $mdre = join('|', map { quotemeta($_) } @mdir);
-	$mdre = qr!\A($mdre)/!;
+	my $mdre;
+	if (@mdir) {
+		$mdre = join('|', map { quotemeta($_) } @mdir);
+		$mdre = qr!\A($mdre)/!;
+	}
 	bless {
 		spamcheck => $spamcheck,
 		mdmap => \%mdmap,
 		mdir => \@mdir,
 		mdre => $mdre,
 		config => $config,
+		imap => scalar keys %imap ? \%imap : undef,
 		importers => {},
 		opendirs => {}, # dirname => dirhandle (in progress scans)
 	}, $class;
@@ -126,28 +132,51 @@ sub _try_fsn_paths {
 	_done_for_now($self);
 }
 
+sub remove_eml_i { # each_inbox callback
+	my ($ibx, $arg) = @_;
+	my ($self, $eml, $loc) = @$arg;
+	eval {
+		my $im = _importer_for($self, $ibx);
+		$im->remove($eml, 'spam');
+		if (my $scrub = $ibx->filter($im)) {
+			my $scrubbed = $scrub->scrub($eml, 1);
+			$scrubbed or return;
+			$scrubbed == REJECT() and return;
+			$im->remove($scrubbed, 'spam');
+		}
+	};
+	warn "error removing spam at: $loc from $ibx->{name}: $@\n" if $@;
+}
+
 sub _remove_spam {
 	my ($self, $path) = @_;
 	# path must be marked as (S)een
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
-	my $mime = mime_from_path($path) or return;
-	$self->{config}->each_inbox(sub {
-		my ($ibx) = @_;
-		eval {
-			my $im = _importer_for($self, $ibx);
-			$im->remove($mime, 'spam');
-			if (my $scrub = $ibx->filter($im)) {
-				my $scrubbed = $scrub->scrub($mime, 1);
-				$scrubbed or return;
-				$scrubbed == REJECT() and return;
-				$im->remove($scrubbed, 'spam');
-			}
-		};
-		if ($@) {
-			warn "error removing spam at: ", $path,
-				" from ", $ibx->{name}, ': ', $@, "\n";
+	my $eml = mime_from_path($path) or return;
+	$self->{config}->each_inbox(\&remove_eml_i, [ $self, $eml, $path ]);
+}
+
+sub import_eml ($$$) {
+	my ($self, $ibx, $eml) = @_;
+	my $im = _importer_for($self, $ibx);
+
+	# any header match means it's eligible for the inbox:
+	if (my $watch_hdrs = $ibx->{-watchheaders}) {
+		my $ok;
+		my $hdr = $eml->header_obj;
+		for my $wh (@$watch_hdrs) {
+			my @v = $hdr->header_raw($wh->[0]);
+			$ok = grep(/$wh->[1]/, @v) and last;
 		}
-	})
+		return unless $ok;
+	}
+
+	if (my $scrub = $ibx->filter($im)) {
+		my $ret = $scrub->scrub($eml) or return;
+		$ret == REJECT() and return;
+		$eml = $ret;
+	}
+	$im->add($eml, $self->{spamcheck});
 }
 
 sub _try_path {
@@ -172,32 +201,29 @@ sub _try_path {
 		$warn_cb->(@_);
 	};
 	foreach my $ibx (@$inboxes) {
-		my $mime = mime_from_path($path) or next;
-		my $im = _importer_for($self, $ibx);
-
-		# any header match means it's eligible for the inbox:
-		if (my $watch_hdrs = $ibx->{-watchheaders}) {
-			my $ok;
-			my $hdr = $mime->header_obj;
-			for my $wh (@$watch_hdrs) {
-				my @v = $hdr->header_raw($wh->[0]);
-				$ok = grep(/$wh->[1]/, @v) and last;
-			}
-			next unless $ok;
-		}
-
-		if (my $scrub = $ibx->filter($im)) {
-			my $ret = $scrub->scrub($mime) or next;
-			$ret == REJECT() and next;
-			$mime = $ret;
-		}
-		$im->add($mime, $self->{spamcheck});
+		my $eml = mime_from_path($path) or next;
+		import_eml($self, $ibx, $eml);
 	}
 }
 
-sub quit { trigger_scan($_[0], 'quit') }
+sub quit {
+	my ($self) = @_;
+	trigger_scan($self, 'quit') or $self->{quit} = 1;
+	if (my $imap_pid = $self->{-imap_pid}) {
+		kill('QUIT', $imap_pid);
+	}
+	if (my $idle_pids = $self->{idle_pids}) {
+		kill('QUIT', $_) for (keys %$idle_pids);
+	}
+	if (my $idle_mic = $self->{idle_mic}) {
+		eval { $idle_mic->done };
+		warn "IDLE DONE error: $@\n" if $@;
+		eval { $idle_mic->disconnect };
+		warn "IDLE LOGOUT error: $@\n" if $@;
+	}
+}
 
-sub watch {
+sub watch_fs {
 	my ($self) = @_;
 	my $scan = File::Temp->newdir("public-inbox-watch.$$.scan.XXXXXX",
 					TMPDIR => 1);
@@ -205,12 +231,353 @@ sub watch {
 	my $re = qr!\A$scandir/!;
 	my $cb = sub { _try_fsn_paths($self, $re, \@_) };
 
-	# lazy load here, we may support watching via IMAP IDLE
-	# in the future...
 	eval { require Filesys::Notify::Simple } or
 		die "Filesys::Notify::Simple is currently required for $0\n";
 	my $fsn = Filesys::Notify::Simple->new([@{$self->{mdir}}, $scandir]);
 	$fsn->wait($cb) until $self->{quit};
+}
+
+# returns the git config section name, e.g [imap "imaps://user@example.com"]
+# without the mailbox, so we can share connections between different inboxes
+sub imap_section ($) {
+	my ($uri) = @_;
+	$uri->scheme . '://' . $uri->authority;
+}
+
+sub cfg_intvl ($$) {
+	my ($cfg, $key) = @_;
+	defined(my $v = $cfg->{lc($key)}) or return;
+	$v =~ /\A[0-9]+\z/s and return $v + 0;
+	if (ref($v) eq 'ARRAY') {
+		$v = join(', ', @$v);
+		warn "W: $key has multiple values: $v\nW: $key ignored\n";
+	} else {
+		warn "W: $key=$v is not an integer value in seconds\n";
+	}
+}
+
+# flesh out common IMAP-specific data structures
+sub imap_common_init ($) {
+	my ($self) = @_;
+	my $cfg = $self->{config};
+	my $mic_args = {}; # scheme://authority => Mail:IMAPClient arg
+	for my $url (sort keys %{$self->{imap}}) {
+		my $uri = PublicInbox::URIimap->new($url);
+		my $sec = imap_section($uri);
+		for my $k (qw(Starttls Debug Compress)) {
+			my $key = lc("imap.$sec.$k");
+			defined(my $orig = $cfg->{$key}) or next;
+			my $v = PublicInbox::Config::_git_config_bool($orig);
+			if (defined($v)) {
+				$mic_args->{$sec}->{$k} = $v;
+			} else {
+				warn "W: $key=$orig is not boolean\n";
+			}
+		}
+		my $to = cfg_intvl($cfg, "imap.$sec.Timeout");
+		$mic_args->{$sec}->{Timeout} = $to if $to;
+		$to = cfg_intvl($cfg, "imap.$sec.PollInterval");
+		$self->{imap_opt}->{$sec}->{poll_intvl} = $to if $to;
+		$to = cfg_intvl($cfg, "imap.$sec.IdleInterval");
+		$self->{imap_opt}->{$sec}->{idle_intvl} = $to if $to;
+	}
+	$mic_args;
+}
+
+sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
+
+sub mic_for ($$$) { # mic = Mail::IMAPClient
+	my ($self, $uri, $mic_args) = @_;
+	my $url = $uri->as_string;
+	my $cred = {
+		url => $url,
+		protocol => $uri->scheme,
+		host => $uri->host,
+		username => $uri->user,
+		password => $uri->password,
+	};
+	my $common = $mic_args->{imap_section($uri)} // {};
+	my $host = $cred->{host};
+	my $mic_arg = {
+		Port => $uri->port,
+		# IMAPClient mishandles `0', so we pass `127.0.0.1'
+		Server => $host eq '0' ? '127.0.0.1' : $host,
+		Ssl => $uri->scheme eq 'imaps',
+		Keepalive => 1, # SO_KEEPALIVE
+		%$common, # may set Starttls, Compress, Debug ....
+	};
+	my $mic = PublicInbox::IMAPClient->new(%$mic_arg) or
+		die "E: <$url> new: $@\n";
+
+	# default to using STARTTLS if it's available, but allow
+	# it to be disabled since I usually connect to localhost
+	if (!$mic_arg->{Ssl} && !defined($mic_arg->{Starttls}) &&
+			$mic->has_capability('STARTTLS') &&
+			$mic->can('starttls')) {
+		$mic->starttls or die "E: <$url> STARTTLS: $@\n";
+	}
+
+	# do we even need credentials?
+	if (!defined($cred->{username}) &&
+			$mic->has_capability('AUTH=ANONYMOUS')) {
+		$cred = undef;
+	}
+	if ($cred) {
+		Git::credential($cred, 'fill'); # may prompt user here
+		$mic->User($mic_arg->{User} = $cred->{username});
+		$mic->Password($mic_arg->{Password} = $cred->{password});
+	} else { # AUTH=ANONYMOUS
+		$mic->Authmechanism($mic_arg->{Authmechanism} = 'ANONYMOUS');
+		$mic->Authcallback($mic_arg->{Authcallback} = \&auth_anon_cb);
+	}
+	if ($mic->login && $mic->IsAuthenticated) {
+		# success! keep IMAPClient->new arg in case we get disconnected
+		$self->{mic_arg}->{imap_section($uri)} = $mic_arg;
+	} else {
+		warn "E: <$url> LOGIN: $@\n";
+		$mic = undef;
+	}
+	Git::credential($cred, $mic ? 'approve' : 'reject') if $cred;
+	$mic;
+}
+
+sub imap_start ($) {
+	my ($self) = @_;
+	eval { require PublicInbox::IMAPClient } or
+		die "Mail::IMAPClient is required for IMAP:\n$@\n";
+	eval { require Git } or
+		die "Git (Perl module) is required for IMAP:\n$@\n";
+	eval { require PublicInbox::IMAPTracker } or
+		die "DBD::SQLite is required for IMAP\n:$@\n";
+
+	my $mic_args = imap_common_init($self);
+	# make sure we can connect and cache the credentials in memory
+	$self->{mic_arg} = {}; # schema://authority => IMAPClient->new args
+	my $mics = $self->{mics} = {}; # schema://authority => IMAPClient obj
+	for my $url (sort keys %{$self->{imap}}) {
+		my $uri = PublicInbox::URIimap->new($url);
+		$mics->{imap_section($uri)} //= mic_for($self, $uri, $mic_args);
+	}
+}
+
+sub imap_fetch_all ($$$) {
+	my ($self, $mic, $uri) = @_;
+	my $sec = imap_section($uri);
+	my $mbx = $uri->mailbox;
+	my $url = $uri->as_string;
+	$mic->Clear(1); # trim results history
+	$mic->examine($mbx) or return "E: EXAMINE $mbx ($sec) failed: $!";
+	my ($r_uidval, $r_uidnext);
+	for ($mic->Results) {
+		/^\* OK \[UIDVALIDITY ([0-9]+)\].*/ and $r_uidval = $1;
+		/^\* OK \[UIDNEXT ([0-9]+)\].*/ and $r_uidnext = $1;
+		last if $r_uidval && $r_uidnext;
+	}
+	$r_uidval //= $mic->uidvalidity($mbx) //
+		return "E: $url cannot get UIDVALIDITY";
+	$r_uidnext //= $mic->uidnext($mbx) //
+		return "E: $url cannot get UIDNEXT";
+	my $itrk = PublicInbox::IMAPTracker->new;
+	my ($l_uidval, $l_uid) = $itrk->get_last($url);
+	$l_uidval //= $r_uidval; # first time
+	$l_uid //= 1;
+	if ($l_uidval != $r_uidval) {
+		return "E: $url UIDVALIDITY mismatch\n".
+			"E: local=$l_uidval != remote=$r_uidval";
+	}
+	my $r_uid = $r_uidnext - 1;
+	if ($l_uid != 1 && $l_uid > $r_uid) {
+		return "E: $url local UID exceeds remote ($l_uid > $r_uid)\n".
+			"E: $url strangely, UIDVALIDLITY matches ($l_uidval)\n";
+	}
+	return if $l_uid >= $r_uid; # nothing to do
+
+	$mic->Uid(1); # the default, we hope
+	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
+	my $key = $req;
+	$key =~ s/\.PEEK//;
+	my $inboxes = $self->{imap}->{$url};
+	warn "I: $url fetching $l_uid..$r_uid\n";
+	my $uid = -1;
+	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	local $SIG{__WARN__} = sub {
+		$warn_cb->("$url UID:$uid\n");
+		$warn_cb->(@_);
+	};
+	my $err;
+	$itrk->{dbh}->begin_work;
+	for my $u ($l_uid..$r_uid) {
+		$uid = $u;
+		local $0 = "UID:$uid $mbx $sec";
+		my $r = $mic->fetch_hash($uid, $req);
+		unless ($r) { # network error?
+			$err = "E: $url UID FETCH $uid error: $!\n";
+			last;
+		}
+
+		# messages get deleted, so holes appear
+		defined(my $raw = delete $r->{$uid}->{$key}) or next;
+
+		# our target audience expects LF-only, save storage
+		$raw =~ s/\r\n/\n/sg;
+
+		if (ref($inboxes)) {
+			for my $ibx (@$inboxes) {
+				my $eml = PublicInbox::Eml->new($raw);
+				my $x = import_eml($self, $ibx, $eml);
+			}
+		} elsif ($inboxes eq 'watchspam') {
+			my $eml = PublicInbox::Eml->new($raw);
+			my $arg = [ $self, $eml, "$uri UID:$uid" ];
+			$self->{config}->each_inbox(\&remove_eml_i, $arg);
+		} else {
+			die "BUG: destination unknown $inboxes";
+		}
+		$itrk->update_last($url, $r_uidval, $uid);
+		last if $self->{quit};
+	}
+	_done_for_now($self);
+	$itrk->{dbh}->commit;
+	$err;
+}
+
+sub imap_idle_once ($$$$) {
+	my ($self, $mic, $intvl, $url) = @_;
+	my $i = $intvl //= (29 * 60);
+	my $end = now() + $intvl;
+	warn "I: $url idling for ${intvl}s\n";
+	local $0 = "IDLE $0";
+	unless ($mic->idle) {
+		return if $self->{quit};
+		return "E: IDLE failed on $url: $!";
+	}
+	$self->{idle_mic} = $mic; # for ->quit
+	my @res;
+	until ($self->{quit} || grep(/^\* [0-9]+ EXISTS/, @res) || $i <= 0) {
+		@res = $mic->idle_data($i);
+		$i = $end - now();
+	}
+	delete $self->{idle_mic};
+	unless ($self->{quit}) {
+		$mic->IsConnected or return "E: IDLE disconnected on $url";
+		$mic->done or return "E: IDLE DONE failed on $url: $!";
+	}
+	undef;
+}
+
+# idles on a single URI
+sub watch_imap_idle_1 ($$$) {
+	my ($self, $uri, $intvl) = @_;
+	my $sec = imap_section($uri);
+	my $mic_arg = $self->{mic_arg}->{$sec} or
+			die "BUG: no Mail::IMAPClient->new arg for $sec";
+	my $mic;
+	local $0 = $uri->mailbox." $sec";
+	until ($self->{quit}) {
+		$mic //= delete($self->{mics}->{$sec}) //
+				PublicInbox::IMAPClient->new(%$mic_arg);
+		my $err = imap_fetch_all($self, $mic, $uri);
+		$err //= imap_idle_once($self, $mic, $intvl, $uri->as_string);
+		if ($err && !$self->{quit}) {
+			warn $err, "\n";
+			$mic = undef;
+			sleep 60 unless $self->{quit};
+		}
+	}
+}
+
+sub watch_imap_idle_all ($$) {
+	my ($self, $idle) = @_; # $idle = [[ uri1, intvl1 ], [ uri2, intvl2 ]]
+	$self->{mics} = {}; # going to be forking, so disconnect
+	my $idle_pids = $self->{idle_pids} = {};
+	until ($self->{quit}) {
+		while (my $uri_intvl = shift @$idle) {
+			my ($uri, $intvl) = @$uri_intvl;
+			defined(my $pid = fork) or die "fork: $!";
+			if ($pid == 0) {
+				delete $self->{idle_pids};
+				watch_imap_idle_1($self, $uri, $intvl);
+				_exit(0);
+			}
+			$idle_pids->{$pid} = $uri_intvl;
+		}
+		my $pid = waitpid(-1, 0) or next;
+		if ($pid < 0) {
+			warn "W: no idling children: $!";
+			if (@$idle) {
+				sleep 60;
+			} else {
+				warn "W: nothing to respawn, quitting IDLE\n";
+				last;
+			}
+		}
+		if (my $uri_intvl = delete $idle_pids->{$pid}) {
+			my ($uri, $intvl) = @$uri_intvl;
+			my $url = $uri->as_string;
+			if ($? || !$self->{quit}) {
+				warn "W: PID=$pid on $url died: \$?=$?\n";
+			}
+			push @$idle, $uri_intvl;
+		} else {
+			warn "W: PID=$pid (unknown) reaped: \$?=$?\n";
+		}
+	}
+
+	# tear it all down
+	kill('QUIT', $_) for (keys %$idle_pids);
+	while (scalar keys %$idle_pids) {
+		if (my $pid = waitpid(-1, WNOHANG)) {
+			if ($pid < 0) {
+				warn "E: no children? $! (PIDs: ",
+					join(', ', keys %$idle_pids),")\n";
+				last;
+			} else {
+				delete $idle_pids->{$pid};
+			}
+		} else { # signals aren't that reliable w/o signalfd/kevent
+			sleep 1;
+			kill('QUIT', $_) for (keys %$idle_pids);
+		}
+	}
+}
+
+sub watch_imap ($) {
+	my ($self) = @_;
+	my $idle = []; # [ [ uri1, intvl1 ], [uri2, intvl2] ];
+	my $poll = {}; # intvl_seconds => [ uri1, uri2 ]
+	for my $url (keys %{$self->{imap}}) {
+		my $uri = PublicInbox::URIimap->new($url);
+		my $sec = imap_section($uri);
+		my $mic = $self->{mics}->{$sec};
+		my $intvl = $self->{imap_opt}->{$sec}->{poll_intvl};
+		if ($mic->has_capability('IDLE') && !$intvl) {
+			$intvl = $self->{imap_opt}->{$sec}->{idle_intvl};
+			push @$idle, [ $uri, $intvl // () ];
+		} else {
+			push @{$poll->{$intvl || 120}}, $uri;
+		}
+	}
+	my $nr_poll = scalar keys %$poll;
+	if (scalar @$idle && !$nr_poll) { # multiple idlers, need fork
+		watch_imap_idle_all($self, $idle);
+	}
+	# TODO: polling
+}
+
+sub watch {
+	my ($self) = @_;
+	if ($self->{mdre} && $self->{imap}) {
+		defined(my $pid = fork) or die "fork: $!";
+		if ($pid == 0) {
+			imap_start($self);
+			goto &watch_imap;
+		}
+		$self->{-imap_pid} = $pid;
+	} elsif ($self->{imap}) {
+		imap_start($self);
+		goto &watch_imap;
+	}
+	goto &watch_fs;
 }
 
 sub trigger_scan {
@@ -294,6 +661,24 @@ sub is_maildir {
 	$_[0] =~ tr!/!/!s;
 	$_[0] =~ s!/\z!!;
 	$_[0];
+}
+
+sub is_watchspam {
+	my ($cur, $ws, $ibx) = @_;
+	if ($ws && !ref($ws) && $ws eq 'watchspam') {
+		warn <<EOF;
+E: $cur is a spam folder and cannot be used for `$ibx->{name}' input
+EOF
+		return 1;
+	}
+	undef;
+}
+
+sub imap_url {
+	my ($url) = @_;
+	require PublicInbox::URIimap;
+	my $uri = PublicInbox::URIimap->new($url);
+	$uri ? $uri->canonical->as_string : undef;
 }
 
 1;

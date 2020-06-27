@@ -440,6 +440,45 @@ ok($mic->logout, 'logged out');
 	like(<$c>, qr/\Atagonly BAD Error in IMAP command/, 'tag-only line');
 }
 
+{
+	use_ok 'PublicInbox::WatchMaildir';
+	use_ok 'PublicInbox::InboxIdle';
+	my $home = "$tmpdir/watch_home";
+	mkdir $home or BAIL_OUT $!;
+	mkdir "$home/.public-inbox" or BAIL_OUT $!;
+	local $ENV{HOME} = $home;
+	my $name = 'watchimap';
+	my $addr = "i1\@example.com";
+	my $url = "http://example.com/i1";
+	my $inboxdir = "$tmpdir/watchimap";
+	my $cmd = ['-init', '-V2', '-Lbasic', $name, $inboxdir, $url, $addr];
+	my ($ihost, $iport) = ($sock->sockhost, $sock->sockport);
+	my $imapurl = "imap://$ihost:$iport/inbox.i1.0";
+	run_script($cmd) or BAIL_OUT("init $name");
+	xsys(qw(git config), "--file=$home/.public-inbox/config",
+			"publicinbox.$name.watch",
+			$imapurl) == 0 or BAIL_OUT "git config $?";
+	my $cfg = PublicInbox::Config->new;
+	PublicInbox::DS->Reset;
+	my $ii = PublicInbox::InboxIdle->new($cfg);
+	my $cb = sub { PublicInbox::DS->SetPostLoopCallback(sub {}) };
+	my $obj = bless \$cb, 'InboxWakeup';
+	$cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
+	open my $err, '+>', undef or BAIL_OUT $!;
+	my $w = start_script(['-watch'], undef, { 2 => $err });
+	PublicInbox::DS->EventLoop;
+	diag 'inbox unlocked';
+	$w->kill;
+	$w->join;
+	is($?, 0, 'no error in exited -watch process');
+	$cfg->each_inbox(sub { shift->unsubscribe_unlock('ident') });
+	$ii->close;
+	PublicInbox::DS->Reset;
+	seek($err, 0, 0);
+	my @err = grep(!/^I:/, <$err>);
+	is(@err, 0, 'no warnings/errors from -watch'.join(' ', @err));
+}
+
 $td->kill;
 $td->join;
 is($?, 0, 'no error in exited process');
@@ -449,3 +488,7 @@ unlike($eout, qr/wide/i, 'no Wide character warnings');
 unlike($eout, qr/uninitialized/i, 'no uninitialized warnings');
 
 done_testing;
+
+package InboxWakeup;
+use strict;
+sub on_inbox_unlock { ${$_[0]}->() }
