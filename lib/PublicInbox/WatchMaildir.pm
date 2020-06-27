@@ -208,9 +208,11 @@ sub quit {
 	}
 	if (my $idle_mic = $self->{idle_mic}) {
 		eval { $idle_mic->done };
-		warn "IDLE DONE error: $@\n" if $@;
-		eval { $idle_mic->disconnect };
-		warn "IDLE LOGOUT error: $@\n" if $@;
+		if ($@) {
+			warn "IDLE DONE error: $@\n";
+			eval { $idle_mic->disconnect };
+			warn "IDLE LOGOUT error: $@\n" if $@;
+		}
 	}
 }
 
