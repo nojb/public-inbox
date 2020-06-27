@@ -6,12 +6,21 @@
 # to learn different ways to admin both NNTP and HTTP components.
 # There's nothing which depends on public-inbox, here.
 # Each instance of this class represents a HTTP client socket
-
+#
+# fields:
+# httpd: PublicInbox::HTTPD ref
+# env: PSGI env hashref
+# input_left: bytes left to read in request body (e.g. POST/PUT)
+# remote_addr: remote IP address as a string (e.g. "127.0.0.1")
+# remote_port: peer port
+# forward: response body object, response to ->getline + ->close
+# alive: HTTP keepalive state:
+#	0: drop connection when done
+#	1: keep connection when done
+#	2: keep connection, chunk responses
 package PublicInbox::HTTP;
 use strict;
-use warnings;
-use base qw(PublicInbox::DS);
-use fields qw(httpd env input_left remote_addr remote_port forward alive);
+use parent qw(PublicInbox::DS);
 use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
@@ -56,7 +65,7 @@ sub http_date () {
 
 sub new ($$$) {
 	my ($class, $sock, $addr, $httpd) = @_;
-	my $self = fields::new($class);
+	my $self = bless { httpd => $httpd }, $class;
 	my $ev = EPOLLIN;
 	my $wbuf;
 	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
@@ -64,12 +73,10 @@ sub new ($$$) {
 		$ev = PublicInbox::TLS::epollbit();
 		$wbuf = [ \&PublicInbox::DS::accept_tls_step ];
 	}
-	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
-	$self->{httpd} = $httpd;
 	$self->{wbuf} = $wbuf if $wbuf;
 	($self->{remote_addr}, $self->{remote_port}) =
 		PublicInbox::Daemon::host_with_port($addr);
-	$self;
+	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
 }
 
 sub event_step { # called by PublicInbox::DS

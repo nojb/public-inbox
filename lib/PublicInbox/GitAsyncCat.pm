@@ -11,16 +11,14 @@
 package PublicInbox::GitAsyncCat;
 use strict;
 use parent qw(PublicInbox::DS Exporter);
-use fields qw(git);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 our @EXPORT = qw(git_async_cat);
 
 sub _add {
 	my ($class, $git) = @_;
-	my $self = fields::new($class);
 	$git->batch_prepare;
+	my $self = bless { git => $git }, $class;
 	$self->SUPER::new($git->{in}, EPOLLIN|EPOLLET);
-	$self->{git} = $git;
 	\undef; # this is a true ref()
 }
 

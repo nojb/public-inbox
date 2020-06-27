@@ -21,12 +21,18 @@
 #   as a 50K uint16_t array (via pack("S*", ...)).  "UID offset"
 #   is the offset from {uid_base} which determines the start of
 #   the mailbox slice.
-
+#
+# fields:
+# imapd: PublicInbox::IMAPD ref
+# ibx: PublicInbox::Inbox ref
+# long_cb: long_response private data
+# uid_base: base UID for mailbox slice (0-based)
+# -login_tag: IMAP TAG for LOGIN
+# -idle_tag: IMAP response tag for IDLE
+# uo2m: UID-to-MSN mapping
 package PublicInbox::IMAP;
 use strict;
-use base qw(PublicInbox::DS);
-use fields qw(imapd ibx long_cb -login_tag
-	uid_base -idle_tag uo2m);
+use parent qw(PublicInbox::DS);
 use PublicInbox::Eml;
 use PublicInbox::EmlContentFoo qw(parse_content_disposition);
 use PublicInbox::DS qw(now);
@@ -34,7 +40,6 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::GitAsyncCat;
 use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
-use Hash::Util qw(unlock_hash); # dependency of fields for perl 5.10+, anyways
 use PublicInbox::Search;
 use PublicInbox::IMAPsearchqp;
 *mdocid = \&PublicInbox::Search::mdocid;
@@ -107,8 +112,7 @@ sub greet ($) {
 
 sub new ($$$) {
 	my ($class, $sock, $imapd) = @_;
-	my $self = fields::new('PublicInbox::IMAP_preauth');
-	unlock_hash(%$self);
+	my $self = bless { imapd => $imapd }, 'PublicInbox::IMAP_preauth';
 	my $ev = EPOLLIN;
 	my $wbuf;
 	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
@@ -117,7 +121,6 @@ sub new ($$$) {
 		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
 	}
 	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
-	$self->{imapd} = $imapd;
 	if ($wbuf) {
 		$self->{wbuf} = $wbuf;
 	} else {

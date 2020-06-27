@@ -6,11 +6,16 @@
 # The name of this key is not even stable!
 # Currently intended for use with read-only pipes with expensive
 # processes such as git-http-backend(1), cgit(1)
+#
+# fields:
+# http: PublicInbox::HTTP ref
+# fh: PublicInbox::HTTP::{Identity,Chunked} ref (can ->write + ->close)
+# cb: initial read callback
+# arg: arg for {cb}
+# end_obj: CODE or object which responds to ->event_step when ->close is called
 package PublicInbox::HTTPD::Async;
 use strict;
-use warnings;
-use base qw(PublicInbox::DS);
-use fields qw(http fh cb arg end_obj);
+use parent qw(PublicInbox::DS);
 use Errno qw(EAGAIN);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 
@@ -27,14 +32,13 @@ sub new {
 		die '$end_obj unsupported w/o $io' if $end_obj;
 		return;
 	}
-
-	my $self = fields::new($class);
+	my $self = bless {
+		cb => $cb, # initial read callback
+		arg => $arg, # arg for $cb
+		end_obj => $end_obj, # like END{}, can ->event_step
+	}, $class;
 	IO::Handle::blocking($io, 0);
 	$self->SUPER::new($io, EPOLLIN | EPOLLET);
-	$self->{cb} = $cb; # initial read callback
-	$self->{arg} = $arg; # arg for $cb
-	$self->{end_obj} = $end_obj; # like END{}, can ->event_step
-	$self;
 }
 
 sub event_step {

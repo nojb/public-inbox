@@ -1,10 +1,13 @@
 # Copyright (C) 2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
+# fields:
+# pi_config: PublicInbox::Config ref
+# inot: Linux::Inotify2-like object
+# pathmap => { inboxdir => [ ibx, watch1, watch2, watch3... ] } mapping
 package PublicInbox::InboxIdle;
 use strict;
-use base qw(PublicInbox::DS);
-use fields qw(pi_config inot pathmap);
+use parent qw(PublicInbox::DS);
 use Cwd qw(abs_path);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 my $IN_MODIFY = 0x02; # match Linux inotify
@@ -50,7 +53,7 @@ sub refresh {
 
 sub new {
 	my ($class, $pi_config) = @_;
-	my $self = fields::new($class);
+	my $self = bless {}, $class;
 	my $inot;
 	if ($ino_cls) {
 		$inot = $ino_cls->new or die "E: $ino_cls->new: $!";

@@ -16,11 +16,9 @@
 #       efficient in terms of server memory usage.
 package PublicInbox::NNTPdeflate;
 use strict;
-use warnings;
 use 5.010_001;
-use base qw(PublicInbox::NNTP);
+use parent qw(PublicInbox::NNTP);
 use Compress::Raw::Zlib;
-use Hash::Util qw(unlock_hash); # dependency of fields for perl 5.10+, anyways
 
 my %IN_OPT = (
 	-Bufsize => PublicInbox::NNTP::LINE_MAX,
@@ -53,7 +51,6 @@ sub enable {
 		$self->res('403 Unable to activate compression');
 		return;
 	}
-	unlock_hash(%$self);
 	$self->res('206 Compression active');
 	bless $self, $class;
 	$self->{zin} = $in;

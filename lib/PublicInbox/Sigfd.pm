@@ -1,9 +1,11 @@
 # Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+
+# Wraps a signalfd (or similar) for PublicInbox::DS
+# fields: (sig: hashref similar to %SIG, but signal numbers as keys)
 package PublicInbox::Sigfd;
 use strict;
 use parent qw(PublicInbox::DS);
-use fields qw(sig); # hashref similar to %SIG, but signal numbers as keys
 use PublicInbox::Syscall qw(signalfd EPOLLIN EPOLLET SFD_NONBLOCK);
 use POSIX qw(:signal_h);
 use IO::Handle ();
@@ -12,7 +14,6 @@ use IO::Handle ();
 # are available.
 sub new {
 	my ($class, $sig, $flags) = @_;
-	my $self = fields::new($class);
 	my %signo = map {;
 		my $cb = $sig->{$_};
 		# SIGWINCH is 28 on FreeBSD, NetBSD, OpenBSD
@@ -22,6 +23,7 @@ sub new {
 		};
 		$num => $cb;
 	} keys %$sig;
+	my $self = bless { sig => \%signo }, $class;
 	my $io;
 	my $fd = signalfd(-1, [keys %signo], $flags);
 	if (defined $fd && $fd >= 0) {
@@ -35,9 +37,8 @@ sub new {
 		$self->SUPER::new($io, EPOLLIN | EPOLLET);
 	} else { # master main loop
 		$self->{sock} = $io;
+		$self;
 	}
-	$self->{sig} = \%signo;
-	$self;
 }
 
 # PublicInbox::Daemon in master main loop (blocking)

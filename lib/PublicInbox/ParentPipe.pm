@@ -5,17 +5,13 @@
 # notified if the master process dies.
 package PublicInbox::ParentPipe;
 use strict;
-use warnings;
-use base qw(PublicInbox::DS);
-use fields qw(cb);
+use parent qw(PublicInbox::DS);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 
 sub new ($$$) {
 	my ($class, $pipe, $worker_quit) = @_;
-	my $self = fields::new($class);
+	my $self = bless { cb => $worker_quit }, $class;
 	$self->SUPER::new($pipe, EPOLLIN|EPOLLONESHOT);
-	$self->{cb} = $worker_quit;
-	$self;
 }
 
 # master process died, time to call worker_quit ourselves

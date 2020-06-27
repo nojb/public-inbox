@@ -2,11 +2,14 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Each instance of this represents a NNTP client socket
+# fields:
+# nntpd: PublicInbox::NNTPD ref
+# article: per-session current article number
+# ng: PublicInbox::Inbox ref
+# long_cb: long_response private data
 package PublicInbox::NNTP;
 use strict;
-use warnings;
-use base qw(PublicInbox::DS);
-use fields qw(nntpd article ng long_cb);
+use parent qw(PublicInbox::DS);
 use PublicInbox::MID qw(mid_escape $MID_EXTRACT);
 use PublicInbox::Eml;
 use POSIX qw(strftime);
@@ -45,7 +48,7 @@ sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
 
 sub new ($$$) {
 	my ($class, $sock, $nntpd) = @_;
-	my $self = fields::new($class);
+	my $self = bless { nntpd => $nntpd }, $class;
 	my $ev = EPOLLIN;
 	my $wbuf;
 	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
@@ -54,7 +57,6 @@ sub new ($$$) {
 		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
 	}
 	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
-	$self->{nntpd} = $nntpd;
 	if ($wbuf) {
 		$self->{wbuf} = $wbuf;
 	} else {

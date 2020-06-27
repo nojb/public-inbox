@@ -4,8 +4,7 @@
 # Used by public-inbox-watch for Maildir (and possibly MH in the future)
 package PublicInbox::DirIdle;
 use strict;
-use base 'PublicInbox::DS';
-use fields qw(inot);
+use parent 'PublicInbox::DS';
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 use PublicInbox::In2Tie;
 
@@ -24,7 +23,7 @@ if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
 
 sub new {
 	my ($class, $dirs, $cb) = @_;
-	my $self = fields::new($class);
+	my $self = bless {}, $class;
 	my $inot;
 	if ($ino_cls) {
 		$inot = $ino_cls->new or die "E: $ino_cls->new: $!";

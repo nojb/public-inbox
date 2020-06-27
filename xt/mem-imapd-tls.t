@@ -132,8 +132,8 @@ done_testing;
 
 package IMAPC;
 use strict;
-use base qw(PublicInbox::DS);
-use fields qw(step zin);
+use parent qw(PublicInbox::DS);
+# fields: step: state machine, zin: Zlib inflate context
 use PublicInbox::Syscall qw(EPOLLIN EPOLLOUT EPOLLONESHOT);
 use Errno qw(EAGAIN);
 # determines where we start event_step
@@ -207,26 +207,23 @@ sub event_step {
 
 sub new {
 	my ($class, $io) = @_;
-	my $self = fields::new($class);
-
-	# wait for connect(), and maybe SSL_connect()
-	$self->SUPER::new($io, EPOLLOUT|EPOLLONESHOT);
+	my $self = bless { step => FIRST_STEP }, $class;
 	if ($io->can('connect_SSL')) {
 		$self->{wbuf} = [ \&connect_tls_step ];
 	}
-	$self->{step} = FIRST_STEP;
-	$self;
+	# wait for connect(), and maybe SSL_connect()
+	$self->SUPER::new($io, EPOLLOUT|EPOLLONESHOT);
 }
 
 1;
 package IMAPCdeflate;
 use strict;
-use base qw(IMAPC); # parent doesn't work for fields
-use Hash::Util qw(unlock_hash); # dependency of fields for perl 5.10+, anyways
+our @ISA;
 use Compress::Raw::Zlib;
 use PublicInbox::IMAPdeflate;
 my %ZIN_OPT;
 BEGIN {
+	@ISA = qw(IMAPC);
 	%ZIN_OPT = ( -WindowBits => -15, -AppendOutput => 1 );
 	*write = \&PublicInbox::IMAPdeflate::write;
 	*do_read = \&PublicInbox::IMAPdeflate::do_read;
@@ -236,7 +233,6 @@ sub enable {
 	my ($class, $self) = @_;
 	my ($in, $err) = Compress::Raw::Zlib::Inflate->new(%ZIN_OPT);
 	die "Inflate->new failed: $err" if $err != Z_OK;
-	unlock_hash(%$self);
 	bless $self, $class;
 	$self->{zin} = $in;
 }

@@ -13,6 +13,12 @@
 # Bugs encountered were reported to bug-Danga-Socket@rt.cpan.org,
 # fixed in Danga::Socket 1.62 and visible at:
 # https://rt.cpan.org/Public/Dist/Display.html?Name=Danga-Socket
+#
+# fields:
+# sock: underlying socket
+# rbuf: scalarref, usually undef
+# wbuf: arrayref of coderefs or tmpio (autovivified))
+#        (tmpio = [ GLOB, offset, [ length ] ])
 package PublicInbox::DS;
 use strict;
 use bytes;
@@ -22,19 +28,10 @@ use Fcntl qw(SEEK_SET :DEFAULT O_APPEND);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use parent qw(Exporter);
 our @EXPORT_OK = qw(now msg_more);
-use warnings;
 use 5.010_001;
 use Scalar::Util qw(blessed);
-
 use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::Tmpfile;
-
-use fields ('sock',              # underlying socket
-            'rbuf',              # scalarref, usually undef
-            'wbuf', # arrayref of coderefs or tmpio (autovivified))
-                    # (tmpio = [ GLOB, offset, [ length ] ])
-            );
-
 use Errno qw(EAGAIN EINVAL);
 use Carp qw(confess carp);
 
@@ -328,8 +325,6 @@ This is normally (always?) called from your subclass via:
 =cut
 sub new {
     my ($self, $sock, $ev) = @_;
-    $self = fields::new($self) unless ref $self;
-
     $self->{sock} = $sock;
     my $fd = fileno($sock);
 
