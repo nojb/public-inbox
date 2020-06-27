@@ -50,7 +50,7 @@ sub new {
 	foreach my $pfx (qw(publicinboxwatch publicinboxlearn)) {
 		my $k = "$pfx.watchspam";
 		defined(my $dirs = $config->{$k}) or next;
-		$dirs = [ $dirs ] if !ref($dirs);
+		$dirs = PublicInbox::Config::_array($dirs);
 		for my $dir (@$dirs) {
 			if (is_maildir($dir)) {
 				# skip "new", no MUA has seen it, yet.
@@ -75,21 +75,25 @@ sub new {
 		# need to make all inboxes writable for spam removal:
 		my $ibx = $_[0] = PublicInbox::InboxWritable->new($_[0]);
 
-		my $watch = $ibx->{watch} or return;
-		if (is_maildir($watch)) {
-			compile_watchheaders($ibx);
-			my ($new, $cur) = ("$watch/new", "$watch/cur");
-			return if is_watchspam($cur, $mdmap{$cur}, $ibx);
-			push @mdir, $new unless $uniq{$new}++;
-			push @mdir, $cur unless $uniq{$cur}++;
-			push @{$mdmap{$new} ||= []}, $ibx;
-			push @{$mdmap{$cur} ||= []}, $ibx;
-		} elsif (my $url = imap_url($watch)) {
-			return if is_watchspam($url, $imap{$url}, $ibx);
-			compile_watchheaders($ibx);
-			push @{$imap{$url} ||= []}, $ibx;
-		} else {
-			warn "watch unsupported: $k=$watch\n";
+		my $watches = $ibx->{watch} or return;
+		$watches = PublicInbox::Config::_array($watches);
+		for my $watch (@$watches) {
+			if (is_maildir($watch)) {
+				compile_watchheaders($ibx);
+				my ($new, $cur) = ("$watch/new", "$watch/cur");
+				my $cur_dst = $mdmap{$cur} //= [];
+				return if is_watchspam($cur, $cur_dst, $ibx);
+				push @mdir, $new unless $uniq{$new}++;
+				push @mdir, $cur unless $uniq{$cur}++;
+				push @{$mdmap{$new} //= []}, $ibx;
+				push @$cur_dst, $ibx;
+			} elsif (my $url = imap_url($watch)) {
+				return if is_watchspam($url, $imap{$url}, $ibx);
+				compile_watchheaders($ibx);
+				push @{$imap{$url} ||= []}, $ibx;
+			} else {
+				warn "watch unsupported: $k=$watch\n";
+			}
 		}
 	});
 	return unless scalar(@mdir) || scalar(keys %imap);
