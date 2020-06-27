@@ -352,6 +352,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $noerr);
 		is(scalar(grep(/\(deleted\)/, @of)), 0, 'no deleted files');
 	};
+	SKIP: { test_watch($tmpdir, $sock, $group) };
 	{
 		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
 		syswrite($s, 'HDR List-id 1-');
@@ -389,6 +390,57 @@ sub read_til_dot {
 		sysread($s, $buf, 4096, length($buf));
 	} until ($buf =~ /\r\n\.\r\n\z/);
 	$buf;
+}
+
+sub test_watch {
+	my ($tmpdir, $sock, $group) = @_;
+	use_ok 'PublicInbox::WatchMaildir';
+	use_ok 'PublicInbox::InboxIdle';
+	require_git('1.8.5', 1) or skip('git 1.8.5+ needed for --urlmatch', 4);
+	my $old_env = { HOME => $ENV{HOME} };
+	my $home = "$tmpdir/watch_home";
+	mkdir $home or BAIL_OUT $!;
+	mkdir "$home/.public-inbox" or BAIL_OUT $!;
+	local $ENV{HOME} = $home;
+	my $name = 'watchnntp';
+	my $addr = "i1\@example.com";
+	my $url = "http://example.com/i1";
+	my $inboxdir = "$tmpdir/watchnntp";
+	my $cmd = ['-init', '-V1', '-Lbasic', $name, $inboxdir, $url, $addr];
+	my ($ihost, $iport) = ($sock->sockhost, $sock->sockport);
+	my $nntpurl = "nntp://$ihost:$iport/$group";
+	run_script($cmd) or BAIL_OUT("init $name");
+	xsys(qw(git config), "--file=$home/.public-inbox/config",
+			"publicinbox.$name.watch",
+			$nntpurl) == 0 or BAIL_OUT "git config $?";
+	# try again with polling
+	xsys(qw(git config), "--file=$home/.public-inbox/config",
+		'nntp.PollInterval', 0.11) == 0
+		or BAIL_OUT "git config $?";
+	my $cfg = PublicInbox::Config->new;
+	PublicInbox::DS->Reset;
+	my $ii = PublicInbox::InboxIdle->new($cfg);
+	my $cb = sub { PublicInbox::DS->SetPostLoopCallback(sub {}) };
+	my $obj = bless \$cb, 'PublicInbox::TestCommon::InboxWakeup';
+	$cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
+	my $watcherr = "$tmpdir/watcherr";
+	open my $err_wr, '>', $watcherr or BAIL_OUT $!;
+	open my $err, '<', $watcherr or BAIL_OUT $!;
+	my $w = start_script(['-watch'], undef, { 2 => $err_wr });
+
+	diag 'waiting for initial fetch...';
+	PublicInbox::DS->EventLoop;
+	diag 'inbox unlocked on initial fetch';
+	$w->kill;
+	$w->join;
+	is($?, 0, 'no error in exited -watch process');
+	$cfg->each_inbox(sub { shift->unsubscribe_unlock('ident') });
+	$ii->close;
+	PublicInbox::DS->Reset;
+	my @err = grep(!/^I:/, <$err>);
+	is(@err, 0, 'no warnings/errors from -watch'.join(' ', @err));
+	my @ls = xqx(['git', "--git-dir=$inboxdir", qw(ls-tree -r HEAD)]);
+	isnt(scalar(@ls), 0, 'imported something');
 }
 
 1;
