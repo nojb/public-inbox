@@ -32,6 +32,21 @@ ok(POSIX::mkfifo("$maildir/cur/fifo", 0777),
 	'create FIFO to ensure we do not get stuck on it :P');
 my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 
+{
+	my @w;
+	local $SIG{__WARN__} = sub { push @w, @_ };
+	my $config = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=$addr
+$cfgpfx.inboxdir=$git_dir
+$cfgpfx.watch=maildir:$spamdir
+publicinboxlearn.watchspam=maildir:$spamdir
+EOF
+	my $wm = PublicInbox::WatchMaildir->new($config);
+	is(scalar grep(/is a spam folder/, @w), 1, 'got warning about spam');
+	is_deeply($wm->{mdmap}, { "$spamdir/cur" => 'watchspam' },
+		'only got the spam folder to watch');
+}
+
 my $config = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$git_dir

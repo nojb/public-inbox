@@ -52,15 +52,6 @@ sub new {
 			if (is_maildir($dir)) {
 				# skip "new", no MUA has seen it, yet.
 				my $cur = "$dir/cur";
-				my $old = $mdmap{$cur};
-				if (ref($old)) {
-					foreach my $ibx (@$old) {
-						warn <<"";
-"$cur already watched for `$ibx->{name}'
-
-					}
-					die;
-				}
 				push @mdir, $cur;
 				$uniq{$cur}++;
 				$mdmap{$cur} = 'watchspam';
@@ -84,9 +75,15 @@ sub new {
 			compile_watchheaders($ibx);
 			my $new = "$watch/new";
 			my $cur = "$watch/cur";
+			my $ws = $mdmap{$cur};
+			if ($ws && !ref($ws) && $ws eq 'watchspam') {
+				warn <<EOF;
+E: $cur is a spam folder and cannot be used for `$ibx->{name}' input
+EOF
+				return; # onto next inbox
+			}
 			push @mdir, $new unless $uniq{$new}++;
 			push @mdir, $cur unless $uniq{$cur}++;
-
 			push @{$mdmap{$new} ||= []}, $ibx;
 			push @{$mdmap{$cur} ||= []}, $ibx;
 		} else {
