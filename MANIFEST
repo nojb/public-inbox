@@ -132,6 +132,7 @@ lib/PublicInbox/Hval.pm
 lib/PublicInbox/IMAP.pm
 lib/PublicInbox/IMAPClient.pm
 lib/PublicInbox/IMAPD.pm
+lib/PublicInbox/IMAPTracker.pm
 lib/PublicInbox/IMAPdeflate.pm
 lib/PublicInbox/IMAPsearchqp.pm
 lib/PublicInbox/Import.pm
