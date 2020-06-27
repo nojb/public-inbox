@@ -13,6 +13,29 @@ use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
 *mime_from_path = \&PublicInbox::InboxWritable::mime_from_path;
 
+sub compile_watchheaders ($) {
+	my ($ibx) = @_;
+	my $watch_hdrs = [];
+	if (my $whs = $ibx->{watchheader}) {
+		for (@$whs) {
+			my ($k, $v) = split(/:/, $_, 2);
+			# XXX should this be case-insensitive?
+			# Or, mutt-style, case-sensitive iff
+			# a capital letter exists?
+			push @$watch_hdrs, [ $k, qr/\Q$v\E/ ];
+		}
+	}
+	if (my $list_ids = $ibx->{listid}) {
+		for (@$list_ids) {
+			# RFC2919 section 6 stipulates
+			# "case insensitive equality"
+			my $re = qr/<[ \t]*\Q$_\E[ \t]*>/i;
+			push @$watch_hdrs, ['List-Id', $re ];
+		}
+	}
+	$ibx->{-watchheaders} = $watch_hdrs if scalar @$watch_hdrs;
+}
+
 sub new {
 	my ($class, $config) = @_;
 	my (%mdmap, @mdir, $spamc);
@@ -58,27 +81,7 @@ sub new {
 
 		my $watch = $ibx->{watch} or return;
 		if (is_maildir($watch)) {
-			my $watch_hdrs = [];
-			if (my $whs = $ibx->{watchheader}) {
-				for (@$whs) {
-					my ($k, $v) = split(/:/, $_, 2);
-					# XXX should this be case-insensitive?
-					# Or, mutt-style, case-sensitive iff
-					# a capital letter exists?
-					push @$watch_hdrs, [ $k, qr/\Q$v\E/ ];
-				}
-			}
-			if (my $list_ids = $ibx->{listid}) {
-				for (@$list_ids) {
-					# RFC2919 section 6 stipulates
-					# "case insensitive equality"
-					my $re = qr/<[ \t]*\Q$_\E[ \t]*>/i;
-					push @$watch_hdrs, ['List-Id', $re ];
-				}
-			}
-			if (scalar @$watch_hdrs) {
-				$ibx->{-watchheaders} = $watch_hdrs;
-			}
+			compile_watchheaders($ibx);
 			my $new = "$watch/new";
 			my $cur = "$watch/cur";
 			push @mdir, $new unless $uniq{$new}++;
