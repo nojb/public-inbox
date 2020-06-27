@@ -40,8 +40,7 @@ sub compile_watchheaders ($) {
 
 sub new {
 	my ($class, $config) = @_;
-	my (%mdmap, @mdir, $spamc);
-	my %uniq; # directory => count
+	my (%mdmap, $spamc);
 	my %imap; # url => [inbox objects] or 'watchspam'
 
 	# "publicinboxwatch" is the documented namespace
@@ -54,10 +53,7 @@ sub new {
 		for my $dir (@$dirs) {
 			if (is_maildir($dir)) {
 				# skip "new", no MUA has seen it, yet.
-				my $cur = "$dir/cur";
-				push @mdir, $cur;
-				$uniq{$cur}++;
-				$mdmap{$cur} = 'watchspam';
+				$mdmap{"$dir/cur"} = 'watchspam';
 			} elsif (my $url = imap_url($dir)) {
 				$imap{$url} = 'watchspam';
 			} else {
@@ -83,8 +79,6 @@ sub new {
 				my ($new, $cur) = ("$watch/new", "$watch/cur");
 				my $cur_dst = $mdmap{$cur} //= [];
 				return if is_watchspam($cur, $cur_dst, $ibx);
-				push @mdir, $new unless $uniq{$new}++;
-				push @mdir, $cur unless $uniq{$cur}++;
 				push @{$mdmap{$new} //= []}, $ibx;
 				push @$cur_dst, $ibx;
 			} elsif (my $url = imap_url($watch)) {
@@ -96,17 +90,16 @@ sub new {
 			}
 		}
 	});
-	return unless scalar(@mdir) || scalar(keys %imap);
 
 	my $mdre;
-	if (@mdir) {
-		$mdre = join('|', map { quotemeta($_) } @mdir);
+	if (scalar keys %mdmap) {
+		$mdre = join('|', map { quotemeta($_) } keys %mdmap);
 		$mdre = qr!\A($mdre)/!;
 	}
+	return unless $mdre || scalar(keys %imap);
 	bless {
 		spamcheck => $spamcheck,
 		mdmap => \%mdmap,
-		mdir => \@mdir,
 		mdre => $mdre,
 		config => $config,
 		imap => scalar keys %imap ? \%imap : undef,
@@ -231,7 +224,8 @@ sub watch_fs_init ($) {
 		$self->{done_timer} //= PublicInbox::DS::requeue($done);
 	};
 	require PublicInbox::DirIdle;
-	PublicInbox::DirIdle->new($self->{mdir}, $cb); # EPOLL_CTL_ADD
+	# inotify_create + EPOLL_CTL_ADD
+	PublicInbox::DirIdle->new([keys %{$self->{mdmap}}], $cb);
 }
 
 # returns the git config section name, e.g [imap "imaps://user@example.com"]
@@ -688,7 +682,7 @@ sub fs_scan_step {
 		$opendirs->{$dir} = $dh if $n < 0;
 	}
 	if ($op && $op eq 'full') {
-		foreach my $dir (@{$self->{mdir}}) {
+		foreach my $dir (keys %{$self->{mdmap}}) {
 			next if $opendirs->{$dir}; # already in progress
 			my $ok = opendir(my $dh, $dir);
 			unless ($ok) {

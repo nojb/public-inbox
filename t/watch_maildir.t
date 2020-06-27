@@ -84,6 +84,7 @@ PublicInbox::WatchMaildir->new($config)->scan('full');
 is(scalar @list, 2, 'two revisions in rev-list');
 @list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 is(scalar @list, 0, 'tree is empty');
+is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 
 # check with scrubbing
 {
@@ -105,6 +106,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	is(scalar @list, 0, 'tree is empty');
 	@list = $git->qx(qw(rev-list refs/heads/master));
 	is(scalar @list, 4, 'four revisions in rev-list');
+	is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 }
 
 {

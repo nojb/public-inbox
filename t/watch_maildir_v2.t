@@ -71,6 +71,7 @@ $write_spam->();
 is(unlink(glob("$maildir/new/*")), 1, 'unlinked old spam');
 PublicInbox::WatchMaildir->new($config)->scan('full');
 is(($srch->reopen->query(''))[0], 0, 'deleted file');
+is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 
 # check with scrubbing
 {
@@ -90,6 +91,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::WatchMaildir->new($config)->scan('full');
 	($nr, $msgs) = $srch->reopen->query('');
 	is($nr, 0, 'inbox is empty again');
+	is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 }
 
 {
