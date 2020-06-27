@@ -274,6 +274,7 @@ t/httpd.t
 t/hval.t
 t/imap.t
 t/imap_searchqp.t
+t/imap_tracker.t
 t/imapd-tls.t
 t/imapd.t
 t/import.t
