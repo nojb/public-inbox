@@ -9,7 +9,7 @@
 
 package PublicInbox::Config;
 use strict;
-use warnings;
+use v5.10.1;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
 
@@ -460,6 +460,25 @@ sub _fill {
 	}
 
 	$ibx
+}
+
+sub urlmatch {
+	my ($self, $key, $url) = @_;
+	state $urlmatch_broken; # requires git 1.8.5
+	return if $urlmatch_broken;
+	my $file = default_file();
+	my $cmd = [qw/git config -z --includes --get-urlmatch/,
+		"--file=$file", $key, $url ];
+	my $fh = popen_rd($cmd);
+	local $/ = "\0";
+	my $val = <$fh>;
+	if (close($fh)) {
+		chomp($val);
+		$val;
+	} else {
+		$urlmatch_broken = 1 if (($? >> 8) != 1);
+		undef;
+	}
 }
 
 1;

@@ -486,7 +486,7 @@ ok($mic->logout, 'logged out');
 
 	# try again with polling
 	xsys(qw(git config), "--file=$home/.public-inbox/config",
-		"imap.imap://$ihost:$iport.PollInterval", 0.11) == 0
+		'imap.PollInterval', 0.11) == 0
 		or BAIL_OUT "git config $?";
 	$w->kill('HUP');
 	diag 'waiting for -watch reload + initial fetch';

@@ -225,4 +225,22 @@ EOF
 		'bogus is undef');
 }
 
+SKIP: {
+	require_git('1.8.5', 2) or
+		skip 'git 1.8.5+ required for --url-match', 2;
+	my $f = "$tmpdir/urlmatch";
+	open my $fh, '>', $f or BAIL_OUT $!;
+	print $fh <<EOF or BAIL_OUT $!;
+[imap "imap://*.example.com"]
+	pollInterval = 9
+EOF
+	close $fh or BAIL_OUT;
+	local $ENV{PI_CONFIG} = $f;
+	my $cfg = PublicInbox::Config->new;
+	my $url = 'imap://mail.example.com/INBOX';
+	is($cfg->urlmatch('imap.pollInterval', $url), 9, 'urlmatch hit');
+	is($cfg->urlmatch('imap.idleInterval', $url), undef, 'urlmatch miss');
+};
+
+
 done_testing();

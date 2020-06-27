@@ -235,9 +235,11 @@ sub imap_section ($) {
 	$uri->scheme . '://' . $uri->authority;
 }
 
-sub cfg_intvl ($$) {
-	my ($cfg, $key) = @_;
-	defined(my $v = $cfg->{lc($key)}) or return;
+sub cfg_intvl ($$$$$) {
+	my ($cfg, $cfg_section, $cfg_key, $imap_section, $url) = @_;
+	my $key = "$cfg_section.$imap_section.$cfg_key";
+	my $v = $cfg->{lc($key)} //
+		$cfg->urlmatch("$cfg_section.$cfg_key", $url) // return;
 	$v =~ /\A[0-9]+(?:\.[0-9]+)?\z/s and return $v + 0;
 	if (ref($v) eq 'ARRAY') {
 		$v = join(', ', @$v);
@@ -257,7 +259,8 @@ sub imap_common_init ($) {
 		my $sec = imap_section($uri);
 		for my $k (qw(Starttls Debug Compress)) {
 			my $key = lc("imap.$sec.$k");
-			defined(my $orig = $cfg->{$key}) or next;
+			my $orig = $cfg->{$key} //
+				$cfg->urlmatch("imap.$k", $url) // next;
 			my $v = PublicInbox::Config::_git_config_bool($orig);
 			if (defined($v)) {
 				$mic_args->{$sec}->{$k} = $v;
@@ -265,11 +268,11 @@ sub imap_common_init ($) {
 				warn "W: $key=$orig is not boolean\n";
 			}
 		}
-		my $to = cfg_intvl($cfg, "imap.$sec.Timeout");
+		my $to = cfg_intvl($cfg, 'imap', 'Timeout', $sec, $url);
 		$mic_args->{$sec}->{Timeout} = $to if $to;
-		$to = cfg_intvl($cfg, "imap.$sec.PollInterval");
+		$to = cfg_intvl($cfg, 'imap', 'PollInterval', $sec, $url);
 		$self->{imap_opt}->{$sec}->{poll_intvl} = $to if $to;
-		$to = cfg_intvl($cfg, "imap.$sec.IdleInterval");
+		$to = cfg_intvl($cfg, 'imap', 'IdleInterval', $sec, $url);
 		$self->{imap_opt}->{$sec}->{idle_intvl} = $to if $to;
 	}
 	$mic_args;

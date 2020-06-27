@@ -55,15 +55,16 @@ sub tcp_connect {
 
 sub require_git ($;$) {
 	my ($req, $maybe) = @_;
-	my ($req_maj, $req_min) = split(/\./, $req);
-	my ($cur_maj, $cur_min) = (`git --version` =~ /version (\d+)\.(\d+)/);
+	my ($req_maj, $req_min, $req_sub) = split(/\./, $req);
+	my ($cur_maj, $cur_min, $cur_sub) = (xqx([qw(git --version)])
+			=~ /version (\d+)\.(\d+)(?:\.(\d+))?/);
 
-	my $req_int = ($req_maj << 24) | ($req_min << 16);
-	my $cur_int = ($cur_maj << 24) | ($cur_min << 16);
+	my $req_int = ($req_maj << 24) | ($req_min << 16) | ($req_sub // 0);
+	my $cur_int = ($cur_maj << 24) | ($cur_min << 16) | ($cur_sub // 0);
 	if ($cur_int < $req_int) {
 		return 0 if $maybe;
 		Test::More::plan(skip_all =>
-				"git $req+ required, have $cur_maj.$cur_min");
+			"git $req+ required, have $cur_maj.$cur_min.$cur_sub");
 	}
 	1;
 }
