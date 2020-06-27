@@ -2,6 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 package PublicInbox::IMAPTracker;
 use strict;
+use parent qw(PublicInbox::Lock);
 use DBI;
 use DBD::SQLite;
 use PublicInbox::Config;
@@ -48,7 +49,10 @@ sub update_last ($$$) {
 INSERT OR REPLACE INTO imap_last (url, uid_validity, uid)
 VALUES (?, ?, ?)
 
-	$sth->execute($self->{url}, $validity, $last);
+	$self->lock_acquire;
+	my $rv = $sth->execute($self->{url}, $validity, $last);
+	$self->lock_release;
+	$rv;
 }
 
 sub new {
@@ -68,8 +72,11 @@ sub new {
 		require File::Basename;
 		File::Path::mkpath(File::Basename::dirname($dbname));
 	}
-
-	bless { url => $url, dbh => dbh_new($dbname) }, $class;
+	my $self = bless { lock_path => "$dbname.lock", url => $url }, $class;
+	$self->lock_acquire;
+	$self->{dbh} = dbh_new($dbname);
+	$self->lock_release;
+	$self;
 }
 
 1;
