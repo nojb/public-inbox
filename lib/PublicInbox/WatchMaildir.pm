@@ -308,13 +308,14 @@ sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 sub mic_for ($$$) { # mic = Mail::IMAPClient
 	my ($self, $url, $mic_args) = @_;
 	my $uri = PublicInbox::URIimap->new($url);
-	my $cred = {
+	require PublicInbox::GitCredential;
+	my $cred = bless {
 		url => $url,
 		protocol => $uri->scheme,
 		host => $uri->host,
 		username => $uri->user,
 		password => $uri->password,
-	};
+	}, 'PublicInbox::GitCredential';
 	my $common = $mic_args->{uri_section($uri)} // {};
 	my $host = $cred->{host};
 	my $mic_arg = {
@@ -342,7 +343,7 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 		$cred = undef;
 	}
 	if ($cred) {
-		Git::credential($cred, 'fill'); # may prompt user here
+		$cred->fill; # may prompt user here
 		$mic->User($mic_arg->{User} = $cred->{username});
 		$mic->Password($mic_arg->{Password} = $cred->{password});
 	} else { # AUTH=ANONYMOUS
@@ -356,7 +357,7 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 		warn "E: <$url> LOGIN: $@\n";
 		$mic = undef;
 	}
-	Git::credential($cred, $mic ? 'approve' : 'reject') if $cred;
+	$cred->run($mic ? 'approve' : 'reject') if $cred;
 	$mic;
 }
 
@@ -653,8 +654,6 @@ sub watch_imap_init ($) {
 	my ($self) = @_;
 	eval { require PublicInbox::IMAPClient } or
 		die "Mail::IMAPClient is required for IMAP:\n$@\n";
-	eval { require Git } or
-		die "Git (Perl module) is required for IMAP:\n$@\n";
 	eval { require PublicInbox::IMAPTracker } or
 		die "DBD::SQLite is required for IMAP\n:$@\n";
 
@@ -772,11 +771,12 @@ sub nn_for ($$$) { # nn = Net::NNTP
 	my $cred;
 	my ($u, $p);
 	if (defined(my $ui = $uri->userinfo)) {
-		$cred = {
+		require PublicInbox::GitCredential;
+		$cred = bless {
 			url => $sec,
 			protocol => uri_scheme($uri),
 			host => $uri->host,
-		};
+		}, 'PublicInbox::GitCredential';
 		($u, $p) = split(/:/, $ui, 2);
 		($cred->{username}, $cred->{password}) = ($u, $p);
 	}
@@ -791,7 +791,7 @@ sub nn_for ($$$) { # nn = Net::NNTP
 	my $nn = nn_new($nn_arg, $nntp_opt, $url);
 
 	if ($cred) {
-		Git::credential($cred, 'fill'); # may prompt user here
+		$cred->fill; # may prompt user here
 		if ($nn->authinfo($u, $p)) {
 			push @{$nntp_opt->{-postconn}}, [ 'authinfo', $u, $p ];
 		} else {
@@ -818,7 +818,7 @@ W: see https://rt.cpan.org/Ticket/Display.html?id=129967 for updates
 	}
 
 	$self->{nn_arg}->{$sec} = $nn_arg;
-	Git::credential($cred, $nn ? 'approve' : 'reject') if $cred;
+	$cred->run($nn ? 'approve' : 'reject') if $cred;
 	$nn;
 }
 
@@ -896,8 +896,6 @@ sub watch_nntp_init ($) {
 	my ($self) = @_;
 	eval { require Net::NNTP } or
 		die "Net::NNTP is required for NNTP:\n$@\n";
-	eval { require Git } or
-		die "Git (Perl module) is required for NNTP:\n$@\n";
 	eval { require PublicInbox::IMAPTracker } or
 		die "DBD::SQLite is required for NNTP\n:$@\n";
 
