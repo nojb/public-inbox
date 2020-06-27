@@ -276,11 +276,11 @@ sub tick (;$) {
 }
 
 sub wait_for_tail ($;$) {
-	my ($tail_pid, $stop) = @_;
+	my ($tail_pid, $want) = @_;
 	my $wait = 2;
 	if ($^O eq 'linux') { # GNU tail may use inotify
 		state $tail_has_inotify;
-		return tick if $stop && $tail_has_inotify;
+		return tick if $want < 0 && $tail_has_inotify;
 		my $end = time + $wait;
 		my @ino;
 		do {
@@ -297,7 +297,7 @@ sub wait_for_tail ($;$) {
 				local $/ = "\n";
 				@info = grep(/^inotify wd:/, <$fh>);
 			}
-		} while (scalar(@info) < 2 && time <= $end and tick);
+		} while (scalar(@info) < $want && time <= $end and tick);
 	} else {
 		sleep($wait);
 	}
@@ -337,6 +337,18 @@ sub start_script {
 			next unless /\A--std(?:err|out)=(.+)\z/;
 			push @paths, $1;
 		}
+		if ($opt) {
+			for (1, 2) {
+				my $f = $opt->{$_} or next;
+				if (!ref($f)) {
+					push @paths, $f;
+				} elsif (ref($f) eq 'GLOB' && $^O eq 'linux') {
+					my $fd = fileno($f);
+					my $f = readlink "/proc/$$/fd/$fd";
+					push @paths, $f if -e $f;
+				}
+			}
+		}
 		if (@paths) {
 			defined($tail_pid = fork) or die "fork: $!\n";
 			if ($tail_pid == 0) {
@@ -346,7 +358,7 @@ sub start_script {
 				exec(split(' ', $tail_cmd), @paths);
 				die "$tail_cmd failed: $!";
 			}
-			wait_for_tail($tail_pid);
+			wait_for_tail($tail_pid, scalar @paths);
 		}
 	}
 	defined(my $pid = fork) or die "fork: $!\n";
@@ -414,7 +426,7 @@ sub DESTROY {
 	my ($self) = @_;
 	return if $self->{owner} != $$;
 	if (my $tail_pid = delete $self->{tail_pid}) {
-		PublicInbox::TestCommon::wait_for_tail($tail_pid, 1);
+		PublicInbox::TestCommon::wait_for_tail($tail_pid, -1);
 		CORE::kill('TERM', $tail_pid);
 	}
 	$self->join('TERM');
