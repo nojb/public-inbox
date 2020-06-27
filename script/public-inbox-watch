@@ -2,13 +2,15 @@
 # Copyright (C) 2016-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
+use IO::Handle;
 use PublicInbox::WatchMaildir;
 use PublicInbox::Config;
 use PublicInbox::DS;
 use PublicInbox::Sigfd;
 use PublicInbox::Syscall qw(SFD_NONBLOCK);
 my $oldset = PublicInbox::Sigfd::block_signals();
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 my ($config, $watch_md);
 my $reload = sub {
 	$config = PublicInbox::Config->new;
