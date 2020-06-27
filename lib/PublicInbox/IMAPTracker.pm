@@ -69,8 +69,7 @@ sub new {
 		File::Path::mkpath(File::Basename::dirname($dbname));
 	}
 
-	my $dbh = dbh_new($dbname);
-	bless { dbname => $dbname, url => $url, dbh => $dbh }, $class;
+	bless { url => $url, dbh => dbh_new($dbname) }, $class;
 }
 
 1;
