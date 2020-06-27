@@ -132,17 +132,9 @@ above, so there is no need to explicitly install them:
                                    (optional for stale FD cleanup in daemons,
                                     typically installed alongside Perl5)
 
-- Filesys::Notify::Simple          deb: libfilesys-notify-simple-perl
-                                   pkg: p5-Filesys-Notify-Simple
-                                   rpm: perl-Filesys-Notify-Simple
-                                   (for public-inbox-watch, pulled in by Plack)
-
 - Linux::Inotify2                  deb: liblinux-inotify2-perl
                                    rpm: perl-Linux-Inotify2
                                    (for public-inbox-watch on Linux)
-
-- Filesys::Notify::KQueue          pkg: p5-Filesys-Notify-KQueue
-                                   (for public-inbox-watch on FreeBSD)
 
 - IO::Compress (::Gzip)            deb: perl-modules (or libio-compress-perl)
                                    pkg: perl5

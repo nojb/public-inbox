@@ -7,7 +7,6 @@ use Cwd;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
-require_mods(qw(Filesys::Notify::Simple));
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/test.git";
 my $maildir = "$tmpdir/md";
@@ -47,14 +46,22 @@ EOF
 		'only got the spam folder to watch');
 }
 
-my $config = PublicInbox::Config->new(\<<EOF);
-$cfgpfx.address=$addr
-$cfgpfx.inboxdir=$git_dir
-$cfgpfx.watch=maildir:$maildir
-$cfgpfx.filter=PublicInbox::Filter::Vger
-publicinboxlearn.watchspam=maildir:$spamdir
+my $cfg_path = "$tmpdir/config";
+{
+	open my $fh, '>', $cfg_path or BAIL_OUT $!;
+	print $fh <<EOF or BAIL_OUT $!;
+[publicinbox "test"]
+	address = $addr
+	inboxdir = $git_dir
+	watch = maildir:$maildir
+	filter = PublicInbox::Filter::Vger
+[publicinboxlearn]
+	watchspam = maildir:$spamdir
 EOF
+	close $fh or BAIL_OUT $!;
+}
 
+my $config = PublicInbox::Config->new($cfg_path);
 PublicInbox::WatchMaildir->new($config)->scan('full');
 my $git = PublicInbox::Git->new($git_dir);
 my @list = $git->qx(qw(rev-list refs/heads/master));
@@ -134,6 +141,70 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 
 	my $mref = $git->cat_file('refs/heads/master:'.$list[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
+}
+
+# end-to-end test which actually uses inotify/kevent
+{
+	my $env = { PI_CONFIG => $cfg_path };
+	$git->cleanup;
+
+	# n.b. --no-scan is only intended for testing atm
+	my $wm = start_script([qw(-watch --no-scan)], $env);
+	my $eml = eml_load('t/data/0001.patch');
+	$eml->header_set('Cc', $addr);
+	my $em = PublicInbox::Emergency->new($maildir);
+	$em->prepare(\($eml->as_string));
+
+	use_ok 'PublicInbox::InboxIdle';
+	use_ok 'PublicInbox::DS';
+	my $delivered = 0;
+	my $cb = sub {
+		my ($ibx) = @_;
+		diag "message delivered to `$ibx->{name}'";
+		$delivered++;
+	};
+	PublicInbox::DS->Reset;
+	my $ii = PublicInbox::InboxIdle->new($config);
+	my $obj = bless \$cb, 'PublicInbox::TestCommon::InboxWakeup';
+	$config->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
+	PublicInbox::DS->SetPostLoopCallback(sub { $delivered == 0 });
+
+	# wait for -watch to setup inotify watches
+	my $sleep = 1;
+	if (eval { require Linux::Inotify2 } && -d "/proc/$wm->{pid}/fd") {
+		my $end = time + 2;
+		my (@ino, @ino_info);
+		do {
+			@ino = grep {
+				(readlink($_)//'') =~ /\binotify\b/
+			} glob("/proc/$wm->{pid}/fd/*");
+		} until (@ino || time > $end || !tick);
+		if (scalar(@ino) == 1) {
+			my $ino_fd = (split('/', $ino[0]))[-1];
+			my $ino_fdinfo = "/proc/$wm->{pid}/fdinfo/$ino_fd";
+			while (time < $end && open(my $fh, '<', $ino_fdinfo)) {
+				@ino_info = grep(/^inotify wd:/, <$fh>);
+				last if @ino_info >= 4;
+				tick;
+			}
+			$sleep = undef if @ino_info >= 4;
+		}
+	}
+	if ($sleep) {
+		diag "waiting ${sleep}s for -watch to start up";
+		sleep $sleep;
+	}
+
+	$em->commit; # wake -watch up
+	diag 'waiting for -watch to import new message';
+	PublicInbox::DS->EventLoop;
+	$wm->kill;
+	$wm->join;
+	$ii->close;
+	PublicInbox::DS->Reset;
+	my $head = $git->qx(qw(cat-file commit HEAD));
+	my $subj = $eml->header('Subject');
+	like($head, qr/^\Q$subj\E/sm, 'new commit made');
 }
 
 sub is_maildir {

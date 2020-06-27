@@ -119,19 +119,6 @@ sub _done_for_now {
 	}
 }
 
-sub _try_fsn_paths {
-	my ($self, $scan_re, $paths) = @_;
-	foreach (@$paths) {
-		my $path = $_->{path};
-		if ($path =~ $scan_re) {
-			scan($self, $path);
-		} else {
-			_try_path($self, $path);
-		}
-	}
-	_done_for_now($self);
-}
-
 sub remove_eml_i { # each_inbox callback
 	my ($ibx, $arg) = @_;
 	my ($self, $eml, $loc) = @$arg;
@@ -225,16 +212,28 @@ sub quit {
 
 sub watch_fs {
 	my ($self) = @_;
+	require PublicInbox::DirIdle;
 	my $scan = File::Temp->newdir("public-inbox-watch.$$.scan.XXXXXX",
 					TMPDIR => 1);
 	my $scandir = $self->{scandir} = $scan->dirname;
-	my $re = qr!\A$scandir/!;
-	my $cb = sub { _try_fsn_paths($self, $re, \@_) };
-
-	eval { require Filesys::Notify::Simple } or
-		die "Filesys::Notify::Simple is currently required for $0\n";
-	my $fsn = Filesys::Notify::Simple->new([@{$self->{mdir}}, $scandir]);
-	$fsn->wait($cb) until $self->{quit};
+	my $scan_re = qr!\A$scandir/!;
+	my $done = sub {
+		delete $self->{done_timer};
+		_done_for_now($self);
+	};
+	my $cb = sub {
+		my $path = $_[0]->fullname;
+		if ($path =~ $scan_re) {
+			scan($self, $path);
+		} else {
+			_try_path($self, $path);
+		}
+		$self->{done_timer} //= PublicInbox::DS::requeue($done);
+	};
+	my $di = PublicInbox::DirIdle->new([@{$self->{mdir}}, $scandir], $cb);
+	PublicInbox::DS->SetPostLoopCallback(sub { !$self->{quit} });
+	PublicInbox::DS->EventLoop;
+	_done_for_now($self);
 }
 
 # returns the git config section name, e.g [imap "imaps://user@example.com"]

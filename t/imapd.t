@@ -462,7 +462,7 @@ ok($mic->logout, 'logged out');
 	PublicInbox::DS->Reset;
 	my $ii = PublicInbox::InboxIdle->new($cfg);
 	my $cb = sub { PublicInbox::DS->SetPostLoopCallback(sub {}) };
-	my $obj = bless \$cb, 'InboxWakeup';
+	my $obj = bless \$cb, 'PublicInbox::TestCommon::InboxWakeup';
 	$cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
 	open my $err, '+>', undef or BAIL_OUT $!;
 	my $w = start_script(['-watch'], undef, { 2 => $err });
@@ -488,7 +488,3 @@ unlike($eout, qr/wide/i, 'no Wide character warnings');
 unlike($eout, qr/uninitialized/i, 'no uninitialized warnings');
 
 done_testing;
-
-package InboxWakeup;
-use strict;
-sub on_inbox_unlock { ${$_[0]}->() }

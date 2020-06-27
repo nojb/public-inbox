@@ -21,6 +21,7 @@ if ($watch_md) {
 		$watch_md->quit if $watch_md;
 		$watch_md = undef;
 	};
-	alarm(1);
+	# --no-scan is only intended for testing atm, undocumented.
+	alarm(1) unless (grep(/\A--no-scan\z/, @ARGV));
 	$watch_md->watch while ($watch_md);
 }

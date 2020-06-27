@@ -32,7 +32,6 @@ my $profiles = {
 		BSD::Resource
 		DBD::SQLite
 		DBI
-		Filesys::Notify::Simple
 		Inline::C
 		Net::Server
 		Plack

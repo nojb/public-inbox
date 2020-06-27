@@ -8,7 +8,7 @@ use PublicInbox::Config;
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
 require_git(2.6);
-require_mods(qw(Search::Xapian DBD::SQLite Filesys::Notify::Simple));
+require_mods(qw(Search::Xapian DBD::SQLite));
 require PublicInbox::V2Writable;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";

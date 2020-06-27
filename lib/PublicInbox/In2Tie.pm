@@ -5,6 +5,19 @@
 # on Linux::Inotify2 objects
 package PublicInbox::In2Tie;
 use strict;
+use Symbol qw(gensym);
+
+sub io {
+	my $in2 = $_[0];
+	$in2->blocking(0);
+	if ($in2->can('on_overflow')) {
+		# broadcasts everything on overflow
+		$in2->on_overflow(undef);
+	}
+	my $io = gensym;
+	tie *$io, __PACKAGE__, $in2;
+	$io;
+}
 
 sub TIEHANDLE {
 	my ($class, $in2) = @_;

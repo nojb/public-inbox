@@ -6,7 +6,6 @@ use strict;
 use base qw(PublicInbox::DS);
 use fields qw(pi_config inot pathmap);
 use Cwd qw(abs_path);
-use Symbol qw(gensym);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 my $IN_MODIFY = 0x02; # match Linux inotify
 my $ino_cls;
@@ -55,14 +54,8 @@ sub new {
 	my $inot;
 	if ($ino_cls) {
 		$inot = $ino_cls->new or die "E: $ino_cls->new: $!";
-		my $sock = gensym;
-		tie *$sock, 'PublicInbox::In2Tie', $inot;
-		$inot->blocking(0);
-		if ($inot->can('on_overflow')) {
-			 # broadcasts everything on overflow
-			$inot->on_overflow(undef);
-		}
-		$self->SUPER::new($sock, EPOLLIN | EPOLLET);
+		my $io = PublicInbox::In2Tie::io($inot);
+		$self->SUPER::new($io, EPOLLIN | EPOLLET);
 	} else {
 		require PublicInbox::FakeInotify;
 		$inot = PublicInbox::FakeInotify->new;

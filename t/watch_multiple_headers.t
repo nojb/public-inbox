@@ -5,7 +5,7 @@ use Test::More;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 require_git(2.6);
-require_mods(qw(Search::Xapian DBD::SQLite Filesys::Notify::Simple));
+require_mods(qw(Search::Xapian DBD::SQLite));
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";
 my $maildir = "$tmpdir/md";

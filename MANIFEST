@@ -106,6 +106,7 @@ lib/PublicInbox/DS.pm
 lib/PublicInbox/DSKQXS.pm
 lib/PublicInbox/DSPoll.pm
 lib/PublicInbox/Daemon.pm
+lib/PublicInbox/DirIdle.pm
 lib/PublicInbox/DummyInbox.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/Eml.pm
@@ -243,6 +244,7 @@ t/content_hash.t
 t/convert-compact.t
 t/data/0001.patch
 t/data/message_embed.eml
+t/dir_idle.t
 t/ds-kqxs.t
 t/ds-leak.t
 t/ds-poll.t

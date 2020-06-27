@@ -48,8 +48,7 @@ of large Maildirs.
 Upon startup, it scans the mailbox for new messages to be
 imported while it was not running.
 
-Currently, only Maildirs are supported and the
-L<Filesys::Notify::Simple> Perl module is required.
+Currently, only Maildirs are supported.
 
 For now, IMAP users should use tools such as L<mbsync(1)>
 or L<offlineimap(1)> to bidirectionally sync their IMAP

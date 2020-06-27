@@ -10,7 +10,7 @@ use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
 our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
-	run_script start_script key2sub xsys xqx eml_load);
+	run_script start_script key2sub xsys xqx eml_load tick);
 
 sub eml_load ($) {
 	my ($path, $cb) = @_;
@@ -417,5 +417,9 @@ sub DESTROY {
 	}
 	$self->join('TERM');
 }
+
+package PublicInbox::TestCommon::InboxWakeup;
+use strict;
+sub on_inbox_unlock { ${$_[0]}->($_[1]) }
 
 1;
