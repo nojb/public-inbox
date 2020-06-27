@@ -509,8 +509,7 @@ sub watch_imap_idle_1 ($$$) {
 	my $mic;
 	local $0 = $uri->mailbox." $sec";
 	until ($self->{quit}) {
-		$mic //= delete($self->{mics}->{$sec}) //
-				PublicInbox::IMAPClient->new(%$mic_arg);
+		$mic //= PublicInbox::IMAPClient->new(%$mic_arg);
 		my $err = imap_fetch_all($self, $mic, $url);
 		$err //= imap_idle_once($self, $mic, $intvl, $url);
 		if ($err && !$self->{quit}) {
@@ -534,7 +533,6 @@ sub watch_atfork_child ($) {
 sub watch_atfork_parent ($) {
 	my ($self) = @_;
 	_done_for_now($self);
-	$self->{mics} = {}; # going to be forking, so disconnect
 }
 
 sub imap_idle_reap { # PublicInbox::DS::dwaitpid callback
@@ -652,8 +650,8 @@ sub poll_fetch_reap { # PublicInbox::DS::dwaitpid callback
 					[$self, $intvl, $urls]);
 }
 
-sub watch_imap_init ($) {
-	my ($self) = @_;
+sub watch_imap_init ($$) {
+	my ($self, $poll) = @_;
 	eval { require PublicInbox::IMAPClient } or
 		die "Mail::IMAPClient is required for IMAP:\n$@\n";
 	eval { require PublicInbox::IMAPTracker } or
@@ -663,14 +661,13 @@ sub watch_imap_init ($) {
 
 	# make sure we can connect and cache the credentials in memory
 	$self->{mic_arg} = {}; # schema://authority => IMAPClient->new args
-	my $mics = $self->{mics} = {}; # schema://authority => IMAPClient obj
+	my $mics = {}; # schema://authority => IMAPClient obj
 	for my $url (sort keys %{$self->{imap}}) {
 		my $uri = PublicInbox::URIimap->new($url);
 		$mics->{uri_section($uri)} //= mic_for($self, $url, $mic_args);
 	}
 
 	my $idle = []; # [ [ url1, intvl1 ], [url2, intvl2] ]
-	my $poll = {}; # intvl_seconds => [ url1, url2 ]
 	for my $url (keys %{$self->{imap}}) {
 		my $uri = PublicInbox::URIimap->new($url);
 		my $sec = uri_section($uri);
@@ -684,17 +681,8 @@ sub watch_imap_init ($) {
 		}
 	}
 	if (scalar @$idle) {
-		$self->{idle_pids} = {};
 		$self->{idle_todo} = $idle;
 		PublicInbox::DS::requeue($self); # ->event_step to fork
-	}
-	return unless scalar keys %$poll;
-	$self->{poll_pids} //= {};
-
-	# poll all URLs for a given interval sequentially
-	while (my ($intvl, $urls) = each %$poll) {
-		PublicInbox::DS::add_timer(0, \&poll_fetch_fork,
-						[$self, $intvl, $urls]);
 	}
 }
 
@@ -897,8 +885,8 @@ sub nntp_fetch_all ($$$) {
 	$err;
 }
 
-sub watch_nntp_init ($) {
-	my ($self) = @_;
+sub watch_nntp_init ($$) {
+	my ($self, $poll) = @_;
 	eval { require Net::NNTP } or
 		die "Net::NNTP is required for NNTP:\n$@\n";
 	eval { require PublicInbox::IMAPTracker } or
@@ -911,19 +899,11 @@ sub watch_nntp_init ($) {
 	for my $url (sort keys %{$self->{nntp}}) {
 		nn_for($self, $url, $nn_args);
 	}
-	my $poll = {}; # intvl_seconds => [ url1, url2 ]
 	for my $url (keys %{$self->{nntp}}) {
 		my $uri = uri_new($url);
 		my $sec = uri_section($uri);
 		my $intvl = $self->{nntp_opt}->{$sec}->{pollInterval};
 		push @{$poll->{$intvl || 120}}, $url;
-	}
-	$self->{poll_pids} //= {};
-
-	# poll all URLs for a given interval sequentially
-	while (my ($intvl, $urls) = each %$poll) {
-		PublicInbox::DS::add_timer(0, \&poll_fetch_fork,
-						[$self, $intvl, $urls]);
 	}
 }
 
@@ -931,8 +911,14 @@ sub watch {
 	my ($self, $sig, $oldset) = @_;
 	$self->{oldset} = $oldset;
 	$self->{sig} = $sig;
-	watch_imap_init($self) if $self->{imap};
-	watch_nntp_init($self) if $self->{nntp};
+	my $poll = {}; # intvl_seconds => [ url1, url2 ]
+	watch_imap_init($self, $poll) if $self->{imap};
+	watch_nntp_init($self, $poll) if $self->{nntp};
+	while (my ($intvl, $urls) = each %$poll) {
+		# poll all URLs for a given interval sequentially
+		PublicInbox::DS::add_timer(0, \&poll_fetch_fork,
+						[$self, $intvl, $urls]);
+	}
 	watch_fs_init($self) if $self->{mdre};
 	PublicInbox::DS->SetPostLoopCallback(sub {});
 	PublicInbox::DS->EventLoop until $self->{quit};
