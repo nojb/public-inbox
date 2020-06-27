@@ -95,18 +95,18 @@ sub SetLoopTimeout {
     return $LoopTimeout = $_[1] + 0;
 }
 
-=head2 C<< PublicInbox::DS::add_timer( $seconds, $coderef ) >>
+=head2 C<< PublicInbox::DS::add_timer( $seconds, $coderef, $arg) >>
 
 Add a timer to occur $seconds from now. $seconds may be fractional, but timers
 are not guaranteed to fire at the exact time you ask for.
 
 =cut
-sub add_timer ($$) {
-    my ($secs, $coderef) = @_;
+sub add_timer ($$;$) {
+    my ($secs, $coderef, $arg) = @_;
 
     my $fire_time = now() + $secs;
 
-    my $timer = [$fire_time, $coderef];
+    my $timer = [$fire_time, $coderef, $arg];
 
     if (!@Timers || $fire_time >= $Timers[-1][0]) {
         push @Timers, $timer;
@@ -198,7 +198,7 @@ sub RunTimers {
     # Run expired timers
     while (@Timers && $Timers[0][0] <= $now) {
         my $to_run = shift(@Timers);
-        $to_run->[1]->($now) if $to_run->[1];
+        $to_run->[1]->($to_run->[2]);
     }
 
     # timers may enqueue into nextq:

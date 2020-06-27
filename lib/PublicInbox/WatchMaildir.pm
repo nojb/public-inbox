@@ -549,8 +549,8 @@ sub watch_imap_fetch_all ($$) {
 	}
 }
 
-sub imap_fetch_fork ($$$) {
-	my ($self, $intvl, $uris) = @_;
+sub imap_fetch_fork ($) { # DS::add_timer callback
+	my ($self, $intvl, $uris) = @{$_[0]};
 	return if $self->{quit};
 	watch_atfork_parent($self);
 	defined(my $pid = fork) or die "fork: $!";
@@ -561,11 +561,6 @@ sub imap_fetch_fork ($$$) {
 	}
 	$self->{poll_pids}->{$pid} = [ $intvl, $uris ];
 	PublicInbox::DS::dwaitpid($pid, \&imap_fetch_reap, $self);
-}
-
-sub imap_fetch_cb ($$$) {
-	my ($self, $intvl, $uris) = @_;
-	sub { imap_fetch_fork($self, $intvl, $uris) };
 }
 
 sub imap_fetch_reap { # PublicInbox::DS::dwaitpid callback
@@ -579,7 +574,8 @@ sub imap_fetch_reap { # PublicInbox::DS::dwaitpid callback
 			map { $_->as_string."\n" } @$uris;
 	}
 	warn('I: will check ', $_->as_string, " in ${intvl}s\n") for @$uris;
-	PublicInbox::DS::add_timer($intvl, imap_fetch_cb($self, $intvl, $uris));
+	PublicInbox::DS::add_timer($intvl, \&imap_fetch_fork,
+					[$self, $intvl, $uris]);
 }
 
 sub watch_imap_init ($) {
@@ -625,7 +621,8 @@ sub watch_imap_init ($) {
 
 	# poll all URIs for a given interval sequentially
 	while (my ($intvl, $uris) = each %$poll) {
-		PublicInbox::DS::requeue(imap_fetch_cb($self, $intvl, $uris));
+		PublicInbox::DS::add_timer(0, \&imap_fetch_fork,
+						[$self, $intvl, $uris]);
 	}
 }
 

@@ -16,16 +16,14 @@ my $poll_intvl = 2; # same as Filesys::Notify::Simple
 
 sub poll_once {
 	my ($self) = @_;
-	sub {
-		eval { $self->poll };
-		warn "E: FakeInotify->poll: $@\n" if $@;
-		PublicInbox::DS::add_timer($poll_intvl, poll_once($self));
-	};
+	eval { $self->poll };
+	warn "E: FakeInotify->poll: $@\n" if $@;
+	PublicInbox::DS::add_timer($poll_intvl, \&poll_once, $self);
 }
 
 sub new {
 	my $self = bless { watch => {} }, __PACKAGE__;
-	PublicInbox::DS::add_timer($poll_intvl, poll_once($self));
+	PublicInbox::DS::add_timer($poll_intvl, \&poll_once, $self);
 	$self;
 }
 
