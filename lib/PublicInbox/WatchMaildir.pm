@@ -335,6 +335,27 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 	$mic;
 }
 
+sub imap_import_msg ($$$$$$) {
+	my ($self, $itrk, $url, $r_uidval, $uid, $raw) = @_;
+	# our target audience expects LF-only, save storage
+	$$raw =~ s/\r\n/\n/sg;
+
+	my $inboxes = $self->{imap}->{$url};
+	if (ref($inboxes)) {
+		for my $ibx (@$inboxes) {
+			my $eml = PublicInbox::Eml->new($$raw);
+			my $x = import_eml($self, $ibx, $eml);
+		}
+	} elsif ($inboxes eq 'watchspam') {
+		my $eml = PublicInbox::Eml->new($raw);
+		my $arg = [ $self, $eml, "$url UID:$uid" ];
+		$self->{config}->each_inbox(\&remove_eml_i, $arg);
+	} else {
+		die "BUG: destination unknown $inboxes";
+	}
+	$itrk->update_last($url, $r_uidval, $uid);
+}
+
 sub imap_fetch_all ($$$) {
 	my ($self, $mic, $uri) = @_;
 	my $sec = imap_section($uri);
@@ -367,52 +388,51 @@ sub imap_fetch_all ($$$) {
 	}
 	return if $l_uid >= $r_uid; # nothing to do
 
+	warn "I: $url fetching UID $l_uid:$r_uid\n";
 	$mic->Uid(1); # the default, we hope
+	my $uids;
 	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
 	my $key = $req;
 	$key =~ s/\.PEEK//;
-	my $inboxes = $self->{imap}->{$url};
-	warn "I: $url fetching $l_uid..$r_uid\n";
-	my $uid = -1;
+	my $uid;
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	local $SIG{__WARN__} = sub {
+		$uid //= -1;
 		$warn_cb->("$url UID:$uid\n");
 		$warn_cb->(@_);
 	};
 	my $err;
-	$itrk->{dbh}->begin_work;
-	for my $u ($l_uid..$r_uid) {
-		$uid = $u;
-		local $0 = "UID:$uid $mbx $sec";
-		my $r = $mic->fetch_hash($uid, $req);
-		unless ($r) { # network error?
-			$err = "E: $url UID FETCH $uid error: $!\n";
-			last;
-		}
+	do {
+		$uids = $mic->search("UID $l_uid:*") or
+			return "E: $url UID SEARCH $l_uid:* error: $!";
+		return if scalar(@$uids) == 0;
 
-		# messages get deleted, so holes appear
-		defined(my $raw = delete $r->{$uid}->{$key}) or next;
+		# RFC 3501 doesn't seem to indicate order of UID SEARCH
+		# responses, so sort it ourselves
+		@$uids = sort { $a <=> $b } @$uids;
 
-		# our target audience expects LF-only, save storage
-		$raw =~ s/\r\n/\n/sg;
+		# Did we actually get new messages?
+		return if $uids->[0] < $l_uid;
 
-		if (ref($inboxes)) {
-			for my $ibx (@$inboxes) {
-				my $eml = PublicInbox::Eml->new($raw);
-				my $x = import_eml($self, $ibx, $eml);
+		$l_uid = $uids->[-1] + 1; # for next search
+
+		$itrk->{dbh}->begin_work;
+		while (defined(($uid = shift(@$uids)))) {
+			local $0 = "UID:$uid $mbx $sec";
+			my $r = $mic->fetch_hash($uid, $req);
+			unless ($r) { # network error?
+				$err = "E: $url UID FETCH $uid error: $!";
+				last;
 			}
-		} elsif ($inboxes eq 'watchspam') {
-			my $eml = PublicInbox::Eml->new($raw);
-			my $arg = [ $self, $eml, "$uri UID:$uid" ];
-			$self->{config}->each_inbox(\&remove_eml_i, $arg);
-		} else {
-			die "BUG: destination unknown $inboxes";
+			# messages get deleted, so holes appear
+			defined(my $raw = delete $r->{$uid}->{$key}) or next;
+			imap_import_msg($self, $itrk, $url, $r_uidval, $uid,
+					\$raw);
+			last if $self->{quit};
 		}
-		$itrk->update_last($url, $r_uidval, $uid);
-		last if $self->{quit};
-	}
-	_done_for_now($self);
-	$itrk->{dbh}->commit;
+		_done_for_now($self);
+		$itrk->{dbh}->commit;
+	} until ($err || $self->{quit});
 	$err;
 }
 
