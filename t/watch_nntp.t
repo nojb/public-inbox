@@ -9,7 +9,9 @@ use_ok 'PublicInbox::WatchMaildir';
 my $nntp_url = \&PublicInbox::WatchMaildir::nntp_url;
 is('news://example.com/inbox.foo',
 	$nntp_url->('NEWS://examplE.com/inbox.foo'), 'lowercased');
-is('snews://example.com/inbox.foo',
-	$nntp_url->('nntps://example.com/inbox.foo'), 'nntps:// is snews://');
+is('nntps://example.com/inbox.foo',
+	$nntp_url->('nntps://example.com/inbox.foo'), 'nntps:// accepted');
+is('nntps://example.com/inbox.foo',
+	$nntp_url->('SNEWS://example.com/inbox.foo'), 'snews => nntps');
 
 done_testing;
