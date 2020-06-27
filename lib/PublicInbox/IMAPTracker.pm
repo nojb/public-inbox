@@ -33,29 +33,29 @@ sub dbh_new ($) {
 	$dbh;
 }
 
-sub get_last ($$) {
-	my ($self, $url) = @_;
+sub get_last ($) {
+	my ($self) = @_;
 	my $sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
 SELECT uid_validity, uid FROM imap_last WHERE url = ?
 
-	$sth->execute($url);
+	$sth->execute($self->{url});
 	$sth->fetchrow_array;
 }
 
-sub update_last ($$$$) {
-	my ($self, $url, $validity, $last) = @_;
+sub update_last ($$$) {
+	my ($self, $validity, $last) = @_;
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 INSERT OR REPLACE INTO imap_last (url, uid_validity, uid)
 VALUES (?, ?, ?)
 
-	$sth->execute($url, $validity, $last);
+	$sth->execute($self->{url}, $validity, $last);
 }
 
 sub new {
-	my ($class, $dbname) = @_;
+	my ($class, $url) = @_;
 
 	# original name for compatibility with old setups:
-	$dbname //= PublicInbox::Config->config_dir() . "/imap.sqlite3";
+	my $dbname = PublicInbox::Config->config_dir() . "/imap.sqlite3";
 
 	# use the new XDG-compliant name for new setups:
 	if (!-f $dbname) {
@@ -65,12 +65,12 @@ sub new {
 	}
 	if (!-f $dbname) {
 		require File::Path;
-		require File::Basename;;
+		require File::Basename;
 		File::Path::mkpath(File::Basename::dirname($dbname));
 	}
 
 	my $dbh = dbh_new($dbname);
-	bless { dbname => $dbname, dbh => $dbh }, $class;
+	bless { dbname => $dbname, url => $url, dbh => $dbh }, $class;
 }
 
 1;

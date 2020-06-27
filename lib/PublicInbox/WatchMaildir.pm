@@ -335,12 +335,12 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 	$mic;
 }
 
-sub imap_import_msg ($$$$$$) {
-	my ($self, $itrk, $url, $r_uidval, $uid, $raw) = @_;
+sub imap_import_msg ($$$$$) {
+	my ($self, $itrk, $r_uidval, $uid, $raw) = @_;
 	# our target audience expects LF-only, save storage
 	$$raw =~ s/\r\n/\n/sg;
 
-	my $inboxes = $self->{imap}->{$url};
+	my $inboxes = $self->{imap}->{$itrk->{url}};
 	if (ref($inboxes)) {
 		for my $ibx (@$inboxes) {
 			my $eml = PublicInbox::Eml->new($$raw);
@@ -348,12 +348,12 @@ sub imap_import_msg ($$$$$$) {
 		}
 	} elsif ($inboxes eq 'watchspam') {
 		my $eml = PublicInbox::Eml->new($raw);
-		my $arg = [ $self, $eml, "$url UID:$uid" ];
+		my $arg = [ $self, $eml, "$itrk->{url} UID:$uid" ];
 		$self->{config}->each_inbox(\&remove_eml_i, $arg);
 	} else {
 		die "BUG: destination unknown $inboxes";
 	}
-	$itrk->update_last($url, $r_uidval, $uid);
+	$itrk->update_last($r_uidval, $uid);
 }
 
 sub imap_fetch_all ($$$) {
@@ -373,8 +373,8 @@ sub imap_fetch_all ($$$) {
 		return "E: $url cannot get UIDVALIDITY";
 	$r_uidnext //= $mic->uidnext($mbx) //
 		return "E: $url cannot get UIDNEXT";
-	my $itrk = PublicInbox::IMAPTracker->new;
-	my ($l_uidval, $l_uid) = $itrk->get_last($url);
+	my $itrk = PublicInbox::IMAPTracker->new($url);
+	my ($l_uidval, $l_uid) = $itrk->get_last;
 	$l_uidval //= $r_uidval; # first time
 	$l_uid //= 1;
 	if ($l_uidval != $r_uidval) {
@@ -426,8 +426,7 @@ sub imap_fetch_all ($$$) {
 			}
 			# messages get deleted, so holes appear
 			defined(my $raw = delete $r->{$uid}->{$key}) or next;
-			imap_import_msg($self, $itrk, $url, $r_uidval, $uid,
-					\$raw);
+			imap_import_msg($self, $itrk, $r_uidval, $uid, \$raw);
 			last if $self->{quit};
 		}
 		_done_for_now($self);
