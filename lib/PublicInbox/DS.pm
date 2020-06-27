@@ -68,7 +68,7 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
-    $wait_pids = $later_queue = undef;
+    $in_loop = $wait_pids = $later_queue = undef;
     $EXPMAP = {};
     $nextq = $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
     $LoopTimeout = -1;  # no timeout by default

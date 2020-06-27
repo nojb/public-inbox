@@ -350,6 +350,7 @@ sub start_script {
 	}
 	defined(my $pid = fork) or die "fork: $!\n";
 	if ($pid == 0) {
+		eval { PublicInbox::DS->Reset };
 		# pretend to be systemd (cf. sd_listen_fds(3))
 		# 3 == SD_LISTEN_FDS_START
 		my $fd;

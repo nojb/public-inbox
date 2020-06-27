@@ -22,7 +22,11 @@ if ($watch_md) {
 		$watch_md->quit if $watch_md;
 		$watch_md = undef;
 	};
-	my $sig = { HUP => $reload, USR1 => $scan };
+	my $sig = {
+		HUP => $reload,
+		USR1 => $scan,
+		CHLD => \&PublicInbox::DS::enqueue_reap,
+	};
 	$sig->{QUIT} = $sig->{TERM} = $sig->{INT} = $quit;
 
 	# --no-scan is only intended for testing atm, undocumented.
