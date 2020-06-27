@@ -421,6 +421,7 @@ sub on_unlock {
 	my $subs = $self->{unlock_subs} or return;
 	for (values %$subs) {
 		eval { $_->on_inbox_unlock($self) };
+		warn "E: $@ ($self->{inboxdir})\n" if $@;
 	}
 }
 
