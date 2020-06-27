@@ -53,6 +53,9 @@ sub init_inbox {
 				$mm->{dbh}->commit;
 			}) if defined($skip_artnum);
 			$sidx->commit_txn_lazy;
+		} else {
+			open my $fh, '>>', "$dir/ssoma.lock" or
+				die "$dir/ssoma.lock: $!\n";
 		}
 	} else {
 		my $v2w = importer($self);
