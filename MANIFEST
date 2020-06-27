@@ -253,6 +253,7 @@ t/eml_content_disposition.t
 t/eml_content_type.t
 t/epoll.t
 t/fail-bin/spamc
+t/fake_inotify.t
 t/feed.t
 t/filter_base-junk.eml
 t/filter_base-xhtml.eml
@@ -286,6 +287,7 @@ t/indexlevels-mirror-v1.t
 t/indexlevels-mirror.t
 t/init.t
 t/iso-2202-jp.eml
+t/kqnotify.t
 t/linkify.t
 t/main-bin/spamc
 t/mda-mime.eml

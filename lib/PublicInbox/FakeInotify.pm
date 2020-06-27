@@ -6,10 +6,13 @@
 package PublicInbox::FakeInotify;
 use strict;
 use Time::HiRes qw(stat);
+use PublicInbox::DS;
 my $IN_CLOSE = 0x08 | 0x10; # match Linux inotify
+# my $IN_MOVED_TO = 0x80;
+# my $IN_CREATE = 0x100;
+sub MOVED_TO_OR_CREATE () { 0x80 | 0x100 }
 
 my $poll_intvl = 2; # same as Filesys::Notify::Simple
-my $for_cancel = bless \(my $x), 'PublicInbox::FakeInotify::Watch';
 
 sub poll_once {
 	my ($self) = @_;
@@ -30,8 +33,22 @@ sub new {
 sub watch {
 	my ($self, $path, $mask, $cb) = @_;
 	my @st = stat($path) or return;
-	$self->{watch}->{"$path\0$mask"} = [ @st, $cb ];
-	$for_cancel;
+	my $k = "$path\0$mask";
+	$self->{watch}->{$k} = [ $st[10], $cb ]; # 10 - ctime
+	bless [ $self->{watch}, $k ], 'PublicInbox::FakeInotify::Watch';
+}
+
+sub on_new_files ($$$$) {
+	my ($dh, $cb, $path, $old_ctime) = @_;
+	while (defined(my $base = readdir($dh))) {
+		next if $base =~ /\A\.\.?\z/;
+		my $full = "$path/$base";
+		my @st = stat($full);
+		if (@st && $st[10] > $old_ctime) {
+			bless \$full, 'PublicInbox::FakeInotify::Event';
+			eval { $cb->(\$full) };
+		}
+	}
 }
 
 # behaves like non-blocking Linux::Inotify2->poll
@@ -43,17 +60,32 @@ sub poll {
 		my @now = stat($path) or next;
 		my $prv = $watch->{$x};
 		my $cb = $prv->[-1];
-		# 10: ctime, 7: size
-		if ($prv->[10] != $now[10]) {
+		my $old_ctime = $prv->[0];
+		if ($old_ctime != $now[10]) {
 			if (($mask & $IN_CLOSE) == $IN_CLOSE) {
 				eval { $cb->() };
+			} elsif ($mask & MOVED_TO_OR_CREATE) {
+				opendir(my $dh, $path) or do {
+					warn "W: opendir $path: $!\n";
+					next;
+				};
+				on_new_files($dh, $cb, $path, $old_ctime);
 			}
 		}
-		@$prv = (@now, $cb);
+		@$prv = ($now[10], $cb);
 	}
 }
 
 package PublicInbox::FakeInotify::Watch;
-sub cancel {} # noop
+use strict;
 
+sub cancel {
+	my ($self) = @_;
+	delete $self->[0]->{$self->[1]};
+}
+
+package PublicInbox::FakeInotify::Event;
+use strict;
+
+sub fullname { ${$_[0]} }
 1;
