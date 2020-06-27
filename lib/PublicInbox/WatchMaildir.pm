@@ -235,11 +235,9 @@ sub imap_section ($) {
 	$uri->scheme . '://' . $uri->authority;
 }
 
-sub cfg_intvl ($$$$$) {
-	my ($cfg, $cfg_section, $cfg_key, $imap_section, $url) = @_;
-	my $key = "$cfg_section.$imap_section.$cfg_key";
-	my $v = $cfg->{lc($key)} //
-		$cfg->urlmatch("$cfg_section.$cfg_key", $url) // return;
+sub cfg_intvl ($$$) {
+	my ($cfg, $key, $url) = @_;
+	my $v = $cfg->urlmatch($key, $url) // return;
 	$v =~ /\A[0-9]+(?:\.[0-9]+)?\z/s and return $v + 0;
 	if (ref($v) eq 'ARRAY') {
 		$v = join(', ', @$v);
@@ -257,31 +255,29 @@ sub imap_common_init ($) {
 	for my $url (sort keys %{$self->{imap}}) {
 		my $uri = PublicInbox::URIimap->new($url);
 		my $sec = imap_section($uri);
-		for my $k (qw(Starttls Debug Compress)) {
-			my $key = lc("imap.$sec.$k");
-			my $orig = $cfg->{$key} //
-				$cfg->urlmatch("imap.$k", $url) // next;
+		for my $f (qw(Starttls Debug Compress)) {
+			my $k = "imap.$f";
+			my $orig = $cfg->urlmatch($k, $url) // next;
 			my $v = PublicInbox::Config::_git_config_bool($orig);
 			if (defined($v)) {
-				$mic_args->{$sec}->{$k} = $v;
+				$mic_args->{$sec}->{$f} = $v;
 			} else {
-				warn "W: $key=$orig is not boolean\n";
+				warn "W: $k=$orig for $url is not boolean\n";
 			}
 		}
-		my $to = cfg_intvl($cfg, 'imap', 'Timeout', $sec, $url);
+		my $to = cfg_intvl($cfg, 'imap.timeout', $url);
 		$mic_args->{$sec}->{Timeout} = $to if $to;
-		$to = cfg_intvl($cfg, 'imap', 'PollInterval', $sec, $url);
+		$to = cfg_intvl($cfg, 'imap.pollInterval', $url);
 		$self->{imap_opt}->{$sec}->{poll_intvl} = $to if $to;
-		$to = cfg_intvl($cfg, 'imap', 'IdleInterval', $sec, $url);
+		$to = cfg_intvl($cfg, 'imap.IdleInterval', $url);
 		$self->{imap_opt}->{$sec}->{idle_intvl} = $to if $to;
 
-		my $key = lc("imap.$sec.fetchBatchSize");
-		my $bs = $cfg->{lc($key)} //
-			$cfg->urlmatch('imap.fetchBatchSize', $url) // next;
+		my $k = 'imap.fetchBatchSize';
+		my $bs = $cfg->urlmatch($k, $url) // next;
 		if ($bs =~ /\A([0-9]+)\z/) {
 			$self->{imap_opt}->{$sec}->{batch_size} = $bs;
 		} else {
-			warn "W: $key=$bs is not an integer\n";
+			warn "$k=$bs is not an integer\n";
 		}
 	}
 	$mic_args;
