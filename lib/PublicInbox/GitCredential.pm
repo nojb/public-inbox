@@ -25,6 +25,21 @@ sub run ($$) {
 	close $out_r or die "`git credential $op' failed: \$!=$! \$?=$?\n";
 }
 
+sub check_netrc ($) {
+	my ($self) = @_;
+
+	# part of the standard library, but distributions may split it out
+	eval { require Net::Netrc };
+	if ($@) {
+		warn "W: Net::Netrc missing: $@\n";
+		return;
+	}
+	if (my $x = Net::Netrc->lookup($self->{host}, $self->{username})) {
+		$self->{username} //= $x->login;
+		$self->{password} = $x->password;
+	}
+}
+
 sub fill {
 	my ($self) = @_;
 	my $out_r = run($self, 'fill');

@@ -317,11 +317,12 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 		password => $uri->password,
 	}, 'PublicInbox::GitCredential';
 	my $common = $mic_args->{uri_section($uri)} // {};
+	# IMAPClient and Net::Netrc both mishandles `0', so we pass `127.0.0.1'
 	my $host = $cred->{host};
+	$host = '127.0.0.1' if $host eq '0';
 	my $mic_arg = {
 		Port => $uri->port,
-		# IMAPClient mishandles `0', so we pass `127.0.0.1'
-		Server => $host eq '0' ? '127.0.0.1' : $host,
+		Server => $host,
 		Ssl => $uri->scheme eq 'imaps',
 		Keepalive => 1, # SO_KEEPALIVE
 		%$common, # may set Starttls, Compress, Debug ....
@@ -343,6 +344,7 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 		$cred = undef;
 	}
 	if ($cred) {
+		$cred->check_netrc unless defined $cred->{password};
 		$cred->fill; # may prompt user here
 		$mic->User($mic_arg->{User} = $cred->{username});
 		$mic->Password($mic_arg->{Password} = $cred->{password});
@@ -768,6 +770,9 @@ sub nn_for ($$$) { # nn = Net::NNTP
 	my $uri = uri_new($url);
 	my $sec = uri_section($uri);
 	my $nntp_opt = $self->{nntp_opt}->{$sec} //= {};
+	my $host = $uri->host;
+	# Net::NNTP and Net::Netrc both mishandle `0', so we pass `127.0.0.1'
+	$host = '127.0.0.1' if $host eq '0';
 	my $cred;
 	my ($u, $p);
 	if (defined(my $ui = $uri->userinfo)) {
@@ -775,16 +780,16 @@ sub nn_for ($$$) { # nn = Net::NNTP
 		$cred = bless {
 			url => $sec,
 			protocol => uri_scheme($uri),
-			host => $uri->host,
+			host => $host,
 		}, 'PublicInbox::GitCredential';
 		($u, $p) = split(/:/, $ui, 2);
 		($cred->{username}, $cred->{password}) = ($u, $p);
+		$cred->check_netrc unless defined $p;
 	}
 	my $common = $nn_args->{$sec} // {};
 	my $nn_arg = {
 		Port => $uri->port,
-		# Net::NNTP mishandles `0', so we pass `127.0.0.1'
-		Host => $uri->host eq '0' ? '127.0.0.1' : $uri->host,
+		Host => $host,
 		SSL => $uri->secure, # snews == nntps
 		%$common, # may Debug ....
 	};
