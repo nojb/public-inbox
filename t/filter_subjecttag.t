@@ -24,4 +24,14 @@ $mime->header_str_set('Subject', '[FOO] bar');
 $mime = $f->delivery($mime);
 is($mime->header('Subject'), 'bar', 'filtered non-reply');
 
+$f = PublicInbox::Filter::SubjectTag->new(-tag => '[sox-devel]');
+my $eml = PublicInbox::Eml->new(<<EOF);
+Subject: Re: [SoX-devel] =?utf-8?b?xaE?=
+
+EOF
+$eml = $f->delivery($eml);
+my $s = $eml->header('Subject');
+utf8::encode($s); # to octets
+is($s, "Re: \xc5\xa1", 'subject filtered correctly');
+
 done_testing();

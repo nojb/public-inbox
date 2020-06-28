@@ -368,9 +368,12 @@ sub header_str_set {
 	my ($self, $name, @vals) = @_;
 	for (@vals) {
 		next unless /[^\x20-\x7e]/;
-		utf8::encode($_); # to octets
 		# 39: int((75 - length("Subject: =?UTF-8?B?".'?=') ) / 4) * 3;
-		s/(.{1,39})/'=?UTF-8?B?'.encode_base64($1, '').'?='/ges;
+		s/(.{1,39})/
+			my $x = $1;
+			utf8::encode($x); # to octets
+			'=?UTF-8?B?'.encode_base64($x, '').'?='
+		/xges;
 	}
 	header_set($self, $name, @vals);
 }
