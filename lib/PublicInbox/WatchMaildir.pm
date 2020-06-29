@@ -188,15 +188,14 @@ sub _try_path {
 		warn "unmappable dir: $1\n";
 		return;
 	}
-	if (!ref($inboxes) && $inboxes eq 'watchspam') {
-		return _remove_spam($self, $path);
-	}
-
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	local $SIG{__WARN__} = sub {
 		$warn_cb->("path: $path\n");
 		$warn_cb->(@_);
 	};
+	if (!ref($inboxes) && $inboxes eq 'watchspam') {
+		return _remove_spam($self, $path);
+	}
 	foreach my $ibx (@$inboxes) {
 		my $eml = mime_from_path($path) or next;
 		import_eml($self, $ibx, $eml);
