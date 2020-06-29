@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which spawn popen_rd);
+use PublicInbox::Sigfd;
 
 {
 	my $true = which('true');
@@ -15,6 +16,32 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 	ok($pid, 'spawned process');
 	is(waitpid($pid, 0), $pid, 'waitpid succeeds on spawned process');
 	is($?, 0, 'true exited successfully');
+}
+
+{ # ensure waitpid(-1, 0) and SIGCHLD works in spawned process
+	my $script = <<'EOF';
+$| = 1; # unbuffer stdout
+defined(my $pid = fork) or die "fork: $!";
+if ($pid == 0) { exit }
+elsif ($pid > 0) {
+	my $waited = waitpid(-1, 0);
+	$waited == $pid or die "mismatched child $pid != $waited";
+	$? == 0 or die "child err: $>";
+	$SIG{CHLD} = sub { print "HI\n"; exit };
+	print "RDY $$\n";
+	sleep while 1;
+}
+EOF
+	my $oldset = PublicInbox::Sigfd::block_signals();
+	my $rd = popen_rd([$^X, '-e', $script]);
+	diag 'waiting for child to reap grandchild...';
+	chomp(my $line = readline($rd));
+	my ($rdy, $pid) = split(' ', $line);
+	is($rdy, 'RDY', 'got ready signal, waitpid(-1) works in child');
+	ok(kill('CHLD', $pid), 'sent SIGCHLD to child');
+	is(readline($rd), "HI\n", '$SIG{CHLD} works in child');
+	ok(close $rd, 'popen_rd close works');
+	PublicInbox::Sigfd::sig_setmask($oldset);
 }
 
 {

@@ -36,6 +36,11 @@ sub pi_fork_exec ($$$$$$) {
 		if ($cd ne '') {
 			chdir $cd or die "chdir $cd: $!";
 		}
+		$SIG{$_} = 'DEFAULT' for keys %SIG;
+		my $cset = POSIX::SigSet->new();
+		$cset->addset(POSIX::SIGCHLD) or die "can't add SIGCHLD: $!";
+		sigprocmask(SIG_UNBLOCK, $cset) or
+					die "can't unblock SIGCHLD: $!";
 		if ($ENV{MOD_PERL}) {
 			exec which('env'), '-i', @$env, @$cmd;
 			die "exec env -i ... $cmd->[0] failed: $!\n";

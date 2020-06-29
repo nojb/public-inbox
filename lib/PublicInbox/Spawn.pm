@@ -78,7 +78,7 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	const char *filename = SvPV_nolen(file);
 	pid_t pid;
 	char **argv, **envp;
-	sigset_t set, old;
+	sigset_t set, old, cset;
 	int ret, perrnum, cerrnum = 0;
 
 	AV2C_COPY(argv, cmd);
@@ -88,6 +88,10 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	assert(ret == 0 && "BUG calling sigfillset");
 	ret = sigprocmask(SIG_SETMASK, &set, &old);
 	assert(ret == 0 && "BUG calling sigprocmask to block");
+	ret = sigemptyset(&cset);
+	assert(ret == 0 && "BUG calling sigemptyset");
+	ret = sigaddset(&cset, SIGCHLD);
+	assert(ret == 0 && "BUG calling sigaddset for SIGCHLD");
 	pid = vfork();
 	if (pid == 0) {
 		int sig;
@@ -120,9 +124,10 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 		}
 
 		/*
-		 * don't bother unblocking, we don't want signals
-		 * to the group taking out a subprocess
+		 * don't bother unblocking other signals for now, just SIGCHLD.
+		 * we don't want signals to the group taking out a subprocess
 		 */
+		(void)sigprocmask(SIG_UNBLOCK, &cset, NULL);
 		execve(filename, argv, envp);
 		exit_err(&cerrnum);
 	}
