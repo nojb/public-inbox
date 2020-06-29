@@ -12,6 +12,8 @@ use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now);
+use PublicInbox::MID qw(mids);
+use PublicInbox::ContentHash qw(content_hash);
 use POSIX qw(_exit);
 *mime_from_path = \&PublicInbox::InboxWritable::mime_from_path;
 
@@ -988,10 +990,27 @@ sub _importer_for {
 	$importers->{"$ibx"} = $im;
 }
 
+# XXX consider sharing with V2Writable, this only requires read-only access
+sub content_exists ($$) {
+	my ($ibx, $eml) = @_;
+	my $over = $ibx->over or return;
+	my $mids = mids($eml);
+	my $chash = content_hash($eml);
+	my ($id, $prev);
+	for my $mid (@$mids) {
+		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
+			my $cmp = $ibx->smsg_eml($smsg) or return;
+			return 1 if $chash eq content_hash($cmp);
+		}
+	}
+	undef;
+}
+
 sub _spamcheck_cb {
 	my ($sc) = @_;
 	sub {
-		my ($mime) = @_;
+		my ($mime, $ibx) = @_;
+		return if content_exists($ibx, $mime);
 		my $tmp = '';
 		if ($sc->spamcheck($mime, \$tmp)) {
 			return PublicInbox::Eml->new(\$tmp);

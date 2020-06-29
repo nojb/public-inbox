@@ -171,7 +171,7 @@ sub _add {
 
 	# spam check:
 	if ($check_cb) {
-		$mime = $check_cb->($mime) or return;
+		$mime = $check_cb->($mime, $self->{-inbox}) or return;
 	}
 
 	# All pipes (> $^F) known to Perl 5.6+ have FD_CLOEXEC set,
