@@ -527,8 +527,8 @@ sub watch_atfork_child ($) {
 	delete $self->{poll_pids};
 	delete $self->{opendirs};
 	PublicInbox::DS->Reset;
+	%SIG = (%SIG, %{$self->{sig}}, CHLD => 'DEFAULT');
 	PublicInbox::Sigfd::sig_setmask($self->{oldset});
-	%SIG = (%SIG, %{$self->{sig}});
 }
 
 sub watch_atfork_parent ($) {
