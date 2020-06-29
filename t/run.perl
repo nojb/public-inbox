@@ -61,7 +61,19 @@ our ($worker, $worker_test);
 sub test_status () {
 	$? = 255 if $? == 0 && !$tb->is_passing;
 	my $status = $? ? 'not ok' : 'ok';
-	print OLDOUT "$status $worker_test\n" if $log_suffix ne '';
+	chdir($cwd) or DIE "chdir($cwd): $!";
+	if ($log_suffix ne '') {
+		my $log = $worker_test;
+		$log =~ s/\.t\z/$log_suffix/;
+		if (open my $fh, '<', $log) {
+			my @not_ok = grep(!/^(?:ok |[ \t]*#)/ms, <$fh>);
+			pop @not_ok if $not_ok[-1] =~ /^[0-9]+\.\.[0-9]+$/;
+			print OLDERR map { "# $log: $_" } @not_ok;
+		} else {
+			print OLDERR "could not open: $log: $!\n";
+		}
+		print OLDOUT "$status $worker_test\n";
+	}
 }
 
 # Test::Builder or Test2::Hub may call exit() from plan(skip_all => ...)
@@ -112,7 +124,6 @@ my $start_worker = sub {
 			my $t = unpack('I', $buf);
 			run_test($todo->[$t]);
 			$tb->reset;
-			chdir($cwd) or DIE "chdir: $!";
 		}
 		kill 'USR1', $producer if !$eof; # sets $eof in $producer
 		DIE join('', map { "E: $_\n" } @err) if @err;
