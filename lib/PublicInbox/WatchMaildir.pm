@@ -123,9 +123,9 @@ sub new {
 
 sub _done_for_now {
 	my ($self) = @_;
-	my $importers = $self->{importers};
-	foreach my $im (values %$importers) {
-		$im->done;
+	local $PublicInbox::DS::in_loop = 0; # waitpid() synchronously
+	for (values %{$self->{importers}}) {
+		$_->done if $_; # $_ may be undef during cleanup
 	}
 }
 
@@ -936,6 +936,7 @@ sub fs_scan_step {
 	my ($self) = @_;
 	return if $self->{quit};
 	my $op = shift @{$self->{ops}};
+	local $PublicInbox::DS::in_loop = 0; # waitpid() synchronously
 
 	# continue existing scan
 	my $max = 10;
