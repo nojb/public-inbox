@@ -202,18 +202,27 @@ sub _try_path {
 	}
 }
 
+sub quit_done ($) {
+	my ($self) = @_;
+	return unless $self->{quit};
+
+	# don't have reliable wakeups, keep signalling
+	my $done = 1;
+	for (qw(idle_pids poll_pids)) {
+		my $pids = $self->{$_} or next;
+		for (keys %$pids) {
+			$done = undef if kill('QUIT', $_);
+		}
+	}
+	$done;
+}
+
 sub quit {
 	my ($self) = @_;
 	$self->{quit} = 1;
 	%{$self->{opendirs}} = ();
 	_done_for_now($self);
-	if (my $imap_pid = $self->{-imap_pid}) {
-		kill('QUIT', $imap_pid);
-	}
-	for (qw(idle_pids poll_pids)) {
-		my $pids = $self->{$_} or next;
-		kill('QUIT', $_) for (keys %$pids);
-	}
+	quit_done($self);
 	if (my $idle_mic = $self->{idle_mic}) {
 		eval { $idle_mic->done };
 		if ($@) {
@@ -921,8 +930,8 @@ sub watch {
 						[$self, $intvl, $urls]);
 	}
 	watch_fs_init($self) if $self->{mdre};
-	PublicInbox::DS->SetPostLoopCallback(sub {});
-	PublicInbox::DS->EventLoop until $self->{quit};
+	PublicInbox::DS->SetPostLoopCallback(sub { !$self->quit_done });
+	PublicInbox::DS->EventLoop;
 	_done_for_now($self);
 }
 
