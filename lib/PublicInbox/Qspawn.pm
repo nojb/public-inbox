@@ -48,7 +48,7 @@ sub _do_spawn {
 	my ($cmd, $cmd_env, $opt) = @{delete $self->{args}};
 	my %o = %{$opt || {}};
 	$self->{limiter} = $limiter;
-	foreach my $k (PublicInbox::Spawn::RLIMITS()) {
+	foreach my $k (@PublicInbox::Spawn::RLIMITS) {
 		if (defined(my $rlimit = $limiter->{$k})) {
 			$o{$k} = $rlimit;
 		}
@@ -358,7 +358,7 @@ sub new {
 
 sub setup_rlimit {
 	my ($self, $name, $config) = @_;
-	foreach my $rlim (PublicInbox::Spawn::RLIMITS()) {
+	foreach my $rlim (@PublicInbox::Spawn::RLIMITS) {
 		my $k = lc($rlim);
 		$k =~ tr/_//d;
 		$k = "publicinboxlimiter.$name.$k";
