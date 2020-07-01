@@ -13,8 +13,7 @@
 
 package PublicInbox::Spawn;
 use strict;
-use warnings;
-use base qw(Exporter);
+use parent qw(Exporter);
 use Symbol qw(gensym);
 use PublicInbox::ProcessPipe;
 our @EXPORT_OK = qw/which spawn popen_rd/;
