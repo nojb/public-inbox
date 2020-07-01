@@ -44,6 +44,7 @@ sub init_inbox {
 		PublicInbox::Import::init_bare($dir);
 		if (defined($self->{indexlevel}) || defined($skip_artnum)) {
 			require PublicInbox::SearchIdx;
+			require PublicInbox::Msgmap;
 			my $sidx = PublicInbox::SearchIdx->new($self, 1); # just create
 			$sidx->begin_txn_lazy;
 			$self->with_umask(sub {
