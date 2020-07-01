@@ -23,6 +23,8 @@ sub dbh_new {
 	my $dbh = $self->SUPER::dbh_new(1);
 
 	# TRUNCATE reduces I/O compared to the default (DELETE)
+	# We do not use WAL since we're optimized for read-only ops,
+	# (and read-only requires SQLite 3.22.0 (2018-01-22)).
 	$dbh->do('PRAGMA journal_mode = TRUNCATE');
 
 	# 80000 pages (80MiB on SQLite <3.12.0, 320MiB on 3.12.0+)
