@@ -23,7 +23,7 @@ if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
 
 sub new {
 	my ($class, $dirs, $cb) = @_;
-	my $self = bless {}, $class;
+	my $self = bless { cb => $cb }, $class;
 	my $inot;
 	if ($ino_cls) {
 		$inot = $ino_cls->new or die "E: $ino_cls->new: $!";
@@ -35,15 +35,20 @@ sub new {
 	}
 
 	# Linux::Inotify2->watch or similar
-	$inot->watch($_, $MAIL_IN, $cb) for @$dirs;
+	$inot->watch($_, $MAIL_IN) for @$dirs;
 	$self->{inot} = $inot;
+	PublicInbox::FakeInotify::poll_once($self) if !$ino_cls;
 	$self;
 }
 
 sub event_step {
 	my ($self) = @_;
-	eval { $self->{inot}->poll }; # Linux::Inotify2::poll
-	warn "$self->{inot}->poll err: $@\n" if $@;
+	my $cb = $self->{cb};
+	eval {
+		my @events = $self->{inot}->read; # Linux::Inotify2->read
+		$cb->($_) for @events;
+	};
+	warn "$self->{inot}->read err: $@\n" if $@;
 }
 
 1;

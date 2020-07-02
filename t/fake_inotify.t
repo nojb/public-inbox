@@ -16,29 +16,25 @@ close $fh or BAIL_OUT "close: $!";
 
 my $fi = PublicInbox::FakeInotify->new;
 my $mask = PublicInbox::FakeInotify::MOVED_TO_OR_CREATE();
-my $hit = [];
-my $cb = sub { push @$hit, map { $_->fullname } @_ };
-my $w = $fi->watch("$tmpdir/new", $mask, $cb);
+my $w = $fi->watch("$tmpdir/new", $mask);
 
 select undef, undef, undef, $MIN_FS_TICK;
 rename("$tmpdir/tst", "$tmpdir/new/tst") or BAIL_OUT "rename: $!";
-$fi->poll;
-is_deeply($hit, ["$tmpdir/new/tst"], 'rename(2) detected');
+my @events = map { $_->fullname } $fi->read;
+is_deeply(\@events, ["$tmpdir/new/tst"], 'rename(2) detected');
 
-@$hit = ();
 select undef, undef, undef, $MIN_FS_TICK;
 open $fh, '>', "$tmpdir/tst" or BAIL_OUT "open: $!";
 close $fh or BAIL_OUT "close: $!";
 link("$tmpdir/tst", "$tmpdir/new/link") or BAIL_OUT "link: $!";
-$fi->poll;
-is_deeply($hit, ["$tmpdir/new/link"], 'link(2) detected');
+@events = map { $_->fullname } $fi->read;
+is_deeply(\@events, ["$tmpdir/new/link"], 'link(2) detected');
 
 $w->cancel;
-@$hit = ();
 select undef, undef, undef, $MIN_FS_TICK;
 link("$tmpdir/new/tst", "$tmpdir/new/link2") or BAIL_OUT "link: $!";
-$fi->poll;
-is_deeply($hit, [], 'link(2) not detected after cancel');
+@events = map { $_->fullname } $fi->read;
+is_deeply(\@events, [], 'link(2) not detected after cancel');
 
 PublicInbox::DS->Reset;
 

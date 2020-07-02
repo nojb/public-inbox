@@ -36,12 +36,13 @@ sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 		$ibx->{unlock_subs} and
 			die "BUG: $dir->{unlock_subs} should not exist";
 		$ibx->{unlock_subs} = $old_ibx->{unlock_subs};
-		$cur->[1]->cancel;
+		$cur->[1]->cancel; # Linux::Inotify2::Watch::cancel
 	}
 	$cur->[0] = $ibx;
 
 	my $lock = "$dir/".($ibx->version >= 2 ? 'inbox.lock' : 'ssoma.lock');
-	$cur->[1] = $inot->watch($lock, $IN_MODIFY, sub { $ibx->on_unlock });
+	my $w = $cur->[1] = $inot->watch($lock, $IN_MODIFY);
+	$self->{on_unlock}->{$w->name} = $ibx;
 
 	# TODO: detect deleted packs (and possibly other files)
 }
@@ -65,14 +66,24 @@ sub new {
 	}
 	$self->{inot} = $inot;
 	$self->{pathmap} = {}; # inboxdir => [ ibx, watch1, watch2, watch3...]
+	$self->{on_unlock} = {}; # lock path => ibx
 	refresh($self, $pi_config);
+	PublicInbox::FakeInotify::poll_once($self) if !$ino_cls;
 	$self;
 }
 
 sub event_step {
 	my ($self) = @_;
-	eval { $self->{inot}->poll }; # Linux::Inotify2::poll
-	warn "$self->{inot}->poll err: $@\n" if $@;
+	eval {
+		my @events = $self->{inot}->read; # Linux::Inotify2::read
+		my $on_unlock = $self->{on_unlock};
+		for my $ev (@events) {
+			if (my $ibx = $on_unlock->{$ev->fullname}) {
+				$ibx->on_unlock;
+			}
+		}
+	};
+	warn "{inot}->read err: $@\n" if $@;
 }
 
 # for graceful shutdown in PublicInbox::Daemon,

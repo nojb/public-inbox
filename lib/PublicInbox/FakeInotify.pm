@@ -7,71 +7,66 @@ package PublicInbox::FakeInotify;
 use strict;
 use Time::HiRes qw(stat);
 use PublicInbox::DS;
-my $IN_CLOSE = 0x08 | 0x10; # match Linux inotify
+sub IN_MODIFY () { 0x02 } # match Linux inotify
 # my $IN_MOVED_TO = 0x80;
 # my $IN_CREATE = 0x100;
 sub MOVED_TO_OR_CREATE () { 0x80 | 0x100 }
 
 my $poll_intvl = 2; # same as Filesys::Notify::Simple
 
-sub poll_once {
-	my ($self) = @_;
-	eval { $self->poll };
-	warn "E: FakeInotify->poll: $@\n" if $@;
-	PublicInbox::DS::add_timer($poll_intvl, \&poll_once, $self);
-}
-
-sub new {
-	my $self = bless { watch => {} }, __PACKAGE__;
-	PublicInbox::DS::add_timer($poll_intvl, \&poll_once, $self);
-	$self;
-}
+sub new { bless { watch => {} }, __PACKAGE__ }
 
 # behaves like Linux::Inotify2->watch
 sub watch {
-	my ($self, $path, $mask, $cb) = @_;
+	my ($self, $path, $mask) = @_;
 	my @st = stat($path) or return;
 	my $k = "$path\0$mask";
-	$self->{watch}->{$k} = [ $st[10], $cb ]; # 10 - ctime
+	$self->{watch}->{$k} = $st[10]; # 10 - ctime
 	bless [ $self->{watch}, $k ], 'PublicInbox::FakeInotify::Watch';
 }
 
 sub on_new_files ($$$$) {
-	my ($dh, $cb, $path, $old_ctime) = @_;
+	my ($events, $dh, $path, $old_ctime) = @_;
 	while (defined(my $base = readdir($dh))) {
 		next if $base =~ /\A\.\.?\z/;
 		my $full = "$path/$base";
 		my @st = stat($full);
 		if (@st && $st[10] > $old_ctime) {
-			bless \$full, 'PublicInbox::FakeInotify::Event';
-			eval { $cb->(\$full) };
+			push @$events,
+				bless(\$full, 'PublicInbox::FakeInotify::Event')
 		}
 	}
 }
 
-# behaves like non-blocking Linux::Inotify2->poll
-sub poll {
+# behaves like non-blocking Linux::Inotify2->read
+sub read {
 	my ($self) = @_;
-	my $watch = $self->{watch} or return;
+	my $watch = $self->{watch} or return ();
+	my $events = [];
 	for my $x (keys %$watch) {
 		my ($path, $mask) = split(/\0/, $x, 2);
 		my @now = stat($path) or next;
-		my $prv = $watch->{$x};
-		my $cb = $prv->[-1];
-		my $old_ctime = $prv->[0];
-		if ($old_ctime != $now[10]) {
-			if (($mask & $IN_CLOSE) == $IN_CLOSE) {
-				eval { $cb->() };
-			} elsif ($mask & MOVED_TO_OR_CREATE) {
-				opendir(my $dh, $path) or do {
-					warn "W: opendir $path: $!\n";
-					next;
-				};
-				on_new_files($dh, $cb, $path, $old_ctime);
-			}
+		my $old_ctime = $watch->{$x};
+		$watch->{$x} = $now[10];
+		next if $old_ctime == $now[10];
+		if ($mask & IN_MODIFY) {
+			push @$events,
+				bless(\$path, 'PublicInbox::FakeInotify::Event')
+		} elsif ($mask & MOVED_TO_OR_CREATE) {
+			opendir(my $dh, $path) or do {
+				warn "W: opendir $path: $!\n";
+				next;
+			};
+			on_new_files($events, $dh, $path, $old_ctime);
 		}
-		@$prv = ($now[10], $cb);
 	}
+	@$events;
+}
+
+sub poll_once {
+	my ($obj) = @_;
+	$obj->event_step; # PublicInbox::InboxIdle::event_step
+	PublicInbox::DS::add_timer($poll_intvl, \&poll_once, $obj);
 }
 
 package PublicInbox::FakeInotify::Watch;
@@ -80,6 +75,11 @@ use strict;
 sub cancel {
 	my ($self) = @_;
 	delete $self->[0]->{$self->[1]};
+}
+
+sub name {
+	my ($self) = @_;
+	(split(/\0/, $self->[1], 2))[0];
 }
 
 package PublicInbox::FakeInotify::Event;

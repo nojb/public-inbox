@@ -19,16 +19,17 @@ sub new {
 }
 
 sub watch {
-	my ($self, $path, $mask, $cb) = @_;
-	my ($fh, $cls, @extra);
+	my ($self, $path, $mask) = @_;
+	my ($fh, $watch);
 	if (-d $path) {
 		opendir($fh, $path) or return;
 		my @st = stat($fh);
-		@extra = ($path, $st[10]); # 10: ctime
-		$cls = 'PublicInbox::KQNotify::Watchdir';
+		$watch = bless [ $fh, $path, $st[10] ],
+			'PublicInbox::KQNotify::Watchdir';
 	} else {
 		open($fh, '<', $path) or return;
-		$cls = 'PublicInbox::KQNotify::Watch';
+		$watch = bless [ $fh, $path ],
+			'PublicInbox::KQNotify::Watch';
 	}
 	my $ident = fileno($fh);
 	$self->{dskq}->{kq}->EV_SET($ident, # ident
@@ -37,11 +38,11 @@ sub watch {
 		$mask, # fflags
 		0, 0); # data, udata
 	if ($mask == NOTE_WRITE || $mask == MOVED_TO_OR_CREATE) {
-		$self->{watch}->{$ident} = [ $fh, $cb, @extra ];
+		$self->{watch}->{$ident} = $watch;
 	} else {
 		die "TODO Not implemented: $mask";
 	}
-	bless \$fh, $cls;
+	$watch;
 }
 
 # emulate Linux::Inotify::fileno
@@ -55,34 +56,41 @@ sub on_overflow {}
 # noop for Linux::Inotify2 compatibility, we use `0' timeout for ->kevent
 sub blocking {}
 
-# behave like Linux::Inotify2::poll
-sub poll {
+# behave like Linux::Inotify2->read
+sub read {
 	my ($self) = @_;
 	my @kevents = $self->{dskq}->{kq}->kevent(0);
+	my $events = [];
 	for my $kev (@kevents) {
 		my $ident = $kev->[KQ_IDENT];
 		my $mask = $kev->[KQ_FFLAGS];
-		my ($dh, $cb, $path, $old_ctime) = @{$self->{watch}->{$ident}};
-		if (!defined($path) && ($mask & NOTE_WRITE) == NOTE_WRITE) {
-			eval { $cb->() };
+		my ($dh, $path, $old_ctime) = @{$self->{watch}->{$ident}};
+		if (!defined($old_ctime)) {
+			push @$events,
+				bless(\$path, 'PublicInbox::FakeInotify::Event')
 		} elsif ($mask & MOVED_TO_OR_CREATE) {
 			my @new_st = stat($path) or next;
 			$self->{watch}->{$ident}->[3] = $new_st[10]; # ctime
 			rewinddir($dh);
-			PublicInbox::FakeInotify::on_new_files($dh, $cb,
+			PublicInbox::FakeInotify::on_new_files($events, $dh,
 							$path, $old_ctime);
 		}
 	}
+	@$events;
 }
 
 package PublicInbox::KQNotify::Watch;
 use strict;
 
-sub cancel { close ${$_[0]} or die "close: $!" }
+sub name { $_[0]->[1] }
+
+sub cancel { close $_[0]->[0] or die "close: $!" }
 
 package PublicInbox::KQNotify::Watchdir;
 use strict;
 
-sub cancel { closedir ${$_[0]} or die "closedir: $!" }
+sub name { $_[0]->[1] }
+
+sub cancel { closedir $_[0]->[0] or die "closedir: $!" }
 
 1;
