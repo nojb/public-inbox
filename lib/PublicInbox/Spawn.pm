@@ -21,7 +21,6 @@ our @RLIMITS = qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA);
 
 my $vfork_spawn = <<'VFORK_SPAWN';
 #include <sys/types.h>
-#include <sys/uio.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
