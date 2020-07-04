@@ -468,7 +468,7 @@ SKIP: {
 	my $obj = bless \$cb, 'PublicInbox::TestCommon::InboxWakeup';
 	$cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
 	my $watcherr = "$tmpdir/watcherr";
-	open my $err_wr, '>', $watcherr or BAIL_OUT $!;
+	open my $err_wr, '>>', $watcherr or BAIL_OUT $!;
 	open my $err, '<', $watcherr or BAIL_OUT $!;
 	my $w = start_script(['-watch'], undef, { 2 => $err_wr });
 
@@ -512,11 +512,36 @@ SKIP: {
 	seek($err, 0, 0);
 	my @err = grep(!/^I:/, <$err>);
 	is(@err, 0, 'no warnings/errors from -watch'.join(' ', @err));
+
+	if ($ENV{TEST_KILL_IMAPD}) { # not sure how reliable this test can be
+		xsys(qw(git config), "--file=$home/.public-inbox/config",
+			qw(--unset imap.PollInterval)) == 0
+			or BAIL_OUT "git config $?";
+		truncate($err_wr, 0) or BAIL_OUT $!;
+		my @t0 = times;
+		$w = start_script(['-watch'], undef, { 2 => $err_wr });
+		seek($err, 0, 0);
+		tick until (grep(/I: \S+ idling/, <$err>));
+		diag 'killing imapd, waiting for CPU spins';
+		my $delay = 0.11;
+		$td->kill(9);
+		tick $delay;
+		$w->kill;
+		$w->join;
+		is($?, 0, 'no error in exited -watch process');
+		my @t1 = times;
+		my $c = $t1[2] + $t1[3] - $t0[2] - $t0[3];
+		my $thresh = (0.9 * $delay);
+		diag "c=$c, threshold=$thresh";
+		ok($c < $thresh, 'did not burn much CPU');
+		is_deeply([grep(/ line \d+$/m, <$err>)], [],
+				'no backtraces from errors');
+	}
 }
 
 $td->kill;
 $td->join;
-is($?, 0, 'no error in exited process');
+is($?, 0, 'no error in exited process') if !$ENV{TEST_KILL_IMAPD};
 open my $fh, '<', $err or BAIL_OUT("open $err failed: $!");
 my $eout = do { local $/; <$fh> };
 unlike($eout, qr/wide/i, 'no Wide character warnings');

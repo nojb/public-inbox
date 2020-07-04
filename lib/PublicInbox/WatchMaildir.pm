@@ -497,7 +497,8 @@ sub imap_idle_once ($$$$) {
 	}
 	$self->{idle_mic} = $mic; # for ->quit
 	my @res;
-	until ($self->{quit} || grep(/^\* [0-9]+ EXISTS/, @res) || $i <= 0) {
+	until ($self->{quit} || !$mic->IsConnected ||
+			grep(/^\* [0-9]+ EXISTS/, @res) || $i <= 0) {
 		@res = $mic->idle_data($i);
 		$i = $end - now();
 	}
@@ -520,8 +521,13 @@ sub watch_imap_idle_1 ($$$) {
 	local $0 = $uri->mailbox." $sec";
 	until ($self->{quit}) {
 		$mic //= PublicInbox::IMAPClient->new(%$mic_arg);
-		my $err = imap_fetch_all($self, $mic, $url);
-		$err //= imap_idle_once($self, $mic, $intvl, $url);
+		my $err;
+		if ($mic && $mic->IsConnected) {
+			$err = imap_fetch_all($self, $mic, $url);
+			$err //= imap_idle_once($self, $mic, $intvl, $url);
+		} else {
+			$err = "not connected: $!";
+		}
 		if ($err && !$self->{quit}) {
 			warn $err, "\n";
 			$mic = undef;
@@ -545,6 +551,13 @@ sub watch_atfork_parent ($) {
 	_done_for_now($self);
 }
 
+sub imap_idle_requeue ($) { # DS::add_timer callback
+	my ($self, $url_intvl) = @{$_[0]};
+	return if $self->{quit};
+	push @{$self->{idle_todo}}, $url_intvl;
+	event_step($self);
+}
+
 sub imap_idle_reap { # PublicInbox::DS::dwaitpid callback
 	my ($self, $pid) = @_;
 	my $url_intvl = delete $self->{idle_pids}->{$pid} or
@@ -553,8 +566,8 @@ sub imap_idle_reap { # PublicInbox::DS::dwaitpid callback
 	my ($url, $intvl) = @$url_intvl;
 	return if $self->{quit};
 	warn "W: PID=$pid on $url died: \$?=$?\n" if $?;
-	push @{$self->{idle_todo}}, $url_intvl;
-	PubicInbox::DS::requeue($self); # call ->event_step to respawn
+	PublicInbox::DS::add_timer(60,
+				\&imap_idle_requeue, [ $self, $url_intvl ]);
 }
 
 sub imap_idle_fork ($$) {
