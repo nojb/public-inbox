@@ -11,6 +11,7 @@ use PublicInbox::Spawn qw(spawn);
 use Fcntl qw(:DEFAULT SEEK_SET);
 use File::Temp qw/tempfile/;
 use PublicInbox::TestCommon;
+use MIME::Base64 3.05; # Perl 5.10.0 / 5.9.2
 my ($dir, $for_destroy) = tmpdir();
 
 my $git = PublicInbox::Git->new($dir);
@@ -102,5 +103,28 @@ eval {
 	$nope->add($mime);
 };
 ok($@, 'Import->add fails on non-existent dir');
+
+my @cls = qw(PublicInbox::Eml);
+SKIP: {
+	require_mods('PublicInbox::MIME', 1);
+	push @cls, 'PublicInbox::MIME';
+};
+
+$main::badchars = "\n\0\r";
+my $from = '=?UTF-8?B?'. encode_base64("B\ra\nd\0\$main::badchars", ''). '?=';
+for my $cls (@cls) {
+	my $eml = $cls->new(<<EOF);
+From: $from <spammer\@example.com>
+Message-ID: <$cls\@example.com>
+
+EOF
+	ok($im->add($eml), "added $cls message with nasty char in From");
+}
+$im->done;
+my $bref = $git->cat_file('HEAD');
+like($$bref, qr/^author Ba d \$main::badchars <spammer\@example\.com> /sm,
+	 'latest commit accepted by spammer');
+$git->qx(qw(fsck --no-progress --strict));
+is($?, 0, 'fsck reported no errors');
 
 done_testing();
