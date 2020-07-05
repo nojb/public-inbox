@@ -103,7 +103,7 @@ $mids = mids($mime->header_obj);
 my $third = $mids->[-1];
 $im->done;
 
-test_psgi(sub { $www->call(@_) }, sub {
+my $client = sub {
 	my ($cb) = @_;
 	$res = $cb->(GET("/v2test/$third/raw"));
 	$raw = $res->content;
@@ -122,12 +122,19 @@ test_psgi(sub { $www->call(@_) }, sub {
 
 	SKIP: {
 		eval { require IO::Uncompress::Gunzip };
-		skip 'IO::Uncompress::Gunzip missing', 4 if $@;
+		skip 'IO::Uncompress::Gunzip missing', 6 if $@;
+		my ($in, $out, $status);
+		my $req = GET('/v2test/a-mid@b/raw');
+		$req->header('Accept-Encoding' => 'gzip');
+		$res = $cb->($req);
+		is($res->header('Content-Encoding'), 'gzip', 'gzip encoding');
+		$in = $res->content;
+		IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		is($out, $raw, 'gzip response matches');
 
 		$res = $cb->(GET('/v2test/a-mid@b/t.mbox.gz'));
-		my $out;
-		my $in = $res->content;
-		my $status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+		$in = $res->content;
+		$status = IO::Uncompress::Gunzip::gunzip(\$in => \$out);
 		unlike($out, qr/^From oldbug/sm, 'buggy "From_" line omitted');
 		like($out, qr/^hello world$/m, 'got first in t.mbox.gz');
 		like($out, qr/^hello world!$/m, 'got second in t.mbox.gz');
@@ -187,7 +194,34 @@ test_psgi(sub { $www->call(@_) }, sub {
 		like($raw, qr!>\Q$mid\E</a>!s, "Message-ID $mid shown");
 	}
 	like($raw, qr/\b3\+ messages\b/, 'thread overview shown');
+};
 
+test_psgi(sub { $www->call(@_) }, $client);
+SKIP: {
+	require_mods(qw(Plack::Test::ExternalServer), 37);
+	my $cfgpath = "$inboxdir/$$.config";
+	open my $fh, '>', $cfgpath or BAIL_OUT $!;
+	print $fh <<EOF or BAIL_OUT $!;
+[publicinbox "v2test"]
+	inboxdir = $inboxdir
+	address = test\@example.com
+EOF
+	close $fh or BAIL_OUT $!;
+	my $env = { PI_CONFIG => $cfgpath };
+	my $sock = tcp_server() or die;
+	my ($out, $err) = map { "$inboxdir/std$_.log" } qw(out err);
+	my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
+	my $td = start_script($cmd, $env, { 3 => $sock });
+	my ($h, $p) = ($sock->sockhost, $sock->sockport);
+	local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
+	Plack::Test::ExternalServer::test_psgi(client => $client);
+	$td->join('TERM');
+	open $fh, '<', $err or BAIL_OUT $!;
+	is(do { local $/; <$fh> }, '', 'no errors');
+};
+
+test_psgi(sub { $www->call(@_) }, sub {
+	my ($cb) = @_;
 	my $exp = [ qw(<a-mid@b> <reuse@mid>) ];
 	$mime->header_set('Message-Id', @$exp);
 	$mime->header_set('Subject', '4th dupe');
@@ -208,7 +242,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/v2test/reuse@mid/T/'));
 	$raw = $res->content;
 	like($raw, qr/\b4\+ messages\b/, 'thread overview shown with /T/');
-	@over = ($raw =~ m/^\d{4}-\d+-\d+\s+\d+:\d+ (.+)$/gm);
+	my @over = ($raw =~ m/^\d{4}-\d+-\d+\s+\d+:\d+ (.+)$/gm);
 	is_deeply(\@over, [ '<a', '` <a', '` <a', '` <a' ],
 		'duplicate messages share the same root');
 

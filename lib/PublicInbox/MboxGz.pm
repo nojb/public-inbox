@@ -18,22 +18,21 @@ sub mboxgz_blob_cb { # git->cat_async callback
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
-		return $http->next_step(\&async_next);
+		return $http->next_step(\&mboxgz_async_next);
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
-	$self->zmore(msg_hdr($self,
-				PublicInbox::Eml->new($bref)->header_obj,
-				$smsg->{mid}));
+	my $eml = PublicInbox::Eml->new($bref);
+	$self->zmore(msg_hdr($self, $eml, $smsg->{mid}));
 
 	# PublicInbox::HTTP::{Chunked,Identity}::write
-	$self->{http_out}->write($self->translate(msg_body($$bref)));
+	$self->{http_out}->write($self->translate(msg_body($eml)));
 
-	$http->next_step(\&async_next);
+	$http->next_step(\&mboxgz_async_next);
 }
 
 # this is public-inbox-httpd-specific
-sub async_step ($) {
+sub mboxgz_async_step ($) {
 	my ($self) = @_;
 	if (my $smsg = $self->{smsg} = $self->{cb}->($self)) {
 		git_async_cat($self->{-inbox}->git, $smsg->{blob},
@@ -45,34 +44,39 @@ sub async_step ($) {
 }
 
 # called by PublicInbox::DS::write
-sub async_next {
+sub mboxgz_async_next {
 	my ($http) = @_; # PublicInbox::HTTP
-	async_step($http->{forward});
+	mboxgz_async_step($http->{forward});
 }
 
 # called by PublicInbox::HTTP::close, or any other PSGI server
 sub close { !!delete($_[0]->{http_out}) }
 
 sub response {
-	my ($class, $self, $cb, $fn) = @_;
-	$self->{base_url} = $self->{-inbox}->base_url($self->{env});
+	my ($self, $cb, $res_hdr) = @_;
 	$self->{cb} = $cb;
-	$self->{gz} = PublicInbox::GzipFilter::gzip_or_die();
-	bless $self, $class;
-	# http://www.iana.org/assignments/media-types/application/gzip
-	$fn = defined($fn) && $fn ne '' ? to_filename($fn) : 'no-subject';
-	my $h = [ qw(Content-Type application/gzip),
-		'Content-Disposition', "inline; filename=$fn.mbox.gz" ];
+	bless $self, __PACKAGE__;
 	if ($self->{env}->{'pi-httpd.async'}) {
 		sub {
 			my ($wcb) = @_; # -httpd provided write callback
-			$self->{http_out} = $wcb->([200, $h]);
+			$self->{http_out} = $wcb->([200, $res_hdr]);
 			$self->{env}->{'psgix.io'}->{forward} = $self;
-			async_step($self); # start stepping
+			mboxgz_async_step($self); # start stepping
 		};
 	} else { # generic PSGI
-		[ 200, $h, $self ];
+		[ 200, $res_hdr, $self ];
 	}
+}
+
+sub mbox_gz {
+	my ($self, $cb, $fn) = @_;
+	$self->{base_url} = $self->{-inbox}->base_url($self->{env});
+	$self->{gz} = PublicInbox::GzipFilter::gzip_or_die();
+	$fn = to_filename($fn // 'no-subject');
+	$fn = 'no-subject' if $fn eq '';
+	# http://www.iana.org/assignments/media-types/application/gzip
+	response($self, $cb, [ qw(Content-Type application/gzip),
+		'Content-Disposition', "inline; filename=$fn.mbox.gz" ]);
 }
 
 # called by Plack::Util::foreach or similar (generic PSGI)
@@ -80,10 +84,9 @@ sub getline {
 	my ($self) = @_;
 	my $cb = $self->{cb} or return;
 	while (my $smsg = $cb->($self)) {
-		my $mref = $self->{-inbox}->msg_by_smsg($smsg) or next;
-		my $h = PublicInbox::Eml->new($mref)->header_obj;
-		$self->zmore(msg_hdr($self, $h, $smsg->{mid}));
-		return $self->translate(msg_body($$mref));
+		my $eml = $self->{-inbox}->smsg_eml($smsg) or next;
+		$self->zmore(msg_hdr($self, $eml, $smsg->{mid}));
+		return $self->translate(msg_body($eml));
 	}
 	# signal that we're done and can return undef next call:
 	delete $self->{cb};

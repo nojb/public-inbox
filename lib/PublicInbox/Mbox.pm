@@ -14,62 +14,69 @@ use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Smsg;
 use PublicInbox::Eml;
-
-sub subject_fn ($) {
-	my ($hdr) = @_;
-	my $fn = $hdr->header_str('Subject');
-	return 'no-subject' if (!defined($fn) || $fn eq '');
-
-	$fn =~ s/^re:\s+//i;
-	$fn eq '' ? 'no-subject' : to_filename($fn);
-}
-
-sub mb_stream {
-	my ($more) = @_;
-	bless $more, 'PublicInbox::Mbox';
-}
+use PublicInbox::GitAsyncCat;
+use PublicInbox::GzipFilter qw(gzf_maybe);
 
 # called by PSGI server as body response
 # this gets called twice for every message, once to return the header,
 # once to retrieve the body
 sub getline {
-	my ($more) = @_; # self
-	my ($ctx, $id, $prev, $next, $mref, $hdr) = @$more;
-	if ($hdr) { # first message hits this, only
-		pop @$more; # $hdr
-		pop @$more; # $mref
-		return msg_hdr($ctx, $hdr) . msg_body($$mref);
-	}
-	my $cur = $next or return;
+	my ($ctx) = @_; # ctx
+	my $smsg = $ctx->{smsg} or return;
 	my $ibx = $ctx->{-inbox};
-	$next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
-	$mref = $ibx->msg_by_smsg($cur) or return;
-	$hdr = PublicInbox::Eml->new($mref)->header_obj;
-	@$more = ($ctx, $id, $prev, $next); # $next may be undef, here
-	msg_hdr($ctx, $hdr) . msg_body($$mref);
+	my $eml = $ibx->smsg_eml($smsg) or return;
+	$ctx->{smsg} = $ibx->over->next_by_mid($ctx->{mid}, @{$ctx->{id_prev}});
+	msg_hdr($ctx, $eml, $smsg->{mid}) . msg_body($eml);
 }
 
-sub close {} # noop
+sub close { !!delete($_[0]->{http_out}) }
 
-# /$INBOX/$MESSAGE_ID/raw
-sub emit_raw {
+sub mbox_async_step ($) { # public-inbox-httpd-only
 	my ($ctx) = @_;
-	my $mid = $ctx->{mid};
-	my $ibx = $ctx->{-inbox};
-	$ctx->{base_url} = $ibx->base_url($ctx->{env});
-	my ($mref, $more, $id, $prev, $next);
-	if (my $over = $ibx->over) {
-		my $smsg = $over->next_by_mid($mid, \$id, \$prev) or return;
-		$mref = $ibx->msg_by_smsg($smsg) or return;
-		$next = $over->next_by_mid($mid, \$id, \$prev);
-	} else {
-		$mref = $ibx->msg_by_mid($mid) or return;
+	if (my $smsg = $ctx->{smsg}) {
+		git_async_cat($ctx->{-inbox}->git, $smsg->{blob},
+				\&mbox_blob_cb, $ctx);
+	} elsif (my $out = delete $ctx->{http_out}) {
+		$out->close;
 	}
-	my $hdr = PublicInbox::Eml->new($mref)->header_obj;
-	$more = [ $ctx, $id, $prev, $next, $mref, $hdr ]; # for ->getline
-	my $fn = subject_fn($hdr);
+}
+
+# called by PublicInbox::DS::write
+sub mbox_async_next {
+	my ($http) = @_; # PublicInbox::HTTP
+	my $ctx = $http->{forward} or return; # client aborted
+	eval {
+		$ctx->{smsg} = $ctx->{-inbox}->over->next_by_mid(
+					$ctx->{mid}, @{$ctx->{id_prev}});
+		mbox_async_step($ctx);
+	};
+}
+
+# this is public-inbox-httpd-specific
+sub mbox_blob_cb { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $ctx) = @_;
+	my $http = $ctx->{env}->{'psgix.io'} or return; # client abort
+	my $smsg = delete $ctx->{smsg} or die 'BUG: no smsg';
+	if (!defined($oid)) {
+		# it's possible to have TOCTOU if an admin runs
+		# public-inbox-(edit|purge), just move onto the next message
+		return $http->next_step(\&mbox_async_next);
+	} else {
+		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
+	}
+	my $eml = PublicInbox::Eml->new($bref);
+	$ctx->{http_out}->write(msg_hdr($ctx, $eml, $smsg->{mid}));
+	$ctx->{http_out}->write(msg_body($eml));
+	$http->next_step(\&mbox_async_next);
+}
+
+sub res_hdr ($$) {
+	my ($ctx, $subject) = @_;
+	my $fn = $subject // 'no-subject';
+	$fn =~ s/^re:\s+//i;
+	$fn = $fn eq '' ? 'no-subject' : to_filename($fn);
 	my @hdr = ('Content-Type');
-	if ($ibx->{obfuscate}) {
+	if ($ctx->{-inbox}->{obfuscate}) {
 		# obfuscation is stupid, but maybe scrapers are, too...
 		push @hdr, 'application/mbox';
 		$fn .= '.mbox';
@@ -78,11 +85,58 @@ sub emit_raw {
 		$fn .= '.txt';
 	}
 	push @hdr, 'Content-Disposition', "inline; filename=$fn";
-	[ 200, \@hdr, mb_stream($more) ];
+	\@hdr;
+}
+
+# for rare cases where v1 inboxes aren't indexed w/ ->over at all
+sub no_over_raw ($) {
+	my ($ctx) = @_;
+	my $mref = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return;
+	my $eml = PublicInbox::Eml->new($mref);
+	[ 200, res_hdr($ctx, $eml->header_str('Subject')),
+		[ msg_hdr($ctx, $eml, $ctx->{mid}) . msg_body($eml) ] ]
+}
+
+sub stream_raw { # MboxGz response callback
+	my ($ctx) = @_;
+	delete($ctx->{smsg}) //
+		$ctx->{-inbox}->over->next_by_mid($ctx->{mid},
+						@{$ctx->{id_prev}});
+}
+
+# /$INBOX/$MESSAGE_ID/raw
+sub emit_raw {
+	my ($ctx) = @_;
+	my $env = $ctx->{env};
+	$ctx->{base_url} = $ctx->{-inbox}->base_url($env);
+	my $over = $ctx->{-inbox}->over or return no_over_raw($ctx);
+	my ($id, $prev);
+	my $smsg = $over->next_by_mid($ctx->{mid}, \$id, \$prev) or return;
+	$ctx->{smsg} = $smsg;
+	my $res_hdr = res_hdr($ctx, $smsg->{subject});
+	$ctx->{id_prev} = [ \$id, \$prev ];
+
+	if (my $gzf = gzf_maybe($res_hdr, $env)) {
+		$ctx->{gz} = delete $gzf->{gz};
+		require PublicInbox::MboxGz;
+		PublicInbox::MboxGz::response($ctx, \&stream_raw, $res_hdr);
+	} elsif ($env->{'pi-httpd.async'}) {
+		sub {
+			my ($wcb) = @_; # -httpd provided write callback
+			$ctx->{http_out} = $wcb->([200, $res_hdr]);
+			$ctx->{env}->{'psgix.io'}->{forward} = $ctx;
+			bless $ctx, __PACKAGE__;
+			mbox_async_step($ctx); # start stepping
+		};
+	} else { # generic PSGI code path
+		bless $ctx, __PACKAGE__; # respond to ->getline
+		[ 200, $res_hdr, $ctx ];
+	}
 }
 
 sub msg_hdr ($$;$) {
-	my ($ctx, $header_obj, $mid) = @_;
+	my ($ctx, $eml, $mid) = @_;
+	my $header_obj = $eml->header_obj;
 
 	# drop potentially confusing headers, ssoma already should've dropped
 	# Lines and Content-Length
@@ -120,12 +174,13 @@ sub msg_hdr ($$;$) {
 }
 
 sub msg_body ($) {
+	my $bdy = $_[0]->{bdy} // return "\n";
 	# mboxrd quoting style
 	# https://en.wikipedia.org/wiki/Mbox#Modified_mbox
 	# https://www.loc.gov/preservation/digital/formats/fdd/fdd000385.shtml
 	# https://web.archive.org/http://www.qmail.org/man/man5/mbox.html
-	$_[0] =~ s/^(>*From )/>$1/gm;
-	$_[0] .= "\n";
+	$$bdy =~ s/^(>*From )/>$1/gm;
+	$$bdy .= "\n";
 }
 
 sub thread_cb {
@@ -145,12 +200,12 @@ sub thread_cb {
 
 sub thread_mbox {
 	my ($ctx, $over, $sfx) = @_;
-	require PublicInbox::MboxGz;
 	my $msgs = $ctx->{msgs} = $over->get_thread($ctx->{mid}, {});
 	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
 	$ctx->{prev} = $msgs->[-1];
 	$ctx->{over} = $over; # bump refcnt
-	PublicInbox::MboxGz->response($ctx, \&thread_cb, $msgs->[0]->{subject});
+	require PublicInbox::MboxGz;
+	PublicInbox::MboxGz::mbox_gz($ctx, \&thread_cb, $msgs->[0]->{subject});
 }
 
 sub emit_range {
@@ -188,7 +243,8 @@ sub mbox_all_ids {
 		return PublicInbox::WWW::need($ctx, 'Overview');
 	$ctx->{ids} = $ids;
 	$ctx->{prev} = $prev;
-	return PublicInbox::MboxGz->response($ctx, \&all_ids_cb, 'all');
+	require PublicInbox::MboxGz;
+	PublicInbox::MboxGz::mbox_gz($ctx, \&all_ids_cb, 'all');
 }
 
 sub results_cb {
@@ -213,7 +269,6 @@ sub results_cb {
 sub mbox_all {
 	my ($ctx, $query) = @_;
 
-	require PublicInbox::MboxGz;
 	return mbox_all_ids($ctx) if $query eq '';
 	my $qopts = $ctx->{qopts} = { mset => 2 };
 	my $srch = $ctx->{srch} = $ctx->{-inbox}->search or
@@ -224,7 +279,8 @@ sub mbox_all {
 				["No results found\n"]];
 	$ctx->{iter} = 0;
 	$ctx->{query} = $query;
-	PublicInbox::MboxGz->response($ctx, \&results_cb, 'results-'.$query);
+	require PublicInbox::MboxGz;
+	PublicInbox::MboxGz::mbox_gz($ctx, \&results_cb, 'results-'.$query);
 }
 
 1;
