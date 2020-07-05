@@ -23,6 +23,7 @@ sub commit_changes ($$$$) {
 
 	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
 	my @old_shard;
+	my $over_chg;
 
 	while (my ($old, $newdir) = each %$tmp) {
 		next if $old eq ''; # no invalid paths
@@ -39,7 +40,7 @@ sub commit_changes ($$$$) {
 			my $tmp_over = "$new/over.sqlite3";
 			$over->connect->sqlite_backup_to_file($tmp_over);
 			$over = undef;
-			syswrite($im->{lockfh}, '.'); # trigger ->check_inodes
+			$over_chg = 1;
 		}
 
 		if (!defined($new)) { # culled shard
@@ -60,6 +61,10 @@ sub commit_changes ($$$$) {
 				die "failed to remove $prev: $!\n";
 		}
 	}
+
+	# trigger ->check_inodes in read-only daemons
+	syswrite($im->{lockfh}, '.') if $over_chg;
+
 	remove_tree(@old_shard);
 	$tmp = undef;
 	if (!$opt->{-coarse_lock}) {
