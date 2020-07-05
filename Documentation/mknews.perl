@@ -147,9 +147,10 @@ EOF
 }
 
 sub mime2atom  {
-	my ($out, $astream, $mime, $ctx) = @_;
-	my $smsg = bless { mime => $mime }, 'PublicInbox::Smsg';
-	if (defined(my $str = $astream->feed_entry($smsg))) {
+	my ($out, $astream, $eml, $ctx) = @_;
+	my $smsg = bless {}, 'PublicInbox::Smsg';
+	$smsg->populate($eml);
+	if (defined(my $str = $astream->feed_entry($smsg, $eml))) {
 		print $out $str or die;
 	}
 }

@@ -14,6 +14,36 @@ use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::WWW';
 use_ok 'PublicInbox::V2Writable';
 my ($inboxdir, $for_destroy) = tmpdir();
+my $cfgpath = "$inboxdir/$$.config";
+SKIP: {
+	require_mods(qw(Plack::Test::ExternalServer), 1);
+	open my $fh, '>', $cfgpath or BAIL_OUT $!;
+	print $fh <<EOF or BAIL_OUT $!;
+[publicinbox "v2test"]
+	inboxdir = $inboxdir
+	address = test\@example.com
+EOF
+	close $fh or BAIL_OUT $!;
+}
+
+my $run_httpd = sub {
+	my ($client, $skip) = @_;
+	SKIP: {
+		require_mods(qw(Plack::Test::ExternalServer), $skip);
+		my $env = { PI_CONFIG => $cfgpath };
+		my $sock = tcp_server() or die;
+		my ($out, $err) = map { "$inboxdir/std$_.log" } qw(out err);
+		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
+		my $td = start_script($cmd, $env, { 3 => $sock });
+		my ($h, $p) = ($sock->sockhost, $sock->sockport);
+		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
+		Plack::Test::ExternalServer::test_psgi(client => $client);
+		$td->join('TERM');
+		open my $fh, '<', $err or BAIL_OUT $!;
+		is(do { local $/; <$fh> }, '', 'no errors');
+	}
+};
+
 my $ibx = {
 	inboxdir => $inboxdir,
 	name => 'test-v2writable',
@@ -60,7 +90,7 @@ EOF
 my $config = PublicInbox::Config->new(\$cfg);
 my $www = PublicInbox::WWW->new($config);
 my ($res, $raw, @from_);
-test_psgi(sub { $www->call(@_) }, sub {
+my $client0 = sub {
 	my ($cb) = @_;
 	$res = $cb->(GET('/v2test/description'));
 	like($res->content, qr!\$INBOX_DIR/description missing!,
@@ -90,7 +120,9 @@ test_psgi(sub { $www->call(@_) }, sub {
 	@bodies = ($res->content =~ /^(hello [^<]+)$/mg);
 	is_deeply(\@bodies, [ "hello world!\n", "hello world\n" ],
 		'new.html ordering is chronological');
-});
+};
+test_psgi(sub { $www->call(@_) }, $client0);
+$run_httpd->($client0, 9);
 
 $mime->header_set('Message-Id', 'a-mid@b');
 $mime->body_set("hello ghosts\n");
@@ -103,7 +135,7 @@ $mids = mids($mime->header_obj);
 my $third = $mids->[-1];
 $im->done;
 
-my $client = sub {
+my $client1 = sub {
 	my ($cb) = @_;
 	$res = $cb->(GET("/v2test/$third/raw"));
 	$raw = $res->content;
@@ -196,32 +228,10 @@ my $client = sub {
 	like($raw, qr/\b3\+ messages\b/, 'thread overview shown');
 };
 
-test_psgi(sub { $www->call(@_) }, $client);
-SKIP: {
-	require_mods(qw(Plack::Test::ExternalServer), 37);
-	my $cfgpath = "$inboxdir/$$.config";
-	open my $fh, '>', $cfgpath or BAIL_OUT $!;
-	print $fh <<EOF or BAIL_OUT $!;
-[publicinbox "v2test"]
-	inboxdir = $inboxdir
-	address = test\@example.com
-EOF
-	close $fh or BAIL_OUT $!;
-	my $env = { PI_CONFIG => $cfgpath };
-	my $sock = tcp_server() or die;
-	my ($out, $err) = map { "$inboxdir/std$_.log" } qw(out err);
-	my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
-	my $td = start_script($cmd, $env, { 3 => $sock });
-	my ($h, $p) = ($sock->sockhost, $sock->sockport);
-	local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
-	Plack::Test::ExternalServer::test_psgi(client => $client);
-	$td->join('TERM');
-	open $fh, '<', $err or BAIL_OUT $!;
-	is(do { local $/; <$fh> }, '', 'no errors');
-};
+test_psgi(sub { $www->call(@_) }, $client1);
+$run_httpd->($client1, 38);
 
-test_psgi(sub { $www->call(@_) }, sub {
-	my ($cb) = @_;
+{
 	my $exp = [ qw(<a-mid@b> <reuse@mid>) ];
 	$mime->header_set('Message-Id', @$exp);
 	$mime->header_set('Subject', '4th dupe');
@@ -230,10 +240,12 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$im->done;
 	my @h = $mime->header('Message-ID');
 	is_deeply($exp, \@h, 'reused existing Message-ID');
-
 	$config->each_inbox(sub { $_[0]->search->reopen });
+}
 
-	$res = $cb->(GET('/v2test/new.atom'));
+my $client2 = sub {
+	my ($cb) = @_;
+	my $res = $cb->(GET('/v2test/new.atom'));
 	my @ids = ($res->content =~ m!<id>urn:uuid:([^<]+)</id>!sg);
 	my %ids;
 	$ids{$_}++ for @ids;
@@ -256,7 +268,11 @@ test_psgi(sub { $www->call(@_) }, sub {
 	is($res->code, 200, 'got info refs for dumb clones w/ .git suffix');
 	$res = $cb->(GET('/v2test/info/refs'));
 	is($res->code, 404, 'v2 git URL w/o shard fails');
+};
 
+test_psgi(sub { $www->call(@_) }, $client2);
+$run_httpd->($client2, 8);
+{
 	# ensure conflicted attachments can be resolved
 	foreach my $body (qw(old new)) {
 		$mime = eml_load "t/psgi_v2-$body.eml";
@@ -264,7 +280,11 @@ test_psgi(sub { $www->call(@_) }, sub {
 	}
 	$im->done;
 	$config->each_inbox(sub { $_[0]->search->reopen });
-	$res = $cb->(GET('/v2test/a@dup/'));
+}
+
+my $client3 = sub {
+	my ($cb) = @_;
+	my $res = $cb->(GET('/v2test/a@dup/'));
 	my @links = ($res->content =~ m!"\.\./([^/]+/2-attach\.txt)\"!g);
 	is(scalar(@links), 2, 'both attachment links exist');
 	isnt($links[0], $links[1], 'attachment links are different');
@@ -276,7 +296,9 @@ test_psgi(sub { $www->call(@_) }, sub {
 	}
 	$res = $cb->(GET('/v2test/?t=1970'.'01'.'01'.'000000'));
 	is($res->code, 404, '404 for out-of-range t= param');
-});
+};
+test_psgi(sub { $www->call(@_) }, $client3);
+$run_httpd->($client3, 4);
 
 done_testing();
 
