@@ -10,6 +10,8 @@ use PublicInbox::Linkify;
 use PublicInbox::WwwStream;
 use PublicInbox::Hval qw(ascii_html);
 use URI::Escape qw(uri_escape_utf8);
+use PublicInbox::GzipFilter qw(gzf_maybe);
+use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
 our $QP_URL = 'https://xapian.org/docs/queryparser.html';
 our $WIKI_URL = 'https://en.wikipedia.org/wiki';
 my $hl = eval {
@@ -35,14 +37,23 @@ sub get_text {
 		$code = 404;
 		$txt = "404 Not Found ($key)\n";
 	}
+	my $env = $ctx->{env};
 	if ($raw) {
-		$hdr->[3] = bytes::length($txt);
-		return [ $code, $hdr, [ $txt ] ]
+		my $body;
+		if (my $gzf = $code == 200 ? gzf_maybe($hdr, $env) : undef) {
+			my $zbuf = $gzf->translate($txt);
+			undef $txt;
+			$body = [ $zbuf .= $gzf->translate(undef) ];
+		} else {
+			$body = [ $txt ];
+		}
+		$hdr->[3] = bytes::length($body->[0]);
+		return [ $code, $hdr, $body ]
 	}
 
 	# enforce trailing slash for "wget -r" compatibility
 	if (!$have_tslash && $code == 200) {
-		my $url = $ctx->{-inbox}->base_url($ctx->{env});
+		my $url = $ctx->{-inbox}->base_url($env);
 		$url .= "_/text/$key/";
 
 		return [ 302, [ 'Content-Type', 'text/plain',
