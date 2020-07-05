@@ -48,15 +48,15 @@ sub generate_html_index {
 }
 
 sub new_html_i {
-	my ($ctx) = @_;
-	return $ctx->html_top if exists $ctx->{-html_tip};
-	my $msgs = $ctx->{msgs};
-	while (my $smsg = shift @$msgs) {
-		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
-		return PublicInbox::View::eml_entry($ctx, $smsg, $eml,
-							scalar @$msgs);
-	}
-	PublicInbox::View::pagination_footer($ctx, './new.html');
+	my ($ctx, $eml) = @_;
+	$ctx->zmore($ctx->html_top) if exists $ctx->{-html_tip};
+
+	$eml and return PublicInbox::View::eml_entry($ctx, $ctx->{smsg}, $eml,
+						scalar @{$ctx->{msgs}});
+	my $smsg = shift @{$ctx->{msgs}} or
+		$ctx->zmore(PublicInbox::View::pagination_footer(
+						$ctx, './new.html'));
+	$smsg;
 }
 
 sub new_html {
@@ -69,7 +69,7 @@ sub new_html {
 	$ctx->{-html_tip} = '<pre>';
 	$ctx->{-upfx} = '';
 	$ctx->{-hr} = 1;
-	PublicInbox::WwwStream::response($ctx, 200, \&new_html_i);
+	PublicInbox::WwwStream::aresponse($ctx, 200, \&new_html_i);
 }
 
 # private subs
