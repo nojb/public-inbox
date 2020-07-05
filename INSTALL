@@ -100,11 +100,6 @@ Numerous optional modules are likely to be useful as well:
                                    (ensures redirects are correct when running
                                     behind nginx or Varnish)
 
-- Plack::Middleware::Deflater      deb: libplack-middleware-deflater-perl
-                                   pkg: p5 -Plack-Middleware-Deflater
-                                   rpm: perl-Plack-Middleware-Deflater
-                                   (saves bandwidth on responses)
-
 * highlight                        deb: libhighlight-perl
                                    (for syntax highlighting with coderepo)
 

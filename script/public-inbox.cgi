@@ -13,14 +13,7 @@ BEGIN {
 	PublicInbox::WWW->preload if $ENV{MOD_PERL};
 }
 my $www = PublicInbox::WWW->new;
-my $have_deflater = eval { require Plack::Middleware::Deflater; 1 };
 my $app = builder {
-	if ($have_deflater) {
-		enable 'Deflater',
-			content_type => [ 'text/html', 'text/plain',
-					'application/atom+xml' ];
-	}
-
 	# Enable to ensure redirects and Atom feed URLs are generated
 	# properly when running behind a reverse proxy server which
 	# sets the X-Forwarded-Proto request header.

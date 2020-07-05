@@ -27,15 +27,6 @@ my $refresh = sub {
 		my $www = PublicInbox::WWW->new;
 		$www->preload;
 		$app = builder {
-			eval {
-				enable 'Deflater',
-					content_type => [ qw(
-						text/html
-						text/plain
-						application/atom+xml
-						)]
-			};
-
 			eval { enable 'ReverseProxy' };
 			$@ and warn
 "Plack::Middleware::ReverseProxy missing,\n",

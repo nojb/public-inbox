@@ -22,15 +22,6 @@ my $src = $ENV{SRC_GIT_DIR}; # '/path/to/public-inbox.git'
 $src = PublicInbox::Git->new($src) if defined $src;
 
 builder {
-	eval {
-		enable 'Deflater',
-			content_type => [ qw(
-				text/html
-				text/plain
-				application/atom+xml
-				)]
-	};
-
 	# Enable to ensure redirects and Atom feed URLs are generated
 	# properly when running behind a reverse proxy server which
 	# sets the X-Forwarded-Proto request header.

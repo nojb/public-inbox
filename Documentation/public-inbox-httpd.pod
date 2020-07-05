@@ -15,7 +15,6 @@ the PSGI file.
 
 If a PSGI file is not specified, L<PublicInbox::WWW> is
 loaded with a default middleware stack consisting of
-L<Plack::Middleware::Deflater>,
 L<Plack::Middleware::ReverseProxy>, and
 L<Plack::Middleware::Head>
 

@@ -36,7 +36,6 @@ my $profiles = {
 		Net::Server
 		Plack
 		Plack::Test
-		Plack::Middleware::Deflater
 		Plack::Middleware::ReverseProxy
 		Search::Xapian
 		Socket6

@@ -18,14 +18,6 @@ my $pi_config = PublicInbox::Config->new;
 my $cgit = PublicInbox::Cgit->new($pi_config);
 
 builder {
-	eval {
-		enable 'Deflater',
-			content_type => [ qw(
-				text/html
-				text/plain
-				application/atom+xml
-				)]
-	};
 	eval { enable 'ReverseProxy' };
 	enable 'Head';
 	sub { $cgit->call($_[0]) }

@@ -36,14 +36,6 @@ builder {
 	# regular PublicInbox::WWW code:
 	# see comments in examples/public-inbox.psgi for more info:
 	mount '/' => builder {
-		eval {
-			enable 'Deflater',
-				content_type => [ qw(
-					text/html
-					text/plain
-					application/atom+xml
-					)]
-		};
 		eval { enable 'ReverseProxy' };
 		enable 'Head';
 		sub { $www->call($_[0]) }

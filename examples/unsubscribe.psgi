@@ -61,7 +61,6 @@ my $app = PublicInbox::Unsubscribe->new(
 
 builder {
 	mount '/u' => builder {
-		eval { enable 'Deflater' }; # optional
 		eval { enable 'ReverseProxy' }; # optional
 		enable 'Head';
 		sub { $app->call(@_) };
