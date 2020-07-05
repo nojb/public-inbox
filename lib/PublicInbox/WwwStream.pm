@@ -13,6 +13,8 @@ use base qw(Exporter);
 our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl);
+use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
+use PublicInbox::GzipFilter qw(gzip_maybe);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
@@ -178,13 +180,28 @@ sub html_oneshot ($$;$) {
 		ctx => $ctx,
 		base_url => base_url($ctx),
 	}, __PACKAGE__;
-	my @x = (_html_top($self), $sref ? $$sref : (), _html_end($self));
+	my @x;
+	my @h = ('Content-Type' => 'text/html; charset=UTF-8');
+	if (my $gz = gzip_maybe($ctx->{env})) {
+		my $err = $gz->deflate(_html_top($self), $x[0]);
+		die "gzip->deflate: $err" if $err != Z_OK;
+		if ($sref) {
+			$err = $gz->deflate($sref, $x[0]);
+			die "gzip->deflate: $err" if $err != Z_OK;
+		}
+		$err = $gz->deflate(_html_end($self), $x[0]);
+		die "gzip->deflate: $err" if $err != Z_OK;
+		$err = $gz->flush($x[0], Z_FINISH);
+		die "gzip->flush: $err" if $err != Z_OK;
+		push @h, qw(Vary Accept-Encoding Content-Encoding gzip);
+	} else {
+		@x = (_html_top($self), $sref ? $$sref : (), _html_end($self));
+	}
+
 	my $len = 0;
 	$len += bytes::length($_) for @x;
-	[ $code, [
-		'Content-Type' => 'text/html; charset=UTF-8',
-		'Content-Length' => $len
-	], \@x ];
+	push @h, 'Content-Length', $len;
+	[ $code, \@h, \@x ]
 }
 
 1;

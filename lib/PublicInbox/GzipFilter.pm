@@ -4,7 +4,9 @@
 # Qspawn filter
 package PublicInbox::GzipFilter;
 use strict;
+use parent qw(Exporter);
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
+our @EXPORT_OK = qw(gzip_maybe);
 my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
 
 sub new { bless {}, shift }
@@ -14,6 +16,17 @@ sub attach {
 	my ($self, $fh) = @_;
 	$self->{fh} = $fh;
 	$self
+}
+
+sub gzip_maybe ($) {
+	my ($env) = @_;
+	return if (($env->{HTTP_ACCEPT_ENCODING}) // '') !~ /\bgzip\b/;
+
+	# in case Plack::Middleware::Deflater is loaded:
+	$env->{'plack.skip-deflater'} = 1;
+
+	my ($gz, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
+	$err == Z_OK ? $gz : undef;
 }
 
 # for GetlineBody (via Qspawn) when NOT using $env->{'pi-httpd.async'}
