@@ -35,13 +35,19 @@ like(PublicInbox::WwwListing::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
 
 sub tiny_test {
 	my ($json, $host, $port) = @_;
+	my $tmp;
 	my $http = HTTP::Tiny->new;
 	my $res = $http->get("http://$host:$port/");
 	is($res->{status}, 200, 'got HTML listing');
 	like($res->{content}, qr!</html>!si, 'listing looks like HTML');
+
+	$res = $http->get("http://$host:$port/", {'Accept-Encoding'=>'gzip'});
+	is($res->{status}, 200, 'got gzipped HTML listing');
+	IO::Uncompress::Gunzip::gunzip(\(delete $res->{content}) => \$tmp);
+	like($tmp, qr!</html>!si, 'unzipped listing looks like HTML');
+
 	$res = $http->get("http://$host:$port/manifest.js.gz");
 	is($res->{status}, 200, 'got manifest');
-	my $tmp;
 	IO::Uncompress::Gunzip::gunzip(\(delete $res->{content}) => \$tmp);
 	unlike($tmp, qr/"modified":\s*"/, 'modified is an integer');
 	my $manifest = $json->decode($tmp);

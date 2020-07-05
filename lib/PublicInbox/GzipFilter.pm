@@ -42,7 +42,7 @@ sub gzf_maybe ($$) {
 # for GetlineBody (via Qspawn) when NOT using $env->{'pi-httpd.async'}
 # Also used for ->getline callbacks
 sub translate ($$) {
-	my $self = $_[0];
+	my $self = $_[0]; # $_[1] => input
 
 	# allocate the zlib context lazily here, instead of in ->new.
 	# Deflate contexts are memory-intensive and this object may
@@ -72,10 +72,34 @@ sub write {
 	$_[0]->{fh}->write(translate($_[0], $_[1]));
 }
 
+# similar to ->translate; use this when we're sure we know we have
+# more data to buffer after this
+sub zmore {
+	my $self = $_[0]; # $_[1] => input
+	my $err = $self->{gz}->deflate($_[1], $self->{zbuf});
+	die "gzip->deflate: $err" if $err != Z_OK;
+	'';
+}
+
+# flushes and returns the final bit of gzipped data
+sub zflush ($;$) {
+	my $self = $_[0]; # $_[1] => final input (optional)
+	my $zbuf = delete $self->{zbuf};
+	my $gz = delete $self->{gz};
+	my $err;
+	if (defined $_[1]) {
+		$err = $gz->deflate($_[1], $zbuf);
+		die "gzip->deflate: $err" if $err != Z_OK;
+	}
+	$err = $gz->flush($zbuf, Z_FINISH);
+	die "gzip->flush: $err" if $err != Z_OK;
+	$zbuf;
+}
+
 sub close {
 	my ($self) = @_;
 	my $fh = delete $self->{fh};
-	$fh->write(translate($self, undef));
+	$fh->write(zflush($self));
 	$fh->close;
 }
 

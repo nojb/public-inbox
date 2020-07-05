@@ -10,6 +10,8 @@ use PublicInbox::Hval qw(ascii_html prurl);
 use PublicInbox::Linkify;
 use PublicInbox::View;
 use PublicInbox::Inbox;
+use PublicInbox::NoopFilter;
+use PublicInbox::GzipFilter qw(gzf_maybe);
 use bytes (); # bytes::length
 use HTTP::Date qw(time2str);
 use Digest::SHA ();
@@ -104,13 +106,15 @@ sub ibx_entry {
 
 sub html ($$) {
 	my ($env, $list) = @_;
-	my $title = 'public-inbox';
-	my $out = '';
+	my $h = [ 'Content-Type', 'text/html; charset=UTF-8',
+			'Content-Length', undef ];
+	my $gzf = gzf_maybe($h, $env) || PublicInbox::NoopFilter::new();
+	my $out = $gzf->zmore('<html><head><title>' .
+				'public-inbox listing</title>' .
+				'</head><body><pre>');
 	my $code = 404;
 	if (@$list) {
-		$title .= ' - listing';
 		$code = 200;
-
 		# Schwartzian transform since Inbox->modified is expensive
 		@$list = sort {
 			$b->[0] <=> $a->[0]
@@ -118,13 +122,14 @@ sub html ($$) {
 
 		my $tmp = join("\n", map { ibx_entry(@$_, $env) } @$list);
 		my $l = PublicInbox::Linkify->new;
-		$out = '<pre>'.$l->to_html($tmp).'</pre><hr>';
+		$out .= $gzf->zmore($l->to_html($tmp));
+	} else {
+		$out .= $gzf->zmore('no inboxes, yet');
 	}
-	$out = "<html><head><title>$title</title></head><body>" . $out;
-	$out .= '<pre>'. PublicInbox::WwwStream::code_footer($env) .
-		'</pre></body></html>';
-
-	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
+	$out .= $gzf->zflush('</pre><hr><pre>'.
+				PublicInbox::WwwStream::code_footer($env) .
+				'</pre></body></html>');
+	$h->[3] = bytes::length($out);
 	[ $code, $h, [ $out ] ];
 }
 
