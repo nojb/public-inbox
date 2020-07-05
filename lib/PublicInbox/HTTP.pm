@@ -488,6 +488,13 @@ sub busy () {
 	($self->{rbuf} || exists($self->{env}) || $self->{wbuf});
 }
 
+# runs $cb on the next iteration of the event loop at earliest
+sub next_step {
+	my ($self, $cb) = @_;
+	return unless exists $self->{sock};
+	$self->requeue if 1 == push(@{$self->{wbuf}}, $cb);
+}
+
 # Chunked and Identity packages are used for writing responses.
 # They may be exposed to the PSGI application when the PSGI app
 # returns a CODE ref for "push"-based responses
