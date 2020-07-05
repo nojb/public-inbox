@@ -38,16 +38,13 @@ sub get_text {
 	}
 	my $env = $ctx->{env};
 	if ($raw) {
-		my $body;
-		if (my $gzf = $code == 200 ? gzf_maybe($hdr, $env) : undef) {
-			my $zbuf = $gzf->translate($txt);
-			undef $txt;
-			$body = [ $zbuf .= $gzf->translate(undef) ];
-		} else {
-			$body = [ $txt ];
+		if ($code == 200) {
+			my $gzf = gzf_maybe($hdr, $env);
+			$txt = $gzf->translate($txt);
+			$txt .= $gzf->zflush;
 		}
-		$hdr->[3] = bytes::length($body->[0]);
-		return [ $code, $hdr, $body ]
+		$hdr->[3] = bytes::length($txt);
+		return [ $code, $hdr, [ $txt ] ]
 	}
 
 	# enforce trailing slash for "wget -r" compatibility
