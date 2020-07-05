@@ -287,21 +287,18 @@ sub mset_thread {
 
 	@$msgs = reverse @$msgs if $r;
 	$ctx->{msgs} = $msgs;
-	PublicInbox::WwwStream::response($ctx, 200, \&mset_thread_i);
+	PublicInbox::WwwStream::aresponse($ctx, 200, \&mset_thread_i);
 }
 
 # callback for PublicInbox::WwwStream::getline
 sub mset_thread_i {
-	my ($ctx) = @_;
-	return $ctx->html_top if exists $ctx->{-html_tip};
-	my $msgs = $ctx->{msgs} or return;
-	while (my $smsg = pop @$msgs) {
-		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
-		return PublicInbox::View::eml_entry($ctx, $smsg, $eml,
-							scalar @$msgs);
-	}
-	my ($skel) = delete @$ctx{qw(skel msgs)};
-	$$skel .= "\n</pre>";
+	my ($ctx, $eml) = @_;
+	$ctx->zmore($ctx->html_top) if exists $ctx->{-html_tip};
+	$eml and return PublicInbox::View::eml_entry($ctx, $ctx->{smsg}, $eml,
+						scalar @{$ctx->{msgs}});
+	my $smsg = shift @{$ctx->{msgs}} or
+		$ctx->zmore(${delete($ctx->{skel})});
+	$smsg;
 }
 
 sub ctx_prepare {
