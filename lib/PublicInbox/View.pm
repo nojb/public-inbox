@@ -27,58 +27,58 @@ use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
 sub msg_page_i {
-	my ($nr, $ctx) = @_;
-	if (my $more = delete $ctx->{more}) { # unlikely
-		# fake an EOF if $more retrieval fails;
-		eval { msg_page_more($ctx, $nr, @$more) };
-	} elsif (my $hdr = delete $ctx->{hdr}) {
-		# fake an EOF if generating the footer fails;
-		# we want to at least show the message if something
-		# here crashes:
-		eval { html_footer($ctx, $hdr) };
-	} else {
-		undef
+	my ($ctx) = @_;
+	my $cur = delete $ctx->{smsg} or return; # undef: done
+	my $nxt;
+	if (my $over = $ctx->{-inbox}->over) {
+		$nxt = $ctx->{smsg} = $over->next_by_mid(@{$ctx->{next_arg}});
 	}
+	$ctx->{mhref} = ($ctx->{nr} || $nxt) ?
+			"../${\mid_href($cur->{mid})}/" : '';
+	my $eml = $ctx->{-inbox}->smsg_eml($cur) or return;
+	my $hdr = $eml->header_obj;
+	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx);
+	multipart_text_as_html($eml, $ctx);
+	delete $ctx->{obuf};
+	$$obuf .= '</pre><hr>';
+	# we want to at least show the message if something
+	# here crashes:
+	eval { $$obuf .= html_footer($ctx, $ctx->{first_hdr}) } if !$nxt;
+	$$obuf;
+}
+
+# /$INBOX/$MESSAGE_ID/ for unindexed v1 inboxes
+sub no_over_i {
+	my ($ctx) = @_;
+	my $eml = delete $ctx->{eml} or return;
+	my $hdr = $eml->header_obj;
+	$ctx->{mhref} = '';
+	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx);
+	multipart_text_as_html($eml, $ctx);
+	delete $ctx->{obuf};
+	$$obuf .= '</pre><hr>';
+	eval { $$obuf .= html_footer($ctx, $hdr) };
+	$$obuf
+}
+
+sub no_over_html ($) {
+	my ($ctx) = @_;
+	my $bref = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return; # 404
+	$ctx->{eml} = PublicInbox::Eml->new($bref);
+	PublicInbox::WwwStream::response($ctx, 200, \&no_over_i);
 }
 
 # public functions: (unstable)
 
 sub msg_page {
 	my ($ctx) = @_;
-	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{-inbox};
-	my ($smsg, $first, $next);
-	if (my $over = $ibx->over) {
-		my ($id, $prev);
-		$smsg = $over->next_by_mid($mid, \$id, \$prev) or return;
-		$first = $ibx->msg_by_smsg($smsg) or return;
-		$next = $over->next_by_mid($mid, \$id, \$prev);
-		$ctx->{more} = [ $id, $prev, $next ] if $next;
-	} else {
-		$first = $ibx->msg_by_mid($mid) or return;
-	}
-	my $mime = PublicInbox::Eml->new($first);
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	my $hdr = $ctx->{hdr} = $mime->header_obj;
-	$ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx, 0);
-	$ctx->{smsg} = $smsg;
-	# $next cannot be true w/o $smsg being defined:
-	$ctx->{mhref} = $next ? '../'.mid_href($smsg->{mid}).'/' : '';
-	multipart_text_as_html($mime, $ctx);
-	$ctx->{-html_tip} = (${delete $ctx->{obuf}} .= '</pre><hr>');
+	my $over = $ibx->over or return no_over_html($ctx);
+	my ($id, $prev);
+	my $next_arg = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
+	$ctx->{smsg} = $over->next_by_mid(@$next_arg) or return;
 	PublicInbox::WwwStream::response($ctx, 200, \&msg_page_i);
-}
-
-sub msg_page_more { # cold
-	my ($ctx, $nr, $id, $prev, $smsg) = @_;
-	my $ibx = $ctx->{-inbox};
-	my $next = $ibx->over->next_by_mid($ctx->{mid}, \$id, \$prev);
-	$ctx->{more} = [ $id, $prev, $next ] if $next;
-	my $eml = $ibx->smsg_eml($smsg) or return '';
-	$ctx->{mhref} = '../' . mid_href($smsg->{mid}) . '/';
-	$ctx->{obuf} = _msg_page_prepare_obuf($eml->header_obj, $ctx, $nr);
-	multipart_text_as_html($eml, $ctx);
-	${delete $ctx->{obuf}} .= '</pre><hr>';
 }
 
 # /$INBOX/$MESSAGE_ID/#R
@@ -377,42 +377,40 @@ sub thread_eml_entry {
 	$beg . '<pre>' . eml_entry($ctx, $smsg, $eml, 0) . '</pre>' . $end;
 }
 
-sub stream_thread_i { # PublicInbox::WwwStream::getline callback
-	my ($nr, $ctx) = @_;
-	return unless exists($ctx->{skel});
-	my $q = $ctx->{-queue};
+sub next_in_queue ($;$) {
+	my ($q, $ghost_ok) = @_;
 	while (@$q) {
-		my $level = shift @$q;
-		my $node = shift @$q or next;
+		my ($level, $smsg) = splice(@$q, 0, 2);
 		my $cl = $level + 1;
-		unshift @$q, map { ($cl, $_) } @{$node->{children}};
-		if (my $eml = $ctx->{-inbox}->smsg_eml($node)) {
-			return thread_eml_entry($ctx, $level, $node, $eml);
-		} else {
-			return ghost_index_entry($ctx, $level, $node);
-		}
+		unshift @$q, map { ($cl, $_) } @{$smsg->{children}};
+		return ($level, $smsg) if $ghost_ok || exists($smsg->{blob});
 	}
-	join('', thread_adj_level($ctx, 0)) . ${delete $ctx->{skel}};
+	undef;
+}
+
+sub stream_thread_i { # PublicInbox::WwwStream::getline callback
+	my ($ctx) = @_;
+	return unless exists($ctx->{skel});
+	my $nr = $ctx->{nr}++;
+	my ($level, $smsg) = next_in_queue($ctx->{-queue}, $nr);
+
+	$smsg or return
+		join('', thread_adj_level($ctx, 0)) . ${delete $ctx->{skel}};
+
+	my $eml = $ctx->{-inbox}->smsg_eml($smsg) or return
+		ghost_index_entry($ctx, $level, $smsg);
+
+	if ($nr == 0) {
+		$ctx->{-title_html} = ascii_html($smsg->{subject});
+		$ctx->html_top . thread_eml_entry($ctx, $level, $smsg, $eml);
+	} else {
+		thread_eml_entry($ctx, $level, $smsg, $eml);
+	}
 }
 
 sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
-	my $ibx = $ctx->{-inbox};
-	my @q = map { (0, $_) } @$rootset;
-	my ($smsg, $eml, $level);
-	while (@q) {
-		$level = shift @q;
-		$smsg = shift @q or next;
-		my $cl = $level + 1;
-		unshift @q, map { ($cl, $_) } @{$smsg->{children}};
-		$eml = $ibx->smsg_eml($smsg) and last;
-	}
-	return missing_thread($ctx) unless $eml;
-
-	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	$ctx->{-title_html} = ascii_html($smsg->{subject});
-	$ctx->{-html_tip} = thread_eml_entry($ctx, $level, $smsg, $eml);
-	$ctx->{-queue} = \@q;
+	$ctx->{-queue} = [ map { (0, $_) } @$rootset ];
 	PublicInbox::WwwStream::response($ctx, 200, \&stream_thread_i);
 }
 
@@ -451,22 +449,21 @@ sub thread_html {
 	return stream_thread($rootset, $ctx) unless $ctx->{flat};
 
 	# flat display: lazy load the full message from smsg
-	my ($smsg, $eml);
-	while ($smsg = shift @$msgs) {
-		$eml = $ibx->smsg_eml($smsg) and last;
-	}
-	return missing_thread($ctx) unless $smsg;
-	$ctx->{-title_html} = ascii_html($smsg->{subject});
-	$ctx->{-html_tip} = '<pre>'.eml_entry($ctx, $smsg, $eml, scalar @$msgs);
 	$ctx->{msgs} = $msgs;
+	$ctx->{-html_tip} = '<pre>';
 	PublicInbox::WwwStream::response($ctx, 200, \&thread_html_i);
 }
 
 sub thread_html_i { # PublicInbox::WwwStream::getline callback
-	my ($nr, $ctx) = @_;
+	my ($ctx) = @_;
 	my $msgs = $ctx->{msgs} or return;
 	while (my $smsg = shift @$msgs) {
 		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
+		if (exists $ctx->{-html_tip}) {
+			$ctx->{-title_html} = ascii_html($smsg->{subject});
+			return $ctx->html_top .
+				eml_entry($ctx, $smsg, $eml, scalar @$msgs);
+		}
 		return eml_entry($ctx, $smsg, $eml, scalar @$msgs);
 	}
 	my ($skel) = delete @$ctx{qw(skel msgs)};
@@ -624,23 +621,23 @@ sub add_text_body { # callback for each_part
 }
 
 sub _msg_page_prepare_obuf {
-	my ($hdr, $ctx, $nr) = @_;
+	my ($hdr, $ctx) = @_;
 	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
 	my $mids = mids_for_index($hdr);
-	if ($nr == 0) {
-		if ($ctx->{more}) {
+	my $nr = $ctx->{nr}++;
+	if ($nr) { # unlikely
+		$rv .= '<pre>';
+	} else {
+		$ctx->{first_hdr} = $hdr;
+		if ($ctx->{smsg}) {
 			$rv .=
 "<pre>WARNING: multiple messages have this Message-ID\n</pre>";
 		}
 		$rv .= "<pre\nid=b>"; # anchor for body start
-	} else {
-		$rv .= '<pre>';
 	}
-	if ($over) {
-		$ctx->{-upfx} = '../';
-	}
+	$ctx->{-upfx} = '../' if $over;
 	my @title; # (Subject[0], From[0])
 	for my $v ($hdr->header('From')) {
 		my @n = PublicInbox::Address::names($v);
@@ -681,7 +678,10 @@ sub _msg_page_prepare_obuf {
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx; # possible :P
 		$rv .= "Date: $v\n";
 	}
-	$ctx->{-title_html} = join(' - ', @title);
+	if (!$nr) { # first (and only) message, common case
+		$ctx->{-title_html} = join(' - ', @title);
+		$rv = $ctx->html_top . $rv;
+	}
 	if (scalar(@$mids) == 1) { # common case
 		my $mhtml = ascii_html($mids->[0]);
 		$rv .= "Message-ID: &lt;$mhtml&gt; ";
@@ -1160,8 +1160,9 @@ sub pagination_footer ($$) {
 	"<hr><pre>page: $next$prev</pre>";
 }
 
-sub index_nav { # callback for WwwStream
-	my (undef, $ctx) = @_;
+sub index_nav { # callback for WwwStream::getline
+	my ($ctx) = @_;
+	return $ctx->html_top if exists $ctx->{-html_tip};
 	pagination_footer($ctx, '.')
 }
 

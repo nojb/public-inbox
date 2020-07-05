@@ -10,11 +10,10 @@ use PublicInbox::Smsg;
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
+use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::SearchThread;
 our $LIM = 200;
 my %rmap_inc;
-
-my $noop = sub {};
 
 sub mbox_results {
 	my ($ctx) = @_;
@@ -48,7 +47,7 @@ sub sres_top_html {
 		relevance => $q->{r},
 		asc => $asc,
 	};
-	my ($mset, $total, $err, $cb);
+	my ($mset, $total, $err, $html);
 retry:
 	eval {
 		$mset = $srch->query($query, $opts);
@@ -58,8 +57,7 @@ retry:
 	ctx_prepare($q, $ctx);
 	if ($err) {
 		$code = 400;
-		$ctx->{-html_tip} = '<pre>'.err_txt($ctx, $err).'</pre><hr>';
-		$cb = $noop;
+		$html = '<pre>'.err_txt($ctx, $err).'</pre><hr>';
 	} elsif ($total == 0) {
 		if (defined($ctx->{-uxs_retried})) {
 			# undo retry damage:
@@ -70,19 +68,16 @@ retry:
 			goto retry;
 		}
 		$code = 404;
-		$ctx->{-html_tip} = "<pre>\n[No results found]</pre><hr>";
-		$cb = $noop;
+		$html = "<pre>\n[No results found]</pre><hr>";
 	} else {
 		return adump($_[0], $mset, $q, $ctx) if $x eq 'A';
 
 		$ctx->{-html_tip} = search_nav_top($mset, $q, $ctx);
-		if ($x eq 't') {
-			$cb = mset_thread($ctx, $mset, $q);
-		} else {
-			$cb = mset_summary($ctx, $mset, $q);
-		}
+		return mset_thread($ctx, $mset, $q) if $x eq 't';
+		mset_summary($ctx, $mset, $q); # appends to {-html_tip}
+		$html = '';
 	}
-	PublicInbox::WwwStream::response($ctx, $code, $cb);
+	html_oneshot($ctx, $code);
 }
 
 # display non-nested search results similar to what users expect from
@@ -122,7 +117,7 @@ sub mset_summary {
 		$$res .= "$pfx  - by $f @ $date UTC [$pct%]\n\n";
 	}
 	$$res .= search_nav_bot($mset, $q);
-	$noop;
+	undef;
 }
 
 # shorten "/full/path/to/Foo/Bar.pm" to "Foo/Bar.pm" so error
@@ -292,12 +287,13 @@ sub mset_thread {
 
 	@$msgs = reverse @$msgs if $r;
 	$ctx->{msgs} = $msgs;
-	\&mset_thread_i;
+	PublicInbox::WwwStream::response($ctx, 200, \&mset_thread_i);
 }
 
 # callback for PublicInbox::WwwStream::getline
 sub mset_thread_i {
-	my ($nr, $ctx) = @_;
+	my ($ctx) = @_;
+	return $ctx->html_top if exists $ctx->{-html_tip};
 	my $msgs = $ctx->{msgs} or return;
 	while (my $smsg = pop @$msgs) {
 		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;

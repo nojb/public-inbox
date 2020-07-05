@@ -31,7 +31,6 @@ sub init {
 	my ($ctx, $cb) = @_;
 	$ctx->{cb} = $cb;
 	$ctx->{base_url} = base_url($ctx);
-	$ctx->{nr} = 0;
 	bless $ctx, __PACKAGE__;
 }
 
@@ -43,7 +42,7 @@ sub response {
 	[ $code, $h, $ctx ]
 }
 
-sub _html_top ($) {
+sub html_top ($) {
 	my ($ctx) = @_;
 	my $ibx = $ctx->{-inbox};
 	my $desc = ascii_html($ibx->description);
@@ -159,15 +158,9 @@ EOF
 # callback for HTTP.pm (and any other PSGI servers)
 sub getline {
 	my ($ctx) = @_;
-	my $nr = $ctx->{nr}++;
-
-	my $buf = do {
-		if ($nr == 0) {
-			_html_top($ctx);
-		} elsif (my $middle = $ctx->{cb}) {
-			$middle->($nr, $ctx);
-		}
-	} // (delete($ctx->{cb}) ? _html_end($ctx) : undef);
+	my $cb = $ctx->{cb};
+	my $buf = $cb->($ctx) if $cb;
+	$buf //= delete($ctx->{cb}) ? _html_end($ctx) : undef;
 
 	# gzf may be GzipFilter, `undef' or `0'
 	my $gzf = $ctx->{gzf} or return $buf;
@@ -185,12 +178,12 @@ sub html_oneshot ($$;$) {
 	my $h = [ 'Content-Type' => 'text/html; charset=UTF-8',
 		'Content-Length' => undef ];
 	if (my $gzf = gzf_maybe($h, $ctx->{env})) {
-		$gzf->zmore(_html_top($ctx));
+		$gzf->zmore(html_top($ctx));
 		$gzf->zmore($$sref) if $sref;
 		$x[0] = $gzf->zflush(_html_end($ctx));
 		$h->[3] = length($x[0]);
 	} else {
-		@x = (_html_top($ctx), $sref ? $$sref : (), _html_end($ctx));
+		@x = (html_top($ctx), $sref ? $$sref : (), _html_end($ctx));
 		$h->[3] += bytes::length($_) for @x;
 	}
 	[ $code, $h, \@x ]

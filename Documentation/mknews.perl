@@ -37,7 +37,7 @@ if ($dst eq 'NEWS') {
 	my $ibx = My::MockObject->new(
 		description => 'public-inbox releases',
 		over => undef,
-		search => 1, # for WwwStream:_html_top
+		search => 1, # for WwwStream::html_top
 		base_url => "$base_url/",
 	);
 	$ibx->{-primary_address} = $addr;
@@ -113,7 +113,7 @@ sub html_start {
 	require PublicInbox::WwwStream;
 	$ctx->{www} = My::MockObject->new(style => '');
 	my $www_stream = PublicInbox::WwwStream::init($ctx);
-	print $out $www_stream->_html_top, '<pre>' or die;
+	print $out $www_stream->html_top, '<pre>' or die;
 }
 
 sub html_end {

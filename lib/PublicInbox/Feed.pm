@@ -50,7 +50,8 @@ sub generate_html_index {
 }
 
 sub new_html_i {
-	my ($nr, $ctx) = @_;
+	my ($ctx) = @_;
+	return $ctx->html_top if exists $ctx->{-html_tip};
 	my $msgs = $ctx->{msgs};
 	while (my $smsg = shift @$msgs) {
 		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
