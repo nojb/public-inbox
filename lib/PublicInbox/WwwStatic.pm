@@ -17,6 +17,8 @@ use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
 use Errno qw(EACCES ENOTDIR ENOENT);
 use URI::Escape qw(uri_escape_utf8);
+use PublicInbox::NoopFilter;
+use PublicInbox::GzipFilter qw(gzf_maybe);
 use PublicInbox::Hval qw(ascii_html);
 use Plack::MIME;
 our @EXPORT_OK = qw(@NO_CACHE r path_info_raw);
@@ -310,12 +312,15 @@ sub dir_response ($$$) {
 			(map { ${$other{$_}} } sort keys %other));
 
 	my $path_info_html = ascii_html($path_info);
-	my $body = "<html><head><title>Index of $path_info_html</title>" .
+	my $h = [qw(Content-Type text/html Content-Length), undef];
+	my $gzf = gzf_maybe($h, $env) || PublicInbox::NoopFilter::new();
+	$gzf->zmore("<html><head><title>Index of $path_info_html</title>" .
 		${$self->{style}} .
-		"</head><body><pre>Index of $path_info_html</pre><hr><pre>\n";
-	$body .= join("\n", @entries) . "</pre><hr></body></html>\n";
-	[ 200, [ qw(Content-Type text/html
-			Content-Length), bytes::length($body) ], [ $body ] ]
+		"</head><body><pre>Index of $path_info_html</pre><hr><pre>\n");
+	$gzf->zmore(join("\n", @entries));
+	my $out = $gzf->zflush("</pre><hr></body></html>\n");
+	$h->[3] = bytes::length($out);
+	[ 200, $h, [ $out ] ]
 }
 
 sub call { # PSGI app endpoint

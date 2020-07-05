@@ -6,7 +6,7 @@ use Test::More;
 use PublicInbox::TestCommon;
 my ($tmpdir, $for_destroy) = tmpdir();
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
-require_mods(@mods);
+require_mods(@mods, 'IO::Uncompress::Gunzip');
 use_ok $_ foreach @mods;
 use_ok 'PublicInbox::WwwStatic';
 
@@ -91,6 +91,15 @@ test_psgi($app->(autoindex => 1, index => []), sub {
 	$get->header('Accept-Encoding' => 'gzip');
 	$res = $cb->($get);
 	is($res->content, "hi", 'got compressed on mtime match');
+
+	$get = GET('/dir/');
+	$get->header('Accept-Encoding' => 'gzip');
+	$res = $cb->($get);
+	my $in = $res->content;
+	my $out = '';
+	IO::Uncompress::Gunzip::gunzip(\$in => \$out);
+	like($out, qr/\A<html>/, 'got HTML start after gunzip');
+	like($out, qr{</html>$}, 'got HTML end after gunzip');
 });
 
 done_testing();
