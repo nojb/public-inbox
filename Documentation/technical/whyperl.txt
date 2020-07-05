@@ -66,6 +66,10 @@ Good Things
   Perl had fewer breaking changes than Python or Ruby; we
   expect that trend to continue given the inertia of Perl 5.
 
+  Note: this document was written before the Perl 7 announcement.
+  We'll continue to monitor and adapt to the situation around
+  what distros are doing in regard to maintaining compatibility.
+
 * Built for text processing
 
   Our focus is plain-text mail, and Perl has many built-ins
