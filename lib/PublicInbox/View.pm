@@ -375,7 +375,7 @@ sub thread_eml_entry {
 	$beg . '<pre>' . eml_entry($ctx, $smsg, $eml, 0) . '</pre>' . $end;
 }
 
-sub next_in_queue ($;$) {
+sub next_in_queue ($$) {
 	my ($q, $ghost_ok) = @_;
 	while (@$q) {
 		my ($level, $smsg) = splice(@$q, 0, 2);
@@ -387,29 +387,39 @@ sub next_in_queue ($;$) {
 }
 
 sub stream_thread_i { # PublicInbox::WwwStream::getline callback
-	my ($ctx) = @_;
+	my ($ctx, $eml) = @_;
+
+	if ($eml) {
+		my ($level, $smsg) = delete @$ctx{qw(level smsg)};
+		if ($ctx->{nr} == 1) {
+			$ctx->{-title_html} = ascii_html($smsg->{subject});
+			$ctx->zmore($ctx->html_top);
+		}
+		return thread_eml_entry($ctx, $level, $smsg, $eml);
+	}
 	return unless exists($ctx->{skel});
-	my $nr = $ctx->{nr}++;
-	my ($level, $smsg) = next_in_queue($ctx->{-queue}, $nr);
-
-	$smsg or return
-		join('', thread_adj_level($ctx, 0)) . ${delete $ctx->{skel}};
-
-	my $eml = $ctx->{-inbox}->smsg_eml($smsg) or return
-		ghost_index_entry($ctx, $level, $smsg);
-
-	if ($nr == 0) {
-		$ctx->{-title_html} = ascii_html($smsg->{subject});
-		$ctx->html_top . thread_eml_entry($ctx, $level, $smsg, $eml);
-	} else {
-		thread_eml_entry($ctx, $level, $smsg, $eml);
+	my $ghost_ok = $ctx->{nr}++;
+	while (1) {
+		my ($lvl, $smsg) = next_in_queue($ctx->{-queue}, $ghost_ok);
+		if ($smsg) {
+			if (exists $smsg->{blob}) { # next message for cat-file
+				$ctx->{level} = $lvl;
+				return $smsg;
+			}
+			# buffer the ghost entry and loop
+			$ctx->zmore(ghost_index_entry($ctx, $lvl, $smsg));
+		} else { # all done
+			$ctx->zmore(join('', thread_adj_level($ctx, 0)));
+			$ctx->zmore(${delete($ctx->{skel})});
+			return;
+		}
 	}
 }
 
 sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
 	$ctx->{-queue} = [ map { (0, $_) } @$rootset ];
-	PublicInbox::WwwStream::response($ctx, 200, \&stream_thread_i);
+	PublicInbox::WwwStream::aresponse($ctx, 200, \&stream_thread_i);
 }
 
 # /$INBOX/$MESSAGE_ID/t/
