@@ -8,11 +8,10 @@
 # more common "push" model)
 package PublicInbox::WwwStream;
 use strict;
-use parent qw(Exporter);
+use parent qw(Exporter PublicInbox::GzipFilter);
 our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl);
-use PublicInbox::GzipFilter qw(gzf_maybe);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
@@ -35,10 +34,10 @@ sub init {
 
 sub response {
 	my ($ctx, $code, $cb) = @_;
-	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
+	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8' ];
 	init($ctx, $cb);
-	$ctx->{gzf} = gzf_maybe($h, $ctx->{env});
-	[ $code, $h, $ctx ]
+	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
+	[ $code, $res_hdr, $ctx ]
 }
 
 sub html_top ($) {
@@ -157,35 +156,27 @@ EOF
 # callback for HTTP.pm (and any other PSGI servers)
 sub getline {
 	my ($ctx) = @_;
-	my $cb = $ctx->{cb};
-	my $buf = $cb->($ctx) if $cb;
-	$buf //= delete($ctx->{cb}) ? _html_end($ctx) : undef;
-
-	# gzf may be GzipFilter, `undef' or `0'
-	my $gzf = $ctx->{gzf} or return $buf;
-
-	return $gzf->translate($buf) if defined $buf;
-	$ctx->{gzf} = 0; # next call to ->getline returns $buf (== undef)
-	$gzf->translate(undef);
+	my $cb = $ctx->{cb} or return;
+	if (defined(my $buf = $cb->($ctx))) {
+		return $ctx->translate($buf);
+	}
+	delete $ctx->{cb};
+	$ctx->zflush(_html_end($ctx));
 }
 
 sub html_oneshot ($$;$) {
 	my ($ctx, $code, $sref) = @_;
 	$ctx->{base_url} = base_url($ctx);
 	bless $ctx, __PACKAGE__;
-	my @x;
-	my $h = [ 'Content-Type' => 'text/html; charset=UTF-8',
+	my @bdy;
+	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8',
 		'Content-Length' => undef ];
-	if (my $gzf = gzf_maybe($h, $ctx->{env})) {
-		$gzf->zmore(html_top($ctx));
-		$gzf->zmore($$sref) if $sref;
-		$x[0] = $gzf->zflush(_html_end($ctx));
-		$h->[3] = length($x[0]);
-	} else {
-		@x = (html_top($ctx), $sref ? $$sref : (), _html_end($ctx));
-		$h->[3] += bytes::length($_) for @x;
-	}
-	[ $code, $h, \@x ]
+	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
+	$ctx->zmore(html_top($ctx));
+	$ctx->zmore($$sref) if $sref;
+	$bdy[0] = $ctx->zflush(_html_end($ctx));
+	$res_hdr->[3] = bytes::length($bdy[0]);
+	[ $code, $res_hdr, \@bdy ]
 }
 
 1;
