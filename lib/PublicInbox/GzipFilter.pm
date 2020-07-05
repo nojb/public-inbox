@@ -32,6 +32,22 @@ sub gzf_maybe ($$) {
 	bless { gz => $gz }, __PACKAGE__;
 }
 
+sub qsp_maybe ($$) {
+	my ($res_hdr, $env) = @_;
+	return if ($env->{HTTP_ACCEPT_ENCODING} // '') !~ /\bgzip\b/;
+	my $hdr = join("\n", @$res_hdr);
+	return if $hdr !~ m!^Content-Type\n
+				(?:(?:text/(?:html|plain))|
+				application/atom\+xml)\b!ixsm;
+	return if $hdr =~ m!^Content-Encoding\ngzip\n!smi;
+	return if $hdr =~ m!^Content-Length\n[0-9]+\n!smi;
+	return if $hdr =~ m!^Transfer-Encoding\n!smi;
+	# in case Plack::Middleware::Deflater is loaded:
+	return if $env->{'plack.skip-deflater'}++;
+	push @$res_hdr, @GZIP_HDRS;
+	bless {}, __PACKAGE__;
+}
+
 sub gzip_or_die () {
 	my ($gz, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
 	$err == Z_OK or die "Deflate->new failed: $err";

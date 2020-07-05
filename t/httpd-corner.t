@@ -340,11 +340,18 @@ SKIP: {
 	is($n, 30 * 1024 * 1024, 'got expected output from curl');
 	is($non_zero, 0, 'read all zeros');
 
-	require_mods(@zmods, 2);
+	require_mods(@zmods, 4);
 	my $buf = xqx([$curl, '-sS', "$base/psgi-return-gzip"]);
 	is($?, 0, 'curl succesful');
 	IO::Uncompress::Gunzip::gunzip(\$buf => \(my $out));
 	is($out, "hello world\n");
+	my $curl_rdr = { 2 => \(my $curl_err = '') };
+	$buf = xqx([$curl, qw(-sSv --compressed),
+			"$base/psgi-return-compressible"], undef, $curl_rdr);
+	is($?, 0, 'curl --compressed successful');
+	is($buf, "goodbye world\n", 'gzipped response as expected');
+	like($curl_err, qr/\bContent-Encoding: gzip\b/,
+		'curl got gzipped response');
 }
 
 {

@@ -25,8 +25,8 @@
 
 package PublicInbox::Qspawn;
 use strict;
-use warnings;
 use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::GzipFilter;
 
 # n.b.: we get EAGAIN with public-inbox-httpd, and EINTR on other PSGI servers
 use Errno qw(EAGAIN EINTR);
@@ -255,7 +255,9 @@ sub psgi_return_init_cb {
 	my ($self) = @_;
 	my $r = rd_hdr($self) or return;
 	my $env = $self->{psgi_env};
-	my $filter = delete $env->{'qspawn.filter'};
+	my $filter = delete $env->{'qspawn.filter'} //
+		PublicInbox::GzipFilter::qsp_maybe($r->[1], $env);
+
 	my $wcb = delete $env->{'qspawn.wcb'};
 	my $async = delete $self->{async};
 	if (scalar(@$r) == 3) { # error

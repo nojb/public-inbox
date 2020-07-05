@@ -94,6 +94,13 @@ my $app = sub {
 		return $qsp->psgi_return($env, undef, sub {
 			[ 200, [ qw(Content-Type application/octet-stream)]]
 		});
+	} elsif ($path eq '/psgi-return-compressible') {
+		require PublicInbox::Qspawn;
+		my $cmd = [qw(echo goodbye world)];
+		my $qsp = PublicInbox::Qspawn->new($cmd);
+		return $qsp->psgi_return($env, undef, sub {
+			[200, [qw(Content-Type text/plain)]]
+		});
 	} elsif ($path eq '/psgi-return-enoent') {
 		require PublicInbox::Qspawn;
 		my $cmd = [ 'this-better-not-exist-in-PATH'.rand ];
