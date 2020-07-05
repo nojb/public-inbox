@@ -147,18 +147,34 @@ sub close {
 	}
 }
 
+sub bail  {
+	my $self = shift;
+	if (my $env = $self->{env}) {
+		eval { $env->{'psgi.errors'}->print(@_, "\n") };
+		warn("E: error printing to psgi.errors: $@", @_) if $@;
+		my $http = $env->{'psgix.io'} or return; # client abort
+		eval { $http->close }; # should hit our close
+		warn "E: error in http->close: $@" if $@;
+		eval { $self->close }; # just in case...
+		warn "E: error in self->close: $@" if $@;
+	} else {
+		warn @_, "\n";
+	}
+}
+
 # this is public-inbox-httpd-specific
 sub async_blob_cb { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $self) = @_;
 	my $http = $self->{env}->{'psgix.io'} or return; # client abort
-	my $smsg = $self->{smsg} or die 'BUG: no smsg';
+	my $smsg = $self->{smsg} or bail($self, 'BUG: no smsg');
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
 		return $http->next_step($self->{async_next});
 	}
-	$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
-	$self->{async_eml}->($self, PublicInbox::Eml->new($bref));
+	$smsg->{blob} eq $oid or bail($self, "BUG: $smsg->{blob} != $oid");
+	eval { $self->{async_eml}->($self, PublicInbox::Eml->new($bref)) };
+	bail($self, "E: async_eml: $@") if $@;
 	$http->next_step($self->{async_next});
 }
 
