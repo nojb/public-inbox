@@ -8,15 +8,16 @@
 # There are also API changes to simplify our usage and data set.
 package PublicInbox::Git;
 use strict;
-use warnings;
+use v5.10.1;
+use parent qw(Exporter);
 use POSIX ();
 use IO::Handle; # ->autoflush
+use Errno qw(EINTR);
 use File::Glob qw(bsd_glob GLOB_NOSORT);
+use Time::HiRes qw(stat);
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::Tmpfile;
-use base qw(Exporter);
 our @EXPORT_OK = qw(git_unquote git_quote);
-use Errno qw(EINTR);
 our $PIPE_BUFSIZ = 65536; # Linux default
 our $in_cleanup;
 
