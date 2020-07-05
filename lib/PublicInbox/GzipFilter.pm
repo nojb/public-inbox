@@ -6,6 +6,10 @@ package PublicInbox::GzipFilter;
 use strict;
 use parent qw(Exporter);
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
+use PublicInbox::CompressNoop;
+use PublicInbox::Eml;
+use PublicInbox::GitAsyncCat;
+
 our @EXPORT_OK = qw(gzf_maybe);
 my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
 my @GZIP_HDRS = qw(Vary Accept-Encoding Content-Encoding gzip);
@@ -14,22 +18,41 @@ sub new { bless {}, shift }
 
 # for Qspawn if using $env->{'pi-httpd.async'}
 sub attach {
-	my ($self, $fh) = @_;
-	$self->{fh} = $fh;
+	my ($self, $http_out) = @_;
+	$self->{http_out} = $http_out;
 	$self
 }
 
-# returns `0' and not `undef' on failure (see Www*Stream)
-sub gzf_maybe ($$) {
+sub gz_or_noop {
 	my ($res_hdr, $env) = @_;
-	return 0 if (($env->{HTTP_ACCEPT_ENCODING}) // '') !~ /\bgzip\b/;
-	my ($gz, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
-	return 0 if $err != Z_OK;
+	if (($env->{HTTP_ACCEPT_ENCODING} // '') =~ /\bgzip\b/) {
+		$env->{'plack.skip-deflater'} = 1;
+		push @$res_hdr, @GZIP_HDRS;
+		gzip_or_die();
+	} else {
+		PublicInbox::CompressNoop::new();
+	}
+}
 
-	# in case Plack::Middleware::Deflater is loaded:
-	$env->{'plack.skip-deflater'} = 1;
-	push @$res_hdr, @GZIP_HDRS;
-	bless { gz => $gz }, __PACKAGE__;
+sub gzf_maybe ($$) { bless { gz => gz_or_noop(@_) }, __PACKAGE__ }
+
+sub psgi_response {
+	my ($self, $code, $res_hdr, $next_cb, $eml_cb) = @_;
+	my $env = $self->{env};
+	$self->{gz} //= gz_or_noop($res_hdr, $env);
+	if ($env->{'pi-httpd.async'}) {
+		$self->{async_next} = $next_cb;
+		$self->{async_eml} = $eml_cb;
+		my $http = $env->{'psgix.io'}; # PublicInbox::HTTP
+		$http->{forward} = $self;
+		sub {
+			my ($wcb) = @_; # -httpd provided write callback
+			$self->{http_out} = $wcb->([$code, $res_hdr]);
+			$next_cb->($http); # start stepping
+		};
+	} else { # generic PSGI code path
+		[ $code, $res_hdr, $self ];
+	}
 }
 
 sub qsp_maybe ($$) {
@@ -80,7 +103,7 @@ sub translate ($$) {
 
 sub write {
 	# my $ret = bytes::length($_[1]); # XXX does anybody care?
-	$_[0]->{fh}->write(translate($_[0], $_[1]));
+	$_[0]->{http_out}->write(translate($_[0], $_[1]));
 }
 
 # similar to ->translate; use this when we're sure we know we have
@@ -109,9 +132,31 @@ sub zflush ($;$) {
 
 sub close {
 	my ($self) = @_;
-	my $fh = delete $self->{fh};
-	$fh->write(zflush($self));
-	$fh->close;
+	if (my $http_out = delete $self->{http_out}) {
+		$http_out->write(zflush($self));
+		$http_out->close;
+	}
+}
+
+# this is public-inbox-httpd-specific
+sub async_blob_cb { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $self) = @_;
+	my $http = $self->{env}->{'psgix.io'} or return; # client abort
+	my $smsg = $self->{smsg} or die 'BUG: no smsg';
+	if (!defined($oid)) {
+		# it's possible to have TOCTOU if an admin runs
+		# public-inbox-(edit|purge), just move onto the next message
+		return $http->next_step($self->{async_next});
+	}
+	$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
+	$self->{async_eml}->($self, PublicInbox::Eml->new($bref));
+	$http->next_step($self->{async_next});
+}
+
+sub smsg_blob {
+	my ($self, $smsg) = @_;
+	git_async_cat($self->{-inbox}->git, $smsg->{blob},
+			\&async_blob_cb, $self);
 }
 
 1;

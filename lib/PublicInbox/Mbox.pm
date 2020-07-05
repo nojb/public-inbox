@@ -9,13 +9,11 @@
 # more common "push" model)
 package PublicInbox::Mbox;
 use strict;
-use warnings;
+use parent 'PublicInbox::GzipFilter';
 use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Smsg;
 use PublicInbox::Eml;
-use PublicInbox::GitAsyncCat;
-use PublicInbox::GzipFilter qw(gzf_maybe);
 
 # called by PSGI server as body response
 # this gets called twice for every message, once to return the header,
@@ -25,49 +23,35 @@ sub getline {
 	my $smsg = $ctx->{smsg} or return;
 	my $ibx = $ctx->{-inbox};
 	my $eml = $ibx->smsg_eml($smsg) or return;
-	$ctx->{smsg} = $ibx->over->next_by_mid($ctx->{mid}, @{$ctx->{id_prev}});
-	msg_hdr($ctx, $eml, $smsg->{mid}) . msg_body($eml);
-}
-
-sub close { !!delete($_[0]->{http_out}) }
-
-sub mbox_async_step ($) { # public-inbox-httpd-only
-	my ($ctx) = @_;
-	if (my $smsg = $ctx->{smsg}) {
-		git_async_cat($ctx->{-inbox}->git, $smsg->{blob},
-				\&mbox_blob_cb, $ctx);
-	} elsif (my $out = delete $ctx->{http_out}) {
-		$out->close;
+	my $n = $ctx->{smsg} = $ibx->over->next_by_mid(@{$ctx->{next_arg}});
+	$ctx->zmore(msg_hdr($ctx, $eml, $smsg->{mid}));
+	if ($n) {
+		$ctx->translate(msg_body($eml));
+	} else { # last message
+		$ctx->zmore(msg_body($eml));
+		$ctx->zflush;
 	}
 }
 
 # called by PublicInbox::DS::write
-sub mbox_async_next {
+sub async_next {
 	my ($http) = @_; # PublicInbox::HTTP
 	my $ctx = $http->{forward} or return; # client aborted
 	eval {
-		$ctx->{smsg} = $ctx->{-inbox}->over->next_by_mid(
-					$ctx->{mid}, @{$ctx->{id_prev}});
-		mbox_async_step($ctx);
+		my $smsg = $ctx->{smsg} or return $ctx->close;
+		$ctx->smsg_blob($smsg);
 	};
+	warn "E: $@" if $@;
 }
 
-# this is public-inbox-httpd-specific
-sub mbox_blob_cb { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $ctx) = @_;
-	my $http = $ctx->{env}->{'psgix.io'} or return; # client abort
-	my $smsg = delete $ctx->{smsg} or die 'BUG: no smsg';
-	if (!defined($oid)) {
-		# it's possible to have TOCTOU if an admin runs
-		# public-inbox-(edit|purge), just move onto the next message
-		return $http->next_step(\&mbox_async_next);
-	} else {
-		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
-	}
-	my $eml = PublicInbox::Eml->new($bref);
-	$ctx->{http_out}->write(msg_hdr($ctx, $eml, $smsg->{mid}));
-	$ctx->{http_out}->write(msg_body($eml));
-	$http->next_step(\&mbox_async_next);
+sub async_eml { # ->{async_eml} for async_blob_cb
+	my ($ctx, $eml) = @_;
+	my $smsg = delete $ctx->{smsg};
+	# next message
+	$ctx->{smsg} = $ctx->{-inbox}->over->next_by_mid(@{$ctx->{next_arg}});
+
+	$ctx->zmore(msg_hdr($ctx, $eml, $smsg->{mid}));
+	$ctx->{http_out}->write($ctx->translate(msg_body($eml)));
 }
 
 sub res_hdr ($$) {
@@ -97,41 +81,17 @@ sub no_over_raw ($) {
 		[ msg_hdr($ctx, $eml, $ctx->{mid}) . msg_body($eml) ] ]
 }
 
-sub stream_raw { # MboxGz response callback
-	my ($ctx) = @_;
-	delete($ctx->{smsg}) //
-		$ctx->{-inbox}->over->next_by_mid($ctx->{mid},
-						@{$ctx->{id_prev}});
-}
-
 # /$INBOX/$MESSAGE_ID/raw
 sub emit_raw {
 	my ($ctx) = @_;
-	my $env = $ctx->{env};
-	$ctx->{base_url} = $ctx->{-inbox}->base_url($env);
+	$ctx->{base_url} = $ctx->{-inbox}->base_url($ctx->{env});
 	my $over = $ctx->{-inbox}->over or return no_over_raw($ctx);
 	my ($id, $prev);
-	my $smsg = $over->next_by_mid($ctx->{mid}, \$id, \$prev) or return;
-	$ctx->{smsg} = $smsg;
+	my $mip = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
+	my $smsg = $ctx->{smsg} = $over->next_by_mid(@$mip) or return;
 	my $res_hdr = res_hdr($ctx, $smsg->{subject});
-	$ctx->{id_prev} = [ \$id, \$prev ];
-
-	if (my $gzf = gzf_maybe($res_hdr, $env)) {
-		$ctx->{gz} = delete $gzf->{gz};
-		require PublicInbox::MboxGz;
-		PublicInbox::MboxGz::response($ctx, \&stream_raw, $res_hdr);
-	} elsif ($env->{'pi-httpd.async'}) {
-		sub {
-			my ($wcb) = @_; # -httpd provided write callback
-			$ctx->{http_out} = $wcb->([200, $res_hdr]);
-			$ctx->{env}->{'psgix.io'}->{forward} = $ctx;
-			bless $ctx, __PACKAGE__;
-			mbox_async_step($ctx); # start stepping
-		};
-	} else { # generic PSGI code path
-		bless $ctx, __PACKAGE__; # respond to ->getline
-		[ 200, $res_hdr, $ctx ];
-	}
+	bless $ctx, __PACKAGE__;
+	$ctx->psgi_response(200, $res_hdr, \&async_next, \&async_eml);
 }
 
 sub msg_hdr ($$;$) {

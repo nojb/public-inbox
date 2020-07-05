@@ -10,7 +10,6 @@ use PublicInbox::Hval qw(ascii_html prurl);
 use PublicInbox::Linkify;
 use PublicInbox::View;
 use PublicInbox::Inbox;
-use PublicInbox::NoopFilter;
 use PublicInbox::GzipFilter qw(gzf_maybe);
 use bytes (); # bytes::length
 use HTTP::Date qw(time2str);
@@ -108,7 +107,7 @@ sub html ($$) {
 	my ($env, $list) = @_;
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8',
 			'Content-Length', undef ];
-	my $gzf = gzf_maybe($h, $env) || PublicInbox::NoopFilter::new();
+	my $gzf = gzf_maybe($h, $env);
 	$gzf->zmore('<html><head><title>' .
 				'public-inbox listing</title>' .
 				'</head><body><pre>');

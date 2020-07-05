@@ -100,6 +100,7 @@ lib/PublicInbox/Admin.pm
 lib/PublicInbox/AdminEdit.pm
 lib/PublicInbox/AltId.pm
 lib/PublicInbox/Cgit.pm
+lib/PublicInbox/CompressNoop.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/ContentHash.pm
 lib/PublicInbox/DS.pm
@@ -159,7 +160,6 @@ lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
 lib/PublicInbox/NewsWWW.pm
-lib/PublicInbox/NoopFilter.pm
 lib/PublicInbox/Over.pm
 lib/PublicInbox/OverIdx.pm
 lib/PublicInbox/ParentPipe.pm

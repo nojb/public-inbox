@@ -17,7 +17,6 @@ use HTTP::Date qw(time2str);
 use HTTP::Status qw(status_message);
 use Errno qw(EACCES ENOTDIR ENOENT);
 use URI::Escape qw(uri_escape_utf8);
-use PublicInbox::NoopFilter;
 use PublicInbox::GzipFilter qw(gzf_maybe);
 use PublicInbox::Hval qw(ascii_html);
 use Plack::MIME;
@@ -313,7 +312,7 @@ sub dir_response ($$$) {
 
 	my $path_info_html = ascii_html($path_info);
 	my $h = [qw(Content-Type text/html Content-Length), undef];
-	my $gzf = gzf_maybe($h, $env) || PublicInbox::NoopFilter::new();
+	my $gzf = gzf_maybe($h, $env);
 	$gzf->zmore("<html><head><title>Index of $path_info_html</title>" .
 		${$self->{style}} .
 		"</head><body><pre>Index of $path_info_html</pre><hr><pre>\n");

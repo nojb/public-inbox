@@ -7,107 +7,59 @@
 # more common "push" model)
 package PublicInbox::WwwAtomStream;
 use strict;
-use warnings;
+use parent 'PublicInbox::GzipFilter';
 
 use POSIX qw(strftime);
 use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
 use PublicInbox::Hval qw(ascii_html mid_href);
 use PublicInbox::MsgTime qw(msg_timestamp);
-use PublicInbox::GzipFilter qw(gzf_maybe);
-use PublicInbox::GitAsyncCat;
-
-# called by generic PSGI server after getline,
-# and also by PublicInbox::HTTP::close
-sub close { !!delete($_[0]->{http_out}) }
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
 	$ctx->{feed_base_url} = $ctx->{-inbox}->base_url($ctx->{env});
-	$ctx->{cb} = $cb || \&close;
+	$ctx->{cb} = $cb || \&PublicInbox::GzipFilter::close;
 	$ctx->{emit_header} = 1;
 	bless $ctx, $class;
 }
 
-# called by PublicInbox::DS::write
-sub atom_async_next {
+sub async_next ($) {
 	my ($http) = @_; # PublicInbox::HTTP
-	atom_async_step($http->{forward});
-}
-
-# this is public-inbox-httpd-specific
-sub atom_blob_cb { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $ctx) = @_;
-	my $http = $ctx->{env}->{'psgix.io'} or return; # client abort
-	my $smsg = delete $ctx->{smsg} or die 'BUG: no smsg';
-	if (!defined($oid)) {
-		# it's possible to have TOCTOU if an admin runs
-		# public-inbox-(edit|purge), just move onto the next message
-		return $http->next_step(\&atom_async_next);
-	} else {
-		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
-	}
-	my $buf = feed_entry($ctx, $smsg, PublicInbox::Eml->new($bref));
-	if (my $gzf = $ctx->{gzf}) {
-		$buf = $gzf->translate($buf);
-	}
-	# PublicInbox::HTTP::{Chunked,Identity}::write
-	$ctx->{http_out}->write($buf);
-
-	$http->next_step(\&atom_async_next);
-}
-
-sub atom_async_step { # this is public-inbox-httpd-specific
-	my ($ctx) = @_;
-	if (my $smsg = $ctx->{smsg} = $ctx->{cb}->($ctx)) {
-		git_async_cat($ctx->{-inbox}->git, $smsg->{blob},
-				\&atom_blob_cb, $ctx);
-	} elsif (my $out = delete $ctx->{http_out}) {
-		if (my $gzf = delete $ctx->{gzf}) {
-			$out->write($gzf->zflush);
+	my $ctx = $http->{forward} or return;
+	eval {
+		if (my $smsg = $ctx->{smsg} = $ctx->{cb}->($ctx)) {
+			$ctx->smsg_blob($smsg);
+		} else {
+			$ctx->{http_out}->write($ctx->translate('</feed>'));
+			$ctx->close;
 		}
-		$out->close;
-	}
+	};
+	warn "E: $@" if $@;
+}
+
+sub async_eml { # ->{async_eml} for async_blob_cb
+	my ($ctx, $eml) = @_;
+	my $smsg = delete $ctx->{smsg};
+	$ctx->{http_out}->write($ctx->translate(feed_entry($ctx, $smsg, $eml)))
 }
 
 sub response {
 	my ($class, $ctx, $code, $cb) = @_;
 	my $res_hdr = [ 'Content-Type' => 'application/atom+xml' ];
 	$class->new($ctx, $cb);
-	$ctx->{gzf} = gzf_maybe($res_hdr, $ctx->{env});
-	if ($ctx->{env}->{'pi-httpd.async'}) {
-		sub {
-			my ($wcb) = @_; # -httpd provided write callback
-			$ctx->{http_out} = $wcb->([200, $res_hdr]);
-			$ctx->{env}->{'psgix.io'}->{forward} = $ctx;
-			atom_async_step($ctx); # start stepping
-		};
-	} else {
-		[ $code, $res_hdr, $ctx ];
-	}
+	$ctx->psgi_response($code, $res_hdr, \&async_next, \&async_eml);
 }
 
 # called once for each message by PSGI server
 sub getline {
 	my ($self) = @_;
-	my $buf = do {
-		if (my $middle = $self->{cb}) {
-			if (my $smsg = $middle->($self)) {
-				my $eml = $self->{-inbox}->smsg_eml($smsg) or
-						return '';
-				feed_entry($self, $smsg, $eml);
-			} else {
-				undef;
-			}
-		}
-	} // (delete($self->{cb}) ? '</feed>' : undef);
-
-	# gzf may be GzipFilter, `undef' or `0'
-	my $gzf = $self->{gzf} or return $buf;
-
-	return $gzf->translate($buf) if defined $buf;
-	$self->{gzf} = 0; # next call to ->getline returns $buf (== undef)
-	$gzf->translate(undef);
+	my $cb = $self->{cb} or return;
+	while (my $smsg = $cb->($self)) {
+		my $eml = $self->{-inbox}->smsg_eml($smsg) or next;
+		return $self->translate(feed_entry($self, $smsg, $eml));
+	}
+	delete $self->{cb};
+	$self->zflush('</feed>');
 }
 
 # private
