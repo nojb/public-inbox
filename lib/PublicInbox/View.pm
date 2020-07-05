@@ -459,23 +459,26 @@ sub thread_html {
 	# flat display: lazy load the full message from smsg
 	$ctx->{msgs} = $msgs;
 	$ctx->{-html_tip} = '<pre>';
-	PublicInbox::WwwStream::response($ctx, 200, \&thread_html_i);
+	PublicInbox::WwwStream::aresponse($ctx, 200, \&thread_html_i);
 }
 
 sub thread_html_i { # PublicInbox::WwwStream::getline callback
-	my ($ctx) = @_;
-	my $msgs = $ctx->{msgs} or return;
-	while (my $smsg = shift @$msgs) {
-		my $eml = $ctx->{-inbox}->smsg_eml($smsg) or next;
+	my ($ctx, $eml) = @_;
+	if ($eml) {
+		my $smsg = $ctx->{smsg};
 		if (exists $ctx->{-html_tip}) {
 			$ctx->{-title_html} = ascii_html($smsg->{subject});
-			return $ctx->html_top .
-				eml_entry($ctx, $smsg, $eml, scalar @$msgs);
+			$ctx->zmore($ctx->html_top);
 		}
-		return eml_entry($ctx, $smsg, $eml, scalar @$msgs);
+		return eml_entry($ctx, $smsg, $eml, scalar @{$ctx->{msgs}});
+	} else {
+		while (my $smsg = shift @{$ctx->{msgs}}) {
+			return $smsg if exists($smsg->{blob});
+		}
+		my $skel = delete($ctx->{skel}) or return; # all done
+		$ctx->zmore($$skel);
+		undef;
 	}
-	my ($skel) = delete @$ctx{qw(skel msgs)};
-	$$skel;
 }
 
 sub multipart_text_as_html {
