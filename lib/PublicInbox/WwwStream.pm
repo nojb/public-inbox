@@ -15,9 +15,6 @@ use PublicInbox::Hval qw(ascii_html prurl);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
-# noop for HTTP.pm (and any other PSGI servers)
-sub close {}
-
 sub base_url ($) {
 	my $ctx = shift;
 	my $base_url = $ctx->{-inbox}->base_url($ctx->{env});
@@ -38,6 +35,11 @@ sub response {
 	init($ctx, $cb);
 	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
 	[ $code, $res_hdr, $ctx ]
+}
+
+sub async_eml { # ->{async_eml} for async_blob_cb
+	my ($ctx, $eml) = @_;
+	$ctx->{http_out}->write($ctx->translate($ctx->{cb}->($ctx, $eml)));
 }
 
 sub html_top ($) {
@@ -157,8 +159,14 @@ EOF
 sub getline {
 	my ($ctx) = @_;
 	my $cb = $ctx->{cb} or return;
-	if (defined(my $buf = $cb->($ctx))) {
-		return $ctx->translate($buf);
+	while (defined(my $x = $cb->($ctx))) { # x = smsg or scalar non-ref
+		if (ref($x)) { # smsg
+			my $eml = $ctx->{-inbox}->smsg_eml($x) or next;
+			$ctx->{smsg} = $x;
+			return $ctx->translate($cb->($ctx, $eml));
+		} else { # scalar
+			return $ctx->translate($x);
+		}
 	}
 	delete $ctx->{cb};
 	$ctx->zflush(_html_end($ctx));
@@ -177,6 +185,28 @@ sub html_oneshot ($$;$) {
 	$bdy[0] = $ctx->zflush(_html_end($ctx));
 	$res_hdr->[3] = bytes::length($bdy[0]);
 	[ $code, $res_hdr, \@bdy ]
+}
+
+sub async_next ($) {
+	my ($http) = @_; # PublicInbox::HTTP
+	my $ctx = $http->{forward} or return;
+	eval {
+		if (my $smsg = $ctx->{smsg} = $ctx->{cb}->($ctx)) {
+			$ctx->smsg_blob($smsg);
+		} else {
+			$ctx->{http_out}->write(
+					$ctx->translate(_html_end($ctx)));
+			$ctx->close; # GzipFilter->close
+		}
+	};
+	warn "E: $@" if $@;
+}
+
+sub aresponse {
+	my ($ctx, $code, $cb) = @_;
+	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8' ];
+	init($ctx, $cb);
+	$ctx->psgi_response($code, $res_hdr, \&async_next, \&async_eml);
 }
 
 1;

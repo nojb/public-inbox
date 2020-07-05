@@ -27,24 +27,22 @@ use constant TCHILD => '` ';
 sub th_pfx ($) { $_[0] == 0 ? '' : TCHILD };
 
 sub msg_page_i {
-	my ($ctx) = @_;
-	my $cur = delete $ctx->{smsg} or return; # undef: done
-	my $nxt;
-	if (my $over = $ctx->{-inbox}->over) {
-		$nxt = $ctx->{smsg} = $over->next_by_mid(@{$ctx->{next_arg}});
+	my ($ctx, $eml) = @_;
+	if ($eml) { # called by WwwStream::async_eml or getline
+		my $smsg = $ctx->{smsg};
+		$ctx->{smsg} = $ctx->{over}->next_by_mid(@{$ctx->{next_arg}});
+		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
+				"../${\mid_href($smsg->{mid})}/" : '';
+		my $hdr = $eml->header_obj;
+		my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx);
+		multipart_text_as_html($eml, $ctx);
+		delete $ctx->{obuf};
+		$$obuf .= '</pre><hr>';
+		$$obuf .= html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
+		$$obuf;
+	} else { # called by WwwStream::async_next or getline
+		$ctx->{smsg}; # may be undef
 	}
-	$ctx->{mhref} = ($ctx->{nr} || $nxt) ?
-			"../${\mid_href($cur->{mid})}/" : '';
-	my $eml = $ctx->{-inbox}->smsg_eml($cur) or return;
-	my $hdr = $eml->header_obj;
-	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx);
-	multipart_text_as_html($eml, $ctx);
-	delete $ctx->{obuf};
-	$$obuf .= '</pre><hr>';
-	# we want to at least show the message if something
-	# here crashes:
-	eval { $$obuf .= html_footer($ctx, $ctx->{first_hdr}) } if !$nxt;
-	$$obuf;
 }
 
 # /$INBOX/$MESSAGE_ID/ for unindexed v1 inboxes
@@ -74,11 +72,11 @@ sub msg_page {
 	my ($ctx) = @_;
 	my $ibx = $ctx->{-inbox};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	my $over = $ibx->over or return no_over_html($ctx);
+	my $over = $ctx->{over} = $ibx->over or return no_over_html($ctx);
 	my ($id, $prev);
 	my $next_arg = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
-	$ctx->{smsg} = $over->next_by_mid(@$next_arg) or return;
-	PublicInbox::WwwStream::response($ctx, 200, \&msg_page_i);
+	$ctx->{smsg} = $over->next_by_mid(@$next_arg) or return; # undef == 404
+	PublicInbox::WwwStream::aresponse($ctx, 200, \&msg_page_i);
 }
 
 # /$INBOX/$MESSAGE_ID/#R
