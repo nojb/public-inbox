@@ -176,7 +176,7 @@ sub fmt_ts ($) { strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 # Displays the text of of the message for /$INBOX/$MSGID/[Tt]/ endpoint
 # this is already inside a <pre>
 sub eml_entry {
-	my ($ctx, $eml, $more) = @_;
+	my ($ctx, $eml) = @_;
 	my $smsg = delete $ctx->{smsg};
 	my $subj = delete $smsg->{subject};
 	my $mid_raw = $smsg->{mid};
@@ -267,7 +267,8 @@ sub eml_entry {
 		$hr = $ctx->{-hr};
 	}
 
-	$rv .= $more ? '</pre><hr><pre>' : '</pre>' if $hr;
+	# do we have more messages? start a new <pre> if so
+	$rv .= scalar(@{$ctx->{msgs}}) ? '</pre><hr><pre>' : '</pre>' if $hr;
 	$rv;
 }
 
@@ -368,7 +369,7 @@ sub pre_thread  { # walk_thread callback
 sub thread_eml_entry {
 	my ($ctx, $eml) = @_;
 	my ($beg, $end) = thread_adj_level($ctx, $ctx->{level});
-	$beg . '<pre>' . eml_entry($ctx, $eml, 0) . '</pre>' . $end;
+	$beg . '<pre>' . eml_entry($ctx, $eml) . '</pre>' . $end;
 }
 
 sub next_in_queue ($$) {
@@ -463,7 +464,7 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 			$ctx->{-title_html} = ascii_html($smsg->{subject});
 			$ctx->zmore($ctx->html_top);
 		}
-		return eml_entry($ctx, $eml, scalar @{$ctx->{msgs}});
+		return eml_entry($ctx, $eml);
 	} else {
 		while (my $smsg = shift @{$ctx->{msgs}}) {
 			return $smsg if exists($smsg->{blob});

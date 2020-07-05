@@ -294,8 +294,7 @@ sub mset_thread {
 sub mset_thread_i {
 	my ($ctx, $eml) = @_;
 	$ctx->zmore($ctx->html_top) if exists $ctx->{-html_tip};
-	$eml and return PublicInbox::View::eml_entry($ctx, $eml,
-						scalar @{$ctx->{msgs}});
+	$eml and return PublicInbox::View::eml_entry($ctx, $eml);
 	my $smsg = shift @{$ctx->{msgs}} or
 		$ctx->zmore(${delete($ctx->{skel})});
 	$smsg;
