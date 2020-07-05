@@ -209,6 +209,10 @@ test_psgi($app, sub {
 	my $res = $cb->(GET($pfx . '/blah@example.com/raw'));
 	is(200, $res->code, 'success response received for /*/raw');
 	like($res->content, qr!^From !sm, "mbox returned");
+
+	$res = $cb->(GET($pfx . '/blah@example.com/t.mbox.gz'));
+	is(501, $res->code, '501 when overview missing');
+	like($res->content, qr!\bOverview\b!, 'overview omission noted');
 });
 
 # legacy redirects

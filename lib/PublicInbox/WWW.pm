@@ -322,12 +322,11 @@ sub get_altid_dump {
 
 sub need {
 	my ($ctx, $extra) = @_;
-	my $msg = <<EOF;
-<html><head><title>$extra not available for this
-public-inbox</title><body><pre>$extra is not available for this public-inbox
-<a href="../">Return to index</a></pre></body></html>
+	require PublicInbox::WwwStream;
+	PublicInbox::WwwStream::html_oneshot($ctx, 501, \<<EOF);
+<pre>$extra is not available for this public-inbox
+<a\nhref="../">Return to index</a></pre>
 EOF
-	[ 501, [ 'Content-Type' => 'text/html; charset=UTF-8' ], [ $msg ] ];
 }
 
 # /$INBOX/$MESSAGE_ID/t.mbox           -> thread as mbox
