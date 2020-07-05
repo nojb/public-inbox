@@ -13,7 +13,6 @@ use warnings;
 use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Smsg;
-use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Eml;
 
 sub subject_fn ($) {
