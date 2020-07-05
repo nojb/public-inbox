@@ -142,8 +142,8 @@ enables the use of L<vfork(2)> which speeds up subprocess
 spawning with the Linux kernel.
 
 public-inbox will never enable L<Inline::C> automatically without
-this environment variable set.  See L<Inline> and L<Inline::C>
-for more details.
+this environment variable set or C<~/.cache/public-inbox/inline-c>
+created by a user. See L<Inline> and L<Inline::C> for more details.
 
 =back
 
