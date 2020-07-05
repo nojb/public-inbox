@@ -15,7 +15,12 @@ my $curl = which('curl') or plan skip_all => "curl(1) missing for $0";
 my ($tmpdir, $for_destroy) = tmpdir();
 require_mods(qw(DBD::SQLite));
 my $JOBS = $ENV{TEST_JOBS} // 4;
-diag "TEST_JOBS=$JOBS";
+my $endpoint = $ENV{TEST_ENDPOINT} // 'all.mbox.gz';
+my $curl_opt = $ENV{TEST_CURL_OPT} // '';
+diag "TEST_JOBS=$JOBS TEST_ENDPOINT=$endpoint TEST_CURL_OPT=$curl_opt";
+
+# we set Host: to ensure stable results across test runs
+my @CURL_OPT = (qw(-HHost:example.com -sSf), split(' ', $curl_opt));
 
 my $make_local_server = sub {
 	my $pi_config = "$tmpdir/config";
@@ -38,7 +43,7 @@ address = test\@example.com
 	my $cmd = [ '-httpd', "--stdout=$out", "--stderr=$err", '-W0' ];
 	my $host_port = $http->sockhost.':'.$http->sockport;
 	push @$cmd, "-lhttp://$host_port";
-	my $url = "$host_port/test/all.mbox.gz";
+	my $url = "$host_port/test/$endpoint";
 	print STDERR "# CMD ". join(' ', @$cmd). "\n";
 	my $env = { PI_CONFIG => $pi_config };
 	(start_script($cmd, $env, $rdr), $url);
@@ -53,7 +58,7 @@ my $do_get_all = sub {
 	my ($buf, $nr);
 	my $bytes = 0;
 	my $t0 = now();
-	my ($rd, $pid) = popen_rd([$curl, qw(-HHost:example.com -sSf), $url]);
+	my ($rd, $pid) = popen_rd([$curl, @CURL_OPT, $url]);
 	while (1) {
 		$nr = sysread($rd, $buf, 65536);
 		last if !$nr;
