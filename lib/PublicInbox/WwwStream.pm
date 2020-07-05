@@ -29,14 +29,6 @@ sub init {
 	bless $ctx, __PACKAGE__;
 }
 
-sub response {
-	my ($ctx, $code, $cb) = @_;
-	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8' ];
-	init($ctx, $cb);
-	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
-	[ $code, $res_hdr, $ctx ]
-}
-
 sub async_eml { # ->{async_eml} for async_blob_cb
 	my ($ctx, $eml) = @_;
 	$ctx->{http_out}->write($ctx->translate($ctx->{cb}->($ctx, $eml)));
@@ -174,17 +166,18 @@ sub getline {
 
 sub html_oneshot ($$;$) {
 	my ($ctx, $code, $sref) = @_;
-	$ctx->{base_url} = base_url($ctx);
-	bless $ctx, __PACKAGE__;
-	my @bdy;
 	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8',
 		'Content-Length' => undef ];
+	bless $ctx, __PACKAGE__;
 	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
-	$ctx->zmore(html_top($ctx));
+	$ctx->{base_url} //= do {
+		$ctx->zmore(html_top($ctx));
+		base_url($ctx);
+	};
 	$ctx->zmore($$sref) if $sref;
-	$bdy[0] = $ctx->zflush(_html_end($ctx));
-	$res_hdr->[3] = bytes::length($bdy[0]);
-	[ $code, $res_hdr, \@bdy ]
+	my $bdy = $ctx->zflush(_html_end($ctx));
+	$res_hdr->[3] = bytes::length($bdy);
+	[ $code, $res_hdr, [ $bdy ] ]
 }
 
 sub async_next ($) {

@@ -14,7 +14,7 @@ use PublicInbox::MID qw(id_compress mids mids_for_index references
 			$MID_EXTRACT);
 use PublicInbox::MsgIter;
 use PublicInbox::Address;
-use PublicInbox::WwwStream;
+use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Reply;
 use PublicInbox::ViewDiff qw(flush_diff);
 use PublicInbox::Eml;
@@ -45,25 +45,20 @@ sub msg_page_i {
 	}
 }
 
-# /$INBOX/$MESSAGE_ID/ for unindexed v1 inboxes
-sub no_over_i {
+# /$INBOX/$MSGID/ for unindexed v1 inboxes
+sub no_over_html ($) {
 	my ($ctx) = @_;
-	my $eml = delete $ctx->{eml} or return;
+	my $bref = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return; # 404
+	my $eml = PublicInbox::Eml->new($bref);
 	my $hdr = $eml->header_obj;
 	$ctx->{mhref} = '';
+	PublicInbox::WwwStream::init($ctx);
 	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx);
 	multipart_text_as_html($eml, $ctx);
 	delete $ctx->{obuf};
 	$$obuf .= '</pre><hr>';
 	eval { $$obuf .= html_footer($ctx, $hdr) };
-	$$obuf
-}
-
-sub no_over_html ($) {
-	my ($ctx) = @_;
-	my $bref = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return; # 404
-	$ctx->{eml} = PublicInbox::Eml->new($bref);
-	PublicInbox::WwwStream::response($ctx, 200, \&no_over_i);
+	html_oneshot($ctx, 200, $obuf);
 }
 
 # public functions: (unstable)
@@ -1169,12 +1164,6 @@ sub pagination_footer ($$) {
 	"<hr><pre>page: $next$prev</pre>";
 }
 
-sub index_nav { # callback for WwwStream::getline
-	my ($ctx) = @_;
-	return $ctx->html_top if exists $ctx->{-html_tip};
-	pagination_footer($ctx, '.')
-}
-
 sub paginate_recent ($$) {
 	my ($ctx, $lim) = @_;
 	my $t = $ctx->{qp}->{t} || '';
@@ -1223,7 +1212,8 @@ sub index_topics {
 	if (@$msgs) {
 		walk_thread(thread_results($ctx, $msgs), $ctx, \&acc_topic);
 	}
-	PublicInbox::WwwStream::response($ctx, dump_topics($ctx), \&index_nav);
+	html_oneshot($ctx, dump_topics($ctx), \pagination_footer($ctx, '.'));
+
 }
 
 sub thread_adj_level {
