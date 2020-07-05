@@ -22,15 +22,17 @@ sub close {}
 sub new {
 	my ($class, $ctx, $cb) = @_;
 	$ctx->{feed_base_url} = $ctx->{-inbox}->base_url($ctx->{env});
-	bless { cb => $cb || \&close, ctx => $ctx, emit_header => 1 }, $class;
+	$ctx->{cb} = $cb || \&close;
+	$ctx->{emit_header} = 1;
+	bless $ctx, $class;
 }
 
 sub response {
 	my ($class, $ctx, $code, $cb) = @_;
 	my $h = [ 'Content-Type' => 'application/atom+xml' ];
-	my $self = $class->new($ctx, $cb);
-	$self->{gzf} = gzf_maybe($h, $ctx->{env});
-	[ $code, $h, $self ]
+	$class->new($ctx, $cb);
+	$ctx->{gzf} = gzf_maybe($h, $ctx->{env});
+	[ $code, $h, $ctx ]
 }
 
 # called once for each message by PSGI server
@@ -38,7 +40,7 @@ sub getline {
 	my ($self) = @_;
 	my $buf = do {
 		if (my $middle = $self->{cb}) {
-			my $smsg = $middle->($self->{ctx});
+			my $smsg = $middle->($self);
 			feed_entry($self, $smsg) if $smsg;
 		}
 	} // (delete($self->{cb}) ? '</feed>' : undef);
@@ -106,8 +108,7 @@ sub atom_header {
 
 # returns undef or string
 sub feed_entry {
-	my ($self, $smsg) = @_;
-	my $ctx = $self->{ctx};
+	my ($ctx, $smsg) = @_;
 	my $eml = $ctx->{-inbox}->smsg_eml($smsg) or return '';
 	my $hdr = $eml->header_obj;
 	my $mid = $smsg->{mid};
@@ -136,7 +137,7 @@ sub feed_entry {
 	$email = ascii_html($email);
 
 	my $s = '';
-	if (delete $self->{emit_header}) {
+	if (delete $ctx->{emit_header}) {
 		$s .= atom_header($ctx, $title);
 	}
 	$s .= "<entry><author><name>$name</name><email>$email</email>" .
