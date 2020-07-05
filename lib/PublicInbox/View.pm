@@ -415,7 +415,7 @@ sub stream_thread ($$) {
 	PublicInbox::WwwStream::aresponse($ctx, 200, \&stream_thread_i);
 }
 
-# /$INBOX/$MESSAGE_ID/t/
+# /$INBOX/$MSGID/t/ and /$INBOX/$MSGID/T/
 sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};

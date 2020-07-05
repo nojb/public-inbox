@@ -1,10 +1,8 @@
 # Copyright (C) 2016-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
-# Atom body stream for which yields getline+close methods
-# public-inbox-httpd favors "getline" response bodies to take a
-# "pull"-based approach to feeding slow clients (as opposed to a
-# more common "push" model)
+# Atom body stream for HTTP responses
+# See PublicInbox::GzipFilter for details.
 package PublicInbox::WwwAtomStream;
 use strict;
 use parent 'PublicInbox::GzipFilter';

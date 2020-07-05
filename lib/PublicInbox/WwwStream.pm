@@ -1,11 +1,10 @@
 # Copyright (C) 2016-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
-# HTML body stream for which yields getline+close methods
+# HTML body stream for which yields getline+close methods for
+# generic PSGI servers and callbacks for public-inbox-httpd.
 #
-# public-inbox-httpd favors "getline" response bodies to take a
-# "pull"-based approach to feeding slow clients (as opposed to a
-# more common "push" model)
+# See PublicInbox::GzipFilter parent class for more info.
 package PublicInbox::WwwStream;
 use strict;
 use parent qw(Exporter PublicInbox::GzipFilter);

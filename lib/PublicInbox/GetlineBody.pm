@@ -5,9 +5,7 @@
 # end callback when the object goes out-of-scope.
 # This depends on rpipe being _blocking_ on getline.
 #
-# public-inbox-httpd favors "getline" response bodies to take a
-# "pull"-based approach to feeding slow clients (as opposed to a
-# more common "push" model)
+# This is only used by generic PSGI servers and not public-inbox-httpd
 package PublicInbox::GetlineBody;
 use strict;
 use warnings;

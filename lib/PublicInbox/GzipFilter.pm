@@ -1,7 +1,16 @@
 # Copyright (C) 2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-
-# Qspawn filter
+#
+# In public-inbox <=1.5.0, public-inbox-httpd favored "getline"
+# response bodies to take a "pull"-based approach to feeding
+# slow clients (as opposed to a more common "push" model).
+#
+# In newer versions, public-inbox-httpd supports a backpressure-aware
+# pull/push model which also accounts for slow git blob storage.
+# {async_next} callbacks only run when the DS {wbuf} is drained
+# {async_eml} callbacks only run when a blob arrives from git.
+#
+# We continue to support getline+close for generic PSGI servers.
 package PublicInbox::GzipFilter;
 use strict;
 use parent qw(Exporter);
@@ -14,12 +23,12 @@ our @EXPORT_OK = qw(gzf_maybe);
 my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
 my @GZIP_HDRS = qw(Vary Accept-Encoding Content-Encoding gzip);
 
-sub new { bless {}, shift }
+sub new { bless {}, shift } # qspawn filter
 
 # for Qspawn if using $env->{'pi-httpd.async'}
 sub attach {
 	my ($self, $http_out) = @_;
-	$self->{http_out} = $http_out;
+	$self->{http_out} = $http_out; # PublicInbox::HTTP::{Chunked,Identity}
 	$self
 }
 

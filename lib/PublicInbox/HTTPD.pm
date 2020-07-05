@@ -36,9 +36,8 @@ sub new {
 
 		# XXX unstable API!, only GitHTTPBackend needs
 		# this to limit git-http-backend(1) parallelism.
-		# The rest of our PSGI code is generic, relying
-		# on "pull" model using "getline" to prevent
-		# over-buffering.
+		# We also check for the truthiness of this to
+		# detect when to use git_async_cat for slow blobs
 		'pi-httpd.async' => \&pi_httpd_async
 	);
 	bless {
