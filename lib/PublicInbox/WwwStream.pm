@@ -8,8 +8,7 @@
 # more common "push" model)
 package PublicInbox::WwwStream;
 use strict;
-use warnings;
-use base qw(Exporter);
+use parent qw(Exporter);
 our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl);
