@@ -170,6 +170,7 @@ sub async_blob_cb { # git->cat_async callback
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
+		warn "E: $smsg->{blob} missing in $self->{-inbox}->{inboxdir}\n";
 		return $http->next_step($self->{async_next});
 	}
 	$smsg->{blob} eq $oid or bail($self, "BUG: $smsg->{blob} != $oid");
