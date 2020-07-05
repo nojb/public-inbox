@@ -93,8 +93,6 @@ sub atom_header {
 		$self_url .= 'new.atom';
 		$page_id = "mailto:$ibx->{-primary_address}";
 	}
-	my $mtime = (stat($ibx->{inboxdir}))[9] || time;
-
 	qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
 	qq(<feed\nxmlns="http://www.w3.org/2005/Atom"\n) .
 	qq(xmlns:thr="http://purl.org/syndication/thread/1.0">) .
@@ -103,7 +101,7 @@ sub atom_header {
 		qq(\nhref="$base_url"/>) .
 	qq(<link\nrel="self"\nhref="$self_url"/>) .
 	qq(<id>$page_id</id>) .
-	feed_updated($mtime);
+	feed_updated($ibx->modified);
 }
 
 # returns undef or string
