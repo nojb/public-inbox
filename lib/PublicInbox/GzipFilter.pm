@@ -4,7 +4,6 @@
 # Qspawn filter
 package PublicInbox::GzipFilter;
 use strict;
-use bytes (); # length
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
 my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
 
@@ -24,21 +23,21 @@ sub translate ($$) {
 	# allocate the zlib context lazily here, instead of in ->new.
 	# Deflate contexts are memory-intensive and this object may
 	# be sitting in the Qspawn limiter queue for a while.
-	my $gz = $self->{gz} ||= do {
+	my $gz = $self->{gz} //= do {
 		my ($g, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
 		$err == Z_OK or die "Deflate->new failed: $err";
 		$g;
 	};
 	my $zbuf = delete($self->{zbuf});
 	if (defined $_[1]) { # my $buf = $_[1];
-		my $err = $self->{gz}->deflate($_[1], $zbuf);
+		my $err = $gz->deflate($_[1], $zbuf);
 		die "gzip->deflate: $err" if $err != Z_OK;
 		return $zbuf if length($zbuf) >= 8192;
 
 		$self->{zbuf} = $zbuf;
 		'';
 	} else { # undef == EOF
-		my $err = $self->{gz}->flush($zbuf, Z_FINISH);
+		my $err = $gz->flush($zbuf, Z_FINISH);
 		die "gzip->flush: $err" if $err != Z_OK;
 		$zbuf;
 	}
