@@ -26,9 +26,9 @@ Good Things
   have to waste bandwidth or space with giant toolchains or
   architecture-specific binaries.
 
-  Furthermore, Perl documentation is typically installed as
-  manpages, allowing users to quickly access and learn it
-  offline.
+  Furthermore, Perl documentation is typically installed
+  locally as manpages, allowing users to quickly refer
+  to documentation as needed.
 
 * Scripted, always editable by the end user
 
