@@ -389,15 +389,7 @@ sub next_in_queue ($$) {
 
 sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 	my ($ctx, $eml) = @_;
-
-	if ($eml) {
-		if ($ctx->{nr} == 1) {
-			$ctx->{-title_html} =
-					ascii_html($ctx->{smsg}->{subject});
-			$ctx->zmore($ctx->html_top);
-		}
-		goto &thread_eml_entry; # tail recursion
-	}
+	goto &thread_eml_entry if $eml; # tail recursion
 	return unless exists($ctx->{skel});
 	my $ghost_ok = $ctx->{nr}++;
 	while (1) {
@@ -405,6 +397,11 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 		if ($smsg) {
 			if (exists $smsg->{blob}) { # next message for cat-file
 				$ctx->{level} = $lvl;
+				if (!$ghost_ok) { # first non-ghost
+					$ctx->{-title_html} =
+						ascii_html($smsg->{subject});
+					$ctx->zmore($ctx->html_top);
+				}
 				return $smsg;
 			}
 			# buffer the ghost entry and loop
