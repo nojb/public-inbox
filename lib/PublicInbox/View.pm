@@ -66,7 +66,7 @@ sub msg_page {
 	$ctx->{mhref} = $next ? '../'.mid_href($smsg->{mid}).'/' : '';
 	multipart_text_as_html($mime, $ctx);
 	$ctx->{-html_tip} = (${delete $ctx->{obuf}} .= '</pre><hr>');
-	PublicInbox::WwwStream->response($ctx, 200, \&msg_page_i);
+	PublicInbox::WwwStream::response($ctx, 200, \&msg_page_i);
 }
 
 sub msg_page_more { # cold
@@ -413,7 +413,7 @@ sub stream_thread ($$) {
 	$ctx->{-title_html} = ascii_html($smsg->{subject});
 	$ctx->{-html_tip} = thread_eml_entry($ctx, $level, $smsg, $eml);
 	$ctx->{-queue} = \@q;
-	PublicInbox::WwwStream->response($ctx, 200, \&stream_thread_i);
+	PublicInbox::WwwStream::response($ctx, 200, \&stream_thread_i);
 }
 
 # /$INBOX/$MESSAGE_ID/t/
@@ -459,7 +459,7 @@ sub thread_html {
 	$ctx->{-title_html} = ascii_html($smsg->{subject});
 	$ctx->{-html_tip} = '<pre>'.eml_entry($ctx, $smsg, $eml, scalar @$msgs);
 	$ctx->{msgs} = $msgs;
-	PublicInbox::WwwStream->response($ctx, 200, \&thread_html_i);
+	PublicInbox::WwwStream::response($ctx, 200, \&thread_html_i);
 }
 
 sub thread_html_i { # PublicInbox::WwwStream::getline callback
@@ -1213,7 +1213,7 @@ sub index_topics {
 	if (@$msgs) {
 		walk_thread(thread_results($ctx, $msgs), $ctx, \&acc_topic);
 	}
-	PublicInbox::WwwStream->response($ctx, dump_topics($ctx), \&index_nav);
+	PublicInbox::WwwStream::response($ctx, dump_topics($ctx), \&index_nav);
 }
 
 sub thread_adj_level {

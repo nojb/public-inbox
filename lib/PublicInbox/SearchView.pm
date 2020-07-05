@@ -82,7 +82,7 @@ retry:
 			$cb = mset_summary($ctx, $mset, $q);
 		}
 	}
-	PublicInbox::WwwStream->response($ctx, $code, $cb);
+	PublicInbox::WwwStream::response($ctx, $code, $cb);
 }
 
 # display non-nested search results similar to what users expect from

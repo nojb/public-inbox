@@ -70,7 +70,7 @@ sub new_html {
 	$ctx->{-html_tip} = '<pre>';
 	$ctx->{-upfx} = '';
 	$ctx->{-hr} = 1;
-	PublicInbox::WwwStream->response($ctx, 200, \&new_html_i);
+	PublicInbox::WwwStream::response($ctx, 200, \&new_html_i);
 }
 
 # private subs

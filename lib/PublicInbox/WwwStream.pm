@@ -27,28 +27,24 @@ sub base_url ($) {
 	$base_url;
 }
 
-sub new {
-	my ($class, $ctx, $cb) = @_;
-
-	bless {
-		nr => 0,
-		cb => $cb,
-		ctx => $ctx,
-		base_url => base_url($ctx),
-	}, $class;
+sub init {
+	my ($ctx, $cb) = @_;
+	$ctx->{cb} = $cb;
+	$ctx->{base_url} = base_url($ctx);
+	$ctx->{nr} = 0;
+	bless $ctx, __PACKAGE__;
 }
 
 sub response {
-	my ($class, $ctx, $code, $cb) = @_;
+	my ($ctx, $code, $cb) = @_;
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
-	my $self = $class->new($ctx, $cb);
-	$self->{gzf} = gzf_maybe($h, $ctx->{env});
-	[ $code, $h, $self ]
+	init($ctx, $cb);
+	$ctx->{gzf} = gzf_maybe($h, $ctx->{env});
+	[ $code, $h, $ctx ]
 }
 
 sub _html_top ($) {
-	my ($self) = @_;
-	my $ctx = $self->{ctx};
+	my ($ctx) = @_;
 	my $ibx = $ctx->{-inbox};
 	my $desc = ascii_html($ibx->description);
 	my $title = delete($ctx->{-title_html}) // $desc;
@@ -89,14 +85,13 @@ sub code_footer ($) {
 }
 
 sub _html_end {
-	my ($self) = @_;
+	my ($ctx) = @_;
 	my $urls = 'Archives are clonable:';
-	my $ctx = $self->{ctx};
 	my $ibx = $ctx->{-inbox};
 	my $desc = ascii_html($ibx->description);
 
 	my @urls;
-	my $http = $self->{base_url};
+	my $http = $ctx->{base_url};
 	my $max = $ibx->max_git_epoch;
 	my $dir = (split(m!/!, $http))[-1];
 	my %seen = ($http => 1);
@@ -163,41 +158,39 @@ EOF
 
 # callback for HTTP.pm (and any other PSGI servers)
 sub getline {
-	my ($self) = @_;
-	my $nr = $self->{nr}++;
+	my ($ctx) = @_;
+	my $nr = $ctx->{nr}++;
 
 	my $buf = do {
 		if ($nr == 0) {
-			_html_top($self);
-		} elsif (my $middle = $self->{cb}) {
-			$middle->($nr, $self->{ctx});
+			_html_top($ctx);
+		} elsif (my $middle = $ctx->{cb}) {
+			$middle->($nr, $ctx);
 		}
-	} // (delete($self->{cb}) ? _html_end($self) : undef);
+	} // (delete($ctx->{cb}) ? _html_end($ctx) : undef);
 
 	# gzf may be GzipFilter, `undef' or `0'
-	my $gzf = $self->{gzf} or return $buf;
+	my $gzf = $ctx->{gzf} or return $buf;
 
 	return $gzf->translate($buf) if defined $buf;
-	$self->{gzf} = 0; # next call to ->getline returns $buf (== undef)
+	$ctx->{gzf} = 0; # next call to ->getline returns $buf (== undef)
 	$gzf->translate(undef);
 }
 
 sub html_oneshot ($$;$) {
 	my ($ctx, $code, $sref) = @_;
-	my $self = bless {
-		ctx => $ctx,
-		base_url => base_url($ctx),
-	}, __PACKAGE__;
+	$ctx->{base_url} = base_url($ctx);
+	bless $ctx, __PACKAGE__;
 	my @x;
 	my $h = [ 'Content-Type' => 'text/html; charset=UTF-8',
 		'Content-Length' => undef ];
 	if (my $gzf = gzf_maybe($h, $ctx->{env})) {
-		$gzf->zmore(_html_top($self));
+		$gzf->zmore(_html_top($ctx));
 		$gzf->zmore($$sref) if $sref;
-		$x[0] = $gzf->zflush(_html_end($self));
+		$x[0] = $gzf->zflush(_html_end($ctx));
 		$h->[3] = length($x[0]);
 	} else {
-		@x = (_html_top($self), $sref ? $$sref : (), _html_end($self));
+		@x = (_html_top($ctx), $sref ? $$sref : (), _html_end($ctx));
 		$h->[3] += bytes::length($_) for @x;
 	}
 	[ $code, $h, \@x ]

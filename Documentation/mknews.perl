@@ -112,7 +112,7 @@ sub html_start {
 	my ($out, $ctx) = @_;
 	require PublicInbox::WwwStream;
 	$ctx->{www} = My::MockObject->new(style => '');
-	my $www_stream = PublicInbox::WwwStream->new($ctx);
+	my $www_stream = PublicInbox::WwwStream::init($ctx);
 	print $out $www_stream->_html_top, '<pre>' or die;
 }
 
