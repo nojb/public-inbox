@@ -11,9 +11,7 @@ use PublicInbox::Smsg; # this loads w/o Search::Xapian
 
 sub generate_i {
 	my ($ctx) = @_;
-	while (my $smsg = shift @{$ctx->{msgs}}) {
-		return $smsg;
-	}
+	shift @{$ctx->{msgs}};
 }
 
 # main function
