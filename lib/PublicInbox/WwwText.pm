@@ -64,25 +64,18 @@ sub get_text {
 	# Follow git commit message conventions,
 	# first line is the Subject/title
 	my ($title) = ($txt =~ /\A([^\n]*)/s);
-	$ctx->{txt} = \$txt;
 	$ctx->{-title_html} = ascii_html($title);
 	my $nslash = ($key =~ tr!/!/!);
 	$ctx->{-upfx} = '../../../' . ('../' x $nslash);
-	PublicInbox::WwwStream->response($ctx, $code, \&_do_linkify);
-}
-
-sub _do_linkify {
-	my ($nr, $ctx) = @_;
-	return unless $nr == 1;
 	my $l = PublicInbox::Linkify->new;
-	my $txt = delete $ctx->{txt};
-	$l->linkify_1($$txt);
+	$l->linkify_1($txt);
 	if ($hl) {
-		$hl->do_hl_text($txt);
+		$hl->do_hl_text(\$txt);
 	} else {
-		$$txt = ascii_html($$txt);
+		$txt = ascii_html($txt);
 	}
-	'<pre>' . $l->linkify_2($$txt) . '</pre>';
+	$txt = '<pre>' . $l->linkify_2($txt) . '</pre>';
+	PublicInbox::WwwStream::html_oneshot($ctx, $code, \$txt);
 }
 
 sub _srch_prefix ($$) {
