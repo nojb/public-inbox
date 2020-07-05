@@ -5,7 +5,7 @@
 package PublicInbox::GzipFilter;
 use strict;
 use parent qw(Exporter);
-use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
+use Compress::Raw::Zlib qw(Z_OK);
 use PublicInbox::CompressNoop;
 use PublicInbox::Eml;
 use PublicInbox::GitAsyncCat;
@@ -95,7 +95,7 @@ sub translate ($$) {
 		$self->{zbuf} = $zbuf;
 		'';
 	} else { # undef == EOF
-		my $err = $gz->flush($zbuf, Z_FINISH);
+		my $err = $gz->flush($zbuf);
 		die "gzip->flush: $err" if $err != Z_OK;
 		$zbuf;
 	}
@@ -125,7 +125,7 @@ sub zflush ($;$) {
 		$err = $gz->deflate($_[1], $zbuf);
 		die "gzip->deflate: $err" if $err != Z_OK;
 	}
-	$err = $gz->flush($zbuf, Z_FINISH);
+	$err = $gz->flush($zbuf);
 	die "gzip->flush: $err" if $err != Z_OK;
 	$zbuf;
 }

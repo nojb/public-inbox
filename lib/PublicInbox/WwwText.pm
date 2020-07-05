@@ -11,7 +11,6 @@ use PublicInbox::WwwStream;
 use PublicInbox::Hval qw(ascii_html);
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::GzipFilter qw(gzf_maybe);
-use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
 our $QP_URL = 'https://xapian.org/docs/queryparser.html';
 our $WIKI_URL = 'https://en.wikipedia.org/wiki';
 my $hl = eval {
