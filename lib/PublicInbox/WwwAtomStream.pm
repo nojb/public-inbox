@@ -103,7 +103,7 @@ sub atom_header {
 		qq(\nhref="$base_url"/>) .
 	qq(<link\nrel="self"\nhref="$self_url"/>) .
 	qq(<id>$page_id</id>) .
-	feed_updated(gmtime($mtime));
+	feed_updated($mtime);
 }
 
 # returns undef or string
@@ -125,9 +125,7 @@ sub feed_entry {
 		$irt = '';
 	}
 	my $href = $base . mid_href($mid) . '/';
-	my $t = msg_timestamp($hdr);
-	my @t = gmtime(defined $t ? $t : time);
-	my $updated = feed_updated(@t);
+	my $updated = feed_updated(msg_timestamp($hdr));
 
 	my $title = $hdr->header('Subject');
 	$title = '(no subject)' unless defined $title && $title ne '';
@@ -158,7 +156,7 @@ sub feed_entry {
 }
 
 sub feed_updated {
-	'<updated>' . strftime('%Y-%m-%dT%H:%M:%SZ', @_) . '</updated>';
+	'<updated>' . strftime('%Y-%m-%dT%H:%M:%SZ', gmtime(@_)) . '</updated>';
 }
 
 1;

@@ -131,7 +131,7 @@ sub atom_start {
 	delete $astream->{emit_header};
 	my $ibx = $ctx->{-inbox};
 	my $title = PublicInbox::WwwAtomStream::title_tag($ibx->description);
-	my $updated = PublicInbox::WwwAtomStream::feed_updated(gmtime($mtime));
+	my $updated = PublicInbox::WwwAtomStream::feed_updated($mtime);
 	print $out <<EOF or die;
 <?xml version="1.0" encoding="us-ascii"?>
 <feed
