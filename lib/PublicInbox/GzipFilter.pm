@@ -6,8 +6,9 @@ package PublicInbox::GzipFilter;
 use strict;
 use parent qw(Exporter);
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
-our @EXPORT_OK = qw(gzip_maybe);
+our @EXPORT_OK = qw(gzip_maybe gzf_maybe);
 my %OPT = (-WindowBits => 15 + 16, -AppendOutput => 1);
+my @GZIP_HDRS = qw(Vary Accept-Encoding Content-Encoding gzip);
 
 sub new { bless {}, shift }
 
@@ -18,18 +19,28 @@ sub attach {
 	$self
 }
 
-sub gzip_maybe ($) {
-	my ($env) = @_;
+sub gzip_maybe ($$) {
+	my ($res_hdr, $env) = @_;
 	return if (($env->{HTTP_ACCEPT_ENCODING}) // '') !~ /\bgzip\b/;
+
+	my ($gz, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
+	return if $err != Z_OK;
 
 	# in case Plack::Middleware::Deflater is loaded:
 	$env->{'plack.skip-deflater'} = 1;
 
-	my ($gz, $err) = Compress::Raw::Zlib::Deflate->new(%OPT);
-	$err == Z_OK ? $gz : undef;
+	push @$res_hdr, @GZIP_HDRS;
+	$gz;
+}
+
+sub gzf_maybe ($$) {
+	my ($res_hdr, $env) = @_;
+	my $gz = gzip_maybe($res_hdr, $env) or return 0;
+	bless { gz => $gz }, __PACKAGE__;
 }
 
 # for GetlineBody (via Qspawn) when NOT using $env->{'pi-httpd.async'}
+# Also used for ->getline callbacks
 sub translate ($$) {
 	my $self = $_[0];
 

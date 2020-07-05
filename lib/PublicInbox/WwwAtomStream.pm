@@ -14,6 +14,7 @@ use Digest::SHA qw(sha1_hex);
 use PublicInbox::Address;
 use PublicInbox::Hval qw(ascii_html mid_href);
 use PublicInbox::MsgTime qw(msg_timestamp);
+use PublicInbox::GzipFilter qw(gzf_maybe);
 
 # called by PSGI server after getline:
 sub close {}
@@ -26,18 +27,28 @@ sub new {
 
 sub response {
 	my ($class, $ctx, $code, $cb) = @_;
-	[ $code, [ 'Content-Type', 'application/atom+xml' ],
-	  $class->new($ctx, $cb) ]
+	my $h = [ 'Content-Type' => 'application/atom+xml' ];
+	my $self = $class->new($ctx, $cb);
+	$self->{gzf} = gzf_maybe($h, $ctx->{env});
+	[ $code, $h, $self ]
 }
 
 # called once for each message by PSGI server
 sub getline {
 	my ($self) = @_;
-	if (my $middle = $self->{cb}) {
-		my $smsg = $middle->($self->{ctx});
-		return feed_entry($self, $smsg) if $smsg;
-	}
-	delete $self->{cb} ? '</feed>' : undef;
+	my $buf = do {
+		if (my $middle = $self->{cb}) {
+			my $smsg = $middle->($self->{ctx});
+			feed_entry($self, $smsg) if $smsg;
+		}
+	} // (delete($self->{cb}) ? '</feed>' : undef);
+
+	# gzf may be GzipFilter, `undef' or `0'
+	my $gzf = $self->{gzf} or return $buf;
+
+	return $gzf->translate($buf) if defined $buf;
+	$self->{gzf} = 0; # next call to ->getline returns $buf (== undef)
+	$gzf->translate(undef);
 }
 
 # private

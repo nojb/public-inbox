@@ -14,7 +14,7 @@ our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl);
 use Compress::Raw::Zlib qw(Z_FINISH Z_OK);
-use PublicInbox::GzipFilter qw(gzip_maybe);
+use PublicInbox::GzipFilter qw(gzip_maybe gzf_maybe);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
@@ -41,8 +41,10 @@ sub new {
 
 sub response {
 	my ($class, $ctx, $code, $cb) = @_;
-	[ $code, [ 'Content-Type', 'text/html; charset=UTF-8' ],
-	  $class->new($ctx, $cb) ]
+	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
+	my $self = $class->new($ctx, $cb);
+	$self->{gzf} = gzf_maybe($h, $ctx->{env});
+	[ $code, $h, $self ]
 }
 
 sub _html_top ($) {
@@ -165,13 +167,20 @@ sub getline {
 	my ($self) = @_;
 	my $nr = $self->{nr}++;
 
-	return _html_top($self) if $nr == 0;
+	my $buf = do {
+		if ($nr == 0) {
+			_html_top($self);
+		} elsif (my $middle = $self->{cb}) {
+			$middle->($nr, $self->{ctx});
+		}
+	} // (delete($self->{cb}) ? _html_end($self) : undef);
 
-	if (my $middle = $self->{cb}) {
-		$middle = $middle->($nr, $self->{ctx}) and return $middle;
-	}
+	# gzf may be GzipFilter, `undef' or `0'
+	my $gzf = $self->{gzf} or return $buf;
 
-	delete $self->{cb} ? _html_end($self) : undef;
+	return $gzf->translate($buf) if defined $buf;
+	$self->{gzf} = 0; # next call to ->getline returns $buf (== undef)
+	$gzf->translate(undef);
 }
 
 sub html_oneshot ($$;$) {
@@ -181,8 +190,8 @@ sub html_oneshot ($$;$) {
 		base_url => base_url($ctx),
 	}, __PACKAGE__;
 	my @x;
-	my @h = ('Content-Type' => 'text/html; charset=UTF-8');
-	if (my $gz = gzip_maybe($ctx->{env})) {
+	my $h = [ 'Content-Type' => 'text/html; charset=UTF-8' ];
+	if (my $gz = gzip_maybe($h, $ctx->{env})) {
 		my $err = $gz->deflate(_html_top($self), $x[0]);
 		die "gzip->deflate: $err" if $err != Z_OK;
 		if ($sref) {
@@ -193,15 +202,14 @@ sub html_oneshot ($$;$) {
 		die "gzip->deflate: $err" if $err != Z_OK;
 		$err = $gz->flush($x[0], Z_FINISH);
 		die "gzip->flush: $err" if $err != Z_OK;
-		push @h, qw(Vary Accept-Encoding Content-Encoding gzip);
 	} else {
 		@x = (_html_top($self), $sref ? $$sref : (), _html_end($self));
 	}
 
 	my $len = 0;
 	$len += bytes::length($_) for @x;
-	push @h, 'Content-Length', $len;
-	[ $code, \@h, \@x ]
+	push @$h, 'Content-Length', $len;
+	[ $code, $h, \@x ]
 }
 
 1;
