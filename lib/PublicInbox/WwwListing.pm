@@ -109,7 +109,7 @@ sub html ($$) {
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8',
 			'Content-Length', undef ];
 	my $gzf = gzf_maybe($h, $env) || PublicInbox::NoopFilter::new();
-	my $out = $gzf->zmore('<html><head><title>' .
+	$gzf->zmore('<html><head><title>' .
 				'public-inbox listing</title>' .
 				'</head><body><pre>');
 	my $code = 404;
@@ -122,11 +122,11 @@ sub html ($$) {
 
 		my $tmp = join("\n", map { ibx_entry(@$_, $env) } @$list);
 		my $l = PublicInbox::Linkify->new;
-		$out .= $gzf->zmore($l->to_html($tmp));
+		$gzf->zmore($l->to_html($tmp));
 	} else {
-		$out .= $gzf->zmore('no inboxes, yet');
+		$gzf->zmore('no inboxes, yet');
 	}
-	$out .= $gzf->zflush('</pre><hr><pre>'.
+	my $out = $gzf->zflush('</pre><hr><pre>'.
 				PublicInbox::WwwStream::code_footer($env) .
 				'</pre></body></html>');
 	$h->[3] = bytes::length($out);

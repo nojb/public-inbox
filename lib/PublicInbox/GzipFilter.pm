@@ -73,7 +73,7 @@ sub zmore {
 	my $self = $_[0]; # $_[1] => input
 	my $err = $self->{gz}->deflate($_[1], $self->{zbuf});
 	die "gzip->deflate: $err" if $err != Z_OK;
-	'';
+	undef;
 }
 
 # flushes and returns the final bit of gzipped data

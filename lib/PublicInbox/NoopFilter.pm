@@ -4,10 +4,21 @@
 package PublicInbox::NoopFilter;
 use strict;
 
-sub new { bless \(my $ignore), __PACKAGE__ }
+sub new { bless \(my $self = ''), __PACKAGE__ }
 
 # noop workalike for PublicInbox::GzipFilter methods
-sub translate { $_[1] // '' }
-sub zmore { $_[1] }
-sub zflush { $_[1] // '' }
+sub translate {
+	my $self = $_[0];
+	my $ret = $$self .= ($_[1] // '');
+	$$self = '';
+	$ret;
+}
+
+sub zmore {
+	${$_[0]} .= $_[1];
+	undef;
+}
+
+sub zflush { translate($_[0], $_[1]) }
+
 1;
