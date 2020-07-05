@@ -165,7 +165,8 @@ sub bail  {
 # this is public-inbox-httpd-specific
 sub async_blob_cb { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $self) = @_;
-	my $http = $self->{env}->{'psgix.io'} or return; # client abort
+	my $http = $self->{env}->{'psgix.io'};
+	$http->{forward} or return; # client aborted
 	my $smsg = $self->{smsg} or bail($self, 'BUG: no smsg');
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
