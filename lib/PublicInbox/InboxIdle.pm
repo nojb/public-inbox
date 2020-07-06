@@ -41,8 +41,11 @@ sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 	$cur->[0] = $ibx;
 
 	my $lock = "$dir/".($ibx->version >= 2 ? 'inbox.lock' : 'ssoma.lock');
-	my $w = $cur->[1] = $inot->watch($lock, $IN_MODIFY);
-	$self->{on_unlock}->{$w->name} = $ibx;
+	if (my $w = $cur->[1] = $inot->watch($lock, $IN_MODIFY)) {
+		$self->{on_unlock}->{$w->name} = $ibx;
+	} else {
+		warn "E: ".ref($inot)."->watch($lock, IN_MODIFY) failed: $!\n";
+	}
 
 	# TODO: detect deleted packs (and possibly other files)
 }
