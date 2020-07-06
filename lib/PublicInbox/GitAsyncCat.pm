@@ -24,20 +24,13 @@ sub _add {
 
 sub event_step {
 	my ($self) = @_;
-	my $git = $self->{git} or return; # ->close-ed
+	my $git = $self->{git};
+	return $self->close if ($git->{in} // 0) != ($self->{sock} // 1);
 	my $inflight = $git->{inflight};
 	if ($inflight && @$inflight) {
 		$git->cat_async_step($inflight);
 		$self->requeue if @$inflight || exists $git->{cat_rbuf};
 	}
-}
-
-sub close {
-	my ($self) = @_;
-	if (my $git = delete $self->{git}) {
-		delete $git->{async_cat};
-	}
-	$self->SUPER::close; # PublicInbox::DS::close
 }
 
 sub git_async_cat ($$$$) {
