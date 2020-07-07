@@ -594,7 +594,7 @@ sub new {
 }
 
 # recreate $oid_want using $hints
-# hints keys: path_a, path_b, oid_a
+# hints keys: path_a, path_b, oid_a (note: `oid_b' is NOT a hint)
 # Calls {user_cb} with: [ ::Git object, oid_full, type, size, di (diff_info) ]
 # with found object, or undef if nothing was found
 # Calls {user_cb} with a string error on fatal errors
