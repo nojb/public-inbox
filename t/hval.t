@@ -47,14 +47,16 @@ EOF
 
 is($html, $exp, 'only obfuscated relevant addresses');
 
-is('foo-bar', PublicInbox::Hval::to_filename('foo bar  '),
+is(PublicInbox::Hval::to_filename('foo bar  '), 'foo-bar',
 	'to_filename has no trailing -');
 
-is('foo-bar', PublicInbox::Hval::to_filename("foo   bar\nanother line\n"),
+is(PublicInbox::Hval::to_filename("foo   bar\nanother line\n"), 'foo-bar',
 	'to_filename has no repeated -, and nothing past LF');
 
-is('foo.bar', PublicInbox::Hval::to_filename("foo....bar"),
+is(PublicInbox::Hval::to_filename("foo....bar"), 'foo.bar',
 	'to_filename squeezes -');
+
+is(PublicInbox::Hval::to_filename(''), undef, 'empty string returns undef');
 
 my $s = "\0\x07\n";
 PublicInbox::Hval::src_escape($s);

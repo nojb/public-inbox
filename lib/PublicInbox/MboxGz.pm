@@ -24,8 +24,7 @@ sub mbox_gz {
 	$self->{cb} = $cb;
 	$self->{base_url} = $self->{-inbox}->base_url($self->{env});
 	$self->{gz} = PublicInbox::GzipFilter::gzip_or_die();
-	$fn = to_filename($fn // 'no-subject');
-	$fn = 'no-subject' if $fn eq '';
+	$fn = to_filename($fn // '') // 'no-subject';
 	# http://www.iana.org/assignments/media-types/application/gzip
 	bless $self, __PACKAGE__;
 	my $res_hdr = [ 'Content-Type' => 'application/gzip',

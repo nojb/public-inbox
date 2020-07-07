@@ -94,12 +94,12 @@ sub obfuscate_addrs ($$;$) {
 
 # like format_sanitized_subject in git.git pretty.c with '%f' format string
 sub to_filename ($) {
-	my ($s, undef) = split(/\n/, $_[0]);
+	my $s = (split(/\n/, $_[0]))[0] // return; # empty string => undef
 	$s =~ s/[^A-Za-z0-9_\.]+/-/g;
 	$s =~ tr/././s;
 	$s =~ s/[\.\-]+\z//;
 	$s =~ s/\A[\.\-]+//;
-	$s
+	$s eq '' ? undef : $s;
 }
 
 # convert a filename (or any string) to HTML attribute

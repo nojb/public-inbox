@@ -52,9 +52,9 @@ sub async_eml { # ->{async_eml} for async_blob_cb
 
 sub res_hdr ($$) {
 	my ($ctx, $subject) = @_;
-	my $fn = $subject // 'no-subject';
+	my $fn = $subject // '';
 	$fn =~ s/^re:\s+//i;
-	$fn = $fn eq '' ? 'no-subject' : to_filename($fn);
+	$fn = to_filename($fn) // 'no-subject';
 	my @hdr = ('Content-Type');
 	if ($ctx->{-inbox}->{obfuscate}) {
 		# obfuscation is stupid, but maybe scrapers are, too...
