@@ -136,16 +136,13 @@ sub feed_entry {
 	$title = '(no subject)' unless defined $title && $title ne '';
 	$title = title_tag($title);
 
-	my $from = $hdr->header('From') or return;
+	my $from = $hdr->header('From') // $hdr->header('Sender') //
+		$ctx->{-inbox}->{-primary_address};
 	my ($email) = PublicInbox::Address::emails($from);
-	my $name = join(', ',PublicInbox::Address::names($from));
-	$name = ascii_html($name);
-	$email = ascii_html($email);
+	my $name = ascii_html(join(', ', PublicInbox::Address::names($from)));
+	$email = ascii_html($email // $ctx->{-inbox}->{-primary_address});
 
-	my $s = '';
-	if (delete $ctx->{emit_header}) {
-		$s .= atom_header($ctx, $title);
-	}
+	my $s = delete($ctx->{emit_header}) ? atom_header($ctx, $title) : '';
 	$s .= "<entry><author><name>$name</name><email>$email</email>" .
 		"</author>$title$updated" .
 		qq(<link\nhref="$href"/>).
