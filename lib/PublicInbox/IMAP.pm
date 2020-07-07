@@ -246,6 +246,7 @@ sub uo2m_extend ($$;$) {
 	my $base = $self->{uid_base};
 	++$beg;
 	my $uids = $self->{ibx}->over->uid_range($beg, $base + UID_SLICE);
+	return $uo2m if !scalar(@$uids);
 	my @tmp; # [$UID_OFFSET] => $MSN
 	my $write_method = $_[2] // 'msg_more';
 	if (ref($uo2m)) {

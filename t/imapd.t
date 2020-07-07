@@ -87,12 +87,16 @@ my $post_auth_anon_capa = $mic->capability;
 is_deeply($post_auth_anon_capa, $post_login_capa,
 	'auth anon has same capabilities');
 my $e;
+ok($mic->noop, 'NOOP');
+ok($mic->noop, 'NOOP (again)'); # for warnings
 ok(!$mic->examine('foo') && ($e = $@), 'EXAMINE non-existent');
 like($e, qr/\bNO\b/, 'got a NO on EXAMINE for non-existent');
 ok(!$mic->select('foo') && ($e = $@), 'EXAMINE non-existent');
 like($e, qr/\bNO\b/, 'got a NO on EXAMINE for non-existent');
 my $mailbox1 = "inbox.i1.$first_range";
 ok($mic->select('inbox.i1'), 'SELECT on parent succeeds');
+ok($mic->noop, 'NOOP while selected');
+ok($mic->noop, 'NOOP again while selected'); # check warnings later
 ok($mic->select($mailbox1), 'SELECT succeeds');
 ok($mic->examine($mailbox1), 'EXAMINE succeeds');
 my @raw = $mic->status($mailbox1, qw(Messages uidnext uidvalidity));
