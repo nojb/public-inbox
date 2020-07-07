@@ -29,7 +29,7 @@ elsif ($pid > 0) {
 	$? == 0 or die "child err: $>";
 	$SIG{CHLD} = sub { print "HI\n"; exit };
 	print "RDY $$\n";
-	sleep while 1;
+	select(undef, undef, undef, 0.01) while 1;
 }
 EOF
 	my $oldset = PublicInbox::Sigfd::block_signals();
