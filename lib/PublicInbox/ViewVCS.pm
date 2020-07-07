@@ -127,7 +127,7 @@ sub solve_result {
 
 	my ($git, $oid, $type, $size, $di) = @$res;
 	return show_other($ctx, $res, \$log, $fn) if $type ne 'blob';
-	my $path = to_filename($di->{path_b} || $hints->{path_b} || 'blob');
+	my $path = to_filename($di->{path_b} // $hints->{path_b} // 'blob');
 	my $raw_link = "(<a\nhref=$path>raw</a>)";
 	if ($size > $MAX_SIZE) {
 		return stream_large_blob($ctx, $res, \$log, $fn) if defined $fn;
@@ -184,13 +184,15 @@ sub solve_result {
 	html_page($ctx, 200, \$log);
 }
 
+# GET /$INBOX/$GIT_OBJECT_ID/s/
+# GET /$INBOX/$GIT_OBJECT_ID/s/$FILENAME
 sub show ($$;$) {
 	my ($ctx, $oid_b, $fn) = @_;
 	my $qp = $ctx->{qp};
 	my $hints = $ctx->{hints} = {};
 	while (my ($from, $to) = each %QP_MAP) {
 		defined(my $v = $qp->{$from}) or next;
-		$hints->{$to} = $v;
+		$hints->{$to} = $v if $v ne '';
 	}
 
 	$ctx->{'log'} = tmpfile("solve.$oid_b");

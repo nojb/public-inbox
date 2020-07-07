@@ -301,9 +301,8 @@ sub get_text {
 }
 
 # show git objects (blobs and commits)
-# /$INBOX/_/$OBJECT_ID/show
-# /$INBOX/_/${OBJECT_ID}_${FILENAME}
-# KEY may contain slashes
+# /$INBOX/$GIT_OBJECT_ID/s/
+# /$INBOX/$GIT_OBJECT_ID/s/$FILENAME
 sub get_vcs_object ($$$;$) {
 	my ($ctx, $inbox, $oid, $filename) = @_;
 	my $r404 = invalid_inbox($ctx, $inbox);
