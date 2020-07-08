@@ -72,6 +72,10 @@ print <<'EOF'
 Other relevant documentation
 ----------------------------
 
+* IMAP capabilities registry and response codes:
+  https://www.iana.org/assignments/imap-capabilities
+  https://www.iana.org/assignments/imap-response-codes
+
 * Documentation/technical/http-protocol.txt in git source code:
   https://public-inbox.org/git/9c5b6f0fac/s
 
