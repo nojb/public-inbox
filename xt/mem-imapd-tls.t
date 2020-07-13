@@ -49,7 +49,9 @@ my $imaps_addr = $imaps->sockhost . ':' . $imaps->sockport;
 my $env = { PI_CONFIG => $pi_config };
 my $arg = $TEST_TLS ? [ "-limaps://$imaps_addr/?cert=$cert,key=$key" ] : [];
 my $cmd = [ '-imapd', '-W0', @$arg, "--stdout=$out", "--stderr=$err" ];
-my $td = start_script($cmd, $env, { 3 => $imaps });
+
+# run_mode=0 ensures Test::More FDs don't get shared
+my $td = start_script($cmd, $env, { 3 => $imaps, run_mode => 0 });
 my %ssl_opt;
 if ($TEST_TLS) {
 	%ssl_opt = (
