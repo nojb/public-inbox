@@ -16,7 +16,7 @@ no warnings 'once';
 *max = \&created_at;
 *query_xover = \&uid_range;
 *over = \&mm;
-*unsubscribe_unlock =
+*search = *unsubscribe_unlock =
 	*get_art = *description = *base_url = \&subscribe_unlock;
 
 1;
