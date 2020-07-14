@@ -36,7 +36,6 @@ sub dbh_new {
 		$st = pack('dd', $st[0], $st[1]);
 	} while ($st ne $self->{st} && $tries++ < 3);
 	warn "W: $f: .st_dev, .st_ino unstable\n" if $st ne $self->{st};
-	$dbh->{sqlite_unicode} = 1;
 	$dbh;
 }
 

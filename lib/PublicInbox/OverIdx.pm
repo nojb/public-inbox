@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use base qw(PublicInbox::Over);
 use IO::Handle;
-use DBI qw(:sql_types); # SQL_BLOB
+use DBI;
 use PublicInbox::MID qw/id_compress mids_for_index references/;
 use PublicInbox::Smsg qw(subject_normalized);
 use Compress::Zlib qw(compress);
@@ -309,7 +309,7 @@ VALUES (?,?,?,?,?,?)
 	my $n = 0;
 	my @v = ($num, $tid, $sid, $ts, $ds);
 	foreach (@v) { $sth->bind_param(++$n, $_) }
-	$sth->bind_param(++$n, $ddd, SQL_BLOB);
+	$sth->bind_param(++$n, $ddd);
 	$sth->execute;
 	$sth = $dbh->prepare_cached(<<'');
 INSERT INTO id2num (id, num) VALUES (?,?)
