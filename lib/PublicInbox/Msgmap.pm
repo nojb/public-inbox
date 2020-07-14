@@ -13,6 +13,7 @@ use warnings;
 use DBI;
 use DBD::SQLite;
 use File::Temp qw(tempfile);
+use PublicInbox::Over;
 
 sub new {
 	my ($class, $git_dir, $writable) = @_;
@@ -24,29 +25,13 @@ sub new {
 	new_file($class, "$d/msgmap.sqlite3", $writable);
 }
 
-sub dbh_new {
-	my ($f, $writable) = @_;
-	if ($writable && !-f $f) { # SQLite defaults mode to 0644, we want 0666
-		open my $fh, '+>>', $f or die "failed to open $f: $!";
-	}
-	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
-		AutoCommit => 1,
-		RaiseError => 1,
-		PrintError => 0,
-		ReadOnly => !$writable,
-		sqlite_use_immediate_transaction => 1,
-	});
-	$dbh;
-}
-
 sub new_file {
-	my ($class, $f, $writable) = @_;
-	return if !$writable && !-r $f;
+	my ($class, $f, $rw) = @_;
+	return if !$rw && !-r $f;
 
-	my $dbh = dbh_new($f, $writable);
-	my $self = bless { dbh => $dbh }, $class;
-
-	if ($writable) {
+	my $self = bless { filename => $f }, $class;
+	my $dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, $rw);
+	if ($rw) {
 		create_tables($dbh);
 
 		# TRUNCATE reduces I/O compared to the default (DELETE)
@@ -70,7 +55,6 @@ sub tmp_clone {
 	my $tmp = ref($self)->new_file($fn, 1);
 	$tmp->{dbh}->do('PRAGMA synchronous = OFF');
 	$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
-	$tmp->{tmp_name} = $fn; # SQLite won't work if unlinked, apparently
 	$tmp->{pid} = $$;
 	close $fh or die "failed to close $fn: $!";
 	$tmp;
@@ -246,28 +230,28 @@ sub mid_set {
 sub DESTROY {
 	my ($self) = @_;
 	delete $self->{dbh};
-	my $f = delete $self->{tmp_name};
-	if (defined $f && $self->{pid} == $$) {
+	my $f = $self->{filename};
+	if (($self->{pid} // 0) == $$) {
 		unlink $f or warn "failed to unlink $f: $!\n";
 	}
 }
 
 sub atfork_parent {
 	my ($self) = @_;
-	my $f = $self->{tmp_name} or die "not a temporary clone\n";
+	$self->{pid} or die "not a temporary clone\n";
 	delete $self->{dbh} and die "tmp_clone dbh not prepared for parent";
-	my $dbh = $self->{dbh} = dbh_new($f, 1);
+	my $dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, 1);
 	$dbh->do('PRAGMA synchronous = OFF');
 }
 
 sub atfork_prepare {
 	my ($self) = @_;
-	my $f = $self->{tmp_name} or die "not a temporary clone\n";
+	$self->{pid} or die "not a temporary clone\n";
 	$self->{pid} == $$ or
 		die "BUG: atfork_prepare not called from $self->{pid}\n";
 	$self->{dbh} or die "temporary clone not open\n";
 	# must clobber prepared statements
-	%$self = (tmp_name => $f, pid => $$);
+	%$self = (filename => $self->{filename}, pid => $$);
 }
 
 sub skip_artnum {
@@ -293,6 +277,25 @@ sub skip_artnum {
 		# in the future, the indexer may use this value for
 		# new messages in old epochs
 		meta_accessor($self, 'skip_artnum', $skip_artnum);
+	}
+}
+
+sub check_inodes {
+	my ($self) = @_;
+	# no filename if in-:memory:
+	my $f = $self->{dbh}->sqlite_db_filename // return;
+	if (my @st = stat($f)) { # did st_dev, st_ino change?
+		my $st = pack('dd', $st[0], $st[1]);
+		if ($st ne ($self->{st} // $st)) {
+			my $tmp = eval { ref($self)->new_file($f) };
+			if ($@) {
+				warn "E: DBI->connect($f): $@\n";
+			} else {
+				%$self = %$tmp;
+			}
+		}
+	} else {
+		warn "W: stat $f: $!\n";
 	}
 }
 

@@ -31,7 +31,7 @@ sub cleanup_task () {
 	for my $ibx (values %$CLEANUP) {
 		my $again;
 		if ($have_devel_peek) {
-			foreach my $f (qw(mm search)) {
+			foreach my $f (qw(search)) {
 				# we bump refcnt by assigning tmp, here:
 				my $tmp = $ibx->{$f} or next;
 				next if Devel::Peek::SvREFCNT($tmp) > 2;
@@ -47,7 +47,7 @@ sub cleanup_task () {
 		}
 		check_inodes($ibx);
 		if ($have_devel_peek) {
-			$again ||= !!($ibx->{mm} || $ibx->{search});
+			$again ||= !!$ibx->{search};
 		}
 		$next->{"$ibx"} = $ibx if $again;
 	}
@@ -182,7 +182,6 @@ sub mm {
 	my ($self) = @_;
 	$self->{mm} ||= eval {
 		require PublicInbox::Msgmap;
-		_cleanup_later($self);
 		my $dir = $self->{inboxdir};
 		if ($self->version >= 2) {
 			PublicInbox::Msgmap->new_file("$dir/msgmap.sqlite3");
@@ -409,7 +408,7 @@ sub unsubscribe_unlock {
 
 sub check_inodes ($) {
 	my ($self) = @_;
-	for (qw(over)) { # TODO: search, mm
+	for (qw(over mm)) { # TODO: search
 		$self->{$_}->check_inodes if $self->{$_};
 	}
 }

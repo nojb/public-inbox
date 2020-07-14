@@ -14,6 +14,7 @@ use Net::NNTP;
 use Sys::Hostname;
 use POSIX qw(_exit);
 use Digest::SHA;
+use_ok 'PublicInbox::Msgmap';
 
 # FIXME: make easier to test both versions
 my $version = $ENV{PI_TEST_VERSION} || 1;
@@ -341,6 +342,13 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 			'article did not exist');
 		$im->add($ex);
 		$im->done;
+		{
+			my $f = $ibx->mm->{filename};
+			my $tmp = "$tmpdir/tmp.sqlite3";
+			$ibx->mm->{dbh}->sqlite_backup_to_file($tmp);
+			delete $ibx->{mm};
+			rename($tmp, $f) or BAIL_OUT "rename($tmp, $f): $!";
+		}
 		ok(run_script([qw(-index --reindex -c), $ibx->{inboxdir}],
 				undef, $noerr), '-compacted');
 		select(undef, undef, undef, $fast_idle ? 0.1 : 2.1);
