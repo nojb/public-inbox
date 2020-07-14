@@ -55,7 +55,8 @@ not feed the message to L<spamc(1)> and only removes messages
 which match on any of the C<To:>, C<Cc:>, and C<List-ID:> headers.
 
 The C<--all> option may be used match C<spam> semantics in removing
-the message from all configured inboxes.
+the message from all configured inboxes.  C<--all> will be
+available in public-inbox 1.6.0 (PENDING).
 
 =back
 

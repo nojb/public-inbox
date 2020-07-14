@@ -46,6 +46,8 @@ This switch may be specified twice, in which case compaction
 happens both before and after indexing to minimize the temporal
 footprint of the (re)indexing operation.
 
+Available since public-inbox 1.4.0.
+
 =item --reindex
 
 Forces a re-index of all messages in the inbox.
@@ -70,17 +72,23 @@ is detected.  This is intended to be used in mirrors after running
 L<public-inbox-edit(1)> or L<public-inbox-purge(1)> to ensure data
 is expunged from mirrors.
 
+Available since public-inbox 1.2.0.
+
 =item --max-size SIZE
 
 Sets or overrides L</publicinbox.indexMaxSize> on a
 per-invocation basis.  See L</publicinbox.indexMaxSize>
 below.
 
+Available since public-inbox 1.5.0.
+
 =item --batch-size SIZE
 
 Sets or overrides L</publicinbox.indexBatchSize> on a
 per-invocation basis.  See L</publicinbox.indexBatchSize>
 below.
+
+Available in public-inbox 1.6.0 (PENDING).
 
 =back
 

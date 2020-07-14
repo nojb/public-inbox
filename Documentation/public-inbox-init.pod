@@ -51,6 +51,8 @@ but may be of use to L<public-inbox-v1-format(5)> users.
 There is no automatic way to use reserved NNTP article numbers
 when old mail is found, yet.
 
+Available since public-inbox 1.6.0 (PENDING).
+
 Default: unset, no NNTP article numbers are skipped
 
 =item -S, --skip-epoch
@@ -59,6 +61,8 @@ For C<-V2> (L<public-inbox-v2-format(5)>) inboxes only, this option
 allows archivists to publish incomplete archives with newer
 mail while allowing "0.git" (or "1.git" and so on) epochs to be
 added-after-the-fact (without affecting "git clone" followers).
+
+Available since public-inbox 1.2.0.
 
 Default: unset, no epochs are skipped
 

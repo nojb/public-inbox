@@ -18,16 +18,36 @@ Content-Disposition: inline
     and indexed for search.  Use `public-inbox-index --reindex' to
     ensure these attachments are indexed in old messages.
 
+  - inbox.lock (v2) and ssoma.lock (v1) files are written to by
+    on message delivery (or spam removal) to wake up read-only
+    daemons via inotify or kqueue.
+
 * public-inbox-index
 
   - --batch-size=BYTES or publicinbox.indexBatchSize parameter
 
-  - parallelize updates by default, "-j0" is (once again) allowed
-    parallelization
+  - parallelize v2 updates by default, "-j0" is (once again) allowed
+    to disable parallelization
+
+  - v1 (re-)indexing parallelizes blob reads from git
 
 * public-inbox-learn
 
   - `rm' supports `--all' to remove from all configured inboxes
+
+* public-inbox-imapd
+
+  - new read-only IMAP daemon similar to public-inbox-nntpd
+
+* public-inbox-nntpd
+
+  - blob reads from git are handled asynchronously
+
+* public-inbox-httpd
+
+  - Plack::Middleware::Deflater is no longer loaded by default
+    when no .psgi file is specified; PublicInbox::WWW gzips
+    natively (see below)
 
 * PublicInbox::WWW
 
@@ -38,6 +58,18 @@ Content-Disposition: inline
     file in full remains supported
 
   - $INBOX_DIR/description is treated as UTF-8
+
+  - HTML, Atom, and text/plain responses are gzipped without
+    relying on Plack::Middleware::Deflater
+
+  - Multi-message endpoints (/t.mbox.gz, /T/, /t/, etc) are ~10% faster
+    when running under public-inbox-httpd with asynchronous blob
+    retrieval
+
+* public-inbox-watch
+
+  - Linux::Inotify2 or IO::KQueue is used directly,
+    Filesys::Notify::Simple is no longer required
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 
