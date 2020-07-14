@@ -15,9 +15,13 @@ use constant DEFAULT_LIMIT => 1000;
 
 sub dbh_new {
 	my ($self, $rw) = @_;
-	my $f = $self->{filename};
-	if ($rw && !-f $f) { # SQLite defaults mode to 0644, we want 0666
-		open my $fh, '+>>', $f or die "failed to open $f: $!";
+	my $f = delete $self->{filename};
+	if (!-f $f) { # SQLite defaults mode to 0644, we want 0666
+		if ($rw) {
+			open my $fh, '+>>', $f or die "failed to open $f: $!";
+		} else {
+			$self->{filename} = $f; # die on stat() below:
+		}
 	}
 	my (@st, $st, $dbh);
 	my $tries = 0;
@@ -44,9 +48,14 @@ sub new {
 	bless { filename => $f }, $class;
 }
 
-sub disconnect { $_[0]->{dbh} = undef }
+sub disconnect {
+	my ($self) = @_;
+	if (my $dbh = delete $self->{dbh}) {
+		$self->{filename} = $dbh->sqlite_db_filename;
+	}
+}
 
-sub connect { $_[0]->{dbh} ||= $_[0]->dbh_new }
+sub connect { $_[0]->{dbh} //= $_[0]->dbh_new }
 
 sub load_from_row ($;$) {
 	my ($smsg, $cull) = @_;
@@ -258,13 +267,18 @@ SELECT COUNT(num) FROM over WHERE num > ? AND num <= ?
 
 sub check_inodes {
 	my ($self) = @_;
-	if (my @st = stat($self->{filename})) { # did st_dev, st_ino change?
+	my $dbh = $self->{dbh} or return;
+	my $f = $dbh->sqlite_db_filename;
+	if (my @st = stat($f)) { # did st_dev, st_ino change?
 		my $st = pack('dd', $st[0], $st[1]);
 
 		# don't actually reopen, just let {dbh} be recreated later
-		delete($self->{dbh}) if ($st ne ($self->{st} // $st));
+		if ($st ne ($self->{st} // $st)) {
+			delete($self->{dbh});
+			$self->{filename} = $f;
+		}
 	} else {
-		warn "W: stat $self->{filename}: $!\n";
+		warn "W: stat $f: $!\n";
 	}
 }
 

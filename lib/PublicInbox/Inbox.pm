@@ -204,9 +204,9 @@ sub search ($;$) {
 sub over ($) {
 	my ($self) = @_;
 	my $srch = search($self, 1) or return;
-	$self->{over} ||= eval {
+	$self->{over} //= eval {
 		my $over = $srch->{over_ro};
-		$over->dbh_new; # may fail
+		$over->connect; # may fail
 		$over;
 	}
 }

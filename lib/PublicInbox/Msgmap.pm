@@ -229,9 +229,9 @@ sub mid_set {
 
 sub DESTROY {
 	my ($self) = @_;
-	delete $self->{dbh};
-	my $f = $self->{filename};
+	my $dbh = $self->{dbh} or return;
 	if (($self->{pid} // 0) == $$) {
+		my $f = $dbh->sqlite_db_filename;
 		unlink $f or warn "failed to unlink $f: $!\n";
 	}
 }
@@ -239,8 +239,9 @@ sub DESTROY {
 sub atfork_parent {
 	my ($self) = @_;
 	$self->{pid} or die "not a temporary clone\n";
-	delete $self->{dbh} and die "tmp_clone dbh not prepared for parent";
-	my $dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, 1);
+	my $dbh = $self->{dbh} and die "tmp_clone dbh not prepared for parent";
+	$self->{filename} = $dbh->sqlite_db_filename;
+	$dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, 1);
 	$dbh->do('PRAGMA synchronous = OFF');
 }
 
@@ -249,9 +250,10 @@ sub atfork_prepare {
 	$self->{pid} or die "not a temporary clone\n";
 	$self->{pid} == $$ or
 		die "BUG: atfork_prepare not called from $self->{pid}\n";
-	$self->{dbh} or die "temporary clone not open\n";
+	my $dbh = $self->{dbh} or die "temporary clone not open\n";
+
 	# must clobber prepared statements
-	%$self = (filename => $self->{filename}, pid => $$);
+	%$self = (filename => $dbh->sqlite_db_filename, pid => $$);
 }
 
 sub skip_artnum {

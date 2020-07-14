@@ -343,7 +343,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		$im->add($ex);
 		$im->done;
 		{
-			my $f = $ibx->mm->{filename};
+			my $f = $ibx->mm->{dbh}->sqlite_db_filename;
 			my $tmp = "$tmpdir/tmp.sqlite3";
 			$ibx->mm->{dbh}->sqlite_backup_to_file($tmp);
 			delete $ibx->{mm};

@@ -431,7 +431,7 @@ sub rollback_lazy {
 sub disconnect {
 	my ($self) = @_;
 	die "in transaction" if $self->{txn};
-	$self->{dbh} = undef;
+	$self->SUPER::disconnect;
 }
 
 sub create {
