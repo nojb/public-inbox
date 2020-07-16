@@ -126,5 +126,6 @@ like($$bref, qr/^author Ba d \$main::badchars <spammer\@example\.com> /sm,
 	 'latest commit accepted by spammer');
 $git->qx(qw(fsck --no-progress --strict));
 is($?, 0, 'fsck reported no errors');
+$main::badchars = undef;
 
 done_testing();
