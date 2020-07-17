@@ -585,7 +585,7 @@ sub unindex_both { # git->cat_async callback
 sub index_sync {
 	my ($self, $opts) = @_;
 	delete $self->{lock_path} if $opts->{-skip_lock};
-	$self->{-inbox}->with_umask(sub { $self->_index_sync($opts) })
+	$self->{-inbox}->with_umask(\&_index_sync, $self, $opts);
 }
 
 sub too_big ($$$) {
@@ -854,17 +854,18 @@ sub remote_remove {
 	}
 }
 
+sub _begin_txn {
+	my ($self) = @_;
+	my $xdb = $self->{xdb} || $self->_xdb_acquire;
+	$self->{over}->begin_lazy if $self->{over};
+	$xdb->begin_transaction if $xdb;
+	$self->{txn} = 1;
+	$xdb;
+}
+
 sub begin_txn_lazy {
 	my ($self) = @_;
-	return if $self->{txn};
-
-	$self->{-inbox}->with_umask(sub {
-		my $xdb = $self->{xdb} || $self->_xdb_acquire;
-		$self->{over}->begin_lazy if $self->{over};
-		$xdb->begin_transaction if $xdb;
-		$self->{txn} = 1;
-		$xdb;
-	});
+	$self->{-inbox}->with_umask(\&_begin_txn, $self) if !$self->{txn};
 }
 
 # store 'indexlevel=medium' in v2 shard=0 and v1 (only one shard)
@@ -882,16 +883,19 @@ sub set_indexlevel {
 	}
 }
 
+sub _commit_txn {
+	my ($self) = @_;
+	if (my $xdb = $self->{xdb}) {
+		set_indexlevel($self);
+		$xdb->commit_transaction;
+	}
+	$self->{over}->commit_lazy if $self->{over};
+}
+
 sub commit_txn_lazy {
 	my ($self) = @_;
-	delete $self->{txn} or return;
-	$self->{-inbox}->with_umask(sub {
-		if (my $xdb = $self->{xdb}) {
-			set_indexlevel($self);
-			$xdb->commit_transaction;
-		}
-		$self->{over}->commit_lazy if $self->{over};
-	});
+	delete($self->{txn}) and
+		$self->{-inbox}->with_umask(\&_commit_txn, $self);
 }
 
 sub worker_done {

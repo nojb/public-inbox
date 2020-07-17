@@ -229,6 +229,24 @@ sub prepare_run {
 
 sub check_compact () { runnable_or_die($XAPIAN_COMPACT) }
 
+sub _run {
+	my ($ibx, $cb, $opt, $reindex) = @_;
+	my $im = $ibx->importer(0);
+	$im->lock_acquire;
+	my ($tmp, $queue) = prepare_run($ibx, $opt);
+
+	# fine-grained locking if we prepare for reindex
+	if (!$opt->{-coarse_lock}) {
+		prepare_reindex($ibx, $im, $reindex);
+		$im->lock_release;
+	}
+
+	$ibx->cleanup;
+	process_queue($queue, $cb, $opt);
+	$im->lock_acquire if !$opt->{-coarse_lock};
+	commit_changes($ibx, $im, $tmp, $opt);
+}
+
 sub run {
 	my ($ibx, $task, $opt) = @_; # task = 'cpdb' or 'compact'
 	my $cb = \&${\"PublicInbox::Xapcmd::$task"};
@@ -248,22 +266,7 @@ sub run {
 	local %SIG = %SIG;
 	setup_signals();
 	$ibx->umask_prepare;
-	$ibx->with_umask(sub {
-		my $im = $ibx->importer(0);
-		$im->lock_acquire;
-		my ($tmp, $queue) = prepare_run($ibx, $opt);
-
-		# fine-grained locking if we prepare for reindex
-		if (!$opt->{-coarse_lock}) {
-			prepare_reindex($ibx, $im, $reindex);
-			$im->lock_release;
-		}
-
-		$ibx->cleanup;
-		process_queue($queue, $cb, $opt);
-		$im->lock_acquire if !$opt->{-coarse_lock};
-		commit_changes($ibx, $im, $tmp, $opt);
-	});
+	$ibx->with_umask(\&_run, $ibx, $cb, $opt, $reindex);
 }
 
 sub cpdb_retryable ($$) {

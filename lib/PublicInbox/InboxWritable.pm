@@ -37,27 +37,33 @@ sub assert_usable_dir {
 	die "no inboxdir defined for $self->{name}\n";
 }
 
+sub _init_v1 {
+	my ($self, $skip_artnum) = @_;
+	if (defined($self->{indexlevel}) || defined($skip_artnum)) {
+		require PublicInbox::SearchIdx;
+		require PublicInbox::Msgmap;
+		my $sidx = PublicInbox::SearchIdx->new($self, 1); # just create
+		$sidx->begin_txn_lazy;
+		if (defined $skip_artnum) {
+			my $mm = PublicInbox::Msgmap->new($self->{inboxdir}, 1);
+			$mm->{dbh}->begin_work;
+			$mm->skip_artnum($skip_artnum);
+			$mm->{dbh}->commit;
+		}
+		$sidx->commit_txn_lazy;
+	} else {
+		open my $fh, '>>', "$self->{inboxdir}/ssoma.lock" or
+			die "$self->{inboxdir}/ssoma.lock: $!\n";
+	}
+}
+
 sub init_inbox {
 	my ($self, $shards, $skip_epoch, $skip_artnum) = @_;
 	if ($self->version == 1) {
 		my $dir = assert_usable_dir($self);
 		PublicInbox::Import::init_bare($dir);
-		if (defined($self->{indexlevel}) || defined($skip_artnum)) {
-			require PublicInbox::SearchIdx;
-			require PublicInbox::Msgmap;
-			my $sidx = PublicInbox::SearchIdx->new($self, 1); # just create
-			$sidx->begin_txn_lazy;
-			$self->with_umask(sub {
-				my $mm = PublicInbox::Msgmap->new($dir, 1);
-				$mm->{dbh}->begin_work;
-				$mm->skip_artnum($skip_artnum);
-				$mm->{dbh}->commit;
-			}) if defined($skip_artnum);
-			$sidx->commit_txn_lazy;
-		} else {
-			open my $fh, '>>', "$dir/ssoma.lock" or
-				die "$dir/ssoma.lock: $!\n";
-		}
+		$self->umask_prepare;
+		$self->with_umask(\&_init_v1, $self, $skip_artnum);
 	} else {
 		my $v2w = importer($self);
 		$v2w->init_inbox($shards, $skip_epoch, $skip_artnum);
@@ -255,9 +261,9 @@ sub _umask_for {
 }
 
 sub with_umask {
-	my ($self, $cb) = @_;
+	my ($self, $cb, @arg) = @_;
 	my $old = umask $self->{umask};
-	my $rv = eval { $cb->() };
+	my $rv = eval { $cb->(@arg) };
 	my $err = $@;
 	umask $old;
 	die $err if $err;
