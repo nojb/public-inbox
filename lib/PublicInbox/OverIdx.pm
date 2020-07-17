@@ -107,7 +107,7 @@ DELETE FROM $_ WHERE num = ?
 
 # this includes ghosts
 sub each_by_mid {
-	my ($self, $mid, $cols, $cb) = @_;
+	my ($self, $mid, $cols, $cb, @arg) = @_;
 	my $dbh = $self->{dbh};
 
 =over
@@ -152,27 +152,29 @@ SELECT $cols FROM over WHERE over.num = ? LIMIT 1
 		foreach (@$nums) {
 			$sth->execute($_->[0]);
 			my $smsg = $sth->fetchrow_hashref;
-			$cb->(PublicInbox::Over::load_from_row($smsg)) or
-				return;
+			$smsg = PublicInbox::Over::load_from_row($smsg);
+			$cb->($self, $smsg, @arg) or return;
 		}
 		return if $nr != $lim;
 	}
+}
+
+sub _resolve_mid_to_tid {
+	my ($self, $smsg, $tid) = @_;
+	my $cur_tid = $smsg->{tid};
+	if (defined $$tid) {
+		merge_threads($self, $$tid, $cur_tid);
+	} else {
+		$$tid = $cur_tid;
+	}
+	1;
 }
 
 # this will create a ghost as necessary
 sub resolve_mid_to_tid {
 	my ($self, $mid) = @_;
 	my $tid;
-	each_by_mid($self, $mid, ['tid'], sub {
-		my ($smsg) = @_;
-		my $cur_tid = $smsg->{tid};
-		if (defined $tid) {
-			merge_threads($self, $tid, $cur_tid);
-		} else {
-			$tid = $cur_tid;
-		}
-		1;
-	});
+	each_by_mid($self, $mid, ['tid'], \&_resolve_mid_to_tid, \$tid);
 	defined $tid ? $tid : create_ghost($self, $mid);
 }
 
@@ -271,6 +273,22 @@ sub add_overview {
 	add_over($self, [ @$smsg{qw(ts ds num)}, $mids, $refs, $xpath, $dd ]);
 }
 
+sub _add_over {
+	my ($self, $smsg, $mid, $refs, $old_tid, $v) = @_;
+	my $cur_tid = $smsg->{tid};
+	my $n = $smsg->{num};
+	die "num must not be zero for $mid" if !$n;
+	$$old_tid = $cur_tid unless defined $$old_tid;
+	if ($n > 0) { # regular mail
+		merge_threads($self, $$old_tid, $cur_tid);
+	} elsif ($n < 0) { # ghost
+		link_refs($self, $refs, $$old_tid);
+		$self->delete_by_num($n);
+		$$v++;
+	}
+	1;
+}
+
 sub add_over {
 	my ($self, $values) = @_;
 	my ($ts, $ds, $num, $mids, $refs, $xpath, $ddd) = @$values;
@@ -281,21 +299,8 @@ sub add_over {
 	$self->delete_by_num($num, \$old_tid);
 	foreach my $mid (@$mids) {
 		my $v = 0;
-		each_by_mid($self, $mid, ['tid'], sub {
-			my ($cur) = @_;
-			my $cur_tid = $cur->{tid};
-			my $n = $cur->{num};
-			die "num must not be zero for $mid" if !$n;
-			$old_tid = $cur_tid unless defined $old_tid;
-			if ($n > 0) { # regular mail
-				merge_threads($self, $old_tid, $cur_tid);
-			} elsif ($n < 0) { # ghost
-				link_refs($self, $refs, $old_tid);
-				$self->delete_by_num($n);
-				$v++;
-			}
-			1;
-		});
+		each_by_mid($self, $mid, ['tid'], \&_add_over,
+				$mid, $refs, \$old_tid, \$v);
 		$v > 1 and warn "BUG: vivified multiple ($v) ghosts for $mid\n";
 		$vivified += $v;
 	}
@@ -320,35 +325,39 @@ INSERT INTO id2num (id, num) VALUES (?,?)
 	}
 }
 
+sub _remove_oid {
+	my ($self, $smsg, $oid, $nr) = @_;
+	if (!defined($oid) || $smsg->{blob} eq $oid) {
+		$self->delete_by_num($smsg->{num});
+		$$nr++;
+	}
+	1;
+}
+
 # returns number of removed messages
 # $oid may be undef to match only on $mid
 sub remove_oid {
 	my ($self, $oid, $mid) = @_;
 	my $nr = 0;
 	$self->begin_lazy;
-	each_by_mid($self, $mid, ['ddd'], sub {
-		my ($smsg) = @_;
-		if (!defined($oid) || $smsg->{blob} eq $oid) {
-			$self->delete_by_num($smsg->{num});
-			$nr++;
-		}
-		1;
-	});
+	each_by_mid($self, $mid, ['ddd'], \&_remove_oid, $oid, \$nr);
 	$nr;
+}
+
+sub _num_mid0_for_oid {
+	my ($self, $smsg, $oid, $res) = @_;
+	my $blob = $smsg->{blob};
+	return 1 if (!defined($blob) || $blob ne $oid); # continue;
+	@$res = ($smsg->{num}, $smsg->{mid});
+	0; # done
 }
 
 sub num_mid0_for_oid {
 	my ($self, $oid, $mid) = @_;
-	my ($num, $mid0);
+	my $res = [];
 	$self->begin_lazy;
-	each_by_mid($self, $mid, ['ddd'], sub {
-		my ($smsg) = @_;
-		my $blob = $smsg->{blob};
-		return 1 if (!defined($blob) || $blob ne $oid); # continue;
-		($num, $mid0) = ($smsg->{num}, $smsg->{mid});
-		0; # done
-	});
-	($num, $mid0);
+	each_by_mid($self, $mid, ['ddd'], \&_num_mid0_for_oid, $oid, $res);
+	@$res, # ($num, $mid0);
 }
 
 sub create_tables {
