@@ -180,10 +180,10 @@ sub resolve_mid_to_tid {
 
 sub create_ghost {
 	my ($self, $mid) = @_;
-	my $id = $self->mid2id($mid);
-	my $num = $self->next_ghost_num;
+	my $id = mid2id($self, $mid);
+	my $num = next_ghost_num($self);
 	$num < 0 or die "ghost num is non-negative: $num\n";
-	my $tid = $self->next_tid;
+	my $tid = next_tid($self);
 	my $dbh = $self->{dbh};
 	$dbh->prepare_cached(<<'')->execute($num, $tid);
 INSERT INTO over (num, tid) VALUES (?,?)
@@ -221,7 +221,7 @@ sub link_refs {
 			merge_threads($self, $tid, $ptid);
 		}
 	} else {
-		$tid = defined $old_tid ? $old_tid : $self->next_tid;
+		$tid = defined $old_tid ? $old_tid : next_tid($self);
 	}
 	$tid;
 }
@@ -283,7 +283,7 @@ sub _add_over {
 		merge_threads($self, $$old_tid, $cur_tid);
 	} elsif ($n < 0) { # ghost
 		link_refs($self, $refs, $$old_tid);
-		$self->delete_by_num($n);
+		delete_by_num($self, $n);
 		$$v++;
 	}
 	1;
@@ -295,8 +295,8 @@ sub add_over {
 	my $old_tid;
 	my $vivified = 0;
 
-	$self->begin_lazy;
-	$self->delete_by_num($num, \$old_tid);
+	begin_lazy($self);
+	delete_by_num($self, $num, \$old_tid);
 	foreach my $mid (@$mids) {
 		my $v = 0;
 		each_by_mid($self, $mid, ['tid'], \&_add_over,
@@ -305,7 +305,7 @@ sub add_over {
 		$vivified += $v;
 	}
 	my $tid = $vivified ? $old_tid : link_refs($self, $refs, $old_tid);
-	my $sid = $self->sid($xpath);
+	my $sid = sid($self, $xpath);
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(<<'');
 INSERT INTO over (num, tid, sid, ts, ds, ddd)
@@ -320,7 +320,7 @@ VALUES (?,?,?,?,?,?)
 INSERT INTO id2num (id, num) VALUES (?,?)
 
 	foreach my $mid (@$mids) {
-		my $id = $self->mid2id($mid);
+		my $id = mid2id($self, $mid);
 		$sth->execute($id, $num);
 	}
 }
@@ -328,7 +328,7 @@ INSERT INTO id2num (id, num) VALUES (?,?)
 sub _remove_oid {
 	my ($self, $smsg, $oid, $nr) = @_;
 	if (!defined($oid) || $smsg->{blob} eq $oid) {
-		$self->delete_by_num($smsg->{num});
+		delete_by_num($self, $smsg->{num});
 		$$nr++;
 	}
 	1;
@@ -339,7 +339,7 @@ sub _remove_oid {
 sub remove_oid {
 	my ($self, $oid, $mid) = @_;
 	my $nr = 0;
-	$self->begin_lazy;
+	begin_lazy($self);
 	each_by_mid($self, $mid, ['ddd'], \&_remove_oid, $oid, \$nr);
 	$nr;
 }
@@ -355,7 +355,7 @@ sub _num_mid0_for_oid {
 sub num_mid0_for_oid {
 	my ($self, $oid, $mid) = @_;
 	my $res = [];
-	$self->begin_lazy;
+	begin_lazy($self);
 	each_by_mid($self, $mid, ['ddd'], \&_num_mid0_for_oid, $oid, $res);
 	@$res, # ($num, $mid0);
 }
