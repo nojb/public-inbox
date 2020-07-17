@@ -8,8 +8,8 @@
 # This writes to the search index.
 package PublicInbox::SearchIdx;
 use strict;
-use warnings;
-use base qw(PublicInbox::Search PublicInbox::Lock);
+use v5.10.1;
+use parent qw(PublicInbox::Search PublicInbox::Lock);
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
 use PublicInbox::MID qw/mid_clean mid_mime mids_for_index/;
