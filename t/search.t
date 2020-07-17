@@ -397,7 +397,9 @@ $ibx->with_umask(sub {
 
 $ibx->with_umask(sub {
 	my $amsg = eml_load 't/search-amsg.eml';
-	ok($rw->add_message($amsg), 'added attachment');
+	my $oid = ('0'x40);
+	my $smsg = bless { blob => $oid }, 'PublicInbox::Smsg';
+	ok($rw->add_message($amsg, $smsg), 'added attachment');
 	$rw_commit->();
 	$ro->reopen;
 	my $n = $ro->query('n:attached_fart.txt');
@@ -418,7 +420,7 @@ $ibx->with_umask(sub {
 		$art = $ro->{over_ro}->next_by_mid($mid, \$id, \$prev);
 		ok($art, 'article exists in OVER DB');
 	}
-	$rw->unindex_blob($amsg);
+	$rw->unindex_eml($oid, $amsg);
 	$rw->commit_txn_lazy;
 	SKIP: {
 		skip('$art not defined', 1) unless defined $art;

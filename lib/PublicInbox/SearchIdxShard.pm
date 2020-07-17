@@ -62,10 +62,8 @@ sub shard_worker_loop ($$$$$) {
 			# no need to lock < 512 bytes is atomic under POSIX
 			print $bnote "barrier $shard\n" or
 					die "write failed for barrier $!\n";
-		} elsif ($line =~ /\AD ([a-f0-9]{40,}) (.+)\n\z/s) {
-			my ($oid, $mid) = ($1, $2);
-			$self->begin_txn_lazy;
-			$self->remove_by_oid($oid, $mid);
+		} elsif ($line =~ /\AD ([a-f0-9]{40,}) ([0-9]+)\n\z/s) {
+			$self->remove_by_oid($1, $2 + 0);
 		} else {
 			chomp $line;
 			# n.b. $mid may contain spaces(!)

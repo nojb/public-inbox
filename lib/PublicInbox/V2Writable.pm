@@ -1185,8 +1185,11 @@ sub sync_prepare ($$$) {
 
 sub unindex_oid_remote ($$$) {
 	my ($self, $oid, $mid) = @_;
-	$_->remote_remove($oid, $mid) foreach @{$self->{idx_shards}};
-	$self->{over}->remove_oid($oid, $mid);
+	my @removed = $self->{over}->remove_oid($oid, $mid);
+	for my $num (@removed) {
+		my $idx = idx_shard($self, $num % $self->{shards});
+		$idx->remote_remove($oid, $num);
+	}
 }
 
 sub unindex_oid ($$$;$) {

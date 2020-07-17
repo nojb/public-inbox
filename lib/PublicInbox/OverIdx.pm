@@ -326,22 +326,23 @@ INSERT INTO id2num (id, num) VALUES (?,?)
 }
 
 sub _remove_oid {
-	my ($self, $smsg, $oid, $nr) = @_;
+	my ($self, $smsg, $oid, $removed) = @_;
 	if (!defined($oid) || $smsg->{blob} eq $oid) {
 		delete_by_num($self, $smsg->{num});
-		$$nr++;
+		push @$removed, $smsg->{num};
 	}
 	1;
 }
 
-# returns number of removed messages
+# returns number of removed messages in scalar context,
+# array of removed article numbers in array context.
 # $oid may be undef to match only on $mid
 sub remove_oid {
 	my ($self, $oid, $mid) = @_;
-	my $nr = 0;
+	my $removed = [];
 	begin_lazy($self);
-	each_by_mid($self, $mid, ['ddd'], \&_remove_oid, $oid, \$nr);
-	$nr;
+	each_by_mid($self, $mid, ['ddd'], \&_remove_oid, $oid, $removed);
+	@$removed;
 }
 
 sub _num_mid0_for_oid {

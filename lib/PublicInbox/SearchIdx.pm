@@ -12,7 +12,7 @@ use v5.10.1;
 use parent qw(PublicInbox::Search PublicInbox::Lock);
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
-use PublicInbox::MID qw/mid_clean mid_mime mids_for_index/;
+use PublicInbox::MID qw(mid_mime mids_for_index mids);
 use PublicInbox::MsgIter;
 use Carp qw(croak);
 use POSIX qw(strftime);
@@ -413,88 +413,32 @@ sub add_message {
 	$smsg->{num};
 }
 
-# returns begin and end PostingIterator
-sub find_doc_ids {
-	my ($self, $termval) = @_;
-	my $db = $self->{xdb};
-
-	($db->postlist_begin($termval), $db->postlist_end($termval));
-}
-
-# v1 only
-sub batch_do {
-	my ($self, $termval, $cb) = @_;
-	my $batch_size = 1000; # don't let @ids grow too large to avoid OOM
-	while (1) {
-		my ($head, $tail) = $self->find_doc_ids($termval);
-		return if $head == $tail;
-		my @ids;
-		for (; $head != $tail && @ids < $batch_size; $head++) {
-			push @ids, $head->get_docid;
+sub xdb_remove {
+	my ($self, $oid, @removed) = @_;
+	my $xdb = $self->{xdb} or return;
+	for my $num (@removed) {
+		my $doc = eval { $xdb->get_document($num) };
+		unless ($doc) {
+			warn "E: $@\n" if $@;
+			warn "E: #$num $oid missing in Xapian\n";
+			next;
 		}
-		$cb->(\@ids);
-	}
-}
-
-# v1 only, where $mid is unique
-sub remove_message {
-	my ($self, $mid) = @_;
-	$mid = mid_clean($mid);
-
-	if (my $over = $self->{over}) {
-		my $nr = eval { $over->remove_oid(undef, $mid) };
-		if ($@) {
-			warn "failed to remove <$mid> from overview: $@\n";
-		} elsif ($nr == 0) {
-			warn "<$mid> missing for removal from overview\n";
-		}
-	}
-	return unless need_xapian($self);
-	my $db = $self->{xdb};
-	my $nr = 0;
-	eval {
-		batch_do($self, 'Q' . $mid, sub {
-			my ($ids) = @_;
-			$db->delete_document($_) for @$ids;
-			$nr += scalar @$ids;
-		});
-	};
-	if ($@) {
-		warn "failed to remove <$mid> from Xapian: $@\n";
-	} elsif ($nr == 0) {
-		warn "<$mid> missing for removal from Xapian\n";
-	}
-}
-
-# MID is a hint in V2
-sub remove_by_oid {
-	my ($self, $oid, $mid) = @_;
-
-	$self->{over}->remove_oid($oid, $mid) if $self->{over};
-
-	return unless need_xapian($self);
-	my $db = $self->{xdb};
-
-	# XXX careful, we cannot use batch_do here since we conditionally
-	# delete documents based on other factors, so we cannot call
-	# find_doc_ids twice.
-	my ($head, $tail) = $self->find_doc_ids('Q' . $mid);
-	return if $head == $tail;
-
-	# there is only ONE element in @delete unless we
-	# have bugs in our v2writable deduplication check
-	my @delete;
-	for (; $head != $tail; $head++) {
-		my $docid = $head->get_docid;
-		my $doc = $db->get_document($docid);
-		my $smsg = bless { mid => $mid }, 'PublicInbox::Smsg';
+		my $smsg = bless {}, 'PublicInbox::Smsg';
 		$smsg->load_expand($doc);
-		if ($smsg->{blob} eq $oid) {
-			push(@delete, $docid);
+		my $blob = $smsg->{blob} // '(unset)';
+		if ($blob eq $oid) {
+			$xdb->delete_document($num);
+		} else {
+			warn "E: #$num $oid != $blob in Xapian\n";
 		}
 	}
-	$db->delete_document($_) foreach @delete;
-	scalar(@delete);
+}
+
+sub remove_by_oid {
+	my ($self, $oid, $num) = @_;
+	die "BUG: remove_by_oid is v2-only\n" if $self->{over};
+	$self->begin_txn_lazy;
+	xdb_remove($self, $oid, $num) if need_xapian($self);
 }
 
 sub index_git_blob_id {
@@ -507,10 +451,29 @@ sub index_git_blob_id {
 	}
 }
 
-sub unindex_blob {
-	my ($self, $mime) = @_;
-	my $mid = eval { mid_mime($mime) };
-	$self->remove_message($mid) if defined $mid;
+# v1 only
+sub unindex_eml {
+	my ($self, $oid, $eml) = @_;
+	my $mids = mids($eml);
+	my $nr = 0;
+	my %tmp;
+	for my $mid (@$mids) {
+		my @removed = eval { $self->{over}->remove_oid($oid, $mid) };
+		if ($@) {
+			warn "E: failed to remove <$mid> from overview: $@\n";
+		} else {
+			$nr += scalar @removed;
+			$tmp{$_}++ for @removed;
+		}
+	}
+	if (!$nr) {
+		$mids = join('> <', @$mids);
+		warn "W: <$mids> missing for removal from overview\n";
+	}
+	while (my ($num, $nr) = each %tmp) {
+		warn "BUG: $num appears >1 times ($nr) for $oid\n" if $nr != 1;
+	}
+	xdb_remove($self, $oid, keys %tmp) if need_xapian($self);
 }
 
 sub index_mm {
@@ -577,7 +540,7 @@ sub index_both { # git->cat_async callback
 sub unindex_both { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $self) = @_;
 	my $eml = PublicInbox::Eml->new($bref);
-	unindex_blob($self, $eml);
+	unindex_eml($self, $oid, $eml);
 	unindex_mm($self, $eml);
 }
 
@@ -844,13 +807,12 @@ sub remote_close {
 }
 
 sub remote_remove {
-	my ($self, $oid, $mid) = @_;
+	my ($self, $oid, $num) = @_;
 	if (my $w = $self->{w}) {
 		# triggers remove_by_oid in a shard
-		print $w "D $oid $mid\n" or die "failed to write remove $!";
+		print $w "D $oid $num\n" or die "failed to write remove $!";
 	} else {
-		$self->begin_txn_lazy;
-		$self->remove_by_oid($oid, $mid);
+		$self->remove_by_oid($oid, $num);
 	}
 }
 
