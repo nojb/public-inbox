@@ -482,14 +482,12 @@ sub purge {
 sub git_hash_raw ($$) {
 	my ($self, $raw) = @_;
 	# grab the expected OID we have to reindex:
-	open my $tmp_fh, '+>', undef or die "failed to open tmp: $!";
-	$tmp_fh->autoflush(1);
-	print $tmp_fh $$raw or die "print \$tmp_fh: $!";
-	sysseek($tmp_fh, 0, 0) or die "seek failed: $!";
-
+	pipe(my($in, $w)) or die "pipe: $!";
 	my $git_dir = $self->{-inbox}->git->{git_dir};
 	my $cmd = ['git', "--git-dir=$git_dir", qw(hash-object --stdin)];
-	my $r = popen_rd($cmd, undef, { 0 => $tmp_fh });
+	my $r = popen_rd($cmd, undef, { 0 => $in });
+	print $w $$raw or die "print \$w: $!";
+	close $w or die "close \$w: $!";
 	local $/ = "\n";
 	chomp(my $oid = <$r>);
 	close $r or die "git hash-object failed: $?";
