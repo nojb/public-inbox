@@ -326,7 +326,7 @@ sub extract_cmt_info ($;$) {
 sub drop_unwanted_headers ($) {
 	my ($mime) = @_;
 
-	$mime->header_set($_) for qw(bytes lines content-length status);
+	$mime->header_set($_) for qw(Bytes Lines Content-Length Status);
 	$mime->header_set($_) for @PublicInbox::MDA::BAD_HEADERS;
 }
 
