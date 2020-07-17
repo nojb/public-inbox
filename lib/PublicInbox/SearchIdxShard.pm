@@ -5,8 +5,8 @@
 # See L<public-inbox-v2-format(5)> for more info on how we shard Xapian
 package PublicInbox::SearchIdxShard;
 use strict;
-use warnings;
-use base qw(PublicInbox::SearchIdx);
+use v5.10.1;
+use parent qw(PublicInbox::SearchIdx);
 use IO::Handle (); # autoflush
 use PublicInbox::Eml;
 

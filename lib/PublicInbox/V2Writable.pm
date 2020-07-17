@@ -5,16 +5,15 @@
 # Used to write to V2 inboxes (see L<public-inbox-v2-format(5)>).
 package PublicInbox::V2Writable;
 use strict;
-use warnings;
-use base qw(PublicInbox::Lock);
-use 5.010_001;
+use v5.10.1;
+use parent qw(PublicInbox::Lock);
 use PublicInbox::SearchIdxShard;
 use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MID qw(mids references);
 use PublicInbox::ContentHash qw(content_hash content_digest);
-use PublicInbox::Inbox;
+use PublicInbox::InboxWritable;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd);
