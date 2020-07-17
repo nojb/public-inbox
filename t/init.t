@@ -49,6 +49,14 @@ sub quiet_fail {
 	ok(unlink("$cfgfile.lock"),
 		'-init did not unlink lock on failure');
 }
+{
+	my $rdr = { 2 => \(my $err = '') };
+	my $cmd = [ '-init', 'alist', "$tmpdir/a\nlist",
+		   qw(http://example.com/alist alist@example.com) ];
+	ok(!run_script($cmd, undef, $rdr),
+		'public-inbox-init rejects LF in inboxdir');
+	like($err, qr/`\\n' not allowed in `/s, 'reported \\n');
+}
 
 SKIP: {
 	require_mods(qw(DBD::SQLite Search::Xapian::WritableDatabase), 2);

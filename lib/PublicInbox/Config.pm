@@ -393,7 +393,10 @@ sub _fill {
 
 	# backwards compatibility:
 	$ibx->{inboxdir} //= $self->{"$pfx.mainrepo"};
-
+	if (($ibx->{inboxdir} // '') =~ /\n/s) {
+		warn "E: `$ibx->{inboxdir}' must not contain `\\n'\n";
+		return;
+	}
 	foreach my $k (qw(obfuscate)) {
 		my $v = $self->{"$pfx.$k"};
 		defined $v or next;

@@ -10,13 +10,23 @@ my ($tmpdir, $for_destroy) = tmpdir();
 
 {
 	PublicInbox::Import::init_bare($tmpdir);
-	my @cmd = ('git', "--git-dir=$tmpdir", qw(config foo.bar), "hi\nhi");
+	my $inboxdir = "$tmpdir/new\nline";
+	my @cmd = ('git', "--git-dir=$tmpdir",
+		qw(config publicinbox.foo.inboxdir), $inboxdir);
 	is(xsys(@cmd), 0, "set config");
 
 	my $tmp = PublicInbox::Config->new("$tmpdir/config");
 
-	is("hi\nhi", $tmp->{"foo.bar"}, "config read correctly");
-	is("true", $tmp->{"core.bare"}, "used --bare repo");
+	is($tmp->{'publicinbox.foo.inboxdir'}, $inboxdir,
+		'config read correctly');
+	is($tmp->{'core.bare'}, 'true', 'init used --bare repo');
+
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	$tmp = PublicInbox::Config->new("$tmpdir/config");
+	is($tmp->lookup_name('foo'), undef, 'reject invalid inboxdir');
+	like("@warn", qr/^E:.*must not contain `\\n'/sm,
+		'warned about newline');
 }
 
 {

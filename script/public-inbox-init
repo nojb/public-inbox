@@ -115,6 +115,7 @@ my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
 
 $inboxdir = abs_path($inboxdir);
+die "`\\n' not allowed in `$inboxdir'\n" if $inboxdir =~ /\n/s;
 if (-f "$inboxdir/inbox.lock") {
 	if (!defined $version) {
 		$version = 2;
