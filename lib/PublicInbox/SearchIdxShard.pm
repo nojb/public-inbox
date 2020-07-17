@@ -26,8 +26,6 @@ sub spawn_worker {
 	my ($self, $v2w, $shard) = @_;
 	my ($r, $w);
 	pipe($r, $w) or die "pipe failed: $!\n";
-	binmode $r, ':raw';
-	binmode $w, ':raw';
 	$w->autoflush(1);
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";

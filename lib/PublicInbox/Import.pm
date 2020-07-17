@@ -73,8 +73,6 @@ sub gfi_start {
 	$self->{out} = $out_w;
 	$self->{pid} = $pid;
 	$self->{nchg} = 0;
-	binmode $out_w, ':raw' or die "binmode :raw failed: $!";
-	binmode $in_r, ':raw' or die "binmode :raw failed: $!";
 	($in_r, $out_w);
 }
 
