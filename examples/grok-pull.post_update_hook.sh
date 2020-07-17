@@ -1,4 +1,9 @@
 #!/bin/sh
+
+# use flock(1) from util-linux to avoid seek contention on slow HDDs
+# when using multiple `pull_threads' with grok-pull:
+# [ "${FLOCKER}" != "$0" ] && exec env FLOCKER="$0" flock "$0" "$0" "$@" || :
+
 # post_update_hook for repos.conf as used by grok-pull, takes a full
 # git repo path as it's first and only arg.
 full_git_dir="$1"
@@ -119,6 +124,7 @@ then
 		: v2 inboxes may be init-ed with an empty msgmap
 		;;
 	*)
+		# if on HDD and limited RAM, add `-j0' w/ public-inbox 1.6.0+
 		$EATMYDATA public-inbox-index -v "$inbox_dir"
 		;;
 	esac
