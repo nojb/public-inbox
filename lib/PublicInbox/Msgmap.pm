@@ -238,22 +238,21 @@ sub DESTROY {
 
 sub atfork_parent {
 	my ($self) = @_;
-	$self->{pid} or die "not a temporary clone\n";
-	my $dbh = $self->{dbh} and die "tmp_clone dbh not prepared for parent";
-	$self->{filename} = $dbh->sqlite_db_filename;
-	$dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, 1);
+	$self->{pid} or die 'BUG: not a temporary clone';
+	$self->{dbh} and die 'BUG: tmp_clone dbh not prepared for parent';
+	defined($self->{filename}) or die 'BUG: {filename} not defined';
+	my $dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, 1);
 	$dbh->do('PRAGMA synchronous = OFF');
 }
 
 sub atfork_prepare {
 	my ($self) = @_;
-	$self->{pid} or die "not a temporary clone\n";
-	$self->{pid} == $$ or
-		die "BUG: atfork_prepare not called from $self->{pid}\n";
-	my $dbh = $self->{dbh} or die "temporary clone not open\n";
+	my $pid = $self->{pid} or die 'BUG: not a temporary clone';
+	$pid == $$ or die "BUG: atfork_prepare not called by $pid";
+	my $dbh = $self->{dbh} or die 'BUG: temporary clone not open';
 
 	# must clobber prepared statements
-	%$self = (filename => $dbh->sqlite_db_filename, pid => $$);
+	%$self = (filename => $dbh->sqlite_db_filename, pid => $pid);
 }
 
 sub skip_artnum {

@@ -64,4 +64,10 @@ my $tmp = $d->tmp_clone;
 is_deeply([$d->minmax], [$tmp->minmax], 'Cloned temporary DB matches');
 ok($tmp->mid_delete('spam@2'), 'temporary DB is writable');
 
+is(eval {
+	$tmp->atfork_prepare;
+	$tmp->atfork_parent;
+	'ok'
+}, 'ok', 'atfork_* work on tmp_clone');
+
 done_testing();
