@@ -11,6 +11,7 @@ require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::SearchIdx';
 use_ok 'PublicInbox::Import';
+use_ok 'PublicInbox::OverIdx';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx_config = {
 	inboxdir => $inboxdir,
@@ -427,5 +428,38 @@ ok(!-d $xap, 'Xapian directories removed again');
 		  ], 'msgmap as expected' );
 }
 
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my $ibx = PublicInbox::Inbox->new({ %$ibx_config });
+	my $f = $ibx->over->{dbh}->sqlite_db_filename;
+	my $over = PublicInbox::OverIdx->new($f);
+	my $dbh = $over->connect;
+	my $non_ghost_tids = sub {
+		$dbh->selectall_arrayref(<<'');
+SELECT tid FROM over WHERE num > 0 ORDER BY tid ASC
+
+	};
+	my $before = $non_ghost_tids->();
+
+	# mess up threading:
+	my $tid = PublicInbox::OverIdx::get_counter($dbh, 'thread');
+	my $nr = $dbh->do('UPDATE over SET tid = ?', undef, $tid);
+
+	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
+	my @pr;
+	my $pr = sub { push @pr, @_ };
+	$rw->index_sync({reindex => 1, rethread => 1, -progress => $pr });
+	my @n = $dbh->selectrow_array(<<EOS, undef, $tid);
+SELECT COUNT(*) FROM over WHERE tid <= ?
+EOS
+	is_deeply(\@n, [ 0 ], 'rethread dropped old threadids');
+	my $after = $non_ghost_tids->();
+	ok($after->[0]->[0] > $before->[-1]->[0],
+		'all tids greater than before');
+	is(scalar @$after, scalar @$before, 'thread count unchanged');
+	is_deeply([], \@warn, 'no warnings');
+	# diag "@pr"; # XXX do we care?
+}
 
 done_testing();

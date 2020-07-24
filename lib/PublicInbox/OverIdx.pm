@@ -17,6 +17,7 @@ use PublicInbox::MID qw/id_compress mids_for_index references/;
 use PublicInbox::Smsg qw(subject_normalized);
 use Compress::Zlib qw(compress);
 use PublicInbox::Search;
+use Carp qw(croak);
 
 sub dbh_new {
 	my ($self) = @_;
@@ -35,6 +36,13 @@ sub dbh_new {
 
 	create_tables($dbh);
 	$dbh;
+}
+
+sub new {
+	my ($class, $f) = @_;
+	my $self = $class->SUPER::new($f);
+	$self->{min_tid} = 0;
+	$self;
 }
 
 sub get_counter ($$) {
@@ -164,8 +172,12 @@ sub _resolve_mid_to_tid {
 	my $cur_tid = $smsg->{tid};
 	if (defined $$tid) {
 		merge_threads($self, $$tid, $cur_tid);
-	} else {
+	} elsif ($cur_tid > $self->{min_tid}) {
 		$$tid = $cur_tid;
+	} else { # rethreading, queue up dead ghosts
+		$$tid = next_tid($self);
+		my $num = $smsg->{num};
+		push(@{$self->{-ghosts_to_delete}}, $num) if $num < 0;
 	}
 	1;
 }
@@ -175,7 +187,10 @@ sub resolve_mid_to_tid {
 	my ($self, $mid) = @_;
 	my $tid;
 	each_by_mid($self, $mid, ['tid'], \&_resolve_mid_to_tid, \$tid);
-	defined $tid ? $tid : create_ghost($self, $mid);
+	if (my $del = delete $self->{-ghosts_to_delete}) {
+		delete_by_num($self, $_) for @$del;
+	}
+	$tid // create_ghost($self, $mid);
 }
 
 sub create_ghost {
@@ -221,7 +236,7 @@ sub link_refs {
 			merge_threads($self, $tid, $ptid);
 		}
 	} else {
-		$tid = defined $old_tid ? $old_tid : next_tid($self);
+		$tid = $old_tid // next_tid($self);
 	}
 	$tid;
 }
@@ -278,10 +293,17 @@ sub _add_over {
 	my $cur_tid = $smsg->{tid};
 	my $n = $smsg->{num};
 	die "num must not be zero for $mid" if !$n;
-	$$old_tid = $cur_tid unless defined $$old_tid;
+	my $cur_valid = $cur_tid > $self->{min_tid};
+
 	if ($n > 0) { # regular mail
-		merge_threads($self, $$old_tid, $cur_tid);
+		if ($cur_valid) {
+			$$old_tid //= $cur_tid;
+			merge_threads($self, $$old_tid, $cur_tid);
+		} else {
+			$$old_tid //= next_tid($self);
+		}
 	} elsif ($n < 0) { # ghost
+		$$old_tid //= $cur_valid ? $cur_tid : next_tid($self);
 		link_refs($self, $refs, $$old_tid);
 		delete_by_num($self, $n);
 		$$v++;
@@ -297,6 +319,7 @@ sub add_over {
 
 	begin_lazy($self);
 	delete_by_num($self, $num, \$old_tid);
+	$old_tid = undef if ($old_tid // 0) <= $self->{min_tid};
 	foreach my $mid (@$mids) {
 		my $v = 0;
 		each_by_mid($self, $mid, ['tid'], \&_add_over,
@@ -454,6 +477,49 @@ sub create {
 	# create the DB:
 	PublicInbox::Over::connect($self);
 	$self->disconnect;
+}
+
+sub rethread_prepare {
+	my ($self, $opt) = @_;
+	return unless $opt->{rethread};
+	begin_lazy($self);
+	my $min = $self->{min_tid} = get_counter($self->{dbh}, 'thread') // 0;
+	my $pr = $opt->{-progress};
+	$pr->("rethread min THREADID ".($min + 1)."\n") if $pr && $min;
+}
+
+sub rethread_done {
+	my ($self, $opt) = @_;
+	return unless $opt->{rethread} && $self->{txn};
+	defined(my $min = $self->{min_tid}) or croak('BUG: no min_tid');
+	my $dbh = $self->{dbh} or croak('BUG: no dbh');
+	my $rows = $dbh->selectall_arrayref(<<'', { Slice => {} }, $min);
+SELECT num,tid FROM over WHERE num < 0 AND tid < ?
+
+	my $show_id = $dbh->prepare('SELECT id FROM id2num WHERE num = ?');
+	my $show_mid = $dbh->prepare('SELECT mid FROM msgid WHERE id = ?');
+	my $pr = $opt->{-progress};
+	my $total = 0;
+	for my $r (@$rows) {
+		my $exp = 0;
+		$show_id->execute($r->{num});
+		while (defined(my $id = $show_id->fetchrow_array)) {
+			++$exp;
+			$show_mid->execute($id);
+			my $mid = $show_mid->fetchrow_array;
+			if (!defined($mid)) {
+				warn <<EOF;
+E: ghost NUM=$r->{num} ID=$id THREADID=$r->{tid} has no Message-ID
+EOF
+				next;
+			}
+			$pr->(<<EOM) if $pr;
+I: ghost $r->{num} <$mid> THREADID=$r->{tid} culled
+EOM
+		}
+		delete_by_num($self, $r->{num});
+	}
+	$pr->("I: rethread culled $total ghosts\n") if $pr && $total;
 }
 
 1;

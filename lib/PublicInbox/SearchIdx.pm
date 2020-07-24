@@ -723,6 +723,7 @@ sub _index_sync {
 	my $pr = $opts->{-progress};
 
 	my $xdb = $self->begin_txn_lazy;
+	$self->{over}->rethread_prepare($opts);
 	my $mm = _msgmap_init($self);
 	do {
 		$xlog = undef; # stop previous git-log via SIGPIPE
@@ -761,12 +762,14 @@ sub _index_sync {
 				$xdb->set_metadata('last_commit', $newest);
 			}
 		}
+
+		$self->{over}->rethread_done($opts) if $newest; # all done
 		$self->commit_txn_lazy;
 		$git->cleanup;
 		$xdb = _xdb_release($self, $nr);
-		# let another process do some work... <
+		# let another process do some work...
 		$pr->("indexed $nr/$self->{ntodo}\n") if $pr && $nr;
-		if (!$newest) {
+		if (!$newest) { # more to come
 			$xdb = $self->begin_txn_lazy;
 			$dbh->begin_work if $dbh;
 		}

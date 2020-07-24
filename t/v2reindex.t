@@ -10,6 +10,7 @@ use PublicInbox::TestCommon;
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
+use_ok 'PublicInbox::OverIdx';
 my ($inboxdir, $for_destroy) = tmpdir();
 my $ibx_config = {
 	inboxdir => $inboxdir,
@@ -423,6 +424,46 @@ ok(!-d $xap, 'Xapian directories removed again');
 		  ], 'msgmap as expected' );
 }
 
+my $check_rethread = sub {
+	my ($desc) = @_;
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	my %config = %$ibx_config;
+	my $ibx = PublicInbox::Inbox->new(\%config);
+	my $f = $ibx->over->{dbh}->sqlite_db_filename;
+	my $over = PublicInbox::OverIdx->new($f);
+	my $dbh = $over->connect;
+	my $non_ghost_tids = sub {
+		$dbh->selectall_arrayref(<<'');
+SELECT tid FROM over WHERE num > 0 ORDER BY tid ASC
+
+	};
+	my $before = $non_ghost_tids->();
+
+	# mess up threading:
+	my $tid = PublicInbox::OverIdx::get_counter($dbh, 'thread');
+	my $nr = $dbh->do('UPDATE over SET tid = ?', undef, $tid);
+	diag "messing up all threads with tid=$tid";
+
+	my $v2w = PublicInbox::V2Writable->new($ibx);
+	my @pr;
+	my $pr = sub { push @pr, @_ };
+	$v2w->index_sync({reindex => 1, rethread => 1, -progress => $pr});
+	# diag "@pr"; # nobody cares
+	is_deeply(\@warn, [], 'no warnings on reindex + rethread');
+
+	my @n = $dbh->selectrow_array(<<EOS, undef, $tid);
+SELECT COUNT(*) FROM over WHERE tid <= ?
+EOS
+	is_deeply(\@n, [ 0 ], 'rethread dropped old threadids');
+	my $after = $non_ghost_tids->();
+	ok($after->[0]->[0] > $before->[-1]->[0],
+		'all tids greater than before');
+	is(scalar @$after, scalar @$before, 'thread count unchanged');
+};
+
+$check_rethread->('no-monster');
+
 # A real example from linux-renesas-soc on lore where a 3-headed monster
 # of a message has 3 sets of common headers.  Another normal message
 # previously existed with a single Message-ID that conflicts with one
@@ -496,5 +537,9 @@ EOF
 	}
 	is_deeply([values %uniq], [3], 'search on different subjects');
 }
+
+# XXX: not deterministic when dealing with ambiguous messages, oh well
+$check_rethread->('3-headed-monster once');
+$check_rethread->('3-headed-monster twice');
 
 done_testing();

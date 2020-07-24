@@ -1308,6 +1308,7 @@ sub index_sync {
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
 	$self->idx_init($opt); # acquire lock
+	$self->{over}->rethread_prepare($opt);
 	my $sync = {
 		D => {}, # "$mid\0$chash" => $oid
 		unindex_range => {}, # EPOCH => oid_old..oid_new
@@ -1370,12 +1371,13 @@ sub index_sync {
 		my $pr = $sync->{-opt}->{-progress};
 		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $nr)) if $pr;
 	}
+	$self->{over}->rethread_done($opt);
 
 	# reindex does not pick up new changes, so we rerun w/o it:
 	if ($opt->{reindex}) {
 		my %again = %$opt;
 		$sync = undef;
-		delete @again{qw(reindex -skip_lock)};
+		delete @again{qw(rethread reindex -skip_lock)};
 		index_sync($self, \%again);
 	}
 }

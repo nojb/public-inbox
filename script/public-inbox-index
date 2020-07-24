@@ -15,7 +15,7 @@ use PublicInbox::Xapcmd;
 
 my $compact_opt;
 my $opt = { quiet => -1, compact => 0, maxsize => undef };
-GetOptions($opt, qw(verbose|v+ reindex compact|c+ jobs|j=i prune
+GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		indexlevel|L=s maxsize|max-size=s batchsize|batch-size=s))
 	or die "bad command-line args\n$usage";
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;

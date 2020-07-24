@@ -68,12 +68,25 @@ Xapian database.  Using this with C<--compact> or running
 L<public-inbox-compact(1)> afterwards is recommended to
 release free space.
 
-public-inbox protects writes to various indices with L<flock(2)>,
-so it is safe to reindex while L<public-inbox-watch(1)>,
-L<public-inbox-mda(1)> or L<public-inbox-learn(1)> run.
+public-inbox protects writes to various indices with
+L<flock(2)>, so it is safe to reindex (and rethread) while
+L<public-inbox-watch(1)>, L<public-inbox-mda(1)> or
+L<public-inbox-learn(1)> run.
 
-This does not touch the NNTP article number database or
-affect threading.
+This does not touch the NNTP article number database.
+It does not affect threading unless C<--rethread> is
+used.
+
+=item --rethread
+
+Regenerate internal THREADID and message thread associations
+when reindexing.
+
+This fixes some bugs in older versions of public-inbox.  While
+it is possible to use this without C<--reindex>, it makes little
+sense to do so.
+
+Available in public-inbox 1.6.0 (PENDING).
 
 =item --prune
 
