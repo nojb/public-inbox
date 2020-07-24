@@ -848,8 +848,6 @@ sub content_exists ($$$) {
 
 sub atfork_child {
 	my ($self) = @_;
-	my $fh = delete $self->{reindex_pipe};
-	close $fh if $fh;
 	if (my $shards = $self->{idx_shards}) {
 		$_->atfork_child foreach @$shards;
 	}
@@ -1081,7 +1079,6 @@ sub sync_prepare ($$$) {
 	my $reindex_heads = last_commits($self, $epoch_max) if $sync->{reindex};
 
 	for (my $i = $epoch_max; $i >= 0; $i--) {
-		die 'BUG: already indexing!' if $self->{reindex_pipe};
 		my $git_dir = git_dir_n($self, $i);
 		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
@@ -1161,6 +1158,8 @@ sub unindex_oid ($$;$) {
 	}
 }
 
+# this is rare, it only happens when we get discontiguous history in
+# a mirror because the source used -purge or -edit
 sub unindex ($$$$) {
 	my ($self, $sync, $git, $unindex_range) = @_;
 	my $unindexed = $self->{unindexed} ||= {}; # $mid0 => $num
@@ -1168,12 +1167,11 @@ sub unindex ($$$$) {
 	# order does not matter, here:
 	my @cmd = qw(log --raw -r
 			--no-notes --no-color --no-abbrev --no-renames);
-	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $unindex_range);
+	my $fh = $git->popen(@cmd, $unindex_range);
 	while (<$fh>) {
 		/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o or next;
 		unindex_oid($self, $1, $unindexed);
 	}
-	delete $self->{reindex_pipe};
 	close $fh or die "git log failed: \$?=$?";
 
 	return unless $sync->{-opt}->{prune};
@@ -1203,10 +1201,9 @@ sub index_epoch ($$$) {
 	my ($self, $sync, $i) = @_;
 
 	my $git_dir = git_dir_n($self, $i);
-	die 'BUG: already reindexing!' if $self->{reindex_pipe};
 	-d $git_dir or return; # missing epochs are fine
 	my $git = PublicInbox::Git->new($git_dir);
-	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) {
+	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) { # rare
 		unindex($self, $sync, $git, $unindex_range);
 	}
 	defined(my $stk = $sync->{stacks}->[$i]) or return;
