@@ -35,7 +35,7 @@ sub new {
 		ident => "$name <$email>",
 		mark => 1,
 		ref => $ref,
-		-inbox => $ibx,
+		ibx => $ibx,
 		path_type => '2/38', # or 'v2'
 		lock_path => "$git->{git_dir}/ssoma.lock", # v2 changes this
 		bytes_added => 0,
@@ -176,7 +176,7 @@ sub _update_git_info ($$) {
 		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
 	}
 	run_die([@cmd, 'update-server-info']);
-	my $ibx = $self->{-inbox};
+	my $ibx = $self->{ibx};
 	($ibx && $self->{path_type} eq '2/38') and eval {
 		require PublicInbox::SearchIdx;
 		my $s = PublicInbox::SearchIdx->new($ibx);
@@ -385,7 +385,7 @@ sub add {
 
 	# spam check:
 	if ($check_cb) {
-		$mime = $check_cb->($mime, $self->{-inbox}) or return;
+		$mime = $check_cb->($mime, $self->{ibx}) or return;
 	}
 
 	my $blob = $self->{mark}++;

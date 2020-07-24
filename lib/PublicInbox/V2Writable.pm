@@ -109,7 +109,7 @@ sub new {
 
 	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
 	my $self = {
-		-inbox => $v2ibx,
+		ibx => $v2ibx,
 		im => undef, #  PublicInbox::Import
 		parallel => 1,
 		transact_bytes => 0,
@@ -149,7 +149,7 @@ sub init_inbox {
 # mimics Import::add and wraps it for v2
 sub add {
 	my ($self, $eml, $check_cb) = @_;
-	$self->{-inbox}->with_umask(\&_add, $self, $eml, $check_cb);
+	$self->{ibx}->with_umask(\&_add, $self, $eml, $check_cb);
 }
 
 # indexes a message, returns true if checkpointing is needed
@@ -169,7 +169,7 @@ sub _add {
 
 	# spam check:
 	if ($check_cb) {
-		$mime = $check_cb->($mime, $self->{-inbox}) or return;
+		$mime = $check_cb->($mime, $self->{ibx}) or return;
 	}
 
 	# All pipes (> $^F) known to Perl 5.6+ have FD_CLOEXEC set,
@@ -218,7 +218,7 @@ sub v2_num_for {
 		# AltId may pre-populate article numbers (e.g. X-Mail-Count
 		# or NNTP article number), use that article number if it's
 		# not in Over.
-		my $altid = $self->{-inbox}->{altid};
+		my $altid = $self->{ibx}->{altid};
 		if ($altid && grep(/:file=msgmap\.sqlite3\z/, @$altid)) {
 			my $num = $self->{mm}->num_for($mid);
 
@@ -293,7 +293,7 @@ sub _idx_init { # with_umask callback
 	# Now that all subprocesses are up, we can open the FDs
 	# for SQLite:
 	my $mm = $self->{mm} = PublicInbox::Msgmap->new_file(
-		"$self->{-inbox}->{inboxdir}/msgmap.sqlite3", 1);
+		"$self->{ibx}->{inboxdir}/msgmap.sqlite3", 1);
 	$mm->{dbh}->begin_work;
 }
 
@@ -301,7 +301,7 @@ sub _idx_init { # with_umask callback
 sub idx_init {
 	my ($self, $opt) = @_;
 	return if $self->{idx_shards};
-	my $ibx = $self->{-inbox};
+	my $ibx = $self->{ibx};
 
 	# do not leak read-only FDs to child processes, we only have these
 	# FDs for duplicate detection so they should not be
@@ -329,7 +329,7 @@ sub idx_init {
 sub _replace_oids ($$$) {
 	my ($self, $mime, $replace_map) = @_;
 	$self->done;
-	my $pfx = "$self->{-inbox}->{inboxdir}/git";
+	my $pfx = "$self->{ibx}->{inboxdir}/git";
 	my $rewrites = []; # epoch => commit
 	my $max = $self->{epoch_max};
 
@@ -450,7 +450,7 @@ sub rewrite_internal ($$;$$$) {
 # (retval[2]) is not part of the stable API shared with Import->remove
 sub remove {
 	my ($self, $eml, $cmt_msg) = @_;
-	my $r = $self->{-inbox}->with_umask(\&rewrite_internal,
+	my $r = $self->{ibx}->with_umask(\&rewrite_internal,
 						$self, $eml, $cmt_msg);
 	defined($r) && defined($r->[0]) ? @$r: undef;
 }
@@ -458,7 +458,7 @@ sub remove {
 sub _replace ($$;$$) {
 	my ($self, $old_eml, $new_eml, $sref) = @_;
 	my $arg = [ $self, $old_eml, undef, $new_eml, $sref ];
-	my $rewritten = $self->{-inbox}->with_umask(\&rewrite_internal,
+	my $rewritten = $self->{ibx}->with_umask(\&rewrite_internal,
 			$self, $old_eml, undef, $new_eml, $sref) or return;
 
 	my $rewrites = $rewritten->{rewrites};
@@ -484,7 +484,7 @@ sub git_hash_raw ($$) {
 	my ($self, $raw) = @_;
 	# grab the expected OID we have to reindex:
 	pipe(my($in, $w)) or die "pipe: $!";
-	my $git_dir = $self->{-inbox}->git->{git_dir};
+	my $git_dir = $self->{ibx}->git->{git_dir};
 	my $cmd = ['git', "--git-dir=$git_dir", qw(hash-object --stdin)];
 	my $r = popen_rd($cmd, undef, { 0 => $in });
 	print $w $$raw or die "print \$w: $!";
@@ -550,11 +550,11 @@ W: $list
 	}
 
 	# make sure we really got the OID:
-	my ($blob, $type, $bytes) = $self->{-inbox}->git->check($expect_oid);
+	my ($blob, $type, $bytes) = $self->{ibx}->git->check($expect_oid);
 	$blob eq $expect_oid or die "BUG: $expect_oid not found after replace";
 
 	# don't leak FDs to Xapian:
-	$self->{-inbox}->git->cleanup;
+	$self->{ibx}->git->cleanup;
 
 	# reindex modified messages:
 	for my $smsg (@$need_reindex) {
@@ -674,14 +674,14 @@ sub done {
 	my $nbytes = $self->{total_bytes};
 	$self->{total_bytes} = 0;
 	$self->lock_release(!!$nbytes) if $shards;
-	$self->{-inbox}->git->cleanup;
+	$self->{ibx}->git->cleanup;
 }
 
 sub fill_alternates ($$) {
 	my ($self, $epoch) = @_;
 
-	my $pfx = "$self->{-inbox}->{inboxdir}/git";
-	my $all = "$self->{-inbox}->{inboxdir}/all.git";
+	my $pfx = "$self->{ibx}->{inboxdir}/git";
+	my $all = "$self->{ibx}->{inboxdir}/all.git";
 	PublicInbox::Import::init_bare($all) unless -d $all;
 	my $info_dir = "$all/objects/info";
 	my $alt = "$info_dir/alternates";
@@ -726,7 +726,7 @@ sub fill_alternates ($$) {
 
 sub git_init {
 	my ($self, $epoch) = @_;
-	my $git_dir = "$self->{-inbox}->{inboxdir}/git/$epoch.git";
+	my $git_dir = "$self->{ibx}->{inboxdir}/git/$epoch.git";
 	PublicInbox::Import::init_bare($git_dir);
 	my @cmd = (qw/git config/, "--file=$git_dir/config",
 			'include.path', '../../all.git/config');
@@ -738,7 +738,7 @@ sub git_init {
 sub git_dir_latest {
 	my ($self, $max) = @_;
 	$$max = -1;
-	my $pfx = "$self->{-inbox}->{inboxdir}/git";
+	my $pfx = "$self->{ibx}->{inboxdir}/git";
 	return unless -d $pfx;
 	my $latest;
 	opendir my $dh, $pfx or die "opendir $pfx: $!\n";
@@ -790,7 +790,7 @@ sub importer {
 
 sub import_init {
 	my ($self, $git, $packed_bytes, $tmp) = @_;
-	my $im = PublicInbox::Import->new($git, undef, undef, $self->{-inbox});
+	my $im = PublicInbox::Import->new($git, undef, undef, $self->{ibx});
 	$im->{bytes_added} = int($packed_bytes / $PACKING_FACTOR);
 	$im->{lock_path} = undef;
 	$im->{path_type} = 'v2';
@@ -823,8 +823,7 @@ sub get_blob ($$) {
 		return $msg if $msg;
 	}
 	# older message, should be in alternates
-	my $ibx = $self->{-inbox};
-	$ibx->msg_by_smsg($smsg);
+	$self->{ibx}->msg_by_smsg($smsg);
 }
 
 sub content_exists ($$$) {
@@ -881,7 +880,7 @@ sub reindex_checkpoint ($$$) {
 
 sub reindex_oid ($$$$) {
 	my ($self, $sync, $git, $oid) = @_;
-	return if PublicInbox::SearchIdx::too_big($self, $git, $oid);
+	return if PublicInbox::SearchIdx::too_big($self, $oid);
 	my ($num, $mid0, $len);
 	my $msgref = $git->cat_file($oid, \$len);
 	return if $len == 0; # purged
@@ -968,7 +967,7 @@ sub update_last_commit ($$$$) {
 	last_epoch_commit($self, $i, $cmt);
 }
 
-sub git_dir_n ($$) { "$_[0]->{-inbox}->{inboxdir}/git/$_[1].git" }
+sub git_dir_n ($$) { "$_[0]->{ibx}->{inboxdir}/git/$_[1].git" }
 
 sub last_commits ($$) {
 	my ($self, $epoch_max) = @_;
@@ -1077,7 +1076,7 @@ sub sync_prepare ($$$) {
 	my ($self, $sync, $epoch_max) = @_;
 	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
-	my $head = $self->{-inbox}->{ref_head} || 'refs/heads/master';
+	my $head = $self->{ibx}->{ref_head} || 'refs/heads/master';
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
@@ -1108,7 +1107,7 @@ sub sync_prepare ($$$) {
 	# our code and blindly injects "d" file history into git repos
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
-		my $git = $self->{-inbox}->git;
+		my $git = $self->{ibx}->git;
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
 			$self->{current_info} = "leftover $oid";

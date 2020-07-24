@@ -50,8 +50,7 @@ sub new {
 	$ibx = PublicInbox::InboxWritable->new($ibx);
 	my $self = bless {
 		inboxdir => $inboxdir,
-		-inbox => $ibx,
-		git => $ibx->git,
+		ibx => $ibx,
 		-altid => $altid,
 		ibx_ver => $version,
 		indexlevel => $indexlevel,
@@ -548,14 +547,14 @@ sub unindex_both { # git->cat_async callback
 sub index_sync {
 	my ($self, $opts) = @_;
 	delete $self->{lock_path} if $opts->{-skip_lock};
-	$self->{-inbox}->with_umask(\&_index_sync, $self, $opts);
+	$self->{ibx}->with_umask(\&_index_sync, $self, $opts);
 }
 
-sub too_big ($$$) {
-	my ($self, $git, $oid) = @_;
+sub too_big ($$) {
+	my ($self, $oid) = @_;
 	my $max_size = $self->{index_max_size} or return;
-	my (undef, undef, $size) = $git->check($oid);
-	die "E: bad $oid in $git->{git_dir}\n" if !defined($size);
+	my (undef, undef, $size) = $self->{ibx}->git->check($oid);
+	die "E: bad $oid in $self->{ibx}->{inboxdir}\n" if !defined($size);
 	return if $size <= $max_size;
 	warn "W: skipping $oid ($size > $max_size)\n";
 	1;
@@ -568,7 +567,7 @@ sub read_log {
 	my $h40 = $hex .'{40}';
 	my $addmsg = qr!^:000000 100644 \S+ ($h40) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 ($h40) \S+ D\t${hex}{2}/${hex}{38}$!;
-	my $git = $self->{git};
+	my $git = $self->{ibx}->git;
 	my $latest;
 	my $max = $BATCH_BYTES;
 	local $/ = "\n";
@@ -591,7 +590,7 @@ sub read_log {
 				}
 				next;
 			}
-			next if too_big($self, $git, $blob);
+			next if too_big($self, $blob);
 			$git->cat_async($blob, \&index_both, { %$sync });
 			if ($max <= 0) {
 				$git->cat_async_wait;
@@ -600,7 +599,7 @@ sub read_log {
 			}
 		} elsif ($line =~ /$delmsg/o) {
 			my $blob = $1;
-			$D{$blob} = 1 unless too_big($self, $git, $blob);
+			$D{$blob} = 1 unless too_big($self, $blob);
 		} elsif ($line =~ /^commit ($h40)/o) {
 			$latest = $1;
 			$newest ||= $latest;
@@ -621,7 +620,7 @@ sub read_log {
 
 sub _git_log {
 	my ($self, $opts, $range) = @_;
-	my $git = $self->{git};
+	my $git = $self->{ibx}->git;
 
 	if (index($range, '..') < 0) {
 		# don't show annoying git errors to users who run -index
@@ -681,7 +680,7 @@ sub is_ancestor ($$$) {
 
 sub need_update ($$$) {
 	my ($self, $cur, $new) = @_;
-	my $git = $self->{git};
+	my $git = $self->{ibx}->git;
 	return 1 if $cur && !is_ancestor($git, $cur, $new);
 	my $range = $cur eq '' ? $new : "$cur..$new";
 	chomp(my $n = $git->qx(qw(rev-list --count), $range));
@@ -701,7 +700,7 @@ sub _last_x_commit {
 		$lx = $lm;
 	}
 	# Use last_commit from msgmap if it is older or unset
-	if (!$lm || ($lx && $lm && is_ancestor($self->{git}, $lm, $lx))) {
+	if (!$lm || ($lx && $lm && is_ancestor($self->{ibx}->git, $lm, $lx))) {
 		$lx = $lm;
 	}
 	$lx;
@@ -718,7 +717,7 @@ sub _index_sync {
 	my ($self, $opts) = @_;
 	my $tip = $opts->{ref} || 'HEAD';
 	my ($last_commit, $lx, $xlog);
-	my $git = $self->{git};
+	my $git = $self->{ibx}->git;
 	$git->batch_prepare;
 	my $pr = $opts->{-progress};
 
@@ -830,7 +829,7 @@ sub _begin_txn {
 
 sub begin_txn_lazy {
 	my ($self) = @_;
-	$self->{-inbox}->with_umask(\&_begin_txn, $self) if !$self->{txn};
+	$self->{ibx}->with_umask(\&_begin_txn, $self) if !$self->{txn};
 }
 
 # store 'indexlevel=medium' in v2 shard=0 and v1 (only one shard)
@@ -860,7 +859,7 @@ sub _commit_txn {
 sub commit_txn_lazy {
 	my ($self) = @_;
 	delete($self->{txn}) and
-		$self->{-inbox}->with_umask(\&_commit_txn, $self);
+		$self->{ibx}->with_umask(\&_commit_txn, $self);
 }
 
 sub worker_done {
