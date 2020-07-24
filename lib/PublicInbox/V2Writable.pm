@@ -564,8 +564,8 @@ W: $list
 			num => $smsg->{num},
 			mid => $smsg->{mid},
 		}, 'PublicInbox::Smsg';
-		my $v2w = { autime => $smsg->{ds}, cotime => $smsg->{ts} };
-		$new_smsg->populate($new_mime, $v2w);
+		my $sync = { autime => $smsg->{ds}, cotime => $smsg->{ts} };
+		$new_smsg->populate($new_mime, $sync);
 		do_idx($self, \$raw, $new_mime, $new_smsg);
 	}
 	$rewritten->{rewrites};
@@ -950,7 +950,7 @@ sub reindex_oid ($$$$) {
 		blob => $oid,
 		mid => $mid0,
 	}, 'PublicInbox::Smsg';
-	$smsg->populate($mime, $self);
+	$smsg->populate($mime, $sync);
 	if (do_idx($self, $msgref, $mime, $smsg)) {
 		reindex_checkpoint($self, $sync, $git);
 	}
@@ -1225,14 +1225,14 @@ sub index_epoch ($$$) {
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
 		$self->{current_info} = "$i.git $oid";
 		if ($f eq 'm') {
-			$self->{autime} = $at;
-			$self->{cotime} = $ct;
+			$sync->{autime} = $at;
+			$sync->{cotime} = $ct;
 			reindex_oid($self, $sync, $git, $oid);
 		} elsif ($f eq 'd') {
 			unindex_oid($self, $git, $oid);
 		}
 	}
-	delete @$self{qw(autime cotime)};
+	delete @$sync{qw(autime cotime)};
 	update_last_commit($self, $git, $i, $stk->{latest_cmt});
 }
 

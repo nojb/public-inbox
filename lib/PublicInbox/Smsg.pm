@@ -96,7 +96,7 @@ sub from_mitem {
 
 # for Import and v1 non-SQLite WWW code paths
 sub populate {
-	my ($self, $hdr, $v2w) = @_;
+	my ($self, $hdr, $sync) = @_;
 	for my $f (qw(From To Cc Subject)) {
 		my @all = $hdr->header($f);
 		my $val = join(', ', @all);
@@ -117,9 +117,9 @@ sub populate {
 		}
 		$self->{$f} = $val if $val ne '';
 	}
-	$v2w //= {};
-	$self->{-ds} = [ my @ds = msg_datestamp($hdr, $v2w->{autime}) ];
-	$self->{-ts} = [ my @ts = msg_timestamp($hdr, $v2w->{cotime}) ];
+	$sync //= {};
+	$self->{-ds} = [ my @ds = msg_datestamp($hdr, $sync->{autime}) ];
+	$self->{-ts} = [ my @ts = msg_timestamp($hdr, $sync->{cotime}) ];
 	$self->{ds} //= $ds[0]; # no zone
 	$self->{ts} //= $ts[0];
 
