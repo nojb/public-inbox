@@ -15,9 +15,9 @@ sub new {
 	my $ibx = $v2w->{ibx};
 	my $self = $class->SUPER::new($ibx, 1, $shard);
 	# create the DB before forking:
-	$self->_xdb_acquire;
+	$self->idx_acquire;
 	$self->set_indexlevel;
-	$self->_xdb_release;
+	$self->idx_release;
 	$self->spawn_worker($v2w, $shard) if $v2w->{parallel};
 	$self;
 }
@@ -56,7 +56,7 @@ sub shard_worker_loop ($$$$$) {
 		if ($line eq "commit\n") {
 			$self->commit_txn_lazy;
 		} elsif ($line eq "close\n") {
-			$self->_xdb_release;
+			$self->idx_release;
 		} elsif ($line eq "barrier\n") {
 			$self->commit_txn_lazy;
 			# no need to lock < 512 bytes is atomic under POSIX

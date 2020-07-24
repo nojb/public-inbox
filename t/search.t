@@ -21,8 +21,8 @@ ok($@, "exception raised on non-existent DB");
 
 my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 $ibx->with_umask(sub {
-	$rw->_xdb_acquire;
-	$rw->_xdb_release;
+	$rw->idx_acquire;
+	$rw->idx_release;
 });
 $rw = undef;
 my $ro = PublicInbox::Search->new($ibx);

@@ -28,9 +28,9 @@ for my $V (1, 2) {
 	my $im = $ibx->importer(0);
 	if ($V == 1) {
 		my $sidx = PublicInbox::SearchIdx->new($ibx, 1);
-		$sidx->_xdb_acquire;
+		$sidx->idx_acquire;
 		$sidx->set_indexlevel;
-		$sidx->_xdb_release; # allow watching on lockfile
+		$sidx->idx_release; # allow watching on lockfile
 	}
 	my $pi_config = PublicInbox::Config->new(\<<EOF);
 publicinbox.inbox-idle.inboxdir=$inboxdir

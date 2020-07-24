@@ -77,7 +77,7 @@ sub new {
 
 sub need_xapian ($) { $_[0]->{indexlevel} =~ $xapianlevels }
 
-sub _xdb_release {
+sub idx_release {
 	my ($self, $wake) = @_;
 	if (need_xapian($self)) {
 		my $xdb = delete $self->{xdb} or croak 'not acquired';
@@ -101,7 +101,7 @@ sub load_xapian_writable () {
 	1;
 }
 
-sub _xdb_acquire {
+sub idx_acquire {
 	my ($self) = @_;
 	my $flag;
 	my $dir = $self->xdir;
@@ -735,7 +735,7 @@ sub _index_sync {
 		$git->cleanup;
 		delete $self->{txn};
 		$xdb->cancel_transaction if $xdb;
-		$xdb = _xdb_release($self);
+		$xdb = idx_release($self);
 
 		# ensure we leak no FDs to "git log" with Xapian <= 1.2
 		my $range = $lx eq '' ? $tip : "$lx..$tip";
@@ -766,7 +766,7 @@ sub _index_sync {
 		$self->{over}->rethread_done($opts) if $newest; # all done
 		$self->commit_txn_lazy;
 		$git->cleanup;
-		$xdb = _xdb_release($self, $nr);
+		$xdb = idx_release($self, $nr);
 		# let another process do some work...
 		$pr->("indexed $nr/$self->{ntodo}\n") if $pr && $nr;
 		if (!$newest) { # more to come
@@ -805,7 +805,7 @@ sub remote_close {
 		$? == 0 or die ref($self)." pid:$pid exited with: $?";
 	} else {
 		die "transaction in progress $self\n" if $self->{txn};
-		$self->_xdb_release if $self->{xdb};
+		idx_release($self) if $self->{xdb};
 	}
 }
 
@@ -821,7 +821,7 @@ sub remote_remove {
 
 sub _begin_txn {
 	my ($self) = @_;
-	my $xdb = $self->{xdb} || $self->_xdb_acquire;
+	my $xdb = $self->{xdb} || idx_acquire($self);
 	$self->{over}->begin_lazy if $self->{over};
 	$xdb->begin_transaction if $xdb;
 	$self->{txn} = 1;
