@@ -22,7 +22,7 @@ use PublicInbox::SearchIdx;
 use IO::Handle; # ->autoflush
 use File::Temp qw(tempfile);
 
-my $x40 = qr/[a-f0-9]{40}/;
+my $OID = qr/[a-f0-9]{40,}/;
 # an estimate of the post-packed size to the raw uncompressed size
 my $PACKING_FACTOR = 0.4;
 
@@ -492,7 +492,7 @@ sub git_hash_raw ($$) {
 	local $/ = "\n";
 	chomp(my $oid = <$r>);
 	close $r or die "git hash-object failed: $?";
-	$oid =~ /\A[a-f0-9]{40}\z/ or die "OID not expected: $oid";
+	$oid =~ /\A$OID\z/ or die "OID not expected: $oid";
 	$oid;
 }
 
@@ -1045,17 +1045,17 @@ sub prepare_range_stack {
 				$range);
 	my ($at, $ct, $stk);
 	while (<$fh>) {
-		if (/\A([0-9]+)-([0-9]+)-($x40)$/o) {
+		if (/\A([0-9]+)-([0-9]+)-($OID)$/o) {
 			($at, $ct) = ($1 + 0, $2 + 0);
 			$stk //= PublicInbox::IdxStack->new($3);
-		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
+		} elsif (/\A:\d{6} 100644 $OID ($OID) [AM]\td$/o) {
 			my $oid = $1;
 			if ($D) { # reindex case
 				$D->{pack('H*', $oid)}++;
 			} else { # non-reindex case:
 				$stk->push_rec('d', $at, $ct, $oid);
 			}
-		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
+		} elsif (/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o) {
 			my $oid = $1;
 			if ($D) {
 				my $oid_bin = pack('H*', $oid);
@@ -1177,7 +1177,7 @@ sub unindex ($$$$) {
 			--no-notes --no-color --no-abbrev --no-renames);
 	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $unindex_range);
 	while (<$fh>) {
-		/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o or next;
+		/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o or next;
 		unindex_oid($self, $git, $1, $unindexed);
 	}
 	delete $self->{reindex_pipe};
