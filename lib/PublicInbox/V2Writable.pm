@@ -1095,8 +1095,6 @@ sub sync_prepare ($$$) {
 
 		next if $?; # new repo
 		my $range = log_range($self, $sync, $git, $i, $tip) or next;
-		$sync->{ranges}->[$i] = $range;
-
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$i.git counting $range ... ") if $pr;
 		my $stk = prepare_range_stack($git, $sync, $range);
@@ -1218,10 +1216,6 @@ sub index_epoch ($$$) {
 	}
 	defined(my $stk = $sync->{stacks}->[$i]) or return;
 	$sync->{stacks}->[$i] = undef;
-	my $range = $sync->{ranges}->[$i];
-	if (my $pr = $sync->{-opt}->{-progress}) {
-		$pr->("$i.git indexing $range\n");
-	}
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
 		$self->{current_info} = "$i.git $oid";
 		if ($f eq 'm') {
