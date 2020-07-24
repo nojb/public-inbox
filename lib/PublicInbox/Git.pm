@@ -231,26 +231,71 @@ sub cat_file {
 	$result->[0];
 }
 
-sub check {
-	my ($self, $obj) = @_;
+sub check_async_step ($$) {
+	my ($self, $inflight_c) = @_;
+	die 'BUG: inflight empty or odd' if scalar(@$inflight_c) < 3;
+	my ($req, $cb, $arg) = splice(@$inflight_c, 0, 3);
+	my $rbuf = delete($self->{rbuf_c}) // \(my $new = '');
+	chomp(my $line = my_readline($self->{in_c}, $rbuf));
+	my ($hex, $type, $size) = split(/ /, $line);
+
+	# Future versions of git.git may have type=ambiguous, but for now,
+	# we must handle 'dangling' below (and maybe some other oddball
+	# stuff):
+	# https://public-inbox.org/git/20190118033845.s2vlrb3wd3m2jfzu@dcvr/T/
+	if ($hex eq 'dangling' || $hex eq 'notdir' || $hex eq 'loop') {
+		my $ret = my_read($self->{in_c}, $rbuf, $type + 1);
+		fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
+	}
+	eval { $cb->($hex, $type, $size, $arg, $self) };
+	warn "E: check($req) $@\n" if $@;
+	$self->{rbuf_c} = $rbuf if $$rbuf ne '';
+}
+
+sub check_async_wait ($) {
+	my ($self) = @_;
+	my $inflight_c = delete $self->{inflight_c} or return;
+	while (scalar(@$inflight_c)) {
+		check_async_step($self, $inflight_c);
+	}
+}
+
+sub check_async_begin ($) {
+	my ($self) = @_;
+	cleanup($self) if alternates_changed($self);
 	_bidi_pipe($self, qw(--batch-check in_c out_c pid_c err_c));
-	print { $self->{out_c} } $obj, "\n" or fail($self, "write error: $!");
-	my $rbuf = ''; # TODO: async + {chk_rbuf}
-	chomp(my $line = my_readline($self->{in_c}, \$rbuf));
-	my ($hex, $type, $size) = split(' ', $line);
+	die 'BUG: already in async check' if $self->{inflight_c};
+	$self->{inflight_c} = [];
+}
+
+sub check_async ($$$$) {
+	my ($self, $oid, $cb, $arg) = @_;
+	my $inflight_c = $self->{inflight_c} // check_async_begin($self);
+	if (scalar(@$inflight_c) >= MAX_INFLIGHT) {
+		check_async_step($self, $inflight_c);
+	}
+	print { $self->{out_c} } $oid, "\n" or fail($self, "write error: $!");
+	push(@$inflight_c, $oid, $cb, $arg);
+}
+
+sub _check_cb { # check_async callback
+	my ($hex, $type, $size, $result) = @_;
+	@$result = ($hex, $type, $size);
+}
+
+sub check {
+	my ($self, $oid) = @_;
+	my $result = [];
+	check_async($self, $oid, \&_check_cb, $result);
+	check_async_wait($self);
+	my ($hex, $type, $size) = @$result;
 
 	# Future versions of git.git may show 'ambiguous', but for now,
 	# we must handle 'dangling' below (and maybe some other oddball
 	# stuff):
 	# https://public-inbox.org/git/20190118033845.s2vlrb3wd3m2jfzu@dcvr/T/
 	return if $type eq 'missing' || $type eq 'ambiguous';
-
-	if ($hex eq 'dangling' || $hex eq 'notdir' || $hex eq 'loop') {
-		my $ret = my_read($self->{in_c}, \$rbuf, $type + 1);
-		fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
-		return;
-	}
-
+	return if $hex eq 'dangling' || $hex eq 'notdir' || $hex eq 'loop';
 	($hex, $type, $size);
 }
 
@@ -297,6 +342,7 @@ sub cleanup {
 	my ($self) = @_;
 	local $in_cleanup = 1;
 	delete $self->{async_cat};
+	check_async_wait($self);
 	cat_async_wait($self);
 	_destroy($self, qw(cat_rbuf in out pid));
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));

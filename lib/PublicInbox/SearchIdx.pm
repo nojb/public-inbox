@@ -563,6 +563,16 @@ sub too_big ($$) {
 	1;
 }
 
+sub ck_size { # check_async cb for -index --max-size=...
+	my ($oid, $type, $size, $arg, $git) = @_;
+	(($type // '') eq 'blob') or die "E: bad $oid in $git->{git_dir}";
+	if ($size <= $arg->{index_max_size}) {
+		$git->cat_async($oid, \&index_both, $arg);
+	} else {
+		warn "W: skipping $oid ($size > $arg->{index_max_size})\n";
+	}
+}
+
 # only for v1
 sub process_stack {
 	my ($self, $stk, $sync, $batch_cb) = @_;
@@ -580,13 +590,17 @@ sub process_stack {
 			$git->cat_async($oid, \&unindex_both, $self);
 		}
 	}
+	$sync->{index_max_size} = $self->{ibx}->{index_max_size};
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
 		if ($f eq 'm') {
-			$sync->{autime} = $at;
-			$sync->{cotime} = $ct;
-			next if too_big($self, $oid);
-			$git->cat_async($oid, \&index_both, { %$sync });
+			my $arg = { %$sync, autime => $at, cotime => $ct };
+			if ($sync->{index_max_size}) {
+				$git->check_async($oid, \&ck_size, $arg);
+			} else {
+				$git->cat_async($oid, \&index_both, $arg);
+			}
 			if ($max <= 0) {
+				$git->check_async_wait;
 				$git->cat_async_wait;
 				$max = $BATCH_BYTES;
 				$batch_cb->($nr);
@@ -595,6 +609,7 @@ sub process_stack {
 			$git->cat_async($oid, \&unindex_both, $self);
 		}
 	}
+	$git->check_async_wait;
 	$git->cat_async_wait;
 	$batch_cb->($nr, $stk);
 }
