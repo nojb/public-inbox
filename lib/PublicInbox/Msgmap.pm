@@ -32,12 +32,11 @@ sub new_file {
 	my $self = bless { filename => $f }, $class;
 	my $dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, $rw);
 	if ($rw) {
-		create_tables($dbh);
-
 		# TRUNCATE reduces I/O compared to the default (DELETE)
 		$dbh->do('PRAGMA journal_mode = TRUNCATE');
 
 		$dbh->begin_work;
+		create_tables($dbh);
 		$self->created_at(time) unless $self->created_at;
 
 		my $max = $self->max // 0;
@@ -51,12 +50,17 @@ sub new_file {
 sub tmp_clone {
 	my ($self) = @_;
 	my ($fh, $fn) = tempfile('msgmap-XXXXXXXX', EXLOCK => 0, TMPDIR => 1);
-	$self->{dbh}->sqlite_backup_to_file($fn);
-	my $tmp = ref($self)->new_file($fn, 1);
-	$tmp->{dbh}->do('PRAGMA synchronous = OFF');
-	$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
+	my $tmp;
+	if ($self->{dbh}->can('sqlite_backup_to_dbh')) {
+		$tmp = ref($self)->new_file($fn, 2);
+		$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
+		$self->{dbh}->sqlite_backup_to_dbh($tmp->{dbh});
+	} else { # DBD::SQLite <= 1.61_01
+		$self->{dbh}->sqlite_backup_to_file($fn);
+		$tmp = ref($self)->new_file($fn, 2);
+		$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
+	}
 	$tmp->{pid} = $$;
-	close $fh or die "failed to close $fn: $!";
 	$tmp;
 }
 
@@ -241,8 +245,7 @@ sub atfork_parent {
 	$self->{pid} or die 'BUG: not a temporary clone';
 	$self->{dbh} and die 'BUG: tmp_clone dbh not prepared for parent';
 	defined($self->{filename}) or die 'BUG: {filename} not defined';
-	my $dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, 1);
-	$dbh->do('PRAGMA synchronous = OFF');
+	$self->{dbh} = PublicInbox::Over::dbh_new($self, 2);
 }
 
 sub atfork_prepare {

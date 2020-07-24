@@ -412,10 +412,11 @@ sub cpdb ($$) {
 
 	# like copydatabase(1), be sure we don't overwrite anything in case
 	# of other bugs:
-	my $creat = eval($PublicInbox::Search::Xap.'::DB_CREATE()');
+	my $flag = eval($PublicInbox::Search::Xap.'::DB_CREATE()');
 	die if $@;
 	my $XapianWritableDatabase = $PublicInbox::Search::X{WritableDatabase};
-	my $dst = $XapianWritableDatabase->new($tmp, $creat);
+	$flag |= $PublicInbox::SearchIdx::DB_NO_SYNC if !$opt->{sync};
+	my $dst = $XapianWritableDatabase->new($tmp, $flag);
 	my $pr = $opt->{-progress};
 	my $pfx = $opt->{-progress_pfx} = progress_pfx($new);
 	my $pr_data = { pr => $pr, pfx => $pfx, nr => 0 } if $pr;

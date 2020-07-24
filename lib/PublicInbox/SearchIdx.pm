@@ -23,6 +23,7 @@ use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
+our $DB_NO_SYNC = 0;
 our $BATCH_BYTES = defined($ENV{XAPIAN_FLUSH_THRESHOLD}) ?
 			0x7fffffff : 1_000_000;
 use constant DEBUG => !!$ENV{DEBUG};
@@ -67,6 +68,7 @@ sub new {
 		$self->{lock_path} = "$inboxdir/ssoma.lock";
 		my $dir = $self->xdir;
 		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
+		$self->{over}->{-no_sync} = 1 if $ibx->{-no_sync};
 		$self->{index_max_size} = $ibx->{index_max_size};
 	} elsif ($version == 2) {
 		defined $shard or die "shard is required for v2\n";
@@ -103,6 +105,9 @@ sub load_xapian_writable () {
 	*sortable_serialise = $xap.'::sortable_serialise';
 	$DB_CREATE_OR_OPEN = eval($xap.'::DB_CREATE_OR_OPEN()');
 	$DB_OPEN = eval($xap.'::DB_OPEN()');
+	my $ver = (eval($xap.'::major_version()') << 16) |
+		(eval($xap.'::minor_version()') << 8);
+	$DB_NO_SYNC = 0x4 if $ver >= 0x10400;
 	1;
 }
 
@@ -126,6 +131,7 @@ sub idx_acquire {
 		}
 	}
 	return unless defined $flag;
+	$flag |= $DB_NO_SYNC if $self->{ibx}->{-no_sync};
 	my $xdb = eval { ($X->{WritableDatabase})->new($dir, $flag) };
 	if ($@) {
 		die "Failed opening $dir: ", $@;
@@ -377,7 +383,8 @@ sub _msgmap_init ($) {
 	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx_ver} != 1;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
-		PublicInbox::Msgmap->new($self->{ibx}->{inboxdir}, 1);
+		my $rw = $self->{ibx}->{-no_sync} ? 2 : 1;
+		PublicInbox::Msgmap->new($self->{ibx}->{inboxdir}, $rw);
 	};
 }
 

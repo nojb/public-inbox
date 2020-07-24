@@ -21,7 +21,7 @@ use Carp qw(croak);
 
 sub dbh_new {
 	my ($self) = @_;
-	my $dbh = $self->SUPER::dbh_new(1);
+	my $dbh = $self->SUPER::dbh_new($self->{-no_sync} ? 2 : 1);
 
 	# TRUNCATE reduces I/O compared to the default (DELETE)
 	# We do not use WAL since we're optimized for read-only ops,

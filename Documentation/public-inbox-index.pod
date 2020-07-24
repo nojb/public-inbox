@@ -113,6 +113,13 @@ below.
 
 Available in public-inbox 1.6.0 (PENDING).
 
+=item --no-sync
+
+Disables L<fsync(2)> and L<fdatasync(2)> operations on SQLite
+and Xapian.  This is only effective with Xapian 1.4+.
+
+Available in public-inbox 1.6.0 (PENDING).
+
 =back
 
 =head1 FILES

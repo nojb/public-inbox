@@ -116,12 +116,13 @@ sub new {
 		total_bytes => 0,
 		current_info => '',
 		xpfx => $xpfx,
-		over => PublicInbox::OverIdx->new("$xpfx/over.sqlite3", 1),
+		over => PublicInbox::OverIdx->new("$xpfx/over.sqlite3"),
 		lock_path => "$dir/inbox.lock",
 		# limit each git repo (epoch) to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git epoch -> commit
 	};
+	$self->{over}->{-no_sync} = 1 if $v2ibx->{-no_sync};
 	$self->{shards} = count_shards($self) || nproc_shards($creat);
 	$self->{index_max_size} = $v2ibx->{index_max_size};
 	bless $self, $class;
@@ -293,7 +294,8 @@ sub _idx_init { # with_umask callback
 	# Now that all subprocesses are up, we can open the FDs
 	# for SQLite:
 	my $mm = $self->{mm} = PublicInbox::Msgmap->new_file(
-		"$self->{ibx}->{inboxdir}/msgmap.sqlite3", 1);
+				"$self->{ibx}->{inboxdir}/msgmap.sqlite3",
+				$self->{ibx}->{-no_sync} ? 2 : 1);
 	$mm->{dbh}->begin_work;
 }
 
