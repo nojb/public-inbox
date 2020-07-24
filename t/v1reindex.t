@@ -221,7 +221,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	$config{indexlevel} = 'medium';
 	my $ibx = PublicInbox::Inbox->new(\%config);
 	my $rw = PublicInbox::SearchIdx->new($ibx, 1);
-	eval { $rw->index_sync };
+	eval { $rw->index_sync({reindex => 1}) };
 	is($@, '', 'no error from indexing');
 	is_deeply(\@warn, [], 'no warnings');
 	my $mset = $ibx->search->reopen->query('hello world', {mset=>1});
