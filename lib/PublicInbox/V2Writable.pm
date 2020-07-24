@@ -8,6 +8,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock);
 use PublicInbox::SearchIdxShard;
+use PublicInbox::IdxStack;
 use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
@@ -881,9 +882,6 @@ sub reindex_checkpoint ($$$) {
 
 sub reindex_oid ($$$$) {
 	my ($self, $sync, $git, $oid) = @_;
-	if (my $D = $sync->{D}) { # don't waste I/O on deletes
-		return if $D->{pack('H*', $oid)};
-	}
 	return if PublicInbox::SearchIdx::too_big($self, $git, $oid);
 	my ($num, $mid0, $len);
 	my $msgref = $git->cat_file($oid, \$len);
@@ -1035,20 +1033,45 @@ $range
 	$range;
 }
 
-# don't bump num_highwater on --reindex
-sub mark_deleted ($$$) {
+sub prepare_range_stack {
 	my ($git, $sync, $range) = @_;
-	my $D = $sync->{D} //= {}; # pack("H*", $oid) => NR
-	my $fh = $git->popen(qw(log --raw --no-abbrev
-			--pretty=tformat:%H
-			--no-notes --no-color --no-renames
-			--diff-filter=AM), $range, '--', 'd');
+	# Don't bump num_highwater on --reindex by using {D}.
+	# We intentionally do NOT use {D} in the non-reindex case because
+	# we want NNTP article number gaps from unindexed messages to
+	# show up in mirrors, too.
+	my $D = $sync->{D} //= $sync->{reindex} ? {} : undef; # OID_BIN => NR
+
+	my $fh = $git->popen(qw(log --raw -r --pretty=tformat:%at-%ct-%H
+				--no-notes --no-color --no-renames --no-abbrev),
+				$range);
+	my ($at, $ct, $stk);
 	while (<$fh>) {
-		if (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
-			$D->{pack('H*', $1)}++;
+		if (/\A([0-9]+)-([0-9]+)-($x40)$/o) {
+			($at, $ct) = ($1 + 0, $2 + 0);
+			$stk //= PublicInbox::IdxStack->new($3);
+		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
+			my $oid = $1;
+			if ($D) { # reindex case
+				$D->{pack('H*', $oid)}++;
+			} else { # non-reindex case:
+				$stk->push_rec('d', $at, $ct, $oid);
+			}
+		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
+			my $oid = $1;
+			if ($D) {
+				my $oid_bin = pack('H*', $oid);
+				my $nr = --$D->{$oid_bin};
+				delete($D->{$oid_bin}) if $nr <= 0;
+
+				# nr < 0 (-1) means it never existed
+				$stk->push_rec('m', $at, $ct, $oid) if $nr < 0;
+			} else {
+				$stk->push_rec('m', $at, $ct, $oid);
+			}
 		}
 	}
 	close $fh or die "git log failed: \$?=$?";
+	$stk ? $stk->read_prepare : undef;
 }
 
 sub sync_prepare ($$$) {
@@ -1061,7 +1084,7 @@ sub sync_prepare ($$$) {
 	# without {reindex}
 	my $reindex_heads = last_commits($self, $epoch_max) if $sync->{reindex};
 
-	for my $i (0..$epoch_max) {
+	for (my $i = $epoch_max; $i >= 0; $i--) {
 		die 'BUG: already indexing!' if $self->{reindex_pipe};
 		my $git_dir = git_dir_n($self, $i);
 		-d $git_dir or next; # missing epochs are fine
@@ -1077,15 +1100,24 @@ sub sync_prepare ($$$) {
 
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$i.git counting $range ... ") if $pr;
-		my $n = 0;
-		my $fh = $git->popen(qw(log --pretty=tformat:%H
-				--no-notes --no-color --no-renames
-				--diff-filter=AM), $range, '--', 'm');
-		++$n while <$fh>;
-		close $fh or die "git log failed: \$?=$?";
-		$pr->("$n\n") if $pr;
-		$regen_max += $n;
-		mark_deleted($git, $sync, $range) if $sync->{reindex};
+		my $stk = prepare_range_stack($git, $sync, $range);
+		my $nr = $stk ? $stk->num_records : 0;
+		$pr->("$nr\n") if $pr;
+		$sync->{stacks}->[$i] = $stk if $stk;
+		$regen_max += $nr;
+	}
+
+	# XXX this should not happen unless somebody bypasses checks in
+	# our code and blindly injects "d" file history into git repos
+	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
+		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
+		my $git = $self->{-inbox}->git;
+		for my $oid (@leftovers) {
+			$oid = unpack('H*', $oid);
+			$self->{current_info} = "leftover $oid";
+			unindex_oid($self, $git, $oid);
+		}
+		$git->cleanup;
 	}
 	return 0 if (!$regen_max && !keys(%{$self->{unindex_range}}));
 
@@ -1186,38 +1218,24 @@ sub index_epoch ($$$) {
 	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) {
 		unindex($self, $sync, $git, $unindex_range);
 	}
-	defined(my $range = $sync->{ranges}->[$i]) or return;
+	defined(my $stk = $sync->{stacks}->[$i]) or return;
+	$sync->{stacks}->[$i] = undef;
+	my $range = $sync->{ranges}->[$i];
 	if (my $pr = $sync->{-opt}->{-progress}) {
 		$pr->("$i.git indexing $range\n");
 	}
-	my @cmd = qw(log --reverse --raw -r --pretty=tformat:%H.%at.%ct
-			--no-notes --no-color --no-abbrev --no-renames);
-	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $range);
-	my $cmt;
-	my $D = $sync->{D};
-	while (<$fh>) {
-		chomp;
-		$self->{current_info} = "$i.git $_";
-		if (/\A($x40)\.([0-9]+)\.([0-9]+)$/o) {
-			$cmt = $1;
-			$self->{autime} = $2;
-			$self->{cotime} = $3;
-		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\tm$/o) {
-			reindex_oid($self, $sync, $git, $1);
-		} elsif (/\A:\d{6} 100644 $x40 ($x40) [AM]\td$/o) {
-			# allow re-add if there was user error
-			my $oid = $1;
-			if ($D) {
-				my $oid_bin = pack('H*', $oid);
-				my $nr = --$D->{$oid_bin};
-				delete($D->{$oid_bin}) if $nr <= 0;
-			}
+	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
+		$self->{current_info} = "$i.git $oid";
+		if ($f eq 'm') {
+			$self->{autime} = $at;
+			$self->{cotime} = $ct;
+			reindex_oid($self, $sync, $git, $oid);
+		} elsif ($f eq 'd') {
 			unindex_oid($self, $git, $oid);
 		}
 	}
-	close $fh or die "git log failed: \$?=$?";
-	delete @$self{qw(reindex_pipe autime cotime)};
-	update_last_commit($self, $git, $i, $cmt) if defined $cmt;
+	delete @$self{qw(autime cotime)};
+	update_last_commit($self, $git, $i, $stk->{latest_cmt});
 }
 
 # public, called by public-inbox-index

@@ -138,6 +138,7 @@ lib/PublicInbox/IMAPD.pm
 lib/PublicInbox/IMAPTracker.pm
 lib/PublicInbox/IMAPdeflate.pm
 lib/PublicInbox/IMAPsearchqp.pm
+lib/PublicInbox/IdxStack.pm
 lib/PublicInbox/Import.pm
 lib/PublicInbox/In2Tie.pm
 lib/PublicInbox/Inbox.pm
@@ -277,6 +278,7 @@ t/httpd-https.t
 t/httpd-unix.t
 t/httpd.t
 t/hval.t
+t/idx_stack.t
 t/imap.t
 t/imap_searchqp.t
 t/imap_tracker.t
