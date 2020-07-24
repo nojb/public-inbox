@@ -861,16 +861,14 @@ sub atfork_child {
 	$self->{bnote}->[1];
 }
 
-sub reindex_checkpoint ($$$) {
-	my ($self, $sync, $git) = @_;
+sub reindex_checkpoint ($$) {
+	my ($self, $sync) = @_;
 
-	$git->cleanup;
 	$sync->{mm_tmp}->atfork_prepare;
 	$self->done; # release lock
 
 	if (my $pr = $sync->{-opt}->{-progress}) {
-		my ($bn) = (split('/', $git->{git_dir}))[-1];
-		$pr->("$bn ".sprintf($sync->{-regen_fmt}, $sync->{nr}));
+		$pr->(sprintf($sync->{-regen_fmt}, $sync->{nr}));
 	}
 
 	# allow -watch or -mda to write...
@@ -878,11 +876,11 @@ sub reindex_checkpoint ($$$) {
 	$sync->{mm_tmp}->atfork_parent;
 }
 
-sub reindex_oid ($$$$) {
-	my ($self, $sync, $git, $oid) = @_;
+sub reindex_oid ($$$) {
+	my ($self, $sync, $oid) = @_;
 	return if PublicInbox::SearchIdx::too_big($self, $oid);
 	my ($num, $mid0, $len);
-	my $msgref = $git->cat_file($oid, \$len);
+	my $msgref = $self->{ibx}->git->cat_file($oid, \$len);
 	return if $len == 0; # purged
 	my $mime = PublicInbox::Eml->new($$msgref);
 	my $mids = mids($mime->header_obj);
@@ -951,7 +949,7 @@ sub reindex_oid ($$$$) {
 	}, 'PublicInbox::Smsg';
 	$smsg->populate($mime, $sync);
 	if (do_idx($self, $msgref, $mime, $smsg)) {
-		reindex_checkpoint($self, $sync, $git);
+		reindex_checkpoint($self, $sync);
 	}
 }
 
@@ -1107,13 +1105,11 @@ sub sync_prepare ($$$) {
 	# our code and blindly injects "d" file history into git repos
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
-		my $git = $self->{ibx}->git;
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
 			$self->{current_info} = "leftover $oid";
-			unindex_oid($self, $git, $oid);
+			unindex_oid($self, $oid);
 		}
-		$git->cleanup;
 	}
 	return 0 if (!$regen_max && !keys(%{$self->{unindex_range}}));
 
@@ -1135,10 +1131,10 @@ sub unindex_oid_remote ($$$) {
 	}
 }
 
-sub unindex_oid ($$$;$) {
-	my ($self, $git, $oid, $unindexed) = @_;
+sub unindex_oid ($$;$) {
+	my ($self, $oid, $unindexed) = @_;
 	my $mm = $self->{mm};
-	my $msgref = $git->cat_file($oid);
+	my $msgref = $self->{ibx}->git->cat_file($oid);
 	my $mime = PublicInbox::Eml->new($msgref);
 	my $mids = mids($mime->header_obj);
 	$mime = $msgref = undef;
@@ -1175,7 +1171,7 @@ sub unindex ($$$$) {
 	my $fh = $self->{reindex_pipe} = $git->popen(@cmd, $unindex_range);
 	while (<$fh>) {
 		/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o or next;
-		unindex_oid($self, $git, $1, $unindexed);
+		unindex_oid($self, $1, $unindexed);
 	}
 	delete $self->{reindex_pipe};
 	close $fh or die "git log failed: \$?=$?";
@@ -1220,9 +1216,9 @@ sub index_epoch ($$$) {
 		if ($f eq 'm') {
 			$sync->{autime} = $at;
 			$sync->{cotime} = $ct;
-			reindex_oid($self, $sync, $git, $oid);
+			reindex_oid($self, $sync, $oid);
 		} elsif ($f eq 'd') {
-			unindex_oid($self, $git, $oid);
+			unindex_oid($self, $oid);
 		}
 	}
 	delete @$sync{qw(autime cotime)};
