@@ -891,12 +891,12 @@ sub reindex_oid ($$$) {
 	}
 
 	# {unindexed} is unlikely
-	if ((my $unindexed = $self->{unindexed}) && scalar(@$mids) == 1) {
+	if ((my $unindexed = $sync->{unindexed}) && scalar(@$mids) == 1) {
 		$num = delete($unindexed->{$mids->[0]});
 		if (defined $num) {
 			$mid0 = $mids->[0];
 			$self->{mm}->mid_set($num, $mid0);
-			delete($self->{unindexed}) if !keys(%$unindexed);
+			delete($sync->{unindexed}) if !keys(%$unindexed);
 		}
 	}
 	if (!defined($num)) { # reuse if reindexing (or duplicates)
@@ -1125,7 +1125,7 @@ sub unindex_oid ($$;$) {
 # a mirror because the source used -purge or -edit
 sub unindex ($$$$) {
 	my ($self, $sync, $git, $unindex_range) = @_;
-	my $unindexed = $self->{unindexed} ||= {}; # $mid0 => $num
+	my $unindexed = $sync->{unindexed} ||= {}; # $mid0 => $num
 	my $before = scalar keys %$unindexed;
 	# order does not matter, here:
 	my @cmd = qw(log --raw -r
