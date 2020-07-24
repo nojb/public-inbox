@@ -49,12 +49,13 @@ sub new {
 	}
 	$ibx = PublicInbox::InboxWritable->new($ibx);
 	my $self = bless {
-		inboxdir => $inboxdir,
 		ibx => $ibx,
+		xpfx => $inboxdir, # for xpfx_init
 		-altid => $altid,
 		ibx_ver => $version,
 		indexlevel => $indexlevel,
 	}, $class;
+	$self->xpfx_init;
 	$self->{-set_indexlevel_once} = 1 if $indexlevel eq 'medium';
 	$ibx->umask_prepare;
 	if ($version == 1) {
@@ -371,7 +372,7 @@ sub _msgmap_init ($) {
 	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx_ver} != 1;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
-		PublicInbox::Msgmap->new($self->{inboxdir}, 1);
+		PublicInbox::Msgmap->new($self->{ibx}->{inboxdir}, 1);
 	};
 }
 

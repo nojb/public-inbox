@@ -164,15 +164,10 @@ chomp @HELP;
 
 sub xdir ($;$) {
 	my ($self, $rdonly) = @_;
-	if ($self->{ibx_ver} == 1) {
-		"$self->{inboxdir}/public-inbox/xapian" . SCHEMA_VERSION;
-	} else {
-		my $dir = "$self->{inboxdir}/xap" . SCHEMA_VERSION;
-		return $dir if $rdonly;
-
-		my $shard = $self->{shard};
-		defined $shard or die "shard not given";
-		$dir .= "/$shard";
+	if ($rdonly || !defined($self->{shard})) {
+		$self->{xpfx};
+	} else { # v2 only:
+		"$self->{xpfx}/$self->{shard}";
 	}
 }
 
@@ -220,14 +215,24 @@ sub xdb ($) {
 	};
 }
 
+sub xpfx_init ($) {
+	my ($self) = @_;
+	if ($self->{ibx_ver} == 1) {
+		$self->{xpfx} .= '/public-inbox/xapian' . SCHEMA_VERSION;
+	} else {
+		$self->{xpfx} .= '/xap'.SCHEMA_VERSION;
+	}
+}
+
 sub new {
 	my ($class, $ibx) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $self = bless {
-		inboxdir => $ibx->{inboxdir},
+		xpfx => $ibx->{inboxdir}, # for xpfx_init
 		altid => $ibx->{altid},
 		ibx_ver => $ibx->version,
 	}, $class;
+	xpfx_init($self);
 	my $dir = xdir($self, 1);
 	$self->{over_ro} = PublicInbox::Over->new("$dir/over.sqlite3");
 	$self;
