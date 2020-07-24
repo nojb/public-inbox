@@ -257,8 +257,9 @@ sub run {
 	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
 
 	if (!$opt->{-coarse_lock}) {
-		$reindex = $opt->{reindex} = {};
-		$reindex->{from} = []; # per-epoch ranges
+		$reindex = $opt->{reindex} = { # per-epoch ranges for v2
+			from => $ibx->version == 1 ? '' : [],
+		};
 		require PublicInbox::SearchIdx;
 		PublicInbox::SearchIdx::load_xapian_writable();
 	}
