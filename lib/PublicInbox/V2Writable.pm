@@ -120,7 +120,7 @@ sub new {
 		lock_path => "$dir/inbox.lock",
 		# limit each git repo (epoch) to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
-		last_commit => [], # git repo -> commit
+		last_commit => [], # git epoch -> commit
 	};
 	$self->{shards} = count_shards($self) || nproc_shards($creat);
 	$self->{index_max_size} = $v2ibx->{index_max_size};
