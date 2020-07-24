@@ -18,7 +18,7 @@ use PublicInbox::InboxWritable;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd);
-use PublicInbox::SearchIdx;
+use PublicInbox::SearchIdx qw(too_big log2stack crlf_adjust is_ancestor);
 use IO::Handle; # ->autoflush
 use File::Temp qw(tempfile);
 
@@ -156,8 +156,7 @@ sub add {
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$) {
 	my ($self, $msgref, $mime, $smsg) = @_;
-	$smsg->{bytes} = $smsg->{raw_bytes} +
-			PublicInbox::SearchIdx::crlf_adjust($$msgref);
+	$smsg->{bytes} = $smsg->{raw_bytes} + crlf_adjust($$msgref);
 	$self->{over}->add_overview($mime, $smsg);
 	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
 	$idx->index_raw($msgref, $mime, $smsg);
@@ -878,7 +877,7 @@ sub reindex_checkpoint ($$) {
 
 sub reindex_oid ($$$) {
 	my ($self, $sync, $oid) = @_;
-	return if PublicInbox::SearchIdx::too_big($self, $oid);
+	return if too_big($self, $oid);
 	my ($num, $mid0, $len);
 	my $msgref = $self->{ibx}->git->cat_file($oid, \$len);
 	return if $len == 0; # purged
@@ -976,8 +975,6 @@ sub last_commits ($$) {
 	$heads;
 }
 
-*is_ancestor = *PublicInbox::SearchIdx::is_ancestor;
-
 # returns a revision range for git-log(1)
 sub log_range ($$$$$) {
 	my ($self, $sync, $git, $i, $tip) = @_;
@@ -1029,47 +1026,6 @@ $range
 	$range;
 }
 
-sub prepare_range_stack {
-	my ($git, $sync, $range) = @_;
-	# Don't bump num_highwater on --reindex by using {D}.
-	# We intentionally do NOT use {D} in the non-reindex case because
-	# we want NNTP article number gaps from unindexed messages to
-	# show up in mirrors, too.
-	my $D = $sync->{D} //= $sync->{reindex} ? {} : undef; # OID_BIN => NR
-
-	my $fh = $git->popen(qw(log --raw -r --pretty=tformat:%at-%ct-%H
-				--no-notes --no-color --no-renames --no-abbrev),
-				$range);
-	my ($at, $ct, $stk);
-	while (<$fh>) {
-		if (/\A([0-9]+)-([0-9]+)-($OID)$/o) {
-			($at, $ct) = ($1 + 0, $2 + 0);
-			$stk //= PublicInbox::IdxStack->new($3);
-		} elsif (/\A:\d{6} 100644 $OID ($OID) [AM]\td$/o) {
-			my $oid = $1;
-			if ($D) { # reindex case
-				$D->{pack('H*', $oid)}++;
-			} else { # non-reindex case:
-				$stk->push_rec('d', $at, $ct, $oid);
-			}
-		} elsif (/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o) {
-			my $oid = $1;
-			if ($D) {
-				my $oid_bin = pack('H*', $oid);
-				my $nr = --$D->{$oid_bin};
-				delete($D->{$oid_bin}) if $nr <= 0;
-
-				# nr < 0 (-1) means it never existed
-				$stk->push_rec('m', $at, $ct, $oid) if $nr < 0;
-			} else {
-				$stk->push_rec('m', $at, $ct, $oid);
-			}
-		}
-	}
-	close $fh or die "git log failed: \$?=$?";
-	$stk ? $stk->read_prepare : undef;
-}
-
 sub sync_prepare ($$$) {
 	my ($self, $sync, $epoch_max) = @_;
 	my $pr = $sync->{-opt}->{-progress};
@@ -1093,7 +1049,12 @@ sub sync_prepare ($$$) {
 		my $range = log_range($self, $sync, $git, $i, $tip) or next;
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$i.git counting $range ... ") if $pr;
-		my $stk = prepare_range_stack($git, $sync, $range);
+		# Don't bump num_highwater on --reindex by using {D}.
+		# We intentionally do NOT use {D} in the non-reindex case
+		# because we want NNTP article number gaps from unindexed
+		# messages to show up in mirrors, too.
+		$sync->{D} //= $sync->{reindex} ? {} : undef; # OID_BIN => NR
+		my $stk = log2stack($sync, $git, $range, $self->{ibx});
 		my $nr = $stk ? $stk->num_records : 0;
 		$pr->("$nr\n") if $pr;
 		$sync->{stacks}->[$i] = $stk if $stk;

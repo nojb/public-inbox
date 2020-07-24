@@ -9,7 +9,7 @@
 package PublicInbox::SearchIdx;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::Search PublicInbox::Lock);
+use parent qw(PublicInbox::Search PublicInbox::Lock Exporter);
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
 use PublicInbox::MID qw(mid_mime mids_for_index mids);
@@ -21,6 +21,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
+our @EXPORT_OK = qw(too_big crlf_adjust log2stack is_ancestor);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
@@ -31,8 +32,6 @@ use constant DEBUG => !!$ENV{DEBUG};
 my $xapianlevels = qr/\A(?:full|medium)\z/;
 my $hex = '[a-f0-9]';
 my $OID = $hex .'{40,}';
-my $addmsg = qr!^:000000 100644 \S+ ($OID) A\t${hex}{2}/${hex}{38}$!;
-my $delmsg = qr!^:100644 000000 ($OID) \S+ D\t${hex}{2}/${hex}{38}$!;
 
 sub new {
 	my ($class, $ibx, $creat, $shard) = @_;
@@ -600,17 +599,18 @@ sub process_stack {
 	$batch_cb->($nr, $stk);
 }
 
-sub prepare_stack ($$$) {
-	my ($self, $sync, $range) = @_;
-	my $git = $self->{ibx}->git;
-
-	if (index($range, '..') < 0) {
-		# don't show annoying git errors to users who run -index
-		# on empty inboxes
-		$git->qx(qw(rev-parse -q --verify), "$range^0");
-		return PublicInbox::IdxStack->new->read_prepare if $?;
+sub log2stack ($$$$) {
+	my ($sync, $git, $range, $ibx) = @_;
+	my $D = $sync->{D}; # OID_BIN => NR (if reindexing, undef otherwise)
+	my ($add, $del);
+	if ($ibx->version == 1) {
+		my $path = $hex.'{2}/'.$hex.'{38}';
+		$add = qr!\A:000000 100644 \S+ ($OID) A\t$path$!;
+		$del = qr!\A:100644 000000 ($OID) \S+ D\t$path$!;
+	} else {
+		$del = qr!\A:\d{6} 100644 $OID ($OID) [AM]\td$!;
+		$add = qr!\A:\d{6} 100644 $OID ($OID) [AM]\tm$!;
 	}
-	my $D = $sync->{D} = $sync->{reindex} ? {} : undef; # OID_BIN => NR
 
 	# Count the new files so they can be added newest to oldest
 	# and still have numbers increasing from oldest to newest
@@ -622,14 +622,14 @@ sub prepare_stack ($$$) {
 		if (/\A([0-9]+)-([0-9]+)-($OID)$/o) {
 			($at, $ct) = ($1 + 0, $2 + 0);
 			$stk //= PublicInbox::IdxStack->new($3);
-		} elsif (/$delmsg/) {
+		} elsif (/$del/) {
 			my $oid = $1;
 			if ($D) { # reindex case
 				$D->{pack('H*', $oid)}++;
 			} else { # non-reindex case:
 				$stk->push_rec('d', $at, $ct, $oid);
 			}
-		} elsif (/$addmsg/) {
+		} elsif (/$add/) {
 			my $oid = $1;
 			if ($D) {
 				my $oid_bin = pack('H*', $oid);
@@ -646,6 +646,20 @@ sub prepare_stack ($$$) {
 	close $fh or die "git log failed: \$?=$?";
 	$stk //= PublicInbox::IdxStack->new;
 	$stk->read_prepare;
+}
+
+sub prepare_stack ($$$) {
+	my ($self, $sync, $range) = @_;
+	my $git = $self->{ibx}->git;
+
+	if (index($range, '..') < 0) {
+		# don't show annoying git errors to users who run -index
+		# on empty inboxes
+		$git->qx(qw(rev-parse -q --verify), "$range^0");
+		return PublicInbox::IdxStack->new->read_prepare if $?;
+	}
+	$sync->{D} = $sync->{reindex} ? {} : undef; # OID_BIN => NR
+	log2stack($sync, $git, $range, $self->{ibx});
 }
 
 # --is-ancestor requires git 1.8.0+
