@@ -682,10 +682,7 @@ sub fill_alternates ($$) {
 
 	my $pfx = "$self->{-inbox}->{inboxdir}/git";
 	my $all = "$self->{-inbox}->{inboxdir}/all.git";
-
-	unless (-d $all) {
-		PublicInbox::Import::init_bare($all);
-	}
+	PublicInbox::Import::init_bare($all) unless -d $all;
 	my $info_dir = "$all/objects/info";
 	my $alt = "$info_dir/alternates";
 	my (%alt, $new);
@@ -695,7 +692,9 @@ sub fill_alternates ($$) {
 		$mode = (stat($fh))[2] & 07777;
 
 		# we assign a sort score to every alternate and favor
-		# the newest (highest numbered) one when we
+		# the newest (highest numbered) one because loose objects
+		# require scanning epochs and only the latest epoch is
+		# expected to see loose objects
 		my $score;
 		my $other = 0; # in case admin adds non-epoch repos
 		%alt = map {;
@@ -1213,7 +1212,6 @@ sub index_epoch ($$$) {
 	my $git_dir = git_dir_n($self, $i);
 	die 'BUG: already reindexing!' if $self->{reindex_pipe};
 	-d $git_dir or return; # missing epochs are fine
-	fill_alternates($self, $i);
 	my $git = PublicInbox::Git->new($git_dir);
 	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) {
 		unindex($self, $sync, $git, $unindex_range);
@@ -1247,6 +1245,7 @@ sub index_sync {
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
 	$self->idx_init($opt); # acquire lock
+	fill_alternates($self, $epoch_max);
 	$self->{over}->rethread_prepare($opt);
 	my $sync = {
 		unindex_range => {}, # EPOCH => oid_old..oid_new
