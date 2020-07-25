@@ -21,7 +21,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-our @EXPORT_OK = qw(too_big crlf_adjust log2stack is_ancestor);
+our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
@@ -553,21 +553,11 @@ sub index_sync {
 	}
 }
 
-sub too_big ($$) {
-	my ($self, $oid) = @_;
-	my $max_size = $self->{index_max_size} or return;
-	my (undef, undef, $size) = $self->{ibx}->git->check($oid);
-	die "E: bad $oid in $self->{ibx}->{inboxdir}\n" if !defined($size);
-	return if $size <= $max_size;
-	warn "W: skipping $oid ($size > $max_size)\n";
-	1;
-}
-
-sub ck_size { # check_async cb for -index --max-size=...
+sub check_size { # check_async cb for -index --max-size=...
 	my ($oid, $type, $size, $arg, $git) = @_;
 	(($type // '') eq 'blob') or die "E: bad $oid in $git->{git_dir}";
 	if ($size <= $arg->{index_max_size}) {
-		$git->cat_async($oid, \&index_both, $arg);
+		$git->cat_async($oid, $arg->{index_oid}, $arg);
 	} else {
 		warn "W: skipping $oid ($size > $arg->{index_max_size})\n";
 	}
@@ -630,12 +620,14 @@ sub process_stack {
 			$git->cat_async($oid, \&unindex_both, $self);
 		}
 	}
-	$sync->{index_max_size} = $self->{ibx}->{index_max_size};
+	if ($sync->{index_max_size} = $self->{ibx}->{index_max_size}) {
+		$sync->{index_oid} = \&index_both;
+	}
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
 		if ($f eq 'm') {
 			my $arg = { %$sync, autime => $at, cotime => $ct };
 			if ($sync->{index_max_size}) {
-				$git->check_async($oid, \&ck_size, $arg);
+				$git->check_async($oid, \&check_size, $arg);
 			} else {
 				$git->cat_async($oid, \&index_both, $arg);
 			}
