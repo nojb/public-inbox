@@ -50,12 +50,15 @@ sub quiet_fail {
 		'-init did not unlink lock on failure');
 }
 {
+	my $env = { PI_DIR => "$tmpdir/.public-inbox/" };
 	my $rdr = { 2 => \(my $err = '') };
 	my $cmd = [ '-init', 'alist', "$tmpdir/a\nlist",
 		   qw(http://example.com/alist alist@example.com) ];
-	ok(!run_script($cmd, undef, $rdr),
+	ok(!run_script($cmd, $env, $rdr),
 		'public-inbox-init rejects LF in inboxdir');
 	like($err, qr/`\\n' not allowed in `/s, 'reported \\n');
+	is_deeply([glob("$tmpdir/.public-inbox/pi-init-*")], [],
+		'no junk files left behind');
 }
 
 SKIP: {

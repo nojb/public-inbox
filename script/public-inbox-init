@@ -53,6 +53,7 @@ PublicInbox::Lock::lock_acquire($lock_obj);
 
 # git-config will operate on this (and rename on success):
 my ($fh, $pi_config_tmp) = tempfile('pi-init-XXXXXXXX', DIR => $dir);
+my $cfg_tmp = UnlinkMe->new($pi_config_tmp);
 
 # Now, we grab another lock to use git-config(1) locking, so it won't
 # wait on the lock, unlike some of our internal flock()-based locks.
@@ -176,6 +177,7 @@ if (defined $perm) {
 
 rename $pi_config_tmp, $pi_config or
 	die "failed to rename `$pi_config_tmp' to `$pi_config': $!\n";
+delete $cfg_tmp->{file};
 $auto_unlink->DESTROY;
 
 package UnlinkMe;
