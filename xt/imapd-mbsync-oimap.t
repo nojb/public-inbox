@@ -99,7 +99,7 @@ UseNamespace no
 # DisableExtension COMPRESS=DEFLATE
 
 Channel "test"
-Master ":remote:inbox"
+Master ":remote:INBOX"
 Slave ":local:test"
 Expunge None
 Sync PullNew
