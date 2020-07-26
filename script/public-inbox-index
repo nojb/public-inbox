@@ -24,6 +24,9 @@ if ($opt->{compact}) {
 	require PublicInbox::Xapcmd;
 	PublicInbox::Xapcmd::check_compact();
 	$compact_opt = { -coarse_lock => 1, compact => 1 };
+	if (defined(my $jobs = $opt->{jobs})) {
+		$compact_opt->{jobs} = $jobs;
+	}
 }
 
 my $cfg = PublicInbox::Config->new;

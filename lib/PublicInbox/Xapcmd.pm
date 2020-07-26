@@ -129,7 +129,7 @@ sub same_fs_or_die ($$) {
 
 sub process_queue {
 	my ($queue, $cb, $opt) = @_;
-	my $max = $opt->{jobs} || scalar(@$queue);
+	my $max = $opt->{jobs} // scalar(@$queue);
 	if ($max <= 1) {
 		while (defined(my $args = shift @$queue)) {
 			$cb->($args, $opt);
