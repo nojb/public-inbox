@@ -626,8 +626,13 @@ sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
+	my $pre;
+	if (!$self->{wbuf} && (my $nxt = $msgs->[0])) {
+		$pre = $self->{ibx}->git->async_prefetch($nxt->{blob},
+						\&fetch_blob_cb, $fetch_arg);
+	}
 	fetch_run_ops($self, $smsg, $bref, $ops, $partial);
-	requeue_once($self);
+	$pre ? $self->zflush : requeue_once($self);
 }
 
 sub emit_rfc822 {

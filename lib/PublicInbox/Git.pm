@@ -410,6 +410,22 @@ sub cat_async ($$$;$) {
 	push(@$inflight, $oid, $cb, $arg);
 }
 
+# this is safe to call inside $cb, but not guaranteed to enqueue
+# returns true if successful, undef if not.
+sub async_prefetch {
+	my ($self, $oid, $cb, $arg) = @_;
+	if (defined($self->{async_cat}) && (my $inflight = $self->{inflight})) {
+		# we could use MAX_INFLIGHT here w/o the halving,
+		# but lets not allow one client to monopolize a git process
+		if (scalar(@$inflight) < int(MAX_INFLIGHT/2)) {
+			print { $self->{out} } $oid, "\n" or
+						fail($self, "write error: $!");
+			return push(@$inflight, $oid, $cb, $arg);
+		}
+	}
+	undef;
+}
+
 sub extract_cmt_time {
 	my ($bref, undef, undef, undef, $modified) = @_;
 
