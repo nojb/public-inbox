@@ -108,7 +108,7 @@ case $cfg_dir in
 		git config -f "$PI_CONFIG" \
 			"publicinbox.$inbox_name.infourl" "$url"
 	done
-	curl -sSfv "remote_inbox_url"/description >"$inbox_dir"/description
+	curl -sSfv "$remote_inbox_url"/description >"$inbox_dir"/description
 	echo "I: $inbox_name at $inbox_dir ($addresses) $local_url"
 	;;
 esac
