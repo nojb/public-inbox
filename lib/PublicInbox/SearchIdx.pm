@@ -125,8 +125,11 @@ sub idx_acquire {
 
 		# don't create empty Xapian directories if we don't need Xapian
 		my $is_shard = defined($self->{shard});
-		if (!$is_shard || ($is_shard && need_xapian($self))) {
+		if (!-d $dir && (!$is_shard ||
+				($is_shard && need_xapian($self)))) {
 			File::Path::mkpath($dir);
+			opendir my $dh, $dir or die "opendir($dir): $!\n";
+			PublicInbox::Spawn::set_nodatacow(fileno($dh));
 		}
 	}
 	return unless defined $flag;

@@ -156,6 +156,7 @@ lib/PublicInbox/MboxGz.pm
 lib/PublicInbox/MsgIter.pm
 lib/PublicInbox/MsgTime.pm
 lib/PublicInbox/Msgmap.pm
+lib/PublicInbox/NDC_PP.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
@@ -309,6 +310,7 @@ t/multi-mid.t
 t/nntp.t
 t/nntpd-tls.t
 t/nntpd.t
+t/nodatacow.t
 t/nulsubject.t
 t/over.t
 t/plack-2-txt-bodies.eml

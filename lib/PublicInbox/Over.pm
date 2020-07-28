@@ -18,7 +18,12 @@ sub dbh_new {
 	my $f = delete $self->{filename};
 	if (!-f $f) { # SQLite defaults mode to 0644, we want 0666
 		if ($rw) {
+			require PublicInbox::Spawn;
 			open my $fh, '+>>', $f or die "failed to open $f: $!";
+			PublicInbox::Spawn::set_nodatacow(fileno($fh));
+			my $j = "$f-journal";
+			open $fh, '+>>', $j or die "failed to open $j: $!";
+			PublicInbox::Spawn::set_nodatacow(fileno($fh));
 		} else {
 			$self->{filename} = $f; # die on stat() below:
 		}

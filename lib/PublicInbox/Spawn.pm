@@ -10,6 +10,9 @@
 # daemons (inside the PSGI code (-httpd) and -nntpd).  The short-lived
 # scripts (-mda, -index, -learn, -init) either use IPC::run or standard
 # Perl routines.
+#
+# There'll probably be more OS-level C stuff here, down the line.
+# We don't want too many DSOs: https://udrepper.livejournal.com/8790.html
 
 package PublicInbox::Spawn;
 use strict;
@@ -25,6 +28,7 @@ my $vfork_spawn = <<'VFORK_SPAWN';
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <errno.h>
 
 /* some platforms need alloca.h, but some don't */
 #if defined(__GNUC__) && !defined(alloca)
@@ -144,12 +148,51 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 }
 VFORK_SPAWN
 
+# btrfs on Linux is copy-on-write (COW) by default.  As of Linux 5.7,
+# this still leads to fragmentation for SQLite and Xapian files where
+# random I/O happens, so we disable COW just for SQLite files and Xapian
+# directories.  Disabling COW disables checksumming, so we only do this
+# for regeneratable files, and not canonical git storage (git doesn't
+# checksum refs, only data under $GIT_DIR/objects).
+my $set_nodatacow = $^O eq 'linux' ? <<'SET_NODATACOW' : '';
+#include <sys/ioctl.h>
+#include <sys/vfs.h>
+#include <linux/magic.h>
+#include <linux/fs.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+void set_nodatacow(int fd)
+{
+	struct statfs buf;
+	int val = 0;
+
+	if (fstatfs(fd, &buf) < 0) {
+		fprintf(stderr, "fstatfs: %s\\n", strerror(errno));
+		return;
+	}
+
+	/* only btrfs is known to have this problem, so skip for non-btrfs */
+	if (buf.f_type != BTRFS_SUPER_MAGIC)
+		return;
+
+	if (ioctl(fd, FS_IOC_GETFLAGS, &val) < 0) {
+		fprintf(stderr, "FS_IOC_GET_FLAGS: %s\\n", strerror(errno));
+		return;
+	}
+	val |= FS_NOCOW_FL;
+	if (ioctl(fd, FS_IOC_SETFLAGS, &val) < 0)
+		fprintf(stderr, "FS_IOC_SET_FLAGS: %s\\n", strerror(errno));
+}
+SET_NODATACOW
+
 my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
 		$ENV{XDG_CACHE_HOME} //
 		( ($ENV{HOME} // '/nonexistent').'/.cache' )
 	).'/public-inbox/inline-c';
 
-$vfork_spawn = undef unless -d $inline_dir && -w _;
+$set_nodatacow = $vfork_spawn = undef unless -d $inline_dir && -w _;
 if (defined $vfork_spawn) {
 	# Inline 0.64 or later has locking in multi-process env,
 	# but we support 0.5 on Debian wheezy
@@ -158,14 +201,21 @@ if (defined $vfork_spawn) {
 		my $f = "$inline_dir/.public-inbox.lock";
 		open my $fh, '>', $f or die "failed to open $f: $!\n";
 		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-		eval 'use Inline C => $vfork_spawn';
+		eval 'use Inline C => $vfork_spawn . $set_nodatacow';
 		my $err = $@;
+		my $ndc_err;
+		if ($err && $set_nodatacow) { # missing Linux kernel headers
+			$ndc_err = $err;
+			undef $set_nodatacow;
+			eval 'use Inline C => $vfork_spawn';
+		}
 		flock($fh, LOCK_UN) or die "LOCK_UN failed on $f: $!\n";
 		die $err if $err;
+		warn $ndc_err if $ndc_err;
 	};
 	if ($@) {
 		warn "Inline::C failed for vfork: $@\n";
-		$vfork_spawn = undef;
+		$set_nodatacow = $vfork_spawn = undef;
 	}
 }
 
@@ -173,6 +223,13 @@ unless (defined $vfork_spawn) {
 	require PublicInbox::SpawnPP;
 	*pi_fork_exec = \&PublicInbox::SpawnPP::pi_fork_exec
 }
+unless ($set_nodatacow) {
+	require PublicInbox::NDC_PP;
+	no warnings 'once';
+	*set_nodatacow = \&PublicInbox::NDC_PP::set_nodatacow;
+}
+undef $set_nodatacow;
+undef $vfork_spawn;
 
 sub which ($) {
 	my ($file) = @_;
