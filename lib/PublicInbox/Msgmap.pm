@@ -48,8 +48,8 @@ sub new_file {
 
 # used to keep track of used numeric mappings for v2 reindex
 sub tmp_clone {
-	my ($self) = @_;
-	my ($fh, $fn) = tempfile('msgmap-XXXXXXXX', EXLOCK => 0, TMPDIR => 1);
+	my ($self, $dir) = @_;
+	my ($fh, $fn) = tempfile('msgmap-XXXXXXXX', EXLOCK => 0, DIR => $dir);
 	my $tmp;
 	if ($self->{dbh}->can('sqlite_backup_to_dbh')) {
 		$tmp = ref($self)->new_file($fn, 2);

@@ -1225,7 +1225,8 @@ sub index_sync {
 		# only for batch performance.
 		$self->{mm}->{dbh}->rollback;
 		$self->{mm}->{dbh}->begin_work;
-		$sync->{mm_tmp} = $self->{mm}->tmp_clone;
+		$sync->{mm_tmp} =
+			$self->{mm}->tmp_clone($self->{ibx}->{inboxdir});
 	}
 	if ($sync->{index_max_size} = $self->{ibx}->{index_max_size}) {
 		$sync->{index_oid} = \&index_oid;
