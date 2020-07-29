@@ -66,6 +66,7 @@ SKIP: {
 	require_git(2.6, 1) or skip "git 2.6+ required", 2;
 	use_ok 'PublicInbox::Msgmap';
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";
+	local $ENV{PI_EMERGENCY} = "$tmpdir/.public-inbox/emergency";
 	my $cfgfile = "$ENV{PI_DIR}/config";
 	my $cmd = [ '-init', '-V2', 'v2list', "$tmpdir/v2list",
 		   qw(http://example.com/v2list v2list@example.com) ];
@@ -123,6 +124,7 @@ SKIP: {
 	my $msg = "Message-ID: <$mid>\n\n";
 	my $rdr = { 0 => \$msg, 2 => \(my $err = '')  };
 	ok(run_script([qw(-mda --no-precheck)], $env, $rdr), 'deliver V1');
+	diag "err=$err" if $err;
 	my $mm = PublicInbox::Msgmap->new_file("$tmpdir/skip3/msgmap.sqlite3");
 	my $n = $mm->num_for($mid);
 	is($n, 13, 'V2 NNTP article numbers skipped via --skip-artnum');
@@ -132,7 +134,9 @@ SKIP: {
 	$cmd = [ qw(-init -V1 -N12 -Lmedium skip4), "$tmpdir/skip4",
 		   qw(http://example.com/skip4), $addr ];
 	ok(run_script($cmd), '--skip-artnum -V1');
+	$err = '';
 	ok(run_script([qw(-mda --no-precheck)], $env, $rdr), 'deliver V1');
+	diag "err=$err" if $err;
 	$mm = PublicInbox::Msgmap->new("$tmpdir/skip4");
 	$n = $mm->num_for($mid);
 	is($n, 13, 'V1 NNTP article numbers skipped via --skip-artnum');
