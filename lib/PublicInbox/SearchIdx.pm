@@ -21,7 +21,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size);
+our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size nodatacow_dir);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
@@ -110,6 +110,12 @@ sub load_xapian_writable () {
 	1;
 }
 
+sub nodatacow_dir ($) {
+	my ($dir) = @_;
+	opendir my $dh, $dir or die "opendir($dir): $!\n";
+	PublicInbox::Spawn::set_nodatacow(fileno($dh));
+}
+
 sub idx_acquire {
 	my ($self) = @_;
 	my $flag;
@@ -128,8 +134,7 @@ sub idx_acquire {
 		if (!-d $dir && (!$is_shard ||
 				($is_shard && need_xapian($self)))) {
 			File::Path::mkpath($dir);
-			opendir my $dh, $dir or die "opendir($dir): $!\n";
-			PublicInbox::Spawn::set_nodatacow(fileno($dh));
+			nodatacow_dir($dir);
 		}
 	}
 	return unless defined $flag;

@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use PublicInbox::Spawn qw(which popen_rd);
 use PublicInbox::Over;
-use PublicInbox::SearchIdx;
+use PublicInbox::SearchIdx qw(nodatacow_dir);
 use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);
@@ -187,6 +187,7 @@ sub prepare_run {
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
 		my $wip = File::Temp->newdir("xapian$v-XXXXXXXX", DIR => $dir);
 		$tmp->{$old} = $wip;
+		nodatacow_dir($wip->dirname);
 		push @queue, [ $old, $wip ];
 	} else {
 		opendir my $dh, $old or die "Failed to opendir $old: $!\n";
@@ -217,6 +218,7 @@ sub prepare_run {
 			same_fs_or_die($old, $wip->dirname);
 			my $cur = "$old/$dn";
 			push @queue, [ $src // $cur , $wip ];
+			nodatacow_dir($wip->dirname);
 			$tmp->{$cur} = $wip;
 		}
 		# mark old shards to be unlinked
@@ -406,6 +408,7 @@ sub cpdb ($$) {
 		$ft = File::Temp->newdir("$new.compact-XXXXXX", DIR => $dir);
 		setup_signals();
 		$tmp = $ft->dirname;
+		nodatacow_dir($tmp);
 	} else {
 		$tmp = $new;
 	}
