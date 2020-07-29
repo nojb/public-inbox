@@ -5,7 +5,8 @@ use strict;
 use Test::More;
 use Time::Local qw(timegm);
 use PublicInbox::TestCommon;
-require_mods(qw(Parse::RecDescent));
+require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address
+	Parse::RecDescent));
 use_ok 'PublicInbox::IMAPsearchqp';
 use_ok 'PublicInbox::IMAP';
 
