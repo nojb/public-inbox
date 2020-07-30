@@ -12,8 +12,9 @@ use Carp qw(croak);
 # PublicInbox::Import already has the lock on its own.
 sub lock_acquire {
 	my ($self) = @_;
-	croak 'already locked' if $self->{lockfh};
-	my $lock_path = $self->{lock_path} or return;
+	my $lock_path = $self->{lock_path};
+	croak 'already locked '.($lock_path // '(undef)') if $self->{lockfh};
+	return unless defined($lock_path);
 	sysopen(my $lockfh, $lock_path, O_WRONLY|O_CREAT) or
 		die "failed to open lock $lock_path: $!\n";
 	flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
