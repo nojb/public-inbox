@@ -35,7 +35,7 @@ sub get_attach_i { # ->each_part callback
 	$res->[2]->[0] = $part;
 }
 
-sub async_eml { # ->{async_eml} for async_blob_cb
+sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
 	eval { $eml->each_part(\&get_attach_i, $ctx, 1) };
 	if ($@) {
@@ -55,8 +55,6 @@ sub async_next {
 sub scan_attach ($) { # public-inbox-httpd only
 	my ($ctx) = @_;
 	$ctx->{env}->{'psgix.io'}->{forward} = $ctx;
-	$ctx->{async_eml} = \&async_eml;
-	$ctx->{async_next} = \&async_next;
 	$ctx->smsg_blob($ctx->{smsg});
 }
 

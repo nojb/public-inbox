@@ -29,8 +29,7 @@ sub mbox_gz {
 	bless $self, __PACKAGE__;
 	my $res_hdr = [ 'Content-Type' => 'application/gzip',
 		'Content-Disposition' => "inline; filename=$fn.mbox.gz" ];
-	$self->psgi_response(200, $res_hdr, \&async_next,
-				\&PublicInbox::Mbox::async_eml);
+	$self->psgi_response(200, $res_hdr);
 }
 
 # called by Plack::Util::foreach or similar (generic PSGI)
@@ -47,4 +46,6 @@ sub getline {
 	$self->zflush;
 }
 
+no warnings 'once';
+*async_eml = \&PublicInbox::Mbox::async_eml;
 1;

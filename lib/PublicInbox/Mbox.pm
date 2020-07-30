@@ -29,7 +29,7 @@ sub getline {
 	}
 }
 
-# called by PublicInbox::DS::write
+# called by PublicInbox::DS::write after http->next_step
 sub async_next {
 	my ($http) = @_; # PublicInbox::HTTP
 	my $ctx = $http->{forward} or return; # client aborted
@@ -40,7 +40,7 @@ sub async_next {
 	warn "E: $@" if $@;
 }
 
-sub async_eml { # ->{async_eml} for async_blob_cb
+sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
 	my $smsg = delete $ctx->{smsg};
 	# next message
@@ -87,7 +87,7 @@ sub emit_raw {
 	my $smsg = $ctx->{smsg} = $over->next_by_mid(@$mip) or return;
 	my $res_hdr = res_hdr($ctx, $smsg->{subject});
 	bless $ctx, __PACKAGE__;
-	$ctx->psgi_response(200, $res_hdr, \&async_next, \&async_eml);
+	$ctx->psgi_response(200, $res_hdr);
 }
 
 sub msg_hdr ($$;$) {

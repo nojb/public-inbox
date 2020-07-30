@@ -28,7 +28,7 @@ sub init {
 	bless $ctx, __PACKAGE__;
 }
 
-sub async_eml { # ->{async_eml} for async_blob_cb
+sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
 	$ctx->{http_out}->write($ctx->translate($ctx->{cb}->($ctx, $eml)));
 }
@@ -198,7 +198,7 @@ sub aresponse {
 	my ($ctx, $code, $cb) = @_;
 	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8' ];
 	init($ctx, $cb);
-	$ctx->psgi_response($code, $res_hdr, \&async_next, \&async_eml);
+	$ctx->psgi_response($code, $res_hdr);
 }
 
 1;

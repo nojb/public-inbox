@@ -7,8 +7,8 @@
 #
 # In newer versions, public-inbox-httpd supports a backpressure-aware
 # pull/push model which also accounts for slow git blob storage.
-# {async_next} callbacks only run when the DS {wbuf} is drained
-# {async_eml} callbacks only run when a blob arrives from git.
+# async_next callbacks only run when the DS {wbuf} is drained
+# async_eml callbacks only run when a blob arrives from git.
 #
 # We continue to support getline+close for generic PSGI servers.
 package PublicInbox::GzipFilter;
@@ -46,18 +46,16 @@ sub gz_or_noop {
 sub gzf_maybe ($$) { bless { gz => gz_or_noop(@_) }, __PACKAGE__ }
 
 sub psgi_response {
-	my ($self, $code, $res_hdr, $next_cb, $eml_cb) = @_;
+	my ($self, $code, $res_hdr) = @_;
 	my $env = $self->{env};
 	$self->{gz} //= gz_or_noop($res_hdr, $env);
 	if ($env->{'pi-httpd.async'}) {
-		$self->{async_next} = $next_cb;
-		$self->{async_eml} = $eml_cb;
 		my $http = $env->{'psgix.io'}; # PublicInbox::HTTP
 		$http->{forward} = $self;
 		sub {
 			my ($wcb) = @_; # -httpd provided write callback
 			$self->{http_out} = $wcb->([$code, $res_hdr]);
-			$next_cb->($http); # start stepping
+			$self->can('async_next')->($http); # start stepping
 		};
 	} else { # generic PSGI code path
 		[ $code, $res_hdr, $self ];
@@ -172,12 +170,12 @@ sub async_blob_cb { # git->cat_async callback
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
 		warn "E: $smsg->{blob} missing in $self->{-inbox}->{inboxdir}\n";
-		return $http->next_step($self->{async_next});
+		return $http->next_step($self->can('async_next'));
 	}
 	$smsg->{blob} eq $oid or bail($self, "BUG: $smsg->{blob} != $oid");
-	eval { $self->{async_eml}->($self, PublicInbox::Eml->new($bref)) };
+	eval { $self->async_eml(PublicInbox::Eml->new($bref)) };
 	bail($self, "E: async_eml: $@") if $@;
-	$http->next_step($self->{async_next});
+	$http->next_step($self->can('async_next'));
 }
 
 sub smsg_blob {

@@ -35,7 +35,7 @@ sub async_next ($) {
 	warn "E: $@" if $@;
 }
 
-sub async_eml { # ->{async_eml} for async_blob_cb
+sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
 	my $smsg = delete $ctx->{smsg};
 	$ctx->{http_out}->write($ctx->translate(feed_entry($ctx, $smsg, $eml)))
@@ -45,7 +45,7 @@ sub response {
 	my ($class, $ctx, $code, $cb) = @_;
 	my $res_hdr = [ 'Content-Type' => 'application/atom+xml' ];
 	$class->new($ctx, $cb);
-	$ctx->psgi_response($code, $res_hdr, \&async_next, \&async_eml);
+	$ctx->psgi_response($code, $res_hdr);
 }
 
 # called once for each message by PSGI server
