@@ -48,32 +48,35 @@ sub gfi_start {
 
 	return ($self->{in}, $self->{out}) if $self->{pid};
 
-	my ($out_r, $out_w);
+	my (@ret, $out_r, $out_w);
 	pipe($out_r, $out_w) or die "pipe failed: $!";
-	my $git = $self->{git};
 
 	$self->lock_acquire;
-
-	local $/ = "\n";
-	my $ref = $self->{ref};
-	chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $ref));
-	if ($self->{path_type} ne '2/38' && $self->{tip}) {
-		local $/ = "\0";
-		my @tree = $git->qx(qw(ls-tree -r -z --name-only), $ref);
-		chomp @tree;
-		$self->{-tree} = { map { $_ => 1 } @tree };
+	eval {
+		my ($git, $ref) = @$self{qw(git ref)};
+		local $/ = "\n";
+		chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $ref));
+		if ($self->{path_type} ne '2/38' && $self->{tip}) {
+			local $/ = "\0";
+			my @t = $git->qx(qw(ls-tree -r -z --name-only), $ref);
+			chomp @t;
+			$self->{-tree} = { map { $_ => 1 } @t };
+		}
+		my @cmd = ('git', "--git-dir=$git->{git_dir}",
+			qw(fast-import --quiet --done --date-format=raw));
+		my ($in_r, $pid) = popen_rd(\@cmd, undef, { 0 => $out_r });
+		$out_w->autoflush(1);
+		$self->{in} = $in_r;
+		$self->{out} = $out_w;
+		$self->{pid} = $pid;
+		$self->{nchg} = 0;
+		@ret = ($in_r, $out_w);
+	};
+	if ($@) {
+		$self->lock_release;
+		die $@;
 	}
-
-	my $git_dir = $git->{git_dir};
-	my @cmd = ('git', "--git-dir=$git_dir", qw(fast-import
-			--quiet --done --date-format=raw));
-	my ($in_r, $pid) = popen_rd(\@cmd, undef, { 0 => $out_r });
-	$out_w->autoflush(1);
-	$self->{in} = $in_r;
-	$self->{out} = $out_w;
-	$self->{pid} = $pid;
-	$self->{nchg} = 0;
-	($in_r, $out_w);
+	@ret;
 }
 
 sub wfail () { die "write to fast-import failed: $!" }
@@ -175,13 +178,16 @@ sub _update_git_info ($$) {
 		my $env = { GIT_INDEX_FILE => $index };
 		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
 	}
-	run_die([@cmd, 'update-server-info']);
+	eval { run_die([@cmd, 'update-server-info']) };
 	my $ibx = $self->{ibx};
-	($ibx && $self->{path_type} eq '2/38') and eval {
-		require PublicInbox::SearchIdx;
-		my $s = PublicInbox::SearchIdx->new($ibx);
-		$s->index_sync({ ref => $self->{ref} });
-	};
+	if ($ibx && $ibx->version == 1 && -d "$ibx->{inboxdir}/public-inbox" &&
+				eval { require PublicInbox::SearchIdx }) {
+		eval {
+			my $s = PublicInbox::SearchIdx->new($ibx);
+			$s->index_sync({ ref => $self->{ref} });
+		};
+		warn "$ibx->{inboxdir} index failed: $@\n" if $@;
+	}
 	eval { run_die([@cmd, qw(gc --auto)]) } if $do_gc;
 }
 
@@ -460,17 +466,23 @@ sub init_bare {
 sub done {
 	my ($self) = @_;
 	my $w = delete $self->{out} or return;
-	my $r = delete $self->{in} or die 'BUG: missing {in} when done';
-	print $w "done\n" or wfail;
-	my $pid = delete $self->{pid} or die 'BUG: missing {pid} when done';
-	waitpid($pid, 0) == $pid or die 'fast-import did not finish';
-	$? == 0 or die "fast-import failed: $?";
-
+	eval {
+		my $r = delete $self->{in} or die 'BUG: missing {in} when done';
+		print $w "done\n" or wfail;
+		my $pid = delete $self->{pid} or
+				die 'BUG: missing {pid} when done';
+		waitpid($pid, 0) == $pid or die 'fast-import did not finish';
+		$? == 0 or die "fast-import failed: $?";
+	};
+	my $wait_err = $@;
 	my $nchg = delete $self->{nchg};
-	_update_git_info($self, 1) if $nchg;
+	if ($nchg && !$wait_err) {
+		eval { _update_git_info($self, 1) };
+		warn "E: $self->{git}->{git_dir} update info: $@\n" if $@;
+	}
 	$self->lock_release(!!$nchg);
-
 	$self->{git}->cleanup;
+	die $wait_err if $wait_err;
 }
 
 sub atfork_child {

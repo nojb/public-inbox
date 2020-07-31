@@ -16,20 +16,20 @@ sub lock_acquire {
 	croak 'already locked '.($lock_path // '(undef)') if $self->{lockfh};
 	return unless defined($lock_path);
 	sysopen(my $lockfh, $lock_path, O_WRONLY|O_CREAT) or
-		die "failed to open lock $lock_path: $!\n";
-	flock($lockfh, LOCK_EX) or die "lock failed: $!\n";
+		croak "failed to open $lock_path: $!\n";
+	flock($lockfh, LOCK_EX) or croak "lock $lock_path failed: $!\n";
 	$self->{lockfh} = $lockfh;
 }
 
 sub lock_release {
 	my ($self, $wake) = @_;
-	return unless $self->{lock_path};
-	my $lockfh = delete $self->{lockfh} or croak 'not locked';
+	defined(my $lock_path = $self->{lock_path}) or return;
+	my $lockfh = delete $self->{lockfh} or croak "not locked: $lock_path";
 
 	syswrite($lockfh, '.') if $wake;
 
-	flock($lockfh, LOCK_UN) or die "unlock failed: $!\n";
-	close $lockfh or die "close failed: $!\n";
+	flock($lockfh, LOCK_UN) or croak "unlock $lock_path failed: $!\n";
+	close $lockfh or croak "close $lock_path failed: $!\n";
 }
 
 1;

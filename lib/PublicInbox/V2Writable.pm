@@ -660,21 +660,35 @@ sub barrier { checkpoint($_[0], 1) };
 # public
 sub done {
 	my ($self) = @_;
-	my $im = delete $self->{im};
-	$im->done if $im; # PublicInbox::Import::done
-	checkpoint($self);
-	my $mm = delete $self->{mm};
-	$mm->{dbh}->commit if $mm;
+	my $err = '';
+	if (my $im = delete $self->{im}) {
+		eval { $im->done }; # PublicInbox::Import::done
+		$err .= "import done: $@\n" if $@;
+	}
+	if (!$err) {
+		eval { checkpoint($self) };
+		$err .= "checkpoint: $@\n" if $@;
+	}
+	if (my $mm = delete $self->{mm}) {
+		my $m = $err ? 'rollback' : 'commit';
+		eval { $mm->{dbh}->$m };
+		$err .= "msgmap $m: $@\n" if $@;
+	}
 	my $shards = delete $self->{idx_shards};
 	if ($shards) {
-		$_->remote_close for @$shards;
+		for (@$shards) {
+			eval { $_->remote_close };
+			$err .= "shard close: $@\n" if $@;
+		}
 	}
-	$self->{over}->disconnect;
+	eval { $self->{over}->disconnect };
+	$err .= "over disconnect: $@\n" if $@;
 	delete $self->{bnote};
 	my $nbytes = $self->{total_bytes};
 	$self->{total_bytes} = 0;
 	$self->lock_release(!!$nbytes) if $shards;
 	$self->{ibx}->git->cleanup;
+	die $err if $err;
 }
 
 sub fill_alternates ($$) {

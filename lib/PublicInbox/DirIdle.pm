@@ -44,6 +44,7 @@ sub new {
 sub event_step {
 	my ($self) = @_;
 	my $cb = $self->{cb};
+	local $PublicInbox::DS::in_loop = 0; # waitpid() synchronously
 	eval {
 		my @events = $self->{inot}->read; # Linux::Inotify2->read
 		$cb->($_) for @events;

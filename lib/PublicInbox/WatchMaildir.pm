@@ -124,8 +124,10 @@ sub new {
 sub _done_for_now {
 	my ($self) = @_;
 	local $PublicInbox::DS::in_loop = 0; # waitpid() synchronously
-	for (values %{$self->{importers}}) {
-		$_->done if $_; # $_ may be undef during cleanup
+	for my $im (values %{$self->{importers}}) {
+		next if !$im; # $im may be undef during cleanup
+		eval { $im->done };
+		warn "$im->{ibx}->{name} ->done: $@\n" if $@;
 	}
 }
 
@@ -137,12 +139,15 @@ sub remove_eml_i { # each_inbox callback
 		$im->remove($eml, 'spam');
 		if (my $scrub = $ibx->filter($im)) {
 			my $scrubbed = $scrub->scrub($eml, 1);
-			$scrubbed or return;
-			$scrubbed == REJECT() and return;
-			$im->remove($scrubbed, 'spam');
+			if ($scrubbed && $scrubbed != REJECT) {
+				$im->remove($scrubbed, 'spam');
+			}
 		}
 	};
-	warn "error removing spam at: $loc from $ibx->{name}: $@\n" if $@;
+	if ($@) {
+		warn "error removing spam at: $loc from $ibx->{name}: $@\n";
+		_done_for_now($self);
+	}
 }
 
 sub _remove_spam {
@@ -155,7 +160,6 @@ sub _remove_spam {
 
 sub import_eml ($$$) {
 	my ($self, $ibx, $eml) = @_;
-	my $im = _importer_for($self, $ibx);
 
 	# any header match means it's eligible for the inbox:
 	if (my $watch_hdrs = $ibx->{-watchheaders}) {
@@ -167,13 +171,19 @@ sub import_eml ($$$) {
 		}
 		return unless $ok;
 	}
-
-	if (my $scrub = $ibx->filter($im)) {
-		my $ret = $scrub->scrub($eml) or return;
-		$ret == REJECT() and return;
-		$eml = $ret;
+	eval {
+		my $im = _importer_for($self, $ibx);
+		if (my $scrub = $ibx->filter($im)) {
+			my $scrubbed = $scrub->scrub($eml) or return;
+			$scrubbed == REJECT and return;
+			$eml = $scrubbed;
+		}
+		$im->add($eml, $self->{spamcheck});
+	};
+	if ($@) {
+		warn "$ibx->{name} add failed: $@\n";
+		_done_for_now($self);
 	}
-	$im->add($eml, $self->{spamcheck});
 }
 
 sub _try_path {

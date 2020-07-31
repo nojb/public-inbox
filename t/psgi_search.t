@@ -14,6 +14,7 @@ my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 require_mods(@mods);
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::WWW';
+use_ok 'PublicInbox::SearchIdx';
 my ($tmpdir, $for_destroy) = tmpdir();
 
 my $ibx = PublicInbox::Inbox->new({
