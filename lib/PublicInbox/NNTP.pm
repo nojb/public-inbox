@@ -581,11 +581,11 @@ sub cmd_body ($;$) {
 
 sub cmd_stat ($;$) {
 	my ($self, $art) = @_;
-	my $r = art_lookup($self, $art);
-	return $r unless ref $r;
-	my ($n, $mid) = @$r;
+	my $smsg = art_lookup($self, $art); # art may be msgid
+	return $smsg unless ref $smsg;
+	$art = $smsg->{num};
 	set_art($self, $art);
-	"223 $n <$mid> article retrieved - request text separately";
+	"223 $art <$smsg->{mid}> article retrieved - request text separately";
 }
 
 sub cmd_ihave ($) { '435 article not wanted - do not send it' }
