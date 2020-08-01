@@ -8,6 +8,7 @@ use warnings;
 use base qw(PublicInbox::Inbox);
 use PublicInbox::Import;
 use PublicInbox::Filter::Base qw(REJECT);
+use Errno qw(ENOENT);
 
 use constant {
 	PERM_UMASK => 0,
@@ -135,16 +136,11 @@ sub is_maildir_path ($) {
 sub mime_from_path ($) {
 	my ($path) = @_;
 	if (open my $fh, '<', $path) {
-		local $/;
-		my $str = <$fh>;
-		$str or return;
-		return PublicInbox::Eml->new(\$str);
-	} elsif ($!{ENOENT}) {
-		# common with Maildir
-		return;
-	} else {
-		warn "failed to open $path: $!\n";
-		return;
+		my $str = do { local $/; <$fh> } or return;
+		PublicInbox::Eml->new(\$str);
+	} else { # ENOENT is common with Maildir
+		warn "failed to open $path: $!\n" if $! != ENOENT;
+		undef;
 	}
 }
 
