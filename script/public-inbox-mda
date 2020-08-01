@@ -119,7 +119,7 @@ for my $ibx (@$dests) {
 		# destination succeeds
 		$emm->abort;
 	} else { # v1-only
-		my $mid = $mime->header_obj->header_raw('Message-ID');
+		my $mid = $mime->header_raw('Message-ID');
 		# this message is similar to what ssoma-mda shows:
 		print STDERR "CONFLICT: Message-ID: $mid exists\n";
 	}

@@ -116,9 +116,8 @@ sub atom_header {
 # returns undef or string
 sub feed_entry {
 	my ($ctx, $smsg, $eml) = @_;
-	my $hdr = $eml->header_obj;
 	my $mid = $smsg->{mid};
-	my $irt = PublicInbox::View::in_reply_to($hdr);
+	my $irt = PublicInbox::View::in_reply_to($eml);
 	my $uuid = to_uuid($mid);
 	my $base = $ctx->{feed_base_url};
 	if (defined $irt) {
@@ -130,13 +129,13 @@ sub feed_entry {
 		$irt = '';
 	}
 	my $href = $base . mid_href($mid) . '/';
-	my $updated = feed_updated(msg_timestamp($hdr));
+	my $updated = feed_updated(msg_timestamp($eml));
 
-	my $title = $hdr->header('Subject');
+	my $title = $eml->header('Subject');
 	$title = '(no subject)' unless defined $title && $title ne '';
 	$title = title_tag($title);
 
-	my $from = $hdr->header('From') // $hdr->header('Sender') //
+	my $from = $eml->header('From') // $eml->header('Sender') //
 		$ctx->{-inbox}->{-primary_address};
 	my ($email) = PublicInbox::Address::emails($from);
 	my $name = ascii_html(join(', ', PublicInbox::Address::names($from)));

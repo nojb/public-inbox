@@ -53,29 +53,28 @@ sub content_dig_i {
 }
 
 sub content_digest ($) {
-	my ($mime) = @_;
+	my ($eml) = @_;
 	my $dig = Digest::SHA->new(256);
-	my $hdr = $mime->header_obj;
 
 	# References: and In-Reply-To: get used interchangeably
 	# in some "duplicates" in LKML.  We treat them the same
 	# in SearchIdx, so treat them the same for this:
 	# do NOT consider the Message-ID as part of the content_hash
 	# if we got here, we've already got Message-ID reuse
-	my %seen = map { $_ => 1 } @{mids($hdr)};
-	foreach my $mid (@{references($hdr)}) {
+	my %seen = map { $_ => 1 } @{mids($eml)};
+	foreach my $mid (@{references($eml)}) {
 		$dig->add("ref\0$mid\0") unless $seen{$mid}++;
 	}
 
 	# Only use Sender: if From is not present
 	foreach my $h (qw(From Sender)) {
-		my @v = $hdr->header($h);
+		my @v = $eml->header($h);
 		if (@v) {
 			digest_addr($dig, $h, $_) foreach @v;
 		}
 	}
 	foreach my $h (qw(Subject Date)) {
-		my @v = $hdr->header($h);
+		my @v = $eml->header($h);
 		foreach my $v (@v) {
 			utf8::encode($v);
 			$dig->add("$h\0$v\0");
@@ -85,10 +84,10 @@ sub content_digest ($) {
 	# not in the original message.  For the purposes of deduplication,
 	# do not take it into account:
 	foreach my $h (qw(To Cc)) {
-		my @v = $hdr->header($h);
+		my @v = $eml->header($h);
 		digest_addr($dig, $h, $_) foreach @v;
 	}
-	msg_iter($mime, \&content_dig_i, $dig);
+	msg_iter($eml, \&content_dig_i, $dig);
 	$dig;
 }
 

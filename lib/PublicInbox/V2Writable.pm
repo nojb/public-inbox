@@ -197,7 +197,7 @@ sub _add {
 
 sub v2_num_for {
 	my ($self, $mime) = @_;
-	my $mids = mids($mime->header_obj);
+	my $mids = mids($mime);
 	if (@$mids) {
 		my $mid = $mids->[0];
 		my $num = $self->{mm}->mid_insert($mid);
@@ -244,28 +244,27 @@ sub v2_num_for {
 }
 
 sub v2_num_for_harder {
-	my ($self, $mime) = @_;
+	my ($self, $eml) = @_;
 
-	my $hdr = $mime->header_obj;
-	my $dig = content_digest($mime);
-	my $mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+	my $dig = content_digest($eml);
+	my $mid0 = PublicInbox::Import::digest2mid($dig, $eml);
 	my $num = $self->{mm}->mid_insert($mid0);
 	unless (defined $num) {
 		# it's hard to spoof the last Received: header
-		my @recvd = $hdr->header_raw('Received');
+		my @recvd = $eml->header_raw('Received');
 		$dig->add("Received: $_") foreach (@recvd);
-		$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+		$mid0 = PublicInbox::Import::digest2mid($dig, $eml);
 		$num = $self->{mm}->mid_insert($mid0);
 
 		# fall back to a random Message-ID and give up determinism:
 		until (defined($num)) {
 			$dig->add(rand);
-			$mid0 = PublicInbox::Import::digest2mid($dig, $hdr);
+			$mid0 = PublicInbox::Import::digest2mid($dig, $eml);
 			warn "using random Message-ID <$mid0> as fallback\n";
 			$num = $self->{mm}->mid_insert($mid0);
 		}
 	}
-	PublicInbox::Import::append_mid($hdr, $mid0);
+	PublicInbox::Import::append_mid($eml, $mid0);
 	($num, $mid0);
 }
 
@@ -384,7 +383,7 @@ sub rewrite_internal ($$;$$$) {
 	my $over = $self->{over};
 	my $chashes = content_hashes($old_eml);
 	my $removed = [];
-	my $mids = mids($old_eml->header_obj);
+	my $mids = mids($old_eml);
 
 	# We avoid introducing new blobs into git since the raw content
 	# can be slightly different, so we do not need the user-supplied
@@ -514,9 +513,7 @@ sub _check_mids_match ($$$) {
 # Message-IDs are pretty complex and rethreading hasn't been fully
 # implemented, yet.
 sub check_mids_match ($$) {
-	my ($old_mime, $new_mime) = @_;
-	my $old = $old_mime->header_obj;
-	my $new = $new_mime->header_obj;
+	my ($old, $new) = @_;
 	_check_mids_match(mids($old), mids($new), 'Message-ID(s)');
 	_check_mids_match(references($old), references($new),
 			'References/In-Reply-To');
@@ -894,9 +891,9 @@ sub index_oid { # cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
 	return if $size == 0; # purged
 	my ($num, $mid0);
-	my $mime = PublicInbox::Eml->new($$bref);
-	my $mids = mids($mime->header_obj);
-	my $chash = content_hash($mime);
+	my $eml = PublicInbox::Eml->new($$bref);
+	my $mids = mids($eml);
+	my $chash = content_hash($eml);
 	my $self = $arg->{v2w};
 
 	if (scalar(@$mids) == 0) {
@@ -960,8 +957,8 @@ sub index_oid { # cat_async callback
 		blob => $oid,
 		mid => $mid0,
 	}, 'PublicInbox::Smsg';
-	$smsg->populate($mime, $arg);
-	if (do_idx($self, $bref, $mime, $smsg)) {
+	$smsg->populate($eml, $arg);
+	if (do_idx($self, $bref, $eml, $smsg)) {
 		${$arg->{need_checkpoint}} = 1;
 	}
 }
@@ -1113,7 +1110,7 @@ sub unindex_oid ($$;$) { # git->cat_async callback
 	my $self = $sync->{v2w};
 	my $unindexed = $sync->{in_unindex} ? $sync->{unindexed} : undef;
 	my $mm = $self->{mm};
-	my $mids = mids(PublicInbox::Eml->new($bref)->header_obj);
+	my $mids = mids(PublicInbox::Eml->new($bref));
 	undef $$bref;
 	my $over = $self->{over};
 	foreach my $mid (@$mids) {

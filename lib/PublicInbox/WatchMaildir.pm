@@ -163,9 +163,8 @@ sub import_eml ($$$) {
 	# any header match means it's eligible for the inbox:
 	if (my $watch_hdrs = $ibx->{-watchheaders}) {
 		my $ok;
-		my $hdr = $eml->header_obj;
 		for my $wh (@$watch_hdrs) {
-			my @v = $hdr->header_raw($wh->[0]);
+			my @v = $eml->header_raw($wh->[0]);
 			$ok = grep(/$wh->[1]/, @v) and last;
 		}
 		return unless $ok;

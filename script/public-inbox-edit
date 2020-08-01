@@ -93,7 +93,7 @@ Multiple messages with different content found matching
 	}
 } else {
 	my $eml = eml_from_path($file) or die "open($file) failed: $!";
-	my $mids = mids($eml->header_obj);
+	my $mids = mids($eml);
 	find_mid($found, $_, \@ibxs) for (@$mids); # populates $found
 	my $chash = content_hash($eml);
 	my $to_edit = $found->{$chash};
@@ -214,9 +214,9 @@ W: possible message boundary splitting error
 
 	# allow changing Received: and maybe other headers which can
 	# contain sensitive info.
-	my $nhdr = $new_mime->header_obj;
-	my $ohdr = $old_mime->header_obj;
-	if (($nhdr->as_string eq $ohdr->as_string) &&
+	my $nhdr = $new_mime->header_obj->as_string;
+	my $ohdr = $old_mime->header_obj->as_string;
+	if (($nhdr eq $ohdr) &&
 	    (content_hash($new_mime) eq content_hash($old_mime))) {
 		warn "No change detected to:\n", show_cmd($ibx, $smsg);
 

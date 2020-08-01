@@ -285,15 +285,14 @@ sub extract_cmt_info ($;$) {
 	# $mime is PublicInbox::Eml, but remains Email::MIME-compatible
 	$smsg //= bless {}, 'PublicInbox::Smsg';
 
-	my $hdr = $mime->header_obj;
-	$smsg->populate($hdr);
+	$smsg->populate($mime);
 
 	my $sender = '';
 	my $from = delete($smsg->{From}) // '';
 	my ($email) = PublicInbox::Address::emails($from);
 	my ($name) = PublicInbox::Address::names($from);
 	if (!defined($name) || !defined($email)) {
-		$sender = $hdr->header('Sender') // '';
+		$sender = $mime->header('Sender') // '';
 		$name //= (PublicInbox::Address::names($sender))[0];
 		$email //= (PublicInbox::Address::emails($sender))[0];
 	}
@@ -346,13 +345,12 @@ sub append_mid ($$) {
 }
 
 sub v1_mid0 ($) {
-	my ($mime) = @_;
-	my $hdr = $mime->header_obj;
-	my $mids = mids($hdr);
+	my ($eml) = @_;
+	my $mids = mids($eml);
 
 	if (!scalar(@$mids)) { # spam often has no Message-ID
-		my $mid0 = digest2mid(content_digest($mime), $hdr);
-		append_mid($hdr, $mid0);
+		my $mid0 = digest2mid(content_digest($eml), $eml);
+		append_mid($eml, $mid0);
 		return $mid0;
 	}
 	$mids->[0];
@@ -671,8 +669,7 @@ version 1.0
 	my $parsed = PublicInbox::Eml->new($message);
 	my $ret = $im->add($parsed);
 	if (!defined $ret) {
-		warn "duplicate: ",
-			$parsed->header_obj->header_raw('Message-ID'), "\n";
+		warn "duplicate: ", $parsed->header_raw('Message-ID'), "\n";
 	} else {
 		print "imported at mark $ret\n";
 	}

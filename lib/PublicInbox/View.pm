@@ -33,8 +33,7 @@ sub msg_page_i {
 		$ctx->{smsg} = $ctx->{over}->next_by_mid(@{$ctx->{next_arg}});
 		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
 				"../${\mid_href($smsg->{mid})}/" : '';
-		my $hdr = $eml->header_obj;
-		my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx);
+		my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($eml, $ctx);
 		multipart_text_as_html($eml, $ctx);
 		delete $ctx->{obuf};
 		$$obuf .= '</pre><hr>';
@@ -50,14 +49,13 @@ sub no_over_html ($) {
 	my ($ctx) = @_;
 	my $bref = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return; # 404
 	my $eml = PublicInbox::Eml->new($bref);
-	my $hdr = $eml->header_obj;
 	$ctx->{mhref} = '';
 	PublicInbox::WwwStream::init($ctx);
-	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($hdr, $ctx);
+	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($eml, $ctx);
 	multipart_text_as_html($eml, $ctx);
 	delete $ctx->{obuf};
 	$$obuf .= '</pre><hr>';
-	eval { $$obuf .= html_footer($ctx, $hdr) };
+	eval { $$obuf .= html_footer($ctx, $eml) };
 	html_oneshot($ctx, 200, $obuf);
 }
 
@@ -199,16 +197,15 @@ sub eml_entry {
 	# Deleting these fields saves about 400K as we iterate across 1K msgs
 	delete @$smsg{qw(ts blob)};
 
-	my $hdr = $eml->header_obj;
-	my $from = _hdr_names_html($hdr, 'From');
+	my $from = _hdr_names_html($eml, 'From');
 	obfuscate_addrs($obfs_ibx, $from) if $obfs_ibx;
 	$rv .= "From: $from @ ".fmt_ts($ds)." UTC";
 	my $upfx = $ctx->{-upfx};
 	my $mhref = $upfx . mid_href($mid_raw) . '/';
 	$rv .= qq{ (<a\nhref="$mhref">permalink</a> / };
 	$rv .= qq{<a\nhref="${mhref}raw">raw</a>)\n};
-	my $to = fold_addresses(_hdr_names_html($hdr, 'To'));
-	my $cc = fold_addresses(_hdr_names_html($hdr, 'Cc'));
+	my $to = fold_addresses(_hdr_names_html($eml, 'To'));
+	my $cc = fold_addresses(_hdr_names_html($eml, 'Cc'));
 	my ($tlen, $clen) = (length($to), length($cc));
 	my $to_cc = '';
 	if (($tlen + $clen) > COLS) {
@@ -227,7 +224,7 @@ sub eml_entry {
 	$rv .= $to_cc;
 
 	my $mapping = $ctx->{mapping};
-	if (!$mapping && (defined($irt) || defined($irt = in_reply_to($hdr)))) {
+	if (!$mapping && (defined($irt) || defined($irt = in_reply_to($eml)))) {
 		my $href = $upfx . mid_href($irt) . '/';
 		my $html = ascii_html($irt);
 		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href">$html</a>&gt;\n)
@@ -626,16 +623,16 @@ sub add_text_body { # callback for each_part
 }
 
 sub _msg_page_prepare_obuf {
-	my ($hdr, $ctx) = @_;
+	my ($eml, $ctx) = @_;
 	my $over = $ctx->{-inbox}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
-	my $mids = mids_for_index($hdr);
+	my $mids = mids_for_index($eml);
 	my $nr = $ctx->{nr}++;
 	if ($nr) { # unlikely
 		$rv .= '<pre>';
 	} else {
-		$ctx->{first_hdr} = $hdr;
+		$ctx->{first_hdr} = $eml->header_obj;
 		if ($ctx->{smsg}) {
 			$rv .=
 "<pre>WARNING: multiple messages have this Message-ID\n</pre>";
@@ -644,7 +641,7 @@ sub _msg_page_prepare_obuf {
 	}
 	$ctx->{-upfx} = '../' if $over;
 	my @title; # (Subject[0], From[0])
-	for my $v ($hdr->header('From')) {
+	for my $v ($eml->header('From')) {
 		my @n = PublicInbox::Address::names($v);
 		$v = ascii_html($v);
 		$title[1] //= ascii_html(join(', ', @n));
@@ -655,14 +652,14 @@ sub _msg_page_prepare_obuf {
 		$rv .= "From: $v\n" if $v ne '';
 	}
 	foreach my $h (qw(To Cc)) {
-		for my $v ($hdr->header($h)) {
+		for my $v ($eml->header($h)) {
 			fold_addresses($v);
 			$v = ascii_html($v);
 			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
 			$rv .= "$h: $v\n" if $v ne '';
 		}
 	}
-	my @subj = $hdr->header('Subject');
+	my @subj = $eml->header('Subject');
 	if (@subj) {
 		my $v = ascii_html(shift @subj);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
@@ -678,7 +675,7 @@ sub _msg_page_prepare_obuf {
 		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $over;
 		$title[0] = '(no subject)';
 	}
-	for my $v ($hdr->header('Date')) {
+	for my $v ($eml->header('Date')) {
 		$v = ascii_html($v);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx; # possible :P
 		$rv .= "Date: $v\n";
@@ -697,12 +694,12 @@ sub _msg_page_prepare_obuf {
 		my $lnk = PublicInbox::Linkify->new;
 		my $s = '';
 		for my $h (qw(Message-ID X-Alt-Message-ID)) {
-			$s .= "$h: $_\n" for ($hdr->header_raw($h));
+			$s .= "$h: $_\n" for ($eml->header_raw($h));
 		}
 		$lnk->linkify_mids('..', \$s, 1);
 		$rv .= $s;
 	}
-	$rv .= _parent_headers($hdr, $over);
+	$rv .= _parent_headers($eml, $over);
 	$rv .= "\n";
 	\$rv;
 }

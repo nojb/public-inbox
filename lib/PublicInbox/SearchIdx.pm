@@ -350,8 +350,7 @@ sub index_ids ($$$$) {
 }
 
 sub add_xapian ($$$$) {
-	my ($self, $mime, $smsg, $mids) = @_;
-	my $hdr = $mime->header_obj;
+	my ($self, $eml, $smsg, $mids) = @_;
 	my $doc = $X->{Document}->new;
 	add_val($doc, PublicInbox::Search::TS(), $smsg->{ts});
 	my @ds = gmtime($smsg->{ds});
@@ -366,10 +365,10 @@ sub add_xapian ($$$$) {
 	$tg->set_document($doc);
 	index_headers($self, $smsg);
 
-	msg_iter($mime, \&index_xapian, [ $self, $doc ]);
-	index_ids($self, $doc, $hdr, $mids);
+	msg_iter($eml, \&index_xapian, [ $self, $doc ]);
+	index_ids($self, $doc, $eml, $mids);
 	$smsg->{to} = $smsg->{cc} = ''; # WWW doesn't need these, only NNTP
-	PublicInbox::OverIdx::parse_references($smsg, $hdr, $mids);
+	PublicInbox::OverIdx::parse_references($smsg, $eml, $mids);
 	my $data = $smsg->to_doc_data;
 	$doc->set_data($data);
 	if (my $altid = $self->{-altid}) {
@@ -398,8 +397,7 @@ sub _msgmap_init ($) {
 sub add_message {
 	# mime = PublicInbox::Eml or Email::MIME object
 	my ($self, $mime, $smsg, $sync) = @_;
-	my $hdr = $mime->header_obj;
-	my $mids = mids_for_index($hdr);
+	my $mids = mids_for_index($mime);
 	$smsg //= bless { blob => '' }, 'PublicInbox::Smsg'; # test-only compat
 	$smsg->{mid} //= $mids->[0]; # v1 compatibility
 	$smsg->{num} //= do { # v1
@@ -408,7 +406,7 @@ sub add_message {
 	};
 
 	# v1 and tests only:
-	$smsg->populate($hdr, $sync);
+	$smsg->populate($mime, $sync);
 	$smsg->{bytes} //= length($mime->as_string);
 
 	eval {
