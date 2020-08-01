@@ -420,6 +420,7 @@ $ibx->with_umask(sub {
 		$art = $ro->{over_ro}->next_by_mid($mid, \$id, \$prev);
 		ok($art, 'article exists in OVER DB');
 	}
+	$rw->_msgmap_init;
 	$rw->unindex_eml($oid, $amsg);
 	$rw->commit_txn_lazy;
 	SKIP: {

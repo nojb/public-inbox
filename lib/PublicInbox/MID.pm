@@ -6,7 +6,7 @@ package PublicInbox::MID;
 use strict;
 use warnings;
 use base qw/Exporter/;
-our @EXPORT_OK = qw(mid_clean id_compress mid2path mid_mime mid_escape MID_ESC
+our @EXPORT_OK = qw(mid_clean id_compress mid2path mid_escape MID_ESC
 	mids references mids_for_index $MID_EXTRACT);
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
@@ -52,9 +52,6 @@ sub mid2path {
 	}
 	"$x2/$x38";
 }
-
-# Only for v1 code paths:
-sub mid_mime ($) { mids($_[0]->header_obj)->[0] }
 
 # only intended for Message-ID and X-Alt-Message-ID
 sub extract_mids {

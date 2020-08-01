@@ -12,7 +12,7 @@ use v5.10.1;
 use parent qw(PublicInbox::Search PublicInbox::Lock Exporter);
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable;
-use PublicInbox::MID qw(mid_mime mids_for_index mids);
+use PublicInbox::MID qw(mids_for_index mids);
 use PublicInbox::MsgIter;
 use PublicInbox::IdxStack;
 use Carp qw(croak);
@@ -492,6 +492,11 @@ sub unindex_eml {
 	while (my ($num, $nr) = each %tmp) {
 		warn "BUG: $num appears >1 times ($nr) for $oid\n" if $nr != 1;
 	}
+	if ($nr) {
+		$self->{mm}->num_delete($_) for (keys %tmp);
+	} else { # just in case msgmap and over.sqlite3 become desynched:
+		$self->{mm}->mid_delete($mids->[0]);
+	}
 	xdb_remove($self, $oid, keys %tmp) if need_xapian($self);
 }
 
@@ -510,11 +515,6 @@ sub index_mm {
 		# fallback to num_for since filters like RubyLang set the number
 		$mm->mid_insert($mids->[0]) // $mm->num_for($mids->[0]);
 	}
-}
-
-sub unindex_mm {
-	my ($self, $mime) = @_;
-	$self->{mm}->mid_delete(mid_mime($mime));
 }
 
 # returns the number of bytes to add if given a non-CRLF arg
@@ -544,9 +544,7 @@ sub index_both { # git->cat_async callback
 
 sub unindex_both { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $self) = @_;
-	my $eml = PublicInbox::Eml->new($bref);
-	unindex_eml($self, $oid, $eml);
-	unindex_mm($self, $eml);
+	unindex_eml($self, $oid, PublicInbox::Eml->new($bref));
 }
 
 # called by public-inbox-index
