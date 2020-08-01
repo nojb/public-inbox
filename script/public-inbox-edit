@@ -13,7 +13,7 @@ use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::MID qw(mid_clean mids);
 PublicInbox::Admin::check_require('-index');
 use PublicInbox::Eml;
-use PublicInbox::InboxWritable;
+use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Import;
 
 my $usage = "$0 -m MESSAGE_ID [--all] [INBOX_DIRS]";
@@ -92,11 +92,10 @@ Multiple messages with different content found matching
 		warn "Will edit all of them\n";
 	}
 } else {
-	my $mime = PublicInbox::InboxWritable::mime_from_path($file) or
-		die "open($file) failed: $!";
-	my $mids = mids($mime->header_obj);
+	my $eml = eml_from_path($file) or die "open($file) failed: $!";
+	my $mids = mids($eml->header_obj);
 	find_mid($found, $_, \@ibxs) for (@$mids); # populates $found
-	my $chash = content_hash($mime);
+	my $chash = content_hash($eml);
 	my $to_edit = $found->{$chash};
 	unless ($to_edit) {
 		my $nr = scalar(keys %$found);

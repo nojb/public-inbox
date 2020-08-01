@@ -4,11 +4,12 @@
 # Extends read-only Inbox for writing
 package PublicInbox::InboxWritable;
 use strict;
-use warnings;
-use base qw(PublicInbox::Inbox);
+use v5.10.1;
+use parent qw(PublicInbox::Inbox Exporter);
 use PublicInbox::Import;
 use PublicInbox::Filter::Base qw(REJECT);
 use Errno qw(ENOENT);
+our @EXPORT_OK = qw(eml_from_path);
 
 use constant {
 	PERM_UMASK => 0,
@@ -133,7 +134,7 @@ sub is_maildir_path ($) {
 	(is_maildir_basename($p[-1]) && -f $path) ? 1 : 0;
 }
 
-sub mime_from_path ($) {
+sub eml_from_path ($) {
 	my ($path) = @_;
 	if (open my $fh, '<', $path) {
 		my $str = do { local $/; <$fh> } or return;
@@ -155,7 +156,7 @@ sub import_maildir {
 		opendir my $dh, "$dir/$sub" or die "opendir $dir/$sub: $!\n";
 		while (defined(my $fn = readdir($dh))) {
 			next unless is_maildir_basename($fn);
-			my $mime = mime_from_path("$dir/$fn") or next;
+			my $mime = eml_from_path("$dir/$fn") or next;
 
 			if (my $filter = $self->filter($im)) {
 				my $ret = $filter->scrub($mime) or return;

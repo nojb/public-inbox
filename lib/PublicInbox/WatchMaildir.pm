@@ -7,7 +7,7 @@ package PublicInbox::WatchMaildir;
 use strict;
 use warnings;
 use PublicInbox::Eml;
-use PublicInbox::InboxWritable;
+use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
 use PublicInbox::Sigfd;
@@ -15,7 +15,6 @@ use PublicInbox::DS qw(now);
 use PublicInbox::MID qw(mids);
 use PublicInbox::ContentHash qw(content_hash);
 use POSIX qw(_exit);
-*mime_from_path = \&PublicInbox::InboxWritable::mime_from_path;
 
 sub compile_watchheaders ($) {
 	my ($ibx) = @_;
@@ -154,7 +153,7 @@ sub _remove_spam {
 	my ($self, $path) = @_;
 	# path must be marked as (S)een
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
-	my $eml = mime_from_path($path) or return;
+	my $eml = eml_from_path($path) or return;
 	$self->{config}->each_inbox(\&remove_eml_i, [ $self, $eml, $path ]);
 }
 
@@ -207,7 +206,7 @@ sub _try_path {
 		return _remove_spam($self, $path);
 	}
 	foreach my $ibx (@$inboxes) {
-		my $eml = mime_from_path($path) or next;
+		my $eml = eml_from_path($path) or next;
 		import_eml($self, $ibx, $eml);
 	}
 }
