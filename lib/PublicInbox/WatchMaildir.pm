@@ -7,7 +7,7 @@ package PublicInbox::WatchMaildir;
 use strict;
 use warnings;
 use PublicInbox::Eml;
-use PublicInbox::InboxWritable qw(eml_from_path);
+use PublicInbox::InboxWritable qw(eml_from_path warn_ignore_cb);
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
 use PublicInbox::Sigfd;
@@ -154,6 +154,7 @@ sub _remove_spam {
 	# path must be marked as (S)een
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
 	my $eml = eml_from_path($path) or return;
+	local $SIG{__WARN__} = warn_ignore_cb();
 	$self->{config}->each_inbox(\&remove_eml_i, [ $self, $eml, $path ]);
 }
 
@@ -197,10 +198,7 @@ sub _try_path {
 		return;
 	}
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
-	local $SIG{__WARN__} = sub {
-		$warn_cb->("path: $path\n");
-		$warn_cb->(@_);
-	};
+	local $SIG{__WARN__} = sub { $warn_cb->("path: $path\n", @_) };
 	if (!ref($inboxes) && $inboxes eq 'watchspam') {
 		return _remove_spam($self, $path);
 	}
@@ -393,6 +391,7 @@ sub imap_import_msg ($$$$) {
 			my $x = import_eml($self, $ibx, $eml);
 		}
 	} elsif ($inboxes eq 'watchspam') {
+		local $SIG{__WARN__} = warn_ignore_cb();
 		my $eml = PublicInbox::Eml->new($raw);
 		my $arg = [ $self, $eml, "$url UID:$uid" ];
 		$self->{config}->each_inbox(\&remove_eml_i, $arg);
@@ -445,8 +444,7 @@ sub imap_fetch_all ($$$) {
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	local $SIG{__WARN__} = sub {
 		$batch //= '?';
-		$warn_cb->("$url UID:$batch\n");
-		$warn_cb->(@_);
+		$warn_cb->("$url UID:$batch\n", @_);
 	};
 	my $err;
 	do {

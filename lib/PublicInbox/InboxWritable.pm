@@ -9,7 +9,7 @@ use parent qw(PublicInbox::Inbox Exporter);
 use PublicInbox::Import;
 use PublicInbox::Filter::Base qw(REJECT);
 use Errno qw(ENOENT);
-our @EXPORT_OK = qw(eml_from_path);
+our @EXPORT_OK = qw(eml_from_path warn_ignore_cb);
 
 use constant {
 	PERM_UMASK => 0,
@@ -276,6 +276,26 @@ sub umask_prepare {
 
 sub cleanup ($) {
 	delete @{$_[0]}{qw(over mm git search)};
+}
+
+# warnings to ignore when handling spam mailboxes and maybe other places
+sub warn_ignore {
+	my $s = "@_";
+	# Email::Address::XS warnings
+	$s =~ /^Argument contains empty address at /
+	|| $s =~ /^Element at index [0-9]+ contains /
+	# PublicInbox::MsgTime
+	|| $s =~ /^bogus TZ offset: .+?, ignoring and assuming \+0000/
+	|| $s =~ /^bad Date: .+? in /
+}
+
+# this expects to be RHS in this assignment: "local $SIG{__WARN__} = ..."
+sub warn_ignore_cb {
+	my $cb = $SIG{__WARN__} // sub { print STDERR @_ };
+	sub {
+		return if warn_ignore(@_);
+		$cb->(@_);
+	}
 }
 
 1;
