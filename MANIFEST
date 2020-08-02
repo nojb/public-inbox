@@ -309,6 +309,7 @@ t/msgtime.t
 t/multi-mid.t
 t/nntp.t
 t/nntpd-tls.t
+t/nntpd-v2.t
 t/nntpd.t
 t/nodatacow.t
 t/nulsubject.t

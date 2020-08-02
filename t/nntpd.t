@@ -16,7 +16,7 @@ use POSIX qw(_exit);
 use Digest::SHA;
 use_ok 'PublicInbox::Msgmap';
 
-# FIXME: make easier to test both versions
+# t/nntpd-v2.t wraps this for v2
 my $version = $ENV{PI_TEST_VERSION} || 1;
 require_git('2.6') if $version == 2;
 my $lsof = which('lsof');
@@ -30,10 +30,6 @@ my $out = "$tmpdir/stdout.log";
 my $inboxdir = "$tmpdir/main.git";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
-SKIP: {
-	skip "git 2.6+ required for V2Writable", 1 if $version == 1;
-	use_ok 'PublicInbox::V2Writable';
-}
 
 my %opts;
 my $sock = tcp_server();
@@ -350,7 +346,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 			delete $ibx->{mm};
 			rename($tmp, $f) or BAIL_OUT "rename($tmp, $f): $!";
 		}
-		ok(run_script([qw(-index --reindex -c), $ibx->{inboxdir}],
+		ok(run_script([qw(-index -c -j0 --reindex), $ibx->{inboxdir}],
 				undef, $noerr), '-compacted');
 		select(undef, undef, undef, $fast_idle ? 0.1 : 2.1);
 		$art = $n->article($ex->header('Message-ID'));
