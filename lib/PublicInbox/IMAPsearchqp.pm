@@ -18,6 +18,7 @@ my %MM = map {; $MoY[$_-1] => sprintf('%02u', $_) } (1..12);
 my %IH2X = (
 	SUBJECT => 's:',
 	BODY => 'b:',
+	# TEXT => undef, # => everything
 	FROM => 'f:',
 	TO => 't:',
 	CC => 'c:',
@@ -182,6 +183,7 @@ search_key1 : "ALL" | "RECENT" | "UNSEEN" | "NEW"
 	| CC_string
 	| BCC_string
 	| SUBJECT_string
+	| BODY_string
 	| TEXT_string
 	| UID_set
 	| MSN_set
@@ -239,6 +241,7 @@ TO_string : "TO" string { $q->ih2x('TO', $item{string}) }
 CC_string : "CC" string { $q->ih2x('CC', $item{string}) }
 BCC_string : "BCC" string { $q->ih2x('BCC', $item{string}) }
 SUBJECT_string : "SUBJECT" string { $q->ih2x('SUBJECT', $item{string}) }
+BODY_string : "BODY" string { $q->ih2x('BODY', $item{string}) }
 TEXT_string : "TEXT" string { $q->ih2x(undef, $item{string}) }
 op_subq_enter : '(' { $q->subq_enter }
 sub_query : op_subq_enter search_key1(s) ')' { $q->subq_leave }

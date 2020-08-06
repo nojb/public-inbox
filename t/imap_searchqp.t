@@ -14,6 +14,9 @@ my $imap = bless {}, 'PublicInbox::IMAP';
 my $q;
 my $parse = sub { PublicInbox::IMAPsearchqp::parse($imap, $_[0]) };
 
+$q = $parse->(qq{BODY oops});
+is($q->{xap}, 'b:"oops"', 'BODY key supported');
+
 $q = $parse->(qq{OR HEADER TO Brian (OR FROM Ryan (OR TO Joe CC Scott))});
 is($q->{sql}, undef, 'not using SQLite for complex query');
 is($q->{xap}, '(t:"brian" OR (f:"ryan" OR (t:"joe" OR c:"scott")))',
