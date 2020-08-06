@@ -248,6 +248,7 @@ sub atfork_parent {
 	$self->{dbh} and die 'BUG: tmp_clone dbh not prepared for parent';
 	defined($self->{filename}) or die 'BUG: {filename} not defined';
 	$self->{dbh} = PublicInbox::Over::dbh_new($self, 2);
+	$self->{dbh}->do('PRAGMA journal_mode = MEMORY');
 }
 
 sub atfork_prepare {
