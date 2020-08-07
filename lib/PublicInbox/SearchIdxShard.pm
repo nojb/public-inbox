@@ -89,16 +89,20 @@ sub shard_worker_loop ($$$$$) {
 
 # called by V2Writable
 sub index_raw {
-	my ($self, $msgref, $mime, $smsg) = @_;
+	my ($self, $msgref, $eml, $smsg) = @_;
 	if (my $w = $self->{w}) {
 		# mid must be last, it can contain spaces (but not LF)
 		print $w join(' ', @$smsg{qw(raw_bytes bytes
 						num blob ds ts mid)}),
 			"\n", $$msgref or die "failed to write shard $!\n";
 	} else {
-		$$msgref = undef;
+		if ($eml) {
+			$$msgref = undef;
+		} else { # --xapian-only + --sequential-shard:
+			$eml = PublicInbox::Eml->new($msgref);
+		}
 		$self->begin_txn_lazy;
-		$self->add_message($mime, $smsg);
+		$self->add_message($eml, $smsg);
 	}
 }
 

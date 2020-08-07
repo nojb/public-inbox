@@ -16,6 +16,7 @@ use PublicInbox::Xapcmd;
 my $compact_opt;
 my $opt = { quiet => -1, compact => 0, maxsize => undef, sync => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune sync!
+		xapianonly|xapian-only
 		indexlevel|L=s maxsize|max-size=s batchsize|batch-size=s
 		sequentialshard|seq-shard|sequential-shard))
 	or die "bad command-line args\n$usage";
@@ -59,8 +60,8 @@ if (defined $s) {
 my $mods = {};
 foreach my $ibx (@ibxs) {
 	# XXX: users can shoot themselves in the foot, with opt->{indexlevel}
-	$ibx->{indexlevel} //= $opt->{indexlevel} //
-			PublicInbox::Admin::detect_indexlevel($ibx);
+	$ibx->{indexlevel} //= $opt->{indexlevel} // ($opt->{xapianonly} ?
+			'full' : PublicInbox::Admin::detect_indexlevel($ibx));
 	$ibx->{index_max_size} = $max_size;
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
