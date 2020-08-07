@@ -7,7 +7,7 @@ use PublicInbox::WatchMaildir;
 use PublicInbox::Config;
 use PublicInbox::DS;
 use PublicInbox::Sigfd;
-use PublicInbox::Syscall qw(SFD_NONBLOCK);
+use PublicInbox::Syscall qw($SFD_NONBLOCK);
 my $oldset = PublicInbox::Sigfd::block_signals();
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -35,7 +35,7 @@ if ($watch_md) {
 	unless (grep(/\A--no-scan\z/, @ARGV)) {
 		PublicInbox::DS::requeue($scan);
 	}
-	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
+	my $sigfd = PublicInbox::Sigfd->new($sig, $SFD_NONBLOCK);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
 	if (!$sigfd) {
 		PublicInbox::Sigfd::set_sigmask($oldset);

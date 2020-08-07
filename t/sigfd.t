@@ -4,7 +4,7 @@ use Test::More;
 use IO::Handle;
 use POSIX qw(:signal_h);
 use Errno qw(ENOSYS);
-use PublicInbox::Syscall qw(SFD_NONBLOCK);
+use PublicInbox::Syscall qw($SFD_NONBLOCK);
 require_ok 'PublicInbox::Sigfd';
 
 SKIP: {
@@ -42,8 +42,8 @@ SKIP: {
 		}
 		$sigfd = undef;
 
-		my $nbsig = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
-		ok($nbsig, 'Sigfd->new SFD_NONBLOCK works');
+		my $nbsig = PublicInbox::Sigfd->new($sig, $SFD_NONBLOCK);
+		ok($nbsig, 'Sigfd->new $SFD_NONBLOCK works');
 		is($nbsig->wait_once, undef, 'nonblocking ->wait_once');
 		ok($! == Errno::EAGAIN, 'got EAGAIN');
 		kill('HUP', $$) or die "kill $!";

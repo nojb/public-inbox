@@ -15,7 +15,7 @@ use Cwd qw/abs_path/;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
-use PublicInbox::Syscall qw(SFD_NONBLOCK);
+use PublicInbox::Syscall qw($SFD_NONBLOCK);
 require PublicInbox::Listener;
 require PublicInbox::ParentPipe;
 use PublicInbox::Sigfd;
@@ -622,7 +622,7 @@ sub daemon_loop ($$$$) {
 		# this calls epoll_create:
 		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
 	} @listeners;
-	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
+	my $sigfd = PublicInbox::Sigfd->new($sig, $SFD_NONBLOCK);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
 	if (!$sigfd) {
 		# wake up every second to accept signals if we don't

@@ -14,7 +14,7 @@
 package PublicInbox::Syscall;
 use strict;
 use parent qw(Exporter);
-use POSIX qw(ENOSYS SEEK_CUR);
+use POSIX qw(ENOSYS O_NONBLOCK);
 use Config;
 
 # $VERSION = '0.25'; # Sys::Syscall version
@@ -22,7 +22,7 @@ our @EXPORT_OK = qw(epoll_ctl epoll_create epoll_wait
                   EPOLLIN EPOLLOUT EPOLLET
                   EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
                   EPOLLONESHOT EPOLLEXCLUSIVE
-                  signalfd SFD_NONBLOCK);
+                  signalfd $SFD_NONBLOCK);
 our %EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
                              EPOLLIN EPOLLOUT
                              EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
@@ -41,9 +41,6 @@ use constant {
 	EPOLL_CTL_ADD => 1,
 	EPOLL_CTL_DEL => 2,
 	EPOLL_CTL_MOD => 3,
-
-	SFD_CLOEXEC => 02000000,
-	SFD_NONBLOCK => 00004000,
 };
 
 our $loaded_syscall = 0;
@@ -69,6 +66,8 @@ our (
      $SYS_signalfd4,
      );
 
+my $SFD_CLOEXEC = 02000000; # Perl does not expose O_CLOEXEC
+our $SFD_NONBLOCK = O_NONBLOCK;
 our $no_deprecated = 0;
 
 if ($^O eq "linux") {
@@ -103,6 +102,13 @@ if ($^O eq "linux") {
         $SYS_epoll_ctl = 1073742057;
         $SYS_epoll_wait = 1073742056;
         $SYS_signalfd4 = 1073742113;
+    } elsif ($machine eq 'sparc64') {
+	$SYS_epoll_create = 193;
+	$SYS_epoll_ctl = 194;
+	$SYS_epoll_wait = 195;
+	$u64_mod_8 = 1;
+	$SYS_signalfd4 = 317;
+	$SFD_CLOEXEC = 020000000;
     } elsif ($machine =~ m/^parisc/) {
         $SYS_epoll_create = 224;
         $SYS_epoll_ctl    = 225;
@@ -140,6 +146,7 @@ if ($^O eq "linux") {
         $SYS_epoll_wait   = 409;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 484;
+	$SFD_CLOEXEC = 010000000;
     } elsif ($machine eq "aarch64") {
         $SYS_epoll_create = 20;  # (sys_epoll_create1)
         $SYS_epoll_ctl    = 21;
@@ -257,13 +264,11 @@ sub epoll_wait_mod8 {
 sub signalfd ($$$) {
 	my ($fd, $signos, $flags) = @_;
 	if ($SYS_signalfd4) {
-		# Not sure if there's a way to get pack/unpack to get the
-		# contents of POSIX::SigSet to a buffer, but prepping the
-		# bitmap like one would for select() works:
-		my $buf = "\0" x 8;
-		vec($buf, $_ - 1, 1) = 1 for @$signos;
-
-		syscall($SYS_signalfd4, $fd, $buf, 8, $flags|SFD_CLOEXEC);
+		my $set = POSIX::SigSet->new(@$signos);
+		syscall($SYS_signalfd4, $fd, "$$set",
+			# $Config{sig_count} is NSIG, so this is NSIG/8:
+			int($Config{sig_count}/8),
+			$flags|$SFD_CLOEXEC);
 	} else {
 		$! = ENOSYS;
 		undef;
