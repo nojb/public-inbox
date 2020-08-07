@@ -264,7 +264,6 @@ sub run {
 		$reindex = $opt->{reindex} = { # per-epoch ranges for v2
 			from => $ibx->version == 1 ? '' : [],
 		};
-		require PublicInbox::SearchIdx;
 		PublicInbox::SearchIdx::load_xapian_writable();
 	}
 
