@@ -1147,7 +1147,7 @@ sub ts2str ($) { strftime('%Y%m%d%H%M%S', gmtime($_[0])) };
 
 sub str2ts ($) {
 	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $_[0]);
-	timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
+	timegm($ss || 0, $mm || 0, $hh || 0, $dd, $mon - 1, $yyyy);
 }
 
 sub pagination_footer ($$) {

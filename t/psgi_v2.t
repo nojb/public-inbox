@@ -296,6 +296,9 @@ my $client3 = sub {
 	}
 	$res = $cb->(GET('/v2test/?t=1970'.'01'.'01'.'000000'));
 	is($res->code, 404, '404 for out-of-range t= param');
+	@warn = ();
+	$res = $cb->(GET('/v2test/?t=1970'.'01'.'01'));
+	is_deeply(\@warn, [], 'no warnings on YYYYMMDD only');
 };
 test_psgi(sub { $www->call(@_) }, $client3);
 $run_httpd->($client3, 4);
