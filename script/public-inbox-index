@@ -14,9 +14,9 @@ PublicInbox::Admin::require_or_die('-index');
 use PublicInbox::Xapcmd;
 
 my $compact_opt;
-my $opt = { quiet => -1, compact => 0, maxsize => undef, sync => 1 };
-GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune sync!
-		xapianonly|xapian-only
+my $opt = { quiet => -1, compact => 0, maxsize => undef, fsync => 1 };
+GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
+		fsync|sync! xapianonly|xapian-only
 		indexlevel|L=s maxsize|max-size=s batchsize|batch-size=s
 		sequentialshard|seq-shard|sequential-shard))
 	or die "bad command-line args\n$usage";
@@ -73,7 +73,7 @@ for my $ibx (@ibxs) {
 	if ($opt->{compact} >= 2) {
 		PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt);
 	}
-	$ibx->{-no_sync} = 1 if !$opt->{sync};
+	$ibx->{-no_fsync} = 1 if !$opt->{fsync};
 
 	my $ibx_opt = $opt;
 	if (defined(my $s = $ibx->{indexsequentialshard})) {

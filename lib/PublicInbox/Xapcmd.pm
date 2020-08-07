@@ -418,7 +418,7 @@ sub cpdb ($$) {
 	my $flag = eval($PublicInbox::Search::Xap.'::DB_CREATE()');
 	die if $@;
 	my $XapianWritableDatabase = $PublicInbox::Search::X{WritableDatabase};
-	$flag |= $PublicInbox::SearchIdx::DB_NO_SYNC if !$opt->{sync};
+	$flag |= $PublicInbox::SearchIdx::DB_NO_SYNC if !$opt->{fsync};
 	my $dst = $XapianWritableDatabase->new($tmp, $flag);
 	my $pr = $opt->{-progress};
 	my $pfx = $opt->{-progress_pfx} = progress_pfx($new);

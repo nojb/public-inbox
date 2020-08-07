@@ -45,7 +45,7 @@ too many shards given the capabilities of the current hardware.
 These options are passed directly to L<xapian-compact(1)> when
 used with C<--compact>.
 
-=item --no-sync
+=item --no-fsync
 
 Disable L<fsync(2)> and L<fdatasync(2)>.
 

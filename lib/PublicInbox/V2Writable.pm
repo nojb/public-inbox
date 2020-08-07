@@ -122,7 +122,7 @@ sub new {
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git epoch -> commit
 	};
-	$self->{over}->{-no_sync} = 1 if $v2ibx->{-no_sync};
+	$self->{over}->{-no_fsync} = 1 if $v2ibx->{-no_fsync};
 	$self->{shards} = count_shards($self) || nproc_shards($creat);
 	bless $self, $class;
 }
@@ -292,7 +292,7 @@ sub _idx_init { # with_umask callback
 	# for SQLite:
 	my $mm = $self->{mm} = PublicInbox::Msgmap->new_file(
 				"$self->{ibx}->{inboxdir}/msgmap.sqlite3",
-				$self->{ibx}->{-no_sync} ? 2 : 1);
+				$self->{ibx}->{-no_fsync} ? 2 : 1);
 	$mm->{dbh}->begin_work;
 }
 
