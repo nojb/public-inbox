@@ -152,6 +152,12 @@ sub add {
 	$self->{ibx}->with_umask(\&_add, $self, $eml, $check_cb);
 }
 
+sub batch_bytes ($) {
+	my ($self) = @_;
+	($self->{parallel} ? $self->{shards} : 1) *
+		$PublicInbox::SearchIdx::BATCH_BYTES;
+}
+
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$) {
 	my ($self, $msgref, $mime, $smsg) = @_;
@@ -160,7 +166,7 @@ sub do_idx ($$$$) {
 	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
 	$idx->index_raw($msgref, $mime, $smsg);
 	my $n = $self->{transact_bytes} += $smsg->{raw_bytes};
-	$n >= ($PublicInbox::SearchIdx::BATCH_BYTES * $self->{shards});
+	$n >= batch_bytes($self);
 }
 
 sub _add {
@@ -1195,7 +1201,7 @@ sub index_xap_step ($$$;$) {
 	my $ibx = $self->{ibx};
 	my $all = $ibx->git;
 	my $over = $ibx->over;
-	my $batch_bytes = $PublicInbox::SearchIdx::BATCH_BYTES;
+	my $batch_bytes = batch_bytes($self);
 	$step //= $self->{shards};
 	my $end = $sync->{art_end};
 	if (my $pr = $sync->{-opt}->{-progress}) {
