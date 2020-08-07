@@ -42,11 +42,16 @@ if (defined $max_size) {
 		die "`publicInbox.indexMaxSize=$max_size' not parsed\n";
 }
 
-if (my $bs = $opt->{batchsize} // $cfg->{lc('publicInbox.indexBatchSize')}) {
+my $bs = $opt->{batchsize} // $cfg->{lc('publicInbox.indexBatchSize')};
+if (defined $bs) {
 	PublicInbox::Admin::parse_unsigned(\$bs) or
 		die "`publicInbox.indexBatchSize=$bs' not parsed\n";
-	$PublicInbox::SearchIdx::BATCH_BYTES = $bs;
 }
+local $PublicInbox::SearchIdx::BATCH_BYTES = $bs if defined($bs);
+
+# out-of-the-box builds of Xapian 1.4.x are still limited to 32-bit
+# https://getting-started-with-xapian.readthedocs.io/en/latest/concepts/indexing/limitations.html
+local $ENV{XAPIAN_FLUSH_THRESHOLD} ||= '4294967295' if defined($bs);
 
 my $s = $opt->{sequentialshard} //
 			$cfg->{lc('publicInbox.indexSequentialShard')};
