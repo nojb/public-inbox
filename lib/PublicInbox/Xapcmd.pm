@@ -53,7 +53,6 @@ sub commit_changes ($$$$) {
 			rename($old, "$new/old") or
 					die "rename $old => $new/old: $!\n";
 		}
-		# Xtmpdir->DESTROY won't remove $new after this:
 		rename($new, $old) or die "rename $new => $old: $!\n";
 		if (@st) {
 			my $prev = "$old/old";
