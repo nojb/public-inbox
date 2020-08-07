@@ -16,7 +16,8 @@ use PublicInbox::Xapcmd;
 my $compact_opt;
 my $opt = { quiet => -1, compact => 0, maxsize => undef, sync => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune sync!
-		indexlevel|L=s maxsize|max-size=s batchsize|batch-size=s))
+		indexlevel|L=s maxsize|max-size=s batchsize|batch-size=s
+		sequentialshard|seq-shard|sequential-shard))
 	or die "bad command-line args\n$usage";
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
 
@@ -46,6 +47,15 @@ if (my $bs = $opt->{batchsize} // $cfg->{lc('publicInbox.indexBatchSize')}) {
 	$PublicInbox::SearchIdx::BATCH_BYTES = $bs;
 }
 
+my $s = $opt->{sequentialshard} //
+			$cfg->{lc('publicInbox.indexSequentialShard')};
+if (defined $s) {
+	my $v = $cfg->git_bool($s);
+	defined($v) or
+		die "`publicInbox.indexSequentialShard=$s' not boolean\n";
+	$opt->{sequentialshard} = $v;
+}
+
 my $mods = {};
 foreach my $ibx (@ibxs) {
 	# XXX: users can shoot themselves in the foot, with opt->{indexlevel}
@@ -63,6 +73,14 @@ for my $ibx (@ibxs) {
 		PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt);
 	}
 	$ibx->{-no_sync} = 1 if !$opt->{sync};
-	PublicInbox::Admin::index_inbox($ibx, undef, $opt);
+
+	my $ibx_opt = $opt;
+	if (defined(my $s = $ibx->{indexsequentialshard})) {
+		defined(my $v = $cfg->git_bool($s)) or die <<EOL;
+publicInbox.$ibx->{name}.indexSequentialShard not boolean
+EOL
+		$ibx_opt = { %$opt, sequentialshard => $v };
+	}
+	PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
 	PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt) if $compact_opt;
 }

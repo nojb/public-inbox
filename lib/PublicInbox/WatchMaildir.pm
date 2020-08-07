@@ -285,7 +285,7 @@ sub cfg_intvl ($$$) {
 sub cfg_bool ($$$) {
 	my ($cfg, $key, $url) = @_;
 	my $orig = $cfg->urlmatch($key, $url) // return;
-	my $bool = PublicInbox::Config::_git_config_bool($orig);
+	my $bool = $cfg->git_bool($orig);
 	warn "W: $key=$orig for $url is not boolean\n" unless defined($bool);
 	$bool;
 }

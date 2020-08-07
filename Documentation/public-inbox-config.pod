@@ -139,6 +139,10 @@ allow for searching for phrases using quoted text.
 
 Default: C<full>
 
+=item publicinbox.<name>.indexSequentialShard
+
+See L<public-inbox-index(1)/publicInbox.indexSequentialShard>
+
 =item publicinbox.<name>.httpbackendmax
 
 If a digit, the maximum number of parallel
@@ -291,6 +295,8 @@ or /usr/share/cgit/
 See L<public-inbox-edit(1)>
 
 =item publicinbox.indexMaxSize
+=item publicinbox.indexBatchSize
+=item publicinbox.indexSequentialShard
 
 See L<public-inbox-index(1)>
 

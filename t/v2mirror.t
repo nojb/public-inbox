@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
+use File::Path qw(remove_tree);
 use Cwd qw(abs_path);
 require_git(2.6);
 local $ENV{HOME} = abs_path('t');
@@ -187,6 +188,19 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	is($err, '', 'no errors reported by index');
 	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
 	is(scalar($mset->items), 0, '1@example.com no longer visible in mirror');
+}
+
+if ('sequential-shard') {
+	$mset = $mibx->search->query('m:15@example.com', {mset => 1});
+	is(scalar($mset->items), 1, 'large message not indexed');
+	remove_tree(glob("$tmpdir/m/xap*"), glob("$tmpdir/m/msgmap.*"));
+	my $cmd = [ qw(-index -j9 --sequential-shard), "$tmpdir/m" ];
+	ok(run_script($cmd), '--sequential-shard works');
+	my @shards = glob("$tmpdir/m/xap*/?");
+	is(scalar(@shards), 8, 'got expected shard count');
+	PublicInbox::InboxWritable::cleanup($mibx);
+	$mset = $mibx->search->query('m:15@example.com', {mset => 1});
+	is(scalar($mset->items), 1, 'search works after --sequential-shard');
 }
 
 if ('max size') {

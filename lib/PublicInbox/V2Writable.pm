@@ -875,7 +875,8 @@ sub reindex_checkpoint ($$) {
 
 	$self->{ibx}->git->cleanup; # *async_wait
 	${$sync->{need_checkpoint}} = 0;
-	$sync->{mm_tmp}->atfork_prepare;
+	my $mm_tmp = $sync->{mm_tmp};
+	$mm_tmp->atfork_prepare if $mm_tmp;
 	$self->done; # release lock
 
 	if (my $pr = $sync->{-opt}->{-progress}) {
@@ -884,7 +885,7 @@ sub reindex_checkpoint ($$) {
 
 	# allow -watch or -mda to write...
 	$self->idx_init; # reacquire lock
-	$sync->{mm_tmp}->atfork_parent;
+	$mm_tmp->atfork_parent if $mm_tmp;
 }
 
 sub index_oid { # cat_async callback
@@ -1085,7 +1086,10 @@ sub sync_prepare ($$$) {
 		}
 		$all->cat_async_wait;
 	}
-	return 0 if (!$regen_max && !keys(%{$self->{unindex_range}}));
+	if (!$regen_max && !keys(%{$self->{unindex_range}})) {
+		$sync->{-regen_fmt} = "%u/?\n";
+		return 0;
+	}
 
 	# reindex should NOT see new commits anymore, if we do,
 	# it's a problem and we need to notice it via die()
@@ -1177,6 +1181,36 @@ sub sync_ranges ($$$) {
 	$ranges;
 }
 
+sub index_xap_only { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $smsg) = @_;
+	my $self = $smsg->{v2w};
+	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
+	$idx->begin_txn_lazy;
+	$idx->add_message(PublicInbox::Eml->new($bref), $smsg);
+	$self->{transact_bytes} += $size;
+}
+
+sub index_seq_shard ($$$) {
+	my ($self, $sync, $off) = @_;
+	my $ibx = $self->{ibx};
+	my $max = $ibx->mm->max or return;
+	my $all = $ibx->git;
+	my $over = $ibx->over;
+	my $batch_bytes = $PublicInbox::SearchIdx::BATCH_BYTES;
+	if (my $pr = $sync->{-opt}->{-progress}) {
+		$pr->("Xapian indexlevel=$ibx->{indexlevel} % $off\n");
+	}
+	for (my $num = $off; $num <= $max; $num += $self->{shards}) {
+		my $smsg = $over->get_art($num) or next;
+		$smsg->{v2w} = $self;
+		$all->cat_async($smsg->{blob}, \&index_xap_only, $smsg);
+		if ($self->{transact_bytes} >= $batch_bytes) {
+			${$sync->{nr}} = $num;
+			reindex_checkpoint($self, $sync);
+		}
+	}
+}
+
 sub index_epoch ($$$) {
 	my ($self, $sync, $i) = @_;
 
@@ -1218,6 +1252,11 @@ sub index_sync {
 	my $epoch_max;
 	my $latest = git_dir_latest($self, \$epoch_max);
 	return unless defined $latest;
+
+	my $seq = $opt->{sequentialshard};
+	my $idxlevel = $self->{ibx}->{indexlevel};
+	local $self->{ibx}->{indexlevel} = 'basic' if $seq;
+
 	$self->idx_init($opt); # acquire lock
 	fill_alternates($self, $epoch_max);
 	$self->{over}->rethread_prepare($opt);
@@ -1250,6 +1289,16 @@ sub index_sync {
 	if (my $nr = $sync->{nr}) {
 		my $pr = $sync->{-opt}->{-progress};
 		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $$nr)) if $pr;
+	}
+
+	if ($seq) { # deal with Xapian shards sequentially
+		my $end = $self->{shards} - 1;
+		$self->{ibx}->{indexlevel} = $idxlevel;
+		delete $sync->{mm_tmp};
+		$self->idx_init($opt); # re-acquire lock
+		index_seq_shard($self, $sync, $_) for (0..$end);
+		$self->{ibx}->git->cat_async_wait;
+		$self->done;
 	}
 
 	# reindex does not pick up new changes, so we rerun w/o it:

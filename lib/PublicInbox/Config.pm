@@ -369,8 +369,8 @@ sub _fill_code_repo {
 	$git;
 }
 
-sub _git_config_bool ($) {
-	my ($val) = @_;
+sub git_bool {
+	my ($val) = $_[-1]; # $_[0] may be $self, or $val
 	if ($val =~ /\A(?:false|no|off|[\-\+]?(?:0x)?0+)\z/i) {
 		0;
 	} elsif ($val =~ /\A(?:true|yes|on|[\-\+]?(?:0x)?[0-9]+)\z/i) {
@@ -386,7 +386,8 @@ sub _fill {
 
 	foreach my $k (qw(inboxdir filter newsgroup
 			watch httpbackendmax
-			replyto feedmax nntpserver indexlevel)) {
+			replyto feedmax nntpserver
+			indexlevel indexsequentialshard)) {
 		my $v = $self->{"$pfx.$k"};
 		$ibx->{$k} = $v if defined $v;
 	}
@@ -400,7 +401,7 @@ sub _fill {
 	foreach my $k (qw(obfuscate)) {
 		my $v = $self->{"$pfx.$k"};
 		defined $v or next;
-		if (defined(my $bval = _git_config_bool($v))) {
+		if (defined(my $bval = git_bool($v))) {
 			$ibx->{$k} = $bval;
 		} else {
 			warn "Ignoring $pfx.$k=$v in config, not boolean\n";

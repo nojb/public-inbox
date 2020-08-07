@@ -34,11 +34,15 @@ normal search functionality.
 
 =item --jobs=JOBS, -j
 
-Control the number of Xapian indexing jobs in a
+Influences the number of Xapian indexing shards in a
 (L<public-inbox-v2-format(5)>) inbox.
 
 C<--jobs=0> is accepted as of public-inbox 1.6.0 (PENDING)
 to disable parallel indexing.
+
+If the inbox has not been indexed, C<JOBS - 1> shards
+will be created (one job is always needed for indexing
+the overview and article number mapping).
 
 Default: the number of existing Xapian shards
 
@@ -120,6 +124,14 @@ and Xapian.  This is only effective with Xapian 1.4+.
 
 Available in public-inbox 1.6.0 (PENDING).
 
+=item --sequential-shard
+
+Sets or overrides L</publicinbox.indexSequentialShard> on a
+per-invocation basis.  See L</publicinbox.indexSequentialShard>
+below.
+
+Available in public-inbox 1.6.0 (PENDING).
+
 =back
 
 =head1 FILES
@@ -166,6 +178,45 @@ multiplied by the number of Xapian shards.  Thus a typical v2
 inbox with 3 shards will flush every 3 megabytes by default.
 
 Default: 1m (one megabyte)
+
+=item publicinbox.indexBatchSize
+
+Flushes changes to the filesystem and releases locks after
+indexing the given number of bytes.  The default value of C<1m>
+(one megabyte) is low to minimize memory use and reduce
+contention with parallel invocations of L<public-inbox-mda(1)>,
+L<public-inbox-learn(1)>, and L<public-inbox-watch(1)>.
+
+Increase this value on powerful systems to improve throughput at
+the expense of memory use.  The reduction of lock granularity
+may not be noticeable on fast systems.
+
+This option is available in public-inbox 1.6 or later.
+public-inbox 1.5 and earlier used the current default, C<1m>.
+
+For L<public-inbox-v2-format(5)> inboxes, this value is
+multiplied by the number of Xapian shards.  Thus a typical v2
+inbox with 3 shards will flush every 3 megabytes by default.
+
+Default: 1m (one megabyte)
+
+=item publicinbox.indexSequentialShard
+=item publicinbox.<inbox_name>.indexSequentialShard
+
+For L<public-inbox-v2-format(5)> inboxes, setting this to C<true>
+allows indexing Xapian shards in multiple passes.  This speeds up
+indexing on rotational storage with high seek latency by allowing
+individual shards to fit into the kernel page cache.
+
+Using a higher-than-normal number of C<--jobs> with
+L<public-inbox-init(1)> may be required to ensure individual
+shards are small enough to fit into cache.
+
+Available in public-inbox 1.6.0 (PENDING).
+
+This is ignored on L<public-inbox-v1-format(5)> inboxes.
+
+Default: false, shards are indexed in parallel
 
 =back
 
