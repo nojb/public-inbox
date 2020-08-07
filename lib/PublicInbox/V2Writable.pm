@@ -1244,13 +1244,13 @@ sub index_sync {
 	}
 	# work forwards through history
 	index_epoch($self, $sync, $_) for (0..$epoch_max);
+	$self->{over}->rethread_done($opt);
 	$self->done;
 
 	if (my $nr = $sync->{nr}) {
 		my $pr = $sync->{-opt}->{-progress};
 		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $$nr)) if $pr;
 	}
-	$self->{over}->rethread_done($opt);
 
 	# reindex does not pick up new changes, so we rerun w/o it:
 	if ($opt->{reindex}) {
