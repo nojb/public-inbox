@@ -6,11 +6,13 @@ use Test::More;
 use PublicInbox::Eml;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
+use PublicInbox::Spawn qw(which);
 require PublicInbox::Admin;
 use PublicInbox::TestCommon;
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
 require_mods(qw(DBD::SQLite));
+my $have_xapian_compact = which($ENV{XAPIAN_COMPACT} || 'xapian-compact');
 
 my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
@@ -21,8 +23,9 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 hello world
 EOF
 
-sub import_index_incremental {
+my $import_index_incremental = sub {
 	my ($v, $level, $mime) = @_;
+	my $err = '';
 	my $this = "pi-$v-$level-indexlevels";
 	my ($tmpdir, $for_destroy) = tmpdir();
 	local $ENV{PI_CONFIG} = "$tmpdir/config";
@@ -39,8 +42,9 @@ sub import_index_incremental {
 	$im->done;
 
 	# index master (required for v1)
-	ok(run_script([qw(-index -j0), $ibx->{inboxdir}, "-L$level"]),
-		'index master OK');
+	my @cmd = (qw(-index -j0), $ibx->{inboxdir}, "-L$level");
+	push @cmd, '-c' if $have_xapian_compact;
+	ok(run_script(\@cmd, undef, { 2 => \$err }), 'index master');
 	my $ro_master = PublicInbox::Inbox->new({
 		inboxdir => $ibx->{inboxdir},
 		indexlevel => $level
@@ -50,7 +54,7 @@ sub import_index_incremental {
 	is($msgs->[0]->{mid}, 'm@1', 'first message in master indexed');
 
 	# clone
-	my @cmd = (qw(git clone --mirror -q));
+	@cmd = (qw(git clone --mirror -q));
 	my $mirror = "$tmpdir/mirror-$v";
 	if ($v == 1) {
 		push @cmd, $ibx->{inboxdir}, $mirror;
@@ -157,17 +161,23 @@ sub import_index_incremental {
 
 	is(PublicInbox::Admin::detect_indexlevel($ro_mirror), $level,
 	   'indexlevel detectable by Admin '.$v.$level);
-}
+
+	SKIP: {
+		skip 'xapian-compact missing', 1 if !$have_xapian_compact;
+		my $cmd = [ qw(-compact), $mirror ];
+		ok(run_script($cmd, undef, { 2 => \$err}), "compact $level");
+	}
+};
 
 # we can probably cull some other tests
-import_index_incremental($PI_TEST_VERSION, 'basic', $mime);
+$import_index_incremental->($PI_TEST_VERSION, 'basic', $mime);
 
 SKIP: {
 	require PublicInbox::Search;
 	PublicInbox::Search::load_xapian() or
 		skip('Xapian perl binding missing', 2);
 	foreach my $l (qw(medium full)) {
-		import_index_incremental($PI_TEST_VERSION, $l, $mime);
+		$import_index_incremental->($PI_TEST_VERSION, $l, $mime);
 	}
 }
 

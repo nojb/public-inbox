@@ -167,9 +167,11 @@ sub prepare_run {
 	my ($ibx, $opt) = @_;
 	my $tmp = {}; # old shard dir => File::Temp->newdir object or undef
 	my @queue; # ([old//src,newdir]) - list of args for cpdb() or compact()
-
-	my $old = $ibx->search->xdir(1);
-	-d $old or die "$old does not exist\n";
+	my $old;
+	if (my $srch = $ibx->search) {
+		$old = $srch->xdir(1);
+		-d $old or die "$old does not exist\n";
+	}
 	my $reshard = $opt->{reshard};
 	if (defined $reshard && $reshard <= 0) {
 		die "--reshard must be a positive number\n";
@@ -177,7 +179,7 @@ sub prepare_run {
 
 	# we want temporary directories to be as deep as possible,
 	# so v2 shards can keep "xap$SCHEMA_VERSION" on a separate FS.
-	if ($ibx->version == 1) {
+	if ($old && $ibx->version == 1) {
 		if (defined $reshard) {
 			warn
 "--reshard=$reshard ignored for v1 $ibx->{inboxdir}\n";
@@ -189,7 +191,7 @@ sub prepare_run {
 		$tmp->{$old} = $wip;
 		nodatacow_dir($wip->dirname);
 		push @queue, [ $old, $wip ];
-	} else {
+	} elsif ($old) {
 		opendir my $dh, $old or die "Failed to opendir $old: $!\n";
 		my @old_shards;
 		while (defined(my $dn = readdir($dh))) {
@@ -255,7 +257,7 @@ sub run {
 	PublicInbox::Admin::progress_prepare($opt ||= {});
 	defined(my $dir = $ibx->{inboxdir}) or die "no inboxdir defined\n";
 	-d $dir or die "inboxdir=$dir does not exist\n";
-	check_compact() if $opt->{compact};
+	check_compact() if $opt->{compact} && $ibx->search;
 	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
 
 	if (!$opt->{-coarse_lock}) {
