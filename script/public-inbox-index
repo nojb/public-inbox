@@ -83,5 +83,8 @@ EOL
 		$ibx_opt = { %$opt, sequentialshard => $v };
 	}
 	PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
-	PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt) if $compact_opt;
+	if ($compact_opt) {
+		local $compact_opt->{jobs} = 0 if $ibx_opt->{sequentialshard};
+		PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt);
+	}
 }
