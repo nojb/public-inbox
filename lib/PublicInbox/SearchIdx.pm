@@ -25,8 +25,7 @@ our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size nodatacow_dir);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
-our $BATCH_BYTES = defined($ENV{XAPIAN_FLUSH_THRESHOLD}) ?
-			0x7fffffff : 1_000_000;
+our $BATCH_BYTES = $ENV{XAPIAN_FLUSH_THRESHOLD} ? 0x7fffffff : 1_000_000;
 use constant DEBUG => !!$ENV{DEBUG};
 
 my $xapianlevels = qr/\A(?:full|medium)\z/;
