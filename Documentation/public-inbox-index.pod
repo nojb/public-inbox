@@ -40,8 +40,8 @@ Influences the number of Xapian indexing shards in a
 C<--jobs=0> is accepted as of public-inbox 1.6.0 (PENDING)
 to disable parallel indexing.
 
-If the inbox has not been indexed, C<JOBS - 1> shards
-will be created (one job is always needed for indexing
+If the inbox has not been indexed or initialized, C<JOBS - 1>
+shards will be created (one job is always needed for indexing
 the overview and article number mapping).
 
 Default: the number of existing Xapian shards

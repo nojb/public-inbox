@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!perl -w
 # Copyright (C) 2015-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # Basic tool to create a Xapian search index for a public-inbox.
@@ -6,21 +6,46 @@
 # highly recommended: eatmydata public-inbox-index INBOX_DIR
 
 use strict;
-use warnings;
+use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-my $usage = "public-inbox-index INBOX_DIR";
-use PublicInbox::Admin;
-PublicInbox::Admin::require_or_die('-index');
-use PublicInbox::Xapcmd;
+my $usage = 'public-inbox-index [options] INBOX_DIR';
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+usage: $usage
 
+  Create and update search indices
+
+options:
+
+  --no-fsync          speed up indexing, risk corruption on power outage
+  --indexlevel=LEVEL  `basic', 'medium', or `full' (default: full)
+  --compact | -c      run public-inbox-compact(1) after indexing
+  --sequential-shard  index Xapian shards sequentially for slow storage
+  --jobs=NUM          set or disable parallelization (NUM=0)
+  --batch-size=BYTES  flush changes to OS after a given number of bytes
+  --max-size=BYTES    do not index messages larger than the given size
+  --reindex           index previously indexed data (if upgrading)
+  --rethread          regenerate thread IDs (if upgrading, use sparingly)
+  --prune             prune git storage on discontiguous history
+  --verbose | -v      increase verbosity (may be repeated)
+  --help | -?         show this help
+
+BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
+See public-inbox-index(1) man page for full documentation.
+EOF
 my $compact_opt;
 my $opt = { quiet => -1, compact => 0, maxsize => undef, fsync => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		fsync|sync! xapianonly|xapian-only
 		indexlevel|L=s maxsize|max-size=s batchsize|batch-size=s
-		sequentialshard|seq-shard|sequential-shard))
+		sequentialshard|seq-shard|sequential-shard
+		help|?))
 	or die "bad command-line args\n$usage";
+if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
+
+# require lazily to speed up --help
+require PublicInbox::Admin;
+PublicInbox::Admin::require_or_die('-index');
 
 if ($opt->{compact}) {
 	require PublicInbox::Xapcmd;
@@ -31,7 +56,7 @@ if ($opt->{compact}) {
 	}
 }
 
-my $cfg = PublicInbox::Config->new;
+my $cfg = PublicInbox::Config->new; # Config is loaded by Admin
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, undef, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
@@ -47,7 +72,9 @@ if (defined $bs) {
 	PublicInbox::Admin::parse_unsigned(\$bs) or
 		die "`publicInbox.indexBatchSize=$bs' not parsed\n";
 }
+no warnings 'once';
 local $PublicInbox::SearchIdx::BATCH_BYTES = $bs if defined($bs);
+use warnings 'once';
 
 # out-of-the-box builds of Xapian 1.4.x are still limited to 32-bit
 # https://getting-started-with-xapian.readthedocs.io/en/latest/concepts/indexing/limitations.html
@@ -72,6 +99,7 @@ foreach my $ibx (@ibxs) {
 }
 
 PublicInbox::Admin::require_or_die(keys %$mods);
+require PublicInbox::InboxWritable;
 PublicInbox::Admin::progress_prepare($opt);
 for my $ibx (@ibxs) {
 	$ibx = PublicInbox::InboxWritable->new($ibx);
