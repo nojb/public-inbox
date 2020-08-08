@@ -156,12 +156,14 @@ WriteMakefile(
 );
 
 sub MY::postamble {
-  <<EOF;
+	my $N = (`{ getconf _NPROCESSORS_ONLN || nproc; } 2>/dev/null` || 1);
+	$N += 1; # account for sleeps in some tests (and makes an IV)
+	<<EOF;
 PROVE = prove
 # support using eatmydata to speed up tests (apt-get install eatmydata):
 # https://www.flamingspork.com/projects/libeatmydata/
 EATMYDATA =
-N = \$\$(( \$\$(nproc 2>/dev/null || gnproc 2>/dev/null || echo 2) + 1 ))
+N = $N
 -include config.mak
 $VARS
 -include Documentation/include.mk

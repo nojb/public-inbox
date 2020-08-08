@@ -35,13 +35,12 @@ my $PACKING_FACTOR = 0.4;
 our $NPROC_MAX_DEFAULT = 4;
 
 sub detect_nproc () {
-	for my $nproc (qw(nproc gnproc)) { # GNU coreutils nproc
-		`$nproc 2>/dev/null` =~ /^(\d+)$/ and return $1;
-	}
-
 	# getconf(1) is POSIX, but *NPROCESSORS* vars are not
 	for (qw(_NPROCESSORS_ONLN NPROCESSORS_ONLN)) {
 		`getconf $_ 2>/dev/null` =~ /^(\d+)$/ and return $1;
+	}
+	for my $nproc (qw(nproc gnproc)) { # GNU coreutils nproc
+		`$nproc 2>/dev/null` =~ /^(\d+)$/ and return $1;
 	}
 
 	# should we bother with `sysctl hw.ncpu`?  Those only give
