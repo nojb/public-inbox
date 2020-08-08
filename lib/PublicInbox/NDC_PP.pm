@@ -6,10 +6,8 @@ package PublicInbox::NDC_PP;
 use strict;
 use v5.10.1;
 
-sub set_nodatacow ($) {
-	my ($fd) = @_;
-	return if $^O ne 'linux';
-	defined(my $path = readlink("/proc/self/fd/$fd")) or return;
+sub nodatacow_dir ($) {
+	my ($path) = @_;
 	open my $mh, '<', '/proc/self/mounts' or return;
 	for (grep(/ btrfs /, <$mh>)) {
 		my (undef, $mnt_path, $type) = split(/ /);
@@ -24,6 +22,13 @@ sub set_nodatacow ($) {
 			last;
 		}
 	}
+}
+
+sub nodatacow_fd ($) {
+	my ($fd) = @_;
+	return if $^O ne 'linux';
+	defined(my $path = readlink("/proc/self/fd/$fd")) or return;
+	nodatacow_dir($path);
 }
 
 1;

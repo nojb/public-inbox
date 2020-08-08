@@ -3,7 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
-use File::Temp qw(tempfile);
+use File::Temp 0.19;
 use PublicInbox::TestCommon;
 use PublicInbox::Spawn qw(which);
 use_ok 'PublicInbox::NDC_PP';
@@ -15,20 +15,36 @@ SKIP: {
 	skip 'BTRFS_TESTDIR not defined', $nr unless defined $dir;
 	skip 'chattr(1) not installed', $nr unless which('chattr');
 	my $lsattr = which('lsattr') or skip 'lsattr(1) not installed', $nr;
-	my ($fh, $name) = tempfile(DIR => $dir, UNLINK => 1);
-	BAIL_OUT "tempfile: $!" unless $fh && defined($name);
-	my $pp_sub = \&PublicInbox::NDC_PP::set_nodatacow;
+	my $tmp = File::Temp->newdir('nodatacow-XXXXX', DIR => $dir);
+	my $dn = $tmp->dirname;
+
+	my $name = "$dn/pp.f";
+	open my $fh, '>', $name or BAIL_OUT "open($name): $!";
+	my $pp_sub = \&PublicInbox::NDC_PP::nodatacow_fd;
 	$pp_sub->(fileno($fh));
 	my $res = xqx([$lsattr, $name]);
-	like($res, qr/C/, "`C' attribute set with pure Perl");
+	like($res, qr/C.*\Q$name\E/, "`C' attribute set on fd with pure Perl");
 
-	my $ic_sub = \&PublicInbox::Spawn::set_nodatacow;
+	$name = "$dn/pp.d";
+	mkdir($name) or BAIL_OUT "mkdir($name) $!";
+	PublicInbox::NDC_PP::nodatacow_dir($name);
+	$res = xqx([$lsattr, '-d', $name]);
+	like($res, qr/C.*\Q$name\E/, "`C' attribute set on dir with pure Perl");
+
+	$name = "$dn/ic.f";
+	my $ic_sub = \&PublicInbox::Spawn::nodatacow_fd;
 	$pp_sub == $ic_sub and
-		skip 'Inline::C or Linux kernel headers missing', 1;
-	($fh, $name) = tempfile(DIR => $dir, UNLINK => 1);
+		skip 'Inline::C or Linux kernel headers missing', 2;
+	open $fh, '>', $name or BAIL_OUT "open($name): $!";
 	$ic_sub->(fileno($fh));
 	$res = xqx([$lsattr, $name]);
-	like($res, qr/C/, "`C' attribute set with Inline::C");
+	like($res, qr/C.*\Q$name\E/, "`C' attribute set on fd with Inline::C");
+
+	$name = "$dn/ic.d";
+	mkdir($name) or BAIL_OUT "mkdir($name) $!";
+	PublicInbox::Spawn::nodatacow_dir($name);
+	$res = xqx([$lsattr, '-d', $name]);
+	like($res, qr/C.*\Q$name\E/, "`C' attribute set on dir with Inline::C");
 };
 
 done_testing;

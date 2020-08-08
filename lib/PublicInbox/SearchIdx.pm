@@ -18,10 +18,10 @@ use PublicInbox::IdxStack;
 use Carp qw(croak);
 use POSIX qw(strftime);
 use PublicInbox::OverIdx;
-use PublicInbox::Spawn qw(spawn);
+use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size nodatacow_dir);
+our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
@@ -107,12 +107,6 @@ sub load_xapian_writable () {
 		(eval($xap.'::minor_version()') << 8);
 	$DB_NO_SYNC = 0x4 if $ver >= 0x10400;
 	1;
-}
-
-sub nodatacow_dir ($) {
-	my ($dir) = @_;
-	opendir my $dh, $dir or die "opendir($dir): $!\n";
-	PublicInbox::Spawn::set_nodatacow(fileno($dh));
 }
 
 sub idx_acquire {

@@ -3,9 +3,9 @@
 package PublicInbox::Xapcmd;
 use strict;
 use warnings;
-use PublicInbox::Spawn qw(which popen_rd);
+use PublicInbox::Spawn qw(which popen_rd nodatacow_dir);
 use PublicInbox::Over;
-use PublicInbox::SearchIdx qw(nodatacow_dir);
+use PublicInbox::SearchIdx;
 use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);

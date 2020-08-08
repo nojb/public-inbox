@@ -51,7 +51,7 @@ sub new_file {
 sub tmp_clone {
 	my ($self, $dir) = @_;
 	my ($fh, $fn) = tempfile('msgmap-XXXXXXXX', EXLOCK => 0, DIR => $dir);
-	PublicInbox::Spawn::set_nodatacow(fileno($fh));
+	PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	my $tmp;
 	if ($self->{dbh}->can('sqlite_backup_to_dbh')) {
 		$tmp = ref($self)->new_file($fn, 2);

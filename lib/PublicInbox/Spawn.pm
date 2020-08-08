@@ -19,7 +19,7 @@ use strict;
 use parent qw(Exporter);
 use Symbol qw(gensym);
 use PublicInbox::ProcessPipe;
-our @EXPORT_OK = qw/which spawn popen_rd/;
+our @EXPORT_OK = qw/which spawn popen_rd nodatacow_dir/;
 our @RLIMITS = qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA);
 
 my $vfork_spawn = <<'VFORK_SPAWN';
@@ -159,11 +159,12 @@ my $set_nodatacow = $^O eq 'linux' ? <<'SET_NODATACOW' : '';
 #include <sys/vfs.h>
 #include <linux/magic.h>
 #include <linux/fs.h>
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
-void set_nodatacow(int fd)
+void nodatacow_fd(int fd)
 {
 	struct statfs buf;
 	int val = 0;
@@ -184,6 +185,19 @@ void set_nodatacow(int fd)
 	val |= FS_NOCOW_FL;
 	if (ioctl(fd, FS_IOC_SETFLAGS, &val) < 0)
 		fprintf(stderr, "FS_IOC_SET_FLAGS: %s\\n", strerror(errno));
+}
+
+void nodatacow_dir(const char *dir)
+{
+	DIR *dh = opendir(dir);
+	int fd;
+
+	if (!dh) croak("opendir(%s): %s", dir, strerror(errno));
+	fd = dirfd(dh);
+	if (fd >= 0)
+		nodatacow_fd(fd);
+	/* ENOTSUP probably won't happen under Linux... */
+	closedir(dh);
 }
 SET_NODATACOW
 
@@ -226,7 +240,8 @@ unless (defined $vfork_spawn) {
 unless ($set_nodatacow) {
 	require PublicInbox::NDC_PP;
 	no warnings 'once';
-	*set_nodatacow = \&PublicInbox::NDC_PP::set_nodatacow;
+	*nodatacow_fd = \&PublicInbox::NDC_PP::nodatacow_fd;
+	*nodatacow_dir = \&PublicInbox::NDC_PP::nodatacow_dir;
 }
 undef $set_nodatacow;
 undef $vfork_spawn;
