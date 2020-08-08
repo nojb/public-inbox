@@ -13,7 +13,8 @@ if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
 	$MAIL_IN = Linux::Inotify2::IN_MOVED_TO() |
 		Linux::Inotify2::IN_CREATE();
 	$ino_cls = 'Linux::Inotify2';
-} elsif (eval { require PublicInbox::KQNotify }) {
+# Perl 5.22+ is needed for fileno(DIRHANDLE) support:
+} elsif ($^V ge v5.22 && eval { require PublicInbox::KQNotify }) {
 	$MAIL_IN = PublicInbox::KQNotify::MOVED_TO_OR_CREATE();
 	$ino_cls = 'PublicInbox::KQNotify';
 } else {
