@@ -2,16 +2,8 @@
 # Copyright (C) 2018-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <http://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
+use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use PublicInbox::InboxWritable;
-use PublicInbox::Config;
-use PublicInbox::Admin;
-use PublicInbox::V2Writable;
-use PublicInbox::Git;
-use PublicInbox::Spawn qw(spawn);
-use Cwd 'abs_path';
-use File::Copy 'cp'; # preserves permissions:
 my $usage = 'Usage: public-inbox-convert [options] OLD NEW';
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
 usage: $usage
@@ -57,27 +49,33 @@ my $old_dir = shift(@ARGV) or die $usage;
 my $new_dir = shift(@ARGV) or die $usage;
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
-my $cfg = PublicInbox::Config->new;
+
+require Cwd;
+Cwd->import('abs_path');
+require PublicInbox::Config;
+require PublicInbox::InboxWritable;
+
 $old_dir = abs_path($old_dir);
+my $cfg = PublicInbox::Config->new;
 my $old;
 $cfg->each_inbox(sub {
 	$old = $_[0] if abs_path($_[0]->{inboxdir}) eq $old_dir;
 });
-unless ($old) {
+if ($old) {
+	$old = PublicInbox::InboxWritable->new($old);
+} else {
 	warn "W: $old_dir not configured in " .
 		PublicInbox::Config::default_file() . "\n";
-	$old = {
+	$old = PublicInbox::InboxWritable->new({
 		inboxdir => $old_dir,
 		name => 'ignored',
+		-primary_address => 'old@example.com',
 		address => [ 'old@example.com' ],
-	};
-	$old = PublicInbox::Inbox->new($old);
+	});
 }
-$old = PublicInbox::InboxWritable->new($old);
-if ($old->version >= 2) {
-	die "Only conversion from v1 inboxes is supported\n";
-}
+die "Only conversion from v1 inboxes is supported\n" if $old->version >= 2;
 
+require PublicInbox::Admin;
 $old->{indexlevel} //= PublicInbox::Admin::detect_indexlevel($old);
 my $env;
 if ($opt->{'index'}) {
@@ -100,14 +98,15 @@ sub link_or_copy ($$) {
 	my ($src, $dst) = @_;
 	link($src, $dst) and return;
 	$!{EXDEV} or warn "link $src, $dst failed: $!, trying cp\n";
-	cp($src, $dst) or die "cp $src, $dst failed: $!\n";
+	require File::Copy; # preserves permissions:
+	File::Copy::cp($src, $dst) or die "cp $src, $dst failed: $!\n";
 }
 
 $old->with_umask(sub {
 	my $old_cfg = "$old->{inboxdir}/config";
 	local $ENV{GIT_CONFIG} = $old_cfg;
 	my $new_cfg = "$new->{inboxdir}/all.git/config";
-	$v2w = PublicInbox::V2Writable->new($new, 1);
+	$v2w = $new->importer(1);
 	$v2w->init_inbox(delete $opt->{jobs});
 	unlink $new_cfg;
 	link_or_copy($old_cfg, $new_cfg);
