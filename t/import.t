@@ -9,7 +9,6 @@ use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::Spawn qw(spawn);
 use Fcntl qw(:DEFAULT SEEK_SET);
-use File::Temp qw/tempfile/;
 use PublicInbox::TestCommon;
 use MIME::Base64 3.05; # Perl 5.10.0 / 5.9.2
 my ($dir, $for_destroy) = tmpdir();
@@ -37,11 +36,11 @@ if ($v2) {
 	is($mime->as_string, $$raw_email, 'string matches');
 	is($smsg->{raw_bytes}, length($$raw_email), 'length matches');
 	my @cmd = ('git', "--git-dir=$git->{git_dir}", qw(hash-object --stdin));
-	my $in = tempfile();
+	open my $in, '+<', undef or BAIL_OUT "open(+<): $!";
 	print $in $mime->as_string or die "write failed: $!";
 	$in->flush or die "flush failed: $!";
 	seek($in, 0, SEEK_SET);
-	my $out = tempfile();
+	open my $out, '+<', undef or BAIL_OUT "open(+<): $!";
 	my $pid = spawn(\@cmd, {}, { 0 => $in, 1 => $out });
 	is(waitpid($pid, 0), $pid, 'waitpid succeeds on hash-object');
 	is($?, 0, 'hash-object');

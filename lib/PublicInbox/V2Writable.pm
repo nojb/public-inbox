@@ -20,7 +20,7 @@ use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::SearchIdx qw(log2stack crlf_adjust is_ancestor check_size);
 use IO::Handle; # ->autoflush
-use File::Temp qw(tempfile);
+use File::Temp ();
 
 my $OID = qr/[a-f0-9]{40,}/;
 # an estimate of the post-packed size to the raw uncompressed size
@@ -732,12 +732,14 @@ sub fill_alternates ($$) {
 	}
 	return unless $new;
 
-	my ($fh, $tmp) = tempfile('alt-XXXXXXXX', DIR => $info_dir);
+	my $fh = File::Temp->new(TEMPLATE => 'alt-XXXXXXXX', DIR => $info_dir);
+	my $tmp = $fh->filename;
 	print $fh join("\n", sort { $alt{$b} <=> $alt{$a} } keys %alt), "\n"
 		or die "print $tmp: $!\n";
 	chmod($mode, $fh) or die "fchmod $tmp: $!\n";
 	close $fh or die "close $tmp $!\n";
 	rename($tmp, $alt) or die "rename $tmp => $alt: $!\n";
+	$fh->unlink_on_destroy(0);
 }
 
 sub git_init {
@@ -818,18 +820,17 @@ sub import_init {
 sub diff ($$$) {
 	my ($mid, $cur, $new) = @_;
 
-	my ($ah, $an) = tempfile('email-cur-XXXXXXXX', TMPDIR => 1);
+	my $ah = File::Temp->new(TEMPLATE => 'email-cur-XXXXXXXX', TMPDIR => 1);
 	print $ah $cur->as_string or die "print: $!";
-	close $ah or die "close: $!";
-	my ($bh, $bn) = tempfile('email-new-XXXXXXXX', TMPDIR => 1);
+	$ah->flush or die "flush: $!";
 	PublicInbox::Import::drop_unwanted_headers($new);
+	my $bh = File::Temp->new(TEMPLATE => 'email-new-XXXXXXXX', TMPDIR => 1);
 	print $bh $new->as_string or die "print: $!";
-	close $bh or die "close: $!";
-	my $cmd = [ qw(diff -u), $an, $bn ];
+	$bh->flush or die "flush: $!";
+	my $cmd = [ qw(diff -u), $ah->filename, $bh->filename ];
 	print STDERR "# MID conflict <$mid>\n";
 	my $pid = spawn($cmd, undef, { 1 => 2 });
 	waitpid($pid, 0) == $pid or die "diff did not finish";
-	unlink($an, $bn);
 }
 
 sub get_blob ($$) {
