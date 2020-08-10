@@ -91,6 +91,20 @@ See L<public-inbox-config(5)>
 
 Only L<v2|public-inbox-v2-format(5)> repositories are supported.
 
+This is safe to run while normal inbox writing tools
+(L<public-inbox-mda(1)>, L<public-inbox-watch(1)>,
+L<public-inbox-learn(1)>) are active.
+
+Running this in parallel with L<public-inbox-xcpdb(1)> or
+C<"public-inbox-index --reindex"> can lead to errors or
+edited data remaining indexed.
+
+Incremental L<public-inbox-index(1)> (without C<--reindex>)
+is fine.
+
+Keep in mind this is a last resort, as it will be distruptive
+to anyone using L<git(1)> to mirror the inbox being edited.
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
