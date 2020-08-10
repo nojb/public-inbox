@@ -2,8 +2,8 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 package PublicInbox::Xapcmd;
 use strict;
-use warnings;
 use PublicInbox::Spawn qw(which popen_rd nodatacow_dir);
+use PublicInbox::Admin qw(setup_signals);
 use PublicInbox::Over;
 use PublicInbox::SearchIdx;
 use File::Temp 0.19 (); # ->newdir
@@ -126,6 +126,11 @@ sub same_fs_or_die ($$) {
 	die "$x and $y reside on different filesystems\n";
 }
 
+sub kill_pids {
+	my ($sig, $pids) = @_;
+	kill($sig, keys %$pids); # pids may be empty
+}
+
 sub process_queue {
 	my ($queue, $cb, $opt) = @_;
 	my $max = $opt->{jobs} // scalar(@$queue);
@@ -138,6 +143,8 @@ sub process_queue {
 
 	# run in parallel:
 	my %pids;
+	local %SIG = %SIG;
+	setup_signals(\&kill_pids, \%pids);
 	while (@$queue) {
 		while (scalar(keys(%pids)) < $max && scalar(@$queue)) {
 			my $args = shift @$queue;
@@ -154,12 +161,6 @@ sub process_queue {
 			}
 		}
 	}
-}
-
-sub setup_signals () {
-	# http://www.tldp.org/LDP/abs/html/exitcodes.html
-	$SIG{INT} = sub { exit(130) };
-	$SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub { exit(1) };
 }
 
 sub prepare_run {
@@ -294,6 +295,11 @@ sub progress_pfx ($) {
 	($p[-1] =~ /\A([0-9]+)/) ? "$p[-2]/$1" : $p[-1];
 }
 
+sub kill_compact { # setup_signals callback
+	my ($sig, $pidref) = @_;
+	kill($sig, $$pidref) if defined($$pidref);
+}
+
 # xapian-compact wrapper
 sub compact ($$) {
 	my ($args, $opt) = @_;
@@ -319,14 +325,18 @@ sub compact ($$) {
 	}
 	$pr->("$pfx `".join(' ', @$cmd)."'\n") if $pr;
 	push @$cmd, $src, $dst;
-	my $rd = popen_rd($cmd, undef, $rdr);
+	my ($rd, $pid);
+	local %SIG = %SIG;
+	setup_signals(\&kill_compact, \$pid);
+	($rd, $pid) = popen_rd($cmd, undef, $rdr);
 	while (<$rd>) {
 		if ($pr) {
 			s/\r/\r$pfx /g;
 			$pr->("$pfx $_");
 		}
 	}
-	close $rd or die join(' ', @$cmd)." failed: $?n";
+	waitpid($pid, 0);
+	die "@$cmd failed: \$?=$?\n" if $?;
 }
 
 sub cpdb_loop ($$$;$$) {

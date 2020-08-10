@@ -5,13 +5,27 @@
 # Unstable internal API
 package PublicInbox::Admin;
 use strict;
-use warnings;
-use Cwd 'abs_path';
-use base qw(Exporter);
-our @EXPORT_OK = qw(resolve_repo_dir);
+use parent qw(Exporter);
+use Cwd qw(abs_path);
+use POSIX ();
+our @EXPORT_OK = qw(resolve_repo_dir setup_signals);
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
+
+sub setup_signals {
+	my ($cb, $arg) = @_; # optional
+
+	# we call exit() here instead of _exit() so DESTROY methods
+	# get called (e.g. File::Temp::Dir and PublicInbox::Msgmap)
+	$SIG{INT} = $SIG{HUP} = $SIG{PIPE} = $SIG{TERM} = sub {
+		my ($sig) = @_;
+		# https://www.tldp.org/LDP/abs/html/exitcodes.html
+		eval { $cb->($sig, $arg) } if $cb;
+		$sig = 'SIG'.$sig;
+		exit(128 + POSIX->$sig);
+	};
+}
 
 sub resolve_repo_dir {
 	my ($cd, $ver) = @_;
@@ -185,9 +199,16 @@ invalid indexlevel=$indexlevel (must be `basic', `medium', or `full')
 	die missing_mod_msg($err) ." required for indexlevel=$indexlevel\n";
 }
 
+sub index_terminate {
+	my (undef, $ibx) = @_; # $_[0] = signal name
+	$ibx->git->cleanup;
+}
+
 sub index_inbox {
 	my ($ibx, $im, $opt) = @_;
 	my $jobs = delete $opt->{jobs} if $opt;
+	local %SIG = %SIG;
+	setup_signals(\&index_terminate, $ibx);
 	if (ref($ibx) && $ibx->version == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
