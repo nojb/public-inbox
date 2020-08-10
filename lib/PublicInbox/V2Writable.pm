@@ -1197,20 +1197,20 @@ sub index_xap_only { # git->cat_async callback
 
 sub index_xap_step ($$$;$) {
 	my ($self, $sync, $beg, $step) = @_;
-	my $ibx = $self->{ibx};
-	my $all = $ibx->git;
-	my $over = $ibx->over;
-	my $batch_bytes = batch_bytes($self);
-	$step //= $self->{shards};
 	my $end = $sync->{art_end};
+	return if $beg > $end; # nothing to do
+
+	$step //= $self->{shards};
+	my $ibx = $self->{ibx};
 	if (my $pr = $sync->{-opt}->{-progress}) {
 		$pr->("Xapian indexlevel=$ibx->{indexlevel} ".
 			"$beg..$end (% $step)\n");
 	}
+	my $batch_bytes = batch_bytes($self);
 	for (my $num = $beg; $num <= $end; $num += $step) {
-		my $smsg = $over->get_art($num) or next;
+		my $smsg = $ibx->over->get_art($num) or next;
 		$smsg->{v2w} = $self;
-		$all->cat_async($smsg->{blob}, \&index_xap_only, $smsg);
+		$ibx->git->cat_async($smsg->{blob}, \&index_xap_only, $smsg);
 		if ($self->{transact_bytes} >= $batch_bytes) {
 			${$sync->{nr}} = $num;
 			reindex_checkpoint($self, $sync);
@@ -1252,8 +1252,9 @@ sub index_epoch ($$$) {
 }
 
 sub xapian_only {
-	my ($self, $opt, $sync) = @_;
+	my ($self, $opt, $sync, $art_beg) = @_;
 	my $seq = $opt->{sequentialshard};
+	$art_beg //= 0;
 	local $self->{parallel} = 0 if $seq;
 	$self->idx_init($opt); # acquire lock
 	if (my $art_end = $self->{ibx}->mm->max) {
@@ -1267,9 +1268,11 @@ sub xapian_only {
 		$sync->{art_end} = $art_end;
 		if ($seq || !$self->{parallel}) {
 			my $shard_end = $self->{shards} - 1;
-			index_xap_step($self, $sync, $_) for (0..$shard_end);
+			for (0..$shard_end) {
+				index_xap_step($self, $sync, $art_beg + $_)
+			}
 		} else { # parallel (maybe)
-			index_xap_step($self, $sync, 0, 1);
+			index_xap_step($self, $sync, $art_beg, 1);
 		}
 	}
 	$self->{ibx}->git->cat_async_wait;
@@ -1288,6 +1291,7 @@ sub index_sync {
 	return unless defined $latest;
 
 	my $seq = $opt->{sequentialshard};
+	my $art_beg; # the NNTP article number we start xapian_only at
 	my $idxlevel = $self->{ibx}->{indexlevel};
 	local $self->{ibx}->{indexlevel} = 'basic' if $seq;
 
@@ -1311,6 +1315,12 @@ sub index_sync {
 		$self->{mm}->{dbh}->begin_work;
 		$sync->{mm_tmp} =
 			$self->{mm}->tmp_clone($self->{ibx}->{inboxdir});
+
+		# xapian_only works incrementally w/o --reindex
+		if ($seq && !$opt->{reindex}) {
+			$art_beg = $sync->{mm_tmp}->max;
+			$art_beg++ if defined($art_beg);
+		}
 	}
 	if ($sync->{index_max_size} = $self->{ibx}->{index_max_size}) {
 		$sync->{index_oid} = \&index_oid;
@@ -1325,10 +1335,10 @@ sub index_sync {
 		$pr->('all.git '.sprintf($sync->{-regen_fmt}, $$nr)) if $pr;
 	}
 
-	if ($seq) { # deal with Xapian shards sequentially
+	# deal with Xapian shards sequentially
+	if ($seq && delete($sync->{mm_tmp})) {
 		$self->{ibx}->{indexlevel} = $idxlevel;
-		delete $sync->{mm_tmp};
-		xapian_only($self, $opt, $sync);
+		xapian_only($self, $opt, $sync, $art_beg);
 	}
 
 	# reindex does not pick up new changes, so we rerun w/o it:
