@@ -539,11 +539,11 @@ sub unindex_both { # git->cat_async callback
 
 # called by public-inbox-index
 sub index_sync {
-	my ($self, $opts) = @_;
-	delete $self->{lock_path} if $opts->{-skip_lock};
-	$self->{ibx}->with_umask(\&_index_sync, $self, $opts);
-	if ($opts->{reindex}) {
-		my %again = %$opts;
+	my ($self, $opt) = @_;
+	delete $self->{lock_path} if $opt->{-skip_lock};
+	$self->{ibx}->with_umask(\&_index_sync, $self, $opt);
+	if ($opt->{reindex}) {
+		my %again = %$opt;
 		delete @again{qw(rethread reindex)};
 		index_sync($self, \%again);
 	}
@@ -745,15 +745,15 @@ sub reindex_from ($$) {
 
 # indexes all unindexed messages (v1 only)
 sub _index_sync {
-	my ($self, $opts) = @_;
-	my $tip = $opts->{ref} || 'HEAD';
+	my ($self, $opt) = @_;
+	my $tip = $opt->{ref} || 'HEAD';
 	my $git = $self->{ibx}->git;
-	$self->{batch_bytes} = $opts->{batch_size} // $BATCH_BYTES;
+	$self->{batch_bytes} = $opt->{batch_size} // $BATCH_BYTES;
 	$git->batch_prepare;
-	my $pr = $opts->{-progress};
-	my $sync = { reindex => $opts->{reindex}, -opt => $opts };
+	my $pr = $opt->{-progress};
+	my $sync = { reindex => $opt->{reindex}, -opt => $opt };
 	my $xdb = $self->begin_txn_lazy;
-	$self->{over}->rethread_prepare($opts);
+	$self->{over}->rethread_prepare($opt);
 	my $mm = _msgmap_init($self);
 	if ($sync->{reindex}) {
 		my $last = $mm->last_commit;
