@@ -12,26 +12,57 @@ use PublicInbox::Git;
 use PublicInbox::Spawn qw(spawn);
 use Cwd 'abs_path';
 use File::Copy 'cp'; # preserves permissions:
-my $usage = "Usage: public-inbox-convert OLD NEW\n";
-my $jobs;
-my $index = 1;
-my %opts = (
-	'--jobs|j=i' => \$jobs,
-	'--index!' => \$index,
-);
-GetOptions(%opts) or die "bad command-line args\n$usage";
+my $usage = 'Usage: public-inbox-convert [options] OLD NEW';
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+usage: $usage
+
+  convert v1 format inboxes to v2
+
+options:
+
+  --no-index          do not index after conversion
+  --jobs=NUM          set shards (NUM=0)
+  --verbose | -v      increase verbosity (may be repeated)
+  --help | -?         show this help
+
+index options (see public-inbox-index(1) manpage for full description):
+
+  --no-fsync          speed up indexing, risk corruption on power outage
+  -L LEVEL            `basic', `medium', or `full' (default: full)
+  --compact | -c      run public-inbox-compact(1) after indexing
+  --sequential-shard  index Xapian shards sequentially for slow storage
+  --batch-size=BYTES  flush changes to OS after a given number of bytes
+  --max-size=BYTES    do not index messages larger than the given size
+
+See public-inbox-convert(1) man page for full documentation.
+EOF
+
+my $opt = {
+	index => 1,
+	# index defaults:
+	quiet => -1, compact => 0, maxsize => undef, fsync => 1,
+	reindex => 1, # we always reindex
+};
+GetOptions($opt, qw(jobs|j=i index! help|?),
+		# index options
+		qw(verbose|v+ rethread compact|c+ fsync|sync!
+		indexlevel|index-level|L=s max_size|max-size=s
+		batch_size|batch-size=s
+		sequential_shard|sequential-shard|seq-shard
+		)) or die <<EOF;
+bad command-line args\n$usage
+EOF
+if ($opt->{help}) { print $help; exit 0 };
 my $old_dir = shift(@ARGV) or die $usage;
 my $new_dir = shift(@ARGV) or die $usage;
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
-my $config = PublicInbox::Config->new;
+my $cfg = PublicInbox::Config->new;
 $old_dir = abs_path($old_dir);
 my $old;
-if ($config) {
-	$config->each_inbox(sub {
-		$old = $_[0] if abs_path($_[0]->{inboxdir}) eq $old_dir;
-	});
-}
+$cfg->each_inbox(sub {
+	$old = $_[0] if abs_path($_[0]->{inboxdir}) eq $old_dir;
+});
 unless ($old) {
 	warn "W: $old_dir not configured in " .
 		PublicInbox::Config::default_file() . "\n";
@@ -48,16 +79,20 @@ if ($old->version >= 2) {
 }
 
 $old->{indexlevel} //= PublicInbox::Admin::detect_indexlevel($old);
-if ($index) {
+my $env;
+if ($opt->{'index'}) {
 	my $mods = {};
 	PublicInbox::Admin::scan_ibx_modules($mods, $old);
 	PublicInbox::Admin::require_or_die(keys %$mods);
+	PublicInbox::Admin::progress_prepare($opt);
+	$env = PublicInbox::Admin::index_prepare($opt, $cfg);
 }
-
+local %ENV = (%$env, %ENV) if $env;
 my $new = { %$old };
 $new->{inboxdir} = abs_path($new_dir);
 $new->{version} = 2;
-$new = PublicInbox::InboxWritable->new($new);
+$new = PublicInbox::InboxWritable->new($new, { nproc => $opt->{jobs} });
+$new->{-no_fsync} = 1 if !$opt->{fsync};
 my $v2w;
 $old->umask_prepare;
 
@@ -73,7 +108,7 @@ $old->with_umask(sub {
 	local $ENV{GIT_CONFIG} = $old_cfg;
 	my $new_cfg = "$new->{inboxdir}/all.git/config";
 	$v2w = PublicInbox::V2Writable->new($new, 1);
-	$v2w->init_inbox($jobs);
+	$v2w->init_inbox(delete $opt->{jobs});
 	unlink $new_cfg;
 	link_or_copy($old_cfg, $new_cfg);
 	if (my $alt = $new->{altid}) {
@@ -98,7 +133,7 @@ $clone may not be valid after migrating to v2, not copying
 my $state = '';
 my $head = $old->{ref_head} || 'HEAD';
 my ($rd, $pid) = $old->git->popen(qw(fast-export --use-done-feature), $head);
-$v2w->idx_init;
+$v2w->idx_init($opt);
 my $im = $v2w->importer;
 my ($r, $w) = $im->gfi_start;
 my $h = '[0-9a-f]';
@@ -155,10 +190,10 @@ if (my $mm = $old->mm) {
 
 	# we want to trigger a reindex, not a from scratch index if
 	# we're reusing the msgmap from an existing v1 installation.
-	$v2w->idx_init;
+	$v2w->idx_init($opt);
 	my $epoch0 = PublicInbox::Git->new($v2w->git_init(0));
 	chop(my $cmt = $epoch0->qx(qw(rev-parse --verify), $head));
 	$v2w->last_epoch_commit(0, $cmt);
 }
-$v2w->index_sync({reindex => 1}) if $index;
+$v2w->index_sync($opt) if delete $opt->{'index'};
 $v2w->done;

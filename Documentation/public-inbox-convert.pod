@@ -33,6 +33,25 @@ at 4 due to various bottlenecks.  The number of Xapian shards
 will be 1 less than the JOBS value, since there is a single
 process which distributes work to the Xapian shards.
 
+=item -L LEVEL, --index-level=LEVEL
+
+=item -c, --compact
+
+=item -v, --verbose
+
+=item --no-fsync
+
+=item --sequential-shard
+
+=item --batch-size=BYTES
+
+=item --max-size=BYTES
+
+These options affect indexing.  They have no effect if
+L</--no-index> is specified
+
+See L<public-inbox-index(1)> for a description of these options.
+
 =back
 
 =head1 ENVIRONMENT

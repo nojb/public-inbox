@@ -32,7 +32,6 @@ options:
 BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
 See public-inbox-index(1) man page for full documentation.
 EOF
-my $compact_opt;
 my $opt = { quiet => -1, compact => 0, max_size => undef, fsync => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		fsync|sync! xapian_only|xapian-only
@@ -51,46 +50,10 @@ if ($opt->{xapian_only} && !$opt->{reindex}) {
 require PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
 
-if ($opt->{compact}) {
-	require PublicInbox::Xapcmd;
-	PublicInbox::Xapcmd::check_compact();
-	$compact_opt = { -coarse_lock => 1, compact => 1 };
-	if (defined(my $jobs = $opt->{jobs})) {
-		$compact_opt->{jobs} = $jobs;
-	}
-}
-
 my $cfg = PublicInbox::Config->new; # Config is loaded by Admin
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, undef, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
-
-my $max_size = $opt->{max_size} // $cfg->{lc('publicInbox.indexMaxSize')};
-if (defined $max_size) {
-	PublicInbox::Admin::parse_unsigned(\$max_size) or
-		die "`publicInbox.indexMaxSize=$max_size' not parsed\n";
-	$opt->{max_size} = $max_size;
-}
-
-my $bs = $opt->{batch_size} // $cfg->{lc('publicInbox.indexBatchSize')};
-if (defined $bs) {
-	PublicInbox::Admin::parse_unsigned(\$bs) or
-		die "`publicInbox.indexBatchSize=$bs' not parsed\n";
-	$opt->{batch_size} = $bs;
-}
-
-# out-of-the-box builds of Xapian 1.4.x are still limited to 32-bit
-# https://getting-started-with-xapian.readthedocs.io/en/latest/concepts/indexing/limitations.html
-local $ENV{XAPIAN_FLUSH_THRESHOLD} ||= '4294967295' if defined($bs);
-
-my $s = $opt->{sequential_shard} //
-			$cfg->{lc('publicInbox.indexSequentialShard')};
-if (defined $s) {
-	my $v = $cfg->git_bool($s);
-	defined($v) or
-		die "`publicInbox.indexSequentialShard=$s' not boolean\n";
-	$opt->{sequential_shard} = $v;
-}
 
 my $mods = {};
 foreach my $ibx (@ibxs) {
@@ -101,12 +64,14 @@ foreach my $ibx (@ibxs) {
 }
 
 PublicInbox::Admin::require_or_die(keys %$mods);
+my $env = PublicInbox::Admin::index_prepare($opt, $cfg);
+local %ENV = (%ENV, %$env) if $env;
 require PublicInbox::InboxWritable;
 PublicInbox::Admin::progress_prepare($opt);
 for my $ibx (@ibxs) {
 	$ibx = PublicInbox::InboxWritable->new($ibx);
 	if ($opt->{compact} >= 2) {
-		PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt);
+		PublicInbox::Xapcmd::run($ibx, 'compact', $opt->{compact_opt});
 	}
 	$ibx->{-no_fsync} = 1 if !$opt->{fsync};
 
@@ -118,8 +83,8 @@ EOL
 		$ibx_opt = { %$opt, sequential_shard => $v };
 	}
 	PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
-	if ($compact_opt) {
-		local $compact_opt->{jobs} = 0 if $ibx_opt->{sequential_shard};
-		PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt);
+	if (my $copt = $opt->{compact_opt}) {
+		local $copt->{jobs} = 0 if $ibx_opt->{sequential_shard};
+		PublicInbox::Xapcmd::run($ibx, 'compact', $copt);
 	}
 }

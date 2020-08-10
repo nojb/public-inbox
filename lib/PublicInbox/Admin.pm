@@ -265,4 +265,40 @@ sub parse_unsigned ($) {
 	1;
 }
 
+sub index_prepare ($$) {
+	my ($opt, $cfg) = @_;
+	my $env;
+	if ($opt->{compact}) {
+		require PublicInbox::Xapcmd;
+		PublicInbox::Xapcmd::check_compact();
+		$opt->{compact_opt} = { -coarse_lock => 1, compact => 1 };
+		if (defined(my $jobs = $opt->{jobs})) {
+			$opt->{compact_opt}->{jobs} = $jobs;
+		}
+	}
+	for my $k (qw(max_size batch_size)) {
+		my $git_key = "publicInbox.index".ucfirst($k);
+		$git_key =~ s/_([a-z])/\U$1/g;
+		defined(my $v = $opt->{$k} // $cfg->{lc($git_key)}) or next;
+		parse_unsigned(\$v) or die "`$git_key=$v' not parsed\n";
+		$v > 0 or die "`$git_key=$v' must be positive\n";
+		$opt->{$k} = $v;
+	}
+
+	# out-of-the-box builds of Xapian 1.4.x are still limited to 32-bit
+	# https://getting-started-with-xapian.readthedocs.io/en/latest/concepts/indexing/limitations.html
+	$opt->{batch_size} and
+		$env = { XAPIAN_FLUSH_THRESHOLD => '4294967295' };
+
+	for my $k (qw(sequential_shard)) {
+		my $git_key = "publicInbox.index".ucfirst($k);
+		$git_key =~ s/_([a-z])/\U$1/g;
+		defined(my $s = $opt->{$k} // $cfg->{lc($git_key)}) or next;
+		defined(my $v = $cfg->git_bool($s))
+					or die "`$git_key=$s' not boolean\n";
+		$opt->{$k} = $v;
+	}
+	$env;
+}
+
 1;
