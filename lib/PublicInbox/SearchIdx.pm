@@ -67,7 +67,6 @@ sub new {
 		my $dir = $self->xdir;
 		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
 		$self->{over}->{-no_fsync} = 1 if $ibx->{-no_fsync};
-		$self->{index_max_size} = $ibx->{index_max_size};
 	} elsif ($version == 2) {
 		defined $shard or die "shard is required for v2\n";
 		# shard is a number
@@ -553,10 +552,10 @@ sub index_sync {
 sub check_size { # check_async cb for -index --max-size=...
 	my ($oid, $type, $size, $arg, $git) = @_;
 	(($type // '') eq 'blob') or die "E: bad $oid in $git->{git_dir}";
-	if ($size <= $arg->{index_max_size}) {
+	if ($size <= $arg->{max_size}) {
 		$git->cat_async($oid, $arg->{index_oid}, $arg);
 	} else {
-		warn "W: skipping $oid ($size > $arg->{index_max_size})\n";
+		warn "W: skipping $oid ($size > $arg->{max_size})\n";
 	}
 }
 
@@ -573,7 +572,7 @@ sub v1_checkpoint ($$;$) {
 			$self->{mm}->last_commit($newest);
 		}
 	} else {
-		${$sync->{max}} = $BATCH_BYTES;
+		${$sync->{max}} = $self->{batch_bytes};
 	}
 
 	$self->{mm}->{dbh}->commit;
@@ -603,7 +602,7 @@ sub v1_checkpoint ($$;$) {
 sub process_stack {
 	my ($self, $sync, $stk) = @_;
 	my $git = $self->{ibx}->git;
-	my $max = $BATCH_BYTES;
+	my $max = $self->{batch_bytes};
 	my $nr = 0;
 	$sync->{nr} = \$nr;
 	$sync->{max} = \$max;
@@ -617,13 +616,13 @@ sub process_stack {
 			$git->cat_async($oid, \&unindex_both, $self);
 		}
 	}
-	if ($sync->{index_max_size} = $self->{ibx}->{index_max_size}) {
+	if ($sync->{max_size} = $sync->{-opt}->{max_size}) {
 		$sync->{index_oid} = \&index_both;
 	}
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
 		if ($f eq 'm') {
 			my $arg = { %$sync, autime => $at, cotime => $ct };
-			if ($sync->{index_max_size}) {
+			if ($sync->{max_size}) {
 				$git->check_async($oid, \&check_size, $arg);
 			} else {
 				$git->cat_async($oid, \&index_both, $arg);
@@ -749,6 +748,7 @@ sub _index_sync {
 	my ($self, $opts) = @_;
 	my $tip = $opts->{ref} || 'HEAD';
 	my $git = $self->{ibx}->git;
+	$self->{batch_bytes} = $opts->{batch_size} // $BATCH_BYTES;
 	$git->batch_prepare;
 	my $pr = $opts->{-progress};
 	my $sync = { reindex => $opts->{reindex}, -opt => $opts };

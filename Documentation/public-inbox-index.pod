@@ -158,7 +158,11 @@ value.  A single suffix modifier of C<k>, C<m> or C<g> is
 supported, thus the value of C<1m> to prevents indexing of
 messages larger than one megabyte.
 
-This is useful for avoiding memory exhaustion in mirrors.
+This is useful for avoiding memory exhaustion in mirrors
+via git.  It does not prevent L<public-inbox-mda(1)> or
+L<public-inbox-watch(1)> from importing (and indexing)
+a message.
+
 This option is only available in public-inbox 1.5 or later.
 
 Default: none

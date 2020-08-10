@@ -17,7 +17,7 @@ usage: $usage
 options:
 
   --no-fsync          speed up indexing, risk corruption on power outage
-  --indexlevel=LEVEL  `basic', 'medium', or `full' (default: full)
+  -L LEVEL            `basic', `medium', or `full' (default: full)
   --compact | -c      run public-inbox-compact(1) after indexing
   --sequential-shard  index Xapian shards sequentially for slow storage
   --jobs=NUM          set or disable parallelization (NUM=0)
@@ -33,16 +33,17 @@ BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
 See public-inbox-index(1) man page for full documentation.
 EOF
 my $compact_opt;
-my $opt = { quiet => -1, compact => 0, maxsize => undef, fsync => 1 };
+my $opt = { quiet => -1, compact => 0, max_size => undef, fsync => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
-		fsync|sync! xapianonly|xapian-only
-		indexlevel|L=s maxsize|max-size=s batchsize|batch-size=s
-		sequentialshard|seq-shard|sequential-shard
+		fsync|sync! xapian_only|xapian-only
+		indexlevel|index-level|L=s max_size|max-size=s
+		batch_size|batch-size=s
+		sequential_shard|seq-shard|sequential-shard
 		help|?))
 	or die "bad command-line args\n$usage";
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
-if ($opt->{xapianonly} && !$opt->{reindex}) {
+if ($opt->{xapian_only} && !$opt->{reindex}) {
 	die "--xapian-only requires --reindex\n";
 }
 
@@ -64,40 +65,38 @@ my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, undef, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
 
-my $max_size = $opt->{maxsize} // $cfg->{lc('publicInbox.indexMaxSize')};
+my $max_size = $opt->{max_size} // $cfg->{lc('publicInbox.indexMaxSize')};
 if (defined $max_size) {
 	PublicInbox::Admin::parse_unsigned(\$max_size) or
 		die "`publicInbox.indexMaxSize=$max_size' not parsed\n";
+	$opt->{max_size} = $max_size;
 }
 
-my $bs = $opt->{batchsize} // $cfg->{lc('publicInbox.indexBatchSize')};
+my $bs = $opt->{batch_size} // $cfg->{lc('publicInbox.indexBatchSize')};
 if (defined $bs) {
 	PublicInbox::Admin::parse_unsigned(\$bs) or
 		die "`publicInbox.indexBatchSize=$bs' not parsed\n";
+	$opt->{batch_size} = $bs;
 }
-no warnings 'once';
-local $PublicInbox::SearchIdx::BATCH_BYTES = $bs if defined($bs);
-use warnings 'once';
 
 # out-of-the-box builds of Xapian 1.4.x are still limited to 32-bit
 # https://getting-started-with-xapian.readthedocs.io/en/latest/concepts/indexing/limitations.html
 local $ENV{XAPIAN_FLUSH_THRESHOLD} ||= '4294967295' if defined($bs);
 
-my $s = $opt->{sequentialshard} //
+my $s = $opt->{sequential_shard} //
 			$cfg->{lc('publicInbox.indexSequentialShard')};
 if (defined $s) {
 	my $v = $cfg->git_bool($s);
 	defined($v) or
 		die "`publicInbox.indexSequentialShard=$s' not boolean\n";
-	$opt->{sequentialshard} = $v;
+	$opt->{sequential_shard} = $v;
 }
 
 my $mods = {};
 foreach my $ibx (@ibxs) {
 	# XXX: users can shoot themselves in the foot, with opt->{indexlevel}
-	$ibx->{indexlevel} //= $opt->{indexlevel} // ($opt->{xapianonly} ?
+	$ibx->{indexlevel} //= $opt->{indexlevel} // ($opt->{xapian_only} ?
 			'full' : PublicInbox::Admin::detect_indexlevel($ibx));
-	$ibx->{index_max_size} = $max_size;
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
 
@@ -112,15 +111,15 @@ for my $ibx (@ibxs) {
 	$ibx->{-no_fsync} = 1 if !$opt->{fsync};
 
 	my $ibx_opt = $opt;
-	if (defined(my $s = $ibx->{indexsequentialshard})) {
+	if (defined(my $s = $ibx->{lc('indexSequentialShard')})) {
 		defined(my $v = $cfg->git_bool($s)) or die <<EOL;
 publicInbox.$ibx->{name}.indexSequentialShard not boolean
 EOL
-		$ibx_opt = { %$opt, sequentialshard => $v };
+		$ibx_opt = { %$opt, sequential_shard => $v };
 	}
 	PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
 	if ($compact_opt) {
-		local $compact_opt->{jobs} = 0 if $ibx_opt->{sequentialshard};
+		local $compact_opt->{jobs} = 0 if $ibx_opt->{sequential_shard};
 		PublicInbox::Xapcmd::run($ibx, 'compact', $compact_opt);
 	}
 }

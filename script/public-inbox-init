@@ -27,7 +27,7 @@ use Cwd qw/abs_path/;
 my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs);
 my %opts = (
 	'V|version=i' => \$version,
-	'L|indexlevel=s' => \$indexlevel,
+	'L|index-level|indexlevel=s' => \$indexlevel,
 	'S|skip|skip-epoch=i' => \$skip_epoch,
 	'N|skip-artnum=i' => \$skip_artnum,
 	'j|jobs=i' => \$jobs,
@@ -103,11 +103,7 @@ if (-e $pi_config) {
 	exit(1) if $conflict;
 
 	my $ibx = $cfg->lookup_name($name);
-	if ($ibx) {
-		if (!defined($indexlevel) && $ibx->{indexlevel}) {
-			$indexlevel = $ibx->{indexlevel};
-		}
-	}
+	$indexlevel //= $ibx->{indexlevel} if $ibx;
 }
 my $pi_config_tmp = $fh->filename;
 close($fh) or die "failed to close $pi_config_tmp: $!\n";

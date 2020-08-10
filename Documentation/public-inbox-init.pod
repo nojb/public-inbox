@@ -31,7 +31,7 @@ L<DBD::SQLite>.
 
 Default: C<1>
 
-=item --indexlevel <basic|medium|full>
+=item -L, --indexlevel <basic|medium|full>
 
 Controls the indexing level for L<public-inbox-index(1)>
 
