@@ -115,10 +115,10 @@ $old->with_umask(sub {
 		require PublicInbox::AltId;
 		foreach my $i (0..$#$alt) {
 			my $src = PublicInbox::AltId->new($old, $alt->[$i], 0);
-			$src->mm_alt or next;
+			$src = $src->mm_alt or next;
+			$src = $src->{dbh}->sqlite_db_filename;
 			my $dst = PublicInbox::AltId->new($new, $alt->[$i], 1);
-			$dst = $dst->{filename};
-			$src->mm_alt->{dbh}->sqlite_backup_to_file($dst);
+			$dst->mm_alt->{dbh}->sqlite_backup_from_file($src);
 		}
 	}
 	my $desc = "$old->{inboxdir}/description";
@@ -184,13 +184,15 @@ waitpid($pid, 0) or die "waitpid failed: $!\n";
 $? == 0 or die "fast-export failed: $?\n";
 $r = $w = undef; # v2w->done does the actual close and error checking
 $v2w->done;
-if (my $mm = $old->mm) {
+if (my $old_mm = $old->mm) {
 	$old->cleanup;
-	$mm->{dbh}->sqlite_backup_to_file("$new_dir/msgmap.sqlite3");
+	$old_mm = $old_mm->{dbh}->sqlite_db_filename;
 
 	# we want to trigger a reindex, not a from scratch index if
 	# we're reusing the msgmap from an existing v1 installation.
 	$v2w->idx_init($opt);
+	$v2w->{mm}->{dbh}->sqlite_backup_from_file($old_mm);
+
 	my $epoch0 = PublicInbox::Git->new($v2w->git_init(0));
 	chop(my $cmt = $epoch0->qx(qw(rev-parse --verify), $head));
 	$v2w->last_epoch_commit(0, $cmt);
