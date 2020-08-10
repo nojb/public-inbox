@@ -115,6 +115,11 @@ Sets or overrides L</publicinbox.indexBatchSize> on a
 per-invocation basis.  See L</publicinbox.indexBatchSize>
 below.
 
+When using rotational storage but abundant RAM, using a large
+value (e.g. C<500m>) with C<--sequential-shard> can
+significantly speed up the initial index and full C<--reindex>
+invocations (but not incremental updates).
+
 Available in public-inbox 1.6.0 (PENDING).
 
 =item --no-fsync
@@ -136,11 +141,11 @@ Available in public-inbox 1.6.0 (PENDING).
 
 =head1 FILES
 
-For v1 (ssoma) repositories described in L<public-inbox-v1-format>.
+For v1 (ssoma) repositories described in L<public-inbox-v1-format(5)>.
 All public-inbox-specific files are contained within the
 C<$GIT_DIR/public-inbox/> directory.
 
-v2 inboxes are described in L<public-inbox-v2-format>.
+v2 inboxes are described in L<public-inbox-v2-format(5)>.
 
 =head1 CONFIGURATION
 
@@ -168,40 +173,25 @@ L<public-inbox-learn(1)>, and L<public-inbox-watch(1)>.
 
 Increase this value on powerful systems to improve throughput at
 the expense of memory use.  The reduction of lock granularity
-may not be noticeable on fast systems.
-
-This option is available in public-inbox 1.6 or later.
-public-inbox 1.5 and earlier used the current default, C<1m>.
+may not be noticeable on fast systems.  With SSDs, values above
+C<4m> have little benefit.
 
 For L<public-inbox-v2-format(5)> inboxes, this value is
 multiplied by the number of Xapian shards.  Thus a typical v2
-inbox with 3 shards will flush every 3 megabytes by default.
+inbox with 3 shards will flush every 3 megabytes by default
+when unless parallelism is disabled via C<--sequential-shard>
+or C<--jobs=0>.
 
-Default: 1m (one megabyte)
-
-=item publicinbox.indexBatchSize
-
-Flushes changes to the filesystem and releases locks after
-indexing the given number of bytes.  The default value of C<1m>
-(one megabyte) is low to minimize memory use and reduce
-contention with parallel invocations of L<public-inbox-mda(1)>,
-L<public-inbox-learn(1)>, and L<public-inbox-watch(1)>.
-
-Increase this value on powerful systems to improve throughput at
-the expense of memory use.  The reduction of lock granularity
-may not be noticeable on fast systems.
+This influences memory usage of Xapian, but it is not exact.
+The actual memory used by Xapian and Perl has been observed
+in excess of 10x this value.
 
 This option is available in public-inbox 1.6 or later.
 public-inbox 1.5 and earlier used the current default, C<1m>.
-
-For L<public-inbox-v2-format(5)> inboxes, this value is
-multiplied by the number of Xapian shards.  Thus a typical v2
-inbox with 3 shards will flush every 3 megabytes by default.
 
 Default: 1m (one megabyte)
 
 =item publicinbox.indexSequentialShard
-=item publicinbox.<inbox_name>.indexSequentialShard
 
 For L<public-inbox-v2-format(5)> inboxes, setting this to C<true>
 allows indexing Xapian shards in multiple passes.  This speeds up
@@ -212,11 +202,22 @@ Using a higher-than-normal number of C<--jobs> with
 L<public-inbox-init(1)> may be required to ensure individual
 shards are small enough to fit into cache.
 
+Warning: interrupting C<public-inbox-index(1)> while this option
+is in use may leave the search indices out-of-date with respect
+to SQLite databases.  WWW and IMAP users may notice incomplete
+search results, but it is otherwise non-fatal.  Using C<--reindex>
+will bring everything back up-to-date.
+
 Available in public-inbox 1.6.0 (PENDING).
 
 This is ignored on L<public-inbox-v1-format(5)> inboxes.
 
 Default: false, shards are indexed in parallel
+
+=item publicinbox.<name>.indexSequentialShard
+
+Identical to L</publicinbox.indexSequentialShard>,
+but only affect the inbox matching E<lt>nameE<gt>.
 
 =back
 
@@ -235,10 +236,13 @@ disk.  This environment is handled directly by Xapian, refer to
 Xapian API documentation for more details.
 
 For public-inbox 1.6 and later, use C<publicinbox.indexBatchSize>
-instead.  Setting C<XAPIAN_FLUSH_THRESHOLD> for a large C<--reindex>
-may cause L<public-inbox-mda(1)>, L<public-inbox-learn(1)> and
-L<public-inbox-watch(1)> tasks to wait long periods of time
-during C<--reindex>.
+instead.
+
+Setting C<XAPIAN_FLUSH_THRESHOLD> or
+C<publicinbox.indexBatchSize> for a large C<--reindex> may cause
+L<public-inbox-mda(1)>, L<public-inbox-learn(1)> and
+L<public-inbox-watch(1)> tasks to wait long and unpredictable
+periods of time during C<--reindex>.
 
 Default: none, uses C<publicinbox.indexBatchSize>
 
