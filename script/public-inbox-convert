@@ -45,8 +45,9 @@ GetOptions($opt, qw(jobs|j=i index! help|?),
 bad command-line args\n$usage
 EOF
 if ($opt->{help}) { print $help; exit 0 };
-my $old_dir = shift(@ARGV) or die $usage;
-my $new_dir = shift(@ARGV) or die $usage;
+my $old_dir = shift(@ARGV) // '';
+my $new_dir = shift(@ARGV) // '';
+die $usage if (scalar(@ARGV) || $new_dir eq '' || $old_dir eq '');
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
 
