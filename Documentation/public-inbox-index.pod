@@ -179,7 +179,7 @@ C<4m> have little benefit.
 For L<public-inbox-v2-format(5)> inboxes, this value is
 multiplied by the number of Xapian shards.  Thus a typical v2
 inbox with 3 shards will flush every 3 megabytes by default
-when unless parallelism is disabled via C<--sequential-shard>
+unless parallelism is disabled via C<--sequential-shard>
 or C<--jobs=0>.
 
 This influences memory usage of Xapian, but it is not exact.
