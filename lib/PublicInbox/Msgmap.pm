@@ -9,10 +9,8 @@
 # This is maintained by ::SearchIdx
 package PublicInbox::Msgmap;
 use strict;
-use warnings;
 use DBI;
 use DBD::SQLite;
-use File::Temp qw(tempfile);
 use PublicInbox::Over;
 use PublicInbox::Spawn;
 
@@ -50,18 +48,13 @@ sub new_file {
 # used to keep track of used numeric mappings for v2 reindex
 sub tmp_clone {
 	my ($self, $dir) = @_;
-	my ($fh, $fn) = tempfile('msgmap-XXXXXXXX', EXLOCK => 0, DIR => $dir);
+	require File::Temp;
+	my $tmp = "mm_tmp-$$-XXXXXX";
+	my ($fh, $fn) = File::Temp::tempfile($tmp, EXLOCK => 0, DIR => $dir);
 	PublicInbox::Spawn::nodatacow_fd(fileno($fh));
-	my $tmp;
-	if ($self->{dbh}->can('sqlite_backup_to_dbh')) {
-		$tmp = ref($self)->new_file($fn, 2);
-		$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
-		$self->{dbh}->sqlite_backup_to_dbh($tmp->{dbh});
-	} else { # DBD::SQLite <= 1.61_01
-		$self->{dbh}->sqlite_backup_to_file($fn);
-		$tmp = ref($self)->new_file($fn, 2);
-		$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
-	}
+	$self->{dbh}->sqlite_backup_to_file($fn);
+	$tmp = ref($self)->new_file($fn, 2);
+	$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');
 	$tmp->{pid} = $$;
 	$tmp;
 }
