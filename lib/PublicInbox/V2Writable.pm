@@ -995,7 +995,7 @@ sub log_range ($$$$$) {
 	my $opt = $sync->{-opt};
 	my $pr = $opt->{-progress} if (($opt->{verbose} || 0) > 1);
 	my $cur = $sync->{ranges}->[$i] or do {
-		$pr->("$i.git indexing all of $tip") if $pr;
+		$pr->("$i.git indexing all of $tip\n") if $pr;
 		return $tip; # all of it
 	};
 
