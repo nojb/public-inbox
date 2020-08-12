@@ -9,7 +9,7 @@ use PublicInbox::SearchIdx;
 use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);
-use POSIX ();
+use POSIX qw(WNOHANG);
 
 # support testing with dev versions of Xapian which installs
 # commands with a version number suffix (e.g. "xapian-compact-1.5")
@@ -151,14 +151,17 @@ sub process_queue {
 			$pids{cb_spawn($cb, $args, $opt)} = $args;
 		}
 
+		my $flags = 0;
 		while (scalar keys %pids) {
-			my $pid = waitpid(-1, 0);
+			my $pid = waitpid(-1, $flags) or last;
+			last if $pid < 0;
 			my $args = delete $pids{$pid};
 			if ($args) {
 				die join(' ', @$args)." failed: $?\n" if $?;
 			} else {
 				warn "unknown PID($pid) reaped: $?\n";
 			}
+			$flags = WNOHANG if scalar(@$queue);
 		}
 	}
 }
