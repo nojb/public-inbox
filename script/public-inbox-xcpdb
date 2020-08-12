@@ -8,8 +8,9 @@ use PublicInbox::Xapcmd;
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-search');
 my $usage = "Usage: public-inbox-xcpdb [--compact] INBOX_DIR\n";
-my $opt = { sync => 1 };
-my @opt = (qw(sync! compact reshard|R=i), @PublicInbox::Xapcmd::COMPACT_OPT);
+my $opt = { fsync => 1 };
+my @opt = (qw(fsync|sync! compact reshard|R=i),
+	@PublicInbox::Xapcmd::COMPACT_OPT);
 GetOptions($opt, @opt) or die "bad command-line args\n$usage";
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
 foreach (@ibxs) {
