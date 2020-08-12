@@ -8,7 +8,6 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock);
 use PublicInbox::SearchIdxShard;
-use PublicInbox::IdxStack;
 use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
