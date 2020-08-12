@@ -82,7 +82,8 @@ sub commit_changes ($$$$) {
 				$im->{shards} = $n;
 			}
 		}
-
+		my $env = $opt->{-idx_env};
+		local %ENV = (%ENV, %$env) if $env;
 		PublicInbox::Admin::index_inbox($ibx, $im, $opt);
 	}
 }

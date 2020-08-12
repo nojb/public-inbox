@@ -19,7 +19,7 @@ L<public-inbox-learn(1)>, and L<public-inbox-index(1)>.
 
 =over
 
-=item --compact
+=item -c, --compact
 
 In addition to performing the copy operation, run L<xapian-compact(1)>
 on each Xapian shard after copying but before finalizing it.
@@ -51,6 +51,23 @@ used with C<--compact>.
 Disable L<fsync(2)> and L<fdatasync(2)>.
 
 Available in public-inbox 1.6.0 (PENDING).
+
+=item --sequential-shard
+
+Copy each shard sequentially, ignoring C<--jobs>.  This also
+affects indexing done at the end of a run.
+
+=item --batch-size=BYTES
+
+=item --max-size=BYTES
+
+See L<public-inbox-index(1)> for a description of these options.
+
+These indexing options indexing at the end of a run.
+C<public-inbox-xcpdb> may run in parallel with with
+L<public-inbox-index(1)>, and C<public-inbox-xcpdb> needs to
+reindex changes made to the old Xapian DBs by
+L<public-inbox-index(1)> while it was running.
 
 =back
 

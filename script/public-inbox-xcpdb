@@ -1,20 +1,64 @@
-#!/usr/bin/perl -w
+#!perl -w
 # Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-# xcpdb: Xapian copy database, a wrapper around Xapian's copydatabase(1)
+use strict;
+use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use PublicInbox::InboxWritable;
-use PublicInbox::Xapcmd;
+my $usage = 'Usage: public-inbox-xcpdb [options] INBOX_DIR';
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+usage: $usage
+
+  upgrade or reshard Xapian DB(s) used by public-inbox
+
+options:
+
+  --compact | -c      run public-inbox-compact(1) after indexing
+  --reshard=NUM       change number the number of shards
+  --jobs=NUM          limit parallelism to JOBS count
+  --verbose | -v      increase verbosity (may be repeated)
+  --sequential-shard  copy+index Xapian shards sequentially (for slow HDD)
+  --help | -?         show this help
+
+index options (see public-inbox-index(1) man page for full description):
+
+  --no-fsync          speed up indexing, risk corruption on power outage
+  --batch-size=BYTES  flush changes to OS after a given number of bytes
+  --max-size=BYTES    do not index messages larger than the given size
+
+See public-inbox-xcpdb(1) man page for full documentation.
+EOF
+my $opt = { quiet => -1, compact => 0, fsync => 1 };
+GetOptions($opt, qw(
+	fsync|sync! compact|c reshard|R=i
+	max_size|max-size=s batch_size|batch-size=s
+	sequential_shard|seq-shard|sequential-shard
+	jobs|j=i quiet|q verbose|v
+	blocksize|b=s no-full|n fuller|F
+	help|?)) or die "bad command-line args\n$usage";
+if ($opt->{help}) { print $help; exit 0 };
+
 use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-search');
-my $usage = "Usage: public-inbox-xcpdb [--compact] INBOX_DIR\n";
-my $opt = { fsync => 1 };
-my @opt = (qw(fsync|sync! compact reshard|R=i),
-	@PublicInbox::Xapcmd::COMPACT_OPT);
-GetOptions($opt, @opt) or die "bad command-line args\n$usage";
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
+
+require PublicInbox::Config;
+my $cfg = PublicInbox::Config->new;
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, undef, $cfg) or
+	die $usage;
+my $idx_env = PublicInbox::Admin::index_prepare($opt, $cfg);
+
+# we only set XAPIAN_FLUSH_THRESHOLD for index, since cpdb doesn't
+# know sizes, only doccounts
+$opt->{-idx_env} = $idx_env;
+
+if ($opt->{sequential_shard} && ($opt->{jobs} // 1) > 1) {
+	warn "W: --jobs=$opt->{jobs} ignored with --sequential-shard\n";
+	$opt->{jobs} = 0;
+}
+
+require PublicInbox::InboxWritable;
+require PublicInbox::Xapcmd;
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
-	# we rely on --no-renumber to keep docids synched to NNTP
+	# we rely on --no-renumber to keep docids synched for NNTP
 	PublicInbox::Xapcmd::run($ibx, 'cpdb', $opt);
 }
