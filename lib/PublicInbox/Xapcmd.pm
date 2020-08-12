@@ -253,7 +253,7 @@ sub _run {
 
 sub run {
 	my ($ibx, $task, $opt) = @_; # task = 'cpdb' or 'compact'
-	my $cb = \&${\"PublicInbox::Xapcmd::$task"};
+	my $cb = \&$task;
 	PublicInbox::Admin::progress_prepare($opt ||= {});
 	defined(my $dir = $ibx->{inboxdir}) or die "no inboxdir defined\n";
 	-d $dir or die "inboxdir=$dir does not exist\n";
