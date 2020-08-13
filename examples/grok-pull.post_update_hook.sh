@@ -124,7 +124,9 @@ then
 		: v2 inboxes may be init-ed with an empty msgmap
 		;;
 	*)
-		# if on HDD and limited RAM, add `-j0' w/ public-inbox 1.6.0+
+		# if on HDD and limited RAM, add `--sequential-shard'
+		# and possibly a large `--batch-size' if you have much
+		# memory in public-inbox 1.6.0+
 		$EATMYDATA public-inbox-index -v "$inbox_dir"
 		;;
 	esac
