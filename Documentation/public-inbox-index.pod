@@ -6,6 +6,8 @@ public-inbox-index - create and update search indices
 
 public-inbox-index [OPTIONS] INBOX_DIR...
 
+public-inbox-index [OPTIONS] --all
+
 =head1 DESCRIPTION
 
 public-inbox-index creates and updates the search, overview and
@@ -80,6 +82,12 @@ L<public-inbox-learn(1)> run.
 This does not touch the NNTP article number database.
 It does not affect threading unless C<--rethread> is
 used.
+
+=item --all
+
+Index all inboxes configured in ~/.public-inbox/config.
+This is an alternative to specifying individual inboxes directories
+on the command-line.
 
 =item --rethread
 

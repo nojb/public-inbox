@@ -10,9 +10,9 @@ use PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
 my $usage = "Usage: public-inbox-compact INBOX_DIR\n";
 my $opt = { compact => 1, -coarse_lock => 1 };
-GetOptions($opt, @PublicInbox::Xapcmd::COMPACT_OPT) or
+GetOptions($opt, qw(all), @PublicInbox::Xapcmd::COMPACT_OPT) or
 	die "bad command-line args\n$usage";
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV) or die $usage;
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt) or die $usage;
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
 	PublicInbox::Xapcmd::run($ibx, 'compact', $opt);

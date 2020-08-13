@@ -18,6 +18,7 @@ options:
 
   --no-fsync          speed up indexing, risk corruption on power outage
   -L LEVEL            `basic', `medium', or `full' (default: full)
+  --all               index all configured inboxes
   --compact | -c      run public-inbox-compact(1) after indexing
   --sequential-shard  index Xapian shards sequentially for slow storage
   --jobs=NUM          set or disable parallelization (NUM=0)
@@ -38,7 +39,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		sequential_shard|seq-shard|sequential-shard
-		help|?))
+		all help|?))
 	or die "bad command-line args\n$usage";
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
@@ -51,7 +52,7 @@ require PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
 
 my $cfg = PublicInbox::Config->new; # Config is loaded by Admin
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, undef, $cfg);
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
 

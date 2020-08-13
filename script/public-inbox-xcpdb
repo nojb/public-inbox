@@ -13,6 +13,7 @@ usage: $usage
 options:
 
   --compact | -c      run public-inbox-compact(1) after indexing
+  --all               copy all configured inboxes
   --reshard=NUM       change number the number of shards
   --jobs=NUM          limit parallelism to JOBS count
   --verbose | -v      increase verbosity (may be repeated)
@@ -34,7 +35,7 @@ GetOptions($opt, qw(
 	sequential_shard|seq-shard|sequential-shard
 	jobs|j=i quiet|q verbose|v
 	blocksize|b=s no-full|n fuller|F
-	help|?)) or die "bad command-line args\n$usage";
+	all help|?)) or die "bad command-line args\n$usage";
 if ($opt->{help}) { print $help; exit 0 };
 
 use PublicInbox::Admin;
@@ -42,7 +43,7 @@ PublicInbox::Admin::require_or_die('-search');
 
 require PublicInbox::Config;
 my $cfg = PublicInbox::Config->new;
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, undef, $cfg) or
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg) or
 	die $usage;
 my $idx_env = PublicInbox::Admin::index_prepare($opt, $cfg);
 

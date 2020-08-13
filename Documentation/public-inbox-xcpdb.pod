@@ -4,7 +4,9 @@ public-inbox-xcpdb - upgrade Xapian DB formats
 
 =head1 SYNOPSIS
 
-	public-inbox-xcpdb [OPTIONS] INBOX_DIR
+public-inbox-xcpdb [OPTIONS] INBOX_DIR
+
+public-inbox-xcpdb [OPTIONS] --all
 
 =head1 DESCRIPTION
 
@@ -18,6 +20,12 @@ L<public-inbox-learn(1)>, and L<public-inbox-index(1)>.
 =head1 OPTIONS
 
 =over
+
+=item --all
+
+Copy all inboxes configured in ~/.public-inbox/config.
+This is an alternative to specifying individual inboxes directories
+on the command-line.
 
 =item -c, --compact
 

@@ -4,7 +4,9 @@ public-inbox-compact - compact Xapian DBs in an inbox
 
 =head1 SYNOPSIS
 
-	public-inbox-compact INBOX_DIR
+public-inbox-compact INBOX_DIR
+
+public-inbox-compact --all
 
 =head1 DESCRIPTION
 
@@ -20,6 +22,12 @@ rest of the public-inbox search code.
 =head1 OPTIONS
 
 =over
+
+=item --all
+
+Compact all inboxes configured in ~/.public-inbox/config.
+This is an alternative to specifying individual inboxes directories
+on the command-line.
 
 =item --blocksize / --no-full / --fuller
 
