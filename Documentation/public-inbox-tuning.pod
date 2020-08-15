@@ -1,0 +1,139 @@
+=head1 NAME
+
+public-inbox-tuning - tuning public-inbox
+
+=head1 DESCRIPTION
+
+public-inbox intends to support a wide variety of hardware.  While
+we strive to provide the best out-of-the-box performance possible,
+tuning knobs are an unfortunate necessity in some cases.
+
+=over 4
+
+=item 1
+
+New inboxes: public-inbox-init -V2
+
+=item 2
+
+Process spawning
+
+=item 3
+
+Performance on rotational hard disk drives
+
+=item 4
+
+Btrfs (and possibly other copy-on-write filesystems)
+
+=item 5
+
+Performance on solid state drives
+
+=item 6
+
+Read-only daemons
+
+=back
+
+=head2 New inboxes: public-inbox-init -V2
+
+If you're starting a new inbox (and not mirroring an existing one),
+the L<-V2|public-inbox-v2-format(5)> requires L<DBD::SQLite>, but is
+orders of magnitude more scalable than the original C<-V1> format.
+
+=head2 Process spawning
+
+Our optional use of L<Inline::C> speeds up subprocess spawning from
+large daemon processes.
+
+To enable L<Inline::C>, either set the C<PERL_INLINE_DIRECTORY>
+environment variable to point to a writable directory, or create
+C<~/.cache/public-inbox/inline-c> for any user(s) running
+public-inbox processes.
+
+More (optional) L<Inline::C> use will be introduced in the future
+to lower memory use and improve scalability.
+
+=head2 Performance on rotational hard disk drives
+
+Random I/O performance is poor on rotational HDDs.  Xapian indexing
+performance degrades significantly as DBs grow larger than available
+RAM.  Attempts to parallelize random I/O on HDDs leads to pathological
+slowdowns as inboxes grow.
+
+While C<-V2> introduced Xapian shards as a parallelization
+mechanism for SSDs; enabling C<publicInbox.indexSequentialShard>
+repurposes sharding as mechanism to reduce the kernel page cache
+footprint when indexing on HDDs.
+
+Initializing a mirror with a high C<--jobs> count to create more
+shards (in C<-V2> inboxes) will keep each shard smaller and
+reduce its kernel page cache footprint.
+
+Users with large amounts of RAM are advised to set a large value
+for C<publicinbox.indexBatchSize> as documented in
+L<public-inbox-config(5)>.
+
+C<dm-crypt> users on Linux 4.0+ are advised to try the
+C<--perf-same_cpu_crypt> C<--perf-submit_from_crypt_cpus>
+switches of L<cryptsetup(8)> to reduce I/O contention from
+kernel workqueue threads.
+
+=head2 Btrfs (and possibly other copy-on-write filesystems)
+
+L<btrfs(5)> performance degrades from fragmentation when using
+large databases and random writes.  The Xapian + SQLite indices
+used by public-inbox are no exception to that.
+
+public-inbox 1.6.0+ disables copy-on-write (CoW) on Xapian and SQLite
+indices on btrfs to achieve acceptable performance (even on SSD).
+Disabling copy-on-write also disables checksumming, thus raid1
+(or higher) configurations may corrupt on unsafe shutdowns.
+
+Fortunately, these SQLite and Xapian indices are designed to
+recoverable from git if missing.
+
+Large filesystems benefit significantly from the C<space_cache=v2>
+mount option documented in L<btrfs(5)>.
+
+Older, non-CoW filesystems are generally work well out-of-the-box
+for our Xapian and SQLite indices.
+
+=head2 Performance on solid state drives
+
+While SSD read performance is generally good, SSD write performance
+degrades as the drive ages and/or gets full.  Issuing C<TRIM> commands
+via L<fstrim(8)> or similar is required to sustain write performance.
+
+=head2 Read-only daemons
+
+L<public-inbox-httpd(1)>, L<public-inbox-imapd(1)>, and
+L<public-inbox-nntpd(1)> are all designed for C10K (or higher)
+levels of concurrency from a single process.  SMP systems may
+use C<--worker-processes=NUM> as documented in L<public-inbox-daemon(8)>
+for parallelism.
+
+The open file descriptor limit (C<RLIMIT_NOFILE>, C<ulimit -n> in L<sh(1)>,
+C<LimitNOFILE=> in L<systemd.exec(5)>) may need to be raised to
+accomodate many concurrent clients.
+
+Transport Layer Security (IMAPS, NNTPS, or via STARTTLS) significantly
+increases memory use of client sockets, sure to account for that in
+capacity planning.
+
+=head1 CONTACT
+
+Feedback encouraged via plain-text mail to L<mailto:meta@public-inbox.org>
+
+Information for *BSDs and non-traditional filesystems especially
+welcome.
+
+Our archives are hosted at L<https://public-inbox.org/meta/>,
+L<http://hjrcffqmbrq6wope.onion/meta/>, and other places
+
+=head1 COPYRIGHT
+
+Copyright 2020 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>

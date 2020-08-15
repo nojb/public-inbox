@@ -34,7 +34,7 @@ $v->{my_syntax} = [map { "$_.syntax" } @syn];
 $v->{-m1} = [ map { (split('/'))[-1] } @EXE_FILES ];
 $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 		public-inbox-v2-format) ];
-$v->{-m7} = [ qw(public-inbox-overview) ];
+$v->{-m7} = [ qw(public-inbox-overview public-inbox-tuning) ];
 $v->{-m8} = [ qw(public-inbox-daemon) ];
 my @sections = (1, 5, 7, 8);
 $v->{check_80} = [];

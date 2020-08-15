@@ -117,9 +117,9 @@ Rotational storage devices perform significantly worse than
 solid state storage for indexing of large mail archives; but are
 fine for backup and usable for small instances.
 
-As of public-inbox 1.6.0, the C<--sequential-shard> option of
-L<public-inbox-index(1)> may be used with a high shard count
-to ensure individual shards fit into page cache when the entire
+As of public-inbox 1.6.0, the C<publicInbox.indexSequentialShard>
+option of L<public-inbox-index(1)> may be used with a high shard
+count to ensure individual shards fit into page cache when the entire
 Xapian DB cannot.
 
 Our use of the L</OVERVIEW DB> requires Xapian document IDs to
