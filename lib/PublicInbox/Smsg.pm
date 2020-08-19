@@ -105,6 +105,9 @@ sub populate {
 		# to protect git and NNTP clients
 		$val =~ tr/\0\t\n/   /;
 
+		# rare: in case headers have wide chars (not RFC2047-encoded)
+		utf8::decode($val);
+
 		# lower-case fields for read-only stuff
 		$self->{lc($f)} = $val;
 

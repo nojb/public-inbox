@@ -28,8 +28,10 @@ my $im = $ibx->importer(0);
 my $digits = '10010260936330';
 my $ua = 'Pine.LNX.4.10';
 my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
+
+# n.b. these headers are not properly RFC2047-encoded
 my $mime = PublicInbox::Eml->new(<<EOF);
-Subject: test
+Subject: test Ævar
 Message-ID: <$mid>
 From: Ævar Arnfjörð Bjarmason <avarab\@example>
 To: git\@vger.kernel.org
@@ -102,6 +104,8 @@ test_psgi(sub { $www->call(@_) }, sub {
 		'subject-less message linked from "/$INBOX/"');
 	like($html, qr/\bhref="blank-subject[^>]+>\(no subject\)</,
 		'blank subject message linked from "/$INBOX/"');
+	like($html, qr/test &#198;var/,
+		"displayed Ævar's name properly in topic view");
 
 	$res = $cb->(GET('/test/?q=tc:git'));
 	like($html, qr/\bhref="no-subject-at-all[^>]+>\(no subject\)</,
