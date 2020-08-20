@@ -57,6 +57,7 @@ sub new {
 sub disconnect {
 	my ($self) = @_;
 	if (my $dbh = delete $self->{dbh}) {
+		delete $self->{-get_art};
 		$self->{filename} = $dbh->sqlite_db_filename;
 	}
 }
@@ -201,8 +202,8 @@ SELECT COUNT(num) FROM over WHERE num > 0
 
 sub get_art {
 	my ($self, $num) = @_;
-	my $dbh = $self->connect;
-	my $sth = $dbh->prepare_cached(<<'', undef, 1);
+	# caching $sth ourselves is faster than prepare_cached
+	my $sth = $self->{-get_art} //= $self->connect->prepare(<<'');
 SELECT num,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 
 	$sth->execute($num);
@@ -230,13 +231,7 @@ ORDER BY num ASC LIMIT 1
 	$sth->execute($$id, $$prev);
 	my $num = $sth->fetchrow_array or return;
 	$$prev = $num;
-
-	$sth = $dbh->prepare_cached(<<"", undef, 1);
-SELECT num,ts,ds,ddd FROM over WHERE num = ? LIMIT 1
-
-	$sth->execute($num);
-	my $smsg = $sth->fetchrow_hashref or return;
-	load_from_row($smsg);
+	get_art($self, $num);
 }
 
 # IMAP search, this is limited by callers to UID_SLICE size (50K)
@@ -278,10 +273,7 @@ sub check_inodes {
 		my $st = pack('dd', $st[0], $st[1]);
 
 		# don't actually reopen, just let {dbh} be recreated later
-		if ($st ne ($self->{st} // $st)) {
-			delete($self->{dbh});
-			$self->{filename} = $f;
-		}
+		disconnect($self) if $st ne ($self->{st} // $st);
 	} else {
 		warn "W: stat $f: $!\n";
 	}
