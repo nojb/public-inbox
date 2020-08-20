@@ -1,57 +1,76 @@
-#!/usr/bin/perl -w
+#!perl -w
 # Copyright (C) 2014-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-#
-# Initializes a public-inbox, basically a wrapper for git-init(1)
 use strict;
-use warnings;
-sub usage {
-	print STDERR <<EOF;
-Usage: public-inbox-init NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]
-EOF
-	exit 1;
-}
+use v5.10.1;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
-use PublicInbox::Admin;
-PublicInbox::Admin::require_or_die('-base');
-use PublicInbox::Config;
-use PublicInbox::InboxWritable;
-use PublicInbox::Import;
-use File::Temp;
-use PublicInbox::Lock;
-use File::Basename qw/dirname/;
-use File::Path qw/mkpath/;
 use Fcntl qw(:DEFAULT);
-use Cwd qw/abs_path/;
+my $usage = 'public-inbox-init NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]';
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+usage: $usage
 
-my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs);
+  Initialize a public-inbox
+
+required arguments:
+
+  NAME                the name of the inbox
+  INBOX_DIR           pathname the inbox
+  HTTP_URL            HTTP (or HTTPS) URL
+  ADDRESS             email address(es), may be specified multiple times
+
+options:
+
+  -V2                 use scalable public-inbox-v2-format(5)
+  -L LEVEL            index level `basic', `medium', or `full' (default: full)
+  --skip-artnum=NUM   NNTP article numbers to skip
+  --skip-epoch=NUM    epochs to skip (-V2 only)
+  -J JOBS             number of indexing jobs (-V2 only), (default: 4)
+
+See public-inbox-init(1) man page for full documentation.
+EOF
+
+require PublicInbox::Admin;
+PublicInbox::Admin::require_or_die('-base');
+
+my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs, $show_help);
 my %opts = (
 	'V|version=i' => \$version,
 	'L|index-level|indexlevel=s' => \$indexlevel,
 	'S|skip|skip-epoch=i' => \$skip_epoch,
 	'N|skip-artnum=i' => \$skip_artnum,
 	'j|jobs=i' => \$jobs,
+	'help|?' => \$show_help,
 );
-GetOptions(%opts) or usage();
+my $usage_cb = sub {
+	print STDERR "Usage: $usage\n";
+	exit 1;
+};
+GetOptions(%opts) or $usage_cb->();
+if ($show_help) { print $help; exit 0 };
 PublicInbox::Admin::indexlevel_ok_or_die($indexlevel) if defined $indexlevel;
-my $name = shift @ARGV or usage();
-my $inboxdir = shift @ARGV or usage();
-my $http_url = shift @ARGV or usage();
+my $name = shift @ARGV or $usage_cb->();
+my $inboxdir = shift @ARGV or $usage_cb->();
+my $http_url = shift @ARGV or $usage_cb->();
 my (@address) = @ARGV;
-@address or usage();
+@address or $usage_cb->();
 my %seen;
 
+require PublicInbox::Config;
 my $pi_config = PublicInbox::Config->default_file;
-my $dir = dirname($pi_config);
-mkpath($dir); # will croak on fatal errors
+require File::Basename;
+my $dir = File::Basename::dirname($pi_config);
+require File::Path;
+File::Path::mkpath($dir); # will croak on fatal errors
 
 # first, we grab a flock to prevent simultaneous public-inbox-init
 # processes from trampling over each other, or exiting with 255 on
 # O_EXCL failure below.  This gets unlocked automatically on exit:
+require PublicInbox::Lock;
 my $lock_obj = { lock_path => "$pi_config.flock" };
 PublicInbox::Lock::lock_acquire($lock_obj);
 
 # git-config will operate on this (and rename on success):
+require File::Temp;
 my $fh = File::Temp->new(TEMPLATE => 'pi-init-XXXXXXXX', DIR => $dir);
 
 # Now, we grab another lock to use git-config(1) locking, so it won't
@@ -111,7 +130,8 @@ close($fh) or die "failed to close $pi_config_tmp: $!\n";
 my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
 
-$inboxdir = abs_path($inboxdir);
+require Cwd;
+$inboxdir = Cwd::abs_path($inboxdir);
 die "`\\n' not allowed in `$inboxdir'\n" if $inboxdir =~ /\n/s;
 if (-f "$inboxdir/inbox.lock") {
 	if (!defined $version) {
@@ -148,6 +168,7 @@ if (defined $jobs) {
 	$creat_opt->{nproc} = $jobs;
 }
 
+require PublicInbox::InboxWritable;
 $ibx = PublicInbox::InboxWritable->new($ibx, $creat_opt);
 $ibx->init_inbox(0, $skip_epoch, $skip_artnum);
 
