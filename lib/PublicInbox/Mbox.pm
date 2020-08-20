@@ -10,7 +10,6 @@ use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Smsg;
 use PublicInbox::Eml;
-use PublicInbox::Search qw(mdocid);
 
 # called by PSGI server as body response
 # this gets called twice for every message, once to return the header,
@@ -217,8 +216,7 @@ sub results_cb {
 		my $mset = $srch->query($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
-		my $nshard = $srch->{nshard} // 1;
-		$ctx->{ids} = [ map { mdocid($nshard, $_) } $mset->items ];
+		$ctx->{ids} = $srch->mset_to_artnums($mset);
 	}
 }
 
@@ -234,8 +232,7 @@ sub mbox_all {
 			return [404, [qw(Content-Type text/plain)],
 				["No results found\n"]];
 	$ctx->{query} = $query;
-	my $nshard = $srch->{nshard} // 1;
-	$ctx->{ids} = [ map { mdocid($nshard, $_) } $mset->items ];
+	$ctx->{ids} = $srch->mset_to_artnums($mset);
 	require PublicInbox::MboxGz;
 	PublicInbox::MboxGz::mbox_gz($ctx, \&results_cb, 'results-'.$query);
 }

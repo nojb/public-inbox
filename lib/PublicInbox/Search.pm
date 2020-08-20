@@ -219,6 +219,12 @@ sub mdocid {
 	int(($docid - 1) / $nshard) + 1;
 }
 
+sub mset_to_artnums {
+	my ($self, $mset) = @_;
+	my $nshard = $self->{nshard} // 1;
+	[ map { mdocid($nshard, $_) } $mset->items ];
+}
+
 sub xdb ($) {
 	my ($self) = @_;
 	$self->{xdb} ||= do {

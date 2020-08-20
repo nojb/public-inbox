@@ -91,9 +91,8 @@ sub mset_summary {
 	my $pfx = ' ' x $pad;
 	my $res = \($ctx->{-html_tip});
 	my $ibx = $ctx->{-inbox};
-	my $nshard = $ibx->search->{nshard} // 1;
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
-	my @nums = map { mdocid($nshard, $_) } $mset->items;
+	my @nums = @{$ibx->search->mset_to_artnums($mset)};
 	my %num2msg = map { $_->{num} => $_ } @{$ibx->over->get_all(@nums)};
 
 	foreach my $m ($mset->items) {
@@ -316,8 +315,7 @@ sub ctx_prepare {
 
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
-	my $nshard = $ctx->{-inbox}->search->{nshard} // 1;
-	$ctx->{ids} = [ map { mdocid($nshard, $_) } $mset->items ];
+	$ctx->{ids} = $ctx->{-inbox}->search->mset_to_artnums($mset);
 	$ctx->{search_query} = $q; # used by WwwAtomStream::atom_header
 	PublicInbox::WwwAtomStream->response($ctx, 200, \&adump_i);
 }

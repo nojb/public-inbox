@@ -40,7 +40,6 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::GitAsyncCat;
 use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
-use PublicInbox::Search qw(mdocid);
 use PublicInbox::IMAPsearchqp;
 
 my $Address;
@@ -1188,9 +1187,8 @@ sub refill_xap ($$$$) {
 	my ($beg, $end) = @$range_info;
 	my $srch = $self->{ibx}->search;
 	my $opt = { mset => 2, limit => 1000 };
-	my $nshard = $srch->{nshard} // 1;
 	my $mset = $srch->query("$q uid:$beg..$end", $opt);
-	@$uids = map { mdocid($nshard, $_) } $mset->items;
+	@$uids = @{$srch->mset_to_artnums($mset)};
 	if (@$uids) {
 		$range_info->[0] = $uids->[-1] + 1; # update $beg
 		return; # possibly more

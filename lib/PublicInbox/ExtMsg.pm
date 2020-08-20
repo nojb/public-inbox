@@ -11,7 +11,6 @@ use warnings;
 use PublicInbox::Hval qw(ascii_html prurl mid_href);
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Smsg;
-use PublicInbox::Search qw(mdocid);
 our $MIN_PARTIAL_LEN = 16;
 
 # TODO: user-configurable
@@ -61,7 +60,6 @@ sub search_partial ($$) {
 		}
 	}
 
-	my $n = $srch->{nshard} // 1;
 	foreach my $m (@try) {
 		# If Xapian can't handle the wildcard since it
 		# has too many results.  $@ can be
@@ -70,7 +68,7 @@ sub search_partial ($$) {
 		my $mset = eval { $srch->query($m, $opt) } or next;
 		my @mids = map {
 			$_->{mid}
-		} @{$ibx->over->get_all(map { mdocid($n, $_) } $mset->items)};
+		} @{$ibx->over->get_all(@{$srch->mset_to_artnums($mset)})};
 		return \@mids if scalar(@mids);
 	}
 }
