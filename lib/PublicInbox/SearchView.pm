@@ -4,15 +4,15 @@
 # Displays search results for the web interface
 package PublicInbox::SearchView;
 use strict;
-use warnings;
-use URI::Escape qw(uri_unescape uri_escape);
+use v5.10.1;
+use URI::Escape qw(uri_unescape);
 use PublicInbox::Smsg;
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::SearchThread;
-our $LIM = 200;
+use PublicInbox::SearchQuery;
 my %rmap_inc;
 
 sub mbox_results {
@@ -334,53 +334,6 @@ sub adump_i {
 		} or next;
 		return $smsg;
 	}
-}
-
-package PublicInbox::SearchQuery;
-use strict;
-use warnings;
-use URI::Escape qw(uri_escape);
-use PublicInbox::MID qw(MID_ESC);
-
-sub new {
-	my ($class, $qp) = @_;
-
-	my $r = $qp->{r};
-	my ($l) = (($qp->{l} || '') =~ /([0-9]+)/);
-	$l = $LIM if !$l || $l > $LIM;
-	bless {
-		q => $qp->{'q'},
-		x => $qp->{x} || '',
-		o => (($qp->{o} || '0') =~ /(-?[0-9]+)/),
-		l => $l,
-		r => (defined $r && $r ne '0'),
-	}, $class;
-}
-
-sub qs_html {
-	my ($self, %override) = @_;
-
-	if (scalar(keys(%override))) {
-		$self = bless { (%$self, %override) }, ref($self);
-	}
-
-	my $q = uri_escape($self->{'q'}, MID_ESC);
-	$q =~ s/%20/+/g; # improve URL readability
-	my $qs = "q=$q";
-
-	if (my $o = $self->{o}) { # ignore o == 0
-		$qs .= "&amp;o=$o";
-	}
-	if (my $l = $self->{l}) {
-		$qs .= "&amp;l=$l" unless $l == $LIM;
-	}
-	if (my $r = $self->{r}) {
-		$qs .= "&amp;r";
-	}
-	if (my $x = $self->{x}) {
-		$qs .= "&amp;x=$x" if ($x eq 't' || $x eq 'A' || $x eq 'm');
-	}
-	$qs;
 }
 
 1;
