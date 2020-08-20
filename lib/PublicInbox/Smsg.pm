@@ -40,6 +40,7 @@ sub to_doc_data {
 
 sub load_from_data ($$) {
 	my ($self) = $_[0]; # data = $_[1]
+	utf8::decode($_[1]);
 	(
 		$self->{subject},
 		$self->{from},
@@ -67,7 +68,6 @@ sub load_expand {
 	my $dt = get_val($doc, PublicInbox::Search::DT());
 	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $dt);
 	$self->{ds} = timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
-	utf8::decode($data);
 	load_from_data($self, $data);
 	$self;
 }

@@ -68,7 +68,6 @@ sub load_from_row ($;$) {
 	bless $smsg, 'PublicInbox::Smsg';
 	if (defined(my $data = delete $smsg->{ddd})) {
 		$data = uncompress($data);
-		utf8::decode($data);
 		PublicInbox::Smsg::load_from_data($smsg, $data);
 
 		# saves over 600K for 1000+ message threads
