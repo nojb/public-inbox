@@ -19,7 +19,6 @@ our @COMPACT_OPT = qw(jobs|j=i quiet|q blocksize|b=s no-full|n fuller|F);
 sub commit_changes ($$$$) {
 	my ($ibx, $im, $tmp, $opt) = @_;
 	my $reshard = $opt->{reshard};
-	my $reindex = $opt->{reindex};
 
 	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
 	my @old_shard;
@@ -102,17 +101,17 @@ sub runnable_or_die ($) {
 }
 
 sub prepare_reindex ($$$) {
-	my ($ibx, $im, $reindex) = @_;
+	my ($ibx, $im, $opt) = @_;
 	if ($ibx->version == 1) {
 		my $dir = $ibx->search->xdir(1);
 		my $xdb = $PublicInbox::Search::X{Database}->new($dir);
 		if (my $lc = $xdb->get_metadata('last_commit')) {
-			$reindex->{from} = $lc;
+			$opt->{reindex}->{from} = $lc;
 		}
 	} else { # v2
 		my $max;
 		$im->git_dir_latest(\$max) or return;
-		my $from = $reindex->{from};
+		my $from = $opt->{reindex}->{from};
 		my $mm = $ibx->mm;
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
 		foreach my $i (0..$max) {
@@ -238,14 +237,14 @@ sub prepare_run {
 sub check_compact () { runnable_or_die($XAPIAN_COMPACT) }
 
 sub _run {
-	my ($ibx, $cb, $opt, $reindex) = @_;
+	my ($ibx, $cb, $opt) = @_;
 	my $im = $ibx->importer(0);
 	$im->lock_acquire;
 	my ($tmp, $queue) = prepare_run($ibx, $opt);
 
 	# fine-grained locking if we prepare for reindex
 	if (!$opt->{-coarse_lock}) {
-		prepare_reindex($ibx, $im, $reindex);
+		prepare_reindex($ibx, $im, $opt);
 		$im->lock_release;
 	}
 
@@ -262,19 +261,18 @@ sub run {
 	defined(my $dir = $ibx->{inboxdir}) or die "no inboxdir defined\n";
 	-d $dir or die "inboxdir=$dir does not exist\n";
 	check_compact() if $opt->{compact} && $ibx->search;
-	my $reindex; # v1:{ from => $x40 }, v2:{ from => [ $x40, $x40, .. ] } }
 
 	if (!$opt->{-coarse_lock}) {
-		$reindex = $opt->{reindex} = { # per-epoch ranges for v2
-			from => $ibx->version == 1 ? '' : [],
-		};
+		# per-epoch ranges for v2
+		# v1:{ from => $OID }, v2:{ from => [ $OID, $OID, $OID ] } }
+		$opt->{reindex} = { from => $ibx->version == 1 ? '' : [] };
 		PublicInbox::SearchIdx::load_xapian_writable();
 	}
 
 	local %SIG = %SIG;
 	setup_signals();
 	$ibx->umask_prepare;
-	$ibx->with_umask(\&_run, $ibx, $cb, $opt, $reindex);
+	$ibx->with_umask(\&_run, $ibx, $cb, $opt);
 }
 
 sub cpdb_retryable ($$) {
