@@ -207,6 +207,9 @@ sub index_terminate {
 sub index_inbox {
 	my ($ibx, $im, $opt) = @_;
 	my $jobs = delete $opt->{jobs} if $opt;
+	if (my $pr = $opt->{-progress}) {
+		$pr->("indexing $ibx->{inboxdir} ...\n");
+	}
 	local %SIG = %SIG;
 	setup_signals(\&index_terminate, $ibx);
 	if (ref($ibx) && $ibx->version == 2) {
