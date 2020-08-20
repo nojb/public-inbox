@@ -1,18 +1,37 @@
-#!/usr/bin/perl -w
+#!perl -w
 # Copyright (C) 2018-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
+use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-use PublicInbox::InboxWritable;
-use PublicInbox::Xapcmd;
-use PublicInbox::Admin;
-PublicInbox::Admin::require_or_die('-index');
-my $usage = "Usage: public-inbox-compact INBOX_DIR\n";
+my $usage = 'public-inbox-compact INBOX_DIR';
 my $opt = { compact => 1, -coarse_lock => 1 };
-GetOptions($opt, qw(all), @PublicInbox::Xapcmd::COMPACT_OPT) or
-	die "bad command-line args\n$usage";
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt) or die $usage;
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+Usage: $usage
+
+  Compact Xapian DBs in an inbox
+
+options:
+
+  --all               index all configured inboxes
+  --jobs=NUM          control parallelization
+
+See public-inbox-compact(1) man page for full documentation.
+EOF
+GetOptions($opt, qw(all help|?),
+	# compact options:
+	qw(jobs|j=i quiet|q blocksize|b=s no-full|n fuller|F),
+) or die "bad command-line args\n$usage\n";
+if ($opt->{help}) { print $help; exit 0 };
+
+require PublicInbox::Admin;
+PublicInbox::Admin::require_or_die('-index');
+PublicInbox::Admin::progress_prepare($opt);
+
+require PublicInbox::InboxWritable;
+require PublicInbox::Xapcmd;
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
+unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
 	PublicInbox::Xapcmd::run($ibx, 'compact', $opt);
