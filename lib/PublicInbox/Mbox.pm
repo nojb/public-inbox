@@ -205,8 +205,8 @@ sub mbox_all_ids {
 
 sub results_cb {
 	my ($ctx) = @_;
+	my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
 	my $mset = $ctx->{mset};
-	my $srch = $ctx->{srch};
 	while (1) {
 		while (my $mi = (($mset->items)[$ctx->{iter}++])) {
 			my $smsg = PublicInbox::Smsg::from_mitem($mi,
@@ -227,8 +227,8 @@ sub mbox_all {
 
 	return mbox_all_ids($ctx) if $query eq '';
 	my $qopts = $ctx->{qopts} = { mset => 2 };
-	my $srch = $ctx->{srch} = $ctx->{-inbox}->search or
-		return PublicInbox::WWW::need($ctx, 'Search');;
+	my $srch = $ctx->{-inbox}->search or
+		return PublicInbox::WWW::need($ctx, 'Search');
 	my $mset = $ctx->{mset} = $srch->query($query, $qopts);
 	$qopts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],

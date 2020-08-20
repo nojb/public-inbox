@@ -321,7 +321,6 @@ sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
 	$ctx->{items} = [ $mset->items ];
 	$ctx->{search_query} = $q; # used by WwwAtomStream::atom_header
-	$ctx->{srch} = $ctx->{-inbox}->search;
 	PublicInbox::WwwAtomStream->response($ctx, 200, \&adump_i);
 }
 
@@ -329,8 +328,9 @@ sub adump {
 sub adump_i {
 	my ($ctx) = @_;
 	while (my $mi = shift @{$ctx->{items}}) {
+		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
 		my $smsg = eval {
-			PublicInbox::Smsg::from_mitem($mi, $ctx->{srch});
+			PublicInbox::Smsg::from_mitem($mi, $srch);
 		} or next;
 		return $smsg;
 	}

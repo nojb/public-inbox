@@ -191,14 +191,19 @@ sub mm {
 	};
 }
 
-sub search ($;$) {
-	my ($self, $over_only) = @_;
+sub search ($;$$) {
+	my ($self, $over_only, $ctx) = @_;
 	my $srch = $self->{search} ||= eval {
 		_cleanup_later($self);
 		require PublicInbox::Search;
 		PublicInbox::Search->new($self);
 	};
-	($over_only || eval { $srch->xdb }) ? $srch : undef;
+	($over_only || eval { $srch->xdb }) ? $srch : do {
+		$ctx and $ctx->{env}->{'psgi.errors'}->print(<<EOF);
+`$self->{name}' search went away unexpectedly
+EOF
+		undef;
+	};
 }
 
 sub over ($) {
