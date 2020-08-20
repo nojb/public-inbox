@@ -263,13 +263,14 @@ To: list@example.com
 theatre
 fade
 EOF
-	my $res = $rw->query("theatre");
+	$rw_commit->();
+	my $res = $ro->reopen->query("theatre");
 	is(scalar(@$res), 2, "got both matches");
 	if (@$res == 2) {
 		is($res->[0]->{mid}, 'nquote@a', 'non-quoted scores higher');
 		is($res->[1]->{mid}, 'quote@a', 'quoted result still returned');
 	}
-	$res = $rw->query("illusions");
+	$res = $ro->query("illusions");
 	is(scalar(@$res), 1, "got a match for quoted text");
 	is($res->[0]->{mid}, 'quote@a',
 		"quoted result returned if nothing else") if scalar(@$res);
@@ -290,23 +291,12 @@ To: list\@example.com
 LOOP!
 EOF
 	ok($doc_id > 0, "doc_id defined with circular reference");
-	my $smsg = $rw->query('m:circle@a', {limit=>1})->[0];
+	$rw_commit->();
+	my $smsg = $ro->reopen->query('m:circle@a', {limit=>1})->[0];
 	is(defined($smsg), 1, 'found m:circl@a');
 	if (defined $smsg) {
 		is($smsg->{references}, '', "no references created");
 		is($smsg->{subject}, $s, 'long subject not rewritten');
-	}
-});
-
-$ibx->with_umask(sub {
-	my $mime = eml_load 't/utf8.eml';
-	my $doc_id = $rw->add_message($mime);
-	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
-	my $msg = $rw->query('m:testmessage@example.com', {limit => 1})->[0];
-	is(defined($msg), 1, 'found testmessage@example.com');
-	if (defined $msg) {
-		is($mime->header('Subject'), $msg->{subject},
-			'UTF-8 subject preserved');
 	}
 });
 
@@ -319,10 +309,24 @@ $ibx->with_umask(sub {
 	is(scalar(@$msgs), 0, 'nothing before 19931001');
 }
 
+$ibx->with_umask(sub {
+	my $mime = eml_load 't/utf8.eml';
+	my $doc_id = $rw->add_message($mime);
+	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
+	$rw_commit->();
+	my $msg = $ro->reopen->
+		query('m:testmessage@example.com', {limit => 1})->[0];
+	is(defined($msg), 1, 'found testmessage@example.com');
+	if (defined $msg) {
+		is($mime->header('Subject'), $msg->{subject},
+			'UTF-8 subject preserved');
+	}
+});
+
 # names and addresses
 {
 	my $mset = $ro->query('t:list@example.com', {mset => 1});
-	is($mset->size, 6, 'searched To: successfully');
+	is($mset->size, 9, 'searched To: successfully');
 	foreach my $m ($mset->items) {
 		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
 		like($smsg->{to}, qr/\blist\@example\.com\b/, 'to appears');
@@ -340,7 +344,7 @@ $ibx->with_umask(sub {
 	}
 
 	$mset = $ro->query('tc:list@example.com', {mset => 1});
-	is($mset->size, 6, 'searched To+Cc: successfully');
+	is($mset->size, 9, 'searched To+Cc: successfully');
 	foreach my $m ($mset->items) {
 		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
 		my $tocc = join("\n", $smsg->{to}, $smsg->{cc});

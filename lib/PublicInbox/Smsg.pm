@@ -86,14 +86,6 @@ sub psgi_cull ($) {
 	$self;
 }
 
-# Only called by PSGI interface, not NNTP
-sub from_mitem {
-	my ($mitem, $srch) = @_;
-	return $srch->retry_reopen(\&from_mitem, $mitem) if $srch;
-	my $self = bless {}, __PACKAGE__;
-	psgi_cull(load_expand($self, $mitem->get_document));
-}
-
 # for Import and v1 non-SQLite WWW code paths
 sub populate {
 	my ($self, $hdr, $sync) = @_;

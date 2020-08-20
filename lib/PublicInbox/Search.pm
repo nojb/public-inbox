@@ -324,10 +324,13 @@ sub _enquire_once { # retry_reopen callback
 	my $limit = $opts->{limit} || 50;
 	my $mset = $enquire->get_mset($offset, $limit);
 	return $mset if $opts->{mset};
-	my @msgs = map { PublicInbox::Smsg::from_mitem($_) } $mset->items;
-	return \@msgs unless wantarray;
-
-	($mset->get_matches_estimated, \@msgs)
+	my $nshard = $self->{nshard} // 1;
+	my $i = 0;
+	my %order = map { mdocid($nshard, $_) => ++$i } $mset->items;
+	my @msgs = sort {
+		$order{$a->{num}} <=> $order{$b->{num}}
+	} @{$self->{over_ro}->get_all(keys %order)};
+	wantarray ? ($mset->get_matches_estimated, \@msgs) : \@msgs;
 }
 
 # read-write
