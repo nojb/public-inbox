@@ -10,6 +10,7 @@ use PublicInbox::MID qw/mid_escape/;
 use PublicInbox::Hval qw/to_filename/;
 use PublicInbox::Smsg;
 use PublicInbox::Eml;
+use PublicInbox::Search qw(mdocid);
 
 # called by PSGI server as body response
 # this gets called twice for every message, once to return the header,
@@ -205,20 +206,19 @@ sub mbox_all_ids {
 
 sub results_cb {
 	my ($ctx) = @_;
-	my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
-	my $mset = $ctx->{mset};
+	my $over = $ctx->{-inbox}->over or return;
 	while (1) {
-		while (my $mi = (($mset->items)[$ctx->{iter}++])) {
-			my $smsg = PublicInbox::Smsg::from_mitem($mi,
-								$srch) or next;
+		while (defined(my $num = shift(@{$ctx->{ids}}))) {
+			my $smsg = $over->get_art($num) or next;
 			return $smsg;
 		}
 		# refill result set
-		$mset = $ctx->{mset} = $srch->query($ctx->{query},
-							$ctx->{qopts});
+		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
+		my $mset = $srch->query($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
-		$ctx->{iter} = 0;
+		my $nshard = $srch->{nshard} // 1;
+		$ctx->{ids} = [ map { mdocid($nshard, $_) } $mset->items ];
 	}
 }
 
@@ -226,15 +226,16 @@ sub mbox_all {
 	my ($ctx, $query) = @_;
 
 	return mbox_all_ids($ctx) if $query eq '';
-	my $qopts = $ctx->{qopts} = { mset => 2 };
+	my $qopts = $ctx->{qopts} = { mset => 2 }; # order by docid
 	my $srch = $ctx->{-inbox}->search or
 		return PublicInbox::WWW::need($ctx, 'Search');
-	my $mset = $ctx->{mset} = $srch->query($query, $qopts);
+	my $mset = $srch->query($query, $qopts);
 	$qopts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],
 				["No results found\n"]];
-	$ctx->{iter} = 0;
 	$ctx->{query} = $query;
+	my $nshard = $srch->{nshard} // 1;
+	$ctx->{ids} = [ map { mdocid($nshard, $_) } $mset->items ];
 	require PublicInbox::MboxGz;
 	PublicInbox::MboxGz::mbox_gz($ctx, \&results_cb, 'results-'.$query);
 }
