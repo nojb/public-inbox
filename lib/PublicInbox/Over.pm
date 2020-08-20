@@ -104,6 +104,15 @@ ORDER BY num ASC
 
 }
 
+sub get_all {
+	my $self = shift;
+	my $nr = scalar(@_) or return [];
+	my $in = '?' . (',?' x ($nr - 1));
+	do_get($self, <<"", { cull => 1, limit => $nr }, @_);
+SELECT num,ds,ddd FROM over WHERE num IN ($in)
+
+}
+
 sub nothing () { wantarray ? (0, []) : [] };
 
 sub get_thread {

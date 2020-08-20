@@ -91,22 +91,22 @@ sub mset_summary {
 	my $pfx = ' ' x $pad;
 	my $res = \($ctx->{-html_tip});
 	my $ibx = $ctx->{-inbox};
-	my $over = $ibx->over;
 	my $nshard = $ibx->search->{nshard} // 1;
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
+	my @nums = map { mdocid($nshard, $_) } $mset->items;
+	my %num2msg = map { $_->{num} => $_ } @{$ibx->over->get_all(@nums)};
+
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
 		my $pct = get_pct($m);
-		my $num = mdocid($nshard, $m);
-		my $smsg = $over->get_art($num, 1);
-		unless ($smsg) {
+		my $num = shift @nums;
+		my $smsg = delete($num2msg{$num}) or do {
 			eval {
 				$m = "$m $num expired\n";
 				$ctx->{env}->{'psgi.errors'}->print($m);
 			};
 			next;
-		}
-		PublicInbox::Smsg::psgi_cull($smsg);
+		};
 		my $s = ascii_html($smsg->{subject});
 		my $f = ascii_html($smsg->{from_name});
 		if ($obfs_ibx) {
