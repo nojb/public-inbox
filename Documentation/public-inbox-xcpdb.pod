@@ -17,6 +17,9 @@ accept parallel Xapian database modifications from
 L<public-inbox-watch(1)>, L<public-inbox-mda(1)>,
 L<public-inbox-learn(1)>, and L<public-inbox-index(1)>.
 
+This command is rarely used, as Xapian DB formats rarely
+change.
+
 =head1 OPTIONS
 
 =over

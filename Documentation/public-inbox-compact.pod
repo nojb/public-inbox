@@ -19,6 +19,11 @@ It enforces the use of the C<--no-renumber> option of
 L<xapian-compact(1)> which is required to work with the
 rest of the public-inbox search code.
 
+This command is rarely needed for active inboxes.
+
+Using the C<--compact> option of L<public-inbox-index(1)>
+is recommended, instead, and only when doing a C<--reindex>.
+
 =head1 OPTIONS
 
 =over
