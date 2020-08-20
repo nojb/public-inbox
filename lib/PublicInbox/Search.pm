@@ -265,7 +265,7 @@ sub query {
 	if ($query_string eq '' && !$opts->{mset}) {
 		$self->{over_ro}->recent($opts);
 	} else {
-		my $qp = qp($self);
+		my $qp = $self->{qp} //= qparse_new($self);
 		my $qp_flags = $self->{qp_flags};
 		my $query = $qp->parse_query($query_string, $qp_flags);
 		$opts->{relevance} = 1 unless exists $opts->{relevance};
@@ -334,17 +334,14 @@ sub _enquire_once { # retry_reopen callback
 sub stemmer { $X{Stem}->new($LANG) }
 
 # read-only
-sub qp {
+sub qparse_new ($) {
 	my ($self) = @_;
 
-	my $qp = $self->{query_parser};
-	return $qp if $qp;
 	my $xdb = xdb($self);
-	# new parser
-	$qp = $X{QueryParser}->new;
+	my $qp = $X{QueryParser}->new;
 	$qp->set_default_op(OP_AND());
 	$qp->set_database($xdb);
-	$qp->set_stemmer($self->stemmer);
+	$qp->set_stemmer(stemmer($self));
 	$qp->set_stemming_strategy(STEM_SOME());
 	$qp->set_max_wildcard_expansion(100);
 	my $nvrp = $X{NumberValueRangeProcessor};
@@ -382,13 +379,12 @@ EOF
 	while (my ($name, $prefix) = each %prob_prefix) {
 		$qp->add_prefix($name, $_) foreach split(/ /, $prefix);
 	}
-
-	$self->{query_parser} = $qp;
+	$qp;
 }
 
 sub help {
 	my ($self) = @_;
-	$self->qp; # parse altids
+	$self->{qp} //= qparse_new($self); # parse altids
 	my @ret = @HELP;
 	if (my $user_pfx = $self->{-user_pfx}) {
 		push @ret, @$user_pfx;
