@@ -16,7 +16,7 @@ sub new {
 	my $self = $class->SUPER::new($ibx, 1, $shard);
 	# create the DB before forking:
 	$self->idx_acquire;
-	$self->set_indexlevel;
+	$self->set_metadata_once;
 	$self->idx_release;
 	$self->spawn_worker($v2w, $shard) if $v2w->{parallel};
 	$self;

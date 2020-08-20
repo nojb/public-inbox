@@ -95,6 +95,19 @@ SKIP: {
 		my $ibx = PublicInbox::Inbox->new({ inboxdir => $dir });
 		is(PublicInbox::Admin::detect_indexlevel($ibx), $lvl,
 			'detected expected level w/o config');
+		ok(!$ibx->{-skip_docdata}, 'docdata written by default');
+	}
+	for my $v (1, 2) {
+		my $name = "v$v-skip-docdata";
+		my $dir = "$tmpdir/$name";
+		$cmd = [ '-init', $name, "-V$v", '--skip-docdata',
+			$dir, "http://example.com/$name",
+			"$name\@example.com" ];
+		ok(run_script($cmd), "-init -V$v --skip-docdata");
+		my $ibx = PublicInbox::Inbox->new({ inboxdir => $dir });
+		is(PublicInbox::Admin::detect_indexlevel($ibx), 'full',
+			"detected default indexlevel -V$v");
+		ok($ibx->{-skip_docdata}, "docdata skip set -V$v");
 	}
 
 	# loop for idempotency

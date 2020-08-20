@@ -4,6 +4,7 @@ use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
 use PublicInbox::Config;
+use PublicInbox::Admin;
 use File::Path qw(remove_tree);
 
 require_mods(qw(DBD::SQLite Search::Xapian));
@@ -47,11 +48,15 @@ EOF
 	PublicInbox::Import::run_die($cmd, undef, { 0 => $r });
 }
 
-run_script(['-index', $v1dir]) or die 'v1 index failed';
+run_script(['-index', '--skip-docdata', $v1dir]) or die 'v1 index failed';
+
 my $smsg;
 {
 	my $cfg = PublicInbox::Config->new;
 	my $ibx = $cfg->lookup($addr);
+	my $lvl = PublicInbox::Admin::detect_indexlevel($ibx);
+	is($lvl, 'medium', 'indexlevel detected');
+	is($ibx->{-skip_docdata}, 1, '--skip-docdata flag set on -index');
 	$smsg = $ibx->over->get_art(1);
 	is($smsg->{ds}, 749520000, 'datestamp from git author time');
 	is($smsg->{ts}, 1285977600, 'timestamp from git committer time');
@@ -70,6 +75,10 @@ SKIP: {
 	my $check_v2 = sub {
 		my $ibx = PublicInbox::Inbox->new({inboxdir => $v2dir,
 				address => $addr});
+		my $lvl = PublicInbox::Admin::detect_indexlevel($ibx);
+		is($lvl, 'medium', 'indexlevel detected after convert');
+		is($ibx->{-skip_docdata}, 1,
+			'--skip-docdata preserved after convert');
 		my $v2smsg = $ibx->over->get_art(1);
 		is($v2smsg->{ds}, $smsg->{ds},
 			'v2 datestamp from git author time');

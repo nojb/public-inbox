@@ -29,7 +29,7 @@ for my $V (1, 2) {
 	if ($V == 1) {
 		my $sidx = PublicInbox::SearchIdx->new($ibx, 1);
 		$sidx->idx_acquire;
-		$sidx->set_indexlevel;
+		$sidx->set_metadata_once;
 		$sidx->idx_release; # allow watching on lockfile
 	}
 	my $pi_config = PublicInbox::Config->new(\<<EOF);

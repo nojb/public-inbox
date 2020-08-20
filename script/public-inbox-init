@@ -34,6 +34,7 @@ require PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-base');
 
 my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs, $show_help);
+my $skip_docdata;
 my $ng = '';
 my %opts = (
 	'V|version=i' => \$version,
@@ -42,6 +43,7 @@ my %opts = (
 	'skip-artnum=i' => \$skip_artnum,
 	'j|jobs=i' => \$jobs,
 	'ng|newsgroup=s' => \$ng,
+	'skip-docdata' => \$skip_docdata,
 	'help|?' => \$show_help,
 );
 my $usage_cb = sub {
@@ -177,6 +179,12 @@ if (defined $jobs) {
 
 require PublicInbox::InboxWritable;
 $ibx = PublicInbox::InboxWritable->new($ibx, $creat_opt);
+if ($skip_docdata) {
+	$ibx->{indexlevel} //= 'full'; # ensure init_inbox writes xdb
+	$ibx->{indexlevel} eq 'basic' and
+		die "--skip-docdata ignored with --indexlevel=basic\n";
+	$ibx->{-skip_docdata} = $skip_docdata;
+}
 $ibx->init_inbox(0, $skip_epoch, $skip_artnum);
 
 # needed for git prior to v2.1.0

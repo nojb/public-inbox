@@ -77,7 +77,8 @@ if ($old) {
 die "Only conversion from v1 inboxes is supported\n" if $old->version >= 2;
 
 require PublicInbox::Admin;
-$old->{indexlevel} //= PublicInbox::Admin::detect_indexlevel($old);
+my $detected = PublicInbox::Admin::detect_indexlevel($old);
+$old->{indexlevel} //= $detected;
 my $env;
 if ($opt->{'index'}) {
 	my $mods = {};

@@ -48,13 +48,14 @@ sub resolve_repo_dir {
 sub detect_indexlevel ($) {
 	my ($ibx) = @_;
 
-	# brand new or never before indexed inboxes default to full
-	return 'full' unless $ibx->over;
-	delete $ibx->{over}; # don't leave open FD lying around
+	my $over = $ibx->over;
+	my $srch = $ibx->search;
+	delete @$ibx{qw(over search)}; # don't leave open FDs lying around
 
+	# brand new or never before indexed inboxes default to full
+	return 'full' unless $over;
 	my $l = 'basic';
-	my $srch = $ibx->search or return $l;
-	delete $ibx->{search}; # don't leave open FD lying around
+	return $l unless $srch;
 	if (my $xdb = $srch->xdb) {
 		$l = 'full';
 		my $m = $xdb->get_metadata('indexlevel');
@@ -65,6 +66,7 @@ sub detect_indexlevel ($) {
 $ibx->{inboxdir} has unexpected indexlevel in Xapian: $m
 
 		}
+		$ibx->{-skip_docdata} = 1 if $xdb->get_metadata('skip_docdata');
 	}
 	$l;
 }

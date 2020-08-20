@@ -95,6 +95,16 @@ default due to contention in the top-level producer process.
 
 Default: the number of online CPUs, up to 4
 
+=item --skip-docdata
+
+Do not store document data in Xapian, reducing Xapian storage
+overhead by around 1.5%.
+
+Warning: this option prevents rollbacks to public-inbox 1.5.0
+and earlier.
+
+Available since public-inbox 1.6.0 (PENDING).
+
 =back
 
 =head1 ENVIRONMENT

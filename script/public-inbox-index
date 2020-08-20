@@ -39,7 +39,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		sequential_shard|seq-shard|sequential-shard
-		all help|?))
+		skip-docdata all help|?))
 	or die "bad command-line args\n$usage";
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
@@ -58,9 +58,11 @@ unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
 
 my $mods = {};
 foreach my $ibx (@ibxs) {
+	# detect_indexlevel may also set $ibx->{-skip_docdata}
+	my $detected = PublicInbox::Admin::detect_indexlevel($ibx);
 	# XXX: users can shoot themselves in the foot, with opt->{indexlevel}
 	$ibx->{indexlevel} //= $opt->{indexlevel} // ($opt->{xapian_only} ?
-			'full' : PublicInbox::Admin::detect_indexlevel($ibx));
+			'full' : $detected);
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
 
@@ -75,6 +77,7 @@ for my $ibx (@ibxs) {
 		PublicInbox::Xapcmd::run($ibx, 'compact', $opt->{compact_opt});
 	}
 	$ibx->{-no_fsync} = 1 if !$opt->{fsync};
+	$ibx->{-skip_docdata} //= $opt->{'skip-docdata'};
 
 	my $ibx_opt = $opt;
 	if (defined(my $s = $ibx->{lc('indexSequentialShard')})) {

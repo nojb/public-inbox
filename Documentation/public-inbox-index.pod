@@ -145,6 +145,14 @@ below.
 
 Available in public-inbox 1.6.0 (PENDING).
 
+=item --skip-docdata
+
+Stop storing document data in Xapian on an existing inbox.
+
+See L<public-inbox-init(1)/--skip-docdata> for description and caveats.
+
+Available in public-inbox 1.6.0 (PENDING).
+
 =back
 
 =head1 FILES

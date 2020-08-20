@@ -61,6 +61,10 @@ sub new {
 	}, $class;
 	$self->xpfx_init;
 	$self->{-set_indexlevel_once} = 1 if $indexlevel eq 'medium';
+	if ($ibx->{-skip_docdata}) {
+		$self->{-set_skip_docdata_once} = 1;
+		$self->{-skip_docdata} = 1;
+	}
 	$ibx->umask_prepare;
 	if ($version == 1) {
 		$self->{lock_path} = "$inboxdir/ssoma.lock";
@@ -359,10 +363,18 @@ sub add_xapian ($$$$) {
 
 	msg_iter($eml, \&index_xapian, [ $self, $doc ]);
 	index_ids($self, $doc, $eml, $mids);
-	$smsg->{to} = $smsg->{cc} = ''; # WWW doesn't need these, only NNTP
-	PublicInbox::OverIdx::parse_references($smsg, $eml, $mids);
-	my $data = $smsg->to_doc_data;
-	$doc->set_data($data);
+
+	# by default, we maintain compatibility with v1.5.0 and earlier
+	# by writing to docdata.glass, users who never exect to downgrade can
+	# use --skip-docdata
+	if (!$self->{-skip_docdata}) {
+		# WWW doesn't need {to} or {cc}, only NNTP
+		$smsg->{to} = $smsg->{cc} = '';
+		PublicInbox::OverIdx::parse_references($smsg, $eml, $mids);
+		my $data = $smsg->to_doc_data;
+		$doc->set_data($data);
+	}
+
 	if (my $altid = $self->{-altid}) {
 		foreach my $alt (@$altid) {
 			my $pfx = $alt->{xprefix};
@@ -831,23 +843,28 @@ sub begin_txn_lazy {
 
 # store 'indexlevel=medium' in v2 shard=0 and v1 (only one shard)
 # This metadata is read by Admin::detect_indexlevel:
-sub set_indexlevel {
+sub set_metadata_once {
 	my ($self) = @_;
 
-	if (!$self->{shard} && # undef or 0, not >0
-			delete($self->{-set_indexlevel_once})) {
-		my $xdb = $self->{xdb};
+	return if $self->{shard}; # only continue if undef or 0, not >0
+	my $xdb = $self->{xdb};
+
+	if (delete($self->{-set_indexlevel_once})) {
 		my $level = $xdb->get_metadata('indexlevel');
 		if (!$level || $level ne 'medium') {
 			$xdb->set_metadata('indexlevel', 'medium');
 		}
+	}
+	if (delete($self->{-set_skip_docdata_once})) {
+		$xdb->get_metadata('skip_docdata') or
+			$xdb->set_metadata('skip_docdata', '1');
 	}
 }
 
 sub _commit_txn {
 	my ($self) = @_;
 	if (my $xdb = $self->{xdb}) {
-		set_indexlevel($self);
+		set_metadata_once($self);
 		$xdb->commit_transaction;
 	}
 	$self->{over}->commit_lazy if $self->{over};
