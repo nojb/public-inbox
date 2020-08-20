@@ -54,7 +54,7 @@ Available since public-inbox 1.6.0 (PENDING).
 
 Default: none.
 
-=item -N, --skip-artnum
+=item --skip-artnum
 
 This option allows archivists to publish incomplete archives
 with only new mail while allowing NNTP article numbers

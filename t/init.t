@@ -116,7 +116,7 @@ SKIP: {
 			'publicinboxmda.spamcheck', 'none') == 0 or
 			BAIL_OUT "git config $?";
 	my $addr = 'skip3@example.com';
-	$cmd = [ qw(-init -V2 -Lbasic -N12 skip3), "$tmpdir/skip3",
+	$cmd = [ qw(-init -V2 -Lbasic --skip-artnum=12 skip3), "$tmpdir/skip3",
 		   qw(http://example.com/skip3), $addr ];
 	ok(run_script($cmd), '--skip-artnum -V2');
 	my $env = { ORIGINAL_RECIPIENT => $addr };
@@ -131,7 +131,7 @@ SKIP: {
 
 	$addr = 'skip4@example.com';
 	$env = { ORIGINAL_RECIPIENT => $addr };
-	$cmd = [ qw(-init -V1 -N12 -Lmedium skip4), "$tmpdir/skip4",
+	$cmd = [ qw(-init -V1 --skip-artnum 12 -Lmedium skip4), "$tmpdir/skip4",
 		   qw(http://example.com/skip4), $addr ];
 	ok(run_script($cmd), '--skip-artnum -V1');
 	$err = '';

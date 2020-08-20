@@ -39,7 +39,7 @@ my %opts = (
 	'V|version=i' => \$version,
 	'L|index-level|indexlevel=s' => \$indexlevel,
 	'S|skip|skip-epoch=i' => \$skip_epoch,
-	'N|skip-artnum=i' => \$skip_artnum,
+	'skip-artnum=i' => \$skip_artnum,
 	'j|jobs=i' => \$jobs,
 	'ng|newsgroup=s' => \$ng,
 	'help|?' => \$show_help,
