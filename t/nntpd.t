@@ -46,14 +46,11 @@ my $ibx = {
 $ibx = PublicInbox::Inbox->new($ibx);
 {
 	local $ENV{HOME} = $home;
-	my @cmd = ('-init', $group, $inboxdir, 'http://example.com/', $addr);
-	push @cmd, "-V$version", '-Lbasic';
+	my @cmd = ('-init', $group, $inboxdir, 'http://example.com/', $addr,
+		"-V$version", '-Lbasic', '--newsgroup', $group);
 	ok(run_script(\@cmd), 'init OK');
-	is(xsys(qw(git config), "--file=$home/.public-inbox/config",
-			"publicinbox.$group.newsgroup", $group),
-		0, 'enabled newsgroup');
-	my $len;
 
+	my $len;
 	$ibx = PublicInbox::InboxWritable->new($ibx);
 	my $im = $ibx->importer(0);
 

@@ -39,11 +39,9 @@ for my $V (@V) {
 	my $url = "http://example.com/i$V";
 	my $inboxdir = "$tmpdir/$name";
 	my $folder = "inbox.i$V";
-	my $cmd = ['-init', "-V$V", "-L$level", $name, $inboxdir, $url, $addr];
+	my $cmd = ['-init', "-V$V", "-L$level", "--ng=$folder",
+		$name, $inboxdir, $url, $addr];
 	run_script($cmd) or BAIL_OUT("init $name");
-	xsys(qw(git config), "--file=$ENV{HOME}/.public-inbox/config",
-			"publicinbox.$name.newsgroup", $folder) == 0 or
-			BAIL_OUT("setting newsgroup $V");
 	if ($V == 1) {
 		xsys(qw(git config), "--file=$ENV{HOME}/.public-inbox/config",
 			'publicinboxmda.spamcheck', 'none') == 0 or

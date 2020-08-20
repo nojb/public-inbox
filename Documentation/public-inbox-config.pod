@@ -63,7 +63,7 @@ Default: none, optional
 =item publicinbox.<name>.newsgroup
 
 The NNTP group name for use with L<public-inbox-nntpd(8)>.  This
-may be any newsgroup name with hierarchies delimited by '.'.
+may be any newsgroup name with hierarchies delimited by C<.>.
 For example, the newsgroup for L<mailto:meta@public-inbox.org>
 is: C<inbox.comp.mail.public-inbox.meta>
 

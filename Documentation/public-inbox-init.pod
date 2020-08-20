@@ -39,6 +39,21 @@ See L<public-inbox-config(5)> for more information.
 
 Default: C<full>
 
+=item --ng, --newsgroup NEWSGROUP
+
+The NNTP group name for use with L<public-inbox-nntpd(8)>.  This
+may be any newsgroup name with hierarchies delimited by C<.>.
+For example, the newsgroup for L<mailto:meta@public-inbox.org>
+is: C<inbox.comp.mail.public-inbox.meta>
+
+This may be set after-the-fact via C<publicinbox.$NAME.newsgroup>
+in the configuration file.  See L<public-inbox-config(5)> for more
+info.
+
+Available since public-inbox 1.6.0 (PENDING).
+
+Default: none.
+
 =item -N, --skip-artnum
 
 This option allows archivists to publish incomplete archives
@@ -94,10 +109,12 @@ Used to override the default C<~/.public-inbox/config> value.
 
 =head1 LIMITATIONS
 
-This tool predates NNTP support in public-inbox and is missing
-C<newsgroup> and many of the options documented in
-L<public-inbox-config(5)>.  See L<public-inbox-config(5)> for all the
-options which may be applied to a given inbox.
+Some of the options documented in L<public-inbox-config(5)>
+require editing the config file.  Old versions lack the
+C<--ng>/C<--newsgroup> parameter
+
+See L<public-inbox-config(5)> for all the options which may be applied
+to a given inbox.
 
 =head1 CONTACT
 

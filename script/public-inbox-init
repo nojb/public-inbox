@@ -22,6 +22,7 @@ options:
 
   -V2                 use scalable public-inbox-v2-format(5)
   -L LEVEL            index level `basic', `medium', or `full' (default: full)
+  --ng NEWSGROUP      set NNTP newsgroup name
   --skip-artnum=NUM   NNTP article numbers to skip
   --skip-epoch=NUM    epochs to skip (-V2 only)
   -J JOBS             number of indexing jobs (-V2 only), (default: 4)
@@ -33,12 +34,14 @@ require PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-base');
 
 my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs, $show_help);
+my $ng = '';
 my %opts = (
 	'V|version=i' => \$version,
 	'L|index-level|indexlevel=s' => \$indexlevel,
 	'S|skip|skip-epoch=i' => \$skip_epoch,
 	'N|skip-artnum=i' => \$skip_artnum,
 	'j|jobs=i' => \$jobs,
+	'ng|newsgroup=s' => \$ng,
 	'help|?' => \$show_help,
 );
 my $usage_cb = sub {
@@ -53,7 +56,11 @@ my $inboxdir = shift @ARGV or $usage_cb->();
 my $http_url = shift @ARGV or $usage_cb->();
 my (@address) = @ARGV;
 @address or $usage_cb->();
-my %seen;
+
+$ng =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]! and
+	die "--newsgroup `$ng' is not valid\n";
+($ng =~ m!\A\.! || $ng =~ m!\.\z!) and
+	die "--newsgroup `$ng' must not start or end with `.'\n";
 
 require PublicInbox::Config;
 my $pi_config = PublicInbox::Config->default_file;
@@ -84,7 +91,7 @@ sysopen($lockfh, $lockfile, O_RDWR|O_CREAT|O_EXCL) or do {
 	exit(255);
 };
 my $auto_unlink = UnlinkMe->new($lockfile);
-my $perm;
+my ($perm, %seen);
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
 	my @st = stat($oh);
@@ -185,6 +192,7 @@ PublicInbox::Import::run_die([@x, "$pfx.inboxdir", $inboxdir]);
 if (defined($indexlevel)) {
 	PublicInbox::Import::run_die([@x, "$pfx.indexlevel", $indexlevel]);
 }
+PublicInbox::Import::run_die([@x, "$pfx.newsgroup", $ng]) if $ng ne '';
 
 # needed for git prior to v2.1.0
 if (defined $perm) {
