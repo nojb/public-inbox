@@ -11,6 +11,7 @@ use warnings;
 use PublicInbox::Hval qw(ascii_html prurl mid_href);
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Smsg;
+use PublicInbox::Search qw(mdocid);
 our $MIN_PARTIAL_LEN = 16;
 
 # TODO: user-configurable
@@ -29,13 +30,10 @@ our @EXT_URL = map { ascii_html($_) } (
 
 sub PARTIAL_MAX () { 100 }
 
-sub mids_from_mset { # Search::retry_reopen callback
-	[ map { PublicInbox::Smsg::from_mitem($_)->{mid} } $_[0]->items ];
-}
-
 sub search_partial ($$) {
-	my ($srch, $mid) = @_;
+	my ($ibx, $mid) = @_;
 	return if length($mid) < $MIN_PARTIAL_LEN;
+	my $srch = $ibx->search or return;
 	my $opt = { limit => PARTIAL_MAX, mset => 2 };
 	my @try = ("m:$mid*");
 	my $chop = $mid;
@@ -63,14 +61,17 @@ sub search_partial ($$) {
 		}
 	}
 
+	my $n = $srch->{nshard} // 1;
 	foreach my $m (@try) {
 		# If Xapian can't handle the wildcard since it
 		# has too many results.  $@ can be
 		# Search::Xapian::QueryParserError or even:
 		# "something terrible happened at ../Search/Xapian/Enquire.pm"
 		my $mset = eval { $srch->query($m, $opt) } or next;
-		my $mids = $srch->retry_reopen(\&mids_from_mset, $mset);
-		return $mids if scalar(@$mids);
+		my @mids = map {
+			$_->{mid}
+		} @{$ibx->over->get_all(map { mdocid($n, $_) } $mset->items)};
+		return \@mids if scalar(@mids);
 	}
 }
 
@@ -111,8 +112,7 @@ sub ext_msg {
 	# fall back to partial MID matching
 	my @partial;
 	my $n_partial = 0;
-	my $srch = $cur->search;
-	my $mids = search_partial($srch, $mid) if $srch;
+	my $mids = search_partial($cur, $mid);
 	if ($mids) {
 		$n_partial = scalar(@$mids);
 		push @partial, [ $cur, $mids ];
@@ -121,8 +121,7 @@ sub ext_msg {
 	# can't find a partial match in current inbox, try the others:
 	if (!$n_partial && length($mid) >= $MIN_PARTIAL_LEN) {
 		foreach my $ibx (@$ibxs) {
-			$srch = $ibx->search or next;
-			$mids = search_partial($srch, $mid) or next;
+			$mids = search_partial($ibx, $mid) or next;
 			$n_partial += scalar(@$mids);
 			push @partial, [ $ibx, $mids];
 			last if $n_partial >= PARTIAL_MAX;
