@@ -5,6 +5,8 @@
 # Read-only search interface for use by the web and NNTP interfaces
 package PublicInbox::Search;
 use strict;
+use parent qw(Exporter);
+our @EXPORT_OK = qw(mdocid);
 
 # values for searching, changing the numeric value breaks
 # compatibility with old indices (so don't change them it)

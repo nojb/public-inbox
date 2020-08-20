@@ -40,9 +40,8 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::GitAsyncCat;
 use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
-use PublicInbox::Search;
+use PublicInbox::Search qw(mdocid);
 use PublicInbox::IMAPsearchqp;
-*mdocid = \&PublicInbox::Search::mdocid;
 
 my $Address;
 for my $mod (qw(Email::Address::XS Mail::Address)) {
