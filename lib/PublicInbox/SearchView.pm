@@ -255,20 +255,13 @@ sub get_pct ($) {
 	$n > 99 ? 99 : $n;
 }
 
-sub load_msgs {
-	my ($mset) = @_;
-	[ map {
-		my $mi = $_;
-		my $smsg = PublicInbox::Smsg::from_mitem($mi);
-		$smsg->{pct} = get_pct($mi);
-		$smsg;
-	} ($mset->items) ]
-}
-
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my $ibx = $ctx->{-inbox};
-	my $msgs = $ibx->search->retry_reopen(\&load_msgs, $mset);
+	my $nshard = $ibx->search->{nshard} // 1;
+	my %pct = map { mdocid($nshard, $_) => get_pct($_) } $mset->items;
+	my $msgs = $ibx->over->get_all(keys %pct);
+	$_->{pct} = $pct{$_->{num}} for @$msgs;
 	my $r = $q->{r};
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
 		$r ? \&sort_relevance : \&PublicInbox::View::sort_ds,
@@ -323,7 +316,8 @@ sub ctx_prepare {
 
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
-	$ctx->{items} = [ $mset->items ];
+	my $nshard = $ctx->{-inbox}->search->{nshard} // 1;
+	$ctx->{ids} = [ map { mdocid($nshard, $_) } $mset->items ];
 	$ctx->{search_query} = $q; # used by WwwAtomStream::atom_header
 	PublicInbox::WwwAtomStream->response($ctx, 200, \&adump_i);
 }
@@ -331,11 +325,8 @@ sub adump {
 # callback for PublicInbox::WwwAtomStream::getline
 sub adump_i {
 	my ($ctx) = @_;
-	while (my $mi = shift @{$ctx->{items}}) {
-		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
-		my $smsg = eval {
-			PublicInbox::Smsg::from_mitem($mi, $srch);
-		} or next;
+	while (my $num = shift @{$ctx->{ids}}) {
+		my $smsg = eval { $ctx->{-inbox}->over->get_art($num) } or next;
 		return $smsg;
 	}
 }
