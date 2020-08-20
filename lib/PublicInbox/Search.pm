@@ -177,19 +177,24 @@ sub _xdb ($) {
 	my ($xdb, $slow_phrase);
 	my $qpf = \($self->{qp_flags} ||= $QP_FLAGS);
 	if ($self->{ibx_ver} >= 2) {
-		my $n = 0;
-		foreach my $shard (<$dir/*>) {
-			-d $shard && $shard =~ m!/[0-9]+\z! or next;
-			my $sub = $X{Database}->new($shard);
-			if ($xdb) {
-				$xdb->add_database($sub);
-			} else {
-				$xdb = $sub;
+		my @xdb;
+		opendir(my $dh, $dir) or return; # not initialized yet
+
+		# We need numeric sorting so shard[0] is first for reading
+		# Xapian metadata, if needed
+		for (sort { $a <=> $b } grep(/\A[0-9]+\z/, readdir($dh))) {
+			my $shard_dir = "$dir/$_";
+			if (-d $shard_dir && -r _) {
+				push @xdb, $X{Database}->new($shard_dir);
+				$slow_phrase ||= -f "$shard_dir/iamchert";
+			} else { # gaps from missing epochs throw off mdocid()
+				warn "E: $shard_dir missing or unreadable\n";
+				return;
 			}
-			$slow_phrase ||= -f "$shard/iamchert";
-			++$n;
 		}
-		$self->{nshard} = $n;
+		$self->{nshard} = scalar(@xdb);
+		$xdb = shift @xdb;
+		$xdb->add_database($_) for @xdb;
 	} else {
 		$slow_phrase = -f "$dir/iamchert";
 		$xdb = $X{Database}->new($dir);
