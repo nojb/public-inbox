@@ -6,15 +6,47 @@
 package PublicInbox::Search;
 use strict;
 
-# values for searching
+# values for searching, changing the numeric value breaks
+# compatibility with old indices (so don't change them it)
 use constant {
 	TS => 0, # Received: header in Unix time (IMAP INTERNALDATE)
 	YYYYMMDD => 1, # Date: header for searching in the WWW UI
 	DT => 2, # Date: YYYYMMDDHHMMSS
+
+	# added for public-inbox 1.6.0+
 	BYTES => 3, # IMAP RFC822.SIZE
 	UID => 4, # IMAP UID == NNTP article number == Xapian docid
+
 	# TODO
-	# REPLYCNT => 4, # IMAP ANSWERED
+	# THREADID => ?
+	# REPLYCNT => ?, # IMAP ANSWERED
+
+	# SCHEMA_VERSION history
+	# 0 - initial
+	# 1 - subject_path is lower-cased
+	# 2 - subject_path is id_compress in the index, only
+	# 3 - message-ID is compressed if it includes '%' (hack!)
+	# 4 - change "Re: " normalization, avoid circular Reference ghosts
+	# 5 - subject_path drops trailing '.'
+	# 6 - preserve References: order in document data
+	# 7 - remove references and inreplyto terms
+	# 8 - remove redundant/unneeded document data
+	# 9 - disable Message-ID compression (SHA-1)
+	# 10 - optimize doc for NNTP overviews
+	# 11 - merge threads when vivifying ghosts
+	# 12 - change YYYYMMDD value column to numeric
+	# 13 - fix threading for empty References/In-Reply-To
+	#      (commit 83425ef12e4b65cdcecd11ddcb38175d4a91d5a0)
+	# 14 - fix ghost root vivification
+	# 15 - see public-inbox-v2-format(5)
+	#      further bumps likely unnecessary, we'll suggest in-place
+	#      "--reindex" use for further fixes and tweaks:
+	#
+	#      public-inbox v1.5.0 adds (still SCHEMA_VERSION=15):
+	#      * "lid:" and "l:" for List-Id searches
+	#
+	#      v1.6.0 adds BYTES and UID values
+	SCHEMA_VERSION => 15,
 };
 
 use PublicInbox::Smsg;
@@ -60,33 +92,6 @@ sub load_xapian () {
 # This is English-only, everything else is non-standard and may be confused as
 # a prefix common in patch emails
 our $LANG = 'english';
-
-use constant {
-	# SCHEMA_VERSION history
-	# 0 - initial
-	# 1 - subject_path is lower-cased
-	# 2 - subject_path is id_compress in the index, only
-	# 3 - message-ID is compressed if it includes '%' (hack!)
-	# 4 - change "Re: " normalization, avoid circular Reference ghosts
-	# 5 - subject_path drops trailing '.'
-	# 6 - preserve References: order in document data
-	# 7 - remove references and inreplyto terms
-	# 8 - remove redundant/unneeded document data
-	# 9 - disable Message-ID compression (SHA-1)
-	# 10 - optimize doc for NNTP overviews
-	# 11 - merge threads when vivifying ghosts
-	# 12 - change YYYYMMDD value column to numeric
-	# 13 - fix threading for empty References/In-Reply-To
-	#      (commit 83425ef12e4b65cdcecd11ddcb38175d4a91d5a0)
-	# 14 - fix ghost root vivification
-	# 15 - see public-inbox-v2-format(5)
-	#      further bumps likely unnecessary, we'll suggest in-place
-	#      "--reindex" use for further fixes and tweaks
-	#
-	#      public-inbox v1.5.0 adds (still SCHEMA_VERSION=15):
-	#      * "lid:" and "l:" for List-Id searches
-	SCHEMA_VERSION => 15,
-};
 
 # note: the non-X term prefix allocations are shared with
 # Xapian omega, see xapian-applications/omega/docs/termprefixes.rst
