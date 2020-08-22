@@ -185,9 +185,11 @@ sub search_nav_top {
 		$rv .= qq{<a\nhref="?$s">summary</a>|<b>nested</b>};
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
-	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
-	$rv .= qq{\n\t\t\t\t\t\tdownload: };
-	$rv .= qq{<input\ntype=submit\nvalue="mbox.gz"/></pre></form><pre>};
+	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]} .
+		qq{\n\t\t\t\t\t\tdownload: } .
+		# lynx seems to require a name=, here, so just use 'z'
+		qq{<input\ntype=submit\nname=z\nvalue="mbox.gz"/>} .
+		q{</pre></form><pre>};
 }
 
 sub search_nav_bot {
