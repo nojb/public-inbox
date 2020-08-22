@@ -167,13 +167,13 @@ sub thread_mbox {
 sub emit_range {
 	my ($ctx, $range) = @_;
 
-	my $query;
+	my $q;
 	if ($range eq 'all') { # TODO: YYYY[-MM]
-		$query = '';
+		$q = '';
 	} else {
 		return [404, [qw(Content-Type text/plain)], []];
 	}
-	mbox_all($ctx, $query);
+	mbox_all($ctx, { q => $q });
 }
 
 sub all_ids_cb {
@@ -220,21 +220,55 @@ sub results_cb {
 	}
 }
 
-sub mbox_all {
-	my ($ctx, $query) = @_;
+sub results_thread_cb {
+	my ($ctx) = @_;
 
-	return mbox_all_ids($ctx) if $query eq '';
-	my $qopts = $ctx->{qopts} = { mset => 2 }; # order by docid
+	my $over = $ctx->{-inbox}->over or return;
+	while (1) {
+		while (defined(my $num = shift(@{$ctx->{xids}}))) {
+			my $smsg = $over->get_art($num) or next;
+			return $smsg;
+		}
+
+		# refills ctx->{xids}
+		next if $over->expand_thread($ctx);
+
+		# refill result set
+		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
+		my $mset = $srch->query($ctx->{query}, $ctx->{qopts});
+		my $size = $mset->size or return;
+		$ctx->{qopts}->{offset} += $size;
+		$ctx->{ids} = $srch->mset_to_artnums($mset);
+	}
+
+}
+
+sub mbox_all {
+	my ($ctx, $q) = @_;
+	my $q_string = $q->{'q'};
+	return mbox_all_ids($ctx) if $q_string !~ /\S/;
 	my $srch = $ctx->{-inbox}->search or
 		return PublicInbox::WWW::need($ctx, 'Search');
-	my $mset = $srch->query($query, $qopts);
+	my $over = $ctx->{-inbox}->over or
+		return PublicInbox::WWW::need($ctx, 'Overview');
+
+	my $qopts = $ctx->{qopts} = { mset => 2 }; # order by docid
+	$qopts->{thread} = 1 if $q->{t};
+	my $mset = $srch->query($q_string, $qopts);
 	$qopts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],
 				["No results found\n"]];
-	$ctx->{query} = $query;
+	$ctx->{query} = $q_string;
 	$ctx->{ids} = $srch->mset_to_artnums($mset);
 	require PublicInbox::MboxGz;
-	PublicInbox::MboxGz::mbox_gz($ctx, \&results_cb, 'results-'.$query);
+	my $fn;
+	if ($q->{t}) {
+		$fn = 'results-thread-'.$q_string;
+		PublicInbox::MboxGz::mbox_gz($ctx, \&results_thread_cb, $fn);
+	} else {
+		$fn = 'results-'.$q_string;
+		PublicInbox::MboxGz::mbox_gz($ctx, \&results_cb, $fn);
+	}
 }
 
 1;

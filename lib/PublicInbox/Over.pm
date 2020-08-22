@@ -179,6 +179,35 @@ ORDER BY $sort_col DESC
 	($nr, $msgs);
 }
 
+# strict `tid' matches, only, for thread-expanded mbox.gz search results
+# and future CLI interface
+# returns true if we have IDs, undef if not
+sub expand_thread {
+	my ($self, $ctx) = @_;
+	my $dbh = $self->connect;
+	do {
+		defined(my $num = $ctx->{ids}->[0]) or return;
+		my ($tid) = $dbh->selectrow_array(<<'', undef, $num);
+SELECT tid FROM over WHERE num = ?
+
+		if (defined($tid)) {
+			my $sql = <<'';
+SELECT num FROM over WHERE tid = ? AND num > ?
+ORDER BY num ASC LIMIT 1000
+
+			my $xids = $dbh->selectcol_arrayref($sql, undef, $tid,
+							$ctx->{prev} // 0);
+			if (scalar(@$xids)) {
+				$ctx->{prev} = $xids->[-1];
+				$ctx->{xids} = $xids;
+				return 1; # success
+			}
+		}
+		$ctx->{prev} = 0;
+		shift @{$ctx->{ids}};
+	} while (1);
+}
+
 sub recent {
 	my ($self, $opts, $after, $before) = @_;
 	my ($s, @v);

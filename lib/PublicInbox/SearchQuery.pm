@@ -12,7 +12,8 @@ our $LIM = 200;
 sub new {
 	my ($class, $qp) = @_;
 
-	my $r = $qp->{r};
+	my $r = $qp->{r}; # relevance
+	my $t = $qp->{t}; # collapse threads
 	my ($l) = (($qp->{l} || '') =~ /([0-9]+)/);
 	$l = $LIM if !$l || $l > $LIM;
 	bless {
@@ -21,6 +22,7 @@ sub new {
 		o => (($qp->{o} || '0') =~ /(-?[0-9]+)/),
 		l => $l,
 		r => (defined $r && $r ne '0'),
+		t => (defined $t && $t ne '0'),
 	}, $class;
 }
 
@@ -41,8 +43,8 @@ sub qs_html {
 	if (my $l = $self->{l}) {
 		$qs .= "&amp;l=$l" unless $l == $LIM;
 	}
-	if (my $r = $self->{r}) {
-		$qs .= "&amp;r";
+	for my $bool (qw(r t)) {
+		$qs .= "&amp;$bool" if $self->{$bool};
 	}
 	if (my $x = $self->{x}) {
 		$qs .= "&amp;x=$x" if ($x eq 't' || $x eq 'A' || $x eq 'm');

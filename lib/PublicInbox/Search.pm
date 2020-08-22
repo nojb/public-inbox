@@ -326,6 +326,10 @@ sub _enquire_once { # retry_reopen callback
 	} else {
 		$enquire->set_sort_by_value_then_relevance(TS, $desc);
 	}
+
+	# `mairix -t / --threads' or JMAP collapseThreads
+	$enquire->set_collapse_key(THREADID) if $opts->{thread};
+
 	my $offset = $opts->{offset} || 0;
 	my $limit = $opts->{limit} || 50;
 	my $mset = $enquire->get_mset($offset, $limit);

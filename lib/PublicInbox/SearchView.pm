@@ -19,10 +19,12 @@ my %rmap_inc;
 sub mbox_results {
 	my ($ctx) = @_;
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
-	my $x = $q->{x};
+	if ($ctx->{env}->{'psgi.input'}->read(my $buf, 3)) {
+		$q->{t} = 1 if $buf =~ /\Ax=[^0]/;
+	}
 	require PublicInbox::Mbox;
-	return PublicInbox::Mbox::mbox_all($ctx, $q->{'q'}) if $x eq 'm';
-	sres_top_html($ctx);
+	$q->{x} eq 'm' ? PublicInbox::Mbox::mbox_all($ctx, $q) :
+			sres_top_html($ctx);
 }
 
 sub sres_top_html {
@@ -46,6 +48,7 @@ sub sres_top_html {
 		offset => $o,
 		mset => 1,
 		relevance => $q->{r},
+		thread => $q->{t},
 		asc => $asc,
 	};
 	my ($mset, $total, $err, $html);
@@ -151,7 +154,7 @@ sub err_txt {
 
 sub search_nav_top {
 	my ($mset, $q, $ctx) = @_;
-	my $m = $q->qs_html(x => 'm', r => undef);
+	my $m = $q->qs_html(x => 'm', r => undef, t => undef);
 	my $rv = qq{<form\naction="?$m"\nmethod="post"><pre>};
 	my $initial_q = $ctx->{-uxs_retried};
 	if (defined $initial_q) {
@@ -186,10 +189,12 @@ sub search_nav_top {
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
 	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]} .
-		qq{\n\t\t\t\t\t\tdownload: } .
-		# lynx seems to require a name=, here, so just use 'z'
-		qq{<input\ntype=submit\nname=z\nvalue="mbox.gz"/>} .
-		q{</pre></form><pre>};
+		qq{\n\t\t\tdownload mbox.gz: } .
+		# we set name=z w/o using it since it seems required for
+		# lynx (but works fine for w3m).
+		qq{<input\ntype=submit\nname=z\nvalue="results only"/>|} .
+		qq{<input\ntype=submit\nname=x\nvalue="full threads"/>} .
+		qq{</pre></form><pre>};
 }
 
 sub search_nav_bot {
