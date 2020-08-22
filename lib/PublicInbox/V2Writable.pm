@@ -630,12 +630,12 @@ sub checkpoint ($;$) {
 			my $barrier = $self->barrier_init(scalar @$shards);
 
 			# each shard needs to issue a barrier command
-			$_->remote_barrier for @$shards;
+			$_->shard_barrier for @$shards;
 
 			# wait for each Xapian shard
 			$self->barrier_wait($barrier);
 		} else {
-			$_->remote_commit for @$shards;
+			$_->shard_commit for @$shards;
 		}
 
 		# last_commit is special, don't commit these until
@@ -675,7 +675,7 @@ sub done {
 	my $shards = delete $self->{idx_shards};
 	if ($shards) {
 		for (@$shards) {
-			eval { $_->remote_close };
+			eval { $_->shard_close };
 			$err .= "shard close: $@\n" if $@;
 		}
 	}
@@ -1107,7 +1107,7 @@ sub unindex_oid_remote ($$$) {
 	my @removed = $self->{over}->remove_oid($oid, $mid);
 	for my $num (@removed) {
 		my $idx = idx_shard($self, $num % $self->{shards});
-		$idx->remote_remove($oid, $num);
+		$idx->shard_remove($oid, $num);
 	}
 }
 

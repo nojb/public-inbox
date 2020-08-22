@@ -1,7 +1,7 @@
 # Copyright (C) 2018-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# used to interface with a single Xapian shard in V2 repos.
+# Internal interface for a single Xapian shard in V2 inboxes.
 # See L<public-inbox-v2-format(5)> for more info on how we shard Xapian
 package PublicInbox::SearchIdxShard;
 use strict;
@@ -47,6 +47,7 @@ sub spawn_worker {
 	close $r or die "failed to close: $!";
 }
 
+# this reads all the writes to $self->{w} from the parent process
 sub shard_worker_loop ($$$$$) {
 	my ($self, $v2w, $r, $shard, $bnote) = @_;
 	$0 = "pi-v2-shard[$shard]";
@@ -87,7 +88,6 @@ sub shard_worker_loop ($$$$$) {
 	$self->worker_done;
 }
 
-# called by V2Writable
 sub index_raw {
 	my ($self, $msgref, $eml, $smsg) = @_;
 	if (my $w = $self->{w}) {
@@ -110,13 +110,44 @@ sub atfork_child {
 	close $_[0]->{w} or die "failed to close write pipe: $!\n";
 }
 
-# called by V2Writable:
-sub remote_barrier {
+sub shard_barrier {
 	my ($self) = @_;
 	if (my $w = $self->{w}) {
 		print $w "barrier\n" or die "failed to print: $!";
 	} else {
 		$self->commit_txn_lazy;
+	}
+}
+
+sub shard_commit {
+	my ($self) = @_;
+	if (my $w = $self->{w}) {
+		print $w "commit\n" or die "failed to write commit: $!";
+	} else {
+		$self->commit_txn_lazy;
+	}
+}
+
+sub shard_close {
+	my ($self) = @_;
+	if (my $w = delete $self->{w}) {
+		my $pid = delete $self->{pid} or die "no process to wait on\n";
+		print $w "close\n" or die "failed to write to pid:$pid: $!\n";
+		close $w or die "failed to close pipe for pid:$pid: $!\n";
+		waitpid($pid, 0) == $pid or die "remote process did not finish";
+		$? == 0 or die ref($self)." pid:$pid exited with: $?";
+	} else {
+		die "transaction in progress $self\n" if $self->{txn};
+		$self->idx_release if $self->{xdb};
+	}
+}
+
+sub shard_remove {
+	my ($self, $oid, $num) = @_;
+	if (my $w = $self->{w}) { # triggers remove_by_oid in a shard child
+		print $w "D $oid $num\n" or die "failed to write remove $!";
+	} else { # same process
+		$self->remove_by_oid($oid, $num);
 	}
 }
 

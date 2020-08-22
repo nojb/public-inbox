@@ -793,40 +793,6 @@ sub DESTROY {
 	$_[0]->{lockfh} = undef;
 }
 
-# remote_* subs are only used by SearchIdxPart
-sub remote_commit {
-	my ($self) = @_;
-	if (my $w = $self->{w}) {
-		print $w "commit\n" or die "failed to write commit: $!";
-	} else {
-		$self->commit_txn_lazy;
-	}
-}
-
-sub remote_close {
-	my ($self) = @_;
-	if (my $w = delete $self->{w}) {
-		my $pid = delete $self->{pid} or die "no process to wait on\n";
-		print $w "close\n" or die "failed to write to pid:$pid: $!\n";
-		close $w or die "failed to close pipe for pid:$pid: $!\n";
-		waitpid($pid, 0) == $pid or die "remote process did not finish";
-		$? == 0 or die ref($self)." pid:$pid exited with: $?";
-	} else {
-		die "transaction in progress $self\n" if $self->{txn};
-		idx_release($self) if $self->{xdb};
-	}
-}
-
-sub remote_remove {
-	my ($self, $oid, $num) = @_;
-	if (my $w = $self->{w}) {
-		# triggers remove_by_oid in a shard
-		print $w "D $oid $num\n" or die "failed to write remove $!";
-	} else {
-		$self->remove_by_oid($oid, $num);
-	}
-}
-
 sub _begin_txn {
 	my ($self) = @_;
 	my $xdb = $self->{xdb} || idx_acquire($self);
