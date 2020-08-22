@@ -311,6 +311,12 @@ sub _do_enquire {
 	retry_reopen($self, \&_enquire_once, [ $self, $query, $opts ]);
 }
 
+# returns true if all docs have the THREADID value
+sub has_threadid ($) {
+	my ($self) = @_;
+	(xdb($self)->get_metadata('has_threadid') // '') eq '1';
+}
+
 sub _enquire_once { # retry_reopen callback
 	my ($self, $query, $opts) = @{$_[0]};
 	my $xdb = xdb($self);
@@ -328,7 +334,9 @@ sub _enquire_once { # retry_reopen callback
 	}
 
 	# `mairix -t / --threads' or JMAP collapseThreads
-	$enquire->set_collapse_key(THREADID) if $opts->{thread};
+	if ($opts->{thread} && has_threadid($self)) {
+		$enquire->set_collapse_key(THREADID);
+	}
 
 	my $offset = $opts->{offset} || 0;
 	my $limit = $opts->{limit} || 50;

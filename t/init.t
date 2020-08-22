@@ -108,6 +108,7 @@ SKIP: {
 		is(PublicInbox::Admin::detect_indexlevel($ibx), 'full',
 			"detected default indexlevel -V$v");
 		ok($ibx->{-skip_docdata}, "docdata skip set -V$v");
+		ok($ibx->search->has_threadid, 'has_threadid flag set on new inbox');
 	}
 
 	# loop for idempotency

@@ -1337,6 +1337,18 @@ sub index_sync {
 		xapian_only($self, $opt, $sync, $art_beg);
 	}
 
+	# --reindex on the command-line
+	if ($opt->{reindex} && !ref($opt->{reindex}) && $idxlevel ne 'basic') {
+		$self->lock_acquire;
+		my $s0 = PublicInbox::SearchIdx->new($self->{ibx}, 0, 0);
+		if (my $xdb = $s0->idx_acquire) {
+			my $n = $xdb->get_metadata('has_threadid');
+			$xdb->set_metadata('has_threadid', 1) if $n ne '1';
+		}
+		$s0->idx_release;
+		$self->lock_release;
+	}
+
 	# reindex does not pick up new changes, so we rerun w/o it:
 	if ($opt->{reindex}) {
 		my %again = %$opt;

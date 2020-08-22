@@ -188,13 +188,20 @@ sub search_nav_top {
 		$rv .= qq{<a\nhref="?$s">summary</a>|<b>nested</b>};
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
-	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]} .
-		qq{\n\t\t\tdownload mbox.gz: } .
-		# we set name=z w/o using it since it seems required for
-		# lynx (but works fine for w3m).
-		qq{<input\ntype=submit\nname=z\nvalue="results only"/>|} .
-		qq{<input\ntype=submit\nname=x\nvalue="full threads"/>} .
-		qq{</pre></form><pre>};
+	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
+	if ($ctx->{-inbox}->search->has_threadid) {
+		$rv .= qq{\n\t\t\tdownload mbox.gz: } .
+			# we set name=z w/o using it since it seems required for
+			# lynx (but works fine for w3m).
+			qq{<input\ntype=submit\nname=z\n} .
+				q{value="results only"/>} .
+			qq{|<input\ntype=submit\nname=x\n} .
+				q{value="full threads"/>};
+	} else { # BOFH needs to --reindex
+		$rv .= qq{\n\t\t\t\t\t\tdownload: } .
+			qq{<input\ntype=submit\nname=z\nvalue="mbox.gz"/>}
+	}
+	$rv .= qq{</pre></form><pre>};
 }
 
 sub search_nav_bot {

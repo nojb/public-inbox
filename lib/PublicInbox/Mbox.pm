@@ -262,7 +262,7 @@ sub mbox_all {
 	$ctx->{ids} = $srch->mset_to_artnums($mset);
 	require PublicInbox::MboxGz;
 	my $fn;
-	if ($q->{t}) {
+	if ($q->{t} && $srch->has_threadid) {
 		$fn = 'results-thread-'.$q_string;
 		PublicInbox::MboxGz::mbox_gz($ctx, \&results_thread_cb, $fn);
 	} else {

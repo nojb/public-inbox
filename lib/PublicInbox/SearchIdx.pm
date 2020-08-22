@@ -131,6 +131,7 @@ sub idx_acquire {
 				($is_shard && need_xapian($self)))) {
 			File::Path::mkpath($dir);
 			nodatacow_dir($dir);
+			$self->{-set_has_threadid_once} = 1;
 		}
 	}
 	return unless defined $flag;
@@ -590,9 +591,17 @@ sub v1_checkpoint ($$;$) {
 
 	$self->{mm}->{dbh}->commit;
 	if ($newest && need_xapian($self)) {
-		my $cur = $self->{xdb}->get_metadata('last_commit');
+		my $xdb = $self->{xdb};
+		my $cur = $xdb->get_metadata('last_commit');
 		if (need_update($self, $cur, $newest)) {
-			$self->{xdb}->set_metadata('last_commit', $newest);
+			$xdb->set_metadata('last_commit', $newest);
+		}
+
+		# let SearchView know a full --reindex was done so it can
+		# generate ->has_threadid-dependent links
+		if ($sync->{reindex} && !ref($sync->{reindex})) {
+			my $n = $xdb->get_metadata('has_threadid');
+			$xdb->set_metadata('has_threadid', '1') if $n ne '1';
 		}
 	}
 
@@ -816,6 +825,9 @@ sub set_metadata_once {
 	return if $self->{shard}; # only continue if undef or 0, not >0
 	my $xdb = $self->{xdb};
 
+	if (delete($self->{-set_has_threadid_once})) {
+		$xdb->set_metadata('has_threadid', '1');
+	}
 	if (delete($self->{-set_indexlevel_once})) {
 		my $level = $xdb->get_metadata('indexlevel');
 		if (!$level || $level ne 'medium') {

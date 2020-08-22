@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
+use IO::Uncompress::Gunzip qw(gunzip);
 use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
@@ -38,6 +39,12 @@ To: git\@vger.kernel.org
 
 EOF
 $im->add($mime);
+
+$im->add(PublicInbox::Eml->new(<<""));
+Message-ID: <reply\@asdf>
+From: replier <r\@example.com>
+In-Reply-To: <$mid>
+Subject: mismatch
 
 $mime = PublicInbox::Eml->new(<<'EOF');
 Subject:
@@ -79,6 +86,9 @@ test_psgi(sub { $www->call(@_) }, sub {
 	ok(index($html, 'by &#198;var Arnfj&#246;r&#240; Bjarmason') >= 0,
 		"displayed Ævar's name properly in HTML");
 
+	like($html, qr/download mbox\.gz: .*?"full threads"/s,
+		'"full threads" download option shown');
+
 	my $warn = [];
 	local $SIG{__WARN__} = sub { push @$warn, @_ };
 	$res = $cb->(GET('/test/?q=s:test&l=5e'));
@@ -118,8 +128,33 @@ test_psgi(sub { $www->call(@_) }, sub {
 	$res = $cb->(GET('/test/no-subject-at-all@example.com/t.mbox.gz'));
 	like($res->header('Content-Disposition'),
 		qr/filename=no-subject\.mbox\.gz/);
+
+	# "full threads" mbox.gz download
+	$res = $cb->(POST('/test/?q=s:test&x=m&t'));
+	is($res->code, 200, 'successful mbox download with threads');
+	gunzip(\($res->content) => \(my $before));
+	is_deeply([ "Message-ID: <$mid>\n", "Message-ID: <reply\@asdf>\n" ],
+		[ grep(/^Message-ID:/m, split(/^/m, $before)) ],
+		'got full thread');
+
+	# clobber has_threadid to emulate old versions:
+	{
+		my $sidx = PublicInbox::SearchIdx->new($ibx, 0);
+		my $xdb = $sidx->idx_acquire;
+		$xdb->set_metadata('has_threadid', '0');
+		$sidx->idx_release;
+	}
+	$config->each_inbox(sub { delete $_[0]->{search} });
+	$res = $cb->(GET('/test/?q=s:test'));
+	is($res->code, 200, 'successful search w/o has_threadid');
+	unlike($html, qr/download mbox\.gz: .*?"full threads"/s,
+		'"full threads" download option not shown w/o has_threadid');
+
+	# in case somebody uses curl to bypass <form>
+	$res = $cb->(POST('/test/?q=s:test&x=m&t'));
+	is($res->code, 200, 'successful mbox download w/ threads');
+	gunzip(\($res->content) => \(my $after));
+	isnt($before, $after);
 });
 
 done_testing();
-
-1;
