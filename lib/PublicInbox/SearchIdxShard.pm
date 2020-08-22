@@ -97,7 +97,7 @@ sub index_raw {
 			"\n", $$msgref or die "failed to write shard $!\n";
 	} else {
 		if ($eml) {
-			$$msgref = undef;
+			undef $$msgref;
 		} else { # --xapian-only + --sequential-shard:
 			$eml = PublicInbox::Eml->new($msgref);
 		}
