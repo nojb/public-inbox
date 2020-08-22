@@ -284,7 +284,7 @@ sub add_overview {
 	my $dd = $smsg->to_doc_data;
 	utf8::encode($dd);
 	$dd = compress($dd);
-	add_over($self, [ @$smsg{qw(ts ds num)}, $mids, $refs, $xpath, $dd ]);
+	add_over($self, $smsg, $mids, $refs, $xpath, $dd);
 }
 
 sub _add_over {
@@ -311,10 +311,10 @@ sub _add_over {
 }
 
 sub add_over {
-	my ($self, $values) = @_;
-	my ($ts, $ds, $num, $mids, $refs, $xpath, $ddd) = @$values;
+	my ($self, $smsg, $mids, $refs, $xpath, $ddd) = @_;
 	my $old_tid;
 	my $vivified = 0;
+	my $num = $smsg->{num};
 
 	begin_lazy($self);
 	delete_by_num($self, $num, \$old_tid);
@@ -326,17 +326,17 @@ sub add_over {
 		$v > 1 and warn "BUG: vivified multiple ($v) ghosts for $mid\n";
 		$vivified += $v;
 	}
-	my $tid = $vivified ? $old_tid : link_refs($self, $refs, $old_tid);
-	my $sid = sid($self, $xpath);
+	$smsg->{tid} = $vivified ? $old_tid : link_refs($self, $refs, $old_tid);
+	$smsg->{sid} = sid($self, $xpath);
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(<<'');
 INSERT INTO over (num, tid, sid, ts, ds, ddd)
 VALUES (?,?,?,?,?,?)
 
-	my $n = 0;
-	my @v = ($num, $tid, $sid, $ts, $ds);
-	foreach (@v) { $sth->bind_param(++$n, $_) }
-	$sth->bind_param(++$n, $ddd, SQL_BLOB);
+	my $nc = 1;
+	$sth->bind_param($nc, $num);
+	$sth->bind_param(++$nc, $smsg->{$_}) for (qw(tid sid ts ds));
+	$sth->bind_param(++$nc, $ddd, SQL_BLOB);
 	$sth->execute;
 	$sth = $dbh->prepare_cached(<<'');
 INSERT INTO id2num (id, num) VALUES (?,?)

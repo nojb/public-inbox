@@ -18,9 +18,9 @@ use constant {
 	# added for public-inbox 1.6.0+
 	BYTES => 3, # IMAP RFC822.SIZE
 	UID => 4, # IMAP UID == NNTP article number == Xapian docid
+	THREADID => 5, # RFC 8474, RFC 8621
 
 	# TODO
-	# THREADID => ?
 	# REPLYCNT => ?, # IMAP ANSWERED
 
 	# SCHEMA_VERSION history
@@ -47,7 +47,7 @@ use constant {
 	#      public-inbox v1.5.0 adds (still SCHEMA_VERSION=15):
 	#      * "lid:" and "l:" for List-Id searches
 	#
-	#      v1.6.0 adds BYTES and UID values
+	#      v1.6.0 adds BYTES, UID and THREADID values
 	SCHEMA_VERSION => 15,
 };
 

@@ -68,8 +68,8 @@ sub shard_worker_loop ($$$$$) {
 		} else {
 			chomp $line;
 			# n.b. $mid may contain spaces(!)
-			my ($to_read, $bytes, $num, $blob, $ds, $ts, $mid) =
-							split(/ /, $line, 7);
+			my ($to_read, $bytes, $num, $blob, $ds, $ts, $tid, $mid)
+				= split(/ /, $line, 8);
 			$self->begin_txn_lazy;
 			my $n = read($r, my $msg, $to_read) or die "read: $!\n";
 			$n == $to_read or die "short read: $n != $to_read\n";
@@ -79,6 +79,7 @@ sub shard_worker_loop ($$$$$) {
 				num => $num + 0,
 				blob => $blob,
 				mid => $mid,
+				tid => $tid,
 				ds => $ds,
 				ts => $ts,
 			}, 'PublicInbox::Smsg';
@@ -93,7 +94,7 @@ sub index_raw {
 	if (my $w = $self->{w}) {
 		# mid must be last, it can contain spaces (but not LF)
 		print $w join(' ', @$smsg{qw(raw_bytes bytes
-						num blob ds ts mid)}),
+						num blob ds ts tid mid)}),
 			"\n", $$msgref or die "failed to write shard $!\n";
 	} else {
 		if ($eml) {

@@ -213,7 +213,7 @@ sub get_art {
 	my ($self, $num) = @_;
 	# caching $sth ourselves is faster than prepare_cached
 	my $sth = $self->{-get_art} //= $self->connect->prepare(<<'');
-SELECT num,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
+SELECT num,tid,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 
 	$sth->execute($num);
 	my $smsg = $sth->fetchrow_hashref;

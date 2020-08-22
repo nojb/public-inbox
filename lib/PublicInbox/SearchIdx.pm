@@ -356,6 +356,7 @@ sub add_xapian ($$$$) {
 	add_val($doc, PublicInbox::Search::DT(), $dt);
 	add_val($doc, PublicInbox::Search::BYTES(), $smsg->{bytes});
 	add_val($doc, PublicInbox::Search::UID(), $smsg->{num});
+	add_val($doc, PublicInbox::Search::THREADID, $smsg->{tid});
 
 	my $tg = term_generator($self);
 	$tg->set_document($doc);

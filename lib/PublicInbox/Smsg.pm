@@ -82,7 +82,8 @@ sub psgi_cull ($) {
 
 	# drop NNTP-only fields which aren't relevant to PSGI results:
 	# saves ~80K on a 200 item search result:
-	delete @$self{qw(ts to cc bytes lines)};
+	# TODO: we may need to keep some of these for JMAP...
+	delete @$self{qw(ts tid to cc bytes lines)};
 	$self;
 }
 

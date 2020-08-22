@@ -48,8 +48,12 @@ my $rfcs = [
 	# 5032 = 'WITHIN search extension for IMAP',
 	4978 => 'IMAP COMPRESS Extension',
 	# 5182 = 'IMAP Extension for Referencing the Last SEARCH Result',
+	# 5256 => 'IMAP SORT and THREAD extensions',
 	# 5738 =>  'IMAP Support for UTF-8',
 	# 8474 => 'IMAP Extension for Object Identifiers',
+
+	# 8620 => JSON Meta Application Protocol (JMAP)
+	# 8621 => JSON Meta Application Protocol (JMAP) for Mail
 	# ...
 
 	# TODO: flesh this out
