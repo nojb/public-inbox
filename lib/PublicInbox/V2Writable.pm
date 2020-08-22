@@ -1264,8 +1264,11 @@ sub xapian_only {
 		$sync->{art_end} = $art_end;
 		if ($seq || !$self->{parallel}) {
 			my $shard_end = $self->{shards} - 1;
-			for (0..$shard_end) {
-				index_xap_step($self, $sync, $art_beg + $_)
+			for my $i (0..$shard_end) {
+				index_xap_step($self, $sync, $art_beg + $i);
+				if ($i != $shard_end) {
+					reindex_checkpoint($self, $sync);
+				}
 			}
 		} else { # parallel (maybe)
 			index_xap_step($self, $sync, $art_beg, 1);
