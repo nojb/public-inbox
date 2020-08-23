@@ -137,9 +137,7 @@ sub idx_acquire {
 	return unless defined $flag;
 	$flag |= $DB_NO_SYNC if $self->{ibx}->{-no_fsync};
 	my $xdb = eval { ($X->{WritableDatabase})->new($dir, $flag) };
-	if ($@) {
-		die "Failed opening $dir: ", $@;
-	}
+	croak "Failed opening $dir: $@" if $@;
 	$self->{xdb} = $xdb;
 }
 
