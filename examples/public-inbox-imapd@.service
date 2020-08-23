@@ -1,0 +1,43 @@
+# ==> /etc/systemd/system/public-inbox-imapd@.service <==
+# Since SIGUSR2 upgrades do not work under systemd, this service file
+# allows starting two simultaneous services during upgrade time
+# (e.g. public-inbox-imapd@1 public-inbox-imapd@2) with the intention
+# that they take turns running in-between upgrades.  This should
+# allow upgrading without downtime.
+
+[Unit]
+Description = public-inbox-imapd IMAP server %i
+Wants = public-inbox-imapd.socket public-inbox-imaps.socket \
+public-inbox-imap-onion.socket
+After = public-inbox-imapd.socket public-inbox-imaps.socket \
+public-inbox-imap-onion.socket
+
+[Service]
+Environment = PI_CONFIG=/home/pi/.public-inbox/config \
+PATH=/usr/local/bin:/usr/bin:/bin \
+PERL_INLINE_DIRECTORY=/tmp/.pub-inline
+
+LimitNOFILE = 30000
+ExecStartPre = /bin/mkdir -p -m 1777 /tmp/.pub-inline
+ExecStart = /usr/local/bin/public-inbox-imapd -W0 \
+-1 /var/log/public-inbox/imapd.out.log \
+--cert /etc/ssl/certs/news.example.com.pem \
+--key /etc/ssl/private/news.example.com.key
+StandardError = syslog
+
+# NonBlocking is REQUIRED to avoid a race condition if running
+# simultaneous services
+NonBlocking = true
+
+Sockets = public-inbox-imapd.socket public-inbox-imaps.socket \
+public-inbox-imap-onion.socket
+
+KillSignal = SIGQUIT
+User = nobody
+Group = ssl-cert
+ExecReload = /bin/kill -HUP $MAINPID
+TimeoutStopSec = 86400
+KillMode = process
+
+[Install]
+WantedBy = multi-user.target
