@@ -25,11 +25,13 @@ then
 	inbox_dir=$(expr "$full_git_dir" : "$EPOCH2MAIN")
 	inbox_name=$(basename "$inbox_dir")
 	msgmap="$inbox_dir"/msgmap.sqlite3
+	inbox_lock="$inbox_dir"/inbox.lock
 else
 	inbox_fmt=1
 	inbox_dir="$full_git_dir"
 	inbox_name=$(basename "$inbox_dir" .git)
 	msgmap="$inbox_dir"/public-inbox/msgmap.sqlite3
+	inbox_lock="$inbox_dir"/ssoma.lock
 fi
 
 # run public-inbox-init iff unconfigured
@@ -118,7 +120,18 @@ esac
 # don't know what indexlevel a user wants
 if test -f "$msgmap"
 then
-	n=$(echo 'SELECT COUNT(*) FROM msgmap' | sqlite3 -readonly "$msgmap")
+	# We need to use flock(1) (from util-linux) to avoid timeouts
+	# and SQLite locking problems.
+	# FreeBSD has a similar lockf(1) utility, but it unlinks by
+	# default so we use `-k' to keep the lock on the FS.
+	FLOCK=flock
+	case $(uname -s) in
+	FreeBSD) FLOCK='lockf -k' ;;
+	# ... other OSes here
+	esac
+
+	n=$(echo 'SELECT COUNT(*) FROM msgmap' | \
+		$FLOCK $inbox_lock sqlite3 -readonly "$msgmap")
 	case $n in
 	0|'')
 		: v2 inboxes may be init-ed with an empty msgmap
