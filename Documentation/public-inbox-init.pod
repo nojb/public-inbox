@@ -86,14 +86,21 @@ Default: unset, no epochs are skipped
 Control the number of Xapian index shards in a
 C<-V2> (L<public-inbox-v2-format(5)>) inbox.
 
-It is useful to use a single shard (C<-j1>) for inboxes on
+It can be useful to use a single shard (C<-j1>) for inboxes on
 high-latency storage (e.g. rotational HDD) unless the system has
 enough RAM to cache 5-10x the size of the git repository.
 
-It is generally not useful to specify higher values than the
-default due to contention in the top-level producer process.
+Another approach for HDDs is to use the
+L<public-inbox-index(1)/publicInbox.indexSequentialShard> option
+and many shards, so each shard may fit into the kernel page
+cache.  Unfortunately, excessive shards slows down read-only
+query performance.
 
-Default: the number of online CPUs, up to 4
+For fast storage, it is generally not useful to specify higher
+values than the default due to the top-level producer process
+being a bottleneck.
+
+Default: the number of online CPUs, up to 4 (3 shard workers, 1 producer)
 
 =item --skip-docdata
 

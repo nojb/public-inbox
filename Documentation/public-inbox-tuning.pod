@@ -69,7 +69,8 @@ footprint when indexing on HDDs.
 
 Initializing a mirror with a high C<--jobs> count to create more
 shards (in C<-V2> inboxes) will keep each shard smaller and
-reduce its kernel page cache footprint.
+reduce its kernel page cache footprint.  Keep in mind excessive
+sharding imposes a performance penalty for read-only queries.
 
 Users with large amounts of RAM are advised to set a large value
 for C<publicinbox.indexBatchSize> as documented in
@@ -88,11 +89,20 @@ used by public-inbox are no exception to that.
 
 public-inbox 1.6.0+ disables copy-on-write (CoW) on Xapian and SQLite
 indices on btrfs to achieve acceptable performance (even on SSD).
-Disabling copy-on-write also disables checksumming, thus raid1
-(or higher) configurations may corrupt on unsafe shutdowns.
+Disabling copy-on-write also disables checksumming, thus C<raid1>
+(or higher) configurations may be corrupt after unsafe shutdowns.
 
 Fortunately, these SQLite and Xapian indices are designed to
 recoverable from git if missing.
+
+Disabling CoW does not prevent all fragmentation.
+
+Avoid snapshotting subvolumes containing Xapian and/or SQLite indices.
+Snapshots use CoW despite our efforts to disable it, resulting
+in fragmentation.
+
+L<filefrag(8)> can be used to monitor fragmentation, and
+C<btrfs filesystem defragment -fr $INBOX_DIR> may be necessary.
 
 Large filesystems benefit significantly from the C<space_cache=v2>
 mount option documented in L<btrfs(5)>.
@@ -105,6 +115,11 @@ for our Xapian and SQLite indices.
 While SSD read performance is generally good, SSD write performance
 degrades as the drive ages and/or gets full.  Issuing C<TRIM> commands
 via L<fstrim(8)> or similar is required to sustain write performance.
+
+Users of the Flash-Friendly File System
+L<F2FS|https://en.wikipedia.org/wiki/F2FS> may benefit from
+optimizations found in SQLite 3.21.0+.  Benchmarks are greatly
+appreciated.
 
 =head2 Read-only daemons
 

@@ -39,8 +39,12 @@ normal search functionality.
 Influences the number of Xapian indexing shards in a
 (L<public-inbox-v2-format(5)>) inbox.
 
+See L<public-inbox-init(1)/--jobs> for a full description
+of sharding.
+
 C<--jobs=0> is accepted as of public-inbox 1.6.0 (PENDING)
-to disable parallel indexing.
+to disable parallel indexing regardless of the number of
+pre-existing shards.
 
 If the inbox has not been indexed or initialized, C<JOBS - 1>
 shards will be created (one job is always needed for indexing
@@ -133,7 +137,11 @@ Available in public-inbox 1.6.0 (PENDING).
 =item --no-fsync
 
 Disables L<fsync(2)> and L<fdatasync(2)> operations on SQLite
-and Xapian.  This is only effective with Xapian 1.4+.
+and Xapian.  This is only effective with Xapian 1.4+.  This is
+primarily intended for systems with low RAM and the small
+(default) C<--batch-size=1m>.  Users of large C<--batch-size>
+may even find disabling L<fdatasync(2)> causes too much dirty
+data to accumulate, resulting on latency spikes from writeback.
 
 Available in public-inbox 1.6.0 (PENDING).
 
