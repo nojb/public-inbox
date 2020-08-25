@@ -31,9 +31,6 @@ sub new_file {
 	my $self = bless { filename => $f }, $class;
 	my $dbh = $self->{dbh} = PublicInbox::Over::dbh_new($self, $rw);
 	if ($rw) {
-		# TRUNCATE reduces I/O compared to the default (DELETE)
-		$dbh->do('PRAGMA journal_mode = TRUNCATE');
-
 		$dbh->begin_work;
 		create_tables($dbh);
 		$self->created_at(time) unless $self->created_at;

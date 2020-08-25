@@ -65,4 +65,14 @@ isnt($over->max, 0, 'max is non-zero');
 
 $over->rollback_lazy;
 
+# L<perldata/"Version Strings">
+my $v = eval 'v'.$over->{dbh}->{sqlite_version};
+SKIP: {
+	skip("no WAL in SQLite version $v < 3.7.0", 1) if $v lt v3.7.0;
+	$over->{dbh}->do('PRAGMA journal_mode = WAL');
+	$over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");
+	is($over->connect->selectrow_array('PRAGMA journal_mode'), 'wal',
+		'WAL journal_mode not clobbered if manually set');
+}
+
 done_testing();

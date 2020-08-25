@@ -42,7 +42,28 @@ sub dbh_new {
 		$st = pack('dd', $st[0], $st[1]);
 	} while ($st ne $self->{st} && $tries++ < 3);
 	warn "W: $f: .st_dev, .st_ino unstable\n" if $st ne $self->{st};
-	$dbh->do('PRAGMA synchronous = OFF') if ($rw // 0) > 1;
+
+	if ($rw) {
+		# TRUNCATE reduces I/O compared to the default (DELETE).
+		#
+		# Do not use WAL by default since we expect the case
+		# where any users may read via read-only daemons
+		# (-httpd/-imapd/-nntpd); but only a single user has
+		# write permissions for -watch/-mda.
+		#
+		# Read-only WAL support in SQLite 3.22.0 (2018-01-22)
+		# doesn't do what we need: it is only intended for
+		# immutable read-only media (e.g. CD-ROM) and not
+		# usable for our use case described above.
+		#
+		# If an admin is willing to give read-only daemons R/W
+		# permissions; they can enable WAL manually and we will
+		# respect that by not clobbering it.
+		my $jm = $dbh->selectrow_array('PRAGMA journal_mode');
+		$dbh->do('PRAGMA journal_mode = TRUNCATE') if $jm ne 'wal';
+
+		$dbh->do('PRAGMA synchronous = OFF') if $rw > 1;
+	}
 	$dbh;
 }
 
