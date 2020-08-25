@@ -21,9 +21,6 @@ sub dbh_new {
 			require PublicInbox::Spawn;
 			open my $fh, '+>>', $f or die "failed to open $f: $!";
 			PublicInbox::Spawn::nodatacow_fd(fileno($fh));
-			my $j = "$f-journal";
-			open $fh, '+>>', $j or die "failed to open $j: $!";
-			PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 		} else {
 			$self->{filename} = $f; # die on stat() below:
 		}
