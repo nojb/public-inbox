@@ -1346,7 +1346,7 @@ sub index_sync {
 		my $s0 = PublicInbox::SearchIdx->new($self->{ibx}, 0, 0);
 		if (my $xdb = $s0->idx_acquire) {
 			my $n = $xdb->get_metadata('has_threadid');
-			$xdb->set_metadata('has_threadid', 1) if $n ne '1';
+			$xdb->set_metadata('has_threadid', '1') if $n ne '1';
 		}
 		$s0->idx_release;
 		$self->lock_release;
