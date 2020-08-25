@@ -5,6 +5,18 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline
 
+A big release containing several performance optimizations, a
+new anonymous IMAP server, and more.  It represents an
+incremental improvement over 1.5 in several areas with more to
+come in 1.7.
+
+The read-only httpd and nntpd daemons no longer block the event
+loop when retrieving blobs from git, making better use of SMP
+systems while accomodating slow storage.
+
+Indexing can be now be tuned to give somewhat usable performance
+on HDD storage, though we can't defy the laws of physics, either.
+
 * General changes:
 
   - ~/.cache/public-inbox/inline-c is automatically used for Inline::C
@@ -14,22 +26,70 @@ Content-Disposition: inline
   - msgmap.sqlite3 uses journal_mode=TRUNCATE, matching over.sqlite3
     behavior for a minor reduction in VFS traffic
 
-  - message/{rfc822,news,global} attachments are decoded recursively
-    and indexed for search.  Use `public-inbox-index --reindex' to
-    ensure these attachments are indexed in old messages.
+  - public-inbox-tuning(7) - new manpage containing pointers to
+    various tuning options and tips for certain HW and OS setups.
 
-  - inbox.lock (v2) and ssoma.lock (v1) files are written to by
+  - Copy-on-write is disabled on BTRFS for new indices to avoid
+    fragmentation.  See the new public-inbox-tuning(7) manpage.
+
+  - message/{rfc822,news,global} attachments are decoded recursively
+    and indexed for search.  Reindexing (see below) is required
+    to ensure these attachments are indexed in old messages.
+
+  - inbox.lock (v2) and ssoma.lock (v1) files are written to
     on message delivery (or spam removal) to wake up read-only
     daemons via inotify or kqueue.
 
+* Upgrading
+
+  The ordering of these steps is only necessary if you intend to
+  use some new features of this release.
+
+  0. install (use your OS package manager, or "make install")
+
+  1. restart public-inbox-watch instances if you have any
+
+  2. Optional: remove Plack::Middleware::Deflater if you're using
+     a custom .psgi file for PublicInbox::WWW.  This only saves
+     some memory and CPU cycles, and you may also skip this step
+     if you expect to roll back to 1.5.0 for any reason.
+
+  Steps 3a and 3b may happen in any order, 3b is optional
+  and is only required to use new WWW and IMAP features.
+
+  3a. restart existing read-only daemons if you have them
+      (public-inbox-nntpd, public-inbox-httpd)
+
+  3b. run "public-inbox-index -c --reindex --rethread --all"
+      to reindex all configured inboxes
+
+  4. configure and start the new public-inbox-imapd.  This
+     requires reindexing in 3b, but there's no obligation to
+     run an IMAP server, either.
+
 * public-inbox-index
 
-  - --batch-size=BYTES or publicinbox.indexBatchSize parameter
+  There are several new options to improve usability on slow,
+  rotational storage.
 
-  - parallelize v2 updates by default, "-j0" is (once again) allowed
-    to disable parallelization
+  - `--batch-size=BYTES' or publicinbox.indexBatchSize parameter
+    to reduce frequency of random writes on HDDs
 
-  - v1 (re-)indexing parallelizes blob reads from git
+  - `--sequential-shard' or publicInbox.sequentialShard parameter
+    to improve OS page cache utilization on HDDs.
+
+  - `--no-fsync' when combined with Xapian 1.4+ can be used to
+    speed up indexing on SSDs and small (default) `--batch-size'
+
+  - `--rethread' option to go with `--reindex' (use sparringly,
+    see manpage)
+
+  - parallelize v2 updates by default, `--sequential-shard' and
+    `-j0' is (once again) allowed to disable parallelization
+
+  - (re-)indexing parallelizes blob reads from git
+
+  - `--all' may be specified to index all configured inboxes
 
 * public-inbox-learn
 
@@ -38,6 +98,8 @@ Content-Disposition: inline
 * public-inbox-imapd
 
   - new read-only IMAP daemon similar to public-inbox-nntpd
+    `AUTH=ANONYMOUS' is supported, but any username and
+    password for clients without `AUTH=ANONYMOUS' support.
 
 * public-inbox-nntpd
 
@@ -46,8 +108,8 @@ Content-Disposition: inline
 * public-inbox-httpd
 
   - Plack::Middleware::Deflater is no longer loaded by default
-    when no .psgi file is specified; PublicInbox::WWW gzips
-    natively (see below)
+    when no .psgi file is specified; PublicInbox::WWW can rely
+    on gzip for buffering (see below)
 
 * PublicInbox::WWW
 
@@ -65,6 +127,9 @@ Content-Disposition: inline
   - Multi-message endpoints (/t.mbox.gz, /T/, /t/, etc) are ~10% faster
     when running under public-inbox-httpd with asynchronous blob
     retrieval
+
+  - mbox search results may now include all messages pertaining to that
+    thread (requires `--reindex' mentioned in `Upgrading').
 
 * public-inbox-watch
 
