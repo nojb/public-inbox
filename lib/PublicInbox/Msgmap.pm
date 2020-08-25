@@ -175,18 +175,20 @@ sub num_delete {
 
 sub create_tables {
 	my ($dbh) = @_;
-	my $e;
 
-	$e = eval { $dbh->selectrow_array('EXPLAIN SELECT * FROM msgmap;') };
-	defined $e or $dbh->do('CREATE TABLE msgmap (' .
-			'num INTEGER PRIMARY KEY AUTOINCREMENT, '.
-			'mid VARCHAR(1000) NOT NULL, ' .
-			'UNIQUE (mid) )');
+	$dbh->do(<<'');
+CREATE TABLE IF NOT EXISTS msgmap (
+	num INTEGER PRIMARY KEY AUTOINCREMENT,
+	mid VARCHAR(1000) NOT NULL,
+	UNIQUE (mid)
+)
 
-	$e = eval { $dbh->selectrow_array('EXPLAIN SELECT * FROM meta') };
-	defined $e or $dbh->do('CREATE TABLE meta (' .
-			'key VARCHAR(32) PRIMARY KEY, '.
-			'val VARCHAR(255) NOT NULL)');
+	$dbh->do(<<'');
+CREATE TABLE IF NOT EXISTS meta (
+	key VARCHAR(32) PRIMARY KEY,
+	val VARCHAR(255) NOT NULL
+)
+
 }
 
 # used by NNTP.pm
