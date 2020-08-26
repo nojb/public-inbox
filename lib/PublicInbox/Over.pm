@@ -244,15 +244,9 @@ sub recent {
 			$s = '+num > 0 ORDER BY ts DESC';
 		}
 	}
-	my $msgs = do_get($self, <<"", $opts, @v);
+	do_get($self, <<"", $opts, @v);
 SELECT ts,ds,ddd FROM over WHERE $s
 
-	return $msgs unless wantarray;
-
-	my $nr = $self->{dbh}->selectrow_array(<<'');
-SELECT COUNT(num) FROM over WHERE num > 0
-
-	($nr, $msgs);
 }
 
 sub get_art {

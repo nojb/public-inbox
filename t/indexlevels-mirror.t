@@ -49,8 +49,8 @@ my $import_index_incremental = sub {
 		inboxdir => $ibx->{inboxdir},
 		indexlevel => $level
 	});
-	my ($nr, $msgs) = $ro_master->recent;
-	is($nr, 1, 'only one message in master, so far');
+	my $msgs = $ro_master->recent;
+	is(scalar(@$msgs), 1, 'only one message in master, so far');
 	is($msgs->[0]->{mid}, 'm@1', 'first message in master indexed');
 
 	# clone
@@ -79,8 +79,8 @@ my $import_index_incremental = sub {
 		inboxdir => $mirror,
 		indexlevel => $level,
 	});
-	($nr, $msgs) = $ro_mirror->recent;
-	is($nr, 1, 'only one message, so far');
+	$msgs = $ro_mirror->recent;
+	is(scalar(@$msgs), 1, 'only one message, so far');
 	is($msgs->[0]->{mid}, 'm@1', 'read first message');
 
 	# update master
@@ -91,16 +91,16 @@ my $import_index_incremental = sub {
 	# mirror updates
 	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	ok(run_script([qw(-index -j0), $mirror]), "v$v index mirror again OK");
-	($nr, $msgs) = $ro_mirror->recent;
-	is($nr, 2, '2nd message seen in mirror');
+	$msgs = $ro_mirror->recent;
+	is(scalar(@$msgs), 2, '2nd message seen in mirror');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
 		['m@1','m@2'], 'got both messages in mirror');
 
 	# incremental index master (required for v1)
 	ok(run_script([qw(-index -j0), $ibx->{inboxdir}, "-L$level"]),
 		'index master OK');
-	($nr, $msgs) = $ro_master->recent;
-	is($nr, 2, '2nd message seen in master');
+	$msgs = $ro_master->recent;
+	is(scalar(@$msgs), 2, '2nd message seen in master');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
 		['m@1','m@2'], 'got both messages in master');
 
@@ -121,15 +121,15 @@ my $import_index_incremental = sub {
 		is(PublicInbox::Admin::detect_indexlevel($ro_mirror), $level,
 		   'indexlevel detectable by Admin after xcpdb v' .$v.$level);
 		delete $ro_mirror->{$_} for (qw(over search));
-		($nr, $msgs) = $ro_mirror->search->query('m:m@2');
-		is($nr, 1, "v$v found m\@2 via Xapian on $level");
+		$msgs = $ro_mirror->search->query('m:m@2');
+		is(scalar(@$msgs), 1, "v$v found m\@2 via Xapian on $level");
 	}
 
 	# sync the mirror
 	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	ok(run_script([qw(-index -j0), $mirror]), "v$v index mirror again OK");
-	($nr, $msgs) = $ro_mirror->recent;
-	is($nr, 1, '2nd message gone from mirror');
+	$msgs = $ro_mirror->recent;
+	is(scalar(@$msgs), 1, '2nd message gone from mirror');
 	is_deeply([map { $_->{mid} } @$msgs], ['m@1'],
 		'message unavailable in mirror');
 
@@ -138,8 +138,9 @@ my $import_index_incremental = sub {
 			 'no Xapian shard directories for v2 basic');
 	}
 	if ($level ne 'basic') {
-		($nr, $msgs) = $ro_mirror->search->reopen->query('m:m@2');
-		is($nr, 0, "v$v m\@2 gone from Xapian in mirror on $level");
+		$msgs = $ro_mirror->search->reopen->query('m:m@2');
+		is(scalar(@$msgs), 0,
+			"v$v m\@2 gone from Xapian in mirror on $level");
 	}
 
 	# add another message to master and have the mirror

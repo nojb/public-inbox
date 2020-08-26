@@ -50,7 +50,7 @@ ok($ibx, 'found inbox by name');
 my $srch = $ibx->search;
 
 PublicInbox::WatchMaildir->new($config)->scan('full');
-my ($total, undef) = $srch->reopen->query('');
+my $total = scalar @{$srch->reopen->query('')};
 is($total, 1, 'got one revision');
 
 # my $git = PublicInbox::Git->new("$inboxdir/git/0.git");
@@ -70,7 +70,7 @@ my $write_spam = sub {
 $write_spam->();
 is(unlink(glob("$maildir/new/*")), 1, 'unlinked old spam');
 PublicInbox::WatchMaildir->new($config)->scan('full');
-is(($srch->reopen->query(''))[0], 0, 'deleted file');
+is_deeply($srch->reopen->query(''), [], 'deleted file');
 is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 
 # check with scrubbing
@@ -81,16 +81,16 @@ the body of a message to majordomo\@vger.kernel.org
 More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	my ($nr, $msgs) = $srch->reopen->query('');
-	is($nr, 1, 'got one file back');
+	my $msgs = $srch->reopen->query('');
+	is(scalar(@$msgs), 1, 'got one file back');
 	my $mref = $ibx->msg_by_smsg($msgs->[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
 
 	is(unlink(glob("$maildir/new/*")), 1, 'unlinked spam');
 	$write_spam->();
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	($nr, $msgs) = $srch->reopen->query('');
-	is($nr, 0, 'inbox is empty again');
+	$msgs = $srch->reopen->query('');
+	is(scalar(@$msgs), 0, 'inbox is empty again');
 	is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 }
 
@@ -105,8 +105,8 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 		local $SIG{__WARN__} = sub {}; # quiet spam check warning
 		PublicInbox::WatchMaildir->new($config)->scan('full');
 	}
-	my ($nr, $msgs) = $srch->reopen->query('');
-	is($nr, 0, 'inbox is still empty');
+	my $msgs = $srch->reopen->query('');
+	is(scalar(@$msgs), 0, 'inbox is still empty');
 	is(unlink(glob("$maildir/new/*")), 1);
 }
 
@@ -118,8 +118,8 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	my ($nr, $msgs) = $srch->reopen->query('');
-	is($nr, 1, 'inbox has one mail after spamc OK-ed a message');
+	my $msgs = $srch->reopen->query('');
+	is(scalar(@$msgs), 1, 'inbox has one mail after spamc OK-ed a message');
 	my $mref = $ibx->msg_by_smsg($msgs->[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
 	delete $config->{'publicinboxwatch.spamcheck'};
@@ -131,11 +131,11 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	$msg = do { local $/; <$fh> };
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	my ($nr, $msgs) = $srch->reopen->query('dfpost:6e006fd7');
-	is($nr, 1, 'diff postimage found');
+	my $msgs = $srch->reopen->query('dfpost:6e006fd7');
+	is(scalar(@$msgs), 1, 'diff postimage found');
 	my $post = $msgs->[0];
-	($nr, $msgs) = $srch->query('dfpre:090d998b6c2c');
-	is($nr, 1, 'diff preimage found');
+	$msgs = $srch->query('dfpre:090d998b6c2c');
+	is(scalar(@$msgs), 1, 'diff preimage found');
 	is($post->{blob}, $msgs->[0]->{blob}, 'same message');
 }
 
@@ -162,7 +162,7 @@ both
 EOF
 	PublicInbox::Emergency->new($maildir)->prepare(\$both);
 	PublicInbox::WatchMaildir->new($config)->scan('full');
-	my ($total, $msgs) = $srch->reopen->query('m:both@b.com');
+	my $msgs = $srch->reopen->query('m:both@b.com');
 	my $v1 = $config->lookup_name('v1');
 	my $msg = $v1->git->cat_file($msgs->[0]->{blob});
 	is($both, $$msg, 'got original message back from v1');
