@@ -679,8 +679,8 @@ sub done {
 			$err .= "shard close: $@\n" if $@;
 		}
 	}
-	eval { $self->{over}->disconnect };
-	$err .= "over disconnect: $@\n" if $@;
+	eval { $self->{over}->dbh_close };
+	$err .= "over close: $@\n" if $@;
 	delete $self->{bnote};
 	my $nbytes = $self->{total_bytes};
 	$self->{total_bytes} = 0;

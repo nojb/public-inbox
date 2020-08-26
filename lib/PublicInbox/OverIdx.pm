@@ -455,10 +455,10 @@ sub rollback_lazy {
 	$self->{dbh}->rollback;
 }
 
-sub disconnect {
+sub dbh_close {
 	my ($self) = @_;
 	die "in transaction" if $self->{txn};
-	$self->SUPER::disconnect;
+	$self->SUPER::dbh_close;
 }
 
 sub create {
@@ -470,7 +470,7 @@ sub create {
 	}
 	# create the DB:
 	PublicInbox::Over::dbh($self);
-	$self->disconnect;
+	$self->dbh_close;
 }
 
 sub rethread_prepare {

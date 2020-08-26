@@ -72,7 +72,7 @@ sub new {
 	bless { filename => $f }, $class;
 }
 
-sub disconnect {
+sub dbh_close {
 	my ($self) = @_;
 	if (my $dbh = delete $self->{dbh}) {
 		delete $self->{-get_art};
@@ -328,7 +328,7 @@ sub check_inodes {
 		my $st = pack('dd', $st[0], $st[1]);
 
 		# don't actually reopen, just let {dbh} be recreated later
-		disconnect($self) if $st ne ($self->{st} // $st);
+		dbh_close($self) if $st ne ($self->{st} // $st);
 	} else {
 		warn "W: stat $f: $!\n";
 	}

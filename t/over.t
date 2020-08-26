@@ -23,7 +23,7 @@ $y = $over->sid('hello-WORLD');
 is($y, $x+1, 'sid increases');
 is($over->sid('hello-world'), $x, 'idempotent');
 ok(!$over->{dbh}->{ReadOnly}, 'OverIdx is not ReadOnly');
-$over->disconnect;
+$over->dbh_close;
 
 $over = PublicInbox::Over->new("$tmpdir/over.sqlite3");
 ok($over->dbh->{ReadOnly}, 'Over is ReadOnly');
