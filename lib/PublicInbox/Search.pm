@@ -54,19 +54,33 @@ use constant {
 use PublicInbox::Smsg;
 use PublicInbox::Over;
 my $QP_FLAGS;
-our %X = map { $_ => 0 } qw(BoolWeight Database Enquire
-			NumberValueRangeProcessor QueryParser Stem);
+our %X = map { $_ => 0 } qw(BoolWeight Database Enquire QueryParser Stem);
 our $Xap; # 'Search::Xapian' or 'Xapian'
+my $NVRP; # '$Xap::'.('NumberValueRangeProcessor' or 'NumberRangeProcessor')
 my $ENQ_ASCENDING;
 
 sub load_xapian () {
 	return 1 if defined $Xap;
-	for my $x (qw(Search::Xapian Xapian)) {
+	# n.b. PI_XAPIAN is intended for development use only.  We still
+	# favor Search::Xapian since that's what's available in current
+	# Debian stable (10.x) and derived distros.
+	for my $x (($ENV{PI_XAPIAN} // 'Search::Xapian'), 'Xapian') {
 		eval "require $x";
 		next if $@;
 
 		$x->import(qw(:standard));
 		$Xap = $x;
+
+		# `version_string' was added in Xapian 1.1
+		my $xver = eval('v'.eval($x.'::version_string()')) //
+				eval('v'.eval($x.'::xapian_version_string()'));
+
+		# NumberRangeProcessor was added in Xapian 1.3.6,
+		# NumberValueRangeProcessor was removed for 1.5.0+,
+		# favor the older /Value/ variant since that's what our
+		# (currently) preferred Search::Xapian supports
+		$NVRP = $x.'::'.($x eq 'Xapian' && $xver ge v1.5 ?
+			'NumberRangeProcessor' : 'NumberValueRangeProcessor');
 		$X{$_} = $Xap.'::'.$_ for (keys %X);
 
 		# ENQ_ASCENDING doesn't seem exported by SWIG Xapian.pm,
@@ -364,15 +378,18 @@ sub qparse_new ($) {
 	$qp->set_database($xdb);
 	$qp->set_stemmer(stemmer($self));
 	$qp->set_stemming_strategy(STEM_SOME());
-	$qp->set_max_wildcard_expansion(100);
-	my $nvrp = $X{NumberValueRangeProcessor};
-	$qp->add_valuerangeprocessor($nvrp->new(YYYYMMDD, 'd:'));
-	$qp->add_valuerangeprocessor($nvrp->new(DT, 'dt:'));
+	my $cb = $qp->can('set_max_wildcard_expansion') //
+		$qp->can('set_max_expansion'); # Xapian 1.5.0+
+	$cb->($qp, 100);
+	$cb = $qp->can('add_valuerangeprocessor') //
+		$qp->can('add_rangeprocessor'); # Xapian 1.5.0+
+	$cb->($qp, $NVRP->new(YYYYMMDD, 'd:'));
+	$cb->($qp, $NVRP->new(DT, 'dt:'));
 
 	# for IMAP, undocumented for WWW and may be split off go away
-	$qp->add_valuerangeprocessor($nvrp->new(BYTES, 'bytes:'));
-	$qp->add_valuerangeprocessor($nvrp->new(TS, 'ts:'));
-	$qp->add_valuerangeprocessor($nvrp->new(UID, 'uid:'));
+	$cb->($qp, $NVRP->new(BYTES, 'bytes:'));
+	$cb->($qp, $NVRP->new(TS, 'ts:'));
+	$cb->($qp, $NVRP->new(UID, 'uid:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $_) foreach split(/ /, $prefix);
