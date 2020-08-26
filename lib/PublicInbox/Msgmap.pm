@@ -6,9 +6,10 @@
 # numbers for NNTP and allows prefix lookups for partial Message-IDs
 # in case URLs get truncated from copy-n-paste errors by users.
 #
-# This is maintained by ::SearchIdx
+# This is maintained by ::SearchIdx (v1) and ::V2Writable (v2)
 package PublicInbox::Msgmap;
 use strict;
+use v5.10.1;
 use DBI;
 use DBD::SQLite;
 use PublicInbox::Over;
