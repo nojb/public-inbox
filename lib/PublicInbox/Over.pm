@@ -6,7 +6,7 @@
 # tweaked/updated over time and rebuilt.
 package PublicInbox::Over;
 use strict;
-use warnings;
+use v5.10.1;
 use DBI;
 use DBD::SQLite;
 use PublicInbox::Smsg;

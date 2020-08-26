@@ -9,14 +9,13 @@
 # are denoted by a negative NNTP article number.
 package PublicInbox::OverIdx;
 use strict;
-use warnings;
-use base qw(PublicInbox::Over);
+use v5.10.1;
+use parent qw(PublicInbox::Over);
 use IO::Handle;
 use DBI qw(:sql_types); # SQL_BLOB
 use PublicInbox::MID qw/id_compress mids_for_index references/;
 use PublicInbox::Smsg qw(subject_normalized);
 use Compress::Zlib qw(compress);
-use PublicInbox::Search;
 use Carp qw(croak);
 
 sub dbh_new {
