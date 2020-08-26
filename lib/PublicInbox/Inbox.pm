@@ -211,7 +211,7 @@ sub over ($) {
 	my $srch = search($self, 1) or return;
 	$self->{over} //= eval {
 		my $over = $srch->{over_ro};
-		$over->connect; # may fail
+		$over->dbh; # may fail
 		$over;
 	}
 }

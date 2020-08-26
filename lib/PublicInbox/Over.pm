@@ -80,7 +80,7 @@ sub disconnect {
 	}
 }
 
-sub connect { $_[0]->{dbh} //= $_[0]->dbh_new }
+sub dbh ($) { $_[0]->{dbh} //= $_[0]->dbh_new } # dbh_new may be subclassed
 
 sub load_from_row ($;$) {
 	my ($smsg, $cull) = @_;
@@ -97,10 +97,9 @@ sub load_from_row ($;$) {
 
 sub do_get {
 	my ($self, $sql, $opts, @args) = @_;
-	my $dbh = $self->connect;
 	my $lim = (($opts->{limit} || 0) + 0) || DEFAULT_LIMIT;
 	$sql .= "LIMIT $lim";
-	my $msgs = $dbh->selectall_arrayref($sql, { Slice => {} }, @args);
+	my $msgs = dbh($self)->selectall_arrayref($sql, { Slice => {} }, @args);
 	my $cull = $opts->{cull};
 	load_from_row($_, $cull) for @$msgs;
 	$msgs
@@ -135,7 +134,7 @@ sub nothing () { wantarray ? (0, []) : [] };
 
 sub get_thread {
 	my ($self, $mid, $prev) = @_;
-	my $dbh = $self->connect;
+	my $dbh = dbh($self);
 	my $opts = { cull => 1 };
 
 	my $id = $dbh->selectrow_array(<<'', undef, $mid);
@@ -202,7 +201,7 @@ ORDER BY $sort_col DESC
 # returns true if we have IDs, undef if not
 sub expand_thread {
 	my ($self, $ctx) = @_;
-	my $dbh = $self->connect;
+	my $dbh = dbh($self);
 	do {
 		defined(my $num = $ctx->{ids}->[0]) or return;
 		my ($tid) = $dbh->selectrow_array(<<'', undef, $num);
@@ -259,7 +258,7 @@ SELECT COUNT(num) FROM over WHERE num > 0
 sub get_art {
 	my ($self, $num) = @_;
 	# caching $sth ourselves is faster than prepare_cached
-	my $sth = $self->{-get_art} //= $self->connect->prepare(<<'');
+	my $sth = $self->{-get_art} //= dbh($self)->prepare(<<'');
 SELECT num,tid,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 
 	$sth->execute($num);
@@ -269,7 +268,7 @@ SELECT num,tid,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 
 sub next_by_mid {
 	my ($self, $mid, $id, $prev) = @_;
-	my $dbh = $self->connect;
+	my $dbh = dbh($self);
 
 	unless (defined $$id) {
 		my $sth = $dbh->prepare_cached(<<'', undef, 1);
@@ -293,7 +292,7 @@ ORDER BY num ASC LIMIT 1
 # IMAP search, this is limited by callers to UID_SLICE size (50K)
 sub uid_range {
 	my ($self, $beg, $end, $sql) = @_;
-	my $dbh = $self->connect;
+	my $dbh = dbh($self);
 	my $q = 'SELECT num FROM over WHERE num >= ? AND num <= ?';
 
 	# This is read-only, anyways; but caller should verify it's
@@ -305,7 +304,7 @@ sub uid_range {
 
 sub max {
 	my ($self) = @_;
-	my $sth = $self->connect->prepare_cached(<<'', undef, 1);
+	my $sth = dbh($self)->prepare_cached(<<'', undef, 1);
 SELECT MAX(num) FROM over WHERE num > 0
 
 	$sth->execute;
@@ -314,7 +313,7 @@ SELECT MAX(num) FROM over WHERE num > 0
 
 sub imap_exists {
 	my ($self, $uid_base, $uid_end) = @_;
-	my $sth = $self->connect->prepare_cached(<<'', undef, 1);
+	my $sth = dbh($self)->prepare_cached(<<'', undef, 1);
 SELECT COUNT(num) FROM over WHERE num > ? AND num <= ?
 
 	$sth->execute($uid_base, $uid_end);

@@ -434,7 +434,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	my $ibx = PublicInbox::Inbox->new({ %$ibx_config });
 	my $f = $ibx->over->{dbh}->sqlite_db_filename;
 	my $over = PublicInbox::OverIdx->new($f);
-	my $dbh = $over->connect;
+	my $dbh = $over->dbh;
 	my $non_ghost_tids = sub {
 		$dbh->selectall_arrayref(<<'');
 SELECT tid FROM over WHERE num > 0 ORDER BY tid ASC

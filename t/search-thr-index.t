@@ -60,7 +60,7 @@ foreach (reverse split(/\n\n/, $data)) {
 
 my $prev;
 my %tids;
-my $dbh = $rw->{over}->connect;
+my $dbh = $rw->{over}->dbh;
 foreach my $mid (@mids) {
 	my $msgs = $rw->{over}->get_thread($mid);
 	is(3, scalar(@$msgs), "got all messages from $mid");
@@ -84,7 +84,7 @@ Message-Id: <1-bw@g>
 From: bw@g
 To: git@vger.kernel.org
 
-	my $dbh = $rw->{over}->connect;
+	my $dbh = $rw->{over}->dbh;
 	my ($id, $prev);
 	my $reidx = $rw->{over}->next_by_mid('1-bw@g', \$id, \$prev);
 	ok(defined $reidx);

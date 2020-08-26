@@ -37,7 +37,7 @@ sub commit_changes ($$$$) {
 			defined $new or die "BUG: $over exists when culling v2";
 			$over = PublicInbox::Over->new($over);
 			my $tmp_over = "$new/over.sqlite3";
-			$over->connect->sqlite_backup_to_file($tmp_over);
+			$over->dbh->sqlite_backup_to_file($tmp_over);
 			$over = undef;
 			$over_chg = 1;
 		}

@@ -443,7 +443,7 @@ sub commit_lazy {
 sub begin_lazy {
 	my ($self) = @_;
 	return if $self->{txn};
-	my $dbh = $self->connect or return;
+	my $dbh = $self->dbh or return;
 	$dbh->begin_work;
 	# $dbh->{Profile} = 2;
 	$self->{txn} = 1;
@@ -469,7 +469,7 @@ sub create {
 		File::Path::mkpath(File::Basename::dirname($self->{filename}));
 	}
 	# create the DB:
-	PublicInbox::Over::connect($self);
+	PublicInbox::Over::dbh($self);
 	$self->disconnect;
 }
 

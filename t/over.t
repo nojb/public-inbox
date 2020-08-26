@@ -9,7 +9,7 @@ require_mods('DBD::SQLite');
 use_ok 'PublicInbox::OverIdx';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");
-$over->connect;
+$over->dbh; # open file
 is($over->max, 0, 'max is zero on new DB (scalar context)');
 is_deeply([$over->max], [0], 'max is zero on new DB (list context)');
 my $x = $over->next_tid;
@@ -26,11 +26,10 @@ ok(!$over->{dbh}->{ReadOnly}, 'OverIdx is not ReadOnly');
 $over->disconnect;
 
 $over = PublicInbox::Over->new("$tmpdir/over.sqlite3");
-$over->connect;
-ok($over->{dbh}->{ReadOnly}, 'Over is ReadOnly');
+ok($over->dbh->{ReadOnly}, 'Over is ReadOnly');
 
 $over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");
-$over->connect;
+$over->dbh;
 is($over->sid('hello-world'), $x, 'idempotent across reopen');
 $over->each_by_mid('never', sub { fail('should not be called') });
 
@@ -71,7 +70,7 @@ SKIP: {
 	skip("no WAL in SQLite version $v < 3.7.0", 1) if $v lt v3.7.0;
 	$over->{dbh}->do('PRAGMA journal_mode = WAL');
 	$over = PublicInbox::OverIdx->new("$tmpdir/over.sqlite3");
-	is($over->connect->selectrow_array('PRAGMA journal_mode'), 'wal',
+	is($over->dbh->selectrow_array('PRAGMA journal_mode'), 'wal',
 		'WAL journal_mode not clobbered if manually set');
 }
 
