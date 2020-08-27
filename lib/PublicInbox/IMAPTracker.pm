@@ -29,7 +29,12 @@ sub dbh_new ($) {
 		sqlite_use_immediate_transaction => 1,
 	});
 	$dbh->{sqlite_unicode} = 1;
-	$dbh->do('PRAGMA journal_mode = TRUNCATE');
+
+	# TRUNCATE reduces I/O compared to the default (DELETE).
+	# Allow and preserve user-overridden WAL, but don't force it.
+	my $jm = $dbh->selectrow_array('PRAGMA journal_mode');
+	$dbh->do('PRAGMA journal_mode = TRUNCATE') if $jm ne 'wal';
+
 	create_tables($dbh);
 	$dbh;
 }
