@@ -93,6 +93,11 @@ Reload the config file (default: ~/.public-inbox/config)
 Rescan all watched mailboxes.  This is done automatically after
 startup.
 
+=item SIGQUIT / SIGTERM / SIGINT
+
+Gracefully shut down.  In-flight messages will be stored
+and indexed.
+
 =back
 
 =head1 ENVIRONMENT
