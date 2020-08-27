@@ -35,8 +35,8 @@ In ~/.public-inbox/config:
 
 =head1 DESCRIPTION
 
-public-inbox-watch allows watching a mailbox (currently only
-Maildir) for the arrival of new messages and automatically
+public-inbox-watch allows watching a mailbox or newsgroup
+for the arrival of new messages and automatically
 importing them into public-inbox git repositories and indices.
 public-inbox-watch is useful in situations when a user wishes to
 mirror an existing mailing list, but has no access to run
@@ -48,11 +48,9 @@ of large Maildirs.
 Upon startup, it scans the mailbox for new messages to be
 imported while it was not running.
 
-Currently, only Maildirs are supported.
-
-For now, IMAP users should use tools such as L<mbsync(1)>
-or L<offlineimap(1)> to bidirectionally sync their IMAP
-folders to Maildirs for public-inbox-watch.
+As of public-inbox 1.6.0, Maildirs, IMAP folders, and NNTP
+newsgroups are supported.  Previous versions of public-inbox
+only supported Maildirs.
 
 public-inbox-watch should be run inside a L<screen(1)> session
 or as a L<systemd(1)> service.  Errors are emitted to stderr.
@@ -64,21 +62,64 @@ public-inbox-watch takes no command-line options.
 =head1 CONFIGURATION
 
 These configuration knobs should be used in the
-L<public-inbox-config(5)>
+L<public-inbox-config(5)> file
 
 =over 8
 
 =item publicinbox.<name>.watch
 
+A location to watch.  public-inbox 1.5.0 and earlier only supported
+C<maildir:> paths:
+
+	[publicinbox "test"]
+		watch = maildir:/path/to/maildirs/.INBOX.test/
+
+public-inbox 1.6.0 supports C<nntp://>, C<nntps://>,
+C<imap://> and C<imaps://> URLs:
+
+		watch = nntp://news.example.com/inbox.test.group
+		watch = imaps://mail.example.com/INBOX.test.foo
+
+Default: none
+
 =item publicinbox.<name>.watchheader
+
+	[publicinbox "test"]
+		watchheader = List-Id:<test.example.com>
+
+If specified, L<public-inbox-watch(1)> will only process mail
+matching the given header.  If specified multiple times in
+public-inbox 1.5 or later, mail will be processed if it matches
+any of the values.  Only the last value was used in public-inbox
+1.4 and earlier.
+
+Default: none
 
 =item publicinboxwatch.spamcheck
 
+This may be set to C<spamc> to enable the use of SpamAssassin
+L<spamc(1)> for filtering spam before it is imported into git
+history.  Other spam filtering backends may be supported in
+the future.
+
+Default: none
+
 =item publicinboxwatch.watchspam
 
-=back
+A Maildir to watch for confirmed spam messages to appear in.
+Messages which appear in this folder with the (S)een flag
+will be hidden from all configured inboxes based on Message-ID
+and content matching.
 
-See L<public-inbox-config(5)> for documentation on them.
+Messages without the (S)een flag are not considered for hiding.
+This hiding affects all configured public-inboxes in PI_CONFIG.
+
+As with C<publicinbox.$NAME.watch>, C<imap://> and C<imaps://> URLs
+are supported in public-inbox 1.6.0.
+
+Default: none; only for L<public-inbox-watch(1)> users
+
+=back
 
 =head1 SIGNALS
 

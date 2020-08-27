@@ -74,26 +74,11 @@ Default: none, optional
 
 =item publicinbox.<name>.watch
 
-A location for L<public-inbox-watch(1)> to watch.  Currently,
-only C<maildir:> paths are supported:
-
-	[publicinbox "test"]
-		watch = maildir:/path/to/maildirs/.INBOX.test/
-
-Default: none; only for L<public-inbox-watch(1)> users
+See L<public-inbox-watch(1)>
 
 =item publicinbox.<name>.watchheader
 
-	[publicinbox "test"]
-		watchheader = List-Id:<test.example.com>
-
-If specified, L<public-inbox-watch(1)> will only process mail
-matching the given header.  If specified multiple times in
-public-inbox 1.5 or later, mail will be processed if it matches
-any of the values.  Only the last value was used in public-inbox
-1.4 and earlier.
-
-Default: none; only for L<public-inbox-watch(1)> users
+See L<public-inbox-watch(1)>
 
 =item publicinbox.<name>.listid
 
@@ -204,26 +189,11 @@ Default: spamc
 
 =item publicinboxwatch.spamcheck
 
-This may be set to C<spamc> to enable the use of SpamAssassin
-L<spamc(1)> for filtering spam before it is imported into git
-history.  Other spam filtering backends may be supported in
-the future.
-
-This requires L<public-inbox-watch(1)>, but affects all configured
-public-inboxes in PI_CONFIG.
-
-Default: none
+See L<public-inbox-watch(1)>
 
 =item publicinboxwatch.watchspam
 
-A Maildir to watch for confirmed spam messages to appear in.
-Messages which appear in this folder with the (S)een Maildir flag
-will be hidden from all configured inboxes based on Message-ID
-and content matching.
-
-Messages without the (S)een Maildir flag are not considered for hiding.
-
-Default: none; only for L<public-inbox-watch(1)> users
+See L<public-inbox-watch(1)>
 
 =item publicinbox.nntpserver
 
