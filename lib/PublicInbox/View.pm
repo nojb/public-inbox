@@ -7,8 +7,10 @@ package PublicInbox::View;
 use strict;
 use warnings;
 use bytes (); # only for bytes::length
+use List::Util qw(max);
 use PublicInbox::MsgTime qw(msg_datestamp);
-use PublicInbox::Hval qw(ascii_html obfuscate_addrs prurl mid_href);
+use PublicInbox::Hval qw(ascii_html obfuscate_addrs prurl mid_href
+			ts2str fmt_ts);
 use PublicInbox::Linkify;
 use PublicInbox::MID qw(id_compress mids mids_for_index references
 			$MID_EXTRACT);
@@ -18,7 +20,6 @@ use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Reply;
 use PublicInbox::ViewDiff qw(flush_diff);
 use PublicInbox::Eml;
-use POSIX qw(strftime);
 use Time::Local qw(timegm);
 use PublicInbox::Smsg qw(subject_normalized);
 use constant COLS => 72;
@@ -68,7 +69,13 @@ sub msg_page {
 	my $over = $ctx->{over} = $ibx->over or return no_over_html($ctx);
 	my ($id, $prev);
 	my $next_arg = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
-	$ctx->{smsg} = $over->next_by_mid(@$next_arg) or return; # undef == 404
+
+	my $smsg = $ctx->{smsg} = $over->next_by_mid(@$next_arg) or
+		return; # undef == 404
+
+	# allow user to easily browse the range around this message if
+	# they have ->over
+	$ctx->{-t_max} = $smsg->{ts};
 	PublicInbox::WwwStream::aresponse($ctx, 200, \&msg_page_i);
 }
 
@@ -167,9 +174,6 @@ sub nr_to_s ($$$) {
 	return "0 $plural" if $nr == 0;
 	$nr == 1 ? "$nr $singular" : "$nr $plural";
 }
-
-# human-friendly format
-sub fmt_ts ($) { strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 # Displays the text of of the message for /$INBOX/$MSGID/[Tt]/ endpoint
 # this is already inside a <pre>
@@ -420,9 +424,20 @@ sub thread_html {
 	my $ibx = $ctx->{-inbox};
 	my ($nr, $msgs) = $ibx->over->get_thread($mid);
 	return missing_thread($ctx) if $nr == 0;
+
+	# link $INBOX_DIR/description text to "index_topics" view around
+	# the newest message in this thread
+	my $t = ts2str($ctx->{-t_max} = max(map { delete $_->{ts} } @$msgs));
+	my $t_fmt = fmt_ts($ctx->{-t_max});
+
 	my $skel = '<hr><pre>';
 	$skel .= $nr == 1 ? 'only message in thread' : 'end of thread';
-	$skel .= ", back to <a\nhref=\"../../\">index</a>\n\n";
+	$skel .= <<EOF;
+, other threads:[<a
+href="../../?t=$t">~$t_fmt UTC</a> | <a
+href="../../">newest</a>]
+
+EOF
 	$skel .= "<b\nid=t>Thread overview:</b> ";
 	$skel .= $nr == 1 ? '(only message)' : "$nr+ messages";
 	$skel .= " (download: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
@@ -782,15 +797,22 @@ sub _parent_headers {
 	$rv;
 }
 
-# returns a string buffer via ->getline
+# returns a string buffer
 sub html_footer {
 	my ($ctx, $hdr) = @_;
 	my $ibx = $ctx->{-inbox};
 	my $upfx = '../';
-	my $skel = " <a\nhref=\"$upfx\">index</a>";
+	my $skel;
 	my $rv = '<pre>';
 	if ($ibx->over) {
-		$skel .= "\n";
+		my $t = ts2str($ctx->{-t_max});
+		my $t_fmt = fmt_ts($ctx->{-t_max});
+		$skel .= <<EOF;
+	other threads:[<a
+href="$upfx?t=$t">~$t_fmt UTC</a>|<a
+href="$upfx">newest</a>]
+EOF
+
 		thread_skel(\$skel, $ctx, $hdr);
 		my ($next, $prev);
 		my $parent = '       ';
@@ -821,6 +843,8 @@ sub html_footer {
 			$parent = " <a\nhref=\"$u\"\nrel=prev>parent</a>";
 		}
 		$rv .= "$next $prev$parent ";
+	} else { # unindexed inboxes w/o over
+		$skel = qq( <a\nhref="$upfx">latest</a>);
 	}
 	$rv .= qq(<a\nhref="#R">reply</a>);
 	$rv .= $skel;
@@ -858,7 +882,7 @@ sub find_mid_root {
 	++$ctx->{root_idx} if $level == 0;
 	if ($node->{mid} eq $ctx->{mid}) {
 		$ctx->{found_mid_at} = $ctx->{root_idx};
-		return 0;
+		return 0; # stop iterating
 	}
 	1;
 }
@@ -1142,9 +1166,6 @@ sub dump_topics {
 	200;
 }
 
-# only for the t= query parameter passed to overview DB
-sub ts2str ($) { strftime('%Y%m%d%H%M%S', gmtime($_[0])) };
-
 sub str2ts ($) {
 	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $_[0]);
 	timegm($ss || 0, $mm || 0, $hh || 0, $dd, $mon - 1, $yyyy);
@@ -1152,7 +1173,6 @@ sub str2ts ($) {
 
 sub pagination_footer ($$) {
 	my ($ctx, $latest) = @_;
-	delete $ctx->{qp} or return;
 	my $next = $ctx->{next_page} || '';
 	my $prev = $ctx->{prev_page} || '';
 	if ($prev) {
@@ -1204,6 +1224,7 @@ sub paginate_recent ($$) {
 	$msgs;
 }
 
+# GET /$INBOX - top-level inbox view for indexed inboxes
 sub index_topics {
 	my ($ctx) = @_;
 	my $msgs = paginate_recent($ctx, 200); # 200 is our window

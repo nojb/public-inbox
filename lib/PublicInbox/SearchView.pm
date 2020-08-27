@@ -5,9 +5,10 @@
 package PublicInbox::SearchView;
 use strict;
 use v5.10.1;
+use List::Util qw(max);
 use URI::Escape qw(uri_unescape);
 use PublicInbox::Smsg;
-use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
+use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href fmt_ts);
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::WwwStream qw(html_oneshot);
@@ -109,13 +110,15 @@ sub mset_summary {
 			};
 			next;
 		};
+		$ctx->{-t_max} //= $smsg->{ts};
+
 		my $s = ascii_html($smsg->{subject});
 		my $f = ascii_html($smsg->{from_name});
 		if ($obfs_ibx) {
 			obfuscate_addrs($obfs_ibx, $s);
 			obfuscate_addrs($obfs_ibx, $f);
 		}
-		my $date = PublicInbox::View::fmt_ts($smsg->{ds});
+		my $date = fmt_ts($smsg->{ds});
 		my $mid = mid_href($smsg->{mid});
 		$s = '(no subject)' if $s eq '';
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
@@ -294,6 +297,10 @@ sub mset_thread {
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	PublicInbox::View::walk_thread($rootset, $ctx,
 		\&PublicInbox::View::pre_thread);
+
+	# link $INBOX_DIR/description text to "recent" view around
+	# the newest message in this result set:
+	$ctx->{-t_max} = max(map { delete $_->{ts} } @$msgs);
 
 	@$msgs = reverse @$msgs if $r;
 	$ctx->{msgs} = $msgs;

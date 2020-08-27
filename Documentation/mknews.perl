@@ -7,6 +7,7 @@
 use strict;
 use PublicInbox::Eml;
 use PublicInbox::View;
+use PublicInbox::Hval qw(fmt_ts);
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::MID qw(mids mid_escape);
 END { $INC{'Plack/Util.pm'} and warn "$0 should not have loaded Plack::Util\n" }
@@ -91,7 +92,7 @@ sub mime2txt {
 	my $title = $mime->header('Subject');
 	$title =~ s/^\s*\[\w+\]\s*//g; # [ANNOUNCE] or [ANN]
 	my $dtime = msg_datestamp($mime->header_obj);
-	$title .= ' - ' . PublicInbox::View::fmt_ts($dtime) . ' UTC';
+	$title .= ' - ' . fmt_ts($dtime) . ' UTC';
 	print $out $title, "\n" or die;
 	my $uline = '=' x length($title);
 	print $out $uline, "\n\n" or die;

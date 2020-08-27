@@ -10,7 +10,7 @@ use strict;
 use parent qw(Exporter PublicInbox::GzipFilter);
 our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
-use PublicInbox::Hval qw(ascii_html prurl);
+use PublicInbox::Hval qw(ascii_html prurl ts2str);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
@@ -43,6 +43,13 @@ sub html_top ($) {
 	my $color = $upfx.'_/text/color';
 	my $atom = $ctx->{-atom} || $upfx.'new.atom';
 	my $top = "<b>$desc</b>";
+	if (my $t_max = $ctx->{-t_max}) {
+		$t_max = ts2str($t_max);
+		$top = qq(<a\nhref="$upfx?t=$t_max">$top</a>);
+	# we had some kind of query, link to /$INBOX/?t=YYYYMMDDhhmmss
+	} elsif ($ctx->{qp}->{t}) {
+		$top = qq(<a\nhref="./">$top</a>);
+	}
 	my $links = "<a\nhref=\"$help\">help</a> / ".
 			"<a\nhref=\"$color\">color</a> / ".
 			"<a\nhref=\"$atom\">Atom feed</a>";

@@ -126,7 +126,7 @@ sub get_all {
 	my $nr = scalar(@_) or return [];
 	my $in = '?' . (',?' x ($nr - 1));
 	do_get($self, <<"", { cull => 1, limit => $nr }, @_);
-SELECT num,ds,ddd FROM over WHERE num IN ($in)
+SELECT num,ts,ds,ddd FROM over WHERE num IN ($in)
 
 }
 

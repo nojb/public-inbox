@@ -10,7 +10,8 @@ use Encode qw(find_encoding);
 use PublicInbox::MID qw/mid_clean mid_escape/;
 use base qw/Exporter/;
 our @EXPORT_OK = qw/ascii_html obfuscate_addrs to_filename src_escape
-		to_attr prurl mid_href/;
+		to_attr prurl mid_href fmt_ts ts2str/;
+use POSIX qw(strftime);
 my $enc_ascii = find_encoding('us-ascii');
 
 # safe-ish acceptable filename pattern for portability
@@ -122,5 +123,11 @@ sub to_attr ($) {
 	utf8::decode($str); # allow wide chars
 	$first . $str;
 }
+
+# for the t= query parameter passed to overview DB
+sub ts2str ($) { strftime('%Y%m%d%H%M%S', gmtime($_[0])) };
+
+# human-friendly format
+sub fmt_ts ($) { strftime('%Y-%m-%d %k:%M', gmtime($_[0])) }
 
 1;

@@ -6,7 +6,7 @@
 package PublicInbox::WwwListing;
 use strict;
 use warnings;
-use PublicInbox::Hval qw(ascii_html prurl);
+use PublicInbox::Hval qw(ascii_html prurl fmt_ts);
 use PublicInbox::Linkify;
 use PublicInbox::View;
 use PublicInbox::Inbox;
@@ -91,7 +91,7 @@ sub new {
 
 sub ibx_entry {
 	my ($mtime, $ibx, $env) = @_;
-	my $ts = PublicInbox::View::fmt_ts($mtime);
+	my $ts = fmt_ts($mtime);
 	my $url = prurl($env, $ibx->{url});
 	my $tmp = <<"";
 * $ts - $url
