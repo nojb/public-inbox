@@ -17,6 +17,7 @@ use File::Glob qw(bsd_glob GLOB_NOSORT);
 use Time::HiRes qw(stat);
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::Tmpfile;
+use Carp qw(croak);
 our @EXPORT_OK = qw(git_unquote git_quote);
 our $PIPE_BUFSIZ = 65536; # Linux default
 our $in_cleanup;
@@ -319,7 +320,7 @@ sub cat_async_abort ($) {
 sub fail {
 	my ($self, $msg) = @_;
 	$self->{inflight} ? cat_async_abort($self) : cleanup($self);
-	die $msg;
+	croak("git $self->{git_dir}: $msg");
 }
 
 sub popen {
