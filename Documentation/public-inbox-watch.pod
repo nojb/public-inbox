@@ -78,7 +78,12 @@ public-inbox 1.6.0 supports C<nntp://>, C<nntps://>,
 C<imap://> and C<imaps://> URLs:
 
 		watch = nntp://news.example.com/inbox.test.group
-		watch = imaps://mail.example.com/INBOX.test.foo
+		watch = imaps://user@mail.example.com/INBOX.test
+
+This may be specified multiple times to combine several mailboxes
+into a single public-inbox.  URLs requiring authentication
+will require L<netrc(5)> and/or L<git-credential(1)> to fill
+in the username and password.
 
 Default: none
 
@@ -118,6 +123,35 @@ As with C<publicinbox.$NAME.watch>, C<imap://> and C<imaps://> URLs
 are supported in public-inbox 1.6.0.
 
 Default: none; only for L<public-inbox-watch(1)> users
+
+=item imap.Starttls / imap.$URL.Starttls
+
+Whether or not to use C<STARTTLS> on plain C<imap://> connections.
+
+May be specified for certain URLs via L<git-config(1)/--get-urlmatch>
+in C<git(1)> 1.8.5+.
+
+Default: C<true>
+
+=item imap.Compress / imap.$URL.Compress
+
+Whether or not to use the IMAP COMPRESS (RFC4978) extension to
+save bandwidth.  This is not supported by all IMAP servers and
+some advertising this feature may not implement it correctly.
+
+May be specified only for certain URLs if L<git(1)> 1.8.5+ is
+installed to use L<git-config(1)/--get-urlmatch>
+
+Default: C<false>
+
+=item nntp.Starttls / nntp.$URL.Starttls
+
+Whether or not to use C<STARTTLS> on plain C<nntp://> connections.
+
+May be specified for certain URLs via L<git-config(1)/--get-urlmatch>
+in C<git(1)> 1.8.5+.
+
+Default: C<false> if the hostname is a Tor C<.onion>, C<true> otherwise
 
 =back
 
