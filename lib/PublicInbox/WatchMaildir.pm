@@ -198,7 +198,10 @@ sub _try_path {
 		return;
 	}
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
-	local $SIG{__WARN__} = sub { $warn_cb->("path: $path\n", @_) };
+	local $SIG{__WARN__} = sub {
+		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';
+		$warn_cb->($pfx, "path: $path\n", @_);
+	};
 	if (!ref($inboxes) && $inboxes eq 'watchspam') {
 		return _remove_spam($self, $path);
 	}
@@ -443,8 +446,9 @@ sub imap_fetch_all ($$$) {
 	my ($uids, $batch);
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	local $SIG{__WARN__} = sub {
+		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';
 		$batch //= '?';
-		$warn_cb->("$url UID:$batch\n", @_);
+		$warn_cb->("$pfx$url UID:$batch\n", @_);
 	};
 	my $err;
 	do {
@@ -875,7 +879,8 @@ sub nntp_fetch_all ($$$) {
 	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
 	my ($err, $art);
 	local $SIG{__WARN__} = sub {
-		$warn_cb->("$url ", $art ? ("ARTICLE $art") : (), "\n", @_);
+		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';
+		$warn_cb->("$pfx$url ", $art ? ("ARTICLE $art") : (), "\n", @_);
 	};
 	my $inboxes = $self->{nntp}->{$url};
 	my $last_art;
