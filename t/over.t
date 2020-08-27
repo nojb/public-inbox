@@ -33,9 +33,9 @@ $over->dbh;
 is($over->sid('hello-world'), $x, 'idempotent across reopen');
 $over->each_by_mid('never', sub { fail('should not be called') });
 
-$x = $over->create_ghost('never');
+$x = $over->resolve_mid_to_tid('never');
 is(int($x), $x, 'integer tid for ghost');
-$y = $over->create_ghost('NEVAR');
+$y = $over->resolve_mid_to_tid('NEVAR');
 is($y, $x + 1, 'integer tid for ghost increases');
 
 my $ddd = compress('');

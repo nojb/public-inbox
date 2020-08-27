@@ -184,23 +184,20 @@ sub resolve_mid_to_tid {
 	if (my $del = delete $self->{-ghosts_to_delete}) {
 		delete_by_num($self, $_) for @$del;
 	}
-	$tid // create_ghost($self, $mid);
-}
-
-sub create_ghost {
-	my ($self, $mid) = @_;
-	my $id = mid2id($self, $mid);
-	my $num = next_ghost_num($self);
-	$num < 0 or die "ghost num is non-negative: $num\n";
-	my $tid = next_tid($self);
-	my $dbh = $self->{dbh};
-	$dbh->prepare_cached(<<'')->execute($num, $tid);
+	$tid // do { # create a new ghost
+		my $id = mid2id($self, $mid);
+		my $num = next_ghost_num($self);
+		$num < 0 or die "ghost num is non-negative: $num\n";
+		$tid = next_tid($self);
+		my $dbh = $self->{dbh};
+		$dbh->prepare_cached(<<'')->execute($num, $tid);
 INSERT INTO over (num, tid) VALUES (?,?)
 
-	$dbh->prepare_cached(<<'')->execute($id, $num);
+		$dbh->prepare_cached(<<'')->execute($id, $num);
 INSERT INTO id2num (id, num) VALUES (?,?)
 
-	$tid;
+		$tid;
+	};
 }
 
 sub merge_threads {
