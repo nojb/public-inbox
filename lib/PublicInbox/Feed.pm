@@ -133,7 +133,10 @@ sub recent_msgs {
 		}
 	}
 
-	$ctx->{next_page} = "r=$last_commit" if $last_commit;
+	$last_commit and
+		$ctx->{next_page} = qq[<a\nhref="?r=$last_commit"\nrel=next>] .
+					'next (older)</a>';
+
 	[ map { bless {blob => $_ }, 'PublicInbox::Smsg' } @oids ];
 }
 

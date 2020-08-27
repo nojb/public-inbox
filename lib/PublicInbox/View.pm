@@ -1175,9 +1175,9 @@ sub pagination_footer ($$) {
 	my ($ctx, $latest) = @_;
 	my $next = $ctx->{next_page} || '';
 	my $prev = $ctx->{prev_page} || '';
-	if ($prev) {
-		$next = $next ? "$next " : '     ';
-		$prev .= qq! <a\nhref='$latest'>latest</a>!;
+	if ($prev) {  # aligned padding for: 'next (older) | '
+		$next = $next ? "$next | " : '             | ';
+		$prev .= qq[ | <a\nhref="$latest">latest</a>];
 	}
 	"<hr><pre>page: $next$prev</pre>";
 }
@@ -1215,11 +1215,13 @@ sub paginate_recent ($$) {
 	}
 	if (defined($oldest) && $more) {
 		my $s = ts2str($oldest);
-		$ctx->{next_page} = qq!<a\nhref="?t=$s"\nrel=next>next</a>!;
+		$ctx->{next_page} = qq[<a\nhref="?t=$s"\nrel=next>] .
+					'next (older)</a>';
 	}
 	if (defined($newest) && (defined($before) || defined($after))) {
 		my $s = ts2str($newest);
-		$ctx->{prev_page} = qq!<a\nhref="?t=$s-"\nrel=prev>prev</a>!;
+		$ctx->{prev_page} = qq[<a\nhref="?t=$s-"\nrel=prev>] .
+					'prev (newer)</a>';
 	}
 	$msgs;
 }

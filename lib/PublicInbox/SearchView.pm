@@ -5,7 +5,7 @@
 package PublicInbox::SearchView;
 use strict;
 use v5.10.1;
-use List::Util qw(max);
+use List::Util qw(min max);
 use URI::Escape qw(uri_unescape);
 use PublicInbox::Smsg;
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href fmt_ts);
@@ -98,6 +98,7 @@ sub mset_summary {
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	my @nums = @{$ibx->search->mset_to_artnums($mset)};
 	my %num2msg = map { $_->{num} => $_ } @{$ibx->over->get_all(@nums)};
+	my ($min, $max);
 
 	foreach my $m ($mset->items) {
 		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
@@ -112,6 +113,11 @@ sub mset_summary {
 		};
 		$ctx->{-t_max} //= $smsg->{ts};
 
+		# only when sorting by relevance, ->items is always
+		# ordered descending:
+		$max //= $pct;
+		$min = $pct;
+
 		my $s = ascii_html($smsg->{subject});
 		my $f = ascii_html($smsg->{from_name});
 		if ($obfs_ibx) {
@@ -124,6 +130,10 @@ sub mset_summary {
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s . "</a></b>\n";
 		$$res .= "$pfx  - by $f @ $date UTC [$pct%]\n\n";
+	}
+	if ($q->{r}) { # for descriptions in search_nav_bot
+		$q->{-min_pct} = $min;
+		$q->{-max_pct} = $max;
 	}
 	$$res .= search_nav_bot($mset, $q);
 	undef;
@@ -218,42 +228,46 @@ sub search_nav_bot {
 	my $beg = $off + 1;
 
 	if ($beg <= $end) {
-		$rv .= "Results $beg-$end of $total";
-		$rv .= ' (estimated)' if $end != $total;
+		my $approx = $end == $total ? '' : '~';
+		$rv .= "Results $beg-$end of $approx$total";
 	} else {
 		$rv .= "No more results, only $total";
 	}
-	my ($next, $join, $prev);
+	my ($next, $join, $prev, $nd, $pd);
 
 	if ($o >= 0) { # sort descending
 		my $n = $o + $l;
 		if ($n < $total) {
 			$next = $q->qs_html(o => $n, l => $l);
+			$nd = $q->{r} ? "[&lt;= $q->{-min_pct}%]" : '(older)';
 		}
 		if ($o > 0) {
-			$join = $n < $total ? '/' : '       ';
+			$join = $n < $total ? ' | ' : "\t";
 			my $p = $o - $l;
 			$prev = $q->qs_html(o => ($p > 0 ? $p : 0));
+			$pd = $q->{r} ? "[&gt;= $q->{-max_pct}%]" : '(newer)';
 		}
 	} else { # o < 0, sort ascending
 		my $n = $o - $l;
 
 		if (-$n < $total) {
 			$next = $q->qs_html(o => $n, l => $l);
+			$nd = $q->{r} ? "[&lt;= $q->{-min_pct}%]" : '(newer)';
 		}
 		if ($o < -1) {
-			$join = -$n < $total ? '/' : '       ';
+			$join = -$n < $total ? ' | ' : "\t";
 			my $p = $o + $l;
 			$prev = $q->qs_html(o => ($p < 0 ? $p : 0));
+			$pd = $q->{r} ? "[&gt;= $q->{-max_pct}%]" : '(older)';
 		}
 	}
 
-	$rv .= qq{  <a\nhref="?$next"\nrel=next>next</a>} if $next;
+	$rv .= qq{  <a\nhref="?$next"\nrel=next>next $nd</a>} if $next;
 	$rv .= $join if $join;
-	$rv .= qq{<a\nhref="?$prev"\nrel=prev>prev</a>} if $prev;
+	$rv .= qq{<a\nhref="?$prev"\nrel=prev>prev $pd</a>} if $prev;
 
 	my $rev = $q->qs_html(o => $o < 0 ? 0 : -1);
-	$rv .= qq{ | <a\nhref="?$rev">reverse results</a></pre>};
+	$rv .= qq{ | <a\nhref="?$rev">reverse</a></pre>};
 }
 
 sub sort_relevance {
@@ -279,6 +293,11 @@ sub mset_thread {
 	my $msgs = $ibx->over->get_all(keys %pct);
 	$_->{pct} = $pct{$_->{num}} for @$msgs;
 	my $r = $q->{r};
+	if ($r) { # for descriptions in search_nav_bot
+		my @pct = values %pct;
+		$q->{-min_pct} = min(@pct);
+		$q->{-max_pct} = max(@pct);
+	}
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
 		$r ? \&sort_relevance : \&PublicInbox::View::sort_ds,
 		$ctx);
