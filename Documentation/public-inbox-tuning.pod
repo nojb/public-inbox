@@ -131,7 +131,7 @@ for parallelism.
 
 The open file descriptor limit (C<RLIMIT_NOFILE>, C<ulimit -n> in L<sh(1)>,
 C<LimitNOFILE=> in L<systemd.exec(5)>) may need to be raised to
-accomodate many concurrent clients.
+accommodate many concurrent clients.
 
 Transport Layer Security (IMAPS, NNTPS, or via STARTTLS) significantly
 increases memory use of client sockets, sure to account for that in

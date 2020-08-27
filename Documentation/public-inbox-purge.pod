@@ -62,7 +62,7 @@ purged data remaining indexed.
 Incremental L<public-inbox-index(1)> (without C<--reindex>)
 is fine.
 
-Keep in mind this is a last resort, as it will be distruptive
+Keep in mind this is a last resort, as it will be disruptive
 to anyone using L<git(1)> to mirror the inbox being purged.
 
 =head1 CONTACT
