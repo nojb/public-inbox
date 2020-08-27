@@ -382,8 +382,8 @@ sub mic_for ($$$) { # mic = Mail::IMAPClient
 	$mic;
 }
 
-sub imap_import_msg ($$$$) {
-	my ($self, $url, $uid, $raw) = @_;
+sub imap_import_msg ($$$$$) {
+	my ($self, $url, $uid, $raw, $flags) = @_;
 	# our target audience expects LF-only, save storage
 	$$raw =~ s/\r\n/\n/sg;
 
@@ -394,10 +394,13 @@ sub imap_import_msg ($$$$) {
 			my $x = import_eml($self, $ibx, $eml);
 		}
 	} elsif ($inboxes eq 'watchspam') {
-		local $SIG{__WARN__} = warn_ignore_cb();
-		my $eml = PublicInbox::Eml->new($raw);
-		my $arg = [ $self, $eml, "$url UID:$uid" ];
-		$self->{config}->each_inbox(\&remove_eml_i, $arg);
+		# we don't remove unseen messages
+		if ($flags =~ /\\Seen\b/) {
+			local $SIG{__WARN__} = warn_ignore_cb();
+			my $eml = PublicInbox::Eml->new($raw);
+			my $arg = [ $self, $eml, "$url UID:$uid" ];
+			$self->{config}->each_inbox(\&remove_eml_i, $arg);
+		}
 	} else {
 		die "BUG: destination unknown $inboxes";
 	}
@@ -474,7 +477,7 @@ sub imap_fetch_all ($$$) {
 			my @batch = splice(@$uids, 0, $bs);
 			$batch = join(',', @batch);
 			local $0 = "UID:$batch $mbx $sec";
-			my $r = $mic->fetch_hash($batch, $req);
+			my $r = $mic->fetch_hash($batch, $req, 'FLAGS');
 			unless ($r) { # network error?
 				$err = "E: $url UID FETCH $batch error: $!";
 				last;
@@ -483,7 +486,8 @@ sub imap_fetch_all ($$$) {
 				# messages get deleted, so holes appear
 				my $per_uid = delete $r->{$uid} // next;
 				my $raw = delete($per_uid->{$key}) // next;
-				imap_import_msg($self, $url, $uid, \$raw);
+				my $fl = $per_uid->{FLAGS} // '';
+				imap_import_msg($self, $url, $uid, \$raw, $fl);
 				$last_uid = $uid;
 				last if $self->{quit};
 			}
