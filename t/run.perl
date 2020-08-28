@@ -15,6 +15,7 @@ use PublicInbox::TestCommon;
 use Cwd qw(getcwd);
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use Errno qw(EINTR);
+use Fcntl qw(:seek);
 use POSIX qw(_POSIX_PIPE_BUF WNOHANG);
 my $jobs = 1;
 my $repeat = 1;
@@ -65,14 +66,31 @@ sub test_status () {
 	if ($log_suffix ne '') {
 		my $log = $worker_test;
 		$log =~ s/\.t\z/$log_suffix/;
+		my $skip = '';
 		if (open my $fh, '<', $log) {
 			my @not_ok = grep(!/^(?:ok |[ \t]*#)/ms, <$fh>);
 			pop @not_ok if $not_ok[-1] =~ /^[0-9]+\.\.[0-9]+$/;
-			print OLDERR map { "# $log: $_" } @not_ok;
+			my $pfx = "# $log: ";
+			print OLDERR map { $pfx.$_ } @not_ok;
+			seek($fh, 0, SEEK_SET) or die "seek: $!";
+
+			# show unique skip texts and the number of times
+			# each text was skipped
+			local $/;
+			my @sk = (<$fh> =~ m/^ok [0-9]+ (# skip [^\n]+)/mgs);
+			if (@sk) {
+				my %nr;
+				$nr{$_}++ for @sk;
+				for (@sk) {
+					my $n = delete $nr{$_} or next;
+					print OLDERR "$pfx$_ ($n)\n";
+				}
+				$skip = ' # total skipped: '.scalar(@sk);
+			}
 		} else {
 			print OLDERR "could not open: $log: $!\n";
 		}
-		print OLDOUT "$status $worker_test\n";
+		print OLDOUT "$status $worker_test$skip\n";
 	}
 }
 
