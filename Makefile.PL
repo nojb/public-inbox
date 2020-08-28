@@ -191,7 +191,7 @@ check-each :: pure_all
 
 # lightly-tested way to run tests, relies "--state=save" in check-each
 # for best performance
-check-run :: pure_all
+check-run :: pure_all check-man
 	\$(EATMYDATA) \$(PROVE) -bvw t/run.perl :: -j\$(N)
 	-@\$(check_manifest)
 
