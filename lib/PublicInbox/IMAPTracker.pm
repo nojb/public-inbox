@@ -49,13 +49,14 @@ SELECT uid_validity, uid FROM imap_last WHERE url = ?
 }
 
 sub update_last ($$$) {
-	my ($self, $validity, $last) = @_;
+	my ($self, $validity, $last_uid) = @_;
+	return unless defined $last_uid;
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 INSERT OR REPLACE INTO imap_last (url, uid_validity, uid)
 VALUES (?, ?, ?)
 
 	$self->lock_acquire;
-	my $rv = $sth->execute($self->{url}, $validity, $last);
+	my $rv = $sth->execute($self->{url}, $validity, $last_uid);
 	$self->lock_release;
 	$rv;
 }

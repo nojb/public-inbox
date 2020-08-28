@@ -494,7 +494,7 @@ sub imap_fetch_all ($$$) {
 			last if $self->{quit};
 		}
 		_done_for_now($self);
-		$itrk->update_last($r_uidval, $last_uid) if defined $last_uid;
+		$itrk->update_last($r_uidval, $last_uid);
 	} until ($err || $self->{quit});
 	$err;
 }
@@ -919,7 +919,7 @@ sub nntp_fetch_all ($$$) {
 		$last_art = $art;
 	}
 	_done_for_now($self);
-	$itrk->update_last(0, $last_art) if defined $last_art;
+	$itrk->update_last(0, $last_art);
 	$err;
 }
 
