@@ -122,9 +122,11 @@ $ret = $mic->search('uid 1:1') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search UID 1:1 works');
 $ret = $mic->search('uid 1:*') or BAIL_OUT "SEARCH FAIL $@";
 is_deeply($ret, [ 1 ], 'search UID 1:* works');
+$ret = $mic->search('DELETED') or BAIL_OUT "SEARCH FAIL $@";
+is_deeply($ret, [], 'searching for DELETED returns nothing');
 
 SKIP: {
-	skip 'Xapian missing', 7 if $level eq 'basic';
+	skip 'Xapian missing', 8 if $level eq 'basic';
 	my $x = $mic->search(qw(smaller 99999));
 	is_deeply($x, [1], 'SMALLER works with Xapian (hit)');
 	$x = $mic->search(qw(smaller 9));
@@ -137,6 +139,10 @@ SKIP: {
 
 	$x = $mic->search(qw(HEADER Message-ID testmessage@example.com));
 	is_deeply($x, [1], 'HEADER Message-ID works');
+
+	$x = $mic->search(qw(DRAFT HEADER Message-ID testmessage@example.com));
+	is_deeply($x, [], 'impossible (DRAFT) key filters out match');
+
 	$x = $mic->search(qw(HEADER Message-ID miss));
 	is_deeply($x, [], 'HEADER Message-ID can miss');
 

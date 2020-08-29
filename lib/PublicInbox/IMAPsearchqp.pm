@@ -162,11 +162,24 @@ sub msn_set {
 	uid_set($self, $seq_set);
 }
 
+# things that should not match
+sub impossible {
+	my ($self) = @_;
+	push @{$self->{xap}}, 'bytes:..0';
+	my $sql = $self->{sql} or return 1;
+	$$sql .= ' AND num < 0';
+}
+
 my $prd = Parse::RecDescent->new(<<'EOG');
 <nocheck>
 { my $q = $PublicInbox::IMAPsearchqp::q; }
 search_key : CHARSET(?) search_key1(s) { $return = $q }
-search_key1 : "ALL" | "RECENT" | "UNSEEN" | "NEW"
+
+# n.b. we silently ignore most per-message flags right now;
+# they're here for now to not dump parser errors.
+search_key1 : "ALL" | "ANSWERED" | "RECENT" | "UNSEEN" | "SEEN" | "NEW"
+	| "UNANSWERED" | "UNDELETED" | "UNDRAFT" | "UNFLAGGED"
+	| DELETED | DRAFT | FLAGGED | OLD
 	| OR_search_keys
 	| NOT_search_key
 	| LARGER_number
@@ -206,6 +219,12 @@ MSN_set : sequence_set { $q->msn_set($item{sequence_set}) }
 UID_set : "UID" sequence_set { $q->uid_set($item{sequence_set}) }
 LARGER_number : "LARGER" number { $q->xap_only("bytes:$item{number}..") }
 SMALLER_number : "SMALLER" number { $q->xap_only("bytes:..$item{number}") }
+
+DELETED : "DELETED" { $q->impossible }
+OLD : "OLD" { $q->impossible }
+FLAGGED : "FLAGGED" { $q->impossible }
+DRAFT : "DRAFT" { $q->impossible }
+
 # pass "NOT" through XXX is this right?
 OP_NOT : "NOT" { $q->xap_only('NOT') }
 NOT_search_key : OP_NOT search_key1
