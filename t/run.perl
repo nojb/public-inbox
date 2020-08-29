@@ -80,11 +80,8 @@ sub test_status () {
 			my @sk = (<$fh> =~ m/^ok [0-9]+ (# skip [^\n]+)/mgs);
 			if (@sk) {
 				my %nr;
-				$nr{$_}++ for @sk;
-				for (@sk) {
-					my $n = delete $nr{$_} or next;
-					print OLDERR "$pfx$_ ($n)\n";
-				}
+				my @err = grep { !$nr{$_}++ } @sk;
+				print OLDERR "$pfx$_ ($nr{$_})\n" for @err;
 				$skip = ' # total skipped: '.scalar(@sk);
 			}
 		} else {
