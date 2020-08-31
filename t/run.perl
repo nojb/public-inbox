@@ -11,6 +11,8 @@
 # Usage: $PERL -I lib -w t/run.perl -j4
 # Or via prove(1): prove -lvw t/run.perl :: -j4
 use strict;
+use v5.10.1;
+use IO::Handle; # ->autoflush
 use PublicInbox::TestCommon;
 use Cwd qw(getcwd);
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
@@ -32,10 +34,10 @@ if (($ENV{TEST_RUN_MODE} // 2) == 0) {
 }
 my @tests = scalar(@ARGV) ? @ARGV : glob('t/*.t');
 my $cwd = getcwd();
-open OLDOUT, '>&STDOUT' or die "dup STDOUT: $!";
-open OLDERR, '>&STDERR' or die "dup STDERR: $!";
-OLDOUT->autoflush(1);
-OLDERR->autoflush(1);
+open my $OLDOUT, '>&STDOUT' or die "dup STDOUT: $!";
+open my $OLDERR, '>&STDERR' or die "dup STDERR: $!";
+$OLDOUT->autoflush(1);
+$OLDERR->autoflush(1);
 
 key2sub($_) for @tests; # precache
 
@@ -53,7 +55,7 @@ if ($shuffle) {
 our $tb = Test::More->builder;
 
 sub DIE (;$) {
-	print OLDERR @_;
+	print $OLDERR @_;
 	exit(1);
 }
 
@@ -71,7 +73,7 @@ sub test_status () {
 			my @not_ok = grep(!/^(?:ok |[ \t]*#)/ms, <$fh>);
 			pop @not_ok if $not_ok[-1] =~ /^[0-9]+\.\.[0-9]+$/;
 			my $pfx = "# $log: ";
-			print OLDERR map { $pfx.$_ } @not_ok;
+			print $OLDERR map { $pfx.$_ } @not_ok;
 			seek($fh, 0, SEEK_SET) or die "seek: $!";
 
 			# show unique skip texts and the number of times
@@ -81,13 +83,13 @@ sub test_status () {
 			if (@sk) {
 				my %nr;
 				my @err = grep { !$nr{$_}++ } @sk;
-				print OLDERR "$pfx$_ ($nr{$_})\n" for @err;
+				print $OLDERR "$pfx$_ ($nr{$_})\n" for @err;
 				$skip = ' # total skipped: '.scalar(@sk);
 			}
 		} else {
-			print OLDERR "could not open: $log: $!\n";
+			print $OLDERR "could not open: $log: $!\n";
 		}
-		print OLDOUT "$status $worker_test$skip\n";
+		print $OLDOUT "$status $worker_test$skip\n";
 	}
 }
 
@@ -182,7 +184,7 @@ for (my $i = $repeat; $i != 0; $i--) {
 			push @err, "job[$j] ($?)" if $?;
 			# skip_all can exit(0), respawn if needed:
 			if (!$eof) {
-				print OLDERR "# respawning job[$j]\n";
+				print $OLDERR "# respawning job[$j]\n";
 				$start_worker->($i, $j, $rd, \@todo);
 			}
 		}
@@ -205,4 +207,4 @@ for (my $i = $repeat; $i != 0; $i--) {
 	DIE join('', map { "E: $_\n" } @err) if @err;
 }
 
-print OLDOUT "1..".($repeat * scalar(@tests))."\n" if $repeat >= 0;
+print $OLDOUT "1..".($repeat * scalar(@tests))."\n" if $repeat >= 0;
