@@ -108,6 +108,7 @@ sub new {
 	return unless $mdre || scalar(keys %imap) || scalar(keys %nntp);
 
 	bless {
+		max_batch => 10, # avoid hogging locks for too long
 		spamcheck => $spamcheck,
 		mdmap => \%mdmap,
 		mdre => $mdre,
@@ -472,8 +473,14 @@ sub imap_fetch_all ($$$) {
 
 		$l_uid = $uids->[-1] + 1; # for next search
 		my $last_uid;
+		my $n = $self->{max_batch};
 
 		while (scalar @$uids) {
+			if (--$n < 0) {
+				_done_for_now($self);
+				$itrk->update_last($r_uidval, $last_uid);
+				$n = $self->{max_batch};
+			}
 			my @batch = splice(@$uids, 0, $bs);
 			$batch = join(',', @batch);
 			local $0 = "UID:$batch $mbx $sec";
@@ -888,9 +895,15 @@ sub nntp_fetch_all ($$$) {
 	};
 	my $inboxes = $self->{nntp}->{$url};
 	my $last_art;
+	my $n = $self->{max_batch};
 	for ($beg..$end) {
 		last if $self->{quit};
 		$art = $_;
+		if (--$n < 0) {
+			_done_for_now($self);
+			$itrk->update_last(0, $last_art);
+			$n = $self->{max_batch};
+		}
 		my $raw = $nn->article($art);
 		unless (defined($raw)) {
 			my $msg = $nn->message;
@@ -976,12 +989,11 @@ sub fs_scan_step {
 	local $PublicInbox::DS::in_loop = 0; # waitpid() synchronously
 
 	# continue existing scan
-	my $max = 10;
 	my $opendirs = $self->{opendirs};
 	my @dirnames = keys %$opendirs;
 	foreach my $dir (@dirnames) {
 		my $dh = delete $opendirs->{$dir};
-		my $n = $max;
+		my $n = $self->{max_batch};
 		while (my $fn = readdir($dh)) {
 			_try_path($self, "$dir/$fn");
 			last if --$n < 0;
@@ -996,7 +1008,7 @@ sub fs_scan_step {
 				warn "failed to open $dir: $!\n";
 				next;
 			}
-			my $n = $max;
+			my $n = $self->{max_batch};
 			while (my $fn = readdir($dh)) {
 				_try_path($self, "$dir/$fn");
 				last if --$n < 0;
