@@ -268,7 +268,7 @@ sub watch_fs_init ($) {
 		delete $self->{done_timer};
 		_done_for_now($self);
 	};
-	my $cb = sub {
+	my $cb = sub { # called by PublicInbox::DirIdle::event_step
 		_try_path($self, $_[0]->fullname);
 		$self->{done_timer} //= PublicInbox::DS::requeue($done);
 	};
@@ -411,7 +411,7 @@ sub imap_import_msg ($$$$$) {
 	if (ref($inboxes)) {
 		for my $ibx (@$inboxes) {
 			my $eml = PublicInbox::Eml->new($$raw);
-			my $x = import_eml($self, $ibx, $eml);
+			import_eml($self, $ibx, $eml);
 		}
 	} elsif ($inboxes eq 'watchspam') {
 		# we don't remove unseen messages
@@ -566,7 +566,7 @@ sub watch_imap_idle_1 ($$$) {
 			$err = imap_fetch_all($self, $mic, $url);
 			$err //= imap_idle_once($self, $mic, $intvl, $url);
 		} else {
-			$err = "not connected: $!";
+			$err = "E: not connected: $!";
 		}
 		if ($err && !$self->{quit}) {
 			warn $err, "\n";
@@ -984,7 +984,7 @@ sub watch_nntp_init ($$) {
 	}
 }
 
-sub watch {
+sub watch { # main entry point
 	my ($self, $sig, $oldset) = @_;
 	$self->{oldset} = $oldset;
 	$self->{sig} = $sig;
@@ -998,7 +998,7 @@ sub watch {
 	}
 	watch_fs_init($self) if $self->{mdre};
 	PublicInbox::DS->SetPostLoopCallback(sub { !$self->quit_done });
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS->EventLoop; # calls ->event_step
 	_done_for_now($self);
 }
 
@@ -1083,7 +1083,7 @@ sub content_exists ($$) {
 
 sub _spamcheck_cb {
 	my ($sc) = @_;
-	sub {
+	sub { # this gets called by (V2Writable||Import)->add
 		my ($mime, $ibx) = @_;
 		return if content_exists($ibx, $mime);
 		my $tmp = '';
