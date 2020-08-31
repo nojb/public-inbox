@@ -3,7 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use IO::Handle;
-use PublicInbox::WatchMaildir;
+use PublicInbox::Watch;
 use PublicInbox::Config;
 use PublicInbox::DS;
 use PublicInbox::Sigfd;
@@ -11,18 +11,18 @@ use PublicInbox::Syscall qw($SFD_NONBLOCK);
 my $oldset = PublicInbox::Sigfd::block_signals();
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
-my ($config, $watch_md);
+my ($config, $watch);
 my $reload = sub {
 	$config = PublicInbox::Config->new;
-	$watch_md->quit if $watch_md;
-	$watch_md = PublicInbox::WatchMaildir->new($config);
+	$watch->quit if $watch;
+	$watch = PublicInbox::Watch->new($config);
 };
 $reload->();
-if ($watch_md) {
-	my $scan = sub { $watch_md->trigger_scan('full') if $watch_md };
+if ($watch) {
+	my $scan = sub { $watch->trigger_scan('full') if $watch };
 	my $quit = sub {
-		$watch_md->quit if $watch_md;
-		$watch_md = undef;
+		$watch->quit if $watch;
+		$watch = undef;
 	};
 	my $sig = {
 		HUP => $reload,
@@ -41,5 +41,5 @@ if ($watch_md) {
 		PublicInbox::Sigfd::set_sigmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
-	$watch_md->watch($sig, $oldset) while ($watch_md);
+	$watch->watch($sig, $oldset) while ($watch);
 }

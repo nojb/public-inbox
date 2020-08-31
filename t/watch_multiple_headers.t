@@ -9,7 +9,7 @@ require_mods(qw(Search::Xapian DBD::SQLite));
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";
 my $maildir = "$tmpdir/md";
-use_ok 'PublicInbox::WatchMaildir';
+use_ok 'PublicInbox::Watch';
 use_ok 'PublicInbox::Emergency';
 my $cfgpfx = "publicinbox.test";
 my $addr = 'test-public@example.com';
@@ -62,7 +62,7 @@ $cfgpfx.watchheader=To:$addr
 $cfgpfx.watchheader=Cc:$addr
 EOF
 my $config = PublicInbox::Config->new(\$cfg);
-PublicInbox::WatchMaildir->new($config)->scan('full');
+PublicInbox::Watch->new($config)->scan('full');
 my $ibx = $config->lookup_name('test');
 ok($ibx, 'found inbox by name');
 

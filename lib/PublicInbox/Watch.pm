@@ -3,7 +3,7 @@
 #
 # ref: https://cr.yp.to/proto/maildir.html
 #	http://wiki2.dovecot.org/MailboxFormat/Maildir
-package PublicInbox::WatchMaildir;
+package PublicInbox::Watch;
 use strict;
 use v5.10.1;
 use PublicInbox::Eml;

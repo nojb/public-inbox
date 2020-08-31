@@ -449,7 +449,7 @@ ok($mic->logout, 'logged out');
 }
 
 SKIP: {
-	use_ok 'PublicInbox::WatchMaildir';
+	use_ok 'PublicInbox::Watch';
 	use_ok 'PublicInbox::InboxIdle';
 	require_git('1.8.5', 1) or
 		skip('git 1.8.5+ needed for --urlmatch', 4);

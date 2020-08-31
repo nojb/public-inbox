@@ -5,8 +5,8 @@ use Test::More;
 use PublicInbox::Config;
 # see t/nntpd*.t for tests against a live NNTP server
 
-use_ok 'PublicInbox::WatchMaildir';
-my $nntp_url = \&PublicInbox::WatchMaildir::nntp_url;
+use_ok 'PublicInbox::Watch';
+my $nntp_url = \&PublicInbox::Watch::nntp_url;
 is('news://example.com/inbox.foo',
 	$nntp_url->('NEWS://examplE.com/inbox.foo'), 'lowercased');
 is('nntps://example.com/inbox.foo',

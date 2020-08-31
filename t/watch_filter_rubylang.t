@@ -7,7 +7,7 @@ use Test::More;
 use PublicInbox::Eml;
 use PublicInbox::Config;
 require_mods(qw(DBD::SQLite Search::Xapian));
-use_ok 'PublicInbox::WatchMaildir';
+use_ok 'PublicInbox::Watch';
 use_ok 'PublicInbox::Emergency';
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{PI_CONFIG} = "$tmpdir/pi_config";
@@ -76,7 +76,7 @@ EOF
 	my $ibx = $config->lookup_name($v);
 	ok($ibx, 'found inbox by name');
 
-	my $w = PublicInbox::WatchMaildir->new($config);
+	my $w = PublicInbox::Watch->new($config);
 	for my $i (1..2) {
 		$w->scan('full');
 	}

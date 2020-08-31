@@ -5,14 +5,14 @@ use Test::More;
 use PublicInbox::Config;
 # see t/imapd*.t for tests against a live IMAP server
 
-use_ok 'PublicInbox::WatchMaildir';
+use_ok 'PublicInbox::Watch';
 my $cfg = PublicInbox::Config->new(\<<EOF);
 publicinbox.i.address=i\@example.com
 publicinbox.i.inboxdir=/nonexistent
 publicinbox.i.watch=imap://example.com/INBOX.a
 publicinboxlearn.watchspam=imap://example.com/INBOX.spam
 EOF
-my $watch = PublicInbox::WatchMaildir->new($cfg);
+my $watch = PublicInbox::Watch->new($cfg);
 is($watch->{imap}->{'imap://example.com/INBOX.a'}->[0]->{name}, 'i',
 	'watched an inbox');
 is($watch->{imap}->{'imap://example.com/INBOX.spam'}, 'watchspam',

@@ -14,7 +14,7 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";
 my $maildir = "$tmpdir/md";
 my $spamdir = "$tmpdir/spam";
-use_ok 'PublicInbox::WatchMaildir';
+use_ok 'PublicInbox::Watch';
 use_ok 'PublicInbox::Emergency';
 my $cfgpfx = "publicinbox.test";
 my $addr = 'test-public@example.com';
@@ -49,7 +49,7 @@ my $ibx = $config->lookup_name('test');
 ok($ibx, 'found inbox by name');
 my $srch = $ibx->search;
 
-PublicInbox::WatchMaildir->new($config)->scan('full');
+PublicInbox::Watch->new($config)->scan('full');
 my $total = scalar @{$srch->reopen->query('')};
 is($total, 1, 'got one revision');
 
@@ -69,7 +69,7 @@ my $write_spam = sub {
 };
 $write_spam->();
 is(unlink(glob("$maildir/new/*")), 1, 'unlinked old spam');
-PublicInbox::WatchMaildir->new($config)->scan('full');
+PublicInbox::Watch->new($config)->scan('full');
 is_deeply($srch->reopen->query(''), [], 'deleted file');
 is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 
@@ -80,7 +80,7 @@ To unsubscribe from this list: send the line "unsubscribe git" in
 the body of a message to majordomo\@vger.kernel.org
 More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
-	PublicInbox::WatchMaildir->new($config)->scan('full');
+	PublicInbox::Watch->new($config)->scan('full');
 	my $msgs = $srch->reopen->query('');
 	is(scalar(@$msgs), 1, 'got one file back');
 	my $mref = $ibx->msg_by_smsg($msgs->[0]);
@@ -88,7 +88,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 
 	is(unlink(glob("$maildir/new/*")), 1, 'unlinked spam');
 	$write_spam->();
-	PublicInbox::WatchMaildir->new($config)->scan('full');
+	PublicInbox::Watch->new($config)->scan('full');
 	$msgs = $srch->reopen->query('');
 	is(scalar(@$msgs), 0, 'inbox is empty again');
 	is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
@@ -103,7 +103,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
 	{
 		local $SIG{__WARN__} = sub {}; # quiet spam check warning
-		PublicInbox::WatchMaildir->new($config)->scan('full');
+		PublicInbox::Watch->new($config)->scan('full');
 	}
 	my $msgs = $srch->reopen->query('');
 	is(scalar(@$msgs), 0, 'inbox is still empty');
@@ -117,7 +117,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	local $ENV{PATH} = $main_path;
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
-	PublicInbox::WatchMaildir->new($config)->scan('full');
+	PublicInbox::Watch->new($config)->scan('full');
 	my $msgs = $srch->reopen->query('');
 	is(scalar(@$msgs), 1, 'inbox has one mail after spamc OK-ed a message');
 	my $mref = $ibx->msg_by_smsg($msgs->[0]);
@@ -130,7 +130,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	open my $fh, '<', $patch or die "failed to open $patch: $!\n";
 	$msg = do { local $/; <$fh> };
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
-	PublicInbox::WatchMaildir->new($config)->scan('full');
+	PublicInbox::Watch->new($config)->scan('full');
 	my $msgs = $srch->reopen->query('dfpost:6e006fd7');
 	is(scalar(@$msgs), 1, 'diff postimage found');
 	my $post = $msgs->[0];
@@ -161,7 +161,7 @@ Date: Sat, 18 Jun 2016 00:00:00 +0000
 both
 EOF
 	PublicInbox::Emergency->new($maildir)->prepare(\$both);
-	PublicInbox::WatchMaildir->new($config)->scan('full');
+	PublicInbox::Watch->new($config)->scan('full');
 	my $msgs = $srch->reopen->query('m:both@b.com');
 	my $v1 = $config->lookup_name('v1');
 	my $msg = $v1->git->cat_file($msgs->[0]->{blob});
@@ -186,7 +186,7 @@ EOF
 	PublicInbox::Emergency->new($maildir)->prepare(\$want);
 	PublicInbox::Emergency->new($maildir)->prepare(\$do_not_want);
 	my $config = PublicInbox::Config->new(\$cfg);
-	PublicInbox::WatchMaildir->new($config)->scan('full');
+	PublicInbox::Watch->new($config)->scan('full');
 	$ibx = $config->lookup_name('test');
 	my $num = $ibx->mm->num_for('do.want@example.com');
 	ok(defined $num, 'List-ID matched for watch');
@@ -195,7 +195,7 @@ EOF
 
 	$cfg = $orig."$cfgpfx.watchheader=X-Mailing-List:no\@example.com\n";
 	$config = PublicInbox::Config->new(\$cfg);
-	PublicInbox::WatchMaildir->new($config)->scan('full');
+	PublicInbox::Watch->new($config)->scan('full');
 	$ibx = $config->lookup_name('test');
 	$num = $ibx->mm->num_for('do.not.want@example.com');
 	ok(defined $num, 'X-Mailing-List matched');
