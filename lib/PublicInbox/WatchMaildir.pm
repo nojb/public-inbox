@@ -5,7 +5,7 @@
 #	http://wiki2.dovecot.org/MailboxFormat/Maildir
 package PublicInbox::WatchMaildir;
 use strict;
-use warnings;
+use v5.10.1;
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable qw(eml_from_path warn_ignore_cb);
 use PublicInbox::Filter::Base qw(REJECT);
