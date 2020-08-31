@@ -11,18 +11,30 @@ use PublicInbox::Syscall qw($SFD_NONBLOCK);
 my $oldset = PublicInbox::Sigfd::block_signals();
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
-my ($config, $watch);
+local $0 = $0; # local since this script may be eval-ed
+my $watch = PublicInbox::Watch->new(PublicInbox::Config->new);
 my $reload = sub {
-	$config = PublicInbox::Config->new;
-	$watch->quit if $watch;
-	$watch = PublicInbox::Watch->new($config);
+	my $prev = $watch or return; # SIGQUIT issued
+	$watch->quit;
+	$watch = PublicInbox::Watch->new(PublicInbox::Config->new);
+	if ($watch) {
+		warn("I: reloaded\n");
+	} else {
+		warn("E: reloading failed\n");
+		$watch = $prev;
+	}
 };
-$reload->();
+
 if ($watch) {
-	my $scan = sub { $watch->trigger_scan('full') if $watch };
+	my $scan = sub {
+		return if !$watch;
+		warn "I: scanning\n";
+		$watch->trigger_scan('full');
+	};
 	my $quit = sub {
 		$watch->quit if $watch;
 		$watch = undef;
+		$0 .= ' quitting';
 	};
 	my $sig = {
 		HUP => $reload,
