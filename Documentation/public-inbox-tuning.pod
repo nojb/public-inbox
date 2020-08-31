@@ -74,7 +74,7 @@ sharding imposes a performance penalty for read-only queries.
 
 Users with large amounts of RAM are advised to set a large value
 for C<publicinbox.indexBatchSize> as documented in
-L<public-inbox-config(5)>.
+L<public-inbox-index(1)>.
 
 C<dm-crypt> users on Linux 4.0+ are advised to try the
 C<--perf-same_cpu_crypt> C<--perf-submit_from_crypt_cpus>
@@ -95,7 +95,9 @@ Disabling copy-on-write also disables checksumming, thus C<raid1>
 Fortunately, these SQLite and Xapian indices are designed to
 recoverable from git if missing.
 
-Disabling CoW does not prevent all fragmentation.
+Disabling CoW does not prevent all fragmentation.  Large values
+of C<publicInbox.indexBatchSize> also limit fragmentation during
+the initial index.
 
 Avoid snapshotting subvolumes containing Xapian and/or SQLite indices.
 Snapshots use CoW despite our efforts to disable it, resulting

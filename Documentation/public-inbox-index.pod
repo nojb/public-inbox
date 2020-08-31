@@ -129,8 +129,9 @@ below.
 
 When using rotational storage but abundant RAM, using a large
 value (e.g. C<500m>) with C<--sequential-shard> can
-significantly speed up the initial index and full C<--reindex>
-invocations (but not incremental updates).
+significantly speed up and reduce fragmentation during the
+initial index and full C<--reindex> invocations (but not
+incremental updates).
 
 Available in public-inbox 1.6.0 (PENDING).
 
