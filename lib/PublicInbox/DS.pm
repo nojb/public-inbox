@@ -40,7 +40,7 @@ my $wait_pids; # list of [ pid, callback, callback_arg ]
 my $later_queue; # list of callbacks to run at some later interval
 my $EXPMAP; # fd -> idle_time
 our $EXPTIME = 180; # 3 minutes
-my ($later_timer, $reap_timer, $exp_timer);
+my ($later_timer, $reap_armed, $reap_timer, $exp_timer);
 my $ToClose; # sockets to close when event loop is done
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -68,7 +68,7 @@ Reset all state
 =cut
 sub Reset {
     %DescriptorMap = ();
-    $in_loop = $wait_pids = $later_queue = undef;
+    $in_loop = $wait_pids = $later_queue = $reap_armed = undef;
     $EXPMAP = {};
     $nextq = $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
     $LoopTimeout = -1;  # no timeout by default
@@ -225,24 +225,33 @@ sub RunTimers {
 # and other things.  So we scan the $wait_pids list, which is hopefully
 # not too big.  We keep $wait_pids small by not calling dwaitpid()
 # until we've hit EOF when reading the stdout of the child.
+
 sub reap_pids {
-    my $tmp = $wait_pids or return;
-    $wait_pids = $reap_timer = undef;
-    foreach my $ary (@$tmp) {
-        my ($pid, $cb, $arg) = @$ary;
-        my $ret = waitpid($pid, WNOHANG);
-        if ($ret == 0) {
-            push @$wait_pids, $ary; # autovivifies @$wait_pids
-        } elsif ($cb) {
-            eval { $cb->($arg, $pid) };
-        }
-    }
-    # we may not be done, yet, and could've missed/masked a SIGCHLD:
-    $reap_timer = add_timer(1, \&reap_pids) if $wait_pids;
+	$reap_armed = undef;
+	my $tmp = $wait_pids or return;
+	$wait_pids = undef;
+	foreach my $ary (@$tmp) {
+		my ($pid, $cb, $arg) = @$ary;
+		my $ret = waitpid($pid, WNOHANG);
+		if ($ret == 0) {
+			push @$wait_pids, $ary; # autovivifies @$wait_pids
+		} elsif ($cb) {
+			eval { $cb->($arg, $pid) };
+		}
+	}
+	# we may not be done, yet, and could've missed/masked a SIGCHLD:
+	if ($wait_pids && !$reap_armed) {
+		$reap_timer //= add_timer(1, \&reap_pids_timed);
+	}
+}
+
+sub reap_pids_timed {
+	$reap_timer = undef;
+	goto \&reap_pids;
 }
 
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
-sub enqueue_reap ($) { push @$nextq, \&reap_pids }; # autovivifies
+sub enqueue_reap { $reap_armed //= requeue(\&reap_pids) }
 
 sub in_loop () { $in_loop }
 
@@ -627,7 +636,7 @@ sub dwaitpid ($$$) {
 	push @$wait_pids, [ @_ ]; # [ $pid, $cb, $arg ]
 
 	# We could've just missed our SIGCHLD, cover it, here:
-	requeue(\&reap_pids);
+	goto &enqueue_reap; # tail recursion
 }
 
 sub _run_later () {
