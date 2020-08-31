@@ -17,7 +17,7 @@ STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
 use PublicInbox::Syscall qw($SFD_NONBLOCK);
 require PublicInbox::Listener;
-require PublicInbox::ParentPipe;
+use PublicInbox::EOFpipe;
 use PublicInbox::Sigfd;
 my @CMD;
 my ($set_user, $oldset);
@@ -468,8 +468,6 @@ sub master_quit ($) {
 
 sub master_loop {
 	pipe(my ($p0, $p1)) or die "failed to create parent-pipe: $!";
-	# 1031: F_SETPIPE_SZ, 4096: page size
-	fcntl($p1, 1031, 4096) if $^O eq 'linux';
 	my $set_workers = $worker_processes;
 	reopen_logs();
 	my $ignore_winch;
@@ -603,7 +601,7 @@ sub daemon_loop ($$$$) {
 	if ($worker_processes > 0) {
 		$refresh->(); # preload by default
 		my $fh = master_loop(); # returns if in child process
-		PublicInbox::ParentPipe->new($fh, \&worker_quit);
+		PublicInbox::EOFpipe->new($fh, \&worker_quit, undef);
 	} else {
 		reopen_logs();
 		$set_user->() if $set_user;
