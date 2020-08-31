@@ -40,7 +40,7 @@ my $wait_pids; # list of [ pid, callback, callback_arg ]
 my $later_queue; # list of callbacks to run at some later interval
 my $EXPMAP; # fd -> idle_time
 our $EXPTIME = 180; # 3 minutes
-my ($later_timer, $reap_armed, $reap_timer, $exp_timer);
+my ($later_timer, $reap_armed, $exp_timer);
 my $ToClose; # sockets to close when event loop is done
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -70,7 +70,7 @@ sub Reset {
     %DescriptorMap = ();
     $in_loop = $wait_pids = $later_queue = $reap_armed = undef;
     $EXPMAP = {};
-    $nextq = $ToClose = $reap_timer = $later_timer = $exp_timer = undef;
+    $nextq = $ToClose = $later_timer = $exp_timer = undef;
     $LoopTimeout = -1;  # no timeout by default
     @Timers = ();
 
@@ -240,14 +240,7 @@ sub reap_pids {
 		}
 	}
 	# we may not be done, yet, and could've missed/masked a SIGCHLD:
-	if ($wait_pids && !$reap_armed) {
-		$reap_timer //= add_timer(1, \&reap_pids_timed);
-	}
-}
-
-sub reap_pids_timed {
-	$reap_timer = undef;
-	goto \&reap_pids;
+	$reap_armed //= requeue(\&reap_pids) if $wait_pids;
 }
 
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
