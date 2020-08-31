@@ -589,6 +589,7 @@ sub watch_atfork_child ($) {
 sub watch_atfork_parent ($) {
 	my ($self) = @_;
 	_done_for_now($self);
+	PublicInbox::Sigfd::block_signals();
 }
 
 sub imap_idle_requeue ($) { # DS::add_timer callback
@@ -628,10 +629,14 @@ sub event_step {
 	return if $self->{quit};
 	my $idle_todo = $self->{idle_todo};
 	if ($idle_todo && @$idle_todo) {
-		watch_atfork_parent($self);
-		while (my $url_intvl = shift(@$idle_todo)) {
-			imap_idle_fork($self, $url_intvl);
-		}
+		my $oldset = watch_atfork_parent($self);
+		eval {
+			while (my $url_intvl = shift(@$idle_todo)) {
+				imap_idle_fork($self, $url_intvl);
+			}
+		};
+		PublicInbox::Sigfd::sig_setmask($oldset);
+		die $@ if $@;
 	}
 	goto(&fs_scan_step) if $self->{mdre};
 }
@@ -684,9 +689,9 @@ sub watch_nntp_fetch_all ($$) {
 sub poll_fetch_fork ($) { # DS::add_timer callback
 	my ($self, $intvl, $urls) = @{$_[0]};
 	return if $self->{quit};
-	watch_atfork_parent($self);
-	defined(my $pid = fork) or die "fork: $!";
-	if ($pid == 0) {
+	my $oldset = watch_atfork_parent($self);
+	my $pid = fork;
+	if (defined($pid) && $pid == 0) {
 		watch_atfork_child($self);
 		if ($urls->[0] =~ m!\Aimaps?://!i) {
 			watch_imap_fetch_all($self, $urls);
@@ -695,6 +700,8 @@ sub poll_fetch_fork ($) { # DS::add_timer callback
 		}
 		_exit(0);
 	}
+	PublicInbox::Sigfd::sig_setmask($oldset);
+	die "fork: $!"  unless defined $pid;
 	$self->{poll_pids}->{$pid} = [ $intvl, $urls ];
 	PublicInbox::DS::dwaitpid($pid, \&poll_fetch_reap, $self);
 }
