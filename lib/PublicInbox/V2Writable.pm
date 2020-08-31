@@ -655,6 +655,9 @@ sub checkpoint ($;$) {
 # public
 sub barrier { checkpoint($_[0], 1) };
 
+# true if locked and active
+sub active { !!$_[0]->{im} }
+
 # public
 sub done {
 	my ($self) = @_;

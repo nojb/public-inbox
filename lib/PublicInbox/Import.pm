@@ -461,6 +461,9 @@ sub init_bare {
 	}
 }
 
+# true if locked and active
+sub active { !!$_[0]->{out} }
+
 sub done {
 	my ($self) = @_;
 	my $w = delete $self->{out} or return;
