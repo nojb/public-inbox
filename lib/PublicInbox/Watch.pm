@@ -14,7 +14,8 @@ use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now);
 use PublicInbox::MID qw(mids);
 use PublicInbox::ContentHash qw(content_hash);
-use POSIX qw(_exit);
+use PublicInbox::EOFpipe;
+use POSIX qw(_exit WNOHANG);
 
 sub compile_watchheaders ($) {
 	my ($ibx) = @_;
@@ -611,17 +612,30 @@ sub imap_idle_reap { # PublicInbox::DS::dwaitpid callback
 				\&imap_idle_requeue, [ $self, $url_intvl ]);
 }
 
+sub reap { # callback for EOFpipe
+	my ($pid, $cb, $self) = @{$_[0]};
+	my $ret = waitpid($pid, 0);
+	if ($ret == $pid) {
+		$cb->($self, $pid); # poll_fetch_reap || imap_idle_reap
+	} else {
+		warn "W: waitpid($pid) => ", $ret // "($!)", "\n";
+	}
+}
+
 sub imap_idle_fork ($$) {
 	my ($self, $url_intvl) = @_;
 	my ($url, $intvl) = @$url_intvl;
+	pipe(my ($r, $w)) or die "pipe: $!";
 	defined(my $pid = fork) or die "fork: $!";
 	if ($pid == 0) {
+		close $r;
 		watch_atfork_child($self);
 		watch_imap_idle_1($self, $url, $intvl);
+		close $w;
 		_exit(0);
 	}
 	$self->{idle_pids}->{$pid} = $url_intvl;
-	PublicInbox::DS::dwaitpid($pid, \&imap_idle_reap, $self);
+	PublicInbox::EOFpipe->new($r, \&reap, [$pid, \&imap_idle_reap, $self]);
 }
 
 sub event_step {
@@ -689,24 +703,27 @@ sub watch_nntp_fetch_all ($$) {
 sub poll_fetch_fork ($) { # DS::add_timer callback
 	my ($self, $intvl, $urls) = @{$_[0]};
 	return if $self->{quit};
+	pipe(my ($r, $w)) or die "pipe: $!";
 	my $oldset = watch_atfork_parent($self);
 	my $pid = fork;
 	if (defined($pid) && $pid == 0) {
+		close $r;
 		watch_atfork_child($self);
 		if ($urls->[0] =~ m!\Aimaps?://!i) {
 			watch_imap_fetch_all($self, $urls);
 		} else {
 			watch_nntp_fetch_all($self, $urls);
 		}
+		close $w;
 		_exit(0);
 	}
 	PublicInbox::Sigfd::sig_setmask($oldset);
 	die "fork: $!"  unless defined $pid;
 	$self->{poll_pids}->{$pid} = [ $intvl, $urls ];
-	PublicInbox::DS::dwaitpid($pid, \&poll_fetch_reap, $self);
+	PublicInbox::EOFpipe->new($r, \&reap, [$pid, \&poll_fetch_reap, $self]);
 }
 
-sub poll_fetch_reap { # PublicInbox::DS::dwaitpid callback
+sub poll_fetch_reap {
 	my ($self, $pid) = @_;
 	my $intvl_urls = delete $self->{poll_pids}->{$pid} or
 		die "BUG: PID=$pid (unknown) reaped: \$?=$?\n";

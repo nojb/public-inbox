@@ -114,6 +114,7 @@ lib/PublicInbox/DSPoll.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/DirIdle.pm
 lib/PublicInbox/DummyInbox.pm
+lib/PublicInbox/EOFpipe.pm
 lib/PublicInbox/Emergency.pm
 lib/PublicInbox/Eml.pm
 lib/PublicInbox/EmlContentFoo.pm
