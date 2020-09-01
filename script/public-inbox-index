@@ -66,10 +66,14 @@ foreach my $ibx (@ibxs) {
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
 }
 
+# "Search::Xapian" includes SWIG "Xapian", too:
+$opt->{compact} = 0 if !$mods->{'Search::Xapian'};
+
 PublicInbox::Admin::require_or_die(keys %$mods);
 my $env = PublicInbox::Admin::index_prepare($opt, $cfg);
 local %ENV = (%ENV, %$env) if $env;
 require PublicInbox::InboxWritable;
+PublicInbox::Xapcmd::check_compact() if $opt->{compact};
 PublicInbox::Admin::progress_prepare($opt);
 for my $ibx (@ibxs) {
 	$ibx = PublicInbox::InboxWritable->new($ibx);
