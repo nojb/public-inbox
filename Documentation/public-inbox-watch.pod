@@ -4,7 +4,7 @@ public-inbox-watch - mailbox watcher for public-inbox
 
 =head1 SYNOPSIS
 
-B<public-inbox-watch>
+	public-inbox-watch
 
 In ~/.public-inbox/config:
 

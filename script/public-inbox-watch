@@ -1,13 +1,24 @@
 #!/usr/bin/perl -w
 # Copyright (C) 2016-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+my $help = <<EOF;
+usage: public-inbox-watch
+
+See public-inbox-watch(1) man page for full documentation.
+EOF
+
 use strict;
-use IO::Handle;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+use IO::Handle; # ->autoflush
 use PublicInbox::Watch;
 use PublicInbox::Config;
 use PublicInbox::DS;
 use PublicInbox::Sigfd;
 use PublicInbox::Syscall qw($SFD_NONBLOCK);
+my $do_scan = 1;
+GetOptions('scan!' => \$do_scan, # undocumented, testing only
+	'help|h' => \(my $show_help)) or do { print STDERR $help; exit 1 };
+if ($show_help) { print $help; exit 0 };
 my $oldset = PublicInbox::Sigfd::block_signals();
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -44,9 +55,8 @@ if ($watch) {
 	$sig->{QUIT} = $sig->{TERM} = $sig->{INT} = $quit;
 
 	# --no-scan is only intended for testing atm, undocumented.
-	unless (grep(/\A--no-scan\z/, @ARGV)) {
-		PublicInbox::DS::requeue($scan);
-	}
+	PublicInbox::DS::requeue($scan) if $do_scan;
+
 	my $sigfd = PublicInbox::Sigfd->new($sig, $SFD_NONBLOCK);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
 	if (!$sigfd) {
