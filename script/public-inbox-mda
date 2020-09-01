@@ -3,11 +3,21 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Mail delivery agent for public-inbox, run from your MTA upon mail delivery
+my $help = <<EOF;
+usage: public-inbox-mda [OPTIONS] </path/to/RFC2822_message
+
+options:
+
+  --no-precheck  skip internal checks for spam messages
+
+See public-inbox-mda(1) man page for full documentation.
+EOF
 use strict;
-use warnings;
-my $usage = 'public-inbox-mda [OPTIONS] < rfc2822_message';
-my $precheck = grep(/\A--no-precheck\z/, @ARGV) ? 0 : 1;
-my ($ems, $emm);
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+my ($ems, $emm, $show_help);
+my $precheck = 1;
+GetOptions('precheck!' => \$precheck, 'help|h' => \$show_help) or
+	do { print STDERR $help; exit 1 };
 
 my $do_exit = sub {
 	my ($code) = shift;

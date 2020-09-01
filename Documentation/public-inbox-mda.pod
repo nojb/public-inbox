@@ -4,7 +4,7 @@ public-inbox-mda - mail delivery agent for public-inbox
 
 =head1 SYNOPSIS
 
-B<public-inbox-mda> E<lt>MESSAGE
+  public-inbox-mda </path/to/RFC2822_message
 
 =head1 DESCRIPTION
 

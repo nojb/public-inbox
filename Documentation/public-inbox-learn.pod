@@ -4,7 +4,7 @@ public-inbox-learn - spam trainer and remover for public-inbox
 
 =head1 SYNOPSIS
 
-B<public-inbox-learn> <spam|ham|rm> E<lt>MESSAGE
+  public-inbox-learn <spam|ham|rm> </path/to/RFC2822_message
 
 =head1 DESCRIPTION
 

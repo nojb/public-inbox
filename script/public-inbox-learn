@@ -4,9 +4,22 @@
 #
 # Used for training spam (via SpamAssassin) and removing messages from a
 # public-inbox
-my $usage = "$0 <spam|ham|rm> </path/to/message";
+my $help = <<EOF;
+usage: public-inbox-learn [OPTIONS] [spam|ham|rm] </path/to/RFC2822_message
+
+required action argument:
+
+   spam  unindex the message and train as spam
+     rm  remove the message without training as spam
+    ham  index the message (based on To:/Cc: headers) and train as ham
+
+options:
+
+  --all  scan all inboxes on `rm'
+
+See public-inbox-learn(1) man page for full documentation.
+EOF
 use strict;
-use warnings;
 use PublicInbox::Config;
 use PublicInbox::InboxWritable;
 use PublicInbox::Eml;
@@ -14,11 +27,11 @@ use PublicInbox::Address;
 use PublicInbox::Spamcheck::Spamc;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my %opt = (all => 0);
-GetOptions(\%opt, 'all') or die "bad command-line args\n";
+GetOptions(\%opt, qw(all help|h)) or die $help;
 
-my $train = shift or die "usage: $usage\n";
+my $train = shift or die $help;
 if ($train !~ /\A(?:ham|spam|rm)\z/) {
-	die "`$train' not recognized.\nusage: $usage\n";
+	die "`$train' not recognized.\n$help";
 }
 die "--all only works with `rm'\n" if $opt{all} && $train ne 'rm';
 
