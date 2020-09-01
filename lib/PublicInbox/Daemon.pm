@@ -77,7 +77,20 @@ sub daemon_prepare ($) {
 	my $listener_names = {}; # sockname => IO::Handle
 	my $oldset = PublicInbox::Sigfd::block_signals();
 	@CMD = ($0, @ARGV);
-	my %opts = (
+	my ($prog) = ($CMD[0] =~ m!([^/]+)\z!g);
+	my $help = <<EOF;
+usage: $prog [-l ADDRESS] [--cert=FILE] [--key=FILE]
+
+options:
+
+  -l ADDRESS    address to listen on (default: $default_listen)
+  --cert=FILE   default SSL/TLS certificate
+  --key=FILE    default SSL/TLS certificate
+  -W WORKERS    number of worker processes to spawn (default: 1)
+
+See public-inbox-daemon(8) and $prog(1) man pages for more.
+EOF
+	my %opt = (
 		'l|listen=s' => \@cfg_listen,
 		'1|stdout=s' => \$stdout,
 		'2|stderr=s' => \$stderr,
@@ -88,8 +101,10 @@ sub daemon_prepare ($) {
 		'D|daemonize' => \$daemonize,
 		'cert=s' => \$default_cert,
 		'key=s' => \$default_key,
+		'help|h' => \(my $show_help),
 	);
-	GetOptions(%opts) or die "bad command-line args\n";
+	GetOptions(%opt) or die $help;
+	if ($show_help) { print $help; exit 0 };
 
 	if (defined $pid_file && $pid_file =~ /\.oldbin\z/) {
 		die "--pid-file cannot end with '.oldbin'\n";
