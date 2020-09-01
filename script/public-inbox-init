@@ -5,9 +5,8 @@ use strict;
 use v5.10.1;
 use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
 use Fcntl qw(:DEFAULT);
-my $usage = 'public-inbox-init NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]';
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: $usage
+usage: public-inbox-init NAME INBOX_DIR HTTP_URL ADDRESS [ADDRESS..]
 
   Initialize a public-inbox
 
@@ -44,10 +43,10 @@ my %opts = (
 	'j|jobs=i' => \$jobs,
 	'ng|newsgroup=s' => \$ng,
 	'skip-docdata' => \$skip_docdata,
-	'help|?' => \$show_help,
+	'help|h' => \$show_help,
 );
 my $usage_cb = sub {
-	print STDERR "Usage: $usage\n";
+	print STDERR $help;
 	exit 1;
 };
 GetOptions(%opts) or $usage_cb->();

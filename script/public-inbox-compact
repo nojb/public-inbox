@@ -4,10 +4,9 @@
 use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-my $usage = 'public-inbox-compact INBOX_DIR';
 my $opt = { compact => 1, -coarse_lock => 1 };
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-Usage: $usage
+usage: public-inbox-compact INBOX_DIR
 
   Compact Xapian DBs in an inbox
 
@@ -18,10 +17,10 @@ options:
 
 See public-inbox-compact(1) man page for full documentation.
 EOF
-GetOptions($opt, qw(all help|?),
+GetOptions($opt, qw(all help|h),
 	# compact options:
 	qw(jobs|j=i quiet|q blocksize|b=s no-full|n fuller|F),
-) or die "bad command-line args\n$usage\n";
+) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 
 require PublicInbox::Admin;
@@ -31,7 +30,7 @@ PublicInbox::Admin::progress_prepare($opt);
 require PublicInbox::InboxWritable;
 require PublicInbox::Xapcmd;
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
-unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
+unless (@ibxs) { print STDERR $help; exit 1 }
 foreach (@ibxs) {
 	my $ibx = PublicInbox::InboxWritable->new($_);
 	PublicInbox::Xapcmd::run($ibx, 'compact', $opt);

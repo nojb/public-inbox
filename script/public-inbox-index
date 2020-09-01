@@ -8,9 +8,8 @@
 use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-my $usage = 'public-inbox-index [options] INBOX_DIR';
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: $usage
+usage: public-inbox-index [options] INBOX_DIR
 
   Create and update search indices
 
@@ -28,7 +27,6 @@ options:
   --rethread          regenerate thread IDs (if upgrading, use sparingly)
   --prune             prune git storage on discontiguous history
   --verbose | -v      increase verbosity (may be repeated)
-  --help | -?         show this help
 
 BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
 See public-inbox-index(1) man page for full documentation.
@@ -39,8 +37,8 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		sequential_shard|seq-shard|sequential-shard
-		skip-docdata all help|?))
-	or die "bad command-line args\n$usage";
+		skip-docdata all help|h))
+	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
 if ($opt->{xapian_only} && !$opt->{reindex}) {
@@ -54,7 +52,7 @@ PublicInbox::Admin::require_or_die('-index');
 my $cfg = PublicInbox::Config->new; # Config is loaded by Admin
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::Admin::require_or_die('-index');
-unless (@ibxs) { print STDERR "Usage: $usage\n"; exit 1 }
+unless (@ibxs) { print STDERR $help; exit 1 }
 
 my $mods = {};
 foreach my $ibx (@ibxs) {

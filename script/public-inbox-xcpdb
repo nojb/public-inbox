@@ -4,9 +4,8 @@
 use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-my $usage = 'Usage: public-inbox-xcpdb [options] INBOX_DIR';
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: $usage
+usage: public-inbox-xcpdb [options] INBOX_DIR
 
   upgrade or reshard Xapian DB(s) used by public-inbox
 
@@ -18,7 +17,6 @@ options:
   --jobs=NUM          limit parallelism to JOBS count
   --verbose | -v      increase verbosity (may be repeated)
   --sequential-shard  copy+index Xapian shards sequentially (for slow HDD)
-  --help | -?         show this help
 
 index options (see public-inbox-index(1) man page for full description):
 
@@ -35,7 +33,7 @@ GetOptions($opt, qw(
 	sequential_shard|seq-shard|sequential-shard
 	jobs|j=i quiet|q verbose|v
 	blocksize|b=s no-full|n fuller|F
-	all help|?)) or die "bad command-line args\n$usage";
+	all help|h)) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 
 use PublicInbox::Admin;
@@ -44,7 +42,7 @@ PublicInbox::Admin::require_or_die('-search');
 require PublicInbox::Config;
 my $cfg = PublicInbox::Config->new;
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg) or
-	die $usage;
+	die $help;
 my $idx_env = PublicInbox::Admin::index_prepare($opt, $cfg);
 
 # we only set XAPIAN_FLUSH_THRESHOLD for index, since cpdb doesn't

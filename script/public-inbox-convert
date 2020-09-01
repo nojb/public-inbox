@@ -4,9 +4,8 @@
 use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-my $usage = 'Usage: public-inbox-convert [options] OLD NEW';
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: $usage
+usage: public-inbox-convert [options] OLD NEW
 
   convert v1 format inboxes to v2
 
@@ -15,9 +14,8 @@ options:
   --no-index          do not index after conversion
   --jobs=NUM          set shards (NUM=0)
   --verbose | -v      increase verbosity (may be repeated)
-  --help | -?         show this help
 
-index options (see public-inbox-index(1) manpage for full description):
+index options (see public-inbox-index(1) man page for full description):
 
   --no-fsync          speed up indexing, risk corruption on power outage
   -L LEVEL            `basic', `medium', or `full' (default: full)
@@ -35,19 +33,17 @@ my $opt = {
 	quiet => -1, compact => 0, maxsize => undef, fsync => 1,
 	reindex => 1, # we always reindex
 };
-GetOptions($opt, qw(jobs|j=i index! help|?),
+GetOptions($opt, qw(jobs|j=i index! help|h),
 		# index options
 		qw(verbose|v+ rethread compact|c+ fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		sequential_shard|sequential-shard|seq-shard
-		)) or die <<EOF;
-bad command-line args\n$usage
-EOF
+		)) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 my $old_dir = shift(@ARGV) // '';
 my $new_dir = shift(@ARGV) // '';
-die $usage if (scalar(@ARGV) || $new_dir eq '' || $old_dir eq '');
+die $help if (scalar(@ARGV) || $new_dir eq '' || $old_dir eq '');
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
 
