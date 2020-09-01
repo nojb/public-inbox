@@ -19,7 +19,7 @@ sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }
 # if keys may be multi-value, the value is an array ref containing all values
 sub new {
 	my ($class, $file) = @_;
-	$file = default_file() unless defined($file);
+	$file //= default_file();
 	my $self;
 	if (ref($file) eq 'SCALAR') { # used by some tests
 		open my $fh, '<', $file or die;  # PerlIO::scalar
@@ -136,9 +136,7 @@ sub limiter {
 sub config_dir { $ENV{PI_DIR} // "$ENV{HOME}/.public-inbox" }
 
 sub default_file {
-	my $f = $ENV{PI_CONFIG};
-	return $f if defined $f;
-	config_dir() . '/config';
+	$ENV{PI_CONFIG} // (config_dir() . '/config');
 }
 
 sub config_fh_parse ($$$) {
