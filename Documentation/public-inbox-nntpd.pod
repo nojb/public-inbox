@@ -4,7 +4,7 @@ public-inbox-nntpd - NNTP server for sharing public-inbox
 
 =head1 SYNOPSIS
 
-B<public-inbox-nntpd> [OPTIONS]
+  public-inbox-nntpd [OPTIONS]
 
 =head1 DESCRIPTION
 

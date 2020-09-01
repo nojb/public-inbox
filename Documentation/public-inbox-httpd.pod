@@ -4,7 +4,7 @@ public-inbox-httpd - PSGI server optimized for public-inbox
 
 =head1 SYNOPSIS
 
-B<public-inbox-httpd> [OPTIONS] [/path/to/myapp.psgi]
+  public-inbox-httpd [OPTIONS] [/path/to/myapp.psgi]
 
 =head1 DESCRIPTION
 

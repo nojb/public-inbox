@@ -4,7 +4,7 @@ public-inbox-imapd - IMAP server for sharing public-inboxes
 
 =head1 SYNOPSIS
 
-B<public-inbox-imapd> [OPTIONS]
+  public-inbox-imapd [OPTIONS]
 
 =head1 DESCRIPTION
 
