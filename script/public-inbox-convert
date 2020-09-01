@@ -52,7 +52,9 @@ Cwd->import('abs_path');
 require PublicInbox::Config;
 require PublicInbox::InboxWritable;
 
-$old_dir = abs_path($old_dir);
+my $abs = abs_path($old_dir);
+die "failed to resolve $old_dir: $!\n" if (!defined($abs));
+
 my $cfg = PublicInbox::Config->new;
 my $old;
 $cfg->each_inbox(sub {
@@ -72,6 +74,7 @@ if ($old) {
 }
 die "Only conversion from v1 inboxes is supported\n" if $old->version >= 2;
 
+require File::Spec;
 require PublicInbox::Admin;
 my $detected = PublicInbox::Admin::detect_indexlevel($old);
 $old->{indexlevel} //= $detected;
@@ -85,7 +88,7 @@ if ($opt->{'index'}) {
 }
 local %ENV = (%$env, %ENV) if $env;
 my $new = { %$old };
-$new->{inboxdir} = abs_path($new_dir);
+$new->{inboxdir} = File::Spec->canonpath($new_dir);
 $new->{version} = 2;
 $new = PublicInbox::InboxWritable->new($new, { nproc => $opt->{jobs} });
 $new->{-no_fsync} = 1 if !$opt->{fsync};

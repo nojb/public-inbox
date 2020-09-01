@@ -59,6 +59,18 @@ sub quiet_fail {
 	like($err, qr/`\\n' not allowed in `/s, 'reported \\n');
 	is_deeply([glob("$tmpdir/.public-inbox/pi-init-*")], [],
 		'no junk files left behind');
+
+	# "git init" does this, too
+	$cmd = [ '-init', 'deep-non-existent', "$tmpdir/a/b/c/d",
+		   qw(http://example.com/abcd abcd@example.com) ];
+	$err = '';
+	ok(run_script($cmd, $env, $rdr), 'initializes non-existent hierarchy');
+	ok(-d "$tmpdir/a/b/c/d", 'directory created');
+	open my $fh, '>', "$tmpdir/d" or BAIL_OUT "open: $!";
+	close $fh;
+	$cmd = [ '-init', 'd-f-conflict', "$tmpdir/d/f/conflict",
+		   qw(http://example.com/conflict onflict@example.com) ];
+	ok(!run_script($cmd, $env, $rdr), 'fails on D/F conflict');
 }
 
 SKIP: {

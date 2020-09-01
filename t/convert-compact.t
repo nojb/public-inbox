@@ -78,33 +78,33 @@ ok(defined($hwm) && $hwm > 0, "highwater mark set #$hwm");
 $cmd = [ '-convert', '--no-index', $ibx->{inboxdir}, "$tmpdir/no-index" ];
 ok(run_script($cmd, undef, $rdr), 'convert --no-index works');
 
-$cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
+$cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/x/v2" ];
 ok(run_script($cmd, undef, $rdr), 'convert works');
-@xdir = glob("$tmpdir/v2/xap*/*");
+@xdir = glob("$tmpdir/x/v2/xap*/*");
 foreach (@xdir) {
 	my @st = stat($_);
 	is($st[2] & 07777, -f _ ? 0644 : 0755,
 		'sharedRepository respected after convert');
 }
 
-$cmd = [ '-compact', "$tmpdir/v2" ];
+$cmd = [ '-compact', "$tmpdir/x/v2" ];
 my $env = { NPROC => 2 };
 ok(run_script($cmd, $env, $rdr), 'v2 compact works');
-$ibx->{inboxdir} = "$tmpdir/v2";
+$ibx->{inboxdir} = "$tmpdir/x/v2";
 $ibx->{version} = 2;
 is($ibx->mm->num_highwater, $hwm, 'highwater mark unchanged in v2 inbox');
 
-@xdir = glob("$tmpdir/v2/xap*/*");
+@xdir = glob("$tmpdir/x/v2/xap*/*");
 foreach (@xdir) {
 	my @st = stat($_);
 	is($st[2] & 07777, -f _ ? 0644 : 0755,
 		'sharedRepository respected after v2 compact');
 }
-is(((stat("$tmpdir/v2/msgmap.sqlite3"))[2]) & 07777, 0644,
+is(((stat("$tmpdir/x/v2/msgmap.sqlite3"))[2]) & 07777, 0644,
 	'sharedRepository respected for v2 msgmap');
 
-@xdir = (glob("$tmpdir/v2/git/*.git/objects/*/*"),
-	 glob("$tmpdir/v2/git/*.git/objects/pack/*"));
+@xdir = (glob("$tmpdir/x/v2/git/*.git/objects/*/*"),
+	 glob("$tmpdir/x/v2/git/*.git/objects/pack/*"));
 foreach (@xdir) {
 	my @st = stat($_);
 	is($st[2] & 07777, -f _ ? 0444 : 0755,
@@ -116,12 +116,12 @@ is(scalar @$msgs, 1, 'only one message in history');
 
 $ibx = undef;
 $err = '';
-$cmd = [ qw(-index -j0 --reindex -c), "$tmpdir/v2" ];
+$cmd = [ qw(-index -j0 --reindex -c), "$tmpdir/x/v2" ];
 ok(run_script($cmd, undef, $rdr), '--reindex -c');
 like($err, qr/xapian-compact/, 'xapian-compact ran (-c)');
 
 $rdr->{2} = \(my $err2 = '');
-$cmd = [ qw(-index -j0 --reindex -cc), "$tmpdir/v2" ];
+$cmd = [ qw(-index -j0 --reindex -cc), "$tmpdir/x/v2" ];
 ok(run_script($cmd, undef, $rdr), '--reindex -c -c');
 like($err2, qr/xapian-compact/, 'xapian-compact ran (-c -c)');
 ok(($err2 =~ tr/\n/\n/) > ($err =~ tr/\n/\n/), '-compacted twice');
