@@ -13,10 +13,21 @@ use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Eml;
 require PublicInbox::V2Writable;
 
-my $usage = "$0 [--all] [INBOX_DIRS] </path/to/message";
+my $help = <<EOF;
+usage: public-inbox-purge [--all] [INBOX_DIRS] </path/to/message
+
+  erase message entirely from an inbox (including history)
+
+options:
+
+  --all               purge from all configured inboxes
+
+See public-inbox-purge(1) man page for full documentation.
+EOF
+
 my $opt = { verbose => 1, all => 0, -min_inbox_version => 2 };
-GetOptions($opt, @PublicInbox::AdminEdit::OPT) or
-	die "bad command-line args\n$usage\n";
+GetOptions($opt, @PublicInbox::AdminEdit::OPT) or die $help;
+if ($opt->{help}) { print $help; exit 0 };
 
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
 PublicInbox::AdminEdit::check_editable(\@ibxs);

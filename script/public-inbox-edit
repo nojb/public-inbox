@@ -16,11 +16,26 @@ use PublicInbox::Eml;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Import;
 
-my $usage = "$0 -m MESSAGE_ID [--all] [INBOX_DIRS]";
+my $help = <<'EOF';
+usage: public-inbox-edit -m MESSAGE-ID [--all] [INBOX_DIRS]
+
+  destructively edit messages in a public inbox
+
+options:
+
+  --all               edit all configured inboxes
+  -m MESSAGE-ID       edit the message with a given Message-ID
+  -F FILE             edit the message matching the contents of FILE
+  --force             forcibly edit even if Message-ID is ambiguous
+  --raw               do not perform "From " line escaping
+
+See public-inbox-edit(1) man page for full documentation.
+EOF
+
 my $opt = { verbose => 1, all => 0, -min_inbox_version => 2, raw => 0 };
 my @opt = qw(mid|m=s file|F=s raw);
-GetOptions($opt, @PublicInbox::AdminEdit::OPT, @opt) or
-	die "bad command-line args\n$usage\n";
+GetOptions($opt, @PublicInbox::AdminEdit::OPT, @opt) or die $help;
+if ($opt->{help}) { print $help; exit 0 };
 
 my $cfg = PublicInbox::Config->new;
 my $editor = $ENV{MAIL_EDITOR}; # e.g. "mutt -f"

@@ -6,7 +6,7 @@ package PublicInbox::AdminEdit;
 use strict;
 use warnings;
 use PublicInbox::Admin;
-our @OPT = qw(all force|f verbose|v!);
+our @OPT = qw(all force|f verbose|v! help|h);
 
 sub check_editable ($) {
 	my ($ibxs) = @_;

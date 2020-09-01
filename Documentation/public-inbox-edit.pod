@@ -1,6 +1,6 @@
 =head1 NAME
 
-public-inbox-edit - edit messages in a public inbox
+public-inbox-edit - destructively edit messages in a public inbox
 
 =head1 SYNOPSIS
 
