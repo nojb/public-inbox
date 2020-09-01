@@ -131,7 +131,7 @@ EOF
 		}
 	}
 	if (@old) {
-		die "inboxes $min_ver inboxes not supported by $0\n\t",
+		die "-V$min_ver inboxes not supported by $0\n\t",
 		    join("\n\t", @old), "\n";
 	}
 	@ibxs;
