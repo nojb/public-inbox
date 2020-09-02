@@ -11,16 +11,6 @@ use PublicInbox::Spawn qw(which);
 use PublicInbox::GzipFilter;
 our $sqlite3 = $ENV{SQLITE3};
 
-sub sqlite3_missing ($) {
-	html_oneshot($_[0], 501, \<<EOF);
-<pre>sqlite3 not available
-
-The administrator needs to install the sqlite3(1) binary
-to support gzipped sqlite3 dumps.</pre>
-</pre>
-EOF
-}
-
 sub check_output {
 	my ($r, $bref, $ctx) = @_;
 	return html_oneshot($ctx, 500) if !defined($r);
@@ -65,16 +55,12 @@ or
 EOF
 	}
 
-	$sqlite3 //= which('sqlite3');
-	if (!defined($sqlite3)) {
-		return html_oneshot($ctx, 501, \<<EOF);
+	$sqlite3 //= which('sqlite3') // return html_oneshot($ctx, 501, \<<EOF);
 <pre>sqlite3 not available
 
 The administrator needs to install the sqlite3(1) binary
 to support gzipped sqlite3 dumps.</pre>
-</pre>
 EOF
-	}
 
 	# setup stdin, POSIX requires writes <= 512 bytes to succeed so
 	# we can close the pipe right away.
