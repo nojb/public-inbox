@@ -7,6 +7,7 @@ package PublicInbox::Search;
 use strict;
 use parent qw(Exporter);
 our @EXPORT_OK = qw(mdocid);
+use List::Util qw(max);
 
 # values for searching, changing the numeric value breaks
 # compatibility with old indices (so don't change them it)
@@ -203,7 +204,9 @@ sub _xdb ($) {
 
 		# We need numeric sorting so shard[0] is first for reading
 		# Xapian metadata, if needed
-		for (sort { $a <=> $b } grep(/\A[0-9]+\z/, readdir($dh))) {
+		my $last = max(grep(/\A[0-9]+\z/, readdir($dh)));
+		return if !defined($last);
+		for (0..$last) {
 			my $shard_dir = "$dir/$_";
 			if (-d $shard_dir && -r _) {
 				push @xdb, $X{Database}->new($shard_dir);

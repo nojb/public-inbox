@@ -65,28 +65,11 @@ sub nproc_shards ($) {
 
 sub count_shards ($) {
 	my ($self) = @_;
-	my $n = 0;
-	my $xpfx = $self->{xpfx};
-
 	# always load existing shards in case core count changes:
 	# Also, shard count may change while -watch is running
-	# due to "xcpdb --reshard"
-	if (-d $xpfx) {
-		my $XapianDatabase;
-		foreach my $shard (<$xpfx/*>) {
-			-d $shard && $shard =~ m!/[0-9]+\z! or next;
-			$XapianDatabase //= do {
-				require PublicInbox::Search;
-				PublicInbox::Search::load_xapian();
-				$PublicInbox::Search::X{Database};
-			};
-			eval {
-				$XapianDatabase->new($shard)->close;
-				$n++;
-			};
-		}
-	}
-	$n;
+	my $srch = $self->{ibx}->search or return 0;
+	delete $self->{ibx}->{search};
+	$srch->{nshard} // 0
 }
 
 sub new {
