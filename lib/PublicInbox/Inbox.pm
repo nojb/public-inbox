@@ -206,14 +206,13 @@ EOF
 	};
 }
 
-sub over ($) {
-	my ($self) = @_;
-	my $srch = search($self, 1) or return;
-	$self->{over} //= eval {
-		my $over = $srch->{over_ro};
+sub over {
+	$_[0]->{over} //= eval {
+		my $srch = search($_[0], 1) or return;
+		my $over = PublicInbox::Over->new("$srch->{xpfx}/over.sqlite3");
 		$over->dbh; # may fail
 		$over;
-	}
+	};
 }
 
 sub try_cat {

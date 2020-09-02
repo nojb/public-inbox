@@ -265,8 +265,6 @@ sub new {
 		ibx_ver => $ibx->version,
 	}, $class;
 	xpfx_init($self);
-	my $dir = xdir($self, 1);
-	$self->{over_ro} = PublicInbox::Over->new("$dir/over.sqlite3");
 	$self;
 }
 
