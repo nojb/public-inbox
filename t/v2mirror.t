@@ -134,7 +134,7 @@ $mime->header_set('Subject', 'subject = 10');
 
 $v2w->done;
 
-my $msgs = $mibx->search->{over_ro}->get_thread('10@example.com');
+my $msgs = $mibx->over->get_thread('10@example.com');
 my $to_purge = $msgs->[0]->{blob};
 like($to_purge, qr/\A[a-f0-9]{40,}\z/, 'read blob to be purged');
 $mset = $ibx->search->reopen->query('m:10@example.com', {mset => 1});

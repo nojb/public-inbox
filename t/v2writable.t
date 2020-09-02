@@ -235,7 +235,7 @@ EOF
 	my $mset = $srch->query('m:'.$mid, { mset => 1});
 	is($mset->size, 0, 'no longer found in Xapian');
 	my @log1 = (@log, qw(-1 --pretty=raw --raw -r --no-renames));
-	is($srch->{over_ro}->get_art($num), undef,
+	is($ibx->over->get_art($num), undef,
 		'removal propagated to Over DB');
 
 	my $after = $git0->qx(@log1);
@@ -278,7 +278,7 @@ EOF
 	ok($im->add($mime), 'add excessively long References');
 	$im->barrier;
 
-	my $msgs = $ibx->search->{over_ro}->get_thread('x'x244);
+	my $msgs = $ibx->over->get_thread('x'x244);
 	is(2, scalar(@$msgs), 'got both messages');
 	is($msgs->[0]->{mid}, 'x'x244, 'stored truncated mid');
 	is($msgs->[1]->{references}, '<'.('x'x244).'>', 'stored truncated ref');

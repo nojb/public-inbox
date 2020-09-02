@@ -25,7 +25,7 @@ $ibx->with_umask(sub {
 	$rw->idx_release;
 });
 $rw = undef;
-my $ro = PublicInbox::Search->new($ibx);
+my $ro = $ibx->search;
 my $rw_commit = sub {
 	$rw->commit_txn_lazy if $rw;
 	$rw = PublicInbox::SearchIdx->new($ibx, 1);
@@ -233,7 +233,7 @@ EOF
 
 	$rw_commit->();
 	$ro->reopen;
-	my $t = $ro->{over_ro}->get_thread('root@s');
+	my $t = $ibx->over->get_thread('root@s');
 	is(scalar(@$t), 4, "got all 4 messages in thread");
 	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_mid);
 	@res = filter_mids($t);
@@ -328,7 +328,7 @@ $ibx->with_umask(sub {
 	my $mset = $ro->query('t:list@example.com', {mset => 1});
 	is($mset->size, 9, 'searched To: successfully');
 	foreach my $m ($mset->items) {
-		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
+		my $smsg = $ibx->over->get_art($m->get_docid);
 		like($smsg->{to}, qr/\blist\@example\.com\b/, 'to appears');
 		my $doc = $m->get_document;
 		my $col = PublicInbox::Search::BYTES();
@@ -346,7 +346,7 @@ $ibx->with_umask(sub {
 	$mset = $ro->query('tc:list@example.com', {mset => 1});
 	is($mset->size, 9, 'searched To+Cc: successfully');
 	foreach my $m ($mset->items) {
-		my $smsg = $ro->{over_ro}->get_art($m->get_docid);
+		my $smsg = $ibx->over->get_art($m->get_docid);
 		my $tocc = join("\n", $smsg->{to}, $smsg->{cc});
 		like($tocc, qr/\blist\@example\.com\b/, 'tocc appears');
 	}
@@ -355,7 +355,7 @@ $ibx->with_umask(sub {
 		my $mset = $ro->query($pfx . 'foo@example.com', { mset => 1 });
 		is($mset->items, 1, "searched $pfx successfully for Cc:");
 		foreach my $m ($mset->items) {
-			my $smsg = $ro->{over_ro}->get_art($m->get_docid);
+			my $smsg = $ibx->over->get_art($m->get_docid);
 			like($smsg->{cc}, qr/\bfoo\@example\.com\b/,
 				'cc appears');
 		}
@@ -421,7 +421,7 @@ $ibx->with_umask(sub {
 	if (scalar(@$n) >= 1) {
 		my $mid = $n->[0]->{mid};
 		my ($id, $prev);
-		$art = $ro->{over_ro}->next_by_mid($mid, \$id, \$prev);
+		$art = $ibx->over->next_by_mid($mid, \$id, \$prev);
 		ok($art, 'article exists in OVER DB');
 	}
 	$rw->_msgmap_init;
@@ -429,7 +429,7 @@ $ibx->with_umask(sub {
 	$rw->commit_txn_lazy;
 	SKIP: {
 		skip('$art not defined', 1) unless defined $art;
-		is($ro->{over_ro}->get_art($art->{num}), undef,
+		is($ibx->over->get_art($art->{num}), undef,
 			'gone from OVER DB');
 	};
 });

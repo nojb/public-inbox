@@ -18,7 +18,7 @@ require PublicInbox::View;
 
 my $msgs;
 my $elapsed = timeit(1, sub {
-	$msgs = $srch->{over_ro}->recent({limit => 200000});
+	$msgs = $ibx->over->recent({limit => 200000});
 });
 my $n = scalar(@$msgs);
 ok($n, 'got some messages');

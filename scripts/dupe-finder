@@ -21,8 +21,7 @@ if (index($repo, '@') > 0) {
 }
 $ibx or die "No inbox";
 $ibx->search or die "search not available for inbox";
-my $dbh = $ibx->search->{over_ro}->dbh;
-my $over = PublicInbox::Over->new($dbh->sqlite_db_filename);
+my $over = $ibx->over;
 
 sub emit ($) {
 	my ($nums) = @_;
