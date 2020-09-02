@@ -161,7 +161,7 @@ are real
 EOF
 	my $ghost_id = $rw->add_message($was_ghost);
 	is($ghost_id, int($ghost_id), "ghost_id is an integer: $ghost_id");
-	my $msgs = $rw->{over}->get_thread('ghost-message@s');
+	my $msgs = $rw->{oidx}->get_thread('ghost-message@s');
 	is(scalar(@$msgs), 2, 'got both messages in ghost thread');
 	foreach (qw(sid tid)) {
 		is($msgs->[0]->{$_}, $msgs->[1]->{$_}, "{$_} match");

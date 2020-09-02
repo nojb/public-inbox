@@ -114,13 +114,13 @@ sub new {
 		total_bytes => 0,
 		current_info => '',
 		xpfx => $xpfx,
-		over => PublicInbox::OverIdx->new("$xpfx/over.sqlite3"),
+		oidx => PublicInbox::OverIdx->new("$xpfx/over.sqlite3"),
 		lock_path => "$dir/inbox.lock",
 		# limit each git repo (epoch) to 1GB or so
 		rotate_bytes => int((1024 * 1024 * 1024) / $PACKING_FACTOR),
 		last_commit => [], # git epoch -> commit
 	};
-	$self->{over}->{-no_fsync} = 1 if $v2ibx->{-no_fsync};
+	$self->{oidx}->{-no_fsync} = 1 if $v2ibx->{-no_fsync};
 	$self->{shards} = count_shards($self) || nproc_shards($creat);
 	bless $self, $class;
 }
@@ -154,7 +154,7 @@ sub add {
 sub do_idx ($$$$) {
 	my ($self, $msgref, $mime, $smsg) = @_;
 	$smsg->{bytes} = $smsg->{raw_bytes} + crlf_adjust($$msgref);
-	$self->{over}->add_overview($mime, $smsg);
+	$self->{oidx}->add_overview($mime, $smsg);
 	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
 	$idx->index_raw($msgref, $mime, $smsg);
 	my $n = $self->{transact_bytes} += $smsg->{raw_bytes};
@@ -219,7 +219,7 @@ sub v2_num_for {
 		if ($altid && grep(/:file=msgmap\.sqlite3\z/, @$altid)) {
 			my $num = $self->{mm}->num_for($mid);
 
-			if (defined $num && !$self->{over}->get_art($num)) {
+			if (defined $num && !$self->{oidx}->get_art($num)) {
 				return ($num, $mid);
 			}
 		}
@@ -274,7 +274,7 @@ sub idx_shard {
 sub _idx_init { # with_umask callback
 	my ($self, $opt) = @_;
 	$self->lock_acquire unless $opt && $opt->{-skip_lock};
-	$self->{over}->create;
+	$self->{oidx}->create;
 
 	# xcpdb can change shard count while -watch is idle
 	my $nshards = count_shards($self);
@@ -381,7 +381,7 @@ sub rewrite_internal ($$;$$$) {
 	} else {
 		$im = $self->importer;
 	}
-	my $over = $self->{over};
+	my $oidx = $self->{oidx};
 	my $chashes = content_hashes($old_eml);
 	my $removed = [];
 	my $mids = mids($old_eml);
@@ -395,7 +395,7 @@ sub rewrite_internal ($$;$$$) {
 	foreach my $mid (@$mids) {
 		my %gone; # num => [ smsg, $mime, raw ]
 		my ($id, $prev);
-		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
+		while (my $smsg = $oidx->next_by_mid($mid, \$id, \$prev)) {
 			my $msg = get_blob($self, $smsg);
 			if (!defined($msg)) {
 				warn "broken smsg for $mid\n";
@@ -623,7 +623,7 @@ sub checkpoint ($;$) {
 		$dbh->commit;
 
 		# SQLite overview is third
-		$self->{over}->commit_lazy;
+		$self->{oidx}->commit_lazy;
 
 		# Now deal with Xapian
 		if ($wait) {
@@ -682,7 +682,7 @@ sub done {
 			$err .= "shard close: $@\n" if $@;
 		}
 	}
-	eval { $self->{over}->dbh_close };
+	eval { $self->{oidx}->dbh_close };
 	$err .= "over close: $@\n" if $@;
 	delete $self->{bnote};
 	my $nbytes = $self->{total_bytes};
@@ -844,10 +844,10 @@ sub get_blob ($$) {
 
 sub content_exists ($$$) {
 	my ($self, $mime, $mid) = @_;
-	my $over = $self->{over};
+	my $oidx = $self->{oidx};
 	my $chashes = content_hashes($mime);
 	my ($id, $prev);
-	while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
+	while (my $smsg = $oidx->next_by_mid($mid, \$id, \$prev)) {
 		my $msg = get_blob($self, $smsg);
 		if (!defined($msg)) {
 			warn "broken smsg for $mid\n";
@@ -917,9 +917,9 @@ sub index_oid { # cat_async callback
 		}
 	}
 	if (!defined($num)) { # reuse if reindexing (or duplicates)
-		my $over = $self->{over};
+		my $oidx = $self->{oidx};
 		for my $mid (@$mids) {
-			($num, $mid0) = $over->num_mid0_for_oid($oid, $mid);
+			($num, $mid0) = $oidx->num_mid0_for_oid($oid, $mid);
 			last if defined $num;
 		}
 	}
@@ -1107,7 +1107,7 @@ sub sync_prepare ($$$) {
 
 sub unindex_oid_remote ($$$) {
 	my ($self, $oid, $mid) = @_;
-	my @removed = $self->{over}->remove_oid($oid, $mid);
+	my @removed = $self->{oidx}->remove_oid($oid, $mid);
 	for my $num (@removed) {
 		my $idx = idx_shard($self, $num % $self->{shards});
 		$idx->shard_remove($oid, $num);
@@ -1121,11 +1121,11 @@ sub unindex_oid ($$;$) { # git->cat_async callback
 	my $mm = $self->{mm};
 	my $mids = mids(PublicInbox::Eml->new($bref));
 	undef $$bref;
-	my $over = $self->{over};
+	my $oidx = $self->{oidx};
 	foreach my $mid (@$mids) {
 		my %gone;
 		my ($id, $prev);
-		while (my $smsg = $over->next_by_mid($mid, \$id, \$prev)) {
+		while (my $smsg = $oidx->next_by_mid($mid, \$id, \$prev)) {
 			$gone{$smsg->{num}} = 1 if $oid eq $smsg->{blob};
 		}
 		my $n = scalar(keys(%gone)) or next;
@@ -1299,7 +1299,7 @@ sub index_sync {
 
 	$self->idx_init($opt); # acquire lock
 	fill_alternates($self, $epoch_max);
-	$self->{over}->rethread_prepare($opt);
+	$self->{oidx}->rethread_prepare($opt);
 	my $sync = {
 		need_checkpoint => \(my $bool = 0),
 		unindex_range => {}, # EPOCH => oid_old..oid_new
@@ -1329,7 +1329,7 @@ sub index_sync {
 	}
 	# work forwards through history
 	index_epoch($self, $sync, $_) for (0..$epoch_max);
-	$self->{over}->rethread_done($opt);
+	$self->{oidx}->rethread_done($opt);
 	$self->done;
 
 	if (my $nr = $sync->{nr}) {

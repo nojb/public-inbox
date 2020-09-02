@@ -69,8 +69,8 @@ sub new {
 	if ($version == 1) {
 		$self->{lock_path} = "$inboxdir/ssoma.lock";
 		my $dir = $self->xdir;
-		$self->{over} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
-		$self->{over}->{-no_fsync} = 1 if $ibx->{-no_fsync};
+		$self->{oidx} = PublicInbox::OverIdx->new("$dir/over.sqlite3");
+		$self->{oidx}->{-no_fsync} = 1 if $ibx->{-no_fsync};
 	} elsif ($version == 2) {
 		defined $shard or die "shard is required for v2\n";
 		# shard is a number
@@ -419,8 +419,8 @@ sub add_message {
 		# of the fields which exist in over.sqlite3.  We may stop
 		# storing doc_data in Xapian sometime after we get multi-inbox
 		# search working.
-		if (my $over = $self->{over}) { # v1 only
-			$over->add_overview($mime, $smsg);
+		if (my $oidx = $self->{oidx}) { # v1 only
+			$oidx->add_overview($mime, $smsg);
 		}
 		if (need_xapian($self)) {
 			add_xapian($self, $mime, $smsg, $mids);
@@ -457,7 +457,7 @@ sub xdb_remove {
 
 sub remove_by_oid {
 	my ($self, $oid, $num) = @_;
-	die "BUG: remove_by_oid is v2-only\n" if $self->{over};
+	die "BUG: remove_by_oid is v2-only\n" if $self->{oidx};
 	$self->begin_txn_lazy;
 	xdb_remove($self, $oid, $num) if need_xapian($self);
 }
@@ -479,13 +479,9 @@ sub unindex_eml {
 	my $nr = 0;
 	my %tmp;
 	for my $mid (@$mids) {
-		my @removed = eval { $self->{over}->remove_oid($oid, $mid) };
-		if ($@) {
-			warn "E: failed to remove <$mid> from overview: $@\n";
-		} else {
-			$nr += scalar @removed;
-			$tmp{$_}++ for @removed;
-		}
+		my @removed = $self->{oidx}->remove_oid($oid, $mid);
+		$nr += scalar @removed;
+		$tmp{$_}++ for @removed;
 	}
 	if (!$nr) {
 		$mids = join('> <', @$mids);
@@ -507,9 +503,9 @@ sub index_mm {
 	my $mids = mids($mime);
 	my $mm = $self->{mm};
 	if ($sync->{reindex}) {
-		my $over = $self->{over};
+		my $oidx = $self->{oidx};
 		for my $mid (@$mids) {
-			my ($num, undef) = $over->num_mid0_for_oid($oid, $mid);
+			my ($num, undef) = $oidx->num_mid0_for_oid($oid, $mid);
 			return $num if defined $num;
 		}
 		$mm->num_for($mids->[0]) // $mm->mid_insert($mids->[0]);
@@ -603,7 +599,7 @@ sub v1_checkpoint ($$;$) {
 		}
 	}
 
-	$self->{over}->rethread_done($sync->{-opt}) if $newest; # all done
+	$self->{oidx}->rethread_done($sync->{-opt}) if $newest; # all done
 	commit_txn_lazy($self);
 	$self->{ibx}->git->cleanup;
 	my $nr = ${$sync->{nr}};
@@ -773,7 +769,7 @@ sub _index_sync {
 	my $pr = $opt->{-progress};
 	my $sync = { reindex => $opt->{reindex}, -opt => $opt };
 	my $xdb = $self->begin_txn_lazy;
-	$self->{over}->rethread_prepare($opt);
+	$self->{oidx}->rethread_prepare($opt);
 	my $mm = _msgmap_init($self);
 	if ($sync->{reindex}) {
 		my $last = $mm->last_commit;
@@ -804,7 +800,7 @@ sub DESTROY {
 sub _begin_txn {
 	my ($self) = @_;
 	my $xdb = $self->{xdb} || idx_acquire($self);
-	$self->{over}->begin_lazy if $self->{over};
+	$self->{oidx}->begin_lazy if $self->{oidx};
 	$xdb->begin_transaction if $xdb;
 	$self->{txn} = 1;
 	$xdb;
@@ -844,7 +840,7 @@ sub _commit_txn {
 		set_metadata_once($self);
 		$xdb->commit_transaction;
 	}
-	$self->{over}->commit_lazy if $self->{over};
+	$self->{oidx}->commit_lazy if $self->{oidx};
 }
 
 sub commit_txn_lazy {
