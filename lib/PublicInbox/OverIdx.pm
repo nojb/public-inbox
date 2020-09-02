@@ -379,12 +379,12 @@ sub create_tables {
 
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS over (
-	num INTEGER NOT NULL,
-	tid INTEGER NOT NULL,
-	sid INTEGER,
-	ts INTEGER,
-	ds INTEGER,
-	ddd VARBINARY, /* doc-data-deflated */
+	num INTEGER NOT NULL, /* NNTP article number == IMAP UID */
+	tid INTEGER NOT NULL, /* THREADID (IMAP REFERENCES threading, JMAP) */
+	sid INTEGER, /* Subject ID (IMAP ORDEREDSUBJECT "threading") */
+	ts INTEGER, /* IMAP INTERNALDATE (Received: header, git commit time) */
+	ds INTEGER, /* RFC-2822 sent Date: header, git author time */
+	ddd VARBINARY, /* doc-data-deflated (->to_doc_data, ->load_from_data) */
 	UNIQUE (num)
 )
 
@@ -406,13 +406,13 @@ CREATE TABLE IF NOT EXISTS counter (
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS subject (
 	sid INTEGER PRIMARY KEY AUTOINCREMENT,
-	path VARCHAR(40) NOT NULL,
+	path VARCHAR(40) NOT NULL, /* SHA-1 of normalized subject */
 	UNIQUE (path)
 )
 
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS id2num (
-	id INTEGER NOT NULL,
+	id INTEGER NOT NULL, /* <=> msgid.id */
 	num INTEGER NOT NULL,
 	UNIQUE (id, num)
 )
@@ -423,7 +423,7 @@ CREATE TABLE IF NOT EXISTS id2num (
 
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS msgid (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	id INTEGER PRIMARY KEY AUTOINCREMENT, /* <=> id2num.id */
 	mid VARCHAR(244) NOT NULL,
 	UNIQUE (mid)
 )
