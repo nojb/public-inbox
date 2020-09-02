@@ -91,6 +91,7 @@ sub last_commit_xap {
 	$self->meta_accessor("last_xap$version-$i", $commit);
 }
 
+# this is the UIDVALIDITY for IMAP (cf. RFC 3501 sec 2.3.1.1. item 3)
 sub created_at {
 	my ($self, $second) = @_;
 	$self->meta_accessor('created_at', $second);
