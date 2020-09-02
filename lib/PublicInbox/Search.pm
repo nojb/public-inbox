@@ -279,7 +279,7 @@ sub reopen {
 }
 
 # read-only
-sub query {
+sub mset {
 	my ($self, $query_string, $opts) = @_;
 	$opts ||= {};
 	my $qp = $self->{qp} //= qparse_new($self);
@@ -346,17 +346,17 @@ sub _enquire_once { # retry_reopen callback
 	if ($opts->{thread} && has_threadid($self)) {
 		$enquire->set_collapse_key(THREADID);
 	}
+	$enquire->get_mset($opts->{offset} || 0, $opts->{limit} || 50);
+}
 
-	my $offset = $opts->{offset} || 0;
-	my $limit = $opts->{limit} || 50;
-	my $mset = $enquire->get_mset($offset, $limit);
-	return $mset if $opts->{mset};
+sub mset_to_smsg {
+	my ($self, $ibx, $mset) = @_;
 	my $nshard = $self->{nshard} // 1;
 	my $i = 0;
 	my %order = map { mdocid($nshard, $_) => ++$i } $mset->items;
 	my @msgs = sort {
 		$order{$a->{num}} <=> $order{$b->{num}}
-	} @{$self->{over_ro}->get_all(keys %order)};
+	} @{$ibx->over->get_all(keys %order)};
 	wantarray ? ($mset->get_matches_estimated, \@msgs) : \@msgs;
 }
 

@@ -124,15 +124,14 @@ if ('ensure git configs are correct') {
 SELECT COUNT(*) FROM over WHERE num > 0
 
 	is($ibx->mm->num_highwater, $total, 'got expected highwater value');
-	my $srch = $ibx->search;
-	my $mset1 = $srch->reopen->query('m:abcde@1', { mset => 1 });
+	my $mset1 = $ibx->search->reopen->mset('m:abcde@1');
 	is($mset1->size, 1, 'message found by first MID');
-	my $mset2 = $srch->reopen->query('m:abcde@2', { mset => 1 });
+	my $mset2 = $ibx->search->mset('m:abcde@2');
 	is($mset2->size, 1, 'message found by second MID');
 	is((($mset1->items)[0])->get_docid, (($mset2->items)[0])->get_docid,
 		'same document') if ($mset1->size);
 
-	my $alt = $srch->reopen->query('m:alt-id-for-nntp', { mset => 1 });
+	my $alt = $ibx->search->mset('m:alt-id-for-nntp');
 	is($alt->size, 1, 'message found by alt MID (NNTP)');
 	is((($alt->items)[0])->get_docid, (($mset1->items)[0])->get_docid,
 		'same document') if ($mset1->size);
@@ -231,8 +230,7 @@ EOF
 	my $num = $smsg->{num};
 	like($num, qr/\A\d+\z/, 'numeric number in return message');
 	is($ibx->mm->mid_for($num), undef, 'no longer in Msgmap by num');
-	my $srch = $ibx->search->reopen;
-	my $mset = $srch->query('m:'.$mid, { mset => 1});
+	my $mset = $ibx->search->reopen->mset('m:'.$mid);
 	is($mset->size, 0, 'no longer found in Xapian');
 	my @log1 = (@log, qw(-1 --pretty=raw --raw -r --no-renames));
 	is($ibx->over->get_art($num), undef,

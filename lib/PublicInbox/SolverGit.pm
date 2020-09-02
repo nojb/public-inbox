@@ -229,10 +229,9 @@ sub find_extract_diffs ($$$) {
 		}
 	}
 
-	my $msgs = $srch->query($q, { relevance => 1 });
-
+	my $mset = $srch->mset($q, { relevance => 1 });
 	my $diffs = [];
-	foreach my $smsg (@$msgs) {
+	for my $smsg (@{$srch->mset_to_smsg($ibx, $mset)}) {
 		my $eml = $ibx->smsg_eml($smsg) or next;
 		$eml->each_part(\&extract_diff,
 				[$self, $diffs, $pre, $post, $ibx, $smsg], 1);

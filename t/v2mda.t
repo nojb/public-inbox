@@ -85,10 +85,12 @@ is($eml->as_string, $mime->as_string, 'injected message');
 	open my $fh, '<', $patch or die "failed to open $patch: $!\n";
 	$rdr->{0} = \(do { local $/; <$fh> });
 	ok(run_script(['-mda'], undef, $rdr), 'mda delivered a patch');
-	my $post = $ibx->search->reopen->query('dfpost:6e006fd7');
-	is(scalar(@$post), 1, 'got one result for dfpost');
-	my $pre = $ibx->search->query('dfpre:090d998');
-	is(scalar(@$pre), 1, 'got one result for dfpre');
+	my $post = $ibx->search->reopen->mset('dfpost:6e006fd7');
+	is($post->size, 1, 'got one result for dfpost');
+	my $pre = $ibx->search->mset('dfpre:090d998');
+	is($pre->size, 1, 'got one result for dfpre');
+	$pre = $ibx->search->mset_to_smsg($ibx, $pre);
+	$post = $ibx->search->mset_to_smsg($ibx, $post);
 	is($post->[0]->{blob}, $pre->[0]->{blob}, 'same message in both cases');
 }
 

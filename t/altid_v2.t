@@ -41,11 +41,12 @@ hello world gmane:666
 EOF
 $v2w->done;
 
-my $msgs = $ibx->search->reopen->query("gmane:1234");
+my $mset = $ibx->search->reopen->mset('gmane:1234');
+my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
 $msgs = [ map { $_->{mid} } @$msgs ];
 is_deeply($msgs, ['a@example.com'], 'got one match');
-$msgs = $ibx->search->query("gmane:666");
-is_deeply([], $msgs, 'body did NOT match');
+$mset = $ibx->search->mset('gmane:666');
+is($mset->size, 0, 'body did NOT match');
 
 done_testing();
 

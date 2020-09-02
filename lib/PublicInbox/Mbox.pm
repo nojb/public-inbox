@@ -213,7 +213,7 @@ sub results_cb {
 		}
 		# refill result set
 		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
-		my $mset = $srch->query($ctx->{query}, $ctx->{qopts});
+		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
 		$ctx->{ids} = $srch->mset_to_artnums($mset);
@@ -235,7 +235,7 @@ sub results_thread_cb {
 
 		# refill result set
 		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
-		my $mset = $srch->query($ctx->{query}, $ctx->{qopts});
+		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
 		$ctx->{ids} = $srch->mset_to_artnums($mset);
@@ -254,7 +254,7 @@ sub mbox_all {
 
 	my $qopts = $ctx->{qopts} = { mset => 2 }; # order by docid
 	$qopts->{thread} = 1 if $q->{t};
-	my $mset = $srch->query($q_string, $qopts);
+	my $mset = $srch->mset($q_string, $qopts);
 	$qopts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],
 				["No results found\n"]];

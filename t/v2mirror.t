@@ -112,11 +112,11 @@ my $fetch_each_epoch = sub {
 
 $fetch_each_epoch->();
 
-my $mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
+my $mset = $mibx->search->reopen->mset('m:15@example.com');
 is(scalar($mset->items), 0, 'new message not found in mirror, yet');
 ok(run_script([qw(-index -j0), "$tmpdir/m"]), 'index updated');
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'index synched minmax');
-$mset = $mibx->search->reopen->query('m:15@example.com', {mset => 1});
+$mset = $mibx->search->reopen->mset('m:15@example.com');
 is(scalar($mset->items), 1, 'found message in mirror');
 
 # purge:
@@ -137,7 +137,7 @@ $v2w->done;
 my $msgs = $mibx->over->get_thread('10@example.com');
 my $to_purge = $msgs->[0]->{blob};
 like($to_purge, qr/\A[a-f0-9]{40,}\z/, 'read blob to be purged');
-$mset = $ibx->search->reopen->query('m:10@example.com', {mset => 1});
+$mset = $ibx->search->reopen->mset('m:10@example.com');
 is(scalar($mset->items), 0, 'purged message gone from origin');
 
 $fetch_each_epoch->();
@@ -153,11 +153,11 @@ $fetch_each_epoch->();
 	unlike($err, qr/fatal/, 'no scary fatal error shown');
 }
 
-$mset = $mibx->search->reopen->query('m:10@example.com', {mset => 1});
+$mset = $mibx->search->reopen->mset('m:10@example.com');
 is(scalar($mset->items), 0, 'purged message not found in mirror');
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'minmax still synced');
 for my $i ((1..9),(11..15)) {
-	$mset = $mibx->search->query("m:$i\@example.com", {mset => 1});
+	$mset = $mibx->search->mset("m:$i\@example.com");
 	is(scalar($mset->items), 1, "$i\@example.com remains visible");
 }
 is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
@@ -171,7 +171,7 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 
 # deletes happen in a different fetch window
 {
-	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
+	$mset = $mibx->search->reopen->mset('m:1@example.com');
 	is(scalar($mset->items), 1, '1@example.com visible in mirror');
 	$mime->header_set('Message-ID', '<1@example.com>');
 	$mime->header_set('Subject', 'subject = 1');
@@ -186,12 +186,12 @@ is($mibx->git->check($to_purge), undef, 'unindex+prune successful in mirror');
 	my $opt = { 1 => \$out, 2 => \$err };
 	ok(run_script($cmd, undef, $opt), 'index ran');
 	is($err, '', 'no errors reported by index');
-	$mset = $mibx->search->reopen->query('m:1@example.com', {mset => 1});
+	$mset = $mibx->search->reopen->mset('m:1@example.com');
 	is(scalar($mset->items), 0, '1@example.com no longer visible in mirror');
 }
 
 if ('sequential-shard') {
-	$mset = $mibx->search->query('m:15@example.com', {mset => 1});
+	$mset = $mibx->search->mset('m:15@example.com');
 	is(scalar($mset->items), 1, 'large message not indexed');
 	remove_tree(glob("$tmpdir/m/xap*"), glob("$tmpdir/m/msgmap.*"));
 	my $cmd = [ qw(-index -j9 --sequential-shard), "$tmpdir/m" ];
@@ -199,7 +199,7 @@ if ('sequential-shard') {
 	my @shards = glob("$tmpdir/m/xap*/?");
 	is(scalar(@shards), 8, 'got expected shard count');
 	PublicInbox::InboxWritable::cleanup($mibx);
-	$mset = $mibx->search->query('m:15@example.com', {mset => 1});
+	$mset = $mibx->search->mset('m:15@example.com');
 	is(scalar($mset->items), 1, 'search works after --sequential-shard');
 }
 
@@ -216,7 +216,7 @@ if ('max size') {
 	my $opt = { 2 => \(my $err) };
 	ok(run_script($cmd, undef, $opt), 'indexed with --max-size');
 	like($err, qr/skipping [a-f0-9]{40,}/, 'warned about skipping message');
-	$mset = $mibx->search->reopen->query('m:2big@a', {mset =>1});
+	$mset = $mibx->search->reopen->mset('m:2big@a');
 	is(scalar($mset->items), 0, 'large message not indexed');
 
 	{
@@ -230,7 +230,7 @@ EOF
 	$cmd = [ qw(-index -j0 --reindex), "$tmpdir/m" ];
 	ok(run_script($cmd, undef, $opt), 'reindexed w/ indexMaxSize in file');
 	like($err, qr/skipping [a-f0-9]{40,}/, 'warned about skipping message');
-	$mset = $mibx->search->reopen->query('m:2big@a', {mset =>1});
+	$mset = $mibx->search->reopen->mset('m:2big@a');
 	is(scalar($mset->items), 0, 'large message not re-indexed');
 }
 

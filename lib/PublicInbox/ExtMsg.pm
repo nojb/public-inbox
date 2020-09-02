@@ -65,10 +65,10 @@ sub search_partial ($$) {
 		# has too many results.  $@ can be
 		# Search::Xapian::QueryParserError or even:
 		# "something terrible happened at ../Search/Xapian/Enquire.pm"
-		my $mset = eval { $srch->query($m, $opt) } or next;
+		my $mset = eval { $srch->mset($m, $opt) } or next;
 		my @mids = map {
 			$_->{mid}
-		} @{$ibx->over->get_all(@{$srch->mset_to_artnums($mset)})};
+		} @{$srch->mset_to_smsg($ibx, $mset)};
 		return \@mids if scalar(@mids);
 	}
 }

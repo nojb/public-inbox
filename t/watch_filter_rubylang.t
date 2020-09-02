@@ -82,14 +82,13 @@ EOF
 	}
 
 	# make sure all serials are searchable:
-	my ($tot, $msgs);
 	for my $i (1..15) {
-		($tot, $msgs) = $ibx->search->query("alerts:$i");
-		is($tot, 1, "got one result for alerts:$i");
+		my $mset = $ibx->search->mset("alerts:$i");
+		is($mset->size, 1, "got one result for alerts:$i");
+		my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
 		is($msgs->[0]->{mid}, "a.$i\@b.com", "got expected MID for $i");
 	}
-	($tot, undef) = $ibx->search->query('b:spam');
-	is($tot, 1, 'got spam message');
+	is($ibx->search->mset('b:spam')->size, 1, 'got spam message');
 
 	my $nr = unlink <$maildir/new/*>;
 	is(16, $nr);
@@ -104,8 +103,7 @@ EOF
 
 	$config = PublicInbox::Config->new(\$orig);
 	$ibx = $config->lookup_name($v);
-	($tot, undef) = $ibx->search->reopen->query('b:spam');
-	is($tot, 0, 'spam removed');
+	is($ibx->search->reopen->mset('b:spam')->size, 0, 'spam removed');
 
 	is_deeply([], \@warn, 'no warnings');
 }

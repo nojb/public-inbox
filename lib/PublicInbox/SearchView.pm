@@ -47,7 +47,6 @@ sub sres_top_html {
 	my $opts = {
 		limit => $q->{l},
 		offset => $o,
-		mset => 1,
 		relevance => $q->{r},
 		thread => $q->{t},
 		asc => $asc,
@@ -55,7 +54,7 @@ sub sres_top_html {
 	my ($mset, $total, $err, $html);
 retry:
 	eval {
-		$mset = $srch->query($query, $opts);
+		$mset = $srch->mset($query, $opts);
 		$total = $mset->get_matches_estimated;
 	};
 	$err = $@;

@@ -1187,7 +1187,7 @@ sub refill_xap ($$$$) {
 	my ($beg, $end) = @$range_info;
 	my $srch = $self->{ibx}->search;
 	my $opt = { mset => 2, limit => 1000 };
-	my $mset = $srch->query("$q uid:$beg..$end", $opt);
+	my $mset = $srch->mset("$q uid:$beg..$end", $opt);
 	@$uids = @{$srch->mset_to_artnums($mset)};
 	if (@$uids) {
 		$range_info->[0] = $uids->[-1] + 1; # update $beg

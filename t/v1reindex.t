@@ -178,7 +178,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
-	my $mset = $ibx->search->query('hello world', {mset=>1});
+	my $mset = $ibx->search->mset('hello world');
 	isnt($mset->size, 0, 'got Xapian search results');
 
 	my ($min, $max) = $ibx->mm->minmax;
@@ -224,7 +224,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	eval { $rw->index_sync({reindex => 1}) };
 	is($@, '', 'no error from indexing');
 	is_deeply(\@warn, [], 'no warnings');
-	my $mset = $ibx->search->reopen->query('hello world', {mset=>1});
+	my $mset = $ibx->search->reopen->mset('hello world');
 	isnt($mset->size, 0, 'search OK after basic -> medium');
 
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');

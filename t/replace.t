@@ -106,8 +106,8 @@ EOF
 
 	if (my $srch = $ibx->search) {
 		for my $q ('f:streisand', 's:confidential', 'malibu') {
-			my $msgs = $srch->query($q);
-			is_deeply($msgs, [], "no match for $q");
+			my $mset = $srch->mset($q);
+			is($mset->size, 0, "no match for $q");
 		}
 		my @ok = ('f:redactor', 's:redacted', 'nothing to see');
 		if ($opt->{pre}) {
@@ -119,8 +119,8 @@ EOF
 				's:message3', 's:message4';
 		}
 		for my $q (@ok) {
-			my $msgs = $srch->query($q);
-			ok($msgs->[0], "got match for $q");
+			my $mset = $srch->mset($q);
+			ok($mset->size, "got match for $q");
 		}
 	}
 

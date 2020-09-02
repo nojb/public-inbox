@@ -25,12 +25,12 @@ $ibx->with_umask(sub {
 	$rw->idx_release;
 });
 $rw = undef;
-my $ro = $ibx->search;
 my $rw_commit = sub {
 	$rw->commit_txn_lazy if $rw;
 	$rw = PublicInbox::SearchIdx->new($ibx, 1);
 	$rw->{qp_flags} = 0; # quiet a warning
 	$rw->begin_txn_lazy;
+	$ibx->search->reopen;
 };
 
 sub oct_is ($$$) {
@@ -103,29 +103,34 @@ sub filter_mids {
 	sort(map { $_->{mid} } @$msgs);
 }
 
+my $query = sub {
+	my ($query_string, $opt) = @_;
+	my $mset = $ibx->search->mset($query_string, $opt);
+	$ibx->search->mset_to_smsg($ibx, $mset);
+};
+
 {
 	$rw_commit->();
-	$ro->reopen;
-	my $found = $ro->query('m:root@s');
+	my $found = $query->('m:root@s');
 	is(scalar(@$found), 1, "message found");
 	is($found->[0]->{mid}, 'root@s', 'mid set correctly') if @$found;
 
 	my ($res, @res);
 	my @exp = sort qw(root@s last@s);
 
-	$res = $ro->query('s:(Hello world)');
+	$res = $query->('s:(Hello world)');
 	@res = filter_mids($res);
 	is_deeply(\@res, \@exp, 'got expected results for s:() match');
 
-	$res = $ro->query('s:"Hello world"');
+	$res = $query->('s:"Hello world"');
 	@res = filter_mids($res);
 	is_deeply(\@res, \@exp, 'got expected results for s:"" match');
 
-	$res = $ro->query('s:"Hello world"', {limit => 1});
+	$res = $query->('s:"Hello world"', {limit => 1});
 	is(scalar @$res, 1, "limit works");
 	my $first = $res->[0];
 
-	$res = $ro->query('s:"Hello world"', {offset => 1});
+	$res = $query->('s:"Hello world"', {offset => 1});
 	is(scalar @$res, 1, "offset works");
 	my $second = $res->[0];
 
@@ -173,31 +178,29 @@ EOF
 # search thread on ghost
 {
 	$rw_commit->();
-	$ro->reopen;
 
 	# subject
-	my $res = $ro->query('ghost');
+	my $res = $query->('ghost');
 	my @exp = sort qw(ghost-message@s ghost-reply@s);
 	my @res = filter_mids($res);
 	is_deeply(\@res, \@exp, 'got expected results for Subject match');
 
 	# body
-	$res = $ro->query('goodbye');
+	$res = $query->('goodbye');
 	is(scalar(@$res), 1, "goodbye message found");
 	is($res->[0]->{mid}, 'last@s', 'got goodbye message body') if @$res;
 
 	# datestamp
-	$res = $ro->query('dt:20101002000001..20101002000001');
+	$res = $query->('dt:20101002000001..20101002000001');
 	@res = filter_mids($res);
 	is_deeply(\@res, ['ghost-message@s'], 'exact Date: match works');
-	$res = $ro->query('dt:20101002000002..20101002000002');
+	$res = $query->('dt:20101002000002..20101002000002');
 	is_deeply($res, [], 'exact Date: match down to the second');
 }
 
 # long message-id
 $ibx->with_umask(sub {
 	$rw_commit->();
-	$ro->reopen;
 	my $long_mid = 'last' . ('x' x 60). '@s';
 	my $long = PublicInbox::Eml->new(<<EOF);
 Date: Sat, 02 Oct 2010 00:00:00 +0000
@@ -214,7 +217,6 @@ EOF
 	is($long_id, int($long_id), "long_id is an integer: $long_id");
 
 	$rw_commit->();
-	$ro->reopen;
 	my $res;
 	my @res;
 
@@ -232,7 +234,6 @@ EOF
 	ok($rw->add_message($long_reply) > $long_id, "inserted long reply");
 
 	$rw_commit->();
-	$ro->reopen;
 	my $t = $ibx->over->get_thread('root@s');
 	is(scalar(@$t), 4, "got all 4 messages in thread");
 	my @exp = sort($long_reply_mid, 'root@s', 'last@s', $long_mid);
@@ -264,13 +265,13 @@ theatre
 fade
 EOF
 	$rw_commit->();
-	my $res = $ro->reopen->query("theatre");
+	my $res = $query->("theatre");
 	is(scalar(@$res), 2, "got both matches");
 	if (@$res == 2) {
 		is($res->[0]->{mid}, 'nquote@a', 'non-quoted scores higher');
 		is($res->[1]->{mid}, 'quote@a', 'quoted result still returned');
 	}
-	$res = $ro->query("illusions");
+	$res = $query->("illusions");
 	is(scalar(@$res), 1, "got a match for quoted text");
 	is($res->[0]->{mid}, 'quote@a',
 		"quoted result returned if nothing else") if scalar(@$res);
@@ -292,7 +293,7 @@ LOOP!
 EOF
 	ok($doc_id > 0, "doc_id defined with circular reference");
 	$rw_commit->();
-	my $smsg = $ro->reopen->query('m:circle@a', {limit=>1})->[0];
+	my $smsg = $query->('m:circle@a', {limit=>1})->[0];
 	is(defined($smsg), 1, 'found m:circl@a');
 	if (defined $smsg) {
 		is($smsg->{references}, '', "no references created");
@@ -301,11 +302,11 @@ EOF
 });
 
 {
-	my $msgs = $ro->query('d:19931002..20101002');
+	my $msgs = $query->('d:19931002..20101002');
 	ok(scalar(@$msgs) > 0, 'got results within range');
-	$msgs = $ro->query('d:20101003..');
+	$msgs = $query->('d:20101003..');
 	is(scalar(@$msgs), 0, 'nothing after 20101003');
-	$msgs = $ro->query('d:..19931001');
+	$msgs = $query->('d:..19931001');
 	is(scalar(@$msgs), 0, 'nothing before 19931001');
 }
 
@@ -314,8 +315,7 @@ $ibx->with_umask(sub {
 	my $doc_id = $rw->add_message($mime);
 	ok($doc_id > 0, 'message indexed doc_id with UTF-8');
 	$rw_commit->();
-	my $msg = $ro->reopen->
-		query('m:testmessage@example.com', {limit => 1})->[0];
+	my $msg = $query->('m:testmessage@example.com', {limit => 1})->[0];
 	is(defined($msg), 1, 'found testmessage@example.com');
 	if (defined $msg) {
 		is($mime->header('Subject'), $msg->{subject},
@@ -325,7 +325,7 @@ $ibx->with_umask(sub {
 
 # names and addresses
 {
-	my $mset = $ro->query('t:list@example.com', {mset => 1});
+	my $mset = $ibx->search->mset('t:list@example.com');
 	is($mset->size, 9, 'searched To: successfully');
 	foreach my $m ($mset->items) {
 		my $smsg = $ibx->over->get_art($m->get_docid);
@@ -343,7 +343,7 @@ $ibx->with_umask(sub {
 		is($uid, $m->get_docid, 'UID column matches docid');
 	}
 
-	$mset = $ro->query('tc:list@example.com', {mset => 1});
+	$mset = $ibx->search->mset('tc:list@example.com');
 	is($mset->size, 9, 'searched To+Cc: successfully');
 	foreach my $m ($mset->items) {
 		my $smsg = $ibx->over->get_art($m->get_docid);
@@ -352,7 +352,7 @@ $ibx->with_umask(sub {
 	}
 
 	foreach my $pfx ('tcf:', 'c:') {
-		my $mset = $ro->query($pfx . 'foo@example.com', { mset => 1 });
+		my $mset = $ibx->search->mset($pfx . 'foo@example.com');
 		is($mset->items, 1, "searched $pfx successfully for Cc:");
 		foreach my $m ($mset->items) {
 			my $smsg = $ibx->over->get_art($m->get_docid);
@@ -362,7 +362,7 @@ $ibx->with_umask(sub {
 	}
 
 	foreach my $pfx ('', 'tcf:', 'f:') {
-		my $res = $ro->query($pfx . 'Laggy');
+		my $res = $query->($pfx . 'Laggy');
 		is(scalar(@$res), 1,
 			"searched $pfx successfully for From:");
 		foreach my $smsg (@$res) {
@@ -374,25 +374,24 @@ $ibx->with_umask(sub {
 
 {
 	$rw_commit->();
-	$ro->reopen;
-	my $res = $ro->query('b:hello');
+	my $res = $query->('b:hello');
 	is(scalar(@$res), 0, 'no match on body search only');
-	$res = $ro->query('bs:smith');
+	$res = $query->('bs:smith');
 	is(scalar(@$res), 0,
 		'no match on body+subject search for From');
 
-	$res = $ro->query('q:theatre');
+	$res = $query->('q:theatre');
 	is(scalar(@$res), 1, 'only one quoted body');
 	like($res->[0]->{from_name}, qr/\AQuoter/,
 		'got quoted body') if (scalar(@$res));
 
-	$res = $ro->query('nq:theatre');
+	$res = $query->('nq:theatre');
 	is(scalar @$res, 1, 'only one non-quoted body');
 	like($res->[0]->{from_name}, qr/\ANon-Quoter/,
 		'got non-quoted body') if (scalar(@$res));
 
 	foreach my $pfx (qw(b: bs:)) {
-		$res = $ro->query($pfx . 'theatre');
+		$res = $query->($pfx . 'theatre');
 		is(scalar @$res, 2, "searched both bodies for $pfx");
 		like($res->[0]->{from_name}, qr/\ANon-Quoter/,
 			"non-quoter first for $pfx") if scalar(@$res);
@@ -405,14 +404,13 @@ $ibx->with_umask(sub {
 	my $smsg = bless { blob => $oid }, 'PublicInbox::Smsg';
 	ok($rw->add_message($amsg, $smsg), 'added attachment');
 	$rw_commit->();
-	$ro->reopen;
-	my $n = $ro->query('n:attached_fart.txt');
+	my $n = $query->('n:attached_fart.txt');
 	is(scalar @$n, 1, 'got result for n:');
-	my $res = $ro->query('part_deux.txt');
+	my $res = $query->('part_deux.txt');
 	is(scalar @$res, 1, 'got result without n:');
 	is($n->[0]->{mid}, $res->[0]->{mid},
 		'same result with and without') if scalar(@$res);
-	my $txt = $ro->query('"inside another"');
+	my $txt = $query->('"inside another"');
 	is(scalar @$txt, 1, 'found inside another');
 	is($txt->[0]->{mid}, $res->[0]->{mid},
 		'search inside text attachments works') if scalar(@$txt);
@@ -459,8 +457,7 @@ $ibx->with_umask(sub {
 	my $digits = '10010260936330';
 	my $ua = 'Pine.LNX.4.10';
 	my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
-	is($ro->reopen->query("m:$digits", { mset => 1})->size, 0,
-		'no results yet');
+	is($ibx->search->mset("m:$digits")->size, 0, 'no results yet');
 	my $pine = PublicInbox::Eml->new(<<EOF);
 Subject: blah
 Message-ID: <$mid>
@@ -470,44 +467,45 @@ To: list\@example.com
 EOF
 	my $x = $rw->add_message($pine);
 	$rw->commit_txn_lazy;
-	is($ro->reopen->query("m:$digits", { mset => 1})->size, 1,
+	$ibx->search->reopen;
+	is($ibx->search->mset("m:$digits")->size, 1,
 		'searching only digit yielded result');
 
 	my $wild = $digits;
 	for my $i (1..6) {
 		chop($wild);
-		is($ro->query("m:$wild*", { mset => 1})->size, 1,
+		is($ibx->search->mset("m:$wild*")->size, 1,
 			"searching chopped($i) digit yielded result $wild ");
 	}
-	is($ro->query("m:Pine m:LNX m:10010260936330", {mset=>1})->size, 1);
+	is($ibx->search->mset('m:Pine m:LNX m:10010260936330')->size, 1);
 });
 
 { # List-Id searching
-	my $found = $ro->query('lid:i.m.just.bored');
+	my $found = $query->('lid:i.m.just.bored');
 	is_deeply([ filter_mids($found) ], [ 'root@s' ],
 		'got expected mid on exact lid: search');
 
-	$found = $ro->query('lid:just.bored');
+	$found = $query->('lid:just.bored');
 	is_deeply($found, [], 'got nothing on lid: search');
 
-	$found = $ro->query('lid:*.just.bored');
+	$found = $query->('lid:*.just.bored');
 	is_deeply($found, [], 'got nothing on lid: search');
 
-	$found = $ro->query('l:i.m.just.bored');
+	$found = $query->('l:i.m.just.bored');
 	is_deeply([ filter_mids($found) ], [ 'root@s' ],
 		'probabilistic search works on full List-Id contents');
 
-	$found = $ro->query('l:just.bored');
+	$found = $query->('l:just.bored');
 	is_deeply([ filter_mids($found) ], [ 'root@s' ],
 		'probabilistic search works on partial List-Id contents');
 
-	$found = $ro->query('lid:mad');
+	$found = $query->('lid:mad');
 	is_deeply($found, [], 'no match on phrase with lid:');
 
-	$found = $ro->query('lid:bored');
+	$found = $query->('lid:bored');
 	is_deeply($found, [], 'no match on partial List-Id with lid:');
 
-	$found = $ro->query('l:nothing');
+	$found = $query->('l:nothing');
 	is_deeply($found, [], 'matched on phrase with l:');
 }
 
@@ -516,22 +514,22 @@ $ibx->with_umask(sub {
 	my $doc_id = $rw->add_message(eml_load('t/data/message_embed.eml'));
 	ok($doc_id > 0, 'messages within messages');
 	$rw->commit_txn_lazy;
-	$ro->reopen;
-	my $n_test_eml = $ro->query('n:test.eml');
+	$ibx->search->reopen;
+	my $n_test_eml = $query->('n:test.eml');
 	is(scalar(@$n_test_eml), 1, 'got a result');
-	my $n_embed2x_eml = $ro->query('n:embed2x.eml');
+	my $n_embed2x_eml = $query->('n:embed2x.eml');
 	is_deeply($n_test_eml, $n_embed2x_eml, '.eml filenames searchable');
 	for my $m (qw(20200418222508.GA13918@dcvr 20200418222020.GA2745@dcvr
 			20200418214114.7575-1-e@yhbt.net)) {
-		is($ro->query("m:$m")->[0]->{mid},
+		is($query->("m:$m")->[0]->{mid},
 			'20200418222508.GA13918@dcvr', 'probabilistic m:'.$m);
-		is($ro->query("mid:$m")->[0]->{mid},
+		is($query->("mid:$m")->[0]->{mid},
 			'20200418222508.GA13918@dcvr', 'boolean mid:'.$m);
 	}
-	is($ro->query('dfpost:4dc62c50')->[0]->{mid},
+	is($query->('dfpost:4dc62c50')->[0]->{mid},
 		'20200418222508.GA13918@dcvr',
 		'diff search reaches inside message/rfc822');
-	is($ro->query('s:"mail header experiments"')->[0]->{mid},
+	is($query->('s:"mail header experiments"')->[0]->{mid},
 		'20200418222508.GA13918@dcvr',
 		'Subject search reaches inside message/rfc822');
 });

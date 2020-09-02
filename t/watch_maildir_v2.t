@@ -130,12 +130,14 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	$msg = do { local $/; <$fh> };
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	PublicInbox::Watch->new($config)->scan('full');
-	my $msgs = $ibx->search->reopen->query('dfpost:6e006fd7');
-	is(scalar(@$msgs), 1, 'diff postimage found');
-	my $post = $msgs->[0];
-	$msgs = $ibx->search->query('dfpre:090d998b6c2c');
-	is(scalar(@$msgs), 1, 'diff preimage found');
-	is($post->{blob}, $msgs->[0]->{blob}, 'same message');
+	my $post = $ibx->search->reopen->mset('dfpost:6e006fd7');
+	is($post->size, 1, 'diff postimage found');
+	my $pre = $ibx->search->mset('dfpre:090d998b6c2c');
+	is($pre->size, 1, 'diff preimage found');
+	$pre = $ibx->search->mset_to_smsg($ibx, $pre);
+	$post = $ibx->search->mset_to_smsg($ibx, $post);
+	is(scalar(@$pre), 1, 'diff preimage found');
+	is($post->[0]->{blob}, $pre->[0]->{blob}, 'same message');
 }
 
 # multiple inboxes in the same maildir
@@ -161,7 +163,8 @@ both
 EOF
 	PublicInbox::Emergency->new($maildir)->prepare(\$both);
 	PublicInbox::Watch->new($config)->scan('full');
-	my $msgs = $ibx->search->reopen->query('m:both@b.com');
+	my $mset = $ibx->search->reopen->mset('m:both@b.com');
+	my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
 	my $v1 = $config->lookup_name('v1');
 	my $msg = $v1->git->cat_file($msgs->[0]->{blob});
 	is($both, $$msg, 'got original message back from v1');

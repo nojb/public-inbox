@@ -49,7 +49,8 @@ for my $R (qw(2 4 1 3 3)) {
 	ok(run_script($cmd), "xcpdb -R$R");
 	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
 	is(scalar(@new_shards), $R, 'resharded to two shards');
-	my $msgs = $ibx->search->query('s:this');
+	my $mset = $ibx->search->mset('s:this');
+	my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
 	is(scalar(@$msgs), $ndoc, 'got expected docs after resharding');
 	my %by_mid = map {; "$_->{mid}" => $_ } @$msgs;
 	ok($by_mid{"m$_\@example.com"}, "$_ exists") for (1..$ndoc);

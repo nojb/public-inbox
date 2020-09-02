@@ -63,10 +63,12 @@ my $smsg;
 	$smsg = $ibx->over->get_art(1);
 	is($smsg->{ds}, 749520000, 'datestamp from git author time');
 	is($smsg->{ts}, 1285977600, 'timestamp from git committer time');
-	my $res = $ibx->search->query("m:$smsg->{mid}");
-	is(scalar @$res, 1, 'got one result for m:');
+	my $mset = $ibx->search->mset("m:$smsg->{mid}");
+	is($mset->size, 1, 'got one result for m:');
+	my $res = $ibx->search->mset_to_smsg($ibx, $mset);
 	is($res->[0]->{ds}, $smsg->{ds}, 'Xapian stored datestamp');
-	$res = $ibx->search->query('d:19931002..19931002');
+	$mset = $ibx->search->mset('d:19931002..19931002');
+	$res = $ibx->search->mset_to_smsg($ibx, $mset);
 	is(scalar @$res, 1, 'got one result for d:');
 	is($res->[0]->{ds}, $smsg->{ds}, 'Xapian search on datestamp');
 }
@@ -87,9 +89,11 @@ SKIP: {
 			'v2 datestamp from git author time');
 		is($v2smsg->{ts}, $smsg->{ts},
 			'v2 timestamp from git committer time');
-		my $res = $ibx->search->query("m:$smsg->{mid}");
+		my $mset = $ibx->search->mset("m:$smsg->{mid}");
+		my $res = $ibx->search->mset_to_smsg($ibx, $mset);
 		is($res->[0]->{ds}, $smsg->{ds}, 'Xapian stored datestamp');
-		$res = $ibx->search->query('d:19931002..19931002');
+		$mset = $ibx->search->mset('d:19931002..19931002');
+		$res = $ibx->search->mset_to_smsg($ibx, $mset);
 		is(scalar @$res, 1, 'got one result for d:');
 		is($res->[0]->{ds}, $smsg->{ds}, 'Xapian search on datestamp');
 	};

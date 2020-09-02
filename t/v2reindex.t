@@ -153,7 +153,7 @@ ok(!-d $xap, 'Xapian directories removed again');
 	delete $ibx->{mm};
 	is_deeply([ $ibx->mm->minmax ], $minmax, 'minmax unchanged');
 	is($ibx->mm->num_highwater, 10, 'num_highwater as expected');
-	my $mset = $ibx->search->query($phrase, {mset=>1});
+	my $mset = $ibx->search->mset($phrase);
 	isnt($mset->size, 0, "phrase search succeeds on indexlevel=full");
 	for (glob("$xap/*/*")) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 
@@ -184,12 +184,12 @@ ok(!-d $xap, 'Xapian directories removed again');
 		# not sure why, but Xapian seems to fallback to terms and
 		# phrase searches still work
 		delete $ibx->{search};
-		my $mset = $ibx->search->query($phrase, {mset=>1});
+		my $mset = $ibx->search->mset($phrase);
 		is($mset->size, 0, 'phrase search does not work on medium');
 	}
 	my $words = $phrase;
 	$words =~ tr/"'//d;
-	my $mset = $ibx->search->query($words, {mset=>1});
+	my $mset = $ibx->search->mset($words);
 	isnt($mset->size, 0, "normal search works on indexlevel=medium");
 	for (glob("$xap/*/*")) { $sizes{$ibx->{indexlevel}} += -s _ if -f $_ }
 
@@ -531,7 +531,8 @@ EOF
 
 	my %uniq;
 	for my $s (qw(uno dos tres)) {
-		my $msgs = $ibx->search->query("s:$s");
+		my $mset = $ibx->search->mset("s:$s");
+		my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
 		is(scalar(@$msgs), 1, "only one result for `$s'");
 		$uniq{$msgs->[0]->{num}}++;
 	}

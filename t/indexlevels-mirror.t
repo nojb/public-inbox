@@ -121,8 +121,8 @@ my $import_index_incremental = sub {
 		is(PublicInbox::Admin::detect_indexlevel($ro_mirror), $level,
 		   'indexlevel detectable by Admin after xcpdb v' .$v.$level);
 		delete $ro_mirror->{$_} for (qw(over search));
-		$msgs = $ro_mirror->search->query('m:m@2');
-		is(scalar(@$msgs), 1, "v$v found m\@2 via Xapian on $level");
+		my $mset = $ro_mirror->search->mset('m:m@2');
+		is($mset->size, 1, "v$v found m\@2 via Xapian on $level");
 	}
 
 	# sync the mirror
@@ -138,8 +138,8 @@ my $import_index_incremental = sub {
 			 'no Xapian shard directories for v2 basic');
 	}
 	if ($level ne 'basic') {
-		$msgs = $ro_mirror->search->reopen->query('m:m@2');
-		is(scalar(@$msgs), 0,
+		my $mset = $ro_mirror->search->reopen->mset('m:m@2');
+		is($mset->size, 0,
 			"v$v m\@2 gone from Xapian in mirror on $level");
 	}
 
