@@ -1109,67 +1109,6 @@ sub search_uid_range { # long_response
 	1; # more
 }
 
-sub date_search {
-	my ($q, $k, $d) = @_;
-	my $sql = $q->{sql};
-
-	# Date: header
-	if ($k eq 'SENTON') {
-		my $end = $d + 86399; # no leap day...
-		my $da = strftime('%Y%m%d%H%M%S', gmtime($d));
-		my $db = strftime('%Y%m%d%H%M%S', gmtime($end));
-		$q->{xap} .= " dt:$da..$db";
-		$$sql .= " AND ds >= $d AND ds <= $end" if defined($sql);
-	} elsif ($k eq 'SENTBEFORE') {
-		$q->{xap} .= ' d:..'.strftime('%Y%m%d', gmtime($d));
-		$$sql .= " AND ds <= $d" if defined($sql);
-	} elsif ($k eq 'SENTSINCE') {
-		$q->{xap} .= ' d:'.strftime('%Y%m%d', gmtime($d)).'..';
-		$$sql .= " AND ds >= $d" if defined($sql);
-
-	# INTERNALDATE (Received)
-	} elsif ($k eq 'ON') {
-		my $end = $d + 86399; # no leap day...
-		$q->{xap} .= " ts:$d..$end";
-		$$sql .= " AND ts >= $d AND ts <= $end" if defined($sql);
-	} elsif ($k eq 'BEFORE') {
-		$q->{xap} .= " ts:..$d";
-		$$sql .= " AND ts <= $d" if defined($sql);
-	} elsif ($k eq 'SINCE') {
-		$q->{xap} .= " ts:$d..";
-		$$sql .= " AND ts >= $d" if defined($sql);
-	} else {
-		die "BUG: $k not recognized";
-	}
-}
-
-# IMAP to Xapian search key mapping
-my %I2X = (
-	SUBJECT => 's:',
-	BODY => 'b:',
-	FROM => 'f:',
-	TEXT => '', # n.b. does not include all headers
-	TO => 't:',
-	CC => 'c:',
-	# BCC => 'bcc:', # TODO
-	# KEYWORD # TODO ? dfpre,dfpost,...
-);
-
-# IMAP allows searching arbitrary headers via "HEADER $HDR_NAME $HDR_VAL"
-# which gets silly expensive.  We only allow the headers we already index.
-my %H2X = (%I2X, 'MESSAGE-ID' => 'm:', 'LIST-ID' => 'l:');
-
-sub xap_append ($$$$) {
-	my ($q, $rest, $k, $xk) = @_;
-	delete $q->{sql}; # can't use over.sqlite3
-	defined(my $arg = shift @$rest) or return "BAD $k no arg";
-
-	# AFAIK Xapian can't handle [*"] in probabilistic terms
-	$arg =~ tr/*"//d;
-	${$q->{xap}} .= qq[ $xk"$arg"];
-	undef;
-}
-
 sub parse_query ($$) {
 	my ($self, $query) = @_;
 	my $q = PublicInbox::IMAPsearchqp::parse($self, $query);
