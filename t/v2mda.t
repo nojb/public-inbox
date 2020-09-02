@@ -50,7 +50,7 @@ $ibx = PublicInbox::Inbox->new($ibx);
 if ($V == 1) {
 	ok(run_script([ '-index', "$tmpdir/inbox" ]), 'v1 indexed');
 }
-my $msgs = $ibx->search->query('');
+my $msgs = $ibx->over->recent;
 is(scalar(@$msgs), 1, 'only got one message');
 my $eml = $ibx->smsg_eml($msgs->[0]);
 is($eml->as_string, $mime->as_string, 'injected message');
@@ -64,7 +64,7 @@ is($eml->as_string, $mime->as_string, 'injected message');
 	ok(run_script(['-mda'], undef, $rdr), 'mda did not die on "spam"');
 	@new = glob("$faildir/new/*");
 	is(scalar(@new), 1, 'got a message in faildir');
-	$msgs = $ibx->search->reopen->query('');
+	$msgs = $ibx->over->recent;
 	is(scalar(@$msgs), 1, 'no new message');
 
 	my $config = "$ENV{PI_DIR}/config";
@@ -76,7 +76,7 @@ is($eml->as_string, $mime->as_string, 'injected message');
 	ok(run_script(['-mda'], undef, $rdr), 'mda did not die');
 	my @again = glob("$faildir/new/*");
 	is_deeply(\@again, \@new, 'no new message in faildir');
-	$msgs = $ibx->search->reopen->query('');
+	$msgs = $ibx->over->recent;
 	is(scalar(@$msgs), 2, 'new message added OK');
 }
 

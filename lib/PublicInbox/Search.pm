@@ -282,15 +282,10 @@ sub reopen {
 sub query {
 	my ($self, $query_string, $opts) = @_;
 	$opts ||= {};
-	if ($query_string eq '' && !$opts->{mset}) {
-		$self->{over_ro}->recent($opts);
-	} else {
-		my $qp = $self->{qp} //= qparse_new($self);
-		my $qp_flags = $self->{qp_flags};
-		my $query = $qp->parse_query($query_string, $qp_flags);
-		$opts->{relevance} = 1 unless exists $opts->{relevance};
-		_do_enquire($self, $query, $opts);
-	}
+	my $qp = $self->{qp} //= qparse_new($self);
+	my $query = $qp->parse_query($query_string, $self->{qp_flags});
+	$opts->{relevance} = 1 unless exists $opts->{relevance};
+	_do_enquire($self, $query, $opts);
 }
 
 sub retry_reopen {
