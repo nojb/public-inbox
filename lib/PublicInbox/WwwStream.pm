@@ -50,9 +50,10 @@ sub html_top ($) {
 	} elsif ($ctx->{qp}->{t}) {
 		$top = qq(<a\nhref="./">$top</a>);
 	}
-	my $links = "<a\nhref=\"$help\">help</a> / ".
-			"<a\nhref=\"$color\">color</a> / ".
-			"<a\nhref=\"$atom\">Atom feed</a>";
+	my $links = qq(<a\nhref="$help">help</a> / ).
+			qq(<a\nhref="$color">color</a> / ).
+			qq(<a\nhref=#mirror>mirror</a> / ).
+			q(<a\nhref="$atom">Atom feed</a>);
 	if ($ibx->search) {
 		my $q_val = delete($ctx->{-q_value_html}) // '';
 		$q_val = qq(\nvalue="$q_val") if $q_val ne '';
@@ -83,7 +84,11 @@ sub code_footer ($) {
 
 sub _html_end {
 	my ($ctx) = @_;
-	my $urls = 'Archives are clonable:';
+	my $urls = <<EOF;
+<a
+id=mirror>This inbox may be cloned and mirrored by anyone:</a>
+EOF
+
 	my $ibx = $ctx->{-inbox};
 	my $desc = ascii_html($ibx->description);
 
@@ -94,11 +99,17 @@ sub _html_end {
 	my %seen = ($http => 1);
 	if (defined($max)) { # v2
 		for my $i (0..$max) {
-			# old parts my be deleted:
+			# old epochs my be deleted:
 			-d "$ibx->{inboxdir}/git/$i.git" or next;
 			my $url = "$http/$i";
 			$seen{$url} = 1;
 			push @urls, "$url $dir/git/$i.git";
+		}
+		my $nr = scalar(@urls);
+		if ($nr > 1) {
+			$urls .= "\n\t# this inbox consists of $nr epochs:";
+			$urls[0] .= "\t# oldest";
+			$urls[-1] .= "\t# newest";
 		}
 	} else { # v1
 		push @urls, $http;
@@ -111,12 +122,7 @@ sub _html_end {
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
 	}
 
-	if (defined($max) || scalar(@urls) > 1) {
-		$urls .= "\n" .
-			join("\n", map { "\tgit clone --mirror $_" } @urls);
-	} else {
-		$urls .= " git clone --mirror $urls[0]";
-	}
+	$urls .= "\n" .  join("\n", map { "\tgit clone --mirror $_" } @urls);
 	if (defined $max) {
 		my $addrs = $ibx->{address};
 		$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
@@ -134,16 +140,19 @@ EOF
 	}
 
 	my $cfg_link = ($ctx->{-upfx} // '').'_/text/config/raw';
-	$urls .= qq(\nExample <a\nhref="$cfg_link">config snippet</a> for mirrors\n);
+	$urls .= <<EOF;
+
+Example <a
+href="$cfg_link">config snippet</a> for mirrors.
+EOF
 	my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$ibx->nntp_url};
 	if (@nntp) {
-		$urls .= "\n";
 		$urls .= @nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
 		$urls .= ' available over NNTP:';
 		$urls .= "\n\t" . join("\n\t", @nntp) . "\n";
 	}
 	if ($urls =~ m!\b[^:]+://\w+\.onion/!) {
-		$urls .= "\n note: .onion URLs require Tor: ";
+		$urls .= " note: .onion URLs require Tor: ";
 		$urls .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
 	}
 	'<hr><pre>'.join("\n\n",
