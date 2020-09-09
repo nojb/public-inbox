@@ -139,14 +139,16 @@ sub inbox_config ($$$) {
 	push @$hdr, 'Content-Disposition', 'inline; filename=inbox.config';
 	my $name = dq_escape($ibx->{name});
 	my $inboxdir = '/path/to/top-level-inbox';
+	my $base_url = $ibx->base_url($ctx->{env});
 	$$txt .= <<EOS;
-; example public-inbox config snippet for "$name"
-; see public-inbox-config(5) manpage for more details:
+; Example public-inbox config snippet for a mirror of
+; $base_url
+; See public-inbox-config(5) manpage for more details:
 ; https://public-inbox.org/public-inbox-config.html
 [publicinbox "$name"]
 	inboxdir = $inboxdir
-	; note: public-inbox before v1.2.0 used "mainrepo"
-	; instead of "inboxdir", both remain supported after 1.2
+	; note: public-inbox before v1.2.0 used `mainrepo' instead of
+	; `inboxdir', both remain supported after 1.2
 	mainrepo = $inboxdir
 	url = https://example.com/$name/
 	url = http://example.onion/$name/
@@ -156,7 +158,6 @@ EOS
 		$$txt .= "\t$k = $_\n" for @$v;
 	}
 	if (my $altid = $ibx->{altid}) {
-		my $base_url = $ibx->base_url($ctx->{env});
 		my $altid_map = $ibx->altid_map;
 		$$txt .= <<EOF;
 	; altid DBs may be used to provide numeric article ID lookup from
