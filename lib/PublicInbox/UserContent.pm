@@ -23,7 +23,7 @@ sub CSS () {
 	 * Underlined links add visual noise which make them hard-to-read.
 	 * Use colors to make them stand out, instead.
 	 */
-	a { color:#69f !important; text-decoration:none !important }
+	a:link { color:#69f !important; text-decoration:none !important }
 	a:visited { color:#96f !important }
 
 	/* quoted text in emails gets a different color */

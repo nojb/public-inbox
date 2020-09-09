@@ -10,7 +10,7 @@
  * Underlined links add visual noise which make them hard-to-read.
  * Use colors to make them stand out, instead.
  */
-a { color:#00f; text-decoration:none }
+a:link { color:#00f; text-decoration:none }
 a:visited { color:#808 }
 
 /* quoted text gets a different color */
