@@ -5,129 +5,104 @@
 # Used by PublicInbox::WWW
 package PublicInbox::WwwListing;
 use strict;
-use PublicInbox::Hval qw(ascii_html prurl fmt_ts);
+use PublicInbox::Hval qw(prurl fmt_ts);
 use PublicInbox::Linkify;
 use PublicInbox::GzipFilter qw(gzf_maybe);
-use PublicInbox::ManifestJsGz;
+use PublicInbox::ConfigIter;
 use bytes (); # bytes::length
 
-sub list_all_i {
-	my ($ibx, $list, $hide_key) = @_;
-	push @$list, $ibx unless $ibx->{-hide}->{$hide_key};
-}
-
-sub list_all ($$$) {
-	my ($self, $env, $hide_key) = @_;
-	my $list = [];
-	$self->{pi_config}->each_inbox(\&list_all_i, $list, $hide_key);
-	$list;
-}
-
-sub list_match_domain_i {
-	my ($ibx, $list, $hide_key, $re) = @_;
-	if (!$ibx->{-hide}->{$hide_key} && grep(/$re/, @{$ibx->{url}})) {
-		push @$list, $ibx;
-	}
-}
-
-sub list_match_domain ($$$) {
-	my ($self, $env, $hide_key) = @_;
-	my $list = [];
-	my $host = $env->{HTTP_HOST} // $env->{SERVER_NAME};
-	$host =~ s/:[0-9]+\z//;
-	$self->{pi_config}->each_inbox(\&list_match_domain_i, $list, $hide_key,
-				qr!\A(?:https?:)?//\Q$host\E(?::[0-9]+)?/!i);
-	$list;
-}
-
-sub list_404 ($$) { [] }
-
-# TODO: +cgit
-my %VALID = (
-	all => \&list_all,
-	'match=domain' => \&list_match_domain,
-	404 => \&list_404,
-);
-
-sub set_cb ($$$) {
-	my ($pi_config, $k, $default) = @_;
-	my $v = $pi_config->{lc $k} // $default;
-	$VALID{$v} || do {
-		warn <<"";
-`$v' is not a valid value for `$k'
-$k be one of `all', `match=domain', or `404'
-
-		$VALID{$default};
-	};
-}
-
-sub new {
-	my ($class, $www) = @_;
-	my $pi_config = $www->{pi_config};
-	bless {
-		pi_config => $pi_config,
-		style => $www->style("\0"),
-		www_cb => set_cb($pi_config, 'publicInbox.wwwListing', 404),
-		manifest_cb => set_cb($pi_config, 'publicInbox.grokManifest',
-					'match=domain'),
-	}, $class;
-}
-
 sub ibx_entry {
-	my ($mtime, $ibx, $env) = @_;
+	my ($ctx, $ibx) = @_;
+	my $mtime = $ibx->modified;
 	my $ts = fmt_ts($mtime);
-	my $url = prurl($env, $ibx->{url});
+	my $url = prurl($ctx->{env}, $ibx->{url});
 	my $tmp = <<"";
 * $ts - $url
   ${\$ibx->description}
 
 	if (defined(my $info_url = $ibx->{infourl})) {
-		$tmp .= '  ' . prurl($env, $info_url) . "\n";
+		$tmp .= '  ' . prurl($ctx->{env}, $info_url) . "\n";
 	}
-	$tmp;
+	push @{$ctx->{-list}}, [ $mtime, $tmp ];
 }
 
-sub html ($$) {
-	my ($env, $list) = @_;
+sub list_match_i { # ConfigIter callback
+	my ($cfg, $section, $re, $ctx) = @_;
+	if (defined($section)) {
+		return if $section !~ m!\Apublicinbox\.([^/]+)\z!;
+		my $ibx = $cfg->lookup_name($1) or return;
+		if (!$ibx->{-hide}->{$ctx->hide_key} &&
+					grep(/$re/, @{$ibx->{url}})) {
+			$ctx->ibx_entry($ibx);
+		}
+	} else { # undef == "EOF"
+		$ctx->{-wcb}->($ctx->psgi_triple);
+	}
+}
+
+sub url_regexp {
+	my ($ctx, $key, $default) = @_;
+	$key //= 'publicInbox.wwwListing';
+	$default //= '404';
+	my $v = $ctx->{www}->{pi_config}->{lc $key} // $default;
+again:
+	if ($v eq 'match=domain') {
+		my $h = $ctx->{env}->{HTTP_HOST} // $ctx->{env}->{SERVER_NAME};
+		$h =~ s/:[0-9]+\z//;
+		qr!\A(?:https?:)?//\Q$h\E(?::[0-9]+)?/!i;
+	} elsif ($v eq 'all') {
+		qr/./;
+	} elsif ($v eq '404') {
+		undef;
+	} else {
+		warn <<EOF;
+`$v' is not a valid value for `$key'
+$key be one of `all', `match=domain', or `404'
+EOF
+		$v = $default; # 'match=domain' or 'all'
+		goto again;
+	}
+}
+
+sub hide_key { 'www' }
+
+sub response {
+	my ($class, $ctx) = @_;
+	bless $ctx, $class;
+	my $re = $ctx->url_regexp or return $ctx->psgi_triple;
+	my $iter = PublicInbox::ConfigIter->new($ctx->{www}->{pi_config},
+						\&list_match_i, $re, $ctx);
+	sub {
+		$ctx->{-wcb} = $_[0]; # HTTP server callback
+		$ctx->{env}->{'pi-httpd.async'} ?
+				$iter->event_step : $iter->each_section;
+	}
+}
+
+sub psgi_triple {
+	my ($ctx) = @_;
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8',
 			'Content-Length', undef ];
-	my $gzf = gzf_maybe($h, $env);
+	my $gzf = gzf_maybe($h, $ctx->{env});
 	$gzf->zmore('<html><head><title>' .
 				'public-inbox listing</title>' .
 				'</head><body><pre>');
 	my $code = 404;
-	if (@$list) {
+	if (my $list = $ctx->{-list}) {
 		$code = 200;
-		# Schwartzian transform since Inbox->modified is expensive
-		@$list = sort {
-			$b->[0] <=> $a->[0]
-		} map { [ $_->modified, $_ ] } @$list;
-
-		my $tmp = join("\n", map { ibx_entry(@$_, $env) } @$list);
+		# sort by ->modified
+		@$list = map { $_->[1] } sort { $b->[0] <=> $a->[0] } @$list;
+		$list = join("\n", @$list);
 		my $l = PublicInbox::Linkify->new;
-		$gzf->zmore($l->to_html($tmp));
+		$gzf->zmore($l->to_html($list));
 	} else {
 		$gzf->zmore('no inboxes, yet');
 	}
 	my $out = $gzf->zflush('</pre><hr><pre>'.
-				PublicInbox::WwwStream::code_footer($env) .
-				'</pre></body></html>');
+			PublicInbox::WwwStream::code_footer($ctx->{env}) .
+			'</pre></body></html>');
 	$h->[3] = bytes::length($out);
 	[ $code, $h, [ $out ] ];
-}
-
-# not really a stand-alone PSGI app, but maybe it could be...
-sub call {
-	my ($self, $env) = @_;
-
-	if ($env->{PATH_INFO} eq '/manifest.js.gz') {
-		# grokmirror uses relative paths, so it's domain-dependent
-		my $list = $self->{manifest_cb}->($self, $env, 'manifest');
-		PublicInbox::ManifestJsGz::response($env, $list);
-	} else { # /
-		my $list = $self->{www_cb}->($self, $env, 'www');
-		html($env, $list);
-	}
 }
 
 1;

@@ -25,4 +25,16 @@ sub event_step {
 	PublicInbox::DS::requeue($self) if defined($section);
 }
 
+# for generic PSGI servers
+sub each_section {
+	my $self = shift;
+	my ($pi_cfg, $i, $cb, @arg) = @$self;
+	while (defined(my $section = $pi_cfg->{-section_order}->[$$i++])) {
+		eval { $cb->($pi_cfg, $section, @arg) };
+		warn "E: $@ in ${self}::each_section" if $@;
+	}
+	eval { $cb->($pi_cfg, undef, @arg) };
+	warn "E: $@ in ${self}::each_section" if $@;
+}
+
 1;

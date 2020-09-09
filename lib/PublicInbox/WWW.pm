@@ -77,8 +77,12 @@ sub call {
 	}
 
 	# top-level indices and feeds
-	if ($path_info eq '/' || $path_info eq '/manifest.js.gz') {
-		www_listing($self)->call($env);
+	if ($path_info eq '/') {
+		require PublicInbox::WwwListing;
+		PublicInbox::WwwListing->response($ctx);
+	} elsif ($path_info eq '/manifest.js.gz') {
+		require PublicInbox::ManifestJsGz;
+		PublicInbox::ManifestJsGz->response($ctx);
 	} elsif ($path_info =~ m!$INBOX_RE\z!o) {
 		invalid_inbox($ctx, $1) || r301($ctx, $1);
 	} elsif ($path_info =~ m!$INBOX_RE(?:/|/index\.html)?\z!o) {
@@ -171,7 +175,6 @@ sub preload {
 		}
 		$self->cgit;
 		$self->stylesheets_prepare($_) for ('', '../', '../../');
-		$self->www_listing;
 		$self->news_www;
 		$pi_config->each_inbox(\&preload_inbox);
 	}
@@ -496,21 +499,13 @@ sub cgit {
 	}
 }
 
-sub www_listing {
-	my ($self) = @_;
-	$self->{www_listing} ||= do {
-		require PublicInbox::WwwListing;
-		PublicInbox::WwwListing->new($self);
-	}
-}
-
 # GET $INBOX/manifest.js.gz
 sub get_inbox_manifest ($$$) {
 	my ($ctx, $inbox, $key) = @_;
 	my $r404 = invalid_inbox($ctx, $inbox);
 	return $r404 if $r404;
 	require PublicInbox::ManifestJsGz;
-	PublicInbox::ManifestJsGz::response($ctx->{env}, [$ctx->{-inbox}]);
+	PublicInbox::ManifestJsGz->response($ctx);
 }
 
 sub get_attach {
