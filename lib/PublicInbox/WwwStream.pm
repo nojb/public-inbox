@@ -53,7 +53,7 @@ sub html_top ($) {
 	my $links = qq(<a\nhref="$help">help</a> / ).
 			qq(<a\nhref="$color">color</a> / ).
 			qq(<a\nhref=#mirror>mirror</a> / ).
-			q(<a\nhref="$atom">Atom feed</a>);
+			qq(<a\nhref="$atom">Atom feed</a>);
 	if ($ibx->search) {
 		my $q_val = delete($ctx->{-q_value_html}) // '';
 		$q_val = qq(\nvalue="$q_val") if $q_val ne '';
