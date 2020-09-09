@@ -9,8 +9,7 @@
 # local filesystem layouts in the process.
 package PublicInbox::SolverGit;
 use strict;
-use warnings;
-use 5.010_001;
+use v5.10.1;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Git qw(git_unquote git_quote);
@@ -270,7 +269,7 @@ sub prepare_index ($) {
 	my $in = tmpfile("update-index.$oid_full") or die "tmpfile: $!";
 	print $in "$mode_a $oid_full\t$path_a\0" or die "print: $!";
 	$in->flush or die "flush: $!";
-	sysseek($in, 0, 0) or die "seek: $!";
+	sysseek($in, 0, SEEK_SET) or die "seek: $!";
 
 	dbg($self, 'preparing index');
 	my $rdr = { 0 => $in };
