@@ -157,6 +157,7 @@ lib/PublicInbox/Lock.pm
 lib/PublicInbox/MDA.pm
 lib/PublicInbox/MID.pm
 lib/PublicInbox/MIME.pm
+lib/PublicInbox/ManifestJsGz.pm
 lib/PublicInbox/Mbox.pm
 lib/PublicInbox/MboxGz.pm
 lib/PublicInbox/MsgIter.pm

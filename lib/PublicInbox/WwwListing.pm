@@ -5,24 +5,11 @@
 # Used by PublicInbox::WWW
 package PublicInbox::WwwListing;
 use strict;
-use warnings;
 use PublicInbox::Hval qw(ascii_html prurl fmt_ts);
 use PublicInbox::Linkify;
-use PublicInbox::View;
-use PublicInbox::Inbox;
 use PublicInbox::GzipFilter qw(gzf_maybe);
+use PublicInbox::ManifestJsGz;
 use bytes (); # bytes::length
-use HTTP::Date qw(time2str);
-use Digest::SHA ();
-use File::Spec ();
-use IO::Compress::Gzip qw(gzip);
-*try_cat = \&PublicInbox::Inbox::try_cat;
-our $json;
-for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
-	eval "require $mod" or next;
-	# ->ascii encodes non-ASCII to "\uXXXX"
-	$json = $mod->new->ascii(1) and last;
-}
 
 sub list_all_i {
 	my ($ibx, $arg) = @_;
@@ -132,106 +119,6 @@ sub html ($$) {
 	[ $code, $h, [ $out ] ];
 }
 
-sub fingerprint ($) {
-	my ($git) = @_;
-	# TODO: convert to qspawn for fairness when there's
-	# thousands of repos
-	my ($fh, $pid) = $git->popen('show-ref');
-	my $dig = Digest::SHA->new(1);
-	while (read($fh, my $buf, 65536)) {
-		$dig->add($buf);
-	}
-	close $fh;
-	waitpid($pid, 0);
-	return if $?; # empty, uninitialized git repo
-	$dig->hexdigest;
-}
-
-sub manifest_add ($$;$$) {
-	my ($manifest, $ibx, $epoch, $default_desc) = @_;
-	my $url_path = "/$ibx->{name}";
-	my $git_dir = $ibx->{inboxdir};
-	if (defined $epoch) {
-		$git_dir .= "/git/$epoch.git";
-		$url_path .= "/git/$epoch.git";
-	}
-	return unless -d $git_dir;
-	my $git = PublicInbox::Git->new($git_dir);
-	my $fingerprint = fingerprint($git) or return; # no empty repos
-
-	chomp(my $owner = $git->qx('config', 'gitweb.owner'));
-	chomp(my $desc = try_cat("$git_dir/description"));
-	utf8::decode($owner);
-	utf8::decode($desc);
-	$owner = undef if $owner eq '';
-	$desc = 'Unnamed repository' if $desc eq '';
-
-	# templates/hooks--update.sample and git-multimail in git.git
-	# only match "Unnamed repository", not the full contents of
-	# templates/this--description in git.git
-	if ($desc =~ /\AUnnamed repository/) {
-		$desc = "$default_desc [epoch $epoch]" if defined($epoch);
-	}
-
-	my $reference;
-	chomp(my $alt = try_cat("$git_dir/objects/info/alternates"));
-	if ($alt) {
-		# n.b.: GitPython doesn't seem to handle comments or C-quoted
-		# strings like native git does; and we don't for now, either.
-		my @alt = split(/\n+/, $alt);
-
-		# grokmirror only supports 1 alternate for "reference",
-		if (scalar(@alt) == 1) {
-			my $objdir = "$git_dir/objects";
-			$reference = File::Spec->rel2abs($alt[0], $objdir);
-			$reference =~ s!/[^/]+/?\z!!; # basename
-		}
-	}
-	$manifest->{-abs2urlpath}->{$git_dir} = $url_path;
-	my $modified = $git->modified;
-	if ($modified > $manifest->{-mtime}) {
-		$manifest->{-mtime} = $modified;
-	}
-	$manifest->{$url_path} = {
-		owner => $owner,
-		reference => $reference,
-		description => $desc,
-		modified => $modified,
-		fingerprint => $fingerprint,
-	};
-}
-
-# manifest.js.gz
-sub js ($$) {
-	my ($env, $list) = @_;
-	# $json won't be defined if IO::Compress::Gzip is missing
-	$json or return [ 404, [], [] ];
-
-	my $manifest = { -abs2urlpath => {}, -mtime => 0 };
-	for my $ibx (@$list) {
-		if (defined(my $max = $ibx->max_git_epoch)) {
-			my $desc = $ibx->description;
-			for my $epoch (0..$max) {
-				manifest_add($manifest, $ibx, $epoch, $desc);
-			}
-		} else {
-			manifest_add($manifest, $ibx);
-		}
-	}
-	my $abs2urlpath = delete $manifest->{-abs2urlpath};
-	my $mtime = delete $manifest->{-mtime};
-	while (my ($url_path, $repo) = each %$manifest) {
-		defined(my $abs = $repo->{reference}) or next;
-		$repo->{reference} = $abs2urlpath->{$abs};
-	}
-	my $out;
-	gzip(\($json->encode($manifest)) => \$out);
-	$manifest = undef;
-	[ 200, [ qw(Content-Type application/gzip),
-		 'Last-Modified', time2str($mtime),
-		 'Content-Length', bytes::length($out) ], [ $out ] ];
-}
-
 # not really a stand-alone PSGI app, but maybe it could be...
 sub call {
 	my ($self, $env) = @_;
@@ -239,7 +126,7 @@ sub call {
 	if ($env->{PATH_INFO} eq '/manifest.js.gz') {
 		# grokmirror uses relative paths, so it's domain-dependent
 		my $list = $self->{manifest_cb}->($self, $env, 'manifest');
-		js($env, $list);
+		PublicInbox::ManifestJsGz::response($env, $list);
 	} else { # /
 		my $list = $self->{www_cb}->($self, $env, 'www');
 		html($env, $list);

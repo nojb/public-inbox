@@ -509,8 +509,8 @@ sub get_inbox_manifest ($$$) {
 	my ($ctx, $inbox, $key) = @_;
 	my $r404 = invalid_inbox($ctx, $inbox);
 	return $r404 if $r404;
-	require PublicInbox::WwwListing;
-	PublicInbox::WwwListing::js($ctx->{env}, [$ctx->{-inbox}]);
+	require PublicInbox::ManifestJsGz;
+	PublicInbox::ManifestJsGz::response($ctx->{env}, [$ctx->{-inbox}]);
 }
 
 sub get_attach {

@@ -10,9 +10,10 @@ use PublicInbox::Import;
 require_mods(qw(URI::Escape Plack::Builder Digest::SHA
 		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny));
 require PublicInbox::WwwListing;
+require PublicInbox::ManifestJsGz;
 my $json = do {
 	no warnings 'once';
-	$PublicInbox::WwwListing::json;
+	$PublicInbox::ManifestJsGz::json;
 } or plan skip_all => "JSON module missing";
 
 use_ok 'PublicInbox::Git';
@@ -20,7 +21,7 @@ use_ok 'PublicInbox::Git';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $bare = PublicInbox::Git->new("$tmpdir/bare.git");
 PublicInbox::Import::init_bare($bare->{git_dir});
-is(PublicInbox::WwwListing::fingerprint($bare), undef,
+is(PublicInbox::ManifestJsGz::fingerprint($bare), undef,
 	'empty repo has no fingerprint');
 {
 	my $fi_data = './t/git.fast-import-data';
@@ -30,7 +31,7 @@ is(PublicInbox::WwwListing::fingerprint($bare), undef,
 		'fast-import');
 }
 
-like(PublicInbox::WwwListing::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
+like(PublicInbox::ManifestJsGz::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
 	'got fingerprint with non-empty repo');
 
 sub tiny_test {
