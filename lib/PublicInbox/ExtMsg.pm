@@ -74,69 +74,106 @@ sub search_partial ($$) {
 }
 
 sub ext_msg_i {
-	my ($other, $cur, $mid, $ibxs, $found) = @_;
+	my ($other, $ctx) = @_;
 
-	return if $other->{name} eq $cur->{name} || !$other->base_url;
+	return if $other->{name} eq $ctx->{-inbox}->{name} || !$other->base_url;
 
 	my $mm = $other->mm or return;
 
 	# try to find the URL with Msgmap to avoid forking
-	my $num = $mm->num_for($mid);
+	my $num = $mm->num_for($ctx->{mid});
 	if (defined $num) {
-		push @$found, $other;
+		push @{$ctx->{found}}, $other;
 	} else {
 		# no point in trying the fork fallback if we
 		# know Xapian is up-to-date but missing the
 		# message in the current repo
-		push @$ibxs, $other;
+		push @{$ctx->{again}}, $other;
+	}
+}
+
+sub ext_msg_step {
+	my ($pi_cfg, $section, $ctx) = @_;
+	if (defined($section)) {
+		return if $section !~ m!\Apublicinbox\.([^/]+)\z!;
+		my $ibx = $pi_cfg->lookup_name($1) or return;
+		ext_msg_i($ibx, $ctx);
+	} else { # undef == "EOF"
+		finalize_exact($ctx);
 	}
 }
 
 sub ext_msg {
 	my ($ctx) = @_;
-	my $cur = $ctx->{-inbox};
-	my $mid = $ctx->{mid};
+	sub {
+		$ctx->{-wcb} = $_[0]; # HTTP server write callback
 
-	eval { require PublicInbox::Msgmap };
-	my $ibxs = [];
-	my $found = [];
+		if ($ctx->{env}->{'pi-httpd.async'}) {
+			require PublicInbox::ConfigIter;
+			my $iter = PublicInbox::ConfigIter->new(
+						$ctx->{www}->{pi_config},
+						\&ext_msg_step, $ctx);
+			$iter->event_step;
+		} else {
+			$ctx->{www}->{pi_config}->each_inbox(\&ext_msg_i, $ctx);
+			finalize_exact($ctx);
+		}
+	};
+}
 
-	$ctx->{www}->{pi_config}->each_inbox(\&ext_msg_i,
-						$cur, $mid, $ibxs, $found);
+# called via PublicInbox::DS->EventLoop
+sub event_step {
+	my ($ctx, $sync) = @_;
+	# can't find a partial match in current inbox, try the others:
+	my $ibx = shift @{$ctx->{again}} or goto \&finalize_partial;
+	my $mids = search_partial($ibx, $ctx->{mid}) or
+			return ($sync ? undef : PublicInbox::DS::requeue($ctx));
+	$ctx->{n_partial} += scalar(@$mids);
+	push @{$ctx->{partial}}, [ $ibx, $mids ];
+	$ctx->{n_partial} >= PARTIAL_MAX ? goto(\&finalize_partial)
+			: ($sync ? undef : PublicInbox::DS::requeue($ctx));
+}
 
-	return exact($ctx, $found, $mid) if @$found;
+sub finalize_exact {
+	my ($ctx) = @_;
+
+	return $ctx->{-wcb}->(exact($ctx)) if $ctx->{found};
 
 	# fall back to partial MID matching
-	my @partial;
-	my $n_partial = 0;
+	my $mid = $ctx->{mid};
+	my $cur = $ctx->{-inbox};
 	my $mids = search_partial($cur, $mid);
 	if ($mids) {
-		$n_partial = scalar(@$mids);
-		push @partial, [ $cur, $mids ];
-	}
-
-	# can't find a partial match in current inbox, try the others:
-	if (!$n_partial && length($mid) >= $MIN_PARTIAL_LEN) {
-		foreach my $ibx (@$ibxs) {
-			$mids = search_partial($ibx, $mid) or next;
-			$n_partial += scalar(@$mids);
-			push @partial, [ $ibx, $mids];
-			last if $n_partial >= PARTIAL_MAX;
+		$ctx->{n_partial} = scalar(@$mids);
+		push @{$ctx->{partial}}, [ $cur, $mids ];
+	} elsif ($ctx->{again} && length($mid) >= $MIN_PARTIAL_LEN) {
+		bless $ctx, __PACKAGE__;
+		if ($ctx->{env}->{'pi-httpd.async'}) {
+			$ctx->event_step;
+			return;
 		}
-	}
 
+		# synchronous fall-through
+		$ctx->event_step while @{$ctx->{again}};
+	}
+	goto \&finalize_partial;
+}
+
+sub finalize_partial {
+	my ($ctx) = @_;
+	my $mid = $ctx->{mid};
 	my $code = 404;
 	my $href = mid_href($mid);
 	my $html = ascii_html($mid);
 	my $title = "&lt;$html&gt; not found";
 	my $s = "<pre>Message-ID &lt;$html&gt;\nnot found\n";
-	if ($n_partial) {
+	if (my $n_partial = $ctx->{n_partial}) {
 		$code = 300;
 		my $es = $n_partial == 1 ? '' : 'es';
 		$n_partial .= '+' if ($n_partial == PARTIAL_MAX);
 		$s .= "\n$n_partial partial match$es found:\n\n";
-		my $cur_name = $cur->{name};
-		foreach my $pair (@partial) {
+		my $cur_name = $ctx->{-inbox}->{name};
+		foreach my $pair (@{$ctx->{partial}}) {
 			my ($ibx, $res) = @$pair;
 			my $env = $ctx->{env} if $ibx->{name} eq $cur_name;
 			my $u = $ibx->base_url($env) or next;
@@ -155,7 +192,7 @@ sub ext_msg {
 	$ctx->{-html_tip} = $s .= '</pre>';
 	$ctx->{-title_html} = $title;
 	$ctx->{-upfx} = '../';
-	html_oneshot($ctx, $code);
+	$ctx->{-wcb}->(html_oneshot($ctx, $code));
 }
 
 sub ext_urls {
@@ -177,7 +214,9 @@ sub ext_urls {
 }
 
 sub exact {
-	my ($ctx, $found, $mid) = @_;
+	my ($ctx) = @_;
+	my $mid = $ctx->{mid};
+	my $found = $ctx->{found};
 	my $href = mid_href($mid);
 	my $html = ascii_html($mid);
 	my $title = "&lt;$html&gt; found in ";
