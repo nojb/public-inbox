@@ -74,8 +74,7 @@ sub search_partial ($$) {
 }
 
 sub ext_msg_i {
-	my ($other, $arg) = @_;
-	my ($cur, $mid, $ibxs, $found) = @$arg;
+	my ($other, $cur, $mid, $ibxs, $found) = @_;
 
 	return if $other->{name} eq $cur->{name} || !$other->base_url;
 
@@ -101,9 +100,9 @@ sub ext_msg {
 	eval { require PublicInbox::Msgmap };
 	my $ibxs = [];
 	my $found = [];
-	my $arg = [ $cur, $mid, $ibxs, $found ];
 
-	$ctx->{www}->{pi_config}->each_inbox(\&ext_msg_i, $arg);
+	$ctx->{www}->{pi_config}->each_inbox(\&ext_msg_i,
+						$cur, $mid, $ibxs, $found);
 
 	return exact($ctx, $found, $mid) if @$found;
 

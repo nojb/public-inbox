@@ -133,8 +133,7 @@ sub _done_for_now {
 }
 
 sub remove_eml_i { # each_inbox callback
-	my ($ibx, $arg) = @_;
-	my ($self, $eml, $loc) = @$arg;
+	my ($ibx, $self, $eml, $loc) = @_;
 
 	eval {
 		# try to avoid taking a lock or unnecessary spawning
@@ -176,7 +175,7 @@ sub _remove_spam {
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
 	my $eml = eml_from_path($path) or return;
 	local $SIG{__WARN__} = warn_ignore_cb();
-	$self->{config}->each_inbox(\&remove_eml_i, [ $self, $eml, $path ]);
+	$self->{config}->each_inbox(\&remove_eml_i, $self, $eml, $path);
 }
 
 sub import_eml ($$$) {
@@ -419,8 +418,8 @@ sub imap_import_msg ($$$$$) {
 		if ($flags =~ /\\Seen\b/) {
 			local $SIG{__WARN__} = warn_ignore_cb();
 			my $eml = PublicInbox::Eml->new($raw);
-			my $arg = [ $self, $eml, "$url UID:$uid" ];
-			$self->{config}->each_inbox(\&remove_eml_i, $arg);
+			$self->{config}->each_inbox(\&remove_eml_i,
+						$self, $eml, "$url UID:$uid");
 		}
 	} else {
 		die "BUG: destination unknown $inboxes";
@@ -967,8 +966,8 @@ sub nntp_fetch_all ($$$) {
 			}
 		} elsif ($inboxes eq 'watchspam') {
 			my $eml = PublicInbox::Eml->new(\$raw);
-			my $arg = [ $self, $eml, "$url ARTICLE $art" ];
-			$self->{config}->each_inbox(\&remove_eml_i, $arg);
+			$self->{config}->each_inbox(\&remove_eml_i,
+					$self, $eml, "$url ARTICLE $art");
 		} else {
 			die "BUG: destination unknown $inboxes";
 		}

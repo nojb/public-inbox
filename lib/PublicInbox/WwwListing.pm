@@ -12,21 +12,19 @@ use PublicInbox::ManifestJsGz;
 use bytes (); # bytes::length
 
 sub list_all_i {
-	my ($ibx, $arg) = @_;
-	my ($list, $hide_key) = @$arg;
+	my ($ibx, $list, $hide_key) = @_;
 	push @$list, $ibx unless $ibx->{-hide}->{$hide_key};
 }
 
 sub list_all ($$$) {
 	my ($self, $env, $hide_key) = @_;
 	my $list = [];
-	$self->{pi_config}->each_inbox(\&list_all_i, [ $list, $hide_key ]);
+	$self->{pi_config}->each_inbox(\&list_all_i, $list, $hide_key);
 	$list;
 }
 
 sub list_match_domain_i {
-	my ($ibx, $arg) = @_;
-	my ($list, $hide_key, $re) = @$arg;
+	my ($ibx, $list, $hide_key, $re) = @_;
 	if (!$ibx->{-hide}->{$hide_key} && grep(/$re/, @{$ibx->{url}})) {
 		push @$list, $ibx;
 	}
@@ -37,9 +35,8 @@ sub list_match_domain ($$$) {
 	my $list = [];
 	my $host = $env->{HTTP_HOST} // $env->{SERVER_NAME};
 	$host =~ s/:[0-9]+\z//;
-	my $arg = [ $list, $hide_key,
-		qr!\A(?:https?:)?//\Q$host\E(?::[0-9]+)?/!i ];
-	$self->{pi_config}->each_inbox(\&list_match_domain_i, $arg);
+	$self->{pi_config}->each_inbox(\&list_match_domain_i, $list, $hide_key,
+				qr!\A(?:https?:)?//\Q$host\E(?::[0-9]+)?/!i);
 	$list;
 }
 
