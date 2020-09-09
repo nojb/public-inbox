@@ -33,11 +33,11 @@ my $todo = {
 	],
 };
 
-my ($ibx, $urls);
+my ($ibx_name, $urls, @gone);
 my $client = sub {
 	my ($cb) = @_;
 	for (@$urls) {
-		my $url = "/$ibx/$_";
+		my $url = "/$ibx_name/$_";
 		my $res = $cb->(GET($url));
 		is($res->code, 200, $url);
 		next if $res->code == 200;
@@ -46,14 +46,33 @@ my $client = sub {
 	}
 };
 
-while (($ibx, $urls) = each %$todo) {
+my $nr = 0;
+while (($ibx_name, $urls) = each %$todo) {
 	SKIP: {
-		if (!$cfg->lookup_name($ibx)) {
-			skip("$ibx not configured", scalar(@$urls));
+		if (!$cfg->lookup_name($ibx_name)) {
+			push @gone, $ibx_name;
+			skip("$ibx_name not configured", scalar(@$urls));
 		}
 		test_psgi($app, $client);
+		$nr++;
+	}
+}
+
+SKIP: {
+	require_mods(qw(Plack::Test::ExternalServer), $nr);
+	delete @$todo{@gone};
+
+	my $sock = tcp_server() or BAIL_OUT $!;
+	my ($tmpdir, $for_destroy) = tmpdir();
+	my ($out, $err) = map { "$tmpdir/std$_.log" } qw(out err);
+	my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
+	my $td = start_script($cmd, undef, { 3 => $sock });
+	my ($h, $p) = ($sock->sockhost, $sock->sockport);
+
+	local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
+	while (($ibx_name, $urls) = each %$todo) {
+		Plack::Test::ExternalServer::test_psgi(client => $client);
 	}
 }
 
 done_testing();
-1;
