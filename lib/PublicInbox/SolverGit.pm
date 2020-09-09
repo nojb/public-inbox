@@ -106,11 +106,16 @@ sub solve_existing ($$) {
 
 sub extract_diff ($$) {
 	my ($p, $arg) = @_;
-	my ($self, $diffs, $pre, $post, $ibx, $smsg) = @$arg;
+	my ($self, $want, $smsg) = @$arg;
 	my ($part) = @$p; # ignore $depth and @idx;
 	my $ct = $part->content_type || 'text/plain';
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
+	my $post = $want->{oid_b};
+	my $pre = $want->{oid_a};
+	if (!defined($pre) || $pre !~ /\A[a-f0-9]+\z/) {
+		$pre = '[a-f0-9]{7}'; # for RE below
+	}
 
 	# Email::MIME::Encodings forces QP to be CRLF upon decoding,
 	# change it back to LF:
@@ -192,10 +197,10 @@ sub extract_diff ($$) {
 	close $tmp or die "close(tmp): $!";
 
 	# for debugging/diagnostics:
-	$di->{ibx} = $ibx;
+	$di->{ibx} = $want->{cur_ibx};
 	$di->{smsg} = $smsg;
 
-	push @$diffs, $di;
+	push @{$self->{tmp_diffs}}, $di;
 }
 
 sub path_searchable ($) { defined($_[0]) && $_[0] =~ m!\A[\w/\. \-]+\z! }
@@ -207,7 +212,7 @@ sub filename_query ($) {
 	join('', map { qq( dfn:"$_") } split(/\.\./, $_[0]));
 }
 
-sub find_extract_diffs ($$$) {
+sub find_smsgs ($$$) {
 	my ($self, $ibx, $want) = @_;
 	my $srch = $ibx->search or return;
 
@@ -218,8 +223,6 @@ sub find_extract_diffs ($$$) {
 	my $pre = $want->{oid_a};
 	if (defined $pre && $pre =~ /\A[a-f0-9]+\z/) {
 		$q .= " dfpre:$pre";
-	} else {
-		$pre = '[a-f0-9]{7}'; # for $re below
 	}
 
 	my $path_b = $want->{path_b};
@@ -231,15 +234,8 @@ sub find_extract_diffs ($$$) {
 			$q .= filename_query($path_a);
 		}
 	}
-
 	my $mset = $srch->mset($q, { relevance => 1 });
-	my $diffs = [];
-	for my $smsg (@{$srch->mset_to_smsg($ibx, $mset)}) {
-		my $eml = $ibx->smsg_eml($smsg) or next;
-		$eml->each_part(\&extract_diff,
-				[$self, $diffs, $pre, $post, $ibx, $smsg], 1);
-	}
-	@$diffs ? $diffs : undef;
+	$mset->size ? $srch->mset_to_smsg($ibx, $mset) : undef;
 }
 
 sub update_index_result ($$) {
@@ -264,7 +260,7 @@ sub prepare_index ($) {
 	# no index creation for added files
 	$oid_a =~ /\A0+\z/ and return next_step($self);
 
-	die "BUG: $oid_a not not found" unless $existing;
+	die "BUG: $oid_a not found" unless $existing;
 
 	my $oid_full = $existing->[1];
 	my $path_a = $di->{path_a} or die "BUG: path_a missing for $oid_full";
@@ -518,15 +514,78 @@ sub di_url ($$) {
 	defined($url) ? "$url$mid/" : "<$mid>";
 }
 
+sub retry_current {
+	# my ($self, $want) = @_;
+	push @{$_[0]->{todo}}, $_[1];
+	goto \&next_step # retry solve_existing
+}
+
+sub try_harder {
+	my ($self, $want) = @_;
+
+	# do we have more inboxes to try?
+	goto \&retry_current if scalar @{$want->{try_ibxs}};
+
+	my $cur_want = $want->{oid_b};
+	if (length($cur_want) > $OID_MIN) { # maybe a shorter OID will work
+		delete $want->{try_ibxs}; # drop empty arrayref
+		chop($cur_want);
+		dbg($self, "retrying $want->{oid_b} as $cur_want");
+		$want->{oid_b} = $cur_want;
+		goto \&retry_current; # retry with shorter abbrev
+	}
+
+	dbg($self, "could not find $cur_want");
+	eval { done($self, undef) };
+	die "E: $@" if $@;
+}
+
 sub resolve_patch ($$) {
 	my ($self, $want) = @_;
 
+	my $cur_want = $want->{oid_b};
 	if (scalar(@{$self->{patches}}) > $MAX_PATCH) {
 		die "Aborting, too many steps to $self->{oid_want}";
 	}
 
+	if (my $msgs = $want->{try_smsgs}) {
+		my $smsg = shift @$msgs;
+		if (my $eml = $want->{cur_ibx}->smsg_eml($smsg)) {
+			$eml->each_part(\&extract_diff,
+					[ $self, $want, $smsg ], 1);
+		}
+
+		# try the remaining smsgs later
+		goto \&retry_current if scalar @$msgs;
+
+		delete $want->{try_smsgs};
+		delete $want->{cur_ibx};
+
+		my $diffs = delete $self->{tmp_diffs};
+		if (scalar @$diffs) {
+			unshift @{$self->{patches}}, @$diffs;
+			dbg($self, "found $cur_want in " .  join(" ||\n\t",
+				map { di_url($self, $_) } @$diffs));
+
+			# good, we can find a path to the oid we $want, now
+			# lets see if we need to apply more patches:
+			my $di = $diffs->[0];
+			my $src = $di->{oid_a};
+
+			unless ($src =~ /\A0+\z/) {
+				# we have to solve it using another oid, fine:
+				my $job = {
+					oid_b => $src,
+					path_b => $di->{path_a},
+				};
+				push @{$self->{todo}}, $job;
+			}
+			goto \&next_step; # onto the next todo item
+		}
+		goto \&try_harder;
+	}
+
 	# see if we can find the blob in an existing git repo:
-	my $cur_want = $want->{oid_b};
 	if (!$want->{try_ibxs} && $self->{seen_oid}->{$cur_want}++) {
 		die "Loop detected solving $cur_want\n";
 	}
@@ -544,10 +603,9 @@ sub resolve_patch ($$) {
 			return;
 		}
 		mark_found($self, $cur_want, $existing);
-		return next_step($self); # onto patch application
+		goto \&next_step; # onto patch application
 	} elsif ($existing > 0) {
-		push @{$self->{todo}}, $want;
-		return next_step($self); # retry solve_existing
+		goto \&retry_current;
 	} else { # $existing == 0: we may retry if inbox scan (below) fails
 		delete $want->{try_gits};
 	}
@@ -555,41 +613,13 @@ sub resolve_patch ($$) {
 	# scan through inboxes to look for emails which results in
 	# the oid we want:
 	my $ibx = shift(@{$want->{try_ibxs}}) or die 'BUG: {try_ibxs} empty';
-	if (my $diffs = find_extract_diffs($self, $ibx, $want)) {
-		unshift @{$self->{patches}}, @$diffs;
-		dbg($self, "found $cur_want in ".
-			join(" ||\n\t", map { di_url($self, $_) } @$diffs));
-
-		# good, we can find a path to the oid we $want, now
-		# lets see if we need to apply more patches:
-		my $di = $diffs->[0];
-		my $src = $di->{oid_a};
-
-		unless ($src =~ /\A0+\z/) {
-			# we have to solve it using another oid, fine:
-			my $job = { oid_b => $src, path_b => $di->{path_a} };
-			push @{$self->{todo}}, $job;
-		}
-		return next_step($self); # onto the next todo item
+	if (my $msgs = find_smsgs($self, $ibx, $want)) {
+		$want->{try_smsgs} = $msgs;
+		$want->{cur_ibx} = $ibx;
+		$self->{tmp_diffs} = [];
+		goto \&retry_current;
 	}
-
-	if (scalar @{$want->{try_ibxs}}) { # do we have more inboxes to try?
-		push @{$self->{todo}}, $want;
-		return next_step($self);
-	}
-
-	if (length($cur_want) > $OID_MIN) { # maybe a shorter OID will work
-		delete $want->{try_ibxs}; # drop empty arrayref
-		chop($cur_want);
-		dbg($self, "retrying $want->{oid_b} as $cur_want");
-		$want->{oid_b} = $cur_want;
-		push @{$self->{todo}}, $want;
-		return next_step($self); # retry with shorter abbrev
-	}
-
-	dbg($self, "could not find $cur_want");
-	eval { done($self, undef) };
-	die "E: $@" if $@;
+	goto \&try_harder;
 }
 
 # this API is designed to avoid creating self-referential structures;
