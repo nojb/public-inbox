@@ -158,7 +158,7 @@ sub _undo_redirects ($) {
 # The default is 2.
 our $run_script_exit_code;
 sub RUN_SCRIPT_EXIT () { "RUN_SCRIPT_EXIT\n" };
-sub run_script_exit (;$) {
+sub run_script_exit {
 	$run_script_exit_code = $_[0] // 0;
 	die RUN_SCRIPT_EXIT;
 }
@@ -180,7 +180,7 @@ package $pkg;
 use strict;
 use subs qw(exit);
 
-*exit = *PublicInbox::TestCommon::run_script_exit;
+*exit = \\&PublicInbox::TestCommon::run_script_exit;
 sub main {
 # the below "line" directive is a magic comment, see perlsyn(1) manpage
 # line 1 "$f"

@@ -70,7 +70,7 @@ sub _cleanup_later ($) {
 	my ($self) = @_;
 	$cleanup_avail = cleanup_possible() if $cleanup_avail < 0;
 	return if $cleanup_avail != 1;
-	$cleanup_timer ||= PublicInbox::DS::later(*cleanup_task);
+	$cleanup_timer //= PublicInbox::DS::later(\&cleanup_task);
 	$CLEANUP->{"$self"} = $self;
 }
 

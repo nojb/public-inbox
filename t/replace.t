@@ -179,10 +179,10 @@ EOF
 	}
 }
 
-my $opt = { pre => *pad_msgs };
+my $opt = { pre => \&pad_msgs };
 test_replace(2, 'basic', {});
 test_replace(2, 'basic', $opt);
-test_replace(2, 'basic', $opt = { %$opt, post => *pad_msgs });
+test_replace(2, 'basic', $opt = { %$opt, post => \&pad_msgs });
 test_replace(2, 'basic', $opt = { %$opt, rotate_bytes => 1 });
 
 SKIP: {
@@ -190,9 +190,9 @@ SKIP: {
 	PublicInbox::Search::load_xapian() or skip 'Search::Xapian missing', 8;
 	for my $l (qw(medium)) {
 		test_replace(2, $l, {});
-		$opt = { pre => *pad_msgs };
+		$opt = { pre => \&pad_msgs };
 		test_replace(2, $l, $opt);
-		test_replace(2, $l, $opt = { %$opt, post => *pad_msgs });
+		test_replace(2, $l, $opt = { %$opt, post => \&pad_msgs });
 		test_replace(2, $l, $opt = { %$opt, rotate_bytes => 1 });
 	}
 };

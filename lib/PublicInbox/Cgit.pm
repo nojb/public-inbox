@@ -10,9 +10,8 @@ use strict;
 use PublicInbox::GitHTTPBackend;
 use PublicInbox::Git;
 # not bothering with Exporter for a one-off
-*input_prepare = *PublicInbox::GitHTTPBackend::input_prepare;
-*serve = *PublicInbox::GitHTTPBackend::serve;
-use warnings;
+*input_prepare = \&PublicInbox::GitHTTPBackend::input_prepare;
+*serve = \&PublicInbox::GitHTTPBackend::serve;
 use PublicInbox::Qspawn;
 use PublicInbox::WwwStatic qw(r);
 

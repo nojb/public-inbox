@@ -60,9 +60,9 @@ sub list_404 ($$) { [] }
 
 # TODO: +cgit
 my %VALID = (
-	all => *list_all,
-	'match=domain' => *list_match_domain,
-	404 => *list_404,
+	all => \&list_all,
+	'match=domain' => \&list_match_domain,
+	404 => \&list_404,
 );
 
 sub set_cb ($$$) {
