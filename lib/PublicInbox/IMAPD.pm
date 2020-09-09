@@ -6,6 +6,7 @@
 package PublicInbox::IMAPD;
 use strict;
 use PublicInbox::Config;
+use PublicInbox::ConfigIter;
 use PublicInbox::InboxIdle;
 use PublicInbox::IMAP;
 use PublicInbox::DummyInbox;
@@ -98,8 +99,9 @@ sub refresh_groups {
 	my $pi_config = PublicInbox::Config->new;
 	if ($sig) { # SIGHUP is handled through the event loop
 		$self->{imapd_next} = { dummies => {}, mailboxes => {} };
-		$pi_config->iterate_start(\&imapd_refresh_step, $self);
-		PublicInbox::DS::requeue($pi_config); # call event_step
+		my $iter = PublicInbox::ConfigIter->new($pi_config,
+						\&imapd_refresh_step, $self);
+		$iter->event_step;
 	} else { # initial start is synchronous
 		$self->{dummies} = {};
 		$pi_config->each_inbox(\&imapd_refresh_ibx, $self);

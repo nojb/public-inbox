@@ -107,6 +107,7 @@ lib/PublicInbox/AltId.pm
 lib/PublicInbox/Cgit.pm
 lib/PublicInbox/CompressNoop.pm
 lib/PublicInbox/Config.pm
+lib/PublicInbox/ConfigIter.pm
 lib/PublicInbox/ContentHash.pm
 lib/PublicInbox/DS.pm
 lib/PublicInbox/DSKQXS.pm
