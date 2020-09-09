@@ -158,7 +158,7 @@ sub cgi_run {
 	my ($in, $out, $err) = ("", "", "");
 	my $rdr = { 0 => \$in, 1 => \$out, 2 => \$err };
 	run_script(['.cgi'], \%env, $rdr);
-	die "unexpected error: \$?=$?" if $?;
+	die "unexpected error: \$?=$? ($err)" if $?;
 	my ($head, $body) = split(/\r\n\r\n/, $out, 2);
 	{ head => $head, body => $body, err => $err }
 }
