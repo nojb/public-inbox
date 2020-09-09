@@ -181,7 +181,13 @@ EOF
 	# and drop the original structure
 	if (defined(my $cr = $ibx->{coderepo})) {
 		$$txt .= "\tcoderepo = $_\n" for @$cr;
+		$$txt .= <<'EOF';
 
+; `coderepo' entries allows blob reconstruction via patch emails if
+; the inbox is indexed with Xapian.  `@@ <from-range> <to-range> @@'
+; line number ranges in `[PATCH]' emails link to /$INBOX_NAME/$OID/s/,
+; an HTTP endpoint which reconstructs git blobs via git-apply(1).
+EOF
 		my $pi_config = $ctx->{www}->{pi_config};
 		for my $cr_name (@$cr) {
 			my $urls = $pi_config->{"coderepo.$cr_name.cgiturl"};
