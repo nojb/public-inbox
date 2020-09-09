@@ -35,6 +35,7 @@ my $deliver_patch = sub ($) {
 
 $deliver_patch->('t/solve/0001-simple-mod.patch');
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
+my $v1_0_0_tag_short = substr($v1_0_0_tag, 0, 16);
 
 my $git = PublicInbox::Git->new($git_dir);
 $ibx->{-repo_objs} = [ $git ];
@@ -173,7 +174,9 @@ EOF
 		is($res->code, 404, 'failure with null OID');
 
 		$res = $cb->(GET("/$name/$v1_0_0_tag/s/"));
-		is($res->code, 200, 'shows commit');
+		is($res->code, 200, 'shows commit (unabbreviated)');
+		$res = $cb->(GET("/$name/$v1_0_0_tag_short/s/"));
+		is($res->code, 200, 'shows commit (abbreviated)');
 		while (my ($label, $size) = each %bin) {
 			$res = $cb->(GET("/$name/$oid{$label}/s/"));
 			is($res->code, 200, "$label binary file");

@@ -70,34 +70,38 @@ sub ERR ($$) {
 	die $err;
 }
 
-# look for existing objects already in git repos
+# look for existing objects already in git repos, returns arrayref
+# if found, number of remaining git coderepos to try if not.
 sub solve_existing ($$) {
 	my ($self, $want) = @_;
+	my $try = $want->{try_gits} //= [ @{$self->{gits}} ]; # array copy
+	my $git = shift @$try or die 'BUG {try_gits} empty';
 	my $oid_b = $want->{oid_b};
-	my $have_hints = scalar keys %$want > 1;
-	my @ambiguous; # Array of [ git, $oids]
-	foreach my $git (@{$self->{gits}}) {
-		my ($oid_full, $type, $size) = $git->check($oid_b);
-		if (defined($type) && (!$have_hints || $type eq 'blob')) {
-			return [ $git, $oid_full, $type, int($size) ];
-		}
+	my ($oid_full, $type, $size) = $git->check($oid_b);
 
-		next if length($oid_b) == 40;
-
-		# parse stderr of "git cat-file --batch-check"
-		my $err = $git->last_check_err;
-		my (@oids) = ($err =~ /\b([a-f0-9]{40})\s+blob\b/g);
-		next unless scalar(@oids);
-
-		# TODO: do something with the ambiguous array?
-		# push @ambiguous, [ $git, @oids ];
-
-		dbg($self, "`$oid_b' ambiguous in " .
-				join("\n\t", $git->pub_urls($self->{psgi_env}))
-                                . "\n" .
-				join('', map { "$_ blob\n" } @oids));
+	# other than {oid_b, try_gits, try_ibxs}
+	my $have_hints = scalar keys %$want > 3;
+	if (defined($type) && (!$have_hints || $type eq 'blob')) {
+		delete $want->{try_gits};
+		return [ $git, $oid_full, $type, int($size) ]; # done, success
 	}
-	scalar(@ambiguous) ? \@ambiguous : undef;
+
+	# TODO: deal with 40-char "abbreviations" with future SHA-256 git
+	return scalar(@$try) if length($oid_b) >= 40;
+
+	# parse stderr of "git cat-file --batch-check"
+	my $err = $git->last_check_err;
+	my (@oids) = ($err =~ /\b([a-f0-9]{40,})\s+blob\b/g);
+	return scalar(@$try) unless scalar(@oids);
+
+	# TODO: do something with the ambiguous array?
+	# push @ambiguous, [ $git, @oids ];
+
+	dbg($self, "`$oid_b' ambiguous in " .
+			join("\n\t", $git->pub_urls($self->{psgi_env}))
+			. "\n" .
+			join('', map { "$_ blob\n" } @oids));
+	scalar(@$try);
 }
 
 sub extract_diff ($$) {
@@ -523,10 +527,12 @@ sub resolve_patch ($$) {
 
 	# see if we can find the blob in an existing git repo:
 	my $cur_want = $want->{oid_b};
-	if ($self->{seen_oid}->{$cur_want}++) {
+	if (!$want->{try_ibxs} && $self->{seen_oid}->{$cur_want}++) {
 		die "Loop detected solving $cur_want\n";
 	}
-	if (my $existing = solve_existing($self, $want)) {
+	$want->{try_ibxs} //= [ @{$self->{inboxes}} ]; # array copy
+	my $existing = solve_existing($self, $want);
+	if (ref $existing) {
 		my ($found_git, undef, $type, undef) = @$existing;
 		dbg($self, "found $cur_want in " .
 			join(" ||\n\t",
@@ -539,13 +545,17 @@ sub resolve_patch ($$) {
 		}
 		mark_found($self, $cur_want, $existing);
 		return next_step($self); # onto patch application
+	} elsif ($existing > 0) {
+		push @{$self->{todo}}, $want;
+		return next_step($self); # retry solve_existing
+	} else { # $existing == 0: we may retry if inbox scan (below) fails
+		delete $want->{try_gits};
 	}
 
 	# scan through inboxes to look for emails which results in
 	# the oid we want:
-	foreach my $ibx (@{$self->{inboxes}}) {
-		my $diffs = find_extract_diffs($self, $ibx, $want) or next;
-
+	my $ibx = shift(@{$want->{try_ibxs}}) or die 'BUG: {try_ibxs} empty';
+	if (my $diffs = find_extract_diffs($self, $ibx, $want)) {
 		unshift @{$self->{patches}}, @$diffs;
 		dbg($self, "found $cur_want in ".
 			join(" ||\n\t", map { di_url($self, $_) } @$diffs));
@@ -562,7 +572,14 @@ sub resolve_patch ($$) {
 		}
 		return next_step($self); # onto the next todo item
 	}
-	if (length($cur_want) > $OID_MIN) {
+
+	if (scalar @{$want->{try_ibxs}}) { # do we have more inboxes to try?
+		push @{$self->{todo}}, $want;
+		return next_step($self);
+	}
+
+	if (length($cur_want) > $OID_MIN) { # maybe a shorter OID will work
+		delete $want->{try_ibxs}; # drop empty arrayref
 		chop($cur_want);
 		dbg($self, "retrying $want->{oid_b} as $cur_want");
 		$want->{oid_b} = $cur_want;
