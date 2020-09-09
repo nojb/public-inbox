@@ -198,11 +198,11 @@ EOF
 			if ($urls && scalar(@$urls)) {
 				$$txt .= "\t; ";
 				$$txt .= join(" ||\n\t;\t", map {;
-					my $cpath = $path;
+					my $dst = $path;
 					if ($path !~ m![a-z0-9_/\.\-]!i) {
-						$cpath = dq_escape($cpath);
+						$dst = '"'.dq_escape($dst).'"';
 					}
-					qq(git clone $_ "$cpath");
+					qq(git clone $_ $dst);
 				} @$urls);
 				$$txt .= "\n";
 			}
