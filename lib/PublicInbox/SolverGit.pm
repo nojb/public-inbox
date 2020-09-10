@@ -16,6 +16,8 @@ use PublicInbox::Git qw(git_unquote git_quote);
 use PublicInbox::MsgIter qw(msg_part_text);
 use PublicInbox::Qspawn;
 use PublicInbox::Tmpfile;
+use PublicInbox::GitAsyncCat;
+use PublicInbox::Eml;
 use URI::Escape qw(uri_escape_utf8);
 
 # POSIX requires _POSIX_ARG_MAX >= 4096, and xargs is required to
@@ -540,6 +542,47 @@ sub try_harder {
 	die "E: $@" if $@;
 }
 
+sub extract_diffs_done {
+	my ($self, $want) = @_;
+
+	delete $want->{try_smsgs};
+	delete $want->{cur_ibx};
+
+	my $diffs = delete $self->{tmp_diffs};
+	if (scalar @$diffs) {
+		unshift @{$self->{patches}}, @$diffs;
+		dbg($self, "found $want->{oid_b} in " .  join(" ||\n\t",
+			map { di_url($self, $_) } @$diffs));
+
+		# good, we can find a path to the oid we $want, now
+		# lets see if we need to apply more patches:
+		my $di = $diffs->[0];
+		my $src = $di->{oid_a};
+
+		unless ($src =~ /\A0+\z/) {
+			# we have to solve it using another oid, fine:
+			my $job = { oid_b => $src, path_b => $di->{path_a} };
+			push @{$self->{todo}}, $job;
+		}
+		goto \&next_step; # onto the next todo item
+	}
+	goto \&try_harder;
+}
+
+sub extract_diff_async {
+	my ($bref, $oid, $type, $size, $x) = @_;
+	my ($self, $want, $smsg) = @$x;
+	if (defined($oid)) {
+		$smsg->{blob} eq $oid or
+				ERR($self, "BUG: $smsg->{blob} != $oid");
+		PublicInbox::Eml->new($bref)->each_part(\&extract_diff, $x, 1);
+	}
+
+	scalar(@{$want->{try_smsgs}}) ?
+		retry_current($self, $want) :
+		extract_diffs_done($self, $want);
+}
+
 sub resolve_patch ($$) {
 	my ($self, $want) = @_;
 
@@ -550,39 +593,19 @@ sub resolve_patch ($$) {
 
 	if (my $msgs = $want->{try_smsgs}) {
 		my $smsg = shift @$msgs;
-		if (my $eml = $want->{cur_ibx}->smsg_eml($smsg)) {
-			$eml->each_part(\&extract_diff,
-					[ $self, $want, $smsg ], 1);
-		}
-
-		# try the remaining smsgs later
-		goto \&retry_current if scalar @$msgs;
-
-		delete $want->{try_smsgs};
-		delete $want->{cur_ibx};
-
-		my $diffs = delete $self->{tmp_diffs};
-		if (scalar @$diffs) {
-			unshift @{$self->{patches}}, @$diffs;
-			dbg($self, "found $cur_want in " .  join(" ||\n\t",
-				map { di_url($self, $_) } @$diffs));
-
-			# good, we can find a path to the oid we $want, now
-			# lets see if we need to apply more patches:
-			my $di = $diffs->[0];
-			my $src = $di->{oid_a};
-
-			unless ($src =~ /\A0+\z/) {
-				# we have to solve it using another oid, fine:
-				my $job = {
-					oid_b => $src,
-					path_b => $di->{path_a},
-				};
-				push @{$self->{todo}}, $job;
+		if ($self->{psgi_env}->{'pi-httpd.async'}) {
+			return git_async_cat($want->{cur_ibx}->git,
+						$smsg->{blob},
+						\&extract_diff_async,
+						[$self, $want, $smsg]);
+		} else {
+			if (my $eml = $want->{cur_ibx}->smsg_eml($smsg)) {
+				$eml->each_part(\&extract_diff,
+						[ $self, $want, $smsg ], 1);
 			}
-			goto \&next_step; # onto the next todo item
 		}
-		goto \&try_harder;
+
+		goto(scalar @$msgs ? \&retry_current : \&extract_diffs_done);
 	}
 
 	# see if we can find the blob in an existing git repo:
