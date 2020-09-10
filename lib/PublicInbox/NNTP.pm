@@ -411,8 +411,8 @@ sub xref ($$$$) {
 	$ret;
 }
 
-sub set_nntp_headers ($$$) {
-	my ($self, $hdr, $smsg) = @_;
+sub set_nntp_headers ($$) {
+	my ($hdr, $smsg) = @_;
 	my ($mid) = $smsg->{mid};
 
 	# why? leafnode requires a Path: header for some inexplicable
@@ -433,13 +433,13 @@ sub set_nntp_headers ($$$) {
 	}
 
 	# clobber some
-	my $ng = $self->{ng};
-	my $xref = xref($self, $ng, $smsg->{num}, $mid);
+	my $ibx = $smsg->{-ibx};
+	my $xref = xref($smsg->{nntp}, $ibx, $smsg->{num}, $mid);
 	$hdr->header_set('Xref', $xref);
 	$xref =~ s/:[0-9]+//g;
 	$hdr->header_set('Newsgroups', (split(/ /, $xref, 2))[1]);
-	header_append($hdr, 'List-Post', "<mailto:$ng->{-primary_address}>");
-	if (my $url = $ng->base_url) {
+	header_append($hdr, 'List-Post', "<mailto:$ibx->{-primary_address}>");
+	if (my $url = $ibx->base_url) {
 		$mid = mid_escape($mid);
 		header_append($hdr, 'Archived-At', "<$url$mid/>");
 		header_append($hdr, 'List-Archive', "<$url>");
@@ -483,6 +483,7 @@ find_mid:
 	}
 found:
 	my $smsg = $ng->over->get_art($n) or return $err;
+	$smsg->{-ibx} = $ng;
 	$smsg;
 }
 
@@ -501,9 +502,9 @@ sub set_art {
 	$self->{article} = $art if defined $art && $art =~ /\A[0-9]+\z/;
 }
 
-sub msg_hdr_write ($$$) {
-	my ($self, $eml, $smsg) = @_;
-	set_nntp_headers($self, $eml, $smsg);
+sub msg_hdr_write ($$) {
+	my ($eml, $smsg) = @_;
+	set_nntp_headers($eml, $smsg);
 
 	my $hdr = $eml->{hdr} // \(my $x = '');
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
@@ -513,7 +514,7 @@ sub msg_hdr_write ($$$) {
 	# for leafnode compatibility, we need to ensure Message-ID headers
 	# are only a single line.
 	$$hdr =~ s/^(Message-ID:)[ \t]*\r\n[ \t]+([^\r]+)\r\n/$1 $2\r\n/igsm;
-	$self->msg_more($$hdr);
+	$smsg->{nntp}->msg_more($$hdr);
 }
 
 sub blob_cb { # called by git->cat_async via git_async_cat
@@ -523,7 +524,7 @@ sub blob_cb { # called by git->cat_async via git_async_cat
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
-		warn "E: $smsg->{blob} missing in $self->{ng}->{inboxdir}\n";
+		warn "E: $smsg->{blob} missing in $smsg->{-ibx}->{inboxdir}\n";
 		return $self->requeue;
 	} elsif ($smsg->{blob} ne $oid) {
 		$self->close;
@@ -533,12 +534,12 @@ sub blob_cb { # called by git->cat_async via git_async_cat
 	my $eml = PublicInbox::Eml->new($bref);
 	if ($code == 220) {
 		more($self, $r .= 'head and body follow');
-		msg_hdr_write($self, $eml, $smsg);
+		msg_hdr_write($eml, $smsg);
 		$self->msg_more("\r\n");
 		msg_body_write($self, $bref);
 	} elsif ($code == 221) {
 		more($self, $r .= 'head follows');
-		msg_hdr_write($self, $eml, $smsg);
+		msg_hdr_write($eml, $smsg);
 	} elsif ($code == 222) {
 		more($self, $r .= 'body follows');
 		msg_body_write($self, $bref);
@@ -556,7 +557,7 @@ sub cmd_article ($;$) {
 	return $smsg unless ref $smsg;
 	set_art($self, $art);
 	$smsg->{nntp} = $self;
-	${git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg)};
+	${git_async_cat($smsg->{-ibx}->git, $smsg->{blob}, \&blob_cb, $smsg)};
 }
 
 sub cmd_head ($;$) {
@@ -566,7 +567,7 @@ sub cmd_head ($;$) {
 	set_art($self, $art);
 	$smsg->{nntp} = $self;
 	$smsg->{nntp_code} = 221;
-	${git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg)};
+	${git_async_cat($smsg->{-ibx}->git, $smsg->{blob}, \&blob_cb, $smsg)};
 }
 
 sub cmd_body ($;$) {
@@ -576,7 +577,7 @@ sub cmd_body ($;$) {
 	set_art($self, $art);
 	$smsg->{nntp} = $self;
 	$smsg->{nntp_code} = 222;
-	${git_async_cat($self->{ng}->git, $smsg->{blob}, \&blob_cb, $smsg)};
+	${git_async_cat($smsg->{-ibx}->git, $smsg->{blob}, \&blob_cb, $smsg)};
 }
 
 sub cmd_stat ($;$) {

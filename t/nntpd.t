@@ -27,7 +27,8 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $inboxdir = "$tmpdir/main.git";
+my $inboxdir = "$tmpdir/main";
+my $otherdir = "$tmpdir/other";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
 
@@ -46,9 +47,20 @@ my $ibx = {
 $ibx = PublicInbox::Inbox->new($ibx);
 {
 	local $ENV{HOME} = $home;
-	my @cmd = ('-init', $group, $inboxdir, 'http://example.com/', $addr,
+	my @cmd = ('-init', $group, $inboxdir, 'http://example.com/abc', $addr,
 		"-V$version", '-Lbasic', '--newsgroup', $group);
-	ok(run_script(\@cmd), 'init OK');
+	ok(run_script(\@cmd), "init $group");
+
+	@cmd = ('-init', 'xyz', $otherdir, 'http://example.com/xyz',
+		'e@example.com', "-V$version", qw(-Lbasic --newsgroup x.y.z));
+	ok(run_script(\@cmd), 'init xyz');
+	is(xsys([qw(git config -f), "$home/.public-inbox/config",
+		qw(publicinboxmda.spamcheck none)]), 0, 'disable spamcheck');
+
+	open(my $fh, '<', 't/utf8.eml') or BAIL_OUT("open t/utf8.eml: $!");
+	my $env = { ORIGINAL_RECIPIENT => 'e@example.com' };
+	run_script([qw(-mda --no-precheck)], $env, { 0 => $fh }) or
+		BAIL_OUT('-mda delivery');
 
 	my $len;
 	$ibx = PublicInbox::InboxWritable->new($ibx);
@@ -90,6 +102,7 @@ EOF
 	my $host_port = $sock->sockhost . ':' . $sock->sockport;
 	my $n = Net::NNTP->new($host_port);
 	my $list = $n->list;
+	ok(delete $list->{'x.y.z'}, 'deleted x.y.z group');
 	is_deeply($list, { $group => [ qw(1 1 n) ] }, 'LIST works');
 	is_deeply([$n->group($group)], [ qw(0 1 1), $group ], 'GROUP works');
 	is_deeply($n->listgroup($group), [1], 'listgroup OK');
@@ -229,7 +242,7 @@ EOF
 	is_deeply($n->xhdr(qw(list-id 1-)), {},
 		 'XHDR on invalid header returns empty');
 
-	my $mids = $n->newnews(0, '*');
+	my $mids = $n->newnews(0, $group);
 	is_deeply($mids, ['<nntp@example.com>'], 'NEWNEWS works');
 	{
 		my $t0 = time;
@@ -275,6 +288,13 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 			like($hmids[0], qr/: <2mid\@wtf>/, 'got expected mid');
 		}
 	}
+
+	ok($n->article('<testmessage@example.com>'),
+		'cross newsgroup ARTICLE by Message-ID');
+	ok($n->body('<testmessage@example.com>'),
+		'cross newsgroup BODY by Message-ID');
+	ok($n->head('<testmessage@example.com>'),
+		'cross newsgroup HEAD by Message-ID');
 
 	# pipelined requests:
 	{
