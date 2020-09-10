@@ -122,23 +122,18 @@ EOF
 		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
 	}
 
-	$urls .= "\n" .  join("\n", map { "\tgit clone --mirror $_" } @urls);
-	if (defined $max) {
-		my $addrs = $ibx->{address};
-		$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
-		$urls .=  <<EOF
-
+	$urls .= "\n" . join('', map { "\tgit clone --mirror $_\n" } @urls);
+	my $addrs = $ibx->{address};
+	$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
+	my $v = defined $max ? '-V2' : '-V1';
+	$urls .= <<EOF;
 
 	# If you have public-inbox 1.1+ installed, you may
 	# initialize and index your mirror using the following commands:
-	public-inbox-init -V2 $ibx->{name} $dir/ $http \\
+	public-inbox-init $v $ibx->{name} $dir/ $http \\
 		$addrs
 	public-inbox-index $dir
 EOF
-	} else { # v1
-		$urls .= "\n";
-	}
-
 	my $cfg_link = ($ctx->{-upfx} // '').'_/text/config/raw';
 	$urls .= <<EOF;
 
