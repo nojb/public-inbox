@@ -295,6 +295,8 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		'cross newsgroup BODY by Message-ID');
 	ok($n->head('<testmessage@example.com>'),
 		'cross newsgroup HEAD by Message-ID');
+	is($n->xpath('<testmessage@example.com>'), 'x.y.z/1', 'xpath hit');
+	is($n->xpath('<non-existent@example.com>'), undef, 'xpath miss');
 
 	# pipelined requests:
 	{
