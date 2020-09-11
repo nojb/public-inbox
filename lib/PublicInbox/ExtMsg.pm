@@ -125,12 +125,12 @@ sub ext_msg {
 sub event_step {
 	my ($ctx, $sync) = @_;
 	# can't find a partial match in current inbox, try the others:
-	my $ibx = shift @{$ctx->{again}} or goto \&finalize_partial;
+	my $ibx = shift @{$ctx->{again}} or return finalize_partial($ctx);
 	my $mids = search_partial($ibx, $ctx->{mid}) or
 			return ($sync ? undef : PublicInbox::DS::requeue($ctx));
 	$ctx->{n_partial} += scalar(@$mids);
 	push @{$ctx->{partial}}, [ $ibx, $mids ];
-	$ctx->{n_partial} >= PARTIAL_MAX ? goto(\&finalize_partial)
+	$ctx->{n_partial} >= PARTIAL_MAX ? finalize_partial($ctx)
 			: ($sync ? undef : PublicInbox::DS::requeue($ctx));
 }
 
@@ -156,7 +156,7 @@ sub finalize_exact {
 		# synchronous fall-through
 		$ctx->event_step while @{$ctx->{again}};
 	}
-	goto \&finalize_partial;
+	finalize_partial($ctx);
 }
 
 sub finalize_partial {

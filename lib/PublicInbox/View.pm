@@ -386,7 +386,7 @@ sub next_in_queue ($$) {
 
 sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 	my ($ctx, $eml) = @_;
-	goto &thread_eml_entry if $eml; # tail recursion
+	return thread_eml_entry($ctx, $eml) if $eml;
 	return unless exists($ctx->{skel});
 	my $ghost_ok = $ctx->{nr}++;
 	while (1) {

@@ -129,7 +129,7 @@ sub new {
 sub new_sub {
 	my (undef, $ref) = @_;
 	# special case for messages like <85k5su9k59.fsf_-_@lola.goethe.zz>
-	$$ref =~ /\A(\r?\n)/s or goto &new;
+	$$ref =~ /\A(\r?\n)/s or return new(undef, $ref);
 	my $hdr = substr($$ref, 0, $+[0], ''); # sv_chop on $$ref
 	bless { hdr => \$hdr, crlf => $1, bdy => $ref }, __PACKAGE__;
 }

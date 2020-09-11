@@ -244,7 +244,7 @@ sub reap_pids {
 }
 
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
-sub enqueue_reap { $reap_armed //= requeue(\&reap_pids) }
+sub enqueue_reap () { $reap_armed //= requeue(\&reap_pids) }
 
 sub in_loop () { $in_loop }
 
@@ -629,7 +629,7 @@ sub dwaitpid ($$$) {
 	push @$wait_pids, [ @_ ]; # [ $pid, $cb, $arg ]
 
 	# We could've just missed our SIGCHLD, cover it, here:
-	goto &enqueue_reap; # tail recursion
+	enqueue_reap();
 }
 
 sub _run_later () {

@@ -517,16 +517,16 @@ sub di_url ($$) {
 }
 
 sub retry_current {
-	# my ($self, $want) = @_;
-	push @{$_[0]->{todo}}, $_[1];
-	goto \&next_step # retry solve_existing
+	my ($self, $want) = @_;
+	push @{$self->{todo}}, $want;
+	next_step($self); # retry solve_existing
 }
 
-sub try_harder {
+sub try_harder ($$) {
 	my ($self, $want) = @_;
 
 	# do we have more inboxes to try?
-	goto \&retry_current if scalar @{$want->{try_ibxs}};
+	return retry_current($self, $want) if scalar @{$want->{try_ibxs}};
 
 	my $cur_want = $want->{oid_b};
 	if (length($cur_want) > $OID_MIN) { # maybe a shorter OID will work
@@ -534,7 +534,7 @@ sub try_harder {
 		chop($cur_want);
 		dbg($self, "retrying $want->{oid_b} as $cur_want");
 		$want->{oid_b} = $cur_want;
-		goto \&retry_current; # retry with shorter abbrev
+		return retry_current($self, $want); # retry with shorter abbrev
 	}
 
 	dbg($self, "could not find $cur_want");
@@ -564,9 +564,9 @@ sub extract_diffs_done {
 			my $job = { oid_b => $src, path_b => $di->{path_a} };
 			push @{$self->{todo}}, $job;
 		}
-		goto \&next_step; # onto the next todo item
+		return next_step($self); # onto the next todo item
 	}
-	goto \&try_harder;
+	try_harder($self, $want);
 }
 
 sub extract_diff_async {
@@ -578,9 +578,8 @@ sub extract_diff_async {
 		PublicInbox::Eml->new($bref)->each_part(\&extract_diff, $x, 1);
 	}
 
-	scalar(@{$want->{try_smsgs}}) ?
-		retry_current($self, $want) :
-		extract_diffs_done($self, $want);
+	scalar(@{$want->{try_smsgs}}) ? retry_current($self, $want)
+					: extract_diffs_done($self, $want);
 }
 
 sub resolve_patch ($$) {
@@ -605,7 +604,8 @@ sub resolve_patch ($$) {
 			}
 		}
 
-		goto(scalar @$msgs ? \&retry_current : \&extract_diffs_done);
+		return scalar(@$msgs) ? retry_current($self, $want)
+					: extract_diffs_done($self, $want);
 	}
 
 	# see if we can find the blob in an existing git repo:
@@ -626,9 +626,9 @@ sub resolve_patch ($$) {
 			return;
 		}
 		mark_found($self, $cur_want, $existing);
-		goto \&next_step; # onto patch application
+		return next_step($self); # onto patch application
 	} elsif ($existing > 0) {
-		goto \&retry_current;
+		return retry_current($self, $want);
 	} else { # $existing == 0: we may retry if inbox scan (below) fails
 		delete $want->{try_gits};
 	}
@@ -640,9 +640,9 @@ sub resolve_patch ($$) {
 		$want->{try_smsgs} = $msgs;
 		$want->{cur_ibx} = $ibx;
 		$self->{tmp_diffs} = [];
-		goto \&retry_current;
+		return retry_current($self, $want);
 	}
-	goto \&try_harder;
+	try_harder($self, $want);
 }
 
 # this API is designed to avoid creating self-referential structures;

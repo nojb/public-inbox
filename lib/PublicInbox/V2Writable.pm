@@ -1267,8 +1267,8 @@ sub xapian_only {
 # public, called by public-inbox-index
 sub index_sync {
 	my ($self, $opt) = @_;
-	$opt //= $_[1] //= {};
-	goto \&xapian_only if $opt->{xapian_only};
+	$opt //= {};
+	return xapian_only($self, $opt) if $opt->{xapian_only};
 
 	my $pr = $opt->{-progress};
 	my $epoch_max;

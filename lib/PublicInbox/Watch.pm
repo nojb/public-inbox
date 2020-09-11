@@ -651,7 +651,7 @@ sub event_step {
 		PublicInbox::Sigfd::sig_setmask($oldset);
 		die $@ if $@;
 	}
-	goto(&fs_scan_step) if $self->{mdre};
+	fs_scan_step($self) if $self->{mdre};
 }
 
 sub watch_imap_fetch_all ($$) {
@@ -1066,7 +1066,7 @@ sub fs_scan_step {
 sub scan {
 	my ($self, $op) = @_;
 	push @{$self->{ops}}, $op;
-	goto &fs_scan_step;
+	fs_scan_step($self);
 }
 
 sub _importer_for {
