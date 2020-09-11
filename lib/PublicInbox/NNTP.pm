@@ -446,8 +446,8 @@ sub set_nntp_headers ($$) {
 	}
 }
 
-sub art_lookup ($$) {
-	my ($self, $art) = @_;
+sub art_lookup ($$$) {
+	my ($self, $art, $code) = @_;
 	my $ng = $self->{ng};
 	my ($n, $mid);
 	my $err;
@@ -484,7 +484,17 @@ find_mid:
 found:
 	my $smsg = $ng->over->get_art($n) or return $err;
 	$smsg->{-ibx} = $ng;
-	$smsg;
+	if ($code == 223) { # STAT
+		set_art($self, $n);
+		"223 $n <$smsg->{mid}> article retrieved - " .
+			"request text separately";
+	} else { # HEAD | BODY | ARTICLE
+		$smsg->{nntp} = $self;
+		$smsg->{nntp_code} = $code;
+		set_art($self, $art);
+		# this dereferences to `undef'
+		${git_async_cat($ng->git, $smsg->{blob}, \&blob_cb, $smsg)};
+	}
 }
 
 sub msg_body_write ($$) {
@@ -520,7 +530,7 @@ sub msg_hdr_write ($$) {
 sub blob_cb { # called by git->cat_async via git_async_cat
 	my ($bref, $oid, $type, $size, $smsg) = @_;
 	my $self = $smsg->{nntp};
-	my $code = $smsg->{nntp_code} // 220;
+	my $code = $smsg->{nntp_code};
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
@@ -553,40 +563,22 @@ sub blob_cb { # called by git->cat_async via git_async_cat
 
 sub cmd_article ($;$) {
 	my ($self, $art) = @_;
-	my $smsg = art_lookup($self, $art);
-	return $smsg unless ref $smsg;
-	set_art($self, $art);
-	$smsg->{nntp} = $self;
-	${git_async_cat($smsg->{-ibx}->git, $smsg->{blob}, \&blob_cb, $smsg)};
+	art_lookup($self, $art, 220);
 }
 
 sub cmd_head ($;$) {
 	my ($self, $art) = @_;
-	my $smsg = art_lookup($self, $art);
-	return $smsg unless ref $smsg;
-	set_art($self, $art);
-	$smsg->{nntp} = $self;
-	$smsg->{nntp_code} = 221;
-	${git_async_cat($smsg->{-ibx}->git, $smsg->{blob}, \&blob_cb, $smsg)};
+	art_lookup($self, $art, 221);
 }
 
 sub cmd_body ($;$) {
 	my ($self, $art) = @_;
-	my $smsg = art_lookup($self, $art);
-	return $smsg unless ref $smsg;
-	set_art($self, $art);
-	$smsg->{nntp} = $self;
-	$smsg->{nntp_code} = 222;
-	${git_async_cat($smsg->{-ibx}->git, $smsg->{blob}, \&blob_cb, $smsg)};
+	art_lookup($self, $art, 222);
 }
 
 sub cmd_stat ($;$) {
 	my ($self, $art) = @_;
-	my $smsg = art_lookup($self, $art); # art may be msgid
-	return $smsg unless ref $smsg;
-	$art = $smsg->{num};
-	set_art($self, $art);
-	"223 $art <$smsg->{mid}> article retrieved - request text separately";
+	art_lookup($self, $art, 223); # art may be msgid
 }
 
 sub cmd_ihave ($) { '435 article not wanted - do not send it' }
