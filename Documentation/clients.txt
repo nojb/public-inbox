@@ -32,6 +32,9 @@ either.
 * ssoma - v1 only, abandoned in favor of NNTP
   https://80x24.org/ssoma.git
 
+* piem - Emacs tools for working with public-index (and b4)
+  https://git.kyleam.com/piem/about/
+
 There's also a bunch of random scripts in the scripts/ directory
 of our source tree at:
 
