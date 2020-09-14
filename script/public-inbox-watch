@@ -60,7 +60,7 @@ if ($watch) {
 	my $sigfd = PublicInbox::Sigfd->new($sig, $SFD_NONBLOCK);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
 	if (!$sigfd) {
-		PublicInbox::Sigfd::set_sigmask($oldset);
+		PublicInbox::Sigfd::sig_setmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	$watch->watch($sig, $oldset) while ($watch);
