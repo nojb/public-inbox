@@ -48,6 +48,7 @@ my $profiles = {
 		XML::TreePP
 		curl
 		w3m
+		Plack::Test::ExternalServer
 		) ],
 };
 
