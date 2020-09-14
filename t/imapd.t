@@ -404,8 +404,11 @@ SKIP: {
 	skip 'Xapian missing', 3 if $level eq 'basic';
 	my $x = $mic->search(qw(header subject embedded));
 	is(scalar(@$x), 1, 'MSN SEARCH on Subject works after rm');
-	$x = $mic->message_string($x->[0]);
-	is($x, $ret->{2}->{RFC822}, 'message 2 unchanged');
+	SKIP: {
+		skip 'previous test failed', 1 if !scalar(@$x);
+		$x = $mic->message_string($x->[0]);
+		is($x, $ret->{2}->{RFC822}, 'message 2 unchanged');
+	}
 	$x = $mic->search(qw(text embedded));
 	is(scalar(@$x), 1, 'MSN SEARCH on TEXT works after rm');
 }
