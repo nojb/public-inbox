@@ -115,6 +115,7 @@ all need to be considered for everything we introduce)
 * extend public-inbox-watch to support IMAP, NNTP
 
 * improve performance and avoid head-of-line blocking on slow storage
+  (done for most git blob retrievals, Xapian needs work)
 
 * HTTP(S) search API (likely JMAP, but GraphQL could be an option)
   It should support git-specific prefixes (dfpre:, dfpost:, dfn:, etc)
@@ -122,6 +123,11 @@ all need to be considered for everything we introduce)
   various IMAP extensions.
 
 * search across multiple inboxes, or admin-definable groups of inboxes
+
+  This will require a new detached Xapian index that can be used in
+  parallel with existing per-inbox indices.  Using ->add_database
+  with hundreds of shards is unusable in current Xapian as of
+  August 2020 (acknowledged by Xapian upstream).
 
 * scalability to tens/hundreds of thousands of inboxes
 
@@ -136,6 +142,8 @@ all need to be considered for everything we introduce)
 * command-line tool (similar to mairix/notmuch, but solver+git-aware)
 
 * consider removing doc_data from Xapian, redundant with over.sqlite3
+  It's no longer read as of public-inbox 1.6.0, but still written for
+  compatibility.
 
 * share "git cat-file --batch" processes across inboxes to avoid
   bumping into /proc/sys/fs/pipe-user-pages-* limits
@@ -157,15 +165,7 @@ all need to be considered for everything we introduce)
 
 * highlighting + linkification for "git format-patch --interdiff" output
 
-* highlighting + linkification for "git format-patch --range-diff" output
-  (requires mirroring of git repos)
-
-* parse and allow (semi)automatic-mirroring of "git request-pull" output
-  for coderepos
-
-* configurable diff output for solver-generated blobs
-
-* figure out how search for messages with multiple Date: headers
-  should work (some wacky examples out there...)
+* highlighting for "git format-patch --range-diff" output
+  (linkification is too expensive, as it requires mirroring)
 
 * support UUCP addresses for legacy archives

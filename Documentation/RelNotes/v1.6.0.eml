@@ -40,10 +40,13 @@ on HDD storage, though we can't defy the laws of physics, either.
     on message delivery (or spam removal) to wake up read-only
     daemons via inotify or kqueue.
 
-* Upgrading
+  - `--help' switch supported by command-line tools
+
+* Upgrading for new features in 1.6
 
   The ordering of these steps is only necessary if you intend to
-  use some new features of this release.
+  use some new features in 1.6.  Future releases may have
+  different instructions (or be entirely transparent).
 
   0. install (use your OS package manager, or "make install")
 
@@ -129,12 +132,34 @@ on HDD storage, though we can't defy the laws of physics, either.
     retrieval
 
   - mbox search results may now include all messages pertaining to that
-    thread (requires `--reindex' mentioned in `Upgrading').
+    thread.  Needs `--reindex' mentioned above in
+    `Upgrading for new features in 1.6'.
+
+  - fix mbox.gz search results downloads for lynx users
+
+  - small navigation tweaks, more prominent mirroring instructions
 
 * public-inbox-watch
 
   - Linux::Inotify2 or IO::KQueue is used directly,
     Filesys::Notify::Simple is no longer required
+
+  - NNTP groups and IMAP mailboxes may be watched in addition
+    to Maildirs (lightly tested).
+
+* Ongoing internal changes
+
+  - reduce event loop hogging for many-inbox support
+
+  - use more Perl v5.10-isms, future-proof against Perl 8
+
+  - more consistent variable and field naming, improve internal
+    documentation and comments
+
+  - start supporting >=40 char git identifiers for SHA-256
+
+  - test -httpd-specific code paths via Plack::Test::ExternalServer
+    in addition to generic PSGI paths.
 
 Please report bugs via plain-text mail to: meta@public-inbox.org
 
