@@ -6,13 +6,11 @@ use Test::More;
 use PublicInbox::Eml;
 use PublicInbox::Inbox;
 use PublicInbox::InboxWritable;
-use PublicInbox::Spawn qw(which);
 require PublicInbox::Admin;
 use PublicInbox::TestCommon;
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
 require_mods(qw(DBD::SQLite));
-my $have_xapian_compact = which($ENV{XAPIAN_COMPACT} || 'xapian-compact');
 
 my $mime = PublicInbox::Eml->new(<<'EOF');
 From: a@example.com
@@ -43,7 +41,7 @@ my $import_index_incremental = sub {
 
 	# index master (required for v1)
 	my @cmd = (qw(-index -j0), $ibx->{inboxdir}, "-L$level");
-	push @cmd, '-c' if $have_xapian_compact;
+	push @cmd, '-c' if have_xapian_compact;
 	ok(run_script(\@cmd, undef, { 2 => \$err }), 'index master');
 	my $ro_master = PublicInbox::Inbox->new({
 		inboxdir => $ibx->{inboxdir},
@@ -164,7 +162,7 @@ my $import_index_incremental = sub {
 	   'indexlevel detectable by Admin '.$v.$level);
 
 	SKIP: {
-		skip 'xapian-compact missing', 1 if !$have_xapian_compact;
+		skip 'xapian-compact missing', 1 if have_xapian_compact;
 		my $cmd = [ qw(-compact), $mirror ];
 		ok(run_script($cmd, undef, { 2 => \$err}), "compact $level");
 	}

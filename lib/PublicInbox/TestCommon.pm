@@ -10,7 +10,8 @@ use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
 our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
-	run_script start_script key2sub xsys xqx eml_load tick);
+	run_script start_script key2sub xsys xqx eml_load tick
+	have_xapian_compact);
 
 sub eml_load ($) {
 	my ($path, $cb) = @_;
@@ -395,6 +396,12 @@ sub start_script {
 		}
 	}
 	PublicInboxTestProcess->new($pid, $tail_pid);
+}
+
+sub have_xapian_compact () {
+	require PublicInbox::Spawn;
+	# $ENV{XAPIAN_COMPACT} is used by PublicInbox/Xapcmd.pm, too
+	PublicInbox::Spawn::which($ENV{XAPIAN_COMPACT} || 'xapian-compact');
 }
 
 package PublicInboxTestProcess;

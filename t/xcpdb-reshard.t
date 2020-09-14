@@ -45,7 +45,7 @@ my %nums = map {; "$_->{num}" => 1 } @$orig;
 for my $R (qw(2 4 1 3 3)) {
 	delete $ibx->{search}; # release old handles
 	my $cmd = [@xcpdb, "-R$R", $ibx->{inboxdir}];
-	push @$cmd, '--compact' if $R == 1;
+	push @$cmd, '--compact' if $R == 1 && have_xapian_compact;
 	ok(run_script($cmd), "xcpdb -R$R");
 	my @new_shards = grep(m!/\d+\z!, glob("$ibx->{inboxdir}/xap*/*"));
 	is(scalar(@new_shards), $R, 'resharded to two shards');

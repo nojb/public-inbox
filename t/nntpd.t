@@ -349,7 +349,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 	# -compact requires Xapian
 	SKIP: {
 		require_mods('Search::Xapian', 2);
-		which('xapian-compact') or skip 'xapian-compact missing', 2;
+		have_xapian_compact or skip 'xapian-compact missing', 2;
 		is(xsys(qw(git config), "--file=$home/.public-inbox/config",
 				"publicinbox.$group.indexlevel", 'medium'),
 			0, 'upgraded indexlevel');

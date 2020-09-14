@@ -4,11 +4,10 @@ use strict;
 use warnings;
 use Test::More;
 use PublicInbox::Eml;
-use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
-which('xapian-compact') or
+have_xapian_compact or
 	plan skip_all => 'xapian-compact missing for '.__FILE__;
 
 use_ok 'PublicInbox::V2Writable';
