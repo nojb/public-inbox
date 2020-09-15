@@ -338,6 +338,7 @@ contact
 
     This help text is maintained by public-inbox developers
     reachable via plain-text email at: meta\@public-inbox.org
+    Their inbox is archived at: https://public-inbox.org/meta/
 
 EOF
 	# TODO: support admin contact info in ~/.public-inbox/config
