@@ -41,7 +41,7 @@ $t = '-F FILE'; {
 	ok(run_script($cmd, undef, $opt), "$t edit OK");
 	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->header('Subject'), qr/bool pfx/, "$t message edited");
-	like($out, qr/[a-f0-9]{40}/, "$t shows commit on success");
+	like($out, qr/[a-f0-9]{40,}/, "$t shows commit on success");
 }
 
 $t = '-m MESSAGE_ID'; {
@@ -51,7 +51,7 @@ $t = '-m MESSAGE_ID'; {
 	ok(run_script($cmd, undef, $opt), "$t edit OK");
 	$cur = PublicInbox::Eml->new($ibx->msg_by_mid($mid));
 	like($cur->header('Subject'), qr/boolean prefix/, "$t message edited");
-	like($out, qr/[a-f0-9]{40}/, "$t shows commit on success");
+	like($out, qr/[a-f0-9]{40,}/, "$t shows commit on success");
 }
 
 $t = 'no-op -m MESSAGE_ID'; {

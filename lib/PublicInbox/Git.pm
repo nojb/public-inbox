@@ -185,7 +185,7 @@ sub cat_async_step ($$) {
 	my $rbuf = delete($self->{cat_rbuf}) // \(my $new = '');
 	my ($bref, $oid, $type, $size);
 	my $head = my_readline($self->{in}, $rbuf);
-	if ($head =~ /^([0-9a-f]{40}) (\S+) ([0-9]+)$/) {
+	if ($head =~ /^([0-9a-f]{40,}) (\S+) ([0-9]+)$/) {
 		($oid, $type, $size) = ($1, $2, $3 + 0);
 		$bref = my_read($self->{in}, $rbuf, $size + 1) or
 			fail($self, defined($bref) ? 'read EOF' : "read: $!");

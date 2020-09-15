@@ -74,7 +74,7 @@ EOF
 	for my $tip (@$cmts) {
 		next if !defined $tip;
 		$changed_epochs++;
-		like($tip, qr/\A[a-f0-9]{40}\z/,
+		like($tip, qr/\A[a-f0-9]{40,}\z/,
 			'replace returned current commit');
 	}
 	is($changed_epochs, 1, 'only one epoch changed');

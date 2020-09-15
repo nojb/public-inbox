@@ -18,8 +18,8 @@ use PublicInbox::Git qw(git_unquote);
 
 sub UNSAFE () { "^A-Za-z0-9\-\._~/" }
 
-my $OID_NULL = '0{7,40}';
-my $OID_BLOB = '[a-f0-9]{7,40}';
+my $OID_NULL = '0{7,}';
+my $OID_BLOB = '[a-f0-9]{7,}';
 my $LF = qr!\n!;
 my $ANY = qr![^\n]!;
 my $FN = qr!(?:"?[^/\n]+/[^\n]+|/dev/null)!;

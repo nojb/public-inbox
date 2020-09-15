@@ -255,8 +255,8 @@ EOF
 {
 	ok($im->add($mime), 'add message to be purged');
 	local $SIG{__WARN__} = sub {};
-	ok(my $cmts = $im->purge($mime), 'purged message');
-	like($cmts->[0], qr/\A[a-f0-9]{40}\z/, 'purge returned current commit');
+	ok(my $cmt = $im->purge($mime), 'purged message');
+	like($cmt->[0], qr/\A[a-f0-9]{40,}\z/, 'purge returned current commit');
 	$im->done;
 
 	# again

@@ -106,7 +106,7 @@ sub _cat_blob ($$$) {
 	local $/ = "\n";
 	my $info = <$r>;
 	defined $info or die "EOF from fast-import / cat-blob: $!";
-	$info =~ /\A[a-f0-9]{40} blob ([0-9]+)\n\z/ or return;
+	$info =~ /\A[a-f0-9]{40,} blob ([0-9]+)\n\z/ or return;
 	my $left = $1;
 	my $offset = 0;
 	my $buf = '';
@@ -137,7 +137,7 @@ sub check_remove_v1 {
 	my ($r, $w, $tip, $path, $mime) = @_;
 
 	my $info = _check_path($r, $w, $tip, $path) or return ('MISSING',undef);
-	$info =~ m!\A100644 blob ([a-f0-9]{40})\t!s or die "not blob: $info";
+	$info =~ m!\A100644 blob ([a-f0-9]{40,})\t!s or die "not blob: $info";
 	my $oid = $1;
 	my $msg = _cat_blob($r, $w, $oid) or die "BUG: cat-blob $1 failed";
 	my $cur = PublicInbox::Eml->new($msg);

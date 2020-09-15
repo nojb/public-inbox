@@ -88,7 +88,7 @@ sub recent_msgs {
 	my $hex = '[a-f0-9]';
 	my $addmsg = qr!^:000000 100644 \S+ (\S+) A\t${hex}{2}/${hex}{38}$!;
 	my $delmsg = qr!^:100644 000000 (\S+) \S+ D\t(${hex}{2}/${hex}{38})$!;
-	my $refhex = qr/(?:HEAD|${hex}{4,40})(?:~[0-9]+)?/;
+	my $refhex = qr/(?:HEAD|${hex}{4,})(?:~[0-9]+)?/;
 
 	# revision ranges may be specified
 	my $range = 'HEAD';
@@ -126,7 +126,7 @@ sub recent_msgs {
 	if ($last) {
 		local $/ = "\n";
 		while (my $line = <$log>) {
-			if ($line =~ /^(${hex}{7,40})/) {
+			if ($line =~ /^(${hex}{7,})/) {
 				$last_commit = $1;
 				last;
 			}

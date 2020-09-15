@@ -45,7 +45,7 @@ EOF
 	$im->add($mime);
 	$im->done;
 	my $rev = $git->qx(qw(rev-list HEAD));
-	like($rev, qr/\A[a-f0-9]{40}/, "good revision committed");
+	like($rev, qr/\A[a-f0-9]{40,}/, "good revision committed");
 	@ls = $git->qx(qw(ls-tree -r --name-only HEAD));
 	chomp @ls;
 
