@@ -12,7 +12,7 @@ use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
 require PublicInbox::Address;
 use constant {
-	MID_MAX => 40, # SHA-1 hex length # TODO: get rid of this
+	ID_MAX => 40, # SHA-1 hex length for HTML id anchors
 	MAX_MID_SIZE => 244, # max term size (Xapian limitation) - length('Q')
 };
 
@@ -32,7 +32,7 @@ sub mid_clean {
 sub id_compress {
 	my ($id, $force) = @_;
 
-	if ($force || $id =~ /[^a-zA-Z0-9_\-]/ || length($id) > MID_MAX) {
+	if ($force || $id =~ /[^a-zA-Z0-9_\-]/ || length($id) > ID_MAX) {
 		utf8::encode($id);
 		return sha1_hex($id);
 	}
