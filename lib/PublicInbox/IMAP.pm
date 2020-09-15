@@ -300,7 +300,7 @@ sub msn2uid ($) {
 # converts a set of message sequence numbers in requests to UIDs:
 sub msn_to_uid_range ($$) {
 	my $msn2uid = $_[0];
-	$_[1] =~ s!([0-9]+)!$msn2uid->[$1 - 1] // ($msn2uid->[-1] + 1)!sge;
+	$_[1] =~ s!([0-9]+)!$msn2uid->[$1 - 1] // ($msn2uid->[-1] // 0 + 1)!sge;
 }
 
 # called by PublicInbox::InboxIdle

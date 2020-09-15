@@ -371,6 +371,10 @@ EOF
 	@hits = $mic->search('SENTSINCE' => '18-Apr-2020');
 	is_deeply(\@hits, [], 'search on dummy with condition works');
 	ok(!$mic->search('SENTSINCE' => '18-Abr-2020'), 'bad month fails');
+	$mic->Uid(0);
+	my $ret = $mic->fetch_hash(2, 'RFC822');
+	is_deeply($ret, {},
+		'MSN FETCH on empty dummy will not trigger warnings, later');
 }); # each_inbox
 
 # message sequence numbers :<
