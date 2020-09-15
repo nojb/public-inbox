@@ -76,6 +76,26 @@ sub html_top ($) {
 		'</head><body>'. $top . (delete($ctx->{-html_tip}) // '');
 }
 
+sub coderepos ($) {
+	my ($ctx) = @_;
+	my $ibx = $ctx->{-inbox};
+	my @ret;
+	if (defined(my $cr = $ibx->{coderepo})) {
+		my $cfg = $ctx->{www}->{pi_config};
+		my $env = $ctx->{env};
+		for my $cr_name (@$cr) {
+			my $urls = $cfg->{"coderepo.$cr_name.cgiturl"};
+			if ($urls) {
+				$ret[0] //= <<EOF;
+code repositories for the project(s) associated with this inbox:
+EOF
+				$ret[0] .= "\n\t".prurl($env, $_) for @$urls;
+			}
+		}
+	}
+	@ret; # may be empty
+}
+
 sub code_footer ($) {
 	my ($env) = @_;
 	my $u = prurl($env, $CODE_URL);
@@ -153,6 +173,7 @@ EOF
 	'<hr><pre>'.join("\n\n",
 		$desc,
 		$urls,
+		coderepos($ctx),
 		code_footer($ctx->{env})
 	).'</pre></body></html>';
 }
