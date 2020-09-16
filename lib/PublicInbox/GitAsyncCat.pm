@@ -1,7 +1,7 @@
 # Copyright (C) 2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
-# internal class used by PublicInbox::Git + Danga::Socket
+# internal class used by PublicInbox::Git + PublicInbox::DS
 # This parses the output pipe of "git cat-file --batch"
 #
 # Note: this does NOT set the non-blocking flag, we expect `git cat-file'
