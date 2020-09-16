@@ -1,6 +1,8 @@
-From: Eric Wong <e@yhbt.net>
+From: Eric Wong <e@80x24.org>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.6.0
+Subject: [ANNOUNCE] public-inbox 1.6.0
+Date: Wed, 16 Sep 2020 20:03:09 +0000
+Message-ID: <20200916200309.public-inbox-1.6.0-rele@sed>
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline

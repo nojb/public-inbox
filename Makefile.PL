@@ -10,7 +10,7 @@ my $v = {};
 my $t = {};
 
 # do not sort
-my @RELEASES = qw(v1.5.0 v1.4.0 v1.3.0 v1.2.0 v1.1.0-pre1 v1.0.0);
+my @RELEASES = qw(v1.6.0 v1.5.0 v1.4.0 v1.3.0 v1.2.0 v1.1.0-pre1 v1.0.0);
 
 $v->{news_deps} = [ map { "Documentation/RelNotes/$_.eml" } @RELEASES ];
 $v->{txt} = [ qw(INSTALL README COPYING TODO HACKING) ];
@@ -112,8 +112,8 @@ my %man3 = map {; # semi-colon tells Perl this is a BLOCK (and not EXPR)
 
 WriteMakefile(
 	NAME => 'PublicInbox',
-	VERSION => '1.5.0',
-	AUTHOR => 'Eric Wong <e@yhbt.net>',
+	VERSION => '1.6.0',
+	AUTHOR => 'Eric Wong <e@80x24.org>',
 	ABSTRACT => 'public-inbox server infrastructure',
 	EXE_FILES => \@EXE_FILES,
 	PREREQ_PM => {
