@@ -162,7 +162,7 @@ my $import_index_incremental = sub {
 	   'indexlevel detectable by Admin '.$v.$level);
 
 	SKIP: {
-		skip 'xapian-compact missing', 1 if have_xapian_compact;
+		skip 'xapian-compact missing', 1 if !have_xapian_compact;
 		my $cmd = [ qw(-compact), $mirror ];
 		ok(run_script($cmd, undef, { 2 => \$err}), "compact $level");
 	}
