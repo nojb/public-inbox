@@ -14,14 +14,6 @@ use parent qw(PublicInbox::DS Exporter);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 our @EXPORT = qw(git_async_cat);
 
-sub _add {
-	my ($class, $git) = @_;
-	$git->batch_prepare;
-	my $self = bless { git => $git }, $class;
-	$self->SUPER::new($git->{in}, EPOLLIN|EPOLLET);
-	\undef; # this is a true ref()
-}
-
 sub event_step {
 	my ($self) = @_;
 	my $git = $self->{git};
@@ -36,7 +28,11 @@ sub event_step {
 sub git_async_cat ($$$$) {
 	my ($git, $oid, $cb, $arg) = @_;
 	$git->cat_async($oid, $cb, $arg);
-	$git->{async_cat} //= _add(__PACKAGE__, $git);
+	$git->{async_cat} //= do {
+		my $self = bless { git => $git }, __PACKAGE__;
+		$self->SUPER::new($git->{in}, EPOLLIN|EPOLLET);
+		\undef; # this is a true ref()
+	};
 }
 
 1;
