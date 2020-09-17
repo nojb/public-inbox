@@ -25,6 +25,7 @@
                                                  +--------------------+
                                                  | read-only daemons: |
                                                  | public-inbox-httpd |
+                                                 | public-inbox-imapd |
                                                  | public-inbox-nntpd |
                                                  +--------------------+
 
