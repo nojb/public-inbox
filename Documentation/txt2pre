@@ -17,6 +17,7 @@ for (qw[public-inbox.cgi(1)
 	public-inbox-daemon(8)
 	public-inbox-edit(1)
 	public-inbox-httpd(1)
+	public-inbox-imapd(1)
 	public-inbox-index(1)
 	public-inbox-init(1)
 	public-inbox-learn(1)
@@ -48,7 +49,9 @@ for (qw[git(1)
 	git-am(1)
 	git-apply(1)
 	git-config(1)
+	git-credential(1)
 	git-daemon(1)
+	git-fast-import(1)
 	git-fetch(1)
 	git-filter-branch(1)
 	git-format-patch(1)
@@ -73,6 +76,11 @@ for (qw[
 	$xurls{$_} = "https://www.freedesktop.org/software/systemd/man/$n.html";
 }
 
+$xurls{'netrc(5)'} = 'https://manpages.debian.org/stable/ftp/netrc.5.en.html';
+$xurls{'mbsync(1)'} =
+	'https://manpages.debian.org/stable/isync/mbsync.1.en.html';
+$xurls{'offlineimap(1)'} =
+	'https://manpages.debian.org/stable/offlineimap/offlineimap.1.en.html';
 $xurls{'spamc(1)'} =
 	'https://spamassassin.apache.org/full/3.4.x/doc/spamc.html';
 $xurls{'grok-pull'} =
