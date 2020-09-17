@@ -21,6 +21,7 @@ graph { flow: down }
 [inboxdir] ->
 [read-only daemons:\n
  public-inbox-httpd\n
+ public-inbox-imapd\n
  public-inbox-nntpd]
 
 # Copyright 2020 all contributors <meta@public-inbox.org>
