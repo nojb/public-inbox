@@ -23,19 +23,6 @@ sub new {
 	$self;
 }
 
-sub add_git_dir {
-	my ($self, $git_dir) = @_;
-
-	# ensure buffers are drained, length($git_dir) may exceed
-	# PIPE_BUF on platforms where PIPE_BUF is only 512 bytes
-	my $inflight = $self->{inflight};
-	while (scalar(@$inflight)) {
-		$self->cat_async_step($inflight);
-	}
-	print { $self->{out} } $git_dir, "\n" or
-				$self->fail("write error: $!");
-}
-
 # always false, since -gcf2 retries internally
 sub alternates_changed {}
 

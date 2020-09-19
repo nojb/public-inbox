@@ -190,7 +190,8 @@ sub cat_async_step ($$) {
 		$bref = my_read($self->{in}, $rbuf, $size + 1) or
 			fail($self, defined($bref) ? 'read EOF' : "read: $!");
 		chop($$bref) eq "\n" or fail($self, 'LF missing after blob');
-	} elsif ($head =~ / missing$/) {
+	} elsif ($head =~ s/ missing\n//s) {
+		$oid = $head;
 		# ref($req) indicates it's already been retried
 		# -gcf2 retries internally, so it never hits this path:
 		if (!ref($req) && !$in_cleanup && $self->alternates_changed) {
@@ -198,7 +199,7 @@ sub cat_async_step ($$) {
 						$req, $cb, $arg);
 		}
 		$type = 'missing';
-		$oid = ref($req) ? $$req : $req;
+		$oid = ref($req) ? $$req : $req if $oid eq '';
 	} else {
 		fail($self, "Unexpected result from async git cat-file: $head");
 	}

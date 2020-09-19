@@ -27,9 +27,7 @@ my $err_f = "$tmpdir/err";
 	local $ENV{PATH} = getcwd()."/blib/script:$ENV{PATH}";
 	open my $err, '>', $err_f or BAIL_OUT $!;
 	my $gcf2c = PublicInbox::Gcf2Client::new({ 2 => $err });
-	$gcf2c->add_git_dir($git_a);
-
-	$gcf2c->cat_async($tree, sub {
+	$gcf2c->cat_async("$tree $git_a", sub {
 		my ($bref, $oid, $type, $size, $arg) = @_;
 		is($oid, $tree, 'got expected OID');
 		is($size, 30, 'got expected length');
@@ -45,7 +43,7 @@ my $err_f = "$tmpdir/err";
 	is($estr, '', 'nothing in stderr');
 
 	my $trunc = substr($tree, 0, 39);
-	$gcf2c->cat_async($trunc, sub {
+	$gcf2c->cat_async("$trunc $git_a", sub {
 		my ($bref, $oid, $type, $size, $arg) = @_;
 		is(undef, $bref, 'missing bref is undef');
 		is($oid, $trunc, 'truncated OID printed');
@@ -63,8 +61,7 @@ my $err_f = "$tmpdir/err";
 	# try failed alternates lookup
 	open $err, '>', $err_f or BAIL_OUT $!;
 	$gcf2c = PublicInbox::Gcf2Client::new({ 2 => $err });
-	$gcf2c->add_git_dir($git_b);
-	$gcf2c->cat_async($tree, sub {
+	$gcf2c->cat_async("$tree $git_b", sub {
 		my ($bref, $oid, $type, $size, $arg) = @_;
 		is(undef, $bref, 'missing bref from alt is undef');
 		$called++;
@@ -79,7 +76,7 @@ my $err_f = "$tmpdir/err";
 	print $alt "$git_a/objects\n" or BAIL_OUT $!;
 	close $alt or BAIL_OUT;
 	my $expect = xqx(['git', "--git-dir=$git_a", qw(cat-file tree), $tree]);
-	$gcf2c->cat_async($tree, sub {
+	$gcf2c->cat_async("$tree $git_a", sub {
 		my ($bref, $oid, $type, $size, $arg) = @_;
 		is($oid, $tree, 'oid match on alternates retry');
 		is($$bref, $expect, 'tree content matched');

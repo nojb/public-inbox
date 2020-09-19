@@ -16,21 +16,27 @@ our @EXPORT = qw(git_async_cat);
 
 sub event_step {
 	my ($self) = @_;
-	my $git = $self->{git};
-	return $self->close if ($git->{in} // 0) != ($self->{sock} // 1);
-	my $inflight = $git->{inflight};
+	my $gitish = $self->{gitish};
+	return $self->close if ($gitish->{in} // 0) != ($self->{sock} // 1);
+	my $inflight = $gitish->{inflight};
 	if ($inflight && @$inflight) {
-		$git->cat_async_step($inflight);
-		$self->requeue if @$inflight || exists $git->{cat_rbuf};
+		$gitish->cat_async_step($inflight);
+		$self->requeue if @$inflight || exists $gitish->{cat_rbuf};
 	}
 }
 
 sub git_async_cat ($$$$) {
 	my ($git, $oid, $cb, $arg) = @_;
-	$git->cat_async($oid, $cb, $arg);
-	$git->{async_cat} //= do {
-		my $self = bless { git => $git }, __PACKAGE__;
-		$self->SUPER::new($git->{in}, EPOLLIN|EPOLLET);
+	my $gitish = $git->{gcf2c}; # PublicInbox::Gcf2Client
+	if ($gitish) {
+		$oid .= " $git->{git_dir}";
+	} else {
+		$gitish = $git;
+	}
+	$gitish->cat_async($oid, $cb, $arg);
+	$gitish->{async_cat} //= do {
+		my $self = bless { gitish => $gitish }, __PACKAGE__;
+		$self->SUPER::new($gitish->{in}, EPOLLIN|EPOLLET);
 		\undef; # this is a true ref()
 	};
 }
