@@ -128,6 +128,7 @@ lib/PublicInbox/Filter/Mirror.pm
 lib/PublicInbox/Filter/RubyLang.pm
 lib/PublicInbox/Filter/SubjectTag.pm
 lib/PublicInbox/Filter/Vger.pm
+lib/PublicInbox/Gcf2.pm
 lib/PublicInbox/GetlineBody.pm
 lib/PublicInbox/Git.pm
 lib/PublicInbox/GitAsyncCat.pm
@@ -212,6 +213,7 @@ lib/PublicInbox/WwwStatic.pm
 lib/PublicInbox/WwwStream.pm
 lib/PublicInbox/WwwText.pm
 lib/PublicInbox/Xapcmd.pm
+lib/PublicInbox/gcf2_libgit2.h
 sa_config/Makefile
 sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
@@ -275,6 +277,7 @@ t/filter_mirror.t
 t/filter_rubylang.t
 t/filter_subjecttag.t
 t/filter_vger.t
+t/gcf2.t
 t/git-http-backend.psgi
 t/git.fast-import-data
 t/git.t
