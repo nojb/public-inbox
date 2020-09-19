@@ -120,7 +120,7 @@ Messages without the (S)een flag are not considered for hiding.
 This hiding affects all configured public-inboxes in PI_CONFIG.
 
 As with C<publicinbox.$NAME.watch>, C<imap://> and C<imaps://> URLs
-are supported in public-inbox 1.6.0.
+are supported in public-inbox 1.6.0+.
 
 Default: none; only for L<public-inbox-watch(1)> users
 

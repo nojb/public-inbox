@@ -1,0 +1,16 @@
+To: meta@public-inbox.org
+Subject: [WIP] public-inbox 1.7.0
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+
+TODO: gcf2, detached indices, JMAP, ...
+
+Compatibility:
+
+* Rollbacks all the way to public-inbox 1.2.0 remain supported
+
+Please report bugs via plain-text mail to: meta@public-inbox.org
+
+See archives at https://public-inbox.org/meta/ for all history.
+See https://public-inbox.org/TODO for what the future holds.

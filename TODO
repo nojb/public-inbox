@@ -112,8 +112,6 @@ all need to be considered for everything we introduce)
 * imperfect scraper importers for obfuscated list archives
   (e.g. obfuscated Mailman stuff, Google Groups, etc...)
 
-* extend public-inbox-watch to support IMAP, NNTP
-
 * improve performance and avoid head-of-line blocking on slow storage
   (done for most git blob retrievals, Xapian needs work)
 
