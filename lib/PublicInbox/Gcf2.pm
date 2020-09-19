@@ -1,7 +1,8 @@
 # Copyright (C) 2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-#
-# git-cat-file based on libgit2
+
+# backend for public-inbox-gcf2(1) (git-cat-file based on libgit2,
+# other libgit2 stuff may go here, too)
 package PublicInbox::Gcf2;
 use strict;
 use PublicInbox::Spawn qw(which popen_rd);
