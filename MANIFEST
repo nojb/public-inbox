@@ -26,6 +26,7 @@ Documentation/public-inbox-config.pod
 Documentation/public-inbox-convert.pod
 Documentation/public-inbox-daemon.pod
 Documentation/public-inbox-edit.pod
+Documentation/public-inbox-gcf2.pod
 Documentation/public-inbox-httpd.pod
 Documentation/public-inbox-imapd.pod
 Documentation/public-inbox-index.pod
@@ -129,6 +130,7 @@ lib/PublicInbox/Filter/RubyLang.pm
 lib/PublicInbox/Filter/SubjectTag.pm
 lib/PublicInbox/Filter/Vger.pm
 lib/PublicInbox/Gcf2.pm
+lib/PublicInbox/Gcf2Client.pm
 lib/PublicInbox/GetlineBody.pm
 lib/PublicInbox/Git.pm
 lib/PublicInbox/GitAsyncCat.pm
@@ -221,6 +223,7 @@ sa_config/user/.spamassassin/user_prefs
 script/public-inbox-compact
 script/public-inbox-convert
 script/public-inbox-edit
+script/public-inbox-gcf2
 script/public-inbox-httpd
 script/public-inbox-imapd
 script/public-inbox-index
@@ -278,6 +281,7 @@ t/filter_rubylang.t
 t/filter_subjecttag.t
 t/filter_vger.t
 t/gcf2.t
+t/gcf2_client.t
 t/git-http-backend.psgi
 t/git.fast-import-data
 t/git.t

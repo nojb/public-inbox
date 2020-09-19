@@ -1,0 +1,14 @@
+#!perl -w
+# Copyright (C) 2020 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+eval { require PublicInbox::Gcf2 };
+die "libgit2 development package or Inline::C missing for $0: $@\n" if $@;
+my $gcf2 = PublicInbox::Gcf2::new();
+while (<STDIN>) {
+	chomp;
+	if (m!\A/!) { # +/path/to/git-dir
+		$gcf2->add_alternate("$_/objects");
+	} else {
+		$gcf2->cat_oid(1, $_);
+	}
+}

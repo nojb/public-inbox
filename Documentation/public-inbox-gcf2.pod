@@ -1,0 +1,63 @@
+=head1 NAME
+
+public-inbox-gcf2 - internal libgit2-based blob retriever
+
+=head1 SYNOPSIS
+
+	This is an internal command used by public-inbox.
+	It may change unrecognizably or cease to exist at some point
+
+=head1 DESCRIPTION
+
+public-inbox-gcf2 is an optional internal process used by
+public-inbox daemons for read-only access to underlying git
+repositories.
+
+Users are NOT expected to run public-inbox-gcf2 on their own.
+It replaces multiple C<git cat-file --batch> processes by treating
+any git repos it knows about as alternates.
+
+None of its behaviors are stable and it is ALL subject to change
+at any time.
+
+Any lines written to its standard input prefixed with a C</>
+are interpreted as a git directory.  That git directory
+will be suffixed with "/objects" and treated as an alternate.
+It writes nothing to stdout in this case.
+
+Otherwise it behaves like C<git cat-file --batch>, but only accepts
+unabbreviated hexadecimal object IDs in its standard input.
+Its output format is identical to C<git cat-file --batch>.  It
+only works for L<public-inbox-v2-format(5)> inboxes and v1
+inboxes indexed by L<public-inbox-index(1)>.
+
+=head1 OPTIONS
+
+=head1 ENVIRONMENT
+
+=over 8
+
+=item PERL_INLINE_DIRECTORY
+
+This must be set unless C<~/.cache/public-inbox/inline-c>
+exists.  C<public-inbox-gcf2> uses L<Inline::C> and libgit2
+and compiles a small shim on its first run.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2020 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<git-cat-file(1)>
