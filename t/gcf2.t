@@ -7,24 +7,74 @@ use Test::More;
 use Fcntl qw(:seek);
 use IO::Handle ();
 use POSIX qw(_exit);
+use Cwd qw(abs_path);
 require_mods('PublicInbox::Gcf2');
 use_ok 'PublicInbox::Gcf2';
+use PublicInbox::Import;
+my ($tmpdir, $for_destroy) = tmpdir();
+
 my $gcf2 = PublicInbox::Gcf2::new();
 is(ref($gcf2), 'PublicInbox::Gcf2', '::new works');
-chomp(my $objdir = xqx([qw(git rev-parse --git-path objects)]));
-if ($objdir =~ /\A--git-path\n/) { # git <2.5
-	chomp($objdir = xqx([qw(git rev-parse --git-dir)]));
-	$objdir .= '/objects';
-	$objdir = undef unless -d $objdir;
-}
-
 my $COPYING = 'dba13ed2ddf783ee8118c6a581dbf75305f816a3';
 open my $agpl, '<', 'COPYING' or BAIL_OUT "AGPL-3 missing: $!";
 $agpl = do { local $/; <$agpl> };
 
+PublicInbox::Import::init_bare($tmpdir);
+my $fi_data = './t/git.fast-import-data';
+my $rdr = {};
+open $rdr->{0}, '<', $fi_data or BAIL_OUT $!;
+xsys([qw(git fast-import --quiet)], { GIT_DIR => $tmpdir }, $rdr);
+is($?, 0, 'fast-import succeeded');
+$gcf2->add_alternate("$tmpdir/objects");
+
+{
+	my ($r, $w);
+	pipe($r, $w) or BAIL_OUT $!;
+	my $tree = 'fdbc43725f21f485051c17463b50185f4c3cf88c';
+	$gcf2->cat_oid(fileno($w), $tree);
+	close $w;
+	is("$tree tree 30\n", <$r>, 'tree header ok');
+	$r = do { local $/; <$r> };
+	is(chop($r), "\n", 'got trailing newline');
+	is(length($r), 30, 'tree length matches');
+}
+
+chomp(my $objdir = xqx([qw(git rev-parse --git-path objects)]));
+if ($objdir =~ /\A--git-path\n/) { # git <2.5
+	chomp($objdir = xqx([qw(git rev-parse --git-dir)]));
+	$objdir .= '/objects';
+}
+if ($objdir && -d $objdir) {
+	$objdir = abs_path($objdir);
+	open my $alt, '>>', "$tmpdir/objects/info/alternates" or
+							BAIL_OUT $!;
+	print $alt $objdir, "\n" or BAIL_OUT $!;
+	close $alt or BAIL_OUT $!;
+
+	# calling gcf2->add_alternate on an already-added path won't
+	# cause alternates to be reloaded, so we do
+	# $gcf2->add_alternate($objdir) later on instead of
+	# $gcf2->add_alternate("$tmpdir/objects");
+	# $objdir = "$tmpdir/objects";
+} else {
+	$objdir = undef
+}
+
+my $nr = $ENV{TEST_LEAK_NR};
+my $cat = $ENV{TEST_LEAK_CAT} // 10;
+diag "checking for leaks... (TEST_LEAK_NR=$nr TEST_LEAK_CAT=$cat)" if $nr;
+
 SKIP: {
-	skip 'not in git worktree', 15 unless defined($objdir);
+	skip 'not in git worktree', 21 unless defined($objdir);
 	$gcf2->add_alternate($objdir);
+	eval { $gcf2->add_alternate($objdir) };
+	ok(!$@, 'no error adding alternate redundantly');
+	if ($nr) {
+		diag "adding alternate $nr times redundantly";
+		$gcf2->add_alternate($objdir) for (1..$nr);
+		diag 'done adding redundant alternates';
+	}
+
 	open my $fh, '+>', undef or BAIL_OUT "open: $!";
 	my $fd = fileno($fh);
 	$fh->autoflush(1);
@@ -51,6 +101,10 @@ SKIP: {
 		is($buf, $agpl, "AGPL matches ($desc)");
 	};
 	$ck_copying->('regular file');
+
+	$gcf2 = PublicInbox::Gcf2::new();
+	$gcf2->add_alternate("$tmpdir/objects");
+	$ck_copying->('alternates respected');
 
 	$^O eq 'linux' or skip('pipe tests are Linux-only', 12);
 	my $size = -s $fh;
@@ -86,11 +140,9 @@ SKIP: {
 	}
 }
 
-if (my $nr = $ENV{TEST_LEAK_NR}) {
+if ($nr) {
 	open my $null, '>', '/dev/null' or BAIL_OUT "open /dev/null: $!";
 	my $fd = fileno($null);
-	my $cat = $ENV{TEST_LEAK_CAT} // 10;
-	diag "checking for leaks... (TEST_LEAK_NR=$nr TEST_LEAK_CAT=$cat)";
 	local $SIG{PIPE} = 'IGNORE';
 	my ($r, $w);
 	pipe($r, $w);
