@@ -50,7 +50,7 @@ This may be set after-the-fact via C<publicinbox.$NAME.newsgroup>
 in the configuration file.  See L<public-inbox-config(5)> for more
 info.
 
-Available since public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 Default: none.
 
@@ -66,7 +66,7 @@ but may be of use to L<public-inbox-v1-format(5)> users.
 There is no automatic way to use reserved NNTP article numbers
 when old mail is found, yet.
 
-Available since public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 Default: unset, no NNTP article numbers are skipped
 
@@ -110,7 +110,7 @@ overhead by around 1.5%.
 Warning: this option prevents rollbacks to public-inbox 1.5.0
 and earlier.
 
-Available since public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 =back
 

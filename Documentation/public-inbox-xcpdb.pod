@@ -62,7 +62,7 @@ used with C<--compact>.
 Disable L<fsync(2)> and L<fdatasync(2)>.
 See L<public-inbox-index(1)/--no-fsync> for caveats.
 
-Available in public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 =item --sequential-shard
 

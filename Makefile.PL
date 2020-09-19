@@ -111,8 +111,11 @@ my %man3 = map {; # semi-colon tells Perl this is a BLOCK (and not EXPR)
 } qw(Git.pm Import.pm WWW.pod SaPlugin/ListMirror.pod);
 
 WriteMakefile(
-	NAME => 'PublicInbox',
+	NAME => 'PublicInbox', # n.b. camel-case is not our choice
+
+	# XXX drop "PENDING" in .pod before updating this!
 	VERSION => '1.6.0',
+
 	AUTHOR => 'Eric Wong <e@80x24.org>',
 	ABSTRACT => 'public-inbox server infrastructure',
 	EXE_FILES => \@EXE_FILES,

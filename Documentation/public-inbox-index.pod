@@ -42,7 +42,7 @@ Influences the number of Xapian indexing shards in a
 See L<public-inbox-init(1)/--jobs> for a full description
 of sharding.
 
-C<--jobs=0> is accepted as of public-inbox 1.6.0 (PENDING)
+C<--jobs=0> is accepted as of public-inbox 1.6.0
 to disable parallel indexing regardless of the number of
 pre-existing shards.
 
@@ -102,7 +102,7 @@ This fixes some bugs in older versions of public-inbox.  While
 it is possible to use this without C<--reindex>, it makes little
 sense to do so.
 
-Available in public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 =item --prune
 
@@ -133,7 +133,7 @@ significantly speed up and reduce fragmentation during the
 initial index and full C<--reindex> invocations (but not
 incremental updates).
 
-Available in public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 =item --no-fsync
 
@@ -144,7 +144,7 @@ primarily intended for systems with low RAM and the small
 may even find disabling L<fdatasync(2)> causes too much dirty
 data to accumulate, resulting on latency spikes from writeback.
 
-Available in public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 =item --sequential-shard
 
@@ -152,7 +152,7 @@ Sets or overrides L</publicinbox.indexSequentialShard> on a
 per-invocation basis.  See L</publicinbox.indexSequentialShard>
 below.
 
-Available in public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 =item --skip-docdata
 
@@ -160,7 +160,7 @@ Stop storing document data in Xapian on an existing inbox.
 
 See L<public-inbox-init(1)/--skip-docdata> for description and caveats.
 
-Available in public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 =back
 
@@ -237,7 +237,7 @@ to SQLite databases.  WWW and IMAP users may notice incomplete
 search results, but it is otherwise non-fatal.  Using C<--reindex>
 will bring everything back up-to-date.
 
-Available in public-inbox 1.6.0 (PENDING).
+Available in public-inbox 1.6.0+.
 
 This is ignored on L<public-inbox-v1-format(5)> inboxes.
 
