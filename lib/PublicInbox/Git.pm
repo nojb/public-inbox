@@ -192,7 +192,8 @@ sub cat_async_step ($$) {
 		chop($$bref) eq "\n" or fail($self, 'LF missing after blob');
 	} elsif ($head =~ / missing$/) {
 		# ref($req) indicates it's already been retried
-		if (!ref($req) && !$in_cleanup && alternates_changed($self)) {
+		# -gcf2 retries internally, so it never hits this path:
+		if (!ref($req) && !$in_cleanup && $self->alternates_changed) {
 			return cat_async_retry($self, $inflight,
 						$req, $cb, $arg);
 		}
@@ -394,7 +395,7 @@ sub pub_urls {
 
 sub cat_async_begin {
 	my ($self) = @_;
-	cleanup($self) if alternates_changed($self);
+	cleanup($self) if $self->alternates_changed;
 	batch_prepare($self);
 	die 'BUG: already in async' if $self->{inflight};
 	$self->{inflight} = [];

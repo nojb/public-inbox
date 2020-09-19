@@ -7,11 +7,13 @@ use PublicInbox::Spawn qw(popen_rd);
 use IO::Handle ();
 
 sub new {
-	my $self = shift->SUPER::new('/nonexistent');
+	my ($rdr) = @_;
+	my $self = bless {}, __PACKAGE__;
 	my ($out_r, $out_w);
 	pipe($out_r, $out_w) or $self->fail("pipe failed: $!");
-	my $cmd = [ 'public-inbox-gcf2' ];
-	@$self{qw(in pid)} = popen_rd($cmd, undef, { 0 => $out_r });
+	$rdr //= {};
+	$rdr->{0} = $out_r;
+	@$self{qw(in pid)} = popen_rd(['public-inbox-gcf2'], undef, $rdr);
 	$self->{inflight} = [];
 	$self->{out} = $out_w;
 	fcntl($out_w, 1031, 4096) if $^O eq 'linux'; # 1031: F_SETPIPE_SZ
@@ -31,5 +33,8 @@ sub add_git_dir {
 	print { $self->{out} } $git_dir, "\n" or
 				$self->fail("write error: $!");
 }
+
+# always false, since -gcf2 retries internally
+sub alternates_changed {}
 
 1;

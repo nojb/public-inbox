@@ -76,43 +76,41 @@ SKIP: {
 	}
 
 	open my $fh, '+>', undef or BAIL_OUT "open: $!";
-	my $fd = fileno($fh);
 	$fh->autoflush(1);
 
-	$gcf2->cat_oid($fd, 'invalid');
+	ok(!$gcf2->cat_oid(fileno($fh), 'invalid'), 'invalid fails');
 	seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
-	is(do { local $/; <$fh> }, "invalid missing\n", 'got missing message');
+	is(do { local $/; <$fh> }, '', 'nothing written');
 
+	open $fh, '+>', undef or BAIL_OUT "open: $!";
+	ok(!$gcf2->cat_oid(fileno($fh), '0'x40), 'z40 fails');
 	seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
-	$gcf2->cat_oid($fd, '0'x40);
-	seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
-	is(do { local $/; <$fh> }, ('0'x40)." missing\n",
-		'got missing message for 0x40');
+	is(do { local $/; <$fh> }, '', 'nothing written for z40');
 
-	seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
-	$gcf2->cat_oid($fd, $COPYING);
-	my $buf;
+	open $fh, '+>', undef or BAIL_OUT "open: $!";
 	my $ck_copying = sub {
 		my ($desc) = @_;
 		seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
-		is(<$fh>, "$COPYING blob 34520\n", 'got expected header');
-		$buf = do { local $/; <$fh> };
+		is(<$fh>, "$COPYING blob 34520\n", "got expected header $desc");
+		my $buf = do { local $/; <$fh> };
 		is(chop($buf), "\n", 'got trailing \\n');
 		is($buf, $agpl, "AGPL matches ($desc)");
 	};
+	ok($gcf2->cat_oid(fileno($fh), $COPYING), 'cat_oid normal');
 	$ck_copying->('regular file');
 
 	$gcf2 = PublicInbox::Gcf2::new();
 	$gcf2->add_alternate("$tmpdir/objects");
-	$ck_copying->('alternates respected');
+	open $fh, '+>', undef or BAIL_OUT "open: $!";
+	ok($gcf2->cat_oid(fileno($fh), $COPYING), 'cat_oid alternate');
+	$ck_copying->('alternates after reopen');
 
-	$^O eq 'linux' or skip('pipe tests are Linux-only', 12);
-	my $size = -s $fh;
+	$^O eq 'linux' or skip('pipe tests are Linux-only', 14);
 	for my $blk (1, 0) {
 		my ($r, $w);
 		pipe($r, $w) or BAIL_OUT $!;
 		fcntl($w, 1031, 4096) or
-			skip('Linux too old for F_SETPIPE_SZ', 12);
+			skip('Linux too old for F_SETPIPE_SZ', 14);
 		$w->blocking($blk);
 		seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
 		truncate($fh, 0) or BAIL_OUT "truncate: $!";
@@ -120,11 +118,11 @@ SKIP: {
 		if ($pid == 0) {
 			close $w;
 			tick; # wait for parent to block on writev
-			$buf = do { local $/; <$r> };
+			my $buf = do { local $/; <$r> };
 			print $fh $buf or _exit(1);
 			_exit(0);
 		}
-		$gcf2->cat_oid(fileno($w), $COPYING);
+		ok($gcf2->cat_oid(fileno($w), $COPYING), "cat blocking=$blk");
 		close $w or BAIL_OUT "close: $!";
 		is(waitpid($pid, 0), $pid, 'child exited');
 		is($?, 0, 'no error in child');

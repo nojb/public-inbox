@@ -10,19 +10,25 @@ use PublicInbox::Import;
 require_mods('PublicInbox::Gcf2');
 use_ok 'PublicInbox::Gcf2Client';
 my ($tmpdir, $for_destroy) = tmpdir();
-PublicInbox::Import::init_bare($tmpdir);
+my $git_a = "$tmpdir/a.git";
+my $git_b = "$tmpdir/b.git";
+PublicInbox::Import::init_bare($git_a);
+PublicInbox::Import::init_bare($git_b);
 my $fi_data = './t/git.fast-import-data';
 my $rdr = {};
 open $rdr->{0}, '<', $fi_data or BAIL_OUT $!;
-xsys([qw(git fast-import --quiet)], { GIT_DIR => $tmpdir }, $rdr);
+xsys([qw(git fast-import --quiet)], { GIT_DIR => $git_a }, $rdr);
 is($?, 0, 'fast-import succeeded');
 
 my $tree = 'fdbc43725f21f485051c17463b50185f4c3cf88c';
 my $called = 0;
+my $err_f = "$tmpdir/err";
 {
 	local $ENV{PATH} = getcwd()."/blib/script:$ENV{PATH}";
-	my $gcf2c = PublicInbox::Gcf2Client->new;
-	$gcf2c->add_git_dir($tmpdir);
+	open my $err, '>', $err_f or BAIL_OUT $!;
+	my $gcf2c = PublicInbox::Gcf2Client::new({ 2 => $err });
+	$gcf2c->add_git_dir($git_a);
+
 	$gcf2c->cat_async($tree, sub {
 		my ($bref, $oid, $type, $size, $arg) = @_;
 		is($oid, $tree, 'got expected OID');
@@ -32,6 +38,12 @@ my $called = 0;
 		is($arg, 'hi', 'arg passed');
 		$called++;
 	}, 'hi');
+	$gcf2c->cat_async_wait;
+
+	open $err, '<', $err_f or BAIL_OUT $!;
+	my $estr = do { local $/; <$err> };
+	is($estr, '', 'nothing in stderr');
+
 	my $trunc = substr($tree, 0, 39);
 	$gcf2c->cat_async($trunc, sub {
 		my ($bref, $oid, $type, $size, $arg) = @_;
@@ -42,6 +54,38 @@ my $called = 0;
 		is($arg, 'bye', 'arg passed when missing');
 		$called++;
 	}, 'bye');
+	$gcf2c->cat_async_wait;
+
+	open $err, '<', $err_f or BAIL_OUT $!;
+	$estr = do { local $/; <$err> };
+	like($estr, qr/retrying/, 'warned about retry');
+
+	# try failed alternates lookup
+	open $err, '>', $err_f or BAIL_OUT $!;
+	$gcf2c = PublicInbox::Gcf2Client::new({ 2 => $err });
+	$gcf2c->add_git_dir($git_b);
+	$gcf2c->cat_async($tree, sub {
+		my ($bref, $oid, $type, $size, $arg) = @_;
+		is(undef, $bref, 'missing bref from alt is undef');
+		$called++;
+	});
+	$gcf2c->cat_async_wait;
+	open $err, '<', $err_f or BAIL_OUT $!;
+	$estr = do { local $/; <$err> };
+	like($estr, qr/retrying/, 'warned about retry before alt update');
+
+	# now try successful alternates lookup
+	open my $alt, '>>', "$git_b/objects/info/alternates" or BAIL_OUT $!;
+	print $alt "$git_a/objects\n" or BAIL_OUT $!;
+	close $alt or BAIL_OUT;
+	my $expect = xqx(['git', "--git-dir=$git_a", qw(cat-file tree), $tree]);
+	$gcf2c->cat_async($tree, sub {
+		my ($bref, $oid, $type, $size, $arg) = @_;
+		is($oid, $tree, 'oid match on alternates retry');
+		is($$bref, $expect, 'tree content matched');
+		$called++;
+	});
+	$gcf2c->cat_async_wait;
 }
-is($called, 2, 'cat_async callbacks hit');
+is($called, 4, 'cat_async callbacks hit');
 done_testing;

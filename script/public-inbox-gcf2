@@ -3,12 +3,33 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 eval { require PublicInbox::Gcf2 };
 die "libgit2 development package or Inline::C missing for $0: $@\n" if $@;
+my @dirs; # may get big (30K-100K)
 my $gcf2 = PublicInbox::Gcf2::new();
+use IO::Handle; # autoflush
+STDERR->autoflush(1);
+STDOUT->autoflush(1);
+
 while (<STDIN>) {
 	chomp;
 	if (m!\A/!) { # +/path/to/git-dir
+		push @dirs, $_;
 		$gcf2->add_alternate("$_/objects");
-	} else {
-		$gcf2->cat_oid(1, $_);
+	} elsif (!$gcf2->cat_oid(1, $_)) {
+		# retry once if missing.  We only get unabbreviated OIDs
+		# from SQLite or Xapian DBs, here, so malicious clients
+		# can't trigger excessive retries:
+		my $oid = $_;
+		warn "I: $$ $oid missing, retrying...\n";
+
+		# clients may need to wait a bit for this:
+		$gcf2 = PublicInbox::Gcf2::new();
+		$gcf2->add_alternate("$_/objects") for @dirs;
+
+		if ($gcf2->cat_oid(1, $oid)) {
+			warn "I: $$ $oid found after retry\n";
+		} else {
+			warn "W: $$ $oid missing after retry\n";
+			print "$oid missing\n"; # mimic git-cat-file
+		}
 	}
 }

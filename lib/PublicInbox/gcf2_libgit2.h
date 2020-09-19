@@ -52,9 +52,13 @@ void add_alternate(SV *self, const char *objects_path)
 	croak_if_err(rc, "git_odb_add_disk_alternate");
 }
 
-/* this requires an unabbreviated git OID */
 #define CAPA(v) (sizeof(v) / sizeof((v)[0]))
-void cat_oid(SV *self, int fd, SV *oidsv)
+
+/*
+ * returns true on success, false on failure
+ * this requires an unabbreviated git OID
+ */
+int cat_oid(SV *self, int fd, SV *oidsv)
 {
 	/*
 	 * adjust when libgit2 gets SHA-256 support, we return the
@@ -89,11 +93,8 @@ void cat_oid(SV *self, int fd, SV *oidsv)
 					git_object_type2string(
 						git_odb_object_type(object)),
 					vec[1].iov_len);
-	} else {
-		vec[0].iov_base = oidptr;
-		vec[0].iov_len = oidlen;
-		vec[1].iov_base = " missing";
-		vec[1].iov_len = strlen(vec[1].iov_base);
+	} else { /* caller retries */
+		nvec = 0;
 	}
 	while (nvec && !err) {
 		ssize_t w = writev(fd, vec + CAPA(vec) - nvec, nvec);
@@ -136,4 +137,6 @@ void cat_oid(SV *self, int fd, SV *oidsv)
 		git_odb_object_free(object);
 	if (err)
 		croak("writev error: %s", strerror(err));
+
+	return rc == GIT_OK;
 }
