@@ -19,6 +19,7 @@ use PublicInbox::Syscall qw($SFD_NONBLOCK);
 require PublicInbox::Listener;
 use PublicInbox::EOFpipe;
 use PublicInbox::Sigfd;
+use PublicInbox::GitAsyncCat;
 my @CMD;
 my ($set_user, $oldset);
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
@@ -652,6 +653,16 @@ sub run ($$$;$) {
 	daemon_prepare($default);
 	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
 	my $for_destroy = daemonize();
+
+	# this wastes a bit of memory for non-PublicInbox::WWW -httpd users
+	# oh well...
+	eval {
+		require PublicInbox::Gcf2;
+		require PublicInbox::Gcf2Client;
+	};
+	local $PublicInbox::GitAsyncCat::GCF2C =
+				PublicInbox::Gcf2Client::new() if !$@;
+
 	daemon_loop($refresh, $post_accept, $tlsd, $af_default);
 	PublicInbox::DS->Reset;
 	# ->DESTROY runs when $for_destroy goes out-of-scope

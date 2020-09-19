@@ -626,7 +626,7 @@ sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	}
 	my $pre;
 	if (!$self->{wbuf} && (my $nxt = $msgs->[0])) {
-		$pre = $self->{ibx}->git->async_prefetch($nxt->{blob},
+		$pre = git_async_prefetch($self->{ibx}->git, $nxt->{blob},
 						\&fetch_blob_cb, $fetch_arg);
 	}
 	fetch_run_ops($self, $smsg, $bref, $ops, $partial);

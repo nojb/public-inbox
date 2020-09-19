@@ -11,23 +11,49 @@
 package PublicInbox::GitAsyncCat;
 use strict;
 use parent qw(PublicInbox::DS Exporter);
+use POSIX qw(WNOHANG);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
-our @EXPORT = qw(git_async_cat);
+our @EXPORT = qw(git_async_cat git_async_prefetch);
+use PublicInbox::Git ();
+
+our $GCF2C; # singleton PublicInbox::Gcf2Client
+
+sub close {
+	my ($self) = @_;
+
+	if (my $gitish = delete $self->{gitish}) {
+		PublicInbox::Git::cat_async_abort($gitish);
+	}
+	$self->SUPER::close; # PublicInbox::DS::close
+}
 
 sub event_step {
 	my ($self) = @_;
-	my $gitish = $self->{gitish};
+	my $gitish = $self->{gitish} or return;
 	return $self->close if ($gitish->{in} // 0) != ($self->{sock} // 1);
 	my $inflight = $gitish->{inflight};
 	if ($inflight && @$inflight) {
 		$gitish->cat_async_step($inflight);
-		$self->requeue if @$inflight || exists $gitish->{cat_rbuf};
+
+		# child death?
+		if (($gitish->{in} // 0) != ($self->{sock} // 1)) {
+			$self->close;
+		} elsif (@$inflight || exists $gitish->{cat_rbuf}) {
+			# ok, more to do, requeue for fairness
+			$self->requeue;
+		}
+	} elsif ((my $pid = waitpid($gitish->{pid}, WNOHANG)) > 0) {
+		# May happen if the child process is killed by a BOFH
+		# (or segfaults)
+		delete $gitish->{pid};
+		warn "E: gitish $pid exited with \$?=$?\n";
+		$self->close;
 	}
 }
 
 sub git_async_cat ($$$$) {
 	my ($git, $oid, $cb, $arg) = @_;
-	my $gitish = $git->{gcf2c}; # PublicInbox::Gcf2Client
+	my $gitish = $GCF2C;
 	if ($gitish) {
 		$oid .= " $git->{git_dir}";
 	} else {
@@ -39,6 +65,27 @@ sub git_async_cat ($$$$) {
 		$self->SUPER::new($gitish->{in}, EPOLLIN|EPOLLET);
 		\undef; # this is a true ref()
 	};
+}
+
+# this is safe to call inside $cb, but not guaranteed to enqueue
+# returns true if successful, undef if not.
+sub git_async_prefetch {
+	my ($git, $oid, $cb, $arg) = @_;
+	if ($GCF2C) {
+		if ($GCF2C->{async_cat} && !$GCF2C->{wbuf}) {
+			$oid .= " $git->{git_dir}";
+			return $GCF2C->cat_async($oid, $cb, $arg);
+		}
+	} elsif ($git->{async_cat} && (my $inflight = $git->{inflight})) {
+		# we could use MAX_INFLIGHT here w/o the halving,
+		# but lets not allow one client to monopolize a git process
+		if (@$inflight < int(PublicInbox::Git::MAX_INFLIGHT/2)) {
+			print { $git->{out} } $oid, "\n" or
+						$git->fail("write error: $!");
+			return push(@$inflight, $oid, $cb, $arg);
+		}
+	}
+	undef;
 }
 
 1;

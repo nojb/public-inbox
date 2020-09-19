@@ -26,7 +26,6 @@ Documentation/public-inbox-config.pod
 Documentation/public-inbox-convert.pod
 Documentation/public-inbox-daemon.pod
 Documentation/public-inbox-edit.pod
-Documentation/public-inbox-gcf2.pod
 Documentation/public-inbox-httpd.pod
 Documentation/public-inbox-imapd.pod
 Documentation/public-inbox-index.pod
@@ -223,7 +222,6 @@ sa_config/user/.spamassassin/user_prefs
 script/public-inbox-compact
 script/public-inbox-convert
 script/public-inbox-edit
-script/public-inbox-gcf2
 script/public-inbox-httpd
 script/public-inbox-imapd
 script/public-inbox-index

@@ -6,6 +6,7 @@ use PublicInbox::TestCommon;
 use Test::More;
 use Cwd qw(getcwd);
 use PublicInbox::Import;
+use PublicInbox::DS;
 
 require_mods('PublicInbox::Gcf2');
 use_ok 'PublicInbox::Gcf2Client';
@@ -24,8 +25,8 @@ my $tree = 'fdbc43725f21f485051c17463b50185f4c3cf88c';
 my $called = 0;
 my $err_f = "$tmpdir/err";
 {
-	local $ENV{PATH} = getcwd()."/blib/script:$ENV{PATH}";
-	open my $err, '>', $err_f or BAIL_OUT $!;
+	PublicInbox::DS->Reset;
+	open my $err, '>>', $err_f or BAIL_OUT $!;
 	my $gcf2c = PublicInbox::Gcf2Client::new({ 2 => $err });
 	$gcf2c->cat_async("$tree $git_a", sub {
 		my ($bref, $oid, $type, $size, $arg) = @_;
@@ -36,7 +37,7 @@ my $err_f = "$tmpdir/err";
 		is($arg, 'hi', 'arg passed');
 		$called++;
 	}, 'hi');
-	$gcf2c->cat_async_wait;
+	$gcf2c->cat_async_step($gcf2c->{inflight});
 
 	open $err, '<', $err_f or BAIL_OUT $!;
 	my $estr = do { local $/; <$err> };
@@ -52,13 +53,14 @@ my $err_f = "$tmpdir/err";
 		is($arg, 'bye', 'arg passed when missing');
 		$called++;
 	}, 'bye');
-	$gcf2c->cat_async_wait;
+	$gcf2c->cat_async_step($gcf2c->{inflight});
 
 	open $err, '<', $err_f or BAIL_OUT $!;
 	$estr = do { local $/; <$err> };
 	like($estr, qr/retrying/, 'warned about retry');
 
 	# try failed alternates lookup
+	PublicInbox::DS->Reset;
 	open $err, '>', $err_f or BAIL_OUT $!;
 	$gcf2c = PublicInbox::Gcf2Client::new({ 2 => $err });
 	$gcf2c->cat_async("$tree $git_b", sub {
@@ -66,7 +68,7 @@ my $err_f = "$tmpdir/err";
 		is(undef, $bref, 'missing bref from alt is undef');
 		$called++;
 	});
-	$gcf2c->cat_async_wait;
+	$gcf2c->cat_async_step($gcf2c->{inflight});
 	open $err, '<', $err_f or BAIL_OUT $!;
 	$estr = do { local $/; <$err> };
 	like($estr, qr/retrying/, 'warned about retry before alt update');
@@ -82,7 +84,7 @@ my $err_f = "$tmpdir/err";
 		is($$bref, $expect, 'tree content matched');
 		$called++;
 	});
-	$gcf2c->cat_async_wait;
+	$gcf2c->cat_async_step($gcf2c->{inflight});
 }
 is($called, 4, 'cat_async callbacks hit');
 done_testing;

@@ -13,6 +13,7 @@ BEGIN {
 	require PublicInbox::HTTP;
 	require PublicInbox::HTTPD;
 }
+
 my %httpds;
 my $app;
 my $refresh = sub {

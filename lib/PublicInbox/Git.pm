@@ -185,11 +185,12 @@ sub cat_async_step ($$) {
 	my $rbuf = delete($self->{cat_rbuf}) // \(my $new = '');
 	my ($bref, $oid, $type, $size);
 	my $head = my_readline($self->{in}, $rbuf);
+	# ->fail may be called via Gcf2Client.pm
 	if ($head =~ /^([0-9a-f]{40,}) (\S+) ([0-9]+)$/) {
 		($oid, $type, $size) = ($1, $2, $3 + 0);
 		$bref = my_read($self->{in}, $rbuf, $size + 1) or
-			fail($self, defined($bref) ? 'read EOF' : "read: $!");
-		chop($$bref) eq "\n" or fail($self, 'LF missing after blob');
+			$self->fail(defined($bref) ? 'read EOF' : "read: $!");
+		chop($$bref) eq "\n" or $self->fail('LF missing after blob');
 	} elsif ($head =~ s/ missing\n//s) {
 		$oid = $head;
 		# ref($req) indicates it's already been retried
@@ -201,7 +202,7 @@ sub cat_async_step ($$) {
 		$type = 'missing';
 		$oid = ref($req) ? $$req : $req if $oid eq '';
 	} else {
-		fail($self, "Unexpected result from async git cat-file: $head");
+		$self->fail("Unexpected result from async git cat-file: $head");
 	}
 	eval { $cb->($bref, $oid, $type, $size, $arg) };
 	$self->{cat_rbuf} = $rbuf if $$rbuf ne '';
@@ -304,9 +305,11 @@ sub check {
 
 sub _destroy {
 	my ($self, $rbuf, $in, $out, $pid, $err) = @_;
-	my $p = delete $self->{$pid} or return;
 	delete @$self{($rbuf, $in, $out)};
 	delete $self->{$err} if $err; # `err_c'
+
+	# GitAsyncCat::event_step may delete {pid}
+	my $p = delete $self->{$pid} or return;
 
 	# PublicInbox::DS may not be loaded
 	eval { PublicInbox::DS::dwaitpid($p, undef, undef) };
@@ -315,14 +318,21 @@ sub _destroy {
 
 sub cat_async_abort ($) {
 	my ($self) = @_;
-	my $inflight = delete $self->{inflight} or die 'BUG: not in async';
+	if (my $inflight = delete $self->{inflight}) {
+		while (@$inflight) {
+			my ($req, $cb, $arg) = splice(@$inflight, 0, 3);
+			$req =~ s/ .*//; # drop git_dir for Gcf2Client
+			eval { $cb->(undef, $req, undef, undef, $arg) };
+			warn "E: $req: $@ (in abort)\n" if $@;
+		}
+	}
 	cleanup($self);
 }
 
 sub fail {
 	my ($self, $msg) = @_;
-	$self->{inflight} ? cat_async_abort($self) : cleanup($self);
-	croak("git $self->{git_dir}: $msg");
+	cat_async_abort($self);
+	croak(ref($self) . ' ' . ($self->{git_dir} // '') . ": $msg");
 }
 
 sub popen {
@@ -351,6 +361,7 @@ sub cleanup {
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));
 	!!($self->{pid} || $self->{pid_c});
 }
+
 
 # assuming a well-maintained repo, this should be a somewhat
 # accurate estimation of its size
@@ -397,7 +408,7 @@ sub pub_urls {
 sub cat_async_begin {
 	my ($self) = @_;
 	cleanup($self) if $self->alternates_changed;
-	batch_prepare($self);
+	$self->batch_prepare;
 	die 'BUG: already in async' if $self->{inflight};
 	$self->{inflight} = [];
 }
@@ -413,11 +424,9 @@ sub cat_async ($$$;$) {
 	push(@$inflight, $oid, $cb, $arg);
 }
 
-# this is safe to call inside $cb, but not guaranteed to enqueue
-# returns true if successful, undef if not.
 sub async_prefetch {
 	my ($self, $oid, $cb, $arg) = @_;
-	if (defined($self->{async_cat}) && (my $inflight = $self->{inflight})) {
+	if (my $inflight = $self->{inflight}) {
 		# we could use MAX_INFLIGHT here w/o the halving,
 		# but lets not allow one client to monopolize a git process
 		if (scalar(@$inflight) < int(MAX_INFLIGHT/2)) {

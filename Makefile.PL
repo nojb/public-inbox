@@ -71,11 +71,6 @@ $v->{gz_docs} = [ map { "$_.gz" } (@{$v->{docs}},@{$v->{docs_html}}) ];
 $v->{rsync_docs} = [ @{$v->{gz_docs}}, @{$v->{docs}},
 	@{$v->{docs_html}}, qw(NEWS.atom NEWS.atom.gz)];
 
-# filter out public-inbox-gcf2 from the website, it's an internal command
-for my $var (qw(gz_docs rsync_docs)) {
-	@{$v->{$var}} = grep(!/-gcf2/, @{$v->{$var}});
-}
-
 # external manpages which we host ourselves, since some packages
 # (currently just Xapian) doesn't host manpages themselves.
 my @xman = qw(copydatabase.1 xapian-compact.1);
