@@ -125,7 +125,7 @@ sub uniq_mids ($;$) {
 }
 
 # RFC3986, section 3.3:
-sub MID_ESC () { '^A-Za-z0-9\-\._~!\$\&\';\(\)\*\+,;=:@' }
+sub MID_ESC () { '^A-Za-z0-9\-\._~!\$\&\'\(\)\*\+,;=:@' }
 sub mid_escape ($) { uri_escape_utf8($_[0], MID_ESC) }
 
 1;
