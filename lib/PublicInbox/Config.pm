@@ -364,12 +364,22 @@ sub _fill {
 	my ($self, $pfx) = @_;
 	my $ibx = {};
 
-	foreach my $k (qw(inboxdir filter newsgroup
-			watch httpbackendmax
-			replyto feedmax nntpserver
-			indexlevel indexsequentialshard)) {
+	for my $k (qw(watch nntpserver)) {
 		my $v = $self->{"$pfx.$k"};
 		$ibx->{$k} = $v if defined $v;
+	}
+	for my $k (qw(filter inboxdir newsgroup replyto httpbackendmax feedmax
+			indexlevel indexsequentialshard)) {
+		if (defined(my $v = $self->{"$pfx.$k"})) {
+			if (ref($v) eq 'ARRAY') {
+				warn <<EOF;
+W: $pfx.$k has multiple values, only using `$v->[-1]'
+EOF
+				$ibx->{$k} = $v->[-1];
+			} else {
+				$ibx->{$k} = $v;
+			}
+		}
 	}
 
 	# backwards compatibility:
