@@ -424,8 +424,9 @@ EOF
 		$self->{-no_obfuscate}->{$lc_addr} = 1;
 	}
 	if (my $listids = $ibx->{listid}) {
+		# RFC2919 section 6 stipulates "case insensitive equality"
 		foreach my $list_id (@$listids) {
-			$self->{-by_list_id}->{$list_id} = $ibx;
+			$self->{-by_list_id}->{lc($list_id)} = $ibx;
 		}
 	}
 	if (my $ng = $ibx->{newsgroup}) {
