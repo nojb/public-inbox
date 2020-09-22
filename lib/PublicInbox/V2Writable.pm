@@ -1074,7 +1074,7 @@ sub sync_prepare ($$$) {
 		}
 		$all->cat_async_wait;
 	}
-	if (!$regen_max && !keys(%{$self->{unindex_range}})) {
+	if (!$regen_max) {
 		$sync->{-regen_fmt} = "%u/?\n";
 		return 0;
 	}
