@@ -14,7 +14,7 @@ sub new {
 	bless { wr => $io, latest_cmt => $_[1] }, __PACKAGE__
 }
 
-# file_char = [a|m]
+# file_char = [d|m]
 sub push_rec {
 	my ($self, $file_char, $at, $ct, $blob_oid) = @_;
 	my $rec = pack(FMT, $file_char, $at, $ct, $blob_oid);
