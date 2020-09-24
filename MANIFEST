@@ -385,6 +385,7 @@ t/xcpdb-reshard.t
 xt/cmp-msgstr.t
 xt/cmp-msgview.t
 xt/eml_check_limits.t
+xt/eml_check_roundtrip.t
 xt/git-http-backend.t
 xt/git_async_cmp.t
 xt/httpd-async-stream.t
