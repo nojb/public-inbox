@@ -17,6 +17,7 @@ use PublicInbox::MsgIter;
 use PublicInbox::IdxStack;
 use Carp qw(croak);
 use POSIX qw(strftime);
+use Time::Local qw(timegm);
 use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
@@ -104,6 +105,7 @@ sub load_xapian_writable () {
 	}
 	eval 'require '.$X->{WritableDatabase} or die;
 	*sortable_serialise = $xap.'::sortable_serialise';
+	*sortable_unserialise = $xap.'::sortable_unserialise';
 	$DB_CREATE_OR_OPEN = eval($xap.'::DB_CREATE_OR_OPEN()');
 	$DB_OPEN = eval($xap.'::DB_OPEN()');
 	my $ver = (eval($xap.'::major_version()') << 16) |
@@ -434,6 +436,23 @@ sub add_message {
 	$smsg->{num};
 }
 
+sub get_val ($$) {
+	my ($doc, $col) = @_;
+	sortable_unserialise($doc->get_value($col));
+}
+
+sub smsg_from_doc ($) {
+	my ($doc) = @_;
+	my $data = $doc->get_data or return;
+	my $smsg = bless {}, 'PublicInbox::Smsg';
+	$smsg->{ts} = get_val($doc, PublicInbox::Search::TS());
+	my $dt = get_val($doc, PublicInbox::Search::DT());
+	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $dt);
+	$smsg->{ds} = timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
+	$smsg->load_from_data($data);
+	$smsg;
+}
+
 sub xdb_remove {
 	my ($self, $oid, @removed) = @_;
 	my $xdb = $self->{xdb} or return;
@@ -444,10 +463,9 @@ sub xdb_remove {
 			warn "E: #$num $oid missing in Xapian\n";
 			next;
 		}
-		my $smsg = bless {}, 'PublicInbox::Smsg';
-		$smsg->load_expand($doc);
-		my $blob = $smsg->{blob} // '(unset)';
-		if ($blob eq $oid) {
+		my $smsg = smsg_from_doc($doc);
+		my $blob = $smsg->{blob}; # may be undef if --skip-docdata
+		if (!defined($blob) || $blob eq $oid) {
 			$xdb->delete_document($num);
 		} else {
 			warn "E: #$num $oid != $blob in Xapian\n";

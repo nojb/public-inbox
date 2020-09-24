@@ -90,9 +90,6 @@ sub load_xapian () {
 		$ENQ_ASCENDING = $x eq 'Xapian' ?
 				1 : Search::Xapian::ENQ_ASCENDING();
 
-		# for Smsg:
-		*PublicInbox::Smsg::sortable_unserialise =
-						$Xap.'::sortable_unserialise';
 		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
 		# website as it could become a denial-of-service vector
 		# FLAG_PHRASE also seems to cause performance problems chert

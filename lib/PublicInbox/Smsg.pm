@@ -15,13 +15,6 @@ our @EXPORT_OK = qw(subject_normalized);
 use PublicInbox::MID qw(mids);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-use Time::Local qw(timegm);
-
-sub get_val ($$) {
-	my ($doc, $col) = @_;
-	# sortable_unserialise is defined by PublicInbox::Search::load_xapian()
-	sortable_unserialise($doc->get_value($col));
-}
 
 sub to_doc_data {
 	my ($self) = @_;
@@ -59,17 +52,6 @@ sub load_from_data ($$) {
 		$self->{bytes},
 		$self->{lines}
 	) = split(/\n/, $_[1]);
-}
-
-sub load_expand {
-	my ($self, $doc) = @_;
-	my $data = $doc->get_data or return;
-	$self->{ts} = get_val($doc, PublicInbox::Search::TS());
-	my $dt = get_val($doc, PublicInbox::Search::DT());
-	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $dt);
-	$self->{ds} = timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
-	load_from_data($self, $data);
-	$self;
 }
 
 sub psgi_cull ($) {
