@@ -615,18 +615,19 @@ sub fetch_run_ops {
 sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	my ($bref, $oid, $type, $size, $fetch_arg) = @_;
 	my ($self, undef, $msgs, $range_info, $ops, $partial) = @$fetch_arg;
+	my $ibx = $self->{ibx} or return $self->close; # client disconnected
 	my $smsg = shift @$msgs or die 'BUG: no smsg';
 	if (!defined($oid)) {
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
-		warn "E: $smsg->{blob} missing in $self->{ibx}->{inboxdir}\n";
+		warn "E: $smsg->{blob} missing in $ibx->{inboxdir}\n";
 		return requeue_once($self);
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
 	my $pre;
 	if (!$self->{wbuf} && (my $nxt = $msgs->[0])) {
-		$pre = $self->{ibx}->git->async_prefetch($nxt->{blob},
+		$pre = $ibx->git->async_prefetch($nxt->{blob},
 						\&fetch_blob_cb, $fetch_arg);
 	}
 	fetch_run_ops($self, $smsg, $bref, $ops, $partial);
