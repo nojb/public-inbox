@@ -53,14 +53,21 @@ sub event_step {
 
 sub git_async_cat ($$$$) {
 	my ($git, $oid, $cb, $arg) = @_;
-	my $gitish = $GCF2C;
-	if ($gitish) {
+	my $gitish = $GCF2C //= eval {
+		require PublicInbox::Gcf2;
+		require PublicInbox::Gcf2Client;
+		PublicInbox::Gcf2Client::new();
+	} // 0; # 0: do not retry if libgit2 or Inline::C are missing
+	if ($gitish) { # Gcf2 active, {inflight} may be unset due to errors
+		$GCF2C->{inflight} or
+			$gitish = $GCF2C = PublicInbox::Gcf2Client::new();
 		$oid .= " $git->{git_dir}";
 	} else {
 		$gitish = $git;
 	}
 	$gitish->cat_async($oid, $cb, $arg);
 	$gitish->{async_cat} //= do {
+		# read-only end of pipe (Gcf2Client is write-only end)
 		my $self = bless { gitish => $gitish }, __PACKAGE__;
 		$self->SUPER::new($gitish->{in}, EPOLLIN|EPOLLET);
 		\undef; # this is a true ref()

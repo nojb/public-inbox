@@ -654,14 +654,8 @@ sub run ($$$;$) {
 	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
 	my $for_destroy = daemonize();
 
-	# this wastes a bit of memory for non-PublicInbox::WWW -httpd users
-	# oh well...
-	eval {
-		require PublicInbox::Gcf2;
-		require PublicInbox::Gcf2Client;
-	};
-	local $PublicInbox::GitAsyncCat::GCF2C =
-				PublicInbox::Gcf2Client::new() if !$@;
+	# localize GCF2C for tests:
+	local $PublicInbox::GitAsyncCat::GCF2C;
 
 	daemon_loop($refresh, $post_accept, $tlsd, $af_default);
 	PublicInbox::DS->Reset;
