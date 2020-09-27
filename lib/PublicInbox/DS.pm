@@ -332,6 +332,7 @@ sub new {
 
     _InitPoller();
 
+retry:
     if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
         if ($! == EINVAL && ($ev & EPOLLEXCLUSIVE)) {
             $ev &= ~EPOLLEXCLUSIVE;
