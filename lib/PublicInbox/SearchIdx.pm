@@ -340,7 +340,7 @@ sub index_ids ($$$$) {
 	$doc->add_boolean_term('Q' . $_) for @$mids;
 	for my $l ($hdr->header_raw('List-Id')) {
 		$l =~ /<([^>]+)>/ or next;
-		my $lid = $1;
+		my $lid = lc $1;
 		$doc->add_boolean_term('G' . $lid);
 		index_text($self, $lid, 1, 'XL'); # probabilistic
 	}
