@@ -1030,7 +1030,7 @@ sub sync_prepare ($$$) {
 	my ($self, $sync, $epoch_max) = @_;
 	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
-	my $head = $self->{ibx}->{ref_head} || 'refs/heads/master';
+	my $head = $self->{ibx}->{ref_head} || 'HEAD';
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
