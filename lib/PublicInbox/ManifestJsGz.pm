@@ -16,7 +16,7 @@ use HTTP::Date qw(time2str);
 *try_cat = \&PublicInbox::Inbox::try_cat;
 
 our $json;
-for my $mod (qw(JSON::MaybeXS JSON JSON::PP)) {
+for my $mod (qw(Cpanel::JSON::XS JSON::MaybeXS JSON JSON::PP)) {
 	eval "require $mod" or next;
 	# ->ascii encodes non-ASCII to "\uXXXX"
 	$json = $mod->new->ascii(1) and last;
