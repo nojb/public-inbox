@@ -97,12 +97,14 @@ sub resolve_inboxes ($;$$) {
 	my $min_ver = $opt->{-min_inbox_version} || 0;
 	my (@old, @ibxs);
 	my %dir2ibx;
+	my $all = $opt->{all} ? [] : undef;
 	if ($cfg) {
 		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
 			my $path = abs_path($ibx->{inboxdir});
 			if (defined($path)) {
 				$dir2ibx{$path} = $ibx;
+				push @$all, $ibx if $all;
 			} else {
 				warn <<EOF;
 W: $ibx->{name} $ibx->{inboxdir}: $!
@@ -110,10 +112,9 @@ EOF
 			}
 		});
 	}
-	if ($opt->{all}) {
-		my @all = values %dir2ibx;
-		@all = grep { $_->version >= $min_ver } @all;
-		push @ibxs, @all;
+	if ($all) {
+		@$all = grep { $_->version >= $min_ver } @$all;
+		@ibxs = @$all;
 	} else { # directories specified on the command-line
 		my $i = 0;
 		my @dirs = @$argv;
