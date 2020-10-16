@@ -239,7 +239,7 @@ sub check_async_step ($$) {
 	my ($self, $inflight_c) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight_c) < 3;
 	my ($req, $cb, $arg) = splice(@$inflight_c, 0, 3);
-	my $rbuf = delete($self->{rbuf_c}) // \(my $new = '');
+	my $rbuf = delete($self->{chk_rbuf}) // \(my $new = '');
 	chomp(my $line = my_readline($self->{in_c}, $rbuf));
 	my ($hex, $type, $size) = split(/ /, $line);
 
@@ -253,7 +253,7 @@ sub check_async_step ($$) {
 	}
 	eval { $cb->($hex, $type, $size, $arg, $self) };
 	warn "E: check($req) $@\n" if $@;
-	$self->{rbuf_c} = $rbuf if $$rbuf ne '';
+	$self->{chk_rbuf} = $rbuf if $$rbuf ne '';
 }
 
 sub check_async_wait ($) {
