@@ -275,7 +275,7 @@ sub check_async_begin ($) {
 sub check_async ($$$$) {
 	my ($self, $oid, $cb, $arg) = @_;
 	my $inflight_c = $self->{inflight_c} // check_async_begin($self);
-	if (scalar(@$inflight_c) >= MAX_INFLIGHT) {
+	while (scalar(@$inflight_c) >= MAX_INFLIGHT) {
 		check_async_step($self, $inflight_c);
 	}
 	print { $self->{out_c} } $oid, "\n" or fail($self, "write error: $!");
@@ -420,10 +420,9 @@ sub cat_async_begin {
 sub cat_async ($$$;$) {
 	my ($self, $oid, $cb, $arg) = @_;
 	my $inflight = $self->{inflight} // cat_async_begin($self);
-	if (scalar(@$inflight) >= MAX_INFLIGHT) {
+	while (scalar(@$inflight) >= MAX_INFLIGHT) {
 		cat_async_step($self, $inflight);
 	}
-
 	print { $self->{out} } $oid, "\n" or fail($self, "write error: $!");
 	push(@$inflight, $oid, $cb, $arg);
 }
