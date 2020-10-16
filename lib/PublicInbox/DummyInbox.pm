@@ -7,13 +7,13 @@
 package PublicInbox::DummyInbox;
 use strict;
 
-sub created_at { 0 } # Msgmap::created_at
+sub uidvalidity { 0 } # Msgmap::created_at
 sub mm { shift }
 sub uid_range { [] } # Over::uid_range
 sub subscribe_unlock { undef };
 
 no warnings 'once';
-*max = \&created_at;
+*max = \&uidvalidity;
 *query_xover = \&uid_range;
 *over = \&mm;
 *search = *unsubscribe_unlock =

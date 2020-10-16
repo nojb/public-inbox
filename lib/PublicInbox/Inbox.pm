@@ -428,4 +428,6 @@ sub on_unlock {
 	}
 }
 
+sub uidvalidity  { $_[0]->{uidvalidity} //= $_[0]->mm->created_at }
+
 1;

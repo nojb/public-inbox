@@ -38,13 +38,13 @@ sub imapd_refresh_ibx { # pi_config->each_inbox cb
 	}
 	$ibx->over or return;
 	$ibx->{over} = undef;
-	my $mm = $ibx->mm or return;
-	$ibx->{mm} = undef;
 
 	# RFC 3501 2.3.1.1 -  "A good UIDVALIDITY value to use in
 	# this case is a 32-bit representation of the creation
 	# date/time of the mailbox"
-	defined($ibx->{uidvalidity} = $mm->created_at) or return;
+	eval { $ibx->uidvalidity };
+	my $mm = delete($ibx->{mm}) or return;
+	defined($ibx->{uidvalidity}) or return;
 	PublicInbox::IMAP::ensure_slices_exist($imapd, $ibx, $mm->max // 0);
 
 	# preload to avoid fragmentation:
