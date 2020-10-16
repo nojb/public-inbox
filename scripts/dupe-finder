@@ -22,6 +22,7 @@ if (index($repo, '@') > 0) {
 $ibx or die "No inbox";
 $ibx->search or die "search not available for inbox";
 my $over = $ibx->over;
+my $dbh = $over->dbh;
 
 sub emit ($) {
 	my ($nums) = @_;
