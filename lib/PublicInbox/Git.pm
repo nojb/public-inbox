@@ -204,14 +204,14 @@ sub cat_async_step ($$) {
 	} else {
 		$self->fail("Unexpected result from async git cat-file: $head");
 	}
-	eval { $cb->($bref, $oid, $type, $size, $arg) };
 	$self->{cat_rbuf} = $rbuf if $$rbuf ne '';
+	eval { $cb->($bref, $oid, $type, $size, $arg) };
 	warn "E: $oid: $@\n" if $@;
 }
 
 sub cat_async_wait ($) {
 	my ($self) = @_;
-	my $inflight = delete $self->{inflight} or return;
+	my $inflight = $self->{inflight} or return;
 	while (scalar(@$inflight)) {
 		cat_async_step($self, $inflight);
 	}
@@ -251,14 +251,14 @@ sub check_async_step ($$) {
 		my $ret = my_read($self->{in_c}, $rbuf, $type + 1);
 		fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
 	}
+	$self->{chk_rbuf} = $rbuf if $$rbuf ne '';
 	eval { $cb->($hex, $type, $size, $arg, $self) };
 	warn "E: check($req) $@\n" if $@;
-	$self->{chk_rbuf} = $rbuf if $$rbuf ne '';
 }
 
 sub check_async_wait ($) {
 	my ($self) = @_;
-	my $inflight_c = delete $self->{inflight_c} or return;
+	my $inflight_c = $self->{inflight_c} or return;
 	while (scalar(@$inflight_c)) {
 		check_async_step($self, $inflight_c);
 	}
@@ -318,13 +318,15 @@ sub _destroy {
 
 sub cat_async_abort ($) {
 	my ($self) = @_;
-	if (my $inflight = delete $self->{inflight}) {
+	if (my $inflight = $self->{inflight}) {
 		while (@$inflight) {
 			my ($req, $cb, $arg) = splice(@$inflight, 0, 3);
 			$req =~ s/ .*//; # drop git_dir for Gcf2Client
 			eval { $cb->(undef, $req, undef, undef, $arg) };
 			warn "E: $req: $@ (in abort)\n" if $@;
 		}
+		delete $self->{cat_rbuf};
+		delete $self->{inflight};
 	}
 	cleanup($self);
 }
@@ -357,6 +359,8 @@ sub cleanup {
 	delete $self->{async_cat};
 	check_async_wait($self);
 	cat_async_wait($self);
+	delete $self->{inflight};
+	delete $self->{inflight_c};
 	_destroy($self, qw(cat_rbuf in out pid));
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));
 	!!($self->{pid} || $self->{pid_c});
