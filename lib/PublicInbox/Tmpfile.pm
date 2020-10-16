@@ -2,8 +2,8 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 package PublicInbox::Tmpfile;
 use strict;
-use warnings;
-use base qw(Exporter);
+use v5.10.1;
+use parent qw(Exporter);
 our @EXPORT = qw(tmpfile);
 use Fcntl qw(:DEFAULT);
 use Errno qw(EEXIST);
@@ -13,6 +13,9 @@ use File::Spec;
 # unlinked filename which makes sense when viewed with lsof
 # (at least on Linux)
 # And if we ever stop caring to have debuggable filenames, O_TMPFILE :)
+#
+# This is also for Perl <5.32 which lacks: open(..., '+>>', undef)
+# <https://rt.perl.org/Ticket/Display.html?id=134221>
 sub tmpfile ($;$$) {
 	my ($id, $sock, $append) = @_;
 	if (defined $sock) {
