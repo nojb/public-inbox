@@ -587,8 +587,7 @@ sub check_size { # check_async cb for -index --max-size=...
 
 sub v1_checkpoint ($$;$) {
 	my ($self, $sync, $stk) = @_;
-	$self->{ibx}->git->check_async_wait;
-	$self->{ibx}->git->cat_async_wait;
+	$self->{ibx}->git->async_wait_all;
 
 	# latest_cmt may be undef
 	my $newest = $stk ? $stk->{latest_cmt} : undef;

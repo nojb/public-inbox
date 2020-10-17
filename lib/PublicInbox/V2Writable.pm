@@ -1228,8 +1228,7 @@ sub index_epoch ($$$) {
 			reindex_checkpoint($self, $sync);
 		}
 	}
-	$all->check_async_wait;
-	$all->cat_async_wait;
+	$all->async_wait_all;
 	update_last_commit($self, $git, $i, $stk->{latest_cmt});
 }
 

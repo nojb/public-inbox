@@ -352,13 +352,23 @@ sub qx {
 	<$fh>
 }
 
+# check_async and cat_async may trigger the other, so ensure they're
+# both completely done by using this:
+sub async_wait_all ($) {
+	my ($self) = @_;
+	while (scalar(@{$self->{inflight_c} // []}) ||
+			scalar(@{$self->{inflight} // []})) {
+		$self->check_async_wait;
+		$self->cat_async_wait;
+	}
+}
+
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
 	my ($self) = @_;
 	local $in_cleanup = 1;
 	delete $self->{async_cat};
-	check_async_wait($self);
-	cat_async_wait($self);
+	async_wait_all($self);
 	delete $self->{inflight};
 	delete $self->{inflight_c};
 	_destroy($self, qw(cat_rbuf in out pid));
