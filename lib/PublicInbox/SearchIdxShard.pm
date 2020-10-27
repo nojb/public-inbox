@@ -107,13 +107,15 @@ sub shard_worker_loop ($$$$$) {
 sub index_raw {
 	my ($self, $msgref, $eml, $smsg) = @_;
 	if (my $w = $self->{w}) {
+		$msgref //= \($eml->as_string);
+		$smsg->{raw_bytes} //= length($$msgref);
 		# mid must be last, it can contain spaces (but not LF)
 		print $w join(' ', @$smsg{qw(raw_bytes bytes
 						num blob ds ts tid mid)}),
 			"\n", $$msgref or die "failed to write shard $!\n";
 	} else {
 		if ($eml) {
-			undef $$msgref;
+			undef($$msgref) if $msgref;
 		} else { # --xapian-only + --sequential-shard:
 			$eml = PublicInbox::Eml->new($msgref);
 		}
