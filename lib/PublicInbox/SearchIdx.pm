@@ -785,9 +785,9 @@ sub log2stack ($$$$) {
 	$stk->read_prepare;
 }
 
-sub prepare_stack ($$$) {
-	my ($self, $sync, $range) = @_;
-	my $git = $self->{ibx}->git;
+sub prepare_stack ($$) {
+	my ($sync, $range) = @_;
+	my $git = $sync->{ibx}->git;
 
 	if (index($range, '..') < 0) {
 		# don't show annoying git errors to users who run -index
@@ -796,7 +796,7 @@ sub prepare_stack ($$$) {
 		return PublicInbox::IdxStack->new->read_prepare if $?;
 	}
 	$sync->{D} = $sync->{reindex} ? {} : undef; # OID_BIN => NR
-	log2stack($sync, $git, $range, $self->{ibx});
+	log2stack($sync, $git, $range, $sync->{ibx});
 }
 
 # --is-ancestor requires git 1.8.0+
@@ -848,11 +848,11 @@ sub reindex_from ($$) {
 sub _index_sync {
 	my ($self, $opt) = @_;
 	my $tip = $opt->{ref} || 'HEAD';
-	my $git = $self->{ibx}->git;
+	my $ibx = $self->{ibx};
 	$self->{batch_bytes} = $opt->{batch_size} // $BATCH_BYTES;
-	$git->batch_prepare;
+	$ibx->git->batch_prepare;
 	my $pr = $opt->{-progress};
-	my $sync = { reindex => $opt->{reindex}, -opt => $opt };
+	my $sync = { reindex => $opt->{reindex}, -opt => $opt, ibx => $ibx };
 	my $xdb = $self->begin_txn_lazy;
 	$self->{oidx}->rethread_prepare($opt);
 	my $mm = _msgmap_init($self);
@@ -870,7 +870,7 @@ sub _index_sync {
 	my $lx = reindex_from($sync->{reindex}, $last_commit);
 	my $range = $lx eq '' ? $tip : "$lx..$tip";
 	$pr->("counting changes\n\t$range ... ") if $pr;
-	my $stk = prepare_stack($self, $sync, $range);
+	my $stk = prepare_stack($sync, $range);
 	$sync->{ntodo} = $stk ? $stk->num_records : 0;
 	$pr->("$sync->{ntodo}\n") if $pr; # continue previous line
 	process_stack($self, $sync, $stk);
