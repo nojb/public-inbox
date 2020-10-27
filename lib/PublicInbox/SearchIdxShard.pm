@@ -87,8 +87,9 @@ sub shard_worker_loop ($$$$$) {
 		} else {
 			chomp $line;
 			my $eidx_key;
-			if ($line =~ s/\AX(.+)\0//) {
+			if ($line =~ s/\AX=(.+)\0//) {
 				$eidx_key = $1;
+				$v2w->{current_info} =~ s/\0/\\0/;
 			}
 			# n.b. $mid may contain spaces(!)
 			my ($len, $bytes, $num, $oid, $ds, $ts, $tid, $mid)
@@ -114,7 +115,7 @@ sub index_raw {
 	my ($self, $msgref, $eml, $smsg, $ibx) = @_;
 	if (my $w = $self->{w}) {
 		if ($ibx) {
-			print $w 'X', $ibx->eidx_key, "\0" or die
+			print $w 'X=', $ibx->eidx_key, "\0" or die
 				"failed to write shard: $!\n";
 		}
 		$msgref //= \($eml->as_string);
