@@ -190,38 +190,42 @@ sub xdir ($;$) {
 	}
 }
 
-sub _xdb ($) {
+sub _xdb_sharded {
+	my ($self, $xpfx) = @_;
+	opendir(my $dh, $xpfx) or return; # not initialized yet
+
+	# We need numeric sorting so shard[0] is first for reading
+	# Xapian metadata, if needed
+	my $last = max(grep(/\A[0-9]+\z/, readdir($dh)));
+	return if !defined($last);
+	my (@xdb, $slow_phrase);
+	for (0..$last) {
+		my $shard_dir = "$xpfx/$_";
+		if (-d $shard_dir && -r _) {
+			push @xdb, $X{Database}->new($shard_dir);
+			$slow_phrase ||= -f "$shard_dir/iamchert";
+		} else { # gaps from missing epochs throw off mdocid()
+			warn "E: $shard_dir missing or unreadable\n";
+			return;
+		}
+	}
+	$self->{qp_flags} |= FLAG_PHRASE() if !$slow_phrase;
+	$self->{nshard} = scalar(@xdb);
+	my $xdb = shift @xdb;
+	$xdb->add_database($_) for @xdb;
+	$xdb;
+}
+
+sub _xdb {
 	my ($self) = @_;
 	my $dir = xdir($self, 1);
-	my ($xdb, $slow_phrase);
-	my $qpf = \($self->{qp_flags} ||= $QP_FLAGS);
+	$self->{qp_flags} //= $QP_FLAGS;
 	if ($self->{ibx_ver} >= 2) {
-		my @xdb;
-		opendir(my $dh, $dir) or return; # not initialized yet
-
-		# We need numeric sorting so shard[0] is first for reading
-		# Xapian metadata, if needed
-		my $last = max(grep(/\A[0-9]+\z/, readdir($dh)));
-		return if !defined($last);
-		for (0..$last) {
-			my $shard_dir = "$dir/$_";
-			if (-d $shard_dir && -r _) {
-				push @xdb, $X{Database}->new($shard_dir);
-				$slow_phrase ||= -f "$shard_dir/iamchert";
-			} else { # gaps from missing epochs throw off mdocid()
-				warn "E: $shard_dir missing or unreadable\n";
-				return;
-			}
-		}
-		$self->{nshard} = scalar(@xdb);
-		$xdb = shift @xdb;
-		$xdb->add_database($_) for @xdb;
+		_xdb_sharded($self, $dir);
 	} else {
-		$slow_phrase = -f "$dir/iamchert";
-		$xdb = $X{Database}->new($dir);
+		$self->{qp_flags} |= FLAG_PHRASE() if !-f "$dir/iamchert";
+		$X{Database}->new($dir);
 	}
-	$$qpf |= FLAG_PHRASE() unless $slow_phrase;
-	$xdb;
 }
 
 # v2 Xapian docids don't conflict, so they're identical to
