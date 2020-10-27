@@ -953,7 +953,7 @@ sub index_oid { # cat_async callback
 }
 
 # only update last_commit for $i on reindex iff newer than current
-sub update_last_commit ($$$$) {
+sub update_last_commit {
 	my ($self, $git, $i, $cmt) = @_;
 	my $last = last_epoch_commit($self, $i);
 	if (defined $last && is_ancestor($git, $last, $cmt)) {
@@ -1034,7 +1034,7 @@ sub sync_prepare ($$$) {
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
-	my $reindex_heads = last_commits($self, $epoch_max) if $sync->{reindex};
+	my $reindex_heads = $self->last_commits($epoch_max) if $sync->{reindex};
 
 	for (my $i = $epoch_max; $i >= 0; $i--) {
 		my $git_dir = git_dir_n($self, $i);
@@ -1229,7 +1229,7 @@ sub index_epoch ($$$) {
 		}
 	}
 	$all->async_wait_all;
-	update_last_commit($self, $git, $i, $stk->{latest_cmt});
+	$self->update_last_commit($git, $i, $stk->{latest_cmt});
 }
 
 sub xapian_only {
