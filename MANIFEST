@@ -121,6 +121,7 @@ lib/PublicInbox/Emergency.pm
 lib/PublicInbox/Eml.pm
 lib/PublicInbox/EmlContentFoo.pm
 lib/PublicInbox/ExtMsg.pm
+lib/PublicInbox/ExtSearch.pm
 lib/PublicInbox/FakeInotify.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm
@@ -269,6 +270,7 @@ t/eml.t
 t/eml_content_disposition.t
 t/eml_content_type.t
 t/epoll.t
+t/extsearch.t
 t/fail-bin/spamc
 t/fake_inotify.t
 t/feed.t

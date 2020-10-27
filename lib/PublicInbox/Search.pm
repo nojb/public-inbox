@@ -245,9 +245,9 @@ sub mset_to_artnums {
 
 sub xdb ($) {
 	my ($self) = @_;
-	$self->{xdb} ||= do {
+	$self->{xdb} //= do {
 		load_xapian();
-		_xdb($self);
+		$self->_xdb;
 	};
 }
 
