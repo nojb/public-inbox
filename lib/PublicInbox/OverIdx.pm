@@ -261,6 +261,13 @@ sub subject_path ($) {
 	lc($subj);
 }
 
+sub ddd_for ($) {
+	my ($smsg) = @_;
+	my $dd = $smsg->to_doc_data;
+	utf8::encode($dd);
+	compress($dd);
+}
+
 sub add_overview {
 	my ($self, $eml, $smsg) = @_;
 	$smsg->{lines} = $eml->body_raw =~ tr!\n!\n!;
@@ -272,10 +279,7 @@ sub add_overview {
 		$xpath = subject_path($subj);
 		$xpath = id_compress($xpath);
 	}
-	my $dd = $smsg->to_doc_data;
-	utf8::encode($dd);
-	$dd = compress($dd);
-	add_over($self, $smsg, $mids, $refs, $xpath, $dd);
+	add_over($self, $smsg, $mids, $refs, $xpath, ddd_for($smsg));
 }
 
 sub _add_over {
@@ -589,14 +593,36 @@ INSERT OR IGNORE INTO xref3 (docid, ibx_id, xnum, oidbin) VALUES (?, ?, ?, ?)
 sub remove_xref3 {
 	my ($self, $docid, $oidhex, $eidx_key) = @_;
 	begin_lazy($self);
-	my $ibx_id = id_for($self, 'inboxes', 'ibx_id', eidx_key => $eidx_key);
 	my $oidbin = pack('H*', $oidhex);
-	my $sth = $self->{dbh}->prepare_cached(<<'');
+	my $sth;
+	if (defined $eidx_key) {
+		my $ibx_id = id_for($self, 'inboxes', 'ibx_id',
+					eidx_key => $eidx_key);
+		$sth = $self->{dbh}->prepare_cached(<<'');
 DELETE FROM xref3 WHERE docid = ? AND ibx_id = ? AND oidbin = ?
 
-	$sth->bind_param(1, $docid);
-	$sth->bind_param(2, $ibx_id);
-	$sth->bind_param(3, $oidbin, SQL_BLOB);
+		$sth->bind_param(1, $docid);
+		$sth->bind_param(2, $ibx_id);
+		$sth->bind_param(3, $oidbin, SQL_BLOB);
+	} else {
+		$sth = $self->{dbh}->prepare_cached(<<'');
+DELETE FROM xref3 WHERE docid = ? AND oidbin = ?
+
+		$sth->bind_param(1, $docid);
+		$sth->bind_param(2, $oidbin, SQL_BLOB);
+	}
+	$sth->execute;
+}
+
+# for when an xref3 goes missing, this does NOT update {ts}
+sub update_blob {
+	my ($self, $smsg, $oidhex) = @_;
+	my $sth = $self->{dbh}->prepare(<<'');
+UPDATE over SET ddd = ? WHERE num = ?
+
+	$smsg->{blob} = $oidhex;
+	$sth->bind_param(1, ddd_for($smsg), SQL_BLOB);
+	$sth->bind_param(2, $smsg->{num});
 	$sth->execute;
 }
 

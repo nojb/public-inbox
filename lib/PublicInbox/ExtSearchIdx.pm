@@ -19,7 +19,7 @@ use v5.10.1;
 use parent qw(PublicInbox::ExtSearch PublicInbox::Lock);
 use Carp qw(croak carp);
 use PublicInbox::Search;
-use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack);
+use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack is_ancestor);
 use PublicInbox::OverIdx;
 use PublicInbox::MID qw(mids);
 use PublicInbox::V2Writable;
@@ -119,6 +119,7 @@ sub do_xpost ($$) {
 		$self->{oidx}->add_xref3($docid, $xnum, $oid, $xibx->eidx_key);
 		$idx->shard_add_eidx_info($docid, $oid, $xibx, $eml);
 	} else { # 'd'
+		$self->{oidx}->remove_xref3($docid, $oid, $xibx->eidx_key);
 		$idx->shard_remove_eidx_info($docid, $oid, $xibx, $eml);
 	}
 }
@@ -176,14 +177,35 @@ sub do_step ($) { # main iterator for adding messages to the index
 	do_finalize($req);
 }
 
+sub _blob_missing ($) { # called when req->{cur_smsg}->{blob} is bad
+	my ($req) = @_;
+	my $smsg = $req->{cur_smsg} or die 'BUG: {cur_smsg} missing';
+	my $self = $req->{self};
+	my $xref3 = $self->{oidx}->get_xref3($smsg->{num});
+	my @keep = grep(!/:$smsg->{blob}\z/, @$xref3);
+	if (@keep) {
+		$keep[0] =~ /:([a-f0-9]{40,}+)\z/ or
+			die "BUG: xref $keep[0] has no OID";
+		my $oidhex = $1;
+		$self->{oidx}->remove_xref3($smsg->{num}, $smsg->{blob});
+		my $upd = $self->{oidx}->update_blob($smsg, $oidhex);
+		my $saved = $self->{oidx}->get_art($smsg->{num});
+	} else {
+		$self->{oidx}->delete_by_num($smsg->{num});
+	}
+}
+
 sub ck_existing { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $req) = @_;
 	my $smsg = $req->{cur_smsg} or die 'BUG: {cur_smsg} missing';
-	return if is_bad_blob($oid, $type, $size, $smsg->{blob});
-	my $cur = PublicInbox::Eml->new($bref);
-	if (content_hash($cur) eq $req->{chash}) {
-		push @{$req->{indexed}}, $smsg; # for do_xpost
-	} # else { index_unseen later }
+	if ($type eq 'missing') {
+		_blob_missing($req);
+	} elsif (!is_bad_blob($oid, $type, $size, $smsg->{blob})) {
+		my $cur = PublicInbox::Eml->new($bref);
+		if (content_hash($cur) eq $req->{chash}) {
+			push @{$req->{indexed}}, $smsg; # for do_xpost
+		} # else { index_unseen later }
+	}
 	do_step($req);
 }
 
@@ -281,15 +303,33 @@ sub eidx_sync { # main entry point
 	PublicInbox::V2Writable::done($self);
 }
 
-sub update_last_commit {
+sub update_last_commit { # overrides V2Writable
 	my ($self, $sync, $unit, $latest_cmt) = @_;
+	return unless defined $latest_cmt;
 
-	my $ALL = $self->git;
-	# while (scalar(@{$ALL->{inflight_c}}) || scalar(@{$ALL->{inflight}})) {
-		# $ALL->check_async_wait;
-		# $ALL->cat_async_wait;
-	# }
-	# TODO
+	$self->git->async_wait_all;
+	my $ibx = $sync->{ibx} or die 'BUG: {ibx} missing';
+	my $ekey = $ibx->eidx_key;
+	my $uv = $ibx->uidvalidity;
+	my $epoch = $unit->{epoch};
+	my $meta_key;
+	my $v = $ibx->version;
+	if ($v == 2) {
+		die 'No {epoch} for v2 unit' unless defined $epoch;
+		$meta_key = "lc-v2:$ekey//$uv;$epoch";
+	} elsif ($v == 1) {
+		die 'Unexpected {epoch} for v1 unit' if defined $epoch;
+		$meta_key = "lc-v1:$ekey//$uv";
+	} else {
+		die "Unsupported inbox version: $v";
+	}
+	my $last = $self->{oidx}->eidx_meta($meta_key);
+	if (defined $last && is_ancestor($unit->{git}, $last, $latest_cmt)) {
+		my @cmd = (qw(rev-list --count), "$last..$latest_cmt");
+		chomp(my $n = $unit->{git}->qx(@cmd));
+		return if $n ne '' && $n == 0;
+	}
+	$self->{oidx}->eidx_meta($meta_key, $latest_cmt);
 }
 
 sub idx_init { # similar to V2Writable

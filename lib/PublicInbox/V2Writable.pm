@@ -567,7 +567,7 @@ sub last_epoch_commit ($$;$) {
 	$self->{mm}->last_commit_xap($v, $i, $cmt);
 }
 
-sub set_last_commits ($) {
+sub set_last_commits ($) { # this is NOT for ExtSearchIdx
 	my ($self) = @_;
 	defined(my $epoch_max = $self->{epoch_max}) or return;
 	my $last_commit = $self->{last_commit};
@@ -992,9 +992,10 @@ sub log_range ($$$) {
 
 	my $range = "$cur..$tip";
 	$pr->("$i.git checking contiguity... ") if $pr;
-	if (is_ancestor($unit->{git}, $cur, $tip)) { # common case
+	my $git = $unit->{git};
+	if (is_ancestor($git, $cur, $tip)) { # common case
 		$pr->("OK\n") if $pr;
-		my $n = $unit->{git}->qx(qw(rev-list --count), $range);
+		my $n = $git->qx(qw(rev-list --count), $range);
 		chomp($n);
 		if ($n == 0) {
 			$sync->{ranges}->[$i] = undef;
@@ -1006,9 +1007,9 @@ sub log_range ($$$) {
 		$pr->("FAIL\n") if $pr;
 		warn <<"";
 discontiguous range: $range
-Rewritten history? (in $unit->{git}->{git_dir})
+Rewritten history? (in $git->{git_dir})
 
-		chomp(my $base = $unit->{git}->qx('merge-base', $tip, $cur));
+		chomp(my $base = $git->qx('merge-base', $tip, $cur));
 		if ($base) {
 			$range = "$base..$tip";
 			warn "found merge-base: $base\n"
@@ -1017,10 +1018,17 @@ Rewritten history? (in $unit->{git}->{git_dir})
 			warn "discarding history at $cur\n";
 		}
 		warn <<"";
-reindexing $unit->{git}->{git_dir} starting at
-$range
+reindexing $git->{git_dir}
+starting at $range
 
-		$unit->{unindex_range} = "$base..$cur";
+		# $cur^0 may no longer exist if pruned by git
+		if ($git->qx(qw(rev-parse -q --verify), "$cur^0")) {
+			$unit->{unindex_range} = "$base..$cur";
+		} elsif ($base && $git->qx(qw(rev-parse -q --verify), $base)) {
+			$unit->{unindex_range} = "$base..";
+		} else {
+			warn "W: unable to unindex before $range\n";
+		}
 	}
 	$range;
 }
