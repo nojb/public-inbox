@@ -952,8 +952,9 @@ sub index_oid { # cat_async callback
 }
 
 # only update last_commit for $i on reindex iff newer than current
+# $sync will be used by subclasses
 sub update_last_commit {
-	my ($self, $git, $i, $cmt) = @_;
+	my ($self, $sync, $git, $i, $cmt) = @_;
 	my $last = last_epoch_commit($self, $i);
 	if (defined $last && is_ancestor($git, $last, $cmt)) {
 		my @cmd = (qw(rev-list --count), "$last..$cmt");
@@ -963,7 +964,7 @@ sub update_last_commit {
 	last_epoch_commit($self, $i, $cmt);
 }
 
-sub last_commits ($$) {
+sub last_commits {
 	my ($self, $sync) = @_;
 	my $heads = [];
 	for (my $i = $sync->{epoch_max}; $i >= 0; $i--) {
@@ -1028,6 +1029,7 @@ sub artnum_max { $_[0]->{mm}->num_highwater }
 
 sub sync_prepare ($$) {
 	my ($self, $sync) = @_;
+	$sync->{ranges} = sync_ranges($self, $sync);
 	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
 	my $head = $sync->{ibx}->{ref_head} || 'HEAD';
@@ -1232,7 +1234,7 @@ sub index_epoch ($$$) {
 		}
 	}
 	$all->async_wait_all;
-	$self->update_last_commit($git, $i, $stk->{latest_cmt});
+	$self->update_last_commit($sync, $git, $i, $stk->{latest_cmt});
 }
 
 sub xapian_only {
@@ -1294,7 +1296,6 @@ sub index_sync {
 		ibx => $self->{ibx},
 		epoch_max => $epoch_max,
 	};
-	$sync->{ranges} = sync_ranges($self, $sync);
 	if (sync_prepare($self, $sync)) {
 		# tmp_clone seems to fail if inside a transaction, so
 		# we rollback here (because we opened {mm} for reading)
