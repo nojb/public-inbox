@@ -691,7 +691,7 @@ sub v1_checkpoint ($$;$) {
 
 	$self->{oidx}->rethread_done($sync->{-opt}) if $newest; # all done
 	commit_txn_lazy($self);
-	$self->{ibx}->git->cleanup;
+	$sync->{ibx}->git->cleanup;
 	my $nr = ${$sync->{nr}};
 	idx_release($self, $nr);
 	# let another process do some work...
@@ -707,7 +707,7 @@ sub v1_checkpoint ($$;$) {
 # only for v1
 sub process_stack {
 	my ($self, $sync, $stk) = @_;
-	my $git = $self->{ibx}->git;
+	my $git = $sync->{ibx}->git;
 	my $max = $self->{batch_bytes};
 	my $nr = 0;
 	$sync->{nr} = \$nr;
