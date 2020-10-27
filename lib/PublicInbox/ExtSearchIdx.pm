@@ -237,7 +237,6 @@ sub _sync_inbox ($$$) {
 	my ($self, $opt, $ibx) = @_;
 	my $sync = {
 		need_checkpoint => \(my $bool = 0),
-		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
 		-opt => $opt,
 		self => $self,
