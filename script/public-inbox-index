@@ -11,12 +11,13 @@ use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
 usage: public-inbox-index [options] INBOX_DIR
 
-  Create and update search indices
+  Create and update per-inbox search indices
 
 options:
 
   --no-fsync          speed up indexing, risk corruption on power outage
   -L LEVEL            `basic', `medium', or `full' (default: full)
+  -E EIDX             update EIDX (e.g. `all')
   --all               index all configured inboxes
   --compact | -c      run public-inbox-compact(1) after indexing
   --sequential-shard  index Xapian shards sequentially for slow storage
