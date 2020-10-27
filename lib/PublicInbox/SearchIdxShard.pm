@@ -74,17 +74,21 @@ sub shard_worker_loop ($$$$$) {
 		} elsif ($line =~ /\AD ([a-f0-9]{40,}) ([0-9]+)\n\z/s) {
 			$self->remove_by_oid($1, $2 + 0);
 		} elsif ($line =~ s/\A\+X //) {
-			my ($len, $docid, $xnum, $oid, $ng_or_dir) =
+			my ($len, $docid, $xnum, $oid, $eidx_key) =
 							split(/ /, $line, 5);
-			$self->add_xref3($docid, $xnum, $oid, $ng_or_dir,
+			$self->add_xref3($docid, $xnum, $oid, $eidx_key,
 						eml($r, $len));
 		} elsif ($line =~ s/\A-X //) {
-			my ($len, $docid, $xnum, $oid, $ng_or_dir) =
+			my ($len, $docid, $xnum, $oid, $eidx_key) =
 							split(/ /, $line, 5);
 			$self->remove_xref3($docid, $xnum, $oid,
-						$ng_or_dir, eml($r, $len));
+						$eidx_key, eml($r, $len));
 		} else {
 			chomp $line;
+			my $eidx_key;
+			if ($line =~ s/\AX(.+)\0//) {
+				$eidx_key = $1;
+			}
 			# n.b. $mid may contain spaces(!)
 			my ($len, $bytes, $num, $oid, $ds, $ts, $tid, $mid)
 				= split(/ /, $line, 8);
@@ -98,6 +102,7 @@ sub shard_worker_loop ($$$$$) {
 				ds => $ds,
 				ts => $ts,
 			}, 'PublicInbox::Smsg';
+			$smsg->{eidx_key} = $eidx_key if defined($eidx_key);
 			$self->add_message(eml($r, $len), $smsg);
 		}
 	}
@@ -105,8 +110,12 @@ sub shard_worker_loop ($$$$$) {
 }
 
 sub index_raw {
-	my ($self, $msgref, $eml, $smsg) = @_;
+	my ($self, $msgref, $eml, $smsg, $ibx) = @_;
 	if (my $w = $self->{w}) {
+		if ($ibx) {
+			print $w 'X', $ibx->eidx_key, "\0" or die
+				"failed to write shard: $!\n";
+		}
 		$msgref //= \($eml->as_string);
 		$smsg->{raw_bytes} //= length($$msgref);
 		# mid must be last, it can contain spaces (but not LF)
@@ -120,33 +129,34 @@ sub index_raw {
 			$eml = PublicInbox::Eml->new($msgref);
 		}
 		$self->begin_txn_lazy;
+		$smsg->{eidx_key} = $ibx->eidx_key if $ibx;
 		$self->add_message($eml, $smsg);
 	}
 }
 
 sub shard_add_xref3 {
 	my ($self, $docid, $xnum, $oid, $xibx, $eml) = @_;
-	my $ng_or_dir = $xibx->{newsgroup} // $xibx->{inboxdir};
+	my $eidx_key = $xibx->eidx_key;
 	if (my $w = $self->{w}) {
 		my $hdr = $eml->header_obj->as_string;
 		my $len = length($hdr);
-		print $w "+X $len $docid $xnum $oid $ng_or_dir\n", $hdr or
+		print $w "+X $len $docid $xnum $oid $eidx_key\n", $hdr or
 			die "failed to write shard: $!";
 	} else {
-		$self->add_xref3($docid, $xnum, $oid, $ng_or_dir, $eml);
+		$self->add_xref3($docid, $xnum, $oid, $eidx_key, $eml);
 	}
 }
 
 sub shard_remove_xref3 {
 	my ($self, $docid, $oid, $xibx, $eml) = @_;
-	my $ng_or_dir = $xibx->{newsgroup} // $xibx->{inboxdir};
+	my $eidx_key = $xibx->eidx_key;
 	if (my $w = $self->{w}) {
 		my $hdr = $eml->header_obj->as_string;
 		my $len = length($hdr);
-		print $w "-X $len $docid $oid $ng_or_dir\n", $hdr or
+		print $w "-X $len $docid $oid $eidx_key\n", $hdr or
 			die "failed to write shard: $!";
 	} else {
-		$self->remove_xref3($docid, $oid, $ng_or_dir, $eml);
+		$self->remove_xref3($docid, $oid, $eidx_key, $eml);
 	}
 }
 

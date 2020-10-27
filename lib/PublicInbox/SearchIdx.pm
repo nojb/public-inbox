@@ -368,9 +368,9 @@ sub add_xapian ($$$$) {
 	$tg->set_document($doc);
 	index_headers($self, $smsg);
 
-	if (my $ng_or_dir = $self->{ng_or_dir}) { # external index
+	if (defined(my $eidx_key = $smsg->{eidx_key})) {
 		$doc->add_boolean_term('P'.
-				"$ng_or_dir:$smsg->{num}:$smsg->{blob}");
+				"$eidx_key:$smsg->{num}:$smsg->{blob}");
 	}
 	msg_iter($eml, \&index_xapian, [ $self, $doc ]);
 	index_ids($self, $doc, $eml, $mids);
@@ -456,21 +456,21 @@ sub _get_doc ($$$) {
 }
 
 sub add_xref3 {
-	my ($self, $docid, $xnum, $oid, $ng_or_dir, $eml) = @_;
+	my ($self, $docid, $xnum, $oid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid, $oid) or return;
 	term_generator($self)->set_document($doc);
-	$doc->add_boolean_term('P'."$ng_or_dir:$xnum:$oid");
+	$doc->add_boolean_term('P'."$eidx_key:$xnum:$oid");
 	index_list_id($self, $doc, $eml);
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
 sub remove_xref3 {
-	my ($self, $docid, $oid, $ng_or_dir, $eml) = @_;
+	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid, $oid) or return;
 	my $xref3 = PublicInbox::Smsg::xref3(undef, $doc);
-	for (grep(/\A\Q$ng_or_dir\E:[0-9]+:\Q$oid\E\z/, @$xref3)) {
+	for (grep(/\A\Q$eidx_key\E:[0-9]+:\Q$oid\E\z/, @$xref3)) {
 		$doc->remove_term('P' . $_);
 	}
 	for my $l ($eml->header_raw('List-Id')) {
