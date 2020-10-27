@@ -32,11 +32,11 @@ use constant DEBUG => !!$ENV{DEBUG};
 my $xapianlevels = qr/\A(?:full|medium)\z/;
 my $hex = '[a-f0-9]';
 my $OID = $hex .'{40,}';
+our $INDEXLEVELS = qr/\A(?:full|medium|basic)\z/;
 
 sub new {
 	my ($class, $ibx, $creat, $shard) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
-	my $levels = qr/\A(?:full|medium|basic)\z/;
 	my $inboxdir = $ibx->{inboxdir};
 	my $version = $ibx->version;
 	my $indexlevel = 'full';
@@ -46,7 +46,7 @@ sub new {
 		$altid = [ map { PublicInbox::AltId->new($ibx, $_); } @$altid ];
 	}
 	if ($ibx->{indexlevel}) {
-		if ($ibx->{indexlevel} =~ $levels) {
+		if ($ibx->{indexlevel} =~ $INDEXLEVELS) {
 			$indexlevel = $ibx->{indexlevel};
 		} else {
 			die("Invalid indexlevel $ibx->{indexlevel}\n");
