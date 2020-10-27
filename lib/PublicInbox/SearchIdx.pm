@@ -137,7 +137,7 @@ sub idx_acquire {
 		}
 	}
 	return unless defined $flag;
-	$flag |= $DB_NO_SYNC if $self->{ibx}->{-no_fsync};
+	$flag |= $DB_NO_SYNC if ($self->{ibx} // $self->{eidx})->{-no_fsync};
 	my $xdb = eval { ($X->{WritableDatabase})->new($dir, $flag) };
 	croak "Failed opening $dir: $@" if $@;
 	$self->{xdb} = $xdb;
@@ -631,11 +631,16 @@ sub unindex_both { # git->cat_async callback
 	unindex_eml($self, $oid, PublicInbox::Eml->new($bref));
 }
 
+sub with_umask {
+	my $self = shift;
+	($self->{ibx} // $self->{eidx})->with_umask(@_);
+}
+
 # called by public-inbox-index
 sub index_sync {
 	my ($self, $opt) = @_;
 	delete $self->{lock_path} if $opt->{-skip_lock};
-	$self->{ibx}->with_umask(\&_index_sync, $self, $opt);
+	$self->with_umask(\&_index_sync, $self, $opt);
 	if ($opt->{reindex}) {
 		my %again = %$opt;
 		delete @again{qw(rethread reindex)};
@@ -893,7 +898,7 @@ sub _begin_txn {
 
 sub begin_txn_lazy {
 	my ($self) = @_;
-	$self->{ibx}->with_umask(\&_begin_txn, $self) if !$self->{txn};
+	$self->with_umask(\&_begin_txn, $self) if !$self->{txn};
 }
 
 # store 'indexlevel=medium' in v2 shard=0 and v1 (only one shard)
@@ -931,7 +936,7 @@ sub _commit_txn {
 sub commit_txn_lazy {
 	my ($self) = @_;
 	delete($self->{txn}) and
-		$self->{ibx}->with_umask(\&_commit_txn, $self);
+		$self->with_umask(\&_commit_txn, $self);
 }
 
 sub worker_done {
@@ -945,6 +950,7 @@ sub worker_done {
 sub eidx_shard_new {
 	my ($class, $eidx, $shard) = @_;
 	my $self = bless {
+		eidx => $eidx,
 		xpfx => $eidx->{xpfx},
 		indexlevel => $eidx->{indexlevel},
 		-skip_docdata => 1,
