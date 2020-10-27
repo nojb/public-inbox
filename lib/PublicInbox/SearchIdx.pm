@@ -369,6 +369,7 @@ sub add_xapian ($$$$) {
 	index_headers($self, $smsg);
 
 	if (defined(my $eidx_key = $smsg->{eidx_key})) {
+		$doc->add_boolean_term('O'.$eidx_key);
 		$doc->add_boolean_term('P'.
 				"$eidx_key:$smsg->{num}:$smsg->{blob}");
 	}
@@ -460,6 +461,7 @@ sub add_xref3 {
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid, $oid) or return;
 	term_generator($self)->set_document($doc);
+	$doc->add_boolean_term('O'.$eidx_key);
 	$doc->add_boolean_term('P'."$eidx_key:$xnum:$oid");
 	index_list_id($self, $doc, $eml);
 	$self->{xdb}->replace_document($docid, $doc);
