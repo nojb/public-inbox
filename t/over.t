@@ -74,4 +74,15 @@ SKIP: {
 		'WAL journal_mode not clobbered if manually set');
 }
 
+# ext index additions
+{
+	my $hex = 'deadbeefcafe';
+	my $n = $over->oid_add($hex);
+	ok($n > 0, 'oid_add returned number');
+	is($over->oid2num($hex), $n, 'oid2num works');
+	my $n2 = $over->oid_add($hex.$hex);
+	ok($n2 > $n, 'oid_add increments');
+	is($over->oid2num($hex.$hex), $n2, 'oid2num works again');
+}
+
 done_testing();

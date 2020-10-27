@@ -512,4 +512,80 @@ EOM
 	$pr->("I: rethread culled $total ghosts\n") if $pr && $total;
 }
 
+# used for cross-inbox search
+sub eidx_prep ($) {
+	my ($self) = @_;
+	$self->{-eidx_prep} //= do {
+		my $dbh = $self->dbh;
+		$dbh->do(<<'');
+INSERT OR IGNORE INTO counter (key) VALUES ('oidmap_num')
+
+		$dbh->do(<<'');
+INSERT OR IGNORE INTO counter (key) VALUES ('eidx_docid')
+
+		$dbh->do(<<'');
+CREATE TABLE IF NOT EXISTS oidmap (
+	num INTEGER NOT NULL, /* NNTP article number == IMAP UID */
+	oidbin VARBINARY, /* 20-byte SHA-1 or 32-byte SHA-256 */
+	UNIQUE (num),
+	UNIQUE (oidbin)
+)
+
+		$dbh->do(<<'');
+CREATE TABLE IF NOT EXISTS eidx_meta (
+	key VARCHAR(255) PRIMARY KEY,
+	val VARCHAR(255) NOT NULL
+)
+
+		$dbh;
+	};
+}
+
+sub eidx_meta { # requires transaction
+	my ($self, $key, $val) = @_;
+
+	my $sql = 'SELECT val FROM eidx_meta WHERE key = ? LIMIT 1';
+	my $dbh = $self->{dbh};
+	defined($val) or return $dbh->selectrow_array($sql, undef, $key);
+
+	my $prev = $dbh->selectrow_array($sql, undef, $key);
+	if (defined $prev) {
+		$sql = 'UPDATE eidx_meta SET val = ? WHERE key = ?';
+		$dbh->do($sql, undef, $val, $key);
+	} else {
+		$sql = 'INSERT INTO eidx_meta (key,val) VALUES (?,?)';
+		$dbh->do($sql, undef, $key, $val);
+	}
+	$prev;
+}
+
+sub eidx_max {
+	my ($self) = @_;
+	get_counter($self->{dbh}, 'eidx_docid');
+}
+
+sub oid2num {
+	my ($self, $oidhex) = @_;
+	my $dbh = eidx_prep($self);
+	my $sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT num FROM oidmap WHERE oidbin = ?
+
+	$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+	$sth->execute;
+	$sth->fetchrow_array;
+}
+
+sub oid_add {
+	my ($self, $oidhex) = @_;
+	my $dbh = eidx_prep($self);
+	my $num = adj_counter($self, 'oidmap_num', '+');
+	my $sth = $dbh->prepare_cached(<<'');
+INSERT INTO oidmap (num, oidbin) VALUES (?,?)
+
+	$sth->bind_param(1, $num);
+	$sth->bind_param(2, pack('H*', $oidhex), SQL_BLOB);
+	$sth->execute;
+	$num;
+}
+
 1;
