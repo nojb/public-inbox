@@ -137,17 +137,4 @@ sub subject_normalized ($) {
 	$subj;
 }
 
-sub xref3 {
-	my ($self, $doc) = @_;
-	my $end = $doc->termlist_end;
-	my $it = $doc->termlist_begin;
-	$it->skip_to('P');
-	my @ret;
-	for (; $it != $end; $it++) {
-		my $val = $it->get_termname;
-		$val =~ s/\AP// and push @ret, $val;
-	}
-	\@ret;
-}
-
 1;

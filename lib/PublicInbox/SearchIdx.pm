@@ -370,8 +370,6 @@ sub add_xapian ($$$$) {
 
 	if (defined(my $eidx_key = $smsg->{eidx_key})) {
 		$doc->add_boolean_term('O'.$eidx_key);
-		$doc->add_boolean_term('P'.
-				"$eidx_key:$smsg->{num}:$smsg->{blob}");
 	}
 	msg_iter($eml, \&index_xapian, [ $self, $doc ]);
 	index_ids($self, $doc, $eml, $mids);
@@ -456,57 +454,41 @@ sub _get_doc ($$$) {
 	}
 }
 
-sub add_xref3 {
-	my ($self, $docid, $xnum, $oid, $eidx_key, $eml) = @_;
+sub add_eidx_info {
+	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid, $oid) or return;
 	term_generator($self)->set_document($doc);
 	$doc->add_boolean_term('O'.$eidx_key);
-	$doc->add_boolean_term('P'."$eidx_key:$xnum:$oid");
 	index_list_id($self, $doc, $eml);
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
-sub remove_xref3 {
+sub remove_eidx_info {
 	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid, $oid) or return;
-	my $xref3 = PublicInbox::Smsg::xref3(undef, $doc);
-	my %x3 = map { $_ => undef } @$xref3;
-	for (grep(/\A\Q$eidx_key\E:[0-9]+:\Q$oid\E\z/, @$xref3)) {
-		delete $x3{$_};
-		$doc->remove_term('P' . $_);
-	}
-	if (scalar(keys(%x3)) == 0) {
-		$self->{xdb}->delete_document($docid);
-		if (my $del_fh = $self->{del_fh}) { # TODO
-			print $del_fh $docid, "\n" or die "E: print $!";
-		}
-	} else {
-		if (!grep(/\A\Q$eidx_key\E:/, keys %x3)) {
-			$doc->remove_term('O'.$eidx_key);
-		}
-		for my $l ($eml->header_raw('List-Id')) {
-			$l =~ /<([^>]+)>/ or next;
-			my $lid = lc $1;
-			$doc->remove_term('G' . $lid);
+	$doc->remove_term('O'.$eidx_key);
+	for my $l ($eml->header_raw('List-Id')) {
+		$l =~ /<([^>]+)>/ or next;
+		my $lid = lc $1;
+		$doc->remove_term('G' . $lid);
 
-			# nb: we don't remove the XL probabilistic terms
-			# since terms may overlap if cross-posted.
-			#
-			# IOW, a message which has both <foo.example.com>
-			# and <bar.example.com> would have overlapping
-			# "XLexample" and "XLcom" as terms and which we
-			# wouldn't know if they're safe to remove if we just
-			# unindex <foo.example.com> while preserving
-			# <bar.example.com>.
-			#
-			# In any case, this entire sub is will likely never
-			# be needed and users using the "l:" prefix are probably
-			# rarer.
-		}
-		$self->{xdb}->replace_document($docid, $doc);
+		# nb: we don't remove the XL probabilistic terms
+		# since terms may overlap if cross-posted.
+		#
+		# IOW, a message which has both <foo.example.com>
+		# and <bar.example.com> would have overlapping
+		# "XLexample" and "XLcom" as terms and which we
+		# wouldn't know if they're safe to remove if we just
+		# unindex <foo.example.com> while preserving
+		# <bar.example.com>.
+		#
+		# In any case, this entire sub is will likely never
+		# be needed and users using the "l:" prefix are probably
+		# rarer.
 	}
+	$self->{xdb}->replace_document($docid, $doc);
 }
 
 sub get_val ($$) {

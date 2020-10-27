@@ -75,15 +75,15 @@ sub shard_worker_loop ($$$$$) {
 		} elsif ($line =~ /\AD ([a-f0-9]{40,}) ([0-9]+)\n\z/s) {
 			$self->remove_by_oid($1, $2 + 0);
 		} elsif ($line =~ s/\A\+X //) {
-			my ($len, $docid, $xnum, $oid, $eidx_key) =
-							split(/ /, $line, 5);
-			$self->add_xref3($docid, $xnum, $oid, $eidx_key,
-						eml($r, $len));
+			my ($len, $docid, $oid, $eidx_key) =
+							split(/ /, $line, 4);
+			$self->add_eidx_info($docid, $oid, $eidx_key,
+							eml($r, $len));
 		} elsif ($line =~ s/\A-X //) {
-			my ($len, $docid, $xnum, $oid, $eidx_key) =
-							split(/ /, $line, 5);
-			$self->remove_xref3($docid, $xnum, $oid,
-						$eidx_key, eml($r, $len));
+			my ($len, $docid, $oid, $eidx_key) =
+							split(/ /, $line, 4);
+			$self->remove_eidx_info($docid, $oid, $eidx_key,
+							eml($r, $len));
 		} else {
 			chomp $line;
 			my $eidx_key;
@@ -135,20 +135,20 @@ sub index_raw {
 	}
 }
 
-sub shard_add_xref3 {
-	my ($self, $docid, $xnum, $oid, $xibx, $eml) = @_;
+sub shard_add_eidx_info {
+	my ($self, $docid, $oid, $xibx, $eml) = @_;
 	my $eidx_key = $xibx->eidx_key;
 	if (my $w = $self->{w}) {
 		my $hdr = $eml->header_obj->as_string;
 		my $len = length($hdr);
-		print $w "+X $len $docid $xnum $oid $eidx_key\n", $hdr or
+		print $w "+X $len $docid $oid $eidx_key\n", $hdr or
 			die "failed to write shard: $!";
 	} else {
-		$self->add_xref3($docid, $xnum, $oid, $eidx_key, $eml);
+		$self->add_eidx_info($docid, $oid, $eidx_key, $eml);
 	}
 }
 
-sub shard_remove_xref3 {
+sub shard_remove_eidx_info {
 	my ($self, $docid, $oid, $xibx, $eml) = @_;
 	my $eidx_key = $xibx->eidx_key;
 	if (my $w = $self->{w}) {
@@ -157,7 +157,7 @@ sub shard_remove_xref3 {
 		print $w "-X $len $docid $oid $eidx_key\n", $hdr or
 			die "failed to write shard: $!";
 	} else {
-		$self->remove_xref3($docid, $oid, $eidx_key, $eml);
+		$self->remove_eidx_info($docid, $oid, $eidx_key, $eml);
 	}
 }
 

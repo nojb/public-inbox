@@ -116,9 +116,10 @@ sub do_xpost ($$) {
 	my $eml = $req->{eml};
 	if (my $new_smsg = $req->{new_smsg}) { # 'm' on cross-posted message
 		my $xnum = $req->{xnum};
-		$idx->shard_add_xref3($docid, $xnum, $oid, $xibx, $eml);
+		$self->{oidx}->add_xref3($docid, $xnum, $oid, $xibx->eidx_key);
+		$idx->shard_add_eidx_info($docid, $oid, $xibx, $eml);
 	} else { # 'd'
-		$idx->shard_remove_xref3($docid, $oid, $xibx, $eml);
+		$idx->shard_remove_eidx_info($docid, $oid, $xibx, $eml);
 	}
 }
 
@@ -135,7 +136,10 @@ sub index_unseen ($) {
 	$new_smsg->{num} = $docid;
 	my $idx = $self->idx_shard($docid);
 	$self->{oidx}->add_overview($eml, $new_smsg);
-	$idx->index_raw(undef, $eml, $new_smsg, $req->{ibx});
+	my $oid = $new_smsg->{blob};
+	my $ibx = delete $req->{ibx} or die 'BUG: {ibx} unset';
+	$self->{oidx}->add_xref3($docid, $req->{xnum}, $oid, $ibx->eidx_key);
+	$idx->index_raw(undef, $eml, $new_smsg, $ibx);
 }
 
 sub do_finalize ($) {
