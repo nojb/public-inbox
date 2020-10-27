@@ -331,7 +331,7 @@ sub msg_by_smsg ($$) {
 	return unless defined $smsg;
 	defined(my $blob = $smsg->{blob}) or return;
 
-	git($self)->cat_file($blob);
+	$self->git->cat_file($blob);
 }
 
 sub smsg_eml {

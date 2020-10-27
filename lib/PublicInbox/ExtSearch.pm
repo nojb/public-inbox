@@ -7,6 +7,7 @@ package PublicInbox::ExtSearch;
 use strict;
 use v5.10.1;
 use PublicInbox::Over;
+use PublicInbox::Inbox;
 
 # for ->reopen, ->mset, ->mset_to_artnums
 use parent qw(PublicInbox::Search);
@@ -36,5 +37,8 @@ sub git {
 	my ($self) = @_;
 	$self->{git} //= PublicInbox::Git->new("$self->{topdir}/ALL.git");
 }
+
+no warnings 'once';
+*smsg_eml = \&PublicInbox::Inbox::smsg_eml;
 
 1;
