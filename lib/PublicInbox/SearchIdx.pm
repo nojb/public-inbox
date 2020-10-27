@@ -468,11 +468,13 @@ sub remove_eidx_info {
 	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid, $oid) or return;
-	$doc->remove_term('O'.$eidx_key);
+	eval { $doc->remove_term('O'.$eidx_key) };
+	warn "W: ->remove_term O$eidx_key: $@\n" if $@;
 	for my $l ($eml->header_raw('List-Id')) {
 		$l =~ /<([^>]+)>/ or next;
 		my $lid = lc $1;
-		$doc->remove_term('G' . $lid);
+		eval { $doc->remove_term('G' . $lid) };
+		warn "W: ->remove_term G$lid: $@\n" if $@;
 
 		# nb: we don't remove the XL probabilistic terms
 		# since terms may overlap if cross-posted.
