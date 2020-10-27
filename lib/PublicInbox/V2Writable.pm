@@ -681,6 +681,18 @@ sub done {
 	die $err if $err;
 }
 
+sub write_alternates ($$$) {
+	my ($info_dir, $mode, $out) = @_;
+	my $fh = File::Temp->new(TEMPLATE => 'alt-XXXXXXXX', DIR => $info_dir);
+	my $tmp = $fh->filename;
+	print $fh @$out or die "print $tmp: $!\n";
+	chmod($mode, $fh) or die "fchmod $tmp: $!\n";
+	close $fh or die "close $tmp $!\n";
+	my $alt = "$info_dir/alternates";
+	rename($tmp, $alt) or die "rename $tmp => $alt: $!\n";
+	$fh->unlink_on_destroy(0);
+}
+
 sub fill_alternates ($$) {
 	my ($self, $epoch) = @_;
 
@@ -719,15 +731,8 @@ sub fill_alternates ($$) {
 		}
 	}
 	return unless $new;
-
-	my $fh = File::Temp->new(TEMPLATE => 'alt-XXXXXXXX', DIR => $info_dir);
-	my $tmp = $fh->filename;
-	print $fh join("\n", sort { $alt{$b} <=> $alt{$a} } keys %alt), "\n"
-		or die "print $tmp: $!\n";
-	chmod($mode, $fh) or die "fchmod $tmp: $!\n";
-	close $fh or die "close $tmp $!\n";
-	rename($tmp, $alt) or die "rename $tmp => $alt: $!\n";
-	$fh->unlink_on_destroy(0);
+	write_alternates($info_dir, $mode,
+		[join("\n", sort { $alt{$b} <=> $alt{$a} } keys %alt), "\n"]);
 }
 
 sub git_init {
