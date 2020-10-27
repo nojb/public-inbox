@@ -190,9 +190,9 @@ sub xdir ($;$) {
 	}
 }
 
-sub _xdb_sharded {
-	my ($self, $xpfx) = @_;
-	opendir(my $dh, $xpfx) or return; # not initialized yet
+sub xdb_sharded {
+	my ($self) = @_;
+	opendir(my $dh, $self->{xpfx}) or return; # not initialized yet
 
 	# We need numeric sorting so shard[0] is first for reading
 	# Xapian metadata, if needed
@@ -200,7 +200,7 @@ sub _xdb_sharded {
 	return if !defined($last);
 	my (@xdb, $slow_phrase);
 	for (0..$last) {
-		my $shard_dir = "$xpfx/$_";
+		my $shard_dir = "$self->{xpfx}/$_";
 		if (-d $shard_dir && -r _) {
 			push @xdb, $X{Database}->new($shard_dir);
 			$slow_phrase ||= -f "$shard_dir/iamchert";
@@ -221,7 +221,7 @@ sub _xdb {
 	my $dir = xdir($self, 1);
 	$self->{qp_flags} //= $QP_FLAGS;
 	if ($self->{ibx_ver} >= 2) {
-		_xdb_sharded($self, $dir);
+		xdb_sharded($self);
 	} else {
 		$self->{qp_flags} |= FLAG_PHRASE() if !-f "$dir/iamchert";
 		$X{Database}->new($dir);

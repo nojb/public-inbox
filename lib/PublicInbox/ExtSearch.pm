@@ -23,7 +23,7 @@ sub new {
 # overrides PublicInbox::Search::_xdb
 sub _xdb {
 	my ($self) = @_;
-	$self->_xdb_sharded($self->{xpfx});
+	$self->xdb_sharded;
 }
 
 # same as per-inbox ->over, for now...
