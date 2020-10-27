@@ -75,14 +75,27 @@ SKIP: {
 }
 
 # ext index additions
+$over->eidx_prep;
 {
-	my $hex = 'deadbeefcafe';
-	my $n = $over->oid_add($hex);
-	ok($n > 0, 'oid_add returned number');
-	is($over->oid2num($hex), $n, 'oid2num works');
-	my $n2 = $over->oid_add($hex.$hex);
-	ok($n2 > $n, 'oid_add increments');
-	is($over->oid2num($hex.$hex), $n2, 'oid2num works again');
+	my @arg = qw(1349 2019 adeadba7cafe example.key);
+	ok($over->add_xref3(@arg), 'first add');
+	ok($over->add_xref3(@arg), 'add idempotent');
+	my $xref3 = $over->get_xref3(1349);
+	is_deeply($xref3, [ 'example.key:2019:adeadba7cafe' ], 'xref3 works');
+
+	@arg = qw(1349 2018 deadbeefcafe example.kee);
+	ok($over->add_xref3(@arg), 'add another xref3');
+	$xref3 = $over->get_xref3(1349);
+	is_deeply($xref3, [ 'example.key:2019:adeadba7cafe',
+			'example.kee:2018:deadbeefcafe' ],
+			'xref3 works forw two');
+
+	@arg = qw(1349 adeadba7cafe example.key);
+	ok($over->remove_xref3(@arg), 'remove first');
+	$xref3 = $over->get_xref3(1349);
+	is_deeply($xref3, [ 'example.kee:2018:deadbeefcafe' ],
+		'confirm removal successful');
+	$over->rollback_lazy;
 }
 
 done_testing();

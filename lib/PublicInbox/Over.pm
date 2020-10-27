@@ -260,6 +260,25 @@ SELECT num,tid,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 	$smsg ? load_from_row($smsg) : undef;
 }
 
+sub get_xref3 {
+	my ($self, $num) = @_;
+	my $dbh = dbh($self);
+	my $sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT ibx_id,xnum,oidbin FROM xref3 WHERE docid = ? ORDER BY ibx_id ASC
+
+	$sth->execute($num);
+	my $rows = $sth->fetchall_arrayref;
+	my $eidx_key_sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT eidx_key FROM inboxes WHERE ibx_id = ?
+
+	[ map {
+		my $r = $_;
+		$eidx_key_sth->execute($r->[0]);
+		my $eidx_key = $eidx_key_sth->fetchrow_array;
+		"$eidx_key:$r->[1]:".unpack('H*', $r->[2]);
+	} @$rows ];
+}
+
 sub next_by_mid {
 	my ($self, $mid, $id, $prev) = @_;
 	my $dbh = dbh($self);

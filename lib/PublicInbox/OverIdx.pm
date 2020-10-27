@@ -517,19 +517,26 @@ sub eidx_prep ($) {
 	my ($self) = @_;
 	$self->{-eidx_prep} //= do {
 		my $dbh = $self->dbh;
-		$dbh->do(<<'');
-INSERT OR IGNORE INTO counter (key) VALUES ('oidmap_num')
-
-		$dbh->do(<<'');
+		$dbh->do(<<"");
 INSERT OR IGNORE INTO counter (key) VALUES ('eidx_docid')
 
 		$dbh->do(<<'');
-CREATE TABLE IF NOT EXISTS oidmap (
-	num INTEGER NOT NULL, /* NNTP article number == IMAP UID */
-	oidbin VARBINARY, /* 20-byte SHA-1 or 32-byte SHA-256 */
-	UNIQUE (num),
-	UNIQUE (oidbin)
+CREATE TABLE IF NOT EXISTS inboxes (
+	ibx_id INTEGER PRIMARY KEY AUTOINCREMENT,
+	eidx_key VARCHAR(255) NOT NULL, /* {newsgroup} // {inboxdir} */
+	UNIQUE (eidx_key)
 )
+
+		$dbh->do(<<'');
+CREATE TABLE IF NOT EXISTS xref3 (
+	docid INTEGER NOT NULL, /* <=> over.num */
+	ibx_id INTEGER NOT NULL, /* <=> inboxes.ibx_id */
+	xnum INTEGER NOT NULL, /* NNTP article number in ibx */
+	oidbin VARBINARY NOT NULL, /* 20-byte SHA-1 or 32-byte SHA-256 */
+	UNIQUE (docid, ibx_id, xnum, oidbin)
+)
+
+	$dbh->do('CREATE INDEX IF NOT EXISTS idx_docid ON xref3 (docid)');
 
 		$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS eidx_meta (
@@ -564,28 +571,33 @@ sub eidx_max {
 	get_counter($self->{dbh}, 'eidx_docid');
 }
 
-sub oid2num {
-	my ($self, $oidhex) = @_;
-	my $dbh = eidx_prep($self);
-	my $sth = $dbh->prepare_cached(<<'', undef, 1);
-SELECT num FROM oidmap WHERE oidbin = ?
+sub add_xref3 {
+	my ($self, $docid, $xnum, $oidhex, $eidx_key) = @_;
+	begin_lazy($self);
+	my $ibx_id = id_for($self, 'inboxes', 'ibx_id', eidx_key => $eidx_key);
+	my $oidbin = pack('H*', $oidhex);
+	my $sth = $self->{dbh}->prepare_cached(<<'');
+INSERT OR IGNORE INTO xref3 (docid, ibx_id, xnum, oidbin) VALUES (?, ?, ?, ?)
 
-	$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+	$sth->bind_param(1, $docid);
+	$sth->bind_param(2, $ibx_id);
+	$sth->bind_param(3, $xnum);
+	$sth->bind_param(4, $oidbin, SQL_BLOB);
 	$sth->execute;
-	$sth->fetchrow_array;
 }
 
-sub oid_add {
-	my ($self, $oidhex) = @_;
-	my $dbh = eidx_prep($self);
-	my $num = adj_counter($self, 'oidmap_num', '+');
-	my $sth = $dbh->prepare_cached(<<'');
-INSERT INTO oidmap (num, oidbin) VALUES (?,?)
+sub remove_xref3 {
+	my ($self, $docid, $oidhex, $eidx_key) = @_;
+	begin_lazy($self);
+	my $ibx_id = id_for($self, 'inboxes', 'ibx_id', eidx_key => $eidx_key);
+	my $oidbin = pack('H*', $oidhex);
+	my $sth = $self->{dbh}->prepare_cached(<<'');
+DELETE FROM xref3 WHERE docid = ? AND ibx_id = ? AND oidbin = ?
 
-	$sth->bind_param(1, $num);
-	$sth->bind_param(2, pack('H*', $oidhex), SQL_BLOB);
+	$sth->bind_param(1, $docid);
+	$sth->bind_param(2, $ibx_id);
+	$sth->bind_param(3, $oidbin, SQL_BLOB);
 	$sth->execute;
-	$num;
 }
 
 1;
