@@ -942,4 +942,17 @@ sub worker_done {
 	die "$$ $0 still in transaction\n" if $self->{txn};
 }
 
+sub eidx_shard_new {
+	my ($class, $eidx, $shard) = @_;
+	my $self = bless {
+		xpfx => $eidx->{xpfx},
+		indexlevel => $eidx->{indexlevel},
+		-skip_docdata => 1,
+		shard => $shard,
+		creat => 1,
+	}, $class;
+	$self->{-set_indexlevel_once} = 1 if $self->{indexlevel} eq 'medium';
+	$self;
+}
+
 1;

@@ -12,9 +12,10 @@ use IO::Handle (); # autoflush
 use PublicInbox::Eml;
 
 sub new {
-	my ($class, $v2w, $shard) = @_;
+	my ($class, $v2w, $shard) = @_; # v2w may be ExtSearchIdx
 	my $ibx = $v2w->{ibx};
-	my $self = $class->SUPER::new($ibx, 1, $shard);
+	my $self = $ibx ? $class->SUPER::new($ibx, 1, $shard)
+			: $class->eidx_shard_new($v2w, $shard);
 	# create the DB before forking:
 	$self->idx_acquire;
 	$self->set_metadata_once;
@@ -58,7 +59,7 @@ sub eml ($$) {
 # this reads all the writes to $self->{w} from the parent process
 sub shard_worker_loop ($$$$$) {
 	my ($self, $v2w, $r, $shard, $bnote) = @_;
-	$0 = "pi-v2-shard[$shard]";
+	$0 = "shard[$shard]";
 	$self->begin_txn_lazy;
 	while (my $line = readline($r)) {
 		$v2w->{current_info} = "[$shard] $line";
