@@ -423,7 +423,7 @@ sub rewrite_internal ($$;$$$) {
 			} else { # ->purge or ->remove
 				$self->{mm}->num_delete($num);
 			}
-			unindex_oid_remote($self, $oid, $mid);
+			unindex_oid_aux($self, $oid, $mid);
 		}
 	}
 
@@ -631,7 +631,7 @@ sub checkpoint ($;$) {
 		}
 
 		# last_commit is special, don't commit these until
-		# remote shards are done:
+		# Xapian shards are done:
 		$dbh->begin_work;
 		set_last_commits($self);
 		$dbh->commit;
@@ -1082,7 +1082,7 @@ sub sync_prepare ($$$) {
 	$regen_max + $self->{mm}->num_highwater() || 0;
 }
 
-sub unindex_oid_remote ($$$) {
+sub unindex_oid_aux ($$$) {
 	my ($self, $oid, $mid) = @_;
 	my @removed = $self->{oidx}->remove_oid($oid, $mid);
 	for my $num (@removed) {
@@ -1117,7 +1117,7 @@ sub unindex_oid ($$;$) { # git->cat_async callback
 			}
 			$mm->num_delete($num);
 		}
-		unindex_oid_remote($self, $oid, $mid);
+		unindex_oid_aux($self, $oid, $mid);
 	}
 }
 
