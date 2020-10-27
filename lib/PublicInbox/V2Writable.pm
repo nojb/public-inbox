@@ -133,12 +133,17 @@ sub add {
 	$self->{ibx}->with_umask(\&_add, $self, $eml, $check_cb);
 }
 
+sub idx_shard ($$) {
+	my ($self, $num) = @_;
+	$self->{idx_shards}->[$num % scalar(@{$self->{idx_shards}})];
+}
+
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$) {
 	my ($self, $msgref, $mime, $smsg) = @_;
 	$smsg->{bytes} = $smsg->{raw_bytes} + crlf_adjust($$msgref);
 	$self->{oidx}->add_overview($mime, $smsg);
-	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
+	my $idx = idx_shard($self, $smsg->{num});
 	$idx->index_raw($msgref, $mime, $smsg);
 	my $n = $self->{transact_bytes} += $smsg->{raw_bytes};
 	$n >= $self->{batch_bytes};
@@ -247,11 +252,6 @@ sub v2_num_for_harder {
 	}
 	PublicInbox::Import::append_mid($eml, $mid0);
 	($num, $mid0);
-}
-
-sub idx_shard {
-	my ($self, $shard_i) = @_;
-	$self->{idx_shards}->[$shard_i];
 }
 
 sub _idx_init { # with_umask callback
@@ -1102,7 +1102,7 @@ sub unindex_oid_remote ($$$) {
 	my ($self, $oid, $mid) = @_;
 	my @removed = $self->{oidx}->remove_oid($oid, $mid);
 	for my $num (@removed) {
-		my $idx = idx_shard($self, $num % $self->{shards});
+		my $idx = idx_shard($self, $num);
 		$idx->shard_remove($oid, $num);
 	}
 }
@@ -1183,7 +1183,7 @@ sub sync_ranges ($$$) {
 sub index_xap_only { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $smsg) = @_;
 	my $self = $smsg->{v2w};
-	my $idx = idx_shard($self, $smsg->{num} % $self->{shards});
+	my $idx = idx_shard($self, $smsg->{num});
 	$smsg->{raw_bytes} = $size;
 	$idx->index_raw($bref, undef, $smsg);
 	$self->{transact_bytes} += $size;
