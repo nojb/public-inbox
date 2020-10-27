@@ -1066,10 +1066,11 @@ sub sync_prepare ($$) {
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
 		my $arg = { v2w => $self };
+		my $unindex_oid = $self->can('unindex_oid');
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
 			$self->{current_info} = "leftover $oid";
-			$self->git->cat_async($oid, \&unindex_oid, $arg);
+			$self->git->cat_async($oid, $unindex_oid, $arg);
 		}
 		$self->git->cat_async_wait;
 	}
@@ -1139,9 +1140,10 @@ sub unindex_epoch ($$$$) {
 			--no-notes --no-color --no-abbrev --no-renames);
 	my $fh = $git->popen(@cmd, $unindex_range);
 	local $sync->{in_unindex} = 1;
+	my $unindex_oid = $self->can('unindex_oid');
 	while (<$fh>) {
 		/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o or next;
-		$self->git->cat_async($1, \&unindex_oid, $sync);
+		$self->git->cat_async($1, $unindex_oid, $sync);
 	}
 	close $fh or die "git log failed: \$?=$?";
 	$self->git->cat_async_wait;
@@ -1211,17 +1213,19 @@ sub index_epoch ($$$) {
 	defined(my $stk = $sync->{stacks}->[$i]) or return;
 	$sync->{stacks}->[$i] = undef;
 	my $all = $self->git;
+	my $index_oid = $self->can('index_oid');
+	my $unindex_oid = $self->can('unindex_oid');
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
 		$self->{current_info} = "$i.git $oid";
+		my $req = { %$sync, autime => $at, cotime => $ct, oid => $oid };
 		if ($f eq 'm') {
-			my $arg = { %$sync, autime => $at, cotime => $ct };
 			if ($sync->{max_size}) {
-				$all->check_async($oid, \&check_size, $arg);
+				$all->check_async($oid, \&check_size, $req);
 			} else {
-				$all->cat_async($oid, \&index_oid, $arg);
+				$all->cat_async($oid, $index_oid, $req);
 			}
 		} elsif ($f eq 'd') {
-			$all->cat_async($oid, \&unindex_oid, $sync);
+			$all->cat_async($oid, $unindex_oid, $req);
 		}
 		if (${$sync->{need_checkpoint}}) {
 			reindex_checkpoint($self, $sync);
@@ -1308,7 +1312,7 @@ sub index_sync {
 		}
 	}
 	if ($sync->{max_size} = $opt->{max_size}) {
-		$sync->{index_oid} = \&index_oid;
+		$sync->{index_oid} = $self->can('index_oid');
 	}
 	# work forwards through history
 	index_epoch($self, $sync, $_) for (0..$epoch_max);
