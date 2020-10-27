@@ -19,10 +19,12 @@ use v5.10.1;
 use parent qw(PublicInbox::ExtSearch PublicInbox::Lock);
 use Carp qw(croak carp);
 use PublicInbox::Search;
-use PublicInbox::SearchIdx qw(crlf_adjust);
+use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack);
 use PublicInbox::OverIdx;
+use PublicInbox::MID qw(mids);
 use PublicInbox::V2Writable;
 use PublicInbox::InboxWritable;
+use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::Eml;
 use File::Spec;
 
@@ -54,6 +56,7 @@ sub new {
 
 sub attach_inbox {
 	my ($self, $ibx) = @_;
+	$ibx = PublicInbox::InboxWritable->new($ibx);
 	my $key = $ibx->eidx_key;
 	if (!$ibx->over || !$ibx->mm) {
 		warn "W: skipping $key (unindexed)\n";
@@ -120,7 +123,7 @@ sub do_xpost ($$) {
 }
 
 # called by V2Writable::sync_prepare
-sub artnum_max { $_[0]->{oidx}->get_counter('eidx_docid') }
+sub artnum_max { $_[0]->{oidx}->eidx_max }
 
 sub index_unseen ($) {
 	my ($req) = @_;
@@ -174,7 +177,7 @@ sub ck_existing { # git->cat_async callback
 	my $smsg = $req->{cur_smsg} or die 'BUG: {cur_smsg} missing';
 	return if is_bad_blob($oid, $type, $size, $smsg->{blob});
 	my $cur = PublicInbox::Eml->new($bref);
-	if (content_digest($cur) eq $req->{chash}) {
+	if (content_hash($cur) eq $req->{chash}) {
 		push @{$req->{indexed}}, $smsg; # for do_xpost
 	} # else { index_unseen later }
 	do_step($req);
@@ -248,12 +251,13 @@ sub _sync_inbox ($$$) {
 		my $epoch_max;
 		defined($ibx->git_dir_latest(\$epoch_max)) or return;
 		$sync->{epoch_max} = $epoch_max;
-		sync_prepare($self, $sync) or return;
+		sync_prepare($self, $sync) or return; # fills $sync->{todo}
 	} elsif ($v == 1) {
 		my $uv = $ibx->uidvalidity;
 		my $lc = $self->{oidx}->eidx_meta("lc-v1:$ekey//$uv");
 		my $stk = prepare_stack($sync, $lc ? "$lc..HEAD" : 'HEAD');
 		my $unit = { stack => $stk, git => $ibx->git };
+		push @{$sync->{todo}}, $unit;
 	} else {
 		warn "E: $ekey unsupported inbox version (v$v)\n";
 		return;
@@ -267,8 +271,21 @@ sub eidx_sync { # main entry point
 	$self->{oidx}->rethread_prepare($opt);
 
 	_sync_inbox($self, $opt, $_) for (@{$self->{ibx_list}});
+
 	$self->{oidx}->rethread_done($opt);
+
 	PublicInbox::V2Writable::done($self);
+}
+
+sub update_last_commit {
+	my ($self, $sync, $unit, $latest_cmt) = @_;
+
+	my $ALL = $self->git;
+	# while (scalar(@{$ALL->{inflight_c}}) || scalar(@{$ALL->{inflight}})) {
+		# $ALL->check_async_wait;
+		# $ALL->cat_async_wait;
+	# }
+	# TODO
 }
 
 sub idx_init { # similar to V2Writable
@@ -315,5 +332,6 @@ no warnings 'once';
 *index_todo = \&PublicInbox::V2Writable::index_todo;
 *count_shards = \&PublicInbox::V2Writable::count_shards;
 *atfork_child = \&PublicInbox::V2Writable::atfork_child;
+*idx_shard = \&PublicInbox::V2Writable::idx_shard;
 
 1;
