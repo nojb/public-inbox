@@ -954,14 +954,14 @@ sub index_oid { # cat_async callback
 # only update last_commit for $i on reindex iff newer than current
 # $sync will be used by subclasses
 sub update_last_commit {
-	my ($self, $sync, $git, $i, $cmt) = @_;
-	my $last = last_epoch_commit($self, $i);
-	if (defined $last && is_ancestor($git, $last, $cmt)) {
+	my ($self, $sync, $unit, $cmt) = @_;
+	my $last = last_epoch_commit($self, $unit->{epoch});
+	if (defined $last && is_ancestor($unit->{git}, $last, $cmt)) {
 		my @cmd = (qw(rev-list --count), "$last..$cmt");
-		chomp(my $n = $git->qx(@cmd));
+		chomp(my $n = $unit->{git}->qx(@cmd));
 		return if $n ne '' && $n == 0;
 	}
-	last_epoch_commit($self, $i, $cmt);
+	last_epoch_commit($self, $unit->{epoch}, $cmt);
 }
 
 sub last_commits {
@@ -974,10 +974,11 @@ sub last_commits {
 }
 
 # returns a revision range for git-log(1)
-sub log_range ($$$$) {
-	my ($sync, $git, $i, $tip) = @_;
+sub log_range ($$$) {
+	my ($sync, $unit, $tip) = @_;
 	my $opt = $sync->{-opt};
 	my $pr = $opt->{-progress} if (($opt->{verbose} || 0) > 1);
+	my $i = $unit->{epoch};
 	my $cur = $sync->{ranges}->[$i] or do {
 		$pr->("$i.git indexing all of $tip\n") if $pr;
 		return $tip; # all of it
@@ -991,9 +992,9 @@ sub log_range ($$$$) {
 
 	my $range = "$cur..$tip";
 	$pr->("$i.git checking contiguity... ") if $pr;
-	if (is_ancestor($git, $cur, $tip)) { # common case
+	if (is_ancestor($unit->{git}, $cur, $tip)) { # common case
 		$pr->("OK\n") if $pr;
-		my $n = $git->qx(qw(rev-list --count), $range);
+		my $n = $unit->{git}->qx(qw(rev-list --count), $range);
 		chomp($n);
 		if ($n == 0) {
 			$sync->{ranges}->[$i] = undef;
@@ -1005,9 +1006,9 @@ sub log_range ($$$$) {
 		$pr->("FAIL\n") if $pr;
 		warn <<"";
 discontiguous range: $range
-Rewritten history? (in $git->{git_dir})
+Rewritten history? (in $unit->{git}->{git_dir})
 
-		chomp(my $base = $git->qx('merge-base', $tip, $cur));
+		chomp(my $base = $unit->{git}->qx('merge-base', $tip, $cur));
 		if ($base) {
 			$range = "$base..$tip";
 			warn "found merge-base: $base\n"
@@ -1016,10 +1017,10 @@ Rewritten history? (in $git->{git_dir})
 			warn "discarding history at $cur\n";
 		}
 		warn <<"";
-reindexing $git->{git_dir} starting at
+reindexing $unit->{git}->{git_dir} starting at
 $range
 
-		$sync->{unindex_range}->{$i} = "$base..$cur";
+		$unit->{unindex_range} = "$base..$cur";
 	}
 	$range;
 }
@@ -1045,13 +1046,14 @@ sub sync_prepare ($$) {
 		my $git_dir = $sync->{ibx}->git_dir_n($i);
 		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
+		my $unit = { git => $git, epoch => $i };
 		if ($reindex_heads) {
 			$head = $reindex_heads->[$i] or next;
 		}
 		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
-
 		next if $?; # new repo
-		my $range = log_range($sync, $git, $i, $tip) or next;
+
+		my $range = log_range($sync, $unit, $tip) or next;
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$i.git counting $range ... ") if $pr;
 		# Don't bump num_highwater on --reindex by using {D}.
@@ -1062,7 +1064,8 @@ sub sync_prepare ($$) {
 		my $stk = log2stack($sync, $git, $range);
 		my $nr = $stk ? $stk->num_records : 0;
 		$pr->("$nr\n") if $pr;
-		$sync->{stacks}->[$i] = $stk if $stk;
+		$unit->{stack} = $stk; # may be undef
+		unshift @{$sync->{todo}}, $unit;
 		$regen_max += $nr;
 	}
 
@@ -1136,14 +1139,14 @@ sub git { $_[0]->{ibx}->git }
 
 # this is rare, it only happens when we get discontiguous history in
 # a mirror because the source used -purge or -edit
-sub unindex_epoch ($$$$) {
-	my ($self, $sync, $git, $unindex_range) = @_;
+sub unindex_todo ($$$) {
+	my ($self, $sync, $unit) = @_;
+	my $unindex_range = delete($unit->{unindex_range}) // return;
 	my $unindexed = $sync->{unindexed} //= {}; # $mid0 => $num
 	my $before = scalar keys %$unindexed;
 	# order does not matter, here:
-	my @cmd = qw(log --raw -r
-			--no-notes --no-color --no-abbrev --no-renames);
-	my $fh = $git->popen(@cmd, $unindex_range);
+	my $fh = $unit->{git}->popen(qw(log --raw -r --no-notes --no-color
+				--no-abbrev --no-renames), $unindex_range);
 	local $sync->{in_unindex} = 1;
 	my $unindex_oid = $self->can('unindex_oid');
 	while (<$fh>) {
@@ -1158,7 +1161,8 @@ sub unindex_epoch ($$$$) {
 	return if $before == $after;
 
 	# ensure any blob can not longer be accessed via dumb HTTP
-	PublicInbox::Import::run_die(['git', "--git-dir=$git->{git_dir}",
+	PublicInbox::Import::run_die(['git',
+		"--git-dir=$unit->{git}->{git_dir}",
 		qw(-c gc.reflogExpire=now gc --prune=all --quiet)]);
 }
 
@@ -1206,22 +1210,17 @@ sub index_xap_step ($$$;$) {
 	}
 }
 
-sub index_epoch ($$$) {
-	my ($self, $sync, $i) = @_;
-
-	my $git_dir = $sync->{ibx}->git_dir_n($i);
-	-d $git_dir or return; # missing epochs are fine
-	my $git = PublicInbox::Git->new($git_dir);
-	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) { # rare
-		unindex_epoch($self, $sync, $git, $unindex_range);
-	}
-	defined(my $stk = $sync->{stacks}->[$i]) or return;
-	$sync->{stacks}->[$i] = undef;
+sub index_todo ($$$) {
+	my ($self, $sync, $unit) = @_;
+	unindex_todo($self, $sync, $unit);
+	my $stk = delete($unit->{stack}) or return;
 	my $all = $self->git;
 	my $index_oid = $self->can('index_oid');
 	my $unindex_oid = $self->can('unindex_oid');
+	my ($pfx) = ($unit->{git}->{git_dir} =~ m!/([^/]+)\z!g);
+	$pfx //= $unit->{git}->{git_dir};
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
-		$self->{current_info} = "$i.git $oid";
+		$self->{current_info} = "$pfx $oid";
 		my $req = { %$sync, autime => $at, cotime => $ct, oid => $oid };
 		if ($f eq 'm') {
 			if ($sync->{max_size}) {
@@ -1237,7 +1236,7 @@ sub index_epoch ($$$) {
 		}
 	}
 	$all->async_wait_all;
-	$self->update_last_commit($sync, $git, $i, $stk->{latest_cmt});
+	$self->update_last_commit($sync, $unit, $stk->{latest_cmt});
 }
 
 sub xapian_only {
@@ -1292,7 +1291,6 @@ sub index_sync {
 	$self->{oidx}->rethread_prepare($opt);
 	my $sync = {
 		need_checkpoint => \(my $bool = 0),
-		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
 		-opt => $opt,
 		self => $self,
@@ -1316,7 +1314,7 @@ sub index_sync {
 		}
 	}
 	# work forwards through history
-	index_epoch($self, $sync, $_) for (0..$epoch_max);
+	index_todo($self, $sync, $_) for @{$sync->{todo}};
 	$self->{oidx}->rethread_done($opt);
 	$self->done;
 
