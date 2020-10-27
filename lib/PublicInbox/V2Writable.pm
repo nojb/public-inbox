@@ -1051,7 +1051,7 @@ sub sync_prepare ($$$) {
 		# because we want NNTP article number gaps from unindexed
 		# messages to show up in mirrors, too.
 		$sync->{D} //= $sync->{reindex} ? {} : undef; # OID_BIN => NR
-		my $stk = log2stack($sync, $git, $range, $sync->{ibx});
+		my $stk = log2stack($sync, $git, $range);
 		my $nr = $stk ? $stk->num_records : 0;
 		$pr->("$nr\n") if $pr;
 		$sync->{stacks}->[$i] = $stk if $stk;

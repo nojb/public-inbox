@@ -736,11 +736,11 @@ sub process_stack {
 	v1_checkpoint($self, $sync, $stk);
 }
 
-sub log2stack ($$$$) {
-	my ($sync, $git, $range, $ibx) = @_;
+sub log2stack ($$$) {
+	my ($sync, $git, $range) = @_;
 	my $D = $sync->{D}; # OID_BIN => NR (if reindexing, undef otherwise)
 	my ($add, $del);
-	if ($ibx->version == 1) {
+	if ($sync->{ibx}->version == 1) {
 		my $path = $hex.'{2}/'.$hex.'{38}';
 		$add = qr!\A:000000 100644 \S+ ($OID) A\t$path$!;
 		$del = qr!\A:100644 000000 ($OID) \S+ D\t$path$!;
@@ -796,7 +796,7 @@ sub prepare_stack ($$) {
 		return PublicInbox::IdxStack->new->read_prepare if $?;
 	}
 	$sync->{D} = $sync->{reindex} ? {} : undef; # OID_BIN => NR
-	log2stack($sync, $git, $range, $sync->{ibx});
+	log2stack($sync, $git, $range);
 }
 
 # --is-ancestor requires git 1.8.0+
