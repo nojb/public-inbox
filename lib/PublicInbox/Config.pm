@@ -89,6 +89,11 @@ sub lookup_name ($$) {
 	$self->{-by_name}->{$name} // _fill($self, "publicinbox.$name");
 }
 
+sub lookup_ei {
+	my ($self, $name) = @_;
+	$self->{-ei_by_name}->{$name} //= _fill_ei($self, "eindex.$name");
+}
+
 sub each_inbox {
 	my ($self, $cb, @arg) = @_;
 	# may auto-vivify if config file is non-existent:
@@ -455,6 +460,13 @@ EOF
 	}
 
 	$ibx
+}
+
+sub _fill_ei ($$) {
+	my ($self, $pfx) = @_;
+	require PublicInbox::ExtSearch;
+	my $d = $self->{"$pfx.topdir"};
+	defined($d) && -d $d ? PublicInbox::ExtSearch->new($d) : undef;
 }
 
 sub urlmatch {

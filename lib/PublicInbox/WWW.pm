@@ -210,7 +210,8 @@ sub news_cgit_fallback ($) {
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox ($$) {
 	my ($ctx, $inbox) = @_;
-	my $ibx = $ctx->{www}->{pi_config}->lookup_name($inbox);
+	my $ibx = $ctx->{www}->{pi_config}->lookup_name($inbox) //
+			$ctx->{www}->{pi_config}->lookup_ei($inbox);
 	if (defined $ibx) {
 		$ctx->{-inbox} = $ibx;
 		return;

@@ -225,16 +225,19 @@ sub try_cat {
 	$rv;
 }
 
+sub cat_desc ($) {
+	my $desc = try_cat($_[0]);
+	local $/ = "\n";
+	chomp $desc;
+	utf8::decode($desc);
+	$desc =~ s/\s+/ /smg;
+	$desc eq '' ? undef : $desc;
+}
+
 sub description {
 	my ($self) = @_;
-	($self->{description} //= do {
-		my $desc = try_cat("$self->{inboxdir}/description");
-		local $/ = "\n";
-		chomp $desc;
-		utf8::decode($desc);
-		$desc =~ s/\s+/ /smg;
-		$desc eq '' ? undef : $desc;
-	}) // '($INBOX_DIR/description missing)';
+	($self->{description} //= cat_desc("$self->{inboxdir}/description")) //
+		'($INBOX_DIR/description missing)';
 }
 
 sub cloneurl {
@@ -342,39 +345,35 @@ sub smsg_eml {
 	$eml;
 }
 
-sub mid2num($$) {
-	my ($self, $mid) = @_;
-	my $mm = mm($self) or return;
-	$mm->num_for($mid);
-}
-
 sub smsg_by_mid ($$) {
 	my ($self, $mid) = @_;
-	my $over = over($self) or return;
-	# favor the Message-ID we used for the NNTP article number:
-	defined(my $num = mid2num($self, $mid)) or return;
-	my $smsg = $over->get_art($num) or return;
-	PublicInbox::Smsg::psgi_cull($smsg);
+	my $over = $self->over or return;
+	my $smsg;
+	if (my $mm = $self->mm) {
+		# favor the Message-ID we used for the NNTP article number:
+		defined(my $num = $mm->num_for($mid)) or return;
+		$smsg = $over->get_art($num);
+	} else {
+		my ($id, $prev);
+		$smsg = $over->next_by_mid($mid, \$id, \$prev);
+	}
+	$smsg ? PublicInbox::Smsg::psgi_cull($smsg) : undef;
 }
 
 sub msg_by_mid ($$) {
 	my ($self, $mid) = @_;
-
-	over($self) or
-		return msg_by_path($self, mid2path($mid));
-
 	my $smsg = smsg_by_mid($self, $mid);
-	$smsg ? msg_by_smsg($self, $smsg) : undef;
+	$smsg ? msg_by_smsg($self, $smsg) : msg_by_path($self, mid2path($mid));
 }
 
 sub recent {
 	my ($self, $opts, $after, $before) = @_;
-	over($self)->recent($opts, $after, $before);
+	$self->over->recent($opts, $after, $before);
 }
 
 sub modified {
 	my ($self) = @_;
-	if (my $over = over($self)) {
+	if (my $over = $self->over) {
 		my $msgs = $over->recent({limit => 1});
 		if (my $smsg = $msgs->[0]) {
 			return $smsg->{ts};
