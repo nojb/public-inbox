@@ -106,6 +106,18 @@ sub is_bad_blob ($$$$) {
 	$size == 0 ? 1 : 0; # size == 0 means purged
 }
 
+sub check_batch_limit ($) {
+	my ($req) = @_;
+	my $self = $req->{self};
+	my $new_smsg = $req->{new_smsg};
+
+	# {raw_bytes} may be unset, so just use {bytes}
+	my $n = $self->{transact_bytes} += $new_smsg->{bytes};
+
+	# set flag for PublicInbox::V2Writable::index_todo:
+	${$req->{need_checkpoint}} = 1 if $n >= $self->{batch_bytes};
+}
+
 sub do_xpost ($$) {
 	my ($req, $smsg) = @_;
 	my $self = $req->{self};
@@ -118,6 +130,7 @@ sub do_xpost ($$) {
 		my $xnum = $req->{xnum};
 		$self->{oidx}->add_xref3($docid, $xnum, $oid, $xibx->eidx_key);
 		$idx->shard_add_eidx_info($docid, $oid, $xibx, $eml);
+		check_batch_limit($req);
 	} else { # 'd'
 		$self->{oidx}->remove_xref3($docid, $oid, $xibx->eidx_key);
 		$idx->shard_remove_eidx_info($docid, $oid, $xibx, $eml);
@@ -141,6 +154,7 @@ sub index_unseen ($) {
 	my $ibx = delete $req->{ibx} or die 'BUG: {ibx} unset';
 	$self->{oidx}->add_xref3($docid, $req->{xnum}, $oid, $ibx->eidx_key);
 	$idx->index_raw(undef, $eml, $new_smsg, $ibx);
+	check_batch_limit($req);
 }
 
 sub do_finalize ($) {
@@ -301,7 +315,11 @@ sub eidx_sync { # main entry point
 	local $SIG{__WARN__} = sub {
 		$warn_cb->($self->{current_info}, ': ', @_);
 	};
-	_sync_inbox($self, $opt, $_) for (@{$self->{ibx_list}});
+
+	# don't use $_ here, it'll get clobbered by reindex_checkpoint
+	for my $ibx (@{$self->{ibx_list}}) {
+		_sync_inbox($self, $opt, $ibx);
+	}
 
 	$self->{oidx}->rethread_done($opt);
 
