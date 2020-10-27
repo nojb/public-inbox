@@ -27,7 +27,7 @@ use PublicInbox::Eml;
 use File::Spec;
 
 sub new {
-	my (undef, $dir, $opt, $shard) = @_;
+	my (undef, $dir, $opt) = @_;
 	my $l = $opt->{indexlevel} // 'full';
 	$l !~ $PublicInbox::SearchIdx::INDEXLEVELS and
 		die "invalid indexlevel=$l\n";
@@ -249,15 +249,16 @@ sub _sync_inbox ($$$) {
 		defined($ibx->git_dir_latest(\$epoch_max)) or return;
 		$sync->{epoch_max} = $epoch_max;
 		sync_prepare($self, $sync) or return;
-		index_epoch($self, $sync, $_) for (0..$epoch_max);
 	} elsif ($v == 1) {
 		my $uv = $ibx->uidvalidity;
 		my $lc = $self->{oidx}->eidx_meta("lc-v1:$ekey//$uv");
-		prepare_stack($sync, $lc ? "$lc..HEAD" : 'HEAD');
+		my $stk = prepare_stack($sync, $lc ? "$lc..HEAD" : 'HEAD');
+		my $unit = { stack => $stk, git => $ibx->git };
 	} else {
 		warn "E: $ekey unsupported inbox version (v$v)\n";
 		return;
 	}
+	index_todo($self, $sync, $_) for @{$sync->{todo}};
 }
 
 sub eidx_sync { # main entry point
@@ -266,6 +267,8 @@ sub eidx_sync { # main entry point
 	$self->{oidx}->rethread_prepare($opt);
 
 	_sync_inbox($self, $opt, $_) for (@{$self->{ibx_list}});
+	$self->{oidx}->rethread_done($opt);
+	PublicInbox::V2Writable::done($self);
 }
 
 sub idx_init { # similar to V2Writable
@@ -309,6 +312,8 @@ no warnings 'once';
 *parallel_init = \&PublicInbox::V2Writable::parallel_init;
 *nproc_shards = \&PublicInbox::V2Writable::nproc_shards;
 *sync_prepare = \&PublicInbox::V2Writable::sync_prepare;
-*index_epoch = \&PublicInbox::V2Writable::index_epoch;
+*index_todo = \&PublicInbox::V2Writable::index_todo;
+*count_shards = \&PublicInbox::V2Writable::count_shards;
+*atfork_child = \&PublicInbox::V2Writable::atfork_child;
 
 1;
