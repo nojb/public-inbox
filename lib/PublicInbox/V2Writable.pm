@@ -120,7 +120,7 @@ sub init_inbox {
 	$self->idx_init;
 	$self->{mm}->skip_artnum($skip_artnum) if defined $skip_artnum;
 	my $epoch_max = -1;
-	git_dir_latest($self, \$epoch_max);
+	$self->{ibx}->git_dir_latest(\$epoch_max);
 	if (defined $skip_epoch && $epoch_max == -1) {
 		$epoch_max = $skip_epoch;
 	}
@@ -320,12 +320,13 @@ sub idx_init {
 sub _replace_oids ($$$) {
 	my ($self, $mime, $replace_map) = @_;
 	$self->done;
-	my $pfx = "$self->{ibx}->{inboxdir}/git";
+	my $ibx = $self->{ibx};
+	my $pfx = "$ibx->{inboxdir}/git";
 	my $rewrites = []; # epoch => commit
 	my $max = $self->{epoch_max};
 
 	unless (defined($max)) {
-		defined(my $latest = git_dir_latest($self, \$max)) or return;
+		defined(my $latest = $ibx->git_dir_latest(\$max)) or return;
 		$self->{epoch_max} = $max;
 	}
 
@@ -748,23 +749,6 @@ sub git_init {
 	$git_dir
 }
 
-sub git_dir_latest {
-	my ($self, $max) = @_;
-	$$max = -1;
-	my $pfx = "$self->{ibx}->{inboxdir}/git";
-	return unless -d $pfx;
-	my $latest;
-	opendir my $dh, $pfx or die "opendir $pfx: $!\n";
-	while (defined(my $git_dir = readdir($dh))) {
-		$git_dir =~ m!\A([0-9]+)\.git\z! or next;
-		if ($1 > $$max) {
-			$$max = $1;
-			$latest = "$pfx/$git_dir";
-		}
-	}
-	$latest;
-}
-
 sub importer {
 	my ($self) = @_;
 	my $im = $self->{im};
@@ -783,7 +767,7 @@ sub importer {
 	}
 	my $epoch = 0;
 	my $max;
-	my $latest = git_dir_latest($self, \$max);
+	my $latest = $self->{ibx}->git_dir_latest(\$max);
 	if (defined $latest) {
 		my $git = PublicInbox::Git->new($latest);
 		my $packed_bytes = $git->packed_bytes;
@@ -977,8 +961,6 @@ sub update_last_commit {
 	last_epoch_commit($self, $i, $cmt);
 }
 
-sub git_dir_n ($$) { "$_[0]->{ibx}->{inboxdir}/git/$_[1].git" }
-
 sub last_commits ($$) {
 	my ($self, $epoch_max) = @_;
 	my $heads = [];
@@ -989,8 +971,8 @@ sub last_commits ($$) {
 }
 
 # returns a revision range for git-log(1)
-sub log_range ($$$$$) {
-	my ($self, $sync, $git, $i, $tip) = @_;
+sub log_range ($$$$) {
+	my ($sync, $git, $i, $tip) = @_;
 	my $opt = $sync->{-opt};
 	my $pr = $opt->{-progress} if (($opt->{verbose} || 0) > 1);
 	my $cur = $sync->{ranges}->[$i] or do {
@@ -1043,14 +1025,14 @@ sub sync_prepare ($$$) {
 	my ($self, $sync, $epoch_max) = @_;
 	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
-	my $head = $self->{ibx}->{ref_head} || 'HEAD';
+	my $head = $sync->{ibx}->{ref_head} || 'HEAD';
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
 	my $reindex_heads = $self->last_commits($epoch_max) if $sync->{reindex};
 
 	for (my $i = $epoch_max; $i >= 0; $i--) {
-		my $git_dir = git_dir_n($self, $i);
+		my $git_dir = $sync->{ibx}->git_dir_n($i);
 		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		if ($reindex_heads) {
@@ -1059,7 +1041,7 @@ sub sync_prepare ($$$) {
 		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
 
 		next if $?; # new repo
-		my $range = log_range($self, $sync, $git, $i, $tip) or next;
+		my $range = log_range($sync, $git, $i, $tip) or next;
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$i.git counting $range ... ") if $pr;
 		# Don't bump num_highwater on --reindex by using {D}.
@@ -1067,7 +1049,7 @@ sub sync_prepare ($$$) {
 		# because we want NNTP article number gaps from unindexed
 		# messages to show up in mirrors, too.
 		$sync->{D} //= $sync->{reindex} ? {} : undef; # OID_BIN => NR
-		my $stk = log2stack($sync, $git, $range, $self->{ibx});
+		my $stk = log2stack($sync, $git, $range, $sync->{ibx});
 		my $nr = $stk ? $stk->num_records : 0;
 		$pr->("$nr\n") if $pr;
 		$sync->{stacks}->[$i] = $stk if $stk;
@@ -1143,7 +1125,7 @@ sub git { $_[0]->{ibx}->git }
 
 # this is rare, it only happens when we get discontiguous history in
 # a mirror because the source used -purge or -edit
-sub unindex ($$$$) {
+sub unindex_epoch ($$$$) {
 	my ($self, $sync, $git, $unindex_range) = @_;
 	my $unindexed = $sync->{unindexed} //= {}; # $mid0 => $num
 	my $before = scalar keys %$unindexed;
@@ -1216,11 +1198,11 @@ sub index_xap_step ($$$;$) {
 sub index_epoch ($$$) {
 	my ($self, $sync, $i) = @_;
 
-	my $git_dir = git_dir_n($self, $i);
+	my $git_dir = $sync->{ibx}->git_dir_n($i);
 	-d $git_dir or return; # missing epochs are fine
 	my $git = PublicInbox::Git->new($git_dir);
 	if (my $unindex_range = delete $sync->{unindex_range}->{$i}) { # rare
-		unindex($self, $sync, $git, $unindex_range);
+		unindex_epoch($self, $sync, $git, $unindex_range);
 	}
 	defined(my $stk = $sync->{stacks}->[$i]) or return;
 	$sync->{stacks}->[$i] = undef;
@@ -1284,7 +1266,7 @@ sub index_sync {
 
 	my $pr = $opt->{-progress};
 	my $epoch_max;
-	my $latest = git_dir_latest($self, \$epoch_max);
+	my $latest = $self->{ibx}->git_dir_latest(\$epoch_max);
 	return unless defined $latest;
 
 	my $seq = $opt->{sequential_shard};
@@ -1301,6 +1283,7 @@ sub index_sync {
 		reindex => $opt->{reindex},
 		-opt => $opt,
 		v2w => $self,
+		ibx => $self->{ibx},
 	};
 	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
 	if (sync_prepare($self, $sync, $epoch_max)) {

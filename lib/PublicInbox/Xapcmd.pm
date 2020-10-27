@@ -110,7 +110,7 @@ sub prepare_reindex ($$$) {
 		}
 	} else { # v2
 		my $max;
-		$im->git_dir_latest(\$max) or return;
+		$ibx->git_dir_latest(\$max) or return;
 		my $from = $opt->{reindex}->{from};
 		my $mm = $ibx->mm;
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
