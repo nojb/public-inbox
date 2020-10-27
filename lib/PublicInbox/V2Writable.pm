@@ -1038,6 +1038,9 @@ sub sync_prepare ($$) {
 	# without {reindex}
 	my $reindex_heads = $self->last_commits($sync) if $sync->{reindex};
 
+	if ($sync->{max_size} = $sync->{-opt}->{max_size}) {
+		$sync->{index_oid} = $self->can('index_oid');
+	}
 	for (my $i = $sync->{epoch_max}; $i >= 0; $i--) {
 		my $git_dir = $sync->{ibx}->git_dir_n($i);
 		-d $git_dir or next; # missing epochs are fine
@@ -1311,9 +1314,6 @@ sub index_sync {
 			$art_beg = $sync->{mm_tmp}->max;
 			$art_beg++ if defined($art_beg);
 		}
-	}
-	if ($sync->{max_size} = $opt->{max_size}) {
-		$sync->{index_oid} = $self->can('index_oid');
 	}
 	# work forwards through history
 	index_epoch($self, $sync, $_) for (0..$epoch_max);
