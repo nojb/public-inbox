@@ -467,7 +467,7 @@ sub git_hash_raw ($$) {
 	my ($self, $raw) = @_;
 	# grab the expected OID we have to reindex:
 	pipe(my($in, $w)) or die "pipe: $!";
-	my $git_dir = $self->{ibx}->git->{git_dir};
+	my $git_dir = $self->git->{git_dir};
 	my $cmd = ['git', "--git-dir=$git_dir", qw(hash-object --stdin)];
 	my $r = popen_rd($cmd, undef, { 0 => $in });
 	print $w $$raw or die "print \$w: $!";
@@ -531,11 +531,11 @@ W: $list
 	}
 
 	# make sure we really got the OID:
-	my ($blob, $type, $bytes) = $self->{ibx}->git->check($expect_oid);
+	my ($blob, $type, $bytes) = $self->git->check($expect_oid);
 	$blob eq $expect_oid or die "BUG: $expect_oid not found after replace";
 
 	# don't leak FDs to Xapian:
-	$self->{ibx}->git->cleanup;
+	$self->git->cleanup;
 
 	# reindex modified messages:
 	for my $smsg (@$need_reindex) {
@@ -671,7 +671,7 @@ sub done {
 	my $nbytes = $self->{total_bytes};
 	$self->{total_bytes} = 0;
 	$self->lock_release(!!$nbytes) if $shards;
-	$self->{ibx}->git->cleanup;
+	$self->git->cleanup;
 	die $err if $err;
 }
 
@@ -861,7 +861,7 @@ sub atfork_child {
 sub reindex_checkpoint ($$) {
 	my ($self, $sync) = @_;
 
-	$self->{ibx}->git->cleanup; # *async_wait
+	$self->git->cleanup; # *async_wait
 	${$sync->{need_checkpoint}} = 0;
 	my $mm_tmp = $sync->{mm_tmp};
 	$mm_tmp->atfork_prepare if $mm_tmp;
@@ -1066,13 +1066,12 @@ sub sync_prepare ($$$) {
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
 		my $arg = { v2w => $self };
-		my $all = $self->{ibx}->git;
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
 			$self->{current_info} = "leftover $oid";
-			$all->cat_async($oid, \&unindex_oid, $arg);
+			$self->git->cat_async($oid, \&unindex_oid, $arg);
 		}
-		$all->cat_async_wait;
+		$self->git->cat_async_wait;
 	}
 	if (!$regen_max) {
 		$sync->{-regen_fmt} = "%u/?\n";
@@ -1127,6 +1126,8 @@ sub unindex_oid ($$;$) { # git->cat_async callback
 	}
 }
 
+sub git { $_[0]->{ibx}->git }
+
 # this is rare, it only happens when we get discontiguous history in
 # a mirror because the source used -purge or -edit
 sub unindex ($$$$) {
@@ -1137,14 +1138,13 @@ sub unindex ($$$$) {
 	my @cmd = qw(log --raw -r
 			--no-notes --no-color --no-abbrev --no-renames);
 	my $fh = $git->popen(@cmd, $unindex_range);
-	my $all = $self->{ibx}->git;
 	local $sync->{in_unindex} = 1;
 	while (<$fh>) {
 		/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o or next;
-		$all->cat_async($1, \&unindex_oid, $sync);
+		$self->git->cat_async($1, \&unindex_oid, $sync);
 	}
 	close $fh or die "git log failed: \$?=$?";
-	$all->cat_async_wait;
+	$self->git->cat_async_wait;
 
 	return unless $sync->{-opt}->{prune};
 	my $after = scalar keys %$unindexed;
@@ -1211,7 +1211,7 @@ sub index_epoch ($$$) {
 	}
 	defined(my $stk = $sync->{stacks}->[$i]) or return;
 	$sync->{stacks}->[$i] = undef;
-	my $all = $self->{ibx}->git;
+	my $all = $self->git;
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
 		$self->{current_info} = "$i.git $oid";
 		if ($f eq 'm') {
@@ -1259,7 +1259,7 @@ sub xapian_only {
 			index_xap_step($self, $sync, $art_beg, 1);
 		}
 	}
-	$self->{ibx}->git->cat_async_wait;
+	$self->git->cat_async_wait;
 	$self->done;
 }
 
