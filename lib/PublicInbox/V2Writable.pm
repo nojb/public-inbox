@@ -1073,12 +1073,12 @@ sub sync_prepare ($$) {
 	# our code and blindly injects "d" file history into git repos
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
-		my $arg = { self => $self };
 		my $unindex_oid = $self->can('unindex_oid');
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
 			$self->{current_info} = "leftover $oid";
-			$self->git->cat_async($oid, $unindex_oid, $arg);
+			my $req = { %$sync, oid => $oid };
+			$self->git->cat_async($oid, $unindex_oid, $req);
 		}
 		$self->git->cat_async_wait;
 	}
@@ -1151,7 +1151,7 @@ sub unindex_todo ($$$) {
 	my $unindex_oid = $self->can('unindex_oid');
 	while (<$fh>) {
 		/\A:\d{6} 100644 $OID ($OID) [AM]\tm$/o or next;
-		$self->git->cat_async($1, $unindex_oid, $sync);
+		$self->git->cat_async($1, $unindex_oid, { %$sync, oid => $1 });
 	}
 	close $fh or die "git log failed: \$?=$?";
 	$self->git->cat_async_wait;
