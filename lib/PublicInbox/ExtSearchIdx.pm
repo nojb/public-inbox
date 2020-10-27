@@ -296,6 +296,11 @@ sub eidx_sync { # main entry point
 	$self->idx_init($opt); # acquire lock via V2Writable::_idx_init
 	$self->{oidx}->rethread_prepare($opt);
 
+	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	local $self->{current_info} = '';
+	local $SIG{__WARN__} = sub {
+		$warn_cb->($self->{current_info}, ': ', @_);
+	};
 	_sync_inbox($self, $opt, $_) for (@{$self->{ibx_list}});
 
 	$self->{oidx}->rethread_done($opt);
