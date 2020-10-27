@@ -31,7 +31,18 @@ my @syn = (@EXE_FILES, grep(m!^lib/.*\.pm$!, @manifest), @scripts);
 @syn = grep(!/SaPlugin/, @syn) if !eval { require Mail::SpamAssasin };
 $v->{syn_files} = \@syn;
 $v->{my_syntax} = [map { "$_.syntax" } @syn];
-$v->{-m1} = [ map { (split('/'))[-1] } @EXE_FILES ];
+my @no_pod;
+$v->{-m1} = [ map {
+		my $x = (split('/'))[-1];
+		my $pod = "Documentation/$x.pod";
+		if (-f $pod) {
+			$x;
+		} else {
+			warn "W: $pod missing\n";
+			push @no_pod, $x;
+			();
+		}
+	} @EXE_FILES ];
 $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 		public-inbox-v2-format) ];
 $v->{-m7} = [ qw(public-inbox-overview public-inbox-tuning) ];
@@ -109,6 +120,7 @@ my %man3 = map {; # semi-colon tells Perl this is a BLOCK (and not EXPR)
 	$mod =~ s/\.\w+\z//;
 	"lib/PublicInbox/$_" => "blib/man3/PublicInbox::$mod.3"
 } qw(Git.pm Import.pm WWW.pod SaPlugin/ListMirror.pod);
+my $warn_no_pod = @no_pod ? "\n\t\@echo W: missing .pod: @no_pod\n" : '';
 
 WriteMakefile(
 	NAME => 'PublicInbox', # n.b. camel-case is not our choice
@@ -171,6 +183,8 @@ N = $N
 $VARS
 -include Documentation/include.mk
 $TGTS
+
+check-man ::$warn_no_pod
 
 # syntax checks are currently GNU make only:
 %.syntax :: %
