@@ -325,6 +325,16 @@ sub index_xapian { # msg_iter callback
 	}
 }
 
+sub index_list_id ($$$) {
+	my ($self, $doc, $hdr) = @_;
+	for my $l ($hdr->header_raw('List-Id')) {
+		$l =~ /<([^>]+)>/ or next;
+		my $lid = lc $1;
+		$doc->add_boolean_term('G' . $lid);
+		index_text($self, $lid, 1, 'XL'); # probabilistic
+	}
+}
+
 sub index_ids ($$$$) {
 	my ($self, $doc, $hdr, $mids) = @_;
 	for my $mid (@$mids) {
@@ -338,12 +348,7 @@ sub index_ids ($$$$) {
 		}
 	}
 	$doc->add_boolean_term('Q' . $_) for @$mids;
-	for my $l ($hdr->header_raw('List-Id')) {
-		$l =~ /<([^>]+)>/ or next;
-		my $lid = lc $1;
-		$doc->add_boolean_term('G' . $lid);
-		index_text($self, $lid, 1, 'XL'); # probabilistic
-	}
+	index_list_id($self, $doc, $hdr);
 }
 
 sub add_xapian ($$$$) {
@@ -363,6 +368,10 @@ sub add_xapian ($$$$) {
 	$tg->set_document($doc);
 	index_headers($self, $smsg);
 
+	if (my $ng_or_dir = $self->{ng_or_dir}) { # external index
+		$doc->add_boolean_term('P'.
+				"$ng_or_dir:$smsg->{num}:$smsg->{blob}");
+	}
 	msg_iter($eml, \&index_xapian, [ $self, $doc ]);
 	index_ids($self, $doc, $eml, $mids);
 
@@ -436,6 +445,56 @@ sub add_message {
 	$smsg->{num};
 }
 
+sub _get_doc ($$$) {
+	my ($self, $docid, $oid) = @_;
+	my $doc = eval { $self->{xdb}->get_document($docid) };
+	$doc // do {
+		warn "E: $@\n" if $@;
+		warn "E: #$docid $oid missing in Xapian\n";
+		undef;
+	}
+}
+
+sub add_xref3 {
+	my ($self, $docid, $xnum, $oid, $ng_or_dir, $eml) = @_;
+	begin_txn_lazy($self);
+	my $doc = _get_doc($self, $docid, $oid) or return;
+	term_generator($self)->set_document($doc);
+	$doc->add_boolean_term('P'."$ng_or_dir:$xnum:$oid");
+	index_list_id($self, $doc, $eml);
+	$self->{xdb}->replace_document($docid, $doc);
+}
+
+sub remove_xref3 {
+	my ($self, $docid, $oid, $ng_or_dir, $eml) = @_;
+	begin_txn_lazy($self);
+	my $doc = _get_doc($self, $docid, $oid) or return;
+	my $xref3 = PublicInbox::Smsg::xref3(undef, $doc);
+	for (grep(/\A\Q$ng_or_dir\E:[0-9]+:\Q$oid\E\z/, @$xref3)) {
+		$doc->remove_term('P' . $_);
+	}
+	for my $l ($eml->header_raw('List-Id')) {
+		$l =~ /<([^>]+)>/ or next;
+		my $lid = lc $1;
+		$doc->remove_term('G' . $lid);
+
+		# nb: we don't remove the XL probabilistic terms
+		# since terms may overlap if cross-posted.
+		#
+		# IOW, a message which has both <foo.example.com>
+		# and <bar.example.com> would have overlapping
+		# "XLexample" and "XLcom" as terms and which we
+		# wouldn't know if they're safe to remove if we just
+		# unindex <foo.example.com> while preserving
+		# <bar.example.com>.
+		#
+		# In any case, this entire sub is will likely never
+		# be needed and users using the "l:" prefix are probably
+		# rarer.
+	}
+	$self->{xdb}->replace_document($docid, $doc);
+}
+
 sub get_val ($$) {
 	my ($doc, $col) = @_;
 	sortable_unserialise($doc->get_value($col));
@@ -457,12 +516,7 @@ sub xdb_remove {
 	my ($self, $oid, @removed) = @_;
 	my $xdb = $self->{xdb} or return;
 	for my $num (@removed) {
-		my $doc = eval { $xdb->get_document($num) };
-		unless ($doc) {
-			warn "E: $@\n" if $@;
-			warn "E: #$num $oid missing in Xapian\n";
-			next;
-		}
+		my $doc = _get_doc($self, $num, $oid) or next;
 		my $smsg = smsg_from_doc($doc);
 		my $blob = $smsg->{blob}; # may be undef if --skip-docdata
 		if (!defined($blob) || $blob eq $oid) {

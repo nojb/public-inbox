@@ -341,6 +341,14 @@ $ibx->with_umask(sub {
 		my $uid = PublicInbox::SearchIdx::get_val($doc, $col);
 		is($uid, $smsg->{num}, 'UID column matches {num}');
 		is($uid, $m->get_docid, 'UID column matches docid');
+
+		# check ->xref3 for external index:
+		is_deeply($smsg->xref3($doc), [], 'xref3 empty by default');
+		my $exp = "inbox.com.example:$uid:deadbeef";
+		$doc->add_boolean_term('P'.$exp);
+		is_deeply($smsg->xref3($doc), [ $exp ], 'xref3 can be set');
+		$doc->remove_term('P'.$exp);
+		is_deeply($smsg->xref3($doc), [], 'xref3 can be unset');
 	}
 
 	$mset = $ibx->search->mset('tc:list@example.com');
@@ -513,8 +521,13 @@ $ibx->with_umask(sub {
 	$rw_commit->();
 	my $doc_id = $rw->add_message(eml_load('t/data/message_embed.eml'));
 	ok($doc_id > 0, 'messages within messages');
-	$rw->commit_txn_lazy;
-	$ibx->search->reopen;
+
+	my $eml = PublicInbox::Eml->new(<<EOF);
+List-Id: <blahblah.example.com>
+
+EOF
+	$rw->add_xref3($doc_id, 1, 'deadbeef', 'newsgroup1.example', $eml);
+	$rw_commit->();
 	my $n_test_eml = $query->('n:test.eml');
 	is(scalar(@$n_test_eml), 1, 'got a result');
 	my $n_embed2x_eml = $query->('n:embed2x.eml');
@@ -532,8 +545,15 @@ $ibx->with_umask(sub {
 	is($query->('s:"mail header experiments"')->[0]->{mid},
 		'20200418222508.GA13918@dcvr',
 		'Subject search reaches inside message/rfc822');
+	is($query->('l:blahblah.example.com')->[0]->{num}, $doc_id,
+		'xref3 List-Id probabilistic works');
+	is($query->('lid:blahblah.example.com')->[0]->{num}, $doc_id,
+		'xref3 List-Id boolean term works');
+	$rw->remove_xref3($doc_id, 'deadbeef', 'newsgroup1.example', $eml);
+	$rw->commit_txn_lazy;
+	$ibx->search->reopen;
+	my $res = $query->('lid:blahblah.example.com');
+	is_deeply($res, [], '->remove_xref3 dropped boolean term');
 });
 
 done_testing();
-
-1;
