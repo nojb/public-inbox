@@ -1,0 +1,43 @@
+#!perl -w
+# Copyright (C) 2020 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+# Basic tool to create a Xapian search index for a public-inbox.
+use strict;
+use v5.10.1;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+usage: public-inbox-eindex [options] EINDEX_DIR [INBOX_DIR]
+
+  Create and update external (detached) search indices
+
+  --no-fsync          speed up indexing, risk corruption on power outage
+  -L LEVEL            `medium', or `full' (default: full)
+  --all               index all configured inboxes
+  --jobs=NUM          set or disable parallelization (NUM=0)
+  --batch-size=BYTES  flush changes to OS after a given number of bytes
+  --max-size=BYTES    do not index messages larger than the given size
+  --verbose | -v      increase verbosity (may be repeated)
+
+BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
+See public-inbox-eindex(1) man page for full documentation.
+EOF
+my $opt = { quiet => -1, compact => 0, max_size => undef, fsync => 1 };
+GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
+		fsync|sync!
+		indexlevel|index-level|L=s max_size|max-size=s
+		batch_size|batch-size=s
+		skip-docdata all help|h))
+	or die $help;
+if ($opt->{help}) { print $help; exit 0 };
+die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
+
+# require lazily to speed up --help
+my $eidx_dir = shift(@ARGV) // die "E: $help";
+require PublicInbox::Admin;
+my $cfg = PublicInbox::Config->new;
+my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
+PublicInbox::Admin::require_or_die(qw(-search));
+require PublicInbox::ExtSearchIdx;
+my $eidx = PublicInbox::ExtSearchIdx->new($eidx_dir, $opt);
+$eidx->attach_inbox($_) for @ibxs;
+$eidx->eidx_sync($opt);

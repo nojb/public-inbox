@@ -225,6 +225,7 @@ sa_config/user/.spamassassin/user_prefs
 script/public-inbox-compact
 script/public-inbox-convert
 script/public-inbox-edit
+script/public-inbox-eindex
 script/public-inbox-httpd
 script/public-inbox-imapd
 script/public-inbox-index
