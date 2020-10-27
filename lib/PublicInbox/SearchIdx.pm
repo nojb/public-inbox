@@ -22,7 +22,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size);
+our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size prepare_stack);
 my $X = \%PublicInbox::Search::X;
 my ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
