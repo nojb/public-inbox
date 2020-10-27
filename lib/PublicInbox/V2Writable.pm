@@ -882,7 +882,7 @@ sub index_oid { # cat_async callback
 	my $eml = PublicInbox::Eml->new($$bref);
 	my $mids = mids($eml);
 	my $chash = content_hash($eml);
-	my $self = $arg->{v2w};
+	my $self = $arg->{self};
 
 	if (scalar(@$mids) == 0) {
 		warn "E: $oid has no Message-ID, skipping\n";
@@ -1065,7 +1065,7 @@ sub sync_prepare ($$) {
 	# our code and blindly injects "d" file history into git repos
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
-		my $arg = { v2w => $self };
+		my $arg = { self => $self };
 		my $unindex_oid = $self->can('unindex_oid');
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
@@ -1099,7 +1099,7 @@ sub unindex_oid_aux ($$$) {
 
 sub unindex_oid ($$;$) { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $sync) = @_;
-	my $self = $sync->{v2w};
+	my $self = $sync->{self};
 	my $unindexed = $sync->{in_unindex} ? $sync->{unindexed} : undef;
 	my $mm = $self->{mm};
 	my $mids = mids(PublicInbox::Eml->new($bref));
@@ -1172,7 +1172,7 @@ sub sync_ranges ($$) {
 
 sub index_xap_only { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $smsg) = @_;
-	my $self = $smsg->{v2w};
+	my $self = $smsg->{self};
 	my $idx = idx_shard($self, $smsg->{num});
 	$smsg->{raw_bytes} = $size;
 	$idx->index_raw($bref, undef, $smsg);
@@ -1192,7 +1192,7 @@ sub index_xap_step ($$$;$) {
 	}
 	for (my $num = $beg; $num <= $end; $num += $step) {
 		my $smsg = $ibx->over->get_art($num) or next;
-		$smsg->{v2w} = $self;
+		$smsg->{self} = $self;
 		$ibx->git->cat_async($smsg->{blob}, \&index_xap_only, $smsg);
 		if ($self->{transact_bytes} >= $self->{batch_bytes}) {
 			${$sync->{nr}} = $num;
@@ -1245,7 +1245,7 @@ sub xapian_only {
 		$sync //= {
 			need_checkpoint => \(my $bool = 0),
 			-opt => $opt,
-			v2w => $self,
+			self => $self,
 			nr => \(my $nr = 0),
 			-regen_fmt => "%u/?\n",
 		};
@@ -1290,7 +1290,7 @@ sub index_sync {
 		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
 		-opt => $opt,
-		v2w => $self,
+		self => $self,
 		ibx => $self->{ibx},
 		epoch_max => $epoch_max,
 	};
