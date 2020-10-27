@@ -122,6 +122,7 @@ lib/PublicInbox/Eml.pm
 lib/PublicInbox/EmlContentFoo.pm
 lib/PublicInbox/ExtMsg.pm
 lib/PublicInbox/ExtSearch.pm
+lib/PublicInbox/ExtSearchIdx.pm
 lib/PublicInbox/FakeInotify.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm

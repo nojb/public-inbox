@@ -7,5 +7,6 @@ use PublicInbox::TestCommon;
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::ExtSearch';
+use_ok 'PublicInbox::ExtSearchIdx';
 
 done_testing;
