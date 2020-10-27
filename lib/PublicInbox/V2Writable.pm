@@ -271,13 +271,28 @@ sub _idx_init { # with_umask callback
 	my $max = $self->{shards} - 1;
 	my $idx = $self->{idx_shards} = [];
 	push @$idx, PublicInbox::SearchIdxShard->new($self, $_) for (0..$max);
+	my $ibx = $self->{ibx} or return; # ExtIdxSearch
 
 	# Now that all subprocesses are up, we can open the FDs
 	# for SQLite:
 	my $mm = $self->{mm} = PublicInbox::Msgmap->new_file(
-				"$self->{ibx}->{inboxdir}/msgmap.sqlite3",
-				$self->{ibx}->{-no_fsync} ? 2 : 1);
+				"$ibx->{inboxdir}/msgmap.sqlite3",
+				$ibx->{-no_fsync} ? 2 : 1);
 	$mm->{dbh}->begin_work;
+}
+
+sub parallel_init ($$) {
+	my ($self, $indexlevel) = @_;
+	if (($indexlevel // 'full') eq 'basic') {
+		$self->{parallel} = 0;
+	} else {
+		pipe(my ($r, $w)) or die "pipe failed: $!";
+		# pipe for barrier notifications doesn't need to be big,
+		# 1031: F_SETPIPE_SZ
+		fcntl($w, 1031, 4096) if $^O eq 'linux';
+		$self->{bnote} = [ $r, $w ];
+		$w->autoflush(1);
+	}
 }
 
 # idempotent
@@ -292,16 +307,7 @@ sub idx_init {
 	delete @$ibx{qw(mm search)};
 	$ibx->git->cleanup;
 
-	$self->{parallel} = 0 if ($ibx->{indexlevel}//'') eq 'basic';
-	if ($self->{parallel}) {
-		pipe(my ($r, $w)) or die "pipe failed: $!";
-		# pipe for barrier notifications doesn't need to be big,
-		# 1031: F_SETPIPE_SZ
-		fcntl($w, 1031, 4096) if $^O eq 'linux';
-		$self->{bnote} = [ $r, $w ];
-		$w->autoflush(1);
-	}
-
+	parallel_init($self, $ibx->{indexlevel});
 	$ibx->umask_prepare;
 	$ibx->with_umask(\&_idx_init, $self, $opt);
 }
