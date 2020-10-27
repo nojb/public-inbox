@@ -964,9 +964,9 @@ sub update_last_commit {
 }
 
 sub last_commits ($$) {
-	my ($self, $epoch_max) = @_;
+	my ($self, $sync) = @_;
 	my $heads = [];
-	for (my $i = $epoch_max; $i >= 0; $i--) {
+	for (my $i = $sync->{epoch_max}; $i >= 0; $i--) {
 		$heads->[$i] = last_epoch_commit($self, $i);
 	}
 	$heads;
@@ -1023,17 +1023,20 @@ $range
 	$range;
 }
 
-sub sync_prepare ($$$) {
-	my ($self, $sync, $epoch_max) = @_;
+# overridden by ExtSearchIdx
+sub artnum_max { $_[0]->{mm}->num_highwater }
+
+sub sync_prepare ($$) {
+	my ($self, $sync) = @_;
 	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
 	my $head = $sync->{ibx}->{ref_head} || 'HEAD';
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
-	my $reindex_heads = $self->last_commits($epoch_max) if $sync->{reindex};
+	my $reindex_heads = $self->last_commits($sync) if $sync->{reindex};
 
-	for (my $i = $epoch_max; $i >= 0; $i--) {
+	for (my $i = $sync->{epoch_max}; $i >= 0; $i--) {
 		my $git_dir = $sync->{ibx}->git_dir_n($i);
 		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
@@ -1081,7 +1084,7 @@ sub sync_prepare ($$$) {
 	$sync->{-regen_fmt} = "% ${pad}u/$regen_max\n";
 	$sync->{nr} = \(my $nr = 0);
 	return -1 if $sync->{reindex};
-	$regen_max + $self->{mm}->num_highwater() || 0;
+	$regen_max + $self->artnum_max || 0;
 }
 
 sub unindex_oid_aux ($$$) {
@@ -1152,11 +1155,10 @@ sub unindex_epoch ($$$$) {
 		qw(-c gc.reflogExpire=now gc --prune=all --quiet)]);
 }
 
-sub sync_ranges ($$$) {
-	my ($self, $sync, $epoch_max) = @_;
+sub sync_ranges ($$) {
+	my ($self, $sync) = @_;
 	my $reindex = $sync->{reindex};
-
-	return last_commits($self, $epoch_max) unless $reindex;
+	return $self->last_commits($sync) unless $reindex;
 	return [] if ref($reindex) ne 'HASH';
 
 	my $ranges = $reindex->{from}; # arrayref;
@@ -1286,9 +1288,10 @@ sub index_sync {
 		-opt => $opt,
 		v2w => $self,
 		ibx => $self->{ibx},
+		epoch_max => $epoch_max,
 	};
-	$sync->{ranges} = sync_ranges($self, $sync, $epoch_max);
-	if (sync_prepare($self, $sync, $epoch_max)) {
+	$sync->{ranges} = sync_ranges($self, $sync);
+	if (sync_prepare($self, $sync)) {
 		# tmp_clone seems to fail if inside a transaction, so
 		# we rollback here (because we opened {mm} for reading)
 		# Note: we do NOT rely on DBI transactions for atomicity;
