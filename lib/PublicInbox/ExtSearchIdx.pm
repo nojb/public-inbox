@@ -105,11 +105,11 @@ sub is_bad_blob ($$$$) {
 
 sub do_xpost ($$) {
 	my ($req, $smsg) = @_;
-	my $self = $req->{eidx};
+	my $self = $req->{self};
 	my $docid = $smsg->{num};
 	my $idx = $self->idx_shard($docid);
 	my $oid = $req->{oid};
-	my $xibx = $self->{sync}->{ibx};
+	my $xibx = $req->{ibx};
 	my $eml = $req->{eml};
 	if (my $new_smsg = $req->{new_smsg}) { # 'm' on cross-posted message
 		my $xnum = $req->{xnum};
@@ -119,17 +119,20 @@ sub do_xpost ($$) {
 	}
 }
 
+# called by V2Writable::sync_prepare
+sub artnum_max { $_[0]->{oidx}->get_counter('eidx_docid') }
+
 sub index_unseen ($) {
 	my ($req) = @_;
 	my $new_smsg = $req->{new_smsg} or die 'BUG: {new_smsg} unset';
-	$new_smsg->populate($req->{eml}, $req);
-	my $self = $req->{eidx};
+	my $eml = delete $req->{eml};
+	$new_smsg->populate($eml, $req);
+	my $self = $req->{self};
 	my $docid = $self->{oidx}->adj_counter('eidx_docid', '+');
 	$new_smsg->{num} = $docid;
 	my $idx = $self->idx_shard($docid);
-	my $eml = delete $req->{eml};
 	$self->{oidx}->add_overview($eml, $new_smsg);
-	$idx->index_raw(undef, $eml, $new_smsg, delete $new_smsg->{ibx});
+	$idx->index_raw(undef, $eml, $new_smsg, $req->{ibx});
 }
 
 sub do_finalize ($) {
@@ -145,7 +148,7 @@ sub do_finalize ($) {
 
 sub do_step ($) { # main iterator for adding messages to the index
 	my ($req) = @_;
-	my $self = $req->{eidx};
+	my $self = $req->{self};
 	while (1) {
 		if (my $next_arg = $req->{next_arg}) {
 			if (my $smsg = $self->{oidx}->next_by_mid(@$next_arg)) {
@@ -181,7 +184,7 @@ sub ck_existing { # git->cat_async callback
 # return the number if so
 sub cur_ibx_xnum ($$) {
 	my ($req, $bref) = @_;
-	my $ibx = $req->{sync}->{ibx} or die 'BUG: current {ibx} missing';
+	my $ibx = $req->{ibx} or die 'BUG: current {ibx} missing';
 
 	# XXX overkill?
 	git_blob_digest($bref)->hexdigest eq $req->{oid} or die
@@ -200,31 +203,34 @@ sub cur_ibx_xnum ($$) {
 	undef;
 }
 
-sub m_start { # git->cat_async callback for 'm'
+sub index_oid { # git->cat_async callback for 'm'
 	my ($bref, $oid, $type, $size, $req) = @_;
 	return if is_bad_blob($oid, $type, $size, $req->{oid});
 	my $new_smsg = $req->{new_smsg} = bless {
 		blob => $oid,
-		raw_bytes => $size,
 	}, 'PublicInbox::Smsg';
-	$new_smsg->{bytes} = $new_smsg->{raw_bytes} + crlf_adjust($$bref);
+	$new_smsg->{bytes} = $size + crlf_adjust($$bref);
 	defined($req->{xnum} = cur_ibx_xnum($req, $bref)) or return;
-	$new_smsg->{ibx} = $req->{sync}->{ibx};
 	do_step($req);
 }
 
-sub d_start { # git->cat_async callback for 'd'
+sub unindex_oid { # git->cat_async callback for 'd'
 	my ($bref, $oid, $type, $size, $req) = @_;
 	return if is_bad_blob($oid, $type, $size, $req->{oid});
 	return if defined(cur_ibx_xnum($req, $bref)); # was re-added
 	do_step($req);
 }
 
-sub eidx_last_epoch_commit ($$$) {
-	my ($self, $sync, $epoch) = @_;
-	my $key = $sync->{ibx}->eidx_key;
-	my $uidvalidity = $sync->{ibx}->uidvalidity;
-	$self->{oidx}->eidx_meta("lc-v2:$key//$uidvalidity;$epoch");
+# overrides V2Writable::last_commits, called by sync_ranges via sync_prepare
+sub last_commits {
+	my ($self, $sync) = @_;
+	my $heads = [];
+	my $ekey = $sync->{ibx}->eidx_key;
+	my $uv = $sync->{ibx}->uidvalidity;
+	for my $i (0..$sync->{epoch_max}) {
+		$heads->[$i] = $self->{oidx}->eidx_meta("lc-v2:$ekey//$uv;$i");
+	}
+	$heads;
 }
 
 sub _sync_inbox ($$$) {
@@ -234,27 +240,23 @@ sub _sync_inbox ($$$) {
 		unindex_range => {}, # EPOCH => oid_old..oid_new
 		reindex => $opt->{reindex},
 		-opt => $opt,
-		eidx => $self,
+		self => $self,
 		ibx => $ibx,
 	};
-	my $key = $ibx->eidx_key;
-	my $u = $ibx->uidvalidity;
-	my $oidx = $self->{oidx};
 	my $v = $ibx->version;
+	my $ekey = $ibx->eidx_key;
 	if ($v == 2) {
 		my $epoch_max;
 		defined($ibx->git_dir_latest(\$epoch_max)) or return;
-		my $heads = $sync->{ranges} = [];
-		for my $i (0..$epoch_max) {
-			$heads->[$i] = $oidx->eidx_meta("lc-v2:$key//$u;$i");
-		}
-
-
+		$sync->{epoch_max} = $epoch_max;
+		sync_prepare($self, $sync) or return;
+		index_epoch($self, $sync, $_) for (0..$epoch_max);
 	} elsif ($v == 1) {
-		my $lc = $oidx->eidx_meta("lc-v1:$key//$u");
+		my $uv = $ibx->uidvalidity;
+		my $lc = $self->{oidx}->eidx_meta("lc-v1:$ekey//$uv");
 		prepare_stack($sync, $lc ? "$lc..HEAD" : 'HEAD');
 	} else {
-		warn "E: $key unsupported inbox version (v$v)\n";
+		warn "E: $ekey unsupported inbox version (v$v)\n";
 		return;
 	}
 }
@@ -307,5 +309,7 @@ no warnings 'once';
 *with_umask = \&PublicInbox::InboxWritable::with_umask;
 *parallel_init = \&PublicInbox::V2Writable::parallel_init;
 *nproc_shards = \&PublicInbox::V2Writable::nproc_shards;
+*sync_prepare = \&PublicInbox::V2Writable::sync_prepare;
+*index_epoch = \&PublicInbox::V2Writable::index_epoch;
 
 1;
