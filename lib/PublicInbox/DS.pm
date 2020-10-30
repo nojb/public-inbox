@@ -433,7 +433,8 @@ next_buf:
                         goto next_buf;
                     }
                 } elsif ($! == EAGAIN) {
-                    epwait($sock, epbit($sock, EPOLLOUT) | EPOLLONESHOT);
+                    my $ev = epbit($sock, EPOLLOUT) or return $self->close;
+                    epwait($sock, $ev | EPOLLONESHOT);
                     return 0;
                 } else {
                     return $self->close;
@@ -469,7 +470,8 @@ sub do_read ($$$;$) {
     # common for clients to break connections without warning,
     # would be too noisy to log here:
     if ($! == EAGAIN) {
-        epwait($sock, epbit($sock, EPOLLIN) | EPOLLONESHOT);
+        my $ev = epbit($sock, EPOLLIN) or return $self->close;
+        epwait($sock, $ev | EPOLLONESHOT);
         rbuf_idle($self, $rbuf);
         0;
     } else {
@@ -543,7 +545,8 @@ sub write {
             return 1 if $written == $to_write;
             requeue($self); # runs: event_step -> flush_write
         } elsif ($! == EAGAIN) {
-            epwait($sock, epbit($sock, EPOLLOUT) | EPOLLONESHOT);
+            my $ev = epbit($sock, EPOLLOUT) or return $self->close;
+            epwait($sock, $ev | EPOLLONESHOT);
             $written = 0;
         } else {
             return $self->close;
@@ -596,7 +599,8 @@ sub accept_tls_step ($) {
     my $sock = $self->{sock} or return;
     return 1 if $sock->accept_SSL;
     return $self->close if $! != EAGAIN;
-    epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
+    my $ev = PublicInbox::TLS::epollbit() or return $self->close;
+    epwait($sock, $ev | EPOLLONESHOT);
     unshift(@{$self->{wbuf}}, \&accept_tls_step); # autovivifies
     0;
 }
@@ -607,7 +611,8 @@ sub shutdn_tls_step ($) {
     my $sock = $self->{sock} or return;
     return $self->close if $sock->stop_SSL(SSL_fast_shutdown => 1);
     return $self->close if $! != EAGAIN;
-    epwait($sock, PublicInbox::TLS::epollbit() | EPOLLONESHOT);
+    my $ev = PublicInbox::TLS::epollbit() or return $self->close;
+    epwait($sock, $ev | EPOLLONESHOT);
     unshift(@{$self->{wbuf}}, \&shutdn_tls_step); # autovivifies
     0;
 }
