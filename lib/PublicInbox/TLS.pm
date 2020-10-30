@@ -6,6 +6,7 @@ package PublicInbox::TLS;
 use strict;
 use IO::Socket::SSL;
 use PublicInbox::Syscall qw(EPOLLIN EPOLLOUT);
+use Carp qw(carp);
 
 sub err () { $SSL_ERROR }
 
@@ -13,7 +14,8 @@ sub err () { $SSL_ERROR }
 sub epollbit () {
 	return EPOLLIN if $SSL_ERROR == SSL_WANT_READ;
 	return EPOLLOUT if $SSL_ERROR == SSL_WANT_WRITE;
-	die "unexpected SSL error: $SSL_ERROR";
+	carp "unexpected SSL error: $SSL_ERROR";
+	undef;
 }
 
 1;

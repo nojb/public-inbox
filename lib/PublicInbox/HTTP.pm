@@ -70,7 +70,7 @@ sub new ($$$) {
 	my $wbuf;
 	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
 		return CORE::close($sock) if $! != EAGAIN;
-		$ev = PublicInbox::TLS::epollbit();
+		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
 		$wbuf = [ \&PublicInbox::DS::accept_tls_step ];
 	}
 	$self->{wbuf} = $wbuf if $wbuf;
