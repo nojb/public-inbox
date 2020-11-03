@@ -432,12 +432,17 @@ sub set_nntp_headers ($$) {
 		$hdr->header_set('X-Alt-Message-ID', @alt);
 	}
 
-	# clobber some
+	# clobber some existing headers
 	my $ibx = $smsg->{-ibx};
 	my $xref = xref($smsg->{nntp}, $ibx, $smsg->{num}, $mid);
 	$hdr->header_set('Xref', $xref);
-	$xref =~ s/:[0-9]+//g;
-	$hdr->header_set('Newsgroups', (split(/ /, $xref, 2))[1]);
+
+	# RFC 5536 3.1.4
+	my $newsgroups = (split(/ /, $xref, 2))[1]; # drop server name
+	$newsgroups =~ s/:[0-9]+\b//g; # drop NNTP article numbers
+	$newsgroups =~ tr/ /,/;
+	$hdr->header_set('Newsgroups', $newsgroups);
+
 	header_append($hdr, 'List-Post', "<mailto:$ibx->{-primary_address}>");
 	if (my $url = $ibx->base_url) {
 		$mid = mid_escape($mid);

@@ -25,6 +25,9 @@ EOF
 my $rfcs = [
 	3977 => 'NNTP',
 	977 => 'NNTP (old)',
+	1036 => 'Standard for Interchange of USENET Messages',
+	5536 => 'Netnews Article Format',
+	5537 => 'Netnews Architecture and Protocols',
 	6048 => 'NNTP additions to LIST command (TODO)',
 	8054 => 'NNTP compression',
 	4642 => 'NNTP TLS',
