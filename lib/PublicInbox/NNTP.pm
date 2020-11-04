@@ -415,10 +415,6 @@ sub set_nntp_headers ($$) {
 	my ($hdr, $smsg) = @_;
 	my ($mid) = $smsg->{mid};
 
-	# why? leafnode requires a Path: header for some inexplicable
-	# reason.  We'll fake the shortest one possible.
-	$hdr->header_set('Path', 'y');
-
 	# leafnode (and maybe other NNTP clients) have trouble dealing
 	# with v2 messages which have multiple Message-IDs (either due
 	# to our own content-based dedupe or buggy git-send-email versions).
@@ -438,10 +434,14 @@ sub set_nntp_headers ($$) {
 	$hdr->header_set('Xref', $xref);
 
 	# RFC 5536 3.1.4
-	my $newsgroups = (split(/ /, $xref, 2))[1]; # drop server name
+	my ($server_name, $newsgroups) = split(/ /, $xref, 2);
 	$newsgroups =~ s/:[0-9]+\b//g; # drop NNTP article numbers
 	$newsgroups =~ tr/ /,/;
 	$hdr->header_set('Newsgroups', $newsgroups);
+
+	# *something* here is required for leafnode, try to follow
+	# RFC 5536 3.1.5...
+	$hdr->header_set('Path', $server_name . '!not-for-mail');
 
 	header_append($hdr, 'List-Post', "<mailto:$ibx->{-primary_address}>");
 	if (my $url = $ibx->base_url) {
