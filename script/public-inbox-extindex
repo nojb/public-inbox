@@ -37,6 +37,7 @@ require PublicInbox::Admin;
 my $cfg = PublicInbox::Config->new;
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::Admin::require_or_die(qw(-search));
+PublicInbox::Admin::progress_prepare($opt);
 require PublicInbox::ExtSearchIdx;
 my $eidx = PublicInbox::ExtSearchIdx->new($eidx_dir, $opt);
 $eidx->attach_inbox($_) for @ibxs;

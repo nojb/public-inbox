@@ -250,17 +250,22 @@ sub cur_ibx_xnum ($$) {
 
 sub index_oid { # git->cat_async callback for 'm'
 	my ($bref, $oid, $type, $size, $req) = @_;
+	my $self = $req->{self};
+	local $self->{current_info} = "$self->{current_info} $oid";
 	return if is_bad_blob($oid, $type, $size, $req->{oid});
 	my $new_smsg = $req->{new_smsg} = bless {
 		blob => $oid,
 	}, 'PublicInbox::Smsg';
 	$new_smsg->{bytes} = $size + crlf_adjust($$bref);
 	defined($req->{xnum} = cur_ibx_xnum($req, $bref)) or return;
+	++${$req->{nr}};
 	do_step($req);
 }
 
 sub unindex_oid { # git->cat_async callback for 'd'
 	my ($bref, $oid, $type, $size, $req) = @_;
+	my $self = $req->{self};
+	local $self->{current_info} = "$self->{current_info} $oid";
 	return if is_bad_blob($oid, $type, $size, $req->{oid});
 	return if defined(cur_ibx_xnum($req, $bref)); # was re-added
 	do_step($req);
@@ -286,6 +291,8 @@ sub _sync_inbox ($$$) {
 		-opt => $opt,
 		self => $self,
 		ibx => $ibx,
+		nr => \(my $nr = 0),
+		-regen_fmt => "%u/?\n",
 	};
 	my $v = $ibx->version;
 	my $ekey = $ibx->eidx_key;

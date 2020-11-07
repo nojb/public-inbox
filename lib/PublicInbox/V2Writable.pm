@@ -882,12 +882,13 @@ sub reindex_checkpoint ($$) {
 
 sub index_oid { # cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
+	my $self = $arg->{self};
+	local $self->{current_info} = "$self->{current_info} $oid";
 	return if $size == 0; # purged
 	my ($num, $mid0);
 	my $eml = PublicInbox::Eml->new($$bref);
 	my $mids = mids($eml);
 	my $chash = content_hash($eml);
-	my $self = $arg->{self};
 
 	if (scalar(@$mids) == 0) {
 		warn "E: $oid has no Message-ID, skipping\n";
@@ -1047,6 +1048,11 @@ sub sync_prepare ($$) {
 	my $pr = $sync->{-opt}->{-progress};
 	my $regen_max = 0;
 	my $head = $sync->{ibx}->{ref_head} || 'HEAD';
+	my $pfx;
+	if ($pr) {
+		($pfx) = ($sync->{ibx}->{inboxdir} =~ m!([^/]+)\z!g);
+		$pfx //= $sync->{ibx}->{inboxdir};
+	}
 
 	# reindex stops at the current heads and we later rerun index_sync
 	# without {reindex}
@@ -1068,7 +1074,7 @@ sub sync_prepare ($$) {
 
 		my $range = log_range($sync, $unit, $tip) or next;
 		# can't use 'rev-list --count' if we use --diff-filter
-		$pr->("$i.git counting $range ... ") if $pr;
+		$pr->("$pfx $i.git counting $range ... ") if $pr;
 		# Don't bump num_highwater on --reindex by using {D}.
 		# We intentionally do NOT use {D} in the non-reindex case
 		# because we want NNTP article number gaps from unindexed
@@ -1086,10 +1092,10 @@ sub sync_prepare ($$) {
 	# our code and blindly injects "d" file history into git repos
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
+		local $self->{current_info} = 'leftover ';
 		my $unindex_oid = $self->can('unindex_oid');
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
-			$self->{current_info} = "leftover $oid";
 			my $req = { %$sync, oid => $oid };
 			$self->git->cat_async($oid, $unindex_oid, $req);
 		}
@@ -1121,6 +1127,7 @@ sub unindex_oid_aux ($$$) {
 sub unindex_oid ($$;$) { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $sync) = @_;
 	my $self = $sync->{self};
+	local $self->{current_info} = "$self->{current_info} $oid";
 	my $unindexed = $sync->{in_unindex} ? $sync->{unindexed} : undef;
 	my $mm = $self->{mm};
 	my $mids = mids(PublicInbox::Eml->new($bref));
@@ -1230,10 +1237,15 @@ sub index_todo ($$$) {
 	my $all = $self->git;
 	my $index_oid = $self->can('index_oid');
 	my $unindex_oid = $self->can('unindex_oid');
-	my ($pfx) = ($unit->{git}->{git_dir} =~ m!/([^/]+)\z!g);
-	$pfx //= $unit->{git}->{git_dir};
+	my $pfx;
+	if ($unit->{git}->{git_dir} =~ m!/([^/]+)/git/([0-9]+\.git)\z!) {
+		$pfx = "$1 $2"; # v2
+	} else { # v1
+		($pfx) = ($unit->{git}->{git_dir} =~ m!/([^/]+)\z!g);
+		$pfx //= $unit->{git}->{git_dir};
+	}
+	local $self->{current_info} = "$pfx ";
 	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
-		$self->{current_info} = "$pfx $oid";
 		my $req = { %$sync, autime => $at, cotime => $ct, oid => $oid };
 		if ($f eq 'm') {
 			if ($sync->{max_size}) {
