@@ -164,7 +164,8 @@ sub do_finalize ($) {
 	} elsif (exists $req->{new_smsg}) { # totally unseen messsage
 		index_unseen($req);
 	} else {
-		warn "W: ignoring delete $req->{oid} (not found)\n";
+		# `d' message was already unindexed in the v1/v2 inboxes,
+		# so it's too noisy to warn, here.
 	}
 }
 
