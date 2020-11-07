@@ -380,8 +380,11 @@ sub idx_init { # similar to V2Writable
 		$new{$line} = 1;
 		push @new, $line;
 	}
-	push @old, @new;
-	PublicInbox::V2Writable::write_alternates($info_dir, $mode, \@old);
+	if (scalar @new) {
+		push @old, @new;
+		my $o = \@old;
+		PublicInbox::V2Writable::write_alternates($info_dir, $mode, $o);
+	}
 	$self->parallel_init($self->{indexlevel});
 	$self->umask_prepare;
 	$self->with_umask(\&PublicInbox::V2Writable::_idx_init, $self, $opt);
