@@ -89,7 +89,7 @@ sub shard_worker_loop ($$$$$) {
 			my $eidx_key;
 			if ($line =~ s/\AX=(.+)\0//) {
 				$eidx_key = $1;
-				$v2w->{current_info} =~ s/\0/\\0/;
+				$v2w->{current_info} =~ s/\0/\\0 /;
 			}
 			# n.b. $mid may contain spaces(!)
 			my ($len, $bytes, $num, $oid, $ds, $ts, $tid, $mid)
