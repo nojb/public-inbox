@@ -620,13 +620,13 @@ sub checkpoint ($;$) {
 
 		# Now deal with Xapian
 		if ($wait) {
-			my $barrier = $self->barrier_init(scalar @$shards);
+			my $barrier = barrier_init($self, scalar @$shards);
 
 			# each shard needs to issue a barrier command
 			$_->shard_barrier for @$shards;
 
 			# wait for each Xapian shard
-			$self->barrier_wait($barrier);
+			barrier_wait($self, $barrier);
 		} else {
 			$_->shard_commit for @$shards;
 		}
@@ -860,11 +860,16 @@ sub atfork_child {
 sub reindex_checkpoint ($$) {
 	my ($self, $sync) = @_;
 
-	$self->git->cleanup; # *async_wait
+	$self->git->async_wait_all;
 	${$sync->{need_checkpoint}} = 0;
 	my $mm_tmp = $sync->{mm_tmp};
 	$mm_tmp->atfork_prepare if $mm_tmp;
-	$self->done; # release lock
+	die 'BUG: {im} during reindex' if $self->{im};
+	if ($self->{ibx_map}) {
+		checkpoint($self, 1); # no need to release lock on pure index
+	} else {
+		$self->done; # release lock
+	}
 
 	if (my $pr = $sync->{-opt}->{-progress}) {
 		$pr->(sprintf($sync->{-regen_fmt}, ${$sync->{nr}}));
