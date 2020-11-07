@@ -33,7 +33,7 @@ seek($fh, 0, SEEK_SET) or BAIL_OUT $!;
 run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or BAIL_OUT '-mda';
 run_script(['-index', "$home/v1test"]) or BAIL_OUT "index $?";
 
-ok(run_script([qw(-eindex --all), "$home/eindex"]), 'eindex init');
+ok(run_script([qw(-extindex --all), "$home/eindex"]), 'extindex init');
 
 my $es = PublicInbox::ExtSearch->new("$home/eindex");
 {
@@ -53,8 +53,8 @@ my $es = PublicInbox::ExtSearch->new("$home/eindex");
 	my $env = { MAIL_EDITOR => "$^X -i -p -e 's/test message/BEST MSG/'" };
 	my $cmd = [ qw(-edit -Ft/utf8.eml), "$home/v2test" ];
 	ok(run_script($cmd, $env, $opt), '-edit');
-	ok(run_script([qw(-eindex --all), "$home/eindex"], undef, $opt),
-		'eindex again');
+	ok(run_script([qw(-extindex --all), "$home/eindex"], undef, $opt),
+		'extindex again');
 	like($err, qr/discontiguous range/, 'warned about discontiguous range');
 	my $msg1 = $es->over->get_art(1) or BAIL_OUT 'msg1 missing';
 	my $msg2 = $es->over->get_art(2) or BAIL_OUT 'msg2 missing';

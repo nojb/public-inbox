@@ -91,7 +91,7 @@ sub lookup_name ($$) {
 
 sub lookup_ei {
 	my ($self, $name) = @_;
-	$self->{-ei_by_name}->{$name} //= _fill_ei($self, "eindex.$name");
+	$self->{-ei_by_name}->{$name} //= _fill_ei($self, "extindex.$name");
 }
 
 sub each_inbox {
