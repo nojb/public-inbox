@@ -9,12 +9,14 @@ use strict;
 use v5.10.1;
 use PublicInbox::Over;
 use PublicInbox::Inbox;
+use File::Spec ();
 
 # for ->reopen, ->mset, ->mset_to_artnums
 use parent qw(PublicInbox::Search);
 
 sub new {
 	my (undef, $topdir) = @_;
+	$topdir = File::Spec->canonpath($topdir);
 	bless {
 		topdir => $topdir,
 		# xpfx => 'ei15'

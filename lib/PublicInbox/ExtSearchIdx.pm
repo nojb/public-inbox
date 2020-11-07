@@ -30,6 +30,7 @@ use File::Spec;
 
 sub new {
 	my (undef, $dir, $opt) = @_;
+	$dir = File::Spec->canonpath($dir);
 	my $l = $opt->{indexlevel} // 'full';
 	$l !~ $PublicInbox::SearchIdx::INDEXLEVELS and
 		die "invalid indexlevel=$l\n";
