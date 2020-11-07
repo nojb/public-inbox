@@ -284,16 +284,9 @@ sub last_commits {
 }
 
 sub _sync_inbox ($$$) {
-	my ($self, $opt, $ibx) = @_;
-	my $sync = {
-		need_checkpoint => \(my $bool = 0),
-		reindex => $opt->{reindex},
-		-opt => $opt,
-		self => $self,
-		ibx => $ibx,
-		nr => \(my $nr = 0),
-		-regen_fmt => "%u/?\n",
-	};
+	my ($self, $sync, $ibx) = @_;
+	$sync->{ibx} = $ibx;
+	$sync->{nr} = \(my $nr = 0);
 	my $v = $ibx->version;
 	my $ekey = $ibx->eidx_key;
 	if ($v == 2) {
@@ -324,10 +317,18 @@ sub eidx_sync { # main entry point
 	local $SIG{__WARN__} = sub {
 		$warn_cb->($self->{current_info}, ': ', @_);
 	};
+	my $sync = {
+		need_checkpoint => \(my $need_checkpoint = 0),
+		reindex => $opt->{reindex},
+		-opt => $opt,
+		self => $self,
+		-regen_fmt => "%u/?\n",
+	};
+	local $SIG{USR1} = sub { $need_checkpoint = 1 };
 
 	# don't use $_ here, it'll get clobbered by reindex_checkpoint
 	for my $ibx (@{$self->{ibx_list}}) {
-		_sync_inbox($self, $opt, $ibx);
+		_sync_inbox($self, $sync, $ibx);
 	}
 
 	$self->{oidx}->rethread_done($opt);

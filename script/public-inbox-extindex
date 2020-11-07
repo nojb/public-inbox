@@ -33,6 +33,7 @@ die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
 
 # require lazily to speed up --help
 my $eidx_dir = shift(@ARGV) // die "E: $help";
+local $SIG{USR1} = 'IGNORE'; # to be overridden in eidx_sync
 require PublicInbox::Admin;
 my $cfg = PublicInbox::Config->new;
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
