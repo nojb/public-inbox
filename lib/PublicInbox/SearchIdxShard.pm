@@ -114,14 +114,11 @@ sub shard_worker_loop ($$$$$) {
 sub index_raw {
 	my ($self, $msgref, $eml, $smsg, $ibx) = @_;
 	if (my $w = $self->{w}) {
-		if ($ibx) {
-			print $w 'X=', $ibx->eidx_key, "\0" or die
-				"failed to write shard: $!\n";
-		}
+		my @ekey = $ibx ? ('X='.$ibx->eidx_key."\0") : ();
 		$msgref //= \($eml->as_string);
 		$smsg->{raw_bytes} //= length($$msgref);
 		# mid must be last, it can contain spaces (but not LF)
-		print $w join(' ', @$smsg{qw(raw_bytes bytes
+		print $w @ekey, join(' ', @$smsg{qw(raw_bytes bytes
 						num blob ds ts tid mid)}),
 			"\n", $$msgref or die "failed to write shard $!\n";
 	} else {
