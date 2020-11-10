@@ -554,8 +554,8 @@ sub unindex_eml {
 		$tmp{$_}++ for @removed;
 	}
 	if (!$nr) {
-		$mids = join('> <', @$mids);
-		warn "W: <$mids> missing for removal from overview\n";
+		my $m = join('> <', @$mids);
+		warn "W: <$m> missing for removal from overview\n";
 	}
 	while (my ($num, $nr) = each %tmp) {
 		warn "BUG: $num appears >1 times ($nr) for $oid\n" if $nr != 1;
