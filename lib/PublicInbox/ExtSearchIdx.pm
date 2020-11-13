@@ -168,6 +168,10 @@ sub do_finalize ($) {
 		# `d' message was already unindexed in the v1/v2 inboxes,
 		# so it's too noisy to warn, here.
 	}
+	# cur_cmt may be undef for unindex_oid, set by V2Writable::index_todo
+	if (defined(my $cur_cmt = $req->{cur_cmt})) {
+		${$req->{latest_cmt}} = $cur_cmt;
+	}
 }
 
 sub do_step ($) { # main iterator for adding messages to the index
@@ -337,10 +341,10 @@ sub eidx_sync { # main entry point
 }
 
 sub update_last_commit { # overrides V2Writable
-	my ($self, $sync, $unit, $latest_cmt) = @_;
-	return unless defined $latest_cmt;
-
-	$self->git->async_wait_all;
+	my ($self, $sync, $stk) = @_;
+	my $unit = $sync->{unit} // return;
+	my $latest_cmt = $stk ? $stk->{latest_cmt} : ${$sync->{latest_cmt}};
+	defined($latest_cmt) or return;
 	my $ibx = $sync->{ibx} or die 'BUG: {ibx} missing';
 	my $ekey = $ibx->eidx_key;
 	my $uv = $ibx->uidvalidity;

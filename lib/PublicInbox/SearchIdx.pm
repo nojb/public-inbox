@@ -608,11 +608,17 @@ sub index_both { # git->cat_async callback
 	$smsg->{num} = index_mm($self, $eml, $oid, $sync) or
 		die "E: could not generate NNTP article number for $oid";
 	add_message($self, $eml, $smsg, $sync);
+	my $cur_cmt = $sync->{cur_cmt} // die 'BUG: {cur_cmt} missing';
+	${$sync->{latest_cmt}} = $cur_cmt;
 }
 
 sub unindex_both { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $self) = @_;
-	unindex_eml($self, $oid, PublicInbox::Eml->new($bref));
+	my ($bref, $oid, $type, $size, $sync) = @_;
+	unindex_eml($sync->{sidx}, $oid, PublicInbox::Eml->new($bref));
+	# may be undef if leftover
+	if (defined(my $cur_cmt = $sync->{cur_cmt})) {
+		${$sync->{latest_cmt}} = $cur_cmt;
+	}
 }
 
 sub with_umask {
@@ -646,34 +652,33 @@ sub v1_checkpoint ($$;$) {
 	my ($self, $sync, $stk) = @_;
 	$self->{ibx}->git->async_wait_all;
 
-	# latest_cmt may be undef
-	my $newest = $stk ? $stk->{latest_cmt} : undef;
-	if ($newest) {
+	# $newest may be undef
+	my $newest = $stk ? $stk->{latest_cmt} : ${$sync->{latest_cmt}};
+	if (defined($newest)) {
 		my $cur = $self->{mm}->last_commit || '';
 		if (need_update($self, $cur, $newest)) {
 			$self->{mm}->last_commit($newest);
 		}
-	} else {
-		${$sync->{max}} = $self->{batch_bytes};
 	}
+	${$sync->{max}} = $self->{batch_bytes};
 
 	$self->{mm}->{dbh}->commit;
-	if ($newest && need_xapian($self)) {
-		my $xdb = $self->{xdb};
+	my $xdb = need_xapian($self) ? $self->{xdb} : undef;
+	if ($newest && $xdb) {
 		my $cur = $xdb->get_metadata('last_commit');
 		if (need_update($self, $cur, $newest)) {
 			$xdb->set_metadata('last_commit', $newest);
 		}
-
+	}
+	if ($stk) { # all done if $stk is passed
 		# let SearchView know a full --reindex was done so it can
 		# generate ->has_threadid-dependent links
-		if ($sync->{reindex} && !ref($sync->{reindex})) {
+		if ($xdb && $sync->{reindex} && !ref($sync->{reindex})) {
 			my $n = $xdb->get_metadata('has_threadid');
 			$xdb->set_metadata('has_threadid', '1') if $n ne '1';
 		}
+		$self->{oidx}->rethread_done($sync->{-opt}); # all done
 	}
-
-	$self->{oidx}->rethread_done($sync->{-opt}) if $newest; # all done
 	commit_txn_lazy($self);
 	$sync->{ibx}->git->cleanup;
 	my $nr = ${$sync->{nr}};
@@ -697,21 +702,24 @@ sub process_stack {
 	$sync->{nr} = \$nr;
 	$sync->{max} = \$max;
 	$sync->{sidx} = $self;
+	$sync->{latest_cmt} = \(my $latest_cmt);
 
 	$self->{mm}->{dbh}->begin_work;
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
 		for my $oid (@leftovers) {
 			$oid = unpack('H*', $oid);
-			$git->cat_async($oid, \&unindex_both, $self);
+			$git->cat_async($oid, \&unindex_both, $sync);
 		}
 	}
 	if ($sync->{max_size} = $sync->{-opt}->{max_size}) {
 		$sync->{index_oid} = \&index_both;
 	}
-	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
+	while (my ($f, $at, $ct, $oid, $cur_cmt) = $stk->pop_rec) {
+		my $arg = { %$sync, cur_cmt => $cur_cmt };
 		if ($f eq 'm') {
-			my $arg = { %$sync, autime => $at, cotime => $ct };
+			$arg->{autime} = $at;
+			$arg->{cotime} = $ct;
 			if ($sync->{max_size}) {
 				$git->check_async($oid, \&check_size, $arg);
 			} else {
@@ -719,7 +727,7 @@ sub process_stack {
 			}
 			v1_checkpoint($self, $sync) if $max <= 0;
 		} elsif ($f eq 'd') {
-			$git->cat_async($oid, \&unindex_both, $self);
+			$git->cat_async($oid, \&unindex_both, $arg);
 		}
 	}
 	v1_checkpoint($self, $sync, $stk);
@@ -743,17 +751,17 @@ sub log2stack ($$$) {
 	my $fh = $git->popen(qw(log --raw -r --pretty=tformat:%at-%ct-%H
 				--no-notes --no-color --no-renames --no-abbrev),
 				$range);
-	my ($at, $ct, $stk);
+	my ($at, $ct, $stk, $cmt);
 	while (<$fh>) {
 		if (/\A([0-9]+)-([0-9]+)-($OID)$/o) {
-			($at, $ct) = ($1 + 0, $2 + 0);
-			$stk //= PublicInbox::IdxStack->new($3);
+			($at, $ct, $cmt) = ($1 + 0, $2 + 0, $3);
+			$stk //= PublicInbox::IdxStack->new($cmt);
 		} elsif (/$del/) {
 			my $oid = $1;
 			if ($D) { # reindex case
 				$D->{pack('H*', $oid)}++;
 			} else { # non-reindex case:
-				$stk->push_rec('d', $at, $ct, $oid);
+				$stk->push_rec('d', $at, $ct, $oid, $cmt);
 			}
 		} elsif (/$add/) {
 			my $oid = $1;
@@ -761,12 +769,10 @@ sub log2stack ($$$) {
 				my $oid_bin = pack('H*', $oid);
 				my $nr = --$D->{$oid_bin};
 				delete($D->{$oid_bin}) if $nr <= 0;
-
 				# nr < 0 (-1) means it never existed
-				$stk->push_rec('m', $at, $ct, $oid) if $nr < 0;
-			} else {
-				$stk->push_rec('m', $at, $ct, $oid);
+				next if $nr >= 0;
 			}
+			$stk->push_rec('m', $at, $ct, $oid, $cmt);
 		}
 	}
 	close $fh or die "git log failed: \$?=$?";

@@ -6,7 +6,7 @@ package PublicInbox::IdxStack;
 use v5.10.1;
 use strict;
 use Fcntl qw(:seek);
-use constant FMT => eval { pack('Q', 1) } ? 'A1QQH*' : 'A1IIH*';
+use constant PACK_FMT => eval { pack('Q', 1) } ? 'A1QQH*H*' : 'A1IIH*H*';
 
 # start off in write-only mode
 sub new {
@@ -16,9 +16,15 @@ sub new {
 
 # file_char = [d|m]
 sub push_rec {
-	my ($self, $file_char, $at, $ct, $blob_oid) = @_;
-	my $rec = pack(FMT, $file_char, $at, $ct, $blob_oid);
-	$self->{rec_size} //= length($rec);
+	my ($self, $file_char, $at, $ct, $blob_oid, $cmt_oid) = @_;
+	my $rec = pack(PACK_FMT, $file_char, $at, $ct, $blob_oid, $cmt_oid);
+	$self->{unpack_fmt} //= do {
+		my $len = length($cmt_oid);
+		my $fmt = PACK_FMT;
+		$fmt =~ s/H\*/H$len/g;
+		$self->{rec_size} = length($rec);
+		$fmt;
+	};
 	print { $self->{wr} } $rec or die "print: $!";
 	$self->{tot_size} += length($rec);
 }
@@ -46,7 +52,7 @@ sub pop_rec {
 	my $r = read($io, my $buf, $sz);
 	defined($r) or die "read: $!";
 	$r == $sz or die "read($r != $sz)";
-	unpack(FMT, $buf);
+	unpack($self->{unpack_fmt}, $buf);
 }
 
 1;

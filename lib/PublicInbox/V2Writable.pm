@@ -861,6 +861,7 @@ sub reindex_checkpoint ($$) {
 	my ($self, $sync) = @_;
 
 	$self->git->async_wait_all;
+	$self->update_last_commit($sync);
 	${$sync->{need_checkpoint}} = 0;
 	my $mm_tmp = $sync->{mm_tmp};
 	$mm_tmp->atfork_prepare if $mm_tmp;
@@ -955,19 +956,22 @@ sub index_oid { # cat_async callback
 	if (do_idx($self, $bref, $eml, $smsg)) {
 		${$arg->{need_checkpoint}} = 1;
 	}
+	${$arg->{latest_cmt}} = $arg->{cur_cmt} // die 'BUG: {cur_cmt} missing';
 }
 
 # only update last_commit for $i on reindex iff newer than current
-# $sync will be used by subclasses
 sub update_last_commit {
-	my ($self, $sync, $unit, $cmt) = @_;
+	my ($self, $sync, $stk) = @_;
+	my $unit = $sync->{unit} // return;
+	my $latest_cmt = $stk ? $stk->{latest_cmt} : ${$sync->{latest_cmt}};
+	defined($latest_cmt) or return;
 	my $last = last_epoch_commit($self, $unit->{epoch});
-	if (defined $last && is_ancestor($unit->{git}, $last, $cmt)) {
-		my @cmd = (qw(rev-list --count), "$last..$cmt");
+	if (defined $last && is_ancestor($unit->{git}, $last, $latest_cmt)) {
+		my @cmd = (qw(rev-list --count), "$last..$latest_cmt");
 		chomp(my $n = $unit->{git}->qx(@cmd));
 		return if $n ne '' && $n == 0;
 	}
-	last_epoch_commit($self, $unit->{epoch}, $cmt);
+	last_epoch_commit($self, $unit->{epoch}, $latest_cmt);
 }
 
 sub last_commits {
@@ -1245,8 +1249,16 @@ sub index_todo ($$$) {
 		$pfx //= $unit->{git}->{git_dir};
 	}
 	local $self->{current_info} = "$pfx ";
-	while (my ($f, $at, $ct, $oid) = $stk->pop_rec) {
-		my $req = { %$sync, autime => $at, cotime => $ct, oid => $oid };
+	local $sync->{latest_cmt} = \(my $latest_cmt);
+	local $sync->{unit} = $unit;
+	while (my ($f, $at, $ct, $oid, $cmt) = $stk->pop_rec) {
+		my $req = {
+			%$sync,
+			autime => $at,
+			cotime => $ct,
+			oid => $oid,
+			cur_cmt => $cmt
+		};
 		if ($f eq 'm') {
 			if ($sync->{max_size}) {
 				$all->check_async($oid, \&check_size, $req);
@@ -1261,7 +1273,7 @@ sub index_todo ($$$) {
 		}
 	}
 	$all->async_wait_all;
-	$self->update_last_commit($sync, $unit, $stk->{latest_cmt});
+	$self->update_last_commit($sync, $stk);
 }
 
 sub xapian_only {
