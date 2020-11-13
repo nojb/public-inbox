@@ -308,7 +308,7 @@ sub _sync_inbox ($$$) {
 		warn "E: $ekey unsupported inbox version (v$v)\n";
 		return;
 	}
-	index_todo($self, $sync, $_) for @{$sync->{todo}};
+	index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
 }
 
 sub eidx_sync { # main entry point

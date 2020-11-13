@@ -1351,7 +1351,7 @@ sub index_sync {
 		}
 	}
 	# work forwards through history
-	index_todo($self, $sync, $_) for @{$sync->{todo}};
+	index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
 	$self->{oidx}->rethread_done($opt);
 	$self->done;
 
