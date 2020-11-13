@@ -11,6 +11,8 @@ use constant PACK_FMT => eval { pack('Q', 1) } ? 'A1QQH*H*' : 'A1IIH*H*';
 # start off in write-only mode
 sub new {
 	open(my $io, '+>', undef) or die "open: $!";
+	# latest_cmt is still useful when the newest revision is a `d'(elete),
+	# otherwise we favor $sync->{latest_cmt} for checkpoints and {quit}
 	bless { wr => $io, latest_cmt => $_[1] }, __PACKAGE__
 }
 

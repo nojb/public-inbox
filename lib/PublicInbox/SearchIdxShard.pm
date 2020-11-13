@@ -10,6 +10,7 @@ use parent qw(PublicInbox::SearchIdx);
 use bytes qw(length);
 use IO::Handle (); # autoflush
 use PublicInbox::Eml;
+use PublicInbox::Sigfd;
 
 sub new {
 	my ($class, $v2w, $shard) = @_; # v2w may be ExtSearchIdx
@@ -29,9 +30,13 @@ sub spawn_worker {
 	my ($r, $w);
 	pipe($r, $w) or die "pipe failed: $!\n";
 	$w->autoflush(1);
+	my $oldset = PublicInbox::Sigfd::block_signals();
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
+		# these signals are localized in parent
+		$SIG{$_} = 'IGNORE' for (qw(TERM INT QUIT));
+		PublicInbox::Sigfd::sig_setmask($oldset);
 		my $bnote = $v2w->atfork_child;
 		close $w or die "failed to close: $!";
 
@@ -44,6 +49,7 @@ sub spawn_worker {
 		die "unexpected MM $self->{mm}" if $self->{mm};
 		exit;
 	}
+	PublicInbox::Sigfd::sig_setmask($oldset);
 	$self->{pid} = $pid;
 	$self->{w} = $w;
 	close $r or die "failed to close: $!";

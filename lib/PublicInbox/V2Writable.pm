@@ -1090,6 +1090,7 @@ sub sync_prepare ($$) {
 		$unit->{stack} = $stk; # may be undef
 		unshift @{$sync->{todo}}, $unit;
 		$regen_max += $nr;
+		last if $sync->{quit};
 	}
 
 	# XXX this should not happen unless somebody bypasses checks in
@@ -1102,9 +1103,11 @@ sub sync_prepare ($$) {
 			$oid = unpack('H*', $oid);
 			my $req = { %$sync, oid => $oid };
 			$self->git->cat_async($oid, $unindex_oid, $req);
+			last if $sync->{quit};
 		}
 		$self->git->cat_async_wait;
 	}
+	return 0 if $sync->{quit};
 	if (!$regen_max) {
 		$sync->{-regen_fmt} = "%u/?\n";
 		return 0;
@@ -1236,6 +1239,7 @@ sub index_xap_step ($$$;$) {
 
 sub index_todo ($$$) {
 	my ($self, $sync, $unit) = @_;
+	return if $sync->{quit};
 	unindex_todo($self, $sync, $unit);
 	my $stk = delete($unit->{stack}) or return;
 	my $all = $self->git;
@@ -1267,6 +1271,12 @@ sub index_todo ($$$) {
 			}
 		} elsif ($f eq 'd') {
 			$all->cat_async($oid, $unindex_oid, $req);
+		}
+		if ($sync->{quit}) {
+			warn "waiting to quit...\n";
+			$all->async_wait_all;
+			$self->update_last_commit($sync);
+			return;
 		}
 		if (${$sync->{need_checkpoint}}) {
 			reindex_checkpoint($self, $sync);
@@ -1334,6 +1344,11 @@ sub index_sync {
 		ibx => $self->{ibx},
 		epoch_max => $epoch_max,
 	};
+	my $quit = sub { $sync->{quit} = 1 };
+	local $SIG{QUIT} = $quit;
+	local $SIG{INT} = $quit;
+	local $SIG{TERM} = $quit;
+
 	if (sync_prepare($self, $sync)) {
 		# tmp_clone seems to fail if inside a transaction, so
 		# we rollback here (because we opened {mm} for reading)
@@ -1352,7 +1367,7 @@ sub index_sync {
 	}
 	# work forwards through history
 	index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
-	$self->{oidx}->rethread_done($opt);
+	$self->{oidx}->rethread_done($opt) unless $sync->{quit};
 	$self->done;
 
 	if (my $nr = $sync->{nr}) {

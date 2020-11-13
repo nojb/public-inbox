@@ -329,13 +329,18 @@ sub eidx_sync { # main entry point
 		-regen_fmt => "%u/?\n",
 	};
 	local $SIG{USR1} = sub { $need_checkpoint = 1 };
+	my $quit = sub { $sync->{quit} = 1; warn "gracefully quitting\n"; };
+	local $SIG{QUIT} = $quit;
+	local $SIG{INT} = $quit;
+	local $SIG{TERM} = $quit;
 
 	# don't use $_ here, it'll get clobbered by reindex_checkpoint
 	for my $ibx (@{$self->{ibx_list}}) {
 		_sync_inbox($self, $sync, $ibx);
+		last if $sync->{quit};
 	}
 
-	$self->{oidx}->rethread_done($opt);
+	$self->{oidx}->rethread_done($opt) unless $sync->{quit};
 
 	PublicInbox::V2Writable::done($self);
 }
