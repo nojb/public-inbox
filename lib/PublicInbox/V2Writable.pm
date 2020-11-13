@@ -966,7 +966,7 @@ sub update_last_commit {
 	my $latest_cmt = $stk ? $stk->{latest_cmt} : ${$sync->{latest_cmt}};
 	defined($latest_cmt) or return;
 	my $last = last_epoch_commit($self, $unit->{epoch});
-	if (defined $last && is_ancestor($unit->{git}, $last, $latest_cmt)) {
+	if (defined $last && is_ancestor($self->git, $last, $latest_cmt)) {
 		my @cmd = (qw(rev-list --count), "$last..$latest_cmt");
 		chomp(my $n = $unit->{git}->qx(@cmd));
 		return if $n ne '' && $n == 0;
@@ -1003,7 +1003,7 @@ sub log_range ($$$) {
 	my $range = "$cur..$tip";
 	$pr->("$i.git checking contiguity... ") if $pr;
 	my $git = $unit->{git};
-	if (is_ancestor($git, $cur, $tip)) { # common case
+	if (is_ancestor($sync->{self}->git, $cur, $tip)) { # common case
 		$pr->("OK\n") if $pr;
 		my $n = $git->qx(qw(rev-list --count), $range);
 		chomp($n);

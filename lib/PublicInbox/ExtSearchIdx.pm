@@ -361,7 +361,7 @@ sub update_last_commit { # overrides V2Writable
 		die "Unsupported inbox version: $v";
 	}
 	my $last = $self->{oidx}->eidx_meta($meta_key);
-	if (defined $last && is_ancestor($unit->{git}, $last, $latest_cmt)) {
+	if (defined $last && is_ancestor($self->git, $last, $latest_cmt)) {
 		my @cmd = (qw(rev-list --count), "$last..$latest_cmt");
 		chomp(my $n = $unit->{git}->qx(@cmd));
 		return if $n ne '' && $n == 0;
