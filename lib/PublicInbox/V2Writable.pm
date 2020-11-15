@@ -1085,13 +1085,14 @@ sub sync_prepare ($$) {
 		# messages to show up in mirrors, too.
 		$sync->{D} //= $sync->{reindex} ? {} : undef; # OID_BIN => NR
 		my $stk = log2stack($sync, $git, $range);
+		return 0 if $sync->{quit};
 		my $nr = $stk ? $stk->num_records : 0;
 		$pr->("$nr\n") if $pr;
 		$unit->{stack} = $stk; # may be undef
 		unshift @{$sync->{todo}}, $unit;
 		$regen_max += $nr;
-		last if $sync->{quit};
 	}
+	return 0 if $sync->{quit};
 
 	# XXX this should not happen unless somebody bypasses checks in
 	# our code and blindly injects "d" file history into git repos
