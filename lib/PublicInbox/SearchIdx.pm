@@ -753,6 +753,7 @@ sub log2stack ($$$) {
 				$range);
 	my ($at, $ct, $stk, $cmt);
 	while (<$fh>) {
+		return if $sync->{quit};
 		if (/\A([0-9]+)-([0-9]+)-($OID)$/o) {
 			($at, $ct, $cmt) = ($1 + 0, $2 + 0, $3);
 			$stk //= PublicInbox::IdxStack->new($cmt);
