@@ -8,6 +8,9 @@ use PublicInbox::MsgIter qw(msg_part_text);
 my @classes = qw(PublicInbox::Eml);
 SKIP: {
 	require_mods('Email::MIME', 1);
+	# TODO: Email::MIME behavior is not consistent in newer versions
+	# we need to evaluate and possibly adjust our behavior to decide
+	# between DWIM-ness with historical mail...
 	push @classes, 'PublicInbox::MIME';
 };
 use_ok $_ for @classes;
@@ -260,6 +263,9 @@ EOF
 }
 
 for my $cls (@classes) {
+SKIP: {
+	skip 'newer Email::MIME behavior inconsistent', 1 if
+		$cls eq 'PublicInbox::MIME';
 	my $s = <<EOF; # buggy git-send-email versions, again?
 Content-Type: text/plain; =?ISO-8859-1?Q?=20charset=3D=1BOF?=
 Content-Transfer-Encoding: 8bit
@@ -269,7 +275,8 @@ Object-Id: ab0440d8cd6d843bee9a27709a459ce3b2bdb94d (lore/kvm)
 EOF
 	my $eml = $cls->new(\$s);
 	my ($str, $err) = msg_part_text($eml, $eml->content_type);
-	is($str, "\x{100}\n", "got wide character by assuming utf-8");
+	is($str, "\x{100}\n", "got wide character by assuming utf-8 ($cls)");
+} # SKIP
 }
 
 if ('we differ from Email::MIME with final "\n" on missing epilogue') {
@@ -383,8 +390,12 @@ SKIP: {
 		$msg->parts_set([$old[-1]]);
 		is(scalar $msg->subparts, 1, 'only last remains');
 	}
-	is($eml->as_string, $mime->as_string,
-		'as_string matches after parts_set');
+
+	# some versions of Email::MIME or Email::MIME::* will drop
+	# unnecessary ", while PublicInbox::Eml will preserve the original
+	my $exp = $mime->as_string;
+	$exp =~ s/; boundary=b\b/; boundary="b"/;
+	is($eml->as_string, $exp, 'as_string matches after parts_set');
 }
 
 for my $cls (@classes) {
@@ -395,7 +406,8 @@ Content-Disposition: attachment; filename="=?utf-8?q?vtpm-makefile.patch?="
 EOF
 	is($cls->new($s)->filename, 'vtpm-makefile.patch', 'filename decoded');
 	$s =~ s/^Content-Disposition:.*$//sm;
-	is($cls->new($s)->filename, 'vtpm-fakefile.patch', 'filename fallback');
+	is($cls->new($s)->filename, 'vtpm-fakefile.patch',
+		"filename fallback ($cls)") if $cls ne 'PublicInbox::MIME';
 	is($cls->new($s)->content_type,
 		'text/x-patch; name="vtpm-fakefile.patch"',
 		'matches Email::MIME output, "correct" or not');
@@ -413,10 +425,14 @@ Content-Type: text/x-patch; name="=?utf-8?q?vtpm-fakefile.patch?="
 b
 --b--
 EOF
-	my @tmp;
-	$cls->new($s)->each_part(sub { push @tmp, $_[0]->[0]->filename });
-	is_deeply(['vtpm-makefile.patch', 'vtpm-fakefile.patch'], \@tmp,
-		'got filename for both attachments');
+	SKIP: {
+		skip 'newer Email::MIME is inconsistent here', 1
+			if $cls eq 'PublicInbox::MIME';
+		my @x;
+		$cls->new($s)->each_part(sub { push @x, $_[0]->[0]->filename });
+		is_deeply(['vtpm-makefile.patch', 'vtpm-fakefile.patch'], \@x,
+			"got filename for both attachments ($cls)");
+	}
 }
 
 done_testing;
