@@ -26,7 +26,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
 		fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
-		skip-docdata all help|h))
+		all help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
