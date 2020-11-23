@@ -298,7 +298,7 @@ sub _sync_inbox ($$$) {
 		my $epoch_max;
 		defined($ibx->git_dir_latest(\$epoch_max)) or return;
 		$sync->{epoch_max} = $epoch_max;
-		sync_prepare($self, $sync) or return; # fills $sync->{todo}
+		sync_prepare($self, $sync); # or return # TODO: once MiscIdx is stable
 	} elsif ($v == 1) {
 		my $uv = $ibx->uidvalidity;
 		my $lc = $self->{oidx}->eidx_meta("lc-v1:$ekey//$uv");
@@ -309,8 +309,10 @@ sub _sync_inbox ($$$) {
 		warn "E: $ekey unsupported inbox version (v$v)\n";
 		return;
 	}
-	index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
-	$self->{midx}->index_ibx($ibx);
+	unless ($sync->{quit}) {
+		index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
+		$self->{midx}->index_ibx($ibx) unless $sync->{quit};
+	}
 	$ibx->git->cleanup; # done with this inbox, now
 }
 
