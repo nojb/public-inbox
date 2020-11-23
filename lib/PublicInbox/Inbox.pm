@@ -133,8 +133,7 @@ sub new {
 sub version { $_[0]->{version} // 1 }
 
 sub git_epoch {
-	my ($self, $epoch) = @_;
-	$self->version == 2 or return;
+	my ($self, $epoch) = @_; # v2-only, callers always supply $epoch
 	$self->{"$epoch.git"} ||= do {
 		my $git_dir = "$self->{inboxdir}/git/$epoch.git";
 		return unless -d $git_dir;
