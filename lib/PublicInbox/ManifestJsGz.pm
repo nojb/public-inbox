@@ -6,15 +6,12 @@ package PublicInbox::ManifestJsGz;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::WwwListing);
-use Digest::SHA ();
-use File::Spec ();
 use bytes (); # length
 use PublicInbox::Inbox;
 use PublicInbox::Config;
 use PublicInbox::Git;
 use IO::Compress::Gzip qw(gzip);
 use HTTP::Date qw(time2str);
-*try_cat = \&PublicInbox::Inbox::try_cat;
 
 our $json = PublicInbox::Config::json();
 
@@ -24,21 +21,6 @@ sub url_regexp {
 	# grokmirror uses relative paths, so it's domain-dependent
 	# SUPER calls PublicInbox::WwwListing::url_regexp
 	$ctx->SUPER::url_regexp('publicInbox.grokManifest', 'match=domain');
-}
-
-sub fingerprint ($) {
-	my ($git) = @_;
-	# TODO: convert to qspawn for fairness when there's
-	# thousands of repos
-	my ($fh, $pid) = $git->popen('show-ref');
-	my $dig = Digest::SHA->new(1);
-	while (read($fh, my $buf, 65536)) {
-		$dig->add($buf);
-	}
-	close $fh;
-	waitpid($pid, 0);
-	return if $?; # empty, uninitialized git repo
-	$dig->hexdigest;
 }
 
 sub manifest_add ($$;$$) {
@@ -51,48 +33,13 @@ sub manifest_add ($$;$$) {
 	}
 	return unless -d $git_dir;
 	my $git = PublicInbox::Git->new($git_dir);
-	my $fingerprint = fingerprint($git) or return; # no empty repos
-
-	chomp(my $owner = $git->qx('config', 'gitweb.owner'));
-	chomp(my $desc = try_cat("$git_dir/description"));
-	utf8::decode($owner);
-	utf8::decode($desc);
-	$owner = undef if $owner eq '';
-	$desc = 'Unnamed repository' if $desc eq '';
-
-	# templates/hooks--update.sample and git-multimail in git.git
-	# only match "Unnamed repository", not the full contents of
-	# templates/this--description in git.git
-	if ($desc =~ /\AUnnamed repository/) {
-		$desc = "$default_desc [epoch $epoch]" if defined($epoch);
-	}
-
-	my $reference;
-	chomp(my $alt = try_cat("$git_dir/objects/info/alternates"));
-	if ($alt) {
-		# n.b.: GitPython doesn't seem to handle comments or C-quoted
-		# strings like native git does; and we don't for now, either.
-		my @alt = split(/\n+/, $alt);
-
-		# grokmirror only supports 1 alternate for "reference",
-		if (scalar(@alt) == 1) {
-			my $objdir = "$git_dir/objects";
-			$reference = File::Spec->rel2abs($alt[0], $objdir);
-			$reference =~ s!/[^/]+/?\z!!; # basename
-		}
-	}
+	my $ent = $git->manifest_entry($epoch, $default_desc) or return;
 	$ctx->{-abs2urlpath}->{$git_dir} = $url_path;
-	my $modified = $git->modified;
+	my $modified = $ent->{modified};
 	if ($modified > ($ctx->{-mtime} // 0)) {
 		$ctx->{-mtime} = $modified;
 	}
-	$ctx->{manifest}->{$url_path} = {
-		owner => $owner,
-		reference => $reference,
-		description => $desc,
-		modified => $modified,
-		fingerprint => $fingerprint,
-	};
+	$ctx->{manifest}->{$url_path} = $ent;
 }
 
 sub ibx_entry {

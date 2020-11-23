@@ -21,8 +21,7 @@ use_ok 'PublicInbox::Git';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $bare = PublicInbox::Git->new("$tmpdir/bare.git");
 PublicInbox::Import::init_bare($bare->{git_dir});
-is(PublicInbox::ManifestJsGz::fingerprint($bare), undef,
-	'empty repo has no fingerprint');
+is($bare->manifest_entry, undef, 'empty repo has no manifest entry');
 {
 	my $fi_data = './t/git.fast-import-data';
 	open my $fh, '<', $fi_data or die "open $fi_data: $!";
@@ -31,7 +30,7 @@ is(PublicInbox::ManifestJsGz::fingerprint($bare), undef,
 		'fast-import');
 }
 
-like(PublicInbox::ManifestJsGz::fingerprint($bare), qr/\A[a-f0-9]{40}\z/,
+like($bare->manifest_entry->{fingerprint}, qr/\A[a-f0-9]{40}\z/,
 	'got fingerprint with non-empty repo');
 
 sub tiny_test {

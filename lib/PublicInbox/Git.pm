@@ -14,10 +14,12 @@ use POSIX ();
 use IO::Handle; # ->autoflush
 use Errno qw(EINTR);
 use File::Glob qw(bsd_glob GLOB_NOSORT);
+use File::Spec ();
 use Time::HiRes qw(stat);
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::Tmpfile;
 use Carp qw(croak);
+use Digest::SHA ();
 our @EXPORT_OK = qw(git_unquote git_quote);
 our $PIPE_BUFSIZ = 65536; # Linux default
 our $in_cleanup;
@@ -473,6 +475,57 @@ sub modified ($) {
 	}
 	cat_async_wait($self);
 	$modified || time;
+}
+
+# for grokmirror, which doesn't read gitweb.description
+# templates/hooks--update.sample and git-multimail in git.git
+# only match "Unnamed repository", not the full contents of
+# templates/this--description in git.git
+sub manifest_entry {
+	my ($self, $epoch, $default_desc) = @_;
+	my ($fh, $pid) = $self->popen('show-ref');
+	my $dig = Digest::SHA->new(1);
+	while (read($fh, my $buf, 65536)) {
+		$dig->add($buf);
+	}
+	close $fh;
+	waitpid($pid, 0);
+	return if $?; # empty, uninitialized git repo
+	my $git_dir = $self->{git_dir};
+	my $ent = {
+		fingerprint => $dig->hexdigest,
+		reference => undef,
+		modified => modified($self),
+	};
+	chomp(my $owner = $self->qx('config', 'gitweb.owner'));
+	utf8::decode($owner);
+	$ent->{owner} = $owner eq '' ? undef : $owner;
+	my $desc = '';
+	if (open($fh, '<', "$git_dir/description")) {
+		local $/ = "\n";
+		chomp($desc = <$fh>);
+		utf8::decode($desc);
+	}
+	$desc = 'Unnamed repository' if $desc eq '';
+	if (defined $epoch && $desc =~ /\AUnnamed repository/) {
+		$desc = "$default_desc [epoch $epoch]";
+	}
+	$ent->{description} = $desc;
+	if (open($fh, '<', "$git_dir/objects/info/alternates")) {
+		# n.b.: GitPython doesn't seem to handle comments or C-quoted
+		# strings like native git does; and we don't for now, either.
+		local $/ = "\n";
+		chomp(my @alt = <$fh>);
+
+		# grokmirror only supports 1 alternate for "reference",
+		if (scalar(@alt) == 1) {
+			my $objdir = "$git_dir/objects";
+			my $ref = File::Spec->rel2abs($alt[0], $objdir);
+			$ref =~ s!/[^/]+/?\z!!; # basename
+			$ent->{reference} = $ref;
+		}
+	}
+	$ent;
 }
 
 1;
