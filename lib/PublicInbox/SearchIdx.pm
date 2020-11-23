@@ -22,9 +22,10 @@ use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size prepare_stack);
+our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size prepare_stack
+	index_text term_generator add_val);
 my $X = \%PublicInbox::Search::X;
-my ($DB_CREATE_OR_OPEN, $DB_OPEN);
+our ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
 our $BATCH_BYTES = $ENV{XAPIAN_FLUSH_THRESHOLD} ? 0x7fffffff : 1_000_000;
 use constant DEBUG => !!$ENV{DEBUG};
@@ -154,7 +155,7 @@ sub term_generator ($) { # write-only
 
 	$self->{term_generator} //= do {
 		my $tg = $X->{TermGenerator}->new;
-		$tg->set_stemmer($self->stemmer);
+		$tg->set_stemmer(PublicInbox::Search::stemmer($self));
 		$tg;
 	}
 }

@@ -72,4 +72,7 @@ my $es = PublicInbox::ExtSearch->new("$home/eindex");
 	isnt($x1->[0], $x2->[0], 'xref3 differs');
 }
 
+my $misc = $es->misc;
+is(scalar($misc->mset('')->items), 2, 'two inboxes');
+
 done_testing;

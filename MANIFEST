@@ -166,6 +166,8 @@ lib/PublicInbox/MIME.pm
 lib/PublicInbox/ManifestJsGz.pm
 lib/PublicInbox/Mbox.pm
 lib/PublicInbox/MboxGz.pm
+lib/PublicInbox/MiscIdx.pm
+lib/PublicInbox/MiscSearch.pm
 lib/PublicInbox/MsgIter.pm
 lib/PublicInbox/MsgTime.pm
 lib/PublicInbox/Msgmap.pm
@@ -319,6 +321,7 @@ t/mda.t
 t/mda_filter_rubylang.t
 t/mid.t
 t/mime.t
+t/miscsearch.t
 t/msg_iter-nested.eml
 t/msg_iter-order.eml
 t/msg_iter.t

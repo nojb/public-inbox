@@ -10,6 +10,7 @@ use v5.10.1;
 use PublicInbox::Over;
 use PublicInbox::Inbox;
 use File::Spec ();
+use PublicInbox::MiscSearch;
 
 # for ->reopen, ->mset, ->mset_to_artnums
 use parent qw(PublicInbox::Search);
@@ -22,6 +23,11 @@ sub new {
 		# xpfx => 'ei15'
 		xpfx => "$topdir/ei".PublicInbox::Search::SCHEMA_VERSION
 	}, __PACKAGE__;
+}
+
+sub misc {
+	my ($self) = @_;
+	$self->{misc} //= PublicInbox::MiscSearch->new("$self->{xpfx}/misc");
 }
 
 sub search { $_[0] } # self

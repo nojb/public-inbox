@@ -21,6 +21,7 @@ use Carp qw(croak carp);
 use PublicInbox::Search;
 use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack is_ancestor);
 use PublicInbox::OverIdx;
+use PublicInbox::MiscIdx;
 use PublicInbox::MID qw(mids);
 use PublicInbox::V2Writable;
 use PublicInbox::InboxWritable;
@@ -309,6 +310,7 @@ sub _sync_inbox ($$$) {
 		return;
 	}
 	index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
+	$self->{midx}->index_ibx($ibx);
 }
 
 sub eidx_sync { # main entry point
@@ -374,6 +376,12 @@ sub update_last_commit { # overrides V2Writable
 	$self->{oidx}->eidx_meta($meta_key, $latest_cmt);
 }
 
+sub _idx_init { # with_umask callback
+	my ($self, $opt) = @_;
+	PublicInbox::V2Writable::_idx_init($self, $opt);
+	$self->{midx} = PublicInbox::MiscIdx->new($self);
+}
+
 sub idx_init { # similar to V2Writable
 	my ($self, $opt) = @_;
 	return if $self->{idx_shards};
@@ -406,9 +414,10 @@ sub idx_init { # similar to V2Writable
 	}
 	$self->parallel_init($self->{indexlevel});
 	$self->umask_prepare;
-	$self->with_umask(\&PublicInbox::V2Writable::_idx_init, $self, $opt);
+	$self->with_umask(\&_idx_init, $self, $opt);
 	$self->{oidx}->begin_lazy;
 	$self->{oidx}->eidx_prep;
+	$self->{midx}->begin_txn;
 }
 
 no warnings 'once';

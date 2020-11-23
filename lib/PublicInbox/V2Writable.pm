@@ -631,6 +631,9 @@ sub checkpoint ($;$) {
 			$_->shard_commit for @$shards;
 		}
 
+		my $midx = $self->{midx}; # misc index
+		$midx->commit_txn if $midx;
+
 		# last_commit is special, don't commit these until
 		# Xapian shards are done:
 		$dbh->begin_work if $dbh;
@@ -639,6 +642,7 @@ sub checkpoint ($;$) {
 			$dbh->commit;
 			$dbh->begin_work;
 		}
+		$midx->begin_txn if $midx;
 	}
 	$self->{total_bytes} += $self->{transact_bytes};
 	$self->{transact_bytes} = 0;
@@ -678,6 +682,7 @@ sub done {
 	}
 	eval { $self->{oidx}->dbh_close };
 	$err .= "over close: $@\n" if $@;
+	delete $self->{midx};
 	delete $self->{bnote};
 	my $nbytes = $self->{total_bytes};
 	$self->{total_bytes} = 0;

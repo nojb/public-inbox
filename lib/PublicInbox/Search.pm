@@ -6,7 +6,7 @@
 package PublicInbox::Search;
 use strict;
 use parent qw(Exporter);
-our @EXPORT_OK = qw(mdocid);
+our @EXPORT_OK = qw(mdocid retry_reopen);
 use List::Util qw(max);
 
 # values for searching, changing the numeric value breaks
@@ -54,11 +54,11 @@ use constant {
 
 use PublicInbox::Smsg;
 use PublicInbox::Over;
-my $QP_FLAGS;
+our $QP_FLAGS;
 our %X = map { $_ => 0 } qw(BoolWeight Database Enquire QueryParser Stem);
 our $Xap; # 'Search::Xapian' or 'Xapian'
-my $NVRP; # '$Xap::'.('NumberValueRangeProcessor' or 'NumberRangeProcessor')
-my $ENQ_ASCENDING;
+our $NVRP; # '$Xap::'.('NumberValueRangeProcessor' or 'NumberRangeProcessor')
+our $ENQ_ASCENDING;
 
 sub load_xapian () {
 	return 1 if defined $Xap;
