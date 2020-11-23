@@ -10,17 +10,13 @@ use Digest::SHA ();
 use File::Spec ();
 use bytes (); # length
 use PublicInbox::Inbox;
+use PublicInbox::Config;
 use PublicInbox::Git;
 use IO::Compress::Gzip qw(gzip);
 use HTTP::Date qw(time2str);
 *try_cat = \&PublicInbox::Inbox::try_cat;
 
-our $json;
-for my $mod (qw(Cpanel::JSON::XS JSON::MaybeXS JSON JSON::PP)) {
-	eval "require $mod" or next;
-	# ->ascii encodes non-ASCII to "\uXXXX"
-	$json = $mod->new->ascii(1) and last;
-}
+our $json = PublicInbox::Config::json();
 
 # called by WwwListing
 sub url_regexp {
