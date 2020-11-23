@@ -7,9 +7,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::WwwListing);
 use bytes (); # length
-use PublicInbox::Inbox;
 use PublicInbox::Config;
-use PublicInbox::Git;
 use IO::Compress::Gzip qw(gzip);
 use HTTP::Date qw(time2str);
 
@@ -26,15 +24,15 @@ sub url_regexp {
 sub manifest_add ($$;$$) {
 	my ($ctx, $ibx, $epoch, $default_desc) = @_;
 	my $url_path = "/$ibx->{name}";
-	my $git_dir = $ibx->{inboxdir};
+	my $git;
 	if (defined $epoch) {
-		$git_dir .= "/git/$epoch.git";
 		$url_path .= "/git/$epoch.git";
+		$git = $ibx->git_epoch($epoch) or return;
+	} else {
+		$git = $ibx->git;
 	}
-	return unless -d $git_dir;
-	my $git = PublicInbox::Git->new($git_dir);
 	my $ent = $git->manifest_entry($epoch, $default_desc) or return;
-	$ctx->{-abs2urlpath}->{$git_dir} = $url_path;
+	$ctx->{-abs2urlpath}->{$git->{git_dir}} = $url_path;
 	my $modified = $ent->{modified};
 	if ($modified > ($ctx->{-mtime} // 0)) {
 		$ctx->{-mtime} = $modified;

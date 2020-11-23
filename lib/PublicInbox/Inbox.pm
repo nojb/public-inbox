@@ -137,6 +137,7 @@ sub git_epoch {
 	$self->version == 2 or return;
 	$self->{"$epoch.git"} ||= do {
 		my $git_dir = "$self->{inboxdir}/git/$epoch.git";
+		return unless -d $git_dir;
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
 		# no cleanup needed, we never cat-file off this, only clone
