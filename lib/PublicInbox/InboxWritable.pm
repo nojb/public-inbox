@@ -319,6 +319,4 @@ sub git_dir_latest {
 	$latest;
 }
 
-sub eidx_key { $_[0]->{newsgroup} // $_[0]->{inboxdir} }
-
 1;

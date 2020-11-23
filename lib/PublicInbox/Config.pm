@@ -94,6 +94,9 @@ sub lookup_ei {
 	$self->{-ei_by_name}->{$name} //= _fill_ei($self, "extindex.$name");
 }
 
+# special case for [extindex "all"]
+sub ALL { lookup_ei($_[0], 'all') }
+
 sub each_inbox {
 	my ($self, $cb, @arg) = @_;
 	# may auto-vivify if config file is non-existent:

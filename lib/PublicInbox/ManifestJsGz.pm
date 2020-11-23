@@ -21,6 +21,14 @@ sub url_regexp {
 	$ctx->SUPER::url_regexp('publicInbox.grokManifest', 'match=domain');
 }
 
+sub inject_entry ($$$;$) {
+	my ($ctx, $url_path, $ent, $git_dir) = @_;
+	$ctx->{-abs2urlpath}->{$git_dir // delete $ent->{git_dir}} = $url_path;
+	my $modified = $ent->{modified};
+	$ctx->{-mtime} = $modified if $modified > ($ctx->{-mtime} // 0);
+	$ctx->{manifest}->{$url_path} = $ent;
+}
+
 sub manifest_add ($$;$$) {
 	my ($ctx, $ibx, $epoch, $default_desc) = @_;
 	my $url_path = "/$ibx->{name}";
@@ -32,15 +40,10 @@ sub manifest_add ($$;$$) {
 		$git = $ibx->git;
 	}
 	my $ent = $git->manifest_entry($epoch, $default_desc) or return;
-	$ctx->{-abs2urlpath}->{$git->{git_dir}} = $url_path;
-	my $modified = $ent->{modified};
-	if ($modified > ($ctx->{-mtime} // 0)) {
-		$ctx->{-mtime} = $modified;
-	}
-	$ctx->{manifest}->{$url_path} = $ent;
+	inject_entry($ctx, $url_path, $ent, $git->{git_dir});
 }
 
-sub ibx_entry {
+sub slow_manifest_add ($$) {
 	my ($ctx, $ibx) = @_;
 	eval {
 		if (defined(my $max = $ibx->max_git_epoch)) {
@@ -52,6 +55,28 @@ sub ibx_entry {
 			manifest_add($ctx, $ibx);
 		}
 	};
+}
+
+sub eidx_manifest_add ($$$) {
+	my ($ctx, $ALL, $ibx) = @_;
+	if (my $data = $ALL->misc->inbox_data($ibx)) {
+		$data = $json->decode($data);
+		while (my ($url_path, $ent) = each %$data) {
+			inject_entry($ctx, $url_path, $ent);
+		}
+	} else {
+		warn "E: `${\$ibx->eidx_key}' not indexed by $ALL->{topdir}\n";
+	}
+}
+
+sub ibx_entry {
+	my ($ctx, $ibx) = @_;
+	my $ALL = $ctx->{www}->{pi_config}->ALL;
+	if ($ALL) {
+		eidx_manifest_add($ctx, $ALL, $ibx);
+	} else {
+		slow_manifest_add($ctx, $ibx);
+	}
 	warn "E: $@" if $@;
 }
 

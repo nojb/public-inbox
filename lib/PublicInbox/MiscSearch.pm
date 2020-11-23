@@ -76,4 +76,23 @@ sub mset {
 	retry_reopen($self, \&misc_enquire_once, [ $self, $qr, $opt ]);
 }
 
+sub ibx_data_once {
+	my ($self, $ibx) = @{$_[0]};
+	my $xdb = $self->{xdb};
+	my $eidx_key = $ibx->eidx_key; # may be {inboxdir}, so private
+	my $head = $xdb->postlist_begin('Q'.$eidx_key);
+	my $tail = $xdb->postlist_end('Q'.$eidx_key);
+	if ($head != $tail) {
+		my $doc = $xdb->get_document($head->get_docid);
+		$doc->get_data;
+	} else {
+		undef;
+	}
+}
+
+sub inbox_data {
+	my ($self, $ibx) = @_;
+	retry_reopen($self, \&ibx_data_once, [ $self, $ibx ]);
+}
+
 1;

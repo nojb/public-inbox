@@ -429,4 +429,6 @@ sub on_unlock {
 
 sub uidvalidity  { $_[0]->{uidvalidity} //= $_[0]->mm->created_at }
 
+sub eidx_key { $_[0]->{newsgroup} // $_[0]->{inboxdir} }
+
 1;
