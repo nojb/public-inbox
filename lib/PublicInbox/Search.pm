@@ -291,15 +291,15 @@ sub mset {
 }
 
 sub retry_reopen {
-	my ($self, $cb, $arg) = @_;
+	my ($self, $cb, @arg) = @_;
 	for my $i (1..10) {
 		if (wantarray) {
 			my @ret;
-			eval { @ret = $cb->($arg) };
+			eval { @ret = $cb->($self, @arg) };
 			return @ret unless $@;
 		} else {
 			my $ret;
-			eval { $ret = $cb->($arg) };
+			eval { $ret = $cb->($self, @arg) };
 			return $ret unless $@;
 		}
 		# Exception: The revision being read has been discarded -
@@ -319,7 +319,7 @@ sub retry_reopen {
 
 sub _do_enquire {
 	my ($self, $query, $opts) = @_;
-	retry_reopen($self, \&_enquire_once, [ $self, $query, $opts ]);
+	retry_reopen($self, \&_enquire_once, $query, $opts);
 }
 
 # returns true if all docs have the THREADID value
@@ -329,7 +329,7 @@ sub has_threadid ($) {
 }
 
 sub _enquire_once { # retry_reopen callback
-	my ($self, $query, $opts) = @{$_[0]};
+	my ($self, $query, $opts) = @_;
 	my $xdb = xdb($self);
 	my $enquire = $X{Enquire}->new($xdb);
 	$enquire->set_query($query);

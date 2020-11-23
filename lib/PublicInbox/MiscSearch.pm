@@ -50,7 +50,7 @@ sub mi_qp_new ($) {
 }
 
 sub misc_enquire_once { # retry_reopen callback
-	my ($self, $qr, $opt) = @{$_[0]};
+	my ($self, $qr, $opt) = @_;
 	my $eq = $PublicInbox::Search::X{Enquire}->new($self->{xdb});
 	$eq->set_query($qr);
         my $desc = !$opt->{asc};
@@ -73,11 +73,11 @@ sub mset {
 	$qs = 'type:inbox' if $qs eq '';
 	my $qr = $qp->parse_query($qs, $PublicInbox::Search::QP_FLAGS);
 	$opt->{relevance} = 1 unless exists $opt->{relevance};
-	retry_reopen($self, \&misc_enquire_once, [ $self, $qr, $opt ]);
+	retry_reopen($self, \&misc_enquire_once, $qr, $opt);
 }
 
 sub ibx_data_once {
-	my ($self, $ibx) = @{$_[0]};
+	my ($self, $ibx) = @_;
 	my $xdb = $self->{xdb};
 	my $eidx_key = $ibx->eidx_key; # may be {inboxdir}, so private
 	my $head = $xdb->postlist_begin('Q'.$eidx_key);
@@ -92,7 +92,7 @@ sub ibx_data_once {
 
 sub inbox_data {
 	my ($self, $ibx) = @_;
-	retry_reopen($self, \&ibx_data_once, [ $self, $ibx ]);
+	retry_reopen($self, \&ibx_data_once, $ibx);
 }
 
 1;
