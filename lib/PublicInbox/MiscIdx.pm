@@ -107,6 +107,7 @@ EOF
 			if (my $ent = $git->manifest_entry($epoch, $desc)) {
 				$data->{"$pfx$epoch.git"} = $ent;
 			}
+			$git->cleanup; # ->modified starts cat-file --batch
 		}
 	} elsif (my $ent = $ibx->git->manifest_entry) { # v1
 		$data->{"/$ibx->{name}"} = $ent;

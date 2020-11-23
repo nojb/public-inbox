@@ -311,6 +311,7 @@ sub _sync_inbox ($$$) {
 	}
 	index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
 	$self->{midx}->index_ibx($ibx);
+	$ibx->git->cleanup; # done with this inbox, now
 }
 
 sub eidx_sync { # main entry point
