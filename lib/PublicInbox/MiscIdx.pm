@@ -20,6 +20,7 @@ use PublicInbox::Spawn qw(nodatacow_dir);
 use Carp qw(croak);
 use File::Path ();
 use PublicInbox::MiscSearch;
+use PublicInbox::Config;
 
 sub new {
 	my ($class, $eidx) = @_;
@@ -97,6 +98,20 @@ EOF
 		}
 	}
 	index_text($self, $ibx->{name}, 1, 'XNAME');
+	my $data = {};
+	if (defined(my $max = $ibx->max_git_epoch)) { # v2
+		my $desc = $ibx->description;
+		my $pfx = "/$ibx->{name}/git/";
+		for my $epoch (0..$max) {
+			my $git = $ibx->git_epoch($epoch) or return;
+			if (my $ent = $git->manifest_entry($epoch, $desc)) {
+				$data->{"$pfx$epoch.git"} = $ent;
+			}
+		}
+	} elsif (my $ent = $ibx->git->manifest_entry) { # v1
+		$data->{"/$ibx->{name}"} = $ent;
+	}
+	$doc->set_data(PublicInbox::Config::json()->encode($data));
 	if (defined $docid) {
 		$xdb->replace_document($docid, $doc);
 	} else {

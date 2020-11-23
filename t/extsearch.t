@@ -4,7 +4,9 @@
 use strict;
 use Test::More;
 use PublicInbox::TestCommon;
+use PublicInbox::Config;
 use Fcntl qw(:seek);
+my $json = PublicInbox::Config::json() or plan skip_all => 'JSON missing';
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::ExtSearch';
@@ -73,6 +75,9 @@ my $es = PublicInbox::ExtSearch->new("$home/eindex");
 }
 
 my $misc = $es->misc;
-is(scalar($misc->mset('')->items), 2, 'two inboxes');
+my @it = $misc->mset('')->items;
+is(scalar(@it), 2, 'two inboxes');
+like($it[0]->get_document->get_data, qr/v2test/, 'docdata matched v2');
+like($it[1]->get_document->get_data, qr/v1test/, 'docdata matched v1');
 
 done_testing;

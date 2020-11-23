@@ -50,5 +50,8 @@ is(scalar($mset->items), 1, 'match partial address');
 
 $mset = $ms->mset('hope');
 is(scalar($mset->items), 1, 'match name');
+my $mi = ($mset->items)[0];
+my $doc = $mi->get_document;
+is($doc->get_data, '{}', 'stored empty data');
 
 done_testing;
