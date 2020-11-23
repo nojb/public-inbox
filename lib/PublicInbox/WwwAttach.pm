@@ -9,6 +9,22 @@ use bytes (); # only for bytes::length
 use PublicInbox::EmlContentFoo qw(parse_content_type);
 use PublicInbox::Eml;
 
+sub referer_match ($) {
+	my ($ctx) = @_;
+	my $env = $ctx->{env};
+	my $referer = $env->{HTTP_REFERER} // '';
+	return 1 if $referer eq ''; # no referer is always OK for wget/curl
+
+	# prevent deep-linking from other domains on some browsers (Firefox)
+	# n.b.: $ctx->{-inbox}->base_url($env) with INBOX_URL won't work
+	# with dillo, we can only match "$url_scheme://$HTTP_HOST/" without
+	# path components
+	my $base_url = $env->{'psgi.url_scheme'} . '://' .
+			($env->{HTTP_HOST} //
+			 "$env->{SERVER_NAME}:$env->{SERVER_PORT}") . '/';
+	index($referer, $base_url) == 0;
+}
+
 sub get_attach_i { # ->each_part callback
 	my ($part, $depth, $idx) = @{$_[0]};
 	my $ctx = $_[1];
@@ -28,8 +44,14 @@ sub get_attach_i { # ->each_part callback
 								$ctx->{env});
 		$part = $ctx->zflush($part->body);
 	} else { # TODO: allow user to configure safe types
-		$res->[1]->[1] = 'application/octet-stream';
-		$part = $part->body;
+		if (referer_match($ctx)) {
+			$res->[1]->[1] = 'application/octet-stream';
+			$part = $part->body;
+		} else {
+			$res->[0] = 403;
+			$res->[1]->[1] = 'text/plain';
+			$part = "Deep-linking prevented\n";
+		}
 	}
 	push @{$res->[1]}, 'Content-Length', bytes::length($part);
 	$res->[2]->[0] = $part;
