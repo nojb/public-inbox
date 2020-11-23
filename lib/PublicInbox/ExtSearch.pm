@@ -57,7 +57,7 @@ sub description {
 	my ($self) = @_;
 	($self->{description} //=
 		PublicInbox::Inbox::cat_desc("$self->{topdir}/description")) //
-		'$EINDEX_DIR/description missing';
+		'$EXTINDEX_DIR/description missing';
 }
 
 sub cloneurl { [] } # TODO
