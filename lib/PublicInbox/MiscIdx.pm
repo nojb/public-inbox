@@ -106,10 +106,12 @@ EOF
 			my $git = $ibx->git_epoch($epoch) or return;
 			if (my $ent = $git->manifest_entry($epoch, $desc)) {
 				$data->{"$pfx$epoch.git"} = $ent;
+				$ent->{git_dir} = $git->{git_dir};
 			}
 			$git->cleanup; # ->modified starts cat-file --batch
 		}
 	} elsif (my $ent = $ibx->git->manifest_entry) { # v1
+		$ent->{git_dir} = $ibx->{inboxdir};
 		$data->{"/$ibx->{name}"} = $ent;
 	}
 	$doc->set_data(PublicInbox::Config::json()->encode($data));
