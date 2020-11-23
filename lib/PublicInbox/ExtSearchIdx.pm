@@ -396,18 +396,28 @@ sub idx_init { # similar to V2Writable
 	my $info_dir = "$ALL/objects/info";
 	my $alt = "$info_dir/alternates";
 	my $mode = 0644;
-	my (%old, @old, %new, @new);
+	my (@old, @new, %seen); # seen: st_dev + st_ino
 	if (-e $alt) {
 		open(my $fh, '<', $alt) or die "open $alt: $!";
 		$mode = (stat($fh))[2] & 07777;
-		while (<$fh>) {
-			push @old, $_ if !$old{$_}++;
+		while (my $line = <$fh>) {
+			chomp(my $d = $line);
+			if (my @st = stat($d)) {
+				next if $seen{"$st[0]\0$st[1]"}++;
+			} else {
+				warn "W: stat($d) failed (from $alt): $!\n";
+			}
+			push @old, $line;
 		}
 	}
 	for my $ibx (@{$self->{ibx_list}}) {
 		my $line = $ibx->git->{git_dir} . "/objects\n";
-		next if $old{$line};
-		$new{$line} = 1;
+		chomp(my $d = $line);
+		if (my @st = stat($d)) {
+			next if $seen{"$st[0]\0$st[1]"}++;
+		} else {
+			warn "W: stat($d) failed (from $ibx->{inboxdir}): $!\n";
+		}
 		push @new, $line;
 	}
 	if (scalar @new) {
