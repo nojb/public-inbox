@@ -56,17 +56,37 @@ undef $c_src;
 undef %CFG;
 undef $lockfh;
 
+sub add_alt ($$) {
+	my ($gcf2, $objdir) = @_;
+
+	# libgit2 (tested 0.27.7+dfsg.1-0.2 and 0.28.3+dfsg.1-1~bpo10+1
+	# in Debian) doesn't handle relative epochs properly when nested
+	# multiple levels.  Add all the absolute paths to workaround it,
+	# since $EXTINDEX_DIR/ALL.git/objects/info/alternates uses absolute
+	# paths to reference $V2INBOX_DIR/all.git/objects and
+	# $V2INBOX_DIR/all.git/objects/info/alternates uses relative paths
+	# to refer to $V2INBOX_DIR/git/$EPOCH.git/objects
+	#
+	# See https://bugs.debian.org/975607
+	if (open(my $fh, '<', "$objdir/info/alternates")) {
+		chomp(my @abs_alt = grep(m!^/!, <$fh>));
+		$gcf2->add_alternate($_) for @abs_alt;
+	}
+	$gcf2->add_alternate($objdir);
+}
+
 # Usage: $^X -MPublicInbox::Gcf2 -e 'PublicInbox::Gcf2::loop()'
 # (see lib/PublicInbox/Gcf2Client.pm)
 sub loop {
 	my $gcf2 = new();
+	my %seen;
 	STDERR->autoflush(1);
 	STDOUT->autoflush(1);
 
 	while (<STDIN>) {
 		chomp;
 		my ($oid, $git_dir) = split(/ /, $_, 2);
-		$gcf2->add_alternate("$git_dir/objects");
+		$seen{$git_dir}++ or add_alt($gcf2, "$git_dir/objects");
 		if (!$gcf2->cat_oid(1, $oid)) {
 			# retry once if missing.  We only get unabbreviated OIDs
 			# from SQLite or Xapian DBs, here, so malicious clients
@@ -74,7 +94,8 @@ sub loop {
 			warn "I: $$ $oid missing, retrying in $git_dir\n";
 
 			$gcf2 = new();
-			$gcf2->add_alternate("$git_dir/objects");
+			%seen = ($git_dir => 1);
+			add_alt($gcf2, "$git_dir/objects");
 
 			if ($gcf2->cat_oid(1, $oid)) {
 				warn "I: $$ $oid found after retry\n";
