@@ -136,29 +136,29 @@ sub list_headers ($;$) {
 sub list_active ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{newsgroup} =~ $wildmat or next;
-		group_line($self, $ng);
+	my $groups = $self->{nntpd}->{groups};
+	for my $ngname (grep(/$wildmat/, @{$self->{nntpd}->{groupnames}})) {
+		group_line($self, $groups->{$ngname});
 	}
 }
 
 sub list_active_times ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{newsgroup} =~ $wildmat or next;
-		my $c = eval { $ng->uidvalidity } // time;
-		more($self, "$ng->{newsgroup} $c $ng->{-primary_address}");
+	my $groups = $self->{nntpd}->{groups};
+	for my $ngname (grep(/$wildmat/, @{$self->{nntpd}->{groupnames}})) {
+		my $ibx = $groups->{$ngname};
+		my $c = eval { $ibx->uidvalidity } // time;
+		more($self, "$ngname $c $ibx->{-primary_address}");
 	}
 }
 
 sub list_newsgroups ($;$) {
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{newsgroup} =~ $wildmat or next;
-		my $d = $ng->description;
-		more($self, "$ng->{newsgroup} $d");
+	my $groups = $self->{nntpd}->{groups};
+	for my $ngname (grep(/$wildmat/, @{$self->{nntpd}->{groupnames}})) {
+		more($self, "$ngname ".$groups->{$ngname}->description);
 	}
 }
 

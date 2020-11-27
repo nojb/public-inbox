@@ -60,7 +60,9 @@ sub refresh_groups {
 			delete $groups->{$ngname};
 		}
 	});
-	$self->{grouplist} = [ map { $groups->{$_} } sort(keys %$groups) ];
+	my @names = sort(keys %$groups);
+	$self->{grouplist} = [ map { $groups->{$_} } @names ];
+	$self->{groupnames} = \@names;
 	$self->{pi_config} = $pi_config;
 	# this will destroy old groups that got deleted
 	$self->{groups} = $groups;
