@@ -542,6 +542,11 @@ CREATE TABLE IF NOT EXISTS xref3 (
 
 	$dbh->do('CREATE INDEX IF NOT EXISTS idx_docid ON xref3 (docid)');
 
+	# performance critical, this is not UNIQUE since we may need to
+	# tolerate some old bugs from indexing mirrors
+	$dbh->do('CREATE INDEX IF NOT EXISTS idx_nntp ON '.
+		'xref3 (oidbin,xnum,ibx_id)');
+
 		$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS eidx_meta (
 	key VARCHAR(255) PRIMARY KEY,

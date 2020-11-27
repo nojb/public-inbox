@@ -11,6 +11,8 @@ require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::ExtSearch';
 use_ok 'PublicInbox::ExtSearchIdx';
+my $sock = tcp_server();
+my $host_port = $sock->sockhost . ':' . $sock->sockport;
 my ($home, $for_destroy) = tmpdir();
 local $ENV{HOME} = $home;
 mkdir "$home/.public-inbox" or BAIL_OUT $!;
@@ -35,7 +37,7 @@ seek($fh, 0, SEEK_SET) or BAIL_OUT $!;
 
 run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or BAIL_OUT '-mda';
 
-ok(run_script([qw(-init -V1 v1test), "$home/v1test",
+ok(run_script([qw(-init -V1 v1test --newsgroup v1.example), "$home/v1test",
 	'http://example.com/v1test', $v1addr ]), 'v1test init');
 
 $eml->header_set('List-Id', '<v1.example.com>');
@@ -51,6 +53,36 @@ run_script(['-index', "$home/v1test"]) or BAIL_OUT "index $?";
 
 ok(run_script([qw(-extindex --all), "$home/extindex"]), 'extindex init');
 
+
+{ # TODO: -extindex should write this to config
+	open $fh, '>>', "$home/.public-inbox/config" or BAIL_OUT $!;
+	print $fh <<EOF or BAIL_OUT $!;
+; for ->ALL
+[extindex "all"]
+	topdir = $home/extindex
+EOF
+	close $fh or BAIL_OUT $!;
+
+	my $pi_cfg = PublicInbox::Config->new;
+	$pi_cfg->fill_all;
+	ok($pi_cfg->ALL, '->ALL');
+	my $ibx = $pi_cfg->{-by_newsgroup}->{'v2.example'};
+	my $ret = $pi_cfg->ALL->nntp_xref_for($ibx, $ibx->over->get_art(1));
+	is_deeply($ret, ['v1.example:1'], '->nntp_xref_for');
+}
+
+SKIP: {
+	require_mods(qw(Net::NNTP), 1);
+	my ($out, $err) = ("$home/nntpd.out.log", "$home/nntpd.err.log");
+	my $cmd = [ '-nntpd', '-W0' ]; #, "--stdout=$out", "--stderr=$err" ];
+	my $td = start_script($cmd, undef, { 3 => $sock });
+	my $n = Net::NNTP->new($host_port);
+	$n->group('v1.example');
+	my $res = $n->head(1);
+	@$res = grep(/^Xref: /, @$res);
+	like($res->[0], qr/ v1\.example:1 v2\.example:1/, 'nntp_xref works');
+}
+
 my $es = PublicInbox::ExtSearch->new("$home/extindex");
 {
 	my $smsg = $es->over->get_art(1);
@@ -58,7 +90,7 @@ my $es = PublicInbox::ExtSearch->new("$home/extindex");
 	is($es->over->get_art(2), undef, 'only one added');
 	my $xref3 = $es->over->get_xref3(1);
 	like($xref3->[0], qr/\A\Qv2.example\E:1:/, 'order preserved 1');
-	like($xref3->[1], qr!\A\Q$home/v1test\E:1:!, 'order preserved 2');
+	like($xref3->[1], qr/\A\Qv1.example\E:1:/, 'order preserved 2');
 	is(scalar(@$xref3), 2, 'only to entries');
 }
 
@@ -93,9 +125,5 @@ my @it = $misc->mset('')->items;
 is(scalar(@it), 2, 'two inboxes');
 like($it[0]->get_document->get_data, qr/v2test/, 'docdata matched v2');
 like($it[1]->get_document->get_data, qr/v1test/, 'docdata matched v1');
-my $pi_cfg = PublicInbox::Config->new;
-$pi_cfg->fill_all;
-my $ret = $misc->newsgroup_matches('', $pi_cfg);
-is_deeply($pi_cfg->{-by_newsgroup}, $ret, '->newsgroup_matches');
 
 done_testing;

@@ -11,6 +11,7 @@ use PublicInbox::Over;
 use PublicInbox::Inbox;
 use File::Spec ();
 use PublicInbox::MiscSearch;
+use DBI qw(:sql_types); # SQL_BLOB
 
 # for ->reopen, ->mset, ->mset_to_artnums
 use parent qw(PublicInbox::Search);
@@ -47,6 +48,61 @@ sub over {
 sub git {
 	my ($self) = @_;
 	$self->{git} //= PublicInbox::Git->new("$self->{topdir}/ALL.git");
+}
+
+# returns an arrayref of [ $NEWSGROUP_NAME:$ART_NO ] using
+# the `xref3' table
+sub nntp_xref_for { # NNTP only
+	my ($self, $xibx, $xsmsg) = @_;
+	my $dbh = over($self)->dbh;
+
+	my $sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT ibx_id FROM inboxes WHERE eidx_key = ? LIMIT 1
+
+	$sth->execute($xibx->{newsgroup});
+	my $xibx_id = $sth->fetchrow_array // do {
+		warn "W: `$xibx->{newsgroup}' not found in $self->{topdir}\n";
+		return;
+	};
+
+	$sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT docid FROM xref3 WHERE oidbin = ? AND xnum = ? AND ibx_id = ? LIMIT 1
+
+	$sth->bind_param(1, pack('H*', $xsmsg->{blob}), SQL_BLOB);
+	$sth->bind_param(2, $xsmsg->{num});
+	$sth->bind_param(3, $xibx_id);
+	$sth->execute;
+	my $docid = $sth->fetchrow_array // do {
+		warn <<EOF;
+W: `$xibx->{newsgroup}:$xsmsg->{num}' not found in $self->{topdir}"
+EOF
+		return;
+	};
+
+	# LIMIT is number of newsgroups on server:
+	$sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT ibx_id,xnum FROM xref3 WHERE docid = ?
+
+	$sth->execute($docid);
+	my $rows = $sth->fetchall_arrayref;
+
+	my $eidx_key_sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT eidx_key FROM inboxes WHERE ibx_id = ? LIMIT 1
+
+	my %xref = map {
+		my ($ibx_id, $xnum) = @$_;
+		if ($ibx_id == $xibx_id) {
+			();
+		} else {
+			$eidx_key_sth->execute($ibx_id);
+			my $eidx_key = $eidx_key_sth->fetchrow_array;
+
+			# only include if there's a newsgroup name
+			$eidx_key && index($eidx_key, '/') >= 0 ?
+				() : ($eidx_key => $xnum)
+		}
+	} @$rows;
+	[ map { "$_:$xref{$_}" } sort keys %xref ]; # match NNTP LIST order
 }
 
 sub mm { undef }

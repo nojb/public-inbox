@@ -8,6 +8,7 @@ use PublicInbox::Eml;
 require_mods(qw(DBD::SQLite Data::Dumper));
 use_ok 'PublicInbox::NNTP';
 use_ok 'PublicInbox::Inbox';
+use PublicInbox::Config;
 
 {
 	sub quote_str {
@@ -110,7 +111,11 @@ use_ok 'PublicInbox::Inbox';
 	my $mime = PublicInbox::Eml->new("Message-ID: <$mid>\r\n\r\n");
 	my $hdr = $mime->header_obj;
 	my $mock_self = {
-		nntpd => { grouplist => [], servername => 'example.com' },
+		nntpd => {
+			grouplist => [],
+			servername => 'example.com',
+			pi_config => bless {}, 'PublicInbox::Config',
+		},
 		ng => $ng,
 	};
 	my $smsg = { num => 1, mid => $mid, nntp => $mock_self, -ibx => $ng };

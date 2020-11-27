@@ -413,14 +413,21 @@ sub xref ($$$) {
 	my $nntpd = $self->{nntpd};
 	my $cur_ngname = $cur_ibx->{newsgroup};
 	my $ret = "$nntpd->{servername} $cur_ngname:$smsg->{num}";
-
-	my $mid = $smsg->{mid};
-	my $groups = $nntpd->{pi_config}->{-by_newsgroup};
-	for my $xngname (@{$nntpd->{groupnames}}) {
-		next if $cur_ngname eq $xngname;
-		my $xibx = $groups->{$xngname} or next;
-		my $num = eval { $xibx->mm->num_for($mid) } or next;
-		$ret .= " $xngname:$num";
+	if (my $ALL = $nntpd->{pi_config}->ALL) {
+		if (my $ary = $ALL->nntp_xref_for($cur_ibx, $smsg)) {
+			$ret .= join(' ', '', @$ary) if scalar(@$ary);
+		}
+		# better off wrong than slow if there's thousands of groups,
+		# so no fallback to the slow path below:
+	} else { # slow path
+		my $mid = $smsg->{mid};
+		my $groups = $nntpd->{pi_config}->{-by_newsgroup};
+		for my $xngname (@{$nntpd->{groupnames}}) {
+			next if $cur_ngname eq $xngname;
+			my $xibx = $groups->{$xngname} or next;
+			my $num = eval { $xibx->mm->num_for($mid) } or next;
+			$ret .= " $xngname:$num";
+		}
 	}
 	$ret;
 }
