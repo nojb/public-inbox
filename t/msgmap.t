@@ -12,7 +12,7 @@ my $d = PublicInbox::Msgmap->new($tmpdir, 1);
 my %mid2num;
 my %num2mid;
 my @mids = qw(a@b c@d e@f g@h aa@bb aa@cc);
-is_deeply([$d->minmax], [undef,undef], "empty min max on new DB");
+is_deeply([$d->minmax], [0,0], "zero min max on new DB");
 
 foreach my $mid (@mids) {
 	my $n = $d->mid_insert($mid);

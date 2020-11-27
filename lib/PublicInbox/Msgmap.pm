@@ -36,8 +36,7 @@ sub new_file {
 		create_tables($dbh);
 		$self->created_at(time) unless $self->created_at;
 
-		my $max = $self->max // 0;
-		$self->num_highwater($max);
+		$self->num_highwater(max($self));
 		$dbh->commit;
 	}
 	$self;
@@ -144,7 +143,7 @@ sub max {
 	my $sth = $_[0]->{dbh}->prepare_cached('SELECT MAX(num) FROM msgmap',
 						undef, 1);
 	$sth->execute;
-	$sth->fetchrow_array;
+	$sth->fetchrow_array // 0;
 }
 
 sub minmax {
@@ -153,7 +152,7 @@ sub minmax {
 	my $sth = $_[0]->{dbh}->prepare_cached('SELECT MIN(num) FROM msgmap',
 						undef, 1);
 	$sth->execute;
-	($sth->fetchrow_array, max($_[0]));
+	($sth->fetchrow_array // 0, max($_[0]));
 }
 
 sub mid_delete {

@@ -1367,8 +1367,8 @@ sub index_sync {
 
 		# xapian_only works incrementally w/o --reindex
 		if ($seq && !$opt->{reindex}) {
-			$art_beg = $sync->{mm_tmp}->max;
-			$art_beg++ if defined($art_beg);
+			$art_beg = $sync->{mm_tmp}->max || -1;
+			$art_beg++;
 		}
 	}
 	# work forwards through history

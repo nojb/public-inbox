@@ -45,7 +45,7 @@ sub imapd_refresh_ibx { # pi_config->each_inbox cb
 	eval { $ibx->uidvalidity };
 	my $mm = delete($ibx->{mm}) or return;
 	defined($ibx->{uidvalidity}) or return;
-	PublicInbox::IMAP::ensure_slices_exist($imapd, $ibx, $mm->max // 0);
+	PublicInbox::IMAP::ensure_slices_exist($imapd, $ibx, $mm->max);
 
 	# preload to avoid fragmentation:
 	$ibx->description;

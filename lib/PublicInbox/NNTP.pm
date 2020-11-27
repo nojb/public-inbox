@@ -244,7 +244,7 @@ sub parse_time ($$;$) {
 sub group_line ($$) {
 	my ($self, $ng) = @_;
 	my ($min, $max) = $ng->mm->minmax;
-	more($self, "$ng->{newsgroup} $max $min n") if defined $min && defined $max;
+	more($self, "$ng->{newsgroup} $max $min n");
 }
 
 sub cmd_newgroups ($$$;$$) {
@@ -343,8 +343,6 @@ sub cmd_group ($$) {
 
 	$self->{ng} = $ng;
 	my ($min, $max) = $ng->mm->minmax;
-	$min ||= 0;
-	$max ||= 0;
 	$self->{article} = $min;
 	my $est_size = $max - $min;
 	"211 $est_size $min $max $group";
