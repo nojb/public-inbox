@@ -408,18 +408,19 @@ sub header_append ($$$) {
 	$hdr->header_set($k, @v, $v);
 }
 
-sub xref ($$$$) {
-	my ($self, $ng, $n, $mid) = @_;
-	my $ret = $self->{nntpd}->{servername} . " $ng->{newsgroup}:$n";
+sub xref ($$$) {
+	my ($self, $cur_ibx, $smsg) = @_;
+	my $nntpd = $self->{nntpd};
+	my $cur_ngname = $cur_ibx->{newsgroup};
+	my $ret = "$nntpd->{servername} $cur_ngname:$smsg->{num}";
 
-	# num_for is pretty cheap and sometimes we'll lookup the existence
-	# of an article without getting even the OVER info.  In other words,
-	# I'm not sure if its worth optimizing by scanning To:/Cc: and
-	# PublicInbox::ExtMsg on the PSGI end is just as expensive
-	foreach my $other (@{$self->{nntpd}->{grouplist}}) {
-		next if $ng eq $other;
-		my $num = eval { $other->mm->num_for($mid) } or next;
-		$ret .= " $other->{newsgroup}:$num";
+	my $mid = $smsg->{mid};
+	my $groups = $nntpd->{pi_config}->{-by_newsgroup};
+	for my $xngname (@{$nntpd->{groupnames}}) {
+		next if $cur_ngname eq $xngname;
+		my $xibx = $groups->{$xngname} or next;
+		my $num = eval { $xibx->mm->num_for($mid) } or next;
+		$ret .= " $xngname:$num";
 	}
 	$ret;
 }
@@ -443,7 +444,7 @@ sub set_nntp_headers ($$) {
 
 	# clobber some existing headers
 	my $ibx = $smsg->{-ibx};
-	my $xref = xref($smsg->{nntp}, $ibx, $smsg->{num}, $mid);
+	my $xref = xref($smsg->{nntp}, $ibx, $smsg);
 	$hdr->header_set('Xref', $xref);
 
 	# RFC 5536 3.1.4
@@ -724,12 +725,12 @@ sub mid_lookup ($$) {
 sub xref_range_i {
 	my ($self, $beg, $end) = @_;
 	my $ng = $self->{ng};
-	my $r = $ng->mm->msg_range($beg, $end);
-	@$r or return;
+	my $msgs = $ng->over->query_xover($$beg, $end);
+	scalar(@$msgs) or return;
+	$$beg = $msgs->[-1]->{num} + 1;
 	more($self, join("\r\n", map {
-		my $num = $_->[0];
-		"$num ".xref($self, $ng, $num, $_->[1]);
-	} @$r));
+		"$_->{num} ".xref($self, $ng, $_);
+	} @$msgs));
 	1;
 }
 
@@ -740,8 +741,9 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		my $mid = $1;
 		my ($ng, $n) = mid_lookup($self, $mid);
 		return r430 unless $n;
+		my $smsg = $ng->over->get_art($n) or return;
 		hdr_mid_response($self, $xhdr, $ng, $n, $range,
-				xref($self, $ng, $n, $mid));
+				xref($self, $ng, $smsg));
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
@@ -872,11 +874,11 @@ sub cmd_xrover ($;$) {
 	long_response($self, \&xrover_i, @$r);
 }
 
-sub over_line ($$$$) {
-	my ($self, $ng, $num, $smsg) = @_;
+sub over_line ($$$) {
+	my ($self, $ng, $smsg) = @_;
 	# n.b. field access and procedural calls can be
 	# 10%-15% faster than OO method calls:
-	my $s = join("\t", $num,
+	my $s = join("\t", $smsg->{num},
 		$smsg->{subject},
 		$smsg->{from},
 		PublicInbox::Smsg::date($smsg),
@@ -884,7 +886,7 @@ sub over_line ($$$$) {
 		$smsg->{references},
 		$smsg->{bytes},
 		$smsg->{lines},
-		"Xref: " . xref($self, $ng, $num, $smsg->{mid}));
+		"Xref: " . xref($self, $ng, $smsg));
 	utf8::encode($s);
 	$s
 }
@@ -899,8 +901,8 @@ sub cmd_over ($;$) {
 
 		# Only set article number column if it's the current group
 		my $self_ng = $self->{ng};
-		$n = 0 if (!$self_ng || $self_ng ne $ng);
-		more($self, over_line($self, $ng, $n, $smsg));
+		$smsg->{num} = 0 if (!$self_ng || $self_ng ne $ng);
+		more($self, over_line($self, $ng, $smsg));
 		'.';
 	} else {
 		cmd_xover($self, $range);
@@ -915,7 +917,7 @@ sub xover_i {
 
 	# OVERVIEW.FMT
 	more($self, join("\r\n", map {
-		over_line($self, $ng, $_->{num}, $_);
+		over_line($self, $ng, $_);
 		} @$msgs));
 	$$beg = $msgs->[-1]->{num} + 1;
 }
