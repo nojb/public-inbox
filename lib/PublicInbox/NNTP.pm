@@ -294,22 +294,27 @@ sub ngpat2re (;$) {
 }
 
 sub newnews_i {
-	my ($self, $overs, $ts, $prev) = @_;
-	my $over = $overs->[0];
-	my $msgs = $over->query_ts($ts, $$prev);
-	if (scalar @$msgs) {
-		more($self, '<' .
-			join(">\r\n<", map { $_->{mid} } @$msgs ).
-			'>');
-		$$prev = $msgs->[-1]->{num};
-	} else {
-		shift @$overs;
-		if (@$overs) { # continue onto next newsgroup
-			$$prev = 0;
-			return 1;
-		} else { # break out of the long response.
-			return;
+	my ($self, $names, $ts, $prev) = @_;
+	my $ngname = $names->[0];
+	if (my $ibx = $self->{nntpd}->{groups}->{$ngname}) {
+		if (my $over = $ibx->over) {
+			my $msgs = $over->query_ts($ts, $$prev);
+			if (scalar @$msgs) {
+				more($self, '<' .
+					join(">\r\n<",
+						map { $_->{mid} } @$msgs ) .
+					'>');
+				$$prev = $msgs->[-1]->{num};
+				return 1; # continue on current group
+			}
 		}
+	}
+	shift @$names;
+	if (@$names) { # continue onto next newsgroup
+		$$prev = 0;
+		1;
+	} else { # all done, break out of the long_response
+		undef;
 	}
 }
 
@@ -321,17 +326,11 @@ sub cmd_newnews ($$$$;$$) {
 	my ($keep, $skip) = split('!', $newsgroups, 2);
 	ngpat2re($keep);
 	ngpat2re($skip);
-	my @overs;
-	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		$ng->{newsgroup} =~ $keep or next;
-		$ng->{newsgroup} =~ $skip and next;
-		my $over = $ng->over or next;
-		push @overs, $over;
-	};
-	return '.' unless @overs;
-
+	my @names = grep(!/$skip/, grep(/$keep/,
+				@{$self->{nntpd}->{groupnames}}));
+	return '.' unless scalar(@names);
 	my $prev = 0;
-	long_response($self, \&newnews_i, \@overs, $ts, \$prev);
+	long_response($self, \&newnews_i, \@names, $ts, \$prev);
 }
 
 sub cmd_group ($$) {
