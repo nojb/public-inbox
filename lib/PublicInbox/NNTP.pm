@@ -31,9 +31,9 @@ use Errno qw(EAGAIN);
 my $ONE_MSGID = qr/\A$MID_EXTRACT\z/;
 my @OVERVIEW = qw(Subject From Date Message-ID References);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines), '') .
-		"Xref:full\r\n";
+		"Xref:full\r\n.";
 my $LIST_HEADERS = join("\r\n", @OVERVIEW,
-			qw(:bytes :lines Xref To Cc)) . "\r\n";
+			qw(:bytes :lines Xref To Cc)) . "\r\n.";
 my $CAPABILITIES = <<"";
 101 Capability list:\r
 VERSION 2\r
@@ -120,46 +120,66 @@ sub cmd_xgtitle ($;$) {
 	my ($self, $wildmat) = @_;
 	more($self, '282 list of groups and descriptions follows');
 	list_newsgroups($self, $wildmat);
-	'.'
 }
 
-sub list_overview_fmt ($) {
-	my ($self) = @_;
-	$self->msg_more($OVERVIEW_FMT);
-}
+sub list_overview_fmt ($) { $OVERVIEW_FMT }
 
-sub list_headers ($;$) {
-	my ($self) = @_;
-	$self->msg_more($LIST_HEADERS);
-}
+sub list_headers ($;$) { $LIST_HEADERS }
 
-sub list_active ($;$) {
-	my ($self, $wildmat) = @_;
-	wildmat2re($wildmat);
-	my $groups = $self->{nntpd}->{groups};
-	for my $ngname (grep(/$wildmat/, @{$self->{nntpd}->{groupnames}})) {
-		group_line($self, $groups->{$ngname});
+sub list_active_i { # "LIST ACTIVE" and also just "LIST" (no args)
+	my ($self, $groupnames) = @_;
+	my @window = splice(@$groupnames, 0, 100) or return 0;
+	my $ibx;
+	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	for my $ngname (@window) {
+		$ibx = $groups->{$ngname} and group_line($self, $ibx);
 	}
+	scalar(@$groupnames); # continue if there's more
 }
 
-sub list_active_times ($;$) {
+sub list_active ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	my $groups = $self->{nntpd}->{groups};
-	for my $ngname (grep(/$wildmat/, @{$self->{nntpd}->{groupnames}})) {
-		my $ibx = $groups->{$ngname};
+	long_response($self, \&list_active_i, [
+		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
+}
+
+sub list_active_times_i {
+	my ($self, $groupnames) = @_;
+	my @window = splice(@$groupnames, 0, 100) or return 0;
+	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	for my $ngname (@window) {
+		my $ibx = $groups->{$ngname} or next;
 		my $c = eval { $ibx->uidvalidity } // time;
 		more($self, "$ngname $c <$ibx->{-primary_address}>");
 	}
+	scalar(@$groupnames); # continue if there's more
 }
 
-sub list_newsgroups ($;$) {
+sub list_active_times ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	my $groups = $self->{nntpd}->{groups};
-	for my $ngname (grep(/$wildmat/, @{$self->{nntpd}->{groupnames}})) {
-		more($self, "$ngname ".$groups->{$ngname}->description);
+	long_response($self, \&list_active_times_i, [
+		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
+}
+
+sub list_newsgroups_i {
+	my ($self, $groupnames) = @_;
+	my @window = splice(@$groupnames, 0, 100) or return 0;
+	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	my $ibx;
+	for my $ngname (@window) {
+		$ibx = $groups->{$ngname} and
+			more($self, "$ngname ".$ibx->description);
 	}
+	scalar(@$groupnames); # continue if there's more
+}
+
+sub list_newsgroups ($;$) { # called by cmd_list
+	my ($self, $wildmat) = @_;
+	wildmat2re($wildmat);
+	long_response($self, \&list_newsgroups_i, [
+		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
 }
 
 # LIST SUBSCRIPTIONS, DISTRIB.PATS are not supported
@@ -168,6 +188,7 @@ sub cmd_list ($;$$) {
 	if (scalar @args) {
 		my $arg = shift @args;
 		$arg =~ tr/A-Z./a-z_/;
+		my $ret = $arg eq 'active';
 		$arg = "list_$arg";
 		$arg = $self->can($arg);
 		return r501 unless $arg && args_ok($arg, scalar @args);
@@ -175,11 +196,9 @@ sub cmd_list ($;$$) {
 		$arg->($self, @args);
 	} else {
 		more($self, '215 list of newsgroups follows');
-		foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-			group_line($self, $ng);
-		}
+		long_response($self, \&list_active_i, [ # copy array
+			@{$self->{nntpd}->{groupnames}} ]);
 	}
-	'.'
 }
 
 sub listgroup_range_i {
