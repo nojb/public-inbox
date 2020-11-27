@@ -147,7 +147,7 @@ sub list_active_times ($;$) {
 	wildmat2re($wildmat);
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
 		$ng->{newsgroup} =~ $wildmat or next;
-		my $c = eval { $ng->mm->created_at } || time;
+		my $c = eval { $ng->uidvalidity } // time;
 		more($self, "$ng->{newsgroup} $c $ng->{-primary_address}");
 	}
 }
@@ -255,7 +255,7 @@ sub cmd_newgroups ($$$;$$) {
 	# TODO dists
 	more($self, '231 list of new newsgroups follows');
 	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		my $c = eval { $ng->mm->created_at } || 0;
+		my $c = eval { $ng->uidvalidity } // 0;
 		next unless $c > $ts;
 		group_line($self, $ng);
 	}
