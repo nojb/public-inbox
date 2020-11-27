@@ -79,5 +79,9 @@ my @it = $misc->mset('')->items;
 is(scalar(@it), 2, 'two inboxes');
 like($it[0]->get_document->get_data, qr/v2test/, 'docdata matched v2');
 like($it[1]->get_document->get_data, qr/v1test/, 'docdata matched v1');
+my $pi_cfg = PublicInbox::Config->new;
+$pi_cfg->fill_all;
+my $ret = $misc->newsgroup_matches('', $pi_cfg);
+is_deeply($pi_cfg->{-by_newsgroup}, $ret, '->newsgroup_matches');
 
 done_testing;
