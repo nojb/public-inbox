@@ -92,8 +92,7 @@ sub process_line ($$) {
 		err($self, 'error from: %s (%s)', $l, $err);
 		$res = '503 program fault - command not performed';
 	}
-	return 0 unless defined $res;
-	res($self, $res);
+	defined($res) ? res($self, $res) : 0;
 }
 
 # The keyword argument is not used (rfc3977 5.2.2)
@@ -109,9 +108,7 @@ sub cmd_capabilities ($;$) {
 
 sub cmd_mode ($$) {
 	my ($self, $arg) = @_;
-	$arg = uc $arg;
-	return r501 unless $arg eq 'READER';
-	'201 Posting prohibited';
+	uc($arg) eq 'READER' ? '201 Posting prohibited' : r501;
 }
 
 sub cmd_slave ($) { '202 slave status noted' }
