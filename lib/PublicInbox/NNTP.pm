@@ -149,7 +149,7 @@ sub list_active_times ($;$) {
 	for my $ngname (grep(/$wildmat/, @{$self->{nntpd}->{groupnames}})) {
 		my $ibx = $groups->{$ngname};
 		my $c = eval { $ibx->uidvalidity } // time;
-		more($self, "$ngname $c $ibx->{-primary_address}");
+		more($self, "$ngname $c <$ibx->{-primary_address}>");
 	}
 }
 
