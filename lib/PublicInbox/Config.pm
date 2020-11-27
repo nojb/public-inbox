@@ -438,7 +438,9 @@ EOF
 		}
 	}
 	if (my $ng = $ibx->{newsgroup}) {
-		$self->{-by_newsgroup}->{$ng} = $ibx;
+		# PublicInbox::NNTPD does stricter (and more expensive checks),
+		# keep this lean for startup speed
+		$self->{-by_newsgroup}->{$ng} = $ibx unless ref($ng);
 	}
 	$self->{-by_name}->{$name} = $ibx;
 	if ($ibx->{obfuscate}) {
