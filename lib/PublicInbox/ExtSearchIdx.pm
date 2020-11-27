@@ -309,10 +309,11 @@ sub _sync_inbox ($$$) {
 		warn "E: $ekey unsupported inbox version (v$v)\n";
 		return;
 	}
-	unless ($sync->{quit}) {
-		index_todo($self, $sync, $_) for @{delete($sync->{todo}) // []};
-		$self->{midx}->index_ibx($ibx) unless $sync->{quit};
+	for my $unit (@{delete($sync->{todo}) // []}) {
+		last if $sync->{quit};
+		index_todo($self, $sync, $unit);
 	}
+	$self->{midx}->index_ibx($ibx) unless $sync->{quit};
 	$ibx->git->cleanup; # done with this inbox, now
 }
 
@@ -334,17 +335,16 @@ sub eidx_sync { # main entry point
 		-regen_fmt => "%u/?\n",
 	};
 	local $SIG{USR1} = sub { $need_checkpoint = 1 };
-	my $quit = sub { $sync->{quit} = 1; warn "gracefully quitting\n"; };
+	my $quit = PublicInbox::SearchIdx::quit_cb($sync);
 	local $SIG{QUIT} = $quit;
 	local $SIG{INT} = $quit;
 	local $SIG{TERM} = $quit;
 
 	# don't use $_ here, it'll get clobbered by reindex_checkpoint
 	for my $ibx (@{$self->{ibx_list}}) {
-		_sync_inbox($self, $sync, $ibx);
 		last if $sync->{quit};
+		_sync_inbox($self, $sync, $ibx);
 	}
-
 	$self->{oidx}->rethread_done($opt) unless $sync->{quit};
 
 	PublicInbox::V2Writable::done($self);

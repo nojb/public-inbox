@@ -632,10 +632,11 @@ sub index_sync {
 	my ($self, $opt) = @_;
 	delete $self->{lock_path} if $opt->{-skip_lock};
 	$self->with_umask(\&_index_sync, $self, $opt);
-	if ($opt->{reindex}) {
+	if ($opt->{reindex} && !$opt->{quit}) {
 		my %again = %$opt;
 		delete @again{qw(rethread reindex)};
 		index_sync($self, \%again);
+		$opt->{quit} = $again{quit}; # propagate to caller
 	}
 }
 
@@ -688,7 +689,7 @@ sub v1_checkpoint ($$;$) {
 	if (my $pr = $sync->{-opt}->{-progress}) {
 		$pr->("indexed $nr/$sync->{ntodo}\n") if $nr;
 	}
-	if (!$stk) { # more to come
+	if (!$stk && !$sync->{quit}) { # more to come
 		begin_txn_lazy($self);
 		$self->{mm}->{dbh}->begin_work;
 	}
@@ -709,6 +710,7 @@ sub process_stack {
 	if (my @leftovers = keys %{delete($sync->{D}) // {}}) {
 		warn('W: unindexing '.scalar(@leftovers)." leftovers\n");
 		for my $oid (@leftovers) {
+			last if $sync->{quit};
 			$oid = unpack('H*', $oid);
 			$git->cat_async($oid, \&unindex_both, $sync);
 		}
@@ -718,6 +720,7 @@ sub process_stack {
 	}
 	while (my ($f, $at, $ct, $oid, $cur_cmt) = $stk->pop_rec) {
 		my $arg = { %$sync, cur_cmt => $cur_cmt };
+		last if $sync->{quit};
 		if ($f eq 'm') {
 			$arg->{autime} = $at;
 			$arg->{cotime} = $ct;
@@ -731,7 +734,7 @@ sub process_stack {
 			$git->cat_async($oid, \&unindex_both, $arg);
 		}
 	}
-	v1_checkpoint($self, $sync, $stk);
+	v1_checkpoint($self, $sync, $sync->{quit} ? undef : $stk);
 }
 
 sub log2stack ($$$) {
@@ -841,6 +844,16 @@ sub reindex_from ($$) {
 	ref($reindex) eq 'HASH' ? $reindex->{from} : '';
 }
 
+sub quit_cb ($) {
+	my ($sync) = @_;
+	sub {
+		# we set {-opt}->{quit} too, so ->index_sync callers
+		# can abort multi-inbox loops this way
+		$sync->{quit} = $sync->{-opt}->{quit} = 1;
+		warn "gracefully quitting\n";
+	}
+}
+
 # indexes all unindexed messages (v1 only)
 sub _index_sync {
 	my ($self, $opt) = @_;
@@ -850,6 +863,10 @@ sub _index_sync {
 	$ibx->git->batch_prepare;
 	my $pr = $opt->{-progress};
 	my $sync = { reindex => $opt->{reindex}, -opt => $opt, ibx => $ibx };
+	my $quit = quit_cb($sync);
+	local $SIG{QUIT} = $quit;
+	local $SIG{INT} = $quit;
+	local $SIG{TERM} = $quit;
 	my $xdb = $self->begin_txn_lazy;
 	$self->{oidx}->rethread_prepare($opt);
 	my $mm = _msgmap_init($self);
@@ -870,7 +887,7 @@ sub _index_sync {
 	my $stk = prepare_stack($sync, $range);
 	$sync->{ntodo} = $stk ? $stk->num_records : 0;
 	$pr->("$sync->{ntodo}\n") if $pr; # continue previous line
-	process_stack($self, $sync, $stk);
+	process_stack($self, $sync, $stk) if !$sync->{quit};
 }
 
 sub DESTROY {
