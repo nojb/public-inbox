@@ -730,10 +730,36 @@ sub mid_lookup ($$) {
 		my $n = $self_ng->mm->num_for($mid);
 		return ($self_ng, $n) if defined $n;
 	}
-	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
-		next if defined $self_ng && $ng eq $self_ng;
-		my $n = $ng->mm->num_for($mid);
-		return ($ng, $n) if defined $n;
+	my $pi_cfg = $self->{nntpd}->{pi_config};
+	if (my $ALL = $pi_cfg->ALL) {
+		my ($id, $prev);
+		while (my $smsg = $ALL->over->next_by_mid($mid, \$id, \$prev)) {
+			my $xr3 = $ALL->over->get_xref3($smsg->{num});
+			if (my @x = grep(/:$smsg->{blob}\z/, @$xr3)) {
+				my ($ngname, $xnum) = split(/:/, $x[0]);
+				my $ibx = $pi_cfg->{-by_newsgroup}->{$ngname};
+				return ($ibx, $xnum) if $ibx;
+				# fall through to trying all xref3s
+			} else {
+				warn <<EOF;
+W: xref3 missing for <$mid> ($smsg->{blob}) in $ALL->{topdir}, -extindex bug?
+EOF
+			}
+			# try all xref3s
+			for my $x (@$xr3) {
+				my ($ngname, $xnum) = split(/:/, $x);
+				my $ibx = $pi_cfg->{-by_newsgroup}->{$ngname};
+				return ($ibx, $xnum) if $ibx;
+				warn "W: `$ngname' does not exist for #$xnum\n";
+			}
+		}
+		# no warning here, $mid is just invalid
+	} else { # slow path for non-ALL users
+		foreach my $ibx (values %{$self->{nntpd}->{groups}}) {
+			next if defined $self_ng && $ibx eq $self_ng;
+			my $n = $ibx->mm->num_for($mid);
+			return ($ibx, $n) if defined $n;
+		}
 	}
 	(undef, undef);
 }
