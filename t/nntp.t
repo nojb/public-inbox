@@ -112,7 +112,6 @@ use PublicInbox::Config;
 	my $hdr = $mime->header_obj;
 	my $mock_self = {
 		nntpd => {
-			grouplist => [],
 			servername => 'example.com',
 			pi_config => bless {}, 'PublicInbox::Config',
 		},

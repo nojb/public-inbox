@@ -24,7 +24,6 @@ sub new {
 		groups => {},
 		err => \*STDERR,
 		out => \*STDOUT,
-		grouplist => [],
 		pi_config => $pi_config,
 		servername => $name,
 		greet => \"201 $name ready - post via email\r\n",
@@ -60,9 +59,7 @@ sub refresh_groups {
 			delete $groups->{$ngname};
 		}
 	});
-	my @names = sort(keys %$groups);
-	$self->{grouplist} = [ map { $groups->{$_} } @names ];
-	$self->{groupnames} = \@names;
+	$self->{groupnames} = [ sort(keys %$groups) ];
 	$self->{pi_config} = $pi_config;
 	# this will destroy old groups that got deleted
 	$self->{groups} = $groups;

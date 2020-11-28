@@ -263,6 +263,19 @@ sub group_line ($$) {
 	more($self, "$ng->{newsgroup} $max $min n");
 }
 
+sub newgroups_i {
+	my ($self, $ts, $i, $groupnames) = @_;
+	my $end = $$i + 100;
+	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	while ($$i < $end) {
+		my $ngname = $groupnames->[$$i++] // return;
+		my $ibx = $groups->{$ngname} or next; # expired on reload
+		next unless (eval { $ibx->uidvalidity } // 0) > $ts;
+		group_line($self, $ibx);
+	}
+	1;
+}
+
 sub cmd_newgroups ($$$;$$) {
 	my ($self, $date, $time, $gmt, $dists) = @_;
 	my $ts = eval { parse_time($date, $time, $gmt) };
@@ -270,12 +283,8 @@ sub cmd_newgroups ($$$;$$) {
 
 	# TODO dists
 	more($self, '231 list of new newsgroups follows');
-	foreach my $ng (@{$self->{nntpd}->{grouplist}}) {
-		my $c = eval { $ng->uidvalidity } // 0;
-		next unless $c > $ts;
-		group_line($self, $ng);
-	}
-	'.'
+	long_response($self, \&newgroups_i, $ts, \(my $i = 0),
+				$self->{nntpd}->{groupnames});
 }
 
 sub wildmat2re (;$) {
