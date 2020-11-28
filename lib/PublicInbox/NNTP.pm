@@ -321,7 +321,7 @@ sub ngpat2re (;$) {
 sub newnews_i {
 	my ($self, $names, $ts, $prev) = @_;
 	my $ngname = $names->[0];
-	if (my $ibx = $self->{nntpd}->{groups}->{$ngname}) {
+	if (my $ibx = $self->{nntpd}->{pi_config}->{-by_newsgroup}->{$ngname}) {
 		if (my $over = $ibx->over) {
 			my $msgs = $over->query_ts($ts, $$prev);
 			if (scalar @$msgs) {
@@ -360,13 +360,13 @@ sub cmd_newnews ($$$$;$$) {
 
 sub cmd_group ($$) {
 	my ($self, $group) = @_;
-	my $no_such = '411 no such news group';
 	my $nntpd = $self->{nntpd};
-	my $ng = $nntpd->{groups}->{$group} or return $no_such;
+	my $ibx = $nntpd->{pi_config}->{-by_newsgroup}->{$group} or
+		return '411 no such news group';
 	$nntpd->idler_start;
 
-	$self->{ng} = $ng;
-	my ($min, $max) = $ng->mm->minmax;
+	$self->{ng} = $ibx;
+	my ($min, $max) = $ibx->mm->minmax;
 	$self->{article} = $min;
 	my $est_size = $max - $min;
 	"211 $est_size $min $max $group";
@@ -743,7 +743,7 @@ EOF
 		}
 		# no warning here, $mid is just invalid
 	} else { # slow path for non-ALL users
-		foreach my $ibx (values %{$self->{nntpd}->{groups}}) {
+		for my $ibx (values %{$pi_cfg->{-by_newsgroup}}) {
 			next if defined $self_ng && $ibx eq $self_ng;
 			my $n = $ibx->mm->num_for($mid);
 			return ($ibx, $n) if defined $n;

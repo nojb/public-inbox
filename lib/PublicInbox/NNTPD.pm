@@ -60,9 +60,8 @@ sub refresh_groups {
 		}
 	});
 	$self->{groupnames} = [ sort(keys %$groups) ];
-	$self->{pi_config} = $pi_config;
 	# this will destroy old groups that got deleted
-	$self->{groups} = $groups;
+	$self->{pi_config} = $pi_config;
 }
 
 sub idler_start {
