@@ -83,11 +83,13 @@ sub shard_worker_loop ($$$$$) {
 		} elsif ($line =~ s/\A\+X //) {
 			my ($len, $docid, $oid, $eidx_key) =
 							split(/ /, $line, 4);
+			chomp $eidx_key;
 			$self->add_eidx_info($docid, $oid, $eidx_key,
 							eml($r, $len));
 		} elsif ($line =~ s/\A-X //) {
 			my ($len, $docid, $oid, $eidx_key) =
 							split(/ /, $line, 4);
+			chomp $eidx_key;
 			$self->remove_eidx_info($docid, $oid, $eidx_key,
 							eml($r, $len));
 		} else {
