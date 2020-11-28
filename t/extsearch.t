@@ -74,9 +74,11 @@ EOF
 SKIP: {
 	require_mods(qw(Net::NNTP), 1);
 	my ($out, $err) = ("$home/nntpd.out.log", "$home/nntpd.err.log");
-	my $cmd = [ '-nntpd', '-W0' ]; #, "--stdout=$out", "--stderr=$err" ];
+	my $cmd = [ '-nntpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	my $td = start_script($cmd, undef, { 3 => $sock });
 	my $n = Net::NNTP->new($host_port);
+	my @xp = $n->xpath('<testmessage@example.com>');
+	is_deeply(\@xp, [ qw(v1.example/1 v2.example/1) ]);
 	$n->group('v1.example');
 	my $res = $n->head(1);
 	@$res = grep(/^Xref: /, @$res);

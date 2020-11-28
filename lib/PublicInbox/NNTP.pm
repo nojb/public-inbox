@@ -994,12 +994,28 @@ sub cmd_xpath ($$) {
 	return r501 unless $mid =~ $ONE_MSGID;
 	$mid = $1;
 	my @paths;
-	foreach my $ng (values %{$self->{nntpd}->{groups}}) {
-		my $n = $ng->mm->num_for($mid);
-		push @paths, "$ng->{newsgroup}/$n" if defined $n;
+	my $pi_cfg = $self->{nntpd}->{pi_config};
+	my $groups = $pi_cfg->{-by_newsgroup};
+	if (my $ALL = $pi_cfg->ALL) {
+		my ($id, $prev, %seen);
+		while (my $smsg = $ALL->over->next_by_mid($mid, \$id, \$prev)) {
+			my $xr3 = $ALL->over->get_xref3($smsg->{num});
+			for my $x (@$xr3) {
+				my ($ngname, $n) = split(/:/, $x);
+				$x = "$ngname/$n";
+				if ($groups->{$ngname} && !$seen{$x}++) {
+					push(@paths, $x);
+				}
+			}
+		}
+	} else { # slow path, no point in using long_response
+		for my $ibx (values %$groups) {
+			my $n = $ibx->mm->num_for($mid) // next;
+			push @paths, "$ibx->{newsgroup}/$n";
+		}
 	}
 	return '430 no such article on server' unless @paths;
-	'223 '.join(' ', @paths);
+	'223 '.join(' ', sort(@paths));
 }
 
 sub res ($$) { do_write($_[0], $_[1] . "\r\n") }
