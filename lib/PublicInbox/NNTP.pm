@@ -483,42 +483,30 @@ sub set_nntp_headers ($$) {
 
 sub art_lookup ($$$) {
 	my ($self, $art, $code) = @_;
-	my $ng = $self->{ng};
-	my ($n, $mid);
+	my ($ibx, $n);
 	my $err;
 	if (defined $art) {
 		if ($art =~ /\A[0-9]+\z/) {
 			$err = '423 no such article number in this group';
 			$n = int($art);
-			goto find_mid;
+			goto find_ibx;
 		} elsif ($art =~ $ONE_MSGID) {
-			$mid = $1;
-			$err = r430;
-			$n = $ng->mm->num_for($mid) if $ng;
-			goto found if defined $n;
-			foreach my $g (values %{$self->{nntpd}->{groups}}) {
-				$n = $g->mm->num_for($mid);
-				if (defined $n) {
-					$ng = $g;
-					goto found;
-				}
-			}
-			return $err;
+			($ibx, $n) = mid_lookup($self, $1);
+			goto found if $ibx;
+			return r430;
 		} else {
 			return r501;
 		}
 	} else {
 		$err = '420 no current article has been selected';
-		$n = $self->{article};
-		defined $n or return $err;
-find_mid:
-		$ng or return '412 no newsgroup has been selected';
-		$mid = $ng->mm->mid_for($n);
-		defined $mid or return $err;
+		$n = $self->{article} // return $err;
+find_ibx:
+		$ibx = $self->{ng} or
+				return '412 no newsgroup has been selected';
 	}
 found:
-	my $smsg = $ng->over->get_art($n) or return $err;
-	$smsg->{-ibx} = $ng;
+	my $smsg = $ibx->over->get_art($n) or return $err;
+	$smsg->{-ibx} = $ibx;
 	if ($code == 223) { # STAT
 		set_art($self, $n);
 		"223 $n <$smsg->{mid}> article retrieved - " .
@@ -528,7 +516,7 @@ found:
 		$smsg->{nntp_code} = $code;
 		set_art($self, $art);
 		# this dereferences to `undef'
-		${git_async_cat($ng->git, $smsg->{blob}, \&blob_cb, $smsg)};
+		${git_async_cat($ibx->git, $smsg->{blob}, \&blob_cb, $smsg)};
 	}
 }
 
