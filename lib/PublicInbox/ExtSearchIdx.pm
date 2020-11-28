@@ -128,14 +128,21 @@ sub do_xpost ($$) {
 	my $oid = $req->{oid};
 	my $xibx = $req->{ibx};
 	my $eml = $req->{eml};
+	my $eidx_key = $xibx->eidx_key;
 	if (my $new_smsg = $req->{new_smsg}) { # 'm' on cross-posted message
 		my $xnum = $req->{xnum};
-		$self->{oidx}->add_xref3($docid, $xnum, $oid, $xibx->eidx_key);
+		$self->{oidx}->add_xref3($docid, $xnum, $oid, $eidx_key);
 		$idx->shard_add_eidx_info($docid, $oid, $xibx, $eml);
 		check_batch_limit($req);
 	} else { # 'd'
-		$self->{oidx}->remove_xref3($docid, $oid, $xibx->eidx_key);
-		$idx->shard_remove_eidx_info($docid, $oid, $xibx, $eml);
+		my $rm_eidx_info;
+		my $nr = $self->{oidx}->remove_xref3($docid, $oid, $eidx_key,
+							\$rm_eidx_info);
+		if ($nr == 0) {
+			$idx->shard_remove($oid, $docid);
+		} elsif ($rm_eidx_info) {
+			$idx->shard_remove_eidx_info($docid, $oid, $xibx, $eml);
+		}
 	}
 }
 

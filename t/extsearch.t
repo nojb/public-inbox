@@ -118,6 +118,26 @@ my $es = PublicInbox::ExtSearch->new("$home/extindex");
 	is(scalar(@$x1), 1, 'original only has one xref3');
 	is(scalar(@$x2), 1, 'new message has one xref3');
 	isnt($x1->[0], $x2->[0], 'xref3 differs');
+
+	my $mset = $es->mset('b:"BEST MSG"');
+	is($mset->size, 1, 'new message found');
+	$mset = $es->mset('b:"test message"');
+	is($mset->size, 1, 'old message found');
+
+	delete @$es{qw(git over xdb)}; # fork preparation
+
+	open my $rmfh, '+>', undef or BAIL_OUT $!;
+	$rmfh->autoflush(1);
+	print $rmfh $eml2->as_string or BAIL_OUT $!;
+	seek($rmfh, 0, SEEK_SET) or BAIL_OUT $!;
+	$opt->{0} = $rmfh;
+	ok(run_script([qw(-learn rm --all)], undef, $opt), '-learn rm');
+
+	ok(run_script([qw(-extindex --all), "$home/extindex"], undef, undef),
+		'extindex after rm');
+	is($es->over->get_art(2), undef, 'doc #2 gone');
+	$mset = $es->mset('b:"BEST MSG"');
+	is($mset->size, 0, 'new message gone');
 }
 
 my $misc = $es->misc;
