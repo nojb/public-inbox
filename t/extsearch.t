@@ -53,7 +53,10 @@ run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or BAIL_OUT '-mda';
 run_script(['-index', "$home/v1test"]) or BAIL_OUT "index $?";
 
 ok(run_script([qw(-extindex --all), "$home/extindex"]), 'extindex init');
-
+{
+	my $es = PublicInbox::ExtSearch->new("$home/extindex");
+	ok($es->has_threadid, '->has_threadid');
+}
 
 { # TODO: -extindex should write this to config
 	open $fh, '>>', $cfg_path or BAIL_OUT $!;
