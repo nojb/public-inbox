@@ -96,9 +96,9 @@ sub alternates_changed {
 sub last_check_err {
 	my ($self) = @_;
 	my $fh = $self->{err_c} or return;
-	sysseek($fh, 0, 0) or fail($self, "sysseek failed: $!");
+	sysseek($fh, 0, 0) or $self->fail("sysseek failed: $!");
 	defined(sysread($fh, my $buf, -s $fh)) or
-			fail($self, "sysread failed: $!");
+			$self->fail("sysread failed: $!");
 	$buf;
 }
 
@@ -107,19 +107,19 @@ sub _bidi_pipe {
 	if ($self->{$pid}) {
 		if (defined $err) { # "err_c"
 			my $fh = $self->{$err};
-			sysseek($fh, 0, 0) or fail($self, "sysseek failed: $!");
-			truncate($fh, 0) or fail($self, "truncate failed: $!");
+			sysseek($fh, 0, 0) or $self->fail("sysseek failed: $!");
+			truncate($fh, 0) or $self->fail("truncate failed: $!");
 		}
 		return;
 	}
 	my ($out_r, $out_w);
-	pipe($out_r, $out_w) or fail($self, "pipe failed: $!");
+	pipe($out_r, $out_w) or $self->fail("pipe failed: $!");
 	my @cmd = (qw(git), "--git-dir=$self->{git_dir}",
 			qw(-c core.abbrev=40 cat-file), $batch);
 	my $redir = { 0 => $out_r };
 	if ($err) {
 		my $id = "git.$self->{git_dir}$batch.err";
-		my $fh = tmpfile($id) or fail($self, "tmpfile($id): $!");
+		my $fh = tmpfile($id) or $self->fail("tmpfile($id): $!");
 		$self->{$err} = $fh;
 		$redir->{2} = $fh;
 	}
@@ -187,7 +187,7 @@ sub cat_async_retry ($$$$$) {
 	for (my $i = 0; $i < @$inflight; $i += 3) {
 		$buf .= "$inflight->[$i]\n";
 	}
-	print { $self->{out} } $buf or fail($self, "write error: $!");
+	print { $self->{out} } $buf or $self->fail("write error: $!");
 	unshift(@$inflight, \$req, $cb, $arg); # \$ref to indicate retried
 
 	cat_async_step($self, $inflight); # take one step
@@ -265,7 +265,7 @@ sub check_async_step ($$) {
 	# https://public-inbox.org/git/20190118033845.s2vlrb3wd3m2jfzu@dcvr/T/
 	if ($hex eq 'dangling' || $hex eq 'notdir' || $hex eq 'loop') {
 		my $ret = my_read($self->{in_c}, $rbuf, $type + 1);
-		fail($self, defined($ret) ? 'read EOF' : "read: $!") if !$ret;
+		$self->fail(defined($ret) ? 'read EOF' : "read: $!") if !$ret;
 	}
 	$self->{chk_rbuf} = $rbuf if $$rbuf ne '';
 	eval { $cb->($hex, $type, $size, $arg, $self) };
@@ -294,7 +294,7 @@ sub check_async ($$$$) {
 	while (scalar(@$inflight_c) >= MAX_INFLIGHT) {
 		check_async_step($self, $inflight_c);
 	}
-	print { $self->{out_c} } $oid, "\n" or fail($self, "write error: $!");
+	print { $self->{out_c} } $oid, "\n" or $self->fail("write error: $!");
 	push(@$inflight_c, $oid, $cb, $arg);
 }
 
@@ -347,7 +347,7 @@ sub cat_async_abort ($) {
 	cleanup($self);
 }
 
-sub fail {
+sub fail { # may be augmented in subclasses
 	my ($self, $msg) = @_;
 	cat_async_abort($self);
 	croak(ref($self) . ' ' . ($self->{git_dir} // '') . ": $msg");
@@ -449,7 +449,7 @@ sub cat_async ($$$;$) {
 	while (scalar(@$inflight) >= MAX_INFLIGHT) {
 		cat_async_step($self, $inflight);
 	}
-	print { $self->{out} } $oid, "\n" or fail($self, "write error: $!");
+	print { $self->{out} } $oid, "\n" or $self->fail("write error: $!");
 	push(@$inflight, $oid, $cb, $arg);
 }
 
@@ -460,7 +460,7 @@ sub async_prefetch {
 		# but lets not allow one client to monopolize a git process
 		if (scalar(@$inflight) < int(MAX_INFLIGHT/2)) {
 			print { $self->{out} } $oid, "\n" or
-						fail($self, "write error: $!");
+						$self->fail("write error: $!");
 			return push(@$inflight, $oid, $cb, $arg);
 		}
 	}
