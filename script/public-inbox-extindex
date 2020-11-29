@@ -16,6 +16,7 @@ usage: public-inbox-extindex [options] EXTINDEX_DIR [INBOX_DIR]
   --jobs=NUM          set or disable parallelization (NUM=0)
   --batch-size=BYTES  flush changes to OS after a given number of bytes
   --max-size=BYTES    do not index messages larger than the given size
+  --gc                perform garbage collection instead of indexing
   --verbose | -v      increase verbosity (may be repeated)
 
 BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
@@ -26,6 +27,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
 		fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
+		gc
 		all help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
@@ -36,7 +38,13 @@ my $eidx_dir = shift(@ARGV) // die "E: $help";
 local $SIG{USR1} = 'IGNORE'; # to be overridden in eidx_sync
 require PublicInbox::Admin;
 my $cfg = PublicInbox::Config->new;
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
+my @ibxs;
+if ($opt->{gc}) {
+	die "E: inbox paths must not be specified with --gc\n" if @ARGV;
+	die "E: --all not compatible --gc\n" if $opt->{all};
+} else {
+	@ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
+}
 PublicInbox::Admin::require_or_die(qw(-search));
 PublicInbox::Config::json() or die "Cpanel::JSON::XS or similar missing\n";
 PublicInbox::Admin::progress_prepare($opt);
@@ -44,5 +52,10 @@ my $env = PublicInbox::Admin::index_prepare($opt, $cfg);
 local %ENV = (%ENV, %$env) if $env;
 require PublicInbox::ExtSearchIdx;
 my $eidx = PublicInbox::ExtSearchIdx->new($eidx_dir, $opt);
-$eidx->attach_inbox($_) for @ibxs;
-$eidx->eidx_sync($opt);
+if ($opt->{gc}) {
+	$eidx->attach_config($cfg);
+	$eidx->eidx_gc($opt);
+} else {
+	$eidx->attach_inbox($_) for @ibxs;
+	$eidx->eidx_sync($opt);
+}

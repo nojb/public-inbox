@@ -16,7 +16,8 @@ my $host_port = $sock->sockhost . ':' . $sock->sockport;
 my ($home, $for_destroy) = tmpdir();
 local $ENV{HOME} = $home;
 mkdir "$home/.public-inbox" or BAIL_OUT $!;
-open my $fh, '>', "$home/.public-inbox/config" or BAIL_OUT $!;
+my $cfg_path = "$home/.public-inbox/config";
+open my $fh, '>', $cfg_path or BAIL_OUT $!;
 print $fh <<EOF or BAIL_OUT $!;
 [publicinboxMda]
 	spamcheck = none
@@ -55,7 +56,7 @@ ok(run_script([qw(-extindex --all), "$home/extindex"]), 'extindex init');
 
 
 { # TODO: -extindex should write this to config
-	open $fh, '>>', "$home/.public-inbox/config" or BAIL_OUT $!;
+	open $fh, '>>', $cfg_path or BAIL_OUT $!;
 	print $fh <<EOF or BAIL_OUT $!;
 ; for ->ALL
 [extindex "all"]
@@ -147,5 +148,19 @@ my @it = $misc->mset('')->items;
 is(scalar(@it), 2, 'two inboxes');
 like($it[0]->get_document->get_data, qr/v2test/, 'docdata matched v2');
 like($it[1]->get_document->get_data, qr/v1test/, 'docdata matched v1');
+
+if ('remove v1test and test gc') {
+	xsys([qw(git config --unset publicinbox.v1test.inboxdir)],
+		{ GIT_CONFIG => $cfg_path });
+	my $opt = { 2 => \(my $err = '') };
+	ok(run_script([qw(-extindex --gc), "$home/extindex"], undef, $opt),
+		'extindex --gc');
+	like($err, qr/^I: remove #1 v1\.example /ms, 'removed v1 message');
+	is(scalar(grep(!/^I:/, split(/^/m, $err))), 0,
+		'no non-informational messages');
+	$misc->{xdb}->reopen;
+	@it = $misc->mset('')->items;
+	is(scalar(@it), 1, 'only one inbox left');
+}
 
 done_testing;

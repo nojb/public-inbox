@@ -53,6 +53,22 @@ sub commit_txn {
 	delete($self->{xdb})->commit_transaction;
 }
 
+sub remove_eidx_key {
+	my ($self, $eidx_key) = @_;
+	my $xdb = $self->{xdb};
+	my $head = $xdb->postlist_begin('Q'.$eidx_key);
+	my $tail = $xdb->postlist_end('Q'.$eidx_key);
+	my @docids; # only one, unless we had bugs
+	for (; $head != $tail; $head++) {
+		push @docids, $head->get_docid;
+	}
+	for my $docid (@docids) {
+		$xdb->delete_document($docid);
+		warn "I: remove inbox docid #$docid ($eidx_key)\n";
+	}
+}
+
+# adds or updates according to $eidx_key
 sub index_ibx {
 	my ($self, $ibx) = @_;
 	my $eidx_key = $ibx->eidx_key;

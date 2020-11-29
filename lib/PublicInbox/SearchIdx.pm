@@ -471,7 +471,7 @@ sub remove_eidx_info {
 	my $doc = _get_doc($self, $docid, $oid) or return;
 	eval { $doc->remove_term('O'.$eidx_key) };
 	warn "W: ->remove_term O$eidx_key: $@\n" if $@;
-	for my $l ($eml->header_raw('List-Id')) {
+	for my $l ($eml ? $eml->header_raw('List-Id') : ()) {
 		$l =~ /<([^>]+)>/ or next;
 		my $lid = lc $1;
 		eval { $doc->remove_term('G' . $lid) };
@@ -968,6 +968,27 @@ sub eidx_shard_new {
 	}, $class;
 	$self->{-set_indexlevel_once} = 1 if $self->{indexlevel} eq 'medium';
 	$self;
+}
+
+# ensure there's no stale Xapian docs by treating $over as canonical
+sub over_check {
+	my ($self, $over) = @_;
+	begin_txn_lazy($self);
+	my $sth = $over->dbh->prepare(<<'');
+SELECT COUNT(*) FROM over WHERE num = ?
+
+	my $xdb = $self->{xdb};
+	my $cur = $xdb->postlist_begin('');
+	my $end = $xdb->postlist_end('');
+	my $xdir = $self->xdir;
+	for (; $cur != $end; $cur++) {
+		my $docid = $cur->get_docid;
+		$sth->execute($docid);
+		my $x = $sth->fetchrow_array;
+		next if $x > 0;
+		warn "I: removing $xdir #$docid, not in `over'\n";
+		$xdb->delete_document($docid);
+	}
 }
 
 1;

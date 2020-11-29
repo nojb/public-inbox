@@ -57,6 +57,7 @@ sub spawn_worker {
 
 sub eml ($$) {
 	my ($r, $len) = @_;
+	return if $len == 0;
 	my $n = read($r, my $bref, $len) or die "read: $!\n";
 	$n == $len or die "short read: $n != $len\n";
 	PublicInbox::Eml->new(\$bref);
@@ -92,6 +93,10 @@ sub shard_worker_loop ($$$$$) {
 			chomp $eidx_key;
 			$self->remove_eidx_info($docid, $oid, $eidx_key,
 							eml($r, $len));
+		} elsif ($line =~ s/\AO ([^\n]+)\n//) {
+			my $over_fn = $1;
+			$over_fn =~ tr/\0/\n/;
+			$self->over_check(PublicInbox::Over->new($over_fn));
 		} else {
 			chomp $line;
 			my $eidx_key;
@@ -155,10 +160,9 @@ sub shard_add_eidx_info {
 }
 
 sub shard_remove_eidx_info {
-	my ($self, $docid, $oid, $xibx, $eml) = @_;
-	my $eidx_key = $xibx->eidx_key;
+	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
 	if (my $w = $self->{w}) {
-		my $hdr = $eml->header_obj->as_string;
+		my $hdr = $eml ? $eml->header_obj->as_string : '';
 		my $len = length($hdr);
 		print $w "-X $len $docid $oid $eidx_key\n", $hdr or
 			die "failed to write shard: $!";
@@ -209,6 +213,17 @@ sub shard_remove {
 		print $w "D $oid $num\n" or die "failed to write remove $!";
 	} else { # same process
 		$self->remove_by_oid($oid, $num);
+	}
+}
+
+sub shard_over_check {
+	my ($self, $over) = @_;
+	if (my $w = $self->{w}) { # triggers remove_by_oid in a shard child
+		my ($over_fn) = $over->{dbh}->sqlite_db_filename;
+		$over_fn =~ tr/\n/\0/;
+		print $w "O $over_fn\n" or die "failed to write over $!";
+	} else {
+		$self->over_check($over);
 	}
 }
 
