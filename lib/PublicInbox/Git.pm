@@ -12,17 +12,19 @@ use v5.10.1;
 use parent qw(Exporter);
 use POSIX ();
 use IO::Handle; # ->autoflush
-use Errno qw(EINTR);
+use Errno qw(EINTR EAGAIN);
 use File::Glob qw(bsd_glob GLOB_NOSORT);
 use File::Spec ();
 use Time::HiRes qw(stat);
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::Tmpfile;
+use IO::Poll qw(POLLIN);
 use Carp qw(croak);
 use Digest::SHA ();
 our @EXPORT_OK = qw(git_unquote git_quote);
 our $PIPE_BUFSIZ = 65536; # Linux default
 our $in_cleanup;
+our $RDTIMEO = 60_000; # milliseconds
 
 use constant MAX_INFLIGHT =>
 	(($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF()) * 3)
@@ -132,6 +134,8 @@ sub _bidi_pipe {
 	$self->{$in} = $in_r;
 }
 
+sub poll_in ($) { IO::Poll::_poll($RDTIMEO, fileno($_[0]), my $ev = POLLIN) }
+
 sub my_read ($$$) {
 	my ($fh, $rbuf, $len) = @_;
 	my $left = $len - length($$rbuf);
@@ -140,9 +144,12 @@ sub my_read ($$$) {
 		$r = sysread($fh, $$rbuf, $PIPE_BUFSIZ, length($$rbuf));
 		if ($r) {
 			$left -= $r;
+		} elsif (defined($r)) { # EOF
+			return 0;
 		} else {
-			next if (!defined($r) && $! == EINTR);
-			return $r;
+			next if ($! == EAGAIN and poll_in($fh));
+			next if $! == EINTR; # may be set by sysread or poll_in
+			return; # unrecoverable error
 		}
 	}
 	\substr($$rbuf, 0, $len, '');
@@ -154,9 +161,15 @@ sub my_readline ($$) {
 		if ((my $n = index($$rbuf, "\n")) >= 0) {
 			return substr($$rbuf, 0, $n + 1, '');
 		}
-		my $r = sysread($fh, $$rbuf, $PIPE_BUFSIZ, length($$rbuf));
-		next if $r || (!defined($r) && $! == EINTR);
-		return defined($r) ? '' : undef; # EOF or error
+		my $r = sysread($fh, $$rbuf, $PIPE_BUFSIZ, length($$rbuf))
+								and next;
+
+		# return whatever's left on EOF
+		return substr($$rbuf, 0, length($$rbuf)+1, '') if defined($r);
+
+		next if ($! == EAGAIN and poll_in($fh));
+		next if $! == EINTR; # may be set by sysread or poll_in
+		return; # unrecoverable error
 	}
 }
 
@@ -204,7 +217,8 @@ sub cat_async_step ($$) {
 		$type = 'missing';
 		$oid = ref($req) ? $$req : $req if $oid eq '';
 	} else {
-		$self->fail("Unexpected result from async git cat-file: $head");
+		my $err = $! ? " ($!)" : '';
+		$self->fail("bad result from async cat-file: $head$err");
 	}
 	$self->{cat_rbuf} = $rbuf if $$rbuf ne '';
 	eval { $cb->($bref, $oid, $type, $size, $arg) };

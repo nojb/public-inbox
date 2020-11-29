@@ -3,11 +3,6 @@
 #
 # internal class used by PublicInbox::Git + PublicInbox::DS
 # This parses the output pipe of "git cat-file --batch"
-#
-# Note: this does NOT set the non-blocking flag, we expect `git cat-file'
-# to be a local process, and git won't start writing a blob until it's
-# fully read.  So minimize context switching and read as much as possible
-# and avoid holding a buffer in our heap any longer than it has to live.
 package PublicInbox::GitAsyncCat;
 use strict;
 use parent qw(PublicInbox::DS Exporter);
@@ -69,6 +64,7 @@ sub git_async_cat ($$$$) {
 	$gitish->{async_cat} //= do {
 		# read-only end of pipe (Gcf2Client is write-only end)
 		my $self = bless { gitish => $gitish }, __PACKAGE__;
+		$gitish->{in}->blocking(0);
 		$self->SUPER::new($gitish->{in}, EPOLLIN|EPOLLET);
 		\undef; # this is a true ref()
 	};
