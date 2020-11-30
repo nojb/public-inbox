@@ -17,6 +17,8 @@ use PublicInbox::DS qw(now);
 use Digest::SHA qw(sha1_hex);
 use Time::Local qw(timegm timelocal);
 use PublicInbox::GitAsyncCat;
+use PublicInbox::Address;
+
 use constant {
 	LINE_MAX => 512, # RFC 977 section 2.3
 	r501 => '501 command syntax error',
@@ -417,27 +419,42 @@ sub header_append ($$$) {
 	$hdr->header_set($k, @v, $v);
 }
 
+sub xref_by_tc ($$$) {
+	my ($xref, $pi_cfg, $smsg) = @_;
+	my $by_addr = $pi_cfg->{-by_addr};
+	my $groups = $pi_cfg->{-by_newsgroup};
+	my $mid = $smsg->{mid};
+	for my $f (qw(to cc)) {
+		my @ibxs = map {
+			$by_addr->{lc($_)} // ()
+		} (PublicInbox::Address::emails($smsg->{$f} // ''));
+		for my $ibx (@ibxs) {
+			$groups->{my $ngname = $ibx->{newsgroup}} or next;
+			next if defined $xref->{$ngname};
+			$xref->{$ngname} = eval { $ibx->mm->num_for($mid) };
+		}
+	}
+}
+
 sub xref ($$$) {
 	my ($self, $cur_ibx, $smsg) = @_;
 	my $nntpd = $self->{nntpd};
-	my $cur_ngname = $cur_ibx->{newsgroup};
-	my $ret = "$nntpd->{servername} $cur_ngname:$smsg->{num}";
+	my $cur_ng = $cur_ibx->{newsgroup};
+	my $xref;
 	if (my $ALL = $nntpd->{pi_config}->ALL) {
-		if (my $ary = $ALL->nntp_xref_for($cur_ibx, $smsg)) {
-			$ret .= join(' ', '', @$ary) if scalar(@$ary);
-		}
-		# better off wrong than slow if there's thousands of groups,
-		# so no fallback to the slow path below:
+		$xref = $ALL->nntp_xref_for($cur_ibx, $smsg);
+		xref_by_tc($xref, $nntpd->{pi_config}, $smsg);
 	} else { # slow path
+		$xref = { $cur_ng => $smsg->{num} };
 		my $mid = $smsg->{mid};
-		my $groups = $nntpd->{pi_config}->{-by_newsgroup};
-		for my $xngname (@{$nntpd->{groupnames}}) {
-			next if $cur_ngname eq $xngname;
-			my $xibx = $groups->{$xngname} or next;
-			my $num = eval { $xibx->mm->num_for($mid) } or next;
-			$ret .= " $xngname:$num";
+		for my $ibx (values %{$nntpd->{pi_config}->{-by_newsgroup}}) {
+			next if defined($xref->{$ibx->{newsgroup}});
+			my $num = eval { $ibx->mm->num_for($mid) } // next;
+			$xref->{$ibx->{newsgroup}} = $num;
 		}
 	}
+	my $ret = "$nntpd->{servername} $cur_ng:".delete($xref->{$cur_ng});
+	$ret .= " $_:$xref->{$_}" for (sort keys %$xref);
 	$ret;
 }
 
@@ -930,8 +947,13 @@ sub cmd_over ($;$) {
 		more($self, '224 Overview information follows (multi-line)');
 
 		# Only set article number column if it's the current group
+		# (RFC 3977 8.3.2)
 		my $self_ng = $self->{ng};
-		$smsg->{num} = 0 if (!$self_ng || $self_ng ne $ng);
+		if (!$self_ng || $self_ng ne $ng) {
+			# set {-orig_num} for nntp_xref_for
+			$smsg->{-orig_num} = $smsg->{num};
+			$smsg->{num} = 0;
+		}
 		more($self, over_line($self, $ng, $smsg));
 		'.';
 	} else {

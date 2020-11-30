@@ -72,7 +72,8 @@ EOF
 	ok($pi_cfg->ALL, '->ALL');
 	my $ibx = $pi_cfg->{-by_newsgroup}->{'v2.example'};
 	my $ret = $pi_cfg->ALL->nntp_xref_for($ibx, $ibx->over->get_art(1));
-	is_deeply($ret, ['v1.example:1'], '->nntp_xref_for');
+	is_deeply($ret, { 'v1.example' => 1, 'v2.example' => 1 },
+		'->nntp_xref_for');
 }
 
 SKIP: {

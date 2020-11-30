@@ -50,8 +50,7 @@ sub git {
 	$self->{git} //= PublicInbox::Git->new("$self->{topdir}/ALL.git");
 }
 
-# returns an arrayref of [ $NEWSGROUP_NAME:$ART_NO ] using
-# the `xref3' table
+# returns a hashref of { $NEWSGROUP_NAME => $ART_NO } using the `xref3' table
 sub nntp_xref_for { # NNTP only
 	my ($self, $xibx, $xsmsg) = @_;
 	my $dbh = over($self)->dbh;
@@ -69,7 +68,9 @@ SELECT ibx_id FROM inboxes WHERE eidx_key = ? LIMIT 1
 SELECT docid FROM xref3 WHERE oidbin = ? AND xnum = ? AND ibx_id = ? LIMIT 1
 
 	$sth->bind_param(1, pack('H*', $xsmsg->{blob}), SQL_BLOB);
-	$sth->bind_param(2, $xsmsg->{num});
+
+	# NNTP::cmd_over can set {num} to zero according to RFC 3977 8.3.2
+	$sth->bind_param(2, $xsmsg->{num} || $xsmsg->{-orig_num});
 	$sth->bind_param(3, $xibx_id);
 	$sth->execute;
 	my $docid = $sth->fetchrow_array // do {
@@ -81,9 +82,9 @@ EOF
 
 	# LIMIT is number of newsgroups on server:
 	$sth = $dbh->prepare_cached(<<'', undef, 1);
-SELECT ibx_id,xnum FROM xref3 WHERE docid = ?
+SELECT ibx_id,xnum FROM xref3 WHERE docid = ? AND ibx_id != ?
 
-	$sth->execute($docid);
+	$sth->execute($docid, $xibx_id);
 	my $rows = $sth->fetchall_arrayref;
 
 	my $eidx_key_sth = $dbh->prepare_cached(<<'', undef, 1);
@@ -91,18 +92,16 @@ SELECT eidx_key FROM inboxes WHERE ibx_id = ? LIMIT 1
 
 	my %xref = map {
 		my ($ibx_id, $xnum) = @$_;
-		if ($ibx_id == $xibx_id) {
-			();
-		} else {
-			$eidx_key_sth->execute($ibx_id);
-			my $eidx_key = $eidx_key_sth->fetchrow_array;
 
-			# only include if there's a newsgroup name
-			$eidx_key && index($eidx_key, '/') >= 0 ?
-				() : ($eidx_key => $xnum)
-		}
+		$eidx_key_sth->execute($ibx_id);
+		my $eidx_key = $eidx_key_sth->fetchrow_array;
+
+		# only include if there's a newsgroup name
+		$eidx_key && index($eidx_key, '/') >= 0 ?
+			() : ($eidx_key => $xnum)
 	} @$rows;
-	[ map { "$_:$xref{$_}" } sort keys %xref ]; # match NNTP LIST order
+	$xref{$xibx->{newsgroup}} = $xsmsg->{num};
+	\%xref;
 }
 
 sub mm { undef }
