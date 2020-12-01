@@ -437,10 +437,23 @@ EOF
 			$self->{-by_list_id}->{lc($list_id)} = $ibx;
 		}
 	}
-	if (my $ng = $ibx->{newsgroup}) {
-		# PublicInbox::NNTPD does stricter (and more expensive checks),
-		# keep this lean for startup speed
-		$self->{-by_newsgroup}->{$ng} = $ibx unless ref($ng);
+	if (my $ngname = $ibx->{newsgroup}) {
+		if (ref($ngname)) {
+			delete $ibx->{newsgroup};
+			warn 'multiple newsgroups not supported: '.
+				join(', ', @$ngname). "\n";
+		# Newsgroup name needs to be compatible with RFC 3977
+		# wildmat-exact and RFC 3501 (IMAP) ATOM-CHAR.
+		# Leave out a few chars likely to cause problems or conflicts:
+		# '|', '<', '>', ';', '#', '$', '&',
+		} elsif ($ngname =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]!) {
+			delete $ibx->{newsgroup};
+			warn "newsgroup name invalid: `$ngname'\n";
+		} else {
+			# PublicInbox::NNTPD does stricter ->nntp_usable
+			# checks, keep this lean for startup speed
+			$self->{-by_newsgroup}->{$ngname} = $ibx;
+		}
 	}
 	$self->{-by_name}->{$name} = $ibx;
 	if ($ibx->{obfuscate}) {

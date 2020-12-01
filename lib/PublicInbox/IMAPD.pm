@@ -27,12 +27,13 @@ sub new {
 sub imapd_refresh_ibx { # pi_config->each_inbox cb
 	my ($ibx, $imapd) = @_;
 	my $ngname = $ibx->{newsgroup} or return;
-	if (ref $ngname) {
-		warn 'multiple newsgroups not supported: '.
-			join(', ', @$ngname). "\n";
-		return;
-	} elsif ($ngname =~ m![^a-z0-9/_\.\-\~\@\+\=:]! ||
-		 $ngname =~ /\.[0-9]+\z/) {
+
+	# We require lower-case since IMAP mailbox names are
+	# case-insensitive (but -nntpd matches INN in being
+	# case-sensitive
+	if ($ngname =~ m![^a-z0-9/_\.\-\~\@\+\=:]! ||
+			# don't confuse with 50K slices
+			$ngname =~ /\.[0-9]+\z/) {
 		warn "mailbox name invalid: newsgroup=`$ngname'\n";
 		return;
 	}

@@ -38,20 +38,8 @@ sub refresh_groups {
 	my $groups = $pi_config->{-by_newsgroup}; # filled during each_inbox
 	$pi_config->each_inbox(sub {
 		my ($ibx) = @_;
-		my $ngname = $ibx->{newsgroup} or return;
-		if (ref $ngname) {
-			warn 'multiple newsgroups not supported: '.
-				join(', ', @$ngname). "\n";
-		# Newsgroup name needs to be compatible with RFC 3977
-		# wildmat-exact and RFC 3501 (IMAP) ATOM-CHAR.
-		# Leave out a few chars likely to cause problems or conflicts:
-		# '|', '<', '>', ';', '#', '$', '&',
-		} elsif ($ngname =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]!) {
-			warn "newsgroup name invalid: `$ngname'\n";
-			delete $groups->{$ngname};
-		} elsif ($ibx->nntp_usable) {
-			# Only valid if msgmap and search works
-
+		my $ngname = $ibx->{newsgroup} // return;
+		if ($ibx->nntp_usable) { # only valid if msgmap and over works
 			# preload to avoid fragmentation:
 			$ibx->description;
 			$ibx->base_url;
