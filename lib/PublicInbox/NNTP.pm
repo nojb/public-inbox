@@ -422,14 +422,13 @@ sub header_append ($$$) {
 sub xref_by_tc ($$$) {
 	my ($xref, $pi_cfg, $smsg) = @_;
 	my $by_addr = $pi_cfg->{-by_addr};
-	my $groups = $pi_cfg->{-by_newsgroup};
 	my $mid = $smsg->{mid};
 	for my $f (qw(to cc)) {
 		my @ibxs = map {
 			$by_addr->{lc($_)} // ()
 		} (PublicInbox::Address::emails($smsg->{$f} // ''));
 		for my $ibx (@ibxs) {
-			$groups->{my $ngname = $ibx->{newsgroup}} or next;
+			my $ngname = $ibx->{newsgroup} // next;
 			next if defined $xref->{$ngname};
 			$xref->{$ngname} = eval { $ibx->mm->num_for($mid) };
 		}
