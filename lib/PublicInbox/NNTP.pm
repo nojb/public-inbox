@@ -204,7 +204,7 @@ sub listgroup_range_i {
 	my ($self, $beg, $end) = @_;
 	my $r = $self->{ng}->mm->msg_range($beg, $end, 'num');
 	scalar(@$r) or return;
-	more($self, join("\r\n", map { $_->[0] } @$r));
+	$self->msg_more(join('', map { "$_->[0]\r\n" } @$r));
 	1;
 }
 
@@ -327,10 +327,9 @@ sub newnews_i {
 		if (my $over = $ibx->over) {
 			my $msgs = $over->query_ts($ts, $$prev);
 			if (scalar @$msgs) {
-				more($self, '<' .
-					join(">\r\n<",
-						map { $_->{mid} } @$msgs ) .
-					'>');
+				$self->msg_more(join('', map {
+							"<$_->{mid}>\r\n";
+						} @$msgs));
 				$$prev = $msgs->[-1]->{num};
 				return 1; # continue on current group
 			}
@@ -707,7 +706,7 @@ sub hdr_msgid_range_i {
 	my ($self, $beg, $end) = @_;
 	my $r = $self->{ng}->mm->msg_range($beg, $end);
 	@$r or return;
-	more($self, join("\r\n", map { "$_->[0] <$_->[1]>" } @$r));
+	$self->msg_more(join('', map { "$_->[0] <$_->[1]>\r\n" } @$r));
 	1;
 }
 
@@ -774,8 +773,8 @@ sub xref_range_i {
 	my $msgs = $ng->over->query_xover($$beg, $end);
 	scalar(@$msgs) or return;
 	$$beg = $msgs->[-1]->{num} + 1;
-	more($self, join("\r\n", map {
-		"$_->{num} ".xref($self, $ng, $_);
+	$self->msg_more(join('', map {
+		"$_->{num} ".xref($self, $ng, $_) . "\r\n";
 	} @$msgs));
 	1;
 }
@@ -934,7 +933,7 @@ sub over_line ($$$) {
 		$smsg->{lines},
 		"Xref: " . xref($self, $ng, $smsg));
 	utf8::encode($s);
-	$s
+	$s .= "\r\n";
 }
 
 sub cmd_over ($;$) {
@@ -953,7 +952,7 @@ sub cmd_over ($;$) {
 			$smsg->{-orig_num} = $smsg->{num};
 			$smsg->{num} = 0;
 		}
-		more($self, over_line($self, $ng, $smsg));
+		$self->msg_more(over_line($self, $ng, $smsg));
 		'.';
 	} else {
 		cmd_xover($self, $range);
@@ -967,7 +966,7 @@ sub xover_i {
 	my $nr = scalar @$msgs or return;
 
 	# OVERVIEW.FMT
-	more($self, join("\r\n", map {
+	$self->msg_more(join('', map {
 		over_line($self, $ng, $_);
 		} @$msgs));
 	$$beg = $msgs->[-1]->{num} + 1;
