@@ -103,9 +103,37 @@ sub ext_msg_step {
 	}
 }
 
+sub ext_msg_ALL ($) {
+	my ($ctx) = @_;
+	my $ALL = $ctx->{www}->{pi_config}->ALL or return;
+	my $by_eidx_key = $ctx->{www}->{pi_config}->{-by_eidx_key};
+	my $cur_key = $ctx->{-inbox}->eidx_key;
+	my %seen = ($cur_key => 1);
+	my ($id, $prev);
+	while (my $x = $ALL->over->next_by_mid($ctx->{mid}, \$id, \$prev)) {
+		my $xr3 = $ALL->over->get_xref3($x->{num});
+		for my $k (@$xr3) {
+			$k =~ s/:[0-9]+:$x->{blob}\z// or next;
+			next if $k eq $cur_key;
+			my $ibx = $by_eidx_key->{$k} // next;
+			my $url = $ibx->base_url or next;
+			push(@{$ctx->{found}}, $ibx) unless $seen{$k}++;
+		}
+	}
+	return exact($ctx) if $ctx->{found};
+
+	# fall back to partial MID matching
+	for my $ibxish ($ctx->{-inbox}, $ALL) {
+		my $mids = search_partial($ibxish, $ctx->{mid}) or next;
+		push @{$ctx->{partial}}, [ $ibxish, $mids ];
+		last if ($ctx->{n_partial} += scalar(@$mids)) >= PARTIAL_MAX;
+	}
+	partial_response($ctx);
+}
+
 sub ext_msg {
 	my ($ctx) = @_;
-	sub {
+	ext_msg_ALL($ctx) // sub {
 		$ctx->{-wcb} = $_[0]; # HTTP server write callback
 
 		if ($ctx->{env}->{'pi-httpd.async'}) {
@@ -159,7 +187,7 @@ sub finalize_exact {
 	finalize_partial($ctx);
 }
 
-sub finalize_partial {
+sub partial_response ($) {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
 	my $code = 404;
@@ -192,8 +220,10 @@ sub finalize_partial {
 	$ctx->{-html_tip} = $s .= '</pre>';
 	$ctx->{-title_html} = $title;
 	$ctx->{-upfx} = '../';
-	$ctx->{-wcb}->(html_oneshot($ctx, $code));
+	html_oneshot($ctx, $code);
 }
+
+sub finalize_partial ($) { $_[0]->{-wcb}->(partial_response($_[0])) }
 
 sub ext_urls {
 	my ($ctx, $mid, $href, $html) = @_;
