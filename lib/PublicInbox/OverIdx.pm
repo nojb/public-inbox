@@ -170,8 +170,14 @@ sub _resolve_mid_to_tid {
 		$$tid = $cur_tid;
 	} else { # rethreading, queue up dead ghosts
 		$$tid = next_tid($self);
-		my $num = $smsg->{num};
-		push(@{$self->{-ghosts_to_delete}}, $num) if $num < 0;
+		my $n = $smsg->{num};
+		if ($n > 0) {
+			$self->{dbh}->prepare_cached(<<'')->execute($$tid, $n);
+UPDATE over SET tid = ? WHERE num = ?
+
+		} elsif ($n < 0) {
+			push(@{$self->{-ghosts_to_delete}}, $n);
+		}
 	}
 	1;
 }
@@ -294,7 +300,7 @@ sub _add_over {
 		}
 	} elsif ($n < 0) { # ghost
 		$$old_tid //= $cur_valid ? $cur_tid : next_tid($self);
-		link_refs($self, $refs, $$old_tid);
+		$$old_tid = link_refs($self, $refs, $$old_tid);
 		delete_by_num($self, $n);
 		$$v++;
 	}
