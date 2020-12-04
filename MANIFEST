@@ -366,6 +366,7 @@ t/solver_git.t
 t/spamcheck_spamc.t
 t/spawn.t
 t/thread-cycle.t
+t/thread-index-gap.t
 t/time.t
 t/uri_imap.t
 t/utf8.eml
