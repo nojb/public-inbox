@@ -33,6 +33,7 @@ sub new {
 	$self->{-by_list_id} = {};
 	$self->{-by_name} = {};
 	$self->{-by_newsgroup} = {};
+	$self->{-by_eidx_key} = {};
 	$self->{-no_obfuscate} = {};
 	$self->{-limiters} = {};
 	$self->{-code_repos} = {}; # nick => PublicInbox::Git object
@@ -476,8 +477,7 @@ EOF
 			push @$repo_objs, $repo if $repo;
 		}
 	}
-
-	$ibx
+	$self->{-by_eidx_key}->{$ibx->eidx_key} = $ibx;
 }
 
 sub _fill_ei ($$) {

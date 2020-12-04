@@ -63,7 +63,6 @@ sub call {
 		return redirect($code, $url);
 	}
 
-	my $res;
 	my @try = (join('/', @parts));
 
 	# trailing slash is in the rest of our WWW, so maybe some users
@@ -72,13 +71,30 @@ sub call {
 		pop @parts;
 		push @try, join('/', @parts);
 	}
-
-	foreach my $mid (@try) {
-		my $arg = [ $mid ];
-		$pi_config->each_inbox(\&try_inbox, $arg);
-		defined($res = $arg->[1]) and last;
+	my $ALL = $pi_config->ALL;
+	if (my $over = $ALL ? $ALL->over : undef) {
+		my $by_eidx_key = $pi_config->{-by_eidx_key};
+		for my $mid (@try) {
+			my ($id, $prev);
+			while (my $x = $over->next_by_mid($mid, \$id, \$prev)) {
+				my $xr3 = $over->get_xref3($x->{num});
+				for (@$xr3) {
+					s/:[0-9]+:$x->{blob}\z// or next;
+					my $ibx = $by_eidx_key->{$_} // next;
+					my $url = $ibx->base_url or next;
+					$url .= mid_escape($mid) . '/';
+					return redirect(302, $url);
+				}
+			}
+		}
+	} else { # slow path, scan every inbox
+		for my $mid (@try) {
+			my $arg = [ $mid ]; # [1] => result
+			$pi_config->each_inbox(\&try_inbox, $arg);
+			return $arg->[1] if $arg->[1];
+		}
 	}
-	$res || [ 404, [qw(Content-Type text/plain)], ["404 Not Found\n"] ];
+	[ 404, [qw(Content-Type text/plain)], ["404 Not Found\n"] ];
 }
 
 1;
