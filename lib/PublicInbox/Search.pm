@@ -6,7 +6,7 @@
 package PublicInbox::Search;
 use strict;
 use parent qw(Exporter);
-our @EXPORT_OK = qw(mdocid retry_reopen);
+our @EXPORT_OK = qw(retry_reopen);
 use List::Util qw(max);
 
 # values for searching, changing the numeric value breaks

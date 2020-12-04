@@ -14,7 +14,7 @@ use PublicInbox::WwwAtomStream;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::SearchThread;
 use PublicInbox::SearchQuery;
-use PublicInbox::Search qw(mdocid);
+use PublicInbox::Search;
 my %rmap_inc;
 
 sub mbox_results {
@@ -287,13 +287,12 @@ sub get_pct ($) {
 sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my $ibx = $ctx->{-inbox};
-	my $nshard = $ibx->search->{nshard} // 1;
-	my %pct = map { mdocid($nshard, $_) => get_pct($_) } $mset->items;
-	my $msgs = $ibx->over->get_all(keys %pct);
-	$_->{pct} = $pct{$_->{num}} for @$msgs;
+	my @pct = map { get_pct($_) } $mset->items;
+	my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
+	my $i = 0;
+	$_->{pct} = $pct[$i++] for @$msgs;
 	my $r = $q->{r};
 	if ($r) { # for descriptions in search_nav_bot
-		my @pct = values %pct;
 		$q->{-min_pct} = min(@pct);
 		$q->{-max_pct} = max(@pct);
 	}
