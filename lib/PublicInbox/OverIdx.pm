@@ -389,13 +389,12 @@ sub create_tables {
 
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS over (
-	num INTEGER NOT NULL, /* NNTP article number == IMAP UID */
+	num INTEGER PRIMARY KEY NOT NULL, /* NNTP article number == IMAP UID */
 	tid INTEGER NOT NULL, /* THREADID (IMAP REFERENCES threading, JMAP) */
 	sid INTEGER, /* Subject ID (IMAP ORDEREDSUBJECT "threading") */
 	ts INTEGER, /* IMAP INTERNALDATE (Received: header, git commit time) */
 	ds INTEGER, /* RFC-2822 sent Date: header, git author time */
-	ddd VARBINARY, /* doc-data-deflated (->to_doc_data, ->load_from_data) */
-	UNIQUE (num)
+	ddd VARBINARY /* doc-data-deflated (->to_doc_data, ->load_from_data) */
 )
 
 	$dbh->do('CREATE INDEX IF NOT EXISTS idx_tid ON over (tid)');
