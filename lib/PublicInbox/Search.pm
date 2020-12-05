@@ -396,6 +396,7 @@ sub qparse_new ($) {
 	# for IMAP, undocumented for WWW and may be split off go away
 	$cb->($qp, $NVRP->new(BYTES, 'bytes:'));
 	$cb->($qp, $NVRP->new(TS, 'ts:'));
+	$cb->($qp, $NVRP->new(UID, 'uid:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $_) foreach split(/ /, $prefix);
