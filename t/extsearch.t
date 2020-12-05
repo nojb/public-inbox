@@ -130,8 +130,31 @@ my $es = PublicInbox::ExtSearch->new("$home/extindex");
 	is($mset->size, 1, 'new message found');
 	$mset = $es->mset('b:"test message"');
 	is($mset->size, 1, 'old message found');
-
 	delete @$es{qw(git over xdb)}; # fork preparation
+
+	my $pi_cfg = PublicInbox::Config->new;
+	$pi_cfg->fill_all;
+	is(scalar($pi_cfg->ALL->mset('s:Testing')->items), 2,
+		'2 results in ->ALL');
+	my $res = {};
+	my $nr = 0;
+	$pi_cfg->each_inbox(sub {
+		$nr++;
+		my ($ibx) = @_;
+		local $SIG{__WARN__} = sub {}; # FIXME support --reindex
+		my $mset = $ibx->isrch->mset('s:Testing');
+		$res->{$ibx->eidx_key} = $ibx->isrch->mset_to_smsg($ibx, $mset);
+	});
+	is($nr, 2, 'two inboxes');
+	my $exp = {};
+	for my $v (qw(v1 v2)) {
+		my $ibx = $pi_cfg->lookup_newsgroup("$v.example");
+		my $smsg = $ibx->over->get_art(1);
+		$smsg->psgi_cull;
+		$exp->{"$v.example"} = [ $smsg ];
+	}
+	is_deeply($res, $exp, 'isearch limited results');
+	$pi_cfg = $res = $exp = undef;
 
 	open my $rmfh, '+>', undef or BAIL_OUT $!;
 	$rmfh->autoflush(1);

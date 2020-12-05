@@ -54,7 +54,7 @@ sub html_top ($) {
 			qq(<a\nhref="$color">color</a> / ).
 			qq(<a\nhref=#mirror>mirror</a> / ).
 			qq(<a\nhref="$atom">Atom feed</a>);
-	if ($ibx->search) {
+	if ($ibx->isrch) {
 		my $q_val = delete($ctx->{-q_value_html}) // '';
 		$q_val = qq(\nvalue="$q_val") if $q_val ne '';
 		# XXX gross, for SearchView.pm

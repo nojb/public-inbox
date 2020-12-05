@@ -128,5 +128,6 @@ no warnings 'once';
 *recent = \&PublicInbox::Inbox::recent;
 
 *max_git_epoch = *nntp_usable = *msg_by_path = \&mm; # undef
+*isrch = *search;
 
 1;

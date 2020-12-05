@@ -156,6 +156,7 @@ lib/PublicInbox/In2Tie.pm
 lib/PublicInbox/Inbox.pm
 lib/PublicInbox/InboxIdle.pm
 lib/PublicInbox/InboxWritable.pm
+lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm

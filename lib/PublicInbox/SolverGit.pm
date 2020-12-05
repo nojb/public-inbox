@@ -216,7 +216,7 @@ sub filename_query ($) {
 
 sub find_smsgs ($$$) {
 	my ($self, $ibx, $want) = @_;
-	my $srch = $ibx->search or return;
+	my $srch = $ibx->isrch or return;
 
 	my $post = $want->{oid_b} or die 'BUG: no {oid_b}';
 	$post =~ /\A[a-f0-9]+\z/ or die "BUG: oid_b not hex: $post";

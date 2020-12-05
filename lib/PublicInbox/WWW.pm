@@ -462,7 +462,7 @@ sub serve_git {
 sub mbox_results {
 	my ($ctx) = @_;
 	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
-		$ctx->{-inbox}->search or return need($ctx, 'search');
+		$ctx->{-inbox}->isrch or return need($ctx, 'search');
 		require PublicInbox::SearchView;
 		return PublicInbox::SearchView::mbox_results($ctx);
 	}

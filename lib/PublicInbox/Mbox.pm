@@ -218,7 +218,7 @@ sub results_cb {
 			return $smsg;
 		}
 		# refill result set
-		my $srch = $ctx->{-inbox}->search or return gone($ctx,'search');
+		my $srch = $ctx->{-inbox}->isrch or return gone($ctx, 'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
@@ -240,7 +240,7 @@ sub results_thread_cb {
 		next if $over->expand_thread($ctx);
 
 		# refill result set
-		my $srch = $ctx->{-inbox}->search or return gone($ctx,'search');
+		my $srch = $ctx->{-inbox}->isrch or return gone($ctx, 'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
@@ -253,7 +253,7 @@ sub mbox_all {
 	my ($ctx, $q) = @_;
 	my $q_string = $q->{'q'};
 	return mbox_all_ids($ctx) if $q_string !~ /\S/;
-	my $srch = $ctx->{-inbox}->search or
+	my $srch = $ctx->{-inbox}->isrch or
 		return PublicInbox::WWW::need($ctx, 'Search');
 	my $over = $ctx->{-inbox}->over or
 		return PublicInbox::WWW::need($ctx, 'Overview');

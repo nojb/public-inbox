@@ -201,6 +201,10 @@ sub search {
 	(eval { $srch->xdb }) ? $srch : undef;
 }
 
+# isrch is preferred for read-only interfaces if available since it
+# reduces kernel cache and FD overhead
+sub isrch { $_[0]->{isrch} // search($_[0]) }
+
 sub over {
 	$_[0]->{over} //= eval {
 		my $srch = $_[0]->{search} //= eval {

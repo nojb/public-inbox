@@ -55,7 +55,7 @@ use constant {
 use PublicInbox::Smsg;
 use PublicInbox::Over;
 our $QP_FLAGS;
-our %X = map { $_ => 0 } qw(BoolWeight Database Enquire QueryParser Stem);
+our %X = map { $_ => 0 } qw(BoolWeight Database Enquire QueryParser Stem Query);
 our $Xap; # 'Search::Xapian' or 'Xapian'
 our $NVRP; # '$Xap::'.('NumberValueRangeProcessor' or 'NumberRangeProcessor')
 our $ENQ_ASCENDING;
@@ -331,6 +331,9 @@ sub has_threadid ($) {
 sub _enquire_once { # retry_reopen callback
 	my ($self, $query, $opts) = @_;
 	my $xdb = xdb($self);
+	if (defined(my $eidx_key = $opts->{eidx_key})) {
+		$query = $X{Query}->new(OP_FILTER(), $query, 'O'.$eidx_key);
+	}
 	my $enquire = $X{Enquire}->new($xdb);
 	$enquire->set_query($query);
 	$opts ||= {};

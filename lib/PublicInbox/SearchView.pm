@@ -30,7 +30,7 @@ sub mbox_results {
 
 sub sres_top_html {
 	my ($ctx) = @_;
-	my $srch = $ctx->{-inbox}->search or
+	my $srch = $ctx->{-inbox}->isrch or
 		return PublicInbox::WWW::need($ctx, 'Search');
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
 	my $x = $q->{x};
@@ -95,7 +95,7 @@ sub mset_summary {
 	my $res = \($ctx->{-html_tip});
 	my $ibx = $ctx->{-inbox};
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
-	my @nums = @{$ibx->search->mset_to_artnums($mset)};
+	my @nums = @{$ibx->isrch->mset_to_artnums($mset)};
 	my %num2msg = map { $_->{num} => $_ } @{$ibx->over->get_all(@nums)};
 	my ($min, $max);
 
@@ -201,7 +201,7 @@ sub search_nav_top {
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
 	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
-	if ($ctx->{-inbox}->search->has_threadid) {
+	if ($ctx->{-inbox}->isrch->has_threadid) {
 		$rv .= qq{\n\t\t\tdownload mbox.gz: } .
 			# we set name=z w/o using it since it seems required for
 			# lynx (but works fine for w3m).
@@ -288,7 +288,7 @@ sub mset_thread {
 	my ($ctx, $mset, $q) = @_;
 	my $ibx = $ctx->{-inbox};
 	my @pct = map { get_pct($_) } $mset->items;
-	my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
+	my $msgs = $ibx->isrch->mset_to_smsg($ibx, $mset);
 	my $i = 0;
 	$_->{pct} = $pct[$i++] for @$msgs;
 	my $r = $q->{r};
@@ -353,7 +353,7 @@ sub ctx_prepare {
 
 sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
-	$ctx->{ids} = $ctx->{-inbox}->search->mset_to_artnums($mset);
+	$ctx->{ids} = $ctx->{-inbox}->isrch->mset_to_artnums($mset);
 	$ctx->{search_query} = $q; # used by WwwAtomStream::atom_header
 	PublicInbox::WwwAtomStream->response($ctx, 200, \&adump_i);
 }

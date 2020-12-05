@@ -250,7 +250,7 @@ EOF
 
 	# n.b. we use the Xapian DB for any regeneratable,
 	# order-of-arrival-independent data.
-	my $srch = $ibx->search;
+	my $srch = $ibx->isrch;
 	if ($srch) {
 		$$txt .= <<EOF;
 search

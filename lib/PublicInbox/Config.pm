@@ -477,6 +477,10 @@ EOF
 			push @$repo_objs, $repo if $repo;
 		}
 	}
+	if (my $es = ALL($self)) {
+		require PublicInbox::Isearch;
+		$ibx->{isrch} = PublicInbox::Isearch->new($ibx, $es);
+	}
 	$self->{-by_eidx_key}->{$ibx->eidx_key} = $ibx;
 }
 
