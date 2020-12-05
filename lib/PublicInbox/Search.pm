@@ -90,6 +90,7 @@ sub load_xapian () {
 		$ENQ_ASCENDING = $x eq 'Xapian' ?
 				1 : Search::Xapian::ENQ_ASCENDING();
 
+		*sortable_serialise = $x.'::sortable_serialise';
 		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
 		# website as it could become a denial-of-service vector
 		# FLAG_PHRASE also seems to cause performance problems chert
@@ -334,6 +335,12 @@ sub _enquire_once { # retry_reopen callback
 	if (defined(my $eidx_key = $opts->{eidx_key})) {
 		$query = $X{Query}->new(OP_FILTER(), $query, 'O'.$eidx_key);
 	}
+	if (defined(my $uid_range = $opts->{uid_range})) {
+		my $range = $X{Query}->new(OP_VALUE_RANGE(), UID,
+					sortable_serialise($uid_range->[0]),
+					sortable_serialise($uid_range->[1]));
+		$query = $X{Query}->new(OP_FILTER(), $query, $range);
+	}
 	my $enquire = $X{Enquire}->new($xdb);
 	$enquire->set_query($query);
 	$opts ||= {};
@@ -389,7 +396,6 @@ sub qparse_new ($) {
 	# for IMAP, undocumented for WWW and may be split off go away
 	$cb->($qp, $NVRP->new(BYTES, 'bytes:'));
 	$cb->($qp, $NVRP->new(TS, 'ts:'));
-	$cb->($qp, $NVRP->new(UID, 'uid:'));
 
 	while (my ($name, $prefix) = each %bool_pfx_external) {
 		$qp->add_boolean_prefix($name, $_) foreach split(/ /, $prefix);

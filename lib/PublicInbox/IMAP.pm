@@ -1122,33 +1122,6 @@ sub parse_query ($$) {
 	$q;
 }
 
-sub refill_xap ($$$$) {
-	my ($self, $uids, $range_info, $q) = @_;
-	my ($beg, $end) = @$range_info;
-	my $srch = $self->{ibx}->search;
-	my $opt = { mset => 2, limit => 1000 };
-	my $mset = $srch->mset("$q uid:$beg..$end", $opt);
-	@$uids = @{$srch->mset_to_artnums($mset)};
-	if (@$uids) {
-		$range_info->[0] = $uids->[-1] + 1; # update $beg
-		return; # possibly more
-	}
-	0; # all done
-}
-
-sub search_xap_range { # long_response
-	my ($self, $tag, $q, $range_info, $want_msn) = @_;
-	my $uids = [];
-	if (defined(my $err = refill_xap($self, $uids, $range_info, $q))) {
-		$err ||= 'OK Search done';
-		$self->write("\r\n$tag $err\r\n");
-		return;
-	}
-	msn_convert($self, $uids) if $want_msn;
-	$self->msg_more(join(' ', '', @$uids));
-	1; # more
-}
-
 sub search_common {
 	my ($self, $tag, $query, $want_msn) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
@@ -1160,11 +1133,17 @@ sub search_common {
 		long_response($self, \&search_uid_range,
 				$tag, $sql, $range_info, $want_msn);
 	} elsif ($q = $q->{xap}) {
-		$self->{ibx}->search or
+		my $srch = $self->{ibx}->isrch or
 			return "$tag BAD search not available for mailbox\r\n";
-		$self->msg_more('* SEARCH');
-		long_response($self, \&search_xap_range,
-				$tag, $q, $range_info, $want_msn);
+		my $opt = {
+			mset => 2,
+			limit => UID_SLICE,
+			uid_range => $range_info
+		};
+		my $mset = $srch->mset($q, $opt);
+		my $uids = $srch->mset_to_artnums($mset, $opt);
+		msn_convert($self, $uids) if $want_msn;
+		"* SEARCH @$uids\r\n$tag OK Search done\r\n";
 	} else {
 		"$tag BAD Error\r\n";
 	}

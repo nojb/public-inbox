@@ -15,12 +15,6 @@ sub new {
 	bless { es => $es, eidx_key => $ibx->eidx_key }, __PACKAGE__;
 }
 
-sub mset {
-	my ($self, $str, $opt) = @_;
-	$self->{es}->mset($str, { $opt ? %$opt : (),
-				eidx_key => $self->{eidx_key} });
-}
-
 sub _ibx_id ($) {
 	my ($self) = @_;
 	my $sth = $self->{es}->over->dbh->prepare_cached(<<'', undef, 1);
@@ -31,11 +25,57 @@ SELECT ibx_id FROM inboxes WHERE eidx_key = ? LIMIT 1
 		die "E: `$self->{eidx_key}' not in $self->{es}->{topdir}\n";
 }
 
+
+sub mset {
+	my ($self, $str, $opt) = @_;
+	my %opt = $opt ? %$opt : ();
+	$opt{eidx_key} = $self->{eidx_key};
+	if (my $uid_range = $opt{uid_range}) {
+		my ($beg, $end) = @$uid_range;
+		my $ibx_id = $self->{-ibx_id} //= _ibx_id($self);
+		my $dbh = $self->{es}->{over}->dbh;
+		my $sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT MIN(docid) FROM xref3 WHERE ibx_id = ? AND xnum >= ? AND xnum <= ?
+
+		$sth->execute($ibx_id, $beg, $end);
+		my @r = ($sth->fetchrow_array);
+
+		$sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT MAX(docid) FROM xref3 WHERE ibx_id = ? AND xnum >= ? AND xnum <= ?
+
+		$sth->execute($ibx_id, $beg, $end);
+		$r[1] = $sth->fetchrow_array;
+		if (defined($r[1]) && defined($r[0])) {
+			$opt{limit} = $r[1] - $r[0] + 1;
+		} else {
+			$r[1] //= 0xffffffff;
+			$r[0] //= 0;
+		}
+		$opt{uid_range} = \@r;
+	}
+	$self->{es}->mset($str, \%opt);
+}
+
 sub mset_to_artnums {
-	my ($self, $mset) = @_;
+	my ($self, $mset, $opt) = @_;
 	my $docids = PublicInbox::Search::mset_to_artnums($self->{es}, $mset);
 	my $ibx_id = $self->{-ibx_id} //= _ibx_id($self);
 	my $qmarks = join(',', map { '?' } @$docids);
+	if ($opt && ($opt->{mset} // 0) == 2) { # opt->{mset} = 2 was used
+		my $range = '';
+		my @r;
+		if (my $r = $opt->{uid_range}) {
+			$range = 'AND xnum >= ? AND xnum <= ?';
+			@r = @$r;
+		}
+		my $rows = $self->{es}->over->dbh->
+			selectall_arrayref(<<"", undef, $ibx_id, @$docids, @r);
+SELECT xnum FROM xref3 WHERE ibx_id = ? AND docid IN ($qmarks) $range
+ORDER BY xnum ASC
+
+		return [ map { $_->[0] } @$rows ];
+	}
+
 	my $rows = $self->{es}->over->dbh->
 			selectall_arrayref(<<"", undef, $ibx_id, @$docids);
 SELECT docid,xnum FROM xref3 WHERE ibx_id = ? AND docid IN ($qmarks)

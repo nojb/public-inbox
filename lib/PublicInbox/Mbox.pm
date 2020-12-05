@@ -222,7 +222,7 @@ sub results_cb {
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
-		$ctx->{ids} = $srch->mset_to_artnums($mset);
+		$ctx->{ids} = $srch->mset_to_artnums($mset, $ctx->{qopts});
 	}
 }
 
@@ -244,7 +244,7 @@ sub results_thread_cb {
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
-		$ctx->{ids} = $srch->mset_to_artnums($mset);
+		$ctx->{ids} = $srch->mset_to_artnums($mset, $ctx->{qopts});
 	}
 
 }
@@ -265,7 +265,7 @@ sub mbox_all {
 			return [404, [qw(Content-Type text/plain)],
 				["No results found\n"]];
 	$ctx->{query} = $q_string;
-	$ctx->{ids} = $srch->mset_to_artnums($mset);
+	$ctx->{ids} = $srch->mset_to_artnums($mset, $qopts);
 	require PublicInbox::MboxGz;
 	my $fn;
 	if ($q->{t} && $srch->has_threadid) {
