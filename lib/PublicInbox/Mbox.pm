@@ -203,16 +203,22 @@ sub mbox_all_ids {
 	PublicInbox::MboxGz::mbox_gz($ctx, \&all_ids_cb, 'all');
 }
 
+sub gone ($$) {
+	my ($ctx, $what) = @_;
+	warn "W: `$ctx->{-inbox}->{inboxdir}' $what went away unexpectedly\n";
+	undef;
+}
+
 sub results_cb {
 	my ($ctx) = @_;
-	my $over = $ctx->{-inbox}->over or return;
+	my $over = $ctx->{-inbox}->over or return gone($ctx, 'over');
 	while (1) {
 		while (defined(my $num = shift(@{$ctx->{ids}}))) {
 			my $smsg = $over->get_art($num) or next;
 			return $smsg;
 		}
 		# refill result set
-		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
+		my $srch = $ctx->{-inbox}->search or return gone($ctx,'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
@@ -223,7 +229,7 @@ sub results_cb {
 sub results_thread_cb {
 	my ($ctx) = @_;
 
-	my $over = $ctx->{-inbox}->over or return;
+	my $over = $ctx->{-inbox}->over or return gone($ctx, 'over');
 	while (1) {
 		while (defined(my $num = shift(@{$ctx->{xids}}))) {
 			my $smsg = $over->get_art($num) or next;
@@ -234,7 +240,7 @@ sub results_thread_cb {
 		next if $over->expand_thread($ctx);
 
 		# refill result set
-		my $srch = $ctx->{-inbox}->search(undef, $ctx) or return;
+		my $srch = $ctx->{-inbox}->search or return gone($ctx,'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;

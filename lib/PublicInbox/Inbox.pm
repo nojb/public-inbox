@@ -191,29 +191,29 @@ sub mm {
 	};
 }
 
-sub search ($;$$) {
-	my ($self, $over_only, $ctx) = @_;
-	my $srch = $self->{search} ||= eval {
+sub search {
+	my ($self) = @_;
+	my $srch = $self->{search} //= eval {
 		_cleanup_later($self);
 		require PublicInbox::Search;
 		PublicInbox::Search->new($self);
 	};
-	($over_only || eval { $srch->xdb }) ? $srch : do {
-		$ctx and $ctx->{env}->{'psgi.errors'}->print(<<EOF);
-`$self->{name}' search went away unexpectedly
-EOF
-		undef;
-	};
+	(eval { $srch->xdb }) ? $srch : undef;
 }
 
 sub over {
 	$_[0]->{over} //= eval {
-		my $srch = search($_[0], 1) or return;
+		my $srch = $_[0]->{search} //= eval {
+			_cleanup_later($_[0]);
+			require PublicInbox::Search;
+			PublicInbox::Search->new($_[0]);
+		};
 		my $over = PublicInbox::Over->new("$srch->{xpfx}/over.sqlite3");
 		$over->dbh; # may fail
 		$over;
 	};
 }
+
 
 sub try_cat {
 	my ($path) = @_;
