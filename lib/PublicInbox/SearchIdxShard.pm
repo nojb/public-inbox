@@ -144,8 +144,7 @@ sub index_raw {
 }
 
 sub shard_add_eidx_info {
-	my ($self, $docid, $xibx, $eml) = @_;
-	my $eidx_key = $xibx->eidx_key;
+	my ($self, $docid, $eidx_key, $eml) = @_;
 	if (my $w = $self->{w}) {
 		my $hdr = $eml->header_obj->as_string;
 		my $len = length($hdr);

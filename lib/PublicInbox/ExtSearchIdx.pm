@@ -125,7 +125,7 @@ sub do_xpost ($$) {
 	if (my $new_smsg = $req->{new_smsg}) { # 'm' on cross-posted message
 		my $xnum = $req->{xnum};
 		$self->{oidx}->add_xref3($docid, $xnum, $oid, $eidx_key);
-		$idx->shard_add_eidx_info($docid, $xibx, $eml);
+		$idx->shard_add_eidx_info($docid, $eidx_key, $eml);
 		check_batch_limit($req);
 	} else { # 'd'
 		my $rm_eidx_info;
