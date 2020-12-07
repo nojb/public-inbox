@@ -91,14 +91,6 @@ sub attach_config {
 	$cfg->each_inbox(\&_ibx_attach, $self);
 }
 
-sub git_blob_digest ($) {
-	my ($bref) = @_;
-	my $dig = Digest::SHA->new(1); # XXX SHA256 later
-	$dig->add('blob '.length($$bref)."\0");
-	$dig->add($$bref);
-	$dig;
-}
-
 sub is_bad_blob ($$$$) {
 	my ($oid, $type, $size, $expect_oid) = @_;
 	if ($type ne 'blob') {
@@ -244,10 +236,6 @@ sub ck_existing { # git->cat_async callback
 sub cur_ibx_xnum ($$) {
 	my ($req, $bref) = @_;
 	my $ibx = $req->{ibx} or die 'BUG: current {ibx} missing';
-
-	# XXX overkill?
-	git_blob_digest($bref)->hexdigest eq $req->{oid} or die
-		"BUG: blob mismatch $req->{oid}";
 
 	$req->{eml} = PublicInbox::Eml->new($bref);
 	$req->{chash} = content_hash($req->{eml});
