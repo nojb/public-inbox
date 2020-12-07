@@ -79,6 +79,11 @@ SELECT $id_col FROM $tbl WHERE $val_col = ? LIMIT 1
 	}
 }
 
+sub ibx_id {
+	my ($self, $eidx_key) = @_;
+	id_for($self, 'inboxes', 'ibx_id', eidx_key => $eidx_key);
+}
+
 sub sid {
 	my ($self, $path) = @_;
 	return unless defined $path && $path ne '';
@@ -588,7 +593,7 @@ sub eidx_max {
 sub add_xref3 {
 	my ($self, $docid, $xnum, $oidhex, $eidx_key) = @_;
 	begin_lazy($self);
-	my $ibx_id = id_for($self, 'inboxes', 'ibx_id', eidx_key => $eidx_key);
+	my $ibx_id = ibx_id($self, $eidx_key);
 	my $oidbin = pack('H*', $oidhex);
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 INSERT OR IGNORE INTO xref3 (docid, ibx_id, xnum, oidbin) VALUES (?, ?, ?, ?)
@@ -607,8 +612,7 @@ sub remove_xref3 {
 	my $oidbin = pack('H*', $oidhex);
 	my ($sth, $ibx_id);
 	if (defined $eidx_key) {
-		$ibx_id = id_for($self, 'inboxes', 'ibx_id',
-					eidx_key => $eidx_key);
+		$ibx_id = ibx_id($self, $eidx_key);
 		$sth = $self->{dbh}->prepare_cached(<<'');
 DELETE FROM xref3 WHERE docid = ? AND ibx_id = ? AND oidbin = ?
 
