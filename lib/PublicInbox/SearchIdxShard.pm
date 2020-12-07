@@ -79,19 +79,16 @@ sub shard_worker_loop ($$$$$) {
 			# no need to lock < 512 bytes is atomic under POSIX
 			print $bnote "barrier $shard\n" or
 					die "write failed for barrier $!\n";
-		} elsif ($line =~ /\AD ([a-f0-9]{40,}) ([0-9]+)\n\z/s) {
-			$self->remove_by_oid($1, $2 + 0);
+		} elsif ($line =~ /\AD ([0-9]+)\n\z/s) {
+			$self->remove_by_docid($1 + 0);
 		} elsif ($line =~ s/\A\+X //) {
-			my ($len, $docid, $oid, $eidx_key) =
-							split(/ /, $line, 4);
+			my ($len, $docid, $eidx_key) = split(/ /, $line, 3);
 			chomp $eidx_key;
-			$self->add_eidx_info($docid, $oid, $eidx_key,
-							eml($r, $len));
+			$self->add_eidx_info($docid, $eidx_key, eml($r, $len));
 		} elsif ($line =~ s/\A-X //) {
-			my ($len, $docid, $oid, $eidx_key) =
-							split(/ /, $line, 4);
+			my ($len, $docid, $eidx_key) = split(/ /, $line, 3);
 			chomp $eidx_key;
-			$self->remove_eidx_info($docid, $oid, $eidx_key,
+			$self->remove_eidx_info($docid, $eidx_key,
 							eml($r, $len));
 		} elsif ($line =~ s/\AO ([^\n]+)\n//) {
 			my $over_fn = $1;
@@ -147,27 +144,27 @@ sub index_raw {
 }
 
 sub shard_add_eidx_info {
-	my ($self, $docid, $oid, $xibx, $eml) = @_;
+	my ($self, $docid, $xibx, $eml) = @_;
 	my $eidx_key = $xibx->eidx_key;
 	if (my $w = $self->{w}) {
 		my $hdr = $eml->header_obj->as_string;
 		my $len = length($hdr);
-		print $w "+X $len $docid $oid $eidx_key\n", $hdr or
+		print $w "+X $len $docid $eidx_key\n", $hdr or
 			die "failed to write shard: $!";
 	} else {
-		$self->add_eidx_info($docid, $oid, $eidx_key, $eml);
+		$self->add_eidx_info($docid, $eidx_key, $eml);
 	}
 }
 
 sub shard_remove_eidx_info {
-	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
+	my ($self, $docid, $eidx_key, $eml) = @_;
 	if (my $w = $self->{w}) {
 		my $hdr = $eml ? $eml->header_obj->as_string : '';
 		my $len = length($hdr);
-		print $w "-X $len $docid $oid $eidx_key\n", $hdr or
+		print $w "-X $len $docid $eidx_key\n", $hdr or
 			die "failed to write shard: $!";
 	} else {
-		$self->remove_eidx_info($docid, $oid, $eidx_key, $eml);
+		$self->remove_eidx_info($docid, $eidx_key, $eml);
 	}
 }
 
@@ -208,17 +205,17 @@ sub shard_close {
 }
 
 sub shard_remove {
-	my ($self, $oid, $num) = @_;
-	if (my $w = $self->{w}) { # triggers remove_by_oid in a shard child
-		print $w "D $oid $num\n" or die "failed to write remove $!";
+	my ($self, $num) = @_;
+	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
+		print $w "D $num\n" or die "failed to write remove $!";
 	} else { # same process
-		$self->remove_by_oid($oid, $num);
+		$self->remove_by_docid($num);
 	}
 }
 
 sub shard_over_check {
 	my ($self, $over) = @_;
-	if (my $w = $self->{w}) { # triggers remove_by_oid in a shard child
+	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
 		my ($over_fn) = $over->{dbh}->sqlite_db_filename;
 		$over_fn =~ tr/\n/\0/;
 		print $w "O $over_fn\n" or die "failed to write over $!";

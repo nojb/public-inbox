@@ -125,17 +125,16 @@ sub do_xpost ($$) {
 	if (my $new_smsg = $req->{new_smsg}) { # 'm' on cross-posted message
 		my $xnum = $req->{xnum};
 		$self->{oidx}->add_xref3($docid, $xnum, $oid, $eidx_key);
-		$idx->shard_add_eidx_info($docid, $oid, $xibx, $eml);
+		$idx->shard_add_eidx_info($docid, $xibx, $eml);
 		check_batch_limit($req);
 	} else { # 'd'
 		my $rm_eidx_info;
 		my $nr = $self->{oidx}->remove_xref3($docid, $oid, $eidx_key,
 							\$rm_eidx_info);
 		if ($nr == 0) {
-			$idx->shard_remove($oid, $docid);
+			$idx->shard_remove($docid);
 		} elsif ($rm_eidx_info) {
-			$idx->shard_remove_eidx_info($docid, $oid, $eidx_key,
-							$eml);
+			$idx->shard_remove_eidx_info($docid, $eidx_key, $eml);
 		}
 	}
 }
@@ -333,13 +332,11 @@ DELETE FROM xref3 WHERE docid = ? AND ibx_id = ?
 	if (@$remain) {
 		for my $oid (@oid) {
 			warn "I: unref #$docid $eidx_key $oid\n";
-			$idx->shard_remove_eidx_info($docid, $oid, $eidx_key);
+			$idx->shard_remove_eidx_info($docid, $eidx_key);
 		}
 	} else {
-		for my $oid (@oid) {
-			warn "I: remove #$docid $eidx_key $oid\n";
-			$idx->shard_remove($oid, $docid);
-		}
+		warn "I: remove #$docid $eidx_key @oid\n";
+		$idx->shard_remove($docid);
 	}
 }
 

@@ -1141,7 +1141,7 @@ sub unindex_oid_aux ($$$) {
 	my @removed = $self->{oidx}->remove_oid($oid, $mid);
 	for my $num (@removed) {
 		my $idx = idx_shard($self, $num);
-		$idx->shard_remove($oid, $num);
+		$idx->shard_remove($num);
 	}
 }
 

@@ -445,20 +445,20 @@ sub add_message {
 	$smsg->{num};
 }
 
-sub _get_doc ($$$) {
-	my ($self, $docid, $oid) = @_;
+sub _get_doc ($$) {
+	my ($self, $docid) = @_;
 	my $doc = eval { $self->{xdb}->get_document($docid) };
 	$doc // do {
 		warn "E: $@\n" if $@;
-		warn "E: #$docid $oid missing in Xapian\n";
+		warn "E: #$docid missing in Xapian\n";
 		undef;
 	}
 }
 
 sub add_eidx_info {
-	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
+	my ($self, $docid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
-	my $doc = _get_doc($self, $docid, $oid) or return;
+	my $doc = _get_doc($self, $docid) or return;
 	term_generator($self)->set_document($doc);
 	$doc->add_boolean_term('O'.$eidx_key);
 	index_list_id($self, $doc, $eml);
@@ -466,9 +466,9 @@ sub add_eidx_info {
 }
 
 sub remove_eidx_info {
-	my ($self, $docid, $oid, $eidx_key, $eml) = @_;
+	my ($self, $docid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
-	my $doc = _get_doc($self, $docid, $oid) or return;
+	my $doc = _get_doc($self, $docid) or return;
 	eval { $doc->remove_term('O'.$eidx_key) };
 	warn "W: ->remove_term O$eidx_key: $@\n" if $@;
 	for my $l ($eml ? $eml->header_raw('List-Id') : ()) {
@@ -512,25 +512,19 @@ sub smsg_from_doc ($) {
 }
 
 sub xdb_remove {
-	my ($self, $oid, @removed) = @_;
+	my ($self, @docids) = @_;
 	my $xdb = $self->{xdb} or return;
-	for my $num (@removed) {
-		my $doc = _get_doc($self, $num, $oid) or next;
-		my $smsg = smsg_from_doc($doc);
-		my $blob = $smsg->{blob}; # may be undef if --skip-docdata
-		if (!defined($blob) || $blob eq $oid) {
-			$xdb->delete_document($num);
-		} else {
-			warn "E: #$num $oid != $blob in Xapian\n";
-		}
+	for my $docid (@docids) {
+		eval { $xdb->delete_document($docid) };
+		warn "E: #$docid not in in Xapian? $@\n" if $@;
 	}
 }
 
-sub remove_by_oid {
-	my ($self, $oid, $num) = @_;
-	die "BUG: remove_by_oid is v2-only\n" if $self->{oidx};
+sub remove_by_docid {
+	my ($self, $num) = @_;
+	die "BUG: remove_by_docid is v2-only\n" if $self->{oidx};
 	$self->begin_txn_lazy;
-	xdb_remove($self, $oid, $num) if need_xapian($self);
+	xdb_remove($self, $num) if need_xapian($self);
 }
 
 sub index_git_blob_id {
@@ -566,7 +560,7 @@ sub unindex_eml {
 	} else { # just in case msgmap and over.sqlite3 become desynched:
 		$self->{mm}->mid_delete($mids->[0]);
 	}
-	xdb_remove($self, $oid, keys %tmp) if need_xapian($self);
+	xdb_remove($self, keys %tmp) if need_xapian($self);
 }
 
 sub index_mm {
