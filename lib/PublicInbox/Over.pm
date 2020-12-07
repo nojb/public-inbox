@@ -275,6 +275,7 @@ SELECT eidx_key FROM inboxes WHERE ibx_id = ?
 		my $r = $_;
 		$eidx_key_sth->execute($r->[0]);
 		my $eidx_key = $eidx_key_sth->fetchrow_array;
+		$eidx_key //= "missing://ibx_id=$r->[0]";
 		"$eidx_key:$r->[1]:".unpack('H*', $r->[2]);
 	} @$rows ];
 }
