@@ -83,7 +83,7 @@ sub set_list_headers {
 }
 
 sub inboxes_for_list_id ($$) {
-	my ($klass, $config, $simple) = @_;
+	my ($klass, $pi_cfg, $simple) = @_;
 
 	# newer Email::Simple allows header_raw, as does Email::MIME:
 	my @list_ids = $simple->can('header_raw') ?
@@ -92,7 +92,7 @@ sub inboxes_for_list_id ($$) {
 	my @dests;
 	for my $list_id (@list_ids) {
 		$list_id =~ /<[ \t]*(.+)?[ \t]*>/ or next;
-		if (my $ibx = $config->lookup_list_id($1)) {
+		if (my $ibx = $pi_cfg->lookup_list_id($1)) {
 			push @dests, $ibx;
 		}
 	}

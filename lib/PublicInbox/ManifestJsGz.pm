@@ -71,7 +71,7 @@ sub eidx_manifest_add ($$$) {
 
 sub ibx_entry {
 	my ($ctx, $ibx) = @_;
-	my $ALL = $ctx->{www}->{pi_config}->ALL;
+	my $ALL = $ctx->{www}->{pi_cfg}->ALL;
 	if ($ALL) {
 		eidx_manifest_add($ctx, $ALL, $ibx);
 	} else {

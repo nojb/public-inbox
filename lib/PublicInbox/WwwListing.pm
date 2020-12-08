@@ -44,7 +44,7 @@ sub url_regexp {
 	my ($ctx, $key, $default) = @_;
 	$key //= 'publicInbox.wwwListing';
 	$default //= '404';
-	my $v = $ctx->{www}->{pi_config}->{lc $key} // $default;
+	my $v = $ctx->{www}->{pi_cfg}->{lc $key} // $default;
 again:
 	if ($v eq 'match=domain') {
 		my $h = $ctx->{env}->{HTTP_HOST} // $ctx->{env}->{SERVER_NAME};
@@ -70,7 +70,7 @@ sub response {
 	my ($class, $ctx) = @_;
 	bless $ctx, $class;
 	my $re = $ctx->url_regexp or return $ctx->psgi_triple;
-	my $iter = PublicInbox::ConfigIter->new($ctx->{www}->{pi_config},
+	my $iter = PublicInbox::ConfigIter->new($ctx->{www}->{pi_cfg},
 						\&list_match_i, $re, $ctx);
 	sub {
 		$ctx->{-wcb} = $_[0]; # HTTP server callback

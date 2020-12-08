@@ -7,8 +7,8 @@ use strict;
 use warnings;
 
 sub get {
-	my ($config, $key, $default) = @_;
-	my $spamcheck = $config->{$key};
+	my ($cfg, $key, $default) = @_;
+	my $spamcheck = $cfg->{$key};
 	$spamcheck = $default unless $spamcheck;
 
 	return if !$spamcheck || $spamcheck eq 'none';

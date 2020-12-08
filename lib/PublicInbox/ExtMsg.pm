@@ -105,8 +105,8 @@ sub ext_msg_step {
 
 sub ext_msg_ALL ($) {
 	my ($ctx) = @_;
-	my $ALL = $ctx->{www}->{pi_config}->ALL or return;
-	my $by_eidx_key = $ctx->{www}->{pi_config}->{-by_eidx_key};
+	my $ALL = $ctx->{www}->{pi_cfg}->ALL or return;
+	my $by_eidx_key = $ctx->{www}->{pi_cfg}->{-by_eidx_key};
 	my $cur_key = $ctx->{ibx}->eidx_key;
 	my %seen = ($cur_key => 1);
 	my ($id, $prev);
@@ -139,11 +139,11 @@ sub ext_msg {
 		if ($ctx->{env}->{'pi-httpd.async'}) {
 			require PublicInbox::ConfigIter;
 			my $iter = PublicInbox::ConfigIter->new(
-						$ctx->{www}->{pi_config},
+						$ctx->{www}->{pi_cfg},
 						\&ext_msg_step, $ctx);
 			$iter->event_step;
 		} else {
-			$ctx->{www}->{pi_config}->each_inbox(\&ext_msg_i, $ctx);
+			$ctx->{www}->{pi_cfg}->each_inbox(\&ext_msg_i, $ctx);
 			finalize_exact($ctx);
 		}
 	};

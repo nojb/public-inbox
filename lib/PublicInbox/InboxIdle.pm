@@ -2,7 +2,6 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # fields:
-# pi_config: PublicInbox::Config ref
 # inot: Linux::Inotify2-like object
 # pathmap => { inboxdir => [ ibx, watch1, watch2, watch3... ] } mapping
 package PublicInbox::InboxIdle;
@@ -51,12 +50,12 @@ sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 }
 
 sub refresh {
-	my ($self, $pi_config) = @_;
-	$pi_config->each_inbox(\&in2_arm, $self);
+	my ($self, $pi_cfg) = @_;
+	$pi_cfg->each_inbox(\&in2_arm, $self);
 }
 
 sub new {
-	my ($class, $pi_config) = @_;
+	my ($class, $pi_cfg) = @_;
 	my $self = bless {}, $class;
 	my $inot;
 	if ($ino_cls) {
@@ -70,7 +69,7 @@ sub new {
 	$self->{inot} = $inot;
 	$self->{pathmap} = {}; # inboxdir => [ ibx, watch1, watch2, watch3...]
 	$self->{on_unlock} = {}; # lock path => ibx
-	refresh($self, $pi_config);
+	refresh($self, $pi_cfg);
 	PublicInbox::FakeInotify::poll_once($self) if !$ino_cls;
 	$self;
 }

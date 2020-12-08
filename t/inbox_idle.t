@@ -32,14 +32,14 @@ for my $V (1, 2) {
 		$sidx->set_metadata_once;
 		$sidx->idx_release; # allow watching on lockfile
 	}
-	my $pi_config = PublicInbox::Config->new(\<<EOF);
+	my $pi_cfg = PublicInbox::Config->new(\<<EOF);
 publicinbox.inbox-idle.inboxdir=$inboxdir
 publicinbox.inbox-idle.indexlevel=basic
 publicinbox.inbox-idle.address=test\@example.com
 EOF
 	my $ident = 'whatever';
-	$pi_config->each_inbox(sub { shift->subscribe_unlock($ident, $obj) });
-	my $ii = PublicInbox::InboxIdle->new($pi_config);
+	$pi_cfg->each_inbox(sub { shift->subscribe_unlock($ident, $obj) });
+	my $ii = PublicInbox::InboxIdle->new($pi_cfg);
 	ok($ii, 'InboxIdle created');
 	SKIP: {
 		skip('inotify or kqueue missing', 1) unless $ii->{sock};
@@ -50,7 +50,7 @@ EOF
 	PublicInbox::SearchIdx->new($ibx)->index_sync if $V == 1;
 	$ii->event_step;
 	is(scalar @{$obj->{called}}, 1, 'called on unlock');
-	$pi_config->each_inbox(sub { shift->unsubscribe_unlock($ident) });
+	$pi_cfg->each_inbox(sub { shift->unsubscribe_unlock($ident) });
 	ok($im->add(eml_load('t/data/0001.patch')), "$V added #2");
 	$im->done;
 	PublicInbox::SearchIdx->new($ibx)->index_sync if $V == 1;

@@ -83,12 +83,11 @@ like($$msg, qr/\AFrom oldbug/s,
 	'"From_" line stored to test old bug workaround');
 
 my $cfgpfx = "publicinbox.v2test";
-my $cfg = <<EOF;
+my $cfg = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$ibx->{-primary_address}
 $cfgpfx.inboxdir=$inboxdir
 EOF
-my $config = PublicInbox::Config->new(\$cfg);
-my $www = PublicInbox::WWW->new($config);
+my $www = PublicInbox::WWW->new($cfg);
 my ($res, $raw, @from_);
 my $client0 = sub {
 	my ($cb) = @_;
@@ -150,7 +149,7 @@ my $client1 = sub {
 	like($raw, qr/^hello ghosts$/m, 'got third message');
 	@from_ = ($raw =~ m/^From /mg);
 	is(scalar(@from_), 3, 'three From_ lines');
-	$config->each_inbox(sub { $_[0]->search->reopen });
+	$cfg->each_inbox(sub { $_[0]->search->reopen });
 
 	SKIP: {
 		eval { require IO::Uncompress::Gunzip };
@@ -240,7 +239,7 @@ $run_httpd->($client1, 38);
 	$im->done;
 	my @h = $mime->header('Message-ID');
 	is_deeply($exp, \@h, 'reused existing Message-ID');
-	$config->each_inbox(sub { $_[0]->search->reopen });
+	$cfg->each_inbox(sub { $_[0]->search->reopen });
 }
 
 my $client2 = sub {
@@ -279,7 +278,7 @@ $run_httpd->($client2, 8);
 		ok($im->add($mime), "added attachment $body");
 	}
 	$im->done;
-	$config->each_inbox(sub { $_[0]->search->reopen });
+	$cfg->each_inbox(sub { $_[0]->search->reopen });
 }
 
 my $client3 = sub {

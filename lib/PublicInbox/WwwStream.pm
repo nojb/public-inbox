@@ -81,7 +81,7 @@ sub coderepos ($) {
 	my $ibx = $ctx->{ibx};
 	my @ret;
 	if (defined(my $cr = $ibx->{coderepo})) {
-		my $cfg = $ctx->{www}->{pi_config};
+		my $cfg = $ctx->{www}->{pi_cfg};
 		my $env = $ctx->{env};
 		for my $cr_name (@$cr) {
 			my $urls = $cfg->{"coderepo.$cr_name.cgiturl"};

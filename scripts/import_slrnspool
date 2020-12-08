@@ -22,8 +22,8 @@ $SIG{TERM} = $sighandler;
 my $spool = shift @ARGV or die usage();
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 defined $recipient or die usage();
-my $config = PublicInbox::Config->new;
-my $ibx = $config->lookup($recipient);
+my $cfg = PublicInbox::Config->new;
+my $ibx = $cfg->lookup($recipient);
 my $git = $ibx->git;
 my $im;
 if ($ibx->version == 2) {

@@ -34,13 +34,13 @@ my $sem = PublicInbox::Emergency->new($spamdir); # create dirs
 {
 	my @w;
 	local $SIG{__WARN__} = sub { push @w, @_ };
-	my $config = PublicInbox::Config->new(\<<EOF);
+	my $cfg = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$git_dir
 $cfgpfx.watch=maildir:$spamdir
 publicinboxlearn.watchspam=maildir:$spamdir
 EOF
-	my $wm = PublicInbox::Watch->new($config);
+	my $wm = PublicInbox::Watch->new($cfg);
 	is(scalar grep(/is a spam folder/, @w), 1, 'got warning about spam');
 	is_deeply($wm->{mdmap}, { "$spamdir/cur" => 'watchspam' },
 		'only got the spam folder to watch');
@@ -61,8 +61,8 @@ EOF
 	close $fh or BAIL_OUT $!;
 }
 
-my $config = PublicInbox::Config->new($cfg_path);
-PublicInbox::Watch->new($config)->scan('full');
+my $cfg = PublicInbox::Config->new($cfg_path);
+PublicInbox::Watch->new($cfg)->scan('full');
 my $git = PublicInbox::Git->new($git_dir);
 my @list = $git->qx(qw(rev-list refs/heads/master));
 is(scalar @list, 1, 'one revision in rev-list');
@@ -79,7 +79,7 @@ my $write_spam = sub {
 };
 $write_spam->();
 is(unlink(glob("$maildir/new/*")), 1, 'unlinked old spam');
-PublicInbox::Watch->new($config)->scan('full');
+PublicInbox::Watch->new($cfg)->scan('full');
 @list = $git->qx(qw(rev-list refs/heads/master));
 is(scalar @list, 2, 'two revisions in rev-list');
 @list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
@@ -93,7 +93,7 @@ To unsubscribe from this list: send the line "unsubscribe git" in
 the body of a message to majordomo\@vger.kernel.org
 More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
-	PublicInbox::Watch->new($config)->scan('full');
+	PublicInbox::Watch->new($cfg)->scan('full');
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 1, 'tree has one file');
 	my $mref = $git->cat_file('HEAD:'.$list[0]);
@@ -101,7 +101,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 
 	is(unlink(glob("$maildir/new/*")), 1, 'unlinked spam');
 	$write_spam->();
-	PublicInbox::Watch->new($config)->scan('full');
+	PublicInbox::Watch->new($cfg)->scan('full');
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 0, 'tree is empty');
 	@list = $git->qx(qw(rev-list refs/heads/master));
@@ -115,10 +115,10 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	my $fail_path = "$fail_bin:$ENV{PATH}"; # for spamc ham mock
 	local $ENV{PATH} = $fail_path;
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
-	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
+	$cfg->{'publicinboxwatch.spamcheck'} = 'spamc';
 	{
 		local $SIG{__WARN__} = sub {}; # quiet spam check warning
-		PublicInbox::Watch->new($config)->scan('full');
+		PublicInbox::Watch->new($cfg)->scan('full');
 	}
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 0, 'tree has no files spamc checked');
@@ -131,9 +131,9 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	my $main_path = "$main_bin:$ENV{PATH}"; # for spamc ham mock
 	local $ENV{PATH} = $main_path;
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
-	$config->{'publicinboxwatch.spamcheck'} = 'spamc';
+	$cfg->{'publicinboxwatch.spamcheck'} = 'spamc';
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
-	PublicInbox::Watch->new($config)->scan('full');
+	PublicInbox::Watch->new($cfg)->scan('full');
 	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
 	is(scalar @list, 1, 'tree has one file after spamc checked');
 
@@ -166,9 +166,9 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 		$delivered++;
 	};
 	PublicInbox::DS->Reset;
-	my $ii = PublicInbox::InboxIdle->new($config);
+	my $ii = PublicInbox::InboxIdle->new($cfg);
 	my $obj = bless \$cb, 'PublicInbox::TestCommon::InboxWakeup';
-	$config->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
+	$cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
 	PublicInbox::DS->SetPostLoopCallback(sub { $delivered == 0 });
 
 	# wait for -watch to setup inotify watches

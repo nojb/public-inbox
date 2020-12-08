@@ -85,7 +85,7 @@ sub _set_uint ($$$) {
 }
 
 sub _set_limiter ($$$) {
-	my ($self, $pi_config, $pfx) = @_;
+	my ($self, $pi_cfg, $pfx) = @_;
 	my $lkey = "-${pfx}_limiter";
 	$self->{$lkey} ||= do {
 		# full key is: publicinbox.$NAME.httpbackendmax
@@ -96,7 +96,7 @@ sub _set_limiter ($$$) {
 			require PublicInbox::Qspawn;
 			$lim = PublicInbox::Qspawn::Limiter->new($val);
 		} elsif ($val =~ /\A[a-z][a-z0-9]*\z/) {
-			$lim = $pi_config->limiter($val);
+			$lim = $pi_cfg->limiter($val);
 			warn "$mkey limiter=$val not found\n" if !$lim;
 		} else {
 			warn "$mkey limiter=$val not understood\n";
@@ -110,10 +110,10 @@ sub new {
 	my $v = $opts->{address} ||= [ 'public-inbox@example.com' ];
 	my $p = $opts->{-primary_address} = ref($v) eq 'ARRAY' ? $v->[0] : $v;
 	$opts->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
-	my $pi_config = delete $opts->{-pi_config};
-	_set_limiter($opts, $pi_config, 'httpbackend');
+	my $pi_cfg = delete $opts->{-pi_cfg};
+	_set_limiter($opts, $pi_cfg, 'httpbackend');
 	_set_uint($opts, 'feedmax', 25);
-	$opts->{nntpserver} ||= $pi_config->{'publicinbox.nntpserver'};
+	$opts->{nntpserver} ||= $pi_cfg->{'publicinbox.nntpserver'};
 	my $dir = $opts->{inboxdir};
 	if (defined $dir && -f "$dir/inbox.lock") {
 		$opts->{version} = 2;

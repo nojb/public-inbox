@@ -32,9 +32,8 @@ our $ATTACH_RE = qr!([0-9][0-9\.]*)-($PublicInbox::Hval::FN)!;
 our $OID_RE = qr![a-f0-9]{7,}!;
 
 sub new {
-	my ($class, $pi_config) = @_;
-	$pi_config ||= PublicInbox::Config->new;
-	bless { pi_config => $pi_config }, $class;
+	my ($class, $pi_cfg) = @_;
+	bless { pi_cfg => $pi_cfg // PublicInbox::Config->new }, $class;
 }
 
 # backwards compatibility, do not use
@@ -169,14 +168,14 @@ sub preload {
 		eval "require PublicInbox::$_;";
 	}
 	if (ref($self)) {
-		my $pi_config = $self->{pi_config};
-		if (defined($pi_config->{'publicinbox.cgitrc'})) {
-			$pi_config->limiter('-cgit');
+		my $pi_cfg = $self->{pi_cfg};
+		if (defined($pi_cfg->{'publicinbox.cgitrc'})) {
+			$pi_cfg->limiter('-cgit');
 		}
 		$self->cgit;
 		$self->stylesheets_prepare($_) for ('', '../', '../../');
 		$self->news_www;
-		$pi_config->each_inbox(\&preload_inbox);
+		$pi_cfg->each_inbox(\&preload_inbox);
 	}
 }
 
@@ -210,8 +209,8 @@ sub news_cgit_fallback ($) {
 # returns undef if valid, array ref response if invalid
 sub invalid_inbox ($$) {
 	my ($ctx, $inbox) = @_;
-	my $ibx = $ctx->{www}->{pi_config}->lookup_name($inbox) //
-			$ctx->{www}->{pi_config}->lookup_ei($inbox);
+	my $ibx = $ctx->{www}->{pi_cfg}->lookup_name($inbox) //
+			$ctx->{www}->{pi_cfg}->lookup_ei($inbox);
 	if (defined $ibx) {
 		$ctx->{ibx} = $ibx;
 		return;
@@ -481,18 +480,18 @@ sub news_www {
 	my ($self) = @_;
 	$self->{news_www} ||= do {
 		require PublicInbox::NewsWWW;
-		PublicInbox::NewsWWW->new($self->{pi_config});
+		PublicInbox::NewsWWW->new($self->{pi_cfg});
 	}
 }
 
 sub cgit {
 	my ($self) = @_;
 	$self->{cgit} ||= do {
-		my $pi_config = $self->{pi_config};
+		my $pi_cfg = $self->{pi_cfg};
 
-		if (defined($pi_config->{'publicinbox.cgitrc'})) {
+		if (defined($pi_cfg->{'publicinbox.cgitrc'})) {
 			require PublicInbox::Cgit;
-			PublicInbox::Cgit->new($pi_config);
+			PublicInbox::Cgit->new($pi_cfg);
 		} else {
 			require Plack::Util;
 			Plack::Util::inline_object(call => sub { r404() });
@@ -538,7 +537,7 @@ sub stylesheets_prepare ($$) {
 	} || sub { $_[0] };
 
 	my $css_map = {};
-	my $stylesheets = $self->{pi_config}->{css} || [];
+	my $stylesheets = $self->{pi_cfg}->{css} || [];
 	my $links = [];
 	my $inline_ok = 1;
 

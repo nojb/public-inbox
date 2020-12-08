@@ -36,7 +36,7 @@ if ($train !~ /\A(?:ham|spam|rm)\z/) {
 die "--all only works with `rm'\n" if $opt{all} && $train ne 'rm';
 
 my $spamc = PublicInbox::Spamcheck::Spamc->new;
-my $pi_config = PublicInbox::Config->new;
+my $pi_cfg = PublicInbox::Config->new;
 my $err;
 my $mime = PublicInbox::Eml->new(do{
 	local $/;
@@ -87,7 +87,7 @@ sub remove_or_add ($$$$) {
 
 # spam is removed from all known inboxes since it is often Bcc:-ed
 if ($train eq 'spam' || ($train eq 'rm' && $opt{all})) {
-	$pi_config->each_inbox(sub {
+	$pi_cfg->each_inbox(sub {
 		my ($ibx) = @_;
 		$ibx = PublicInbox::InboxWritable->new($ibx);
 		my $im = $ibx->importer(0);
@@ -102,7 +102,7 @@ if ($train eq 'spam' || ($train eq 'rm' && $opt{all})) {
 	for ($mime->header('Cc'), $mime->header('To')) {
 		foreach my $addr (PublicInbox::Address::emails($_)) {
 			$addr = lc($addr);
-			$dests{$addr} //= $pi_config->lookup($addr) // 0;
+			$dests{$addr} //= $pi_cfg->lookup($addr) // 0;
 		}
 	}
 
@@ -113,7 +113,7 @@ if ($train eq 'spam' || ($train eq 'rm' && $opt{all})) {
 		next if $seen{"$ibx"}++;
 		remove_or_add($ibx, $train, $mime, $addr);
 	}
-	my $dests = PublicInbox::MDA->inboxes_for_list_id($pi_config, $mime);
+	my $dests = PublicInbox::MDA->inboxes_for_list_id($pi_cfg, $mime);
 	for my $ibx (@$dests) {
 		next if $seen{"$ibx"}++;
 		remove_or_add($ibx, $train, $mime, $ibx->{-primary_address});

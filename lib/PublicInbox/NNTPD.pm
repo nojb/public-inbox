@@ -12,8 +12,8 @@ use PublicInbox::InboxIdle;
 
 sub new {
 	my ($class) = @_;
-	my $pi_config = PublicInbox::Config->new;
-	my $name = $pi_config->{'publicinbox.nntpserver'};
+	my $pi_cfg = PublicInbox::Config->new;
+	my $name = $pi_cfg->{'publicinbox.nntpserver'};
 	if (!defined($name) or $name eq '') {
 		$name = hostname;
 	} elsif (ref($name) eq 'ARRAY') {
@@ -24,7 +24,7 @@ sub new {
 		groups => {},
 		err => \*STDERR,
 		out => \*STDOUT,
-		pi_config => $pi_config,
+		pi_cfg => $pi_cfg,
 		servername => $name,
 		greet => \"201 $name ready - post via email\r\n",
 		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
@@ -34,9 +34,9 @@ sub new {
 
 sub refresh_groups {
 	my ($self, $sig) = @_;
-	my $pi_config = $sig ? PublicInbox::Config->new : $self->{pi_config};
-	my $groups = $pi_config->{-by_newsgroup}; # filled during each_inbox
-	$pi_config->each_inbox(sub {
+	my $pi_cfg = $sig ? PublicInbox::Config->new : $self->{pi_cfg};
+	my $groups = $pi_cfg->{-by_newsgroup}; # filled during each_inbox
+	$pi_cfg->each_inbox(sub {
 		my ($ibx) = @_;
 		my $ngname = $ibx->{newsgroup};
 		if (defined($ngname) && $ibx->nntp_usable) {
@@ -54,11 +54,11 @@ sub refresh_groups {
 	});
 	$self->{groupnames} = [ sort(keys %$groups) ];
 	# this will destroy old groups that got deleted
-	$self->{pi_config} = $pi_config;
+	$self->{pi_cfg} = $pi_cfg;
 }
 
 sub idler_start {
-	$_[0]->{idler} //= PublicInbox::InboxIdle->new($_[0]->{pi_config});
+	$_[0]->{idler} //= PublicInbox::InboxIdle->new($_[0]->{pi_cfg});
 }
 
 1;

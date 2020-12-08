@@ -54,16 +54,16 @@ PublicInbox::Emergency->new($maildir)->prepare(\$msg_to);
 PublicInbox::Emergency->new($maildir)->prepare(\$msg_cc);
 PublicInbox::Emergency->new($maildir)->prepare(\$msg_none);
 
-my $cfg = <<EOF;
+my $raw = <<EOF;
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$inboxdir
 $cfgpfx.watch=maildir:$maildir
 $cfgpfx.watchheader=To:$addr
 $cfgpfx.watchheader=Cc:$addr
 EOF
-my $config = PublicInbox::Config->new(\$cfg);
-PublicInbox::Watch->new($config)->scan('full');
-my $ibx = $config->lookup_name('test');
+my $cfg = PublicInbox::Config->new(\$raw);
+PublicInbox::Watch->new($cfg)->scan('full');
+my $ibx = $cfg->lookup_name('test');
 ok($ibx, 'found inbox by name');
 
 my $num = $ibx->mm->num_for('to@a.com');

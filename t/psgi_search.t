@@ -67,11 +67,11 @@ $im->done;
 PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 
 my $cfgpfx = "publicinbox.test";
-my $config = PublicInbox::Config->new(\<<EOF);
+my $cfg = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=git\@vger.kernel.org
 $cfgpfx.inboxdir=$tmpdir
 EOF
-my $www = PublicInbox::WWW->new($config);
+my $www = PublicInbox::WWW->new($cfg);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;
 	my $res;
@@ -144,7 +144,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		$xdb->set_metadata('has_threadid', '0');
 		$sidx->idx_release;
 	}
-	$config->each_inbox(sub { delete $_[0]->{search} });
+	$cfg->each_inbox(sub { delete $_[0]->{search} });
 	$res = $cb->(GET('/test/?q=s:test'));
 	is($res->code, 200, 'successful search w/o has_threadid');
 	unlike($html, qr/download mbox\.gz: .*?"full threads"/s,

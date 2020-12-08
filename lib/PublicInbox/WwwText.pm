@@ -189,9 +189,9 @@ EOF
 ; line number ranges in `[PATCH]' emails link to /$INBOX_NAME/$OID/s/,
 ; an HTTP endpoint which reconstructs git blobs via git-apply(1).
 EOF
-		my $pi_config = $ctx->{www}->{pi_config};
+		my $pi_cfg = $ctx->{www}->{pi_cfg};
 		for my $cr_name (@$cr) {
-			my $urls = $pi_config->{"coderepo.$cr_name.cgiturl"};
+			my $urls = $pi_cfg->{"coderepo.$cr_name.cgiturl"};
 			my $path = "/path/to/$cr_name";
 			$cr_name = dq_escape($cr_name);
 

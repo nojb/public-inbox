@@ -251,8 +251,8 @@ ok($mic->logout, 'logout works');
 
 my $have_inotify = eval { require Linux::Inotify2; 1 };
 
-my $pi_config = PublicInbox::Config->new;
-$pi_config->each_inbox(sub {
+my $pi_cfg = PublicInbox::Config->new;
+$pi_cfg->each_inbox(sub {
 	my ($ibx) = @_;
 	my $env = { ORIGINAL_RECIPIENT => $ibx->{-primary_address} };
 	my $name = $ibx->{name};

@@ -19,12 +19,12 @@ sub new {
 		err => \*STDERR,
 		out => \*STDOUT,
 		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
-		# pi_config => PublicInbox::Config
+		# pi_cfg => PublicInbox::Config
 		# idler => PublicInbox::InboxIdle
 	}, $class;
 }
 
-sub imapd_refresh_ibx { # pi_config->each_inbox cb
+sub imapd_refresh_ibx { # pi_cfg->each_inbox cb
 	my ($ibx, $imapd) = @_;
 	my $ngname = $ibx->{newsgroup} or return;
 
@@ -60,7 +60,7 @@ sub imapd_refresh_ibx { # pi_config->each_inbox cb
 }
 
 sub imapd_refresh_finalize {
-	my ($imapd, $pi_config) = @_;
+	my ($imapd, $pi_cfg) = @_;
 	my $mailboxes;
 	if (my $next = delete $imapd->{imapd_next}) {
 		$imapd->{mailboxes} = delete $next->{mailboxes};
@@ -78,40 +78,40 @@ sub imapd_refresh_finalize {
 			qq[* LIST (\\Has${no}Children) "." $u\r\n]
 		} keys %$mailboxes
 	];
-	$imapd->{pi_config} = $pi_config;
+	$imapd->{pi_cfg} = $pi_cfg;
 	if (my $idler = $imapd->{idler}) {
-		$idler->refresh($pi_config);
+		$idler->refresh($pi_cfg);
 	}
 }
 
-sub imapd_refresh_step { # pi_config->iterate_start cb
-	my ($pi_config, $section, $imapd) = @_;
+sub imapd_refresh_step { # pi_cfg->iterate_start cb
+	my ($pi_cfg, $section, $imapd) = @_;
 	if (defined($section)) {
 		return if $section !~ m!\Apublicinbox\.([^/]+)\z!;
-		my $ibx = $pi_config->lookup_name($1) or return;
+		my $ibx = $pi_cfg->lookup_name($1) or return;
 		imapd_refresh_ibx($ibx, $imapd->{imapd_next});
 	} else { # undef == "EOF"
-		imapd_refresh_finalize($imapd, $pi_config);
+		imapd_refresh_finalize($imapd, $pi_cfg);
 	}
 }
 
 sub refresh_groups {
 	my ($self, $sig) = @_;
-	my $pi_config = PublicInbox::Config->new;
+	my $pi_cfg = PublicInbox::Config->new;
 	if ($sig) { # SIGHUP is handled through the event loop
 		$self->{imapd_next} = { dummies => {}, mailboxes => {} };
-		my $iter = PublicInbox::ConfigIter->new($pi_config,
+		my $iter = PublicInbox::ConfigIter->new($pi_cfg,
 						\&imapd_refresh_step, $self);
 		$iter->event_step;
 	} else { # initial start is synchronous
 		$self->{dummies} = {};
-		$pi_config->each_inbox(\&imapd_refresh_ibx, $self);
-		imapd_refresh_finalize($self, $pi_config);
+		$pi_cfg->each_inbox(\&imapd_refresh_ibx, $self);
+		imapd_refresh_finalize($self, $pi_cfg);
 	}
 }
 
 sub idler_start {
-	$_[0]->{idler} //= PublicInbox::InboxIdle->new($_[0]->{pi_config});
+	$_[0]->{idler} //= PublicInbox::InboxIdle->new($_[0]->{pi_cfg});
 }
 
 1;

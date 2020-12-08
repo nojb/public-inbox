@@ -16,9 +16,9 @@ use PublicInbox::Qspawn;
 use PublicInbox::WwwStatic qw(r);
 
 sub locate_cgit ($) {
-	my ($pi_config) = @_;
-	my $cgit_bin = $pi_config->{'publicinbox.cgitbin'};
-	my $cgit_data = $pi_config->{'publicinbox.cgitdata'};
+	my ($pi_cfg) = @_;
+	my $cgit_bin = $pi_cfg->{'publicinbox.cgitbin'};
+	my $cgit_data = $pi_cfg->{'publicinbox.cgitdata'};
 
 	# /var/www/htdocs/cgit is the default install path from cgit.git
 	# /usr/{lib,share}/cgit is where Debian puts cgit
@@ -51,28 +51,28 @@ sub locate_cgit ($) {
 }
 
 sub new {
-	my ($class, $pi_config) = @_;
-	my ($cgit_bin, $cgit_data) = locate_cgit($pi_config);
+	my ($class, $pi_cfg) = @_;
+	my ($cgit_bin, $cgit_data) = locate_cgit($pi_cfg);
 
 	my $self = bless {
 		cmd => [ $cgit_bin ],
 		cgit_data => $cgit_data,
-		pi_config => $pi_config,
+		pi_cfg => $pi_cfg,
 	}, $class;
 
-	$pi_config->fill_all; # fill in -code_repos mapped to inboxes
+	$pi_cfg->fill_all; # fill in -code_repos mapped to inboxes
 
 	# some cgit repos may not be mapped to inboxes, so ensure those exist:
-	my $code_repos = $pi_config->{-code_repos};
-	foreach my $k (keys %$pi_config) {
+	my $code_repos = $pi_cfg->{-code_repos};
+	foreach my $k (keys %$pi_cfg) {
 		$k =~ /\Acoderepo\.(.+)\.dir\z/ or next;
-		my $dir = $pi_config->{$k};
+		my $dir = $pi_cfg->{$k};
 		$code_repos->{$1} ||= PublicInbox::Git->new($dir);
 	}
 	while (my ($nick, $repo) = each %$code_repos) {
 		$self->{"\0$nick"} = $repo;
 	}
-	my $cgit_static = $pi_config->{-cgit_static};
+	my $cgit_static = $pi_cfg->{-cgit_static};
 	my $static = join('|', map { quotemeta $_ } keys %$cgit_static);
 	$self->{static} = qr/\A($static)\z/;
 	$self;
@@ -120,7 +120,7 @@ sub call {
 
 	my $rdr = input_prepare($env) or return r(500);
 	my $qsp = PublicInbox::Qspawn->new($self->{cmd}, $cgi_env, $rdr);
-	my $limiter = $self->{pi_config}->limiter('-cgit');
+	my $limiter = $self->{pi_cfg}->limiter('-cgit');
 	$qsp->psgi_return($env, $limiter, $parse_cgi_headers);
 }
 

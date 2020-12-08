@@ -13,9 +13,8 @@ use PublicInbox::MID qw(mid_escape);
 use PublicInbox::Hval qw(prurl);
 
 sub new {
-	my ($class, $pi_config) = @_;
-	$pi_config ||= PublicInbox::Config->new;
-	bless { pi_config => $pi_config }, $class;
+	my ($class, $pi_cfg) = @_;
+	bless { pi_cfg => $pi_cfg // PublicInbox::Config->new }, $class;
 }
 
 sub redirect ($$) {
@@ -47,8 +46,8 @@ sub call {
 	# /inbox.foo.bar/123456
 	my (undef, @parts) = split(m!/!, $env->{PATH_INFO});
 	my ($ng, $article) = @parts;
-	my $pi_config = $self->{pi_config};
-	if (my $ibx = $pi_config->lookup_newsgroup($ng)) {
+	my $pi_cfg = $self->{pi_cfg};
+	if (my $ibx = $pi_cfg->lookup_newsgroup($ng)) {
 		my $url = prurl($env, $ibx->{url});
 		my $code = 301;
 		if (defined $article && $article =~ /\A[0-9]+\z/) {
@@ -71,9 +70,9 @@ sub call {
 		pop @parts;
 		push @try, join('/', @parts);
 	}
-	my $ALL = $pi_config->ALL;
+	my $ALL = $pi_cfg->ALL;
 	if (my $over = $ALL ? $ALL->over : undef) {
-		my $by_eidx_key = $pi_config->{-by_eidx_key};
+		my $by_eidx_key = $pi_cfg->{-by_eidx_key};
 		for my $mid (@try) {
 			my ($id, $prev);
 			while (my $x = $over->next_by_mid($mid, \$id, \$prev)) {
@@ -90,7 +89,7 @@ sub call {
 	} else { # slow path, scan every inbox
 		for my $mid (@try) {
 			my $arg = [ $mid ]; # [1] => result
-			$pi_config->each_inbox(\&try_inbox, $arg);
+			$pi_cfg->each_inbox(\&try_inbox, $arg);
 			return $arg->[1] if $arg->[1];
 		}
 	}

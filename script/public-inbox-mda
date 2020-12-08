@@ -42,18 +42,18 @@ my $str = do { local $/; <STDIN> };
 $str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 $ems->prepare(\$str);
 my $eml = PublicInbox::Eml->new(\$str);
-my $config = PublicInbox::Config->new;
+my $cfg = PublicInbox::Config->new;
 my $key = 'publicinboxmda.spamcheck';
 my $default = 'PublicInbox::Spamcheck::Spamc';
-my $spamc = PublicInbox::Spamcheck::get($config, $key, $default);
+my $spamc = PublicInbox::Spamcheck::get($cfg, $key, $default);
 my $dests = [];
 my $recipient = $ENV{ORIGINAL_RECIPIENT};
 if (defined $recipient) {
-	my $ibx = $config->lookup($recipient); # first check
+	my $ibx = $cfg->lookup($recipient); # first check
 	push @$dests, $ibx if $ibx;
 }
 if (!scalar(@$dests)) {
-	$dests = PublicInbox::MDA->inboxes_for_list_id($config, $eml);
+	$dests = PublicInbox::MDA->inboxes_for_list_id($cfg, $eml);
 	if (!scalar(@$dests) && !defined($recipient)) {
 		die "ORIGINAL_RECIPIENT not defined in ENV\n";
 	}

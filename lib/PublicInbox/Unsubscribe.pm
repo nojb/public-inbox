@@ -39,7 +39,7 @@ sub new {
 		die "`unsubscribe' callback not given\n";
 
 	bless {
-		pi_config => $opt{pi_config}, # PublicInbox::Config
+		pi_cfg => $opt{pi_config}, # PublicInbox::Config
 		owner_email => $opt{owner_email},
 		cipher => $cipher,
 		unsubscribe => $unsubscribe,
@@ -149,9 +149,9 @@ sub archive_info {
 	my $archive_url = $self->{archive_urls}->{$list_addr};
 
 	unless ($archive_url) {
-		if (my $config = $self->{pi_config}) {
+		if (my $cfg = $self->{pi_cfg}) {
 			# PublicInbox::Config::lookup
-			my $ibx = $config->lookup($list_addr);
+			my $ibx = $cfg->lookup($list_addr);
 			# PublicInbox::Inbox::base_url
 			$archive_url = $ibx->base_url if $ibx;
 		}

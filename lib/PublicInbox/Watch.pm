@@ -41,7 +41,7 @@ sub compile_watchheaders ($) {
 }
 
 sub new {
-	my ($class, $config) = @_;
+	my ($class, $cfg) = @_;
 	my (%mdmap, $spamc);
 	my (%imap, %nntp); # url => [inbox objects] or 'watchspam'
 
@@ -50,7 +50,7 @@ sub new {
 	# indefinitely...
 	foreach my $pfx (qw(publicinboxwatch publicinboxlearn)) {
 		my $k = "$pfx.watchspam";
-		defined(my $dirs = $config->{$k}) or next;
+		defined(my $dirs = $cfg->{$k}) or next;
 		$dirs = PublicInbox::Config::_array($dirs);
 		for my $dir (@$dirs) {
 			my $url;
@@ -69,10 +69,10 @@ sub new {
 
 	my $k = 'publicinboxwatch.spamcheck';
 	my $default = undef;
-	my $spamcheck = PublicInbox::Spamcheck::get($config, $k, $default);
+	my $spamcheck = PublicInbox::Spamcheck::get($cfg, $k, $default);
 	$spamcheck = _spamcheck_cb($spamcheck) if $spamcheck;
 
-	$config->each_inbox(sub {
+	$cfg->each_inbox(sub {
 		# need to make all inboxes writable for spam removal:
 		my $ibx = $_[0] = PublicInbox::InboxWritable->new($_[0]);
 
@@ -113,7 +113,7 @@ sub new {
 		spamcheck => $spamcheck,
 		mdmap => \%mdmap,
 		mdre => $mdre,
-		config => $config,
+		pi_cfg => $cfg,
 		imap => scalar keys %imap ? \%imap : undef,
 		nntp => scalar keys %nntp? \%nntp : undef,
 		importers => {},
@@ -175,7 +175,7 @@ sub _remove_spam {
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
 	my $eml = eml_from_path($path) or return;
 	local $SIG{__WARN__} = warn_ignore_cb();
-	$self->{config}->each_inbox(\&remove_eml_i, $self, $eml, $path);
+	$self->{pi_cfg}->each_inbox(\&remove_eml_i, $self, $eml, $path);
 }
 
 sub import_eml ($$$) {
@@ -316,7 +316,7 @@ sub cfg_bool ($$$) {
 # flesh out common IMAP-specific data structures
 sub imap_common_init ($) {
 	my ($self) = @_;
-	my $cfg = $self->{config};
+	my $cfg = $self->{pi_cfg};
 	my $mic_args = {}; # scheme://authority => Mail:IMAPClient arg
 	for my $url (sort keys %{$self->{imap}}) {
 		my $uri = PublicInbox::URIimap->new($url);
@@ -418,7 +418,7 @@ sub imap_import_msg ($$$$$) {
 		if ($flags =~ /\\Seen\b/) {
 			local $SIG{__WARN__} = warn_ignore_cb();
 			my $eml = PublicInbox::Eml->new($raw);
-			$self->{config}->each_inbox(\&remove_eml_i,
+			$self->{pi_cfg}->each_inbox(\&remove_eml_i,
 						$self, $eml, "$url UID:$uid");
 		}
 	} else {
@@ -775,7 +775,7 @@ sub watch_imap_init ($$) {
 # flesh out common NNTP-specific data structures
 sub nntp_common_init ($) {
 	my ($self) = @_;
-	my $cfg = $self->{config};
+	my $cfg = $self->{pi_cfg};
 	my $nn_args = {}; # scheme://authority => Net::NNTP->new arg
 	for my $url (sort keys %{$self->{nntp}}) {
 		my $sec = uri_section(uri_new($url));
@@ -966,7 +966,7 @@ sub nntp_fetch_all ($$$) {
 			}
 		} elsif ($inboxes eq 'watchspam') {
 			my $eml = PublicInbox::Eml->new(\$raw);
-			$self->{config}->each_inbox(\&remove_eml_i,
+			$self->{pi_cfg}->each_inbox(\&remove_eml_i,
 					$self, $eml, "$url ARTICLE $art");
 		} else {
 			die "BUG: destination unknown $inboxes";

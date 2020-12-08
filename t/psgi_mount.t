@@ -17,7 +17,7 @@ use_ok 'PublicInbox::WWW';
 use PublicInbox::Import;
 use PublicInbox::Git;
 use PublicInbox::Config;
-my $config = PublicInbox::Config->new(\<<EOF);
+my $cfg = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=$addr
 $cfgpfx.inboxdir=$maindir
 EOF
@@ -39,7 +39,7 @@ EOF
 	$im->done;
 }
 
-my $www = PublicInbox::WWW->new($config);
+my $www = PublicInbox::WWW->new($cfg);
 my $app = builder(sub {
 	enable('Head');
 	mount('/a' => builder(sub { sub { $www->call(@_) } }));
@@ -85,7 +85,7 @@ test_psgi($app, sub {
 
 SKIP: {
 	require_mods(qw(DBD::SQLite Search::Xapian IO::Uncompress::Gunzip), 3);
-	my $ibx = $config->lookup_name('test');
+	my $ibx = $cfg->lookup_name('test');
 	require_ok 'PublicInbox::SearchIdx';
 	PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 	test_psgi($app, sub {

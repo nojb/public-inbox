@@ -113,7 +113,7 @@ use PublicInbox::Config;
 	my $mock_self = {
 		nntpd => {
 			servername => 'example.com',
-			pi_config => bless {}, 'PublicInbox::Config',
+			pi_cfg => bless {}, 'PublicInbox::Config',
 		},
 		ibx => $ibx,
 	};

@@ -72,11 +72,11 @@ $cfgpfx.filter=PublicInbox::Filter::RubyLang
 $cfgpfx.altid=serial:alerts:file=msgmap.sqlite3
 publicinboxwatch.watchspam=maildir:$spamdir
 EOF
-	my $config = PublicInbox::Config->new(\$orig);
-	my $ibx = $config->lookup_name($v);
+	my $cfg = PublicInbox::Config->new(\$orig);
+	my $ibx = $cfg->lookup_name($v);
 	ok($ibx, 'found inbox by name');
 
-	my $w = PublicInbox::Watch->new($config);
+	my $w = PublicInbox::Watch->new($cfg);
 	for my $i (1..2) {
 		$w->scan('full');
 	}
@@ -101,8 +101,8 @@ EOF
 	}
 	$w->scan('full');
 
-	$config = PublicInbox::Config->new(\$orig);
-	$ibx = $config->lookup_name($v);
+	$cfg = PublicInbox::Config->new(\$orig);
+	$ibx = $cfg->lookup_name($v);
 	is($ibx->search->reopen->mset('b:spam')->size, 0, 'spam removed');
 
 	is_deeply([], \@warn, 'no warnings');

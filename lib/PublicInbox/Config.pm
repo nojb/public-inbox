@@ -425,7 +425,7 @@ EOF
 	}
 
 	$ibx->{name} = $name;
-	$ibx->{-pi_config} = $self;
+	$ibx->{-pi_cfg} = $self;
 	$ibx = PublicInbox::Inbox->new($ibx);
 	foreach (@{$ibx->{address}}) {
 		my $lc_addr = lc($_);

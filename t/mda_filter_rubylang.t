@@ -44,8 +44,8 @@ something
 EOF
 		ok(run_script(['-mda'], $env, $opt), 'message delivered');
 	}
-	my $config = PublicInbox::Config->new;
-	my $ibx = $config->lookup_name($v);
+	my $cfg = PublicInbox::Config->new;
+	my $ibx = $cfg->lookup_name($v);
 
 	# make sure all serials are searchable:
 	for my $i (1..2) {

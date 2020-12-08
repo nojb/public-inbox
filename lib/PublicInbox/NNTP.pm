@@ -129,7 +129,7 @@ sub list_active_i { # "LIST ACTIVE" and also just "LIST" (no args)
 	my ($self, $groupnames) = @_;
 	my @window = splice(@$groupnames, 0, 100) or return 0;
 	my $ibx;
-	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
 	for my $ngname (@window) {
 		$ibx = $groups->{$ngname} and group_line($self, $ibx);
 	}
@@ -146,7 +146,7 @@ sub list_active ($;$) { # called by cmd_list
 sub list_active_times_i {
 	my ($self, $groupnames) = @_;
 	my @window = splice(@$groupnames, 0, 100) or return 0;
-	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
 	for my $ngname (@window) {
 		my $ibx = $groups->{$ngname} or next;
 		my $c = eval { $ibx->uidvalidity } // time;
@@ -165,7 +165,7 @@ sub list_active_times ($;$) { # called by cmd_list
 sub list_newsgroups_i {
 	my ($self, $groupnames) = @_;
 	my @window = splice(@$groupnames, 0, 100) or return 0;
-	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
 	my $ibx;
 	for my $ngname (@window) {
 		$ibx = $groups->{$ngname} and
@@ -268,7 +268,7 @@ sub group_line ($$) {
 sub newgroups_i {
 	my ($self, $ts, $i, $groupnames) = @_;
 	my $end = $$i + 100;
-	my $groups = $self->{nntpd}->{pi_config}->{-by_newsgroup};
+	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
 	while ($$i < $end) {
 		my $ngname = $groupnames->[$$i++] // return;
 		my $ibx = $groups->{$ngname} or next; # expired on reload
@@ -323,7 +323,7 @@ sub ngpat2re (;$) {
 sub newnews_i {
 	my ($self, $names, $ts, $prev) = @_;
 	my $ngname = $names->[0];
-	if (my $ibx = $self->{nntpd}->{pi_config}->{-by_newsgroup}->{$ngname}) {
+	if (my $ibx = $self->{nntpd}->{pi_cfg}->{-by_newsgroup}->{$ngname}) {
 		if (my $over = $ibx->over) {
 			my $msgs = $over->query_ts($ts, $$prev);
 			if (scalar @$msgs) {
@@ -362,7 +362,7 @@ sub cmd_newnews ($$$$;$$) {
 sub cmd_group ($$) {
 	my ($self, $group) = @_;
 	my $nntpd = $self->{nntpd};
-	my $ibx = $nntpd->{pi_config}->{-by_newsgroup}->{$group} or
+	my $ibx = $nntpd->{pi_cfg}->{-by_newsgroup}->{$group} or
 		return '411 no such news group';
 	$nntpd->idler_start;
 
@@ -439,13 +439,13 @@ sub xref ($$$) {
 	my $nntpd = $self->{nntpd};
 	my $cur_ng = $cur_ibx->{newsgroup};
 	my $xref;
-	if (my $ALL = $nntpd->{pi_config}->ALL) {
+	if (my $ALL = $nntpd->{pi_cfg}->ALL) {
 		$xref = $ALL->nntp_xref_for($cur_ibx, $smsg);
-		xref_by_tc($xref, $nntpd->{pi_config}, $smsg);
+		xref_by_tc($xref, $nntpd->{pi_cfg}, $smsg);
 	} else { # slow path
 		$xref = { $cur_ng => $smsg->{num} };
 		my $mid = $smsg->{mid};
-		for my $ibx (values %{$nntpd->{pi_config}->{-by_newsgroup}}) {
+		for my $ibx (values %{$nntpd->{pi_cfg}->{-by_newsgroup}}) {
 			next if defined($xref->{$ibx->{newsgroup}});
 			my $num = eval { $ibx->mm->num_for($mid) } // next;
 			$xref->{$ibx->{newsgroup}} = $num;
@@ -733,7 +733,7 @@ sub mid_lookup ($$) {
 		my $n = $cur_ibx->mm->num_for($mid);
 		return ($cur_ibx, $n) if defined $n;
 	}
-	my $pi_cfg = $self->{nntpd}->{pi_config};
+	my $pi_cfg = $self->{nntpd}->{pi_cfg};
 	if (my $ALL = $pi_cfg->ALL) {
 		my ($id, $prev);
 		while (my $smsg = $ALL->over->next_by_mid($mid, \$id, \$prev)) {
@@ -1014,7 +1014,7 @@ sub cmd_xpath ($$) {
 	return r501 unless $mid =~ $ONE_MSGID;
 	$mid = $1;
 	my @paths;
-	my $pi_cfg = $self->{nntpd}->{pi_config};
+	my $pi_cfg = $self->{nntpd}->{pi_cfg};
 	my $groups = $pi_cfg->{-by_newsgroup};
 	if (my $ALL = $pi_cfg->ALL) {
 		my ($id, $prev, %seen);

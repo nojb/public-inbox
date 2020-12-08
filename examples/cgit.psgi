@@ -14,8 +14,8 @@ use warnings;
 use Plack::Builder;
 use PublicInbox::Cgit;
 use PublicInbox::Config;
-my $pi_config = PublicInbox::Config->new;
-my $cgit = PublicInbox::Cgit->new($pi_config);
+my $pi_cfg = PublicInbox::Config->new;
+my $cgit = PublicInbox::Cgit->new($pi_cfg);
 
 builder {
 	eval { enable 'ReverseProxy' };

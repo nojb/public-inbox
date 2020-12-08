@@ -359,12 +359,12 @@ sub new {
 }
 
 sub setup_rlimit {
-	my ($self, $name, $config) = @_;
+	my ($self, $name, $cfg) = @_;
 	foreach my $rlim (@PublicInbox::Spawn::RLIMITS) {
 		my $k = lc($rlim);
 		$k =~ tr/_//d;
 		$k = "publicinboxlimiter.$name.$k";
-		defined(my $v = $config->{$k}) or next;
+		defined(my $v = $cfg->{$k}) or next;
 		my @rlimit = split(/\s*,\s*/, $v);
 		if (scalar(@rlimit) == 1) {
 			push @rlimit, $rlimit[0];
