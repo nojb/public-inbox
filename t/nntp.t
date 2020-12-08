@@ -99,14 +99,14 @@ use PublicInbox::Config;
 
 { # test setting NNTP headers in HEAD and ARTICLE requests
 	my $u = 'https://example.com/a/';
-	my $ng = PublicInbox::Inbox->new({ name => 'test',
+	my $ibx = PublicInbox::Inbox->new({ name => 'test',
 					inboxdir => 'test.git',
 					address => 'a@example.com',
 					-primary_address => 'a@example.com',
 					newsgroup => 'test',
 					domain => 'example.com',
 					url => [ '//example.com/a' ]});
-	is($ng->base_url, $u, 'URL expanded');
+	is($ibx->base_url, $u, 'URL expanded');
 	my $mid = 'a@b';
 	my $mime = PublicInbox::Eml->new("Message-ID: <$mid>\r\n\r\n");
 	my $hdr = $mime->header_obj;
@@ -115,9 +115,9 @@ use PublicInbox::Config;
 			servername => 'example.com',
 			pi_config => bless {}, 'PublicInbox::Config',
 		},
-		ng => $ng,
+		ibx => $ibx,
 	};
-	my $smsg = { num => 1, mid => $mid, nntp => $mock_self, -ibx => $ng };
+	my $smsg = { num => 1, mid => $mid, nntp => $mock_self, -ibx => $ibx };
 	PublicInbox::NNTP::set_nntp_headers($hdr, $smsg);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');
@@ -132,7 +132,7 @@ use PublicInbox::Config;
 	is_deeply([ $mime->header('Xref') ], [ 'example.com test:1' ],
 		'Xref: set');
 
-	$ng->{-base_url} = 'http://mirror.example.com/m/';
+	$ibx->{-base_url} = 'http://mirror.example.com/m/';
 	$smsg->{num} = 2;
 	PublicInbox::NNTP::set_nntp_headers($hdr, $smsg);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
