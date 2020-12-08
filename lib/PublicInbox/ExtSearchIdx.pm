@@ -222,6 +222,8 @@ sub ck_existing { # git->cat_async callback
 	if ($type eq 'missing') {
 		_blob_missing($req);
 	} elsif (!is_bad_blob($oid, $type, $size, $smsg->{blob})) {
+		my $self = $req->{self} // die 'BUG: {self} missing';
+		local $self->{current_info} = "$self->{current_info} $oid";
 		my $cur = PublicInbox::Eml->new($bref);
 		if (content_hash($cur) eq $req->{chash}) {
 			push @{$req->{indexed}}, $smsg; # for do_xpost
