@@ -118,7 +118,7 @@ EOF
 	} else { # directories specified on the command-line
 		my $i = 0;
 		my @dirs = @$argv;
-		push @dirs, '.' unless @dirs;
+		push @dirs, '.' if !@dirs && $opt->{-use_cwd};
 		foreach (@dirs) {
 			my $v;
 			my $dir = resolve_repo_dir($_, \$v);

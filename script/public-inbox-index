@@ -51,6 +51,7 @@ require PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
 
 my $cfg = PublicInbox::Config->new; # Config is loaded by Admin
+$opt->{-use_cwd} = 1;
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR $help; exit 1 }
