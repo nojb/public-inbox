@@ -8,7 +8,7 @@ use strict;
 use parent qw(Exporter);
 use Cwd qw(abs_path);
 use POSIX ();
-our @EXPORT_OK = qw(resolve_repo_dir setup_signals);
+our @EXPORT_OK = qw(setup_signals);
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
@@ -27,7 +27,7 @@ sub setup_signals {
 	};
 }
 
-sub resolve_repo_dir {
+sub resolve_inboxdir {
 	my ($cd, $ver) = @_;
 	my $prefix = defined $cd ? $cd : './';
 	if (-d $prefix && -f "$prefix/inbox.lock") { # v2
@@ -121,7 +121,7 @@ EOF
 		push @dirs, '.' if !@dirs && $opt->{-use_cwd};
 		foreach (@dirs) {
 			my $v;
-			my $dir = resolve_repo_dir($_, \$v);
+			my $dir = resolve_inboxdir($_, \$v);
 			if ($v < $min_ver) {
 				push @old, $dir;
 				next;

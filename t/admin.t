@@ -5,24 +5,28 @@ use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
-use_ok 'PublicInbox::Admin', qw(resolve_repo_dir);
+use_ok 'PublicInbox::Admin';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/v1";
 my $v2_dir = "$tmpdir/v2";
 my ($res, $err, $v);
 
 PublicInbox::Import::init_bare($git_dir);
+*resolve_inboxdir = do {
+	no warnings 'once';
+	*PublicInbox::Admin::resolve_inboxdir;
+};
 
 # v1
-is(resolve_repo_dir($git_dir), $git_dir, 'top-level GIT_DIR resolved');
-is(resolve_repo_dir("$git_dir/objects"), $git_dir, 'GIT_DIR/objects resolved');
+is(resolve_inboxdir($git_dir), $git_dir, 'top-level GIT_DIR resolved');
+is(resolve_inboxdir("$git_dir/objects"), $git_dir, 'GIT_DIR/objects resolved');
 
 ok(chdir($git_dir), 'chdir GIT_DIR works');
-is(resolve_repo_dir(), $git_dir, 'resolve_repo_dir works in GIT_DIR');
+is(resolve_inboxdir(), $git_dir, 'resolve_inboxdir works in GIT_DIR');
 
 ok(chdir("$git_dir/objects"), 'chdir GIT_DIR/objects works');
-is(resolve_repo_dir(), $git_dir, 'resolve_repo_dir works in GIT_DIR');
-$res = resolve_repo_dir(undef, \$v);
+is(resolve_inboxdir(), $git_dir, 'resolve_inboxdir works in GIT_DIR');
+$res = resolve_inboxdir(undef, \$v);
 is($v, 1, 'version 1 detected');
 is($res, $git_dir, 'detects directory along with version');
 
@@ -36,13 +40,13 @@ SKIP: {
 
 	ok(chdir($no_vcs_dir), 'chdir to a non-inbox');
 	open STDERR, '>&', $null or die "redirect stderr to /dev/null: $!";
-	$res = eval { resolve_repo_dir() };
+	$res = eval { resolve_inboxdir() };
 	open STDERR, '>&', $olderr or die "restore stderr: $!";
 	is($res, undef, 'fails inside non-version-controlled dir');
 
 	ok(chdir($tmpdir), 'back to test-specific $tmpdir');
 	open STDERR, '>&', $null or die "redirect stderr to /dev/null: $!";
-	$res = eval { resolve_repo_dir($no_vcs_dir) };
+	$res = eval { resolve_inboxdir($no_vcs_dir) };
 	$err = $@;
 	open STDERR, '>&', $olderr or die "restore stderr: $!";
 	is($res, undef, 'fails on non-version-controlled dir');
@@ -66,11 +70,11 @@ SKIP: {
 	PublicInbox::V2Writable->new($ibx, 1)->idx_init;
 
 	ok(-e "$v2_dir/inbox.lock", 'exists');
-	is(resolve_repo_dir($v2_dir), $v2_dir,
-		'resolve_repo_dir works on v2_dir');
+	is(resolve_inboxdir($v2_dir), $v2_dir,
+		'resolve_inboxdir works on v2_dir');
 	ok(chdir($v2_dir), 'chdir v2_dir OK');
-	is(resolve_repo_dir(), $v2_dir, 'resolve_repo_dir works inside v2_dir');
-	$res = resolve_repo_dir(undef, \$v);
+	is(resolve_inboxdir(), $v2_dir, 'resolve_inboxdir works inside v2_dir');
+	$res = resolve_inboxdir(undef, \$v);
 	is($v, 2, 'version 2 detected');
 	is($res, $v2_dir, 'detects directory along with version');
 
