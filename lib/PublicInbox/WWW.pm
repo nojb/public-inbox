@@ -213,7 +213,7 @@ sub invalid_inbox ($$) {
 	my $ibx = $ctx->{www}->{pi_config}->lookup_name($inbox) //
 			$ctx->{www}->{pi_config}->lookup_ei($inbox);
 	if (defined $ibx) {
-		$ctx->{-inbox} = $ibx;
+		$ctx->{ibx} = $ibx;
 		return;
 	}
 
@@ -231,11 +231,11 @@ sub invalid_inbox_mid {
 	return $ret if $ret;
 
 	my $mid = $ctx->{mid} = uri_unescape($mid_ue);
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	if ($mid =~ m!\A([a-f0-9]{2})([a-f0-9]{38})\z!) {
 		my ($x2, $x38) = ($1, $2);
 		# this is horrifically wasteful for legacy URLs:
-		my $str = $ctx->{-inbox}->msg_by_path("$x2/$x38") or return;
+		my $str = $ctx->{ibx}->msg_by_path("$x2/$x38") or return;
 		my $s = PublicInbox::Eml->new($str);
 		$mid = PublicInbox::MID::mid_clean($s->header_raw('Message-ID'));
 		return r301($ctx, $inbox, mid_escape($mid));
@@ -286,7 +286,7 @@ sub get_mid_html {
 # /$INBOX/$MESSAGE_ID/t/
 sub get_thread {
 	my ($ctx, $flat) = @_;
-	$ctx->{-inbox}->over or return need($ctx, 'Overview');
+	$ctx->{ibx}->over or return need($ctx, 'Overview');
 	$ctx->{flat} = $flat;
 	require PublicInbox::View;
 	PublicInbox::View::thread_html($ctx);
@@ -339,7 +339,7 @@ EOF
 # especially on older systems.  Stick to zlib since that's what git uses.
 sub get_thread_mbox {
 	my ($ctx, $sfx) = @_;
-	my $over = $ctx->{-inbox}->over or return need($ctx, 'Overview');
+	my $over = $ctx->{ibx}->over or return need($ctx, 'Overview');
 	require PublicInbox::Mbox;
 	PublicInbox::Mbox::thread_mbox($ctx, $over, $sfx);
 }
@@ -348,7 +348,7 @@ sub get_thread_mbox {
 # /$INBOX/$MESSAGE_ID/t.atom		  -> thread as Atom feed
 sub get_thread_atom {
 	my ($ctx) = @_;
-	$ctx->{-inbox}->over or return need($ctx, 'Overview');
+	$ctx->{ibx}->over or return need($ctx, 'Overview');
 	require PublicInbox::Feed;
 	PublicInbox::Feed::generate_thread_atom($ctx);
 }
@@ -413,11 +413,11 @@ sub legacy_redirects {
 
 sub r301 {
 	my ($ctx, $inbox, $mid_ue, $suffix) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	unless ($ibx) {
 		my $r404 = invalid_inbox($ctx, $inbox);
 		return $r404 if $r404;
-		$ibx = $ctx->{-inbox};
+		$ibx = $ctx->{ibx};
 	}
 	my $url = $ibx->base_url($ctx->{env});
 	my $qs = $ctx->{env}->{QUERY_STRING};
@@ -454,7 +454,7 @@ sub msg_page {
 sub serve_git {
 	my ($ctx, $epoch, $path) = @_;
 	my $env = $ctx->{env};
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $git = defined $epoch ? $ibx->git_epoch($epoch) : $ibx->git;
 	$git ? PublicInbox::GitHTTPBackend::serve($env, $git, $path) : r404();
 }
@@ -462,7 +462,7 @@ sub serve_git {
 sub mbox_results {
 	my ($ctx) = @_;
 	if ($ctx->{env}->{QUERY_STRING} =~ /(?:\A|[&;])q=/) {
-		$ctx->{-inbox}->isrch or return need($ctx, 'search');
+		$ctx->{ibx}->isrch or return need($ctx, 'search');
 		require PublicInbox::SearchView;
 		return PublicInbox::SearchView::mbox_results($ctx);
 	}
@@ -642,7 +642,7 @@ sub get_css ($$$) {
 	my $css = $css_map->{$key};
 	if (!defined($css) && $key eq 'userContent') {
 		my $env = $ctx->{env};
-		$css = PublicInbox::UserContent::sample($ctx->{-inbox}, $env);
+		$css = PublicInbox::UserContent::sample($ctx->{ibx}, $env);
 	}
 	defined $css or return r404();
 	my $h = [ 'Content-Length', bytes::length($css),
@@ -654,7 +654,7 @@ sub get_css ($$$) {
 sub get_description {
 	my ($ctx, $inbox) = @_;
 	invalid_inbox($ctx, $inbox) || do {
-		my $d = $ctx->{-inbox}->description . "\n";
+		my $d = $ctx->{ibx}->description . "\n";
 		[ 200, [ 'Content-Length', bytes::length($d),
 			'Content-Type', 'text/plain' ], [ $d ] ];
 	};

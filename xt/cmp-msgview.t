@@ -24,7 +24,7 @@ vec(my $vec = '', fileno($fh), 1) = 1;
 select($vec, undef, undef, 60) or die "timed out waiting for --batch-check";
 my $mime_ctx = {
 	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'https' },
-	-inbox => $ibx,
+	ibx => $ibx,
 	www => Plack::Util::inline_object(style => sub {''}),
 	obuf => \(my $mime_buf = ''),
 	mhref => '../',

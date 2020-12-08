@@ -17,7 +17,7 @@ use PublicInbox::Eml;
 sub getline {
 	my ($ctx) = @_; # ctx
 	my $smsg = $ctx->{smsg} or return;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $eml = $ibx->smsg_eml($smsg) or return;
 	my $n = $ctx->{smsg} = $ibx->over->next_by_mid(@{$ctx->{next_arg}});
 	$ctx->zmore(msg_hdr($ctx, $eml, $smsg->{mid}));
@@ -44,7 +44,7 @@ sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
 	my $smsg = delete $ctx->{smsg};
 	# next message
-	$ctx->{smsg} = $ctx->{-inbox}->over->next_by_mid(@{$ctx->{next_arg}});
+	$ctx->{smsg} = $ctx->{ibx}->over->next_by_mid(@{$ctx->{next_arg}});
 
 	$ctx->zmore(msg_hdr($ctx, $eml, $smsg->{mid}));
 	$ctx->{http_out}->write($ctx->translate(msg_body($eml)));
@@ -56,7 +56,7 @@ sub res_hdr ($$) {
 	$fn =~ s/^re:\s+//i;
 	$fn = to_filename($fn) // 'no-subject';
 	my @hdr = ('Content-Type');
-	if ($ctx->{-inbox}->{obfuscate}) {
+	if ($ctx->{ibx}->{obfuscate}) {
 		# obfuscation is stupid, but maybe scrapers are, too...
 		push @hdr, 'application/mbox';
 		$fn .= '.mbox';
@@ -71,7 +71,7 @@ sub res_hdr ($$) {
 # for rare cases where v1 inboxes aren't indexed w/ ->over at all
 sub no_over_raw ($) {
 	my ($ctx) = @_;
-	my $mref = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return;
+	my $mref = $ctx->{ibx}->msg_by_mid($ctx->{mid}) or return;
 	my $eml = PublicInbox::Eml->new($mref);
 	[ 200, res_hdr($ctx, $eml->header_str('Subject')),
 		[ msg_hdr($ctx, $eml, $ctx->{mid}) . msg_body($eml) ] ]
@@ -80,8 +80,8 @@ sub no_over_raw ($) {
 # /$INBOX/$MESSAGE_ID/raw
 sub emit_raw {
 	my ($ctx) = @_;
-	$ctx->{base_url} = $ctx->{-inbox}->base_url($ctx->{env});
-	my $over = $ctx->{-inbox}->over or return no_over_raw($ctx);
+	$ctx->{base_url} = $ctx->{ibx}->base_url($ctx->{env});
+	my $over = $ctx->{ibx}->over or return no_over_raw($ctx);
 	my ($id, $prev);
 	my $mip = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
 	my $smsg = $ctx->{smsg} = $over->next_by_mid(@$mip) or return;
@@ -99,7 +99,7 @@ sub msg_hdr ($$;$) {
 	foreach my $d (qw(Lines Bytes Content-Length Status)) {
 		$header_obj->header_set($d);
 	}
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $base = $ctx->{base_url};
 	$mid = $ctx->{mid} unless defined $mid;
 	$mid = mid_escape($mid);
@@ -190,7 +190,7 @@ sub all_ids_cb {
 
 sub mbox_all_ids {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $prev = 0;
 	my $mm = $ctx->{mm} = $ibx->mm;
 	my $ids = $mm->ids_after(\$prev) or return
@@ -205,20 +205,20 @@ sub mbox_all_ids {
 
 sub gone ($$) {
 	my ($ctx, $what) = @_;
-	warn "W: `$ctx->{-inbox}->{inboxdir}' $what went away unexpectedly\n";
+	warn "W: `$ctx->{ibx}->{inboxdir}' $what went away unexpectedly\n";
 	undef;
 }
 
 sub results_cb {
 	my ($ctx) = @_;
-	my $over = $ctx->{-inbox}->over or return gone($ctx, 'over');
+	my $over = $ctx->{ibx}->over or return gone($ctx, 'over');
 	while (1) {
 		while (defined(my $num = shift(@{$ctx->{ids}}))) {
 			my $smsg = $over->get_art($num) or next;
 			return $smsg;
 		}
 		# refill result set
-		my $srch = $ctx->{-inbox}->isrch or return gone($ctx, 'search');
+		my $srch = $ctx->{ibx}->isrch or return gone($ctx, 'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
@@ -229,7 +229,7 @@ sub results_cb {
 sub results_thread_cb {
 	my ($ctx) = @_;
 
-	my $over = $ctx->{-inbox}->over or return gone($ctx, 'over');
+	my $over = $ctx->{ibx}->over or return gone($ctx, 'over');
 	while (1) {
 		while (defined(my $num = shift(@{$ctx->{xids}}))) {
 			my $smsg = $over->get_art($num) or next;
@@ -240,7 +240,7 @@ sub results_thread_cb {
 		next if $over->expand_thread($ctx);
 
 		# refill result set
-		my $srch = $ctx->{-inbox}->isrch or return gone($ctx, 'search');
+		my $srch = $ctx->{ibx}->isrch or return gone($ctx, 'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
@@ -253,9 +253,9 @@ sub mbox_all {
 	my ($ctx, $q) = @_;
 	my $q_string = $q->{'q'};
 	return mbox_all_ids($ctx) if $q_string !~ /\S/;
-	my $srch = $ctx->{-inbox}->isrch or
+	my $srch = $ctx->{ibx}->isrch or
 		return PublicInbox::WWW::need($ctx, 'Search');
-	my $over = $ctx->{-inbox}->over or
+	my $over = $ctx->{ibx}->over or
 		return PublicInbox::WWW::need($ctx, 'Overview');
 
 	my $qopts = $ctx->{qopts} = { mset => 2 }; # order by docid

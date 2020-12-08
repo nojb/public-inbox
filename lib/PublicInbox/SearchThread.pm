@@ -42,7 +42,7 @@ sub thread {
 	# We'll trust the client Date: header here instead of the Received:
 	# time since this is for display (and not retrieval)
 	_set_parent(\%id_table, $_) for sort { $a->{ds} <=> $b->{ds} } @$msgs;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $rootset = [ grep {
 			!delete($_->{parent}) && $_->visible($ibx)
 		} values %id_table ];
@@ -166,7 +166,7 @@ sub order_children {
 
 	my %seen = ($cur => 1); # self-referential loop prevention
 	my @q = ($cur);
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	while (defined($cur = shift @q)) {
 		my $c = $cur->{children}; # The hashref here...
 

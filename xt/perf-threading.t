@@ -25,7 +25,7 @@ ok($n, 'got some messages');
 diag "enquire: ".timestr($elapsed)." for $n";
 
 $elapsed = timeit(1, sub {
-	PublicInbox::View::thread_results({-inbox => $ibx}, $msgs);
+	PublicInbox::View::thread_results({ibx => $ibx}, $msgs);
 });
 diag "thread_results ".timestr($elapsed);
 

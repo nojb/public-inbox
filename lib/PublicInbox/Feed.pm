@@ -24,7 +24,7 @@ sub generate {
 
 sub generate_thread_atom {
 	my ($ctx) = @_;
-	my $msgs = $ctx->{msgs} = $ctx->{-inbox}->over->get_thread($ctx->{mid});
+	my $msgs = $ctx->{msgs} = $ctx->{ibx}->over->get_thread($ctx->{mid});
 	return _no_thread() unless @$msgs;
 	PublicInbox::WwwAtomStream->response($ctx, 200, \&generate_i);
 }
@@ -34,7 +34,7 @@ sub generate_html_index {
 	# if the 'r' query parameter is given, it is a legacy permalink
 	# which we must continue supporting:
 	my $qp = $ctx->{qp};
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	if ($qp && !$qp->{r} && $ibx->over) {
 		return PublicInbox::View::index_topics($ctx);
 	}
@@ -79,7 +79,7 @@ sub _no_thread () {
 
 sub recent_msgs {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $max = $ibx->{feedmax};
 	return PublicInbox::View::paginate_recent($ctx, $max) if $ibx->over;
 

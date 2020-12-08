@@ -76,7 +76,7 @@ sub search_partial ($$) {
 sub ext_msg_i {
 	my ($other, $ctx) = @_;
 
-	return if $other->{name} eq $ctx->{-inbox}->{name} || !$other->base_url;
+	return if $other->{name} eq $ctx->{ibx}->{name} || !$other->base_url;
 
 	my $mm = $other->mm or return;
 
@@ -107,7 +107,7 @@ sub ext_msg_ALL ($) {
 	my ($ctx) = @_;
 	my $ALL = $ctx->{www}->{pi_config}->ALL or return;
 	my $by_eidx_key = $ctx->{www}->{pi_config}->{-by_eidx_key};
-	my $cur_key = $ctx->{-inbox}->eidx_key;
+	my $cur_key = $ctx->{ibx}->eidx_key;
 	my %seen = ($cur_key => 1);
 	my ($id, $prev);
 	while (my $x = $ALL->over->next_by_mid($ctx->{mid}, \$id, \$prev)) {
@@ -123,7 +123,7 @@ sub ext_msg_ALL ($) {
 	return exact($ctx) if $ctx->{found};
 
 	# fall back to partial MID matching
-	for my $ibxish ($ctx->{-inbox}, $ALL) {
+	for my $ibxish ($ctx->{ibx}, $ALL) {
 		my $mids = search_partial($ibxish, $ctx->{mid}) or next;
 		push @{$ctx->{partial}}, [ $ibxish, $mids ];
 		last if ($ctx->{n_partial} += scalar(@$mids)) >= PARTIAL_MAX;
@@ -169,7 +169,7 @@ sub finalize_exact {
 
 	# fall back to partial MID matching
 	my $mid = $ctx->{mid};
-	my $cur = $ctx->{-inbox};
+	my $cur = $ctx->{ibx};
 	my $mids = search_partial($cur, $mid);
 	if ($mids) {
 		$ctx->{n_partial} = scalar(@$mids);
@@ -200,7 +200,7 @@ sub partial_response ($) {
 		my $es = $n_partial == 1 ? '' : 'es';
 		$n_partial .= '+' if ($n_partial == PARTIAL_MAX);
 		$s .= "\n$n_partial partial match$es found:\n\n";
-		my $cur_name = $ctx->{-inbox}->{name};
+		my $cur_name = $ctx->{ibx}->{name};
 		foreach my $pair (@{$ctx->{partial}}) {
 			my ($ibx, $res) = @$pair;
 			my $env = $ctx->{env} if $ibx->{name} eq $cur_name;

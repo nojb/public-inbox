@@ -30,7 +30,7 @@ sub check_output {
 sub sqldump ($$) {
 	my ($ctx, $altid_pfx) = @_;
 	my $env = $ctx->{env};
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $altid_map = $ibx->altid_map;
 	my $fn = $altid_map->{$altid_pfx};
 	unless (defined $fn) {

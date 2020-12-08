@@ -43,7 +43,7 @@ if ($dst eq 'NEWS') {
 	);
 	$ibx->{-primary_address} = $addr;
 	my $ctx = {
-		-inbox => $ibx,
+		ibx => $ibx,
 		-upfx => "$base_url/",
 		-hr => 1,
 	};
@@ -131,7 +131,7 @@ sub atom_start {
 	# WwwAtomStream stats this dir for mtime
 	my $astream = PublicInbox::WwwAtomStream->new($ctx);
 	delete $astream->{emit_header};
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $title = PublicInbox::WwwAtomStream::title_tag($ibx->description);
 	my $updated = PublicInbox::WwwAtomStream::feed_updated($mtime);
 	print $out <<EOF or die;

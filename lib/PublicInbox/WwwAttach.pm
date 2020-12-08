@@ -16,7 +16,7 @@ sub referer_match ($) {
 	return 1 if $referer eq ''; # no referer is always OK for wget/curl
 
 	# prevent deep-linking from other domains on some browsers (Firefox)
-	# n.b.: $ctx->{-inbox}->base_url($env) with INBOX_URL won't work
+	# n.b.: $ctx->{ibx}->base_url($env) with INBOX_URL won't work
 	# with dillo, we can only match "$url_scheme://$HTTP_HOST/" without
 	# path components
 	my $base_url = $env->{'psgi.url_scheme'} . '://' .
@@ -88,15 +88,15 @@ sub get_attach ($$$) {
 	$ctx->{idx} = $idx;
 	bless $ctx, __PACKAGE__;
 	my $eml;
-	if ($ctx->{smsg} = $ctx->{-inbox}->smsg_by_mid($ctx->{mid})) {
+	if ($ctx->{smsg} = $ctx->{ibx}->smsg_by_mid($ctx->{mid})) {
 		return sub { # public-inbox-httpd-only
 			$ctx->{wcb} = $_[0];
 			scan_attach($ctx);
 		} if $ctx->{env}->{'pi-httpd.async'};
 		# generic PSGI:
-		$eml = $ctx->{-inbox}->smsg_eml($ctx->{smsg});
-	} elsif (!$ctx->{-inbox}->over) {
-		if (my $bref = $ctx->{-inbox}->msg_by_mid($ctx->{mid})) {
+		$eml = $ctx->{ibx}->smsg_eml($ctx->{smsg});
+	} elsif (!$ctx->{ibx}->over) {
+		if (my $bref = $ctx->{ibx}->msg_by_mid($ctx->{mid})) {
 			$eml = PublicInbox::Eml->new($bref);
 		}
 	}

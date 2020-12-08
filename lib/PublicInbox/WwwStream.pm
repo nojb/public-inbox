@@ -16,7 +16,7 @@ our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
 
 sub base_url ($) {
 	my $ctx = shift;
-	my $base_url = $ctx->{-inbox}->base_url($ctx->{env});
+	my $base_url = $ctx->{ibx}->base_url($ctx->{env});
 	chop $base_url; # no trailing slash for clone
 	$base_url;
 }
@@ -35,7 +35,7 @@ sub async_eml { # for async_blob_cb
 
 sub html_top ($) {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $desc = ascii_html($ibx->description);
 	my $title = delete($ctx->{-title_html}) // $desc;
 	my $upfx = $ctx->{-upfx} || '';
@@ -78,7 +78,7 @@ sub html_top ($) {
 
 sub coderepos ($) {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my @ret;
 	if (defined(my $cr = $ibx->{coderepo})) {
 		my $cfg = $ctx->{www}->{pi_config};
@@ -109,7 +109,7 @@ sub _html_end {
 id=mirror>This inbox may be cloned and mirrored by anyone:</a>
 EOF
 
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $desc = ascii_html($ibx->description);
 
 	my @urls;
@@ -184,7 +184,7 @@ sub getline {
 	my $cb = $ctx->{cb} or return;
 	while (defined(my $x = $cb->($ctx))) { # x = smsg or scalar non-ref
 		if (ref($x)) { # smsg
-			my $eml = $ctx->{-inbox}->smsg_eml($x) or next;
+			my $eml = $ctx->{ibx}->smsg_eml($x) or next;
 			$ctx->{smsg} = $x;
 			return $ctx->translate($cb->($ctx, $eml));
 		} else { # scalar

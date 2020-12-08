@@ -48,7 +48,7 @@ sub msg_page_i {
 # /$INBOX/$MSGID/ for unindexed v1 inboxes
 sub no_over_html ($) {
 	my ($ctx) = @_;
-	my $bref = $ctx->{-inbox}->msg_by_mid($ctx->{mid}) or return; # 404
+	my $bref = $ctx->{ibx}->msg_by_mid($ctx->{mid}) or return; # 404
 	my $eml = PublicInbox::Eml->new($bref);
 	$ctx->{mhref} = '';
 	PublicInbox::WwwStream::init($ctx);
@@ -64,7 +64,7 @@ sub no_over_html ($) {
 
 sub msg_page {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
 	my $over = $ctx->{over} = $ibx->over or return no_over_html($ctx);
 	my ($id, $prev);
@@ -88,7 +88,7 @@ sub msg_reply ($$) {
 	 'https://en.wikipedia.org/wiki/Posting_style#Interleaved_style';
 
 	my $info = '';
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	if (my $url = $ibx->{infourl}) {
 		$url = prurl($ctx->{env}, $url);
 		$info = qq(\n  List information: <a\nhref="$url">$url</a>\n);
@@ -421,7 +421,7 @@ sub stream_thread ($$) {
 sub thread_html {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my ($nr, $msgs) = $ibx->over->get_thread($mid);
 	return missing_thread($ctx) if $nr == 0;
 
@@ -554,7 +554,7 @@ EOF
 sub add_text_body { # callback for each_part
 	my ($p, $ctx) = @_;
 	my $upfx = $ctx->{mhref};
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $l = $ctx->{-linkify} //= PublicInbox::Linkify->new;
 	# $p - from each_part: [ Email::MIME-like, depth, $idx ]
 	my ($part, $depth, $idx) = @$p;
@@ -639,7 +639,7 @@ sub add_text_body { # callback for each_part
 
 sub _msg_page_prepare_obuf {
 	my ($eml, $ctx) = @_;
-	my $over = $ctx->{-inbox}->over;
+	my $over = $ctx->{ibx}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	my $rv = '';
 	my $mids = mids_for_index($eml);
@@ -729,7 +729,7 @@ sub SKEL_EXPAND () {
 sub thread_skel ($$$) {
 	my ($skel, $ctx, $hdr) = @_;
 	my $mid = mids($hdr)->[0];
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my ($nr, $msgs) = $ibx->over->get_thread($mid);
 	my $parent = in_reply_to($hdr);
 	$$skel .= "\n<b>Thread overview: </b>";
@@ -800,7 +800,7 @@ sub _parent_headers {
 # returns a string buffer
 sub html_footer {
 	my ($ctx, $hdr) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $upfx = '../';
 	my $skel;
 	my $rv = '<pre>';
@@ -1072,7 +1072,7 @@ sub acc_topic { # walk_thread callback
 	my ($ctx, $level, $smsg) = @_;
 	my $mid = $smsg->{mid};
 	my $has_blob = $smsg->{blob} // do {
-		if (my $by_mid = $ctx->{-inbox}->smsg_by_mid($mid)) {
+		if (my $by_mid = $ctx->{ibx}->smsg_by_mid($mid)) {
 			%$smsg = (%$smsg, %$by_mid);
 			1;
 		}
@@ -1116,7 +1116,7 @@ sub dump_topics {
 	}
 
 	my @out;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 
 	# sort by recency, this allows new posts to "bump" old topics...
@@ -1194,7 +1194,7 @@ sub paginate_recent ($$) {
 	$t =~ s/\A([0-9]{8,14})-// and $after = str2ts($1);
 	$t =~ /\A([0-9]{8,14})\z/ and $before = str2ts($1);
 
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $msgs = $ibx->recent($opts, $after, $before);
 	my $nr = scalar @$msgs;
 	if ($nr < $lim && defined($after)) {

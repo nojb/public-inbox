@@ -75,7 +75,7 @@ EOF
 {
 	# check initial feed
 	{
-		my $feed = string_feed({ -inbox => $ibx });
+		my $feed = string_feed({ ibx => $ibx });
 		SKIP: {
 			skip 'XML::TreePP missing', 3 unless $have_xml_treepp;
 			my $t = XML::TreePP->new->parse($feed);
@@ -109,7 +109,7 @@ EOF
 
 	# check spam shows up
 	{
-		my $spammy_feed = string_feed({ -inbox => $ibx });
+		my $spammy_feed = string_feed({ ibx => $ibx });
 		SKIP: {
 			skip 'XML::TreePP missing', 2 unless $have_xml_treepp;
 			my $t = XML::TreePP->new->parse($spammy_feed);
@@ -127,7 +127,7 @@ EOF
 
 	# spam no longer shows up
 	{
-		my $feed = string_feed({ -inbox => $ibx });
+		my $feed = string_feed({ ibx => $ibx });
 		SKIP: {
 			skip 'XML::TreePP missing', 2 unless $have_xml_treepp;
 			my $t = XML::TreePP->new->parse($feed);

@@ -16,7 +16,7 @@ sub new {
 	my ($class, %opts) = @_;
 	my $altid = delete $opts{-altid};
 	my $self = $class->SUPER::new(%opts);
-	my $ibx = $self->{-inbox};
+	my $ibx = $self->{ibx};
 	# altid = serial:ruby-core:file=msgmap.sqlite3
 	if (!$altid && $ibx && $ibx->{altid}) {
 		$altid ||= $ibx->{altid}->[0];

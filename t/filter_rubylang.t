@@ -35,7 +35,7 @@ SKIP: {
 	];
 	my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir,
 						altid => $altid });
-	$f = PublicInbox::Filter::RubyLang->new(-inbox => $ibx);
+	$f = PublicInbox::Filter::RubyLang->new(ibx => $ibx);
 	$msg = <<'EOF';
 X-Mail-Count: 12
 Message-ID: <a@b>

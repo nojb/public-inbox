@@ -197,7 +197,7 @@ sub show ($$;$) {
 
 	$ctx->{'log'} = tmpfile("solve.$oid_b");
 	$ctx->{fn} = $fn;
-	my $solver = PublicInbox::SolverGit->new($ctx->{-inbox},
+	my $solver = PublicInbox::SolverGit->new($ctx->{ibx},
 						\&solve_result, $ctx);
 	# PSGI server will call this immediately and give us a callback (-wcb)
 	sub {

@@ -49,7 +49,7 @@ sub get_text {
 
 	# enforce trailing slash for "wget -r" compatibility
 	if (!$have_tslash && $code == 200) {
-		my $url = $ctx->{-inbox}->base_url($env);
+		my $url = $ctx->{ibx}->base_url($env);
 		$url .= "_/text/$key/";
 
 		return [ 302, [ 'Content-Type', 'text/plain',
@@ -100,7 +100,7 @@ sub _srch_prefix ($$) {
 
 sub _colors_help ($$) {
 	my ($ctx, $txt) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $env = $ctx->{env};
 	my $base_url = $ibx->base_url($env);
 	$$txt .= "color customization for $base_url\n";
@@ -135,7 +135,7 @@ sub URI_PATH () { '^A-Za-z0-9\-\._~/' }
 # n.b. this is a perfect candidate for memoization
 sub inbox_config ($$$) {
 	my ($ctx, $hdr, $txt) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	push @$hdr, 'Content-Disposition', 'inline; filename=inbox.config';
 	my $name = dq_escape($ibx->{name});
 	my $inboxdir = '/path/to/top-level-inbox';
@@ -221,7 +221,7 @@ sub _default_text ($$$$) {
 	return inbox_config($ctx, $hdr, $txt) if $key eq 'config';
 	return if $key ne 'help'; # TODO more keys?
 
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $base_url = $ibx->base_url($ctx->{env});
 	$$txt .= "public-inbox help for $base_url\n";
 	$$txt .= <<EOF;

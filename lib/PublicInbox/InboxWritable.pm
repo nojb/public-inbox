@@ -102,7 +102,7 @@ sub filter {
 			$im->done;
 		}
 
-		my @args = (-inbox => $self);
+		my @args = (ibx => $self);
 		# basic line splitting, only
 		# Perhaps we can have proper quote splitting one day...
 		($f, @args) = split(/\s+/, $f) if $f =~ /\s+/;

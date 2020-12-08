@@ -22,7 +22,7 @@ sub async_next ($) {
 sub mbox_gz {
 	my ($self, $cb, $fn) = @_;
 	$self->{cb} = $cb;
-	$self->{base_url} = $self->{-inbox}->base_url($self->{env});
+	$self->{base_url} = $self->{ibx}->base_url($self->{env});
 	$self->{gz} = PublicInbox::GzipFilter::gzip_or_die();
 	$fn = to_filename($fn // '') // 'no-subject';
 	# http://www.iana.org/assignments/media-types/application/gzip
@@ -37,7 +37,7 @@ sub getline {
 	my ($self) = @_;
 	my $cb = $self->{cb} or return;
 	while (my $smsg = $cb->($self)) {
-		my $eml = $self->{-inbox}->smsg_eml($smsg) or next;
+		my $eml = $self->{ibx}->smsg_eml($smsg) or next;
 		$self->zmore(msg_hdr($self, $eml, $smsg->{mid}));
 		return $self->translate(msg_body($eml));
 	}

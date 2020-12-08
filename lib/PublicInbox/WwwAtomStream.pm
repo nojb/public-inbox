@@ -15,7 +15,7 @@ use PublicInbox::MsgTime qw(msg_timestamp);
 
 sub new {
 	my ($class, $ctx, $cb) = @_;
-	$ctx->{feed_base_url} = $ctx->{-inbox}->base_url($ctx->{env});
+	$ctx->{feed_base_url} = $ctx->{ibx}->base_url($ctx->{env});
 	$ctx->{cb} = $cb || \&PublicInbox::GzipFilter::close;
 	$ctx->{emit_header} = 1;
 	bless $ctx, $class;
@@ -53,7 +53,7 @@ sub getline {
 	my ($self) = @_;
 	my $cb = $self->{cb} or return;
 	while (my $smsg = $cb->($self)) {
-		my $eml = $self->{-inbox}->smsg_eml($smsg) or next;
+		my $eml = $self->{ibx}->smsg_eml($smsg) or next;
 		return $self->translate(feed_entry($self, $smsg, $eml));
 	}
 	delete $self->{cb};
@@ -82,7 +82,7 @@ sub to_uuid ($) {
 
 sub atom_header {
 	my ($ctx, $title) = @_;
-	my $ibx = $ctx->{-inbox};
+	my $ibx = $ctx->{ibx};
 	my $base_url = $ctx->{feed_base_url};
 	my $search_q = $ctx->{search_query};
 	my $self_url = $base_url;
@@ -136,10 +136,10 @@ sub feed_entry {
 	$title = title_tag($title);
 
 	my $from = $eml->header('From') // $eml->header('Sender') //
-		$ctx->{-inbox}->{-primary_address};
+		$ctx->{ibx}->{-primary_address};
 	my ($email) = PublicInbox::Address::emails($from);
 	my $name = ascii_html(join(', ', PublicInbox::Address::names($from)));
-	$email = ascii_html($email // $ctx->{-inbox}->{-primary_address});
+	$email = ascii_html($email // $ctx->{ibx}->{-primary_address});
 
 	my $s = delete($ctx->{emit_header}) ? atom_header($ctx, $title) : '';
 	$s .= "<entry><author><name>$name</name><email>$email</email>" .

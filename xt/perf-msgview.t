@@ -29,7 +29,7 @@ select($vec, undef, undef, 60) or die "timed out waiting for --batch-check";
 
 my $ctx = {
 	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'https' },
-	-inbox => $ibx,
+	ibx => $ibx,
 	www => Plack::Util::inline_object(style => sub {''}),
 };
 my ($mime, $res, $oid, $type);
