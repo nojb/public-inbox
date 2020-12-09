@@ -25,8 +25,8 @@ EOF
 close $fh or BAIL_OUT $!;
 my $v2addr = 'v2test@example.com';
 my $v1addr = 'v1test@example.com';
-ok(run_script([qw(-init -V2 v2test --newsgroup v2.example), "$home/v2test",
-	'http://example.com/v2test', $v2addr ]), 'v2test init');
+ok(run_script([qw(-init -Lbasic -V2 v2test --newsgroup v2.example),
+	"$home/v2test", 'http://example.com/v2test', $v2addr ]), 'v2test init');
 my $env = { ORIGINAL_RECIPIENT => $v2addr };
 my $eml = eml_load('t/utf8.eml');
 
@@ -50,7 +50,7 @@ seek($fh, 0, SEEK_SET) or BAIL_OUT $!;
 $env = { ORIGINAL_RECIPIENT => $v1addr };
 run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or BAIL_OUT '-mda';
 
-run_script(['-index', "$home/v1test"]) or BAIL_OUT "index $?";
+run_script([qw(-index -Lbasic), "$home/v1test"]) or BAIL_OUT "index $?";
 
 ok(run_script([qw(-extindex --all), "$home/extindex"]), 'extindex init');
 {
