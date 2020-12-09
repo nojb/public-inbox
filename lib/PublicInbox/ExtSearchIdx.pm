@@ -19,7 +19,8 @@ use v5.10.1;
 use parent qw(PublicInbox::ExtSearch PublicInbox::Lock);
 use Carp qw(croak carp);
 use PublicInbox::Search;
-use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack is_ancestor);
+use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack is_ancestor
+	is_bad_blob);
 use PublicInbox::OverIdx;
 use PublicInbox::MiscIdx;
 use PublicInbox::MID qw(mids);
@@ -89,16 +90,6 @@ sub attach_config {
 	my ($self, $cfg) = @_;
 	$self->{cfg} = $cfg;
 	$cfg->each_inbox(\&_ibx_attach, $self);
-}
-
-sub is_bad_blob ($$$$) {
-	my ($oid, $type, $size, $expect_oid) = @_;
-	if ($type ne 'blob') {
-		carp "W: $expect_oid is not a blob (type=$type)";
-		return 1;
-	}
-	croak "BUG: $oid != $expect_oid" if $oid ne $expect_oid;
-	$size == 0 ? 1 : 0; # size == 0 means purged
 }
 
 sub check_batch_limit ($) {

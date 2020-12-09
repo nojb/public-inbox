@@ -15,7 +15,7 @@ use PublicInbox::InboxWritable;
 use PublicInbox::MID qw(mids_for_index mids);
 use PublicInbox::MsgIter;
 use PublicInbox::IdxStack;
-use Carp qw(croak);
+use Carp qw(croak carp);
 use POSIX qw(strftime);
 use Time::Local qw(timegm);
 use PublicInbox::OverIdx;
@@ -23,7 +23,7 @@ use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size prepare_stack
-	index_text term_generator add_val);
+	index_text term_generator add_val is_bad_blob);
 my $X = \%PublicInbox::Search::X;
 our ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
@@ -591,8 +591,19 @@ sub crlf_adjust ($) {
 	}
 }
 
+sub is_bad_blob ($$$$) {
+	my ($oid, $type, $size, $expect_oid) = @_;
+	if ($type ne 'blob') {
+		carp "W: $expect_oid is not a blob (type=$type)";
+		return 1;
+	}
+	croak "BUG: $oid != $expect_oid" if $oid ne $expect_oid;
+	$size == 0 ? 1 : 0; # size == 0 means purged
+}
+
 sub index_both { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $sync) = @_;
+	return if is_bad_blob($oid, $type, $size, $sync->{oid});
 	my ($nr, $max) = @$sync{qw(nr max)};
 	++$$nr;
 	$$max -= $size;
@@ -609,6 +620,7 @@ sub index_both { # git->cat_async callback
 
 sub unindex_both { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $sync) = @_;
+	return if is_bad_blob($oid, $type, $size, $sync->{oid});
 	unindex_eml($sync->{sidx}, $oid, PublicInbox::Eml->new($bref));
 	# may be undef if leftover
 	if (defined(my $cur_cmt = $sync->{cur_cmt})) {
@@ -713,7 +725,7 @@ sub process_stack {
 		$sync->{index_oid} = \&index_both;
 	}
 	while (my ($f, $at, $ct, $oid, $cur_cmt) = $stk->pop_rec) {
-		my $arg = { %$sync, cur_cmt => $cur_cmt };
+		my $arg = { %$sync, cur_cmt => $cur_cmt, oid => $oid };
 		last if $sync->{quit};
 		if ($f eq 'm') {
 			$arg->{autime} = $at;

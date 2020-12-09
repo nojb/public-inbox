@@ -17,7 +17,8 @@ use PublicInbox::InboxWritable;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd);
-use PublicInbox::SearchIdx qw(log2stack crlf_adjust is_ancestor check_size);
+use PublicInbox::SearchIdx qw(log2stack crlf_adjust is_ancestor check_size
+	is_bad_blob);
 use IO::Handle; # ->autoflush
 use File::Temp ();
 
@@ -896,6 +897,7 @@ sub reindex_checkpoint ($$) {
 
 sub index_oid { # cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
+	return if is_bad_blob($oid, $type, $size, $arg->{oid});
 	my $self = $arg->{self};
 	local $self->{current_info} = "$self->{current_info} $oid";
 	return if $size == 0; # purged
@@ -1147,6 +1149,7 @@ sub unindex_oid_aux ($$$) {
 
 sub unindex_oid ($$;$) { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $sync) = @_;
+	return if is_bad_blob($oid, $type, $size, $sync->{oid});
 	my $self = $sync->{self};
 	local $self->{current_info} = "$self->{current_info} $oid";
 	my $unindexed = $sync->{in_unindex} ? $sync->{unindexed} : undef;
