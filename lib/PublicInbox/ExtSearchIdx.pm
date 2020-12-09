@@ -291,7 +291,12 @@ sub _sync_inbox ($$$) {
 	} elsif ($v == 1) {
 		my $uv = $ibx->uidvalidity;
 		my $lc = $self->{oidx}->eidx_meta("lc-v1:$ekey//$uv");
-		my $stk = prepare_stack($sync, $lc ? "$lc..HEAD" : 'HEAD');
+		my $head = $ibx->mm->last_commit;
+		unless (defined $head) {
+			warn "E: $ibx->{inboxdir} is not indexed\n";
+			return;
+		}
+		my $stk = prepare_stack($sync, $lc ? "$lc..$head" : $head);
 		my $unit = { stack => $stk, git => $ibx->git };
 		push @{$sync->{todo}}, $unit;
 	} else {

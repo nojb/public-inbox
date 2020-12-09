@@ -1073,10 +1073,22 @@ sub sync_prepare ($$) {
 		$pfx //= $sync->{ibx}->{inboxdir};
 	}
 
-	# reindex stops at the current heads and we later rerun index_sync
-	# without {reindex}
-	my $reindex_heads = $self->last_commits($sync) if $sync->{reindex};
-
+	my $reindex_heads;
+	if ($self->{ibx_map}) {
+		# ExtSearchIdx won't index messages unless they're in
+		# over.sqlite3 for a given inbox, so don't read beyond
+		# what's in the per-inbox index.
+		$reindex_heads = [];
+		my $v = PublicInbox::Search::SCHEMA_VERSION;
+		my $mm = $sync->{ibx}->mm;
+		for my $i (0..$sync->{epoch_max}) {
+			$reindex_heads->[$i] = $mm->last_commit_xap($v, $i);
+		}
+	} elsif ($sync->{reindex}) { # V2 inbox
+		# reindex stops at the current heads and we later
+		# rerun index_sync without {reindex}
+		$reindex_heads = $self->last_commits($sync);
+	}
 	if ($sync->{max_size} = $sync->{-opt}->{max_size}) {
 		$sync->{index_oid} = $self->can('index_oid');
 	}

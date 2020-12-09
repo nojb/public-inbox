@@ -176,6 +176,60 @@ is(scalar(@it), 2, 'two inboxes');
 like($it[0]->get_document->get_data, qr/v2test/, 'docdata matched v2');
 like($it[1]->get_document->get_data, qr/v1test/, 'docdata matched v1');
 
+if ('inject w/o indexing') {
+	use PublicInbox::Import;
+	use PublicInbox::Search;
+	my $schema_version = PublicInbox::Search::SCHEMA_VERSION();
+	my $v1ibx = PublicInbox::Config->new->lookup_name('v1test');
+	my $last_v1_commit = $v1ibx->mm->last_commit;
+	my $v2ibx = PublicInbox::Config->new->lookup_name('v2test');
+	my $last_v2_commit = $v2ibx->mm->last_commit_xap($schema_version, 0);
+	my $git0 = PublicInbox::Git->new("$v2ibx->{inboxdir}/git/0.git");
+	chomp(my $cmt = $git0->qx(qw(rev-parse HEAD^0)));
+	is($last_v2_commit, $cmt, 'v2 index up-to-date');
+
+	my $v2im = PublicInbox::Import->new($git0, undef, undef, $v2ibx);
+	$v2im->{lock_path} = undef;
+	$v2im->{path_type} = 'v2';
+	$v2im->add(eml_load('t/mda-mime.eml'));
+	$v2im->done;
+	chomp(my $tip = $git0->qx(qw(rev-parse HEAD^0)));
+	isnt($tip, $cmt, '0.git v2 updated');
+
+	# inject a message w/o updating index
+	rename("$home/v1test/public-inbox", "$home/v1test/skip-index") or
+		BAIL_OUT $!;
+	open(my $eh, '<', 't/iso-2202-jp.eml') or BAIL_OUT $!;
+	run_script(['-mda', '--no-precheck'], $env, { 0 => $eh}) or
+		BAIL_OUT '-mda';
+	rename("$home/v1test/skip-index", "$home/v1test/public-inbox") or
+		BAIL_OUT $!;
+
+	my ($in, $out, $err);
+	$in = $out = $err = '';
+	my $opt = { 0 => \$in, 1 => \$out, 2 => \$err };
+	ok(run_script([qw(-extindex -v -v --all), "$home/extindex"],
+		undef, undef), 'extindex noop');
+	$es->{xdb}->reopen;
+	my $mset = $es->mset('mid:199707281508.AAA24167@hoyogw.example');
+	is($mset->size, 0, 'did not attempt to index unindexed v1 message');
+	$mset = $es->mset('mid:multipart-html-sucks@11');
+	is($mset->size, 0, 'did not attempt to index unindexed v2 message');
+	ok(run_script([qw(-index --all)]), 'indexed v1 and v2 inboxes');
+
+	isnt($v1ibx->mm->last_commit, $last_v1_commit, '-index v1 worked');
+	isnt($v2ibx->mm->last_commit_xap($schema_version, 0),
+		$last_v2_commit, '-index v2 worked');
+	ok(run_script([qw(-extindex --all), "$home/extindex"]),
+		'extindex updates');
+
+	$es->{xdb}->reopen;
+	$mset = $es->mset('mid:199707281508.AAA24167@hoyogw.example');
+	is($mset->size, 1, 'got v1 message');
+	$mset = $es->mset('mid:multipart-html-sucks@11');
+	is($mset->size, 1, 'got v2 message');
+}
+
 if ('remove v1test and test gc') {
 	xsys([qw(git config --unset publicinbox.v1test.inboxdir)],
 		{ GIT_CONFIG => $cfg_path });
