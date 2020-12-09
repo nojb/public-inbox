@@ -487,8 +487,9 @@ sub set_nntp_headers ($$) {
 	# *something* here is required for leafnode, try to follow
 	# RFC 5536 3.1.5...
 	$hdr->header_set('Path', $server_name . '!not-for-mail');
-
-	header_append($hdr, 'List-Post', "<mailto:$ibx->{-primary_address}>");
+	if (my $post_addr = $ibx->{-primary_address}) {
+		header_append($hdr, 'List-Post', "<mailto:$post_addr>");
+	}
 	if (my $url = $ibx->base_url) {
 		$mid = mid_escape($mid);
 		header_append($hdr, 'Archived-At', "<$url$mid/>");

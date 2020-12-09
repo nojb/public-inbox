@@ -106,7 +106,6 @@ sub msg_hdr ($$;$) {
 	my @append = (
 		'Archived-At', "<$base$mid/>",
 		'List-Archive', "<$base>",
-		'List-Post', "<mailto:$ibx->{-primary_address}>",
 	);
 	my $crlf = $header_obj->crlf;
 	my $buf = $header_obj->as_string;
@@ -118,13 +117,11 @@ sub msg_hdr ($$;$) {
 		my $k = $append[$i];
 		my $v = $append[$i + 1];
 		my @v = $header_obj->header_raw($k);
-		foreach (@v) {
-			if ($v eq $_) {
-				$v = undef;
-				last;
-			}
-		}
-		$buf .= "$k: $v$crlf" if defined $v;
+		$buf .= "$k: $v$crlf" if !grep(/\A\Q$v\E\z/, @v);
+	}
+	my $post_addr = $ibx->{-primary_address};
+	if ($post_addr && $header_obj->header_raw('List-Post')) {
+		$buf .= "List-Post: <mailto:$post_addr>$crlf";
 	}
 	$buf .= $crlf;
 }
