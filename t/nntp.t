@@ -121,12 +121,6 @@ use PublicInbox::Config;
 	PublicInbox::NNTP::set_nntp_headers($hdr, $smsg);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');
-	is_deeply([ $mime->header('Archived-At') ], [ "<${u}a\@b/>" ],
-		'Archived-At: set');
-	is_deeply([ $mime->header('List-Archive') ], [ "<$u>" ],
-		'List-Archive: set');
-	is_deeply([ $mime->header('List-Post') ], [ '<mailto:a@example.com>' ],
-		'List-Post: set');
 	is_deeply([ $mime->header('Newsgroups') ], [ 'test' ],
 		'Newsgroups: set');
 	is_deeply([ $mime->header('Xref') ], [ 'example.com test:1' ],
@@ -137,9 +131,6 @@ use PublicInbox::Config;
 	PublicInbox::NNTP::set_nntp_headers($hdr, $smsg);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
 		'Message-ID unchanged');
-	is_deeply([ $mime->header('Archived-At') ],
-		[ "<${u}a\@b/>", '<http://mirror.example.com/m/a@b/>' ],
-		'Archived-At: appended');
 	is_deeply([ $mime->header('Xref') ], [ 'example.com test:2' ],
 		'Old Xref: clobbered');
 }

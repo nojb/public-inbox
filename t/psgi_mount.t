@@ -67,11 +67,9 @@ test_psgi($app, sub {
 
 	$res = $cb->(GET('/a/test/blah%40example.com/raw'));
 	is($res->code, 200, 'OK with URLMap mount');
-	like($res->content, qr!^List-Archive: <http://[^/]+/a/test/>!m,
-		'List-Archive set in /raw mboxrd');
 	like($res->content,
-		qr!^Archived-At: <http://[^/]+/a/test/blah\@example\.com/>!m,
-		'Archived-At set in /raw mboxrd');
+		qr/^Message-Id: <blah\@example\.com>\n/sm,
+		'headers appear in /raw');
 
 	# redirects
 	$res = $cb->(GET('/a/test/m/blah%40example.com.html'));
@@ -94,12 +92,8 @@ SKIP: {
 		my $gz = $res->content;
 		my $raw;
 		IO::Uncompress::Gunzip::gunzip(\$gz => \$raw);
-		like($raw, qr!^List-Archive: <http://[^/]+/a/test/>!m,
-			'List-Archive set in /t.mbox.gz mboxrd');
-		like($raw,
-			qr!^Archived-At:\x20
-				<http://[^/]+/a/test/blah\@example\.com/>!mx,
-			'Archived-At set in /t.mbox.gz mboxrd');
+		like($raw, qr!^Message-Id:\x20<blah\@example\.com>\n!sm,
+			'headers appear in /t.mbox.gz mboxrd');
 	});
 }
 

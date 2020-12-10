@@ -20,7 +20,7 @@ sub getline {
 	my $ibx = $ctx->{ibx};
 	my $eml = $ibx->smsg_eml($smsg) or return;
 	my $n = $ctx->{smsg} = $ibx->over->next_by_mid(@{$ctx->{next_arg}});
-	$ctx->zmore(msg_hdr($ctx, $eml, $smsg->{mid}));
+	$ctx->zmore(msg_hdr($ctx, $eml));
 	if ($n) {
 		$ctx->translate(msg_body($eml));
 	} else { # last message
@@ -46,7 +46,7 @@ sub async_eml { # for async_blob_cb
 	# next message
 	$ctx->{smsg} = $ctx->{ibx}->over->next_by_mid(@{$ctx->{next_arg}});
 
-	$ctx->zmore(msg_hdr($ctx, $eml, $smsg->{mid}));
+	$ctx->zmore(msg_hdr($ctx, $eml));
 	$ctx->{http_out}->write($ctx->translate(msg_body($eml)));
 }
 
@@ -74,7 +74,7 @@ sub no_over_raw ($) {
 	my $mref = $ctx->{ibx}->msg_by_mid($ctx->{mid}) or return;
 	my $eml = PublicInbox::Eml->new($mref);
 	[ 200, res_hdr($ctx, $eml->header_str('Subject')),
-		[ msg_hdr($ctx, $eml, $ctx->{mid}) . msg_body($eml) ] ]
+		[ msg_hdr($ctx, $eml) . msg_body($eml) ] ]
 }
 
 # /$INBOX/$MESSAGE_ID/raw
@@ -90,8 +90,8 @@ sub emit_raw {
 	$ctx->psgi_response(200, $res_hdr);
 }
 
-sub msg_hdr ($$;$) {
-	my ($ctx, $eml, $mid) = @_;
+sub msg_hdr ($$) {
+	my ($ctx, $eml) = @_;
 	my $header_obj = $eml->header_obj;
 
 	# drop potentially confusing headers, ssoma already should've dropped
@@ -99,31 +99,11 @@ sub msg_hdr ($$;$) {
 	foreach my $d (qw(Lines Bytes Content-Length Status)) {
 		$header_obj->header_set($d);
 	}
-	my $ibx = $ctx->{ibx};
-	my $base = $ctx->{base_url};
-	$mid = $ctx->{mid} unless defined $mid;
-	$mid = mid_escape($mid);
-	my @append = (
-		'Archived-At', "<$base$mid/>",
-		'List-Archive', "<$base>",
-	);
 	my $crlf = $header_obj->crlf;
 	my $buf = $header_obj->as_string;
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
 	$buf =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
-	$buf = "From mboxrd\@z Thu Jan  1 00:00:00 1970" . $crlf . $buf;
-
-	for (my $i = 0; $i < @append; $i += 2) {
-		my $k = $append[$i];
-		my $v = $append[$i + 1];
-		my @v = $header_obj->header_raw($k);
-		$buf .= "$k: $v$crlf" if !grep(/\A\Q$v\E\z/, @v);
-	}
-	my $post_addr = $ibx->{-primary_address};
-	if ($post_addr && $header_obj->header_raw('List-Post')) {
-		$buf .= "List-Post: <mailto:$post_addr>$crlf";
-	}
-	$buf .= $crlf;
+	"From mboxrd\@z Thu Jan  1 00:00:00 1970" . $crlf . $buf . $crlf;
 }
 
 sub msg_body ($) {
