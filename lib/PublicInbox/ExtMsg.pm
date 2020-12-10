@@ -107,7 +107,8 @@ sub ext_msg_ALL ($) {
 	my ($ctx) = @_;
 	my $ALL = $ctx->{www}->{pi_cfg}->ALL or return;
 	my $by_eidx_key = $ctx->{www}->{pi_cfg}->{-by_eidx_key};
-	my $cur_key = $ctx->{ibx}->eidx_key;
+	my $cur_key = eval { $ctx->{ibx}->eidx_key } //
+			return partial_response($ctx); # $cur->{ibx} == $ALL
 	my %seen = ($cur_key => 1);
 	my ($id, $prev);
 	while (my $x = $ALL->over->next_by_mid($ctx->{mid}, \$id, \$prev)) {
