@@ -61,6 +61,7 @@ sub eidx_manifest_add ($$$) {
 	my ($ctx, $ALL, $ibx) = @_;
 	if (my $data = $ALL->misc->inbox_data($ibx)) {
 		$data = $json->decode($data);
+		delete $data->{''}; # private
 		while (my ($url_path, $ent) = each %$data) {
 			inject_entry($ctx, $url_path, $ent);
 		}
