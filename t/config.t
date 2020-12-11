@@ -41,7 +41,6 @@ my ($tmpdir, $for_destroy) = tmpdir();
 		'url' => [ 'http://example.com/meta' ],
 		-primary_address => 'meta@public-inbox.org',
 		'name' => 'meta',
-		feedmax => 25,
 		-httpbackend_limiter => undef,
 		nntpserver => undef,
 	}, "lookup matches expected output");
@@ -58,7 +57,6 @@ my ($tmpdir, $for_destroy) = tmpdir();
 		'inboxdir' => '/home/pi/test-main.git',
 		'domain' => 'public-inbox.org',
 		'name' => 'test',
-		feedmax => 25,
 		'url' => [ 'http://example.com/test' ],
 		-httpbackend_limiter => undef,
 		nntpserver => undef,

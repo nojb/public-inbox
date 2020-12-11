@@ -74,16 +74,6 @@ sub _cleanup_later ($) {
 	$CLEANUP->{"$self"} = $self;
 }
 
-sub _set_uint ($$$) {
-	my ($opts, $field, $default) = @_;
-	my $val = $opts->{$field};
-	if (defined $val) {
-		$val = $val->[-1] if ref($val) eq 'ARRAY';
-		$val = undef if $val !~ /\A[0-9]+\z/;
-	}
-	$opts->{$field} = $val || $default;
-}
-
 sub _set_limiter ($$$) {
 	my ($self, $pi_cfg, $pfx) = @_;
 	my $lkey = "-${pfx}_limiter";
@@ -112,7 +102,12 @@ sub new {
 	$opts->{domain} = ($p =~ /\@(\S+)\z/) ? $1 : 'localhost';
 	my $pi_cfg = delete $opts->{-pi_cfg};
 	_set_limiter($opts, $pi_cfg, 'httpbackend');
-	_set_uint($opts, 'feedmax', 25);
+	my $fmax = $opts->{feedmax};
+	if (defined($fmax) && $fmax =~ /\A[0-9]+\z/) {
+		$opts->{feedmax} += 0;
+	} else {
+		delete $opts->{feedmax};
+	}
 	$opts->{nntpserver} ||= $pi_cfg->{'publicinbox.nntpserver'};
 	my $dir = $opts->{inboxdir};
 	if (defined $dir && -f "$dir/inbox.lock") {

@@ -80,7 +80,7 @@ sub _no_thread () {
 sub recent_msgs {
 	my ($ctx) = @_;
 	my $ibx = $ctx->{ibx};
-	my $max = $ibx->{feedmax};
+	my $max = $ibx->{feedmax} // 25;
 	return PublicInbox::View::paginate_recent($ctx, $max) if $ibx->over;
 
 	# only for rare v1 inboxes which aren't indexed at all
