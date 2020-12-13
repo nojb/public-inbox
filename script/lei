@@ -1,0 +1,58 @@
+#!perl -w
+# Copyright (C) 2020 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+use strict;
+use v5.10.1;
+use Cwd qw(cwd);
+use IO::Socket::UNIX;
+
+if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
+	my $path = do {
+		my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
+		if ($runtime_dir eq '/lei') {
+			require File::Spec;
+			$runtime_dir = File::Spec->tmpdir."/lei-$<";
+		}
+		unless (-d $runtime_dir && -w _) {
+			require File::Path;
+			File::Path::mkpath($runtime_dir, 0, 0700);
+		}
+		"$runtime_dir/sock";
+	};
+	my $sock = IO::Socket::UNIX->new(Peer => $path, Type => SOCK_STREAM);
+	unless ($sock) { # start the daemon if not started
+		my $err = $!;
+		require PublicInbox::LeiDaemon;
+		$err = PublicInbox::LeiDaemon::lazy_start($path, $err);
+		# try connecting again anyways, unlink+bind may be racy
+		$sock = IO::Socket::UNIX->new(Peer => $path,
+						Type => SOCK_STREAM) // die
+			"connect($path): $! (bind($path): $err)";
+	}
+	my $pwd = $ENV{PWD};
+	my $cwd = cwd();
+	if ($pwd) { # prefer ENV{PWD} if it's a symlink to real cwd
+		my @st_cwd = stat($cwd) or die "stat(cwd=$cwd): $!\n";
+		my @st_pwd = stat($pwd);
+		# make sure st_dev/st_ino match for {PWD} to be valid
+		$pwd = $cwd if (!@st_pwd || $st_pwd[1] != $st_cwd[1] ||
+					$st_pwd[0] != $st_cwd[0]);
+	} else {
+		$pwd = $cwd;
+	}
+	local $ENV{PWD} = $pwd;
+	$sock->autoflush(1);
+	IO::FDPass::send(fileno($sock), $_) for (0..2);
+	my $buf = "$$\0\0>" . join("]\0[", @ARGV) . "\0\0>";
+	while (my ($k, $v) = each %ENV) { $buf .= "$k=$v\0" }
+	$buf .= "\0\0";
+	print $sock $buf or die "print(sock, buf): $!";
+	local $/ = "\n";
+	while (my $line = <$sock>) {
+		$line =~ /\Aexit=([0-9]+)\n\z/ and exit($1 + 0);
+		die $line;
+	}
+} else { # for systems lacking IO::FDPass
+	require PublicInbox::LeiDaemon;
+	PublicInbox::LeiDaemon::oneshot();
+}

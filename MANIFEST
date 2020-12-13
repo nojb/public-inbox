@@ -159,6 +159,7 @@ lib/PublicInbox/InboxIdle.pm
 lib/PublicInbox/InboxWritable.pm
 lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
+lib/PublicInbox/LeiDaemon.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
 lib/PublicInbox/Lock.pm
@@ -226,6 +227,7 @@ sa_config/Makefile
 sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
 sa_config/user/.spamassassin/user_prefs
+script/lei
 script/public-inbox-compact
 script/public-inbox-convert
 script/public-inbox-edit
@@ -316,6 +318,7 @@ t/indexlevels-mirror.t
 t/init.t
 t/iso-2202-jp.eml
 t/kqnotify.t
+t/lei.t
 t/linkify.t
 t/main-bin/spamc
 t/mda-mime.eml
