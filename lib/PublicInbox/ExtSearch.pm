@@ -17,13 +17,13 @@ use DBI qw(:sql_types); # SQL_BLOB
 use parent qw(PublicInbox::Search);
 
 sub new {
-	my (undef, $topdir) = @_;
+	my ($class, $topdir) = @_;
 	$topdir = File::Spec->canonpath($topdir);
 	bless {
 		topdir => $topdir,
 		# xpfx => 'ei15'
 		xpfx => "$topdir/ei".PublicInbox::Search::SCHEMA_VERSION
-	}, __PACKAGE__;
+	}, $class;
 }
 
 sub misc {

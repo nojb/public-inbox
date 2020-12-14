@@ -684,4 +684,14 @@ DELETE FROM eidxq WHERE docid = ?
 
 }
 
+sub blob_exists {
+	my ($self, $oidhex) = @_;
+	my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
+SELECT COUNT(*) FROM xref3 WHERE oidbin = ?
+
+	$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+	$sth->execute;
+	$sth->fetchrow_array;
+}
+
 1;

@@ -42,7 +42,7 @@ our %CMD = ( # sorted in order of importance/use:
 'add-extinbox' => [ 'URL-OR-PATHNAME',
 	'add/set priority of a publicinbox|extindex for extra matches',
 	qw(prio=i) ],
-'ls-extinbox' => [ '[FILTER]', 'list publicinbox|extindex sources',
+'ls-extinbox' => [ '[FILTER]', 'list publicinbox|extindex locations',
 	qw(format|f=s z local remote) ],
 'forget-extinbox' => [ '{URL-OR-PATHNAME|--prune}',
 	'exclude further results from a publicinbox|extindex',

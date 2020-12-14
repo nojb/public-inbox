@@ -160,6 +160,8 @@ lib/PublicInbox/InboxWritable.pm
 lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/LeiDaemon.pm
+lib/PublicInbox/LeiSearch.pm
+lib/PublicInbox/LeiStore.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
 lib/PublicInbox/Lock.pm
@@ -319,6 +321,7 @@ t/init.t
 t/iso-2202-jp.eml
 t/kqnotify.t
 t/lei.t
+t/lei_store.t
 t/linkify.t
 t/main-bin/spamc
 t/mda-mime.eml

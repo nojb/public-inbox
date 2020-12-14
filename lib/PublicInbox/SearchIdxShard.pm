@@ -89,6 +89,12 @@ sub shard_worker_loop ($$$$$) {
 			my ($len, $docid, $eidx_key) = split(/ /, $line, 3);
 			$self->remove_eidx_info($docid, $eidx_key,
 							eml($r, $len));
+		} elsif ($line =~ s/\A=K (\d+) //) {
+			$self->set_keywords($1 + 0, split(/ /, $line));
+		} elsif ($line =~ s/\A-K (\d+) //) {
+			$self->remove_keywords($1 + 0, split(/ /, $line));
+		} elsif ($line =~ s/\A\+K (\d+) //) {
+			$self->add_keywords($1 + 0, split(/ /, $line));
 		} elsif ($line =~ s/\AO ([^\n]+)//) {
 			my $over_fn = $1;
 			$over_fn =~ tr/\0/\n/;
@@ -207,6 +213,33 @@ sub shard_remove {
 		print $w "D $num\n" or die "failed to write remove $!";
 	} else { # same process
 		$self->remove_by_docid($num);
+	}
+}
+
+sub shard_set_keywords {
+	my ($self, $docid, @kw) = @_;
+	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
+		print $w "=K $docid @kw\n" or die "failed to write: $!";
+	} else { # same process
+		$self->set_keywords($docid, @kw);
+	}
+}
+
+sub shard_remove_keywords {
+	my ($self, $docid, @kw) = @_;
+	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
+		print $w "-K $docid @kw\n" or die "failed to write: $!";
+	} else { # same process
+		$self->remove_keywords($docid, @kw);
+	}
+}
+
+sub shard_add_keywords {
+	my ($self, $docid, @kw) = @_;
+	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
+		print $w "+K $docid @kw\n" or die "failed to write: $!";
+	} else { # same process
+		$self->add_keywords($docid, @kw);
 	}
 }
 

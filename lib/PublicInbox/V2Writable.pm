@@ -24,7 +24,7 @@ use File::Temp ();
 
 my $OID = qr/[a-f0-9]{40,}/;
 # an estimate of the post-packed size to the raw uncompressed size
-my $PACKING_FACTOR = 0.4;
+our $PACKING_FACTOR = 0.4;
 
 # SATA storage lags behind what CPUs are capable of, so relying on
 # nproc(1) can be misleading and having extra Xapian shards is a

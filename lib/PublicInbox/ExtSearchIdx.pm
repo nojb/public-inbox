@@ -896,18 +896,31 @@ sub idx_init { # similar to V2Writable
 	return if $self->{idx_shards};
 
 	$self->git->cleanup;
-
+	my $mode = 0644;
 	my $ALL = $self->git->{git_dir}; # ALL.git
-	PublicInbox::Import::init_bare($ALL) unless -d $ALL;
+	my $old = -d $ALL;
+	if ($opt->{-private}) { # LeiStore
+		$mode = 0600;
+		if (!$old) {
+			umask 077; # don't bother restoring
+			PublicInbox::Import::init_bare($ALL);
+			$self->git->qx(qw(config core.sharedRepository 0600));
+		}
+	} else {
+		PublicInbox::Import::init_bare($ALL) unless $old;
+	}
 	my $info_dir = "$ALL/objects/info";
 	my $alt = "$info_dir/alternates";
-	my $mode = 0644;
 	my (@old, @new, %seen); # seen: st_dev + st_ino
 	if (-e $alt) {
 		open(my $fh, '<', $alt) or die "open $alt: $!";
 		$mode = (stat($fh))[2] & 07777;
 		while (my $line = <$fh>) {
 			chomp(my $d = $line);
+
+			# expand relative path (/local/ stuff)
+			substr($d, 0, 3) eq '../' and
+				$d = "$ALL/objects/$d";
 			if (my @st = stat($d)) {
 				next if $seen{"$st[0]\0$st[1]"}++;
 			} else {
@@ -915,6 +928,22 @@ sub idx_init { # similar to V2Writable
 				next if $opt->{-idx_gc};
 			}
 			push @old, $line;
+		}
+	}
+
+	# for LeiStore, and possibly some mirror-only state
+	if (opendir(my $dh, my $local = "$self->{topdir}/local")) {
+		# highest numbered epoch first
+		for my $n (sort { $b <=> $a } map { substr($_, 0, -4) + 0 }
+				grep(/\A[0-9]+\.git\z/, readdir($dh))) {
+			my $d = "$local/$n.git/objects"; # absolute path
+			if (my @st = stat($d)) {
+				next if $seen{"$st[0]\0$st[1]"}++;
+				# favor relative paths for rename-friendliness
+				push @new, "../../local/$n.git/objects\n";
+			} else {
+				warn "W: stat($d) failed: $!\n";
+			}
 		}
 	}
 	for my $ibx (@{$self->{ibx_list}}) {

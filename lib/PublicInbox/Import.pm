@@ -405,6 +405,10 @@ sub add {
 	if ($smsg) {
 		$smsg->{blob} = $self->get_mark(":$blob");
 		$smsg->{raw_bytes} = $n;
+		if (my $oidx = delete $smsg->{-oidx}) { # used by LeiStore
+			return if $oidx->blob_exists($smsg->{blob});
+		}
+		# XXX do we need this? it's in git at this point
 		$smsg->{-raw_email} = \$raw_email;
 	}
 	my $ref = $self->{ref};
