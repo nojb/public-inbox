@@ -404,7 +404,7 @@ sub _reindex_finalize ($$$) {
 	my $orig_smsg = $req->{orig_smsg} // die 'BUG: no {orig_smsg}';
 	my $docid = $smsg->{num} = $orig_smsg->{num};
 	$self->{oidx}->add_overview($eml, $smsg); # may rethread
-	$self->{transact_bytes} += $smsg->{bytes};
+	check_batch_limit({ %$sync, new_smsg => $smsg });
 	if ($nr == 1) { # likely, all good
 		$self->idx_shard($docid)->shard_reindex_docid($docid);
 		return;
@@ -537,18 +537,8 @@ sub eidxq_process ($$) { # for reindexing
 			warn "E: #$docid does not exist in over\n";
 		}
 		$del->execute($docid);
+		++${$sync->{nr}};
 
-		my $cur = ++${$sync->{nr}};
-
-		# shards flush on their own, just don't queue up too many
-		# deletes
-		if ($self->{transact_bytes} >= $self->{batch_bytes}) {
-			$self->git->async_wait_all;
-			$self->{oidx}->commit_lazy;
-			$self->{oidx}->begin_lazy;
-			$pr->("reindexed $cur/$tot\n") if $pr;
-			$self->{transact_bytes} = 0;
-		}
 		# this is only for SIGUSR1, shards do their own accounting:
 		reindex_checkpoint($self, $sync) if ${$sync->{need_checkpoint}};
 	}
@@ -709,7 +699,10 @@ sub eidx_sync { # main entry point
 	for my $ibx (@{$self->{ibx_list}}) {
 		$ibx->{-ibx_id} //= $self->{oidx}->ibx_id($ibx->eidx_key);
 	}
-	eidx_reindex($self, $sync) if delete($opt->{reindex});
+	if (delete($opt->{reindex})) {
+		$sync->{checkpoint_unlocks} = 1;
+		eidx_reindex($self, $sync);
+	}
 
 	# don't use $_ here, it'll get clobbered by reindex_checkpoint
 	for my $ibx (@{$self->{ibx_list}}) {
