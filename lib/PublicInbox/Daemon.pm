@@ -237,8 +237,7 @@ EOF
 	};
 
 	if ($daemonize) {
-		my $pid = fork;
-		die "could not fork: $!\n" unless defined $pid;
+		my $pid = fork // die "fork: $!";
 		exit if $pid;
 
 		open(STDIN, '+<', '/dev/null') or
@@ -246,8 +245,7 @@ EOF
 		open STDOUT, '>&STDIN' or die "redirect stdout failed: $!\n";
 		open STDERR, '>&STDIN' or die "redirect stderr failed: $!\n";
 		POSIX::setsid();
-		$pid = fork;
-		die "could not fork: $!\n" unless defined $pid;
+		$pid = fork // die "fork: $!";
 		exit if $pid;
 	}
 	return unless defined $pid_file;
