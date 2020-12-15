@@ -94,8 +94,6 @@ sub shard_worker_loop ($$$$$) {
 			my $over_fn = $1;
 			$over_fn =~ tr/\0/\n/;
 			$self->over_check(PublicInbox::Over->new($over_fn));
-		} elsif ($line =~ /\AE ([0-9]+)\n/) {
-			$self->reindex_docid($1 + 0);
 		} else {
 			chomp $line;
 			my $eidx_key;
@@ -124,9 +122,9 @@ sub shard_worker_loop ($$$$$) {
 }
 
 sub index_raw {
-	my ($self, $msgref, $eml, $smsg, $ibx) = @_;
+	my ($self, $msgref, $eml, $smsg, $eidx_key) = @_;
 	if (my $w = $self->{w}) {
-		my @ekey = $ibx ? ('X='.$ibx->eidx_key."\0") : ();
+		my @ekey = defined($eidx_key) ? ("X=$eidx_key\0") : ();
 		$msgref //= \($eml->as_string);
 		$smsg->{raw_bytes} //= length($$msgref);
 		# mid must be last, it can contain spaces (but not LF)
@@ -140,7 +138,7 @@ sub index_raw {
 			$eml = PublicInbox::Eml->new($msgref);
 		}
 		$self->begin_txn_lazy;
-		$smsg->{eidx_key} = $ibx->eidx_key if $ibx;
+		$smsg->{eidx_key} = $eidx_key if defined $eidx_key;
 		$self->add_message($eml, $smsg);
 	}
 }
@@ -222,15 +220,6 @@ sub shard_over_check {
 		print $w "O $over_fn\n" or die "failed to write over $!";
 	} else {
 		$self->over_check($over);
-	}
-}
-
-sub shard_reindex_docid {
-	my ($self, $docid) = @_;
-	if (my $w = $self->{w}) {
-		print $w "E $docid\n" or die "failed to write to shard: $!";
-	} else {
-		$self->reindex_docid($docid);
 	}
 }
 
