@@ -21,13 +21,19 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 	};
 	my $sock = IO::Socket::UNIX->new(Peer => $path, Type => SOCK_STREAM);
 	unless ($sock) { # start the daemon if not started
-		my $err = $!;
-		require PublicInbox::LeiDaemon;
-		$err = PublicInbox::LeiDaemon::lazy_start($path, $err);
+		my $err = $! + 0;
+		my $env = { PERL5LIB => join(':', @INC) };
+		my $cmd = [ $^X, qw[-MPublicInbox::LeiDaemon
+			-E PublicInbox::LeiDaemon::lazy_start(@ARGV)],
+			$path, $err ];
+		require PublicInbox::Spawn;
+		waitpid(PublicInbox::Spawn::spawn($cmd, $env), 0);
+		warn "lei-daemon exited with \$?=$?\n" if $?;
+
 		# try connecting again anyways, unlink+bind may be racy
 		$sock = IO::Socket::UNIX->new(Peer => $path,
 						Type => SOCK_STREAM) // die
-			"connect($path): $! (bind($path): $err)";
+			"connect($path): $! (after attempted daemon start)";
 	}
 	my $pwd = $ENV{PWD};
 	my $cwd = cwd();

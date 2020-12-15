@@ -324,29 +324,27 @@ sub accept_dispatch { # Listener {post_accept} callback
 sub noop {}
 
 # lei(1) calls this when it can't connect
-sub lazy_start ($$) {
+sub lazy_start {
 	my ($path, $err) = @_;
 	if ($err == ECONNREFUSED) {
 		unlink($path) or die "unlink($path): $!";
 	} elsif ($err != ENOENT) {
 		die "connect($path): $!";
 	}
+	require IO::FDPass;
 	my $umask = umask(077) // die("umask(077): $!");
 	my $l = IO::Socket::UNIX->new(Local => $path,
 					Listen => 1024,
 					Type => SOCK_STREAM) or
 		$err = $!;
 	umask($umask) or die("umask(restore): $!");
-	$l or return $err;
+	$l or return die "bind($path): $err";
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	my $oldset = PublicInbox::Sigfd::block_signals();
 	my $pid = fork // die "fork: $!";
-	if ($pid) {
-		PublicInbox::Sigfd::sig_setmask($oldset);
-		return; # client will connect to $path
-	}
+	return if $pid;
 	openlog($path, 'pid', 'user');
 	local $SIG{__DIE__} = sub {
 		syslog('crit', "@_");
@@ -360,7 +358,7 @@ sub lazy_start ($$) {
 	open STDERR, '>&STDIN' or die "redirect stderr failed: $!\n";
 	setsid();
 	$pid = fork // die "fork: $!";
-	exit if $pid;
+	return if $pid;
 	$0 = "lei-daemon $path";
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
