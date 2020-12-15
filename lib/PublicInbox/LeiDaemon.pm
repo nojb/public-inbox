@@ -23,6 +23,143 @@ our $quit = sub { exit(shift // 0) };
 my $glp = Getopt::Long::Parser->new;
 $glp->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
 
+# TBD: this is a documentation mechanism to show a subcommand
+# (may) pass options through to another command:
+sub pass_through { () }
+
+# TODO: generate shell completion + help using %CMD and %OPTDESC
+# command => [ positional_args, 1-line description, Getopt::Long option spec ]
+our %CMD = ( # sorted in order of importance/use:
+'query' => [ 'SEARCH-TERMS...', 'search for messages matching terms', qw(
+	save-as=s output|o=s format|f=s dedupe|d=s thread|t augment|a
+	limit|n=i sort|s=s reverse|r offset=i remote local! extinbox!
+	since|after=s until|before=s) ],
+
+'show' => [ '{MID|OID}', 'show a given object (Message-ID or object ID)',
+	qw(type=s solve! format|f=s dedupe|d=s thread|t remote local!),
+	pass_through('git show') ],
+
+'add-extinbox' => [ 'URL-OR-PATHNAME',
+	'add/set priority of a publicinbox|extindex for extra matches',
+	qw(prio=i) ],
+'ls-extinbox' => [ '[FILTER]', 'list publicinbox|extindex sources',
+	qw(format|f=s z local remote) ],
+'forget-extinbox' => [ '{URL-OR-PATHNAME|--prune}',
+	'exclude further results from a publicinbox|extindex',
+	qw(prune) ],
+
+'ls-query' => [ '[FILTER]', 'list saved search queries',
+		qw(name-only format|f=s z) ],
+'rm-query' => [ 'QUERY_NAME', 'remove a saved search' ],
+'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search' ],
+
+'plonk' => [ '{--thread|--from=IDENT}',
+	'exclude mail matching From: or thread from non-Message-ID searches',
+	qw(thread|t from|f=s mid=s oid=s) ],
+'mark' => [ 'MESSAGE-FLAGS', 'set/unset flags on message(s) from stdin',
+	qw(stdin| oid=s exact by-mid|mid:s) ],
+'forget' => [ '--stdin', 'exclude message(s) on stdin from query results',
+	qw(stdin| oid=s  exact by-mid|mid:s) ],
+
+'purge-mailsource' => [ '{URL-OR-PATHNAME|--all}',
+	'remove imported messages from IMAP, Maildirs, and MH',
+	qw(exact! all jobs:i indexed) ],
+
+# code repos are used for `show' to solve blobs from patch mails
+'add-coderepo' => [ 'PATHNAME', 'add or set priority of a git code repo',
+	qw(prio=i) ],
+'ls-coderepo' => [ '[FILTER]', 'list known code repos', qw(format|f=s z) ],
+'forget-coderepo' => [ 'PATHNAME',
+	'stop using repo to solve blobs from patches',
+	qw(prune) ],
+
+'add-watch' => [ '[URL_OR_PATHNAME]',
+		'watch for new messages and flag changes',
+	qw(import! flags! interval=s recursive|r exclude=s include=s) ],
+'ls-watch' => [ '[FILTER]', 'list active watches with numbers and status',
+		qw(format|f=s z) ],
+'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote) ],
+'resume-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote) ],
+'forget-watch' => [ '{WATCH_NUMBER|--prune}', 'stop and forget a watch',
+	qw(prune) ],
+
+'import' => [ '{URL_OR_PATHNAME|--stdin}',
+	'one-shot import/update from URL or filesystem',
+	qw(stdin| limit|n=i offset=i recursive|r exclude=s include=s !flags),
+	],
+
+'config' => [ '[ANYTHING...]',
+		'git-config(1) wrapper for ~/.config/lei/config',
+		pass_through('git config') ],
+'daemon-stop' => [ undef, 'stop the lei-daemon' ],
+'daemon-pid' => [ undef, 'show the PID of the lei-daemon' ],
+'help' => [ '[SUBCOMMAND]', 'show help' ],
+
+# XXX do we need this?
+# 'git' => [ '[ANYTHING...]', 'git(1) wrapper', pass_through('git') ],
+
+'reorder-local-store-and-break-history' => [ '[REFNAME]',
+	'rewrite git history in an attempt to improve compression',
+	'gc!' ]
+); # @CMD
+
+# switch descriptions, try to keep consistent across commands
+# $spec: Getopt::Long option specification
+# $spec => [@ALLOWED_VALUES (default is first), $description],
+# $spec => $description
+# "$SUB_COMMAND TAB $spec" => as above
+my $stdin_formats = [ qw(auto raw mboxrd mboxcl2 mboxcl mboxo),
+		'specify message input format' ];
+my $ls_format = [ qw(plain json null), 'listing output format' ];
+my $show_format = [ qw(plain raw html mboxrd mboxcl2 mboxcl),
+		'message/object output format' ];
+
+my %OPTDESC = (
+'solve!' => 'do not attempt to reconstruct blobs from emails',
+'save-as=s' => 'save a search terms by given name',
+
+'type=s' => [qw(any mid git), 'disambiguate type' ],
+
+'dedupe|d=s' => [qw(content oid mid), 'deduplication strategy'],
+'thread|t' => 'every message in the same thread as the actual match(es)',
+'augment|a' => 'augment --output destination instead of clobbering',
+
+'output|o=s' => "destination (e.g. `/path/to/Maildir', or `-' for stdout)",
+
+'mark	format|f=s' => $stdin_formats,
+'forget	format|f=s' => $stdin_formats,
+'query	format|f=s' => [qw(maildir mboxrd mboxcl2 mboxcl html oid),
+		q[specify output format (default: determined by --output)]],
+'ls-query	format|f=s' => $ls_format,
+'ls-extinbox format|f=s' => $ls_format,
+
+'limit|n=i' => 'integer limit on number of matches (default: 10000)',
+'offset=i' => 'search result offset (default: 0)',
+
+'sort|s=s@' => [qw(internaldate date relevance docid),
+		"order of results `--output'-dependent)"],
+
+'prio=i' => 'priority of query source',
+
+'local' => 'limit operations to the local filesystem',
+'local!' => 'exclude results from the local filesystem',
+'remote' => 'limit operations to those requiring network access',
+'remote!' => 'prevent operations requiring network access',
+
+'mid=s' => 'specify the Message-ID of a message',
+'oid=s' => 'specify the git object ID of a message',
+
+'recursive|r' => 'scan directories/mailboxes/newsgroups recursively',
+'exclude=s' => 'exclude mailboxes/newsgroups based on pattern',
+'include=s' => 'include mailboxes/newsgroups based on pattern',
+
+'exact' => 'operate on exact header matches only',
+'exact!' => 'rely on content match instead of exact header matches',
+
+'by-mid|mid:s' => 'match only by Message-ID, ignoring contents',
+'jobs:i' => 'set parallelism level',
+); # %OPTDESC
+
 sub x_it ($$) { # pronounced "exit"
 	my ($client, $code) = @_;
 	if (my $sig = ($code & 127)) {
