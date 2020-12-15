@@ -212,16 +212,12 @@ sub daemonize () {
 
 		chdir '/' or die "chdir failed: $!";
 	}
-
-	return unless (defined $pid_file || defined $group || defined $user
-			|| $daemonize);
-
-	eval { require Net::Server::Daemonize };
-	if ($@) {
-		die
-"Net::Server required for --pid-file, --group, --user, and --daemonize\n$@\n";
+	if (defined($pid_file) || defined($group) || defined($user)) {
+		eval { require Net::Server::Daemonize; 1 } // die <<EOF;
+Net::Server required for --pid-file, --group, --user
+$@
+EOF
 	}
-
 	Net::Server::Daemonize::check_pid_file($pid_file) if defined $pid_file;
 	$uid = Net::Server::Daemonize::get_uid($user) if defined $user;
 	if (defined $group) {
