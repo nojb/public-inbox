@@ -268,18 +268,30 @@ if ('reindex catches missed messages') {
 	my $new = $oidx->get_art($max + 1);
 	is($new->{subject}, $eml->header('Subject'), 'new message added');
 
+	$es->{xdb}->reopen;
+	my $mset = $es->mset("mid:$new->{mid}");
+	is($mset->size, 1, 'previously unseen, now indexed in Xapian');
+
 	ok($im->remove($eml), 'remove new message from v2 inbox');
 	$im->done;
 	my $cmt_c = $v2ibx->mm->last_commit_xap($schema_version, 0);
 	is($oidx->eidx_meta($lc_key, $cmt_c), $cmt_b,
 		'bump lc-v2 meta again to skip v2 remove');
 	$err = '';
+	$oidx->dbh_close;
 	ok(run_script([qw(-extindex --reindex), "$home/extindex",
 			$v2ibx->{inboxdir}], undef, $opt),
 			'--reindex for stale');
 	@err = split(/^/, $err);
 	is(scalar(@err), 1, 'only one warning');
 	like($err[0], qr/\(#$new->{num}\): stale/, 'got stale message warning');
+	is($oidx->get_art($new->{num}), undef,
+		'stale message gone from over');
+	is_deeply($oidx->get_xref3($new->{num}), [],
+		'stale message has no xref3');
+	$es->{xdb}->reopen;
+	$mset = $es->mset("mid:$new->{mid}");
+	is($mset->size, 0, 'stale mid gone Xapian');
 }
 
 if ('remove v1test and test gc') {

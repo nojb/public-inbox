@@ -533,6 +533,7 @@ DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
 		my $xr3 = $self->{oidx}->get_xref3($docid);
 		my $idx = $self->idx_shard($docid);
 		if (scalar(@$xr3) == 0) { # all gone
+			$self->{oidx}->delete_by_num($docid);
 			$self->{oidx}->eidxq_del($docid);
 			$idx->shard_remove($docid);
 		} else { # enqueue for reindex of remaining messages
