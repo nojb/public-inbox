@@ -275,13 +275,17 @@ sub _idx_init { # with_umask callback
 	$self->{shards} = $nshards if $nshards && $nshards != $self->{shards};
 	$self->{batch_bytes} = $opt->{batch_size} //
 				$PublicInbox::SearchIdx::BATCH_BYTES;
-	$self->{batch_bytes} *= $self->{shards} if $self->{parallel};
 
 	# need to create all shards before initializing msgmap FD
 	# idx_shards must be visible to all forked processes
 	my $max = $self->{shards} - 1;
 	my $idx = $self->{idx_shards} = [];
 	push @$idx, PublicInbox::SearchIdxShard->new($self, $_) for (0..$max);
+
+	# SearchIdxShard may do their own flushing, so don't scale
+	# until after forking
+	$self->{batch_bytes} *= $self->{shards} if $self->{parallel};
+
 	my $ibx = $self->{ibx} or return; # ExtIdxSearch
 
 	# Now that all subprocesses are up, we can open the FDs

@@ -563,6 +563,15 @@ CREATE TABLE IF NOT EXISTS eidx_meta (
 	val VARCHAR(255) NOT NULL
 )
 
+		# A queue of current docids which need reindexing.
+		# eidxq persists across aborted -extindex invocations
+		# Currently used for "-extindex --reindex" for Xapian
+		# data, but may be used in more places down the line.
+		$dbh->do(<<'');
+CREATE TABLE IF NOT EXISTS eidxq (
+	docid INTEGER PRIMARY KEY NOT NULL
+)
+
 		$dbh;
 	};
 }
@@ -659,6 +668,20 @@ UPDATE over SET ddd = ? WHERE num = ?
 	$sth->bind_param(1, ddd_for($smsg), SQL_BLOB);
 	$sth->bind_param(2, $smsg->{num});
 	$sth->execute;
+}
+
+sub eidxq_add {
+	my ($self, $docid) = @_;
+	$self->dbh->prepare_cached(<<'')->execute($docid);
+INSERT OR IGNORE INTO eidxq (docid) VALUES (?)
+
+}
+
+sub eidxq_del {
+	my ($self, $docid) = @_;
+	$self->dbh->prepare_cached(<<'')->execute($docid);
+DELETE FROM eidxq WHERE docid = ?
+
 }
 
 1;

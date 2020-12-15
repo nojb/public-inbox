@@ -5,6 +5,7 @@ use strict;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
+use PublicInbox::Search;
 use Fcntl qw(:seek);
 my $json = PublicInbox::Config::json() or plan skip_all => 'JSON missing';
 require_git(2.6);
@@ -101,7 +102,7 @@ my $es = PublicInbox::ExtSearch->new("$home/extindex");
 	is(scalar(@$xref3), 2, 'only to entries');
 }
 
-{
+if ('inbox edited') {
 	my ($in, $out, $err);
 	$in = $out = $err = '';
 	my $opt = { 0 => \$in, 1 => \$out, 2 => \$err };
@@ -176,13 +177,13 @@ is(scalar(@it), 2, 'two inboxes');
 like($it[0]->get_document->get_data, qr/v2test/, 'docdata matched v2');
 like($it[1]->get_document->get_data, qr/v1test/, 'docdata matched v1');
 
+my $cfg = PublicInbox::Config->new;
+my $schema_version = PublicInbox::Search::SCHEMA_VERSION();
 if ('inject w/o indexing') {
 	use PublicInbox::Import;
-	use PublicInbox::Search;
-	my $schema_version = PublicInbox::Search::SCHEMA_VERSION();
-	my $v1ibx = PublicInbox::Config->new->lookup_name('v1test');
+	my $v1ibx = $cfg->lookup_name('v1test');
 	my $last_v1_commit = $v1ibx->mm->last_commit;
-	my $v2ibx = PublicInbox::Config->new->lookup_name('v2test');
+	my $v2ibx = $cfg->lookup_name('v2test');
 	my $last_v2_commit = $v2ibx->mm->last_commit_xap($schema_version, 0);
 	my $git0 = PublicInbox::Git->new("$v2ibx->{inboxdir}/git/0.git");
 	chomp(my $cmt = $git0->qx(qw(rev-parse HEAD^0)));
@@ -228,6 +229,57 @@ if ('inject w/o indexing') {
 	is($mset->size, 1, 'got v1 message');
 	$mset = $es->mset('mid:multipart-html-sucks@11');
 	is($mset->size, 1, 'got v2 message');
+}
+
+if ('reindex catches missed messages') {
+	use PublicInbox::InboxWritable;
+	use PublicInbox::OverIdx;
+	my $v2ibx = $cfg->lookup_name('v2test');
+	my $im = PublicInbox::InboxWritable->new($v2ibx)->importer(0);
+	my $cmt_a = $v2ibx->mm->last_commit_xap($schema_version, 0);
+	my $eml = eml_load('t/data/0001.patch');
+	$im->add($eml);
+	$im->done;
+	my $cmt_b = $v2ibx->mm->last_commit_xap($schema_version, 0);
+	isnt($cmt_a, $cmt_b, 'v2 0.git HEAD updated');
+	my $f = "$home/extindex/ei$schema_version/over.sqlite3";
+	my $oidx = PublicInbox::OverIdx->new($f);
+	$oidx->dbh;
+	my $uv = $v2ibx->uidvalidity;
+	my $lc_key = "lc-v2:v2.example//$uv;0";
+	is($oidx->eidx_meta($lc_key, $cmt_b), $cmt_a,
+		'update lc-v2 meta, old is as expected');
+	my $max = $oidx->max;
+	$oidx->dbh_close;
+	ok(run_script([qw(-extindex), "$home/extindex", $v2ibx->{inboxdir}]),
+		'-extindex noop');
+	is($oidx->max, $max, '->max unchanged');
+	is($oidx->eidx_meta($lc_key), $cmt_b, 'lc-v2 unchanged');
+	$oidx->dbh_close;
+	my $opt = { 2 => \(my $err = '') };
+	ok(run_script([qw(-extindex --reindex), "$home/extindex",
+			$v2ibx->{inboxdir}], undef, $opt),
+			'--reindex for unseen');
+	is($oidx->max, $max + 1, '->max bumped');
+	is($oidx->eidx_meta($lc_key), $cmt_b, 'lc-v2 stays unchanged');
+	my @err = split(/^/, $err);
+	is(scalar(@err), 1, 'only one warning');
+	like($err[0], qr/I: reindex_unseen/, 'got reindex_unseen message');
+	my $new = $oidx->get_art($max + 1);
+	is($new->{subject}, $eml->header('Subject'), 'new message added');
+
+	ok($im->remove($eml), 'remove new message from v2 inbox');
+	$im->done;
+	my $cmt_c = $v2ibx->mm->last_commit_xap($schema_version, 0);
+	is($oidx->eidx_meta($lc_key, $cmt_c), $cmt_b,
+		'bump lc-v2 meta again to skip v2 remove');
+	$err = '';
+	ok(run_script([qw(-extindex --reindex), "$home/extindex",
+			$v2ibx->{inboxdir}], undef, $opt),
+			'--reindex for stale');
+	@err = split(/^/, $err);
+	is(scalar(@err), 1, 'only one warning');
+	like($err[0], qr/\(#$new->{num}\): stale/, 'got stale message warning');
 }
 
 if ('remove v1test and test gc') {

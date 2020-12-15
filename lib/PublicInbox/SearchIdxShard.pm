@@ -94,6 +94,8 @@ sub shard_worker_loop ($$$$$) {
 			my $over_fn = $1;
 			$over_fn =~ tr/\0/\n/;
 			$self->over_check(PublicInbox::Over->new($over_fn));
+		} elsif ($line =~ /\AE ([0-9]+)\n/) {
+			$self->reindex_docid($1 + 0);
 		} else {
 			chomp $line;
 			my $eidx_key;
@@ -220,6 +222,15 @@ sub shard_over_check {
 		print $w "O $over_fn\n" or die "failed to write over $!";
 	} else {
 		$self->over_check($over);
+	}
+}
+
+sub shard_reindex_docid {
+	my ($self, $docid) = @_;
+	if (my $w = $self->{w}) {
+		print $w "E $docid\n" or die "failed to write to shard: $!";
+	} else {
+		$self->reindex_docid($docid);
 	}
 }
 
