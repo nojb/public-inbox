@@ -69,33 +69,31 @@ sub shard_worker_loop ($$$$$) {
 	$0 = "shard[$shard]";
 	$self->begin_txn_lazy;
 	while (my $line = readline($r)) {
+		chomp $line;
 		$v2w->{current_info} = "[$shard] $line";
-		if ($line eq "commit\n") {
+		if ($line eq 'commit') {
 			$self->commit_txn_lazy;
-		} elsif ($line eq "close\n") {
+		} elsif ($line eq 'close') {
 			$self->idx_release;
-		} elsif ($line eq "barrier\n") {
+		} elsif ($line eq 'barrier') {
 			$self->commit_txn_lazy;
 			# no need to lock < 512 bytes is atomic under POSIX
 			print $bnote "barrier $shard\n" or
 					die "write failed for barrier $!\n";
-		} elsif ($line =~ /\AD ([0-9]+)\n\z/s) {
+		} elsif ($line =~ /\AD ([0-9]+)\z/s) {
 			$self->remove_by_docid($1 + 0);
 		} elsif ($line =~ s/\A\+X //) {
 			my ($len, $docid, $eidx_key) = split(/ /, $line, 3);
-			chomp $eidx_key;
 			$self->add_eidx_info($docid, $eidx_key, eml($r, $len));
 		} elsif ($line =~ s/\A-X //) {
 			my ($len, $docid, $eidx_key) = split(/ /, $line, 3);
-			chomp $eidx_key;
 			$self->remove_eidx_info($docid, $eidx_key,
 							eml($r, $len));
-		} elsif ($line =~ s/\AO ([^\n]+)\n//) {
+		} elsif ($line =~ s/\AO ([^\n]+)//) {
 			my $over_fn = $1;
 			$over_fn =~ tr/\0/\n/;
 			$self->over_check(PublicInbox::Over->new($over_fn));
 		} else {
-			chomp $line;
 			my $eidx_key;
 			if ($line =~ s/\AX=(.+)\0//) {
 				$eidx_key = $1;
