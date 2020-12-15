@@ -896,6 +896,9 @@ sub reindex_checkpoint ($$) {
 
 	# allow -watch or -mda to write...
 	$self->idx_init($sync->{-opt}); # reacquire lock
+	if (my $intvl = $sync->{check_intvl}) { # eidx
+		$sync->{next_check} = PublicInbox::DS::now() + $intvl;
+	}
 	$mm_tmp->atfork_parent if $mm_tmp;
 }
 
