@@ -75,6 +75,10 @@ sub require_mods {
 	my $maybe = pop @mods if $mods[-1] =~ /\A[0-9]+\z/;
 	my @need;
 	while (my $mod = shift(@mods)) {
+		if ($mod eq 'json') {
+			$mod = 'Cpanel::JSON::XS||JSON::MaybeXS||'.
+				'JSON||JSON::PP'
+		}
 		if ($mod eq 'Search::Xapian') {
 			if (eval { require PublicInbox::Search } &&
 				PublicInbox::Search::load_xapian()) {

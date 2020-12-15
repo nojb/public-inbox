@@ -7,14 +7,12 @@ use Test::More;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
-require_mods(qw(URI::Escape Plack::Builder Digest::SHA
+require_mods(qw(json URI::Escape Plack::Builder Digest::SHA
 		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny));
 require PublicInbox::WwwListing;
 require PublicInbox::ManifestJsGz;
-my $json = do {
-	no warnings 'once';
-	$PublicInbox::ManifestJsGz::json;
-} or plan skip_all => "JSON module missing";
+use PublicInbox::Config;
+my $json = PublicInbox::Config::json();
 
 use_ok 'PublicInbox::Git';
 

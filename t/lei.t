@@ -6,8 +6,7 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
-my $json = PublicInbox::Config::json() or plan skip_all => 'JSON missing';
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(json DBD::SQLite Search::Xapian));
 my ($home, $for_destroy) = tmpdir();
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 
