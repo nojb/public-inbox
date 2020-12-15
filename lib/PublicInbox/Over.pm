@@ -264,7 +264,7 @@ sub get_xref3 {
 	my ($self, $num) = @_;
 	my $dbh = dbh($self);
 	my $sth = $dbh->prepare_cached(<<'', undef, 1);
-SELECT ibx_id,xnum,oidbin FROM xref3 WHERE docid = ? ORDER BY ibx_id ASC
+SELECT ibx_id,xnum,oidbin FROM xref3 WHERE docid = ? ORDER BY ibx_id,xnum ASC
 
 	$sth->execute($num);
 	my $rows = $sth->fetchall_arrayref;
