@@ -60,5 +60,5 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 	}
 } else { # for systems lacking IO::FDPass
 	require PublicInbox::LeiDaemon;
-	PublicInbox::LeiDaemon::oneshot();
+	PublicInbox::LeiDaemon::oneshot(__PACKAGE__);
 }

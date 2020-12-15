@@ -22,7 +22,12 @@ use PublicInbox::LeiSearch;
 sub new {
 	my (undef, $dir, $opt) = @_;
 	my $eidx = PublicInbox::ExtSearchIdx->new($dir, $opt);
-	bless { priv_eidx => $eidx }, __PACKAGE__;
+	my $self = bless { priv_eidx => $eidx }, __PACKAGE__;
+	if ($opt->{creat}) {
+		PublicInbox::SearchIdx::load_xapian_writable();
+		eidx_init($self);
+	}
+	$self;
 }
 
 sub git { $_[0]->{priv_eidx}->git } # read-only

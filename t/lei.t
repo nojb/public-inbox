@@ -6,23 +6,17 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
+use File::Path qw(rmtree);
 require_mods(qw(json DBD::SQLite Search::Xapian));
 my ($home, $for_destroy) = tmpdir();
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
+delete local $ENV{XDG_DATA_HOME};
+delete local $ENV{XDG_CONFIG_HOME};
+local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
+local $ENV{HOME} = $home;
+mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
 
-SKIP: {
-	require_mods('IO::FDPass', 51);
-	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
-	mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
-	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
-
-	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
-	is($err, '', 'no error from daemon-pid');
-	like($out, qr/\A[0-9]+\n\z/s, 'pid returned') or BAIL_OUT;
-	chomp(my $pid = $out);
-	ok(kill(0, $pid), 'pid is valid');
-	ok(-S $sock, 'sock created');
-
+my $test_lei_common = sub {
 	ok(!run_script([qw(lei)], undef, $opt), 'no args fails');
 	is($? >> 8, 1, '$? is 1');
 	is($out, '', 'nothing in stdout');
@@ -35,10 +29,6 @@ SKIP: {
 		is($err, '', "nothing in stderr (@$arg)");
 	}
 
-	ok(!run_script([qw(lei DBG-false)], undef, $opt), 'false(1) emulation');
-	is($? >> 8, 1, '$? set correctly');
-	is($err, '', 'no error from false(1) emulation');
-
 	for my $arg ([''], ['--halp'], ['halp'], [qw(daemon-pid --halp)]) {
 		$out = $err = '';
 		ok(!run_script(['lei', @$arg], undef, $opt), "lei @$arg");
@@ -46,6 +36,62 @@ SKIP: {
 		isnt($err, '', 'something in stderr');
 		is($out, '', 'nothing in stdout');
 	}
+
+	# init tests
+	$out = $err = '';
+	my $ok_err_info = sub {
+		my ($msg) = @_;
+		is(grep(!/^I:/, split(/^/, $err)), 0, $msg) or
+			diag "$msg: err=$err";
+		$err = '';
+	};
+	my $home_trash = [ "$home/.local", "$home/.config" ];
+	rmtree($home_trash);
+	ok(run_script([qw(lei init)], undef, $opt), 'init w/o args');
+	$ok_err_info->('after init w/o args');
+	ok(run_script([qw(lei init)], undef, $opt), 'idempotent init w/o args');
+	$ok_err_info->('after idempotent init w/o args');
+
+	ok(!run_script([qw(lei init), "$home/x"], undef, $opt),
+		'init conflict');
+	is(grep(/^E:/, split(/^/, $err)), 1, 'got error on conflict');
+	ok(!-e "$home/x", 'nothing created on conflict');
+	rmtree($home_trash);
+
+	$err = '';
+	ok(run_script([qw(lei init), "$home/x"], undef, $opt),
+		'init conflict resolved');
+	$ok_err_info->('init w/ arg');
+	ok(run_script([qw(lei init), "$home/x"], undef, $opt),
+		'init idempotent with path');
+	$ok_err_info->('init idempotent w/ arg');
+	ok(-d "$home/x", 'created dir');
+	rmtree([ "$home/x", @$home_trash ]);
+
+	$err = '';
+	ok(!run_script([qw(lei init), "$home/x", "$home/2" ], undef, $opt),
+		'too many args fails');
+	like($err, qr/too many/, 'noted excessive');
+	ok(!-e "$home/x", 'x not created on excessive');
+	for my $d (@$home_trash) {
+		my $base = (split(m!/!, $d))[-1];
+		ok(!-d $d, "$base not created");
+	}
+	is($out, '', 'nothing in stdout');
+};
+
+SKIP: {
+	require_mods('IO::FDPass', 16);
+	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
+
+	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
+	is($err, '', 'no error from daemon-pid');
+	like($out, qr/\A[0-9]+\n\z/s, 'pid returned') or BAIL_OUT;
+	chomp(my $pid = $out);
+	ok(kill(0, $pid), 'pid is valid');
+	ok(-S $sock, 'sock created');
+
+	$test_lei_common->();
 
 	$out = '';
 	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
@@ -72,8 +118,10 @@ SKIP: {
 		tick();
 	}
 	ok(!kill(0, $new_pid), 'daemon exits after unlink');
+	$test_lei_common = undef; # success over socket, can't test without
 };
 
 require_ok 'PublicInbox::LeiDaemon';
+$test_lei_common->() if $test_lei_common;
 
 done_testing;

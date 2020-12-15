@@ -15,13 +15,18 @@ use POSIX qw(setsid);
 use IO::Socket::UNIX;
 use IO::Handle ();
 use Sys::Syslog qw(syslog openlog);
+use PublicInbox::Config;
 use PublicInbox::Syscall qw($SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now);
 use PublicInbox::Spawn qw(spawn);
-our $quit = sub { exit(shift // 0) };
+use Text::Wrap qw(wrap);
+use File::Path qw(mkpath);
+use File::Spec;
+our $quit = \&CORE::exit;
 my $glp = Getopt::Long::Parser->new;
 $glp->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
+our %PATH2CFG; # persistent for socket daemon
 
 # TBD: this is a documentation mechanism to show a subcommand
 # (may) pass options through to another command:
@@ -30,45 +35,48 @@ sub pass_through { () }
 # TODO: generate shell completion + help using %CMD and %OPTDESC
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
-'query' => [ 'SEARCH-TERMS...', 'search for messages matching terms', qw(
+'query' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|o=s format|f=s dedupe|d=s thread|t augment|a
-	limit|n=i sort|s=s reverse|r offset=i remote local! extinbox!
+	limit|n=i sort|s=s@ reverse|r offset=i remote local! extinbox!
 	since|after=s until|before=s) ],
 
-'show' => [ '{MID|OID}', 'show a given object (Message-ID or object ID)',
+'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
 	qw(type=s solve! format|f=s dedupe|d=s thread|t remote local!),
 	pass_through('git show') ],
 
-'add-extinbox' => [ 'URL-OR-PATHNAME',
+'add-extinbox' => [ 'URL_OR_PATHNAME',
 	'add/set priority of a publicinbox|extindex for extra matches',
 	qw(prio=i) ],
-'ls-extinbox' => [ '[FILTER]', 'list publicinbox|extindex locations',
+'ls-extinbox' => [ '[FILTER...]', 'list publicinbox|extindex locations',
 	qw(format|f=s z local remote) ],
-'forget-extinbox' => [ '{URL-OR-PATHNAME|--prune}',
+'forget-extinbox' => [ '{URL_OR_PATHNAME|--prune}',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune) ],
 
-'ls-query' => [ '[FILTER]', 'list saved search queries',
+'ls-query' => [ '[FILTER...]', 'list saved search queries',
 		qw(name-only format|f=s z) ],
 'rm-query' => [ 'QUERY_NAME', 'remove a saved search' ],
 'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search' ],
 
-'plonk' => [ '{--thread|--from=IDENT}',
+'plonk' => [ '--thread|--from=IDENT',
 	'exclude mail matching From: or thread from non-Message-ID searches',
-	qw(thread|t from|f=s mid=s oid=s) ],
-'mark' => [ 'MESSAGE-FLAGS', 'set/unset flags on message(s) from stdin',
+	qw(thread|t stdin| from|f=s mid=s oid=s) ],
+'mark' => [ 'MESSAGE_FLAGS...',
+	'set/unset flags on message(s) from stdin',
 	qw(stdin| oid=s exact by-mid|mid:s) ],
-'forget' => [ '--stdin', 'exclude message(s) on stdin from query results',
-	qw(stdin| oid=s  exact by-mid|mid:s) ],
+'forget' => [ '[--stdin|--oid=OID|--by-mid=MID]',
+	'exclude message(s) on stdin from query results',
+	qw(stdin| oid=s exact by-mid|mid:s quiet|q) ],
 
-'purge-mailsource' => [ '{URL-OR-PATHNAME|--all}',
+'purge-mailsource' => [ '{URL_OR_PATHNAME|--all}',
 	'remove imported messages from IMAP, Maildirs, and MH',
 	qw(exact! all jobs:i indexed) ],
 
 # code repos are used for `show' to solve blobs from patch mails
 'add-coderepo' => [ 'PATHNAME', 'add or set priority of a git code repo',
 	qw(prio=i) ],
-'ls-coderepo' => [ '[FILTER]', 'list known code repos', qw(format|f=s z) ],
+'ls-coderepo' => [ '[FILTER_TERMS...]',
+		'list known code repos', qw(format|f=s z) ],
 'forget-coderepo' => [ 'PATHNAME',
 	'stop using repo to solve blobs from patches',
 	qw(prune) ],
@@ -76,7 +84,7 @@ our %CMD = ( # sorted in order of importance/use:
 'add-watch' => [ '[URL_OR_PATHNAME]',
 		'watch for new messages and flag changes',
 	qw(import! flags! interval=s recursive|r exclude=s include=s) ],
-'ls-watch' => [ '[FILTER]', 'list active watches with numbers and status',
+'ls-watch' => [ '[FILTER...]', 'list active watches with numbers and status',
 		qw(format|f=s z) ],
 'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote) ],
 'resume-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote) ],
@@ -88,11 +96,13 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(stdin| limit|n=i offset=i recursive|r exclude=s include=s !flags),
 	],
 
-'config' => [ '[ANYTHING...]',
-		'git-config(1) wrapper for ~/.config/lei/config',
+'config' => [ '[...]', 'git-config(1) wrapper for ~/.config/lei/config',
 		pass_through('git config') ],
-'daemon-stop' => [ undef, 'stop the lei-daemon' ],
-'daemon-pid' => [ undef, 'show the PID of the lei-daemon' ],
+'init' => [ '[PATHNAME]',
+	'initialize storage, default: ~/.local/share/lei/store',
+	qw(quiet|q) ],
+'daemon-stop' => [ '', 'stop the lei-daemon' ],
+'daemon-pid' => [ '', 'show the PID of the lei-daemon' ],
 'help' => [ '[SUBCOMMAND]', 'show help' ],
 
 # XXX do we need this?
@@ -108,36 +118,43 @@ our %CMD = ( # sorted in order of importance/use:
 # $spec => [@ALLOWED_VALUES (default is first), $description],
 # $spec => $description
 # "$SUB_COMMAND TAB $spec" => as above
-my $stdin_formats = [ qw(auto raw mboxrd mboxcl2 mboxcl mboxo),
+my $stdin_formats = [ 'IN|auto|raw|mboxrd|mboxcl2|mboxcl|mboxo',
 		'specify message input format' ];
-my $ls_format = [ qw(plain json null), 'listing output format' ];
-my $show_format = [ qw(plain raw html mboxrd mboxcl2 mboxcl),
-		'message/object output format' ];
+my $ls_format = [ 'OUT|plain|json|null', 'listing output format' ];
 
 my %OPTDESC = (
+'help|h' => 'show this built-in help',
+'quiet|q' => 'be quiet',
 'solve!' => 'do not attempt to reconstruct blobs from emails',
-'save-as=s' => 'save a search terms by given name',
+'save-as=s' => ['NAME', 'save a search terms by given name'],
 
-'type=s' => [qw(any mid git), 'disambiguate type' ],
+'type=s' => [ 'any|mid|git', 'disambiguate type' ],
 
-'dedupe|d=s' => [qw(content oid mid), 'deduplication strategy'],
-'thread|t' => 'every message in the same thread as the actual match(es)',
+'dedupe|d=s' => ['STRAT|content|oid|mid',
+		'deduplication strategy'],
+'show	thread|t' => 'display entire thread a message belongs to',
+'query	thread|t' =>
+	'return all messages in the same thread as the actual match(es)',
 'augment|a' => 'augment --output destination instead of clobbering',
 
-'output|o=s' => "destination (e.g. `/path/to/Maildir', or `-' for stdout)",
+'output|o=s' => [ 'DEST',
+	"destination (e.g. `/path/to/Maildir', or `-' for stdout)" ],
 
+'show	format|f=s' => [ 'OUT|plain|raw|html|mboxrd|mboxcl2|mboxcl',
+			'message/object output format' ],
 'mark	format|f=s' => $stdin_formats,
 'forget	format|f=s' => $stdin_formats,
-'query	format|f=s' => [qw(maildir mboxrd mboxcl2 mboxcl html oid),
-		q[specify output format (default: determined by --output)]],
+'query	format|f=s' => [ 'OUT|maildir|mboxrd|mboxcl2|mboxcl|html|oid',
+		'specify output format, default depends on --output'],
 'ls-query	format|f=s' => $ls_format,
-'ls-extinbox format|f=s' => $ls_format,
+'ls-extinbox	format|f=s' => $ls_format,
 
-'limit|n=i' => 'integer limit on number of matches (default: 10000)',
-'offset=i' => 'search result offset (default: 0)',
+'limit|n=i' => ['NUM',
+	'limit on number of matches (default: 10000)' ],
+'offset=i' => ['OFF', 'search result offset (default: 0)'],
 
-'sort|s=s@' => [qw(internaldate date relevance docid),
-		"order of results `--output'-dependent)"],
+'sort|s=s@' => [ 'VAL|internaldate,date,relevance,docid',
+		"order of results `--output'-dependent"],
 
 'prio=i' => 'priority of query source',
 
@@ -156,7 +173,7 @@ my %OPTDESC = (
 'exact' => 'operate on exact header matches only',
 'exact!' => 'rely on content match instead of exact header matches',
 
-'by-mid|mid:s' => 'match only by Message-ID, ignoring contents',
+'by-mid|mid:s' => [ 'MID', 'match only by Message-ID, ignoring contents' ],
 'jobs:i' => 'set parallelism level',
 ); # %OPTDESC
 
@@ -174,92 +191,281 @@ sub x_it ($$) { # pronounced "exit"
 	}
 }
 
-sub emit ($$$) {
-	my ($client, $channel, $buf) = @_;
-	print { $client->{$channel} } $buf or warn "print FD[$channel]: $!";
+sub emit {
+	my ($client, $channel) = @_; # $buf = $_[2]
+	print { $client->{$channel} } $_[2] or die "print FD[$channel]: $!";
 }
+
+sub err {
+	my ($client, $buf) = @_;
+	$buf .= "\n" unless $buf =~ /\n\z/s;
+	emit($client, 2, $buf);
+}
+
+sub qerr { $_[0]->{opt}->{quiet} or err(@_) }
 
 sub fail ($$;$) {
 	my ($client, $buf, $exit_code) = @_;
-	$buf .= "\n" unless $buf =~ /\n\z/s;
-	emit($client, 2, $buf);
+	err($client, $buf);
 	x_it($client, ($exit_code // 1) << 8);
 	undef;
 }
 
 sub _help ($;$) {
-	my ($client, $channel) = @_;
-	emit($client, $channel //= 1, <<EOF);
-usage: lei COMMAND [OPTIONS]
+	my ($client, $errmsg) = @_;
+	my $cmd = $client->{cmd} // 'COMMAND';
+	my @info = @{$CMD{$cmd} // [ '...', '...' ]};
+	my @top = ($cmd, shift(@info) // ());
+	my $cmd_desc = shift(@info);
+	my @opt_desc;
+	my $lpad = 2;
+	for my $sw (@info) { # qw(prio=s
+		my $desc = $OPTDESC{"$cmd\t$sw"} // $OPTDESC{$sw} // next;
+		my $arg_vals = '';
+		($arg_vals, $desc) = @$desc if ref($desc) eq 'ARRAY';
 
-...
+		# lower-case is a keyword (e.g. `content', `oid'),
+		# ALL_CAPS is a string description (e.g. `PATH')
+		if ($desc !~ /default/ && $arg_vals =~ /\b([a-z]+)[,\|]/) {
+			$desc .= "\ndefault: `$1'";
+		}
+		my (@vals, @s, @l);
+		my $x = $sw;
+		if ($x =~ s/!\z//) { # solve! => --no-solve
+			$x = "no-$x";
+		} elsif ($x =~ s/:.+//) { # optional args: $x = "mid:s"
+			@vals = (' [', undef, ']');
+		} elsif ($x =~ s/=.+//) { # required arg: $x = "type=s"
+			@vals = (' ', undef);
+		} # else: no args $x = 'thread|t'
+		for (split(/\|/, $x)) { # help|h
+			length($_) > 1 ? push(@l, "--$_") : push(@s, "-$_");
+		}
+		if (!scalar(@vals)) { # no args 'thread|t'
+		} elsif ($arg_vals =~ s/\A([A-Z_]+)\b//) { # "NAME"
+			$vals[1] = $1;
+		} else {
+			$vals[1] = uc(substr($l[0], 2)); # "--type" => "TYPE"
+		}
+		if ($arg_vals =~ /([,\|])/) {
+			my $sep = $1;
+			my @allow = split(/\Q$sep\E/, $arg_vals);
+			my $must = $sep eq '|' ? 'Must' : 'Can';
+			@allow = map { "`$_'" } @allow;
+			my $last = pop @allow;
+			$desc .= "\n$must be one of: " .
+				join(', ', @allow) . " or $last";
+		}
+		my $lhs = join(', ', @s, @l) . join('', @vals);
+		$lhs =~ s/\A--/    --/; # pad if no short options
+		$lpad = length($lhs) if length($lhs) > $lpad;
+		push @opt_desc, $lhs, $desc;
+	}
+	my $msg = $errmsg ? "E: $errmsg\n" : '';
+	$msg .= <<EOF;
+usage: lei @top
+  $cmd_desc
+
 EOF
-	x_it($client, $channel == 2 ? 1 << 8 : 0); # stderr => failure
+	$lpad += 2;
+	local $Text::Wrap::columns = 78 - $lpad;
+	my $padding = ' ' x ($lpad + 2);
+	while (my ($lhs, $rhs) = splice(@opt_desc, 0, 2)) {
+		$msg .= '  '.pack("A$lpad", $lhs);
+		$rhs = wrap('', '', $rhs);
+		$rhs =~ s/\n/\n$padding/sg; # LHS pad continuation lines
+		$msg .= $rhs;
+		$msg .= "\n";
+	}
+	my $channel = $errmsg ? 2 : 1;
+	emit($client, $channel, $msg);
+	x_it($client, $errmsg ? 1 << 8 : 0); # stderr => failure
+	undef;
 }
 
-sub assert_args ($$$;$@) {
-	my ($client, $argv, $proto, $opt, @spec) = @_;
-	$opt //= {};
-	push @spec, qw(help|h);
-	$glp->getoptionsfromarray($argv, $opt, @spec) or
-		return fail($client, 'bad arguments or options');
-	if ($opt->{help}) {
-		_help($client);
-		undef;
-	} else {
-		my ($nreq, $rest) = split(/;/, $proto);
-		$nreq = (($nreq // '') =~ tr/$/$/);
-		my $argc = scalar(@$argv);
-		my $tot = ($rest // '') eq '@' ? $argc : ($proto =~ tr/$/$/);
-		return 1 if $argc <= $tot && $argc >= $nreq;
-		_help($client, 2);
-		undef
+sub optparse ($$$) {
+	my ($client, $cmd, $argv) = @_;
+	$client->{cmd} = $cmd;
+	my $opt = $client->{opt} = {};
+	my $info = $CMD{$cmd} // [ '[...]', '(undocumented command)' ];
+	my ($proto, $desc, @spec) = @$info;
+	$glp->getoptionsfromarray($argv, $opt, @spec, qw(help|h)) or
+		return _help($client, "bad arguments or options for $cmd");
+	return _help($client) if $opt->{help};
+	my $i = 0;
+	my $POS_ARG = '[A-Z][A-Z0-9_]+';
+	my ($err, $inf);
+	my @args = split(/ /, $proto);
+	for my $var (@args) {
+		if ($var =~ /\A$POS_ARG\.\.\.\z/o) { # >= 1 args;
+			$inf = defined($argv->[$i]) and last;
+			$var =~ s/\.\.\.\z//;
+			$err = "$var not supplied";
+		} elsif ($var =~ /\A$POS_ARG\z/o) { # required arg at $i
+			$argv->[$i++] // ($err = "$var not supplied");
+		} elsif ($var =~ /\.\.\.\]\z/) { # optional args start
+			$inf = 1;
+			last;
+		} elsif ($var =~ /\A\[$POS_ARG\]\z/) { # one optional arg
+			$i++;
+		} elsif ($var =~ /\A.+?\|/) { # required FOO|--stdin
+			my @or = split(/\|/, $var);
+			my $ok;
+			for my $o (@or) {
+				if ($o =~ /\A--([a-z0-9\-]+)/) {
+					$ok = defined($opt->{$1});
+					last;
+				} elsif (defined($argv->[$i])) {
+					$ok = 1;
+					$i++;
+					last;
+				} # else continue looping
+			}
+			my $last = pop @or;
+			$err = join(', ', @or) . " or $last must be set";
+		} else {
+			warn "BUG: can't parse `$var' in $proto";
+		}
+		last if $err;
 	}
+	# warn "inf=$inf ".scalar(@$argv). ' '.scalar(@args)."\n";
+	if (!$inf && scalar(@$argv) > scalar(@args)) {
+		$err //= 'too many arguments';
+	}
+	$err ? fail($client, "usage: lei $cmd $proto\nE: $err") : 1;
 }
 
 sub dispatch {
 	my ($client, $cmd, @argv) = @_;
-	local $SIG{__WARN__} = sub { emit($client, 2, "@_") };
+	local $SIG{__WARN__} = sub { err($client, "@_") };
 	local $SIG{__DIE__} = 'DEFAULT';
-	if (defined $cmd) {
-		my $func = "lei_$cmd";
-		$func =~ tr/-/_/;
-		if (my $cb = __PACKAGE__->can($func)) {
-			$client->{cmd} = $cmd;
-			$cb->($client, \@argv);
-		} elsif (grep(/\A-/, $cmd, @argv)) {
-			assert_args($client, [ $cmd, @argv ], '');
-		} else {
-			fail($client, "`$cmd' is not an lei command");
-		}
+	return _help($client, 'no command given') unless defined($cmd);
+	my $func = "lei_$cmd";
+	$func =~ tr/-/_/;
+	if (my $cb = __PACKAGE__->can($func)) {
+		optparse($client, $cmd, \@argv) or return;
+		$cb->($client, @argv);
+	} elsif (grep(/\A-/, $cmd, @argv)) { # --help or -h only
+		my $opt = {};
+		$glp->getoptionsfromarray([$cmd, @argv], $opt, qw(help|h)) or
+			return _help($client, 'bad arguments or options');
+		_help($client);
 	} else {
-		_help($client, 2);
+		fail($client, "`$cmd' is not an lei command");
 	}
 }
 
+sub _lei_cfg ($;$) {
+	my ($client, $creat) = @_;
+	my $env = $client->{env};
+	my $cfg_dir = File::Spec->canonpath(( $env->{XDG_CONFIG_HOME} //
+			($env->{HOME} // '/nonexistent').'/.config').'/lei');
+	my $f = "$cfg_dir/config";
+	my @st = stat($f);
+	my $cur_st = @st ? pack('dd', $st[10], $st[7]) : ''; # 10:ctime, 7:size
+	if (my $cfg = $PATH2CFG{$f}) { # reuse existing object in common case
+		return ($client->{cfg} = $cfg) if $cur_st eq $cfg->{-st};
+	}
+	if (!@st) {
+		unless ($creat) {
+			delete $client->{cfg};
+			return;
+		}
+		-d $cfg_dir or mkpath($cfg_dir) or die "mkpath($cfg_dir): $!\n";
+		open my $fh, '>>', $f or die "open($f): $!\n";
+		@st = stat($fh) or die "fstat($f): $!\n";
+		$cur_st = pack('dd', $st[10], $st[7]);
+		qerr($client, "I: $f created");
+	}
+	my $cfg = PublicInbox::Config::git_config_dump($f);
+	$cfg->{-st} = $cur_st;
+	$cfg->{'-f'} = $f;
+	$client->{cfg} = $PATH2CFG{$f} = $cfg;
+}
+
+sub _lei_store ($;$) {
+	my ($client, $creat) = @_;
+	my $cfg = _lei_cfg($client, $creat);
+	$cfg->{-lei_store} //= do {
+		require PublicInbox::LeiStore;
+		PublicInbox::SearchIdx::load_xapian_writable();
+		defined(my $dir = $cfg->{'leistore.dir'}) or return;
+		PublicInbox::LeiStore->new($dir, { creat => $creat });
+	};
+}
+
+sub lei_show {
+	my ($client, @argv) = @_;
+}
+
+sub lei_query {
+	my ($client, @argv) = @_;
+}
+
+sub lei_mark {
+	my ($client, @argv) = @_;
+}
+
+sub lei_config {
+	my ($client, @argv) = @_;
+	my $env = $client->{env};
+	if (defined $env->{GIT_CONFIG}) {
+		my %copy = %$env;
+		delete $copy{GIT_CONFIG};
+		$env = \%copy;
+	}
+	if (my @conflict = (grep(/\A-f=?\z/, @argv),
+				grep(/\A--(?:global|system|
+					file|config-file)=?\z/x, @argv))) {
+		return fail($client, "@conflict not supported by lei config");
+	}
+	my $cfg = _lei_cfg($client, 1);
+	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
+	my %rdr = map { $_ => $client->{$_} } (0..2);
+	require PublicInbox::Import;
+	PublicInbox::Import::run_die($cmd, $env, \%rdr);
+}
+
+sub lei_init {
+	my ($client, $dir) = @_;
+	my $cfg = _lei_cfg($client, 1);
+	my $cur = $cfg->{'leistore.dir'};
+	my $env = $client->{env};
+	$dir //= ( $env->{XDG_DATA_HOME} //
+		($env->{HOME} // '/nonexistent').'/.local/share'
+		) . '/lei/store';
+	$dir = File::Spec->rel2abs($dir, $env->{PWD}); # PWD is symlink-aware
+	my @cur = stat($cur) if defined($cur);
+	$cur = File::Spec->canonpath($cur) if $cur;
+	my @dir = stat($dir);
+	my $exists = "I: leistore.dir=$cur already initialized" if @dir;
+	if (@cur) {
+		if ($cur eq $dir) {
+			_lei_store($client, 1)->done;
+			return qerr($client, $exists);
+		}
+
+		# some folks like symlinks and bind mounts :P
+		if (@dir && "$cur[0] $cur[1]" eq "$dir[0] $dir[1]") {
+			lei_config($client, 'leistore.dir', $dir);
+			_lei_store($client, 1)->done;
+			return qerr($client, "$exists (as $cur)");
+		}
+		return fail($client, <<"");
+E: leistore.dir=$cur already initialized and it is not $dir
+
+	}
+	lei_config($client, 'leistore.dir', $dir);
+	_lei_store($client, 1)->done;
+	$exists //= "I: leistore.dir=$dir newly initialized";
+	return qerr($client, $exists);
+}
+
 sub lei_daemon_pid {
-	my ($client, $argv) = @_;
-	assert_args($client, $argv, '') and emit($client, 1, "$$\n");
+	emit($_[0], 1, "$$\n");
 }
 
-sub lei_DBG_pwd {
-	my ($client, $argv) = @_;
-	assert_args($client, $argv, '') and
-		emit($client, 1, "$client->{env}->{PWD}\n");
-}
-
-sub lei_DBG_cwd {
-	my ($client, $argv) = @_;
-	require Cwd;
-	assert_args($client, $argv, '') and emit($client, 1, Cwd::cwd()."\n");
-}
-
-sub lei_DBG_false { x_it($_[0], 1 << 8) }
-
-sub lei_daemon_stop {
-	my ($client, $argv) = @_;
-	assert_args($client, $argv, '') and $quit->(0);
-}
+sub lei_daemon_stop { $quit->(0) }
 
 sub lei_help { _help($_[0]) }
 
@@ -269,9 +475,9 @@ sub reap_exec { # dwaitpid callback
 }
 
 sub lei_git { # support passing through random git commands
-	my ($client, $argv) = @_;
-	my %opt = map { $_ => $client->{$_} } (0..2);
-	my $pid = spawn(['git', @$argv], $client->{env}, \%opt);
+	my ($client, @argv) = @_;
+	my %rdr = map { $_ => $client->{$_} } (0..2);
+	my $pid = spawn(['git', @argv], $client->{env}, \%rdr);
 	PublicInbox::DS::dwaitpid($pid, \&reap_exec, $client);
 }
 
@@ -360,6 +566,7 @@ sub lazy_start {
 	$pid = fork // die "fork: $!";
 	return if $pid;
 	$0 = "lei-daemon $path";
+	local %PATH2CFG;
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
 	$l->blocking(0);
@@ -427,6 +634,10 @@ sub lazy_start {
 
 # for users w/o IO::FDPass
 sub oneshot {
+	my ($main_pkg) = @_;
+	my $exit = $main_pkg->can('exit'); # caller may override exit()
+	local $quit = $exit if $exit;
+	local %PATH2CFG;
 	dispatch({
 		0 => *STDIN{IO},
 		1 => *STDOUT{IO},
