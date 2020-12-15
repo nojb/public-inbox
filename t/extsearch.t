@@ -6,12 +6,14 @@ use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Search;
+use PublicInbox::InboxWritable;
 use Fcntl qw(:seek);
 my $json = PublicInbox::Config::json() or plan skip_all => 'JSON missing';
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::ExtSearch';
 use_ok 'PublicInbox::ExtSearchIdx';
+use_ok 'PublicInbox::OverIdx';
 my $sock = tcp_server();
 my $host_port = $sock->sockhost . ':' . $sock->sockport;
 my ($home, $for_destroy) = tmpdir();
@@ -179,6 +181,8 @@ like($it[1]->get_document->get_data, qr/v1test/, 'docdata matched v1');
 
 my $cfg = PublicInbox::Config->new;
 my $schema_version = PublicInbox::Search::SCHEMA_VERSION();
+my $f = "$home/extindex/ei$schema_version/over.sqlite3";
+my $oidx = PublicInbox::OverIdx->new($f);
 if ('inject w/o indexing') {
 	use PublicInbox::Import;
 	my $v1ibx = $cfg->lookup_name('v1test');
@@ -232,8 +236,6 @@ if ('inject w/o indexing') {
 }
 
 if ('reindex catches missed messages') {
-	use PublicInbox::InboxWritable;
-	use PublicInbox::OverIdx;
 	my $v2ibx = $cfg->lookup_name('v2test');
 	my $im = PublicInbox::InboxWritable->new($v2ibx)->importer(0);
 	my $cmt_a = $v2ibx->mm->last_commit_xap($schema_version, 0);
@@ -242,8 +244,6 @@ if ('reindex catches missed messages') {
 	$im->done;
 	my $cmt_b = $v2ibx->mm->last_commit_xap($schema_version, 0);
 	isnt($cmt_a, $cmt_b, 'v2 0.git HEAD updated');
-	my $f = "$home/extindex/ei$schema_version/over.sqlite3";
-	my $oidx = PublicInbox::OverIdx->new($f);
 	$oidx->dbh;
 	my $uv = $v2ibx->uidvalidity;
 	my $lc_key = "lc-v2:v2.example//$uv;0";
@@ -263,7 +263,7 @@ if ('reindex catches missed messages') {
 	is($oidx->max, $max + 1, '->max bumped');
 	is($oidx->eidx_meta($lc_key), $cmt_b, 'lc-v2 stays unchanged');
 	my @err = split(/^/, $err);
-	is(scalar(@err), 1, 'only one warning');
+	is(scalar(@err), 1, 'only one warning') or diag "err=$err";
 	like($err[0], qr/I: reindex_unseen/, 'got reindex_unseen message');
 	my $new = $oidx->get_art($max + 1);
 	is($new->{subject}, $eml->header('Subject'), 'new message added');
@@ -283,7 +283,7 @@ if ('reindex catches missed messages') {
 			$v2ibx->{inboxdir}], undef, $opt),
 			'--reindex for stale');
 	@err = split(/^/, $err);
-	is(scalar(@err), 1, 'only one warning');
+	is(scalar(@err), 1, 'only one warning') or diag "err=$err";
 	like($err[0], qr/\(#$new->{num}\): stale/, 'got stale message warning');
 	is($oidx->get_art($new->{num}), undef,
 		'stale message gone from over');
@@ -292,6 +292,65 @@ if ('reindex catches missed messages') {
 	$es->{xdb}->reopen;
 	$mset = $es->mset("mid:$new->{mid}");
 	is($mset->size, 0, 'stale mid gone Xapian');
+}
+
+if ('reindex catches content bifurcation') {
+	use PublicInbox::MID qw(mids);
+	my $v2ibx = $cfg->lookup_name('v2test');
+	my $im = PublicInbox::InboxWritable->new($v2ibx)->importer(0);
+	my $eml = eml_load('t/data/message_embed.eml');
+	my $cmt_a = $v2ibx->mm->last_commit_xap($schema_version, 0);
+	$im->add($eml);
+	$im->done;
+	my $cmt_b = $v2ibx->mm->last_commit_xap($schema_version, 0);
+	my $uv = $v2ibx->uidvalidity;
+	my $lc_key = "lc-v2:v2.example//$uv;0";
+	$oidx->dbh;
+	is($oidx->eidx_meta($lc_key, $cmt_b), $cmt_a,
+		'update lc-v2 meta, old is as expected');
+	my $mid = mids($eml)->[0];
+	my $smsg = $v2ibx->over->next_by_mid($mid, \(my $id), \(my $prev));
+	my $oldmax = $oidx->max;
+	my $x3_orig = $oidx->get_xref3(3);
+	is(scalar(@$x3_orig), 1, '#3 has one xref');
+	$oidx->add_xref3(3, $smsg->{num}, $smsg->{blob}, 'v2.example');
+	my $x3 = $oidx->get_xref3(3);
+	is(scalar(@$x3), 2, 'injected xref3');
+	$oidx->commit_lazy;
+	my $opt = { 2 => \(my $err = '') };
+	ok(run_script([qw(-extindex --all), "$home/extindex"], undef, $opt),
+		'extindex --all is noop');
+	is($err, '', 'no warnings in index');
+	$oidx->dbh;
+	is($oidx->max, $oldmax, 'oidx->max unchanged');
+	$oidx->dbh_close;
+	ok(run_script([qw(-extindex --reindex --all), "$home/extindex"],
+		undef, $opt), 'extindex --reindex');
+	$oidx->dbh;
+	ok($oidx->max > $oldmax, 'oidx->max bumped');
+	like($err, qr/split into 2 due to deduplication change/,
+		'bifurcation noted');
+	my $added = $oidx->get_art($oidx->max);
+	is($added->{blob}, $smsg->{blob}, 'new blob indexed');
+	is_deeply(["v2.example:$smsg->{num}:$smsg->{blob}"],
+		$oidx->get_xref3($added->{num}),
+		'xref3 corrected for bifurcated message');
+	is_deeply($oidx->get_xref3(3), $x3_orig, 'xref3 restored for #3');
+}
+
+if ('--reindex --rethread') {
+	my $before = $oidx->dbh->selectrow_array(<<'');
+SELECT MAX(tid) FROM over WHERE num > 0
+
+	my $opt = {};
+	ok(run_script([qw(-extindex --reindex --rethread --all),
+			"$home/extindex"], undef, $opt),
+			'--rethread');
+	my $after = $oidx->dbh->selectrow_array(<<'');
+SELECT MIN(tid) FROM over WHERE num > 0
+
+	# actual rethread logic is identical to v1/v2 and tested elsewhere
+	ok($after > $before, '--rethread updates MIN(tid)');
 }
 
 if ('remove v1test and test gc') {

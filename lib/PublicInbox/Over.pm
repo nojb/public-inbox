@@ -261,13 +261,14 @@ SELECT num,tid,ds,ts,ddd FROM over WHERE num = ? LIMIT 1
 }
 
 sub get_xref3 {
-	my ($self, $num) = @_;
+	my ($self, $num, $raw) = @_;
 	my $dbh = dbh($self);
 	my $sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT ibx_id,xnum,oidbin FROM xref3 WHERE docid = ? ORDER BY ibx_id,xnum ASC
 
 	$sth->execute($num);
 	my $rows = $sth->fetchall_arrayref;
+	return $rows if $raw;
 	my $eidx_key_sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT eidx_key FROM inboxes WHERE ibx_id = ?
 
