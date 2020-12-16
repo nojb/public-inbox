@@ -300,9 +300,6 @@ sub warn_ignore_cb {
 	}
 }
 
-# v2+ only
-sub git_dir_n { "$_[0]->{inboxdir}/git/$_[1].git" }
-
 # v2+ only, XXX: maybe we can just rely on ->max_git_epoch and remove
 sub git_dir_latest {
 	my ($self, $max) = @_;

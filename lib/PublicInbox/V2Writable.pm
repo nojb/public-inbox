@@ -1091,8 +1091,9 @@ sub sync_prepare ($$) {
 	if ($sync->{max_size} = $sync->{-opt}->{max_size}) {
 		$sync->{index_oid} = $self->can('index_oid');
 	}
+	my $git_pfx = "$sync->{ibx}->{inboxdir}/git";
 	for (my $i = $sync->{epoch_max}; $i >= 0; $i--) {
-		my $git_dir = $sync->{ibx}->git_dir_n($i);
+		my $git_dir = "$git_pfx/$i.git";
 		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		my $unit = { git => $git, epoch => $i };
