@@ -287,6 +287,8 @@ sub warn_ignore {
 	# PublicInbox::MsgTime
 	|| $s =~ /^bogus TZ offset: .+?, ignoring and assuming \+0000/
 	|| $s =~ /^bad Date: .+? in /
+	# Encode::Unicode::UTF7
+	|| $s =~ /^Bad UTF7 data escape at /
 }
 
 # this expects to be RHS in this assignment: "local $SIG{__WARN__} = ..."
