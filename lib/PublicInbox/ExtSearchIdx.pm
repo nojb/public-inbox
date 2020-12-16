@@ -63,7 +63,6 @@ sub new {
 
 sub attach_inbox {
 	my ($self, $ibx) = @_;
-	$ibx = PublicInbox::InboxWritable->new($ibx);
 	my $key = $ibx->eidx_key;
 	if (!$ibx->over || !$ibx->mm) {
 		warn "W: skipping $key (unindexed)\n";
@@ -78,7 +77,6 @@ sub attach_inbox {
 		warn "W: `$ibx->{inboxdir}' canonicalized to `$ibxdir'\n";
 		$ibx->{inboxdir} = $ibxdir;
 	}
-	$ibx = PublicInbox::InboxWritable->new($ibx);
 	$self->{ibx_map}->{$key} //= do {
 		push @{$self->{ibx_list}}, $ibx;
 		$ibx;
