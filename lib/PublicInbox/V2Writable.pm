@@ -128,12 +128,9 @@ sub init_inbox {
 	}
 	$self->idx_init;
 	$self->{mm}->skip_artnum($skip_artnum) if defined $skip_artnum;
-	my $epoch_max = -1;
-	$self->{ibx}->git_dir_latest(\$epoch_max);
-	if (defined $skip_epoch && $epoch_max == -1) {
-		$epoch_max = $skip_epoch;
-	}
-	$self->git_init($epoch_max >= 0 ? $epoch_max : 0);
+	my $max = $self->{ibx}->max_git_epoch;
+	$max = $skip_epoch if (defined($skip_epoch) && !defined($max));
+	$self->git_init($max // 0);
 	$self->done;
 }
 
@@ -336,12 +333,7 @@ sub _replace_oids ($$$) {
 	my $ibx = $self->{ibx};
 	my $pfx = "$ibx->{inboxdir}/git";
 	my $rewrites = []; # epoch => commit
-	my $max = $self->{epoch_max};
-
-	unless (defined($max)) {
-		defined(my $latest = $ibx->git_dir_latest(\$max)) or return;
-		$self->{epoch_max} = $max;
-	}
+	my $max = $self->{epoch_max} //= $ibx->max_git_epoch // return;
 
 	foreach my $i (0..$max) {
 		my $git_dir = "$pfx/$i.git";

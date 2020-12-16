@@ -197,8 +197,7 @@ sub xdb_sharded {
 
 	# We need numeric sorting so shard[0] is first for reading
 	# Xapian metadata, if needed
-	my $last = max(grep(/\A[0-9]+\z/, readdir($dh)));
-	return if !defined($last);
+	my $last = max(grep(/\A[0-9]+\z/, readdir($dh))) // return;
 	my (@xdb, $slow_phrase);
 	for (0..$last) {
 		my $shard_dir = "$self->{xpfx}/$_";

@@ -303,22 +303,11 @@ sub warn_ignore_cb {
 # v2+ only
 sub git_dir_n { "$_[0]->{inboxdir}/git/$_[1].git" }
 
-# v2+ only
+# v2+ only, XXX: maybe we can just rely on ->max_git_epoch and remove
 sub git_dir_latest {
 	my ($self, $max) = @_;
-	$$max = -1;
-	my $pfx = "$self->{inboxdir}/git";
-	return unless -d $pfx;
-	my $latest;
-	opendir my $dh, $pfx or die "opendir $pfx: $!\n";
-	while (defined(my $git_dir = readdir($dh))) {
-		$git_dir =~ m!\A([0-9]+)\.git\z! or next;
-		if ($1 > $$max) {
-			$$max = $1;
-			$latest = "$pfx/$git_dir";
-		}
-	}
-	$latest;
+	defined($$max = $self->max_git_epoch) ?
+		"$self->{inboxdir}/git/$$max.git" : undef;
 }
 
 1;

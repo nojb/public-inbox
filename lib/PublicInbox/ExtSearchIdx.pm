@@ -290,9 +290,7 @@ sub _sync_inbox ($$$) {
 	my $v = $ibx->version;
 	my $ekey = $ibx->eidx_key;
 	if ($v == 2) {
-		my $epoch_max;
-		defined($ibx->git_dir_latest(\$epoch_max)) or return;
-		$sync->{epoch_max} = $epoch_max;
+		$sync->{epoch_max} = $ibx->max_git_epoch // return;
 		sync_prepare($self, $sync); # or return # TODO: once MiscIdx is stable
 	} elsif ($v == 1) {
 		my $uv = $ibx->uidvalidity;

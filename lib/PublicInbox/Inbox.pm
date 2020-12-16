@@ -4,10 +4,10 @@
 # Represents a public-inbox (which may have multiple mailing addresses)
 package PublicInbox::Inbox;
 use strict;
-use warnings;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use PublicInbox::Eml;
+use List::Util qw(max);
 
 # Long-running "git-cat-file --batch" processes won't notice
 # unlinked packs, so we need to restart those processes occasionally.
@@ -155,19 +155,15 @@ sub max_git_epoch {
 	my ($self) = @_;
 	return if $self->version < 2;
 	my $cur = $self->{-max_git_epoch};
-	my $changed = git($self)->alternates_changed;
-	if (!defined($cur) || $changed) {
+	my $changed;
+	if (!defined($cur) || ($changed = git($self)->alternates_changed)) {
 		git_cleanup($self) if $changed;
 		my $gits = "$self->{inboxdir}/git";
 		if (opendir my $dh, $gits) {
-			my $max = -1;
-			while (defined(my $git_dir = readdir($dh))) {
-				$git_dir =~ m!\A([0-9]+)\.git\z! or next;
-				$max = $1 if $1 > $max;
-			}
-			$cur = $self->{-max_git_epoch} = $max if $max >= 0;
-		} else {
-			warn "opendir $gits failed: $!\n";
+			my $max = max(map {
+				substr($_, 0, -4) + 0; # drop ".git" suffix
+			} grep(/\A[0-9]+\.git\z/, readdir($dh))) // return;
+			$cur = $self->{-max_git_epoch} = $max;
 		}
 	}
 	$cur;
