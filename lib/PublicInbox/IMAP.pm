@@ -1110,7 +1110,7 @@ sub search_uid_range { # long_response
 	1; # more
 }
 
-sub parse_query ($$) {
+sub parse_imap_query ($$) {
 	my ($self, $query) = @_;
 	my $q = PublicInbox::IMAPsearchqp::parse($self, $query);
 	if (ref($q)) {
@@ -1125,7 +1125,7 @@ sub parse_query ($$) {
 sub search_common {
 	my ($self, $tag, $query, $want_msn) = @_;
 	my $ibx = $self->{ibx} or return "$tag BAD No mailbox selected\r\n";
-	my $q = parse_query($self, $query);
+	my $q = parse_imap_query($self, $query);
 	return "$tag $q\r\n" if !ref($q);
 	my ($sql, $range_info) = delete @$q{qw(sql range_info)};
 	if (!scalar(keys %$q)) { # overview.sqlite3
