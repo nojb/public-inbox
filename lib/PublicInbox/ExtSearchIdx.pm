@@ -18,6 +18,8 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::ExtSearch PublicInbox::Lock);
 use Carp qw(croak carp);
+use Sys::Hostname qw(hostname);
+use POSIX qw(strftime);
 use PublicInbox::Search;
 use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack is_ancestor
 	is_bad_blob);
@@ -524,9 +526,86 @@ sub checkpoint_due ($) {
 	${$sync->{need_checkpoint}} || (now() > $sync->{next_check});
 }
 
+sub host_ident () {
+	# I've copied FS images and only changed the hostname before,
+	# so prepend hostname.  Use `state' since these a BOFH can change
+	# these while this process is running and we always want to be
+	# able to release locks taken by this process.
+	state $retval = hostname . '-' . do {
+		my $m; # machine-id(5) is systemd
+		if (open(my $fh, '<', '/etc/machine-id')) { $m = <$fh> }
+		# hostid(1) is in GNU coreutils, kern.hostid is FreeBSD
+		chomp($m ||= `hostid` || `sysctl -n kern.hostid`);
+		$m;
+	};
+}
+
+sub eidxq_release {
+	my ($self) = @_;
+	my $expect = delete($self->{-eidxq_locked}) or return;
+	my ($owner_pid, undef) = split(/-/, $expect);
+	return if $owner_pid != $$; # shards may fork
+	my $oidx = $self->{oidx};
+	$oidx->begin_lazy;
+	my $cur = $oidx->eidx_meta('eidxq_lock') // '';
+	if ($cur eq $expect) {
+		$oidx->eidx_meta('eidxq_lock', '');
+		return 1;
+	} elsif ($cur ne '') {
+		warn "E: eidxq_lock($expect) stolen by $cur\n";
+	} else {
+		warn "E: eidxq_lock($expect) released by another process\n";
+	}
+	undef;
+}
+
+sub DESTROY {
+	my ($self) = @_;
+	eidxq_release($self) and $self->{oidx}->commit_lazy;
+}
+
+sub _eidxq_take ($) {
+	my ($self) = @_;
+	my $val = "$$-${\time}-$>-".host_ident;
+	$self->{oidx}->eidx_meta('eidxq_lock', $val);
+	$self->{-eidxq_locked} = $val;
+}
+
+sub eidxq_lock_acquire ($) {
+	my ($self) = @_;
+	my $oidx = $self->{oidx};
+	$oidx->begin_lazy;
+	my $cur = $oidx->eidx_meta('eidxq_lock') || return _eidxq_take($self);
+	if (my $locked = $self->{-eidxq_locked}) { # be lazy
+		return $locked if $locked eq $cur;
+	}
+	my ($pid, $time, $euid, $ident) = split(/-/, $cur, 4);
+	my $t = strftime('%Y-%m-%d %k:%M:%S', gmtime($time));
+	if ($euid == $> && $ident eq host_ident) {
+		if (kill(0, $pid)) {
+			warn <<EOM; return;
+I: PID:$pid (re)indexing Xapian since $t, it will continue our work
+EOM
+		}
+		if ($!{ESRCH}) {
+			warn "I: eidxq_lock is stale ($cur), clobbering\n";
+			return _eidxq_take($self);
+		}
+		warn "E: kill(0, $pid) failed: $!\n"; # fall-through:
+	}
+	my $fn = $oidx->dbh->sqlite_db_filename;
+	warn <<EOF;
+W: PID:$pid, UID:$euid on $ident is indexing Xapian since $t
+W: If this is unexpected, delete `eidxq_lock' from the `eidx_meta' table:
+W:	sqlite3 $fn 'DELETE FROM eidx_meta WHERE key = "eidxq_lock"'
+EOF
+	undef;
+}
+
 sub eidxq_process ($$) { # for reindexing
 	my ($self, $sync) = @_;
 
+	return unless eidxq_lock_acquire($self);
 	my $dbh = $self->{oidx}->dbh;
 	my $tot = $dbh->selectrow_array('SELECT COUNT(*) FROM eidxq') or return;
 	${$sync->{nr}} = 0;
@@ -719,6 +798,12 @@ sub _reindex_inbox ($$$) {
 sub eidx_reindex {
 	my ($self, $sync) = @_;
 
+	# acquire eidxq_lock early because full reindex takes forever
+	# and incremental -extindex processes can run during our checkpoints
+	if (!eidxq_lock_acquire($self)) {
+		warn "E: aborting --reindex\n";
+		return;
+	}
 	for my $ibx (@{$self->{ibx_list}}) {
 		_reindex_inbox($self, $sync, $ibx);
 		last if $sync->{quit};
@@ -769,6 +854,7 @@ sub eidx_sync { # main entry point
 	$self->{oidx}->rethread_done($opt) unless $sync->{quit};
 	eidxq_process($self, $sync) unless $sync->{quit};
 
+	eidxq_release($self);
 	PublicInbox::V2Writable::done($self);
 }
 
