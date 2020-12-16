@@ -40,7 +40,11 @@ my $run_httpd = sub {
 		Plack::Test::ExternalServer::test_psgi(client => $client);
 		$td->join('TERM');
 		open my $fh, '<', $err or BAIL_OUT $!;
-		is(do { local $/; <$fh> }, '', 'no errors');
+		my $e = do { local $/; <$fh> };
+		if ($e =~ s/^Plack::Middleware::ReverseProxy missing,\n//gms) {
+			$e =~ s/^URL generation for redirects .*\n//gms;
+		}
+		is($e, '', 'no errors');
 	}
 };
 
