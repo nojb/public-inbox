@@ -20,6 +20,7 @@ delete local $ENV{XDG_DATA_HOME};
 delete local $ENV{XDG_CONFIG_HOME};
 local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 local $ENV{HOME} = $home;
+local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
 
 my $test_lei_common = sub {
@@ -103,6 +104,36 @@ SKIP: {
 	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
 	chomp(my $pid_again = $out);
 	is($pid, $pid_again, 'daemon-pid idempotent');
+
+	$out = '';
+	ok(run_script([qw(lei daemon-env -0)], undef, $opt), 'show env');
+	is($err, '', 'no errors in env dump');
+	my @env = split(/\0/, $out);
+	is(scalar grep(/\AHOME=\Q$home\E\z/, @env), 1, 'env has HOME');
+	is(scalar grep(/\AFOO=BAR\z/, @env), 1, 'env has FOO=BAR');
+	is(scalar grep(/\AXDG_RUNTIME_DIR=/, @env), 1, 'has XDG_RUNTIME_DIR');
+
+	$out = '';
+	ok(run_script([qw(lei daemon-env -u FOO)], undef, $opt), 'unset');
+	is($out.$err, '', 'no output for unset');
+	ok(run_script([qw(lei daemon-env -0)], undef, $opt), 'show again');
+	is($err, '', 'no errors in env dump');
+	@env = split(/\0/, $out);
+	is(scalar grep(/\AFOO=BAR\z/, @env), 0, 'env unset FOO');
+
+	$out = '';
+	ok(run_script([qw(lei daemon-env -u FOO -u HOME -u XDG_RUNTIME_DIR)],
+			undef, $opt), 'unset multiple');
+	is($out.$err, '', 'no errors output for unset');
+	ok(run_script([qw(lei daemon-env -0)], undef, $opt), 'show again');
+	is($err, '', 'no errors in env dump');
+	@env = split(/\0/, $out);
+	is(scalar grep(/\A(?:HOME|XDG_RUNTIME_DIR)=\z/, @env), 0, 'env unset@');
+	$out = '';
+	ok(run_script([qw(lei daemon-env -)], undef, $opt), 'clear env');
+	is($out.$err, '', 'no output');
+	ok(run_script([qw(lei daemon-env)], undef, $opt), 'env is empty');
+	is($out, '', 'env cleared');
 
 	ok(run_script([qw(lei daemon-stop)], undef, $opt), 'daemon-stop');
 	is($out, '', 'no output from daemon-stop');

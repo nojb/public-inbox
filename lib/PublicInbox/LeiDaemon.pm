@@ -60,7 +60,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 'plonk' => [ '--thread|--from=IDENT',
 	'exclude mail matching From: or thread from non-Message-ID searches',
-	qw(thread|t stdin| from|f=s mid=s oid=s) ],
+	qw(stdin| thread|t from|f=s mid=s oid=s) ],
 'mark' => [ 'MESSAGE_FLAGS...',
 	'set/unset flags on message(s) from stdin',
 	qw(stdin| oid=s exact by-mid|mid:s) ],
@@ -103,6 +103,8 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(quiet|q) ],
 'daemon-stop' => [ '', 'stop the lei-daemon' ],
 'daemon-pid' => [ '', 'show the PID of the lei-daemon' ],
+'daemon-env' => [ '[NAME=VALUE...]', 'set, unset, or show daemon environment',
+	qw(clear| unset|u=s@ z|0) ],
 'help' => [ '[SUBCOMMAND]', 'show help' ],
 
 # XXX do we need this?
@@ -175,6 +177,16 @@ my %OPTDESC = (
 
 'by-mid|mid:s' => [ 'MID', 'match only by Message-ID, ignoring contents' ],
 'jobs:i' => 'set parallelism level',
+
+# xargs, env, use "-0", git(1) uses "-z".  Should we support z|0 everywhere?
+'z' => 'use NUL \\0 instead of newline (CR) to delimit lines',
+'z|0' => 'use NUL \\0 instead of newline (CR) to delimit lines',
+
+# note: no "--ignore-environment" / "-i" support like env(1) since that
+# is one-shot and this is for a persistent daemon:
+'clear|' => 'clear the daemon environment',
+'unset|u=s@' => ['NAME',
+	'unset matching NAME, may be specified multiple times'],
 ); # %OPTDESC
 
 sub x_it ($$) { # pronounced "exit"
@@ -257,7 +269,11 @@ sub _help ($;$) {
 				join(', ', @allow) . " or $last";
 		}
 		my $lhs = join(', ', @s, @l) . join('', @vals);
-		$lhs =~ s/\A--/    --/; # pad if no short options
+		if ($x =~ /\|\z/) { # "stdin|" or "clear|"
+			$lhs =~ s/\A--/- , --/;
+		} else {
+			$lhs =~ s/\A--/    --/; # pad if no short options
+		}
 		$lpad = length($lhs) if length($lhs) > $lpad;
 		push @opt_desc, $lhs, $desc;
 	}
@@ -289,9 +305,20 @@ sub optparse ($$$) {
 	my $opt = $client->{opt} = {};
 	my $info = $CMD{$cmd} // [ '[...]', '(undocumented command)' ];
 	my ($proto, $desc, @spec) = @$info;
-	$glp->getoptionsfromarray($argv, $opt, @spec, qw(help|h)) or
+	push @spec, qw(help|h);
+	my $lone_dash;
+	if ($spec[0] =~ s/\|\z//s) { # "stdin|" or "clear|" allows "-" alias
+		$lone_dash = $spec[0];
+		$opt->{$spec[0]} = \(my $var);
+		push @spec, '' => \$var;
+	}
+	$glp->getoptionsfromarray($argv, $opt, @spec) or
 		return _help($client, "bad arguments or options for $cmd");
 	return _help($client) if $opt->{help};
+
+	# "-" aliases "stdin" or "clear"
+	$opt->{$lone_dash} = ${$opt->{$lone_dash}} if defined $lone_dash;
+
 	my $i = 0;
 	my $POS_ARG = '[A-Z][A-Z0-9_]+';
 	my ($err, $inf);
@@ -461,11 +488,27 @@ E: leistore.dir=$cur already initialized and it is not $dir
 	return qerr($client, $exists);
 }
 
-sub lei_daemon_pid {
-	emit($_[0], 1, "$$\n");
-}
+sub lei_daemon_pid { emit($_[0], 1, "$$\n") }
 
 sub lei_daemon_stop { $quit->(0) }
+
+sub lei_daemon_env {
+	my ($client, @argv) = @_;
+	my $opt = $client->{opt};
+	if (defined $opt->{clear}) {
+		%ENV = ();
+	} elsif (my $u = $opt->{unset}) {
+		delete @ENV{@$u};
+	}
+	if (@argv) {
+		%ENV = (%ENV, map { split(/=/, $_, 2) } @argv);
+	} elsif (!defined($opt->{clear}) && !$opt->{unset}) {
+		my $eor = $opt->{z} ? "\0" : "\n";
+		my $buf = '';
+		while (my ($k, $v) = each %ENV) { $buf .= "$k=$v$eor" }
+		emit($client, 1, $buf)
+	}
+}
 
 sub lei_help { _help($_[0]) }
 
