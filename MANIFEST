@@ -320,6 +320,7 @@ t/indexlevels-mirror.t
 t/init.t
 t/iso-2202-jp.eml
 t/kqnotify.t
+t/lei-oneshot.t
 t/lei.t
 t/lei_store.t
 t/linkify.t

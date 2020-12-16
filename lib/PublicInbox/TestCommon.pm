@@ -168,7 +168,7 @@ sub run_script_exit {
 	die RUN_SCRIPT_EXIT;
 }
 
-my %cached_scripts;
+our %cached_scripts;
 sub key2sub ($) {
 	my ($key) = @_;
 	$cached_scripts{$key} //= do {

@@ -8,6 +8,12 @@ use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use File::Path qw(rmtree);
 require_mods(qw(json DBD::SQLite Search::Xapian));
+my $LEI = 'lei';
+my $lei = sub {
+	my ($cmd, $env, $opt) = @_;
+	run_script([$LEI, @$cmd], $env, $opt);
+};
+
 my ($home, $for_destroy) = tmpdir();
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 delete local $ENV{XDG_DATA_HOME};
@@ -17,21 +23,21 @@ local $ENV{HOME} = $home;
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
 
 my $test_lei_common = sub {
-	ok(!run_script([qw(lei)], undef, $opt), 'no args fails');
+	ok(!$lei->([], undef, $opt), 'no args fails');
 	is($? >> 8, 1, '$? is 1');
 	is($out, '', 'nothing in stdout');
 	like($err, qr/^usage:/sm, 'usage in stderr');
 
 	for my $arg (['-h'], ['--help'], ['help'], [qw(daemon-pid --help)]) {
 		$out = $err = '';
-		ok(run_script(['lei', @$arg], undef, $opt), "lei @$arg");
+		ok($lei->($arg, undef, $opt), "lei @$arg");
 		like($out, qr/^usage:/sm, "usage in stdout (@$arg)");
 		is($err, '', "nothing in stderr (@$arg)");
 	}
 
 	for my $arg ([''], ['--halp'], ['halp'], [qw(daemon-pid --halp)]) {
 		$out = $err = '';
-		ok(!run_script(['lei', @$arg], undef, $opt), "lei @$arg");
+		ok(!$lei->($arg, undef, $opt), "lei @$arg");
 		is($? >> 8, 1, '$? set correctly');
 		isnt($err, '', 'something in stderr');
 		is($out, '', 'nothing in stdout');
@@ -47,29 +53,27 @@ my $test_lei_common = sub {
 	};
 	my $home_trash = [ "$home/.local", "$home/.config" ];
 	rmtree($home_trash);
-	ok(run_script([qw(lei init)], undef, $opt), 'init w/o args');
+	ok($lei->(['init'], undef, $opt), 'init w/o args');
 	$ok_err_info->('after init w/o args');
-	ok(run_script([qw(lei init)], undef, $opt), 'idempotent init w/o args');
+	ok($lei->(['init'], undef, $opt), 'idempotent init w/o args');
 	$ok_err_info->('after idempotent init w/o args');
 
-	ok(!run_script([qw(lei init), "$home/x"], undef, $opt),
+	ok(!$lei->(['init', "$home/x"], undef, $opt),
 		'init conflict');
 	is(grep(/^E:/, split(/^/, $err)), 1, 'got error on conflict');
 	ok(!-e "$home/x", 'nothing created on conflict');
 	rmtree($home_trash);
 
 	$err = '';
-	ok(run_script([qw(lei init), "$home/x"], undef, $opt),
-		'init conflict resolved');
+	ok($lei->(['init', "$home/x"], undef, $opt), 'init conflict resolved');
 	$ok_err_info->('init w/ arg');
-	ok(run_script([qw(lei init), "$home/x"], undef, $opt),
-		'init idempotent with path');
+	ok($lei->(['init', "$home/x"], undef, $opt), 'init idempotent w/ path');
 	$ok_err_info->('init idempotent w/ arg');
 	ok(-d "$home/x", 'created dir');
 	rmtree([ "$home/x", @$home_trash ]);
 
 	$err = '';
-	ok(!run_script([qw(lei init), "$home/x", "$home/2" ], undef, $opt),
+	ok(!$lei->(['init', "$home/x", "$home/2" ], undef, $opt),
 		'too many args fails');
 	like($err, qr/too many/, 'noted excessive');
 	ok(!-e "$home/x", 'x not created on excessive');
@@ -80,7 +84,9 @@ my $test_lei_common = sub {
 	is($out, '', 'nothing in stdout');
 };
 
+my $test_lei_oneshot = $ENV{TEST_LEI_ONESHOT};
 SKIP: {
+	last SKIP if $test_lei_oneshot;
 	require_mods('IO::FDPass', 16);
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
 
@@ -118,10 +124,12 @@ SKIP: {
 		tick();
 	}
 	ok(!kill(0, $new_pid), 'daemon exits after unlink');
-	$test_lei_common = undef; # success over socket, can't test without
+	# success over socket, can't test without
+	$test_lei_common = undef;
 };
 
 require_ok 'PublicInbox::LeiDaemon';
+$LEI = 'lei-oneshot' if $test_lei_oneshot;
 $test_lei_common->() if $test_lei_common;
 
 done_testing;
