@@ -209,12 +209,20 @@ sub index_terminate {
 
 sub index_inbox {
 	my ($ibx, $im, $opt) = @_;
+	require PublicInbox::InboxWritable;
 	my $jobs = delete $opt->{jobs} if $opt;
 	if (my $pr = $opt->{-progress}) {
 		$pr->("indexing $ibx->{inboxdir} ...\n");
 	}
 	local %SIG = %SIG;
 	setup_signals(\&index_terminate, $ibx);
+	my $warn_cb = $SIG{__WARN__} // sub { print STDERR @_ };
+	my $idx = { current_info => $ibx->{inboxdir} };
+	my $warn_ignore = PublicInbox::InboxWritable->can('warn_ignore');
+	local $SIG{__WARN__} = sub {
+		return if $warn_ignore->(@_);
+		$warn_cb->($idx->{current_info}, ': ', @_);
+	};
 	if (ref($ibx) && $ibx->version == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
@@ -226,21 +234,18 @@ sub index_inbox {
 			} else {
 				my $n = $v2w->{shards};
 				if ($jobs < ($n + 1) && !$opt->{reshard}) {
-					warn
-"Unable to respect --jobs=$jobs on index, inbox was created with $n shards\n";
+					warn <<EOM;
+Unable to respect --jobs=$jobs on index, inbox was created with $n shards
+EOM
 				}
 			}
 		}
-		my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
-		local $SIG{__WARN__} = sub {
-			$warn_cb->($v2w->{current_info}, ': ', @_);
-		};
-		$v2w->index_sync($opt);
+		$idx = $v2w;
 	} else {
 		require PublicInbox::SearchIdx;
-		my $s = PublicInbox::SearchIdx->new($ibx, 1);
-		$s->index_sync($opt);
+		$idx = PublicInbox::SearchIdx->new($ibx, 1);
 	}
+	$idx->index_sync($opt);
 }
 
 sub progress_prepare ($) {

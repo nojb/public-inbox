@@ -617,6 +617,7 @@ sub index_both { # git->cat_async callback
 	$size += crlf_adjust($$bref);
 	my $smsg = bless { bytes => $size, blob => $oid }, 'PublicInbox::Smsg';
 	my $self = $sync->{sidx};
+	local $self->{current_info} = "$self->{current_info}: $oid";
 	my $eml = PublicInbox::Eml->new($bref);
 	$smsg->{num} = index_mm($self, $eml, $oid, $sync) or
 		die "E: could not generate NNTP article number for $oid";
@@ -628,7 +629,9 @@ sub index_both { # git->cat_async callback
 sub unindex_both { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $sync) = @_;
 	return if is_bad_blob($oid, $type, $size, $sync->{oid});
-	unindex_eml($sync->{sidx}, $oid, PublicInbox::Eml->new($bref));
+	my $self = $sync->{sidx};
+	local $self->{current_info} = "$self->{current_info}: $oid";
+	unindex_eml($self, $oid, PublicInbox::Eml->new($bref));
 	# may be undef if leftover
 	if (defined(my $cur_cmt = $sync->{cur_cmt})) {
 		${$sync->{latest_cmt}} = $cur_cmt;
@@ -872,6 +875,7 @@ sub _index_sync {
 	my ($self, $opt) = @_;
 	my $tip = $opt->{ref} || 'HEAD';
 	my $ibx = $self->{ibx};
+	local $self->{current_info} = "$ibx->{inboxdir}";
 	$self->{batch_bytes} = $opt->{batch_size} // $BATCH_BYTES;
 	$ibx->git->batch_prepare;
 	my $pr = $opt->{-progress};
