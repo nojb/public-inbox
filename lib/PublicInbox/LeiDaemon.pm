@@ -538,12 +538,11 @@ sub lazy_start {
 		die "connect($path): $!";
 	}
 	require IO::FDPass;
-	my $umask = umask(077) // die("umask(077): $!");
+	umask(077) // die("umask(077): $!");
 	my $l = IO::Socket::UNIX->new(Local => $path,
 					Listen => 1024,
 					Type => SOCK_STREAM) or
 		$err = $!;
-	umask($umask) or die("umask(restore): $!");
 	$l or return die "bind($path): $err";
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
@@ -638,6 +637,7 @@ sub oneshot {
 	my $exit = $main_pkg->can('exit'); # caller may override exit()
 	local $quit = $exit if $exit;
 	local %PATH2CFG;
+	umask(077) // die("umask(077): $!");
 	dispatch({
 		0 => *STDIN{IO},
 		1 => *STDOUT{IO},
