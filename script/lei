@@ -4,8 +4,8 @@
 use strict;
 use v5.10.1;
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
-
-if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
+if (my ($sock, $pwd) = eval {
+	require IO::FDPass; # will try to use a daemon to reduce load time
 	my $path = do {
 		my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
 		if ($runtime_dir eq '/lei') {
@@ -21,32 +21,41 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 	my $addr = pack_sockaddr_un($path);
 	socket(my $sock, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
 	unless (connect($sock, $addr)) { # start the daemon if not started
-		my $err = $! + 0;
-		my $env = { PERL5LIB => join(':', @INC) };
 		my $cmd = [ $^X, qw[-MPublicInbox::LEI
 			-E PublicInbox::LEI::lazy_start(@ARGV)],
-			$path, $err ];
+			$path, $! + 0 ];
+		my $env = { PERL5LIB => join(':', @INC) };
+		pipe(my ($daemon, $w)) or die "pipe: $!";
+		my $opt = { 1 => $w, 2 => $w };
 		require PublicInbox::Spawn;
-		waitpid(PublicInbox::Spawn::spawn($cmd, $env), 0);
-		warn "lei-daemon exited with \$?=$?\n" if $?;
+		my $pid = PublicInbox::Spawn::spawn($cmd, $env, $opt);
+		$opt = $w = undef;
+		while (<$daemon>) { warn $_ } # EOF when STDERR is redirected
+		waitpid($pid, 0) or warn <<"";
+lei-daemon could not start, PID:$pid exited with \$?=$?
 
 		# try connecting again anyways, unlink+bind may be racy
-		connect($sock, $addr) or die
-			"connect($path): $! (after attempted daemon start)";
+		unless (connect($sock, $addr)) {
+			die <<"";
+connect($path): $! (after attempted daemon start)
+Falling back to (slow) one-shot mode
+
+		}
 	}
 	require Cwd;
-	my $cwd = Cwd::fastcwd() // die "fastcwd: $!";
+	my $cwd = Cwd::fastcwd() // die "fastcwd(PWD=".($ENV{PWD}//'').": $!";
 	my $pwd = $ENV{PWD} // '';
-	if ($pwd eq $cwd) { # likely, all good
-	} elsif ($pwd) { # prefer ENV{PWD} if it's a symlink to real cwd
-		my @st_cwd = stat($cwd) or die "stat(cwd=$cwd): $!\n";
-		my @st_pwd = stat($pwd);
+	if ($pwd ne $cwd) { # prefer ENV{PWD} if it's a symlink to real cwd
+		my @st_cwd = stat($cwd) or die "stat(cwd=$cwd): $!";
+		my @st_pwd = stat($pwd); # PWD invalid, use cwd
 		# make sure st_dev/st_ino match for {PWD} to be valid
 		$pwd = $cwd if (!@st_pwd || $st_pwd[1] != $st_cwd[1] ||
 					$st_pwd[0] != $st_cwd[0]);
 	} else {
 		$pwd = $cwd;
 	}
+	($sock, $pwd);
+}) { # IO::FDPass, $sock, $pwd are all available:
 	local $ENV{PWD} = $pwd;
 	my $buf = "$$\0\0>" . join("]\0[", @ARGV) . "\0\0>";
 	while (my ($k, $v) = each %ENV) { $buf .= "$k=$v\0" }
@@ -60,6 +69,8 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 		die $buf;
 	}
 } else { # for systems lacking IO::FDPass
+	# don't warn about IO::FDPass since it's not commonly installed
+	warn $@ if $@ && index($@, 'IO::FDPass') < 0;
 	require PublicInbox::LEI;
 	PublicInbox::LEI::oneshot(__PACKAGE__);
 }

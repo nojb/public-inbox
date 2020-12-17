@@ -127,7 +127,7 @@ my $test_lei_common = sub {
 my $test_lei_oneshot = $ENV{TEST_LEI_ONESHOT};
 SKIP: {
 	last SKIP if $test_lei_oneshot;
-	require_mods('IO::FDPass', 16);
+	require_mods(qw(IO::FDPass Cwd), 41);
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
 
 	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
@@ -188,7 +188,34 @@ SKIP: {
 	chomp(my $new_pid = $out);
 	ok(kill(0, $new_pid), 'new pid is running');
 	ok(-S $sock, 'sock exists again');
-	unlink $sock or BAIL_OUT "unlink $!";
+
+	if ('socket inaccessible') {
+		chmod 0000, $sock or BAIL_OUT "chmod 0000: $!";
+		$out = $err = '';
+		ok(run_script([qw(lei help)], undef, $opt),
+			'connect fail, one-shot fallback works');
+		like($err, qr/\bconnect\(/, 'connect error noted');
+		like($out, qr/^usage: /, 'help output works');
+		chmod 0700, $sock or BAIL_OUT "chmod 0700: $!";
+	}
+	if ('oneshot on cwd gone') {
+		my $cwd = Cwd::fastcwd() or BAIL_OUT "fastcwd: $!";
+		my $d = "$home/to-be-removed";
+		mkdir $d or BAIL_OUT "mkdir($d) $!";
+		chdir $d or BAIL_OUT "chdir($d) $!";
+		if (rmdir($d)) {
+			$out = $err = '';
+			ok(run_script([qw(lei help)], undef, $opt),
+				'cwd fail, one-shot fallback works');
+		} else {
+			$err = "rmdir=$!";
+		}
+		chdir $cwd or BAIL_OUT "chdir($cwd) $!";
+		like($err, qr/cwd\(/, 'cwd error noted');
+		like($out, qr/^usage: /, 'help output still works');
+	}
+
+	unlink $sock or BAIL_OUT "unlink($sock) $!";
 	for (0..100) {
 		kill('CHLD', $new_pid) or last;
 		tick();

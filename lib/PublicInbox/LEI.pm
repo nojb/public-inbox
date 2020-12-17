@@ -12,7 +12,7 @@ use parent qw(PublicInbox::DS);
 use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
 use Errno qw(EAGAIN ECONNREFUSED ENOENT);
-use POSIX qw(setsid);
+use POSIX ();
 use IO::Handle ();
 use Sys::Syslog qw(syslog openlog);
 use PublicInbox::Config;
@@ -584,60 +584,44 @@ sub noop {}
 
 # lei(1) calls this when it can't connect
 sub lazy_start {
-	my ($path, $err) = @_;
-	require IO::FDPass; # require this early so caller sees it
-	if ($err == ECONNREFUSED) {
+	my ($path, $errno) = @_;
+	if ($errno == ECONNREFUSED) {
 		unlink($path) or die "unlink($path): $!";
-	} elsif ($err != ENOENT) {
-		$! = $err; # allow interpolation to stringify in die
+	} elsif ($errno != ENOENT) {
+		$! = $errno; # allow interpolation to stringify in die
 		die "connect($path): $!";
 	}
 	umask(077) // die("umask(077): $!");
 	socket(my $l, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
 	bind($l, pack_sockaddr_un($path)) or die "bind($path): $!";
-	listen($l, 1024) or die "listen $!";
+	listen($l, 1024) or die "listen: $!";
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	my $oldset = PublicInbox::Sigfd::block_signals();
-	my $pid = fork // die "fork: $!";
-	return if $pid;
+	require IO::FDPass;
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
-	openlog($path, 'pid', 'user');
-	local $SIG{__DIE__} = sub {
-		syslog('crit', "@_");
-		die; # calls the default __DIE__ handler
-	};
-	local $SIG{__WARN__} = sub { syslog('warning', "@_") };
-	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!\n";
-	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!\n";
-	open STDERR, '>&STDIN' or die "redirect stderr failed: $!\n";
-	setsid();
-	$pid = fork // die "fork: $!";
+	(-p STDOUT && -p STDERR) or die "E: stdout+stderr must be pipes\n";
+	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!";
+	POSIX::setsid() > 0 or die "setsid: $!";
+	my $pid = fork // die "fork: $!";
 	return if $pid;
-	$SIG{__DIE__} = 'DEFAULT';
-	my $on_destroy = PublicInbox::OnDestroy->new(sub {
-		my ($owner_pid) = @_;
-		syslog('crit', "$@") if $@ && $$ == $owner_pid;
-	}, $$);
 	$0 = "lei-daemon $path";
 	local %PATH2CFG;
-	$l->blocking(0);
-	$eof_w->blocking(0);
-	$eof_r->blocking(0);
-	my $listener = PublicInbox::Listener->new($l, \&accept_dispatch, $l);
+	$_->blocking(0) for ($l, $eof_r, $eof_w);
+	$l = PublicInbox::Listener->new($l, \&accept_dispatch, $l);
 	my $exit_code;
 	local $quit = sub {
 		$exit_code //= shift;
-		my $tmp = $listener or exit($exit_code);
+		my $listener = $l or exit($exit_code);
 		unlink($path) if defined($path);
-		syswrite($eof_w, '.');
-		$l = $listener = $path = undef;
-		$tmp->close if $tmp; # DS::close
+		# closing eof_w triggers \&noop wakeup
+		$eof_w = $l = $path = undef;
+		$listener->close; # DS::close
 		PublicInbox::DS->SetLoopTimeout(1000);
 	};
-	PublicInbox::EOFpipe->new($eof_r, sub {}, undef);
+	PublicInbox::EOFpipe->new($eof_r, \&noop, undef);
 	my $sig = {
 		CHLD => \&PublicInbox::DS::enqueue_reap,
 		QUIT => $quit,
@@ -682,8 +666,21 @@ sub lazy_start {
 		}
 		$n; # true: continue, false: stop
 	});
+
+	# STDIN was redirected to /dev/null above, closing STDOUT and
+	# STDERR will cause the calling `lei' client process to finish
+	# reading <$daemon> pipe.
+	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!";
+	openlog($path, 'pid', 'user');
+	local $SIG{__WARN__} = sub { syslog('warning', "@_") };
+	my $owner_pid = $$;
+	my $on_destroy = PublicInbox::OnDestroy->new(sub {
+		syslog('crit', "$@") if $@ && $$ == $owner_pid;
+	});
+	open STDERR, '>&STDIN' or die "redirect stderr failed: $!";
+	# $daemon pipe to `lei' closed, main loop begins:
 	PublicInbox::DS->EventLoop;
-	$@ = undef if $on_destroy; # quiet OnDestroy if we got here
+	@$on_destroy = (); # cancel on_destroy if we get here
 	exit($exit_code // 0);
 }
 
