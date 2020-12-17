@@ -209,12 +209,12 @@ my %OPTDESC = (
 ); # %OPTDESC
 
 sub x_it ($$) { # pronounced "exit"
-	my ($client, $code) = @_;
+	my ($self, $code) = @_;
 	if (my $sig = ($code & 127)) {
-		kill($sig, $client->{pid} // $$);
+		kill($sig, $self->{pid} // $$);
 	} else {
 		$code >>= 8;
-		if (my $sock = $client->{sock}) {
+		if (my $sock = $self->{sock}) {
 			say $sock "exit=$code";
 		} else { # for oneshot
 			$quit->($code);
@@ -223,32 +223,32 @@ sub x_it ($$) { # pronounced "exit"
 }
 
 sub emit {
-	my ($client, $channel) = @_; # $buf = $_[2]
-	print { $client->{$channel} } $_[2] or die "print FD[$channel]: $!";
+	my ($self, $channel) = @_; # $buf = $_[2]
+	print { $self->{$channel} } $_[2] or die "print FD[$channel]: $!";
 }
 
 sub err {
-	my ($client, $buf) = @_;
+	my ($self, $buf) = @_;
 	$buf .= "\n" unless $buf =~ /\n\z/s;
-	emit($client, 2, $buf);
+	emit($self, 2, $buf);
 }
 
 sub qerr { $_[0]->{opt}->{quiet} or err(@_) }
 
 sub fail ($$;$) {
-	my ($client, $buf, $exit_code) = @_;
-	err($client, $buf);
-	x_it($client, ($exit_code // 1) << 8);
+	my ($self, $buf, $exit_code) = @_;
+	err($self, $buf);
+	x_it($self, ($exit_code // 1) << 8);
 	undef;
 }
 
 sub _help ($;$) {
-	my ($client, $errmsg) = @_;
-	my $cmd = $client->{cmd} // 'COMMAND';
+	my ($self, $errmsg) = @_;
+	my $cmd = $self->{cmd} // 'COMMAND';
 	my @info = @{$CMD{$cmd} // [ '...', '...' ]};
 	my @top = ($cmd, shift(@info) // ());
 	my $cmd_desc = shift(@info);
-	$cmd_desc = $cmd_desc->($client->{env}) if ref($cmd_desc) eq 'CODE';
+	$cmd_desc = $cmd_desc->($self->{env}) if ref($cmd_desc) eq 'CODE';
 	my @opt_desc;
 	my $lpad = 2;
 	for my $sw (grep { !ref } @info) { # ("prio=s", "z", $GLP_PASS)
@@ -314,15 +314,15 @@ EOF
 		$msg .= "\n";
 	}
 	my $channel = $errmsg ? 2 : 1;
-	emit($client, $channel, $msg);
-	x_it($client, $errmsg ? 1 << 8 : 0); # stderr => failure
+	emit($self, $channel, $msg);
+	x_it($self, $errmsg ? 1 << 8 : 0); # stderr => failure
 	undef;
 }
 
 sub optparse ($$$) {
-	my ($client, $cmd, $argv) = @_;
-	$client->{cmd} = $cmd;
-	my $opt = $client->{opt} = {};
+	my ($self, $cmd, $argv) = @_;
+	$self->{cmd} = $cmd;
+	my $opt = $self->{opt} = {};
 	my $info = $CMD{$cmd} // [ '[...]' ];
 	my ($proto, undef, @spec) = @$info;
 	my $glp = ref($spec[-1]) ? pop(@spec) : $GLP; # or $GLP_PASS
@@ -334,8 +334,8 @@ sub optparse ($$$) {
 		push @spec, '' => \$var;
 	}
 	$glp->getoptionsfromarray($argv, $opt, @spec) or
-		return _help($client, "bad arguments or options for $cmd");
-	return _help($client) if $opt->{help};
+		return _help($self, "bad arguments or options for $cmd");
+	return _help($self) if $opt->{help};
 
 	# "-" aliases "stdin" or "clear"
 	$opt->{$lone_dash} = ${$opt->{$lone_dash}} if defined $lone_dash;
@@ -380,40 +380,40 @@ sub optparse ($$$) {
 	if (!$inf && scalar(@$argv) > scalar(@args)) {
 		$err //= 'too many arguments';
 	}
-	$err ? fail($client, "usage: lei $cmd $proto\nE: $err") : 1;
+	$err ? fail($self, "usage: lei $cmd $proto\nE: $err") : 1;
 }
 
 sub dispatch {
-	my ($client, $cmd, @argv) = @_;
-	local $SIG{__WARN__} = sub { err($client, "@_") };
+	my ($self, $cmd, @argv) = @_;
+	local $SIG{__WARN__} = sub { err($self, "@_") };
 	local $SIG{__DIE__} = 'DEFAULT';
-	return _help($client, 'no command given') unless defined($cmd);
+	return _help($self, 'no command given') unless defined($cmd);
 	my $func = "lei_$cmd";
 	$func =~ tr/-/_/;
 	if (my $cb = __PACKAGE__->can($func)) {
-		optparse($client, $cmd, \@argv) or return;
-		$cb->($client, @argv);
+		optparse($self, $cmd, \@argv) or return;
+		$cb->($self, @argv);
 	} elsif (grep(/\A-/, $cmd, @argv)) { # --help or -h only
 		my $opt = {};
 		$GLP->getoptionsfromarray([$cmd, @argv], $opt, qw(help|h)) or
-			return _help($client, 'bad arguments or options');
-		_help($client);
+			return _help($self, 'bad arguments or options');
+		_help($self);
 	} else {
-		fail($client, "`$cmd' is not an lei command");
+		fail($self, "`$cmd' is not an lei command");
 	}
 }
 
 sub _lei_cfg ($;$) {
-	my ($client, $creat) = @_;
-	my $f = _config_path($client->{env});
+	my ($self, $creat) = @_;
+	my $f = _config_path($self->{env});
 	my @st = stat($f);
 	my $cur_st = @st ? pack('dd', $st[10], $st[7]) : ''; # 10:ctime, 7:size
 	if (my $cfg = $PATH2CFG{$f}) { # reuse existing object in common case
-		return ($client->{cfg} = $cfg) if $cur_st eq $cfg->{-st};
+		return ($self->{cfg} = $cfg) if $cur_st eq $cfg->{-st};
 	}
 	if (!@st) {
 		unless ($creat) {
-			delete $client->{cfg};
+			delete $self->{cfg};
 			return;
 		}
 		my (undef, $cfg_dir, undef) = File::Spec->splitpath($f);
@@ -421,17 +421,17 @@ sub _lei_cfg ($;$) {
 		open my $fh, '>>', $f or die "open($f): $!\n";
 		@st = stat($fh) or die "fstat($f): $!\n";
 		$cur_st = pack('dd', $st[10], $st[7]);
-		qerr($client, "I: $f created") if $client->{cmd} ne 'config';
+		qerr($self, "I: $f created") if $self->{cmd} ne 'config';
 	}
 	my $cfg = PublicInbox::Config::git_config_dump($f);
 	$cfg->{-st} = $cur_st;
 	$cfg->{'-f'} = $f;
-	$client->{cfg} = $PATH2CFG{$f} = $cfg;
+	$self->{cfg} = $PATH2CFG{$f} = $cfg;
 }
 
 sub _lei_store ($;$) {
-	my ($client, $creat) = @_;
-	my $cfg = _lei_cfg($client, $creat);
+	my ($self, $creat) = @_;
+	my $cfg = _lei_cfg($self, $creat);
 	$cfg->{-lei_store} //= do {
 		require PublicInbox::LeiStore;
 		PublicInbox::SearchIdx::load_xapian_writable();
@@ -441,35 +441,35 @@ sub _lei_store ($;$) {
 }
 
 sub lei_show {
-	my ($client, @argv) = @_;
+	my ($self, @argv) = @_;
 }
 
 sub lei_query {
-	my ($client, @argv) = @_;
+	my ($self, @argv) = @_;
 }
 
 sub lei_mark {
-	my ($client, @argv) = @_;
+	my ($self, @argv) = @_;
 }
 
 sub lei_config {
-	my ($client, @argv) = @_;
-	$client->{opt}->{'config-file'} and return fail $client,
+	my ($self, @argv) = @_;
+	$self->{opt}->{'config-file'} and return fail $self,
 		"config file switches not supported by `lei config'";
-	my $env = $client->{env};
+	my $env = $self->{env};
 	delete local $env->{GIT_CONFIG};
-	my $cfg = _lei_cfg($client, 1);
+	my $cfg = _lei_cfg($self, 1);
 	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
-	my %rdr = map { $_ => $client->{$_} } (0..2);
+	my %rdr = map { $_ => $self->{$_} } (0..2);
 	require PublicInbox::Import;
 	PublicInbox::Import::run_die($cmd, $env, \%rdr);
 }
 
 sub lei_init {
-	my ($client, $dir) = @_;
-	my $cfg = _lei_cfg($client, 1);
+	my ($self, $dir) = @_;
+	my $cfg = _lei_cfg($self, 1);
 	my $cur = $cfg->{'leistore.dir'};
-	my $env = $client->{env};
+	my $env = $self->{env};
 	$dir //= _store_path($env);
 	$dir = File::Spec->rel2abs($dir, $env->{PWD}); # PWD is symlink-aware
 	my @cur = stat($cur) if defined($cur);
@@ -478,24 +478,24 @@ sub lei_init {
 	my $exists = "I: leistore.dir=$cur already initialized" if @dir;
 	if (@cur) {
 		if ($cur eq $dir) {
-			_lei_store($client, 1)->done;
-			return qerr($client, $exists);
+			_lei_store($self, 1)->done;
+			return qerr($self, $exists);
 		}
 
 		# some folks like symlinks and bind mounts :P
 		if (@dir && "$cur[0] $cur[1]" eq "$dir[0] $dir[1]") {
-			lei_config($client, 'leistore.dir', $dir);
-			_lei_store($client, 1)->done;
-			return qerr($client, "$exists (as $cur)");
+			lei_config($self, 'leistore.dir', $dir);
+			_lei_store($self, 1)->done;
+			return qerr($self, "$exists (as $cur)");
 		}
-		return fail($client, <<"");
+		return fail($self, <<"");
 E: leistore.dir=$cur already initialized and it is not $dir
 
 	}
-	lei_config($client, 'leistore.dir', $dir);
-	_lei_store($client, 1)->done;
+	lei_config($self, 'leistore.dir', $dir);
+	_lei_store($self, 1)->done;
 	$exists //= "I: leistore.dir=$dir newly initialized";
-	return qerr($client, $exists);
+	return qerr($self, $exists);
 }
 
 sub lei_daemon_pid { emit($_[0], 1, "$$\n") }
@@ -503,8 +503,8 @@ sub lei_daemon_pid { emit($_[0], 1, "$$\n") }
 sub lei_daemon_stop { $quit->(0) }
 
 sub lei_daemon_env {
-	my ($client, @argv) = @_;
-	my $opt = $client->{opt};
+	my ($self, @argv) = @_;
+	my $opt = $self->{opt};
 	if (defined $opt->{clear}) {
 		%ENV = ();
 	} elsif (my $u = $opt->{unset}) {
@@ -516,29 +516,29 @@ sub lei_daemon_env {
 		my $eor = $opt->{z} ? "\0" : "\n";
 		my $buf = '';
 		while (my ($k, $v) = each %ENV) { $buf .= "$k=$v$eor" }
-		emit($client, 1, $buf)
+		emit($self, 1, $buf)
 	}
 }
 
 sub lei_help { _help($_[0]) }
 
 sub reap_exec { # dwaitpid callback
-	my ($client, $pid) = @_;
-	x_it($client, $?);
+	my ($self, $pid) = @_;
+	x_it($self, $?);
 }
 
 sub lei_git { # support passing through random git commands
-	my ($client, @argv) = @_;
-	my %rdr = map { $_ => $client->{$_} } (0..2);
-	my $pid = spawn(['git', @argv], $client->{env}, \%rdr);
-	PublicInbox::DS::dwaitpid($pid, \&reap_exec, $client);
+	my ($self, @argv) = @_;
+	my %rdr = map { $_ => $self->{$_} } (0..2);
+	my $pid = spawn(['git', @argv], $self->{env}, \%rdr);
+	PublicInbox::DS::dwaitpid($pid, \&reap_exec, $self);
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
 	my ($sock) = @_; # ignore other
 	$sock->blocking(1);
 	$sock->autoflush(1);
-	my $client = { sock => $sock };
+	my $self = bless { sock => $sock }, __PACKAGE__;
 	vec(my $rin = '', fileno($sock), 1) = 1;
 	# `say $sock' triggers "die" in lei(1)
 	for my $i (0..2) {
@@ -547,7 +547,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 			if ($fd >= 0) {
 				my $rdr = ($fd == 0 ? '<&=' : '>&=');
 				if (open(my $fh, $rdr, $fd)) {
-					$client->{$i} = $fh;
+					$self->{$i} = $fh;
 				} else {
 					say $sock "open($rdr$fd) (FD=$i): $!";
 					return;
@@ -571,9 +571,9 @@ sub accept_dispatch { # Listener {post_accept} callback
 	};
 	my %env = map { split(/=/, $_, 2) } split(/\0/, $env);
 	if (chdir($env{PWD})) {
-		$client->{env} = \%env;
-		$client->{pid} = $client_pid;
-		eval { dispatch($client, split(/\]\0\[/, $argv)) };
+		$self->{env} = \%env;
+		$self->{pid} = $client_pid;
+		eval { dispatch($self, split(/\]\0\[/, $argv)) };
 		say $sock $@ if $@;
 	} else {
 		say $sock "chdir($env{PWD}): $!"; # implicit close
@@ -691,12 +691,12 @@ sub oneshot {
 	local $quit = $exit if $exit;
 	local %PATH2CFG;
 	umask(077) // die("umask(077): $!");
-	dispatch({
+	dispatch((bless {
 		0 => *STDIN{IO},
 		1 => *STDOUT{IO},
 		2 => *STDERR{IO},
 		env => \%ENV
-	}, @ARGV);
+	}, __PACKAGE__), @ARGV);
 }
 
 1;
