@@ -13,8 +13,8 @@ use subs qw(exit);
 sub main {
 # the below "line" directive is a magic comment, see perlsyn(1) manpage
 # line 1 "lei-oneshot"
-	require PublicInbox::LeiDaemon;
-	PublicInbox::LeiDaemon::oneshot(__PACKAGE__);
+	require PublicInbox::LEI;
+	PublicInbox::LEI::oneshot(__PACKAGE__);
 	0;
 }
 1;

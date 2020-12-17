@@ -5,7 +5,7 @@
 # PublicInbox::Daemon, this is designed exclusively to handle trusted
 # local clients with read/write access to the FS and use as many
 # system resources as the local user has access to.
-package PublicInbox::LeiDaemon;
+package PublicInbox::LEI;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::DS);

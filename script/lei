@@ -23,8 +23,8 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 	unless ($sock) { # start the daemon if not started
 		my $err = $! + 0;
 		my $env = { PERL5LIB => join(':', @INC) };
-		my $cmd = [ $^X, qw[-MPublicInbox::LeiDaemon
-			-E PublicInbox::LeiDaemon::lazy_start(@ARGV)],
+		my $cmd = [ $^X, qw[-MPublicInbox::LEI
+			-E PublicInbox::LEI::lazy_start(@ARGV)],
 			$path, $err ];
 		require PublicInbox::Spawn;
 		waitpid(PublicInbox::Spawn::spawn($cmd, $env), 0);
@@ -59,6 +59,6 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 		die $line;
 	}
 } else { # for systems lacking IO::FDPass
-	require PublicInbox::LeiDaemon;
-	PublicInbox::LeiDaemon::oneshot(__PACKAGE__);
+	require PublicInbox::LEI;
+	PublicInbox::LEI::oneshot(__PACKAGE__);
 }

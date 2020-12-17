@@ -159,7 +159,7 @@ lib/PublicInbox/InboxIdle.pm
 lib/PublicInbox/InboxWritable.pm
 lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
-lib/PublicInbox/LeiDaemon.pm
+lib/PublicInbox/LEI.pm
 lib/PublicInbox/LeiSearch.pm
 lib/PublicInbox/LeiStore.pm
 lib/PublicInbox/Linkify.pm

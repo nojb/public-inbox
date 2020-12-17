@@ -159,7 +159,7 @@ SKIP: {
 	$test_lei_common = undef;
 };
 
-require_ok 'PublicInbox::LeiDaemon';
+require_ok 'PublicInbox::LEI';
 $LEI = 'lei-oneshot' if $test_lei_oneshot;
 $test_lei_common->() if $test_lei_common;
 
