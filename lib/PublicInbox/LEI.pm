@@ -20,6 +20,7 @@ use PublicInbox::Syscall qw($SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now);
 use PublicInbox::Spawn qw(spawn);
+use PublicInbox::OnDestroy;
 use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
@@ -386,7 +387,6 @@ sub optparse ($$$) {
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
 	local $SIG{__WARN__} = sub { err($self, "@_") };
-	local $SIG{__DIE__} = 'DEFAULT';
 	return _help($self, 'no command given') unless defined($cmd);
 	my $func = "lei_$cmd";
 	$func =~ tr/-/_/;
@@ -602,12 +602,12 @@ sub lazy_start {
 	my $oldset = PublicInbox::Sigfd::block_signals();
 	my $pid = fork // die "fork: $!";
 	return if $pid;
+	require PublicInbox::Listener;
+	require PublicInbox::EOFpipe;
 	openlog($path, 'pid', 'user');
 	local $SIG{__DIE__} = sub {
 		syslog('crit', "@_");
-		exit $! if $!;
-		exit $? >> 8 if $? >> 8;
-		exit 255;
+		die; # calls the default __DIE__ handler
 	};
 	local $SIG{__WARN__} = sub { syslog('warning', "@_") };
 	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!\n";
@@ -616,10 +616,13 @@ sub lazy_start {
 	setsid();
 	$pid = fork // die "fork: $!";
 	return if $pid;
+	$SIG{__DIE__} = 'DEFAULT';
+	my $on_destroy = PublicInbox::OnDestroy->new(sub {
+		my ($owner_pid) = @_;
+		syslog('crit', "$@") if $@ && $$ == $owner_pid;
+	}, $$);
 	$0 = "lei-daemon $path";
 	local %PATH2CFG;
-	require PublicInbox::Listener;
-	require PublicInbox::EOFpipe;
 	$l->blocking(0);
 	$eof_w->blocking(0);
 	$eof_r->blocking(0);
@@ -680,6 +683,7 @@ sub lazy_start {
 		$n; # true: continue, false: stop
 	});
 	PublicInbox::DS->EventLoop;
+	$@ = undef if $on_destroy; # quiet OnDestroy if we got here
 	exit($exit_code // 0);
 }
 
