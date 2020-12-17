@@ -22,8 +22,13 @@ local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 local $ENV{HOME} = $home;
 local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
+my $home_trash = [ "$home/.local", "$home/.config" ];
+my $cleanup = sub {
+	rmtree([@$home_trash, @_]);
+	$out = $err = '';
+};
 
-my $test_lei_common = sub {
+my $test_help = sub {
 	ok(!$lei->([], undef, $opt), 'no args fails');
 	is($? >> 8, 1, '$? is 1');
 	is($out, '', 'nothing in stdout');
@@ -43,17 +48,17 @@ my $test_lei_common = sub {
 		isnt($err, '', 'something in stderr');
 		is($out, '', 'nothing in stdout');
 	}
+};
 
-	# init tests
-	$out = $err = '';
-	my $ok_err_info = sub {
-		my ($msg) = @_;
-		is(grep(!/^I:/, split(/^/, $err)), 0, $msg) or
-			diag "$msg: err=$err";
-		$err = '';
-	};
-	my $home_trash = [ "$home/.local", "$home/.config" ];
-	rmtree($home_trash);
+my $ok_err_info = sub {
+	my ($msg) = @_;
+	is(grep(!/^I:/, split(/^/, $err)), 0, $msg) or
+		diag "$msg: err=$err";
+	$err = '';
+};
+
+my $test_init = sub {
+	$cleanup->();
 	ok($lei->(['init'], undef, $opt), 'init w/o args');
 	$ok_err_info->('after init w/o args');
 	ok($lei->(['init'], undef, $opt), 'idempotent init w/o args');
@@ -63,17 +68,15 @@ my $test_lei_common = sub {
 		'init conflict');
 	is(grep(/^E:/, split(/^/, $err)), 1, 'got error on conflict');
 	ok(!-e "$home/x", 'nothing created on conflict');
-	rmtree($home_trash);
+	$cleanup->();
 
-	$err = '';
 	ok($lei->(['init', "$home/x"], undef, $opt), 'init conflict resolved');
 	$ok_err_info->('init w/ arg');
 	ok($lei->(['init', "$home/x"], undef, $opt), 'init idempotent w/ path');
 	$ok_err_info->('init idempotent w/ arg');
 	ok(-d "$home/x", 'created dir');
-	rmtree([ "$home/x", @$home_trash ]);
+	$cleanup->("$home/x");
 
-	$err = '';
 	ok(!$lei->(['init', "$home/x", "$home/2" ], undef, $opt),
 		'too many args fails');
 	like($err, qr/too many/, 'noted excessive');
@@ -82,7 +85,26 @@ my $test_lei_common = sub {
 		my $base = (split(m!/!, $d))[-1];
 		ok(!-d $d, "$base not created");
 	}
-	is($out, '', 'nothing in stdout');
+	is($out, '', 'nothing in stdout on init failure');
+};
+
+my $test_config = sub {
+	$cleanup->();
+	ok($lei->([qw(config a.b c)], undef, $opt), 'config set var');
+	is($out.$err, '', 'no output on var set');
+	ok($lei->([qw(config -l)], undef, $opt), 'config -l');
+	is($err, '', 'no errors on listing');
+	is($out, "a.b=c\n", 'got expected output');
+	ok(!$lei->([qw(config -f), "$home/.config/f", qw(x.y z)], undef, $opt),
+			'config set var with -f fails');
+	like($err, qr/not supported/, 'not supported noted');
+	ok(!-f "$home/config/f", 'no file created');
+};
+
+my $test_lei_common = sub {
+	$test_help->();
+	$test_config->();
+	$test_init->();
 };
 
 my $test_lei_oneshot = $ENV{TEST_LEI_ONESHOT};

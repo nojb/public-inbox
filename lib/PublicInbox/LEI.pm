@@ -24,13 +24,16 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-my $glp = Getopt::Long::Parser->new;
-$glp->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
+my $GLP = Getopt::Long::Parser->new;
+$GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
+my $GLP_PASS = Getopt::Long::Parser->new;
+$GLP_PASS->configure(qw(gnu_getopt no_ignore_case auto_abbrev pass_through));
+
 our %PATH2CFG; # persistent for socket daemon
 
 # TBD: this is a documentation mechanism to show a subcommand
 # (may) pass options through to another command:
-sub pass_through { () }
+sub pass_through { $GLP_PASS }
 
 # TODO: generate shell completion + help using %CMD and %OPTDESC
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
@@ -97,7 +100,8 @@ our %CMD = ( # sorted in order of importance/use:
 	],
 
 'config' => [ '[...]', 'git-config(1) wrapper for ~/.config/lei/config',
-		pass_through('git config') ],
+	qw(config-file|system|global|file|f=s), # conflict detection
+	pass_through('git config') ],
 'init' => [ '[PATHNAME]',
 	'initialize storage, default: ~/.local/share/lei/store',
 	qw(quiet|q) ],
@@ -231,7 +235,7 @@ sub _help ($;$) {
 	my $cmd_desc = shift(@info);
 	my @opt_desc;
 	my $lpad = 2;
-	for my $sw (@info) { # qw(prio=s
+	for my $sw (grep { !ref($_) } @info) { # ("prio=s", "z", $GLP_PASS)
 		my $desc = $OPTDESC{"$cmd\t$sw"} // $OPTDESC{$sw} // next;
 		my $arg_vals = '';
 		($arg_vals, $desc) = @$desc if ref($desc) eq 'ARRAY';
@@ -305,6 +309,7 @@ sub optparse ($$$) {
 	my $opt = $client->{opt} = {};
 	my $info = $CMD{$cmd} // [ '[...]', '(undocumented command)' ];
 	my ($proto, $desc, @spec) = @$info;
+	my $glp = ref($spec[-1]) ? pop(@spec) : $GLP; # or $GLP_PASS
 	push @spec, qw(help|h);
 	my $lone_dash;
 	if ($spec[0] =~ s/\|\z//s) { # "stdin|" or "clear|" allows "-" alias
@@ -374,7 +379,7 @@ sub dispatch {
 		$cb->($client, @argv);
 	} elsif (grep(/\A-/, $cmd, @argv)) { # --help or -h only
 		my $opt = {};
-		$glp->getoptionsfromarray([$cmd, @argv], $opt, qw(help|h)) or
+		$GLP->getoptionsfromarray([$cmd, @argv], $opt, qw(help|h)) or
 			return _help($client, 'bad arguments or options');
 		_help($client);
 	} else {
@@ -402,7 +407,7 @@ sub _lei_cfg ($;$) {
 		open my $fh, '>>', $f or die "open($f): $!\n";
 		@st = stat($fh) or die "fstat($f): $!\n";
 		$cur_st = pack('dd', $st[10], $st[7]);
-		qerr($client, "I: $f created");
+		qerr($client, "I: $f created") if $client->{cmd} ne 'config';
 	}
 	my $cfg = PublicInbox::Config::git_config_dump($f);
 	$cfg->{-st} = $cur_st;
@@ -435,17 +440,10 @@ sub lei_mark {
 
 sub lei_config {
 	my ($client, @argv) = @_;
+	$client->{opt}->{'config-file'} and return fail $client,
+		"config file switches not supported by `lei config'";
 	my $env = $client->{env};
-	if (defined $env->{GIT_CONFIG}) {
-		my %copy = %$env;
-		delete $copy{GIT_CONFIG};
-		$env = \%copy;
-	}
-	if (my @conflict = (grep(/\A-f=?\z/, @argv),
-				grep(/\A--(?:global|system|
-					file|config-file)=?\z/x, @argv))) {
-		return fail($client, "@conflict not supported by lei config");
-	}
+	delete local $env->{GIT_CONFIG};
 	my $cfg = _lei_cfg($client, 1);
 	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
 	my %rdr = map { $_ => $client->{$_} } (0..2);
