@@ -33,12 +33,6 @@ sub misc {
 
 sub search { $_[0] } # self
 
-# overrides PublicInbox::Search::_xdb
-sub _xdb {
-	my ($self) = @_;
-	$self->xdb_sharded;
-}
-
 # same as per-inbox ->over, for now...
 sub over {
 	my ($self) = @_;

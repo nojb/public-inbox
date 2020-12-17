@@ -54,14 +54,11 @@ sub new {
 		}
 	}
 	$ibx = PublicInbox::InboxWritable->new($ibx);
-	my $self = bless {
-		ibx => $ibx,
-		xpfx => $inboxdir, # for xpfx_init
-		-altid => $altid,
-		ibx_ver => $version,
-		indexlevel => $indexlevel,
-	}, $class;
-	$self->xpfx_init;
+	my $self = PublicInbox::Search->new($ibx);
+	bless $self, $class;
+	$self->{ibx} = $ibx;
+	$self->{-altid} = $altid;
+	$self->{indexlevel} = $indexlevel;
 	$self->{-set_indexlevel_once} = 1 if $indexlevel eq 'medium';
 	if ($ibx->{-skip_docdata}) {
 		$self->{-set_skip_docdata_once} = 1;
@@ -408,7 +405,7 @@ sub add_xapian ($$$$) {
 
 sub _msgmap_init ($) {
 	my ($self) = @_;
-	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx_ver} != 1;
+	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx}->version != 1;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
 		my $rw = $self->{ibx}->{-no_fsync} ? 2 : 1;

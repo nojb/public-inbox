@@ -9,8 +9,7 @@ use PublicInbox::Search;
 
 sub combined_docid ($$) {
 	my ($self, $num) = @_;
-	my $nshard = ($self->{nshard} // 1);
-	($num - 1) * $nshard  + 1;
+	($num - 1) * $self->{nshard} + 1;
 }
 
 sub msg_keywords {
@@ -19,7 +18,7 @@ sub msg_keywords {
 	my $docid = ref($num) ? $num->get_docid : do {
 		# get combined docid from over.num:
 		# (not generic Xapian, only works with our sharding scheme)
-		my $nshard = $self->{nshard} // 1;
+		my $nshard = $self->{nshard};
 		($num - 1) * $nshard + $num % $nshard + 1;
 	};
 	my %kw;

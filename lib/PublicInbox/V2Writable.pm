@@ -73,13 +73,7 @@ sub count_shards ($) {
 		delete $ibx->{search};
 		$srch->{nshard} // 0
 	} else { # ExtSearchIdx
-		$self->{nshard} // do {
-			if ($self->xdb_sharded) {
-				$self->{nshard} // die 'BUG: {nshard} unset';
-			} else {
-				0;
-			}
-		}
+		$self->{nshard} ||= scalar($self->xdb_shards_flat);
 	}
 }
 
