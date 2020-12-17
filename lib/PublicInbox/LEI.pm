@@ -10,9 +10,9 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::DS);
 use Getopt::Long ();
+use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
 use Errno qw(EAGAIN ECONNREFUSED ENOENT);
 use POSIX qw(setsid);
-use IO::Socket::UNIX;
 use IO::Handle ();
 use Sys::Syslog qw(syslog openlog);
 use PublicInbox::Config;
@@ -585,18 +585,17 @@ sub noop {}
 # lei(1) calls this when it can't connect
 sub lazy_start {
 	my ($path, $err) = @_;
+	require IO::FDPass; # require this early so caller sees it
 	if ($err == ECONNREFUSED) {
 		unlink($path) or die "unlink($path): $!";
 	} elsif ($err != ENOENT) {
+		$! = $err; # allow interpolation to stringify in die
 		die "connect($path): $!";
 	}
-	require IO::FDPass;
 	umask(077) // die("umask(077): $!");
-	my $l = IO::Socket::UNIX->new(Local => $path,
-					Listen => 1024,
-					Type => SOCK_STREAM) or
-		$err = $!;
-	$l or return die "bind($path): $err";
+	socket(my $l, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
+	bind($l, pack_sockaddr_un($path)) or die "bind($path): $!";
+	listen($l, 1024) or die "listen $!";
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";

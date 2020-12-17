@@ -261,6 +261,7 @@ sub run_script ($;$$) {
 		my $orig_io = _prepare_redirects($fhref);
 		_run_sub($sub, $key, \@argv);
 		_undo_redirects($orig_io);
+		select STDOUT;
 	}
 
 	# slurp the redirects back into user-supplied strings

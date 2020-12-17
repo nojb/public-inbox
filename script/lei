@@ -3,8 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
-use Cwd qw(cwd);
-use IO::Socket::UNIX;
+use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
 
 if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 	my $path = do {
@@ -13,14 +12,15 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 			require File::Spec;
 			$runtime_dir = File::Spec->tmpdir."/lei-$<";
 		}
-		unless (-d $runtime_dir && -w _) {
+		unless (-d $runtime_dir) {
 			require File::Path;
 			File::Path::mkpath($runtime_dir, 0, 0700);
 		}
 		"$runtime_dir/sock";
 	};
-	my $sock = IO::Socket::UNIX->new(Peer => $path, Type => SOCK_STREAM);
-	unless ($sock) { # start the daemon if not started
+	my $addr = pack_sockaddr_un($path);
+	socket(my $sock, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
+	unless (connect($sock, $addr)) { # start the daemon if not started
 		my $err = $! + 0;
 		my $env = { PERL5LIB => join(':', @INC) };
 		my $cmd = [ $^X, qw[-MPublicInbox::LEI
@@ -31,13 +31,14 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 		warn "lei-daemon exited with \$?=$?\n" if $?;
 
 		# try connecting again anyways, unlink+bind may be racy
-		$sock = IO::Socket::UNIX->new(Peer => $path,
-						Type => SOCK_STREAM) // die
+		connect($sock, $addr) or die
 			"connect($path): $! (after attempted daemon start)";
 	}
-	my $pwd = $ENV{PWD};
-	my $cwd = cwd();
-	if ($pwd) { # prefer ENV{PWD} if it's a symlink to real cwd
+	require Cwd;
+	my $cwd = Cwd::fastcwd() // die "fastcwd: $!";
+	my $pwd = $ENV{PWD} // '';
+	if ($pwd eq $cwd) { # likely, all good
+	} elsif ($pwd) { # prefer ENV{PWD} if it's a symlink to real cwd
 		my @st_cwd = stat($cwd) or die "stat(cwd=$cwd): $!\n";
 		my @st_pwd = stat($pwd);
 		# make sure st_dev/st_ino match for {PWD} to be valid
@@ -47,16 +48,16 @@ if (eval { require IO::FDPass; 1 }) { # use daemon to reduce load time
 		$pwd = $cwd;
 	}
 	local $ENV{PWD} = $pwd;
-	$sock->autoflush(1);
-	IO::FDPass::send(fileno($sock), $_) for (0..2);
 	my $buf = "$$\0\0>" . join("]\0[", @ARGV) . "\0\0>";
 	while (my ($k, $v) = each %ENV) { $buf .= "$k=$v\0" }
 	$buf .= "\0\0";
+	select $sock;
+	$| = 1; # unbuffer selected $sock
+	IO::FDPass::send(fileno($sock), $_) for (0..2);
 	print $sock $buf or die "print(sock, buf): $!";
-	local $/ = "\n";
-	while (my $line = <$sock>) {
-		$line =~ /\Aexit=([0-9]+)\n\z/ and exit($1 + 0);
-		die $line;
+	while ($buf = <$sock>) {
+		$buf =~ /\Aexit=([0-9]+)\n\z/ and exit($1 + 0);
+		die $buf;
 	}
 } else { # for systems lacking IO::FDPass
 	require PublicInbox::LEI;
