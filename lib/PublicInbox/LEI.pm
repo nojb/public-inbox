@@ -35,6 +35,20 @@ our %PATH2CFG; # persistent for socket daemon
 # (may) pass options through to another command:
 sub pass_through { $GLP_PASS }
 
+sub _store_path ($) {
+	my ($env) = @_;
+	File::Spec->rel2abs(($env->{XDG_DATA_HOME} //
+		($env->{HOME} // '/nonexistent').'/.local/share')
+		.'/lei/store', $env->{PWD});
+}
+
+sub _config_path ($) {
+	my ($env) = @_;
+	File::Spec->rel2abs(($env->{XDG_CONFIG_HOME} //
+		($env->{HOME} // '/nonexistent').'/.config')
+		.'/lei/config', $env->{PWD});
+}
+
 # TODO: generate shell completion + help using %CMD and %OPTDESC
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
@@ -99,12 +113,13 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(stdin| limit|n=i offset=i recursive|r exclude=s include=s !flags),
 	],
 
-'config' => [ '[...]', 'git-config(1) wrapper for ~/.config/lei/config',
-	qw(config-file|system|global|file|f=s), # conflict detection
+'config' => [ '[...]', sub {
+		'git-config(1) wrapper for '._config_path($_[0]);
+	}, qw(config-file|system|global|file|f=s), # for conflict detection
 	pass_through('git config') ],
-'init' => [ '[PATHNAME]',
-	'initialize storage, default: ~/.local/share/lei/store',
-	qw(quiet|q) ],
+'init' => [ '[PATHNAME]', sub {
+		'initialize storage, default: '._store_path($_[0]);
+	}, qw(quiet|q) ],
 'daemon-stop' => [ '', 'stop the lei-daemon' ],
 'daemon-pid' => [ '', 'show the PID of the lei-daemon' ],
 'daemon-env' => [ '[NAME=VALUE...]', 'set, unset, or show daemon environment',
@@ -233,9 +248,10 @@ sub _help ($;$) {
 	my @info = @{$CMD{$cmd} // [ '...', '...' ]};
 	my @top = ($cmd, shift(@info) // ());
 	my $cmd_desc = shift(@info);
+	$cmd_desc = $cmd_desc->($client->{env}) if ref($cmd_desc) eq 'CODE';
 	my @opt_desc;
 	my $lpad = 2;
-	for my $sw (grep { !ref($_) } @info) { # ("prio=s", "z", $GLP_PASS)
+	for my $sw (grep { !ref } @info) { # ("prio=s", "z", $GLP_PASS)
 		my $desc = $OPTDESC{"$cmd\t$sw"} // $OPTDESC{$sw} // next;
 		my $arg_vals = '';
 		($arg_vals, $desc) = @$desc if ref($desc) eq 'ARRAY';
@@ -307,8 +323,8 @@ sub optparse ($$$) {
 	my ($client, $cmd, $argv) = @_;
 	$client->{cmd} = $cmd;
 	my $opt = $client->{opt} = {};
-	my $info = $CMD{$cmd} // [ '[...]', '(undocumented command)' ];
-	my ($proto, $desc, @spec) = @$info;
+	my $info = $CMD{$cmd} // [ '[...]' ];
+	my ($proto, undef, @spec) = @$info;
 	my $glp = ref($spec[-1]) ? pop(@spec) : $GLP; # or $GLP_PASS
 	push @spec, qw(help|h);
 	my $lone_dash;
@@ -389,10 +405,7 @@ sub dispatch {
 
 sub _lei_cfg ($;$) {
 	my ($client, $creat) = @_;
-	my $env = $client->{env};
-	my $cfg_dir = File::Spec->canonpath(( $env->{XDG_CONFIG_HOME} //
-			($env->{HOME} // '/nonexistent').'/.config').'/lei');
-	my $f = "$cfg_dir/config";
+	my $f = _config_path($client->{env});
 	my @st = stat($f);
 	my $cur_st = @st ? pack('dd', $st[10], $st[7]) : ''; # 10:ctime, 7:size
 	if (my $cfg = $PATH2CFG{$f}) { # reuse existing object in common case
@@ -403,6 +416,7 @@ sub _lei_cfg ($;$) {
 			delete $client->{cfg};
 			return;
 		}
+		my (undef, $cfg_dir, undef) = File::Spec->splitpath($f);
 		-d $cfg_dir or mkpath($cfg_dir) or die "mkpath($cfg_dir): $!\n";
 		open my $fh, '>>', $f or die "open($f): $!\n";
 		@st = stat($fh) or die "fstat($f): $!\n";
@@ -456,9 +470,7 @@ sub lei_init {
 	my $cfg = _lei_cfg($client, 1);
 	my $cur = $cfg->{'leistore.dir'};
 	my $env = $client->{env};
-	$dir //= ( $env->{XDG_DATA_HOME} //
-		($env->{HOME} // '/nonexistent').'/.local/share'
-		) . '/lei/store';
+	$dir //= _store_path($env);
 	$dir = File::Spec->rel2abs($dir, $env->{PWD}); # PWD is symlink-aware
 	my @cur = stat($cur) if defined($cur);
 	$cur = File::Spec->canonpath($cur) if $cur;

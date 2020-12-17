@@ -9,13 +9,18 @@ use PublicInbox::Config;
 use File::Path qw(rmtree);
 require_mods(qw(json DBD::SQLite Search::Xapian));
 my $LEI = 'lei';
+my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 my $lei = sub {
 	my ($cmd, $env, $opt) = @_;
+	$out = $err = '';
+	if (!ref($cmd)) {
+		($env, $opt) = grep { (!defined) || ref } @_;
+		$cmd = [ grep { defined } @_ ];
+	}
 	run_script([$LEI, @$cmd], $env, $opt);
 };
 
 my ($home, $for_destroy) = tmpdir();
-my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 delete local $ENV{XDG_DATA_HOME};
 delete local $ENV{XDG_CONFIG_HOME};
 local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
@@ -23,10 +28,7 @@ local $ENV{HOME} = $home;
 local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
 my $home_trash = [ "$home/.local", "$home/.config" ];
-my $cleanup = sub {
-	rmtree([@$home_trash, @_]);
-	$out = $err = '';
-};
+my $cleanup = sub { rmtree([@$home_trash, @_]) };
 
 my $test_help = sub {
 	ok(!$lei->([], undef, $opt), 'no args fails');
@@ -48,6 +50,21 @@ my $test_help = sub {
 		isnt($err, '', 'something in stderr');
 		is($out, '', 'nothing in stdout');
 	}
+	ok($lei->(qw(init -h), undef, $opt), 'init -h');
+	like($out, qr! \Q$home\E/\.local/share/lei/store\b!,
+		'actual path shown in init -h');
+	ok($lei->(qw(init -h), { XDG_DATA_HOME => '/XDH' }, $opt),
+		'init with XDG_DATA_HOME');
+	like($out, qr! /XDH/lei/store\b!, 'XDG_DATA_HOME in init -h');
+	is($err, '', 'no errors from init -h');
+
+	ok($lei->(qw(config -h), undef, $opt), 'config-h');
+	like($out, qr! \Q$home\E/\.config/lei/config\b!,
+		'actual path shown in config -h');
+	ok($lei->(qw(config -h), { XDG_CONFIG_HOME => '/XDC' }, $opt),
+		'config with XDG_CONFIG_HOME');
+	like($out, qr! /XDC/lei/config\b!, 'XDG_CONFIG_HOME in config -h');
+	is($err, '', 'no errors from config -h');
 };
 
 my $ok_err_info = sub {
