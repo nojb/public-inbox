@@ -162,8 +162,27 @@ sub remove_eml_keywords {
 	\@docids;
 }
 
+# cf: https://doc.dovecot.org/configuration_manual/mail_location/mbox/
+my %status2kw = (F => 'flagged', A => 'answered', R => 'seen', T => 'draft');
+# O (old/non-recent), and D (deleted) aren't in JMAP,
+# so probably won't be supported by us.
+sub mbox_keywords {
+	my $eml = $_[-1];
+	my $s = "@{[$eml->header_raw('X-Status'),$eml->header_raw('Status')]}";
+	my %kw;
+	$s =~ s/([FART])/$kw{$status2kw{$1}} = 1/sge;
+	sort(keys %kw);
+}
+
+# cf: https://cr.yp.to/proto/maildir.html
+my %c2kw = ('D' => 'draft', F => 'flagged', R => 'answered', S => 'seen');
+sub maildir_keywords {
+	$_[-1] =~ /:2,([A-Z]+)\z/i ?
+		sort(map { $c2kw{$_} // () } split(//, $1)) : ();
+}
+
 sub add_eml {
-	my ($self, $eml) = @_;
+	my ($self, $eml, @kw) = @_;
 	my $eidx = eidx_init($self);
 	my $oidx = $eidx->{oidx};
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
@@ -178,6 +197,7 @@ sub add_eml {
 			my $idx = $eidx->idx_shard($docid);
 			$oidx->add_xref3($docid, -1, $smsg->{blob}, '.');
 			$idx->shard_add_eidx_info($docid, '.', $eml); # List-Id
+			$idx->shard_add_keywords($docid, @kw) if @kw;
 		}
 	} else {
 		$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
@@ -185,6 +205,7 @@ sub add_eml {
 		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');
 		my $idx = $eidx->idx_shard($smsg->{num});
 		$idx->index_raw($msgref, $eml, $smsg);
+		$idx->shard_add_keywords($smsg->{num}, @kw) if @kw;
 	}
 	$smsg->{blob}
 }
