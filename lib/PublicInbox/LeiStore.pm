@@ -52,6 +52,14 @@ sub git_epoch_max  {
 	}
 }
 
+sub git_ident ($) {
+	my ($git) = @_;
+	chomp(my $i = $git->qx(qw(var GIT_COMMITTER_IDENT)));
+	warn "$git->{git_dir} GIT_COMMITTER_IDENT failed\n" if $?;
+	$i =~ /\A(.+) <([^>]+)> [0-9]+ [-\+]?[0-9]+$/ ? ($1, $2) :
+		('lei user', 'x@example.com')
+}
+
 sub importer {
 	my ($self) = @_;
 	my $max;
@@ -79,10 +87,7 @@ sub importer {
 			$max++;
 			next;
 		}
-		chomp(my $i = $git->qx(qw(var GIT_COMMITTER_IDENT)));
-		die "$git->{git_dir} GIT_COMMITTER_IDENT failed\n" if $?;
-		my ($n, $e) = ($i =~ /\A(.+) <([^>]+)> [0-9]+ [-\+]?[0-9]+$/g)
-			or die "could not extract name/email from `$i'\n";
+		my ($n, $e) = git_ident($git);
 		$self->{im} = $im = PublicInbox::Import->new($git, $n, $e);
 		$im->{bytes_added} = int($packed_bytes / $self->packing_factor);
 		$im->{lock_path} = undef;
