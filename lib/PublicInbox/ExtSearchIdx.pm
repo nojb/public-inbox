@@ -530,8 +530,10 @@ sub host_ident () {
 	state $retval = hostname . '-' . do {
 		my $m; # machine-id(5) is systemd
 		if (open(my $fh, '<', '/etc/machine-id')) { $m = <$fh> }
-		# hostid(1) is in GNU coreutils, kern.hostid is FreeBSD
-		chomp($m ||= `hostid` || `sysctl -n kern.hostid`);
+		# (g)hostid(1) is in GNU coreutils, kern.hostid is most BSDs
+		chomp($m ||= `{ sysctl -n kern.hostid ||
+				hostid || ghostid; } 2>/dev/null`
+			|| "no-machine-id-or-hostid-on-$^O");
 		$m;
 	};
 }
