@@ -328,11 +328,13 @@ sub extract_cmt_info ($;$) {
 }
 
 # kill potentially confusing/misleading headers
+our @UNWANTED_HEADERS = (qw(Bytes Lines Content-Length),
+			qw(Status X-Status));
 sub drop_unwanted_headers ($) {
-	my ($mime) = @_;
-
-	$mime->header_set($_) for qw(Bytes Lines Content-Length Status);
-	$mime->header_set($_) for @PublicInbox::MDA::BAD_HEADERS;
+	my ($eml) = @_;
+	for (@UNWANTED_HEADERS, @PublicInbox::MDA::BAD_HEADERS) {
+		$eml->header_set($_);
+	}
 }
 
 # used by V2Writable, too
