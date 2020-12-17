@@ -250,18 +250,13 @@ sub x_it ($$) { # pronounced "exit"
 
 sub puts ($;@) { print { shift->{1} } map { "$_\n" } @_ }
 
-sub emit {
-	my ($self, $channel) = @_; # $buf = $_[2]
-	print { $self->{$channel} } $_[2] or die "print FD[$channel]: $!";
+sub out ($;@) { print { shift->{1} } @_ }
+
+sub err ($;@) {
+	print { shift->{2} } @_, (substr($_[-1], -1, 1) eq "\n" ? () : "\n");
 }
 
-sub err {
-	my ($self, $buf) = @_;
-	$buf .= "\n" unless $buf =~ /\n\z/s;
-	emit($self, 2, $buf);
-}
-
-sub qerr { $_[0]->{opt}->{quiet} or err(@_) }
+sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
@@ -341,8 +336,7 @@ EOF
 		$msg .= $rhs;
 		$msg .= "\n";
 	}
-	my $channel = $errmsg ? 2 : 1;
-	emit($self, $channel, $msg);
+	print { $self->{$errmsg ? 2 : 1} } $msg;
 	x_it($self, $errmsg ? 1 << 8 : 0); # stderr => failure
 	undef;
 }
@@ -404,7 +398,6 @@ sub optparse ($$$) {
 		}
 		last if $err;
 	}
-	# warn "inf=$inf ".scalar(@$argv). ' '.scalar(@args)."\n";
 	if (!$inf && scalar(@$argv) > scalar(@args)) {
 		$err //= 'too many arguments';
 	}
@@ -413,7 +406,7 @@ sub optparse ($$$) {
 
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
-	local $SIG{__WARN__} = sub { err($self, "@_") };
+	local $SIG{__WARN__} = sub { err($self, @_) };
 	return _help($self, 'no command given') unless defined($cmd);
 	my $func = "lei_$cmd";
 	$func =~ tr/-/_/;
@@ -525,7 +518,7 @@ E: leistore.dir=$cur already initialized and it is not $dir
 	return qerr($self, $exists);
 }
 
-sub lei_daemon_pid { emit($_[0], 1, "$$\n") }
+sub lei_daemon_pid { puts shift, $$ }
 
 sub lei_daemon_kill {
 	my ($self) = @_;
@@ -547,7 +540,7 @@ sub lei_daemon_env {
 		my $eor = $opt->{z} ? "\0" : "\n";
 		my $buf = '';
 		while (my ($k, $v) = each %ENV) { $buf .= "$k=$v$eor" }
-		emit($self, 1, $buf)
+		out $self, $buf;
 	}
 }
 
