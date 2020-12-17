@@ -18,6 +18,7 @@ use PublicInbox::V2Writable;
 use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::MID qw(mids);
 use PublicInbox::LeiSearch;
+use List::Util qw(max);
 
 sub new {
 	my (undef, $dir, $opt) = @_;
@@ -42,15 +43,13 @@ sub git_pfx { "$_[0]->{priv_eidx}->{topdir}/local" };
 
 sub git_epoch_max  {
 	my ($self) = @_;
-	my $pfx = $self->git_pfx;
-	my $max = 0;
-	return $max unless -d $pfx ;
-	opendir my $dh, $pfx or die "opendir $pfx: $!\n";
-	while (defined(my $git_dir = readdir($dh))) {
-		$git_dir =~ m!\A([0-9]+)\.git\z! or next;
-		$max = $1 + 0 if $1 > $max;
+	if (opendir(my $dh, $self->git_pfx)) {
+		max(map {
+			substr($_, 0, -4) + 0; # drop ".git" suffix
+		} grep(/\A[0-9]+\.git\z/, readdir($dh))) // 0;
+	} else {
+		$!{ENOENT} ? 0 : die("opendir ${\$self->git_pfx}: $!\n");
 	}
-	$max;
 }
 
 sub importer {
