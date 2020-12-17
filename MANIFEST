@@ -181,6 +181,7 @@ lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
 lib/PublicInbox/NewsWWW.pm
+lib/PublicInbox/OnDestroy.pm
 lib/PublicInbox/Over.pm
 lib/PublicInbox/OverIdx.pm
 lib/PublicInbox/ProcessPipe.pm
@@ -343,6 +344,7 @@ t/nntpd-v2.t
 t/nntpd.t
 t/nodatacow.t
 t/nulsubject.t
+t/on_destroy.t
 t/over.t
 t/plack-2-txt-bodies.eml
 t/plack-attached-patch.eml
