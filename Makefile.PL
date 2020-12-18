@@ -107,7 +107,7 @@ my %man3 = map {; # semi-colon tells Perl this is a BLOCK (and not EXPR)
 	my $mod = $base;
 	$mod =~ s!/!::!g;
 	$mod =~ s/\.\w+\z//;
-	"lib/PublicInbox/$_" => "blib/man3/PublicInbox::$mod.3"
+	"lib/PublicInbox/$_" => "blib/man3/PublicInbox::$mod.\$(MAN3EXT)"
 } qw(Git.pm Import.pm WWW.pod SaPlugin/ListMirror.pod);
 
 WriteMakefile(
