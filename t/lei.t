@@ -127,7 +127,7 @@ my $test_lei_common = sub {
 my $test_lei_oneshot = $ENV{TEST_LEI_ONESHOT};
 SKIP: {
 	last SKIP if $test_lei_oneshot;
-	require_mods(qw(IO::FDPass Cwd), 41);
+	require_mods(qw(IO::FDPass Cwd), 46);
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
 
 	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
@@ -174,9 +174,9 @@ SKIP: {
 	ok(run_script([qw(lei daemon-env)], undef, $opt), 'env is empty');
 	is($out, '', 'env cleared');
 
-	ok(run_script([qw(lei daemon-stop)], undef, $opt), 'daemon-stop');
-	is($out, '', 'no output from daemon-stop');
-	is($err, '', 'no error from daemon-stop');
+	ok(run_script([qw(lei daemon-kill)], undef, $opt), 'daemon-kill');
+	is($out, '', 'no output from daemon-kill');
+	is($err, '', 'no error from daemon-kill');
 	for (0..100) {
 		kill(0, $pid) or last;
 		tick();
@@ -188,6 +188,16 @@ SKIP: {
 	chomp(my $new_pid = $out);
 	ok(kill(0, $new_pid), 'new pid is running');
 	ok(-S $sock, 'sock exists again');
+
+	$out = $err = '';
+	for my $sig (qw(-0 -CHLD)) {
+		ok(run_script([qw(lei daemon-kill), $sig ], undef, $opt),
+					"handles $sig");
+	}
+	is($out.$err, '', 'no output on innocuous signals');
+	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
+	chomp $out;
+	is($out, $new_pid, 'PID unchanged after -0/-CHLD');
 
 	if ('socket inaccessible') {
 		chmod 0000, $sock or BAIL_OUT "chmod 0000: $!";

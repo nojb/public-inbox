@@ -36,6 +36,21 @@ our %PATH2CFG; # persistent for socket daemon
 # (may) pass options through to another command:
 sub pass_through { $GLP_PASS }
 
+my $OPT;
+sub opt_dash {
+	my ($spec, $re_str) = @_; # 'limit|n=i', '([0-9]+)'
+	my ($key) = ($spec =~ m/\A([a-z]+)/g);
+	my $cb = sub { # Getopt::Long "<>" catch-all handler
+		my ($arg) = @_;
+		if ($arg =~ /\A-($re_str)\z/) {
+			$OPT->{$key} = $1;
+		} else {
+			die "bad argument for --$key: $arg\n";
+		}
+	};
+	($spec, '<>' => $cb, $GLP_PASS)
+}
+
 sub _store_path ($) {
 	my ($env) = @_;
 	File::Spec->rel2abs(($env->{XDG_DATA_HOME} //
@@ -55,8 +70,8 @@ sub _config_path ($) {
 our %CMD = ( # sorted in order of importance/use:
 'query' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|o=s format|f=s dedupe|d=s thread|t augment|a
-	limit|n=i sort|s=s@ reverse|r offset=i remote local! extinbox!
-	since|after=s until|before=s) ],
+	sort|s=s@ reverse|r offset=i remote local! extinbox!
+	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
 	qw(type=s solve! format|f=s dedupe|d=s thread|t remote local!),
@@ -111,7 +126,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 'import' => [ '{URL_OR_PATHNAME|--stdin}',
 	'one-shot import/update from URL or filesystem',
-	qw(stdin| limit|n=i offset=i recursive|r exclude=s include=s !flags),
+	qw(stdin| offset=i recursive|r exclude=s include=s !flags),
 	],
 
 'config' => [ '[...]', sub {
@@ -121,7 +136,8 @@ our %CMD = ( # sorted in order of importance/use:
 'init' => [ '[PATHNAME]', sub {
 		'initialize storage, default: '._store_path($_[0]);
 	}, qw(quiet|q) ],
-'daemon-stop' => [ '', 'stop the lei-daemon' ],
+'daemon-kill' => [ '[-SIGNAL]', 'signal the lei-daemon',
+	opt_dash('signal|s=s', '[0-9]+|(?:[A-Z][A-Z0-9]+)') ],
 'daemon-pid' => [ '', 'show the PID of the lei-daemon' ],
 'daemon-env' => [ '[NAME=VALUE...]', 'set, unset, or show daemon environment',
 	qw(clear| unset|u=s@ z|0) ],
@@ -175,8 +191,7 @@ my %OPTDESC = (
 'ls-query	format|f=s' => $ls_format,
 'ls-extinbox	format|f=s' => $ls_format,
 
-'limit|n=i' => ['NUM',
-	'limit on number of matches (default: 10000)' ],
+'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],
 'offset=i' => ['OFF', 'search result offset (default: 0)'],
 
 'sort|s=s@' => [ 'VAL|internaldate,date,relevance,docid',
@@ -211,6 +226,8 @@ my %OPTDESC = (
 'clear|' => 'clear the daemon environment',
 'unset|u=s@' => ['NAME',
 	'unset matching NAME, may be specified multiple times'],
+
+'signal|s=s' => [ 'SIG', 'signal to send lei-daemon (default: TERM)' ],
 ); # %OPTDESC
 
 my %CONFIG_KEYS = (
@@ -333,23 +350,23 @@ EOF
 sub optparse ($$$) {
 	my ($self, $cmd, $argv) = @_;
 	$self->{cmd} = $cmd;
-	my $opt = $self->{opt} = {};
+	$OPT = $self->{opt} = {};
 	my $info = $CMD{$cmd} // [ '[...]' ];
 	my ($proto, undef, @spec) = @$info;
-	my $glp = ref($spec[-1]) ? pop(@spec) : $GLP; # or $GLP_PASS
+	my $glp = ref($spec[-1]) eq ref($GLP) ? pop(@spec) : $GLP;
 	push @spec, qw(help|h);
 	my $lone_dash;
 	if ($spec[0] =~ s/\|\z//s) { # "stdin|" or "clear|" allows "-" alias
 		$lone_dash = $spec[0];
-		$opt->{$spec[0]} = \(my $var);
+		$OPT->{$spec[0]} = \(my $var);
 		push @spec, '' => \$var;
 	}
-	$glp->getoptionsfromarray($argv, $opt, @spec) or
+	$glp->getoptionsfromarray($argv, $OPT, @spec) or
 		return _help($self, "bad arguments or options for $cmd");
-	return _help($self) if $opt->{help};
+	return _help($self) if $OPT->{help};
 
 	# "-" aliases "stdin" or "clear"
-	$opt->{$lone_dash} = ${$opt->{$lone_dash}} if defined $lone_dash;
+	$OPT->{$lone_dash} = ${$OPT->{$lone_dash}} if defined $lone_dash;
 
 	my $i = 0;
 	my $POS_ARG = '[A-Z][A-Z0-9_]+';
@@ -365,14 +382,14 @@ sub optparse ($$$) {
 		} elsif ($var =~ /\.\.\.\]\z/) { # optional args start
 			$inf = 1;
 			last;
-		} elsif ($var =~ /\A\[$POS_ARG\]\z/) { # one optional arg
+		} elsif ($var =~ /\A\[-?$POS_ARG\]\z/) { # one optional arg
 			$i++;
 		} elsif ($var =~ /\A.+?\|/) { # required FOO|--stdin
 			my @or = split(/\|/, $var);
 			my $ok;
 			for my $o (@or) {
 				if ($o =~ /\A--([a-z0-9\-]+)/) {
-					$ok = defined($opt->{$1});
+					$ok = defined($OPT->{$1});
 					last;
 				} elsif (defined($argv->[$i])) {
 					$ok = 1;
@@ -510,7 +527,11 @@ E: leistore.dir=$cur already initialized and it is not $dir
 
 sub lei_daemon_pid { emit($_[0], 1, "$$\n") }
 
-sub lei_daemon_stop { $quit->(0) }
+sub lei_daemon_kill {
+	my ($self) = @_;
+	my $sig = $self->{opt}->{signal} // 'TERM';
+	kill($sig, $$) or fail($self, "kill($sig, $$): $!");
+}
 
 sub lei_daemon_env {
 	my ($self, @argv) = @_;
@@ -538,7 +559,7 @@ sub lei_help { _help($_[0]) }
 sub lei__complete {
 	my ($self, @argv) = @_; # argv = qw(lei and any other args...)
 	shift @argv; # ignore "lei", the entire command is sent
-	@argv or return puts $self, grep(!/^_/, keys %CMD);
+	@argv or return puts $self, grep(!/^_/, keys %CMD), qw(--help -h);
 	my $cmd = shift @argv;
 	my $info = $CMD{$cmd} // do { # filter matching commands
 		@argv or puts $self, grep(/\A\Q$cmd\E/, keys %CMD);
@@ -573,7 +594,7 @@ sub lei__complete {
 			map {
 				length > 1 ? "--$_$eq" : "-$_"
 			} split(/\|/, $_, -1) # help|h
-		} grep { !ref } @spec); # filter out $GLP_PASS ref
+		} grep { $OPTDESC{"$cmd\t$_"} || $OPTDESC{$_} } @spec);
 	} elsif ($cmd eq 'config' && !@argv && !$CONFIG_KEYS{$cur}) {
 		puts $self, grep(/$re/, keys %CONFIG_KEYS);
 	}
