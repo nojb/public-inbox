@@ -78,22 +78,20 @@ sub html_top ($) {
 
 sub coderepos ($) {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{ibx};
+	my $cr = $ctx->{ibx}->{coderepo} // return ();
+	my $cfg = $ctx->{www}->{pi_cfg};
 	my @ret;
-	if (defined(my $cr = $ibx->{coderepo})) {
-		my $cfg = $ctx->{www}->{pi_cfg};
-		my $env = $ctx->{env};
-		for my $cr_name (@$cr) {
-			my $urls = $cfg->{"coderepo.$cr_name.cgiturl"};
-			if ($urls) {
-				$ret[0] //= <<EOF;
+	for my $cr_name (@$cr) {
+		my $urls = $cfg->{"coderepo.$cr_name.cgiturl"} // next;
+		$ret[0] //= <<EOF;
 code repositories for the project(s) associated with this inbox:
 EOF
-				$ret[0] .= "\n\t".prurl($env, $_) for @$urls;
-			}
+		for my $u (@$urls) {
+			$u = ascii_html(prurl($ctx->{env}, $u));
+			$ret[0] .= qq(\n\t<a\nhref="$u">$u</a>);
 		}
 	}
-	@ret; # may be empty
+	@ret; # may be empty, this sub is called as an arg for join()
 }
 
 sub code_footer ($) {
