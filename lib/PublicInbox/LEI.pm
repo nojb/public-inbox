@@ -132,7 +132,11 @@ our %CMD = ( # sorted in order of importance/use:
 
 'reorder-local-store-and-break-history' => [ '[REFNAME]',
 	'rewrite git history in an attempt to improve compression',
-	'gc!' ]
+	'gc!' ],
+
+# internal commands are prefixed with '_'
+'_complete' => [ '[...]', 'internal shell completion helper',
+		pass_through('everything') ],
 ); # @CMD
 
 # switch descriptions, try to keep consistent across commands
@@ -209,6 +213,10 @@ my %OPTDESC = (
 	'unset matching NAME, may be specified multiple times'],
 ); # %OPTDESC
 
+my %CONFIG_KEYS = (
+	'leistore.dir' => 'top-level storage location',
+);
+
 sub x_it ($$) { # pronounced "exit"
 	my ($self, $code) = @_;
 	if (my $sig = ($code & 127)) {
@@ -222,6 +230,8 @@ sub x_it ($$) { # pronounced "exit"
 		}
 	}
 }
+
+sub puts ($;@) { print { shift->{1} } map { "$_\n" } @_ }
 
 sub emit {
 	my ($self, $channel) = @_; # $buf = $_[2]
@@ -521,6 +531,55 @@ sub lei_daemon_env {
 }
 
 sub lei_help { _help($_[0]) }
+
+# Shell completion helper.  Used by lei-completion.bash and hopefully
+# other shells.  Try to do as much here as possible to avoid redundancy
+# and improve maintainability.
+sub lei__complete {
+	my ($self, @argv) = @_; # argv = qw(lei and any other args...)
+	shift @argv; # ignore "lei", the entire command is sent
+	@argv or return puts $self, grep(!/^_/, keys %CMD);
+	my $cmd = shift @argv;
+	my $info = $CMD{$cmd} // do { # filter matching commands
+		@argv or puts $self, grep(/\A\Q$cmd\E/, keys %CMD);
+		return;
+	};
+	my ($proto, undef, @spec) = @$info;
+	my $cur = pop @argv;
+	my $re = defined($cur) ? qr/\A\Q$cur\E/ : qr/./;
+	if (substr($cur // '-', 0, 1) eq '-') { # --switches
+		# gross special case since the only git-config options
+		# Consider moving to a table if we need more special cases
+		# we use Getopt::Long for are the ones we reject, so these
+		# are the ones we don't reject:
+		if ($cmd eq 'config') {
+			puts $self, grep(/$re/, keys %CONFIG_KEYS);
+			@spec = qw(add z|null get get-all unset unset-all
+				replace-all get-urlmatch
+				remove-section rename-section
+				name-only list|l edit|e
+				get-color-name get-colorbool);
+			# fall-through
+		}
+		# TODO: arg support
+		puts $self, grep(/$re/, map { # generate short/long names
+			my $eq = '';
+			if (s/=.+\z//) { # required arg, e.g. output|o=i
+				$eq = '=';
+			} elsif (s/:.+\z//) { # optional arg, e.g. mid:s
+			} else { # negation: solve! => no-solve|solve
+				s/\A(.+)!\z/no-$1|$1/;
+			}
+			map {
+				length > 1 ? "--$_$eq" : "-$_"
+			} split(/\|/, $_, -1) # help|h
+		} grep { !ref } @spec); # filter out $GLP_PASS ref
+	} elsif ($cmd eq 'config' && !@argv && !$CONFIG_KEYS{$cur}) {
+		puts $self, grep(/$re/, keys %CONFIG_KEYS);
+	}
+	# TODO: URLs, pathnames, OIDs, MIDs, etc...  See optparse() for
+	# proto parsing.
+}
 
 sub reap_exec { # dwaitpid callback
 	my ($self, $pid) = @_;
