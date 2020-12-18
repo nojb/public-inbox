@@ -7,17 +7,18 @@ use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use File::Path qw(rmtree);
+require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 my $LEI = 'lei';
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 my $lei = sub {
-	my ($cmd, $env, $opt) = @_;
+	my ($cmd, $env, $xopt) = @_;
 	$out = $err = '';
 	if (!ref($cmd)) {
-		($env, $opt) = grep { (!defined) || ref } @_;
-		$cmd = [ grep { defined } @_ ];
+		($env, $xopt) = grep { (!defined) || ref } @_;
+		$cmd = [ grep { defined && !ref } @_ ];
 	}
-	run_script([$LEI, @$cmd], $env, $opt);
+	run_script([$LEI, @$cmd], $env, $xopt // $opt);
 };
 
 my ($home, $for_destroy) = tmpdir();
@@ -29,6 +30,8 @@ local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
 my $home_trash = [ "$home/.local", "$home/.config" ];
 my $cleanup = sub { rmtree([@$home_trash, @_]) };
+my $config_file = "$home/.config/lei/config";
+my $store_dir = "$home/.local/share/lei";
 
 my $test_help = sub {
 	ok(!$lei->([], undef, $opt), 'no args fails');
@@ -118,10 +121,71 @@ my $test_config = sub {
 	ok(!-f "$home/config/f", 'no file created');
 };
 
+my $setup_publicinboxes = sub {
+	state $done = '';
+	return if $done eq $home;
+	use PublicInbox::InboxWritable;
+	for my $V (1, 2) {
+		run_script([qw(-init -Lmedium), "-V$V", "t$V",
+				'--newsgroup', "t.$V",
+				"$home/t$V", "http://example.com/t$V",
+				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
+	}
+	my $cfg = PublicInbox::Config->new;
+	my $seen = 0;
+	$cfg->each_inbox(sub {
+		my ($ibx) = @_;
+		my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
+		my $V = $ibx->version;
+		my @eml = glob('t/*.eml');
+		push(@eml, 't/data/0001.patch') if $V == 2;
+		for (@eml) {
+			next if $_ eq 't/psgi_v2-old.eml'; # dup mid
+			$im->add(eml_load($_)) or BAIL_OUT "v$V add $_";
+			$seen++;
+		}
+		$im->done;
+		if ($V == 1) {
+			run_script(['-index', $ibx->{inboxdir}]) or
+				BAIL_OUT 'index v1';
+		}
+	});
+	$done = $home;
+	$seen || BAIL_OUT 'no imports';
+};
+
+my $test_extinbox = sub {
+	$setup_publicinboxes->();
+	$cleanup->();
+	$lei->('ls-extinbox');
+	is($out.$err, '', 'ls-extinbox no output, yet');
+	ok(!-e $config_file && !-e $store_dir,
+		'nothing created by ls-extinbox');
+
+	my $cfg = PublicInbox::Config->new;
+	$cfg->each_inbox(sub {
+		my ($ibx) = @_;
+		ok($lei->(qw(add-extinbox -q), $ibx->{inboxdir}),
+			'added extinbox');
+		is($out.$err, '', 'no output');
+	});
+	ok(-s $config_file && -e $store_dir,
+		'add-extinbox created config + store');
+	my $lcfg = PublicInbox::Config->new($config_file);
+	$cfg->each_inbox(sub {
+		my ($ibx) = @_;
+		is($lcfg->{"extinbox.$ibx->{inboxdir}.boost"}, 0,
+			"configured boost on $ibx->{name}");
+	});
+	$lei->('ls-extinbox');
+	like($out, qr/boost=0\n/s, 'ls-extinbox has output');
+};
+
 my $test_lei_common = sub {
 	$test_help->();
 	$test_config->();
 	$test_init->();
+	$test_extinbox->();
 };
 
 my $test_lei_oneshot = $ENV{TEST_LEI_ONESHOT};

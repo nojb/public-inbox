@@ -8,7 +8,7 @@
 package PublicInbox::LEI;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::DS);
+use parent qw(PublicInbox::DS PublicInbox::LeiExtinbox);
 use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
 use Errno qw(EAGAIN ECONNREFUSED ENOENT);
@@ -79,12 +79,12 @@ our %CMD = ( # sorted in order of importance/use:
 
 'add-extinbox' => [ 'URL_OR_PATHNAME',
 	'add/set priority of a publicinbox|extindex for extra matches',
-	qw(prio=i) ],
+	qw(boost=i quiet|q) ],
 'ls-extinbox' => [ '[FILTER...]', 'list publicinbox|extindex locations',
-	qw(format|f=s z local remote) ],
+	qw(format|f=s z|0 local remote quiet|q) ],
 'forget-extinbox' => [ '{URL_OR_PATHNAME|--prune}',
 	'exclude further results from a publicinbox|extindex',
-	qw(prune) ],
+	qw(prune quiet|q) ],
 
 'ls-query' => [ '[FILTER...]', 'list saved search queries',
 		qw(name-only format|f=s z) ],
@@ -107,7 +107,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 # code repos are used for `show' to solve blobs from patch mails
 'add-coderepo' => [ 'PATHNAME', 'add or set priority of a git code repo',
-	qw(prio=i) ],
+	qw(boost=i) ],
 'ls-coderepo' => [ '[FILTER_TERMS...]',
 		'list known code repos', qw(format|f=s z) ],
 'forget-coderepo' => [ 'PATHNAME',
@@ -197,7 +197,7 @@ my %OPTDESC = (
 'sort|s=s@' => [ 'VAL|internaldate,date,relevance,docid',
 		"order of results `--output'-dependent"],
 
-'prio=i' => 'priority of query source',
+'boost=i' => 'increase/decrease priority of results (default: 0)',
 
 'local' => 'limit operations to the local filesystem',
 'local!' => 'exclude results from the local filesystem',
@@ -217,8 +217,7 @@ my %OPTDESC = (
 'by-mid|mid:s' => [ 'MID', 'match only by Message-ID, ignoring contents' ],
 'jobs:i' => 'set parallelism level',
 
-# xargs, env, use "-0", git(1) uses "-z".  Should we support z|0 everywhere?
-'z' => 'use NUL \\0 instead of newline (CR) to delimit lines',
+# xargs, env, use "-0", git(1) uses "-z".  We support z|0 everywhere
 'z|0' => 'use NUL \\0 instead of newline (CR) to delimit lines',
 
 # note: no "--ignore-environment" / "-i" support like env(1) since that
@@ -455,7 +454,9 @@ sub _lei_store ($;$) {
 	$cfg->{-lei_store} //= do {
 		require PublicInbox::LeiStore;
 		PublicInbox::SearchIdx::load_xapian_writable();
-		defined(my $dir = $cfg->{'leistore.dir'}) or return;
+		my $dir = $cfg->{'leistore.dir'};
+		$dir //= _store_path($self->{env}) if $creat;
+		return unless $dir;
 		PublicInbox::LeiStore->new($dir, { creat => $creat });
 	};
 }
