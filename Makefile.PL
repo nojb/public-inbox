@@ -223,5 +223,16 @@ Makefile.PL : MANIFEST
 	touch -r MANIFEST \$@
 	\$(PERLRUN) \$@
 
+# Install symlinks to ~/bin (which is hopefuly in PATH) which point to
+# this source tree.
+# prefix + bindir matches git.git Makefile:
+prefix = \$(HOME)
+bindir = \$(prefix)/bin
+symlink-install :
+	mkdir -p \$(bindir)
+	lei=\$\$(realpath lei.sh) && cd \$(bindir) && \\
+	for x in \$(EXE_FILES); do \\
+		ln -sf "\$\$lei" \$\$(basename "\$\$x"); \\
+	done
 EOF
 }

@@ -102,6 +102,7 @@ examples/unsubscribe-psgi@.service
 examples/unsubscribe.milter
 examples/unsubscribe.psgi
 examples/varnish-4.vcl
+lei.sh
 lib/PublicInbox/Address.pm
 lib/PublicInbox/AddressPP.pm
 lib/PublicInbox/Admin.pm
