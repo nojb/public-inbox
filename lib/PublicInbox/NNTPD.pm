@@ -38,8 +38,8 @@ sub refresh_groups {
 	my $groups = $pi_cfg->{-by_newsgroup}; # filled during each_inbox
 	$pi_cfg->each_inbox(sub {
 		my ($ibx) = @_;
-		my $ngname = $ibx->{newsgroup};
-		if (defined($ngname) && $ibx->nntp_usable) {
+		my $ngname = $ibx->{newsgroup} // return;
+		if ($ibx->nntp_usable) {
 			# only valid if msgmap and over works
 			# preload to avoid fragmentation:
 			$ibx->description;
