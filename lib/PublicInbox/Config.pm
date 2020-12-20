@@ -163,11 +163,10 @@ sub config_fh_parse ($$$) {
 sub git_config_dump {
 	my ($file) = @_;
 	return {} unless -e $file;
-	my @cmd = (qw/git config -z -l --includes/, "--file=$file");
-	my $cmd = join(' ', @cmd);
-	my $fh = popen_rd(\@cmd);
+	my $cmd = [ qw(git config -z -l --includes), "--file=$file" ];
+	my $fh = popen_rd($cmd);
 	my $rv = config_fh_parse($fh, "\0", "\n");
-	close $fh or die "failed to close ($cmd) pipe: $?";
+	close $fh or die "failed to close (@$cmd) pipe: $?";
 	$rv;
 }
 
