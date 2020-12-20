@@ -367,14 +367,12 @@ sub inherit ($) {
 	foreach my $fd (3..$end) {
 		my $s = IO::Handle->new_from_fd($fd, 'r');
 		if (my $k = sockname($s)) {
-			if ($s->blocking) {
-				$s->blocking(0);
-				warn <<"";
+			my $prev_was_blocking = $s->blocking(0);
+			warn <<"" if $prev_was_blocking;
 Inherited socket (fd=$fd) is blocking, making it non-blocking.
 Set 'NonBlocking = true' in the systemd.service unit to avoid stalled
 processes when multiple service instances start.
 
-			}
 			$listener_names->{$k} = $s;
 			push @rv, $s;
 		} else {
