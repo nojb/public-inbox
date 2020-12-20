@@ -391,9 +391,9 @@ EOF
 		}
 	}
 
-	# backwards compatibility:
-	$ibx->{inboxdir} //= $self->{"$pfx.mainrepo"};
-	if (($ibx->{inboxdir} // '') =~ /\n/s) {
+	# "mainrepo" is backwards compatibility:
+	$ibx->{inboxdir} //= $self->{"$pfx.mainrepo"} // return;
+	if ($ibx->{inboxdir} =~ /\n/s) {
 		warn "E: `$ibx->{inboxdir}' must not contain `\\n'\n";
 		return;
 	}
@@ -415,7 +415,6 @@ EOF
 		}
 	}
 
-	return unless defined($ibx->{inboxdir});
 	my $name = $pfx;
 	$name =~ s/\Apublicinbox\.//;
 

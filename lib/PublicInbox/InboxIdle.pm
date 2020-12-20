@@ -7,7 +7,6 @@
 package PublicInbox::InboxIdle;
 use strict;
 use parent qw(PublicInbox::DS);
-use Cwd qw(abs_path);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 my $IN_MODIFY = 0x02; # match Linux inotify
 my $ino_cls;
@@ -22,11 +21,7 @@ require PublicInbox::In2Tie if $ino_cls;
 
 sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 	my ($ibx, $self) = @_;
-	my $dir = abs_path($ibx->{inboxdir});
-	if (!defined($dir)) {
-		warn "W: $ibx->{inboxdir} not watched: $!\n";
-		return;
-	}
+	my $dir = $ibx->{inboxdir};
 	my $inot = $self->{inot};
 	my $cur = $self->{pathmap}->{$dir} //= [];
 
