@@ -419,11 +419,8 @@ sub upgrade { # $_[0] = signal name or number (unused)
 }
 
 sub kill_workers ($) {
-	my ($s) = @_;
-
-	while (my ($pid, $id) = each %pids) {
-		kill $s, $pid;
-	}
+	my ($sig) = @_;
+	kill $sig, keys(%pids);
 }
 
 sub upgrade_aborted ($) {
