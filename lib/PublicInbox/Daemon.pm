@@ -11,7 +11,6 @@ use IO::Socket;
 use POSIX qw(WNOHANG :signal_h);
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 sub SO_ACCEPTFILTER () { 0x1000 }
-use Cwd qw/abs_path/;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
@@ -202,10 +201,11 @@ sub check_absolute ($$) {
 
 sub daemonize () {
 	if ($daemonize) {
+		require Cwd;
 		foreach my $i (0..$#ARGV) {
 			my $arg = $ARGV[$i];
 			next unless -e $arg;
-			$ARGV[$i] = abs_path($arg);
+			$ARGV[$i] = Cwd::abs_path($arg);
 		}
 		check_absolute('stdout', $stdout);
 		check_absolute('stderr', $stderr);
