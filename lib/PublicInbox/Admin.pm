@@ -6,15 +6,15 @@
 package PublicInbox::Admin;
 use strict;
 use parent qw(Exporter);
-use Cwd qw(abs_path);
-use POSIX ();
 our @EXPORT_OK = qw(setup_signals);
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
+use File::Spec ();
 
 sub setup_signals {
 	my ($cb, $arg) = @_; # optional
+	require POSIX;
 
 	# we call exit() here instead of _exit() so DESTROY methods
 	# get called (e.g. File::Temp::Dir and PublicInbox::Msgmap)
@@ -27,21 +27,43 @@ sub setup_signals {
 	};
 }
 
+# abs_path resolves symlinks, so we want to avoid it if rel2abs
+# is sufficient and doesn't leave "/.." or "/../"
+sub rel2abs_collapsed ($) {
+	my $p = File::Spec->rel2abs($_[0]);
+	return $p if substr($p, -3, 3) ne '/..' && index($p, '/../') < 0; # likely
+	require Cwd;
+	Cwd::abs_path($p);
+}
+
 sub resolve_inboxdir {
 	my ($cd, $ver) = @_;
-	my $prefix = defined $cd ? $cd : './';
-	if (-d $prefix && -f "$prefix/inbox.lock") { # v2
-		$$ver = 2 if $ver;
-		return abs_path($prefix);
+	my $try = $cd // '.';
+	my $root_dev_ino;
+	while (1) { # favor v2, first
+		if (-f "$try/inbox.lock") {
+			$$ver = 2 if $ver;
+			return rel2abs_collapsed($try);
+		} elsif (-d $try) {
+			my @try = stat _;
+			$root_dev_ino //= do {
+				my @root = stat('/') or die "stat /: $!\n";
+				"$root[0]\0$root[1]";
+			};
+			last if "$try[0]\0$try[1]" eq $root_dev_ino;
+			$try .= '/..'; # continue, cd up
+		} else {
+			die "`$try' is not a directory\n";
+		}
 	}
+	# try v1 bare git dirs
 	my $cmd = [ qw(git rev-parse --git-dir) ];
 	my $fh = popen_rd($cmd, undef, {-C => $cd});
 	my $dir = do { local $/; <$fh> };
-	close $fh or die "error in ".join(' ', @$cmd)." (cwd:$cd): $!\n";
+	close $fh or die "error in @$cmd (cwd:${\($cd // '.')}): $!\n";
 	chomp $dir;
 	$$ver = 1 if $ver;
-	return abs_path($cd) if ($dir eq '.' && defined $cd);
-	abs_path($dir);
+	rel2abs_collapsed($dir eq '.' ? ($cd // $dir) : $dir);
 }
 
 # for unconfigured inboxes
@@ -78,8 +100,8 @@ sub unconfigured_ibx ($$) {
 		name => $name,
 		address => [ "$name\@example.com" ],
 		inboxdir => $dir,
-		# TODO: consumers may want to warn on this:
-		#-unconfigured => 1,
+		# consumers (-convert) warn on this:
+		-unconfigured => 1,
 	});
 }
 
@@ -95,41 +117,53 @@ sub resolve_inboxes ($;$$) {
 	}
 
 	my $min_ver = $opt->{-min_inbox_version} || 0;
+	# lookup inboxes by st_dev + st_ino instead of {inboxdir} pathnames,
+	# pathnames are not unique due to symlinks and bind mounts
 	my (@old, @ibxs);
-	my %dir2ibx;
-	my $all = $opt->{all} ? [] : undef;
-	if ($cfg) {
+	if ($opt->{all}) {
 		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
-			my $path = abs_path($ibx->{inboxdir});
-			if (defined($path)) {
-				$dir2ibx{$path} = $ibx;
-				push @$all, $ibx if $all;
+			if (-e $ibx->{inboxdir}) {
+				push(@ibxs, $ibx) if $ibx->version >= $min_ver;
 			} else {
-				warn <<EOF;
-W: $ibx->{name} $ibx->{inboxdir}: $!
-EOF
+				warn "W: $ibx->{name} $ibx->{inboxdir}: $!\n";
 			}
 		});
-	}
-	if ($all) {
-		@$all = grep { $_->version >= $min_ver } @$all;
-		@ibxs = @$all;
 	} else { # directories specified on the command-line
-		my $i = 0;
 		my @dirs = @$argv;
 		push @dirs, '.' if !@dirs && $opt->{-use_cwd};
-		foreach (@dirs) {
-			my $v;
-			my $dir = resolve_inboxdir($_, \$v);
-			if ($v < $min_ver) {
+		my %s2i; # "st_dev\0st_ino" => array index
+		for (my $i = 0; $i <= $#dirs; $i++) {
+			my $dir = $dirs[$i];
+			my @st = stat($dir) or die "stat($dir): $!\n";
+			$dir = resolve_inboxdir($dir, \(my $ver));
+			if ($ver >= $min_ver) {
+				$s2i{"$st[0]\0$st[1]"} //= $i;
+			} else {
 				push @old, $dir;
-				next;
 			}
-			my $ibx = $dir2ibx{$dir} ||= unconfigured_ibx($dir, $i);
-			$i++;
-			push @ibxs, $ibx;
 		}
+		my $done = \'done';
+		eval {
+			$cfg->each_inbox(sub {
+				my ($ibx) = @_;
+				return if $ibx->version < $min_ver;
+				my $dir = $ibx->{inboxdir};
+				if (my @s = stat $dir) {
+					my $i = delete($s2i{"$s[0]\0$s[1]"})
+						// return;
+					$ibxs[$i] = $ibx;
+					die $done if !keys(%s2i);
+				} else {
+					warn "W: $ibx->{name} $dir: $!\n";
+				}
+			});
+		};
+		die $@ if $@ && $@ ne $done;
+		for my $i (sort { $a <=> $b } values %s2i) {
+			$ibxs[$i] = unconfigured_ibx($dirs[$i], $i);
+		}
+		@ibxs = grep { defined } @ibxs; # duplicates are undef
 	}
 	if (@old) {
 		die "-V$min_ver inboxes not supported by $0\n\t",

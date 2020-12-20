@@ -138,10 +138,9 @@ close($fh) or die "failed to close $pi_config_tmp: $!\n";
 my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
 
-require File::Spec;
-$inboxdir = File::Spec->canonpath($inboxdir);
+PublicInbox::Admin::rel2abs_collapsed($inboxdir);
+die "`\\n' not allowed in `$inboxdir'\n" if index($inboxdir, "\n") >= 0;
 
-die "`\\n' not allowed in `$inboxdir'\n" if $inboxdir =~ /\n/s;
 if (-f "$inboxdir/inbox.lock") {
 	if (!defined $version) {
 		$version = 2;
@@ -186,11 +185,6 @@ if ($skip_docdata) {
 	$ibx->{-skip_docdata} = $skip_docdata;
 }
 $ibx->init_inbox(0, $skip_epoch, $skip_artnum);
-require Cwd;
-my $tmp = Cwd::abs_path($inboxdir);
-defined($tmp) or die "failed to resolve $inboxdir: $!\n";
-$inboxdir = $tmp;
-die "`\\n' not allowed in `$inboxdir'\n" if $inboxdir =~ /\n/s;
 
 # needed for git prior to v2.1.0
 umask(0077) if defined $perm;

@@ -47,34 +47,21 @@ die $help if (scalar(@ARGV) || $new_dir eq '' || $old_dir eq '');
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
 
-require Cwd;
-Cwd->import('abs_path');
+require PublicInbox::Admin;
 require PublicInbox::Config;
 require PublicInbox::InboxWritable;
 
-my $abs = abs_path($old_dir);
-die "failed to resolve $old_dir: $!\n" if (!defined($abs));
-
 my $cfg = PublicInbox::Config->new;
-my $old;
-$cfg->each_inbox(sub {
-	$old = $_[0] if abs_path($_[0]->{inboxdir}) eq $old_dir;
-});
-if ($old) {
-	$old = PublicInbox::InboxWritable->new($old);
-} else {
+my @old = PublicInbox::Admin::resolve_inboxes([$old_dir], undef, $cfg);
+@old > 1 and die "BUG: resolved several inboxes from $old_dir:\n",
+		map { "\t$_->{inboxdir}\n" } @old;
+my $old = PublicInbox::InboxWritable->new($old[0]);
+if (delete $old->{-unconfigured}) {
 	warn "W: $old_dir not configured in " .
 		PublicInbox::Config::default_file() . "\n";
-	$old = PublicInbox::InboxWritable->new({
-		inboxdir => $old_dir,
-		name => 'ignored',
-		-primary_address => 'old@example.com',
-		address => [ 'old@example.com' ],
-	});
 }
 die "Only conversion from v1 inboxes is supported\n" if $old->version >= 2;
 
-require File::Spec;
 require PublicInbox::Admin;
 my $detected = PublicInbox::Admin::detect_indexlevel($old);
 $old->{indexlevel} //= $detected;
@@ -88,7 +75,7 @@ if ($opt->{'index'}) {
 }
 local %ENV = (%$env, %ENV) if $env;
 my $new = { %$old };
-$new->{inboxdir} = File::Spec->canonpath($new_dir);
+$new->{inboxdir} = PublicInbox::Admin::rel2abs_collapsed($new_dir);
 $new->{version} = 2;
 $new = PublicInbox::InboxWritable->new($new, { nproc => $opt->{jobs} });
 $new->{-no_fsync} = 1 if !$opt->{fsync};
