@@ -132,4 +132,10 @@ sub psgi_triple {
 		 'Content-Length', bytes::length($out) ], [ $out ] ]
 }
 
+sub per_inbox {
+	my ($ctx) = @_;
+	ibx_entry($ctx, $ctx->{-inbox});
+	psgi_triple($ctx);
+}
+
 1;
