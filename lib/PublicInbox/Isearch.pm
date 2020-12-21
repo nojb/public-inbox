@@ -89,7 +89,7 @@ SELECT docid,xnum FROM xref3 WHERE ibx_id = ? AND docid IN ($qmarks)
 	}
 	if (scalar keys %order) {
 		warn "W: $self->{es}->{topdir} #",
-			join(', #', sort keys %order),
+			join(', ', sort { $a <=> $b } keys %order),
 			" not mapped to `$self->{eidx_key}'\n";
 		warn "W: $self->{es}->{topdir} may need to be reindexed\n";
 		@xnums = grep { defined } @xnums;
@@ -113,7 +113,7 @@ sub mset_to_smsg {
 	}
 	if (scalar keys %order) {
 		warn "W: $ibx->{inboxdir} #",
-			join(', #', sort keys %order),
+			join(', ', sort { $a <=> $b } keys %order),
 			" no longer valid\n";
 		warn "W: $self->{es}->{topdir} may need to be reindexed\n";
 	}
