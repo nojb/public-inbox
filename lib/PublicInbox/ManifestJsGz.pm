@@ -99,4 +99,11 @@ sub psgi_triple {
 		 'Content-Length', bytes::length($out) ], [ $out ] ]
 }
 
+sub per_inbox {
+	my ($ctx) = @_;
+	# only one inbox, slow is probably OK
+	slow_manifest_add($ctx, $ctx->{ibx});
+	psgi_triple($ctx);
+}
+
 1;
