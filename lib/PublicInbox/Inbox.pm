@@ -109,10 +109,6 @@ sub new {
 		delete $opts->{feedmax};
 	}
 	$opts->{nntpserver} ||= $pi_cfg->{'publicinbox.nntpserver'};
-	my $dir = $opts->{inboxdir};
-	if (defined $dir && -f "$dir/inbox.lock") {
-		$opts->{version} = 2;
-	}
 
 	# allow any combination of multi-line or comma-delimited hide entries
 	my $hide = {};
@@ -125,7 +121,9 @@ sub new {
 	bless $opts, $class;
 }
 
-sub version { $_[0]->{version} // 1 }
+sub version {
+	$_[0]->{version} //= -f "$_[0]->{inboxdir}/inbox.lock" ? 2 : 1
+}
 
 sub git_epoch {
 	my ($self, $epoch) = @_; # v2-only, callers always supply $epoch
