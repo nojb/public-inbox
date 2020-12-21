@@ -30,13 +30,11 @@ use PublicInbox::V2Writable;
 use PublicInbox::InboxWritable;
 use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::Eml;
-use File::Spec;
 use PublicInbox::DS qw(now);
 use DBI qw(:sql_types); # SQL_BLOB
 
 sub new {
 	my (undef, $dir, $opt) = @_;
-	$dir = File::Spec->canonpath($dir);
 	my $l = $opt->{indexlevel} // 'full';
 	$l !~ $PublicInbox::SearchIdx::INDEXLEVELS and
 		die "invalid indexlevel=$l\n";
