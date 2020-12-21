@@ -501,17 +501,18 @@ sub remove_eidx_info {
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
-sub get_val ($$) {
+sub int_val ($$) {
 	my ($doc, $col) = @_;
-	sortable_unserialise($doc->get_value($col));
+	my $val = $doc->get_value($col) or return; # undefined is '' in Xapian
+	sortable_unserialise($val) + 0; # PV => IV conversion
 }
 
 sub smsg_from_doc ($) {
 	my ($doc) = @_;
 	my $data = $doc->get_data or return;
 	my $smsg = bless {}, 'PublicInbox::Smsg';
-	$smsg->{ts} = get_val($doc, PublicInbox::Search::TS());
-	my $dt = get_val($doc, PublicInbox::Search::DT());
+	$smsg->{ts} = int_val($doc, PublicInbox::Search::TS());
+	my $dt = int_val($doc, PublicInbox::Search::DT());
 	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $dt);
 	$smsg->{ds} = timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
 	$smsg->load_from_data($data);
