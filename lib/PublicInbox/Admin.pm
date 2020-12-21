@@ -10,7 +10,7 @@ our @EXPORT_OK = qw(setup_signals);
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
-use File::Spec ();
+*rel2abs_collapsed = \&PublicInbox::Config::rel2abs_collapsed;
 
 sub setup_signals {
 	my ($cb, $arg) = @_; # optional
@@ -25,15 +25,6 @@ sub setup_signals {
 		$sig = 'SIG'.$sig;
 		exit(128 + POSIX->$sig);
 	};
-}
-
-# abs_path resolves symlinks, so we want to avoid it if rel2abs
-# is sufficient and doesn't leave "/.." or "/../"
-sub rel2abs_collapsed ($) {
-	my $p = File::Spec->rel2abs($_[0]);
-	return $p if substr($p, -3, 3) ne '/..' && index($p, '/../') < 0; # likely
-	require Cwd;
-	Cwd::abs_path($p);
 }
 
 sub resolve_inboxdir {

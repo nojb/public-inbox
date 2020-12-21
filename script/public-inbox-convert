@@ -75,7 +75,7 @@ if ($opt->{'index'}) {
 }
 local %ENV = (%$env, %ENV) if $env;
 my $new = { %$old };
-$new->{inboxdir} = PublicInbox::Admin::rel2abs_collapsed($new_dir);
+$new->{inboxdir} = $cfg->rel2abs_collapsed($new_dir);
 $new->{version} = 2;
 $new = PublicInbox::InboxWritable->new($new, { nproc => $opt->{jobs} });
 $new->{-no_fsync} = 1 if !$opt->{fsync};

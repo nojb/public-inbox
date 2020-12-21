@@ -72,11 +72,6 @@ sub attach_inbox {
 		warn "W: skipping $key (no UIDVALIDITY)\n";
 		return;
 	}
-	my $ibxdir = File::Spec->canonpath($ibx->{inboxdir});
-	if ($ibxdir ne $ibx->{inboxdir}) {
-		warn "W: `$ibx->{inboxdir}' canonicalized to `$ibxdir'\n";
-		$ibx->{inboxdir} = $ibxdir;
-	}
 	$self->{ibx_map}->{$key} //= do {
 		push @{$self->{ibx_list}}, $ibx;
 		$ibx;

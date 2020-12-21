@@ -368,6 +368,16 @@ sub git_bool {
 	}
 }
 
+# abs_path resolves symlinks, so we want to avoid it if rel2abs
+# is sufficient and doesn't leave "/.." or "/../"
+sub rel2abs_collapsed {
+	require File::Spec;
+	my $p = File::Spec->rel2abs($_[-1]);
+	return $p if substr($p, -3, 3) ne '/..' && index($p, '/../') < 0;
+	require Cwd;
+	Cwd::abs_path($p);
+}
+
 sub _fill {
 	my ($self, $pfx) = @_;
 	my $ibx = {};
@@ -391,9 +401,9 @@ EOF
 	}
 
 	# "mainrepo" is backwards compatibility:
-	$ibx->{inboxdir} //= $self->{"$pfx.mainrepo"} // return;
-	if ($ibx->{inboxdir} =~ /\n/s) {
-		warn "E: `$ibx->{inboxdir}' must not contain `\\n'\n";
+	my $dir = $ibx->{inboxdir} //= $self->{"$pfx.mainrepo"} // return;
+	if (index($dir, "\n") >= 0) {
+		warn "E: `$dir' must not contain `\\n'\n";
 		return;
 	}
 	foreach my $k (qw(obfuscate)) {
@@ -436,7 +446,7 @@ EOF
 			$self->{-by_list_id}->{lc($list_id)} = $ibx;
 		}
 	}
-	if (my $ngname = $ibx->{newsgroup}) {
+	if (defined(my $ngname = $ibx->{newsgroup})) {
 		if (ref($ngname)) {
 			delete $ibx->{newsgroup};
 			warn 'multiple newsgroups not supported: '.
@@ -445,13 +455,21 @@ EOF
 		# wildmat-exact and RFC 3501 (IMAP) ATOM-CHAR.
 		# Leave out a few chars likely to cause problems or conflicts:
 		# '|', '<', '>', ';', '#', '$', '&',
-		} elsif ($ngname =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]!) {
+		} elsif ($ngname =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]! ||
+				$ngname eq '') {
 			delete $ibx->{newsgroup};
 			warn "newsgroup name invalid: `$ngname'\n";
 		} else {
 			# PublicInbox::NNTPD does stricter ->nntp_usable
 			# checks, keep this lean for startup speed
 			$self->{-by_newsgroup}->{$ngname} = $ibx;
+		}
+	}
+	unless (defined $ibx->{newsgroup}) { # for ->eidx_key
+		my $abs = rel2abs_collapsed($dir);
+		if ($abs ne $dir) {
+			warn "W: `$dir' canonicalized to `$abs'\n";
+			$ibx->{inboxdir} = $abs;
 		}
 	}
 	$self->{-by_name}->{$name} = $ibx;
