@@ -119,10 +119,10 @@ sub html_start {
 }
 
 sub html_end {
-	print $out <<EOF or die;
-	git clone $PublicInbox::WwwStream::CODE_URL
-</pre></body></html>
-EOF
+	for (@$PublicInbox::WwwStream::CODE_URL) {
+		print $out "	git clone $_\n" or die;
+	}
+	print $out "</pre></body></html>\n" or die;
 }
 
 sub atom_start {

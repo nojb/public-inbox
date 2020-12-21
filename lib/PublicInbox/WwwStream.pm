@@ -12,7 +12,8 @@ our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl ts2str);
 our $TOR_URL = 'https://www.torproject.org/';
-our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
+our $CODE_URL = [ qw(http://ou63pmih66umazou.onion/public-inbox.git
+	https://public-inbox.org/public-inbox.git) ];
 
 sub base_url ($) {
 	my $ctx = shift;
