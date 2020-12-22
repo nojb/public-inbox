@@ -127,7 +127,7 @@ sub resolve_inboxes ($;$$) {
 		for (my $i = 0; $i <= $#dirs; $i++) {
 			my $dir = $dirs[$i];
 			my @st = stat($dir) or die "stat($dir): $!\n";
-			$dir = resolve_inboxdir($dir, \(my $ver));
+			$dir = $dirs[$i] = resolve_inboxdir($dir, \(my $ver));
 			if ($ver >= $min_ver) {
 				$s2i{"$st[0]\0$st[1]"} //= $i;
 			} else {
