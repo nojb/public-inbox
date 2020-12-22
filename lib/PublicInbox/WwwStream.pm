@@ -81,13 +81,17 @@ sub coderepos ($) {
 	my ($ctx) = @_;
 	my $cr = $ctx->{ibx}->{coderepo} // return ();
 	my $cfg = $ctx->{www}->{pi_cfg};
+	my $upfx = ($ctx->{-upfx} // ''). '../';
 	my @ret;
 	for my $cr_name (@$cr) {
 		my $urls = $cfg->{"coderepo.$cr_name.cgiturl"} // next;
 		$ret[0] //= <<EOF;
 code repositories for the project(s) associated with this inbox:
 EOF
-		for my $u (@$urls) {
+		for (@$urls) {
+			# relative or absolute URL?, prefix relative "foo.git"
+			# with appropriate number of "../"
+			my $u = m!\A(?:[a-z\+]+:)?//! ? $_ : $upfx.$_;
 			$u = ascii_html(prurl($ctx->{env}, $u));
 			$ret[0] .= qq(\n\t<a\nhref="$u">$u</a>);
 		}
