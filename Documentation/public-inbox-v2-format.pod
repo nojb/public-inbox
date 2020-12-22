@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-public-inbox v2 format description
+public-inbox-v2-format - structure of public inbox v2 archives
 
 =head1 DESCRIPTION
 
