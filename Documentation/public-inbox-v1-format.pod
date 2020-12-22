@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-public-inbox v1 git repository and tree description (aka "ssoma")
+public-inbox-v1-format - git repository and tree description (aka "ssoma")
 
 =head1 DESCRIPTION
 
