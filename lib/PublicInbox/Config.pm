@@ -424,9 +424,7 @@ EOF
 		}
 	}
 
-	my $name = $pfx;
-	$name =~ s/\Apublicinbox\.//;
-
+	my $name = substr($pfx, length('publicinbox.'));
 	if (!valid_inbox_name($name)) {
 		warn "invalid inbox name: '$name'\n";
 		return;
