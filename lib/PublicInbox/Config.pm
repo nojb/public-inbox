@@ -165,7 +165,7 @@ sub git_config_dump {
 	return {} unless -e $file;
 	my $cmd = [ qw(git config -z -l --includes), "--file=$file" ];
 	my $fh = popen_rd($cmd);
-	my $rv = config_fh_parse($fh, "\0", "\n");
+	my $rv = config_fh_parse($fh, "\0", qr/\n/);
 	close $fh or die "failed to close (@$cmd) pipe: $?";
 	$rv;
 }
