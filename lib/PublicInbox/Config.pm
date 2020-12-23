@@ -132,20 +132,15 @@ sub default_file {
 
 sub config_fh_parse ($$$) {
 	my ($fh, $rs, $fs) = @_;
-	my %rv;
-	my (%section_seen, @section_order);
+	my (%rv, %section_seen, @section_order, $line, $k, $v, $section, $cur);
 	local $/ = $rs;
-	while (defined(my $line = <$fh>)) {
+	while (defined($line = <$fh>)) { # performance critical with giant configs
 		chomp $line;
-		my ($k, $v) = split($fs, $line, 2);
-		my ($section) = ($k =~ /\A(\S+)\.[^\.]+\z/);
-		unless (defined $section_seen{$section}) {
-			$section_seen{$section} = 1;
-			push @section_order, $section;
-		}
+		($k, $v) = split($fs, $line, 2);
+		$section = substr($k, 0, rindex($k, '.'));
+		$section_seen{$section} //= push(@section_order, $section);
 
-		my $cur = $rv{$k};
-		if (defined $cur) {
+		if (defined($cur = $rv{$k})) {
 			if (ref($cur) eq "ARRAY") {
 				push @$cur, $v;
 			} else {
