@@ -6,7 +6,7 @@
 package PublicInbox::Search;
 use strict;
 use parent qw(Exporter);
-our @EXPORT_OK = qw(retry_reopen);
+our @EXPORT_OK = qw(retry_reopen int_val);
 use List::Util qw(max);
 
 # values for searching, changing the numeric value breaks
@@ -91,6 +91,7 @@ sub load_xapian () {
 				1 : Search::Xapian::ENQ_ASCENDING();
 
 		*sortable_serialise = $x.'::sortable_serialise';
+		*sortable_unserialise = $x.'::sortable_unserialise';
 		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
 		# website as it could become a denial-of-service vector
 		# FLAG_PHRASE also seems to cause performance problems chert
@@ -434,6 +435,12 @@ sub help {
 		push @ret, @$user_pfx;
 	}
 	\@ret;
+}
+
+sub int_val ($$) {
+	my ($doc, $col) = @_;
+	my $val = $doc->get_value($col) or return; # undefined is '' in Xapian
+	sortable_unserialise($val) + 0; # PV => IV conversion
 }
 
 1;

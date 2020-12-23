@@ -21,6 +21,7 @@ use Carp qw(croak);
 use File::Path ();
 use PublicInbox::MiscSearch;
 use PublicInbox::Config;
+my $json;
 
 sub new {
 	my ($class, $eidx) = @_;
@@ -30,6 +31,7 @@ sub new {
 	nodatacow_dir($mi_dir);
 	my $flags = $PublicInbox::SearchIdx::DB_CREATE_OR_OPEN;
 	$flags |= $PublicInbox::SearchIdx::DB_NO_SYNC if $eidx->{-no_fsync};
+	$json //= PublicInbox::Config::json();
 	bless {
 		mi_dir => $mi_dir,
 		flags => $flags,
@@ -91,17 +93,27 @@ EOF
 	$xdb->delete_document($_) for @drop; # just in case
 
 	my $doc = $PublicInbox::Search::X{Document}->new;
-
-	# allow sorting by modified
-	add_val($doc, $PublicInbox::MiscSearch::MODIFIED, $ibx->modified);
-
-	$doc->add_boolean_term('Q'.$eidx_key);
-	$doc->add_boolean_term('T'.'inbox');
 	term_generator($self)->set_document($doc);
+
+	# allow sorting by modified and uidvalidity (created at)
+	add_val($doc, $PublicInbox::MiscSearch::MODIFIED, $ibx->modified);
+	add_val($doc, $PublicInbox::MiscSearch::UIDVALIDITY, $ibx->uidvalidity);
+
+	$doc->add_boolean_term('Q'.$eidx_key); # uniQue id
+	$doc->add_boolean_term('T'.'inbox'); # Type
+
+	if (defined($ibx->{newsgroup}) && $ibx->nntp_usable) {
+		$doc->add_boolean_term('T'.'newsgroup'); # additional Type
+	}
+
+	# force reread from disk, {description} could be loaded from {misc}
+	delete $ibx->{description};
+	my $desc = $ibx->description;
 
 	# description = S/Subject (or title)
 	# address = A/Author
-	index_text($self, $ibx->description, 1, 'S');
+	index_text($self, $desc, 1, 'S');
+	index_text($self, $ibx->{name}, 1, 'XNAME');
 	my %map = (
 		address => 'A',
 		listid => 'XLISTID',
@@ -113,10 +125,8 @@ EOF
 			index_text($self, $v, 1, $pfx);
 		}
 	}
-	index_text($self, $ibx->{name}, 1, 'XNAME');
 	my $data = {};
 	if (defined(my $max = $ibx->max_git_epoch)) { # v2
-		my $desc = $ibx->description;
 		my $pfx = "/$ibx->{name}/git/";
 		for my $epoch (0..$max) {
 			my $git = $ibx->git_epoch($epoch) or return;
@@ -130,7 +140,7 @@ EOF
 		$ent->{git_dir} = $ibx->{inboxdir};
 		$data->{"/$ibx->{name}"} = $ent;
 	}
-	$doc->set_data(PublicInbox::Config::json()->encode($data));
+	$doc->set_data($json->encode($data));
 	if (defined $docid) {
 		$xdb->replace_document($docid, $doc);
 	} else {

@@ -106,7 +106,6 @@ sub load_xapian_writable () {
 	}
 	eval 'require '.$X->{WritableDatabase} or die;
 	*sortable_serialise = $xap.'::sortable_serialise';
-	*sortable_unserialise = $xap.'::sortable_unserialise';
 	$DB_CREATE_OR_OPEN = eval($xap.'::DB_CREATE_OR_OPEN()');
 	$DB_OPEN = eval($xap.'::DB_OPEN()');
 	my $ver = (eval($xap.'::major_version()') << 16) |
@@ -499,12 +498,6 @@ sub remove_eidx_info {
 		# rarer.
 	}
 	$self->{xdb}->replace_document($docid, $doc);
-}
-
-sub int_val ($$) {
-	my ($doc, $col) = @_;
-	my $val = $doc->get_value($col) or return; # undefined is '' in Xapian
-	sortable_unserialise($val) + 0; # PV => IV conversion
 }
 
 sub smsg_from_doc ($) {

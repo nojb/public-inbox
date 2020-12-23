@@ -61,16 +61,20 @@ sub new {
 
 sub attach_inbox {
 	my ($self, $ibx) = @_;
-	my $key = $ibx->eidx_key;
-	if (!$ibx->over || !$ibx->mm) {
-		warn "W: skipping $key (unindexed)\n";
-		return;
+	my $ekey = $ibx->eidx_key;
+	my $misc = $self->{misc};
+	if ($misc && $misc->inbox_data($ibx)) { # all good if already indexed
+	} else {
+		if (!$ibx->over || !$ibx->mm) {
+			warn "W: skipping $ekey (unindexed)\n";
+			return;
+		}
+		if (!defined($ibx->uidvalidity)) {
+			warn "W: skipping $ekey (no UIDVALIDITY)\n";
+			return;
+		}
 	}
-	if (!defined($ibx->uidvalidity)) {
-		warn "W: skipping $key (no UIDVALIDITY)\n";
-		return;
-	}
-	$self->{ibx_map}->{$key} //= do {
+	$self->{ibx_map}->{$ekey} //= do {
 		push @{$self->{ibx_list}}, $ibx;
 		$ibx;
 	}
