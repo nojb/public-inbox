@@ -23,6 +23,7 @@ my %PROB_PREFIX = (
 
 sub new {
 	my ($class, $dir) = @_;
+	PublicInbox::Search::load_xapian();
 	bless {
 		xdb => $PublicInbox::Search::X{Database}->new($dir)
 	}, $class;
