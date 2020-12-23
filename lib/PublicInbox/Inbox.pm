@@ -132,7 +132,7 @@ sub git_epoch {
 		return unless -d $git_dir;
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
-		# no cleanup needed, we never cat-file off this, only clone
+		# caller must manually cleanup when done
 		$g;
 	};
 }
