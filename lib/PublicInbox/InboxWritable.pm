@@ -46,12 +46,13 @@ sub _init_v1 {
 		require PublicInbox::Msgmap;
 		my $sidx = PublicInbox::SearchIdx->new($self, 1); # just create
 		$sidx->begin_txn_lazy;
+		my $mm = PublicInbox::Msgmap->new($self->{inboxdir}, 1);
 		if (defined $skip_artnum) {
-			my $mm = PublicInbox::Msgmap->new($self->{inboxdir}, 1);
 			$mm->{dbh}->begin_work;
 			$mm->skip_artnum($skip_artnum);
 			$mm->{dbh}->commit;
 		}
+		undef $mm; # ->created_at set
 		$sidx->commit_txn_lazy;
 	} else {
 		open my $fh, '>>', "$self->{inboxdir}/ssoma.lock" or
