@@ -132,13 +132,14 @@ sub default_file {
 
 sub config_fh_parse ($$$) {
 	my ($fh, $rs, $fs) = @_;
-	my (%rv, %section_seen, @section_order, $line, $k, $v, $section, $cur);
+	my (%rv, %seen, @section_order, $line, $k, $v, $section, $cur, $i);
 	local $/ = $rs;
-	while (defined($line = <$fh>)) { # performance critical with giant configs
-		chomp $line;
-		($k, $v) = split($fs, $line, 2);
+	while (defined($line = <$fh>)) { # perf critical with giant configs
+		$i = index($line, $fs);
+		$k = substr($line, 0, $i);
+		$v = substr($line, $i + 1, -1); # chop off $fs
 		$section = substr($k, 0, rindex($k, '.'));
-		$section_seen{$section} //= push(@section_order, $section);
+		$seen{$section} //= push(@section_order, $section);
 
 		if (defined($cur = $rv{$k})) {
 			if (ref($cur) eq "ARRAY") {
@@ -160,7 +161,7 @@ sub git_config_dump {
 	return {} unless -e $file;
 	my $cmd = [ qw(git config -z -l --includes), "--file=$file" ];
 	my $fh = popen_rd($cmd);
-	my $rv = config_fh_parse($fh, "\0", qr/\n/);
+	my $rv = config_fh_parse($fh, "\0", "\n");
 	close $fh or die "failed to close (@$cmd) pipe: $?";
 	$rv;
 }
