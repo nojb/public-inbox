@@ -65,11 +65,14 @@ sub attach_inbox {
 	my $misc = $self->{misc};
 	if ($misc && $misc->inbox_data($ibx)) { # all good if already indexed
 	} else {
-		if (!$ibx->over || !$ibx->mm) {
+		my @sqlite = ($ibx->over, $ibx->mm);
+		my $uidvalidity = $ibx->uidvalidity;
+		$ibx->{mm} = $ibx->{over} = undef;
+		if (scalar(@sqlite) != 2) {
 			warn "W: skipping $ekey (unindexed)\n";
 			return;
 		}
-		if (!defined($ibx->uidvalidity)) {
+		if (!defined($uidvalidity)) {
 			warn "W: skipping $ekey (no UIDVALIDITY)\n";
 			return;
 		}
