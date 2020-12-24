@@ -80,7 +80,6 @@ $new->{version} = 2;
 $new = PublicInbox::InboxWritable->new($new, { nproc => $opt->{jobs} });
 $new->{-no_fsync} = 1 if !$opt->{fsync};
 my $v2w;
-$old->umask_prepare;
 
 sub link_or_copy ($$) {
 	my ($src, $dst) = @_;

@@ -270,7 +270,6 @@ sub run {
 
 	local %SIG = %SIG;
 	setup_signals();
-	$ibx->umask_prepare;
 	$ibx->with_umask(\&_run, $ibx, $cb, $opt);
 }
 

@@ -97,8 +97,6 @@ sub new {
 			die "$dir does not exist\n";
 		}
 	}
-	$v2ibx->umask_prepare;
-
 	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
 	my $self = {
 		ibx => $v2ibx,
@@ -320,7 +318,6 @@ sub idx_init {
 	$ibx->git->cleanup;
 
 	parallel_init($self, $ibx->{indexlevel});
-	$ibx->umask_prepare;
 	$ibx->with_umask(\&_idx_init, $self, $opt);
 }
 

@@ -67,7 +67,6 @@ sub new {
 		$self->{-set_skip_docdata_once} = 1;
 		$self->{-skip_docdata} = 1;
 	}
-	$ibx->umask_prepare;
 	if ($version == 1) {
 		$self->{lock_path} = "$inboxdir/ssoma.lock";
 		my $dir = $self->xdir;

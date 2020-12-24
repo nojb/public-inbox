@@ -934,7 +934,6 @@ sub idx_init { # similar to V2Writable
 		PublicInbox::V2Writable::write_alternates($info_dir, $mode, $o);
 	}
 	$self->parallel_init($self->{indexlevel});
-	$self->umask_prepare;
 	$self->with_umask(\&_idx_init, $self, $opt);
 	$self->{oidx}->begin_lazy;
 	$self->{oidx}->eidx_prep;
@@ -943,7 +942,6 @@ sub idx_init { # similar to V2Writable
 
 no warnings 'once';
 *done = \&PublicInbox::V2Writable::done;
-*umask_prepare = \&PublicInbox::InboxWritable::umask_prepare;
 *with_umask = \&PublicInbox::InboxWritable::with_umask;
 *parallel_init = \&PublicInbox::V2Writable::parallel_init;
 *nproc_shards = \&PublicInbox::V2Writable::nproc_shards;

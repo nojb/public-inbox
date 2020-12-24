@@ -65,7 +65,6 @@ sub init_inbox {
 	if ($self->version == 1) {
 		my $dir = assert_usable_dir($self);
 		PublicInbox::Import::init_bare($dir);
-		$self->umask_prepare;
 		$self->with_umask(\&_init_v1, $self, $skip_artnum);
 	} else {
 		my $v2w = importer($self);
@@ -260,7 +259,7 @@ sub _umask_for {
 
 sub with_umask {
 	my ($self, $cb, @arg) = @_;
-	my $old = umask $self->{umask};
+	my $old = umask($self->{umask} //= umask_prepare($self));
 	my $rv = eval { $cb->(@arg) };
 	my $err = $@;
 	umask $old;
@@ -271,8 +270,7 @@ sub with_umask {
 sub umask_prepare {
 	my ($self) = @_;
 	my $perm = _git_config_perm($self);
-	my $umask = _umask_for($perm);
-	$self->{umask} = $umask;
+	_umask_for($perm);
 }
 
 sub cleanup ($) {
