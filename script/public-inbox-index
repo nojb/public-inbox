@@ -42,7 +42,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		batch_size|batch-size=s
 		sequential_shard|seq-shard|sequential-shard
 		no-update-extindex update-extindex|E=s@
-		skip-docdata all help|h))
+		fast-noop|F skip-docdata all help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;

@@ -1351,11 +1351,19 @@ sub index_sync {
 	$opt //= {};
 	return xapian_only($self, $opt) if $opt->{xapian_only};
 
-	my $pr = $opt->{-progress};
 	my $epoch_max;
-	my $latest = $self->{ibx}->git_dir_latest(\$epoch_max);
-	return unless defined $latest;
+	my $latest = $self->{ibx}->git_dir_latest(\$epoch_max) // return;
+	if ($opt->{'fast-noop'}) { # nanosecond (st_ctim) comparison
+		use Time::HiRes qw(stat);
+		if (my @mm = stat("$self->{ibx}->{inboxdir}/msgmap.sqlite3")) {
+			my $c = $mm[10]; # 10 = ctime (nsec NV)
+			my @hd = stat("$latest/refs/heads");
+			my @pr = stat("$latest/packed-refs");
+			return if $c > ($hd[10] // 0) && $c > ($pr[10] // 0);
+		}
+	}
 
+	my $pr = $opt->{-progress};
 	my $seq = $opt->{sequential_shard};
 	my $art_beg; # the NNTP article number we start xapian_only at
 	my $idxlevel = $self->{ibx}->{indexlevel};
