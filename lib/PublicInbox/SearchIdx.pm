@@ -615,6 +615,7 @@ sub index_both { # git->cat_async callback
 	$smsg->{num} = index_mm($self, $eml, $oid, $sync) or
 		die "E: could not generate NNTP article number for $oid";
 	add_message($self, $eml, $smsg, $sync);
+	++$self->{nidx};
 	my $cur_cmt = $sync->{cur_cmt} // die 'BUG: {cur_cmt} missing';
 	${$sync->{latest_cmt}} = $cur_cmt;
 }
@@ -629,6 +630,7 @@ sub unindex_both { # git->cat_async callback
 	if (defined(my $cur_cmt = $sync->{cur_cmt})) {
 		${$sync->{latest_cmt}} = $cur_cmt;
 	}
+	++$self->{nidx};
 }
 
 sub with_umask {

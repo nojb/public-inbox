@@ -271,6 +271,7 @@ EOM
 		$idx = PublicInbox::SearchIdx->new($ibx, 1);
 	}
 	$idx->index_sync($opt);
+	$idx->{nidx} // 0; # returns number processed
 }
 
 sub progress_prepare ($) {

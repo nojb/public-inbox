@@ -891,12 +891,22 @@ sub reindex_checkpoint ($$) {
 	$mm_tmp->atfork_parent if $mm_tmp;
 }
 
+sub index_finalize ($$) {
+	my ($arg, $index) = @_;
+	++$arg->{self}->{nidx};
+	if (defined(my $cur = $arg->{cur_cmt})) {
+		${$arg->{latest_cmt}} = $cur;
+	} elsif ($index) {
+		die 'BUG: {cur_cmt} missing';
+	} # else { unindexing @leftovers doesn't set {cur_cmt}
+}
+
 sub index_oid { # cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
-	return if is_bad_blob($oid, $type, $size, $arg->{oid});
+	is_bad_blob($oid, $type, $size, $arg->{oid}) and
+		return index_finalize($arg, 1); # size == 0 purged returns here
 	my $self = $arg->{self};
 	local $self->{current_info} = "$self->{current_info} $oid";
-	return if $size == 0; # purged
 	my ($num, $mid0);
 	my $eml = PublicInbox::Eml->new($$bref);
 	my $mids = mids($eml);
@@ -967,7 +977,7 @@ sub index_oid { # cat_async callback
 	if (do_idx($self, $bref, $eml, $smsg)) {
 		${$arg->{need_checkpoint}} = 1;
 	}
-	${$arg->{latest_cmt}} = $arg->{cur_cmt} // die 'BUG: {cur_cmt} missing';
+	index_finalize($arg, 1);
 }
 
 # only update last_commit for $i on reindex iff newer than current
@@ -1157,11 +1167,12 @@ sub unindex_oid_aux ($$$) {
 }
 
 sub unindex_oid ($$;$) { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $sync) = @_;
-	return if is_bad_blob($oid, $type, $size, $sync->{oid});
-	my $self = $sync->{self};
+	my ($bref, $oid, $type, $size, $arg) = @_;
+	is_bad_blob($oid, $type, $size, $arg->{oid}) and
+		return index_finalize($arg, 0);
+	my $self = $arg->{self};
 	local $self->{current_info} = "$self->{current_info} $oid";
-	my $unindexed = $sync->{in_unindex} ? $sync->{unindexed} : undef;
+	my $unindexed = $arg->{in_unindex} ? $arg->{unindexed} : undef;
 	my $mm = $self->{mm};
 	my $mids = mids(PublicInbox::Eml->new($bref));
 	undef $$bref;
@@ -1186,6 +1197,7 @@ sub unindex_oid ($$;$) { # git->cat_async callback
 		}
 		unindex_oid_aux($self, $oid, $mid);
 	}
+	index_finalize($arg, 0);
 }
 
 sub git { $_[0]->{ibx}->git }

@@ -63,7 +63,7 @@ my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR $help; exit 1 }
 
-my (@eidx_dir, %eidx_seen);
+my (@eidx, %eidx_seen);
 my $update_extindex = $opt->{'update-extindex'};
 if (!scalar(@$update_extindex) && (my $ALL = $cfg->ALL)) {
 	# extindex and normal inboxes may have different owners
@@ -84,7 +84,8 @@ for my $ei_name (@$update_extindex) {
 	} else {
 		die "extindex `$ei_name' not configured or found\n";
 	}
-	$eidx_seen{$topdir} //= push(@eidx_dir, $topdir);
+	$eidx_seen{$topdir} //=
+		push(@eidx, PublicInbox::ExtSearchIdx->new($topdir));
 }
 my $mods = {};
 my @eidx_unconfigured;
@@ -95,7 +96,7 @@ foreach my $ibx (@ibxs) {
 	$ibx->{indexlevel} //= $opt->{indexlevel} // ($opt->{xapian_only} ?
 			'full' : $detected);
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
-	if (@eidx_dir && $ibx->{-unconfigured}) {
+	if (@eidx && $ibx->{-unconfigured}) {
 		push @eidx_unconfigured, "  $ibx->{inboxdir}\n";
 	}
 }
@@ -128,18 +129,22 @@ publicInbox.$ibx->{name}.indexSequentialShard not boolean
 EOL
 		$ibx_opt = { %$opt, sequential_shard => $v };
 	}
-	PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
+	my $nidx = PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
 	last if $ibx_opt->{quit};
 	if (my $copt = $opt->{compact_opt}) {
 		local $copt->{jobs} = 0 if $ibx_opt->{sequential_shard};
 		PublicInbox::Xapcmd::run($ibx, 'compact', $copt);
 	}
-	next if $ibx->{-unconfigured};
 	last if $ibx_opt->{quit};
-	for my $dir (@eidx_dir) {
-		my $eidx = PublicInbox::ExtSearchIdx->new($dir);
+	next if $ibx->{-unconfigured} || !$nidx;
+	for my $eidx (@eidx) {
 		$eidx->attach_inbox($ibx);
-		$eidx->eidx_sync($ibx_opt);
-		last if $ibx_opt->{quit};
 	}
+}
+$opt->{-no_fsync} = 1 if !$opt->{fsync};
+my $pr = $opt->{-progress};
+for my $eidx (@eidx) {
+	$pr->("indexing $eidx->{topdir} ...\n") if $pr;
+	$eidx->eidx_sync($opt);
+	last if $opt->{quit};
 }
