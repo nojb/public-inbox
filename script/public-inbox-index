@@ -84,8 +84,10 @@ for my $ei_name (@$update_extindex) {
 	} else {
 		die "extindex `$ei_name' not configured or found\n";
 	}
+	my $o = { %$opt };
+	delete $o->{indexlevel} if ($o->{indexlevel}//'') eq 'basic';
 	$eidx_seen{$topdir} //=
-		push(@eidx, PublicInbox::ExtSearchIdx->new($topdir, $opt));
+		push(@eidx, PublicInbox::ExtSearchIdx->new($topdir, $o));
 }
 my $mods = {};
 my @eidx_unconfigured;
