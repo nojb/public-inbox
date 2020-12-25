@@ -49,6 +49,9 @@ die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
 if ($opt->{xapian_only} && !$opt->{reindex}) {
 	die "--xapian-only requires --reindex\n";
 }
+if ($opt->{reindex} && delete($opt->{'fast-noop'})) {
+	warn "--fast-noop ignored with --reindex\n";
+}
 
 # require lazily to speed up --help
 require PublicInbox::Admin;
