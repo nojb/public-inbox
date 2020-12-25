@@ -85,7 +85,7 @@ for my $ei_name (@$update_extindex) {
 		die "extindex `$ei_name' not configured or found\n";
 	}
 	$eidx_seen{$topdir} //=
-		push(@eidx, PublicInbox::ExtSearchIdx->new($topdir));
+		push(@eidx, PublicInbox::ExtSearchIdx->new($topdir, $opt));
 }
 my $mods = {};
 my @eidx_unconfigured;
@@ -141,7 +141,6 @@ EOL
 		$eidx->attach_inbox($ibx);
 	}
 }
-$opt->{-no_fsync} = 1 if !$opt->{fsync};
 my $pr = $opt->{-progress};
 for my $eidx (@eidx) {
 	$pr->("indexing $eidx->{topdir} ...\n") if $pr;

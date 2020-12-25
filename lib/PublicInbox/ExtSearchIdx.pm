@@ -54,7 +54,7 @@ sub new {
 	}, __PACKAGE__;
 	$self->{shards} = $self->count_shards || nproc_shards($opt->{creat});
 	my $oidx = PublicInbox::OverIdx->new("$self->{xpfx}/over.sqlite3");
-	$oidx->{-no_fsync} = 1 if $opt->{-no_fsync};
+	$self->{-no_fsync} = $oidx->{-no_fsync} = 1 if !$opt->{fsync};
 	$self->{oidx} = $oidx;
 	$self
 }
