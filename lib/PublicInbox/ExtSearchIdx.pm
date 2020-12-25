@@ -393,6 +393,32 @@ sub _ibx_for ($$$) {
 	$self->{ibx_list}->[$pos] // die "BUG: ibx for $smsg->{blob} not mapped"
 }
 
+sub _fd_constrained ($) {
+	my ($self) = @_;
+	$self->{-fd_constrained} //= do {
+		my $soft;
+		if (eval { require BSD::Resource; 1 }) {
+			my $NOFILE = BSD::Resource::RLIMIT_NOFILE();
+			($soft, undef) = BSD::Resource::getrlimit($NOFILE);
+		} else {
+			chomp($soft = `sh -c 'ulimit -n'`);
+		}
+		if (defined($soft)) {
+			my $want = scalar(@{$self->{ibx_list}}) + 64; # estimate
+			my $ret = $want > $soft;
+			if ($ret) {
+				warn <<EOF;
+RLIMIT_NOFILE=$soft insufficient (want: $want), will close DB handles early
+EOF
+			}
+			$ret;
+		} else {
+			warn "Unable to determine RLIMIT_NOFILE: $@\n";
+			1;
+		}
+	};
+}
+
 sub _reindex_finalize ($$$) {
 	my ($req, $smsg, $eml) = @_;
 	my $sync = $req->{sync};
@@ -429,11 +455,16 @@ sub _reindex_finalize ($$$) {
 		my $x = pop(@$ary) // die "BUG: #$docid {by_chash} empty";
 		$x->{num} = delete($x->{xnum}) // die '{xnum} unset';
 		$ibx = _ibx_for($self, $sync, $x);
-		my $e = $ibx->over->get_art($x->{num});
-		$e->{blob} eq $x->{blob} or die <<EOF;
+		if (my $over = $ibx->over) {
+			my $e = $over->get_art($x->{num});
+			$e->{blob} eq $x->{blob} or die <<EOF;
 $x->{blob} != $e->{blob} (${\$ibx->eidx_key}:$e->{num});
 EOF
-		push @todo, $ibx, $e;
+			push @todo, $ibx, $e;
+			$over->dbh_close if _fd_constrained($self);
+		} else {
+			die "$ibx->{inboxdir}: over.sqlite3 unusable: $!\n";
+		}
 	}
 	undef $by_chash;
 	while (my ($ibx, $e) = splice(@todo, 0, 2)) {
