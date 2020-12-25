@@ -61,23 +61,7 @@ sub new {
 
 sub attach_inbox {
 	my ($self, $ibx) = @_;
-	my $ekey = $ibx->eidx_key;
-	my $misc = $self->{misc};
-	if ($misc && $misc->inbox_data($ibx)) { # all good if already indexed
-	} else {
-		my @sqlite = ($ibx->over, $ibx->mm);
-		my $uidvalidity = $ibx->uidvalidity;
-		$ibx->{mm} = $ibx->{over} = undef;
-		if (scalar(@sqlite) != 2) {
-			warn "W: skipping $ekey (unindexed)\n";
-			return;
-		}
-		if (!defined($uidvalidity)) {
-			warn "W: skipping $ekey (no UIDVALIDITY)\n";
-			return;
-		}
-	}
-	$self->{ibx_map}->{$ekey} //= do {
+	$self->{ibx_map}->{$ibx->eidx_key} //= do {
 		push @{$self->{ibx_list}}, $ibx;
 		$ibx;
 	}
@@ -281,29 +265,36 @@ sub last_commits {
 	$heads;
 }
 
+sub _ibx_index_reject ($) {
+	my ($ibx) = @_;
+	$ibx->mm // return 'unindexed, no msgmap.sqlite3';
+	$ibx->uidvalidity // return 'no UIDVALIDITY';
+	$ibx->over // return 'unindexed, no over.sqlite3';
+	undef;
+}
+
 sub _sync_inbox ($$$) {
 	my ($self, $sync, $ibx) = @_;
+	my $ekey = $ibx->eidx_key;
+	if (defined(my $err = _ibx_index_reject($ibx))) {
+		return "W: skipping $ekey ($err)";
+	}
 	$sync->{ibx} = $ibx;
 	$sync->{nr} = \(my $nr = 0);
 	my $v = $ibx->version;
-	my $ekey = $ibx->eidx_key;
 	if ($v == 2) {
 		$sync->{epoch_max} = $ibx->max_git_epoch // return;
 		sync_prepare($self, $sync); # or return # TODO: once MiscIdx is stable
 	} elsif ($v == 1) {
 		my $uv = $ibx->uidvalidity;
 		my $lc = $self->{oidx}->eidx_meta("lc-v1:$ekey//$uv");
-		my $head = $ibx->mm->last_commit;
-		unless (defined $head) {
-			warn "E: $ibx->{inboxdir} is not indexed\n";
-			return;
-		}
+		my $head = $ibx->mm->last_commit //
+			return "E: $ibx->{inboxdir} is not indexed";
 		my $stk = prepare_stack($sync, $lc ? "$lc..$head" : $head);
 		my $unit = { stack => $stk, git => $ibx->git };
 		push @{$sync->{todo}}, $unit;
 	} else {
-		warn "E: $ekey unsupported inbox version (v$v)\n";
-		return;
+		return "E: $ekey unsupported inbox version (v$v)";
 	}
 	for my $unit (@{delete($sync->{todo}) // []}) {
 		last if $sync->{quit};
@@ -311,6 +302,7 @@ sub _sync_inbox ($$$) {
 	}
 	$self->{midx}->index_ibx($ibx) unless $sync->{quit};
 	$ibx->git->cleanup; # done with this inbox, now
+	undef;
 }
 
 sub gc_unref_doc ($$$$) {
@@ -787,9 +779,14 @@ DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
 
 sub _reindex_inbox ($$$) {
 	my ($self, $sync, $ibx) = @_;
-	local $self->{current_info} = $ibx->eidx_key;
-	_reindex_check_unseen($self, $sync, $ibx);
-	_reindex_check_stale($self, $sync, $ibx) unless $sync->{quit};
+	my $ekey = $ibx->eidx_key;
+	local $self->{current_info} = $ekey;
+	if (defined(my $err = _ibx_index_reject($ibx))) {
+		warn "W: cannot reindex $ekey ($err)\n";
+	} else {
+		_reindex_check_unseen($self, $sync, $ibx);
+		_reindex_check_stale($self, $sync, $ibx) unless $sync->{quit};
+	}
 	delete @$ibx{qw(over mm search git)}; # won't need these for a bit
 }
 
@@ -847,7 +844,9 @@ sub eidx_sync { # main entry point
 	# don't use $_ here, it'll get clobbered by reindex_checkpoint
 	for my $ibx (@{$self->{ibx_list}}) {
 		last if $sync->{quit};
-		_sync_inbox($self, $sync, $ibx);
+		my $err = _sync_inbox($self, $sync, $ibx);
+		delete @$ibx{qw(mm over)};
+		warn $err, "\n" if defined($err);
 	}
 	$self->{oidx}->rethread_done($opt) unless $sync->{quit};
 	eidxq_process($self, $sync) unless $sync->{quit};
