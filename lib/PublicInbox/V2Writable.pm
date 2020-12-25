@@ -1104,12 +1104,14 @@ sub sync_prepare ($$) {
 		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		my $unit = { git => $git, epoch => $i };
+		my $tip;
 		if ($reindex_heads) {
-			$head = $reindex_heads->[$i] or next;
+			$tip = $head = $reindex_heads->[$i] or next;
+		} else {
+			$tip = $git->qx(qw(rev-parse -q --verify), $head);
+			next if $?; # new repo
+			chomp $tip;
 		}
-		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
-		next if $?; # new repo
-
 		my $range = log_range($sync, $unit, $tip) or next;
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$pfx $i.git counting $range ... ") if $pr;
