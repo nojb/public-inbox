@@ -23,12 +23,12 @@ usage: public-inbox-extindex [options] EXTINDEX_DIR [INBOX_DIR]
 BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
 See public-inbox-extindex(1) man page for full documentation.
 EOF
-my $opt = { quiet => -1, compact => 0, max_size => undef, fsync => 1 };
+my $opt = { quiet => -1, compact => 0, fsync => 1, scan => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
 		fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
-		gc commit-interval=i watch
+		gc commit-interval=i watch scan!
 		all help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };

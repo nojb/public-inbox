@@ -881,9 +881,11 @@ sub eidx_sync { # main entry point
 	}
 
 	# don't use $_ here, it'll get clobbered by reindex_checkpoint
-	for my $ibx (@{$self->{ibx_list}}) {
-		last if $sync->{quit};
-		sync_inbox($self, $sync, $ibx);
+	if ($opt->{scan} // 1) {
+		for my $ibx (@{$self->{ibx_list}}) {
+			last if $sync->{quit};
+			sync_inbox($self, $sync, $ibx);
+		}
 	}
 	$self->{oidx}->rethread_done($opt) unless $sync->{quit};
 	eidxq_process($self, $sync) unless $sync->{quit};
