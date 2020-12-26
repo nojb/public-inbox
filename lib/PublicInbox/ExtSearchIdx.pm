@@ -1008,6 +1008,7 @@ sub eidx_reload { # -extindex --watch SIGHUP handler
 	if ($self->{cfg}) {
 		my $pr = $self->{-watch_sync}->{-opt}->{-progress};
 		$pr->('reloading ...') if $pr;
+		delete $self->{-resync_queue};
 		@{$self->{ibx_list}} = ();
 		%{$self->{ibx_map}} = ();
 		delete $self->{-watch_sync}->{id2pos};
@@ -1043,6 +1044,10 @@ sub event_step { # PublicInbox::DS::requeue callback
 
 sub eidx_watch { # public-inbox-extindex --watch main loop
 	my ($self, $opt) = @_;
+	local %SIG = %SIG;
+	for my $sig (qw(HUP USR1 TSTP QUIT INT TERM)) {
+		$SIG{$sig} = sub { warn "SIG$sig ignored while scanning\n" };
+	}
 	require PublicInbox::InboxIdle;
 	require PublicInbox::DS;
 	require PublicInbox::Syscall;
@@ -1052,6 +1057,8 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 		$idler->watch_inbox($_) for @{$self->{ibx_list}};
 	}
 	$_->subscribe_unlock(__PACKAGE__, $self) for @{$self->{ibx_list}};
+	my $pr = $opt->{-progress};
+	$pr->("performing initial scan ...\n") if $pr;
 	my $sync = eidx_sync($self, $opt); # initial sync
 	return if $sync->{quit};
 	my $oldset = PublicInbox::Sigfd::block_signals();
@@ -1067,7 +1074,7 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 	$sig->{QUIT} = $sig->{INT} = $sig->{TERM} = $quit;
 	my $sigfd = PublicInbox::Sigfd->new($sig,
 					$PublicInbox::Syscall::SFD_NONBLOCK);
-	local %SIG = (%SIG, %$sig) if !$sigfd;
+	%SIG = (%SIG, %$sig) if !$sigfd;
 	local $self->{-watch_sync} = $sync; # for ->on_inbox_unlock
 	if (!$sigfd) {
 		# wake up every second to accept signals if we don't
@@ -1076,6 +1083,7 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	PublicInbox::DS->SetPostLoopCallback(sub { !$sync->{quit} });
+	$pr->("initial scan complete, entering event loop\n") if $pr;
 	PublicInbox::DS->EventLoop; # calls InboxIdle->event_step
 	done($self);
 }
