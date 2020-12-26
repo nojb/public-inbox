@@ -296,27 +296,11 @@ $pi_cfg->each_inbox(sub {
 
 	# ensure IDLE persists across HUP, w/o extra watches or FDs
 	$td->kill('HUP') or BAIL_OUT "failed to kill -imapd: $!";
-	SKIP: {
-		skip 'no inotify fdinfo (or support)', 2 if !@ino_info;
-		my (@tmp, %prev);
-		local $/ = "\n";
-		my $end = time + 5;
-		until (time > $end) {
-			select undef, undef, undef, 0.01;
-			open my $fh, '<', $ino_fdinfo or
-						BAIL_OUT "$ino_fdinfo: $!";
-			%prev = map { $_ => 1 } @ino_info;
-			@tmp = grep(/^inotify wd:/, <$fh>);
-			if (scalar(@tmp) == scalar(@ino_info)) {
-				delete @prev{@tmp};
-				last if scalar(keys(%prev)) == @ino_info;
-			}
-		}
-		is(scalar @tmp, scalar @ino_info,
-			'old inotify watches replaced');
-		is(scalar keys %prev, scalar @ino_info,
-			'no previous watches overlap');
-	};
+	for my $n (1..2) { # kick the event loop so we know HUP is done
+		my $m = $imap_client->new(%mic_opt);
+		ok($m->login && $m->IsAuthenticated && $m->logout,
+			"connection $n works after HUP");
+	}
 
 	open($fh, '<', 't/data/0001.patch') or BAIL_OUT("open: $!");
 	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
