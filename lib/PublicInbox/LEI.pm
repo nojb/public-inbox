@@ -68,7 +68,7 @@ sub _config_path ($) {
 # TODO: generate shell completion + help using %CMD and %OPTDESC
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
-'query' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
+'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s@ reverse|r offset=i remote local! extinbox!
 	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
@@ -98,7 +98,7 @@ our %CMD = ( # sorted in order of importance/use:
 	'set/unset flags on message(s) from stdin',
 	qw(stdin| oid=s exact by-mid|mid:s) ],
 'forget' => [ '[--stdin|--oid=OID|--by-mid=MID]',
-	'exclude message(s) on stdin from query results',
+	"exclude message(s) on stdin from `q' search results",
 	qw(stdin| oid=s exact by-mid|mid:s quiet|q) ],
 
 'purge-mailsource' => [ '{URL_OR_PATHNAME|--all}',
@@ -175,7 +175,7 @@ my %OPTDESC = (
 'dedupe|d=s' => ['STRAT|content|oid|mid',
 		'deduplication strategy'],
 'show	thread|t' => 'display entire thread a message belongs to',
-'query	thread|t' =>
+'q	thread|t' =>
 	'return all messages in the same thread as the actual match(es)',
 'augment|a' => 'augment --output destination instead of clobbering',
 
@@ -186,7 +186,7 @@ my %OPTDESC = (
 			'message/object output format' ],
 'mark	format|f=s' => $stdin_formats,
 'forget	format|f=s' => $stdin_formats,
-'query	format|f=s' => [ 'OUT|maildir|mboxrd|mboxcl2|mboxcl|html|oid',
+'q	format|f=s' => [ 'OUT|maildir|mboxrd|mboxcl2|mboxcl|html|oid|json',
 		'specify output format, default depends on --output'],
 'ls-query	format|f=s' => $ls_format,
 'ls-extinbox	format|f=s' => $ls_format,
