@@ -30,17 +30,26 @@ sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 	}
 	my $inot = $self->{inot};
 	my $cur = $self->{pathmap}->{$dir} //= [];
+	my $lock = "$dir/".($ibx->version >= 2 ? 'inbox.lock' : 'ssoma.lock');
 
 	# transfer old subscriptions to the current inbox, cancel the old watch
-	if (my $old_ibx = $cur->[0]) {
+	my $old_ibx = $cur->[0];
+	$cur->[0] = $ibx;
+	if ($old_ibx) {
 		$ibx->{unlock_subs} and
 			die "BUG: $dir->{unlock_subs} should not exist";
 		$ibx->{unlock_subs} = $old_ibx->{unlock_subs};
+
+		# Linux::Inotify2::Watch::name matches if watches are the
+		# same, no point in replacing a watch of the same name
+		if ($cur->[1]->name eq $lock) {
+			$self->{on_unlock}->{$lock} = $ibx;
+			return;
+		}
+		# rare, name changed (v1 inbox converted to v2)
 		$cur->[1]->cancel; # Linux::Inotify2::Watch::cancel
 	}
-	$cur->[0] = $ibx;
 
-	my $lock = "$dir/".($ibx->version >= 2 ? 'inbox.lock' : 'ssoma.lock');
 	if (my $w = $cur->[1] = $inot->watch($lock, $IN_MODIFY)) {
 		$self->{on_unlock}->{$w->name} = $ibx;
 	} else {
