@@ -6,7 +6,7 @@ use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: public-inbox-extindex [options] EXTINDEX_DIR [INBOX_DIR]
+usage: public-inbox-extindex [options] [EXTINDEX_DIR] [INBOX_DIR...]
 
   Create and update external (detached) search indices
 
@@ -36,11 +36,18 @@ die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
 require IO::Handle;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
-# require lazily to speed up --help
-my $eidx_dir = shift(@ARGV) // die "E: $help";
 local $SIG{USR1} = 'IGNORE'; # to be overridden in eidx_sync
+# require lazily to speed up --help
 require PublicInbox::Admin;
 my $cfg = PublicInbox::Config->new;
+my $eidx_dir = shift(@ARGV);
+unless (defined $eidx_dir) {
+	if ($opt->{all} && $cfg->ALL) {
+		$eidx_dir = $cfg->ALL->{topdir};
+	} else {
+		die "E: $help";
+	}
+}
 my @ibxs;
 if ($opt->{gc}) {
 	die "E: inbox paths must not be specified with --gc\n" if @ARGV;
