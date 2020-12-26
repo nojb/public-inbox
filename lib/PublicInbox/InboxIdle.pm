@@ -39,6 +39,11 @@ sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 		$self->{on_unlock}->{$w->name} = $ibx;
 	} else {
 		warn "E: ".ref($inot)."->watch($lock, IN_MODIFY) failed: $!\n";
+		if ($!{ENOSPC} && $^O eq 'linux') {
+			warn <<"";
+I: consider increasing /proc/sys/fs/inotify/max_user_watches
+
+		}
 	}
 
 	# TODO: detect deleted packs (and possibly other files)
