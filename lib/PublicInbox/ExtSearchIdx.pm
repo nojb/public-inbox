@@ -841,7 +841,7 @@ sub eidx_reindex {
 sub eidx_sync { # main entry point
 	my ($self, $opt) = @_;
 
-	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	my $warn_cb = $SIG{__WARN__} || \&CORE::warn;
 	local $self->{current_info} = '';
 	local $SIG{__WARN__} = sub {
 		$warn_cb->($self->{current_info}, ': ', @_);

@@ -241,7 +241,7 @@ sub index_inbox {
 	}
 	local %SIG = %SIG;
 	setup_signals(\&index_terminate, $ibx);
-	my $warn_cb = $SIG{__WARN__} // sub { print STDERR @_ };
+	my $warn_cb = $SIG{__WARN__} // \&CORE::warn;
 	my $idx = { current_info => $ibx->{inboxdir} };
 	my $warn_ignore = PublicInbox::InboxWritable->can('warn_ignore');
 	local $SIG{__WARN__} = sub {

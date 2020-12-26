@@ -292,7 +292,7 @@ sub warn_ignore {
 
 # this expects to be RHS in this assignment: "local $SIG{__WARN__} = ..."
 sub warn_ignore_cb {
-	my $cb = $SIG{__WARN__} // sub { print STDERR @_ };
+	my $cb = $SIG{__WARN__} // \&CORE::warn;
 	sub {
 		return if warn_ignore(@_);
 		$cb->(@_);
