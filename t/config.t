@@ -236,12 +236,13 @@ EOF
 }
 
 SKIP: {
+	# XXX wildcard match requires git 2.26+
 	require_git('1.8.5', 2) or
 		skip 'git 1.8.5+ required for --url-match', 2;
 	my $f = "$tmpdir/urlmatch";
 	open my $fh, '>', $f or BAIL_OUT $!;
 	print $fh <<EOF or BAIL_OUT $!;
-[imap "imap://*.example.com"]
+[imap "imap://mail.example.com"]
 	pollInterval = 9
 EOF
 	close $fh or BAIL_OUT;
