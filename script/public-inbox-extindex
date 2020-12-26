@@ -33,7 +33,9 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
-
+require IO::Handle;
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 # require lazily to speed up --help
 my $eidx_dir = shift(@ARGV) // die "E: $help";
 local $SIG{USR1} = 'IGNORE'; # to be overridden in eidx_sync
