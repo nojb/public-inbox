@@ -378,7 +378,9 @@ sub header_str_set {
 	header_set($self, $name, @vals);
 }
 
-sub mhdr_decode ($) { eval { $MIME_Header->decode($_[0]) } // $_[0] }
+sub mhdr_decode ($) {
+	eval { $MIME_Header->decode($_[0], Encode::FB_DEFAULT) } // $_[0];
+}
 
 sub filename {
 	my $dis = header_raw($_[0], 'Content-Disposition');
