@@ -63,6 +63,9 @@ sub refresh {
 	$pi_cfg->each_inbox(\&in2_arm, $self);
 }
 
+# internal API for ease-of-use
+sub watch_inbox { in2_arm($_[1], $_[0]) };
+
 sub new {
 	my ($class, $pi_cfg) = @_;
 	my $self = bless {}, $class;
@@ -78,7 +81,7 @@ sub new {
 	$self->{inot} = $inot;
 	$self->{pathmap} = {}; # inboxdir => [ ibx, watch1, watch2, watch3...]
 	$self->{on_unlock} = {}; # lock path => ibx
-	refresh($self, $pi_cfg);
+	refresh($self, $pi_cfg) if $pi_cfg;
 	PublicInbox::FakeInotify::poll_once($self) if !$ino_cls;
 	$self;
 }
@@ -89,7 +92,8 @@ sub event_step {
 		my @events = $self->{inot}->read; # Linux::Inotify2::read
 		my $on_unlock = $self->{on_unlock};
 		for my $ev (@events) {
-			if (my $ibx = $on_unlock->{$ev->fullname}) {
+			my $fn = $ev->fullname // next; # cancelled
+			if (my $ibx = $on_unlock->{$fn}) {
 				$ibx->on_unlock;
 			}
 		}

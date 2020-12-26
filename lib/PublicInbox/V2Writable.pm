@@ -879,7 +879,7 @@ sub reindex_checkpoint ($$) {
 		$self->done; # release lock
 	}
 
-	if (my $pr = $sync->{-opt}->{-progress}) {
+	if (my $pr = $sync->{-regen_fmt} ? $sync->{-opt}->{-progress} : undef) {
 		$pr->(sprintf($sync->{-regen_fmt}, ${$sync->{nr}}));
 	}
 

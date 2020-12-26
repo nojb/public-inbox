@@ -473,10 +473,14 @@ sub dbh_close {
 
 sub create {
 	my ($self) = @_;
-	unless (-r $self->{filename}) {
+	my $fn = $self->{filename} // do {
+		Carp::confess('BUG: no {filename}') unless $self->{dbh};
+		return;
+	};
+	unless (-r $fn) {
 		require File::Path;
 		require File::Basename;
-		File::Path::mkpath(File::Basename::dirname($self->{filename}));
+		File::Path::mkpath(File::Basename::dirname($fn));
 	}
 	# create the DB:
 	PublicInbox::Over::dbh($self);
