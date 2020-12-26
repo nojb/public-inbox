@@ -138,7 +138,7 @@ close($fh) or die "failed to close $pi_config_tmp: $!\n";
 my $pfx = "publicinbox.$name";
 my @x = (qw/git config/, "--file=$pi_config_tmp");
 
-PublicInbox::Config::rel2abs_collapsed($inboxdir);
+$inboxdir = PublicInbox::Config::rel2abs_collapsed($inboxdir);
 die "`\\n' not allowed in `$inboxdir'\n" if index($inboxdir, "\n") >= 0;
 
 if (-f "$inboxdir/inbox.lock") {
