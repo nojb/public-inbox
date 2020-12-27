@@ -61,7 +61,7 @@ sub mset_to_artnums {
 	my $docids = PublicInbox::Search::mset_to_artnums($self->{es}, $mset);
 	my $ibx_id = $self->{-ibx_id} //= _ibx_id($self);
 	my $qmarks = join(',', map { '?' } @$docids);
-	if ($opt && ($opt->{mset} // 0) == 2) { # opt->{mset} = 2 was used
+	if ($opt && ($opt->{relevance} // 0) == -1) { # -1 => ENQ_ASCENDING
 		my $range = '';
 		my @r;
 		if (my $r = $opt->{uid_range}) {
