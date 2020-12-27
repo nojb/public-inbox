@@ -7,20 +7,18 @@ use v5.10.1;
 use parent qw(PublicInbox::ExtSearch);
 use PublicInbox::Search;
 
-sub combined_docid ($$) {
+# get combined docid from over.num:
+# (not generic Xapian, only works with our sharding scheme)
+sub num2docid ($$) {
 	my ($self, $num) = @_;
-	($num - 1) * $self->{nshard} + 1;
+	my $nshard = $self->{nshard};
+	($num - 1) * $nshard + $num % $nshard + 1;
 }
 
 sub msg_keywords {
 	my ($self, $num) = @_; # num_or_mitem
 	my $xdb = $self->xdb; # set {nshard};
-	my $docid = ref($num) ? $num->get_docid : do {
-		# get combined docid from over.num:
-		# (not generic Xapian, only works with our sharding scheme)
-		my $nshard = $self->{nshard};
-		($num - 1) * $nshard + $num % $nshard + 1;
-	};
+	my $docid = ref($num) ? $num->get_docid : num2docid($self, $num);
 	my %kw;
 	eval {
 		my $end = $xdb->termlist_end($docid);

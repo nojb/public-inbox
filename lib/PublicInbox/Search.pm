@@ -196,6 +196,7 @@ sub xdb_shards_flat ($) {
 	my ($self) = @_;
 	my $xpfx = $self->{xpfx};
 	my (@xdb, $slow_phrase);
+	load_xapian();
 	if ($xpfx =~ m/xapian${\SCHEMA_VERSION}\z/) {
 		@xdb = ($X{Database}->new($xpfx));
 		$self->{qp_flags} |= FLAG_PHRASE() if !-f "$xpfx/iamchert";
@@ -212,16 +213,6 @@ sub xdb_shards_flat ($) {
 		$self->{qp_flags} |= FLAG_PHRASE() if !$slow_phrase;
 	}
 	@xdb;
-}
-
-sub _xdb {
-	my ($self) = @_;
-	$self->{qp_flags} //= $QP_FLAGS;
-	my @xdb = xdb_shards_flat($self) or return;
-	$self->{nshard} = scalar(@xdb);
-	my $xdb = shift @xdb;
-	$xdb->add_database($_) for @xdb;
-	$xdb;
 }
 
 # v2 Xapian docids don't conflict, so they're identical to
@@ -242,8 +233,12 @@ sub mset_to_artnums {
 sub xdb ($) {
 	my ($self) = @_;
 	$self->{xdb} //= do {
-		load_xapian();
-		$self->_xdb;
+		$self->{qp_flags} //= $QP_FLAGS;
+		my @xdb = $self->xdb_shards_flat or return;
+		$self->{nshard} = scalar(@xdb);
+		my $xdb = shift @xdb;
+		$xdb->add_database($_) for @xdb;
+		$xdb;
 	};
 }
 
