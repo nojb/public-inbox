@@ -73,6 +73,7 @@ sub misc_enquire_once { # retry_reopen callback
 sub mset {
 	my ($self, $qs, $opt) = @_;
 	$opt ||= {};
+	reopen($self);
 	my $qp = $self->{qp} //= mi_qp_new($self);
 	$qs = 'type:inbox' if $qs eq '';
 	my $qr = $qp->parse_query($qs, $PublicInbox::Search::QP_FLAGS);
@@ -183,5 +184,8 @@ sub nntpd_cache_load {
 	my ($self) = @_;
 	retry_reopen($self, \&_nntpd_cache_load);
 }
+
+no warnings 'once';
+*reopen = \&PublicInbox::Search::reopen;
 
 1;
