@@ -48,7 +48,7 @@ sub gfi_start {
 
 	return ($self->{in}, $self->{out}) if $self->{pid};
 
-	my (@ret, $out_r, $out_w);
+	my ($in_r, $pid, $out_r, $out_w);
 	pipe($out_r, $out_w) or die "pipe failed: $!";
 
 	$self->lock_acquire;
@@ -56,27 +56,28 @@ sub gfi_start {
 		my ($git, $ref) = @$self{qw(git ref)};
 		local $/ = "\n";
 		chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $ref));
+		die "fatal: rev-parse --revs-only $ref: \$?=$?" if $?;
 		if ($self->{path_type} ne '2/38' && $self->{tip}) {
 			local $/ = "\0";
 			my @t = $git->qx(qw(ls-tree -r -z --name-only), $ref);
+			die "fatal: ls-tree -r -z --name-only $ref: \$?=$?" if $?;
 			chomp @t;
 			$self->{-tree} = { map { $_ => 1 } @t };
 		}
 		my @cmd = ('git', "--git-dir=$git->{git_dir}",
 			qw(fast-import --quiet --done --date-format=raw));
-		my ($in_r, $pid) = popen_rd(\@cmd, undef, { 0 => $out_r });
+		($in_r, $pid) = popen_rd(\@cmd, undef, { 0 => $out_r });
 		$out_w->autoflush(1);
 		$self->{in} = $in_r;
 		$self->{out} = $out_w;
 		$self->{pid} = $pid;
 		$self->{nchg} = 0;
-		@ret = ($in_r, $out_w);
 	};
 	if ($@) {
 		$self->lock_release;
 		die $@;
 	}
-	@ret;
+	($in_r, $out_w);
 }
 
 sub wfail () { die "write to fast-import failed: $!" }

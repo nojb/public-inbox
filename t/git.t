@@ -76,13 +76,17 @@ if (1) {
 	is(length($$x), $size, 'read correct number of bytes');
 
 	my $ref = $gcf->qx(qw(cat-file blob), $buf);
+	is($?, 0, 'no error on scalar success');
 	my @ref = $gcf->qx(qw(cat-file blob), $buf);
+	is($?, 0, 'no error on wantarray success');
 	my $nl = scalar @ref;
 	ok($nl > 1, "qx returned array length of $nl");
 	is(join('', @ref), $ref, 'qx array and scalar context both work');
 
 	$gcf->qx(qw(repack -adq));
 	ok($gcf->packed_bytes > 0, 'packed size is positive');
+	$gcf->qx(qw(rev-parse --verify bogus));
+	isnt($?, 0, '$? set on failure'.$?);
 }
 
 SKIP: {
