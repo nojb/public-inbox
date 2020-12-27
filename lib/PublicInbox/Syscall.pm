@@ -227,38 +227,46 @@ sub epoll_ctl_mod8 {
 our $epoll_wait_events;
 our $epoll_wait_size = 0;
 sub epoll_wait_mod4 {
-    # resize our static buffer if requested size is bigger than we've ever done
-    if ($_[1] > $epoll_wait_size) {
-        $epoll_wait_size = $_[1];
-        $epoll_wait_events = "\0" x 12 x $epoll_wait_size;
-    }
-    my $ct = syscall($SYS_epoll_wait, $_[0]+0, $epoll_wait_events, $_[1]+0, $_[2]+0);
-    for (0..$ct-1) {
-        @{$_[3]->[$_]}[1,0] = unpack("LL", substr($epoll_wait_events, 12*$_, 8));
-    }
-    return $ct;
+	my ($epfd, $maxevents, $timeout_msec, $events) = @_;
+	# resize our static buffer if maxevents bigger than we've ever done
+	if ($maxevents > $epoll_wait_size) {
+		$epoll_wait_size = $maxevents;
+		vec($epoll_wait_events, $maxevents * 12 * 8 - 1, 1) = 0;
+	}
+	@$events = ();
+	my $ct = syscall($SYS_epoll_wait, $epfd, $epoll_wait_events,
+			$maxevents, $timeout_msec);
+	for (0..$ct - 1) {
+		# 12-byte struct epoll_event
+		# 4 bytes uint32_t events mask (skipped, useless to us)
+		# 8 bytes: epoll_data_t union (first 4 bytes are the fd)
+		# So we skip the first 4 bytes and take the middle 4:
+		$events->[$_] = unpack('L', substr($epoll_wait_events,
+							12 * $_ + 4, 4));
+	}
 }
 
 sub epoll_wait_mod8 {
-    # resize our static buffer if requested size is bigger than we've ever done
-    if ($_[1] > $epoll_wait_size) {
-        $epoll_wait_size = $_[1];
-        $epoll_wait_events = "\0" x 16 x $epoll_wait_size;
-    }
-    my $ct;
-    if ($no_deprecated) {
-        $ct = syscall($SYS_epoll_wait, $_[0]+0, $epoll_wait_events, $_[1]+0, $_[2]+0, undef);
-    } else {
-        $ct = syscall($SYS_epoll_wait, $_[0]+0, $epoll_wait_events, $_[1]+0, $_[2]+0);
-    }
-    for (0..$ct-1) {
-        # 16 byte epoll_event structs, with format:
-        #    4 byte mask [idx 1]
-        #    4 byte padding (we put it into idx 2, useless)
-        #    8 byte data (first 4 bytes are fd, into idx 0)
-        @{$_[3]->[$_]}[1,2,0] = unpack("LLL", substr($epoll_wait_events, 16*$_, 12));
-    }
-    return $ct;
+	my ($epfd, $maxevents, $timeout_msec, $events) = @_;
+
+	# resize our static buffer if maxevents bigger than we've ever done
+	if ($maxevents > $epoll_wait_size) {
+		$epoll_wait_size = $maxevents;
+		vec($epoll_wait_events, $maxevents * 16 * 8 - 1, 1) = 0;
+	}
+	@$events = ();
+	my $ct = syscall($SYS_epoll_wait, $epfd, $epoll_wait_events,
+			$maxevents, $timeout_msec,
+			$no_deprecated ? undef : ());
+	for (0..$ct - 1) {
+		# 16-byte struct epoll_event
+		# 4 bytes uint32_t events mask (skipped, useless to us)
+		# 4 bytes padding (skipped, useless)
+		# 8 bytes epoll_data_t union (first 4 bytes are the fd)
+		# So skip the first 8 bytes, take 4, and ignore the last 4:
+		$events->[$_] = unpack('L', substr($epoll_wait_events,
+							16 * $_ + 8, 4));
+	}
 }
 
 sub signalfd ($$$) {

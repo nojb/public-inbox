@@ -134,7 +134,7 @@ sub epoll_wait {
 		}
 	}
 	# caller only cares for $events[$i]->[0]
-	scalar(@$events);
+	$_ = $_->[0] for @$events;
 }
 
 # kqueue is close-on-fork (not exec), so we must not close it

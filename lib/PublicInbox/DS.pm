@@ -87,9 +87,7 @@ A timeout of 0 (zero) means poll forever. A timeout of -1 means poll and return
 immediately.
 
 =cut
-sub SetLoopTimeout {
-    return $LoopTimeout = $_[1] + 0;
-}
+sub SetLoopTimeout { $LoopTimeout = $_[1] + 0 }
 
 =head2 C<< PublicInbox::DS::add_timer( $seconds, $coderef, $arg) >>
 
@@ -200,12 +198,7 @@ sub RunTimers {
     my $timeout = int(($Timers[0][0] - $now) * 1000) + 1;
 
     # -1 is an infinite timeout, so prefer a real timeout
-    return $timeout     if $LoopTimeout == -1;
-
-    # otherwise pick the lower of our regular timeout and time until
-    # the next timer
-    return $LoopTimeout if $LoopTimeout < $timeout;
-    return $timeout;
+    ($LoopTimeout < 0 || $LoopTimeout >= $timeout) ? $timeout : $LoopTimeout;
 }
 
 # We can't use waitpid(-1) safely here since it can hit ``, system(),
@@ -261,19 +254,18 @@ sub PostEventLoop () {
 sub EventLoop {
     $Epoll //= _InitPoller();
     local $in_loop = 1;
+    my @events;
     do {
-        my @events;
-        my $i;
         my $timeout = RunTimers();
 
         # get up to 1000 events
-        my $evcount = epoll_wait($Epoll, 1000, $timeout, \@events);
-        for ($i=0; $i<$evcount; $i++) {
+        epoll_wait($Epoll, 1000, $timeout, \@events);
+        for my $fd (@events) {
             # it's possible epoll_wait returned many events, including some at the end
             # that ones in the front triggered unregister-interest actions.  if we
             # can't find the %sock entry, it's because we're no longer interested
             # in that event.
-            $DescriptorMap{$events[$i]->[0]}->event_step;
+            $DescriptorMap{$fd}->event_step;
         }
     } while (PostEventLoop());
     _run_later();
