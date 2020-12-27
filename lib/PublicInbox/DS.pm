@@ -50,7 +50,6 @@ our (
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
 
      $LoopTimeout,               # timeout of event loop in milliseconds
-     $DoneInit,                  # if we've done the one-time module init yet
      @Timers,                    # timers
      $in_loop,
      );
@@ -75,12 +74,9 @@ sub Reset {
     @Timers = ();
 
     $PostLoopCallback = undef;
-    $DoneInit = 0;
 
     $_io = undef; # closes real $Epoll FD
     $Epoll = undef; # may call DSKQXS::DESTROY
-
-    *EventLoop = *FirstTimeEventLoop;
 }
 
 =head2 C<< CLASS->SetLoopTimeout( $timeout ) >>
@@ -137,14 +133,13 @@ sub set_cloexec ($) {
     fcntl($_io, F_SETFD, $fl | FD_CLOEXEC);
 }
 
+# caller sets return value to $Epoll
 sub _InitPoller
 {
-    return if $DoneInit;
-    $DoneInit = 1;
-
     if (PublicInbox::Syscall::epoll_defined())  {
-        $Epoll = epoll_create();
-        set_cloexec($Epoll) if (defined($Epoll) && $Epoll >= 0);
+        my $fd = epoll_create();
+        set_cloexec($fd) if (defined($fd) && $fd >= 0);
+	$fd;
     } else {
         my $cls;
         for (qw(DSKQXS DSPoll)) {
@@ -152,9 +147,8 @@ sub _InitPoller
             last if eval "require $cls";
         }
         $cls->import(qw(epoll_ctl epoll_wait));
-        $Epoll = $cls->new;
+        $cls->new;
     }
-    *EventLoop = *EpollEventLoop;
 }
 
 =head2 C<< CLASS->EventLoop() >>
@@ -163,13 +157,6 @@ Start processing IO events. In most daemon programs this never exits. See
 C<PostLoopCallback> below for how to exit the loop.
 
 =cut
-sub FirstTimeEventLoop {
-    my $class = shift;
-
-    _InitPoller();
-
-    EventLoop($class);
-}
 
 sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
@@ -271,7 +258,8 @@ sub PostEventLoop () {
 	$PostLoopCallback ? $PostLoopCallback->(\%DescriptorMap) : 1;
 }
 
-sub EpollEventLoop {
+sub EventLoop {
+    $Epoll //= _InitPoller();
     local $in_loop = 1;
     do {
         my @events;
@@ -330,8 +318,7 @@ sub new {
     $self->{sock} = $sock;
     my $fd = fileno($sock);
 
-    _InitPoller();
-
+    $Epoll //= _InitPoller();
 retry:
     if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
         if ($! == EINVAL && ($ev & EPOLLEXCLUSIVE)) {
