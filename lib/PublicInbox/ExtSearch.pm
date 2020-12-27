@@ -29,8 +29,6 @@ sub misc {
 	$self->{misc} //= PublicInbox::MiscSearch->new("$self->{xpfx}/misc");
 }
 
-sub search { $_[0] } # self
-
 # overrides PublicInbox::Search::_xdb
 sub _xdb {
 	my ($self) = @_;
@@ -126,6 +124,6 @@ no warnings 'once';
 *recent = \&PublicInbox::Inbox::recent;
 
 *max_git_epoch = *nntp_usable = *msg_by_path = \&mm; # undef
-*isrch = *search;
+*isrch = *search = \&PublicInbox::Search::reopen;
 
 1;
