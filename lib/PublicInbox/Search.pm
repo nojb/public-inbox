@@ -287,7 +287,6 @@ sub mset {
 	$opts ||= {};
 	my $qp = $self->{qp} //= qparse_new($self);
 	my $query = $qp->parse_query($query_string, $self->{qp_flags});
-	$opts->{relevance} = 1 unless exists $opts->{relevance};
 	_do_enquire($self, $query, $opts);
 }
 
