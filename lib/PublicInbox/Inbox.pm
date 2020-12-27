@@ -210,12 +210,9 @@ sub over {
 
 sub try_cat {
 	my ($path) = @_;
-	my $rv = '';
-	if (open(my $fh, '<', $path)) {
-		local $/;
-		$rv = <$fh>;
-	}
-	$rv;
+	open(my $fh, '<', $path) or return '';
+	local $/;
+	<$fh> // '';
 }
 
 sub cat_desc ($) {

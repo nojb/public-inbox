@@ -35,7 +35,7 @@ BEGIN {
 		if (open(my $fh, '<', $f)) {
 			chomp($l, $c);
 			local $/;
-			$c_src = <$fh>;
+			defined($c_src = <$fh>) or die "read $f: $!\n";
 			$CFG{LIBS} = $l;
 			$CFG{CCFLAGSEX} = $c;
 			last;

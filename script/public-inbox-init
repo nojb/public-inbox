@@ -100,11 +100,7 @@ if (-e $pi_config) {
 	defined $perm or die "(f)stat failed on $pi_config: $!\n";
 	chmod($perm & 07777, $fh) or
 		die "(f)chmod failed on future $pi_config: $!\n";
-	my $old;
-	{
-		local $/;
-		$old = <$oh>;
-	}
+	defined(my $old = do { local $/; <$oh> }) or die "read $pi_config: $!\n";
 	print $fh $old or die "failed to write: $!\n";
 	close $oh or die "failed to close $pi_config: $!\n";
 
