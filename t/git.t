@@ -79,6 +79,7 @@ if (1) {
 	my @ref = $gcf->qx(qw(cat-file blob), $buf);
 	my $nl = scalar @ref;
 	ok($nl > 1, "qx returned array length of $nl");
+	is(join('', @ref), $ref, 'qx array and scalar context both work');
 
 	$gcf->qx(qw(repack -adq));
 	ok($gcf->packed_bytes > 0, 'packed size is positive');
