@@ -231,10 +231,11 @@ sub _mbox_write_cb ($$$$) {
 	if ($dst eq '/dev/stdout') {
 		$out = $lei->{1};
 	} else { # TODO: mbox locking (but mairix doesn't...)
-		if (!$lei->{opt}->{augment} && -f $dst and !unlink($dst)) {
+		my $mode = -p $dst ? '>' : '+>>';
+		if (-f _ && !$lei->{opt}->{augment} and !unlink($dst)) {
 			die "unlink $dst: $!" if $! != ENOENT;
 		}
-		open $out, '+>>', $dst or die "open $dst: $!";
+		open $out, $mode, $dst or die "open $dst: $!";
 		# Perl does SEEK_END even with O_APPEND :<
 		$seekable = seek($out, 0, SEEK_SET);
 		die "seek $dst: $!\n" if !$seekable && $! != ESPIPE;
