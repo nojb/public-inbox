@@ -624,10 +624,10 @@ sub dwaitpid ($;$$) {
 		if ($ret == $pid) {
 			if ($cb) {
 				eval { $cb->($arg, $pid) };
-				warn "E: dwaitpid($pid) !in_loop: $@" if $@;
+				carp "E: dwaitpid($pid) !in_loop: $@" if $@;
 			}
 		} else {
-			warn "waitpid($pid, 0) = $ret, \$!=$!, \$?=$?";
+			carp "waitpid($pid, 0) = $ret, \$!=$!, \$?=$?";
 		}
 	}
 }

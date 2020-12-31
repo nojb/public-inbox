@@ -126,6 +126,7 @@ sub _bidi_pipe {
 	}
 	my ($in_r, $p) = popen_rd(\@cmd, undef, $redir);
 	$self->{$pid} = $p;
+	$self->{"$pid.owner"} = $$;
 	$out_w->autoflush(1);
 	if ($^O eq 'linux') { # 1031: F_SETPIPE_SZ
 		fcntl($out_w, 1031, 4096);
@@ -327,7 +328,7 @@ sub _destroy {
 
 	# GitAsyncCat::event_step may delete {pid}
 	my $p = delete $self->{$pid} or return;
-	dwaitpid $p;
+	dwaitpid($p) if $$ == $self->{"$pid.owner"};
 }
 
 sub cat_async_abort ($) {

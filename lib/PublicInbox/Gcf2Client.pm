@@ -15,6 +15,7 @@ use PublicInbox::DS qw(dwaitpid);
 #	sock => writable pipe to Gcf2::loop
 #	in => pipe we read from
 #	pid => PID of Gcf2::loop process
+#	owner_pid => process which spawned {pid}
 sub new  {
 	my ($rdr) = @_;
 	my $self = bless {}, __PACKAGE__;
@@ -25,6 +26,7 @@ sub new  {
 	$rdr //= {};
 	$rdr->{0} = $out_r;
 	my $cmd = [$^X, qw[-MPublicInbox::Gcf2 -e PublicInbox::Gcf2::loop()]];
+	$self->{owner_pid} = $$;
 	@$self{qw(in pid)} = popen_rd($cmd, $env, $rdr);
 	fcntl($out_w, 1031, 4096) if $^O eq 'linux'; # 1031: F_SETPIPE_SZ
 	$out_w->autoflush(1);
@@ -69,8 +71,10 @@ sub DESTROY {
 	delete $self->{in};
 	# GitAsyncCat::event_step may reap us with WNOHANG, too
 	my $pid = delete $self->{pid} or return;
-	PublicInbox::DS->in_loop ? $self->close : delete($self->{sock});
-	dwaitpid $pid;
+	if ($$ == $self->{owner_pid}) {
+		PublicInbox::DS->in_loop ? $self->close : delete($self->{sock});
+		dwaitpid $pid;
+	}
 }
 
 # used by GitAsyncCat
