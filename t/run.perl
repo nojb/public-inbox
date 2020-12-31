@@ -71,7 +71,8 @@ sub test_status () {
 		my $skip = '';
 		if (open my $fh, '<', $log) {
 			my @not_ok = grep(!/^(?:ok |[ \t]*#)/ms, <$fh>);
-			pop @not_ok if $not_ok[-1] =~ /^[0-9]+\.\.[0-9]+$/;
+			my $last = $not_ok[-1] // '';
+			pop @not_ok if $last =~ /^[0-9]+\.\.[0-9]+$/;
 			my $pfx = "# $log: ";
 			print $OLDERR map { $pfx.$_ } @not_ok;
 			seek($fh, 0, SEEK_SET) or die "seek: $!";
