@@ -91,7 +91,8 @@ sysopen($lockfh, $lockfile, O_RDWR|O_CREAT|O_EXCL) or do {
 	warn "could not open config file: $lockfile: $!\n";
 	exit(255);
 };
-my $auto_unlink = UnlinkMe->new($lockfile);
+require PublicInbox::OnDestroy;
+my $auto_unlink = PublicInbox::OnDestroy->new(sub { unlink $lockfile });
 my ($perm, %seen);
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
@@ -208,18 +209,4 @@ if (defined $perm) {
 
 rename $pi_config_tmp, $pi_config or
 	die "failed to rename `$pi_config_tmp' to `$pi_config': $!\n";
-$auto_unlink->DESTROY;
-
-package UnlinkMe;
-use strict;
-
-sub new {
-	my ($klass, $file) = @_;
-	bless { file => $file }, $klass;
-}
-
-sub DESTROY {
-	my $f = delete($_[0]->{file});
-	unlink($f) if defined($f);
-}
-1;
+undef $auto_unlink; # trigger ->DESTROY
