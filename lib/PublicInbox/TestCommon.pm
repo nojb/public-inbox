@@ -10,8 +10,14 @@ use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
 our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
-	run_script start_script key2sub xsys xqx eml_load tick
+	run_script start_script key2sub xsys xsys_e xqx eml_load tick
 	have_xapian_compact);
+BEGIN {
+	require Test::More;
+	*BAIL_OUT = \&Test::More::BAIL_OUT;
+	*plan = \&Test::More::plan;
+	*skip = \&Test::More::skip;
+}
 
 sub eml_load ($) {
 	my ($path, $cb) = @_;
@@ -38,7 +44,7 @@ sub tcp_server () {
 		Type => Socket::SOCK_STREAM(),
 		Listen => 1024,
 		Blocking => 0,
-	) or Test::More::BAIL_OUT("failed to create TCP server: $!");
+	) or BAIL_OUT "failed to create TCP server: $!";
 }
 
 sub tcp_connect {
@@ -49,7 +55,7 @@ sub tcp_connect {
 		Type => Socket::SOCK_STREAM(),
 		PeerAddr => $addr,
 		%opt,
-	) or Test::More::BAIL_OUT("failed to connect to $addr: $!");
+	) or BAIL_OUT "failed to connect to $addr: $!";
 	$s->autoflush(1);
 	$s;
 }
@@ -64,8 +70,8 @@ sub require_git ($;$) {
 	my $cur_int = ($cur_maj << 24) | ($cur_min << 16) | ($cur_sub // 0);
 	if ($cur_int < $req_int) {
 		return 0 if $maybe;
-		Test::More::plan(skip_all =>
-			"git $req+ required, have $cur_maj.$cur_min.$cur_sub");
+		plan skip_all =>
+			"git $req+ required, have $cur_maj.$cur_min.$cur_sub";
 	}
 	1;
 }
@@ -113,8 +119,8 @@ sub require_mods {
 	}
 	return unless @need;
 	my $m = join(', ', @need)." missing for $0";
-	Test::More::skip($m, $maybe) if $maybe;
-	Test::More::plan(skip_all => $m)
+	skip($m, $maybe) if $maybe;
+	plan(skip_all => $m)
 }
 
 sub key2script ($) {
@@ -321,6 +327,11 @@ sub xsys {
 	}
 	run_script($cmd, $env, { %$rdr, run_mode => 0 });
 	$? >> 8
+}
+
+sub xsys_e { # like "/bin/sh -e"
+	xsys(@_) == 0 or
+		BAIL_OUT (ref $_[0] ? "@{$_[0]}" : "@_"). " failed \$?=$?"
 }
 
 # like `backtick` or qx{} op, but uses spawn() for env/rdr + vfork

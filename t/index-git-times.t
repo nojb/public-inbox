@@ -5,7 +5,6 @@ use strict;
 use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
-use PublicInbox::Import;
 use PublicInbox::Config;
 use PublicInbox::Admin;
 use File::Path qw(remove_tree);
@@ -48,7 +47,7 @@ EOF
 	print $w $data or die;
 	close $w or die;
 	my $cmd = ['git', "--git-dir=$v1dir", 'fast-import', '--quiet'];
-	PublicInbox::Import::run_die($cmd, undef, { 0 => $r });
+	xsys_e($cmd, undef, { 0 => $r });
 }
 
 run_script(['-index', '--skip-docdata', $v1dir]) or die 'v1 index failed';

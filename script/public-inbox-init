@@ -185,17 +185,20 @@ $ibx->init_inbox(0, $skip_epoch, $skip_artnum);
 # needed for git prior to v2.1.0
 umask(0077) if defined $perm;
 
+require PublicInbox::Spawn;
+PublicInbox::Spawn->import(qw(run_die));
+
 foreach my $addr (@address) {
 	next if $seen{lc($addr)};
-	PublicInbox::Import::run_die([@x, "--add", "$pfx.address", $addr]);
+	run_die([@x, "--add", "$pfx.address", $addr]);
 }
-PublicInbox::Import::run_die([@x, "$pfx.url", $http_url]);
-PublicInbox::Import::run_die([@x, "$pfx.inboxdir", $inboxdir]);
+run_die([@x, "$pfx.url", $http_url]);
+run_die([@x, "$pfx.inboxdir", $inboxdir]);
 
 if (defined($indexlevel)) {
-	PublicInbox::Import::run_die([@x, "$pfx.indexlevel", $indexlevel]);
+	run_die([@x, "$pfx.indexlevel", $indexlevel]);
 }
-PublicInbox::Import::run_die([@x, "$pfx.newsgroup", $ng]) if $ng ne '';
+run_die([@x, "$pfx.newsgroup", $ng]) if $ng ne '';
 
 # needed for git prior to v2.1.0
 if (defined $perm) {

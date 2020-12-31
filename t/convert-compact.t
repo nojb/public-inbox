@@ -21,8 +21,8 @@ my $ibx = {
 
 PublicInbox::Import::init_bare($ibx->{inboxdir});
 ok(umask(077), 'set restrictive umask');
-ok(PublicInbox::Import::run_die([qw(git) , "--git-dir=$ibx->{inboxdir}",
-	qw(config core.sharedRepository 0644)]), 'set sharedRepository');
+xsys_e(qw(git) , "--git-dir=$ibx->{inboxdir}",
+	qw(config core.sharedRepository 0644));
 $ibx = PublicInbox::Inbox->new($ibx);
 my $im = PublicInbox::Import->new($ibx->git, undef, undef, $ibx);
 my $mime = PublicInbox::Eml->new(<<'EOF');

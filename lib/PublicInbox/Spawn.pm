@@ -19,7 +19,7 @@ use strict;
 use parent qw(Exporter);
 use Symbol qw(gensym);
 use PublicInbox::ProcessPipe;
-our @EXPORT_OK = qw/which spawn popen_rd nodatacow_dir/;
+our @EXPORT_OK = qw(which spawn popen_rd run_die nodatacow_dir);
 our @RLIMITS = qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA);
 
 my $vfork_spawn = <<'VFORK_SPAWN';
@@ -304,6 +304,13 @@ sub popen_rd {
 	my $ret = gensym;
 	tie *$ret, 'PublicInbox::ProcessPipe', $pid, $r;
 	$ret;
+}
+
+sub run_die ($;$$) {
+	my ($cmd, $env, $rdr) = @_;
+	my $pid = spawn($cmd, $env, $rdr);
+	waitpid($pid, 0) == $pid or die "@$cmd did not finish";
+	$? == 0 or die "@$cmd failed: \$?=$?\n";
 }
 
 1;

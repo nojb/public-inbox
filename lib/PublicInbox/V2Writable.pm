@@ -16,7 +16,7 @@ use PublicInbox::ContentHash qw(content_hash content_digest);
 use PublicInbox::InboxWritable;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
-use PublicInbox::Spawn qw(spawn popen_rd);
+use PublicInbox::Spawn qw(spawn popen_rd run_die);
 use PublicInbox::SearchIdx qw(log2stack crlf_adjust is_ancestor check_size
 	is_bad_blob);
 use IO::Handle; # ->autoflush
@@ -745,9 +745,8 @@ sub git_init {
 	my ($self, $epoch) = @_;
 	my $git_dir = "$self->{ibx}->{inboxdir}/git/$epoch.git";
 	PublicInbox::Import::init_bare($git_dir);
-	my @cmd = (qw/git config/, "--file=$git_dir/config",
-			'include.path', '../../all.git/config');
-	PublicInbox::Import::run_die(\@cmd);
+	run_die([qw(git config), "--file=$git_dir/config",
+		qw(include.path ../../all.git/config)]);
 	fill_alternates($self, $epoch);
 	$git_dir
 }
@@ -1222,8 +1221,7 @@ sub unindex_todo ($$$) {
 	return if $before == $after;
 
 	# ensure any blob can not longer be accessed via dumb HTTP
-	PublicInbox::Import::run_die(['git',
-		"--git-dir=$unit->{git}->{git_dir}",
+	run_die(['git', "--git-dir=$unit->{git}->{git_dir}",
 		qw(-c gc.reflogExpire=now gc --prune=all --quiet)]);
 }
 

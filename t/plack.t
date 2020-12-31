@@ -21,8 +21,8 @@ ok(-f $psgi, "psgi example file found");
 my $pfx = 'http://example.com/test';
 ok(run_script(['-init', 'test', $inboxdir, "$pfx/", $addr]),
 	'initialized repo');
-PublicInbox::Import::run_die([qw(git config -f), $pi_config,
-	'publicinbox.test.newsgroup', 'inbox.test']);
+xsys_e(qw(git config -f), $pi_config,
+	qw(publicinbox.test.newsgroup inbox.test));
 open my $fh, '>', "$inboxdir/description" or die "open: $!\n";
 print $fh "test for public-inbox\n";
 close $fh or die "close: $!\n";

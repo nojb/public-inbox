@@ -19,7 +19,7 @@ use PublicInbox::Config;
 use PublicInbox::Syscall qw($SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now);
-use PublicInbox::Spawn qw(spawn);
+use PublicInbox::Spawn qw(spawn run_die);
 use PublicInbox::OnDestroy;
 use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
@@ -482,8 +482,7 @@ sub lei_config {
 	my $cfg = _lei_cfg($self, 1);
 	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
 	my %rdr = map { $_ => $self->{$_} } (0..2);
-	require PublicInbox::Import;
-	PublicInbox::Import::run_die($cmd, $env, \%rdr);
+	run_die($cmd, $env, \%rdr);
 }
 
 sub lei_init {

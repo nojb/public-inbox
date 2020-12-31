@@ -9,7 +9,7 @@ package PublicInbox::Import;
 use strict;
 use parent qw(PublicInbox::Lock);
 use v5.10.1;
-use PublicInbox::Spawn qw(spawn popen_rd);
+use PublicInbox::Spawn qw(run_die popen_rd);
 use PublicInbox::MID qw(mids mid2path);
 use PublicInbox::Address;
 use PublicInbox::Smsg;
@@ -440,13 +440,6 @@ sub add {
 	print $w "M 100644 :$blob $path\n\n" or wfail;
 	$self->{nchg}++;
 	$self->{tip} = ":$commit";
-}
-
-sub run_die ($;$$) {
-	my ($cmd, $env, $rdr) = @_;
-	my $pid = spawn($cmd, $env, $rdr);
-	waitpid($pid, 0) == $pid or die join(' ', @$cmd) .' did not finish';
-	$? == 0 or die join(' ', @$cmd) . " failed: $?\n";
 }
 
 my @INIT_FILES = ('HEAD' => undef, # filled in at runtime
