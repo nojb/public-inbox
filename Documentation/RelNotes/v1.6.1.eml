@@ -1,0 +1,57 @@
+From: Eric Wong <e@80x24.org>
+To: meta@public-inbox.org
+Subject: [ANNOUNCE] public-inbox 1.6.1
+Date: Thu, 31 Dec 2020 23:45:56 +0000
+Message-ID: <20201231234556.public-inbox-1.6.1-rele@sed>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+
+A small, bugfix release on top of 1.6.0 from September 2020.
+
+Bug fixes:
+
+* MIME header decoding no longer warns on undefined variables,
+  with Perl <5.28.  Thanks to a bug report by Ali Alnubani.
+  https://public-inbox.org/meta/DM6PR12MB49106F8E3BD697B63B943A22DADB0@DM6PR12MB4910.namprd12.prod.outlook.com/
+
+* Fixed a message threading bug thanks to a report from Kyle Meyer.
+  "public-inbox-index --rethread --reindex" will be necessary
+  in case of certain messages arrive out-of-order.
+  Link: https://public-inbox.org/meta/87360nlc44.fsf@kyleam.com/
+
+* WWW: per-inbox grokmirror manifests no longer return info
+  for all inboxes, only the root /manifest.js.gz includes all
+  inboxes.  This regression appeared in 1.6.
+
+* public-inbox-mda matches List-Id headers insensitively,
+  matching public-inbox-watch behavior.  Similarly, List-Id
+  is always indexed lower-cased for boolean matches to avoid
+  matching an incorrect term.
+
+* Newsgroup and Path NNTP headers are now emitted in conformance
+  with RFC 5536 3.1.[45].  Thanks to Andrey Melnikov for the report:
+  https://public-inbox.org/meta/CA+PODjpUN5Q4gBFQhAzUNuMasVEdmp9f=8Uo0Ej0mFumdSwi4w@mail.gmail.com/
+
+* Inotify fixes for public-inbox-imapd users relying on SIGHUP
+  reloads and thousands of watches.
+
+* Read-only daemon fixes around TLS and Linux <4.5 systems
+
+Bugfixes with minor behavior changes:
+
+* The X-Status mbox header is now excluded from imports,
+  just like the Status: header has been for many years.
+  They have no place in public archives and can be privacy
+  concern for people sharing archives.
+
+* WWW prevents deep-linking to attachments to limit abuse
+  vectors.  Noticed by Leah Neukirchen:
+  https://public-inbox.org/meta/87imagyap9.fsf@vuxu.org/
+
+There are also several ocumentation fixes from Uwe Kleine-König
+and Kyle Meyer.
+
+Please report bugs via plain-text mail to: meta@public-inbox.org
+
+See archives at https://public-inbox.org/meta/ for all history.
