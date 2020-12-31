@@ -26,6 +26,7 @@ is($skv->get($dead), $cafe, 'get after xchg');
 is($skv->xchg($dead, undef), $cafe, 'xchg to undef');
 is($skv->get($dead), undef, 'get after xchg to undef');
 is($skv->get($cafe), $dead, 'get after set_maybe');
+ok($skv->index_values, 'index_values works');
 is($skv->replace_values($dead, $cafe), 1, 'replaced one by value');
 is($skv->get($cafe), $cafe, 'value updated');
 is($skv->replace_values($dead, $cafe), 0, 'replaced none by value');

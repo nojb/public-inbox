@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS kv (
 	UNIQUE (k)
 )
 
-		$dbh->do('CREATE INDEX IF NOT EXISTS idx_v ON kv (v)');
 		$dbh;
 	}
 }
@@ -57,6 +56,12 @@ sub new {
 		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	}
 	$self;
+}
+
+sub index_values {
+	my ($self) = @_;
+	my $lock = $self->lock_for_scope;
+	$self->dbh($lock)->do('CREATE INDEX IF NOT EXISTS idx_v ON kv (v)');
 }
 
 sub set_maybe {
