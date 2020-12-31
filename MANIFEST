@@ -176,6 +176,7 @@ lib/PublicInbox/MIME.pm
 lib/PublicInbox/ManifestJsGz.pm
 lib/PublicInbox/Mbox.pm
 lib/PublicInbox/MboxGz.pm
+lib/PublicInbox/MboxReader.pm
 lib/PublicInbox/MiscIdx.pm
 lib/PublicInbox/MiscSearch.pm
 lib/PublicInbox/MsgIter.pm
@@ -334,6 +335,7 @@ t/lei_to_mail.t
 t/lei_xsearch.t
 t/linkify.t
 t/main-bin/spamc
+t/mbox_reader.t
 t/mda-mime.eml
 t/mda.t
 t/mda_filter_rubylang.t
