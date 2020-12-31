@@ -13,7 +13,6 @@ use IO::Socket;
 use POSIX qw(WNOHANG :signal_h);
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 sub SO_ACCEPTFILTER () { 0x1000 }
-use Cwd qw/abs_path/;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
@@ -204,10 +203,11 @@ sub check_absolute ($$) {
 
 sub daemonize () {
 	if ($daemonize) {
+		require Cwd;
 		foreach my $i (0..$#ARGV) {
 			my $arg = $ARGV[$i];
 			next unless -e $arg;
-			$ARGV[$i] = abs_path($arg);
+			$ARGV[$i] = Cwd::abs_path($arg);
 		}
 		check_absolute('stdout', $stdout);
 		check_absolute('stderr', $stderr);
@@ -369,14 +369,12 @@ sub inherit ($) {
 	foreach my $fd (3..$end) {
 		my $s = IO::Handle->new_from_fd($fd, 'r');
 		if (my $k = sockname($s)) {
-			if ($s->blocking) {
-				$s->blocking(0);
-				warn <<"";
+			my $prev_was_blocking = $s->blocking(0);
+			warn <<"" if $prev_was_blocking;
 Inherited socket (fd=$fd) is blocking, making it non-blocking.
 Set 'NonBlocking = true' in the systemd.service unit to avoid stalled
 processes when multiple service instances start.
 
-			}
 			$listener_names->{$k} = $s;
 			push @rv, $s;
 		} else {
@@ -423,11 +421,8 @@ sub upgrade { # $_[0] = signal name or number (unused)
 }
 
 sub kill_workers ($) {
-	my ($s) = @_;
-
-	while (my ($pid, $id) = each %pids) {
-		kill $s, $pid;
-	}
+	my ($sig) = @_;
+	kill $sig, keys(%pids);
 }
 
 sub upgrade_aborted ($) {

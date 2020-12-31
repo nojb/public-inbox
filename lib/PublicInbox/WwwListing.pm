@@ -69,6 +69,9 @@ sub hide_key { 'www' }
 sub response {
 	my ($class, $ctx) = @_;
 	bless $ctx, $class;
+	if (my $ALL = $ctx->{www}->{pi_cfg}->ALL) {
+		$ALL->misc->reopen;
+	}
 	my $re = $ctx->url_regexp or return $ctx->psgi_triple;
 	my $iter = PublicInbox::ConfigIter->new($ctx->{www}->{pi_cfg},
 						\&list_match_i, $re, $ctx);

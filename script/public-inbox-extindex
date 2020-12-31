@@ -6,11 +6,12 @@ use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: public-inbox-extindex [options] EXTINDEX_DIR [INBOX_DIR]
+usage: public-inbox-extindex [options] [EXTINDEX_DIR] [INBOX_DIR...]
 
   Create and update external (detached) search indices
 
   --no-fsync          speed up indexing, risk corruption on power outage
+  --watch             run persistently and watch for inbox updates
   -L LEVEL            `medium', or `full' (default: full)
   --all               index all configured inboxes
   --jobs=NUM          set or disable parallelization (NUM=0)
@@ -22,26 +23,36 @@ usage: public-inbox-extindex [options] EXTINDEX_DIR [INBOX_DIR]
 BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
 See public-inbox-extindex(1) man page for full documentation.
 EOF
-my $opt = { quiet => -1, compact => 0, max_size => undef, fsync => 1 };
+my $opt = { quiet => -1, compact => 0, fsync => 1, scan => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
 		fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
-		gc
+		gc commit-interval=i watch scan!
 		all help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
-
-# require lazily to speed up --help
-my $eidx_dir = shift(@ARGV) // die "E: $help";
+require IO::Handle;
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 local $SIG{USR1} = 'IGNORE'; # to be overridden in eidx_sync
+# require lazily to speed up --help
 require PublicInbox::Admin;
 my $cfg = PublicInbox::Config->new;
+my $eidx_dir = shift(@ARGV);
+unless (defined $eidx_dir) {
+	if ($opt->{all} && $cfg->ALL) {
+		$eidx_dir = $cfg->ALL->{topdir};
+	} else {
+		die "E: $help";
+	}
+}
 my @ibxs;
 if ($opt->{gc}) {
 	die "E: inbox paths must not be specified with --gc\n" if @ARGV;
-	die "E: --all not compatible --gc\n" if $opt->{all};
+	die "E: --all not compatible with --gc\n" if $opt->{all};
+	die "E: --watch is not compatible with --gc\n" if $opt->{watch};
 } else {
 	@ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 }
@@ -56,6 +67,15 @@ if ($opt->{gc}) {
 	$eidx->attach_config($cfg);
 	$eidx->eidx_gc($opt);
 } else {
-	$eidx->attach_inbox($_) for @ibxs;
-	$eidx->eidx_sync($opt);
+	if ($opt->{all}) {
+		$eidx->attach_config($cfg);
+	} else {
+		$eidx->attach_inbox($_) for @ibxs;
+	}
+	if ($opt->{watch}) {
+		$cfg = undef; # save memory only after SIGHUP
+		$eidx->eidx_watch($opt);
+	} else {
+		$eidx->eidx_sync($opt);
+	}
 }

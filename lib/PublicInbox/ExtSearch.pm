@@ -9,7 +9,6 @@ use strict;
 use v5.10.1;
 use PublicInbox::Over;
 use PublicInbox::Inbox;
-use File::Spec ();
 use PublicInbox::MiscSearch;
 use DBI qw(:sql_types); # SQL_BLOB
 
@@ -18,7 +17,6 @@ use parent qw(PublicInbox::Search);
 
 sub new {
 	my ($class, $topdir) = @_;
-	$topdir = File::Spec->canonpath($topdir);
 	bless {
 		topdir => $topdir,
 		# xpfx => 'ei15'
@@ -30,8 +28,6 @@ sub misc {
 	my ($self) = @_;
 	$self->{misc} //= PublicInbox::MiscSearch->new("$self->{xpfx}/misc");
 }
-
-sub search { $_[0] } # self
 
 # same as per-inbox ->over, for now...
 sub over {
@@ -122,6 +118,6 @@ no warnings 'once';
 *recent = \&PublicInbox::Inbox::recent;
 
 *max_git_epoch = *nntp_usable = *msg_by_path = \&mm; # undef
-*isrch = *search;
+*isrch = *search = \&PublicInbox::Search::reopen;
 
 1;

@@ -5,10 +5,12 @@
 package PublicInbox::MiscSearch;
 use strict;
 use v5.10.1;
-use PublicInbox::Search qw(retry_reopen);
+use PublicInbox::Search qw(retry_reopen int_val);
+my $json;
 
 # Xapian value columns:
 our $MODIFIED = 0;
+our $UIDVALIDITY = 1; # (created time)
 
 # avoid conflicting with message Search::prob_prefix for UI/UX reasons
 my %PROB_PREFIX = (
@@ -23,6 +25,8 @@ my %PROB_PREFIX = (
 
 sub new {
 	my ($class, $dir) = @_;
+	PublicInbox::Search::load_xapian();
+	$json //= PublicInbox::Config::json();
 	bless {
 		xdb => $PublicInbox::Search::X{Database}->new($dir)
 	}, $class;
@@ -69,6 +73,7 @@ sub misc_enquire_once { # retry_reopen callback
 sub mset {
 	my ($self, $qs, $opt) = @_;
 	$opt ||= {};
+	reopen($self);
 	my $qp = $self->{qp} //= mi_qp_new($self);
 	$qs = 'type:inbox' if $qs eq '';
 	my $qr = $qp->parse_query($qs, $PublicInbox::Search::QP_FLAGS);
@@ -119,11 +124,13 @@ sub newsgroup_matches {
 sub ibx_data_once {
 	my ($self, $ibx) = @_;
 	my $xdb = $self->{xdb};
-	my $eidx_key = $ibx->eidx_key; # may be {inboxdir}, so private
-	my $head = $xdb->postlist_begin('Q'.$eidx_key);
-	my $tail = $xdb->postlist_end('Q'.$eidx_key);
+	my $term = 'Q'.$ibx->eidx_key; # may be {inboxdir}, so private
+	my $head = $xdb->postlist_begin($term);
+	my $tail = $xdb->postlist_end($term);
 	if ($head != $tail) {
 		my $doc = $xdb->get_document($head->get_docid);
+		$ibx->{uidvalidity} //= int_val($doc, $UIDVALIDITY);
+		$ibx->{-modified} = int_val($doc, $MODIFIED);
 		$doc->get_data;
 	} else {
 		undef;
@@ -134,5 +141,51 @@ sub inbox_data {
 	my ($self, $ibx) = @_;
 	retry_reopen($self, \&ibx_data_once, $ibx);
 }
+
+sub ibx_cache_load {
+	my ($doc, $cache) = @_;
+	my $end = $doc->termlist_end;
+	my $cur = $doc->termlist_begin;
+	$cur->skip_to('Q');
+	return if $cur == $end;
+	my $eidx_key = $cur->get_termname;
+	$eidx_key =~ s/\AQ// or return; # expired
+	my $ce = $cache->{$eidx_key} = {};
+	$ce->{uidvalidity} = int_val($doc, $UIDVALIDITY);
+	$ce->{-modified} = int_val($doc, $MODIFIED);
+	$ce->{description} = do {
+		# extract description from manifest.js.gz epoch description
+		my $d;
+		my $data = $json->decode($doc->get_data);
+		for (values %$data) {
+			$d = $_->{description} // next;
+			$d =~ s/ \[epoch [0-9]+\]\z// or next;
+			last;
+		}
+		$d;
+	}
+}
+
+sub _nntpd_cache_load { # retry_reopen callback
+	my ($self) = @_;
+	my $opt = { limit => $self->{xdb}->get_doccount * 10, relevance => -1 };
+	my $mset = mset($self, 'type:newsgroup type:inbox', $opt);
+	my $cache = {};
+	for my $it ($mset->items) {
+		ibx_cache_load($it->get_document, $cache);
+	}
+	$cache
+}
+
+# returns { newsgroup => $cache_entry } mapping, $cache_entry contains
+# anything which may trigger seeks at startup, currently: description,
+# -modified, and uidvalidity.
+sub nntpd_cache_load {
+	my ($self) = @_;
+	retry_reopen($self, \&_nntpd_cache_load);
+}
+
+no warnings 'once';
+*reopen = \&PublicInbox::Search::reopen;
 
 1;

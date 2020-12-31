@@ -46,12 +46,13 @@ sub _init_v1 {
 		require PublicInbox::Msgmap;
 		my $sidx = PublicInbox::SearchIdx->new($self, 1); # just create
 		$sidx->begin_txn_lazy;
+		my $mm = PublicInbox::Msgmap->new($self->{inboxdir}, 1);
 		if (defined $skip_artnum) {
-			my $mm = PublicInbox::Msgmap->new($self->{inboxdir}, 1);
 			$mm->{dbh}->begin_work;
 			$mm->skip_artnum($skip_artnum);
 			$mm->{dbh}->commit;
 		}
+		undef $mm; # ->created_at set
 		$sidx->commit_txn_lazy;
 	} else {
 		open my $fh, '>>', "$self->{inboxdir}/ssoma.lock" or
@@ -64,7 +65,6 @@ sub init_inbox {
 	if ($self->version == 1) {
 		my $dir = assert_usable_dir($self);
 		PublicInbox::Import::init_bare($dir);
-		$self->umask_prepare;
 		$self->with_umask(\&_init_v1, $self, $skip_artnum);
 	} else {
 		my $v2w = importer($self);
@@ -259,7 +259,7 @@ sub _umask_for {
 
 sub with_umask {
 	my ($self, $cb, @arg) = @_;
-	my $old = umask $self->{umask};
+	my $old = umask($self->{umask} //= umask_prepare($self));
 	my $rv = eval { $cb->(@arg) };
 	my $err = $@;
 	umask $old;
@@ -270,8 +270,7 @@ sub with_umask {
 sub umask_prepare {
 	my ($self) = @_;
 	my $perm = _git_config_perm($self);
-	my $umask = _umask_for($perm);
-	$self->{umask} = $umask;
+	_umask_for($perm);
 }
 
 sub cleanup ($) {
@@ -293,7 +292,7 @@ sub warn_ignore {
 
 # this expects to be RHS in this assignment: "local $SIG{__WARN__} = ..."
 sub warn_ignore_cb {
-	my $cb = $SIG{__WARN__} // sub { print STDERR @_ };
+	my $cb = $SIG{__WARN__} // \&CORE::warn;
 	sub {
 		return if warn_ignore(@_);
 		$cb->(@_);

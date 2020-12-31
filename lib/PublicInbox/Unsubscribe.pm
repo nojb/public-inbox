@@ -12,7 +12,8 @@ use warnings;
 use Crypt::CBC;
 use Plack::Util;
 use MIME::Base64 qw(decode_base64url);
-my $CODE_URL = 'https://public-inbox.org/public-inbox.git';
+my @CODE_URL = qw(http://ou63pmih66umazou.onion/public-inbox.git
+	https://public-inbox.org/public-inbox.git);
 my @CT_HTML = ('Content-Type', 'text/html; charset=UTF-8');
 
 sub new {
@@ -38,13 +39,15 @@ sub new {
 	my $unsubscribe = $opt{unsubscribe} or
 		die "`unsubscribe' callback not given\n";
 
+	my $code_url = $opt{code_url} || \@CODE_URL;
+	$code_url = [ $code_url ] if ref($code_url) ne 'ARRAY';
 	bless {
 		pi_cfg => $opt{pi_config}, # PublicInbox::Config
 		owner_email => $opt{owner_email},
 		cipher => $cipher,
 		unsubscribe => $unsubscribe,
 		contact => qq(<a\nhref="mailto:$e">$e</a>),
-		code_url => $opt{code_url} || $CODE_URL,
+		code_url => $code_url,
 		confirm => $opt{confirm},
 	}, $class;
 }
@@ -138,7 +141,7 @@ sub r {
 		"<html><head><title>$title</title></head><body><pre>".
 		join("\n", "<b>$title</b>\n", @body) . '</pre><hr>'.
 		"<pre>This page is available under AGPL-3.0+\n" .
-		"git clone $self->{code_url}\n" .
+		join('', map { "git clone $_\n" } @{$self->{code_url}}) .
 		qq(Email $self->{contact} if you have any questions).
 		'</pre></body></html>'
 	] ];

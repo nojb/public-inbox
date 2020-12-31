@@ -64,7 +64,6 @@ sub new {
 		$self->{-set_skip_docdata_once} = 1;
 		$self->{-skip_docdata} = 1;
 	}
-	$ibx->umask_prepare;
 	if ($version == 1) {
 		$self->{lock_path} = "$inboxdir/ssoma.lock";
 		my $dir = $self->xdir;
@@ -103,7 +102,6 @@ sub load_xapian_writable () {
 	}
 	eval 'require '.$X->{WritableDatabase} or die;
 	*sortable_serialise = $xap.'::sortable_serialise';
-	*sortable_unserialise = $xap.'::sortable_unserialise';
 	$DB_CREATE_OR_OPEN = eval($xap.'::DB_CREATE_OR_OPEN()');
 	$DB_OPEN = eval($xap.'::DB_OPEN()');
 	my $ver = (eval($xap.'::major_version()') << 16) |
@@ -539,17 +537,12 @@ sub remove_keywords {
 	$self->{xdb}->replace_document($docid, $doc) if $replace;
 }
 
-sub get_val ($$) {
-	my ($doc, $col) = @_;
-	sortable_unserialise($doc->get_value($col));
-}
-
 sub smsg_from_doc ($) {
 	my ($doc) = @_;
 	my $data = $doc->get_data or return;
 	my $smsg = bless {}, 'PublicInbox::Smsg';
-	$smsg->{ts} = get_val($doc, PublicInbox::Search::TS());
-	my $dt = get_val($doc, PublicInbox::Search::DT());
+	$smsg->{ts} = int_val($doc, PublicInbox::Search::TS());
+	my $dt = int_val($doc, PublicInbox::Search::DT());
 	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $dt);
 	$smsg->{ds} = timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
 	$smsg->load_from_data($data);
@@ -660,6 +653,7 @@ sub index_both { # git->cat_async callback
 	$smsg->{num} = index_mm($self, $eml, $oid, $sync) or
 		die "E: could not generate NNTP article number for $oid";
 	add_message($self, $eml, $smsg, $sync);
+	++$self->{nidx};
 	my $cur_cmt = $sync->{cur_cmt} // die 'BUG: {cur_cmt} missing';
 	${$sync->{latest_cmt}} = $cur_cmt;
 }
@@ -674,6 +668,7 @@ sub unindex_both { # git->cat_async callback
 	if (defined(my $cur_cmt = $sync->{cur_cmt})) {
 		${$sync->{latest_cmt}} = $cur_cmt;
 	}
+	++$self->{nidx};
 }
 
 sub with_umask {

@@ -91,8 +91,6 @@ sub new {
 			die "$dir does not exist\n";
 		}
 	}
-	$v2ibx->umask_prepare;
-
 	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
 	my $self = {
 		ibx => $v2ibx,
@@ -314,7 +312,6 @@ sub idx_init {
 	$ibx->git->cleanup;
 
 	parallel_init($self, $ibx->{indexlevel});
-	$ibx->umask_prepare;
 	$ibx->with_umask(\&_idx_init, $self, $opt);
 }
 
@@ -876,7 +873,7 @@ sub reindex_checkpoint ($$) {
 		$self->done; # release lock
 	}
 
-	if (my $pr = $sync->{-opt}->{-progress}) {
+	if (my $pr = $sync->{-regen_fmt} ? $sync->{-opt}->{-progress} : undef) {
 		$pr->(sprintf($sync->{-regen_fmt}, ${$sync->{nr}}));
 	}
 
@@ -888,12 +885,22 @@ sub reindex_checkpoint ($$) {
 	$mm_tmp->atfork_parent if $mm_tmp;
 }
 
+sub index_finalize ($$) {
+	my ($arg, $index) = @_;
+	++$arg->{self}->{nidx};
+	if (defined(my $cur = $arg->{cur_cmt})) {
+		${$arg->{latest_cmt}} = $cur;
+	} elsif ($index) {
+		die 'BUG: {cur_cmt} missing';
+	} # else { unindexing @leftovers doesn't set {cur_cmt}
+}
+
 sub index_oid { # cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
-	return if is_bad_blob($oid, $type, $size, $arg->{oid});
+	is_bad_blob($oid, $type, $size, $arg->{oid}) and
+		return index_finalize($arg, 1); # size == 0 purged returns here
 	my $self = $arg->{self};
 	local $self->{current_info} = "$self->{current_info} $oid";
-	return if $size == 0; # purged
 	my ($num, $mid0);
 	my $eml = PublicInbox::Eml->new($$bref);
 	my $mids = mids($eml);
@@ -964,7 +971,7 @@ sub index_oid { # cat_async callback
 	if (do_idx($self, $bref, $eml, $smsg)) {
 		${$arg->{need_checkpoint}} = 1;
 	}
-	${$arg->{latest_cmt}} = $arg->{cur_cmt} // die 'BUG: {cur_cmt} missing';
+	index_finalize($arg, 1);
 }
 
 # only update last_commit for $i on reindex iff newer than current
@@ -1091,12 +1098,14 @@ sub sync_prepare ($$) {
 		-d $git_dir or next; # missing epochs are fine
 		my $git = PublicInbox::Git->new($git_dir);
 		my $unit = { git => $git, epoch => $i };
+		my $tip;
 		if ($reindex_heads) {
-			$head = $reindex_heads->[$i] or next;
+			$tip = $head = $reindex_heads->[$i] or next;
+		} else {
+			$tip = $git->qx(qw(rev-parse -q --verify), $head);
+			next if $?; # new repo
+			chomp $tip;
 		}
-		chomp(my $tip = $git->qx(qw(rev-parse -q --verify), $head));
-		next if $?; # new repo
-
 		my $range = log_range($sync, $unit, $tip) or next;
 		# can't use 'rev-list --count' if we use --diff-filter
 		$pr->("$pfx $i.git counting $range ... ") if $pr;
@@ -1154,11 +1163,12 @@ sub unindex_oid_aux ($$$) {
 }
 
 sub unindex_oid ($$;$) { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $sync) = @_;
-	return if is_bad_blob($oid, $type, $size, $sync->{oid});
-	my $self = $sync->{self};
+	my ($bref, $oid, $type, $size, $arg) = @_;
+	is_bad_blob($oid, $type, $size, $arg->{oid}) and
+		return index_finalize($arg, 0);
+	my $self = $arg->{self};
 	local $self->{current_info} = "$self->{current_info} $oid";
-	my $unindexed = $sync->{in_unindex} ? $sync->{unindexed} : undef;
+	my $unindexed = $arg->{in_unindex} ? $arg->{unindexed} : undef;
 	my $mm = $self->{mm};
 	my $mids = mids(PublicInbox::Eml->new($bref));
 	undef $$bref;
@@ -1183,6 +1193,7 @@ sub unindex_oid ($$;$) { # git->cat_async callback
 		}
 		unindex_oid_aux($self, $oid, $mid);
 	}
+	index_finalize($arg, 0);
 }
 
 sub git { $_[0]->{ibx}->git }
@@ -1348,11 +1359,19 @@ sub index_sync {
 	$opt //= {};
 	return xapian_only($self, $opt) if $opt->{xapian_only};
 
-	my $pr = $opt->{-progress};
 	my $epoch_max;
-	my $latest = $self->{ibx}->git_dir_latest(\$epoch_max);
-	return unless defined $latest;
+	my $latest = $self->{ibx}->git_dir_latest(\$epoch_max) // return;
+	if ($opt->{'fast-noop'}) { # nanosecond (st_ctim) comparison
+		use Time::HiRes qw(stat);
+		if (my @mm = stat("$self->{ibx}->{inboxdir}/msgmap.sqlite3")) {
+			my $c = $mm[10]; # 10 = ctime (nsec NV)
+			my @hd = stat("$latest/refs/heads");
+			my @pr = stat("$latest/packed-refs");
+			return if $c > ($hd[10] // 0) && $c > ($pr[10] // 0);
+		}
+	}
 
+	my $pr = $opt->{-progress};
 	my $seq = $opt->{sequential_shard};
 	my $art_beg; # the NNTP article number we start xapian_only at
 	my $idxlevel = $self->{ibx}->{indexlevel};

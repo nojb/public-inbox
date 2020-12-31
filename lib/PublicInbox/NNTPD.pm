@@ -36,10 +36,12 @@ sub refresh_groups {
 	my ($self, $sig) = @_;
 	my $pi_cfg = $sig ? PublicInbox::Config->new : $self->{pi_cfg};
 	my $groups = $pi_cfg->{-by_newsgroup}; # filled during each_inbox
+	my $cache = eval { $pi_cfg->ALL->misc->nntpd_cache_load } // {};
 	$pi_cfg->each_inbox(sub {
 		my ($ibx) = @_;
 		my $ngname = $ibx->{newsgroup} // return;
-		if ($ibx->nntp_usable) {
+		my $ce = $cache->{$ngname};
+		if (($ce and (%$ibx = (%$ibx, %$ce))) || $ibx->nntp_usable) {
 			# only valid if msgmap and over works
 			# preload to avoid fragmentation:
 			$ibx->description;

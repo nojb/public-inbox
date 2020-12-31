@@ -1136,7 +1136,7 @@ sub search_common {
 		my $srch = $self->{ibx}->isrch or
 			return "$tag BAD search not available for mailbox\r\n";
 		my $opt = {
-			mset => 2,
+			relevance => -1,
 			limit => UID_SLICE,
 			uid_range => $range_info
 		};

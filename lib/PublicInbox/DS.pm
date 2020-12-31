@@ -50,7 +50,6 @@ our (
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
 
      $LoopTimeout,               # timeout of event loop in milliseconds
-     $DoneInit,                  # if we've done the one-time module init yet
      @Timers,                    # timers
      $in_loop,
      );
@@ -75,12 +74,9 @@ sub Reset {
     @Timers = ();
 
     $PostLoopCallback = undef;
-    $DoneInit = 0;
 
     $_io = undef; # closes real $Epoll FD
     $Epoll = undef; # may call DSKQXS::DESTROY
-
-    *EventLoop = *FirstTimeEventLoop;
 }
 
 =head2 C<< CLASS->SetLoopTimeout( $timeout ) >>
@@ -91,9 +87,7 @@ A timeout of 0 (zero) means poll forever. A timeout of -1 means poll and return
 immediately.
 
 =cut
-sub SetLoopTimeout {
-    return $LoopTimeout = $_[1] + 0;
-}
+sub SetLoopTimeout { $LoopTimeout = $_[1] + 0 }
 
 =head2 C<< PublicInbox::DS::add_timer( $seconds, $coderef, $arg) >>
 
@@ -137,14 +131,13 @@ sub set_cloexec ($) {
     fcntl($_io, F_SETFD, $fl | FD_CLOEXEC);
 }
 
+# caller sets return value to $Epoll
 sub _InitPoller
 {
-    return if $DoneInit;
-    $DoneInit = 1;
-
     if (PublicInbox::Syscall::epoll_defined())  {
-        $Epoll = epoll_create();
-        set_cloexec($Epoll) if (defined($Epoll) && $Epoll >= 0);
+        my $fd = epoll_create();
+        set_cloexec($fd) if (defined($fd) && $fd >= 0);
+	$fd;
     } else {
         my $cls;
         for (qw(DSKQXS DSPoll)) {
@@ -152,9 +145,8 @@ sub _InitPoller
             last if eval "require $cls";
         }
         $cls->import(qw(epoll_ctl epoll_wait));
-        $Epoll = $cls->new;
+        $cls->new;
     }
-    *EventLoop = *EpollEventLoop;
 }
 
 =head2 C<< CLASS->EventLoop() >>
@@ -163,13 +155,6 @@ Start processing IO events. In most daemon programs this never exits. See
 C<PostLoopCallback> below for how to exit the loop.
 
 =cut
-sub FirstTimeEventLoop {
-    my $class = shift;
-
-    _InitPoller();
-
-    EventLoop($class);
-}
 
 sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
@@ -213,12 +198,7 @@ sub RunTimers {
     my $timeout = int(($Timers[0][0] - $now) * 1000) + 1;
 
     # -1 is an infinite timeout, so prefer a real timeout
-    return $timeout     if $LoopTimeout == -1;
-
-    # otherwise pick the lower of our regular timeout and time until
-    # the next timer
-    return $LoopTimeout if $LoopTimeout < $timeout;
-    return $timeout;
+    ($LoopTimeout < 0 || $LoopTimeout >= $timeout) ? $timeout : $LoopTimeout;
 }
 
 # We can't use waitpid(-1) safely here since it can hit ``, system(),
@@ -271,21 +251,21 @@ sub PostEventLoop () {
 	$PostLoopCallback ? $PostLoopCallback->(\%DescriptorMap) : 1;
 }
 
-sub EpollEventLoop {
+sub EventLoop {
+    $Epoll //= _InitPoller();
     local $in_loop = 1;
+    my @events;
     do {
-        my @events;
-        my $i;
         my $timeout = RunTimers();
 
         # get up to 1000 events
-        my $evcount = epoll_wait($Epoll, 1000, $timeout, \@events);
-        for ($i=0; $i<$evcount; $i++) {
+        epoll_wait($Epoll, 1000, $timeout, \@events);
+        for my $fd (@events) {
             # it's possible epoll_wait returned many events, including some at the end
             # that ones in the front triggered unregister-interest actions.  if we
             # can't find the %sock entry, it's because we're no longer interested
             # in that event.
-            $DescriptorMap{$events[$i]->[0]}->event_step;
+            $DescriptorMap{$fd}->event_step;
         }
     } while (PostEventLoop());
     _run_later();
@@ -330,8 +310,7 @@ sub new {
     $self->{sock} = $sock;
     my $fd = fileno($sock);
 
-    _InitPoller();
-
+    $Epoll //= _InitPoller();
 retry:
     if (epoll_ctl($Epoll, EPOLL_CTL_ADD, $fd, $ev)) {
         if ($! == EINVAL && ($ev & EPOLLEXCLUSIVE)) {

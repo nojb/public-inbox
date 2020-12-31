@@ -12,10 +12,7 @@ my $v2_dir = "$tmpdir/v2";
 my ($res, $err, $v);
 
 PublicInbox::Import::init_bare($git_dir);
-*resolve_inboxdir = do {
-	no warnings 'once';
-	*PublicInbox::Admin::resolve_inboxdir;
-};
+*resolve_inboxdir = \&PublicInbox::Admin::resolve_inboxdir;
 
 # v1
 is(resolve_inboxdir($git_dir), $git_dir, 'top-level GIT_DIR resolved');
@@ -72,16 +69,23 @@ SKIP: {
 	ok(-e "$v2_dir/inbox.lock", 'exists');
 	is(resolve_inboxdir($v2_dir), $v2_dir,
 		'resolve_inboxdir works on v2_dir');
-	ok(chdir($v2_dir), 'chdir v2_dir OK');
+	chdir($v2_dir) or BAIL_OUT "chdir v2_dir: $!";
 	is(resolve_inboxdir(), $v2_dir, 'resolve_inboxdir works inside v2_dir');
 	$res = resolve_inboxdir(undef, \$v);
 	is($v, 2, 'version 2 detected');
 	is($res, $v2_dir, 'detects directory along with version');
 
 	# TODO: should work from inside Xapian dirs, and git dirs, here...
+	PublicInbox::Import::init_bare("$v2_dir/git/0.git");
+	my $objdir = "$v2_dir/git/0.git/objects";
+	is($v2_dir, resolve_inboxdir($objdir, \$v), 'at $objdir');
+	is($v, 2, 'version 2 detected at $objdir');
+	chdir($objdir) or BAIL_OUT "chdir objdir: $!";
+	is(resolve_inboxdir(undef, \$v), $v2_dir, 'inside $objdir');
+	is($v, 2, 'version 2 detected inside $objdir');
 }
 
-chdir '/';
+chdir '/' or BAIL_OUT "chdir: $!";
 
 my @pairs = (
 	'1g' => 1024 ** 3,

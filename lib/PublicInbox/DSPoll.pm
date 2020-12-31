@@ -45,14 +45,13 @@ sub epoll_wait {
 			my $fd = $pset[$i++];
 			my $revents = $pset[$i++] or next;
 			delete($self->{$fd}) if $self->{$fd} & EPOLLONESHOT;
-			push @$events, [ $fd ];
+			push @$events, $fd;
 		}
 		my $nevents = scalar @$events;
 		if ($n != $nevents) {
 			warn "BUG? poll() returned $n, but got $nevents";
 		}
 	}
-	$n;
 }
 
 1;

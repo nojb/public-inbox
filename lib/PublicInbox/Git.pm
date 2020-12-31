@@ -362,10 +362,8 @@ sub popen {
 sub qx {
 	my ($self, @cmd) = @_;
 	my $fh = $self->popen(@cmd);
-	local $/ = "\n";
-	return <$fh> if wantarray;
-	local $/;
-	<$fh>
+	local $/ = wantarray ? "\n" : undef;
+	<$fh>;
 }
 
 # check_async and cat_async may trigger the other, so ensure they're

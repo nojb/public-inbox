@@ -332,13 +332,13 @@ $ibx->with_umask(sub {
 		like($smsg->{to}, qr/\blist\@example\.com\b/, 'to appears');
 		my $doc = $m->get_document;
 		my $col = PublicInbox::Search::BYTES();
-		my $bytes = PublicInbox::SearchIdx::get_val($doc, $col);
+		my $bytes = PublicInbox::Search::int_val($doc, $col);
 		like($bytes, qr/\A[0-9]+\z/, '$bytes stored as digit');
 		ok($bytes > 0, '$bytes is > 0');
 		is($bytes, $smsg->{bytes}, 'bytes Xapian value matches Over');
 
 		$col = PublicInbox::Search::UID();
-		my $uid = PublicInbox::SearchIdx::get_val($doc, $col);
+		my $uid = PublicInbox::Search::int_val($doc, $col);
 		is($uid, $smsg->{num}, 'UID column matches {num}');
 		is($uid, $m->get_docid, 'UID column matches docid');
 	}

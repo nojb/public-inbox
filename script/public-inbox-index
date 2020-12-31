@@ -17,7 +17,7 @@ options:
 
   --no-fsync          speed up indexing, risk corruption on power outage
   -L LEVEL            `basic', `medium', or `full' (default: full)
-  -E EIDX             update EIDX (e.g. `all')
+  -E EXTINDEX         update extindex (default: `all')
   --all               index all configured inboxes
   --compact | -c      run public-inbox-compact(1) after indexing
   --sequential-shard  index Xapian shards sequentially for slow storage
@@ -32,18 +32,25 @@ options:
 BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
 See public-inbox-index(1) man page for full documentation.
 EOF
-my $opt = { quiet => -1, compact => 0, max_size => undef, fsync => 1 };
+my $opt = {
+	quiet => -1, compact => 0, max_size => undef, fsync => 1,
+	'update-extindex' => [], # ":s@" optional arg sets '' if no arg given
+};
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		fsync|sync! xapian_only|xapian-only
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		sequential_shard|seq-shard|sequential-shard
-		skip-docdata all help|h))
+		no-update-extindex update-extindex|E=s@
+		fast-noop|F skip-docdata all help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
 if ($opt->{xapian_only} && !$opt->{reindex}) {
 	die "--xapian-only requires --reindex\n";
+}
+if ($opt->{reindex} && delete($opt->{'fast-noop'})) {
+	warn "--fast-noop ignored with --reindex\n";
 }
 
 # require lazily to speed up --help
@@ -56,7 +63,34 @@ my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 PublicInbox::Admin::require_or_die('-index');
 unless (@ibxs) { print STDERR $help; exit 1 }
 
+my (@eidx, %eidx_seen);
+my $update_extindex = $opt->{'update-extindex'};
+if (!scalar(@$update_extindex) && (my $ALL = $cfg->ALL)) {
+	# extindex and normal inboxes may have different owners
+	push(@$update_extindex, 'all') if -w $ALL->{topdir};
+}
+@$update_extindex = () if $opt->{'no-update-extindex'};
+if (scalar @$update_extindex) {
+	PublicInbox::Admin::require_or_die('-search');
+	require PublicInbox::ExtSearchIdx;
+}
+for my $ei_name (@$update_extindex) {
+	my $es = $cfg->lookup_ei($ei_name);
+	my $topdir;
+	if (!$es && -d $ei_name) { # allow dirname or config section name
+		$topdir = $ei_name;
+	} elsif ($es) {
+		$topdir = $es->{topdir};
+	} else {
+		die "extindex `$ei_name' not configured or found\n";
+	}
+	my $o = { %$opt };
+	delete $o->{indexlevel} if ($o->{indexlevel}//'') eq 'basic';
+	$eidx_seen{$topdir} //=
+		push(@eidx, PublicInbox::ExtSearchIdx->new($topdir, $o));
+}
 my $mods = {};
+my @eidx_unconfigured;
 foreach my $ibx (@ibxs) {
 	# detect_indexlevel may also set $ibx->{-skip_docdata}
 	my $detected = PublicInbox::Admin::detect_indexlevel($ibx);
@@ -64,7 +98,14 @@ foreach my $ibx (@ibxs) {
 	$ibx->{indexlevel} //= $opt->{indexlevel} // ($opt->{xapian_only} ?
 			'full' : $detected);
 	PublicInbox::Admin::scan_ibx_modules($mods, $ibx);
+	if (@eidx && $ibx->{-unconfigured}) {
+		push @eidx_unconfigured, "  $ibx->{inboxdir}\n";
+	}
 }
+warn <<EOF if @eidx_unconfigured;
+The following inboxes are unconfigured and will not be updated in
+@$update_extindex:\n@eidx_unconfigured
+EOF
 
 # "Search::Xapian" includes SWIG "Xapian", too:
 $opt->{compact} = 0 if !$mods->{'Search::Xapian'};
@@ -90,10 +131,21 @@ publicInbox.$ibx->{name}.indexSequentialShard not boolean
 EOL
 		$ibx_opt = { %$opt, sequential_shard => $v };
 	}
-	PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
+	my $nidx = PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
 	last if $ibx_opt->{quit};
 	if (my $copt = $opt->{compact_opt}) {
 		local $copt->{jobs} = 0 if $ibx_opt->{sequential_shard};
 		PublicInbox::Xapcmd::run($ibx, 'compact', $copt);
 	}
+	last if $ibx_opt->{quit};
+	next if $ibx->{-unconfigured} || !$nidx;
+	for my $eidx (@eidx) {
+		$eidx->attach_inbox($ibx);
+	}
+}
+my $pr = $opt->{-progress};
+for my $eidx (@eidx) {
+	$pr->("indexing $eidx->{topdir} ...\n") if $pr;
+	$eidx->eidx_sync($opt);
+	last if $opt->{quit};
 }

@@ -109,10 +109,6 @@ sub new {
 		delete $opts->{feedmax};
 	}
 	$opts->{nntpserver} ||= $pi_cfg->{'publicinbox.nntpserver'};
-	my $dir = $opts->{inboxdir};
-	if (defined $dir && -f "$dir/inbox.lock") {
-		$opts->{version} = 2;
-	}
 
 	# allow any combination of multi-line or comma-delimited hide entries
 	my $hide = {};
@@ -125,7 +121,9 @@ sub new {
 	bless $opts, $class;
 }
 
-sub version { $_[0]->{version} // 1 }
+sub version {
+	$_[0]->{version} //= -f "$_[0]->{inboxdir}/inbox.lock" ? 2 : 1
+}
 
 sub git_epoch {
 	my ($self, $epoch) = @_; # v2-only, callers always supply $epoch
@@ -134,7 +132,7 @@ sub git_epoch {
 		return unless -d $git_dir;
 		my $g = PublicInbox::Git->new($git_dir);
 		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
-		# no cleanup needed, we never cat-file off this, only clone
+		# caller must manually cleanup when done
 		$g;
 	};
 }
@@ -212,12 +210,9 @@ sub over {
 
 sub try_cat {
 	my ($path) = @_;
-	my $rv = '';
-	if (open(my $fh, '<', $path)) {
-		local $/;
-		$rv = <$fh>;
-	}
-	$rv;
+	open(my $fh, '<', $path) or return '';
+	local $/;
+	<$fh> // '';
 }
 
 sub cat_desc ($) {
@@ -416,8 +411,8 @@ sub on_unlock {
 	my ($self) = @_;
 	check_inodes($self);
 	my $subs = $self->{unlock_subs} or return;
-	for (values %$subs) {
-		eval { $_->on_inbox_unlock($self) };
+	for my $obj (values %$subs) {
+		eval { $obj->on_inbox_unlock($self) };
 		warn "E: $@ ($self->{inboxdir})\n" if $@;
 	}
 }

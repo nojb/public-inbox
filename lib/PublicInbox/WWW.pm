@@ -505,7 +505,7 @@ sub get_inbox_manifest ($$$) {
 	my $r404 = invalid_inbox($ctx, $inbox);
 	return $r404 if $r404;
 	require PublicInbox::ManifestJsGz;
-	PublicInbox::ManifestJsGz->response($ctx);
+	PublicInbox::ManifestJsGz::per_inbox($ctx);
 }
 
 sub get_attach {

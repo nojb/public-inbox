@@ -39,8 +39,7 @@ my $spamc = PublicInbox::Spamcheck::Spamc->new;
 my $pi_cfg = PublicInbox::Config->new;
 my $err;
 my $mime = PublicInbox::Eml->new(do{
-	local $/;
-	my $data = <STDIN>;
+	defined(my $data = do { local $/; <STDIN> }) or die "read STDIN: $!\n";
 	$data =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 
 	if ($train ne 'rm') {

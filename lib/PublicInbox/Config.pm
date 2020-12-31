@@ -132,20 +132,16 @@ sub default_file {
 
 sub config_fh_parse ($$$) {
 	my ($fh, $rs, $fs) = @_;
-	my %rv;
-	my (%section_seen, @section_order);
+	my (%rv, %seen, @section_order, $line, $k, $v, $section, $cur, $i);
 	local $/ = $rs;
-	while (defined(my $line = <$fh>)) {
-		chomp $line;
-		my ($k, $v) = split($fs, $line, 2);
-		my ($section) = ($k =~ /\A(\S+)\.[^\.]+\z/);
-		unless (defined $section_seen{$section}) {
-			$section_seen{$section} = 1;
-			push @section_order, $section;
-		}
+	while (defined($line = <$fh>)) { # perf critical with giant configs
+		$i = index($line, $fs);
+		$k = substr($line, 0, $i);
+		$v = substr($line, $i + 1, -1); # chop off $fs
+		$section = substr($k, 0, rindex($k, '.'));
+		$seen{$section} //= push(@section_order, $section);
 
-		my $cur = $rv{$k};
-		if (defined $cur) {
+		if (defined($cur = $rv{$k})) {
 			if (ref($cur) eq "ARRAY") {
 				push @$cur, $v;
 			} else {
@@ -163,11 +159,10 @@ sub config_fh_parse ($$$) {
 sub git_config_dump {
 	my ($file) = @_;
 	return {} unless -e $file;
-	my @cmd = (qw/git config -z -l --includes/, "--file=$file");
-	my $cmd = join(' ', @cmd);
-	my $fh = popen_rd(\@cmd);
+	my $cmd = [ qw(git config -z -l --includes), "--file=$file" ];
+	my $fh = popen_rd($cmd);
 	my $rv = config_fh_parse($fh, "\0", "\n");
-	close $fh or die "failed to close ($cmd) pipe: $?";
+	close $fh or die "failed to close (@$cmd) pipe: $?";
 	$rv;
 }
 
@@ -369,6 +364,16 @@ sub git_bool {
 	}
 }
 
+# abs_path resolves symlinks, so we want to avoid it if rel2abs
+# is sufficient and doesn't leave "/.." or "/../"
+sub rel2abs_collapsed {
+	require File::Spec;
+	my $p = File::Spec->rel2abs($_[-1]);
+	return $p if substr($p, -3, 3) ne '/..' && index($p, '/../') < 0;
+	require Cwd;
+	Cwd::abs_path($p);
+}
+
 sub _fill {
 	my ($self, $pfx) = @_;
 	my $ibx = {};
@@ -391,10 +396,10 @@ EOF
 		}
 	}
 
-	# backwards compatibility:
-	$ibx->{inboxdir} //= $self->{"$pfx.mainrepo"};
-	if (($ibx->{inboxdir} // '') =~ /\n/s) {
-		warn "E: `$ibx->{inboxdir}' must not contain `\\n'\n";
+	# "mainrepo" is backwards compatibility:
+	my $dir = $ibx->{inboxdir} //= $self->{"$pfx.mainrepo"} // return;
+	if (index($dir, "\n") >= 0) {
+		warn "E: `$dir' must not contain `\\n'\n";
 		return;
 	}
 	foreach my $k (qw(obfuscate)) {
@@ -415,10 +420,7 @@ EOF
 		}
 	}
 
-	return unless defined($ibx->{inboxdir});
-	my $name = $pfx;
-	$name =~ s/\Apublicinbox\.//;
-
+	my $name = substr($pfx, length('publicinbox.'));
 	if (!valid_inbox_name($name)) {
 		warn "invalid inbox name: '$name'\n";
 		return;
@@ -438,7 +440,7 @@ EOF
 			$self->{-by_list_id}->{lc($list_id)} = $ibx;
 		}
 	}
-	if (my $ngname = $ibx->{newsgroup}) {
+	if (defined(my $ngname = $ibx->{newsgroup})) {
 		if (ref($ngname)) {
 			delete $ibx->{newsgroup};
 			warn 'multiple newsgroups not supported: '.
@@ -447,13 +449,21 @@ EOF
 		# wildmat-exact and RFC 3501 (IMAP) ATOM-CHAR.
 		# Leave out a few chars likely to cause problems or conflicts:
 		# '|', '<', '>', ';', '#', '$', '&',
-		} elsif ($ngname =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]!) {
+		} elsif ($ngname =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]! ||
+				$ngname eq '') {
 			delete $ibx->{newsgroup};
 			warn "newsgroup name invalid: `$ngname'\n";
 		} else {
 			# PublicInbox::NNTPD does stricter ->nntp_usable
 			# checks, keep this lean for startup speed
 			$self->{-by_newsgroup}->{$ngname} = $ibx;
+		}
+	}
+	unless (defined $ibx->{newsgroup}) { # for ->eidx_key
+		my $abs = rel2abs_collapsed($dir);
+		if ($abs ne $dir) {
+			warn "W: `$dir' canonicalized to `$abs'\n";
+			$ibx->{inboxdir} = $abs;
 		}
 	}
 	$self->{-by_name}->{$name} = $ibx;

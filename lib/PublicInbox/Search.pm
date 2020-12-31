@@ -6,7 +6,7 @@
 package PublicInbox::Search;
 use strict;
 use parent qw(Exporter);
-our @EXPORT_OK = qw(retry_reopen);
+our @EXPORT_OK = qw(retry_reopen int_val);
 use List::Util qw(max);
 
 # values for searching, changing the numeric value breaks
@@ -58,7 +58,11 @@ our $QP_FLAGS;
 our %X = map { $_ => 0 } qw(BoolWeight Database Enquire QueryParser Stem Query);
 our $Xap; # 'Search::Xapian' or 'Xapian'
 our $NVRP; # '$Xap::'.('NumberValueRangeProcessor' or 'NumberRangeProcessor')
-our $ENQ_ASCENDING;
+
+# ENQ_DESCENDING and ENQ_ASCENDING weren't in SWIG Xapian.pm prior to 1.4.16,
+# let's hope the ABI is stable
+our $ENQ_DESCENDING = 0;
+our $ENQ_ASCENDING = 1;
 
 sub load_xapian () {
 	return 1 if defined $Xap;
@@ -84,13 +88,8 @@ sub load_xapian () {
 			'NumberRangeProcessor' : 'NumberValueRangeProcessor');
 		$X{$_} = $Xap.'::'.$_ for (keys %X);
 
-		# ENQ_ASCENDING doesn't seem exported by SWIG Xapian.pm,
-		# so lets hope this part of the ABI is stable because it's
-		# just an integer:
-		$ENQ_ASCENDING = $x eq 'Xapian' ?
-				1 : Search::Xapian::ENQ_ASCENDING();
-
 		*sortable_serialise = $x.'::sortable_serialise';
+		*sortable_unserialise = $x.'::sortable_unserialise';
 		# n.b. FLAG_PURE_NOT is expensive not suitable for a public
 		# website as it could become a denial-of-service vector
 		# FLAG_PHRASE also seems to cause performance problems chert
@@ -266,7 +265,6 @@ sub mset {
 	$opts ||= {};
 	my $qp = $self->{qp} //= qparse_new($self);
 	my $query = $qp->parse_query($query_string, $self->{qp_flags});
-	$opts->{relevance} = 1 unless exists $opts->{relevance};
 	_do_enquire($self, $query, $opts);
 }
 
@@ -324,13 +322,17 @@ sub _enquire_once { # retry_reopen callback
 	$enquire->set_query($query);
 	$opts ||= {};
         my $desc = !$opts->{asc};
-	if (($opts->{mset} || 0) == 2) { # mset == 2: ORDER BY docid/UID
-		$enquire->set_docid_order($ENQ_ASCENDING);
+	my $rel = $opts->{relevance} // 0;
+	if ($rel == -1) { # ORDER BY docid/UID
 		$enquire->set_weighting_scheme($X{BoolWeight}->new);
-	} elsif ($opts->{relevance}) {
-		$enquire->set_sort_by_relevance_then_value(TS, $desc);
-	} else {
+		$enquire->set_docid_order($ENQ_ASCENDING);
+	} elsif ($rel == 0) {
 		$enquire->set_sort_by_value_then_relevance(TS, $desc);
+	} elsif ($rel == -2) {
+		$enquire->set_weighting_scheme($X{BoolWeight}->new);
+		$enquire->set_docid_order($ENQ_DESCENDING);
+	} else { # rel > 0
+		$enquire->set_sort_by_relevance_then_value(TS, $desc);
 	}
 
 	# `mairix -t / --threads' or JMAP collapseThreads
@@ -414,6 +416,12 @@ sub help {
 		push @ret, @$user_pfx;
 	}
 	\@ret;
+}
+
+sub int_val ($$) {
+	my ($doc, $col) = @_;
+	my $val = $doc->get_value($col) or return; # undefined is '' in Xapian
+	sortable_unserialise($val) + 0; # PV => IV conversion
 }
 
 1;

@@ -183,7 +183,8 @@ retry_edit:
 	# rename/relink $edit_fn
 	open my $new_fh, '<', $edit_fn or
 		die "can't read edited file ($edit_fn): $!\n";
-	my $new_raw = do { local $/; <$new_fh> };
+	defined(my $new_raw = do { local $/; <$new_fh> }) or die
+		"read $edit_fn: $!\n";
 
 	if (!$opt->{raw}) {
 		# get rid of the From we added

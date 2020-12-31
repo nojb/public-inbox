@@ -217,7 +217,7 @@ sub _try_path {
 		warn "unmappable dir: $1\n";
 		return;
 	}
-	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	my $warn_cb = $SIG{__WARN__} || \&CORE::warn;
 	local $SIG{__WARN__} = sub {
 		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';
 		$warn_cb->($pfx, "path: $path\n", @_);
@@ -467,7 +467,7 @@ sub imap_fetch_all ($$$) {
 	my $key = $req;
 	$key =~ s/\.PEEK//;
 	my ($uids, $batch);
-	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	my $warn_cb = $SIG{__WARN__} || \&CORE::warn;
 	local $SIG{__WARN__} = sub {
 		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';
 		$batch //= '?';
@@ -929,7 +929,7 @@ sub nntp_fetch_all ($$$) {
 	$beg = $l_art + 1;
 
 	warn "I: $url fetching ARTICLE $beg..$end\n";
-	my $warn_cb = $SIG{__WARN__} || sub { print STDERR @_ };
+	my $warn_cb = $SIG{__WARN__} || \&CORE::warn;
 	my ($err, $art);
 	local $SIG{__WARN__} = sub {
 		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';

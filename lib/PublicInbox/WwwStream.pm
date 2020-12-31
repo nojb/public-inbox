@@ -12,7 +12,8 @@ our @EXPORT_OK = qw(html_oneshot);
 use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl ts2str);
 our $TOR_URL = 'https://www.torproject.org/';
-our $CODE_URL = 'https://public-inbox.org/public-inbox.git';
+our $CODE_URL = [ qw(http://ou63pmih66umazou.onion/public-inbox.git
+	https://public-inbox.org/public-inbox.git) ];
 
 sub base_url ($) {
 	my $ctx = shift;
@@ -78,22 +79,24 @@ sub html_top ($) {
 
 sub coderepos ($) {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{ibx};
+	my $cr = $ctx->{ibx}->{coderepo} // return ();
+	my $cfg = $ctx->{www}->{pi_cfg};
+	my $upfx = ($ctx->{-upfx} // ''). '../';
 	my @ret;
-	if (defined(my $cr = $ibx->{coderepo})) {
-		my $cfg = $ctx->{www}->{pi_cfg};
-		my $env = $ctx->{env};
-		for my $cr_name (@$cr) {
-			my $urls = $cfg->{"coderepo.$cr_name.cgiturl"};
-			if ($urls) {
-				$ret[0] //= <<EOF;
+	for my $cr_name (@$cr) {
+		my $urls = $cfg->{"coderepo.$cr_name.cgiturl"} // next;
+		$ret[0] //= <<EOF;
 code repositories for the project(s) associated with this inbox:
 EOF
-				$ret[0] .= "\n\t".prurl($env, $_) for @$urls;
-			}
+		for (@$urls) {
+			# relative or absolute URL?, prefix relative "foo.git"
+			# with appropriate number of "../"
+			my $u = m!\A(?:[a-z\+]+:)?//! ? $_ : $upfx.$_;
+			$u = ascii_html(prurl($ctx->{env}, $u));
+			$ret[0] .= qq(\n\t<a\nhref="$u">$u</a>);
 		}
 	}
-	@ret; # may be empty
+	@ret; # may be empty, this sub is called as an arg for join()
 }
 
 sub code_footer ($) {
