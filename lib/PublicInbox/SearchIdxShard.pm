@@ -34,6 +34,7 @@ sub spawn_worker {
 	my $pid = fork;
 	defined $pid or die "fork failed: $!\n";
 	if ($pid == 0) {
+		eval { PublicInbox::DS->Reset };
 		# these signals are localized in parent
 		$SIG{$_} = 'IGNORE' for (qw(TERM INT QUIT));
 		PublicInbox::Sigfd::sig_setmask($oldset);
