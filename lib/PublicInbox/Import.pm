@@ -19,13 +19,21 @@ use PublicInbox::MDA;
 use PublicInbox::Eml;
 use POSIX qw(strftime);
 
+sub default_branch () {
+	state $default_branch = do {
+		my $r = popen_rd([qw(git config --global init.defaultBranch)]);
+		chomp(my $h = <$r> // '');
+		$h eq '' ? 'refs/heads/master' : $h;
+	}
+}
+
 sub new {
 	# we can't change arg order, this is documented in POD
 	# and external projects may rely on it:
 	my ($class, $git, $name, $email, $ibx) = @_;
-	my $ref = 'refs/heads/master';
+	my $ref;
 	if ($ibx) {
-		$ref = $ibx->{ref_head} // 'refs/heads/master';
+		$ref = $ibx->{ref_head};
 		$name //= $ibx->{name};
 		$email //= $ibx->{-primary_address};
 		$git //= $ibx->git;
@@ -34,7 +42,7 @@ sub new {
 		git => $git,
 		ident => "$name <$email>",
 		mark => 1,
-		ref => $ref,
+		ref => $ref // default_branch,
 		ibx => $ibx,
 		path_type => '2/38', # or 'v2'
 		lock_path => "$git->{git_dir}/ssoma.lock", # v2 changes this
@@ -441,7 +449,7 @@ sub run_die ($;$$) {
 	$? == 0 or die join(' ', @$cmd) . " failed: $?\n";
 }
 
-my @INIT_FILES = ('HEAD' => "ref: refs/heads/master\n",
+my @INIT_FILES = ('HEAD' => undef, # filled in at runtime
 		'description' => <<EOD,
 Unnamed repository; edit this file 'description' to name the repository.
 EOD
@@ -459,6 +467,7 @@ sub init_bare {
 	$dir = $dir->{git}->{git_dir} if ref($dir);
 	require File::Path;
 	File::Path::mkpath([ map { "$dir/$_" } qw(objects/info refs/heads) ]);
+	$INIT_FILES[1] //= 'ref: '.default_branch."\n";
 	for (my $i = 0; $i < @INIT_FILES; $i++) {
 		my $f = $dir.'/'.$INIT_FILES[$i++];
 		next if -f $f;
