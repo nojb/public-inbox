@@ -62,4 +62,51 @@ for my $mbox (qw(mboxrd mboxo mboxcl mboxcl2)) {
 	}
 }
 
+my ($tmpdir, $for_destroy) = tmpdir();
+local $ENV{TMPDIR} = $tmpdir;
+open my $err, '>>', "$tmpdir/lei.err" or BAIL_OUT $!;
+my $lei = { 2 => $err };
+my $buf = <<'EOM';
+From: x@example.com
+Subject: x
+
+blah
+EOM
+my $fn = "$tmpdir/x.mbox";
+my $orig = do {
+	my $wcb = PublicInbox::LeiToMail->write_cb("mboxcl2:$fn", $lei);
+	is(ref $wcb, 'CODE', 'write_cb returned callback');
+	ok(-f $fn && !-s _, 'empty file created');
+	$wcb->(\(my $dup = $buf), 'deadbeef', [ qw(seen) ]);
+	undef $wcb;
+	open my $fh, '<', $fn or BAIL_OUT $!;
+	my $raw = do { local $/; <$fh> };
+	like($raw, qr/^blah\n/sm, 'wrote content');
+	unlink $fn or BAIL_OUT $!;
+
+	local $lei->{opt} = { jobs => 2 };
+	$wcb = PublicInbox::LeiToMail->write_cb("mboxcl2:$fn", $lei);
+	$wcb->(\($dup = $buf), 'deadbeef', [ qw(seen) ]);
+	undef $wcb;
+	open $fh, '<', $fn or BAIL_OUT $!;
+	is($raw, do { local $/; <$fh> }, 'jobs > 1');
+	$raw;
+};
+SKIP: {
+	use PublicInbox::Spawn qw(which);
+	my $gzip = which('gzip') or skip 'gzip not found', 1;
+	my $wcb = PublicInbox::LeiToMail->write_cb("mboxcl2:$fn.gz", $lei);
+	$wcb->(\(my $dup = $buf), 'deadbeef', [ qw(seen) ]);
+	undef $wcb;
+	my $uncompressed = xqx([$gzip, '-dc', "$fn.gz"]);
+	is($uncompressed, $orig, 'gzip works');
+
+	local $lei->{opt} = { jobs => 2 };
+	unlink "$fn.gz" or die "unlink $!";
+	$wcb = PublicInbox::LeiToMail->write_cb("mboxcl2:$fn.gz", $lei);
+	$wcb->(\(my $dupe = $buf), 'deadbeef', [ qw(seen) ]);
+	undef $wcb;
+	is(xqx([$gzip, '-dc', "$fn.gz"]), $orig);
+}
+
 done_testing;

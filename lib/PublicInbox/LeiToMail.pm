@@ -6,6 +6,12 @@ package PublicInbox::LeiToMail;
 use strict;
 use v5.10.1;
 use PublicInbox::Eml;
+use PublicInbox::Lock;
+use PublicInbox::ProcessPipe;
+use PublicInbox::Spawn qw(which spawn);
+use Symbol qw(gensym);
+use File::Temp ();
+use IO::Handle; # ->autoflush
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -45,10 +51,14 @@ sub _mbox_hdr_buf ($$$) {
 	$buf;
 }
 
-sub write_in_full_atomic ($$) {
-	my ($fh, $buf) = @_;
-	defined(my $w = syswrite($fh, $$buf)) or die "write: $!";
-	$w == length($$buf) or die "short write: $w != ".length($$buf);
+sub write_in_full ($$$) {
+	my ($fh, $buf, $atomic) = @_;
+	if ($atomic) {
+		defined(my $w = syswrite($fh, $$buf)) or die "write: $!";
+		$w == length($$buf) or die "short write: $w != ".length($$buf);
+	} else {
+		print $fh $$buf or die "print: $!";
+	}
 }
 
 sub eml2mboxrd ($;$) {
@@ -104,6 +114,87 @@ sub eml2mboxcl2 {
 	}
 	$$buf .= $crlf;
 	$buf;
+}
+
+sub mkmaildir ($) {
+	my ($maildir) = @_;
+	for (qw(new tmp cur)) {
+		my $d = "$maildir/$_";
+		next if -d $d;
+		require File::Path;
+		if (!File::Path::mkpath($d) && !-d $d) {
+			die "failed to mkpath($d): $!\n";
+		}
+	}
+}
+
+sub git_to_mail { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $arg) = @_;
+	if ($type ne 'blob') {
+		if ($type eq 'missing') {
+			warn "missing $oid\n";
+		} else {
+			warn "unexpected type=$type for $oid\n";
+		}
+	}
+	if ($size > 0) {
+		my ($write_cb, $kw) = @$arg;
+		$write_cb->($bref, $oid, $kw);
+	}
+}
+
+sub reap_compress { # dwaitpid callback
+	my ($lei, $pid) = @_;
+	my $cmd = delete $lei->{"pid.$pid"};
+	return if $? == 0;
+	$lei->fail("@$cmd failed", $? >> 8);
+}
+
+sub compress_dst {
+	my ($out, $sfx, $lei) = @_;
+	my $cmd = [];
+	if ($sfx eq 'gz') {
+		$cmd->[0] = which($lei->{env}->{GZIP} // 'pigz') //
+				which('gzip') //
+			die "pigz or gzip missing for $sfx\n";
+			# TODO: use IO::Compress::Gzip
+		push @$cmd, '-c'; # stdout
+		push @$cmd, '--rsyncable' if $lei->{opt}->{rsyncable};
+	} else {
+		die "TODO $sfx"
+	}
+	pipe(my ($r, $w)) or die "pipe: $!";
+	my $rdr = { 0 => $r, 1 => $out, 2 => $lei->{2} };
+	my $pid = spawn($cmd, $lei->{env}, $rdr);
+	$lei->{"pid.$pid"} = $cmd;
+	my $pp = gensym;
+	tie *$pp, 'PublicInbox::ProcessPipe', $pid, $w, \&reap_compress, $lei;
+	my $tmp = File::Temp->new("$sfx.lock-XXXXXX", TMPDIR => 1);
+	my $pipe_lk = ($lei->{opt}->{jobs} // 0) > 1 ? bless({
+		lock_path => $tmp->filename,
+		tmp => $tmp
+	}, 'PublicInbox::Lock') : undef;
+	($pp, $pipe_lk);
+}
+
+sub write_cb {
+	my ($cls, $dst, $lei) = @_;
+	if ($dst =~ s!\A(mbox(?:rd|cl|cl2|o))?:!!) {
+		my $m = "eml2$1";
+		my $eml2mbox = $cls->can($m) or die "$cls->$m missing";
+		my ($out, $pipe_lk);
+		open $out, '>>', $dst or die "open $dst: $!";
+		my $atomic = !!(($lei->{opt}->{jobs} // 0) > 1);
+		if ($dst =~ /\.(gz|bz2|xz)\z/) {
+			($out, $pipe_lk) = compress_dst($out, $1, $lei);
+		}
+		sub {
+			my ($buf, $oid, $kw) = @_;
+			$buf = $eml2mbox->(PublicInbox::Eml->new($buf), $kw);
+			my $lock = $pipe_lk->lock_for_scope if $pipe_lk;
+			write_in_full($out, $buf, $atomic);
+		}
+	}
 }
 
 1;

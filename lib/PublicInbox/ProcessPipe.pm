@@ -4,28 +4,39 @@
 # a tied handle for auto reaping of children tied to a pipe, see perltie(1)
 package PublicInbox::ProcessPipe;
 use strict;
-use warnings;
+use v5.10.1;
 
 sub TIEHANDLE {
-	my ($class, $pid, $fh) = @_;
-	bless { pid => $pid, fh => $fh }, $class;
+	my ($class, $pid, $fh, $cb, $arg) = @_;
+	bless { pid => $pid, fh => $fh, cb => $cb, arg => $arg }, $class;
 }
 
 sub READ { read($_[0]->{fh}, $_[1], $_[2], $_[3] || 0) }
 
 sub READLINE { readline($_[0]->{fh}) }
 
+sub WRITE {
+	use bytes qw(length);
+	syswrite($_[0]->{fh}, $_[1], $_[2] // length($_[1]), $_[3] // 0);
+}
+
+sub PRINT {
+	my $self = shift;
+	print { $self->{fh} } @_;
+}
+
 sub CLOSE {
 	my $fh = delete($_[0]->{fh});
 	my $ret = defined $fh ? close($fh) : '';
-	my $pid = delete $_[0]->{pid};
+	my ($pid, $cb, $arg) = delete @{$_[0]}{qw(pid cb arg)};
 	if (defined $pid) {
 		# PublicInbox::DS may not be loaded
-		eval { PublicInbox::DS::dwaitpid($pid, undef, undef) };
+		eval { PublicInbox::DS::dwaitpid($pid, $cb, $arg) };
 
 		if ($@) { # ok, not in the event loop, work synchronously
 			waitpid($pid, 0);
 			$ret = '' if $?;
+			$cb->($arg, $pid) if $cb;
 		}
 	}
 	$ret;
