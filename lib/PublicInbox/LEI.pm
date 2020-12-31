@@ -675,7 +675,7 @@ sub lazy_start {
 	require IO::FDPass;
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
-	(-p STDOUT && -p STDERR) or die "E: stdout+stderr must be pipes\n";
+	(-p STDOUT) or die "E: stdout must be a pipe\n";
 	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!";
 	POSIX::setsid() > 0 or die "setsid: $!";
 	my $pid = fork // die "fork: $!";
@@ -740,10 +740,9 @@ sub lazy_start {
 		$n; # true: continue, false: stop
 	});
 
-	# STDIN was redirected to /dev/null above, closing STDOUT and
-	# STDERR will cause the calling `lei' client process to finish
-	# reading <$daemon> pipe.
-	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!";
+	# STDIN was redirected to /dev/null above, closing STDERR and
+	# STDOUT will cause the calling `lei' client process to finish
+	# reading the <$daemon> pipe.
 	openlog($path, 'pid', 'user');
 	local $SIG{__WARN__} = sub { syslog('warning', "@_") };
 	my $owner_pid = $$;
@@ -751,6 +750,7 @@ sub lazy_start {
 		syslog('crit', "$@") if $@ && $$ == $owner_pid;
 	});
 	open STDERR, '>&STDIN' or die "redirect stderr failed: $!";
+	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!";
 	# $daemon pipe to `lei' closed, main loop begins:
 	PublicInbox::DS->EventLoop;
 	@$on_destroy = (); # cancel on_destroy if we get here

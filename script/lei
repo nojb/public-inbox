@@ -21,18 +21,13 @@ if (my ($sock, $pwd) = eval {
 	my $addr = pack_sockaddr_un($path);
 	socket(my $sock, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
 	unless (connect($sock, $addr)) { # start the daemon if not started
-		my $cmd = [ $^X, qw[-MPublicInbox::LEI
+		local $ENV{PERL5LIB} = join(':', @INC);
+		open(my $daemon, '-|', $^X, qw[-MPublicInbox::LEI
 			-E PublicInbox::LEI::lazy_start(@ARGV)],
-			$path, $! + 0 ];
-		my $env = { PERL5LIB => join(':', @INC) };
-		pipe(my ($daemon, $w)) or die "pipe: $!";
-		my $opt = { 1 => $w, 2 => $w };
-		require PublicInbox::Spawn;
-		my $pid = PublicInbox::Spawn::spawn($cmd, $env, $opt);
-		$opt = $w = undef;
+			$path, $! + 0) or die "popen: $!";
 		while (<$daemon>) { warn $_ } # EOF when STDERR is redirected
-		waitpid($pid, 0) or warn <<"";
-lei-daemon could not start, PID:$pid exited with \$?=$?
+		close($daemon) or warn <<"";
+lei-daemon could not start, exited with \$?=$?
 
 		# try connecting again anyways, unlink+bind may be racy
 		unless (connect($sock, $addr)) {
@@ -43,8 +38,8 @@ Falling back to (slow) one-shot mode
 		}
 	}
 	require Cwd;
-	my $cwd = Cwd::fastcwd() // die "fastcwd(PWD=".($ENV{PWD}//'').": $!";
 	my $pwd = $ENV{PWD} // '';
+	my $cwd = Cwd::fastcwd() // die "fastcwd(PWD=$pwd): $!";
 	if ($pwd ne $cwd) { # prefer ENV{PWD} if it's a symlink to real cwd
 		my @st_cwd = stat($cwd) or die "stat(cwd=$cwd): $!";
 		my @st_pwd = stat($pwd); # PWD invalid, use cwd
