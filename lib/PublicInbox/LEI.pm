@@ -745,9 +745,8 @@ sub lazy_start {
 	# reading the <$daemon> pipe.
 	openlog($path, 'pid', 'user');
 	local $SIG{__WARN__} = sub { syslog('warning', "@_") };
-	my $owner_pid = $$;
-	my $on_destroy = PublicInbox::OnDestroy->new(sub {
-		syslog('crit', "$@") if $@ && $$ == $owner_pid;
+	my $on_destroy = PublicInbox::OnDestroy->new($$, sub {
+		syslog('crit', "$@") if $@;
 	});
 	open STDERR, '>&STDIN' or die "redirect stderr failed: $!";
 	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!";

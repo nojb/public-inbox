@@ -36,9 +36,9 @@ sub lock_release {
 
 # caller must use return value
 sub lock_for_scope {
-	my ($self) = @_;
+	my ($self, @single_pid) = @_;
 	$self->lock_acquire;
-	PublicInbox::OnDestroy->new(\&lock_release, $self);
+	PublicInbox::OnDestroy->new(@single_pid, \&lock_release, $self);
 }
 
 sub new_tmp {

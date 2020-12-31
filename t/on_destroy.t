@@ -16,6 +16,15 @@ $od = PublicInbox::OnDestroy->new(sub { @x = @_ }, qw(x y));
 undef $od;
 is_deeply(\@x, [ 'x', 'y' ], '2 args passed');
 
+open my $tmp, '+>>', undef or BAIL_OUT $!;
+$tmp->autoflush(1);
+$od = PublicInbox::OnDestroy->new(1, sub { print $tmp "$$ DESTROY\n" });
+undef $od;
+is(-s $tmp, 0, '$tmp is empty on pid mismatch');
+$od = PublicInbox::OnDestroy->new($$, sub { $tmp = $$ });
+undef $od;
+is($tmp, $$, '$tmp set to $$ by callback');
+
 if (my $nr = $ENV{TEST_LEAK_NR}) {
 	for (0..$nr) {
 		$od = PublicInbox::OnDestroy->new(sub { @x = @_ }, qw(x y));

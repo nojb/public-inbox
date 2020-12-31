@@ -10,6 +10,11 @@ sub new {
 
 sub DESTROY {
 	my ($cb, @args) = @{$_[0]};
+	if (!ref($cb)) {
+		my $pid = $cb;
+		return if $pid != $$;
+		$cb = shift @args;
+	}
 	$cb->(@args) if $cb;
 }
 

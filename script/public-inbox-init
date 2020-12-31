@@ -92,7 +92,7 @@ sysopen($lockfh, $lockfile, O_RDWR|O_CREAT|O_EXCL) or do {
 	exit(255);
 };
 require PublicInbox::OnDestroy;
-my $auto_unlink = PublicInbox::OnDestroy->new(sub { unlink $lockfile });
+my $auto_unlink = PublicInbox::OnDestroy->new($$, sub { unlink $lockfile });
 my ($perm, %seen);
 if (-e $pi_config) {
 	open(my $oh, '<', $pi_config) or die "unable to read $pi_config: $!\n";
