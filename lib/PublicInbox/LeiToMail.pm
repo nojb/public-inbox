@@ -270,9 +270,11 @@ sub _mbox_write_cb ($$$$) {
 
 sub write_cb { # returns a callback for git_to_mail
 	my ($cls, $dst, $lei) = @_;
+	require PublicInbox::LeiDedupe;
 	if ($dst =~ s!\A(mbox(?:rd|cl|cl2|o))?:!!) {
 		_mbox_write_cb($cls, $1, $dst, $lei);
 	}
+	# TODO: Maildir, MH, IMAP, JMAP ...
 }
 
 1;
