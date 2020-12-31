@@ -119,7 +119,7 @@ sub uniq_mids ($;$) {
 			warn "Message-ID: <$mid> too long, truncating\n";
 			$mid = substr($mid, 0, MAX_MID_SIZE);
 		}
-		push(@ret, $mid) unless $seen->{$mid}++;
+		$seen->{$mid} //= push(@ret, $mid);
 	}
 	\@ret;
 }
