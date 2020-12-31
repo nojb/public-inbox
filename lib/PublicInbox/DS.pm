@@ -66,8 +66,9 @@ Reset all state
 
 =cut
 sub Reset {
+    $in_loop = undef; # first in case DESTROY callbacks use this
     %DescriptorMap = ();
-    $in_loop = $wait_pids = $later_queue = $reap_armed = undef;
+    $wait_pids = $later_queue = $reap_armed = undef;
     $EXPMAP = {};
     $nextq = $ToClose = $later_timer = $exp_timer = undef;
     $LoopTimeout = -1;  # no timeout by default
