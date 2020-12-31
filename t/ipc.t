@@ -45,6 +45,19 @@ my $test = sub {
 	is((values %lines)[0], 2, '2 hits on same line number');
 	is($err, $exp, "$x die matches");
 	is($ret, undef, "$x die did not return");
+
+	eval { $ipc->test_die(['arrayref']) };
+	$exp = $@;
+	$ret = eval { $ipc->ipc_do('test_die', ['arrayref']) };
+	$err = $@;
+	is_deeply($err, $exp, 'die with unblessed ref');
+	is(ref($err), 'ARRAY', 'got an array ref');
+
+	$exp = bless ['blessed'], 'PublicInbox::WTF';
+	$ret = eval { $ipc->ipc_do('test_die', $exp) };
+	$err = $@;
+	is_deeply($err, $exp, 'die with blessed ref');
+	is(ref($err), 'PublicInbox::WTF', 'got blessed ref');
 };
 $test->('local');
 
