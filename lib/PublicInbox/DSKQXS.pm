@@ -18,7 +18,7 @@ use Symbol qw(gensym);
 use IO::KQueue;
 use Errno qw(EAGAIN);
 use PublicInbox::Syscall qw(EPOLLONESHOT EPOLLIN EPOLLOUT EPOLLET
-	EPOLL_CTL_ADD EPOLL_CTL_MOD EPOLL_CTL_DEL $SFD_NONBLOCK);
+	EPOLL_CTL_ADD EPOLL_CTL_MOD EPOLL_CTL_DEL SFD_NONBLOCK);
 our @EXPORT_OK = qw(epoll_ctl epoll_wait);
 
 sub EV_DISPATCH () { 0x0080 }
@@ -57,7 +57,7 @@ sub signalfd {
 sub TIEHANDLE { # similar to signalfd()
 	my ($class, $signo, $flags) = @_;
 	my $self = $class->new;
-	$self->{timeout} = ($flags & $SFD_NONBLOCK) ? 0 : -1;
+	$self->{timeout} = ($flags & SFD_NONBLOCK) ? 0 : -1;
 	my $kq = $self->{kq};
 	$kq->EV_SET($_, EVFILT_SIGNAL, EV_ADD) for @$signo;
 	$self;

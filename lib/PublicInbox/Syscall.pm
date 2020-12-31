@@ -22,7 +22,7 @@ our @EXPORT_OK = qw(epoll_ctl epoll_create epoll_wait
                   EPOLLIN EPOLLOUT EPOLLET
                   EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
                   EPOLLONESHOT EPOLLEXCLUSIVE
-                  signalfd $SFD_NONBLOCK);
+                  signalfd SFD_NONBLOCK);
 our %EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
                              EPOLLIN EPOLLOUT
                              EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
@@ -67,7 +67,7 @@ our (
      );
 
 my $SFD_CLOEXEC = 02000000; # Perl does not expose O_CLOEXEC
-our $SFD_NONBLOCK = O_NONBLOCK;
+sub SFD_NONBLOCK () { O_NONBLOCK }
 our $no_deprecated = 0;
 
 if ($^O eq "linux") {

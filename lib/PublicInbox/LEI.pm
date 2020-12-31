@@ -16,7 +16,7 @@ use POSIX ();
 use IO::Handle ();
 use Sys::Syslog qw(syslog openlog);
 use PublicInbox::Config;
-use PublicInbox::Syscall qw($SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
+use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn run_die);
@@ -704,7 +704,7 @@ sub lazy_start {
 		USR1 => \&noop,
 		USR2 => \&noop,
 	};
-	my $sigfd = PublicInbox::Sigfd->new($sig, $SFD_NONBLOCK);
+	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
 	if ($sigfd) { # TODO: use inotify/kqueue to detect unlinked sockets
 		PublicInbox::DS->SetLoopTimeout(5000);

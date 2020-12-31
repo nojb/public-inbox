@@ -6,7 +6,7 @@
 package PublicInbox::Sigfd;
 use strict;
 use parent qw(PublicInbox::DS);
-use PublicInbox::Syscall qw(signalfd EPOLLIN EPOLLET $SFD_NONBLOCK);
+use PublicInbox::Syscall qw(signalfd EPOLLIN EPOLLET SFD_NONBLOCK);
 use POSIX qw(:signal_h);
 use IO::Handle ();
 
@@ -33,7 +33,7 @@ sub new {
 	} else {
 		return; # wake up every second to check for signals
 	}
-	if ($flags & $SFD_NONBLOCK) { # it can go into the event loop
+	if ($flags & SFD_NONBLOCK) { # it can go into the event loop
 		$self->SUPER::new($io, EPOLLIN | EPOLLET);
 	} else { # master main loop
 		$self->{sock} = $io;
