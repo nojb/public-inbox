@@ -12,12 +12,13 @@
 # operate in.  This can be useful to ensure smaller inboxes can
 # be cloned while cloning of large inboxes is maxed out.
 #
-# This does not depend on PublicInbox::DS or any other external
-# scheduling mechanism, you just need to call start() and finish()
-# appropriately. However, public-inbox-httpd (which uses PublicInbox::DS)
-# will be able to schedule this based on readability of stdout from
-# the spawned process.  See GitHTTPBackend.pm and SolverGit.pm for
-# usage examples.  It does not depend on any form of threading.
+# This does not depend on the PublicInbox::DS->EventLoop or any
+# other external scheduling mechanism, you just need to call
+# start() and finish() appropriately. However, public-inbox-httpd
+# (which uses PublicInbox::DS)  will be able to schedule this
+# based on readability of stdout from the spawned process.
+# See GitHTTPBackend.pm and SolverGit.pm for usage examples.
+# It does not depend on any form of threading.
 #
 # This is useful for scheduling CGI execution of both long-lived
 # git-http-backend(1) process (for "git clone") as well as short-lived
@@ -27,6 +28,7 @@ package PublicInbox::Qspawn;
 use strict;
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::GzipFilter;
+use PublicInbox::DS qw(dwaitpid); # doesn't need event loop
 
 # n.b.: we get EAGAIN with public-inbox-httpd, and EINTR on other PSGI servers
 use Errno qw(EAGAIN EINTR);
@@ -116,37 +118,12 @@ sub finalize ($$) {
 }
 
 # callback for dwaitpid
-sub waitpid_err ($$) {
-	my ($self, $pid) = @_;
-	my $xpid = delete $self->{pid};
-	my $err;
-	if (defined $pid) {
-		if ($pid > 0) { # success!
-			$err = child_err($?);
-		} elsif ($pid < 0) { # ??? does this happen in our case?
-			$err = "W: waitpid($xpid, 0) => $pid: $!";
-		} # else should not be called with pid == 0
-	}
-	finalize($self, $err);
-}
-
-sub do_waitpid ($) {
-	my ($self) = @_;
-	my $pid = $self->{pid};
-	# PublicInbox::DS may not be loaded
-	eval { PublicInbox::DS::dwaitpid($pid, \&waitpid_err, $self) };
-	# done if we're running in PublicInbox::DS::EventLoop
-	if ($@) {
-		# non public-inbox-{httpd,nntpd} callers may block:
-		my $ret = waitpid($pid, 0);
-		waitpid_err($self, $ret);
-	}
-}
+sub waitpid_err { finalize($_[0], child_err($?)) }
 
 sub finish ($;$) {
 	my ($self, $err) = @_;
 	if (delete $self->{rpipe}) {
-		do_waitpid($self);
+		dwaitpid $self->{pid}, \&waitpid_err, $self;
 	} else {
 		finalize($self, $err);
 	}

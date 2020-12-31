@@ -21,19 +21,19 @@
 #        (tmpio = [ GLOB, offset, [ length ] ])
 package PublicInbox::DS;
 use strict;
+use v5.10.1;
+use parent qw(Exporter);
 use bytes;
 use POSIX qw(WNOHANG);
 use IO::Handle qw();
 use Fcntl qw(SEEK_SET :DEFAULT O_APPEND);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
-use parent qw(Exporter);
-our @EXPORT_OK = qw(now msg_more);
-use 5.010_001;
 use Scalar::Util qw(blessed);
 use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::Tmpfile;
 use Errno qw(EAGAIN EINVAL);
 use Carp qw(confess carp);
+our @EXPORT_OK = qw(now msg_more dwaitpid);
 
 my $nextq; # queue for next_tick
 my $wait_pids; # list of [ pid, callback, callback_arg ]
@@ -215,8 +215,13 @@ sub reap_pids {
 		my $ret = waitpid($pid, WNOHANG);
 		if ($ret == 0) {
 			push @$wait_pids, $ary; # autovivifies @$wait_pids
-		} elsif ($cb) {
-			eval { $cb->($arg, $pid) };
+		} elsif ($ret == $pid) {
+			if ($cb) {
+				eval { $cb->($arg, $pid) };
+				warn "E: dwaitpid($pid) in_loop: $@" if $@;
+			}
+		} else {
+			warn "waitpid($pid, WNOHANG) = $ret, \$!=$!, \$?=$?";
 		}
 	}
 	# we may not be done, yet, and could've missed/masked a SIGCHLD:
@@ -608,13 +613,23 @@ sub shutdn ($) {
     }
 }
 
-# must be called with eval, PublicInbox::DS may not be loaded (see t/qspawn.t)
-sub dwaitpid ($$$) {
-	die "Not in EventLoop\n" unless $in_loop;
-	push @$wait_pids, [ @_ ]; # [ $pid, $cb, $arg ]
-
-	# We could've just missed our SIGCHLD, cover it, here:
-	enqueue_reap();
+sub dwaitpid ($;$$) {
+	my ($pid, $cb, $arg) = @_;
+	if ($in_loop) {
+		push @$wait_pids, [ $pid, $cb, $arg ];
+		# We could've just missed our SIGCHLD, cover it, here:
+		enqueue_reap();
+	} else {
+		my $ret = waitpid($pid, 0);
+		if ($ret == $pid) {
+			if ($cb) {
+				eval { $cb->($arg, $pid) };
+				warn "E: dwaitpid($pid) !in_loop: $@" if $@;
+			}
+		} else {
+			warn "waitpid($pid, 0) = $ret, \$!=$!, \$?=$?";
+		}
+	}
 }
 
 sub _run_later () {

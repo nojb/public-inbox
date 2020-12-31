@@ -18,7 +18,7 @@ use Sys::Syslog qw(syslog openlog);
 use PublicInbox::Config;
 use PublicInbox::Syscall qw($SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
 use PublicInbox::Sigfd;
-use PublicInbox::DS qw(now);
+use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn run_die);
 use PublicInbox::OnDestroy;
 use Text::Wrap qw(wrap);
@@ -604,7 +604,7 @@ sub lei_git { # support passing through random git commands
 	my ($self, @argv) = @_;
 	my %rdr = map { $_ => $self->{$_} } (0..2);
 	my $pid = spawn(['git', @argv], $self->{env}, \%rdr);
-	PublicInbox::DS::dwaitpid($pid, \&reap_exec, $self);
+	dwaitpid($pid, \&reap_exec, $self);
 }
 
 sub accept_dispatch { # Listener {post_accept} callback

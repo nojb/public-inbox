@@ -5,6 +5,7 @@
 package PublicInbox::ProcessPipe;
 use strict;
 use v5.10.1;
+use PublicInbox::DS qw(dwaitpid);
 
 sub TIEHANDLE {
 	my ($class, $pid, $fh, $cb, $arg) = @_;
@@ -25,19 +26,21 @@ sub PRINT {
 	print { $self->{fh} } @_;
 }
 
+sub adjust_ret { # dwaitpid callback
+	my ($retref, $pid) = @_;
+	$$retref = '' if $?
+}
+
 sub CLOSE {
 	my $fh = delete($_[0]->{fh});
 	my $ret = defined $fh ? close($fh) : '';
 	my ($pid, $cb, $arg) = delete @{$_[0]}{qw(pid cb arg)};
 	if (defined $pid) {
-		# PublicInbox::DS may not be loaded
-		eval { PublicInbox::DS::dwaitpid($pid, $cb, $arg) };
-
-		if ($@) { # ok, not in the event loop, work synchronously
-			waitpid($pid, 0);
-			$ret = '' if $?;
-			$cb->($arg, $pid) if $cb;
+		unless ($cb) {
+			$cb = \&adjust_ret;
+			$arg = \$ret;
 		}
+		dwaitpid $pid, $cb, $arg;
 	}
 	$ret;
 }

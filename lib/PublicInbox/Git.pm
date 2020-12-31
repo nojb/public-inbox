@@ -21,6 +21,7 @@ use PublicInbox::Tmpfile;
 use IO::Poll qw(POLLIN);
 use Carp qw(croak);
 use Digest::SHA ();
+use PublicInbox::DS qw(dwaitpid);
 our @EXPORT_OK = qw(git_unquote git_quote);
 our $PIPE_BUFSIZ = 65536; # Linux default
 our $in_cleanup;
@@ -326,10 +327,7 @@ sub _destroy {
 
 	# GitAsyncCat::event_step may delete {pid}
 	my $p = delete $self->{$pid} or return;
-
-	# PublicInbox::DS may not be loaded
-	eval { PublicInbox::DS::dwaitpid($p, undef, undef) };
-	waitpid($p, 0) if $@; # wait synchronously if not in event loop
+	dwaitpid $p;
 }
 
 sub cat_async_abort ($) {
