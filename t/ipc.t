@@ -49,7 +49,7 @@ my $test = sub {
 $test->('local');
 
 SKIP: {
-	require_mods(qw(Storable), 16);
+	require_mods(qw(Storable||Sereal), 16);
 	my $pid = $ipc->ipc_worker_spawn('test worker');
 	ok($pid > 0 && kill(0, $pid), 'worker spawned and running');
 	defined($pid) or BAIL_OUT 'no spawn, no test';

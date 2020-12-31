@@ -9,6 +9,29 @@ use v5.10.1;
 use Socket qw(AF_UNIX SOCK_STREAM);
 use Carp qw(confess croak);
 use PublicInbox::Sigfd;
+my ($enc, $dec);
+# ->imports at BEGIN turns serial_*_with_object into custom ops on 5.14+
+# and eliminate method call overhead
+BEGIN {
+	eval {
+		require Sereal::Encoder;
+		require Sereal::Decoder;
+		Sereal::Encoder->import('sereal_encode_with_object');
+		Sereal::Decoder->import('sereal_decode_with_object');
+		($enc, $dec) = (Sereal::Encoder->new, Sereal::Decoder->new);
+	};
+};
+
+if ($enc && $dec) { # should be custom ops
+	*freeze = sub ($) { sereal_encode_with_object $enc, $_[0] };
+	*thaw = sub ($) { sereal_decode_with_object $dec, $_[0], my $ret };
+} else {
+	eval { # some distros have Storable as a separate package from Perl
+		require Storable;
+		Storable->import(qw(freeze thaw));
+		$enc = 1;
+	} // warn("Storable (part of Perl) missing: $@\n");
+}
 
 sub _get_rec ($) {
 	my ($sock) = @_;
@@ -52,11 +75,7 @@ sub ipc_worker_loop ($$) {
 
 sub ipc_worker_spawn ($$$) {
 	my ($self, $ident, $oldset) = @_;
-	eval { require Storable; Storable->import(qw(freeze thaw)); };
-	if ($@) {
-		state $w //= warn "Storable (part of Perl) missing: $@\n";
-		return;
-	}
+	return unless $enc;
 	my $pid = $self->{-ipc_worker_pid};
 	confess "BUG: already spawned PID:$pid" if $pid;
 	confess "BUG: already have worker socket" if $self->{-ipc_sock};
