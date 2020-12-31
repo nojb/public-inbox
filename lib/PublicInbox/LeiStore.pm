@@ -199,6 +199,7 @@ sub add_eml {
 			$idx->shard_add_eidx_info($docid, '.', $eml); # List-Id
 			$idx->shard_add_keywords($docid, @kw) if @kw;
 		}
+		\@docids;
 	} else {
 		$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
 		$oidx->add_overview($eml, $smsg);
@@ -206,8 +207,13 @@ sub add_eml {
 		my $idx = $eidx->idx_shard($smsg->{num});
 		$idx->index_raw($msgref, $eml, $smsg);
 		$idx->shard_add_keywords($smsg->{num}, @kw) if @kw;
+		$smsg;
 	}
-	$smsg->{blob}
+}
+
+sub set_eml {
+	my ($self, $eml, @kw) = @_;
+	add_eml($self, $eml, @kw) // set_eml_keywords($self, $eml, @kw);
 }
 
 sub done {

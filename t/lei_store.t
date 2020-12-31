@@ -14,8 +14,8 @@ my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 my $store_dir = "$home/lst";
 my $lst = PublicInbox::LeiStore->new($store_dir, { creat => 1 });
 ok($lst, '->new');
-my $oid = $lst->add_eml(eml_load('t/data/0001.patch'));
-like($oid, qr/\A[0-9a-f]+\z/, 'add returned OID');
+my $smsg = $lst->add_eml(eml_load('t/data/0001.patch'));
+like($smsg->{blob}, qr/\A[0-9a-f]+\z/, 'add returned OID');
 my $eml = eml_load('t/data/0001.patch');
 is($lst->add_eml($eml), undef, 'idempotent');
 $lst->done;
@@ -37,7 +37,7 @@ is_deeply([$lst->maildir_keywords('/foo:2,RSZ')], ['answered', 'seen'],
 	my $es = $lst->search;
 	my $msgs = $es->over->query_xover(0, 1000);
 	is(scalar(@$msgs), 1, 'one message');
-	is($msgs->[0]->{blob}, $oid, 'blob matches');
+	is($msgs->[0]->{blob}, $smsg->{blob}, 'blob matches');
 	my $mset = $es->mset("mid:$msgs->[0]->{mid}");
 	is($mset->size, 1, 'search works');
 	is_deeply($es->mset_to_artnums($mset), [ $msgs->[0]->{num} ],
@@ -83,6 +83,18 @@ for my $parallel (0, 1) {
 	$lst->done;
 	@kw = $lst->search->msg_keywords($docids->[0]);
 	is_deeply(\@kw, [], 'set clobbers all');
+
+	my $set = eml_load('t/plack-qp.eml');
+	$set->header_set('Message-ID', "<set\@$parallel>");
+	my $ret = $lst->set_eml($set, 'seen');
+	is(ref $ret, 'PublicInbox::Smsg', 'initial returns smsg');
+	my $ids = $lst->set_eml($set, qw(seen));
+	is_deeply($ids, [ $ret->{num} ], 'set_eml idempotent');
+	$ids = $lst->set_eml($set, qw(seen answered));
+	is_deeply($ids, [ $ret->{num} ], 'set_eml to change kw');
+	$lst->done;
+	@kw = $lst->search->msg_keywords($ids->[0]);
+	is_deeply(\@kw, [qw(answered seen)], 'set changed kw');
 }
 
 SKIP: {
