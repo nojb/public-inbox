@@ -69,7 +69,7 @@ sub _config_path ($) {
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
-	save-as=s output|o=s format|f=s dedupe|d=s thread|t augment|a
+	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s@ reverse|r offset=i remote local! external!
 	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
 
