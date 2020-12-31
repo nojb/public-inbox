@@ -85,4 +85,9 @@ for my $parallel (0, 1) {
 	is_deeply(\@kw, [], 'set clobbers all');
 }
 
+SKIP: {
+	require_mods(qw(Storable), 1);
+	ok($lst->can('ipc_do'), 'ipc_do works if we have Storable');
+}
+
 done_testing;
