@@ -4,9 +4,10 @@
 # Base class for per-inbox locking
 package PublicInbox::Lock;
 use strict;
-use warnings;
+use v5.10.1;
 use Fcntl qw(:flock :DEFAULT);
 use Carp qw(croak);
+use PublicInbox::OnDestroy;
 
 # we only acquire the flock if creating or reindexing;
 # PublicInbox::Import already has the lock on its own.
@@ -30,6 +31,13 @@ sub lock_release {
 
 	flock($lockfh, LOCK_UN) or croak "unlock $lock_path failed: $!\n";
 	close $lockfh or croak "close $lock_path failed: $!\n";
+}
+
+# caller must use return value
+sub lock_for_scope {
+	my ($self) = @_;
+	$self->lock_acquire;
+	PublicInbox::OnDestroy->new(\&lock_release, $self);
 }
 
 1;

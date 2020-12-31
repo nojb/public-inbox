@@ -200,6 +200,7 @@ lib/PublicInbox/SearchIdxShard.pm
 lib/PublicInbox/SearchQuery.pm
 lib/PublicInbox/SearchThread.pm
 lib/PublicInbox/SearchView.pm
+lib/PublicInbox/SharedKV.pm
 lib/PublicInbox/Sigfd.pm
 lib/PublicInbox/Smsg.pm
 lib/PublicInbox/SolverGit.pm
@@ -377,6 +378,7 @@ t/run.perl
 t/search-amsg.eml
 t/search-thr-index.t
 t/search.t
+t/shared_kv.t
 t/sigfd.t
 t/solve/0001-simple-mod.patch
 t/solve/0002-rename-with-modifications.patch
