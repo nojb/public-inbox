@@ -5,6 +5,7 @@
 package PublicInbox::MboxReader;
 use strict;
 use v5.10.1;
+use PublicInbox::DS (); # localize $in_loop for error detection :<
 use Data::Dumper;
 $Data::Dumper::Useqq = 1; # should've been the default, for bad data
 
@@ -13,6 +14,7 @@ my $from_strict =
 
 sub _mbox_from {
 	my ($mbfh, $from_re, $eml_cb, @arg) = @_;
+	local $PublicInbox::DS::in_loop; # disable dwaitpid
 	my $buf = '';
 	my @raw;
 	while (defined(my $r = read($mbfh, $buf, 65536, length($buf)))) {
@@ -73,6 +75,7 @@ sub _extract_hdr {
 
 sub _mbox_cl ($$$;@) {
 	my ($mbfh, $uxs_from, $eml_cb, @arg) = @_;
+	local $PublicInbox::DS::in_loop; # disable dwaitpid
 	my $buf = '';
 	while (defined(my $r = read($mbfh, $buf, 65536, length($buf)))) {
 		if ($r == 0) { # detect "curl --fail"

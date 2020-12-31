@@ -92,21 +92,40 @@ my $orig = do {
 	is($raw, do { local $/; <$fh> }, 'jobs > 1');
 	$raw;
 };
-SKIP: {
-	use PublicInbox::Spawn qw(which);
-	my $gzip = which('gzip') or skip 'gzip not found', 1;
-	my $wcb = PublicInbox::LeiToMail->write_cb("mboxcl2:$fn.gz", $lei);
-	$wcb->(\(my $dup = $buf), 'deadbeef', [ qw(seen) ]);
-	undef $wcb;
-	my $uncompressed = xqx([$gzip, '-dc', "$fn.gz"]);
-	is($uncompressed, $orig, 'gzip works');
+for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
+	my $zsfx2cmd = PublicInbox::LeiToMail->can('zsfx2cmd');
+	SKIP: {
+		my $cmd = eval { $zsfx2cmd->($zsfx, 0, $lei) };
+		skip $@, 3 if $@;
+		my $dc_cmd = eval { $zsfx2cmd->($zsfx, 1, $lei) };
+		ok($dc_cmd, "decompressor for .$zsfx");
+		my $f = "$fn.$zsfx";
+		my $dst = "mboxcl2:$f";
+		my $wcb = PublicInbox::LeiToMail->write_cb($dst, $lei);
+		$wcb->(\(my $dup = $buf), 'deadbeef', [ qw(seen) ]);
+		undef $wcb;
+		my $uncompressed = xqx([@$dc_cmd, $f]);
+		is($uncompressed, $orig, "$zsfx works unlocked");
 
-	local $lei->{opt} = { jobs => 2 };
-	unlink "$fn.gz" or die "unlink $!";
-	$wcb = PublicInbox::LeiToMail->write_cb("mboxcl2:$fn.gz", $lei);
-	$wcb->(\(my $dupe = $buf), 'deadbeef', [ qw(seen) ]);
-	undef $wcb;
-	is(xqx([$gzip, '-dc', "$fn.gz"]), $orig);
+		local $lei->{opt} = { jobs => 2 }; # for atomic writes
+		unlink $f or BAIL_OUT "unlink $!";
+		$wcb = PublicInbox::LeiToMail->write_cb($dst, $lei);
+		$wcb->(\($dup = $buf), 'deadbeef', [ qw(seen) ]);
+		undef $wcb;
+		is(xqx([@$dc_cmd, $f]), $orig, "$zsfx matches with lock");
+	}
+}
+
+unlink $fn or BAIL_OUT $!;
+if ('default deduplication uses content_hash') {
+	my $wcb = PublicInbox::LeiToMail->write_cb("mboxo:$fn", $lei);
+	$wcb->(\(my $x = $buf), 'deadbeef', []) for (1..2);
+	undef $wcb; # undef to commit changes
+	my $cmp = '';
+	open my $fh, '<', $fn or BAIL_OUT $!;
+	require PublicInbox::MboxReader;
+	PublicInbox::MboxReader->mboxo($fh, sub { $cmp .= shift->as_string });
+	is($cmp, $buf, 'only one message written');
 }
 
 done_testing;
