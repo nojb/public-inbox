@@ -13,7 +13,7 @@ use PublicInbox::LeiDedupe;
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
-use Errno qw(EEXIST ESPIPE);
+use Errno qw(EEXIST ESPIPE ENOENT);
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -230,7 +230,10 @@ sub _mbox_write_cb ($$$$) {
 	# XXX should we support /dev/stdout.gz ?
 	if ($dst eq '/dev/stdout') {
 		$out = $lei->{1};
-	} else { # TODO: mbox locking
+	} else { # TODO: mbox locking (but mairix doesn't...)
+		if (!$lei->{opt}->{augment} && -f $dst and !unlink($dst)) {
+			die "unlink $dst: $!" if $! != ENOENT;
+		}
 		open $out, '+>>', $dst or die "open $dst: $!";
 		# Perl does SEEK_END even with O_APPEND :<
 		$seekable = seek($out, 0, SEEK_SET);
@@ -251,8 +254,6 @@ sub _mbox_write_cb ($$$$) {
 		# maybe some systems don't honor O_APPEND, Perl does this:
 		seek($out, 0, SEEK_END) or die "seek $dst: $!";
 		$dedupe->pause_dedupe if $jobs; # are we forking?
-	} elsif ($seekable) {
-		truncate($out, 0) or die "truncate $dst: $!";
 	}
 	$dedupe->prepare_dedupe if !$jobs;
 	($out, $pipe_lk) = compress_dst($out, $zsfx, $lei) if $zsfx;
