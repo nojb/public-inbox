@@ -165,6 +165,7 @@ lib/PublicInbox/LEI.pm
 lib/PublicInbox/LeiExtinbox.pm
 lib/PublicInbox/LeiSearch.pm
 lib/PublicInbox/LeiStore.pm
+lib/PublicInbox/LeiToMail.pm
 lib/PublicInbox/LeiXSearch.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
@@ -328,6 +329,7 @@ t/kqnotify.t
 t/lei-oneshot.t
 t/lei.t
 t/lei_store.t
+t/lei_to_mail.t
 t/lei_xsearch.t
 t/linkify.t
 t/main-bin/spamc
