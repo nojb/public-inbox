@@ -15,8 +15,8 @@ use PublicInbox::ExtSearchIdx;
 use PublicInbox::Import;
 use PublicInbox::InboxWritable;
 use PublicInbox::V2Writable;
-use PublicInbox::ContentHash qw(content_hash);
-use PublicInbox::MID qw(mids);
+use PublicInbox::ContentHash qw(content_hash content_digest);
+use PublicInbox::MID qw(mids mids_in);
 use PublicInbox::LeiSearch;
 use List::Util qw(max);
 
@@ -107,14 +107,26 @@ sub eidx_init {
 	$eidx;
 }
 
+# when a message has no Message-IDs at all, this is needed for
+# unsent Draft messages, at least
+sub _fake_mid_for ($$) {
+	my ($eml, $dig) = @_;
+	my $mids = mids_in($eml, qw(X-Alt-Message-ID Resent-Message-ID));
+	$eml->{-lei_fake_mid} =
+		$mids->[0] // PublicInbox::Import::digest2mid($dig, $eml);
+}
+
 sub _docids_for ($$) {
 	my ($self, $eml) = @_;
 	my %docids;
-	my $chash = content_hash($eml);
+	my $dig = content_digest($eml);
+	my $chash = $dig->clone->digest;
 	my $eidx = eidx_init($self);
 	my $oidx = $eidx->{oidx};
 	my $im = $self->{im};
-	for my $mid (@{mids($eml)}) {
+	my $mids = mids($eml);
+	$mids->[0] //= _fake_mid_for($eml, $dig);
+	for my $mid (@$mids) {
 		my ($id, $prev);
 		while (my $cur = $oidx->next_by_mid($mid, \$id, \$prev)) {
 			my $oid = $cur->{blob};

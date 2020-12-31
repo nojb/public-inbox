@@ -69,7 +69,7 @@ sub psgi_cull ($) {
 	$self;
 }
 
-# for Import and v1 non-SQLite WWW code paths
+# used for v2, Import and v1 non-SQLite WWW code paths
 sub populate {
 	my ($self, $hdr, $sync) = @_;
 	for my $f (qw(From To Cc Subject)) {
@@ -100,9 +100,7 @@ sub populate {
 	$self->{-ts} = [ my @ts = msg_timestamp($hdr, $sync->{cotime}) ];
 	$self->{ds} //= $ds[0]; # no zone
 	$self->{ts} //= $ts[0];
-
-	# for v1 users w/o SQLite
-	$self->{mid} //= eval { mids($hdr)->[0] } // '';
+	$self->{mid} //= mids($hdr)->[0];
 }
 
 # no strftime, that is locale-dependent and not for RFC822

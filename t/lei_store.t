@@ -100,6 +100,30 @@ for my $parallel (0, 1) {
 SKIP: {
 	require_mods(qw(Storable), 1);
 	ok($lst->can('ipc_do'), 'ipc_do works if we have Storable');
+	$eml->header_set('Message-ID', '<ipc-test@example>');
+	my $pid = $lst->ipc_worker_spawn('lei-store');
+	ok($pid > 0, 'got a worker');
+	my $smsg = $lst->ipc_do('set_eml', $eml, qw(seen));
+	is(ref($smsg), 'PublicInbox::Smsg', 'set_eml works over ipc');
+	my $ids = $lst->ipc_do('set_eml', $eml, qw(seen));
+	is_deeply($ids, [ $smsg->{num} ], 'docid returned');
+
+	$eml->header_set('Message-ID');
+	my $no_mid = $lst->ipc_do('set_eml', $eml, qw(seen));
+	my $wait = $lst->ipc_do('done');
+	my @kw = $lst->search->msg_keywords($no_mid->{num});
+	is_deeply(\@kw, [qw(seen)], 'ipc set changed kw');
+
+	is(ref($smsg), 'PublicInbox::Smsg', 'no mid works ipc');
+	$ids = $lst->ipc_do('set_eml', $eml, qw(seen));
+	is_deeply($ids, [ $no_mid->{num} ], 'docid returned w/o mid w/ ipc');
+	$lst->ipc_do('done');
+	$lst->ipc_worker_stop;
+	$ids = $lst->ipc_do('set_eml', $eml, qw(seen answered));
+	is_deeply($ids, [ $no_mid->{num} ], 'docid returned w/o mid w/o ipc');
+	$wait = $lst->ipc_do('done');
+	@kw = $lst->search->msg_keywords($no_mid->{num});
+	is_deeply(\@kw, [qw(answered seen)], 'set changed kw w/o ipc');
 }
 
 done_testing;
