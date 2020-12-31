@@ -154,38 +154,38 @@ my $setup_publicinboxes = sub {
 	$seen || BAIL_OUT 'no imports';
 };
 
-my $test_extinbox = sub {
+my $test_external = sub {
 	$setup_publicinboxes->();
 	$cleanup->();
-	$lei->('ls-extinbox');
-	is($out.$err, '', 'ls-extinbox no output, yet');
+	$lei->('ls-external');
+	is($out.$err, '', 'ls-external no output, yet');
 	ok(!-e $config_file && !-e $store_dir,
-		'nothing created by ls-extinbox');
+		'nothing created by ls-external');
 
 	my $cfg = PublicInbox::Config->new;
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;
-		ok($lei->(qw(add-extinbox -q), $ibx->{inboxdir}),
-			'added extinbox');
+		ok($lei->(qw(add-external -q), $ibx->{inboxdir}),
+			'added external');
 		is($out.$err, '', 'no output');
 	});
 	ok(-s $config_file && -e $store_dir,
-		'add-extinbox created config + store');
+		'add-external created config + store');
 	my $lcfg = PublicInbox::Config->new($config_file);
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;
-		is($lcfg->{"extinbox.$ibx->{inboxdir}.boost"}, 0,
+		is($lcfg->{"external.$ibx->{inboxdir}.boost"}, 0,
 			"configured boost on $ibx->{name}");
 	});
-	$lei->('ls-extinbox');
-	like($out, qr/boost=0\n/s, 'ls-extinbox has output');
+	$lei->('ls-external');
+	like($out, qr/boost=0\n/s, 'ls-external has output');
 };
 
 my $test_lei_common = sub {
 	$test_help->();
 	$test_config->();
 	$test_init->();
-	$test_extinbox->();
+	$test_external->();
 };
 
 my $test_lei_oneshot = $ENV{TEST_LEI_ONESHOT};

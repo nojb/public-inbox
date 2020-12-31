@@ -8,7 +8,7 @@
 package PublicInbox::LEI;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::DS PublicInbox::LeiExtinbox);
+use parent qw(PublicInbox::DS PublicInbox::LeiExternal);
 use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
 use Errno qw(EAGAIN ECONNREFUSED ENOENT);
@@ -70,19 +70,19 @@ sub _config_path ($) {
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|o=s format|f=s dedupe|d=s thread|t augment|a
-	sort|s=s@ reverse|r offset=i remote local! extinbox!
+	sort|s=s@ reverse|r offset=i remote local! external!
 	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
 	qw(type=s solve! format|f=s dedupe|d=s thread|t remote local!),
 	pass_through('git show') ],
 
-'add-extinbox' => [ 'URL_OR_PATHNAME',
+'add-external' => [ 'URL_OR_PATHNAME',
 	'add/set priority of a publicinbox|extindex for extra matches',
 	qw(boost=i quiet|q) ],
-'ls-extinbox' => [ '[FILTER...]', 'list publicinbox|extindex locations',
+'ls-external' => [ '[FILTER...]', 'list publicinbox|extindex locations',
 	qw(format|f=s z|0 local remote quiet|q) ],
-'forget-extinbox' => [ '{URL_OR_PATHNAME|--prune}',
+'forget-external' => [ '{URL_OR_PATHNAME|--prune}',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune quiet|q) ],
 
@@ -189,7 +189,7 @@ my %OPTDESC = (
 'q	format|f=s' => [ 'OUT|maildir|mboxrd|mboxcl2|mboxcl|html|oid|json',
 		'specify output format, default depends on --output'],
 'ls-query	format|f=s' => $ls_format,
-'ls-extinbox	format|f=s' => $ls_format,
+'ls-external	format|f=s' => $ls_format,
 
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],
 'offset=i' => ['OFF', 'search result offset (default: 0)'],

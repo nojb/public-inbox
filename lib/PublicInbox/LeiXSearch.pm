@@ -18,7 +18,7 @@ sub new {
 	}, $class
 }
 
-sub attach_extinbox {
+sub attach_external {
 	my ($self, $ibxish) = @_; # ibxish = ExtSearch or Inbox
 	if (!$ibxish->can('over')) {
 		push @{$self->{remotes}}, $ibxish
