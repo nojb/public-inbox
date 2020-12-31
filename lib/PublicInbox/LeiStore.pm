@@ -60,24 +60,6 @@ sub git_ident ($) {
 		('lei user', 'x@example.com')
 }
 
-# We will support users combining storage across multiple machines
-# somehow.  Use per-machine refnames to make it easy-to-identify
-# where a message came from
-sub host_head () {
-	state $h = do {
-		my $x = PublicInbox::ExtSearchIdx::host_ident;
-		# Similar rules found in git.git/remote.c::valid_remote_nick
-		# and git.git/refs.c::check_refname_component
-		$x =~ s!(?:\.lock|/)+\z!!gs; # must not end with ".lock" or "/"
-		$x =~ tr/././s; # no dot-dot, collapse them
-		$x =~ s/@\{/\@-/gs;
-		$x =~ s/\A\./-/s;
-		# no "*", ":", "?", "[", "\", "^", "~", SP, TAB; "]" is OK
-		$x =~ tr^a-zA-Z0-9!"#$%&'()+,\-.;<=>@]_`{|}^-^c;
-		$x
-	};
-}
-
 sub importer {
 	my ($self) = @_;
 	my $max;
@@ -96,7 +78,7 @@ sub importer {
 	while (1) {
 		my $latest = "$pfx/$max.git";
 		my $old = -e $latest;
-		PublicInbox::Import::init_bare($latest, host_head);
+		PublicInbox::Import::init_bare($latest);
 		my $git = PublicInbox::Git->new($latest);
 		$git->qx(qw(config core.sharedRepository 0600)) if !$old;
 		my $packed_bytes = $git->packed_bytes;
@@ -110,7 +92,6 @@ sub importer {
 		$im->{bytes_added} = int($packed_bytes / $self->packing_factor);
 		$im->{lock_path} = undef;
 		$im->{path_type} = 'v2';
-		$im->{'ref'} = host_head;
 		return $im;
 	}
 }
