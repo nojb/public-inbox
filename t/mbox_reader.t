@@ -32,7 +32,6 @@ if ($ENV{TEST_EXTRA}) {
 }
 
 my $reader = PublicInbox::MboxReader->new;
-my $write_in_full = PublicInbox::LeiToMail->can('write_in_full');
 my $check_fmt = sub {
 	my $fmt = shift;
 	my @order = shuffle(keys %raw);
@@ -41,7 +40,7 @@ my $check_fmt = sub {
 	for my $k (@order) {
 		my $eml = PublicInbox::Eml->new($raw{$k});
 		my $buf = $eml2mbox->($eml);
-		$write_in_full->($fh, $buf, undef);
+		print $fh $$buf or BAIL_OUT "print $!";
 	}
 	seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
 	$reader->$fmt($fh, sub {

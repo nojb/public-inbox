@@ -12,7 +12,8 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::LeiDedupe;
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
-use Fcntl qw(SEEK_SET SEEK_END);
+use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
+use Errno qw(EEXIST ESPIPE);
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -52,14 +53,15 @@ sub _mbox_hdr_buf ($$$) {
 	$buf;
 }
 
-sub write_in_full ($$$) {
-	my ($fh, $buf, $atomic) = @_;
-	if ($atomic) {
-		defined(my $w = syswrite($fh, $$buf)) or die "write: $!";
-		$w == length($$buf) or die "short write: $w != ".length($$buf);
-	} else {
-		print $fh $$buf or die "print: $!";
-	}
+sub atomic_append { # for on-disk destinations (O_APPEND, or O_EXCL)
+	my ($fh, $buf) = @_;
+	defined(my $w = syswrite($fh, $$buf)) or die "write: $!";
+	$w == length($$buf) or die "short write: $w != ".length($$buf);
+}
+
+sub _print_full {
+	my ($fh, $buf) = @_;
+	print $fh $$buf or die "print: $!";
 }
 
 sub eml2mboxrd ($;$) {
@@ -115,18 +117,6 @@ sub eml2mboxcl2 {
 	}
 	$$buf .= $crlf;
 	$buf;
-}
-
-sub mkmaildir ($) {
-	my ($maildir) = @_;
-	for (qw(new tmp cur)) {
-		my $d = "$maildir/$_";
-		next if -d $d;
-		require File::Path;
-		if (!File::Path::mkpath($d) && !-d $d) {
-			die "failed to mkpath($d): $!\n";
-		}
-	}
 }
 
 sub git_to_mail { # git->cat_async callback
@@ -229,7 +219,7 @@ sub dup_src ($) {
 sub _augment { # MboxReader eml_cb
 	my ($eml, $lei) = @_;
 	# ignore return value, just populate the skv
-	$lei->{dedupe_cb}->is_dup($eml);
+	$lei->{dedupe}->is_dup($eml);
 }
 
 sub _mbox_write_cb ($$$$) {
@@ -244,35 +234,114 @@ sub _mbox_write_cb ($$$$) {
 		open $out, '+>>', $dst or die "open $dst: $!";
 		# Perl does SEEK_END even with O_APPEND :<
 		$seekable = seek($out, 0, SEEK_SET);
-		die "seek $dst: $!\n" if !$seekable && !$!{ESPIPE};
+		die "seek $dst: $!\n" if !$seekable && $! != ESPIPE;
 	}
 	my $jobs = $lei->{opt}->{jobs} // 0;
-	my $atomic = $jobs > 1;
-	my $dedupe = $lei->{dedupe} = PublicInbox::LeiDedupe->new($lei);
 	state $zsfx_allow = join('|', keys %zsfx2cmd);
 	my ($zsfx) = ($dst =~ /\.($zsfx_allow)\z/);
+	my $write = $jobs > 1 && !$zsfx ? \&atomic_append : \&_print_full;
+	my $dedupe = $lei->{dedupe} = PublicInbox::LeiDedupe->new($lei);
 	if ($lei->{opt}->{augment}) {
-		if ($seekable && -s $out && $dedupe->prepare_dedupe) {
+		die "cannot augment $dst, not seekable\n" if !$seekable;
+		if (-s $out && $dedupe->prepare_dedupe) {
 			my $rd = $zsfx ? decompress_src($out, $zsfx, $lei) :
 					dup_src($out);
 			PublicInbox::MboxReader->$mbox($rd, \&_augment, $lei);
-		} elsif ($seekable && !$atomic) {
-			seek($out, 0, SEEK_END) or die "seek: $!";
 		}
+		# maybe some systems don't honor O_APPEND, Perl does this:
+		seek($out, 0, SEEK_END) or die "seek $dst: $!";
 		$dedupe->pause_dedupe if $jobs; # are we forking?
 	} elsif ($seekable) {
 		truncate($out, 0) or die "truncate $dst: $!";
 	}
 	$dedupe->prepare_dedupe if !$jobs;
 	($out, $pipe_lk) = compress_dst($out, $zsfx, $lei) if $zsfx;
-	sub {
+	sub { # for git_to_mail
 		my ($buf, $oid, $kw) = @_;
 		my $eml = PublicInbox::Eml->new($buf);
-		if (!$lei->{dedupe}->is_dup($eml, $oid)) {
+		if (!$dedupe->is_dup($eml, $oid)) {
 			$buf = $eml2mbox->($eml, $kw);
 			my $lock = $pipe_lk->lock_for_scope if $pipe_lk;
-			write_in_full($out, $buf, $atomic);
+			$write->($out, $buf);
 		}
+	}
+}
+
+sub _maildir_each_file ($$;@) {
+	my ($dir, $cb, @arg) = @_;
+	for my $d (qw(new/ cur/)) {
+		my $pfx = $dir.$d;
+		opendir my $dh, $pfx or next;
+		while (defined(my $fn = readdir($dh))) {
+			$cb->($pfx.$fn, @arg) if $fn =~ /:2,[A-Za-z]*\z/;
+		}
+	}
+}
+
+sub _augment_file { # _maildir_each_file cb
+	my ($f, $lei) = @_;
+	my $eml = PublicInbox::InboxWritable::eml_from_path($f) or return;
+	_augment($eml, $lei);
+}
+
+# _maildir_each_file callback, \&CORE::unlink doesn't work with it
+sub _unlink { unlink($_[0]) }
+
+sub _buf2maildir {
+	my ($dst, $buf, $oid, $kw) = @_;
+	my $sfx = join('', sort(map { $kw2char{$_} // () } @$kw));
+	my $rand = ''; # chosen by die roll :P
+	my ($tmp, $fh, $final);
+	do {
+		$tmp = $dst.'tmp/'.$rand."oid=$oid";
+	} while (!sysopen($fh, $tmp, O_CREAT|O_EXCL|O_WRONLY) &&
+		$! == EEXIST && ($rand = int(rand 0x7fffffff).','));
+	if (print $fh $$buf and close($fh)) {
+		$dst .= $sfx eq '' ? 'new/' : 'cur/';
+		$rand = '';
+		do {
+			$final = $dst.$rand."oid=$oid:2,$sfx";
+		} while (!link($tmp, $final) && $! == EEXIST &&
+			($rand = int(rand 0x7fffffff).','));
+		unlink($tmp) or warn "W: failed to unlink $tmp: $!\n";
+	} else {
+		my $err = $!;
+		unlink($tmp);
+		die "Error writing $oid to $dst: $err";
+	}
+}
+
+
+sub _maildir_write_cb ($$) {
+	my ($dst, $lei) = @_;
+	$dst .= '/' unless substr($dst, -1) eq '/';
+	my $dedupe = $lei->{dedupe} = PublicInbox::LeiDedupe->new($lei, $dst);
+	my $jobs = $lei->{opt}->{jobs} // 0;
+	if ($lei->{opt}->{augment}) {
+		if ($dedupe && $dedupe->prepare_dedupe) {
+			require PublicInbox::InboxWritable; # eml_from_path
+			_maildir_each_file($dst, \&_augment_file, $lei);
+			$dedupe->pause_dedupe if $jobs; # are we forking?
+		}
+	} else { # clobber existing Maildir
+		_maildir_each_file($dst, \&_unlink);
+	}
+	for my $x (qw(tmp new cur)) {
+		my $d = $dst.$x;
+		next if -d $d;
+		require File::Path;
+		if (!File::Path::mkpath($d) && !-d $d) {
+			die "failed to mkpath($d): $!\n";
+		}
+	}
+	$dedupe->prepare_dedupe if $dedupe && !$jobs;
+	sub { # for git_to_mail
+		my ($buf, $oid, $kw) = @_;
+		return _buf2maildir($dst, $buf, $oid, $kw) if !$dedupe;
+		my $eml = PublicInbox::Eml->new($$buf); # copy buf
+		return if $dedupe->is_dup($eml, $oid);
+		undef $eml;
+		_buf2maildir($dst, $buf, $oid, $kw);
 	}
 }
 
@@ -281,6 +350,8 @@ sub write_cb { # returns a callback for git_to_mail
 	require PublicInbox::LeiDedupe;
 	if ($dst =~ s!\A(mbox(?:rd|cl|cl2|o))?:!!) {
 		_mbox_write_cb($cls, $1, $dst, $lei);
+	} elsif ($dst =~ s!\A[Mm]aildir:!!) { # typically capitalized
+		_maildir_write_cb($dst, $lei);
 	}
 	# TODO: Maildir, MH, IMAP, JMAP ...
 }

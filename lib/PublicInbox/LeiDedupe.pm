@@ -67,8 +67,12 @@ sub dedupe_content () {
 sub dedupe_none () { (undef, sub { 1 }) }
 
 sub new {
-	my ($cls, $lei) = @_;
+	my ($cls, $lei, $dst) = @_;
 	my $dd = $lei->{opt}->{dedupe} // 'content';
+
+	# allow "none" to bypass Eml->new if writing to directory:
+	return if ($dd eq 'none' && substr($dst // '', -1) eq '/');
+
 	my $dd_new = $cls->can("dedupe_$dd") //
 			die "unsupported dedupe strategy: $dd\n";
 	bless [ $dd_new->() ], $cls; # [ $skv, $cb ]
