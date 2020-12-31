@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use base qw/Exporter/;
 our @EXPORT_OK = qw(mid_clean id_compress mid2path mid_escape MID_ESC
-	mids references mids_for_index $MID_EXTRACT);
+	mids references mids_for_index mids_in $MID_EXTRACT);
 use URI::Escape qw(uri_escape_utf8);
 use Digest::SHA qw/sha1_hex/;
 require PublicInbox::Address;
@@ -73,14 +73,17 @@ sub mids ($) {
 	uniq_mids(extract_mids(@mids));
 }
 
+# for Resent-Message-ID and maybe others
+sub mids_in ($@) {
+	my ($eml, @headers) = @_;
+	uniq_mids(extract_mids(map { ($eml->header_raw($_)) } @headers));
+}
+
 # we allow searching on X-Alt-Message-ID since PublicInbox::NNTP uses them
 # to placate some clients, and we want to ensure NNTP-only clients can
 # import and index without relying on HTTP endpoints
 sub mids_for_index ($) {
-	my ($hdr) = @_;
-	my @mids = $hdr->header_raw('Message-ID');
-	my @alts = $hdr->header_raw('X-Alt-Message-ID');
-	uniq_mids(extract_mids(@mids, @alts));
+	mids_in($_[0], qw(Message-ID X-Alt-Message-ID));
 }
 
 # last References should be IRT, but some mail clients do things
