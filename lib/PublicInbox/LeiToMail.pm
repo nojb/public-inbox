@@ -12,7 +12,7 @@ use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::LeiDedupe;
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
-use Fcntl qw(SEEK_SET);
+use Fcntl qw(SEEK_SET SEEK_END);
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -236,26 +236,34 @@ sub _mbox_write_cb ($$$$) {
 	my ($cls, $mbox, $dst, $lei) = @_;
 	my $m = "eml2$mbox";
 	my $eml2mbox = $cls->can($m) or die "$cls->$m missing";
-	my ($out, $pipe_lk);
-	open $out, '+>>', $dst or die "open $dst: $!";
-	# Perl does SEEK_END even with O_APPEND :<
-	seek($out, 0, SEEK_SET) or die "seek $dst: $!";
+	my ($out, $pipe_lk, $seekable);
+	# XXX should we support /dev/stdout.gz ?
+	if ($dst eq '/dev/stdout') {
+		$out = $lei->{1};
+	} else { # TODO: mbox locking
+		open $out, '+>>', $dst or die "open $dst: $!";
+		# Perl does SEEK_END even with O_APPEND :<
+		$seekable = seek($out, 0, SEEK_SET);
+		die "seek $dst: $!\n" if !$seekable && !$!{ESPIPE};
+	}
 	my $jobs = $lei->{opt}->{jobs} // 0;
 	my $atomic = $jobs > 1;
 	my $dedupe = $lei->{dedupe} = PublicInbox::LeiDedupe->new($lei);
 	state $zsfx_allow = join('|', keys %zsfx2cmd);
 	my ($zsfx) = ($dst =~ /\.($zsfx_allow)\z/);
 	if ($lei->{opt}->{augment}) {
-		if (-s $out && $dedupe->prepare_dedupe) {
+		if ($seekable && -s $out && $dedupe->prepare_dedupe) {
 			my $rd = $zsfx ? decompress_src($out, $zsfx, $lei) :
 					dup_src($out);
 			PublicInbox::MboxReader->$mbox($rd, \&_augment, $lei);
+		} elsif ($seekable && !$atomic) {
+			seek($out, 0, SEEK_END) or die "seek: $!";
 		}
 		$dedupe->pause_dedupe if $jobs; # are we forking?
-	} else {
+	} elsif ($seekable) {
 		truncate($out, 0) or die "truncate $dst: $!";
-		$dedupe->prepare_dedupe if !$jobs;
 	}
+	$dedupe->prepare_dedupe if !$jobs;
 	($out, $pipe_lk) = compress_dst($out, $zsfx, $lei) if $zsfx;
 	sub {
 		my ($buf, $oid, $kw) = @_;

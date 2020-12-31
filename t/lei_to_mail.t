@@ -6,6 +6,7 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
+use Fcntl qw(SEEK_SET);
 require_mods(qw(DBD::SQLite));
 use_ok 'PublicInbox::LeiToMail';
 my $from = "Content-Length: 10\nSubject: x\n\nFrom hell\n";
@@ -120,15 +121,41 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 }
 
 unlink $fn or BAIL_OUT $!;
+require PublicInbox::MboxReader;
 if ('default deduplication uses content_hash') {
 	my $wcb = PublicInbox::LeiToMail->write_cb("mboxo:$fn", $lei);
 	$wcb->(\(my $x = $buf), 'deadbeef', []) for (1..2);
 	undef $wcb; # undef to commit changes
 	my $cmp = '';
 	open my $fh, '<', $fn or BAIL_OUT $!;
-	require PublicInbox::MboxReader;
 	PublicInbox::MboxReader->mboxo($fh, sub { $cmp .= shift->as_string });
 	is($cmp, $buf, 'only one message written');
+}
+
+{ # stdout support
+	open my $tmp, '+>', undef or BAIL_OUT $!;
+	local $lei->{1} = $tmp;
+	my $wcb = PublicInbox::LeiToMail->write_cb("mboxrd:/dev/stdout", $lei);
+	$wcb->(\(my $x = $buf), 'deadbeef', []);
+	undef $wcb; # commit
+	seek($tmp, 0, SEEK_SET) or BAIL_OUT $!;
+	my $cmp = '';
+	PublicInbox::MboxReader->mboxrd($tmp, sub { $cmp .= shift->as_string });
+	is($cmp, $buf, 'message written to stdout');
+}
+
+SKIP: { # FIFO support
+	use PublicInbox::Spawn qw(popen_rd which);
+	use POSIX qw(mkfifo);
+	my $fn = "$tmpdir/fifo";
+	mkfifo($fn, 0600) or skip("mkfifo not supported: $!", 1);
+	my $cat = popen_rd([which('cat'), $fn]);
+	my $wcb = PublicInbox::LeiToMail->write_cb("mboxo:$fn", $lei);
+	$wcb->(\(my $x = $buf), 'deadbeef', []);
+	undef $wcb; # commit
+	my $cmp = '';
+	PublicInbox::MboxReader->mboxo($cat, sub { $cmp .= shift->as_string });
+	is($cmp, $buf, 'message written to FIFO');
 }
 
 done_testing;
