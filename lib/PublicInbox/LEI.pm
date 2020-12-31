@@ -172,7 +172,7 @@ my %OPTDESC = (
 
 'type=s' => [ 'any|mid|git', 'disambiguate type' ],
 
-'dedupe|d=s' => ['STRAT|content|oid|mid',
+'dedupe|d=s' => ['STRAT|content|oid|mid|none',
 		'deduplication strategy'],
 'show	thread|t' => 'display entire thread a message belongs to',
 'q	thread|t' =>

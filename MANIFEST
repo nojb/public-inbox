@@ -162,6 +162,7 @@ lib/PublicInbox/InboxWritable.pm
 lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/LEI.pm
+lib/PublicInbox/LeiDedupe.pm
 lib/PublicInbox/LeiExtinbox.pm
 lib/PublicInbox/LeiSearch.pm
 lib/PublicInbox/LeiStore.pm
@@ -330,6 +331,7 @@ t/iso-2202-jp.eml
 t/kqnotify.t
 t/lei-oneshot.t
 t/lei.t
+t/lei_dedupe.t
 t/lei_store.t
 t/lei_to_mail.t
 t/lei_xsearch.t

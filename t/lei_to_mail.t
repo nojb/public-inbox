@@ -6,6 +6,7 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
+require_mods(qw(DBD::SQLite));
 use_ok 'PublicInbox::LeiToMail';
 my $from = "Content-Length: 10\nSubject: x\n\nFrom hell\n";
 my $noeol = "Subject: x\n\nFrom hell";
@@ -86,6 +87,7 @@ my $orig = do {
 
 	local $lei->{opt} = { jobs => 2 };
 	$wcb = PublicInbox::LeiToMail->write_cb("mboxcl2:$fn", $lei);
+	$lei->{dedupe}->prepare_dedupe;
 	$wcb->(\($dup = $buf), 'deadbeef', [ qw(seen) ]);
 	undef $wcb;
 	open $fh, '<', $fn or BAIL_OUT $!;
@@ -110,6 +112,7 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 		local $lei->{opt} = { jobs => 2 }; # for atomic writes
 		unlink $f or BAIL_OUT "unlink $!";
 		$wcb = PublicInbox::LeiToMail->write_cb($dst, $lei);
+		$lei->{dedupe}->prepare_dedupe;
 		$wcb->(\($dup = $buf), 'deadbeef', [ qw(seen) ]);
 		undef $wcb;
 		is(xqx([@$dc_cmd, $f]), $orig, "$zsfx matches with lock");
