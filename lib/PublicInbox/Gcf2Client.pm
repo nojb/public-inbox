@@ -12,8 +12,8 @@ use PublicInbox::Syscall qw(EPOLLONESHOT);
 # fields:
 #	async_cat => GitAsyncCat ref (read-only pipe)
 #	sock => writable pipe to Gcf2::loop
-
-
+#	in => pipe we read from
+#	pid => PID of Gcf2::loop process
 sub new  {
 	my ($rdr) = @_;
 	my $self = bless {}, __PACKAGE__;
@@ -62,6 +62,22 @@ sub event_step {
 }
 
 no warnings 'once';
+
+sub DESTROY {
+	my ($self) = @_;
+	my $pid = delete $self->{pid};
+	delete $self->{in};
+	return unless $pid;
+	eval {
+		PublicInbox::DS::dwaitpid($pid, undef, undef);
+		$self->close; # we're still in the event loop
+	};
+	if ($@) { # wait synchronously if not in event loop
+		my $sock = delete $self->{sock};
+		close $sock if $sock;
+		waitpid($pid, 0);
+	}
+}
 
 # used by GitAsyncCat
 *cat_async_step = \&PublicInbox::Git::cat_async_step;
