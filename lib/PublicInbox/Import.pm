@@ -21,6 +21,7 @@ use POSIX qw(strftime);
 
 sub default_branch () {
 	state $default_branch = do {
+		delete local $ENV{GIT_CONFIG};
 		my $r = popen_rd([qw(git config --global init.defaultBranch)]);
 		chomp(my $h = <$r> // '');
 		$h eq '' ? 'refs/heads/master' : $h;
