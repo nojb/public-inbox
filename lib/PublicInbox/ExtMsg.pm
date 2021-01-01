@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020 all contributors <meta@public-inbox.org>
+# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Used by the web interface to link to messages outside of the our

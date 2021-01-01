@@ -1,4 +1,4 @@
-# Copyright (C) 2020 all contributors <meta@public-inbox.org>
+# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # Copyright (C) 2004- Simon Cozens, Casey West, Ricardo SIGNES
 # This library is free software; you can redistribute it and/or modify
 # it under the same terms as Perl itself.

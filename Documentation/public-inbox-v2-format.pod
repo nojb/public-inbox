@@ -235,7 +235,7 @@ and testing of the v2 format.
 
 =head1 COPYRIGHT
 
-Copyright 2018-2020 all contributors L<mailto:meta@public-inbox.org>
+Copyright 2018-2021 all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
 

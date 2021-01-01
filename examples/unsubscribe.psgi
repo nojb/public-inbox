@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2016-2020 all contributors <meta@public-inbox.org>
+# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
 # License: GPL-3.0+ <https://www.gnu.org/licenses/gpl-3.0.txt>
 # This should not require any other PublicInbox code, but may use
 # PublicInbox::Config if ~/.public-inbox/config exists or

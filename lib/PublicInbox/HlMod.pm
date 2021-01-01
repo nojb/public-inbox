@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
+# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # I have no idea how stable or safe this is for handling untrusted

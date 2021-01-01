@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2014-2020 all contributors <meta@public-inbox.org>
+# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ or later <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Enables using PublicInbox::WWW as a CGI script

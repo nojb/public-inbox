@@ -78,7 +78,7 @@ and L<http://hjrcffqmbrq6wope.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2013-2020 all contributors L<mailto:meta@public-inbox.org>
+Copyright 2013-2021 all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
