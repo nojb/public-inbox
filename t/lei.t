@@ -9,7 +9,6 @@ use PublicInbox::Config;
 use File::Path qw(rmtree);
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
-my $LEI = 'lei';
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 my $lei = sub {
 	my ($cmd, $env, $xopt) = @_;
@@ -18,13 +17,12 @@ my $lei = sub {
 		($env, $xopt) = grep { (!defined) || ref } @_;
 		$cmd = [ grep { defined && !ref } @_ ];
 	}
-	run_script([$LEI, @$cmd], $env, $xopt // $opt);
+	run_script(['lei', @$cmd], $env, $xopt // $opt);
 };
 
 my ($home, $for_destroy) = tmpdir();
 delete local $ENV{XDG_DATA_HOME};
 delete local $ENV{XDG_CONFIG_HOME};
-local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 local $ENV{HOME} = $home;
 local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
@@ -188,10 +186,16 @@ my $test_lei_common = sub {
 	$test_external->();
 };
 
-my $test_lei_oneshot = $ENV{TEST_LEI_ONESHOT};
-SKIP: {
-	last SKIP if $test_lei_oneshot;
+if ($ENV{TEST_LEI_ONESHOT}) {
+	require_ok 'PublicInbox::LEI';
+	# force sun_path[108] overflow, "IO::FDPass" avoids warning
+	local $ENV{XDG_RUNTIME_DIR} = "$home/IO::FDPass".('.sun_path' x 108);
+	$test_lei_common->();
+}
+
+SKIP: { # real socket
 	require_mods(qw(IO::FDPass Cwd), 46);
+	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
 
 	ok(run_script([qw(lei daemon-pid)], undef, $opt), 'daemon-pid');
@@ -275,11 +279,17 @@ SKIP: {
 	if ('oneshot on cwd gone') {
 		my $cwd = Cwd::fastcwd() or BAIL_OUT "fastcwd: $!";
 		my $d = "$home/to-be-removed";
+		my $lei_path = 'lei';
+		# we chdir, so we need an abs_path fur run_script
+		if (($ENV{TEST_RUN_MODE}//2) != 2) {
+			$lei_path = PublicInbox::TestCommon::key2script('lei');
+			$lei_path = Cwd::abs_path($lei_path);
+		}
 		mkdir $d or BAIL_OUT "mkdir($d) $!";
 		chdir $d or BAIL_OUT "chdir($d) $!";
 		if (rmdir($d)) {
 			$out = $err = '';
-			ok(run_script([qw(lei help)], undef, $opt),
+			ok(run_script([$lei_path, 'help'], undef, $opt),
 				'cwd fail, one-shot fallback works');
 		} else {
 			$err = "rmdir=$!";
@@ -296,11 +306,6 @@ SKIP: {
 	}
 	ok(!kill(0, $new_pid), 'daemon exits after unlink');
 	# success over socket, can't test without
-	$test_lei_common = undef;
 };
-
-require_ok 'PublicInbox::LEI';
-$LEI = 'lei-oneshot' if $test_lei_oneshot;
-$test_lei_common->() if $test_lei_common;
 
 done_testing;
