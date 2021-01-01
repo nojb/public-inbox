@@ -172,9 +172,7 @@ my $import_index_incremental = sub {
 $import_index_incremental->($PI_TEST_VERSION, 'basic', $mime);
 
 SKIP: {
-	require PublicInbox::Search;
-	PublicInbox::Search::load_xapian() or
-		skip('Xapian perl binding missing', 2);
+	require_mods(qw(Search::Xapian), 2);
 	foreach my $l (qw(medium full)) {
 		$import_index_incremental->($PI_TEST_VERSION, $l, $mime);
 	}

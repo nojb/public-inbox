@@ -453,7 +453,6 @@ sub _lei_store ($;$) {
 	my $cfg = _lei_cfg($self, $creat);
 	$cfg->{-lei_store} //= do {
 		require PublicInbox::LeiStore;
-		PublicInbox::SearchIdx::load_xapian_writable();
 		my $dir = $cfg->{'leistore.dir'};
 		$dir //= _store_path($self->{env}) if $creat;
 		return unless $dir;

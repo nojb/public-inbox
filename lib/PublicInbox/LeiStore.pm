@@ -24,10 +24,7 @@ sub new {
 	my (undef, $dir, $opt) = @_;
 	my $eidx = PublicInbox::ExtSearchIdx->new($dir, $opt);
 	my $self = bless { priv_eidx => $eidx }, __PACKAGE__;
-	if ($opt->{creat}) {
-		PublicInbox::SearchIdx::load_xapian_writable();
-		eidx_init($self);
-	}
+	eidx_init($self) if $opt->{creat};
 	$self;
 }
 
