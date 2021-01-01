@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2013-2020 all contributors <meta@public-inbox.org>
+# Copyright (C) 2013-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use ExtUtils::MakeMaker;
@@ -234,5 +234,11 @@ symlink-install :
 	for x in \$(EXE_FILES); do \\
 		ln -sf "\$\$lei" \$\$(basename "\$\$x"); \\
 	done
+
+update-copyrights :
+	\@case '\$(GNULIB_PATH)' in '') echo >&2 GNULIB_PATH unset; false;; esac
+	git ls-files | UPDATE_COPYRIGHT_HOLDER='all contributors' \\
+		UPDATE_COPYRIGHT_USE_INTERVALS=2 \\
+		xargs \$(GNULIB_PATH)/build-aux/update-copyright
 EOF
 }
