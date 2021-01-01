@@ -196,6 +196,7 @@ sub xdb_shards_flat ($) {
 	my $xpfx = $self->{xpfx};
 	my (@xdb, $slow_phrase);
 	load_xapian();
+	$self->{qp_flags} //= $QP_FLAGS;
 	if ($xpfx =~ m/xapian${\SCHEMA_VERSION}\z/) {
 		@xdb = ($X{Database}->new($xpfx));
 		$self->{qp_flags} |= FLAG_PHRASE() if !-f "$xpfx/iamchert";
@@ -232,7 +233,6 @@ sub mset_to_artnums {
 sub xdb ($) {
 	my ($self) = @_;
 	$self->{xdb} //= do {
-		$self->{qp_flags} //= $QP_FLAGS;
 		my @xdb = $self->xdb_shards_flat or return;
 		$self->{nshard} = scalar(@xdb);
 		my $xdb = shift @xdb;
