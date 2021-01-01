@@ -352,15 +352,19 @@ sub fail { # may be augmented in subclasses
 	croak(ref($self) . ' ' . ($self->{git_dir} // '') . ": $msg");
 }
 
+# $git->popen(qw(show f00)); # or
+# $git->popen(qw(show f00), { GIT_CONFIG => ... }, { 2 => ... });
 sub popen {
-	my ($self, @cmd) = @_;
-	@cmd = ('git', "--git-dir=$self->{git_dir}", @cmd);
-	popen_rd(\@cmd);
+	my ($self, $cmd) = splice(@_, 0, 2);
+	$cmd = [ 'git', "--git-dir=$self->{git_dir}",
+		ref($cmd) ? @$cmd : ($cmd, grep { defined && !ref } @_) ];
+	popen_rd($cmd, grep { !defined || ref } @_); # env and opt
 }
 
+# same args as popen above
 sub qx {
-	my ($self, @cmd) = @_;
-	my $fh = $self->popen(@cmd);
+	my $self = shift;
+	my $fh = $self->popen(@_);
 	local $/ = wantarray ? "\n" : undef;
 	<$fh>;
 }
