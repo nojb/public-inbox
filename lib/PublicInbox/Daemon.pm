@@ -1,7 +1,9 @@
 # Copyright (C) 2015-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-# contains common daemon code for the httpd, imapd, and nntpd servers.
-# This may be used for read-only IMAP server if we decide to implement it.
+#
+# Contains common daemon code for the httpd, imapd, and nntpd servers
+# and designed for handling thousands of untrusted clients over slow
+# and/or lossy connections.
 package PublicInbox::Daemon;
 use strict;
 use warnings;

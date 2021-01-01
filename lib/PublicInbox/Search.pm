@@ -190,41 +190,28 @@ sub xdir ($;$) {
 	}
 }
 
-sub xdb_sharded {
+# returns all shards as separate Xapian::Database objects w/o combining
+sub xdb_shards_flat ($) {
 	my ($self) = @_;
-	opendir(my $dh, $self->{xpfx}) or return; # not initialized yet
-
-	# We need numeric sorting so shard[0] is first for reading
-	# Xapian metadata, if needed
-	my $last = max(grep(/\A[0-9]+\z/, readdir($dh))) // return;
+	my $xpfx = $self->{xpfx};
 	my (@xdb, $slow_phrase);
-	for (0..$last) {
-		my $shard_dir = "$self->{xpfx}/$_";
-		if (-d $shard_dir && -r _) {
+	load_xapian();
+	if ($xpfx =~ m/xapian${\SCHEMA_VERSION}\z/) {
+		@xdb = ($X{Database}->new($xpfx));
+		$self->{qp_flags} |= FLAG_PHRASE() if !-f "$xpfx/iamchert";
+	} else {
+		opendir(my $dh, $xpfx) or return (); # not initialized yet
+		# We need numeric sorting so shard[0] is first for reading
+		# Xapian metadata, if needed
+		my $last = max(grep(/\A[0-9]+\z/, readdir($dh))) // return ();
+		for (0..$last) {
+			my $shard_dir = "$self->{xpfx}/$_";
 			push @xdb, $X{Database}->new($shard_dir);
 			$slow_phrase ||= -f "$shard_dir/iamchert";
-		} else { # gaps from missing epochs throw off mdocid()
-			warn "E: $shard_dir missing or unreadable\n";
-			return;
 		}
+		$self->{qp_flags} |= FLAG_PHRASE() if !$slow_phrase;
 	}
-	$self->{qp_flags} |= FLAG_PHRASE() if !$slow_phrase;
-	$self->{nshard} = scalar(@xdb);
-	my $xdb = shift @xdb;
-	$xdb->add_database($_) for @xdb;
-	$xdb;
-}
-
-sub _xdb {
-	my ($self) = @_;
-	my $dir = xdir($self, 1);
-	$self->{qp_flags} //= $QP_FLAGS;
-	if ($self->{ibx_ver} >= 2) {
-		xdb_sharded($self);
-	} else {
-		$self->{qp_flags} |= FLAG_PHRASE() if !-f "$dir/iamchert";
-		$X{Database}->new($dir);
-	}
+	@xdb;
 }
 
 # v2 Xapian docids don't conflict, so they're identical to
@@ -238,37 +225,30 @@ sub mdocid {
 
 sub mset_to_artnums {
 	my ($self, $mset) = @_;
-	my $nshard = $self->{nshard} // 1;
+	my $nshard = $self->{nshard};
 	[ map { mdocid($nshard, $_) } $mset->items ];
 }
 
 sub xdb ($) {
 	my ($self) = @_;
 	$self->{xdb} //= do {
-		load_xapian();
-		$self->_xdb;
+		$self->{qp_flags} //= $QP_FLAGS;
+		my @xdb = $self->xdb_shards_flat or return;
+		$self->{nshard} = scalar(@xdb);
+		my $xdb = shift @xdb;
+		$xdb->add_database($_) for @xdb;
+		$xdb;
 	};
-}
-
-sub xpfx_init ($) {
-	my ($self) = @_;
-	if ($self->{ibx_ver} == 1) {
-		$self->{xpfx} .= '/public-inbox/xapian' . SCHEMA_VERSION;
-	} else {
-		$self->{xpfx} .= '/xap'.SCHEMA_VERSION;
-	}
 }
 
 sub new {
 	my ($class, $ibx) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
-	my $self = bless {
-		xpfx => $ibx->{inboxdir}, # for xpfx_init
+	my $xap = $ibx->version > 1 ? 'xap' : 'public-inbox/xapian';
+	bless {
+		xpfx => "$ibx->{inboxdir}/$xap" . SCHEMA_VERSION,
 		altid => $ibx->{altid},
-		ibx_ver => $ibx->version,
 	}, $class;
-	xpfx_init($self);
-	$self;
 }
 
 sub reopen {
@@ -364,7 +344,7 @@ sub _enquire_once { # retry_reopen callback
 
 sub mset_to_smsg {
 	my ($self, $ibx, $mset) = @_;
-	my $nshard = $self->{nshard} // 1;
+	my $nshard = $self->{nshard};
 	my $i = 0;
 	my %order = map { mdocid($nshard, $_) => ++$i } $mset->items;
 	my @msgs = sort {

@@ -62,6 +62,7 @@ ci/README
 ci/deps.perl
 ci/profiles.sh
 ci/run.sh
+contrib/completion/lei-completion.bash
 contrib/css/216dark.css
 contrib/css/216light.css
 contrib/css/README
@@ -101,6 +102,7 @@ examples/unsubscribe-psgi@.service
 examples/unsubscribe.milter
 examples/unsubscribe.psgi
 examples/varnish-4.vcl
+lei.sh
 lib/PublicInbox/Address.pm
 lib/PublicInbox/AddressPP.pm
 lib/PublicInbox/Admin.pm
@@ -159,6 +161,11 @@ lib/PublicInbox/InboxIdle.pm
 lib/PublicInbox/InboxWritable.pm
 lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
+lib/PublicInbox/LEI.pm
+lib/PublicInbox/LeiExtinbox.pm
+lib/PublicInbox/LeiSearch.pm
+lib/PublicInbox/LeiStore.pm
+lib/PublicInbox/LeiXSearch.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
 lib/PublicInbox/Lock.pm
@@ -178,6 +185,7 @@ lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
 lib/PublicInbox/NewsWWW.pm
+lib/PublicInbox/OnDestroy.pm
 lib/PublicInbox/Over.pm
 lib/PublicInbox/OverIdx.pm
 lib/PublicInbox/ProcessPipe.pm
@@ -226,6 +234,7 @@ sa_config/Makefile
 sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
 sa_config/user/.spamassassin/user_prefs
+script/lei
 script/public-inbox-compact
 script/public-inbox-convert
 script/public-inbox-edit
@@ -316,6 +325,10 @@ t/indexlevels-mirror.t
 t/init.t
 t/iso-2202-jp.eml
 t/kqnotify.t
+t/lei-oneshot.t
+t/lei.t
+t/lei_store.t
+t/lei_xsearch.t
 t/linkify.t
 t/main-bin/spamc
 t/mda-mime.eml
@@ -336,6 +349,7 @@ t/nntpd-v2.t
 t/nntpd.t
 t/nodatacow.t
 t/nulsubject.t
+t/on_destroy.t
 t/over.t
 t/plack-2-txt-bodies.eml
 t/plack-attached-patch.eml

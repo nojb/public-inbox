@@ -16,23 +16,17 @@ use DBI qw(:sql_types); # SQL_BLOB
 use parent qw(PublicInbox::Search);
 
 sub new {
-	my (undef, $topdir) = @_;
+	my ($class, $topdir) = @_;
 	bless {
 		topdir => $topdir,
 		# xpfx => 'ei15'
 		xpfx => "$topdir/ei".PublicInbox::Search::SCHEMA_VERSION
-	}, __PACKAGE__;
+	}, $class;
 }
 
 sub misc {
 	my ($self) = @_;
 	$self->{misc} //= PublicInbox::MiscSearch->new("$self->{xpfx}/misc");
-}
-
-# overrides PublicInbox::Search::_xdb
-sub _xdb {
-	my ($self) = @_;
-	$self->xdb_sharded;
 }
 
 # same as per-inbox ->over, for now...

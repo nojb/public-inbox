@@ -11,7 +11,7 @@ use PublicInbox::Config;
 use IO::Compress::Gzip qw(gzip);
 use HTTP::Date qw(time2str);
 
-our $json = PublicInbox::Config::json();
+my $json = PublicInbox::Config::json();
 
 # called by WwwListing
 sub url_regexp {

@@ -75,6 +75,10 @@ sub require_mods {
 	my $maybe = pop @mods if $mods[-1] =~ /\A[0-9]+\z/;
 	my @need;
 	while (my $mod = shift(@mods)) {
+		if ($mod eq 'json') {
+			$mod = 'Cpanel::JSON::XS||JSON::MaybeXS||'.
+				'JSON||JSON::PP'
+		}
 		if ($mod eq 'Search::Xapian') {
 			if (eval { require PublicInbox::Search } &&
 				PublicInbox::Search::load_xapian()) {
@@ -164,7 +168,7 @@ sub run_script_exit {
 	die RUN_SCRIPT_EXIT;
 }
 
-my %cached_scripts;
+our %cached_scripts;
 sub key2sub ($) {
 	my ($key) = @_;
 	$cached_scripts{$key} //= do {
@@ -257,6 +261,7 @@ sub run_script ($;$$) {
 		my $orig_io = _prepare_redirects($fhref);
 		_run_sub($sub, $key, \@argv);
 		_undo_redirects($orig_io);
+		select STDOUT;
 	}
 
 	# slurp the redirects back into user-supplied strings

@@ -1,6 +1,6 @@
 # Copyright (C) 2015-2020 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-# based on notmuch, but with no concept of folders, files or flags
+# based on notmuch, but with no concept of folders, files
 #
 # Indexes mail with Xapian and our (SQLite-based) ::Msgmap for use
 # with the web and NNTP interfaces.  This index maintains thread
@@ -54,14 +54,11 @@ sub new {
 		}
 	}
 	$ibx = PublicInbox::InboxWritable->new($ibx);
-	my $self = bless {
-		ibx => $ibx,
-		xpfx => $inboxdir, # for xpfx_init
-		-altid => $altid,
-		ibx_ver => $version,
-		indexlevel => $indexlevel,
-	}, $class;
-	$self->xpfx_init;
+	my $self = PublicInbox::Search->new($ibx);
+	bless $self, $class;
+	$self->{ibx} = $ibx;
+	$self->{-altid} = $altid;
+	$self->{indexlevel} = $indexlevel;
 	$self->{-set_indexlevel_once} = 1 if $indexlevel eq 'medium';
 	if ($ibx->{-skip_docdata}) {
 		$self->{-set_skip_docdata_once} = 1;
@@ -369,7 +366,7 @@ sub eml2doc ($$$;$) {
 	index_headers($self, $smsg);
 
 	if (defined(my $eidx_key = $smsg->{eidx_key})) {
-		$doc->add_boolean_term('O'.$eidx_key);
+		$doc->add_boolean_term('O'.$eidx_key) if $eidx_key ne '.';
 	}
 	msg_iter($eml, \&index_xapian, [ $self, $doc ]);
 	index_ids($self, $doc, $eml, $mids);
@@ -406,7 +403,7 @@ sub add_xapian ($$$$) {
 
 sub _msgmap_init ($) {
 	my ($self) = @_;
-	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx_ver} != 1;
+	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx}->version != 1;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
 		my $rw = $self->{ibx}->{-no_fsync} ? 2 : 1;
@@ -465,7 +462,7 @@ sub add_eidx_info {
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid) or return;
 	term_generator($self)->set_document($doc);
-	$doc->add_boolean_term('O'.$eidx_key);
+	$doc->add_boolean_term('O'.$eidx_key) if $eidx_key ne '.';
 	index_list_id($self, $doc, $eml);
 	$self->{xdb}->replace_document($docid, $doc);
 }
@@ -497,6 +494,47 @@ sub remove_eidx_info {
 		# rarer.
 	}
 	$self->{xdb}->replace_document($docid, $doc);
+}
+
+sub set_keywords {
+	my ($self, $docid, @kw) = @_;
+	begin_txn_lazy($self);
+	my $doc = _get_doc($self, $docid) or return;
+	my %keep = map { $_ => 1 } @kw;
+	my %add = %keep;
+	my @rm;
+	my $end = $doc->termlist_end;
+	for (my $cur = $doc->termlist_begin; $cur != $end; $cur++) {
+		$cur->skip_to('K');
+		last if $cur == $end;
+		my $kw = $cur->get_termname;
+		$kw =~ s/\AK//s or next;
+		$keep{$kw} ? delete($add{$kw}) : push(@rm, $kw);
+	}
+	return unless (scalar(@rm) + scalar(keys %add));
+	$doc->remove_term('K'.$_) for @rm;
+	$doc->add_boolean_term('K'.$_) for (keys %add);
+	$self->{xdb}->replace_document($docid, $doc);
+}
+
+sub add_keywords {
+	my ($self, $docid, @kw) = @_;
+	begin_txn_lazy($self);
+	my $doc = _get_doc($self, $docid) or return;
+	$doc->add_boolean_term('K'.$_) for @kw;
+	$self->{xdb}->replace_document($docid, $doc);
+}
+
+sub remove_keywords {
+	my ($self, $docid, @kw) = @_;
+	begin_txn_lazy($self);
+	my $doc = _get_doc($self, $docid) or return;
+	my $replace;
+	eval {
+		$doc->remove_term('K'.$_);
+		$replace = 1
+	} for @kw;
+	$self->{xdb}->replace_document($docid, $doc) if $replace;
 }
 
 sub smsg_from_doc ($) {
