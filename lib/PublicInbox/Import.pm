@@ -55,9 +55,9 @@ sub new {
 sub gfi_start {
 	my ($self) = @_;
 
-	return ($self->{in}, $self->{out}) if $self->{pid};
+	return ($self->{in}, $self->{out}) if $self->{in};
 
-	my ($in_r, $pid, $out_r, $out_w);
+	my ($in_r, $out_r, $out_w);
 	pipe($out_r, $out_w) or die "pipe failed: $!";
 
 	$self->lock_acquire;
@@ -73,13 +73,11 @@ sub gfi_start {
 			chomp @t;
 			$self->{-tree} = { map { $_ => 1 } @t };
 		}
-		my @cmd = ('git', "--git-dir=$git->{git_dir}",
-			qw(fast-import --quiet --done --date-format=raw));
-		($in_r, $pid) = popen_rd(\@cmd, undef, { 0 => $out_r });
+		$in_r = $self->{in} = $git->popen(qw(fast-import
+					--quiet --done --date-format=raw),
+					undef, { 0 => $out_r });
 		$out_w->autoflush(1);
-		$self->{in} = $in_r;
 		$self->{out} = $out_w;
-		$self->{pid} = $pid;
 		$self->{nchg} = 0;
 	};
 	if ($@) {
@@ -163,14 +161,14 @@ sub check_remove_v1 {
 
 sub checkpoint {
 	my ($self) = @_;
-	return unless $self->{pid};
+	return unless $self->{in};
 	print { $self->{out} } "checkpoint\n" or wfail;
 	undef;
 }
 
 sub progress {
 	my ($self, $msg) = @_;
-	return unless $self->{pid};
+	return unless $self->{in};
 	print { $self->{out} } "progress $msg\n" or wfail;
 	readline($self->{in}) eq "progress $msg\n" or die
 		"progress $msg not received\n";
@@ -219,7 +217,7 @@ sub barrier {
 # used for v2
 sub get_mark {
 	my ($self, $mark) = @_;
-	die "not active\n" unless $self->{pid};
+	die "not active\n" unless $self->{in};
 	my ($r, $w) = $self->gfi_start;
 	print $w "get-mark $mark\n" or wfail;
 	defined(my $oid = <$r>) or die "get-mark failed, need git 2.6.0+\n";
@@ -482,10 +480,7 @@ sub done {
 	eval {
 		my $r = delete $self->{in} or die 'BUG: missing {in} when done';
 		print $w "done\n" or wfail;
-		my $pid = delete $self->{pid} or
-				die 'BUG: missing {pid} when done';
-		waitpid($pid, 0) == $pid or die 'fast-import did not finish';
-		$? == 0 or die "fast-import failed: $?";
+		close $r or die "fast-import failed: $?"; # ProcessPipe::CLOSE
 	};
 	my $wait_err = $@;
 	my $nchg = delete $self->{nchg};
