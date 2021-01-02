@@ -12,6 +12,8 @@ require_ok 'PublicInbox::ExtSearch';
 my ($home, $for_destroy) = tmpdir();
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 my $store_dir = "$home/lst";
+local $ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
+local $ENV{GIT_COMMITTER_NAME} = 'lei user';
 my $lst = PublicInbox::LeiStore->new($store_dir, { creat => 1 });
 ok($lst, '->new');
 my $smsg = $lst->add_eml(eml_load('t/data/0001.patch'));

@@ -51,9 +51,7 @@ sub git_epoch_max  {
 
 sub git_ident ($) {
 	my ($git) = @_;
-	open my $null, '>', '/dev/null' or die "open /dev/null: $!";
-	my $opt = { 2 => $null };
-	chomp(my $i = $git->qx(qw(var GIT_COMMITTER_IDENT), undef, $opt));
+	chomp(my $i = $git->qx(qw(var GIT_COMMITTER_IDENT)));
 	warn "$git->{git_dir} GIT_COMMITTER_IDENT failed\n" if $?;
 	$i =~ /\A(.+) <([^>]+)> [0-9]+ [-\+]?[0-9]+$/ ? ($1, $2) :
 		('lei user', 'x@example.com')

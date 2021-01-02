@@ -23,6 +23,9 @@ my $lei = sub {
 my ($home, $for_destroy) = tmpdir();
 delete local $ENV{XDG_DATA_HOME};
 delete local $ENV{XDG_CONFIG_HOME};
+local $ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
+local $ENV{GIT_COMMITTER_NAME} = 'lei user';
+local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 local $ENV{HOME} = $home;
 local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
