@@ -5,7 +5,6 @@
 package PublicInbox::ProcessPipe;
 use strict;
 use v5.10.1;
-use PublicInbox::DS qw(dwaitpid);
 use Carp qw(carp);
 
 sub TIEHANDLE {
@@ -48,7 +47,8 @@ sub _close ($;$) {
 			carp "waitpid($pid, 0) = $wp, \$!=$!, \$?=$?";
 		}
 	} else { # caller just undef-ed it, let event loop deal with it
-		dwaitpid $pid, $cb, $arg;
+		require PublicInbox::DS;
+		PublicInbox::DS::dwaitpid($pid, $cb, $arg);
 	}
 	$ret;
 }
