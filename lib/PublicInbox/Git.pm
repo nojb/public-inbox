@@ -365,8 +365,17 @@ sub popen {
 sub qx {
 	my $self = shift;
 	my $fh = $self->popen(@_);
-	local $/ = wantarray ? "\n" : undef;
-	<$fh>;
+	if (wantarray) {
+		local $/ = "\n";
+		my @ret = <$fh>;
+		close $fh; # caller should check $?
+		@ret;
+	} else {
+		local $/;
+		my $ret = <$fh>;
+		close $fh; # caller should check $?
+		$ret;
+	}
 }
 
 # check_async and cat_async may trigger the other, so ensure they're
