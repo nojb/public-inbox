@@ -507,14 +507,13 @@ sub modified ($) {
 # templates/this--description in git.git
 sub manifest_entry {
 	my ($self, $epoch, $default_desc) = @_;
-	my ($fh, $pid) = $self->popen('show-ref');
+	my $fh = $self->popen('show-ref');
 	my $dig = Digest::SHA->new(1);
 	while (read($fh, my $buf, 65536)) {
 		$dig->add($buf);
 	}
-	close $fh;
-	waitpid($pid, 0);
-	return if $?; # empty, uninitialized git repo
+	close $fh or return; # empty, uninitialized git repo
+	undef $fh; # for open, below
 	my $git_dir = $self->{git_dir};
 	my $ent = {
 		fingerprint => $dig->hexdigest,
