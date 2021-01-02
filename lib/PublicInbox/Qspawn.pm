@@ -28,7 +28,6 @@ package PublicInbox::Qspawn;
 use strict;
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::GzipFilter;
-use PublicInbox::DS qw(dwaitpid); # doesn't need event loop
 
 # n.b.: we get EAGAIN with public-inbox-httpd, and EINTR on other PSGI servers
 use Errno qw(EAGAIN EINTR);
@@ -58,9 +57,9 @@ sub _do_spawn {
 	$self->{cmd} = $o{quiet} ? undef : $cmd;
 	eval {
 		# popen_rd may die on EMFILE, ENFILE
-		($self->{rpipe}, $self->{pid}) = popen_rd($cmd, $cmd_env, \%o);
+		$self->{rpipe} = popen_rd($cmd, $cmd_env, \%o);
 
-		die "E: $!" unless defined($self->{pid});
+		die "E: $!" unless defined($self->{rpipe});
 
 		$limiter->{running}++;
 		$start_cb->($self); # EPOLL_CTL_ADD may ENOSPC/ENOMEM
@@ -117,16 +116,14 @@ sub finalize ($$) {
 	}
 }
 
-# callback for dwaitpid
+# callback for dwaitpid or ProcessPipe
 sub waitpid_err { finalize($_[0], child_err($?)) }
 
 sub finish ($;$) {
 	my ($self, $err) = @_;
-	if (delete $self->{rpipe}) {
-		dwaitpid $self->{pid}, \&waitpid_err, $self;
-	} else {
-		finalize($self, $err);
-	}
+	my $tied_pp = delete($self->{rpipe}) or return finalize($self, $err);
+	my PublicInbox::ProcessPipe $pp = tied *$tied_pp;
+	@$pp{qw(cb arg)} = (\&waitpid_err, $self); # for ->DESTROY
 }
 
 sub start ($$$) {
