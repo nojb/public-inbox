@@ -72,4 +72,21 @@ for my $fmt (@mbox) { $check_fmt->($fmt) }
 s/\n/\r\n/sg for (values %raw);
 for my $fmt (@mbox) { $check_fmt->($fmt) }
 
+SKIP: {
+	use PublicInbox::Spawn qw(popen_rd);
+	use Time::HiRes qw(alarm);
+	my $fh = popen_rd([ $^X, '-E', <<'' ]);
+say "From x@y Fri Oct  2 00:00:00 1993";
+print "a: b\n\n", "x" x 70000, "\n\n";
+say "From x@y Fri Oct  2 00:00:00 2010";
+print "Final: bit\n\n", "Incomplete\n\n";
+exit 1
+
+	my @x;
+	eval { $reader->mboxrd($fh, sub { push @x, shift->as_string }) };
+	like($@, qr/error closing mbox/, 'detects error reading from pipe');
+	is(scalar(@x), 1, 'only saw one message');
+	is(scalar(grep(/Final/, @x)), 0, 'no incomplete bit');
+}
+
 done_testing;

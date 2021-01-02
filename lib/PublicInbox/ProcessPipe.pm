@@ -6,10 +6,12 @@ package PublicInbox::ProcessPipe;
 use strict;
 use v5.10.1;
 use PublicInbox::DS qw(dwaitpid);
+use Carp qw(carp);
 
 sub TIEHANDLE {
 	my ($class, $pid, $fh, $cb, $arg) = @_;
-	bless { pid => $pid, fh => $fh, cb => $cb, arg => $arg }, $class;
+	bless { pid => $pid, fh => $fh, ppid => $$, cb => $cb, arg => $arg },
+		$class;
 }
 
 sub READ { read($_[0]->{fh}, $_[1], $_[2], $_[3] || 0) }
@@ -26,32 +28,41 @@ sub PRINT {
 	print { $self->{fh} } @_;
 }
 
-sub adjust_ret { # dwaitpid callback
-	my ($retref, $pid) = @_;
-	$$retref = '' if $?
-}
+sub FILENO { fileno($_[0]->{fh}) }
 
-sub CLOSE {
-	my $fh = delete($_[0]->{fh});
-	my $ret = defined $fh ? close($fh) : '';
-	my ($pid, $cb, $arg) = delete @{$_[0]}{qw(pid cb arg)};
-	if (defined $pid) {
-		unless ($cb) {
-			$cb = \&adjust_ret;
-			$arg = \$ret;
+sub _close ($;$) {
+	my ($self, $wait) = @_;
+	my $fh = delete $self->{fh};
+	my $ret = defined($fh) ? close($fh) : '';
+	my ($pid, $cb, $arg) = delete @$self{qw(pid cb arg)};
+	return $ret unless defined($pid) && $self->{ppid} == $$;
+	if ($wait) { # caller cares about the exit status:
+		my $wp = waitpid($pid, 0);
+		if ($wp == $pid) {
+			$ret = '' if $?;
+			if ($cb) {
+				eval { $cb->($arg, $pid) };
+				carp "E: cb(arg, $pid): $@" if $@;
+			}
+		} else {
+			carp "waitpid($pid, 0) = $wp, \$!=$!, \$?=$?";
 		}
+	} else { # caller just undef-ed it, let event loop deal with it
 		dwaitpid $pid, $cb, $arg;
 	}
 	$ret;
 }
 
-sub FILENO { fileno($_[0]->{fh}) }
+# if caller uses close(), assume they want to check $? immediately so
+# we'll waitpid() synchronously.  n.b. wantarray doesn't seem to
+# propagate `undef' down to tied methods, otherwise I'd rely on that.
+sub CLOSE { _close($_[0], 1) }
 
+# if relying on DESTROY, assume the caller doesn't care about $? and
+# we can let the event loop call waitpid() whenever it gets SIGCHLD
 sub DESTROY {
-	CLOSE(@_);
+	_close($_[0]);
 	undef;
 }
-
-sub pid { $_[0]->{pid} }
 
 1;

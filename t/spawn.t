@@ -98,6 +98,44 @@ EOF
 	isnt($?, 0, '$? set properly: '.$?);
 }
 
+{ # ->CLOSE vs ->DESTROY waitpid caller distinction
+	my @c;
+	my $fh = popen_rd(['true'], undef, { cb => sub { @c = caller } });
+	ok(close($fh), '->CLOSE fired and successful');
+	ok(scalar(@c), 'callback fired by ->CLOSE');
+	ok(grep(!m[/PublicInbox/DS\.pm\z], @c), 'callback not invoked by DS');
+
+	@c = ();
+	$fh = popen_rd(['true'], undef, { cb => sub { @c = caller } });
+	undef $fh; # ->DESTROY
+	ok(scalar(@c), 'callback fired by ->DESTROY');
+	ok(grep(!m[/PublicInbox/ProcessPipe\.pm\z], @c),
+		'callback not invoked by ProcessPipe');
+}
+
+{ # children don't wait on siblings
+	use POSIX qw(_exit);
+	pipe(my ($r, $w)) or BAIL_OUT $!;
+	my $cb = sub { warn "x=$$\n" };
+	my $fh = popen_rd(['cat'], undef, { 0 => $r, cb => $cb });
+	my $pp = tied *$fh;
+	my $pid = fork // BAIL_OUT $!;
+	local $SIG{__WARN__} = sub { _exit(1) };
+	if ($pid == 0) {
+		local $SIG{__DIE__} = sub { _exit(2) };
+		undef $fh;
+		_exit(0);
+	}
+	waitpid($pid, 0);
+	is($?, 0, 'forked process exited');
+	my @w;
+	local $SIG{__WARN__} = sub { push @w, @_ };
+	close $w;
+	close $fh;
+	is($?, 0, 'cat exited');
+	is_deeply(\@w, [ "x=$$\n" ], 'callback fired from owner');
+}
+
 SKIP: {
 	eval {
 		require BSD::Resource;

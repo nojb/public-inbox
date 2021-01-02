@@ -295,14 +295,14 @@ sub spawn ($;$$) {
 }
 
 sub popen_rd {
-	my ($cmd, $env, $opts) = @_;
+	my ($cmd, $env, $opt) = @_;
 	pipe(my ($r, $w)) or die "pipe: $!\n";
-	$opts ||= {};
-	$opts->{1} = fileno($w);
-	my $pid = spawn($cmd, $env, $opts);
+	$opt ||= {};
+	$opt->{1} = fileno($w);
+	my $pid = spawn($cmd, $env, $opt);
 	return ($r, $pid) if wantarray;
 	my $ret = gensym;
-	tie *$ret, 'PublicInbox::ProcessPipe', $pid, $r;
+	tie *$ret, 'PublicInbox::ProcessPipe', $pid, $r, @$opt{qw(cb arg)};
 	$ret;
 }
 
