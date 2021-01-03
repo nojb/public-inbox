@@ -823,7 +823,7 @@ sub content_exists ($$$) {
 sub atfork_child {
 	my ($self) = @_;
 	if (my $older_siblings = $self->{idx_shards}) {
-		$_->shard_atfork_child for @$older_siblings;
+		$_->ipc_sibling_atfork_child for @$older_siblings;
 	}
 	if (my $im = $self->{im}) {
 		$im->atfork_child;
