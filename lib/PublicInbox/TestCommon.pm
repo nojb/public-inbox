@@ -141,9 +141,9 @@ sub _prepare_redirects ($) {
 	for (my $fd = 0; $fd <= $#io_mode; $fd++) {
 		my $fh = $fhref->[$fd] or next;
 		my ($oldfh, $mode) = @{$io_mode[$fd]};
-		open my $orig, $mode, $oldfh or die "$$oldfh $mode stash: $!";
+		open my $orig, $mode, $oldfh or die "$oldfh $mode stash: $!";
 		$orig_io->[$fd] = $orig;
-		open $oldfh, $mode, $fh or die "$$oldfh $mode redirect: $!";
+		open $oldfh, $mode, $fh or die "$oldfh $mode redirect: $!";
 	}
 	$orig_io;
 }
