@@ -192,7 +192,11 @@ if ($ENV{TEST_LEI_ONESHOT}) {
 }
 
 SKIP: { # real socket
-	require_mods(qw(IO::FDPass Cwd), 46);
+	require_mods(qw(Cwd), my $nr = 46);
+	require PublicInbox::Spawn;
+	skip "Inline::C not installed/configured or IO::FDPass missing", $nr
+		unless PublicInbox::Spawn->can('send_fd');
+
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
 

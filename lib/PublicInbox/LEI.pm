@@ -25,6 +25,7 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
+my $recv_fd;
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
 my $GLP_PASS = Getopt::Long::Parser->new;
@@ -615,7 +616,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 	# `say $sock' triggers "die" in lei(1)
 	for my $i (0..2) {
 		if (select(my $rout = $rin, undef, undef, 1)) {
-			my $fd = IO::FDPass::recv(fileno($sock));
+			my $fd = $recv_fd->(fileno($sock));
 			if ($fd >= 0) {
 				my $rdr = ($fd == 0 ? '<&=' : '>&=');
 				if (open(my $fh, $rdr, $fd)) {
@@ -671,7 +672,8 @@ sub lazy_start {
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	my $oldset = PublicInbox::Sigfd::block_signals();
-	require IO::FDPass;
+	$recv_fd = PublicInbox::Spawn->can('recv_fd') or die
+		"Inline::C not installed/configured or IO::FDPass missing\n";
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
 	(-p STDOUT) or die "E: stdout must be a pipe\n";

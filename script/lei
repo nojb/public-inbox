@@ -4,8 +4,11 @@
 use strict;
 use v5.10.1;
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
+my $send_fd;
 if (my ($sock, $pwd) = eval {
-	require IO::FDPass; # will try to use a daemon to reduce load time
+	require PublicInbox::Spawn;
+	$send_fd = PublicInbox::Spawn->can('send_fd') or die
+		"Inline::C not installed/configured or IO::FDPass missing\n";
 	my $path = do {
 		my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
 		if ($runtime_dir eq '/lei') {
@@ -57,7 +60,7 @@ Falling back to (slow) one-shot mode
 	$buf .= "\0\0";
 	select $sock;
 	$| = 1; # unbuffer selected $sock
-	IO::FDPass::send(fileno($sock), $_) for (0..2);
+	$send_fd->(fileno($sock), $_) for (0..2);
 	print $sock $buf or die "print(sock, buf): $!";
 	while ($buf = <$sock>) {
 		$buf =~ /\Aexit=([0-9]+)\n\z/ and exit($1 + 0);

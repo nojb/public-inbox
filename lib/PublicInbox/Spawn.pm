@@ -201,12 +201,72 @@ void nodatacow_dir(const char *dir)
 }
 SET_NODATACOW
 
+my $fdpass = <<'FDPASS';
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <sys/socket.h>
+
+#if defined(CMSG_SPACE) && defined(CMSG_LEN)
+union my_cmsg {
+	struct cmsghdr hdr;
+	char pad[sizeof(struct cmsghdr)+8+sizeof(int)+8];
+};
+
+int send_fd(int sockfd, int fd)
+{
+	struct msghdr msg = { 0 };
+	struct iovec iov;
+	union my_cmsg cmsg = { 0 };
+
+	iov.iov_base = &msg.msg_namelen;
+	iov.iov_len = 1;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = &cmsg.hdr;
+	msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+	cmsg.hdr.cmsg_level = SOL_SOCKET;
+	cmsg.hdr.cmsg_type = SCM_RIGHTS;
+	cmsg.hdr.cmsg_len = CMSG_LEN(sizeof(int));
+	*(int *)CMSG_DATA(&cmsg.hdr) = fd;
+
+	return sendmsg(sockfd, &msg, 0) >= 0;
+}
+
+int recv_fd(int sockfd)
+{
+	union my_cmsg cmsg = { 0 };
+	struct msghdr msg = { 0 };
+	struct iovec iov;
+	int fd = -1;
+
+	iov.iov_base = &msg.msg_namelen;
+	iov.iov_len = 1;
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = &cmsg.hdr;
+	msg.msg_controllen = CMSG_SPACE(sizeof(int));
+
+	if (recvmsg(sockfd, &msg, 0) <= 0)
+		return -1;
+
+	errno = EDOM;
+	if (cmsg.hdr.cmsg_level == SOL_SOCKET &&
+			cmsg.hdr.cmsg_type == SCM_RIGHTS &&
+			cmsg.hdr.cmsg_len == CMSG_LEN(sizeof(int)))
+		fd = *(int *)CMSG_DATA(&cmsg.hdr);
+
+	return fd;
+}
+#endif /* defined(CMSG_SPACE) && defined(CMSG_LEN) */
+FDPASS
+
 my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
 		$ENV{XDG_CACHE_HOME} //
 		( ($ENV{HOME} // '/nonexistent').'/.cache' )
 	).'/public-inbox/inline-c';
 
-$set_nodatacow = $vfork_spawn = undef unless -d $inline_dir && -w _;
+$set_nodatacow = $vfork_spawn = $fdpass = undef unless -d $inline_dir && -w _;
 if (defined $vfork_spawn) {
 	# Inline 0.64 or later has locking in multi-process env,
 	# but we support 0.5 on Debian wheezy
@@ -215,13 +275,13 @@ if (defined $vfork_spawn) {
 		my $f = "$inline_dir/.public-inbox.lock";
 		open my $fh, '>', $f or die "failed to open $f: $!\n";
 		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-		eval 'use Inline C => $vfork_spawn . $set_nodatacow';
+		eval 'use Inline C => $vfork_spawn . $fdpass . $set_nodatacow';
 		my $err = $@;
 		my $ndc_err;
 		if ($err && $set_nodatacow) { # missing Linux kernel headers
 			$ndc_err = $err;
 			undef $set_nodatacow;
-			eval 'use Inline C => $vfork_spawn';
+			eval 'use Inline C => $vfork_spawn . $fdpass';
 		}
 		flock($fh, LOCK_UN) or die "LOCK_UN failed on $f: $!\n";
 		die $err if $err;
@@ -229,7 +289,7 @@ if (defined $vfork_spawn) {
 	};
 	if ($@) {
 		warn "Inline::C failed for vfork: $@\n";
-		$set_nodatacow = $vfork_spawn = undef;
+		$set_nodatacow = $vfork_spawn = $fdpass = undef;
 	}
 }
 
@@ -243,8 +303,18 @@ unless ($set_nodatacow) {
 	*nodatacow_fd = \&PublicInbox::NDC_PP::nodatacow_fd;
 	*nodatacow_dir = \&PublicInbox::NDC_PP::nodatacow_dir;
 }
+unless (__PACKAGE__->can('recv_fd')) {
+	eval { # try the XS IO::FDPass package
+		require IO::FDPass;
+		no warnings 'once';
+		*recv_fd = \&IO::FDPass::recv;
+		*send_fd = \&IO::FDPass::send;
+	};
+}
+
 undef $set_nodatacow;
 undef $vfork_spawn;
+undef $fdpass;
 
 sub which ($) {
 	my ($file) = @_;

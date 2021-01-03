@@ -5,6 +5,24 @@ use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::Sigfd;
+use Socket qw(AF_UNIX SOCK_STREAM);
+
+SKIP: {
+	my $recv_fd = PublicInbox::Spawn->can('recv_fd');
+	my $send_fd = PublicInbox::Spawn->can('send_fd');
+	skip 'Inline::C not enabled', 3 unless $send_fd && $recv_fd;
+	my ($s1, $s2);
+	socketpair($s1, $s2, AF_UNIX, SOCK_STREAM, 0) or BAIL_OUT $!;
+	pipe(my ($r, $w)) or BAIL_OUT $!;
+	ok($send_fd->(fileno($s1), fileno($r)), 'pipe sent');
+	my $rfd = $recv_fd->(fileno($s2));
+	like($rfd, qr/\A\d+\z/, 'got FD');
+	open(my $rfh, '<&=', $rfd) or BAIL_OUT $!;
+	my @old = stat($r);
+	my @new = stat($rfh);
+	is("$old[0]\0$old[1]", "$new[0]\0$new[1]",
+		'device/inode matches on received FD');
+}
 
 {
 	my $true = which('true');
