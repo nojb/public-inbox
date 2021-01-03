@@ -315,17 +315,6 @@ unless ($set_nodatacow) {
 	*nodatacow_fd = \&PublicInbox::NDC_PP::nodatacow_fd;
 	*nodatacow_dir = \&PublicInbox::NDC_PP::nodatacow_dir;
 }
-unless (__PACKAGE__->can('recv_3fds')) {
-	eval { # try the XS IO::FDPass package
-		require IO::FDPass;
-		no warnings 'once';
-		*recv_3fds = sub { map { IO::FDPass::recv($_[0]) } (0..2) };
-		*send_3fds = sub ($$$$) {
-			my $sockfd = shift;
-			IO::FDPass::send($sockfd, shift) for (0..2);
-		};
-	};
-}
 
 undef $set_nodatacow;
 undef $vfork_spawn;

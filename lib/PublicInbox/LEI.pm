@@ -660,7 +660,7 @@ sub noop {}
 
 # lei(1) calls this when it can't connect
 sub lazy_start {
-	my ($path, $errno) = @_;
+	my ($path, $errno, $nfd) = @_;
 	if ($errno == ECONNREFUSED) {
 		unlink($path) or die "unlink($path): $!";
 	} elsif ($errno != ENOENT) {
@@ -675,8 +675,14 @@ sub lazy_start {
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	my $oldset = PublicInbox::Sigfd::block_signals();
-	$recv_3fds = PublicInbox::Spawn->can('recv_3fds') or die
-		"Inline::C not installed/configured or IO::FDPass missing\n";
+	if ($nfd == 1) {
+		require IO::FDPass;
+		$recv_3fds = sub { map { IO::FDPass::recv($_[0]) } (0..2) };
+	} elsif ($nfd == 3) {
+		$recv_3fds = PublicInbox::Spawn->can('recv_3fds');
+	}
+	$recv_3fds or die
+		"IO::FDPass missing or Inline::C not installed/configured\n";
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
 	(-p STDOUT) or die "E: stdout must be a pipe\n";

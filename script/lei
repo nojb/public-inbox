@@ -4,11 +4,17 @@
 use strict;
 use v5.10.1;
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
-my $send_3fds;
+my ($send_3fds, $nfd);
 if (my ($sock, $pwd) = eval {
-	require PublicInbox::Spawn;
-	$send_3fds = PublicInbox::Spawn->can('send_3fds') or die
-		"Inline::C not installed/configured or IO::FDPass missing\n";
+	$send_3fds = eval {
+		require IO::FDPass;
+		$nfd = 1; # 1 FD per-sendmsg
+		sub { IO::FDPass::send($_[0], $_[$_]) for (1..3) }
+	} // do {
+		require PublicInbox::Spawn; # takes ~50ms even if built *sigh*
+		$nfd = 3; # 3 FDs per-sendmsg(2)
+		PublicInbox::Spawn->can('send_3fds');
+	} // die "IO::FDPass missing or Inline::C not installed/configured\n";
 	my $path = do {
 		my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
 		if ($runtime_dir eq '/lei') {
@@ -19,7 +25,7 @@ if (my ($sock, $pwd) = eval {
 			require File::Path;
 			File::Path::mkpath($runtime_dir, 0, 0700);
 		}
-		"$runtime_dir/sock";
+		"$runtime_dir/$nfd.sock";
 	};
 	my $addr = pack_sockaddr_un($path);
 	socket(my $sock, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
@@ -27,7 +33,7 @@ if (my ($sock, $pwd) = eval {
 		local $ENV{PERL5LIB} = join(':', @INC);
 		open(my $daemon, '-|', $^X, qw[-MPublicInbox::LEI
 			-E PublicInbox::LEI::lazy_start(@ARGV)],
-			$path, $! + 0) or die "popen: $!";
+			$path, $! + 0, $nfd) or die "popen: $!";
 		while (<$daemon>) { warn $_ } # EOF when STDERR is redirected
 		close($daemon) or warn <<"";
 lei-daemon could not start, exited with \$?=$?
