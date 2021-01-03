@@ -1133,8 +1133,7 @@ sub unindex_oid_aux ($$$) {
 	my ($self, $oid, $mid) = @_;
 	my @removed = $self->{oidx}->remove_oid($oid, $mid);
 	for my $num (@removed) {
-		my $idx = idx_shard($self, $num);
-		$idx->shard_remove($num);
+		idx_shard($self, $num)->ipc_do('xdb_remove', $num);
 	}
 }
 

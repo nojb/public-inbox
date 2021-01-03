@@ -102,7 +102,7 @@ sub do_xpost ($$) {
 	if (my $new_smsg = $req->{new_smsg}) { # 'm' on cross-posted message
 		my $xnum = $req->{xnum};
 		$self->{oidx}->add_xref3($docid, $xnum, $oid, $eidx_key);
-		$idx->shard_add_eidx_info($docid, $eidx_key, $eml);
+		$idx->ipc_do('add_eidx_info', $docid, $eidx_key, $eml);
 		check_batch_limit($req);
 	} else { # 'd'
 		my $rm_eidx_info;
@@ -110,9 +110,10 @@ sub do_xpost ($$) {
 							\$rm_eidx_info);
 		if ($nr == 0) {
 			$self->{oidx}->eidxq_del($docid);
-			$idx->shard_remove($docid);
+			$idx->ipc_do('xdb_remove', $docid);
 		} elsif ($rm_eidx_info) {
-			$idx->shard_remove_eidx_info($docid, $eidx_key, $eml);
+			$idx->ipc_do('remove_eidx_info',
+					$docid, $eidx_key, $eml);
 			$self->{oidx}->eidxq_add($docid); # yes, add
 		}
 	}
@@ -327,7 +328,7 @@ DELETE FROM xref3 WHERE docid = ? AND ibx_id = ?
 		}
 	} else {
 		warn "I: remove #$docid $eidx_key @oid\n";
-		$self->idx_shard($docid)->shard_remove($docid);
+		$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
 	}
 }
 
@@ -440,7 +441,7 @@ sub _reindex_finalize ($$$) {
 	for my $x (reverse @$stable) {
 		$ibx = _ibx_for($self, $sync, $x);
 		my $hdr = delete $x->{hdr} // die 'BUG: no {hdr}';
-		$idx->shard_add_eidx_info($docid, $ibx->eidx_key, $hdr);
+		$idx->ipc_do('add_eidx_info', $docid, $ibx->eidx_key, $hdr);
 	}
 	return if $nr == 1; # likely, all good
 
@@ -483,12 +484,12 @@ sub _reindex_oid { # git->cat_async callback
 		my $remain = $self->{oidx}->remove_xref3($docid, $expect_oid);
 		if ($remain == 0) {
 			warn "W: #$docid gone or corrupted\n";
-			$self->idx_shard($docid)->shard_remove($docid);
+			$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
 		} elsif (my $next_oid = $req->{xr3r}->[++$req->{ix}]->[2]) {
 			$self->git->cat_async($next_oid, \&_reindex_oid, $req);
 		} else {
 			warn "BUG: #$docid gone (UNEXPECTED)\n";
-			$self->idx_shard($docid)->shard_remove($docid);
+			$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
 		}
 		return;
 	}
@@ -522,7 +523,7 @@ sub _reindex_smsg ($$$) {
 BUG? #$docid $smsg->{blob} is not referenced by inboxes during reindex
 
 		$self->{oidx}->delete_by_num($docid);
-		$self->idx_shard($docid)->shard_remove($docid);
+		$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
 		return;
 	}
 
@@ -799,10 +800,10 @@ DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
 			if (scalar(@$xr3) == 0) { # all gone
 				$self->{oidx}->delete_by_num($docid);
 				$self->{oidx}->eidxq_del($docid);
-				$idx->shard_remove($docid);
+				$idx->ipc_do('xdb_remove', $docid);
 			} else { # enqueue for reindex of remaining messages
-				$idx->shard_remove_eidx_info($docid,
-							$ibx->eidx_key);
+				$idx->ipc_do('remove_eidx_info',
+						$docid, $ibx->eidx_key);
 				$self->{oidx}->eidxq_add($docid); # yes, add
 			}
 		}

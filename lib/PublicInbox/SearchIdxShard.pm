@@ -54,16 +54,6 @@ sub index_raw {
 	$self->ipc_do('add_message', $eml, $smsg);
 }
 
-sub shard_add_eidx_info {
-	my ($self, $docid, $eidx_key, $eml) = @_;
-	$self->ipc_do('add_eidx_info', $docid, $eidx_key, $eml);
-}
-
-sub shard_remove_eidx_info {
-	my ($self, $docid, $eidx_key, $eml) = @_;
-	$self->ipc_do('remove_eidx_info', $docid, $eidx_key, $eml);
-}
-
 # needed when there's multiple IPC workers and the parent forking
 # causes newer siblings to inherit older siblings sockets
 sub shard_atfork_child {
@@ -91,26 +81,6 @@ sub shard_close {
 	my ($self) = @_;
 	$self->ipc_do('idx_close');
 	$self->ipc_worker_stop;
-}
-
-sub shard_remove {
-	my ($self, $num) = @_;
-	$self->ipc_do('remove_by_docid', $num);
-}
-
-sub shard_set_keywords {
-	my ($self, $docid, @kw) = @_;
-	$self->ipc_do('set_keywords', $docid, @kw);
-}
-
-sub shard_remove_keywords {
-	my ($self, $docid, @kw) = @_;
-	$self->ipc_do('remove_keywords', $docid, @kw);
-}
-
-sub shard_add_keywords {
-	my ($self, $docid, @kw) = @_;
-	$self->ipc_do('add_keywords', $docid, @kw);
 }
 
 sub shard_over_check {

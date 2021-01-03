@@ -146,7 +146,7 @@ sub set_eml_keywords {
 	my $eidx = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
-		$eidx->idx_shard($docid)->shard_set_keywords($docid, @kw);
+		$eidx->idx_shard($docid)->ipc_do('set_keywords', $docid, @kw);
 	}
 	\@docids;
 }
@@ -156,7 +156,7 @@ sub add_eml_keywords {
 	my $eidx = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
-		$eidx->idx_shard($docid)->shard_add_keywords($docid, @kw);
+		$eidx->idx_shard($docid)->ipc_do('add_keywords', $docid, @kw);
 	}
 	\@docids;
 }
@@ -166,7 +166,7 @@ sub remove_eml_keywords {
 	my $eidx = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
-		$eidx->idx_shard($docid)->shard_remove_keywords($docid, @kw);
+		$eidx->idx_shard($docid)->ipc_do('remove_keywords', $docid, @kw)
 	}
 	\@docids;
 }
@@ -205,8 +205,9 @@ sub add_eml {
 		for my $docid (@docids) {
 			my $idx = $eidx->idx_shard($docid);
 			$oidx->add_xref3($docid, -1, $smsg->{blob}, '.');
-			$idx->shard_add_eidx_info($docid, '.', $eml); # List-Id
-			$idx->shard_add_keywords($docid, @kw) if @kw;
+			# add_eidx_info for List-Id
+			$idx->ipc_do('add_eidx_info', $docid, '.', $eml);
+			$idx->ipc_do('add_keywords', $docid, @kw) if @kw;
 		}
 		\@docids;
 	} else {
@@ -215,7 +216,7 @@ sub add_eml {
 		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');
 		my $idx = $eidx->idx_shard($smsg->{num});
 		$idx->index_raw($msgref, $eml, $smsg);
-		$idx->shard_add_keywords($smsg->{num}, @kw) if @kw;
+		$idx->ipc_do('add_keywords', $smsg->{num}, @kw) if @kw;
 		$smsg;
 	}
 }

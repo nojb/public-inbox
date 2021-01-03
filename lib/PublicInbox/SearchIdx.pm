@@ -552,18 +552,12 @@ sub smsg_from_doc ($) {
 
 sub xdb_remove {
 	my ($self, @docids) = @_;
+	$self->begin_txn_lazy;
 	my $xdb = $self->{xdb} or return;
 	for my $docid (@docids) {
 		eval { $xdb->delete_document($docid) };
 		warn "E: #$docid not in in Xapian? $@\n" if $@;
 	}
-}
-
-sub remove_by_docid {
-	my ($self, $num) = @_;
-	die "BUG: remove_by_docid is v2-only\n" if $self->{oidx};
-	$self->begin_txn_lazy;
-	xdb_remove($self, $num) if need_xapian($self);
 }
 
 sub index_git_blob_id {
