@@ -414,6 +414,7 @@ sub _msgmap_init ($) {
 sub add_message {
 	# mime = PublicInbox::Eml or Email::MIME object
 	my ($self, $mime, $smsg, $sync) = @_;
+	begin_txn_lazy($self);
 	my $mids = mids_for_index($mime);
 	$smsg //= bless { blob => '' }, 'PublicInbox::Smsg'; # test-only compat
 	$smsg->{mid} //= $mids->[0]; # v1 compatibility
@@ -1000,14 +1001,6 @@ sub commit_txn_lazy {
 	my ($self) = @_;
 	delete($self->{txn}) and
 		$self->with_umask(\&_commit_txn, $self);
-}
-
-sub worker_done {
-	my ($self) = @_;
-	if (need_xapian($self)) {
-		die "$$ $0 xdb not released\n" if $self->{xdb};
-	}
-	die "$$ $0 still in transaction\n" if $self->{txn};
 }
 
 sub eidx_shard_new {

@@ -92,7 +92,7 @@ sub ipc_worker_spawn {
 		$SIG{$_} = 'IGNORE' for (qw(TERM INT QUIT));
 		local $0 = $ident;
 		PublicInbox::Sigfd::sig_setmask($oldset);
-		$self->ipc_atfork_child;
+		my $on_destroy = $self->ipc_atfork_child;
 		eval { ipc_worker_loop($self, $s2) };
 		die "worker $ident PID:$$ died: $@\n" if $@;
 		exit;

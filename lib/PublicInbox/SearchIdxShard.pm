@@ -6,11 +6,8 @@
 package PublicInbox::SearchIdxShard;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::SearchIdx);
-use bytes qw(length);
-use IO::Handle (); # autoflush
-use PublicInbox::Eml;
-use PublicInbox::Sigfd;
+use parent qw(PublicInbox::SearchIdx PublicInbox::IPC);
+use PublicInbox::OnDestroy;
 
 sub new {
 	my ($class, $v2w, $shard) = @_; # v2w may be ExtSearchIdx
@@ -21,238 +18,108 @@ sub new {
 	$self->idx_acquire;
 	$self->set_metadata_once;
 	$self->idx_release;
-	$self->spawn_worker($v2w, $shard) if $v2w->{parallel};
+	if ($v2w->{parallel}) {
+		local $self->{-v2w_afc} = $v2w;
+		$self->ipc_worker_spawn("shard[$shard]");
+	}
 	$self;
 }
 
-sub spawn_worker {
-	my ($self, $v2w, $shard) = @_;
-	my ($r, $w);
-	pipe($r, $w) or die "pipe failed: $!\n";
-	$w->autoflush(1);
-	my $oldset = PublicInbox::Sigfd::block_signals();
-	my $pid = fork;
-	defined $pid or die "fork failed: $!\n";
-	if ($pid == 0) {
-		eval { PublicInbox::DS->Reset };
-		# these signals are localized in parent
-		$SIG{$_} = 'IGNORE' for (qw(TERM INT QUIT));
-		PublicInbox::Sigfd::sig_setmask($oldset);
-		my $bnote = $v2w->atfork_child;
-		close $w or die "failed to close: $!";
-
-		# F_SETPIPE_SZ = 1031 on Linux; increasing the pipe size here
-		# speeds V2Writable batch imports across 8 cores by nearly 20%
-		fcntl($r, 1031, 1048576) if $^O eq 'linux';
-
-		eval { shard_worker_loop($self, $v2w, $r, $shard, $bnote) };
-		die "worker $shard died: $@\n" if $@;
-		die "unexpected MM $self->{mm}" if $self->{mm};
-		exit;
+sub _worker_done {
+	my ($self) = @_;
+	if ($self->need_xapian) {
+		die "$$ $0 xdb not released\n" if $self->{xdb};
 	}
-	PublicInbox::Sigfd::sig_setmask($oldset);
-	$self->{pid} = $pid;
-	$self->{w} = $w;
-	close $r or die "failed to close: $!";
+	die "$$ $0 still in transaction\n" if $self->{txn};
 }
 
-sub eml ($$) {
-	my ($r, $len) = @_;
-	return if $len == 0;
-	my $n = read($r, my $bref, $len) or die "read: $!\n";
-	$n == $len or die "short read: $n != $len\n";
-	PublicInbox::Eml->new(\$bref);
-}
-
-# this reads all the writes to $self->{w} from the parent process
-sub shard_worker_loop ($$$$$) {
-	my ($self, $v2w, $r, $shard, $bnote) = @_;
-	$0 = "shard[$shard]";
+sub ipc_atfork_child { # called automatically before ipc_worker_loop
+	my ($self) = @_;
+	my $v2w = delete $self->{-v2w_afc} or die 'BUG: {-v2w_afc} missing';
+	$v2w->atfork_child; # calls shard_atfork_child on our siblings
+	$v2w->{current_info} = "[$self->{shard}]"; # for $SIG{__WARN__}
 	$self->begin_txn_lazy;
-	while (my $line = readline($r)) {
-		chomp $line;
-		$v2w->{current_info} = "[$shard] $line";
-		if ($line eq 'commit') {
-			$self->commit_txn_lazy;
-		} elsif ($line eq 'close') {
-			$self->idx_release;
-		} elsif ($line eq 'barrier') {
-			$self->commit_txn_lazy;
-			# no need to lock < 512 bytes is atomic under POSIX
-			print $bnote "barrier $shard\n" or
-					die "write failed for barrier $!\n";
-		} elsif ($line =~ /\AD ([0-9]+)\z/s) {
-			$self->remove_by_docid($1 + 0);
-		} elsif ($line =~ s/\A\+X //) {
-			my ($len, $docid, $eidx_key) = split(/ /, $line, 3);
-			$self->add_eidx_info($docid, $eidx_key, eml($r, $len));
-		} elsif ($line =~ s/\A-X //) {
-			my ($len, $docid, $eidx_key) = split(/ /, $line, 3);
-			$self->remove_eidx_info($docid, $eidx_key,
-							eml($r, $len));
-		} elsif ($line =~ s/\A=K (\d+) //) {
-			$self->set_keywords($1 + 0, split(/ /, $line));
-		} elsif ($line =~ s/\A-K (\d+) //) {
-			$self->remove_keywords($1 + 0, split(/ /, $line));
-		} elsif ($line =~ s/\A\+K (\d+) //) {
-			$self->add_keywords($1 + 0, split(/ /, $line));
-		} elsif ($line =~ s/\AO ([^\n]+)//) {
-			my $over_fn = $1;
-			$over_fn =~ tr/\0/\n/;
-			$self->over_check(PublicInbox::Over->new($over_fn));
-		} else {
-			my $eidx_key;
-			if ($line =~ s/\AX=(.+)\0//) {
-				$eidx_key = $1;
-				$v2w->{current_info} =~ s/\0/\\0 /;
-			}
-			# n.b. $mid may contain spaces(!)
-			my ($len, $bytes, $num, $oid, $ds, $ts, $tid, $mid)
-				= split(/ /, $line, 8);
-			$self->begin_txn_lazy;
-			my $smsg = bless {
-				bytes => $bytes,
-				num => $num + 0,
-				blob => $oid,
-				mid => $mid,
-				tid => $tid,
-				ds => $ds,
-				ts => $ts,
-			}, 'PublicInbox::Smsg';
-			$smsg->{eidx_key} = $eidx_key if defined($eidx_key);
-			$self->add_message(eml($r, $len), $smsg);
-		}
-	}
-	$self->worker_done;
+	# caller must capture this:
+	PublicInbox::OnDestroy->new($$, \&_worker_done, $self);
 }
 
 sub index_raw {
 	my ($self, $msgref, $eml, $smsg, $eidx_key) = @_;
-	if (my $w = $self->{w}) {
-		my @ekey = defined($eidx_key) ? ("X=$eidx_key\0") : ();
-		$msgref //= \($eml->as_string);
-		$smsg->{raw_bytes} //= length($$msgref);
-		# mid must be last, it can contain spaces (but not LF)
-		print $w @ekey, join(' ', @$smsg{qw(raw_bytes bytes
-						num blob ds ts tid mid)}),
-			"\n", $$msgref or die "failed to write shard $!\n";
-	} else {
-		if ($eml) {
-			undef($$msgref) if $msgref;
-		} else { # --xapian-only + --sequential-shard:
-			$eml = PublicInbox::Eml->new($msgref);
-		}
-		$self->begin_txn_lazy;
-		$smsg->{eidx_key} = $eidx_key if defined $eidx_key;
-		$self->add_message($eml, $smsg);
+	if ($eml) {
+		undef($$msgref) if $msgref;
+	} else { # --xapian-only + --sequential-shard:
+		$eml = PublicInbox::Eml->new($msgref);
 	}
+	$smsg->{eidx_key} = $eidx_key if defined $eidx_key;
+	$self->ipc_do('add_message', $eml, $smsg);
 }
 
 sub shard_add_eidx_info {
 	my ($self, $docid, $eidx_key, $eml) = @_;
-	if (my $w = $self->{w}) {
-		my $hdr = $eml->header_obj->as_string;
-		my $len = length($hdr);
-		print $w "+X $len $docid $eidx_key\n", $hdr or
-			die "failed to write shard: $!";
-	} else {
-		$self->add_eidx_info($docid, $eidx_key, $eml);
-	}
+	$self->ipc_do('add_eidx_info', $docid, $eidx_key, $eml);
 }
 
 sub shard_remove_eidx_info {
 	my ($self, $docid, $eidx_key, $eml) = @_;
-	if (my $w = $self->{w}) {
-		my $hdr = $eml ? $eml->header_obj->as_string : '';
-		my $len = length($hdr);
-		print $w "-X $len $docid $eidx_key\n", $hdr or
-			die "failed to write shard: $!";
-	} else {
-		$self->remove_eidx_info($docid, $eidx_key, $eml);
-	}
+	$self->ipc_do('remove_eidx_info', $docid, $eidx_key, $eml);
 }
 
-sub atfork_child {
-	close $_[0]->{w} or die "failed to close write pipe: $!\n";
-}
-
-sub shard_barrier {
+# needed when there's multiple IPC workers and the parent forking
+# causes newer siblings to inherit older siblings sockets
+sub shard_atfork_child {
 	my ($self) = @_;
-	if (my $w = $self->{w}) {
-		print $w "barrier\n" or die "failed to print: $!";
-	} else {
-		$self->commit_txn_lazy;
-	}
+	my $pid = delete($self->{-ipc_worker_pid}) or
+			die "BUG: $$ no -ipc_worker_pid";
+	my $s1 = delete($self->{-ipc_sock}) or die "BUG: $$ no -ipc_sock";
+	$pid == $$ and die "BUG: $$ shard_atfork_child called on itself";
+	close($s1) or die "close -ipc_sock: $!";
 }
 
-sub shard_commit {
+# wait for return to determine when ipc_do('commit_txn_lazy') is done
+sub echo {
+	shift;
+	"@_";
+}
+
+sub idx_close {
 	my ($self) = @_;
-	if (my $w = $self->{w}) {
-		print $w "commit\n" or die "failed to write commit: $!";
-	} else {
-		$self->commit_txn_lazy;
-	}
+	die "transaction in progress $self\n" if $self->{txn};
+	$self->idx_release if $self->{xdb};
 }
 
 sub shard_close {
 	my ($self) = @_;
-	if (my $w = delete $self->{w}) {
-		my $pid = delete $self->{pid} or die "no process to wait on\n";
-		print $w "close\n" or die "failed to write to pid:$pid: $!\n";
-		close $w or die "failed to close pipe for pid:$pid: $!\n";
-		waitpid($pid, 0) == $pid or die "remote process did not finish";
-		$? == 0 or die ref($self)." pid:$pid exited with: $?";
-	} else {
-		die "transaction in progress $self\n" if $self->{txn};
-		$self->idx_release if $self->{xdb};
-	}
+	$self->ipc_do('idx_close');
+	$self->ipc_worker_stop;
 }
 
 sub shard_remove {
 	my ($self, $num) = @_;
-	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
-		print $w "D $num\n" or die "failed to write remove $!";
-	} else { # same process
-		$self->remove_by_docid($num);
-	}
+	$self->ipc_do('remove_by_docid', $num);
 }
 
 sub shard_set_keywords {
 	my ($self, $docid, @kw) = @_;
-	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
-		print $w "=K $docid @kw\n" or die "failed to write: $!";
-	} else { # same process
-		$self->set_keywords($docid, @kw);
-	}
+	$self->ipc_do('set_keywords', $docid, @kw);
 }
 
 sub shard_remove_keywords {
 	my ($self, $docid, @kw) = @_;
-	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
-		print $w "-K $docid @kw\n" or die "failed to write: $!";
-	} else { # same process
-		$self->remove_keywords($docid, @kw);
-	}
+	$self->ipc_do('remove_keywords', $docid, @kw);
 }
 
 sub shard_add_keywords {
 	my ($self, $docid, @kw) = @_;
-	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
-		print $w "+K $docid @kw\n" or die "failed to write: $!";
-	} else { # same process
-		$self->add_keywords($docid, @kw);
-	}
+	$self->ipc_do('add_keywords', $docid, @kw);
 }
 
 sub shard_over_check {
 	my ($self, $over) = @_;
-	if (my $w = $self->{w}) { # triggers remove_by_docid in a shard child
-		my ($over_fn) = $over->{dbh}->sqlite_db_filename;
-		$over_fn =~ tr/\n/\0/;
-		print $w "O $over_fn\n" or die "failed to write over $!";
-	} else {
-		$self->over_check($over);
+	if ($self->{-ipc_sock} && $over->{dbh}) {
+		# can't send DB handles over IPC
+		$over = ref($over)->new($over->{dbh}->sqlite_db_filename);
 	}
+	$self->ipc_do('over_check', $over);
 }
 
 1;
