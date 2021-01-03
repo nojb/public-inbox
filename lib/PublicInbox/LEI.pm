@@ -236,6 +236,7 @@ my %CONFIG_KEYS = (
 
 sub x_it ($$) { # pronounced "exit"
 	my ($self, $code) = @_;
+	$self->{1}->autoflush(1); # make sure client sees stdout before exit
 	if (my $sig = ($code & 127)) {
 		kill($sig, $self->{pid} // $$);
 	} else {
@@ -635,6 +636,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 		say $sock "timed out waiting to recv FDs";
 		return;
 	}
+	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ARGV_STR = join("]\0[", @ARGV);
 	# $ENV_STR = join('', map { "$_=$ENV{$_}\0" } keys %ENV);
 	# $line = "$$\0\0>$ARGV_STR\0\0>$ENV_STR\0\0";
@@ -772,5 +774,9 @@ sub oneshot {
 		env => \%ENV
 	}, __PACKAGE__), @ARGV);
 }
+
+# ensures stdout hits the FS before sock disconnects so a client
+# can immediately reread it
+sub DESTROY { $_[0]->{1}->autoflush(1) }
 
 1;
