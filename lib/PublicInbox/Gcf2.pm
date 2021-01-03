@@ -75,9 +75,9 @@ sub add_alt ($$) {
 	$gcf2->add_alternate($objdir);
 }
 
-# Usage: $^X -MPublicInbox::Gcf2 -e 'PublicInbox::Gcf2::loop()'
+# Usage: $^X -MPublicInbox::Gcf2 -e PublicInbox::Gcf2::loop
 # (see lib/PublicInbox/Gcf2Client.pm)
-sub loop {
+sub loop () {
 	my $gcf2 = new();
 	my %seen;
 	STDERR->autoflush(1);

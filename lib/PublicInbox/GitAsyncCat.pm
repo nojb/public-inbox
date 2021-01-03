@@ -15,59 +15,53 @@ our $GCF2C; # singleton PublicInbox::Gcf2Client
 
 sub close {
 	my ($self) = @_;
-
-	if (my $gitish = delete $self->{gitish}) {
-		PublicInbox::Git::cat_async_abort($gitish);
+	if (my $git = delete $self->{git}) {
+		$git->cat_async_abort;
 	}
 	$self->SUPER::close; # PublicInbox::DS::close
 }
 
 sub event_step {
 	my ($self) = @_;
-	my $gitish = $self->{gitish} or return;
-	return $self->close if ($gitish->{in} // 0) != ($self->{sock} // 1);
-	my $inflight = $gitish->{inflight};
+	my $git = $self->{git} or return;
+	return $self->close if ($git->{in} // 0) != ($self->{sock} // 1);
+	my $inflight = $git->{inflight};
 	if ($inflight && @$inflight) {
-		$gitish->cat_async_step($inflight);
+		$git->cat_async_step($inflight);
 
 		# child death?
-		if (($gitish->{in} // 0) != ($self->{sock} // 1)) {
+		if (($git->{in} // 0) != ($self->{sock} // 1)) {
 			$self->close;
-		} elsif (@$inflight || exists $gitish->{cat_rbuf}) {
+		} elsif (@$inflight || exists $git->{cat_rbuf}) {
 			# ok, more to do, requeue for fairness
 			$self->requeue;
 		}
-	} elsif ((my $pid = waitpid($gitish->{pid}, WNOHANG)) > 0) {
+	} elsif ((my $pid = waitpid($git->{pid}, WNOHANG)) > 0) {
 		# May happen if the child process is killed by a BOFH
 		# (or segfaults)
-		delete $gitish->{pid};
-		warn "E: gitish $pid exited with \$?=$?\n";
+		delete $git->{pid};
+		warn "E: git $pid exited with \$?=$?\n";
 		$self->close;
 	}
 }
 
 sub git_async_cat ($$$$) {
 	my ($git, $oid, $cb, $arg) = @_;
-	my $gitish = $GCF2C //= eval {
-		require PublicInbox::Gcf2;
+	if ($GCF2C //= eval {
 		require PublicInbox::Gcf2Client;
 		PublicInbox::Gcf2Client::new();
-	} // 0; # 0: do not retry if libgit2 or Inline::C are missing
-	if ($gitish) { # Gcf2 active, {inflight} may be unset due to errors
-		$GCF2C->{inflight} or
-			$gitish = $GCF2C = PublicInbox::Gcf2Client::new();
-		$oid .= " $git->{git_dir}";
-	} else {
-		$gitish = $git;
+	} // 0) { # 0: do not retry if libgit2 or Inline::C are missing
+		$GCF2C->gcf2_async(\"$oid $git->{git_dir}\n", $cb, $arg);
+		\undef;
+	} else { # read-only end of git-cat-file pipe
+		$git->cat_async($oid, $cb, $arg);
+		$git->{async_cat} //= do {
+			my $self = bless { git => $git }, __PACKAGE__;
+			$git->{in}->blocking(0);
+			$self->SUPER::new($git->{in}, EPOLLIN|EPOLLET);
+			\undef; # this is a true ref()
+		};
 	}
-	$gitish->cat_async($oid, $cb, $arg);
-	$gitish->{async_cat} //= do {
-		# read-only end of pipe (Gcf2Client is write-only end)
-		my $self = bless { gitish => $gitish }, __PACKAGE__;
-		$gitish->{in}->blocking(0);
-		$self->SUPER::new($gitish->{in}, EPOLLIN|EPOLLET);
-		\undef; # this is a true ref()
-	};
 }
 
 # this is safe to call inside $cb, but not guaranteed to enqueue
@@ -75,9 +69,9 @@ sub git_async_cat ($$$$) {
 sub git_async_prefetch {
 	my ($git, $oid, $cb, $arg) = @_;
 	if ($GCF2C) {
-		if ($GCF2C->{async_cat} && !$GCF2C->{wbuf}) {
-			$oid .= " $git->{git_dir}";
-			return $GCF2C->cat_async($oid, $cb, $arg);
+		if (!$GCF2C->{wbuf}) {
+			$oid .= " $git->{git_dir}\n";
+			return $GCF2C->gcf2_async(\$oid, $cb, $arg); # true
 		}
 	} elsif ($git->{async_cat} && (my $inflight = $git->{inflight})) {
 		# we could use MAX_INFLIGHT here w/o the halving,

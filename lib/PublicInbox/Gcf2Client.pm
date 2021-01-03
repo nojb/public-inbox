@@ -6,33 +6,35 @@ package PublicInbox::Gcf2Client;
 use strict;
 use parent qw(PublicInbox::DS);
 use PublicInbox::Git;
-use PublicInbox::Spawn qw(popen_rd);
-use IO::Handle ();
-use PublicInbox::Syscall qw(EPOLLONESHOT);
-use PublicInbox::DS qw(dwaitpid);
+use PublicInbox::Gcf2; # fails if Inline::C or libgit2-dev isn't available
+use PublicInbox::Spawn qw(spawn);
+use Socket qw(AF_UNIX SOCK_STREAM);
+use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 # fields:
-#	async_cat => GitAsyncCat ref (read-only pipe)
-#	sock => writable pipe to Gcf2::loop
-#	in => pipe we read from
+#	sock => socket to Gcf2::loop
+# The rest of these fields are compatible with what PublicInbox::Git
+# uses code-sharing
 #	pid => PID of Gcf2::loop process
-#	owner_pid => process which spawned {pid}
+#	pid.owner => process which spawned {pid}
+#	in => same as {sock}, for compatibility with PublicInbox::Git
+#	inflight => array (see PublicInbox::Git)
+#	cat_rbuf => scalarref, may be non-existent or empty
 sub new  {
 	my ($rdr) = @_;
 	my $self = bless {}, __PACKAGE__;
 	# ensure the child process has the same @INC we do:
 	my $env = { PERL5LIB => join(':', @INC) };
-	my ($out_r, $out_w);
-	pipe($out_r, $out_w) or die "pipe failed: $!";
+	my ($s1, $s2);
+	socketpair($s1, $s2, AF_UNIX, SOCK_STREAM, 0) or die "socketpair $!";
 	$rdr //= {};
-	$rdr->{0} = $out_r;
-	my $cmd = [$^X, qw[-MPublicInbox::Gcf2 -e PublicInbox::Gcf2::loop()]];
-	$self->{owner_pid} = $$;
-	@$self{qw(in pid)} = popen_rd($cmd, $env, $rdr);
-	fcntl($out_w, 1031, 4096) if $^O eq 'linux'; # 1031: F_SETPIPE_SZ
-	$out_w->autoflush(1);
-	$out_w->blocking(0);
+	$rdr->{0} = $rdr->{1} = $s2;
+	my $cmd = [$^X, qw[-MPublicInbox::Gcf2 -e PublicInbox::Gcf2::loop]];
+	$self->{'pid.owner'} = $$;
+	$self->{pid} = spawn($cmd, $env, $rdr);
+	$s1->blocking(0);
 	$self->{inflight} = [];
-	$self->SUPER::new($out_w, EPOLLONESHOT); # detect errors once
+	$self->{in} = $s1;
+	$self->SUPER::new($s1, EPOLLIN|EPOLLET);
 }
 
 sub fail {
@@ -41,43 +43,43 @@ sub fail {
 	PublicInbox::Git::fail($self, @_);
 }
 
-sub cat_async ($$$;$) {
+sub gcf2_async ($$$;$) {
 	my ($self, $req, $cb, $arg) = @_;
-	my $inflight = $self->{inflight};
+	my $inflight = $self->{inflight} or return $self->close;
 
 	# {wbuf} is rare, I hope:
 	cat_async_step($self, $inflight) if $self->{wbuf};
 
-	if (!$self->write(\"$req\n")) {
-		$self->fail("gcf2c write: $!") if !$self->{sock};
-	}
+	$self->fail("gcf2c write: $!") if !$self->write($req) && !$self->{sock};
 	push @$inflight, $req, $cb, $arg;
 }
 
 # ensure PublicInbox::Git::cat_async_step never calls cat_async_retry
 sub alternates_changed {}
 
-# this is the write-only end of a pipe, DS->EventLoop will call this
+# DS->EventLoop will call this
 sub event_step {
 	my ($self) = @_;
 	$self->flush_write;
-	$self->close if !$self->{in}; # process died
+	$self->close if !$self->{in} || !$self->{sock}; # process died
+	my $inflight = $self->{inflight};
+	if ($inflight && @$inflight) {
+		cat_async_step($self, $inflight);
+		return $self->close unless $self->{in}; # process died
+
+		# ok, more to do, requeue for fairness
+		$self->requeue if @$inflight || exists($self->{cat_rbuf});
+	}
+}
+
+sub DESTROY {
+	my ($self) = @_;
+	delete $self->{sock}; # if outside EventLoop
+	PublicInbox::Git::DESTROY($self);
 }
 
 no warnings 'once';
 
-sub DESTROY {
-	my ($self) = @_;
-	delete $self->{in};
-	# GitAsyncCat::event_step may reap us with WNOHANG, too
-	my $pid = delete $self->{pid} or return;
-	if ($$ == $self->{owner_pid}) {
-		PublicInbox::DS->in_loop ? $self->close : delete($self->{sock});
-		dwaitpid $pid;
-	}
-}
-
-# used by GitAsyncCat
 *cat_async_step = \&PublicInbox::Git::cat_async_step;
 
 1;
