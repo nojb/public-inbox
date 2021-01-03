@@ -10,7 +10,7 @@ use Socket qw(AF_UNIX SOCK_STREAM);
 use Carp qw(confess croak);
 use PublicInbox::Sigfd;
 my ($enc, $dec);
-# ->imports at BEGIN turns serial_*_with_object into custom ops on 5.14+
+# ->imports at BEGIN turns sereal_*_with_object into custom ops on 5.14+
 # and eliminate method call overhead
 BEGIN {
 	eval {
@@ -71,9 +71,10 @@ sub ipc_worker_loop ($$) {
 	}
 }
 
+# starts a worker if Sereal or Storable is installed
 sub ipc_worker_spawn {
 	my ($self, $ident, $oldset) = @_;
-	return unless $enc;
+	return unless $enc; # no Sereal or Storable
 	my $pid = $self->{-ipc_worker_pid};
 	confess "BUG: already spawned PID:$pid" if $pid;
 	confess "BUG: already have worker socket" if $self->{-ipc_sock};
@@ -108,15 +109,17 @@ sub ipc_worker_reap { # dwaitpid callback
 	warn "PID:$pid died with \$?=$?\n" if $?;
 }
 
-# for base class, override in superclasses
+# for base class, override in sub classes
 sub ipc_atfork_parent {}
 sub ipc_atfork_child {}
 
+# should only be called inside the worker process
 sub ipc_worker_exit {
 	my (undef, $code) = @_;
 	exit($code);
 }
 
+# idempotent, can be called regardless of whether worker is active or not
 sub ipc_worker_stop {
 	my ($self) = @_;
 	my $pid;
@@ -147,6 +150,7 @@ sub ipc_lock_init {
 	$self->{-ipc_lock} //= bless { lock_path => $f }, 'PublicInbox::Lock'
 }
 
+# call $self->$sub(@args), on a worker if ipc_worker_spawn was used
 sub ipc_do {
 	my ($self, $sub, @args) = @_;
 	if (my $s1 = $self->{-ipc_sock}) {
