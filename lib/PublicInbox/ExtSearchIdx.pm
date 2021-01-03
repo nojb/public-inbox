@@ -21,8 +21,7 @@ use Carp qw(croak carp);
 use Sys::Hostname qw(hostname);
 use POSIX qw(strftime);
 use PublicInbox::Search;
-use PublicInbox::SearchIdx qw(crlf_adjust prepare_stack is_ancestor
-	is_bad_blob);
+use PublicInbox::SearchIdx qw(prepare_stack is_ancestor is_bad_blob);
 use PublicInbox::OverIdx;
 use PublicInbox::MiscIdx;
 use PublicInbox::MID qw(mids);
@@ -82,8 +81,6 @@ sub check_batch_limit ($) {
 	my ($req) = @_;
 	my $self = $req->{self};
 	my $new_smsg = $req->{new_smsg};
-
-	# {raw_bytes} may be unset, so just use {bytes}
 	my $n = $self->{transact_bytes} += $new_smsg->{bytes};
 
 	# set flag for PublicInbox::V2Writable::index_todo:
@@ -239,7 +236,7 @@ sub index_oid { # git->cat_async callback for 'm'
 	my $new_smsg = $req->{new_smsg} = bless {
 		blob => $oid,
 	}, 'PublicInbox::Smsg';
-	$new_smsg->{bytes} = $size + crlf_adjust($$bref);
+	$new_smsg->set_bytes($$bref, $size);
 	defined($req->{xnum} = cur_ibx_xnum($req, $bref)) or return;
 	++${$req->{nr}};
 	do_step($req);
@@ -496,7 +493,7 @@ sub _reindex_oid { # git->cat_async callback
 	my $ci = $self->{current_info};
 	local $self->{current_info} = "$ci #$docid $oid";
 	my $re_smsg = bless { blob => $oid }, 'PublicInbox::Smsg';
-	$re_smsg->{bytes} = $size + crlf_adjust($$bref);
+	$re_smsg->set_bytes($$bref, $size);
 	my $eml = PublicInbox::Eml->new($bref);
 	$re_smsg->populate($eml, { autime => $orig_smsg->{ds},
 				cotime => $orig_smsg->{ts} });
@@ -676,7 +673,7 @@ sub _reindex_unseen { # git->cat_async callback
 	my $self = $req->{self} // die 'BUG: {self} unset';
 	local $self->{current_info} = "$self->{current_info} $oid";
 	my $new_smsg = bless { blob => $oid, }, 'PublicInbox::Smsg';
-	$new_smsg->{bytes} = $size + crlf_adjust($$bref);
+	$new_smsg->set_bytes($$bref, $size);
 	my $eml = $req->{eml} = PublicInbox::Eml->new($bref);
 	$req->{new_smsg} = $new_smsg;
 	$req->{chash} = content_hash($eml);

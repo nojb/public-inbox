@@ -60,7 +60,7 @@ sub oct_is ($$$) {
 }
 
 {
-	my $crlf_adjust = \&PublicInbox::SearchIdx::crlf_adjust;
+	my $crlf_adjust = \&PublicInbox::Smsg::crlf_adjust;
 	is($crlf_adjust->("hi\r\nworld\r\n"), 0, 'no adjustment needed');
 	is($crlf_adjust->("hi\nworld\n"), 2, 'LF-only counts two CR');
 	is($crlf_adjust->("hi\r\nworld\n"), 1, 'CRLF/LF-mix 1 counts 1 CR');

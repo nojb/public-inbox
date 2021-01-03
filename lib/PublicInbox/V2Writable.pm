@@ -17,8 +17,7 @@ use PublicInbox::InboxWritable;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd run_die);
-use PublicInbox::SearchIdx qw(log2stack crlf_adjust is_ancestor check_size
-	is_bad_blob);
+use PublicInbox::SearchIdx qw(log2stack is_ancestor check_size is_bad_blob);
 use IO::Handle; # ->autoflush
 use File::Temp ();
 
@@ -139,13 +138,12 @@ sub idx_shard ($$) {
 }
 
 # indexes a message, returns true if checkpointing is needed
-sub do_idx ($$$$) {
-	my ($self, $msgref, $eml, $smsg) = @_;
-	$smsg->{bytes} = $smsg->{raw_bytes} + crlf_adjust($$msgref);
+sub do_idx ($$$) {
+	my ($self, $eml, $smsg) = @_;
 	$self->{oidx}->add_overview($eml, $smsg);
 	my $idx = idx_shard($self, $smsg->{num});
 	$idx->index_eml($eml, $smsg);
-	my $n = $self->{transact_bytes} += $smsg->{raw_bytes};
+	my $n = $self->{transact_bytes} += $smsg->{bytes};
 	$n >= $self->{batch_bytes};
 }
 
@@ -173,7 +171,7 @@ sub _add {
 	$cmt = $im->get_mark($cmt);
 	$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 
-	if (do_idx($self, delete $smsg->{-raw_email}, $mime, $smsg)) {
+	if (do_idx($self, $mime, $smsg)) {
 		$self->checkpoint;
 	}
 
@@ -536,13 +534,13 @@ W: $list
 	for my $smsg (@$need_reindex) {
 		my $new_smsg = bless {
 			blob => $blob,
-			raw_bytes => $bytes,
 			num => $smsg->{num},
 			mid => $smsg->{mid},
 		}, 'PublicInbox::Smsg';
 		my $sync = { autime => $smsg->{ds}, cotime => $smsg->{ts} };
 		$new_smsg->populate($new_mime, $sync);
-		do_idx($self, \$raw, $new_mime, $new_smsg);
+		$new_smsg->set_bytes($raw, $bytes);
+		do_idx($self, $new_mime, $new_smsg);
 	}
 	$rewritten->{rewrites};
 }
@@ -937,13 +935,13 @@ sub index_oid { # cat_async callback
 	}
 	++${$arg->{nr}};
 	my $smsg = bless {
-		raw_bytes => $size,
 		num => $num,
 		blob => $oid,
 		mid => $mid0,
 	}, 'PublicInbox::Smsg';
 	$smsg->populate($eml, $arg);
-	if (do_idx($self, $bref, $eml, $smsg)) {
+	$smsg->set_bytes($$bref, $size);
+	if (do_idx($self, $eml, $smsg)) {
 		${$arg->{need_checkpoint}} = 1;
 	}
 	index_finalize($arg, 1);
@@ -1217,9 +1215,8 @@ sub index_xap_only { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $smsg) = @_;
 	my $self = $smsg->{self};
 	my $idx = idx_shard($self, $smsg->{num});
-	$smsg->{raw_bytes} = $size;
 	$idx->index_eml(PublicInbox::Eml->new($bref), $smsg);
-	$self->{transact_bytes} += $size;
+	$self->{transact_bytes} += $smsg->{bytes};
 }
 
 sub index_xap_step ($$$;$) {

@@ -10,7 +10,6 @@ package PublicInbox::LeiStore;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock PublicInbox::IPC);
-use PublicInbox::SearchIdx qw(crlf_adjust);
 use PublicInbox::ExtSearchIdx;
 use PublicInbox::Import;
 use PublicInbox::InboxWritable;
@@ -197,9 +196,6 @@ sub add_eml {
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
 	my $im = $self->importer;
 	$im->add($eml, undef, $smsg) or return; # duplicate returns undef
-	my $msgref = delete $smsg->{-raw_email};
-	$smsg->{bytes} = $smsg->{raw_bytes} + crlf_adjust($$msgref);
-	undef $msgref;
 
 	local $self->{current_info} = $smsg->{blob};
 	if (my @docids = _docids_for($self, $eml)) {

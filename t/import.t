@@ -7,7 +7,6 @@ use PublicInbox::Eml;
 use PublicInbox::Smsg;
 use PublicInbox::Git;
 use PublicInbox::Import;
-use PublicInbox::Spawn qw(spawn);
 use Fcntl qw(:DEFAULT SEEK_SET);
 use PublicInbox::TestCommon;
 use MIME::Base64 3.05; # Perl 5.10.0 / 5.9.2
@@ -32,20 +31,13 @@ like($im->add($mime, undef, $smsg), qr/\A:[0-9]+\z/, 'added one message');
 
 if ($v2) {
 	like($smsg->{blob}, qr/\A[a-f0-9]{40}\z/, 'got last object_id');
-	my $raw_email = $smsg->{-raw_email};
-	is($mime->as_string, $$raw_email, 'string matches');
-	is($smsg->{raw_bytes}, length($$raw_email), 'length matches');
 	my @cmd = ('git', "--git-dir=$git->{git_dir}", qw(hash-object --stdin));
 	open my $in, '+<', undef or BAIL_OUT "open(+<): $!";
 	print $in $mime->as_string or die "write failed: $!";
 	$in->flush or die "flush failed: $!";
-	seek($in, 0, SEEK_SET);
-	open my $out, '+<', undef or BAIL_OUT "open(+<): $!";
-	my $pid = spawn(\@cmd, {}, { 0 => $in, 1 => $out });
-	is(waitpid($pid, 0), $pid, 'waitpid succeeds on hash-object');
+	seek($in, 0, SEEK_SET) or die "seek: $!";
+	chomp(my $hashed_obj = xqx(\@cmd, undef, { 0 => $in }));
 	is($?, 0, 'hash-object');
-	seek($out, 0, SEEK_SET);
-	chomp(my $hashed_obj = <$out>);
 	is($hashed_obj, $smsg->{blob}, "blob object_id matches exp");
 }
 

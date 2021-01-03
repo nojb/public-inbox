@@ -22,7 +22,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
-our @EXPORT_OK = qw(crlf_adjust log2stack is_ancestor check_size prepare_stack
+our @EXPORT_OK = qw(log2stack is_ancestor check_size prepare_stack
 	index_text term_generator add_val is_bad_blob);
 my $X = \%PublicInbox::Search::X;
 our ($DB_CREATE_OR_OPEN, $DB_OPEN);
@@ -613,17 +613,6 @@ sub index_mm {
 	}
 }
 
-# returns the number of bytes to add if given a non-CRLF arg
-sub crlf_adjust ($) {
-	if (index($_[0], "\r\n") < 0) {
-		# common case is LF-only, every \n needs an \r;
-		# so favor a cheap tr// over an expensive m//g
-		$_[0] =~ tr/\n/\n/;
-	} else { # count number of '\n' w/o '\r', expensive:
-		scalar(my @n = ($_[0] =~ m/(?<!\r)\n/g));
-	}
-}
-
 sub is_bad_blob ($$$$) {
 	my ($oid, $type, $size, $expect_oid) = @_;
 	if ($type ne 'blob') {
@@ -640,8 +629,8 @@ sub index_both { # git->cat_async callback
 	my ($nr, $max) = @$sync{qw(nr max)};
 	++$$nr;
 	$$max -= $size;
-	$size += crlf_adjust($$bref);
-	my $smsg = bless { bytes => $size, blob => $oid }, 'PublicInbox::Smsg';
+	my $smsg = bless { blob => $oid }, 'PublicInbox::Smsg';
+	$smsg->set_bytes($$bref, $size);
 	my $self = $sync->{sidx};
 	local $self->{current_info} = "$self->{current_info}: $oid";
 	my $eml = PublicInbox::Eml->new($bref);
