@@ -397,6 +397,7 @@ sub eml2doc ($$$;$) {
 
 sub add_xapian ($$$$) {
 	my ($self, $eml, $smsg, $mids) = @_;
+	begin_txn_lazy($self);
 	my $doc = eml2doc($self, $eml, $smsg, $mids);
 	$self->{xdb}->replace_document($smsg->{num}, $doc);
 }

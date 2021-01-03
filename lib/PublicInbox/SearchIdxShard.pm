@@ -54,7 +54,7 @@ sub ipc_atfork_child { # called automatically before ipc_worker_loop
 sub index_eml {
 	my ($self, $eml, $smsg, $eidx_key) = @_;
 	$smsg->{eidx_key} = $eidx_key if defined $eidx_key;
-	$self->ipc_do('add_message', $eml, $smsg);
+	$self->ipc_do('add_xapian', $eml, $smsg);
 }
 
 # wait for return to determine when ipc_do('commit_txn_lazy') is done

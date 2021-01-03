@@ -141,8 +141,10 @@ sub idx_shard ($$) {
 sub do_idx ($$$) {
 	my ($self, $eml, $smsg) = @_;
 	$self->{oidx}->add_overview($eml, $smsg);
-	my $idx = idx_shard($self, $smsg->{num});
-	$idx->index_eml($eml, $smsg);
+	if ($self->{-need_xapian}) {
+		my $idx = idx_shard($self, $smsg->{num});
+		$idx->index_eml($eml, $smsg);
+	}
 	my $n = $self->{transact_bytes} += $smsg->{bytes};
 	$n >= $self->{batch_bytes};
 }
@@ -267,6 +269,7 @@ sub _idx_init { # with_umask callback
 	my $max = $self->{shards} - 1;
 	my $idx = $self->{idx_shards} = [];
 	push @$idx, PublicInbox::SearchIdxShard->new($self, $_) for (0..$max);
+	$self->{-need_xapian} = $idx->[0]->need_xapian;
 
 	# SearchIdxShard may do their own flushing, so don't scale
 	# until after forking
@@ -1129,6 +1132,7 @@ sub sync_prepare ($$) {
 sub unindex_oid_aux ($$$) {
 	my ($self, $oid, $mid) = @_;
 	my @removed = $self->{oidx}->remove_oid($oid, $mid);
+	return unless $self->{-need_xapian};
 	for my $num (@removed) {
 		idx_shard($self, $num)->ipc_do('xdb_remove', $num);
 	}
