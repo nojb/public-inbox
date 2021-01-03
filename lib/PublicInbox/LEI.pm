@@ -25,7 +25,7 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-my $recv_fd;
+my $recv_3fds;
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
 my $GLP_PASS = Getopt::Long::Parser->new;
@@ -614,25 +614,26 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my $self = bless { sock => $sock }, __PACKAGE__;
 	vec(my $rin = '', fileno($sock), 1) = 1;
 	# `say $sock' triggers "die" in lei(1)
-	for my $i (0..2) {
-		if (select(my $rout = $rin, undef, undef, 1)) {
-			my $fd = $recv_fd->(fileno($sock));
-			if ($fd >= 0) {
-				my $rdr = ($fd == 0 ? '<&=' : '>&=');
+	if (select(my $rout = $rin, undef, undef, 1)) {
+		my @fds = $recv_3fds->(fileno($sock));
+		if (scalar(@fds) == 3) {
+			my $i = 0;
+			for my $rdr (qw(<&= >&= >&=)) {
+				my $fd = shift(@fds);
 				if (open(my $fh, $rdr, $fd)) {
-					$self->{$i} = $fh;
-				} else {
+					$self->{$i++} = $fh;
+				}  else {
 					say $sock "open($rdr$fd) (FD=$i): $!";
 					return;
 				}
-			} else {
-				say $sock "recv FD=$i: $!";
-				return;
 			}
 		} else {
-			say $sock "timed out waiting to recv FD=$i";
+			say $sock "recv_3fds failed: $!";
 			return;
 		}
+	} else {
+		say $sock "timed out waiting to recv FDs";
+		return;
 	}
 	# $ARGV_STR = join("]\0[", @ARGV);
 	# $ENV_STR = join('', map { "$_=$ENV{$_}\0" } keys %ENV);
@@ -672,7 +673,7 @@ sub lazy_start {
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	my $oldset = PublicInbox::Sigfd::block_signals();
-	$recv_fd = PublicInbox::Spawn->can('recv_fd') or die
+	$recv_3fds = PublicInbox::Spawn->can('recv_3fds') or die
 		"Inline::C not installed/configured or IO::FDPass missing\n";
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;

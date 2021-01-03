@@ -207,56 +207,67 @@ my $fdpass = <<'FDPASS';
 #include <sys/socket.h>
 
 #if defined(CMSG_SPACE) && defined(CMSG_LEN)
+struct my_3fds { int fds[3]; };
 union my_cmsg {
 	struct cmsghdr hdr;
-	char pad[sizeof(struct cmsghdr)+8+sizeof(int)+8];
+	char pad[sizeof(struct cmsghdr)+ 8 + sizeof(struct my_3fds) + 8];
 };
 
-int send_fd(int sockfd, int fd)
+int send_3fds(int sockfd, int infd, int outfd, int errfd)
 {
 	struct msghdr msg = { 0 };
 	struct iovec iov;
 	union my_cmsg cmsg = { 0 };
+	int *fdp;
+	size_t i;
 
-	iov.iov_base = &msg.msg_namelen;
+	iov.iov_base = &msg.msg_namelen; /* whatever */
 	iov.iov_len = 1;
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	msg.msg_control = &cmsg.hdr;
-	msg.msg_controllen = CMSG_SPACE(sizeof(int));
+	msg.msg_controllen = CMSG_SPACE(sizeof(struct my_3fds));
 
 	cmsg.hdr.cmsg_level = SOL_SOCKET;
 	cmsg.hdr.cmsg_type = SCM_RIGHTS;
-	cmsg.hdr.cmsg_len = CMSG_LEN(sizeof(int));
-	*(int *)CMSG_DATA(&cmsg.hdr) = fd;
-
+	cmsg.hdr.cmsg_len = CMSG_LEN(sizeof(struct my_3fds));
+	fdp = (int *)CMSG_DATA(&cmsg.hdr);
+	*fdp++ = infd;
+	*fdp++ = outfd;
+	*fdp++ = errfd;
 	return sendmsg(sockfd, &msg, 0) >= 0;
 }
 
-int recv_fd(int sockfd)
+void recv_3fds(int sockfd)
 {
 	union my_cmsg cmsg = { 0 };
 	struct msghdr msg = { 0 };
 	struct iovec iov;
-	int fd = -1;
+	size_t i;
+	Inline_Stack_Vars;
 
-	iov.iov_base = &msg.msg_namelen;
+	iov.iov_base = &msg.msg_namelen; /* whatever */
 	iov.iov_len = 1;
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	msg.msg_control = &cmsg.hdr;
-	msg.msg_controllen = CMSG_SPACE(sizeof(int));
+	msg.msg_controllen = CMSG_SPACE(sizeof(struct my_3fds));
 
 	if (recvmsg(sockfd, &msg, 0) <= 0)
-		return -1;
+		return;
 
 	errno = EDOM;
+	Inline_Stack_Reset;
 	if (cmsg.hdr.cmsg_level == SOL_SOCKET &&
 			cmsg.hdr.cmsg_type == SCM_RIGHTS &&
-			cmsg.hdr.cmsg_len == CMSG_LEN(sizeof(int)))
-		fd = *(int *)CMSG_DATA(&cmsg.hdr);
+			cmsg.hdr.cmsg_len == CMSG_LEN(sizeof(struct my_3fds))) {
+		int *fdp = (int *)CMSG_DATA(&cmsg.hdr);
+		size_t i;
 
-	return fd;
+		for (i = 0; i < 3; i++)
+			Inline_Stack_Push(sv_2mortal(newSViv(*fdp++)));
+	}
+	Inline_Stack_Done;
 }
 #endif /* defined(CMSG_SPACE) && defined(CMSG_LEN) */
 FDPASS
@@ -275,7 +286,8 @@ if (defined $vfork_spawn) {
 		my $f = "$inline_dir/.public-inbox.lock";
 		open my $fh, '>', $f or die "failed to open $f: $!\n";
 		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-		eval 'use Inline C => $vfork_spawn . $fdpass . $set_nodatacow';
+		eval 'use Inline C => $vfork_spawn.$fdpass.$set_nodatacow';
+			# . ', BUILD_NOISY => 1';
 		my $err = $@;
 		my $ndc_err;
 		if ($err && $set_nodatacow) { # missing Linux kernel headers
@@ -303,12 +315,15 @@ unless ($set_nodatacow) {
 	*nodatacow_fd = \&PublicInbox::NDC_PP::nodatacow_fd;
 	*nodatacow_dir = \&PublicInbox::NDC_PP::nodatacow_dir;
 }
-unless (__PACKAGE__->can('recv_fd')) {
+unless (__PACKAGE__->can('recv_3fds')) {
 	eval { # try the XS IO::FDPass package
 		require IO::FDPass;
 		no warnings 'once';
-		*recv_fd = \&IO::FDPass::recv;
-		*send_fd = \&IO::FDPass::send;
+		*recv_3fds = sub { map { IO::FDPass::recv($_[0]) } (0..2) };
+		*send_3fds = sub ($$$$) {
+			my $sockfd = shift;
+			IO::FDPass::send($sockfd, shift) for (0..2);
+		};
 	};
 }
 

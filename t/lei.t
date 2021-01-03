@@ -195,7 +195,7 @@ SKIP: { # real socket
 	require_mods(qw(Cwd), my $nr = 46);
 	require PublicInbox::Spawn;
 	skip "Inline::C not installed/configured or IO::FDPass missing", $nr
-		unless PublicInbox::Spawn->can('send_fd');
+		unless PublicInbox::Spawn->can('send_3fds');
 
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/sock";
