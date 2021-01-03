@@ -140,11 +140,11 @@ sub idx_shard ($$) {
 
 # indexes a message, returns true if checkpointing is needed
 sub do_idx ($$$$) {
-	my ($self, $msgref, $mime, $smsg) = @_;
+	my ($self, $msgref, $eml, $smsg) = @_;
 	$smsg->{bytes} = $smsg->{raw_bytes} + crlf_adjust($$msgref);
-	$self->{oidx}->add_overview($mime, $smsg);
+	$self->{oidx}->add_overview($eml, $smsg);
 	my $idx = idx_shard($self, $smsg->{num});
-	$idx->index_raw($msgref, $mime, $smsg);
+	$idx->index_eml($eml, $smsg);
 	my $n = $self->{transact_bytes} += $smsg->{raw_bytes};
 	$n >= $self->{batch_bytes};
 }
@@ -173,8 +173,7 @@ sub _add {
 	$cmt = $im->get_mark($cmt);
 	$self->{last_commit}->[$self->{epoch_max}] = $cmt;
 
-	my $msgref = delete $smsg->{-raw_email};
-	if (do_idx($self, $msgref, $mime, $smsg)) {
+	if (do_idx($self, delete $smsg->{-raw_email}, $mime, $smsg)) {
 		$self->checkpoint;
 	}
 
@@ -1219,7 +1218,7 @@ sub index_xap_only { # git->cat_async callback
 	my $self = $smsg->{self};
 	my $idx = idx_shard($self, $smsg->{num});
 	$smsg->{raw_bytes} = $size;
-	$idx->index_raw($bref, undef, $smsg);
+	$idx->index_eml(PublicInbox::Eml->new($bref), $smsg);
 	$self->{transact_bytes} += $size;
 }
 

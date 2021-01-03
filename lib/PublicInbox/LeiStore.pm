@@ -199,6 +199,7 @@ sub add_eml {
 	$im->add($eml, undef, $smsg) or return; # duplicate returns undef
 	my $msgref = delete $smsg->{-raw_email};
 	$smsg->{bytes} = $smsg->{raw_bytes} + crlf_adjust($$msgref);
+	undef $msgref;
 
 	local $self->{current_info} = $smsg->{blob};
 	if (my @docids = _docids_for($self, $eml)) {
@@ -215,7 +216,7 @@ sub add_eml {
 		$oidx->add_overview($eml, $smsg);
 		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');
 		my $idx = $eidx->idx_shard($smsg->{num});
-		$idx->index_raw($msgref, $eml, $smsg);
+		$idx->index_eml($eml, $smsg);
 		$idx->ipc_do('add_keywords', $smsg->{num}, @kw) if @kw;
 		$smsg;
 	}
