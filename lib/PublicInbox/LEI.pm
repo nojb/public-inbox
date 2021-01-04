@@ -505,7 +505,7 @@ sub lei_init {
 	$dir //= _store_path($env);
 	$dir = File::Spec->rel2abs($dir, $env->{PWD}); # PWD is symlink-aware
 	my @cur = stat($cur) if defined($cur);
-	$cur = File::Spec->canonpath($cur) if $cur;
+	$cur = File::Spec->canonpath($cur // $dir);
 	my @dir = stat($dir);
 	my $exists = "I: leistore.dir=$cur already initialized" if @dir;
 	if (@cur) {
