@@ -38,18 +38,27 @@ our %PATH2CFG; # persistent for socket daemon
 sub pass_through { $GLP_PASS }
 
 my $OPT;
-sub opt_dash {
+sub opt_dash ($$) {
 	my ($spec, $re_str) = @_; # 'limit|n=i', '([0-9]+)'
 	my ($key) = ($spec =~ m/\A([a-z]+)/g);
 	my $cb = sub { # Getopt::Long "<>" catch-all handler
 		my ($arg) = @_;
 		if ($arg =~ /\A-($re_str)\z/) {
 			$OPT->{$key} = $1;
+		} elsif ($arg eq '--') { # "--" arg separator, ignore first
+			push @{$OPT->{-argv}}, $arg if $OPT->{'--'}++;
+		# lone (single) dash is handled elsewhere
+		} elsif (substr($arg, 0, 1) eq '-') {
+			if ($OPT->{'--'}) {
+				push @{$OPT->{-argv}}, $arg;
+			} else {
+				die "bad argument: $arg\n";
+			}
 		} else {
-			die "bad argument for --$key: $arg\n";
+			push @{$OPT->{-argv}}, $arg;
 		}
 	};
-	($spec, '<>' => $cb, $GLP_PASS)
+	($spec, '<>' => $cb, $GLP_PASS) # for Getopt::Long
 }
 
 sub _store_path ($) {
@@ -359,6 +368,8 @@ sub optparse ($$$) {
 	$glp->getoptionsfromarray($argv, $OPT, @spec) or
 		return _help($self, "bad arguments or options for $cmd");
 	return _help($self) if $OPT->{help};
+
+	push @$argv, @{$OPT->{-argv}} if defined($OPT->{-argv});
 
 	# "-" aliases "stdin" or "clear"
 	$OPT->{$lone_dash} = ${$OPT->{$lone_dash}} if defined $lone_dash;
