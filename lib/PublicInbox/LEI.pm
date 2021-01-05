@@ -149,8 +149,6 @@ our %CMD = ( # sorted in order of importance/use:
 'daemon-kill' => [ '[-SIGNAL]', 'signal the lei-daemon',
 	opt_dash('signal|s=s', '[0-9]+|(?:[A-Z][A-Z0-9]+)') ],
 'daemon-pid' => [ '', 'show the PID of the lei-daemon' ],
-'daemon-env' => [ '[NAME=VALUE...]', 'set, unset, or show daemon environment',
-	qw(clear| unset|u=s@ z|0) ],
 'help' => [ '[SUBCOMMAND]', 'show help' ],
 
 # XXX do we need this?
@@ -229,12 +227,6 @@ my %OPTDESC = (
 
 # xargs, env, use "-0", git(1) uses "-z".  We support z|0 everywhere
 'z|0' => 'use NUL \\0 instead of newline (CR) to delimit lines',
-
-# note: no "--ignore-environment" / "-i" support like env(1) since that
-# is one-shot and this is for a persistent daemon:
-'clear|' => 'clear the daemon environment',
-'unset|u=s@' => ['NAME',
-	'unset matching NAME, may be specified multiple times'],
 
 'signal|s=s' => [ 'SIG', 'signal to send lei-daemon (default: TERM)' ],
 ); # %OPTDESC
@@ -538,24 +530,6 @@ sub lei_daemon_kill {
 	kill($sig, $$) or fail($self, "kill($sig, $$): $!");
 }
 
-sub lei_daemon_env {
-	my ($self, @argv) = @_;
-	my $opt = $self->{opt};
-	if (defined $opt->{clear}) {
-		%ENV = ();
-	} elsif (my $u = $opt->{unset}) {
-		delete @ENV{@$u};
-	}
-	if (@argv) {
-		%ENV = (%ENV, map { split(/=/, $_, 2) } @argv);
-	} elsif (!defined($opt->{clear}) && !$opt->{unset}) {
-		my $eor = $opt->{z} ? "\0" : "\n";
-		my $buf = '';
-		while (my ($k, $v) = each %ENV) { $buf .= "$k=$v$eor" }
-		out $self, $buf;
-	}
-}
-
 sub lei_help { _help($_[0]) }
 
 # Shell completion helper.  Used by lei-completion.bash and hopefully
@@ -678,12 +652,24 @@ sub accept_dispatch { # Listener {post_accept} callback
 	};
 	my %env = map { split(/=/, $_, 2) } split(/\0/, $env);
 	if (chdir($env{PWD})) {
+		local %ENV = %env;
 		$self->{env} = \%env;
 		$self->{pid} = $client_pid;
 		eval { dispatch($self, split(/\]\0\[/, $argv)) };
 		say $sock $@ if $@;
 	} else {
 		say $sock "chdir($env{PWD}): $!"; # implicit close
+	}
+}
+
+# for long-running results
+sub event_step {
+	my ($self) = @_;
+	local %ENV = %{$self->{env}};
+	eval {}; # TODO
+	if ($@) {
+		say { $self->{sock} } $@;
+		$self->close; # PublicInbox::DS::close
 	}
 }
 

@@ -192,7 +192,7 @@ if ($ENV{TEST_LEI_ONESHOT}) {
 }
 
 SKIP: { # real socket
-	require_mods(qw(Cwd), my $nr = 46);
+	require_mods(qw(Cwd), my $nr = 105);
 	my $nfd = eval { require IO::FDPass; 1 } // do {
 		require PublicInbox::Spawn;
 		PublicInbox::Spawn->can('send_3fds') ? 3 : undef;
@@ -214,34 +214,6 @@ SKIP: { # real socket
 	ok($lei->('daemon-pid'), 'daemon-pid');
 	chomp(my $pid_again = $out);
 	is($pid, $pid_again, 'daemon-pid idempotent');
-
-	ok($lei->(qw(daemon-env -0)), 'show env');
-	is($err, '', 'no errors in env dump');
-	my @env = split(/\0/, $out);
-	is(scalar grep(/\AHOME=\Q$home\E\z/, @env), 1, 'env has HOME');
-	is(scalar grep(/\AFOO=BAR\z/, @env), 1, 'env has FOO=BAR');
-	is(scalar grep(/\AXDG_RUNTIME_DIR=/, @env), 1, 'has XDG_RUNTIME_DIR');
-
-	ok($lei->(qw(daemon-env -u FOO)), 'unset');
-	is($out.$err, '', 'no output for unset');
-	ok($lei->(qw(daemon-env -0)), 'show again');
-	is($err, '', 'no errors in env dump');
-	@env = split(/\0/, $out);
-	is(scalar grep(/\AFOO=BAR\z/, @env), 0, 'env unset FOO');
-
-	ok($lei->(qw(daemon-env -u FOO -u HOME -u XDG_RUNTIME_DIR)),
-			'unset multiple');
-	is($out.$err, '', 'no errors output for unset');
-
-	ok($lei->(qw(daemon-env -0)), 'show again');
-	is($err, '', 'no errors in env dump');
-	@env = split(/\0/, $out);
-	is(scalar grep(/\A(?:HOME|XDG_RUNTIME_DIR)=\z/, @env), 0, 'env unset@');
-
-	ok($lei->(qw(daemon-env -)), 'clear env');
-	is($out.$err, '', 'no output');
-	ok($lei->(qw(daemon-env)), 'env is empty');
-	is($out, '', 'env cleared');
 
 	ok($lei->(qw(daemon-kill)), 'daemon-kill');
 	is($out, '', 'no output from daemon-kill');
