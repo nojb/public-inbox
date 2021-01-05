@@ -888,12 +888,16 @@ sub index_oid { # cat_async callback
 	}
 
 	# {unindexed} is unlikely
-	if ((my $unindexed = $arg->{unindexed}) && scalar(@$mids) == 1) {
-		$num = delete($unindexed->{$mids->[0]});
+	if (my $unindexed = $arg->{unindexed}) {
+		my $oidbin = pack('H*', $oid);
+		my $u = $unindexed->{$oidbin};
+		($num, $mid0) = splice(@$u, 0, 2) if $u;
 		if (defined $num) {
-			$mid0 = $mids->[0];
 			$self->{mm}->mid_set($num, $mid0);
-			delete($arg->{unindexed}) if !keys(%$unindexed);
+			if (scalar(@$u) == 0) { # done with current OID
+				delete $unindexed->{$oidbin};
+				delete($arg->{unindexed}) if !keys(%$unindexed);
+			}
 		}
 	}
 	if (!defined($num)) { # reuse if reindexing (or duplicates)
@@ -1160,10 +1164,13 @@ sub unindex_oid ($$;$) { # git->cat_async callback
 			warn "BUG: multiple articles linked to $oid\n",
 				join(',',sort keys %gone), "\n";
 		}
-		foreach my $num (keys %gone) {
+		# reuse (num => mid) mapping in ascending numeric order
+		for my $num (sort { $a <=> $b } keys %gone) {
+			$num += 0;
 			if ($unindexed) {
 				my $mid0 = $mm->mid_for($num);
-				$unindexed->{$mid0} = $num;
+				my $oidbin = pack('H*', $oid);
+				push @{$unindexed->{$oidbin}}, $num, $mid0;
 			}
 			$mm->num_delete($num);
 		}
@@ -1179,7 +1186,7 @@ sub git { $_[0]->{ibx}->git }
 sub unindex_todo ($$$) {
 	my ($self, $sync, $unit) = @_;
 	my $unindex_range = delete($unit->{unindex_range}) // return;
-	my $unindexed = $sync->{unindexed} //= {}; # $mid0 => $num
+	my $unindexed = $sync->{unindexed} //= {}; # $oidbin => [$num, $mid0]
 	my $before = scalar keys %$unindexed;
 	# order does not matter, here:
 	my $fh = $unit->{git}->popen(qw(log --raw -r --no-notes --no-color
