@@ -19,7 +19,7 @@ use PublicInbox::Config;
 use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now dwaitpid);
-use PublicInbox::Spawn qw(spawn run_die);
+use PublicInbox::Spawn qw(spawn run_die popen_rd);
 use PublicInbox::OnDestroy;
 use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
@@ -619,6 +619,26 @@ sub lei_git { # support passing through random git commands
 	dwaitpid($pid, \&reap_exec, $self);
 }
 
+# caller needs to "-t $self->{1}" to check if tty
+sub start_pager {
+	my ($self) = @_;
+	my $env = $self->{env};
+	my $fh = popen_rd([qw(git var GIT_PAGER)], $env);
+	chomp(my $pager = <$fh> // '');
+	close($fh) or warn "`git var PAGER' error: \$?=$?";
+	return if $pager eq 'cat' || $pager eq '';
+	$env->{LESS} //= 'FRX';
+	$env->{LV} //= '-c';
+	$env->{COLUMNS} //= 80; # TODO TIOCGWINSZ
+	$env->{MORE} //= 'FRX' if $^O eq 'freebsd';
+	pipe(my ($r, $w)) or return warn "pipe: $!";
+	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
+	$self->{1} = $w;
+	$self->{2} = $w if -t $self->{2};
+	$self->{'pager.pid'} = spawn([$pager], $env, $rdr);
+	$env->{GIT_PAGER_IN_USE} = 'true'; # we may spawn git
+}
+
 sub accept_dispatch { # Listener {post_accept} callback
 	my ($sock) = @_; # ignore other
 	$sock->blocking(1);
@@ -794,6 +814,12 @@ sub oneshot {
 
 # ensures stdout hits the FS before sock disconnects so a client
 # can immediately reread it
-sub DESTROY { $_[0]->{1}->autoflush(1) }
+sub DESTROY {
+	my ($self) = @_;
+	$self->{1}->autoflush(1);
+	if (my $pid = delete $self->{'pager.pid'}) {
+		dwaitpid($pid, undef, $self->{sock});
+	}
+}
 
 1;
