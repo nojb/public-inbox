@@ -8,4 +8,4 @@ _lei() {
 			-- "${COMP_WORDS[COMP_CWORD]}"))
 	return 0
 }
-complete -o filenames -o bashdefault -F _lei lei
+complete -o default -o bashdefault -F _lei lei
