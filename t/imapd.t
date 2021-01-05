@@ -371,11 +371,13 @@ is(scalar keys %$ret, 3, 'got all 3 messages');
 
 SKIP: {
 	# do any clients use non-UID IMAP SEARCH?
-	skip 'Xapian missing', 2 if $level eq 'basic';
+	skip 'Xapian missing', 3 if $level eq 'basic';
 	my $x = $mic->search('all');
 	is_deeply($x, [1, 2, 3], 'MSN SEARCH works before rm');
 	$x = $mic->search(qw(header subject embedded));
 	is_deeply($x, [2], 'MSN SEARCH on Subject works before rm');
+	$x = $mic->search('FROM scraper@example.com');
+	is_deeply($x, [], "MSN SEARCH miss won't trigger warnings");
 }
 
 {

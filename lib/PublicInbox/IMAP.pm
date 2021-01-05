@@ -1142,7 +1142,7 @@ sub search_common {
 		};
 		my $mset = $srch->mset($q, $opt);
 		my $uids = $srch->mset_to_artnums($mset, $opt);
-		msn_convert($self, $uids) if $want_msn;
+		msn_convert($self, $uids) if scalar(@$uids) && $want_msn;
 		"* SEARCH @$uids\r\n$tag OK Search done\r\n";
 	} else {
 		"$tag BAD Error\r\n";
