@@ -13,6 +13,7 @@ sub emails {
 }
 
 sub names {
+	# split by address and post-address comment
 	my @p = split(/<?([^@<>]+)\@[\w\.\-]+>?\s*(\(.*?\))?(?:,\s*|\z)/,
 			$_[0]);
 	my @ret;
@@ -33,6 +34,26 @@ sub names {
 		}
 	}
 	@ret;
+}
+
+sub pairs { # for JMAP, RFC 8621 section 4.1.2.3
+	my ($s) = @_;
+	[ map {
+		my $addr = $_;
+		if ($s =~ s/\A\s*(.*?)\s*<\Q$addr\E>\s*(.*?)\s*(?:,|\z)// ||
+		    $s =~ s/\A\s*(.*?)\s*\Q$addr\E\s*(.*?)\s*(?:,|\z)//) {
+			my ($phrase, $comment) = ($1, $2);
+			$phrase =~ tr/\r\n\t / /s;
+			$phrase =~ s/\A['"\s]*//;
+			$phrase =~ s/['"\s]*\z//;
+			$phrase =~ s/\s*<*\s*\z//;
+			$phrase = undef if $phrase !~ /\S/;
+			$comment = ($comment =~ /\((.*?)\)/) ? $1 : undef;
+			[ $phrase // $comment, $addr ]
+		} else {
+			();
+		}
+	} emails($s) ];
 }
 
 1;
