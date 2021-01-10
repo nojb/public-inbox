@@ -70,4 +70,9 @@ my $max = max(map { $_->{docid} } @msgs);
 is($lxs->smsg_for(($mset->items)[0])->{docid}, $max,
 	'got highest docid');
 
+my @ibxish = $lxs->locals;
+is(scalar(@ibxish), scalar(@ibx) + 1, 'got locals back');
+is($lxs->search, $lxs, '->search works');
+is($lxs->over, undef, '->over fails');
+
 done_testing;

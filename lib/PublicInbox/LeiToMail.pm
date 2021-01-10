@@ -354,6 +354,8 @@ sub write_cb { # returns a callback for git_to_mail
 		_mbox_write_cb($cls, $1, $dst, $lei);
 	} elsif ($dst =~ s!\A[Mm]aildir:!!) { # typically capitalized
 		_maildir_write_cb($dst, $lei);
+	} else {
+		undef;
 	}
 	# TODO: Maildir, MH, IMAP, JMAP ...
 }

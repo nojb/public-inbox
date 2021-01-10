@@ -122,7 +122,7 @@ my $setup_publicinboxes = sub {
 	return if $done eq $home;
 	use PublicInbox::InboxWritable;
 	for my $V (1, 2) {
-		run_script([qw(-init -Lmedium), "-V$V", "t$V",
+		run_script([qw(-init), "-V$V", "t$V",
 				'--newsgroup', "t.$V",
 				"$home/t$V", "http://example.com/t$V",
 				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
@@ -175,6 +175,15 @@ my $test_external = sub {
 	});
 	$lei->('ls-external');
 	like($out, qr/boost=0\n/s, 'ls-external has output');
+
+	# note, on a Bourne shell users should be able to use either:
+	#	s:"use boolean prefix"
+	#	"s:use boolean prefix"
+	# or use single quotes, it should not matter.  Users only need
+	# to know shell quoting rules, not Xapian quoting rules.
+	# No double-quoting should be imposed on users on the CLI
+	$lei->('q', 's:use boolean prefix');
+	like($out, qr/search: use boolean prefix/, 'phrase search got result');
 };
 
 my $test_lei_common = sub {

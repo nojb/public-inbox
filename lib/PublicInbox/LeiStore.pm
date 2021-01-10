@@ -23,7 +23,7 @@ sub new {
 	my (undef, $dir, $opt) = @_;
 	my $eidx = PublicInbox::ExtSearchIdx->new($dir, $opt);
 	my $self = bless { priv_eidx => $eidx }, __PACKAGE__;
-	eidx_init($self) if $opt->{creat};
+	eidx_init($self)->done if $opt->{creat};
 	$self;
 }
 

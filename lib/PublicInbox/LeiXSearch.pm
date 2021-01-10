@@ -20,9 +20,16 @@ sub new {
 
 sub attach_external {
 	my ($self, $ibxish) = @_; # ibxish = ExtSearch or Inbox
-	if (!$ibxish->can('over')) {
-		push @{$self->{remotes}}, $ibxish
+
+	if (!$ibxish->can('over') || !$ibxish->over) {
+		return push(@{$self->{remotes}}, $ibxish)
 	}
+	my $desc = $ibxish->{inboxdir} // $ibxish->{topdir};
+	my $srch = $ibxish->search or
+		return warn("$desc not indexed for Xapian\n");
+	my @shards = $srch->xdb_shards_flat or
+		return warn("$desc has no Xapian shardsXapian\n");
+
 	if (delete $self->{xdb}) { # XXX: do we need this?
 		# clobber existing {xdb} if amending
 		my $expect = delete $self->{nshard};
@@ -41,13 +48,18 @@ sub attach_external {
 		$nr == $expect or die
 			"BUG: reloaded $nr shards, expected $expect"
 	}
-	my @shards = $ibxish->search->xdb_shards_flat;
 	push @{$self->{shards_flat}}, @shards;
 	push(@{$self->{shard2ibx}}, $ibxish) for (@shards);
 }
 
+# returns a list of local inboxes (or count in scalar context)
+sub locals {
+	my %uniq = map {; "$_" => $_ } @{$_[0]->{shard2ibx} // []};
+	values %uniq;
+}
+
 # called by PublicInbox::Search::xdb
-sub xdb_shards_flat { @{$_[0]->{shards_flat}} }
+sub xdb_shards_flat { @{$_[0]->{shards_flat} // []} }
 
 # like over->get_art
 sub smsg_for {
@@ -68,5 +80,7 @@ sub recent {
 	$opt->{relevance} //= -2;
 	$self->mset($qstr //= 'bytes:1..', $opt);
 }
+
+sub over {}
 
 1;

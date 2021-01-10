@@ -6,7 +6,7 @@
 package PublicInbox::Search;
 use strict;
 use parent qw(Exporter);
-our @EXPORT_OK = qw(retry_reopen int_val);
+our @EXPORT_OK = qw(retry_reopen int_val get_pct);
 use List::Util qw(max);
 
 # values for searching, changing the numeric value breaks
@@ -422,6 +422,14 @@ sub int_val ($$) {
 	my ($doc, $col) = @_;
 	my $val = $doc->get_value($col) or return; # undefined is '' in Xapian
 	sortable_unserialise($val) + 0; # PV => IV conversion
+}
+
+sub get_pct ($) { # mset item
+	# Capped at "99%" since "100%" takes an extra column in the
+	# thread skeleton view.  <xapian/mset.h> says the value isn't
+	# very meaningful, anyways.
+	my $n = $_[0]->get_percent;
+	$n > 99 ? 99 : $n;
 }
 
 1;

@@ -8,7 +8,8 @@
 package PublicInbox::LEI;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::DS PublicInbox::LeiExternal);
+use parent qw(PublicInbox::DS PublicInbox::LeiExternal
+	PublicInbox::LeiQuery);
 use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
 use Errno qw(EAGAIN ECONNREFUSED ENOENT);
@@ -80,7 +81,7 @@ sub _config_path ($) {
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
-	sort|s=s@ reverse|r offset=i remote local! external!
+	sort|s=s reverse|r offset=i remote local! external! pretty
 	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
@@ -202,8 +203,9 @@ my %OPTDESC = (
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],
 'offset=i' => ['OFF', 'search result offset (default: 0)'],
 
-'sort|s=s@' => [ 'VAL|internaldate,date,relevance,docid',
+'sort|s=s' => [ 'VAL|received,relevance,docid',
 		"order of results `--output'-dependent"],
+'reverse|r' => [ 'reverse search results' ], # like sort(1)
 
 'boost=i' => 'increase/decrease priority of results (default: 0)',
 
@@ -466,10 +468,6 @@ sub _lei_store ($;$) {
 }
 
 sub lei_show {
-	my ($self, @argv) = @_;
-}
-
-sub lei_query {
 	my ($self, @argv) = @_;
 }
 

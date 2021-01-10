@@ -8,24 +8,35 @@ use v5.10.1;
 use parent qw(Exporter);
 our @EXPORT = qw(lei_ls_external lei_add_external lei_forget_external);
 
-sub lei_ls_external {
-	my ($self, @argv) = @_;
-	my $stor = $self->_lei_store(0);
+sub _externals_each {
+	my ($self, $cb, @arg) = @_;
 	my $cfg = $self->_lei_cfg(0);
-	my $out = $self->{1};
-	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
-	my (%boost, @loc);
+	my %boost;
 	for my $sec (grep(/\Aexternal\./, @{$cfg->{-section_order}})) {
 		my $loc = substr($sec, length('external.'));
 		$boost{$loc} = $cfg->{"$sec.boost"};
-		push @loc, $loc;
 	}
-	use sort 'stable';
+	return \%boost if !wantarray && !$cb;
+
 	# highest boost first, but stable for alphabetic tie break
-	for (sort { $boost{$b} <=> $boost{$a} } sort keys %boost) {
-		# TODO: use miscidx and show docid so forget/set is easier
-		print $out $_, $OFS, 'boost=', $boost{$_}, $ORS;
+	use sort 'stable';
+	my @order = sort { $boost{$b} <=> $boost{$a} } sort keys %boost;
+	return @order if !$cb;
+	for my $loc (@order) {
+		$cb->(@arg, $loc, $boost{$loc});
 	}
+	@order; # scalar or array
+}
+
+sub lei_ls_external {
+	my ($self, @argv) = @_;
+	my $stor = $self->_lei_store(0);
+	my $out = $self->{1};
+	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
+	$self->_externals_each(sub {
+		my ($loc, $boost_val) = @_;
+		print $out $loc, $OFS, 'boost=', $boost_val, $ORS;
+	});
 }
 
 sub lei_add_external {

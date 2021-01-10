@@ -14,7 +14,7 @@ use PublicInbox::WwwAtomStream;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::SearchThread;
 use PublicInbox::SearchQuery;
-use PublicInbox::Search;
+use PublicInbox::Search qw(get_pct);
 my %rmap_inc;
 
 sub mbox_results {
@@ -274,14 +274,6 @@ sub sort_relevance {
 		(eval { $b->topmost->{pct} } // 0) <=>
 		(eval { $a->topmost->{pct} } // 0)
 	} @{$_[0]} ]
-}
-
-sub get_pct ($) {
-	# Capped at "99%" since "100%" takes an extra column in the
-	# thread skeleton view.  <xapian/mset.h> says the value isn't
-	# very meaningful, anyways.
-	my $n = $_[0]->get_percent;
-	$n > 99 ? 99 : $n;
 }
 
 sub mset_thread {
