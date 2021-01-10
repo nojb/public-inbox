@@ -125,9 +125,10 @@ sub lei_q {
 	# my $wcb = PublicInbox::LeiToMail->write_cb($out, $self);
 	$self->{mset_opt} = \%mset_opt;
 	$lxs->do_query($self, \@srcs);
-	if ($pid_old12) {
+	if ($pid_old12) { # [ pid, stdout, stderr ]
+		my $pid = $pid_old12->[0];
 		$self->{$_} = $pid_old12->[$_] for (1, 2);
-		dwaitpid($pid_old12->[0], undef, $self->{sock});
+		dwaitpid($pid, undef, $self->{sock}) if $pid;
 	}
 }
 

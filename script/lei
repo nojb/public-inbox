@@ -6,15 +6,32 @@ use v5.10.1;
 use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
 use PublicInbox::CmdIPC4;
 my $narg = 4;
+my $recv_cmd = PublicInbox::CmdIPC4->can('recv_cmd4');
 my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
 	require PublicInbox::CmdIPC1; # 2nd choice
 	$narg = 1;
+	$recv_cmd = PublicInbox::CmdIPC1->can('recv_cmd1');
 	PublicInbox::CmdIPC1->can('send_cmd1');
 } // do {
 	require PublicInbox::Spawn; # takes ~50ms even if built *sigh*
 	$narg = 4;
+	$recv_cmd = PublicInbox::Spawn->can('recv_cmd4');
 	PublicInbox::Spawn->can('send_cmd4');
 };
+
+sub exec_cmd {
+	my ($fds, $argc, @argv) = @_;
+	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
+	my @m = (*STDIN{IO}, '<&=',  *STDOUT{IO}, '>&=',
+		*STDERR{IO}, '>&=');
+	for my $fd (@$fds) {
+		my ($old_io, $mode) = splice(@m, 0, 2);
+		open($old_io, $mode, $fd) or die "open $mode$fd: $!";
+	}
+	%ENV = (%ENV, %env);
+	exec(@argv);
+	die "exec: @argv: $!";
+}
 
 my ($sock, $pwd);
 if ($send_cmd && eval {
@@ -68,9 +85,14 @@ Falling back to (slow) one-shot mode
 	select $sock;
 	$| = 1; # unbuffer selected $sock
 	$send_cmd->($sock, [ 0, 1, 2 ], $buf, 0);
-	while ($buf = <$sock>) {
-		$buf =~ /\Aexit=([0-9]+)\n\z/ and exit($1 + 0);
-		die $buf;
+	while (my (@fds) = $recv_cmd->($sock, $buf, 4096 * 33)) {
+		if ($buf =~ /\Aexit=([0-9]+)\n\z/) {
+			exit($1);
+		} elsif ($buf =~ /\Aexec (.+)\n\z/) {
+			exec_cmd(\@fds, split(/\0/, $1));
+		} else {
+			die $buf;
+		}
 	}
 } else { # for systems lacking Socket::MsgHdr, IO::FDPass or Inline::C
 	warn $@ if $@;

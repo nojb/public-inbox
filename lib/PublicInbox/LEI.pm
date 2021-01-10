@@ -26,7 +26,7 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-my $recv_cmd;
+my ($recv_cmd, $send_cmd);
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
 my $GLP_PASS = Getopt::Long::Parser->new;
@@ -244,7 +244,8 @@ sub x_it ($$) { # pronounced "exit"
 	my $sig = ($code & 127);
 	$code >>= 8 unless $sig;
 	if (my $sock = $self->{sock}) {
-		say $sock "exit=$code";
+		my $fds = [ map { fileno($_) } @$self{0..2} ];
+		$send_cmd->($sock, $fds, "exit=$code\n", 0);
 	} else { # for oneshot
 		$quit->($code);
 	}
@@ -635,15 +636,23 @@ sub start_pager {
 	chomp(my $pager = <$fh> // '');
 	close($fh) or warn "`git var PAGER' error: \$?=$?";
 	return if $pager eq 'cat' || $pager eq '';
-	$env->{LESS} //= 'FRX';
-	$env->{LV} //= '-c';
-	$env->{COLUMNS} //= 80; # TODO TIOCGWINSZ
-	$env->{MORE} //= 'FRX' if $^O eq 'freebsd';
+	# TODO TIOCGWINSZ
+	my %new_env = (LESS => 'FRX', LV => '-c', COLUMNS => 80);
+	$new_env{MORE} = 'FRX' if $^O eq 'freebsd';
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
+	my $pid;
+	if (my $sock = $self->{sock}) { # lei(1) process runs it
+		delete @new_env{keys %$env}; # only set iff unset
+		my $buf = "exec 1\0".$pager;
+		while (my ($k, $v) = each %new_env) { $buf .= "\0$k=$v" };
+		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
+		$send_cmd->($sock, $fds, $buf .= "\n", 0);
+	} else {
+		$pid = spawn([$pager], $env, $rdr);
+	}
 	$self->{1} = $wpager;
 	$self->{2} = $wpager if -t $self->{2};
-	my $pid = spawn([$pager], $env, $rdr);
 	$env->{GIT_PAGER_IN_USE} = 'true'; # we may spawn git
 	[ $pid, @$rdr{1, 2} ];
 }
@@ -731,10 +740,13 @@ sub lazy_start {
 	local $oldset = PublicInbox::DS::block_signals();
 	if ($nfd == 1) {
 		require PublicInbox::CmdIPC1;
+		$send_cmd = PublicInbox::CmdIPC1->can('send_cmd1');
 		$recv_cmd = PublicInbox::CmdIPC1->can('recv_cmd1');
 	} elsif ($nfd == 4) {
+		$send_cmd = PublicInbox::Spawn->can('send_cmd4');
 		$recv_cmd = PublicInbox::Spawn->can('recv_cmd4') // do {
 			require PublicInbox::CmdIPC4;
+			$send_cmd = PublicInbox::CmdIPC4->can('send_cmd4');
 			PublicInbox::CmdIPC4->can('recv_cmd4');
 		};
 	}
