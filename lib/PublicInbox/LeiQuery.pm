@@ -5,42 +5,7 @@
 package PublicInbox::LeiQuery;
 use strict;
 use v5.10.1;
-use PublicInbox::MID qw($MID_EXTRACT);
-use POSIX qw(strftime);
-use PublicInbox::Address qw(pairs);
 use PublicInbox::DS qw(dwaitpid);
-
-sub _iso8601 ($) { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($_[0])) }
-
-# prepares an smsg for JSON
-sub _smsg_unbless ($) {
-	my ($smsg) = @_;
-
-	delete @$smsg{qw(lines bytes)};
-	$smsg->{rcvd} = _iso8601(delete $smsg->{ts}); # JMAP receivedAt
-	$smsg->{dt} = _iso8601(delete $smsg->{ds}); # JMAP UTCDate
-
-	if (my $r = delete $smsg->{references}) {
-		$smsg->{references} = [
-				map { "<$_>" } ($r =~ m/$MID_EXTRACT/go) ];
-	}
-	if (my $m = delete($smsg->{mid})) {
-		$smsg->{'m'} = "<$m>";
-	}
-	# XXX breaking to/cc, into structured arrays or tables which
-	# distinguish "$phrase <$address>" causes pretty printing JSON
-	# to take up too much vertical space.  I can't get either
-	# Cpanel::JSON::XS or JSON::XS or jq(1) only indent when
-	# wrapping is necessary, rather than blindly indenting and
-	# adding vertical space everywhere.
-	for my $f (qw(from to cc)) {
-		my $v = delete $smsg->{$f} or next;
-		$smsg->{substr($f, 0, 1)} = $v;
-	}
-	$smsg->{'s'} = delete $smsg->{subject};
-	# can we be bothered to parse From/To/Cc into arrays?
-	scalar { %$smsg }; # unbless
-}
 
 sub _vivify_external { # _externals_each callback
 	my ($src, $dir) = @_;
@@ -68,6 +33,7 @@ sub lei_q {
 	# src: LeiXSearch || LeiSearch || Inbox
 	my @srcs;
 	require PublicInbox::LeiXSearch;
+	require PublicInbox::LeiOverview;
 	my $lxs = PublicInbox::LeiXSearch->new;
 
 	# --external is enabled by default, but allow --no-external
@@ -83,23 +49,9 @@ sub lei_q {
 			// $lxs->wq_workers($j);
 	}
 	unshift(@srcs, $sto->search) if $opt->{'local'};
-	my $out = $opt->{output} // '-';
-	$out = 'json:/dev/stdout' if $out eq '-';
-	my $isatty = -t $self->{1};
 	# no forking workers after this
-	$self->start_pager if $isatty;
-	my $json = substr($out, 0, 5) eq 'json:' ?
-		ref(PublicInbox::Config->json)->new : undef;
-	if ($json) {
-		if ($opt->{pretty} //= $isatty) {
-			$json->pretty(1)->space_before(0);
-			$json->indent_length($opt->{indent} // 2);
-		}
-		$json->utf8; # avoid Wide character in print warnings
-		$json->ascii(1) if $opt->{ascii}; # for "\uXXXX"
-		$json->canonical;
-	}
-
+	require PublicInbox::LeiOverview;
+	$self->{ovv} = PublicInbox::LeiOverview->new($self);
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
 	$mset_opt{qstr} = join(' ', map {;
@@ -124,7 +76,17 @@ sub lei_q {
 	$mset_opt{relevance} //= -2 if $opt->{thread};
 	# my $wcb = PublicInbox::LeiToMail->write_cb($out, $self);
 	$self->{mset_opt} = \%mset_opt;
-	$lxs->do_query($self, \@srcs);
+	$self->{ovv}->ovv_begin($self);
+	pipe(my ($eof_wait, $qry_done)) or die "pipe $!";
+	require PublicInbox::EOFpipe;
+	my $eof = PublicInbox::EOFpipe->new($eof_wait, \&query_done, $self);
+	$lxs->do_query($self, $qry_done, \@srcs);
+	$eof->event_step unless $self->{sock};
+}
+
+sub query_done { # PublicInbox::EOFpipe callback
+	my ($self) = @_;
+	$self->{ovv}->ovv_end($self);
 }
 
 1;

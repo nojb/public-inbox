@@ -8,7 +8,6 @@ package PublicInbox::LeiXSearch;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::IPC);
-use PublicInbox::Search qw(get_pct);
 use Sys::Syslog qw(syslog);
 
 sub new {
@@ -102,26 +101,26 @@ sub query_thread_mset { # for --thread
 	}
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		my $ids = $srch->mset_to_artnums($mset, $mo);
 		my $ctx = { ids => $ids };
 		my $i = 0;
-		my %n2p = map { ($ids->[$i++], get_pct($_)) } $mset->items;
+		my %n2item = map { ($ids->[$i++], $_) } $mset->items;
 		while ($over->expand_thread($ctx)) {
 			for my $n (@{$ctx->{xids}}) {
 				my $smsg = $over->get_art($n) or next;
 				# next if $dd->is_smsg_dup($smsg); TODO
-				if (my $p = delete $n2p{$smsg->{num}}) {
-					$smsg->{relevance} = $p;
-				}
-				print { $self->{1} } Dumper($smsg);
+				my $mitem = delete $n2item{$smsg->{num}};
+				$each_smsg->($smsg, $mitem);
 				# $self->out($buf .= $ORS);
 				# $emit_cb->($smsg);
 			}
 			@{$ctx->{xids}} = ();
 		}
 	} while (_mset_more($mset, $mo));
+	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
 sub query_mset { # non-parallel for non-"--thread" users
@@ -130,23 +129,24 @@ sub query_mset { # non-parallel for non-"--thread" users
 	my $mset;
 	local %SIG = (%SIG, $lei->atfork_child_wq($self));
 	$self->attach_external($_) for @$srcs;
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
 		for my $it ($mset->items) {
 			my $smsg = smsg_for($self, $it) or next;
 			# next if $dd->is_smsg_dup($smsg);
-			$smsg->{relevance} = get_pct($it);
-			use Data::Dumper;
-			print { $self->{1} } Dumper($smsg);
+			$each_smsg->($smsg, $it);
 			# $self->out($buf .= $ORS) if defined $buf;
 			#$emit_cb->($smsg);
 		}
 	} while (_mset_more($mset, $mo));
+	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
 sub do_query {
-	my ($self, $lei_orig, $srcs) = @_;
+	my ($self, $lei_orig, $qry_done, $srcs) = @_;
 	my ($lei, @io) = $lei_orig->atfork_parent_wq($self);
+	$io[0] = $qry_done; # don't need stdin
 	$io[1]->autoflush(1);
 	$io[2]->autoflush(1);
 	if ($lei->{opt}->{thread}) {
@@ -160,6 +160,9 @@ sub do_query {
 	for my $rmt (@{$self->{remotes} // []}) {
 		$self->wq_do('query_thread_mbox', \@io, $lei, $rmt);
 	}
+
+	# sent off to children, they will drop remaining references to it
+	close $qry_done;
 }
 
 sub ipc_atfork_child {
@@ -170,7 +173,7 @@ sub ipc_atfork_child {
 
 sub ipc_atfork_prepare {
 	my ($self) = @_;
-	$self->wq_set_recv_modes(qw[<&= >&= >&= +<&=]);
+	$self->wq_set_recv_modes(qw[+<&= >&= >&= +<&=]);
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
 
