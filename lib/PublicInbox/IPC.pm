@@ -276,7 +276,7 @@ sub _wq_worker_start ($$) {
 	if ($pid == 0) {
 		eval { PublicInbox::DS->Reset };
 		close(delete $self->{-wq_s1});
-		delete $self->{qw(-wq_workers -wq_quit)};
+		delete $self->{qw(-wq_workers -wq_quit -wq_ppid)};
 		my $quit = sub { $self->{-wq_quit} = 1 };
 		$SIG{$_} = $quit for (qw(TERM INT QUIT));
 		$SIG{$_} = 'IGNORE' for (qw(TTOU TTIN));
@@ -347,15 +347,34 @@ sub wq_worker_decr_wait {
 	dwaitpid($pid, \&ipc_worker_reap, $self);
 }
 
+# set or retrieve number of workers
+sub wq_workers {
+	my ($self, $nr) = @_;
+	my $cur = $self->{-wq_workers} or return;
+	if (defined $nr) {
+		while (scalar(keys(%$cur)) > $nr) {
+			$self->wq_worker_decr;
+			$self->wq_worker_decr_wait;
+		}
+		$self->wq_worker_incr while scalar(keys(%$cur)) < $nr;
+	}
+	scalar(keys(%$cur));
+}
+
 sub wq_close {
 	my ($self) = @_;
 	delete @$self{qw(-wq_s1 -wq_s2)} or return;
-	my $ppid = delete $self->{-wq_ppid} // die 'BUG: no wq_ppid';
+	my $ppid = delete $self->{-wq_ppid} or return;
 	my $workers = delete $self->{-wq_workers} // die 'BUG: no wq_workers';
 	return if $ppid != $$; # can't reap siblings or parents
 	for my $pid (keys %$workers) {
 		dwaitpid($pid, \&ipc_worker_reap, $self);
 	}
+}
+
+sub DESTROY {
+	wq_close($_[0]);
+	ipc_worker_stop($_[0]);
 }
 
 1;
