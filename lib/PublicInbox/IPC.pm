@@ -69,7 +69,7 @@ sub ipc_worker_loop ($$$) {
 		# this is the overwhelmingly likely case
 		if (!defined($wantarray)) {
 			eval { $self->$sub(@args) };
-			eval { warn "$$ die: $@ (from nowait $sub)\n" } if $@;
+			warn "$$ die: $@ (from nowait $sub)\n" if $@;
 		} elsif ($wantarray) {
 			my @ret = eval { $self->$sub(@args) };
 			ipc_return($w_res, \@ret, $@);
@@ -144,15 +144,7 @@ sub ipc_worker_stop {
 
 	# allow any sibling to send ipc_worker_exit, but siblings can't wait
 	return if $$ != $ppid;
-	eval {
-		my $reap = $self->can('ipc_worker_reap');
-		PublicInbox::DS::dwaitpid($pid, $reap, $self);
-	};
-	if ($@) {
-		my $wp = waitpid($pid, 0);
-		$pid == $wp or die "waitpid($pid) returned $wp: \$?=$?";
-		$self->ipc_worker_reap($pid);
-	}
+	PublicInbox::DS::dwaitpid($pid, \&ipc_worker_reap, $self);
 }
 
 # use this if we have multiple readers reading curl or "pigz -dc"
