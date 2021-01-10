@@ -24,7 +24,7 @@ use strict;
 use v5.10.1;
 use parent qw(Exporter);
 use bytes;
-use POSIX qw(WNOHANG);
+use POSIX qw(WNOHANG sigprocmask SIG_SETMASK);
 use IO::Handle qw();
 use Fcntl qw(SEEK_SET :DEFAULT O_APPEND);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
@@ -202,6 +202,16 @@ sub RunTimers {
     ($LoopTimeout < 0 || $LoopTimeout >= $timeout) ? $timeout : $LoopTimeout;
 }
 
+sub sig_setmask { sigprocmask(SIG_SETMASK, @_) or die "sigprocmask: $!" }
+
+sub block_signals () {
+	my $oldset = POSIX::SigSet->new;
+	my $newset = POSIX::SigSet->new;
+	$newset->fillset or die "fillset: $!";
+	sig_setmask($newset, $oldset);
+	$oldset;
+}
+
 # We can't use waitpid(-1) safely here since it can hit ``, system(),
 # and other things.  So we scan the $wait_pids list, which is hopefully
 # not too big.  We keep $wait_pids small by not calling dwaitpid()
@@ -211,6 +221,7 @@ sub reap_pids {
 	$reap_armed = undef;
 	my $tmp = $wait_pids or return;
 	$wait_pids = undef;
+	my $oldset = block_signals();
 	foreach my $ary (@$tmp) {
 		my ($pid, $cb, $arg) = @$ary;
 		my $ret = waitpid($pid, WNOHANG);
@@ -225,8 +236,7 @@ sub reap_pids {
 			warn "waitpid($pid, WNOHANG) = $ret, \$!=$!, \$?=$?";
 		}
 	}
-	# we may not be done, yet, and could've missed/masked a SIGCHLD:
-	$reap_armed //= requeue(\&reap_pids) if $wait_pids;
+	sig_setmask($oldset);
 }
 
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)

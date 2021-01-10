@@ -19,7 +19,7 @@ my $do_scan = 1;
 GetOptions('scan!' => \$do_scan, # undocumented, testing only
 	'help|h' => \(my $show_help)) or do { print STDERR $help; exit 1 };
 if ($show_help) { print $help; exit 0 };
-my $oldset = PublicInbox::Sigfd::block_signals();
+my $oldset = PublicInbox::DS::block_signals();
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 local $0 = $0; # local since this script may be eval-ed
@@ -60,7 +60,7 @@ if ($watch) {
 	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
 	if (!$sigfd) {
-		PublicInbox::Sigfd::sig_setmask($oldset);
+		PublicInbox::DS::sig_setmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	$watch->watch($sig, $oldset) while ($watch);

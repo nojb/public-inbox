@@ -77,7 +77,7 @@ sub accept_tls_opt ($) {
 sub daemon_prepare ($) {
 	my ($default_listen) = @_;
 	my $listener_names = {}; # sockname => IO::Handle
-	$oldset = PublicInbox::Sigfd::block_signals();
+	$oldset = PublicInbox::DS::block_signals();
 	@CMD = ($0, @ARGV);
 	my ($prog) = ($CMD[0] =~ m!([^/]+)\z!g);
 	my $help = <<EOF;
@@ -515,7 +515,7 @@ EOF
 	};
 	my $sigfd = PublicInbox::Sigfd->new($sig, 0);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
-	PublicInbox::Sigfd::sig_setmask($oldset) if !$sigfd;
+	PublicInbox::DS::sig_setmask($oldset) if !$sigfd;
 	while (1) { # main loop
 		my $n = scalar keys %pids;
 		unless (@listeners) {
@@ -531,7 +531,7 @@ EOF
 		}
 		my $want = $worker_processes - 1;
 		if ($n <= $want) {
-			PublicInbox::Sigfd::block_signals() if !$sigfd;
+			PublicInbox::DS::block_signals() if !$sigfd;
 			for my $i ($n..$want) {
 				my $pid = fork;
 				if (!defined $pid) {
@@ -544,7 +544,7 @@ EOF
 					$pids{$pid} = $i;
 				}
 			}
-			PublicInbox::Sigfd::sig_setmask($oldset) if !$sigfd;
+			PublicInbox::DS::sig_setmask($oldset) if !$sigfd;
 		}
 
 		if ($sigfd) { # Linux and IO::KQueue users:
@@ -632,7 +632,7 @@ sub daemon_loop ($$$$) {
 	if (!$sigfd) {
 		# wake up every second to accept signals if we don't
 		# have signalfd or IO::KQueue:
-		PublicInbox::Sigfd::sig_setmask($oldset);
+		PublicInbox::DS::sig_setmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	PublicInbox::DS->EventLoop;

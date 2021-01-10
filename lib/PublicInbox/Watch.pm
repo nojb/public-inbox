@@ -583,13 +583,13 @@ sub watch_atfork_child ($) {
 	delete $self->{opendirs};
 	PublicInbox::DS->Reset;
 	%SIG = (%SIG, %{$self->{sig}}, CHLD => 'DEFAULT');
-	PublicInbox::Sigfd::sig_setmask($self->{oldset});
+	PublicInbox::DS::sig_setmask($self->{oldset});
 }
 
 sub watch_atfork_parent ($) {
 	my ($self) = @_;
 	_done_for_now($self);
-	PublicInbox::Sigfd::block_signals();
+	PublicInbox::DS::block_signals();
 }
 
 sub imap_idle_requeue ($) { # DS::add_timer callback
@@ -648,7 +648,7 @@ sub event_step {
 				imap_idle_fork($self, $url_intvl);
 			}
 		};
-		PublicInbox::Sigfd::sig_setmask($oldset);
+		PublicInbox::DS::sig_setmask($oldset);
 		die $@ if $@;
 	}
 	fs_scan_step($self) if $self->{mdre};
@@ -716,7 +716,7 @@ sub poll_fetch_fork ($) { # DS::add_timer callback
 		close $w;
 		_exit(0);
 	}
-	PublicInbox::Sigfd::sig_setmask($oldset);
+	PublicInbox::DS::sig_setmask($oldset);
 	die "fork: $!"  unless defined $pid;
 	$self->{poll_pids}->{$pid} = [ $intvl, $urls ];
 	PublicInbox::EOFpipe->new($r, \&reap, [$pid, \&poll_fetch_reap, $self]);

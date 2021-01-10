@@ -1090,7 +1090,7 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 	$pr->("performing initial scan ...\n") if $pr;
 	my $sync = eidx_sync($self, $opt); # initial sync
 	return if $sync->{quit};
-	my $oldset = PublicInbox::Sigfd::block_signals();
+	my $oldset = PublicInbox::DS::block_signals();
 	local $self->{current_info} = '';
 	my $cb = $SIG{__WARN__} || \&CORE::warn;
 	local $SIG{__WARN__} = sub { $cb->($self->{current_info}, ': ', @_) };
@@ -1108,7 +1108,7 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 	if (!$sigfd) {
 		# wake up every second to accept signals if we don't
 		# have signalfd or IO::KQueue:
-		PublicInbox::Sigfd::sig_setmask($oldset);
+		PublicInbox::DS::sig_setmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	PublicInbox::DS->SetPostLoopCallback(sub { !$sync->{quit} });

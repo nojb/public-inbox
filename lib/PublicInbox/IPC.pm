@@ -81,7 +81,7 @@ sub ipc_worker_spawn {
 	delete(@$self{qw(-ipc_req -ipc_res -ipc_ppid -ipc_pid)});
 	pipe(my ($r_req, $w_req)) or die "pipe: $!";
 	pipe(my ($r_res, $w_res)) or die "pipe: $!";
-	my $sigset = $oldset // PublicInbox::Sigfd::block_signals();
+	my $sigset = $oldset // PublicInbox::DS::block_signals();
 	my $parent = $$;
 	$self->ipc_atfork_parent;
 	defined(my $pid = fork) or die "fork: $!";
@@ -92,13 +92,13 @@ sub ipc_worker_spawn {
 		$w_res->autoflush(1);
 		$SIG{$_} = 'IGNORE' for (qw(TERM INT QUIT));
 		local $0 = $ident;
-		PublicInbox::Sigfd::sig_setmask($oldset);
+		PublicInbox::DS::sig_setmask($oldset);
 		my $on_destroy = $self->ipc_atfork_child;
 		eval { ipc_worker_loop($self, $r_req, $w_res) };
 		die "worker $ident PID:$$ died: $@\n" if $@;
 		exit;
 	}
-	PublicInbox::Sigfd::sig_setmask($sigset) unless $oldset;
+	PublicInbox::DS::sig_setmask($sigset) unless $oldset;
 	$r_req = $w_res = undef;
 	$w_req->autoflush(1);
 	$self->{-ipc_req} = $w_req;

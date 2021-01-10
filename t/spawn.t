@@ -61,7 +61,7 @@ elsif ($pid > 0) {
 	select(undef, undef, undef, 0.01) while 1;
 }
 EOF
-	my $oldset = PublicInbox::Sigfd::block_signals();
+	my $oldset = PublicInbox::DS::block_signals();
 	my $rd = popen_rd([$^X, '-e', $script]);
 	diag 'waiting for child to reap grandchild...';
 	chomp(my $line = readline($rd));
@@ -70,7 +70,7 @@ EOF
 	ok(kill('CHLD', $pid), 'sent SIGCHLD to child');
 	is(readline($rd), "HI\n", '$SIG{CHLD} works in child');
 	ok(close $rd, 'popen_rd close works');
-	PublicInbox::Sigfd::sig_setmask($oldset);
+	PublicInbox::DS::sig_setmask($oldset);
 }
 
 {

@@ -607,7 +607,8 @@ sub start_pager {
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
 	$self->{1} = $w;
 	$self->{2} = $w if -t $self->{2};
-	$self->{'pager.pid'} = spawn([$pager], $env, $rdr);
+	my $pid = spawn([$pager], $env, $rdr);
+	dwaitpid($pid, undef, $self->{sock});
 	$env->{GIT_PAGER_IN_USE} = 'true'; # we may spawn git
 }
 
@@ -689,7 +690,7 @@ sub lazy_start {
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
-	my $oldset = PublicInbox::Sigfd::block_signals();
+	my $oldset = PublicInbox::DS::block_signals();
 	if ($nfd == 1) {
 		require IO::FDPass;
 		$recv_3fds = sub { map { IO::FDPass::recv($_[0]) } (0..2) };
@@ -736,7 +737,7 @@ sub lazy_start {
 	} else {
 		# wake up every second to accept signals if we don't
 		# have signalfd or IO::KQueue:
-		PublicInbox::Sigfd::sig_setmask($oldset);
+		PublicInbox::DS::sig_setmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);
 	}
 	PublicInbox::DS->SetPostLoopCallback(sub {
@@ -801,9 +802,6 @@ sub oneshot {
 sub DESTROY {
 	my ($self) = @_;
 	$self->{1}->autoflush(1);
-	if (my $pid = delete $self->{'pager.pid'}) {
-		dwaitpid($pid, undef, $self->{sock});
-	}
 }
 
 1;
