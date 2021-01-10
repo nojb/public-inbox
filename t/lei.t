@@ -10,6 +10,8 @@ use File::Path qw(rmtree);
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
+my ($home, $for_destroy) = tmpdir();
+my $err_filter;
 my $lei = sub {
 	my ($cmd, $env, $xopt) = @_;
 	$out = $err = '';
@@ -17,10 +19,12 @@ my $lei = sub {
 		($env, $xopt) = grep { (!defined) || ref } @_;
 		$cmd = [ grep { defined && !ref } @_ ];
 	}
-	run_script(['lei', @$cmd], $env, $xopt // $opt);
+	my $res = run_script(['lei', @$cmd], $env, $xopt // $opt);
+	$err_filter and
+		$err = join('', grep(!/$err_filter/, split(/^/m, $err)));
+	$res;
 };
 
-my ($home, $for_destroy) = tmpdir();
 delete local $ENV{XDG_DATA_HOME};
 delete local $ENV{XDG_CONFIG_HOME};
 local $ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
@@ -195,18 +199,22 @@ my $test_lei_common = sub {
 
 if ($ENV{TEST_LEI_ONESHOT}) {
 	require_ok 'PublicInbox::LEI';
-	# force sun_path[108] overflow, "IO::FDPass" avoids warning
-	local $ENV{XDG_RUNTIME_DIR} = "$home/IO::FDPass".('.sun_path' x 108);
+	# force sun_path[108] overflow, ($lei->() filters out this path)
+	my $xrd = "$home/1shot-test".('.sun_path' x 108);
+	local $ENV{XDG_RUNTIME_DIR} = $xrd;
+	$err_filter = qr!\Q$xrd!;
 	$test_lei_common->();
 }
 
 SKIP: { # real socket
 	require_mods(qw(Cwd), my $nr = 105);
-	my $nfd = eval { require IO::FDPass; 1 } // do {
+	my $nfd = eval { require Socket::MsgHdr; 4 } //
+			eval { require IO::FDPass; 1 } // do {
 		require PublicInbox::Spawn;
-		PublicInbox::Spawn->can('send_3fds') ? 3 : undef;
+		PublicInbox::Spawn->can('send_cmd4') ? 4 : undef;
 	} //
-	skip 'IO::FDPass missing or Inline::C not installed/configured', $nr;
+	skip 'Socket::MsgHdr, IO::FDPass or Inline::C missing or unconfigured',
+		$nr;
 
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/$nfd.sock";

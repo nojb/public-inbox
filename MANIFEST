@@ -109,6 +109,8 @@ lib/PublicInbox/Admin.pm
 lib/PublicInbox/AdminEdit.pm
 lib/PublicInbox/AltId.pm
 lib/PublicInbox/Cgit.pm
+lib/PublicInbox/CmdIPC1.pm
+lib/PublicInbox/CmdIPC4.pm
 lib/PublicInbox/CompressNoop.pm
 lib/PublicInbox/Config.pm
 lib/PublicInbox/ConfigIter.pm
@@ -275,6 +277,7 @@ t/altid.t
 t/altid_v2.t
 t/cgi.t
 t/check-www-inbox.perl
+t/cmd_ipc.t
 t/config.t
 t/config_limiter.t
 t/content_hash.t

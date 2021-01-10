@@ -201,6 +201,8 @@ void nodatacow_dir(const char *dir)
 }
 SET_NODATACOW
 
+# last choice for script/lei, 1st choice for lei internals
+# compatible with PublicInbox::CmdIPC4
 my $fdpass = <<'FDPASS';
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -213,16 +215,23 @@ union my_cmsg {
 	char pad[sizeof(struct cmsghdr)+ 8 + sizeof(struct my_3fds) + 8];
 };
 
-int send_3fds(int sockfd, int infd, int outfd, int errfd)
+int send_cmd4(PerlIO *s, int in, int out, int err, SV *data, int flags)
 {
 	struct msghdr msg = { 0 };
 	struct iovec iov;
 	union my_cmsg cmsg = { 0 };
 	int *fdp;
 	size_t i;
+	STRLEN dlen = 0;
 
-	iov.iov_base = &msg.msg_namelen; /* whatever */
-	iov.iov_len = 1;
+	if (SvOK(data)) {
+		iov.iov_base = SvPV(data, dlen);
+		iov.iov_len = dlen;
+	}
+	if (!dlen) { /* must be non-zero */
+		iov.iov_base = &msg.msg_namelen; /* whatever */
+		iov.iov_len = 1;
+	}
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	msg.msg_control = &cmsg.hdr;
@@ -232,38 +241,38 @@ int send_3fds(int sockfd, int infd, int outfd, int errfd)
 	cmsg.hdr.cmsg_type = SCM_RIGHTS;
 	cmsg.hdr.cmsg_len = CMSG_LEN(sizeof(struct my_3fds));
 	fdp = (int *)CMSG_DATA(&cmsg.hdr);
-	*fdp++ = infd;
-	*fdp++ = outfd;
-	*fdp++ = errfd;
-	return sendmsg(sockfd, &msg, 0) >= 0;
+	*fdp++ = in;
+	*fdp++ = out;
+	*fdp++ = err;
+	return sendmsg(PerlIO_fileno(s), &msg, flags) >= 0;
 }
 
-void recv_3fds(int sockfd)
+void recv_cmd4(PerlIO *s, SV *buf, STRLEN n)
 {
 	union my_cmsg cmsg = { 0 };
 	struct msghdr msg = { 0 };
 	struct iovec iov;
 	size_t i;
 	Inline_Stack_Vars;
+	Inline_Stack_Reset;
 
-	iov.iov_base = &msg.msg_namelen; /* whatever */
-	iov.iov_len = 1;
+	if (!SvOK(buf))
+		sv_setpvn(buf, "", 0);
+	iov.iov_base = SvGROW(buf, n + 1);
+	iov.iov_len = n;
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	msg.msg_control = &cmsg.hdr;
 	msg.msg_controllen = CMSG_SPACE(sizeof(struct my_3fds));
 
-	if (recvmsg(sockfd, &msg, 0) <= 0)
-		return;
-
-	errno = EDOM;
-	Inline_Stack_Reset;
-	if (cmsg.hdr.cmsg_level == SOL_SOCKET &&
+	i = recvmsg(PerlIO_fileno(s), &msg, 0);
+	if (i < 0)
+		croak("recvmsg: %s", strerror(errno));
+	SvCUR_set(buf, i);
+	if (i > 0 && cmsg.hdr.cmsg_level == SOL_SOCKET &&
 			cmsg.hdr.cmsg_type == SCM_RIGHTS &&
 			cmsg.hdr.cmsg_len == CMSG_LEN(sizeof(struct my_3fds))) {
 		int *fdp = (int *)CMSG_DATA(&cmsg.hdr);
-		size_t i;
-
 		for (i = 0; i < 3; i++)
 			Inline_Stack_Push(sv_2mortal(newSViv(*fdp++)));
 	}

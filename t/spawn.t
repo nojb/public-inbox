@@ -5,35 +5,6 @@ use warnings;
 use Test::More;
 use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::Sigfd;
-use Socket qw(AF_UNIX SOCK_STREAM);
-
-SKIP: {
-	my $recv_3fds = PublicInbox::Spawn->can('recv_3fds');
-	my $send_3fds = PublicInbox::Spawn->can('send_3fds');
-	skip 'Inline::C not enabled', 3 unless $send_3fds && $recv_3fds;
-	my ($s1, $s2);
-	socketpair($s1, $s2, AF_UNIX, SOCK_STREAM, 0) or BAIL_OUT $!;
-	pipe(my ($r, $w)) or BAIL_OUT $!;
-	my @orig = ($r, $w, $s2);
-	my @fd = map { fileno($_) } @orig;
-	ok($send_3fds->(fileno($s1), $fd[0], $fd[1], $fd[2]),
-		'FDs sent');
-	my (@fds) = $recv_3fds->(fileno($s2));
-	is(scalar(@fds), 3, 'got 3 fds');
-	use Data::Dumper; diag Dumper(\@fds);
-	is(scalar(grep(/\A\d+\z/, @fds)), 3, 'all valid FDs');
-	my $i = 0;
-	my @cmp = map {
-		open my $new, $_, shift(@fds) or BAIL_OUT "open $! $i => $_";
-		($new, shift(@orig), $i++);
-	} (qw(<&= >&= +<&=));
-	while (my ($new, $old, $fd) = splice(@cmp, 0, 3)) {
-		my @new = stat($new);
-		my @old = stat($old);
-		is("$old[0]\0$old[1]", "$new[0]\0$new[1]",
-			"device/inode matches on received FD:$fd");
-	}
-}
 
 {
 	my $true = which('true');

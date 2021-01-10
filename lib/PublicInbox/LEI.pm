@@ -26,7 +26,7 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-my $recv_3fds;
+my $recv_cmd;
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
 my $GLP_PASS = Getopt::Long::Parser->new;
@@ -619,8 +619,9 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my $self = bless { sock => $sock }, __PACKAGE__;
 	vec(my $rin = '', fileno($sock), 1) = 1;
 	# `say $sock' triggers "die" in lei(1)
+	my $buf;
 	if (select(my $rout = $rin, undef, undef, 1)) {
-		my @fds = $recv_3fds->(fileno($sock));
+		my @fds = $recv_cmd->($sock, $buf, 4096 * 33); # >MAX_ARG_STRLEN
 		if (scalar(@fds) == 3) {
 			my $i = 0;
 			for my $rdr (qw(<&= >&= >&=)) {
@@ -633,7 +634,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 				}
 			}
 		} else {
-			say $sock "recv_3fds failed: $!";
+			say $sock "recv_cmd failed: $!";
 			return;
 		}
 	} else {
@@ -641,20 +642,20 @@ sub accept_dispatch { # Listener {post_accept} callback
 		return;
 	}
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
-	# $ARGV_STR = join("]\0[", @ARGV);
-	# $ENV_STR = join('', map { "$_=$ENV{$_}\0" } keys %ENV);
-	# $line = "$$\0\0>$ARGV_STR\0\0>$ENV_STR\0\0";
-	my ($client_pid, $argv, $env) = do {
-		local $/ = "\0\0\0"; # yes, 3 NULs at EOL, not 2
-		chomp(my $line = <$sock>);
-		split(/\0\0>/, $line, 3);
-	};
-	my %env = map { split(/=/, $_, 2) } split(/\0/, $env);
+	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
+	# $buf = "$$\0$argc\0".join("\0", @ARGV).$ENV_STR."\0\0";
+	if (substr($buf, -2, 2, '') ne "\0\0") { # s/\0\0\z//
+		say $sock "request command truncated";
+		return;
+	}
+	my ($client_pid, $argc, @argv) = split(/\0/, $buf, -1);
+	undef $buf;
+	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
 	if (chdir($env{PWD})) {
 		local %ENV = %env;
 		$self->{env} = \%env;
-		$self->{pid} = $client_pid;
-		eval { dispatch($self, split(/\]\0\[/, $argv)) };
+		$self->{pid} = $client_pid + 0;
+		eval { dispatch($self, @argv) };
 		say $sock $@ if $@;
 	} else {
 		say $sock "chdir($env{PWD}): $!"; # implicit close
@@ -692,13 +693,17 @@ sub lazy_start {
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	my $oldset = PublicInbox::DS::block_signals();
 	if ($nfd == 1) {
-		require IO::FDPass;
-		$recv_3fds = sub { map { IO::FDPass::recv($_[0]) } (0..2) };
-	} elsif ($nfd == 3) {
-		$recv_3fds = PublicInbox::Spawn->can('recv_3fds');
+		require PublicInbox::CmdIPC1;
+		$recv_cmd = PublicInbox::CmdIPC1->can('recv_cmd1');
+	} elsif ($nfd == 4) {
+		$recv_cmd = PublicInbox::Spawn->can('recv_cmd4') // do {
+			require PublicInbox::CmdIPC4;
+			PublicInbox::CmdIPC4->can('recv_cmd4');
+		};
 	}
-	$recv_3fds or die
-		"IO::FDPass missing or Inline::C not installed/configured\n";
+	$recv_cmd or die <<"";
+(Socket::MsgHdr || IO::FDPass || Inline::C) missing/unconfigured (nfd=$nfd);
+
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
 	(-p STDOUT) or die "E: stdout must be a pipe\n";
