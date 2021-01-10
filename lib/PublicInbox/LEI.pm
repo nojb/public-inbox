@@ -603,10 +603,10 @@ sub start_pager {
 	$env->{LV} //= '-c';
 	$env->{COLUMNS} //= 80; # TODO TIOCGWINSZ
 	$env->{MORE} //= 'FRX' if $^O eq 'freebsd';
-	pipe(my ($r, $w)) or return warn "pipe: $!";
+	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
-	$self->{1} = $w;
-	$self->{2} = $w if -t $self->{2};
+	$self->{1} = $wpager;
+	$self->{2} = $wpager if -t $self->{2};
 	my $pid = spawn([$pager], $env, $rdr);
 	dwaitpid($pid, undef, $self->{sock});
 	$env->{GIT_PAGER_IN_USE} = 'true'; # we may spawn git
