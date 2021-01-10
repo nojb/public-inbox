@@ -69,6 +69,8 @@ sub lei_q {
 	} @argv);
 	$opt->{limit} //= 10000;
 	my $lxs;
+	require PublicInbox::LeiDedupe;
+	my $dd = PublicInbox::LeiDedupe->new($self);
 
 	# --local is enabled by default
 	my @src = $opt->{'local'} ? ($sto->search) : ();
@@ -135,6 +137,7 @@ sub lei_q {
 		delete @$smsg{qw(tid num)}; # only makes sense if single src
 		chomp($buf = $json->encode(_smsg_unbless($smsg)));
 	};
+	$dd->prepare_dedupe;
 	for my $src (@src) {
 		my $srch = $src->search;
 		my $over = $src->over;
@@ -145,6 +148,7 @@ sub lei_q {
 		if ($smsg_for) {
 			for my $it ($mset->items) {
 				my $smsg = $smsg_for->($srch, $it) or next;
+				next if $dd->is_smsg_dup($smsg);
 				$self->out($buf .= $ORS) if defined $buf;
 				$smsg->{relevance} = get_pct($it);
 				$emit_cb->($smsg);
@@ -160,6 +164,7 @@ sub lei_q {
 			while ($over && $over->expand_thread($ctx)) {
 				for my $n (@{$ctx->{xids}}) {
 					my $t = $over->get_art($n) or next;
+					next if $dd->is_smsg_dup($t);
 					if (my $p = delete $n2p{$t->{num}}) {
 						$t->{relevance} = $p;
 					}

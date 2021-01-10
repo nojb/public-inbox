@@ -33,12 +33,24 @@ sub _regen_oid ($) {
 
 sub _oidbin ($) { defined($_[0]) ? pack('H*', $_[0]) : undef }
 
+sub smsg_hash ($) {
+	my ($smsg) = @_;
+	my $dig = Digest::SHA->new(256);
+	my $x = join("\0", @$smsg{qw(from to cc ds subject references mid)});
+	utf8::encode($x);
+	$dig->add($x);
+	$dig->digest;
+}
+
 # the paranoid option
 sub dedupe_oid () {
 	my $skv = PublicInbox::SharedKV->new;
 	($skv, sub { # may be called in a child process
 		my ($eml, $oid) = @_;
 		$skv->set_maybe(_oidbin($oid) // _regen_oid($eml), '');
+	}, sub {
+		my ($smsg) = @_;
+		$skv->set_maybe(_oidbin($smsg->{blob}), '');
 	});
 }
 
@@ -51,6 +63,12 @@ sub dedupe_mid () {
 		my $mid = $eml->header_raw('Message-ID') // _oidbin($oid) //
 			content_hash($eml);
 		$skv->set_maybe($mid, '');
+	}, sub {
+		my ($smsg) = @_;
+		my $mid = $smsg->{mid};
+		$mid = undef if $mid eq '';
+		$mid //= smsg_hash($smsg) // _oidbin($smsg->{blob});
+		$skv->set_maybe($mid, '');
 	});
 }
 
@@ -60,11 +78,15 @@ sub dedupe_content () {
 	($skv, sub { # may be called in a child process
 		my ($eml) = @_; # oid = $_[1], ignored
 		$skv->set_maybe(content_hash($eml), '');
+	}, sub {
+		my ($smsg) = @_;
+		$skv->set_maybe(smsg_hash($smsg), '');
 	});
 }
 
 # no deduplication at all
-sub dedupe_none () { (undef, sub { 1 }) }
+sub true { 1 }
+sub dedupe_none () { (undef, \&true, \&true) }
 
 sub new {
 	my ($cls, $lei, $dst) = @_;
@@ -83,6 +105,11 @@ sub new {
 sub is_dup {
 	my ($self, $eml, $oid) = @_;
 	!$self->[1]->($eml, $oid);
+}
+
+sub is_smsg_dup {
+	my ($self, $smsg) = @_;
+	!$self->[2]->($smsg);
 }
 
 sub prepare_dedupe {
