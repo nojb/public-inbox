@@ -9,6 +9,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::IPC);
 use PublicInbox::Search qw(get_pct);
+use Sys::Syslog qw(syslog);
 
 sub new {
 	my ($class) = @_;
@@ -92,13 +93,13 @@ sub _mset_more ($$) {
 
 sub query_thread_mset { # for --thread
 	my ($self, $lei, $ibxish) = @_;
+	local %SIG = (%SIG, $lei->atfork_child_wq($self));
 	my ($srch, $over) = ($ibxish->search, $ibxish->over);
 	unless ($srch && $over) {
 		my $desc = $ibxish->{inboxdir} // $ibxish->{topdir};
 		warn "$desc not indexed by Xapian\n";
 		return;
 	}
-	local %SIG = (%SIG, $lei->atfork_child_wq($self));
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
 	do {
@@ -145,7 +146,7 @@ sub query_mset { # non-parallel for non-"--thread" users
 
 sub do_query {
 	my ($self, $lei_orig, $srcs) = @_;
-	my ($lei, @io) = $lei_orig->atfork_prepare_wq($self);
+	my ($lei, @io) = $lei_orig->atfork_parent_wq($self);
 	$io[1]->autoflush(1);
 	$io[2]->autoflush(1);
 	if ($lei->{opt}->{thread}) {
@@ -159,6 +160,12 @@ sub do_query {
 	for my $rmt (@{$self->{remotes} // []}) {
 		$self->wq_do('query_thread_mbox', \@io, $lei, $rmt);
 	}
+}
+
+sub ipc_atfork_child {
+	my ($self) = @_;
+	$SIG{__WARN__} = sub { syslog('warning', "@_") };
+	$self->SUPER::ipc_atfork_child; # PublicInbox::IPC
 }
 
 1;

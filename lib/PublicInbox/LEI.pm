@@ -33,6 +33,7 @@ my $GLP_PASS = Getopt::Long::Parser->new;
 $GLP_PASS->configure(qw(gnu_getopt no_ignore_case auto_abbrev pass_through));
 
 our %PATH2CFG; # persistent for socket daemon
+our @TO_CLOSE_ATFORK_CHILD;
 
 # TBD: this is a documentation mechanism to show a subcommand
 # (may) pass options through to another command:
@@ -266,12 +267,20 @@ sub fail ($$;$) {
 	undef;
 }
 
+sub atfork_prepare_wq {
+	my ($self, $wq) = @_;
+	push @{$wq->{-ipc_atfork_child_close}}, @TO_CLOSE_ATFORK_CHILD,
+				grep { defined } @$self{qw(0 1 2 sock)}
+}
+
 # usage: local %SIG = (%SIG, $lei->atfork_child_wq($wq));
 sub atfork_child_wq {
 	my ($self, $wq) = @_;
 	$self->{sock} //= $wq->{0};
 	$self->{$_} //= $wq->{$_} for (0..2);
 	my $oldpipe = $SIG{PIPE};
+	%PATH2CFG = ();
+	@TO_CLOSE_ATFORK_CHILD = ();
 	(
 		__WARN__ => sub { err($self, @_) },
 		PIPE => sub {
@@ -281,11 +290,14 @@ sub atfork_child_wq {
 	);
 }
 
-# usage: ($lei, @io) = $lei->atfork_prepare_wq($wq);
-sub atfork_prepare_wq {
+# usage: ($lei, @io) = $lei->atfork_parent_wq($wq);
+sub atfork_parent_wq {
 	my ($self, $wq) = @_;
 	if ($wq->wq_workers) {
+		my $env = delete $self->{env}; # env is inherited at fork
 		my $ret = bless { %$self }, ref($self);
+		$self->{env} = $env;
+		delete @$ret{qw(-lei_store cfg)};
 		my $in = delete $ret->{0};
 		($ret, delete($ret->{sock}) // $in, delete @$ret{1, 2});
 	} else {
@@ -738,6 +750,7 @@ sub lazy_start {
 	return if $pid;
 	$0 = "lei-daemon $path";
 	local %PATH2CFG;
+	local @TO_CLOSE_ATFORK_CHILD = ($l, $eof_r, $eof_w);
 	$_->blocking(0) for ($l, $eof_r, $eof_w);
 	$l = PublicInbox::Listener->new($l, \&accept_dispatch, $l);
 	my $exit_code;
@@ -764,6 +777,7 @@ sub lazy_start {
 	local %SIG = (%SIG, %$sig) if !$sigfd;
 	local $SIG{PIPE} = 'IGNORE';
 	if ($sigfd) { # TODO: use inotify/kqueue to detect unlinked sockets
+		push @TO_CLOSE_ATFORK_CHILD, $sigfd->{sock};
 		PublicInbox::DS->SetLoopTimeout(5000);
 	} else {
 		# wake up every second to accept signals if we don't

@@ -66,7 +66,7 @@ sub lei_q {
 
 	# --local is enabled by default
 	# src: LeiXSearch || LeiSearch || Inbox
-	my @srcs = $opt->{'local'} ? ($sto->search) : ();
+	my @srcs;
 	require PublicInbox::LeiXSearch;
 	my $lxs = PublicInbox::LeiXSearch->new;
 
@@ -74,12 +74,15 @@ sub lei_q {
 	if ($opt->{external} // 1) {
 		$self->_externals_each(\&_vivify_external, \@srcs);
 	}
-	my $j = $opt->{jobs} // scalar(@srcs) > 4 ? 4 : scalar(@srcs);
+	my $j = $opt->{jobs} // scalar(@srcs) > 3 ? 3 : scalar(@srcs);
 	$j = 1 if !$opt->{thread};
+	$j++ if $opt->{'local'}; # for sto->search below
 	if ($self->{sock}) {
+		$self->atfork_prepare_wq($lxs);
 		$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset)
 			// $self->wq_workers($j);
 	}
+	unshift(@srcs, $sto->search) if $opt->{'local'};
 	my $out = $opt->{output} // '-';
 	$out = 'json:/dev/stdout' if $out eq '-';
 	my $isatty = -t $self->{1};
