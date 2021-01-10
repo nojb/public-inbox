@@ -795,9 +795,9 @@ sub oneshot {
 	local %PATH2CFG;
 	umask(077) // die("umask(077): $!");
 	dispatch((bless {
-		0 => *STDIN{IO},
-		1 => *STDOUT{IO},
-		2 => *STDERR{IO},
+		0 => *STDIN{GLOB},
+		1 => *STDOUT{GLOB},
+		2 => *STDERR{GLOB},
 		env => \%ENV
 	}, __PACKAGE__), @ARGV);
 }
