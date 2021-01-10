@@ -62,7 +62,7 @@ Falling back to (slow) one-shot mode
 	1;
 }) { # (Socket::MsgHdr|IO::FDPass|Inline::C), $sock, $pwd are all available:
 	local $ENV{PWD} = $pwd;
-	my $buf = join("\0", $$, scalar(@ARGV), @ARGV);
+	my $buf = join("\0", scalar(@ARGV), @ARGV);
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 	$buf .= "\0\0";
 	select $sock;

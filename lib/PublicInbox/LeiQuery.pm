@@ -76,7 +76,7 @@ sub lei_q {
 	}
 	my $j = $opt->{jobs} // scalar(@srcs) > 4 ? 4 : scalar(@srcs);
 	$j = 1 if !$opt->{thread};
-	if ($self->{pid}) {
+	if ($self->{sock}) {
 		$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset)
 			// $self->wq_workers($j);
 	}

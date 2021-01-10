@@ -240,15 +240,12 @@ my %CONFIG_KEYS = (
 sub x_it ($$) { # pronounced "exit"
 	my ($self, $code) = @_;
 	$self->{1}->autoflush(1); # make sure client sees stdout before exit
-	if (my $sig = ($code & 127)) {
-		kill($sig, $self->{pid} // $$);
-	} else {
-		$code >>= 8;
-		if (my $sock = $self->{sock}) {
-			say $sock "exit=$code";
-		} else { # for oneshot
-			$quit->($code);
-		}
+	my $sig = ($code & 127);
+	$code >>= 8 unless $sig;
+	if (my $sock = $self->{sock}) {
+		say $sock "exit=$code";
+	} else { # for oneshot
+		$quit->($code);
 	}
 }
 
@@ -675,13 +672,12 @@ sub accept_dispatch { # Listener {post_accept} callback
 		say $sock "request command truncated";
 		return;
 	}
-	my ($client_pid, $argc, @argv) = split(/\0/, $buf, -1);
+	my ($argc, @argv) = split(/\0/, $buf, -1);
 	undef $buf;
 	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
 	if (chdir($env{PWD})) {
 		local %ENV = %env;
 		$self->{env} = \%env;
-		$self->{pid} = $client_pid + 0;
 		eval { dispatch($self, @argv) };
 		say $sock $@ if $@;
 	} else {
