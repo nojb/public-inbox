@@ -171,13 +171,17 @@ is($warn[2], $warn[1], 'worker did not die');
 $SIG{__WARN__} = 'DEFAULT';
 is($ipc->wq_workers_start('wq', 1), $$, 'workers started again');
 is($ipc->wq_workers, 1, '1 worker started');
-$ipc->wq_worker_incr;
-is($ipc->wq_workers, 2, 'worker count bumped');
-$ipc->wq_worker_decr;
-$ipc->wq_worker_decr_wait(10);
-is($ipc->wq_workers, 1, 'worker count lowered');
-is($ipc->wq_workers(2), 2, 'worker count set');
-is($ipc->wq_workers, 2, 'worker count stayed set');
+SKIP: {
+	$ipc->WQ_MAX_WORKERS > 1 or
+		skip 'Inline::C or Socket::MsgHdr not available', 4;
+	$ipc->wq_worker_incr;
+	is($ipc->wq_workers, 2, 'worker count bumped');
+	$ipc->wq_worker_decr;
+	$ipc->wq_worker_decr_wait(10);
+	is($ipc->wq_workers, 1, 'worker count lowered');
+	is($ipc->wq_workers(2), 2, 'worker count set');
+	is($ipc->wq_workers, 2, 'worker count stayed set');
+}
 $ipc->wq_close;
 is($ipc->wq_workers, undef, 'workers undef after close');
 
