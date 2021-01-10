@@ -107,7 +107,6 @@ sub ipc_worker_spawn {
 	defined(my $pid = fork) or die "fork: $!";
 	if ($pid == 0) {
 		eval { PublicInbox::DS->Reset };
-		$self->{-ipc_parent_pid} = $parent;
 		$w_req = $r_res = undef;
 		$w_res->autoflush(1);
 		$SIG{$_} = 'IGNORE' for (qw(TERM INT QUIT));
