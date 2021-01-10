@@ -269,6 +269,33 @@ sub fail ($$;$) {
 	undef;
 }
 
+# usage: local %SIG = (%SIG, $lei->atfork_child_wq($wq));
+sub atfork_child_wq {
+	my ($self, $wq) = @_;
+	$self->{sock} //= $wq->{0};
+	$self->{$_} //= $wq->{$_} for (0..2);
+	my $oldpipe = $SIG{PIPE};
+	(
+		__WARN__ => sub { err($self, @_) },
+		PIPE => sub {
+			$self->x_it(141);
+			$oldpipe->() if ref($oldpipe) eq 'CODE';
+		}
+	);
+}
+
+# usage: ($lei, @io) = $lei->atfork_prepare_wq($wq);
+sub atfork_prepare_wq {
+	my ($self, $wq) = @_;
+	if ($wq->wq_workers) {
+		my $ret = bless { %$self }, ref($self);
+		my $in = delete $ret->{0};
+		($ret, delete($ret->{sock}) // $in, delete @$ret{1, 2});
+	} else {
+		($self, ($self->{sock} // $self->{0}), @$self{1, 2});
+	}
+}
+
 sub _help ($;$) {
 	my ($self, $errmsg) = @_;
 	my $cmd = $self->{cmd} // 'COMMAND';
@@ -608,8 +635,8 @@ sub start_pager {
 	$self->{1} = $wpager;
 	$self->{2} = $wpager if -t $self->{2};
 	my $pid = spawn([$pager], $env, $rdr);
-	dwaitpid($pid, undef, $self->{sock});
 	$env->{GIT_PAGER_IN_USE} = 'true'; # we may spawn git
+	[ $pid, @$rdr{1, 2} ];
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
@@ -675,6 +702,8 @@ sub event_step {
 
 sub noop {}
 
+our $oldset; sub oldset { $oldset }
+
 # lei(1) calls this when it can't connect
 sub lazy_start {
 	my ($path, $errno, $nfd) = @_;
@@ -691,7 +720,7 @@ sub lazy_start {
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
-	my $oldset = PublicInbox::DS::block_signals();
+	local $oldset = PublicInbox::DS::block_signals();
 	if ($nfd == 1) {
 		require PublicInbox::CmdIPC1;
 		$recv_cmd = PublicInbox::CmdIPC1->can('recv_cmd1');
@@ -737,6 +766,7 @@ sub lazy_start {
 	};
 	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
 	local %SIG = (%SIG, %$sig) if !$sigfd;
+	local $SIG{PIPE} = 'IGNORE';
 	if ($sigfd) { # TODO: use inotify/kqueue to detect unlinked sockets
 		PublicInbox::DS->SetLoopTimeout(5000);
 	} else {
