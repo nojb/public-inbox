@@ -17,7 +17,8 @@ my $do_test = sub { SKIP: {
 	my ($s1, $s2);
 	my $src = 'some payload' x 40;
 	socketpair($s1, $s2, AF_UNIX, $type, 0) or BAIL_OUT $!;
-	$send->($s1, fileno($r), fileno($w), fileno($s1), $src, $flag);
+	my $sfds = [ fileno($r), fileno($w), fileno($s1) ];
+	$send->($s1, $sfds, $src, $flag);
 	my (@fds) = $recv->($s2, my $buf, length($src) + 1);
 	is($buf, $src, 'got buffer payload '.$desc);
 	my ($r1, $w1, $s1a);
@@ -39,7 +40,7 @@ my $do_test = sub { SKIP: {
 	if (defined($SOCK_SEQPACKET) && $type == $SOCK_SEQPACKET) {
 		$r1 = $w1 = $s1a = undef;
 		$src = (',' x 1023) . '-' .('.' x 1024);
-		$send->($s1, fileno($r), fileno($w), fileno($s1), $src, $flag);
+		$send->($s1, $sfds, $src, $flag);
 		(@fds) = $recv->($s2, $buf, 1024);
 		is($buf, (',' x 1023) . '-', 'silently truncated buf');
 		$opens->();

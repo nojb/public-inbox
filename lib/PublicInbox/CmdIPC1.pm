@@ -10,17 +10,19 @@ BEGIN { eval {
 require IO::FDPass; # XS, available in all major distros
 no warnings 'once';
 
-*send_cmd1 = sub ($$$$$$) { # (sock, in, out, err, buf, flags) = @_;
-	for (1..3) {
-		IO::FDPass::send(fileno($_[0]), $_[$_]) or
+*send_cmd1 = sub ($$$$) { # (sock, fds, buf, flags) = @_;
+	my ($sock, $fds, undef, $flags) = @_;
+	for my $fd (@$fds) {
+		IO::FDPass::send(fileno($sock), $fd) or
 					die "IO::FDPass::send: $!";
 	}
-	send($_[0], $_[4], $_[5]) or die "send $!";
+	send($sock, $_[2], $flags) or die "send $!";
 };
 
-*recv_cmd1 = sub ($$$) {
-	my ($s, undef, $len) = @_;
-	my @fds = map { IO::FDPass::recv(fileno($s)) } (0..2);
+*recv_cmd1 = sub ($$$;$) {
+	my ($s, undef, $len, $nfds) = @_;
+	$nfds //= 3;
+	my @fds = map { IO::FDPass::recv(fileno($s)) } (1..$nfds);
 	recv($s, $_[1], $len, 0) // die "recv: $!";
 	length($_[1]) == 0 ? () : @fds;
 };

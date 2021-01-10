@@ -209,20 +209,22 @@ my $fdpass = <<'FDPASS';
 #include <sys/socket.h>
 
 #if defined(CMSG_SPACE) && defined(CMSG_LEN)
-struct my_3fds { int fds[3]; };
+#define SEND_FD_CAPA 3
+#define SEND_FD_SPACE (SEND_FD_CAPA * sizeof(int))
 union my_cmsg {
 	struct cmsghdr hdr;
-	char pad[sizeof(struct cmsghdr)+ 8 + sizeof(struct my_3fds) + 8];
+	char pad[sizeof(struct cmsghdr) + 16 + SEND_FD_SPACE];
 };
 
-int send_cmd4(PerlIO *s, int in, int out, int err, SV *data, int flags)
+int send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
 {
 	struct msghdr msg = { 0 };
-	struct iovec iov;
 	union my_cmsg cmsg = { 0 };
-	int *fdp;
-	size_t i;
 	STRLEN dlen = 0;
+	struct iovec iov;
+	AV *fds = (AV *)SvRV(svfds);
+	I32 i, nfds = av_len(fds) + 1;
+	int *fdp;
 
 	if (SvOK(data)) {
 		iov.iov_base = SvPV(data, dlen);
@@ -234,16 +236,22 @@ int send_cmd4(PerlIO *s, int in, int out, int err, SV *data, int flags)
 	}
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
-	msg.msg_control = &cmsg.hdr;
-	msg.msg_controllen = CMSG_SPACE(sizeof(struct my_3fds));
-
-	cmsg.hdr.cmsg_level = SOL_SOCKET;
-	cmsg.hdr.cmsg_type = SCM_RIGHTS;
-	cmsg.hdr.cmsg_len = CMSG_LEN(sizeof(struct my_3fds));
-	fdp = (int *)CMSG_DATA(&cmsg.hdr);
-	*fdp++ = in;
-	*fdp++ = out;
-	*fdp++ = err;
+	if (nfds) {
+		if (nfds > SEND_FD_CAPA) {
+			fprintf(stderr, "FIXME: bump SEND_FD_CAPA=%d\n", nfds);
+			nfds = SEND_FD_CAPA;
+		}
+		msg.msg_control = &cmsg.hdr;
+		msg.msg_controllen = CMSG_SPACE(nfds * sizeof(int));
+		cmsg.hdr.cmsg_level = SOL_SOCKET;
+		cmsg.hdr.cmsg_type = SCM_RIGHTS;
+		cmsg.hdr.cmsg_len = CMSG_LEN(nfds * sizeof(int));
+		fdp = (int *)CMSG_DATA(&cmsg.hdr);
+		for (i = 0; i < nfds; i++) {
+			SV **fd = av_fetch(fds, i, 0);
+			*fdp++ = SvIV(*fd);
+		}
+	}
 	return sendmsg(PerlIO_fileno(s), &msg, flags) >= 0;
 }
 
@@ -263,17 +271,17 @@ void recv_cmd4(PerlIO *s, SV *buf, STRLEN n)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 	msg.msg_control = &cmsg.hdr;
-	msg.msg_controllen = CMSG_SPACE(sizeof(struct my_3fds));
+	msg.msg_controllen = CMSG_SPACE(SEND_FD_SPACE);
 
 	i = recvmsg(PerlIO_fileno(s), &msg, 0);
 	if (i < 0)
 		croak("recvmsg: %s", strerror(errno));
 	SvCUR_set(buf, i);
 	if (i > 0 && cmsg.hdr.cmsg_level == SOL_SOCKET &&
-			cmsg.hdr.cmsg_type == SCM_RIGHTS &&
-			cmsg.hdr.cmsg_len == CMSG_LEN(sizeof(struct my_3fds))) {
+			cmsg.hdr.cmsg_type == SCM_RIGHTS) {
+		size_t len = cmsg.hdr.cmsg_len;
 		int *fdp = (int *)CMSG_DATA(&cmsg.hdr);
-		for (i = 0; i < 3; i++)
+		for (i = 0; CMSG_LEN((i + 1) * sizeof(int)) <= len; i++)
 			Inline_Stack_Push(sv_2mortal(newSViv(*fdp++)));
 	}
 	Inline_Stack_Done;

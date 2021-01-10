@@ -150,14 +150,14 @@ sub do_query {
 	$io[2]->autoflush(1);
 	if ($lei->{opt}->{thread}) {
 		for my $ibxish (@$srcs) {
-			$self->wq_do('query_thread_mset', @io, $lei, $ibxish);
+			$self->wq_do('query_thread_mset', \@io, $lei, $ibxish);
 		}
 	} else {
-		$self->wq_do('query_mset', @io, $lei, $srcs);
+		$self->wq_do('query_mset', \@io, $lei, $srcs);
 	}
 	# TODO
 	for my $rmt (@{$self->{remotes} // []}) {
-		$self->wq_do('query_thread_mbox', @io, $lei, $rmt);
+		$self->wq_do('query_thread_mbox', \@io, $lei, $rmt);
 	}
 }
 

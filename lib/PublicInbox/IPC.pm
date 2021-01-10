@@ -263,16 +263,15 @@ sub wq_worker_loop ($) {
 }
 
 sub wq_do { # always async
-	my ($self, $sub, $in, $out, $err, @args) = @_;
+	my ($self, $sub, $ios, @args) = @_;
 	if (my $s1 = $self->{-wq_s1}) { # run in worker
-		$_ = fileno($_) for ($in, $out, $err);
-		$send_cmd->($s1, $in, $out, $err,
-				freeze([$sub, @args]), MSG_EOR);
+		my $fds = [ map { fileno($_) } @$ios ];
+		$send_cmd->($s1, $fds, freeze([$sub, @args]), MSG_EOR);
 	} else {
-		@$self{0, 1, 2} = ($in, $out, $err);
+		@$self{0..$#$ios} = @$ios;
 		eval { $self->$sub(@args) };
 		warn "wq_do: $@" if $@;
-		delete @$self{0, 1, 2};
+		delete @$self{0..$#$ios};
 	}
 }
 
@@ -334,7 +333,7 @@ sub wq_worker_decr { # SIGTTOU handler, kills first idle worker
 	my ($self) = @_;
 	my $workers = $self->{-wq_workers} or return;
 	my $s2 = $self->{-wq_s2} // die 'BUG: no wq_s2';
-	$self->wq_do('wq_exit', $s2, $s2, $s2);
+	$self->wq_do('wq_exit', [ $s2, $s2, $s2 ]);
 	$self->{-wq_exit_pending}++;
 	# caller must call wq_worker_decr_wait in main loop
 }

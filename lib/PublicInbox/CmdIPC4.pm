@@ -13,10 +13,12 @@ require Socket::MsgHdr; # XS
 no warnings 'once';
 
 # 3 FDs per-sendmsg(2) + buffer
-*send_cmd4 = sub ($$$$$$) { # (sock, in, out, err, buf, flags) = @_;
-	my $mh = Socket::MsgHdr->new(buf => $_[4]);
-	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS, pack('iii', @_[1,2,3]));
-	Socket::MsgHdr::sendmsg($_[0], $mh, $_[5]) or die "sendmsg: $!";
+*send_cmd4 = sub ($$$$) { # (sock, fds, buf, flags) = @_;
+	my ($sock, $fds, undef, $flags) = @_;
+	my $mh = Socket::MsgHdr->new(buf => $_[2]);
+	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS,
+			pack('i' x scalar(@$fds), @$fds));
+	Socket::MsgHdr::sendmsg($sock, $mh, $flags) or die "sendmsg: $!";
 };
 
 *recv_cmd4 = sub ($$$) {
@@ -26,7 +28,7 @@ no warnings 'once';
 	$_[1] = $mh->buf;
 	return () if $r == 0;
 	my (undef, undef, $data) = $mh->cmsghdr;
-	unpack('iii', $data);
+	unpack('i' x (length($data) / 4), $data);
 };
 
 } } # /eval /BEGIN

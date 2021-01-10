@@ -67,7 +67,7 @@ Falling back to (slow) one-shot mode
 	$buf .= "\0\0";
 	select $sock;
 	$| = 1; # unbuffer selected $sock
-	$send_cmd->($sock, 0, 1, 2, $buf, 0);
+	$send_cmd->($sock, [ 0, 1, 2 ], $buf, 0);
 	while ($buf = <$sock>) {
 		$buf =~ /\Aexit=([0-9]+)\n\z/ and exit($1 + 0);
 		die $buf;

@@ -121,7 +121,7 @@ $warn->autoflush(0);
 local $SIG{__WARN__} = sub { print $warn "PID:$$ ", @_ };
 my @ppids;
 for my $t ('local', 'worker', 'worker again') {
-	$ipc->wq_do('test_write_each_fd', $wa, $wb, $wc, 'hello world');
+	$ipc->wq_do('test_write_each_fd', [ $wa, $wb, $wc ], 'hello world');
 	my $i = 0;
 	for my $fh ($ra, $rb, $rc) {
 		my $buf = readline($fh);
@@ -129,7 +129,7 @@ for my $t ('local', 'worker', 'worker again') {
 		like($buf, qr/\Ai=$i \d+ hello world\z/, "got expected ($t)");
 		$i++;
 	}
-	$ipc->wq_do('test_die', $wa, $wb, $wc);
+	$ipc->wq_do('test_die', [ $wa, $wb, $wc ]);
 	my $ppid = $ipc->wq_workers_start('wq', 1);
 	push(@ppids, $ppid);
 }
@@ -142,7 +142,7 @@ SKIP: {
 	my $pid = fork // BAIL_OUT $!;
 	if ($pid == 0) {
 		use POSIX qw(_exit);
-		$ipc->wq_do('test_write_each_fd', $wa, $wb, $wc, $$);
+		$ipc->wq_do('test_write_each_fd', [ $wa, $wb, $wc ], $$);
 		_exit(0);
 	} else {
 		my $i = 0;
