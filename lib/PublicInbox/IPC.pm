@@ -136,12 +136,6 @@ sub ipc_worker_reap { # dwaitpid callback
 sub ipc_atfork_parent {}
 sub ipc_atfork_child {}
 
-# should only be called inside the worker process
-sub ipc_worker_exit {
-	my (undef, $code) = @_;
-	exit($code);
-}
-
 # idempotent, can be called regardless of whether worker is active or not
 sub ipc_worker_stop {
 	my ($self) = @_;
@@ -152,10 +146,8 @@ sub ipc_worker_stop {
 		return; # idempotent
 	}
 	die 'no PID with IPC pipes' unless $pid;
-	_send_rec($w_req, [ undef, 'ipc_worker_exit', 0 ]);
 	$w_req = $r_res = undef;
 
-	# allow any sibling to send ipc_worker_exit, but siblings can't wait
 	return if $$ != $ppid;
 	dwaitpid($pid, \&ipc_worker_reap, $self);
 }
