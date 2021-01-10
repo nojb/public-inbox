@@ -168,4 +168,13 @@ like($warn[0], qr/ wq_do: /, '1st warned from wq_do');
 like($warn[1], qr/ wq_worker: /, '2nd warned from wq_worker');
 is($warn[2], $warn[1], 'worker did not die');
 
+$SIG{__WARN__} = 'DEFAULT';
+is($ipc->wq_workers_start('wq', 1), $$, 'workers started again');
+is(scalar(keys %{$ipc->{-wq_workers}}), 1, '1 worker started');
+$ipc->wq_worker_incr;
+is(scalar(keys %{$ipc->{-wq_workers}}), 2, 'worker count bumped');
+$ipc->wq_worker_decr;
+$ipc->wq_worker_decr_wait(10);
+is(scalar(keys %{$ipc->{-wq_workers}}), 1, 'worker count lowered');
+
 done_testing;
