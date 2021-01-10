@@ -261,7 +261,7 @@ sub wq_worker_loop ($) {
 		die(bless(\"$_[0]", __PACKAGE__.'::PIPE')) if $sub;
 	};
 	my $rcv = $self->{-wq_recv_cmd} // $recv_cmd;
-	until ($self->{-wq_quit}) {
+	while (1) {
 		my (@fds) = $rcv->($s2, $buf, $len) or return; # EOF
 		my $i = 0;
 		my @m = @{$self->{wq_open_modes} // [qw( +<&= >&= >&= )]};
@@ -305,10 +305,9 @@ sub _wq_worker_start ($$) {
 	if ($pid == 0) {
 		eval { PublicInbox::DS->Reset };
 		close(delete $self->{-wq_s1});
-		delete $self->{qw(-wq_workers -wq_quit -wq_ppid)};
-		my $quit = sub { $self->{-wq_quit} = 1 };
-		$SIG{$_} = $quit for (qw(TERM INT QUIT));
+		delete $self->{qw(-wq_workers -wq_ppid)};
 		$SIG{$_} = 'IGNORE' for (qw(TTOU TTIN));
+		$SIG{$_} = 'DEFAULT' for (qw(TERM QUIT INT));
 		local $0 = $self->{-wq_ident};
 		PublicInbox::DS::sig_setmask($oldset);
 		my $on_destroy = $self->ipc_atfork_child;
@@ -360,7 +359,6 @@ sub wq_worker_decr { # SIGTTOU handler, kills first idle worker
 	return unless wq_workers($self);
 	my $s2 = $self->{-wq_s2} // die 'BUG: no wq_s2';
 	$self->wq_do('wq_exit', [ $s2, $s2, $s2 ]);
-	$self->{-wq_exit_pending}++;
 	# caller must call wq_worker_decr_wait in main loop
 }
 
@@ -374,7 +372,6 @@ sub wq_worker_decr_wait {
 	recv($s1, my $pid, 64, 0) // croak "recv: $!";
 	my $workers = $self->{-wq_workers} // croak 'BUG: no wq_workers';
 	delete $workers->{$pid} // croak "BUG: PID:$pid invalid";
-	$self->{-wq_exit_pending}--;
 	dwaitpid($pid, \&ipc_worker_reap, $self);
 }
 
