@@ -8,11 +8,6 @@ use PublicInbox::CmdIPC4;
 my $narg = 4;
 my $recv_cmd = PublicInbox::CmdIPC4->can('recv_cmd4');
 my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
-	require PublicInbox::CmdIPC1; # 2nd choice
-	$narg = 1;
-	$recv_cmd = PublicInbox::CmdIPC1->can('recv_cmd1');
-	PublicInbox::CmdIPC1->can('send_cmd1');
-} // do {
 	require PublicInbox::Spawn; # takes ~50ms even if built *sigh*
 	$narg = 4;
 	$recv_cmd = PublicInbox::Spawn->can('recv_cmd4');
@@ -77,7 +72,7 @@ Falling back to (slow) one-shot mode
 		$pwd = $cwd;
 	}
 	1;
-}) { # (Socket::MsgHdr|IO::FDPass|Inline::C), $sock, $pwd are all available:
+}) { # (Socket::MsgHdr|Inline::C), $sock, $pwd are all available:
 	local $ENV{PWD} = $pwd;
 	my $buf = join("\0", scalar(@ARGV), @ARGV);
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
@@ -94,7 +89,7 @@ Falling back to (slow) one-shot mode
 			die $buf;
 		}
 	}
-} else { # for systems lacking Socket::MsgHdr, IO::FDPass or Inline::C
+} else { # for systems lacking Socket::MsgHdr or Inline::C
 	warn $@ if $@;
 	require PublicInbox::LEI;
 	PublicInbox::LEI::oneshot(__PACKAGE__);

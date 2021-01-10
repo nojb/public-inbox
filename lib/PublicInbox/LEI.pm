@@ -277,8 +277,9 @@ sub atfork_prepare_wq {
 # usage: local %SIG = (%SIG, $lei->atfork_child_wq($wq));
 sub atfork_child_wq {
 	my ($self, $wq) = @_;
-	$self->{sock} //= $wq->{0};
-	$self->{$_} //= $wq->{$_} for (0..2);
+	return () if $self->{0}; # did not fork
+	$self->{$_} = $wq->{$_} for (0..2);
+	$self->{sock} = $wq->{3} // die 'BUG: no {sock}'; # may be undef
 	my $oldpipe = $SIG{PIPE};
 	%PATH2CFG = ();
 	@TO_CLOSE_ATFORK_CHILD = ();
@@ -298,11 +299,10 @@ sub atfork_parent_wq {
 		my $env = delete $self->{env}; # env is inherited at fork
 		my $ret = bless { %$self }, ref($self);
 		$self->{env} = $env;
-		delete @$ret{qw(-lei_store cfg)};
-		my $in = delete $ret->{0};
-		($ret, delete($ret->{sock}) // $in, delete @$ret{1, 2});
+		delete @$ret{qw(-lei_store cfg pgr)};
+		($ret, delete @$ret{qw(0 1 2 sock)});
 	} else {
-		($self, ($self->{sock} // $self->{0}), @$self{1, 2});
+		($self, @$self{qw(0 1 2 sock)});
 	}
 }
 
@@ -641,7 +641,7 @@ sub start_pager {
 	$new_env{MORE} = 'FRX' if $^O eq 'freebsd';
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
-	my $pid;
+	my $pgr = [ undef, @$rdr{1, 2} ];
 	if (my $sock = $self->{sock}) { # lei(1) process runs it
 		delete @new_env{keys %$env}; # only set iff unset
 		my $buf = "exec 1\0".$pager;
@@ -649,12 +649,23 @@ sub start_pager {
 		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
 		$send_cmd->($sock, $fds, $buf .= "\n", 0);
 	} else {
-		$pid = spawn([$pager], $env, $rdr);
+		$pgr->[0] = spawn([$pager], $env, $rdr);
 	}
 	$self->{1} = $wpager;
 	$self->{2} = $wpager if -t $self->{2};
 	$env->{GIT_PAGER_IN_USE} = 'true'; # we may spawn git
-	[ $pid, @$rdr{1, 2} ];
+	$self->{pgr} = $pgr;
+}
+
+sub stop_pager {
+	my ($self) = @_;
+	my $pgr = delete($self->{pgr}) or return;
+	my $pid = $pgr->[0];
+	close $self->{1};
+	# {2} may not be redirected
+	$self->{1} = $pgr->[1];
+	$self->{2} = $pgr->[2];
+	dwaitpid($pid, undef, $self->{sock}) if $pid;
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
@@ -738,11 +749,7 @@ sub lazy_start {
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	local $oldset = PublicInbox::DS::block_signals();
-	if ($nfd == 1) {
-		require PublicInbox::CmdIPC1;
-		$send_cmd = PublicInbox::CmdIPC1->can('send_cmd1');
-		$recv_cmd = PublicInbox::CmdIPC1->can('recv_cmd1');
-	} elsif ($nfd == 4) {
+	if ($nfd == 4) {
 		$send_cmd = PublicInbox::Spawn->can('send_cmd4');
 		$recv_cmd = PublicInbox::Spawn->can('recv_cmd4') // do {
 			require PublicInbox::CmdIPC4;
@@ -751,7 +758,7 @@ sub lazy_start {
 		};
 	}
 	$recv_cmd or die <<"";
-(Socket::MsgHdr || IO::FDPass || Inline::C) missing/unconfigured (nfd=$nfd);
+(Socket::MsgHdr || Inline::C) missing/unconfigured (nfd=$nfd);
 
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
@@ -839,19 +846,24 @@ sub lazy_start {
 	exit($exit_code // 0);
 }
 
-# for users w/o IO::FDPass
+# for users w/o Socket::Msghdr
 sub oneshot {
 	my ($main_pkg) = @_;
 	my $exit = $main_pkg->can('exit'); # caller may override exit()
 	local $quit = $exit if $exit;
 	local %PATH2CFG;
 	umask(077) // die("umask(077): $!");
-	dispatch((bless {
-		0 => *STDIN{GLOB},
-		1 => *STDOUT{GLOB},
-		2 => *STDERR{GLOB},
-		env => \%ENV
-	}, __PACKAGE__), @ARGV);
+	local $SIG{PIPE} = sub { die(bless(\"$_[0]", 'PublicInbox::SIGPIPE')) };
+	eval {
+		my $self = bless {
+			0 => *STDIN{GLOB},
+			1 => *STDOUT{GLOB},
+			2 => *STDERR{GLOB},
+			env => \%ENV
+		}, __PACKAGE__;
+		dispatch($self, @ARGV);
+	};
+	die $@ if $@ && ref($@) ne 'PublicInbox::SIGPIPE';
 }
 
 # ensures stdout hits the FS before sock disconnects so a client
@@ -859,6 +871,7 @@ sub oneshot {
 sub DESTROY {
 	my ($self) = @_;
 	$self->{1}->autoflush(1);
+	stop_pager($self);
 }
 
 1;

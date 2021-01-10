@@ -109,7 +109,6 @@ lib/PublicInbox/Admin.pm
 lib/PublicInbox/AdminEdit.pm
 lib/PublicInbox/AltId.pm
 lib/PublicInbox/Cgit.pm
-lib/PublicInbox/CmdIPC1.pm
 lib/PublicInbox/CmdIPC4.pm
 lib/PublicInbox/CompressNoop.pm
 lib/PublicInbox/Config.pm

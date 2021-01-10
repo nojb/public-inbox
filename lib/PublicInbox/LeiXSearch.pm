@@ -168,4 +168,10 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child; # PublicInbox::IPC
 }
 
+sub ipc_atfork_prepare {
+	my ($self) = @_;
+	$self->wq_set_recv_modes(qw[<&= >&= >&= +<&=]);
+	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
+}
+
 1;

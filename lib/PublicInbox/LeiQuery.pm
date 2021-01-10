@@ -80,14 +80,14 @@ sub lei_q {
 	if ($self->{sock}) {
 		$self->atfork_prepare_wq($lxs);
 		$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset)
-			// $self->wq_workers($j);
+			// $lxs->wq_workers($j);
 	}
 	unshift(@srcs, $sto->search) if $opt->{'local'};
 	my $out = $opt->{output} // '-';
 	$out = 'json:/dev/stdout' if $out eq '-';
 	my $isatty = -t $self->{1};
 	# no forking workers after this
-	my $pid_old12 = $self->start_pager if $isatty;
+	$self->start_pager if $isatty;
 	my $json = substr($out, 0, 5) eq 'json:' ?
 		ref(PublicInbox::Config->json)->new : undef;
 	if ($json) {
@@ -125,11 +125,6 @@ sub lei_q {
 	# my $wcb = PublicInbox::LeiToMail->write_cb($out, $self);
 	$self->{mset_opt} = \%mset_opt;
 	$lxs->do_query($self, \@srcs);
-	if ($pid_old12) { # [ pid, stdout, stderr ]
-		my $pid = $pid_old12->[0];
-		$self->{$_} = $pid_old12->[$_] for (1, 2);
-		dwaitpid($pid, undef, $self->{sock}) if $pid;
-	}
 }
 
 1;

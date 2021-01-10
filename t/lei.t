@@ -208,13 +208,11 @@ if ($ENV{TEST_LEI_ONESHOT}) {
 
 SKIP: { # real socket
 	require_mods(qw(Cwd), my $nr = 105);
-	my $nfd = eval { require Socket::MsgHdr; 4 } //
-			eval { require IO::FDPass; 1 } // do {
+	my $nfd = eval { require Socket::MsgHdr; 4 } // do {
 		require PublicInbox::Spawn;
 		PublicInbox::Spawn->can('send_cmd4') ? 4 : undef;
 	} //
-	skip 'Socket::MsgHdr, IO::FDPass or Inline::C missing or unconfigured',
-		$nr;
+	skip 'Socket::MsgHdr or Inline::C missing or unconfigured', $nr;
 
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/$nfd.sock";

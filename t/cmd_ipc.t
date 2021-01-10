@@ -79,13 +79,4 @@ SKIP: {
 	}
 }
 
-SKIP: {
-	require_mods('IO::FDPass', 13);
-	require_ok 'PublicInbox::CmdIPC1';
-	$send = PublicInbox::CmdIPC1->can('send_cmd1');
-	$recv = PublicInbox::CmdIPC1->can('recv_cmd1');
-	$do_test->(SOCK_STREAM, 0, 'IO::FDPass stream');
-	$do_test->($SOCK_SEQPACKET, MSG_EOR, 'IO::FDPass seqpacket');
-}
-
 done_testing;

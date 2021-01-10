@@ -6,6 +6,7 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use Fcntl qw(SEEK_SET);
+require_mods(qw(Storable||Sereal));
 require_ok 'PublicInbox::IPC';
 state $once = eval <<'';
 package PublicInbox::IPC;
@@ -94,8 +95,7 @@ my $test = sub {
 };
 $test->('local');
 
-SKIP: {
-	require_mods(qw(Storable||Sereal), 16);
+{
 	my $pid = $ipc->ipc_worker_spawn('test worker');
 	ok($pid > 0 && kill(0, $pid), 'worker spawned and running');
 	defined($pid) or BAIL_OUT 'no spawn, no test';
@@ -112,7 +112,7 @@ SKIP: {
 $ipc->ipc_worker_stop; # idempotent
 
 # work queues
-$ipc->{wq_open_modes} = [qw( >&= >&= >&= )];
+$ipc->wq_set_recv_modes(qw( >&= >&= >&= ));
 pipe(my ($ra, $wa)) or BAIL_OUT $!;
 pipe(my ($rb, $wb)) or BAIL_OUT $!;
 pipe(my ($rc, $wc)) or BAIL_OUT $!;
@@ -136,7 +136,7 @@ for my $t ('local', 'worker', 'worker again') {
 
 # wq_do works across fork (siblings can feed)
 SKIP: {
-	skip 'Socket::MsgHdr, IO::FDPass, Inline::C missing', 7 if !$ppids[0];
+	skip 'Socket::MsgHdr or Inline::C missing', 3 if !$ppids[0];
 	is_deeply(\@ppids, [$$, undef, undef],
 		'parent pid returned in wq_workers_start');
 	my $pid = fork // BAIL_OUT $!;
@@ -161,28 +161,31 @@ SKIP: {
 }
 
 $ipc->wq_close;
-seek($warn, 0, SEEK_SET) or BAIL_OUT;
-my @warn = <$warn>;
-is(scalar(@warn), 3, 'warned 3 times');
-like($warn[0], qr/ wq_do: /, '1st warned from wq_do');
-like($warn[1], qr/ wq_worker: /, '2nd warned from wq_worker');
-is($warn[2], $warn[1], 'worker did not die');
-
-$SIG{__WARN__} = 'DEFAULT';
-is($ipc->wq_workers_start('wq', 1), $$, 'workers started again');
-is($ipc->wq_workers, 1, '1 worker started');
 SKIP: {
-	$ipc->WQ_MAX_WORKERS > 1 or
-		skip 'Inline::C or Socket::MsgHdr not available', 4;
-	$ipc->wq_worker_incr;
-	is($ipc->wq_workers, 2, 'worker count bumped');
-	$ipc->wq_worker_decr;
-	$ipc->wq_worker_decr_wait(10);
-	is($ipc->wq_workers, 1, 'worker count lowered');
-	is($ipc->wq_workers(2), 2, 'worker count set');
-	is($ipc->wq_workers, 2, 'worker count stayed set');
+	skip 'Socket::MsgHdr or Inline::C missing', 11 if !$ppids[0];
+	seek($warn, 0, SEEK_SET) or BAIL_OUT;
+	my @warn = <$warn>;
+	is(scalar(@warn), 3, 'warned 3 times');
+	like($warn[0], qr/ wq_do: /, '1st warned from wq_do');
+	like($warn[1], qr/ wq_worker: /, '2nd warned from wq_worker');
+	is($warn[2], $warn[1], 'worker did not die');
+
+	$SIG{__WARN__} = 'DEFAULT';
+	is($ipc->wq_workers_start('wq', 1), $$, 'workers started again');
+	is($ipc->wq_workers, 1, '1 worker started');
+	SKIP: {
+		$ipc->WQ_MAX_WORKERS > 1 or
+			skip 'Inline::C or Socket::MsgHdr not available', 4;
+		$ipc->wq_worker_incr;
+		is($ipc->wq_workers, 2, 'worker count bumped');
+		$ipc->wq_worker_decr;
+		$ipc->wq_worker_decr_wait(10);
+		is($ipc->wq_workers, 1, 'worker count lowered');
+		is($ipc->wq_workers(2), 2, 'worker count set');
+		is($ipc->wq_workers, 2, 'worker count stayed set');
+	}
+	$ipc->wq_close;
+	is($ipc->wq_workers, undef, 'workers undef after close');
 }
-$ipc->wq_close;
-is($ipc->wq_workers, undef, 'workers undef after close');
 
 done_testing;

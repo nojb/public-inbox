@@ -37,37 +37,16 @@ if ($enc && $dec) { # should be custom ops
 	} // warn("Storable (part of Perl) missing: $@\n");
 }
 
-my $recv_cmd1; # PublicInbox::CmdIPC1::recv_cmd1;
 my $recv_cmd = PublicInbox::Spawn->can('recv_cmd4');
 my $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {
 	require PublicInbox::CmdIPC4;
 	$recv_cmd //= PublicInbox::CmdIPC4->can('recv_cmd4');
 	PublicInbox::CmdIPC4->can('send_cmd4');
-} // do {
-	# IO::FDPass only allows sending a single FD at-a-time, which
-	# means we can't guarantee all packets end up on the same worker,
-	# so we cap WQ_MAX_WORKERS
-	require PublicInbox::CmdIPC1;
-	$recv_cmd1 = PublicInbox::CmdIPC1->can('recv_cmd1');
-	$WQ_MAX_WORKERS = 1 if $recv_cmd1;
-	wq_set_recv_fds(3);
-	PublicInbox::CmdIPC1->can('send_cmd1');
 };
 
-# needed to tell recv_cmd1 how many times to loop IO::FDPass::recv
-sub wq_set_recv_fds {
-	return unless $recv_cmd1;
-	my $nfds = pop;
-	my $sub = sub {
-		my ($sock, $fds, undef, $flags) = @_;
-		$recv_cmd1->($sock, $fds, $_[2], $flags, $nfds);
-	};
-	my $self = pop;
-	if (ref $self) {
-		$self->{-wq_recv_cmd} = $sub;
-	} else {
-		$recv_cmd = $sub;
-	}
+sub wq_set_recv_modes {
+	my ($self, @modes) = @_;
+	$self->{-wq_recv_modes} = \@modes;
 }
 
 sub _get_rec ($) {
@@ -259,7 +238,9 @@ sub ipc_sibling_atfork_child {
 
 sub _close_recvd ($) {
 	my ($self) = @_;
-	close($_) for (grep { defined } (delete @$self{0..2}));
+	my $x = $self->{-wq_recv_modes};
+	my $end = $x ? $#$x : 2;
+	close($_) for (grep { defined } (delete @$self{0..$end}));
 }
 
 sub wq_worker_loop ($) {
@@ -271,13 +252,12 @@ sub wq_worker_loop ($) {
 	local $SIG{PIPE} = sub {
 		my $cur_sub = $sub;
 		_close_recvd($self);
-		die(bless(\$cur_sub, __PACKAGE__.'::PIPE')) if $cur_sub;
+		die(bless(\$cur_sub, 'PublicInbox::SIGPIPE')) if $cur_sub;
 	};
-	my $rcv = $self->{-wq_recv_cmd} // $recv_cmd;
 	while (1) {
-		my (@fds) = $rcv->($s2, $buf, $len) or return; # EOF
+		my (@fds) = $recv_cmd->($s2, $buf, $len) or return; # EOF
 		my $i = 0;
-		my @m = @{$self->{wq_open_modes} // [qw( +<&= >&= >&= )]};
+		my @m = @{$self->{-wq_recv_modes} // [qw( +<&= >&= >&= )]};
 		for my $fd (@fds) {
 			my $mode = shift(@m);
 			if (open(my $cmdfh, $mode, $fd)) {
@@ -296,7 +276,8 @@ sub wq_worker_loop ($) {
 			undef $sub; # quiet SIG{PIPE} handler
 			die $@ if $@;
 		};
-		warn "$$ wq_worker: $@" if $@ && ref $@ ne __PACKAGE__.'::PIPE';
+		warn "$$ wq_worker: $@" if $@ &&
+					ref($@) ne 'PublicInbox::SIGPIPE';
 		# need to close explicitly to avoid warnings after SIGPIPE
 		_close_recvd($self);
 	}
@@ -310,8 +291,8 @@ sub wq_do { # always async
 	} else {
 		@$self{0..$#$ios} = @$ios;
 		eval { $self->$sub(@args) };
-		warn "wq_do: $@" if $@;
-		delete @$self{0..$#$ios};
+		warn "wq_do: $@" if $@ && ref($@) ne 'PublicInbox::SIGPIPE';
+		delete @$self{0..$#$ios}; # don't close
 	}
 }
 
