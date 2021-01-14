@@ -8,7 +8,6 @@ package PublicInbox::LeiXSearch;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::IPC);
-use Sys::Syslog qw(syslog);
 
 sub new {
 	my ($class) = @_;
@@ -185,12 +184,6 @@ sub do_query {
 		read($eof_wait, my $buf, 1); # wait for close($lei->{0})
 		query_done($lei_orig); # may SIGPIPE
 	}
-}
-
-sub ipc_atfork_child {
-	my ($self) = @_;
-	$SIG{__WARN__} = sub { syslog('warning', "@_") };
-	$self->SUPER::ipc_atfork_child; # PublicInbox::IPC
 }
 
 sub ipc_atfork_prepare {

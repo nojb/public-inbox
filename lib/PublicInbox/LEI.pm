@@ -26,6 +26,7 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
+our $current_lei;
 my ($recv_cmd, $send_cmd);
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
@@ -447,7 +448,7 @@ sub optparse ($$$) {
 
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
-	local $SIG{__WARN__} = sub { err($self, @_) };
+	local $current_lei = $self; # for __WARN__
 	return _help($self, 'no command given') unless defined($cmd);
 	my $func = "lei_$cmd";
 	$func =~ tr/-/_/;
@@ -849,7 +850,9 @@ sub lazy_start {
 	# STDOUT will cause the calling `lei' client process to finish
 	# reading the <$daemon> pipe.
 	openlog($path, 'pid', 'user');
-	local $SIG{__WARN__} = sub { syslog('warning', "@_") };
+	local $SIG{__WARN__} = sub {
+		$current_lei ? err($current_lei, @_) : syslog('warning', "@_");
+	};
 	my $on_destroy = PublicInbox::OnDestroy->new($$, sub {
 		syslog('crit', "$@") if $@;
 	});
