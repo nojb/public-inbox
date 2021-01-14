@@ -43,9 +43,9 @@ sub smsg_hash ($) {
 }
 
 # the paranoid option
-sub dedupe_oid () {
-	my $skv = PublicInbox::SharedKV->new;
-	($skv, sub { # may be called in a child process
+sub dedupe_oid ($) {
+	my ($skv) = @_;
+	(sub { # may be called in a child process
 		my ($eml, $oid) = @_;
 		$skv->set_maybe(_oidbin($oid) // _regen_oid($eml), '');
 	}, sub {
@@ -55,9 +55,9 @@ sub dedupe_oid () {
 }
 
 # dangerous if there's duplicate messages with different Message-IDs
-sub dedupe_mid () {
-	my $skv = PublicInbox::SharedKV->new;
-	($skv, sub { # may be called in a child process
+sub dedupe_mid ($) {
+	my ($skv) = @_;
+	(sub { # may be called in a child process
 		my ($eml, $oid) = @_;
 		# TODO: lei will support non-public messages w/o Message-ID
 		my $mid = $eml->header_raw('Message-ID') // _oidbin($oid) //
@@ -73,9 +73,9 @@ sub dedupe_mid () {
 }
 
 # our default deduplication strategy (used by v2, also)
-sub dedupe_content () {
-	my $skv = PublicInbox::SharedKV->new;
-	($skv, sub { # may be called in a child process
+sub dedupe_content ($) {
+	my ($skv) = @_;
+	(sub { # may be called in a child process
 		my ($eml) = @_; # oid = $_[1], ignored
 		$skv->set_maybe(content_hash($eml), '');
 	}, sub {
@@ -86,7 +86,7 @@ sub dedupe_content () {
 
 # no deduplication at all
 sub true { 1 }
-sub dedupe_none () { (undef, \&true, \&true) }
+sub dedupe_none ($) { (\&true, \&true) }
 
 sub new {
 	my ($cls, $lei, $dst) = @_;
@@ -94,10 +94,12 @@ sub new {
 
 	# allow "none" to bypass Eml->new if writing to directory:
 	return if ($dd eq 'none' && substr($dst // '', -1) eq '/');
+	my $m = "dedupe_$dd";
+	$cls->can($m) or die "unsupported dedupe strategy: $dd\n";
+	my $skv = $dd eq 'none' ? undef : PublicInbox::SharedKV->new;
 
-	my $dd_new = $cls->can("dedupe_$dd") //
-			die "unsupported dedupe strategy: $dd\n";
-	bless [ $dd_new->() ], $cls; # [ $skv, $cb ]
+	# [ $skv, $eml_cb, $smsg_cb, "dedupe_$dd" ]
+	bless [ $skv, undef, undef, $m ], $cls;
 }
 
 # returns true on unseen messages according to the deduplication strategy,
@@ -115,6 +117,7 @@ sub is_smsg_dup {
 sub prepare_dedupe {
 	my ($self) = @_;
 	my $skv = $self->[0];
+	$self->[1] or @$self[1,2] = $self->can($self->[3])->($skv);
 	$skv ? $skv->dbh : undef;
 }
 

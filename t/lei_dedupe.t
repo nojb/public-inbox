@@ -17,8 +17,18 @@ my $smsg = bless { ds => time }, 'PublicInbox::Smsg';
 $smsg->populate($eml);
 $smsg->{$_} //= '' for (qw(to cc references)) ;
 
+my $check_storable = sub {
+	my ($x) = @_;
+	SKIP: {
+		require_mods('Storable', 1);
+		my $dup = Storable::thaw(Storable::freeze($x));
+		is_deeply($dup, $x, "$x->[3] round-trips through storable");
+	}
+};
+
 my $lei = { opt => { dedupe => 'none' } };
 my $dd = PublicInbox::LeiDedupe->new($lei);
+$check_storable->($dd);
 $dd->prepare_dedupe;
 ok(!$dd->is_dup($eml), '1st is_dup w/o dedupe');
 ok(!$dd->is_dup($eml), '2nd is_dup w/o dedupe');
@@ -29,6 +39,7 @@ ok(!$dd->is_smsg_dup($smsg), 'smsg dedupe none 2');
 for my $strat (undef, 'content') {
 	$lei->{opt}->{dedupe} = $strat;
 	$dd = PublicInbox::LeiDedupe->new($lei);
+	$check_storable->($dd);
 	$dd->prepare_dedupe;
 	my $desc = $strat // 'default';
 	ok(!$dd->is_dup($eml), "1st is_dup with $desc dedupe");
@@ -43,6 +54,7 @@ like($@, qr/unsupported.*bogus/, 'died on bogus strategy');
 
 $lei->{opt}->{dedupe} = 'mid';
 $dd = PublicInbox::LeiDedupe->new($lei);
+$check_storable->($dd);
 $dd->prepare_dedupe;
 ok(!$dd->is_dup($eml), '1st is_dup with mid dedupe');
 ok($dd->is_dup($eml), '2nd seen with mid dedupe');
@@ -52,6 +64,7 @@ ok($dd->is_smsg_dup($smsg), 'smsg mid dedupe reject');
 
 $lei->{opt}->{dedupe} = 'oid';
 $dd = PublicInbox::LeiDedupe->new($lei);
+$check_storable->($dd);
 $dd->prepare_dedupe;
 
 # --augment won't have OIDs:

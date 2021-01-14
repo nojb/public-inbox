@@ -8,9 +8,10 @@ package PublicInbox::SharedKV;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock);
-use File::Temp 0.19 (); # 0.19 for ->newdir
+use File::Temp qw(tempdir);
 use DBI ();
 use PublicInbox::Spawn;
+use File::Path qw(rmtree);
 
 sub dbh {
 	my ($self, $lock) = @_;
@@ -44,8 +45,8 @@ sub new {
 	my ($cls, $dir, $base, $opt) = @_;
 	my $self = bless { opt => $opt }, $cls;
 	unless (defined $dir) {
-		$self->{tmp} = File::Temp->newdir('kv-XXXXXX', TMPDIR => 1);
-		$dir = $self->{tmp}->dirname;
+		$self->{tmpdir} = $dir = tempdir('skv-XXXXXX', TMPDIR => 1);
+		$self->{tmpid} = "$$.$self";
 	}
 	-d $dir or mkdir($dir) or die "mkdir($dir): $!";
 	$base //= '';
@@ -143,6 +144,11 @@ SELECT COUNT(k) FROM kv
 
 	$sth->execute;
 	$sth->fetchrow_array;
+}
+
+sub DESTROY {
+	my ($self) = @_;
+	rmtree($self->{tmpdir}) if ($self->{tmpid} // '') eq "$$.$self";
 }
 
 1;
