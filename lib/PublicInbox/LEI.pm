@@ -674,9 +674,9 @@ sub accept_dispatch { # Listener {post_accept} callback
 	select($rvec, undef, undef, 1) or
 		return send($sock, 'timed out waiting to recv FDs', MSG_EOR);
 	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33); # >MAX_ARG_STRLEN
-	if (scalar(@fds) == 3) {
+	if (scalar(@fds) == 4) {
 		my $i = 0;
-		for my $rdr (qw(<&= >&= >&=)) {
+		for my $rdr (qw(<&= >&= >&= <&=)) {
 			my $fd = shift(@fds);
 			open($self->{$i++}, $rdr, $fd) and next;
 			send($sock, "open($rdr$fd) (FD=$i): $!", MSG_EOR);
@@ -692,13 +692,13 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my ($argc, @argv) = split(/\0/, $buf, -1);
 	undef $buf;
 	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
-	if (chdir($env{PWD})) {
+	if (chdir(delete($self->{3}))) {
 		local %ENV = %env;
 		$self->{env} = \%env;
 		eval { dispatch($self, @argv) };
 		send($sock, $@, MSG_EOR) if $@;
 	} else {
-		send($sock, "chdir($env{PWD}): $!", MSG_EOR); # implicit close
+		send($sock, "fchdir: $!", MSG_EOR); # implicit close
 	}
 }
 
@@ -746,7 +746,7 @@ our $oldset; sub oldset { $oldset }
 
 # lei(1) calls this when it can't connect
 sub lazy_start {
-	my ($path, $errno, $nfd) = @_;
+	my ($path, $errno, $narg) = @_;
 	if ($errno == ECONNREFUSED) {
 		unlink($path) or die "unlink($path): $!";
 	} elsif ($errno != ENOENT) {
@@ -761,7 +761,7 @@ sub lazy_start {
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	local $oldset = PublicInbox::DS::block_signals();
-	if ($nfd == 4) {
+	if ($narg == 5) {
 		$send_cmd = PublicInbox::Spawn->can('send_cmd4');
 		$recv_cmd = PublicInbox::Spawn->can('recv_cmd4') // do {
 			require PublicInbox::CmdIPC4;
@@ -770,7 +770,7 @@ sub lazy_start {
 		};
 	}
 	$recv_cmd or die <<"";
-(Socket::MsgHdr || Inline::C) missing/unconfigured (nfd=$nfd);
+(Socket::MsgHdr || Inline::C) missing/unconfigured (narg=$narg);
 
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;

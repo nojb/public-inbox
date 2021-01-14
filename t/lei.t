@@ -208,9 +208,9 @@ if ($ENV{TEST_LEI_ONESHOT}) {
 
 SKIP: { # real socket
 	require_mods(qw(Cwd), my $nr = 105);
-	my $nfd = eval { require Socket::MsgHdr; 4 } // do {
+	my $nfd = eval { require Socket::MsgHdr; 5 } // do {
 		require PublicInbox::Spawn;
-		PublicInbox::Spawn->can('send_cmd4') ? 4 : undef;
+		PublicInbox::Spawn->can('send_cmd4') ? 5 : undef;
 	} //
 	skip 'Socket::MsgHdr or Inline::C missing or unconfigured', $nr;
 
@@ -260,29 +260,6 @@ SKIP: { # real socket
 		like($out, qr/^usage: /, 'help output works');
 		chmod 0700, $sock or BAIL_OUT "chmod 0700: $!";
 	}
-	if ('oneshot on cwd gone') {
-		my $cwd = Cwd::fastcwd() or BAIL_OUT "fastcwd: $!";
-		my $d = "$home/to-be-removed";
-		my $lei_path = 'lei';
-		# we chdir, so we need an abs_path fur run_script
-		if (($ENV{TEST_RUN_MODE}//2) != 2) {
-			$lei_path = PublicInbox::TestCommon::key2script('lei');
-			$lei_path = Cwd::abs_path($lei_path);
-		}
-		mkdir $d or BAIL_OUT "mkdir($d) $!";
-		chdir $d or BAIL_OUT "chdir($d) $!";
-		if (rmdir($d)) {
-			$out = $err = '';
-			ok(run_script([$lei_path, 'help'], undef, $opt),
-				'cwd fail, one-shot fallback works');
-		} else {
-			$err = "rmdir=$!";
-		}
-		chdir $cwd or BAIL_OUT "chdir($cwd) $!";
-		like($err, qr/cwd\(/, 'cwd error noted');
-		like($out, qr/^usage: /, 'help output still works');
-	}
-
 	unlink $sock or BAIL_OUT "unlink($sock) $!";
 	for (0..100) {
 		kill('CHLD', $new_pid) or last;

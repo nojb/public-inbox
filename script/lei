@@ -6,7 +6,7 @@ use v5.10.1;
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
 use Errno qw(EINTR ECONNRESET);
 use PublicInbox::CmdIPC4;
-my $narg = 4;
+my $narg = 5;
 my ($sock, $pwd);
 my $recv_cmd = PublicInbox::CmdIPC4->can('recv_cmd4');
 my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
@@ -74,25 +74,13 @@ connect($path): $! (after attempted daemon start)
 Falling back to (slow) one-shot mode
 
 	}
-	require Cwd;
-	$pwd = $ENV{PWD} // '';
-	my $cwd = Cwd::fastcwd() // die "fastcwd(PWD=$pwd): $!";
-	if ($pwd ne $cwd) { # prefer ENV{PWD} if it's a symlink to real cwd
-		my @st_cwd = stat($cwd) or die "stat(cwd=$cwd): $!";
-		my @st_pwd = stat($pwd); # PWD invalid, use cwd
-		# make sure st_dev/st_ino match for {PWD} to be valid
-		$pwd = $cwd if (!@st_pwd || $st_pwd[1] != $st_cwd[1] ||
-					$st_pwd[0] != $st_cwd[0]);
-	} else {
-		$pwd = $cwd;
-	}
 	1;
 }) { # (Socket::MsgHdr|Inline::C), $sock, $pwd are all available:
-	$ENV{PWD} = $pwd;
+	open my $dh, '<', '.' or die "open(.) $!";
 	my $buf = join("\0", scalar(@ARGV), @ARGV);
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 	$buf .= "\0\0";
-	$send_cmd->($sock, [ 0, 1, 2 ], $buf, MSG_EOR);
+	$send_cmd->($sock, [ 0, 1, 2, fileno($dh) ], $buf, MSG_EOR);
 	$SIG{TERM} = $SIG{INT} = $SIG{QUIT} = sub {
 		my ($sig) = @_; # 'TERM', not an integer :<
 		$SIG{$sig} = 'DEFAULT';
