@@ -279,6 +279,7 @@ sub atfork_child_wq {
 	my ($self, $wq) = @_;
 	@$self{qw(0 1 2 sock)} = delete(@$wq{0..3});
 	%PATH2CFG = ();
+	$quit = \&CORE::exit;
 	@TO_CLOSE_ATFORK_CHILD = ();
 	(__WARN__ => sub { err($self, @_) },
 	PIPE => sub {
@@ -782,8 +783,8 @@ sub lazy_start {
 	return if $pid;
 	$0 = "lei-daemon $path";
 	local %PATH2CFG;
-	local @TO_CLOSE_ATFORK_CHILD = ($l, $eof_r, $eof_w);
-	$_->blocking(0) for ($l, $eof_r, $eof_w);
+	local @TO_CLOSE_ATFORK_CHILD = ($l, $eof_w);
+	$l->blocking(0);
 	$l = PublicInbox::Listener->new($l, \&accept_dispatch, $l);
 	my $exit_code;
 	local $quit = sub {
@@ -795,6 +796,7 @@ sub lazy_start {
 		PublicInbox::DS->SetLoopTimeout(1000);
 	};
 	PublicInbox::EOFpipe->new($eof_r, \&noop, undef);
+	undef $eof_r;
 	my $sig = {
 		CHLD => \&PublicInbox::DS::enqueue_reap,
 		QUIT => $quit,
@@ -806,9 +808,10 @@ sub lazy_start {
 	};
 	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
 	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
+	undef $sig;
 	local $SIG{PIPE} = 'IGNORE';
 	if ($sigfd) { # TODO: use inotify/kqueue to detect unlinked sockets
-		push @TO_CLOSE_ATFORK_CHILD, $sigfd->{sock};
+		undef $sigfd;
 		PublicInbox::DS->SetLoopTimeout(5000);
 	} else {
 		# wake up every second to accept signals if we don't
