@@ -18,17 +18,17 @@ no warnings 'once';
 	my $mh = Socket::MsgHdr->new(buf => $_[2]);
 	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS,
 			pack('i' x scalar(@$fds), @$fds));
-	Socket::MsgHdr::sendmsg($sock, $mh, $flags) or die "sendmsg: $!";
+	Socket::MsgHdr::sendmsg($sock, $mh, $flags);
 };
 
 *recv_cmd4 = sub ($$$) {
 	my ($s, undef, $len) = @_; # $_[1] = destination buffer
 	my $mh = Socket::MsgHdr->new(buflen => $len, controllen => 256);
-	my $r = Socket::MsgHdr::recvmsg($s, $mh, 0) // die "recvmsg: $!";
+	my $r = Socket::MsgHdr::recvmsg($s, $mh, 0) // return ($_[1] = undef);
 	$_[1] = $mh->buf;
 	return () if $r == 0;
 	my (undef, undef, $data) = $mh->cmsghdr;
-	unpack('i' x (length($data) / 4), $data);
+	defined($data) ? unpack('i' x (length($data) / 4), $data) : ();
 };
 
 } } # /eval /BEGIN

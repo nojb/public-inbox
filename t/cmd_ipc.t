@@ -10,6 +10,7 @@ pipe(my ($r, $w)) or BAIL_OUT;
 my ($send, $recv);
 require_ok 'PublicInbox::Spawn';
 my $SOCK_SEQPACKET = eval { Socket::SOCK_SEQPACKET() } // undef;
+use Time::HiRes qw(alarm);
 
 my $do_test = sub { SKIP: {
 	my ($type, $flag, $desc) = @_;
@@ -45,11 +46,42 @@ my $do_test = sub { SKIP: {
 		is($buf, (',' x 1023) . '-', 'silently truncated buf');
 		$opens->();
 		$r1 = $w1 = $s1a = undef;
+
+		$s2->blocking(0);
+		@fds = $recv->($s2, $buf, length($src) + 1);
+		ok($!{EAGAIN}, "EAGAIN set by ($desc)");
+		is_deeply(\@fds, [ undef ], "EAGAIN $desc");
+		$s2->blocking(1);
+
+		my $alrm = 0;
+		local $SIG{ALRM} = sub { $alrm++ };
+		alarm(0.001);
+		@fds = $recv->($s2, $buf, length($src) + 1);
+		ok($!{EINTR}, "EINTR set by ($desc)");
+		is_deeply(\@fds, [ undef ], "EINTR $desc");
+		is($alrm, 1, 'SIGALRM hit');
+
 		close $s1;
 		@fds = $recv->($s2, $buf, length($src) + 1);
 		is_deeply(\@fds, [], "no FDs on EOF $desc");
 		is($buf, '', "buffer cleared on EOF ($desc)");
 
+		socketpair($s1, $s2, AF_UNIX, $type, 0) or BAIL_OUT $!;
+		$s1->blocking(0);
+		my $nsent = 0;
+		while (defined(my $n = $send->($s1, $sfds, $src, $flag))) {
+			$nsent += $n;
+			fail "sent 0 bytes" if $n == 0;
+		}
+		ok($!{EAGAIN}, "hit EAGAIN on send $desc");
+		ok($nsent > 0, 'sent some bytes');
+
+		socketpair($s1, $s2, AF_UNIX, $type, 0) or BAIL_OUT $!;
+		is($send->($s1, [], $src, $flag), length($src), 'sent w/o FDs');
+		$buf = 'nope';
+		@fds = $recv->($s2, $buf, length($src));
+		is(scalar(@fds), 0, 'no FDs received');
+		is($buf, $src, 'recv w/o FDs');
 	}
 } };
 

@@ -216,12 +216,13 @@ union my_cmsg {
 	char pad[sizeof(struct cmsghdr) + 16 + SEND_FD_SPACE];
 };
 
-int send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
+SV *send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
 {
 	struct msghdr msg = { 0 };
 	union my_cmsg cmsg = { 0 };
 	STRLEN dlen = 0;
 	struct iovec iov;
+	ssize_t sent;
 	AV *fds = (AV *)SvRV(svfds);
 	I32 i, nfds = av_len(fds) + 1;
 	int *fdp;
@@ -252,7 +253,8 @@ int send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
 			*fdp++ = SvIV(*fd);
 		}
 	}
-	return sendmsg(PerlIO_fileno(s), &msg, flags) >= 0;
+	sent = sendmsg(PerlIO_fileno(s), &msg, flags);
+	return sent >= 0 ? newSViv(sent) : &PL_sv_undef;
 }
 
 void recv_cmd4(PerlIO *s, SV *buf, STRLEN n)
@@ -260,7 +262,7 @@ void recv_cmd4(PerlIO *s, SV *buf, STRLEN n)
 	union my_cmsg cmsg = { 0 };
 	struct msghdr msg = { 0 };
 	struct iovec iov;
-	size_t i;
+	ssize_t i;
 	Inline_Stack_Vars;
 	Inline_Stack_Reset;
 
@@ -275,8 +277,9 @@ void recv_cmd4(PerlIO *s, SV *buf, STRLEN n)
 
 	i = recvmsg(PerlIO_fileno(s), &msg, 0);
 	if (i < 0)
-		croak("recvmsg: %s", strerror(errno));
-	SvCUR_set(buf, i);
+		Inline_Stack_Push(&PL_sv_undef);
+	else
+		SvCUR_set(buf, i);
 	if (i > 0 && cmsg.hdr.cmsg_level == SOL_SOCKET &&
 			cmsg.hdr.cmsg_type == SCM_RIGHTS) {
 		size_t len = cmsg.hdr.cmsg_len;
