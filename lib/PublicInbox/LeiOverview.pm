@@ -91,7 +91,7 @@ sub _unbless_smsg {
 	$smsg->{relevance} = get_pct($mitem) if $mitem;
 
 	if (my $r = delete $smsg->{references}) {
-		$smsg->{references} = [
+		$smsg->{refs} = [
 				map { "<$_>" } ($r =~ m/$MID_EXTRACT/go) ];
 	}
 	if (my $m = delete($smsg->{mid})) {
