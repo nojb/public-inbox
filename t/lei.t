@@ -237,13 +237,13 @@ SKIP: { # real socket
 		kill(0, $pid) or last;
 		tick();
 	}
-	ok(!-S $sock, 'sock gone');
+	ok(-S $sock, 'sock still exists');
 	ok(!kill(0, $pid), 'pid gone after stop');
 
 	ok($lei->(qw(daemon-pid)), 'daemon-pid');
 	chomp(my $new_pid = $out);
 	ok(kill(0, $new_pid), 'new pid is running');
-	ok(-S $sock, 'sock exists again');
+	ok(-S $sock, 'sock still exists');
 
 	for my $sig (qw(-0 -CHLD)) {
 		ok($lei->('daemon-kill', $sig), "handles $sig");

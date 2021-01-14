@@ -789,7 +789,6 @@ sub lazy_start {
 	local $quit = sub {
 		$exit_code //= shift;
 		my $listener = $l or exit($exit_code);
-		unlink($path) if defined($path);
 		# closing eof_w triggers \&noop wakeup
 		$eof_w = $l = $path = undef;
 		$listener->close; # DS::close
