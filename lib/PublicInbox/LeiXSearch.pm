@@ -103,6 +103,8 @@ sub query_thread_mset { # for --thread
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
+	my $dd = $lei->{dd};
+	$dd->prepare_dedupe;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		my $ids = $srch->mset_to_artnums($mset, $mo);
@@ -112,7 +114,7 @@ sub query_thread_mset { # for --thread
 		while ($over->expand_thread($ctx)) {
 			for my $n (@{$ctx->{xids}}) {
 				my $smsg = $over->get_art($n) or next;
-				# next if $dd->is_smsg_dup($smsg); TODO
+				next if $dd->is_smsg_dup($smsg);
 				my $mitem = delete $n2item{$smsg->{num}};
 				$each_smsg->($smsg, $mitem);
 				# $self->out($buf .= $ORS);
@@ -132,11 +134,13 @@ sub query_mset { # non-parallel for non-"--thread" users
 	my $mset;
 	$self->attach_external($_) for @$srcs;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
+	my $dd = $lei->{dd};
+	$dd->prepare_dedupe;
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
 		for my $it ($mset->items) {
 			my $smsg = smsg_for($self, $it) or next;
-			# next if $dd->is_smsg_dup($smsg);
+			next if $dd->is_smsg_dup($smsg);
 			$each_smsg->($smsg, $it);
 			# $self->out($buf .= $ORS) if defined $buf;
 			#$emit_cb->($smsg);

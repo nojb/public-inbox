@@ -26,14 +26,13 @@ sub lei_q {
 	my $sto = $self->_lei_store(1);
 	my $cfg = $self->_lei_cfg(1);
 	my $opt = $self->{opt};
-	require PublicInbox::LeiDedupe;
-	my $dd = PublicInbox::LeiDedupe->new($self);
 
 	# --local is enabled by default
 	# src: LeiXSearch || LeiSearch || Inbox
 	my @srcs;
 	require PublicInbox::LeiXSearch;
 	require PublicInbox::LeiOverview;
+	require PublicInbox::LeiDedupe;
 	my $lxs = PublicInbox::LeiXSearch->new;
 
 	# --external is enabled by default, but allow --no-external
@@ -49,8 +48,8 @@ sub lei_q {
 
 	unshift(@srcs, $sto->search) if $opt->{'local'};
 	# no forking workers after this
-	require PublicInbox::LeiOverview;
 	$self->{ovv} = PublicInbox::LeiOverview->new($self);
+	$self->{dd} = PublicInbox::LeiDedupe->new($self);
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
 	$mset_opt{qstr} = join(' ', map {;
