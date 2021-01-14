@@ -215,7 +215,7 @@ SKIP: { # real socket
 	skip 'Socket::MsgHdr or Inline::C missing or unconfigured', $nr;
 
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
-	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/$nfd.sock";
+	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/$nfd.seq.sock";
 
 	ok($lei->('daemon-pid'), 'daemon-pid');
 	is($err, '', 'no error from daemon-pid');

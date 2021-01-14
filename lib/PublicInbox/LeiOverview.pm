@@ -108,8 +108,9 @@ sub _unbless_smsg {
 
 sub ovv_atexit_child {
 	my ($self, $lei) = @_;
-	my $bref = delete $lei->{ovv_buf} or return;
-	print { $lei->{1} } $$bref;
+	if (my $bref = delete $lei->{ovv_buf}) {
+		print { $lei->{1} } $$bref;
+	}
 }
 
 # JSON module ->pretty output wastes too much vertical white space,

@@ -40,14 +40,13 @@ sub lei_q {
 	if ($opt->{external} // 1) {
 		$self->_externals_each(\&_vivify_external, \@srcs);
 	}
-	my $j = $opt->{jobs} // scalar(@srcs) > 3 ? 3 : scalar(@srcs);
+	my $j = $opt->{jobs} // (scalar(@srcs) > 3 ? 3 : scalar(@srcs));
 	$j = 1 if !$opt->{thread};
 	$j++ if $opt->{'local'}; # for sto->search below
-	if ($self->{sock}) {
-		$self->atfork_prepare_wq($lxs);
-		$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset)
-			// $lxs->wq_workers($j);
-	}
+	$self->atfork_prepare_wq($lxs);
+	$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset)
+		// $lxs->wq_workers($j);
+
 	unshift(@srcs, $sto->search) if $opt->{'local'};
 	# no forking workers after this
 	require PublicInbox::LeiOverview;
@@ -77,16 +76,7 @@ sub lei_q {
 	# my $wcb = PublicInbox::LeiToMail->write_cb($out, $self);
 	$self->{mset_opt} = \%mset_opt;
 	$self->{ovv}->ovv_begin($self);
-	pipe(my ($eof_wait, $qry_done)) or die "pipe $!";
-	require PublicInbox::EOFpipe;
-	my $eof = PublicInbox::EOFpipe->new($eof_wait, \&query_done, $self);
-	$lxs->do_query($self, $qry_done, \@srcs);
-	$eof->event_step unless $self->{sock};
-}
-
-sub query_done { # PublicInbox::EOFpipe callback
-	my ($self) = @_;
-	$self->{ovv}->ovv_end($self);
+	$lxs->do_query($self, \@srcs);
 }
 
 1;

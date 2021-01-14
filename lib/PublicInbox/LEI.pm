@@ -11,13 +11,13 @@ use v5.10.1;
 use parent qw(PublicInbox::DS PublicInbox::LeiExternal
 	PublicInbox::LeiQuery);
 use Getopt::Long ();
-use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
-use Errno qw(EAGAIN ECONNREFUSED ENOENT);
+use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
+use Errno qw(EAGAIN EINTR ECONNREFUSED ENOENT ECONNRESET);
 use POSIX ();
 use IO::Handle ();
 use Sys::Syslog qw(syslog openlog);
 use PublicInbox::Config;
-use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLONESHOT);
+use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLET);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn run_die popen_rd);
@@ -238,16 +238,15 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-sub x_it ($$) { # pronounced "exit"
+# pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
+sub x_it ($$) {
 	my ($self, $code) = @_;
-	$self->{1}->autoflush(1); # make sure client sees stdout before exit
-	my $sig = ($code & 127);
-	$code >>= 8 unless $sig;
+	# make sure client sees stdout before exit
+	$self->{1}->autoflush(1) if $self->{1};
 	if (my $sock = $self->{sock}) {
-		my $fds = [ map { fileno($_) } @$self{0..2} ];
-		$send_cmd->($sock, $fds, "exit=$code\n", 0);
-	} else { # for oneshot
-		$quit->($code);
+		send($sock, "x_it $code", MSG_EOR);
+	} elsif (!($code & 127)) { # oneshot, ignore signals
+		$quit->($code >> 8);
 	}
 }
 
@@ -274,22 +273,20 @@ sub atfork_prepare_wq {
 				grep { defined } @$self{qw(0 1 2 sock)}
 }
 
-# usage: local %SIG = (%SIG, $lei->atfork_child_wq($wq));
+# usage: my %sig = $lei->atfork_child_wq($wq);
+#	 local @SIG{keys %sig} = values %sig;
 sub atfork_child_wq {
 	my ($self, $wq) = @_;
-	return () if $self->{0}; # did not fork
-	$self->{$_} = $wq->{$_} for (0..2);
-	$self->{sock} = $wq->{3} // die 'BUG: no {sock}'; # may be undef
-	my $oldpipe = $SIG{PIPE};
+	@$self{qw(0 1 2 sock)} = delete(@$wq{0..3});
 	%PATH2CFG = ();
 	@TO_CLOSE_ATFORK_CHILD = ();
-	(
-		__WARN__ => sub { err($self, @_) },
-		PIPE => sub {
-			$self->x_it(141);
-			$oldpipe->() if ref($oldpipe) eq 'CODE';
-		}
-	);
+	(__WARN__ => sub { err($self, @_) },
+	PIPE => sub {
+		$self->x_it(13); # SIGPIPE = 13
+		# we need to close explicitly to avoid Perl warning on SIGPIPE
+		close($_) for (delete @$self{1..2});
+		die bless(\"$_[0]", 'PublicInbox::SIGPIPE'),
+	});
 }
 
 # usage: ($lei, @io) = $lei->atfork_parent_wq($wq);
@@ -300,9 +297,9 @@ sub atfork_parent_wq {
 		my $ret = bless { %$self }, ref($self);
 		$self->{env} = $env;
 		delete @$ret{qw(-lei_store cfg pgr)};
-		($ret, delete @$ret{qw(0 1 2 sock)});
+		($ret, delete @$ret{0..2}, delete($ret->{sock}) // ());
 	} else {
-		($self, @$self{qw(0 1 2 sock)});
+		($self, @$self{0..2}, $self->{sock} // ());
 	}
 }
 
@@ -647,7 +644,7 @@ sub start_pager {
 		my $buf = "exec 1\0".$pager;
 		while (my ($k, $v) = each %new_env) { $buf .= "\0$k=$v" };
 		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
-		$send_cmd->($sock, $fds, $buf .= "\n", 0);
+		$send_cmd->($sock, $fds, $buf, MSG_EOR);
 	} else {
 		$pgr->[0] = spawn([$pager], $env, $rdr);
 	}
@@ -660,50 +657,39 @@ sub start_pager {
 sub stop_pager {
 	my ($self) = @_;
 	my $pgr = delete($self->{pgr}) or return;
-	my $pid = $pgr->[0];
-	close $self->{1};
-	# {2} may not be redirected
-	$self->{1} = $pgr->[1];
 	$self->{2} = $pgr->[2];
+	# do not restore original stdout, just close it so we error out
+	close(delete($self->{1})) if $self->{1};
+	my $pid = $pgr->[0];
 	dwaitpid($pid, undef, $self->{sock}) if $pid;
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
 	my ($sock) = @_; # ignore other
-	$sock->blocking(1);
 	$sock->autoflush(1);
 	my $self = bless { sock => $sock }, __PACKAGE__;
-	vec(my $rin = '', fileno($sock), 1) = 1;
-	# `say $sock' triggers "die" in lei(1)
-	my $buf;
-	if (select(my $rout = $rin, undef, undef, 1)) {
-		my @fds = $recv_cmd->($sock, $buf, 4096 * 33); # >MAX_ARG_STRLEN
-		if (scalar(@fds) == 3) {
-			my $i = 0;
-			for my $rdr (qw(<&= >&= >&=)) {
-				my $fd = shift(@fds);
-				if (open(my $fh, $rdr, $fd)) {
-					$self->{$i++} = $fh;
-				}  else {
-					say $sock "open($rdr$fd) (FD=$i): $!";
-					return;
-				}
+	vec(my $rvec, fileno($sock), 1) = 1;
+	select($rvec, undef, undef, 1) or
+		return send($sock, 'timed out waiting to recv FDs', MSG_EOR);
+	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33); # >MAX_ARG_STRLEN
+	if (scalar(@fds) == 3) {
+		my $i = 0;
+		for my $rdr (qw(<&= >&= >&=)) {
+			my $fd = shift(@fds);
+			if (open(my $fh, $rdr, $fd)) {
+				$self->{$i++} = $fh;
+				next;
 			}
-		} else {
-			say $sock "recv_cmd failed: $!";
-			return;
+			return send($sock, "open($rdr$fd) (FD=$i): $!", MSG_EOR);
 		}
 	} else {
-		say $sock "timed out waiting to recv FDs";
-		return;
+		return send($sock, "recv_cmd failed: $!", MSG_EOR);
 	}
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
 	# $buf = "$$\0$argc\0".join("\0", @ARGV).$ENV_STR."\0\0";
-	if (substr($buf, -2, 2, '') ne "\0\0") { # s/\0\0\z//
-		say $sock "request command truncated";
-		return;
-	}
+	substr($buf, -2, 2, '') eq "\0\0" or  # s/\0\0\z//
+		return send($sock, 'request command truncated', MSG_EOR);
 	my ($argc, @argv) = split(/\0/, $buf, -1);
 	undef $buf;
 	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
@@ -711,21 +697,48 @@ sub accept_dispatch { # Listener {post_accept} callback
 		local %ENV = %env;
 		$self->{env} = \%env;
 		eval { dispatch($self, @argv) };
-		say $sock $@ if $@;
+		send($sock, $@, MSG_EOR) if $@;
 	} else {
-		say $sock "chdir($env{PWD}): $!"; # implicit close
+		send($sock, "chdir($env{PWD}): $!", MSG_EOR); # implicit close
 	}
+}
+
+sub dclose {
+	my ($self) = @_;
+	delete $self->{lxs}; # stops LeiXSearch queries
+	$self->close; # PublicInbox::DS::close
 }
 
 # for long-running results
 sub event_step {
 	my ($self) = @_;
 	local %ENV = %{$self->{env}};
-	eval {}; # TODO
-	if ($@) {
-		say { $self->{sock} } $@;
-		$self->close; # PublicInbox::DS::close
+	my $sock = $self->{sock};
+	eval {
+		while (my @fds = $recv_cmd->($sock, my $buf, 4096)) {
+			if (scalar(@fds) == 1 && !defined($fds[0])) {
+				return if $! == EAGAIN;
+				next if $! == EINTR;
+				last if $! == ECONNRESET;
+				die "recvmsg: $!";
+			}
+			for my $fd (@fds) {
+				open my $rfh, '+<&=', $fd;
+			}
+			die "unrecognized client signal: $buf";
+		}
+		dclose($self);
+	};
+	if (my $err = $@) {
+		eval { $self->fail($err) };
+		dclose($self);
 	}
+}
+
+sub event_step_init {
+	my ($self) = @_;
+	$self->{sock}->blocking(0);
+	$self->SUPER::new($self->{sock}, EPOLLIN|EPOLLET);
 }
 
 sub noop {}
@@ -742,7 +755,7 @@ sub lazy_start {
 		die "connect($path): $!";
 	}
 	umask(077) // die("umask(077): $!");
-	socket(my $l, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
+	socket(my $l, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
 	bind($l, pack_sockaddr_un($path)) or die "bind($path): $!";
 	listen($l, 1024) or die "listen: $!";
 	my @st = stat($path) or die "stat($path): $!";
@@ -793,7 +806,7 @@ sub lazy_start {
 		USR2 => \&noop,
 	};
 	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
-	local %SIG = (%SIG, %$sig) if !$sigfd;
+	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
 	local $SIG{PIPE} = 'IGNORE';
 	if ($sigfd) { # TODO: use inotify/kqueue to detect unlinked sockets
 		push @TO_CLOSE_ATFORK_CHILD, $sigfd->{sock};
@@ -853,24 +866,19 @@ sub oneshot {
 	local $quit = $exit if $exit;
 	local %PATH2CFG;
 	umask(077) // die("umask(077): $!");
-	local $SIG{PIPE} = sub { die(bless(\"$_[0]", 'PublicInbox::SIGPIPE')) };
-	eval {
-		my $self = bless {
-			0 => *STDIN{GLOB},
-			1 => *STDOUT{GLOB},
-			2 => *STDERR{GLOB},
-			env => \%ENV
-		}, __PACKAGE__;
-		dispatch($self, @ARGV);
-	};
-	die $@ if $@ && ref($@) ne 'PublicInbox::SIGPIPE';
+	dispatch((bless {
+		0 => *STDIN{GLOB},
+		1 => *STDOUT{GLOB},
+		2 => *STDERR{GLOB},
+		env => \%ENV
+	}, __PACKAGE__), @ARGV);
 }
 
 # ensures stdout hits the FS before sock disconnects so a client
 # can immediately reread it
 sub DESTROY {
 	my ($self) = @_;
-	$self->{1}->autoflush(1);
+	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
 }
 

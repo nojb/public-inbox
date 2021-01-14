@@ -429,6 +429,7 @@ xt/git_async_cmp.t
 xt/httpd-async-stream.t
 xt/imapd-mbsync-oimap.t
 xt/imapd-validate.t
+xt/lei-sigpipe.t
 xt/mem-imapd-tls.t
 xt/mem-msgview.t
 xt/msgtime_cmp.t

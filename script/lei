@@ -3,32 +3,47 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
-use Socket qw(AF_UNIX SOCK_STREAM pack_sockaddr_un);
+use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
+use Errno qw(EINTR ECONNRESET);
 use PublicInbox::CmdIPC4;
 my $narg = 4;
+my ($sock, $pwd);
 my $recv_cmd = PublicInbox::CmdIPC4->can('recv_cmd4');
 my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
 	require PublicInbox::Spawn; # takes ~50ms even if built *sigh*
-	$narg = 4;
 	$recv_cmd = PublicInbox::Spawn->can('recv_cmd4');
 	PublicInbox::Spawn->can('send_cmd4');
 };
 
-sub exec_cmd {
-	my ($fds, $argc, @argv) = @_;
-	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
-	my @m = (*STDIN{IO}, '<&=',  *STDOUT{IO}, '>&=',
-		*STDERR{IO}, '>&=');
-	for my $fd (@$fds) {
-		my ($old_io, $mode) = splice(@m, 0, 2);
-		open($old_io, $mode, $fd) or die "open $mode$fd: $!";
-	}
-	%ENV = (%ENV, %env);
-	exec(@argv);
-	die "exec: @argv: $!";
+sub sigchld {
+	my ($sig) = @_;
+	my $flags = $sig ? POSIX::WNOHANG() : 0;
+	while (waitpid(-1, $flags) > 0) {}
 }
 
-my ($sock, $pwd);
+sub exec_cmd {
+	my ($fds, $argc, @argv) = @_;
+	my @m = (*STDIN{IO}, '<&=',  *STDOUT{IO}, '>&=', *STDERR{IO}, '>&=');
+	my @rdr;
+	for my $fd (@$fds) {
+		my ($old_io, $mode) = splice(@m, 0, 2);
+		open(my $tmpfh, $mode, $fd) or die "open $mode$fd: $!";
+		push @rdr, $old_io, $mode, $tmpfh;
+	}
+	require POSIX; # WNOHANG
+	$SIG{CHLD} = \&sigchld;
+	my $pid = fork // die "fork: $!";
+	if ($pid == 0) {
+		my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
+		while (my ($old_io, $mode, $tmpfh) = splice(@rdr, 0, 3)) {
+			open $old_io, $mode, $tmpfh or die "open $mode: $!";
+		}
+		%ENV = (%ENV, %env);
+		exec(@argv);
+		die "exec: @argv: $!";
+	}
+}
+
 if ($send_cmd && eval {
 	my $path = do {
 		my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
@@ -40,10 +55,10 @@ if ($send_cmd && eval {
 			require File::Path;
 			File::Path::mkpath($runtime_dir, 0, 0700);
 		}
-		"$runtime_dir/$narg.sock";
+		"$runtime_dir/$narg.seq.sock";
 	};
 	my $addr = pack_sockaddr_un($path);
-	socket($sock, AF_UNIX, SOCK_STREAM, 0) or die "socket: $!";
+	socket($sock, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
 	unless (connect($sock, $addr)) { # start the daemon if not started
 		local $ENV{PERL5LIB} = join(':', @INC);
 		open(my $daemon, '-|', $^X, qw[-MPublicInbox::LEI
@@ -73,22 +88,41 @@ Falling back to (slow) one-shot mode
 	}
 	1;
 }) { # (Socket::MsgHdr|Inline::C), $sock, $pwd are all available:
-	local $ENV{PWD} = $pwd;
+	$ENV{PWD} = $pwd;
 	my $buf = join("\0", scalar(@ARGV), @ARGV);
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 	$buf .= "\0\0";
-	select $sock;
-	$| = 1; # unbuffer selected $sock
-	$send_cmd->($sock, [ 0, 1, 2 ], $buf, 0);
-	while (my (@fds) = $recv_cmd->($sock, $buf, 4096 * 33)) {
-		if ($buf =~ /\Aexit=([0-9]+)\n\z/) {
-			exit($1);
-		} elsif ($buf =~ /\Aexec (.+)\n\z/) {
+	$send_cmd->($sock, [ 0, 1, 2 ], $buf, MSG_EOR);
+	$SIG{TERM} = $SIG{INT} = $SIG{QUIT} = sub {
+		my ($sig) = @_; # 'TERM', not an integer :<
+		$SIG{$sig} = 'DEFAULT';
+		kill($sig, $$); # exit($signo + 128)
+	};
+	my $x_it_code = 0;
+	while (1) {
+		my (@fds) = $recv_cmd->($sock, $buf, 4096 * 33);
+		if (scalar(@fds) == 1 && !defined($fds[0])) {
+			last if $! == ECONNRESET;
+			next if $! == EINTR;
+			die "recvmsg: $!";
+		}
+		last if $buf eq '';
+		if ($buf =~ /\Ax_it ([0-9]+)\z/) {
+			$x_it_code = $1 + 0;
+			last;
+		} elsif ($buf =~ /\Aexec (.+)\z/) {
 			exec_cmd(\@fds, split(/\0/, $1));
 		} else {
+			sigchld();
 			die $buf;
 		}
 	}
+	sigchld();
+	if (my $sig = ($x_it_code & 127)) {
+		kill $sig, $$;
+		sleep;
+	}
+	exit($x_it_code >> 8);
 } else { # for systems lacking Socket::MsgHdr or Inline::C
 	warn $@ if $@;
 	require PublicInbox::LEI;
