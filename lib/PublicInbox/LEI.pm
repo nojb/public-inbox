@@ -678,11 +678,8 @@ sub accept_dispatch { # Listener {post_accept} callback
 		my $i = 0;
 		for my $rdr (qw(<&= >&= >&=)) {
 			my $fd = shift(@fds);
-			if (open(my $fh, $rdr, $fd)) {
-				$self->{$i++} = $fh;
-				next;
-			}
-			return send($sock, "open($rdr$fd) (FD=$i): $!", MSG_EOR);
+			open($self->{$i++}, $rdr, $fd) and next;
+			send($sock, "open($rdr$fd) (FD=$i): $!", MSG_EOR);
 		}
 	} else {
 		return send($sock, "recv_cmd failed: $!", MSG_EOR);
