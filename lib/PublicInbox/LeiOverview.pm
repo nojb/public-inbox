@@ -86,7 +86,7 @@ sub _unbless_smsg {
 	my ($smsg, $mitem) = @_;
 
 	delete @$smsg{qw(lines bytes num tid)};
-	$smsg->{rcvd} = _iso8601(delete $smsg->{ts}); # JMAP receivedAt
+	$smsg->{rt} = _iso8601(delete $smsg->{ts}); # JMAP receivedAt
 	$smsg->{dt} = _iso8601(delete $smsg->{ds}); # JMAP UTCDate
 	$smsg->{relevance} = get_pct($mitem) if $mitem;
 

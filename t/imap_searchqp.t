@@ -76,17 +76,17 @@ is($q->{xap}, 'c:"b" d:..19931002', 'compound query w/ parens');
 	$q = $parse->($s = qq{BEFORE 2-Oct-1993});
 	is_deeply($q->{sql}, \" AND ts <= $t0", 'BEFORE SQL');
 	$q = $parse->("FROM z $s");
-	is($q->{xap}, qq{f:"z" ts:..$t0}, 'BEFORE Xapian');
+	is($q->{xap}, qq{f:"z" rt:..$t0}, 'BEFORE Xapian');
 
 	$q = $parse->($s = qq{SINCE 2-Oct-1993});
 	is_deeply($q->{sql}, \" AND ts >= $t0", 'SINCE SQL');
 	$q = $parse->("FROM z $s");
-	is($q->{xap}, qq{f:"z" ts:$t0..}, 'SINCE Xapian');
+	is($q->{xap}, qq{f:"z" rt:$t0..}, 'SINCE Xapian');
 
 	$q = $parse->($s = qq{ON 2-Oct-1993});
 	is_deeply($q->{sql}, \" AND ts >= $t0 AND ts <= $t1", 'ON SQL');
 	$q = $parse->("FROM z $s");
-	is($q->{xap}, qq{f:"z" ts:$t0..$t1}, 'ON Xapian');
+	is($q->{xap}, qq{f:"z" rt:$t0..$t1}, 'ON Xapian');
 }
 
 {

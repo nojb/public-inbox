@@ -124,7 +124,7 @@ sub ON {
 	my ($self, $item) = @_;
 	my $ts = yyyymmdd($item);
 	my $end = $ts + 86399; # no leap day
-	push @{$self->{xap}}, "ts:$ts..$end";
+	push @{$self->{xap}}, "rt:$ts..$end";
 	my $sql = $self->{sql} or return 1;
 	$$sql .= " AND ts >= $ts AND ts <= $end";
 }
@@ -132,7 +132,7 @@ sub ON {
 sub BEFORE {
 	my ($self, $item) = @_;
 	my $ts = yyyymmdd($item);
-	push @{$self->{xap}}, "ts:..$ts";
+	push @{$self->{xap}}, "rt:..$ts";
 	my $sql = $self->{sql} or return 1;
 	$$sql .= " AND ts <= $ts";
 }
@@ -140,7 +140,7 @@ sub BEFORE {
 sub SINCE {
 	my ($self, $item) = @_;
 	my $ts = yyyymmdd($item);
-	push @{$self->{xap}}, "ts:$ts..";
+	push @{$self->{xap}}, "rt:$ts..";
 	my $sql = $self->{sql} or return 1;
 	$$sql .= " AND ts >= $ts";
 }
