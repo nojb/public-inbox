@@ -117,8 +117,6 @@ sub query_thread_mset { # for --thread
 				next if $dd->is_smsg_dup($smsg);
 				my $mitem = delete $n2item{$smsg->{num}};
 				$each_smsg->($smsg, $mitem);
-				# $self->out($buf .= $ORS);
-				# $emit_cb->($smsg);
 			}
 			@{$ctx->{xids}} = ();
 		}
@@ -142,8 +140,6 @@ sub query_mset { # non-parallel for non-"--thread" users
 			my $smsg = smsg_for($self, $it) or next;
 			next if $dd->is_smsg_dup($smsg);
 			$each_smsg->($smsg, $it);
-			# $self->out($buf .= $ORS) if defined $buf;
-			#$emit_cb->($smsg);
 		}
 	} while (_mset_more($mset, $mo));
 	$lei->{ovv}->ovv_atexit_child($lei);
