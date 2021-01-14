@@ -6,8 +6,11 @@
 package PublicInbox::LeiOverview;
 use strict;
 use v5.10.1;
+use parent qw(PublicInbox::Lock);
 use POSIX qw(strftime);
+use Fcntl qw(F_GETFL O_APPEND);
 use File::Spec;
+use File::Temp ();
 use PublicInbox::MID qw($MID_EXTRACT);
 use PublicInbox::Address qw(pairs);
 use PublicInbox::Config;
@@ -17,6 +20,21 @@ use PublicInbox::Search qw(get_pct);
 my $JSONL = 'ldjson|ndjson|jsonl'; # 3 names for the same thing
 
 sub _iso8601 ($) { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($_[0])) }
+
+# we open this in the parent process before ->wq_do handoff
+sub ovv_out_lk_init ($) {
+	my ($self) = @_;
+	$self->{tmp_lk_id} = "$self.$$";
+	my $tmp = File::Temp->new("lei-ovv.out.$$.lock-XXXXXX",
+					TMPDIR => 1, UNLINK => 0);
+	$self->{lock_path} = $tmp->filename;
+}
+
+sub ovv_out_lk_cancel ($) {
+	my ($self) = @_;
+	($self->{tmp_lk_id}//'') eq "$self.$$" and
+		unlink(delete($self->{lock_path}));
+}
 
 sub new {
 	my ($class, $lei) = @_;
@@ -50,8 +68,17 @@ sub new {
 		$isatty = -t $lei->{1};
 		$lei->start_pager if $isatty;
 		$opt->{pretty} //= $isatty;
+		if (!$isatty && -f _) {
+			my $fl = fcntl($lei->{1}, F_GETFL, 0) //
+				return $lei->fail("fcntl(stdout): $!");
+			ovv_out_lk_init($self) unless ($fl & O_APPEND);
+		} else {
+			ovv_out_lk_init($self);
+		}
 	} elsif ($json) {
 		return $lei->fail('JSON formats only output to stdout');
+	} else {
+		return $lei->fail("TODO: $out -f $fmt");
 	}
 	$self;
 }
@@ -109,6 +136,7 @@ sub _unbless_smsg {
 sub ovv_atexit_child {
 	my ($self, $lei) = @_;
 	if (my $bref = delete $lei->{ovv_buf}) {
+		my $lk = $self->lock_for_scope;
 		print { $lei->{1} } $$bref;
 	}
 }
@@ -142,7 +170,9 @@ sub _json_pretty {
 sub ovv_each_smsg_cb {
 	my ($self, $lei) = @_;
 	$lei->{ovv_buf} = \(my $buf = '');
+	delete(@$self{qw(lock_path tmp_lk_id)}) unless $lei->{-parallel};
 	my $json = $self->{json}->new;
+	$lei->{1}->autoflush(1);
 	if ($json) {
 		$json->utf8->canonical;
 		$json->ascii(1) if $lei->{opt}->{ascii};
@@ -164,6 +194,7 @@ sub ovv_each_smsg_cb {
 			} sort keys %$smsg);
 			$buf .= $EOR;
 			if (length($buf) > 65536) {
+				my $lk = $self->lock_for_scope;
 				print { $lei->{1} } $buf;
 				$buf = '';
 			}
@@ -175,6 +206,7 @@ sub ovv_each_smsg_cb {
 			delete @$smsg{qw(tid num)};
 			$buf .= $json->encode(_unbless_smsg(@_)) . $ORS;
 			if (length($buf) > 65536) {
+				my $lk = $self->lock_for_scope;
 				print { $lei->{1} } $buf;
 				$buf = '';
 			}
@@ -185,5 +217,8 @@ sub ovv_each_smsg_cb {
 		}
 	} # else { ...
 }
+
+no warnings 'once';
+*DESTROY = \&ovv_out_lk_cancel;
 
 1;

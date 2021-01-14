@@ -338,6 +338,7 @@ t/kqnotify.t
 t/lei-oneshot.t
 t/lei.t
 t/lei_dedupe.t
+t/lei_overview.t
 t/lei_store.t
 t/lei_to_mail.t
 t/lei_xsearch.t

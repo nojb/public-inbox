@@ -158,20 +158,21 @@ sub query_done { # PublicInbox::EOFpipe callback
 sub do_query {
 	my ($self, $lei_orig, $srcs) = @_;
 	my ($lei, @io) = $lei_orig->atfork_parent_wq($self);
-
+	my $remotes = $self->{remotes} // [];
 	pipe(my ($eof_wait, $qry_done)) or die "pipe $!";
 	$io[0] = $qry_done; # don't need stdin
-	$io[1]->autoflush(1);
-	$io[2]->autoflush(1);
+
 	if ($lei->{opt}->{thread}) {
+		$lei->{-parallel} = scalar(@$remotes) + scalar(@$srcs) - 1;
 		for my $ibxish (@$srcs) {
 			$self->wq_do('query_thread_mset', \@io, $lei, $ibxish);
 		}
 	} else {
+		$lei->{-parallel} = scalar(@$remotes);
 		$self->wq_do('query_mset', \@io, $lei, $srcs);
 	}
 	# TODO
-	for my $rmt (@{$self->{remotes} // []}) {
+	for my $rmt (@$remotes) {
 		$self->wq_do('query_thread_mbox', \@io, $lei, $rmt);
 	}
 	@io = ();

@@ -37,7 +37,7 @@ sub lock_release {
 # caller must use return value
 sub lock_for_scope {
 	my ($self, @single_pid) = @_;
-	$self->lock_acquire;
+	lock_acquire($self) or return; # lock_path not set
 	PublicInbox::OnDestroy->new(@single_pid, \&lock_release, $self);
 }
 
