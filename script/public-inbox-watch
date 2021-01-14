@@ -58,7 +58,7 @@ if ($watch) {
 	PublicInbox::DS::requeue($scan) if $do_scan;
 
 	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
-	local %SIG = (%SIG, %$sig) if !$sigfd;
+	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
 	if (!$sigfd) {
 		PublicInbox::DS::sig_setmask($oldset);
 		PublicInbox::DS->SetLoopTimeout(1000);

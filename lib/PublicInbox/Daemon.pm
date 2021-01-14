@@ -514,7 +514,7 @@ EOF
 		CHLD => \&reap_children,
 	};
 	my $sigfd = PublicInbox::Sigfd->new($sig, 0);
-	local %SIG = (%SIG, %$sig) if !$sigfd;
+	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
 	PublicInbox::DS::sig_setmask($oldset) if !$sigfd;
 	while (1) { # main loop
 		my $n = scalar keys %pids;
@@ -628,7 +628,7 @@ sub daemon_loop ($$$$) {
 		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
 	} @listeners;
 	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
-	local %SIG = (%SIG, %$sig) if !$sigfd;
+	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
 	if (!$sigfd) {
 		# wake up every second to accept signals if we don't
 		# have signalfd or IO::KQueue:
