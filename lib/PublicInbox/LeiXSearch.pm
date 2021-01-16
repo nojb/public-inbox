@@ -8,6 +8,7 @@ package PublicInbox::LeiXSearch;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::IPC);
+use PublicInbox::DS qw(dwaitpid);
 
 sub new {
 	my ($class) = @_;
@@ -181,8 +182,14 @@ sub do_query {
 		$lei_orig->{lxs} = $self;
 		$lei_orig->event_step_init;
 	} else {
-		$self->wq_close;
-		read($eof_wait, my $buf, 1); # wait for close($lei->{0})
+		my @pids = $self->wq_close;
+		# wait for close($lei->{0})
+		if (read($eof_wait, my $buf, 1)) {
+			# if we get a SIGPIPE from one, kill the rest
+			kill('TERM', @pids) if $buf eq '!';
+		}
+		my $ipc_worker_reap = $self->can('ipc_worker_reap');
+		dwaitpid($_, $ipc_worker_reap, $self) for @pids;
 		query_done($lei_orig); # may SIGPIPE
 	}
 }

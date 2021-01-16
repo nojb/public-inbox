@@ -287,6 +287,7 @@ sub atfork_child_wq {
 		$self->x_it(13); # SIGPIPE = 13
 		# we need to close explicitly to avoid Perl warning on SIGPIPE
 		close($_) for (delete @$self{1..2});
+		syswrite($self->{0}, '!') unless $self->{sock}; # for eof_wait
 		die bless(\"$_[0]", 'PublicInbox::SIGPIPE'),
 	});
 }
