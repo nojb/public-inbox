@@ -656,7 +656,7 @@ sub start_pager {
 		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
 		$send_cmd->($sock, $fds, $buf, MSG_EOR);
 	} else {
-		$pgr->[0] = spawn([$pager], $env, $rdr);
+		$pgr->[0] = spawn([$pager], \%new_env, $rdr);
 	}
 	$self->{1} = $wpager;
 	$self->{2} = $wpager if -t $self->{2};
