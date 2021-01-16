@@ -15,6 +15,8 @@ use PublicInbox::MID qw($MID_EXTRACT);
 use PublicInbox::Address qw(pairs);
 use PublicInbox::Config;
 use PublicInbox::Search qw(get_pct);
+use PublicInbox::LeiDedupe;
+use PublicInbox::LeiToMail;
 
 # cf. https://en.wikipedia.org/wiki/JSON_streaming
 my $JSONL = 'ldjson|ndjson|jsonl'; # 3 names for the same thing
@@ -44,7 +46,7 @@ sub new {
 
 	my $fmt = $opt->{'format'};
 	$fmt = lc($fmt) if defined $fmt;
-	if ($dst =~ s/\A([a-z]+)://is) { # e.g. Maildir:/home/user/Mail/
+	if ($dst =~ s/\A([a-z0-9]+)://is) { # e.g. Maildir:/home/user/Mail/
 		my $ofmt = lc $1;
 		$fmt //= $ofmt;
 		return $lei->fail(<<"") if $fmt ne $ofmt;
@@ -52,13 +54,14 @@ sub new {
 
 	}
 	$fmt //= 'json' if $dst eq '/dev/stdout';
-	$fmt //= 'maildir'; # TODO
+	$fmt //= 'maildir';
 
 	if (index($dst, '://') < 0) { # not a URL, so assume path
 		 $dst = File::Spec->canonpath($dst);
 	} # else URL
 
 	my $self = bless { fmt => $fmt, dst => $dst }, $class;
+	$lei->{ovv} = $self;
 	my $json;
 	if ($fmt =~ /\A($JSONL|(?:concat)?json)\z/) {
 		$json = $self->{json} = ref(PublicInbox::Config->json);
@@ -75,11 +78,13 @@ sub new {
 		} else {
 			ovv_out_lk_init($self);
 		}
-	} elsif ($json) {
-		return $lei->fail('JSON formats only output to stdout');
-	} else {
-		return $lei->fail("TODO: $dst -f $fmt");
 	}
+	if (!$json) {
+		# default to the cheapest sort since MUA usually resorts
+		$lei->{opt}->{'sort'} //= 'docid' if $dst ne '/dev/stdout';
+		$lei->{l2m} = PublicInbox::LeiToMail->new($lei);
+	}
+	$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
 	$self;
 }
 
@@ -135,9 +140,13 @@ sub _unbless_smsg {
 
 sub ovv_atexit_child {
 	my ($self, $lei) = @_;
+	if (my $git = delete $self->{git}) {
+		$git->async_wait_all;
+	}
 	if (my $bref = delete $lei->{ovv_buf}) {
+		my $out = $lei->{1} or return;
 		my $lk = $self->lock_for_scope;
-		print { $lei->{1} } $$bref;
+		print $out $$bref;
 	}
 }
 
@@ -167,17 +176,28 @@ sub _json_pretty {
 	qq{  "$k": }.$v;
 }
 
-sub ovv_each_smsg_cb {
-	my ($self, $lei) = @_;
+sub ovv_each_smsg_cb { # runs in wq worker usually
+	my ($self, $lei, $ibxish) = @_;
 	$lei->{ovv_buf} = \(my $buf = '');
 	delete(@$self{qw(lock_path tmp_lk_id)}) unless $lei->{-parallel};
-	my $json = $self->{json}->new;
+	my $json;
 	$lei->{1}->autoflush(1);
-	if ($json) {
+	if (my $pkg = $self->{json}) {
+		$json = $pkg->new;
 		$json->utf8->canonical;
 		$json->ascii(1) if $lei->{opt}->{ascii};
 	}
-	if ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
+	if (my $l2m = $lei->{l2m}) {
+		my $wcb = $l2m->write_cb($lei);
+		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
+		$self->{git} = $git; # for ovv_atexit_child
+		my $g2m = $l2m->can('git_to_mail');
+		sub {
+			my ($smsg, $mitem) = @_;
+			my $kw = []; # TODO get from mitem
+			$git->cat_async($smsg->{blob}, $g2m, [ $wcb, $kw ]);
+		};
+	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
 		sub { # DIY prettiness :P
 			my ($smsg, $mitem) = @_;

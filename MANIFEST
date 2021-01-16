@@ -193,6 +193,7 @@ lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
 lib/PublicInbox/NewsWWW.pm
 lib/PublicInbox/OnDestroy.pm
+lib/PublicInbox/OpPipe.pm
 lib/PublicInbox/Over.pm
 lib/PublicInbox/OverIdx.pm
 lib/PublicInbox/ProcessPipe.pm

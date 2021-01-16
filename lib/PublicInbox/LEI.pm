@@ -256,7 +256,9 @@ sub puts ($;@) { print { shift->{1} } map { "$_\n" } @_ }
 sub out ($;@) { print { shift->{1} } @_ }
 
 sub err ($;@) {
-	print { shift->{2} } @_, (substr($_[-1], -1, 1) eq "\n" ? () : "\n");
+	my $self = shift;
+	my $err = $self->{2} // *STDERR{IO};
+	print $err @_, (substr($_[-1], -1, 1) eq "\n" ? () : "\n");
 }
 
 sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
@@ -270,8 +272,11 @@ sub fail ($$;$) {
 
 sub atfork_prepare_wq {
 	my ($self, $wq) = @_;
-	push @{$wq->{-ipc_atfork_child_close}}, @TO_CLOSE_ATFORK_CHILD,
-				grep { defined } @$self{qw(0 1 2 sock)}
+	my $tcafc = $wq->{-ipc_atfork_child_close};
+	push @$tcafc, @TO_CLOSE_ATFORK_CHILD;
+	if (my $sock = $self->{sock}) {
+		push @$tcafc, @$self{qw(0 1 2)}, $sock;
+	}
 }
 
 # usage: my %sig = $lei->atfork_child_wq($wq);
@@ -286,7 +291,9 @@ sub atfork_child_wq {
 	PIPE => sub {
 		$self->x_it(13); # SIGPIPE = 13
 		# we need to close explicitly to avoid Perl warning on SIGPIPE
-		close($_) for (delete @$self{1..2});
+		close(delete $self->{1});
+		# regular files and /dev/null (-c) won't trigger SIGPIPE
+		close(delete $self->{2}) unless (-f $self->{2} || -c _);
 		syswrite($self->{0}, '!') unless $self->{sock}; # for eof_wait
 		die bless(\"$_[0]", 'PublicInbox::SIGPIPE'),
 	});
@@ -641,7 +648,7 @@ sub start_pager {
 	$new_env{MORE} = 'FRX' if $^O eq 'freebsd';
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
-	my $pgr = [ undef, @$rdr{1, 2} ];
+	my $pgr = [ undef, @$rdr{1, 2}, $$ ];
 	if (my $sock = $self->{sock}) { # lei(1) process runs it
 		delete @new_env{keys %$env}; # only set iff unset
 		my $buf = "exec 1\0".$pager;
@@ -664,7 +671,7 @@ sub stop_pager {
 	# do not restore original stdout, just close it so we error out
 	close(delete($self->{1})) if $self->{1};
 	my $pid = $pgr->[0];
-	dwaitpid($pid, undef, $self->{sock}) if $pid;
+	dwaitpid($pid, undef, $self->{sock}) if $pid && $pgr->[3] == $$;
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
@@ -706,7 +713,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 sub dclose {
 	my ($self) = @_;
 	delete $self->{lxs}; # stops LeiXSearch queries
-	$self->close; # PublicInbox::DS::close
+	$self->close if $self->{sock}; # PublicInbox::DS::close
 }
 
 # for long-running results
@@ -737,8 +744,10 @@ sub event_step {
 
 sub event_step_init {
 	my ($self) = @_;
-	$self->{sock}->blocking(0);
-	$self->SUPER::new($self->{sock}, EPOLLIN|EPOLLET);
+	if (my $sock = $self->{sock}) { # using DS->EventLoop
+		$sock->blocking(0);
+		$self->SUPER::new($sock, EPOLLIN|EPOLLET);
+	}
 }
 
 sub noop {}

@@ -89,8 +89,9 @@ sub true { 1 }
 sub dedupe_none ($) { (\&true, \&true) }
 
 sub new {
-	my ($cls, $lei, $dst) = @_;
+	my ($cls, $lei) = @_;
 	my $dd = $lei->{opt}->{dedupe} // 'content';
+	my $dst = $lei->{ovv}->{dst};
 
 	# allow "none" to bypass Eml->new if writing to directory:
 	return if ($dd eq 'none' && substr($dst // '', -1) eq '/');

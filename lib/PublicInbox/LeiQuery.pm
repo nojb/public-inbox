@@ -23,8 +23,6 @@ sub _vivify_external { # _externals_each callback
 # the main "lei q SEARCH_TERMS" method
 sub lei_q {
 	my ($self, @argv) = @_;
-	my $sto = $self->_lei_store(1);
-	my $cfg = $self->_lei_cfg(1);
 	my $opt = $self->{opt};
 
 	# --local is enabled by default
@@ -32,7 +30,7 @@ sub lei_q {
 	my @srcs;
 	require PublicInbox::LeiXSearch;
 	require PublicInbox::LeiOverview;
-	require PublicInbox::LeiDedupe;
+	PublicInbox::Config->json;
 	my $lxs = PublicInbox::LeiXSearch->new;
 
 	# --external is enabled by default, but allow --no-external
@@ -46,10 +44,10 @@ sub lei_q {
 	$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset)
 		// $lxs->wq_workers($j);
 
-	unshift(@srcs, $sto->search) if $opt->{'local'};
 	# no forking workers after this
-	$self->{ovv} = PublicInbox::LeiOverview->new($self);
-	$self->{dd} = PublicInbox::LeiDedupe->new($self);
+	my $ovv = PublicInbox::LeiOverview->new($self) or return;
+	my $sto = $self->_lei_store(1);
+	unshift(@srcs, $sto->search) if $opt->{'local'};
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
 	$mset_opt{qstr} = join(' ', map {;
@@ -69,12 +67,10 @@ sub lei_q {
 			die "unrecognized --sort=$sort\n";
 		}
 	}
-	# $self->out($json->encode(\%mset_opt));
 	# descending docid order
 	$mset_opt{relevance} //= -2 if $opt->{thread};
-	# my $wcb = PublicInbox::LeiToMail->write_cb($out, $self);
 	$self->{mset_opt} = \%mset_opt;
-	$self->{ovv}->ovv_begin($self);
+	$ovv->ovv_begin($self);
 	$lxs->do_query($self, \@srcs);
 }
 

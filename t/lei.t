@@ -7,6 +7,7 @@ use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use File::Path qw(rmtree);
+use Fcntl qw(SEEK_SET);
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
@@ -188,6 +189,25 @@ my $test_external = sub {
 	# No double-quoting should be imposed on users on the CLI
 	$lei->('q', 's:use boolean prefix');
 	like($out, qr/search: use boolean prefix/, 'phrase search got result');
+
+	$lei->('q', '-o', "mboxcl2:$home/mbox", 's:use boolean prefix');
+	open my $mb, '<', "$home/mbox" or fail "no mbox: $!";
+	my @s = grep(/^Subject:/, <$mb>);
+	is(scalar(@s), 1, '1 result in mbox');
+	$lei->('q', '-a', '-o', "mboxcl2:$home/mbox", 's:see attachment');
+	is($err, '', 'no errors from augment');
+	seek($mb, 0, SEEK_SET) or BAIL_OUT "seek: $!";
+	@s = grep(/^Subject:/, <$mb>);
+	is(scalar(@s), 2, '2 results in mbox');
+
+	$lei->('q', '-a', '-o', "mboxcl2:$home/mbox", 's:nonexistent');
+	is($err, '', 'no errors on no results');
+	seek($mb, 0, SEEK_SET) or BAIL_OUT "seek: $!";
+	my @s2 = grep(/^Subject:/, <$mb>);
+	is_deeply(\@s2, \@s, 'same 2 old results w/ --augment and bad search');
+
+	$lei->('q', '-o', "mboxcl2:$home/mbox", 's:nonexistent');
+	is(-s "$home/mbox", 0, 'clobber w/o --augment');
 };
 
 my $test_lei_common = sub {

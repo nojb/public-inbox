@@ -9,6 +9,10 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::IPC);
 use PublicInbox::DS qw(dwaitpid);
+use PublicInbox::OpPipe;
+use PublicInbox::Import;
+use File::Temp 0.19 (); # 0.19 for ->newdir
+use File::Spec ();
 
 sub new {
 	my ($class) = @_;
@@ -103,9 +107,9 @@ sub query_thread_mset { # for --thread
 	}
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
-	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
-	my $dd = $lei->{dd};
-	$dd->prepare_dedupe;
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $ibxish);
+	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
+	$dedupe->prepare_dedupe;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		my $ids = $srch->mset_to_artnums($mset, $mo);
@@ -115,7 +119,7 @@ sub query_thread_mset { # for --thread
 		while ($over->expand_thread($ctx)) {
 			for my $n (@{$ctx->{xids}}) {
 				my $smsg = $over->get_art($n) or next;
-				next if $dd->is_smsg_dup($smsg);
+				next if $dedupe->is_smsg_dup($smsg);
 				my $mitem = delete $n2item{$smsg->{num}};
 				$each_smsg->($smsg, $mitem);
 			}
@@ -132,65 +136,113 @@ sub query_mset { # non-parallel for non-"--thread" users
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
 	$self->attach_external($_) for @$srcs;
-	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
-	my $dd = $lei->{dd};
-	$dd->prepare_dedupe;
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $self);
+	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
+	$dedupe->prepare_dedupe;
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
 		for my $it ($mset->items) {
 			my $smsg = smsg_for($self, $it) or next;
-			next if $dd->is_smsg_dup($smsg);
+			next if $dedupe->is_smsg_dup($smsg);
 			$each_smsg->($smsg, $it);
 		}
 	} while (_mset_more($mset, $mo));
 	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
-sub query_done { # PublicInbox::EOFpipe callback
+sub git {
+	my ($self) = @_;
+	my (%seen, @dirs);
+	my $tmp = File::Temp->newdir('lei_xsrch_git-XXXXXXXX', TMPDIR => 1);
+	for my $ibx (@{$self->{shard2ibx} // []}) {
+		my $d = File::Spec->canonpath($ibx->git->{git_dir});
+		$seen{$d} //= push @dirs, "$d/objects\n"
+	}
+	my $git_dir = $tmp->dirname;
+	PublicInbox::Import::init_bare($git_dir);
+	my $f = "$git_dir/objects/info/alternates";
+	open my $alt, '>', $f or die "open($f): $!";
+	print $alt @dirs or die "print $f: $!";
+	close $alt or die "close $f: $!";
+	my $git = PublicInbox::Git->new($git_dir);
+	$git->{-tmp} = $tmp;
+	$git;
+}
+
+sub query_done { # EOF callback
 	my ($lei) = @_;
 	$lei->{ovv}->ovv_end($lei);
 	$lei->dclose;
 }
 
-sub do_query {
-	my ($self, $lei_orig, $srcs) = @_;
-	my ($lei, @io) = $lei_orig->atfork_parent_wq($self);
+sub start_query { # always runs in main (lei-daemon) process
+	my ($self, $io, $lei, $srcs) = @_;
+	if (my $l2m = $lei->{l2m}) {
+		$lei->{1} = $io->[1];
+		$l2m->post_augment($lei);
+		$io->[1] = delete $lei->{1};
+	}
 	my $remotes = $self->{remotes} // [];
-	pipe(my ($eof_wait, $qry_done)) or die "pipe $!";
-	$io[0] = $qry_done; # don't need stdin
-
 	if ($lei->{opt}->{thread}) {
 		$lei->{-parallel} = scalar(@$remotes) + scalar(@$srcs) - 1;
 		for my $ibxish (@$srcs) {
-			$self->wq_do('query_thread_mset', \@io, $lei, $ibxish);
+			$self->wq_do('query_thread_mset', $io, $lei, $ibxish);
 		}
 	} else {
 		$lei->{-parallel} = scalar(@$remotes);
-		$self->wq_do('query_mset', \@io, $lei, $srcs);
+		$self->wq_do('query_mset', $io, $lei, $srcs);
 	}
 	# TODO
 	for my $rmt (@$remotes) {
-		$self->wq_do('query_thread_mbox', \@io, $lei, $rmt);
+		$self->wq_do('query_thread_mbox', $io, $lei, $rmt);
 	}
-	@io = ();
-	close $qry_done; # fully closed when children are done
+	close $io->[0]; # qry_status_wr
+	@$io = ();
+}
 
-	# query_done will run when query_*mset close $qry_done
-	if ($lei_orig->{sock}) { # watch for client premature exit
-		require PublicInbox::EOFpipe;
-		PublicInbox::EOFpipe->new($eof_wait, \&query_done, $lei_orig);
-		$lei_orig->{lxs} = $self;
-		$lei_orig->event_step_init;
+sub query_prepare { # wq_do
+	my ($self, $lei) = @_;
+	my %sig = $lei->atfork_child_wq($self);
+	local @SIG{keys %sig} = values %sig;
+	if (my $l2m = $lei->{l2m}) {
+		eval { $l2m->do_augment($lei) };
+		return $lei->fail($@) if $@;
+	}
+	# trigger PublicInbox::OpPipe->event_step
+	my $qry_status_wr = $lei->{0} or
+		return $lei->fail('BUG: qry_status_wr missing');
+	$qry_status_wr->autoflush(1);
+	print $qry_status_wr '.' or # this should never fail...
+		return $lei->fail("BUG? print qry_status_wr: $!");
+}
+
+sub do_query {
+	my ($self, $lei_orig, $srcs) = @_;
+	my ($lei, @io) = $lei_orig->atfork_parent_wq($self);
+	$io[0] = undef;
+	pipe(my $qry_status_rd, $io[0]) or die "pipe $!";
+
+	$lei_orig->{lxs} = $self;
+	$lei_orig->event_step_init; # wait for shutdowns
+	my $op_map = { '' => [ \&query_done, $lei_orig ] };
+	my $in_loop = exists $lei_orig->{sock};
+	my $opp = PublicInbox::OpPipe->new($qry_status_rd, $op_map, $in_loop);
+	if (my $l2m = $lei->{l2m}) {
+		$l2m->pre_augment($lei_orig); # may redirect $lei->{1} for mbox
+		$io[1] = $lei_orig->{1};
+		$op_map->{'.'} = [ \&start_query, $self, \@io, $lei, $srcs ];
+		$self->wq_do('query_prepare', \@io, $lei);
+		$opp->event_step if !$in_loop;
 	} else {
+		start_query($self, \@io, $lei, $srcs);
+	}
+	unless ($in_loop) {
 		my @pids = $self->wq_close;
-		# wait for close($lei->{0})
-		if (read($eof_wait, my $buf, 1)) {
-			# if we get a SIGPIPE from one, kill the rest
-			kill('TERM', @pids) if $buf eq '!';
-		}
+		# for the $lei->atfork_child_wq PIPE handler:
+		$op_map->{'!'} = [ \&CORE::kill, 'TERM', @pids ];
+		$opp->event_step;
 		my $ipc_worker_reap = $self->can('ipc_worker_reap');
 		dwaitpid($_, $ipc_worker_reap, $self) for @pids;
-		query_done($lei_orig); # may SIGPIPE
 	}
 }
 
