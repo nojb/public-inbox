@@ -25,7 +25,7 @@ sub _iso8601 ($) { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($_[0])) }
 sub ovv_out_lk_init ($) {
 	my ($self) = @_;
 	$self->{tmp_lk_id} = "$self.$$";
-	my $tmp = File::Temp->new("lei-ovv.out.$$.lock-XXXXXX",
+	my $tmp = File::Temp->new("lei-ovv.dst.$$.lock-XXXXXX",
 					TMPDIR => 1, UNLINK => 0);
 	$self->{lock_path} = $tmp->filename;
 }
@@ -39,32 +39,32 @@ sub ovv_out_lk_cancel ($) {
 sub new {
 	my ($class, $lei) = @_;
 	my $opt = $lei->{opt};
-	my $out = $opt->{output} // '-';
-	$out = '/dev/stdout' if $out eq '-';
+	my $dst = $opt->{output} // '-';
+	$dst = '/dev/stdout' if $dst eq '-';
 
 	my $fmt = $opt->{'format'};
 	$fmt = lc($fmt) if defined $fmt;
-	if ($out =~ s/\A([a-z]+)://is) { # e.g. Maildir:/home/user/Mail/
+	if ($dst =~ s/\A([a-z]+)://is) { # e.g. Maildir:/home/user/Mail/
 		my $ofmt = lc $1;
 		$fmt //= $ofmt;
 		return $lei->fail(<<"") if $fmt ne $ofmt;
 --format=$fmt and --output=$ofmt conflict
 
 	}
-	$fmt //= 'json' if $out eq '/dev/stdout';
+	$fmt //= 'json' if $dst eq '/dev/stdout';
 	$fmt //= 'maildir'; # TODO
 
-	if (index($out, '://') < 0) { # not a URL, so assume path
-		 $out = File::Spec->canonpath($out);
+	if (index($dst, '://') < 0) { # not a URL, so assume path
+		 $dst = File::Spec->canonpath($dst);
 	} # else URL
 
-	my $self = bless { fmt => $fmt, out => $out }, $class;
+	my $self = bless { fmt => $fmt, dst => $dst }, $class;
 	my $json;
 	if ($fmt =~ /\A($JSONL|(?:concat)?json)\z/) {
 		$json = $self->{json} = ref(PublicInbox::Config->json);
 	}
 	my ($isatty, $seekable);
-	if ($out eq '/dev/stdout') {
+	if ($dst eq '/dev/stdout') {
 		$isatty = -t $lei->{1};
 		$lei->start_pager if $isatty;
 		$opt->{pretty} //= $isatty;
@@ -78,7 +78,7 @@ sub new {
 	} elsif ($json) {
 		return $lei->fail('JSON formats only output to stdout');
 	} else {
-		return $lei->fail("TODO: $out -f $fmt");
+		return $lei->fail("TODO: $dst -f $fmt");
 	}
 	$self;
 }
