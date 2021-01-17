@@ -37,6 +37,7 @@ if ($@) {
 	require PublicInbox::AddressPP;
 	*emails = \&PublicInbox::AddressPP::emails;
 	*names = \&PublicInbox::AddressPP::names;
+	*pairs = \&PublicInbox::AddressPP::pairs;
 }
 
 1;
