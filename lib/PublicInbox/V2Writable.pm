@@ -17,6 +17,7 @@ use PublicInbox::InboxWritable;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
 use PublicInbox::Spawn qw(spawn popen_rd run_die);
+use PublicInbox::Search;
 use PublicInbox::SearchIdx qw(log2stack is_ancestor check_size is_bad_blob);
 use IO::Handle; # ->autoflush
 use File::Temp ();
@@ -608,7 +609,11 @@ shard[$i] bad echo:$echo != $i waiting for txn commit
 		}
 
 		my $midx = $self->{midx}; # misc index
-		$midx->commit_txn if $midx;
+		if ($midx) {
+			$midx->commit_txn;
+			$PublicInbox::Search::X{CLOEXEC_UNSET} and
+				$self->git->cleanup;
+		}
 
 		# last_commit is special, don't commit these until
 		# Xapian shards are done:
@@ -618,7 +623,10 @@ shard[$i] bad echo:$echo != $i waiting for txn commit
 			$dbh->commit;
 			$dbh->begin_work;
 		}
-		$midx->begin_txn if $midx;
+		if ($midx) {
+			$self->git->batch_prepare;
+			$midx->begin_txn;
+		}
 	}
 	$self->{total_bytes} += $self->{transact_bytes};
 	$self->{transact_bytes} = 0;

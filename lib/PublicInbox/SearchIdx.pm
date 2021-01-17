@@ -105,8 +105,11 @@ sub load_xapian_writable () {
 	$DB_CREATE_OR_OPEN = eval($xap.'::DB_CREATE_OR_OPEN()');
 	$DB_OPEN = eval($xap.'::DB_OPEN()');
 	my $ver = (eval($xap.'::major_version()') << 16) |
-		(eval($xap.'::minor_version()') << 8);
+		(eval($xap.'::minor_version()') << 8) |
+		eval($xap.'::revision()');
 	$DB_NO_SYNC = 0x4 if $ver >= 0x10400;
+	# Xapian v1.2.21..v1.2.24 were missing close-on-exec on OFD locks
+	$X->{CLOEXEC_UNSET} = 1 if $ver >= 0x010215 && $ver <= 0x010218;
 	1;
 }
 
