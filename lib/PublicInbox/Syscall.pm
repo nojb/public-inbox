@@ -224,7 +224,7 @@ sub epoll_ctl_mod8 {
 # epoll_wait wrapper
 # ARGS: (epfd, maxevents, timeout (milliseconds), arrayref)
 #  arrayref: values modified to be [$fd, $event]
-our $epoll_wait_events;
+our $epoll_wait_events = '';
 our $epoll_wait_size = 0;
 sub epoll_wait_mod4 {
 	my ($epfd, $maxevents, $timeout_msec, $events) = @_;

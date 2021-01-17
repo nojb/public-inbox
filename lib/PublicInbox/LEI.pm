@@ -670,7 +670,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my ($sock) = @_; # ignore other
 	$sock->autoflush(1);
 	my $self = bless { sock => $sock }, __PACKAGE__;
-	vec(my $rvec, fileno($sock), 1) = 1;
+	vec(my $rvec = '', fileno($sock), 1) = 1;
 	select($rvec, undef, undef, 1) or
 		return send($sock, 'timed out waiting to recv FDs', MSG_EOR);
 	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33); # >MAX_ARG_STRLEN
