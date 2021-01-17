@@ -172,6 +172,9 @@ sub git {
 sub query_done { # EOF callback
 	my ($lei) = @_;
 	$lei->{ovv}->ovv_end($lei);
+	if (my $l2m = $lei->{l2m}) {
+		$lei->start_mua unless $l2m->lock_free;
+	}
 	$lei->dclose;
 }
 
@@ -181,6 +184,7 @@ sub start_query { # always runs in main (lei-daemon) process
 		$lei->{1} = $io->[1];
 		$l2m->post_augment($lei);
 		$io->[1] = delete $lei->{1};
+		$lei->start_mua($io->[3]) if $l2m->lock_free;
 	}
 	my $remotes = $self->{remotes} // [];
 	if ($lei->{opt}->{thread}) {

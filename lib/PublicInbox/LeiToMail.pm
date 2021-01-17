@@ -418,4 +418,8 @@ sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
 	$self->$m($lei);
 }
 
+sub lock_free {
+	$_[0]->{base_type} =~ /\A(?:maildir|mh|imap|jmap)\z/ ? 1 : 0;
+}
+
 1;

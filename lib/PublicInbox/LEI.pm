@@ -83,7 +83,7 @@ sub _config_path ($) {
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
-	sort|s=s reverse|r offset=i remote local! external! pretty
+	sort|s=s reverse|r offset=i remote local! external! pretty mua-cmd=s
 	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
@@ -192,6 +192,8 @@ my %OPTDESC = (
 
 'output|o=s' => [ 'DEST',
 	"destination (e.g. `/path/to/Maildir', or `-' for stdout)" ],
+'mua-cmd|mua=s' => [ 'COMMAND',
+	"MUA to run on --output Maildir or mbox (e.g. `mutt -f %f'" ],
 
 'show	format|f=s' => [ 'OUT|plain|raw|html|mboxrd|mboxcl2|mboxcl',
 			'message/object output format' ],
@@ -635,6 +637,32 @@ sub lei_git { # support passing through random git commands
 	dwaitpid($pid, \&reap_exec, $self);
 }
 
+sub exec_buf ($$) {
+	my ($argv, $env) = @_;
+	my $argc = scalar @$argv;
+	my $buf = 'exec '.join("\0", scalar(@$argv), @$argv);
+	while (my ($k, $v) = each %$env) { $buf .= "\0$k=$v" };
+	$buf;
+}
+
+sub start_mua {
+	my ($self, $sock) = @_;
+	my $mua = $self->{opt}->{'mua-cmd'} // return;
+	my $mfolder = $self->{ovv}->{dst};
+	require Text::ParseWords;
+	my $replaced;
+	my @cmd = Text::ParseWords::shellwords($mua);
+	# mutt uses '%f' for open-hook with compressed folders, so we use %f
+	@cmd = map { $_ eq '%f' ? ($replaced = $mfolder) : $_ } @cmd;
+	push @cmd, $mfolder unless defined($replaced);
+	$sock //= $self->{sock};
+	if ($sock) { # lei(1) client process runs it
+		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
+	} else { # oneshot
+		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);
+	}
+}
+
 # caller needs to "-t $self->{1}" to check if tty
 sub start_pager {
 	my ($self) = @_;
@@ -644,19 +672,17 @@ sub start_pager {
 	close($fh) or warn "`git var PAGER' error: \$?=$?";
 	return if $pager eq 'cat' || $pager eq '';
 	# TODO TIOCGWINSZ
-	my %new_env = (LESS => 'FRX', LV => '-c', COLUMNS => 80);
-	$new_env{MORE} = 'FRX' if $^O eq 'freebsd';
+	my $new_env = { LESS => 'FRX', LV => '-c', COLUMNS => 80 };
+	$new_env->{MORE} = 'FRX' if $^O eq 'freebsd';
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
 	my $pgr = [ undef, @$rdr{1, 2}, $$ ];
 	if (my $sock = $self->{sock}) { # lei(1) process runs it
-		delete @new_env{keys %$env}; # only set iff unset
-		my $buf = "exec 1\0".$pager;
-		while (my ($k, $v) = each %new_env) { $buf .= "\0$k=$v" };
+		delete @$new_env{keys %$env}; # only set iff unset
 		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
-		$send_cmd->($sock, $fds, $buf, MSG_EOR);
+		$send_cmd->($sock, $fds, exec_buf([$pager], $new_env), MSG_EOR);
 	} else {
-		$pgr->[0] = spawn([$pager], \%new_env, $rdr);
+		$pgr->[0] = spawn([$pager], $new_env, $rdr);
 	}
 	$self->{1} = $wpager;
 	$self->{2} = $wpager if -t $self->{2};
@@ -892,6 +918,9 @@ sub DESTROY {
 	my ($self) = @_;
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
+	if (my $mua_pid = delete $self->{"mua.pid.$self.$$"}) {
+		waitpid($mua_pid, 0);
+	}
 }
 
 1;
