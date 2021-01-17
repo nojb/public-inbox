@@ -9,9 +9,8 @@ use_ok 'PublicInbox::SharedKV';
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{TMPDIR} = $tmpdir;
 my $skv = PublicInbox::SharedKV->new;
-opendir(my $dh, $tmpdir) or BAIL_OUT $!;
-my @ent = grep(!/\A\.\.?\z/, readdir($dh));
-is(scalar(@ent), 1, 'created a temporary dir');
+my $skv_tmpdir = $skv->{tmpdir};
+ok(-d $skv_tmpdir, 'created a temporary dir');
 $skv->dbh;
 my $dead = "\xde\xad";
 my $beef = "\xbe\xef";
@@ -48,10 +47,7 @@ is($skv->delete_by_val($dead), 2, 'delete_by_val hits');
 is($skv->delete_by_val($dead), 0, 'delete_by_val misses again');
 
 undef $skv;
-rewinddir($dh);
-@ent = grep(!/\A\.\.?\z/, readdir($dh));
-is(scalar(@ent), 0, 'temporary dir gone');
-undef $dh;
+ok(!-d $skv_tmpdir, 'temporary dir gone');
 $skv = PublicInbox::SharedKV->new("$tmpdir/dir", 'base');
 ok(-e "$tmpdir/dir/base.sqlite3", 'file created');
 
