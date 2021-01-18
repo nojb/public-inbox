@@ -25,7 +25,7 @@ for my $mbox (@MBOX) {
 	my $s = $cb->(PublicInbox::Eml->new($from), $kw);
 	is(substr($$s, -1, 1), "\n", "trailing LF in normal $mbox");
 	my $eml = PublicInbox::Eml->new($s);
-	is($eml->header('Status'), 'R', "Status: set by $m");
+	is($eml->header('Status'), 'OR', "Status: set by $m");
 	is($eml->header('X-Status'), 'AF', "X-Status: set by $m");
 	if ($mbox eq 'mboxcl2') {
 		like($eml->body_raw, qr/^From /, "From not escaped $m");
@@ -170,6 +170,12 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 	}
 }
 
+my $as_orig = sub {
+	my ($eml) = @_;
+	$eml->header_set('Status');
+	$eml->as_string;
+};
+
 unlink $fn or BAIL_OUT $!;
 if ('default deduplication uses content_hash') {
 	my $wcb = $wcb_get->('mboxo', $fn);
@@ -177,7 +183,7 @@ if ('default deduplication uses content_hash') {
 	undef $wcb; # undef to commit changes
 	my $cmp = '';
 	open my $fh, '<', $fn or BAIL_OUT $!;
-	PublicInbox::MboxReader->mboxo($fh, sub { $cmp .= shift->as_string });
+	PublicInbox::MboxReader->mboxo($fh, sub { $cmp .= $as_orig->(@_) });
 	is($cmp, $buf, 'only one message written');
 
 	local $lei->{opt} = { augment => 1 };
@@ -186,7 +192,7 @@ if ('default deduplication uses content_hash') {
 	undef $wcb; # undef to commit changes
 	open $fh, '<', $fn or BAIL_OUT $!;
 	my @x;
-	PublicInbox::MboxReader->mboxo($fh, sub { push @x, shift->as_string });
+	PublicInbox::MboxReader->mboxo($fh, sub { push @x, $as_orig->(@_) });
 	is(scalar(@x), 2, 'augmented mboxo');
 	is($x[0], $cmp, 'original message preserved');
 	is($x[1], $buf . "\nx\n", 'new message appended');
@@ -200,7 +206,7 @@ if ('default deduplication uses content_hash') {
 	undef $wcb; # commit
 	seek($tmp, 0, SEEK_SET) or BAIL_OUT $!;
 	my $cmp = '';
-	PublicInbox::MboxReader->mboxrd($tmp, sub { $cmp .= shift->as_string });
+	PublicInbox::MboxReader->mboxrd($tmp, sub { $cmp .= $as_orig->(@_) });
 	is($cmp, $buf, 'message written to stdout');
 }
 
@@ -213,7 +219,7 @@ SKIP: { # FIFO support
 	$wcb->(\(my $x = $buf), 'deadbeef', []);
 	undef $wcb; # commit
 	my $cmp = '';
-	PublicInbox::MboxReader->mboxo($cat, sub { $cmp .= shift->as_string });
+	PublicInbox::MboxReader->mboxo($cat, sub { $cmp .= $as_orig->(@_) });
 	is($cmp, $buf, 'message written to FIFO');
 }
 

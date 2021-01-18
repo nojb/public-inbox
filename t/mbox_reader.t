@@ -45,6 +45,8 @@ my $check_fmt = sub {
 	seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
 	$reader->$fmt($fh, sub {
 		my ($eml) = @_;
+		$eml->header_set('Status');
+		$eml->header_set('Lines');
 		my $cur = shift @order;
 		my @cl = $eml->header_raw('Content-Length');
 		if ($fmt =~ /\Amboxcl/) {

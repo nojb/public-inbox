@@ -34,7 +34,11 @@ my %kw2status = (
 sub _mbox_hdr_buf ($$$) {
 	my ($eml, $type, $kw) = @_;
 	$eml->header_set($_) for (qw(Lines Bytes Content-Length));
-	my %hdr; # set Status, X-Status
+
+	# Messages are always 'O' (non-\Recent in IMAP), it saves
+	# MUAs the trouble of rewriting the mbox if no other
+	# changes are made
+	my %hdr = (Status => [ 'O' ]); # set Status, X-Status
 	for my $k (@$kw) {
 		if (my $ent = $kw2status{$k}) {
 			push @{$hdr{$ent->[0]}}, $ent->[1];
@@ -92,6 +96,16 @@ sub eml2mboxo {
 	$buf;
 }
 
+sub _mboxcl_common ($$$) {
+	my ($buf, $bdy, $crlf) = @_;
+	# add Lines: so mutt won't have to add it on MUA close
+	my $lines = $$bdy =~ tr!\n!\n!;
+	$$buf .= 'Content-Length: '.length($$bdy).$crlf.
+		'Lines: '.$lines.$crlf.$crlf;
+	substr($$bdy, 0, 0, $$buf); # prepend header
+	$_[0] = $bdy;
+}
+
 # mboxcl still escapes "From " lines
 sub eml2mboxcl {
 	my ($eml, $kw) = @_;
@@ -99,9 +113,7 @@ sub eml2mboxcl {
 	my $crlf = $eml->{crlf};
 	if (my $bdy = delete $eml->{bdy}) {
 		$$bdy =~ s/^From />From /gm;
-		$$buf .= 'Content-Length: '.length($$bdy).$crlf.$crlf;
-		substr($$bdy, 0, 0, $$buf); # prepend header
-		$buf = $bdy;
+		_mboxcl_common($buf, $bdy, $crlf);
 	}
 	$$buf .= $crlf;
 	$buf;
@@ -113,9 +125,7 @@ sub eml2mboxcl2 {
 	my $buf = _mbox_hdr_buf($eml, 'mboxcl2', $kw);
 	my $crlf = $eml->{crlf};
 	if (my $bdy = delete $eml->{bdy}) {
-		$$buf .= 'Content-Length: '.length($$bdy).$crlf.$crlf;
-		substr($$bdy, 0, 0, $$buf); # prepend header
-		$buf = $bdy;
+		_mboxcl_common($buf, $bdy, $crlf);
 	}
 	$$buf .= $crlf;
 	$buf;
@@ -276,7 +286,11 @@ sub _buf2maildir {
 	} while (!sysopen($fh, $tmp, O_CREAT|O_EXCL|O_WRONLY) &&
 		$! == EEXIST && ($rand = int(rand 0x7fffffff).','));
 	if (print $fh $$buf and close($fh)) {
-		$dst .= $sfx eq '' ? 'new/' : 'cur/';
+		# ignore new/ and write only to cur/, otherwise MUAs
+		# with R/W access to the Maildir will end up doing
+		# a mass rename which can take a while with thousands
+		# of messages.
+		$dst .= 'cur/';
 		$rand = '';
 		do {
 			$final = $dst.$rand."oid=$oid:2,$sfx";
