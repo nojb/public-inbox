@@ -279,13 +279,21 @@ sub atfork_prepare_wq {
 	if (my $sock = $self->{sock}) {
 		push @$tcafc, @$self{qw(0 1 2)}, $sock;
 	}
+	for my $f (qw(lxs l2m)) {
+		my $ipc = $self->{$f} or next;
+		push @$tcafc, grep { defined }
+				@$ipc{qw(-wq_s1 -wq_s2 -ipc_req -ipc_res)};
+	}
 }
 
 # usage: my %sig = $lei->atfork_child_wq($wq);
 #	 local @SIG{keys %sig} = values %sig;
 sub atfork_child_wq {
 	my ($self, $wq) = @_;
-	@$self{qw(0 1 2 sock)} = delete(@$wq{0..3});
+	my ($sock, $l2m_wq_s1);
+	(@$self{qw(0 1 2)}, $sock, $l2m_wq_s1) = delete(@$wq{0..4});
+	$self->{sock} = $sock if -S $sock;
+	$self->{l2m}->{-wq_s1} = $l2m_wq_s1 if $l2m_wq_s1;
 	%PATH2CFG = ();
 	$quit = \&CORE::exit;
 	@TO_CLOSE_ATFORK_CHILD = ();
@@ -304,15 +312,23 @@ sub atfork_child_wq {
 # usage: ($lei, @io) = $lei->atfork_parent_wq($wq);
 sub atfork_parent_wq {
 	my ($self, $wq) = @_;
-	if ($wq->wq_workers) {
-		my $env = delete $self->{env}; # env is inherited at fork
-		my $ret = bless { %$self }, ref($self);
-		$self->{env} = $env;
-		delete @$ret{qw(-lei_store cfg pgr)};
-		($ret, delete @$ret{0..2}, delete($ret->{sock}) // ());
-	} else {
-		($self, @$self{0..2}, $self->{sock} // ());
+	my $env = delete $self->{env}; # env is inherited at fork
+	my $ret = bless { %$self }, ref($self);
+	if (my $dedupe = delete $ret->{dedupe}) {
+		$ret->{dedupe} = $wq->deep_clone($dedupe);
 	}
+	$self->{env} = $env;
+	delete @$ret{qw(-lei_store cfg pgr lxs)}; # keep l2m
+	my @io = delete @$ret{0..2};
+	$io[3] = delete($ret->{sock}) // *STDERR{GLOB};
+	my $l2m = $ret->{l2m};
+	if ($l2m && $l2m != $wq) {
+		$io[4] = $l2m->{-wq_s1} if $l2m->{-wq_s1};
+		if (my @pids = $l2m->wq_close) {
+			$wq->{l2m_pids} = \@pids;
+		}
+	}
+	($ret, @io);
 }
 
 sub _help ($;$) {
@@ -656,7 +672,7 @@ sub start_mua {
 	@cmd = map { $_ eq '%f' ? ($replaced = $mfolder) : $_ } @cmd;
 	push @cmd, $mfolder unless defined($replaced);
 	$sock //= $self->{sock};
-	if ($sock) { # lei(1) client process runs it
+	if ($PublicInbox::DS::in_loop) { # lei(1) client process runs it
 		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
 	} else { # oneshot
 		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);

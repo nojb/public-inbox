@@ -41,11 +41,17 @@ sub lei_q {
 	$j = 1 if !$opt->{thread};
 	$j++ if $opt->{'local'}; # for sto->search below
 	$self->atfork_prepare_wq($lxs);
-	$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset)
-		// $lxs->wq_workers($j);
+	$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset);
+	$self->{lxs} = $lxs;
+
+	my $ovv = PublicInbox::LeiOverview->new($self) or return;
+	if (my $l2m = $self->{l2m}) {
+		$j = 4 if $j <= 4; # TODO configurable
+		$self->atfork_prepare_wq($l2m);
+		$l2m->wq_workers_start('lei2mail', $j, $self->oldset);
+	}
 
 	# no forking workers after this
-	my $ovv = PublicInbox::LeiOverview->new($self) or return;
 	my $sto = $self->_lei_store(1);
 	unshift(@srcs, $sto->search) if $opt->{'local'};
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);

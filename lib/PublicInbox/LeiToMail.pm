@@ -5,6 +5,7 @@
 package PublicInbox::LeiToMail;
 use strict;
 use v5.10.1;
+use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
 use PublicInbox::Lock;
 use PublicInbox::ProcessPipe;
@@ -14,6 +15,7 @@ use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
 use Errno qw(EEXIST ESPIPE ENOENT);
+use PublicInbox::Git;
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -420,6 +422,32 @@ sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
 
 sub lock_free {
 	$_[0]->{base_type} =~ /\A(?:maildir|mh|imap|jmap)\z/ ? 1 : 0;
+}
+
+sub write_mail { # via ->wq_do
+	my ($self, $git_dir, $oid, $lei, $kw) = @_;
+	my $wcb = $self->{wcb} //= do { # first message
+		my %sig = $lei->atfork_child_wq($self);
+		@SIG{keys %sig} = values %sig; # not local
+		$lei->{dedupe}->prepare_dedupe;
+		$self->write_cb($lei);
+	};
+	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
+	$git->cat_async($oid, \&git_to_mail, [ $wcb, $kw ]);
+}
+
+sub ipc_atfork_prepare {
+	my ($self) = @_;
+	# (qry_status_wr, stdout|mbox, stderr, 3: sock, 4: each_smsg_done_wr)
+	$self->wq_set_recv_modes(qw[+<&= >&= >&= +<&= >&=]);
+	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
+}
+
+sub DESTROY {
+	my ($self) = @_;
+	for my $pid_git (grep(/\A$$\0/, keys %$self)) {
+		$self->{$pid_git}->async_wait_all;
+	}
 }
 
 1;

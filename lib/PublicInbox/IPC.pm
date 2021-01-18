@@ -397,4 +397,7 @@ sub DESTROY {
 	ipc_worker_stop($self);
 }
 
+# Sereal doesn't have dclone
+sub deep_clone { thaw(freeze($_[-1])) }
+
 1;
