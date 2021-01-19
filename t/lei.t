@@ -232,6 +232,8 @@ my $test_external = sub {
 		my @res = $cat->();
 		is_deeply(\@res, [], "clobber w/o --augment $sfx");
 	}
+	ok(!$lei->('q', '-o', "$home/mbox", 's:nope'),
+			'fails if mbox format unspecified');
 };
 
 my $test_lei_common = sub {

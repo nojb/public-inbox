@@ -38,6 +38,21 @@ sub ovv_out_lk_cancel ($) {
 		unlink(delete($self->{lock_path}));
 }
 
+sub detect_fmt ($$) {
+	my ($lei, $dst) = @_;
+	if ($dst =~ m!\A([:/]+://)!) {
+		$lei->fail("$1 support not implemented, yet\n");
+	} elsif (!-e $dst) {
+		'maildir'; # the default
+	} elsif (-f _ || -p _) {
+		$lei->fail("unable to determine mbox family of $dst\n");
+	} elsif (-d _) { # TODO: MH?
+		'maildir';
+	} else {
+		$lei->fail("unable to determine format of $dst\n");
+	}
+}
+
 sub new {
 	my ($class, $lei) = @_;
 	my $opt = $lei->{opt};
@@ -54,7 +69,7 @@ sub new {
 
 	}
 	$fmt //= 'json' if $dst eq '/dev/stdout';
-	$fmt //= 'maildir';
+	$fmt //= detect_fmt($lei, $dst) or return;
 
 	if (index($dst, '://') < 0) { # not a URL, so assume path
 		 $dst = File::Spec->canonpath($dst);
