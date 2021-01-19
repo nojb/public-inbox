@@ -440,6 +440,7 @@ sub lock_free {
 
 sub write_mail { # via ->wq_do
 	my ($self, $git_dir, $oid, $lei, $kw) = @_;
+	my $not_done = delete $self->{4}; # write end of {each_smsg_done}
 	my $wcb = $self->{wcb} //= do { # first message
 		my %sig = $lei->atfork_child_wq($self);
 		@SIG{keys %sig} = values %sig; # not local
@@ -447,7 +448,7 @@ sub write_mail { # via ->wq_do
 		$self->write_cb($lei);
 	};
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
-	$git->cat_async($oid, \&git_to_mail, [ $wcb, $kw ]);
+	$git->cat_async($oid, \&git_to_mail, [ $wcb, $kw, $not_done ]);
 }
 
 sub ipc_atfork_prepare {

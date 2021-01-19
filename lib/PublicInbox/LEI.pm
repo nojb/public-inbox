@@ -293,7 +293,7 @@ sub atfork_child_wq {
 	my ($sock, $l2m_wq_s1);
 	(@$self{qw(0 1 2)}, $sock, $l2m_wq_s1) = delete(@$wq{0..4});
 	$self->{sock} = $sock if -S $sock;
-	$self->{l2m}->{-wq_s1} = $l2m_wq_s1 if $l2m_wq_s1;
+	$self->{l2m}->{-wq_s1} = $l2m_wq_s1 if $l2m_wq_s1 && -S $l2m_wq_s1;
 	%PATH2CFG = ();
 	$quit = \&CORE::exit;
 	@TO_CLOSE_ATFORK_CHILD = ();
