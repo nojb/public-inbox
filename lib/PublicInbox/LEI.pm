@@ -301,10 +301,13 @@ sub atfork_child_wq {
 	PIPE => sub {
 		$self->x_it(13); # SIGPIPE = 13
 		# we need to close explicitly to avoid Perl warning on SIGPIPE
-		close(delete $self->{1});
-		# regular files and /dev/null (-c) won't trigger SIGPIPE
-		close(delete $self->{2}) unless (-f $self->{2} || -c _);
-		syswrite($self->{0}, '!') unless $self->{sock}; # for eof_wait
+		for my $i (1, 2) {
+			next unless $self->{$i} && (-p $self->{$i} || -S _);
+			close(delete $self->{$i});
+		}
+		# trigger the LeiXSearch $done OpPipe:
+		syswrite($self->{0}, '!') if $self->{0} && -p $self->{0};
+		$SIG{PIPE} = 'DEFAULT';
 		die bless(\"$_[0]", 'PublicInbox::SIGPIPE'),
 	});
 }
@@ -322,7 +325,7 @@ sub atfork_parent_wq {
 	my @io = delete @$ret{0..2};
 	$io[3] = delete($ret->{sock}) // *STDERR{GLOB};
 	my $l2m = $ret->{l2m};
-	if ($l2m && $l2m != $wq) {
+	if ($l2m && $l2m != $wq) { # $wq == lxs
 		$io[4] = $l2m->{-wq_s1} if $l2m->{-wq_s1};
 		if (my @pids = $l2m->wq_close) {
 			$wq->{l2m_pids} = \@pids;
@@ -672,7 +675,7 @@ sub start_mua {
 	@cmd = map { $_ eq '%f' ? ($replaced = $mfolder) : $_ } @cmd;
 	push @cmd, $mfolder unless defined($replaced);
 	$sock //= $self->{sock};
-	if ($PublicInbox::DS::in_loop) { # lei(1) client process runs it
+	if ($sock) { # lei(1) client process runs it
 		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
 	} else { # oneshot
 		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);

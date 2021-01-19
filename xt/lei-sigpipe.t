@@ -11,19 +11,22 @@ require_mods(qw(json DBD::SQLite Search::Xapian));
 
 my $do_test = sub {
 	my $env = shift // {};
-	pipe(my ($r, $w)) or BAIL_OUT $!;
-	open my $err, '+>', undef or BAIL_OUT $!;
-	my $opt = { run_mode => 0, 1 => $w, 2 => $err };
-	my $tp = start_script([qw(lei q -t), 'bytes:1..'], $env, $opt);
-	close $w;
-	sysread($r, my $buf, 1);
-	close $r; # trigger SIGPIPE
-	$tp->join;
-	ok(WIFSIGNALED($?), 'signaled');
-	is(WTERMSIG($?), SIGPIPE, 'got SIGPIPE');
-	seek($err, 0, 0);
-	my @err = grep(!m{mkdir /dev/null\b}, <$err>);
-	is_deeply(\@err, [], 'no errors');
+	for my $out ([], [qw(-f mboxcl2)]) {
+		pipe(my ($r, $w)) or BAIL_OUT $!;
+		open my $err, '+>', undef or BAIL_OUT $!;
+		my $opt = { run_mode => 0, 1 => $w, 2 => $err };
+		my $cmd = [qw(lei q -t), @$out, 'bytes:1..'];
+		my $tp = start_script($cmd, $env, $opt);
+		close $w;
+		sysread($r, my $buf, 1);
+		close $r; # trigger SIGPIPE
+		$tp->join;
+		ok(WIFSIGNALED($?), "signaled @$out");
+		is(WTERMSIG($?), SIGPIPE, "got SIGPIPE @$out");
+		seek($err, 0, 0);
+		my @err = grep(!m{mkdir /dev/null\b}, <$err>);
+		is_deeply(\@err, [], "no errors @$out");
+	}
 };
 
 $do_test->();

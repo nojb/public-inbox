@@ -247,11 +247,16 @@ sub _mbox_write_cb ($$) {
 	$dedupe->prepare_dedupe;
 	sub { # for git_to_mail
 		my ($buf, $oid, $kw) = @_;
+		return unless $out;
 		my $eml = PublicInbox::Eml->new($buf);
 		if (!$dedupe->is_dup($eml, $oid)) {
 			$buf = $eml2mbox->($eml, $kw);
 			my $lk = $ovv->lock_for_scope;
-			$write->($out, $buf);
+			eval { $write->($out, $buf) };
+			if ($@) {
+				die $@ if ref($@) ne 'PublicInbox::SIGPIPE';
+				undef $out
+			}
 		}
 	}
 }
