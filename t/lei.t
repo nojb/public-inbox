@@ -234,18 +234,14 @@ if ($ENV{TEST_LEI_ONESHOT}) {
 	local $ENV{XDG_RUNTIME_DIR} = $xrd;
 	$err_filter = qr!\Q$xrd!;
 	$test_lei_common->();
-}
-
+} else {
 SKIP: { # real socket
-	require_mods(qw(Cwd), my $nr = 105);
-	my $nfd = eval { require Socket::MsgHdr; 5 } // do {
+	eval { require Socket::MsgHdr; 1 } // do {
 		require PublicInbox::Spawn;
-		PublicInbox::Spawn->can('send_cmd4') ? 5 : undef;
-	} //
-	skip 'Socket::MsgHdr or Inline::C missing or unconfigured', $nr;
-
+		PublicInbox::Spawn->can('send_cmd4');
+	} // skip 'Socket::MsgHdr or Inline::C missing or unconfigured', 115;
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
-	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/$nfd.seq.sock";
+	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/5.seq.sock";
 
 	ok($lei->('daemon-pid'), 'daemon-pid');
 	is($err, '', 'no error from daemon-pid');
@@ -297,6 +293,7 @@ SKIP: { # real socket
 	}
 	ok(!kill(0, $new_pid), 'daemon exits after unlink');
 	# success over socket, can't test without
-};
+}; # SKIP
+} # else
 
 done_testing;
