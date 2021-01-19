@@ -439,10 +439,6 @@ sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
 	$self->$m($lei);
 }
 
-sub lock_free {
-	$_[0]->{base_type} =~ /\A(?:maildir|mh|imap|jmap)\z/ ? 1 : 0;
-}
-
 sub write_mail { # via ->wq_do
 	my ($self, $git_dir, $oid, $lei, $kw) = @_;
 	my $not_done = delete $self->{4}; # write end of {each_smsg_done}

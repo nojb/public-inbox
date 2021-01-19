@@ -191,7 +191,7 @@ sub query_done { # EOF callback
 		dwaitpid($_, $ipc_worker_reap, $l2m) for @$pids;
 	}
 	$lei->{ovv}->ovv_end($lei);
-	$lei->start_mua if $l2m && !$l2m->lock_free;
+	$lei->start_mua if $l2m;
 	$lei->dclose;
 }
 
@@ -201,7 +201,6 @@ sub start_query { # always runs in main (lei-daemon) process
 		$lei->{1} = $io->[1];
 		$l2m->post_augment($lei);
 		$io->[1] = delete $lei->{1};
-		$lei->start_mua($io->[3]) if $l2m->lock_free;
 	}
 	my $remotes = $self->{remotes} // [];
 	if ($lei->{opt}->{thread}) {
