@@ -181,6 +181,20 @@ my $test_external = sub {
 	$lei->('ls-external');
 	like($out, qr/boost=0\n/s, 'ls-external has output');
 
+	ok(!$lei->(qw(q s:prefix -o /dev/null -f maildir)), 'bad maildir');
+	like($err, qr!/dev/null exists and is not a directory!,
+		'error shown');
+	is($? >> 8, 1, 'errored out with exit 1');
+
+	ok(!$lei->(qw(q s:prefix -f mboxcl2 -o), $home), 'bad mbox');
+	like($err, qr!\Q$home\E exists and is not a regular file!,
+		'error shown');
+	is($? >> 8, 1, 'errored out with exit 1');
+
+	ok(!$lei->(qw(q s:prefix -o /dev/stdout -f Mbox2)), 'bad format');
+	like($err, qr/bad mbox --format=mbox2/, 'error shown');
+	is($? >> 8, 1, 'errored out with exit 1');
+
 	# note, on a Bourne shell users should be able to use either:
 	#	s:"use boolean prefix"
 	#	"s:use boolean prefix"

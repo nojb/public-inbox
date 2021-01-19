@@ -82,7 +82,8 @@ sub new {
 	if (!$json) {
 		# default to the cheapest sort since MUA usually resorts
 		$lei->{opt}->{'sort'} //= 'docid' if $dst ne '/dev/stdout';
-		$lei->{l2m} = PublicInbox::LeiToMail->new($lei);
+		$lei->{l2m} = eval { PublicInbox::LeiToMail->new($lei) };
+		return $lei->fail($@) if $@;
 	}
 	$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
 	$self;

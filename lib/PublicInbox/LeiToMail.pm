@@ -339,8 +339,12 @@ sub new {
 	my $self = bless {}, $cls;
 	if ($fmt eq 'maildir') {
 		$self->{base_type} = 'maildir';
+		-e $dst && !-d _ and die
+				"$dst exists and is not a directory\n";
 		$lei->{ovv}->{dst} = $dst .= '/' if substr($dst, -1) ne '/';
 	} elsif (substr($fmt, 0, 4) eq 'mbox') {
+		-e $dst && !-f _ && !-p _ and die
+				"$dst exists and is not a regular file\n";
 		$self->can("eml2$fmt") or die "bad mbox --format=$fmt\n";
 		$self->{base_type} = 'mbox';
 	} else {
@@ -374,7 +378,7 @@ sub _post_augment_maildir {
 		my $d = $dst.$x;
 		next if -d $d;
 		require File::Path;
-		File::Path::mkpath($d) or die "mkpath($d): $!";
+		File::Path::mkpath($d);
 		-d $d or die "$d is not a directory";
 	}
 }

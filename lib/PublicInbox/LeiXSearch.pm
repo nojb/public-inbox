@@ -201,7 +201,14 @@ sub query_done { # EOF callback
 sub do_post_augment {
 	my ($lei, $zpipe, $au_done) = @_;
 	my $l2m = $lei->{l2m} or die 'BUG: no {l2m}';
-	$l2m->post_augment($lei, $zpipe);
+	eval { $l2m->post_augment($lei, $zpipe) };
+	if (my $err = $@) {
+		if (my $lxs = delete $lei->{lxs}) {
+			$lxs->wq_kill;
+			$lxs->wq_close;
+		}
+		$lei->fail("$err");
+	}
 	close $au_done; # triggers wait_startq
 }
 
