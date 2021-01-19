@@ -830,7 +830,9 @@ sub lazy_start {
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
 	(-p STDOUT) or die "E: stdout must be a pipe\n";
-	open(STDIN, '+<', '/dev/null') or die "redirect stdin failed: $!";
+	my ($err) = ($path =~ m!\A(.+?/)[^/]+\z!);
+	$err .= 'errors.log';
+	open(STDIN, '+>>', $err) or die "open($err): $!";
 	POSIX::setsid() > 0 or die "setsid: $!";
 	my $pid = fork // die "fork: $!";
 	return if $pid;
