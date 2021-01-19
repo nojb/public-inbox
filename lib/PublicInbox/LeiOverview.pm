@@ -99,12 +99,13 @@ sub ovv_begin {
 # called once by parent (via PublicInbox::EOFpipe)
 sub ovv_end {
 	my ($self, $lei) = @_;
+	my $out = $lei->{1} or return;
 	if ($self->{fmt} eq 'json') {
 		# JSON doesn't allow trailing commas, and preventing
 		# trailing commas is a PITA when parallelizing outputs
-		print { $lei->{1} } "null]\n";
+		print $out "null]\n";
 	} elsif ($self->{fmt} eq 'concatjson') {
-		print { $lei->{1} } "\n";
+		print $out "\n";
 	}
 }
 
