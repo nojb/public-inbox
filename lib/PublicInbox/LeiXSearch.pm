@@ -191,17 +191,22 @@ sub query_done { # EOF callback
 		dwaitpid($_, $ipc_worker_reap, $l2m) for @$pids;
 	}
 	$lei->{ovv}->ovv_end($lei);
-	$lei->start_mua if $l2m;
+	if ($l2m) { # calls LeiToMail reap_compress
+		close(delete($lei->{1})) if $lei->{1};
+		$lei->start_mua;
+	}
 	$lei->dclose;
+}
+
+sub do_post_augment {
+	my ($lei, $zpipe, $au_done) = @_;
+	my $l2m = $lei->{l2m} or die 'BUG: no {l2m}';
+	$l2m->post_augment($lei, $zpipe);
+	close $au_done; # triggers wait_startq
 }
 
 sub start_query { # always runs in main (lei-daemon) process
 	my ($self, $io, $lei, $srcs) = @_;
-	if (my $l2m = $lei->{l2m}) {
-		$lei->{1} = $io->[1];
-		$l2m->post_augment($lei);
-		$io->[1] = delete $lei->{1};
-	}
 	my $remotes = $self->{remotes} // [];
 	if ($lei->{opt}->{thread}) {
 		for my $ibxish (@$srcs) {
@@ -221,9 +226,11 @@ sub start_query { # always runs in main (lei-daemon) process
 sub query_prepare { # called by wq_do
 	my ($self, $lei) = @_;
 	my %sig = $lei->atfork_child_wq($self);
+	-p $lei->{0} or die "BUG: \$done pipe expected";
 	local @SIG{keys %sig} = values %sig;
 	eval { $lei->{l2m}->do_augment($lei) };
 	$lei->fail($@) if $@;
+	syswrite($lei->{0}, '.') == 1 or die "do_post_augment trigger: $!";
 }
 
 sub sigpipe_handler {
@@ -253,26 +260,31 @@ sub do_query {
 	$done = PublicInbox::OpPipe->new($done, $done_op, $in_loop);
 	my $l2m = $lei->{l2m};
 	if ($l2m) {
-		$l2m->pre_augment($lei_orig); # may redirect $lei->{1} for mbox
+		# may redirect $lei->{1} for mbox
+		my $zpipe = $l2m->pre_augment($lei_orig);
 		$io[1] = $lei_orig->{1};
-		my @l2m_io = (undef, @io[1..$#io]);
-		pipe(my $startq, $l2m_io[0]) or die "pipe: $!";
-		$self->wq_do('query_prepare', \@l2m_io, $lei);
+		pipe(my ($startq, $au_done)) or die "pipe: $!";
+		$done_op->{'.'} = [ \&do_post_augment, $lei_orig,
+					$zpipe, $au_done ];
 		$io[4] = *STDERR{GLOB}; # don't send l2m->{-wq_s1}
+		$self->wq_do('query_prepare', \@io, $lei);
 		die "BUG: unexpected \$io[5]: $io[5]" if $io[5];
 		fcntl($startq, 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
 		$io[5] = $startq;
+		$io[1] = $zpipe->[1] if $zpipe;
 	}
 	start_query($self, \@io, $lei, $srcs);
 	unless ($in_loop) {
 		my @pids = $self->wq_close;
 		# for the $lei->atfork_child_wq PIPE handler:
 		$done_op->{'!'}->[3] = \@pids;
-		$done->event_step;
+		# $done->event_step;
+		# my $ipc_worker_reap = $self->can('ipc_worker_reap');
+		# if (my $l2m_pids = delete $self->{l2m_pids}) {
+			# dwaitpid($_, $ipc_worker_reap, $l2m) for @$l2m_pids;
+		# }
+		while ($done->{sock}) { $done->event_step }
 		my $ipc_worker_reap = $self->can('ipc_worker_reap');
-		if (my $l2m_pids = delete $self->{l2m_pids}) {
-			dwaitpid($_, $ipc_worker_reap, $l2m) for @$l2m_pids;
-		}
 		dwaitpid($_, $ipc_worker_reap, $self) for @pids;
 	}
 }

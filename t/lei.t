@@ -189,25 +189,35 @@ my $test_external = sub {
 	# No double-quoting should be imposed on users on the CLI
 	$lei->('q', 's:use boolean prefix');
 	like($out, qr/search: use boolean prefix/, 'phrase search got result');
+	require IO::Uncompress::Gunzip;
+	for my $sfx ('', '.gz') {
+		my $f = "$home/mbox$sfx";
+		$lei->('q', '-o', "mboxcl2:$f", 's:use boolean prefix');
+		my $cat = $sfx eq '' ? sub {
+			open my $mb, '<', $f or fail "no mbox: $!";
+			<$mb>
+		} : sub {
+			my $z = IO::Uncompress::Gunzip->new($f, MultiStream=>1);
+			<$z>;
+		};
+		my @s = grep(/^Subject:/, $cat->());
+		is(scalar(@s), 1, "1 result in mbox$sfx");
+		$lei->('q', '-a', '-o', "mboxcl2:$f", 's:see attachment');
+		is($err, '', 'no errors from augment');
+		@s = grep(/^Subject:/, my @wtf = $cat->());
+		is(scalar(@s), 2, "2 results in mbox$sfx");
 
-	$lei->('q', '-o', "mboxcl2:$home/mbox", 's:use boolean prefix');
-	open my $mb, '<', "$home/mbox" or fail "no mbox: $!";
-	my @s = grep(/^Subject:/, <$mb>);
-	is(scalar(@s), 1, '1 result in mbox');
-	$lei->('q', '-a', '-o', "mboxcl2:$home/mbox", 's:see attachment');
-	is($err, '', 'no errors from augment');
-	seek($mb, 0, SEEK_SET) or BAIL_OUT "seek: $!";
-	@s = grep(/^Subject:/, <$mb>);
-	is(scalar(@s), 2, '2 results in mbox');
+		$lei->('q', '-a', '-o', "mboxcl2:$f", 's:nonexistent');
+		is($err, '', "no errors on no results ($sfx)");
 
-	$lei->('q', '-a', '-o', "mboxcl2:$home/mbox", 's:nonexistent');
-	is($err, '', 'no errors on no results');
-	seek($mb, 0, SEEK_SET) or BAIL_OUT "seek: $!";
-	my @s2 = grep(/^Subject:/, <$mb>);
-	is_deeply(\@s2, \@s, 'same 2 old results w/ --augment and bad search');
+		my @s2 = grep(/^Subject:/, $cat->());
+		is_deeply(\@s2, \@s,
+			"same 2 old results w/ --augment and bad search $sfx");
 
-	$lei->('q', '-o', "mboxcl2:$home/mbox", 's:nonexistent');
-	is(-s "$home/mbox", 0, 'clobber w/o --augment');
+		$lei->('q', '-o', "mboxcl2:$f", 's:nonexistent');
+		my @res = $cat->();
+		is_deeply(\@res, [], "clobber w/o --augment $sfx");
+	}
 };
 
 my $test_lei_common = sub {

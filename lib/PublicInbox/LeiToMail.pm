@@ -200,18 +200,19 @@ sub zsfx2cmd ($$$) {
 }
 
 sub _post_augment_mbox { # open a compressor process
-	my ($self, $lei) = @_;
+	my ($self, $lei, $zpipe) = @_;
 	my $zsfx = $self->{zsfx} or return;
 	my $cmd = zsfx2cmd($zsfx, undef, $lei);
-	pipe(my ($r, $w)) or die "pipe: $!";
+	my ($r, $w) = splice(@$zpipe, 0, 2);
 	my $rdr = { 0 => $r, 1 => $lei->{1}, 2 => $lei->{2} };
 	my $pid = spawn($cmd, $lei->{env}, $rdr);
-	$lei->{"pid.$pid"} = $cmd;
 	my $pp = gensym;
-	tie *$pp, 'PublicInbox::ProcessPipe', $pid, $w, \&reap_compress, $lei;
+	my $dup = bless { "pid.$pid" => $cmd }, ref($lei);
+	$dup->{$_} = $lei->{$_} for qw(2 sock);
+	tie *$pp, 'PublicInbox::ProcessPipe', $pid, $w, \&reap_compress, $dup;
 	$lei->{1} = $pp;
 	die 'BUG: unexpected {ovv}->{lock_path}' if $lei->{ovv}->{lock_path};
-	$lei->{ovv}->ovv_out_lk_init if ($lei->{opt}->{jobs} // 2) > 1;
+	$lei->{ovv}->ovv_out_lk_init;
 }
 
 sub decompress_src ($$$) {
@@ -395,7 +396,9 @@ sub _pre_augment_mbox {
 		die "seek($dst): $!\n";
 	}
 	state $zsfx_allow = join('|', keys %zsfx2cmd);
-	($self->{zsfx}) = ($dst =~ /\.($zsfx_allow)\z/);
+	($self->{zsfx}) = ($dst =~ /\.($zsfx_allow)\z/) or return;
+	pipe(my ($r, $w)) or die "pipe: $!";
+	[ $r, $w ];
 }
 
 sub _do_augment_mbox {
@@ -433,10 +436,10 @@ sub do_augment { # slow, runs in wq worker
 }
 
 sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
-	my ($self, $lei) = @_;
+	my ($self, $lei, @args) = @_;
 	# _post_augment_maildir, _post_augment_mbox
 	my $m = "_post_augment_$self->{base_type}";
-	$self->$m($lei);
+	$self->$m($lei, @args);
 }
 
 sub write_mail { # via ->wq_do

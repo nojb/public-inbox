@@ -758,6 +758,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 sub dclose {
 	my ($self) = @_;
 	delete $self->{lxs}; # stops LeiXSearch queries
+	close(delete $self->{1}) if $self->{1}; # may reap_compress
 	$self->close if $self->{sock}; # PublicInbox::DS::close
 }
 
