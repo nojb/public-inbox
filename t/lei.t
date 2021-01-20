@@ -258,6 +258,7 @@ SKIP: { # real socket
 	} // skip 'Socket::MsgHdr or Inline::C missing or unconfigured', 115;
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/5.seq.sock";
+	my $err_log = "$ENV{XDG_RUNTIME_DIR}/lei/errors.log";
 
 	ok($lei->('daemon-pid'), 'daemon-pid');
 	is($err, '', 'no error from daemon-pid');
@@ -267,10 +268,15 @@ SKIP: { # real socket
 	ok(-S $sock, 'sock created');
 
 	$test_lei_common->();
+	is(-s $err_log, 0, 'nothing in errors.log');
+	open my $efh, '>>', $err_log or BAIL_OUT $!;
+	print $efh "phail\n" or BAIL_OUT $!;
+	close $efh or BAIL_OUT $!;
 
 	ok($lei->('daemon-pid'), 'daemon-pid');
 	chomp(my $pid_again = $out);
 	is($pid, $pid_again, 'daemon-pid idempotent');
+	like($err, qr/phail/, 'got mock "phail" error previous run');
 
 	ok($lei->(qw(daemon-kill)), 'daemon-kill');
 	is($out, '', 'no output from daemon-kill');

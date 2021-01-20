@@ -15,6 +15,7 @@ use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
 use Errno qw(EAGAIN EINTR ECONNREFUSED ENOENT ECONNRESET);
 use POSIX ();
 use IO::Handle ();
+use Fcntl qw(SEEK_SET);
 use Sys::Syslog qw(syslog openlog);
 use PublicInbox::Config;
 use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLET);
@@ -26,7 +27,7 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-our $current_lei;
+our ($current_lei, $errors_log);
 my ($recv_cmd, $send_cmd);
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
@@ -246,6 +247,7 @@ sub x_it ($$) {
 	my ($self, $code) = @_;
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
+	dump_and_clear_log();
 	if (my $sock = $self->{sock}) {
 		send($sock, "x_it $code", MSG_EOR);
 	} elsif (!($code & 127)) { # oneshot, ignore signals
@@ -264,7 +266,7 @@ sub out ($;@) { print { shift->{1} } @_ }
 
 sub err ($;@) {
 	my $self = shift;
-	my $err = $self->{2} // *STDERR{IO};
+	my $err = $self->{2} // ($self->{pgr} // [])->[2] // *STDERR{IO};
 	print $err @_, (substr($_[-1], -1, 1) eq "\n" ? () : "\n");
 }
 
@@ -300,6 +302,7 @@ sub atfork_child_wq {
 	$self->{sock} = $sock if -S $sock;
 	$self->{l2m}->{-wq_s1} = $l2m_wq_s1 if $l2m_wq_s1 && -S $l2m_wq_s1;
 	%PATH2CFG = ();
+	undef $errors_log;
 	$quit = \&CORE::exit;
 	@TO_CLOSE_ATFORK_CHILD = ();
 	(__WARN__ => sub { err($self, @_) },
@@ -483,6 +486,7 @@ sub optparse ($$$) {
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
 	local $current_lei = $self; # for __WARN__
+	dump_and_clear_log("from previous run\n");
 	return _help($self, 'no command given') unless defined($cmd);
 	my $func = "lei_$cmd";
 	$func =~ tr/-/_/;
@@ -772,6 +776,7 @@ sub event_step {
 	my ($self) = @_;
 	local %ENV = %{$self->{env}};
 	my $sock = $self->{sock};
+	local $current_lei = $self;
 	eval {
 		while (my @fds = $recv_cmd->($sock, my $buf, 4096)) {
 			if (scalar(@fds) == 1 && !defined($fds[0])) {
@@ -805,6 +810,15 @@ sub noop {}
 
 our $oldset; sub oldset { $oldset }
 
+sub dump_and_clear_log {
+	if (defined($errors_log) && -s STDIN && seek(STDIN, 0, SEEK_SET)) {
+		my @pfx = @_;
+		unshift(@pfx, "$errors_log ") if @pfx;
+		warn @pfx, do { local $/; <STDIN> };
+		truncate(STDIN, 0) or warn "ftruncate ($errors_log): $!";
+	}
+}
+
 # lei(1) calls this when it can't connect
 sub lazy_start {
 	my ($path, $errno, $narg) = @_;
@@ -836,9 +850,12 @@ sub lazy_start {
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
 	(-p STDOUT) or die "E: stdout must be a pipe\n";
-	my ($err) = ($path =~ m!\A(.+?/)[^/]+\z!);
-	$err .= 'errors.log';
-	open(STDIN, '+>>', $err) or die "open($err): $!";
+	local $errors_log;
+	($errors_log) = ($path =~ m!\A(.+?/)[^/]+\z!);
+	$errors_log .= 'errors.log';
+	open(STDIN, '+>>', $errors_log) or die "open($errors_log): $!";
+	STDIN->autoflush(1);
+	dump_and_clear_log("from previous daemon process:\n");
 	POSIX::setsid() > 0 or die "setsid: $!";
 	my $pid = fork // die "fork: $!";
 	return if $pid;
