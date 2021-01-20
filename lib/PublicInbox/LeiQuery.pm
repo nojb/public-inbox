@@ -23,14 +23,15 @@ sub _vivify_external { # _externals_each callback
 # the main "lei q SEARCH_TERMS" method
 sub lei_q {
 	my ($self, @argv) = @_;
-	my $opt = $self->{opt};
-
-	# --local is enabled by default
-	# src: LeiXSearch || LeiSearch || Inbox
-	my @srcs;
 	require PublicInbox::LeiXSearch;
 	require PublicInbox::LeiOverview;
-	PublicInbox::Config->json;
+	PublicInbox::Config->json; # preload before forking
+	my $opt = $self->{opt};
+	my @srcs; # any number of LeiXSearch || LeiSearch || Inbox
+	if ($opt->{'local'} //= 1) { # --local is enabled by default
+		my $sto = $self->_lei_store(1);
+		push @srcs, $sto->search;
+	}
 	my $lxs = PublicInbox::LeiXSearch->new;
 
 	# --external is enabled by default, but allow --no-external
@@ -39,7 +40,6 @@ sub lei_q {
 	}
 	my $j = $opt->{jobs} // (scalar(@srcs) > 3 ? 3 : scalar(@srcs));
 	$j = 1 if !$opt->{thread};
-	$j++ if $opt->{'local'}; # for sto->search below
 	$self->atfork_prepare_wq($lxs);
 	$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset);
 	$self->{lxs} = $lxs;
@@ -50,10 +50,8 @@ sub lei_q {
 		$self->atfork_prepare_wq($l2m);
 		$l2m->wq_workers_start('lei2mail', $j, $self->oldset);
 	}
-
 	# no forking workers after this
-	my $sto = $self->_lei_store(1);
-	unshift(@srcs, $sto->search) if $opt->{'local'};
+
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
 	$mset_opt{qstr} = join(' ', map {;
