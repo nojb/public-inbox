@@ -187,7 +187,7 @@ my $test_external = sub {
 	is($? >> 8, 1, 'errored out with exit 1');
 
 	ok(!$lei->(qw(q s:prefix -f mboxcl2 -o), $home), 'bad mbox');
-	like($err, qr!\Q$home\E exists and is not a regular file!,
+	like($err, qr!\Q$home\E exists and is not a writable file!,
 		'error shown');
 	is($? >> 8, 1, 'errored out with exit 1');
 

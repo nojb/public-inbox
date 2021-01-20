@@ -343,8 +343,8 @@ sub new {
 				"$dst exists and is not a directory\n";
 		$lei->{ovv}->{dst} = $dst .= '/' if substr($dst, -1) ne '/';
 	} elsif (substr($fmt, 0, 4) eq 'mbox') {
-		-e $dst && !-f _ && !-p _ and die
-				"$dst exists and is not a regular file\n";
+		(-d $dst || (-e _ && !-w _)) and die
+			"$dst exists and is not a writable file\n";
 		$self->can("eml2$fmt") or die "bad mbox --format=$fmt\n";
 		$self->{base_type} = 'mbox';
 	} else {

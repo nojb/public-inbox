@@ -42,12 +42,10 @@ sub detect_fmt ($$) {
 	my ($lei, $dst) = @_;
 	if ($dst =~ m!\A([:/]+://)!) {
 		$lei->fail("$1 support not implemented, yet\n");
-	} elsif (!-e $dst) {
-		'maildir'; # the default
+	} elsif (!-e $dst || -d _) {
+		'maildir'; # the default TODO: MH?
 	} elsif (-f _ || -p _) {
 		$lei->fail("unable to determine mbox family of $dst\n");
-	} elsif (-d _) { # TODO: MH?
-		'maildir';
 	} else {
 		$lei->fail("unable to determine format of $dst\n");
 	}
