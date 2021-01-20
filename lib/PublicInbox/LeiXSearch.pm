@@ -273,9 +273,9 @@ sub do_query {
 		pipe(my ($startq, $au_done)) or die "pipe: $!";
 		$done_op->{'.'} = [ \&do_post_augment, $lei_orig,
 					$zpipe, $au_done ];
-		$io[4] = *STDERR{GLOB}; # don't send l2m->{-wq_s1}
-		$self->wq_do('query_prepare', \@io, $lei);
+		local $io[4] = *STDERR{GLOB}; # don't send l2m->{-wq_s1}
 		die "BUG: unexpected \$io[5]: $io[5]" if $io[5];
+		$self->wq_do('query_prepare', \@io, $lei);
 		fcntl($startq, 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
 		$io[5] = $startq;
 		$io[1] = $zpipe->[1] if $zpipe;
