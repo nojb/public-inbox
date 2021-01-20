@@ -537,7 +537,7 @@ sub eidx_prep ($) {
 	my ($self) = @_;
 	$self->{-eidx_prep} //= do {
 		my $dbh = $self->dbh;
-		$dbh->do(<<"");
+		$dbh->do(<<'');
 INSERT OR IGNORE INTO counter (key) VALUES ('eidx_docid')
 
 		$dbh->do(<<'');
@@ -574,11 +574,9 @@ CREATE TABLE IF NOT EXISTS eidx_meta (
 		# Currently used for "-extindex --reindex" for Xapian
 		# data, but may be used in more places down the line.
 		$dbh->do(<<'');
-CREATE TABLE IF NOT EXISTS eidxq (
-	docid INTEGER PRIMARY KEY NOT NULL
-)
+CREATE TABLE IF NOT EXISTS eidxq (docid INTEGER PRIMARY KEY NOT NULL)
 
-		$dbh;
+		1;
 	};
 }
 
