@@ -249,6 +249,11 @@ sub x_it ($$) {
 	if (my $sock = $self->{sock}) {
 		send($sock, "x_it $code", MSG_EOR);
 	} elsif (!($code & 127)) { # oneshot, ignore signals
+		# don't want to end up using $? from child processes
+		for my $f (qw(lxs l2m)) {
+			my $wq = delete $self->{$f} or next;
+			$wq->DESTROY;
+		}
 		$quit->($code >> 8);
 	}
 }
