@@ -471,6 +471,7 @@ sub DESTROY {
 	for my $pid_git (grep(/\A$$\0/, keys %$self)) {
 		$self->{$pid_git}->async_wait_all;
 	}
+	$self->SUPER::DESTROY; # PublicInbox::IPC
 }
 
 1;
