@@ -334,7 +334,7 @@ sub atfork_parent_wq {
 	$self->{env} = $env;
 	delete @$ret{qw(-lei_store cfg pgr lxs)}; # keep l2m
 	my @io = delete @$ret{0..2};
-	$io[3] = delete($ret->{sock}) // *STDERR{GLOB};
+	$io[3] = delete($ret->{sock}) // $io[2];
 	my $l2m = $ret->{l2m};
 	if ($l2m && $l2m != $wq) { # $wq == lxs
 		$io[4] = $l2m->{-wq_s1} if $l2m->{-wq_s1};
