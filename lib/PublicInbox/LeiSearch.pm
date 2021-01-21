@@ -5,7 +5,7 @@ package PublicInbox::LeiSearch;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::ExtSearch);
-use PublicInbox::Search;
+use PublicInbox::Search qw(xap_terms);
 
 # get combined docid from over.num:
 # (not generic Xapian, only works with our sharding scheme)
@@ -19,19 +19,9 @@ sub msg_keywords {
 	my ($self, $num) = @_; # num_or_mitem
 	my $xdb = $self->xdb; # set {nshard};
 	my $docid = ref($num) ? $num->get_docid : num2docid($self, $num);
-	my %kw;
-	eval {
-		my $end = $xdb->termlist_end($docid);
-		my $cur = $xdb->termlist_begin($docid);
-		for (; $cur != $end; $cur++) {
-			$cur->skip_to('K');
-			last if $cur == $end;
-			my $kw = $cur->get_termname;
-			$kw =~ s/\AK//s and $kw{$kw} = undef;
-		}
-	};
+	my $kw = xap_terms('K', $xdb, $docid);
 	warn "E: #$docid ($num): $@\n" if $@;
-	wantarray ? sort(keys(%kw)) : \%kw;
+	wantarray ? sort(keys(%$kw)) : $kw;
 }
 
 1;

@@ -6,7 +6,7 @@
 package PublicInbox::Search;
 use strict;
 use parent qw(Exporter);
-our @EXPORT_OK = qw(retry_reopen int_val get_pct);
+our @EXPORT_OK = qw(retry_reopen int_val get_pct xap_terms);
 use List::Util qw(max);
 
 # values for searching, changing the numeric value breaks
@@ -430,6 +430,24 @@ sub get_pct ($) { # mset item
 	# very meaningful, anyways.
 	my $n = $_[0]->get_percent;
 	$n > 99 ? 99 : $n;
+}
+
+sub xap_terms ($$;@) {
+	my ($pfx, $xdb_or_doc, @docid) = @_; # @docid may be empty ()
+	my %ret;
+	eval {
+		my $end = $xdb_or_doc->termlist_end(@docid);
+		my $cur = $xdb_or_doc->termlist_begin(@docid);
+		for (; $cur != $end; $cur++) {
+			$cur->skip_to($pfx);
+			last if $cur == $end;
+			my $tn = $cur->get_termname;
+			if (index($tn, $pfx) == 0) {
+				$ret{substr($tn, length($pfx))} = undef;
+			}
+		}
+	};
+	\%ret;
 }
 
 1;

@@ -224,9 +224,8 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		my $git_dir = $git->{git_dir};
 		sub {
 			my ($smsg, $mitem) = @_;
-			my $kw = []; # TODO get from mitem
 			$l2m->wq_do('write_mail', \@io, $git_dir,
-					$smsg->{blob}, $lei_ipc, $kw)
+					$smsg->{blob}, $lei_ipc, $smsg->{kw});
 		}
 	} elsif ($l2m) {
 		my $wcb = $l2m->write_cb($lei);
@@ -235,8 +234,8 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		my $g2m = $l2m->can('git_to_mail');
 		sub {
 			my ($smsg, $mitem) = @_;
-			my $kw = []; # TODO get from mitem
-			$git->cat_async($smsg->{blob}, $g2m, [ $wcb, $kw ]);
+			$git->cat_async($smsg->{blob}, $g2m,
+					[ $wcb, $smsg->{kw} ]);
 		};
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
@@ -266,7 +265,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		$lei->{ovv_buf} = \(my $buf = '');
 		sub {
 			my ($smsg, $mitem) = @_;
-			delete @$smsg{qw(tid num)};
 			$buf .= $json->encode(_unbless_smsg(@_)) . $ORS;
 			if (length($buf) > 65536) {
 				my $lk = $self->lock_for_scope;

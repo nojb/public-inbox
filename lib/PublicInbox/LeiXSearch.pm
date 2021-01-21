@@ -13,6 +13,7 @@ use PublicInbox::OpPipe;
 use PublicInbox::Import;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use File::Spec ();
+use PublicInbox::Search qw(xap_terms);
 
 sub new {
 	my ($class) = @_;
@@ -74,7 +75,12 @@ sub smsg_for {
 	my $docid = $mitem->get_docid;
 	my $shard = ($docid - 1) % $nshard;
 	my $num = int(($docid - 1) / $nshard) + 1;
-	my $smsg = $self->{shard2ibx}->[$shard]->over->get_art($num);
+	my $ibx = $self->{shard2ibx}->[$shard];
+	my $smsg = $ibx->over->get_art($num);
+	if (ref($ibx->can('msg_keywords'))) {
+		my $kw = xap_terms('K', $mitem->get_document);
+		$smsg->{kw} = [ sort keys %$kw ];
+	}
 	$smsg->{docid} = $docid;
 	$smsg;
 }
@@ -153,11 +159,11 @@ sub query_mset { # non-parallel for non-"--thread" users
 	$dedupe->prepare_dedupe;
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
-		for my $it ($mset->items) {
-			my $smsg = smsg_for($self, $it) or next;
+		for my $mitem ($mset->items) {
+			my $smsg = smsg_for($self, $mitem) or next;
 			wait_startq($startq) if $startq;
 			next if $dedupe->is_smsg_dup($smsg);
-			$each_smsg->($smsg, $it);
+			$each_smsg->($smsg, $mitem);
 		}
 	} while (_mset_more($mset, $mo));
 	undef $each_smsg; # drops @io for l2m->{each_smsg_done}
