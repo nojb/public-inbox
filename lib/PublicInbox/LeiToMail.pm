@@ -32,14 +32,14 @@ my %kw2status = (
 );
 
 sub _mbox_hdr_buf ($$$) {
-	my ($eml, $type, $kw) = @_;
+	my ($eml, $type, $smsg) = @_;
 	$eml->header_set($_) for (qw(Lines Bytes Content-Length));
 
 	# Messages are always 'O' (non-\Recent in IMAP), it saves
 	# MUAs the trouble of rewriting the mbox if no other
 	# changes are made
 	my %hdr = (Status => [ 'O' ]); # set Status, X-Status
-	for my $k (@$kw) {
+	for my $k (@{$smsg->{kw} // []}) {
 		if (my $ent = $kw2status{$k}) {
 			push @{$hdr{$ent->[0]}}, $ent->[1];
 		} else { # X-Label?
@@ -53,9 +53,11 @@ sub _mbox_hdr_buf ($$$) {
 
 	# fixup old bug from import (pre-a0c07cba0e5d8b6a)
 	$$buf =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+	my $ident = $smsg->{blob} // 'lei';
+	if (defined(my $pct = $smsg->{pct})) { $ident .= "=$pct" }
 
 	substr($$buf, 0, 0, # prepend From line
-		"From lei\@$type Thu Jan  1 00:00:00 1970$eml->{crlf}");
+		"From $ident\@$type Thu Jan  1 00:00:00 1970$eml->{crlf}");
 	$buf;
 }
 
@@ -71,8 +73,8 @@ sub _print_full {
 }
 
 sub eml2mboxrd ($;$) {
-	my ($eml, $kw) = @_;
-	my $buf = _mbox_hdr_buf($eml, 'mboxrd', $kw);
+	my ($eml, $smsg) = @_;
+	my $buf = _mbox_hdr_buf($eml, 'mboxrd', $smsg);
 	if (my $bdy = delete $eml->{bdy}) {
 		$$bdy =~ s/^(>*From )/>$1/gm;
 		$$buf .= $eml->{crlf};
@@ -84,8 +86,8 @@ sub eml2mboxrd ($;$) {
 }
 
 sub eml2mboxo {
-	my ($eml, $kw) = @_;
-	my $buf = _mbox_hdr_buf($eml, 'mboxo', $kw);
+	my ($eml, $smsg) = @_;
+	my $buf = _mbox_hdr_buf($eml, 'mboxo', $smsg);
 	if (my $bdy = delete $eml->{bdy}) {
 		$$bdy =~ s/^From />From /gm;
 		$$buf .= $eml->{crlf};
@@ -108,8 +110,8 @@ sub _mboxcl_common ($$$) {
 
 # mboxcl still escapes "From " lines
 sub eml2mboxcl {
-	my ($eml, $kw) = @_;
-	my $buf = _mbox_hdr_buf($eml, 'mboxcl', $kw);
+	my ($eml, $smsg) = @_;
+	my $buf = _mbox_hdr_buf($eml, 'mboxcl', $smsg);
 	my $crlf = $eml->{crlf};
 	if (my $bdy = delete $eml->{bdy}) {
 		$$bdy =~ s/^From />From /gm;
@@ -121,8 +123,8 @@ sub eml2mboxcl {
 
 # mboxcl2 has no "From " escaping
 sub eml2mboxcl2 {
-	my ($eml, $kw) = @_;
-	my $buf = _mbox_hdr_buf($eml, 'mboxcl2', $kw);
+	my ($eml, $smsg) = @_;
+	my $buf = _mbox_hdr_buf($eml, 'mboxcl2', $smsg);
 	my $crlf = $eml->{crlf};
 	if (my $bdy = delete $eml->{bdy}) {
 		_mboxcl_common($buf, $bdy, $crlf);
@@ -140,10 +142,11 @@ sub git_to_mail { # git->cat_async callback
 			warn "unexpected type=$type for $oid\n";
 		}
 	}
-	if ($size > 0) {
-		my ($write_cb, $kw) = @$arg;
-		$write_cb->($bref, $oid, $kw);
+	my ($write_cb, $smsg) = @$arg;
+	if ($smsg->{blob} ne $oid) {
+		die "BUG: expected=$smsg->{blob} got=$oid";
 	}
+	$write_cb->($bref, $smsg) if $size > 0;
 }
 
 sub reap_compress { # dwaitpid callback
@@ -247,11 +250,11 @@ sub _mbox_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe;
 	sub { # for git_to_mail
-		my ($buf, $oid, $kw) = @_;
+		my ($buf, $smsg) = @_;
 		return unless $out;
 		my $eml = PublicInbox::Eml->new($buf);
-		if (!$dedupe->is_dup($eml, $oid)) {
-			$buf = $eml2mbox->($eml, $kw);
+		if (!$dedupe->is_dup($eml, $smsg->{blob})) {
+			$buf = $eml2mbox->($eml, $smsg);
 			my $lk = $ovv->lock_for_scope;
 			eval { $write->($out, $buf) };
 			if ($@) {
@@ -283,12 +286,15 @@ sub _augment_file { # _maildir_each_file cb
 sub _unlink { unlink($_[0]) }
 
 sub _buf2maildir {
-	my ($dst, $buf, $oid, $kw) = @_;
+	my ($dst, $buf, $smsg) = @_;
+	my $kw = $smsg->{kw} // [];
 	my $sfx = join('', sort(map { $kw2char{$_} // () } @$kw));
 	my $rand = ''; # chosen by die roll :P
 	my ($tmp, $fh, $final);
+	my $common = $smsg->{blob};
+	if (defined(my $pct = $smsg->{pct})) { $common .= "=$pct" }
 	do {
-		$tmp = $dst.'tmp/'.$rand."oid=$oid";
+		$tmp = $dst.'tmp/'.$rand.$common;
 	} while (!sysopen($fh, $tmp, O_CREAT|O_EXCL|O_WRONLY) &&
 		$! == EEXIST && ($rand = int(rand 0x7fffffff).','));
 	if (print $fh $$buf and close($fh)) {
@@ -299,14 +305,14 @@ sub _buf2maildir {
 		$dst .= 'cur/';
 		$rand = '';
 		do {
-			$final = $dst.$rand."oid=$oid:2,$sfx";
+			$final = $dst.$rand.$common.':2,'.$sfx;
 		} while (!link($tmp, $final) && $! == EEXIST &&
 			($rand = int(rand 0x7fffffff).','));
 		unlink($tmp) or warn "W: failed to unlink $tmp: $!\n";
 	} else {
 		my $err = $!;
 		unlink($tmp);
-		die "Error writing $oid to $dst: $err";
+		die "Error writing $smsg->{blob} to $dst: $err";
 	}
 }
 
@@ -316,12 +322,12 @@ sub _maildir_write_cb ($$) {
 	$dedupe->prepare_dedupe;
 	my $dst = $lei->{ovv}->{dst};
 	sub { # for git_to_mail
-		my ($buf, $oid, $kw) = @_;
-		return _buf2maildir($dst, $buf, $oid, $kw) if !$dedupe;
+		my ($buf, $smsg) = @_;
+		return _buf2maildir($dst, $buf, $smsg) if !$dedupe;
 		my $eml = PublicInbox::Eml->new($$buf); # copy buf
-		return if $dedupe->is_dup($eml, $oid);
+		return if $dedupe->is_dup($eml, $smsg->{blob});
 		undef $eml;
-		_buf2maildir($dst, $buf, $oid, $kw);
+		_buf2maildir($dst, $buf, $smsg);
 	}
 }
 
@@ -447,7 +453,7 @@ sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
 }
 
 sub write_mail { # via ->wq_do
-	my ($self, $git_dir, $oid, $lei, $kw) = @_;
+	my ($self, $git_dir, $smsg, $lei) = @_;
 	my $not_done = delete $self->{4}; # write end of {each_smsg_done}
 	my $wcb = $self->{wcb} //= do { # first message
 		my %sig = $lei->atfork_child_wq($self);
@@ -456,7 +462,7 @@ sub write_mail { # via ->wq_do
 		$self->write_cb($lei);
 	};
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
-	$git->cat_async($oid, \&git_to_mail, [ $wcb, $kw, $not_done ]);
+	$git->cat_async($smsg->{blob}, \&git_to_mail, [$wcb, $smsg, $not_done]);
 }
 
 sub ipc_atfork_prepare {

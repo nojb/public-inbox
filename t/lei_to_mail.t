@@ -18,11 +18,12 @@ my $noeol = "Subject: x\n\nFrom hell";
 my $crlf = $noeol;
 $crlf =~ s/\n/\r\n/g;
 my $kw = [qw(seen answered flagged)];
+my $smsg = { kw => $kw, blob => '0'x40 };
 my @MBOX = qw(mboxcl2 mboxrd mboxcl mboxo);
 for my $mbox (@MBOX) {
 	my $m = "eml2$mbox";
 	my $cb = PublicInbox::LeiToMail->can($m);
-	my $s = $cb->(PublicInbox::Eml->new($from), $kw);
+	my $s = $cb->(PublicInbox::Eml->new($from), $smsg);
 	is(substr($$s, -1, 1), "\n", "trailing LF in normal $mbox");
 	my $eml = PublicInbox::Eml->new($s);
 	is($eml->header('Status'), 'OR', "Status: set by $m");
@@ -40,7 +41,7 @@ for my $mbox (@MBOX) {
 	} else {
 		is(scalar(@cl), 0, "$m clobbered Content-Length");
 	}
-	$s = $cb->(PublicInbox::Eml->new($noeol), $kw);
+	$s = $cb->(PublicInbox::Eml->new($noeol), $smsg);
 	is(substr($$s, -1, 1), "\n",
 		"trailing LF added by $m when original lacks EOL");
 	$eml = PublicInbox::Eml->new($s);
@@ -49,7 +50,7 @@ for my $mbox (@MBOX) {
 	} else {
 		is($eml->body_raw, ">From hell\n", "From escaped once by $m");
 	}
-	$s = $cb->(PublicInbox::Eml->new($crlf), $kw);
+	$s = $cb->(PublicInbox::Eml->new($crlf), $smsg);
 	is(substr($$s, -2, 2), "\r\n",
 		"trailing CRLF added $m by original lacks EOL");
 	$eml = PublicInbox::Eml->new($s);
@@ -62,7 +63,7 @@ for my $mbox (@MBOX) {
 		is($eml->header('Content-Length') + length("\r\n"),
 			length($eml->body_raw), "$m Content-Length matches");
 	} elsif ($mbox eq 'mboxrd') {
-		$s = $cb->($eml, $kw);
+		$s = $cb->($eml, $smsg);
 		$eml = PublicInbox::Eml->new($s);
 		is($eml->body_raw,
 			">>From hell\r\n\r\n", "From escaped again by $m");
@@ -102,11 +103,12 @@ my $wcb_get = sub {
 	$cb;
 };
 
+my $deadbeef = { blob => 'deadbeef', kw => [ qw(seen) ] };
 my $orig = do {
 	my $wcb = $wcb_get->($mbox, $fn);
 	is(ref $wcb, 'CODE', 'write_cb returned callback');
 	ok(-f $fn && !-s _, 'empty file created');
-	$wcb->(\(my $dup = $buf), 'deadbeef', [ qw(seen) ]);
+	$wcb->(\(my $dup = $buf), $deadbeef);
 	undef $wcb;
 	open my $fh, '<', $fn or BAIL_OUT $!;
 	my $raw = do { local $/; <$fh> };
@@ -116,7 +118,7 @@ my $orig = do {
 	local $lei->{opt} = { jobs => 2 };
 	$wcb = $wcb_get->($mbox, $fn);
 	ok(-f $fn && !-s _, 'truncated mbox destination');
-	$wcb->(\($dup = $buf), 'deadbeef', [ qw(seen) ]);
+	$wcb->(\($dup = $buf), $deadbeef);
 	undef $wcb;
 	open $fh, '<', $fn or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $raw, 'jobs > 1');
@@ -131,7 +133,7 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 		ok($dc_cmd, "decompressor for .$zsfx");
 		my $f = "$fn.$zsfx";
 		my $wcb = $wcb_get->($mbox, $f);
-		$wcb->(\(my $dup = $buf), 'deadbeef', [ qw(seen) ]);
+		$wcb->(\(my $dup = $buf), $deadbeef);
 		undef $wcb;
 		my $uncompressed = xqx([@$dc_cmd, $f]);
 		is($uncompressed, $orig, "$zsfx works unlocked");
@@ -139,13 +141,13 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 		local $lei->{opt} = { jobs => 2 }; # for atomic writes
 		unlink $f or BAIL_OUT "unlink $!";
 		$wcb = $wcb_get->($mbox, $f);
-		$wcb->(\($dup = $buf), 'deadbeef', [ qw(seen) ]);
+		$wcb->(\($dup = $buf), $deadbeef);
 		undef $wcb;
 		is(xqx([@$dc_cmd, $f]), $orig, "$zsfx matches with lock");
 
 		local $lei->{opt} = { augment => 1 };
 		$wcb = $wcb_get->($mbox, $f);
-		$wcb->(\($dup = $buf . "\nx\n"), 'deadbeef', [ qw(seen) ]);
+		$wcb->(\($dup = $buf . "\nx\n"), $deadbeef);
 		undef $wcb; # commit
 
 		my $cat = popen_rd([@$dc_cmd, $f]);
@@ -157,7 +159,7 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 
 		local $lei->{opt} = { augment => 1, jobs => 2 };
 		$wcb = $wcb_get->($mbox, $f);
-		$wcb->(\($dup = $buf . "\ny\n"), 'deadbeef', [ qw(seen) ]);
+		$wcb->(\($dup = $buf . "\ny\n"), $deadbeef);
 		undef $wcb; # commit
 
 		my @raw3;
@@ -179,7 +181,8 @@ my $as_orig = sub {
 unlink $fn or BAIL_OUT $!;
 if ('default deduplication uses content_hash') {
 	my $wcb = $wcb_get->('mboxo', $fn);
-	$wcb->(\(my $x = $buf), 'deadbeef', []) for (1..2);
+	$deadbeef->{kw} = [];
+	$wcb->(\(my $x = $buf), $deadbeef) for (1..2);
 	undef $wcb; # undef to commit changes
 	my $cmp = '';
 	open my $fh, '<', $fn or BAIL_OUT $!;
@@ -188,7 +191,7 @@ if ('default deduplication uses content_hash') {
 
 	local $lei->{opt} = { augment => 1 };
 	$wcb = $wcb_get->('mboxo', $fn);
-	$wcb->(\($x = $buf . "\nx\n"), 'deadbeef', []) for (1..2);
+	$wcb->(\($x = $buf . "\nx\n"), $deadbeef) for (1..2);
 	undef $wcb; # undef to commit changes
 	open $fh, '<', $fn or BAIL_OUT $!;
 	my @x;
@@ -202,7 +205,7 @@ if ('default deduplication uses content_hash') {
 	open my $tmp, '+>', undef or BAIL_OUT $!;
 	local $lei->{1} = $tmp;
 	my $wcb = $wcb_get->('mboxrd', '/dev/stdout');
-	$wcb->(\(my $x = $buf), 'deadbeef', []);
+	$wcb->(\(my $x = $buf), $deadbeef);
 	undef $wcb; # commit
 	seek($tmp, 0, SEEK_SET) or BAIL_OUT $!;
 	my $cmp = '';
@@ -216,7 +219,7 @@ SKIP: { # FIFO support
 	mkfifo($fn, 0600) or skip("mkfifo not supported: $!", 1);
 	my $cat = popen_rd([which('cat'), $fn]);
 	my $wcb = $wcb_get->('mboxo', $fn);
-	$wcb->(\(my $x = $buf), 'deadbeef', []);
+	$wcb->(\(my $x = $buf), $deadbeef);
 	undef $wcb; # commit
 	my $cmp = '';
 	PublicInbox::MboxReader->mboxo($cat, sub { $cmp .= $as_orig->(@_) });
@@ -227,7 +230,8 @@ SKIP: { # FIFO support
 	my $md = "$tmpdir/maildir/";
 	my $wcb = $wcb_get->('maildir', $md);
 	is(ref($wcb), 'CODE', 'got Maildir callback');
-	$wcb->(\(my $x = $buf), 'badc0ffee', []);
+	my $b4dc0ffee = { blob => 'badc0ffee', kw => [] };
+	$wcb->(\(my $x = $buf), $b4dc0ffee);
 
 	my @f;
 	PublicInbox::LeiToMail::_maildir_each_file($md, sub { push @f, shift });
@@ -235,7 +239,8 @@ SKIP: { # FIFO support
 	is(do { local $/; <$fh> }, $buf, 'wrote to Maildir');
 
 	$wcb = $wcb_get->('maildir', $md);
-	$wcb->(\($x = $buf."\nx\n"), 'deadcafe', []);
+	my $deadcafe = { blob => 'deadcafe', kw => [] };
+	$wcb->(\($x = $buf."\nx\n"), $deadcafe);
 
 	my @x = ();
 	PublicInbox::LeiToMail::_maildir_each_file($md, sub { push @x, shift });
@@ -246,8 +251,8 @@ SKIP: { # FIFO support
 
 	local $lei->{opt}->{augment} = 1;
 	$wcb = $wcb_get->('maildir', $md);
-	$wcb->(\($x = $buf."\ny\n"), 'deadcafe', []);
-	$wcb->(\($x = $buf."\ny\n"), 'b4dc0ffee', []); # skipped by dedupe
+	$wcb->(\($x = $buf."\ny\n"), $deadcafe);
+	$wcb->(\($x = $buf."\ny\n"), $b4dc0ffee); # skipped by dedupe
 	@f = ();
 	PublicInbox::LeiToMail::_maildir_each_file($md, sub { push @f, shift });
 	is(scalar grep(/\A\Q$x[0]\E\z/, @f), 1, 'old file still there');

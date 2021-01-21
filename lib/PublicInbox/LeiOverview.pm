@@ -224,8 +224,9 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		my $git_dir = $git->{git_dir};
 		sub {
 			my ($smsg, $mitem) = @_;
-			$l2m->wq_do('write_mail', \@io, $git_dir,
-					$smsg->{blob}, $lei_ipc, $smsg->{kw});
+			$smsg->{pct} = get_pct($mitem) if $mitem;
+			$l2m->wq_do('write_mail', \@io, $git_dir, $smsg,
+					$lei_ipc);
 		}
 	} elsif ($l2m) {
 		my $wcb = $l2m->write_cb($lei);
@@ -234,8 +235,8 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		my $g2m = $l2m->can('git_to_mail');
 		sub {
 			my ($smsg, $mitem) = @_;
-			$git->cat_async($smsg->{blob}, $g2m,
-					[ $wcb, $smsg->{kw} ]);
+			$smsg->{pct} = get_pct($mitem) if $mitem;
+			$git->cat_async($smsg->{blob}, $g2m, [ $wcb, $smsg ]);
 		};
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
