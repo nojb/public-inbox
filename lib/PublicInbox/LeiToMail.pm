@@ -11,6 +11,7 @@ use PublicInbox::Lock;
 use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::LeiDedupe;
+use PublicInbox::OnDestroy;
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
@@ -472,12 +473,21 @@ sub ipc_atfork_prepare {
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
 
-sub DESTROY {
+# We rely on OnDestroy to run this before ->DESTROY, since ->DESTROY
+# ordering is unstable at worker exit and may cause segfaults
+sub reap_gits {
 	my ($self) = @_;
-	for my $pid_git (grep(/\A$$\0/, keys %$self)) {
-		$self->{$pid_git}->async_wait_all;
+	for my $git (delete @$self{grep(/\A$$\0/, keys %$self)}) {
+		$git->async_wait_all;
 	}
-	$self->SUPER::DESTROY; # PublicInbox::IPC
+}
+
+sub ipc_atfork_child { # runs after IPC::wq_worker_loop
+	my ($self) = @_;
+	$self->SUPER::ipc_atfork_child;
+	# reap_gits needs to run before $self->DESTROY,
+	# IPC.pm will ensure that.
+	PublicInbox::OnDestroy->new($$, \&reap_gits, $self);
 }
 
 1;
