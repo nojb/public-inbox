@@ -134,6 +134,12 @@ sub ipc_worker_reap { # dwaitpid callback
 	warn "PID:$pid died with \$?=$?\n" if $? && ($? & 127) != 15;
 }
 
+sub wq_wait_old {
+	my ($self) = @_;
+	my $pids = delete $self->{"-wq_old_pids.$$"} or return;
+	dwaitpid($_, \&ipc_worker_reap, $self) for @$pids;
+}
+
 # for base class, override in sub classes
 sub ipc_atfork_prepare {}
 
@@ -370,15 +376,23 @@ sub wq_workers {
 }
 
 sub wq_close {
-	my ($self) = @_;
+	my ($self, $nohang) = @_;
 	delete @$self{qw(-wq_s1 -wq_s2)} or return;
 	my $ppid = delete $self->{-wq_ppid} or return;
 	my $workers = delete $self->{-wq_workers} // die 'BUG: no wq_workers';
 	return if $ppid != $$; # can't reap siblings or parents
-	return (keys %$workers) if wantarray; # caller will reap
-	for my $pid (keys %$workers) {
-		dwaitpid($pid, \&ipc_worker_reap, $self);
+	my @pids = map { $_ + 0 } keys %$workers;
+	if ($nohang) {
+		push @{$self->{"-wq_old_pids.$$"}}, @pids;
+	} else {
+		dwaitpid($_, \&ipc_worker_reap, $self) for @pids;
 	}
+}
+
+sub wq_kill_old {
+	my ($self) = @_;
+	my $pids = $self->{"-wq_old_pids.$$"} or return;
+	kill 'TERM', @$pids;
 }
 
 sub wq_kill {

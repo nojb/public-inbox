@@ -110,6 +110,7 @@ sub wait_startq ($) {
 
 sub query_thread_mset { # for --thread
 	my ($self, $lei, $ibxish) = @_;
+	local $0 = "$0 query_thread_mset";
 	my $startq = delete $self->{5};
 	my %sig = $lei->atfork_child_wq($self);
 	local @SIG{keys %sig} = values %sig;
@@ -148,6 +149,7 @@ sub query_thread_mset { # for --thread
 
 sub query_mset { # non-parallel for non-"--thread" users
 	my ($self, $lei, $srcs) = @_;
+	local $0 = "$0 query_mset";
 	my $startq = delete $self->{5};
 	my %sig = $lei->atfork_child_wq($self);
 	local @SIG{keys %sig} = values %sig;
@@ -192,12 +194,10 @@ sub git {
 sub query_done { # EOF callback
 	my ($self, $lei) = @_;
 	my $l2m = delete $lei->{l2m};
-	if (my $pids = delete $self->{l2m_pids}) {
-		my $ipc_worker_reap = $self->can('ipc_worker_reap');
-		dwaitpid($_, $ipc_worker_reap, $l2m) for @$pids;
-	}
+	$l2m->wq_wait_old if $l2m;
+	$self->wq_wait_old;
 	$lei->{ovv}->ovv_end($lei);
-	if ($l2m) { # calls LeiToMail reap_compress
+	if ($l2m) { # close() calls LeiToMail reap_compress
 		close(delete($lei->{1})) if $lei->{1};
 		$lei->start_mua;
 	}
@@ -232,12 +232,12 @@ sub start_query { # always runs in main (lei-daemon) process
 	for my $rmt (@$remotes) {
 		$self->wq_do('query_thread_mbox', $io, $lei, $rmt);
 	}
-	close $io->[0]; # qry_status_wr
 	@$io = ();
 }
 
 sub query_prepare { # called by wq_do
 	my ($self, $lei) = @_;
+	local $0 = "$0 query_prepare";
 	my %sig = $lei->atfork_child_wq($self);
 	-p $lei->{0} or die "BUG: \$done pipe expected";
 	local @SIG{keys %sig} = values %sig;
@@ -246,11 +246,11 @@ sub query_prepare { # called by wq_do
 	syswrite($lei->{0}, '.') == 1 or die "do_post_augment trigger: $!";
 }
 
-sub sigpipe_handler {
-	my ($self, $lei_orig, $pids) = @_;
-	if ($pids) { # one-shot (no event loop)
-		kill 'TERM', @$pids;
+sub sigpipe_handler { # handles SIGPIPE from wq workers
+	my ($self, $lei_orig) = @_;
+	if ($self->wq_kill_old) {
 		kill 'PIPE', $$;
+		$self->wq_wait_old;
 	} else {
 		$self->wq_kill;
 		$self->wq_close;
@@ -287,19 +287,16 @@ sub do_query {
 		$io[1] = $zpipe->[1] if $zpipe;
 	}
 	start_query($self, \@io, $lei, $srcs);
+	$self->wq_close(1);
 	unless ($in_loop) {
-		my @pids = $self->wq_close;
 		# for the $lei->atfork_child_wq PIPE handler:
-		$done_op->{'!'}->[3] = \@pids;
 		while ($done->{sock}) { $done->event_step }
-		my $ipc_worker_reap = $self->can('ipc_worker_reap');
-		dwaitpid($_, $ipc_worker_reap, $self) for @pids;
 	}
 }
 
 sub ipc_atfork_prepare {
 	my ($self) = @_;
-	# (0: qry_status_wr, 1: stdout|mbox, 2: stderr,
+	# (0: done_wr, 1: stdout|mbox, 2: stderr,
 	#  3: sock, 4: $l2m->{-wq_s1}, 5: $startq)
 	$self->wq_set_recv_modes(qw[+<&= >&= >&= +<&= +<&= <&=]);
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC

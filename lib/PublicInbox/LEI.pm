@@ -281,10 +281,13 @@ sub fail ($$;$) {
 
 sub atfork_prepare_wq {
 	my ($self, $wq) = @_;
-	my $tcafc = $wq->{-ipc_atfork_child_close};
+	my $tcafc = $wq->{-ipc_atfork_child_close} //= [];
 	push @$tcafc, @TO_CLOSE_ATFORK_CHILD;
 	if (my $sock = $self->{sock}) {
 		push @$tcafc, @$self{qw(0 1 2)}, $sock;
+	}
+	if (my $pgr = $self->{pgr}) {
+		push @$tcafc, @$pgr[1,2];
 	}
 	for my $f (qw(lxs l2m)) {
 		my $ipc = $self->{$f} or next;
@@ -335,9 +338,7 @@ sub atfork_parent_wq {
 	my $l2m = $ret->{l2m};
 	if ($l2m && $l2m != $wq) { # $wq == lxs
 		$io[4] = $l2m->{-wq_s1} if $l2m->{-wq_s1};
-		if (my @pids = $l2m->wq_close) {
-			$wq->{l2m_pids} = \@pids;
-		}
+		$l2m->wq_close(1);
 	}
 	($ret, @io);
 }

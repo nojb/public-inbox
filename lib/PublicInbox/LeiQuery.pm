@@ -32,24 +32,25 @@ sub lei_q {
 		my $sto = $self->_lei_store(1);
 		push @srcs, $sto->search;
 	}
-	my $lxs = PublicInbox::LeiXSearch->new;
 
+	my $lxs = $self->{lxs} = PublicInbox::LeiXSearch->new;
 	# --external is enabled by default, but allow --no-external
-	if ($opt->{external} // 1) {
+	if ($opt->{external} //= 1) {
 		$self->_externals_each(\&_vivify_external, \@srcs);
 	}
-	my $j = $opt->{jobs} // (scalar(@srcs) > 3 ? 3 : scalar(@srcs));
-	$j = 1 if !$opt->{thread};
-	$self->atfork_prepare_wq($lxs);
-	$lxs->wq_workers_start('lei_xsearch', $j, $self->oldset);
-	$self->{lxs} = $lxs;
-
+	my $xj = $opt->{jobs} // (scalar(@srcs) > 3 ? 3 : scalar(@srcs));
+	$xj = 1 if !$opt->{thread};
 	my $ovv = PublicInbox::LeiOverview->new($self) or return;
+	$self->atfork_prepare_wq($lxs);
+	$lxs->wq_workers_start('lei_xsearch', $xj, $self->oldset);
+	delete $lxs->{-ipc_atfork_child_close};
 	if (my $l2m = $self->{l2m}) {
-		$j = 4 if $j <= 4; # TODO configurable
+		my $mj = 4; # TODO: configurable
 		$self->atfork_prepare_wq($l2m);
-		$l2m->wq_workers_start('lei2mail', $j, $self->oldset);
+		$l2m->wq_workers_start('lei2mail', $mj, $self->oldset);
+		delete $l2m->{-ipc_atfork_child_close};
 	}
+
 	# no forking workers after this
 
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);

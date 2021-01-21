@@ -467,7 +467,7 @@ sub write_mail { # via ->wq_do
 
 sub ipc_atfork_prepare {
 	my ($self) = @_;
-	# (qry_status_wr, stdout|mbox, stderr, 3: sock, 4: each_smsg_done_wr)
+	# (done_wr, stdout|mbox, stderr, 3: sock, 4: each_smsg_done_wr)
 	$self->wq_set_recv_modes(qw[+<&= >&= >&= +<&= >&=]);
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
