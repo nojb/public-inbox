@@ -180,6 +180,15 @@ my $test_external = sub {
 	});
 	$lei->('ls-external');
 	like($out, qr/boost=0\n/s, 'ls-external has output');
+	ok($lei->(qw(add-external -q https://EXAMPLE.com/ibx)), 'add remote');
+	is($err, '', 'no warnings after add-external');
+	$lei->('ls-external');
+	like($out, qr!https://example\.com/ibx/!s, 'added canonical URL');
+	is($err, '', 'no warnings on ls-external');
+	ok($lei->(qw(forget-external -q https://EXAMPLE.com/ibx)),
+		'forget');
+	$lei->('ls-external');
+	unlike($out, qr!https://example\.com/ibx/!s, 'removed canonical URL');
 
 	ok(!$lei->(qw(q s:prefix -o /dev/null -f maildir)), 'bad maildir');
 	like($err, qr!/dev/null exists and is not a directory!,

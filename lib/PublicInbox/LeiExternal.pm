@@ -7,6 +7,7 @@ use strict;
 use v5.10.1;
 use parent qw(Exporter);
 our @EXPORT = qw(lei_ls_external lei_add_external lei_forget_external);
+use PublicInbox::Config;
 
 sub _externals_each {
 	my ($self, $cb, @arg) = @_;
@@ -30,7 +31,6 @@ sub _externals_each {
 
 sub lei_ls_external {
 	my ($self, @argv) = @_;
-	my $stor = $self->_lei_store(0);
 	my $out = $self->{1};
 	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
 	$self->_externals_each(sub {
@@ -39,24 +39,58 @@ sub lei_ls_external {
 	});
 }
 
-sub lei_add_external {
-	my ($self, $url_or_dir) = @_;
-	my $cfg = $self->_lei_cfg(1);
-	if ($url_or_dir !~ m!\Ahttps?://!) {
-		$url_or_dir = File::Spec->canonpath($url_or_dir);
+sub _canonicalize {
+	my ($location) = @_;
+	if ($location !~ m!\Ahttps?://!) {
+		PublicInbox::Config::rel2abs_collapsed($location);
+	} else {
+		require URI;
+		my $uri = URI->new($location)->canonical;
+		my $path = $uri->path . '/';
+		$path =~ tr!/!/!s; # squeeze redundant '/'
+		$uri->path($path);
+		$uri->as_string;
 	}
+}
+
+sub lei_add_external {
+	my ($self, $location) = @_;
+	my $cfg = $self->_lei_cfg(1);
 	my $new_boost = $self->{opt}->{boost} // 0;
-	my $key = "external.$url_or_dir.boost";
+	$location = _canonicalize($location);
+	my $key = "external.$location.boost";
 	my $cur_boost = $cfg->{$key};
 	return if defined($cur_boost) && $cur_boost == $new_boost; # idempotent
 	$self->lei_config($key, $new_boost);
-	my $stor = $self->_lei_store(1);
-	# TODO: add to MiscIdx
-	$stor->done;
+	$self->_lei_store(1)->done; # just create the store
 }
 
 sub lei_forget_external {
-	# TODO
+	my ($self, @locations) = @_;
+	my $cfg = $self->_lei_cfg(1);
+	my $quiet = $self->{opt}->{quiet};
+	for my $loc (@locations) {
+		my (@unset, @not_found);
+		for my $l ($loc, _canonicalize($loc)) {
+			my $key = "external.$l.boost";
+			delete($cfg->{$key});
+			$self->_config('--unset', $key);
+			if ($? == 0) {
+				push @unset, $key;
+			} elsif (($? >> 8) == 5) {
+				push @not_found, $key;
+			} else {
+				$self->err("# --unset $key error");
+				return $self->x_it($?);
+			}
+		}
+		if (@unset) {
+			next if $quiet;
+			$self->err("# $_ unset") for @unset;
+		} elsif (@not_found) {
+			$self->err("# $_ not found") for @not_found;
+		} # else { already exited
+	}
 }
 
 1;

@@ -21,7 +21,7 @@ use PublicInbox::Config;
 use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLET);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now dwaitpid);
-use PublicInbox::Spawn qw(spawn run_die popen_rd);
+use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::OnDestroy;
 use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
@@ -95,7 +95,7 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(boost=i quiet|q) ],
 'ls-external' => [ '[FILTER...]', 'list publicinbox|extindex locations',
 	qw(format|f=s z|0 local remote quiet|q) ],
-'forget-external' => [ '{URL_OR_PATHNAME|--prune}',
+'forget-external' => [ 'URL_OR_PATHNAME...|--prune',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune quiet|q) ],
 
@@ -114,7 +114,7 @@ our %CMD = ( # sorted in order of importance/use:
 	"exclude message(s) on stdin from `q' search results",
 	qw(stdin| oid=s exact by-mid|mid:s quiet|q) ],
 
-'purge-mailsource' => [ '{URL_OR_PATHNAME|--all}',
+'purge-mailsource' => [ 'URL_OR_PATHNAME|--all',
 	'remove imported messages from IMAP, Maildirs, and MH',
 	qw(exact! all jobs:i indexed) ],
 
@@ -137,7 +137,7 @@ our %CMD = ( # sorted in order of importance/use:
 'forget-watch' => [ '{WATCH_NUMBER|--prune}', 'stop and forget a watch',
 	qw(prune) ],
 
-'import' => [ '{URL_OR_PATHNAME|--stdin}',
+'import' => [ 'URL_OR_PATHNAME|--stdin',
 	'one-shot import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include=s !flags),
 	],
@@ -468,6 +468,7 @@ sub optparse ($$$) {
 					last;
 				} # else continue looping
 			}
+			last if $ok;
 			my $last = pop @or;
 			$err = join(', ', @or) . " or $last must be set";
 		} else {
@@ -547,16 +548,23 @@ sub lei_mark {
 	my ($self, @argv) = @_;
 }
 
+sub _config {
+	my ($self, @argv) = @_;
+	my $env = $self->{env};
+	delete local $env->{GIT_CONFIG};
+	delete local $ENV{GIT_CONFIG};
+	my $cfg = _lei_cfg($self, 1);
+	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
+	my %rdr = map { $_ => $self->{$_} } (0..2);
+	waitpid(spawn($cmd, $env, \%rdr), 0);
+}
+
 sub lei_config {
 	my ($self, @argv) = @_;
 	$self->{opt}->{'config-file'} and return fail $self,
 		"config file switches not supported by `lei config'";
-	my $env = $self->{env};
-	delete local $env->{GIT_CONFIG};
-	my $cfg = _lei_cfg($self, 1);
-	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
-	my %rdr = map { $_ => $self->{$_} } (0..2);
-	run_die($cmd, $env, \%rdr);
+	_config(@_);
+	x_it($self, $?) if $?;
 }
 
 sub lei_init {
