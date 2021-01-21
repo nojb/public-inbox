@@ -291,11 +291,6 @@ sub do_query {
 		my @pids = $self->wq_close;
 		# for the $lei->atfork_child_wq PIPE handler:
 		$done_op->{'!'}->[3] = \@pids;
-		# $done->event_step;
-		# my $ipc_worker_reap = $self->can('ipc_worker_reap');
-		# if (my $l2m_pids = delete $self->{l2m_pids}) {
-			# dwaitpid($_, $ipc_worker_reap, $l2m) for @$l2m_pids;
-		# }
 		while ($done->{sock}) { $done->event_step }
 		my $ipc_worker_reap = $self->can('ipc_worker_reap');
 		dwaitpid($_, $ipc_worker_reap, $self) for @pids;
