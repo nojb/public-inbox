@@ -408,6 +408,7 @@ sub DESTROY {
 	my $ppid = $self->{-wq_ppid};
 	wq_kill($self) if $ppid && $ppid == $$;
 	wq_close($self);
+	wq_wait_old($self);
 	ipc_worker_stop($self);
 }
 

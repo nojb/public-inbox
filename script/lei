@@ -81,11 +81,6 @@ Falling back to (slow) one-shot mode
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 	$buf .= "\0\0";
 	$send_cmd->($sock, [ 0, 1, 2, fileno($dh) ], $buf, MSG_EOR);
-	$SIG{TERM} = $SIG{INT} = $SIG{QUIT} = sub {
-		my ($sig) = @_; # 'TERM', not an integer :<
-		$SIG{$sig} = 'DEFAULT';
-		kill($sig, $$); # exit($signo + 128)
-	};
 	my $x_it_code = 0;
 	while (1) {
 		my (@fds) = $recv_cmd->($sock, $buf, 4096 * 33);
