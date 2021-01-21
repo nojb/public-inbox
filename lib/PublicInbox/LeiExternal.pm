@@ -93,4 +93,21 @@ sub lei_forget_external {
 	}
 }
 
+# shell completion helper called by lei__complete
+sub _complete_forget_external {
+	my ($self, @argv) = @_;
+	my $cfg = $self->_lei_cfg(0);
+	my $cur = pop @argv;
+	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
+	# Maybe there's a better way to go about this in
+	# contrib/completion/lei-completion.bash
+	my $colon = ($argv[-1] // '') eq ':';
+	my $re = $cur =~ /\A[\w-]/ ? '' : '.*';
+	map {
+		my $x = substr($_, length('external.'));
+		# only return the part specified on the CLI
+		$colon && $x =~ /(\Q$cur\E.*)/ ? $1 : $x;
+	} grep(/\Aexternal\.$re\Q$cur/, @{$cfg->{-section_order}});
+}
+
 1;

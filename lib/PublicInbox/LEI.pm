@@ -655,6 +655,10 @@ sub lei__complete {
 	} elsif ($cmd eq 'config' && !@argv && !$CONFIG_KEYS{$cur}) {
 		puts $self, grep(/$re/, keys %CONFIG_KEYS);
 	}
+	$cmd =~ tr/-/_/;
+	if (my $sub = $self->can("_complete_$cmd")) {
+		puts $self, $sub->($self, @argv, $cur);
+	}
 	# TODO: URLs, pathnames, OIDs, MIDs, etc...  See optparse() for
 	# proto parsing.
 }
