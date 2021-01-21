@@ -135,11 +135,9 @@ sub _unbless_smsg {
 	delete @$smsg{qw(lines bytes num tid)};
 	$smsg->{rt} = _iso8601(delete $smsg->{ts}); # JMAP receivedAt
 	$smsg->{dt} = _iso8601(delete $smsg->{ds}); # JMAP UTCDate
-	$smsg->{relevance} = get_pct($mitem) if $mitem;
-
+	$smsg->{pct} = get_pct($mitem) if $mitem;
 	if (my $r = delete $smsg->{references}) {
-		$smsg->{refs} = [
-				map { "<$_>" } ($r =~ m/$MID_EXTRACT/go) ];
+		$smsg->{refs} = [ map { "<$_>" } ($r =~ m/$MID_EXTRACT/go) ];
 	}
 	if (my $m = delete($smsg->{mid})) {
 		$smsg->{'m'} = "<$m>";
