@@ -27,7 +27,7 @@ use Text::Wrap qw(wrap);
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-our ($current_lei, $errors_log);
+our ($current_lei, $errors_log, $listener);
 my ($recv_cmd, $send_cmd);
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
@@ -35,7 +35,6 @@ my $GLP_PASS = Getopt::Long::Parser->new;
 $GLP_PASS->configure(qw(gnu_getopt no_ignore_case auto_abbrev pass_through));
 
 our %PATH2CFG; # persistent for socket daemon
-our @TO_CLOSE_ATFORK_CHILD;
 
 # TBD: this is a documentation mechanism to show a subcommand
 # (may) pass options through to another command:
@@ -281,8 +280,7 @@ sub fail ($$;$) {
 
 sub atfork_prepare_wq {
 	my ($self, $wq) = @_;
-	my $tcafc = $wq->{-ipc_atfork_child_close} //= [];
-	push @$tcafc, @TO_CLOSE_ATFORK_CHILD;
+	my $tcafc = $wq->{-ipc_atfork_child_close} //= [ $listener // () ];
 	if (my $sock = $self->{sock}) {
 		push @$tcafc, @$self{qw(0 1 2)}, $sock;
 	}
@@ -307,7 +305,6 @@ sub atfork_child_wq {
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
-	@TO_CLOSE_ATFORK_CHILD = ();
 	(__WARN__ => sub { err($self, @_) },
 	PIPE => sub {
 		$self->x_it(13); # SIGPIPE = 13
@@ -837,12 +834,12 @@ sub lazy_start {
 		die "connect($path): $!";
 	}
 	umask(077) // die("umask(077): $!");
-	socket(my $l, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
-	bind($l, pack_sockaddr_un($path)) or die "bind($path): $!";
-	listen($l, 1024) or die "listen: $!";
+	local $listener;
+	socket($listener, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
+	bind($listener, pack_sockaddr_un($path)) or die "bind($path): $!";
+	listen($listener, 1024) or die "listen: $!";
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
-	pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
 	local $oldset = PublicInbox::DS::block_signals();
 	if ($narg == 5) {
 		$send_cmd = PublicInbox::Spawn->can('send_cmd4');
@@ -869,20 +866,21 @@ sub lazy_start {
 	return if $pid;
 	$0 = "lei-daemon $path";
 	local %PATH2CFG;
-	local @TO_CLOSE_ATFORK_CHILD = ($l, $eof_w);
-	$l->blocking(0);
-	$l = PublicInbox::Listener->new($l, \&accept_dispatch, $l);
+	$listener->blocking(0);
 	my $exit_code;
-	local $quit = sub {
-		$exit_code //= shift;
-		my $listener = $l or exit($exit_code);
-		# closing eof_w triggers \&noop wakeup
-		$eof_w = $l = $path = undef;
-		$listener->close; # DS::close
-		PublicInbox::DS->SetLoopTimeout(1000);
+	my $pil = PublicInbox::Listener->new($listener, \&accept_dispatch);
+	local $quit = do {
+		pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
+		PublicInbox::EOFpipe->new($eof_r, \&noop, undef);
+		sub {
+			$exit_code //= shift;
+			my $lis = $pil or exit($exit_code);
+			# closing eof_w triggers \&noop wakeup
+			$listener = $eof_w = $pil = $path = undef;
+			$lis->close; # DS::close
+			PublicInbox::DS->SetLoopTimeout(1000);
+		};
 	};
-	PublicInbox::EOFpipe->new($eof_r, \&noop, undef);
-	undef $eof_r;
 	my $sig = {
 		CHLD => \&PublicInbox::DS::enqueue_reap,
 		QUIT => $quit,
