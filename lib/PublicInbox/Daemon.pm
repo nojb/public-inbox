@@ -533,10 +533,13 @@ EOF
 		if ($n <= $want) {
 			PublicInbox::DS::block_signals() if !$sigfd;
 			for my $i ($n..$want) {
+				my $seed = rand(0xffffffff);
 				my $pid = fork;
 				if (!defined $pid) {
 					warn "failed to fork worker[$i]: $!\n";
 				} elsif ($pid == 0) {
+					srand($seed);
+					eval { Net::SSLeay::randomize() };
 					$set_user->() if $set_user;
 					return $p0; # run normal work code
 				} else {

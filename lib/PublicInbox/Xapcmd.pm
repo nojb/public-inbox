@@ -89,8 +89,10 @@ sub commit_changes ($$$$) {
 
 sub cb_spawn {
 	my ($cb, $args, $opt) = @_; # $cb = cpdb() or compact()
-	defined(my $pid = fork) or die "fork: $!";
+	my $seed = rand(0xffffffff);
+	my $pid = fork // die "fork: $!";
 	return $pid if $pid > 0;
+	srand($seed);
 	$cb->($args, $opt);
 	POSIX::_exit(0);
 }

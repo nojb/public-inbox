@@ -625,8 +625,11 @@ sub imap_idle_fork ($$) {
 	my ($self, $url_intvl) = @_;
 	my ($url, $intvl) = @$url_intvl;
 	pipe(my ($r, $w)) or die "pipe: $!";
+	my $seed = rand(0xffffffff);
 	defined(my $pid = fork) or die "fork: $!";
 	if ($pid == 0) {
+		srand($seed);
+		eval { Net::SSLeay::randomize() };
 		close $r;
 		watch_atfork_child($self);
 		watch_imap_idle_1($self, $url, $intvl);
@@ -704,8 +707,11 @@ sub poll_fetch_fork ($) { # DS::add_timer callback
 	return if $self->{quit};
 	pipe(my ($r, $w)) or die "pipe: $!";
 	my $oldset = watch_atfork_parent($self);
+	my $seed = rand(0xffffffff);
 	my $pid = fork;
 	if (defined($pid) && $pid == 0) {
+		srand($seed);
+		eval { Net::SSLeay::randomize() };
 		close $r;
 		watch_atfork_child($self);
 		if ($urls->[0] =~ m!\Aimaps?://!i) {

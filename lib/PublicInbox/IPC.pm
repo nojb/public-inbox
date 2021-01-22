@@ -105,8 +105,10 @@ sub ipc_worker_spawn {
 	pipe(my ($r_res, $w_res)) or die "pipe: $!";
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
 	$self->ipc_atfork_prepare;
-	defined(my $pid = fork) or die "fork: $!";
+	my $seed = rand(0xffffffff);
+	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
+		srand($seed);
 		eval { PublicInbox::DS->Reset };
 		delete @$self{qw(-wq_s1 -wq_workers -wq_ppid)};
 		$w_req = $r_res = undef;
@@ -286,8 +288,10 @@ sub wq_do { # always async
 
 sub _wq_worker_start ($$) {
 	my ($self, $oldset) = @_;
+	my $seed = rand(0xffffffff);
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
+		srand($seed);
 		eval { PublicInbox::DS->Reset };
 		delete @$self{qw(-wq_s1 -wq_workers -wq_ppid)};
 		$SIG{$_} = 'IGNORE' for (qw(PIPE TTOU TTIN));
