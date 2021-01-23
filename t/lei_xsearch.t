@@ -49,7 +49,10 @@ $eidx->eidx_sync({fsync => 0});
 my $es = PublicInbox::ExtSearch->new("$home/eidx");
 my $lxs = PublicInbox::LeiXSearch->new;
 for my $ibxish (shuffle($es, @ibx)) {
-	$lxs->attach_external($ibxish);
+	$lxs->prepare_external($ibxish);
+}
+for my $loc ($lxs->locals) {
+	$lxs->attach_external($loc);
 }
 my $nr = $lxs->xdb->get_doccount;
 my $mset = $lxs->mset('d:19931002..19931003', { limit => $nr });

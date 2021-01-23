@@ -7,19 +7,6 @@ use strict;
 use v5.10.1;
 use PublicInbox::DS qw(dwaitpid);
 
-sub _vivify_external { # _externals_each callback
-	my ($src, $dir) = @_;
-	if (-f "$dir/ei.lock") {
-		require PublicInbox::ExtSearch;
-		push @$src, PublicInbox::ExtSearch->new($dir);
-	} elsif (-f "$dir/inbox.lock" || -d "$dir/public-inbox") { # v2, v1
-		require PublicInbox::Inbox;
-		push @$src, bless { inboxdir => $dir }, 'PublicInbox::Inbox';
-	} else {
-		warn "W: ignoring $dir, unable to determine type\n";
-	}
-}
-
 # the main "lei q SEARCH_TERMS" method
 sub lei_q {
 	my ($self, @argv) = @_;
@@ -27,19 +14,19 @@ sub lei_q {
 	require PublicInbox::LeiOverview;
 	PublicInbox::Config->json; # preload before forking
 	my $opt = $self->{opt};
-	my @srcs; # any number of LeiXSearch || LeiSearch || Inbox
+	my $lxs = $self->{lxs} = PublicInbox::LeiXSearch->new;
+	# any number of LeiXSearch || LeiSearch || Inbox
 	if ($opt->{'local'} //= 1) { # --local is enabled by default
 		my $sto = $self->_lei_store(1);
-		push @srcs, $sto->search;
+		$lxs->prepare_external($sto->search);
 	}
 
-	my $lxs = $self->{lxs} = PublicInbox::LeiXSearch->new;
 	# --external is enabled by default, but allow --no-external
 	if ($opt->{external} //= 1) {
-		$self->_externals_each(\&_vivify_external, \@srcs);
+		my $cb = $lxs->can('prepare_external');
+		$self->_externals_each($cb, $lxs);
 	}
-	my $xj = $opt->{jobs} // (scalar(@srcs) > 3 ? 3 : scalar(@srcs));
-	$xj = 1 if !$opt->{thread};
+	my $xj = $opt->{thread} ? $lxs->locals : ($lxs->remotes + 1);
 	my $ovv = PublicInbox::LeiOverview->new($self) or return;
 	$self->atfork_prepare_wq($lxs);
 	$lxs->wq_workers_start('lei_xsearch', $xj, $self->oldset);
@@ -76,7 +63,7 @@ sub lei_q {
 	$mset_opt{relevance} //= -2 if $opt->{thread};
 	$self->{mset_opt} = \%mset_opt;
 	$ovv->ovv_begin($self);
-	$lxs->do_query($self, \@srcs);
+	$lxs->do_query($self);
 }
 
 1;

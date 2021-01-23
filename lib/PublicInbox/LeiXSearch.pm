@@ -26,10 +26,6 @@ sub new {
 
 sub attach_external {
 	my ($self, $ibxish) = @_; # ibxish = ExtSearch or Inbox
-
-	if (!$ibxish->can('over') || !$ibxish->over) {
-		return push(@{$self->{remotes}}, $ibxish)
-	}
 	my $desc = $ibxish->{inboxdir} // $ibxish->{topdir};
 	my $srch = $ibxish->search or
 		return warn("$desc not indexed for Xapian\n");
@@ -59,10 +55,9 @@ sub attach_external {
 }
 
 # returns a list of local inboxes (or count in scalar context)
-sub locals {
-	my %uniq = map {; "$_" => $_ } @{$_[0]->{shard2ibx} // []};
-	values %uniq;
-}
+sub locals { @{$_[0]->{locals} // []} }
+
+sub remotes { @{$_[0]->{remotes} // []} }
 
 # called by PublicInbox::Search::xdb
 sub xdb_shards_flat { @{$_[0]->{shards_flat} // []} }
@@ -148,14 +143,16 @@ sub query_thread_mset { # for --thread
 }
 
 sub query_mset { # non-parallel for non-"--thread" users
-	my ($self, $lei, $srcs) = @_;
+	my ($self, $lei) = @_;
 	local $0 = "$0 query_mset";
 	my $startq = delete $self->{5};
 	my %sig = $lei->atfork_child_wq($self);
 	local @SIG{keys %sig} = values %sig;
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
-	$self->attach_external($_) for @$srcs;
+	for my $loc (locals($self)) {
+		attach_external($self, $loc);
+	}
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $self);
 	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
 	$dedupe->prepare_dedupe;
@@ -170,6 +167,10 @@ sub query_mset { # non-parallel for non-"--thread" users
 	} while (_mset_more($mset, $mo));
 	undef $each_smsg; # drops @io for l2m->{each_smsg_done}
 	$lei->{ovv}->ovv_atexit_child($lei);
+}
+
+sub query_remote_mboxrd {
+	my ($self, $lei, $uri) = @_;
 }
 
 sub git {
@@ -221,18 +222,17 @@ sub do_post_augment {
 }
 
 sub start_query { # always runs in main (lei-daemon) process
-	my ($self, $io, $lei, $srcs) = @_;
-	my $remotes = $self->{remotes} // [];
+	my ($self, $io, $lei) = @_;
 	if ($lei->{opt}->{thread}) {
-		for my $ibxish (@$srcs) {
+		for my $ibxish (locals($self)) {
 			$self->wq_do('query_thread_mset', $io, $lei, $ibxish);
 		}
 	} else {
-		$self->wq_do('query_mset', $io, $lei, $srcs);
+		$self->wq_do('query_mset', $io, $lei);
 	}
 	# TODO
-	for my $rmt (@$remotes) {
-		$self->wq_do('query_thread_mbox', $io, $lei, $rmt);
+	for my $uri (remotes($self)) {
+		$self->wq_do('query_remote_mboxrd', $io, $lei, $uri);
 	}
 	@$io = ();
 }
@@ -259,7 +259,7 @@ sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
 }
 
 sub do_query {
-	my ($self, $lei_orig, $srcs) = @_;
+	my ($self, $lei_orig) = @_;
 	my ($lei, @io) = $lei_orig->atfork_parent_wq($self);
 	$io[0] = undef;
 	pipe(my $done, $io[0]) or die "pipe $!";
@@ -286,7 +286,7 @@ sub do_query {
 		$io[5] = $startq;
 		$io[1] = $zpipe->[1] if $zpipe;
 	}
-	start_query($self, \@io, $lei, $srcs);
+	start_query($self, \@io, $lei);
 	$self->wq_close(1);
 	unless ($in_loop) {
 		# for the $lei->atfork_child_wq PIPE handler:
@@ -301,5 +301,26 @@ sub ipc_atfork_prepare {
 	$self->wq_set_recv_modes(qw[+<&= >&= >&= +<&= +<&= <&=]);
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
+
+sub prepare_external {
+	my ($self, $loc, $boost) = @_; # n.b. already ordered by boost
+	if (ref $loc) { # already a URI, or PublicInbox::Inbox-like object
+		return push(@{$self->{remotes}}, $loc) if $loc->can('scheme');
+	} elsif ($loc =~ m!\Ahttps?://!) {
+		require URI;
+		return push(@{$self->{remotes}}, URI->new($loc));
+	} elsif (-f "$loc/ei.lock") {
+		require PublicInbox::ExtSearch;
+		$loc = PublicInbox::ExtSearch->new($loc);
+	} elsif (-f "$loc/inbox.lock" || -d "$loc/public-inbox") {
+		require PublicInbox::Inbox; # v2, v1
+		$loc = bless { inboxdir => $loc }, 'PublicInbox::Inbox';
+	} else {
+		warn "W: ignoring $loc, unable to determine type\n";
+		return;
+	}
+	push @{$self->{locals}}, $loc;
+}
+
 
 1;
