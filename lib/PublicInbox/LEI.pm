@@ -698,17 +698,21 @@ sub exec_buf ($$) {
 }
 
 sub start_mua {
-	my ($self, $sock) = @_;
+	my ($self) = @_;
 	my $mua = $self->{opt}->{'mua-cmd'} // return;
 	my $mfolder = $self->{ovv}->{dst};
-	require Text::ParseWords;
-	my $replaced;
-	my @cmd = Text::ParseWords::shellwords($mua);
-	# mutt uses '%f' for open-hook with compressed folders, so we use %f
-	@cmd = map { $_ eq '%f' ? ($replaced = $mfolder) : $_ } @cmd;
+	my (@cmd, $replaced);
+	if ($mua =~ /\A(?:mutt|mailx|mail|neomutt)\z/) {
+		@cmd = ($mua, '-f');
+	# TODO: help wanted: other common FOSS MUAs
+	} else {
+		require Text::ParseWords;
+		my @cmd = Text::ParseWords::shellwords($mua);
+		# mutt uses '%f' for open-hook with compressed mbox, we follow
+		@cmd = map { $_ eq '%f' ? ($replaced = $mfolder) : $_ } @cmd;
+	}
 	push @cmd, $mfolder unless defined($replaced);
-	$sock //= $self->{sock};
-	if ($sock) { # lei(1) client process runs it
+	if (my $sock = $self->{sock}) { # lei(1) client process runs it
 		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
 	} else { # oneshot
 		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);
