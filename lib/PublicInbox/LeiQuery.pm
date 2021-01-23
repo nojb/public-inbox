@@ -66,4 +66,45 @@ sub lei_q {
 	$lxs->do_query($self);
 }
 
+# Stuff we may pass through to curl (as of 7.64.0), see curl manpage for
+# details, so most options which make sense for HTTP/HTTPS (including proxy
+# support for Tor and other methods of getting past weird networks).
+# Most of these are untested by us, some may not make sense for our use case
+# and typos below are likely.
+# n.b. some short options (-$NUMBER) are not supported since they conflict
+# with other "lei q" switches.
+# FIXME: Getopt::Long doesn't easily let us support support options with
+# '.' in them (e.g. --http1.1)
+sub curl_opt { qw(
+	abstract-unix-socket=s anyauth basic cacert=s capath=s
+	cert-status cert-type cert|E=s ciphers=s config|K=s@
+	connect-timeout=s connect-to=s cookie-jar|c=s cookie|b=s crlfile=s
+	digest disable dns-interface=s dns-ipv4-addr=s dns-ipv6-addr=s
+	dns-servers=s doh-url=s egd-file=s engine=s false-start
+	happy-eyeballs-timeout-ms=s haproxy-protocol header|H=s@
+	http2-prior-knowledge http2 insecure|k
+	interface=s ipv4 ipv6 junk-session-cookies
+	key-type=s key=s limit-rate=s local-port=s location-trusted location|L
+	max-redirs=i max-time=s negotiate netrc-file=s netrc-optional netrc
+	no-alpn no-buffer|N no-npn no-sessionid noproxy=s ntlm-wb ntlm
+	pass=s pinnedpubkey=s post301 post302 post303 preproxy=s
+	proxy-anyauth proxy-basic proxy-cacert=s proxy-capath=s
+	proxy-cert-type=s proxy-cert=s proxy-ciphers=s proxy-crlfile=s
+	proxy-digest proxy-header=s@ proxy-insecure
+	proxy-key-type=s proxy-key proxy-negotiate proxy-ntlm proxy-pass=s
+	proxy-pinnedpubkey=s proxy-service-name=s proxy-ssl-allow-beast
+	proxy-tls13-ciphers=s proxy-tlsauthtype=s proxy-tlspassword=s
+	proxy-tlsuser=s proxy-tlsv1 proxy-user|U=s proxy=s
+	proxytunnel=s pubkey=s random-file=s referer=s resolve=s
+	retry-connrefused retry-delay=s retry-max-time=s retry=i
+	sasl-ir service-name=s socks4=s socks4a=s socks5-basic
+	socks5-gssapi-service-name=s socks5-gssapi socks5-hostname=s socks5=s
+	speed-limit|Y speed-type|y ssl-allow-beast sslv2 sslv3
+	suppress-connect-headers tcp-fastopen tls-max=s
+	tls13-ciphers=s tlsauthtype=s tlspassword=s tlsuser=s
+	tlsv1 trace-ascii=s trace-time trace=s
+	unix-socket=s user-agent|A=s user|u=s
+)
+}
+
 1;

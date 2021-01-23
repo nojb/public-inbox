@@ -193,6 +193,7 @@ sub query_remote_mboxrd {
 	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
 	$dedupe->prepare_dedupe;
 	my @cmd = qw(curl -XPOST -sSf);
+	$opt->{torsocks} = 'false' if $opt->{'no-torsocks'};
 	my $tor = $opt->{torsocks} //= 'auto';
 	if ($tor eq 'auto' && substr($uri->host, -6) eq '.onion' &&
 			(($lei->{env}->{LD_PRELOAD}//'') !~ /torsocks/)) {
@@ -202,6 +203,18 @@ sub query_remote_mboxrd {
 	}
 	my $verbose = $opt->{verbose};
 	push @cmd, '-v' if $verbose;
+	for my $o ($lei->curl_opt) {
+		$o =~ s/\|[a-z0-9]\b//i; # remove single char short option
+		if ($o =~ s/=[is]@\z//) {
+			my $ary = $opt->{$o} or next;
+			push @cmd, map { ("--$o", $_) } @$ary;
+		} elsif ($o =~ s/=[is]\z//) {
+			my $val = $opt->{$o} // next;
+			push @cmd, "--$o", $val;
+		} elsif ($opt->{$o}) {
+			push @cmd, "--$o";
+		}
+	}
 	push @cmd, $uri->as_string;
 	$lei->err("# @cmd") if $verbose;
 	$? = 0;

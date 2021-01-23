@@ -84,8 +84,8 @@ our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s reverse|r offset=i remote local! external! pretty mua-cmd=s
-	verbose|v
-	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
+	torsocks=s no-torsocks verbose|v since|after=s until|before=s),
+	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
 	qw(type=s solve! format|f=s dedupe|d=s thread|t remote local!),
