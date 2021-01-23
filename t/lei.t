@@ -8,11 +8,15 @@ use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use File::Path qw(rmtree);
 use Fcntl qw(SEEK_SET);
+use PublicInbox::Spawn qw(which);
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 my ($home, $for_destroy) = tmpdir();
 my $err_filter;
+my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
+	http://czquwvybam4bgbro.onion/meta/
+	http://ou63pmih66umazou.onion/meta/);
 my $lei = sub {
 	my ($cmd, $env, $xopt) = @_;
 	$out = $err = '';
@@ -155,6 +159,32 @@ my $setup_publicinboxes = sub {
 	$seen || BAIL_OUT 'no imports';
 };
 
+my $test_external_remote = sub {
+	my ($url, $k) = @_;
+SKIP: {
+	my $nr = 4;
+	skip "$k unset", $nr if !$url;
+	which('curl') or skip 'no curl', $nr;
+	which('torsocks') or skip 'no torsocks', $nr if $url =~ m!\.onion/!;
+	$lei->('ls-external');
+	for my $e (split(/^/ms, $out)) {
+		$e =~ s/\s+boost.*//s;
+		$lei->('forget-external', '-q', $e) or
+			fail "error forgetting $e: $err"
+	}
+	$lei->('add-external', $url);
+	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
+	ok($lei->('q', "m:$mid"), "query $url");
+	is($err, '', "no errors on $url");
+	my $res = PublicInbox::Config->json->decode($out);
+	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url");
+	ok($lei->('q', "m:$mid", 'd:..20101002'), 'no results, no error');
+	like($err, qr/404/, 'noted 404');
+	is($out, "[null]\n", 'got null results');
+	$lei->('forget-external', $url);
+} # /SKIP
+}; # /sub
+
 my $test_external = sub {
 	$setup_publicinboxes->();
 	$cleanup->();
@@ -243,6 +273,15 @@ my $test_external = sub {
 	}
 	ok(!$lei->('q', '-o', "$home/mbox", 's:nope'),
 			'fails if mbox format unspecified');
+	my %e = (
+		TEST_LEI_EXTERNAL_HTTPS => 'https://public-inbox.org/meta/',
+		TEST_LEI_EXTERNAL_ONION => $onions[int(rand(scalar(@onions)))],
+	);
+	for my $k (keys %e) {
+		my $url = $ENV{$k} // '';
+		$url = $e{$k} if $url eq '1';
+		$test_external_remote->($url, $k);
+	}
 };
 
 my $test_lei_common = sub {

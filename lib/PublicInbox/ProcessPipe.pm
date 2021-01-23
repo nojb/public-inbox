@@ -13,6 +13,8 @@ sub TIEHANDLE {
 		$class;
 }
 
+sub BINMODE { binmode(shift->{fh}) } # for IO::Uncompress::Gunzip
+
 sub READ { read($_[0]->{fh}, $_[1], $_[2], $_[3] || 0) }
 
 sub READLINE { readline($_[0]->{fh}) }

@@ -93,6 +93,8 @@ Falling back to (slow) one-shot mode
 		if ($buf =~ /\Ax_it ([0-9]+)\z/) {
 			$x_it_code = $1 + 0;
 			last;
+		} elsif ($buf =~ /\Achild_error ([0-9]+)\z/) {
+			$x_it_code = $1 + 0;
 		} elsif ($buf =~ /\Aexec (.+)\z/) {
 			exec_cmd(\@fds, split(/\0/, $1));
 		} else {

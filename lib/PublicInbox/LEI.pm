@@ -84,6 +84,7 @@ our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s reverse|r offset=i remote local! external! pretty mua-cmd=s
+	verbose|v
 	since|after=s until|before=s), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
@@ -275,6 +276,16 @@ sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	err($self, $buf);
 	x_it($self, ($exit_code // 1) << 8);
+	undef;
+}
+
+sub child_error { # passes non-fatal curl exit codes to user
+	my ($self, $child_error) = @_; # child_error is $?
+	if (my $sock = $self->{sock}) { # send to lei(1) client
+		send($sock, "child_error $child_error", MSG_EOR);
+	} else { # oneshot
+		$self->{child_error} = $child_error;
+	}
 	undef;
 }
 
@@ -959,19 +970,21 @@ sub lazy_start {
 	exit($exit_code // 0);
 }
 
-# for users w/o Socket::Msghdr
+# for users w/o Socket::Msghdr installed or Inline::C enabled
 sub oneshot {
 	my ($main_pkg) = @_;
 	my $exit = $main_pkg->can('exit'); # caller may override exit()
 	local $quit = $exit if $exit;
 	local %PATH2CFG;
 	umask(077) // die("umask(077): $!");
-	dispatch((bless {
+	my $self = bless {
 		0 => *STDIN{GLOB},
 		1 => *STDOUT{GLOB},
 		2 => *STDERR{GLOB},
 		env => \%ENV
-	}, __PACKAGE__), @ARGV);
+	}, __PACKAGE__;
+	dispatch($self, @ARGV);
+	x_it($self, $self->{child_error}) if $self->{child_error};
 }
 
 # ensures stdout hits the FS before sock disconnects so a client

@@ -209,7 +209,15 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		$json->ascii(1) if $lei->{opt}->{ascii};
 	}
 	my $l2m = $lei->{l2m};
-	if ($l2m && $l2m->{-wq_s1}) {
+	if ($l2m && $ibxish->can('scheme')) { # remote https?:// mboxrd
+		delete $l2m->{-wq_s1};
+		my $g2m = $l2m->can('git_to_mail');
+		my $wcb = $l2m->write_cb($lei);
+		sub {
+			my ($smsg, undef, $eml) = @_; # no mitem in $_[1]
+			$wcb->(undef, $smsg, $eml);
+		};
+	} elsif ($l2m && $l2m->{-wq_s1}) {
 		my ($lei_ipc, @io) = $lei->atfork_parent_wq($l2m);
 		# n.b. $io[0] = qry_status_wr, $io[1] = mbox|stdout,
 		# $io[4] becomes a notification pipe that triggers EOF
