@@ -101,12 +101,36 @@ sub _complete_forget_external {
 	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
 	# Maybe there's a better way to go about this in
 	# contrib/completion/lei-completion.bash
-	my $colon = ($argv[-1] // '') eq ':';
-	my $re = $cur =~ /\A[\w-]/ ? '' : '.*';
+	my $re = '';
+	if (@argv) {
+		my @x = @argv;
+		if ($cur eq ':' && @x) {
+			push @x, $cur;
+			$cur = '';
+		}
+		while (@x > 2 && $x[0] !~ /\Ahttps?\z/ && $x[1] ne ':') {
+			shift @x;
+		}
+		if (@x >= 2) { # qw(https : hostname : 443) or qw(http :)
+			$re = join('', @x);
+		} else { # just filter out the flags and hope for the best
+			$re = join('', grep(!/^-/, @argv));
+		}
+		$re = quotemeta($re);
+	}
+	# FIXME: bash completion off "http:" or "https:" when the last
+	# character is a colon doesn't work properly even if we're
+	# returning "//$HTTP_HOST/$PATH_INFO/", not sure why, could
+	# be a bash issue.
 	map {
 		my $x = substr($_, length('external.'));
 		# only return the part specified on the CLI
-		$colon && $x =~ /(\Q$cur\E.*)/ ? $1 : $x;
+		if ($x =~ /\A$re(\Q$cur\E.*)/) {
+			# don't duplicate if already 100% completed
+			$cur eq $1 ? () : $1;
+		} else {
+			();
+		}
 	} grep(/\Aexternal\.$re\Q$cur/, @{$cfg->{-section_order}});
 }
 
