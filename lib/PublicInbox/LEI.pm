@@ -298,6 +298,9 @@ sub atfork_prepare_wq {
 	if (my $pgr = $self->{pgr}) {
 		push @$tcafc, @$pgr[1,2];
 	}
+	if (my $old_1 = $self->{old_1}) {
+		push @$tcafc, $old_1;
+	}
 	for my $f (qw(lxs l2m)) {
 		my $ipc = $self->{$f} or next;
 		push @$tcafc, grep { defined }
@@ -340,7 +343,7 @@ sub atfork_parent_wq {
 		$ret->{dedupe} = $wq->deep_clone($dedupe);
 	}
 	$self->{env} = $env;
-	delete @$ret{qw(-lei_store cfg pgr lxs)}; # keep l2m
+	delete @$ret{qw(-lei_store cfg old_1 pgr lxs)}; # keep l2m
 	my @io = delete @$ret{0..2};
 	$io[3] = delete($ret->{sock}) // $io[2];
 	my $l2m = $ret->{l2m};

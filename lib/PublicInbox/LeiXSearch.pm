@@ -252,7 +252,14 @@ sub query_done { # EOF callback
 	}
 	$lei->{ovv}->ovv_end($lei);
 	if ($has_l2m) { # close() calls LeiToMail reap_compress
-		close(delete($lei->{1})) if $lei->{1};
+		if (my $out = delete $lei->{old_1}) {
+			if (my $mbout = $lei->{1}) {
+				close($mbout) or return $lei->fail(<<"");
+Error closing $lei->{ovv}->{dst}: $!
+
+			}
+			$lei->{1} = $out;
+		}
 		$lei->start_mua;
 	}
 	$lei->dclose;

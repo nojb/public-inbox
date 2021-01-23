@@ -405,6 +405,7 @@ sub _pre_augment_mbox {
 			$! == ENOENT or die "unlink($dst): $!";
 		}
 		open my $out, $mode, $dst or die "open($dst): $!";
+		$lei->{old_1} = $lei->{1};
 		$lei->{1} = $out;
 	}
 	# Perl does SEEK_END even with O_APPEND :<
