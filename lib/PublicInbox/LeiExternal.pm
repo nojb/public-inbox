@@ -69,9 +69,11 @@ sub lei_forget_external {
 	my ($self, @locations) = @_;
 	my $cfg = $self->_lei_cfg(1);
 	my $quiet = $self->{opt}->{quiet};
+	my %seen;
 	for my $loc (@locations) {
 		my (@unset, @not_found);
 		for my $l ($loc, _canonicalize($loc)) {
+			next if $seen{$l}++;
 			my $key = "external.$l.boost";
 			delete($cfg->{$key});
 			$self->_config('--unset', $key);
