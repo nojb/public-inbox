@@ -76,9 +76,9 @@ sub lei_forget_external {
 			delete($cfg->{$key});
 			$self->_config('--unset', $key);
 			if ($? == 0) {
-				push @unset, $key;
+				push @unset, $l;
 			} elsif (($? >> 8) == 5) {
-				push @not_found, $key;
+				push @not_found, $l;
 			} else {
 				$self->err("# --unset $key error");
 				return $self->x_it($?);
@@ -86,7 +86,7 @@ sub lei_forget_external {
 		}
 		if (@unset) {
 			next if $quiet;
-			$self->err("# $_ unset") for @unset;
+			$self->err("# $_ gone") for @unset;
 		} elsif (@not_found) {
 			$self->err("# $_ not found") for @not_found;
 		} # else { already exited
