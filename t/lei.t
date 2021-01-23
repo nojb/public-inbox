@@ -193,6 +193,10 @@ my $test_external = sub {
 	ok(!-e $config_file && !-e $store_dir,
 		'nothing created by ls-external');
 
+	ok(!$lei->('add-external', "$home/nonexistent"),
+		"fails on non-existent dir");
+	$lei->('ls-external');
+	is($out.$err, '', 'ls-external still has no output');
 	my $cfg = PublicInbox::Config->new;
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;

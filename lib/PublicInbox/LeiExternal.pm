@@ -58,6 +58,9 @@ sub lei_add_external {
 	my $cfg = $self->_lei_cfg(1);
 	my $new_boost = $self->{opt}->{boost} // 0;
 	$location = _canonicalize($location);
+	if ($location !~ m!\Ahttps?://! && !-d $location) {
+		return $self->fail("$location not a directory");
+	}
 	my $key = "external.$location.boost";
 	my $cur_boost = $cfg->{$key};
 	return if defined($cur_boost) && $cur_boost == $new_boost; # idempotent
