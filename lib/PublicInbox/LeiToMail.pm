@@ -483,10 +483,13 @@ sub ipc_atfork_prepare {
 # ordering is unstable at worker exit and may cause segfaults
 sub reap_gits {
 	my ($self) = @_;
+	delete $self->{wcb};
 	for my $git (delete @$self{grep(/\A$$\0/, keys %$self)}) {
 		$git->async_wait_all;
 	}
 }
+
+sub DESTROY { delete $_[0]->{wcb} }
 
 sub ipc_atfork_child { # runs after IPC::wq_worker_loop
 	my ($self) = @_;
