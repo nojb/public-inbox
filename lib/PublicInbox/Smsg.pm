@@ -12,7 +12,7 @@ use strict;
 use warnings;
 use base qw(Exporter);
 our @EXPORT_OK = qw(subject_normalized);
-use PublicInbox::MID qw(mids);
+use PublicInbox::MID qw(mids references);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 
@@ -67,6 +67,26 @@ sub psgi_cull ($) {
 	# TODO: we may need to keep some of these for JMAP...
 	delete @$self{qw(tid to cc bytes lines)};
 	$self;
+}
+
+sub parse_references ($$$) {
+	my ($smsg, $hdr, $mids) = @_;
+	my $refs = references($hdr);
+	push(@$refs, @$mids) if scalar(@$mids) > 1;
+	return $refs if scalar(@$refs) == 0;
+
+	# prevent circular references here:
+	my %seen = ( $smsg->{mid} => 1 );
+	my @keep;
+	foreach my $ref (@$refs) {
+		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {
+			warn "References: <$ref> too long, ignoring\n";
+			next;
+		}
+		push(@keep, $ref) unless $seen{$ref}++;
+	}
+	$smsg->{references} = '<'.join('> <', @keep).'>' if @keep;
+	\@keep;
 }
 
 # used for v2, Import and v1 non-SQLite WWW code paths

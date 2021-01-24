@@ -169,7 +169,7 @@ sub each_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->populate($eml);
-	PublicInbox::OverIdx::parse_references($smsg, $eml, mids($eml));
+	$smsg->parse_references($eml, mids($eml));
 	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
 	delete @$smsg{qw(From Subject -ds -ts)};
 	if (my $startq = delete($self->{5})) { wait_startq($startq) }
@@ -381,7 +381,6 @@ sub ipc_atfork_prepare {
 	my ($self) = @_;
 	if (exists $self->{remotes}) {
 		require PublicInbox::MboxReader;
-		require PublicInbox::OverIdx; # parse_references
 		require IO::Uncompress::Gunzip;
 	}
 	# FDS: (0: done_wr, 1: stdout|mbox, 2: stderr,

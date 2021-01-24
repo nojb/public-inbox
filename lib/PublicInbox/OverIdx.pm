@@ -243,26 +243,6 @@ sub link_refs {
 	$tid;
 }
 
-sub parse_references ($$$) {
-	my ($smsg, $hdr, $mids) = @_;
-	my $refs = references($hdr);
-	push(@$refs, @$mids) if scalar(@$mids) > 1;
-	return $refs if scalar(@$refs) == 0;
-
-	# prevent circular references here:
-	my %seen = ( $smsg->{mid} => 1 );
-	my @keep;
-	foreach my $ref (@$refs) {
-		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {
-			warn "References: <$ref> too long, ignoring\n";
-			next;
-		}
-		push(@keep, $ref) unless $seen{$ref}++;
-	}
-	$smsg->{references} = '<'.join('> <', @keep).'>' if @keep;
-	\@keep;
-}
-
 # normalize subjects so they are suitable as pathnames for URLs
 # XXX: consider for removal
 sub subject_path ($) {
@@ -283,7 +263,7 @@ sub add_overview {
 	my ($self, $eml, $smsg) = @_;
 	$smsg->{lines} = $eml->body_raw =~ tr!\n!\n!;
 	my $mids = mids_for_index($eml);
-	my $refs = parse_references($smsg, $eml, $mids);
+	my $refs = $smsg->parse_references($eml, $mids);
 	$mids->[0] //= $smsg->{mid} //= $eml->{-lei_fake_mid};
 	$smsg->{mid} //= '';
 	my $subj = $smsg->{subject};

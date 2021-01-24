@@ -380,7 +380,7 @@ sub eml2doc ($$$;$) {
 	if (!$self->{-skip_docdata}) {
 		# WWW doesn't need {to} or {cc}, only NNTP
 		$smsg->{to} = $smsg->{cc} = '';
-		PublicInbox::OverIdx::parse_references($smsg, $eml, $mids);
+		$smsg->parse_references($eml, $mids);
 		my $data = $smsg->to_doc_data;
 		$doc->set_data($data);
 	}
