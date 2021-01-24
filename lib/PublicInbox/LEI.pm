@@ -83,7 +83,7 @@ sub _config_path ($) {
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
-	sort|s=s reverse|r offset=i remote local! external! pretty mua-cmd=s
+	sort|s=s reverse|r offset=i remote! local! external! pretty mua-cmd=s
 	torsocks=s no-torsocks verbose|v since|after=s until|before=s),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 

@@ -24,7 +24,9 @@ sub lei_q {
 	# --external is enabled by default, but allow --no-external
 	if ($opt->{external} //= 1) {
 		my $cb = $lxs->can('prepare_external');
-		$self->_externals_each($cb, $lxs);
+		my $ne = $self->_externals_each($cb, $lxs);
+		$opt->{remote} //= $ne == $lxs->remotes;
+		delete($lxs->{remotes}) if !$opt->{remote};
 	}
 	my $xj = $lxs->concurrency($opt);
 	my $ovv = PublicInbox::LeiOverview->new($self) or return;
