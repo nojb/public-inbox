@@ -15,6 +15,7 @@ use File::Temp 0.19 (); # 0.19 for ->newdir
 use File::Spec ();
 use PublicInbox::Search qw(xap_terms);
 use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::MID qw(mids);
 
 sub new {
 	my ($class) = @_;
@@ -120,8 +121,6 @@ sub query_thread_mset { # for --thread
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $ibxish);
-	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
-	$dedupe->prepare_dedupe;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		my $ids = $srch->mset_to_artnums($mset, $mo);
@@ -132,7 +131,6 @@ sub query_thread_mset { # for --thread
 			for my $n (@{$ctx->{xids}}) {
 				my $smsg = $over->get_art($n) or next;
 				wait_startq($startq) if $startq;
-				next if $dedupe->is_smsg_dup($smsg);
 				my $mitem = delete $n2item{$smsg->{num}};
 				$each_smsg->($smsg, $mitem);
 			}
@@ -155,14 +153,11 @@ sub query_mset { # non-parallel for non-"--thread" users
 		attach_external($self, $loc);
 	}
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $self);
-	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
-	$dedupe->prepare_dedupe;
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
 		for my $mitem ($mset->items) {
 			my $smsg = smsg_for($self, $mitem) or next;
 			wait_startq($startq) if $startq;
-			next if $dedupe->is_smsg_dup($smsg);
 			$each_smsg->($smsg, $mitem);
 		}
 	} while (_mset_more($mset, $mo));
@@ -174,10 +169,10 @@ sub each_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->populate($eml);
+	PublicInbox::OverIdx::parse_references($smsg, $eml, mids($eml));
 	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
 	delete @$smsg{qw(From Subject -ds -ts)};
 	if (my $startq = delete($self->{5})) { wait_startq($startq) }
-	return if !$lei->{l2m} && $lei->{dedupe}->is_smsg_dup($smsg);
 	$each_smsg->($smsg, undef, $eml);
 }
 
@@ -189,8 +184,6 @@ sub query_remote_mboxrd {
 	my ($opt, $env) = @$lei{qw(opt env)};
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
 	push(@qform, t => 1) if $opt->{thread};
-	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
-	$dedupe->prepare_dedupe;
 	my @cmd = (qw(curl -sSf -d), '');
 	my $verbose = $opt->{verbose};
 	push @cmd, '-v' if $verbose;
@@ -208,9 +201,9 @@ sub query_remote_mboxrd {
 	}
 	$opt->{torsocks} = 'false' if $opt->{'no-torsocks'};
 	my $tor = $opt->{torsocks} //= 'auto';
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	for my $uri (@$uris) {
 		$uri->query_form(@qform);
-		my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $uri);
 		my $cmd = [ @cmd, $uri->as_string ];
 		if ($tor eq 'auto' && substr($uri->host, -6) eq '.onion' &&
 				(($env->{LD_PRELOAD}//'') !~ /torsocks/)) {
@@ -236,6 +229,7 @@ sub query_remote_mboxrd {
 			$lei->child_error($?);
 		}
 	}
+	undef $each_smsg;
 	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
@@ -387,6 +381,7 @@ sub ipc_atfork_prepare {
 	my ($self) = @_;
 	if (exists $self->{remotes}) {
 		require PublicInbox::MboxReader;
+		require PublicInbox::OverIdx; # parse_references
 		require IO::Uncompress::Gunzip;
 	}
 	# FDS: (0: done_wr, 1: stdout|mbox, 2: stderr,

@@ -209,7 +209,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		$json->ascii(1) if $lei->{opt}->{ascii};
 	}
 	my $l2m = $lei->{l2m};
-	if ($l2m && $ibxish->can('scheme')) { # remote https?:// mboxrd
+	if ($l2m && !$ibxish) { # remote https?:// mboxrd
 		delete $l2m->{-wq_s1};
 		my $g2m = $l2m->can('git_to_mail');
 		my $wcb = $l2m->write_cb($lei);
