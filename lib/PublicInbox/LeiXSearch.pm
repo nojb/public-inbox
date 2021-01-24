@@ -191,7 +191,7 @@ sub query_remote_mboxrd {
 	push(@qform, t => 1) if $opt->{thread};
 	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
 	$dedupe->prepare_dedupe;
-	my @cmd = qw(curl -XPOST -sSf);
+	my @cmd = (qw(curl -sSf -d), '');
 	my $verbose = $opt->{verbose};
 	push @cmd, '-v' if $verbose;
 	for my $o ($lei->curl_opt) {
