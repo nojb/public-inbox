@@ -26,7 +26,7 @@ sub lei_q {
 		my $cb = $lxs->can('prepare_external');
 		$self->_externals_each($cb, $lxs);
 	}
-	my $xj = $opt->{thread} ? $lxs->locals : ($lxs->remotes + 1);
+	my $xj = $lxs->concurrency($opt);
 	my $ovv = PublicInbox::LeiOverview->new($self) or return;
 	$self->atfork_prepare_wq($lxs);
 	$lxs->wq_workers_start('lei_xsearch', $xj, $self->oldset);
