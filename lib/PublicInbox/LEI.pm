@@ -765,11 +765,10 @@ sub accept_dispatch { # Listener {post_accept} callback
 		return send($sock, 'timed out waiting to recv FDs', MSG_EOR);
 	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33); # >MAX_ARG_STRLEN
 	if (scalar(@fds) == 4) {
-		my $i = 0;
-		for my $rdr (qw(<&= >&= >&= <&=)) {
+		for my $i (0..3) {
 			my $fd = shift(@fds);
-			open($self->{$i++}, $rdr, $fd) and next;
-			send($sock, "open($rdr$fd) (FD=$i): $!", MSG_EOR);
+			open($self->{$i}, '+<&=', $fd) and next;
+			send($sock, "open(+<&=$fd) (FD=$i): $!", MSG_EOR);
 		}
 	} else {
 		return send($sock, "recv_cmd failed: $!", MSG_EOR);

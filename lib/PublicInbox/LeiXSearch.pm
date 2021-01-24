@@ -389,9 +389,8 @@ sub ipc_atfork_prepare {
 		require PublicInbox::MboxReader;
 		require IO::Uncompress::Gunzip;
 	}
-	# (0: done_wr, 1: stdout|mbox, 2: stderr,
-	#  3: sock, 4: $l2m->{-wq_s1}, 5: $startq)
-	$self->wq_set_recv_modes(qw[+<&= >&= >&= +<&= +<&= <&=]);
+	# FDS: (0: done_wr, 1: stdout|mbox, 2: stderr,
+	#       3: sock, 4: $l2m->{-wq_s1}, 5: $startq)
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
 

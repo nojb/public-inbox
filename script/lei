@@ -23,20 +23,19 @@ sub sigchld {
 
 sub exec_cmd {
 	my ($fds, $argc, @argv) = @_;
-	my @m = (*STDIN{IO}, '<&=',  *STDOUT{IO}, '>&=', *STDERR{IO}, '>&=');
+	my @old = (*STDIN{IO}, *STDOUT{IO}, *STDERR{IO});
 	my @rdr;
 	for my $fd (@$fds) {
-		my ($old_io, $mode) = splice(@m, 0, 2);
-		open(my $tmpfh, $mode, $fd) or die "open $mode$fd: $!";
-		push @rdr, $old_io, $mode, $tmpfh;
+		open(my $tmpfh, '+<&=', $fd) or die "open +<&=$fd: $!";
+		push @rdr, shift(@old), $tmpfh;
 	}
 	require POSIX; # WNOHANG
 	$SIG{CHLD} = \&sigchld;
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
 		my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
-		while (my ($old_io, $mode, $tmpfh) = splice(@rdr, 0, 3)) {
-			open $old_io, $mode, $tmpfh or die "open $mode: $!";
+		while (my ($old_io, $tmpfh) = splice(@rdr, 0, 2)) {
+			open $old_io, '+<&', $tmpfh or die "open +<&=: $!";
 		}
 		%ENV = (%ENV, %env);
 		exec(@argv);

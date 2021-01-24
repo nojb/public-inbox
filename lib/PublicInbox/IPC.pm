@@ -46,11 +46,6 @@ my $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {
 	PublicInbox::CmdIPC4->can('send_cmd4');
 };
 
-sub wq_set_recv_modes {
-	my ($self, @modes) = @_;
-	$self->{-wq_recv_modes} = \@modes;
-}
-
 sub _get_rec ($) {
 	my ($r) = @_;
 	defined(my $len = <$r>) or return;
@@ -251,15 +246,13 @@ sub _recv_and_run {
 	my ($self, $s2, $len, $full_stream) = @_;
 	my @fds = $recv_cmd->($s2, my $buf, $len);
 	my $n = length($buf // '') or return;
-	my @m = @{$self->{-wq_recv_modes} // [qw( +<&= >&= >&= )]};
 	my $nfd = 0;
 	for my $fd (@fds) {
-		my $mode = shift(@m);
-		if (open(my $cmdfh, $mode, $fd)) {
+		if (open(my $cmdfh, '+<&=', $fd)) {
 			$self->{$nfd++} = $cmdfh;
 			$cmdfh->autoflush(1);
 		} else {
-			die "$$ open($mode$fd) (FD:$nfd): $!";
+			die "$$ open(+<&=$fd) (FD:$nfd): $!";
 		}
 	}
 	while ($full_stream && $n < $len) {

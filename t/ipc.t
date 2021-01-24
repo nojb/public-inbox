@@ -119,7 +119,6 @@ $test->('local');
 $ipc->ipc_worker_stop; # idempotent
 
 # work queues
-$ipc->wq_set_recv_modes(qw( +>&= >&= >&= ));
 pipe(my ($ra, $wa)) or BAIL_OUT $!;
 pipe(my ($rb, $wb)) or BAIL_OUT $!;
 pipe(my ($rc, $wc)) or BAIL_OUT $!;

@@ -227,9 +227,7 @@ sub decompress_src ($$$) {
 
 sub dup_src ($) {
 	my ($in) = @_;
-	# fileno needed because wq_set_recv_modes only used ">&=" for {1}
-	# and Perl blindly trusts that to reject the '+' (readability flag)
-	open my $dup, '+>>&=', fileno($in) or die "dup: $!";
+	open my $dup, '+>>&', $in or die "dup: $!";
 	$dup;
 }
 
@@ -475,8 +473,7 @@ sub write_mail { # via ->wq_do
 
 sub ipc_atfork_prepare {
 	my ($self) = @_;
-	# (done_wr, stdout|mbox, stderr, 3: sock, 4: each_smsg_done_wr)
-	$self->wq_set_recv_modes(qw[+<&= >&= >&= +<&= >&=]);
+	# FDs: (done_wr, stdout|mbox, stderr, 3: sock, 4: each_smsg_done_wr)
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
 
