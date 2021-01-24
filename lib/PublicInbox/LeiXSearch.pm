@@ -311,7 +311,7 @@ sub start_query { # always runs in main (lei-daemon) process
 		for my $ibxish (locals($self)) {
 			$self->wq_do('query_thread_mset', $io, $lei, $ibxish);
 		}
-	} else {
+	} elsif (locals($self)) {
 		$self->wq_do('query_mset', $io, $lei);
 	}
 	my $i = 0;

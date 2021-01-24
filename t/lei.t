@@ -277,6 +277,9 @@ my $test_external = sub {
 	}
 	ok(!$lei->('q', '-o', "$home/mbox", 's:nope'),
 			'fails if mbox format unspecified');
+	ok(!$lei->(qw(q --no-local s:see)), '--no-local');
+	is($? >> 8, 1, 'proper exit code');
+	like($err, qr/no local or remote.+? to search/, 'no inbox');
 	my %e = (
 		TEST_LEI_EXTERNAL_HTTPS => 'https://public-inbox.org/meta/',
 		TEST_LEI_EXTERNAL_ONION => $onions[int(rand(scalar(@onions)))],

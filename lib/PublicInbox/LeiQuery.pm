@@ -26,7 +26,14 @@ sub lei_q {
 		my $cb = $lxs->can('prepare_external');
 		my $ne = $self->_externals_each($cb, $lxs);
 		$opt->{remote} //= $ne == $lxs->remotes;
-		delete($lxs->{remotes}) if !$opt->{remote};
+		if ($opt->{'local'}) {
+			delete($lxs->{remotes}) if !$opt->{remote};
+		} else {
+			delete($lxs->{locals});
+		}
+	}
+	unless ($lxs->locals || $lxs->remotes) {
+		return $self->fail('no local or remote inboxes to search');
 	}
 	my $xj = $lxs->concurrency($opt);
 	my $ovv = PublicInbox::LeiOverview->new($self) or return;
