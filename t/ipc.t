@@ -6,11 +6,13 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use Fcntl qw(SEEK_SET);
+use Digest::SHA qw(sha1_hex);
 require_mods(qw(Storable||Sereal));
 require_ok 'PublicInbox::IPC';
 state $once = eval <<'';
 package PublicInbox::IPC;
 use strict;
+use Digest::SHA qw(sha1_hex);
 sub test_array { qw(test array) }
 sub test_scalar { 'scalar' }
 sub test_scalarref { \'scalarref' }
@@ -23,6 +25,11 @@ sub test_write_each_fd {
 		print { $self->{$fd} } "i=$fd $$ ", @args, "\n";
 		$self->{$fd}->flush;
 	}
+}
+sub test_sha {
+	my ($self, $buf) = @_;
+	print { $self->{1} } sha1_hex($buf), "\n";
+	$self->{1}->flush;
 }
 1;
 
@@ -112,7 +119,7 @@ $test->('local');
 $ipc->ipc_worker_stop; # idempotent
 
 # work queues
-$ipc->wq_set_recv_modes(qw( >&= >&= >&= ));
+$ipc->wq_set_recv_modes(qw( +>&= >&= >&= ));
 pipe(my ($ra, $wa)) or BAIL_OUT $!;
 pipe(my ($rb, $wb)) or BAIL_OUT $!;
 pipe(my ($rc, $wc)) or BAIL_OUT $!;
@@ -120,6 +127,10 @@ open my $warn, '+>', undef or BAIL_OUT;
 $warn->autoflush(0);
 local $SIG{__WARN__} = sub { print $warn "PID:$$ ", @_ };
 my @ppids;
+open my $agpl, '<', 'COPYING' or BAIL_OUT "AGPL-3 missing: $!";
+my $big = do { local $/; <$agpl> } // BAIL_OUT "read: $!";
+close $agpl or BAIL_OUT "close: $!";
+
 for my $t ('local', 'worker', 'worker again') {
 	$ipc->wq_do('test_write_each_fd', [ $wa, $wb, $wc ], 'hello world');
 	my $i = 0;
@@ -130,6 +141,15 @@ for my $t ('local', 'worker', 'worker again') {
 		$i++;
 	}
 	$ipc->wq_do('test_die', [ $wa, $wb, $wc ]);
+	$ipc->wq_do('test_sha', [ $wa, $wb ], 'hello world');
+	is(readline($rb), sha1_hex('hello world')."\n", "SHA small ($t)");
+	{
+		my $bigger = $big x 10;
+		$ipc->wq_do('test_sha', [ $wa, $wb ], $bigger);
+		my $exp = sha1_hex($bigger)."\n";
+		undef $bigger;
+		is(readline($rb), $exp, "SHA big ($t)");
+	}
 	my $ppid = $ipc->wq_workers_start('wq', 1);
 	push(@ppids, $ppid);
 }

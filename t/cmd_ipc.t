@@ -82,6 +82,22 @@ my $do_test = sub { SKIP: {
 		@fds = $recv->($s2, $buf, length($src));
 		is(scalar(@fds), 0, 'no FDs received');
 		is($buf, $src, 'recv w/o FDs');
+
+		my $nr = 2 * 1024 * 1024;
+		while (1) {
+			vec(my $vec = '', $nr * 8 - 1, 1) = 1;
+			my $n = $send->($s1, [], $vec, $flag);
+			if (defined($n)) {
+				$n == length($vec) or
+					fail "short send: $n != ".length($vec);
+				diag "sent $nr, retrying with more";
+				$nr += 2 * 1024 * 1024;
+			} else {
+				ok($!{EMSGSIZE}, 'got EMSGSIZE');
+				# diag "$nr bytes hits EMSGSIZE";
+				last;
+			}
+		}
 	}
 } };
 

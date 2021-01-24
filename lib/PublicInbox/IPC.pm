@@ -8,8 +8,10 @@ use v5.10.1;
 use Carp qw(confess croak);
 use PublicInbox::DS qw(dwaitpid);
 use PublicInbox::Spawn;
-use POSIX qw(WNOHANG);
-use Socket qw(AF_UNIX MSG_EOR);
+use POSIX qw(mkfifo WNOHANG);
+use Socket qw(AF_UNIX MSG_EOR SOCK_STREAM);
+use Errno qw(EMSGSIZE);
+use File::Temp 0.19 (); # 0.19 for ->newdir
 my $SEQPACKET = eval { Socket::SOCK_SEQPACKET() }; # portable enough?
 use constant PIPE_BUF => $^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF();
 my $WQ_MAX_WORKERS = 4096;
@@ -245,39 +247,69 @@ sub ipc_sibling_atfork_child {
 	$pid == $$ and die "BUG: $$ ipc_atfork_child called on itself";
 }
 
+sub _recv_and_run {
+	my ($self, $s2, $len, $full_stream) = @_;
+	my @fds = $recv_cmd->($s2, my $buf, $len);
+	my $n = length($buf // '') or return;
+	my @m = @{$self->{-wq_recv_modes} // [qw( +<&= >&= >&= )]};
+	my $nfd = 0;
+	for my $fd (@fds) {
+		my $mode = shift(@m);
+		if (open(my $cmdfh, $mode, $fd)) {
+			$self->{$nfd++} = $cmdfh;
+			$cmdfh->autoflush(1);
+		} else {
+			die "$$ open($mode$fd) (FD:$nfd): $!";
+		}
+	}
+	while ($full_stream && $n < $len) {
+		my $r = sysread($s2, $buf, $len - $n, $n) // croak "read: $!";
+		croak "read EOF after $n/$len bytes" if $r == 0;
+		$n = length($buf);
+	}
+	# Sereal dies on truncated data, Storable returns undef
+	my $args = thaw($buf) // die "thaw error on buffer of size: $n";
+	undef $buf;
+	my $sub = shift @$args;
+	eval { $self->$sub(@$args) };
+	warn "$$ wq_worker: $@" if $@ && ref($@) ne 'PublicInbox::SIGPIPE';
+	delete @$self{0..($nfd-1)};
+	$n;
+}
+
 sub wq_worker_loop ($) {
 	my ($self) = @_;
 	my $len = $self->{wq_req_len} // (4096 * 33);
 	my $s2 = $self->{-wq_s2} // die 'BUG: no -wq_s2';
-	while (1) {
-		my @fds = $recv_cmd->($s2, my $buf, $len) or return; # EOF
-		my @m = @{$self->{-wq_recv_modes} // [qw( +<&= >&= >&= )]};
-		my $nfd = 0;
-		for my $fd (@fds) {
-			my $mode = shift(@m);
-			if (open(my $cmdfh, $mode, $fd)) {
-				$self->{$nfd++} = $cmdfh;
-				$cmdfh->autoflush(1);
-			} else {
-				die "$$ open($mode$fd) (FD:$nfd): $!";
-			}
-		}
-		# Sereal dies on truncated data, Storable returns undef
-		my $args = thaw($buf) //
-			die "thaw error on buffer of size:".length($buf);
-		my $sub = shift @$args;
-		eval { $self->$sub(@$args) };
-		warn "$$ wq_worker: $@" if $@ &&
-					ref($@) ne 'PublicInbox::SIGPIPE';
-		delete @$self{0..($nfd-1)};
-	}
+	1 while (_recv_and_run($self, $s2, $len));
+}
+
+sub do_sock_stream { # via wq_do, for big requests
+	my ($self, $len) = @_;
+	_recv_and_run($self, delete $self->{0}, $len, 1);
 }
 
 sub wq_do { # always async
 	my ($self, $sub, $ios, @args) = @_;
 	if (my $s1 = $self->{-wq_s1}) { # run in worker
 		my $fds = [ map { fileno($_) } @$ios ];
-		$send_cmd->($s1, $fds, freeze([$sub, @args]), MSG_EOR);
+		my $n = $send_cmd->($s1, $fds, freeze([$sub, @args]), MSG_EOR);
+		return if defined($n);
+		croak "sendmsg error: $!" if $! != EMSGSIZE;
+		socketpair(my $r, my $w, AF_UNIX, SOCK_STREAM, 0) or
+			croak "socketpair: $!";
+		my $buf = freeze([$sub, @args]);
+		$n = $send_cmd->($s1, [ fileno($r) ],
+				freeze(['do_sock_stream', length($buf)]),
+				MSG_EOR) // croak "sendmsg: $!";
+		undef $r;
+		$n = $send_cmd->($w, $fds, $buf, 0) // croak "sendmsg: $!";
+		while ($n < length($buf)) {
+			my $x = syswrite($w, $buf, length($buf) - $n, $n) //
+					croak "syswrite: $!";
+			croak "syswrite wrote 0 bytes" if $x == 0;
+			$n += $x;
+		}
 	} else {
 		@$self{0..$#$ios} = @$ios;
 		eval { $self->$sub(@args) };
