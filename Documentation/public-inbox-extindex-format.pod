@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-public-inbox extindex format description
+public-inbox-extindex-format - external index format description
 
 =head1 DESCRIPTION
 
