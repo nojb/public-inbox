@@ -352,8 +352,7 @@ sub which ($) {
 
 sub spawn ($;$$) {
 	my ($cmd, $env, $opts) = @_;
-	my $f = which($cmd->[0]);
-	defined $f or die "$cmd->[0]: command not found\n";
+	my $f = which($cmd->[0]) // die "$cmd->[0]: command not found\n";
 	my @env;
 	$opts ||= {};
 
@@ -365,7 +364,7 @@ sub spawn ($;$$) {
 	for my $child_fd (0..2) {
 		my $parent_fd = $opts->{$child_fd};
 		if (defined($parent_fd) && $parent_fd !~ /\A[0-9]+\z/) {
-			defined(my $fd = fileno($parent_fd)) or
+			my $fd = fileno($parent_fd) //
 					die "$parent_fd not an IO GLOB? $!";
 			$parent_fd = $fd;
 		}
@@ -374,7 +373,7 @@ sub spawn ($;$$) {
 	my $rlim = [];
 
 	foreach my $l (@RLIMITS) {
-		defined(my $v = $opts->{$l}) or next;
+		my $v = $opts->{$l} // next;
 		my $r = eval "require BSD::Resource; BSD::Resource::$l();";
 		unless (defined $r) {
 			warn "$l undefined by BSD::Resource: $@\n";

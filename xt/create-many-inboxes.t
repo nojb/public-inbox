@@ -68,7 +68,7 @@ my @children;
 for my $i (1..$nproc) {
 	my ($r, $w);
 	pipe($r, $w) or BAIL_OUT $!;
-	my $pid = fork;
+	my $pid = fork // BAIL_OUT "fork: $!";
 	if ($pid == 0) {
 		close $w;
 		while (my $i = <$r>) {
@@ -77,7 +77,6 @@ for my $i (1..$nproc) {
 		}
 		_exit(0);
 	}
-	defined $pid or BAIL_OUT "fork: $!";
 	close $r or BAIL_OUT $!;
 	push @children, [ $w, $pid ];
 	$w->autoflush(1);

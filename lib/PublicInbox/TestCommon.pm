@@ -254,8 +254,7 @@ sub run_script ($;$$) {
 		my $cmd = [ key2script($key), @argv ];
 		my $pid = PublicInbox::Spawn::spawn($cmd, $env, $spawn_opt);
 		if (defined $pid) {
-			my $r = waitpid($pid, 0);
-			defined($r) or die "waitpid: $!";
+			my $r = waitpid($pid, 0) // die "waitpid: $!";
 			$r == $pid or die "waitpid: expected $pid, got $r";
 		}
 	} else { # localize and run everything in the same process:
@@ -367,7 +366,7 @@ sub start_script {
 			}
 		}
 		if (@paths) {
-			defined($tail_pid = fork) or die "fork: $!\n";
+			$tail_pid = fork // die "fork: $!";
 			if ($tail_pid == 0) {
 				# make sure files exist, first
 				open my $fh, '>>', $_ for @paths;
@@ -378,7 +377,7 @@ sub start_script {
 			wait_for_tail($tail_pid, scalar @paths);
 		}
 	}
-	defined(my $pid = fork) or die "fork: $!\n";
+	my $pid = fork // die "fork: $!\n";
 	if ($pid == 0) {
 		eval { PublicInbox::DS->Reset };
 		# pretend to be systemd (cf. sd_listen_fds(3))
@@ -440,8 +439,7 @@ sub join {
 	my ($self, $sig) = @_;
 	my $pid = delete $self->{pid} or return;
 	CORE::kill($sig, $pid) if defined $sig;
-	my $ret = waitpid($pid, 0);
-	defined($ret) or die "waitpid($pid): $!";
+	my $ret = waitpid($pid, 0) // die "waitpid($pid): $!";
 	$ret == $pid or die "waitpid($pid) != $ret";
 }
 

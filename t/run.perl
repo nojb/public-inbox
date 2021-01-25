@@ -128,7 +128,7 @@ my $eof; # we stop respawning if true
 
 my $start_worker = sub {
 	my ($i, $j, $rd, $todo) = @_;
-	defined(my $pid = fork) or DIE "fork: $!";
+	my $pid = fork // DIE "fork: $!";
 	if ($pid == 0) {
 		$worker = $$;
 		while (1) {

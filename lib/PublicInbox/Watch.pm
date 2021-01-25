@@ -626,7 +626,7 @@ sub imap_idle_fork ($$) {
 	my ($url, $intvl) = @$url_intvl;
 	pipe(my ($r, $w)) or die "pipe: $!";
 	my $seed = rand(0xffffffff);
-	defined(my $pid = fork) or die "fork: $!";
+	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
 		srand($seed);
 		eval { Net::SSLeay::randomize() };

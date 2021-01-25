@@ -29,7 +29,7 @@ SKIP: {
 	diag "TEST_STRESS_NPROC=$nproc TEST_STRESS_NR=$nr";
 	require POSIX;
 	for my $n (1..$nproc) {
-		defined(my $pid = fork) or BAIL_OUT "fork: $!";
+		my $pid = fork // BAIL_OUT "fork: $!";
 		if ($pid == 0) {
 			my $url = "imap://example.com/INBOX.$$";
 			my $uidval = time;

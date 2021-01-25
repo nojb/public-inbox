@@ -114,7 +114,7 @@ SKIP: {
 		$w->blocking($blk);
 		seek($fh, 0, SEEK_SET) or BAIL_OUT "seek: $!";
 		truncate($fh, 0) or BAIL_OUT "truncate: $!";
-		defined(my $pid = fork) or BAIL_OUT "fork: $!";
+		my $pid = fork // BAIL_OUT "fork: $!";
 		if ($pid == 0) {
 			close $w;
 			tick; # wait for parent to block on writev
