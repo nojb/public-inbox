@@ -203,12 +203,14 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 	my ($self, $lei, $ibxish) = @_;
 	my $json;
 	$lei->{1}->autoflush(1);
+	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
 	if (my $pkg = $self->{json}) {
 		$json = $pkg->new;
 		$json->utf8->canonical;
 		$json->ascii(1) if $lei->{opt}->{ascii};
+		$lei->{ovv_buf} = \(my $buf = '');
 	}
-	my $l2m = $lei->{l2m};
+	my $l2m = $lei->{l2m} or $dedupe->prepare_dedupe;
 	if ($l2m && !$ibxish) { # remote https?:// mboxrd
 		delete $l2m->{-wq_s1};
 		my $g2m = $l2m->can('git_to_mail');
@@ -241,6 +243,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
 		$self->{git} = $git; # for ovv_atexit_child
 		my $g2m = $l2m->can('git_to_mail');
+		$dedupe->prepare_dedupe;
 		sub {
 			my ($smsg, $mitem) = @_;
 			$smsg->{pct} = get_pct($mitem) if $mitem;
@@ -251,6 +254,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		$lei->{ovv_buf} = \(my $buf = '');
 		sub { # DIY prettiness :P
 			my ($smsg, $mitem) = @_;
+			return if $dedupe->is_smsg_dup($smsg);
 			$smsg = _unbless_smsg($smsg, $mitem);
 			$buf .= "{\n";
 			$buf .= join(",\n", map {
@@ -274,6 +278,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		$lei->{ovv_buf} = \(my $buf = '');
 		sub {
 			my ($smsg, $mitem) = @_;
+			return if $dedupe->is_smsg_dup($smsg);
 			$buf .= $json->encode(_unbless_smsg(@_)) . $ORS;
 			if (length($buf) > 65536) {
 				my $lk = $self->lock_for_scope;

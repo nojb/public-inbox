@@ -17,6 +17,7 @@ my $err_filter;
 my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
 	http://czquwvybam4bgbro.onion/meta/
 	http://ou63pmih66umazou.onion/meta/);
+my $json = ref(PublicInbox::Config->json)->new->utf8->canonical;
 my $lei = sub {
 	my ($cmd, $env, $xopt) = @_;
 	$out = $err = '';
@@ -142,8 +143,7 @@ my $setup_publicinboxes = sub {
 		my ($ibx) = @_;
 		my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
 		my $V = $ibx->version;
-		my @eml = glob('t/*.eml');
-		push(@eml, 't/data/0001.patch') if $V == 2;
+		my @eml = (glob('t/*.eml'), 't/data/0001.patch');
 		for (@eml) {
 			next if $_ eq 't/psgi_v2-old.eml'; # dup mid
 			$im->add(eml_load($_)) or BAIL_OUT "v$V add $_";
@@ -176,7 +176,7 @@ SKIP: {
 	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
 	ok($lei->('q', "m:$mid"), "query $url");
 	is($err, '', "no errors on $url");
-	my $res = PublicInbox::Config->json->decode($out);
+	my $res = $json->decode($out);
 	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url");
 	ok($lei->('q', "m:$mid", 'd:..20101002'), 'no results, no error');
 	like($err, qr/404/, 'noted 404');
@@ -246,6 +246,19 @@ my $test_external = sub {
 	# No double-quoting should be imposed on users on the CLI
 	$lei->('q', 's:use boolean prefix');
 	like($out, qr/search: use boolean prefix/, 'phrase search got result');
+	my $res = $json->decode($out);
+	is(scalar(@$res), 2, 'only 2 element array (1 result)');
+	is($res->[1], undef, 'final element is undef'); # XXX should this be?
+	is(ref($res->[0]), 'HASH', 'first element is hashref');
+	$lei->('q', '--pretty', 's:use boolean prefix');
+	my $pretty = $json->decode($out);
+	is_deeply($res, $pretty, '--pretty is identical after decode');
+
+	for my $fmt (qw(ldjson ndjson jsonl)) {
+		$lei->('q', '-f', $fmt, 's:use boolean prefix');
+		is($out, $json->encode($pretty->[0])."\n", "-f $fmt");
+	}
+
 	require IO::Uncompress::Gunzip;
 	for my $sfx ('', '.gz') {
 		my $f = "$home/mbox$sfx";
