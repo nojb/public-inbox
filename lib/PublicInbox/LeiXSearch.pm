@@ -14,7 +14,7 @@ use PublicInbox::Import;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use File::Spec ();
 use PublicInbox::Search qw(xap_terms);
-use PublicInbox::Spawn qw(popen_rd spawn);
+use PublicInbox::Spawn qw(popen_rd spawn which);
 use PublicInbox::MID qw(mids);
 use Fcntl qw(SEEK_SET F_SETFL O_APPEND O_RDWR);
 
@@ -192,7 +192,7 @@ sub query_remote_mboxrd {
 	my ($opt, $env) = @$lei{qw(opt env)};
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
 	push(@qform, t => 1) if $opt->{thread};
-	my @cmd = (qw(curl -sSf -d), '');
+	my @cmd = ($self->{curl}, qw(-sSf -d), '');
 	my $verbose = $opt->{verbose};
 	my $reap;
 	my $cerr = File::Temp->new(TEMPLATE => 'curl.err-XXXX', TMPDIR => 1);
@@ -411,13 +411,22 @@ sub ipc_atfork_prepare {
 	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
 
+sub add_uri {
+	my ($self, $uri) = @_;
+	if (my $curl = $self->{curl} //= which('curl') // 0) {
+		push @{$self->{remotes}}, $uri;
+	} else {
+		warn "curl missing, ignoring $uri\n";
+	}
+}
+
 sub prepare_external {
 	my ($self, $loc, $boost) = @_; # n.b. already ordered by boost
 	if (ref $loc) { # already a URI, or PublicInbox::Inbox-like object
-		return push(@{$self->{remotes}}, $loc) if $loc->can('scheme');
+		return add_uri($self, $loc) if $loc->can('scheme');
 	} elsif ($loc =~ m!\Ahttps?://!) {
 		require URI;
-		return push(@{$self->{remotes}}, URI->new($loc));
+		return add_uri($self, URI->new($loc));
 	} elsif (-f "$loc/ei.lock") {
 		require PublicInbox::ExtSearch;
 		$loc = PublicInbox::ExtSearch->new($loc);
