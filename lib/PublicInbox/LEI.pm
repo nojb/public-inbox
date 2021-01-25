@@ -24,6 +24,7 @@ use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::OnDestroy;
 use Text::Wrap qw(wrap);
+use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
