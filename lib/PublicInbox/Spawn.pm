@@ -343,7 +343,7 @@ undef $fdpass;
 sub which ($) {
 	my ($file) = @_;
 	return $file if index($file, '/') >= 0;
-	foreach my $p (split(':', $ENV{PATH})) {
+	for my $p (split(/:/, $ENV{PATH})) {
 		$p .= "/$file";
 		return $p if -x $p;
 	}
