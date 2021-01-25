@@ -200,7 +200,8 @@ my %OPTDESC = (
 			'message/object output format' ],
 'mark	format|f=s' => $stdin_formats,
 'forget	format|f=s' => $stdin_formats,
-'q	format|f=s' => [ 'OUT|maildir|mboxrd|mboxcl2|mboxcl|html|oid|json',
+'q	format|f=s' => [
+	'OUT|maildir|mboxrd|mboxcl2|mboxcl|html|json|jsonl|concatjson',
 		'specify output format, default depends on --output'],
 'ls-query	format|f=s' => $ls_format,
 'ls-external	format|f=s' => $ls_format,

@@ -286,10 +286,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 				$buf = '';
 			}
 		}
-	} elsif ($self->{fmt} eq 'oid') {
-		sub {
-			my ($smsg, $mitem) = @_;
-		}
 	} # else { ...
 }
 
