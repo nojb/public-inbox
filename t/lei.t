@@ -179,7 +179,7 @@ SKIP: {
 	my $res = $json->decode($out);
 	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url");
 	ok($lei->('q', "m:$mid", 'd:..20101002'), 'no results, no error');
-	like($err, qr/404/, 'noted 404');
+	is($err, '', 'no output on 404, matching local FS behavior');
 	is($out, "[null]\n", 'got null results');
 	$lei->('forget-external', $url);
 } # /SKIP

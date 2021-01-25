@@ -14,8 +14,9 @@ use PublicInbox::Import;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use File::Spec ();
 use PublicInbox::Search qw(xap_terms);
-use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::Spawn qw(popen_rd spawn);
 use PublicInbox::MID qw(mids);
+use Fcntl qw(SEEK_SET F_SETFL O_APPEND O_RDWR);
 
 sub new {
 	my ($class) = @_;
@@ -176,6 +177,13 @@ sub each_eml { # callback for MboxReader->mboxrd
 	$each_smsg->($smsg, undef, $eml);
 }
 
+# PublicInbox::OnDestroy callback
+sub kill_reap {
+	my ($pid) = @_;
+	kill('KILL', $pid); # spawn() blocks other signals
+	waitpid($pid, 0);
+}
+
 sub query_remote_mboxrd {
 	my ($self, $lei, $uris) = @_;
 	local $0 = "$0 query_remote_mboxrd";
@@ -186,7 +194,20 @@ sub query_remote_mboxrd {
 	push(@qform, t => 1) if $opt->{thread};
 	my @cmd = (qw(curl -sSf -d), '');
 	my $verbose = $opt->{verbose};
-	push @cmd, '-v' if $verbose;
+	my $reap;
+	my $cerr = File::Temp->new(TEMPLATE => 'curl.err-XXXX', TMPDIR => 1);
+	fcntl($cerr, F_SETFL, O_APPEND|O_RDWR) or warn "set O_APPEND: $!";
+	my $rdr = { 2 => $cerr };
+	my $coff = 0;
+	if ($verbose) {
+		# spawn a process to force line-buffering, otherwise curl
+		# will write 1 character at-a-time and parallel outputs
+		# mmmaaayyy llloookkk llliiikkkeee ttthhhiiisss
+		push @cmd, '-v';
+		my $o = { 1 => $lei->{2}, 2 => $lei->{2} };
+		my $pid = spawn(['tail', '-f', $cerr->filename], undef, $o);
+		$reap = PublicInbox::OnDestroy->new(\&kill_reap, $pid);
+	}
 	for my $o ($lei->curl_opt) {
 		$o =~ s/\|[a-z0-9]\b//i; # remove single char short option
 		if ($o =~ s/=[is]@\z//) {
@@ -213,21 +234,23 @@ sub query_remote_mboxrd {
 		}
 		$lei->err("# @$cmd") if $verbose;
 		$? = 0;
-		my $fh = popen_rd($cmd, $env, { 2 => $lei->{2} });
+		my $fh = popen_rd($cmd, $env, $rdr);
 		$fh = IO::Uncompress::Gunzip->new($fh);
 		eval {
 			PublicInbox::MboxReader->mboxrd($fh, \&each_eml, $self,
 							$lei, $each_smsg);
 		};
 		return $lei->fail("E: @$cmd: $@") if $@;
-		if (($? >> 8) == 22) { # HTTP 404 from curl(1)
-			$uri->query_form(q => $lei->{mset_opt}->{qstr});
-			$lei->err('# no results from '.$uri->as_string);
-		} elsif ($?) {
-			$uri->query_form(q => $lei->{mset_opt}->{qstr});
-			$lei->err('E: '.$uri->as_string);
-			$lei->child_error($?);
-		}
+		next unless $?;
+		seek($cerr, $coff, SEEK_SET) or warn "seek(curl stderr): $!\n";
+		my $e = do { local $/; <$cerr> } //
+				die "read(curl stderr): $!\n";
+		$coff += length($e);
+		next if (($? >> 8) == 22 && $e =~ /\b404\b/);
+		$lei->child_error($?);
+		$uri->query_form(q => $lei->{mset_opt}->{qstr});
+		# --verbose already showed the error via tail(1)
+		$lei->err("E: $uri \$?=$?\n", $verbose ? () : $e);
 	}
 	undef $each_smsg;
 	$lei->{ovv}->ovv_atexit_child($lei);
