@@ -228,10 +228,16 @@ sub query_remote_mboxrd {
 		my $cmd = [ @cmd, $uri->as_string ];
 		if ($tor eq 'auto' && substr($uri->host, -6) eq '.onion' &&
 				(($env->{LD_PRELOAD}//'') !~ /torsocks/)) {
-			unshift @$cmd, 'torsocks';
+			unshift @$cmd, which('torsocks');
 		} elsif (PublicInbox::Config::git_bool($tor)) {
-			unshift @$cmd, 'torsocks';
+			unshift @$cmd, which('torsocks');
 		}
+
+		# continue anyways if torsocks is missing; a proxy may be
+		# specified via CLI, curlrc, environment variable, or even
+		# firewall rule
+		shift(@$cmd) if !$cmd->[0];
+
 		$lei->err("# @$cmd") if $verbose;
 		$? = 0;
 		my $fh = popen_rd($cmd, $env, $rdr);
