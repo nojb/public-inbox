@@ -65,8 +65,12 @@ for my $i (@sections) {
 		$t->{".$m.cols : $m.$i"} = [
 			"\@echo CHECK80 $m.$i;".
 			"COLUMNS=80 \$(MAN) ./$m.$i | \$(check_man)" ];
+		$t->{".$m.lexgrog: $m.$i"} = [
+			"\@echo LEXGROG $m.$i;" .
+			"\$(LEXGROG) ./$m.$i >\$\@+ && mv \$\@+ \$@" ];
 	}
 	push @{$v->{check_80}}, map { ".$_.cols" } @$ary;
+	push @{$v->{check_lexgrog}}, map { ".$_.lexgrog" } @$ary;
 	my $manuals = $v->{"man$i"} = [ map { "$_.$i" } @$ary ];
 	push @{$v->{manuals}}, @$manuals;
 	push @{$v->{mantxt}}, map { "Documentation/$_.txt" } @$ary;
@@ -121,6 +125,8 @@ my %man3 = map {; # semi-colon tells Perl this is a BLOCK (and not EXPR)
 	"lib/PublicInbox/$_" => "blib/man3/PublicInbox::$mod.\$(MAN3EXT)"
 } qw(Git.pm Import.pm WWW.pod SaPlugin/ListMirror.pod);
 my $warn_no_pod = @no_pod ? "\n\t\@echo W: missing .pod: @no_pod\n" : '';
+chomp(my $lexgrog = `which lexgrog 2>/dev/null`);
+my $check_lexgrog = $lexgrog ? 'check-lexgrog' : '';
 
 WriteMakefile(
 	NAME => 'PublicInbox', # n.b. camel-case is not our choice
@@ -184,7 +190,7 @@ $VARS
 -include Documentation/include.mk
 $TGTS
 
-check-man ::$warn_no_pod
+check-man :: $check_lexgrog$warn_no_pod
 
 # syntax checks are currently GNU make only:
 %.syntax :: %

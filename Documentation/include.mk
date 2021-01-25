@@ -6,6 +6,7 @@ RSYNC = rsync
 RSYNC_DEST = public-inbox.org:/srv/public-inbox/
 AWK = awk
 MAN = man
+LEXGROG = lexgrog
 
 # this is "xml" on FreeBSD and maybe some other distros:
 XMLSTARLET = xmlstarlet
@@ -55,6 +56,8 @@ check_man = $(AWK) '{gsub(/\b./,"")}length>80{print;err=1}END{exit(err)}'\
 	>&2 && >$@
 
 check-man :: $(check_80)
+
+check-lexgrog :: $(check_lexgrog)
 
 all :: $(docs)
 

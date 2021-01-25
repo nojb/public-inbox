@@ -16,6 +16,7 @@
 *.gz
 .*.cols
 .*.check
+.*.lexgrog
 /NEWS.html
 /NEWS.atom
 /NEWS
