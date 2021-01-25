@@ -29,6 +29,7 @@ Documentation/public-inbox-convert.pod
 Documentation/public-inbox-daemon.pod
 Documentation/public-inbox-edit.pod
 Documentation/public-inbox-extindex-format.pod
+Documentation/public-inbox-extindex.pod
 Documentation/public-inbox-httpd.pod
 Documentation/public-inbox-imapd.pod
 Documentation/public-inbox-index.pod
