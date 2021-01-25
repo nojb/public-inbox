@@ -3,7 +3,7 @@ public-inbox - an "archives first" approach to mailing lists
 
 public-inbox implements the sharing of an email inbox via git to
 complement or replace traditional mailing lists.  Readers may
-read via NNTP, Atom feeds or HTML archives.
+read via NNTP, IMAP, Atom feeds or HTML archives.
 
 public-inbox spawned around three main ideas:
 
@@ -38,7 +38,7 @@ headers.  List server admins are also burdened with delivery
 failures.
 
 public-inbox uses the "pull" model.  Casual readers may
-follow the list via NNTP, Atom feed or HTML archives.
+follow the list via NNTP, IMAP, Atom feed or HTML archives.
 
 If a reader loses interest, they simply stop following.
 
@@ -56,7 +56,7 @@ Features
 
 * stores email in git, readers may have a complete archive of the inbox
 
-* Atom feed and NNTP allows casual readers to follow via feed reader
+* Atom feed, IMAP, NNTP allows casual readers to follow via local tools
 
 * uses only well-documented and easy-to-implement data formats
 
@@ -64,7 +64,7 @@ Try it out now, see https://try.public-inbox.org/
 
 Requirements for reading:
 
-* any software capable of NNTP or following Atom feeds
+* any software capable of IMAP, NNTP or following Atom feeds
 
 Any basic web browser will do for the HTML archives.
 We primarily develop on w3m to maximize accessibility.
@@ -114,15 +114,19 @@ subscription.  This also makes it easier to rope in folks of
 tangentially related projects we depend on (e.g. git developers
 on git@vger.kernel.org).
 
-The archives are readable via NNTP or HTTP:
+The archives are readable via IMAP, NNTP or HTTP:
 
-	nntp://news.public-inbox.org/inbox.comp.mail.public-inbox.meta
+	nntps://news.public-inbox.org/inbox.comp.mail.public-inbox.meta
+	imaps://news.public-inbox.org/inbox.comp.mail.public-inbox.meta.0
 	https://public-inbox.org/meta/
+
+AUTH=ANONYMOUS is supported for IMAP, but any username + password works
 
 And as Tor hidden services:
 
 	http://hjrcffqmbrq6wope.onion/meta/
 	nntp://hjrcffqmbrq6wope.onion/inbox.comp.mail.public-inbox.meta
+	imap://hjrcffqmbrq6wope.onion/inbox.comp.mail.public-inbox.meta.0
 
 You may also clone all messages via git:
 
