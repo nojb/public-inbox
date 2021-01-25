@@ -27,7 +27,6 @@ my $eidx = { xpfx => "$tmp/eidx", -no_fsync => 1 }; # mock ExtSearchIdx
 	});
 	$v1->init_inbox;
 	my $mi = PublicInbox::MiscIdx->new($eidx);
-	$mi->begin_txn;
 	$mi->index_ibx($v1);
 	$mi->commit_txn;
 }

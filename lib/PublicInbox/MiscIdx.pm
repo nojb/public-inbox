@@ -39,25 +39,30 @@ sub new {
 	}, $class;
 }
 
-sub begin_txn {
+sub _begin_txn ($) {
 	my ($self) = @_;
-	croak 'BUG: already in txn' if $self->{xdb}; # XXX make lazy?
 	my $wdb = $PublicInbox::Search::X{WritableDatabase};
 	my $xdb = eval { $wdb->new($self->{mi_dir}, $self->{flags}) };
 	croak "Failed opening $self->{mi_dir}: $@" if $@;
-	$self->{xdb} = $xdb;
 	$xdb->begin_transaction;
+	$xdb;
 }
 
 sub commit_txn {
 	my ($self) = @_;
-	croak 'BUG: not in txn' unless $self->{xdb}; # XXX make lazy?
-	delete($self->{xdb})->commit_transaction;
+	my $xdb = delete $self->{xdb} or return;
+	$xdb->commit_transaction;
+}
+
+sub create_xdb {
+	my ($self) = @_;
+	$self->{xdb} //= _begin_txn($self);
+	commit_txn($self);
 }
 
 sub remove_eidx_key {
 	my ($self, $eidx_key) = @_;
-	my $xdb = $self->{xdb};
+	my $xdb = $self->{xdb} //= _begin_txn($self);
 	my $head = $xdb->postlist_begin('Q'.$eidx_key);
 	my $tail = $xdb->postlist_end('Q'.$eidx_key);
 	my @docids; # only one, unless we had bugs
@@ -74,7 +79,7 @@ sub remove_eidx_key {
 sub index_ibx {
 	my ($self, $ibx) = @_;
 	my $eidx_key = $ibx->eidx_key;
-	my $xdb = $self->{xdb};
+	my $xdb = $self->{xdb} //= _begin_txn($self);
 	# Q = uniQue in Xapian terminology
 	my $head = $xdb->postlist_begin('Q'.$eidx_key);
 	my $tail = $xdb->postlist_end('Q'.$eidx_key);

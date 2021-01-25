@@ -623,10 +623,6 @@ shard[$i] bad echo:$echo != $i waiting for txn commit
 			$dbh->commit;
 			$dbh->begin_work;
 		}
-		if ($midx) {
-			$self->git->batch_prepare;
-			$midx->begin_txn;
-		}
 	}
 	$self->{total_bytes} += $self->{transact_bytes};
 	$self->{transact_bytes} = 0;

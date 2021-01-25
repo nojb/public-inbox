@@ -1003,8 +1003,7 @@ sub idx_init { # similar to V2Writable
 	$self->with_umask(\&_idx_init, $self, $opt);
 	$self->{oidx}->begin_lazy;
 	$self->{oidx}->eidx_prep;
-	$self->git->batch_prepare;
-	$self->{midx}->begin_txn;
+	$self->{midx}->create_xdb if @new;
 }
 
 sub _watch_commit { # PublicInbox::DS::add_timer callback
