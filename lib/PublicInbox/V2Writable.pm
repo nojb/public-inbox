@@ -21,6 +21,7 @@ use PublicInbox::Search;
 use PublicInbox::SearchIdx qw(log2stack is_ancestor check_size is_bad_blob);
 use IO::Handle; # ->autoflush
 use File::Temp ();
+use POSIX ();
 
 my $OID = qr/[a-f0-9]{40,}/;
 # an estimate of the post-packed size to the raw uncompressed size
@@ -35,6 +36,11 @@ our $PACKING_FACTOR = 0.4;
 our $NPROC_MAX_DEFAULT = 4;
 
 sub detect_nproc () {
+	# _SC_NPROCESSORS_ONLN = 84 on both Linux glibc and musl
+	return POSIX::sysconf(84) if $^O eq 'linux';
+	return POSIX::sysconf(58) if $^O eq 'freebsd';
+	# TODO: more OSes
+
 	# getconf(1) is POSIX, but *NPROCESSORS* vars are not
 	for (qw(_NPROCESSORS_ONLN NPROCESSORS_ONLN)) {
 		`getconf $_ 2>/dev/null` =~ /^(\d+)$/ and return $1;
