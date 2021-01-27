@@ -208,7 +208,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		$json = $pkg->new;
 		$json->utf8->canonical;
 		$json->ascii(1) if $lei->{opt}->{ascii};
-		$lei->{ovv_buf} = \(my $buf = '');
 	}
 	my $l2m = $lei->{l2m} or $dedupe->prepare_dedupe;
 	if ($l2m && !$ibxish) { # remote https?:// mboxrd
