@@ -104,8 +104,9 @@ sub _config_path ($) {
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
-	sort|s=s reverse|r offset=i remote! local! external! pretty mua-cmd=s
-	torsocks=s no-torsocks verbose|v since|after=s until|before=s),
+	sort|s=s reverse|r offset=i remote! local! external! pretty
+	mua-cmd|mua=s no-torsocks torsocks=s verbose|v
+	received-after=s received-before=s sent-after=s sent-since=s),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
@@ -200,7 +201,11 @@ my $ls_format = [ 'OUT|plain|json|null', 'listing output format' ];
 my %OPTDESC = (
 'help|h' => 'show this built-in help',
 'quiet|q' => 'be quiet',
+'verbose|v' => 'be more verbose',
 'solve!' => 'do not attempt to reconstruct blobs from emails',
+'torsocks=s' => ['auto|no|yes',
+		'whether or not to wrap git and curl commands with torsocks'],
+'no-torsocks' => 'alias for --torsocks=no',
 'save-as=s' => ['NAME', 'save a search terms by given name'],
 
 'type=s' => [ 'any|mid|git', 'disambiguate type' ],
@@ -212,7 +217,7 @@ my %OPTDESC = (
 	'return all messages in the same thread as the actual match(es)',
 'augment|a' => 'augment --output destination instead of clobbering',
 
-'output|o=s' => [ 'DEST',
+'output|mfolder|o=s' => [ 'DEST',
 	"destination (e.g. `/path/to/Maildir', or `-' for stdout)" ],
 'mua-cmd|mua=s' => [ 'COMMAND',
 	"MUA to run on --output Maildir or mbox (e.g. `mutt -f %f'" ],
@@ -222,7 +227,7 @@ my %OPTDESC = (
 'mark	format|f=s' => $stdin_formats,
 'forget	format|f=s' => $stdin_formats,
 'q	format|f=s' => [
-	'OUT|maildir|mboxrd|mboxcl2|mboxcl|html|json|jsonl|concatjson',
+	'OUT|maildir|mboxrd|mboxcl2|mboxcl|mboxo|html|json|jsonl|concatjson',
 		'specify output format, default depends on --output'],
 'ls-query	format|f=s' => $ls_format,
 'ls-external	format|f=s' => $ls_format,
@@ -673,21 +678,32 @@ sub lei__complete {
 				get-color-name get-colorbool);
 			# fall-through
 		}
-		# TODO: arg support
 		puts $self, grep(/$re/, map { # generate short/long names
-			my $eq = '';
-			if (s/=.+\z//) { # required arg, e.g. output|o=i
-				$eq = '=';
-			} elsif (s/:.+\z//) { # optional arg, e.g. mid:s
+			if (s/[:=].+\z//) { # req/optional args, e.g output|o=i
 			} else { # negation: solve! => no-solve|solve
 				s/\A(.+)!\z/no-$1|$1/;
 			}
 			map {
-				length > 1 ? "--$_$eq" : "-$_"
+				my $x = length > 1 ? "--$_" : "-$_";
+				$x eq $cur ? () : $x;
 			} split(/\|/, $_, -1) # help|h
 		} grep { $OPTDESC{"$cmd\t$_"} || $OPTDESC{$_} } @spec);
 	} elsif ($cmd eq 'config' && !@argv && !$CONFIG_KEYS{$cur}) {
 		puts $self, grep(/$re/, keys %CONFIG_KEYS);
+	}
+
+	# switch args (e.g. lei q -f mbox<TAB>)
+	if (($argv[-1] // $cur // '') =~ /\A--?([\w\-]+)\z/) {
+		my $opt = quotemeta $1;
+		puts $self, map {
+			my $v = $OPTDESC{$_};
+			$v = $v->[0] if ref($v);
+			my @v = split(/\|/, $v);
+			# get rid of ALL CAPS placeholder (e.g "OUT")
+			# (TODO: completion for external paths)
+			shift(@v) if uc($v[0]) eq $v[0];
+			@v;
+		} grep(/\A(?:$cmd\t|)(?:[\w-]+\|)*$opt\b/, keys %OPTDESC);
 	}
 	$cmd =~ tr/-/_/;
 	if (my $sub = $self->can("_complete_$cmd")) {

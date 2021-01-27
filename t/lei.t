@@ -216,6 +216,24 @@ my $test_external = sub {
 	like($out, qr/boost=0\n/s, 'ls-external has output');
 	ok($lei->(qw(add-external -q https://EXAMPLE.com/ibx)), 'add remote');
 	is($err, '', 'no warnings after add-external');
+
+	ok($lei->(qw(_complete lei forget-external)), 'complete for externals');
+	my %comp = map { $_ => 1 } split(/\s+/, $out);
+	ok($comp{'https://example.com/ibx/'}, 'forget external completion');
+	$cfg->each_inbox(sub {
+		my ($ibx) = @_;
+		ok($comp{$ibx->{inboxdir}}, "local $ibx->{name} completion");
+	});
+	for my $u (qw(h http https https: https:/ https:// https://e
+			https://example https://example. https://example.co
+			https://example.com https://example.com/
+			https://example.com/i https://example.com/ibx)) {
+		ok($lei->(qw(_complete lei forget-external), $u),
+			"partial completion for URL $u");
+		is($out, "https://example.com/ibx/\n",
+			"completed partial URL $u");
+	}
+
 	$lei->('ls-external');
 	like($out, qr!https://example\.com/ibx/!s, 'added canonical URL');
 	is($err, '', 'no warnings on ls-external');
@@ -304,11 +322,39 @@ my $test_external = sub {
 	}
 };
 
+my $test_completion = sub {
+	ok($lei->(qw(_complete lei)), 'no errors on complete');
+	my %out = map { $_ => 1 } split(/\s+/s, $out);
+	ok($out{'q'}, "`lei q' offered as completion");
+	ok($out{'add-external'}, "`lei add-external' offered as completion");
+
+	ok($lei->(qw(_complete lei q)), 'complete q (no args)');
+	%out = map { $_ => 1 } split(/\s+/s, $out);
+	for my $sw (qw(-f --format -o --output --mfolder --augment -a
+			--mua --mua-cmd --no-local --local --verbose -v
+			--save-as --no-remote --remote --torsocks
+			--reverse -r )) {
+		ok($out{$sw}, "$sw offered as completion");
+	}
+
+	ok($lei->(qw(_complete lei q --form)), 'complete q --format');
+	is($out, "--format\n", 'complete lei q --format');
+	for my $sw (qw(-f --format)) {
+		ok($lei->(qw(_complete lei q), $sw), "complete q $sw ARG");
+		%out = map { $_ => 1 } split(/\s+/s, $out);
+		for my $f (qw(mboxrd mboxcl2 mboxcl mboxo json jsonl
+				concatjson maildir)) {
+			ok($out{$f}, "got $sw $f as output format");
+		}
+	}
+};
+
 my $test_lei_common = sub {
 	$test_help->();
 	$test_config->();
 	$test_init->();
 	$test_external->();
+	$test_completion->();
 };
 
 if ($ENV{TEST_LEI_ONESHOT}) {
