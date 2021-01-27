@@ -13,6 +13,7 @@ use parent qw(PublicInbox::DS PublicInbox::LeiExternal
 use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
 use Errno qw(EAGAIN EINTR ECONNREFUSED ENOENT ECONNRESET);
+use Cwd qw(getcwd);
 use POSIX ();
 use IO::Handle ();
 use Fcntl qw(SEEK_SET);
@@ -65,18 +66,37 @@ sub opt_dash ($$) {
 	($spec, '<>' => $cb, $GLP_PASS) # for Getopt::Long
 }
 
+sub rel2abs ($$) {
+	my ($self, $p) = @_;
+	return $p if index($p, '/') == 0; # already absolute
+	my $pwd = $self->{env}->{PWD};
+	if (defined $pwd) {
+		my $cwd = $self->{3} // getcwd() // die "getcwd(PWD=$pwd): $!";
+		if (my @st_pwd = stat($pwd)) {
+			my @st_cwd = stat($cwd) or die "stat($cwd): $!";
+			"@st_pwd[1,0]" eq "@st_cwd[1,0]" or
+				$self->{env}->{PWD} = $pwd = $cwd;
+		} else { # PWD was invalid
+			delete $self->{env}->{PWD};
+			undef $pwd;
+		}
+	}
+	$pwd //= $self->{env}->{PWD} = getcwd() // die "getcwd(PWD=$pwd): $!";
+	File::Spec->rel2abs($p, $pwd);
+}
+
 sub _store_path ($) {
-	my ($env) = @_;
-	File::Spec->rel2abs(($env->{XDG_DATA_HOME} //
-		($env->{HOME} // '/nonexistent').'/.local/share')
-		.'/lei/store', $env->{PWD});
+	my ($self) = @_;
+	rel2abs($self, ($self->{env}->{XDG_DATA_HOME} //
+		($self->{env}->{HOME} // '/nonexistent').'/.local/share')
+		.'/lei/store');
 }
 
 sub _config_path ($) {
-	my ($env) = @_;
-	File::Spec->rel2abs(($env->{XDG_CONFIG_HOME} //
-		($env->{HOME} // '/nonexistent').'/.config')
-		.'/lei/config', $env->{PWD});
+	my ($self) = @_;
+	rel2abs($self, ($self->{env}->{XDG_CONFIG_HOME} //
+		($self->{env}->{HOME} // '/nonexistent').'/.config')
+		.'/lei/config');
 }
 
 # TODO: generate shell completion + help using %CMD and %OPTDESC
@@ -295,7 +315,7 @@ sub atfork_prepare_wq {
 	my ($self, $wq) = @_;
 	my $tcafc = $wq->{-ipc_atfork_child_close} //= [ $listener // () ];
 	if (my $sock = $self->{sock}) {
-		push @$tcafc, @$self{qw(0 1 2)}, $sock;
+		push @$tcafc, @$self{qw(0 1 2 3)}, $sock;
 	}
 	if (my $pgr = $self->{pgr}) {
 		push @$tcafc, @$pgr[1,2];
@@ -345,7 +365,7 @@ sub atfork_parent_wq {
 		$ret->{dedupe} = $wq->deep_clone($dedupe);
 	}
 	$self->{env} = $env;
-	delete @$ret{qw(-lei_store cfg old_1 pgr lxs)}; # keep l2m
+	delete @$ret{qw(3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
 	my @io = delete @$ret{0..2};
 	$io[3] = delete($ret->{sock}) // $io[2];
 	my $l2m = $ret->{l2m};
@@ -362,7 +382,7 @@ sub _help ($;$) {
 	my @info = @{$CMD{$cmd} // [ '...', '...' ]};
 	my @top = ($cmd, shift(@info) // ());
 	my $cmd_desc = shift(@info);
-	$cmd_desc = $cmd_desc->($self->{env}) if ref($cmd_desc) eq 'CODE';
+	$cmd_desc = $cmd_desc->($self) if ref($cmd_desc) eq 'CODE';
 	my @opt_desc;
 	my $lpad = 2;
 	for my $sw (grep { !ref } @info) { # ("prio=s", "z", $GLP_PASS)
@@ -520,7 +540,7 @@ sub dispatch {
 
 sub _lei_cfg ($;$) {
 	my ($self, $creat) = @_;
-	my $f = _config_path($self->{env});
+	my $f = _config_path($self);
 	my @st = stat($f);
 	my $cur_st = @st ? pack('dd', $st[10], $st[7]) : ''; # 10:ctime, 7:size
 	if (my $cfg = $PATH2CFG{$f}) { # reuse existing object in common case
@@ -550,8 +570,7 @@ sub _lei_store ($;$) {
 	$cfg->{-lei_store} //= do {
 		require PublicInbox::LeiStore;
 		my $dir = $cfg->{'leistore.dir'};
-		$dir //= _store_path($self->{env}) if $creat;
-		return unless $dir;
+		$dir //= $creat ? _store_path($self) : return;
 		PublicInbox::LeiStore->new($dir, { creat => $creat });
 	};
 }
@@ -587,9 +606,8 @@ sub lei_init {
 	my ($self, $dir) = @_;
 	my $cfg = _lei_cfg($self, 1);
 	my $cur = $cfg->{'leistore.dir'};
-	my $env = $self->{env};
-	$dir //= _store_path($env);
-	$dir = File::Spec->rel2abs($dir, $env->{PWD}); # PWD is symlink-aware
+	$dir //= _store_path($self);
+	$dir = rel2abs($self, $dir);
 	my @cur = stat($cur) if defined($cur);
 	$cur = File::Spec->canonpath($cur // $dir);
 	my @dir = stat($dir);
@@ -601,7 +619,7 @@ sub lei_init {
 		}
 
 		# some folks like symlinks and bind mounts :P
-		if (@dir && "$cur[0] $cur[1]" eq "$dir[0] $dir[1]") {
+		if (@dir && "@cur[1,0]" eq "@dir[1,0]") {
 			lei_config($self, 'leistore.dir', $dir);
 			_lei_store($self, 1)->done;
 			return qerr($self, "$exists (as $cur)");
@@ -771,7 +789,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my ($argc, @argv) = split(/\0/, $buf, -1);
 	undef $buf;
 	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
-	if (chdir(delete($self->{3}))) {
+	if (chdir($self->{3})) {
 		local %ENV = %env;
 		$self->{env} = \%env;
 		eval { dispatch($self, @argv) };
