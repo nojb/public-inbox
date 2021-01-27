@@ -820,7 +820,7 @@ sub dclose {
 	for my $f (qw(lxs l2m)) {
 		my $wq = delete $self->{$f} or next;
 		if ($wq->wq_kill) {
-			$self->wq_close
+			$wq->wq_close
 		} elsif ($wq->wq_kill_old) {
 			$wq->wq_wait_old;
 		}
