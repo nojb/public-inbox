@@ -217,7 +217,7 @@ sub mp_descend ($$) {
 		# There's also a case where quoted text showed up in the
 		# preamble
 		# <20060515162817.65F0F1BBAE@citi.umich.edu>
-		unshift(@parts, new_sub(undef, \$pre)) if $pre =~ /:/s;
+		unshift(@parts, new_sub(undef, \$pre)) if index($pre, ':') >= 0;
 		return \@parts;
 	}
 	# "multipart", but no boundary found, treat as single part
