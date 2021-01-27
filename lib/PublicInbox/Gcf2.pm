@@ -5,7 +5,8 @@
 # other libgit2 stuff may go here, too.
 package PublicInbox::Gcf2;
 use strict;
-use PublicInbox::Spawn qw(which popen_rd);
+use v5.10.1;
+use PublicInbox::Spawn qw(which popen_rd); # may set PERL_INLINE_DIRECTORY
 use Fcntl qw(LOCK_EX);
 use IO::Handle; # autoflush
 my (%CFG, $c_src, $lockfh);
@@ -73,6 +74,7 @@ sub add_alt ($$) {
 		$gcf2->add_alternate($_) for @abs_alt;
 	}
 	$gcf2->add_alternate($objdir);
+	1;
 }
 
 # Usage: $^X -MPublicInbox::Gcf2 -e PublicInbox::Gcf2::loop
@@ -86,7 +88,7 @@ sub loop () {
 	while (<STDIN>) {
 		chomp;
 		my ($oid, $git_dir) = split(/ /, $_, 2);
-		$seen{$git_dir}++ or add_alt($gcf2, "$git_dir/objects");
+		$seen{$git_dir} //= add_alt($gcf2, "$git_dir/objects");
 		if (!$gcf2->cat_oid(1, $oid)) {
 			# retry once if missing.  We only get unabbreviated OIDs
 			# from SQLite or Xapian DBs, here, so malicious clients
@@ -94,8 +96,7 @@ sub loop () {
 			warn "I: $$ $oid missing, retrying in $git_dir\n";
 
 			$gcf2 = new();
-			%seen = ($git_dir => 1);
-			add_alt($gcf2, "$git_dir/objects");
+			%seen = ($git_dir => add_alt($gcf2,"$git_dir/objects"));
 
 			if ($gcf2->cat_oid(1, $oid)) {
 				warn "I: $$ $oid found after retry\n";
