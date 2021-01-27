@@ -765,7 +765,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 	}
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
-	# $buf = "$$\0$argc\0".join("\0", @ARGV).$ENV_STR."\0\0";
+	# $buf = "$argc\0".join("\0", @ARGV).$ENV_STR."\0\0";
 	substr($buf, -2, 2, '') eq "\0\0" or  # s/\0\0\z//
 		return send($sock, 'request command truncated', MSG_EOR);
 	my ($argc, @argv) = split(/\0/, $buf, -1);
