@@ -679,18 +679,6 @@ sub lei__complete {
 	# proto parsing.
 }
 
-sub reap_exec { # dwaitpid callback
-	my ($self, $pid) = @_;
-	x_it($self, $?);
-}
-
-sub lei_git { # support passing through random git commands
-	my ($self, @argv) = @_;
-	my %rdr = map { $_ => $self->{$_} } (0..2);
-	my $pid = spawn(['git', @argv], $self->{env}, \%rdr);
-	dwaitpid($pid, \&reap_exec, $self);
-}
-
 sub exec_buf ($$) {
 	my ($argv, $env) = @_;
 	my $argc = scalar @$argv;
