@@ -119,13 +119,12 @@ sub ipc_worker_spawn {
 		PublicInbox::DS::sig_setmask($sigset);
 		# ensure we properly exit even if warn() dies:
 		my $end = PublicInbox::OnDestroy->new($$, sub { exit(!!$@) });
-		my $on_destroy = $self->ipc_atfork_child;
 		eval {
+			my $on_destroy = $self->ipc_atfork_child;
 			local %SIG = %SIG;
 			ipc_worker_loop($self, $r_req, $w_res);
 		};
 		die "worker $ident PID:$$ died: $@\n" if $@;
-		undef $on_destroy;
 		undef $end; # trigger exit
 	}
 	PublicInbox::DS::sig_setmask($sigset) unless $oldset;
@@ -336,13 +335,12 @@ sub _wq_worker_start ($$$) {
 		PublicInbox::DS::sig_setmask($oldset);
 		# ensure we properly exit even if warn() dies:
 		my $end = PublicInbox::OnDestroy->new($$, sub { exit(!!$@) });
-		my $on_destroy = $self->ipc_atfork_child;
 		eval {
+			my $on_destroy = $self->ipc_atfork_child;
 			local %SIG = %SIG;
 			wq_worker_loop($self);
 		};
 		warn "worker $self->{-wq_ident} PID:$$ died: $@" if $@;
-		undef $on_destroy;
 		undef $end; # trigger exit
 	} else {
 		$self->{-wq_workers}->{$pid} = \undef;
