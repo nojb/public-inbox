@@ -311,14 +311,15 @@ sub wq_do { # always async
 	}
 }
 
-sub _wq_worker_start ($$) {
-	my ($self, $oldset) = @_;
+sub _wq_worker_start ($$$) {
+	my ($self, $oldset, $fields) = @_;
 	my $seed = rand(0xffffffff);
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
 		srand($seed);
 		eval { PublicInbox::DS->Reset };
 		delete @$self{qw(-wq_s1 -wq_workers -wq_ppid)};
+		@$self{keys %$fields} = values(%$fields) if $fields;
 		$SIG{$_} = 'IGNORE' for (qw(PIPE TTOU TTIN));
 		$SIG{$_} = 'DEFAULT' for (qw(TERM QUIT INT CHLD));
 		local $0 = $self->{-wq_ident};
@@ -337,7 +338,7 @@ sub _wq_worker_start ($$) {
 
 # starts workqueue workers if Sereal or Storable is installed
 sub wq_workers_start {
-	my ($self, $ident, $nr_workers, $oldset) = @_;
+	my ($self, $ident, $nr_workers, $oldset, $fields) = @_;
 	($enc && $send_cmd && $recv_cmd && defined($SEQPACKET)) or return;
 	return if $self->{-wq_s1}; # idempotent
 	$self->{-wq_s1} = $self->{-wq_s2} = undef;
@@ -349,18 +350,18 @@ sub wq_workers_start {
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
 	$self->{-wq_workers} = {};
 	$self->{-wq_ident} = $ident;
-	_wq_worker_start($self, $sigset) for (1..$nr_workers);
+	_wq_worker_start($self, $sigset, $fields) for (1..$nr_workers);
 	PublicInbox::DS::sig_setmask($sigset) unless $oldset;
 	$self->{-wq_ppid} = $$;
 }
 
 sub wq_worker_incr { # SIGTTIN handler
-	my ($self, $oldset) = @_;
+	my ($self, $oldset, $fields) = @_;
 	$self->{-wq_s2} or return;
 	return if wq_workers($self) >= $WQ_MAX_WORKERS;
 	$self->ipc_atfork_prepare;
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
-	_wq_worker_start($self, $sigset);
+	_wq_worker_start($self, $sigset, $fields);
 	PublicInbox::DS::sig_setmask($sigset) unless $oldset;
 }
 
