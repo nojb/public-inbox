@@ -70,10 +70,10 @@ if (1) {
 	chomp $buf;
 
 	my $gcf = PublicInbox::Git->new($dir);
-	my $rsize;
-	my $x = $gcf->cat_file($buf, \$rsize);
-	is($rsize, $size, 'got correct size ref on big file');
-	is(length($$x), $size, 'read correct number of bytes');
+	my @x = $gcf->cat_file($buf);
+	is($x[2], 'blob', 'got blob on wantarray');
+	is($x[3], $size, 'got correct size ref on big file');
+	is(length(${$x[0]}), $size, 'read correct number of bytes');
 
 	my $ref = $gcf->qx(qw(cat-file blob), $buf);
 	is($?, 0, 'no error on scalar success');

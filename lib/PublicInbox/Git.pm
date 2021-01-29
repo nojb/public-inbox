@@ -240,17 +240,16 @@ sub batch_prepare ($) {
 }
 
 sub _cat_file_cb {
-	my ($bref, undef, undef, $size, $result) = @_;
-	@$result = ($bref, $size);
+	my ($bref, $oid, $type, $size, $result) = @_;
+	@$result = ($bref, $oid, $type, $size);
 }
 
 sub cat_file {
-	my ($self, $oid, $sizeref) = @_;
+	my ($self, $oid) = @_;
 	my $result = [];
 	cat_async($self, $oid, \&_cat_file_cb, $result);
 	cat_async_wait($self);
-	$$sizeref = $result->[1] if $sizeref;
-	$result->[0];
+	wantarray ? @$result : $result->[0];
 }
 
 sub check_async_step ($$) {
