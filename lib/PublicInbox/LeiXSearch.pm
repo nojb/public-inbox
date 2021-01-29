@@ -33,7 +33,7 @@ sub attach_external {
 	my $srch = $ibxish->search or
 		return warn("$desc not indexed for Xapian\n");
 	my @shards = $srch->xdb_shards_flat or
-		return warn("$desc has no Xapian shardsXapian\n");
+		return warn("$desc has no Xapian shards\n");
 
 	if (delete $self->{xdb}) { # XXX: do we need this?
 		# clobber existing {xdb} if amending
