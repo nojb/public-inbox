@@ -220,14 +220,13 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		};
 	} elsif ($l2m && $l2m->{-wq_s1}) {
 		my ($lei_ipc, @io) = $lei->atfork_parent_wq($l2m);
-		# n.b. $io[0] = qry_status_wr, $io[1] = mbox|stdout,
-		# $io[4] becomes a notification pipe that triggers EOF
+		# $io[-1] becomes a notification pipe that triggers EOF
 		# in this wq worker when all outstanding ->write_mail
 		# calls are complete
-		die "BUG: \$io[4] $io[4] unexpected" if $io[4];
-		pipe($l2m->{each_smsg_done}, $io[4]) or die "pipe: $!";
-		fcntl($io[4], 1031, 4096) if $^O eq 'linux';
+		pipe($l2m->{each_smsg_done}, $io[$#io + 1]) or die "pipe: $!";
+		fcntl($io[-1], 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
 		delete @$lei_ipc{qw(l2m opt mset_opt cmd)};
+		$lei_ipc->{each_smsg_not_done} = $#io;
 		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
 		$self->{git} = $git;
 		my $git_dir = $git->{git_dir};

@@ -109,9 +109,9 @@ sub wait_startq ($) {
 sub query_thread_mset { # for --thread
 	my ($self, $lei, $ibxish) = @_;
 	local $0 = "$0 query_thread_mset";
-	my $startq = delete $self->{5};
 	my %sig = $lei->atfork_child_wq($self);
 	local @SIG{keys %sig} = values %sig;
+	my $startq = delete $lei->{startq};
 
 	my ($srch, $over) = ($ibxish->search, $ibxish->over);
 	unless ($srch && $over) {
@@ -145,9 +145,9 @@ sub query_thread_mset { # for --thread
 sub query_mset { # non-parallel for non-"--thread" users
 	my ($self, $lei) = @_;
 	local $0 = "$0 query_mset";
-	my $startq = delete $self->{5};
 	my %sig = $lei->atfork_child_wq($self);
 	local @SIG{keys %sig} = values %sig;
+	my $startq = delete $lei->{startq};
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
 	for my $loc (locals($self)) {
@@ -173,7 +173,7 @@ sub each_eml { # callback for MboxReader->mboxrd
 	$smsg->parse_references($eml, mids($eml));
 	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
 	delete @$smsg{qw(From Subject -ds -ts)};
-	if (my $startq = delete($self->{5})) { wait_startq($startq) }
+	if (my $startq = delete($lei->{startq})) { wait_startq($startq) }
 	$each_smsg->($smsg, undef, $eml);
 }
 
@@ -352,11 +352,12 @@ sub query_prepare { # called by wq_do
 	my ($self, $lei) = @_;
 	local $0 = "$0 query_prepare";
 	my %sig = $lei->atfork_child_wq($self);
-	-p $lei->{0} or die "BUG: \$done pipe expected";
+	-p $lei->{op_pipe} or die "BUG: \$done pipe expected";
 	local @SIG{keys %sig} = values %sig;
+	delete $lei->{l2m}->{-wq_s1};
 	eval { $lei->{l2m}->do_augment($lei) };
 	$lei->fail($@) if $@;
-	syswrite($lei->{0}, '.') == 1 or die "do_post_augment trigger: $!";
+	syswrite($lei->{op_pipe}, '.') == 1 or die "do_post_augment trigger: $!"
 }
 
 sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
@@ -370,56 +371,45 @@ sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
 }
 
 sub do_query {
-	my ($self, $lei_orig) = @_;
-	my ($lei, @io) = $lei_orig->atfork_parent_wq($self);
-	$io[0] = undef;
-	pipe(my $done, $io[0]) or die "pipe $!";
-	$lei_orig->{1}->autoflush(1);
-
-	$lei_orig->event_step_init; # wait for shutdowns
-	my $done_op = {
-		'' => [ \&query_done, $lei_orig ],
-		'!' => [ \&sigpipe_handler, $lei_orig ]
-	};
-	my $in_loop = exists $lei_orig->{sock};
-	$done = PublicInbox::OpPipe->new($done, $done_op, $in_loop);
+	my ($self, $lei) = @_;
+	$lei->{1}->autoflush(1);
+	my ($au_done, $zpipe);
 	my $l2m = $lei->{l2m};
 	if ($l2m) {
-		# may redirect $lei->{1} for mbox
-		my $zpipe = $l2m->pre_augment($lei_orig);
-		$io[1] = $lei_orig->{1};
-		pipe(my ($startq, $au_done)) or die "pipe: $!";
-		$done_op->{'.'} = [ \&do_post_augment, $lei_orig,
-					$zpipe, $au_done ];
-		local $io[4] = *STDERR{GLOB}; # don't send l2m->{-wq_s1}
-		die "BUG: unexpected \$io[5]: $io[5]" if $io[5];
-		$self->wq_do('query_prepare', \@io, $lei);
-		fcntl($startq, 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
-		$io[5] = $startq;
+		pipe($lei->{startq}, $au_done) or die "pipe: $!";
+		# 1031: F_SETPIPE_SZ
+		fcntl($lei->{startq}, 1031, 4096) if $^O eq 'linux';
+		$zpipe = $l2m->pre_augment($lei);
+	}
+	pipe(my $done, $lei->{op_pipe}) or die "pipe $!";
+	my ($lei_ipc, @io) = $lei->atfork_parent_wq($self);
+	delete($lei->{op_pipe});
+
+	$lei->event_step_init; # wait for shutdowns
+	my $done_op = {
+		'' => [ \&query_done, $lei ],
+		'!' => [ \&sigpipe_handler, $lei ]
+	};
+	my $in_loop = exists $lei->{sock};
+	$done = PublicInbox::OpPipe->new($done, $done_op, $in_loop);
+	if ($l2m) {
+		$done_op->{'.'} = [ \&do_post_augment, $lei, $zpipe, $au_done ];
+		$self->wq_do('query_prepare', \@io, $lei_ipc);
 		$io[1] = $zpipe->[1] if $zpipe;
 	}
-	start_query($self, \@io, $lei);
+	start_query($self, \@io, $lei_ipc);
 	$self->wq_close(1);
 	unless ($in_loop) {
-		# for the $lei->atfork_child_wq PIPE handler:
+		# for the $lei_ipc->atfork_child_wq PIPE handler:
 		while ($done->{sock}) { $done->event_step }
 	}
-}
-
-sub ipc_atfork_prepare {
-	my ($self) = @_;
-	if (exists $self->{remotes}) {
-		require PublicInbox::MboxReader;
-		require IO::Uncompress::Gunzip;
-	}
-	# FDS: (0: done_wr, 1: stdout|mbox, 2: stderr,
-	#       3: sock, 4: $l2m->{-wq_s1}, 5: $startq)
-	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
 
 sub add_uri {
 	my ($self, $uri) = @_;
 	if (my $curl = $self->{curl} //= which('curl') // 0) {
+		require PublicInbox::MboxReader;
+		require IO::Uncompress::Gunzip;
 		push @{$self->{remotes}}, $uri;
 	} else {
 		warn "curl missing, ignoring $uri\n";

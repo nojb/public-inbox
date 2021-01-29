@@ -335,14 +335,27 @@ sub atfork_prepare_wq {
 	}
 }
 
+sub io_restore ($$) {
+	my ($dst, $src) = @_;
+	for my $i (0..2) { # standard FDs
+		my $io = delete $src->{$i} or next;
+		$dst->{$i} = $io;
+	}
+	for my $i (3..9) { # named (non-standard) FDs
+		my $io = $src->{$i} or next;
+		my @st = stat($io) or die "stat $src.$i ($io): $!";
+		my $f = delete $dst->{"dev=$st[0],ino=$st[1]"} // next;
+		$dst->{$f} = $io;
+		delete $src->{$i};
+	}
+}
+
 # usage: my %sig = $lei->atfork_child_wq($wq);
 #	 local @SIG{keys %sig} = values %sig;
 sub atfork_child_wq {
 	my ($self, $wq) = @_;
-	my ($sock, $l2m_wq_s1);
-	(@$self{qw(0 1 2)}, $sock, $l2m_wq_s1) = delete(@$wq{0..4});
-	$self->{sock} = $sock if -S $sock;
-	$self->{l2m}->{-wq_s1} = $l2m_wq_s1 if $l2m_wq_s1 && -S $l2m_wq_s1;
+	io_restore($self, $wq);
+	io_restore($self->{l2m}, $wq);
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
@@ -355,30 +368,45 @@ sub atfork_child_wq {
 			close(delete $self->{$i});
 		}
 		# trigger the LeiXSearch $done OpPipe:
-		syswrite($self->{0}, '!') if $self->{0} && -p $self->{0};
+		syswrite($self->{op_pipe}, '!') if $self->{op_pipe};
 		$SIG{PIPE} = 'DEFAULT';
 		die bless(\"$_[0]", 'PublicInbox::SIGPIPE'),
 	});
+}
+
+sub io_extract ($;@) {
+	my ($obj, @fields) = @_;
+	my @io;
+	for my $f (@fields) {
+		my $io = delete $obj->{$f} or next;
+		my @st = stat($io) or die "W: stat $obj.$f ($io): $!";
+		$obj->{"dev=$st[0],ino=$st[1]"} = $f;
+		push @io, $io;
+	}
+	@io
 }
 
 # usage: ($lei, @io) = $lei->atfork_parent_wq($wq);
 sub atfork_parent_wq {
 	my ($self, $wq) = @_;
 	my $env = delete $self->{env}; # env is inherited at fork
-	my $ret = bless { %$self }, ref($self);
-	if (my $dedupe = delete $ret->{dedupe}) {
-		$ret->{dedupe} = $wq->deep_clone($dedupe);
+	my $lei = bless { %$self }, ref($self);
+	if (my $dedupe = delete $lei->{dedupe}) {
+		$lei->{dedupe} = $wq->deep_clone($dedupe);
 	}
 	$self->{env} = $env;
-	delete @$ret{qw(3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
-	my @io = delete @$ret{0..2};
-	$io[3] = delete($ret->{sock}) // $io[2];
-	my $l2m = $ret->{l2m};
+	delete @$lei{qw(3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
+	my @io = (delete(@$lei{qw(0 1 2)}),
+			io_extract($lei, qw(sock op_pipe startq)));
+	my $l2m = $lei->{l2m};
 	if ($l2m && $l2m != $wq) { # $wq == lxs
-		$io[4] = $l2m->{-wq_s1} if $l2m->{-wq_s1};
+		if (my $wq_s1 = $l2m->{-wq_s1}) {
+			push @io, io_extract($l2m, '-wq_s1');
+			$l2m->{-wq_s1} = $wq_s1;
+		}
 		$l2m->wq_close(1);
 	}
-	($ret, @io);
+	($lei, @io);
 }
 
 sub _help ($;$) {

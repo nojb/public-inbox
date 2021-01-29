@@ -460,7 +460,7 @@ sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
 
 sub write_mail { # via ->wq_do
 	my ($self, $git_dir, $smsg, $lei) = @_;
-	my $not_done = delete $self->{4}; # write end of {each_smsg_done}
+	my $not_done = delete $self->{$lei->{each_smsg_not_done}};
 	my $wcb = $self->{wcb} //= do { # first message
 		my %sig = $lei->atfork_child_wq($self);
 		@SIG{keys %sig} = values %sig; # not local
@@ -469,12 +469,6 @@ sub write_mail { # via ->wq_do
 	};
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
 	$git->cat_async($smsg->{blob}, \&git_to_mail, [$wcb, $smsg, $not_done]);
-}
-
-sub ipc_atfork_prepare {
-	my ($self) = @_;
-	# FDs: (done_wr, stdout|mbox, stderr, 3: sock, 4: each_smsg_done_wr)
-	$self->SUPER::ipc_atfork_prepare; # PublicInbox::IPC
 }
 
 # We rely on OnDestroy to run this before ->DESTROY, since ->DESTROY
