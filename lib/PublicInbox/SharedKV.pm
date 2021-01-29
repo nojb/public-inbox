@@ -44,10 +44,7 @@ CREATE TABLE IF NOT EXISTS kv (
 sub new {
 	my ($cls, $dir, $base, $opt) = @_;
 	my $self = bless { opt => $opt }, $cls;
-	unless (defined $dir) {
-		$self->{tmpdir} = $dir = tempdir('skv-XXXXXX', TMPDIR => 1);
-		$self->{tmpid} = "$$.$self";
-	}
+	$dir //= $self->{"tmp$$.$self"} = tempdir("skv.$$-XXXX", TMPDIR => 1);
 	-d $dir or mkdir($dir) or die "mkdir($dir): $!";
 	$base //= '';
 	my $f = $self->{filename} = "$dir/$base.sqlite3";
@@ -148,7 +145,8 @@ SELECT COUNT(k) FROM kv
 
 sub DESTROY {
 	my ($self) = @_;
-	rmtree($self->{tmpdir}) if ($self->{tmpid} // '') eq "$$.$self";
+	my $dir = delete $self->{"tmp$$.$self"} or return;
+	rmtree($dir);
 }
 
 1;

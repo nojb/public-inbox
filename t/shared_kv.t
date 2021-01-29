@@ -9,7 +9,7 @@ use_ok 'PublicInbox::SharedKV';
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{TMPDIR} = $tmpdir;
 my $skv = PublicInbox::SharedKV->new;
-my $skv_tmpdir = $skv->{tmpdir};
+my $skv_tmpdir = $skv->{"tmp$$.$skv"};
 ok(-d $skv_tmpdir, 'created a temporary dir');
 $skv->dbh;
 my $dead = "\xde\xad";
