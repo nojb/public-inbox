@@ -68,10 +68,9 @@ sub content_digest ($) {
 
 	# Only use Sender: if From is not present
 	foreach my $h (qw(From Sender)) {
-		my @v = $eml->header($h);
-		if (@v) {
-			digest_addr($dig, $h, $_) foreach @v;
-		}
+		my @v = $eml->header($h) or next;
+		digest_addr($dig, $h, $_) foreach @v;
+		last;
 	}
 	foreach my $h (qw(Subject Date)) {
 		my @v = $eml->header($h);
