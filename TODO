@@ -167,3 +167,5 @@ all need to be considered for everything we introduce)
   (linkification is too expensive, as it requires mirroring)
 
 * support UUCP addresses for legacy archives
+
+* decode (skip indexing of) base-85 binary patches to avoid false-positives
