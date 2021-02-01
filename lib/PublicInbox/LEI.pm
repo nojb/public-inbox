@@ -824,7 +824,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 	$sock->autoflush(1);
 	my $self = bless { sock => $sock }, __PACKAGE__;
 	vec(my $rvec = '', fileno($sock), 1) = 1;
-	select($rvec, undef, undef, 1) or
+	select($rvec, undef, undef, 60) or
 		return send($sock, 'timed out waiting to recv FDs', MSG_EOR);
 	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33); # >MAX_ARG_STRLEN
 	if (scalar(@fds) == 4) {
@@ -834,7 +834,9 @@ sub accept_dispatch { # Listener {post_accept} callback
 			send($sock, "open(+<&=$fd) (FD=$i): $!", MSG_EOR);
 		}
 	} else {
-		return send($sock, "recv_cmd failed: $!", MSG_EOR);
+		my $msg = "recv_cmd failed: $!";
+		warn $msg;
+		return send($sock, $msg, MSG_EOR);
 	}
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
@@ -898,7 +900,6 @@ sub event_step {
 sub event_step_init {
 	my ($self) = @_;
 	if (my $sock = $self->{sock}) { # using DS->EventLoop
-		$sock->blocking(0);
 		$self->SUPER::new($sock, EPOLLIN|EPOLLET);
 	}
 }

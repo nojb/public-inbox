@@ -79,7 +79,8 @@ Falling back to (slow) one-shot mode
 	my $buf = join("\0", scalar(@ARGV), @ARGV);
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 	$buf .= "\0\0";
-	$send_cmd->($sock, [ 0, 1, 2, fileno($dh) ], $buf, MSG_EOR);
+	$send_cmd->($sock, [ 0, 1, 2, fileno($dh) ], $buf, MSG_EOR) or
+		die "sendmsg: $!";
 	my $x_it_code = 0;
 	while (1) {
 		my (@fds) = $recv_cmd->($sock, $buf, 4096 * 33);
