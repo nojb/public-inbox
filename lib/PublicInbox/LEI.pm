@@ -359,8 +359,7 @@ sub atfork_child_wq {
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
-	(__WARN__ => sub { err($self, @_) },
-	PIPE => sub {
+	(PIPE => sub {
 		$self->x_it(13); # SIGPIPE = 13
 		# we need to close explicitly to avoid Perl warning on SIGPIPE
 		for my $i (1, 2) {
