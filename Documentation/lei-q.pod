@@ -1,0 +1,127 @@
+=head1 NAME
+
+lei-q - search for messages matching terms
+
+=head1 SYNOPSIS
+
+lei q [OPTIONS] TERM [TERM...]
+
+=head1 DESCRIPTION
+
+Search for messages across the lei store and externals.
+
+TODO: Give common prefixes, or at least a description/reference.
+
+=head1 OPTIONS
+
+=over
+
+=item -o PATH, --output=PATH, --mfolder=PATH
+
+Destination for results (e.g., C<path/to/Maildir> or - for stdout).
+
+Default: -
+
+=item -f FORMAT, --format=FORMAT
+
+Format of results: C<maildir>, C<mboxrd>, C<mboxcl2>, C<mboxcl>,
+C<mboxo>, C<json>, C<jsonl>, or C<concatjson>.  The default format
+used depends on C<--output>.
+
+TODO: Provide description of formats?
+
+=item --pretty
+
+Pretty print C<json> or C<concatjson> output.  If stdout is opened to
+a tty and used as the C<--output> destination, C<--pretty> is enabled
+by default.
+
+=item --mua-cmd=COMMAND, --mua=COMMAND
+
+A command to run on C<--output> Maildir or mbox (e.g., C<mutt -f %f>).
+For a subset of MUAs known to accept a mailbox via C<-f>, COMMAND can
+be abbreviated to the name of the program: C<mutt>, C<mailx>, C<mail>,
+or C<neomutt>.
+
+=item --augment
+
+Augment output destination instead of clobbering it.
+
+=item -t, --thread
+
+Return all messages in the same thread as the actual match(es).
+
+=item -d STRATEGY, --dedupe=STRATEGY
+
+Strategy for deduplicating messages: C<content>, C<oid>, C<mid>, or
+C<none>.
+
+Default: C<content>
+
+TODO: Provide description of strategies?
+
+=item --[no-]remote
+
+Whether to include results requiring network access.  When local
+externals are configured, C<--remote> must be explicitly passed to
+enable reporting of results from remote externals.
+
+=item --no-local
+
+Limit operations to those requiring network access.
+
+=item --no-external
+
+Don't include results from externals.
+
+=item -NUMBER, -n NUMBER, --limit=NUMBER
+
+Limit the number of matches.
+
+Default: 10000
+
+=item --offset=NUMBER
+
+Shift start of search results.
+
+Default: 0
+
+=item -r, --reverse
+
+Reverse the results.  Note that this applies before C<--limit>.
+
+=item -s KEY, --sort=KEY
+
+Order the results by KEY.  Valid keys are C<received>, C<relevance>,
+and C<docid>.
+
+Default: C<received>
+
+=item -v, --verbose
+
+Provide more feedback on stderr.
+
+=item --torsocks=auto|no|yes, --no-torsocks
+
+Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
+
+Default: C<auto>
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-add-external(1)>

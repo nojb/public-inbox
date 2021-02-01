@@ -21,6 +21,15 @@ Documentation/flow.ge
 Documentation/flow.txt
 Documentation/hosted.txt
 Documentation/include.mk
+Documentation/lei-add-external.pod
+Documentation/lei-config.pod
+Documentation/lei-daemon-kill.pod
+Documentation/lei-daemon-pid.pod
+Documentation/lei-forget-external.pod
+Documentation/lei-init.pod
+Documentation/lei-ls-external.pod
+Documentation/lei-q.pod
+Documentation/lei.pod
 Documentation/marketing.txt
 Documentation/mknews.perl
 Documentation/public-inbox-compact.pod

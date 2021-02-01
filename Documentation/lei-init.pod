@@ -1,0 +1,42 @@
+=head1 NAME
+
+lei-init - initialize storage
+
+=head1 SYNOPSIS
+
+lei init [OPTIONS] [PATHNAME]
+
+=head1 DESCRIPTION
+
+Initialize local writable storage for L<lei(1)>.  If C<PATHNAME> is
+unspecified, the storage is created at C<$XDG_DATA_HOME/lei/store>.
+C<leistore.dir> in C<$XDG_CONFIG_HOME/lei/config> records this
+location.
+
+=head1 OPTIONS
+
+=over
+
+=item -q, --quiet
+
+Suppress feedback messages.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+
+=head1 SEE ALSO
+
+L<lei-add-external(1)>

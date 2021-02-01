@@ -10,7 +10,16 @@ use warnings;
 use PublicInbox::Linkify;
 use PublicInbox::Hval qw(ascii_html);
 my %xurls;
-for (qw[public-inbox.cgi(1)
+for (qw[lei(1)
+	lei-add-external(1)
+	lei-config(1)
+	lei-daemon-kill(1)
+	lei-daemon-pid(1)
+	lei-forget-external(1)
+	lei-init(1)
+	lei-ls-external(1)
+	lei-q(1)
+	public-inbox.cgi(1)
 	public-inbox-compact(1)
 	public-inbox-config(5)
 	public-inbox-convert(1)

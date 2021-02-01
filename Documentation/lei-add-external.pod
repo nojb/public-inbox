@@ -1,0 +1,49 @@
+=head1 NAME
+
+lei-add-external - add inbox or external index
+
+=head1 SYNOPSIS
+
+lei add-external [OPTIONS] URL_OR_PATHNAME
+
+=head1 DESCRIPTION
+
+Configure lei to search against an external (an inbox or external
+index).  When C<URL_OR_PATHNAME> is a local path, it should point to a
+directory that is a C<public.<name>.inboxdir> or
+C<extindex.<name>.topdir> value in ~/.public-inbox/config.
+
+=head1 OPTIONS
+
+=over
+
+=item --boost=NUMBER
+
+Set priority of a new or existing location.
+
+Default: 0
+
+=back
+
+=head1 FILES
+
+The configuration for lei resides at C<$XDG_CONFIG_HOME/lei/config>.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-forget-external(1)>, L<lei-ls-external(1)>,
+L<public-inbox-index(1)>, L<public-inbox-extindex(1)>,
+L<public-inbox-extindex-format(5)>

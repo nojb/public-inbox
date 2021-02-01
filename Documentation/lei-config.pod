@@ -1,0 +1,26 @@
+=head1 NAME
+
+lei-config - git-config wrapper for lei configuration file
+
+=head1 SYNOPSIS
+
+lei config [OPTIONS]
+
+=head1 DESCRIPTION
+
+Call git-config(1) with C<$XDG_CONFIG_HOME/lei/config> as the
+configuration file.  All C<OPTIONS> are passed through, but those that
+override the configuration file are not permitted.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
