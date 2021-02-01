@@ -145,8 +145,15 @@ SELECT COUNT(k) FROM kv
 
 sub DESTROY {
 	my ($self) = @_;
+	delete $self->{dbh};
 	my $dir = delete $self->{"tmp$$.$self"} or return;
-	rmtree($dir);
+	my $tries = 0;
+	do {
+		$! = 0;
+		eval { rmtree($dir) };
+	} while ($@ && $!{ENOENT} && $tries++ < 5);
+	warn "error removing $dir: $@" if $@;
+	warn "Took $tries tries to remove $dir\n" if $tries;
 }
 
 1;
