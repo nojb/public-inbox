@@ -24,6 +24,7 @@ sub default_branch () {
 		delete local $ENV{GIT_CONFIG};
 		my $r = popen_rd([qw(git config --global init.defaultBranch)]);
 		chomp(my $h = <$r> // '');
+		close $r;
 		$h eq '' ? 'refs/heads/master' : $h;
 	}
 }
