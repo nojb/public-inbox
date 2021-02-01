@@ -12,11 +12,16 @@ use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::LeiDedupe;
 use PublicInbox::OnDestroy;
+use PublicInbox::Git;
+use PublicInbox::GitAsyncCat;
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
 use Errno qw(EEXIST ESPIPE ENOENT);
-use PublicInbox::Git;
+
+# struggles with short-lived repos, Gcf2Client makes little sense with lei;
+# but we may use in-process libgit2 in the future.
+$PublicInbox::GitAsyncCat::GCF2C = 0;
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -467,27 +472,18 @@ sub write_mail { # via ->wq_do
 		$self->write_cb($lei);
 	};
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
-	$git->cat_async($smsg->{blob}, \&git_to_mail, [$wcb, $smsg, $not_done]);
+	git_async_cat($git, $smsg->{blob}, \&git_to_mail,
+				[$wcb, $smsg, $not_done]);
 }
 
-# We rely on OnDestroy to run this before ->DESTROY, since ->DESTROY
-# ordering is unstable at worker exit and may cause segfaults
-sub reap_gits {
+sub wq_atexit_child {
 	my ($self) = @_;
 	delete $self->{wcb};
 	for my $git (delete @$self{grep(/\A$$\0/, keys %$self)}) {
 		$git->async_wait_all;
 	}
-}
-
-sub DESTROY { delete $_[0]->{wcb} }
-
-sub ipc_atfork_child { # runs after IPC::wq_worker_loop
-	my ($self) = @_;
-	$self->SUPER::ipc_atfork_child;
-	# reap_gits needs to run before $self->DESTROY,
-	# IPC.pm will ensure that.
-	PublicInbox::OnDestroy->new($$, \&reap_gits, $self);
+	$SIG{__WARN__} = 'DEFAULT';
+	$SIG{PIPE} = 'DEFAULT';
 }
 
 1;
