@@ -1,0 +1,72 @@
+=head1 NAME
+
+lei - an overview of lei
+
+=head1 DESCRIPTION
+
+L<lei(1)> is a local email interface for public-inbox.  This document
+provides some basic examples.
+
+=head1 LEI STORE
+
+L<lei-init(1)> initializes writable local storage based on
+L<public-inbox-v2-format(5)>.
+
+TODO: Extend when lei-import and friends are added.
+
+=head1 EXTERNALS
+
+In addition to the above store, lei can make read-only queries to
+"externals": inboxes and external indices.  An external can be
+registered by passing a URL or local path to L<lei-add-external(1)>.
+For local paths, the external needs to be indexed with
+L<public-inbox-index(1)> (in the case of a regular inbox) or
+L<public-inbox-extindex(1)> (in the case of an external index).
+
+=head2 EXAMPLES
+
+=over
+
+=item $ lei add-external https://public-inbox.org/meta/
+
+Add a remote external for public-inbox's inbox.
+
+=back
+
+=head1 SEARCHING
+
+The L<lei-q(1)> command searches the local store and externals.  The
+search prefixes match those available via L<public-inbox-httpd(1)>.
+
+=head2 EXAMPLES
+
+=over
+
+=item $ lei q s:lei s:skeleton
+
+Search for messages whose subject includes "lei" and "skeleton".
+
+=item $ lei q -t s:lei s:skeleton
+
+Do the same, but also report unmatched messages that are in the same
+thread as a matched message.
+
+=item $ lei q -t -o t.mbox -f mboxcl2 --mua=mutt s:lei s:skeleton
+
+Write mboxcl2-formatted results to t.mbox and enter mutt to view the
+file by invoking C<mutt -f %f>.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
