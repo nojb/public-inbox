@@ -5,6 +5,7 @@ use strict;
 use v5.10.1;
 use PublicInbox::SharedKV;
 use PublicInbox::ContentHash qw(content_hash);
+use Digest::SHA ();
 
 # n.b. mutt sets most of these headers not sure about Bytes
 our @OID_IGNORE = qw(Status X-Status Content-Length Lines Bytes);
