@@ -323,7 +323,7 @@ sub _buf2maildir {
 sub _maildir_write_cb ($$) {
 	my ($self, $lei) = @_;
 	my $dedupe = $lei->{dedupe};
-	$dedupe->prepare_dedupe;
+	$dedupe->prepare_dedupe if $dedupe;
 	my $dst = $lei->{ovv}->{dst};
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
@@ -464,7 +464,6 @@ sub write_mail { # via ->wq_do
 	my $wcb = $self->{wcb} //= do { # first message
 		my %sig = $lei->atfork_child_wq($self);
 		@SIG{keys %sig} = values %sig; # not local
-		$lei->{dedupe}->prepare_dedupe;
 		$self->write_cb($lei);
 	};
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);

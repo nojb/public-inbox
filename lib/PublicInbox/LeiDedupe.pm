@@ -103,8 +103,8 @@ sub new {
 	bless [ $skv, undef, undef, $m ], $cls;
 }
 
-# returns true on unseen messages according to the deduplication strategy,
-# returns false if seen
+# returns true on seen messages according to the deduplication strategy,
+# returns false if unseen
 sub is_dup {
 	my ($self, $eml, $oid) = @_;
 	!$self->[1]->($eml, $oid);

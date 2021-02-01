@@ -92,13 +92,14 @@ sub new {
 			ovv_out_lk_init($self);
 		}
 	}
-	if (!$json) {
+	if ($json) {
+		$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
+	} else {
 		# default to the cheapest sort since MUA usually resorts
 		$lei->{opt}->{'sort'} //= 'docid' if $dst ne '/dev/stdout';
 		$lei->{l2m} = eval { PublicInbox::LeiToMail->new($lei) };
 		return $lei->fail($@) if $@;
 	}
-	$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
 	$self;
 }
 
@@ -201,15 +202,19 @@ sub _json_pretty {
 
 sub ovv_each_smsg_cb { # runs in wq worker usually
 	my ($self, $lei, $ibxish) = @_;
-	my $json;
+	my ($json, $dedupe);
 	$lei->{1}->autoflush(1);
-	my $dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
 	if (my $pkg = $self->{json}) {
 		$json = $pkg->new;
 		$json->utf8->canonical;
 		$json->ascii(1) if $lei->{opt}->{ascii};
 	}
-	my $l2m = $lei->{l2m} or $dedupe->prepare_dedupe;
+	my $l2m = $lei->{l2m};
+	if (!$l2m) {
+		$dedupe = $lei->{dedupe} // die 'BUG: {dedupe} missing';
+		$dedupe->prepare_dedupe;
+	}
+	$lei->{ovv_buf} = \(my $buf = '') if !$l2m;
 	if ($l2m && !$ibxish) { # remote https?:// mboxrd
 		delete $l2m->{-wq_s1};
 		my $g2m = $l2m->can('git_to_mail');
@@ -241,7 +246,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
 		$self->{git} = $git; # for ovv_atexit_child
 		my $g2m = $l2m->can('git_to_mail');
-		$dedupe->prepare_dedupe;
 		sub {
 			my ($smsg, $mitem) = @_;
 			$smsg->{pct} = get_pct($mitem) if $mitem;
@@ -249,7 +253,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		};
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
-		$lei->{ovv_buf} = \(my $buf = '');
 		sub { # DIY prettiness :P
 			my ($smsg, $mitem) = @_;
 			return if $dedupe->is_smsg_dup($smsg);
@@ -273,7 +276,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		}
 	} elsif ($json) {
 		my $ORS = $self->{fmt} eq 'json' ? ",\n" : "\n"; # JSONL
-		$lei->{ovv_buf} = \(my $buf = '');
 		sub {
 			my ($smsg, $mitem) = @_;
 			return if $dedupe->is_smsg_dup($smsg);
