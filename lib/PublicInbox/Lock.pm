@@ -41,6 +41,23 @@ sub lock_for_scope {
 	PublicInbox::OnDestroy->new(@single_pid, \&lock_release, $self);
 }
 
+sub lock_acquire_fast {
+	$_[0]->{lockfh} or return lock_acquire($_[0]);
+	flock($_[0]->{lockfh}, LOCK_EX) or croak "lock (fast) failed: $!";
+}
+
+sub lock_release_fast {
+	flock($_[0]->{lockfh} // return, LOCK_UN) or
+			croak "unlock (fast) $_[0]->{lock_path}: $!";
+}
+
+# caller must use return value
+sub lock_for_scope_fast {
+	my ($self, @single_pid) = @_;
+	lock_acquire_fast($self) or return; # lock_path not set
+	PublicInbox::OnDestroy->new(@single_pid, \&lock_release_fast, $self);
+}
+
 sub new_tmp {
 	my ($cls, $ident) = @_;
 	my $tmp = File::Temp->new("$ident.lock-XXXXXX", TMPDIR => 1);

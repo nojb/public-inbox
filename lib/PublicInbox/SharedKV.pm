@@ -17,7 +17,7 @@ sub dbh {
 	my ($self, $lock) = @_;
 	$self->{dbh} //= do {
 		my $f = $self->{filename};
-		$lock //= $self->lock_for_scope;
+		$lock //= $self->lock_for_scope_fast;
 		my $dbh = DBI->connect("dbi:SQLite:dbname=$f", '', '', {
 			AutoCommit => 1,
 			RaiseError => 1,
@@ -58,13 +58,13 @@ sub new {
 
 sub index_values {
 	my ($self) = @_;
-	my $lock = $self->lock_for_scope;
+	my $lock = $self->lock_for_scope_fast;
 	$self->dbh($lock)->do('CREATE INDEX IF NOT EXISTS idx_v ON kv (v)');
 }
 
 sub set_maybe {
 	my ($self, $key, $val, $lock) = @_;
-	$lock //= $self->lock_for_scope;
+	$lock //= $self->lock_for_scope_fast;
 	my $e = $self->{dbh}->prepare_cached(<<'')->execute($key, $val);
 INSERT OR IGNORE INTO kv (k,v) VALUES (?, ?)
 
@@ -83,7 +83,7 @@ SELECT k,v FROM kv
 
 sub delete_by_val {
 	my ($self, $val, $lock) = @_;
-	$lock //= $self->lock_for_scope;
+	$lock //= $self->lock_for_scope_fast;
 	$self->{dbh}->prepare_cached(<<'')->execute($val) + 0;
 DELETE FROM kv WHERE v = ?
 
@@ -91,7 +91,7 @@ DELETE FROM kv WHERE v = ?
 
 sub replace_values {
 	my ($self, $oldval, $newval, $lock) = @_;
-	$lock //= $self->lock_for_scope;
+	$lock //= $self->lock_for_scope_fast;
 	$self->{dbh}->prepare_cached(<<'')->execute($newval, $oldval) + 0;
 UPDATE kv SET v = ? WHERE v = ?
 
@@ -122,7 +122,7 @@ SELECT v FROM kv WHERE k = ?
 
 sub xchg {
 	my ($self, $key, $newval, $lock) = @_;
-	$lock //= $self->lock_for_scope;
+	$lock //= $self->lock_for_scope_fast;
 	my $oldval = get($self, $key);
 	if (defined $newval) {
 		set($self, $key, $newval);
@@ -146,7 +146,7 @@ SELECT COUNT(k) FROM kv
 sub dbh_release {
 	my ($self, $lock) = @_;
 	my $dbh = delete $self->{dbh} or return;
-	$lock //= $self->lock_for_scope; # may be needed for WAL
+	$lock //= $self->lock_for_scope_fast; # may be needed for WAL
 	%{$dbh->{CachedKids}} = (); # cleanup prepare_cached
 	$dbh->disconnect;
 }

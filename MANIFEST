@@ -454,3 +454,4 @@ xt/perf-msgview.t
 xt/perf-nntpd.t
 xt/perf-threading.t
 xt/solver.t
+xt/stress-sharedkv.t
