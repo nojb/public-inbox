@@ -143,9 +143,17 @@ SELECT COUNT(k) FROM kv
 	$sth->fetchrow_array;
 }
 
+sub dbh_release {
+	my ($self, $lock) = @_;
+	my $dbh = delete $self->{dbh} or return;
+	$lock //= $self->lock_for_scope; # may be needed for WAL
+	%{$dbh->{CachedKids}} = (); # cleanup prepare_cached
+	$dbh->disconnect;
+}
+
 sub DESTROY {
 	my ($self) = @_;
-	delete $self->{dbh};
+	dbh_release($self);
 	my $dir = delete $self->{"tmp$$.$self"} or return;
 	my $tries = 0;
 	do {
