@@ -162,13 +162,13 @@ sub now () { clock_gettime(CLOCK_MONOTONIC) }
 sub next_tick () {
     my $q = $nextq or return;
     $nextq = undef;
-    for (@$q) {
+    for my $obj (@$q) {
         # we avoid "ref" on blessed refs to workaround a Perl 5.16.3 leak:
         # https://rt.perl.org/Public/Bug/Display.html?id=114340
-        if (blessed($_)) {
-            $_->event_step;
+        if (blessed($obj)) {
+            $obj->event_step;
         } else {
-            $_->();
+            $obj->();
         }
     }
 }
