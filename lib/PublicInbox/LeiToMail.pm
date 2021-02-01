@@ -296,14 +296,14 @@ sub _buf2maildir {
 	my $kw = $smsg->{kw} // [];
 	my $sfx = join('', sort(map { $kw2char{$_} // () } @$kw));
 	my $rand = ''; # chosen by die roll :P
-	my ($tmp, $fh, $final);
+	my ($tmp, $fh, $final, $ok);
 	my $common = $smsg->{blob} // _rand;
 	if (defined(my $pct = $smsg->{pct})) { $common .= "=$pct" }
 	do {
 		$tmp = $dst.'tmp/'.$rand.$common;
-	} while (!sysopen($fh, $tmp, O_CREAT|O_EXCL|O_WRONLY) &&
+	} while (!($ok = sysopen($fh, $tmp, O_CREAT|O_EXCL|O_WRONLY)) &&
 		$! == EEXIST && ($rand = _rand.','));
-	if (print $fh $$buf and close($fh)) {
+	if ($ok && print $fh $$buf and close($fh)) {
 		# ignore new/ and write only to cur/, otherwise MUAs
 		# with R/W access to the Maildir will end up doing
 		# a mass rename which can take a while with thousands
@@ -316,9 +316,10 @@ sub _buf2maildir {
 			($rand = _rand.','));
 		unlink($tmp) or warn "W: failed to unlink $tmp: $!\n";
 	} else {
-		my $err = $!;
+		my $err = "Error writing $smsg->{blob} to $dst: $!\n";
+		$_[0] = undef; # clobber dst
 		unlink($tmp);
-		die "Error writing $smsg->{blob} to $dst: $err";
+		die $err;
 	}
 }
 
@@ -329,6 +330,7 @@ sub _maildir_write_cb ($$) {
 	my $dst = $lei->{ovv}->{dst};
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
+		$dst // return $lei->fail; # dst may be undef-ed in last run
 		$buf //= \($eml->as_string);
 		return _buf2maildir($dst, $buf, $smsg) if !$dedupe;
 		$eml //= PublicInbox::Eml->new($$buf); # copy buf

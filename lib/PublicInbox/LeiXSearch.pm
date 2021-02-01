@@ -356,14 +356,17 @@ sub query_prepare { # called by wq_do
 	syswrite($lei->{op_pipe}, '.') == 1 or die "do_post_augment trigger: $!"
 }
 
-sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
-	my ($lei) = @_;
-	my $lxs = delete $lei->{lxs};
-	if ($lxs && $lxs->wq_kill_old) { # is this the daemon?
-		$lxs->wq_wait_old($lei);
+sub fail_handler ($;$$) {
+	my ($lei, $code, $io) = @_;
+	if (my $lxs = delete $lei->{lxs}) {
+		$lxs->wq_wait_old($lei) if $lxs->wq_kill_old; # lei-daemon
 	}
-	close(delete $lei->{1}) if $lei->{1};
-	$lei->x_it(13);
+	close($io) if $io; # needed to avoid warnings on SIGPIPE
+	$lei->x_it($code // (1 >> 8));
+}
+
+sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
+	fail_handler($_[0], 13, delete $_[0]->{1});
 }
 
 sub do_query {
@@ -384,7 +387,8 @@ sub do_query {
 	$lei->event_step_init; # wait for shutdowns
 	my $done_op = {
 		'' => [ \&query_done, $lei ],
-		'!' => [ \&sigpipe_handler, $lei ]
+		'|' => [ \&sigpipe_handler, $lei ],
+		'!' => [ \&fail_handler, $lei ]
 	};
 	my $in_loop = exists $lei->{sock};
 	$done = PublicInbox::OpPipe->new($done, $done_op, $in_loop);

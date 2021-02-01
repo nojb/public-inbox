@@ -305,7 +305,8 @@ sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
-	err($self, $buf);
+	err($self, $buf) if defined $buf;
+	syswrite($self->{op_pipe}, '!') if $self->{op_pipe}; # fail_handler
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
 }
@@ -365,11 +366,10 @@ sub io_restore ($$) {
 	}
 }
 
-# triggers sigpipe_handler
-sub note_sigpipe {
+sub note_sigpipe { # triggers sigpipe_handler
 	my ($self, $fd) = @_;
 	close(delete($self->{$fd})); # explicit close silences Perl warning
-	syswrite($self->{op_pipe}, '!') if $self->{op_pipe};
+	syswrite($self->{op_pipe}, '|') if $self->{op_pipe};
 	x_it($self, 13);
 }
 
