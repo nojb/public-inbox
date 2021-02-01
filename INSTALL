@@ -86,6 +86,7 @@ Numerous optional modules are likely to be useful as well:
 
 - Inline::C                        deb: libinline-c-perl
                                    pkg: pkg-Inline-C
+                                   rpm: perl-Inline (or perl-Inline-C)
                                    (speeds up process spawning on Linux,
                                     see public-inbox-daemon(8))
 
@@ -100,6 +101,11 @@ Numerous optional modules are likely to be useful as well:
                                    rpm: perl-ParseRecDescent
                                    (optional, for public-inbox-imapd(1))
 
+- BSD::Resource                    deb: libbsd-resource-perl
+                                   pkg: p5-BSD-Resource
+                                   rpm: perl-BSD-Resource
+                                   (optional, for PSGI limiters
+                                    see public-inbox-config(5))
 
 - Plack::Middleware::ReverseProxy  deb: libplack-middleware-reverseproxy-perl
                                    pkg: p5-Plack-Middleware-ReverseProxy

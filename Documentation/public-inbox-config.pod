@@ -335,7 +335,7 @@ limiter with a low max value; while smaller inboxes can use
 the default limiter.
 
 C<RLIMIT_*> keys may be set to enforce resource limits for
-a particular limiter.
+a particular limiter (L<BSD::Resource(3pm)> is required).
 
 Default named-limiters are prefixed with "-".  Currently,
 the "-cgit" named limiter is reserved for instances spawning
