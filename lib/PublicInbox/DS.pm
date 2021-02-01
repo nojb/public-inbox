@@ -271,6 +271,7 @@ sub EventLoop {
     $Epoll //= _InitPoller();
     local $in_loop = 1;
     my @events;
+    my $obj; # guard stack-not-refcounted w/ Carp + @DB::args
     do {
         my $timeout = RunTimers();
 
@@ -281,7 +282,8 @@ sub EventLoop {
             # that ones in the front triggered unregister-interest actions.  if we
             # can't find the %sock entry, it's because we're no longer interested
             # in that event.
-            $DescriptorMap{$fd}->event_step;
+            $obj = $DescriptorMap{$fd};
+            $obj->event_step;
         }
     } while (PostEventLoop());
     _run_later();
