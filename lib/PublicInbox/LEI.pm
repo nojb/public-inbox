@@ -14,10 +14,9 @@ use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
 use Errno qw(EPIPE EAGAIN EINTR ECONNREFUSED ENOENT ECONNRESET);
 use Cwd qw(getcwd);
-use POSIX ();
+use POSIX qw(strftime);
 use IO::Handle ();
 use Fcntl qw(SEEK_SET);
-use Sys::Syslog qw(syslog openlog);
 use PublicInbox::Config;
 use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLET);
 use PublicInbox::Sigfd;
@@ -1007,9 +1006,9 @@ sub lazy_start {
 				warn "$path dev/ino changed, quitting\n";
 				$path = undef;
 			}
-		} elsif (defined($path)) {
-			warn "stat($path): $!, quitting ...\n";
-			undef $path; # don't unlink
+		} elsif (defined($path)) { # ENOENT is common
+			warn "stat($path): $!, quitting ...\n" if $! != ENOENT;
+			undef $path;
 			$quit->();
 		}
 		return 1 if defined($path);
@@ -1029,18 +1028,14 @@ sub lazy_start {
 	# STDIN was redirected to /dev/null above, closing STDERR and
 	# STDOUT will cause the calling `lei' client process to finish
 	# reading the <$daemon> pipe.
-	openlog($path, 'pid', 'user');
 	local $SIG{__WARN__} = sub {
-		$current_lei ? err($current_lei, @_) : syslog('warning', "@_");
+		$current_lei ? err($current_lei, @_) : warn(
+		  strftime('%Y-%m-%dT%H:%M:%SZ', gmtime(time))," $$ ", @_);
 	};
-	my $on_destroy = PublicInbox::OnDestroy->new($$, sub {
-		syslog('crit', "$@") if $@;
-	});
 	open STDERR, '>&STDIN' or die "redirect stderr failed: $!";
 	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!";
 	# $daemon pipe to `lei' closed, main loop begins:
 	PublicInbox::DS->EventLoop;
-	@$on_destroy = (); # cancel on_destroy if we get here
 	exit($exit_code // 0);
 }
 
