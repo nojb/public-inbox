@@ -401,8 +401,9 @@ sub atfork_parent_wq {
 	my ($self, $wq) = @_;
 	my $env = delete $self->{env}; # env is inherited at fork
 	my $lei = bless { %$self }, ref($self);
-	if (my $dedupe = delete $lei->{dedupe}) {
-		$lei->{dedupe} = $wq->deep_clone($dedupe);
+	for my $f (qw(dedupe ovv)) {
+		my $tmp = delete($lei->{$f}) or next;
+		$lei->{$f} = $wq->deep_clone($tmp);
 	}
 	$self->{env} = $env;
 	delete @$lei{qw(3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
