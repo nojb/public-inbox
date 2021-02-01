@@ -31,11 +31,10 @@ sub _externals_each {
 
 sub lei_ls_external {
 	my ($self, @argv) = @_;
-	my $out = $self->{1};
 	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
 	$self->_externals_each(sub {
 		my ($loc, $boost_val) = @_;
-		print $out $loc, $OFS, 'boost=', $boost_val, $ORS;
+		$self->out($loc, $OFS, 'boost=', $boost_val, $ORS);
 	});
 }
 

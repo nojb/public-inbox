@@ -12,7 +12,7 @@ use parent qw(PublicInbox::DS PublicInbox::LeiExternal
 	PublicInbox::LeiQuery);
 use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
-use Errno qw(EAGAIN EINTR ECONNREFUSED ENOENT ECONNRESET);
+use Errno qw(EPIPE EAGAIN EINTR ECONNREFUSED ENOENT ECONNRESET);
 use Cwd qw(getcwd);
 use POSIX ();
 use IO::Handle ();
@@ -277,7 +277,11 @@ sub x_it ($$) {
 	dump_and_clear_log();
 	if (my $sock = $self->{sock}) {
 		send($sock, "x_it $code", MSG_EOR);
-	} elsif (!($code & 127)) { # oneshot, ignore signals
+	} elsif (my $signum = ($code & 127)) { # oneshot, usually SIGPIPE (13)
+		$SIG{PIPE} = 'DEFAULT'; # $SIG{$signum} doesn't work
+		kill $signum, $$;
+		sleep; # wait for signal
+	} else { # oneshot
 		# don't want to end up using $? from child processes
 		for my $f (qw(lxs l2m)) {
 			my $wq = delete $self->{$f} or next;
@@ -287,14 +291,15 @@ sub x_it ($$) {
 	}
 }
 
-sub puts ($;@) { print { shift->{1} } map { "$_\n" } @_ }
-
-sub out ($;@) { print { shift->{1} } @_ }
-
 sub err ($;@) {
 	my $self = shift;
-	my $err = $self->{2} // ($self->{pgr} // [])->[2] // *STDERR{IO};
-	print $err @_, (substr($_[-1], -1, 1) eq "\n" ? () : "\n");
+	my $err = $self->{2} // ($self->{pgr} // [])->[2] // *STDERR{GLOB};
+	my $eor = (substr($_[-1], -1, 1) eq "\n" ? () : "\n");
+	print $err @_, $eor and return;
+	my $old_err = delete $self->{2};
+	close($old_err) if $! == EPIPE && $old_err;;
+	$err = $self->{2} = ($self->{pgr} // [])->[2] // *STDERR{GLOB};
+	print $err @_, $eor or print STDERR @_, $eor;
 }
 
 sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
@@ -305,6 +310,17 @@ sub fail ($$;$) {
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
 }
+
+sub out ($;@) {
+	my $self = shift;
+	return if print { $self->{1} // return } @_; # likely
+	return note_sigpipe($self, 1) if $! == EPIPE;
+	my $err = "error writing to stdout: $!";
+	delete $self->{1};
+	fail($self, $err);
+}
+
+sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 
 sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error) = @_; # child_error is $?
@@ -350,27 +366,23 @@ sub io_restore ($$) {
 	}
 }
 
-# usage: my %sig = $lei->atfork_child_wq($wq);
-#	 local @SIG{keys %sig} = values %sig;
+# triggers sigpipe_handler
+sub note_sigpipe {
+	my ($self, $fd) = @_;
+	close(delete($self->{$fd})); # explicit close silences Perl warning
+	syswrite($self->{op_pipe}, '!') if $self->{op_pipe};
+	x_it($self, 13);
+}
+
 sub atfork_child_wq {
 	my ($self, $wq) = @_;
 	io_restore($self, $wq);
+	-p $self->{op_pipe} or die 'BUG: {op_pipe} expected';
 	io_restore($self->{l2m}, $wq);
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
-	(PIPE => sub {
-		$self->x_it(13); # SIGPIPE = 13
-		# we need to close explicitly to avoid Perl warning on SIGPIPE
-		for my $i (1, 2) {
-			next unless $self->{$i} && (-p $self->{$i} || -S _);
-			close(delete $self->{$i});
-		}
-		# trigger the LeiXSearch $done OpPipe:
-		syswrite($self->{op_pipe}, '!') if $self->{op_pipe};
-		$SIG{PIPE} = 'DEFAULT';
-		die bless(\"$_[0]", 'PublicInbox::SIGPIPE'),
-	});
+	$current_lei = $self; # for SIG{__WARN__}
 }
 
 sub io_extract ($;@) {

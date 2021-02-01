@@ -139,8 +139,10 @@ sub ipc_worker_spawn {
 
 sub ipc_worker_reap { # dwaitpid callback
 	my ($self, $pid) = @_;
-	# SIGTERM (15) is our default exit signal
-	warn "PID:$pid died with \$?=$?\n" if $? && ($? & 127) != 15;
+	return if !$?;
+	# TERM(15) is our default exit signal, PIPE(13) is likely w/ pager
+	my $s = $? & 127;
+	warn "PID:$pid died with \$?=$?\n" if $s != 15 && $s != 13;
 }
 
 sub wq_wait_old {
@@ -278,7 +280,7 @@ sub recv_and_run {
 	undef $buf;
 	my $sub = shift @$args;
 	eval { $self->$sub(@$args) };
-	warn "$$ wq_worker: $@" if $@ && ref($@) ne 'PublicInbox::SIGPIPE';
+	warn "$$ wq_worker: $@" if $@;
 	delete @$self{0..($nfd-1)};
 	$n;
 }
@@ -320,7 +322,7 @@ sub wq_do { # always async
 	} else {
 		@$self{0..$#$ios} = @$ios;
 		eval { $self->$sub(@args) };
-		warn "wq_do: $@" if $@ && ref($@) ne 'PublicInbox::SIGPIPE';
+		warn "wq_do: $@" if $@;
 		delete @$self{0..$#$ios}; # don't close
 	}
 }

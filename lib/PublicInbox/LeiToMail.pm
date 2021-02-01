@@ -17,7 +17,7 @@ use PublicInbox::GitAsyncCat;
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
-use Errno qw(EEXIST ESPIPE ENOENT);
+use Errno qw(EEXIST ESPIPE ENOENT EPIPE);
 
 # struggles with short-lived repos, Gcf2Client makes little sense with lei;
 # but we may use in-process libgit2 in the future.
@@ -68,14 +68,16 @@ sub _mbox_hdr_buf ($$$) {
 }
 
 sub atomic_append { # for on-disk destinations (O_APPEND, or O_EXCL)
-	my ($fh, $buf) = @_;
-	defined(my $w = syswrite($fh, $$buf)) or die "write: $!";
-	$w == length($$buf) or die "short write: $w != ".length($$buf);
-}
-
-sub _print_full {
-	my ($fh, $buf) = @_;
-	print $fh $$buf or die "print: $!";
+	my ($lei, $buf) = @_;
+	if (defined(my $w = syswrite($lei->{1} // return, $$buf))) {
+		return if $w == length($$buf);
+		$buf = "short atomic write: $w != ".length($$buf);
+	} elsif ($! == EPIPE) {
+		return $lei->note_sigpipe(1);
+	} else {
+		$buf = "atomic write: $!";
+	}
+	$lei->fail($buf);
 }
 
 sub eml2mboxrd ($;$) {
@@ -248,24 +250,19 @@ sub _mbox_write_cb ($$) {
 	my $ovv = $lei->{ovv};
 	my $m = 'eml2'.$ovv->{fmt};
 	my $eml2mbox = $self->can($m) or die "$self->$m missing";
-	my $out = $lei->{1} // die "no stdout ($m, $ovv->{dst})"; # redirected earlier
-	$out->autoflush(1);
-	my $write = $ovv->{lock_path} ? \&_print_full : \&atomic_append;
+	$lei->{1} // die "no stdout ($m, $ovv->{dst})"; # redirected earlier
+	$lei->{1}->autoflush(1);
+	my $atomic_append = !defined($ovv->{lock_path});
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe;
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
-		return unless $out;
 		$eml //= PublicInbox::Eml->new($buf);
-		if (!$dedupe->is_dup($eml, $smsg->{blob})) {
-			$buf = $eml2mbox->($eml, $smsg);
-			my $lk = $ovv->lock_for_scope;
-			eval { $write->($out, $buf) };
-			if ($@) {
-				die $@ if ref($@) ne 'PublicInbox::SIGPIPE';
-				undef $out
-			}
-		}
+		return if $dedupe->is_dup($eml, $smsg->{blob});
+		$buf = $eml2mbox->($eml, $smsg);
+		return atomic_append($lei, $buf) if $atomic_append;
+		my $lk = $ovv->lock_for_scope;
+		$lei->out($$buf);
 	}
 }
 
@@ -467,8 +464,7 @@ sub write_mail { # via ->wq_do
 	my ($self, $git_dir, $smsg, $lei) = @_;
 	my $not_done = delete $self->{$lei->{each_smsg_not_done}};
 	my $wcb = $self->{wcb} //= do { # first message
-		my %sig = $lei->atfork_child_wq($self);
-		@SIG{keys %sig} = values %sig; # not local
+		$lei->atfork_child_wq($self);
 		$self->write_cb($lei);
 	};
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
@@ -483,7 +479,6 @@ sub wq_atexit_child {
 		$git->async_wait_all;
 	}
 	$SIG{__WARN__} = 'DEFAULT';
-	$SIG{PIPE} = 'DEFAULT';
 }
 
 1;

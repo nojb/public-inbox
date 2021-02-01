@@ -107,26 +107,20 @@ sub new {
 sub ovv_begin {
 	my ($self, $lei) = @_;
 	if ($self->{fmt} eq 'json') {
-		print { $lei->{1} } '[';
+		$lei->out('[');
 	} # TODO HTML/Atom/...
 }
 
 # called once by parent (via PublicInbox::EOFpipe)
 sub ovv_end {
 	my ($self, $lei) = @_;
-	my $out = $lei->{1} or return;
 	if ($self->{fmt} eq 'json') {
 		# JSON doesn't allow trailing commas, and preventing
 		# trailing commas is a PITA when parallelizing outputs
-		print $out "null]\n";
+		$lei->out("null]\n");
 	} elsif ($self->{fmt} eq 'concatjson') {
-		print $out "\n";
+		$lei->out("\n");
 	}
-}
-
-sub ovv_atfork_child {
-	my ($self) = @_;
-	# reopen dedupe here
 }
 
 # prepares an smsg for JSON
@@ -168,9 +162,8 @@ sub ovv_atexit_child {
 		$git->async_wait_all;
 	}
 	if (my $bref = delete $lei->{ovv_buf}) {
-		my $out = $lei->{1} or return;
 		my $lk = $self->lock_for_scope;
-		print $out $$bref;
+		$lei->out($$bref);
 	}
 }
 
@@ -268,11 +261,10 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 				}
 			} sort keys %$smsg);
 			$buf .= $EOR;
-			if (length($buf) > 65536) {
-				my $lk = $self->lock_for_scope;
-				print { $lei->{1} } $buf;
-				$buf = '';
-			}
+			return if length($buf) < 65536;
+			my $lk = $self->lock_for_scope;
+			$lei->out($buf);
+			$buf = '';
 		}
 	} elsif ($json) {
 		my $ORS = $self->{fmt} eq 'json' ? ",\n" : "\n"; # JSONL
@@ -280,11 +272,10 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 			my ($smsg, $mitem) = @_;
 			return if $dedupe->is_smsg_dup($smsg);
 			$buf .= $json->encode(_unbless_smsg(@_)) . $ORS;
-			if (length($buf) > 65536) {
-				my $lk = $self->lock_for_scope;
-				print { $lei->{1} } $buf;
-				$buf = '';
-			}
+			return if length($buf) < 65536;
+			my $lk = $self->lock_for_scope;
+			$lei->out($buf);
+			$buf = '';
 		}
 	} # else { ...
 }

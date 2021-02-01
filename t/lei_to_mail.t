@@ -12,6 +12,7 @@ use List::Util qw(shuffle);
 require_mods(qw(DBD::SQLite));
 require PublicInbox::MboxReader;
 require PublicInbox::LeiOverview;
+require PublicInbox::LEI;
 use_ok 'PublicInbox::LeiToMail';
 my $from = "Content-Length: 10\nSubject: x\n\nFrom hell\n";
 my $noeol = "Subject: x\n\nFrom hell";
@@ -73,7 +74,11 @@ for my $mbox (@MBOX) {
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{TMPDIR} = $tmpdir;
 open my $err, '>>', "$tmpdir/lei.err" or BAIL_OUT $!;
-my $lei = { 2 => $err };
+my $lei = bless { 2 => $err }, 'PublicInbox::LEI';
+my $commit = sub {
+	$_[0] = undef; # wcb
+	delete $lei->{1};
+};
 my $buf = <<'EOM';
 From: x@example.com
 Subject: x
@@ -98,9 +103,7 @@ my $wcb_get = sub {
 	my $zpipe = $l2m->pre_augment($lei);
 	$l2m->do_augment($lei);
 	$l2m->post_augment($lei, $zpipe);
-	my $cb = $l2m->write_cb($lei);
-	delete $lei->{1};
-	$cb;
+	$l2m->write_cb($lei);
 };
 
 my $deadbeef = { blob => 'deadbeef', kw => [ qw(seen) ] };
@@ -109,7 +112,7 @@ my $orig = do {
 	is(ref $wcb, 'CODE', 'write_cb returned callback');
 	ok(-f $fn && !-s _, 'empty file created');
 	$wcb->(\(my $dup = $buf), $deadbeef);
-	undef $wcb;
+	$commit->($wcb);
 	open my $fh, '<', $fn or BAIL_OUT $!;
 	my $raw = do { local $/; <$fh> };
 	like($raw, qr/^blah\n/sm, 'wrote content');
@@ -119,7 +122,7 @@ my $orig = do {
 	$wcb = $wcb_get->($mbox, $fn);
 	ok(-f $fn && !-s _, 'truncated mbox destination');
 	$wcb->(\($dup = $buf), $deadbeef);
-	undef $wcb;
+	$commit->($wcb);
 	open $fh, '<', $fn or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $raw, 'jobs > 1');
 	$raw;
@@ -134,7 +137,7 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 		my $f = "$fn.$zsfx";
 		my $wcb = $wcb_get->($mbox, $f);
 		$wcb->(\(my $dup = $buf), $deadbeef);
-		undef $wcb;
+		$commit->($wcb);
 		my $uncompressed = xqx([@$dc_cmd, $f]);
 		is($uncompressed, $orig, "$zsfx works unlocked");
 
@@ -142,13 +145,13 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 		unlink $f or BAIL_OUT "unlink $!";
 		$wcb = $wcb_get->($mbox, $f);
 		$wcb->(\($dup = $buf), $deadbeef);
-		undef $wcb;
+		$commit->($wcb);
 		is(xqx([@$dc_cmd, $f]), $orig, "$zsfx matches with lock");
 
 		local $lei->{opt} = { augment => 1 };
 		$wcb = $wcb_get->($mbox, $f);
 		$wcb->(\($dup = $buf . "\nx\n"), $deadbeef);
-		undef $wcb; # commit
+		$commit->($wcb);
 
 		my $cat = popen_rd([@$dc_cmd, $f]);
 		my @raw;
@@ -160,7 +163,7 @@ for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 		local $lei->{opt} = { augment => 1, jobs => 2 };
 		$wcb = $wcb_get->($mbox, $f);
 		$wcb->(\($dup = $buf . "\ny\n"), $deadbeef);
-		undef $wcb; # commit
+		$commit->($wcb);
 
 		my @raw3;
 		$cat = popen_rd([@$dc_cmd, $f]);
@@ -183,7 +186,7 @@ if ('default deduplication uses content_hash') {
 	my $wcb = $wcb_get->('mboxo', $fn);
 	$deadbeef->{kw} = [];
 	$wcb->(\(my $x = $buf), $deadbeef) for (1..2);
-	undef $wcb; # undef to commit changes
+	$commit->($wcb);
 	my $cmp = '';
 	open my $fh, '<', $fn or BAIL_OUT $!;
 	PublicInbox::MboxReader->mboxo($fh, sub { $cmp .= $as_orig->(@_) });
@@ -192,7 +195,7 @@ if ('default deduplication uses content_hash') {
 	local $lei->{opt} = { augment => 1 };
 	$wcb = $wcb_get->('mboxo', $fn);
 	$wcb->(\($x = $buf . "\nx\n"), $deadbeef) for (1..2);
-	undef $wcb; # undef to commit changes
+	$commit->($wcb);
 	open $fh, '<', $fn or BAIL_OUT $!;
 	my @x;
 	PublicInbox::MboxReader->mboxo($fh, sub { push @x, $as_orig->(@_) });
@@ -206,7 +209,7 @@ if ('default deduplication uses content_hash') {
 	local $lei->{1} = $tmp;
 	my $wcb = $wcb_get->('mboxrd', '/dev/stdout');
 	$wcb->(\(my $x = $buf), $deadbeef);
-	undef $wcb; # commit
+	$commit->($wcb);
 	seek($tmp, 0, SEEK_SET) or BAIL_OUT $!;
 	my $cmp = '';
 	PublicInbox::MboxReader->mboxrd($tmp, sub { $cmp .= $as_orig->(@_) });
@@ -220,7 +223,7 @@ SKIP: { # FIFO support
 	my $cat = popen_rd([which('cat'), $fn]);
 	my $wcb = $wcb_get->('mboxo', $fn);
 	$wcb->(\(my $x = $buf), $deadbeef);
-	undef $wcb; # commit
+	$commit->($wcb);
 	my $cmp = '';
 	PublicInbox::MboxReader->mboxo($cat, sub { $cmp .= $as_orig->(@_) });
 	is($cmp, $buf, 'message written to FIFO');

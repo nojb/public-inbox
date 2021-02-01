@@ -109,8 +109,7 @@ sub wait_startq ($) {
 sub query_thread_mset { # for --thread
 	my ($self, $lei, $ibxish) = @_;
 	local $0 = "$0 query_thread_mset";
-	my %sig = $lei->atfork_child_wq($self);
-	local @SIG{keys %sig} = values %sig;
+	$lei->atfork_child_wq($self);
 	my $startq = delete $lei->{startq};
 
 	my ($srch, $over) = ($ibxish->search, $ibxish->over);
@@ -145,8 +144,7 @@ sub query_thread_mset { # for --thread
 sub query_mset { # non-parallel for non-"--thread" users
 	my ($self, $lei) = @_;
 	local $0 = "$0 query_mset";
-	my %sig = $lei->atfork_child_wq($self);
-	local @SIG{keys %sig} = values %sig;
+	$lei->atfork_child_wq($self);
 	my $startq = delete $lei->{startq};
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
@@ -187,8 +185,7 @@ sub kill_reap {
 sub query_remote_mboxrd {
 	my ($self, $lei, $uris) = @_;
 	local $0 = "$0 query_remote_mboxrd";
-	my %sig = $lei->atfork_child_wq($self); # keep $self->{5} startq
-	local @SIG{keys %sig} = values %sig;
+	$lei->atfork_child_wq($self);
 	my ($opt, $env) = @$lei{qw(opt env)};
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
 	push(@qform, t => 1) if $opt->{thread};
@@ -351,9 +348,7 @@ sub start_query { # always runs in main (lei-daemon) process
 sub query_prepare { # called by wq_do
 	my ($self, $lei) = @_;
 	local $0 = "$0 query_prepare";
-	my %sig = $lei->atfork_child_wq($self);
-	-p $lei->{op_pipe} or die "BUG: \$done pipe expected";
-	local @SIG{keys %sig} = values %sig;
+	$lei->atfork_child_wq($self);
 	delete $lei->{l2m}->{-wq_s1};
 	eval { $lei->{l2m}->do_augment($lei) };
 	$lei->fail($@) if $@;
@@ -363,11 +358,11 @@ sub query_prepare { # called by wq_do
 sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
 	my ($lei) = @_;
 	my $lxs = delete $lei->{lxs};
-	if ($lxs && $lxs->wq_kill_old) {
-		kill 'PIPE', $$;
+	if ($lxs && $lxs->wq_kill_old) { # is this the daemon?
 		$lxs->wq_wait_old;
 	}
 	close(delete $lei->{1}) if $lei->{1};
+	$lei->x_it(13);
 }
 
 sub do_query {
