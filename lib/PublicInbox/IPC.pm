@@ -137,7 +137,7 @@ sub ipc_worker_spawn {
 }
 
 sub ipc_worker_reap { # dwaitpid callback
-	my ($self, $pid) = @_;
+	my ($args, $pid) = @_;
 	return if !$?;
 	# TERM(15) is our default exit signal, PIPE(13) is likely w/ pager
 	my $s = $? & 127;
@@ -145,9 +145,9 @@ sub ipc_worker_reap { # dwaitpid callback
 }
 
 sub wq_wait_old {
-	my ($self) = @_;
+	my ($self, $args) = @_;
 	my $pids = delete $self->{"-wq_old_pids.$$"} or return;
-	dwaitpid($_, \&ipc_worker_reap, $self) for @$pids;
+	dwaitpid($_, \&ipc_worker_reap, [$self, $args]) for @$pids;
 }
 
 # for base class, override in sub classes
@@ -164,7 +164,7 @@ sub ipc_atfork_child {
 
 # idempotent, can be called regardless of whether worker is active or not
 sub ipc_worker_stop {
-	my ($self) = @_;
+	my ($self, $args) = @_;
 	my ($pid, $ppid) = delete(@$self{qw(-ipc_pid -ipc_ppid)});
 	my ($w_req, $r_res) = delete(@$self{qw(-ipc_req -ipc_res)});
 	if (!$w_req && !$r_res) {
@@ -175,7 +175,7 @@ sub ipc_worker_stop {
 	$w_req = $r_res = undef;
 
 	return if $$ != $ppid;
-	dwaitpid($pid, \&ipc_worker_reap, $self);
+	dwaitpid($pid, \&ipc_worker_reap, [$self, $args]);
 }
 
 # use this if we have multiple readers reading curl or "pigz -dc"

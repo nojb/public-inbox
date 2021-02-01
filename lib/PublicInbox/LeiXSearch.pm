@@ -283,7 +283,7 @@ sub query_done { # EOF callback
 	my $has_l2m = exists $lei->{l2m};
 	for my $f (qw(lxs l2m)) {
 		my $wq = delete $lei->{$f} or next;
-		$wq->wq_wait_old;
+		$wq->wq_wait_old($lei);
 	}
 	$lei->{ovv}->ovv_end($lei);
 	if ($has_l2m) { # close() calls LeiToMail reap_compress
@@ -359,7 +359,7 @@ sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
 	my ($lei) = @_;
 	my $lxs = delete $lei->{lxs};
 	if ($lxs && $lxs->wq_kill_old) { # is this the daemon?
-		$lxs->wq_wait_old;
+		$lxs->wq_wait_old($lei);
 	}
 	close(delete $lei->{1}) if $lei->{1};
 	$lei->x_it(13);

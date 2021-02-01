@@ -860,7 +860,7 @@ sub dclose {
 		if ($wq->wq_kill) {
 			$wq->wq_close
 		} elsif ($wq->wq_kill_old) {
-			$wq->wq_wait_old;
+			$wq->wq_wait_old($self);
 		}
 	}
 	close(delete $self->{1}) if $self->{1}; # may reap_compress
