@@ -16,7 +16,6 @@ use PublicInbox::Spawn;
 use PublicInbox::OnDestroy;
 use PublicInbox::WQWorker;
 use Socket qw(AF_UNIX MSG_EOR SOCK_STREAM);
-use Errno qw(EMSGSIZE);
 my $SEQPACKET = eval { Socket::SOCK_SEQPACKET() }; # portable enough?
 use constant PIPE_BUF => $^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF();
 my $WQ_MAX_WORKERS = 4096;
@@ -303,8 +302,9 @@ sub wq_do { # always async
 	if (my $s1 = $self->{-wq_s1}) { # run in worker
 		my $fds = [ map { fileno($_) } @$ios ];
 		my $n = $send_cmd->($s1, $fds, freeze([$sub, @args]), MSG_EOR);
-		return if defined($n);
-		croak "sendmsg error: $!" if $! != EMSGSIZE;
+		return if defined($n); # likely
+		croak "sendmsg: $! (check RLIMIT_NOFILE)" if $!{ETOOMANYREFS};
+		croak "sendmsg: $!" if !$!{EMSGSIZE};
 		socketpair(my $r, my $w, AF_UNIX, SOCK_STREAM, 0) or
 			croak "socketpair: $!";
 		my $buf = freeze([$sub, @args]);

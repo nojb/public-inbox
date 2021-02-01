@@ -925,6 +925,11 @@ sub lazy_start {
 		$! = $errno; # allow interpolation to stringify in die
 		die "connect($path): $!";
 	}
+	if (eval { require BSD::Resource }) {
+		my $NOFILE = BSD::Resource::RLIMIT_NOFILE();
+		my ($s, $h) = BSD::Resource::getrlimit($NOFILE);
+		BSD::Resource::setrlimit($NOFILE, $h, $h) if $s < $h;
+	}
 	umask(077) // die("umask(077): $!");
 	local $listener;
 	socket($listener, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
