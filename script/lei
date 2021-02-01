@@ -4,10 +4,9 @@
 use strict;
 use v5.10.1;
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
-use Errno qw(EINTR ECONNRESET);
 use PublicInbox::CmdIPC4;
 my $narg = 5;
-my ($sock, $pwd);
+my $sock;
 my $recv_cmd = PublicInbox::CmdIPC4->can('recv_cmd4');
 my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
 	require PublicInbox::Spawn; # takes ~50ms even if built *sigh*
@@ -73,20 +72,32 @@ connect($path): $! (after attempted daemon start)
 Falling back to (slow) one-shot mode
 
 	}
-	1;
-}) { # (Socket::MsgHdr|Inline::C), $sock, $pwd are all available:
+	# (Socket::MsgHdr|Inline::C), $sock are all available:
 	open my $dh, '<', '.' or die "open(.) $!";
 	my $buf = join("\0", scalar(@ARGV), @ARGV);
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 	$buf .= "\0\0";
-	$send_cmd->($sock, [ 0, 1, 2, fileno($dh) ], $buf, MSG_EOR) or
-		die "sendmsg: $!";
+	my $n = $send_cmd->($sock, [0, 1, 2, fileno($dh)], $buf, MSG_EOR);
+	if (!$n && $!{ETOOMANYREFS} && eval { require BSD::Resource }) {
+		my $NOFILE = BSD::Resource::RLIMIT_NOFILE();
+		my ($s, $h) = BSD::Resource::getrlimit($NOFILE);
+		if ($s < $h && BSD::Resource::setrlimit($NOFILE, $h, $h)) {
+			$n = $send_cmd->($sock, [0, 1, 2, fileno($dh)],
+					$buf, MSG_EOR);
+		}
+	}
+	if (!$n) {
+		die "sendmsg: $! (check RLIMIT_NOFILE)\n" if $!{ETOOMANYREFS};
+		die "sendmsg: $!\n";
+	}
+	1;
+}) { # connected and request sent to lei-daemon, wait for responses or EOF
 	my $x_it_code = 0;
 	while (1) {
-		my (@fds) = $recv_cmd->($sock, $buf, 4096 * 33);
+		my (@fds) = $recv_cmd->($sock, my $buf, 4096 * 33);
 		if (scalar(@fds) == 1 && !defined($fds[0])) {
-			last if $! == ECONNRESET;
-			next if $! == EINTR;
+			next if $!{EINTR};
+			last if $!{ECONNRESET};
 			die "recvmsg: $!";
 		}
 		last if $buf eq '';
