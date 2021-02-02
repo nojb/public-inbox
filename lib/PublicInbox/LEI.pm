@@ -306,7 +306,7 @@ sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	err($self, $buf) if defined $buf;
-	syswrite($self->{op_pipe}, '!') if $self->{op_pipe}; # fail_handler
+	send($self->{pkt_op}, '!', MSG_EOR) if $self->{pkt_op}; # fail_handler
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
 }
@@ -369,14 +369,14 @@ sub io_restore ($$) {
 sub note_sigpipe { # triggers sigpipe_handler
 	my ($self, $fd) = @_;
 	close(delete($self->{$fd})); # explicit close silences Perl warning
-	syswrite($self->{op_pipe}, '|') if $self->{op_pipe};
+	send($self->{pkt_op}, '|', MSG_EOR) if $self->{pkt_op};
 	x_it($self, 13);
 }
 
 sub atfork_child_wq {
 	my ($self, $wq) = @_;
 	io_restore($self, $wq);
-	-p $self->{op_pipe} or die 'BUG: {op_pipe} expected';
+	-S $self->{pkt_op} or die 'BUG: {pkt_op} expected';
 	io_restore($self->{l2m}, $wq);
 	%PATH2CFG = ();
 	undef $errors_log;
@@ -408,7 +408,7 @@ sub atfork_parent_wq {
 	$self->{env} = $env;
 	delete @$lei{qw(3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
 	my @io = (delete(@$lei{qw(0 1 2)}),
-			io_extract($lei, qw(sock op_pipe startq)));
+			io_extract($lei, qw(sock pkt_op startq)));
 	my $l2m = $lei->{l2m};
 	if ($l2m && $l2m != $wq) { # $wq == lxs
 		if (my $wq_s1 = $l2m->{-wq_s1}) {

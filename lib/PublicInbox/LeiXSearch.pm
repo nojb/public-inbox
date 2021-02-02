@@ -9,10 +9,11 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::IPC);
 use PublicInbox::DS qw(dwaitpid);
-use PublicInbox::OpPipe;
+use PublicInbox::PktOp;
 use PublicInbox::Import;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use File::Spec ();
+use Socket qw(MSG_EOR);
 use PublicInbox::Search qw(xap_terms);
 use PublicInbox::Spawn qw(popen_rd spawn which);
 use PublicInbox::MID qw(mids);
@@ -353,7 +354,8 @@ sub query_prepare { # called by wq_do
 	delete $lei->{l2m}->{-wq_s1};
 	eval { $lei->{l2m}->do_augment($lei) };
 	$lei->fail($@) if $@;
-	syswrite($lei->{op_pipe}, '.') == 1 or die "do_post_augment trigger: $!"
+	send($lei->{pkt_op}, '.', MSG_EOR) == 1 or
+		die "do_post_augment trigger: $!"
 }
 
 sub fail_handler ($;$$) {
@@ -380,20 +382,19 @@ sub do_query {
 		fcntl($lei->{startq}, 1031, 4096) if $^O eq 'linux';
 		$zpipe = $l2m->pre_augment($lei);
 	}
-	pipe(my $done, $lei->{op_pipe}) or die "pipe $!";
+	my $in_loop = exists $lei->{sock};
+	my $ops = {
+		'|' => [ \&sigpipe_handler, $lei ],
+		'!' => [ \&fail_handler, $lei ],
+		'.' => [ \&do_post_augment, $lei, $zpipe, $au_done ],
+		'' => [ \&query_done, $lei ],
+	};
+	(my $op, $lei->{pkt_op}) = PublicInbox::PktOp->pair($ops, $in_loop);
 	my ($lei_ipc, @io) = $lei->atfork_parent_wq($self);
-	delete($lei->{op_pipe});
+	delete($lei->{pkt_op});
 
 	$lei->event_step_init; # wait for shutdowns
-	my $done_op = {
-		'' => [ \&query_done, $lei ],
-		'|' => [ \&sigpipe_handler, $lei ],
-		'!' => [ \&fail_handler, $lei ]
-	};
-	my $in_loop = exists $lei->{sock};
-	$done = PublicInbox::OpPipe->new($done, $done_op, $in_loop);
 	if ($l2m) {
-		$done_op->{'.'} = [ \&do_post_augment, $lei, $zpipe, $au_done ];
 		$self->wq_do('query_prepare', \@io, $lei_ipc);
 		$io[1] = $zpipe->[1] if $zpipe;
 	}
@@ -401,7 +402,7 @@ sub do_query {
 	$self->wq_close(1);
 	unless ($in_loop) {
 		# for the $lei_ipc->atfork_child_wq PIPE handler:
-		while ($done->{sock}) { $done->event_step }
+		while ($op->{sock}) { $op->event_step }
 	}
 }
 
