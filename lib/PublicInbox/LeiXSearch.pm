@@ -198,6 +198,7 @@ sub query_remote_mboxrd {
 	my ($self, $lei, $uris) = @_;
 	local $0 = "$0 query_remote_mboxrd";
 	$lei->atfork_child_wq($self);
+	local $SIG{TERM} = sub { exit(0) }; # for DESTROY (File::Temp, $reap)
 	my ($opt, $env) = @$lei{qw(opt env)};
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
 	push(@qform, t => 1) if $opt->{thread};
