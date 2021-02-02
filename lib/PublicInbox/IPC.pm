@@ -10,6 +10,7 @@
 package PublicInbox::IPC;
 use strict;
 use v5.10.1;
+use parent qw(Exporter);
 use Carp qw(confess croak);
 use PublicInbox::DS qw(dwaitpid);
 use PublicInbox::Spawn;
@@ -18,6 +19,7 @@ use PublicInbox::WQWorker;
 use Socket qw(AF_UNIX MSG_EOR SOCK_STREAM);
 my $SEQPACKET = eval { Socket::SOCK_SEQPACKET() }; # portable enough?
 use constant PIPE_BUF => $^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF();
+our @EXPORT_OK = qw(ipc_freeze ipc_thaw);
 my $WQ_MAX_WORKERS = 4096;
 my ($enc, $dec);
 # ->imports at BEGIN turns sereal_*_with_object into custom ops on 5.14+
@@ -33,12 +35,13 @@ BEGIN {
 };
 
 if ($enc && $dec) { # should be custom ops
-	*freeze = sub ($) { sereal_encode_with_object $enc, $_[0] };
-	*thaw = sub ($) { sereal_decode_with_object $dec, $_[0], my $ret };
+	*ipc_freeze = sub ($) { sereal_encode_with_object $enc, $_[0] };
+	*ipc_thaw = sub ($) { sereal_decode_with_object $dec, $_[0], my $ret };
 } else {
 	eval { # some distros have Storable as a separate package from Perl
 		require Storable;
-		Storable->import(qw(freeze thaw));
+		*ipc_freeze = \&Storable::freeze;
+		*ipc_thaw = \&Storable::thaw;
 		$enc = 1;
 	} // warn("Storable (part of Perl) missing: $@\n");
 }
@@ -56,12 +59,12 @@ sub _get_rec ($) {
 	chop($len) eq "\n" or croak "no LF byte in $len";
 	defined(my $n = read($r, my $buf, $len)) or croak "read error: $!";
 	$n == $len or croak "short read: $n != $len";
-	thaw($buf);
+	ipc_thaw($buf);
 }
 
 sub _pack_rec ($) {
 	my ($ref) = @_;
-	my $buf = freeze($ref);
+	my $buf = ipc_freeze($ref);
 	length($buf) . "\n" . $buf;
 }
 
@@ -275,7 +278,7 @@ sub recv_and_run {
 		$n = length($buf);
 	}
 	# Sereal dies on truncated data, Storable returns undef
-	my $args = thaw($buf) // die "thaw error on buffer of size: $n";
+	my $args = ipc_thaw($buf) // die "thaw error on buffer of size: $n";
 	undef $buf;
 	my $sub = shift @$args;
 	eval { $self->$sub(@$args) };
@@ -301,15 +304,15 @@ sub wq_do { # always async
 	my ($self, $sub, $ios, @args) = @_;
 	if (my $s1 = $self->{-wq_s1}) { # run in worker
 		my $fds = [ map { fileno($_) } @$ios ];
-		my $n = $send_cmd->($s1, $fds, freeze([$sub, @args]), MSG_EOR);
+		my $buf = ipc_freeze([$sub, @args]);
+		my $n = $send_cmd->($s1, $fds, $buf, MSG_EOR);
 		return if defined($n); # likely
 		croak "sendmsg: $! (check RLIMIT_NOFILE)" if $!{ETOOMANYREFS};
 		croak "sendmsg: $!" if !$!{EMSGSIZE};
 		socketpair(my $r, my $w, AF_UNIX, SOCK_STREAM, 0) or
 			croak "socketpair: $!";
-		my $buf = freeze([$sub, @args]);
 		$n = $send_cmd->($s1, [ fileno($r) ],
-				freeze(['do_sock_stream', length($buf)]),
+				ipc_freeze(['do_sock_stream', length($buf)]),
 				MSG_EOR) // croak "sendmsg: $!";
 		undef $r;
 		$n = $send_cmd->($w, $fds, $buf, 0) // croak "sendmsg: $!";
@@ -461,6 +464,6 @@ sub DESTROY {
 }
 
 # Sereal doesn't have dclone
-sub deep_clone { thaw(freeze($_[-1])) }
+sub deep_clone { ipc_thaw(ipc_freeze($_[-1])) }
 
 1;

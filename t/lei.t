@@ -174,11 +174,11 @@ SKIP: {
 	}
 	$lei->('add-external', $url);
 	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
-	ok($lei->('q', "m:$mid"), "query $url");
+	ok($lei->('q', '-q', "m:$mid"), "query $url");
 	is($err, '', "no errors on $url");
 	my $res = $json->decode($out);
 	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url");
-	ok($lei->('q', "m:$mid", 'd:..20101002'), 'no results, no error');
+	ok($lei->('q', '-q', "m:$mid", 'd:..20101002'), 'no results, no error');
 	is($err, '', 'no output on 404, matching local FS behavior');
 	is($out, "[null]\n", 'got null results');
 	$lei->('forget-external', $url);
@@ -291,12 +291,12 @@ my $test_external = sub {
 		my @s = grep(/^Subject:/, $cat->());
 		is(scalar(@s), 1, "1 result in mbox$sfx");
 		$lei->('q', '-a', '-o', "mboxcl2:$f", 's:see attachment');
-		is($err, '', 'no errors from augment');
+		is(grep(!/^#/, $err), 0, 'no errors from augment');
 		@s = grep(/^Subject:/, my @wtf = $cat->());
 		is(scalar(@s), 2, "2 results in mbox$sfx");
 
 		$lei->('q', '-a', '-o', "mboxcl2:$f", 's:nonexistent');
-		is($err, '', "no errors on no results ($sfx)");
+		is(grep(!/^#/, $err), 0, "no errors on no results ($sfx)");
 
 		my @s2 = grep(/^Subject:/, $cat->());
 		is_deeply(\@s2, \@s,

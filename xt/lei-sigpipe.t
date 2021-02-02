@@ -15,7 +15,7 @@ my $do_test = sub {
 		pipe(my ($r, $w)) or BAIL_OUT $!;
 		open my $err, '+>', undef or BAIL_OUT $!;
 		my $opt = { run_mode => 0, 1 => $w, 2 => $err };
-		my $cmd = [qw(lei q -t), @$out, 'bytes:1..'];
+		my $cmd = [qw(lei q -q -t), @$out, 'bytes:1..'];
 		my $tp = start_script($cmd, $env, $opt);
 		close $w;
 		sysread($r, my $buf, 1);
