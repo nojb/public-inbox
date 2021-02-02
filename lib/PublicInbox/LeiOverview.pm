@@ -147,10 +147,8 @@ sub _unbless_smsg {
 
 sub ovv_atexit_child {
 	my ($self, $lei) = @_;
-	if (my $l2m = delete $lei->{l2m}) {
-		# gracefully stop lei2mail processes after all
-		# ->write_mail work is complete
-		delete $l2m->{-wq_s1};
+	if (my $l2m = $lei->{l2m}) {
+		# wait for ->write_mail work we submitted to lei2mail
 		if (my $rd = delete $l2m->{each_smsg_done}) {
 			read($rd, my $buf, 1); # wait for EOF
 		}
