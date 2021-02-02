@@ -90,6 +90,8 @@ sub new {
 		} else {
 			ovv_out_lk_init($self);
 		}
+	} elsif (!$opt->{quiet}) {
+		$lei->{-progress} = 1;
 	}
 	if ($json) {
 		$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);

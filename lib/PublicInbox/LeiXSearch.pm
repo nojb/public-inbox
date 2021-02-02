@@ -107,6 +107,19 @@ sub wait_startq ($) {
 	read($startq, my $query_prepare_done, 1);
 }
 
+sub mset_progress {
+	my $lei = shift;
+	return unless $lei->{-progress};
+	if ($lei->{pkt_op}) { # called via pkt_op/pkt_do from workers
+		pkt_do($lei->{pkt_op}, 'mset_progress', @_);
+	} else { # single lei-daemon consumer
+		my @args = ref($_[-1]) eq 'ARRAY' ? @{$_[-1]} : @_;
+		my ($desc, $mset_size, $mset_total_est) = @args;
+		$lei->{-mset_total} += $mset_size;
+		$lei->err("# $desc $mset_size/$mset_total_est");
+	}
+}
+
 sub query_thread_mset { # for --thread
 	my ($self, $lei, $ibxish) = @_;
 	local $0 = "$0 query_thread_mset";
@@ -121,7 +134,7 @@ sub query_thread_mset { # for --thread
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $ibxish);
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
-		pkt_do($lei->{pkt_op}, 'mset_progress', $desc, $mset->size,
+		mset_progress($lei, $desc, $mset->size,
 				$mset->get_matches_estimated);
 		my $ids = $srch->mset_to_artnums($mset, $mo);
 		my $ctx = { ids => $ids };
@@ -154,7 +167,7 @@ sub query_mset { # non-parallel for non-"--thread" users
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $self);
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
-		pkt_do($lei->{pkt_op}, 'mset_progress', 'xsearch',
+		mset_progress($lei, 'xsearch', $mset->size,
 				$mset->size, $mset->get_matches_estimated);
 		for my $mitem ($mset->items) {
 			my $smsg = smsg_for($self, $mitem) or next;
@@ -174,8 +187,8 @@ sub each_eml { # callback for MboxReader->mboxrd
 	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
 	delete @$smsg{qw(From Subject -ds -ts)};
 	if (my $startq = delete($lei->{startq})) { wait_startq($startq) }
-	++$lei->{-nr_remote_eml};
-	if (!$lei->{opt}->{quiet}) {
+	if ($lei->{-progress}) {
+		++$lei->{-nr_remote_eml};
 		my $now = now();
 		my $next = $lei->{-next_progress} //= ($now + 1);
 		if ($now > $next) {
@@ -261,8 +274,7 @@ sub query_remote_mboxrd {
 		return $lei->fail("E: @$cmd: $@") if $@;
 		if ($? == 0) {
 			my $nr = $lei->{-nr_remote_eml};
-			pkt_do($lei->{pkt_op}, 'mset_progress',
-				$lei->{-current_url}, $nr, $nr);
+			mset_progress($lei, $lei->{-current_url}, $nr, $nr);
 			next;
 		}
 		seek($cerr, $coff, SEEK_SET) or warn "seek(curl stderr): $!\n";
@@ -318,17 +330,9 @@ Error closing $lei->{ovv}->{dst}: $!
 		}
 		$lei->start_mua;
 	}
-	$lei->{opt}->{quiet} or
+	$lei->{-progress} and
 		$lei->err('# ', $lei->{-mset_total} // 0, " matches");
 	$lei->dclose;
-}
-
-sub mset_progress { # called via pkt_op/pkt_do from workers
-	my ($lei, $pargs) = @_;
-	my ($desc, $mset_size, $mset_total_est) = @$pargs;
-	return if $lei->{opt}->{quiet};
-	$lei->{-mset_total} += $mset_size;
-	$lei->err("# $desc $mset_size/$mset_total_est");
 }
 
 sub do_post_augment {

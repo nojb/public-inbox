@@ -871,6 +871,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 
 sub dclose {
 	my ($self) = @_;
+	delete $self->{-progress};
 	for my $f (qw(lxs l2m)) {
 		my $wq = delete $self->{$f} or next;
 		if ($wq->wq_kill) {
