@@ -43,7 +43,7 @@ For a subset of MUAs known to accept a mailbox via C<-f>, COMMAND can
 be abbreviated to the name of the program: C<mutt>, C<mailx>, C<mail>,
 or C<neomutt>.
 
-=item --augment
+=item -a, --augment
 
 Augment output destination instead of clobbering it.
 
@@ -124,4 +124,5 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<lei-add-external(1)>
+L<lei-add-external(1)>,
+L<Xapian::QueryParser Syntax|https://xapian.org/docs/queryparser.html>
