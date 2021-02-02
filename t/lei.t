@@ -232,6 +232,12 @@ my $test_external = sub {
 			"partial completion for URL $u");
 		is($out, "https://example.com/ibx/\n",
 			"completed partial URL $u");
+		for my $qo (qw(-I --include --exclude --only)) {
+			ok($lei->(qw(_complete lei q), $qo, $u),
+				"partial completion for URL q $qo $u");
+			is($out, "https://example.com/ibx/\n",
+				"completed partial URL $u on q $qo");
+		}
 	}
 
 	$lei->('ls-external');

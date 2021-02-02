@@ -94,6 +94,22 @@ sub lei_q {
 	$lxs->do_query($self);
 }
 
+# shell completion helper called by lei__complete
+sub _complete_q {
+	my ($self, @argv) = @_;
+	my $ext = qr/\A(?:-I|(?:--(?:include|exclude|only)))\z/;
+	# $argv[-1] =~ $ext and return $self->_complete_forget_external;
+	my @cur;
+	while (@argv) {
+		if ($argv[-1] =~ $ext) {
+			my @c = $self->_complete_forget_external(@cur);
+			return @c if @c;
+		}
+		unshift(@cur, pop @argv);
+	}
+	();
+}
+
 # Stuff we may pass through to curl (as of 7.64.0), see curl manpage for
 # details, so most options which make sense for HTTP/HTTPS (including proxy
 # support for Tor and other methods of getting past weird networks).

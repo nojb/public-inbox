@@ -229,6 +229,13 @@ my %OPTDESC = (
 'q	format|f=s' => [
 	'OUT|maildir|mboxrd|mboxcl2|mboxcl|mboxo|html|json|jsonl|concatjson',
 		'specify output format, default depends on --output'],
+'q	exclude=s@' => [ 'URL_OR_PATHNAME',
+		'exclude specified external(s) from search' ],
+'q	include|I=s@' => [ 'URL_OR_PATHNAME',
+		'include specified external(s) in search' ],
+'q	only=s@' => [ 'URL_OR_PATHNAME',
+		'only use specified external(s) for search' ],
+
 'ls-query	format|f=s' => $ls_format,
 'ls-external	format|f=s' => $ls_format,
 
