@@ -3,7 +3,7 @@
 
 # callers should use PublicInbox::CmdIPC4->can('send_cmd4') (or recv_cmd4)
 # first choice for script/lei front-end and 2nd choice for lei backend
-# libsocket-msghdr-perl is in Debian but many other distros as of 2021.
+# libsocket-msghdr-perl is in Debian but not many other distros as of 2021.
 package PublicInbox::CmdIPC4;
 use strict;
 use v5.10.1;
@@ -12,12 +12,11 @@ BEGIN { eval {
 require Socket::MsgHdr; # XS
 no warnings 'once';
 
-# 3 FDs per-sendmsg(2) + buffer
+# any number of FDs per-sendmsg(2) + buffer
 *send_cmd4 = sub ($$$$) { # (sock, fds, buf, flags) = @_;
 	my ($sock, $fds, undef, $flags) = @_;
 	my $mh = Socket::MsgHdr->new(buf => $_[2]);
-	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS,
-			pack('i' x scalar(@$fds), @$fds));
+	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS, pack('i' x scalar(@$fds), @$fds));
 	Socket::MsgHdr::sendmsg($sock, $mh, $flags);
 };
 
