@@ -284,11 +284,13 @@ sub x_it ($$) {
 	dump_and_clear_log();
 	if (my $sock = $self->{sock}) {
 		send($sock, "x_it $code", MSG_EOR);
-	} elsif (my $signum = ($code & 127)) { # oneshot, usually SIGPIPE (13)
+	} elsif (!$self->{oneshot}) {
+		return; # client disconnected, noop
+	} elsif (my $signum = ($code & 127)) { # usually SIGPIPE (13)
 		$SIG{PIPE} = 'DEFAULT'; # $SIG{$signum} doesn't work
 		kill $signum, $$;
 		sleep; # wait for signal
-	} else { # oneshot
+	} else {
 		# don't want to end up using $? from child processes
 		for my $f (qw(lxs l2m)) {
 			my $wq = delete $self->{$f} or next;
@@ -334,10 +336,9 @@ sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error) = @_; # child_error is $?
 	if (my $sock = $self->{sock}) { # send to lei(1) client
 		send($sock, "child_error $child_error", MSG_EOR);
-	} else { # oneshot
+	} elsif ($self->{oneshot}) {
 		$self->{child_error} = $child_error;
-	}
-	undef;
+	} # else noop if client disconnected
 }
 
 sub atfork_prepare_wq {
@@ -784,7 +785,7 @@ sub start_mua {
 	push @cmd, $mfolder unless defined($replaced);
 	if (my $sock = $self->{sock}) { # lei(1) client process runs it
 		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
-	} else { # oneshot
+	} elsif ($self->{oneshot}) {
 		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);
 	}
 }
@@ -802,13 +803,16 @@ sub start_pager {
 	$new_env->{MORE} = 'FRX' if $^O eq 'freebsd';
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
-	my $pgr = [ undef, @$rdr{1, 2}, $$ ];
+	my $pgr = [ undef, @$rdr{1, 2} ];
 	if (my $sock = $self->{sock}) { # lei(1) process runs it
 		delete @$new_env{keys %$env}; # only set iff unset
 		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
 		$send_cmd->($sock, $fds, exec_buf([$pager], $new_env), MSG_EOR);
-	} else {
+	} elsif ($self->{oneshot}) {
 		$pgr->[0] = spawn([$pager], $new_env, $rdr);
+		$pgr->[3] = $$; # ew'll reap it
+	} else {
+		die 'BUG: start_pager w/o socket';
 	}
 	$self->{1} = $wpager;
 	$self->{2} = $wpager if -t $self->{2};
@@ -823,7 +827,7 @@ sub stop_pager {
 	# do not restore original stdout, just close it so we error out
 	close(delete($self->{1})) if $self->{1};
 	my $pid = $pgr->[0];
-	dwaitpid($pid, undef, $self->{sock}) if $pid && $pgr->[3] == $$;
+	dwaitpid($pid) if $pid && ($pgr->[3] // 0) == $$;
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
@@ -1056,6 +1060,7 @@ sub oneshot {
 	local %PATH2CFG;
 	umask(077) // die("umask(077): $!");
 	my $self = bless {
+		oneshot => 1,
 		0 => *STDIN{GLOB},
 		1 => *STDOUT{GLOB},
 		2 => *STDERR{GLOB},

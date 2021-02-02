@@ -409,7 +409,6 @@ sub do_query {
 		fcntl($lei->{startq}, 1031, 4096) if $^O eq 'linux';
 		$zpipe = $l2m->pre_augment($lei);
 	}
-	my $in_loop = exists $lei->{sock};
 	my $ops = {
 		'|' => [ \&sigpipe_handler, $lei ],
 		'!' => [ \&fail_handler, $lei ],
@@ -417,7 +416,7 @@ sub do_query {
 		'' => [ \&query_done, $lei ],
 		'mset_progress' => [ \&mset_progress, $lei ],
 	};
-	(my $op, $lei->{pkt_op}) = PublicInbox::PktOp->pair($ops, $in_loop);
+	(my $op, $lei->{pkt_op}) = PublicInbox::PktOp->pair($ops, !$lei->{oneshot});
 	my ($lei_ipc, @io) = $lei->atfork_parent_wq($self);
 	delete($lei->{pkt_op});
 
@@ -428,7 +427,7 @@ sub do_query {
 	}
 	start_query($self, \@io, $lei_ipc);
 	$self->wq_close(1);
-	unless ($in_loop) {
+	if ($lei->{oneshot}) {
 		# for the $lei_ipc->atfork_child_wq PIPE handler:
 		while ($op->{sock}) { $op->event_step }
 	}
