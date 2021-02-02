@@ -737,8 +737,7 @@ sub lei__complete {
 		my $opt = quotemeta $1;
 		puts $self, map {
 			my $v = $OPTDESC{$_};
-			$v = $v->[0] if ref($v);
-			my @v = split(/\|/, $v);
+			my @v = ref($v) ? split(/\|/, $v->[0]) : ();
 			# get rid of ALL CAPS placeholder (e.g "OUT")
 			# (TODO: completion for external paths)
 			shift(@v) if uc($v[0]) eq $v[0];
