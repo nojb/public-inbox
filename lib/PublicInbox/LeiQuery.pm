@@ -7,6 +7,11 @@ use strict;
 use v5.10.1;
 use PublicInbox::DS qw(dwaitpid);
 
+sub prep_ext { # externals_each callback
+	my ($lxs, $exclude, $loc) = @_;
+	$lxs->prepare_external($loc) unless $exclude->{$loc};
+}
+
 # the main "lei q SEARCH_TERMS" method
 sub lei_q {
 	my ($self, @argv) = @_;
@@ -14,22 +19,35 @@ sub lei_q {
 	require PublicInbox::LeiOverview;
 	PublicInbox::Config->json; # preload before forking
 	my $opt = $self->{opt};
+	# prepare any number of LeiXSearch || LeiSearch || Inbox || URL
 	my $lxs = $self->{lxs} = PublicInbox::LeiXSearch->new;
-	# any number of LeiXSearch || LeiSearch || Inbox
-	if ($opt->{'local'} //= 1) { # --local is enabled by default
+	my @only = @{$opt->{only} // []};
+	# --local is enabled by default unless --only is used
+	# we'll allow "--only $LOCATION --local"
+	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
 		my $sto = $self->_lei_store(1);
 		$lxs->prepare_external($sto->search);
 	}
-
-	# --external is enabled by default, but allow --no-external
-	if ($opt->{external} //= 1) {
-		my $cb = $lxs->can('prepare_external');
-		my $ne = $self->_externals_each($cb, $lxs);
-		$opt->{remote} //= $ne == $lxs->remotes;
-		if ($opt->{'local'}) {
-			delete($lxs->{remotes}) if !$opt->{remote};
-		} else {
-			delete($lxs->{locals});
+	if (@only) {
+		for my $loc (@only) {
+			$lxs->prepare_external($self->ext_canonicalize($loc));
+		}
+	} else {
+		for my $loc (@{$opt->{include} // []}) {
+			$lxs->prepare_external($self->ext_canonicalize($loc));
+		}
+		# --external is enabled by default, but allow --no-external
+		if ($opt->{external} //= 1) {
+			my %x = map {;
+				($self->ext_canonicalize($_), 1)
+			} @{$self->{exclude} // []};
+			my $ne = $self->externals_each(\&prep_ext, $lxs, \%x);
+			$opt->{remote} //= !($lxs->locals - $opt->{'local'});
+			if ($opt->{'local'}) {
+				delete($lxs->{remotes}) if !$opt->{remote};
+			} else {
+				delete($lxs->{locals});
+			}
 		}
 	}
 	unless ($lxs->locals || $lxs->remotes) {

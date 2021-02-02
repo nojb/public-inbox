@@ -9,7 +9,7 @@ use parent qw(Exporter);
 our @EXPORT = qw(lei_ls_external lei_add_external lei_forget_external);
 use PublicInbox::Config;
 
-sub _externals_each {
+sub externals_each {
 	my ($self, $cb, @arg) = @_;
 	my $cfg = $self->_lei_cfg(0);
 	my %boost;
@@ -32,14 +32,14 @@ sub _externals_each {
 sub lei_ls_external {
 	my ($self, @argv) = @_;
 	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
-	$self->_externals_each(sub {
+	externals_each($self, sub {
 		my ($loc, $boost_val) = @_;
 		$self->out($loc, $OFS, 'boost=', $boost_val, $ORS);
 	});
 }
 
-sub _canonicalize {
-	my ($location) = @_;
+sub ext_canonicalize {
+	my ($location) = $_[-1];
 	if ($location !~ m!\Ahttps?://!) {
 		PublicInbox::Config::rel2abs_collapsed($location);
 	} else {
@@ -56,7 +56,7 @@ sub lei_add_external {
 	my ($self, $location) = @_;
 	my $cfg = $self->_lei_cfg(1);
 	my $new_boost = $self->{opt}->{boost} // 0;
-	$location = _canonicalize($location);
+	$location = ext_canonicalize($location);
 	if ($location !~ m!\Ahttps?://! && !-d $location) {
 		return $self->fail("$location not a directory");
 	}
@@ -74,7 +74,7 @@ sub lei_forget_external {
 	my %seen;
 	for my $loc (@locations) {
 		my (@unset, @not_found);
-		for my $l ($loc, _canonicalize($loc)) {
+		for my $l ($loc, ext_canonicalize($loc)) {
 			next if $seen{$l}++;
 			my $key = "external.$l.boost";
 			delete($cfg->{$key});

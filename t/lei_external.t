@@ -4,7 +4,7 @@ use v5.10.1;
 use Test::More;
 my $cls = 'PublicInbox::LeiExternal';
 require_ok $cls;
-my $canon = $cls->can('_canonicalize');
+my $canon = $cls->can('ext_canonicalize');
 my $exp = 'https://example.com/my-inbox/';
 is($canon->('https://example.com/my-inbox'), $exp, 'trailing slash added');
 is($canon->('https://example.com/my-inbox//'), $exp, 'trailing slash removed');
