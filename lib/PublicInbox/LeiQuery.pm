@@ -51,6 +51,7 @@ sub lei_q {
 
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
+	$mset_opt{limit} //= 10000;
 	$mset_opt{qstr} = join(' ', map {;
 		# Consider spaces in argv to be for phrase search in Xapian.
 		# In other words, the users should need only care about
