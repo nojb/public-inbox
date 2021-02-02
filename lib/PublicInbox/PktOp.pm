@@ -58,7 +58,7 @@ sub event_step {
 			die "recv: $!";
 		}
 		my ($cmd, $pargs) = split(/\0/, $msg, 2);
-		my $op = $self->{ops}->{$cmd // $msg};
+		my $op = $self->{ops}->{$cmd //= $msg};
 		die "BUG: unknown message: `$cmd'" unless $op;
 		my ($sub, @args) = @$op;
 		$sub->(@args, $pargs ? ipc_thaw($pargs) : ());
