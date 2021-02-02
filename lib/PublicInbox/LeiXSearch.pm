@@ -268,6 +268,7 @@ sub query_remote_mboxrd {
 		my $e = do { local $/; <$cerr> } //
 				die "read(curl stderr): $!\n";
 		$coff += length($e);
+		truncate($cerr, 0);
 		next if (($? >> 8) == 22 && $e =~ /\b404\b/);
 		$lei->child_error($?);
 		$uri->query_form(q => $lei->{mset_opt}->{qstr});
