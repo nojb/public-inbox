@@ -54,7 +54,7 @@ sub lei_q {
 		return $self->fail('no local or remote inboxes to search');
 	}
 	my $xj = $lxs->concurrency($opt);
-	my $ovv = PublicInbox::LeiOverview->new($self) or return;
+	PublicInbox::LeiOverview->new($self) or return;
 	$self->atfork_prepare_wq($lxs);
 	$lxs->wq_workers_start('lei_xsearch', $xj, $self->oldset);
 	delete $lxs->{-ipc_atfork_child_close};
@@ -90,7 +90,7 @@ sub lei_q {
 	# descending docid order
 	$mset_opt{relevance} //= -2 if $opt->{thread};
 	$self->{mset_opt} = \%mset_opt;
-	$ovv->ovv_begin($self);
+	$self->{ovv}->ovv_begin($self);
 	$lxs->do_query($self);
 }
 

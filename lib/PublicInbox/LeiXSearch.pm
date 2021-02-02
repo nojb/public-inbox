@@ -387,8 +387,9 @@ sub query_prepare { # called by wq_do
 
 sub fail_handler ($;$$) {
 	my ($lei, $code, $io) = @_;
-	if (my $lxs = delete $lei->{lxs}) {
-		$lxs->wq_wait_old($lei) if $lxs->wq_kill_old; # lei-daemon
+	for my $f (qw(lxs l2m)) {
+		my $wq = delete $lei->{$f} or next;
+		$wq->wq_wait_old($lei) if $wq->wq_kill_old; # lei-daemon
 	}
 	close($io) if $io; # needed to avoid warnings on SIGPIPE
 	$lei->x_it($code // (1 >> 8));

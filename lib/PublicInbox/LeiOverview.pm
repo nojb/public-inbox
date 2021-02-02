@@ -26,16 +26,15 @@ sub _iso8601 ($) { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($_[0])) }
 # we open this in the parent process before ->wq_do handoff
 sub ovv_out_lk_init ($) {
 	my ($self) = @_;
-	$self->{tmp_lk_id} = "$self.$$";
 	my $tmp = File::Temp->new("lei-ovv.dst.$$.lock-XXXXXX",
 					TMPDIR => 1, UNLINK => 0);
-	$self->{lock_path} = $tmp->filename;
+	$self->{"lk_id.$self.$$"} = $self->{lock_path} = $tmp->filename;
 }
 
 sub ovv_out_lk_cancel ($) {
 	my ($self) = @_;
-	($self->{tmp_lk_id}//'') eq "$self.$$" and
-		unlink(delete($self->{lock_path}));
+	my $lock_path = delete $self->{"lk_id.$self.$$"} or return;
+	unlink($lock_path);
 }
 
 sub detect_fmt ($$) {

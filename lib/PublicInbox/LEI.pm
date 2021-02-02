@@ -284,20 +284,22 @@ sub x_it ($$) {
 	dump_and_clear_log();
 	if (my $sock = $self->{sock}) {
 		send($sock, "x_it $code", MSG_EOR);
-	} elsif (!$self->{oneshot}) {
-		return; # client disconnected, noop
-	} elsif (my $signum = ($code & 127)) { # usually SIGPIPE (13)
-		$SIG{PIPE} = 'DEFAULT'; # $SIG{$signum} doesn't work
-		kill $signum, $$;
-		sleep; # wait for signal
-	} else {
+	} elsif ($self->{oneshot}) {
 		# don't want to end up using $? from child processes
 		for my $f (qw(lxs l2m)) {
 			my $wq = delete $self->{$f} or next;
 			$wq->DESTROY;
 		}
-		$quit->($code >> 8);
-	}
+		# cleanup anything that has tempfiles
+		delete @$self{qw(ovv dedupe)};
+		if (my $signum = ($code & 127)) { # usually SIGPIPE (13)
+			$SIG{PIPE} = 'DEFAULT'; # $SIG{$signum} doesn't work
+			kill $signum, $$;
+			sleep; # wait for signal
+		} else {
+			$quit->($code >> 8);
+		}
+	} # else ignore if client disconnected
 }
 
 sub err ($;@) {
