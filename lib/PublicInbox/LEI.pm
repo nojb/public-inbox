@@ -104,7 +104,7 @@ our %CMD = ( # sorted in order of importance/use:
 'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
-	include|I=s@ exclude=s@ only=s@
+	include|I=s@ exclude=s@ only=s@ jobs|j=s
 	mua-cmd|mua=s no-torsocks torsocks=s verbose|v quiet|q
 	received-after=s received-before=s sent-after=s sent-since=s),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
@@ -235,6 +235,9 @@ my %OPTDESC = (
 		'include specified external(s) in search' ],
 'q	only=s@' => [ 'URL_OR_PATHNAME',
 		'only use specified external(s) for search' ],
+
+'q	jobs=s'	=> [ '[SEARCH_JOBS][,WRITER_JOBS]',
+		'control number of search and writer jobs' ],
 
 'ls-query	format|f=s' => $ls_format,
 'ls-external	format|f=s' => $ls_format,

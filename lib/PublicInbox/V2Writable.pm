@@ -8,6 +8,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock);
 use PublicInbox::SearchIdxShard;
+use PublicInbox::IPC;
 use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
@@ -35,32 +36,13 @@ our $PACKING_FACTOR = 0.4;
 # to increase Xapian shards
 our $NPROC_MAX_DEFAULT = 4;
 
-sub detect_nproc () {
-	# _SC_NPROCESSORS_ONLN = 84 on both Linux glibc and musl
-	return POSIX::sysconf(84) if $^O eq 'linux';
-	return POSIX::sysconf(58) if $^O eq 'freebsd';
-	# TODO: more OSes
-
-	# getconf(1) is POSIX, but *NPROCESSORS* vars are not
-	for (qw(_NPROCESSORS_ONLN NPROCESSORS_ONLN)) {
-		`getconf $_ 2>/dev/null` =~ /^(\d+)$/ and return $1;
-	}
-	for my $nproc (qw(nproc gnproc)) { # GNU coreutils nproc
-		`$nproc 2>/dev/null` =~ /^(\d+)$/ and return $1;
-	}
-
-	# should we bother with `sysctl hw.ncpu`?  Those only give
-	# us total processor count, not online processor count.
-	undef
-}
-
 sub nproc_shards ($) {
 	my ($creat_opt) = @_;
 	my $n = $creat_opt->{nproc} if ref($creat_opt) eq 'HASH';
 	$n //= $ENV{NPROC};
 	if (!$n) {
 		# assume 2 cores if not detectable or zero
-		state $NPROC_DETECTED = detect_nproc() || 2;
+		state $NPROC_DETECTED = PublicInbox::IPC::detect_nproc() || 2;
 		$n = $NPROC_DETECTED;
 		$n = $NPROC_MAX_DEFAULT if $n > $NPROC_MAX_DEFAULT;
 	}

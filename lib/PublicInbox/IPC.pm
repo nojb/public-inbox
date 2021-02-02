@@ -466,4 +466,23 @@ sub DESTROY {
 # Sereal doesn't have dclone
 sub deep_clone { ipc_thaw(ipc_freeze($_[-1])) }
 
+sub detect_nproc () {
+	# _SC_NPROCESSORS_ONLN = 84 on both Linux glibc and musl
+	return POSIX::sysconf(84) if $^O eq 'linux';
+	return POSIX::sysconf(58) if $^O eq 'freebsd';
+	# TODO: more OSes
+
+	# getconf(1) is POSIX, but *NPROCESSORS* vars are not
+	for (qw(_NPROCESSORS_ONLN NPROCESSORS_ONLN)) {
+		`getconf $_ 2>/dev/null` =~ /^(\d+)$/ and return $1;
+	}
+	for my $nproc (qw(nproc gnproc)) { # GNU coreutils nproc
+		`$nproc 2>/dev/null` =~ /^(\d+)$/ and return $1;
+	}
+
+	# should we bother with `sysctl hw.ncpu`?  Those only give
+	# us total processor count, not online processor count.
+	undef
+}
+
 1;

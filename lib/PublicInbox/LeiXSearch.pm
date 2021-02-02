@@ -350,7 +350,6 @@ sub do_post_augment {
 }
 
 my $MAX_PER_HOST = 4;
-sub MAX_PER_HOST { $MAX_PER_HOST }
 
 sub concurrency {
 	my ($self, $opt) = @_;

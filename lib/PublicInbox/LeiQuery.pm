@@ -17,6 +17,7 @@ sub lei_q {
 	my ($self, @argv) = @_;
 	require PublicInbox::LeiXSearch;
 	require PublicInbox::LeiOverview;
+	require PublicInbox::V2Writable;
 	PublicInbox::Config->json; # preload before forking
 	my $opt = $self->{opt};
 	# prepare any number of LeiXSearch || LeiSearch || Inbox || URL
@@ -53,13 +54,22 @@ sub lei_q {
 	unless ($lxs->locals || $lxs->remotes) {
 		return $self->fail('no local or remote inboxes to search');
 	}
-	my $xj = $lxs->concurrency($opt);
+	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
+	if (defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) {
+		return $self->fail("`$xj' search jobs must be >= 1");
+	}
+	$xj ||= $lxs->concurrency($opt); # allow: "--jobs ,$WRITER_ONLY"
+	my $nproc = $lxs->detect_nproc; # don't memoize, schedtool(1) exists
+	$xj = $nproc if $xj > $nproc;
 	PublicInbox::LeiOverview->new($self) or return;
 	$self->atfork_prepare_wq($lxs);
 	$lxs->wq_workers_start('lei_xsearch', $xj, $self->oldset);
 	delete $lxs->{-ipc_atfork_child_close};
 	if (my $l2m = $self->{l2m}) {
-		my $mj = 4; # TODO: configurable
+		if (defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) {
+			return $self->fail("`$mj' writer jobs must be >= 1");
+		}
+		$mj //= $nproc;
 		$self->atfork_prepare_wq($l2m);
 		$l2m->wq_workers_start('lei2mail', $mj, $self->oldset);
 		delete $l2m->{-ipc_atfork_child_close};
