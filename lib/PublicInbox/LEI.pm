@@ -101,10 +101,10 @@ sub _config_path ($) {
 # TODO: generate shell completion + help using %CMD and %OPTDESC
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
-'q' => [ 'SEARCH_TERMS...', 'search for messages matching terms', qw(
+'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
-	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g
+	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
 	mua-cmd|mua=s no-torsocks torsocks=s verbose|v quiet|q
 	received-after=s received-before=s sent-after=s sent-since=s),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
@@ -554,12 +554,13 @@ sub optparse ($$$) {
 		} elsif ($var =~ /\A\[-?$POS_ARG\]\z/) { # one optional arg
 			$i++;
 		} elsif ($var =~ /\A.+?\|/) { # required FOO|--stdin
+			$inf = 1 if index($var, '...') > 0;
 			my @or = split(/\|/, $var);
 			my $ok;
 			for my $o (@or) {
 				if ($o =~ /\A--([a-z0-9\-]+)/) {
 					$ok = defined($OPT->{$1});
-					last;
+					last if $ok;
 				} elsif (defined($argv->[$i])) {
 					$ok = 1;
 					$i++;

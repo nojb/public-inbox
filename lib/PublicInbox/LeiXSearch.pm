@@ -402,6 +402,8 @@ sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
 sub do_query {
 	my ($self, $lei) = @_;
 	$lei->{1}->autoflush(1);
+	$lei->start_pager if -t $lei->{1};
+	$lei->{ovv}->ovv_begin($lei);
 	my ($au_done, $zpipe);
 	my $l2m = $lei->{l2m};
 	if ($l2m) {

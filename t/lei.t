@@ -275,6 +275,25 @@ my $test_external = sub {
 	my $pretty = $json->decode($out);
 	is_deeply($res, $pretty, '--pretty is identical after decode');
 
+	{
+		open my $fh, '+>', undef or BAIL_OUT $!;
+		$fh->autoflush(1);
+		print $fh 's:use' or BAIL_OUT $!;
+		seek($fh, 0, SEEK_SET) or BAIL_OUT $!;
+		ok($lei->([qw(q -q --stdin)], undef, { %$opt, 0 => $fh }),
+				'--stdin on regular file works');
+		like($out, qr/use boolean prefix/, '--stdin on regular file');
+	}
+	{
+		pipe(my ($r, $w)) or BAIL_OUT $!;
+		print $w 's:use' or BAIL_OUT $!;
+		close $w or BAIL_OUT $!;
+		ok($lei->([qw(q -q --stdin)], undef, { %$opt, 0 => $r }),
+				'--stdin on pipe file works');
+		like($out, qr/use boolean prefix/, '--stdin on pipe');
+	}
+	ok(!$lei->(qw(q -q --stdin s:use)), "--stdin and argv don't mix");
+
 	for my $fmt (qw(ldjson ndjson jsonl)) {
 		$lei->('q', '-f', $fmt, 's:use boolean prefix');
 		is($out, $json->encode($pretty->[0])."\n", "-f $fmt");

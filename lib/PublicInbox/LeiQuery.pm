@@ -12,6 +12,16 @@ sub prep_ext { # externals_each callback
 	$lxs->prepare_external($loc) unless $exclude->{$loc};
 }
 
+sub qstr_add { # for --stdin
+	my ($self) = @_; # $_[1] = $rbuf
+	if (defined($_[1])) {
+		return eval { $self->{lxs}->do_query($self) } if $_[1] eq '';
+		$self->{mset_opt}->{qstr} .= $_[1];
+	} else {
+		$self->fail("error reading stdin: $!");
+	}
+}
+
 # the main "lei q SEARCH_TERMS" method
 sub lei_q {
 	my ($self, @argv) = @_;
@@ -84,12 +94,6 @@ sub lei_q {
 	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
 	$mset_opt{limit} //= 10000;
-	$mset_opt{qstr} = join(' ', map {;
-		# Consider spaces in argv to be for phrase search in Xapian.
-		# In other words, the users should need only care about
-		# normal shell quotes and not have to learn Xapian quoting.
-		/\s/ ? (s/\A(\w+:)// ? qq{$1"$_"} : qq{"$_"}) : $_
-	} @argv);
 	if (defined(my $sort = $opt->{'sort'})) {
 		if ($sort eq 'relevance') {
 			$mset_opt{relevance} = 1;
@@ -104,7 +108,21 @@ sub lei_q {
 	# descending docid order
 	$mset_opt{relevance} //= -2 if $opt->{thread};
 	$self->{mset_opt} = \%mset_opt;
-	$self->{ovv}->ovv_begin($self);
+
+	if ($opt->{stdin}) {
+		return $self->fail(<<'') if @argv;
+no query allowed on command-line with --stdin
+
+		require PublicInbox::InputPipe;
+		PublicInbox::InputPipe::consume($self->{0}, \&qstr_add, $self);
+		return;
+	}
+	# Consider spaces in argv to be for phrase search in Xapian.
+	# In other words, the users should need only care about
+	# normal shell quotes and not have to learn Xapian quoting.
+	$mset_opt{qstr} = join(' ', map {;
+		/\s/ ? (s/\A(\w+:)// ? qq{$1"$_"} : qq{"$_"}) : $_
+	} @argv);
 	$lxs->do_query($self);
 }
 

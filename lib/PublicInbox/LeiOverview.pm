@@ -81,7 +81,6 @@ sub new {
 	my ($isatty, $seekable);
 	if ($dst eq '/dev/stdout') {
 		$isatty = -t $lei->{1};
-		$lei->start_pager if $isatty;
 		$opt->{pretty} //= $isatty;
 		if (!$isatty && -f _) {
 			my $fl = fcntl($lei->{1}, F_GETFL, 0) //
