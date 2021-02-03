@@ -196,7 +196,7 @@ sub isrch { $_[0]->{isrch} // search($_[0]) }
 
 sub over {
 	$_[0]->{over} //= eval {
-		my $srch = $_[0]->{search} //= eval {
+		my $srch = $_[0]->{search} //= do {
 			_cleanup_later($_[0]);
 			require PublicInbox::Search;
 			PublicInbox::Search->new($_[0]);

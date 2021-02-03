@@ -3,7 +3,6 @@
 package PublicInbox::LeiDedupe;
 use strict;
 use v5.10.1;
-use PublicInbox::SharedKV;
 use PublicInbox::ContentHash qw(content_hash);
 use Digest::SHA ();
 
@@ -98,8 +97,11 @@ sub new {
 	return if ($dd eq 'none' && substr($dst // '', -1) eq '/');
 	my $m = "dedupe_$dd";
 	$cls->can($m) or die "unsupported dedupe strategy: $dd\n";
-	my $skv = $dd eq 'none' ? undef : PublicInbox::SharedKV->new;
-
+	my $skv;
+	if ($dd ne 'none') {
+		require PublicInbox::SharedKV;
+		$skv = PublicInbox::SharedKV->new;
+	}
 	# [ $skv, $eml_cb, $smsg_cb, "dedupe_$dd" ]
 	bless [ $skv, undef, undef, $m ], $cls;
 }

@@ -6,6 +6,7 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use POSIX qw(_exit);
+require_mods(qw(Search::Xapian DBD::SQLite));
 require_ok 'PublicInbox::LeiOverview';
 
 my $ovv = bless {}, 'PublicInbox::LeiOverview';

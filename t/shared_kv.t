@@ -5,6 +5,7 @@ use strict;
 use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
+require_mods(qw(DBD::SQLite));
 use_ok 'PublicInbox::SharedKV';
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{TMPDIR} = $tmpdir;

@@ -496,7 +496,7 @@ EOF
 
 sub _fill_ei ($$) {
 	my ($self, $pfx) = @_;
-	require PublicInbox::ExtSearch;
+	eval { require PublicInbox::ExtSearch } or return;
 	my $d = $self->{"$pfx.topdir"};
 	defined($d) && -d $d ? PublicInbox::ExtSearch->new($d) : undef;
 }
