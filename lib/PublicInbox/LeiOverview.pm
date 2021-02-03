@@ -217,13 +217,13 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		};
 	} elsif ($l2m && $l2m->{-wq_s1}) {
 		my ($lei_ipc, @io) = $lei->atfork_parent_wq($l2m);
-		# $io[-1] becomes a notification pipe that triggers EOF
+		# $io[0] becomes a notification pipe that triggers EOF
 		# in this wq worker when all outstanding ->write_mail
 		# calls are complete
-		pipe($l2m->{each_smsg_done}, $io[$#io + 1]) or die "pipe: $!";
-		fcntl($io[-1], 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
+		$io[0] = undef;
+		pipe($l2m->{each_smsg_done}, $io[0]) or die "pipe: $!";
+		fcntl($io[0], 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
 		delete @$lei_ipc{qw(l2m opt mset_opt cmd)};
-		$lei_ipc->{each_smsg_not_done} = $#io;
 		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
 		$self->{git} = $git;
 		my $git_dir = $git->{git_dir};

@@ -464,7 +464,7 @@ sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
 
 sub write_mail { # via ->wq_do
 	my ($self, $git_dir, $smsg, $lei) = @_;
-	my $not_done = delete $self->{$lei->{each_smsg_not_done}};
+	my $not_done = delete $self->{0} // die 'BUG: $not_done missing';
 	my $wcb = $self->{wcb} //= do { # first message
 		$lei->atfork_child_wq($self);
 		$self->write_cb($lei);
