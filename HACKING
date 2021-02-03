@@ -59,6 +59,33 @@ directory for design decisions made during development.
 See Documentation/technical/ in the source tree for more details
 on specific topics, in particular data_structures.txt
 
+Optional packages for testing and development
+---------------------------------------------
+
+Optional packages testing and development:
+
+- Plack::Test                      deb: libplack-test-perl
+                                   pkg: p5-Plack
+                                   rpm: perl-Plack-Test
+
+- Plack::Test::ExternalServer      deb: libplack-test-externalserver-perl
+                                   pkg: p5-Plack-Test-ExternalServer
+
+- Test::Simple                     deb: perl-modules-5.$MINOR
+                                   pkg: perl5
+                                   rpm: perl-Test-Simple
+
+- XML::TreePP                      deb: libxml-treepp-perl
+                                   pkg: p5-XML-TreePP
+                                   rpm: perl-XML-TreePP
+
+Email::MIME is optional as of public-inbox v1.5.0 but still
+used for maintainer comparison tests:
+
+* Email::MIME                      deb: libemail-mime-perl
+                                   pkg: p5-Email-MIME
+                                   rpm: perl-Email-MIME
+
 Faster tests
 ------------
 

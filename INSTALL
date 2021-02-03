@@ -31,22 +31,12 @@ To accept incoming mail into a public inbox, you'll likely want:
 * MTA - postfix is recommended (for public-inbox-mda)
 * SpamAssassin (spamc/spamd)   (for public-inbox-watch/public-inbox-mda)
 
-Beyond that, there is a long list of Perl modules required, starting with:
-
-* Digest::SHA                      typically installed with Perl
-                                   rpm: perl-Digest-SHA
+Beyond that, there is one non-standard Perl module required:
 
 * URI::Escape                      deb: liburi-perl
                                    pkg: p5-URI
                                    rpm: perl-URI
                                    (for HTML/Atom generation)
-
-Email::MIME will be optional as of public-inbox v1.5.0,
-it may still be used in maintainer comparison tests:
-
-* Email::MIME                      deb: libemail-mime-perl
-                                   pkg: p5-Email-MIME
-                                   rpm: perl-Email-MIME
 
 Plack and Date::Parse are optional as of public-inbox v1.3.0,
 but required for older releases:
@@ -72,8 +62,8 @@ Numerous optional modules are likely to be useful as well:
                                    rpm: perl-DBD-SQLite
                                    (for v2, IMAP, NNTP, or gzipped mboxes)
 
-- Search::Xapian                   deb: libsearch-xapian-perl
-                                   pkg: p5-Search-Xapian
+- Search::Xapian or Xapian(.pm)    deb: libsearch-xapian-perl
+                                   pkg: p5-Search-Xapian OR p5-Xapian
                                    rpm: perl-Search-Xapian
                                    (HTTP and IMAP search)
 
@@ -121,35 +111,19 @@ Numerous optional modules are likely to be useful as well:
                                    rpm: xapian-core
                                    (optional, for public-inbox-compact(1))
 
-The following modules are typically pulled in by dependencies listed
-above, so there is no need to explicitly install them:
+- Linux::Inotify2                  deb: liblinux-inotify2-perl
+                                   rpm: perl-Linux-Inotify2
+                                   (for public-inbox-watch and -imapd on Linux)
 
-* Encode                           deb: libperl5.$MINOR (or libencode-perl)
-                                   pkg: perl5
-                                   rpm: perl-Encode
-                                   (likely installed with Perl)
+The following module is typically pulled in by dependencies listed
+above, so there is no need to explicitly install them:
 
 - DBI                              deb: libdbi-perl
                                    pkg: p5-DBI
                                    rpm: perl-DBI
                                    (pulled in by DBD::SQLite)
 
-* Devel::Peek                      deb: libperl5.$MINOR (e.g. libperl5.24)
-                                   pkg: perl5
-                                   rpm: perl-Devel-Peek
-                                   (optional for stale FD cleanup in daemons,
-                                    typically installed alongside Perl5)
-
-- Linux::Inotify2                  deb: liblinux-inotify2-perl
-                                   rpm: perl-Linux-Inotify2
-                                   (for public-inbox-watch and -imapd on Linux)
-
-- IO::Compress (::Gzip)            deb: perl-modules (or libio-compress-perl)
-                                   pkg: perl5
-                                   rpm: perl-IO-Compress
-                                   (for gzipped mbox over HTTP, v2 format)
-
-Uncommonly needed modules:
+Uncommonly needed modules (see HACKING for development-only modules):
 
 - Socket6                          deb: libsocket6-perl
                                    pkg: p5-Socket6
@@ -162,20 +136,6 @@ Uncommonly needed modules:
 - Crypt::CBC                       deb: libcrypt-cbc-perl
                                    pkg: p5-Crypt-CBC
                                    (for PublicInbox::Unsubscribe (rarely used))
-
-Optional packages testing and development:
-
-- Plack::Test                      deb: libplack-test-perl
-                                   pkg: p5-Plack
-                                   rpm: perl-Plack-Test
-
-- Test::Simple                     deb: perl-modules-5.$MINOR
-                                   pkg: perl5
-                                   rpm: perl-Test-Simple
-
-- XML::TreePP                      deb: libxml-treepp-perl
-                                   pkg: p5-XML-TreePP
-                                   rpm: perl-XML-TreePP
 
 standard MakeMaker installation (Perl)
 --------------------------------------
@@ -205,6 +165,17 @@ will not destroy critical data.
 
 See the public-inbox-overview(7) man page for the next steps once
 the installation is complete.
+
+The following required packages are part of the Perl standard
+library.  Debian-based distros put them in "libperl5.$MINOR" or
+"perl-modules-5.$MINOR"; and FreeBSD puts them in "perl5".
+RPM-based distros split them out into separate packages:
+
+* Digest::SHA                      rpm: perl-Digest-SHA
+* Data::Dumper                     rpm: perl-Data-Dumper
+* Encode                           rpm: perl-Encode
+* IO::Compress                     rpm: perl-IO-Compress
+* Storable                         rpm: perl-Storable
 
 Copyright
 ---------

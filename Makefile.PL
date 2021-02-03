@@ -145,24 +145,19 @@ WriteMakefile(
 		# We also depend on git.
 		# Keep this sorted and synced to the INSTALL document
 
-		# libperl$PERL_VERSION,
-		# `perl5' on FreeBSD
-		# perl-Digest-SHA on RH-based
-		'Digest::SHA' => 0,
-
-		# libperl$PERL_VERSION or libencode-perl on Debian,
-		# `perl5' on FreeBSD
-		'Encode' => 2.35, # 2.35 shipped with 5.10.1
-
-		# libperl$PERL_VERSION + perl-modules-$PERL_VERSION
+		# perl-modules-5.xx or libperl5.xx in Debian-based
+		# part of "perl5" on FreeBSD
 		'Compress::Raw::Zlib' => 0,
 		'Compress::Zlib' => 0,
+		'Data::Dumper' => 0,
+		'Digest::SHA' => 0, # rpm: perl-Digest-SHA
+		'Encode' => 2.35, # 2.35 shipped with 5.10.1
 		'IO::Compress::Gzip' => 0,
+		'Storable' => 0, # rpm: perl-Storable
 
 		# Plack is needed for public-inbox-httpd and PublicInbox::WWW
 		# 'Plack' => 0,
 
-		# TODO: this should really be made optional...
 		'URI::Escape' => 0,
 
 		# We have more test dependencies, but do not force
