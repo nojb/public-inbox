@@ -112,11 +112,22 @@ sub lei_q {
 sub _complete_q {
 	my ($self, @argv) = @_;
 	my $ext = qr/\A(?:-I|(?:--(?:include|exclude|only)))\z/;
-	# $argv[-1] =~ $ext and return $self->_complete_forget_external;
 	my @cur;
 	while (@argv) {
 		if ($argv[-1] =~ $ext) {
 			my @c = $self->_complete_forget_external(@cur);
+			# try basename match:
+			if (scalar(@cur) == 1 && index($cur[0], '/') < 0) {
+				my $all = $self->externals_each;
+				my %bn;
+				for my $loc (keys %$all) {
+					my $bn = (split(m!/!, $loc))[-1];
+					++$bn{$bn};
+				}
+				push @c, grep {
+					$bn{$_} == 1 && /\A\Q$cur[0]/
+				} keys %bn;
+			}
 			return @c if @c;
 		}
 		unshift(@cur, pop @argv);
