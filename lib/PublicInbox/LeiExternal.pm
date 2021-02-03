@@ -39,7 +39,7 @@ sub lei_ls_external {
 }
 
 sub ext_canonicalize {
-	my ($location) = $_[-1];
+	my ($location) = @_;
 	if ($location !~ m!\Ahttps?://!) {
 		PublicInbox::Config::rel2abs_collapsed($location);
 	} else {
@@ -50,6 +50,42 @@ sub ext_canonicalize {
 		$uri->path($path);
 		$uri->as_string;
 	}
+}
+
+my %patmap = ('*' => '[^/]*?', '?' => '[^/]', '[' => '[', ']' => ']');
+sub glob2pat {
+	my ($glob) = @_;
+        $glob =~ s!(.)!$patmap{$1} || "\Q$1"!ge;
+        $glob;
+}
+
+sub get_externals {
+	my ($self, $loc, $exclude) = @_;
+	return (ext_canonicalize($loc)) if -e $loc;
+
+	my @m;
+	my @cur = externals_each($self);
+	my $do_glob = !$self->{opt}->{globoff}; # glob by default
+	if ($do_glob && ($loc =~ /[\*\?]/s || $loc =~ /\[.*\]/s)) {
+		my $re = glob2pat($loc);
+		@m = grep(m!$re!, @cur);
+		return @m if scalar(@m);
+	} elsif (index($loc, '/') < 0) { # exact basename match:
+		@m = grep(m!/\Q$loc\E/?\z!, @cur);
+		return @m if scalar(@m) == 1;
+	} elsif ($exclude) { # URL, maybe:
+		my $canon = ext_canonicalize($loc);
+		@m = grep(m!\A\Q$canon\E\z!, @cur);
+		return @m if scalar(@m) == 1;
+	} else { # URL:
+		return (ext_canonicalize($loc));
+	}
+	if (scalar(@m) == 0) {
+		$self->fail("`$loc' is unknown");
+	} else {
+		$self->fail("`$loc' is ambiguous:\n", map { "\t$_\n" } @m);
+	}
+	();
 }
 
 sub lei_add_external {

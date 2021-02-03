@@ -31,17 +31,21 @@ sub lei_q {
 	}
 	if (@only) {
 		for my $loc (@only) {
-			$lxs->prepare_external($self->ext_canonicalize($loc));
+			my @loc = $self->get_externals($loc) or return;
+			$lxs->prepare_external($_) for @loc;
 		}
 	} else {
 		for my $loc (@{$opt->{include} // []}) {
-			$lxs->prepare_external($self->ext_canonicalize($loc));
+			my @loc = $self->get_externals($loc) or return;
+			$lxs->prepare_external($_) for @loc;
 		}
 		# --external is enabled by default, but allow --no-external
 		if ($opt->{external} //= 1) {
-			my %x = map {;
-				($self->ext_canonicalize($_), 1)
-			} @{$self->{exclude} // []};
+			my %x;
+			for my $loc (@{$opt->{exclude} // []}) {
+				my @l = $self->get_externals($loc, 1) or return;
+				$x{$_} = 1 for @l;
+			}
 			my $ne = $self->externals_each(\&prep_ext, $lxs, \%x);
 			$opt->{remote} //= !($lxs->locals - $opt->{'local'});
 			if ($opt->{'local'}) {
