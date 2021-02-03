@@ -308,12 +308,12 @@ sub x_it ($$) {
 sub err ($;@) {
 	my $self = shift;
 	my $err = $self->{2} // ($self->{pgr} // [])->[2] // *STDERR{GLOB};
-	my $eor = (substr($_[-1], -1, 1) eq "\n" ? () : "\n");
-	print $err @_, $eor and return;
+	my @eor = (substr($_[-1]//'', -1, 1) eq "\n" ? () : ("\n"));
+	print $err @_, @eor and return;
 	my $old_err = delete $self->{2};
-	close($old_err) if $! == EPIPE && $old_err;;
+	close($old_err) if $! == EPIPE && $old_err;
 	$err = $self->{2} = ($self->{pgr} // [])->[2] // *STDERR{GLOB};
-	print $err @_, $eor or print STDERR @_, $eor;
+	print $err @_, @eor or print STDERR @_, @eor;
 }
 
 sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
