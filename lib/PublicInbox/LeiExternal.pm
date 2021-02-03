@@ -133,17 +133,15 @@ sub lei_forget_external {
 	}
 }
 
-# shell completion helper called by lei__complete
-sub _complete_forget_external {
-	my ($self, @argv) = @_;
-	my $cfg = $self->_lei_cfg(0);
-	my $cur = pop @argv;
+sub _complete_url_common ($) {
+	my ($argv) = @_;
 	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
 	# Maybe there's a better way to go about this in
 	# contrib/completion/lei-completion.bash
 	my $re = '';
-	if (@argv) {
-		my @x = @argv;
+	my $cur = pop @$argv;
+	if (@$argv) {
+		my @x = @$argv;
 		if ($cur eq ':' && @x) {
 			push @x, $cur;
 			$cur = '';
@@ -154,10 +152,18 @@ sub _complete_forget_external {
 		if (@x >= 2) { # qw(https : hostname : 443) or qw(http :)
 			$re = join('', @x);
 		} else { # just filter out the flags and hope for the best
-			$re = join('', grep(!/^-/, @argv));
+			$re = join('', grep(!/^-/, @$argv));
 		}
 		$re = quotemeta($re);
 	}
+	($cur, $re);
+}
+
+# shell completion helper called by lei__complete
+sub _complete_forget_external {
+	my ($self, @argv) = @_;
+	my $cfg = $self->_lei_cfg(0);
+	my ($cur, $re) = _complete_url_common(\@argv);
 	# FIXME: bash completion off "http:" or "https:" when the last
 	# character is a colon doesn't work properly even if we're
 	# returning "//$HTTP_HOST/$PATH_INFO/", not sure why, could
@@ -165,13 +171,23 @@ sub _complete_forget_external {
 	map {
 		my $x = substr($_, length('external.'));
 		# only return the part specified on the CLI
-		if ($x =~ /\A$re(\Q$cur\E.*)/) {
-			# don't duplicate if already 100% completed
-			$cur eq $1 ? () : $1;
-		} else {
-			();
-		}
+		# don't duplicate if already 100% completed
+		$x =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ();
 	} grep(/\Aexternal\.$re\Q$cur/, @{$cfg->{-section_order}});
+}
+
+sub _complete_add_external { # for bash, this relies on "compopt -o nospace"
+	my ($self, @argv) = @_;
+	my $cfg = $self->_lei_cfg(0);
+	my ($cur, $re) = _complete_url_common(\@argv);
+	require URI;
+	map {
+		my $u = URI->new(substr($_, length('external.')));
+		my ($base) = ($u->path =~ m!((?:/?.*)?/)[^/]+/?\z!);
+		$u->path($base);
+		$u = $u->as_string;
+		$u =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ();
+	} grep(m!\Aexternal\.https?://!, @{$cfg->{-section_order}});
 }
 
 1;

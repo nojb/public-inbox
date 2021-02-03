@@ -233,6 +233,9 @@ my $test_external = sub {
 				"completed partial URL $u on q $qo");
 		}
 	}
+	ok($lei->(qw(_complete lei add-external), 'https://'),
+		'add-external hostname completion');
+	is($out, "https://example.com/\n", 'completed up to hostname');
 
 	$lei->('ls-external');
 	like($out, qr!https://example\.com/ibx/!s, 'added canonical URL');
