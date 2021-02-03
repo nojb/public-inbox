@@ -17,9 +17,9 @@ use PublicInbox::IPC qw(ipc_freeze ipc_thaw);
 our @EXPORT_OK = qw(pkt_do);
 
 sub new {
-	my ($cls, $r, $ops, $in_loop) = @_;
-	my $self = bless { sock => $r, ops => $ops, re => [] }, $cls;
-	if ($in_loop) { # iff using DS->EventLoop
+	my ($cls, $r, $ops) = @_;
+	my $self = bless { sock => $r, ops => $ops }, $cls;
+	if ($PublicInbox::DS::in_loop) { # iff using DS->EventLoop
 		$r->blocking(0);
 		$self->SUPER::new($r, EPOLLIN|EPOLLET);
 	}
@@ -28,10 +28,10 @@ sub new {
 
 # returns a blessed object as the consumer, and a GLOB/IO for the producer
 sub pair {
-	my ($cls, $ops, $in_loop) = @_;
+	my ($cls, $ops) = @_;
 	my ($c, $p);
 	socketpair($c, $p, AF_UNIX, SOCK_SEQPACKET, 0) or die "socketpair: $!";
-	(new($cls, $c, $ops, $in_loop), $p);
+	(new($cls, $c, $ops), $p);
 }
 
 sub pkt_do { # for the producer to trigger event_step in consumer

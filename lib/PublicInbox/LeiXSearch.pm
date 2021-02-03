@@ -421,7 +421,7 @@ sub do_query {
 		'' => [ \&query_done, $lei ],
 		'mset_progress' => [ \&mset_progress, $lei ],
 	};
-	(my $op, $lei->{pkt_op}) = PublicInbox::PktOp->pair($ops, !$lei->{oneshot});
+	(my $op, $lei->{pkt_op}) = PublicInbox::PktOp->pair($ops);
 	my ($lei_ipc, @io) = $lei->atfork_parent_wq($self);
 	delete($lei->{pkt_op});
 
