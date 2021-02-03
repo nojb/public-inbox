@@ -507,7 +507,9 @@ EOF
 		$msg .= $rhs;
 		$msg .= "\n";
 	}
-	print { $self->{$errmsg ? 2 : 1} } $msg;
+	my $out = $self->{$errmsg ? 2 : 1};
+	start_pager($self) if -t $out;
+	print $out $msg;
 	x_it($self, $errmsg ? 1 << 8 : 0); # stderr => failure
 	undef;
 }
