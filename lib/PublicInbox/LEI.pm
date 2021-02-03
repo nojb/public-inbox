@@ -299,7 +299,7 @@ sub x_it ($$) {
 		if (my $signum = ($code & 127)) { # usually SIGPIPE (13)
 			$SIG{PIPE} = 'DEFAULT'; # $SIG{$signum} doesn't work
 			kill $signum, $$;
-			sleep; # wait for signal
+			sleep(1) while 1; # wait for signal
 		} else {
 			$quit->($code >> 8);
 		}

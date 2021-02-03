@@ -116,7 +116,7 @@ Falling back to (slow) one-shot mode
 	sigchld();
 	if (my $sig = ($x_it_code & 127)) {
 		kill $sig, $$;
-		sleep;
+		sleep(1) while 1;
 	}
 	exit($x_it_code >> 8);
 } else { # for systems lacking Socket::MsgHdr or Inline::C
