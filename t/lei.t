@@ -14,6 +14,7 @@ require_mods(qw(json DBD::SQLite Search::Xapian));
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 my ($home, $for_destroy) = tmpdir();
 my $err_filter;
+my $curl = which('curl');
 my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
 	http://czquwvybam4bgbro.onion/meta/
 	http://ou63pmih66umazou.onion/meta/);
@@ -39,7 +40,7 @@ local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 local $ENV{HOME} = $home;
 local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
-my $home_trash = [ "$home/.local", "$home/.config" ];
+my $home_trash = [ "$home/.local", "$home/.config", "$home/junk" ];
 my $cleanup = sub { rmtree([@$home_trash, @_]) };
 my $config_file = "$home/.config/lei/config";
 my $store_dir = "$home/.local/share/lei";
@@ -162,26 +163,19 @@ my $setup_publicinboxes = sub {
 my $test_external_remote = sub {
 	my ($url, $k) = @_;
 SKIP: {
-	my $nr = 4;
+	my $nr = 5;
 	skip "$k unset", $nr if !$url;
-	which('curl') or skip 'no curl', $nr;
+	$curl or skip 'no curl', $nr;
 	which('torsocks') or skip 'no torsocks', $nr if $url =~ m!\.onion/!;
-	$lei->('ls-external');
-	for my $e (split(/^/ms, $out)) {
-		$e =~ s/\s+boost.*//s;
-		$lei->('forget-external', '-q', $e) or
-			fail "error forgetting $e: $err"
-	}
-	$lei->('add-external', $url);
 	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
-	ok($lei->('q', '-q', "m:$mid"), "query $url");
+	my @cmd = ('q', '--only', $url, '-q', "m:$mid");
+	ok($lei->(@cmd), "query $url");
 	is($err, '', "no errors on $url");
 	my $res = $json->decode($out);
 	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url");
-	ok($lei->('q', '-q', "m:$mid", 'd:..20101002'), 'no results, no error');
+	ok($lei->(@cmd, 'd:..20101002'), 'no results, no error');
 	is($err, '', 'no output on 404, matching local FS behavior');
 	is($out, "[null]\n", 'got null results');
-	$lei->('forget-external', $url);
 } # /SKIP
 }; # /sub
 
@@ -355,12 +349,21 @@ my $test_completion = sub {
 	}
 };
 
+my $test_fail = sub {
+	$lei->(qw(q --only http://127.0.0.1:99999/bogus/ t:m));
+	is($? >> 8, 3, 'got curl exit for bogus URL');
+	$lei->(qw(q --only http://127.0.0.1:99999/bogus/ t:m -o), "$home/junk");
+	is($? >> 8, 3, 'got curl exit for bogus URL with Maildir');
+	is($out, '', 'no output');
+};
+
 my $test_lei_common = sub {
 	$test_help->();
 	$test_config->();
 	$test_init->();
 	$test_external->();
 	$test_completion->();
+	$test_fail->();
 };
 
 if ($ENV{TEST_LEI_ONESHOT}) {

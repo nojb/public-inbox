@@ -4,8 +4,7 @@
 # op dispatch socket, reads a message, runs a sub
 # There may be multiple producers, but (for now) only one consumer
 # Used for lei_xsearch and maybe other things
-# "literal" => [ sub, @operands ]
-# /regexp/ => [ sub, @operands ]
+# "command" => [ $sub, @fixed_operands ]
 package PublicInbox::PktOp;
 use strict;
 use v5.10.1;
@@ -57,11 +56,19 @@ sub event_step {
 			$self->close;
 			die "recv: $!";
 		}
-		my ($cmd, $pargs) = split(/\0/, $msg, 2);
+		my ($cmd, @pargs);
+		if (index($msg, "\0") > 0) {
+			($cmd, my $pargs) = split(/\0/, $msg, 2);
+			@pargs = @{ipc_thaw($pargs)};
+		} else {
+			# for compatibility with the script/lei in client mode,
+			# it doesn't load Sereal||Storable for startup speed
+			($cmd, @pargs) = split(/ /, $msg);
+		}
 		my $op = $self->{ops}->{$cmd //= $msg};
 		die "BUG: unknown message: `$cmd'" unless $op;
 		my ($sub, @args) = @$op;
-		$sub->(@args, $pargs ? ipc_thaw($pargs) : ());
+		$sub->(@args, @pargs);
 		return $self->close if $msg eq ''; # close on EOF
 	} while (1);
 }

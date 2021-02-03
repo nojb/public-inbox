@@ -216,9 +216,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 			$wcb->(undef, $smsg, $eml);
 		};
 	} elsif ($l2m && $l2m->{-wq_s1}) {
-		my $sock = delete $lei->{sock}; # lei2mail doesn't need it
 		my ($lei_ipc, @io) = $lei->atfork_parent_wq($l2m);
-		$lei->{sock} = $sock if $sock;
 		# $io[0] becomes a notification pipe that triggers EOF
 		# in this wq worker when all outstanding ->write_mail
 		# calls are complete

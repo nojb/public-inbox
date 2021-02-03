@@ -285,8 +285,8 @@ sub x_it ($$) {
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
 	dump_and_clear_log();
-	if (my $sock = $self->{sock}) {
-		send($sock, "x_it $code", MSG_EOR);
+	if (my $s = $self->{pkt_op} // $self->{sock}) {
+		send($s, "x_it $code", MSG_EOR);
 	} elsif ($self->{oneshot}) {
 		# don't want to end up using $? from child processes
 		for my $f (qw(lxs l2m)) {
@@ -339,9 +339,10 @@ sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 
 sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error) = @_; # child_error is $?
-	if (my $sock = $self->{sock}) { # send to lei(1) client
-		send($sock, "child_error $child_error", MSG_EOR);
-	} elsif ($self->{oneshot}) {
+	if (my $s = $self->{pkt_op} // $self->{sock}) {
+		# send to the parent lei-daemon or to lei(1) client
+		send($s, "child_error $child_error", MSG_EOR);
+	} elsif (!$PublicInbox::DS::in_loop) {
 		$self->{child_error} = $child_error;
 	} # else noop if client disconnected
 }
@@ -420,9 +421,9 @@ sub atfork_parent_wq {
 		$lei->{$f} = $wq->deep_clone($tmp);
 	}
 	$self->{env} = $env;
-	delete @$lei{qw(3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
+	delete @$lei{qw(sock 3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
 	my @io = (delete(@$lei{qw(0 1 2)}),
-			io_extract($lei, qw(sock pkt_op startq)));
+			io_extract($lei, qw(pkt_op startq)));
 	my $l2m = $lei->{l2m};
 	if ($l2m && $l2m != $wq) { # $wq == lxs
 		if (my $wq_s1 = $l2m->{-wq_s1}) {
