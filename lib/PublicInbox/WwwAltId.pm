@@ -42,7 +42,7 @@ EOF
 	if ($env->{REQUEST_METHOD} ne 'POST') {
 		my $url = $ibx->base_url($ctx->{env}) . "$altid_pfx.sql.gz";
 		return html_oneshot($ctx, 405, \<<EOF);
-<pre>A POST request required to retrieve $altid_pfx.sql.gz
+<pre>A POST request is required to retrieve $altid_pfx.sql.gz
 
 	curl -d '' -O $url
 
