@@ -165,7 +165,7 @@ EOS
 	; gzip(1), and sqlite3(1) as documented:
 EOF
 		for (sort keys %$altid_map) {
-			$$txt .= "\t;\tcurl -XPOST $base_url$_.sql.gz | \\\n" .
+			$$txt .= "\t;\tcurl -d '' $base_url$_.sql.gz | \\\n" .
 				"\t;\tgzip -dc | \\\n" .
 				"\t;\tsqlite3 $inboxdir/$_.sqlite3\n";
 			$$txt .= "\taltid = serial:$_:file=$_.sqlite3\n";

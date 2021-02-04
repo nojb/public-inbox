@@ -44,11 +44,11 @@ EOF
 		return html_oneshot($ctx, 405, \<<EOF);
 <pre>A POST request required to retrieve $altid_pfx.sql.gz
 
-	curl -XPOST -O $url
+	curl -d '' -O $url
 
 or
 
-	curl -XPOST $url | \\
+	curl -d '' $url | \\
 		gzip -dc | \\
 		sqlite3 /path/to/$altid_pfx.sqlite3
 </pre>
