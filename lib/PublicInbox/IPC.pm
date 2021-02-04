@@ -338,7 +338,6 @@ sub _wq_worker_start ($$$) {
 		srand($seed);
 		eval { PublicInbox::DS->Reset };
 		delete @$self{qw(-wq_s1 -wq_workers -wq_ppid)};
-		@$self{keys %$fields} = values(%$fields) if $fields;
 		$SIG{$_} = 'IGNORE' for (qw(PIPE));
 		$SIG{$_} = 'DEFAULT' for (qw(TTOU TTIN TERM QUIT INT CHLD));
 		local $0 = $self->{-wq_ident};
@@ -346,6 +345,8 @@ sub _wq_worker_start ($$$) {
 		# ensure we properly exit even if warn() dies:
 		my $end = PublicInbox::OnDestroy->new($$, sub { exit(!!$@) });
 		eval {
+			$fields //= {};
+			local @$self{keys %$fields} = values(%$fields);
 			my $on_destroy = $self->ipc_atfork_child;
 			local %SIG = %SIG;
 			wq_worker_loop($self);
