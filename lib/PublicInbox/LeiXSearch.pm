@@ -287,12 +287,15 @@ sub query_remote_mboxrd {
 	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
-sub git {
+# called by LeiOverview::each_smsg_cb
+sub git { $_[0]->{git_tmp} // die 'BUG: caller did not set {git_tmp}' }
+
+sub git_tmp ($) {
 	my ($self) = @_;
 	my (%seen, @dirs);
-	my $tmp = File::Temp->newdir('lei_xsrch_git-XXXXXXXX', TMPDIR => 1);
-	for my $ibx (@{$self->{shard2ibx} // []}) {
-		my $d = File::Spec->canonpath($ibx->git->{git_dir});
+	my $tmp = File::Temp->newdir("lei_xsearch_git.$$-XXXX", TMPDIR => 1);
+	for my $ibxish (locals($self)) {
+		my $d = File::Spec->canonpath($ibxish->git->{git_dir});
 		$seen{$d} //= push @dirs, "$d/objects\n"
 	}
 	my $git_dir = $tmp->dirname;
@@ -427,6 +430,11 @@ sub do_query {
 		pipe($lei->{startq}, $lei->{au_done}) or die "pipe: $!";
 		# 1031: F_SETPIPE_SZ
 		fcntl($lei->{startq}, 1031, 4096) if $^O eq 'linux';
+	}
+	if (!$lei->{opt}->{thread} && locals($self)) { # for query_mset
+		# lei->{git_tmp} is set for wq_wait_old so we don't
+		# delete until all lei2mail + lei_xsearch workers are reaped
+		$lei->{git_tmp} = $self->{git_tmp} = git_tmp($self);
 	}
 	$self->wq_workers_start('lei_xsearch', $self->{jobs},
 				$lei->oldset, { lei => $lei });

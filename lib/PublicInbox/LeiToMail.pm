@@ -490,10 +490,9 @@ sub poke_dst {
 
 sub write_mail { # via ->wq_do
 	my ($self, $git_dir, $smsg) = @_;
-	my $not_done = delete $self->{0} // die 'BUG: $not_done missing';
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
 	git_async_cat($git, $smsg->{blob}, \&git_to_mail,
-				[$self->{wcb}, $smsg, $not_done]);
+				[$self->{wcb}, $smsg]);
 }
 
 sub wq_atexit_child {

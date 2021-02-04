@@ -147,17 +147,6 @@ sub _unbless_smsg {
 
 sub ovv_atexit_child {
 	my ($self, $lei) = @_;
-	if (my $l2m = $lei->{l2m}) {
-		# wait for ->write_mail work we submitted to lei2mail
-		if (my $rd = delete $l2m->{each_smsg_done}) {
-			read($rd, my $buf, 1); # wait for EOF
-		}
-	}
-	# order matters, git->{-tmp}->DESTROY must not fire until
-	# {each_smsg_done} hits EOF above
-	if (my $git = delete $self->{git}) {
-		$git->async_wait_all;
-	}
 	if (my $bref = delete $lei->{ovv_buf}) {
 		my $lk = $self->lock_for_scope;
 		$lei->out($$bref);
@@ -213,19 +202,11 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 			$wcb->(undef, $smsg, $eml);
 		};
 	} elsif ($l2m && $l2m->{-wq_s1}) {
-		# $io->[0] becomes a notification pipe that triggers EOF
-		# in this wq worker when all outstanding ->write_mail
-		# calls are complete
-		my $io = [];
-		pipe($l2m->{each_smsg_done}, $io->[0]) or die "pipe: $!";
-		fcntl($io->[0], 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
-		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
-		$self->{git} = $git;
-		my $git_dir = $git->{git_dir};
+		my $git_dir = $ibxish->git->{git_dir};
 		sub {
 			my ($smsg, $mitem) = @_;
 			$smsg->{pct} = get_pct($mitem) if $mitem;
-			$l2m->wq_do('write_mail', $io, $git_dir, $smsg);
+			$l2m->wq_do('write_mail', [], $git_dir, $smsg);
 		}
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
