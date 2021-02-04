@@ -9,6 +9,9 @@ use PublicInbox::Config;
 use File::Path qw(rmtree);
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Spawn qw(which);
+my $req_sendcmd = 'Socket::MsgHdr or Inline::C missing or unconfigured';
+undef($req_sendcmd) if PublicInbox::Spawn->can('send_cmd4');
+eval { require Socket::MsgHdr; undef $req_sendcmd };
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 my $opt = { 1 => \(my $out = ''), 2 => \(my $err = '') };
@@ -165,6 +168,7 @@ my $test_external_remote = sub {
 SKIP: {
 	my $nr = 5;
 	skip "$k unset", $nr if !$url;
+	skip $req_sendcmd, $nr if $req_sendcmd;
 	$curl or skip 'no curl', $nr;
 	which('torsocks') or skip 'no torsocks', $nr if $url =~ m!\.onion/!;
 	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
@@ -245,6 +249,8 @@ my $test_external = sub {
 	$lei->('ls-external');
 	unlike($out, qr!https://example\.com/ibx/!s, 'removed canonical URL');
 
+SKIP: {
+	skip $req_sendcmd, 52 if $req_sendcmd;
 	ok(!$lei->(qw(q s:prefix -o /dev/null -f maildir)), 'bad maildir');
 	like($err, qr!/dev/null exists and is not a directory!,
 		'error shown');
@@ -342,6 +348,7 @@ my $test_external = sub {
 		$url = $e{$k} if $url eq '1';
 		$test_external_remote->($url, $k);
 	}
+	}; # /SKIP
 };
 
 my $test_completion = sub {
@@ -372,11 +379,14 @@ my $test_completion = sub {
 };
 
 my $test_fail = sub {
+SKIP: {
+	skip $req_sendcmd, 3 if $req_sendcmd;
 	$lei->(qw(q --only http://127.0.0.1:99999/bogus/ t:m));
 	is($? >> 8, 3, 'got curl exit for bogus URL');
 	$lei->(qw(q --only http://127.0.0.1:99999/bogus/ t:m -o), "$home/junk");
 	is($? >> 8, 3, 'got curl exit for bogus URL with Maildir');
 	is($out, '', 'no output');
+}; # /SKIP
 };
 
 my $test_lei_common = sub {
@@ -397,10 +407,7 @@ if ($ENV{TEST_LEI_ONESHOT}) {
 	$test_lei_common->();
 } else {
 SKIP: { # real socket
-	eval { require Socket::MsgHdr; 1 } // do {
-		require PublicInbox::Spawn;
-		PublicInbox::Spawn->can('send_cmd4');
-	} // skip 'Socket::MsgHdr or Inline::C missing or unconfigured', 115;
+	skip $req_sendcmd, 115 if $req_sendcmd;
 	local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/5.seq.sock";
 	my $err_log = "$ENV{XDG_RUNTIME_DIR}/lei/errors.log";
