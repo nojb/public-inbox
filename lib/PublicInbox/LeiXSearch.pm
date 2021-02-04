@@ -414,7 +414,7 @@ sub do_query {
 	};
 	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
 	$lei->{1}->autoflush(1);
-	$lei->start_pager if -t $lei->{1};
+	$lei->start_pager if delete $lei->{need_pager};
 	$lei->{ovv}->ovv_begin($lei);
 	my $l2m = $lei->{l2m};
 	if ($l2m) {

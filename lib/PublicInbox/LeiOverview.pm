@@ -78,9 +78,8 @@ sub new {
 	if ($fmt =~ /\A($JSONL|(?:concat)?json)\z/) {
 		$json = $self->{json} = ref(PublicInbox::Config->json);
 	}
-	my ($isatty, $seekable);
 	if ($dst eq '/dev/stdout') {
-		$isatty = -t $lei->{1};
+		my $isatty = $lei->{need_pager} = -t $lei->{1};
 		$opt->{pretty} //= $isatty;
 		if (!$isatty && -f _) {
 			my $fl = fcntl($lei->{1}, F_GETFL, 0) //
