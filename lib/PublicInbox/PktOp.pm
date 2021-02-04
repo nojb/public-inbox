@@ -48,7 +48,7 @@ sub event_step {
 	my ($self) = @_;
 	my $c = $self->{sock};
 	my $msg;
-	do {
+	while (1) {
 		my $n = recv($c, $msg, 4096, 0);
 		unless (defined $n) {
 			return if $! == EAGAIN;
@@ -70,7 +70,7 @@ sub event_step {
 		my ($sub, @args) = @$op;
 		$sub->(@args, @pargs);
 		return $self->close if $msg eq ''; # close on EOF
-	} while (1);
+	}
 }
 
 1;
