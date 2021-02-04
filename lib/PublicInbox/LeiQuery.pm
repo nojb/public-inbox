@@ -5,7 +5,6 @@
 package PublicInbox::LeiQuery;
 use strict;
 use v5.10.1;
-use PublicInbox::DS qw(dwaitpid);
 
 sub prep_ext { # externals_each callback
 	my ($lxs, $exclude, $loc) = @_;
