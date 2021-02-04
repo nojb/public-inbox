@@ -207,7 +207,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 	}
 	$lei->{ovv_buf} = \(my $buf = '') if !$l2m;
 	if ($l2m && !$ibxish) { # remote https?:// mboxrd
-		delete $l2m->{-wq_s1};
 		my $g2m = $l2m->can('git_to_mail');
 		my $wcb = $l2m->write_cb($lei);
 		sub {
@@ -215,33 +214,20 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 			$wcb->(undef, $smsg, $eml);
 		};
 	} elsif ($l2m && $l2m->{-wq_s1}) {
-		my ($lei_ipc, @io) = $lei->atfork_parent_wq($l2m);
-		# $io[0] becomes a notification pipe that triggers EOF
+		# $io->[0] becomes a notification pipe that triggers EOF
 		# in this wq worker when all outstanding ->write_mail
 		# calls are complete
-		$io[0] = undef;
-		pipe($l2m->{each_smsg_done}, $io[0]) or die "pipe: $!";
-		fcntl($io[0], 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
-		delete @$lei_ipc{qw(l2m opt mset_opt cmd)};
+		my $io = [];
+		pipe($l2m->{each_smsg_done}, $io->[0]) or die "pipe: $!";
+		fcntl($io->[0], 1031, 4096) if $^O eq 'linux'; # F_SETPIPE_SZ
 		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
 		$self->{git} = $git;
 		my $git_dir = $git->{git_dir};
 		sub {
 			my ($smsg, $mitem) = @_;
 			$smsg->{pct} = get_pct($mitem) if $mitem;
-			$l2m->wq_do('write_mail', \@io, $git_dir, $smsg,
-					$lei_ipc);
+			$l2m->wq_do('write_mail', $io, $git_dir, $smsg);
 		}
-	} elsif ($l2m) {
-		my $wcb = $l2m->write_cb($lei);
-		my $git = $ibxish->git; # (LeiXSearch|Inbox|ExtSearch)->git
-		$self->{git} = $git; # for ovv_atexit_child
-		my $g2m = $l2m->can('git_to_mail');
-		sub {
-			my ($smsg, $mitem) = @_;
-			$smsg->{pct} = get_pct($mitem) if $mitem;
-			$git->cat_async($smsg->{blob}, $g2m, [ $wcb, $smsg ]);
-		};
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
 		sub { # DIY prettiness :P
@@ -275,7 +261,9 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 			$lei->out($buf);
 			$buf = '';
 		}
-	} # else { ...
+	} else {
+		die "TODO: unhandled case $self->{fmt}"
+	}
 }
 
 no warnings 'once';

@@ -464,9 +464,6 @@ sub DESTROY {
 	ipc_worker_stop($self);
 }
 
-# Sereal doesn't have dclone
-sub deep_clone { ipc_thaw(ipc_freeze($_[-1])) }
-
 sub detect_nproc () {
 	# _SC_NPROCESSORS_ONLN = 84 on both Linux glibc and musl
 	return POSIX::sysconf(84) if $^O eq 'linux';

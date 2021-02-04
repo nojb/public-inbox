@@ -286,7 +286,7 @@ sub x_it ($$) {
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
 	dump_and_clear_log();
-	if (my $s = $self->{pkt_op} // $self->{sock}) {
+	if (my $s = $self->{pkt_op_p} // $self->{sock}) {
 		send($s, "x_it $code", MSG_EOR);
 	} elsif ($self->{oneshot}) {
 		# don't want to end up using $? from child processes
@@ -322,7 +322,8 @@ sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	err($self, $buf) if defined $buf;
-	send($self->{pkt_op}, '!', MSG_EOR) if $self->{pkt_op}; # fail_handler
+	# calls fail_handler:
+	send($self->{pkt_op_p}, '!', MSG_EOR) if $self->{pkt_op_p};
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
 }
@@ -340,7 +341,7 @@ sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 
 sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error) = @_; # child_error is $?
-	if (my $s = $self->{pkt_op} // $self->{sock}) {
+	if (my $s = $self->{pkt_op_p} // $self->{sock}) {
 		# send to the parent lei-daemon or to lei(1) client
 		send($s, "child_error $child_error", MSG_EOR);
 	} elsif (!$PublicInbox::DS::in_loop) {
@@ -348,92 +349,32 @@ sub child_error { # passes non-fatal curl exit codes to user
 	} # else noop if client disconnected
 }
 
-sub atfork_prepare_wq {
-	my ($self, $wq) = @_;
-	my $tcafc = $wq->{-ipc_atfork_child_close} //= [ $listener // () ];
-	if (my $sock = $self->{sock}) {
-		push @$tcafc, @$self{qw(0 1 2 3)}, $sock;
-	}
-	if (my $pgr = $self->{pgr}) {
-		push @$tcafc, @$pgr[1,2];
-	}
-	if (my $old_1 = $self->{old_1}) {
-		push @$tcafc, $old_1;
-	}
-	for my $f (qw(lxs l2m)) {
-		my $ipc = $self->{$f} or next;
-		push @$tcafc, grep { defined }
-				@$ipc{qw(-wq_s1 -wq_s2 -ipc_req -ipc_res)};
-	}
-}
-
-sub io_restore ($$) {
-	my ($dst, $src) = @_;
-	for my $i (0..2) { # standard FDs
-		my $io = delete $src->{$i} or next;
-		$dst->{$i} = $io;
-	}
-	for my $i (3..9) { # named (non-standard) FDs
-		my $io = $src->{$i} or next;
-		my @st = stat($io) or die "stat $src.$i ($io): $!";
-		my $f = delete $dst->{"dev=$st[0],ino=$st[1]"} // next;
-		$dst->{$f} = $io;
-		delete $src->{$i};
-	}
-}
-
 sub note_sigpipe { # triggers sigpipe_handler
 	my ($self, $fd) = @_;
 	close(delete($self->{$fd})); # explicit close silences Perl warning
-	send($self->{pkt_op}, '|', MSG_EOR) if $self->{pkt_op};
+	send($self->{pkt_op_p}, '|', MSG_EOR) if $self->{pkt_op_p};
 	x_it($self, 13);
 }
 
-sub atfork_child_wq {
-	my ($self, $wq) = @_;
-	io_restore($self, $wq);
-	-S $self->{pkt_op} or die 'BUG: {pkt_op} expected';
-	io_restore($self->{l2m}, $wq);
+sub lei_atfork_child {
+	my ($self) = @_;
+	# we need to explicitly close things which are on stack
+	delete $self->{0};
+	for (delete @$self{qw(3 sock old_1 au_done)}) {
+		close($_) if defined($_);
+	}
+	if (my $op_c = delete $self->{pkt_op_c}) {
+		close(delete $op_c->{sock});
+	}
+	if (my $pgr = delete $self->{pgr}) {
+		close($_) for (@$pgr[1,2]);
+	}
+	close $listener if $listener;
+	undef $listener;
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
 	$current_lei = $self; # for SIG{__WARN__}
-}
-
-sub io_extract ($;@) {
-	my ($obj, @fields) = @_;
-	my @io;
-	for my $f (@fields) {
-		my $io = delete $obj->{$f} or next;
-		my @st = stat($io) or die "W: stat $obj.$f ($io): $!";
-		$obj->{"dev=$st[0],ino=$st[1]"} = $f;
-		push @io, $io;
-	}
-	@io
-}
-
-# usage: ($lei, @io) = $lei->atfork_parent_wq($wq);
-sub atfork_parent_wq {
-	my ($self, $wq) = @_;
-	my $env = delete $self->{env}; # env is inherited at fork
-	my $lei = bless { %$self }, ref($self);
-	for my $f (qw(dedupe ovv)) {
-		my $tmp = delete($lei->{$f}) or next;
-		$lei->{$f} = $wq->deep_clone($tmp);
-	}
-	$self->{env} = $env;
-	delete @$lei{qw(sock 3 -lei_store cfg old_1 pgr lxs)}; # keep l2m
-	my @io = (delete(@$lei{qw(0 1 2)}),
-			io_extract($lei, qw(pkt_op startq)));
-	my $l2m = $lei->{l2m};
-	if ($l2m && $l2m != $wq) { # $wq == lxs
-		if (my $wq_s1 = $l2m->{-wq_s1}) {
-			push @io, io_extract($l2m, '-wq_s1');
-			$l2m->{-wq_s1} = $wq_s1;
-		}
-		$l2m->wq_close(1);
-	}
-	($lei, @io);
 }
 
 sub _help ($;$) {
