@@ -406,7 +406,13 @@ sub do_query {
 	$lei->{ovv}->ovv_begin($lei);
 	my ($au_done, $zpipe);
 	my $l2m = $lei->{l2m};
+	$lei->atfork_prepare_wq($self);
+	$self->wq_workers_start('lei_xsearch', $self->{jobs}, $lei->oldset);
+	delete $self->{-ipc_atfork_child_close};
 	if ($l2m) {
+		$lei->atfork_prepare_wq($l2m);
+		$l2m->wq_workers_start('lei2mail', $l2m->{jobs}, $lei->oldset);
+		delete $l2m->{-ipc_atfork_child_close};
 		pipe($lei->{startq}, $au_done) or die "pipe: $!";
 		# 1031: F_SETPIPE_SZ
 		fcntl($lei->{startq}, 1031, 4096) if $^O eq 'linux';
