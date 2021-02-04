@@ -10,6 +10,7 @@ our @EXPORT_OK = qw(setup_signals);
 use PublicInbox::Config;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::Eml;
 *rel2abs_collapsed = \&PublicInbox::Config::rel2abs_collapsed;
 
 sub setup_signals {
@@ -241,12 +242,10 @@ sub index_inbox {
 	}
 	local %SIG = %SIG;
 	setup_signals(\&index_terminate, $ibx);
-	my $warn_cb = $SIG{__WARN__} // \&CORE::warn;
 	my $idx = { current_info => $ibx->{inboxdir} };
-	my $warn_ignore = PublicInbox::InboxWritable->can('warn_ignore');
 	local $SIG{__WARN__} = sub {
-		return if $warn_ignore->(@_);
-		$warn_cb->($idx->{current_info}, ': ', @_);
+		return if PublicInbox::Eml::warn_ignore(@_);
+		warn($idx->{current_info}, ': ', @_);
 	};
 	if (ref($ibx) && $ibx->version == 2) {
 		eval { require PublicInbox::V2Writable };

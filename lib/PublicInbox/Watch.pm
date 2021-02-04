@@ -7,7 +7,7 @@ package PublicInbox::Watch;
 use strict;
 use v5.10.1;
 use PublicInbox::Eml;
-use PublicInbox::InboxWritable qw(eml_from_path warn_ignore_cb);
+use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
 use PublicInbox::Sigfd;
@@ -174,7 +174,7 @@ sub _remove_spam {
 	# path must be marked as (S)een
 	$path =~ /:2,[A-R]*S[T-Za-z]*\z/ or return;
 	my $eml = eml_from_path($path) or return;
-	local $SIG{__WARN__} = warn_ignore_cb();
+	local $SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->{pi_cfg}->each_inbox(\&remove_eml_i, $self, $eml, $path);
 }
 
@@ -414,13 +414,11 @@ sub imap_import_msg ($$$$$) {
 			import_eml($self, $ibx, $eml);
 		}
 	} elsif ($inboxes eq 'watchspam') {
-		# we don't remove unseen messages
-		if ($flags =~ /\\Seen\b/) {
-			local $SIG{__WARN__} = warn_ignore_cb();
-			my $eml = PublicInbox::Eml->new($raw);
-			$self->{pi_cfg}->each_inbox(\&remove_eml_i,
+		return if $flags !~ /\\Seen\b/; # don't remove unseen messages
+		local $SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
+		my $eml = PublicInbox::Eml->new($raw);
+		$self->{pi_cfg}->each_inbox(\&remove_eml_i,
 						$self, $eml, "$url UID:$uid");
-		}
 	} else {
 		die "BUG: destination unknown $inboxes";
 	}

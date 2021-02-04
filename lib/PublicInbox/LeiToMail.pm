@@ -472,6 +472,7 @@ sub ipc_atfork_child {
 		close $zpipe->[0];
 	}
 	$self->{wcb} = $self->write_cb($lei);
+	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
 
