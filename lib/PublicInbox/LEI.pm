@@ -739,6 +739,7 @@ sub start_mua {
 	} elsif ($self->{oneshot}) {
 		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);
 	}
+	delete $self->{-progress};
 }
 
 # caller needs to "-t $self->{1}" to check if tty

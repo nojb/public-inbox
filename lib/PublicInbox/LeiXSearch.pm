@@ -308,13 +308,13 @@ sub git {
 
 sub query_done { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $has_l2m = exists $lei->{l2m};
-	for my $f (qw(lxs l2m)) {
-		my $wq = delete $lei->{$f} or next;
-		$wq->wq_wait_old($lei);
+	my $l2m = delete $lei->{l2m};
+	$l2m->wq_wait_old($lei) if $l2m;
+	if (my $lxs = delete $lei->{lxs}) {
+		$lxs->wq_wait_old($lei);
 	}
 	$lei->{ovv}->ovv_end($lei);
-	if ($has_l2m) { # close() calls LeiToMail reap_compress
+	if ($l2m) { # close() calls LeiToMail reap_compress
 		if (my $out = delete $lei->{old_1}) {
 			if (my $mbout = $lei->{1}) {
 				close($mbout) or return $lei->fail(<<"");
@@ -323,7 +323,7 @@ Error closing $lei->{ovv}->{dst}: $!
 			}
 			$lei->{1} = $out;
 		}
-		$lei->start_mua;
+		$l2m->lock_free ? $l2m->poke_dst : $lei->start_mua;
 	}
 	$lei->{-progress} and
 		$lei->err('# ', $lei->{-mset_total} // 0, " matches");
@@ -355,6 +355,9 @@ sub concurrency {
 
 sub start_query { # always runs in main (lei-daemon) process
 	my ($self, $lei) = @_;
+	if (my $l2m = $lei->{l2m}) {
+		$lei->start_mua if $l2m->lock_free;
+	}
 	if ($lei->{opt}->{thread}) {
 		for my $ibxish (locals($self)) {
 			$self->wq_do('query_thread_mset', [], $ibxish);

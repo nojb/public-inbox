@@ -365,6 +365,7 @@ sub new {
 	} else {
 		die "bad mail --format=$fmt\n";
 	}
+	$self->{dst} = $dst;
 	$lei->{dedupe} = PublicInbox::LeiDedupe->new($lei);
 	$self;
 }
@@ -472,6 +473,18 @@ sub ipc_atfork_child {
 	}
 	$self->{wcb} = $self->write_cb($lei);
 	$self->SUPER::ipc_atfork_child;
+}
+
+sub lock_free {
+	$_[0]->{base_type} =~ /\A(?:maildir|mh|imap|jmap)\z/ ? 1 : 0;
+}
+
+sub poke_dst {
+	my ($self) = @_;
+	if ($self->{base_type} eq 'maildir') {
+		my $t = time + 1;
+		utime($t, $t, "$self->{dst}/cur");
+	}
 }
 
 sub write_mail { # via ->wq_do
