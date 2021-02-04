@@ -389,6 +389,20 @@ SKIP: {
 }; # /SKIP
 };
 
+my $test_import = sub {
+	$cleanup->();
+	ok($lei->(qw(q s:boolean)), 'search miss before import');
+	unlike($out, qr/boolean/i, 'no results, yet');
+	open my $fh, '<', 't/data/0001.patch' or BAIL_OUT $!;
+	ok($lei->([qw(import -f eml -)], undef, { %$opt, 0 => $fh }),
+		'import single file from stdin');
+	close $fh;
+	ok($lei->(qw(q s:boolean)), 'search hit after import');
+	ok($lei->(qw(import -f eml), 't/data/message_embed.eml'),
+		'import single file by path');
+	$cleanup->();
+};
+
 my $test_lei_common = sub {
 	$test_help->();
 	$test_config->();
@@ -396,6 +410,7 @@ my $test_lei_common = sub {
 	$test_external->();
 	$test_completion->();
 	$test_fail->();
+	$test_import->();
 };
 
 if ($ENV{TEST_LEI_ONESHOT}) {

@@ -17,6 +17,7 @@ use PublicInbox::V2Writable;
 use PublicInbox::ContentHash qw(content_hash content_digest);
 use PublicInbox::MID qw(mids mids_in);
 use PublicInbox::LeiSearch;
+use PublicInbox::MDA;
 use List::Util qw(max);
 
 sub new {
@@ -235,6 +236,23 @@ sub done {
 	}
 	$self->{priv_eidx}->done;
 	die $err if $err;
+}
+
+sub ipc_atfork_child {
+	my ($self) = @_;
+	my $lei = delete $self->{lei};
+	$lei->lei_atfork_child(1) if $lei;
+	$self->SUPER::ipc_atfork_child;
+}
+
+sub write_prepare {
+	my ($self, $lei) = @_;
+	$self->ipc_lock_init;
+	# Mail we import into lei are private, so headers filtered out
+	# by -mda for public mail are not appropriate
+	local @PublicInbox::MDA::BAD_HEADERS = ();
+	$self->ipc_worker_spawn('lei_store', $lei->oldset, { lei => $lei });
+	$lei->{sto} = $self;
 }
 
 1;

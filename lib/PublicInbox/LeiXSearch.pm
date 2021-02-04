@@ -392,25 +392,11 @@ sub query_prepare { # called by wq_do
 	pkt_do($lei->{pkt_op_p}, '.') == 1 or die "do_post_augment trigger: $!"
 }
 
-sub fail_handler ($;$$) {
-	my ($lei, $code, $io) = @_;
-	for my $f (qw(lxs l2m)) {
-		my $wq = delete $lei->{$f} or next;
-		$wq->wq_wait_old($lei) if $wq->wq_kill_old; # lei-daemon
-	}
-	close($io) if $io; # needed to avoid warnings on SIGPIPE
-	$lei->x_it($code // (1 >> 8));
-}
-
-sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
-	fail_handler($_[0], 13, delete $_[0]->{1});
-}
-
 sub do_query {
 	my ($self, $lei) = @_;
 	my $ops = {
-		'|' => [ \&sigpipe_handler, $lei ],
-		'!' => [ \&fail_handler, $lei ],
+		'|' => [ $lei->can('sigpipe_handler'), $lei ],
+		'!' => [ $lei->can('fail_handler'), $lei ],
 		'.' => [ \&do_post_augment, $lei ],
 		'' => [ \&query_done, $lei ],
 		'mset_progress' => [ \&mset_progress, $lei ],

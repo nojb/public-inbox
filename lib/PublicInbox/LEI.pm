@@ -160,9 +160,10 @@ our %CMD = ( # sorted in order of importance/use:
 'forget-watch' => [ '{WATCH_NUMBER|--prune}', 'stop and forget a watch',
 	qw(prune) ],
 
-'import' => [ 'URL_OR_PATHNAME|--stdin',
-	'one-shot import/update from URL or filesystem',
-	qw(stdin| offset=i recursive|r exclude=s include=s !flags),
+'import' => [ 'URLS_OR_PATHNAMES...|--stdin',
+	'one-time import/update from URL or filesystem',
+	qw(stdin| offset=i recursive|r exclude=s include|I=s
+	format|f=s flags!),
 	],
 
 'config' => [ '[...]', sub {
@@ -194,8 +195,8 @@ our %CMD = ( # sorted in order of importance/use:
 # $spec => [@ALLOWED_VALUES (default is first), $description],
 # $spec => $description
 # "$SUB_COMMAND TAB $spec" => as above
-my $stdin_formats = [ 'IN|auto|raw|mboxrd|mboxcl2|mboxcl|mboxo',
-		'specify message input format' ];
+my $stdin_formats = [ 'MAIL_FORMAT|eml|mboxrd|mboxcl2|mboxcl|mboxo',
+			'specify message input format' ];
 my $ls_format = [ 'OUT|plain|json|null', 'listing output format' ];
 
 my %OPTDESC = (
@@ -239,6 +240,8 @@ my %OPTDESC = (
 
 'q	jobs=s'	=> [ '[SEARCH_JOBS][,WRITER_JOBS]',
 		'control number of search and writer jobs' ],
+
+'import format|f=s' => $stdin_formats,
 
 'ls-query	format|f=s' => $ls_format,
 'ls-external	format|f=s' => $ls_format,
@@ -319,6 +322,20 @@ sub err ($;@) {
 
 sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 
+sub fail_handler ($;$$) {
+	my ($lei, $code, $io) = @_;
+	for my $f (qw(imp lxs l2m)) {
+		my $wq = delete $lei->{$f} or next;
+		$wq->wq_wait_old($lei) if $wq->wq_kill_old; # lei-daemon
+	}
+	close($io) if $io; # needed to avoid warnings on SIGPIPE
+	$lei->x_it($code // (1 >> 8));
+}
+
+sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
+	fail_handler($_[0], 13, delete $_[0]->{1});
+}
+
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	err($self, $buf) if defined $buf;
@@ -340,7 +357,8 @@ sub out ($;@) {
 sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 
 sub child_error { # passes non-fatal curl exit codes to user
-	my ($self, $child_error) = @_; # child_error is $?
+	my ($self, $child_error, $msg) = @_; # child_error is $?
+	$self->err($msg) if $msg;
 	if (my $s = $self->{pkt_op_p} // $self->{sock}) {
 		# send to the parent lei-daemon or to lei(1) client
 		send($s, "child_error $child_error", MSG_EOR);
@@ -357,9 +375,16 @@ sub note_sigpipe { # triggers sigpipe_handler
 }
 
 sub lei_atfork_child {
-	my ($self) = @_;
+	my ($self, $persist) = @_;
 	# we need to explicitly close things which are on stack
-	delete $self->{0};
+	if ($persist) {
+		my @io = delete @$self{0,1,2};
+		unless ($self->{oneshot}) {
+			close($_) for @io;
+		}
+	} else {
+		delete $self->{0};
+	}
 	for (delete @$self{qw(3 sock old_1 au_done)}) {
 		close($_) if defined($_);
 	}
@@ -374,7 +399,7 @@ sub lei_atfork_child {
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
-	$current_lei = $self; # for SIG{__WARN__}
+	$current_lei = $persist ? undef : $self; # for SIG{__WARN__}
 }
 
 sub _help ($;$) {
@@ -604,6 +629,11 @@ sub lei_config {
 		"config file switches not supported by `lei config'";
 	_config(@_);
 	x_it($self, $?) if $?;
+}
+
+sub lei_import {
+	require PublicInbox::LeiImport;
+	PublicInbox::LeiImport->call(@_);
 }
 
 sub lei_init {

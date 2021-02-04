@@ -101,7 +101,7 @@ sub ipc_worker_loop ($$$) {
 
 # starts a worker if Sereal or Storable is installed
 sub ipc_worker_spawn {
-	my ($self, $ident, $oldset) = @_;
+	my ($self, $ident, $oldset, $fields) = @_;
 	return unless $enc; # no Sereal or Storable
 	return if ($self->{-ipc_ppid} // -1) == $$; # idempotent
 	delete(@$self{qw(-ipc_req -ipc_res -ipc_ppid -ipc_pid)});
@@ -123,6 +123,8 @@ sub ipc_worker_spawn {
 		# ensure we properly exit even if warn() dies:
 		my $end = PublicInbox::OnDestroy->new($$, sub { exit(!!$@) });
 		eval {
+			$fields //= {};
+			local @$self{keys %$fields} = values(%$fields);
 			my $on_destroy = $self->ipc_atfork_child;
 			local %SIG = %SIG;
 			ipc_worker_loop($self, $r_req, $w_res);
