@@ -77,6 +77,11 @@ EOF
 {
 	my $fh = popen_rd([qw(printf foo\nbar)]);
 	ok(fileno($fh) >= 0, 'tied fileno works');
+	my $tfh = (tied *$fh)->{fh};
+	is($tfh->blocking(0), 1, '->blocking was true');
+	is($tfh->blocking, 0, '->blocking is false');
+	is($tfh->blocking(1), 0, '->blocking was true');
+	is($tfh->blocking, 1, '->blocking is true');
 	my @line = <$fh>;
 	is_deeply(\@line, [ "foo\n", 'bar' ], 'wantarray works on readline');
 }

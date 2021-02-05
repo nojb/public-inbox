@@ -37,7 +37,8 @@ sub new {
 		arg => $arg, # arg for $cb
 		end_obj => $end_obj, # like END{}, can ->event_step
 	}, $class;
-	IO::Handle::blocking($io, 0);
+	my $pp = tied *$io;
+	$pp->{fh}->blocking(0) // die "$io->blocking(0): $!";
 	$self->SUPER::new($io, EPOLLIN | EPOLLET);
 }
 
