@@ -8,6 +8,10 @@ use v5.10.1;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::Config;
 
+my %lei2curl = (
+	'curl-config=s@' => 'config|K=s@',
+);
+
 # prepares a common command for curl(1) based on $lei command
 sub new {
 	my ($cls, $lei, $curl) = @_;
@@ -17,6 +21,9 @@ sub new {
 	$cmd[-1] .= 's' if $opt->{quiet}; # already the default for "lei q"
 	$cmd[-1] .= 'v' if $opt->{verbose}; # we use ourselves, too
 	for my $o ($lei->curl_opt) {
+		if (my $lei_spec = $lei2curl{$o}) {
+			$o = $lei_spec;
+		}
 		$o =~ s/\|[a-z0-9]\b//i; # remove single char short option
 		if ($o =~ s/=[is]@\z//) {
 			my $ary = $opt->{$o} or next;

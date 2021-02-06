@@ -155,9 +155,12 @@ sub _complete_q {
 # TODO: should we depend on "-c http.*" options for things which have
 # analogues in git(1)? that would reduce likelyhood of conflicts with
 # our other CLI options
+# Note: some names are renamed to avoid potential conflicts,
+# see %lei2mail in lib/PublicInbox/LeiCurl.pm
 sub curl_opt { qw(
+	curl-config=s@
 	abstract-unix-socket=s anyauth basic cacert=s capath=s
-	cert-status cert-type cert=s ciphers=s config|K=s@
+	cert-status cert-type cert=s ciphers=s
 	connect-timeout=s connect-to=s cookie-jar=s cookie=s crlfile=s
 	digest disable dns-interface=s dns-ipv4-addr=s dns-ipv6-addr=s
 	dns-servers=s doh-url=s egd-file=s engine=s false-start
