@@ -172,6 +172,9 @@ WriteMakefile(
 		# ExtUtils::MakeMaker # this file won't run w/o it...
 	},
 	MAN3PODS => \%man3,
+	clean => {
+		FILES => 't/home1/setup* t/home1/t* t/home1/.public-inbox'
+	},
 );
 
 sub MY::postamble {

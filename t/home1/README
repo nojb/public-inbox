@@ -1,0 +1,8 @@
+This directory is for read-only test inboxes and will be shared
+between various tests.
+
+See setup_publicinboxes() in lib/PublicInbox/TestCommon.pm.
+
+It is versioned (currently "1" in "home1") and will be renamed
+"home2" and so forth if the data created by setup_publicinboxes()
+changes.

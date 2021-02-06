@@ -9,37 +9,6 @@ my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
 	http://czquwvybam4bgbro.onion/meta/
 	http://ou63pmih66umazou.onion/meta/);
 
-# TODO share this across tests, it takes ~300ms
-my $setup_publicinboxes = sub {
-	my ($home) = @_;
-	use PublicInbox::InboxWritable;
-	for my $V (1, 2) {
-		run_script([qw(-init), "-V$V", "t$V",
-				'--newsgroup', "t.$V",
-				"$home/t$V", "http://example.com/t$V",
-				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
-	}
-	my $cfg = PublicInbox::Config->new;
-	my $seen = 0;
-	$cfg->each_inbox(sub {
-		my ($ibx) = @_;
-		my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
-		my $V = $ibx->version;
-		my @eml = (glob('t/*.eml'), 't/data/0001.patch');
-		for (@eml) {
-			next if $_ eq 't/psgi_v2-old.eml'; # dup mid
-			$im->add(eml_load($_)) or BAIL_OUT "v$V add $_";
-			$seen++;
-		}
-		$im->done;
-		if ($V == 1) {
-			run_script(['-index', $ibx->{inboxdir}]) or
-				BAIL_OUT 'index v1';
-		}
-	});
-	$seen || BAIL_OUT 'no imports';
-};
-
 my $test_external_remote = sub {
 	my ($url, $k) = @_;
 SKIP: {
@@ -59,9 +28,9 @@ SKIP: {
 } # /SKIP
 }; # /sub
 
+my ($ro_home, $cfg_path) = setup_public_inboxes;
 test_lei(sub {
 	my $home = $ENV{HOME};
-	$setup_publicinboxes->($home);
 	my $config_file = "$home/.config/lei/config";
 	my $store_dir = "$home/.local/share/lei";
 	ok($lei->('ls-external'), 'ls-external works');
@@ -73,7 +42,7 @@ test_lei(sub {
 		"fails on non-existent dir");
 	ok($lei->('ls-external'), 'ls-external works after add failure');
 	is($lei_out.$lei_err, '', 'ls-external still has no output');
-	my $cfg = PublicInbox::Config->new;
+	my $cfg = PublicInbox::Config->new($cfg_path);
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;
 		ok($lei->(qw(add-external -q), $ibx->{inboxdir}),

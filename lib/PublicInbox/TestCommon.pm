@@ -13,7 +13,7 @@ our @EXPORT;
 BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
-		have_xapian_compact json_utf8
+		have_xapian_compact json_utf8 setup_public_inboxes
 		test_lei $lei $lei_out $lei_err $lei_opt);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
@@ -498,7 +498,53 @@ EOM
 		ok(!kill(0, $daemon_pid), "$t daemon stopped after oneshot");
 	}
 }; # SKIP if missing git 2.6+ || Xapian || SQLite || json
-}
+} # /test_lei
+
+# returns the pathname to a ~/.public-inbox/config in scalar context,
+# ($test_home, $pi_config_pathname) in list context
+sub setup_public_inboxes () {
+	my $test_home = "t/home1";
+	my $pi_config = "$test_home/.public-inbox/config";
+	my $stamp = "$test_home/setup-stamp";
+	my @ret = ($test_home, $pi_config);
+	return @ret if -f $stamp;
+
+	require PublicInbox::Lock;
+	my $lk = bless { lock_path => "$test_home/setup.lock" },
+			'PublicInbox::Lock';
+	my $end = $lk->lock_for_scope;
+	return @ret if -f $stamp;
+
+	require PublicInbox::InboxWritable;
+	local $ENV{PI_CONFIG} = $pi_config;
+	for my $V (1, 2) {
+		run_script([qw(-init), "-V$V", "t$V",
+				'--newsgroup', "t.$V",
+				"$test_home/t$V", "http://example.com/t$V",
+				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
+	}
+	my $cfg = PublicInbox::Config->new;
+	my $seen = 0;
+	$cfg->each_inbox(sub {
+		my ($ibx) = @_;
+		my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
+		my $V = $ibx->version;
+		my @eml = (glob('t/*.eml'), 't/data/0001.patch');
+		for (@eml) {
+			next if $_ eq 't/psgi_v2-old.eml'; # dup mid
+			$im->add(eml_load($_)) or BAIL_OUT "v$V add $_";
+			$seen++;
+		}
+		$im->done;
+		if ($V == 1) {
+			run_script(['-index', $ibx->{inboxdir}]) or
+				BAIL_OUT 'index v1';
+		}
+	});
+	$seen or BAIL_OUT 'no imports';
+	open my $fh, '>', $stamp or BAIL_OUT "open $stamp: $!";
+	@ret;
+};
 
 package PublicInboxTestProcess;
 use strict;
