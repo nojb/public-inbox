@@ -152,18 +152,21 @@ sub _complete_q {
 # with other "lei q" switches.
 # FIXME: Getopt::Long doesn't easily let us support support options with
 # '.' in them (e.g. --http1.1)
+# TODO: should we depend on "-c http.*" options for things which have
+# analogues in git(1)? that would reduce likelyhood of conflicts with
+# our other CLI options
 sub curl_opt { qw(
 	abstract-unix-socket=s anyauth basic cacert=s capath=s
-	cert-status cert-type cert|E=s ciphers=s config|K=s@
-	connect-timeout=s connect-to=s cookie-jar|c=s cookie|b=s crlfile=s
+	cert-status cert-type cert=s ciphers=s config|K=s@
+	connect-timeout=s connect-to=s cookie-jar=s cookie=s crlfile=s
 	digest disable dns-interface=s dns-ipv4-addr=s dns-ipv6-addr=s
 	dns-servers=s doh-url=s egd-file=s engine=s false-start
 	happy-eyeballs-timeout-ms=s haproxy-protocol header|H=s@
-	http2-prior-knowledge http2 insecure|k
+	http2-prior-knowledge http2 insecure
 	interface=s ipv4 ipv6 junk-session-cookies
-	key-type=s key=s limit-rate=s local-port=s location-trusted location|L
+	key-type=s key=s limit-rate=s local-port=s location-trusted location
 	max-redirs=i max-time=s negotiate netrc-file=s netrc-optional netrc
-	no-alpn no-buffer|N no-npn no-sessionid noproxy=s ntlm-wb ntlm
+	no-alpn no-buffer no-npn no-sessionid noproxy=s ntlm-wb ntlm
 	pass=s pinnedpubkey=s post301 post302 post303 preproxy=s
 	proxy-anyauth proxy-basic proxy-cacert=s proxy-capath=s
 	proxy-cert-type=s proxy-cert=s proxy-ciphers=s proxy-crlfile=s
@@ -176,7 +179,7 @@ sub curl_opt { qw(
 	retry-connrefused retry-delay=s retry-max-time=s retry=i
 	sasl-ir service-name=s socks4=s socks4a=s socks5-basic
 	socks5-gssapi-service-name=s socks5-gssapi socks5-hostname=s socks5=s
-	speed-limit|Y speed-type|y ssl-allow-beast sslv2 sslv3
+	speed-limit speed-type ssl-allow-beast sslv2 sslv3
 	suppress-connect-headers tcp-fastopen tls-max=s
 	tls13-ciphers=s tlsauthtype=s tlspassword=s tlsuser=s
 	tlsv1 trace-ascii=s trace-time trace=s
