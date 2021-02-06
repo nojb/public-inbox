@@ -32,7 +32,7 @@ use Scalar::Util qw(blessed);
 use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::Tmpfile;
 use Errno qw(EAGAIN EINVAL);
-use Carp qw(confess carp);
+use Carp qw(carp);
 our @EXPORT_OK = qw(now msg_more dwaitpid);
 
 my $nextq; # queue for next_tick
@@ -335,9 +335,9 @@ retry:
             $ev &= ~EPOLLEXCLUSIVE;
             goto retry;
         }
-        die "couldn't add epoll watch for $fd: $!\n";
+        die "EPOLL_CTL_ADD $self/$sock/$fd: $!";
     }
-    confess("DescriptorMap{$fd} defined ($DescriptorMap{$fd})")
+    croak("FD:$fd in use by $DescriptorMap{$fd} (for $self/$sock)")
         if defined($DescriptorMap{$fd});
 
     $DescriptorMap{$fd} = $self;
@@ -368,7 +368,7 @@ sub close {
     # notifications about it
     my $fd = fileno($sock);
     epoll_ctl($Epoll, EPOLL_CTL_DEL, $fd, 0) and
-        confess("EPOLL_CTL_DEL: $!");
+        croak("EPOLL_CTL_DEL($self/$sock): $!");
 
     # we explicitly don't delete from DescriptorMap here until we
     # actually close the socket, as we might be in the middle of
@@ -587,7 +587,7 @@ sub msg_more ($$) {
 sub epwait ($$) {
     my ($sock, $ev) = @_;
     epoll_ctl($Epoll, EPOLL_CTL_MOD, fileno($sock), $ev) and
-        confess("EPOLL_CTL_MOD $!");
+        croak("EPOLL_CTL_MOD($sock): $!");
 }
 
 # return true if complete, false if incomplete (or failure)

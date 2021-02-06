@@ -456,7 +456,7 @@ sub dbh_close {
 sub create {
 	my ($self) = @_;
 	my $fn = $self->{filename} // do {
-		Carp::confess('BUG: no {filename}') unless $self->{dbh};
+		croak('BUG: no {filename}') unless $self->{dbh};
 		return;
 	};
 	unless (-r $fn) {

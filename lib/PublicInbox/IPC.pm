@@ -11,7 +11,7 @@ package PublicInbox::IPC;
 use strict;
 use v5.10.1;
 use parent qw(Exporter);
-use Carp qw(confess croak);
+use Carp qw(croak);
 use PublicInbox::DS qw(dwaitpid);
 use PublicInbox::Spawn;
 use PublicInbox::OnDestroy;

@@ -332,7 +332,7 @@ sub body_set {
 sub body_str_set {
 	my ($self, $body_str) = @_;
 	my $charset = ct($self)->{attributes}->{charset} or
-		Carp::confess('body_str was given, but no charset is defined');
+		croak('body_str was given, but no charset is defined');
 	body_set($self, \(encode($charset, $body_str, Encode::FB_CROAK)));
 }
 
@@ -454,7 +454,7 @@ sub body_str {
 		if ($STR_TYPE{$ct->{type}} && $STR_SUBTYPE{$ct->{subtype}}) {
 			return body($self);
 		}
-		Carp::confess("can't get body as a string for ",
+		croak("can't get body as a string for ",
 			join("\n\t", header_raw($self, 'Content-Type')));
 	}
 	decode($charset, body($self), Encode::FB_CROAK);
