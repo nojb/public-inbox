@@ -461,8 +461,9 @@ SKIP: {
 Socket::MsgHdr missing or Inline::C is unconfigured/missing
 EOM
 	$lei_opt = { 1 => \$lei_out, 2 => \$lei_err };
-	my $daemon_pid;
-	my ($tmpdir, $for_destroy) = tmpdir();
+	my ($daemon_pid, $for_destroy);
+	my $tmpdir = $test_opt->{tmpdir};
+	($tmpdir, $for_destroy) = tmpdir unless $tmpdir;
 	SKIP: {
 		skip 'TEST_LEI_ONESHOT set', 1 if $ENV{TEST_LEI_ONESHOT};
 		my $home = "$tmpdir/lei-daemon";

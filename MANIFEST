@@ -177,9 +177,11 @@ lib/PublicInbox/InputPipe.pm
 lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/LEI.pm
+lib/PublicInbox/LeiCurl.pm
 lib/PublicInbox/LeiDedupe.pm
 lib/PublicInbox/LeiExternal.pm
 lib/PublicInbox/LeiImport.pm
+lib/PublicInbox/LeiMirror.pm
 lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiQuery.pm
 lib/PublicInbox/LeiSearch.pm
@@ -357,6 +359,7 @@ t/kqnotify.t
 t/lei-daemon.t
 t/lei-externals.t
 t/lei-import.t
+t/lei-mirror.t
 t/lei.t
 t/lei_dedupe.t
 t/lei_external.t

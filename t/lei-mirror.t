@@ -1,0 +1,24 @@
+#!perl -w
+# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+use strict; use v5.10.1; use PublicInbox::TestCommon;
+my $sock = tcp_server();
+my ($tmpdir, $for_destroy) = tmpdir();
+my $http = 'http://'.$sock->sockhost.':'.$sock->sockport.'/';
+my ($ro_home, $cfg_path) = setup_public_inboxes;
+my $cmd = [ qw(-httpd -W0), "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
+my $td = start_script($cmd, { PI_CONFIG => $cfg_path }, { 3 => $sock });
+test_lei({ tmpdir => $tmpdir }, sub {
+	my $home = $ENV{HOME};
+	my $t1 = "$home/t1-mirror";
+	ok($lei->('add-external', $t1, '--mirror', "$http/t1/"), '--mirror v1');
+	ok(-f "$t1/public-inbox/msgmap.sqlite3", 't1-mirror indexed');
+	my $t2 = "$home/t2-mirror";
+	ok($lei->('add-external', $t2, '--mirror', "$http/t2/"), '--mirror v2');
+	ok(-f "$t2/msgmap.sqlite3", 't2-mirror indexed');
+});
+
+ok($td->kill, 'killed -httpd');
+$td->join;
+
+done_testing;

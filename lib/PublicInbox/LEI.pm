@@ -98,6 +98,13 @@ sub _config_path ($) {
 		.'/lei/config');
 }
 
+sub index_opt {
+	# TODO: drop underscore variants everywhere, they're undocumented
+	qw(fsync|sync! jobs|j=i indexlevel|index-level|L=s compact+
+	max_size|max-size=s sequential_shard|sequential-shard
+	batch_size|batch-size=s skip-docdata quiet|q verbose|v+)
+}
+
 # TODO: generate shell completion + help using %CMD and %OPTDESC
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
@@ -105,7 +112,7 @@ our %CMD = ( # sorted in order of importance/use:
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
-	mua-cmd|mua=s no-torsocks torsocks=s verbose|v quiet|q
+	mua-cmd|mua=s no-torsocks torsocks=s verbose|v+ quiet|q
 	received-after=s received-before=s sent-after=s sent-since=s),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
@@ -115,7 +122,8 @@ our %CMD = ( # sorted in order of importance/use:
 
 'add-external' => [ 'URL_OR_PATHNAME',
 	'add/set priority of a publicinbox|extindex for extra matches',
-	qw(boost=i quiet|q) ],
+	qw(boost=i c=s@ mirror=s no-torsocks torsocks=s inbox-version=i),
+	index_opt(), PublicInbox::LeiQuery::curl_opt() ],
 'ls-external' => [ '[FILTER...]', 'list publicinbox|extindex locations',
 	qw(format|f=s z|0 local remote quiet|q) ],
 'forget-external' => [ 'URL_OR_PATHNAME...|--prune',
@@ -204,7 +212,7 @@ my %OPTDESC = (
 'help|h' => 'show this built-in help',
 'quiet|q' => 'be quiet',
 'globoff|g' => "do not match locations using '*?' wildcards and '[]' ranges",
-'verbose|v' => 'be more verbose',
+'verbose|v+' => 'be more verbose',
 'solve!' => 'do not attempt to reconstruct blobs from emails',
 'torsocks=s' => ['auto|no|yes',
 		'whether or not to wrap git and curl commands with torsocks'],
@@ -286,7 +294,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp); # internal workers
+my @WQ_KEYS = qw(lxs l2m imp mrr); # internal workers
 
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {
@@ -714,6 +722,7 @@ sub lei__complete {
 		}
 		puts $self, grep(/$re/, map { # generate short/long names
 			if (s/[:=].+\z//) { # req/optional args, e.g output|o=i
+			} elsif (s/\+\z//) { # verbose|v+
 			} elsif (s/!\z//) {
 				# negation: solve! => no-solve|solve
 				s/([\w\-]+)/$1|no-$1/g

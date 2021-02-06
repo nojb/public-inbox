@@ -212,7 +212,6 @@ sub query_remote_mboxrd {
 	my ($opt, $env) = @$lei{qw(opt env)};
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
 	push(@qform, t => 1) if $opt->{thread};
-	my @cmd = ($self->{curl}, qw(-sSf -d), '');
 	my $verbose = $opt->{verbose};
 	my $reap;
 	my $cerr = File::Temp->new(TEMPLATE => 'curl.err-XXXX', TMPDIR => 1);
@@ -223,43 +222,18 @@ sub query_remote_mboxrd {
 		# spawn a process to force line-buffering, otherwise curl
 		# will write 1 character at-a-time and parallel outputs
 		# mmmaaayyy llloookkk llliiikkkeee ttthhhiiisss
-		push @cmd, '-v';
 		my $o = { 1 => $lei->{2}, 2 => $lei->{2} };
 		my $pid = spawn(['tail', '-f', $cerr->filename], undef, $o);
 		$reap = PublicInbox::OnDestroy->new(\&kill_reap, $pid);
 	}
-	for my $o ($lei->curl_opt) {
-		$o =~ s/\|[a-z0-9]\b//i; # remove single char short option
-		if ($o =~ s/=[is]@\z//) {
-			my $ary = $opt->{$o} or next;
-			push @cmd, map { ("--$o", $_) } @$ary;
-		} elsif ($o =~ s/=[is]\z//) {
-			my $val = $opt->{$o} // next;
-			push @cmd, "--$o", $val;
-		} elsif ($opt->{$o}) {
-			push @cmd, "--$o";
-		}
-	}
-	$opt->{torsocks} = 'false' if $opt->{'no-torsocks'};
-	my $tor = $opt->{torsocks} //= 'auto';
+	my $curl = PublicInbox::LeiCurl->new($lei, $self->{curl}) or return;
+	push @$curl, '-s', '-d', '';
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	for my $uri (@$uris) {
 		$lei->{-current_url} = $uri->as_string;
 		$lei->{-nr_remote_eml} = 0;
 		$uri->query_form(@qform);
-		my $cmd = [ @cmd, $uri->as_string ];
-		if ($tor eq 'auto' && substr($uri->host, -6) eq '.onion' &&
-				(($env->{LD_PRELOAD}//'') !~ /torsocks/)) {
-			unshift @$cmd, which('torsocks');
-		} elsif (PublicInbox::Config::git_bool($tor)) {
-			unshift @$cmd, which('torsocks');
-		}
-
-		# continue anyways if torsocks is missing; a proxy may be
-		# specified via CLI, curlrc, environment variable, or even
-		# firewall rule
-		shift(@$cmd) if !$cmd->[0];
-
+		my $cmd = $curl->for_uri($lei, $uri);
 		$lei->err("# @$cmd") if $verbose;
 		my ($fh, $pid) = popen_rd($cmd, $env, $rdr);
 		$fh = IO::Uncompress::Gunzip->new($fh);
@@ -440,6 +414,7 @@ sub add_uri {
 	if (my $curl = $self->{curl} //= which('curl') // 0) {
 		require PublicInbox::MboxReader;
 		require IO::Uncompress::Gunzip;
+		require PublicInbox::LeiCurl;
 		push @{$self->{remotes}}, $uri;
 	} else {
 		warn "curl missing, ignoring $uri\n";

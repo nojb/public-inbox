@@ -5,7 +5,7 @@
 # Needs a lot of work, see `lei__complete' in lib/PublicInbox::LEI.pm
 _lei() {
 	case ${COMP_WORDS[@]} in
-	*' add-external http'*)
+	*' add-external h'* | *' --mirror h'*)
 		compopt -o nospace
 		;;
 	*) compopt +o nospace ;; # the default

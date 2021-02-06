@@ -273,8 +273,8 @@ EOM
 	$idx->{nidx} // 0; # returns number processed
 }
 
-sub progress_prepare ($) {
-	my ($opt) = @_;
+sub progress_prepare ($;$) {
+	my ($opt, $dst) = @_;
 
 	# public-inbox-index defaults to quiet, -xcpdb and -compact do not
 	if (defined($opt->{quiet}) && $opt->{quiet} < 0) {
@@ -286,7 +286,8 @@ sub progress_prepare ($) {
 		$opt->{1} = $null; # suitable for spawn() redirect
 	} else {
 		$opt->{verbose} ||= 1;
-		$opt->{-progress} = sub { print STDERR @_ };
+		$dst //= *STDERR{GLOB};
+		$opt->{-progress} = sub { print $dst @_ };
 	}
 }
 

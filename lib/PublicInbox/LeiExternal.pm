@@ -88,19 +88,35 @@ sub get_externals {
 	();
 }
 
-sub lei_add_external {
+sub add_external_finish {
 	my ($self, $location) = @_;
 	my $cfg = $self->_lei_cfg(1);
 	my $new_boost = $self->{opt}->{boost} // 0;
-	$location = ext_canonicalize($location);
-	if ($location !~ m!\Ahttps?://! && !-d $location) {
-		return $self->fail("$location not a directory");
-	}
 	my $key = "external.$location.boost";
 	my $cur_boost = $cfg->{$key};
 	return if defined($cur_boost) && $cur_boost == $new_boost; # idempotent
 	$self->lei_config($key, $new_boost);
-	$self->_lei_store(1)->done; # just create the store
+}
+
+sub lei_add_external {
+	my ($self, $location) = @_;
+	$self->_lei_store(1)->write_prepare($self);
+	my $new_boost = $self->{opt}->{boost} // 0;
+	$location = ext_canonicalize($location);
+	my $mirror = $self->{opt}->{mirror};
+	if (defined($mirror) && -d $location) {
+		$self->fail(<<""); # TODO: did you mean "update-external?"
+--mirror destination `$location' already exists
+
+	}
+	if ($location !~ m!\Ahttps?://! && !-d $location) {
+		$mirror // return $self->fail("$location not a directory");
+		$mirror = ext_canonicalize($mirror);
+		require PublicInbox::LeiMirror;
+		PublicInbox::LeiMirror->start($self, $mirror => $location);
+	} else {
+		add_external_finish($self, $location);
+	}
 }
 
 sub lei_forget_external {
