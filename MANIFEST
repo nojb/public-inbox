@@ -354,9 +354,9 @@ t/init.t
 t/ipc.t
 t/iso-2202-jp.eml
 t/kqnotify.t
+t/lei-daemon.t
 t/lei-externals.t
 t/lei-import.t
-t/lei-oneshot.t
 t/lei.t
 t/lei_dedupe.t
 t/lei_external.t

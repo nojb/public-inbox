@@ -456,13 +456,15 @@ SKIP: {
 	require PublicInbox::Spawn;
 	state $lei_daemon = PublicInbox::Spawn->can('send_cmd4') ||
 				eval { require Socket::MsgHdr; 1 };
+	# XXX fix and move this inside daemon-only before 1.7 release
+	skip <<'EOM', 1 unless $lei_daemon;
+Socket::MsgHdr missing or Inline::C is unconfigured/missing
+EOM
 	$lei_opt = { 1 => \$lei_out, 2 => \$lei_err };
 	my $daemon_pid;
 	my ($tmpdir, $for_destroy) = tmpdir();
 	SKIP: {
-		skip <<'EOM', 1 unless $lei_daemon;
-Socket::MsgHdr missing or Inline::C is unconfigured/missing
-EOM
+		skip 'TEST_LEI_ONESHOT set', 1 if $ENV{TEST_LEI_ONESHOT};
 		my $home = "$tmpdir/lei-daemon";
 		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
 		local $ENV{HOME} = $home;
