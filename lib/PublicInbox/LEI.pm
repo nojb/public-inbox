@@ -23,7 +23,6 @@ use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::OnDestroy;
-use Text::Wrap qw(wrap);
 use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
@@ -100,33 +99,34 @@ sub _config_path ($) {
 
 sub index_opt {
 	# TODO: drop underscore variants everywhere, they're undocumented
-	qw(fsync|sync! jobs|j=i indexlevel|index-level|L=s compact+
+	qw(fsync|sync! jobs|j=i indexlevel|L=s compact
 	max_size|max-size=s sequential_shard|sequential-shard
-	batch_size|batch-size=s skip-docdata quiet|q verbose|v+)
+	batch_size|batch-size=s skip-docdata)
 }
 
-# TODO: generate shell completion + help using %CMD and %OPTDESC
+# we generate shell completion + help using %CMD and %OPTDESC,
+# see lei__complete() and PublicInbox::LeiHelp
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms', qw(
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
-	mua-cmd|mua=s no-torsocks torsocks=s verbose|v+ quiet|q
-	received-after=s received-before=s sent-after=s sent-since=s),
+	mua-cmd|mua=s no-torsocks torsocks=s verbose|v+ quiet|q),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
 	qw(type=s solve! format|f=s dedupe|d=s thread|t remote local!),
 	pass_through('git show') ],
 
-'add-external' => [ 'URL_OR_PATHNAME',
+'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
 	qw(boost=i c=s@ mirror=s no-torsocks torsocks=s inbox-version=i),
+	qw(quiet|q verbose|v+),
 	index_opt(), PublicInbox::LeiQuery::curl_opt() ],
 'ls-external' => [ '[FILTER...]', 'list publicinbox|extindex locations',
 	qw(format|f=s z|0 local remote quiet|q) ],
-'forget-external' => [ 'URL_OR_PATHNAME...|--prune',
+'forget-external' => [ 'LOCATION...|--prune',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune quiet|q) ],
 
@@ -145,21 +145,20 @@ our %CMD = ( # sorted in order of importance/use:
 	"exclude message(s) on stdin from `q' search results",
 	qw(stdin| oid=s exact by-mid|mid:s quiet|q) ],
 
-'purge-mailsource' => [ 'URL_OR_PATHNAME|--all',
+'purge-mailsource' => [ 'LOCATION|--all',
 	'remove imported messages from IMAP, Maildirs, and MH',
 	qw(exact! all jobs:i indexed) ],
 
 # code repos are used for `show' to solve blobs from patch mails
-'add-coderepo' => [ 'PATHNAME', 'add or set priority of a git code repo',
+'add-coderepo' => [ 'DIRNAME', 'add or set priority of a git code repo',
 	qw(boost=i) ],
 'ls-coderepo' => [ '[FILTER_TERMS...]',
 		'list known code repos', qw(format|f=s z) ],
-'forget-coderepo' => [ 'PATHNAME',
+'forget-coderepo' => [ 'DIRNAME',
 	'stop using repo to solve blobs from patches',
 	qw(prune) ],
 
-'add-watch' => [ '[URL_OR_PATHNAME]',
-		'watch for new messages and flag changes',
+'add-watch' => [ 'LOCATION', 'watch for new messages and flag changes',
 	qw(import! kw|keywords|flags! interval=s recursive|r
 	exclude=s include=s) ],
 'ls-watch' => [ '[FILTER...]', 'list active watches with numbers and status',
@@ -169,7 +168,7 @@ our %CMD = ( # sorted in order of importance/use:
 'forget-watch' => [ '{WATCH_NUMBER|--prune}', 'stop and forget a watch',
 	qw(prune) ],
 
-'import' => [ 'URLS_OR_PATHNAMES...|--stdin',
+'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
 	format|f=s kw|keywords|flags!),
@@ -179,8 +178,8 @@ our %CMD = ( # sorted in order of importance/use:
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
 	pass_through('git config') ],
-'init' => [ '[PATHNAME]', sub {
-		'initialize storage, default: '._store_path($_[0]);
+'init' => [ '[DIRNAME]', sub {
+	"initialize storage, default: "._store_path($_[0]);
 	}, qw(quiet|q) ],
 'daemon-kill' => [ '[-SIGNAL]', 'signal the lei-daemon',
 	opt_dash('signal|s=s', '[0-9]+|(?:[A-Z][A-Z0-9]+)') ],
@@ -208,43 +207,66 @@ my $stdin_formats = [ 'MAIL_FORMAT|eml|mboxrd|mboxcl2|mboxcl|mboxo',
 			'specify message input format' ];
 my $ls_format = [ 'OUT|plain|json|null', 'listing output format' ];
 
+# we use \x{a0} (non-breaking SP) to avoid wrapping in PublicInbox::LeiHelp
 my %OPTDESC = (
 'help|h' => 'show this built-in help',
 'quiet|q' => 'be quiet',
-'globoff|g' => "do not match locations using '*?' wildcards and '[]' ranges",
+'globoff|g' => "do not match locations using '*?' wildcards ".
+		"and\xa0'[]'\x{a0}ranges",
 'verbose|v+' => 'be more verbose',
 'solve!' => 'do not attempt to reconstruct blobs from emails',
-'torsocks=s' => ['auto|no|yes',
+'torsocks=s' => ['VAL|auto|no|yes',
 		'whether or not to wrap git and curl commands with torsocks'],
 'no-torsocks' => 'alias for --torsocks=no',
 'save-as=s' => ['NAME', 'save a search terms by given name'],
 
 'type=s' => [ 'any|mid|git', 'disambiguate type' ],
 
-'dedupe|d=s' => ['STRAT|content|oid|mid|none',
+'dedupe|d=s' => ['STRATEGY|content|oid|mid|none',
 		'deduplication strategy'],
 'show	thread|t' => 'display entire thread a message belongs to',
 'q	thread|t' =>
 	'return all messages in the same thread as the actual match(es)',
 'augment|a' => 'augment --output destination instead of clobbering',
 
-'output|mfolder|o=s' => [ 'DEST',
-	"destination (e.g. `/path/to/Maildir', or `-' for stdout)" ],
-'mua-cmd|mua=s' => [ 'COMMAND',
-	"MUA to run on --output Maildir or mbox (e.g. `mutt -f %f'" ],
+'output|mfolder|o=s' => [ 'MFOLDER',
+	"destination (e.g.\xa0`/path/to/Maildir', ".
+	"or\xa0`-'\x{a0}for\x{a0}stdout)" ],
+'mua-cmd|mua=s' => [ 'CMD',
+	"MUA to run on --output Maildir or mbox (e.g.\xa0`mutt\xa0-f\xa0%f')" ],
 
 'show	format|f=s' => [ 'OUT|plain|raw|html|mboxrd|mboxcl2|mboxcl',
 			'message/object output format' ],
 'mark	format|f=s' => $stdin_formats,
 'forget	format|f=s' => $stdin_formats,
+
+'add-external	inbox-version=i' => [ 'NUM|1|2',
+		'force a public-inbox version with --mirror'],
+'add-external	mirror=s' => [ 'URL', 'mirror a public-inbox'],
+
+# public-inbox-index options
+'add-external	jobs|j=i' => 'set parallelism when indexing after --mirror',
+'fsync!' => 'speed up indexing after --mirror, risk index corruption',
+'compact' => 'run compact index after mirroring',
+'indexlevel|L=s' => [ 'LEVEL|full|medium|basic',
+	"indexlevel with --mirror (default: full)" ],
+'max_size|max-size=s' => [ 'SIZE',
+	'do not index messages larger than SIZE (default: infinity)' ],
+'batch_size|batch-size=s' => [ 'SIZE',
+	'flush changes to OS after given number of bytes (default: 1m)' ],
+'sequential_shard|sequential-shard' =>
+	'index Xapian shards sequentially for slow storage',
+'skip-docdata' =>
+	'drop compatibility w/ public-inbox <1.6 to save ~1.5% space',
+
 'q	format|f=s' => [
 	'OUT|maildir|mboxrd|mboxcl2|mboxcl|mboxo|html|json|jsonl|concatjson',
 		'specify output format, default depends on --output'],
-'q	exclude=s@' => [ 'URL_OR_PATHNAME',
+'q	exclude=s@' => [ 'LOCATION',
 		'exclude specified external(s) from search' ],
-'q	include|I=s@' => [ 'URL_OR_PATHNAME',
+'q	include|I=s@' => [ 'LOCATION',
 		'include specified external(s) in search' ],
-'q	only=s@' => [ 'URL_OR_PATHNAME',
+'q	only=s@' => [ 'LOCATION',
 		'only use specified external(s) for search' ],
 
 'q	jobs=s'	=> [ '[SEARCH_JOBS][,WRITER_JOBS]',
@@ -258,9 +280,9 @@ my %OPTDESC = (
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],
 'offset=i' => ['OFF', 'search result offset (default: 0)'],
 
-'sort|s=s' => [ 'VAL|received,relevance,docid',
-		"order of results `--output'-dependent"],
-'reverse|r' => [ 'reverse search results' ], # like sort(1)
+'sort|s=s' => [ 'VAL|received|relevance|docid',
+		"order of results is `--output'-dependent"],
+'reverse|r' => 'reverse search results', # like sort(1)
 
 'boost=i' => 'increase/decrease priority of results (default: 0)',
 
@@ -280,7 +302,6 @@ my %OPTDESC = (
 'exact!' => 'rely on content match instead of exact header matches',
 
 'by-mid|mid:s' => [ 'MID', 'match only by Message-ID, ignoring contents' ],
-'jobs:i' => 'set parallelism level',
 
 'kw|keywords|flags!' => 'disable/enable importing flags',
 
@@ -415,86 +436,15 @@ sub lei_atfork_child {
 	$current_lei = $persist ? undef : $self; # for SIG{__WARN__}
 }
 
-sub _help ($;$) {
-	my ($self, $errmsg) = @_;
-	my $cmd = $self->{cmd} // 'COMMAND';
-	my @info = @{$CMD{$cmd} // [ '...', '...' ]};
-	my @top = ($cmd, shift(@info) // ());
-	my $cmd_desc = shift(@info);
-	$cmd_desc = $cmd_desc->($self) if ref($cmd_desc) eq 'CODE';
-	my @opt_desc;
-	my $lpad = 2;
-	for my $sw (grep { !ref } @info) { # ("prio=s", "z", $GLP_PASS)
-		my $desc = $OPTDESC{"$cmd\t$sw"} // $OPTDESC{$sw} // next;
-		my $arg_vals = '';
-		($arg_vals, $desc) = @$desc if ref($desc) eq 'ARRAY';
-
-		# lower-case is a keyword (e.g. `content', `oid'),
-		# ALL_CAPS is a string description (e.g. `PATH')
-		if ($desc !~ /default/ && $arg_vals =~ /\b([a-z]+)[,\|]/) {
-			$desc .= "\ndefault: `$1'";
-		}
-		my (@vals, @s, @l);
-		my $x = $sw;
-		if ($x =~ s/!\z//) { # solve! => --no-solve
-			$x =~ s/(\A|\|)/$1no-/g
-		} elsif ($x =~ s/:.+//) { # optional args: $x = "mid:s"
-			@vals = (' [', undef, ']');
-		} elsif ($x =~ s/=.+//) { # required arg: $x = "type=s"
-			@vals = (' ', undef);
-		} # else: no args $x = 'thread|t'
-		for (split(/\|/, $x)) { # help|h
-			length($_) > 1 ? push(@l, "--$_") : push(@s, "-$_");
-		}
-		if (!scalar(@vals)) { # no args 'thread|t'
-		} elsif ($arg_vals =~ s/\A([A-Z_]+)\b//) { # "NAME"
-			$vals[1] = $1;
-		} else {
-			$vals[1] = uc(substr($l[0], 2)); # "--type" => "TYPE"
-		}
-		if ($arg_vals =~ /([,\|])/) {
-			my $sep = $1;
-			my @allow = split(/\Q$sep\E/, $arg_vals);
-			my $must = $sep eq '|' ? 'Must' : 'Can';
-			@allow = map { "`$_'" } @allow;
-			my $last = pop @allow;
-			$desc .= "\n$must be one of: " .
-				join(', ', @allow) . " or $last";
-		}
-		my $lhs = join(', ', @s, @l) . join('', @vals);
-		if ($x =~ /\|\z/) { # "stdin|" or "clear|"
-			$lhs =~ s/\A--/- , --/;
-		} else {
-			$lhs =~ s/\A--/    --/; # pad if no short options
-		}
-		$lpad = length($lhs) if length($lhs) > $lpad;
-		push @opt_desc, $lhs, $desc;
-	}
-	my $msg = $errmsg ? "E: $errmsg\n" : '';
-	$msg .= <<EOF;
-usage: lei @top
-  $cmd_desc
-
-EOF
-	$lpad += 2;
-	local $Text::Wrap::columns = 78 - $lpad;
-	my $padding = ' ' x ($lpad + 2);
-	while (my ($lhs, $rhs) = splice(@opt_desc, 0, 2)) {
-		$msg .= '  '.pack("A$lpad", $lhs);
-		$rhs = wrap('', '', $rhs);
-		$rhs =~ s/\n/\n$padding/sg; # LHS pad continuation lines
-		$msg .= $rhs;
-		$msg .= "\n";
-	}
-	my $out = $self->{$errmsg ? 2 : 1};
-	start_pager($self) if -t $out;
-	print $out $msg;
-	x_it($self, $errmsg ? 1 << 8 : 0); # stderr => failure
-	undef;
+sub _help {
+	require PublicInbox::LeiHelp;
+	PublicInbox::LeiHelp::call($_[0], $_[1], \%CMD, \%OPTDESC);
 }
 
 sub optparse ($$$) {
 	my ($self, $cmd, $argv) = @_;
+	# allow _complete --help to complete, not show help
+	return 1 if substr($cmd, 0, 1) eq '_';
 	$self->{cmd} = $cmd;
 	$OPT = $self->{opt} = {};
 	my $info = $CMD{$cmd} // [ '[...]' ];
@@ -720,7 +670,8 @@ sub lei__complete {
 				get-color-name get-colorbool);
 			# fall-through
 		}
-		puts $self, grep(/$re/, map { # generate short/long names
+		# generate short/long names from Getopt::Long specs
+		puts $self, grep(/$re/, qw(--help -h), map {
 			if (s/[:=].+\z//) { # req/optional args, e.g output|o=i
 			} elsif (s/\+\z//) { # verbose|v+
 			} elsif (s/!\z//) {
@@ -730,7 +681,7 @@ sub lei__complete {
 			map {
 				my $x = length > 1 ? "--$_" : "-$_";
 				$x eq $cur ? () : $x;
-			} split(/\|/, $_, -1) # help|h
+			} grep(!/_/, split(/\|/, $_, -1)) # help|h
 		} grep { $OPTDESC{"$cmd\t$_"} || $OPTDESC{$_} } @spec);
 	} elsif ($cmd eq 'config' && !@argv && !$CONFIG_KEYS{$cur}) {
 		puts $self, grep(/$re/, keys %CONFIG_KEYS);
