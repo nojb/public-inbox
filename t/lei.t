@@ -363,7 +363,7 @@ my $test_completion = sub {
 			--mua --mua-cmd --no-local --local --verbose -v
 			--save-as --no-remote --remote --torsocks
 			--reverse -r )) {
-		ok($out{$sw}, "$sw offered as completion");
+		ok($out{$sw}, "$sw offered as `lei q' completion");
 	}
 
 	ok($lei->(qw(_complete lei q --form)), 'complete q --format');
@@ -375,6 +375,12 @@ my $test_completion = sub {
 				concatjson maildir)) {
 			ok($out{$f}, "got $sw $f as output format");
 		}
+	}
+	ok($lei->(qw(_complete lei import)), 'complete import');
+	%out = map { $_ => 1 } split(/\s+/s, $out);
+	for my $sw (qw(--flags --no-flags --no-kw --kw --no-keywords
+			--keywords)) {
+		ok($out{$sw}, "$sw offered as `lei import' completion");
 	}
 };
 

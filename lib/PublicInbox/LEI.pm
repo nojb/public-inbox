@@ -274,6 +274,8 @@ my %OPTDESC = (
 'by-mid|mid:s' => [ 'MID', 'match only by Message-ID, ignoring contents' ],
 'jobs:i' => 'set parallelism level',
 
+'kw|keywords|flags!' => 'disable/enable importing flags',
+
 # xargs, env, use "-0", git(1) uses "-z".  We support z|0 everywhere
 'z|0' => 'use NUL \\0 instead of newline (CR) to delimit lines',
 
@@ -425,7 +427,7 @@ sub _help ($;$) {
 		my (@vals, @s, @l);
 		my $x = $sw;
 		if ($x =~ s/!\z//) { # solve! => --no-solve
-			$x = "no-$x";
+			$x =~ s/(\A|\|)/$1no-/g
 		} elsif ($x =~ s/:.+//) { # optional args: $x = "mid:s"
 			@vals = (' [', undef, ']');
 		} elsif ($x =~ s/=.+//) { # required arg: $x = "type=s"
@@ -710,8 +712,9 @@ sub lei__complete {
 		}
 		puts $self, grep(/$re/, map { # generate short/long names
 			if (s/[:=].+\z//) { # req/optional args, e.g output|o=i
-			} else { # negation: solve! => no-solve|solve
-				s/\A(.+)!\z/no-$1|$1/;
+			} elsif (s/!\z//) {
+				# negation: solve! => no-solve|solve
+				s/([\w\-]+)/$1|no-$1/g
 			}
 			map {
 				my $x = length > 1 ? "--$_" : "-$_";
