@@ -14,13 +14,15 @@ my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
 	PublicInbox::Spawn->can('send_cmd4');
 };
 
-sub sigchld {
-	my ($sig) = @_;
-	my $flags = $sig ? POSIX::WNOHANG() : 0;
-	while (waitpid(-1, $flags) > 0) {}
-}
+my %pids;
+my $sigchld = sub {
+	my $flags = scalar(@_) ? POSIX::WNOHANG() : 0;
+	for my $pid (keys %pids) {
+		delete($pids{$pid}) if waitpid($pid, $flags) == $pid;
+	}
+};
 
-sub exec_cmd {
+my $exec_cmd = sub {
 	my ($fds, $argc, @argv) = @_;
 	my @old = (*STDIN{IO}, *STDOUT{IO}, *STDERR{IO});
 	my @rdr;
@@ -29,7 +31,7 @@ sub exec_cmd {
 		push @rdr, shift(@old), $tmpfh;
 	}
 	require POSIX; # WNOHANG
-	$SIG{CHLD} = \&sigchld;
+	$SIG{CHLD} = $sigchld;
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
 		my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
@@ -38,9 +40,11 @@ sub exec_cmd {
 		}
 		%ENV = (%ENV, %env);
 		exec(@argv);
-		die "exec: @argv: $!";
+		warn "exec: @argv: $!\n";
+		POSIX::_exit(1);
 	}
-}
+	$pids{$pid} = 1;
+};
 
 if ($send_cmd && eval {
 	my $path = do {
@@ -107,13 +111,13 @@ Falling back to (slow) one-shot mode
 		} elsif ($buf =~ /\Achild_error ([0-9]+)\z/) {
 			$x_it_code = $1 + 0;
 		} elsif ($buf =~ /\Aexec (.+)\z/) {
-			exec_cmd(\@fds, split(/\0/, $1));
+			$exec_cmd->(\@fds, split(/\0/, $1));
 		} else {
-			sigchld();
+			$sigchld->();
 			die $buf;
 		}
 	}
-	sigchld();
+	$sigchld->();
 	if (my $sig = ($x_it_code & 127)) {
 		kill $sig, $$;
 		sleep(1) while 1;
