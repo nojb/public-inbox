@@ -131,7 +131,7 @@ our %CMD = ( # sorted in order of importance/use:
 	'exclude mail matching From: or thread from non-Message-ID searches',
 	qw(stdin| thread|t from|f=s mid=s oid=s) ],
 'mark' => [ 'MESSAGE_FLAGS...',
-	'set/unset flags on message(s) from stdin',
+	'set/unset keywords on message(s) from stdin',
 	qw(stdin| oid=s exact by-mid|mid:s) ],
 'forget' => [ '[--stdin|--oid=OID|--by-mid=MID]',
 	"exclude message(s) on stdin from `q' search results",
@@ -152,7 +152,8 @@ our %CMD = ( # sorted in order of importance/use:
 
 'add-watch' => [ '[URL_OR_PATHNAME]',
 		'watch for new messages and flag changes',
-	qw(import! flags! interval=s recursive|r exclude=s include=s) ],
+	qw(import! kw|keywords|flags! interval=s recursive|r
+	exclude=s include=s) ],
 'ls-watch' => [ '[FILTER...]', 'list active watches with numbers and status',
 		qw(format|f=s z) ],
 'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote) ],
@@ -163,7 +164,7 @@ our %CMD = ( # sorted in order of importance/use:
 'import' => [ 'URLS_OR_PATHNAMES...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	format|f=s flags!),
+	format|f=s kw|keywords|flags!),
 	],
 
 'config' => [ '[...]', sub {

@@ -400,7 +400,26 @@ my $test_import = sub {
 	ok($lei->(qw(q s:boolean)), 'search hit after import');
 	ok($lei->(qw(import -f eml), 't/data/message_embed.eml'),
 		'import single file by path');
-	$cleanup->();
+
+	my $str = <<'';
+From: a@b
+Message-ID: <x@y>
+Status: RO
+
+	ok($lei->([qw(import -f eml -)], undef, { %$opt, 0 => \$str }),
+		'import single file with keywords from stdin');
+	$lei->(qw(q m:x@y));
+	my $res = $json->decode($out);
+	is($res->[1], undef, 'only one result');
+	is_deeply($res->[0]->{kw}, ['seen'], "message `seen' keyword set");
+
+	$str =~ tr/x/v/; # v@y
+	ok($lei->([qw(import --no-kw -f eml -)], undef, { %$opt, 0 => \$str }),
+		'import single file with --no-kw from stdin');
+	$lei->(qw(q m:v@y));
+	$res = $json->decode($out);
+	is($res->[1], undef, 'only one result');
+	is_deeply($res->[0]->{kw}, [], 'no keywords set');
 };
 
 my $test_lei_common = sub {

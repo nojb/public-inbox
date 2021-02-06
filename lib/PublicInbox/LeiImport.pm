@@ -26,7 +26,7 @@ sub call { # the main "lei import" method
 	my ($cls, $lei, @argv) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
-	$lei->{opt}->{flags} //= 1;
+	$lei->{opt}->{kw} //= 1;
 	my $fmt = $lei->{opt}->{'format'};
 	my $self = $lei->{imp} = bless {}, $cls;
 	return $lei->fail('--format unspecified') if !$fmt;
@@ -63,7 +63,7 @@ sub ipc_atfork_child {
 
 sub _import_fh {
 	my ($lei, $fh, $x) = @_;
-	my $set_kw = $lei->{opt}->{flags};
+	my $set_kw = $lei->{opt}->{kw};
 	my $fmt = $lei->{opt}->{'format'};
 	eval {
 		if ($fmt eq 'eml') {
