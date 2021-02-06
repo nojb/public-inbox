@@ -286,6 +286,8 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
+my @WQ_KEYS = qw(lxs l2m imp); # internal workers
+
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {
 	my ($self, $code) = @_;
@@ -296,7 +298,7 @@ sub x_it ($$) {
 		send($s, "x_it $code", MSG_EOR);
 	} elsif ($self->{oneshot}) {
 		# don't want to end up using $? from child processes
-		for my $f (qw(lxs l2m)) {
+		for my $f (@WQ_KEYS) {
 			my $wq = delete $self->{$f} or next;
 			$wq->DESTROY;
 		}
@@ -327,7 +329,7 @@ sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 
 sub fail_handler ($;$$) {
 	my ($lei, $code, $io) = @_;
-	for my $f (qw(imp lxs l2m)) {
+	for my $f (@WQ_KEYS) {
 		my $wq = delete $lei->{$f} or next;
 		$wq->wq_wait_old($lei) if $wq->wq_kill_old; # lei-daemon
 	}
@@ -335,7 +337,7 @@ sub fail_handler ($;$$) {
 	$lei->x_it($code // (1 >> 8));
 }
 
-sub sigpipe_handler { # handles SIGPIPE from l2m/lxs workers
+sub sigpipe_handler { # handles SIGPIPE from @WQ_KEYS workers
 	fail_handler($_[0], 13, delete $_[0]->{1});
 }
 
@@ -856,7 +858,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 sub dclose {
 	my ($self) = @_;
 	delete $self->{-progress};
-	for my $f (qw(lxs l2m)) {
+	for my $f (@WQ_KEYS) {
 		my $wq = delete $self->{$f} or next;
 		if ($wq->wq_kill) {
 			$wq->wq_close
