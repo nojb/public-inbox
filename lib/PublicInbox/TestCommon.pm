@@ -9,14 +9,17 @@ use v5.10.1;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
-our @EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
-	run_script start_script key2sub xsys xsys_e xqx eml_load tick
-	have_xapian_compact);
+our @EXPORT;
 BEGIN {
+	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
+		run_script start_script key2sub xsys xsys_e xqx eml_load tick
+		have_xapian_compact json_utf8
+		test_lei $lei $lei_out $lei_err $lei_opt);
 	require Test::More;
-	*BAIL_OUT = \&Test::More::BAIL_OUT;
-	*plan = \&Test::More::plan;
-	*skip = \&Test::More::skip;
+	my @methods = grep(!/\W/, @Test::More::EXPORT);
+	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
+	die $@ if $@;
+	push @EXPORT, @methods;
 }
 
 sub eml_load ($) {
@@ -417,6 +420,84 @@ sub have_xapian_compact () {
 	require PublicInbox::Spawn;
 	# $ENV{XAPIAN_COMPACT} is used by PublicInbox/Xapcmd.pm, too
 	PublicInbox::Spawn::which($ENV{XAPIAN_COMPACT} || 'xapian-compact');
+}
+
+our ($err_skip, $lei_opt, $lei_out, $lei_err);
+our $lei = sub {
+	my ($cmd, $env, $xopt) = @_;
+	$lei_out = $lei_err = '';
+	if (!ref($cmd)) {
+		($env, $xopt) = grep { (!defined) || ref } @_;
+		$cmd = [ grep { defined && !ref } @_ ];
+	}
+	my $res = run_script(['lei', @$cmd], $env, $xopt // $lei_opt);
+	$err_skip and
+		$lei_err = join('', grep(!/$err_skip/, split(/^/m, $lei_err)));
+	$res;
+};
+
+sub json_utf8 () {
+	state $x = ref(PublicInbox::Config->json)->new->utf8->canonical;
+}
+
+sub test_lei {
+SKIP: {
+	my ($cb) = pop @_;
+	my $test_opt = shift // {};
+	require_git(2.6) or skip('git 2.6+ required for lei test', 2);
+	require_mods(qw(json DBD::SQLite Search::Xapian), 2);
+	require PublicInbox::Config;
+	delete local $ENV{XDG_DATA_HOME};
+	delete local $ENV{XDG_CONFIG_HOME};
+	local $ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
+	local $ENV{GIT_COMMITTER_NAME} = 'lei user';
+	my (undef, $fn, $lineno) = caller(0);
+	my $t = "$fn:$lineno";
+	require PublicInbox::Spawn;
+	state $lei_daemon = PublicInbox::Spawn->can('send_cmd4') ||
+				eval { require Socket::MsgHdr; 1 };
+	$lei_opt = { 1 => \$lei_out, 2 => \$lei_err };
+	my $daemon_pid;
+	my ($tmpdir, $for_destroy) = tmpdir();
+	SKIP: {
+		skip <<'EOM', 1 unless $lei_daemon;
+Socket::MsgHdr missing or Inline::C is unconfigured/missing
+EOM
+		my $home = "$tmpdir/lei-daemon";
+		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
+		local $ENV{HOME} = $home;
+		my $xrd = "$home/xdg_run";
+		mkdir($xrd, 0700) or BAIL_OUT "mkdir: $!";
+		local $ENV{XDG_RUNTIME_DIR} = $xrd;
+		$cb->();
+		ok($lei->(qw(daemon-pid)), "daemon-pid after $t");
+		chomp($daemon_pid = $lei_out);
+		if ($daemon_pid) {
+			ok(kill(0, $daemon_pid), "daemon running after $t");
+			ok($lei->(qw(daemon-kill)), "daemon-kill after $t");
+		} else {
+			fail("daemon not running after $t");
+		}
+	}; # SKIP for lei_daemon
+	unless ($test_opt->{daemon_only}) {
+		require_ok 'PublicInbox::LEI';
+		my $home = "$tmpdir/lei-oneshot";
+		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
+		local $ENV{HOME} = $home;
+		# force sun_path[108] overflow:
+		my $xrd = "$home/1shot-test".('.sun_path' x 108);
+		local $err_skip = qr!\Q$xrd!; # for $lei->() filtering
+		local $ENV{XDG_RUNTIME_DIR} = $xrd;
+		$cb->();
+	}
+	if ($daemon_pid) {
+		for (0..10) {
+			kill(0, $daemon_pid) or last;
+			tick;
+		}
+		ok(!kill(0, $daemon_pid), "$t daemon stopped after oneshot");
+	}
+}; # SKIP if missing git 2.6+ || Xapian || SQLite || json
 }
 
 package PublicInboxTestProcess;

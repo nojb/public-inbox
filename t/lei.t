@@ -41,7 +41,6 @@ local $ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
 local $ENV{GIT_COMMITTER_NAME} = 'lei user';
 local $ENV{XDG_RUNTIME_DIR} = "$home/xdg_run";
 local $ENV{HOME} = $home;
-local $ENV{FOO} = 'BAR';
 mkdir "$home/xdg_run", 0700 or BAIL_OUT "mkdir: $!";
 my $home_trash = [ "$home/.local", "$home/.config", "$home/junk" ];
 my $cleanup = sub { rmtree([@$home_trash, @_]) };
@@ -395,39 +394,6 @@ SKIP: {
 }; # /SKIP
 };
 
-my $test_import = sub {
-	$cleanup->();
-	ok($lei->(qw(q s:boolean)), 'search miss before import');
-	unlike($out, qr/boolean/i, 'no results, yet');
-	open my $fh, '<', 't/data/0001.patch' or BAIL_OUT $!;
-	ok($lei->([qw(import -f eml -)], undef, { %$opt, 0 => $fh }),
-		'import single file from stdin');
-	close $fh;
-	ok($lei->(qw(q s:boolean)), 'search hit after import');
-	ok($lei->(qw(import -f eml), 't/data/message_embed.eml'),
-		'import single file by path');
-
-	my $str = <<'';
-From: a@b
-Message-ID: <x@y>
-Status: RO
-
-	ok($lei->([qw(import -f eml -)], undef, { %$opt, 0 => \$str }),
-		'import single file with keywords from stdin');
-	$lei->(qw(q m:x@y));
-	my $res = $json->decode($out);
-	is($res->[1], undef, 'only one result');
-	is_deeply($res->[0]->{kw}, ['seen'], "message `seen' keyword set");
-
-	$str =~ tr/x/v/; # v@y
-	ok($lei->([qw(import --no-kw -f eml -)], undef, { %$opt, 0 => \$str }),
-		'import single file with --no-kw from stdin');
-	$lei->(qw(q m:v@y));
-	$res = $json->decode($out);
-	is($res->[1], undef, 'only one result');
-	is_deeply($res->[0]->{kw}, [], 'no keywords set');
-};
-
 my $test_lei_common = sub {
 	$test_help->();
 	$test_config->();
@@ -435,7 +401,6 @@ my $test_lei_common = sub {
 	$test_external->();
 	$test_completion->();
 	$test_fail->();
-	$test_import->();
 };
 
 if ($ENV{TEST_LEI_ONESHOT}) {
