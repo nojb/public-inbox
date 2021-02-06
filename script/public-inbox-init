@@ -24,7 +24,7 @@ options:
   --ng NEWSGROUP      set NNTP newsgroup name
   --skip-artnum=NUM   NNTP article numbers to skip
   --skip-epoch=NUM    epochs to skip (-V2 only)
-  -J JOBS             number of indexing jobs (-V2 only), (default: 4)
+  -j JOBS             number of indexing jobs (-V2 only), (default: 4)
 
 See public-inbox-init(1) man page for full documentation.
 EOF
