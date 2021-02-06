@@ -16,6 +16,12 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $t2 = "$home/t2-mirror";
 	ok($lei->('add-external', $t2, '--mirror', "$http/t2/"), '--mirror v2');
 	ok(-f "$t2/msgmap.sqlite3", 't2-mirror indexed');
+
+	ok(!$lei->('add-external', $t2, '--mirror', "$http/t2/"),
+		'--mirror fails if reused');
+
+	ok(!$lei->('add-external', "$t2-fail", '-Lmedium'), '--mirror v2');
+	ok(!-d "$t2-fail", 'destination not created on failure');
 });
 
 ok($td->kill, 'killed -httpd');

@@ -101,9 +101,27 @@ sub add_external_finish {
 sub lei_add_external {
 	my ($self, $location) = @_;
 	$self->_lei_store(1)->write_prepare($self);
-	my $new_boost = $self->{opt}->{boost} // 0;
+	my $opt = $self->{opt};
+	my $mirror = $opt->{mirror} // do {
+		my @fail;
+		for my $sw ($self->index_opt, $self->curl_opt,
+				qw(c no-torsocks torsocks inbox-version)) {
+			my ($f) = (split(/|/, $sw, 2))[0];
+			next unless defined $opt->{$f};
+			$f = length($f) == 1 ? "-$f" : "--$f";
+			push @fail, $f;
+		}
+		if (scalar(@fail) == 1) {
+			return $self->("@fail requires --mirror");
+		} elsif (@fail) {
+			my $last = pop @fail;
+			my $fail = join(', ', @fail);
+			return $self->("@fail and $last require --mirror");
+		}
+		undef;
+	};
+	my $new_boost = $opt->{boost} // 0;
 	$location = ext_canonicalize($location);
-	my $mirror = $self->{opt}->{mirror};
 	if (defined($mirror) && -d $location) {
 		$self->fail(<<""); # TODO: did you mean "update-external?"
 --mirror destination `$location' already exists
