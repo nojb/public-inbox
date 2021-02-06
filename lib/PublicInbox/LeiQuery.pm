@@ -164,7 +164,7 @@ sub curl_opt { qw(
 	connect-timeout=s connect-to=s cookie-jar=s cookie=s crlfile=s
 	digest disable dns-interface=s dns-ipv4-addr=s dns-ipv6-addr=s
 	dns-servers=s doh-url=s egd-file=s engine=s false-start
-	happy-eyeballs-timeout-ms=s haproxy-protocol header|H=s@
+	happy-eyeballs-timeout-ms=s haproxy-protocol header=s@
 	http2-prior-knowledge http2 insecure
 	interface=s ipv4 ipv6 junk-session-cookies
 	key-type=s key=s limit-rate=s local-port=s location-trusted location
@@ -177,7 +177,7 @@ sub curl_opt { qw(
 	proxy-key-type=s proxy-key proxy-negotiate proxy-ntlm proxy-pass=s
 	proxy-pinnedpubkey=s proxy-service-name=s proxy-ssl-allow-beast
 	proxy-tls13-ciphers=s proxy-tlsauthtype=s proxy-tlspassword=s
-	proxy-tlsuser=s proxy-tlsv1 proxy-user|U=s proxy=s
+	proxy-tlsuser=s proxy-tlsv1 proxy-user=s proxy=s
 	proxytunnel=s pubkey=s random-file=s referer=s resolve=s
 	retry-connrefused retry-delay=s retry-max-time=s retry=i
 	sasl-ir service-name=s socks4=s socks4a=s socks5-basic
@@ -186,7 +186,7 @@ sub curl_opt { qw(
 	suppress-connect-headers tcp-fastopen tls-max=s
 	tls13-ciphers=s tlsauthtype=s tlspassword=s tlsuser=s
 	tlsv1 trace-ascii=s trace-time trace=s
-	unix-socket=s user-agent|A=s user|u=s
+	unix-socket=s user-agent=s user=s
 )
 }
 
