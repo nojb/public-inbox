@@ -182,7 +182,6 @@ sub _json_pretty {
 sub ovv_each_smsg_cb { # runs in wq worker usually
 	my ($self, $lei, $ibxish) = @_;
 	my ($json, $dedupe);
-	$lei->{1}->autoflush(1);
 	if (my $pkg = $self->{json}) {
 		$json = $pkg->new;
 		$json->utf8->canonical;
