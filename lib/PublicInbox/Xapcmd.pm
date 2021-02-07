@@ -9,7 +9,7 @@ use PublicInbox::SearchIdx;
 use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
 use File::Basename qw(dirname);
-use POSIX qw(WNOHANG);
+use POSIX qw(WNOHANG _exit);
 
 # support testing with dev versions of Xapian which installs
 # commands with a version number suffix (e.g. "xapian-compact-1.5")
@@ -93,8 +93,9 @@ sub cb_spawn {
 	my $pid = fork // die "fork: $!";
 	return $pid if $pid > 0;
 	srand($seed);
+	$SIG{__DIE__} = sub { warn @_; _exit(1) }; # don't jump up stack
 	$cb->($args, $opt);
-	POSIX::_exit(0);
+	_exit(0);
 }
 
 sub runnable_or_die ($) {
@@ -237,7 +238,7 @@ sub prepare_run {
 
 sub check_compact () { runnable_or_die($XAPIAN_COMPACT) }
 
-sub _run {
+sub _run { # with_umask callback
 	my ($ibx, $cb, $opt) = @_;
 	my $im = $ibx->importer(0);
 	$im->lock_acquire;
@@ -303,7 +304,7 @@ sub kill_compact { # setup_signals callback
 }
 
 # xapian-compact wrapper
-sub compact ($$) {
+sub compact ($$) { # cb_spawn callback
 	my ($args, $opt) = @_;
 	my ($src, $newdir) = @$args;
 	my $dst = ref($newdir) ? $newdir->dirname : $newdir;
@@ -384,7 +385,7 @@ sub cpdb_loop ($$$;$$) {
 
 # Like copydatabase(1), this is horribly slow; and it doesn't seem due
 # to the overhead of Perl.
-sub cpdb ($$) {
+sub cpdb ($$) { # cb_spawn callback
 	my ($args, $opt) = @_;
 	my ($old, $newdir) = @$args;
 	my $new = $newdir->dirname;
