@@ -46,7 +46,7 @@ sub event_step {
 	my ($self) = @_;
 	if (my $cb = delete $self->{cb}) {
 		# this may call async_pass when headers are done
-		$cb->(delete $self->{arg});
+		$cb->(my $refcnt_guard = delete $self->{arg});
 	} elsif (my $sock = $self->{sock}) {
 		my $http = $self->{http};
 		# $self->{sock} is a read pipe for git-http-backend or cgit
