@@ -129,7 +129,7 @@ sub ipc_worker_spawn {
 			local %SIG = %SIG;
 			ipc_worker_loop($self, $r_req, $w_res);
 		};
-		die "worker $ident PID:$$ died: $@\n" if $@;
+		warn "worker $ident PID:$$ died: $@\n" if $@;
 		undef $end; # trigger exit
 	}
 	PublicInbox::DS::sig_setmask($sigset) unless $oldset;
