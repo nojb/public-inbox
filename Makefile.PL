@@ -153,6 +153,7 @@ WriteMakefile(
 		'Digest::SHA' => 0, # rpm: perl-Digest-SHA
 		'Encode' => 2.35, # 2.35 shipped with 5.10.1
 		'IO::Compress::Gzip' => 0,
+		'IO::Uncompress::Gunzip' => 0,
 		'Storable' => 0, # rpm: perl-Storable
 
 		# Plack is needed for public-inbox-httpd and PublicInbox::WWW
