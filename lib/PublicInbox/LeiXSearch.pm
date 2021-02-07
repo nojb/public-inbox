@@ -279,12 +279,18 @@ sub git_tmp ($) {
 	$git;
 }
 
+sub xsearch_done_wait { # dwaitpid callback
+	my ($arg, $pid) = @_;
+	my ($wq, $lei) = @$arg;
+	$lei->child_error($?, 'non-fatal error from '.ref($wq)) if $?;
+}
+
 sub query_done { # EOF callback for main daemon
 	my ($lei) = @_;
 	my $l2m = delete $lei->{l2m};
-	$l2m->wq_wait_old($lei) if $l2m;
+	$l2m->wq_wait_old(\&xsearch_done_wait, $lei) if $l2m;
 	if (my $lxs = delete $lei->{lxs}) {
-		$lxs->wq_wait_old($lei);
+		$lxs->wq_wait_old(\&xsearch_done_wait, $lei);
 	}
 	$lei->{ovv}->ovv_end($lei);
 	if ($l2m) { # close() calls LeiToMail reap_compress
@@ -309,7 +315,7 @@ sub do_post_augment {
 	if (my $err = $@) {
 		if (my $lxs = delete $lei->{lxs}) {
 			$lxs->wq_kill;
-			$lxs->wq_close;
+			$lxs->wq_close(0, undef, $lei);
 		}
 		$lei->fail("$err");
 	}

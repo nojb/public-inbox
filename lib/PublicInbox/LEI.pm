@@ -360,7 +360,7 @@ sub fail_handler ($;$$) {
 	my ($lei, $code, $io) = @_;
 	for my $f (@WQ_KEYS) {
 		my $wq = delete $lei->{$f} or next;
-		$wq->wq_wait_old($lei) if $wq->wq_kill_old; # lei-daemon
+		$wq->wq_wait_old(undef, $lei) if $wq->wq_kill_old; # lei-daemon
 	}
 	close($io) if $io; # needed to avoid warnings on SIGPIPE
 	$lei->x_it($code // (1 >> 8));
@@ -827,9 +827,9 @@ sub dclose {
 	for my $f (@WQ_KEYS) {
 		my $wq = delete $self->{$f} or next;
 		if ($wq->wq_kill) {
-			$wq->wq_close
+			$wq->wq_close(0, undef, $self);
 		} elsif ($wq->wq_kill_old) {
-			$wq->wq_wait_old($self);
+			$wq->wq_wait_old(undef, $self);
 		}
 	}
 	close(delete $self->{1}) if $self->{1}; # may reap_compress

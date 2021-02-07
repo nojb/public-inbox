@@ -14,12 +14,18 @@ sub _import_eml { # MboxReader callback
 	$sto->ipc_do('set_eml', $eml, $set_kw ? $sto->mbox_keywords($eml) : ());
 }
 
+sub import_done_wait { # dwaitpid callback
+	my ($arg, $pid) = @_;
+	my ($imp, $lei) = @$arg;
+	$lei->child_error($?, 'non-fatal errors during import') if $?;
+	my $ign = $lei->{sto}->ipc_do('done'); # PublicInbox::LeiStore::done
+	$lei->dclose;
+}
+
 sub import_done { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $imp = delete $lei->{imp};
-	$imp->wq_wait_old($lei) if $imp;
-	my $wait = $lei->{sto}->ipc_do('done');
-	$lei->dclose;
+	my $imp = delete $lei->{imp} or return;
+	$imp->wq_wait_old(\&import_done_wait, $lei);
 }
 
 sub call { # the main "lei import" method
