@@ -40,7 +40,7 @@ sub call {
 			@vals = (' [', undef, ']');
 		} elsif ($x =~ s/=.+//) { # required arg: $x = "type=s"
 			@vals = (' ', undef);
-		} # else: no args $x = 'thread|t'
+		} # else: no args $x = 'threads|t'
 
 		# we support underscore options from public-inbox-* commands;
 		# but they've never been documented and will likely go away.
@@ -48,7 +48,7 @@ sub call {
 		for (grep { !/_/ && !$NOHELP{$_} } split(/\|/, $x)) {
 			length($_) > 1 ? push(@l, "--$_") : push(@s, "-$_");
 		}
-		if (!scalar(@vals)) { # no args 'thread|t'
+		if (!scalar(@vals)) { # no args 'threads|t'
 		} elsif ($arg_vals =~ s/\A([A-Z_]+)\b//) { # "NAME"
 			$vals[1] = $1;
 		} else {

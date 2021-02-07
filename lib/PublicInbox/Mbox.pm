@@ -236,7 +236,7 @@ sub mbox_all {
 		return PublicInbox::WWW::need($ctx, 'Overview');
 
 	my $qopts = $ctx->{qopts} = { relevance => -1 }; # ORDER BY docid ASC
-	$qopts->{thread} = 1 if $q->{t};
+	$qopts->{threads} = 1 if $q->{t};
 	my $mset = $srch->mset($q_string, $qopts);
 	$qopts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],

@@ -47,7 +47,7 @@ or C<neomutt>.
 
 Augment output destination instead of clobbering it.
 
-=item -t, --thread
+=item -t, --threads
 
 Return all messages in the same thread as the actual match(es).
 

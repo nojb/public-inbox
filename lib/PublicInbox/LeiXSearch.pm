@@ -118,7 +118,7 @@ sub mset_progress {
 	}
 }
 
-sub query_thread_mset { # for --thread
+sub query_thread_mset { # for --threads
 	my ($self, $ibxish) = @_;
 	local $0 = "$0 query_thread_mset";
 	my $lei = $self->{lei};
@@ -151,7 +151,7 @@ sub query_thread_mset { # for --thread
 	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
-sub query_mset { # non-parallel for non-"--thread" users
+sub query_mset { # non-parallel for non-"--threads" users
 	my ($self) = @_;
 	local $0 = "$0 query_mset";
 	my $lei = $self->{lei};
@@ -204,7 +204,7 @@ sub query_remote_mboxrd {
 	my $lei = $self->{lei};
 	my ($opt, $env) = @$lei{qw(opt env)};
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
-	push(@qform, t => 1) if $opt->{thread};
+	push(@qform, t => 1) if $opt->{threads};
 	my $verbose = $opt->{verbose};
 	my ($reap_tail, $reap_curl);
 	my $cerr = File::Temp->new(TEMPLATE => 'curl.err-XXXX', TMPDIR => 1);
@@ -326,7 +326,7 @@ my $MAX_PER_HOST = 4;
 
 sub concurrency {
 	my ($self, $opt) = @_;
-	my $nl = $opt->{thread} ? locals($self) : 1;
+	my $nl = $opt->{threads} ? locals($self) : 1;
 	my $nr = remotes($self);
 	$nr = $MAX_PER_HOST if $nr > $MAX_PER_HOST;
 	$nl + $nr;
@@ -337,7 +337,7 @@ sub start_query { # always runs in main (lei-daemon) process
 	if (my $l2m = $lei->{l2m}) {
 		$lei->start_mua if $l2m->lock_free;
 	}
-	if ($lei->{opt}->{thread}) {
+	if ($lei->{opt}->{threads}) {
 		for my $ibxish (locals($self)) {
 			$self->wq_io_do('query_thread_mset', [], $ibxish);
 		}
@@ -393,7 +393,7 @@ sub do_query {
 		# 1031: F_SETPIPE_SZ
 		fcntl($lei->{startq}, 1031, 4096) if $^O eq 'linux';
 	}
-	if (!$lei->{opt}->{thread} && locals($self)) { # for query_mset
+	if (!$lei->{opt}->{threads} && locals($self)) { # for query_mset
 		# lei->{git_tmp} is set for wq_wait_old so we don't
 		# delete until all lei2mail + lei_xsearch workers are reaped
 		$lei->{git_tmp} = $self->{git_tmp} = git_tmp($self);

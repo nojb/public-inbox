@@ -81,7 +81,7 @@ sub lei_q {
 	$self->{l2m}->{jobs} = ($mj // $nproc) if $self->{l2m};
 	PublicInbox::LeiOverview->new($self) or return;
 
-	my %mset_opt = map { $_ => $opt->{$_} } qw(thread limit offset);
+	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
 	$mset_opt{limit} //= 10000;
 	if (defined(my $sort = $opt->{'sort'})) {
@@ -96,7 +96,7 @@ sub lei_q {
 		}
 	}
 	# descending docid order
-	$mset_opt{relevance} //= -2 if $opt->{thread};
+	$mset_opt{relevance} //= -2 if $opt->{threads};
 	$self->{mset_opt} = \%mset_opt;
 
 	if ($opt->{stdin}) {

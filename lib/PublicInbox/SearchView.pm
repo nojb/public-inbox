@@ -48,7 +48,7 @@ sub sres_top_html {
 		limit => $q->{l},
 		offset => $o,
 		relevance => $q->{r},
-		thread => $q->{t},
+		threads => $q->{t},
 		asc => $asc,
 	};
 	my ($mset, $total, $err, $html);

@@ -109,14 +109,14 @@ sub index_opt {
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms', qw(
-	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
+	save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
 	mua=s no-torsocks torsocks=s verbose|v+ quiet|q),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
-	qw(type=s solve! format|f=s dedupe|d=s thread|t remote local!),
+	qw(type=s solve! format|f=s dedupe|d=s threads|t remote local!),
 	pass_through('git show') ],
 
 'add-external' => [ 'LOCATION',
@@ -135,9 +135,9 @@ our %CMD = ( # sorted in order of importance/use:
 'rm-query' => [ 'QUERY_NAME', 'remove a saved search' ],
 'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search' ],
 
-'plonk' => [ '--thread|--from=IDENT',
-	'exclude mail matching From: or thread from non-Message-ID searches',
-	qw(stdin| thread|t from|f=s mid=s oid=s) ],
+'plonk' => [ '--threads|--from=IDENT',
+	'exclude mail matching From: or threads from non-Message-ID searches',
+	qw(stdin| threads|t from|f=s mid=s oid=s) ],
 'mark' => [ 'MESSAGE_FLAGS...',
 	'set/unset keywords on message(s) from stdin',
 	qw(stdin| oid=s exact by-mid|mid:s) ],
@@ -224,9 +224,9 @@ my %OPTDESC = (
 
 'dedupe|d=s' => ['STRATEGY|content|oid|mid|none',
 		'deduplication strategy'],
-'show	thread|t' => 'display entire thread a message belongs to',
-'q	thread|t' =>
-	'return all messages in the same thread as the actual match(es)',
+'show	threads|t' => 'display entire thread a message belongs to',
+'q	threads|t' =>
+	'return all messages in the same threads as the actual match(es)',
 'augment|a' => 'augment --output destination instead of clobbering',
 
 'output|mfolder|o=s' => [ 'MFOLDER',

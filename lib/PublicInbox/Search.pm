@@ -336,7 +336,7 @@ sub _enquire_once { # retry_reopen callback
 	}
 
 	# `mairix -t / --threads' or JMAP collapseThreads
-	if ($opts->{thread} && has_threadid($self)) {
+	if ($opts->{threads} && has_threadid($self)) {
 		$enquire->set_collapse_key(THREADID);
 	}
 	$enquire->get_mset($opts->{offset} || 0, $opts->{limit} || 50);
