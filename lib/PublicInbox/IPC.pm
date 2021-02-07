@@ -38,12 +38,9 @@ if ($enc && $dec) { # should be custom ops
 	*ipc_freeze = sub ($) { sereal_encode_with_object $enc, $_[0] };
 	*ipc_thaw = sub ($) { sereal_decode_with_object $dec, $_[0], my $ret };
 } else {
-	eval { # some distros have Storable as a separate package from Perl
-		require Storable;
-		*ipc_freeze = \&Storable::freeze;
-		*ipc_thaw = \&Storable::thaw;
-		$enc = 1;
-	} // warn("Storable (part of Perl) missing: $@\n");
+	require Storable;
+	*ipc_freeze = \&Storable::freeze;
+	*ipc_thaw = \&Storable::thaw;
 }
 
 my $recv_cmd = PublicInbox::Spawn->can('recv_cmd4');
@@ -102,7 +99,6 @@ sub ipc_worker_loop ($$$) {
 # starts a worker if Sereal or Storable is installed
 sub ipc_worker_spawn {
 	my ($self, $ident, $oldset, $fields) = @_;
-	return unless $enc; # no Sereal or Storable
 	return if ($self->{-ipc_ppid} // -1) == $$; # idempotent
 	delete(@$self{qw(-ipc_req -ipc_res -ipc_ppid -ipc_pid)});
 	pipe(my ($r_req, $w_req)) or die "pipe: $!";
@@ -364,7 +360,7 @@ sub _wq_worker_start ($$$) {
 # starts workqueue workers if Sereal or Storable is installed
 sub wq_workers_start {
 	my ($self, $ident, $nr_workers, $oldset, $fields) = @_;
-	($enc && $send_cmd && $recv_cmd && defined($SEQPACKET)) or return;
+	($send_cmd && $recv_cmd && defined($SEQPACKET)) or return;
 	return if $self->{-wq_s1}; # idempotent
 	$self->{-wq_s1} = $self->{-wq_s2} = undef;
 	socketpair($self->{-wq_s1}, $self->{-wq_s2}, AF_UNIX, $SEQPACKET, 0) or
