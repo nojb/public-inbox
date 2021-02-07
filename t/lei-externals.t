@@ -4,6 +4,8 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Spawn qw(which);
+require_git 2.6;
+require_mods(qw(DBD::SQLite Search::Xapian));
 
 my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
 	http://czquwvybam4bgbro.onion/meta/

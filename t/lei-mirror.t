@@ -2,6 +2,8 @@
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
+require_git 2.6;
+require_mods(qw(DBD::SQLite Search::Xapian));
 my $sock = tcp_server();
 my ($tmpdir, $for_destroy) = tmpdir();
 my $http = 'http://'.$sock->sockhost.':'.$sock->sockport.'/';
