@@ -22,15 +22,15 @@ sub pi_fork_exec ($$$$$$$) {
 		$pid = -1;
 	}
 	if ($pid == 0) {
+		$SIG{__DIE__} = sub { warn @_; _exit 1 };
 		for my $child_fd (0..$#$redir) {
 			my $parent_fd = $redir->[$child_fd];
 			next if $parent_fd == $child_fd;
 			dup2($parent_fd, $child_fd) or
-				die "dup2($parent_fd, $child_fd): $!\n";
+				die "dup2($parent_fd, $child_fd): $!";
 		}
 		if ($pgid >= 0 && !defined(setpgid(0, $pgid))) {
-			warn "setpgid: $!";
-			_exit(1);
+			die "setpgid(0, $pgid): $!";
 		}
 		$SIG{$_} = 'DEFAULT' for keys %SIG;
 		if ($cd ne '') {
@@ -39,20 +39,18 @@ sub pi_fork_exec ($$$$$$$) {
 		while (@$rlim) {
 			my ($r, $soft, $hard) = splice(@$rlim, 0, 3);
 			BSD::Resource::setrlimit($r, $soft, $hard) or
-			  warn "failed to set $r=[$soft,$hard]\n";
+				die "setrlimit($r=[$soft,$hard]: $!)";
 		}
 		$old->delset(POSIX::SIGCHLD) or die "delset SIGCHLD: $!";
 		sigprocmask(SIG_SETMASK, $old) or die "SETMASK: ~SIGCHLD: $!";
+		$cmd->[0] = $f;
 		if ($ENV{MOD_PERL}) {
-			exec which('env'), '-i', @$env, @$cmd;
-			die "exec env -i ... $cmd->[0] failed: $!\n";
+			@$cmd = (which('env'), '-i', @$env, @$cmd);
 		} else {
-			local %ENV = map { split(/=/, $_, 2) } @$env;
-			my @cmd = @$cmd;
-			$cmd[0] = $f;
-			exec @cmd;
-			die "exec $cmd->[0] failed: $!\n";
+			%ENV = map { split(/=/, $_, 2) } @$env;
 		}
+		exec @$cmd;
+		die "exec @$cmd failed: $!";
 	}
 	sigprocmask(SIG_SETMASK, $old) or die "can't unblock signals: $!";
 	$! = $syserr;
