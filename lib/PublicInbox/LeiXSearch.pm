@@ -197,13 +197,6 @@ sub each_eml { # callback for MboxReader->mboxrd
 	$each_smsg->($smsg, undef, $eml);
 }
 
-# PublicInbox::OnDestroy callback
-sub kill_reap {
-	my ($pid) = @_;
-	kill('KILL', $pid); # spawn() blocks other signals
-	waitpid($pid, 0);
-}
-
 sub query_remote_mboxrd {
 	my ($self, $uris) = @_;
 	local $0 = "$0 query_remote_mboxrd";
@@ -213,18 +206,19 @@ sub query_remote_mboxrd {
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
 	push(@qform, t => 1) if $opt->{thread};
 	my $verbose = $opt->{verbose};
-	my $reap;
+	my ($reap_tail, $reap_curl);
 	my $cerr = File::Temp->new(TEMPLATE => 'curl.err-XXXX', TMPDIR => 1);
 	fcntl($cerr, F_SETFL, O_APPEND|O_RDWR) or warn "set O_APPEND: $!";
-	my $rdr = { 2 => $cerr };
+	my $rdr = { 2 => $cerr, pgid => 0 };
 	my $coff = 0;
+	my $sigint_reap = $lei->can('sigint_reap');
 	if ($verbose) {
 		# spawn a process to force line-buffering, otherwise curl
 		# will write 1 character at-a-time and parallel outputs
 		# mmmaaayyy llloookkk llliiikkkeee ttthhhiiisss
-		my $o = { 1 => $lei->{2}, 2 => $lei->{2} };
+		my $o = { 1 => $lei->{2}, 2 => $lei->{2}, pgid => 0 };
 		my $pid = spawn(['tail', '-f', $cerr->filename], undef, $o);
-		$reap = PublicInbox::OnDestroy->new(\&kill_reap, $pid);
+		$reap_tail = PublicInbox::OnDestroy->new($sigint_reap, $pid);
 	}
 	my $curl = PublicInbox::LeiCurl->new($lei, $self->{curl}) or return;
 	push @$curl, '-s', '-d', '';
@@ -236,10 +230,13 @@ sub query_remote_mboxrd {
 		my $cmd = $curl->for_uri($lei, $uri);
 		$lei->err("# @$cmd") if $verbose;
 		my ($fh, $pid) = popen_rd($cmd, $env, $rdr);
+		$reap_curl = PublicInbox::OnDestroy->new($sigint_reap, $pid);
 		$fh = IO::Uncompress::Gunzip->new($fh);
 		PublicInbox::MboxReader->mboxrd($fh, \&each_eml, $self,
 						$lei, $each_smsg);
-		waitpid($pid, 0) == $pid or die "BUG: waitpid (curl): $!";
+		my $err = waitpid($pid, 0) == $pid ? undef : "BUG: waitpid: $!";
+		@$reap_curl = (); # cancel OnDestroy
+		die $err if $err;
 		if ($? == 0) {
 			my $nr = $lei->{-nr_remote_eml};
 			mset_progress($lei, $lei->{-current_url}, $nr, $nr);

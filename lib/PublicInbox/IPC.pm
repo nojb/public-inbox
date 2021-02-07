@@ -150,9 +150,10 @@ sub ipc_worker_reap { # dwaitpid callback
 }
 
 sub wq_wait_old {
-	my ($self, $args) = @_;
+	my ($self, @args) = @_;
+	my $cb = ref($args[0]) eq 'CODE' ? shift(@args) : \&ipc_worker_reap;
 	my $pids = delete $self->{"-wq_old_pids.$$"} or return;
-	dwaitpid($_, \&ipc_worker_reap, [$self, $args]) for @$pids;
+	dwaitpid($_, $cb, [$self, @args]) for @$pids;
 }
 
 # for base class, override in sub classes

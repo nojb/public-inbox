@@ -370,6 +370,12 @@ sub sigpipe_handler { # handles SIGPIPE from @WQ_KEYS workers
 	fail_handler($_[0], 13, delete $_[0]->{1});
 }
 
+# PublicInbox::OnDestroy callback for SIGINT to take out the entire pgid
+sub sigint_reap {
+	my ($pgid) = @_;
+	dwaitpid($pgid) if kill('-INT', $pgid);
+}
+
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	err($self, $buf) if defined $buf;

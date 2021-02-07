@@ -10,13 +10,19 @@ use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use PublicInbox::Spawn qw(popen_rd spawn);
 use PublicInbox::PktOp;
 
+sub do_finish_mirror { # dwaitpid callback
+	my ($arg, $pid) = @_;
+	my ($mrr, $lei) = @$arg;
+	if ($? == 0 && unlink("$mrr->{dst}/mirror.done")) {
+		$lei->add_external_finish($mrr->{dst});
+	}
+	$lei->dclose;
+}
+
 sub mirror_done { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $mrr = delete $lei->{mrr};
-	$mrr->wq_wait_old($lei) if $mrr;
-	# FIXME: check $? before finish
-	$lei->add_external_finish($mrr->{dst});
-	$lei->dclose;
+	my $mrr = delete $lei->{mrr} or return;
+	$mrr->wq_wait_old(\&do_finish_mirror, $lei);
 }
 
 # for old installations without manifest.js.gz
@@ -59,8 +65,9 @@ E: confused by scraping <$uri>, got ambiguous results:
 }
 
 sub clone_cmd {
-	my ($lei) = @_;
+	my ($lei, $opt) = @_;
 	my @cmd = qw(git);
+	$opt->{$_} = $lei->{$_} for (0..2);
 	# we support "-c $key=$val" for arbitrary git config options
 	# e.g.: git -c http.proxy=socks5h://127.0.0.1:9050
 	push(@cmd, '-c', $_) for @{$lei->{opt}->{c} // []};
@@ -92,14 +99,12 @@ sub _try_config {
 	my $f = "$ce-$$.tmp";
 	open(my $fh, '+>', $f) or return $lei->err("open $f: $! (non-fatal)");
 	my $opt = { 0 => $lei->{0}, 1 => $fh, 2 => $lei->{2} };
-	$lei->qerr("# @$cmd");
-	my $pid = spawn($cmd, $lei->{env}, $opt);
-	waitpid($pid, 0) == $pid or return $lei->err("waitpid @$cmd: $!");
-	if (($? >> 8) == 22) { # 404 missing
+	my $cerr = run_reap($lei, $cmd, $opt) // return;
+	if (($cerr >> 8) == 22) { # 404 missing
 		unlink($f) if -s $fh == 0;
 		return;
 	}
-	return $lei->err("# @$cmd failed (non-fatal)") if $?;
+	return $lei->err("# @$cmd failed (non-fatal)") if $cerr;
 	rename($f, $ce) or return $lei->err("link($f, $ce): $! (non-fatal)");
 	my $cfg = PublicInbox::Config::git_config_dump($f);
 	my $ibx = $self->{ibx} = {};
@@ -132,6 +137,18 @@ sub index_cloned_inbox {
 	local %ENV = (%ENV, %$env) if $env;
 	PublicInbox::Admin::progress_prepare($opt, $lei->{2});
 	PublicInbox::Admin::index_inbox($ibx, undef, $opt);
+	open my $x, '>', "$self->{dst}/mirror.done"; # for do_finish_mirror
+}
+
+sub run_reap {
+	my ($lei, $cmd, $opt) = @_;
+	$lei->qerr("# @$cmd");
+	$opt->{pgid} = 0;
+	my $pid = spawn($cmd, $lei->{env}, $opt);
+	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
+	my $err = waitpid($pid, 0) == $pid ? undef : "waitpid @$cmd: $!";
+	@$reap = (); # cancel reap
+	$err ? $lei->err($err) : $?
 }
 
 sub clone_v1 {
@@ -140,11 +157,10 @@ sub clone_v1 {
 	my $curl = $self->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
 	my $uri = URI->new($self->{src});
 	my $pfx = $curl->torsocks($lei, $uri) or return;
-	my $cmd = [ @$pfx, clone_cmd($lei), $uri->as_string, $self->{dst} ];
-	$lei->qerr("# @$cmd");
-	my $pid = spawn($cmd, $lei->{env}, $lei);
-	waitpid($pid, 0) == $pid or die "BUG: waitpid @$cmd: $!";
-	$? == 0 or return $lei->child_error($?, "@$cmd failed");
+	my $cmd = [ @$pfx, clone_cmd($lei, my $opt = {}),
+			$uri->as_string, $self->{dst} ];
+	my $cerr = run_reap($lei, $cmd, $opt) // return;
+	return $lei->child_error($cerr, "@$cmd failed") if $cerr;
 	_try_config($self);
 	index_cloned_inbox($self, 1);
 }
@@ -170,13 +186,11 @@ failed to extract epoch number from $src
 	my $lk = bless { lock_path => "$dst/inbox.lock" }, 'PublicInbox::Lock';
 	_try_config($self);
 	my $on_destroy = $lk->lock_for_scope($$);
-	my @cmd = clone_cmd($lei);
+	my @cmd = clone_cmd($lei, my $opt = {});
 	while (my $pair = shift(@src_edst)) {
 		my $cmd = [ @$pfx, @cmd, @$pair ];
-		$lei->qerr("# @$cmd");
-		my $pid = spawn($cmd, $lei->{env}, $lei);
-		waitpid($pid, 0) == $pid or die "BUG: waitpid @$cmd: $!";
-		$? == 0 or return $lei->child_error($?, "@$cmd failed");
+		my $cerr = run_reap($lei, $cmd, $opt) // return;
+		return $lei->child_error($cerr, "@$cmd failed") if $cerr;
 	}
 	undef $on_destroy; # unlock
 	index_cloned_inbox($self, 2);
@@ -193,9 +207,14 @@ sub try_manifest {
 	my $cmd = $curl->for_uri($lei, $uri);
 	$lei->qerr("# @$cmd");
 	my $opt = { 0 => $lei->{0}, 2 => $lei->{2} };
-	my $fh = popen_rd($cmd, $lei->{env}, $opt);
+	my ($fh, $pid) = popen_rd($cmd, $lei->{env}, $opt);
+	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	my $gz = do { local $/; <$fh> } // die "read(curl $uri): $!";
-	unless (close $fh) {
+	close $fh;
+	my $err = waitpid($pid, 0) == $pid ? undef : "waitpid @$cmd: $!";
+	@$reap = ();
+	return $lei->err($err) if $err;
+	if ($?) {
 		return try_scrape($self) if ($? >> 8) == 22; # 404 missing
 		return $lei->child_error($?, "@$cmd failed");
 	}
@@ -282,6 +301,7 @@ sub start {
 sub ipc_atfork_child {
 	my ($self) = @_;
 	$self->{lei}->lei_atfork_child;
+	$SIG{TERM} = sub { exit(128 + 15) }; # trigger OnDestroy $reap
 	$self->SUPER::ipc_atfork_child;
 }
 
