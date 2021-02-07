@@ -37,7 +37,6 @@ my $ipc = bless {}, 'PublicInbox::IPC';
 my @t = qw(array scalar scalarref undef);
 my $test = sub {
 	my $x = shift;
-	my @res;
 	for my $type (@t) {
 		my $m = "test_$type";
 		my @ret = $ipc->ipc_do($m);
@@ -46,34 +45,10 @@ my $test = sub {
 
 		$ipc->ipc_do($m);
 
-		$ipc->ipc_async($m, [], sub { push @res, \@_ }, \$m);
-
 		my $ret = $ipc->ipc_do($m);
 		my $exp = $ipc->$m;
 		is_deeply($ret, $exp, "!wantarray $m $x");
-
-		is_deeply(\@res, [ [ \$m, \@exp ] ], "async $m $x");
-		@res = ();
 	}
-	$ipc->ipc_async_wait(-1);
-	is_deeply(\@res, [], 'no leftover results');
-	$ipc->ipc_async('test_die', ['die test'],
-			sub { push @res, \@_  }, 'die arg');
-	$ipc->ipc_async_wait(1);
-	is(scalar(@res), 1, 'only one result');
-	is(scalar(@{$res[0]}), 2, 'result has 2-element array');
-	is($res[0]->[0], 'die arg', 'got async die arg '.$x);
-	is(ref($res[0]->[1]), 'PublicInbox::IPC::Die',
-		"exception type $x");
-	{
-		my $nr = PublicInbox::IPC::PIPE_BUF();
-		my $count = 0;
-		my $cb = sub { ++$count };
-		$ipc->ipc_async('test_undef', [], $cb) for (1..$nr);
-		$ipc->ipc_async_wait(-1);
-		is($count, $nr, "$x async runs w/o deadlock");
-	}
-
 	my $ret = eval { $ipc->test_die('phail') };
 	my $exp = $@;
 	$ret = eval { $ipc->ipc_do('test_die', 'phail') };
