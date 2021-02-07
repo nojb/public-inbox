@@ -251,7 +251,7 @@ sub start_clone_url {
 	die "TODO: non-HTTP/HTTPS clone of $self->{src} not supported, yet";
 }
 
-sub do_mirror { # via wq_do
+sub do_mirror { # via wq_io_do
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	eval {
@@ -290,7 +290,7 @@ sub start {
 	$self->wq_workers_start('lei_mirror', 1, $lei->oldset, {lei => $lei});
 	my $op = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};
-	$self->wq_do('do_mirror', []);
+	$self->wq_io_do('do_mirror', []);
 	$self->wq_close(1);
 	$lei->event_step_init; # wait for shutdowns
 	if ($lei->{oneshot}) {

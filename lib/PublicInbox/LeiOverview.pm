@@ -23,7 +23,7 @@ my $JSONL = 'ldjson|ndjson|jsonl'; # 3 names for the same thing
 
 sub _iso8601 ($) { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($_[0])) }
 
-# we open this in the parent process before ->wq_do handoff
+# we open this in the parent process before ->wq_io_do handoff
 sub ovv_out_lk_init ($) {
 	my ($self) = @_;
 	my $tmp = File::Temp->new("lei-ovv.dst.$$.lock-XXXXXX",
@@ -205,7 +205,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		sub {
 			my ($smsg, $mitem) = @_;
 			$smsg->{pct} = get_pct($mitem) if $mitem;
-			$l2m->wq_do('write_mail', [], $git_dir, $smsg);
+			$l2m->wq_io_do('write_mail', [], $git_dir, $smsg);
 		}
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";

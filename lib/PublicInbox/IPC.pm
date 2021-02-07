@@ -3,10 +3,10 @@
 
 # base class for remote IPC calls and workqueues, requires Storable or Sereal
 # - ipc_do and ipc_worker_* is for a single worker/producer and uses pipes
-# - wq_do and wq_worker* is for a single producer and multiple workers,
+# - wq_io_do and wq_worker* is for a single producer and multiple workers,
 #   using SOCK_SEQPACKET for work distribution
 # use ipc_do when you need work done on a certain process
-# use wq_do when your work can be done on any idle worker
+# use wq_io_do when your work can be done on any idle worker
 package PublicInbox::IPC;
 use strict;
 use v5.10.1;
@@ -248,12 +248,12 @@ sub wq_worker_loop ($) {
 	PublicInbox::DS->Reset;
 }
 
-sub do_sock_stream { # via wq_do, for big requests
+sub do_sock_stream { # via wq_io_do, for big requests
 	my ($self, $len) = @_;
 	recv_and_run($self, delete $self->{0}, $len, 1);
 }
 
-sub wq_do { # always async
+sub wq_io_do { # always async
 	my ($self, $sub, $ios, @args) = @_;
 	if (my $s1 = $self->{-wq_s1}) { # run in worker
 		my $fds = [ map { fileno($_) } @$ios ];
@@ -278,7 +278,7 @@ sub wq_do { # always async
 	} else {
 		@$self{0..$#$ios} = @$ios;
 		eval { $self->$sub(@args) };
-		warn "wq_do: $@" if $@;
+		warn "wq_io_do: $@" if $@;
 		delete @$self{0..$#$ios}; # don't close
 	}
 }
@@ -349,7 +349,7 @@ sub wq_worker_decr { # SIGTTOU handler, kills first idle worker
 	my ($self) = @_;
 	return unless wq_workers($self);
 	my $s2 = $self->{-wq_s2} // die 'BUG: no wq_s2';
-	$self->wq_do('wq_exit', [ $s2, $s2, $s2 ]);
+	$self->wq_io_do('wq_exit', [ $s2, $s2, $s2 ]);
 	# caller must call wq_worker_decr_wait in main loop
 }
 

@@ -106,7 +106,7 @@ my $big = do { local $/; <$agpl> } // BAIL_OUT "read: $!";
 close $agpl or BAIL_OUT "close: $!";
 
 for my $t ('local', 'worker', 'worker again') {
-	$ipc->wq_do('test_write_each_fd', [ $wa, $wb, $wc ], 'hello world');
+	$ipc->wq_io_do('test_write_each_fd', [ $wa, $wb, $wc ], 'hello world');
 	my $i = 0;
 	for my $fh ($ra, $rb, $rc) {
 		my $buf = readline($fh);
@@ -114,12 +114,12 @@ for my $t ('local', 'worker', 'worker again') {
 		like($buf, qr/\Ai=$i \d+ hello world\z/, "got expected ($t)");
 		$i++;
 	}
-	$ipc->wq_do('test_die', [ $wa, $wb, $wc ]);
-	$ipc->wq_do('test_sha', [ $wa, $wb ], 'hello world');
+	$ipc->wq_io_do('test_die', [ $wa, $wb, $wc ]);
+	$ipc->wq_io_do('test_sha', [ $wa, $wb ], 'hello world');
 	is(readline($rb), sha1_hex('hello world')."\n", "SHA small ($t)");
 	{
 		my $bigger = $big x 10;
-		$ipc->wq_do('test_sha', [ $wa, $wb ], $bigger);
+		$ipc->wq_io_do('test_sha', [ $wa, $wb ], $bigger);
 		my $exp = sha1_hex($bigger)."\n";
 		undef $bigger;
 		is(readline($rb), $exp, "SHA big ($t)");
@@ -128,7 +128,7 @@ for my $t ('local', 'worker', 'worker again') {
 	push(@ppids, $ppid);
 }
 
-# wq_do works across fork (siblings can feed)
+# wq_io_do works across fork (siblings can feed)
 SKIP: {
 	skip 'Socket::MsgHdr or Inline::C missing', 3 if !$ppids[0];
 	is_deeply(\@ppids, [$$, undef, undef],
@@ -136,7 +136,7 @@ SKIP: {
 	my $pid = fork // BAIL_OUT $!;
 	if ($pid == 0) {
 		use POSIX qw(_exit);
-		$ipc->wq_do('test_write_each_fd', [ $wa, $wb, $wc ], $$);
+		$ipc->wq_io_do('test_write_each_fd', [ $wa, $wb, $wc ], $$);
 		_exit(0);
 	} else {
 		my $i = 0;
@@ -160,7 +160,7 @@ SKIP: {
 	seek($warn, 0, SEEK_SET) or BAIL_OUT;
 	my @warn = <$warn>;
 	is(scalar(@warn), 3, 'warned 3 times');
-	like($warn[0], qr/ wq_do: /, '1st warned from wq_do');
+	like($warn[0], qr/ wq_io_do: /, '1st warned from wq_do');
 	like($warn[1], qr/ wq_worker: /, '2nd warned from wq_worker');
 	is($warn[2], $warn[1], 'worker did not die');
 

@@ -488,7 +488,7 @@ sub poke_dst {
 	}
 }
 
-sub write_mail { # via ->wq_do
+sub write_mail { # via ->wq_io_do
 	my ($self, $git_dir, $smsg) = @_;
 	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
 	git_async_cat($git, $smsg->{blob}, \&git_to_mail,

@@ -333,10 +333,10 @@ sub start_query { # always runs in main (lei-daemon) process
 	}
 	if ($lei->{opt}->{thread}) {
 		for my $ibxish (locals($self)) {
-			$self->wq_do('query_thread_mset', [], $ibxish);
+			$self->wq_io_do('query_thread_mset', [], $ibxish);
 		}
 	} elsif (locals($self)) {
-		$self->wq_do('query_mset', []);
+		$self->wq_io_do('query_mset', []);
 	}
 	my $i = 0;
 	my $q = [];
@@ -344,7 +344,7 @@ sub start_query { # always runs in main (lei-daemon) process
 		push @{$q->[$i++ % $MAX_PER_HOST]}, $uri;
 	}
 	for my $uris (@$q) {
-		$self->wq_do('query_remote_mboxrd', [], $uris);
+		$self->wq_io_do('query_remote_mboxrd', [], $uris);
 	}
 }
 
@@ -354,7 +354,7 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 }
 
-sub query_prepare { # called by wq_do
+sub query_prepare { # called by wq_io_do
 	my ($self) = @_;
 	local $0 = "$0 query_prepare";
 	my $lei = $self->{lei};
@@ -398,7 +398,7 @@ sub do_query {
 	delete $lei->{pkt_op_p};
 	$l2m->wq_close(1) if $l2m;
 	$lei->event_step_init; # wait for shutdowns
-	$self->wq_do('query_prepare', []) if $l2m;
+	$self->wq_io_do('query_prepare', []) if $l2m;
 	start_query($self, $lei);
 	$self->wq_close(1); # lei_xsearch workers stop when done
 	if ($lei->{oneshot}) {

@@ -15,14 +15,14 @@ my $nr = $ENV{TEST_STRESS_NR} // 100_000;
 my $ios = [];
 my $t = timeit(1, sub {
 	for my $i (1..$nr) {
-		$ipc->wq_do('test_set_maybe', $ios, $skv, $i);
-		$ipc->wq_do('test_set_maybe', $ios, $skv, $i);
+		$ipc->wq_io_do('test_set_maybe', $ios, $skv, $i);
+		$ipc->wq_io_do('test_set_maybe', $ios, $skv, $i);
 	}
 });
 diag "$nr sets done ".timestr($t);
 
 for my $w ($ipc->wq_workers) {
-	$ipc->wq_do('test_skv_done', $ios);
+	$ipc->wq_io_do('test_skv_done', $ios);
 }
 diag "done requested";
 

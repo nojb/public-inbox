@@ -44,9 +44,9 @@ sub call { # the main "lei import" method
 	$self->wq_workers_start('lei_import', $j, $lei->oldset, {lei => $lei});
 	my $op = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};
-	$self->wq_do('import_stdin', []) if $self->{0};
+	$self->wq_io_do('import_stdin', []) if $self->{0};
 	for my $x (@argv) {
-		$self->wq_do('import_path_url', [], $x);
+		$self->wq_io_do('import_path_url', [], $x);
 	}
 	$self->wq_close(1);
 	$lei->event_step_init; # wait for shutdowns
