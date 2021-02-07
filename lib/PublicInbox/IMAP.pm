@@ -499,7 +499,7 @@ sub body_disposition ($) {
 	my $cd = $eml->header_raw('Content-Disposition') or return 'NIL';
 	$cd = parse_content_disposition($cd);
 	my $buf = '('._esc($cd->{type});
-	$buf .= ' ' . _esc_hash(delete $cd->{attributes});
+	$buf .= ' ' . _esc_hash($cd->{attributes});
 	$buf .= ')';
 }
 
@@ -511,7 +511,7 @@ sub body_leaf ($$;$) {
 	my $ct = $eml->ct;
 	$buf .= '('._esc($ct->{type}).' ';
 	$buf .= _esc($ct->{subtype});
-	$buf .= ' ' . _esc_hash(delete $ct->{attributes});
+	$buf .= ' ' . _esc_hash($ct->{attributes});
 	$buf .= ' ' . _esc($eml->header_raw('Content-ID'));
 	$buf .= ' ' . _esc($eml->header_raw('Content-Description'));
 	my $cte = $eml->header_raw('Content-Transfer-Encoding') // '7bit';
@@ -540,7 +540,7 @@ sub body_parent ($$$) {
 		$buf .= @$hold ? join('', @$hold) : 'NIL';
 		$buf .= ' '._esc($ct->{subtype});
 		if ($structure) {
-			$buf .= ' '._esc_hash(delete $ct->{attributes});
+			$buf .= ' '._esc_hash($ct->{attributes});
 			$buf .= ' '.body_disposition($eml);
 			$buf .= ' '._esc($eml->header_raw('Content-Language'));
 			$buf .= ' '._esc($eml->header_raw('Content-Location'));
