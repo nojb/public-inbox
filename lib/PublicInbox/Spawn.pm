@@ -61,9 +61,10 @@ my $all_libc = <<'ALL_LIBC'; # all *nix systems we support
 } while (0)
 
 /* needs to be safe inside a vfork'ed process */
-static void exit_err(int *cerrnum)
+static void exit_err(const char *fn, volatile int *cerrnum)
 {
 	*cerrnum = errno;
+	write(2, fn, strlen(fn));
 	_exit(1);
 }
 
@@ -73,7 +74,7 @@ static void exit_err(int *cerrnum)
  * Be sure to update PublicInbox::SpawnPP if this changes
  */
 int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
-		 const char *cd)
+		 const char *cd, int pgid)
 {
 	AV *redir = (AV *)SvRV(redirref);
 	AV *cmd = (AV *)SvRV(cmdref);
@@ -83,8 +84,10 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	pid_t pid;
 	char **argv, **envp;
 	sigset_t set, old;
-	int ret, perrnum, cerrnum = 0;
+	int ret, perrnum;
+	volatile int cerrnum = 0; /* shared due to vfork */
 	int chld_is_member;
+	I32 max_fd = av_len(redir);
 
 	AV2C_COPY(argv, cmd);
 	AV2C_COPY(envp, env);
@@ -99,23 +102,25 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	pid = vfork();
 	if (pid == 0) {
 		int sig;
-		I32 i, child_fd, max = av_len(redir);
+		I32 i, child_fd, max_rlim;
 
-		for (child_fd = 0; child_fd <= max; child_fd++) {
+		for (child_fd = 0; child_fd <= max_fd; child_fd++) {
 			SV **parent = av_fetch(redir, child_fd, 0);
 			int parent_fd = SvIV(*parent);
 			if (parent_fd == child_fd)
 				continue;
 			if (dup2(parent_fd, child_fd) < 0)
-				exit_err(&cerrnum);
+				exit_err("dup2", &cerrnum);
 		}
+		if (pgid >= 0 && setpgid(0, pgid) < 0)
+			exit_err("setpgid", &cerrnum);
 		for (sig = 1; sig < NSIG; sig++)
 			signal(sig, SIG_DFL); /* ignore errors on signals */
 		if (*cd && chdir(cd) < 0)
-			exit_err(&cerrnum);
+			exit_err("chdir", &cerrnum);
 
-		max = av_len(rlim);
-		for (i = 0; i < max; i += 3) {
+		max_rlim = av_len(rlim);
+		for (i = 0; i < max_rlim; i += 3) {
 			struct rlimit rl;
 			SV **res = av_fetch(rlim, i, 0);
 			SV **soft = av_fetch(rlim, i + 1, 0);
@@ -124,12 +129,12 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 			rl.rlim_cur = SvIV(*soft);
 			rl.rlim_max = SvIV(*hard);
 			if (setrlimit(SvIV(*res), &rl) < 0)
-				exit_err(&cerrnum);
+				exit_err("setrlimit", &cerrnum);
 		}
 
 		(void)sigprocmask(SIG_SETMASK, &old, NULL);
 		execve(filename, argv, envp);
-		exit_err(&cerrnum);
+		exit_err("execve", &cerrnum);
 	}
 	perrnum = errno;
 	if (chld_is_member > 0)
@@ -137,9 +142,16 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	ret = sigprocmask(SIG_SETMASK, &old, NULL);
 	assert(ret == 0 && "BUG calling sigprocmask to restore");
 	if (cerrnum) {
+		int err_fd = STDERR_FILENO;
+		if (err_fd <= max_fd) {
+			SV **parent = av_fetch(redir, err_fd, 0);
+			err_fd = SvIV(*parent);
+		}
 		if (pid > 0)
 			waitpid(pid, NULL, 0);
 		pid = -1;
+		/* continue message started by exit_err in child */
+		dprintf(err_fd, ": %s\n", strerror(cerrnum));
 		errno = cerrnum;
 	} else if (perrnum) {
 		errno = perrnum;
@@ -373,7 +385,8 @@ sub spawn ($;$$) {
 		push @$rlim, $r, @$v;
 	}
 	my $cd = $opts->{'-C'} // ''; # undef => NULL mapping doesn't work?
-	my $pid = pi_fork_exec($redir, $f, $cmd, \@env, $rlim, $cd);
+	my $pgid = $opts->{pgid} // -1;
+	my $pid = pi_fork_exec($redir, $f, $cmd, \@env, $rlim, $cd, $pgid);
 	die "fork_exec @$cmd failed: $!\n" unless $pid > 0;
 	$pid;
 }

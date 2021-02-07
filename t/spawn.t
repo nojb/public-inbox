@@ -18,6 +18,24 @@ use PublicInbox::Sigfd;
 	is($?, 0, 'true exited successfully');
 }
 
+SKIP: {
+	my $pid = spawn(['true'], undef, { pgid => 0 });
+	ok($pid, 'spawned process with new pgid');
+	is(waitpid($pid, 0), $pid, 'waitpid succeeds on spawned process');
+	is($?, 0, 'true exited successfully');
+	pipe(my ($r, $w)) or BAIL_OUT;
+	$pid = eval { spawn(['true'], undef, { pgid => 1, 2 => $w }) };
+	close $w;
+	my $err = do { local $/; <$r> };
+	# diag "$err ($@)";
+	if (defined $pid) {
+		waitpid($pid, 0) if defined $pid;
+		isnt($?, 0, 'child error (pure-Perl)');
+	} else {
+		ok($@, 'exception raised');
+	}
+}
+
 { # ensure waitpid(-1, 0) and SIGCHLD works in spawned process
 	my $script = <<'EOF';
 $| = 1; # unbuffer stdout
