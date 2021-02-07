@@ -7,7 +7,7 @@ use strict;
 use v5.10.1;
 use Text::Wrap qw(wrap);
 
-my %NOHELP = map { $_ => 1 } qw(mua-cmd mfolder);
+my %NOHELP = map { $_ => 1 } qw(mfolder);
 
 sub call {
 	my ($self, $errmsg, $CMD, $OPTDESC) = @_;

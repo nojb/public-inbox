@@ -36,7 +36,7 @@ Pretty print C<json> or C<concatjson> output.  If stdout is opened to
 a tty and used as the C<--output> destination, C<--pretty> is enabled
 by default.
 
-=item --mua-cmd=COMMAND, --mua=COMMAND
+=item --mua=COMMAND
 
 A command to run on C<--output> Maildir or mbox (e.g., C<mutt -f %f>).
 For a subset of MUAs known to accept a mailbox via C<-f>, COMMAND can

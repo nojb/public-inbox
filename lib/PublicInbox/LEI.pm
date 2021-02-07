@@ -112,7 +112,7 @@ our %CMD = ( # sorted in order of importance/use:
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s thread|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
-	mua-cmd|mua=s no-torsocks torsocks=s verbose|v+ quiet|q),
+	mua=s no-torsocks torsocks=s verbose|v+ quiet|q),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
@@ -232,7 +232,7 @@ my %OPTDESC = (
 'output|mfolder|o=s' => [ 'MFOLDER',
 	"destination (e.g.\xa0`/path/to/Maildir', ".
 	"or\xa0`-'\x{a0}for\x{a0}stdout)" ],
-'mua-cmd|mua=s' => [ 'CMD',
+'mua=s' => [ 'CMD',
 	"MUA to run on --output Maildir or mbox (e.g.\xa0`mutt\xa0-f\xa0%f')" ],
 
 'show	format|f=s' => [ 'OUT|plain|raw|html|mboxrd|mboxcl2|mboxcl',
@@ -723,7 +723,7 @@ sub exec_buf ($$) {
 
 sub start_mua {
 	my ($self) = @_;
-	my $mua = $self->{opt}->{'mua-cmd'} // return;
+	my $mua = $self->{opt}->{mua} // return;
 	my $mfolder = $self->{ovv}->{dst};
 	my (@cmd, $replaced);
 	if ($mua =~ /\A(?:mutt|mailx|mail|neomutt)\z/) {
