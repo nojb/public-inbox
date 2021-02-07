@@ -731,7 +731,7 @@ sub start_mua {
 	# TODO: help wanted: other common FOSS MUAs
 	} else {
 		require Text::ParseWords;
-		my @cmd = Text::ParseWords::shellwords($mua);
+		@cmd = Text::ParseWords::shellwords($mua);
 		# mutt uses '%f' for open-hook with compressed mbox, we follow
 		@cmd = map { $_ eq '%f' ? ($replaced = $mfolder) : $_ } @cmd;
 	}
