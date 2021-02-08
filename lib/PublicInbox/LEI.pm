@@ -112,7 +112,7 @@ our %CMD = ( # sorted in order of importance/use:
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
-	mua=s no-torsocks torsocks=s verbose|v+ quiet|q),
+	alert=s@ mua=s no-torsocks torsocks=s verbose|v+ quiet|q),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
@@ -227,6 +227,11 @@ my %OPTDESC = (
 'show	threads|t' => 'display entire thread a message belongs to',
 'q	threads|t' =>
 	'return all messages in the same threads as the actual match(es)',
+'alert=s@' => ['CMD,-WINCH,-bell,<any command>',
+	'run command(s) or perform ops when done writing to output ' .
+	'(default: "-WINCH,-bell" with --mua and Maildir/IMAP output, ' .
+	'nothing otherwise)' ],
+
 'augment|a' => 'augment --output destination instead of clobbering',
 
 'output|mfolder|o=s' => [ 'MFOLDER',
@@ -739,21 +744,43 @@ sub start_mua {
 	if (my $sock = $self->{sock}) { # lei(1) client process runs it
 		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
 	} elsif ($self->{oneshot}) {
-		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);
+		$self->{"pid.$self.$$"}->{spawn(\@cmd)} = \@cmd;
 	}
 	if ($self->{lxs} && $self->{au_done}) { # kick wait_startq
 		syswrite($self->{au_done}, 'q' x ($self->{lxs}->{jobs} // 0));
 	}
+	$self->{opt}->{quiet} = 1;
+	delete $self->{-progress};
+	delete $self->{opt}->{verbose};
 }
 
 sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 	my ($self) = @_;
-	return unless $self->{opt}->{mua} && -t $self->{1};
-	# hit the process group that started the MUA
-	if (my $s = $self->{sock}) {
-		send($s, '-WINCH', MSG_EOR);
-	} elsif ($self->{oneshot}) {
-		kill('-WINCH', $$);
+	my $alerts = $self->{opt}->{alert} // return;
+	while (my $op = shift(@$alerts)) {
+		if ($op eq '-WINCH') {
+			# hit the process group that started the MUA
+			if ($self->{sock}) {
+				send($self->{sock}, '-WINCH', MSG_EOR);
+			} elsif ($self->{oneshot}) {
+				kill('-WINCH', $$);
+			}
+		} elsif ($op eq '-bell') {
+			out($self, "\a");
+		} elsif ($op =~ /(?<!\\),/) { # bare ',' (not ',,')
+			push @$alerts, split(/(?<!\\),/, $op);
+		} elsif ($op =~ m!\A([/a-z0-9A-Z].+)!) {
+			my $cmd = $1; # run an arbitrary command
+			require Text::ParseWords;
+			$cmd = [ Text::ParseWords::shellwords($cmd) ];
+			if (my $s = $self->{sock}) {
+				send($s, exec_buf($cmd, {}), MSG_EOR);
+			} elsif ($self->{oneshot}) {
+				$self->{"pid.$self.$$"}->{spawn($cmd)} = $cmd;
+			}
+		} else {
+			err($self, "W: unsupported --alert=$op"); # non-fatal
+		}
 	}
 }
 
@@ -776,8 +803,8 @@ sub start_pager {
 		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
 		$send_cmd->($sock, $fds, exec_buf([$pager], $new_env), MSG_EOR);
 	} elsif ($self->{oneshot}) {
-		$pgr->[0] = spawn([$pager], $new_env, $rdr);
-		$pgr->[3] = $$; # ew'll reap it
+		my $cmd = [$pager];
+		$self->{"pid.$self.$$"}->{spawn($cmd, $new_env, $rdr)} = $cmd;
 	} else {
 		die 'BUG: start_pager w/o socket';
 	}
@@ -793,8 +820,6 @@ sub stop_pager {
 	$self->{2} = $pgr->[2];
 	# do not restore original stdout, just close it so we error out
 	close(delete($self->{1})) if $self->{1};
-	my $pid = $pgr->[0];
-	dwaitpid($pid) if $pid && ($pgr->[3] // 0) == $$;
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
@@ -1044,9 +1069,8 @@ sub DESTROY {
 	my ($self) = @_;
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
-	if (my $mua_pid = delete $self->{"mua.pid.$self.$$"}) {
-		waitpid($mua_pid, 0);
-	}
+	my $oneshot_pids = delete $self->{"pid.$self.$$"} or return;
+	waitpid($_, 0) for keys %$oneshot_pids;
 }
 
 1;

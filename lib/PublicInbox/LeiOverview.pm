@@ -98,7 +98,10 @@ sub new {
 		$opt->{'sort'} //= 'docid' if $dst ne '/dev/stdout';
 		$lei->{l2m} = eval { PublicInbox::LeiToMail->new($lei) };
 		return $lei->fail($@) if $@;
-		$lei->{early_mua} = 1 if $opt->{mua} && $lei->{l2m}->lock_free;
+		if ($opt->{mua} && $lei->{l2m}->lock_free) {
+			$lei->{early_mua} = 1;
+			$opt->{alert} //= [ '-WINCH,-bell' ] if -t $lei->{1};
+		}
 	}
 	$self;
 }
