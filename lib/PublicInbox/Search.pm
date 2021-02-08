@@ -8,6 +8,7 @@ use strict;
 use parent qw(Exporter);
 our @EXPORT_OK = qw(retry_reopen int_val get_pct xap_terms);
 use List::Util qw(max);
+use POSIX qw(strftime);
 
 # values for searching, changing the numeric value breaks
 # compatibility with old indices (so don't change them it)
@@ -257,6 +258,72 @@ sub reopen {
 		$xdb->reopen;
 	}
 	$self; # make chaining easier
+}
+
+# Convert git "approxidate" ranges to something usable with our
+# Xapian indices.  At the moment, Xapian only offers a C++-only API
+# and neither the SWIG nor XS bindings allow us to use custom code
+# to parse dates (and libgit2 doesn't expose git__date_parse, either,
+# so we're running git-rev-parse(1)).
+sub date_range {
+	my ($git, $pfx, $range) = @_;
+	# are we inside a parenthesized statement?
+	my $end = $range =~ s/([\)\s]*)\z// ? $1 : '';
+	my @r = split(/\.\./, $range, 2);
+
+	# expand "d:20101002" => "d:20101002..20101003" and like
+	# n.b. git doesn't do YYYYMMDD w/o '-', it needs YYYY-MM-DD
+	if ($pfx eq 'd') {
+		if (!defined($r[1])) {
+			$r[0] =~ s/\A([0-9]{4})([0-9]{2})([0-9]{2})\z/$1-$2-$3/;
+			$r[0] = $git->date_parse($r[0]);
+			$r[1] = $r[0] + 86400;
+			for my $x (@r) {
+				$x = strftime('%Y%m%d', gmtime($x));
+			}
+		} else {
+			for my $x (@r) {
+				next if $x eq '' || $x =~ /\A[0-9]{8}\z/;
+				$x = strftime('%Y%m%d',
+						gmtime($git->date_parse($x)));
+			}
+		}
+	} elsif ($pfx eq 'dt') {
+		if (!defined($r[1])) { # git needs gaps and not /\d{14}/
+			$r[0] =~ s/\A([0-9]{4})([0-9]{2})([0-9]{2})
+					([0-9]{2})([0-9]{2})([0-9]{2})\z
+				/$1-$2-$3 $4:$5:$6/x;
+			$r[0] = $git->date_parse($r[0]);
+			$r[1] = $r[0] + 86400;
+			for my $x (@r) {
+				$x = strftime('%Y%m%d%H%M%S', gmtime($x));
+			}
+		} else {
+			for my $x (@r) {
+				next if $x eq '' || $x =~ /\A[0-9]{14}\z/;
+				$x = strftime('%Y%m%d%H%M%S',
+						gmtime($git->date_parse($x)));
+			}
+		}
+	} else { # "rt", let git interpret "YYYY", deal with Y10K later :P
+		for my $x (@r) {
+			next if $x eq '' || $x =~ /\A[0-9]{5,}\z/;
+			$x = $git->date_parse($x);
+		}
+		$r[1] //= $r[0] + 86400;
+	}
+	"$pfx:".join('..', @r).$end;
+}
+
+sub query_argv_to_string {
+	my (undef, $git, $argv) = @_;
+	join(' ', map {;
+		if (s!\b(d|rt|dt):(.+)\z!date_range($git, $1, $2)!sge) {
+			$_;
+		} else {
+			/\s/ ? (s/\A(\w+:)// ? qq{$1"$_"} : qq{"$_}) : $_
+		}
+	} @$argv);
 }
 
 # read-only

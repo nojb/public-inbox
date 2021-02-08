@@ -34,9 +34,10 @@ sub lei_q {
 	my @only = @{$opt->{only} // []};
 	# --local is enabled by default unless --only is used
 	# we'll allow "--only $LOCATION --local"
+	my $sto = $self->_lei_store(1);
+	my $lse = $sto->search;
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
-		my $sto = $self->_lei_store(1);
-		$lxs->prepare_external($sto->search);
+		$lxs->prepare_external($lse);
 	}
 	if (@only) {
 		for my $loc (@only) {
@@ -107,12 +108,7 @@ no query allowed on command-line with --stdin
 		PublicInbox::InputPipe::consume($self->{0}, \&qstr_add, $self);
 		return;
 	}
-	# Consider spaces in argv to be for phrase search in Xapian.
-	# In other words, the users should need only care about
-	# normal shell quotes and not have to learn Xapian quoting.
-	$mset_opt{qstr} = join(' ', map {;
-		/\s/ ? (s/\A(\w+:)// ? qq{$1"$_"} : qq{"$_"}) : $_
-	} @argv);
+	$mset_opt{qstr} = $lse->query_argv_to_string($lse->git, \@argv);
 	$lxs->do_query($self);
 }
 

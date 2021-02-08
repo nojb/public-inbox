@@ -9,6 +9,7 @@ require PublicInbox::SearchIdx;
 require PublicInbox::Inbox;
 require PublicInbox::InboxWritable;
 use PublicInbox::Eml;
+use POSIX qw(strftime);
 my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/a.git";
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $git_dir });
@@ -533,5 +534,48 @@ $ibx->with_umask(sub {
 		'20200418222508.GA13918@dcvr',
 		'Subject search reaches inside message/rfc822');
 });
+
+SKIP: {
+	local $ENV{TZ} = 'UTC';
+	my $now = strftime('%H:%M:%S', gmtime(time));
+	if ($now =~ /\A23:(?:59|60)/ || $now =~ /\A00:00:0[01]\z/) {
+		skip 'too close to midnight, time is tricky', 6;
+	}
+	my ($s, $g) = ($ibx->search, $ibx->git);
+	my $q = $s->query_argv_to_string($g, [qw(d:20101002 blah)]);
+	is($q, 'd:20101002..20101003 blah', 'YYYYMMDD expanded to range');
+	$q = $s->query_argv_to_string($g, [qw(d:2010-10-02)]);
+	is($q, 'd:20101002..20101003', 'YYYY-MM-DD expanded to range');
+	$q = $s->query_argv_to_string($g, [qw(rt:2010-10-02.. yy)]);
+	$q =~ /\Art:(\d+)\.\. yy/ or fail("rt: expansion failed: $q");
+	is(strftime('%Y-%m-%d', gmtime($1//0)), '2010-10-02', 'rt: beg expand');
+	$q = $s->query_argv_to_string($g, [qw(rt:..2010-10-02 zz)]);
+	$q =~ /\Art:\.\.(\d+) zz/ or fail("rt: expansion failed: $q");
+	is(strftime('%Y-%m-%d', gmtime($1//0)), '2010-10-02', 'rt: end expand');
+	$q = $s->query_argv_to_string($g, [qw(something dt:2010-10-02..)]);
+	like($q, qr/\Asomething dt:20101002\d{6}\.\./, 'dt: expansion');
+	$q = $s->query_argv_to_string($g, [qw(x d:yesterday.. y)]);
+	is($q, strftime('x d:%Y%m%d.. y', gmtime(time - 86400)),
+		'"yesterday" handled');
+	$q = $s->query_argv_to_string($g, [qw(x dt:20101002054123)]);
+	is($q, 'x dt:20101002054123..20101003054123', 'single dt: expanded');
+	$q = $s->query_argv_to_string($g, [qw(x dt:2010-10-02T05:41:23Z)]);
+	is($q, 'x dt:20101002054123..20101003054123', 'ISO8601 dt: expanded');
+	$q = $s->query_argv_to_string($g, [qw(rt:1970..1971)]);
+	$q =~ /\Art:(\d+)\.\.(\d+)\z/ or fail "YYYY rt: expansion: $q";
+	my ($beg, $end) = ($1, $2);
+	is(strftime('%Y', gmtime($beg)), 1970, 'rt: starts at 1970');
+	is(strftime('%Y', gmtime($end)), 1971, 'rt: ends at 1971');
+	$q = $s->query_argv_to_string($g, [qw(rt:1970-01-01)]);
+	$q =~ /\Art:(\d+)\.\.(\d+)\z/ or fail "YYYY-MM-DD rt: expansion: $q";
+	($beg, $end) = ($1, $2);
+	is(strftime('%Y-%m-%d', gmtime($beg)), '1970-01-01',
+			'rt: date-only w/o range');
+	is(strftime('%Y-%m-%d', gmtime($end)), '1970-01-02',
+			'rt: date-only auto-end');
+	$q = $s->query_argv_to_string($g, [qw{OR (rt:1993-10-02)}]);
+	like($q, qr/\AOR \(rt:749\d{6}\.\.749\d{6}\)\z/,
+		'trailing parentheses preserved');
+}
 
 done_testing();
