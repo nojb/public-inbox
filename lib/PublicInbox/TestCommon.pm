@@ -14,7 +14,7 @@ BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes
-		test_lei $lei $lei_out $lei_err $lei_opt);
+		tcp_host_port test_lei $lei $lei_out $lei_err $lei_opt);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -40,20 +40,38 @@ sub tmpdir (;$) {
 }
 
 sub tcp_server () {
-	IO::Socket::INET->new(
-		LocalAddr => '127.0.0.1',
+	my %opt = (
 		ReuseAddr => 1,
 		Proto => 'tcp',
 		Type => Socket::SOCK_STREAM(),
 		Listen => 1024,
 		Blocking => 0,
-	) or BAIL_OUT "failed to create TCP server: $!";
+	);
+	eval {
+		die 'IPv4-only' if $ENV{TEST_IPV4_ONLY};
+		require IO::Socket::INET6;
+		IO::Socket::INET6->new(%opt, LocalAddr => '[::1]')
+	} || eval {
+		die 'IPv6-only' if $ENV{TEST_IPV6_ONLY};
+		IO::Socket::INET->new(%opt, LocalAddr => '127.0.0.1')
+	} || BAIL_OUT "failed to create TCP server: $! ($@)";
+}
+
+sub tcp_host_port ($) {
+	my ($s) = @_;
+	my ($h, $p) = ($s->sockhost, $s->sockport);
+	my $ipv4 = $s->sockdomain == Socket::AF_INET();
+	if (wantarray) {
+		$ipv4 ? ($h, $p) : ("[$h]", $p);
+	} else {
+		$ipv4 ? "$h:$p" : "[$h]:$p";
+	}
 }
 
 sub tcp_connect {
 	my ($dest, %opt) = @_;
-	my $addr = $dest->sockhost . ':' . $dest->sockport;
-	my $s = IO::Socket::INET->new(
+	my $addr = tcp_host_port($dest);
+	my $s = ref($dest)->new(
 		Proto => 'tcp',
 		Type => Socket::SOCK_STREAM(),
 		PeerAddr => $addr,

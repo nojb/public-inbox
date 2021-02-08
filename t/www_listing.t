@@ -79,8 +79,7 @@ SKIP: {
 	my $cfgfile = "$tmpdir/config";
 	my $v2 = "$tmpdir/v2";
 	my $sock = tcp_server();
-	ok($sock, 'sock created');
-	my ($host, $port) = ($sock->sockhost, $sock->sockport);
+	my ($host, $port) = tcp_host_port($sock);
 	my @clone = qw(git clone -q -s --bare);
 	is(xsys(@clone, $bare->{git_dir}, $alt), 0, 'clone shared repo');
 

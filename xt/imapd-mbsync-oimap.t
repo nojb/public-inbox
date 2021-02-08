@@ -35,6 +35,8 @@ my $td = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT "-imapd: $?";
 	my $c = tcp_connect($sock);
 	like(readline($c), qr/CAPABILITY /, 'got greeting');
 }
+
+my $host_port = tcp_host_port($sock);
 my ($host, $port) = ($sock->sockhost, $sock->sockport);
 my %pids;
 
@@ -120,7 +122,7 @@ while (scalar keys %pids) {
 my $sec = $ENV{TEST_PERSIST} // 0;
 diag "TEST_PERSIST=$sec";
 if ($sec) {
-	diag "sleeping ${sec}s, imap://$host:$port/$mailbox available";
+	diag "sleeping ${sec}s, imap://$host_port/$mailbox available";
 	diag "tmpdir=$tmpdir (Maildirs available)";
 	diag "stdout=$out";
 	diag "stderr=$err";

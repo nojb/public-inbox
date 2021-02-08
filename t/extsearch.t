@@ -14,7 +14,7 @@ use_ok 'PublicInbox::ExtSearch';
 use_ok 'PublicInbox::ExtSearchIdx';
 use_ok 'PublicInbox::OverIdx';
 my $sock = tcp_server();
-my $host_port = $sock->sockhost . ':' . $sock->sockport;
+my $host_port = tcp_host_port($sock);
 my ($home, $for_destroy) = tmpdir();
 local $ENV{HOME} = $home;
 mkdir "$home/.public-inbox" or BAIL_OUT $!;

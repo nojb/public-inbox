@@ -45,7 +45,7 @@ my $imaps = tcp_server();
 EOF
 	close $fh or die "close: $!\n";
 }
-my $imaps_addr = $imaps->sockhost . ':' . $imaps->sockport;
+my $imaps_addr = tcp_host_port($imaps);
 my $env = { PI_CONFIG => $pi_config };
 my $arg = $TEST_TLS ? [ "-limaps://$imaps_addr/?cert=$cert,key=$key" ] : [];
 my $cmd = [ '-imapd', '-W0', @$arg, "--stdout=$out", "--stderr=$err" ];

@@ -164,12 +164,11 @@ EOF
 	;
 	close $fh or die "close: $!\n";
 	my $sock = tcp_server();
-	ok($sock, 'sock created');
 	my $len;
 	my $cmd = [ '-nntpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	my $env = { PI_CONFIG => $pi_config };
 	my $td = start_script($cmd, $env, { 3 => $sock });
-	my $host_port = $sock->sockhost . ':' . $sock->sockport;
+	my $host_port = tcp_host_port($sock);
 	my $n = Net::NNTP->new($host_port);
 	$n->group($group);
 	my $x = $n->xover('1-');

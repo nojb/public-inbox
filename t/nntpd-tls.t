@@ -70,8 +70,8 @@ EOF
 	}
 }
 
-my $nntps_addr = $nntps->sockhost . ':' . $nntps->sockport;
-my $starttls_addr = $starttls->sockhost . ':' . $starttls->sockport;
+my $nntps_addr = tcp_host_port($nntps);
+my $starttls_addr = tcp_host_port($starttls);
 my $env = { PI_CONFIG => $pi_config };
 my $td;
 

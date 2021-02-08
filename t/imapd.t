@@ -60,11 +60,8 @@ my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $cmd = [ '-imapd', '-W0', "--stdout=$out", "--stderr=$err" ];
 my $td = start_script($cmd, undef, { 3 => $sock }) or BAIL_OUT("-imapd: $?");
-my %mic_opt = (
-	Server => $sock->sockhost,
-	Port => $sock->sockport,
-	Uid => 1,
-);
+my ($ihost, $iport) = tcp_host_port($sock);
+my %mic_opt = ( Server => $ihost, Port => $iport, Uid => 1 );
 my $mic = $imap_client->new(%mic_opt);
 my $pre_login_capa = $mic->capability;
 is(grep(/\AAUTH=ANONYMOUS\z/, @$pre_login_capa), 1,
@@ -456,7 +453,6 @@ SKIP: {
 	my $url = "http://example.com/i1";
 	my $inboxdir = "$tmpdir/watchimap";
 	my $cmd = ['-init', '-V2', '-Lbasic', $name, $inboxdir, $url, $addr];
-	my ($ihost, $iport) = ($sock->sockhost, $sock->sockport);
 	my $imapurl = "imap://$ihost:$iport/inbox.i1.0";
 	run_script($cmd) or BAIL_OUT("init $name");
 	xsys(qw(git config), "--file=$home/.public-inbox/config",

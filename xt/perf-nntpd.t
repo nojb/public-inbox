@@ -8,12 +8,15 @@ use PublicInbox::Inbox;
 use Net::NNTP;
 my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless defined($inboxdir);
-my ($host_port, $group, %opts, $s, $td, $tmp_obj);
+my ($host_port, $group, $s, $td, $tmp_obj);
 use PublicInbox::TestCommon;
 
 if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	($host_port, $group) = ($1, $2);
 	$host_port .= ":119" unless index($host_port, ':') > 0;
+	my $six = substr($host_port, 0, 1) eq '[' ? '6' : '';
+	my $cls = "IO::Socket::INET$six";
+	$cls->new(Proto => 'tcp', Timeout => 1, PeerAddr => $host_port);
 } else {
 	$group = 'inbox.test.perf.nntpd';
 	my $ibx = { inboxdir => $inboxdir, newsgroup => $group };
@@ -34,18 +37,11 @@ if (($ENV{NNTP_TEST_URL} || '') =~ m!\Anntp://([^/]+)/([^/]+)\z!) {
 	}
 
 	my $sock = tcp_server();
-	ok($sock, 'sock created');
 	my $cmd = [ '-nntpd', '-W0' ];
 	$td = start_script($cmd, { PI_CONFIG => $pi_config }, { 3 => $sock });
-	$host_port = $sock->sockhost . ':' . $sock->sockport;
+	$host_port = tcp_host_port($sock);
+	$s = tcp_connect($sock);
 }
-%opts = (
-	PeerAddr => $host_port,
-	Proto => 'tcp',
-	Timeout => 1,
-);
-$s = IO::Socket::INET->new(%opts);
-$s->autoflush(1);
 my $buf = $s->getline;
 like($buf, qr/\A201 .* ready - post via email\r\n/s, 'got greeting');
 

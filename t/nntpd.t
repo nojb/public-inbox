@@ -8,7 +8,6 @@ use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite));
 require PublicInbox::InboxWritable;
 use PublicInbox::Eml;
-use IO::Socket;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use Net::NNTP;
 use Sys::Hostname;
@@ -34,6 +33,7 @@ my $addr = $group . '@example.com';
 
 my %opts;
 my $sock = tcp_server();
+my $host_port = tcp_host_port($sock);
 my $td;
 my $len;
 
@@ -96,10 +96,8 @@ EOF
 		}
 	}
 
-	ok($sock, 'sock created');
 	my $cmd = [ '-nntpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	$td = start_script($cmd, undef, { 3 => $sock });
-	my $host_port = $sock->sockhost . ':' . $sock->sockport;
 	my $n = Net::NNTP->new($host_port);
 	my $list = $n->list;
 	ok(delete $list->{'x.y.z'}, 'deleted x.y.z group');
@@ -376,7 +374,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $noerr);
 		is(scalar(grep(/\(deleted\)/, @of)), 0, 'no deleted files');
 	};
-	SKIP: { test_watch($tmpdir, $sock, $group) };
+	SKIP: { test_watch($tmpdir, $host_port, $group) };
 	{
 		setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
 		syswrite($s, 'HDR List-id 1-');
@@ -417,7 +415,7 @@ sub read_til_dot {
 }
 
 sub test_watch {
-	my ($tmpdir, $sock, $group) = @_;
+	my ($tmpdir, $host_port, $group) = @_;
 	use_ok 'PublicInbox::Watch';
 	use_ok 'PublicInbox::InboxIdle';
 	use_ok 'PublicInbox::Config';
@@ -432,8 +430,7 @@ sub test_watch {
 	my $url = "http://example.com/i1";
 	my $inboxdir = "$tmpdir/watchnntp";
 	my $cmd = ['-init', '-V1', '-Lbasic', $name, $inboxdir, $url, $addr];
-	my ($ihost, $iport) = ($sock->sockhost, $sock->sockport);
-	my $nntpurl = "nntp://$ihost:$iport/$group";
+	my $nntpurl = "nntp://$host_port/$group";
 	run_script($cmd) or BAIL_OUT("init $name");
 	xsys(qw(git config), "--file=$home/.public-inbox/config",
 			"publicinbox.$name.watch",

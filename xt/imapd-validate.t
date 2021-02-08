@@ -152,11 +152,11 @@ $make_local_server = sub {
 	# not using multiple workers, here, since we want to increase
 	# the chance of tripping concurrency bugs within PublicInbox/IMAP*.pm
 	my $cmd = [ '-imapd', "--stdout=$out", "--stderr=$err", '-W0' ];
-	push @$cmd, '-limap://'.$imap->sockhost.':'.$imap->sockport;
+	push @$cmd, '-limap://'.tcp_host_port($imap);
 	if ($test_tls) {
 		my $imaps = tcp_server();
 		$rdr->{4} = $imaps;
-		push @$cmd, '-limaps://'.$imaps->sockhost.':'.$imaps->sockport;
+		push @$cmd, '-limaps://'.tcp_host_port($imaps);
 		push @$cmd, "--cert=$cert", "--key=$key";
 		my $tls_opt = [
 			SSL_hostname => 'server.local',

@@ -70,8 +70,8 @@ EOF
 	}
 }
 
-my $imaps_addr = $imaps->sockhost . ':' . $imaps->sockport;
-my $starttls_addr = $starttls->sockhost . ':' . $starttls->sockport;
+my $imaps_addr = tcp_host_port($imaps);
+my $starttls_addr = tcp_host_port($starttls);
 my $env = { PI_CONFIG => $pi_config };
 my $td;
 

@@ -11,7 +11,6 @@ use PublicInbox::TestCommon;
 require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 use Digest::SHA qw(sha1_hex);
 use IO::Handle ();
-use IO::Socket;
 use IO::Socket::UNIX;
 use Fcntl qw(:seek);
 use Socket qw(IPPROTO_TCP TCP_NODELAY SOL_SOCKET);
@@ -50,14 +49,13 @@ sub unix_server ($) {
 		Listen => 1024,
 		Type => Socket::SOCK_STREAM(),
 		Local => $_[0],
-	);
+	) or BAIL_OUT "bind + listen $_[0]: $!";
 	$s->blocking(0);
 	$s;
 }
 
 my $upath = "$tmpdir/s";
 my $unix = unix_server($upath);
-ok($unix, 'UNIX socket created');
 my $td;
 my $spawn_httpd = sub {
 	my (@args) = @_;
@@ -219,7 +217,7 @@ sub check_400 {
 	ok($u, 'unix socket connected');
 	$u->write("GET /host-port HTTP/1.0\r\n\r\n");
 	$u->read(my $buf, 4096);
-	like($buf, qr!\r\n\r\n127\.0\.0\.1:0\z!,
+	like($buf, qr!\r\n\r\n127\.0\.0\.1 0\z!,
 		'set REMOTE_ADDR and REMOTE_PORT for Unix socket');
 }
 
@@ -236,8 +234,8 @@ sub conn_for {
 	$conn->write("GET /host-port HTTP/1.0\r\n\r\n");
 	$conn->read(my $buf, 4096);
 	my ($head, $body) = split(/\r\n\r\n/, $buf);
-	my ($addr, $port) = split(/:/, $body);
-	is($addr, $conn->sockhost, 'host matches addr');
+	my ($addr, $port) = split(/ /, $body);
+	is($addr, (tcp_host_port($conn))[0], 'host matches addr');
 	is($port, $conn->sockport, 'port matches');
 }
 
@@ -306,7 +304,7 @@ my $check_self = sub {
 
 SKIP: {
 	my $curl = which('curl') or skip('curl(1) missing', 4);
-	my $base = 'http://' . $sock->sockhost . ':' . $sock->sockport;
+	my $base = 'http://'.tcp_host_port($sock);
 	my $url = "$base/sha1";
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";

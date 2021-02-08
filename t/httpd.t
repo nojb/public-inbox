@@ -44,11 +44,9 @@ EOF
 		$im->add($mime);
 		$im->done($mime);
 	}
-	ok($sock, 'sock created');
 	$cmd = [ '-httpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	$td = start_script($cmd, undef, { 3 => $sock });
-	my $host = $sock->sockhost;
-	my $port = $sock->sockport;
+	my $http_pfx = 'http://'.tcp_host_port($sock);
 	{
 		my $bad = tcp_connect($sock);
 		print $bad "GETT / HTTP/1.0\r\n\r\n" or die;
@@ -65,7 +63,7 @@ EOF
 	}
 
 	is(xsys(qw(git clone -q --mirror),
-			"http://$host:$port/$group", "$tmpdir/clone.git"),
+			"$http_pfx/$group", "$tmpdir/clone.git"),
 		0, 'smart clone successful');
 
 	# ensure dumb cloning works, too:
@@ -73,7 +71,7 @@ EOF
 		qw(config http.uploadpack false)),
 		0, 'disable http.uploadpack');
 	is(xsys(qw(git clone -q --mirror),
-			"http://$host:$port/$group", "$tmpdir/dumb.git"),
+			"$http_pfx/$group", "$tmpdir/dumb.git"),
 		0, 'clone successful');
 
 	ok($td->kill, 'killed httpd');

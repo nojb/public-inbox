@@ -48,7 +48,7 @@ my $app = sub {
 		}
 	} elsif ($path eq '/host-port') {
 		$code = 200;
-		push @$body, "$env->{REMOTE_ADDR}:$env->{REMOTE_PORT}";
+		push @$body, "$env->{REMOTE_ADDR} $env->{REMOTE_PORT}";
 	} elsif ($path eq '/callback') {
 		return sub {
 			my ($res) = @_;

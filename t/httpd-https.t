@@ -21,7 +21,7 @@ my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $https = tcp_server();
 my $td;
-my $https_addr = $https->sockhost . ':' . $https->sockport;
+my $https_addr = tcp_host_port($https);
 
 for my $args (
 	[ "-lhttps://$https_addr/?key=$key,cert=$cert" ],

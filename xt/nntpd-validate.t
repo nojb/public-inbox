@@ -169,8 +169,7 @@ sub make_local_server {
 		open my $fh, '>', $_ or die "truncate: $!";
 	}
 	my $sock = tcp_server();
-	ok($sock, 'sock created');
-	$host_port = $sock->sockhost . ':' . $sock->sockport;
+	$host_port = tcp_host_port($sock);
 
 	# not using multiple workers, here, since we want to increase
 	# the chance of tripping concurrency bugs within PublicInbox/NNTP*.pm

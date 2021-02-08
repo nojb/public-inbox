@@ -41,7 +41,7 @@ address = test\@example.com
 	# not using multiple workers, here, since we want to increase
 	# the chance of tripping concurrency bugs within PublicInbox/HTTP*.pm
 	my $cmd = [ '-httpd', "--stdout=$out", "--stderr=$err", '-W0' ];
-	my $host_port = $http->sockhost.':'.$http->sockport;
+	my $host_port = tcp_host_port($http);
 	push @$cmd, "-lhttp://$host_port";
 	my $url = "$host_port/test/$endpoint";
 	print STDERR "# CMD ". join(' ', @$cmd). "\n";

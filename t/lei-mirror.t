@@ -6,7 +6,7 @@ require_git 2.6;
 require_mods(qw(DBD::SQLite Search::Xapian));
 my $sock = tcp_server();
 my ($tmpdir, $for_destroy) = tmpdir();
-my $http = 'http://'.$sock->sockhost.':'.$sock->sockport.'/';
+my $http = 'http://'.tcp_host_port($sock);
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $cmd = [ qw(-httpd -W0), "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
 my $td = start_script($cmd, { PI_CONFIG => $cfg_path }, { 3 => $sock });

@@ -19,8 +19,7 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $sock = tcp_server();
-my $host = $sock->sockhost;
-my $port = $sock->sockport;
+my ($host, $port) = tcp_host_port($sock);
 my $td;
 
 my $get_maxrss = sub {
@@ -37,7 +36,6 @@ my $get_maxrss = sub {
 };
 
 {
-	ok($sock, 'sock created');
 	my $cmd = [ '-httpd', '-W0', "--stdout=$out", "--stderr=$err", $psgi ];
 	$td = start_script($cmd, undef, { 3 => $sock });
 }

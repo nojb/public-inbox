@@ -42,13 +42,12 @@ for (1..1000) {
 ok(-S $unix, 'UNIX socket was bound by -httpd');
 sub check_sock ($) {
 	my ($unix) = @_;
-	my $sock = IO::Socket::UNIX->new(Peer => $unix, Type => SOCK_STREAM);
-	warn "E: $! connecting to $unix\n" unless defined $sock;
-	ok($sock, 'client UNIX socket connected');
+	my $sock = IO::Socket::UNIX->new(Peer => $unix, Type => SOCK_STREAM)
+		// BAIL_OUT "E: $! connecting to $unix";
 	ok($sock->write("GET /host-port HTTP/1.0\r\n\r\n"),
 		'wrote req to server');
 	ok($sock->read(my $buf, 4096), 'read response');
-	like($buf, qr!\r\n\r\n127\.0\.0\.1:0\z!,
+	like($buf, qr!\r\n\r\n127\.0\.0\.1 0\z!,
 		'set REMOTE_ADDR and REMOTE_PORT for Unix socket');
 }
 

@@ -64,10 +64,9 @@ $v2w->done;
 $ibx->cleanup;
 
 my $sock = tcp_server();
-ok($sock, 'sock created');
 my $cmd = [ '-httpd', '-W0', "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
 my $td = start_script($cmd, undef, { 3 => $sock });
-my ($host, $port) = ($sock->sockhost, $sock->sockport);
+my ($host, $port) = tcp_host_port($sock);
 $sock = undef;
 
 my @cmd;

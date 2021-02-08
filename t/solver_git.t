@@ -196,7 +196,7 @@ EOF
 		my ($out, $err) = map { "$inboxdir/std$_.log" } qw(out err);
 		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
 		my $td = start_script($cmd, $env, { 3 => $sock });
-		my ($h, $p) = ($sock->sockhost, $sock->sockport);
+		my ($h, $p) = tcp_host_port($sock);
 		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
 		Plack::Test::ExternalServer::test_psgi(client => $client);
 	}
