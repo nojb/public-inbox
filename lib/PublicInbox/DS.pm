@@ -33,7 +33,7 @@ use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::Tmpfile;
 use Errno qw(EAGAIN EINVAL);
 use Carp qw(carp);
-our @EXPORT_OK = qw(now msg_more dwaitpid);
+our @EXPORT_OK = qw(now msg_more dwaitpid add_timer);
 
 my $nextq; # queue for next_tick
 my $wait_pids; # list of [ pid, callback, callback_arg ]
@@ -96,12 +96,12 @@ Add a timer to occur $seconds from now. $seconds may be fractional, but timers
 are not guaranteed to fire at the exact time you ask for.
 
 =cut
-sub add_timer ($$;$) {
-    my ($secs, $coderef, $arg) = @_;
+sub add_timer ($$;@) {
+    my ($secs, $coderef, @args) = @_;
 
     my $fire_time = now() + $secs;
 
-    my $timer = [$fire_time, $coderef, $arg];
+    my $timer = [$fire_time, $coderef, @args];
 
     if (!@Timers || $fire_time >= $Timers[-1][0]) {
         push @Timers, $timer;
@@ -184,7 +184,7 @@ sub RunTimers {
     # Run expired timers
     while (@Timers && $Timers[0][0] <= $now) {
         my $to_run = shift(@Timers);
-        $to_run->[1]->($to_run->[2]);
+        $to_run->[1]->(@$to_run[2..$#$to_run]);
     }
 
     # timers may enqueue into nextq:

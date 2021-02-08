@@ -11,7 +11,7 @@ use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
 use PublicInbox::Sigfd;
-use PublicInbox::DS qw(now);
+use PublicInbox::DS qw(now add_timer);
 use PublicInbox::MID qw(mids);
 use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::EOFpipe;
@@ -590,8 +590,8 @@ sub watch_atfork_parent ($) {
 	PublicInbox::DS::block_signals();
 }
 
-sub imap_idle_requeue ($) { # DS::add_timer callback
-	my ($self, $url_intvl) = @{$_[0]};
+sub imap_idle_requeue { # DS::add_timer callback
+	my ($self, $url_intvl) = @_;
 	return if $self->{quit};
 	push @{$self->{idle_todo}}, $url_intvl;
 	event_step($self);
@@ -605,8 +605,7 @@ sub imap_idle_reap { # PublicInbox::DS::dwaitpid callback
 	my ($url, $intvl) = @$url_intvl;
 	return if $self->{quit};
 	warn "W: PID=$pid on $url died: \$?=$?\n" if $?;
-	PublicInbox::DS::add_timer(60,
-				\&imap_idle_requeue, [ $self, $url_intvl ]);
+	add_timer(60, \&imap_idle_requeue, $self, $url_intvl);
 }
 
 sub reap { # callback for EOFpipe
@@ -700,8 +699,8 @@ sub watch_nntp_fetch_all ($$) {
 	}
 }
 
-sub poll_fetch_fork ($) { # DS::add_timer callback
-	my ($self, $intvl, $urls) = @{$_[0]};
+sub poll_fetch_fork { # DS::add_timer callback
+	my ($self, $intvl, $urls) = @_;
 	return if $self->{quit};
 	pipe(my ($r, $w)) or die "pipe: $!";
 	my $oldset = watch_atfork_parent($self);
@@ -736,8 +735,7 @@ sub poll_fetch_reap {
 		warn "W: PID=$pid died: \$?=$?\n", map { "$_\n" } @$urls;
 	}
 	warn("I: will check $_ in ${intvl}s\n") for @$urls;
-	PublicInbox::DS::add_timer($intvl, \&poll_fetch_fork,
-					[$self, $intvl, $urls]);
+	add_timer($intvl, \&poll_fetch_fork, $self, $intvl, $urls);
 }
 
 sub watch_imap_init ($$) {
@@ -1013,8 +1011,7 @@ sub watch { # main entry point
 	watch_nntp_init($self, $poll) if $self->{nntp};
 	while (my ($intvl, $urls) = each %$poll) {
 		# poll all URLs for a given interval sequentially
-		PublicInbox::DS::add_timer(0, \&poll_fetch_fork,
-						[$self, $intvl, $urls]);
+		add_timer(0, \&poll_fetch_fork, $self, $intvl, $urls);
 	}
 	watch_fs_init($self) if $self->{mdre};
 	PublicInbox::DS->SetPostLoopCallback(sub { !$self->quit_done });

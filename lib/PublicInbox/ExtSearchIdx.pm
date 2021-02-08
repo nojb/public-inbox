@@ -29,7 +29,7 @@ use PublicInbox::V2Writable;
 use PublicInbox::InboxWritable;
 use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::Eml;
-use PublicInbox::DS qw(now);
+use PublicInbox::DS qw(now add_timer);
 use DBI qw(:sql_types); # SQL_BLOB
 
 sub new {
@@ -1027,8 +1027,7 @@ sub on_inbox_unlock { # called by PublicInbox::InboxIdle
 	$pr->("indexing $ekey\n") if $pr;
 	$self->idx_init($opt);
 	sync_inbox($self, $self->{-watch_sync}, $ibx);
-	$self->{-commit_timer} //= PublicInbox::DS::add_timer(
-					$opt->{'commit-interval'} // 10,
+	$self->{-commit_timer} //= add_timer($opt->{'commit-interval'} // 10,
 					\&_watch_commit, $self);
 }
 

@@ -6,7 +6,7 @@
 package PublicInbox::FakeInotify;
 use strict;
 use Time::HiRes qw(stat);
-use PublicInbox::DS;
+use PublicInbox::DS qw(add_timer);
 sub IN_MODIFY () { 0x02 } # match Linux inotify
 # my $IN_MOVED_TO = 0x80;
 # my $IN_CREATE = 0x100;
@@ -66,7 +66,7 @@ sub read {
 sub poll_once {
 	my ($obj) = @_;
 	$obj->event_step; # PublicInbox::InboxIdle::event_step
-	PublicInbox::DS::add_timer($poll_intvl, \&poll_once, $obj);
+	add_timer($poll_intvl, \&poll_once, $obj);
 }
 
 package PublicInbox::FakeInotify::Watch;
