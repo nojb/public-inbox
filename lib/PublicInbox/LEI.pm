@@ -792,8 +792,7 @@ sub start_pager {
 	chomp(my $pager = <$fh> // '');
 	close($fh) or warn "`git var PAGER' error: \$?=$?";
 	return if $pager eq 'cat' || $pager eq '';
-	# TODO TIOCGWINSZ
-	my $new_env = { LESS => 'FRX', LV => '-c', COLUMNS => 80 };
+	my $new_env = { LESS => 'FRX', LV => '-c' };
 	$new_env->{MORE} = 'FRX' if $^O eq 'freebsd';
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
