@@ -82,14 +82,6 @@ Falling back to (slow) one-shot mode
 	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 	$buf .= "\0\0";
 	my $n = $send_cmd->($sock, [0, 1, 2, fileno($dh)], $buf, MSG_EOR);
-	if (!$n && $!{ETOOMANYREFS} && eval { require BSD::Resource }) {
-		my $NOFILE = BSD::Resource::RLIMIT_NOFILE();
-		my ($s, $h) = BSD::Resource::getrlimit($NOFILE);
-		if ($s < $h && BSD::Resource::setrlimit($NOFILE, $h, $h)) {
-			$n = $send_cmd->($sock, [0, 1, 2, fileno($dh)],
-					$buf, MSG_EOR);
-		}
-	}
 	if (!$n) {
 		die "sendmsg: $! (check RLIMIT_NOFILE)\n" if $!{ETOOMANYREFS};
 		die "sendmsg: $!\n";
