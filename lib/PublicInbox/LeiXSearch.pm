@@ -16,6 +16,7 @@ use PublicInbox::Search qw(xap_terms);
 use PublicInbox::Spawn qw(popen_rd spawn which);
 use PublicInbox::MID qw(mids);
 use PublicInbox::Smsg;
+use PublicInbox::Eml;
 use Fcntl qw(SEEK_SET F_SETFL O_APPEND O_RDWR);
 
 sub new {
@@ -376,6 +377,7 @@ sub start_query { # always runs in main (lei-daemon) process
 sub ipc_atfork_child {
 	my ($self) = @_;
 	$self->{lei}->lei_atfork_child;
+	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
 
