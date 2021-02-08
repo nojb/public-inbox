@@ -8,6 +8,12 @@ use v5.10.1;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::Config;
 
+# Ensures empty strings are quoted, we don't need more
+# sophisticated quoting than for empty strings: curl -d ''
+use overload '""' => sub {
+	join(' ', map { $_ eq '' ?  "''" : $_ } @{$_[0]});
+};
+
 my %lei2curl = (
 	'curl-config=s@' => 'config|K=s@',
 );
@@ -63,10 +69,9 @@ EOM
 
 # completes the result of cmd() for $uri
 sub for_uri {
-	my ($self, $lei, $uri) = @_;
+	my ($self, $lei, $uri, @opt) = @_;
 	my $pfx = torsocks($self, $lei, $uri) or return; # error
-	[ @$pfx, @$self, substr($uri->path, -3) eq '.gz' ? () : '--compressed',
-		$uri->as_string ]
+	bless [ @$pfx, @$self, @opt, $uri->as_string ], ref($self);
 }
 
 1;

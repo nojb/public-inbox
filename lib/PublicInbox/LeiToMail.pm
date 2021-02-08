@@ -371,7 +371,17 @@ sub new {
 	$self;
 }
 
-sub _pre_augment_maildir {} # noop
+sub _pre_augment_maildir {
+	my ($self, $lei) = @_;
+	my $dst = $lei->{ovv}->{dst};
+	for my $x (qw(tmp new cur)) {
+		my $d = $dst.$x;
+		next if -d $d;
+		require File::Path;
+		File::Path::mkpath($d);
+		-d $d or die "$d is not a directory";
+	}
+}
 
 sub _do_augment_maildir {
 	my ($self, $lei) = @_;
@@ -388,17 +398,7 @@ sub _do_augment_maildir {
 	}
 }
 
-sub _post_augment_maildir {
-	my ($self, $lei) = @_;
-	my $dst = $lei->{ovv}->{dst};
-	for my $x (qw(tmp new cur)) {
-		my $d = $dst.$x;
-		next if -d $d;
-		require File::Path;
-		File::Path::mkpath($d);
-		-d $d or die "$d is not a directory";
-	}
-}
+sub _post_augment_maildir {} # noop
 
 sub _pre_augment_mbox {
 	my ($self, $lei) = @_;

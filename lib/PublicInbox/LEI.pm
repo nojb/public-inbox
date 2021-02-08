@@ -741,7 +741,9 @@ sub start_mua {
 	} elsif ($self->{oneshot}) {
 		$self->{"mua.pid.$self.$$"} = spawn(\@cmd);
 	}
-	delete $self->{-progress};
+	if ($self->{lxs} && $self->{au_done}) { # kick wait_startq
+		syswrite($self->{au_done}, 'q' x ($self->{lxs}->{jobs} // 0));
+	}
 }
 
 # caller needs to "-t $self->{1}" to check if tty

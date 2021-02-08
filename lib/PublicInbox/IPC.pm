@@ -109,7 +109,6 @@ sub ipc_worker_spawn {
 		$w_res->autoflush(1);
 		$SIG{$_} = 'IGNORE' for (qw(TERM INT QUIT));
 		local $0 = $ident;
-		PublicInbox::DS::sig_setmask($sigset);
 		# ensure we properly exit even if warn() dies:
 		my $end = PublicInbox::OnDestroy->new($$, sub { exit(!!$@) });
 		eval {
@@ -117,6 +116,7 @@ sub ipc_worker_spawn {
 			local @$self{keys %$fields} = values(%$fields);
 			my $on_destroy = $self->ipc_atfork_child;
 			local %SIG = %SIG;
+			PublicInbox::DS::sig_setmask($sigset);
 			ipc_worker_loop($self, $r_req, $w_res);
 		};
 		warn "worker $ident PID:$$ died: $@\n" if $@;
@@ -293,7 +293,6 @@ sub _wq_worker_start ($$$) {
 		$SIG{$_} = 'IGNORE' for (qw(PIPE));
 		$SIG{$_} = 'DEFAULT' for (qw(TTOU TTIN TERM QUIT INT CHLD));
 		local $0 = $self->{-wq_ident};
-		PublicInbox::DS::sig_setmask($oldset);
 		# ensure we properly exit even if warn() dies:
 		my $end = PublicInbox::OnDestroy->new($$, sub { exit(!!$@) });
 		eval {
@@ -301,6 +300,7 @@ sub _wq_worker_start ($$$) {
 			local @$self{keys %$fields} = values(%$fields);
 			my $on_destroy = $self->ipc_atfork_child;
 			local %SIG = %SIG;
+			PublicInbox::DS::sig_setmask($oldset);
 			wq_worker_loop($self);
 		};
 		warn "worker $self->{-wq_ident} PID:$$ died: $@" if $@;
@@ -395,9 +395,9 @@ sub wq_close {
 }
 
 sub wq_kill_old {
-	my ($self) = @_;
+	my ($self, $sig) = @_;
 	my $pids = $self->{"-wq_old_pids.$$"} or return;
-	kill 'TERM', @$pids;
+	kill($sig // 'TERM', @$pids);
 }
 
 sub wq_kill {

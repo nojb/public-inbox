@@ -95,9 +95,10 @@ sub new {
 		$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
 	} else {
 		# default to the cheapest sort since MUA usually resorts
-		$lei->{opt}->{'sort'} //= 'docid' if $dst ne '/dev/stdout';
+		$opt->{'sort'} //= 'docid' if $dst ne '/dev/stdout';
 		$lei->{l2m} = eval { PublicInbox::LeiToMail->new($lei) };
 		return $lei->fail($@) if $@;
+		$lei->{early_mua} = 1 if $opt->{mua} && $lei->{l2m}->lock_free;
 	}
 	$self;
 }

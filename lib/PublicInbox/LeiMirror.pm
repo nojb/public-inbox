@@ -31,7 +31,7 @@ sub try_scrape {
 	my $uri = URI->new($self->{src});
 	my $lei = $self->{lei};
 	my $curl = $self->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
-	my $cmd = $curl->for_uri($lei, $uri);
+	my $cmd = $curl->for_uri($lei, $uri, '--compressed');
 	my $opt = { 0 => $lei->{0}, 2 => $lei->{2} };
 	my $fh = popen_rd($cmd, $lei->{env}, $opt);
 	my $html = do { local $/; <$fh> } // die "read(curl $uri): $!";
@@ -93,8 +93,7 @@ sub _try_config {
 	my $path = $uri->path;
 	chop($path) eq '/' or die "BUG: $uri not canonicalized";
 	$uri->path($path . '/_/text/config/raw');
-	my $cmd = $self->{curl}->for_uri($lei, $uri);
-	push @$cmd, '--compressed'; # curl decompresses for us
+	my $cmd = $self->{curl}->for_uri($lei, $uri, '--compressed');
 	my $ce = "$dst/inbox.config.example";
 	my $f = "$ce-$$.tmp";
 	open(my $fh, '+>', $f) or return $lei->err("open $f: $! (non-fatal)");

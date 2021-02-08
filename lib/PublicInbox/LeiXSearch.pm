@@ -101,20 +101,34 @@ sub _mset_more ($$) {
 # $startq will EOF when query_prepare is done augmenting and allow
 # query_mset and query_thread_mset to proceed.
 sub wait_startq ($) {
-	my ($startq) = @_;
-	$_[0] = undef;
-	read($startq, my $query_prepare_done, 1);
+	my ($lei) = @_;
+	my $startq = delete $lei->{startq} or return;
+	while (1) {
+		my $n = sysread($startq, my $query_prepare_done, 1);
+		if (defined $n) {
+			return if $n == 0; # no MUA
+			if ($query_prepare_done eq 'q') {
+				$lei->{opt}->{quiet} = 1;
+				delete $lei->{opt}->{verbose};
+				delete $lei->{-progress};
+			} else {
+				$lei->fail("$$ WTF `$query_prepare_done'");
+			}
+			return;
+		}
+		return $lei->fail("$$ wait_startq: $!") unless $!{EINTR};
+	}
 }
 
 sub mset_progress {
 	my $lei = shift;
-	return unless $lei->{-progress};
+	return if $lei->{early_mua} || !$lei->{-progress};
 	if ($lei->{pkt_op_p}) {
 		pkt_do($lei->{pkt_op_p}, 'mset_progress', @_);
 	} else { # single lei-daemon consumer
 		my ($desc, $mset_size, $mset_total_est) = @_;
 		$lei->{-mset_total} += $mset_size;
-		$lei->err("# $desc $mset_size/$mset_total_est");
+		$lei->qerr("# $desc $mset_size/$mset_total_est");
 	}
 }
 
@@ -122,7 +136,6 @@ sub query_thread_mset { # for --threads
 	my ($self, $ibxish) = @_;
 	local $0 = "$0 query_thread_mset";
 	my $lei = $self->{lei};
-	my $startq = delete $lei->{startq};
 	my ($srch, $over) = ($ibxish->search, $ibxish->over);
 	my $desc = $ibxish->{inboxdir} // $ibxish->{topdir};
 	return warn("$desc not indexed by Xapian\n") unless ($srch && $over);
@@ -140,7 +153,7 @@ sub query_thread_mset { # for --threads
 		while ($over->expand_thread($ctx)) {
 			for my $n (@{$ctx->{xids}}) {
 				my $smsg = $over->get_art($n) or next;
-				wait_startq($startq) if $startq;
+				wait_startq($lei);
 				my $mitem = delete $n2item{$smsg->{num}};
 				$each_smsg->($smsg, $mitem);
 			}
@@ -155,7 +168,6 @@ sub query_mset { # non-parallel for non-"--threads" users
 	my ($self) = @_;
 	local $0 = "$0 query_mset";
 	my $lei = $self->{lei};
-	my $startq = delete $lei->{startq};
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
 	for my $loc (locals($self)) {
@@ -168,7 +180,7 @@ sub query_mset { # non-parallel for non-"--threads" users
 				$mset->size, $mset->get_matches_estimated);
 		for my $mitem ($mset->items) {
 			my $smsg = smsg_for($self, $mitem) or next;
-			wait_startq($startq) if $startq;
+			wait_startq($lei);
 			$each_smsg->($smsg, $mitem);
 		}
 	} while (_mset_more($mset, $mo));
@@ -183,7 +195,7 @@ sub each_eml { # callback for MboxReader->mboxrd
 	$smsg->parse_references($eml, mids($eml));
 	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
 	delete @$smsg{qw(From Subject -ds -ts)};
-	if (my $startq = delete($lei->{startq})) { wait_startq($startq) }
+	wait_startq($lei);
 	if ($lei->{-progress}) {
 		++$lei->{-nr_remote_eml};
 		my $now = now();
@@ -210,7 +222,6 @@ sub query_remote_mboxrd {
 	my $cerr = File::Temp->new(TEMPLATE => 'curl.err-XXXX', TMPDIR => 1);
 	fcntl($cerr, F_SETFL, O_APPEND|O_RDWR) or warn "set O_APPEND: $!";
 	my $rdr = { 2 => $cerr, pgid => 0 };
-	my $coff = 0;
 	my $sigint_reap = $lei->can('sigint_reap');
 	if ($verbose) {
 		# spawn a process to force line-buffering, otherwise curl
@@ -228,13 +239,14 @@ sub query_remote_mboxrd {
 		$lei->{-nr_remote_eml} = 0;
 		$uri->query_form(@qform);
 		my $cmd = $curl->for_uri($lei, $uri);
-		$lei->err("# @$cmd") if $verbose;
+		$lei->qerr("# $cmd");
 		my ($fh, $pid) = popen_rd($cmd, $env, $rdr);
 		$reap_curl = PublicInbox::OnDestroy->new($sigint_reap, $pid);
 		$fh = IO::Uncompress::Gunzip->new($fh);
 		PublicInbox::MboxReader->mboxrd($fh, \&each_eml, $self,
 						$lei, $each_smsg);
-		my $err = waitpid($pid, 0) == $pid ? undef : "BUG: waitpid: $!";
+		my $err = waitpid($pid, 0) == $pid ? undef
+						: "BUG: waitpid($cmd): $!";
 		@$reap_curl = (); # cancel OnDestroy
 		die $err if $err;
 		if ($? == 0) {
@@ -242,16 +254,18 @@ sub query_remote_mboxrd {
 			mset_progress($lei, $lei->{-current_url}, $nr, $nr);
 			next;
 		}
-		seek($cerr, $coff, SEEK_SET) or warn "seek(curl stderr): $!\n";
-		my $e = do { local $/; <$cerr> } //
-				die "read(curl stderr): $!\n";
-		$coff += length($e);
-		truncate($cerr, 0);
-		next if (($? >> 8) == 22 && $e =~ /\b404\b/);
-		$lei->child_error($?);
+		$err = '';
+		if (-s $cerr) {
+			seek($cerr, 0, SEEK_SET) or
+					$lei->err("seek($cmd stderr): $!");
+			$err = do { local $/; <$cerr> } //
+					"read($cmd stderr): $!";
+			truncate($cerr, 0) or
+					$lei->err("truncate($cmd stderr): $!");
+		}
+		next if (($? >> 8) == 22 && $err =~ /\b404\b/);
 		$uri->query_form(q => $lei->{mset_opt}->{qstr});
-		# --verbose already showed the error via tail(1)
-		$lei->err("E: $uri \$?=$?\n", $verbose ? () : $e);
+		$lei->child_error($?, "E: <$uri> $err");
 	}
 	undef $each_smsg;
 	$lei->{ovv}->ovv_atexit_child($lei);
@@ -311,15 +325,23 @@ Error closing $lei->{ovv}->{dst}: $!
 
 sub do_post_augment {
 	my ($lei) = @_;
-	eval { $lei->{l2m}->post_augment($lei) };
-	if (my $err = $@) {
-		if (my $lxs = delete $lei->{lxs}) {
-			$lxs->wq_kill;
-			$lxs->wq_close(0, undef, $lei);
+	my $l2m = $lei->{l2m};
+	my $err;
+	if ($l2m) {
+		eval { $l2m->post_augment($lei) };
+		$err = $@;
+		if ($err) {
+			if (my $lxs = delete $lei->{lxs}) {
+				$lxs->wq_kill;
+				$lxs->wq_close(0, undef, $lei);
+			}
+			$lei->fail("$err");
 		}
-		$lei->fail("$err");
 	}
-	close(delete $lei->{au_done}); # triggers wait_startq
+	if (!$err && delete $lei->{early_mua}) { # non-augment case
+		$lei->start_mua;
+	}
+	close(delete $lei->{au_done}); # triggers wait_startq in lei_xsearch
 }
 
 my $MAX_PER_HOST = 4;
@@ -334,9 +356,6 @@ sub concurrency {
 
 sub start_query { # always runs in main (lei-daemon) process
 	my ($self, $lei) = @_;
-	if (my $l2m = $lei->{l2m}) {
-		$lei->start_mua if $l2m->lock_free;
-	}
 	if ($lei->{opt}->{threads}) {
 		for my $ibxish (locals($self)) {
 			$self->wq_io_do('query_thread_mset', [], $ibxish);
@@ -387,6 +406,9 @@ sub do_query {
 	my $l2m = $lei->{l2m};
 	if ($l2m) {
 		$l2m->pre_augment($lei);
+		if ($lei->{opt}->{augment} && delete $lei->{early_mua}) {
+			$lei->start_mua;
+		}
 		$l2m->wq_workers_start('lei2mail', $l2m->{jobs},
 					$lei->oldset, { lei => $lei });
 		pipe($lei->{startq}, $lei->{au_done}) or die "pipe: $!";
@@ -404,7 +426,7 @@ sub do_query {
 	delete $lei->{pkt_op_p};
 	$l2m->wq_close(1) if $l2m;
 	$lei->event_step_init; # wait for shutdowns
-	$self->wq_io_do('query_prepare', []) if $l2m;
+	$self->wq_io_do('query_prepare', []) if $l2m; # for augment/dedupe
 	start_query($self, $lei);
 	$self->wq_close(1); # lei_xsearch workers stop when done
 	if ($lei->{oneshot}) {
