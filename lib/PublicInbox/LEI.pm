@@ -22,7 +22,7 @@ use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLET);
 use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
-use PublicInbox::OnDestroy;
+use PublicInbox::Lock;
 use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
@@ -828,17 +828,19 @@ sub accept_dispatch { # Listener {post_accept} callback
 	vec(my $rvec = '', fileno($sock), 1) = 1;
 	select($rvec, undef, undef, 60) or
 		return send($sock, 'timed out waiting to recv FDs', MSG_EOR);
-	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33); # >MAX_ARG_STRLEN
+	# (4096 * 33) >MAX_ARG_STRLEN
+	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33) or return; # EOF
 	if (scalar(@fds) == 4) {
 		for my $i (0..3) {
 			my $fd = shift(@fds);
 			open($self->{$i}, '+<&=', $fd) and next;
 			send($sock, "open(+<&=$fd) (FD=$i): $!", MSG_EOR);
 		}
-	} else {
-		my $msg = "recv_cmd failed: $!";
-		warn $msg;
+	} elsif (!defined($fds[0])) {
+		warn(my $msg = "recv_cmd failed: $!");
 		return send($sock, $msg, MSG_EOR);
+	} else {
+		return;
 	}
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
@@ -923,9 +925,19 @@ sub dump_and_clear_log {
 # lei(1) calls this when it can't connect
 sub lazy_start {
 	my ($path, $errno, $narg) = @_;
-	if ($errno == ECONNREFUSED) {
-		unlink($path) or die "unlink($path): $!";
-	} elsif ($errno != ENOENT) {
+	local ($errors_log, $listener);
+	($errors_log) = ($path =~ m!\A(.+?/)[^/]+\z!);
+	$errors_log .= 'errors.log';
+	my $addr = pack_sockaddr_un($path);
+	my $lk = bless { lock_path => $errors_log }, 'PublicInbox::Lock';
+	$lk->lock_acquire;
+	socket($listener, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
+	if ($errno == ECONNREFUSED || $errno == ENOENT) {
+		return if connect($listener, $addr); # another process won
+		if ($errno == ECONNREFUSED && -S $path) {
+			unlink($path) or die "unlink($path): $!";
+		}
+	} else {
 		$! = $errno; # allow interpolation to stringify in die
 		die "connect($path): $!";
 	}
@@ -935,10 +947,10 @@ sub lazy_start {
 		BSD::Resource::setrlimit($NOFILE, $h, $h) if $s < $h;
 	}
 	umask(077) // die("umask(077): $!");
-	local $listener;
-	socket($listener, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
-	bind($listener, pack_sockaddr_un($path)) or die "bind($path): $!";
+	bind($listener, $addr) or die "bind($path): $!";
 	listen($listener, 1024) or die "listen: $!";
+	$lk->lock_release;
+	undef $lk;
 	my @st = stat($path) or die "stat($path): $!";
 	my $dev_ino_expect = pack('dd', $st[0], $st[1]); # dev+ino
 	local $oldset = PublicInbox::DS::block_signals();
@@ -956,9 +968,6 @@ sub lazy_start {
 	require PublicInbox::Listener;
 	require PublicInbox::EOFpipe;
 	(-p STDOUT) or die "E: stdout must be a pipe\n";
-	local $errors_log;
-	($errors_log) = ($path =~ m!\A(.+?/)[^/]+\z!);
-	$errors_log .= 'errors.log';
 	open(STDIN, '+>>', $errors_log) or die "open($errors_log): $!";
 	STDIN->autoflush(1);
 	dump_and_clear_log("from previous daemon process:\n");
