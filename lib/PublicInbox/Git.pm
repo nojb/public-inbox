@@ -377,8 +377,10 @@ sub qx {
 }
 
 sub date_parse {
-	my $d = $_[0]->qx('rev-parse', "--since=$_[1]");
-	substr($d, length('--max-age='), -1)
+	my $self = shift;
+	map {
+		substr($_, length('--max-age='), -1)
+	} $self->qx('rev-parse', map { "--since=$_" } @_);
 }
 
 # check_async and cat_async may trigger the other, so ensure they're

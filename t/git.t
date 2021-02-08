@@ -20,14 +20,16 @@ use_ok 'PublicInbox::Git';
 }
 {
 	my $git = PublicInbox::Git->new($dir);
-	my $s = $git->date_parse('1970-01-01T00:00:00Z');
-	is($s, 0, 'parsed epoch');
+	my @s = $git->date_parse('1970-01-01T00:00:00Z');
+	is($s[0], 0, 'parsed epoch');
 	local $ENV{TZ} = 'UTC';
-	$s = $git->date_parse('1993-10-02 01:02:09');
-	is(strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($s)), '1993-10-02T01:02:09Z',
-		'round trips');
-	$s = $git->date_parse('1993-10-02');
-	is(strftime('%Y-%m-%d', gmtime($s)), '1993-10-02',
+	@s = $git->date_parse('1993-10-02 01:02:09', '2010-10-02 01:03:04');
+	is(strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($s[0])),
+		'1993-10-02T01:02:09Z', 'round trips');
+	is(strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($s[1])),
+		'2010-10-02T01:03:04Z', '2nd arg round trips');
+	@s = $git->date_parse('1993-10-02');
+	is(strftime('%Y-%m-%d', gmtime($s[0])), '1993-10-02',
 		'round trips date-only');
 }
 

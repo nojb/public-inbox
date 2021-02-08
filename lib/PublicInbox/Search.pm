@@ -265,8 +265,10 @@ sub reopen {
 # and neither the SWIG nor XS bindings allow us to use custom code
 # to parse dates (and libgit2 doesn't expose git__date_parse, either,
 # so we're running git-rev-parse(1)).
-sub date_range {
-	my ($git, $pfx, $range) = @_;
+# This replaces things we need to send to $git->date_parse with
+# "\0".$strftime_format.['+'|$idx]."\0" placeholders
+sub date_parse_prepare {
+	my ($to_parse, $pfx, $range) = @_;
 	# are we inside a parenthesized statement?
 	my $end = $range =~ s/([\)\s]*)\z// ? $1 : '';
 	my @r = split(/\.\./, $range, 2);
@@ -275,55 +277,72 @@ sub date_range {
 	# n.b. git doesn't do YYYYMMDD w/o '-', it needs YYYY-MM-DD
 	if ($pfx eq 'd') {
 		if (!defined($r[1])) {
-			$r[0] =~ s/\A([0-9]{4})([0-9]{2})([0-9]{2})\z/$1-$2-$3/;
-			$r[0] = $git->date_parse($r[0]);
-			$r[1] = $r[0] + 86400;
-			for my $x (@r) {
-				$x = strftime('%Y%m%d', gmtime($x));
+			if ($r[0] =~ /\A([0-9]{4})([0-9]{2})([0-9]{2})\z/) {
+				push @$to_parse, "$1-$2-$3";
+				# we could've handled as-is, but we need
+				# to parse anyways for "d+" below
+			} else {
+				push @$to_parse, $r[0];
 			}
+			$r[0] = "\0%Y%m%d$#$to_parse\0";
+			$r[1] = "\0%Y%m%d+\0";
 		} else {
 			for my $x (@r) {
 				next if $x eq '' || $x =~ /\A[0-9]{8}\z/;
-				$x = strftime('%Y%m%d',
-						gmtime($git->date_parse($x)));
+				push @$to_parse, $x;
+				$x = "\0%Y%m%d$#$to_parse\0";
 			}
 		}
 	} elsif ($pfx eq 'dt') {
 		if (!defined($r[1])) { # git needs gaps and not /\d{14}/
-			$r[0] =~ s/\A([0-9]{4})([0-9]{2})([0-9]{2})
-					([0-9]{2})([0-9]{2})([0-9]{2})\z
-				/$1-$2-$3 $4:$5:$6/x;
-			$r[0] = $git->date_parse($r[0]);
-			$r[1] = $r[0] + 86400;
-			for my $x (@r) {
-				$x = strftime('%Y%m%d%H%M%S', gmtime($x));
+			if ($r[0] =~ /\A([0-9]{4})([0-9]{2})([0-9]{2})
+					([0-9]{2})([0-9]{2})([0-9]{2})\z/x) {
+				push @$to_parse, "$1-$2-$3 $4:$5:$6";
+			} else {
+				push @$to_parse, $r[0];
 			}
+			$r[0] = "\0%Y%m%d%H%M%S$#$to_parse\0";
+			$r[1] = "\0%Y%m%d%H%M%S+\0";
 		} else {
 			for my $x (@r) {
 				next if $x eq '' || $x =~ /\A[0-9]{14}\z/;
-				$x = strftime('%Y%m%d%H%M%S',
-						gmtime($git->date_parse($x)));
+				push @$to_parse, $x;
+				$x = "\0%Y%m%d%H%M%S$#$to_parse\0";
 			}
 		}
 	} else { # "rt", let git interpret "YYYY", deal with Y10K later :P
 		for my $x (@r) {
 			next if $x eq '' || $x =~ /\A[0-9]{5,}\z/;
-			$x = $git->date_parse($x);
+			push @$to_parse, $x;
+			$x = "\0%s$#$to_parse\0";
 		}
-		$r[1] //= $r[0] + 86400;
+		$r[1] //= "\0%s+\0";
 	}
 	"$pfx:".join('..', @r).$end;
 }
 
+# n.b. argv never has NUL, though we'll need to filter it out
+# if this $argv isn't from a command execution
 sub query_argv_to_string {
 	my (undef, $git, $argv) = @_;
-	join(' ', map {;
-		if (s!\b(d|rt|dt):(.+)\z!date_range($git, $1, $2)!sge) {
+	my $to_parse;
+	my $tmp = join(' ', map {;
+		if (s!\b(d|rt|dt):([[:print:]]+)\z!date_parse_prepare(
+						$to_parse //= [], $1, $2)!sge) {
 			$_;
 		} else {
 			/\s/ ? (s/\A(\w+:)// ? qq{$1"$_"} : qq{"$_}) : $_
 		}
 	} @$argv);
+	# git-rev-parse can handle any number of args up to system
+	# limits (around (4096*32) bytes on Linux).
+	if ($to_parse) {
+		my @r = $git->date_parse(@$to_parse);
+		my $i;
+		$tmp =~ s/\0(%[%YmdHMSs]+)([0-9\+]+)\0/strftime($1,
+			gmtime($2 eq '+' ? ($r[$i]+86400) : $r[$i=$2+0]))/sge;
+	}
+	$tmp
 }
 
 # read-only
