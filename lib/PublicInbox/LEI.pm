@@ -746,6 +746,17 @@ sub start_mua {
 	}
 }
 
+sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
+	my ($self) = @_;
+	return unless $self->{opt}->{mua} && -t $self->{1};
+	# hit the process group that started the MUA
+	if (my $s = $self->{sock}) {
+		send($s, '-WINCH', MSG_EOR);
+	} elsif ($self->{oneshot}) {
+		kill('-WINCH', $$);
+	}
+}
+
 # caller needs to "-t $self->{1}" to check if tty
 sub start_pager {
 	my ($self) = @_;

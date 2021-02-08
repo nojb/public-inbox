@@ -105,13 +105,15 @@ Falling back to (slow) one-shot mode
 			die "recvmsg: $!";
 		}
 		last if $buf eq '';
-		if ($buf =~ /\Ax_it ([0-9]+)\z/) {
+		if ($buf =~ /\Aexec (.+)\z/) {
+			$exec_cmd->(\@fds, split(/\0/, $1));
+		} elsif ($buf eq '-WINCH') {
+			kill($buf, $$); # for MUA
+		} elsif ($buf =~ /\Ax_it ([0-9]+)\z/) {
 			$x_it_code = $1 + 0;
 			last;
 		} elsif ($buf =~ /\Achild_error ([0-9]+)\z/) {
 			$x_it_code = $1 + 0;
-		} elsif ($buf =~ /\Aexec (.+)\z/) {
-			$exec_cmd->(\@fds, split(/\0/, $1));
 		} else {
 			$sigchld->();
 			die $buf;

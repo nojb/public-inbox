@@ -317,7 +317,12 @@ Error closing $lei->{ovv}->{dst}: $!
 			}
 			$lei->{1} = $out;
 		}
-		$l2m->lock_free ? $l2m->poke_dst : $lei->start_mua;
+		if ($l2m->lock_free) {
+			$l2m->poke_dst;
+			$lei->poke_mua;
+		} else { # mbox users
+			$lei->start_mua;
+		}
 	}
 	$lei->{-progress} and
 		$lei->err('# ', $lei->{-mset_total} // 0, " matches");
