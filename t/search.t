@@ -576,6 +576,13 @@ SKIP: {
 	$q = $s->query_argv_to_string($g, [qw{OR (rt:1993-10-02)}]);
 	like($q, qr/\AOR \(rt:749\d{6}\.\.749\d{6}\)\z/,
 		'trailing parentheses preserved');
+	$ENV{TEST_EXPENSIVE} or
+		skip 'TEST_EXPENSIVE not set for argv overflow check', 1;
+	my @w;
+	local $SIG{__WARN__} = sub { push @w, @_ }; # for pure Perl version
+	my @fail = map { 'd:1993-10-02..2010-10-02' } (1..(4096 * 32));
+	eval { $s->query_argv_to_string($g, \@fail) };
+	ok($@, 'exception raised');
 }
 
 done_testing();

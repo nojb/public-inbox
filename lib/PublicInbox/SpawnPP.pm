@@ -16,13 +16,19 @@ sub pi_fork_exec ($$$$$$$) {
 	$set->fillset or die "fillset failed: $!";
 	sigprocmask(SIG_SETMASK, $set, $old) or die "can't block signals: $!";
 	my $syserr;
+	pipe(my ($r, $w));
 	my $pid = fork;
 	unless (defined $pid) { # compat with Inline::C version
 		$syserr = $!;
 		$pid = -1;
 	}
 	if ($pid == 0) {
-		$SIG{__DIE__} = sub { warn @_; _exit 1 };
+		close $r;
+		$SIG{__DIE__} = sub {
+			warn(@_);
+			syswrite($w, my $num = $! + 0);
+			_exit(1);
+		};
 		for my $child_fd (0..$#$redir) {
 			my $parent_fd = $redir->[$child_fd];
 			next if $parent_fd == $child_fd;
@@ -32,7 +38,9 @@ sub pi_fork_exec ($$$$$$$) {
 		if ($pgid >= 0 && !defined(setpgid(0, $pgid))) {
 			die "setpgid(0, $pgid): $!";
 		}
-		$SIG{$_} = 'DEFAULT' for keys %SIG;
+		for (keys %SIG) {
+			$SIG{$_} = 'DEFAULT' if substr($_, 0, 1) ne '_';
+		}
 		if ($cd ne '') {
 			chdir $cd or die "chdir $cd: $!";
 		}
@@ -49,11 +57,18 @@ sub pi_fork_exec ($$$$$$$) {
 		} else {
 			%ENV = map { split(/=/, $_, 2) } @$env;
 		}
-		exec @$cmd;
+		undef $r;
+		exec { $f } @$cmd;
 		die "exec @$cmd failed: $!";
 	}
+	close $w;
 	sigprocmask(SIG_SETMASK, $old) or die "can't unblock signals: $!";
-	$! = $syserr;
+	if (my $cerrnum = do { local $/, <$r> }) {
+		$pid = -1;
+		$! = $cerrnum;
+	} else {
+		$! = $syserr;
+	}
 	$pid;
 }
 
