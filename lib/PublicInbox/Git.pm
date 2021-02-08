@@ -362,8 +362,7 @@ sub popen {
 
 # same args as popen above
 sub qx {
-	my $self = shift;
-	my $fh = $self->popen(@_);
+	my $fh = popen(@_);
 	if (wantarray) {
 		local $/ = "\n";
 		my @ret = <$fh>;
@@ -375,6 +374,11 @@ sub qx {
 		close $fh; # caller should check $?
 		$ret;
 	}
+}
+
+sub date_parse {
+	my $d = $_[0]->qx('rev-parse', "--since=$_[1]");
+	substr($d, length('--max-age='), -1)
 }
 
 # check_async and cat_async may trigger the other, so ensure they're

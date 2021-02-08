@@ -1,12 +1,11 @@
 # Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
 use Test::More;
 use PublicInbox::TestCommon;
 my ($dir, $for_destroy) = tmpdir();
-use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::Import;
+use POSIX qw(strftime);
 
 use_ok 'PublicInbox::Git';
 
@@ -18,6 +17,18 @@ use_ok 'PublicInbox::Git';
 	my $rdr = { 0 => $fh };
 	xsys([qw(git fast-import --quiet)], { GIT_DIR => $dir }, $rdr);
 	is($?, 0, 'fast-import succeeded');
+}
+{
+	my $git = PublicInbox::Git->new($dir);
+	my $s = $git->date_parse('1970-01-01T00:00:00Z');
+	is($s, 0, 'parsed epoch');
+	local $ENV{TZ} = 'UTC';
+	$s = $git->date_parse('1993-10-02 01:02:09');
+	is(strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($s)), '1993-10-02T01:02:09Z',
+		'round trips');
+	$s = $git->date_parse('1993-10-02');
+	is(strftime('%Y-%m-%d', gmtime($s)), '1993-10-02',
+		'round trips date-only');
 }
 
 {
