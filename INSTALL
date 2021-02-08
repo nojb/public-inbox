@@ -176,6 +176,7 @@ RPM-based distros split them out into separate packages:
 * Encode                           rpm: perl-Encode
 * IO::Compress                     rpm: perl-IO-Compress
 * Storable                         rpm: perl-Storable
+* Text::ParseWords                 rpm: perl-Text-Parsewords
 
 Copyright
 ---------

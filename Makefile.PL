@@ -155,6 +155,7 @@ WriteMakefile(
 		'IO::Compress::Gzip' => 0,
 		'IO::Uncompress::Gunzip' => 0,
 		'Storable' => 0, # rpm: perl-Storable
+		'Text::ParseWords' => 0, # rpm: perl-Text-ParseWords
 
 		# Plack is needed for public-inbox-httpd and PublicInbox::WWW
 		# 'Plack' => 0,
