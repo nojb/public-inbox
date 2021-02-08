@@ -235,7 +235,7 @@ sub mbox_all {
 	my $over = $ctx->{ibx}->over or
 		return PublicInbox::WWW::need($ctx, 'Overview');
 
-	my $qopts = $ctx->{qopts} = { relevance => -1 }; # ORDER BY docid ASC
+	my $qopts = $ctx->{qopts} = { relevance => -2 }; # ORDER BY docid DESC
 	$qopts->{threads} = 1 if $q->{t};
 	my $mset = $srch->mset($q_string, $qopts);
 	$qopts->{offset} = $mset->size or

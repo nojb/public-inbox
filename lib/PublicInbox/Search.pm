@@ -407,18 +407,17 @@ sub _enquire_once { # retry_reopen callback
 	my $enquire = $X{Enquire}->new($xdb);
 	$enquire->set_query($query);
 	$opts ||= {};
-        my $desc = !$opts->{asc};
 	my $rel = $opts->{relevance} // 0;
-	if ($rel == -1) { # ORDER BY docid/UID
+	if ($rel == -2) { # ORDER BY docid/UID (highest first)
+		$enquire->set_weighting_scheme($X{BoolWeight}->new);
+		$enquire->set_docid_order($ENQ_DESCENDING);
+	} elsif ($rel == -1) { # ORDER BY docid/UID (lowest first)
 		$enquire->set_weighting_scheme($X{BoolWeight}->new);
 		$enquire->set_docid_order($ENQ_ASCENDING);
 	} elsif ($rel == 0) {
-		$enquire->set_sort_by_value_then_relevance(TS, $desc);
-	} elsif ($rel == -2) {
-		$enquire->set_weighting_scheme($X{BoolWeight}->new);
-		$enquire->set_docid_order($ENQ_DESCENDING);
+		$enquire->set_sort_by_value_then_relevance(TS, !$opts->{asc});
 	} else { # rel > 0
-		$enquire->set_sort_by_relevance_then_value(TS, $desc);
+		$enquire->set_sort_by_relevance_then_value(TS, !$opts->{asc});
 	}
 
 	# `mairix -t / --threads' or JMAP collapseThreads
