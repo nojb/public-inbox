@@ -8,6 +8,8 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::MboxReader;
 use PublicInbox::Eml;
+use PublicInbox::InboxWritable qw(eml_from_path);
+use PublicInbox::PktOp;
 
 sub _import_eml { # MboxReader callback
 	my ($eml, $sto, $set_kw) = @_;
@@ -35,7 +37,9 @@ sub call { # the main "lei import" method
 	$lei->{opt}->{kw} //= 1;
 	my $fmt = $lei->{opt}->{'format'};
 	my $self = $lei->{imp} = bless {}, $cls;
-	return $lei->fail('--format unspecified') if !$fmt;
+	if (my @f = grep { -f } @argv && !$fmt) {
+		return $lei->fail("--format unset for regular files:\n@f");
+	}
 	$self->{0} = $lei->{0} if $lei->{opt}->{stdin};
 	my $ops = {
 		'!' => [ $lei->can('fail_handler'), $lei ],
@@ -75,19 +79,24 @@ sub _import_fh {
 		if ($fmt eq 'eml') {
 			my $buf = do { local $/; <$fh> } //
 				return $lei->child_error(1 >> 8, <<"");
-		error reading $x: $!
+error reading $x: $!
 
 			my $eml = PublicInbox::Eml->new(\$buf);
 			_import_eml($eml, $lei->{sto}, $set_kw);
 		} else { # some mbox
 			my $cb = PublicInbox::MboxReader->can($fmt);
 			$cb or return $lei->child_error(1 >> 8, <<"");
-	--format $fmt unsupported for $x
+--format $fmt unsupported for $x
 
 			$cb->(undef, $fh, \&_import_eml, $lei->{sto}, $set_kw);
 		}
 	};
 	$lei->child_error(1 >> 8, "<stdin>: $@") if $@;
+}
+
+sub _import_maildir { # maildir_each_file cb
+	my ($f, $sto, $set_kw) = @_;
+	$sto->ipc_do('set_eml_from_maildir', $f, $set_kw);
 }
 
 sub import_path_url {
@@ -99,6 +108,11 @@ sub import_path_url {
 unable to open $x: $!
 
 		_import_fh($lei, $fh, $x);
+	} elsif (-d _ && (-d "$x/cur" || -d "$x/new")) {
+		require PublicInbox::LeiToMail;
+		PublicInbox::LeiToMail::maildir_each_file($x,
+					\&_import_maildir,
+					$lei->{sto}, $lei->{opt}->{kw});
 	} else {
 		$lei->fail("$x unsupported (TODO)");
 	}

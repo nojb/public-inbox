@@ -359,6 +359,7 @@ t/iso-2202-jp.eml
 t/kqnotify.t
 t/lei-daemon.t
 t/lei-externals.t
+t/lei-import-maildir.t
 t/lei-import.t
 t/lei-mirror.t
 t/lei.t

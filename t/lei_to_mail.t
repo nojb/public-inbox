@@ -237,7 +237,7 @@ SKIP: { # FIFO support
 	$wcb->(\(my $x = $buf), $b4dc0ffee);
 
 	my @f;
-	PublicInbox::LeiToMail::_maildir_each_file($md, sub { push @f, shift });
+	PublicInbox::LeiToMail::maildir_each_file($md, sub { push @f, shift });
 	open my $fh, $f[0] or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $buf, 'wrote to Maildir');
 
@@ -246,7 +246,7 @@ SKIP: { # FIFO support
 	$wcb->(\($x = $buf."\nx\n"), $deadcafe);
 
 	my @x = ();
-	PublicInbox::LeiToMail::_maildir_each_file($md, sub { push @x, shift });
+	PublicInbox::LeiToMail::maildir_each_file($md, sub { push @x, shift });
 	is(scalar(@x), 1, 'wrote one new file');
 	ok(!-f $f[0], 'old file clobbered');
 	open $fh, $x[0] or BAIL_OUT $!;
@@ -257,7 +257,7 @@ SKIP: { # FIFO support
 	$wcb->(\($x = $buf."\ny\n"), $deadcafe);
 	$wcb->(\($x = $buf."\ny\n"), $b4dc0ffee); # skipped by dedupe
 	@f = ();
-	PublicInbox::LeiToMail::_maildir_each_file($md, sub { push @f, shift });
+	PublicInbox::LeiToMail::maildir_each_file($md, sub { push @f, shift });
 	is(scalar grep(/\A\Q$x[0]\E\z/, @f), 1, 'old file still there');
 	my @new = grep(!/\A\Q$x[0]\E\z/, @f);
 	is(scalar @new, 1, '1 new file written (b4dc0ffee skipped)');

@@ -266,8 +266,9 @@ sub _mbox_write_cb ($$) {
 	}
 }
 
-sub _maildir_each_file ($$;@) {
+sub maildir_each_file ($$;@) {
 	my ($dir, $cb, @arg) = @_;
+	$dir .= '/' unless substr($dir, -1) eq '/';
 	for my $d (qw(new/ cur/)) {
 		my $pfx = $dir.$d;
 		opendir my $dh, $pfx or next;
@@ -277,13 +278,13 @@ sub _maildir_each_file ($$;@) {
 	}
 }
 
-sub _augment_file { # _maildir_each_file cb
+sub _augment_file { # maildir_each_file cb
 	my ($f, $lei) = @_;
 	my $eml = PublicInbox::InboxWritable::eml_from_path($f) or return;
 	_augment($eml, $lei);
 }
 
-# _maildir_each_file callback, \&CORE::unlink doesn't work with it
+# maildir_each_file callback, \&CORE::unlink doesn't work with it
 sub _unlink { unlink($_[0]) }
 
 sub _rand () {
@@ -379,11 +380,11 @@ sub _do_augment_maildir {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
 			require PublicInbox::InboxWritable; # eml_from_path
-			_maildir_each_file($dst, \&_augment_file, $lei);
+			maildir_each_file($dst, \&_augment_file, $lei);
 			$dedupe->pause_dedupe;
 		}
 	} else { # clobber existing Maildir
-		_maildir_each_file($dst, \&_unlink);
+		maildir_each_file($dst, \&_unlink);
 	}
 }
 

@@ -12,7 +12,7 @@ use v5.10.1;
 use parent qw(PublicInbox::Lock PublicInbox::IPC);
 use PublicInbox::ExtSearchIdx;
 use PublicInbox::Import;
-use PublicInbox::InboxWritable;
+use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::V2Writable;
 use PublicInbox::ContentHash qw(content_hash content_digest);
 use PublicInbox::MID qw(mids mids_in);
@@ -222,6 +222,12 @@ sub add_eml {
 sub set_eml {
 	my ($self, $eml, @kw) = @_;
 	add_eml($self, $eml, @kw) // set_eml_keywords($self, $eml, @kw);
+}
+
+sub set_eml_from_maildir {
+	my ($self, $f, $set_kw) = @_;
+	my $eml = eml_from_path($f) or return;
+	set_eml($self, $eml, $set_kw ? maildir_keywords($f) : ());
 }
 
 sub done {
