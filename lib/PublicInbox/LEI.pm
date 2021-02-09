@@ -559,7 +559,7 @@ sub _lei_cfg ($;$) {
 		open my $fh, '>>', $f or die "open($f): $!\n";
 		@st = stat($fh) or die "fstat($f): $!\n";
 		$cur_st = pack('dd', $st[10], $st[7]);
-		qerr($self, "I: $f created") if $self->{cmd} ne 'config';
+		qerr($self, "# $f created") if $self->{cmd} ne 'config';
 	}
 	my $cfg = PublicInbox::Config::git_config_dump($f);
 	$cfg->{-st} = $cur_st;
@@ -619,7 +619,7 @@ sub lei_init {
 	my @cur = stat($cur) if defined($cur);
 	$cur = File::Spec->canonpath($cur // $dir);
 	my @dir = stat($dir);
-	my $exists = "I: leistore.dir=$cur already initialized" if @dir;
+	my $exists = "# leistore.dir=$cur already initialized" if @dir;
 	if (@cur) {
 		if ($cur eq $dir) {
 			_lei_store($self, 1)->done;
@@ -638,7 +638,7 @@ E: leistore.dir=$cur already initialized and it is not $dir
 	}
 	lei_config($self, 'leistore.dir', $dir);
 	_lei_store($self, 1)->done;
-	$exists //= "I: leistore.dir=$dir newly initialized";
+	$exists //= "# leistore.dir=$dir newly initialized";
 	return qerr($self, $exists);
 }
 

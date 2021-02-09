@@ -49,7 +49,7 @@ my $test_help = sub {
 
 my $ok_err_info = sub {
 	my ($msg) = @_;
-	is(grep(!/^I:/, split(/^/, $lei_err)), 0, $msg) or
+	is(grep(!/^#/, split(/^/, $lei_err)), 0, $msg) or
 		diag "$msg: err=$lei_err";
 };
 
