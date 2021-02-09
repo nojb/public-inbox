@@ -14,7 +14,6 @@ use strict;
 use v5.10.1;
 use IO::Handle; # ->autoflush
 use PublicInbox::TestCommon;
-use Cwd qw(getcwd);
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use Errno qw(EINTR);
 use Fcntl qw(:seek);
@@ -33,7 +32,7 @@ if (($ENV{TEST_RUN_MODE} // 2) == 0) {
 	die "$0 is not compatible with TEST_RUN_MODE=0\n";
 }
 my @tests = scalar(@ARGV) ? @ARGV : glob('t/*.t');
-my $cwd = getcwd();
+open my $cwd_fh, '<', '.' or die "open .: $!";
 open my $OLDOUT, '>&STDOUT' or die "dup STDOUT: $!";
 open my $OLDERR, '>&STDERR' or die "dup STDERR: $!";
 $OLDOUT->autoflush(1);
@@ -64,7 +63,7 @@ our ($worker, $worker_test);
 sub test_status () {
 	$? = 255 if $? == 0 && !$tb->is_passing;
 	my $status = $? ? 'not ok' : 'ok';
-	chdir($cwd) or DIE "chdir($cwd): $!";
+	chdir($cwd_fh) or DIE "fchdir: $!";
 	if ($log_suffix ne '') {
 		my $log = $worker_test;
 		$log =~ s/\.t\z/$log_suffix/;
