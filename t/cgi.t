@@ -1,42 +1,36 @@
+#!perl -w
 # Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-# FIXME: this test is too slow and most non-CGI-requirements
-# should be moved over to things which use test_psgi
 use strict;
-use warnings;
-use Test::More;
-use PublicInbox::Eml;
+use v5.10.1;
 use PublicInbox::TestCommon;
-use PublicInbox::Import;
+use IO::Uncompress::Gunzip qw(gunzip);
 require_mods(qw(Plack::Handler::CGI Plack::Util));
+require PublicInbox::Eml;
+require PublicInbox::Import;
+require PublicInbox::Inbox;
+require PublicInbox::InboxWritable;
+require PublicInbox::Config;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $pi_home = "$home/.public-inbox";
 my $pi_config = "$pi_home/config";
 my $maindir = "$tmpdir/main.git";
 my $addr = 'test-public@example.com';
-
+PublicInbox::Import::init_bare($maindir);
 {
-	is(1, mkdir($home, 0755), "setup ~/ for testing");
-	is(1, mkdir($pi_home, 0755), "setup ~/.public-inbox");
-	PublicInbox::Import::init_bare($maindir);
-
-	open my $fh, '>', "$maindir/description" or die "open: $!\n";
-	print $fh "test for public-inbox\n";
-	close $fh or die "close: $!\n";
-	open $fh, '>>', $pi_config or die;
-	print $fh <<EOF or die;
+	mkdir($home, 0755) or BAIL_OUT $!;
+	mkdir($pi_home, 0755) or BAIL_OUT $!;
+	open my $fh, '>>', $pi_config or BAIL_OUT $!;
+	print $fh <<EOF or BAIL_OUT $!;
 [publicinbox "test"]
 	address = $addr
 	inboxdir = $maindir
 	indexlevel = basic
 EOF
-	close $fh or die "close: $!\n";
+	close $fh or BAIL_OUT $!;
 }
 
-use_ok 'PublicInbox::Inbox';
-use_ok 'PublicInbox::InboxWritable';
-use_ok 'PublicInbox::Config';
 my $cfg = PublicInbox::Config->new($pi_config);
 my $ibx = $cfg->lookup_name('test');
 my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
@@ -58,7 +52,7 @@ EOF
 	ok($im->add($mime), 'added initial message');
 
 	$mime->header_set('Message-ID', '<toobig@example.com>');
-	$mime->body_str_set("z\n" x 1024);
+	$mime->body_set("z\n" x 1024);
 	ok($im->add($mime), 'added big message');
 
 	# deliver a reply, too
@@ -98,7 +92,7 @@ EOF
 }
 
 # retrieve thread as an mbox
-{
+SKIP: {
 	local $ENV{HOME} = $home;
 	my $path = "/test/blahblah\@example.com/t.mbox.gz";
 	my $res = cgi_run($path);
@@ -109,13 +103,10 @@ EOF
 	if ($indexed) {
 		$res = cgi_run($path);
 		like($res->{head}, qr/^Status: 200 /, "search returned mbox");
-		eval {
-			require IO::Uncompress::Gunzip;
-			my $in = $res->{body};
-			my $out;
-			IO::Uncompress::Gunzip::gunzip(\$in => \$out);
-			like($out, qr/^From /m, "From lines in mbox");
-		};
+		my $in = $res->{body};
+		my $out;
+		gunzip(\$in => \$out);
+		like($out, qr/^From /m, "From lines in mbox");
 		$res = cgi_run('/test/toobig@example.com/');
 		like($res->{head}, qr/^Status: 300 /,
 			'did not index or return >max-size message');
@@ -123,29 +114,24 @@ EOF
 			'warned about skipping large OID');
 	} else {
 		like($res->{head}, qr/^Status: 501 /, "search not available");
-		SKIP: { skip 'DBD::SQLite not available', 4 };
+		skip('DBD::SQLite not available', 7); # (4 - 1) above, 4 below
 	}
-
-	my $have_xml_treepp = eval { require XML::TreePP; 1 } if $indexed;
-	if ($have_xml_treepp) {
-		$path = "/test/blahblah\@example.com/t.atom";
-		$res = cgi_run($path);
-		like($res->{head}, qr/^Status: 200 /, "atom returned 200");
-		like($res->{head}, qr!^Content-Type: application/atom\+xml!m,
-			"search returned atom");
-		my $t = XML::TreePP->new->parse($res->{body});
-		is(scalar @{$t->{feed}->{entry}}, 3, "parsed three entries");
-		like($t->{feed}->{-xmlns}, qr/\bAtom\b/,
-				'looks like an an Atom feed');
-	} else {
-		SKIP: { skip 'DBD::SQLite or XML::TreePP missing', 2 };
-	}
+	require_mods('XML::TreePP', 4);
+	$path = "/test/blahblah\@example.com/t.atom";
+	$res = cgi_run($path);
+	like($res->{head}, qr/^Status: 200 /, "atom returned 200");
+	like($res->{head}, qr!^Content-Type: application/atom\+xml!m,
+		"search returned atom");
+	my $t = XML::TreePP->new->parse($res->{body});
+	is(scalar @{$t->{feed}->{entry}}, 3, "parsed three entries");
+	like($t->{feed}->{-xmlns}, qr/\bAtom\b/,
+			'looks like an an Atom feed');
 }
 
 done_testing();
 
 sub cgi_run {
-	my %env = (
+	my $env = {
 		PATH_INFO => $_[0],
 		QUERY_STRING => $_[1] || "",
 		SCRIPT_NAME => '',
@@ -154,11 +140,11 @@ sub cgi_run {
 		GATEWAY_INTERFACE => 'CGI/1.1',
 		HTTP_ACCEPT => '*/*',
 		HTTP_HOST => 'test.example.com',
-	);
+	};
 	my ($in, $out, $err) = ("", "", "");
 	my $rdr = { 0 => \$in, 1 => \$out, 2 => \$err };
-	run_script(['.cgi'], \%env, $rdr);
-	die "unexpected error: \$?=$? ($err)" if $?;
+	run_script(['.cgi'], $env, $rdr);
+	fail "unexpected error: \$?=$? ($err)" if $?;
 	my ($head, $body) = split(/\r\n\r\n/, $out, 2);
 	{ head => $head, body => $body, err => $err }
 }
