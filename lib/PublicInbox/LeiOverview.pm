@@ -100,7 +100,7 @@ sub new {
 		return $lei->fail($@) if $@;
 		if ($opt->{mua} && $lei->{l2m}->lock_free) {
 			$lei->{early_mua} = 1;
-			$opt->{alert} //= [ '-WINCH,-bell' ] if -t $lei->{1};
+			$opt->{alert} //= [ ':WINCH,:bell' ] if -t $lei->{1};
 		}
 	}
 	$self;

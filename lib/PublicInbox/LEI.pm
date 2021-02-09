@@ -227,9 +227,9 @@ my %OPTDESC = (
 'show	threads|t' => 'display entire thread a message belongs to',
 'q	threads|t' =>
 	'return all messages in the same threads as the actual match(es)',
-'alert=s@' => ['CMD,-WINCH,-bell,<any command>',
+'alert=s@' => ['CMD,:WINCH,:bell,<any command>',
 	'run command(s) or perform ops when done writing to output ' .
-	'(default: "-WINCH,-bell" with --mua and Maildir/IMAP output, ' .
+	'(default: ":WINCH,:bell" with --mua and Maildir/IMAP output, ' .
 	'nothing otherwise)' ],
 
 'augment|a' => 'augment --output destination instead of clobbering',
@@ -758,14 +758,14 @@ sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 	my ($self) = @_;
 	my $alerts = $self->{opt}->{alert} // return;
 	while (my $op = shift(@$alerts)) {
-		if ($op eq '-WINCH') {
+		if ($op eq ':WINCH') {
 			# hit the process group that started the MUA
 			if ($self->{sock}) {
 				send($self->{sock}, '-WINCH', MSG_EOR);
 			} elsif ($self->{oneshot}) {
 				kill('-WINCH', $$);
 			}
-		} elsif ($op eq '-bell') {
+		} elsif ($op eq ':bell') {
 			out($self, "\a");
 		} elsif ($op =~ /(?<!\\),/) { # bare ',' (not ',,')
 			push @$alerts, split(/(?<!\\),/, $op);
