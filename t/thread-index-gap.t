@@ -47,14 +47,12 @@ for my $msgs (['orig', reverse @msgs], ['shuffle', shuffle(@msgs)]) {
 	my $over = $ibx->over;
 	my $dbh = $over->dbh;
 	my $tid = $dbh->selectall_arrayref('SELECT DISTINCT(tid) FROM over');
-	my @tid = map { $_->[0] } @$tid;
-	is(scalar(@tid), 1, "only one thread initially ($desc)");
+	is(scalar(@$tid), 1, "only one thread initially ($desc)");
 	$over->dbh_close;
-	run_script([qw(-index --reindex --rethread), $ibx->{inboxdir}]) or
-		BAIL_OUT 'rethread';
+	run_script([qw(-index --no-fsync --reindex --rethread),
+			$ibx->{inboxdir}]) or BAIL_OUT 'rethread';
 	$tid = $dbh->selectall_arrayref('SELECT DISTINCT(tid) FROM over');
-	@tid = map { $_->[0] } @$tid;
-	is(scalar(@tid), 1, "only one thread after rethread ($desc)");
+	is(scalar(@$tid), 1, "only one thread after rethread ($desc)");
 }
 
 done_testing;
