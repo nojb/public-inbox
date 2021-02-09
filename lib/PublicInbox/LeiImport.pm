@@ -6,7 +6,6 @@ package PublicInbox::LeiImport;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
-use PublicInbox::MboxReader;
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::PktOp;
@@ -37,8 +36,17 @@ sub call { # the main "lei import" method
 	$lei->{opt}->{kw} //= 1;
 	my $fmt = $lei->{opt}->{'format'};
 	my $self = $lei->{imp} = bless {}, $cls;
-	if (my @f = grep { -f } @argv && !$fmt) {
-		return $lei->fail("--format unset for regular files:\n@f");
+	my @f;
+	for my $x (@argv) {
+		if (-f $x) { push @f, $x }
+		elsif (-d _) { require PublicInbox::MdirReader }
+	}
+	(@f && !$fmt) and
+		return $lei->fail("--format unset for regular file(s):\n@f");
+	if (@f && $fmt ne 'eml') {
+		require PublicInbox::MboxReader;
+		PublicInbox::MboxReader->can($fmt) or
+			return $lei->fail( "--format=$fmt unrecognized\n");
 	}
 	$self->{0} = $lei->{0} if $lei->{opt}->{stdin};
 	my $ops = {
@@ -83,11 +91,9 @@ error reading $x: $!
 
 			my $eml = PublicInbox::Eml->new(\$buf);
 			_import_eml($eml, $lei->{sto}, $set_kw);
-		} else { # some mbox
-			my $cb = PublicInbox::MboxReader->can($fmt);
-			$cb or return $lei->child_error(1 >> 8, <<"");
---format $fmt unsupported for $x
-
+		} else { # some mbox (->can already checked in call);
+			my $cb = PublicInbox::MboxReader->can($fmt) //
+				die "BUG: bad fmt=$fmt";
 			$cb->(undef, $fh, \&_import_eml, $lei->{sto}, $set_kw);
 		}
 	};
@@ -109,8 +115,7 @@ unable to open $x: $!
 
 		_import_fh($lei, $fh, $x);
 	} elsif (-d _ && (-d "$x/cur" || -d "$x/new")) {
-		require PublicInbox::LeiToMail;
-		PublicInbox::LeiToMail::maildir_each_file($x,
+		PublicInbox::MdirReader::maildir_each_file($x,
 					\&_import_maildir,
 					$lei->{sto}, $lei->{opt}->{kw});
 	} else {

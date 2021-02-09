@@ -18,6 +18,7 @@ use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
 use Errno qw(EEXIST ESPIPE ENOENT EPIPE);
+my ($maildir_each_file);
 
 # struggles with short-lived repos, Gcf2Client makes little sense with lei;
 # but we may use in-process libgit2 in the future.
@@ -266,18 +267,6 @@ sub _mbox_write_cb ($$) {
 	}
 }
 
-sub maildir_each_file ($$;@) {
-	my ($dir, $cb, @arg) = @_;
-	$dir .= '/' unless substr($dir, -1) eq '/';
-	for my $d (qw(new/ cur/)) {
-		my $pfx = $dir.$d;
-		opendir my $dh, $pfx or next;
-		while (defined(my $fn = readdir($dh))) {
-			$cb->($pfx.$fn, @arg) if $fn =~ /:2,[A-Za-z]*\z/;
-		}
-	}
-}
-
 sub _augment_file { # maildir_each_file cb
 	my ($f, $lei) = @_;
 	my $eml = PublicInbox::InboxWritable::eml_from_path($f) or return;
@@ -354,11 +343,18 @@ sub new {
 	my $dst = $lei->{ovv}->{dst};
 	my $self = bless {}, $cls;
 	if ($fmt eq 'maildir') {
+		$maildir_each_file //= do {
+			require PublicInbox::MdirReader;
+			PublicInbox::MdirReader->can('maildir_each_file');
+		};
+		$lei->{opt}->{augment} and
+			require PublicInbox::InboxWritable; # eml_from_path
 		$self->{base_type} = 'maildir';
 		-e $dst && !-d _ and die
 				"$dst exists and is not a directory\n";
 		$lei->{ovv}->{dst} = $dst .= '/' if substr($dst, -1) ne '/';
 	} elsif (substr($fmt, 0, 4) eq 'mbox') {
+		require PublicInbox::MboxReader if $lei->{opt}->{augment};
 		(-d $dst || (-e _ && !-w _)) and die
 			"$dst exists and is not a writable file\n";
 		$self->can("eml2$fmt") or die "bad mbox --format=$fmt\n";
@@ -389,12 +385,11 @@ sub _do_augment_maildir {
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
-			require PublicInbox::InboxWritable; # eml_from_path
-			maildir_each_file($dst, \&_augment_file, $lei);
+			$maildir_each_file->($dst, \&_augment_file, $lei);
 			$dedupe->pause_dedupe;
 		}
 	} else { # clobber existing Maildir
-		maildir_each_file($dst, \&_unlink);
+		$maildir_each_file->($dst, \&_unlink);
 	}
 }
 
@@ -435,7 +430,6 @@ sub _do_augment_mbox {
 		my $rd = $zsfx ? decompress_src($out, $zsfx, $lei) :
 				dup_src($out);
 		my $fmt = $lei->{ovv}->{fmt};
-		require PublicInbox::MboxReader;
 		PublicInbox::MboxReader->$fmt($rd, \&_augment, $lei);
 	}
 	# maybe some systems don't honor O_APPEND, Perl does this:

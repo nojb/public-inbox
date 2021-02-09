@@ -14,7 +14,7 @@ BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes
-		tcp_host_port test_lei $lei $lei_out $lei_err $lei_opt);
+		tcp_host_port test_lei lei $lei $lei_out $lei_err $lei_opt);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -456,6 +456,8 @@ our $lei = sub {
 		$lei_err = join('', grep(!/$err_skip/, split(/^/m, $lei_err)));
 	$res;
 };
+
+sub lei (@) { $lei->(@_) }
 
 sub json_utf8 () {
 	state $x = ref(PublicInbox::Config->json)->new->utf8->canonical;

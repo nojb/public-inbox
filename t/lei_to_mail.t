@@ -10,6 +10,7 @@ use Fcntl qw(SEEK_SET);
 use PublicInbox::Spawn qw(popen_rd which);
 use List::Util qw(shuffle);
 require_mods(qw(DBD::SQLite));
+require PublicInbox::MdirReader;
 require PublicInbox::MboxReader;
 require PublicInbox::LeiOverview;
 require PublicInbox::LEI;
@@ -127,6 +128,17 @@ my $orig = do {
 	is(do { local $/; <$fh> }, $raw, 'jobs > 1');
 	$raw;
 };
+
+test_lei(sub {
+	ok(lei(qw(import -f), $mbox, $fn), 'imported mbox');
+	ok(lei(qw(q s:x)), 'lei q works') or diag $lei_err;
+	my $res = json_utf8->decode($lei_out);
+	my $x = $res->[0];
+	is($x->{'s'}, 'x', 'subject imported') or diag $lei_out;
+	is_deeply($x->{'kw'}, ['seen'], 'kw imported') or diag $lei_out;
+	is($res->[1], undef, 'only one result');
+});
+
 for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 	my $zsfx2cmd = PublicInbox::LeiToMail->can('zsfx2cmd');
 	SKIP: {
@@ -230,6 +242,7 @@ SKIP: { # FIFO support
 }
 
 { # Maildir support
+	my $each_file = PublicInbox::MdirReader->can('maildir_each_file');
 	my $md = "$tmpdir/maildir/";
 	my $wcb = $wcb_get->('maildir', $md);
 	is(ref($wcb), 'CODE', 'got Maildir callback');
@@ -237,7 +250,7 @@ SKIP: { # FIFO support
 	$wcb->(\(my $x = $buf), $b4dc0ffee);
 
 	my @f;
-	PublicInbox::LeiToMail::maildir_each_file($md, sub { push @f, shift });
+	$each_file->($md, sub { push @f, shift });
 	open my $fh, $f[0] or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $buf, 'wrote to Maildir');
 
@@ -246,7 +259,7 @@ SKIP: { # FIFO support
 	$wcb->(\($x = $buf."\nx\n"), $deadcafe);
 
 	my @x = ();
-	PublicInbox::LeiToMail::maildir_each_file($md, sub { push @x, shift });
+	$each_file->($md, sub { push @x, shift });
 	is(scalar(@x), 1, 'wrote one new file');
 	ok(!-f $f[0], 'old file clobbered');
 	open $fh, $x[0] or BAIL_OUT $!;
@@ -257,7 +270,7 @@ SKIP: { # FIFO support
 	$wcb->(\($x = $buf."\ny\n"), $deadcafe);
 	$wcb->(\($x = $buf."\ny\n"), $b4dc0ffee); # skipped by dedupe
 	@f = ();
-	PublicInbox::LeiToMail::maildir_each_file($md, sub { push @f, shift });
+	$each_file->($md, sub { push @f, shift });
 	is(scalar grep(/\A\Q$x[0]\E\z/, @f), 1, 'old file still there');
 	my @new = grep(!/\A\Q$x[0]\E\z/, @f);
 	is(scalar @new, 1, '1 new file written (b4dc0ffee skipped)');

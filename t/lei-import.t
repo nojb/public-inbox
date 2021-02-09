@@ -3,12 +3,14 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 test_lei(sub {
+ok(!$lei->(qw(import -f bogus), 't/plack-qp.eml'), 'fails with bogus format');
+like($lei_err, qr/\bbogus unrecognized/, 'gave error message');
 
 ok($lei->(qw(q s:boolean)), 'search miss before import');
 unlike($lei_out, qr/boolean/i, 'no results, yet');
 open my $fh, '<', 't/data/0001.patch' or BAIL_OUT $!;
 ok($lei->([qw(import -f eml -)], undef, { %$lei_opt, 0 => $fh }),
-	'import single file from stdin');
+	'import single file from stdin') or diag $lei_err;
 close $fh;
 ok($lei->(qw(q s:boolean)), 'search hit after import');
 ok($lei->(qw(import -f eml), 't/data/message_embed.eml'),
@@ -35,5 +37,6 @@ $res = json_utf8->decode($lei_out);
 is($res->[1], undef, 'only one result');
 is_deeply($res->[0]->{kw}, [], 'no keywords set');
 
+# see t/lei_to_mail.t for "import -f mbox*"
 });
 done_testing;

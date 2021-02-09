@@ -199,6 +199,7 @@ lib/PublicInbox/ManifestJsGz.pm
 lib/PublicInbox/Mbox.pm
 lib/PublicInbox/MboxGz.pm
 lib/PublicInbox/MboxReader.pm
+lib/PublicInbox/MdirReader.pm
 lib/PublicInbox/MiscIdx.pm
 lib/PublicInbox/MiscSearch.pm
 lib/PublicInbox/MsgIter.pm
