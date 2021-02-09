@@ -10,6 +10,7 @@ use PublicInbox::Import;
 use PublicInbox::Filter::Base qw(REJECT);
 use Errno qw(ENOENT);
 our @EXPORT_OK = qw(eml_from_path);
+use Fcntl qw(O_RDONLY O_NONBLOCK);
 
 use constant {
 	PERM_UMASK => 0,
@@ -118,25 +119,10 @@ sub filter {
 	undef;
 }
 
-sub is_maildir_basename ($) {
-	my ($bn) = @_;
-	return 0 if $bn !~ /\A[a-zA-Z0-9][\-\w:,=\.]+\z/;
-	if ($bn =~ /:2,([A-Z]+)\z/i) {
-		my $flags = $1;
-		return 0 if $flags =~ /[DT]/; # no [D]rafts or [T]rashed mail
-	}
-	1;
-}
-
-sub is_maildir_path ($) {
-	my ($path) = @_;
-	my @p = split(m!/+!, $path);
-	(is_maildir_basename($p[-1]) && -f $path) ? 1 : 0;
-}
-
 sub eml_from_path ($) {
 	my ($path) = @_;
-	if (open my $fh, '<', $path) {
+	if (sysopen(my $fh, $path, O_RDONLY|O_NONBLOCK)) {
+		return unless -f $fh; # no FIFOs or directories
 		my $str = do { local $/; <$fh> } or return;
 		PublicInbox::Eml->new(\$str);
 	} else { # ENOENT is common with Maildir
@@ -145,27 +131,30 @@ sub eml_from_path ($) {
 	}
 }
 
+sub _each_maildir_fn {
+	my ($fn, $im, $self) = @_;
+	if ($fn =~ /:2,([A-Za-z]*)\z/) {
+		my $fl = $1;
+		return if $fl =~ /[DT]/; # no Drafts or Trash for public
+	}
+	my $eml = eml_from_path($fn) or return;
+	if ($self && (my $filter = $self->filter($im))) {
+		my $ret = $filter->scrub($eml) or return;
+		return if $ret == REJECT();
+		$eml = $ret;
+	}
+	$im->add($eml);
+}
+
 sub import_maildir {
 	my ($self, $dir) = @_;
-	my $im = $self->importer(1);
-
 	foreach my $sub (qw(cur new tmp)) {
 		-d "$dir/$sub" or die "$dir is not a Maildir (missing $sub)\n";
 	}
-	foreach my $sub (qw(cur new)) {
-		opendir my $dh, "$dir/$sub" or die "opendir $dir/$sub: $!\n";
-		while (defined(my $fn = readdir($dh))) {
-			next unless is_maildir_basename($fn);
-			my $mime = eml_from_path("$dir/$fn") or next;
-
-			if (my $filter = $self->filter($im)) {
-				my $ret = $filter->scrub($mime) or return;
-				return if $ret == REJECT();
-				$mime = $ret;
-			}
-			$im->add($mime);
-		}
-	}
+	my $im = $self->importer(1);
+	my @self = $self->filter($im) ? ($self) : ();
+	PublicInbox::MdirReader::maildir_each_file(\&_each_maildir_fn,
+						$im, @self);
 	$im->done;
 }
 

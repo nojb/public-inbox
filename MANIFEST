@@ -376,6 +376,7 @@ t/mbox_reader.t
 t/mda-mime.eml
 t/mda.t
 t/mda_filter_rubylang.t
+t/mdir_reader.t
 t/mid.t
 t/mime.t
 t/miscsearch.t

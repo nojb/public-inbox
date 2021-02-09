@@ -2,12 +2,13 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # ref: https://cr.yp.to/proto/maildir.html
-#	http://wiki2.dovecot.org/MailboxFormat/Maildir
+#	httsp://wiki2.dovecot.org/MailboxFormat/Maildir
 package PublicInbox::Watch;
 use strict;
 use v5.10.1;
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable qw(eml_from_path);
+use PublicInbox::MdirReader;
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
 use PublicInbox::Sigfd;
@@ -207,7 +208,8 @@ sub import_eml ($$$) {
 
 sub _try_path {
 	my ($self, $path) = @_;
-	return unless PublicInbox::InboxWritable::is_maildir_path($path);
+	my $fl = PublicInbox::MdirReader::maildir_path_flags($path) // return;
+	return if $fl =~ /[DT]/; # no Drafts or Trash
 	if ($path !~ $self->{mdre}) {
 		warn "unrecognized path: $path\n";
 		return;
