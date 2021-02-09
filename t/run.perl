@@ -127,9 +127,10 @@ my $producer = $$;
 my $eof; # we stop respawning if true
 
 my $start_worker = sub {
-	my ($i, $j, $rd, $todo) = @_;
+	my ($j, $rd, $wr, $todo) = @_;
 	my $pid = fork // DIE "fork: $!";
 	if ($pid == 0) {
+		close $wr if $wr;
 		$worker = $$;
 		while (1) {
 			my $r = sysread($rd, my $buf, UINT_SIZE);
@@ -155,15 +156,16 @@ my $start_worker = sub {
 for (my $i = $repeat; $i != 0; $i--) {
 	my @todo = $shuffle ? List::Util::shuffle(@tests) : @tests;
 
-	# single-producer, multi-consumer queue relying on POSIX semantics
+	# single-producer, multi-consumer queue relying on POSIX pipe semantics
+	# POSIX.1-2008 stipulates a regular file should work, but Linux <3.14
+	# had broken read(2) semantics according to the read(2) manpage
 	pipe(my ($rd, $wr)) or DIE "pipe: $!";
 
 	# fill the queue before forking so children can start earlier
 	my $n = (_POSIX_PIPE_BUF / UINT_SIZE);
 	if ($n >= $#todo) {
 		print $wr join('', map { pack('I', $_) } (0..$#todo)) or DIE;
-		close $wr or die;
-		$wr = undef;
+		undef $wr;
 	} else { # write what we can...
 		$wr->autoflush(1);
 		print $wr join('', map { pack('I', $_) } (0..$n)) or DIE;
@@ -186,22 +188,21 @@ for (my $i = $repeat; $i != 0; $i--) {
 			# skip_all can exit(0), respawn if needed:
 			if (!$eof) {
 				print $OLDERR "# respawning job[$j]\n";
-				$start_worker->($i, $j, $rd, \@todo);
+				$start_worker->($j, $rd, $wr, \@todo);
 			}
 		}
 	};
 
 	# start the workers to consume the queue
 	for (my $j = 0; $j < $jobs; $j++) {
-		$start_worker->($i, $j, $rd, \@todo);
+		$start_worker->($j, $rd, $wr, \@todo);
 	}
-
 	if ($wr) {
 		local $SIG{CHLD} = $sigchld;
 		# too many tests to fit in the pipe before starting workers,
 		# send the rest now the workers are running
 		print $wr join('', map { pack('I', $_) } ($n..$#todo)) or DIE;
-		close $wr or die;
+		undef $wr;
 	}
 
 	$sigchld->(0) while scalar(keys(%pids));
