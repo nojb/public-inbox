@@ -68,11 +68,9 @@ sub gfi_start {
 		chomp($self->{tip} = $git->qx(qw(rev-parse --revs-only), $ref));
 		die "fatal: rev-parse --revs-only $ref: \$?=$?" if $?;
 		if ($self->{path_type} ne '2/38' && $self->{tip}) {
-			local $/ = "\0";
-			my @t = $git->qx(qw(ls-tree -r -z --name-only), $ref);
+			my $t = $git->qx(qw(ls-tree -r -z --name-only), $ref);
 			die "fatal: ls-tree -r -z --name-only $ref: \$?=$?" if $?;
-			chomp @t;
-			$self->{-tree} = { map { $_ => 1 } @t };
+			$self->{-tree} = { map { $_ => 1 } split(/\0/, $t) };
 		}
 		$in_r = $self->{in} = $git->popen(qw(fast-import
 					--quiet --done --date-format=raw),

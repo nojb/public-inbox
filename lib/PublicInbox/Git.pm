@@ -364,7 +364,6 @@ sub popen {
 sub qx {
 	my $fh = popen(@_);
 	if (wantarray) {
-		local $/ = "\n";
 		my @ret = <$fh>;
 		close $fh; # caller should check $?
 		@ret;
