@@ -269,6 +269,9 @@ sub run_script ($;$$) {
 			die "unable to deal with $ref $redir";
 		}
 	}
+	if ($key =~ /-(index|convert|extindex|convert|xcpdb)\z/) {
+		unshift @argv, '--no-fsync';
+	}
 	if ($run_mode == 0) {
 		# spawn an independent new process, like real-world use cases:
 		require PublicInbox::Spawn;
