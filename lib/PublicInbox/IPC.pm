@@ -412,9 +412,11 @@ sub DESTROY {
 	my ($self) = @_;
 	my $ppid = $self->{-wq_ppid};
 	wq_kill($self) if $ppid && $ppid == $$;
+	my $err = $?;
 	wq_close($self);
 	wq_wait_old($self);
 	ipc_worker_stop($self);
+	$? = $err if $err;
 }
 
 sub detect_nproc () {

@@ -541,7 +541,6 @@ sub setup_public_inboxes () {
 	my $end = $lk->lock_for_scope;
 	return @ret if -f $stamp;
 
-	require PublicInbox::InboxWritable;
 	local $ENV{PI_CONFIG} = $pi_config;
 	for my $V (1, 2) {
 		run_script([qw(-init), "-V$V", "t$V",
@@ -549,6 +548,8 @@ sub setup_public_inboxes () {
 				"$test_home/t$V", "http://example.com/t$V",
 				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
 	}
+	require PublicInbox::Config;
+	require PublicInbox::InboxWritable;
 	my $cfg = PublicInbox::Config->new;
 	my $seen = 0;
 	$cfg->each_inbox(sub {

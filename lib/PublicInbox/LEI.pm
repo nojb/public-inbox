@@ -336,8 +336,9 @@ sub x_it ($$) {
 			my $wq = delete $self->{$f} or next;
 			$wq->DESTROY;
 		}
-		# cleanup anything that has tempfiles
-		delete @$self{qw(ovv dedupe)};
+		# cleanup anything that has tempfiles or open file handles
+		%PATH2CFG = ();
+		delete @$self{qw(ovv dedupe sto cfg)};
 		if (my $signum = ($code & 127)) { # usually SIGPIPE (13)
 			$SIG{PIPE} = 'DEFAULT'; # $SIG{$signum} doesn't work
 			kill $signum, $$;
@@ -1072,8 +1073,10 @@ sub DESTROY {
 	my ($self) = @_;
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
+	my $err = $?;
 	my $oneshot_pids = delete $self->{"pid.$self.$$"} or return;
 	waitpid($_, 0) for keys %$oneshot_pids;
+	$? = $err if $err; # preserve ->fail or ->x_it code
 }
 
 1;

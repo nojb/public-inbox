@@ -27,7 +27,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	like($lei_out, qr!\Q$t2\E!, 't2 added to ls-externals');
 
 	ok(!$lei->('add-external', $t2, '--mirror', "$http/t2/"),
-		'--mirror fails if reused');
+		'--mirror fails if reused') or diag "$lei_err.$lei_out = $?";
 
 	ok($lei->('ls-external'), 'ls-external');
 	like($lei_out, qr!\Q$t2\E!, 'still in ls-externals');
