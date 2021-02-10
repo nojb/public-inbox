@@ -330,8 +330,10 @@ sub query_argv_to_string {
 		if (s!\b(d|rt|dt):([[:print:]]+)\z!date_parse_prepare(
 						$to_parse //= [], $1, $2)!sge) {
 			$_;
+		} elsif (/\s/) {
+			s/(.*?)\b(\w+:)// ? qq{$1$2"$_"} : qq{"$_"};
 		} else {
-			/\s/ ? (s/\A(\w+:)// ? qq{$1"$_"} : qq{"$_}) : $_
+			$_
 		}
 	} @$argv);
 	# git-rev-parse can handle any number of args up to system

@@ -536,13 +536,20 @@ $ibx->with_umask(sub {
 });
 
 SKIP: {
+	my ($s, $g) = ($ibx->search, $ibx->git);
+	my $q = $s->query_argv_to_string($g, ["quoted phrase"]);
+	is($q, q["quoted phrase"], 'quoted phrase');
+	$q = $s->query_argv_to_string($g, ['s:pa ce']);
+	is($q, q[s:"pa ce"], 'space with prefix');
+	$q = $s->query_argv_to_string($g, ["\(s:pa ce", "AND", "foo\)"]);
+	is($q, q[(s:"pa ce" AND foo)], 'space AND foo');
+
 	local $ENV{TZ} = 'UTC';
 	my $now = strftime('%H:%M:%S', gmtime(time));
 	if ($now =~ /\A23:(?:59|60)/ || $now =~ /\A00:00:0[01]\z/) {
 		skip 'too close to midnight, time is tricky', 6;
 	}
-	my ($s, $g) = ($ibx->search, $ibx->git);
-	my $q = $s->query_argv_to_string($g, [qw(d:20101002 blah)]);
+	$q = $s->query_argv_to_string($g, [qw(d:20101002 blah)]);
 	is($q, 'd:20101002..20101003 blah', 'YYYYMMDD expanded to range');
 	$q = $s->query_argv_to_string($g, [qw(d:2010-10-02)]);
 	is($q, 'd:20101002..20101003', 'YYYY-MM-DD expanded to range');
