@@ -337,7 +337,7 @@ sub query_argv_to_string {
 	my (undef, $git, $argv) = @_;
 	my $to_parse;
 	my $tmp = join(' ', map {;
-		if (s!\b(d|rt|dt):([[:print:]]+)\z!date_parse_prepare(
+		if (s!\b(d|rt|dt):(\S+)\z!date_parse_prepare(
 						$to_parse //= [], $1, $2)!sge) {
 			$_;
 		} elsif (/\s/) {
