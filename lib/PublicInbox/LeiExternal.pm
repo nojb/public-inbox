@@ -101,16 +101,22 @@ sub get_externals {
 
 sub lei_ls_external {
 	my ($self, $filter) = @_;
-	my $do_glob = !$self->{opt}->{globoff}; # glob by default
-	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
+	my $opt = $self->{opt};
+	my $do_glob = !$opt->{globoff}; # glob by default
+	my ($OFS, $ORS) = $opt->{z} ? ("\0", "\0\0") : (" ", "\n");
 	$filter //= '*';
 	my $re = $do_glob ? glob2re($filter) : undef;
 	$re //= index($filter, '/') < 0 ?
 			qr!/\Q$filter\E/?\z! : # exact basename match
 			qr/\Q$filter\E/; # grep -F semantics
 	my @ext = externals_each($self, my $boost = {});
-	@ext = $self->{opt}->{'invert-match'} ? grep(!/$re/, @ext)
+	@ext = $opt->{'invert-match'} ? grep(!/$re/, @ext)
 					: grep(/$re/, @ext);
+	if ($opt->{'local'} && !$opt->{remote}) {
+		@ext = grep(!m!\A[a-z\+]+://!, @ext);
+	} elsif ($opt->{remote} && !$opt->{'local'}) {
+		@ext = grep(m!\A[a-z\+]+://!, @ext);
+	}
 	for my $loc (@ext) {
 		$self->out($loc, $OFS, 'boost=', $boost->{$loc}, $ORS);
 	}

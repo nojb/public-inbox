@@ -35,20 +35,20 @@ test_lei(sub {
 	my $home = $ENV{HOME};
 	my $config_file = "$home/.config/lei/config";
 	my $store_dir = "$home/.local/share/lei";
-	ok($lei->('ls-external'), 'ls-external works');
+	lei_ok 'ls-external', \'ls-external on fresh install';
 	is($lei_out.$lei_err, '', 'ls-external no output, yet');
 	ok(!-e $config_file && !-e $store_dir,
 		'nothing created by ls-external');
 
-	ok(!$lei->('add-external', "$home/nonexistent"),
-		"fails on non-existent dir");
-	ok($lei->('ls-external'), 'ls-external works after add failure');
+	ok(!lei('add-external', "$home/nonexistent",
+		"fails on non-existent dir"));
+	lei_ok('ls-external', \'ls-external works after add failure');
 	is($lei_out.$lei_err, '', 'ls-external still has no output');
 	my $cfg = PublicInbox::Config->new($cfg_path);
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;
-		ok($lei->(qw(add-external -q), $ibx->{inboxdir}),
-			'added external');
+		lei_ok(qw(add-external -q), $ibx->{inboxdir},
+				\'added external');
 		is($lei_out.$lei_err, '', 'no output');
 	});
 	ok(-s $config_file && -e $store_dir,
@@ -59,12 +59,30 @@ test_lei(sub {
 		is($lcfg->{"external.$ibx->{inboxdir}.boost"}, 0,
 			"configured boost on $ibx->{name}");
 	});
-	$lei->('ls-external');
+	lei_ok 'ls-external';
 	like($lei_out, qr/boost=0\n/s, 'ls-external has output');
-	ok($lei->(qw(add-external -q https://EXAMPLE.com/ibx)), 'add remote');
+	lei_ok qw(add-external -q https://EXAMPLE.com/ibx), \'add remote';
 	is($lei_err, '', 'no warnings after add-external');
 
-	ok($lei->(qw(_complete lei forget-external)), 'complete for externals');
+	{
+		lei_ok qw(ls-external --remote);
+		my $r_only = +{ map { $_ => 1 } split(/^/m, $lei_out) };
+		lei_ok qw(ls-external --local);
+		my $l_only = +{ map { $_ => 1 } split(/^/m, $lei_out) };
+		lei_ok 'ls-external';
+		is_deeply([grep { $l_only->{$_} } keys %$r_only], [],
+			'no locals in --remote');
+		is_deeply([grep { $r_only->{$_} } keys %$l_only], [],
+			'no remotes in --local');
+		my $all = +{ map { $_ => 1 } split(/^/m, $lei_out) };
+		is_deeply($all, { %$r_only, %$l_only },
+				'default output combines remote + local');
+		lei_ok qw(ls-external --remote --local);
+		my $both = +{ map { $_ => 1 } split(/^/m, $lei_out) };
+		is_deeply($all, $both, '--remote --local == no args');
+	}
+
+	lei_ok qw(_complete lei forget-external), \'complete for externals';
 	my %comp = map { $_ => 1 } split(/\s+/, $lei_out);
 	ok($comp{'https://example.com/ibx/'}, 'forget external completion');
 	$cfg->each_inbox(sub {

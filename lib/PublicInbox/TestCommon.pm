@@ -9,12 +9,14 @@ use v5.10.1;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
+use File::Spec;
 our @EXPORT;
 BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes
-		tcp_host_port test_lei lei $lei $lei_out $lei_err $lei_opt);
+		tcp_host_port test_lei lei lei_ok
+		$lei $lei_out $lei_err $lei_opt);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -458,6 +460,13 @@ our $lei = sub {
 };
 
 sub lei (@) { $lei->(@_) }
+
+sub lei_ok (@) {
+	my $msg = ref($_[-1]) ? pop(@_) : undef;
+	# filter out anything that looks like a path name for consistent logs
+	my @msg = grep(!m!\A/!, @_);
+	ok($lei->(@_), "lei @msg". ($msg ? " ($$msg)" : ''));
+}
 
 sub json_utf8 () {
 	state $x = ref(PublicInbox::Config->json)->new->utf8->canonical;
