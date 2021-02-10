@@ -22,20 +22,14 @@ sub externals_each {
 	# highest boost first, but stable for alphabetic tie break
 	use sort 'stable';
 	my @order = sort { $boost{$b} <=> $boost{$a} } sort keys %boost;
-	return @order if !$cb;
-	for my $loc (@order) {
-		$cb->(@arg, $loc, $boost{$loc});
+	if (ref($cb) eq 'CODE') {
+		for my $loc (@order) {
+			$cb->(@arg, $loc, $boost{$loc});
+		}
+	} elsif (ref($cb) eq 'HASH') {
+		%$cb = %boost;
 	}
 	@order; # scalar or array
-}
-
-sub lei_ls_external {
-	my ($self, @argv) = @_;
-	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
-	externals_each($self, sub {
-		my ($loc, $boost_val) = @_;
-		$self->out($loc, $OFS, 'boost=', $boost_val, $ORS);
-	});
 }
 
 sub ext_canonicalize {
@@ -52,28 +46,47 @@ sub ext_canonicalize {
 	}
 }
 
-my %patmap = ('*' => '[^/]*?', '?' => '[^/]', '[' => '[', ']' => ']');
-sub glob2pat {
-	my ($glob) = @_;
-        $glob =~ s!(.)!$patmap{$1} || "\Q$1"!ge;
-        $glob;
+my %re_map = ( '*' => '[^/]*?', '?' => '[^/]',
+		'[' => '[', ']' => ']', ',' => ',' );
+
+sub glob2re {
+	my ($re) = @_;
+	my $p = '';
+	my $in_bracket = 0;
+	my $qm = 0;
+	my $changes = ($re =~ s!(.)!
+		$re_map{$p eq '\\' ? '' : do {
+			if ($1 eq '[') { ++$in_bracket }
+			elsif ($1 eq ']') { --$in_bracket }
+			$p = $1;
+		}} // do {
+			$p = $1;
+			($p eq '-' && $in_bracket) ? $p : (++$qm, "\Q$p")
+		}!sge);
+	# bashism (also supported by curl): {a,b,c} => (a|b|c)
+	$re =~ s/([^\\]*)\\\{([^,]*?,[^\\]*?)\\\}/
+		(my $in_braces = $2) =~ tr!,!|!;
+		$1."($in_braces)";
+		/sge;
+	($changes - $qm) ? $re : undef;
 }
 
+# get canonicalized externals list matching $loc
+# $is_exclude denotes it's for --exclude
+# otherwise it's for --only/--include is assumed
 sub get_externals {
-	my ($self, $loc, $exclude) = @_;
+	my ($self, $loc, $is_exclude) = @_;
 	return (ext_canonicalize($loc)) if -e $loc;
-
 	my @m;
 	my @cur = externals_each($self);
 	my $do_glob = !$self->{opt}->{globoff}; # glob by default
-	if ($do_glob && ($loc =~ /[\*\?]/s || $loc =~ /\[.*\]/s)) {
-		my $re = glob2pat($loc);
+	if ($do_glob && (my $re = glob2re($loc))) {
 		@m = grep(m!$re!, @cur);
 		return @m if scalar(@m);
 	} elsif (index($loc, '/') < 0) { # exact basename match:
 		@m = grep(m!/\Q$loc\E/?\z!, @cur);
 		return @m if scalar(@m) == 1;
-	} elsif ($exclude) { # URL, maybe:
+	} elsif ($is_exclude) { # URL, maybe:
 		my $canon = ext_canonicalize($loc);
 		@m = grep(m!\A\Q$canon\E\z!, @cur);
 		return @m if scalar(@m) == 1;
@@ -86,6 +99,23 @@ sub get_externals {
 		$self->fail("`$loc' is ambiguous:\n", map { "\t$_\n" } @m);
 	}
 	();
+}
+
+sub lei_ls_external {
+	my ($self, $filter) = @_;
+	my $do_glob = !$self->{opt}->{globoff}; # glob by default
+	my ($OFS, $ORS) = $self->{opt}->{z} ? ("\0", "\0\0") : (" ", "\n");
+	$filter //= '*';
+	my $re = $do_glob ? glob2re($filter) : undef;
+	$re //= index($filter, '/') < 0 ?
+			qr!/\Q$filter\E/?\z! : # exact basename match
+			qr/\Q$filter\E/; # grep -F semantics
+	my @ext = externals_each($self, my $boost = {});
+	@ext = $self->{opt}->{'invert-match'} ? grep(!/$re/, @ext)
+					: grep(/$re/, @ext);
+	for my $loc (@ext) {
+		$self->out($loc, $OFS, 'boost=', $boost->{$loc}, $ORS);
+	}
 }
 
 sub add_external_finish {
