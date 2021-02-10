@@ -5,8 +5,6 @@
 package PublicInbox::LeiExternal;
 use strict;
 use v5.10.1;
-use parent qw(Exporter);
-our @EXPORT = qw(lei_ls_external lei_add_external lei_forget_external);
 use PublicInbox::Config;
 
 sub externals_each {
