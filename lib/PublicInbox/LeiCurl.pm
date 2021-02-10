@@ -2,6 +2,8 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # common option and torsocks(1) wrapping for curl(1)
+# Eventually, we may support using libcurl via Inline::C and/or
+# WWW::Curl; but curl(1) is most prevalent and widely-installed.
 package PublicInbox::LeiCurl;
 use strict;
 use v5.10.1;

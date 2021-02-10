@@ -44,6 +44,8 @@ sub ext_canonicalize {
 	}
 }
 
+# TODO: we will probably extract glob2re into a separate module for
+# PublicInbox::Filter::Base and maybe other places
 my %re_map = ( '*' => '[^/]*?', '?' => '[^/]',
 		'[' => '[', ']' => ']', ',' => ',' );
 
@@ -99,6 +101,7 @@ sub get_externals {
 	();
 }
 
+# TODO: does this need JSON output?
 sub lei_ls_external {
 	my ($self, $filter) = @_;
 	my $opt = $self->{opt};
