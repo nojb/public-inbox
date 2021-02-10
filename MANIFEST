@@ -209,6 +209,7 @@ lib/PublicInbox/NDC_PP.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
+lib/PublicInbox/NetReader.pm
 lib/PublicInbox/NewsWWW.pm
 lib/PublicInbox/OnDestroy.pm
 lib/PublicInbox/Over.pm
