@@ -151,7 +151,7 @@ SKIP: {
 	{
 		open my $fh, '+>', undef or BAIL_OUT $!;
 		$fh->autoflush(1);
-		print $fh 's:use' or BAIL_OUT $!;
+		print $fh 's:use d:..5.days.from.now' or BAIL_OUT $!;
 		seek($fh, 0, SEEK_SET) or BAIL_OUT $!;
 		ok($lei->([qw(q -q --stdin)], undef, { %$lei_opt, 0 => $fh }),
 				'--stdin on regular file works');

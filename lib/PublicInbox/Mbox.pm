@@ -237,6 +237,7 @@ sub mbox_all {
 
 	my $qopts = $ctx->{qopts} = { relevance => -2 }; # ORDER BY docid DESC
 	$qopts->{threads} = 1 if $q->{t};
+	$srch->query_approxidate($ctx->{ibx}->git, $q_string);
 	my $mset = $srch->mset($q_string, $qopts);
 	$qopts->{offset} = $mset->size or
 			return [404, [qw(Content-Type text/plain)],

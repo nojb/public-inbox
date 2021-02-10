@@ -34,7 +34,6 @@ sub sres_top_html {
 		return PublicInbox::WWW::need($ctx, 'Search');
 	my $q = PublicInbox::SearchQuery->new($ctx->{qp});
 	my $x = $q->{x};
-	my $query = $q->{'q'};
 	my $o = $q->{o};
 	my $asc;
 	if ($o < 0) {
@@ -54,6 +53,8 @@ sub sres_top_html {
 	my ($mset, $total, $err, $html);
 retry:
 	eval {
+		my $query = $q->{'q'};
+		$srch->query_approxidate($ctx->{ibx}->git, $query);
 		$mset = $srch->mset($query, $opts);
 		$total = $mset->get_matches_estimated;
 	};

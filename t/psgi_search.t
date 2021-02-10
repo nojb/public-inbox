@@ -74,20 +74,25 @@ EOF
 my $www = PublicInbox::WWW->new($cfg);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;
-	my $res;
-	$res = $cb->(GET('/test/?q=%C3%86var'));
-	my $html = $res->content;
-	like($html, qr/<title>&#198;var - /, 'HTML escaped in title');
-	my @res = ($html =~ m/\?q=(.+var)\b/g);
-	ok(scalar(@res), 'saw query strings');
-	my %uniq = map { $_ => 1 } @res;
-	is(1, scalar keys %uniq, 'all query values identical in HTML');
-	is('%C3%86var', (keys %uniq)[0], 'matches original query');
-	ok(index($html, 'by &#198;var Arnfj&#246;r&#240; Bjarmason') >= 0,
-		"displayed Ævar's name properly in HTML");
-
-	like($html, qr/download mbox\.gz: .*?"full threads"/s,
-		'"full threads" download option shown');
+	my ($html, $res);
+	my $approxidate = '1.hour.from.now';
+	for my $req ('/test/?q=%C3%86var', '/test/?q=%25C3%2586var') {
+		$res = $cb->(GET($req."+d:..$approxidate"));
+		$html = $res->content;
+		like($html, qr/<title>&#198;var d:\.\.\Q$approxidate\E/,
+			'HTML escaped in title, "d:..$APPROXIDATE" preserved');
+		my @res = ($html =~ m/\?q=(.+var)\+d:\.\.\Q$approxidate\E/g);
+		ok(scalar(@res), 'saw query strings');
+		my %uniq = map { $_ => 1 } @res;
+		is(1, scalar keys %uniq, 'all query values identical in HTML');
+		is('%C3%86var', (keys %uniq)[0], 'matches original query');
+		ok(index($html, 'by &#198;var Arnfj&#246;r&#240; Bjarmason')
+			>= 0, "displayed Ævar's name properly in HTML");
+		like($html, qr/download mbox\.gz: .*?"full threads"/s,
+			'"full threads" download option shown');
+	}
+	like($html, qr/Initial query\b.*?returned no.results, used:.*instead/s,
+		'noted retry on double-escaped query {-uxs_retried}');
 
 	my $warn = [];
 	local $SIG{__WARN__} = sub { push @$warn, @_ };
@@ -130,7 +135,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		qr/filename=no-subject\.mbox\.gz/);
 
 	# "full threads" mbox.gz download
-	$res = $cb->(POST('/test/?q=s:test&x=m&t'));
+	$res = $cb->(POST('/test/?q=s:test+d:..1.hour.from.now&x=m&t'));
 	is($res->code, 200, 'successful mbox download with threads');
 	gunzip(\($res->content) => \(my $before));
 	is_deeply([ "Message-ID: <$mid>\n", "Message-ID: <reply\@asdf>\n" ],
@@ -151,7 +156,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		'"full threads" download option not shown w/o has_threadid');
 
 	# in case somebody uses curl to bypass <form>
-	$res = $cb->(POST('/test/?q=s:test&x=m&t'));
+	$res = $cb->(POST("/test/?q=s:test+d:..$approxidate&x=m&t"));
 	is($res->code, 200, 'successful mbox download w/ threads');
 	gunzip(\($res->content) => \(my $after));
 	isnt($before, $after);

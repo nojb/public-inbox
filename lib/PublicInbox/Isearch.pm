@@ -25,6 +25,7 @@ SELECT ibx_id FROM inboxes WHERE eidx_key = ? LIMIT 1
 		die "E: `$self->{eidx_key}' not in $self->{es}->{topdir}\n";
 }
 
+sub query_approxidate { $_[0]->{es}->query_approxidate($_[1], $_[2]) }
 
 sub mset {
 	my ($self, $str, $opt) = @_;

@@ -321,6 +321,16 @@ sub date_parse_prepare {
 	"$pfx:".join('..', @r).$end;
 }
 
+sub date_parse_finalize {
+	my ($git, $to_parse) = @_;
+	# git-rev-parse can handle any number of args up to system
+	# limits (around (4096*32) bytes on Linux).
+	my @r = $git->date_parse(@$to_parse);
+	my $i;
+	$_[2] =~ s/\0(%[%YmdHMSs]+)([0-9\+]+)\0/strftime($1,
+		gmtime($2 eq '+' ? ($r[$i]+86400) : $r[$i=$2+0]))/sge;
+}
+
 # n.b. argv never has NUL, though we'll need to filter it out
 # if this $argv isn't from a command execution
 sub query_argv_to_string {
@@ -336,15 +346,24 @@ sub query_argv_to_string {
 			$_
 		}
 	} @$argv);
-	# git-rev-parse can handle any number of args up to system
-	# limits (around (4096*32) bytes on Linux).
-	if ($to_parse) {
-		my @r = $git->date_parse(@$to_parse);
-		my $i;
-		$tmp =~ s/\0(%[%YmdHMSs]+)([0-9\+]+)\0/strftime($1,
-			gmtime($2 eq '+' ? ($r[$i]+86400) : $r[$i=$2+0]))/sge;
-	}
+	date_parse_finalize($git, $to_parse, $tmp) if $to_parse;
 	$tmp
+}
+
+# this is for the WWW "q=" query parameter and "lei q --stdin"
+# it can't do d:"5 days ago", but it will do d:5.days.ago
+sub query_approxidate {
+	my (undef, $git) = @_; # $_[2] = $query_string (modified in-place)
+	my $DQ = qq<"\x{201c}\x{201d}>; # Xapian can use curly quotes
+	$_[2] =~ tr/\x00/ /; # Xapian doesn't do NUL, we use it as a placeholder
+	my ($terms, $phrase, $to_parse);
+	$_[2] =~ s{([^$DQ]*)([${DQ}][^\"]*[$DQ])?}{
+		($terms, $phrase) = ($1, $2);
+		$terms =~ s!\b(d|rt|dt):(\S+)!
+			date_parse_prepare($to_parse //= [], $1, $2)!sge;
+		$terms.($phrase // '');
+		}sge;
+	date_parse_finalize($git, $to_parse, $_[2]) if $to_parse;
 }
 
 # read-only

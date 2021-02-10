@@ -583,6 +583,31 @@ SKIP: {
 	$q = $s->query_argv_to_string($g, [qw{OR (rt:1993-10-02)}]);
 	like($q, qr/\AOR \(rt:749\d{6}\.\.749\d{6}\)\z/,
 		'trailing parentheses preserved');
+
+	my $qs = qq[f:bob rt:1993-10-02..2010-10-02];
+	$s->query_approxidate($g, $qs);
+	like($qs, qr/\Af:bob rt:749\d{6}\.\.128\d{7}\z/,
+		'no phrases, no problem');
+
+	my $orig = $qs = qq[f:bob "d:1993-10-02..2010-10-02"];
+	$s->query_approxidate($g, $qs);
+	is($qs, $orig, 'phrase preserved');
+
+	$orig = $qs = qq[f:bob "d:1993-10-02..2010-10-02 "] .
+			qq["dt:1993-10-02..2010-10-02 " \x{201c}];
+	$s->query_approxidate($g, $qs);
+	is($qs, $orig, 'phrase preserved even with escaped ""');
+
+	$orig = $qs = qq[f:bob "hello world" d:1993-10-02..2010-10-02];
+	$s->query_approxidate($g, $qs);
+	is($qs, qq[f:bob "hello world" d:19931002..20101002],
+		'post-phrase date corrected');
+
+	my $x_days_ago = strftime('%Y%m%d', gmtime(time - (5 * 86400)));
+	$orig = $qs = qq[broken d:5.days.ago..];
+	$s->query_approxidate($g, $qs);
+	is($qs, qq[broken d:$x_days_ago..], 'date.phrase.with.dots');
+
 	$ENV{TEST_EXPENSIVE} or
 		skip 'TEST_EXPENSIVE not set for argv overflow check', 1;
 	my @w;

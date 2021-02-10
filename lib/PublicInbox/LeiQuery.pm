@@ -14,7 +14,12 @@ sub prep_ext { # externals_each callback
 sub qstr_add { # for --stdin
 	my ($self) = @_; # $_[1] = $rbuf
 	if (defined($_[1])) {
-		return eval { $self->{lxs}->do_query($self) } if $_[1] eq '';
+		$_[1] eq '' and return eval {
+			my $lse = delete $self->{lse};
+			$lse->query_approxidate($lse->git,
+						$self->{mset_opt}->{qstr});
+			$self->{lxs}->do_query($self);
+		};
 		$self->{mset_opt}->{qstr} .= $_[1];
 	} else {
 		$self->fail("error reading stdin: $!");
@@ -105,6 +110,7 @@ sub lei_q {
 no query allowed on command-line with --stdin
 
 		require PublicInbox::InputPipe;
+		$self->{lse} = $lse; # for query_approxidate
 		PublicInbox::InputPipe::consume($self->{0}, \&qstr_add, $self);
 		return;
 	}
