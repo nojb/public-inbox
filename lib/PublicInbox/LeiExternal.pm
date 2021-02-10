@@ -58,16 +58,17 @@ sub glob2re {
 		$re_map{$p eq '\\' ? '' : do {
 			if ($1 eq '[') { ++$in_bracket }
 			elsif ($1 eq ']') { --$in_bracket }
+			elsif ($1 eq ',') { ++$qm } # no change
 			$p = $1;
 		}} // do {
 			$p = $1;
 			($p eq '-' && $in_bracket) ? $p : (++$qm, "\Q$p")
 		}!sge);
 	# bashism (also supported by curl): {a,b,c} => (a|b|c)
-	$re =~ s/([^\\]*)\\\{([^,]*?,[^\\]*?)\\\}/
-		(my $in_braces = $2) =~ tr!,!|!;
-		$1."($in_braces)";
-		/sge;
+	$changes += ($re =~ s/([^\\]*)\\\{([^,]*,[^\\]*)\\\}/
+			(my $in_braces = $2) =~ tr!,!|!;
+			$1."($in_braces)";
+			/sge);
 	($changes - $qm) ? $re : undef;
 }
 

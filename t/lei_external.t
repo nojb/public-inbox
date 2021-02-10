@@ -28,5 +28,7 @@ is_deeply($glob2re->('{a'), undef, 'open left brace');
 is_deeply($glob2re->('a}'), undef, 'open right brace');
 is_deeply($glob2re->('*.[ch]'), '[^/]*?\\.[ch]', 'suffix glob');
 is_deeply($glob2re->('{[a-z],9,}'), '([a-z]|9|)' , 'brace with range');
+is_deeply($glob2re->('\\{a,b\\}'), undef, 'escaped brace');
+is_deeply($glob2re->('\\\\{a,b}'), '\\\\\\\\(a|b)', 'fake escape brace');
 
 done_testing;
