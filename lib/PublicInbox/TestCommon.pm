@@ -476,7 +476,7 @@ sub test_lei {
 SKIP: {
 	my ($cb) = pop @_;
 	my $test_opt = shift // {};
-	require_git(2.6) or skip('git 2.6+ required for lei test', 2);
+	require_git(2.6, 1) or skip('git 2.6+ required for lei test', 2);
 	require_mods(qw(json DBD::SQLite Search::Xapian), 2);
 	require PublicInbox::Config;
 	delete local $ENV{XDG_DATA_HOME};

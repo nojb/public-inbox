@@ -13,11 +13,11 @@ use Net::NNTP;
 use Sys::Hostname;
 use POSIX qw(_exit);
 use Digest::SHA;
-use_ok 'PublicInbox::Msgmap';
 
 # t/nntpd-v2.t wraps this for v2
 my $version = $ENV{PI_TEST_VERSION} || 1;
 require_git('2.6') if $version == 2;
+use_ok 'PublicInbox::Msgmap';
 my $lsof = which('lsof');
 my $fast_idle = eval { require Linux::Inotify2; 1 } //
 		eval { require IO::KQueue; 1 };
