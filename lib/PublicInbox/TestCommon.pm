@@ -506,6 +506,8 @@ EOM
 		}
 	}; # SKIP for lei_daemon
 	unless ($test_opt->{daemon_only}) {
+		$ENV{TEST_LEI_DAEMON_ONLY} and
+			skip 'TEST_LEI_DAEMON_ONLY set', 1;
 		require_ok 'PublicInbox::LEI';
 		my $home = "$tmpdir/lei-oneshot";
 		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
