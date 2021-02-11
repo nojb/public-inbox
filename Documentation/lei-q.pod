@@ -16,7 +16,7 @@ TODO: Give common prefixes, or at least a description/reference.
 
 =over
 
-=item -o PATH, --output=PATH, --mfolder=PATH
+=item -o MFOLDER, --output=MFOLDER, --mfolder=MFOLDER
 
 Destination for results (e.g., C<path/to/Maildir> or - for stdout).
 
