@@ -27,7 +27,7 @@ Import the messages from an mbox into the local storage.
 In addition to the above store, lei can make read-only queries to
 "externals": inboxes and external indices.  An external can be
 registered by passing a URL or local path to L<lei-add-external(1)>.
-For local paths, the external needs to be indexed with
+For existing local paths, the external needs to be indexed with
 L<public-inbox-index(1)> (in the case of a regular inbox) or
 L<public-inbox-extindex(1)> (in the case of an external index).
 
@@ -38,6 +38,11 @@ L<public-inbox-extindex(1)> (in the case of an external index).
 =item $ lei add-external https://public-inbox.org/meta/
 
 Add a remote external for public-inbox's inbox.
+
+=item $ lei add-external --mirror https://public-inbox.org/meta/ path
+
+Clone L<https://public-inbox.org/meta/> to C<path>, index it with
+L<public-inbox-index(1)>, and add it as a local external.
 
 =back
 

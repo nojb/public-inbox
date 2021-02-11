@@ -6,6 +6,8 @@ lei-q - search for messages matching terms
 
 lei q [OPTIONS] TERM [TERM...]
 
+lei q [OPTIONS] --stdin
+
 =head1 DESCRIPTION
 
 Search for messages across the lei store and externals.
@@ -14,7 +16,13 @@ TODO: Give common prefixes, or at least a description/reference.
 
 =head1 OPTIONS
 
+TODO: mention curl options?
+
 =over
+
+=item --stdin
+
+Read search terms from stdin.
 
 =item -o MFOLDER, --output=MFOLDER, --mfolder=MFOLDER
 
@@ -42,6 +50,18 @@ A command to run on C<--output> Maildir or mbox (e.g., C<mutt -f %f>).
 For a subset of MUAs known to accept a mailbox via C<-f>, COMMAND can
 be abbreviated to the name of the program: C<mutt>, C<mailx>, C<mail>,
 or C<neomutt>.
+
+=item --alert=COMMAND[,COMMAND...]
+
+Run C<COMMAND> after writing to output.  C<:WINCH> indicates to send
+C<SIGWINCH> to the C<--mua> process.  C<:bell> indicates to print a
+bell code.  Any other value is interpreted as a command to execute as
+is.
+
+This option may be given multiple times.
+
+Default: C<:WINCH,:bell> when C<--mua> is specified and C<--output>
+doesn't point to stdout, nothing otherwise.
 
 =item -a, --augment
 
@@ -74,6 +94,26 @@ Limit operations to those requiring network access.
 
 Don't include results from externals.
 
+=item -I LOCATION, --include=LOCATION
+
+Include specified external in search.  This option may be given
+multiple times.
+
+=item --exclude=LOCATION
+
+Exclude specified external from search.  This option may be given
+multiple times.
+
+=item --only=LOCATION
+
+Use only the specified external for search.  This option may be given
+multiple times, in which case the search uses only the specified set.
+
+=item -g, --globoff
+
+Do not match locations using C<*?> wildcards and C<[]> ranges.  This
+option applies to C<--include>, C<--exclude>, and C<--only>.
+
 =item -NUMBER, -n NUMBER, --limit=NUMBER
 
 Limit the number of matches.
@@ -100,6 +140,10 @@ Default: C<received>
 =item -v, --verbose
 
 Provide more feedback on stderr.
+
+=item -q, --quiet
+
+Suppress feedback messages.
 
 =item --torsocks=auto|no|yes, --no-torsocks
 

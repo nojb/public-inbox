@@ -9,11 +9,13 @@ lei add-external [OPTIONS] LOCATION
 =head1 DESCRIPTION
 
 Configure lei to search against an external (an inbox or external
-index).  When C<LOCATION> is a local path, it should point to a
-directory that is a C<public.<name>.inboxdir> or
+index).  When C<LOCATION> is an existing local path, it should point
+to a directory that is a C<public.<name>.inboxdir> or
 C<extindex.<name>.topdir> value in ~/.public-inbox/config.
 
 =head1 OPTIONS
+
+TODO: mention curl options?
 
 =over
 
@@ -22,6 +24,62 @@ C<extindex.<name>.topdir> value in ~/.public-inbox/config.
 Set priority of a new or existing location.
 
 Default: 0
+
+=item --mirror=URL
+
+Create C<LOCATION> by mirroring the public-inbox at C<URL>.
+
+=item -v, --verbose
+
+Provide more feedback on stderr.
+
+=item -q, --quiet
+
+Suppress feedback messages.
+
+=back
+
+=head2 MIRRORING
+
+=over
+
+=item --torsocks=auto|no|yes, --no-torsocks
+
+Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
+
+Default: C<auto>
+
+=item --inbox-version=NUM
+
+Force a public-inbox version (must be C<1> or C<2>).
+
+=back
+
+The following options are passed to L<public-inbox-init(1)>:
+
+=over
+
+=item -j JOBS, --jobs=JOBS
+
+=item -L LEVEL, --indexlevel=LEVEL
+
+=back
+
+The following options are passed to L<public-inbox-index(1)>:
+
+=over
+
+=item --batch-size=SIZE
+
+=item --compact
+
+=item -j JOBS, --jobs=JOBS
+
+=item --max-size=SIZE
+
+=item --sequential-shard
+
+=item --skip-docdata
 
 =back
 

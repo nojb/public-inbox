@@ -4,15 +4,28 @@ lei-ls-external - list inbox and external index locations
 
 =head1 SYNOPSIS
 
-lei ls-external [OPTIONS]
+lei ls-external [OPTIONS] [FILTER]
 
 =head1 DESCRIPTION
 
-List configured externals.
+List configured externals.  If C<FILTER> is given, restrict the output
+to matching entries.
 
 =head1 OPTIONS
 
 =over
+
+=item -g, --globoff
+
+Do not match C<FILTER> using C<*?> wildcards and C<[]> ranges.
+
+=item --local
+
+Limit operations to the local filesystem.
+
+=item --remote
+
+Limit operations to those requiring network access.
 
 =item -z, -0
 
