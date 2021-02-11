@@ -357,7 +357,7 @@ sub query_approxidate {
 	my $DQ = qq<"\x{201c}\x{201d}>; # Xapian can use curly quotes
 	$_[2] =~ tr/\x00/ /; # Xapian doesn't do NUL, we use it as a placeholder
 	my ($terms, $phrase, $to_parse);
-	$_[2] =~ s{([^$DQ]*)([${DQ}][^\"]*[$DQ])?}{
+	$_[2] =~ s{([^$DQ]*)([$DQ][^$DQ]*[$DQ])?}{
 		($terms, $phrase) = ($1, $2);
 		$terms =~ s!\b(d|rt|dt):(\S+)!
 			date_parse_prepare($to_parse //= [], $1, $2)!sge;

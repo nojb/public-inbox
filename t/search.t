@@ -603,6 +603,27 @@ SKIP: {
 	is($qs, qq[f:bob "hello world" d:19931002..20101002],
 		'post-phrase date corrected');
 
+	# Xapian uses "" to escape " inside phrases, we don't explictly
+	# handle that, but are able to pass the result through unchanged
+	for my $pair (["\x{201c}", "\x{201d}"], ['"', '"']) {
+		my ($x, $y) = @$pair;
+		$orig = $qs = qq[${x}hello d:1993-10-02.."" world$y];
+		$s->query_approxidate($g, $qs);
+		is($qs, $orig, 'phrases unchanged \x'.ord($x).'-\x'.ord($y));
+
+		$s->query_approxidate($g, my $tmp = "$qs d:..2010-10-02");
+		is($tmp, "$orig d:..20101002",
+			'two phrases did not throw off date parsing');
+
+		$orig = $qs = qq[${x}hello d:1993-10-02..$y$x world$y];
+		$s->query_approxidate($g, $qs);
+		is($qs, $orig, 'phrases unchanged \x'.ord($x).'-\x'.ord($y));
+
+		$s->query_approxidate($g, $tmp = "$qs d:..2010-10-02");
+		is($tmp, "$orig d:..20101002",
+			'two phrases did not throw off date parsing');
+	}
+
 	my $x_days_ago = strftime('%Y%m%d', gmtime(time - (5 * 86400)));
 	$orig = $qs = qq[broken d:5.days.ago..];
 	$s->query_approxidate($g, $qs);
