@@ -4,7 +4,7 @@ lei-forget-external - forget external locations
 
 =head1 SYNOPSIS
 
-lei forget-external [OPTIONS] URL_OR_PATHNAME [URL_OR_PATHNAME...]
+lei forget-external [OPTIONS] LOCATION [LOCATION...]
 
 =head1 DESCRIPTION
 

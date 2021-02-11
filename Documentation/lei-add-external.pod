@@ -4,12 +4,12 @@ lei-add-external - add inbox or external index
 
 =head1 SYNOPSIS
 
-lei add-external [OPTIONS] URL_OR_PATHNAME
+lei add-external [OPTIONS] LOCATION
 
 =head1 DESCRIPTION
 
 Configure lei to search against an external (an inbox or external
-index).  When C<URL_OR_PATHNAME> is a local path, it should point to a
+index).  When C<LOCATION> is a local path, it should point to a
 directory that is a C<public.<name>.inboxdir> or
 C<extindex.<name>.topdir> value in ~/.public-inbox/config.
 

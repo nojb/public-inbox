@@ -4,11 +4,11 @@ lei-init - initialize storage
 
 =head1 SYNOPSIS
 
-lei init [OPTIONS] [PATHNAME]
+lei init [OPTIONS] [DIRNAME]
 
 =head1 DESCRIPTION
 
-Initialize local writable storage for L<lei(1)>.  If C<PATHNAME> is
+Initialize local writable storage for L<lei(1)>.  If C<DIRNAME> is
 unspecified, the storage is created at C<$XDG_DATA_HOME/lei/store>.
 C<leistore.dir> in C<$XDG_CONFIG_HOME/lei/config> records this
 location.
