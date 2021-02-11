@@ -26,6 +26,7 @@ Documentation/lei-config.pod
 Documentation/lei-daemon-kill.pod
 Documentation/lei-daemon-pid.pod
 Documentation/lei-forget-external.pod
+Documentation/lei-import.pod
 Documentation/lei-init.pod
 Documentation/lei-ls-external.pod
 Documentation/lei-overview.pod

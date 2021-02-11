@@ -44,6 +44,6 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<lei-forget-external(1)>, L<lei-ls-external(1)>,
+L<lei-forget-external(1)>, L<lei-ls-external(1)>, L<lei-import(1)>,
 L<public-inbox-index(1)>, L<public-inbox-extindex(1)>,
 L<public-inbox-extindex-format(5)>

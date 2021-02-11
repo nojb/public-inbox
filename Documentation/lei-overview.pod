@@ -12,7 +12,15 @@ provides some basic examples.
 L<lei-init(1)> initializes writable local storage based on
 L<public-inbox-v2-format(5)>.
 
-TODO: Extend when lei-import and friends are added.
+=head2 EXAMPLES
+
+=over
+
+=item $ lei import --format=mboxrd t.mbox
+
+Import the messages from an mbox into the local storage.
+
+=back
 
 =head1 EXTERNALS
 

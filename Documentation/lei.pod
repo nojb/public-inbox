@@ -27,9 +27,9 @@ Subcommands for initializing and managing local, writable storage:
 
 =item * L<lei-init(1)>
 
-=back
+=item * L<lei-import(1)>
 
-TODO: Add commands like lei-import once they're implemented.
+=back
 
 The following subcommands can be used to manage and inspect external
 locations:
