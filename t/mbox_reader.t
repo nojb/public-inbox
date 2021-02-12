@@ -74,9 +74,29 @@ for my $fmt (@mbox) { $check_fmt->($fmt) }
 s/\n/\r\n/sg for (values %raw);
 for my $fmt (@mbox) { $check_fmt->($fmt) }
 
+{
+	my $no_blank_eom = <<'EOM';
+From x@y Fri Oct  2 00:00:00 1993
+a: b
+
+body1
+From x@y Fri Oct  2 00:00:00 1993
+c: d
+
+body2
+EOM
+	# chop($no_blank_eom) eq "\n" or BAIL_OUT 'broken LF';
+	for my $variant (qw(mboxrd mboxo)) {
+		my @x;
+		open my $fh, '<', \$no_blank_eom or BAIL_OUT 'PerlIO::scalar';
+		$reader->$variant($fh, sub { push @x, shift });
+		is_deeply($x[0]->{bdy}, \"body1\n", 'LF preserved in 1st');
+		is_deeply($x[1]->{bdy}, \"body2\n", 'no LF added in 2nd');
+	}
+}
+
 SKIP: {
 	use PublicInbox::Spawn qw(popen_rd);
-	use Time::HiRes qw(alarm);
 	my $fh = popen_rd([ $^X, '-E', <<'' ]);
 say "From x@y Fri Oct  2 00:00:00 1993";
 print "a: b\n\n", "x" x 70000, "\n\n";

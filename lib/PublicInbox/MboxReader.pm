@@ -26,7 +26,7 @@ sub _mbox_from {
 		}
 		@raw = grep /[^ \t\r\n]/s, @raw; # skip empty messages
 		while (defined(my $raw = shift @raw)) {
-			$raw =~ s/\r?\n\z//s;
+			$raw =~ s/^\r?\n\z//ms;
 			$raw =~ s/$from_re/$1/gms;
 			my $eml = PublicInbox::Eml->new(\$raw);
 			$eml_cb->($eml, @arg);
