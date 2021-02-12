@@ -158,49 +158,23 @@ sub import_maildir {
 	$im->done;
 }
 
-# asctime: From example@example.com Fri Jun 23 02:56:55 2000
-my $from_strict = qr/^From \S+ +\S+ \S+ +\S+ [^:]+:[^:]+:[^:]+ [^:]+/;
-
-sub mb_add ($$$$) {
-	my ($im, $variant, $filter, $msg) = @_;
-	$$msg =~ s/(\r?\n)+\z/$1/s;
-	if ($variant eq 'mboxrd') {
-		$$msg =~ s/^>(>*From )/$1/gms;
-	} elsif ($variant eq 'mboxo') {
-		$$msg =~ s/^>From /From /gms;
-	}
-	my $mime = PublicInbox::Eml->new($msg);
+sub _mbox_eml_cb { # MboxReader->mbox* callback
+	my ($eml, $im, $filter) = @_;
 	if ($filter) {
-		my $ret = $filter->scrub($mime) or return;
+		my $ret = $filter->scrub($eml) or return;
 		return if $ret == REJECT();
-		$mime = $ret;
+		$eml = $ret;
 	}
-	$im->add($mime)
+	$im->add($eml);
 }
 
 sub import_mbox {
 	my ($self, $fh, $variant) = @_;
-	if ($variant !~ /\A(?:mboxrd|mboxo)\z/) {
-		die "variant must be 'mboxrd' or 'mboxo'\n";
-	}
+	require PublicInbox::MboxReader;
+	my $cb = PublicInbox::MboxReader->can($variant) or
+		die "$variant not supported\n";
 	my $im = $self->importer(1);
-	my $prev = undef;
-	my $msg = '';
-	my $filter = $self->filter;
-	while (defined(my $l = <$fh>)) {
-		if ($l =~ /$from_strict/o) {
-			if (!defined($prev) || $prev =~ /^\r?$/) {
-				mb_add($im, $variant, $filter, \$msg) if $msg;
-				$msg = '';
-				$prev = $l;
-				next;
-			}
-			warn "W[$.] $l\n";
-		}
-		$prev = $l;
-		$msg .= $l;
-	}
-	mb_add($im, $variant, $filter, \$msg) if $msg;
+	$cb->(undef, $fh, \&_mbox_eml_cb, $im, $self->filter);
 	$im->done;
 }
 
