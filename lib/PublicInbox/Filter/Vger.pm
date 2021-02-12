@@ -24,7 +24,7 @@ sub scrub {
 	# the vger appender seems to only work on the raw string,
 	# so in multipart (e.g. GPG-signed) messages, the list trailer
 	# becomes invisible to MIME-aware email clients.
-	if ($s =~ s/$l0\n$l1\n$l2\n$l3\n($l4\n)?\z//os) {
+	if ($s =~ s/$l0\n$l1\n$l2\n$l3\n(?:$l4\n)?\n*\z//os) {
 		$mime = PublicInbox::Eml->new(\$s);
 	}
 	$self->ACCEPT($mime);
