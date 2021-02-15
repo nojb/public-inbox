@@ -17,6 +17,7 @@ use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::WWW';
 use_ok 'PublicInbox::SearchIdx';
 my ($tmpdir, $for_destroy) = tmpdir();
+local $ENV{TZ} = 'UTC';
 
 my $ibx = PublicInbox::Inbox->new({
 	inboxdir => $tmpdir,
@@ -75,7 +76,7 @@ my $www = PublicInbox::WWW->new($cfg);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;
 	my ($html, $res);
-	my $approxidate = '1.hour.from.now';
+	my $approxidate = 'now';
 	for my $req ('/test/?q=%C3%86var', '/test/?q=%25C3%2586var') {
 		$res = $cb->(GET($req."+d:..$approxidate"));
 		$html = $res->content;
@@ -135,7 +136,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		qr/filename=no-subject\.mbox\.gz/);
 
 	# "full threads" mbox.gz download
-	$res = $cb->(POST('/test/?q=s:test+d:..1.hour.from.now&x=m&t'));
+	$res = $cb->(POST("/test/?q=s:test+d:..$approxidate&x=m&t"));
 	is($res->code, 200, 'successful mbox download with threads');
 	gunzip(\($res->content) => \(my $before));
 	is_deeply([ "Message-ID: <$mid>\n", "Message-ID: <reply\@asdf>\n" ],
