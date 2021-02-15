@@ -369,7 +369,7 @@ sub fail_handler ($;$$) {
 		$wq->wq_wait_old(undef, $lei) if $wq->wq_kill_old; # lei-daemon
 	}
 	close($io) if $io; # needed to avoid warnings on SIGPIPE
-	$lei->x_it($code // (1 >> 8));
+	x_it($lei, $code // (1 << 8));
 }
 
 sub sigpipe_handler { # handles SIGPIPE from @WQ_KEYS workers
