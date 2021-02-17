@@ -101,9 +101,9 @@ my $wcb_get = sub {
 		my $dup = Storable::thaw(Storable::freeze($l2m));
 		is_deeply($dup, $l2m, "$fmt round-trips through storable");
 	}
-	my $zpipe = $l2m->pre_augment($lei);
+	$l2m->pre_augment($lei);
 	$l2m->do_augment($lei);
-	$l2m->post_augment($lei, $zpipe);
+	$l2m->post_augment($lei);
 	$l2m->write_cb($lei);
 };
 
