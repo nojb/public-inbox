@@ -280,4 +280,23 @@ sub imap_common_init ($) {
 	$mics;
 }
 
+sub add_url {
+	my ($self, $arg) = @_;
+	if (my $url = imap_url($arg)) {
+		push @{$self->{imap_order}}, $url;
+	} else {
+		push @{$self->{unsupported_url}}, $arg;
+	}
+}
+
+sub errors {
+	my ($self) = @_;
+	if (my $u = $self->{unsupported_url}) {
+		return "Unsupported URL(s): @$u";
+	}
+	undef;
+}
+
+sub new { bless {}, shift };
+
 1;

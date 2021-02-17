@@ -29,26 +29,21 @@ sub import_done { # EOF callback for main daemon
 	$imp->wq_wait_old(\&import_done_wait, $lei);
 }
 
-sub call { # the main "lei import" method
-	my ($cls, $lei, @argv) = @_;
-	my $sto = $lei->_lei_store(1);
-	$sto->write_prepare($lei);
-	$lei->{opt}->{kw} //= 1;
+sub check_fmt ($;$) {
+	my ($lei, $f) = @_;
 	my $fmt = $lei->{opt}->{'format'};
-	my $self = $lei->{imp} = bless {}, $cls;
-	my @f;
-	for my $x (@argv) {
-		if (-f $x) { push @f, $x }
-		elsif (-d _) { require PublicInbox::MdirReader }
+	if (!$fmt) {
+		my $err = $f ? "regular file(s):\n@$f" : '--stdin';
+		return $lei->fail("--format unset for $err");
 	}
-	(@f && !$fmt) and
-		return $lei->fail("--format unset for regular file(s):\n@f");
-	if (@f && $fmt ne 'eml') {
-		require PublicInbox::MboxReader;
-		PublicInbox::MboxReader->can($fmt) or
-			return $lei->fail( "--format=$fmt unrecognized\n");
-	}
-	$self->{0} = $lei->{0} if $lei->{opt}->{stdin};
+	return 1 if $fmt eq 'eml';
+	require PublicInbox::MboxReader;
+	PublicInbox::MboxReader->can($fmt) ||
+				$lei->fail( "--format=$fmt unrecognized\n");
+}
+
+sub do_import {
+	my ($lei) = @_;
 	my $ops = {
 		'!' => [ $lei->can('fail_handler'), $lei ],
 		'x_it' => [ $lei->can('x_it'), $lei ],
@@ -56,14 +51,19 @@ sub call { # the main "lei import" method
 		'' => [ \&import_done, $lei ],
 	};
 	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
-	my $j = $lei->{opt}->{jobs} // scalar(@argv) || 1;
-	my $nproc = $self->detect_nproc;
-	$j = $nproc if $j > $nproc;
+	my $self = $lei->{imp};
+	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{argv}}) || 1;
+	if (my $nrd = $lei->{nrd}) {
+		# $j = $nrd->net_concurrency($j); TODO
+	} else {
+		my $nproc = $self->detect_nproc;
+		$j = $nproc if $j > $nproc;
+	}
 	$self->wq_workers_start('lei_import', $j, $lei->oldset, {lei => $lei});
 	my $op = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};
 	$self->wq_io_do('import_stdin', []) if $self->{0};
-	for my $x (@argv) {
+	for my $x (@{$self->{argv}}) {
 		$self->wq_io_do('import_path_url', [], $x);
 	}
 	$self->wq_close(1);
@@ -71,6 +71,36 @@ sub call { # the main "lei import" method
 	if ($lei->{oneshot}) {
 		while ($op->{sock}) { $op->event_step }
 	}
+}
+
+sub call { # the main "lei import" method
+	my ($cls, $lei, @argv) = @_;
+	my $sto = $lei->_lei_store(1);
+	$sto->write_prepare($lei);
+	$lei->{opt}->{kw} //= 1;
+	my $self = $lei->{imp} = bless { argv => \@argv }, $cls;
+	if ($lei->{opt}->{stdin}) {
+		@argv and return
+			$lei->fail("--stdin and locations (@argv) do not mix");
+		check_fmt($lei) or return;
+		$self->{0} = $lei->{0};
+	} else {
+		my @f;
+		for my $x (@argv) {
+			if (-f $x) { push @f, $x }
+			elsif (-d _) { require PublicInbox::MdirReader }
+			else {
+				require PublicInbox::NetReader;
+				$lei->{nrd} //= PublicInbox::NetReader->new;
+				$lei->{nrd}->add_url($x);
+			}
+		}
+		if (@f) { check_fmt($lei, \@f) or return }
+		if ($lei->{nrd} && (my @err = $lei->{nrd}->errors)) {
+			return $lei->fail(@err);
+		}
+	}
+	do_import($lei);
 }
 
 sub ipc_atfork_child {
