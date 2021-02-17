@@ -540,7 +540,7 @@ EOM
 # returns the pathname to a ~/.public-inbox/config in scalar context,
 # ($test_home, $pi_config_pathname) in list context
 sub setup_public_inboxes () {
-	my $test_home = "t/home1";
+	my $test_home = "t/home2";
 	my $pi_config = "$test_home/.public-inbox/config";
 	my $stamp = "$test_home/setup-stamp";
 	my @ret = ($test_home, $pi_config);
@@ -555,7 +555,7 @@ sub setup_public_inboxes () {
 	local $ENV{PI_CONFIG} = $pi_config;
 	for my $V (1, 2) {
 		run_script([qw(-init), "-V$V", "t$V",
-				'--newsgroup', "t.$V",
+				'--newsgroup', "t.v$V",
 				"$test_home/t$V", "http://example.com/t$V",
 				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
 	}

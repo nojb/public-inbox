@@ -334,9 +334,9 @@ t/git.fast-import-data
 t/git.t
 t/gzip_filter.t
 t/hl_mod.t
-t/home1/.gitignore
-t/home1/Makefile
-t/home1/README
+t/home2/.gitignore
+t/home2/Makefile
+t/home2/README
 t/html_index.t
 t/httpd-corner.psgi
 t/httpd-corner.t
