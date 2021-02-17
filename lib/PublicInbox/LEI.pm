@@ -563,6 +563,7 @@ sub _lei_cfg ($;$) {
 		qerr($self, "# $f created") if $self->{cmd} ne 'config';
 	}
 	my $cfg = PublicInbox::Config::git_config_dump($f);
+	bless $cfg, 'PublicInbox::Config';
 	$cfg->{-st} = $cur_st;
 	$cfg->{'-f'} = $f;
 	$self->{cfg} = $PATH2CFG{$f} = $cfg;
