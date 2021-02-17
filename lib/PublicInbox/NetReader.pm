@@ -10,7 +10,9 @@ use parent qw(Exporter);
 # TODO: trim this down, this is huge
 our @EXPORT = qw(uri_new uri_scheme uri_section
 		mic_for nn_new nn_for
-		imap_url nntp_url);
+		imap_url nntp_url
+		cfg_bool cfg_intvl imap_common_init
+		);
 
 # avoid exposing deprecated "snews" to users.
 my %SCHEME_MAP = ('snews' => 'nntps');
@@ -215,6 +217,67 @@ sub nntp_url {
 	# nntps is IANA registered, snews is deprecated
 	$url =~ s!\Asnews://!nntps://!;
 	$url;
+}
+
+sub cfg_intvl ($$$) {
+	my ($cfg, $key, $url) = @_;
+	my $v = $cfg->urlmatch($key, $url) // return;
+	$v =~ /\A[0-9]+(?:\.[0-9]+)?\z/s and return $v + 0;
+	if (ref($v) eq 'ARRAY') {
+		$v = join(', ', @$v);
+		warn "W: $key has multiple values: $v\nW: $key ignored\n";
+	} else {
+		warn "W: $key=$v is not a numeric value in seconds\n";
+	}
+}
+
+sub cfg_bool ($$$) {
+	my ($cfg, $key, $url) = @_;
+	my $orig = $cfg->urlmatch($key, $url) // return;
+	my $bool = $cfg->git_bool($orig);
+	warn "W: $key=$orig for $url is not boolean\n" unless defined($bool);
+	$bool;
+}
+
+# flesh out common IMAP-specific data structures
+sub imap_common_init ($) {
+	my ($self) = @_;
+	eval { require PublicInbox::IMAPClient } or
+		die "Mail::IMAPClient is required for IMAP:\n$@\n";
+	eval { require PublicInbox::IMAPTracker } or
+		die "DBD::SQLite is required for IMAP\n:$@\n";
+	require PublicInbox::URIimap;
+	my $cfg = $self->{pi_cfg};
+	my $mic_args = {}; # scheme://authority => Mail:IMAPClient arg
+	for my $url (sort keys %{$self->{imap}}) {
+		my $uri = PublicInbox::URIimap->new($url);
+		my $sec = uri_section($uri);
+		for my $k (qw(Starttls Debug Compress)) {
+			my $bool = cfg_bool($cfg, "imap.$k", $url) // next;
+			$mic_args->{$sec}->{$k} = $bool;
+		}
+		my $to = cfg_intvl($cfg, 'imap.timeout', $url);
+		$mic_args->{$sec}->{Timeout} = $to if $to;
+		for my $k (qw(pollInterval idleInterval)) {
+			$to = cfg_intvl($cfg, "imap.$k", $url) // next;
+			$self->{imap_opt}->{$sec}->{$k} = $to;
+		}
+		my $k = 'imap.fetchBatchSize';
+		my $bs = $cfg->urlmatch($k, $url) // next;
+		if ($bs =~ /\A([0-9]+)\z/) {
+			$self->{imap_opt}->{$sec}->{batch_size} = $bs;
+		} else {
+			warn "$k=$bs is not an integer\n";
+		}
+	}
+	# make sure we can connect and cache the credentials in memory
+	$self->{mic_arg} = {}; # schema://authority => IMAPClient->new args
+	my $mics = {}; # schema://authority => IMAPClient obj
+	for my $url (sort keys %{$self->{imap}}) {
+		my $uri = PublicInbox::URIimap->new($url);
+		$mics->{uri_section($uri)} //= mic_for($self, $url, $mic_args);
+	}
+	$mics;
 }
 
 1;

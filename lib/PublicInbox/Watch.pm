@@ -280,55 +280,6 @@ sub watch_fs_init ($) {
 	PublicInbox::DirIdle->new([keys %{$self->{mdmap}}], $cb);
 }
 
-sub cfg_intvl ($$$) {
-	my ($cfg, $key, $url) = @_;
-	my $v = $cfg->urlmatch($key, $url) // return;
-	$v =~ /\A[0-9]+(?:\.[0-9]+)?\z/s and return $v + 0;
-	if (ref($v) eq 'ARRAY') {
-		$v = join(', ', @$v);
-		warn "W: $key has multiple values: $v\nW: $key ignored\n";
-	} else {
-		warn "W: $key=$v is not a numeric value in seconds\n";
-	}
-}
-
-sub cfg_bool ($$$) {
-	my ($cfg, $key, $url) = @_;
-	my $orig = $cfg->urlmatch($key, $url) // return;
-	my $bool = $cfg->git_bool($orig);
-	warn "W: $key=$orig for $url is not boolean\n" unless defined($bool);
-	$bool;
-}
-
-# flesh out common IMAP-specific data structures
-sub imap_common_init ($) {
-	my ($self) = @_;
-	my $cfg = $self->{pi_cfg};
-	my $mic_args = {}; # scheme://authority => Mail:IMAPClient arg
-	for my $url (sort keys %{$self->{imap}}) {
-		my $uri = PublicInbox::URIimap->new($url);
-		my $sec = uri_section($uri);
-		for my $k (qw(Starttls Debug Compress)) {
-			my $bool = cfg_bool($cfg, "imap.$k", $url) // next;
-			$mic_args->{$sec}->{$k} = $bool;
-		}
-		my $to = cfg_intvl($cfg, 'imap.timeout', $url);
-		$mic_args->{$sec}->{Timeout} = $to if $to;
-		for my $k (qw(pollInterval idleInterval)) {
-			$to = cfg_intvl($cfg, "imap.$k", $url) // next;
-			$self->{imap_opt}->{$sec}->{$k} = $to;
-		}
-		my $k = 'imap.fetchBatchSize';
-		my $bs = $cfg->urlmatch($k, $url) // next;
-		if ($bs =~ /\A([0-9]+)\z/) {
-			$self->{imap_opt}->{$sec}->{batch_size} = $bs;
-		} else {
-			warn "$k=$bs is not an integer\n";
-		}
-	}
-	$mic_args;
-}
-
 sub imap_import_msg ($$$$$) {
 	my ($self, $url, $uid, $raw, $flags) = @_;
 	# our target audience expects LF-only, save storage
@@ -667,21 +618,7 @@ sub poll_fetch_reap {
 
 sub watch_imap_init ($$) {
 	my ($self, $poll) = @_;
-	eval { require PublicInbox::IMAPClient } or
-		die "Mail::IMAPClient is required for IMAP:\n$@\n";
-	eval { require PublicInbox::IMAPTracker } or
-		die "DBD::SQLite is required for IMAP\n:$@\n";
-
-	my $mic_args = imap_common_init($self); # read args from config
-
-	# make sure we can connect and cache the credentials in memory
-	$self->{mic_arg} = {}; # schema://authority => IMAPClient->new args
-	my $mics = {}; # schema://authority => IMAPClient obj
-	for my $url (sort keys %{$self->{imap}}) {
-		my $uri = PublicInbox::URIimap->new($url);
-		$mics->{uri_section($uri)} //= mic_for($self, $url, $mic_args);
-	}
-
+	my $mics = imap_common_init($self); # read args from config
 	my $idle = []; # [ [ url1, intvl1 ], [url2, intvl2] ]
 	for my $url (keys %{$self->{imap}}) {
 		my $uri = PublicInbox::URIimap->new($url);
