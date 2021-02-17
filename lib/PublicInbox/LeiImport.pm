@@ -29,19 +29,6 @@ sub import_done { # EOF callback for main daemon
 	$imp->wq_wait_old(\&import_done_wait, $lei);
 }
 
-sub check_fmt ($;$) {
-	my ($lei, $f) = @_;
-	my $fmt = $lei->{opt}->{'format'};
-	if (!$fmt) {
-		my $err = $f ? "regular file(s):\n@$f" : '--stdin';
-		return $lei->fail("--format unset for $err");
-	}
-	return 1 if $fmt eq 'eml';
-	require PublicInbox::MboxReader;
-	PublicInbox::MboxReader->can($fmt) ||
-				$lei->fail( "--format=$fmt unrecognized\n");
-}
-
 sub do_import {
 	my ($lei) = @_;
 	my $ops = {
@@ -82,7 +69,7 @@ sub call { # the main "lei import" method
 	if ($lei->{opt}->{stdin}) {
 		@argv and return
 			$lei->fail("--stdin and locations (@argv) do not mix");
-		check_fmt($lei) or return;
+		$lei->check_input_format or return;
 		$self->{0} = $lei->{0};
 	} else {
 		my @f;
@@ -95,7 +82,7 @@ sub call { # the main "lei import" method
 				$lei->{nrd}->add_url($x);
 			}
 		}
-		if (@f) { check_fmt($lei, \@f) or return }
+		if (@f) { $lei->check_input_format(\@f) or return }
 		if ($lei->{nrd} && (my @err = $lei->{nrd}->errors)) {
 			return $lei->fail(@err);
 		}

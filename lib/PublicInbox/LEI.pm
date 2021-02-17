@@ -391,6 +391,20 @@ sub fail ($$;$) {
 	undef;
 }
 
+sub check_input_format ($;$) {
+	my ($self, $files) = @_;
+	my $fmt = $self->{opt}->{'format'};
+	if (!$fmt) {
+		my $err = $files ? "regular file(s):\n@$files" : '--stdin';
+		return fail($self, "--format unset for $err");
+	}
+	return 1 if $fmt eq 'eml';
+	# XXX: should this handle {gz,bz2,xz}? that's currently in LeiToMail
+	require PublicInbox::MboxReader;
+	PublicInbox::MboxReader->can($fmt) ||
+				fail($self, "--format=$fmt unrecognized");
+}
+
 sub out ($;@) {
 	my $self = shift;
 	return if print { $self->{1} // return } @_; # likely
