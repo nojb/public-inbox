@@ -249,7 +249,7 @@ sub imap_common_init ($) {
 	require PublicInbox::URIimap;
 	my $cfg = $self->{pi_cfg};
 	my $mic_args = {}; # scheme://authority => Mail:IMAPClient arg
-	for my $url (sort keys %{$self->{imap}}) {
+	for my $url (@{$self->{imap_order}}) {
 		my $uri = PublicInbox::URIimap->new($url);
 		my $sec = uri_section($uri);
 		for my $k (qw(Starttls Debug Compress)) {
@@ -273,7 +273,7 @@ sub imap_common_init ($) {
 	# make sure we can connect and cache the credentials in memory
 	$self->{mic_arg} = {}; # schema://authority => IMAPClient->new args
 	my $mics = {}; # schema://authority => IMAPClient obj
-	for my $url (sort keys %{$self->{imap}}) {
+	for my $url (@{$self->{imap_order}}) {
 		my $uri = PublicInbox::URIimap->new($url);
 		$mics->{uri_section($uri)} //= mic_for($self, $url, $mic_args);
 	}

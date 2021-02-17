@@ -46,6 +46,7 @@ sub new {
 	my ($class, $cfg) = @_;
 	my (%mdmap, $spamc);
 	my (%imap, %nntp); # url => [inbox objects] or 'watchspam'
+	my (@imap, @nntp);
 
 	# "publicinboxwatch" is the documented namespace
 	# "publicinboxlearn" is legacy but may be supported
@@ -61,8 +62,10 @@ sub new {
 				$mdmap{"$dir/cur"} = 'watchspam';
 			} elsif ($url = imap_url($dir)) {
 				$imap{$url} = 'watchspam';
+				push @imap, $url;
 			} elsif ($url = nntp_url($dir)) {
 				$nntp{$url} = 'watchspam';
+				push @nntp, $url;
 			} else {
 				warn "unsupported $k=$dir\n";
 			}
@@ -92,11 +95,13 @@ sub new {
 			} elsif ($url = imap_url($watch)) {
 				return if is_watchspam($url, $imap{$url}, $ibx);
 				compile_watchheaders($ibx);
-				push @{$imap{$url} ||= []}, $ibx;
+				my $n = push @{$imap{$url} ||= []}, $ibx;
+				push @imap, $url if $n == 1;
 			} elsif ($url = nntp_url($watch)) {
 				return if is_watchspam($url, $nntp{$url}, $ibx);
 				compile_watchheaders($ibx);
-				push @{$nntp{$url} ||= []}, $ibx;
+				my $n = push @{$nntp{$url} ||= []}, $ibx;
+				push @nntp, $url if $n == 1;
 			} else {
 				warn "watch unsupported: $k=$watch\n";
 			}
@@ -118,6 +123,8 @@ sub new {
 		pi_cfg => $cfg,
 		imap => scalar keys %imap ? \%imap : undef,
 		nntp => scalar keys %nntp? \%nntp : undef,
+		imap_order => scalar(@imap) ? \@imap : undef,
+		nntp_order => scalar(@nntp) ? \@nntp: undef,
 		importers => {},
 		opendirs => {}, # dirname => dirhandle (in progress scans)
 		ops => [], # 'quit', 'full'
@@ -643,7 +650,7 @@ sub nntp_common_init ($) {
 	my ($self) = @_;
 	my $cfg = $self->{pi_cfg};
 	my $nn_args = {}; # scheme://authority => Net::NNTP->new arg
-	for my $url (sort keys %{$self->{nntp}}) {
+	for my $url (@{$self->{nntp_order}}) {
 		my $sec = uri_section(uri_new($url));
 
 		# Debug and Timeout are passed to Net::NNTP->new
@@ -755,10 +762,10 @@ sub watch_nntp_init ($$) {
 
 	# make sure we can connect and cache the credentials in memory
 	$self->{nn_arg} = {}; # schema://authority => Net::NNTP->new args
-	for my $url (sort keys %{$self->{nntp}}) {
+	for my $url (@{$self->{nntp_order}}) {
 		nn_for($self, $url, $nn_args);
 	}
-	for my $url (keys %{$self->{nntp}}) {
+	for my $url (@{$self->{nntp_order}}) {
 		my $uri = uri_new($url);
 		my $sec = uri_section($uri);
 		my $intvl = $self->{nntp_opt}->{$sec}->{pollInterval};
