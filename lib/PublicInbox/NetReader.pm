@@ -5,7 +5,8 @@
 package PublicInbox::NetReader;
 use strict;
 use v5.10.1;
-use parent qw(Exporter);
+use parent qw(Exporter PublicInbox::IPC);
+use PublicInbox::Eml;
 
 # TODO: trim this down, this is huge
 our @EXPORT = qw(uri_new uri_scheme uri_section
@@ -33,7 +34,7 @@ sub uri_section ($) {
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 
 sub mic_for { # mic = Mail::IMAPClient
-	my ($self, $url, $mic_args) = @_;
+	my ($self, $url, $mic_args, $lei) = @_;
 	require PublicInbox::URIimap;
 	my $uri = PublicInbox::URIimap->new($url);
 	require PublicInbox::GitCredential;
@@ -74,21 +75,26 @@ sub mic_for { # mic = Mail::IMAPClient
 	}
 	if ($cred) {
 		$cred->check_netrc unless defined $cred->{password};
-		$cred->fill; # may prompt user here
+		$cred->fill($lei); # may prompt user here
 		$mic->User($mic_arg->{User} = $cred->{username});
 		$mic->Password($mic_arg->{Password} = $cred->{password});
 	} else { # AUTH=ANONYMOUS
 		$mic->Authmechanism($mic_arg->{Authmechanism} = 'ANONYMOUS');
-		$mic->Authcallback($mic_arg->{Authcallback} = \&auth_anon_cb);
+		$mic_arg->{Authcallback} = 'auth_anon_cb';
+		$mic->Authcallback(\&auth_anon_cb);
 	}
+	my $err;
 	if ($mic->login && $mic->IsAuthenticated) {
 		# success! keep IMAPClient->new arg in case we get disconnected
 		$self->{mic_arg}->{uri_section($uri)} = $mic_arg;
 	} else {
-		warn "E: <$url> LOGIN: $@\n";
+		$err = "E: <$url> LOGIN: $@\n";
 		$mic = undef;
 	}
 	$cred->run($mic ? 'approve' : 'reject') if $cred;
+	if ($err) {
+		$lei ? $lei->fail($err) : warn($err);
+	}
 	$mic;
 }
 
@@ -139,8 +145,8 @@ E: <$url> STARTTLS requested and failed
 	$nn;
 }
 
-sub nn_for ($$$) { # nn = Net::NNTP
-	my ($self, $url, $nn_args) = @_;
+sub nn_for ($$$;$) { # nn = Net::NNTP
+	my ($self, $url, $nn_args, $lei) = @_;
 	my $uri = uri_new($url);
 	my $sec = uri_section($uri);
 	my $nntp_opt = $self->{nntp_opt}->{$sec} //= {};
@@ -170,7 +176,7 @@ sub nn_for ($$$) { # nn = Net::NNTP
 	my $nn = nn_new($nn_arg, $nntp_opt, $url);
 
 	if ($cred) {
-		$cred->fill; # may prompt user here
+		$cred->fill($lei); # may prompt user here
 		if ($nn->authinfo($u, $p)) {
 			push @{$nntp_opt->{-postconn}}, [ 'authinfo', $u, $p ];
 		} else {
@@ -240,14 +246,15 @@ sub cfg_bool ($$$) {
 }
 
 # flesh out common IMAP-specific data structures
-sub imap_common_init ($) {
-	my ($self) = @_;
+sub imap_common_init ($;$) {
+	my ($self, $lei) = @_;
+	$self->{quiet} = 1 if $lei && $lei->{opt}->{quiet};
 	eval { require PublicInbox::IMAPClient } or
 		die "Mail::IMAPClient is required for IMAP:\n$@\n";
 	eval { require PublicInbox::IMAPTracker } or
 		die "DBD::SQLite is required for IMAP\n:$@\n";
 	require PublicInbox::URIimap;
-	my $cfg = $self->{pi_cfg};
+	my $cfg = $self->{pi_cfg} // $lei->_lei_cfg;
 	my $mic_args = {}; # scheme://authority => Mail:IMAPClient arg
 	for my $url (@{$self->{imap_order}}) {
 		my $uri = PublicInbox::URIimap->new($url);
@@ -275,7 +282,8 @@ sub imap_common_init ($) {
 	my $mics = {}; # schema://authority => IMAPClient obj
 	for my $url (@{$self->{imap_order}}) {
 		my $uri = PublicInbox::URIimap->new($url);
-		$mics->{uri_section($uri)} //= mic_for($self, $url, $mic_args);
+		my $sec = uri_section($uri);
+		$mics->{$sec} //= mic_for($self, $url, $mic_args, $lei);
 	}
 	$mics;
 }
@@ -294,7 +302,138 @@ sub errors {
 	if (my $u = $self->{unsupported_url}) {
 		return "Unsupported URL(s): @$u";
 	}
+	if ($self->{imap_order}) {
+		eval { require PublicInbox::IMAPClient } or
+			die "Mail::IMAPClient is required for IMAP:\n$@\n";
+	}
 	undef;
+}
+
+my %IMAPflags2kw = (
+	'\Seen' => 'seen',
+	'\Answered' => 'answered',
+	'\Flagged' => 'flagged',
+	'\Draft' => 'draft',
+);
+
+sub _imap_do_msg ($$$$$) {
+	my ($self, $url, $uid, $raw, $flags) = @_;
+	# our target audience expects LF-only, save storage
+	$$raw =~ s/\r\n/\n/sg;
+	my $kw = [];
+	for my $f (split(/ /, $flags)) {
+		my $k = $IMAPflags2kw{$f} // next; # TODO: X-Label?
+		push @$kw, $k;
+	}
+	my ($eml_cb, @args) = @{$self->{eml_each}};
+	$eml_cb->($url, $uid, $kw, PublicInbox::Eml->new($raw), @args);
+}
+
+sub _imap_fetch_all ($$$) {
+	my ($self, $mic, $url) = @_;
+	my $uri = PublicInbox::URIimap->new($url);
+	my $sec = uri_section($uri);
+	my $mbx = $uri->mailbox;
+	$mic->Clear(1); # trim results history
+	$mic->examine($mbx) or return "E: EXAMINE $mbx ($sec) failed: $!";
+	my ($r_uidval, $r_uidnext);
+	for ($mic->Results) {
+		/^\* OK \[UIDVALIDITY ([0-9]+)\].*/ and $r_uidval = $1;
+		/^\* OK \[UIDNEXT ([0-9]+)\].*/ and $r_uidnext = $1;
+		last if $r_uidval && $r_uidnext;
+	}
+	$r_uidval //= $mic->uidvalidity($mbx) //
+		return "E: $url cannot get UIDVALIDITY";
+	$r_uidnext //= $mic->uidnext($mbx) //
+		return "E: $url cannot get UIDNEXT";
+	my $itrk = $self->{incremental} ?
+			PublicInbox::IMAPTracker->new($url) : 0;
+	my ($l_uidval, $l_uid) = $itrk ? $itrk->get_last : ();
+	$l_uidval //= $r_uidval; # first time
+	$l_uid //= 1;
+	if ($l_uidval != $r_uidval) {
+		return "E: $url UIDVALIDITY mismatch\n".
+			"E: local=$l_uidval != remote=$r_uidval";
+	}
+	my $r_uid = $r_uidnext - 1;
+	if ($l_uid != 1 && $l_uid > $r_uid) {
+		return "E: $url local UID exceeds remote ($l_uid > $r_uid)\n".
+			"E: $url strangely, UIDVALIDLITY matches ($l_uidval)\n";
+	}
+	return if $l_uid >= $r_uid; # nothing to do
+
+	warn "# $url fetching UID $l_uid:$r_uid\n" unless $self->{quiet};
+	$mic->Uid(1); # the default, we hope
+	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 1;
+	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
+	my $key = $req;
+	$key =~ s/\.PEEK//;
+	my ($uids, $batch);
+	my $err;
+	do {
+		# I wish "UID FETCH $START:*" could work, but:
+		# 1) servers do not need to return results in any order
+		# 2) Mail::IMAPClient doesn't offer a streaming API
+		$uids = $mic->search("UID $l_uid:*") or
+			return "E: $url UID SEARCH $l_uid:* error: $!";
+		return if scalar(@$uids) == 0;
+
+		# RFC 3501 doesn't seem to indicate order of UID SEARCH
+		# responses, so sort it ourselves.  Order matters so
+		# IMAPTracker can store the newest UID.
+		@$uids = sort { $a <=> $b } @$uids;
+
+		# Did we actually get new messages?
+		return if $uids->[0] < $l_uid;
+
+		$l_uid = $uids->[-1] + 1; # for next search
+		my $last_uid;
+		my $n = $self->{max_batch};
+		while (scalar @$uids) {
+			my @batch = splice(@$uids, 0, $bs);
+			$batch = join(',', @batch);
+			local $0 = "UID:$batch $mbx $sec";
+			my $r = $mic->fetch_hash($batch, $req, 'FLAGS');
+			unless ($r) { # network error?
+				$err = "E: $url UID FETCH $batch error: $!";
+				last;
+			}
+			for my $uid (@batch) {
+				# messages get deleted, so holes appear
+				my $per_uid = delete $r->{$uid} // next;
+				my $raw = delete($per_uid->{$key}) // next;
+				_imap_do_msg($self, $url, $uid, \$raw,
+						$per_uid->{FLAGS});
+				$last_uid = $uid;
+				last if $self->{quit};
+			}
+			last if $self->{quit};
+		}
+		$itrk->update_last($r_uidval, $last_uid) if $itrk;
+	} until ($err || $self->{quit});
+	$err;
+}
+
+sub imap_each {
+	my ($self, $url, $eml_cb, @args) = @_;
+	my $uri = PublicInbox::URIimap->new($url);
+	my $sec = uri_section($uri);
+	my $mic_arg = $self->{mic_arg}->{$sec} or
+			die "BUG: no Mail::IMAPClient->new arg for $sec";
+	local $0 = $uri->mailbox." $sec";
+	my $cb_name = $mic_arg->{Authcallback};
+	if (ref($cb_name) ne 'CODE') {
+		$mic_arg->{Authcallback} = $self->can($cb_name);
+	}
+	my $mic = PublicInbox::IMAPClient->new(%$mic_arg, Debug => 0);
+	my $err;
+	if ($mic && $mic->IsConnected) {
+		local $self->{eml_each} = [ $eml_cb, @args ];
+		$err = _imap_fetch_all($self, $mic, $url);
+	} else {
+		$err = "E: not connected: $!";
+	}
+	$mic;
 }
 
 sub new { bless {}, shift };

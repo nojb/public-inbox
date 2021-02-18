@@ -178,6 +178,8 @@ lib/PublicInbox/InputPipe.pm
 lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/LEI.pm
+lib/PublicInbox/LeiAuth.pm
+lib/PublicInbox/LeiConvert.pm
 lib/PublicInbox/LeiCurl.pm
 lib/PublicInbox/LeiDedupe.pm
 lib/PublicInbox/LeiExternal.pm
@@ -360,6 +362,7 @@ t/init.t
 t/ipc.t
 t/iso-2202-jp.eml
 t/kqnotify.t
+t/lei-convert.t
 t/lei-daemon.t
 t/lei-externals.t
 t/lei-import-maildir.t
@@ -388,6 +391,7 @@ t/msg_iter.t
 t/msgmap.t
 t/msgtime.t
 t/multi-mid.t
+t/net_reader-imap.t
 t/nntp.t
 t/nntpd-tls.t
 t/nntpd-v2.t

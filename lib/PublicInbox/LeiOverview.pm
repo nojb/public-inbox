@@ -51,18 +51,19 @@ sub detect_fmt ($$) {
 }
 
 sub new {
-	my ($class, $lei) = @_;
+	my ($class, $lei, $ofmt_key) = @_;
 	my $opt = $lei->{opt};
 	my $dst = $opt->{output} // '-';
 	$dst = '/dev/stdout' if $dst eq '-';
+	$ofmt_key //= 'format';
 
-	my $fmt = $opt->{'format'};
+	my $fmt = $opt->{$ofmt_key};
 	$fmt = lc($fmt) if defined $fmt;
 	if ($dst =~ s/\A([a-z0-9]+)://is) { # e.g. Maildir:/home/user/Mail/
 		my $ofmt = lc $1;
 		$fmt //= $ofmt;
 		return $lei->fail(<<"") if $fmt ne $ofmt;
---format=$fmt and --output=$ofmt conflict
+--$ofmt_key=$fmt and --output=$ofmt conflict
 
 	}
 	$fmt //= 'json' if $dst eq '/dev/stdout';

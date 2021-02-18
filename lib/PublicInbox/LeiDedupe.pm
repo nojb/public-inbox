@@ -127,7 +127,7 @@ sub prepare_dedupe {
 
 sub pause_dedupe {
 	my ($self) = @_;
-	my $skv = $self->[0];
+	my $skv = $self->[0] or return;
 	$skv->dbh_release;
 	delete($skv->{dbh}) if $skv;
 }

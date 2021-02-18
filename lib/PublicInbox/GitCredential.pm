@@ -4,11 +4,17 @@ package PublicInbox::GitCredential;
 use strict;
 use PublicInbox::Spawn qw(popen_rd);
 
-sub run ($$) {
-	my ($self, $op) = @_;
-	my ($in_r, $in_w);
+sub run ($$;$) {
+	my ($self, $op, $lei) = @_;
+	my ($in_r, $in_w, $out_r);
+	my $cmd = [ qw(git credential), $op ];
 	pipe($in_r, $in_w) or die "pipe: $!";
-	my $out_r = popen_rd([qw(git credential), $op], undef, { 0 => $in_r });
+	if ($lei && !$lei->{oneshot}) { # we'll die if disconnected:
+		pipe($out_r, my $out_w) or die "pipe: $!";
+		$lei->send_exec_cmd([ $in_r, $out_w ], $cmd, {});
+	} else {
+		$out_r = popen_rd($cmd, undef, { 0 => $in_r });
+	}
 	close $in_r or die "close in_r: $!";
 
 	my $out = '';
@@ -41,8 +47,8 @@ sub check_netrc ($) {
 }
 
 sub fill {
-	my ($self) = @_;
-	my $out_r = run($self, 'fill');
+	my ($self, $lei) = @_;
+	my $out_r = run($self, 'fill', $lei);
 	while (<$out_r>) {
 		chomp;
 		return if $_ eq '';

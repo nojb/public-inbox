@@ -173,7 +173,11 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
 	format|f=s kw|keywords|flags!),
 	],
-
+'convert' => [ 'LOCATION...|--stdin',
+	'one-time conversion from URL or filesystem to another format',
+	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s quiet|q
+	kw|keywords|flags!),
+	],
 'config' => [ '[...]', sub {
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
@@ -320,7 +324,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp mrr); # internal workers
+my @WQ_KEYS = qw(lxs l2m imp mrr cnv auth); # internal workers
 
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {
@@ -391,18 +395,19 @@ sub fail ($$;$) {
 	undef;
 }
 
-sub check_input_format ($;$) {
-	my ($self, $files) = @_;
-	my $fmt = $self->{opt}->{'format'};
+sub check_input_format ($;$$) {
+	my ($self, $files, $opt_key) = @_;
+	$opt_key //= 'format';
+	my $fmt = $self->{opt}->{$opt_key};
 	if (!$fmt) {
 		my $err = $files ? "regular file(s):\n@$files" : '--stdin';
-		return fail($self, "--format unset for $err");
+		return fail($self, "--$opt_key unset for $err");
 	}
 	return 1 if $fmt eq 'eml';
 	# XXX: should this handle {gz,bz2,xz}? that's currently in LeiToMail
 	require PublicInbox::MboxReader;
 	PublicInbox::MboxReader->can($fmt) ||
-				fail($self, "--format=$fmt unrecognized");
+				fail($self, "--$opt_key=$fmt unrecognized");
 }
 
 sub out ($;@) {
@@ -445,6 +450,7 @@ sub lei_atfork_child {
 	} else {
 		delete $self->{0};
 	}
+	delete @$self{qw(cnv)};
 	for (delete @$self{qw(3 sock old_1 au_done)}) {
 		close($_) if defined($_);
 	}
@@ -626,6 +632,11 @@ sub lei_import {
 	PublicInbox::LeiImport->call(@_);
 }
 
+sub lei_convert {
+	require PublicInbox::LeiConvert;
+	PublicInbox::LeiConvert->call(@_);
+}
+
 sub lei_init {
 	my ($self, $dir) = @_;
 	my $cfg = _lei_cfg($self, 1);
@@ -770,6 +781,13 @@ sub start_mua {
 	delete $self->{opt}->{verbose};
 }
 
+sub send_exec_cmd { # tell script/lei to execute a command
+	my ($self, $io, $cmd, $env) = @_;
+	my $sock = $self->{sock} // die 'lei client gone';
+	my $fds = [ map { fileno($_) } @$io ];
+	$send_cmd->($sock, $fds, exec_buf($cmd, $env), MSG_EOR);
+}
+
 sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 	my ($self) = @_;
 	my $alerts = $self->{opt}->{alert} // return;
@@ -813,10 +831,9 @@ sub start_pager {
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
 	my $pgr = [ undef, @$rdr{1, 2} ];
-	if (my $sock = $self->{sock}) { # lei(1) process runs it
+	if ($self->{sock}) { # lei(1) process runs it
 		delete @$new_env{keys %$env}; # only set iff unset
-		my $fds = [ map { fileno($_) } @$rdr{0..2} ];
-		$send_cmd->($sock, $fds, exec_buf([$pager], $new_env), MSG_EOR);
+		send_exec_cmd($self, [ @$rdr{0..2} ], [$pager], $new_env);
 	} elsif ($self->{oneshot}) {
 		my $cmd = [$pager];
 		$self->{"pid.$self.$$"}->{spawn($cmd, $new_env, $rdr)} = $cmd;
@@ -920,6 +937,7 @@ sub event_step {
 
 sub event_step_init {
 	my ($self) = @_;
+	return if $self->{-event_init_done}++;
 	if (my $sock = $self->{sock}) { # using DS->EventLoop
 		$self->SUPER::new($sock, EPOLLIN|EPOLLET);
 	}

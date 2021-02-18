@@ -462,10 +462,15 @@ our $lei = sub {
 sub lei (@) { $lei->(@_) }
 
 sub lei_ok (@) {
-	my $msg = ref($_[-1]) ? pop(@_) : undef;
+	my $msg = ref($_[-1]) eq 'SCALAR' ? pop(@_) : undef;
+	my $tmpdir = quotemeta(File::Spec->tmpdir);
 	# filter out anything that looks like a path name for consistent logs
-	my @msg = grep(!m!\A/!, @_);
-	ok($lei->(@_), "lei @msg". ($msg ? " ($$msg)" : ''));
+	my @msg = ref($_[0]) eq 'ARRAY' ? @{$_[0]} : @_;
+	for (@msg) {
+		s!\A([a-z0-9]+://)[^/]+/!$1\$HOST_PORT/! ||
+			s!$tmpdir\b/(?:[^/]+/)?!\$TMPDIR/!;
+	}
+	ok(lei(@_), "lei @msg". ($msg ? " ($$msg)" : '')) or diag $lei_err;
 }
 
 sub json_utf8 () {

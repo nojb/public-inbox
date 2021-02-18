@@ -7,6 +7,7 @@
 package PublicInbox::MdirReader;
 use strict;
 use v5.10.1;
+use PublicInbox::InboxWritable qw(eml_from_path);
 
 # returns Maildir flags from a basename ('' for no flags, undef for invalid)
 sub maildir_basename_flags {
@@ -33,6 +34,31 @@ sub maildir_each_file ($$;@) {
 			maildir_basename_flags($bn) // next;
 			$cb->($pfx.$bn, @arg);
 		}
+	}
+}
+
+my %c2kw = ('D' => 'draft', F => 'flagged', R => 'answered', S => 'seen');
+
+sub maildir_each_eml ($$;@) {
+	my ($dir, $cb, @arg) = @_;
+	$dir .= '/' unless substr($dir, -1) eq '/';
+	my $pfx = "$dir/new/";
+	if (opendir(my $dh, $pfx)) {
+		while (defined(my $bn = readdir($dh))) {
+			next if substr($bn, 0, 1) eq '.';
+			my @f = split(/:/, $bn, -1);
+			next if scalar(@f) != 1;
+			my $eml = eml_from_path($pfx.$bn) or next;
+			$cb->([], $eml, @arg);
+		}
+	}
+	$pfx = "$dir/cur/";
+	opendir my $dh, $pfx or return;
+	while (defined(my $bn = readdir($dh))) {
+		my $fl = maildir_basename_flags($bn) // next;
+		my $eml = eml_from_path($pfx.$bn) or next;
+		my @kw = sort(map { $c2kw{$_} // () } split(//, $fl));
+		$cb->(\@kw, $eml, @arg);
 	}
 }
 

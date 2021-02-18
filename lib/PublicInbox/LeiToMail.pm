@@ -437,7 +437,7 @@ sub _do_augment_mbox {
 	$dedupe->pause_dedupe if $dedupe;
 }
 
-sub pre_augment { # fast (1 disk seek), runs in main daemon
+sub pre_augment { # fast (1 disk seek), runs in same process as post_augment
 	my ($self, $lei) = @_;
 	# _pre_augment_maildir, _pre_augment_mbox
 	my $m = "_pre_augment_$self->{base_type}";
@@ -451,7 +451,8 @@ sub do_augment { # slow, runs in wq worker
 	$self->$m($lei);
 }
 
-sub post_augment { # fast (spawn compressor or mkdir), runs in main daemon
+# fast (spawn compressor or mkdir), runs in same process as pre_augment
+sub post_augment {
 	my ($self, $lei, @args) = @_;
 	# _post_augment_maildir, _post_augment_mbox
 	my $m = "_post_augment_$self->{base_type}";
