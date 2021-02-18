@@ -4,14 +4,12 @@
 # preliminary bash completion support for lei (Local Email Interface)
 # Needs a lot of work, see `lei__complete' in lib/PublicInbox::LEI.pm
 _lei() {
-	case ${COMP_WORDS[@]} in
-	*' add-external h'* | *' --mirror h'*)
-		compopt -o nospace
-		;;
+	local wordlist="$(lei _complete ${COMP_WORDS[@]})"
+	case $wordlist in
+	*':'* | *'='* | '//'*) compopt -o nospace ;;
 	*) compopt +o nospace ;; # the default
 	esac
-	COMPREPLY=($(compgen -W "$(lei _complete ${COMP_WORDS[@]})" \
-			-- "${COMP_WORDS[COMP_CWORD]}"))
+	COMPREPLY=($(compgen -W "$wordlist" -- "${COMP_WORDS[COMP_CWORD]}"))
 	return 0
 }
 complete -o default -o bashdefault -F _lei lei
