@@ -468,6 +468,25 @@ sub lei_atfork_child {
 	$current_lei = $persist ? undef : $self; # for SIG{__WARN__}
 }
 
+sub workers_start {
+	my ($lei, $wq, $ident, $jobs, $ops) = @_;
+	$ops = {
+		'!' => [ $lei->can('fail_handler'), $lei ],
+		'|' => [ $lei->can('sigpipe_handler'), $lei ],
+		'x_it' => [ $lei->can('x_it'), $lei ],
+		'child_error' => [ $lei->can('child_error'), $lei ],
+		%$ops
+	};
+	require PublicInbox::PktOp;
+	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
+	$wq->wq_workers_start($ident, $jobs, $lei->oldset, { lei => $lei });
+	delete $lei->{pkt_op_p};
+	my $op = delete $lei->{pkt_op_c};
+	$lei->event_step_init;
+	# oneshot needs $op, daemon-mode uses DS->EventLoop to handle $op
+	$lei->{oneshot} ? $op : undef;
+}
+
 sub _help {
 	require PublicInbox::LeiHelp;
 	PublicInbox::LeiHelp::call($_[0], $_[1], \%CMD, \%OPTDESC);

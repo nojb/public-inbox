@@ -8,7 +8,6 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable qw(eml_from_path);
-use PublicInbox::PktOp;
 use PublicInbox::LeiStore;
 use PublicInbox::LeiOverview;
 
@@ -59,26 +58,15 @@ sub do_convert { # via wq_do
 	delete $self->{wcb}; # commit
 }
 
-sub convert_start {
+sub convert_start { # LeiAuth->auth_start callback
 	my ($lei) = @_;
-	my $ops = {
-		'!' => [ $lei->can('fail_handler'), $lei ],
-		'|' => [ $lei->can('sigpipe_handler'), $lei ],
-		'x_it' => [ $lei->can('x_it'), $lei ],
-		'child_error' => [ $lei->can('child_error'), $lei ],
-		'' => [ $lei->can('dclose'), $lei ],
-	};
-	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
 	my $self = $lei->{cnv};
-	$self->wq_workers_start('lei_convert', 1, $lei->oldset, {lei => $lei});
-	my $op = delete $lei->{pkt_op_c};
-	delete $lei->{pkt_op_p};
+	my $op = $lei->workers_start($self, 'lei_convert', 1, {
+		'' => [ $lei->can('dclose'), $lei ]
+	});
 	$self->wq_io_do('do_convert', []);
 	$self->wq_close(1);
-	$lei->event_step_init; # wait for shutdowns
-	if ($lei->{oneshot}) {
-		while ($op->{sock}) { $op->event_step }
-	}
+	while ($op && $op->{sock}) { $op->event_step }
 }
 
 sub call { # the main "lei convert" method

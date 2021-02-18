@@ -8,7 +8,6 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use PublicInbox::Spawn qw(popen_rd spawn);
-use PublicInbox::PktOp;
 
 sub do_finish_mirror { # dwaitpid callback
 	my ($arg, $pid) = @_;
@@ -279,22 +278,12 @@ sub start {
 	require PublicInbox::Inbox;
 	require PublicInbox::Admin;
 	require PublicInbox::InboxWritable;
-	my $ops = {
-		'!' => [ $lei->can('fail_handler'), $lei ],
-		'x_it' => [ $lei->can('x_it'), $lei ],
-		'child_error' => [ $lei->can('child_error'), $lei ],
-		'' => [ \&mirror_done, $lei ],
-	};
-	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
-	$self->wq_workers_start('lei_mirror', 1, $lei->oldset, {lei => $lei});
-	my $op = delete $lei->{pkt_op_c};
-	delete $lei->{pkt_op_p};
+	my $op = $lei->workers_start($self, 'lei_mirror', 1, {
+		'' => [ \&mirror_done, $lei ]
+	});
 	$self->wq_io_do('do_mirror', []);
 	$self->wq_close(1);
-	$lei->event_step_init; # wait for shutdowns
-	if ($lei->{oneshot}) {
-		while ($op->{sock}) { $op->event_step }
-	}
+	while ($op && $op->{sock}) { $op->event_step }
 }
 
 sub ipc_atfork_child {
