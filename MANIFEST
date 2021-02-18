@@ -365,6 +365,7 @@ t/kqnotify.t
 t/lei-convert.t
 t/lei-daemon.t
 t/lei-externals.t
+t/lei-import-imap.t
 t/lei-import-maildir.t
 t/lei-import.t
 t/lei-mirror.t

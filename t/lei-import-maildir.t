@@ -23,8 +23,8 @@ test_lei(sub {
 	is_deeply($r2, $res, 'idempotent import');
 
 	rename("$md/cur/x:2,S", "$md/cur/x:2,SR") or BAIL_OUT "rename: $!";
-	ok($lei->(qw(import), $md), 'import Maildir after +answered');
-	ok($lei->(qw(q -d none s:boolean)), 'lei q after +answered');
+	lei_ok('import', "maildir:$md", \'import Maildir after +answered');
+	lei_ok(qw(q -d none s:boolean), \'lei q after +answered');
 	$res = json_utf8->decode($lei_out);
 	like($res->[0]->{'s'}, qr/use boolean/, 'got expected result');
 	is_deeply($res->[0]->{kw}, ['answered', 'seen'], 'keywords set');

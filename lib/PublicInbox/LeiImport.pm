@@ -29,7 +29,7 @@ sub import_done { # EOF callback for main daemon
 	$imp->wq_wait_old(\&import_done_wait, $lei);
 }
 
-sub do_import {
+sub import_start {
 	my ($lei) = @_;
 	my $ops = {
 		'!' => [ $lei->can('fail_handler'), $lei ],
@@ -39,7 +39,7 @@ sub do_import {
 	};
 	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
 	my $self = $lei->{imp};
-	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{argv}}) || 1;
+	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
 	if (my $nrd = $lei->{nrd}) {
 		# $j = $nrd->net_concurrency($j); TODO
 	} else {
@@ -50,8 +50,8 @@ sub do_import {
 	my $op = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};
 	$self->wq_io_do('import_stdin', []) if $self->{0};
-	for my $x (@{$self->{argv}}) {
-		$self->wq_io_do('import_path_url', [], $x);
+	for my $input (@{$self->{inputs}}) {
+		$self->wq_io_do('import_path_url', [], $input);
 	}
 	$self->wq_close(1);
 	$lei->event_step_init; # wait for shutdowns
@@ -61,60 +61,91 @@ sub do_import {
 }
 
 sub call { # the main "lei import" method
-	my ($cls, $lei, @argv) = @_;
+	my ($cls, $lei, @inputs) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
+	my ($nrd, @f, @d);
 	$lei->{opt}->{kw} //= 1;
-	my $self = $lei->{imp} = bless { argv => \@argv }, $cls;
+	my $self = $lei->{imp} = bless { inputs => \@inputs }, $cls;
 	if ($lei->{opt}->{stdin}) {
-		@argv and return
-			$lei->fail("--stdin and locations (@argv) do not mix");
+		@inputs and return $lei->fail("--stdin and @inputs do not mix");
 		$lei->check_input_format or return;
 		$self->{0} = $lei->{0};
-	} else {
-		my @f;
-		for my $x (@argv) {
-			if (-f $x) { push @f, $x }
-			elsif (-d _) { require PublicInbox::MdirReader }
-			else {
-				require PublicInbox::NetReader;
-				$lei->{nrd} //= PublicInbox::NetReader->new;
-				$lei->{nrd}->add_url($x);
-			}
-		}
-		if (@f) { $lei->check_input_format(\@f) or return }
-		if ($lei->{nrd} && (my @err = $lei->{nrd}->errors)) {
-			return $lei->fail(@err);
-		}
 	}
-	do_import($lei);
+
+	# TODO: do we need --format for non-stdin?
+	my $fmt = $lei->{opt}->{'format'};
+	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
+	for my $input (@inputs) {
+		my $input_path = $input;
+		if ($input =~ m!\A(?:imap|nntp)s?://!i) {
+			require PublicInbox::NetReader;
+			$nrd //= PublicInbox::NetReader->new;
+			$nrd->add_url($input);
+		} elsif ($input_path =~ s/\A([a-z0-9]+)://is) {
+			my $ifmt = lc $1;
+			if (($fmt // $ifmt) ne $ifmt) {
+				return $lei->fail(<<"");
+--format=$fmt and `$ifmt:' conflict
+
+			}
+			if (-f $input_path) {
+				require PublicInbox::MboxReader;
+				PublicInbox::MboxReader->can($ifmt) or return
+					$lei->fail("$ifmt not supported");
+			} elsif (-d _) {
+				require PublicInbox::MdirReader;
+				$ifmt eq 'maildir' or return
+					$lei->fail("$ifmt not supported");
+			} else {
+				return $lei->fail("Unable to handle $input");
+			}
+		} elsif (-f $input) { push @f, $input
+		} elsif (-d _) { push @d, $input
+		} else { return $lei->fail("Unable to handle $input") }
+	}
+	if (@f) { $lei->check_input_format(\@f) or return }
+	if (@d) { # TODO: check for MH vs Maildir, here
+		require PublicInbox::MdirReader;
+	}
+	$self->{inputs} = \@inputs;
+	return import_start($lei) if !$nrd;
+
+	if (my $err = $nrd->errors) {
+		return $lei->fail($err);
+	}
+	$nrd->{quiet} = $lei->{opt}->{quiet};
+	$lei->{nrd} = $nrd;
+	require PublicInbox::LeiAuth;
+	my $auth = $lei->{auth} = PublicInbox::LeiAuth->new($nrd);
+	$auth->auth_start($lei, \&import_start, $lei);
 }
 
 sub ipc_atfork_child {
 	my ($self) = @_;
+	delete $self->{lei}->{imp}; # drop circular ref
 	$self->{lei}->lei_atfork_child;
 	$self->SUPER::ipc_atfork_child;
 }
 
 sub _import_fh {
-	my ($lei, $fh, $x) = @_;
+	my ($lei, $fh, $input, $ifmt) = @_;
 	my $set_kw = $lei->{opt}->{kw};
-	my $fmt = $lei->{opt}->{'format'};
 	eval {
-		if ($fmt eq 'eml') {
+		if ($ifmt eq 'eml') {
 			my $buf = do { local $/; <$fh> } //
-				return $lei->child_error(1 >> 8, <<"");
-error reading $x: $!
+				return $lei->child_error(1 << 8, <<"");
+error reading $input: $!
 
 			my $eml = PublicInbox::Eml->new(\$buf);
 			_import_eml($eml, $lei->{sto}, $set_kw);
 		} else { # some mbox (->can already checked in call);
-			my $cb = PublicInbox::MboxReader->can($fmt) //
-				die "BUG: bad fmt=$fmt";
+			my $cb = PublicInbox::MboxReader->can($ifmt) //
+				die "BUG: bad fmt=$ifmt";
 			$cb->(undef, $fh, \&_import_eml, $lei->{sto}, $set_kw);
 		}
 	};
-	$lei->child_error(1 >> 8, "<stdin>: $@") if $@;
+	$lei->child_error(1 << 8, "<stdin>: $@") if $@;
 }
 
 sub _import_maildir { # maildir_each_file cb
@@ -122,27 +153,45 @@ sub _import_maildir { # maildir_each_file cb
 	$sto->ipc_do('set_eml_from_maildir', $f, $set_kw);
 }
 
-sub import_path_url {
-	my ($self, $x) = @_;
-	my $lei = $self->{lei};
-	# TODO auto-detect?
-	if (-f $x) {
-		open my $fh, '<', $x or return $lei->child_error(1 >> 8, <<"");
-unable to open $x: $!
+sub _import_imap { # imap_each cb
+	my ($url, $uid, $kw, $eml, $sto, $set_kw) = @_;
+	warn "$url $uid";
+	$sto->ipc_do('set_eml', $eml, $set_kw ? @$kw : ());
+}
 
-		_import_fh($lei, $fh, $x);
-	} elsif (-d _ && (-d "$x/cur" || -d "$x/new")) {
-		PublicInbox::MdirReader::maildir_each_file($x,
+sub import_path_url {
+	my ($self, $input) = @_;
+	my $lei = $self->{lei};
+	my $ifmt = lc($lei->{opt}->{'format'} // '');
+	# TODO auto-detect?
+	if ($input =~ m!\A(imap|nntp)s?://!i) {
+		$lei->{nrd}->imap_each($input, \&_import_imap, $lei->{sto},
+					$lei->{opt}->{kw});
+		return;
+	} elsif ($input =~ s!\A([a-z0-9]+):!!i) {
+		$ifmt = lc $1;
+	}
+	if (-f $input) {
+		open my $fh, '<', $input or return $lei->child_error(1 << 8, <<"");
+unable to open $input: $!
+
+		_import_fh($lei, $fh, $input, $ifmt);
+	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
+		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
+$input appears to a be a maildir, not $ifmt
+EOM
+		PublicInbox::MdirReader::maildir_each_file($input,
 					\&_import_maildir,
 					$lei->{sto}, $lei->{opt}->{kw});
 	} else {
-		$lei->fail("$x unsupported (TODO)");
+		$lei->fail("$input unsupported (TODO)");
 	}
 }
 
 sub import_stdin {
 	my ($self) = @_;
-	_import_fh($self->{lei}, $self->{0}, '<stdin>');
+	my $lei = $self->{lei};
+	_import_fh($lei, delete $self->{0}, '<stdin>', $lei->{opt}->{'format'});
 }
 
 1;

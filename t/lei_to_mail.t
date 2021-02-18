@@ -139,6 +139,16 @@ test_lei(sub {
 	is($res->[1], undef, 'only one result');
 });
 
+test_lei(sub {
+	lei_ok('import', "$mbox:$fn", \'imported mbox:/path') or diag $lei_err;
+	lei_ok(qw(q s:x), \'lei q works') or diag $lei_err;
+	my $res = json_utf8->decode($lei_out);
+	my $x = $res->[0];
+	is($x->{'s'}, 'x', 'subject imported') or diag $lei_out;
+	is_deeply($x->{'kw'}, ['seen'], 'kw imported') or diag $lei_out;
+	is($res->[1], undef, 'only one result');
+});
+
 for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
 	my $zsfx2cmd = PublicInbox::LeiToMail->can('zsfx2cmd');
 	SKIP: {
