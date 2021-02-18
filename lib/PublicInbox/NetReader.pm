@@ -89,6 +89,9 @@ sub mic_for { # mic = Mail::IMAPClient
 		$self->{mic_arg}->{uri_section($uri)} = $mic_arg;
 	} else {
 		$err = "E: <$url> LOGIN: $@\n";
+		if ($cred && defined($cred->{password})) {
+			$err =~ s/\Q$cred->{password}\E/*******/g;
+		}
 		$mic = undef;
 	}
 	$cred->run($mic ? 'approve' : 'reject') if $cred;
