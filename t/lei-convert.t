@@ -6,7 +6,7 @@ use PublicInbox::MboxReader;
 use PublicInbox::MdirReader;
 use PublicInbox::NetReader;
 require_git 2.6;
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(DBD::SQLite Search::Xapian Mail::IMAPClient));
 my ($tmpdir, $for_destroy) = tmpdir;
 my $sock = tcp_server;
 my $cmd = [ '-imapd', '-W0', "--stdout=$tmpdir/1", "--stderr=$tmpdir/2" ];
