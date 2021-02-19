@@ -302,8 +302,9 @@ sub _buf2maildir {
 		$rand = '';
 		do {
 			$final = $dst.$rand.$common.':2,'.$sfx;
-		} while (!link($tmp, $final) && $! == EEXIST &&
+		} while (!($ok = link($tmp, $final)) && $! == EEXIST &&
 			($rand = _rand.','));
+		die "link($tmp, $final): $!" unless $ok;
 		unlink($tmp) or warn "W: failed to unlink $tmp: $!\n";
 	} else {
 		my $err = "Error writing $smsg->{blob} to $dst: $!\n";
