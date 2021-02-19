@@ -353,17 +353,18 @@ sub _imap_fetch_all ($$$) {
 			PublicInbox::IMAPTracker->new($url) : 0;
 	my ($l_uidval, $l_uid) = $itrk ? $itrk->get_last : ();
 	$l_uidval //= $r_uidval; # first time
-	$l_uid //= 1;
+	$l_uid //= 0;
 	if ($l_uidval != $r_uidval) {
 		return "E: $url UIDVALIDITY mismatch\n".
 			"E: local=$l_uidval != remote=$r_uidval";
 	}
 	my $r_uid = $r_uidnext - 1;
-	if ($l_uid != 1 && $l_uid > $r_uid) {
+	if ($l_uid > $r_uid) {
 		return "E: $url local UID exceeds remote ($l_uid > $r_uid)\n".
 			"E: $url strangely, UIDVALIDLITY matches ($l_uidval)\n";
 	}
 	return if $l_uid >= $r_uid; # nothing to do
+	$l_uid ||= 1;
 
 	warn "# $url fetching UID $l_uid:$r_uid\n" unless $self->{quiet};
 	$mic->Uid(1); # the default, we hope
