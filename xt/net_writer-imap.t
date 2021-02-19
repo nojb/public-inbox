@@ -29,7 +29,7 @@ $nwr->{pi_cfg} = bless {}, 'PublicInbox::Config';
 my $mics = $nwr->imap_common_init;
 my $mic = (values %$mics)[0];
 my $cleanup = PublicInbox::OnDestroy->new(sub {
-	$mic->delete($folder) or fail "delete $folder <$$folder_uri>: $@";
+	$mic->delete($folder) or fail "delete $folder <$folder_uri>: $@";
 });
 my $imap_append = $nwr->can('imap_append');
 my $smsg = bless { kw => [ 'seen' ] }, 'PublicInbox::Smsg';

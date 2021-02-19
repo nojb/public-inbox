@@ -19,6 +19,7 @@ is($uri->auth, undef);
 is($uri->user, undef);
 
 $uri = PublicInbox::URIimap->new('imaps://foo@0/');
+is("$uri", $uri->as_string, '"" overload works');
 is($uri->host, '0', 'numeric host');
 is($uri->user, 'foo', 'user extracted');
 

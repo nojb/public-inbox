@@ -13,6 +13,7 @@ package PublicInbox::URIimap;
 use strict;
 use URI::Split qw(uri_split uri_join); # part of URI
 use URI::Escape qw(uri_unescape);
+use overload '""' => \&as_string;
 
 my %default_ports = (imap => 143, imaps => 993);
 
