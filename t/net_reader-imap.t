@@ -4,6 +4,7 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 require_git 2.6;
 require_mods(qw(DBD::SQLite Search::Xapian Mail::IMAPClient));
+use PublicInbox::Config;
 my ($tmpdir, $for_destroy) = tmpdir;
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $cmd = [ '-imapd', '-W0', "--stdout=$tmpdir/1", "--stderr=$tmpdir/2" ];
