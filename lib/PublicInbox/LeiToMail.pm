@@ -358,7 +358,7 @@ sub new {
 		require PublicInbox::MboxReader if $lei->{opt}->{augment};
 		(-d $dst || (-e _ && !-w _)) and die
 			"$dst exists and is not a writable file\n";
-		$self->can("eml2$fmt") or die "bad mbox --format=$fmt\n";
+		$self->can("eml2$fmt") or die "bad mbox format: $fmt\n";
 		$self->{base_type} = 'mbox';
 	} else {
 		die "bad mail --format=$fmt\n";

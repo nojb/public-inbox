@@ -117,18 +117,18 @@ test_lei(sub {
 	unlike($lei_out, qr!https://example\.com/ibx/!s,
 		'removed canonical URL');
 SKIP: {
-	ok(!$lei->(qw(q s:prefix -o /dev/null -f maildir)), 'bad maildir');
+	ok(!lei(qw(q s:prefix -o maildir:/dev/null)), 'bad maildir');
 	like($lei_err, qr!/dev/null exists and is not a directory!,
 		'error shown');
 	is($? >> 8, 1, 'errored out with exit 1');
 
-	ok(!$lei->(qw(q s:prefix -f mboxcl2 -o), $home), 'bad mbox');
+	ok(!lei(qw(q s:prefix -o), "mboxcl2:$home"), 'bad mbox');
 	like($lei_err, qr!\Q$home\E exists and is not a writable file!,
 		'error shown');
 	is($? >> 8, 1, 'errored out with exit 1');
 
-	ok(!$lei->(qw(q s:prefix -o /dev/stdout -f Mbox2)), 'bad format');
-	like($lei_err, qr/bad mbox --format=mbox2/, 'error shown');
+	ok(!lei(qw(q s:prefix -o Mbox2:/dev/stdout)), 'bad format');
+	like($lei_err, qr/bad mbox format: mbox2/, 'error shown');
 	is($? >> 8, 1, 'errored out with exit 1');
 
 	# note, on a Bourne shell users should be able to use either:
