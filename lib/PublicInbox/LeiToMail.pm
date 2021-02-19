@@ -394,8 +394,6 @@ sub _do_augment_maildir {
 	}
 }
 
-sub _post_augment_maildir {} # noop
-
 sub _pre_augment_mbox {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
@@ -441,8 +439,8 @@ sub _do_augment_mbox {
 sub pre_augment { # fast (1 disk seek), runs in same process as post_augment
 	my ($self, $lei) = @_;
 	# _pre_augment_maildir, _pre_augment_mbox
-	my $m = "_pre_augment_$self->{base_type}";
-	$self->$m($lei);
+	my $m = $self->can("_pre_augment_$self->{base_type}") or return;
+	$m->($self, $lei);
 }
 
 sub do_augment { # slow, runs in wq worker
@@ -455,9 +453,9 @@ sub do_augment { # slow, runs in wq worker
 # fast (spawn compressor or mkdir), runs in same process as pre_augment
 sub post_augment {
 	my ($self, $lei, @args) = @_;
-	# _post_augment_maildir, _post_augment_mbox
-	my $m = "_post_augment_$self->{base_type}";
-	$self->$m($lei, @args);
+	# _post_augment_mbox
+	my $m = $self->can("_post_augment_$self->{base_type}") or return;
+	$m->($self, $lei, @args);
 }
 
 sub ipc_atfork_child {
