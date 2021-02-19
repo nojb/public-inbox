@@ -4,10 +4,11 @@
 # Emergency Maildir delivery for MDA
 package PublicInbox::Emergency;
 use strict;
-use warnings;
+use v5.10.1;
 use Fcntl qw(:DEFAULT SEEK_SET);
 use Sys::Hostname qw(hostname);
-use IO::Handle; # ->flush, ->autoflush
+use IO::Handle; # ->flush
+use Errno qw(EEXIST);
 
 sub new {
 	my ($class, $dir) = @_;
@@ -20,49 +21,43 @@ sub new {
 			die "failed to mkpath($d): $!\n";
 		}
 	}
-	bless { dir => $dir, files => {}, t => 0, cnt => 0, pid => $$ }, $class;
+	bless { dir => $dir, t => 0 }, $class;
 }
 
 sub _fn_in {
-	my ($self, $dir) = @_;
-	my @host = split(/\./, hostname);
+	my ($self, $pid, $dir) = @_;
+	my $host = $self->{short_host} //= (split(/\./, hostname))[0];
 	my $now = time;
+	my $n;
 	if ($self->{t} != $now) {
 		$self->{t} = $now;
-		$self->{cnt} = 0;
+		$n = $self->{cnt} = 0;
 	} else {
-		$self->{cnt}++;
+		$n = ++$self->{cnt};
 	}
-
-	my $f;
-	do {
-		$f = "$self->{dir}/$dir/$self->{t}.$$"."_$self->{cnt}.$host[0]";
-		$self->{cnt}++;
-	} while (-e $f);
-	$f;
+	"$self->{dir}/$dir/$self->{t}.$pid"."_$n.$host";
 }
 
 sub prepare {
 	my ($self, $strref) = @_;
-
-	die "already in transaction: $self->{tmp}" if $self->{tmp};
+	my $pid = $$;
+	my $tmp_key = "tmp.$pid";
+	die "already in transaction: $self->{$tmp_key}" if $self->{$tmp_key};
 	my ($tmp, $fh);
 	do {
-		$tmp = _fn_in($self, 'tmp');
+		$tmp = _fn_in($self, $pid, 'tmp');
 		$! = undef;
-	} while (!sysopen($fh, $tmp, O_CREAT|O_EXCL|O_RDWR) && $!{EEXIST});
+	} while (!sysopen($fh, $tmp, O_CREAT|O_EXCL|O_RDWR) and $! == EEXIST);
 	print $fh $$strref or die "write failed: $!";
 	$fh->flush or die "flush failed: $!";
-	$fh->autoflush(1);
 	$self->{fh} = $fh;
-	$self->{tmp} = $tmp;
+	$self->{$tmp_key} = $tmp;
 }
 
 sub abort {
 	my ($self) = @_;
 	delete $self->{fh};
-	my $tmp = delete $self->{tmp} or return;
-
+	my $tmp = delete $self->{"tmp.$$"} or return;
 	unlink($tmp) or warn "Failed to unlink $tmp: $!";
 	undef;
 }
@@ -77,21 +72,15 @@ sub fh {
 
 sub commit {
 	my ($self) = @_;
-	$$ == $self->{pid} or return; # no-op in forked child
-
+	my $pid = $$;
+	my $tmp = delete $self->{"tmp.$pid"} or return;
 	delete $self->{fh};
-	my $tmp = delete $self->{tmp} or return;
-	my $new;
+	my ($new, $ok);
 	do {
-		$new = _fn_in($self, 'new');
-	} while (!link($tmp, $new) && $!{EEXIST});
-	my @sn = stat($new) or die "stat $new failed: $!";
-	my @st = stat($tmp) or die "stat $tmp failed: $!";
-	if ($st[0] == $sn[0] && $st[1] == $sn[1]) {
-		unlink($tmp) or warn "Failed to unlink $tmp: $!";
-	} else {
-		warn "stat($new) and stat($tmp) differ";
-	}
+		$new = _fn_in($self, $pid, 'new');
+	} while (!($ok = link($tmp, $new)) && $! == EEXIST);
+	die "link($tmp, $new): $!" unless $ok;
+	unlink($tmp) or warn "Failed to unlink $tmp: $!";
 }
 
 sub DESTROY { commit($_[0]) }
