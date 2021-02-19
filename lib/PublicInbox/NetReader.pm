@@ -8,6 +8,8 @@ use v5.10.1;
 use parent qw(Exporter PublicInbox::IPC);
 use PublicInbox::Eml;
 
+our %IMAPflags2kw = map {; "\\\u$_" => $_ } qw(seen answered flagged draft);
+
 # TODO: trim this down, this is huge
 our @EXPORT = qw(uri_new uri_scheme uri_section
 		mic_for nn_new nn_for
@@ -33,6 +35,7 @@ sub uri_section ($) {
 
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 
+# mic_for may prompt the user and store auth info, prepares mic_get
 sub mic_for { # mic = Mail::IMAPClient
 	my ($self, $url, $mic_args, $lei) = @_;
 	require PublicInbox::URIimap;
@@ -286,7 +289,12 @@ sub imap_common_init ($;$) {
 	for my $url (@{$self->{imap_order}}) {
 		my $uri = PublicInbox::URIimap->new($url);
 		my $sec = uri_section($uri);
-		$mics->{$sec} //= mic_for($self, $url, $mic_args, $lei);
+		$mics->{$sec} //= mic_for($self, "$sec/", $mic_args, $lei);
+		next unless $self->isa('PublicInbox::NetWriter');
+		my $dst = $uri->mailbox // next;
+		my $mic = $mics->{$sec};
+		next if $mic->exists($dst); # already exists
+		$mic->create($dst) or die "CREATE $dst failed <$url>: $@";
 	}
 	$mics;
 }
@@ -311,13 +319,6 @@ sub errors {
 	}
 	undef;
 }
-
-my %IMAPflags2kw = (
-	'\Seen' => 'seen',
-	'\Answered' => 'answered',
-	'\Flagged' => 'flagged',
-	'\Draft' => 'draft',
-);
 
 sub _imap_do_msg ($$$$$) {
 	my ($self, $url, $uid, $raw, $flags) = @_;
@@ -418,25 +419,34 @@ sub _imap_fetch_all ($$$) {
 	$err;
 }
 
+# uses cached auth info prepared by mic_for
+sub mic_get {
+	my ($self, $sec) = @_;
+	my $mic_arg = $self->{mic_arg}->{$sec} or
+			die "BUG: no Mail::IMAPClient->new arg for $sec";
+	if (defined(my $cb_name = $mic_arg->{Authcallback})) {
+		if (ref($cb_name) ne 'CODE') {
+			$mic_arg->{Authcallback} = $self->can($cb_name);
+		}
+	}
+	my $mic = PublicInbox::IMAPClient->new(%$mic_arg);
+	$mic && $mic->IsConnected ? $mic : undef;
+}
+
 sub imap_each {
 	my ($self, $url, $eml_cb, @args) = @_;
 	my $uri = PublicInbox::URIimap->new($url);
 	my $sec = uri_section($uri);
-	my $mic_arg = $self->{mic_arg}->{$sec} or
-			die "BUG: no Mail::IMAPClient->new arg for $sec";
 	local $0 = $uri->mailbox." $sec";
-	my $cb_name = $mic_arg->{Authcallback};
-	if (ref($cb_name) ne 'CODE') {
-		$mic_arg->{Authcallback} = $self->can($cb_name);
-	}
-	my $mic = PublicInbox::IMAPClient->new(%$mic_arg, Debug => 0);
+	my $mic = mic_get($self, $sec);
 	my $err;
-	if ($mic && $mic->IsConnected) {
+	if ($mic) {
 		local $self->{eml_each} = [ $eml_cb, @args ];
 		$err = _imap_fetch_all($self, $mic, $url);
 	} else {
 		$err = "E: not connected: $!";
 	}
+	warn $err if $err;
 	$mic;
 }
 

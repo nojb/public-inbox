@@ -213,6 +213,7 @@ lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
 lib/PublicInbox/NetReader.pm
+lib/PublicInbox/NetWriter.pm
 lib/PublicInbox/NewsWWW.pm
 lib/PublicInbox/OnDestroy.pm
 lib/PublicInbox/Over.pm
@@ -471,6 +472,7 @@ xt/lei-sigpipe.t
 xt/mem-imapd-tls.t
 xt/mem-msgview.t
 xt/msgtime_cmp.t
+xt/net_writer-imap.t
 xt/nntpd-validate.t
 xt/perf-msgview.t
 xt/perf-nntpd.t
