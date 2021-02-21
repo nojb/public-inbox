@@ -16,7 +16,7 @@ BEGIN {
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes
 		tcp_host_port test_lei lei lei_ok
-		$lei $lei_out $lei_err $lei_opt);
+		$lei_out $lei_err $lei_opt);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -446,7 +446,8 @@ sub have_xapian_compact () {
 }
 
 our ($err_skip, $lei_opt, $lei_out, $lei_err);
-our $lei = sub {
+# favor lei() or lei_ok() over $lei for new code
+sub lei (@) {
 	my ($cmd, $env, $xopt) = @_;
 	$lei_out = $lei_err = '';
 	if (!ref($cmd)) {
@@ -458,8 +459,6 @@ our $lei = sub {
 		$lei_err = join('', grep(!/$err_skip/, split(/^/m, $lei_err)));
 	$res;
 };
-
-sub lei (@) { $lei->(@_) }
 
 sub lei_ok (@) {
 	my $msg = ref($_[-1]) eq 'SCALAR' ? pop(@_) : undef;
@@ -510,11 +509,11 @@ EOM
 		mkdir($xrd, 0700) or BAIL_OUT "mkdir: $!";
 		local $ENV{XDG_RUNTIME_DIR} = $xrd;
 		$cb->();
-		ok($lei->(qw(daemon-pid)), "daemon-pid after $t");
+		lei_ok(qw(daemon-pid), \"daemon-pid after $t");
 		chomp($daemon_pid = $lei_out);
 		if ($daemon_pid) {
 			ok(kill(0, $daemon_pid), "daemon running after $t");
-			ok($lei->(qw(daemon-kill)), "daemon-kill after $t");
+			lei_ok(qw(daemon-kill), \"daemon-kill after $t");
 		} else {
 			fail("daemon not running after $t");
 		}
@@ -528,7 +527,7 @@ EOM
 		local $ENV{HOME} = $home;
 		# force sun_path[108] overflow:
 		my $xrd = "$home/1shot-test".('.sun_path' x 108);
-		local $err_skip = qr!\Q$xrd!; # for $lei->() filtering
+		local $err_skip = qr!\Q$xrd!; # for lei() filtering
 		local $ENV{XDG_RUNTIME_DIR} = $xrd;
 		$cb->();
 	}

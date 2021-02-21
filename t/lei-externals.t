@@ -20,11 +20,11 @@ SKIP: {
 	which('torsocks') or skip 'no torsocks', $nr if $url =~ m!\.onion/!;
 	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
 	my @cmd = ('q', '--only', $url, '-q', "m:$mid");
-	ok($lei->(@cmd), "query $url");
+	lei_ok(@cmd, \"query $url");
 	is($lei_err, '', "no errors on $url");
 	my $res = json_utf8->decode($lei_out);
 	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url");
-	ok($lei->(@cmd, 'd:..20101002'), 'no results, no error');
+	lei_ok(@cmd, 'd:..20101002', \'no results, no error');
 	is($lei_err, '', 'no output on 404, matching local FS behavior');
 	is($lei_out, "[null]\n", 'got null results');
 } # /SKIP
@@ -93,27 +93,26 @@ test_lei(sub {
 			https://example https://example. https://example.co
 			https://example.com https://example.com/
 			https://example.com/i https://example.com/ibx)) {
-		ok($lei->(qw(_complete lei forget-external), $u),
-			"partial completion for URL $u");
+		lei_ok(qw(_complete lei forget-external), $u,
+			\"partial completion for URL $u");
 		is($lei_out, "https://example.com/ibx/\n",
 			"completed partial URL $u");
 		for my $qo (qw(-I --include --exclude --only)) {
-			ok($lei->(qw(_complete lei q), $qo, $u),
-				"partial completion for URL q $qo $u");
+			lei_ok(qw(_complete lei q), $qo, $u,
+				\"partial completion for URL q $qo $u");
 			is($lei_out, "https://example.com/ibx/\n",
 				"completed partial URL $u on q $qo");
 		}
 	}
-	ok($lei->(qw(_complete lei add-external), 'https://'),
-		'add-external hostname completion');
+	lei_ok(qw(_complete lei add-external), 'https://',
+		\'add-external hostname completion');
 	is($lei_out, "https://example.com/\n", 'completed up to hostname');
 
-	$lei->('ls-external');
+	lei_ok('ls-external');
 	like($lei_out, qr!https://example\.com/ibx/!s, 'added canonical URL');
 	is($lei_err, '', 'no warnings on ls-external');
-	ok($lei->(qw(forget-external -q https://EXAMPLE.com/ibx)),
-		'forget');
-	$lei->('ls-external');
+	lei_ok(qw(forget-external -q https://EXAMPLE.com/ibx));
+	lei_ok('ls-external');
 	unlike($lei_out, qr!https://example\.com/ibx/!s,
 		'removed canonical URL');
 SKIP: {
@@ -137,14 +136,14 @@ SKIP: {
 	# or use single quotes, it should not matter.  Users only need
 	# to know shell quoting rules, not Xapian quoting rules.
 	# No double-quoting should be imposed on users on the CLI
-	$lei->('q', 's:use boolean prefix');
+	lei_ok('q', 's:use boolean prefix');
 	like($lei_out, qr/search: use boolean prefix/,
 		'phrase search got result');
 	my $res = json_utf8->decode($lei_out);
 	is(scalar(@$res), 2, 'only 2 element array (1 result)');
 	is($res->[1], undef, 'final element is undef'); # XXX should this be?
 	is(ref($res->[0]), 'HASH', 'first element is hashref');
-	$lei->('q', '--pretty', 's:use boolean prefix');
+	lei_ok('q', '--pretty', 's:use boolean prefix');
 	my $pretty = json_utf8->decode($lei_out);
 	is_deeply($res, $pretty, '--pretty is identical after decode');
 
@@ -153,29 +152,29 @@ SKIP: {
 		$fh->autoflush(1);
 		print $fh 's:use d:..5.days.from.now' or BAIL_OUT $!;
 		seek($fh, 0, SEEK_SET) or BAIL_OUT $!;
-		ok($lei->([qw(q -q --stdin)], undef, { %$lei_opt, 0 => $fh }),
-				'--stdin on regular file works');
+		lei_ok([qw(q -q --stdin)], undef, { %$lei_opt, 0 => $fh },
+				\'--stdin on regular file works');
 		like($lei_out, qr/use boolean/, '--stdin on regular file');
 	}
 	{
 		pipe(my ($r, $w)) or BAIL_OUT $!;
 		print $w 's:use' or BAIL_OUT $!;
 		close $w or BAIL_OUT $!;
-		ok($lei->([qw(q -q --stdin)], undef, { %$lei_opt, 0 => $r }),
-				'--stdin on pipe file works');
+		lei_ok([qw(q -q --stdin)], undef, { %$lei_opt, 0 => $r },
+				\'--stdin on pipe file works');
 		like($lei_out, qr/use boolean prefix/, '--stdin on pipe');
 	}
-	ok(!$lei->(qw(q -q --stdin s:use)), "--stdin and argv don't mix");
+	ok(!lei(qw(q -q --stdin s:use)), "--stdin and argv don't mix");
 
 	for my $fmt (qw(ldjson ndjson jsonl)) {
-		$lei->('q', '-f', $fmt, 's:use boolean prefix');
+		lei_ok('q', '-f', $fmt, 's:use boolean prefix');
 		is($lei_out, json_utf8->encode($pretty->[0])."\n", "-f $fmt");
 	}
 
 	require IO::Uncompress::Gunzip;
 	for my $sfx ('', '.gz') {
 		my $f = "$home/mbox$sfx";
-		$lei->('q', '-o', "mboxcl2:$f", 's:use boolean prefix');
+		lei_ok('q', '-o', "mboxcl2:$f", 's:use boolean prefix');
 		my $cat = $sfx eq '' ? sub {
 			open my $mb, '<', $f or fail "no mbox: $!";
 			<$mb>
@@ -185,26 +184,26 @@ SKIP: {
 		};
 		my @s = grep(/^Subject:/, $cat->());
 		is(scalar(@s), 1, "1 result in mbox$sfx");
-		$lei->('q', '-a', '-o', "mboxcl2:$f", 's:see attachment');
+		lei_ok('q', '-a', '-o', "mboxcl2:$f", 's:see attachment');
 		is(grep(!/^#/, $lei_err), 0, 'no errors from augment') or
 			diag $lei_err;
 		@s = grep(/^Subject:/, my @wtf = $cat->());
 		is(scalar(@s), 2, "2 results in mbox$sfx");
 
-		$lei->('q', '-a', '-o', "mboxcl2:$f", 's:nonexistent');
+		lei_ok('q', '-a', '-o', "mboxcl2:$f", 's:nonexistent');
 		is(grep(!/^#/, $lei_err), 0, "no errors on no results ($sfx)");
 
 		my @s2 = grep(/^Subject:/, $cat->());
 		is_deeply(\@s2, \@s,
 			"same 2 old results w/ --augment and bad search $sfx");
 
-		$lei->('q', '-o', "mboxcl2:$f", 's:nonexistent');
+		lei_ok('q', '-o', "mboxcl2:$f", 's:nonexistent');
 		my @res = $cat->();
 		is_deeply(\@res, [], "clobber w/o --augment $sfx");
 	}
-	ok(!$lei->('q', '-o', "$home/mbox", 's:nope'),
+	ok(!lei('q', '-o', "$home/mbox", 's:nope'),
 			'fails if mbox format unspecified');
-	ok(!$lei->(qw(q --no-local s:see)), '--no-local');
+	ok(!lei(qw(q --no-local s:see)), '--no-local');
 	is($? >> 8, 1, 'proper exit code');
 	like($lei_err, qr/no local or remote.+? to search/, 'no inbox');
 	my %e = (

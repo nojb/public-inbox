@@ -13,28 +13,28 @@ my $td = start_script($cmd, { PI_CONFIG => $cfg_path }, { 3 => $sock });
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $home = $ENV{HOME};
 	my $t1 = "$home/t1-mirror";
-	ok($lei->('add-external', $t1, '--mirror', "$http/t1/"), '--mirror v1');
+	lei_ok('add-external', $t1, '--mirror', "$http/t1/", \'--mirror v1');
 	ok(-f "$t1/public-inbox/msgmap.sqlite3", 't1-mirror indexed');
 
-	ok($lei->('ls-external'), 'ls-external');
+	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t1\E!, 't1 added to ls-externals');
 
 	my $t2 = "$home/t2-mirror";
-	ok($lei->('add-external', $t2, '--mirror', "$http/t2/"), '--mirror v2');
+	lei_ok('add-external', $t2, '--mirror', "$http/t2/", \'--mirror v2');
 	ok(-f "$t2/msgmap.sqlite3", 't2-mirror indexed');
 
-	ok($lei->('ls-external'), 'ls-external');
+	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t2\E!, 't2 added to ls-externals');
 
-	ok(!$lei->('add-external', $t2, '--mirror', "$http/t2/"),
+	ok(!lei('add-external', $t2, '--mirror', "$http/t2/"),
 		'--mirror fails if reused') or diag "$lei_err.$lei_out = $?";
 
-	ok($lei->('ls-external'), 'ls-external');
+	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t2\E!, 'still in ls-externals');
 
-	ok(!$lei->('add-external', "$t2-fail", '-Lmedium'), '--mirror v2');
+	ok(!lei('add-external', "$t2-fail", '-Lmedium'), '--mirror v2');
 	ok(!-d "$t2-fail", 'destination not created on failure');
-	ok($lei->('ls-external'), 'ls-external');
+	lei_ok('ls-external');
 	unlike($lei_out, qr!\Q$t2-fail\E!, 'not added to ls-external');
 });
 

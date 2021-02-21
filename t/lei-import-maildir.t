@@ -10,15 +10,15 @@ test_lei(sub {
 	}
 	symlink(abs_path('t/data/0001.patch'), "$md/cur/x:2,S") or
 		BAIL_OUT "symlink $md $!";
-	ok($lei->(qw(import), $md), 'import Maildir');
-	ok($lei->(qw(q s:boolean)), 'lei q');
+	lei_ok(qw(import), $md, \'import Maildir');
+	lei_ok(qw(q s:boolean));
 	my $res = json_utf8->decode($lei_out);
 	like($res->[0]->{'s'}, qr/use boolean/, 'got expected result');
 	is_deeply($res->[0]->{kw}, ['seen'], 'keyword set');
 	is($res->[1], undef, 'only got one result');
 
-	ok($lei->(qw(import), $md), 'import Maildir again');
-	ok($lei->(qw(q -d none s:boolean)), 'lei q w/o dedupe');
+	lei_ok(qw(import), $md, \'import Maildir again');
+	lei_ok(qw(q -d none s:boolean), \'lei q w/o dedupe');
 	my $r2 = json_utf8->decode($lei_out);
 	is_deeply($r2, $res, 'idempotent import');
 
