@@ -79,7 +79,7 @@ my $mics = do {
 };
 my $mic = (values %$mics)[0];
 my $cleanup = PublicInbox::OnDestroy->new($$, sub {
-	my $mic = $nwr->mic_get($imap_url);
+	my $mic = $nwr->mic_get($uri);
 	$mic->delete($folder) or fail "delete $folder <$folder_uri>: $@";
 	if ($tmpdir && -f "$tmpdir/.gitconfig") {
 		local $ENV{HOME} = $tmpdir;
@@ -94,7 +94,7 @@ my $imap_slurp_all = sub {
 	my ($u, $uid, $kw, $eml, $res) = @_;
 	push @$res, [ $kw, $eml ];
 };
-$nwr->imap_each($$folder_uri, $imap_slurp_all, my $res = []);
+$nwr->imap_each($folder_uri, $imap_slurp_all, my $res = []);
 is(scalar(@$res), 1, 'got appended message');
 my $plack_qp_eml = eml_load('t/plack-qp.eml');
 is_deeply($res, [ [ [ 'seen' ], $plack_qp_eml ] ],
@@ -119,13 +119,13 @@ test_lei(sub {
 	$set_cred_helper->("$ENV{HOME}/.gitconfig", $cred_set) if $cred_set;
 
 	lei_ok qw(q f:qp@example.com -o), $$folder_uri;
-	$nwr->imap_each($$folder_uri, $imap_slurp_all, my $res = []);
+	$nwr->imap_each($folder_uri, $imap_slurp_all, my $res = []);
 	is(scalar(@$res), 1, 'got one deduped result') or diag explain($res);
 	is_deeply($res->[0]->[1], $plack_qp_eml,
 			'lei q wrote expected result');
 
 	lei_ok qw(q f:matz -a -o), $$folder_uri;
-	$nwr->imap_each($$folder_uri, $imap_slurp_all, my $aug = []);
+	$nwr->imap_each($folder_uri, $imap_slurp_all, my $aug = []);
 	is(scalar(@$aug), 2, '2 results after augment') or diag explain($aug);
 	my $exp = $res->[0]->[1]->as_string;
 	is(scalar(grep { $_->[1]->as_string eq $exp } @$aug), 1,
@@ -135,7 +135,7 @@ test_lei(sub {
 			'new result shown after augment');
 
 	lei_ok qw(q s:thisbetternotgiveanyresult -o), $folder_uri->as_string;
-	$nwr->imap_each($$folder_uri, $imap_slurp_all, my $empty = []);
+	$nwr->imap_each($folder_uri, $imap_slurp_all, my $empty = []);
 	is(scalar(@$empty), 0, 'no results w/o augment');
 
 });

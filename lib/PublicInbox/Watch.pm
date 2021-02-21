@@ -60,9 +60,9 @@ sub new {
 			if (is_maildir($dir)) {
 				# skip "new", no MUA has seen it, yet.
 				$mdmap{"$dir/cur"} = 'watchspam';
-			} elsif ($url = imap_url($dir)) {
-				$imap{$url} = 'watchspam';
-				push @imap, $url;
+			} elsif (my $uri = imap_uri($dir)) {
+				$imap{$$uri} = 'watchspam';
+				push @imap, $uri;
 			} elsif ($url = nntp_url($dir)) {
 				$nntp{$url} = 'watchspam';
 				push @nntp, $url;
@@ -92,11 +92,12 @@ sub new {
 				return if is_watchspam($cur, $cur_dst, $ibx);
 				push @{$mdmap{$new} //= []}, $ibx;
 				push @$cur_dst, $ibx;
-			} elsif ($url = imap_url($watch)) {
+			} elsif (my $uri = imap_uri($watch)) {
+				my $url = $$uri;
 				return if is_watchspam($url, $imap{$url}, $ibx);
 				compile_watchheaders($ibx);
 				my $n = push @{$imap{$url} ||= []}, $ibx;
-				push @imap, $url if $n == 1;
+				push @imap, $uri if $n == 1;
 			} elsif ($url = nntp_url($watch)) {
 				return if is_watchspam($url, $nntp{$url}, $ibx);
 				compile_watchheaders($ibx);

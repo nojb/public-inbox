@@ -337,7 +337,7 @@ sub _imap_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe if $dedupe;
 	my $imap_append = $lei->{nwr}->can('imap_append');
-	my $mic = $lei->{nwr}->mic_get($lei->{ovv}->{dst});
+	my $mic = $lei->{nwr}->mic_get($self->{uri});
 	my $folder = $self->{uri}->mailbox;
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
@@ -436,16 +436,15 @@ sub _augment_imap { # PublicInbox::NetReader::imap_each cb
 
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
-	my $dst = $lei->{ovv}->{dst};
 	my $nwr = $lei->{nwr};
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
-			$nwr->imap_each($dst, \&_augment_imap, $lei);
+			$nwr->imap_each($self->{uri}, \&_augment_imap, $lei);
 			$dedupe->pause_dedupe;
 		}
 	} else { # clobber existing IMAP folder
-		$nwr->imap_delete_all($dst);
+		$nwr->imap_delete_all($self->{uri});
 	}
 }
 
