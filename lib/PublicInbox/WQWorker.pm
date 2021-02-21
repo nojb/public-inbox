@@ -11,10 +11,10 @@ use Errno qw(EAGAIN ECONNRESET);
 use IO::Handle (); # blocking
 
 sub new {
-	my (undef, $wq) = @_;
-	my $s2 = $wq->{-wq_s2} // die 'BUG: no -wq_s2';
+	my ($cls, $wq, $field) = @_;
+	my $s2 = $wq->{$field // '-wq_s2'} // die "BUG: no {$field}";
 	$s2->blocking(0);
-	my $self = bless { sock => $s2, wq => $wq }, __PACKAGE__;
+	my $self = bless { sock => $s2, wq => $wq }, $cls;
 	$self->SUPER::new($s2, EPOLLEXCLUSIVE|EPOLLIN|EPOLLET);
 	$self;
 }
@@ -27,7 +27,7 @@ sub event_step {
 	} while ($n);
 	return if !defined($n) && $! == EAGAIN; # likely
 	warn "wq worker error: $!\n" if !defined($n) && $! != ECONNRESET;
-	$self->{wq}->wq_atexit_child;
+	$self->{wq}->wq_atexit_child if $self->{sock} == $self->{wq}->{-wq_s2};
 	$self->close; # PublicInbox::DS::close
 }
 

@@ -9,6 +9,7 @@ use Fcntl qw(SEEK_SET);
 use Digest::SHA qw(sha1_hex);
 require_mods(qw(Storable||Sereal));
 require_ok 'PublicInbox::IPC';
+my ($tmpdir, $for_destroy) = tmpdir();
 state $once = eval <<'';
 package PublicInbox::IPC;
 use strict;
@@ -30,6 +31,12 @@ sub test_sha {
 	my ($self, $buf) = @_;
 	print { $self->{1} } sha1_hex($buf), "\n";
 	$self->{1}->flush;
+}
+sub test_append_pid {
+	my ($self, $file) = @_;
+	open my $fh, '>>', $file or die "open: $!";
+	$fh->autoflush(1);
+	print $fh "$$\n" or die "print: $!";
 }
 1;
 
@@ -83,11 +90,8 @@ $test->('local');
 	defined($pid) or BAIL_OUT 'no spawn, no test';
 	is($ipc->ipc_do('test_pid'), $pid, 'worker pid returned');
 	$test->('worker');
-	{
-		my ($tmp, $for_destroy) = tmpdir();
-		$ipc->ipc_lock_init("$tmp/lock");
-		is($ipc->ipc_do('test_pid'), $pid, 'worker pid returned');
-	}
+	$ipc->ipc_lock_init("$tmpdir/lock");
+	is($ipc->ipc_do('test_pid'), $pid, 'worker pid returned');
 	$ipc->ipc_worker_stop;
 	ok(!kill(0, $pid) && $!{ESRCH}, 'worker stopped');
 }
@@ -167,18 +171,21 @@ SKIP: {
 	$SIG{__WARN__} = 'DEFAULT';
 	is($ipc->wq_workers_start('wq', 1), $$, 'workers started again');
 	is($ipc->wq_workers, 1, '1 worker started');
-	SKIP: {
-		$ipc->WQ_MAX_WORKERS > 1 or
-			skip 'Inline::C or Socket::MsgHdr not available', 4;
-		$ipc->wq_worker_incr;
-		is($ipc->wq_workers, 2, 'worker count bumped');
-		$ipc->wq_worker_decr;
-		$ipc->wq_worker_decr_wait(10);
-		is($ipc->wq_workers, 1, 'worker count lowered');
-		is($ipc->wq_workers(2), 2, 'worker count set');
-		is($ipc->wq_workers, 2, 'worker count stayed set');
-	}
+
+	$ipc->wq_worker_incr;
+	is($ipc->wq_workers, 2, 'worker count bumped');
+	$ipc->wq_worker_decr;
+	$ipc->wq_worker_decr_wait(10);
+	is($ipc->wq_workers, 1, 'worker count lowered');
+	is($ipc->wq_workers(2), 2, 'worker count set');
+	is($ipc->wq_workers, 2, 'worker count stayed set');
+
+	$ipc->wq_broadcast('test_append_pid', "$tmpdir/append_pid");
 	$ipc->wq_close;
+	open my $fh, '<', "$tmpdir/append_pid" or BAIL_OUT "open: $!";
+	chomp(my @pids = <$fh>);
+	my %pids = map { $_ => 1 } grep(/\A[0-9]+\z/, @pids);
+	is(scalar keys %pids, 2, 'broadcast hit both PIDs');
 	is($ipc->wq_workers, undef, 'workers undef after close');
 }
 
