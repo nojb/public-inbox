@@ -175,7 +175,7 @@ WriteMakefile(
 	},
 	MAN3PODS => \%man3,
 	clean => {
-		FILES => 't/home1/setup* t/home1/t* t/home1/.public-inbox'
+		FILES => 't/home*/setup* t/home*/t* t/home*/.public-inbox'
 	},
 );
 
