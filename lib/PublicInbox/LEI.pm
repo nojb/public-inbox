@@ -1101,6 +1101,8 @@ sub lazy_start {
 	exit($exit_code // 0);
 }
 
+sub busy { 1 } # prevent daemon-shutdown if client is connected
+
 # for users w/o Socket::Msghdr installed or Inline::C enabled
 sub oneshot {
 	my ($main_pkg) = @_;
