@@ -341,7 +341,7 @@ sub wq_workers_start {
 	socketpair($self->{-wq_s1}, $self->{-wq_s2}, AF_UNIX, $SEQPACKET, 0) or
 		die "socketpair: $!";
 	$self->ipc_atfork_prepare;
-	$nr_workers //= 4;
+	$nr_workers //= $self->{-wq_nr_workers};
 	$nr_workers = $WQ_MAX_WORKERS if $nr_workers > $WQ_MAX_WORKERS;
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
 	$self->{-wq_workers} = {};
@@ -354,6 +354,7 @@ sub wq_workers_start {
 sub wq_worker_incr { # SIGTTIN handler
 	my ($self, $oldset, $fields) = @_;
 	$self->{-wq_s2} or return;
+	die "-wq_nr_workers locked" if defined $self->{-wq_nr_workers};
 	return if wq_workers($self) >= $WQ_MAX_WORKERS;
 	$self->ipc_atfork_prepare;
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
@@ -369,6 +370,7 @@ sub wq_exit { # wakes up wq_worker_decr_wait
 sub wq_worker_decr { # SIGTTOU handler, kills first idle worker
 	my ($self) = @_;
 	return unless wq_workers($self);
+	die "-wq_nr_workers locked" if defined $self->{-wq_nr_workers};
 	$self->wq_io_do('wq_exit');
 	# caller must call wq_worker_decr_wait in main loop
 }
@@ -376,6 +378,7 @@ sub wq_worker_decr { # SIGTTOU handler, kills first idle worker
 sub wq_worker_decr_wait {
 	my ($self, $timeout, $cb, @args) = @_;
 	return if $self->{-wq_ppid} != $$; # can't reap siblings or parents
+	die "-wq_nr_workers locked" if defined $self->{-wq_nr_workers};
 	my $s1 = $self->{-wq_s1} // croak 'BUG: no wq_s1';
 	vec(my $rin = '', fileno($s1), 1) = 1;
 	select(my $rout = $rin, undef, undef, $timeout) or

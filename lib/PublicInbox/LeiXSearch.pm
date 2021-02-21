@@ -407,7 +407,7 @@ sub do_query {
 		if ($lei->{opt}->{augment} && delete $lei->{early_mua}) {
 			$lei->start_mua;
 		}
-		$l2m->wq_workers_start('lei2mail', $l2m->{jobs},
+		$l2m->wq_workers_start('lei2mail', undef,
 					$lei->oldset, { lei => $lei });
 		pipe($lei->{startq}, $lei->{au_done}) or die "pipe: $!";
 		# 1031: F_SETPIPE_SZ
@@ -418,7 +418,7 @@ sub do_query {
 		# delete until all lei2mail + lei_xsearch workers are reaped
 		$lei->{git_tmp} = $self->{git_tmp} = git_tmp($self);
 	}
-	$self->wq_workers_start('lei_xsearch', $self->{jobs},
+	$self->wq_workers_start('lei_xsearch', undef,
 				$lei->oldset, { lei => $lei });
 	my $op = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};

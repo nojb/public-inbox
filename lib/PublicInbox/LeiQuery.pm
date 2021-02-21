@@ -90,14 +90,14 @@ sub lei_q {
 		return $self->fail("`$xj' search jobs must be >= 1");
 	}
 	$xj ||= $lxs->concurrency($opt); # allow: "--jobs ,$WRITER_ONLY"
-	my $nproc = $lxs->detect_nproc; # don't memoize, schedtool(1) exists
+	my $nproc = $lxs->detect_nproc // 1; # don't memoize, schedtool(1) exists
 	$xj = $nproc if $xj > $nproc;
-	$lxs->{jobs} = $xj;
+	$lxs->{-wq_nr_workers} = $xj;
 	if (defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) {
 		return $self->fail("`$mj' writer jobs must be >= 1");
 	}
-	$self->{l2m}->{jobs} = ($mj // $nproc) if $self->{l2m};
 	PublicInbox::LeiOverview->new($self) or return;
+	$self->{l2m}->{-wq_nr_workers} = ($mj // $nproc) if $self->{l2m};
 
 	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
