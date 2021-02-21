@@ -14,6 +14,7 @@ use PublicInbox::LeiDedupe;
 use PublicInbox::OnDestroy;
 use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
+use PublicInbox::PktOp qw(pkt_do);
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
@@ -499,7 +500,7 @@ sub pre_augment { # fast (1 disk seek), runs in same process as post_augment
 
 sub do_augment { # slow, runs in wq worker
 	my ($self, $lei) = @_;
-	# _do_augment_maildir, _do_augment_mbox
+	# _do_augment_maildir, _do_augment_mbox, or _do_augment_imap
 	my $m = "_do_augment_$self->{base_type}";
 	$self->$m($lei);
 }
@@ -516,6 +517,13 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = delete $self->{lei};
 	$lei->lei_atfork_child;
+	if ($self->{-wq_worker_nr} == 0) {
+		local $0 = 'do_augment';
+		eval { do_augment($self, $lei) };
+		$lei->fail($@) if $@;
+		pkt_do($lei->{pkt_op_p}, '.') == 1 or
+					die "do_post_augment trigger: $!";
+	}
 	if (my $zpipe = delete $lei->{zpipe}) {
 		$lei->{1} = $zpipe->[1];
 		close $zpipe->[0];

@@ -186,7 +186,8 @@ SKIP: {
 		my @s = grep(/^Subject:/, $cat->());
 		is(scalar(@s), 1, "1 result in mbox$sfx");
 		$lei->('q', '-a', '-o', "mboxcl2:$f", 's:see attachment');
-		is(grep(!/^#/, $lei_err), 0, 'no errors from augment');
+		is(grep(!/^#/, $lei_err), 0, 'no errors from augment') or
+			diag $lei_err;
 		@s = grep(/^Subject:/, my @wtf = $cat->());
 		is(scalar(@s), 2, "2 results in mbox$sfx");
 

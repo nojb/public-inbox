@@ -99,21 +99,21 @@ sub _mset_more ($$) {
 	$size >= $mo->{limit} && (($mo->{offset} += $size) < $mo->{limit});
 }
 
-# $startq will EOF when query_prepare is done augmenting and allow
+# $startq will EOF when do_augment is done augmenting and allow
 # query_mset and query_thread_mset to proceed.
 sub wait_startq ($) {
 	my ($lei) = @_;
 	my $startq = delete $lei->{startq} or return;
 	while (1) {
-		my $n = sysread($startq, my $query_prepare_done, 1);
+		my $n = sysread($startq, my $do_augment_done, 1);
 		if (defined $n) {
 			return if $n == 0; # no MUA
-			if ($query_prepare_done eq 'q') {
+			if ($do_augment_done eq 'q') {
 				$lei->{opt}->{quiet} = 1;
 				delete $lei->{opt}->{verbose};
 				delete $lei->{-progress};
 			} else {
-				$lei->fail("$$ WTF `$query_prepare_done'");
+				$lei->fail("$$ WTF `$do_augment_done'");
 			}
 			return;
 		}
@@ -386,15 +386,6 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 }
 
-sub query_prepare { # called by wq_io_do
-	my ($self) = @_;
-	local $0 = "$0 query_prepare";
-	my $lei = $self->{lei};
-	eval { $lei->{l2m}->do_augment($lei) };
-	$lei->fail($@) if $@;
-	pkt_do($lei->{pkt_op_p}, '.') == 1 or die "do_post_augment trigger: $!"
-}
-
 sub do_query {
 	my ($self, $lei) = @_;
 	my $ops = {
@@ -433,7 +424,6 @@ sub do_query {
 	delete $lei->{pkt_op_p};
 	$l2m->wq_close(1) if $l2m;
 	$lei->event_step_init; # wait for shutdowns
-	$self->wq_io_do('query_prepare', []) if $l2m; # for augment/dedupe
 	start_query($self, $lei);
 	$self->wq_close(1); # lei_xsearch workers stop when done
 	if ($lei->{oneshot}) {
