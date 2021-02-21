@@ -121,7 +121,7 @@ SKIP: {
 	tiny_test($json, $host, $port);
 
 	my $grok_pull = which('grok-pull') or
-		skip('skipping grok-pull integration test', 2);
+		skip('skipping grok-pull integration test', 12);
 
 	ok(mkdir("$tmpdir/mirror"), 'prepare grok mirror dest');
 	open $fh, '>', "$tmpdir/repos.conf" or die;
