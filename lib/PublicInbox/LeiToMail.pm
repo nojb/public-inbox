@@ -331,9 +331,31 @@ sub _maildir_write_cb ($$) {
 	}
 }
 
+sub _imap_write_cb ($$) {
+	my ($self, $lei) = @_;
+	my $dedupe = $lei->{dedupe};
+	$dedupe->prepare_dedupe if $dedupe;
+	my $imap_append = $lei->{nwr}->can('imap_append');
+	my $mic = $lei->{nwr}->mic_get($lei->{ovv}->{dst});
+	my $folder = $self->{uri}->mailbox;
+	sub { # for git_to_mail
+		my ($bref, $smsg, $eml) = @_;
+		$mic // return $lei->fail; # dst may be undef-ed in last run
+		if ($dedupe) {
+			$eml //= PublicInbox::Eml->new($$bref); # copy bref
+			return if $dedupe->is_dup($eml, $smsg->{blob});
+		}
+		eval { $imap_append->($mic, $folder, $bref, $smsg, $eml) };
+		if (my $err = $@) {
+			undef $mic;
+			die $err;
+		}
+	}
+}
+
 sub write_cb { # returns a callback for git_to_mail
 	my ($self, $lei) = @_;
-	# _mbox_write_cb or _maildir_write_cb
+	# _mbox_write_cb, _maildir_write_cb or _imap_write_cb
 	my $m = "_$self->{base_type}_write_cb";
 	$self->$m($lei);
 }
@@ -360,6 +382,18 @@ sub new {
 			"$dst exists and is not a writable file\n";
 		$self->can("eml2$fmt") or die "bad mbox format: $fmt\n";
 		$self->{base_type} = 'mbox';
+	} elsif ($fmt =~ /\Aimaps?\z/) { # TODO .onion support
+		require PublicInbox::NetWriter;
+		my $nwr = PublicInbox::NetWriter->new;
+		$nwr->add_url($dst);
+		$nwr->{quiet} = $lei->{opt}->{quiet};
+		my $err = $nwr->errors($dst);
+		return $lei->fail($err) if $err;
+		require PublicInbox::URIimap; # TODO: URI cast early
+		$self->{uri} = PublicInbox::URIimap->new($dst);
+		$self->{uri}->mailbox or die "No mailbox: $dst";
+		$lei->{nwr} = $nwr;
+		$self->{base_type} = 'imap';
 	} else {
 		die "bad mail --format=$fmt\n";
 	}
@@ -391,6 +425,26 @@ sub _do_augment_maildir {
 		}
 	} else { # clobber existing Maildir
 		$maildir_each_file->($dst, \&_unlink);
+	}
+}
+
+sub _augment_imap { # PublicInbox::NetReader::imap_each cb
+	my ($url, $uid, $kw, $eml, $lei) = @_;
+	_augment($eml, $lei);
+}
+
+sub _do_augment_imap {
+	my ($self, $lei) = @_;
+	my $dst = $lei->{ovv}->{dst};
+	my $nwr = $lei->{nwr};
+	if ($lei->{opt}->{augment}) {
+		my $dedupe = $lei->{dedupe};
+		if ($dedupe && $dedupe->prepare_dedupe) {
+			$nwr->imap_each($dst, \&_augment_imap, $lei);
+			$dedupe->pause_dedupe;
+		}
+	} else { # clobber existing IMAP folder
+		$nwr->imap_delete_all($dst);
 	}
 }
 

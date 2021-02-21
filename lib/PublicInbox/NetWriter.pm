@@ -23,4 +23,16 @@ sub imap_append {
 		die "APPEND $folder: $@";
 }
 
+sub imap_delete_all {
+	my ($self, $url) = @_;
+	my $uri = PublicInbox::URIimap->new($url);
+	my $sec = $self->can('uri_section')->($uri);
+	local $0 = $uri->mailbox." $sec";
+	my $mic = $self->mic_get($sec) or die "E: not connected: $@";
+	$mic->select($uri->mailbox) or return; # non-existent
+	if ($mic->delete_message('1:*')) {
+		$mic->expunge;
+	}
+}
+
 1;

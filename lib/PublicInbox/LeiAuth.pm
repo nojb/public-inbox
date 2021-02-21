@@ -63,7 +63,7 @@ sub ipc_atfork_child {
 }
 
 sub new {
-	my ($cls, $nrd) = @_;
+	my ($cls, $nrd) = @_; # nrd may be NetReader or descendant (NetWriter)
 	bless { nrd => $nrd }, $cls;
 }
 

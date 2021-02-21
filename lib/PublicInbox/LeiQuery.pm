@@ -11,14 +11,26 @@ sub prep_ext { # externals_each callback
 	$lxs->prepare_external($loc) unless $exclude->{$loc};
 }
 
-sub qstr_add { # for --stdin
+sub _start_query {
+	my ($self) = @_;
+	if (my $nwr = $self->{nwr}) {
+		require PublicInbox::LeiAuth;
+		my $auth = $self->{auth} = PublicInbox::LeiAuth->new($nwr);
+		my $lxs = $self->{lxs};
+		$auth->auth_start($self, $lxs->can('do_query'), $lxs, $self);
+	} else {
+		$self->{lxs}->do_query($self);
+	}
+}
+
+sub qstr_add { # PublicInbox::InputPipe::consume callback for --stdin
 	my ($self) = @_; # $_[1] = $rbuf
 	if (defined($_[1])) {
 		$_[1] eq '' and return eval {
 			my $lse = delete $self->{lse};
 			$lse->query_approxidate($lse->git,
 						$self->{mset_opt}->{qstr});
-			$self->{lxs}->do_query($self);
+			_start_query($self);
 		};
 		$self->{mset_opt}->{qstr} .= $_[1];
 	} else {
@@ -115,7 +127,7 @@ no query allowed on command-line with --stdin
 		return;
 	}
 	$mset_opt{qstr} = $lse->query_argv_to_string($lse->git, \@argv);
-	$lxs->do_query($self);
+	_start_query($self);
 }
 
 # shell completion helper called by lei__complete

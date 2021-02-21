@@ -59,7 +59,12 @@ sub new {
 
 	my $fmt = $opt->{$ofmt_key};
 	$fmt = lc($fmt) if defined $fmt;
-	if ($dst =~ s/\A([a-z0-9]+)://is) { # e.g. Maildir:/home/user/Mail/
+	if ($dst =~ m!\A([a-z0-9\+]+)://!is) {
+		defined($fmt) and return $lei->fail(<<"");
+--$ofmt_key=$fmt invalid with URL $dst
+
+		$fmt = lc $1;
+	} elsif ($dst =~ s/\A([a-z0-9]+)://is) { # e.g. Maildir:/home/user/Mail/
 		my $ofmt = lc $1;
 		$fmt //= $ofmt;
 		return $lei->fail(<<"") if $fmt ne $ofmt;
