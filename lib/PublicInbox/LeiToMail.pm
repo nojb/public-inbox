@@ -19,6 +19,7 @@ use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
 use Errno qw(EEXIST ESPIPE ENOENT EPIPE);
+use Digest::SHA qw(sha256_hex);
 my ($maildir_each_file);
 
 # struggles with short-lived repos, Gcf2Client makes little sense with lei;
@@ -269,7 +270,15 @@ sub _mbox_write_cb ($$) {
 }
 
 sub _augment_file { # maildir_each_file cb
-	my ($f, $lei) = @_;
+	my ($f, $lei, $mod, $shard) = @_;
+	if ($mod) {
+		# can't get dirent.d_ino w/ pure Perl, so we extract the OID
+		# if it looks like one:
+		my $hex = $f =~ m!\b([a-f0-9]{40,})[^/]*\z! ?
+				$1 : sha256_hex($f);
+		my $recno = hex(substr($hex, 0, 8));
+		return if ($recno % $mod) != $shard;
+	}
 	my $eml = PublicInbox::InboxWritable::eml_from_path($f) or return;
 	_augment($eml, $lei);
 }
@@ -421,7 +430,9 @@ sub _do_augment_maildir {
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
-			$maildir_each_file->($dst, \&_augment_file, $lei);
+			my ($mod, $shard) = @{$self->{shard_info} // []};
+			$maildir_each_file->($dst, \&_augment_file,
+						$lei, $mod, $shard);
 			$dedupe->pause_dedupe;
 		}
 	} else { # clobber existing Maildir
@@ -516,11 +527,24 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = delete $self->{lei};
 	$lei->lei_atfork_child;
-	if ($self->{-wq_worker_nr} == 0) {
+	my $aug;
+	if (lock_free($self)) {
+		my $mod = $self->{-wq_nr_workers};
+		my $shard = $self->{-wq_worker_nr};
+		if (my $nwr = $lei->{nwr}) {
+			$nwr->{shard_info} = [ $mod, $shard ];
+		} else { # Maildir (MH?)
+			$self->{shard_info} = [ $mod, $shard ];
+		}
+		$aug = '+'; # incr_post_augment
+	} elsif ($self->{-wq_worker_nr} == 0) {
+		$aug = '.'; # do_post_augment
+	}
+	if ($aug) {
 		local $0 = 'do_augment';
 		eval { do_augment($self, $lei) };
 		$lei->fail($@) if $@;
-		pkt_do($lei->{pkt_op_p}, '.') == 1 or
+		pkt_do($lei->{pkt_op_p}, $aug) == 1 or
 					die "do_post_augment trigger: $!";
 	}
 	if (my $zpipe = delete $lei->{zpipe}) {

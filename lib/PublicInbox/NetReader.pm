@@ -363,8 +363,11 @@ sub _imap_fetch_all ($$$) {
 	}
 	return if $l_uid >= $r_uid; # nothing to do
 	$l_uid ||= 1;
-
-	warn "# $uri fetching UID $l_uid:$r_uid\n" unless $self->{quiet};
+	my ($mod, $shard) = @{$self->{shard_info} // []};
+	unless ($self->{quiet}) {
+		my $m = $mod ? " [(UID % $mod) == $shard]" : '';
+		warn "# $uri fetching UID $l_uid:$r_uid$m\n";
+	}
 	$mic->Uid(1); # the default, we hope
 	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 1;
 	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
@@ -391,6 +394,8 @@ sub _imap_fetch_all ($$$) {
 		$l_uid = $uids->[-1] + 1; # for next search
 		my $last_uid;
 		my $n = $self->{max_batch};
+
+		@$uids = grep { ($_ % $mod) == $shard } @$uids if $mod;
 		while (scalar @$uids) {
 			my @batch = splice(@$uids, 0, $bs);
 			$batch = join(',', @batch);

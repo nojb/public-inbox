@@ -331,23 +331,28 @@ Error closing $lei->{ovv}->{dst}: $!
 
 sub do_post_augment {
 	my ($lei) = @_;
-	my $l2m = $lei->{l2m};
+	my $l2m = $lei->{l2m} or die 'BUG: unexpected do_post_augment';
 	my $err;
-	if ($l2m) {
-		eval { $l2m->post_augment($lei) };
-		$err = $@;
-		if ($err) {
-			if (my $lxs = delete $lei->{lxs}) {
-				$lxs->wq_kill;
-				$lxs->wq_close(0, undef, $lei);
-			}
-			$lei->fail("$err");
+	eval { $l2m->post_augment($lei) };
+	$err = $@;
+	if ($err) {
+		if (my $lxs = delete $lei->{lxs}) {
+			$lxs->wq_kill;
+			$lxs->wq_close(0, undef, $lei);
 		}
+		$lei->fail("$err");
 	}
 	if (!$err && delete $lei->{early_mua}) { # non-augment case
 		$lei->start_mua;
 	}
 	close(delete $lei->{au_done}); # triggers wait_startq in lei_xsearch
+}
+
+sub incr_post_augment { # called whenever an l2m shard finishes
+	my ($lei) = @_;
+	my $l2m = $lei->{l2m} or die 'BUG: unexpected incr_post_augment';
+	return if ++$lei->{nr_post_augment} != $l2m->{-wq_nr_workers};
+	do_post_augment($lei);
 }
 
 my $MAX_PER_HOST = 4;
@@ -392,6 +397,7 @@ sub do_query {
 		'|' => [ $lei->can('sigpipe_handler'), $lei ],
 		'!' => [ $lei->can('fail_handler'), $lei ],
 		'.' => [ \&do_post_augment, $lei ],
+		'+' => [ \&incr_post_augment, $lei ],
 		'' => [ \&query_done, $lei ],
 		'mset_progress' => [ \&mset_progress, $lei ],
 		'x_it' => [ $lei->can('x_it'), $lei ],
