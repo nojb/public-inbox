@@ -122,22 +122,27 @@ SKIP: {
 
 	my $grok_pull = which('grok-pull') or
 		skip('grok-pull not available', 12);
+	my ($grok_version) = (xqx([$grok_pull, "--version"])
+			=~ /(\d+)\.(?:\d+)(?:\.(\d+))?/);
+	$grok_version >= 2 or
+		skip('grok-pull v2 or later not available', 12);
 
 	ok(mkdir("$tmpdir/mirror"), 'prepare grok mirror dest');
 	open $fh, '>', "$tmpdir/repos.conf" or die;
 	print $fh <<"" or die;
-# You can pull from multiple grok mirrors, just create
-# a separate section for each mirror. The name can be anything.
-[test]
-site = http://$host:$port
-manifest = http://$host:$port/manifest.js.gz
+[core]
 toplevel = $tmpdir/mirror
-mymanifest = $tmpdir/local-manifest.js.gz
+manifest = $tmpdir/local-manifest.js.gz
+[remote]
+site = http://$host:$port
+manifest = \${site}/manifest.js.gz
+[pull]
+[fsck]
 
 	close $fh or die;
 
 	xsys($grok_pull, '-c', "$tmpdir/repos.conf");
-	is($? >> 8, 127, 'grok-pull exit code as expected');
+	is($? >> 8, 0, 'grok-pull exit code as expected');
 	for (qw(alt bare v2/git/0.git v2/git/1.git v2/git/2.git)) {
 		ok(-d "$tmpdir/mirror/$_", "grok-pull created $_");
 	}
@@ -146,18 +151,19 @@ mymanifest = $tmpdir/local-manifest.js.gz
 	# /$INBOX/v2/manifest.js.gz
 	open $fh, '>', "$tmpdir/per-inbox.conf" or die;
 	print $fh <<"" or die;
-# You can pull from multiple grok mirrors, just create
-# a separate section for each mirror. The name can be anything.
-[v2]
-site = http://$host:$port
-manifest = http://$host:$port/v2/manifest.js.gz
+[core]
 toplevel = $tmpdir/per-inbox
-mymanifest = $tmpdir/per-inbox-manifest.js.gz
+manifest = $tmpdir/per-inbox-manifest.js.gz
+[remote]
+site = http://$host:$port
+manifest = \${site}/v2/manifest.js.gz
+[pull]
+[fsck]
 
 	close $fh or die;
 	ok(mkdir("$tmpdir/per-inbox"), 'prepare single-v2-inbox mirror');
 	xsys($grok_pull, '-c', "$tmpdir/per-inbox.conf");
-	is($? >> 8, 127, 'grok-pull exit code as expected');
+	is($? >> 8, 0, 'grok-pull exit code as expected');
 	for (qw(v2/git/0.git v2/git/1.git v2/git/2.git)) {
 		ok(-d "$tmpdir/per-inbox/$_", "grok-pull created $_");
 	}
