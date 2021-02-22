@@ -592,7 +592,7 @@ sub _lei_cfg ($;$) {
 	if (!@st) {
 		unless ($creat) {
 			delete $self->{cfg};
-			return;
+			return bless {}, 'PublicInbox::Config';
 		}
 		my (undef, $cfg_dir, undef) = File::Spec->splitpath($f);
 		-d $cfg_dir or mkpath($cfg_dir) or die "mkpath($cfg_dir): $!\n";

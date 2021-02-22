@@ -42,7 +42,6 @@ sub auth_eof {
 
 sub auth_start {
 	my ($self, $lei, $post_auth_cb, @args) = @_;
-	$lei->_lei_cfg(1); # workers may need to read config
 	my $op = $lei->workers_start($self, 'auth', 1, {
 		'net_merge' => [ \&net_merge, $lei ],
 		'' => [ \&auth_eof, $lei, $post_auth_cb, @args ],

@@ -9,7 +9,7 @@ use PublicInbox::Config;
 
 sub externals_each {
 	my ($self, $cb, @arg) = @_;
-	my $cfg = $self->_lei_cfg(0);
+	my $cfg = $self->_lei_cfg;
 	my %boost;
 	for my $sec (grep(/\Aexternal\./, @{$cfg->{-section_order}})) {
 		my $loc = substr($sec, length('external.'));
@@ -234,7 +234,7 @@ sub _complete_url_common ($) {
 # shell completion helper called by lei__complete
 sub _complete_forget_external {
 	my ($self, @argv) = @_;
-	my $cfg = $self->_lei_cfg(0);
+	my $cfg = $self->_lei_cfg;
 	my ($cur, $re) = _complete_url_common(\@argv);
 	# FIXME: bash completion off "http:" or "https:" when the last
 	# character is a colon doesn't work properly even if we're
@@ -250,7 +250,7 @@ sub _complete_forget_external {
 
 sub _complete_add_external { # for bash, this relies on "compopt -o nospace"
 	my ($self, @argv) = @_;
-	my $cfg = $self->_lei_cfg(0);
+	my $cfg = $self->_lei_cfg;
 	my ($cur, $re) = _complete_url_common(\@argv);
 	require URI;
 	map {
