@@ -6,27 +6,16 @@
 package PublicInbox::LeiAuth;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::IPC);
 use PublicInbox::PktOp qw(pkt_do);
-
-sub net_merge {
-	my ($lei, $net_new) = @_;
-	if ($lei->{pkt_op_p}) { # from lei_convert worker
-		pkt_do($lei->{pkt_op_p}, 'net_merge', $net_new);
-	} else { # single lei-daemon consumer
-		my $self = $lei->{auth} or return; # client disconnected
-		my $net = $self->{net};
-		%$net = (%$net, %$net_new);
-	}
-}
 
 sub do_auth_atfork { # used by IPC WQ workers
 	my ($self, $wq) = @_;
 	return if $wq->{-wq_worker_nr} != 0;
 	my $lei = $wq->{lei};
-	my $net = $self->{net};
+	my $net = $lei->{net};
 	my $mics = $net->imap_common_init($lei);
-	net_merge($lei, $net);
+	pkt_do($lei->{pkt_op_p}, 'net_merge', $net) or
+			die "pkt_do net_merge: $!";
 	$net->{mics_cached} = $mics;
 }
 
@@ -36,7 +25,7 @@ sub net_merge_done1 { # bump merge-count in top-level lei-daemon
 	$wq->net_merge_complete; # defined per wq-class (e.g. LeiImport)
 }
 
-sub net_merge_all { # called via wq_broadcast
+sub net_merge_all { # called in wq worker via wq_broadcast
 	my ($wq, $net_new) = @_;
 	my $net = $wq->{lei}->{net};
 	%$net = (%$net, %$net_new);
@@ -56,9 +45,6 @@ sub op_merge { # prepares PktOp->pair ops
 	$ops->{net_merge_done1} = [ \&net_merge_done1, $wq ];
 }
 
-sub new {
-	my ($cls, $net) = @_; # net may be NetReader or descendant (NetWriter)
-	bless { net => $net }, $cls;
-}
+sub new { bless \(my $x), __PACKAGE__ }
 
 1;

@@ -324,7 +324,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp mrr cnv auth); # internal workers
+my @WQ_KEYS = qw(lxs l2m imp mrr cnv); # internal workers
 
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {

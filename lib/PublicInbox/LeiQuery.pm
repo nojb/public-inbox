@@ -13,9 +13,9 @@ sub prep_ext { # externals_each callback
 
 sub _start_query {
 	my ($self) = @_;
-	if (my $net = $self->{net}) {
+	if ($self->{net}) {
 		require PublicInbox::LeiAuth;
-		$self->{auth} = PublicInbox::LeiAuth->new($net);
+		$self->{auth} = PublicInbox::LeiAuth->new
 	}
 	$self->{lxs}->do_query($self);
 }

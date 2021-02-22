@@ -112,7 +112,7 @@ sub call { # the main "lei import" method
 		$net->{quiet} = $lei->{opt}->{quiet};
 		$lei->{net} = $net;
 		require PublicInbox::LeiAuth;
-		$lei->{auth} = PublicInbox::LeiAuth->new($net);
+		$lei->{auth} = PublicInbox::LeiAuth->new;
 	}
 	import_start($lei);
 }
