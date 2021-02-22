@@ -29,32 +29,12 @@ sub import_done { # EOF callback for main daemon
 	$imp->wq_wait_old(\&import_done_wait, $lei);
 }
 
-sub net_merge_all { # via wq_broadcast
-	my ($self, $net_new) = @_;
-	my $net = $self->{lei}->{net};
-	%$net = (%$net, %$net_new);
-	pkt_do($self->{lei}->{pkt_op_p}, 'net_merge_done1') or
-		die "pkt_op_do net_merge_done1: $!";
-}
-
-sub net_merge_continue { # first worker is done with auth
-	my ($self, $net_new) = @_;
-	$self->wq_broadcast('net_merge_all', $net_new);
-}
-
-sub net_merge_complete {
+sub net_merge_complete { # callback used by LeiAuth
 	my ($self) = @_;
 	for my $input (@{$self->{inputs}}) {
 		$self->wq_io_do('import_path_url', [], $input);
 	}
 	$self->wq_close(1);
-}
-
-sub net_merge_done1 {
-	my ($self) = @_;
-	my $lei = $self->{lei};
-	return if ++$lei->{nr_net_merge_done} != $self->{-wq_nr_workers};
-	net_merge_complete($self);
 }
 
 sub import_start {
@@ -68,15 +48,11 @@ sub import_start {
 		$j = $nproc if $j > $nproc;
 	}
 	my $ops = { '' => [ \&import_done, $lei ] };
-	my $auth = $lei->{auth};
-	if ($auth) {
-		$ops->{net_merge} = [ \&net_merge_continue, $self ];
-		$ops->{net_merge_done1} = [ \&net_merge_done1, $self ];
-	}
+	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{-wq_nr_workers} = $j // 1; # locked
 	my $op = $lei->workers_start($self, 'lei_import', undef, $ops);
 	$self->wq_io_do('import_stdin', []) if $self->{0};
-	net_merge_complete($self) if !$auth;
+	net_merge_complete($self) unless $lei->{auth};
 	while ($op && $op->{sock}) { $op->event_step }
 }
 
@@ -147,12 +123,7 @@ sub ipc_atfork_child {
 	delete $lei->{imp}; # drop circular ref
 	$lei->lei_atfork_child;
 	$self->SUPER::ipc_atfork_child;
-	my $net = $lei->{net};
-	if ($net && $self->{-wq_worker_nr} == 0) {
-		my $mics = $net->imap_common_init($lei);
-		PublicInbox::LeiAuth::net_merge($lei, $net);
-		$net->{mics_cached} = $mics;
-	}
+	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	undef;
 }
 
@@ -222,4 +193,6 @@ sub import_stdin {
 	_import_fh($lei, delete $self->{0}, '<stdin>', $lei->{opt}->{'format'});
 }
 
+no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
+*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 1;
