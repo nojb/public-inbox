@@ -32,7 +32,7 @@ sub try_scrape {
 	my $curl = $self->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
 	my $cmd = $curl->for_uri($lei, $uri, '--compressed');
 	my $opt = { 0 => $lei->{0}, 2 => $lei->{2} };
-	my $fh = popen_rd($cmd, $lei->{env}, $opt);
+	my $fh = popen_rd($cmd, undef, $opt);
 	my $html = do { local $/; <$fh> } // die "read(curl $uri): $!";
 	close($fh) or return $lei->child_error($?, "@$cmd failed");
 
@@ -142,7 +142,7 @@ sub run_reap {
 	my ($lei, $cmd, $opt) = @_;
 	$lei->qerr("# @$cmd");
 	$opt->{pgid} = 0;
-	my $pid = spawn($cmd, $lei->{env}, $opt);
+	my $pid = spawn($cmd, undef, $opt);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	my $err = waitpid($pid, 0) == $pid ? undef : "waitpid @$cmd: $!";
 	@$reap = (); # cancel reap
@@ -205,7 +205,7 @@ sub try_manifest {
 	my $cmd = $curl->for_uri($lei, $uri);
 	$lei->qerr("# @$cmd");
 	my $opt = { 0 => $lei->{0}, 2 => $lei->{2} };
-	my ($fh, $pid) = popen_rd($cmd, $lei->{env}, $opt);
+	my ($fh, $pid) = popen_rd($cmd, undef, $opt);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	my $gz = do { local $/; <$fh> } // die "read(curl $uri): $!";
 	close $fh;

@@ -215,7 +215,7 @@ sub query_remote_mboxrd {
 	local $0 = "$0 query_remote_mboxrd";
 	local $SIG{TERM} = sub { exit(0) }; # for DESTROY (File::Temp, $reap)
 	my $lei = $self->{lei};
-	my ($opt, $env) = @$lei{qw(opt env)};
+	my $opt = $lei->{opt};
 	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
 	push(@qform, t => 1) if $opt->{threads};
 	my $verbose = $opt->{verbose};
@@ -241,7 +241,7 @@ sub query_remote_mboxrd {
 		$uri->query_form(@qform);
 		my $cmd = $curl->for_uri($lei, $uri);
 		$lei->qerr("# $cmd");
-		my ($fh, $pid) = popen_rd($cmd, $env, $rdr);
+		my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
 		$reap_curl = PublicInbox::OnDestroy->new($sigint_reap, $pid);
 		$fh = IO::Uncompress::Gunzip->new($fh);
 		PublicInbox::MboxReader->mboxrd($fh, \&each_eml, $self,

@@ -218,7 +218,7 @@ sub _post_augment_mbox { # open a compressor process
 	my $cmd = zsfx2cmd($zsfx, undef, $lei);
 	my ($r, $w) = @{delete $lei->{zpipe}};
 	my $rdr = { 0 => $r, 1 => $lei->{1}, 2 => $lei->{2} };
-	my $pid = spawn($cmd, $lei->{env}, $rdr);
+	my $pid = spawn($cmd, undef, $rdr);
 	my $pp = gensym;
 	my $dup = bless { "pid.$pid" => $cmd }, ref($lei);
 	$dup->{$_} = $lei->{$_} for qw(2 sock);
@@ -231,7 +231,7 @@ sub _post_augment_mbox { # open a compressor process
 sub decompress_src ($$$) {
 	my ($in, $zsfx, $lei) = @_;
 	my $cmd = zsfx2cmd($zsfx, 1, $lei);
-	popen_rd($cmd, $lei->{env}, { 0 => $in, 2 => $lei->{2} });
+	popen_rd($cmd, undef, { 0 => $in, 2 => $lei->{2} });
 }
 
 sub dup_src ($) {

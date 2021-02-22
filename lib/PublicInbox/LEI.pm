@@ -850,8 +850,7 @@ sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 # caller needs to "-t $self->{1}" to check if tty
 sub start_pager {
 	my ($self) = @_;
-	my $env = $self->{env};
-	my $fh = popen_rd([qw(git var GIT_PAGER)], $env);
+	my $fh = popen_rd([qw(git var GIT_PAGER)]);
 	chomp(my $pager = <$fh> // '');
 	close($fh) or warn "`git var PAGER' error: \$?=$?";
 	return if $pager eq 'cat' || $pager eq '';
@@ -860,6 +859,7 @@ sub start_pager {
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
 	my $pgr = [ undef, @$rdr{1, 2} ];
+	my $env = $self->{env};
 	if ($self->{sock}) { # lei(1) process runs it
 		delete @$new_env{keys %$env}; # only set iff unset
 		send_exec_cmd($self, [ @$rdr{0..2} ], [$pager], $new_env);
