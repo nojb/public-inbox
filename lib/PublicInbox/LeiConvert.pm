@@ -62,17 +62,6 @@ sub do_convert { # via wq_do
 	delete $self->{wcb}; # commit
 }
 
-sub convert_start {
-	my ($lei) = @_;
-	my $self = $lei->{cnv};
-	my $op = $lei->workers_start($self, 'lei_convert', 1, {
-		'' => [ $lei->can('dclose'), $lei ]
-	});
-	$self->wq_io_do('do_convert', []);
-	$self->wq_close(1);
-	while ($op && $op->{sock}) { $op->event_step }
-}
-
 sub call { # the main "lei convert" method
 	my ($cls, $lei, @inputs) = @_;
 	my $opt = $lei->{opt};
@@ -131,7 +120,12 @@ sub call { # the main "lei convert" method
 		$nrd->{quiet} = $opt->{quiet};
 		$lei->{nrd} = $nrd;
 	}
-	convert_start($lei);
+	my $op = $lei->workers_start($self, 'lei_convert', 1, {
+		'' => [ $lei->can('dclose'), $lei ]
+	});
+	$self->wq_io_do('do_convert', []);
+	$self->wq_close(1);
+	while ($op && $op->{sock}) { $op->event_step }
 }
 
 sub ipc_atfork_child {
