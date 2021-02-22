@@ -32,6 +32,10 @@ sub do_convert { # via wq_do
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	my $in_fmt = $lei->{opt}->{'in-format'};
+	my $mics;
+	if (my $nrd = $lei->{nrd}) { # may prompt user once
+		$nrd->{mics_cached} = $nrd->imap_common_init($lei);
+	}
 	if (my $stdin = delete $self->{0}) {
 		PublicInbox::MboxReader->$in_fmt($stdin, \&mbox_cb, $self);
 	}
@@ -120,16 +124,14 @@ sub call { # the main "lei convert" method
 		require PublicInbox::MdirReader;
 	}
 	$self->{inputs} = \@inputs;
-	return convert_start($lei) if !$nrd;
-
-	if (my $err = $nrd->errors) {
-		return $lei->fail($err);
+	if ($nrd) {
+		if (my $err = $nrd->errors) {
+			return $lei->fail($err);
+		}
+		$nrd->{quiet} = $opt->{quiet};
+		$lei->{nrd} = $nrd;
 	}
-	$nrd->{quiet} = $opt->{quiet};
-	$lei->{nrd} = $nrd;
-	require PublicInbox::LeiAuth;
-	my $auth = $lei->{auth} = PublicInbox::LeiAuth->new($nrd);
-	$auth->auth_start($lei, \&convert_start, $lei);
+	convert_start($lei);
 }
 
 sub ipc_atfork_child {

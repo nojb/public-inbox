@@ -423,14 +423,16 @@ sub _imap_fetch_all ($$$) {
 
 # uses cached auth info prepared by mic_for
 sub mic_get {
-	my ($self, $sec) = @_;
-	my $mic_arg = $self->{mic_arg}->{$sec};
-	unless ($mic_arg) {
-		my $uri = ref $sec ? $sec : PublicInbox::URIimap->new($sec);
-		$sec = uri_section($uri);
-		$mic_arg = $self->{mic_arg}->{$sec} or
-			die "BUG: no Mail::IMAPClient->new arg for $sec";
+	my ($self, $uri) = @_;
+	my $sec = uri_section($uri);
+	# see if caller saved result of imap_common_init
+	if (my $cached = $self->{mics_cached}) {
+		my $mic = $cached->{$sec};
+		return $mic if $mic && $mic->IsConnected;
+		delete $cached->{$sec};
 	}
+	my $mic_arg = $self->{mic_arg}->{$sec} or
+			die "BUG: no Mail::IMAPClient->new arg for $sec";
 	if (defined(my $cb_name = $mic_arg->{Authcallback})) {
 		if (ref($cb_name) ne 'CODE') {
 			$mic_arg->{Authcallback} = $self->can($cb_name);
