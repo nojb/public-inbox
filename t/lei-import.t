@@ -13,6 +13,19 @@ lei_ok([qw(import -f eml -)], undef, { %$lei_opt, 0 => $fh },
 	\'import single file from stdin') or diag $lei_err;
 close $fh;
 lei_ok(qw(q s:boolean), \'search hit after import');
+lei_ok(qw(q s:boolean -f mboxrd), \'blob accessible after import');
+{
+	my $expect = [ eml_load('t/data/0001.patch') ];
+	require PublicInbox::MboxReader;
+	my @cmp;
+	open my $fh, '<', \$lei_out or BAIL_OUT "open :scalar: $!";
+	PublicInbox::MboxReader->mboxrd($fh, sub {
+		my ($eml) = @_;
+		$eml->header_set('Status');
+		push @cmp, $eml;
+	});
+	is_deeply(\@cmp, $expect, 'got expected message in mboxrd');
+}
 lei_ok(qw(import -f eml), 't/data/message_embed.eml',
 	\'import single file by path');
 

@@ -192,10 +192,10 @@ sub maildir_keywords {
 
 sub add_eml {
 	my ($self, $eml, @kw) = @_;
-	my $eidx = eidx_init($self);
+	my $im = $self->importer; # may create new epoch
+	my $eidx = eidx_init($self); # writes ALL.git/objects/info/alternates
 	my $oidx = $eidx->{oidx};
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
-	my $im = $self->importer;
 	$im->add($eml, undef, $smsg) or return; # duplicate returns undef
 
 	local $self->{current_info} = $smsg->{blob};
