@@ -426,7 +426,8 @@ sub mic_get {
 	my ($self, $uri) = @_;
 	my $sec = uri_section($uri);
 	# see if caller saved result of imap_common_init
-	if (my $cached = $self->{mics_cached}) {
+	my $cached = $self->{mics_cached};
+	if ($cached) {
 		my $mic = $cached->{$sec};
 		return $mic if $mic && $mic->IsConnected;
 		delete $cached->{$sec};
@@ -439,7 +440,8 @@ sub mic_get {
 		}
 	}
 	my $mic = PublicInbox::IMAPClient->new(%$mic_arg);
-	$mic && $mic->IsConnected ? $mic : undef;
+	$cached //= {}; # invalid placeholder if no cache enabled
+	$mic && $mic->IsConnected ? ($cached->{$sec} = $mic) : undef;
 }
 
 sub imap_each {
