@@ -358,10 +358,9 @@ sub spawn ($;$$) {
 	my $f = which($cmd->[0]) // die "$cmd->[0]: command not found\n";
 	my @env;
 	$opts ||= {};
-
-	my %env = $env ? (%ENV, %$env) : %ENV;
+	my %env = (%ENV, $env ? %$env : ());
 	while (my ($k, $v) = each %env) {
-		push @env, "$k=$v";
+		push @env, "$k=$v" if defined($v);
 	}
 	my $redir = [];
 	for my $child_fd (0..2) {

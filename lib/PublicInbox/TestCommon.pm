@@ -483,10 +483,11 @@ SKIP: {
 	require_git(2.6, 1) or skip('git 2.6+ required for lei test', 2);
 	require_mods(qw(json DBD::SQLite Search::Xapian), 2);
 	require PublicInbox::Config;
-	delete local $ENV{XDG_DATA_HOME};
-	delete local $ENV{XDG_CONFIG_HOME};
-	local $ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
-	local $ENV{GIT_COMMITTER_NAME} = 'lei user';
+	local %ENV = %ENV;
+	delete $ENV{XDG_DATA_HOME};
+	delete $ENV{XDG_CONFIG_HOME};
+	$ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
+	$ENV{GIT_COMMITTER_NAME} = 'lei user';
 	my (undef, $fn, $lineno) = caller(0);
 	my $t = "$fn:$lineno";
 	require PublicInbox::Spawn;

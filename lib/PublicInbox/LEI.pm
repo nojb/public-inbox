@@ -641,13 +641,11 @@ sub lei_mark {
 
 sub _config {
 	my ($self, @argv) = @_;
-	my $env = $self->{env};
-	delete local $env->{GIT_CONFIG};
-	delete local $ENV{GIT_CONFIG};
+	my %env = (%{$self->{env}}, GIT_CONFIG => undef);
 	my $cfg = _lei_cfg($self, 1);
 	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
 	my %rdr = map { $_ => $self->{$_} } (0..2);
-	waitpid(spawn($cmd, $env, \%rdr), 0);
+	waitpid(spawn($cmd, \%env, \%rdr), 0);
 }
 
 sub lei_config {

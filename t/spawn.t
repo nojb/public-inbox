@@ -121,6 +121,12 @@ EOF
 	isnt($?, 0, '$? set properly: '.$?);
 }
 
+{
+	local $ENV{GIT_CONFIG} = '/path/to/this/better/not/exist';
+	my $fh = popen_rd([qw(env)], { GIT_CONFIG => undef });
+	ok(!grep(/^GIT_CONFIG=/, <$fh>), 'GIT_CONFIG clobbered');
+}
+
 { # ->CLOSE vs ->DESTROY waitpid caller distinction
 	my @c;
 	my $fh = popen_rd(['true'], undef, { cb => sub { @c = caller } });

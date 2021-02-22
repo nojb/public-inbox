@@ -1011,8 +1011,9 @@ sub _watch_commit { # PublicInbox::DS::add_timer callback
 	delete $self->{-commit_timer};
 	eidxq_process($self, $self->{-watch_sync});
 	eidxq_release($self);
-	delete local $self->{-watch_sync}->{-regen_fmt};
+	my $fmt = delete $self->{-watch_sync}->{-regen_fmt};
 	reindex_checkpoint($self, $self->{-watch_sync});
+	$self->{-watch_sync}->{-regen_fmt} = $fmt;
 
 	# call event_step => done unless commit_timer is armed
 	PublicInbox::DS::requeue($self);
