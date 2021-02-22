@@ -348,7 +348,7 @@ sub do_post_augment {
 	close(delete $lei->{au_done}); # triggers wait_startq in lei_xsearch
 }
 
-sub incr_post_augment { # called whenever an l2m shard finishes
+sub incr_post_augment { # called whenever an l2m shard finishes augment
 	my ($lei) = @_;
 	my $l2m = $lei->{l2m} or die 'BUG: unexpected incr_post_augment';
 	return if ++$lei->{nr_post_augment} != $l2m->{-wq_nr_workers};
@@ -366,8 +366,8 @@ sub concurrency {
 }
 
 sub start_query { # always runs in main (lei-daemon) process
-	my ($self, $lei) = @_;
-	if ($lei->{opt}->{threads}) {
+	my ($self) = @_;
+	if ($self->{threads}) {
 		for my $ibxish (locals($self)) {
 			$self->wq_io_do('query_thread_mset', [], $ibxish);
 		}
@@ -382,6 +382,13 @@ sub start_query { # always runs in main (lei-daemon) process
 	for my $uris (@$q) {
 		$self->wq_io_do('query_remote_mboxrd', [], $uris);
 	}
+	$self->wq_close(1); # lei_xsearch workers stop when done
+}
+
+sub incr_start_query { # called whenever an l2m shard starts do_post_auth
+	my ($self, $l2m) = @_;
+	return if ++$self->{nr_start_query} != $l2m->{-wq_nr_workers};
+	start_query($self);
 }
 
 sub ipc_atfork_child {
@@ -393,6 +400,7 @@ sub ipc_atfork_child {
 
 sub do_query {
 	my ($self, $lei) = @_;
+	my $l2m = $lei->{l2m};
 	my $ops = {
 		'|' => [ $lei->can('sigpipe_handler'), $lei ],
 		'!' => [ $lei->can('fail_handler'), $lei ],
@@ -402,12 +410,13 @@ sub do_query {
 		'mset_progress' => [ \&mset_progress, $lei ],
 		'x_it' => [ $lei->can('x_it'), $lei ],
 		'child_error' => [ $lei->can('child_error'), $lei ],
+		'incr_start_query' => [ \&incr_start_query, $self, $l2m ],
 	};
+	$lei->{auth}->op_merge($ops, $l2m) if $l2m && $lei->{auth};
 	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
 	$lei->{1}->autoflush(1);
 	$lei->start_pager if delete $lei->{need_pager};
 	$lei->{ovv}->ovv_begin($lei);
-	my $l2m = $lei->{l2m};
 	if ($l2m) {
 		$l2m->pre_augment($lei);
 		if ($lei->{opt}->{augment} && delete $lei->{early_mua}) {
@@ -428,10 +437,13 @@ sub do_query {
 				$lei->oldset, { lei => $lei });
 	my $op = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};
-	$l2m->wq_close(1) if $l2m;
+	$self->{threads} = $lei->{opt}->{threads};
+	if ($l2m) {
+		$l2m->net_merge_complete unless $lei->{auth};
+	} else {
+		start_query($self);
+	}
 	$lei->event_step_init; # wait for shutdowns
-	start_query($self, $lei);
-	$self->wq_close(1); # lei_xsearch workers stop when done
 	if ($lei->{oneshot}) {
 		while ($op->{sock}) { $op->event_step }
 	}

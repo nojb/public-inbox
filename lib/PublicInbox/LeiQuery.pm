@@ -13,14 +13,11 @@ sub prep_ext { # externals_each callback
 
 sub _start_query {
 	my ($self) = @_;
-	if (my $nwr = $self->{nwr}) {
+	if (my $net = $self->{net}) {
 		require PublicInbox::LeiAuth;
-		my $auth = $self->{auth} = PublicInbox::LeiAuth->new($nwr);
-		my $lxs = $self->{lxs};
-		$auth->auth_start($self, $lxs->can('do_query'), $lxs, $self);
-	} else {
-		$self->{lxs}->do_query($self);
+		$self->{auth} = PublicInbox::LeiAuth->new($net);
 	}
+	$self->{lxs}->do_query($self);
 }
 
 sub qstr_add { # PublicInbox::InputPipe::consume callback for --stdin

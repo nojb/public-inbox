@@ -62,7 +62,7 @@ sub do_convert { # via wq_do
 	delete $self->{wcb}; # commit
 }
 
-sub convert_start { # LeiAuth->auth_start callback
+sub convert_start {
 	my ($lei) = @_;
 	my $self = $lei->{cnv};
 	my $op = $lei->workers_start($self, 'lei_convert', 1, {

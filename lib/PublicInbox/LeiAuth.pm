@@ -20,13 +20,6 @@ sub net_merge {
 	}
 }
 
-sub do_auth { # called via wq_io_do
-	my ($self) = @_;
-	my ($lei, $net) = @$self{qw(lei net)};
-	$net->imap_common_init($lei);
-	net_merge($lei, $net); # tell lei-daemon updated auth info
-}
-
 sub do_auth_atfork { # used by IPC WQ workers
 	my ($self, $wq) = @_;
 	return if $wq->{-wq_worker_nr} != 0;
@@ -61,36 +54,6 @@ sub op_merge { # prepares PktOp->pair ops
 	my ($self, $ops, $wq) = @_;
 	$ops->{net_merge} = [ \&net_merge_continue, $wq ];
 	$ops->{net_merge_done1} = [ \&net_merge_done1, $wq ];
-}
-
-sub do_finish_auth { # dwaitpid callback
-	my ($arg, $pid) = @_;
-	my ($self, $lei, $post_auth_cb, @args) = @$arg;
-	$? ? $lei->dclose : $post_auth_cb->(@args);
-}
-
-sub auth_eof {
-	my ($lei, $post_auth_cb, @args) = @_;
-	my $self = delete $lei->{auth} or return;
-	$self->wq_wait_old(\&do_finish_auth, $lei, $post_auth_cb, @args);
-}
-
-sub auth_start {
-	my ($self, $lei, $post_auth_cb, @args) = @_;
-	my $op = $lei->workers_start($self, 'auth', 1, {
-		'net_merge' => [ \&net_merge, $lei ],
-		'' => [ \&auth_eof, $lei, $post_auth_cb, @args ],
-	});
-	$self->wq_io_do('do_auth', []);
-	$self->wq_close(1);
-	while ($op && $op->{sock}) { $op->event_step }
-}
-
-sub ipc_atfork_child {
-	my ($self) = @_;
-	delete $self->{lei}->{auth}; # drop circular ref
-	$self->{lei}->lei_atfork_child;
-	$self->SUPER::ipc_atfork_child;
 }
 
 sub new {

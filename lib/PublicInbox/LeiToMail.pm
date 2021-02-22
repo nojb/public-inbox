@@ -345,8 +345,8 @@ sub _imap_write_cb ($$) {
 	my ($self, $lei) = @_;
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe if $dedupe;
-	my $imap_append = $lei->{nwr}->can('imap_append');
-	my $mic = $lei->{nwr}->mic_get($self->{uri});
+	my $imap_append = $lei->{net}->can('imap_append');
+	my $mic = $lei->{net}->mic_get($self->{uri});
 	my $folder = $self->{uri}->mailbox;
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
@@ -394,15 +394,15 @@ sub new {
 		$self->{base_type} = 'mbox';
 	} elsif ($fmt =~ /\Aimaps?\z/) { # TODO .onion support
 		require PublicInbox::NetWriter;
-		my $nwr = PublicInbox::NetWriter->new;
-		$nwr->add_url($dst);
-		$nwr->{quiet} = $lei->{opt}->{quiet};
-		my $err = $nwr->errors($dst);
+		my $net = PublicInbox::NetWriter->new;
+		$net->add_url($dst);
+		$net->{quiet} = $lei->{opt}->{quiet};
+		my $err = $net->errors($dst);
 		return $lei->fail($err) if $err;
 		require PublicInbox::URIimap; # TODO: URI cast early
 		$self->{uri} = PublicInbox::URIimap->new($dst);
 		$self->{uri}->mailbox or die "No mailbox: $dst";
-		$lei->{nwr} = $nwr;
+		$lei->{net} = $net;
 		$self->{base_type} = 'imap';
 	} else {
 		die "bad mail --format=$fmt\n";
@@ -447,15 +447,16 @@ sub _augment_imap { # PublicInbox::NetReader::imap_each cb
 
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
-	my $nwr = $lei->{nwr};
+	my $net = $lei->{net};
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
-			$nwr->imap_each($self->{uri}, \&_augment_imap, $lei);
+			$net->imap_each($self->{uri}, \&_augment_imap, $lei);
 			$dedupe->pause_dedupe;
 		}
-	} else { # clobber existing IMAP folder
-		$nwr->imap_delete_all($self->{uri});
+	} elsif (!$self->{-wq_worker_nr}) { # undef or 0
+		# clobber existing IMAP folder
+		$net->imap_delete_all($self->{uri});
 	}
 }
 
@@ -523,16 +524,18 @@ sub post_augment {
 	$m->($self, $lei, @args);
 }
 
-sub ipc_atfork_child {
+sub do_post_auth {
 	my ($self) = @_;
-	my $lei = delete $self->{lei};
-	$lei->lei_atfork_child;
+	my $lei = $self->{lei};
+	# lei_xsearch can start as soon as all l2m workers get here
+	pkt_do($lei->{pkt_op_p}, 'incr_start_query') or
+		die "incr_start_query: $!";
 	my $aug;
 	if (lock_free($self)) {
 		my $mod = $self->{-wq_nr_workers};
 		my $shard = $self->{-wq_worker_nr};
-		if (my $nwr = $lei->{nwr}) {
-			$nwr->{shard_info} = [ $mod, $shard ];
+		if (my $net = $lei->{net}) {
+			$net->{shard_info} = [ $mod, $shard ];
 		} else { # Maildir (MH?)
 			$self->{shard_info} = [ $mod, $shard ];
 		}
@@ -545,13 +548,20 @@ sub ipc_atfork_child {
 		eval { do_augment($self, $lei) };
 		$lei->fail($@) if $@;
 		pkt_do($lei->{pkt_op_p}, $aug) == 1 or
-					die "do_post_augment trigger: $!";
+				die "do_post_augment trigger: $!";
 	}
 	if (my $zpipe = delete $lei->{zpipe}) {
 		$lei->{1} = $zpipe->[1];
 		close $zpipe->[0];
 	}
 	$self->{wcb} = $self->write_cb($lei);
+}
+
+sub ipc_atfork_child {
+	my ($self) = @_;
+	my $lei = $self->{lei};
+	$lei->lei_atfork_child;
+	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
@@ -584,4 +594,13 @@ sub wq_atexit_child {
 	$SIG{__WARN__} = 'DEFAULT';
 }
 
+# called in top-level lei-daemon when LeiAuth is done
+sub net_merge_complete {
+	my ($self) = @_;
+	$self->wq_broadcast('do_post_auth');
+	$self->wq_close(1);
+}
+
+no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
+*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 1;
