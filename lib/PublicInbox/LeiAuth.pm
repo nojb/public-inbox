@@ -54,11 +54,8 @@ sub auth_start {
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	# prevent {sock} from being closed in lei_atfork_child:
-	my $s = delete $self->{lei}->{sock};
 	delete $self->{lei}->{auth}; # drop circular ref
 	$self->{lei}->lei_atfork_child;
-	$self->{lei}->{sock} = $s if $s;
 	$self->SUPER::ipc_atfork_child;
 }
 

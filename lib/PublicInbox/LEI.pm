@@ -443,7 +443,7 @@ sub lei_atfork_child {
 	my ($self, $persist) = @_;
 	# we need to explicitly close things which are on stack
 	if ($persist) {
-		my @io = delete @$self{0,1,2};
+		my @io = delete @$self{qw(0 1 2 sock)};
 		unless ($self->{oneshot}) {
 			close($_) for @io;
 		}
@@ -451,7 +451,7 @@ sub lei_atfork_child {
 		delete $self->{0};
 	}
 	delete @$self{qw(cnv)};
-	for (delete @$self{qw(3 sock old_1 au_done)}) {
+	for (delete @$self{qw(3 old_1 au_done)}) {
 		close($_) if defined($_);
 	}
 	if (my $op_c = delete $self->{pkt_op_c}) {
