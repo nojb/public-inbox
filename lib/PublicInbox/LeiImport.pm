@@ -8,6 +8,7 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
 use PublicInbox::InboxWritable qw(eml_from_path);
+use PublicInbox::PktOp qw(pkt_do);
 
 sub _import_eml { # MboxReader callback
 	my ($eml, $sto, $set_kw) = @_;
@@ -28,24 +29,54 @@ sub import_done { # EOF callback for main daemon
 	$imp->wq_wait_old(\&import_done_wait, $lei);
 }
 
-sub import_start {
-	my ($lei) = @_;
-	my $self = $lei->{imp};
-	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
-	if (my $nrd = $lei->{nrd}) {
-		# $j = $nrd->net_concurrency($j); TODO
-	} else {
-		my $nproc = $self->detect_nproc;
-		$j = $nproc if $j > $nproc;
-	}
-	my $op = $lei->workers_start($self, 'lei_import', $j, {
-		'' => [ \&import_done, $lei ],
-	});
-	$self->wq_io_do('import_stdin', []) if $self->{0};
+sub net_merge_all { # via wq_broadcast
+	my ($self, $net_new) = @_;
+	my $net = $self->{lei}->{net};
+	%$net = (%$net, %$net_new);
+	pkt_do($self->{lei}->{pkt_op_p}, 'net_merge_done1') or
+		die "pkt_op_do net_merge_done1: $!";
+}
+
+sub net_merge_continue { # first worker is done with auth
+	my ($self, $net_new) = @_;
+	$self->wq_broadcast('net_merge_all', $net_new);
+}
+
+sub net_merge_complete {
+	my ($self) = @_;
 	for my $input (@{$self->{inputs}}) {
 		$self->wq_io_do('import_path_url', [], $input);
 	}
 	$self->wq_close(1);
+}
+
+sub net_merge_done1 {
+	my ($self) = @_;
+	my $lei = $self->{lei};
+	return if ++$lei->{nr_net_merge_done} != $self->{-wq_nr_workers};
+	net_merge_complete($self);
+}
+
+sub import_start {
+	my ($lei) = @_;
+	my $self = $lei->{imp};
+	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
+	if (my $net = $lei->{net}) {
+		# $j = $net->net_concurrency($j); TODO
+	} else {
+		my $nproc = $self->detect_nproc;
+		$j = $nproc if $j > $nproc;
+	}
+	my $ops = { '' => [ \&import_done, $lei ] };
+	my $auth = $lei->{auth};
+	if ($auth) {
+		$ops->{net_merge} = [ \&net_merge_continue, $self ];
+		$ops->{net_merge_done1} = [ \&net_merge_done1, $self ];
+	}
+	$self->{-wq_nr_workers} = $j // 1; # locked
+	my $op = $lei->workers_start($self, 'lei_import', undef, $ops);
+	$self->wq_io_do('import_stdin', []) if $self->{0};
+	net_merge_complete($self) if !$auth;
 	while ($op && $op->{sock}) { $op->event_step }
 }
 
@@ -53,7 +84,7 @@ sub call { # the main "lei import" method
 	my ($cls, $lei, @inputs) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
-	my ($nrd, @f, @d);
+	my ($net, @f, @d);
 	$lei->{opt}->{kw} //= 1;
 	my $self = $lei->{imp} = bless { inputs => \@inputs }, $cls;
 	if ($lei->{opt}->{stdin}) {
@@ -69,8 +100,8 @@ sub call { # the main "lei import" method
 		my $input_path = $input;
 		if ($input =~ m!\A(?:imap|nntp)s?://!i) {
 			require PublicInbox::NetReader;
-			$nrd //= PublicInbox::NetReader->new;
-			$nrd->add_url($input);
+			$net //= PublicInbox::NetReader->new;
+			$net->add_url($input);
 		} elsif ($input_path =~ s/\A([a-z0-9]+)://is) {
 			my $ifmt = lc $1;
 			if (($fmt // $ifmt) ne $ifmt) {
@@ -98,23 +129,31 @@ sub call { # the main "lei import" method
 		require PublicInbox::MdirReader;
 	}
 	$self->{inputs} = \@inputs;
-	return import_start($lei) if !$nrd;
-
-	if (my $err = $nrd->errors) {
-		return $lei->fail($err);
+	if ($net) {
+		if (my $err = $net->errors) {
+			return $lei->fail($err);
+		}
+		$net->{quiet} = $lei->{opt}->{quiet};
+		$lei->{net} = $net;
+		require PublicInbox::LeiAuth;
+		$lei->{auth} = PublicInbox::LeiAuth->new($net);
 	}
-	$nrd->{quiet} = $lei->{opt}->{quiet};
-	$lei->{nrd} = $nrd;
-	require PublicInbox::LeiAuth;
-	my $auth = $lei->{auth} = PublicInbox::LeiAuth->new($nrd);
-	$auth->auth_start($lei, \&import_start, $lei);
+	import_start($lei);
 }
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	delete $self->{lei}->{imp}; # drop circular ref
-	$self->{lei}->lei_atfork_child;
+	my $lei = $self->{lei};
+	delete $lei->{imp}; # drop circular ref
+	$lei->lei_atfork_child;
 	$self->SUPER::ipc_atfork_child;
+	my $net = $lei->{net};
+	if ($net && $self->{-wq_worker_nr} == 0) {
+		my $mics = $net->imap_common_init($lei);
+		PublicInbox::LeiAuth::net_merge($lei, $net);
+		$net->{mics_cached} = $mics;
+	}
+	undef;
 }
 
 sub _import_fh {
@@ -154,7 +193,7 @@ sub import_path_url {
 	my $ifmt = lc($lei->{opt}->{'format'} // '');
 	# TODO auto-detect?
 	if ($input =~ m!\A(imap|nntp)s?://!i) {
-		$lei->{nrd}->imap_each($input, \&_import_imap, $lei->{sto},
+		$lei->{net}->imap_each($input, \&_import_imap, $lei->{sto},
 					$lei->{opt}->{kw});
 		return;
 	} elsif ($input =~ s!\A([a-z0-9]+):!!i) {
