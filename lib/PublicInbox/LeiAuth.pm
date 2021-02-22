@@ -10,22 +10,22 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::PktOp qw(pkt_do);
 use PublicInbox::NetReader;
 
-sub nrd_merge {
-	my ($lei, $nrd_new) = @_;
+sub net_merge {
+	my ($lei, $net_new) = @_;
 	if ($lei->{pkt_op_p}) { # from lei_convert worker
-		pkt_do($lei->{pkt_op_p}, 'nrd_merge', $nrd_new);
+		pkt_do($lei->{pkt_op_p}, 'net_merge', $net_new);
 	} else { # single lei-daemon consumer
 		my $self = $lei->{auth} or return; # client disconnected
-		my $nrd = $self->{nrd};
-		%$nrd = (%$nrd, %$nrd_new);
+		my $net = $self->{net};
+		%$net = (%$net, %$net_new);
 	}
 }
 
 sub do_auth { # called via wq_io_do
 	my ($self) = @_;
-	my ($lei, $nrd) = @$self{qw(lei nrd)};
-	$nrd->imap_common_init($lei);
-	nrd_merge($lei, $nrd); # tell lei-daemon updated auth info
+	my ($lei, $net) = @$self{qw(lei net)};
+	$net->imap_common_init($lei);
+	net_merge($lei, $net); # tell lei-daemon updated auth info
 }
 
 sub do_finish_auth { # dwaitpid callback
@@ -44,7 +44,7 @@ sub auth_start {
 	my ($self, $lei, $post_auth_cb, @args) = @_;
 	$lei->_lei_cfg(1); # workers may need to read config
 	my $op = $lei->workers_start($self, 'auth', 1, {
-		'nrd_merge' => [ \&nrd_merge, $lei ],
+		'net_merge' => [ \&net_merge, $lei ],
 		'' => [ \&auth_eof, $lei, $post_auth_cb, @args ],
 	});
 	$self->wq_io_do('do_auth', []);
@@ -63,8 +63,8 @@ sub ipc_atfork_child {
 }
 
 sub new {
-	my ($cls, $nrd) = @_; # nrd may be NetReader or descendant (NetWriter)
-	bless { nrd => $nrd }, $cls;
+	my ($cls, $net) = @_; # net may be NetReader or descendant (NetWriter)
+	bless { net => $net }, $cls;
 }
 
 1;
