@@ -11,7 +11,6 @@ use PublicInbox::Lock;
 use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::LeiDedupe;
-use PublicInbox::OnDestroy;
 use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
 use PublicInbox::PktOp qw(pkt_do);
