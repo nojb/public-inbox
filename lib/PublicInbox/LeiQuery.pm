@@ -5,6 +5,7 @@
 package PublicInbox::LeiQuery;
 use strict;
 use v5.10.1;
+use POSIX ();
 
 sub prep_ext { # externals_each callback
 	my ($lxs, $exclude, $loc) = @_;
@@ -94,7 +95,10 @@ sub lei_q {
 		return $self->fail("`$mj' writer jobs must be >= 1");
 	}
 	PublicInbox::LeiOverview->new($self) or return;
-	$self->{l2m}->{-wq_nr_workers} = ($mj // $nproc) if $self->{l2m};
+	$self->{l2m} and $self->{l2m}->{-wq_nr_workers} = $mj // do {
+		$mj = POSIX::lround($nproc * 3 / 4); # keep some CPU for git
+		$mj <= 0 ? 1 : $mj;
+	};
 
 	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
