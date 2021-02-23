@@ -26,17 +26,25 @@ Read search terms from stdin.
 
 =item -o MFOLDER, --output=MFOLDER, --mfolder=MFOLDER
 
-Destination for results (e.g., C<path/to/Maildir> or - for stdout).
+Destination for results (e.g., C<path/to/Maildir> or
+C<mboxcl2:path/to/mbox>).  The format can be specified by adding a
+C<E<lt>formatE<gt>:> prefix with any of these values: C<maildir>,
+C<mboxrd>, C<mboxcl2>, C<mboxcl>, C<mboxo>, C<json>, C<jsonl>, or
+C<concatjson>.
+
+TODO: Provide description of formats?
+
+When a format isn't specified, it's chosen based on the destination.
+C<json> is used for the default destination (stdout), and C<maildir>
+is used for an existing directory or non-existing path.
 
 Default: -
 
 =item -f FORMAT, --format=FORMAT
 
-Format of results: C<maildir>, C<mboxrd>, C<mboxcl2>, C<mboxcl>,
-C<mboxo>, C<json>, C<jsonl>, or C<concatjson>.  The default format
-used depends on C<--output>.
-
-TODO: Provide description of formats?
+Format of results.  This option exists as a convenient way to specify
+the format for the default stdout destination.  Using a C<format:>
+prefix with the C<--output> destination is preferred otherwise.
 
 =item --pretty
 
