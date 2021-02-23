@@ -129,6 +129,10 @@ my $test_completion = sub {
 };
 
 my $test_fail = sub {
+	lei('q', 'whatever', '-C', '/dev/null');
+	is($? >> 8, 1, 'chdir at end fails to /dev/null');
+	lei('-C', '/dev/null', 'q', 'whatever');
+	is($? >> 8, 1, 'chdir at beginning fails to /dev/null');
 SKIP: {
 	skip 'no curl', 3 unless which('curl');
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m));

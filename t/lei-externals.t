@@ -4,6 +4,7 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Spawn qw(which);
+use PublicInbox::OnDestroy;
 require_git 2.6;
 require_mods(qw(DBD::SQLite Search::Xapian));
 
@@ -206,6 +207,27 @@ SKIP: {
 	ok(!lei(qw(q --no-local s:see)), '--no-local');
 	is($? >> 8, 1, 'proper exit code');
 	like($lei_err, qr/no local or remote.+? to search/, 'no inbox');
+
+	{
+		opendir my $dh, '.' or BAIL_OUT "opendir(.) $!";
+		my $od = PublicInbox::OnDestroy->new($$, sub {
+			chdir $dh or BAIL_OUT "chdir: $!"
+		});
+		my @q = qw(q -o mboxcl2:rel.mboxcl2 bye);
+		lei_ok('-C', $home, @q);
+		is(unlink("$home/rel.mboxcl2"), 1, '-C works before q');
+
+		# we are more flexible than git, here:
+		lei_ok(@q, '-C', $home);
+		is(unlink("$home/rel.mboxcl2"), 1, '-C works after q');
+		mkdir "$home/deep" or BAIL_OUT $!;
+		lei_ok('-C', $home, @q, '-C', 'deep');
+		is(unlink("$home/deep/rel.mboxcl2"), 1, 'multiple -C works');
+
+		lei_ok('-C', '', '-C', $home, @q, '-C', 'deep', '-C', '');
+		is(unlink("$home/deep/rel.mboxcl2"), 1, "-C '' accepted");
+		ok(!-f "$home/rel.mboxcl2", 'wrong path not created');
+	}
 	my %e = (
 		TEST_LEI_EXTERNAL_HTTPS => 'https://public-inbox.org/meta/',
 		TEST_LEI_EXTERNAL_ONION => $onions[int(rand(scalar(@onions)))],

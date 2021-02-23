@@ -112,80 +112,81 @@ our %CMD = ( # sorted in order of importance/use:
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
-	alert=s@ mua=s no-torsocks torsocks=s verbose|v+ quiet|q),
+	alert=s@ mua=s no-torsocks torsocks=s verbose|v+ quiet|q C=s@),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
-	qw(type=s solve! format|f=s dedupe|d=s threads|t remote local!),
+	qw(type=s solve! format|f=s dedupe|d=s threads|t remote local! C=s@),
 	pass_through('git show') ],
 
 'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
 	qw(boost=i c=s@ mirror=s no-torsocks torsocks=s inbox-version=i),
-	qw(quiet|q verbose|v+),
+	qw(quiet|q verbose|v+ C=s@),
 	index_opt(), PublicInbox::LeiQuery::curl_opt() ],
 'ls-external' => [ '[FILTER]', 'list publicinbox|extindex locations',
-	qw(format|f=s z|0 globoff|g invert-match|v local remote) ],
+	qw(format|f=s z|0 globoff|g invert-match|v local remote C=s@) ],
 'forget-external' => [ 'LOCATION...|--prune',
 	'exclude further results from a publicinbox|extindex',
-	qw(prune quiet|q) ],
+	qw(prune quiet|q C=s@) ],
 
 'ls-query' => [ '[FILTER...]', 'list saved search queries',
-		qw(name-only format|f=s z) ],
-'rm-query' => [ 'QUERY_NAME', 'remove a saved search' ],
-'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search' ],
+		qw(name-only format|f=s z C=s@) ],
+'rm-query' => [ 'QUERY_NAME', 'remove a saved search', qw(C=s@) ],
+'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search', qw(C=s@) ],
 
 'plonk' => [ '--threads|--from=IDENT',
 	'exclude mail matching From: or threads from non-Message-ID searches',
-	qw(stdin| threads|t from|f=s mid=s oid=s) ],
+	qw(stdin| threads|t from|f=s mid=s oid=s C=s@) ],
 'mark' => [ 'MESSAGE_FLAGS...',
 	'set/unset keywords on message(s) from stdin',
-	qw(stdin| oid=s exact by-mid|mid:s) ],
+	qw(stdin| oid=s exact by-mid|mid:s C=s@) ],
 'forget' => [ '[--stdin|--oid=OID|--by-mid=MID]',
 	"exclude message(s) on stdin from `q' search results",
-	qw(stdin| oid=s exact by-mid|mid:s quiet|q) ],
+	qw(stdin| oid=s exact by-mid|mid:s quiet|q C=s@) ],
 
 'purge-mailsource' => [ 'LOCATION|--all',
 	'remove imported messages from IMAP, Maildirs, and MH',
-	qw(exact! all jobs:i indexed) ],
+	qw(exact! all jobs:i indexed C=s@) ],
 
 # code repos are used for `show' to solve blobs from patch mails
 'add-coderepo' => [ 'DIRNAME', 'add or set priority of a git code repo',
-	qw(boost=i) ],
+	qw(boost=i C=s@) ],
 'ls-coderepo' => [ '[FILTER_TERMS...]',
-		'list known code repos', qw(format|f=s z) ],
+		'list known code repos', qw(format|f=s z C=s@) ],
 'forget-coderepo' => [ 'DIRNAME',
 	'stop using repo to solve blobs from patches',
-	qw(prune) ],
+	qw(prune C=s@) ],
 
 'add-watch' => [ 'LOCATION', 'watch for new messages and flag changes',
 	qw(import! kw|keywords|flags! interval=s recursive|r
-	exclude=s include=s) ],
+	exclude=s include=s C=s@) ],
 'ls-watch' => [ '[FILTER...]', 'list active watches with numbers and status',
-		qw(format|f=s z) ],
-'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote) ],
-'resume-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote) ],
+		qw(format|f=s z C=s@) ],
+'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote C=s@) ],
+'resume-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote C=s@) ],
 'forget-watch' => [ '{WATCH_NUMBER|--prune}', 'stop and forget a watch',
-	qw(prune) ],
+	qw(prune C=s@) ],
 
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	format|f=s kw|keywords|flags!),
+	format|f=s kw|keywords|flags! C=s@),
 	],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s quiet|q
-	kw|keywords|flags!),
+	kw|keywords|flags! C=s@),
 	],
 'config' => [ '[...]', sub {
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
-	pass_through('git config') ],
+	 qw(C=s@), pass_through('git config') ],
 'init' => [ '[DIRNAME]', sub {
 	"initialize storage, default: "._store_path($_[0]);
-	}, qw(quiet|q) ],
+	}, qw(quiet|q C=s@) ],
 'daemon-kill' => [ '[-SIGNAL]', 'signal the lei-daemon',
+	# "-C DIR" conflicts with -CHLD, here, and chdir makes no sense, here
 	opt_dash('signal|s=s', '[0-9]+|(?:[A-Z][A-Z0-9]+)') ],
 'daemon-pid' => [ '', 'show the PID of the lei-daemon' ],
 'help' => [ '[SUBCOMMAND]', 'show help' ],
@@ -195,7 +196,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 'reorder-local-store-and-break-history' => [ '[REFNAME]',
 	'rewrite git history in an attempt to improve compression',
-	'gc!' ],
+	qw(gc! C=s@) ],
 
 # internal commands are prefixed with '_'
 '_complete' => [ '[...]', 'internal shell completion helper',
@@ -214,6 +215,7 @@ my $ls_format = [ 'OUT|plain|json|null', 'listing output format' ];
 # we use \x{a0} (non-breaking SP) to avoid wrapping in PublicInbox::LeiHelp
 my %OPTDESC = (
 'help|h' => 'show this built-in help',
+'C=s@' => [ 'DIR', 'chdir to specify to directory' ],
 'quiet|q' => 'be quiet',
 'globoff|g' => "do not match locations using '*?' wildcards ".
 		"and\xa0'[]'\x{a0}ranges",
@@ -497,7 +499,7 @@ sub optparse ($$$) {
 	# allow _complete --help to complete, not show help
 	return 1 if substr($cmd, 0, 1) eq '_';
 	$self->{cmd} = $cmd;
-	$OPT = $self->{opt} = {};
+	$OPT = $self->{opt} //= {};
 	my $info = $CMD{$cmd} // [ '[...]' ];
 	my ($proto, undef, @spec) = @$info;
 	my $glp = ref($spec[-1]) eq ref($GLP) ? pop(@spec) : $GLP;
@@ -566,15 +568,25 @@ sub dispatch {
 	local $current_lei = $self; # for __WARN__
 	dump_and_clear_log("from previous run\n");
 	return _help($self, 'no command given') unless defined($cmd);
+	while ($cmd eq '-C') { # do not support Getopt bundling for this
+		my $d = shift(@argv) // return fail($self, '-C DIRECTORY');
+		push @{$self->{opt}->{C}}, $d;
+		$cmd = shift(@argv) // return _help($self, 'no command given');
+	}
 	my $func = "lei_$cmd";
 	$func =~ tr/-/_/;
 	if (my $cb = __PACKAGE__->can($func)) {
 		optparse($self, $cmd, \@argv) or return;
+		if (my $chdir = $self->{opt}->{C}) {
+			for my $d (@$chdir) {
+				next if $d eq ''; # same as git(1)
+				chdir $d or return fail($self, "cd $d: $!");
+			}
+		}
 		$cb->($self, @argv);
 	} elsif (grep(/\A-/, $cmd, @argv)) { # --help or -h only
-		my $opt = {};
-		$GLP->getoptionsfromarray([$cmd, @argv], $opt, qw(help|h)) or
-			return _help($self, 'bad arguments or options');
+		$GLP->getoptionsfromarray([$cmd, @argv], {}, qw(help|h C=s@))
+			or return _help($self, 'bad arguments or options');
 		_help($self);
 	} else {
 		fail($self, "`$cmd' is not an lei command");
@@ -704,7 +716,7 @@ sub lei_help { _help($_[0]) }
 sub lei__complete {
 	my ($self, @argv) = @_; # argv = qw(lei and any other args...)
 	shift @argv; # ignore "lei", the entire command is sent
-	@argv or return puts $self, grep(!/^_/, keys %CMD), qw(--help -h);
+	@argv or return puts $self, grep(!/^_/, keys %CMD), qw(--help -h -C);
 	my $cmd = shift @argv;
 	my $info = $CMD{$cmd} // do { # filter matching commands
 		@argv or puts $self, grep(/\A\Q$cmd\E/, keys %CMD);
@@ -728,7 +740,7 @@ sub lei__complete {
 			# fall-through
 		}
 		# generate short/long names from Getopt::Long specs
-		puts $self, grep(/$re/, qw(--help -h), map {
+		puts $self, grep(/$re/, qw(--help -h -C), map {
 			if (s/[:=].+\z//) { # req/optional args, e.g output|o=i
 			} elsif (s/\+\z//) { # verbose|v+
 			} elsif (s/!\z//) {
