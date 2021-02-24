@@ -544,7 +544,7 @@ sub poll_fetch_reap {
 
 sub watch_imap_init ($$) {
 	my ($self, $poll) = @_;
-	my $mics = imap_common_init($self); # read args from config
+	my $mics = PublicInbox::NetReader::imap_common_init($self);
 	my $idle = []; # [ [ uri1, intvl1 ], [uri2, intvl2] ]
 	for my $uri (@{$self->{imap_order}}) {
 		my $sec = uri_section($uri);
@@ -565,7 +565,7 @@ sub watch_imap_init ($$) {
 
 sub watch_nntp_init ($$) {
 	my ($self, $poll) = @_;
-	nntp_common_init($self); # read args from config
+	PublicInbox::NetReader::nntp_common_init($self);
 	for my $uri (@{$self->{nntp_order}}) {
 		my $sec = uri_section($uri);
 		my $intvl = $self->{nntp_opt}->{$sec}->{pollInterval};

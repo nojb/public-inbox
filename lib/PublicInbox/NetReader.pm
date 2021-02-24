@@ -10,11 +10,7 @@ use PublicInbox::Eml;
 
 our %IMAPflags2kw = map {; "\\\u$_" => $_ } qw(seen answered flagged draft);
 
-# TODO: trim this down, this is huge
-our @EXPORT = qw(uri_new uri_section
-		nn_new imap_uri nntp_uri
-		cfg_bool cfg_intvl imap_common_init nntp_common_init
-		);
+our @EXPORT = qw(uri_section imap_uri nntp_uri);
 
 # returns the git config section name, e.g [imap "imaps://user@example.com"]
 # without the mailbox, so we can share connections between different inboxes
@@ -92,15 +88,6 @@ sub mic_for { # mic = Mail::IMAPClient
 		$lei ? $lei->fail($err) : warn($err);
 	}
 	$mic;
-}
-
-sub uri_new {
-	my ($url) = @_;
-	require URI;
-
-	# URI::snews exists, URI::nntps does not, so use URI::snews
-	$url =~ s!\Anntps://!snews://!i;
-	URI->new($url);
 }
 
 # Net::NNTP doesn't support CAPABILITIES, yet
