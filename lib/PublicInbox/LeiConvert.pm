@@ -18,8 +18,8 @@ sub mbox_cb {
 	$self->{wcb}->(undef, { kw => \@kw }, $eml);
 }
 
-sub imap_cb { # ->imap_each
-	my ($url, $uid, $kw, $eml, $self) = @_;
+sub net_cb { # callback for ->imap_each, ->nntp_each
+	my (undef, undef, $kw, $eml, $self) = @_; # @_[0,1]: url + uid ignored
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 
@@ -35,14 +35,18 @@ sub do_convert { # via wq_do
 	my $mics;
 	if (my $nrd = $lei->{nrd}) { # may prompt user once
 		$nrd->{mics_cached} = $nrd->imap_common_init($lei);
+		$nrd->{nn_cached} = $nrd->nntp_common_init($lei);
 	}
 	if (my $stdin = delete $self->{0}) {
 		PublicInbox::MboxReader->$in_fmt($stdin, \&mbox_cb, $self);
 	}
 	for my $input (@{$self->{inputs}}) {
 		my $ifmt = lc($in_fmt // '');
-		if ($input =~ m!\A(?:imap|nntp)s?://!) { # TODO: nntp
-			$lei->{nrd}->imap_each($input, \&imap_cb, $self);
+		if ($input =~ m!\Aimaps?://!) {
+			$lei->{nrd}->imap_each($input, \&net_cb, $self);
+			next;
+		} elsif ($input =~ m!\A(?:nntps?|s?news)://!) {
+			$lei->{nrd}->nntp_each($input, \&net_cb, $self);
 			next;
 		} elsif ($input =~ s!\A([a-z0-9]+):!!i) {
 			$ifmt = lc $1;
@@ -82,7 +86,7 @@ sub call { # the main "lei convert" method
 	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
 	for my $input (@inputs) {
 		my $input_path = $input;
-		if ($input =~ m!\A(?:imap|nntp)s?://!i) {
+		if ($input =~ m!\A(?:imaps?|nntps?|s?news)://!i) {
 			require PublicInbox::NetReader;
 			$nrd //= PublicInbox::NetReader->new;
 			$nrd->add_url($input);

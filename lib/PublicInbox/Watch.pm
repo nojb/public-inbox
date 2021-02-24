@@ -56,16 +56,16 @@ sub new {
 		defined(my $dirs = $cfg->{$k}) or next;
 		$dirs = PublicInbox::Config::_array($dirs);
 		for my $dir (@$dirs) {
-			my $url;
+			my $uri;
 			if (is_maildir($dir)) {
 				# skip "new", no MUA has seen it, yet.
 				$mdmap{"$dir/cur"} = 'watchspam';
-			} elsif (my $uri = imap_uri($dir)) {
+			} elsif ($uri = imap_uri($dir)) {
 				$imap{$$uri} = 'watchspam';
 				push @imap, $uri;
-			} elsif ($url = nntp_url($dir)) {
-				$nntp{$url} = 'watchspam';
-				push @nntp, $url;
+			} elsif ($uri = nntp_uri($dir)) {
+				$nntp{$$uri} = 'watchspam';
+				push @nntp, $uri;
 			} else {
 				warn "unsupported $k=$dir\n";
 			}
@@ -84,7 +84,7 @@ sub new {
 		my $watches = $ibx->{watch} or return;
 		$watches = PublicInbox::Config::_array($watches);
 		for my $watch (@$watches) {
-			my $url;
+			my $uri;
 			if (is_maildir($watch)) {
 				compile_watchheaders($ibx);
 				my ($new, $cur) = ("$watch/new", "$watch/cur");
@@ -92,17 +92,16 @@ sub new {
 				return if is_watchspam($cur, $cur_dst, $ibx);
 				push @{$mdmap{$new} //= []}, $ibx;
 				push @$cur_dst, $ibx;
-			} elsif (my $uri = imap_uri($watch)) {
-				my $url = $$uri;
-				return if is_watchspam($url, $imap{$url}, $ibx);
+			} elsif ($uri = imap_uri($watch)) {
+				my $cur_dst = $imap{$$uri} //= [];
+				return if is_watchspam($uri, $cur_dst, $ibx);
 				compile_watchheaders($ibx);
-				my $n = push @{$imap{$url} ||= []}, $ibx;
-				push @imap, $uri if $n == 1;
-			} elsif ($url = nntp_url($watch)) {
-				return if is_watchspam($url, $nntp{$url}, $ibx);
+				push(@imap, $uri) if 1 == push(@$cur_dst, $ibx);
+			} elsif ($uri = nntp_uri($watch)) {
+				my $cur_dst = $nntp{$$uri} //= [];
+				return if is_watchspam($uri, $cur_dst, $ibx);
 				compile_watchheaders($ibx);
-				my $n = push @{$nntp{$url} ||= []}, $ibx;
-				push @nntp, $url if $n == 1;
+				push(@nntp, $uri) if 1 == push(@$cur_dst, $ibx);
 			} else {
 				warn "watch unsupported: $k=$watch\n";
 			}
@@ -289,11 +288,11 @@ sub watch_fs_init ($) {
 }
 
 sub imap_import_msg ($$$$$) {
-	my ($self, $url, $uid, $raw, $flags) = @_;
+	my ($self, $uri, $uid, $raw, $flags) = @_;
 	# our target audience expects LF-only, save storage
 	$$raw =~ s/\r\n/\n/sg;
 
-	my $inboxes = $self->{imap}->{$url};
+	my $inboxes = $self->{imap}->{$$uri};
 	if (ref($inboxes)) {
 		for my $ibx (@$inboxes) {
 			my $eml = PublicInbox::Eml->new($$raw);
@@ -304,15 +303,14 @@ sub imap_import_msg ($$$$$) {
 		local $SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 		my $eml = PublicInbox::Eml->new($raw);
 		$self->{pi_cfg}->each_inbox(\&remove_eml_i,
-						$self, $eml, "$url UID:$uid");
+						$self, $eml, "$uri UID:$uid");
 	} else {
 		die "BUG: destination unknown $inboxes";
 	}
 }
 
 sub imap_fetch_all ($$$) {
-	my ($self, $mic, $url) = @_;
-	my $uri = PublicInbox::URIimap->new($url);
+	my ($self, $mic, $uri) = @_;
 	my $sec = uri_section($uri);
 	my $mbx = $uri->mailbox;
 	$mic->Clear(1); # trim results history
@@ -324,25 +322,25 @@ sub imap_fetch_all ($$$) {
 		last if $r_uidval && $r_uidnext;
 	}
 	$r_uidval //= $mic->uidvalidity($mbx) //
-		return "E: $url cannot get UIDVALIDITY";
+		return "E: $uri cannot get UIDVALIDITY";
 	$r_uidnext //= $mic->uidnext($mbx) //
-		return "E: $url cannot get UIDNEXT";
-	my $itrk = PublicInbox::IMAPTracker->new($url);
+		return "E: $uri cannot get UIDNEXT";
+	my $itrk = PublicInbox::IMAPTracker->new($$uri);
 	my ($l_uidval, $l_uid) = $itrk->get_last;
 	$l_uidval //= $r_uidval; # first time
 	$l_uid //= 1;
 	if ($l_uidval != $r_uidval) {
-		return "E: $url UIDVALIDITY mismatch\n".
+		return "E: $uri UIDVALIDITY mismatch\n".
 			"E: local=$l_uidval != remote=$r_uidval";
 	}
 	my $r_uid = $r_uidnext - 1;
 	if ($l_uid != 1 && $l_uid > $r_uid) {
-		return "E: $url local UID exceeds remote ($l_uid > $r_uid)\n".
-			"E: $url strangely, UIDVALIDLITY matches ($l_uidval)\n";
+		return "E: $uri local UID exceeds remote ($l_uid > $r_uid)\n".
+			"E: $uri strangely, UIDVALIDLITY matches ($l_uidval)\n";
 	}
 	return if $l_uid >= $r_uid; # nothing to do
 
-	warn "I: $url fetching UID $l_uid:$r_uid\n";
+	warn "I: $uri fetching UID $l_uid:$r_uid\n";
 	$mic->Uid(1); # the default, we hope
 	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 1;
 	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
@@ -355,7 +353,7 @@ sub imap_fetch_all ($$$) {
 	local $SIG{__WARN__} = sub {
 		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';
 		$batch //= '?';
-		$warn_cb->("$pfx$url UID:$batch\n", @_);
+		$warn_cb->("$pfx$uri UID:$batch\n", @_);
 	};
 	my $err;
 	do {
@@ -363,7 +361,7 @@ sub imap_fetch_all ($$$) {
 		# 1) servers do not need to return results in any order
 		# 2) Mail::IMAPClient doesn't offer a streaming API
 		$uids = $mic->search("UID $l_uid:*") or
-			return "E: $url UID SEARCH $l_uid:* error: $!";
+			return "E: $uri UID SEARCH $l_uid:* error: $!";
 		return if scalar(@$uids) == 0;
 
 		# RFC 3501 doesn't seem to indicate order of UID SEARCH
@@ -389,7 +387,7 @@ sub imap_fetch_all ($$$) {
 			local $0 = "UID:$batch $mbx $sec";
 			my $r = $mic->fetch_hash($batch, $req, 'FLAGS');
 			unless ($r) { # network error?
-				$err = "E: $url UID FETCH $batch error: $!";
+				$err = "E: $uri UID FETCH $batch error: $!";
 				last;
 			}
 			for my $uid (@batch) {
@@ -397,7 +395,7 @@ sub imap_fetch_all ($$$) {
 				my $per_uid = delete $r->{$uid} // next;
 				my $raw = delete($per_uid->{$key}) // next;
 				my $fl = $per_uid->{FLAGS} // '';
-				imap_import_msg($self, $url, $uid, \$raw, $fl);
+				imap_import_msg($self, $uri, $uid, \$raw, $fl);
 				$last_uid = $uid;
 				last if $self->{quit};
 			}
@@ -410,14 +408,14 @@ sub imap_fetch_all ($$$) {
 }
 
 sub imap_idle_once ($$$$) {
-	my ($self, $mic, $intvl, $url) = @_;
+	my ($self, $mic, $intvl, $uri) = @_;
 	my $i = $intvl //= (29 * 60);
 	my $end = now() + $intvl;
-	warn "I: $url idling for ${intvl}s\n";
+	warn "I: $uri idling for ${intvl}s\n";
 	local $0 = "IDLE $0";
 	unless ($mic->idle) {
 		return if $self->{quit};
-		return "E: IDLE failed on $url: $!";
+		return "E: IDLE failed on $uri: $!";
 	}
 	$self->{idle_mic} = $mic; # for ->quit
 	my @res;
@@ -428,16 +426,15 @@ sub imap_idle_once ($$$$) {
 	}
 	delete $self->{idle_mic};
 	unless ($self->{quit}) {
-		$mic->IsConnected or return "E: IDLE disconnected on $url";
-		$mic->done or return "E: IDLE DONE failed on $url: $!";
+		$mic->IsConnected or return "E: IDLE disconnected on $uri";
+		$mic->done or return "E: IDLE DONE failed on $uri: $!";
 	}
 	undef;
 }
 
 # idles on a single URI
 sub watch_imap_idle_1 ($$$) {
-	my ($self, $url, $intvl) = @_;
-	my $uri = PublicInbox::URIimap->new($url);
+	my ($self, $uri, $intvl) = @_;
 	my $sec = uri_section($uri);
 	my $mic_arg = $self->{mic_arg}->{$sec} or
 			die "BUG: no Mail::IMAPClient->new arg for $sec";
@@ -447,8 +444,8 @@ sub watch_imap_idle_1 ($$$) {
 		$mic //= PublicInbox::IMAPClient->new(%$mic_arg);
 		my $err;
 		if ($mic && $mic->IsConnected) {
-			$err = imap_fetch_all($self, $mic, $url);
-			$err //= imap_idle_once($self, $mic, $intvl, $url);
+			$err = imap_fetch_all($self, $mic, $uri);
+			$err //= imap_idle_once($self, $mic, $intvl, $uri);
 		} else {
 			$err = "E: not connected: $!";
 		}
@@ -477,21 +474,21 @@ sub watch_atfork_parent ($) {
 }
 
 sub imap_idle_requeue { # DS::add_timer callback
-	my ($self, $url_intvl) = @_;
+	my ($self, $uri_intvl) = @_;
 	return if $self->{quit};
-	push @{$self->{idle_todo}}, $url_intvl;
+	push @{$self->{idle_todo}}, $uri_intvl;
 	event_step($self);
 }
 
 sub imap_idle_reap { # PublicInbox::DS::dwaitpid callback
 	my ($self, $pid) = @_;
-	my $url_intvl = delete $self->{idle_pids}->{$pid} or
+	my $uri_intvl = delete $self->{idle_pids}->{$pid} or
 		die "BUG: PID=$pid (unknown) reaped: \$?=$?\n";
 
-	my ($url, $intvl) = @$url_intvl;
+	my ($uri, $intvl) = @$uri_intvl;
 	return if $self->{quit};
-	warn "W: PID=$pid on $url died: \$?=$?\n" if $?;
-	add_timer(60, \&imap_idle_requeue, $self, $url_intvl);
+	warn "W: PID=$pid on $uri died: \$?=$?\n" if $?;
+	add_timer(60, \&imap_idle_requeue, $self, $uri_intvl);
 }
 
 sub reap { # callback for EOFpipe
@@ -505,8 +502,8 @@ sub reap { # callback for EOFpipe
 }
 
 sub imap_idle_fork ($$) {
-	my ($self, $url_intvl) = @_;
-	my ($url, $intvl) = @$url_intvl;
+	my ($self, $uri_intvl) = @_;
+	my ($uri, $intvl) = @$uri_intvl;
 	pipe(my ($r, $w)) or die "pipe: $!";
 	my $seed = rand(0xffffffff);
 	my $pid = fork // die "fork: $!";
@@ -515,11 +512,11 @@ sub imap_idle_fork ($$) {
 		eval { Net::SSLeay::randomize() };
 		close $r;
 		watch_atfork_child($self);
-		watch_imap_idle_1($self, $url, $intvl);
+		watch_imap_idle_1($self, $uri, $intvl);
 		close $w;
 		_exit(0);
 	}
-	$self->{idle_pids}->{$pid} = $url_intvl;
+	$self->{idle_pids}->{$pid} = $uri_intvl;
 	PublicInbox::EOFpipe->new($r, \&reap, [$pid, \&imap_idle_reap, $self]);
 }
 
@@ -530,8 +527,8 @@ sub event_step {
 	if ($idle_todo && @$idle_todo) {
 		my $oldset = watch_atfork_parent($self);
 		eval {
-			while (my $url_intvl = shift(@$idle_todo)) {
-				imap_idle_fork($self, $url_intvl);
+			while (my $uri_intvl = shift(@$idle_todo)) {
+				imap_idle_fork($self, $uri_intvl);
 			}
 		};
 		PublicInbox::DS::sig_setmask($oldset);
@@ -541,30 +538,28 @@ sub event_step {
 }
 
 sub watch_imap_fetch_all ($$) {
-	my ($self, $urls) = @_;
-	for my $url (@$urls) {
-		my $uri = PublicInbox::URIimap->new($url);
+	my ($self, $uris) = @_;
+	for my $uri (@$uris) {
 		my $sec = uri_section($uri);
 		my $mic_arg = $self->{mic_arg}->{$sec} or
 			die "BUG: no Mail::IMAPClient->new arg for $sec";
 		my $mic = PublicInbox::IMAPClient->new(%$mic_arg) or next;
-		my $err = imap_fetch_all($self, $mic, $url);
+		my $err = imap_fetch_all($self, $mic, $uri);
 		last if $self->{quit};
 		warn $err, "\n" if $err;
 	}
 }
 
 sub watch_nntp_fetch_all ($$) {
-	my ($self, $urls) = @_;
-	for my $url (@$urls) {
-		my $uri = uri_new($url);
+	my ($self, $uris) = @_;
+	for my $uri (@$uris) {
 		my $sec = uri_section($uri);
 		my $nn_arg = $self->{nn_arg}->{$sec} or
 			die "BUG: no Net::NNTP->new arg for $sec";
 		my $nntp_opt = $self->{nntp_opt}->{$sec};
-		my $nn = nn_new($nn_arg, $nntp_opt, $url);
+		my $nn = nn_new($nn_arg, $nntp_opt, $uri);
 		unless ($nn) {
-			warn "E: $url: \$!=$!\n";
+			warn "E: $uri: \$!=$!\n";
 			next;
 		}
 		last if $self->{quit};
@@ -572,21 +567,21 @@ sub watch_nntp_fetch_all ($$) {
 			for my $m_arg (@$postconn) {
 				my ($method, @args) = @$m_arg;
 				$nn->$method(@args) and next;
-				warn "E: <$url> $method failed\n";
+				warn "E: <$uri> $method failed\n";
 				$nn = undef;
 				last;
 			}
 		}
 		last if $self->{quit};
 		if ($nn) {
-			my $err = nntp_fetch_all($self, $nn, $url);
+			my $err = nntp_fetch_all($self, $nn, $uri);
 			warn $err, "\n" if $err;
 		}
 	}
 }
 
 sub poll_fetch_fork { # DS::add_timer callback
-	my ($self, $intvl, $urls) = @_;
+	my ($self, $intvl, $uris) = @_;
 	return if $self->{quit};
 	pipe(my ($r, $w)) or die "pipe: $!";
 	my $oldset = watch_atfork_parent($self);
@@ -597,47 +592,46 @@ sub poll_fetch_fork { # DS::add_timer callback
 		eval { Net::SSLeay::randomize() };
 		close $r;
 		watch_atfork_child($self);
-		if ($urls->[0] =~ m!\Aimaps?://!i) {
-			watch_imap_fetch_all($self, $urls);
+		if ($uris->[0]->scheme =~ m!\Aimaps?!i) {
+			watch_imap_fetch_all($self, $uris);
 		} else {
-			watch_nntp_fetch_all($self, $urls);
+			watch_nntp_fetch_all($self, $uris);
 		}
 		close $w;
 		_exit(0);
 	}
 	PublicInbox::DS::sig_setmask($oldset);
 	die "fork: $!"  unless defined $pid;
-	$self->{poll_pids}->{$pid} = [ $intvl, $urls ];
+	$self->{poll_pids}->{$pid} = [ $intvl, $uris ];
 	PublicInbox::EOFpipe->new($r, \&reap, [$pid, \&poll_fetch_reap, $self]);
 }
 
 sub poll_fetch_reap {
 	my ($self, $pid) = @_;
-	my $intvl_urls = delete $self->{poll_pids}->{$pid} or
+	my $intvl_uris = delete $self->{poll_pids}->{$pid} or
 		die "BUG: PID=$pid (unknown) reaped: \$?=$?\n";
 	return if $self->{quit};
-	my ($intvl, $urls) = @$intvl_urls;
+	my ($intvl, $uris) = @$intvl_uris;
 	if ($?) {
-		warn "W: PID=$pid died: \$?=$?\n", map { "$_\n" } @$urls;
+		warn "W: PID=$pid died: \$?=$?\n", map { "$_\n" } @$uris;
 	}
-	warn("I: will check $_ in ${intvl}s\n") for @$urls;
-	add_timer($intvl, \&poll_fetch_fork, $self, $intvl, $urls);
+	warn("I: will check $_ in ${intvl}s\n") for @$uris;
+	add_timer($intvl, \&poll_fetch_fork, $self, $intvl, $uris);
 }
 
 sub watch_imap_init ($$) {
 	my ($self, $poll) = @_;
 	my $mics = imap_common_init($self); # read args from config
-	my $idle = []; # [ [ url1, intvl1 ], [url2, intvl2] ]
-	for my $url (keys %{$self->{imap}}) {
-		my $uri = PublicInbox::URIimap->new($url);
+	my $idle = []; # [ [ uri1, intvl1 ], [uri2, intvl2] ]
+	for my $uri (@{$self->{imap_order}}) {
 		my $sec = uri_section($uri);
 		my $mic = $mics->{$sec};
 		my $intvl = $self->{imap_opt}->{$sec}->{pollInterval};
 		if ($mic->has_capability('IDLE') && !$intvl) {
 			$intvl = $self->{imap_opt}->{$sec}->{idleInterval};
-			push @$idle, [ $url, $intvl // () ];
+			push @$idle, [ $uri, $intvl // () ];
 		} else {
-			push @{$poll->{$intvl || 120}}, $url;
+			push @{$poll->{$intvl || 120}}, $uri;
 		}
 	}
 	if (scalar @$idle) {
@@ -646,38 +640,8 @@ sub watch_imap_init ($$) {
 	}
 }
 
-# flesh out common NNTP-specific data structures
-sub nntp_common_init ($) {
-	my ($self) = @_;
-	my $cfg = $self->{pi_cfg};
-	my $nn_args = {}; # scheme://authority => Net::NNTP->new arg
-	for my $url (@{$self->{nntp_order}}) {
-		my $sec = uri_section(uri_new($url));
-
-		# Debug and Timeout are passed to Net::NNTP->new
-		my $v = cfg_bool($cfg, 'nntp.Debug', $url);
-		$nn_args->{$sec}->{Debug} = $v if defined $v;
-		my $to = cfg_intvl($cfg, 'nntp.Timeout', $url);
-		$nn_args->{$sec}->{Timeout} = $to if $to;
-
-		# Net::NNTP post-connect commands
-		for my $k (qw(starttls compress)) {
-			$v = cfg_bool($cfg, "nntp.$k", $url) // next;
-			$self->{nntp_opt}->{$sec}->{$k} = $v;
-		}
-
-		# internal option
-		for my $k (qw(pollInterval)) {
-			$to = cfg_intvl($cfg, "nntp.$k", $url) // next;
-			$self->{nntp_opt}->{$sec}->{$k} = $to;
-		}
-	}
-	$nn_args;
-}
-
 sub nntp_fetch_all ($$$) {
-	my ($self, $nn, $url) = @_;
-	my $uri = uri_new($url);
+	my ($self, $nn, $uri) = @_;
 	my ($group, $num_a, $num_b) = $uri->group;
 	my $sec = uri_section($uri);
 	my ($nr, $beg, $end) = $nn->group($group);
@@ -689,7 +653,7 @@ sub nntp_fetch_all ($$$) {
 	# IMAPTracker is also used for tracking NNTP, UID == article number
 	# LIST.ACTIVE can get the equivalent of UIDVALIDITY, but that's
 	# expensive.  So we assume newsgroups don't change:
-	my $itrk = PublicInbox::IMAPTracker->new($url);
+	my $itrk = PublicInbox::IMAPTracker->new($$uri);
 	my (undef, $l_art) = $itrk->get_last;
 	$l_art //= $beg; # initial import
 
@@ -702,14 +666,14 @@ sub nntp_fetch_all ($$$) {
 	return if $l_art >= $end; # nothing to do
 	$beg = $l_art + 1;
 
-	warn "I: $url fetching ARTICLE $beg..$end\n";
+	warn "I: $uri fetching ARTICLE $beg..$end\n";
 	my $warn_cb = $SIG{__WARN__} || \&CORE::warn;
 	my ($err, $art);
 	local $SIG{__WARN__} = sub {
 		my $pfx = ($_[0] // '') =~ /^([A-Z]: )/g ? $1 : '';
-		$warn_cb->("$pfx$url ", $art ? ("ARTICLE $art") : (), "\n", @_);
+		$warn_cb->("$pfx$uri ", $art ? ("ARTICLE $art") : (), "\n", @_);
 	};
-	my $inboxes = $self->{nntp}->{$url};
+	my $inboxes = $self->{nntp}->{$$uri};
 	my $last_art;
 	my $n = $self->{max_batch};
 	for ($beg..$end) {
@@ -741,7 +705,7 @@ sub nntp_fetch_all ($$$) {
 		} elsif ($inboxes eq 'watchspam') {
 			my $eml = PublicInbox::Eml->new(\$raw);
 			$self->{pi_cfg}->each_inbox(\&remove_eml_i,
-					$self, $eml, "$url ARTICLE $art");
+					$self, $eml, "$uri ARTICLE $art");
 		} else {
 			die "BUG: destination unknown $inboxes";
 		}
@@ -754,23 +718,11 @@ sub nntp_fetch_all ($$$) {
 
 sub watch_nntp_init ($$) {
 	my ($self, $poll) = @_;
-	eval { require Net::NNTP } or
-		die "Net::NNTP is required for NNTP:\n$@\n";
-	eval { require PublicInbox::IMAPTracker } or
-		die "DBD::SQLite is required for NNTP\n:$@\n";
-
-	my $nn_args = nntp_common_init($self); # read args from config
-
-	# make sure we can connect and cache the credentials in memory
-	$self->{nn_arg} = {}; # schema://authority => Net::NNTP->new args
-	for my $url (@{$self->{nntp_order}}) {
-		nn_for($self, $url, $nn_args);
-	}
-	for my $url (@{$self->{nntp_order}}) {
-		my $uri = uri_new($url);
+	nntp_common_init($self); # read args from config
+	for my $uri (@{$self->{nntp_order}}) {
 		my $sec = uri_section($uri);
 		my $intvl = $self->{nntp_opt}->{$sec}->{pollInterval};
-		push @{$poll->{$intvl || 120}}, $url;
+		push @{$poll->{$intvl || 120}}, $uri;
 	}
 }
 
@@ -778,12 +730,12 @@ sub watch { # main entry point
 	my ($self, $sig, $oldset) = @_;
 	$self->{oldset} = $oldset;
 	$self->{sig} = $sig;
-	my $poll = {}; # intvl_seconds => [ url1, url2 ]
+	my $poll = {}; # intvl_seconds => [ uri1, uri2 ]
 	watch_imap_init($self, $poll) if $self->{imap};
 	watch_nntp_init($self, $poll) if $self->{nntp};
-	while (my ($intvl, $urls) = each %$poll) {
-		# poll all URLs for a given interval sequentially
-		add_timer(0, \&poll_fetch_fork, $self, $intvl, $urls);
+	while (my ($intvl, $uris) = each %$poll) {
+		# poll all URIs for a given interval sequentially
+		add_timer(0, \&poll_fetch_fork, $self, $intvl, $uris);
 	}
 	watch_fs_init($self) if $self->{mdre};
 	PublicInbox::DS->SetPostLoopCallback(sub { !$self->quit_done });

@@ -11,26 +11,16 @@ use PublicInbox::Eml;
 our %IMAPflags2kw = map {; "\\\u$_" => $_ } qw(seen answered flagged draft);
 
 # TODO: trim this down, this is huge
-our @EXPORT = qw(uri_new uri_scheme uri_section
-		nn_new nn_for
-		imap_uri nntp_url
-		cfg_bool cfg_intvl imap_common_init
+our @EXPORT = qw(uri_new uri_section
+		nn_new imap_uri nntp_uri
+		cfg_bool cfg_intvl imap_common_init nntp_common_init
 		);
-
-# avoid exposing deprecated "snews" to users.
-my %SCHEME_MAP = ('snews' => 'nntps');
-
-sub uri_scheme ($) {
-	my ($uri) = @_;
-	my $scheme = $uri->scheme;
-	$SCHEME_MAP{$scheme} // $scheme;
-}
 
 # returns the git config section name, e.g [imap "imaps://user@example.com"]
 # without the mailbox, so we can share connections between different inboxes
 sub uri_section ($) {
 	my ($uri) = @_;
-	uri_scheme($uri) . '://' . $uri->authority;
+	$uri->scheme . '://' . $uri->authority;
 }
 
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
@@ -123,8 +113,8 @@ sub try_starttls ($) {
 }
 
 sub nn_new ($$$) {
-	my ($nn_arg, $nntp_opt, $url) = @_;
-	my $nn = Net::NNTP->new(%$nn_arg) or die "E: <$url> new: $!\n";
+	my ($nn_arg, $nntp_opt, $uri) = @_;
+	my $nn = Net::NNTP->new(%$nn_arg) or die "E: <$uri> new: $!\n";
 
 	# default to using STARTTLS if it's available, but allow
 	# it to be disabled for localhost/VPN users
@@ -133,27 +123,26 @@ sub nn_new ($$$) {
 				try_starttls($nn_arg->{Host})) {
 			# soft fail by default
 			$nn->starttls or warn <<"";
-W: <$url> STARTTLS tried and failed (not requested)
+W: <$uri> STARTTLS tried and failed (not requested)
 
 		} elsif ($nntp_opt->{starttls}) {
 			# hard fail if explicitly configured
 			$nn->starttls or die <<"";
-E: <$url> STARTTLS requested and failed
+E: <$uri> STARTTLS requested and failed
 
 		}
 	} elsif ($nntp_opt->{starttls}) {
 		$nn->can('starttls') or
-			die "E: <$url> Net::NNTP too old for STARTTLS\n";
+			die "E: <$uri> Net::NNTP too old for STARTTLS\n";
 		$nn->starttls or die <<"";
-E: <$url> STARTTLS requested and failed
+E: <$uri> STARTTLS requested and failed
 
 	}
 	$nn;
 }
 
 sub nn_for ($$$;$) { # nn = Net::NNTP
-	my ($self, $url, $nn_args, $lei) = @_;
-	my $uri = uri_new($url);
+	my ($self, $uri, $nn_args, $lei) = @_;
 	my $sec = uri_section($uri);
 	my $nntp_opt = $self->{nntp_opt}->{$sec} //= {};
 	my $host = $uri->host;
@@ -165,7 +154,7 @@ sub nn_for ($$$;$) { # nn = Net::NNTP
 		require PublicInbox::GitCredential;
 		$cred = bless {
 			url => $sec,
-			protocol => uri_scheme($uri),
+			protocol => $uri->scheme,
 			host => $host,
 		}, 'PublicInbox::GitCredential';
 		($u, $p) = split(/:/, $ui, 2);
@@ -179,14 +168,13 @@ sub nn_for ($$$;$) { # nn = Net::NNTP
 		SSL => $uri->secure, # snews == nntps
 		%$common, # may Debug ....
 	};
-	my $nn = nn_new($nn_arg, $nntp_opt, $url);
-
+	my $nn = nn_new($nn_arg, $nntp_opt, $uri);
 	if ($cred) {
 		$cred->fill($lei); # may prompt user here
 		if ($nn->authinfo($u, $p)) {
 			push @{$nntp_opt->{-postconn}}, [ 'authinfo', $u, $p ];
 		} else {
-			warn "E: <$url> AUTHINFO $u XXXX failed\n";
+			warn "E: <$uri> AUTHINFO $u XXXX failed\n";
 			$nn = undef;
 		}
 	}
@@ -197,12 +185,12 @@ sub nn_for ($$$;$) { # nn = Net::NNTP
 			if ($nn->compress) {
 				push @{$nntp_opt->{-postconn}}, [ 'compress' ];
 			} else {
-				warn "W: <$url> COMPRESS failed\n";
+				warn "W: <$uri> COMPRESS failed\n";
 			}
 		} else {
 			delete $nntp_opt->{compress};
 			warn <<"";
-W: <$url> COMPRESS not supported by Net::NNTP
+W: <$uri> COMPRESS not supported by Net::NNTP
 W: see https://rt.cpan.org/Ticket/Display.html?id=129967 for updates
 
 		}
@@ -220,15 +208,12 @@ sub imap_uri {
 	$uri ? $uri->canonical : undef;
 }
 
-my %IS_NNTP = (news => 1, snews => 1, nntp => 1);
-sub nntp_url {
+my %IS_NNTP = (news => 1, snews => 1, nntp => 1, nntps => 1);
+sub nntp_uri {
 	my ($url) = @_;
-	my $uri = uri_new($url);
-	return unless $uri && $IS_NNTP{$uri->scheme} && $uri->group;
-	$url = $uri->canonical->as_string;
-	# nntps is IANA registered, snews is deprecated
-	$url =~ s!\Asnews://!nntps://!;
-	$url;
+	require PublicInbox::URInntps;
+	my $uri = PublicInbox::URInntps->new($url);
+	$uri && $IS_NNTP{$uri->scheme} && $uri->group ? $uri->canonical : undef;
 }
 
 sub cfg_intvl ($$$) {
@@ -254,6 +239,7 @@ sub cfg_bool ($$$) {
 # flesh out common IMAP-specific data structures
 sub imap_common_init ($;$) {
 	my ($self, $lei) = @_;
+	return unless $self->{imap_order};
 	$self->{quiet} = 1 if $lei && $lei->{opt}->{quiet};
 	eval { require PublicInbox::IMAPClient } or
 		die "Mail::IMAPClient is required for IMAP:\n$@\n";
@@ -297,10 +283,55 @@ sub imap_common_init ($;$) {
 	$mics;
 }
 
+# flesh out common NNTP-specific data structures
+sub nntp_common_init ($;$) {
+	my ($self, $lei) = @_;
+	return unless $self->{nntp_order};
+	$self->{quiet} = 1 if $lei && $lei->{opt}->{quiet};
+	eval { require Net::NNTP } or
+		die "Net::NNTP is required for NNTP:\n$@\n";
+	eval { require PublicInbox::IMAPTracker } or
+		die "DBD::SQLite is required for NNTP\n:$@\n";
+	my $cfg = $self->{pi_cfg} // $lei->_lei_cfg;
+	my $nn_args = {}; # scheme://authority => Net::NNTP->new arg
+	for my $uri (@{$self->{nntp_order}}) {
+		my $sec = uri_section($uri);
+
+		# Debug and Timeout are passed to Net::NNTP->new
+		my $v = cfg_bool($cfg, 'nntp.Debug', $$uri);
+		$nn_args->{$sec}->{Debug} = $v if defined $v;
+		my $to = cfg_intvl($cfg, 'nntp.Timeout', $$uri);
+		$nn_args->{$sec}->{Timeout} = $to if $to;
+
+		# Net::NNTP post-connect commands
+		for my $k (qw(starttls compress)) {
+			$v = cfg_bool($cfg, "nntp.$k", $$uri) // next;
+			$self->{nntp_opt}->{$sec}->{$k} = $v;
+		}
+
+		# internal option
+		for my $k (qw(pollInterval)) {
+			$to = cfg_intvl($cfg, "nntp.$k", $$uri) // next;
+			$self->{nntp_opt}->{$sec}->{$k} = $to;
+		}
+	}
+	# make sure we can connect and cache the credentials in memory
+	$self->{nn_arg} = {}; # schema://authority => Net::NNTP->new args
+	my %nn; # schema://authority => Net::NNTP object
+	for my $uri (@{$self->{nntp_order}}) {
+		my $sec = uri_section($uri);
+		$nn{$sec} //= nn_for($self, $uri, $nn_args, $lei);
+	}
+	\%nn; # for optional {nn_cached}
+}
+
 sub add_url {
 	my ($self, $arg) = @_;
-	if (my $uri = imap_uri($arg)) {
+	my $uri;
+	if ($uri = imap_uri($arg)) {
 		push @{$self->{imap_order}}, $uri;
+	} elsif ($uri = nntp_uri($arg)) {
+		push @{$self->{nntp_order}}, $uri;
 	} else {
 		push @{$self->{unsupported_url}}, $arg;
 	}
@@ -314,6 +345,10 @@ sub errors {
 	if ($self->{imap_order}) {
 		eval { require PublicInbox::IMAPClient } or
 			die "Mail::IMAPClient is required for IMAP:\n$@\n";
+	}
+	if ($self->{nntp_order}) {
+		eval { require Net::NNTP } or
+			die "Net::NNTP is required for NNTP:\n$@\n";
 	}
 	undef;
 }
@@ -459,6 +494,106 @@ sub imap_each {
 	}
 	warn $err if $err;
 	$mic;
+}
+
+# may used cached auth info prepared by nn_for once
+sub nn_get {
+	my ($self, $uri) = @_;
+	my $sec = uri_section($uri);
+	# see if caller saved result of nntp_common_init
+	my $cached = $self->{nn_cached} // {};
+	my $nn;
+	$nn = delete($cached->{$sec}) and return $nn;
+	my $nn_arg = $self->{nn_arg}->{$sec} or
+			die "BUG: no Net::NNTP->new arg for $sec";
+	my $nntp_opt = $self->{nntp_opt}->{$sec};
+	$nn = nn_new($nn_arg, $nntp_opt, $uri) or return;
+	if (my $postconn = $nntp_opt->{-postconn}) {
+		for my $m_arg (@$postconn) {
+			my ($method, @args) = @$m_arg;
+			$nn->$method(@args) and next;
+			die "E: <$uri> $method failed\n";
+			return;
+		}
+	}
+	$nn;
+}
+
+sub _nntp_fetch_all ($$$) {
+	my ($self, $nn, $uri) = @_;
+	my ($group, $num_a, $num_b) = $uri->group;
+	my $sec = uri_section($uri);
+	my ($nr, $beg, $end) = $nn->group($group);
+	unless (defined($nr)) {
+		chomp(my $msg = $nn->message);
+		return "E: GROUP $group <$sec> $msg";
+	}
+
+	# IMAPTracker is also used for tracking NNTP, UID == article number
+	# LIST.ACTIVE can get the equivalent of UIDVALIDITY, but that's
+	# expensive.  So we assume newsgroups don't change:
+	my $itrk = $self->{incremental} ?
+			PublicInbox::IMAPTracker->new($$uri) : 0;
+	my (undef, $l_art) = $itrk ? $itrk->get_last : ();
+
+	# allow users to specify articles to refetch
+	# cf. https://tools.ietf.org/id/draft-gilman-news-url-01.txt
+	# nntp://example.com/inbox.foo/$num_a-$num_b
+	$beg = $num_a if defined($num_a) && $num_a < $beg;
+	$end = $num_b if defined($num_b) && $num_b < $end;
+	if (defined $l_art) {
+		return if $l_art >= $end; # nothing to do
+		$beg = $l_art + 1;
+	}
+	my ($err, $art);
+	unless ($self->{quiet}) {
+		warn "# $uri fetching ARTICLE $beg..$end\n";
+	}
+	my $last_art;
+	my $n = $self->{max_batch};
+	for ($beg..$end) {
+		last if $self->{quit};
+		$art = $_;
+		if (--$n < 0) {
+			$itrk->update_last(0, $last_art) if $itrk;
+			$n = $self->{max_batch};
+		}
+		my $raw = $nn->article($art);
+		unless (defined($raw)) {
+			my $msg = $nn->message;
+			if ($nn->code == 421) { # pseudo response from Net::Cmd
+				$err = "E: $msg";
+				last;
+			} else { # probably just a deleted message (spam)
+				warn "W: $msg";
+				next;
+			}
+		}
+		$raw = join('', @$raw);
+		$raw =~ s/\r\n/\n/sg;
+		my ($eml_cb, @args) = @{$self->{eml_each}};
+		$eml_cb->($uri, $art, [], PublicInbox::Eml->new(\$raw), @args);
+		$last_art = $art;
+	}
+	$itrk->update_last(0, $last_art) if $itrk;
+	$err;
+}
+
+sub nntp_each {
+	my ($self, $url, $eml_cb, @args) = @_;
+	my $uri = ref($url) ? $url : PublicInbox::URInntps->new($url);
+	my $sec = uri_section($uri);
+	local $0 = $uri->group ." $sec";
+	my $nn = nn_get($self, $uri);
+	my $err;
+	if ($nn) {
+		local $self->{eml_each} = [ $eml_cb, @args ];
+		$err = _nntp_fetch_all($self, $nn, $uri);
+	} else {
+		$err = "E: not connected: $!";
+	}
+	warn $err if $err;
+	$nn;
 }
 
 sub new { bless {}, shift };

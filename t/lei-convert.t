@@ -6,25 +6,42 @@ use PublicInbox::MboxReader;
 use PublicInbox::MdirReader;
 use PublicInbox::NetReader;
 require_git 2.6;
-require_mods(qw(DBD::SQLite Search::Xapian Mail::IMAPClient));
+require_mods(qw(DBD::SQLite Search::Xapian Mail::IMAPClient Net::NNTP));
 my ($tmpdir, $for_destroy) = tmpdir;
 my $sock = tcp_server;
-my $cmd = [ '-imapd', '-W0', "--stdout=$tmpdir/1", "--stderr=$tmpdir/2" ];
+my $cmd = [ '-imapd', '-W0', "--stdout=$tmpdir/i1", "--stderr=$tmpdir/i2" ];
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $env = { PI_CONFIG => $cfg_path };
-my $td = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT("-imapd: $?");
-my $host_port = tcp_host_port($sock);
+my $tdi = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT("-imapd: $?");
+my $imap_host_port = tcp_host_port($sock);
+$sock = tcp_server;
+$cmd = [ '-nntpd', '-W0', "--stdout=$tmpdir/n1", "--stderr=$tmpdir/n2" ];
+my $tdn = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT("-nntpd: $?");
+my $nntp_host_port = tcp_host_port($sock);
 undef $sock;
+
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $d = $ENV{HOME};
-	my $dig = Digest::SHA->new(256);
 	lei_ok('convert', '-o', "mboxrd:$d/foo.mboxrd",
-		"imap://$host_port/t.v2.0");
-	ok(-f "$d/foo.mboxrd", 'mboxrd created');
+		"imap://$imap_host_port/t.v2.0");
+	ok(-f "$d/foo.mboxrd", 'mboxrd created from imap://');
+
+	lei_ok('convert', '-o', "mboxrd:$d/nntp.mboxrd",
+		"nntp://$nntp_host_port/t.v2");
+	ok(-f "$d/nntp.mboxrd", 'mboxrd created from nntp://');
+
 	my (@mboxrd, @mboxcl2);
 	open my $fh, '<', "$d/foo.mboxrd" or BAIL_OUT $!;
 	PublicInbox::MboxReader->mboxrd($fh, sub { push @mboxrd, shift });
 	ok(scalar(@mboxrd) > 1, 'got multiple messages');
+
+	open $fh, '<', "$d/nntp.mboxrd" or BAIL_OUT $!;
+	my $i = 0;
+	PublicInbox::MboxReader->mboxrd($fh, sub {
+		my ($eml) = @_;
+		is($eml->body, $mboxrd[$i]->body, "body matches #$i");
+		$i++;
+	});
 
 	lei_ok('convert', '-o', "mboxcl2:$d/cl2", "mboxrd:$d/foo.mboxrd");
 	ok(-s "$d/cl2", 'mboxcl2 non-empty') or diag $lei_err;

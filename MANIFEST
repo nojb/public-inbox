@@ -369,6 +369,7 @@ t/lei-daemon.t
 t/lei-externals.t
 t/lei-import-imap.t
 t/lei-import-maildir.t
+t/lei-import-nntp.t
 t/lei-import.t
 t/lei-mirror.t
 t/lei.t
@@ -454,7 +455,6 @@ t/watch_imap.t
 t/watch_maildir.t
 t/watch_maildir_v2.t
 t/watch_multiple_headers.t
-t/watch_nntp.t
 t/www_altid.t
 t/www_listing.t
 t/www_static.t

@@ -74,7 +74,7 @@ sub call { # the main "lei import" method
 	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
 	for my $input (@inputs) {
 		my $input_path = $input;
-		if ($input =~ m!\A(?:imap|nntp)s?://!i) {
+		if ($input =~ m!\A(?:imaps?|nntps?|s?news)://!i) {
 			require PublicInbox::NetReader;
 			$net //= PublicInbox::NetReader->new;
 			$net->add_url($input);
@@ -152,9 +152,8 @@ sub _import_maildir { # maildir_each_file cb
 	$sto->ipc_do('set_eml_from_maildir', $f, $set_kw);
 }
 
-sub _import_imap { # imap_each cb
+sub _import_net { # imap_each, nntp_each cb
 	my ($url, $uid, $kw, $eml, $sto, $set_kw) = @_;
-	warn "$url $uid";
 	$sto->ipc_do('set_eml', $eml, $set_kw ? @$kw : ());
 }
 
@@ -163,9 +162,12 @@ sub import_path_url {
 	my $lei = $self->{lei};
 	my $ifmt = lc($lei->{opt}->{'format'} // '');
 	# TODO auto-detect?
-	if ($input =~ m!\A(imap|nntp)s?://!i) {
-		$lei->{net}->imap_each($input, \&_import_imap, $lei->{sto},
+	if ($input =~ m!\Aimaps?://!i) {
+		$lei->{net}->imap_each($input, \&_import_net, $lei->{sto},
 					$lei->{opt}->{kw});
+		return;
+	} elsif ($input =~ m!\A(?:nntps?|s?news)://!i) {
+		$lei->{net}->nntp_each($input, \&_import_net, $lei->{sto}, 0);
 		return;
 	} elsif ($input =~ s!\A([a-z0-9]+):!!i) {
 		$ifmt = lc $1;
