@@ -17,6 +17,7 @@ is($canon->('/this//path/'), '/this/path', 'extra slashes gone');
 is($canon->('/ALL/CAPS'), '/ALL/CAPS', 'caps preserved');
 
 my $glob2re = $cls->can('glob2re');
+is($glob2re->('http://[::1]:1234/foo/'), undef, 'IPv6 URL not globbed');
 is($glob2re->('foo'), undef, 'plain string unchanged');
 is_deeply($glob2re->('[f-o]'), '[f-o]' , 'range accepted');
 is_deeply($glob2re->('*'), '[^/]*?' , 'wildcard accepted');

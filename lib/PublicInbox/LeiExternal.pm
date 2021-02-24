@@ -54,6 +54,12 @@ sub glob2re {
 	my $p = '';
 	my $in_bracket = 0;
 	my $qm = 0;
+	my $schema_host_port = '';
+
+	# don't glob URL-looking things that look like IPv6
+	if ($re =~ s!\A([a-z0-9\+]+://\[[a-f0-9\:]+\](?::[0-9]+)?/)!!i) {
+		$schema_host_port = quotemeta $1; # "http://[::1]:1234"
+	}
 	my $changes = ($re =~ s!(.)!
 		$re_map{$p eq '\\' ? '' : do {
 			if ($1 eq '[') { ++$in_bracket }
@@ -69,7 +75,7 @@ sub glob2re {
 			(my $in_braces = $2) =~ tr!,!|!;
 			$1."($in_braces)";
 			/sge);
-	($changes - $qm) ? $re : undef;
+	($changes - $qm) ? $schema_host_port.$re : undef;
 }
 
 # get canonicalized externals list matching $loc
