@@ -9,6 +9,7 @@ use PublicInbox::Hval qw(prurl fmt_ts);
 use PublicInbox::Linkify;
 use PublicInbox::GzipFilter qw(gzf_maybe);
 use PublicInbox::ConfigIter;
+use PublicInbox::WwwStream;
 use bytes (); # bytes::length
 
 sub ibx_entry {
