@@ -366,6 +366,13 @@ sub _imap_do_msg ($$$$$) {
 	$eml_cb->($uri, $uid, $kw, PublicInbox::Eml->new($raw), @args);
 }
 
+sub run_commit_cb ($) {
+	my ($self) = @_;
+	my $cmt_cb_args = $self->{on_commit} or return;
+	my ($cb, @args) = @$cmt_cb_args;
+	$cb->(@args);
+}
+
 sub _imap_fetch_all ($$$) {
 	my ($self, $mic, $uri) = @_;
 	my $sec = uri_section($uri);
@@ -414,8 +421,10 @@ sub _imap_fetch_all ($$$) {
 		# I wish "UID FETCH $START:*" could work, but:
 		# 1) servers do not need to return results in any order
 		# 2) Mail::IMAPClient doesn't offer a streaming API
-		$uids = $mic->search("UID $l_uid:*") or
+		unless ($uids = $mic->search("UID $l_uid:*")) {
+			return if $!{EINTR} && $self->{quit};
 			return "E: $uri UID SEARCH $l_uid:* error: $!";
+		}
 		return if scalar(@$uids) == 0;
 
 		# RFC 3501 doesn't seem to indicate order of UID SEARCH
@@ -437,6 +446,7 @@ sub _imap_fetch_all ($$$) {
 			local $0 = "UID:$batch $mbx $sec";
 			my $r = $mic->fetch_hash($batch, $req, 'FLAGS');
 			unless ($r) { # network error?
+				last if $!{EINTR} && $self->{quit};
 				$err = "E: $uri UID FETCH $batch error: $!";
 				last;
 			}
@@ -451,6 +461,7 @@ sub _imap_fetch_all ($$$) {
 			}
 			last if $self->{quit};
 		}
+		run_commit_cb($self);
 		$itrk->update_last($r_uidval, $last_uid) if $itrk;
 	} until ($err || $self->{quit});
 	$err;
@@ -490,7 +501,7 @@ sub imap_each {
 		local $self->{eml_each} = [ $eml_cb, @args ];
 		$err = _imap_fetch_all($self, $mic, $uri);
 	} else {
-		$err = "E: not connected: $!";
+		$err = "E: <$uri> not connected: $!";
 	}
 	warn $err if $err;
 	$mic;
@@ -555,6 +566,7 @@ sub _nntp_fetch_all ($$$) {
 		last if $self->{quit};
 		$art = $_;
 		if (--$n < 0) {
+			run_commit_cb($self);
 			$itrk->update_last(0, $last_art) if $itrk;
 			$n = $self->{max_batch};
 		}
@@ -575,6 +587,7 @@ sub _nntp_fetch_all ($$$) {
 		$eml_cb->($uri, $art, [], PublicInbox::Eml->new(\$raw), @args);
 		$last_art = $art;
 	}
+	run_commit_cb($self);
 	$itrk->update_last(0, $last_art) if $itrk;
 	$err;
 }
@@ -585,12 +598,13 @@ sub nntp_each {
 	my $sec = uri_section($uri);
 	local $0 = $uri->group ." $sec";
 	my $nn = nn_get($self, $uri);
+	return if $self->{quit};
 	my $err;
 	if ($nn) {
 		local $self->{eml_each} = [ $eml_cb, @args ];
 		$err = _nntp_fetch_all($self, $nn, $uri);
 	} else {
-		$err = "E: not connected: $!";
+		$err = "E: <$uri> not connected: $!";
 	}
 	warn $err if $err;
 	$nn;

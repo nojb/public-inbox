@@ -459,7 +459,7 @@ sub test_watch {
 	$cfg->each_inbox(sub { shift->unsubscribe_unlock('ident') });
 	$ii->close;
 	PublicInbox::DS->Reset;
-	my @err = grep(!/^I:/, <$err>);
+	my @err = grep(!/^(?:I:|#)/, <$err>);
 	is(@err, 0, 'no warnings/errors from -watch'.join(' ', @err));
 	my @ls = xqx(['git', "--git-dir=$inboxdir", qw(ls-tree -r HEAD)]);
 	isnt(scalar(@ls), 0, 'imported something');

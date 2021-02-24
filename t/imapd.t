@@ -507,7 +507,7 @@ SKIP: {
 	$ii->close;
 	PublicInbox::DS->Reset;
 	seek($err, 0, 0);
-	my @err = grep(!/^I:/, <$err>);
+	my @err = grep(!/^(?:I:|#)/, <$err>);
 	is(@err, 0, 'no warnings/errors from -watch'.join(' ', @err));
 
 	if ($ENV{TEST_KILL_IMAPD}) { # not sure how reliable this test can be
