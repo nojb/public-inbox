@@ -372,6 +372,7 @@ t/lei-import-maildir.t
 t/lei-import-nntp.t
 t/lei-import.t
 t/lei-mirror.t
+t/lei-q-remote-import.t
 t/lei.t
 t/lei_dedupe.t
 t/lei_external.t

@@ -112,6 +112,7 @@ our %CMD = ( # sorted in order of importance/use:
 	save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
+	import-remote!
 	alert=s@ mua=s no-torsocks torsocks=s verbose|v+ quiet|q C=s@),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
@@ -225,6 +226,7 @@ my %OPTDESC = (
 		'whether or not to wrap git and curl commands with torsocks'],
 'no-torsocks' => 'alias for --torsocks=no',
 'save-as=s' => ['NAME', 'save a search terms by given name'],
+'import-remote!' => 'do not memoize remote messages into local store',
 
 'type=s' => [ 'any|mid|git', 'disambiguate type' ],
 

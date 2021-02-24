@@ -189,8 +189,9 @@ sub query_mset { # non-parallel for non-"--threads" users
 	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
-sub each_eml { # callback for MboxReader->mboxrd
+sub each_remote_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
+	$lei->{sto}->ipc_do('set_eml', $eml) if $lei->{sto}; # --import-remote
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->populate($eml);
 	$smsg->parse_references($eml, mids($eml));
@@ -244,14 +245,17 @@ sub query_remote_mboxrd {
 		my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
 		$reap_curl = PublicInbox::OnDestroy->new($sigint_reap, $pid);
 		$fh = IO::Uncompress::Gunzip->new($fh);
-		PublicInbox::MboxReader->mboxrd($fh, \&each_eml, $self,
+		PublicInbox::MboxReader->mboxrd($fh, \&each_remote_eml, $self,
 						$lei, $each_smsg);
 		my $err = waitpid($pid, 0) == $pid ? undef
 						: "BUG: waitpid($cmd): $!";
 		@$reap_curl = (); # cancel OnDestroy
 		die $err if $err;
+		my $nr = $lei->{-nr_remote_eml};
+		if ($nr && $lei->{sto}) {
+			my $wait = $lei->{sto}->ipc_do('done');
+		}
 		if ($? == 0) {
-			my $nr = $lei->{-nr_remote_eml};
 			mset_progress($lei, $lei->{-current_url}, $nr, $nr);
 			next;
 		}
