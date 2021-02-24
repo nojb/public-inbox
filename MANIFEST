@@ -243,6 +243,7 @@ lib/PublicInbox/TLS.pm
 lib/PublicInbox/TestCommon.pm
 lib/PublicInbox/Tmpfile.pm
 lib/PublicInbox/URIimap.pm
+lib/PublicInbox/URInntps.pm
 lib/PublicInbox/Unsubscribe.pm
 lib/PublicInbox/UserContent.pm
 lib/PublicInbox/V2Writable.pm
@@ -437,6 +438,7 @@ t/thread-cycle.t
 t/thread-index-gap.t
 t/time.t
 t/uri_imap.t
+t/uri_nntps.t
 t/utf8.eml
 t/v1-add-remove-add.t
 t/v1reindex.t
