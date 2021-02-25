@@ -79,6 +79,14 @@ Augment output destination instead of clobbering it.
 
 Return all messages in the same thread as the actual match(es).
 
+Using this twice (C<-tt>) sets the C<flagged> (AKA "important")
+on messages which were actual messages.  This is useful to distinguish
+messages which were direct hits from messages which were merely part
+of the same thread.
+
+TODO: Warning: this flag may become persistent and saved in
+lei/store unless an MUA unflags it!  (Behavior undecided)
+
 =item -d STRATEGY, --dedupe=STRATEGY
 
 Strategy for deduplicating messages: C<content>, C<oid>, C<mid>, or

@@ -109,7 +109,7 @@ sub index_opt {
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms', qw(
-	save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t augment|a
+	save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t+ augment|a
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
 	import-remote!
@@ -233,7 +233,7 @@ my %OPTDESC = (
 'dedupe|d=s' => ['STRATEGY|content|oid|mid|none',
 		'deduplication strategy'],
 'show	threads|t' => 'display entire thread a message belongs to',
-'q	threads|t' =>
+'q	threads|t+' =>
 	'return all messages in the same threads as the actual match(es)',
 'alert=s@' => ['CMD,:WINCH,:bell,<any command>',
 	'run command(s) or perform ops when done writing to output ' .

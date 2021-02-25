@@ -66,6 +66,13 @@ sub remotes { @{$_[0]->{remotes} // []} }
 # called by PublicInbox::Search::xdb
 sub xdb_shards_flat { @{$_[0]->{shards_flat} // []} }
 
+sub mitem_kw ($$;$) {
+	my ($smsg, $mitem, $flagged) = @_;
+	my $kw = xap_terms('K', $mitem->get_document);
+	$kw->{flagged} = 1 if $flagged;
+	$smsg->{kw} = [ sort keys %$kw ];
+}
+
 # like over->get_art
 sub smsg_for {
 	my ($self, $mitem) = @_;
@@ -76,10 +83,7 @@ sub smsg_for {
 	my $num = int(($docid - 1) / $nshard) + 1;
 	my $ibx = $self->{shard2ibx}->[$shard];
 	my $smsg = $ibx->over->get_art($num);
-	if (ref($ibx->can('msg_keywords'))) {
-		my $kw = xap_terms('K', $mitem->get_document);
-		$smsg->{kw} = [ sort keys %$kw ];
-	}
+	mitem_kw($smsg, $mitem) if $ibx->can('msg_keywords');
 	$smsg->{docid} = $docid;
 	$smsg;
 }
@@ -143,6 +147,8 @@ sub query_thread_mset { # for --threads
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $ibxish);
+	my $can_kw = !!$ibxish->can('msg_keywords');
+	my $fl = $lei->{opt}->{threads} > 1;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		mset_progress($lei, $desc, $mset->size,
@@ -156,6 +162,13 @@ sub query_thread_mset { # for --threads
 				my $smsg = $over->get_art($n) or next;
 				wait_startq($lei);
 				my $mitem = delete $n2item{$smsg->{num}};
+				if ($mitem) {
+					if ($can_kw) {
+						mitem_kw($smsg, $mitem, $fl);
+					} else {
+						$smsg->{kw} = [ 'flagged' ];
+					}
+				}
 				$each_smsg->($smsg, $mitem);
 			}
 			@{$ctx->{xids}} = ();
