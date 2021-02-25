@@ -138,6 +138,10 @@ test_lei(sub {
 	$nwr->imap_each($folder_uri, $imap_slurp_all, my $empty = []);
 	is(scalar(@$empty), 0, 'no results w/o augment');
 
+	lei_ok qw(convert -F eml t/msg_iter-order.eml -o), $$folder_uri;
+	$nwr->imap_each($folder_uri, $imap_slurp_all, $empty = []);
+	is_deeply($empty, [ [ [], eml_load('t/msg_iter-order.eml') ] ],
+		'converted to IMAP destination');
 });
 
 undef $cleanup; # remove temporary folder

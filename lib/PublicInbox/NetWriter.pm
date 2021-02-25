@@ -16,7 +16,8 @@ my %IMAPkw2flags;
 sub imap_append {
 	my ($mic, $folder, $bref, $smsg, $eml) = @_;
 	$bref //= \($eml->as_string);
-	$smsg //= bless { }, 'PublicInbox::Smsg';
+	$smsg //= bless {}, 'PublicInbox::Smsg';
+	bless($smsg, 'PublicInbox::Smsg') if ref($smsg) eq 'HASH';
 	$smsg->{ts} //= msg_timestamp($eml // PublicInbox::Eml->new($$bref));
 	my @f = map { $IMAPkw2flags{$_} } @{$smsg->{kw}};
 	$mic->append_string($folder, $$bref, "@f", $smsg->internaldate) or

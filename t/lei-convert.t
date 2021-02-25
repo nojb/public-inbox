@@ -5,6 +5,7 @@ use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::MboxReader;
 use PublicInbox::MdirReader;
 use PublicInbox::NetReader;
+use PublicInbox::Eml;
 require_git 2.6;
 require_mods(qw(DBD::SQLite Search::Xapian Mail::IMAPClient Net::NNTP));
 my ($tmpdir, $for_destroy) = tmpdir;
@@ -84,5 +85,19 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	open $fh, '<', "$d/foo.mboxrd" or BAIL_OUT;
 	my $exp = do { local $/; <$fh> };
 	is($out, $exp, 'stdin => stdout');
+
+	lei_ok qw(convert -F eml -o mboxcl2:/dev/stdout t/plack-qp.eml);
+	open $fh, '<', \$lei_out or BAIL_OUT;
+	@bar = ();
+	PublicInbox::MboxReader->mboxcl2($fh, sub {
+		my $eml = shift;
+		for my $h (qw(Status Content-Length Lines)) {
+			ok(defined($eml->header_raw($h)),
+				"$h defined for mboxcl2");
+			$eml->header_set($h);
+		}
+		push @bar, $eml;
+	});
+	is_deeply(\@bar, [ eml_load('t/plack-qp.eml') ], 'eml => mboxcl2');
 });
 done_testing;

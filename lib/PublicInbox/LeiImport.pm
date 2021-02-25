@@ -7,7 +7,6 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
-use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::PktOp qw(pkt_do);
 
 sub _import_eml { # MboxReader callback
