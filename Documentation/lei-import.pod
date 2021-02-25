@@ -22,7 +22,7 @@ TODO: Update when URL support is added.
 
 =over
 
-=item -f MAIL_FORMAT, --format=MAIL_FORMAT
+=item -F MAIL_FORMAT, --in-format=MAIL_FORMAT
 
 Message input format.  Unless messages are given on C<stdin>, using a
 format prefix with C<LOCATION> is preferred.

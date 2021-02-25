@@ -172,7 +172,7 @@ our %CMD = ( # sorted in order of importance/use:
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	format|f=s kw|keywords|flags! C=s@),
+	in-format|F=s kw|keywords|flags! C=s@),
 	],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
@@ -399,9 +399,9 @@ sub fail ($$;$) {
 	undef;
 }
 
-sub check_input_format ($;$$) {
-	my ($self, $files, $opt_key) = @_;
-	$opt_key //= 'format';
+sub check_input_format ($;$) {
+	my ($self, $files) = @_;
+	my $opt_key = 'in-format';
 	my $fmt = $self->{opt}->{$opt_key};
 	if (!$fmt) {
 		my $err = $files ? "regular file(s):\n@$files" : '--stdin';

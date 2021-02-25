@@ -91,7 +91,7 @@ sub call { # the main "lei convert" method
 	$opt->{augment} = 1 unless $ovv->{dst} eq '/dev/stdout';
 	if ($opt->{stdin}) {
 		@inputs and return $lei->fail("--stdin and @inputs do not mix");
-		$lei->check_input_format(undef, 'in-format') or return;
+		$lei->check_input_format(undef) or return;
 		$self->{0} = $lei->{0};
 	}
 	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
@@ -123,7 +123,7 @@ sub call { # the main "lei convert" method
 		elsif (-d _) { push @d, $input }
 		else { return $lei->fail("Unable to handle $input") }
 	}
-	if (@f) { $lei->check_input_format(\@f, 'in-format') or return }
+	if (@f) { $lei->check_input_format(\@f) or return }
 	if (@d) { # TODO: check for MH vs Maildir, here
 		require PublicInbox::MdirReader;
 	}

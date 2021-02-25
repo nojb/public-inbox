@@ -68,8 +68,7 @@ sub call { # the main "lei import" method
 		$self->{0} = $lei->{0};
 	}
 
-	# TODO: do we need --format for non-stdin?
-	my $fmt = $lei->{opt}->{'format'};
+	my $fmt = $lei->{opt}->{'in-format'};
 	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
 	for my $input (@inputs) {
 		my $input_path = $input;
@@ -159,7 +158,7 @@ sub _import_net { # imap_each, nntp_each cb
 sub import_path_url {
 	my ($self, $input) = @_;
 	my $lei = $self->{lei};
-	my $ifmt = lc($lei->{opt}->{'format'} // '');
+	my $ifmt = lc($lei->{opt}->{'in-format'} // '');
 	# TODO auto-detect?
 	if ($input =~ m!\Aimaps?://!i) {
 		$lei->{net}->imap_each($input, \&_import_net, $lei->{sto},
@@ -191,7 +190,7 @@ EOM
 sub import_stdin {
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	_import_fh($lei, delete $self->{0}, '<stdin>', $lei->{opt}->{'format'});
+	_import_fh($lei, delete $self->{0}, '<stdin>', $lei->{opt}->{'in-format'});
 }
 
 no warnings 'once'; # the following works even when LeiAuth is lazy-loaded

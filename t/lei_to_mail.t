@@ -130,7 +130,7 @@ my $orig = do {
 };
 
 test_lei(sub {
-	ok(lei(qw(import -f), $mbox, $fn), 'imported mbox');
+	ok(lei(qw(import -F), $mbox, $fn), 'imported mbox');
 	ok(lei(qw(q s:x)), 'lei q works') or diag $lei_err;
 	my $res = json_utf8->decode($lei_out);
 	my $x = $res->[0];
