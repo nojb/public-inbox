@@ -63,7 +63,7 @@ sub locals { @{$_[0]->{locals} // []} }
 
 sub remotes { @{$_[0]->{remotes} // []} }
 
-# called by PublicInbox::Search::xdb
+# called by PublicInbox::Search::xdb (usually via ->mset)
 sub xdb_shards_flat { @{$_[0]->{shards_flat} // []} }
 
 sub mitem_kw ($$;$) {
