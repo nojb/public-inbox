@@ -463,11 +463,19 @@ sub _pre_augment_mbox {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
 	if ($dst ne '/dev/stdout') {
-		my $mode = -p $dst ? '>' : '+>>';
-		if (-f _ && !$lei->{opt}->{augment} and !unlink($dst)) {
-			$! == ENOENT or die "unlink($dst): $!";
+		my $out;
+		if (-p $dst) {
+			open $out, '>', $dst or die "open($dst): $!";
+		} elsif (-f _ || !-e _) {
+			require PublicInbox::MboxLock;
+			my $m = $lei->{opt}->{'lock'} //
+					PublicInbox::MboxLock->defaults;
+			$self->{mbl} = PublicInbox::MboxLock->acq($dst, 1, $m);
+			$out = $self->{mbl}->{fh};
+			if (!$lei->{opt}->{augment} and !truncate($out, 0)) {
+				die "truncate($dst): $!";
+			}
 		}
-		open my $out, $mode, $dst or die "open($dst): $!";
 		$lei->{old_1} = $lei->{1}; # keep for spawning MUA
 		$lei->{1} = $out;
 	}

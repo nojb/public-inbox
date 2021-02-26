@@ -46,5 +46,17 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	unlink $o or BAIL_OUT $!;
 	lei_ok(@cmd);
 	ok(-f $o && !-s _, '--no-import-remote did not memoize');
+
+	open my $fh, '>', "$o.lock";
+	$cmd[-1] = 'm:qp@example.com';
+	unlink $o or BAIL_OUT $!;
+	lei_ok(@cmd, '--lock=none');
+	ok(-f $o && -s _, '--lock=none respected');
+	unlink $o or BAIL_OUT $!;
+	ok(!lei(@cmd, '--lock=dotlock,timeout=0.000001'), 'dotlock fails');
+	ok(-f $o && !-s _, 'nothing output on lock failure');
+	unlink "$o.lock" or BAIL_OUT $!;
+	lei_ok(@cmd, '--lock=dotlock,timeout=0.000001',
+		\'succeeds after lock removal');
 });
 done_testing;

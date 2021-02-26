@@ -338,6 +338,7 @@ Error closing $lei->{ovv}->{dst}: $!
 			$l2m->poke_dst;
 			$lei->poke_mua;
 		} else { # mbox users
+			delete $l2m->{mbl}; # drop dotlock
 			$lei->start_mua;
 		}
 	}
