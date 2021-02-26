@@ -27,7 +27,7 @@ use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-our ($current_lei, $errors_log, $listener);
+our ($current_lei, $errors_log, $listener, $oldset);
 my ($recv_cmd, $send_cmd);
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
@@ -976,7 +976,7 @@ sub event_step_init {
 
 sub noop {}
 
-our $oldset; sub oldset { $oldset }
+sub oldset { $oldset }
 
 sub dump_and_clear_log {
 	if (defined($errors_log) && -s STDIN && seek(STDIN, 0, SEEK_SET)) {
