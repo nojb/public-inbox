@@ -62,9 +62,11 @@ sub do_convert { # via wq_do
 			$ifmt = lc $1;
 		}
 		if (-f $input) {
-			open my $fh, '<', $input or
-					return $lei->fail("open $input: $!");
-			convert_fh($self, $ifmt, $fh, $input);
+			my $m = $lei->{opt}->{'lock'} //
+					($ifmt eq 'eml' ? ['none'] :
+					PublicInbox::MboxLock->defaults);
+			my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
+			convert_fh($self, $ifmt, $mbl->{fh}, $input);
 		} elsif (-d _) {
 			PublicInbox::MdirReader::maildir_each_eml($input,
 							\&mdir_cb, $self);
@@ -109,6 +111,7 @@ sub call { # the main "lei convert" method
 
 			}
 			if (-f $input_path) {
+				require PublicInbox::MboxLock;
 				require PublicInbox::MboxReader;
 				PublicInbox::MboxReader->can($ifmt) or return
 					$lei->fail("$ifmt not supported");

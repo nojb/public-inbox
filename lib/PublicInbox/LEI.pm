@@ -172,12 +172,12 @@ our %CMD = ( # sorted in order of importance/use:
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	in-format|F=s kw|keywords|flags! C=s@),
+	lock=s@ in-format|F=s kw|keywords|flags! C=s@),
 	],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s quiet|q
-	kw|keywords|flags! C=s@),
+	lock=s@ kw|keywords|flags! C=s@),
 	],
 'config' => [ '[...]', sub {
 		'git-config(1) wrapper for '._config_path($_[0]);
@@ -218,6 +218,9 @@ my %OPTDESC = (
 'help|h' => 'show this built-in help',
 'C=s@' => [ 'DIR', 'chdir to specify to directory' ],
 'quiet|q' => 'be quiet',
+'lock=s@' => [ 'METHOD|dotlock|fcntl|flock|none',
+	'mbox(5) locking method(s) to use (default: fcntl,dotlock)' ],
+
 'globoff|g' => "do not match locations using '*?' wildcards ".
 		"and\xa0'[]'\x{a0}ranges",
 'verbose|v+' => 'be more verbose',
@@ -407,11 +410,13 @@ sub check_input_format ($;$) {
 		my $err = $files ? "regular file(s):\n@$files" : '--stdin';
 		return fail($self, "--$opt_key unset for $err");
 	}
+	require PublicInbox::MboxLock if $files;
 	return 1 if $fmt eq 'eml';
 	# XXX: should this handle {gz,bz2,xz}? that's currently in LeiToMail
 	require PublicInbox::MboxReader;
-	PublicInbox::MboxReader->can($fmt) ||
-				fail($self, "--$opt_key=$fmt unrecognized");
+	PublicInbox::MboxReader->can($fmt) or
+		return fail($self, "--$opt_key=$fmt unrecognized");
+	1;
 }
 
 sub out ($;@) {

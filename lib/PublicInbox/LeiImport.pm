@@ -80,10 +80,11 @@ sub call { # the main "lei import" method
 			my $ifmt = lc $1;
 			if (($fmt // $ifmt) ne $ifmt) {
 				return $lei->fail(<<"");
---format=$fmt and `$ifmt:' conflict
+--in-format=$fmt and `$ifmt:' conflict
 
 			}
 			if (-f $input_path) {
+				require PublicInbox::MboxLock;
 				require PublicInbox::MboxReader;
 				PublicInbox::MboxReader->can($ifmt) or return
 					$lei->fail("$ifmt not supported");
@@ -142,7 +143,7 @@ error reading $input: $!
 			$cb->(undef, $fh, \&_import_eml, $lei->{sto}, $set_kw);
 		}
 	};
-	$lei->child_error(1 << 8, "<stdin>: $@") if $@;
+	$lei->child_error(1 << 8, "$input: $@") if $@;
 }
 
 sub _import_maildir { # maildir_each_file cb
@@ -171,10 +172,10 @@ sub import_path_url {
 		$ifmt = lc $1;
 	}
 	if (-f $input) {
-		open my $fh, '<', $input or return $lei->child_error(1 << 8, <<"");
-unable to open $input: $!
-
-		_import_fh($lei, $fh, $input, $ifmt);
+		my $m = $lei->{opt}->{'lock'} // ($ifmt eq 'eml' ? ['none'] :
+				PublicInbox::MboxLock->defaults);
+		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
+		_import_fh($lei, $mbl->{fh}, $input, $ifmt);
 	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
 		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
 $input appears to a be a maildir, not $ifmt
