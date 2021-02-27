@@ -4,7 +4,7 @@ lei - local email interface for public-inbox
 
 =head1 SYNOPSIS
 
-lei COMMAND
+lei [OPTIONS] COMMAND
 
 =head1 DESCRIPTION
 
@@ -18,6 +18,19 @@ store and read-only local and remote "externals" (inboxes and external
 indices).
 
 Available in public-inbox 1.7.0+.
+
+=head1 OPTIONS
+
+=over
+
+=item -C DIR
+
+Change current working directory to the specified directory before
+running the command.  This option can be given before or after
+C<COMMAND> and is accepted by all lei subcommands except
+L<lei-daemon-kill(1)>.
+
+=back
 
 =head1 COMMANDS
 

@@ -11,12 +11,14 @@ lei import [OPTIONS] --stdin
 =head1 DESCRIPTION
 
 Import messages into the local storage of L<lei(1)>.  C<LOCATION> is a
-source of messages: a directory (Maildir) or a file.  For a regular
-file, the location must have a C<E<lt>formatE<gt>:> prefix specifying
-one of the following formats: C<eml>, C<mboxrd>, C<mboxcl2>,
-C<mboxcl>, or C<mboxo>.
+source of messages: a directory (Maildir), a file, or a URL
+(C<imap://>, C<imaps://>, C<nntp://>, or C<nntps://>).  URLs requiring
+authentication must use L<netrc(5)> and/or L<git-credential(1)> to
+fill in the username and password.
 
-TODO: Update when URL support is added.
+For a regular file, the location must have a C<E<lt>formatE<gt>:>
+prefix specifying one of the following formats: C<eml>, C<mboxrd>,
+C<mboxcl2>, C<mboxcl>, or C<mboxo>.
 
 =head1 OPTIONS
 
@@ -30,6 +32,13 @@ format prefix with C<LOCATION> is preferred.
 =item --stdin
 
 Read messages from stdin.
+
+=item --lock
+
+L<mbox(5)> locking method(s) to use: C<dotlock>, C<fcntl>, C<flock> or
+C<none>.
+
+Default: fcntl,dotlock
 
 =item --no-kw, --no-keywords, --no-flags
 

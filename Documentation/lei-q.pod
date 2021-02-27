@@ -26,17 +26,21 @@ Read search terms from stdin.
 
 =item -o MFOLDER, --output=MFOLDER, --mfolder=MFOLDER
 
-Destination for results (e.g., C<path/to/Maildir> or
-C<mboxcl2:path/to/mbox>).  The format can be specified by adding a
-C<E<lt>formatE<gt>:> prefix with any of these values: C<maildir>,
+Destination for results (e.g., C<path/to/Maildir>,
+C<imaps://user@mail.example.com/INBOX.test>, or
+C<mboxcl2:path/to/mbox>).  The prefix may be a supported protocol:
+C<imap://>, C<imaps://>, C<nntp://>, or C<nntps://>.  URLs requiring
+authentication must use L<netrc(5)> and/or L<git-credential(1)> to
+fill in the username and password.
+
+The prefix can instead specify the format of the output: C<maildir>,
 C<mboxrd>, C<mboxcl2>, C<mboxcl>, C<mboxo>, C<json>, C<jsonl>, or
-C<concatjson>.
+C<concatjson>.  When a format isn't specified, it's chosen based on
+the destination.  C<json> is used for the default destination
+(stdout), and C<maildir> is used for an existing directory or
+non-existing path.
 
 TODO: Provide description of formats?
-
-When a format isn't specified, it's chosen based on the destination.
-C<json> is used for the default destination (stdout), and C<maildir>
-is used for an existing directory or non-existing path.
 
 Default: -
 
@@ -129,6 +133,18 @@ multiple times, in which case the search uses only the specified set.
 
 Do not match locations using C<*?> wildcards and C<[]> ranges.  This
 option applies to C<--include>, C<--exclude>, and C<--only>.
+
+=item --no-import-remote
+
+Disable the default behavior of memoizing remote messages into the
+local store.
+
+=item --lock
+
+L<mbox(5)> locking method(s) to use: C<dotlock>, C<fcntl>, C<flock> or
+C<none>.
+
+Default: fcntl,dotlock
 
 =item -NUMBER, -n NUMBER, --limit=NUMBER
 
