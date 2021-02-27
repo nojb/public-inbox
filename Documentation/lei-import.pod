@@ -26,7 +26,7 @@ C<mboxcl2>, C<mboxcl>, or C<mboxo>.
 
 =item -F MAIL_FORMAT, --in-format=MAIL_FORMAT
 
-Message input format.  Unless messages are given on C<stdin>, using a
+Message input format.  Unless messages are given on stdin, using a
 format prefix with C<LOCATION> is preferred.
 
 =item --stdin
