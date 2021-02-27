@@ -71,6 +71,23 @@ file by invoking C<mutt -f %f>.
 
 =back
 
+=head1 PERFORMANCE NOTES
+
+L<Inline::C> is recommended for performance.  To enable it, create
+C<~/.cache/public-inbox/inline-c/>.
+
+If Socket::MsgHdr is installed (libsocket-msghdr-perl in Debian), the
+first invocation of lei starts a daemon, reducing the startup cost of
+for future invocations (which is particularly important for Bash
+completion).
+
+=head1 BASH COMPLETION
+
+Preliminary Bash completion for lei is provided in
+C<contrib/completion/>.  Contributions adding support for other
+shells, as well as improvements to the existing Bash completion, are
+welcome.
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
