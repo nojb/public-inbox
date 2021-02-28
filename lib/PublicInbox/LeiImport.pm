@@ -18,7 +18,8 @@ sub import_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
 	my ($imp, $lei) = @$arg;
 	$lei->child_error($?, 'non-fatal errors during import') if $?;
-	my $ign = $lei->{sto}->ipc_do('done'); # PublicInbox::LeiStore::done
+	my $sto = delete $lei->{sto};
+	my $wait = $sto->ipc_do('done') if $sto; # PublicInbox::LeiStore::done
 	$lei->dclose;
 }
 

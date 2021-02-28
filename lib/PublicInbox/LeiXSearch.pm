@@ -349,7 +349,7 @@ Error closing $lei->{ovv}->{dst}: $!
 
 sub do_post_augment {
 	my ($lei) = @_;
-	my $l2m = $lei->{l2m} or die 'BUG: unexpected do_post_augment';
+	my $l2m = $lei->{l2m} or return; # client disconnected
 	my $err;
 	eval { $l2m->post_augment($lei) };
 	$err = $@;
@@ -368,7 +368,7 @@ sub do_post_augment {
 
 sub incr_post_augment { # called whenever an l2m shard finishes augment
 	my ($lei) = @_;
-	my $l2m = $lei->{l2m} or die 'BUG: unexpected incr_post_augment';
+	my $l2m = $lei->{l2m} or return; # client disconnected
 	return if ++$lei->{nr_post_augment} != $l2m->{-wq_nr_workers};
 	do_post_augment($lei);
 }

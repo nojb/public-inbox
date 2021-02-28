@@ -6,7 +6,8 @@ use Fcntl qw(SEEK_SET);
 use PublicInbox::Spawn qw(which);
 use PublicInbox::OnDestroy;
 require_git 2.6;
-require_mods(qw(DBD::SQLite Search::Xapian));
+require_mods(qw(json DBD::SQLite Search::Xapian));
+use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE);
 
 my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
 	http://czquwvybam4bgbro.onion/meta/
@@ -15,19 +16,55 @@ my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
 my $test_external_remote = sub {
 	my ($url, $k) = @_;
 SKIP: {
-	my $nr = 5;
-	skip "$k unset", $nr if !$url;
-	which('curl') or skip 'no curl', $nr;
-	which('torsocks') or skip 'no torsocks', $nr if $url =~ m!\.onion/!;
+	skip "$k unset", 1 if !$url;
+	state $curl = which('curl');
+	$curl or skip 'no curl', 1;
+	which('torsocks') or skip 'no torsocks', 1 if $url =~ m!\.onion/!;
 	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
 	my @cmd = ('q', '--only', $url, '-q', "m:$mid");
 	lei_ok(@cmd, \"query $url");
 	is($lei_err, '', "no errors on $url");
 	my $res = json_utf8->decode($lei_out);
-	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url");
+	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url") or
+		skip 'further remote tests', 1;
 	lei_ok(@cmd, 'd:..20101002', \'no results, no error');
 	is($lei_err, '', 'no output on 404, matching local FS behavior');
 	is($lei_out, "[null]\n", 'got null results');
+	my ($pid_before, $pid_after);
+	if (-d $ENV{XDG_RUNTIME_DIR} && -w _) {
+		lei_ok 'daemon-pid';
+		chomp($pid_before = $lei_out);
+		ok($pid_before, 'daemon is live');
+	}
+	for my $out ([], [qw(-f mboxcl2)]) {
+		pipe(my ($r, $w)) or BAIL_OUT $!;
+		open my $err, '+>', undef or BAIL_OUT $!;
+		my $opt = { run_mode => 0, 1 => $w, 2 => $err };
+		my $cmd = [qw(lei q -qt), @$out, 'bytes:1..'];
+		my $tp = start_script($cmd, undef, $opt);
+		close $w;
+		sysread($r, my $buf, 1);
+		close $r; # trigger SIGPIPE
+		$tp->join;
+		ok(WIFSIGNALED($?), "signaled @$out");
+		is(WTERMSIG($?), SIGPIPE, "got SIGPIPE @$out");
+		seek($err, 0, 0);
+		my @err = grep(!m{mkdir .*sun_path\b}, <$err>);
+		is_deeply(\@err, [], "no errors @$out");
+	}
+	if (-d $ENV{XDG_RUNTIME_DIR} && -w _) {
+		lei_ok 'daemon-pid';
+		chomp(my $pid_after = $lei_out);
+		is($pid_after, $pid_before, 'pid unchanged') or
+			skip 'daemon died', 1;
+		lei_ok 'daemon-kill';
+		my $alive = 1;
+		for (1..100) {
+			$alive = kill(0, $pid_after) or last;
+			tick();
+		}
+		ok(!$alive, 'daemon-kill worked');
+	}
 } # /SKIP
 }; # /sub
 
