@@ -179,6 +179,9 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s quiet|q
 	lock=s@ kw|keywords|flags! C=s@),
 	],
+'p2q' => [ 'FILE|COMMIT_OID|--stdin',
+	"use a patch to generate a query for `lei q --stdin'",
+	qw(stdin| want|w=s@ uri debug) ],
 'config' => [ '[...]', sub {
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
@@ -238,6 +241,10 @@ my %OPTDESC = (
 'show	threads|t' => 'display entire thread a message belongs to',
 'q	threads|t+' =>
 	'return all messages in the same threads as the actual match(es)',
+
+'want|w=s@' => [ 'PREFIX|dfpost|dfn', # common ones in help...
+		'search prefixes to extract (default: dfpost7)' ],
+
 'alert=s@' => ['CMD,:WINCH,:bell,<any command>',
 	'run command(s) or perform ops when done writing to output ' .
 	'(default: ":WINCH,:bell" with --mua and Maildir/IMAP output, ' .
@@ -331,7 +338,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp mrr cnv); # internal workers
+my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q); # internal workers
 
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {
@@ -673,6 +680,11 @@ sub lei_convert {
 	PublicInbox::LeiConvert->call(@_);
 }
 
+sub lei_p2q {
+	require PublicInbox::LeiP2q;
+	PublicInbox::LeiP2q->call(@_);
+}
+
 sub lei_init {
 	my ($self, $dir) = @_;
 	my $cfg = _lei_cfg($self, 1);
@@ -852,6 +864,22 @@ sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 			err($self, "W: unsupported --alert=$op"); # non-fatal
 		}
 	}
+}
+
+my %path_to_fd = ('/dev/stdin' => 0, '/dev/stdout' => 1, '/dev/stderr' => 2);
+$path_to_fd{"/dev/fd/$_"} = $path_to_fd{"/proc/self/fd/$_"} for (0..2);
+sub fopen {
+	my ($self, $mode, $path) = @_;
+	rel2abs($self, $path);
+	$path =~ tr!/!/!s;
+	if (defined(my $fd = $path_to_fd{$path})) {
+		return $self->{$fd};
+	}
+	if ($path =~ m!\A/(?:dev|proc/self)/fd/[0-9]+\z!) {
+		return fail($self, "cannot open $path from daemon");
+	}
+	open my $fh, $mode, $path or return;
+	$fh;
 }
 
 # caller needs to "-t $self->{1}" to check if tty

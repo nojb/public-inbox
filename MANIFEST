@@ -187,6 +187,7 @@ lib/PublicInbox/LeiHelp.pm
 lib/PublicInbox/LeiImport.pm
 lib/PublicInbox/LeiMirror.pm
 lib/PublicInbox/LeiOverview.pm
+lib/PublicInbox/LeiP2q.pm
 lib/PublicInbox/LeiQuery.pm
 lib/PublicInbox/LeiSearch.pm
 lib/PublicInbox/LeiStore.pm
@@ -373,6 +374,7 @@ t/lei-import-maildir.t
 t/lei-import-nntp.t
 t/lei-import.t
 t/lei-mirror.t
+t/lei-p2q.t
 t/lei-q-remote-import.t
 t/lei-q-thread.t
 t/lei.t
