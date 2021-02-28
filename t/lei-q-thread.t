@@ -21,7 +21,8 @@ test_lei(sub {
 	$buf = PublicInbox::LeiToMail::eml2mboxrd($eml, { kw => ['draft'] });
 	lei_ok([qw(import -F mboxrd -)], undef, { 0 => $buf, %$lei_opt });
 
-	lei_ok qw(q -t m:testmessage@example.com);
+	lei_ok([qw(q - -t)], undef,
+		{ 0 => \'m:testmessage@example.com', %$lei_opt });
 	$res = json_utf8->decode($lei_out);
 	is(scalar(@$res), 3, 'got 2 results');
 	pop @$res;

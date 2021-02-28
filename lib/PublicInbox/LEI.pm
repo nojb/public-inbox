@@ -108,10 +108,11 @@ sub index_opt {
 # see lei__complete() and PublicInbox::LeiHelp
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
 our %CMD = ( # sorted in order of importance/use:
-'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms', qw(
-	save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t+ augment|a
+'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms',
+	'stdin|', # /|\z/ must be first for lone dash
+	qw(save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t+
 	sort|s=s reverse|r offset=i remote! local! external! pretty
-	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g stdin|
+	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g augment|a
 	import-remote! lock=s@
 	alert=s@ mua=s no-torsocks torsocks=s verbose|v+ quiet|q C=s@),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
