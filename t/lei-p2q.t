@@ -25,5 +25,8 @@ test_lei(sub {
 			"dfpost:6e006fd73b OR " .
 			"dfpost:6e006fd73\n",
 		'3-byte chop');
+
+	lei_ok(qw(p2q t/data/message_embed.eml --want=dfb));
+	like($lei_out, qr/\bdfb:\S+/, 'got dfb off /dev/null file');
 });
 done_testing;

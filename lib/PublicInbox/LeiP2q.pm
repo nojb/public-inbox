@@ -12,6 +12,7 @@ use PublicInbox::MsgIter qw(msg_part_text);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::Spawn qw(popen_rd);
 use URI::Escape qw(uri_escape_utf8);
+my $FN = qr!((?:"?[^/\n]+/[^\r\n]+)|/dev/null)!;
 
 sub xphrase ($) {
 	my ($s) = @_;
@@ -23,7 +24,7 @@ sub xphrase ($) {
 	map {
 		s/\A\s*//;
 		s/\s+\z//;
-		/[\|=><,\sA-Z]/ && !m![\./:\\\@]! ? qq("$_") : $_;
+		m![^\./:\\\@\-\w]! ? qq("$_") : $_ ;
 	} ($s =~ m!(\w[\|=><,\./:\\\@\-\w\s]+)!g);
 }
 
@@ -40,7 +41,7 @@ sub extract_terms { # eml->each_part callback
 			push @{$lei->{qterms}->{dfctx}}, xphrase($_);
 		} elsif (/^-- $/) { # email signature begins
 			$in_diff = undef;
-		} elsif (m!^diff --git "?[^/]+/.+ "?[^/]+/.+\z!) {
+		} elsif (m!^diff --git $FN $FN!) {
 			# wait until "---" and "+++" to capture filenames
 			$in_diff = 1;
 		} elsif (/^index ([a-f0-9]+)\.\.([a-f0-9]+)\b/) {
@@ -48,13 +49,16 @@ sub extract_terms { # eml->each_part callback
 			push @{$lei->{qterms}->{dfpre}}, $oa;
 			push @{$lei->{qterms}->{dfpost}}, $ob;
 			# who uses dfblob?
-		} elsif (m!^(?:---|\+{3}) ("?[^/]+/.+)!) {
+		} elsif (m!^(?:---|\+{3}) ($FN)!) {
+			next if $1 eq '/dev/null';
 			my $fn = (split(m!/!, git_unquote($1.''), 2))[1];
 			push @{$lei->{qterms}->{dfn}}, xphrase($fn);
 		} elsif ($in_diff && s/^\+//) { # diff added
 			push @{$lei->{qterms}->{dfb}}, xphrase($_);
 		} elsif ($in_diff && s/^-//) { # diff removed
 			push @{$lei->{qterms}->{dfa}}, xphrase($_);
+		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*$/) {
+			# traditional diff w/o -p
 		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*(\S+.*)/) {
 			push @{$lei->{qterms}->{dfhh}}, xphrase($1);
 		} elsif (/^(?:dis)similarity index/ ||
