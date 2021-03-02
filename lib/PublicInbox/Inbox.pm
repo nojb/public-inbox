@@ -421,4 +421,16 @@ sub uidvalidity { $_[0]->{uidvalidity} //= eval { $_[0]->mm->created_at } }
 
 sub eidx_key { $_[0]->{newsgroup} // $_[0]->{inboxdir} }
 
+sub mailboxid { # rfc 8474, 8620, 8621
+	my ($self, $imap_slice) = @_;
+	my $pfx = defined($imap_slice) ? $self->{newsgroup} : $self->{name};
+	utf8::encode($pfx); # to octets
+	# RFC 8620, 1.2 recommends not starting with dash or digits
+	# "A good solution to these issues is to prefix every id with a single
+	#  alphabetical character."
+	'M'.join('', map { sprintf('%02x', ord) } split(//, $pfx)) .
+		(defined($imap_slice) ? sprintf('-%x', $imap_slice) : '') .
+		sprintf('-%x', uidvalidity($self) // 0)
+}
+
 1;

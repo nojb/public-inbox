@@ -32,4 +32,11 @@ is(unlink(glob("$x->{inboxdir}/*")), 2, 'unlinked cloneurl & description');
 is_deeply($x->cloneurl, ['https://example.com/inbox'], 'cloneurls memoized');
 is($x->description, "\x{100}blah", 'description memoized');
 
+$x->{name} = "2\x{100}wide";
+$x->{newsgroup} = '2.wide';
+like($x->mailboxid, qr/\AM32c48077696465-[0-9a-f]+\z/,
+	'->mailboxid w/o slice (JMAP)');
+like($x->mailboxid(78), qr/\AM322e77696465-4e-[0-9a-f]+\z/,
+	'->mailboxid w/ slice (IMAP)');
+
 done_testing();
