@@ -234,6 +234,7 @@ sub mp_descend ($$) {
 # $cb - user-supplied callback sub
 # $arg - user-supplied arg (think pthread_create)
 # $once - unref body scalar during iteration
+# $all - used by IMAP server, only
 sub each_part {
 	my ($self, $cb, $arg, $once, $all) = @_;
 	my $p = mp_descend($self, $once // 0) or
