@@ -138,7 +138,8 @@ SKIP: {
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m));
 	is($? >> 8, 3, 'got curl exit for bogus URL');
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m -o), "$home/junk");
-	is($? >> 8, 3, 'got curl exit for bogus URL with Maildir');
+	is($? >> 8, 3, 'got curl exit for bogus URL with Maildir') or
+		diag $lei_err;
 	is($lei_out, '', 'no output');
 }; # /SKIP
 };

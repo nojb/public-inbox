@@ -204,7 +204,7 @@ sub query_mset { # non-parallel for non-"--threads" users
 
 sub each_remote_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
-	$lei->{sto}->ipc_do('add_eml', $eml) if $lei->{sto}; # --import-remote
+	$lei->{sto}->ipc_do('add_eml', $eml) if $lei->{opt}->{'import-remote'};
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->populate($eml);
 	$smsg->parse_references($eml, mids($eml));

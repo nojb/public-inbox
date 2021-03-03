@@ -14,8 +14,8 @@ use PublicInbox::ExtSearchIdx;
 use PublicInbox::Import;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::V2Writable;
-use PublicInbox::ContentHash qw(content_hash content_digest);
-use PublicInbox::MID qw(mids mids_in);
+use PublicInbox::ContentHash qw(content_hash);
+use PublicInbox::MID qw(mids);
 use PublicInbox::LeiSearch;
 use PublicInbox::MDA;
 use List::Util qw(max);
@@ -104,25 +104,13 @@ sub eidx_init {
 	$eidx;
 }
 
-# when a message has no Message-IDs at all, this is needed for
-# unsent Draft messages, at least
-sub _fake_mid_for ($$) {
-	my ($eml, $dig) = @_;
-	my $mids = mids_in($eml, qw(X-Alt-Message-ID Resent-Message-ID));
-	$eml->{-lei_fake_mid} =
-		$mids->[0] // PublicInbox::Import::digest2mid($dig, $eml);
-}
-
 sub _docids_for ($$) {
 	my ($self, $eml) = @_;
 	my %docids;
-	my $dig = content_digest($eml);
-	my $chash = $dig->clone->digest;
+	my ($chash, $mids) = PublicInbox::LeiSearch::content_key($eml);
 	my $eidx = eidx_init($self);
 	my $oidx = $eidx->{oidx};
 	my $im = $self->{im};
-	my $mids = mids($eml);
-	$mids->[0] //= _fake_mid_for($eml, $dig);
 	for my $mid (@$mids) {
 		my ($id, $prev);
 		while (my $cur = $oidx->next_by_mid($mid, \$id, \$prev)) {
@@ -183,6 +171,7 @@ sub mbox_keywords {
 	sort(keys %kw);
 }
 
+# TODO: move this to MdirReader, maybe...
 # cf: https://cr.yp.to/proto/maildir.html
 my %c2kw = ('D' => 'draft', F => 'flagged', R => 'answered', S => 'seen');
 sub maildir_keywords {
@@ -228,6 +217,14 @@ sub set_eml_from_maildir {
 	my ($self, $f, $set_kw) = @_;
 	my $eml = eml_from_path($f) or return;
 	set_eml($self, $eml, $set_kw ? maildir_keywords($f) : ());
+}
+
+sub checkpoint {
+	my ($self, $wait) = @_;
+	if (my $im = $self->{im}) {
+		$wait ? $im->barrier : $im->checkpoint;
+	}
+	$self->{priv_eidx}->checkpoint($wait);
 }
 
 sub done {

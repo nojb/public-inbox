@@ -1128,5 +1128,6 @@ no warnings 'once';
 *atfork_child = \&PublicInbox::V2Writable::atfork_child;
 *idx_shard = \&PublicInbox::V2Writable::idx_shard;
 *reindex_checkpoint = \&PublicInbox::V2Writable::reindex_checkpoint;
+*checkpoint = \&PublicInbox::V2Writable::checkpoint;
 
 1;

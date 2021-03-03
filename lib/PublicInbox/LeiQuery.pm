@@ -51,7 +51,10 @@ sub lei_q {
 	# we'll allow "--only $LOCATION --local"
 	my $sto = $self->_lei_store(1);
 	my $lse = $sto->search;
-	$sto->write_prepare($self) if $opt->{'import-remote'} //= 1;
+	if (($opt->{'import-remote'} //= 1) |
+			($opt->{'import-augment'} //= 1)) {
+		$sto->write_prepare($self);
+	}
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
 		$lxs->prepare_external($lse);
 	}

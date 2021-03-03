@@ -267,8 +267,8 @@ sub _mbox_write_cb ($$) {
 	}
 }
 
-sub _augment_file { # maildir_each_eml cb
-	my ($f, undef, $eml, $lei, $mod, $shard) = @_;
+sub _augment_or_unlink { # maildir_each_eml cb
+	my ($f, $kw, $eml, $lei, $lse, $mod, $shard, $unlink) = @_;
 	if ($mod) {
 		# can't get dirent.d_ino w/ pure Perl, so we extract the OID
 		# if it looks like one:
@@ -276,8 +276,16 @@ sub _augment_file { # maildir_each_eml cb
 				$1 : sha256_hex($f);
 		my $recno = hex(substr($hex, 0, 8));
 		return if ($recno % $mod) != $shard;
+		if ($lse) {
+			my $x = $lse->kw_changed($eml, $kw);
+			if ($x) {
+				$lei->{sto}->ipc_do('set_eml', $eml, @$kw);
+			} elsif (!defined($x)) {
+				# TODO: xkw
+			}
+		}
 	}
-	_augment($eml, $lei);
+	$unlink ? unlink($f) : _augment($eml, $lei);
 }
 
 # maildir_each_file callback, \&CORE::unlink doesn't work with it
@@ -419,18 +427,29 @@ sub _pre_augment_maildir {
 sub _do_augment_maildir {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
+	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-augment'};
+	my ($mod, $shard) = @{$self->{shard_info} // []};
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
-			my ($mod, $shard) = @{$self->{shard_info} // []};
 			PublicInbox::MdirReader::maildir_each_eml($dst,
-						\&_augment_file,
-						$lei, $mod, $shard);
+						\&_augment_or_unlink,
+						$lei, $lse, $mod, $shard);
 			$dedupe->pause_dedupe;
 		}
-	} else { # clobber existing Maildir
+	} elsif ($lse) {
+		PublicInbox::MdirReader::maildir_each_eml($dst,
+					\&_augment_or_unlink,
+					$lei, $lse, $mod, $shard, 1);
+	} else {# clobber existing Maildir
 		PublicInbox::MdirReader::maildir_each_file($dst, \&_unlink);
 	}
+}
+
+sub _post_augment_maildir {
+	my ($self, $lei) = @_;
+	$lei->{opt}->{'import-augment'} or return;
+	my $wait = $lei->{sto}->ipc_do('checkpoint', 1);
 }
 
 sub _augment_imap { # PublicInbox::NetReader::imap_each cb

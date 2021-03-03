@@ -375,6 +375,7 @@ t/lei-import-nntp.t
 t/lei-import.t
 t/lei-mirror.t
 t/lei-p2q.t
+t/lei-q-kw.t
 t/lei-q-remote-import.t
 t/lei-q-thread.t
 t/lei.t

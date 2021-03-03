@@ -124,8 +124,16 @@ SKIP: {
 	$ids = $sto->ipc_do('set_eml', $eml, qw(seen answered));
 	is_deeply($ids, [ $no_mid->{num} ], 'docid returned w/o mid w/o ipc');
 	$wait = $sto->ipc_do('done');
-	@kw = $sto->search->msg_keywords($no_mid->{num});
+
+	my $lse = $sto->search;
+	@kw = $lse->msg_keywords($no_mid->{num});
 	is_deeply(\@kw, [qw(answered seen)], 'set changed kw w/o ipc');
+	is($lse->kw_changed($eml, [qw(answered seen)]), 0,
+		'kw_changed false when unchanged');
+	is($lse->kw_changed($eml, [qw(answered seen flagged)]), 1,
+		'kw_changed true when +flagged');
+	is($lse->kw_changed(eml_load('t/plack-qp.eml'), ['seen']), undef,
+		'kw_changed undef on unknown message');
 }
 
 done_testing;
