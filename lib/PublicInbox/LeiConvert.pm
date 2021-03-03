@@ -7,7 +7,6 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
-use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::LeiStore;
 use PublicInbox::LeiOverview;
 
@@ -24,7 +23,7 @@ sub net_cb { # callback for ->imap_each, ->nntp_each
 }
 
 sub mdir_cb {
-	my ($kw, $eml, $self) = @_;
+	my ($f, $kw, $eml, $self) = @_;
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 

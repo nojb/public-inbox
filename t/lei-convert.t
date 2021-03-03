@@ -58,7 +58,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok(-d "$d/md", 'Maildir created');
 	my @md;
 	PublicInbox::MdirReader::maildir_each_eml("$d/md", sub {
-		push @md, $_[1];
+		push @md, $_[2];
 	});
 	is(scalar(@md), scalar(@mboxrd), 'got expected emails in Maildir');
 	@md = sort { ${$a->{bdy}} cmp ${$b->{bdy}} } @md;

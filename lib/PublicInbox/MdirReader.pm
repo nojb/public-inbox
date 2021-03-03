@@ -48,17 +48,19 @@ sub maildir_each_eml ($$;@) {
 			next if substr($bn, 0, 1) eq '.';
 			my @f = split(/:/, $bn, -1);
 			next if scalar(@f) != 1;
-			my $eml = eml_from_path($pfx.$bn) or next;
-			$cb->([], $eml, @arg);
+			my $f = $pfx.$bn;
+			my $eml = eml_from_path($f) or next;
+			$cb->($f, [], $eml, @arg);
 		}
 	}
 	$pfx = "$dir/cur/";
 	opendir my $dh, $pfx or return;
 	while (defined(my $bn = readdir($dh))) {
 		my $fl = maildir_basename_flags($bn) // next;
-		my $eml = eml_from_path($pfx.$bn) or next;
+		my $f = $pfx.$bn;
+		my $eml = eml_from_path($f) or next;
 		my @kw = sort(map { $c2kw{$_} // () } split(//, $fl));
-		$cb->(\@kw, $eml, @arg);
+		$cb->($f, \@kw, $eml, @arg);
 	}
 }
 

@@ -19,7 +19,6 @@ use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
 use Errno qw(EEXIST ESPIPE ENOENT EPIPE);
 use Digest::SHA qw(sha256_hex);
-my ($maildir_each_file);
 
 # struggles with short-lived repos, Gcf2Client makes little sense with lei;
 # but we may use in-process libgit2 in the future.
@@ -268,8 +267,8 @@ sub _mbox_write_cb ($$) {
 	}
 }
 
-sub _augment_file { # maildir_each_file cb
-	my ($f, $lei, $mod, $shard) = @_;
+sub _augment_file { # maildir_each_eml cb
+	my ($f, undef, $eml, $lei, $mod, $shard) = @_;
 	if ($mod) {
 		# can't get dirent.d_ino w/ pure Perl, so we extract the OID
 		# if it looks like one:
@@ -278,7 +277,6 @@ sub _augment_file { # maildir_each_file cb
 		my $recno = hex(substr($hex, 0, 8));
 		return if ($recno % $mod) != $shard;
 	}
-	my $eml = PublicInbox::InboxWritable::eml_from_path($f) or return;
 	_augment($eml, $lei);
 }
 
@@ -375,12 +373,7 @@ sub new {
 	my $dst = $lei->{ovv}->{dst};
 	my $self = bless {}, $cls;
 	if ($fmt eq 'maildir') {
-		$maildir_each_file //= do {
-			require PublicInbox::MdirReader;
-			PublicInbox::MdirReader->can('maildir_each_file');
-		};
-		$lei->{opt}->{augment} and
-			require PublicInbox::InboxWritable; # eml_from_path
+		require PublicInbox::MdirReader;
 		$self->{base_type} = 'maildir';
 		-e $dst && !-d _ and die
 				"$dst exists and is not a directory\n";
@@ -430,12 +423,13 @@ sub _do_augment_maildir {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
 			my ($mod, $shard) = @{$self->{shard_info} // []};
-			$maildir_each_file->($dst, \&_augment_file,
+			PublicInbox::MdirReader::maildir_each_eml($dst,
+						\&_augment_file,
 						$lei, $mod, $shard);
 			$dedupe->pause_dedupe;
 		}
 	} else { # clobber existing Maildir
-		$maildir_each_file->($dst, \&_unlink);
+		PublicInbox::MdirReader::maildir_each_file($dst, \&_unlink);
 	}
 }
 
