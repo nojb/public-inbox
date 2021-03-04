@@ -32,7 +32,7 @@ use Scalar::Util qw(blessed);
 use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::Tmpfile;
 use Errno qw(EAGAIN EINVAL);
-use Carp qw(carp);
+use Carp qw(carp croak);
 our @EXPORT_OK = qw(now msg_more dwaitpid add_timer);
 
 my $nextq; # queue for next_tick
