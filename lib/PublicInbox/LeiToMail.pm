@@ -267,6 +267,17 @@ sub _mbox_write_cb ($$) {
 	}
 }
 
+sub update_kw_maybe ($$$$) {
+	my ($lei, $lse, $eml, $kw) = @_;
+	return unless $lse;
+	my $x = $lse->kw_changed($eml, $kw);
+	if ($x) {
+		$lei->{sto}->ipc_do('set_eml', $eml, @$kw);
+	} elsif (!defined($x)) {
+		# TODO: xkw
+	}
+}
+
 sub _augment_or_unlink { # maildir_each_eml cb
 	my ($f, $kw, $eml, $lei, $lse, $mod, $shard, $unlink) = @_;
 	if ($mod) {
@@ -276,14 +287,7 @@ sub _augment_or_unlink { # maildir_each_eml cb
 				$1 : sha256_hex($f);
 		my $recno = hex(substr($hex, 0, 8));
 		return if ($recno % $mod) != $shard;
-		if ($lse) {
-			my $x = $lse->kw_changed($eml, $kw);
-			if ($x) {
-				$lei->{sto}->ipc_do('set_eml', $eml, @$kw);
-			} elsif (!defined($x)) {
-				# TODO: xkw
-			}
-		}
+		update_kw_maybe($lei, $lse, $eml, $kw);
 	}
 	$unlink ? unlink($f) : _augment($eml, $lei);
 }
@@ -446,26 +450,32 @@ sub _do_augment_maildir {
 	}
 }
 
-sub _post_augment_maildir {
-	my ($self, $lei) = @_;
-	$lei->{opt}->{'import-augment'} or return;
-	my $wait = $lei->{sto}->ipc_do('checkpoint', 1);
-}
-
-sub _augment_imap { # PublicInbox::NetReader::imap_each cb
-	my ($url, $uid, $kw, $eml, $lei) = @_;
-	_augment($eml, $lei);
+sub _imap_augment_or_delete { # PublicInbox::NetReader::imap_each cb
+	my ($url, $uid, $kw, $eml, $lei, $lse, $delete_mic) = @_;
+	update_kw_maybe($lei, $lse, $eml, $kw);
+	if ($delete_mic) {
+		$lei->{net}->imap_delete_1($url, $uid, $delete_mic);
+	} else {
+		_augment($eml, $lei);
+	}
 }
 
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
 	my $net = $lei->{net};
+	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-augment'};
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
-			$net->imap_each($self->{uri}, \&_augment_imap, $lei);
+			$net->imap_each($self->{uri}, \&_imap_augment_or_delete,
+					$lei, $lse);
 			$dedupe->pause_dedupe;
 		}
+	} elsif ($lse) {
+		my $delete_mic;
+		$net->imap_each($self->{uri}, \&_imap_augment_or_delete,
+					$lei, $lse, \$delete_mic);
+		$delete_mic->expunge if $delete_mic;
 	} elsif (!$self->{-wq_worker_nr}) { # undef or 0
 		# clobber existing IMAP folder
 		$net->imap_delete_all($self->{uri});
@@ -539,6 +549,8 @@ sub do_augment { # slow, runs in wq worker
 # fast (spawn compressor or mkdir), runs in same process as pre_augment
 sub post_augment {
 	my ($self, $lei, @args) = @_;
+	my $wait = $lei->{opt}->{'import-augment'} ?
+			$lei->{sto}->ipc_do('checkpoint', 1) : 0;
 	# _post_augment_mbox
 	my $m = $self->can("_post_augment_$self->{base_type}") or return;
 	$m->($self, $lei, @args);

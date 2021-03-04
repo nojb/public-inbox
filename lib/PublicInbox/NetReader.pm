@@ -346,9 +346,14 @@ sub _imap_do_msg ($$$$$) {
 	$$raw =~ s/\r\n/\n/sg;
 	my $kw = [];
 	for my $f (split(/ /, $flags)) {
-		my $k = $IMAPflags2kw{$f} // next; # TODO: X-Label?
-		push @$kw, $k;
+		if (my $k = $IMAPflags2kw{$f}) {
+			push @$kw, $k;
+		} elsif ($f eq "\\Recent") { # not in JMAP
+		} elsif ($self->{verbose}) {
+			warn "# unknown IMAP flag $f <$uri;uid=$uid>\n";
+		}
 	}
+	@$kw = sort @$kw; # for all UI/UX purposes
 	my ($eml_cb, @args) = @{$self->{eml_each}};
 	$eml_cb->($uri, $uid, $kw, PublicInbox::Eml->new($raw), @args);
 }

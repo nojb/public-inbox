@@ -91,7 +91,7 @@ my $smsg = bless { kw => [ 'seen' ] }, 'PublicInbox::Smsg';
 $imap_append->($mic, $folder, undef, $smsg, eml_load('t/plack-qp.eml'));
 $nwr->{quiet} = 1;
 my $imap_slurp_all = sub {
-	my ($u, $uid, $kw, $eml, $res) = @_;
+	my ($url, $uid, $kw, $eml, $res) = @_;
 	push @$res, [ $kw, $eml ];
 };
 $nwr->imap_each($folder_uri, $imap_slurp_all, my $res = []);
@@ -138,10 +138,38 @@ test_lei(sub {
 	$nwr->imap_each($folder_uri, $imap_slurp_all, my $empty = []);
 	is(scalar(@$empty), 0, 'no results w/o augment');
 
-	lei_ok qw(convert -F eml t/msg_iter-order.eml -o), $$folder_uri;
+	my $f = 't/utf8.eml'; # <testmessage@example.com>
+	$exp = eml_load($f);
+	lei_ok qw(convert -F eml -o), $$folder_uri, $f;
+	my (@uid, @res);
+	$nwr->imap_each($folder_uri, sub {
+		my ($u, $uid, $kw, $eml) = @_;
+		push @uid, $uid;
+		push @res, [ $kw, $eml ];
+	});
+	is_deeply(\@res, [ [ [], $exp ] ], 'converted to IMAP destination');
+	is(scalar(@uid), 1, 'got one UID back');
+	lei_ok qw(q -o /dev/stdout m:testmessage@example.com --no-external);
+	is_deeply(json_utf8->decode($lei_out), [undef],
+		'no results before import');
+
+	lei_ok qw(import -F eml), $f, \'import local copy w/o keywords';
+
+	$nwr->imap_set_kw($folder_uri, $uid[0], [ 'seen' ])->expunge
+		or BAIL_OUT "expunge $@";
+	@res = ();
+	$nwr->imap_each($folder_uri, $imap_slurp_all, \@res);
+	is_deeply(\@res, [ [ ['seen'], $exp ] ], 'seen flag set') or
+		diag explain(\@res);
+
+	lei_ok qw(q s:thisbetternotgiveanyresult -o), $folder_uri->as_string,
+		\'clobber folder but import flag';
 	$nwr->imap_each($folder_uri, $imap_slurp_all, $empty = []);
-	is_deeply($empty, [ [ [], eml_load('t/msg_iter-order.eml') ] ],
-		'converted to IMAP destination');
+	is_deeply($empty, [], 'clobbered folder');
+	lei_ok qw(q -o /dev/stdout m:testmessage@example.com --no-external);
+	$res = json_utf8->decode($lei_out)->[0];
+	is_deeply([@$res{qw(m kw)}], ['<testmessage@example.com>', ['seen']],
+		'kw set');
 });
 
 undef $cleanup; # remove temporary folder

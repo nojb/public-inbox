@@ -13,27 +13,58 @@ my %IMAPkw2flags;
 @IMAPkw2flags{values %PublicInbox::NetReader::IMAPflags2kw} =
 				keys %PublicInbox::NetReader::IMAPflags2kw;
 
+sub kw2flags ($) { join(' ', map { $IMAPkw2flags{$_} } @{$_[0]}) }
+
 sub imap_append {
 	my ($mic, $folder, $bref, $smsg, $eml) = @_;
 	$bref //= \($eml->as_string);
 	$smsg //= bless {}, 'PublicInbox::Smsg';
 	bless($smsg, 'PublicInbox::Smsg') if ref($smsg) eq 'HASH';
 	$smsg->{ts} //= msg_timestamp($eml // PublicInbox::Eml->new($$bref));
-	my @f = map { $IMAPkw2flags{$_} } @{$smsg->{kw}};
-	$mic->append_string($folder, $$bref, "@f", $smsg->internaldate) or
+	my $f = kw2flags($smsg->{kw});
+	$mic->append_string($folder, $$bref, $f, $smsg->internaldate) or
 		die "APPEND $folder: $@";
+}
+
+sub mic_for_folder {
+	my ($self, $uri) = @_;
+	if (!ref($uri)) {
+		my $u = PublicInbox::URIimap->new($uri);
+		$_[1] = $uri = $u;
+	}
+	my $mic = $self->mic_get($uri) or die "E: not connected: $@";
+	$mic->select($uri->mailbox) or return;
+	$mic;
 }
 
 sub imap_delete_all {
 	my ($self, $url) = @_;
-	my $uri = PublicInbox::URIimap->new($url);
+	my $mic = mic_for_folder($self, my $uri = $url) or return;
 	my $sec = $self->can('uri_section')->($uri);
 	local $0 = $uri->mailbox." $sec";
-	my $mic = $self->mic_get($uri) or die "E: not connected: $@";
-	$mic->select($uri->mailbox) or return; # non-existent
 	if ($mic->delete_message('1:*')) {
 		$mic->expunge;
 	}
+}
+
+sub imap_delete_1 {
+	my ($self, $url, $uid, $delete_mic) = @_;
+	$$delete_mic //= mic_for_folder($self, my $uri = $url) or return;
+	$$delete_mic->delete_message($uid);
+}
+
+sub imap_set_kw {
+	my ($self, $url, $uid, $kw) = @_;
+	my $mic = mic_for_folder($self, my $uri = $url) or return;
+	$mic->set_flag(kw2flags($kw), $uid);
+	$mic; # caller must ->expunge
+}
+
+sub imap_unset_kw {
+	my ($self, $url, $uid, $kw) = @_;
+	my $mic = mic_for_folder($self, my $uri = $url) or return;
+	$mic->unset_flag(kw2flags($kw), $uid);
+	$mic; # caller must ->expunge
 }
 
 1;
