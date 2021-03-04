@@ -438,7 +438,7 @@ sub _pre_augment_maildir {
 sub _do_augment_maildir {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
-	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-augment'};
+	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-before'};
 	my ($mod, $shard) = @{$self->{shard_info} // []};
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
@@ -470,7 +470,7 @@ sub _imap_augment_or_delete { # PublicInbox::NetReader::imap_each cb
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
 	my $net = $lei->{net};
-	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-augment'};
+	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-before'};
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
@@ -511,8 +511,8 @@ sub _pre_augment_mbox {
 		die "seek($dst): $!\n";
 	}
 	if (!$self->{seekable}) {
-		my $ia = $lei->{opt}->{'import-augment'};
-		die "--import-augment specified but $dst is not seekable\n"
+		my $ia = $lei->{opt}->{'import-before'};
+		die "--import-before specified but $dst is not seekable\n"
 			if $ia && !ref($ia);
 		die "--augment specified but $dst is not seekable\n" if
 			$lei->{opt}->{augment};
@@ -533,7 +533,7 @@ sub _do_augment_mbox {
 	my $out = $lei->{1};
 	my ($fmt, $dst) = @{$lei->{ovv}}{qw(fmt dst)};
 	return unless -s $out;
-	unless ($opt->{augment} || $opt->{'import-augment'}) {
+	unless ($opt->{augment} || $opt->{'import-before'}) {
 		truncate($out, 0) or die "truncate($dst): $!";
 		return;
 	}
@@ -544,14 +544,14 @@ sub _do_augment_mbox {
 		$dedupe = $lei->{dedupe};
 		$dedupe->prepare_dedupe if $dedupe;
 	}
-	if ($opt->{'import-augment'}) { # the default
+	if ($opt->{'import-before'}) { # the default
 		my $lse = $lei->{sto}->search;
 		PublicInbox::MboxReader->$fmt($rd, \&_mbox_augment_kw_maybe,
 						$lei, $lse, $opt->{augment});
 		if (!$opt->{augment} and !truncate($out, 0)) {
 			die "truncate($dst): $!";
 		}
-	} else { # --augment --no-import-augment
+	} else { # --augment --no-import-before
 		PublicInbox::MboxReader->$fmt($rd, \&_augment, $lei);
 	}
 	# maybe some systems don't honor O_APPEND, Perl does this:
@@ -576,7 +576,7 @@ sub do_augment { # slow, runs in wq worker
 # fast (spawn compressor or mkdir), runs in same process as pre_augment
 sub post_augment {
 	my ($self, $lei, @args) = @_;
-	my $wait = $lei->{opt}->{'import-augment'} ?
+	my $wait = $lei->{opt}->{'import-before'} ?
 			$lei->{sto}->ipc_do('checkpoint', 1) : 0;
 	# _post_augment_mbox
 	my $m = $self->can("_post_augment_$self->{base_type}") or return;

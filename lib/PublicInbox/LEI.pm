@@ -113,7 +113,7 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t+
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g augment|a
-	import-remote! import-augment! lock=s@
+	import-remote! import-before! lock=s@
 	alert=s@ mua=s no-torsocks torsocks=s verbose|v+ quiet|q C=s@),
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 

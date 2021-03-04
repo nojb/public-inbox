@@ -23,13 +23,13 @@ lei_ok(qw(q -o), "maildir:$o", qw(m:qp@example.com));
 @fn = glob("$o/cur/*:2,S");
 is(scalar(@fn), 1, "`seen' flag set on Maildir file");
 
-# ensure --no-import-augment works
+# ensure --no-import-before works
 my $n = $fn[0];
 $n =~ s/,S\z/,RS/;
 rename($fn[0], $n) or BAIL_OUT "rename $!";
-lei_ok(qw(q --no-import-augment -o), "maildir:$o",
+lei_ok(qw(q --no-import-before -o), "maildir:$o",
 	qw(m:bogus-noresults@example.com));
-ok(!glob("$o/cur/*"), '--no-import-augment cleared destination');
+ok(!glob("$o/cur/*"), '--no-import-before cleared destination');
 lei_ok(qw(q -o), "maildir:$o", qw(m:qp@example.com));
 @fn = glob("$o/cur/*:2,S");
 is(scalar(@fn), 1, "`seen' flag (but not `replied') set on Maildir file");
@@ -39,8 +39,8 @@ SKIP: {
 	mkfifo($o, 0600) or skip("mkfifo not supported: $!", 1);
 	# cat(1) since lei() may not execve for FD_CLOEXEC to work
 	my $cat = popen_rd(['cat', $o]);
-	ok(!lei(qw(q --import-augment bogus -o), "mboxrd:$o"),
-		'--import-augment fails on non-seekable output');
+	ok(!lei(qw(q --import-before bogus -o), "mboxrd:$o"),
+		'--import-before fails on non-seekable output');
 	is(do { local $/; <$cat> }, '', 'no output on FIFO');
 };
 
