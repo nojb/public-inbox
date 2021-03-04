@@ -6,8 +6,8 @@ use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
-use Fcntl qw(SEEK_SET);
-use PublicInbox::Spawn qw(popen_rd which);
+use Fcntl qw(SEEK_SET O_RDONLY O_NONBLOCK);
+use PublicInbox::Spawn qw(popen_rd);
 use List::Util qw(shuffle);
 require_mods(qw(DBD::SQLite));
 require PublicInbox::MdirReader;
@@ -242,11 +242,12 @@ SKIP: { # FIFO support
 	use POSIX qw(mkfifo);
 	my $fn = "$tmpdir/fifo";
 	mkfifo($fn, 0600) or skip("mkfifo not supported: $!", 1);
-	my $cat = popen_rd([which('cat'), $fn]);
+	sysopen(my $cat, $fn, O_RDONLY|O_NONBLOCK) or BAIL_OUT $!;
 	my $wcb = $wcb_get->('mboxo', $fn);
 	$wcb->(\(my $x = $buf), $deadbeef);
 	$commit->($wcb);
 	my $cmp = '';
+	$cat->blocking(1);
 	PublicInbox::MboxReader->mboxo($cat, sub { $cmp .= $as_orig->(@_) });
 	is($cmp, $buf, 'message written to FIFO');
 }
