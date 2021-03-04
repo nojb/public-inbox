@@ -246,6 +246,13 @@ sub _augment { # MboxReader eml_cb
 	$lei->{dedupe}->is_dup($eml);
 }
 
+sub _mbox_augment_kw_maybe {
+	my ($eml, $lei, $lse, $augment) = @_;
+	my @kw = PublicInbox::LeiStore::mbox_keywords($eml);
+	update_kw_maybe($lei, $lse, $eml, \@kw);
+	_augment($eml, $lei) if $augment;
+}
+
 sub _mbox_write_cb ($$) {
 	my ($self, $lei) = @_;
 	my $ovv = $lei->{ovv};
@@ -391,7 +398,7 @@ sub new {
 				"$dst exists and is not a directory\n";
 		$lei->{ovv}->{dst} = $dst .= '/' if substr($dst, -1) ne '/';
 	} elsif (substr($fmt, 0, 4) eq 'mbox') {
-		require PublicInbox::MboxReader if $lei->{opt}->{augment};
+		require PublicInbox::MboxReader;
 		(-d $dst || (-e _ && !-w _)) and die
 			"$dst exists and is not a writable file\n";
 		$self->can("eml2$fmt") or die "bad mbox format: $fmt\n";
@@ -485,8 +492,8 @@ sub _do_augment_imap {
 sub _pre_augment_mbox {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
+	my $out = $lei->{1};
 	if ($dst ne '/dev/stdout') {
-		my $out;
 		if (-p $dst) {
 			open $out, '>', $dst or die "open($dst): $!";
 		} elsif (-f _ || !-e _) {
@@ -495,36 +502,56 @@ sub _pre_augment_mbox {
 					PublicInbox::MboxLock->defaults;
 			$self->{mbl} = PublicInbox::MboxLock->acq($dst, 1, $m);
 			$out = $self->{mbl}->{fh};
-			if (!$lei->{opt}->{augment} and !truncate($out, 0)) {
-				die "truncate($dst): $!";
-			}
 		}
 		$lei->{old_1} = $lei->{1}; # keep for spawning MUA
-		$lei->{1} = $out;
 	}
 	# Perl does SEEK_END even with O_APPEND :<
-	$self->{seekable} = seek($lei->{1}, 0, SEEK_SET);
+	$self->{seekable} = seek($out, 0, SEEK_SET);
 	if (!$self->{seekable} && $! != ESPIPE && $dst ne '/dev/stdout') {
 		die "seek($dst): $!\n";
 	}
+	if (!$self->{seekable}) {
+		my $ia = $lei->{opt}->{'import-augment'};
+		die "--import-augment specified but $dst is not seekable\n"
+			if $ia && !ref($ia);
+		die "--augment specified but $dst is not seekable\n" if
+			$lei->{opt}->{augment};
+	}
 	state $zsfx_allow = join('|', keys %zsfx2cmd);
-	($self->{zsfx}) = ($dst =~ /\.($zsfx_allow)\z/) or return;
-	pipe(my ($r, $w)) or die "pipe: $!";
-	$lei->{zpipe} = [ $r, $w ];
+	if (($self->{zsfx}) = ($dst =~ /\.($zsfx_allow)\z/)) {
+		pipe(my ($r, $w)) or die "pipe: $!";
+		$lei->{zpipe} = [ $r, $w ];
+	}
+	$lei->{1} = $out;
+	undef;
 }
 
 sub _do_augment_mbox {
 	my ($self, $lei) = @_;
-	return if !$lei->{opt}->{augment};
-	my $dedupe = $lei->{dedupe};
-	my $dst = $lei->{ovv}->{dst};
-	die "cannot augment $dst, not seekable\n" if !$self->{seekable};
+	return unless $self->{seekable};
+	my $opt = $lei->{opt};
 	my $out = $lei->{1};
-	if (-s $out && $dedupe && $dedupe->prepare_dedupe) {
-		my $zsfx = $self->{zsfx};
-		my $rd = $zsfx ? decompress_src($out, $zsfx, $lei) :
-				dup_src($out);
-		my $fmt = $lei->{ovv}->{fmt};
+	my ($fmt, $dst) = @{$lei->{ovv}}{qw(fmt dst)};
+	return unless -s $out;
+	unless ($opt->{augment} || $opt->{'import-augment'}) {
+		truncate($out, 0) or die "truncate($dst): $!";
+		return;
+	}
+	my $zsfx = $self->{zsfx};
+	my $rd = $zsfx ? decompress_src($out, $zsfx, $lei) : dup_src($out);
+	my $dedupe;
+	if ($opt->{augment}) {
+		$dedupe = $lei->{dedupe};
+		$dedupe->prepare_dedupe if $dedupe;
+	}
+	if ($opt->{'import-augment'}) { # the default
+		my $lse = $lei->{sto}->search;
+		PublicInbox::MboxReader->$fmt($rd, \&_mbox_augment_kw_maybe,
+						$lei, $lse, $opt->{augment});
+		if (!$opt->{augment} and !truncate($out, 0)) {
+			die "truncate($dst): $!";
+		}
+	} else { # --augment --no-import-augment
 		PublicInbox::MboxReader->$fmt($rd, \&_augment, $lei);
 	}
 	# maybe some systems don't honor O_APPEND, Perl does this:
