@@ -481,7 +481,7 @@ sub qparse_new ($) {
 	$cb->($qp, $NVRP->new(DT, 'dt:'));
 
 	# for IMAP, undocumented for WWW and may be split off go away
-	$cb->($qp, $NVRP->new(BYTES, 'bytes:'));
+	$cb->($qp, $NVRP->new(BYTES, 'z:'));
 	$cb->($qp, $NVRP->new(TS, 'rt:'));
 	$cb->($qp, $NVRP->new(UID, 'uid:'));
 

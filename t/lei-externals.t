@@ -40,7 +40,7 @@ SKIP: {
 		pipe(my ($r, $w)) or BAIL_OUT $!;
 		open my $err, '+>', undef or BAIL_OUT $!;
 		my $opt = { run_mode => 0, 1 => $w, 2 => $err };
-		my $cmd = [qw(lei q -qt), @$out, 'bytes:1..'];
+		my $cmd = [qw(lei q -qt), @$out, 'z:1..'];
 		my $tp = start_script($cmd, undef, $opt);
 		close $w;
 		sysread($r, my $buf, 1);

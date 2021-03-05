@@ -92,7 +92,7 @@ sub recent {
 	my ($self, $qstr, $opt) = @_;
 	$opt //= {};
 	$opt->{relevance} //= -2;
-	$self->mset($qstr //= 'bytes:1..', $opt);
+	$self->mset($qstr //= 'z:1..', $opt);
 }
 
 sub over {}

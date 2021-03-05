@@ -165,7 +165,7 @@ sub msn_set {
 # things that should not match
 sub impossible {
 	my ($self) = @_;
-	push @{$self->{xap}}, 'bytes:..0';
+	push @{$self->{xap}}, 'z:..0';
 	my $sql = $self->{sql} or return 1;
 	$$sql .= ' AND num < 0';
 }
@@ -217,8 +217,8 @@ BEFORE_date : 'BEFORE' date { $q->BEFORE(\%item) }
 
 MSN_set : sequence_set { $q->msn_set($item{sequence_set}) }
 UID_set : "UID" sequence_set { $q->uid_set($item{sequence_set}) }
-LARGER_number : "LARGER" number { $q->xap_only("bytes:$item{number}..") }
-SMALLER_number : "SMALLER" number { $q->xap_only("bytes:..$item{number}") }
+LARGER_number : "LARGER" number { $q->xap_only("z:$item{number}..") }
+SMALLER_number : "SMALLER" number { $q->xap_only("z:..$item{number}") }
 
 DELETED : "DELETED" { $q->impossible }
 OLD : "OLD" { $q->impossible }

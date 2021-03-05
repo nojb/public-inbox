@@ -13,11 +13,11 @@ my $td = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT("-imapd: $?");
 my $host_port = tcp_host_port($sock);
 undef $sock;
 test_lei({ tmpdir => $tmpdir }, sub {
-	lei_ok(qw(q bytes:1..));
+	lei_ok(qw(q z:1..));
 	my $out = json_utf8->decode($lei_out);
 	is_deeply($out, [ undef ], 'nothing imported, yet');
 	lei_ok('import', "imap://$host_port/t.v2.0");
-	lei_ok(qw(q bytes:1..));
+	lei_ok(qw(q z:1..));
 	$out = json_utf8->decode($lei_out);
 	ok(scalar(@$out) > 1, 'got imported messages');
 	is(pop @$out, undef, 'trailing JSON null element was null');

@@ -13,12 +13,12 @@ my $td = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT("-nntpd $?");
 my $host_port = tcp_host_port($sock);
 undef $sock;
 test_lei({ tmpdir => $tmpdir }, sub {
-	lei_ok(qw(q bytes:1..));
+	lei_ok(qw(q z:1..));
 	my $out = json_utf8->decode($lei_out);
 	is_deeply($out, [ undef ], 'nothing imported, yet');
 	lei_ok('import', "nntp://$host_port/t.v2");
 	diag $lei_err;
-	lei_ok(qw(q bytes:1..));
+	lei_ok(qw(q z:1..));
 	diag $lei_err;
 	$out = json_utf8->decode($lei_out);
 	ok(scalar(@$out) > 1, 'got imported messages');
