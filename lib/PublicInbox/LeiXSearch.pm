@@ -148,7 +148,7 @@ sub query_thread_mset { # for --threads
 	my $mset;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $ibxish);
 	my $can_kw = !!$ibxish->can('msg_keywords');
-	my $fl = $lei->{opt}->{threads} > 1;
+	my $fl = $lei->{opt}->{threads} > 1 ? [ 'flagged' ] : undef;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		mset_progress($lei, $desc, $mset->size,
@@ -165,8 +165,8 @@ sub query_thread_mset { # for --threads
 				if ($mitem) {
 					if ($can_kw) {
 						mitem_kw($smsg, $mitem, $fl);
-					} else {
-						$smsg->{kw} = [ 'flagged' ];
+					} elsif ($fl) {
+						$smsg->{kw} = $fl;
 					}
 				}
 				$each_smsg->($smsg, $mitem);

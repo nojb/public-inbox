@@ -41,8 +41,12 @@ test_lei(sub {
 		'flagged set in direct hit');
 	'TODO' or is_deeply($m{'<testmessage@example.com>'}->{kw}, ['draft'],
 		'flagged set in direct hit');
-	lei_ok qw(q -t -t m:testmessage@example.com --only), "$ro_home/t2";
+	lei_ok qw(q -tt m:testmessage@example.com --only), "$ro_home/t2";
 	$res = json_utf8->decode($lei_out);
-	is_deeply($res->[0]->{kw}, [ 'flagged' ], 'flagged set on external');
+	is_deeply($res->[0]->{kw}, [ 'flagged' ],
+		'flagged set on external with -tt');
+	lei_ok qw(q -t m:testmessage@example.com --only), "$ro_home/t2";
+	$res = json_utf8->decode($lei_out);
+	ok(!exists($res->[0]->{kw}), 'flagged not set on external with 1 -t');
 });
 done_testing;
