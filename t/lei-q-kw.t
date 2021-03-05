@@ -7,7 +7,15 @@ use Fcntl qw(SEEK_SET O_RDONLY O_NONBLOCK);
 use IO::Uncompress::Gunzip qw(gunzip);
 use IO::Compress::Gzip qw(gzip);
 use PublicInbox::MboxReader;
+use PublicInbox::LeiToMail;
 use PublicInbox::Spawn qw(popen_rd);
+my $exp = {
+	'<qp@example.com>' => eml_load('t/plack-qp.eml'),
+	'<testmessage@example.com>' => eml_load('t/utf8.eml'),
+};
+$exp->{'<qp@example.com>'}->header_set('Status', 'OR');
+$exp->{'<testmessage@example.com>'}->header_set('Status', 'O');
+
 test_lei(sub {
 lei_ok(qw(import -F eml t/plack-qp.eml));
 my $o = "$ENV{HOME}/dst";
@@ -42,6 +50,17 @@ SKIP: {
 	ok(!lei(qw(q --import-before bogus -o), "mboxrd:$o"),
 		'--import-before fails on non-seekable output');
 	is(do { local $/; <$cat> }, '', 'no output on FIFO');
+	close $cat;
+	$cat = popen_rd(['cat', $o]);
+	lei_ok(qw(q m:qp@example.com -o), "mboxrd:$o");
+	my $buf = do { local $/; <$cat> };
+	open my $fh, '<', \$buf or BAIL_OUT $!;
+	PublicInbox::MboxReader->mboxrd($fh, sub {
+		my ($eml) = @_;
+		$eml->header_set('Status', 'OR');
+		is_deeply($eml, $exp->{'<qp@example.com>'},
+			'FIFO output works as expected');
+	});
 };
 
 lei_ok qw(import -F eml t/utf8.eml), \'for augment test';
@@ -66,12 +85,6 @@ my $write_file = sub {
 	}
 };
 
-my $exp = {
-	'<qp@example.com>' => eml_load('t/plack-qp.eml'),
-	'<testmessage@example.com>' => eml_load('t/utf8.eml'),
-};
-$exp->{'<qp@example.com>'}->header_set('Status', 'OR');
-$exp->{'<testmessage@example.com>'}->header_set('Status', 'O');
 for my $sfx ('', '.gz') {
 	$o = "$ENV{HOME}/dst.mboxrd$sfx";
 	lei_ok(qw(q -o), "mboxrd:$o", qw(m:qp@example.com));

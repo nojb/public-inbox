@@ -223,8 +223,6 @@ sub _post_augment_mbox { # open a compressor process
 	$dup->{$_} = $lei->{$_} for qw(2 sock);
 	tie *$pp, 'PublicInbox::ProcessPipe', $pid, $w, \&reap_compress, $dup;
 	$lei->{1} = $pp;
-	die 'BUG: unexpected {ovv}->{lock_path}' if $lei->{ovv}->{lock_path};
-	$lei->{ovv}->ovv_out_lk_init;
 }
 
 sub decompress_src ($$$) {
@@ -495,6 +493,7 @@ sub _pre_augment_mbox {
 	my $out = $lei->{1};
 	if ($dst ne '/dev/stdout') {
 		if (-p $dst) {
+			$out = undef;
 			open $out, '>', $dst or die "open($dst): $!";
 		} elsif (-f _ || !-e _) {
 			require PublicInbox::MboxLock;
@@ -521,6 +520,11 @@ sub _pre_augment_mbox {
 	if (($self->{zsfx}) = ($dst =~ /\.($zsfx_allow)\z/)) {
 		pipe(my ($r, $w)) or die "pipe: $!";
 		$lei->{zpipe} = [ $r, $w ];
+		$lei->{ovv}->{lock_path} and
+			die 'BUG: unexpected {ovv}->{lock_path}';
+		$lei->{ovv}->ovv_out_lk_init;
+	} elsif (!$self->{seekable} && !$lei->{ovv}->{lock_path}) {
+		$lei->{ovv}->ovv_out_lk_init;
 	}
 	$lei->{1} = $out;
 	undef;

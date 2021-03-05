@@ -52,7 +52,7 @@ sub lei_q {
 	my $sto = $self->_lei_store(1);
 	my $lse = $sto->search;
 	if (($opt->{'import-remote'} //= 1) |
-			($opt->{'import-before'} //= 1)) {
+			(($opt->{'import-before'} //= \1) ? 1 : 0)) {
 		$sto->write_prepare($self);
 	}
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {

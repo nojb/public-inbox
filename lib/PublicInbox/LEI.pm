@@ -431,7 +431,7 @@ sub out ($;@) {
 	my $self = shift;
 	return if print { $self->{1} // return } @_; # likely
 	return note_sigpipe($self, 1) if $! == EPIPE;
-	my $err = "error writing to stdout: $!";
+	my $err = "error writing to output: $!";
 	delete $self->{1};
 	fail($self, $err);
 }
