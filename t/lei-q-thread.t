@@ -27,9 +27,9 @@ test_lei(sub {
 	is(scalar(@$res), 3, 'got 2 results');
 	pop @$res;
 	my %m = map { $_->{'m'} => $_ } @$res;
-	is_deeply($m{'<testmessage@example.com>'}->{kw}, ['seen'],
+	is_deeply($m{'testmessage@example.com'}->{kw}, ['seen'],
 		'flag set in direct hit');
-	'TODO' or is_deeply($m{'<a-reply@miss>'}->{kw}, ['draft'],
+	'TODO' or is_deeply($m{'a-reply@miss'}->{kw}, ['draft'],
 		'flag set in thread hit');
 
 	lei_ok qw(q -t -t m:testmessage@example.com);
@@ -37,9 +37,9 @@ test_lei(sub {
 	is(scalar(@$res), 3, 'got 2 results with -t -t');
 	pop @$res;
 	%m = map { $_->{'m'} => $_ } @$res;
-	is_deeply($m{'<testmessage@example.com>'}->{kw}, ['flagged', 'seen'],
+	is_deeply($m{'testmessage@example.com'}->{kw}, ['flagged', 'seen'],
 		'flagged set in direct hit');
-	'TODO' or is_deeply($m{'<testmessage@example.com>'}->{kw}, ['draft'],
+	'TODO' or is_deeply($m{'testmessage@example.com'}->{kw}, ['draft'],
 		'flagged set in direct hit');
 	lei_ok qw(q -tt m:testmessage@example.com --only), "$ro_home/t2";
 	$res = json_utf8->decode($lei_out);

@@ -25,7 +25,7 @@ SKIP: {
 	lei_ok(@cmd, \"query $url");
 	is($lei_err, '', "no errors on $url");
 	my $res = json_utf8->decode($lei_out);
-	is($res->[0]->{'m'}, "<$mid>", "got expected mid from $url") or
+	is($res->[0]->{'m'}, $mid, "got expected mid from $url") or
 		skip 'further remote tests', 1;
 	lei_ok(@cmd, 'd:..20101002', \'no results, no error');
 	is($lei_err, '', 'no output on 404, matching local FS behavior');

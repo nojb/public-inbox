@@ -168,7 +168,7 @@ test_lei(sub {
 	is_deeply($empty, [], 'clobbered folder');
 	lei_ok qw(q -o /dev/stdout m:testmessage@example.com --no-external);
 	$res = json_utf8->decode($lei_out)->[0];
-	is_deeply([@$res{qw(m kw)}], ['<testmessage@example.com>', ['seen']],
+	is_deeply([@$res{qw(m kw)}], ['testmessage@example.com', ['seen']],
 		'kw set');
 });
 

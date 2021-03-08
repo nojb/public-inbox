@@ -141,17 +141,16 @@ sub _unbless_smsg {
 	$smsg->{dt} = _iso8601(delete $smsg->{ds}); # JMAP UTCDate
 	$smsg->{pct} = get_pct($mitem) if $mitem;
 	if (my $r = delete $smsg->{references}) {
-		$smsg->{refs} = [ map { "<$_>" } ($r =~ m/$MID_EXTRACT/go) ];
+		$smsg->{refs} = [ map { $_ } ($r =~ m/$MID_EXTRACT/go) ];
 	}
 	if (my $m = delete($smsg->{mid})) {
-		$smsg->{'m'} = "<$m>";
+		$smsg->{'m'} = $m;
 	}
 	for my $f (qw(from to cc)) {
 		my $v = delete $smsg->{$f} or next;
 		$smsg->{substr($f, 0, 1)} = pairs($v);
 	}
 	$smsg->{'s'} = delete $smsg->{subject};
-	# can we be bothered to parse From/To/Cc into arrays?
 	scalar { %$smsg }; # unbless
 }
 
