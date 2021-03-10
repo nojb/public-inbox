@@ -222,10 +222,8 @@ daemon classes
   given PublicInbox::Config which may be instantiated more than
   once in the future.
 
-* PublicInbox::ParentPipe
+* PublicInbox::EOFpipe
 
-  Per-worker process class to detect shutdown of master process.
-  This is not used if using -W0 to disable worker processes
-  in public-inbox-httpd or public-inbox-nntpd.
-
-  This is a per-worker singleton.
+  Used throughout to trigger a callback when a pipe(7) is closed.
+  This is frequently used to portably detect process exit without
+  relying on a catch-all waitpid(-1, ...) call.
