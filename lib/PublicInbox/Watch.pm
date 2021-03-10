@@ -287,30 +287,9 @@ sub watch_fs_init ($) {
 	PublicInbox::DirIdle->new([keys %{$self->{mdmap}}], $cb);
 }
 
-sub imap_import_msg ($$$$$) {
-	my ($self, $uri, $uid, $raw, $flags) = @_;
-	# our target audience expects LF-only, save storage
-	$$raw =~ s/\r\n/\n/sg;
-
-	my $inboxes = $self->{imap}->{$$uri};
-	if (ref($inboxes)) {
-		for my $ibx (@$inboxes) {
-			my $eml = PublicInbox::Eml->new($$raw);
-			import_eml($self, $ibx, $eml);
-		}
-	} elsif ($inboxes eq 'watchspam') {
-		return if $flags !~ /\\Seen\b/; # don't remove unseen messages
-		local $SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
-		my $eml = PublicInbox::Eml->new($raw);
-		$self->{pi_cfg}->each_inbox(\&remove_eml_i,
-						$self, $eml, "$uri UID:$uid");
-	} else {
-		die "BUG: destination unknown $inboxes";
-	}
-}
-
 sub net_cb { # NetReader::(nntp|imap)_each callback
 	my ($uri, $art, $kw, $eml, $self, $inboxes) = @_;
+	return if grep(/\Adraft\z/, @$kw);
 	local $self->{cur_uid} = $art; # IMAP UID or NNTP article
 	if (ref($inboxes)) {
 		my @ibx = @$inboxes;
@@ -321,6 +300,9 @@ sub net_cb { # NetReader::(nntp|imap)_each callback
 		}
 		import_eml($self, $last, $eml);
 	} elsif ($inboxes eq 'watchspam') {
+		if ($uri->scheme =~ /\Aimaps?\z/ && !grep(/\Aseen\z/, @$kw)) {
+			return;
+		}
 		$self->{pi_cfg}->each_inbox(\&remove_eml_i,
 				$self, $eml, "$uri #$art");
 	} else {

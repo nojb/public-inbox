@@ -349,6 +349,8 @@ sub _imap_do_msg ($$$$$) {
 		if (my $k = $IMAPflags2kw{$f}) {
 			push @$kw, $k;
 		} elsif ($f eq "\\Recent") { # not in JMAP
+		} elsif ($f eq "\\Deleted") { # not in JMAP
+			return;
 		} elsif ($self->{verbose}) {
 			warn "# unknown IMAP flag $f <$uri;uid=$uid>\n";
 		}

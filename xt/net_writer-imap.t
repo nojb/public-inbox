@@ -7,6 +7,8 @@ use POSIX qw(strftime);
 use PublicInbox::OnDestroy;
 use PublicInbox::URIimap;
 use PublicInbox::Config;
+use PublicInbox::DS;
+use PublicInbox::InboxIdle;
 use Fcntl qw(O_EXCL O_WRONLY O_CREAT);
 my $imap_url = $ENV{TEST_IMAP_WRITE_URL} or
 	plan skip_all => 'TEST_IMAP_WRITE_URL unset';
@@ -170,6 +172,48 @@ test_lei(sub {
 	$res = json_utf8->decode($lei_out)->[0];
 	is_deeply([@$res{qw(m kw)}], ['testmessage@example.com', ['seen']],
 		'kw set');
+
+	$mic = $nwr->mic_for_folder($folder_uri);
+	for my $kw (qw(Deleted Seen Answered Draft)) {
+		my $buf = <<EOM;
+From: x\@example.com
+Message-ID: <$kw\@test.example.com>
+
+EOM
+		$mic->append_string($folder_uri->mailbox, $buf, "\\$kw")
+			or BAIL_OUT "append $kw $@";
+	}
+	# $mic->expunge or BAIL_OUT "expunge: $@";
+	$mic->disconnect;
+
+	my $inboxdir = "$ENV{HOME}/wtest";
+	my @cmd = (qw(-init -Lbasic wtest), $inboxdir,
+			qw(https://example.com/wtest wtest@example.com));
+	run_script(\@cmd) or BAIL_OUT "init wtest";
+	xsys(qw(git config), "--file=$ENV{HOME}/.public-inbox/config",
+			'publicinbox.wtest.watch',
+			$$folder_uri) == 0 or BAIL_OUT "git config $?";
+	my $watcherr = "$ENV{HOME}/watch.err";
+	open my $err_wr, '>>', $watcherr or BAIL_OUT $!;
+	my $pub_cfg = PublicInbox::Config->new;
+	PublicInbox::DS->Reset;
+	my $ii = PublicInbox::InboxIdle->new($pub_cfg);
+	my $cb = sub { PublicInbox::DS->SetPostLoopCallback(sub {}) };
+	my $obj = bless \$cb, 'PublicInbox::TestCommon::InboxWakeup';
+	$pub_cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
+	my $w = start_script(['-watch'], undef, { 2 => $err_wr });
+	diag 'waiting for initial fetch...';
+	PublicInbox::DS->EventLoop;
+	my $ibx = $pub_cfg->lookup_name('wtest');
+	my $mm = $ibx->mm;
+	ok(defined($mm->num_for('Seen@test.example.com')),
+		'-watch takes seen message');
+	ok(defined($mm->num_for('Answered@test.example.com')),
+		'-watch takes answered message');
+	ok(!defined($mm->num_for('Deleted@test.example.com')),
+		'-watch ignored \\Deleted');
+	ok(!defined($mm->num_for('Draft@test.example.com')),
+		'-watch ignored \\Draft');
 });
 
 undef $cleanup; # remove temporary folder
