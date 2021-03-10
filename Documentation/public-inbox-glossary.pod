@@ -1,0 +1,95 @@
+=head1 NAME
+
+public-inbox-glossary - glossary for public-inbox
+
+=head1 DESCRIPTION
+
+public-inbox combines several independently-developed protocols
+and data formats with overlapping concepts.  This document is
+intended as a guide to identify and clarify overlapping concepts
+with different names.
+
+This is mainly intended for hackers of public-inbox, but may be useful
+for administrators of public-facing services and/or users building
+tools.
+
+=head1 TERMS
+
+=item IMAP UID, NNTP article number, on-disk Xapian docid
+
+A sequentially-assigned positive integer.  These integers are per-inbox,
+or per-extindex.  This is the C<num> column of the C<over> table in
+C<over.sqlite3>
+
+=item tid, THREADID
+
+A sequentially-assigned positive integer.  These integers are
+per-inbox or per-extindex.  In the future, this may be prefixed
+with C<T> for JMAP (RFC 8621) and RFC 8474.  This may not be
+strictly compliant with RFC 8621 since inboxes and extindices
+are considered independent entities from each other.
+
+This is the C<tid> column of the C<over> table in C<over.sqlite3>
+
+=item blob
+
+For email, this is the git blob object ID (SHA-(1|256)) of an
+RFC-(822|2822|5322) email message.
+
+=item IMAP EMAILID, JMAP Email Id
+
+To-be-decided.  This will likely be the git blob ID prefixed with C<g>
+rather than the numeric UID to accomodate the same blob showing
+up in both an extindex and inbox (or multiple extindices).
+
+=item newsgroup
+
+The name of the NNTP newsgroup, see L<public-inbox-config(5)>.
+
+=item IMAP (folder|mailbox) slice
+
+A 50K slice of a newsgroup to accomodate the limitations of IMAP
+clients with L<public-inbox-imapd(1)>.  This is the C<newsgroup>
+name with a C<.$INTEGER_SUFFIX>, e.g. a newsgroup named C<inbox.test>
+would have its first slice named C<inbox.test.0>, and second slice
+named C<inbox.test.1> and so forth.
+
+If implemented, the RFC 8474 MAILBOXID of an IMAP slice will NOT have
+the same Mailbox Id as the public-facing full JMAP mailbox.
+
+=item inbox name, public JMAP mailbox name
+
+The HTTP(S) name of the public-inbox
+(C<publicinbox.E<lt>nameE<gt>.*>).  JMAP will use this name
+rather than the newsgroup name since public-facing JMAP will be
+part of the PSGI code and not need a separate daemon like
+L<public-inbox-nntpd(1)> or L<public-inbox-imapd(1)>
+
+=item keywords, (IMAP|Maildir) flags, mbox Status + X-Status
+
+Private, per-message keywords or flags as described in RFC 8621
+section 10.4.  These are conveyed in the C<Status:> and
+C<X-Status:> headers for L<mbox(5)>, as IMAP FLAGS (RFC 3501 section 2.3.2),
+or Maildir info flags.
+
+L<public-inbox-watch(1)> ignores drafts and trashed (deleted)
+messages.  L<lei-import(1)> ignores trashed (deleted) messages,
+but it imports drafts.
+
+=item labels, private JMAP mailboxes
+
+For L<lei(1)> users only.  This will allow lei users to place
+the same email into one or more virtual folders for
+ease-of-filtering.  This is NOT tied to public-inbox names, as
+messages stored by lei may not be public.
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-v2-format(5)>, L<public-inbox-v1-format(5)>,
+L<public-inbox-extindex-format(5)>, L<gitglossary(7)>
