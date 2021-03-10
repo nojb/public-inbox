@@ -213,12 +213,6 @@ sub set_eml {
 	add_eml($self, $eml, @kw) // set_eml_keywords($self, $eml, @kw);
 }
 
-sub set_eml_from_maildir {
-	my ($self, $f, $set_kw) = @_;
-	my $eml = eml_from_path($f) or return;
-	set_eml($self, $eml, $set_kw ? maildir_keywords($f) : ());
-}
-
 sub checkpoint {
 	my ($self, $wait) = @_;
 	if (my $im = $self->{im}) {

@@ -147,9 +147,9 @@ error reading $input: $!
 	$lei->child_error(1 << 8, "$input: $@") if $@;
 }
 
-sub _import_maildir { # maildir_each_file cb
-	my ($f, $sto, $set_kw) = @_;
-	$sto->ipc_do('set_eml_from_maildir', $f, $set_kw);
+sub _import_maildir { # maildir_each_eml cb
+	my ($f, $kw, $eml, $sto, $set_kw) = @_;
+	$sto->ipc_do('set_eml', $eml, $set_kw ? @$kw : ());
 }
 
 sub _import_net { # imap_each, nntp_each cb
@@ -181,7 +181,7 @@ sub import_path_url {
 		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
 $input appears to a be a maildir, not $ifmt
 EOM
-		PublicInbox::MdirReader::maildir_each_file($input,
+		PublicInbox::MdirReader::maildir_each_eml($input,
 					\&_import_maildir,
 					$lei->{sto}, $lei->{opt}->{kw});
 	} else {
