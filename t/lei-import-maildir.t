@@ -29,5 +29,12 @@ test_lei(sub {
 	like($res->[0]->{'s'}, qr/use boolean/, 'got expected result');
 	is_deeply($res->[0]->{kw}, ['answered', 'seen'], 'keywords set');
 	is($res->[1], undef, 'only got one result');
+
+	symlink(abs_path('t/utf8.eml'), "$md/cur/u:2,ST") or
+		BAIL_OUT "symlink $md $!";
+	lei_ok('import', "maildir:$md", \'import Maildir w/ trashed message');
+	lei_ok(qw(q -d none m:testmessage@example.com));
+	$res = json_utf8->decode($lei_out);
+	is_deeply($res, [ undef ], 'trashed message not imported');
 });
 done_testing;

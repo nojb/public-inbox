@@ -57,6 +57,7 @@ sub maildir_each_eml ($$;@) {
 	opendir my $dh, $pfx or return;
 	while (defined(my $bn = readdir($dh))) {
 		my $fl = maildir_basename_flags($bn) // next;
+		next if index($fl, 'T') >= 0;
 		my $f = $pfx.$bn;
 		my $eml = eml_from_path($f) or next;
 		my @kw = sort(map { $c2kw{$_} // () } split(//, $fl));
