@@ -86,7 +86,10 @@ all need to be considered for everything we introduce)
 
 * more and better test cases (use git fast-import to speed up creation)
 
-* large mbox/Maildir/MH/NNTP spool import (see PublicInbox::Import)
+* large mbox/Maildir/MH/NNTP spool import (in lei, but not
+  for public-facing inboxes)
+
+* MH import support (read-only, at least)
 
 * Read-only WebDAV interface to the git repo so it can be mounted
   via davfs2 or fusedav to avoid full clones.
@@ -133,18 +136,9 @@ all need to be considered for everything we introduce)
 
   - inotify-based manifest.js.gz updates
 
-  - process/FD reduction (needs to be slow-storage friendly)
-
   ...
 
-* command-line tool (similar to mairix/notmuch, but solver+git-aware)
-
-* consider removing doc_data from Xapian, redundant with over.sqlite3
-  It's no longer read as of public-inbox 1.6.0, but still written for
-  compatibility.
-
-* share "git cat-file --batch" processes across inboxes to avoid
-  bumping into /proc/sys/fs/pipe-user-pages-* limits
+* lei - see %CMD in lib/PublicInbox/LEI.pm
 
 * make "git cat-file --batch" detect unlinked packfiles so we don't
   have to restart processes (very long-term)

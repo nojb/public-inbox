@@ -55,6 +55,15 @@ public-inbox processes.
 More (optional) L<Inline::C> use will be introduced in the future
 to lower memory use and improve scalability.
 
+=head2 libgit2 usage via Inline::C
+
+If libgit2 development files are installed and L<Inline::C>
+is enabled (described above), per-inbox C<git cat-file --batch>
+processes are replaced with a single L<perl(1)> process running
+C<PublicInbox::Gcf2::loop> in read-only daemons.
+
+Available as of public-inbox 1.7.0.
+
 =head2 Performance on rotational hard disk drives
 
 Random I/O performance is poor on rotational HDDs.  Xapian indexing
