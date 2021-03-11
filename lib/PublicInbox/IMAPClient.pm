@@ -4,17 +4,19 @@
 #
 # The license for this file differs from the rest of public-inbox.
 #
-# Workaround some bugs in upstream Mail::IMAPClient when
+# Workaround some bugs in upstream Mail::IMAPClient <= 3.42 when
 # compression is enabled:
 # - reference cycle: https://rt.cpan.org/Ticket/Display.html?id=132654
 # - read starvation: https://rt.cpan.org/Ticket/Display.html?id=132720
 package PublicInbox::IMAPClient;
 use strict;
 use parent 'Mail::IMAPClient';
-use Errno qw(EAGAIN);
+unless (eval('use Mail::IMAPClient 3.43')) {
+require Errno;
+no warnings 'once';
 
 # RFC4978 COMPRESS
-sub compress {
+*compress = sub {
     my ($self) = @_;
 
     # BUG? strict check on capability commented out for now...
@@ -101,7 +103,7 @@ sub compress {
             # I/O readiness notifications (select, poll).  Refactoring
             # callers will be needed in the unlikely case somebody wants
             # to use edge-triggered notifications (EV_CLEAR, EPOLLET).
-            $! = EAGAIN;
+            $! = Errno::EAGAIN();
             return undef;
         }
 
@@ -114,6 +116,7 @@ sub compress {
     };
 
     return $self;
-}
+};
+} # $Mail::IMAPClient::VERSION < 3.43
 
 1;
