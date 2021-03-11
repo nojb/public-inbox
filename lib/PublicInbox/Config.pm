@@ -26,6 +26,7 @@ sub new {
 		$self = config_fh_parse($fh, "\n", '=');
 	} else {
 		$self = git_config_dump($file);
+		$self->{'-f'} = $file;
 	}
 	bless $self, $class;
 	# caches
@@ -505,7 +506,7 @@ sub urlmatch {
 	my ($self, $key, $url) = @_;
 	state $urlmatch_broken; # requires git 1.8.5
 	return if $urlmatch_broken;
-	my $file = default_file();
+	my $file = $self->{'-f'} // default_file();
 	my $cmd = [qw/git config -z --includes --get-urlmatch/,
 		"--file=$file", $key, $url ];
 	my $fh = popen_rd($cmd);
