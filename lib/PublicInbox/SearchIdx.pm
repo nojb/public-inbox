@@ -542,18 +542,6 @@ sub remove_keywords {
 	$self->{xdb}->replace_document($docid, $doc) if $replace;
 }
 
-sub smsg_from_doc ($) {
-	my ($doc) = @_;
-	my $data = $doc->get_data or return;
-	my $smsg = bless {}, 'PublicInbox::Smsg';
-	$smsg->{ts} = int_val($doc, PublicInbox::Search::TS());
-	my $dt = int_val($doc, PublicInbox::Search::DT());
-	my ($yyyy, $mon, $dd, $hh, $mm, $ss) = unpack('A4A2A2A2A2A2', $dt);
-	$smsg->{ds} = timegm($ss, $mm, $hh, $dd, $mon - 1, $yyyy);
-	$smsg->load_from_data($data);
-	$smsg;
-}
-
 sub xdb_remove {
 	my ($self, @docids) = @_;
 	$self->begin_txn_lazy;
