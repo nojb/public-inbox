@@ -84,6 +84,14 @@ sub msg_part_text ($$) {
 		# If forcing charset=UTF-8 failed,
 		# caller will warn further down...
 		$s = $part->body if $@;
+	} elsif ($err && $ct =~ m!\bapplication/octet-stream\b!i) {
+		# Some unconfigured/poorly-configured MUAs will set
+		# application/octet-stream even for all text attachments.
+		# Try to see if it's printable text that we can index
+		# and display:
+		$s = $part->body;
+		utf8::decode($s);
+		undef($s =~ /[^\p{XPosixPrint}\s]/s ? $s : $err);
 	}
 	($s, $err);
 }

@@ -1,10 +1,8 @@
 # Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use warnings;
-use Test::More;
-use PublicInbox::TestCommon;
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Hval qw(ascii_html);
+use MIME::QuotedPrint 3.05 qw(encode_qp);
 use_ok('PublicInbox::MsgIter');
 
 {
@@ -88,5 +86,62 @@ use_ok('PublicInbox::MsgIter');
 	is($check[1], $nq, 'long quoted section matches');
 }
 
+{
+	open my $fh, '<', 't/utf8.eml' or BAIL_OUT $!;
+	my $expect = do { local $/; <$fh>  };
+	my $qp_patch = encode_qp($expect, "\r\n");
+	my $common = <<EOM;
+Content-Type: multipart/mixed; boundary="DEADBEEF"
+MIME-Version: 1.0
+
+--DEADBEEF
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain;
+	charset=utf-8
+
+blah
+
+--DEADBEEF
+Content-Disposition: attachment;
+	filename=foo.patch
+Content-Type: application/octet-stream;
+	x-unix-mode=0644;
+	name="foo.patch"
+Content-Transfer-Encoding: quoted-printable
+EOM
+	my $eml = PublicInbox::Eml->new(<<EOM);
+$common
+$qp_patch
+--DEADBEEF--
+EOM
+	my @parts;
+	$eml->each_part(sub {
+		my ($part, $level, @ex) = @{$_[0]};
+		my ($s, $err) = msg_part_text($part, $part->content_type);
+		push @parts, $s;
+	});
+	$expect =~ s/\n/\r\n/sg;
+	utf8::decode($expect); # aka "bytes2str"
+	is_deeply(\@parts, [ "blah\r\n", $expect ],
+		'fallback to application/octet-stream as UTF-8 text');
+
+	my $qp_binary = encode_qp("Binary\0crap", "\r\n");
+	$eml = PublicInbox::Eml->new(<<EOM);
+$common
+$qp_binary
+--DEADBEEF--
+EOM
+	@parts = ();
+	my @err;
+	$eml->each_part(sub {
+		my ($part, $level, @ex) = @{$_[0]};
+		my ($s, $err) = msg_part_text($part, $part->content_type);
+		push @parts, $s;
+		push @err, $err;
+	});
+	is_deeply(\@parts, [ "blah\r\n", undef ],
+		'non-text ignored in octet-stream');
+	ok($err[1], 'got error for second element');
+}
+
 done_testing();
-1;
