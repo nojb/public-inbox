@@ -6,7 +6,6 @@ package PublicInbox::WwwAttach; # internal package
 use strict;
 use parent qw(PublicInbox::GzipFilter);
 use bytes (); # only for bytes::length
-use PublicInbox::EmlContentFoo qw(parse_content_type);
 use PublicInbox::Eml;
 
 sub referer_match ($) {
@@ -31,9 +30,7 @@ sub get_attach_i { # ->each_part callback
 	return if $idx ne $ctx->{idx}; # [0-9]+(?:\.[0-9]+)+
 	my $res = $ctx->{res};
 	$res->[0] = 200;
-	my $ct = $part->content_type;
-	$ct = parse_content_type($ct) if $ct;
-
+	my $ct = $part->ct;
 	if ($ct && (($ct->{type} || '') eq 'text')) {
 		# display all text as text/plain:
 		my $cset = $ct->{attributes}->{charset};
