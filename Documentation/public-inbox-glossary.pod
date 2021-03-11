@@ -83,6 +83,20 @@ the same email into one or more virtual folders for
 ease-of-filtering.  This is NOT tied to public-inbox names, as
 messages stored by lei may not be public.
 
+=item IMAP INTERNALDATE, JMAP receivedAt, rt: search prefix
+
+The first valid timestamp value of Received: headers (top first).
+If no Received: header exists, the Date: header is used, and the
+current time if neither header(s) exist.  When mirroring via
+git, this is the git commit time.
+
+=item IMAP SENT*, JMAP sentAt, dt: and d: search prefixes
+
+The first valid timestamp value of the Date: header(s).
+If no Date: header exists, the time from the Received: header is
+used, and then the current time if neither header exists.
+When mirroring via git, this is the git author time.
+
 =head1 COPYRIGHT
 
 Copyright 2021 all contributors L<mailto:meta@public-inbox.org>

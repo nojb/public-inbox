@@ -13,9 +13,9 @@ use POSIX qw(strftime);
 # values for searching, changing the numeric value breaks
 # compatibility with old indices (so don't change them it)
 use constant {
-	TS => 0, # Received: header in Unix time (IMAP INTERNALDATE)
+	TS => 0, # Received: in Unix time (IMAP INTERNALDATE, JMAP receivedAt)
 	YYYYMMDD => 1, # Date: header for searching in the WWW UI
-	DT => 2, # Date: YYYYMMDDHHMMSS
+	DT => 2, # Date: YYYYMMDDHHMMSS (IMAP SENT*, JMAP sentAt)
 
 	# added for public-inbox 1.6.0+
 	BYTES => 3, # IMAP RFC822.SIZE
