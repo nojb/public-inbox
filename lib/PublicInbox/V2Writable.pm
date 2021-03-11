@@ -1216,7 +1216,7 @@ sub sync_ranges ($$) {
 
 sub index_xap_only { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $smsg) = @_;
-	my $self = $smsg->{self};
+	my $self = delete $smsg->{self};
 	my $idx = idx_shard($self, $smsg->{num});
 	$idx->index_eml(PublicInbox::Eml->new($bref), $smsg);
 	$self->{transact_bytes} += $smsg->{bytes};

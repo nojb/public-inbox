@@ -543,4 +543,9 @@ EOF
 $check_rethread->('3-headed-monster once');
 $check_rethread->('3-headed-monster twice');
 
+my $rdr = { 2 => \(my $err = '') };
+ok(run_script([qw(-index --reindex --xapian-only), $inboxdir], undef, $rdr),
+	'--xapian-only works');
+is($err, '', 'no errors from --xapian-only');
+
 done_testing();
