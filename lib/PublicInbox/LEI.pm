@@ -133,7 +133,7 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(prune quiet|q C=s@) ],
 
 'ls-query' => [ '[FILTER...]', 'list saved search queries',
-		qw(name-only format|f=s z C=s@) ],
+		qw(name-only format|f=s C=s@) ],
 'rm-query' => [ 'QUERY_NAME', 'remove a saved search', qw(C=s@) ],
 'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search', qw(C=s@) ],
 
@@ -240,8 +240,7 @@ my %OPTDESC = (
 
 'dedupe|d=s' => ['STRATEGY|content|oid|mid|none',
 		'deduplication strategy'],
-'show	threads|t' => 'display entire thread a message belongs to',
-'q	threads|t+' =>
+'threads|t+' =>
 	'return all messages in the same threads as the actual match(es)',
 
 'want|w=s@' => [ 'PREFIX|dfpost|dfn', # common ones in help...
@@ -260,17 +259,11 @@ my %OPTDESC = (
 'mua=s' => [ 'CMD',
 	"MUA to run on --output Maildir or mbox (e.g.\xa0`mutt\xa0-f\xa0%f')" ],
 
-'show	format|f=s' => [ 'OUT|plain|raw|html|mboxrd|mboxcl2|mboxcl',
-			'message/object output format' ],
-'mark	format|f=s' => $stdin_formats,
-'forget	format|f=s' => $stdin_formats,
-
-'add-external	inbox-version=i' => [ 'NUM|1|2',
+'inbox-version=i' => [ 'NUM|1|2',
 		'force a public-inbox version with --mirror'],
-'add-external	mirror=s' => [ 'URL', 'mirror a public-inbox'],
+'mirror=s' => [ 'URL', 'mirror a public-inbox'],
 
 # public-inbox-index options
-'add-external	jobs|j=i' => 'set parallelism when indexing after --mirror',
 'fsync!' => 'speed up indexing after --mirror, risk index corruption',
 'compact' => 'run compact index after mirroring',
 'indexlevel|L=s' => [ 'LEVEL|full|medium|basic',
@@ -284,23 +277,22 @@ my %OPTDESC = (
 'skip-docdata' =>
 	'drop compatibility w/ public-inbox <1.6 to save ~1.5% space',
 
-'q	format|f=s' => [
+'format|f=s	q' => [
 	'OUT|maildir|mboxrd|mboxcl2|mboxcl|mboxo|html|json|jsonl|concatjson',
 		'specify output format, default depends on --output'],
-'q	exclude=s@' => [ 'LOCATION',
+'exclude=s@	q' => [ 'LOCATION',
 		'exclude specified external(s) from search' ],
-'q	include|I=s@' => [ 'LOCATION',
+'include|I=s@	q' => [ 'LOCATION',
 		'include specified external(s) in search' ],
-'q	only=s@' => [ 'LOCATION',
+'only=s@	q' => [ 'LOCATION',
 		'only use specified external(s) for search' ],
-
-'q	jobs=s'	=> [ '[SEARCH_JOBS][,WRITER_JOBS]',
+'jobs=s	q' => [ '[SEARCH_JOBS][,WRITER_JOBS]',
 		'control number of search and writer jobs' ],
+'jobs|j=i	add-external' => 'set parallelism when indexing after --mirror',
 
-'import format|f=s' => $stdin_formats,
-
-'ls-query	format|f=s' => $ls_format,
-'ls-external	format|f=s' => $ls_format,
+'in-format|F=s' => $stdin_formats,
+'format|f=s	ls-query' => $ls_format,
+'format|f=s	ls-external' => $ls_format,
 
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],
 'offset=i' => ['OFF', 'search result offset (default: 0)'],
@@ -770,7 +762,7 @@ sub lei__complete {
 				my $x = length > 1 ? "--$_" : "-$_";
 				$x eq $cur ? () : $x;
 			} grep(!/_/, split(/\|/, $_, -1)) # help|h
-		} grep { $OPTDESC{"$cmd\t$_"} || $OPTDESC{$_} } @spec);
+		} grep { $OPTDESC{"$_\t$cmd"} || $OPTDESC{$_} } @spec);
 	} elsif ($cmd eq 'config' && !@argv && !$CONFIG_KEYS{$cur}) {
 		puts $self, grep(/$re/, keys %CONFIG_KEYS);
 	}
@@ -785,7 +777,7 @@ sub lei__complete {
 			# (TODO: completion for external paths)
 			shift(@v) if uc($v[0]) eq $v[0];
 			@v;
-		} grep(/\A(?:$cmd\t|)(?:[\w-]+\|)*$opt\b/, keys %OPTDESC);
+		} grep(/\A(?:[\w-]+\|)*$opt\b.*?(?:\t$cmd)?\z/, keys %OPTDESC);
 	}
 	$cmd =~ tr/-/_/;
 	if (my $sub = $self->can("_complete_$cmd")) {

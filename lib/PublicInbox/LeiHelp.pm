@@ -20,7 +20,7 @@ sub call {
 	my @opt_desc;
 	my $lpad = 2;
 	for my $sw (grep { !ref } @info) { # ("prio=s", "z", $GLP_PASS)
-		my $desc = $OPTDESC->{"$cmd\t$sw"} // $OPTDESC->{$sw} // next;
+		my $desc = $OPTDESC->{"$sw\t$cmd"} // $OPTDESC->{$sw} // next;
 		my $arg_vals = '';
 		($arg_vals, $desc) = @$desc if ref($desc) eq 'ARRAY';
 
