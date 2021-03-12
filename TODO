@@ -84,7 +84,8 @@ all need to be considered for everything we introduce)
 * use REQUEST_URI properly for CGI / mod_perl2 compatibility
   with Message-IDs which include '%' (done?)
 
-* more and better test cases (use git fast-import to speed up creation)
+* better test cases, make faster by reusing more setup
+  code across tests
 
 * large mbox/Maildir/MH/NNTP spool import (in lei, but not
   for public-facing inboxes)
