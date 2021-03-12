@@ -228,6 +228,7 @@ my %OPTDESC = (
 'globoff|g' => "do not match locations using '*?' wildcards ".
 		"and\xa0'[]'\x{a0}ranges",
 'verbose|v+' => 'be more verbose',
+'external!' => 'do not use externals',
 'solve!' => 'do not attempt to reconstruct blobs from emails',
 'torsocks=s' => ['VAL|auto|no|yes',
 		'whether or not to wrap git and curl commands with torsocks'],
