@@ -170,9 +170,9 @@ sub reap_compress { # dwaitpid callback
 # { foo => '' } means "--foo" is passed to the command-line,
 # otherwise { foo => '--bar' } passes "--bar"
 our %zsfx2cmd = (
-	gz => [ qw(GZIP pigz gzip), { rsyncable => '', threads => '-p' } ],
+	gz => [ qw(GZIP pigz gzip), { rsyncable => '' } ],
 	bz2 => [ 'bzip2', {} ],
-	xz => [ 'xz', { threads => '-T' } ],
+	xz => [ 'xz', {} ],
 	# XXX does anybody care for these?  I prefer zstd on entire FSes,
 	# so it's probably not necessary on a per-file basis
 	# zst => [ 'zstd', { -default => [ qw(-q) ], # it's noisy by default
@@ -203,7 +203,7 @@ sub zsfx2cmd ($$$) {
 		my $switch = $cmd_opt->{rsyncable} // next;
 		push @cmd, '--'.($switch || $bool);
 	}
-	for my $key (qw(threads)) { # support compression level?
+	for my $key (qw(rsyncable)) { # support compression level?
 		my $switch = $cmd_opt->{$key} // next;
 		my $val = $lei->{opt}->{$key} // next;
 		push @cmd, $switch, $val;
