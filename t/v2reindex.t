@@ -544,7 +544,8 @@ $check_rethread->('3-headed-monster once');
 $check_rethread->('3-headed-monster twice');
 
 my $rdr = { 2 => \(my $err = '') };
-ok(run_script([qw(-index --reindex --xapian-only), $inboxdir], undef, $rdr),
+my $env = { PI_CONFIG => '/dev/null' };
+ok(run_script([qw(-index --reindex --xapian-only), $inboxdir], $env, $rdr),
 	'--xapian-only works');
 is($err, '', 'no errors from --xapian-only');
 
