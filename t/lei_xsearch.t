@@ -78,4 +78,35 @@ is(scalar(@ibxish), scalar(@ibx) + 1, 'got locals back');
 is($lxs->search, $lxs, '->search works');
 is($lxs->over, undef, '->over fails');
 
+{
+	$lxs = PublicInbox::LeiXSearch->new;
+	my $v2ibx = PublicInbox::InboxWritable->new({
+		inboxdir => "$home/v2full",
+		name => 'v2full',
+		version => 2,
+		indexlevel => 'full',
+		-primary_address => 'v2full@example.com',
+	}, {});
+	my $im = $v2ibx->importer(0);
+	$im->add(eml_load('t/plack-qp.eml'));
+	$im->done;
+	my $v1ibx = PublicInbox::InboxWritable->new({
+		inboxdir => "$home/v1medium",
+		name => 'v1medium',
+		version => 1,
+		indexlevel => 'medium',
+		-primary_address => 'v1medium@example.com',
+	}, {});
+	$im = $v1ibx->importer(0);
+	$im->add(eml_load('t/utf8.eml'));
+	$im->done;
+	$lxs->prepare_external($v1ibx);
+	$lxs->prepare_external($v2ibx);
+	for my $loc ($lxs->locals) {
+		$lxs->attach_external($loc);
+	}
+	my $mset = $lxs->mset('m:testmessage@example.com');
+	is($mset->size, 1, 'got m: match on medium+full XSearch mix');
+}
+
 done_testing;

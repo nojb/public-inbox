@@ -22,6 +22,7 @@ use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
+use PublicInbox::Address;
 our @EXPORT_OK = qw(log2stack is_ancestor check_size prepare_stack
 	index_text term_generator add_val is_bad_blob);
 my $X = \%PublicInbox::Search::X;
@@ -158,22 +159,44 @@ sub term_generator ($) { # write-only
 	}
 }
 
+sub index_phrase ($$$$) {
+	my ($self, $text, $wdf_inc, $prefix) = @_;
+
+	my $tg = term_generator($self);
+	$tg->index_text($text, $wdf_inc, $prefix);
+	$tg->increase_termpos;
+}
+
 sub index_text ($$$$) {
 	my ($self, $text, $wdf_inc, $prefix) = @_;
-	my $tg = term_generator($self); # man Search::Xapian::TermGenerator
 
 	if ($self->{indexlevel} eq 'full') {
-		$tg->index_text($text, $wdf_inc, $prefix);
-		$tg->increase_termpos;
+		index_phrase($self, $text, $wdf_inc, $prefix);
 	} else {
+		my $tg = term_generator($self);
 		$tg->index_text_without_positions($text, $wdf_inc, $prefix);
 	}
 }
 
 sub index_headers ($$) {
 	my ($self, $smsg) = @_;
-	my @x = (from => 'A', # Author
-		subject => 'S', to => 'XTO', cc => 'XCC');
+	my @x = (from => 'A', to => 'XTO', cc => 'XCC'); # A: Author
+	while (my ($field, $pfx) = splice(@x, 0, 2)) {
+		my $val = $smsg->{$field};
+		next if $val eq '';
+		# include "(comments)" after the address, too, so not using
+		# PublicInbox::Address::names or pairs
+		index_text($self, $val, 1, $pfx);
+
+		# we need positional info for email addresses since they
+		# can be considered phrases
+		if ($self->{indexlevel} eq 'medium') {
+			for my $addr (PublicInbox::Address::emails($val)) {
+				index_phrase($self, $addr, 1, $pfx);
+			}
+		}
+	}
+	@x = (subject => 'S');
 	while (my ($field, $pfx) = splice(@x, 0, 2)) {
 		my $val = $smsg->{$field};
 		index_text($self, $val, 1, $pfx) if $val ne '';
@@ -186,7 +209,11 @@ sub index_diff_inc ($$$$) {
 		index_text($self, join("\n", @$xnq), 1, 'XNQ');
 		@$xnq = ();
 	}
-	index_text($self, $text, 1, $pfx);
+	if ($pfx eq 'XDFN') {
+		index_phrase($self, $text, 1, $pfx);
+	} else {
+		index_text($self, $text, 1, $pfx);
+	}
 }
 
 sub index_old_diff_fn {
@@ -292,7 +319,7 @@ sub index_xapian { # msg_iter callback
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	if (defined $fn && $fn ne '') {
-		index_text($self, $fn, 1, 'XFN');
+		index_phrase($self, $fn, 1, 'XFN');
 	}
 	if ($part->{is_submsg}) {
 		my $mids = mids_for_index($part);
@@ -330,20 +357,20 @@ sub index_list_id ($$$) {
 		$l =~ /<([^>]+)>/ or next;
 		my $lid = lc $1;
 		$doc->add_boolean_term('G' . $lid);
-		index_text($self, $lid, 1, 'XL'); # probabilistic
+		index_phrase($self, $lid, 1, 'XL'); # probabilistic
 	}
 }
 
 sub index_ids ($$$$) {
 	my ($self, $doc, $hdr, $mids) = @_;
 	for my $mid (@$mids) {
-		index_text($self, $mid, 1, 'XM');
+		index_phrase($self, $mid, 1, 'XM');
 
 		# because too many Message-IDs are prefixed with
 		# "Pine.LNX."...
 		if ($mid =~ /\w{12,}/) {
 			my @long = ($mid =~ /(\w{3,}+)/g);
-			index_text($self, join(' ', @long), 1, 'XM');
+			index_phrase($self, join(' ', @long), 1, 'XM');
 		}
 	}
 	$doc->add_boolean_term('Q' . $_) for @$mids;
