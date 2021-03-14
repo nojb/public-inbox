@@ -44,29 +44,40 @@ sub content_key ($) {
 
 sub _cmp_1st { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $cmp) = @_; # cmp: [chash, found, smsg]
-	return if defined($cmp->[1]->[0]); # $found->[0]
 	if (content_hash(PublicInbox::Eml->new($bref)) eq $cmp->[0]) {
-		push @{$cmp->[1]}, $cmp->[2]->{num};
+		$cmp->[1]->{$oid} = $cmp->[2]->{num};
 	}
+}
+
+sub xids_for { # returns { OID => docid } mapping for $eml matches
+	my ($self, $eml, $min) = @_;
+	my ($chash, $mids) = content_key($eml);
+	my @overs = ($self->over // $self->overs_all);
+	my $git = $self->git;
+	my $found = {};
+	for my $mid (@$mids) {
+		for my $o (@overs) {
+			my ($id, $prev);
+			while (my $cur = $o->next_by_mid($mid, \$id, \$prev)) {
+				next if $found->{$cur->{blob}};
+				$git->cat_async($cur->{blob}, \&_cmp_1st,
+						[ $chash, $found, $cur ]);
+				if ($min && scalar(keys %$found) >= $min) {
+					$git->cat_async_wait;
+					return $found;
+				}
+			}
+		}
+	}
+	$git->cat_async_wait;
+	scalar(keys %$found) ? $found : undef;
 }
 
 # returns true if $eml is indexed by lei/store and keywords don't match
 sub kw_changed {
 	my ($self, $eml, $new_kw_sorted) = @_;
-	my ($chash, $mids) = content_key($eml);
-	my $over = $self->over;
-	my $git = $self->git;
-	my $found = [];
-	for my $mid (@$mids) {
-		my ($id, $prev);
-		while (my $cur = $over->next_by_mid($mid, \$id, \$prev)) {
-			$git->cat_async($cur->{blob}, \&_cmp_1st,
-					[ $chash, $found, $cur ]);
-			last if scalar(@$found);
-		}
-	}
-	$git->cat_async_wait;
-	my $num = $found->[0] // return;
+	my $found = xids_for($self, $eml, 1) // return;
+	my ($num) = values %$found;
 	my @cur_kw = msg_keywords($self, $num);
 	join("\0", @$new_kw_sorted) eq join("\0", @cur_kw) ? 0 : 1;
 }

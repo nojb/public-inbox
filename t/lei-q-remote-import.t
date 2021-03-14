@@ -5,6 +5,7 @@ use strict; use v5.10.1; use PublicInbox::TestCommon;
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 use PublicInbox::MboxReader;
+use PublicInbox::InboxWritable;
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $sock = tcp_server;
 my ($tmpdir, $for_destroy) = tmpdir;
@@ -36,7 +37,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is_deeply($slurp_emls->($o), $exp1, 'got results after remote search');
 	unlink $o or BAIL_OUT $!;
 	lei_ok(@cmd);
-	ok(-f $o && -s _, 'output exists after import but is not empty');
+	ok(-f $o && -s _, 'output exists after import but is not empty') or
+		diag $lei_err;
 	is_deeply($slurp_emls->($o), $exp1, 'got results w/o remote search');
 	unlink $o or BAIL_OUT $!;
 
@@ -58,5 +60,46 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	unlink "$o.lock" or BAIL_OUT $!;
 	lei_ok(@cmd, '--lock=dotlock,timeout=0.000001',
 		\'succeeds after lock removal');
+
+	# XXX memoize this external creation
+	my $inboxdir = "$ENV{HOME}/tmp_git";
+	my $ibx = PublicInbox::InboxWritable->new({
+		name => 'tmp',
+		-primary_address => 'lei@example.com',
+		inboxdir => $inboxdir,
+		indexlevel => 'medium',
+	}, { nproc => 1 });
+	my $im = $ibx->importer(0);
+	$im->add(eml_load('t/utf8.eml')) or BAIL_OUT '->add';
+	$im->done;
+
+	run_script(['-index', $inboxdir], undef) or BAIL_OUT '-init';
+	lei_ok(qw(add-external -q), $inboxdir);
+	lei_ok(qw(q -o), "mboxrd:$o", '--only', $url,
+		'm:testmessage@example.com');
+	ok(-s $o, 'got result from remote external');
+	my $exp = eml_load('t/utf8.eml');
+	is_deeply($slurp_emls->($o), [$exp], 'got expected result');
+	lei_ok(qw(q --no-external -o), "mboxrd:/dev/stdout",
+			'm:testmessage@example.com');
+	is($lei_out, '', 'message not imported when in local external');
+
+	open $fh, '>', $o or BAIL_OUT;
+	print $fh <<'EOF' or BAIL_OUT;
+From a@z Mon Sep 17 00:00:00 2001
+From: nobody@localhost
+Date: Sat, 13 Mar 2021 18:23:01 +0600
+Message-ID: <never-before-seen@example.com>
+Status: RO
+
+whatever
+EOF
+	close $fh or BAIL_OUT;
+	lei_ok(qw(q -o), "mboxrd:$o", 'm:testmessage@example.com');
+	is_deeply($slurp_emls->($o), [$exp],
+		'got expected result after clobber') or diag $lei_err;
+	lei_ok(qw(q -o mboxrd:/dev/stdout m:never-before-seen@example.com));
+	like($lei_out, qr/seen\@example\.com>\nStatus: OR\n\nwhatever/sm,
+		'--import-before imported totally unseen message');
 });
 done_testing;

@@ -213,6 +213,24 @@ sub set_eml {
 	add_eml($self, $eml, @kw) // set_eml_keywords($self, $eml, @kw);
 }
 
+sub add_eml_maybe {
+	my ($self, $eml) = @_;
+	my $lxs = $self->{lxs_all_local} // die 'BUG: no {lxs_all_local}';
+	return if $lxs->xids_for($eml, 1);
+	add_eml($self, $eml);
+}
+
+# set or update keywords for external message, called via ipc_do
+sub set_xkw {
+	my ($self, $eml, $kw) = @_;
+	my $lxs = $self->{lxs_all_local} // die 'BUG: no {lxs_all_local}';
+	if ($lxs->xids_for($eml, 1)) { # is it in a local external?
+		# TODO: index keywords only
+	} else {
+		set_eml($self, $eml, @$kw);
+	}
+}
+
 sub checkpoint {
 	my ($self, $wait) = @_;
 	if (my $im = $self->{im}) {
@@ -237,18 +255,40 @@ sub done {
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	my $lei = delete $self->{lei};
+	my $lei = $self->{lei};
 	$lei->lei_atfork_child(1) if $lei;
 	$self->SUPER::ipc_atfork_child;
 }
 
+sub refresh_local_externals {
+	my ($self) = @_;
+	my $cfg = $self->{lei}->_lei_cfg or return;
+	my $cur_cfg = $self->{cur_cfg} // -1;
+	my $lxs = $self->{lxs_all_local};
+	if ($cfg != $cur_cfg || !$lxs) {
+		$lxs = PublicInbox::LeiXSearch->new;
+		my @loc = $self->{lei}->externals_each;
+		for my $loc (@loc) { # locals only
+			$lxs->prepare_external($loc) if -d $loc;
+		}
+		$self->{lxs_all_local} = $lxs;
+		$self->{cur_cfg} = $cfg;
+	}
+	($lxs->{git_tmp} //= $lxs->git_tmp)->{git_dir};
+}
+
 sub write_prepare {
 	my ($self, $lei) = @_;
-	$self->ipc_lock_init;
-	# Mail we import into lei are private, so headers filtered out
-	# by -mda for public mail are not appropriate
-	local @PublicInbox::MDA::BAD_HEADERS = ();
-	$self->ipc_worker_spawn('lei_store', $lei->oldset, { lei => $lei });
+	unless ($self->{-ipc_req}) {
+		require PublicInbox::LeiXSearch;
+		$self->ipc_lock_init;
+		# Mail we import into lei are private, so headers filtered out
+		# by -mda for public mail are not appropriate
+		local @PublicInbox::MDA::BAD_HEADERS = ();
+		$self->ipc_worker_spawn('lei_store', $lei->oldset,
+					{ lei => $lei });
+	}
+	$lei->{all_ext_git_dir} = $self->ipc_do('refresh_local_externals');
 	$lei->{sto} = $self;
 }
 

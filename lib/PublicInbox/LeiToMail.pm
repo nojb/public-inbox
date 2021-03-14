@@ -279,7 +279,7 @@ sub update_kw_maybe ($$$$) {
 	if ($x) {
 		$lei->{sto}->ipc_do('set_eml', $eml, @$kw);
 	} elsif (!defined($x)) {
-		# TODO: xkw
+		$lei->{sto}->ipc_do('set_xkw', $eml, $kw);
 	}
 }
 

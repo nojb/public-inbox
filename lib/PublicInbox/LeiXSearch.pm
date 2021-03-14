@@ -97,6 +97,11 @@ sub recent {
 
 sub over {}
 
+sub overs_all { # for xids_for
+	my ($self) = @_;
+	grep(defined, map { $_->over } locals($self))
+}
+
 sub _mset_more ($$) {
 	my ($mset, $mo) = @_;
 	my $size = $mset->size;
@@ -204,7 +209,9 @@ sub query_mset { # non-parallel for non-"--threads" users
 
 sub each_remote_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
-	$lei->{sto}->ipc_do('add_eml', $eml) if $lei->{opt}->{'import-remote'};
+	if (my $sto = $self->{import_sto}) {
+		$sto->ipc_do('add_eml_maybe', $eml);
+	}
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->populate($eml);
 	$smsg->parse_references($eml, mids($eml));
@@ -249,6 +256,7 @@ sub query_remote_mboxrd {
 	my $curl = PublicInbox::LeiCurl->new($lei, $self->{curl}) or return;
 	push @$curl, '-s', '-d', '';
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
+	$self->{import_sto} = $lei->{sto} if $lei->{opt}->{'import-remote'};
 	for my $uri (@$uris) {
 		$lei->{-current_url} = $uri->as_string;
 		$lei->{-nr_remote_eml} = 0;
