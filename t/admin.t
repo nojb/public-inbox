@@ -1,17 +1,27 @@
+#!perl -w
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
 use_ok 'PublicInbox::Admin';
+my $v1 = create_inbox 'v1', -no_gc => 1, sub {};
 my ($tmpdir, $for_destroy) = tmpdir();
-my $git_dir = "$tmpdir/v1";
-my $v2_dir = "$tmpdir/v2";
+my $git_dir = $v1->{inboxdir};
 my ($res, $err, $v);
+my $v2ibx;
+SKIP: {
+	require_mods(qw(DBD::SQLite), 5);
+	require_git(2.6, 1) or skip 5, 'git too old';
+	$v2ibx = create_inbox 'v2', indexlevel => 'basic', version => 2,
+				-no_gc => 1, sub {
+		my ($v2w, $ibx) = @_;
+		$v2w->idx_init;
+		$v2w->importer;
+	};
+};
 
-PublicInbox::Import::init_bare($git_dir);
 *resolve_inboxdir = \&PublicInbox::Admin::resolve_inboxdir;
 
 # v1
@@ -51,22 +61,8 @@ SKIP: {
 }
 
 # v2
-SKIP: {
-	for my $m (qw(DBD::SQLite)) {
-		skip "$m missing", 5 unless eval "require $m";
-	}
-	use_ok 'PublicInbox::V2Writable';
-	use_ok 'PublicInbox::Inbox';
-	my $ibx = PublicInbox::Inbox->new({
-			inboxdir => $v2_dir,
-			name => 'test-v2writable',
-			version => 2,
-			-primary_address => 'test@example.com',
-			indexlevel => 'basic',
-		});
-	PublicInbox::V2Writable->new($ibx, 1)->idx_init;
-
-	ok(-e "$v2_dir/inbox.lock", 'exists');
+if ($v2ibx) {
+	my $v2_dir = $v2ibx->{inboxdir};
 	is(resolve_inboxdir($v2_dir), $v2_dir,
 		'resolve_inboxdir works on v2_dir');
 	chdir($v2_dir) or BAIL_OUT "chdir v2_dir: $!";
@@ -76,7 +72,6 @@ SKIP: {
 	is($res, $v2_dir, 'detects directory along with version');
 
 	# TODO: should work from inside Xapian dirs, and git dirs, here...
-	PublicInbox::Import::init_bare("$v2_dir/git/0.git");
 	my $objdir = "$v2_dir/git/0.git/objects";
 	is($v2_dir, resolve_inboxdir($objdir, \$v), 'at $objdir');
 	is($v, 2, 'version 2 detected at $objdir');
