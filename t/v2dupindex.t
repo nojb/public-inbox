@@ -4,49 +4,49 @@
 
 # we can index a message from a mirror which bypasses dedupe.
 use strict;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
+use PublicInbox::Import;
+use PublicInbox::Git;
 require_git(2.6);
 require_mods(qw(DBD::SQLite));
 my ($tmpdir, $for_destroy) = tmpdir();
-use_ok 'PublicInbox::Import';
-use_ok 'PublicInbox::Git';
-use_ok 'PublicInbox::InboxWritable';
-my $ibx = PublicInbox::InboxWritable->new({
-	inboxdir => $tmpdir,
-	name => 'test-v2dupindex',
-	version => 2,
-	indexlevel => 'basic',
-	-primary_address => 'test@example.com',
-}, { nproc => 1 });
-$ibx->init_inbox(1);
-my $v2w = $ibx->importer;
-$v2w->add(eml_load('t/plack-qp.eml'));
-$v2w->add(eml_load('t/mda-mime.eml'));
-$v2w->done;
+my $inboxdir = "$tmpdir/test";
+my $ibx = create_inbox('test', indexlevel => 'basic', version => 2,
+		tmpdir => $inboxdir, sub {
+	my ($im, $ibx) = @_;
+	$im->add(eml_load('t/plack-qp.eml'));
+	$im->add(eml_load('t/mda-mime.eml'));
+	$im->done;
 
-my $git0 = PublicInbox::Git->new("$tmpdir/git/0.git");
-my $im = PublicInbox::Import->new($git0, undef, undef, $ibx);
-$im->{path_type} = 'v2';
-$im->{lock_path} = undef;
+	# bypass duplicate filters (->header_set is optional)
+	my $git0 = PublicInbox::Git->new("$ibx->{inboxdir}/git/0.git");
+	$_[0] = undef;
+	$im = PublicInbox::Import->new($git0, undef, undef, $ibx);
+	$im->{path_type} = 'v2';
+	$im->{lock_path} = undef;
 
-# bypass duplicate filters (->header_set is optional)
-my $eml = eml_load('t/plack-qp.eml');
-$eml->header_set('X-This-Is-Not-Checked-By-ContentHash', 'blah');
-ok($im->add($eml), 'add seen message directly');
-ok($im->add(eml_load('t/mda-mime.eml')), 'add another seen message directly');
-
-ok($im->add(eml_load('t/iso-2202-jp.eml')), 'add another new message');
-$im->done;
-
-# mimic a fresh clone by dropping indices
-my @sqlite = (glob("$tmpdir/*sqlite3*"), glob("$tmpdir/xap*/*sqlite3*"));
-is(unlink(@sqlite), scalar(@sqlite), 'unlinked SQLite indices');
-my @shards = glob("$tmpdir/xap*/?");
-is(scalar(@shards), 0, 'no Xapian shards to drop');
-
+	my $eml = eml_load('t/plack-qp.eml');
+	$eml->header_set('X-This-Is-Not-Checked-By-ContentHash', 'blah');
+	$im->add($eml) or BAIL_OUT 'add seen message directly';
+	$im->add(eml_load('t/mda-mime.eml')) or
+		BAIL_OUT 'add another seen message directly';
+	$im->add(eml_load('t/iso-2202-jp.eml')) or
+		BAIL_OUT 'add another new message';
+	$im->done;
+	# mimic a fresh clone by dropping indices
+	my $dir = $ibx->{inboxdir};
+	my @sqlite = (glob("$dir/*sqlite3*"), glob("$dir/xap*/*sqlite3*"));
+	unlink(@sqlite) == scalar(@sqlite) or
+			BAIL_OUT 'did not unlink SQLite indices';
+	my @shards = glob("$dir/xap*/?");
+	scalar(@shards) == 0 or BAIL_OUT 'Xapian shards created unexpectedly';
+	open my $fh, '>', "$dir/empty" or BAIL_OUT;
+	rmdir($_) for glob("$dir/xap*");
+});
+my $env = { PI_CONFIG => "$inboxdir/empty" };
 my $rdr = { 2 => \(my $err = '') };
-ok(run_script([qw(-index -Lbasic), $tmpdir], undef, $rdr), '-indexed');
+ok(run_script([qw(-index -Lbasic), $inboxdir ], $env, $rdr), '-indexed');
 my @n = $ibx->over->dbh->selectrow_array('SELECT COUNT(*) FROM over');
 is_deeply(\@n, [ 3 ], 'identical message not re-indexed');
 my $mm = $ibx->mm->{dbh}->selectall_arrayref(<<'');
