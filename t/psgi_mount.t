@@ -1,44 +1,36 @@
+#!perl -w
 # Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::Eml;
 use PublicInbox::TestCommon;
+use PublicInbox::Config;
 my ($tmpdir, $for_destroy) = tmpdir();
-my $maindir = "$tmpdir/main.git";
-my $addr = 'test-public@example.com';
+my $v1dir = "$tmpdir/v1.git";
 my $cfgpfx = "publicinbox.test";
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape
 	Plack::Builder Plack::App::URLMap);
 require_mods(@mods);
 use_ok $_ foreach @mods;
 use_ok 'PublicInbox::WWW';
-use PublicInbox::Import;
-use PublicInbox::Git;
-use PublicInbox::Config;
-my $cfg = PublicInbox::Config->new(\<<EOF);
-$cfgpfx.address=$addr
-$cfgpfx.inboxdir=$maindir
-EOF
-my $git = PublicInbox::Git->new($maindir);
-my $im = PublicInbox::Import->new($git, 'test', $addr);
-$im->init_bare;
-{
-	my $mime = PublicInbox::Eml->new(<<EOF);
+my $ibx = create_inbox 'test', tmpdir => $v1dir, sub {
+	my ($im, $ibx) = @_;
+	$im->add(PublicInbox::Eml->new(<<EOF)) or BAIL_OUT;
 From: Me <me\@example.com>
 To: You <you\@example.com>
-Cc: $addr
+Cc: $ibx->{-primary_address}
 Message-Id: <blah\@example.com>
 Subject: hihi
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 zzzzzz
 EOF
-	$im->add($mime);
-	$im->done;
-}
-
+};
+my $cfg = PublicInbox::Config->new(\<<EOF);
+$cfgpfx.address=$ibx->{-primary_address}
+$cfgpfx.inboxdir=$v1dir
+EOF
 my $www = PublicInbox::WWW->new($cfg);
 my $app = builder(sub {
 	enable('Head');
@@ -83,7 +75,6 @@ test_psgi($app, sub {
 
 SKIP: {
 	require_mods(qw(DBD::SQLite Search::Xapian IO::Uncompress::Gunzip), 3);
-	my $ibx = $cfg->lookup_name('test');
 	require_ok 'PublicInbox::SearchIdx';
 	PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
 	test_psgi($app, sub {
