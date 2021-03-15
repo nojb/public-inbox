@@ -5,61 +5,34 @@ use strict;
 use v5.10.1;
 use PublicInbox::TestCommon;
 use IO::Uncompress::Gunzip qw(gunzip);
-require_mods(qw(Plack::Handler::CGI Plack::Util));
-require PublicInbox::Eml;
-require PublicInbox::Import;
-require PublicInbox::Inbox;
-require PublicInbox::InboxWritable;
-require PublicInbox::Config;
+use PublicInbox::Eml;
+use IO::Handle;
 my ($tmpdir, $for_destroy) = tmpdir();
-my $home = "$tmpdir/pi-home";
-my $pi_home = "$home/.public-inbox";
-my $pi_config = "$pi_home/config";
-my $maindir = "$tmpdir/main.git";
-my $addr = 'test-public@example.com';
-PublicInbox::Import::init_bare($maindir);
-{
-	mkdir($home, 0755) or BAIL_OUT $!;
-	mkdir($pi_home, 0755) or BAIL_OUT $!;
-	open my $fh, '>>', $pi_config or BAIL_OUT $!;
-	print $fh <<EOF or BAIL_OUT $!;
-[publicinbox "test"]
-	address = $addr
-	inboxdir = $maindir
-	indexlevel = basic
-EOF
-	close $fh or BAIL_OUT $!;
-}
-
-my $cfg = PublicInbox::Config->new($pi_config);
-my $ibx = $cfg->lookup_name('test');
-my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
-
-{
-	local $ENV{HOME} = $home;
-
-	# inject some messages:
-	my $mime = PublicInbox::Eml->new(<<EOF);
+require_mods(qw(Plack::Handler::CGI Plack::Util));
+my $slashy_mid = 'slashy/asdf@example.com';
+my $ibx = create_inbox 'test', tmpdir => "$tmpdir/test", sub {
+	my ($im, $ibx) = @_;
+	mkdir "$ibx->{inboxdir}/home", 0755 or BAIL_OUT;
+	mkdir "$ibx->{inboxdir}/home/.public-inbox", 0755 or BAIL_OUT;
+	my $eml = PublicInbox::Eml->new(<<EOF);
 From: Me <me\@example.com>
 To: You <you\@example.com>
-Cc: $addr
+Cc: $ibx->{-primary_address}
 Message-Id: <blah\@example.com>
 Subject: hihi
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
 zzzzzz
 EOF
-	ok($im->add($mime), 'added initial message');
+	$im->add($eml) or BAIL_OUT;
+	$eml->header_set('Message-ID', '<toobig@example.com>');
+	$eml->body_set("z\n" x 1024);
+	$im->add($eml) or BAIL_OUT;
 
-	$mime->header_set('Message-ID', '<toobig@example.com>');
-	$mime->body_set("z\n" x 1024);
-	ok($im->add($mime), 'added big message');
-
-	# deliver a reply, too
-	$mime = PublicInbox::Eml->new(<<EOF);
+	$eml = PublicInbox::Eml->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
-Cc: $addr
+Cc: $ibx->{-primary_address}
 In-Reply-To: <blah\@example.com>
 Message-Id: <blahblah\@example.com>
 Subject: Re: hihi
@@ -70,22 +43,31 @@ Me wrote:
 
 what?
 EOF
-	ok($im->add($mime), 'added reply');
-
-	my $slashy_mid = 'slashy/asdf@example.com';
-	my $slashy = PublicInbox::Eml->new(<<EOF);
+	$im->add($eml) or BAIL_OUT;
+	$eml = PublicInbox::Eml->new(<<EOF);
 From: You <you\@example.com>
 To: Me <me\@example.com>
-Cc: $addr
+Cc: $ibx->{-primary_address}
 Message-Id: <$slashy_mid>
 Subject: Re: hihi
 Date: Thu, 01 Jan 1970 00:00:01 +0000
 
 slashy
 EOF
-	ok($im->add($slashy), 'added slash');
-	$im->done;
+	$im->add($eml) or BAIL_OUT;
+}; # create_inbox
 
+my $home = "$ibx->{inboxdir}/home";
+open my $cfgfh, '>>', "$home/.public-inbox/config" or BAIL_OUT $!;
+print $cfgfh <<EOF or BAIL_OUT $!;
+[publicinbox "test"]
+	address = $ibx->{-primary_address}
+	inboxdir = $ibx->{inboxdir}
+EOF
+$cfgfh->flush or BAIL_OUT $!;
+
+{
+	local $ENV{HOME} = $home;
 	my $res = cgi_run("/test/slashy/asdf\@example.com/raw");
 	like($res->{body}, qr/Message-Id: <\Q$slashy_mid\E>/,
 		"slashy mid raw hit");
@@ -98,6 +80,8 @@ SKIP: {
 	my $res = cgi_run($path);
 	like($res->{head}, qr/^Status: 501 /, "search not-yet-enabled");
 	my $cmd = ['-index', $ibx->{inboxdir}, '--max-size=2k'];
+	print $cfgfh "\tindexlevel = basic\n" or BAIL_OUT $!;
+	$cfgfh->flush or BAIL_OUT $!;
 	my $opt = { 2 => \(my $err) };
 	my $indexed = run_script($cmd, undef, $opt);
 	if ($indexed) {
