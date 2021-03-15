@@ -2,34 +2,26 @@
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
+use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
-use PublicInbox::InboxWritable;
 require_mods(qw(Search::Xapian DBD::SQLite));
 use_ok 'PublicInbox::MiscSearch';
 use_ok 'PublicInbox::MiscIdx';
 
 my ($tmp, $for_destroy) = tmpdir();
 my $eidx = { xpfx => "$tmp/eidx", -no_fsync => 1 }; # mock ExtSearchIdx
-{
-	mkdir "$tmp/v1" or BAIL_OUT "mkdir $!";
-	open my $fh, '>', "$tmp/v1/description" or BAIL_OUT "open: $!";
+my $v1 = create_inbox 'hope', address => [ 'nope@example.com' ],
+			indexlevel => 'basic', -no_gc => 1, sub {
+	my ($im, $ibx) = @_;
+	open my $fh, '>', "$ibx->{inboxdir}/description" or BAIL_OUT "open: $!";
 	print $fh "Everything sucks this year\n" or BAIL_OUT "print $!";
 	close $fh or BAIL_OUT "close $!";
-}
-{
-	my $v1 = PublicInbox::InboxWritable->new({
-		inboxdir => "$tmp/v1",
-		name => 'hope',
-		address => [ 'nope@example.com' ],
-		indexlevel => 'basic',
-		version => 1,
-	});
-	$v1->init_inbox;
-	my $mi = PublicInbox::MiscIdx->new($eidx);
-	$mi->index_ibx($v1);
-	$mi->commit_txn;
-}
+};
+my $midx = PublicInbox::MiscIdx->new($eidx);
+$midx->index_ibx($v1);
+$midx->commit_txn;
+undef $v1;
 
 my $ms = PublicInbox::MiscSearch->new("$tmp/eidx/misc");
 my $mset = $ms->mset('"everything sucks today"');
