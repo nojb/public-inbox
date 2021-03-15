@@ -1,10 +1,10 @@
+#!perl -w
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
-use Cwd qw(abs_path);
+use v5.10.1;
 use PublicInbox::TestCommon;
+use Cwd qw(abs_path);
 require_git(2.6);
 use PublicInbox::Spawn qw(popen_rd);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
@@ -17,31 +17,21 @@ $git_dir = abs_path($git_dir);
 
 use_ok "PublicInbox::$_" for (qw(Inbox V2Writable Git SolverGit WWW));
 
-my ($inboxdir, $for_destroy) = tmpdir();
-my $opts = {
-	inboxdir => $inboxdir,
-	name => 'test-v2writable',
-	version => 2,
-	-primary_address => 'test@example.com',
+my ($tmpdir, $for_destroy) = tmpdir();
+my $ibx = create_inbox 'v2', version => 2,
+			indexlevel => 'medium', sub {
+	my ($im) = @_;
+	$im->add(eml_load 't/solve/0001-simple-mod.patch') or BAIL_OUT;
+	$im->add(eml_load 't/solve/0002-rename-with-modifications.patch') or
+		BAIL_OUT;
 };
-my $ibx = PublicInbox::Inbox->new($opts);
-my $im = PublicInbox::V2Writable->new($ibx, 1);
-$im->{parallel} = 0;
-
-my $deliver_patch = sub ($) {
-	$im->add(eml_load($_[0]));
-	$im->done;
-};
-
-$deliver_patch->('t/solve/0001-simple-mod.patch');
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
 my $v1_0_0_tag_short = substr($v1_0_0_tag, 0, 16);
-
 my $git = PublicInbox::Git->new($git_dir);
 $ibx->{-repo_objs} = [ $git ];
 my $res;
 my $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
-open my $log, '+>>', "$inboxdir/solve.log" or die "open: $!";
+open my $log, '+>>', "$tmpdir/solve.log" or die "open: $!";
 my $psgi_env = { 'psgi.errors' => \*STDERR, 'psgi.url_scheme' => 'http',
 		'HTTP_HOST' => 'example.com' };
 $solver->solve($psgi_env, $log, '69df7d5', {});
@@ -56,12 +46,6 @@ is($res->[3], 4405, 'size returned');
 is(ref($wt_git->cat_file($res->[1])), 'SCALAR', 'wt cat-file works');
 is_deeply([$expect, 'blob', 4405],
 	  [$wt_git->check($res->[1])], 'wt check works');
-
-if (0) { # TODO: check this?
-	seek($log, 0, 0);
-	my $z = do { local $/; <$log> };
-	diag $z;
-}
 
 my $oid = $expect;
 for my $i (1..2) {
@@ -87,7 +71,6 @@ $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
 $solver->solve($psgi_env, $log, $git_v2_20_1_tag, {});
 is($res, undef, 'no error on a tag not in our repo');
 
-$deliver_patch->('t/solve/0002-rename-with-modifications.patch');
 $solver = PublicInbox::SolverGit->new($ibx, sub { $res = $_[0] });
 $solver->solve($psgi_env, $log, '0a92431', {});
 ok($res, 'resolved without hints');
@@ -108,9 +91,9 @@ my @psgi = qw(HTTP::Request::Common Plack::Test URI::Escape Plack::Builder);
 SKIP: {
 	require_mods(@psgi, 7 + scalar(@psgi));
 	use_ok($_) for @psgi;
-	my $binfoo = "$inboxdir/binfoo.git";
-	require PublicInbox::Import;
-	PublicInbox::Import::init_bare($binfoo);
+	my $binfoo = "$ibx->{inboxdir}/binfoo.git";
+	my $l = "$ibx->{inboxdir}/inbox.lock";
+	-f $l or BAIL_OUT "BUG: $l missing: $!";
 	require_ok 'PublicInbox::ViewVCS';
 	my $big_size = do {
 		no warnings 'once';
@@ -118,27 +101,40 @@ SKIP: {
 	};
 	my %bin = (big => $big_size, small => 1);
 	my %oid; # (small|big) => OID
-	my $cmd = [ qw(git hash-object -w --stdin) ];
-	my $env = { GIT_DIR => $binfoo };
-	while (my ($label, $size) = each %bin) {
-		pipe(my ($rin, $win)) or die;
-		my $rout = popen_rd($cmd , $env, { 0 => $rin });
-		$rin = undef;
-		print { $win } ("\0" x $size) or die;
-		close $win or die;
-		chomp($oid{$label} = <$rout>);
-		close $rout or die "$?";
+	my $lk = bless { lock_path => $l }, 'PublicInbox::Lock';
+	my $acq = $lk->lock_for_scope;
+	my $stamp = "$binfoo/stamp";
+	if (open my $fh, '<', $stamp) {
+		%oid = map { chomp; split(/=/, $_) } (<$fh>);
+	} else {
+		PublicInbox::Import::init_bare($binfoo);
+		my $cmd = [ qw(git hash-object -w --stdin) ];
+		my $env = { GIT_DIR => $binfoo };
+		open my $fh, '>', "$stamp.$$" or BAIL_OUT;
+		while (my ($label, $size) = each %bin) {
+			pipe(my ($rin, $win)) or BAIL_OUT;
+			my $rout = popen_rd($cmd , $env, { 0 => $rin });
+			$rin = undef;
+			print { $win } ("\0" x $size) or BAIL_OUT;
+			close $win or BAIL_OUT;
+			chomp(my $x = <$rout>);
+			close $rout or BAIL_OUT "$?";
+			print $fh "$label=$x\n" or BAIL_OUT;
+			$oid{$label} = $x;
+		}
+		close $fh or BAIL_OUT;
+		rename("$stamp.$$", $stamp) or BAIL_OUT;
 	}
-
+	undef $acq;
 	# ensure the PSGI frontend (ViewVCS) works:
 	my $name = $ibx->{name};
 	my $cfgpfx = "publicinbox.$name";
-	my $cfgpath = "$inboxdir/httpd-config";
+	my $cfgpath = "$tmpdir/httpd-config";
 	open my $cfgfh, '>', $cfgpath or die;
 	print $cfgfh <<EOF or die;
 [publicinbox "$name"]
-	address = $ibx->{address};
-	inboxdir = $inboxdir
+	address = $ibx->{-primary_address}
+	inboxdir = $ibx->{inboxdir}
 	coderepo = public-inbox
 	coderepo = binfoo
 	url = http://example.com/$name
@@ -193,7 +189,7 @@ EOF
 		require_mods(qw(Plack::Test::ExternalServer), 7);
 		my $env = { PI_CONFIG => $cfgpath };
 		my $sock = tcp_server() or die;
-		my ($out, $err) = map { "$inboxdir/std$_.log" } qw(out err);
+		my ($out, $err) = map { "$tmpdir/std$_.log" } qw(out err);
 		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
 		my $td = start_script($cmd, $env, { 3 => $sock });
 		my ($h, $p) = tcp_host_port($sock);
