@@ -606,8 +606,10 @@ sub _lei_cfg ($;$) {
 	my $f = _config_path($self);
 	my @st = stat($f);
 	my $cur_st = @st ? pack('dd', $st[10], $st[7]) : ''; # 10:ctime, 7:size
+	my ($sto, $sto_dir);
 	if (my $cfg = $PATH2CFG{$f}) { # reuse existing object in common case
 		return ($self->{cfg} = $cfg) if $cur_st eq $cfg->{-st};
+		($sto, $sto_dir) = @$cfg{qw(-lei_store leistore.dir)};
 	}
 	if (!@st) {
 		unless ($creat) {
@@ -625,6 +627,10 @@ sub _lei_cfg ($;$) {
 	bless $cfg, 'PublicInbox::Config';
 	$cfg->{-st} = $cur_st;
 	$cfg->{'-f'} = $f;
+	if ($sto && File::Spec->canonpath($sto_dir) eq
+			File::Spec->canonpath($cfg->{'leistore.dir'})) {
+		$cfg->{-lei_store} = $sto;
+	}
 	$self->{cfg} = $PATH2CFG{$f} = $cfg;
 }
 
