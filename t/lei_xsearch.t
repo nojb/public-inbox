@@ -6,7 +6,6 @@ use v5.10.1;
 use List::Util qw(shuffle max);
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
-use PublicInbox::InboxWritable;
 require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::ExtSearchIdx;
 require_git 2.6;
@@ -73,26 +72,12 @@ is($lxs->over, undef, '->over fails');
 
 {
 	$lxs = PublicInbox::LeiXSearch->new;
-	my $v2ibx = PublicInbox::InboxWritable->new({
-		inboxdir => "$home/v2full",
-		name => 'v2full',
-		version => 2,
-		indexlevel => 'full',
-		-primary_address => 'v2full@example.com',
-	}, {});
-	my $im = $v2ibx->importer(0);
-	$im->add(eml_load('t/plack-qp.eml'));
-	$im->done;
-	my $v1ibx = PublicInbox::InboxWritable->new({
-		inboxdir => "$home/v1medium",
-		name => 'v1medium',
-		version => 1,
-		indexlevel => 'medium',
-		-primary_address => 'v1medium@example.com',
-	}, {});
-	$im = $v1ibx->importer(0);
-	$im->add(eml_load('t/utf8.eml'));
-	$im->done;
+	my $v2ibx = create_inbox 'v2full', version => 2, sub {
+		$_[0]->add(eml_load('t/plack-qp.eml'));
+	};
+	my $v1ibx = create_inbox 'v1medium', indexlevel => 'medium', sub {
+		$_[0]->add(eml_load('t/utf8.eml'));
+	};
 	$lxs->prepare_external($v1ibx);
 	$lxs->prepare_external($v2ibx);
 	for my $loc ($lxs->locals) {
