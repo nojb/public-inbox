@@ -1,8 +1,8 @@
+#!perl -w
 # Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 require_git(2.6);
 use PublicInbox::Eml;
@@ -12,18 +12,48 @@ require_mods(qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder));
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::WWW';
-use_ok 'PublicInbox::V2Writable';
-my ($inboxdir, $for_destroy) = tmpdir();
-my $cfgpath = "$inboxdir/$$.config";
-SKIP: {
-	require_mods(qw(Plack::Test::ExternalServer), 1);
+my ($tmpdir, $for_destroy) = tmpdir();
+my $eml = PublicInbox::Eml->new(<<'EOF');
+From oldbug-pre-a0c07cba0e5d8b6a Fri Oct  2 00:00:00 1993
+From: a@example.com
+To: test@example.com
+Subject: this is a subject
+Message-ID: <a-mid@b>
+Date: Fri, 02 Oct 1993 00:00:00 +0000
+
+hello world
+EOF
+my $new_mid;
+my $ibx = create_inbox 'v2', version => 2, indexlevel => 'medium',
+			tmpdir => "$tmpdir/v2", sub {
+	my ($im, $ibx) = @_;
+	$im->add($eml) or BAIL_OUT;
+	$eml->body_set("hello world!\n");
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	$eml->header_set(Date => 'Fri, 02 Oct 1993 00:01:00 +0000');
+	$im->add($eml) or BAIL_OUT;
+	is(scalar(@warn), 1, 'got one warning');
+	my $mids = mids($eml->header_obj);
+	$new_mid = $mids->[1];
+	open my $fh, '>', "$ibx->{inboxdir}/new_mid" or BAIL_OUT;
+	print $fh $new_mid or BAIL_OUT;
+	close $fh or BAIL_OUT;
+};
+$new_mid //= do {
+	open my $fh, '<', "$ibx->{inboxdir}/new_mid" or BAIL_OUT;
+	local $/;
+	<$fh>;
+};
+my $cfgpath = "$ibx->{inboxdir}/pi_config";
+{
 	open my $fh, '>', $cfgpath or BAIL_OUT $!;
 	print $fh <<EOF or BAIL_OUT $!;
 [publicinbox "v2test"]
-	inboxdir = $inboxdir
-	address = test\@example.com
+	inboxdir = $ibx->{inboxdir}
+	address = $ibx->{-primary_address}
 EOF
-	close $fh or BAIL_OUT $!;
+	close $fh or BAIL_OUT;
 }
 
 my $run_httpd = sub {
@@ -32,7 +62,7 @@ my $run_httpd = sub {
 		require_mods(qw(Plack::Test::ExternalServer), $skip);
 		my $env = { PI_CONFIG => $cfgpath };
 		my $sock = tcp_server() or die;
-		my ($out, $err) = map { "$inboxdir/std$_.log" } qw(out err);
+		my ($out, $err) = map { "$tmpdir/std$_.log" } qw(out err);
 		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
 		my $td = start_script($cmd, $env, { 3 => $sock });
 		my ($h, $p) = tcp_host_port($sock);
@@ -47,50 +77,10 @@ my $run_httpd = sub {
 		is($e, '', 'no errors');
 	}
 };
-
-my $ibx = {
-	inboxdir => $inboxdir,
-	name => 'test-v2writable',
-	version => 2,
-	-primary_address => 'test@example.com',
-};
-$ibx = PublicInbox::Inbox->new($ibx);
-my $new_mid;
-
-my $im = PublicInbox::V2Writable->new($ibx, 1);
-$im->{parallel} = 0;
-
-my $mime = PublicInbox::Eml->new(<<'EOF');
-From oldbug-pre-a0c07cba0e5d8b6a Fri Oct  2 00:00:00 1993
-From: a@example.com
-To: test@example.com
-Subject: this is a subject
-Message-ID: <a-mid@b>
-Date: Fri, 02 Oct 1993 00:00:00 +0000
-
-hello world
-EOF
-ok($im->add($mime), 'added one message');
-$mime->body_set("hello world!\n");
-
-my @warn;
-local $SIG{__WARN__} = sub { push @warn, @_ };
-$mime->header_set(Date => 'Fri, 02 Oct 1993 00:01:00 +0000');
-ok($im->add($mime), 'added duplicate-but-different message');
-is(scalar(@warn), 1, 'got one warning');
-my $mids = mids($mime->header_obj);
-$new_mid = $mids->[1];
-$im->done;
-
 my $msg = $ibx->msg_by_mid('a-mid@b');
 like($$msg, qr/\AFrom oldbug/s,
 	'"From_" line stored to test old bug workaround');
-
-my $cfgpfx = "publicinbox.v2test";
-my $cfg = PublicInbox::Config->new(\<<EOF);
-$cfgpfx.address=$ibx->{-primary_address}
-$cfgpfx.inboxdir=$inboxdir
-EOF
+my $cfg = PublicInbox::Config->new($cfgpath);
 my $www = PublicInbox::WWW->new($cfg);
 my ($res, $raw, @from_);
 my $client0 = sub {
@@ -127,14 +117,17 @@ my $client0 = sub {
 test_psgi(sub { $www->call(@_) }, $client0);
 $run_httpd->($client0, 9);
 
-$mime->header_set('Message-Id', 'a-mid@b');
-$mime->body_set("hello ghosts\n");
-ok($im->add($mime), 'added 3rd duplicate-but-different message');
-is(scalar(@warn), 2, 'got another warning');
-like($warn[0], qr/mismatched/, 'warned about mismatched messages');
-is($warn[0], $warn[1], 'both warnings are the same');
-
-$mids = mids($mime->header_obj);
+$eml->header_set('Message-ID', 'a-mid@b');
+$eml->body_set("hello ghosts\n");
+my $im = $ibx->importer(0);
+{
+	my @warn;
+	local $SIG{__WARN__} = sub { push @warn, @_ };
+	ok($im->add($eml), 'added 3rd duplicate-but-different message');
+	is(scalar(@warn), 1, 'got another warning');
+	like($warn[0], qr/mismatched/, 'warned about mismatched messages');
+}
+my $mids = mids($eml->header_obj);
 my $third = $mids->[-1];
 $im->done;
 
@@ -236,12 +229,12 @@ $run_httpd->($client1, 38);
 
 {
 	my $exp = [ qw(<a-mid@b> <reuse@mid>) ];
-	$mime->header_set('Message-Id', @$exp);
-	$mime->header_set('Subject', '4th dupe');
+	$eml->header_set('Message-Id', @$exp);
+	$eml->header_set('Subject', '4th dupe');
 	local $SIG{__WARN__} = sub {};
-	ok($im->add($mime), 'added one message');
+	ok($im->add($eml), 'added one message');
 	$im->done;
-	my @h = $mime->header('Message-ID');
+	my @h = $eml->header('Message-ID');
 	is_deeply($exp, \@h, 'reused existing Message-ID');
 	$cfg->each_inbox(sub { $_[0]->search->reopen });
 }
@@ -277,13 +270,13 @@ test_psgi(sub { $www->call(@_) }, $client2);
 $run_httpd->($client2, 8);
 {
 	# ensure conflicted attachments can be resolved
+	local $SIG{__WARN__} = sub {};
 	foreach my $body (qw(old new)) {
-		$mime = eml_load "t/psgi_v2-$body.eml";
-		ok($im->add($mime), "added attachment $body");
+		$im->add(eml_load "t/psgi_v2-$body.eml") or BAIL_OUT;
 	}
 	$im->done;
-	$cfg->each_inbox(sub { $_[0]->search->reopen });
 }
+$cfg->each_inbox(sub { $_[0]->search->reopen });
 
 my $client3 = sub {
 	my ($cb) = @_;
@@ -299,13 +292,12 @@ my $client3 = sub {
 	}
 	$res = $cb->(GET('/v2test/?t=1970'.'01'.'01'.'000000'));
 	is($res->code, 404, '404 for out-of-range t= param');
-	@warn = ();
+	my @warn = ();
+	local $SIG{__WARN__} = sub { push @warn, @_ };
 	$res = $cb->(GET('/v2test/?t=1970'.'01'.'01'));
 	is_deeply(\@warn, [], 'no warnings on YYYYMMDD only');
 };
 test_psgi(sub { $www->call(@_) }, $client3);
 $run_httpd->($client3, 4);
 
-done_testing();
-
-1;
+done_testing;
