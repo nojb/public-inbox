@@ -558,8 +558,8 @@ sub setup_public_inboxes () {
 
 	local $ENV{PI_CONFIG} = $pi_config;
 	for my $V (1, 2) {
-		run_script([qw(-init), "-V$V", "t$V",
-				'--newsgroup', "t.v$V",
+		run_script([qw(-init --skip-docdata), "-V$V",
+				'--newsgroup', "t.v$V", "t$V",
 				"$test_home/t$V", "http://example.com/t$V",
 				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
 	}
@@ -569,6 +569,7 @@ sub setup_public_inboxes () {
 	my $seen = 0;
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;
+		$ibx->{-no_fsync} = 1;
 		my $im = PublicInbox::InboxWritable->new($ibx)->importer(0);
 		my $V = $ibx->version;
 		my @eml = (glob('t/*.eml'), 't/data/0001.patch');
@@ -578,10 +579,6 @@ sub setup_public_inboxes () {
 			$seen++;
 		}
 		$im->done;
-		if ($V == 1) {
-			run_script(['-index', $ibx->{inboxdir}]) or
-				BAIL_OUT 'index v1';
-		}
 	});
 	$seen or BAIL_OUT 'no imports';
 	open my $fh, '>', $stamp or BAIL_OUT "open $stamp: $!";
