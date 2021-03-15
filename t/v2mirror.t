@@ -36,6 +36,7 @@ my $cfg = PublicInbox::Config->new($pi_config);
 my $ibx = $cfg->lookup('test@example.com');
 ok($ibx, 'inbox found');
 $ibx->{version} = 2;
+$ibx->{-no_fsync} = 1;
 my $v2w = PublicInbox::V2Writable->new($ibx, 1);
 ok $v2w, 'v2w loaded';
 $v2w->{parallel} = 0;

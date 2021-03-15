@@ -47,6 +47,7 @@ EOF
 my $cfg = PublicInbox::Config->new(\$orig);
 my $ibx = $cfg->lookup_name('test');
 ok($ibx, 'found inbox by name');
+$ibx->{-no_fsync} = 1;
 
 PublicInbox::Watch->new($cfg)->scan('full');
 my $total = scalar @{$ibx->over->recent};

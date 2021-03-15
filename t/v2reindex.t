@@ -18,6 +18,7 @@ my $ibx_config = {
 	version => 2,
 	-primary_address => 'test@example.com',
 	indexlevel => 'full',
+	-no_fsync => 1,
 };
 my $agpl = do {
 	open my $fh, '<', 'COPYING' or die "can't open COPYING: $!";

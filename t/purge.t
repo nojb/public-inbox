@@ -16,6 +16,7 @@ my $ibx = PublicInbox::Inbox->new({
 	inboxdir => $inboxdir,
 	name => 'test-v2purge',
 	version => 2,
+	-no_fsync => 1,
 	-primary_address => 'test@example.com',
 	indexlevel => 'basic',
 });

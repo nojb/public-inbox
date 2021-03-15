@@ -20,6 +20,7 @@ sub test_replace ($$$) {
 		inboxdir => "$tmpdir/testbox",
 		name => $this,
 		version => $v,
+		-no_fsync => 1,
 		-primary_address => 'test@example.com',
 		indexlevel => $level,
 	});

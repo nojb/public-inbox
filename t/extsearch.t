@@ -236,6 +236,7 @@ if ('inject w/o indexing') {
 
 if ('reindex catches missed messages') {
 	my $v2ibx = $cfg->lookup_name('v2test');
+	$v2ibx->{-no_fsync} = 1;
 	my $im = PublicInbox::InboxWritable->new($v2ibx)->importer(0);
 	my $cmt_a = $v2ibx->mm->last_commit_xap($schema_version, 0);
 	my $eml = eml_load('t/data/0001.patch');
@@ -296,6 +297,7 @@ if ('reindex catches missed messages') {
 if ('reindex catches content bifurcation') {
 	use PublicInbox::MID qw(mids);
 	my $v2ibx = $cfg->lookup_name('v2test');
+	$v2ibx->{-no_fsync} = 1;
 	my $im = PublicInbox::InboxWritable->new($v2ibx)->importer(0);
 	my $eml = eml_load('t/data/message_embed.eml');
 	my $cmt_a = $v2ibx->mm->last_commit_xap($schema_version, 0);
