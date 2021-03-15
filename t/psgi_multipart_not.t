@@ -1,29 +1,20 @@
+#!perl -w
 # Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
+use PublicInbox::TestCommon;
 use PublicInbox::Eml;
 use PublicInbox::Config;
-use PublicInbox::TestCommon;
 require_git 2.6;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common
               Plack::Test URI::Escape Plack::Builder Plack::Test);
 require_mods(@mods);
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::WWW';
-use_ok 'PublicInbox::V2Writable';
-my ($repo, $for_destroy) = tmpdir();
-my $ibx = PublicInbox::Inbox->new({
-	inboxdir => $repo,
-	name => 'multipart-not',
-	version => 2,
-	-primary_address => 'test@example.com',
-});
-my $im = PublicInbox::V2Writable->new($ibx, 1);
-$im->{parallel} = 0;
-
-my $mime = PublicInbox::Eml->new(<<'EOF');
+my $ibx = create_inbox 'v2', version => 2, sub {
+	my ($im) = @_;
+	$im->add(PublicInbox::Eml->new(<<'EOF')) or BAIL_OUT;
 Message-Id: <200308111450.h7BEoOu20077@mail.osdl.org>
 To: linux-kernel@vger.kernel.org
 Subject: [OSDL] linux-2.6.0-test3 reaim results
@@ -36,17 +27,13 @@ From: exmh user <x@example.com>
 Freed^Wmultipart ain't what it used to be
 EOF
 
-ok($im->add($mime), 'added broken multipart message');
-$im->done;
-
+};
 my $cfgpfx = "publicinbox.v2test";
 my $cfg = <<EOF;
 $cfgpfx.address=$ibx->{-primary_address}
-$cfgpfx.inboxdir=$repo
+$cfgpfx.inboxdir=$ibx->{inboxdir}
 EOF
-my $config = PublicInbox::Config->new(\$cfg);
-my $www = PublicInbox::WWW->new($config);
-
+my $www = PublicInbox::WWW->new(PublicInbox::Config->new(\$cfg));
 my ($res, $raw);
 test_psgi(sub { $www->call(@_) }, sub {
 	my ($cb) = @_;
@@ -58,6 +45,4 @@ test_psgi(sub { $www->call(@_) }, sub {
 		ok(index($raw, 'Warning: decoded text') >= 0, $u.' warns');
 	}
 });
-
-done_testing();
-1;
+done_testing;
