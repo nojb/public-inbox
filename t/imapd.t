@@ -31,30 +31,32 @@ push(@V, 2) if require_git('2.6', 1);
 
 my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/home";
-local $ENV{HOME} = $home;
-
+BAIL_OUT "mkdir: $!" unless (mkdir($home) and mkdir("$home/.public-inbox"));
+my @ibx;
+open my $cfgfh, '>', "$home/.public-inbox/config" or BAIL_OUT;
+print $cfgfh <<EOM or BAIL_OUT;
+[publicinboxmda]
+	spamcheck = none
+EOM
+my $eml;
 for my $V (@V) {
-	my $addr = "i$V\@example.com";
-	my $name = "i$V";
-	my $url = "http://example.com/i$V";
-	my $inboxdir = "$tmpdir/$name";
-	my $folder = "inbox.i$V";
-	my $cmd = ['-init', "-V$V", "-L$level", "--ng=$folder",
-		$name, $inboxdir, $url, $addr];
-	run_script($cmd) or BAIL_OUT("init $name");
-	if ($V == 1) {
-		xsys(qw(git config), "--file=$ENV{HOME}/.public-inbox/config",
-			'publicinboxmda.spamcheck', 'none') == 0 or
-			BAIL_OUT("config: $?");
-	}
-	open(my $fh, '<', 't/utf8.eml') or BAIL_OUT("open t/utf8.eml: $!");
-	my $env = { ORIGINAL_RECIPIENT => $addr };
-	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
-		BAIL_OUT('-mda delivery');
-	if ($V == 1) {
-		run_script(['-index', $inboxdir]) or BAIL_OUT("index $?");
-	}
+	my $ibx = create_inbox("i$V", tmpdir => "$tmpdir/i$V", version => $V,
+				indexlevel => $level, sub {
+		my ($im) = @_;
+		$im->add($eml //= eml_load('t/utf8.eml')) or BAIL_OUT;
+	});
+	push @ibx, $ibx;
+	$ibx->{newsgroup} = "inbox.i$V";
+	print $cfgfh <<EOF or BAIL_OUT;
+[publicinbox "i$V"]
+	inboxdir = $ibx->{inboxdir}
+	address = $ibx->{-primary_address};
+	newsgroup = inbox.i$V
+	url = http://example.com/i$V
+EOF
 }
+close $cfgfh or BAIL_OUT;
+local $ENV{HOME} = $home;
 my $sock = tcp_server();
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
@@ -248,10 +250,7 @@ ok($mic->logout, 'logout works');
 
 my $have_inotify = eval { require Linux::Inotify2; 1 };
 
-my $pi_cfg = PublicInbox::Config->new;
-$pi_cfg->each_inbox(sub {
-	my ($ibx) = @_;
-	my $env = { ORIGINAL_RECIPIENT => $ibx->{-primary_address} };
+for my $ibx (@ibx) {
 	my $name = $ibx->{name};
 	my $ng = $ibx->{newsgroup};
 	my $mic = $imap_client->new(%mic_opt);
@@ -263,10 +262,9 @@ $pi_cfg->each_inbox(sub {
 	ok(!$mic->idle, "IDLE fails w/o SELECT/EXAMINE $name");
 	ok($mic->examine($mb), "EXAMINE $ng succeeds");
 	ok(my $idle_tag = $mic->idle, "IDLE succeeds on $ng");
-
-	open(my $fh, '<', 't/data/message_embed.eml') or BAIL_OUT("open: $!");
-	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
-		BAIL_OUT('-mda delivery');
+	my $im = $ibx->importer(0);
+	$im->add(eml_load 't/data/message_embed.eml') or BAIL_OUT;
+	$im->done;
 	my $t0 = Time::HiRes::time();
 	ok(my @res = $mic->idle_data(11), "IDLE succeeds on $ng");
 	is(grep(/\A\* [0-9] EXISTS\b/, @res), 1, 'got EXISTS message');
@@ -299,9 +297,8 @@ $pi_cfg->each_inbox(sub {
 			"connection $n works after HUP");
 	}
 
-	open($fh, '<', 't/data/0001.patch') or BAIL_OUT("open: $!");
-	run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or
-		BAIL_OUT('-mda delivery');
+	$im->add(eml_load 't/data/0001.patch') or BAIL_OUT;
+	$im->done;
 	$t0 = Time::HiRes::time();
 	ok(@res = $mic->idle_data(11), "IDLE succeeds on $ng after HUP");
 	is(grep(/\A\* [0-9] EXISTS\b/, @res), 1, 'got EXISTS message');
@@ -356,7 +353,7 @@ EOF
 	my $ret = $mic->fetch_hash(2, 'RFC822');
 	is_deeply($ret, {},
 		'MSN FETCH on empty dummy will not trigger warnings, later');
-}); # each_inbox
+}; # for @ibx
 
 # message sequence numbers :<
 is($mic->Uid(0), 0, 'disable UID on '.ref($mic));
@@ -439,7 +436,6 @@ ok($mic->logout, 'logged out');
 }
 
 SKIP: {
-	use_ok 'PublicInbox::Watch';
 	use_ok 'PublicInbox::InboxIdle';
 	require_git('1.8.5', 1) or
 		skip('git 1.8.5+ needed for --urlmatch', 4);
