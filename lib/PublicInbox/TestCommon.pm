@@ -593,13 +593,17 @@ sub create_inbox ($$;@) {
 	require PublicInbox::InboxWritable;
 	my ($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
 	my $dir = "t/data-gen/$base.$ident";
-	unless (-d $dir) {
+	my $new = !-d $dir;
+	if ($new) {
 		mkdir $dir; # may race
 		-d $dir or BAIL_OUT "$dir could not be created: $!";
 	}
 	my $lk = bless { lock_path => "$dir/creat.lock" }, 'PublicInbox::Lock';
 	$opt{inboxdir} = File::Spec->rel2abs($dir);
 	$opt{name} //= $ident;
+	my $scope = $lk->lock_for_scope;
+	my $pre_cb = delete $opt{pre_cb};
+	$pre_cb->($dir) if $pre_cb && $new;
 	$opt{-no_fsync} = 1;
 	my $no_gc = delete $opt{-no_gc};
 	my $tmpdir = delete $opt{tmpdir};
@@ -608,7 +612,6 @@ sub create_inbox ($$;@) {
 	my $parallel = delete($opt{importer_parallel}) // 0;
 	my $creat_opt = { nproc => delete($opt{nproc}) // 1 };
 	my $ibx = PublicInbox::InboxWritable->new({ %opt }, $creat_opt);
-	my $scope = $lk->lock_for_scope;
 	if (!-f "$dir/creat.stamp") {
 		my $im = $ibx->importer($parallel);
 		$cb->($im, $ibx);
