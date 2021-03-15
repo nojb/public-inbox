@@ -1,15 +1,14 @@
+#!perl -w
 # Copyright (C) 2017-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
+use PublicInbox::TestCommon;
 use IO::Uncompress::Gunzip qw(gunzip);
 use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
-use PublicInbox::InboxWritable;
 use bytes (); # only for bytes::length
-use PublicInbox::TestCommon;
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 require_mods(@mods);
@@ -19,58 +18,46 @@ use_ok 'PublicInbox::SearchIdx';
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{TZ} = 'UTC';
 
-my $ibx = PublicInbox::Inbox->new({
-	inboxdir => $tmpdir,
-	address => 'git@vger.kernel.org',
-	name => 'test',
-});
-$ibx = PublicInbox::InboxWritable->new($ibx);
-$ibx->init_inbox(1);
-my $im = $ibx->importer(0);
 my $digits = '10010260936330';
 my $ua = 'Pine.LNX.4.10';
 my $mid = "$ua.$digits.2460-100000\@penguin.transmeta.com";
-
-# n.b. these headers are not properly RFC2047-encoded
-my $mime = PublicInbox::Eml->new(<<EOF);
+my $ibx = create_inbox 'git', indexlevel => 'full', tmpdir => "$tmpdir/1", sub {
+	my ($im) = @_;
+	# n.b. these headers are not properly RFC2047-encoded
+	$im->add(PublicInbox::Eml->new(<<EOF)) or BAIL_OUT;
 Subject: test Ævar
 Message-ID: <$mid>
 From: Ævar Arnfjörð Bjarmason <avarab\@example>
 To: git\@vger.kernel.org
 
 EOF
-$im->add($mime);
 
-$im->add(PublicInbox::Eml->new(<<""));
+	$im->add(PublicInbox::Eml->new(<<"")) or BAIL_OUT;
 Message-ID: <reply\@asdf>
 From: replier <r\@example.com>
 In-Reply-To: <$mid>
 Subject: mismatch
 
-$mime = PublicInbox::Eml->new(<<'EOF');
+	$im->add(PublicInbox::Eml->new(<<'EOF')) or BAIL_OUT;
 Subject:
 Message-ID: <blank-subject@example.com>
 From: blank subject <blank-subject@example.com>
 To: git@vger.kernel.org
 
 EOF
-$im->add($mime);
 
-$mime = PublicInbox::Eml->new(<<'EOF');
+	$im->add(PublicInbox::Eml->new(<<'EOF')) or BAIL_OUT;
 Message-ID: <no-subject-at-all@example.com>
 From: no subject at all <no-subject-at-all@example.com>
 To: git@vger.kernel.org
 
 EOF
-$im->add($mime);
-
-$im->done;
-PublicInbox::SearchIdx->new($ibx, 1)->index_sync;
+};
 
 my $cfgpfx = "publicinbox.test";
 my $cfg = PublicInbox::Config->new(\<<EOF);
 $cfgpfx.address=git\@vger.kernel.org
-$cfgpfx.inboxdir=$tmpdir
+$cfgpfx.inboxdir=$ibx->{inboxdir}
 EOF
 my $www = PublicInbox::WWW->new($cfg);
 test_psgi(sub { $www->call(@_) }, sub {
