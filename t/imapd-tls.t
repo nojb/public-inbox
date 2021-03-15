@@ -25,50 +25,32 @@ unless (-r $key && -r $cert) {
 }
 use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
-use PublicInbox::InboxWritable;
-require PublicInbox::SearchIdx;
 my $version = 1; # v2 needs newer git
 require_git('2.6') if $version >= 2;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $inboxdir = "$tmpdir";
-my $pi_config = "$tmpdir/pi_config";
+my $pi_config;
 my $group = 'test-imapd-tls';
 my $addr = $group . '@example.com';
 my $starttls = tcp_server();
 my $imaps = tcp_server();
-my $ibx = PublicInbox::Inbox->new({
-	inboxdir => $inboxdir,
-	name => 'imapd-tls',
-	version => $version,
-	-primary_address => $addr,
-	indexlevel => 'basic',
-});
-$ibx = PublicInbox::InboxWritable->new($ibx, {nproc=>1});
-$ibx->init_inbox(0);
-{
+my $ibx = create_inbox 'imapd-tls', version => $version,
+			-primary_address => $addr, indexlevel => 'basic', sub {
+	my ($im, $ibx) = @_;
+	$im->add(eml_load('t/data/0001.patch')) or BAIL_OUT '->add';
+	$pi_config = "$ibx->{inboxdir}/pi_config";
 	open my $fh, '>', $pi_config or BAIL_OUT "open: $!";
-	print $fh <<EOF
+	print $fh <<EOF or BAIL_OUT "print: $!";
 [publicinbox "imapd-tls"]
-	inboxdir = $inboxdir
+	inboxdir = $ibx->{inboxdir}
 	address = $addr
 	indexlevel = basic
 	newsgroup = $group
 EOF
-	;
 	close $fh or BAIL_OUT "close: $!\n";
-}
-
-{
-	my $im = $ibx->importer(0);
-	ok($im->add(eml_load('t/data/0001.patch')), 'message added');
-	$im->done;
-	if ($version == 1) {
-		my $s = PublicInbox::SearchIdx->new($ibx, 1);
-		$s->index_sync;
-	}
-}
+};
+$pi_config //= "$ibx->{inboxdir}/pi_config";
 
 my $imaps_addr = tcp_host_port($imaps);
 my $starttls_addr = tcp_host_port($starttls);
