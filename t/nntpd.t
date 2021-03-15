@@ -1,12 +1,11 @@
+#!perl -w
 # Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 use PublicInbox::Spawn qw(which);
 require_mods(qw(DBD::SQLite));
-require PublicInbox::InboxWritable;
 use PublicInbox::Eml;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
 use Net::NNTP;
@@ -26,49 +25,14 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $inboxdir = "$tmpdir/main";
-my $otherdir = "$tmpdir/other";
+my $inboxdir = "$tmpdir/inbox";
 my $group = 'test-nntpd';
 my $addr = $group . '@example.com';
-
-my %opts;
 my $sock = tcp_server();
 my $host_port = tcp_host_port($sock);
 my $td;
-my $len;
 
-my $ibx = {
-	inboxdir => $inboxdir,
-	name => $group,
-	version => $version,
-	-primary_address => $addr,
-	indexlevel => 'basic',
-};
-$ibx = PublicInbox::Inbox->new($ibx);
-{
-	local $ENV{HOME} = $home;
-	my @cmd = ('-init', $group, $inboxdir, 'http://example.com/abc', $addr,
-		"-V$version", '-Lbasic', '--newsgroup', $group);
-	ok(run_script(\@cmd), "init $group");
-
-	@cmd = ('-init', 'xyz', $otherdir, 'http://example.com/xyz',
-		'e@example.com', "-V$version", qw(-Lbasic --newsgroup x.y.z));
-	ok(run_script(\@cmd), 'init xyz');
-	is(xsys([qw(git config -f), "$home/.public-inbox/config",
-		qw(publicinboxmda.spamcheck none)]), 0, 'disable spamcheck');
-
-	open(my $fh, '<', 't/utf8.eml') or BAIL_OUT("open t/utf8.eml: $!");
-	my $env = { ORIGINAL_RECIPIENT => 'e@example.com' };
-	run_script([qw(-mda --no-precheck)], $env, { 0 => $fh }) or
-		BAIL_OUT('-mda delivery');
-
-	my $len;
-	$ibx = PublicInbox::InboxWritable->new($ibx);
-	my $im = $ibx->importer(0);
-
-	# ensure successful message delivery
-	{
-		my $mime = PublicInbox::Eml->new(<<EOF);
+my $eml = PublicInbox::Eml->new(<<EOF);
 To: =?utf-8?Q?El=C3=A9anor?= <you\@example.com>
 From: =?utf-8?Q?El=C3=A9anor?= <me\@example.com>
 Cc: $addr
@@ -81,21 +45,49 @@ References: <ref	tab	squeezed>
 
 This is a test message for El\xc3\xa9anor
 EOF
-		my $list_id = $addr;
-		$list_id =~ s/@/./;
-		$mime->header_set('List-Id', "<$list_id>");
-		my $str = $mime->as_string;
-		$str =~ s/(?<!\r)\n/\r\n/sg;
-		$len = length($str);
-		undef $str;
-		$im->add($mime);
-		$im->done;
-		if ($version == 1) {
-			ok(run_script(['-index', $ibx->{inboxdir}]),
-				'indexed v1');
-		}
-	}
+my $list_id = $addr;
+$list_id =~ s/@/./;
+$eml->header_set('List-Id', "<$list_id>");
+my $str = $eml->as_string;
+$str =~ s/(?<!\r)\n/\r\n/sg;
+my $len = length($str);
+undef $str;
 
+my $ibx = create_inbox "v$version", version => $version, indexlevel => 'basic',
+			tmpdir => $inboxdir, sub {
+	my ($im, $ibx) = @_;
+	$im->add($eml) or BAIL_OUT;
+};
+undef $eml;
+my $other = create_inbox "other$version", version => $version,
+		indexlevel => 'basic', sub {
+	my ($im) = @_;
+	$im->add(eml_load 't/utf8.eml') or BAIL_OUT;
+};
+
+local $ENV{HOME} = $home;
+mkdir $home or BAIL_OUT $!;
+mkdir "$home/.public-inbox" or BAIL_OUT $!;
+open my $cfgfh, '>', "$home/.public-inbox/config" or BAIL_OUT $!;
+print $cfgfh <<EOF or BAIL_OUT;
+[publicinbox "$group"]
+	inboxdir = $inboxdir
+	url = http://example.com/abc
+	address = $addr
+	indexlevel = basic
+	newsgroup = $group
+[publicinbox "xyz"]
+	inboxdir = $other->{inboxdir}
+	url = http://example.com/xyz
+	address = e\@example.com
+	indexlevel = basic
+	newsgroup = x.y.z
+[publicinboxMda]
+	spamcheck = none
+EOF
+close $cfgfh or BAIL_OUT;
+
+{
 	my $cmd = [ '-nntpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	$td = start_script($cmd, undef, { 3 => $sock });
 	my $n = Net::NNTP->new($host_port);
@@ -258,6 +250,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 
 		my $long_hdr = 'for-leafnode-'.('y'x200).'@example.com';
 		$for_leafnode->header_set('Message-ID', "<$long_hdr>");
+		my $im = $ibx->importer(0);
 		$im->add($for_leafnode);
 		$im->done;
 		if ($version == 1) {
@@ -354,6 +347,7 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		my $ex = eml_load('t/data/0001.patch');
 		is($n->article($ex->header('Message-ID')), undef,
 			'article did not exist');
+		my $im = $ibx->importer(0);
 		$im->add($ex);
 		$im->done;
 		{
