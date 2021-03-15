@@ -3,7 +3,6 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
-use Test::More;
 use List::Util qw(shuffle max);
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
@@ -16,17 +15,11 @@ my ($home, $for_destroy) = tmpdir();
 my @ibx;
 for my $V (1..2) {
 	for my $i (3..6) {
-		my $ibx = PublicInbox::InboxWritable->new({
-			inboxdir => "$home/v$V-$i",
-			name => "test-v$V-$i",
-			version => $V,
-			indexlevel => 'medium',
-			-primary_address => "v$V-$i\@example.com",
-		}, { nproc => int(rand(8)) + 1 });
-		push @ibx, $ibx;
-		my $im = $ibx->importer(0);
-		for my $j (0..9) {
-			my $eml = PublicInbox::Eml->new(<<EOF);
+		push @ibx, create_inbox("v$V-$i", indexlevel => 'full',
+					version => $V, sub {
+			my ($im, $ibx) = @_;
+			for my $j (0..9) {
+				my $eml = PublicInbox::Eml->new(<<EOM);
 From: x\@example.com
 To: $ibx->{-primary_address}
 Date: Fri, 02 Oct 1993 0$V:0$i:0$j +0000
@@ -34,14 +27,14 @@ Subject: v${V}i${i}j$j
 Message-ID: <v${V}i${i}j$j\@example>
 
 ${V}er ${i}on j$j
-EOF
-			$im->add($eml);
-		}
-		$im->done;
+EOM
+				$im->add($eml) or BAIL_OUT '->add';
+			}
+		}); # create_inbox
 	}
 }
-my $first = shift @ibx; is($first->{name}, 'test-v1-3', 'first plucked');
-my $last = pop @ibx; is($last->{name}, 'test-v2-6', 'last plucked');
+my $first = shift @ibx; is($first->{name}, 'v1-3', 'first plucked');
+my $last = pop @ibx; is($last->{name}, 'v2-6', 'last plucked');
 my $eidx = PublicInbox::ExtSearchIdx->new("$home/eidx");
 $eidx->attach_inbox($first);
 $eidx->attach_inbox($last);
