@@ -1,8 +1,8 @@
+#!perl -w
 # Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
@@ -13,22 +13,15 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $home = "$tmpdir/pi-home";
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $maindir = "$tmpdir/main.git";
+my $inboxdir = "$tmpdir/i.git";
 my $group = 'test-httpd';
 my $addr = $group . '@example.com';
-my $cfgpfx = "publicinbox.$group";
 my $sock = tcp_server();
 my $td;
-use_ok 'PublicInbox::Git';
-use_ok 'PublicInbox::Import';
 {
-	local $ENV{HOME} = $home;
-	my $cmd = [ '-init', $group, $maindir, 'http://example.com/', $addr ];
-	ok(run_script($cmd), 'init ran properly');
-
-	# ensure successful message delivery
-	{
-		my $mime = PublicInbox::Eml->new(<<EOF);
+	create_inbox 'test', tmpdir => $inboxdir, sub {
+		my ($im, $ibx) = @_;
+		$im->add(PublicInbox::Eml->new(<<EOF)) or BAIL_OUT;
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -38,12 +31,10 @@ Date: Thu, 01 Jan 1970 06:06:06 +0000
 
 nntp
 EOF
-
-		my $git = PublicInbox::Git->new($maindir);
-		my $im = PublicInbox::Import->new($git, 'test', $addr);
-		$im->add($mime);
-		$im->done($mime);
-	}
+	};
+	local $ENV{HOME} = $home;
+	my $cmd = [ '-init', $group, $inboxdir, 'http://example.com/', $addr ];
+	ok(run_script($cmd), 'init ran properly');
 	$cmd = [ '-httpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	$td = start_script($cmd, undef, { 3 => $sock });
 	my $http_pfx = 'http://'.tcp_host_port($sock);
@@ -53,7 +44,6 @@ EOF
 		like(<$bad>, qr!\AHTTP/1\.[01] 405\b!, 'got 405 on bad req');
 	}
 	my $conn = tcp_connect($sock);
-	ok($conn, 'connected');
 	ok($conn->write("GET / HTTP/1.0\r\n\r\n"), 'wrote data to socket');
 	{
 		my $buf;
@@ -67,7 +57,7 @@ EOF
 		0, 'smart clone successful');
 
 	# ensure dumb cloning works, too:
-	is(xsys('git', "--git-dir=$maindir",
+	is(xsys('git', "--git-dir=$inboxdir",
 		qw(config http.uploadpack false)),
 		0, 'disable http.uploadpack');
 	is(xsys(qw(git clone -q --mirror),
@@ -99,6 +89,4 @@ SKIP: {
 	like($x, qr/\Ahttpready\0+\z/, 'got httpready accf for HTTP');
 };
 
-done_testing();
-
-1;
+done_testing;
