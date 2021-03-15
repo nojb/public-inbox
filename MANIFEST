@@ -345,7 +345,6 @@ t/hl_mod.t
 t/home2/.gitignore
 t/home2/Makefile
 t/home2/README
-t/html_index.t
 t/httpd-corner.psgi
 t/httpd-corner.t
 t/httpd-https.t
