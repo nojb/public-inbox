@@ -1,13 +1,12 @@
+#!perl -w
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
+use PublicInbox::TestCommon;
 use PublicInbox::Eml;
 use PublicInbox::Inbox;
-use PublicInbox::InboxWritable;
 require PublicInbox::Admin;
-use PublicInbox::TestCommon;
 my $PI_TEST_VERSION = $ENV{PI_TEST_VERSION} || 2;
 require_git('2.6') if $PI_TEST_VERSION == 2;
 require_mods(qw(DBD::SQLite));
@@ -26,18 +25,13 @@ my $import_index_incremental = sub {
 	my $err = '';
 	my $this = "pi-$v-$level-indexlevels";
 	my ($tmpdir, $for_destroy) = tmpdir();
+	my $ibx = create_inbox "testbox$v", indexlevel => $level,
+				version => $v, tmpdir => "$tmpdir/v$v", sub {
+		$mime->header_set('Message-ID', '<m@1>');
+		$_[0]->add($mime) or BAIL_OUT;
+	};
+	my $im = $ibx->importer(0);
 	local $ENV{PI_CONFIG} = "$tmpdir/config";
-	my $ibx = PublicInbox::Inbox->new({
-		inboxdir => "$tmpdir/testbox",
-		name => $this,
-		version => $v,
-		-primary_address => 'test@example.com',
-		indexlevel => $level,
-	});
-	my $im = PublicInbox::InboxWritable->new($ibx, {nproc=>1})->importer(0);
-	$mime->header_set('Message-ID', '<m@1>');
-	ok($im->add($mime), 'first message added');
-	$im->done;
 
 	# index master (required for v1)
 	my @cmd = (qw(-index -j0), $ibx->{inboxdir}, "-L$level");
