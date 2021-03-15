@@ -1,37 +1,20 @@
+#!perl -w
 # Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 my $psgi = "./examples/public-inbox.psgi";
-my ($tmpdir, $for_destroy) = tmpdir();
-my $pi_config = "$tmpdir/config";
-my $inboxdir = "$tmpdir/main.git";
-my $addr = 'test-public@example.com';
 my @mods = qw(HTTP::Request::Common Plack::Test URI::Escape);
 require_mods(@mods);
-use_ok 'PublicInbox::Import';
-use_ok 'PublicInbox::Git';
-my @ls;
-
 foreach my $mod (@mods) { use_ok $mod; }
-local $ENV{PI_CONFIG} = $pi_config;
 ok(-f $psgi, "psgi example file found");
 my $pfx = 'http://example.com/test';
-ok(run_script(['-init', 'test', $inboxdir, "$pfx/", $addr]),
-	'initialized repo');
-xsys_e(qw(git config -f), $pi_config,
-	qw(publicinbox.test.newsgroup inbox.test));
-open my $fh, '>', "$inboxdir/description" or die "open: $!\n";
-print $fh "test for public-inbox\n";
-close $fh or die "close: $!\n";
-my $app = require $psgi;
-my $git = PublicInbox::Git->new($inboxdir);
-my $im = PublicInbox::Import->new($git, 'test', $addr);
 # ensure successful message delivery
-{
-	my $mime = PublicInbox::Eml->new(<<EOF);
+my $ibx = create_inbox('test', sub {
+	my ($im, $ibx) = @_;
+	my $addr = $ibx->{-primary_address};
+	$im->add(PublicInbox::Eml->new(<<EOF)) or BAIL_OUT '->add';
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
@@ -42,26 +25,14 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 > quoted text
 zzzzzz
 EOF
-	$im->add($mime);
-	$im->done;
-	my $rev = $git->qx(qw(rev-list HEAD));
-	like($rev, qr/\A[a-f0-9]{40,}/, "good revision committed");
-	@ls = $git->qx(qw(ls-tree -r --name-only HEAD));
-	chomp @ls;
-
 	# multipart with two text bodies
-	$mime = eml_load 't/plack-2-txt-bodies.eml';
-	$im->add($mime);
+	$im->add(eml_load('t/plack-2-txt-bodies.eml')) or BAIL_OUT '->add';
 
 	# multipart with attached patch + filename
-	$mime = eml_load 't/plack-attached-patch.eml';
-	$im->add($mime);
+	$im->add(eml_load('t/plack-attached-patch.eml')) or BAIL_OUT '->add';
 
 	# multipart collapsed to single quoted-printable text/plain
-	$mime = eml_load 't/plack-qp.eml';
-	like($mime->body_raw, qr/hi =3D bye=/, 'our test used QP correctly');
-	$im->add($mime);
-
+	$im->add(eml_load('t/plack-qp.eml')) or BAIL_OUT '->add';
 	my $crlf = <<EOF;
 From: Me
   <me\@example.com>
@@ -77,11 +48,24 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 :(
 EOF
 	$crlf =~ s/\n/\r\n/sg;
-	$im->add(PublicInbox::Eml->new($crlf));
+	$im->add(PublicInbox::Eml->new($crlf)) or BAIL_OUT '->add';
 
-	$im->done;
-}
+	open my $fh, '>', "$ibx->{inboxdir}/description" or BAIL_OUT "open: $!";
+	print $fh "test for public-inbox\n" or BAIL_OUT;
+	close $fh or BAIL_OUT "close: $!";
+	open $fh, '>', "$ibx->{inboxdir}/pi_config";
+	print $fh <<EOF or BAIL_OUT;
+[publicinbox "test"]
+	inboxdir = $ibx->{inboxdir}
+	newsgroup = inbox.test
+	address = $addr
+	url = $pfx/
+EOF
+	close $fh or BAIL_OUT "close: $!";
+});
 
+local $ENV{PI_CONFIG} = "$ibx->{inboxdir}/pi_config";
+my $app = require $psgi;
 test_psgi($app, sub {
 	my ($cb) = @_;
 	foreach my $u (qw(robots.txt favicon.ico .well-known/foo)) {
@@ -259,8 +243,7 @@ test_psgi($app, sub {
 	# for a while, we used to support /$INBOX/$X40/
 	# when we "compressed" long Message-IDs to SHA-1
 	# Now we're stuck supporting them forever :<
-	foreach my $path (@ls) {
-		$path =~ tr!/!!d;
+	foreach my $path ('f2912279bd7bcd8b7ab3033234942d58746d56f7') {
 		my $from = "http://example.com/test/$path/";
 		my $res = $cb->(GET($from));
 		is(301, $res->code, 'is permanent redirect');
