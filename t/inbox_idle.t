@@ -1,41 +1,35 @@
 #!perl -w
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use Test::More;
+use strict;
+use v5.10.1;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 require_git 2.6;
 require_mods(qw(DBD::SQLite));
 require PublicInbox::SearchIdx;
 use_ok 'PublicInbox::InboxIdle';
-use PublicInbox::InboxWritable;
 my ($tmpdir, $for_destroy) = tmpdir();
 
 for my $V (1, 2) {
 	my $inboxdir = "$tmpdir/$V";
-	mkdir $inboxdir or BAIL_OUT("mkdir: $!");
-	my %opt = (
-		inboxdir => $inboxdir,
-		name => 'inbox-idle',
-		version => $V,
-		-primary_address => 'test@example.com',
-		indexlevel => 'basic',
-	);
-	my $ibx = PublicInbox::Inbox->new({ %opt });
-	$ibx = PublicInbox::InboxWritable->new($ibx);
-	my $obj = InboxIdleTestObj->new;
-	$ibx->init_inbox(0);
-	my $im = $ibx->importer(0);
-	if ($V == 1) {
+	my $ibx = create_inbox "idle$V", tmpdir => $inboxdir, version => $V,
+				indexlevel => 'basic', -no_gc => 1, sub {
+		my ($im, $ibx) = @_; # capture
+		$im->done;
+		$ibx->init_inbox(0);
+		$_[0] = undef;
+		return if $V != 1;
 		my $sidx = PublicInbox::SearchIdx->new($ibx, 1);
 		$sidx->idx_acquire;
 		$sidx->set_metadata_once;
 		$sidx->idx_release; # allow watching on lockfile
-	}
+	};
+	my $obj = InboxIdleTestObj->new;
 	my $pi_cfg = PublicInbox::Config->new(\<<EOF);
 publicinbox.inbox-idle.inboxdir=$inboxdir
 publicinbox.inbox-idle.indexlevel=basic
-publicinbox.inbox-idle.address=test\@example.com
+publicinbox.inbox-idle.address=$ibx->{-primary_address}
 EOF
 	my $ident = 'whatever';
 	$pi_cfg->each_inbox(sub { shift->subscribe_unlock($ident, $obj) });
@@ -45,6 +39,7 @@ EOF
 		skip('inotify or kqueue missing', 1) unless $ii->{sock};
 		ok(fileno($ii->{sock}) >= 0, 'fileno() gave valid FD');
 	}
+	my $im = $ibx->importer(0);
 	ok($im->add(eml_load('t/utf8.eml')), "$V added");
 	$im->done;
 	PublicInbox::SearchIdx->new($ibx)->index_sync if $V == 1;
