@@ -1,10 +1,10 @@
+#!perl -w
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
-use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
+use v5.10.1;
 use PublicInbox::TestCommon;
+use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 # IO::Poll and Net::NNTP are part of the standard library, but
 # distros may split them off...
 require_mods(qw(DBD::SQLite IO::Socket::SSL Net::NNTP IO::Poll));
@@ -20,9 +20,6 @@ unless (-r $key && -r $cert) {
 
 use_ok 'PublicInbox::TLS';
 use_ok 'IO::Socket::SSL';
-require PublicInbox::InboxWritable;
-require PublicInbox::Eml;
-require PublicInbox::SearchIdx;
 our $need_zlib;
 eval { require Compress::Raw::Zlib } or
 	$need_zlib = 'Compress::Raw::Zlib missing';
@@ -31,45 +28,28 @@ require_git('2.6') if $version >= 2;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
-my $inboxdir = "$tmpdir";
-my $pi_config = "$tmpdir/pi_config";
 my $group = 'test-nntpd-tls';
 my $addr = $group . '@example.com';
 my $starttls = tcp_server();
 my $nntps = tcp_server();
-my $ibx = PublicInbox::Inbox->new({
-	inboxdir => $inboxdir,
-	name => 'nntpd-tls',
-	version => $version,
-	-primary_address => $addr,
-	indexlevel => 'basic',
-});
-$ibx = PublicInbox::InboxWritable->new($ibx, {nproc=>1});
-$ibx->init_inbox(0);
-{
-	open my $fh, '>', $pi_config or die "open: $!\n";
-	print $fh <<EOF
+my $pi_config;
+my $ibx = create_inbox "v$version", version => $version, indexlevel => 'basic',
+			sub {
+	my ($im, $ibx) = @_;
+	$pi_config = "$ibx->{inboxdir}/pi_config";
+	open my $fh, '>', $pi_config or BAIL_OUT "open: $!";
+	print $fh <<EOF or BAIL_OUT;
 [publicinbox "nntpd-tls"]
-	inboxdir = $inboxdir
+	inboxdir = $ibx->{inboxdir}
 	address = $addr
 	indexlevel = basic
 	newsgroup = $group
 EOF
-	;
-	close $fh or die "close: $!\n";
-}
-
-{
-	my $im = $ibx->importer(0);
-	my $mime = eml_load 't/data/0001.patch';
-	ok($im->add($mime), 'message added');
-	$im->done;
-	if ($version == 1) {
-		my $s = PublicInbox::SearchIdx->new($ibx, 1);
-		$s->index_sync;
-	}
-}
-
+	close $fh or BAIL_OUT "close: $!";
+	$im->add(eml_load 't/data/0001.patch') or BAIL_OUT;
+};
+$pi_config //= "$ibx->{inboxdir}/pi_config";
+undef $ibx;
 my $nntps_addr = tcp_host_port($nntps);
 my $starttls_addr = tcp_host_port($starttls);
 my $env = { PI_CONFIG => $pi_config };
