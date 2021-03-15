@@ -1,35 +1,26 @@
+#!perl -w
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # edit frontend behavior test (t/replace.t for backend)
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
-require_git(2.6);
-require PublicInbox::Inbox;
-require PublicInbox::InboxWritable;
-require PublicInbox::Config;
 use PublicInbox::MID qw(mid_clean);
+require_git(2.6);
 
 require_mods('DBD::SQLite');
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/v2";
-my $ibx = PublicInbox::Inbox->new({
-	inboxdir => $inboxdir,
-	name => 'test-v2edit',
-	version => 2,
-	-primary_address => 'test@example.com',
-	indexlevel => 'basic',
-});
-$ibx = PublicInbox::InboxWritable->new($ibx, {nproc=>1});
+my $file = 't/data/0001.patch';
+my $eml = eml_load($file);
+my $mid = mid_clean($eml->header('Message-ID'));
+my $ibx = create_inbox 'v2edit', indexlevel => 'basic', version => 2,
+			tmpdir => $inboxdir, sub {
+	my ($im, $ibx) = @_;
+	$im->add($eml) or BAIL_OUT;
+};
 my $cfgfile = "$tmpdir/config";
 local $ENV{PI_CONFIG} = $cfgfile;
-my $im = $ibx->importer(0);
-my $file = 't/data/0001.patch';
-my $mime = eml_load($file);
-my $mid = mid_clean($mime->header('Message-Id'));
-ok($im->add($mime), 'add message to be edited');
-$im->done;
 my ($in, $out, $err, $cmd, $cur, $t);
 my $git = PublicInbox::Git->new("$ibx->{inboxdir}/git/0.git");
 my $opt = { 0 => \$in, 1 => \$out, 2 => \$err };
@@ -155,7 +146,8 @@ $t = '--raw and mbox escaping'; {
 $t = 'reuse Message-ID'; {
 	my @warn;
 	local $SIG{__WARN__} = sub { push @warn, @_ };
-	ok($im->add($mime), "$t and re-add");
+	my $im = $ibx->importer(0);
+	ok($im->add($eml), "$t and re-add");
 	$im->done;
 	like($warn[0], qr/reused for mismatched content/, "$t got warning");
 }
