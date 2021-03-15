@@ -5,7 +5,6 @@ use strict; use v5.10.1; use PublicInbox::TestCommon;
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 use PublicInbox::MboxReader;
-use PublicInbox::InboxWritable;
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $sock = tcp_server;
 my ($tmpdir, $for_destroy) = tmpdir;
@@ -61,20 +60,11 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok(@cmd, '--lock=dotlock,timeout=0.000001',
 		\'succeeds after lock removal');
 
-	# XXX memoize this external creation
-	my $inboxdir = "$ENV{HOME}/tmp_git";
-	my $ibx = PublicInbox::InboxWritable->new({
-		name => 'tmp',
-		-primary_address => 'lei@example.com',
-		inboxdir => $inboxdir,
-		indexlevel => 'medium',
-	}, { nproc => 1 });
-	my $im = $ibx->importer(0);
-	$im->add(eml_load('t/utf8.eml')) or BAIL_OUT '->add';
-	$im->done;
-
-	run_script(['-index', $inboxdir], undef) or BAIL_OUT '-init';
-	lei_ok(qw(add-external -q), $inboxdir);
+	my $ibx = create_inbox 'local-external', indexlevel => 'medium', sub {
+		my ($im) = @_;
+		$im->add(eml_load('t/utf8.eml')) or BAIL_OUT '->add';
+	};
+	lei_ok(qw(add-external -q), $ibx->{inboxdir});
 	lei_ok(qw(q -o), "mboxrd:$o", '--only', $url,
 		'm:testmessage@example.com');
 	ok(-s $o, 'got result from remote external');

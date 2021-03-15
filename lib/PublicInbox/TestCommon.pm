@@ -14,9 +14,8 @@ our @EXPORT;
 BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
-		have_xapian_compact json_utf8 setup_public_inboxes
-		tcp_host_port test_lei lei lei_ok
-		$lei_out $lei_err $lei_opt);
+		have_xapian_compact json_utf8 setup_public_inboxes create_inbox
+		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -587,7 +586,55 @@ sub setup_public_inboxes () {
 	$seen or BAIL_OUT 'no imports';
 	open my $fh, '>', $stamp or BAIL_OUT "open $stamp: $!";
 	@ret;
-};
+}
+
+sub create_inbox ($$;@) {
+	my $ident = shift;
+	my $cb = pop;
+	my %opt = @_;
+	require PublicInbox::Lock;
+	require PublicInbox::InboxWritable;
+	my ($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
+	my $dir = "t/data-gen/$base.$ident";
+	unless (-d $dir) {
+		mkdir $dir; # may race
+		-d $dir or BAIL_OUT "$dir could not be created: $!";
+	}
+	my $lk = bless { lock_path => "$dir/creat.lock" }, 'PublicInbox::Lock';
+	$opt{inboxdir} = File::Spec->rel2abs($dir);
+	$opt{name} //= $ident;
+	$opt{-no_fsync} = 1;
+	my $no_gc = delete $opt{-no_gc};
+	my $tmpdir = delete $opt{tmpdir};
+	my $addr = $opt{address} // [];
+	$opt{-primary_address} //= $addr->[0] // "$ident\@example.com";
+	my $parallel = delete($opt{importer_parallel}) // 0;
+	my $creat_opt = { nproc => delete($opt{nproc}) // 1 };
+	my $ibx = PublicInbox::InboxWritable->new({ %opt }, $creat_opt);
+	my $scope = $lk->lock_for_scope;
+	if (!-f "$dir/creat.stamp") {
+		my $im = $ibx->importer($parallel);
+		$cb->($im, $ibx);
+		$im->done if $im;
+		unless ($no_gc) {
+			my @to_gc = $ibx->version == 1 ? ($ibx->{inboxdir}) :
+					glob("$ibx->{inboxdir}/git/*.git");
+			for my $dir (@to_gc) {
+				xsys_e([ qw(git gc -q) ], { GIT_DIR => $dir });
+			}
+		}
+		open my $s, '>', "$dir/creat.stamp" or
+			BAIL_OUT "error creating $dir/creat.stamp: $!";
+	}
+	if ($tmpdir) {
+		undef $ibx;
+		xsys([qw(/bin/cp -Rp), $dir, $tmpdir]) == 0 or
+			BAIL_OUT "cp $dir $tmpdir";
+		$opt{inboxdir} = $tmpdir;
+		$ibx = PublicInbox::InboxWritable->new(\%opt);
+	}
+	$ibx;
+}
 
 package PublicInboxTestProcess;
 use strict;
