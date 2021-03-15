@@ -1,14 +1,14 @@
+#!perl -w
 # Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
+use PublicInbox::TestCommon;
 use PublicInbox::Eml;
 use PublicInbox::Feed;
-use PublicInbox::Import;
 use PublicInbox::Inbox;
 my $have_xml_treepp = eval { require XML::TreePP; 1 };
-use PublicInbox::TestCommon;
+my ($tmpdir, $for_destroy) = tmpdir();
 
 sub string_feed {
 	my $res = PublicInbox::Feed::generate($_[0]);
@@ -21,43 +21,18 @@ sub string_feed {
 	$str;
 }
 
-my ($tmpdir, $for_destroy) = tmpdir();
 my $git_dir = "$tmpdir/gittest";
-my $ibx = PublicInbox::Inbox->new({
-	address => 'test@example',
-	name => 'testbox',
-	inboxdir => $git_dir,
-	url => [ 'http://example.com/test' ],
-	feedmax => 3,
-});
-my $git = $ibx->git;
-my $im = PublicInbox::Import->new($git, $ibx->{name}, 'test@example');
-
-{
-	$im->init_bare;
+my $ibx = create_inbox 'v1', tmpdir => $git_dir, sub {
+	my ($im, $ibx) = @_;
 	foreach my $i (1..6) {
-		my $mime = PublicInbox::Eml->new(<<EOF);
+		$im->add(PublicInbox::Eml->new(<<EOF)) or BAIL_OUT;
 From: ME <me\@example.com>
 To: U <u\@example.com>
 Message-Id: <$i\@example.com>
 Subject: zzz #$i
 Date: Thu, 01 Jan 1970 00:00:00 +0000
 
-> This is a long multi line quote so it should not be allowed to
-> show up in its entirty in the Atom feed.  drop me
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
-> I quote to much
+> drop me
 
 msg $i
 
@@ -66,10 +41,12 @@ msg $i
 
 keep me
 EOF
-		like($im->add($mime), qr/\A:\d+/, 'added');
 	}
-	$im->done;
-}
+};
+
+$ibx->{url} = [ 'http://example.com/test' ];
+$ibx->{feedmax} = 3;
+my $im = $ibx->importer(0);
 
 # spam check
 {
@@ -83,7 +60,7 @@ EOF
 				'looks like an an Atom feed');
 			is(scalar @{$t->{feed}->{entry}}, 3,
 				'parsed three entries');
-			is($t->{feed}->{id}, 'mailto:test@example',
+			is($t->{feed}->{id}, 'mailto:v1@example.com',
 				'id is set to default');
 		}
 
@@ -140,4 +117,4 @@ EOF
 	}
 }
 
-done_testing();
+done_testing;
