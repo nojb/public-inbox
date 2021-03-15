@@ -4,11 +4,10 @@ use strict;
 use Test::More;
 use PublicInbox::Eml;
 use PublicInbox::TestCommon;
-use PublicInbox::InboxWritable;
 require_git(2.6);
 require_mods(qw(DBD::SQLite));
 require PublicInbox::SearchIdx;
-my $delay = $ENV{TEST_DELAY_CONVERT};
+my $delay = $ENV{TEST_DELAY_CONVERT} // '';
 
 my $addr = 'test@example.com';
 my $bad = PublicInbox::Eml->new(<<EOF);
@@ -28,34 +27,25 @@ Subject: good
 
 EOF
 
+my $nr = 0;
 for my $order ([$bad, $good], [$good, $bad]) {
-	my $before;
 	my ($tmpdir, $for_destroy) = tmpdir();
-	my $ibx = PublicInbox::InboxWritable->new({
-		inboxdir => "$tmpdir/v1",
-		name => 'test-v1',
-		indexlevel => 'basic',
-		-primary_address => $addr,
-	}, my $creat_opt = {});
-	my @old;
-	if ('setup v1 inbox') {
-		my $im = $ibx->importer(0);
-		for (@$order) {
-			ok($im->add($_), 'added '.$_->header('Subject'));
+	my $ibx = create_inbox "test$delay.$nr", indexlevel => 'basic', sub {
+		my ($im) = @_;
+		for my $eml (@$order) {
+			$im->add($eml) or BAIL_OUT;
 			sleep($delay) if $delay;
 		}
-		$im->done;
-		my $s = PublicInbox::SearchIdx->new($ibx, 1);
-		$s->index_sync;
-		$before = [ $ibx->mm->minmax ];
-		@old = ($ibx->over->get_art(1), $ibx->over->get_art(2));
-		$ibx->cleanup;
-	}
+	};
+	++$nr;
+	my $before = [ $ibx->mm->minmax ];
+	my @old = ($ibx->over->get_art(1), $ibx->over->get_art(2));
+	$ibx->cleanup;
 	my $rdr = { 1 => \(my $out = ''), 2 => \(my $err = '') };
 	my $cmd = [ '-convert', $ibx->{inboxdir}, "$tmpdir/v2" ];
 	my $env = { PI_DIR => "$tmpdir/.public-inbox" };
 	ok(run_script($cmd, $env, $rdr), 'convert to v2');
-	$err =~ s!\AW: $tmpdir/v1 not configured[^\n]+\n!!s;
+	$err =~ s!\AW: \Q$ibx->{inboxdir}\E not configured[^\n]+\n!!s;
 	is($err, '', 'no errors or warnings from -convert');
 	$ibx->{version} = 2;
 	$ibx->{inboxdir} = "$tmpdir/v2";
