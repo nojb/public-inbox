@@ -159,14 +159,6 @@ sub remove_eml_keywords {
 	\@docids;
 }
 
-# TODO: move this to MdirReader, maybe...
-# cf: https://cr.yp.to/proto/maildir.html
-my %c2kw = ('D' => 'draft', F => 'flagged', R => 'answered', S => 'seen');
-sub maildir_keywords {
-	$_[-1] =~ /:2,([A-Z]+)\z/i ?
-		sort(map { $c2kw{$_} // () } split(//, $1)) : ();
-}
-
 sub add_eml {
 	my ($self, $eml, @kw) = @_;
 	my $im = $self->importer; # may create new epoch
