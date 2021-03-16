@@ -467,20 +467,6 @@ sub cat_async ($$$;$) {
 	push(@$inflight, $oid, $cb, $arg);
 }
 
-sub async_prefetch {
-	my ($self, $oid, $cb, $arg) = @_;
-	if (my $inflight = $self->{inflight}) {
-		# we could use MAX_INFLIGHT here w/o the halving,
-		# but lets not allow one client to monopolize a git process
-		if (scalar(@$inflight) < int(MAX_INFLIGHT/2)) {
-			print { $self->{out} } $oid, "\n" or
-						$self->fail("write error: $!");
-			return push(@$inflight, $oid, $cb, $arg);
-		}
-	}
-	undef;
-}
-
 sub extract_cmt_time {
 	my ($bref, undef, undef, undef, $modified) = @_;
 
