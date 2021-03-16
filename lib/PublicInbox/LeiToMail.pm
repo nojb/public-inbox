@@ -246,8 +246,8 @@ sub _augment { # MboxReader eml_cb
 
 sub _mbox_augment_kw_maybe {
 	my ($eml, $lei, $lse, $augment) = @_;
-	my @kw = PublicInbox::LeiStore::mbox_keywords($eml);
-	update_kw_maybe($lei, $lse, $eml, \@kw);
+	my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
+	update_kw_maybe($lei, $lse, $eml, $kw);
 	_augment($eml, $lei) if $augment;
 }
 

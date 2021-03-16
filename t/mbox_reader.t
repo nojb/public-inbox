@@ -24,6 +24,16 @@ my %raw = (
 		(("b: ".('b' x 72)."\n") x 1000) .
 		"From hell\n",
 );
+{
+	my $eml = PublicInbox::Eml->new($raw{small});
+	my $mbox_keywords = PublicInbox::MboxReader->can('mbox_keywords');
+	is_deeply($mbox_keywords->($eml), [], 'no keywords');
+	$eml->header_set('Status', 'RO');
+	is_deeply($mbox_keywords->($eml), ['seen'], 'seen extracted');
+	$eml->header_set('X-Status', 'A');
+	is_deeply($mbox_keywords->($eml), [qw(answered seen)],
+		'seen+answered extracted');
+}
 
 if ($ENV{TEST_EXTRA}) {
 	for my $fn (glob('t/*.eml'), glob('t/*/*.{patch,eml}')) {

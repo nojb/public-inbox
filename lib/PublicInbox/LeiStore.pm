@@ -159,18 +159,6 @@ sub remove_eml_keywords {
 	\@docids;
 }
 
-# cf: https://doc.dovecot.org/configuration_manual/mail_location/mbox/
-my %status2kw = (F => 'flagged', A => 'answered', R => 'seen', T => 'draft');
-# O (old/non-recent), and D (deleted) aren't in JMAP,
-# so probably won't be supported by us.
-sub mbox_keywords {
-	my $eml = $_[-1];
-	my $s = "@{[$eml->header_raw('X-Status'),$eml->header_raw('Status')]}";
-	my %kw;
-	$s =~ s/([FART])/$kw{$status2kw{$1}} = 1/sge;
-	sort(keys %kw);
-}
-
 # TODO: move this to MdirReader, maybe...
 # cf: https://cr.yp.to/proto/maildir.html
 my %c2kw = ('D' => 'draft', F => 'flagged', R => 'answered', S => 'seen');

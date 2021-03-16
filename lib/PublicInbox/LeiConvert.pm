@@ -12,9 +12,9 @@ use PublicInbox::LeiOverview;
 
 sub mbox_cb {
 	my ($eml, $self) = @_;
-	my @kw = PublicInbox::LeiStore::mbox_keywords($eml);
+	my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
 	$eml->header_set($_) for qw(Status X-Status);
-	$self->{wcb}->(undef, { kw => \@kw }, $eml);
+	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 
 sub net_cb { # callback for ->imap_each, ->nntp_each

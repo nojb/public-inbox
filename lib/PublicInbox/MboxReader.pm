@@ -11,6 +11,18 @@ $Data::Dumper::Useqq = 1; # should've been the default, for bad data
 my $from_strict =
 	qr/^From \S+ +\S+ \S+ +\S+ [^\n:]+:[^\n:]+:[^\n:]+ [^\n:]+\n/sm;
 
+# cf: https://doc.dovecot.org/configuration_manual/mail_location/mbox/
+my %status2kw = (F => 'flagged', A => 'answered', R => 'seen', T => 'draft');
+# O (old/non-recent), and D (deleted) aren't in JMAP,
+# so probably won't be supported by us.
+sub mbox_keywords {
+	my $eml = $_[-1];
+	my $s = "@{[$eml->header_raw('X-Status'),$eml->header_raw('Status')]}";
+	my %kw;
+	$s =~ s/([FART])/$kw{$status2kw{$1}} = 1/sge;
+	[ sort(keys %kw) ];
+}
+
 sub _mbox_from {
 	my ($mbfh, $from_re, $eml_cb, @arg) = @_;
 	my $buf = '';

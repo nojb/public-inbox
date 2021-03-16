@@ -11,7 +11,8 @@ use PublicInbox::PktOp qw(pkt_do);
 
 sub _import_eml { # MboxReader callback
 	my ($eml, $sto, $set_kw) = @_;
-	$sto->ipc_do('set_eml', $eml, $set_kw ? $sto->mbox_keywords($eml) : ());
+	$sto->ipc_do('set_eml', $eml, $set_kw ?
+		@{PublicInbox::MboxReader::mbox_keywords($eml)} : ());
 }
 
 sub import_done_wait { # dwaitpid callback

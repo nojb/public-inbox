@@ -412,9 +412,9 @@ sub check_input_format ($;$) {
 		return fail($self, "--$opt_key unset for $err");
 	}
 	require PublicInbox::MboxLock if $files;
+	require PublicInbox::MboxReader;
 	return 1 if $fmt eq 'eml';
 	# XXX: should this handle {gz,bz2,xz}? that's currently in LeiToMail
-	require PublicInbox::MboxReader;
 	PublicInbox::MboxReader->can($fmt) or
 		return fail($self, "--$opt_key=$fmt unrecognized");
 	1;

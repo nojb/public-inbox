@@ -21,14 +21,6 @@ like($smsg->{blob}, qr/\A[0-9a-f]+\z/, 'add returned OID');
 my $eml = eml_load('t/data/0001.patch');
 is($sto->add_eml($eml), undef, 'idempotent');
 $sto->done;
-is_deeply([$sto->mbox_keywords($eml)], [], 'no keywords');
-$eml->header_set('Status', 'RO');
-is_deeply([$sto->mbox_keywords($eml)], ['seen'], 'seen extracted');
-$eml->header_set('X-Status', 'A');
-is_deeply([$sto->mbox_keywords($eml)], [qw(answered seen)],
-	'seen+answered extracted');
-$eml->header_set($_) for qw(Status X-Status);
-
 is_deeply([$sto->maildir_keywords('/foo:2,')], [], 'Maildir no keywords');
 is_deeply([$sto->maildir_keywords('/foo:2,S')], ['seen'], 'Maildir seen');
 is_deeply([$sto->maildir_keywords('/foo:2,RS')], ['answered', 'seen'],
