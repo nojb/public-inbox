@@ -409,15 +409,6 @@ sub cmd_quit ($) {
 	undef;
 }
 
-sub header_append ($$$) {
-	my ($hdr, $k, $v) = @_;
-	my @v = $hdr->header_raw($k);
-	foreach (@v) {
-		return if $v eq $_;
-	}
-	$hdr->header_set($k, @v, $v);
-}
-
 sub xref_by_tc ($$$) {
 	my ($xref, $pi_cfg, $smsg) = @_;
 	my $by_addr = $pi_cfg->{-by_addr};
