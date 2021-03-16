@@ -51,7 +51,9 @@ $MIME_ENC{quotedprint} = $MIME_ENC{'quoted-printable'} = $MIME_ENC{qp};
 $MIME_DEC{quotedprint} = $MIME_DEC{'quoted-printable'} = $MIME_DEC{qp};
 $MIME_ENC{$_} = \&identity_codec for qw(7bit 8bit binary);
 
-my %DECODE_ADDRESS = map { $_ => 1 } qw(From To Cc Sender Reply-To);
+my %DECODE_ADDRESS = map {
+	($_ => 1, "Resent-$_" => 1)
+} qw(From To Cc Sender Reply-To Bcc);
 my %DECODE_FULL = (
 	Subject => 1,
 	'Content-Description' => 1,
