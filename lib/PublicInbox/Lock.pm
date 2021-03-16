@@ -8,7 +8,6 @@ use v5.10.1;
 use Fcntl qw(:flock :DEFAULT);
 use Carp qw(croak);
 use PublicInbox::OnDestroy;
-use File::Temp ();
 
 # we only acquire the flock if creating or reindexing;
 # PublicInbox::Import already has the lock on its own.
@@ -56,12 +55,6 @@ sub lock_for_scope_fast {
 	my ($self, @single_pid) = @_;
 	lock_acquire_fast($self) or return; # lock_path not set
 	PublicInbox::OnDestroy->new(@single_pid, \&lock_release_fast, $self);
-}
-
-sub new_tmp {
-	my ($cls, $ident) = @_;
-	my $tmp = File::Temp->new("$ident.lock-XXXXXX", TMPDIR => 1);
-	bless { lock_path => $tmp->filename, tmp => $tmp }, $cls;
 }
 
 1;
