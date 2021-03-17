@@ -98,11 +98,9 @@ sub mset_summary {
 	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
 	my @nums = @{$ibx->isrch->mset_to_artnums($mset)};
 	my %num2msg = map { $_->{num} => $_ } @{$ibx->over->get_all(@nums)};
-	my ($min, $max);
+	my ($min, $max, %seen);
 
 	foreach my $m ($mset->items) {
-		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
-		my $pct = get_pct($m);
 		my $num = shift @nums;
 		my $smsg = delete($num2msg{$num}) or do {
 			eval {
@@ -111,7 +109,12 @@ sub mset_summary {
 			};
 			next;
 		};
+		my $mid = $smsg->{mid};
+		next if $seen{$mid}++;
+		$mid = mid_href($mid);
 		$ctx->{-t_max} //= $smsg->{ts};
+		my $rank = sprintf("%${pad}d", $m->get_rank + 1);
+		my $pct = get_pct($m);
 
 		# only when sorting by relevance, ->items is always
 		# ordered descending:
@@ -125,7 +128,6 @@ sub mset_summary {
 			obfuscate_addrs($obfs_ibx, $f);
 		}
 		my $date = fmt_ts($smsg->{ds});
-		my $mid = mid_href($smsg->{mid});
 		$s = '(no subject)' if $s eq '';
 		$$res .= qq{$rank. <b><a\nhref="$mid/">}.
 			$s . "</a></b>\n";
