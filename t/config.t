@@ -212,7 +212,7 @@ EOF
 	my $cfg = PublicInbox::Config->new(\$str);
 	my $t1 = $cfg->lookup_name('test1');
 	my $t2 = $cfg->lookup_name('test2');
-	is($t1->{-repo_objs}->[0], $t2->{-repo_objs}->[0],
+	is($cfg->repo_objs($t1)->[0], $cfg->repo_objs($t2)->[0],
 		'inboxes share ::Git object');
 }
 

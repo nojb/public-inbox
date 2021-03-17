@@ -355,6 +355,12 @@ sub _fill_code_repo {
 	$git;
 }
 
+sub get_all {
+	my ($self, $key) = @_;
+	my $v = $self->{$key} // return;
+	_array($v);
+}
+
 sub git_bool {
 	my ($val) = $_[-1]; # $_[0] may be $self, or $val
 	if ($val =~ /\A(?:false|no|off|[\-\+]?(?:0x)?0+)\z/i) {
@@ -382,6 +388,34 @@ sub _one_val {
 	return $v if !ref($v);
 	warn "W: $pfx.$k has multiple values, only using `$v->[-1]'\n";
 	$v->[-1];
+}
+
+sub repo_objs {
+	my ($self, $ibxish) = @_;
+	my $ibx_code_repos = $ibxish->{coderepo} or return;
+	$ibxish->{-repo_objs} //= do {
+		my $code_repos = $self->{-code_repos};
+		my @repo_objs;
+		for my $nick (@$ibx_code_repos) {
+			my @parts = split(m!/!, $nick);
+			for (@parts) {
+				@parts = () unless valid_foo_name($_);
+			}
+			unless (@parts) {
+				warn "invalid coderepo name: `$nick'\n";
+				next;
+			}
+			my $repo = $code_repos->{$nick} //=
+						_fill_code_repo($self, $nick);
+			push @repo_objs, $repo if $repo;
+		}
+		if (scalar @repo_objs) {
+			\@repo_objs;
+		} else {
+			delete $ibxish->{coderepo};
+			undef;
+		}
+	}
 }
 
 sub _fill_ibx {
@@ -466,20 +500,6 @@ sub _fill_ibx {
 		$ibx->{-no_obfuscate} = $self->{-no_obfuscate};
 		$ibx->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
 		fill_all($self); # noop to populate -no_obfuscate
-	}
-	if (my $ibx_code_repos = $ibx->{coderepo}) {
-		my $code_repos = $self->{-code_repos};
-		my $repo_objs = $ibx->{-repo_objs} = [];
-		foreach my $nick (@$ibx_code_repos) {
-			my @parts = split(m!/!, $nick);
-			my $valid = 0;
-			$valid += valid_foo_name($_) foreach (@parts);
-			$valid == scalar(@parts) or next;
-
-			my $repo = $code_repos->{$nick} //=
-						_fill_code_repo($self, $nick);
-			push @$repo_objs, $repo if $repo;
-		}
 	}
 	if (my $es = ALL($self)) {
 		require PublicInbox::Isearch;

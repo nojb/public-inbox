@@ -591,8 +591,9 @@ sub add_text_body { # callback for each_part
 		$diff = 1;
 		delete $ctx->{-long_path};
 		my $spfx;
-		if ($ibx->{-repo_objs}) {
-			if (index($upfx, '//') >= 0) { # absolute URL (Atom feeds)
+		# absolute URL (Atom feeds)
+		if ($ibx->{coderepo}) {
+			if (index($upfx, '//') >= 0) {
 				$spfx = $upfx;
 				$spfx =~ s!/([^/]*)/\z!/!;
 			} else {

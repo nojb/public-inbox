@@ -84,7 +84,7 @@ sub coderepos ($) {
 	my $upfx = ($ctx->{-upfx} // ''). '../';
 	my @ret;
 	for my $cr_name (@$cr) {
-		my $urls = $cfg->{"coderepo.$cr_name.cgiturl"} // next;
+		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl") // next;
 		$ret[0] //= <<EOF;
 code repositories for the project(s) associated with this inbox:
 EOF

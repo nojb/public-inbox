@@ -191,7 +191,7 @@ EOF
 EOF
 		my $pi_cfg = $ctx->{www}->{pi_cfg};
 		for my $cr_name (@$cr) {
-			my $urls = $pi_cfg->{"coderepo.$cr_name.cgiturl"};
+			my $urls = $pi_cfg->get_all("coderepo.$cr_name.cgiturl");
 			my $path = "/path/to/$cr_name";
 			$cr_name = dq_escape($cr_name);
 
