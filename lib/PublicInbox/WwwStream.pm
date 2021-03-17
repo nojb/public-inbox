@@ -51,9 +51,10 @@ sub html_top ($) {
 	} elsif ($ctx->{qp}->{t}) {
 		$top = qq(<a\nhref="./">$top</a>);
 	}
+	my $code = $ibx->{coderepo} ? qq( / <a\nhref=#code>code</a>) : '';
 	my $links = qq(<a\nhref="$help">help</a> / ).
 			qq(<a\nhref="$color">color</a> / ).
-			qq(<a\nhref=#mirror>mirror</a> / ).
+			qq(<a\nhref=#mirror>mirror</a>$code / ).
 			qq(<a\nhref="$atom">Atom feed</a>);
 	if ($ibx->isrch) {
 		my $q_val = delete($ctx->{-q_value_html}) // '';
@@ -84,16 +85,20 @@ sub coderepos ($) {
 	my $upfx = ($ctx->{-upfx} // ''). '../';
 	my @ret;
 	for my $cr_name (@$cr) {
-		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl") // next;
 		$ret[0] //= <<EOF;
-code repositories for the project(s) associated with this inbox:
+<a id=code>code repositories for project(s) associated with this inbox:
 EOF
-		for (@$urls) {
-			# relative or absolute URL?, prefix relative "foo.git"
-			# with appropriate number of "../"
-			my $u = m!\A(?:[a-z\+]+:)?//! ? $_ : $upfx.$_;
-			$u = ascii_html(prurl($ctx->{env}, $u));
-			$ret[0] .= qq(\n\t<a\nhref="$u">$u</a>);
+		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl");
+		if ($urls) {
+			for (@$urls) {
+				# relative or absolute URL?, prefix relative
+				# "foo.git" with appropriate number of "../"
+				my $u = m!\A(?:[a-z\+]+:)?//! ? $_ : $upfx.$_;
+				$u = ascii_html(prurl($ctx->{env}, $u));
+				$ret[0] .= qq(\n\t<a\nhref="$u">$u</a>);
+			}
+		} else {
+			$ret[0] .= qq[\n\t$cr_name.git (no URL configured)];
 		}
 	}
 	@ret; # may be empty, this sub is called as an arg for join()
