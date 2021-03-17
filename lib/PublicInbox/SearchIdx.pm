@@ -528,44 +528,61 @@ sub remove_eidx_info {
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
-sub set_keywords {
-	my ($self, $docid, @kw) = @_;
+my @VMD_MAP = (kw => 'K', label => 'L');
+
+sub set_vmd {
+	my ($self, $docid, $vmd) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid) or return;
-	my %keep = map { $_ => 1 } @kw;
-	my %add = %keep;
-	my @rm;
-	my $end = $doc->termlist_end;
-	for (my $cur = $doc->termlist_begin; $cur != $end; $cur++) {
-		$cur->skip_to('K');
-		last if $cur == $end;
-		my $kw = $cur->get_termname;
-		$kw =~ s/\AK//s or next;
-		$keep{$kw} ? delete($add{$kw}) : push(@rm, $kw);
+	my ($end, @rm, @add);
+	my @x = @VMD_MAP;
+	while (my ($field, $pfx) = splice(@x, 0, 2)) {
+		my $set = $vmd->{$field} // next;
+		my %keep = map { $_ => 1 } @$set;
+		my %add = %keep;
+		$end //= $doc->termlist_end;
+		for (my $cur = $doc->termlist_begin; $cur != $end; $cur++) {
+			$cur->skip_to($pfx);
+			last if $cur == $end;
+			my $v = $cur->get_termname;
+			$v =~ s/\A$pfx//s or next;
+			$keep{$v} ? delete($add{$v}) : push(@rm, $pfx.$v);
+		}
+		push(@add, map { $pfx.$_ } keys %add);
 	}
-	return unless (scalar(@rm) + scalar(keys %add));
-	$doc->remove_term('K'.$_) for @rm;
-	$doc->add_boolean_term('K'.$_) for (keys %add);
+	return unless scalar(@rm) || scalar(@add);
+	$doc->remove_term($_) for @rm;
+	$doc->add_boolean_term($_) for @add;
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
-sub add_keywords {
-	my ($self, $docid, @kw) = @_;
+sub add_vmd {
+	my ($self, $docid, $vmd) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid) or return;
-	$doc->add_boolean_term('K'.$_) for @kw;
+	my @x = @VMD_MAP;
+	while (my ($field, $pfx) = splice(@x, 0, 2)) {
+		my $add = $vmd->{$field} // next;
+		$doc->add_boolean_term($pfx . $_) for @$add;
+	}
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
-sub remove_keywords {
-	my ($self, $docid, @kw) = @_;
+sub remove_vmd {
+	my ($self, $docid, $vmd) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid) or return;
 	my $replace;
-	eval {
-		$doc->remove_term('K'.$_);
-		$replace = 1
-	} for @kw;
+	my @x = @VMD_MAP;
+	while (my ($field, $pfx) = splice(@x, 0, 2)) {
+		my $rm = $vmd->{$field} // next;
+		for (@$rm) {
+			eval {
+				$doc->remove_term($pfx . $_);
+				$replace = 1;
+			};
+		}
+	}
 	$self->{xdb}->replace_document($docid, $doc) if $replace;
 }
 

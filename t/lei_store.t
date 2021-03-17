@@ -36,37 +36,37 @@ $sto->done;
 
 for my $parallel (0, 1) {
 	$sto->{priv_eidx}->{parallel} = $parallel;
-	my $docids = $sto->set_eml_keywords($eml, qw(seen draft));
+	my $docids = $sto->set_eml_vmd($eml, { kw => [ qw(seen draft) ] });
 	is(scalar @$docids, 1, 'set keywords on one doc');
 	$sto->done;
 	my @kw = $sto->search->msg_keywords($docids->[0]);
 	is_deeply(\@kw, [qw(draft seen)], 'kw matches');
 
-	$docids = $sto->add_eml_keywords($eml, qw(seen draft));
+	$docids = $sto->add_eml_vmd($eml, {kw => [qw(seen draft)]});
 	$sto->done;
 	is(scalar @$docids, 1, 'idempotently added keywords to doc');
 	@kw = $sto->search->msg_keywords($docids->[0]);
 	is_deeply(\@kw, [qw(draft seen)], 'kw matches after noop');
 
-	$docids = $sto->remove_eml_keywords($eml, qw(seen draft));
+	$docids = $sto->remove_eml_vmd($eml, {kw => [qw(seen draft)]});
 	is(scalar @$docids, 1, 'removed from one doc');
 	$sto->done;
 	@kw = $sto->search->msg_keywords($docids->[0]);
 	is_deeply(\@kw, [], 'kw matches after remove');
 
-	$docids = $sto->remove_eml_keywords($eml, qw(answered));
+	$docids = $sto->remove_eml_vmd($eml, {kw=> [qw(answered)]});
 	is(scalar @$docids, 1, 'removed from one doc (idempotently)');
 	$sto->done;
 	@kw = $sto->search->msg_keywords($docids->[0]);
 	is_deeply(\@kw, [], 'kw matches after remove (idempotent)');
 
-	$docids = $sto->add_eml_keywords($eml, qw(answered));
+	$docids = $sto->add_eml_vmd($eml, {kw => [qw(answered)]});
 	is(scalar @$docids, 1, 'added to empty doc');
 	$sto->done;
 	@kw = $sto->search->msg_keywords($docids->[0]);
 	is_deeply(\@kw, ['answered'], 'kw matches after add');
 
-	$docids = $sto->set_eml_keywords($eml);
+	$docids = $sto->set_eml_vmd($eml, { kw => [] });
 	is(scalar @$docids, 1, 'set to clobber');
 	$sto->done;
 	@kw = $sto->search->msg_keywords($docids->[0]);
@@ -74,11 +74,11 @@ for my $parallel (0, 1) {
 
 	my $set = eml_load('t/plack-qp.eml');
 	$set->header_set('Message-ID', "<set\@$parallel>");
-	my $ret = $sto->set_eml($set, 'seen');
+	my $ret = $sto->set_eml($set, { kw => [ 'seen' ] });
 	is(ref $ret, 'PublicInbox::Smsg', 'initial returns smsg');
-	my $ids = $sto->set_eml($set, qw(seen));
+	my $ids = $sto->set_eml($set, { kw => [ 'seen' ] });
 	is_deeply($ids, [ $ret->{num} ], 'set_eml idempotent');
-	$ids = $sto->set_eml($set, qw(seen answered));
+	$ids = $sto->set_eml($set, { kw => [ qw(seen answered) ] });
 	is_deeply($ids, [ $ret->{num} ], 'set_eml to change kw');
 	$sto->done;
 	@kw = $sto->search->msg_keywords($ids->[0]);
@@ -91,23 +91,23 @@ SKIP: {
 	$eml->header_set('Message-ID', '<ipc-test@example>');
 	my $pid = $sto->ipc_worker_spawn('lei-store');
 	ok($pid > 0, 'got a worker');
-	my $smsg = $sto->ipc_do('set_eml', $eml, qw(seen));
+	my $smsg = $sto->ipc_do('set_eml', $eml, { kw => [ qw(seen) ] });
 	is(ref($smsg), 'PublicInbox::Smsg', 'set_eml works over ipc');
-	my $ids = $sto->ipc_do('set_eml', $eml, qw(seen));
+	my $ids = $sto->ipc_do('set_eml', $eml, { kw => [ qw(seen) ] });
 	is_deeply($ids, [ $smsg->{num} ], 'docid returned');
 
 	$eml->header_set('Message-ID');
-	my $no_mid = $sto->ipc_do('set_eml', $eml, qw(seen));
+	my $no_mid = $sto->ipc_do('set_eml', $eml, { kw => [ qw(seen) ] });
 	my $wait = $sto->ipc_do('done');
 	my @kw = $sto->search->msg_keywords($no_mid->{num});
 	is_deeply(\@kw, [qw(seen)], 'ipc set changed kw');
 
 	is(ref($smsg), 'PublicInbox::Smsg', 'no mid works ipc');
-	$ids = $sto->ipc_do('set_eml', $eml, qw(seen));
+	$ids = $sto->ipc_do('set_eml', $eml, { kw => [ qw(seen) ] });
 	is_deeply($ids, [ $no_mid->{num} ], 'docid returned w/o mid w/ ipc');
 	$sto->ipc_do('done');
 	$sto->ipc_worker_stop;
-	$ids = $sto->ipc_do('set_eml', $eml, qw(seen answered));
+	$ids = $sto->ipc_do('set_eml', $eml, { kw => [ qw(seen answered) ] });
 	is_deeply($ids, [ $no_mid->{num} ], 'docid returned w/o mid w/o ipc');
 	$wait = $sto->ipc_do('done');
 

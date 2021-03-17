@@ -12,7 +12,7 @@ use PublicInbox::PktOp qw(pkt_do);
 sub _import_eml { # MboxReader callback
 	my ($eml, $sto, $set_kw) = @_;
 	$sto->ipc_do('set_eml', $eml, $set_kw ?
-		@{PublicInbox::MboxReader::mbox_keywords($eml)} : ());
+		{ kw => PublicInbox::MboxReader::mbox_keywords($eml) } : ());
 }
 
 sub import_done_wait { # dwaitpid callback
@@ -150,12 +150,12 @@ error reading $input: $!
 
 sub _import_maildir { # maildir_each_eml cb
 	my ($f, $kw, $eml, $sto, $set_kw) = @_;
-	$sto->ipc_do('set_eml', $eml, $set_kw ? @$kw : ());
+	$sto->ipc_do('set_eml', $eml, $set_kw ? { kw => $kw }: ());
 }
 
 sub _import_net { # imap_each, nntp_each cb
 	my ($url, $uid, $kw, $eml, $sto, $set_kw) = @_;
-	$sto->ipc_do('set_eml', $eml, $set_kw ? @$kw : ());
+	$sto->ipc_do('set_eml', $eml, $set_kw ? { kw => $kw } : ());
 }
 
 sub import_path_url {

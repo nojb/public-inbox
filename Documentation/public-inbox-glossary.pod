@@ -69,8 +69,8 @@ L<public-inbox-nntpd(1)> or L<public-inbox-imapd(1)>
 
 Private, per-message keywords or flags as described in RFC 8621
 section 10.4.  These are conveyed in the C<Status:> and
-C<X-Status:> headers for L<mbox(5)>, as IMAP FLAGS (RFC 3501 section 2.3.2),
-or Maildir info flags.
+C<X-Status:> headers for L<mbox(5)>, as system IMAP FLAGS
+(RFC 3501 section 2.3.2), or Maildir info flags.
 
 L<public-inbox-watch(1)> ignores drafts and trashed (deleted)
 messages.  L<lei-import(1)> ignores trashed (deleted) messages,
@@ -82,6 +82,15 @@ For L<lei(1)> users only.  This will allow lei users to place
 the same email into one or more virtual folders for
 ease-of-filtering.  This is NOT tied to public-inbox names, as
 messages stored by lei may not be public.
+
+These are similar in spirit to arbitrary freeform "tags"
+in mail software such as L<notmuch(1)> and non-system IMAP FLAGS.
+
+=item volatile metadata (VMD)
+
+For L<lei(1)> users only, this refers to the combination of
+keywords and labels which are subject to frequent change
+independently of immutable message content.
 
 =item IMAP INTERNALDATE, JMAP receivedAt, rt: search prefix
 

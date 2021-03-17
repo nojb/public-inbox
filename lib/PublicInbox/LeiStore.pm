@@ -129,38 +129,38 @@ sub _docids_for ($$) {
 	sort { $a <=> $b } values %docids;
 }
 
-sub set_eml_keywords {
-	my ($self, $eml, @kw) = @_;
+sub set_eml_vmd {
+	my ($self, $eml, $vmd) = @_;
 	my $eidx = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
-		$eidx->idx_shard($docid)->ipc_do('set_keywords', $docid, @kw);
+		$eidx->idx_shard($docid)->ipc_do('set_vmd', $docid, $vmd);
 	}
 	\@docids;
 }
 
-sub add_eml_keywords {
-	my ($self, $eml, @kw) = @_;
+sub add_eml_vmd {
+	my ($self, $eml, $vmd) = @_;
 	my $eidx = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
-		$eidx->idx_shard($docid)->ipc_do('add_keywords', $docid, @kw);
+		$eidx->idx_shard($docid)->ipc_do('add_vmd', $docid, $vmd);
 	}
 	\@docids;
 }
 
-sub remove_eml_keywords {
-	my ($self, $eml, @kw) = @_;
+sub remove_eml_vmd {
+	my ($self, $eml, $vmd) = @_;
 	my $eidx = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
-		$eidx->idx_shard($docid)->ipc_do('remove_keywords', $docid, @kw)
+		$eidx->idx_shard($docid)->ipc_do('remove_vmd', $docid, $vmd);
 	}
 	\@docids;
 }
 
 sub add_eml {
-	my ($self, $eml, @kw) = @_;
+	my ($self, $eml, $vmd) = @_;
 	my $im = $self->importer; # may create new epoch
 	my $eidx = eidx_init($self); # writes ALL.git/objects/info/alternates
 	my $oidx = $eidx->{oidx};
@@ -174,7 +174,7 @@ sub add_eml {
 			$oidx->add_xref3($docid, -1, $smsg->{blob}, '.');
 			# add_eidx_info for List-Id
 			$idx->ipc_do('add_eidx_info', $docid, '.', $eml);
-			$idx->ipc_do('add_keywords', $docid, @kw) if @kw;
+			$idx->ipc_do('add_vmd', $docid, $vmd) if $vmd;
 		}
 		\@docids;
 	} else {
@@ -183,14 +183,14 @@ sub add_eml {
 		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');
 		my $idx = $eidx->idx_shard($smsg->{num});
 		$idx->index_eml($eml, $smsg);
-		$idx->ipc_do('add_keywords', $smsg->{num}, @kw) if @kw;
+		$idx->ipc_do('add_vmd', $smsg->{num}, $vmd ) if $vmd;
 		$smsg;
 	}
 }
 
 sub set_eml {
-	my ($self, $eml, @kw) = @_;
-	add_eml($self, $eml, @kw) // set_eml_keywords($self, $eml, @kw);
+	my ($self, $eml, $vmd) = @_;
+	add_eml($self, $eml, $vmd) // set_eml_vmd($self, $eml, $vmd);
 }
 
 sub add_eml_maybe {
@@ -207,7 +207,7 @@ sub set_xkw {
 	if ($lxs->xids_for($eml, 1)) { # is it in a local external?
 		# TODO: index keywords only
 	} else {
-		set_eml($self, $eml, @$kw);
+		set_eml($self, $eml, { kw => $kw });
 	}
 }
 
