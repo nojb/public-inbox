@@ -40,8 +40,8 @@ sub html_top ($) {
 	my $desc = ascii_html($ibx->description);
 	my $title = delete($ctx->{-title_html}) // $desc;
 	my $upfx = $ctx->{-upfx} || '';
-	my $help = $upfx.'_/text/help';
-	my $color = $upfx.'_/text/color';
+	my $help = $upfx.'_/text/help/';
+	my $color = $upfx.'_/text/color/';
 	my $atom = $ctx->{-atom} || $upfx.'new.atom';
 	my $top = "<b>$desc</b>";
 	if (my $t_max = $ctx->{-t_max}) {
