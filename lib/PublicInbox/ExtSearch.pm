@@ -107,10 +107,10 @@ sub description {
 
 sub cloneurl { [] } # TODO
 
-sub base_url { 'https://example.com/TODO/' }
 sub nntp_url { [] }
 
 no warnings 'once';
+*base_url = \&PublicInbox::Inbox::base_url;
 *smsg_eml = \&PublicInbox::Inbox::smsg_eml;
 *smsg_by_mid = \&PublicInbox::Inbox::smsg_by_mid;
 *msg_by_mid = \&PublicInbox::Inbox::msg_by_mid;

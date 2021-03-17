@@ -100,7 +100,11 @@ sub atom_header {
 	} else {
 		$title = title_tag($ibx->description);
 		$self_url .= 'new.atom';
-		$page_id = "mailto:$ibx->{-primary_address}";
+		if (defined(my $addr = $ibx->{-primary_address})) {
+			$page_id = "mailto:$addr";
+		} else {
+			$page_id = to_uuid($self_url);
+		}
 	}
 	qq(<?xml version="1.0" encoding="us-ascii"?>\n) .
 	qq(<feed\nxmlns="http://www.w3.org/2005/Atom"\n) .

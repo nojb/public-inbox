@@ -88,12 +88,12 @@ sub lookup_list_id {
 
 sub lookup_name ($$) {
 	my ($self, $name) = @_;
-	$self->{-by_name}->{$name} // _fill($self, "publicinbox.$name");
+	$self->{-by_name}->{$name} // _fill_ibx($self, $name);
 }
 
 sub lookup_ei {
 	my ($self, $name) = @_;
-	$self->{-ei_by_name}->{$name} //= _fill_ei($self, "extindex.$name");
+	$self->{-ei_by_name}->{$name} //= _fill_ei($self, $name);
 }
 
 # special case for [extindex "all"]
@@ -167,8 +167,8 @@ sub git_config_dump {
 	$rv;
 }
 
-sub valid_inbox_name ($) {
-	my ($name) = @_;
+sub valid_foo_name ($;$) {
+	my ($name, $pfx) = @_;
 
 	# Similar rules found in git.git/remote.c::valid_remote_nick
 	# and git.git/refs.c::check_refname_component
@@ -176,6 +176,7 @@ sub valid_inbox_name ($) {
 	if ($name eq '' || $name =~ /\@\{/ ||
 	    $name =~ /\.\./ || $name =~ m![/:\?\[\]\^~\s\f[:cntrl:]\*]! ||
 	    $name =~ /\A\./ || $name =~ /\.\z/) {
+		warn "invalid $pfx name: `$name'\n" if $pfx;
 		return 0;
 	}
 
@@ -375,26 +376,26 @@ sub rel2abs_collapsed {
 	Cwd::abs_path($p);
 }
 
-sub _fill {
-	my ($self, $pfx) = @_;
-	my $ibx = {};
+sub _one_val {
+	my ($self, $pfx, $k) = @_;
+	my $v = $self->{"$pfx.$k"} // return;
+	return $v if !ref($v);
+	warn "W: $pfx.$k has multiple values, only using `$v->[-1]'\n";
+	$v->[-1];
+}
 
+sub _fill_ibx {
+	my ($self, $name) = @_;
+	my $pfx = "publicinbox.$name";
+	my $ibx = {};
 	for my $k (qw(watch nntpserver)) {
 		my $v = $self->{"$pfx.$k"};
 		$ibx->{$k} = $v if defined $v;
 	}
 	for my $k (qw(filter inboxdir newsgroup replyto httpbackendmax feedmax
 			indexlevel indexsequentialshard)) {
-		if (defined(my $v = $self->{"$pfx.$k"})) {
-			if (ref($v) eq 'ARRAY') {
-				warn <<EOF;
-W: $pfx.$k has multiple values, only using `$v->[-1]'
-EOF
-				$ibx->{$k} = $v->[-1];
-			} else {
-				$ibx->{$k} = $v;
-			}
-		}
+		my $v = _one_val($self, $pfx, $k) // next;
+		$ibx->{$k} = $v;
 	}
 
 	# "mainrepo" is backwards compatibility:
@@ -403,9 +404,8 @@ EOF
 		warn "E: `$dir' must not contain `\\n'\n";
 		return;
 	}
-	foreach my $k (qw(obfuscate)) {
-		my $v = $self->{"$pfx.$k"};
-		defined $v or next;
+	for my $k (qw(obfuscate)) {
+		my $v = $self->{"$pfx.$k"} // next;
 		if (defined(my $bval = git_bool($v))) {
 			$ibx->{$k} = $bval;
 		} else {
@@ -414,19 +414,13 @@ EOF
 	}
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	foreach my $k (qw(address altid nntpmirror coderepo hide listid url
+	for my $k (qw(address altid nntpmirror coderepo hide listid url
 			infourl watchheader)) {
-		if (defined(my $v = $self->{"$pfx.$k"})) {
-			$ibx->{$k} = _array($v);
-		}
+		my $v = $self->{"$pfx.$k"} // next;
+		$ibx->{$k} = _array($v);
 	}
 
-	my $name = substr($pfx, length('publicinbox.'));
-	if (!valid_inbox_name($name)) {
-		warn "invalid inbox name: '$name'\n";
-		return;
-	}
-
+	return unless valid_foo_name($name, 'publicinbox');
 	$ibx->{name} = $name;
 	$ibx->{-pi_cfg} = $self;
 	$ibx = PublicInbox::Inbox->new($ibx);
@@ -473,14 +467,13 @@ EOF
 		$ibx->{-no_obfuscate_re} = $self->{-no_obfuscate_re};
 		fill_all($self); # noop to populate -no_obfuscate
 	}
-
 	if (my $ibx_code_repos = $ibx->{coderepo}) {
 		my $code_repos = $self->{-code_repos};
 		my $repo_objs = $ibx->{-repo_objs} = [];
 		foreach my $nick (@$ibx_code_repos) {
 			my @parts = split(m!/!, $nick);
 			my $valid = 0;
-			$valid += valid_inbox_name($_) foreach (@parts);
+			$valid += valid_foo_name($_) foreach (@parts);
 			$valid == scalar(@parts) or next;
 
 			my $repo = $code_repos->{$nick} //=
@@ -496,10 +489,23 @@ EOF
 }
 
 sub _fill_ei ($$) {
-	my ($self, $pfx) = @_;
+	my ($self, $name) = @_;
 	eval { require PublicInbox::ExtSearch } or return;
-	my $d = $self->{"$pfx.topdir"};
-	defined($d) && -d $d ? PublicInbox::ExtSearch->new($d) : undef;
+	my $pfx = "extindex.$name";
+	my $d = $self->{"$pfx.topdir"} // return;
+	-d $d or return;
+	my $es = PublicInbox::ExtSearch->new($d);
+	for my $k (qw(indexlevel indexsequentialshard)) {
+		my $v = _one_val($self, $pfx, $k) // next;
+		$es->{$k} = $v;
+	}
+	for my $k (qw(altid coderepo hide url infourl)) {
+		my $v = $self->{"$pfx.$k"} // next;
+		$es->{$k} = _array($v);
+	}
+	return unless valid_foo_name($name, 'extindex');
+	$es->{name} = $name;
+	$es;
 }
 
 sub urlmatch {

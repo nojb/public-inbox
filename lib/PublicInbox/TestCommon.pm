@@ -15,7 +15,8 @@ BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes create_inbox
-		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt);
+		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt
+		test_httpd);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -635,6 +636,31 @@ sub create_inbox ($$;@) {
 	}
 	$ibx;
 }
+
+sub test_httpd ($$;$) {
+	my ($env, $client, $skip) = @_;
+	for (qw(PI_CONFIG TMPDIR)) {
+		$env->{$_} or BAIL_OUT "$_ unset";
+	}
+	SKIP: {
+		require_mods(qw(Plack::Test::ExternalServer), $skip // 1);
+		my $sock = tcp_server() or die;
+		my ($out, $err) = map { "$env->{TMPDIR}/std$_.log" } qw(out err);
+		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
+		my $td = start_script($cmd, $env, { 3 => $sock });
+		my ($h, $p) = tcp_host_port($sock);
+		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
+		Plack::Test::ExternalServer::test_psgi(client => $client);
+		$td->join('TERM');
+		open my $fh, '<', $err or BAIL_OUT $!;
+		my $e = do { local $/; <$fh> };
+		if ($e =~ s/^Plack::Middleware::ReverseProxy missing,\n//gms) {
+			$e =~ s/^URL generation for redirects .*\n//gms;
+		}
+		is($e, '', 'no errors');
+	}
+};
+
 
 package PublicInboxTestProcess;
 use strict;

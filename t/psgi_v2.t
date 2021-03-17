@@ -56,27 +56,6 @@ EOF
 	close $fh or BAIL_OUT;
 }
 
-my $run_httpd = sub {
-	my ($client, $skip) = @_;
-	SKIP: {
-		require_mods(qw(Plack::Test::ExternalServer), $skip);
-		my $env = { PI_CONFIG => $cfgpath };
-		my $sock = tcp_server() or die;
-		my ($out, $err) = map { "$tmpdir/std$_.log" } qw(out err);
-		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
-		my $td = start_script($cmd, $env, { 3 => $sock });
-		my ($h, $p) = tcp_host_port($sock);
-		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
-		Plack::Test::ExternalServer::test_psgi(client => $client);
-		$td->join('TERM');
-		open my $fh, '<', $err or BAIL_OUT $!;
-		my $e = do { local $/; <$fh> };
-		if ($e =~ s/^Plack::Middleware::ReverseProxy missing,\n//gms) {
-			$e =~ s/^URL generation for redirects .*\n//gms;
-		}
-		is($e, '', 'no errors');
-	}
-};
 my $msg = $ibx->msg_by_mid('a-mid@b');
 like($$msg, qr/\AFrom oldbug/s,
 	'"From_" line stored to test old bug workaround');
@@ -115,7 +94,8 @@ my $client0 = sub {
 		'new.html ordering is chronological');
 };
 test_psgi(sub { $www->call(@_) }, $client0);
-$run_httpd->($client0, 9);
+my $env = { TMPDIR => $tmpdir, PI_CONFIG => $cfgpath };
+test_httpd($env, $client0, 9);
 
 $eml->header_set('Message-ID', 'a-mid@b');
 $eml->body_set("hello ghosts\n");
@@ -225,7 +205,7 @@ my $client1 = sub {
 };
 
 test_psgi(sub { $www->call(@_) }, $client1);
-$run_httpd->($client1, 38);
+test_httpd($env, $client1, 38);
 
 {
 	my $exp = [ qw(<a-mid@b> <reuse@mid>) ];
@@ -267,7 +247,7 @@ my $client2 = sub {
 };
 
 test_psgi(sub { $www->call(@_) }, $client2);
-$run_httpd->($client2, 8);
+test_httpd($env, $client2, 8);
 {
 	# ensure conflicted attachments can be resolved
 	local $SIG{__WARN__} = sub {};
@@ -298,6 +278,6 @@ my $client3 = sub {
 	is_deeply(\@warn, [], 'no warnings on YYYYMMDD only');
 };
 test_psgi(sub { $www->call(@_) }, $client3);
-$run_httpd->($client3, 4);
+test_httpd($env, $client3, 4);
 
 done_testing;
