@@ -610,7 +610,8 @@ SKIP: {
 	my $null_in = '';
 	my $rdr = { 2 => \(my $null_err), 0 => \$null_in };
 	my @lsof = xqx([$lsof, '-p', $td->{pid}], undef, $rdr);
-	is_deeply([grep(/\bdeleted\b/, @lsof)], [], 'no lingering deleted inputs');
+	my $d = [ grep(/\(deleted\)/, @lsof) ];
+	is_deeply($d, [], 'no lingering deleted inputs') or diag explain($d);
 
 	# filter out pipes inherited from the parent
 	my @this = xqx([$lsof, '-p', $$], undef, $rdr);

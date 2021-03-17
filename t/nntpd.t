@@ -365,8 +365,9 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		$lsof or skip 'lsof missing', 1;
 		($^O =~ /\A(?:linux)\z/) or
 			skip "lsof /(deleted)/ check untested on $^O", 1;
-		my @of = xqx([$lsof, '-p', $td->{pid}], undef, $noerr);
-		is(scalar(grep(/\(deleted\)/, @of)), 0, 'no deleted files');
+		my @lsof = xqx([$lsof, '-p', $td->{pid}], undef, $noerr);
+		my $d = [ grep(/\(deleted\)/, @lsof) ];
+		is_deeply($d, [], 'no deleted files') or diag explain($d);
 	};
 	SKIP: { test_watch($tmpdir, $host_port, $group) };
 	{
