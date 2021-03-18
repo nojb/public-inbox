@@ -323,10 +323,6 @@ sub _fill_code_repo {
 	my ($self, $nick) = @_;
 	my $pfx = "coderepo.$nick";
 
-	# TODO: support gitweb and other repository viewers?
-	if (defined(my $cgitrc = delete $self->{-cgitrc_unparsed})) {
-		parse_cgitrc($self, $cgitrc, 0);
-	}
 	my $dir = $self->{"$pfx.dir"}; # aka "GIT_DIR"
 	unless (defined $dir) {
 		warn "$pfx.dir unset\n";

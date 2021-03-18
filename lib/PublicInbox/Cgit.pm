@@ -53,14 +53,18 @@ sub locate_cgit ($) {
 sub new {
 	my ($class, $pi_cfg) = @_;
 	my ($cgit_bin, $cgit_data) = locate_cgit($pi_cfg);
-
+	# TODO: support gitweb and other repository viewers?
+	if (defined(my $cgitrc = $pi_cfg->{-cgitrc_unparsed})) {
+		$pi_cfg->parse_cgitrc($cgitrc, 0);
+	}
 	my $self = bless {
 		cmd => [ $cgit_bin ],
 		cgit_data => $cgit_data,
 		pi_cfg => $pi_cfg,
 	}, $class;
 
-	$pi_cfg->fill_all; # fill in -code_repos mapped to inboxes
+	# fill in -code_repos mapped to inboxes
+	$pi_cfg->each_inbox($pi_cfg->can('repo_objs'));
 
 	# some cgit repos may not be mapped to inboxes, so ensure those exist:
 	my $code_repos = $pi_cfg->{-code_repos};
