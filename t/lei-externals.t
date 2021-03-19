@@ -127,8 +127,10 @@ test_lei(sub {
 	lei_ok qw(_complete lei forget-external), \'complete for externals';
 	my %comp = map { $_ => 1 } split(/\s+/, $lei_out);
 	ok($comp{'https://example.com/ibx/'}, 'forget external completion');
+	my @dirs;
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;
+		push @dirs, $ibx->{inboxdir};
 		ok($comp{$ibx->{inboxdir}}, "local $ibx->{name} completion");
 	});
 	for my $u (qw(h http https https: https:/ https:// https://e
@@ -157,7 +159,8 @@ test_lei(sub {
 	lei_ok('ls-external');
 	unlike($lei_out, qr!https://example\.com/ibx/!s,
 		'removed canonical URL');
-SKIP: {
+
+	# do some queries
 	ok(!lei(qw(q s:prefix -o maildir:/dev/null)), 'bad maildir');
 	like($lei_err, qr!/dev/null exists and is not a directory!,
 		'error shown');
@@ -249,6 +252,15 @@ SKIP: {
 	is($? >> 8, 1, 'proper exit code');
 	like($lei_err, qr/no local or remote.+? to search/, 'no inbox');
 
+	for my $no (['--no-local'], ['--no-external'],
+			[qw(--no-local --no-external)]) {
+		lei_ok(qw(q mid:testmessage@example.com), @$no,
+			'-I', $dirs[0], \"-I and @$no combine");
+		$res = json_utf8->decode($lei_out);
+		is($res->[0]->{'m'}, 'testmessage@example.com',
+			"-I \$DIR got results regardless of @$no");
+	}
+
 	{
 		opendir my $dh, '.' or BAIL_OUT "opendir(.) $!";
 		my $od = PublicInbox::OnDestroy->new($$, sub {
@@ -278,6 +290,5 @@ SKIP: {
 		$url = $e{$k} if $url eq '1';
 		$test_external_remote->($url, $k);
 	}
-	}; # /SKIP
 }); # test_lei
 done_testing;

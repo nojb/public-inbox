@@ -64,9 +64,12 @@ sub lei_q {
 			$lxs->prepare_external($_) for @loc;
 		}
 	} else {
+		my (@ilocals, @iremotes);
 		for my $loc (@{$opt->{include} // []}) {
 			my @loc = $self->get_externals($loc) or return;
 			$lxs->prepare_external($_) for @loc;
+			@ilocals = @{$lxs->{locals} // []};
+			@iremotes = @{$lxs->{remotes} // []};
 		}
 		# --external is enabled by default, but allow --no-external
 		if ($opt->{external} //= 1) {
@@ -78,9 +81,9 @@ sub lei_q {
 			my $ne = $self->externals_each(\&prep_ext, $lxs, \%x);
 			$opt->{remote} //= !($lxs->locals - $opt->{'local'});
 			if ($opt->{'local'}) {
-				delete($lxs->{remotes}) if !$opt->{remote};
+				$lxs->{remotes} = \@iremotes if !$opt->{remote};
 			} else {
-				delete($lxs->{locals});
+				$lxs->{locals} = \@ilocals;
 			}
 		}
 	}
