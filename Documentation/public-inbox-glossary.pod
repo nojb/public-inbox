@@ -15,6 +15,8 @@ tools.
 
 =head1 TERMS
 
+=over 8
+
 =item IMAP UID, NNTP article number, on-disk Xapian docid
 
 A sequentially-assigned positive integer.  These integers are per-inbox,
@@ -105,6 +107,8 @@ The first valid timestamp value of the Date: header(s).
 If no Date: header exists, the time from the Received: header is
 used, and then the current time if neither header exists.
 When mirroring via git, this is the git author time.
+
+=back
 
 =head1 COPYRIGHT
 
