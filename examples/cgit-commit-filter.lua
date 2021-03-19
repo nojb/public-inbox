@@ -31,12 +31,13 @@ function filter_close()
 		if u == nil then
 			html(buffer)
 		else
-			html('<a href="' .. u .. '?x=t&amp;q=')
+			html("<a\ntitle='mail thread'\n")
+			html('href="' .. u .. '?x=t&amp;q=')
 			s = string.gsub(buffer, '"', '""')
 			html_url_arg('"' .. s .. '"')
-			html('"><tt>')
+			html('">')
 			html_txt(buffer)
-			html('</tt></a>')
+			html('</a>')
 		end
 	else
 		-- pass the body-through as-is
