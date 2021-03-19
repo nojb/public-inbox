@@ -2,9 +2,10 @@
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
+use PublicInbox::IPC;
 use File::Path qw(mkpath);
 use IO::Handle (); # autoflush
 use POSIX qw(_exit);
@@ -21,7 +22,7 @@ require_git 2.6;
 require_mods(qw(DBD::SQLite Search::Xapian));
 use_ok 'PublicInbox::V2Writable';
 my $nr_inbox = $ENV{NR_INBOX} // 10;
-my $nproc = $ENV{NPROC} || PublicInbox::V2Writable::detect_nproc() || 2;
+my $nproc = $ENV{NPROC} || PublicInbox::IPC::detect_nproc() || 2;
 my $indexlevel = $ENV{TEST_INDEXLEVEL} // 'basic';
 diag "NR_INBOX=$nr_inbox NPROC=$nproc TEST_INDEXLEVEL=$indexlevel";
 diag "TEST_MANY_ROOT=$many_root";
@@ -39,6 +40,7 @@ my $v2_init_add = sub {
 		address => [ "test-$i\@example.com" ],
 		url => [ "//example.com/test-$i" ],
 		version => 2,
+		-no_fsync => 1,
 	});
 	$ibx->{indexlevel} = $indexlevel if $level_cfg ne '';
 	my $entry = <<EOF;
