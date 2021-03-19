@@ -133,6 +133,18 @@ my $test_fail = sub {
 	is($? >> 8, 1, 'chdir at end fails to /dev/null');
 	lei('-C', '/dev/null', 'q', 'whatever');
 	is($? >> 8, 1, 'chdir at beginning fails to /dev/null');
+
+	for my $lk (qw(ei inbox)) {
+		my $d = "$home/newline\n$lk";
+		mkdir $d;
+		open my $fh, '>', "$d/$lk.lock" or BAIL_OUT "open $d/$lk.lock";
+		for my $fl (qw(-I --only)) {
+			ok(!lei('q', $fl, $d, 'whatever'),
+				"newline $lk.lock fails with q $fl");
+			like($lei_err, qr/`\\n' not allowed/,
+				"error noted with q $fl");
+		}
+	}
 SKIP: {
 	skip 'no curl', 3 unless which('curl');
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m));

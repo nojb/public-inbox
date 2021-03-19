@@ -78,8 +78,12 @@ test_lei(sub {
 	ok(!-e $config_file && !-e $store_dir,
 		'nothing created by ls-external');
 
-	ok(!lei('add-external', "$home/nonexistent",
-		"fails on non-existent dir"));
+	ok(!lei('add-external', "$home/nonexistent"),
+		"fails on non-existent dir");
+	like($lei_err, qr/not a directory/, 'noted non-existence');
+	mkdir "$home/new\nline" or BAIL_OUT "mkdir: $!";
+	ok(!lei('add-external', "$home/new\nline"), "fails on newline");
+	like($lei_err, qr/`\\n' not allowed/, 'newline noted in error');
 	lei_ok('ls-external', \'ls-external works after add failure');
 	is($lei_out.$lei_err, '', 'ls-external still has no output');
 	my $cfg = PublicInbox::Config->new($cfg_path);

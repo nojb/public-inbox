@@ -170,9 +170,14 @@ sub lei_add_external {
 		$self->fail(<<""); # TODO: did you mean "update-external?"
 --mirror destination `$location' already exists
 
+	} elsif (-d $location) {
+		index($location, "\n") >= 0 and
+			return $self->fail("`\\n' not allowed in `$location'");
 	}
 	if ($location !~ m!\Ahttps?://! && !-d $location) {
 		$mirror // return $self->fail("$location not a directory");
+		index($location, "\n") >= 0 and
+			return $self->fail("`\\n' not allowed in `$location'");
 		$mirror = ext_canonicalize($mirror);
 		require PublicInbox::LeiMirror;
 		PublicInbox::LeiMirror->start($self, $mirror => $location);

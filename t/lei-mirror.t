@@ -29,8 +29,13 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok(!lei('add-external', $t2, '--mirror', "$http/t2/"),
 		'--mirror fails if reused') or diag "$lei_err.$lei_out = $?";
 
+	ok(!lei('add-external', "$home/t2\nnewline", '--mirror', "$http/t2/"),
+		'--mirror fails on newline');
+	like($lei_err, qr/`\\n' not allowed/, 'newline noted in error');
+
 	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t2\E!, 'still in ls-externals');
+	unlike($lei_out, qr!\Qnewline\E!, 'newline entry not added');
 
 	ok(!lei('add-external', "$t2-fail", '-Lmedium'), '--mirror v2');
 	ok(!-d "$t2-fail", 'destination not created on failure');
