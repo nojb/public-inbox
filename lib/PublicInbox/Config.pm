@@ -510,6 +510,10 @@ sub _fill_ei ($$) {
 	my $pfx = "extindex.$name";
 	my $d = $self->{"$pfx.topdir"} // return;
 	-d $d or return;
+	if (index($d, "\n") >= 0) {
+		warn "E: `$d' must not contain `\\n'\n";
+		return;
+	}
 	my $es = PublicInbox::ExtSearch->new($d);
 	for my $k (qw(indexlevel indexsequentialshard)) {
 		my $v = _one_val($self, $pfx, $k) // next;
