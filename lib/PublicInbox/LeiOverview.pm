@@ -203,7 +203,6 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 	}
 	$lei->{ovv_buf} = \(my $buf = '') if !$l2m;
 	if ($l2m && !$ibxish) { # remote https?:// mboxrd
-		my $g2m = $l2m->can('git_to_mail');
 		my $wcb = $l2m->write_cb($lei);
 		sub {
 			my ($smsg, undef, $eml) = @_; # no mitem in $_[1]
