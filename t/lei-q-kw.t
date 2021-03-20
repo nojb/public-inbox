@@ -13,7 +13,7 @@ my $exp = {
 	'<qp@example.com>' => eml_load('t/plack-qp.eml'),
 	'<testmessage@example.com>' => eml_load('t/utf8.eml'),
 };
-$exp->{'<qp@example.com>'}->header_set('Status', 'OR');
+$exp->{'<qp@example.com>'}->header_set('Status', 'RO');
 $exp->{'<testmessage@example.com>'}->header_set('Status', 'O');
 
 test_lei(sub {
@@ -57,7 +57,7 @@ SKIP: {
 	open my $fh, '<', \$buf or BAIL_OUT $!;
 	PublicInbox::MboxReader->mboxrd($fh, sub {
 		my ($eml) = @_;
-		$eml->header_set('Status', 'OR');
+		$eml->header_set('Status', 'RO');
 		is_deeply($eml, $exp->{'<qp@example.com>'},
 			'FIFO output works as expected');
 	});
@@ -96,7 +96,7 @@ for my $sfx ('', '.gz') {
 	is($buf, '', 'emptied');
 	lei_ok(qw(q -o), "mboxrd:$o", qw(m:qp@example.com));
 	$buf = $read_file->($o);
-	$buf =~ s/\nStatus: O\n\n/\nStatus: OR\n\n/s or
+	$buf =~ s/\nStatus: O\n\n/\nStatus: RO\n\n/s or
 		BAIL_OUT "no Status in $buf";
 	$write_file->($o, $buf);
 	lei_ok(qw(q -a -o), "mboxrd:$o", qw(m:testmessage@example.com));
@@ -111,7 +111,7 @@ for my $sfx ('', '.gz') {
 
 	lei_ok(qw(q -o), "mboxrd:/dev/stdout", qw(m:qp@example.com)) or
 		diag $lei_err;
-	like($lei_out, qr/^Status: OR\n/sm, 'Status set by previous augment');
+	like($lei_out, qr/^Status: RO\n/sm, 'Status set by previous augment');
 } # /mbox + mbox.gz tests
 
 my ($ro_home, $cfg_path) = setup_public_inboxes;
@@ -144,7 +144,7 @@ lei_ok(qw(q -o), "mboxrd:$o", "m:$m", @inc);
 # emulate MUA marking mboxrd message as unread
 open my $fh, '<', $o or BAIL_OUT;
 my $s = do { local $/; <$fh> };
-$s =~ s/^Status: OR\n/Status: O\nX-Status: AF\n/sm or
+$s =~ s/^Status: RO\n/Status: O\nX-Status: AF\n/sm or
 	fail "failed to clear R flag in $s";
 open $fh, '>', $o or BAIL_OUT;
 print $fh $s or BAIL_OUT;
@@ -155,8 +155,8 @@ lei_ok(qw(q -o), "mboxrd:$o", 'm:bogus', @inc,
 lei_ok(qw(q -o), "mboxrd:$o", "m:$m", @inc);
 open $fh, '<', $o or BAIL_OUT;
 $s = do { local $/; <$fh> };
-like($s, qr/^Status: O\n/ms, 'seen keyword gone in mbox');
-like($s, qr/^X-Status: AF\n/ms, 'answered + flagged set');
+like($s, qr/^Status: O\nX-Status: AF\n/ms,
+	'seen keyword gone in mbox, answered + flagged set');
 
 lei_ok(qw(q --pretty), "m:$m", @inc);
 like($lei_out, qr/^  "kw": \["answered", "flagged"\],\n/sm,

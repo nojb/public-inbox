@@ -80,7 +80,7 @@ From a@z Mon Sep 17 00:00:00 2001
 From: nobody@localhost
 Date: Sat, 13 Mar 2021 18:23:01 +0600
 Message-ID: <never-before-seen@example.com>
-Status: RO
+Status: OR
 
 whatever
 EOF
@@ -89,7 +89,7 @@ EOF
 	is_deeply($slurp_emls->($o), [$exp],
 		'got expected result after clobber') or diag $lei_err;
 	lei_ok(qw(q -o mboxrd:/dev/stdout m:never-before-seen@example.com));
-	like($lei_out, qr/seen\@example\.com>\nStatus: OR\n\nwhatever/sm,
+	like($lei_out, qr/seen\@example\.com>\nStatus: RO\n\nwhatever/sm,
 		'--import-before imported totally unseen message');
 });
 done_testing;

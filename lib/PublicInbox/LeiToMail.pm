@@ -42,10 +42,7 @@ sub _mbox_hdr_buf ($$$) {
 	my ($eml, $type, $smsg) = @_;
 	$eml->header_set($_) for (qw(Lines Bytes Content-Length));
 
-	# Messages are always 'O' (non-\Recent in IMAP), it saves
-	# MUAs the trouble of rewriting the mbox if no other
-	# changes are made
-	my %hdr = (Status => [ 'O' ]); # set Status, X-Status
+	my %hdr = (Status => []); # set Status, X-Status
 	for my $k (@{$smsg->{kw} // []}) {
 		if (my $ent = $kw2status{$k}) {
 			push @{$hdr{$ent->[0]}}, $ent->[1];
@@ -53,8 +50,13 @@ sub _mbox_hdr_buf ($$$) {
 			warn "TODO: keyword `$k' not supported for mbox\n";
 		}
 	}
-	while (my ($name, $chars) = each %hdr) {
-		$eml->header_set($name, join('', sort @$chars));
+	# Messages are always 'O' (non-\Recent in IMAP), it saves
+	# MUAs the trouble of rewriting the mbox if no other
+	# changes are made.  We put 'O' at the end (e.g. "Status: RO")
+	# to match mutt(1) output.
+	$eml->header_set('Status', join('', sort(@{$hdr{Status}})). 'O');
+	if (my $chars = delete $hdr{'X-Status'}) {
+		$eml->header_set('X-Status', join('', sort(@$chars)));
 	}
 	my $buf = delete $eml->{hdr};
 

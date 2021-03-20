@@ -28,7 +28,7 @@ for my $mbox (@MBOX) {
 	my $s = $cb->(PublicInbox::Eml->new($from), $smsg);
 	is(substr($$s, -1, 1), "\n", "trailing LF in normal $mbox");
 	my $eml = PublicInbox::Eml->new($s);
-	is($eml->header('Status'), 'OR', "Status: set by $m");
+	is($eml->header('Status'), 'RO', "Status: set by $m");
 	is($eml->header('X-Status'), 'AF', "X-Status: set by $m");
 	if ($mbox eq 'mboxcl2') {
 		like($eml->body_raw, qr/^From /, "From not escaped $m");
