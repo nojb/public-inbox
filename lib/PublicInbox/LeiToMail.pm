@@ -11,6 +11,7 @@ use PublicInbox::Lock;
 use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::LeiDedupe;
+use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
 use PublicInbox::PktOp qw(pkt_do);
 use Symbol qw(gensym);
@@ -260,10 +261,12 @@ sub _mbox_write_cb ($$) {
 	my $atomic_append = !defined($ovv->{lock_path});
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe;
+	my $lse = $lei->{sto} ? $lei->{sto}->search : undef;
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$eml //= PublicInbox::Eml->new($buf);
 		return if $dedupe->is_dup($eml, $smsg->{blob});
+		$lse->xsmsg_vmd($smsg) if $lse;
 		$buf = $eml2mbox->($eml, $smsg);
 		return atomic_append($lei, $buf) if $atomic_append;
 		my $lk = $ovv->lock_for_scope;
@@ -275,10 +278,15 @@ sub update_kw_maybe ($$$$) {
 	my ($lei, $lse, $eml, $kw) = @_;
 	return unless $lse;
 	my $x = $lse->kw_changed($eml, $kw);
+	my $vmd = { kw => $kw };
 	if ($x) {
-		$lei->{sto}->ipc_do('set_eml', $eml, { kw => $kw });
+		$lei->{sto}->ipc_do('set_eml', $eml, $vmd);
 	} elsif (!defined($x)) {
-		$lei->{sto}->ipc_do('set_xkw', $eml, $kw);
+		if (my $xoids = $lei->{ale}->xoids_for($eml)) {
+			$lei->{sto}->ipc_do('set_xvmd', $xoids, $eml, $vmd);
+		} else {
+			$lei->{sto}->ipc_do('set_eml', $eml, $vmd);
+		}
 	}
 }
 
@@ -342,10 +350,12 @@ sub _maildir_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe if $dedupe;
 	my $dst = $lei->{ovv}->{dst};
+	my $lse = $lei->{sto} ? $lei->{sto}->search : undef;
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
 		$buf //= \($eml->as_string);
+		$lse->xsmsg_vmd($smsg) if $lse;
 		return _buf2maildir($dst, $buf, $smsg) if !$dedupe;
 		$eml //= PublicInbox::Eml->new($$buf); # copy buf
 		return if $dedupe->is_dup($eml, $smsg->{blob});
@@ -361,6 +371,7 @@ sub _imap_write_cb ($$) {
 	my $imap_append = $lei->{net}->can('imap_append');
 	my $mic = $lei->{net}->mic_get($self->{uri});
 	my $folder = $self->{uri}->mailbox;
+	my $lse = $lei->{sto} ? $lei->{sto}->search : undef;
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # dst may be undef-ed in last run
@@ -368,6 +379,7 @@ sub _imap_write_cb ($$) {
 			$eml //= PublicInbox::Eml->new($$bref); # copy bref
 			return if $dedupe->is_dup($eml, $smsg->{blob});
 		}
+		$lse->xsmsg_vmd($smsg) if $lse;
 		eval { $imap_append->($mic, $folder, $bref, $smsg, $eml) };
 		if (my $err = $@) {
 			undef $mic;

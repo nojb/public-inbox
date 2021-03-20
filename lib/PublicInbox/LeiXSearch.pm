@@ -83,6 +83,7 @@ sub smsg_for {
 	my $num = int(($docid - 1) / $nshard) + 1;
 	my $ibx = $self->{shard2ibx}->[$shard];
 	my $smsg = $ibx->over->get_art($num);
+	return if $smsg->{bytes} == 0;
 	mitem_kw($smsg, $mitem) if $ibx->can('msg_keywords');
 	$smsg->{docid} = $docid;
 	$smsg;
@@ -96,11 +97,6 @@ sub recent {
 }
 
 sub over {}
-
-sub overs_all { # for xids_for
-	my ($self) = @_;
-	grep(defined, map { $_->over } locals($self))
-}
 
 sub _mset_more ($$) {
 	my ($mset, $mo) = @_;
@@ -153,7 +149,7 @@ sub query_thread_mset { # for --threads
 	my $mset;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $ibxish);
 	my $can_kw = !!$ibxish->can('msg_keywords');
-	my $fl = $lei->{opt}->{threads} > 1 ? [ 'flagged' ] : undef;
+	my $fl = $lei->{opt}->{threads} > 1 ? 1 : undef;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		mset_progress($lei, $desc, $mset->size,
@@ -165,13 +161,14 @@ sub query_thread_mset { # for --threads
 		while ($over->expand_thread($ctx)) {
 			for my $n (@{$ctx->{xids}}) {
 				my $smsg = $over->get_art($n) or next;
-				wait_startq($lei);
 				my $mitem = delete $n2item{$smsg->{num}};
+				next if $smsg->{bytes} == 0;
+				wait_startq($lei); # wait for keyword updates
 				if ($mitem) {
 					if ($can_kw) {
 						mitem_kw($smsg, $mitem, $fl);
 					} elsif ($fl) {
-						$smsg->{kw} = $fl;
+						$smsg->{lei_q_tt_flagged} = 1;
 					}
 				}
 				$each_smsg->($smsg, $mitem);
@@ -209,8 +206,8 @@ sub query_mset { # non-parallel for non-"--threads" users
 
 sub each_remote_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
-	if (my $sto = $self->{import_sto}) {
-		$sto->ipc_do('add_eml_maybe', $eml);
+	if ($self->{import_sto} && !$lei->{ale}->xoids_for($eml, 1)) {
+		$self->{import_sto}->ipc_do('add_eml', $eml);
 	}
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->populate($eml);

@@ -216,9 +216,11 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		}
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
+		my $lse = $lei->{sto}->search;
 		sub { # DIY prettiness :P
 			my ($smsg, $mitem) = @_;
 			return if $dedupe->is_smsg_dup($smsg);
+			$lse->xsmsg_vmd($smsg);
 			$smsg = _unbless_smsg($smsg, $mitem);
 			$buf .= "{\n";
 			$buf .= join(",\n", map {
@@ -238,9 +240,11 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		}
 	} elsif ($json) {
 		my $ORS = $self->{fmt} eq 'json' ? ",\n" : "\n"; # JSONL
+		my $lse = $lei->{sto}->search;
 		sub {
 			my ($smsg, $mitem) = @_;
 			return if $dedupe->is_smsg_dup($smsg);
+			$lse->xsmsg_vmd($smsg);
 			$buf .= $json->encode(_unbless_smsg(@_)) . $ORS;
 			return if length($buf) < 65536;
 			my $lk = $self->lock_for_scope;

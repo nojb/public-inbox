@@ -112,7 +112,51 @@ for my $sfx ('', '.gz') {
 	lei_ok(qw(q -o), "mboxrd:/dev/stdout", qw(m:qp@example.com)) or
 		diag $lei_err;
 	like($lei_out, qr/^Status: OR\n/sm, 'Status set by previous augment');
-}
+} # /mbox + mbox.gz tests
 
-});
+my ($ro_home, $cfg_path) = setup_public_inboxes;
+
+# import keywords-only for external messages:
+$o = "$ENV{HOME}/kwdir";
+my $m = 'alpine.DEB.2.20.1608131214070.4924@example';
+my @inc = ('-I', "$ro_home/t1");
+lei_ok(qw(q -o), $o, "m:$m", @inc);
+
+# emulate MUA marking a Maildir message as read:
+@fn = glob("$o/cur/*");
+scalar(@fn) == 1 or BAIL_OUT "wrote multiple or zero files: ".explain(\@fn);
+rename($fn[0], "$fn[0]S") or BAIL_OUT "rename $!";
+
+lei_ok(qw(q -o), $o, 'bogus', \'clobber output dir to import keywords');
+@fn = glob("$o/cur/*");
+is_deeply(\@fn, [], 'output dir actually clobbered');
+lei_ok('q', "m:$m", @inc);
+my $res = json_utf8->decode($lei_out);
+is_deeply($res->[0]->{kw}, ['seen'], 'seen flag set for external message')
+	or diag explain($res);
+lei_ok('q', "m:$m", '--no-external');
+is_deeply($res = json_utf8->decode($lei_out), [ undef ],
+	'external message not imported') or diag explain($res);
+
+$o = "$ENV{HOME}/kwmboxrd";
+lei_ok(qw(q -o), "mboxrd:$o", "m:$m", @inc);
+
+# emulate MUA marking mboxrd message as unread
+open my $fh, '<', $o or BAIL_OUT;
+my $s = do { local $/; <$fh> };
+$s =~ s/^Status: OR\n/Status: O\nX-Status: A\n/sm or
+	fail "failed to clear R flag in $s";
+open $fh, '>', $o or BAIL_OUT;
+print $fh $s or BAIL_OUT;
+close $fh or BAIL_OUT;
+
+lei_ok(qw(q -o), "mboxrd:$o", 'm:bogus', @inc,
+	\'clobber mbox to import keywords');
+lei_ok(qw(q -o), "mboxrd:$o", "m:$m", @inc);
+open $fh, '<', $o or BAIL_OUT;
+$s = do { local $/; <$fh> };
+like($s, qr/^Status: O\n/ms, 'seen keyword gone in mbox');
+like($s, qr/^X-Status: A\n/ms, 'answered flag set');
+
+}); # test_lei
 done_testing;

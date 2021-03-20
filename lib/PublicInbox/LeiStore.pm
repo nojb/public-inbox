@@ -114,6 +114,7 @@ sub _docids_for ($$) {
 	for my $mid (@$mids) {
 		my ($id, $prev);
 		while (my $cur = $oidx->next_by_mid($mid, \$id, \$prev)) {
+			next if $cur->{bytes} == 0; # external-only message
 			my $oid = $cur->{blob};
 			my $docid = $cur->{num};
 			my $bref = $im ? $im->cat_blob($oid) : undef;
@@ -163,7 +164,7 @@ sub add_eml {
 	my ($self, $eml, $vmd) = @_;
 	my $im = $self->importer; # may create new epoch
 	my $eidx = eidx_init($self); # writes ALL.git/objects/info/alternates
-	my $oidx = $eidx->{oidx};
+	my $oidx = $eidx->{oidx}; # PublicInbox::Import::add checks this
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
 	$im->add($eml, undef, $smsg) or return; # duplicate returns undef
 
@@ -193,22 +194,54 @@ sub set_eml {
 	add_eml($self, $eml, $vmd) // set_eml_vmd($self, $eml, $vmd);
 }
 
-sub add_eml_maybe {
-	my ($self, $eml) = @_;
-	my $lxs = $self->{lxs_all_local} // die 'BUG: no {lxs_all_local}';
-	return if $lxs->xids_for($eml, 1);
-	add_eml($self, $eml);
-}
-
 # set or update keywords for external message, called via ipc_do
-sub set_xkw {
-	my ($self, $eml, $kw) = @_;
-	my $lxs = $self->{lxs_all_local} // die 'BUG: no {lxs_all_local}';
-	if ($lxs->xids_for($eml, 1)) { # is it in a local external?
-		# TODO: index keywords only
-	} else {
-		set_eml($self, $eml, { kw => $kw });
+sub set_xvmd {
+	my ($self, $xoids, $eml, $vmd) = @_;
+
+	my $eidx = eidx_init($self);
+	my $oidx = $eidx->{oidx};
+
+	# see if we can just update existing docs
+	for my $oid (keys %$xoids) {
+		my @docids = $oidx->blob_exists($oid) or next;
+		scalar(@docids) > 1 and
+			warn "W: $oid indexed as multiple docids: @docids\n";
+		for my $docid (@docids) {
+			my $idx = $eidx->idx_shard($docid);
+			$idx->ipc_do('set_vmd', $docid, $vmd);
+		}
+		delete $xoids->{$oid}; # all done with this oid
 	}
+	return unless scalar(keys(%$xoids));
+
+	# see if it was indexed, but with different OID(s)
+	if (my @docids = _docids_for($self, $eml)) {
+		for my $docid (@docids) {
+			for my $oid (keys %$xoids) {
+				$oidx->add_xref3($docid, -1, $oid, '.');
+			}
+			my $idx = $eidx->idx_shard($docid);
+			$idx->ipc_do('set_vmd', $docid, $vmd);
+		}
+		return;
+	}
+	# totally unseen
+	my $smsg = bless { blob => '' }, 'PublicInbox::Smsg';
+	$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
+	# save space for an externals-only message
+	my $hdr = $eml->header_obj;
+	$smsg->populate($hdr); # sets lines == 0
+	$smsg->{bytes} = 0;
+	delete @$smsg{qw(From Subject)};
+	$smsg->{to} = $smsg->{cc} = $smsg->{from} = '';
+	$oidx->add_overview($hdr, $smsg); # subject+references for threading
+	$smsg->{subject} = '';
+	for my $oid (keys %$xoids) {
+		$oidx->add_xref3($smsg->{num}, -1, $oid, '.');
+	}
+	my $idx = $eidx->idx_shard($smsg->{num});
+	$idx->index_eml(PublicInbox::Eml->new("\n\n"), $smsg);
+	$idx->ipc_do('add_vmd', $smsg->{num}, $vmd);
 }
 
 sub checkpoint {
@@ -240,28 +273,9 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 }
 
-sub refresh_local_externals {
-	my ($self) = @_;
-	my $cfg = $self->{lei}->_lei_cfg or return;
-	my $cur_cfg = $self->{cur_cfg} // -1;
-	my $lxs = $self->{lxs_all_local};
-	if ($cfg != $cur_cfg || !$lxs) {
-		$lxs = PublicInbox::LeiXSearch->new;
-		my @loc = $self->{lei}->externals_each;
-		for my $loc (@loc) { # locals only
-			$lxs->prepare_external($loc) if -d $loc;
-		}
-		$self->{lei}->ale->refresh_externals($lxs);
-		$lxs->{git} = $self->{lei}->ale->git;
-		$self->{lxs_all_local} = $lxs;
-		$self->{cur_cfg} = $cfg;
-	}
-}
-
 sub write_prepare {
 	my ($self, $lei) = @_;
 	unless ($self->{-ipc_req}) {
-		require PublicInbox::LeiXSearch;
 		$self->ipc_lock_init($lei->store_path . '/ipc.lock');
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
@@ -269,7 +283,6 @@ sub write_prepare {
 		$self->ipc_worker_spawn('lei_store', $lei->oldset,
 					{ lei => $lei });
 	}
-	my $wait = $self->ipc_do('refresh_local_externals');
 	$lei->{sto} = $self;
 }
 

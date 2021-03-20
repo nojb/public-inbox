@@ -27,6 +27,20 @@ sub msg_keywords {
 	wantarray ? sort(keys(%$kw)) : $kw;
 }
 
+sub xsmsg_vmd {
+	my ($self, $smsg) = @_;
+	return if $smsg->{kw};
+	my $xdb = $self->xdb; # set {nshard};
+	my %kw;
+	$kw{flagged} = 1 if delete($smsg->{lei_q_tt_flagged});
+	my @num = $self->over->blob_exists($smsg->{blob});
+	for my $num (@num) { # there should only be one...
+		my $kw = xap_terms('K', $xdb, num2docid($self, $num));
+		%kw = (%kw, %$kw);
+	}
+	$smsg->{kw} = [ sort keys %kw ] if scalar(keys(%kw));
+}
+
 # when a message has no Message-IDs at all, this is needed for
 # unsent Draft messages, at least
 sub content_key ($) {
@@ -43,41 +57,42 @@ sub content_key ($) {
 }
 
 sub _cmp_1st { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $cmp) = @_; # cmp: [chash, found, smsg]
-	if (content_hash(PublicInbox::Eml->new($bref)) eq $cmp->[0]) {
+	my ($bref, $oid, $type, $size, $cmp) = @_; # cmp: [chash, xoids, smsg]
+	if ($bref && content_hash(PublicInbox::Eml->new($bref)) eq $cmp->[0]) {
 		$cmp->[1]->{$oid} = $cmp->[2]->{num};
 	}
 }
 
-sub xids_for { # returns { OID => docid } mapping for $eml matches
+sub xoids_for { # returns { OID => docid } mapping for $eml matches
 	my ($self, $eml, $min) = @_;
 	my ($chash, $mids) = content_key($eml);
 	my @overs = ($self->over // $self->overs_all);
 	my $git = $self->git;
-	my $found = {};
+	my $xoids = {};
 	for my $mid (@$mids) {
 		for my $o (@overs) {
 			my ($id, $prev);
 			while (my $cur = $o->next_by_mid($mid, \$id, \$prev)) {
-				next if $found->{$cur->{blob}};
+				next if $cur->{bytes} == 0 ||
+					$xoids->{$cur->{blob}};
 				$git->cat_async($cur->{blob}, \&_cmp_1st,
-						[ $chash, $found, $cur ]);
-				if ($min && scalar(keys %$found) >= $min) {
+						[ $chash, $xoids, $cur ]);
+				if ($min && scalar(keys %$xoids) >= $min) {
 					$git->cat_async_wait;
-					return $found;
+					return $xoids;
 				}
 			}
 		}
 	}
 	$git->cat_async_wait;
-	scalar(keys %$found) ? $found : undef;
+	scalar(keys %$xoids) ? $xoids : undef;
 }
 
 # returns true if $eml is indexed by lei/store and keywords don't match
 sub kw_changed {
 	my ($self, $eml, $new_kw_sorted) = @_;
-	my $found = xids_for($self, $eml, 1) // return;
-	my ($num) = values %$found;
+	my $xoids = xoids_for($self, $eml, 1) // return;
+	my ($num) = values %$xoids;
 	my @cur_kw = msg_keywords($self, $num);
 	join("\0", @$new_kw_sorted) eq join("\0", @cur_kw) ? 0 : 1;
 }

@@ -26,6 +26,8 @@ sub mime_load ($) {
 	is($str, "hi\n", '->new modified body like Email::Simple');
 	is($eml->body, "hi\n", '->body works');
 	is($eml->as_string, "a: b\n\nhi\n", '->as_string');
+	my $empty = PublicInbox::Eml->new("\n\n");
+	is($empty->as_string, "\n\n", 'empty message');
 }
 
 for my $cls (@classes) {

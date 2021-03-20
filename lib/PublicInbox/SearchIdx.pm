@@ -494,7 +494,10 @@ sub add_eidx_info {
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid) or return;
 	term_generator($self)->set_document($doc);
+
+	# '.' is special for lei_store
 	$doc->add_boolean_term('O'.$eidx_key) if $eidx_key ne '.';
+
 	index_list_id($self, $doc, $eml);
 	$self->{xdb}->replace_document($docid, $doc);
 }

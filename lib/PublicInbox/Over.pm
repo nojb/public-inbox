@@ -7,7 +7,7 @@
 package PublicInbox::Over;
 use strict;
 use v5.10.1;
-use DBI;
+use DBI qw(:sql_types); # SQL_BLOB
 use DBD::SQLite;
 use PublicInbox::Smsg;
 use Compress::Zlib qw(uncompress);
@@ -346,6 +346,26 @@ sub check_inodes {
 		dbh_close($self) if $st ne ($self->{st} // $st);
 	} else {
 		warn "W: stat $f: $!\n";
+	}
+}
+
+sub blob_exists {
+	my ($self, $oidhex) = @_;
+	if (wantarray) {
+		my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
+SELECT docid FROM xref3 WHERE oidbin = ?
+
+		$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+		$sth->execute;
+		my $tmp = $sth->fetchall_arrayref;
+		map { $_->[0] } @$tmp;
+	} else {
+		my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
+SELECT COUNT(*) FROM xref3 WHERE oidbin = ?
+
+		$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+		$sth->execute;
+		$sth->fetchrow_array;
 	}
 }
 

@@ -60,7 +60,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	PublicInbox::MdirReader::maildir_each_eml("$d/md", sub {
 		push @md, $_[2];
 	});
-	is(scalar(@md), scalar(@mboxrd), 'got expected emails in Maildir');
+	is(scalar(@md), scalar(@mboxrd), 'got expected emails in Maildir') or
+		diag $lei_err;
 	@md = sort { ${$a->{bdy}} cmp ${$b->{bdy}} } @md;
 	@mboxrd = sort { ${$a->{bdy}} cmp ${$b->{bdy}} } @mboxrd;
 	my @rd_nostatus = map {
