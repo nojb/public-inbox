@@ -10,6 +10,7 @@ require_mods(qw(DBD::SQLite Search::Xapian));
 require PublicInbox::ExtSearchIdx;
 require_git 2.6;
 require_ok 'PublicInbox::LeiXSearch';
+require_ok 'PublicInbox::LeiALE';
 my ($home, $for_destroy) = tmpdir();
 my @ibx;
 for my $V (1..2) {
@@ -75,7 +76,8 @@ is($lxs->over, undef, '->over fails');
 	my $v2ibx = create_inbox 'v2full', version => 2, sub {
 		$_[0]->add(eml_load('t/plack-qp.eml'));
 	};
-	my $v1ibx = create_inbox 'v1medium', indexlevel => 'medium', sub {
+	my $v1ibx = create_inbox 'v1medium', indexlevel => 'medium',
+				tmpdir => "$home/v1tmp", sub {
 		$_[0]->add(eml_load('t/utf8.eml'));
 	};
 	$lxs->prepare_external($v1ibx);
@@ -85,6 +87,24 @@ is($lxs->over, undef, '->over fails');
 	}
 	my $mset = $lxs->mset('m:testmessage@example.com');
 	is($mset->size, 1, 'got m: match on medium+full XSearch mix');
+	my $mitem = ($mset->items)[0];
+	my $smsg = $lxs->smsg_for($mitem) or BAIL_OUT 'smsg_for broken';
+
+	my $ale = PublicInbox::LeiALE->new("$home/ale");
+	$ale->refresh_externals($lxs);
+	my $exp = [ $smsg->{blob}, 'blob', -s 't/utf8.eml' ];
+	is_deeply([ $ale->git->check($smsg->{blob}) ], $exp, 'ale->git->check');
+
+	$lxs = PublicInbox::LeiXSearch->new;
+	$lxs->prepare_external($v2ibx);
+	$ale->refresh_externals($lxs);
+	is_deeply([ $ale->git->check($smsg->{blob}) ], $exp,
+			'ale->git->check remembered inactive external');
+
+	rename("$home/v1tmp", "$home/v1moved") or BAIL_OUT "rename: $!";
+	$ale->refresh_externals($lxs);
+	is($ale->git->check($smsg->{blob}), undef,
+			'missing after directory gone');
 }
 
 done_testing;

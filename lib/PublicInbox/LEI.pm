@@ -97,6 +97,22 @@ sub _config_path ($) {
 		.'/lei/config');
 }
 
+sub cache_dir ($) {
+	my ($self) = @_;
+	rel2abs($self, ($self->{env}->{XDG_CACHE_HOME} //
+		($self->{env}->{HOME} // '/nonexistent').'/.cache')
+		.'/lei');
+}
+
+sub ale {
+	my ($self) = @_;
+	$self->{ale} //= do {
+		require PublicInbox::LeiALE;
+		PublicInbox::LeiALE->new(cache_dir($self).
+					'/all_locals_ever.git');
+	};
+}
+
 sub index_opt {
 	# TODO: drop underscore variants everywhere, they're undocumented
 	qw(fsync|sync! jobs|j=i indexlevel|L=s compact

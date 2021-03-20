@@ -11,7 +11,6 @@ use PublicInbox::Lock;
 use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(which spawn popen_rd);
 use PublicInbox::LeiDedupe;
-use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
 use PublicInbox::PktOp qw(pkt_do);
 use Symbol qw(gensym);
@@ -642,18 +641,15 @@ sub poke_dst {
 }
 
 sub write_mail { # via ->wq_io_do
-	my ($self, $git_dir, $smsg) = @_;
-	my $git = $self->{"$$\0$git_dir"} //= PublicInbox::Git->new($git_dir);
-	git_async_cat($git, $smsg->{blob}, \&git_to_mail,
+	my ($self, $smsg) = @_;
+	git_async_cat($self->{lei}->{ale}->git, $smsg->{blob}, \&git_to_mail,
 				[$self->{wcb}, $smsg]);
 }
 
 sub wq_atexit_child {
 	my ($self) = @_;
 	delete $self->{wcb};
-	for my $git (delete @$self{grep(/\A$$\0/, keys %$self)}) {
-		$git->async_wait_all;
-	}
+	$self->{lei}->{ale}->git->async_wait_all;
 	$SIG{__WARN__} = 'DEFAULT';
 }
 

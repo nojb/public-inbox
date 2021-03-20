@@ -57,6 +57,10 @@ sub lei_q {
 	}
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
 		$lxs->prepare_external($lse);
+	} else {
+		my $tmp = PublicInbox::LeiXSearch->new;
+		$tmp->prepare_external($lse);
+		$self->ale->refresh_externals($tmp);
 	}
 	if (@only) {
 		for my $loc (@only) {
@@ -90,6 +94,7 @@ sub lei_q {
 	unless ($lxs->locals || $lxs->remotes) {
 		return $self->fail('no local or remote inboxes to search');
 	}
+	$self->ale->refresh_externals($lxs);
 	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
 	if (defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) {
 		return $self->fail("`$xj' search jobs must be >= 1");

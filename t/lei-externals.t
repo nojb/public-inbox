@@ -236,7 +236,8 @@ test_lei(sub {
 		is(scalar(@s), 2, "2 results in mbox$sfx");
 
 		lei_ok('q', '-a', '-o', "mboxcl2:$f", 's:nonexistent');
-		is(grep(!/^#/, $lei_err), 0, "no errors on no results ($sfx)");
+		is(grep(!/^#/, $lei_err), 0, "no errors on no results ($sfx)")
+			or diag $lei_err;
 
 		my @s2 = grep(/^Subject:/, $cat->());
 		is_deeply(\@s2, \@s,

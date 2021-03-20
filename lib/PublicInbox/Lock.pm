@@ -16,7 +16,7 @@ sub lock_acquire {
 	my $lock_path = $self->{lock_path};
 	croak 'already locked '.($lock_path // '(undef)') if $self->{lockfh};
 	return unless defined($lock_path);
-	sysopen(my $lockfh, $lock_path, O_WRONLY|O_CREAT) or
+	sysopen(my $lockfh, $lock_path, O_RDWR|O_CREAT) or
 		croak "failed to open $lock_path: $!\n";
 	flock($lockfh, LOCK_EX) or croak "lock $lock_path failed: $!\n";
 	$self->{lockfh} = $lockfh;

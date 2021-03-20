@@ -209,11 +209,10 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 			$wcb->(undef, $smsg, $eml);
 		};
 	} elsif ($l2m && $l2m->{-wq_s1}) {
-		my $git_dir = $ibxish->git->{git_dir};
 		sub {
 			my ($smsg, $mitem) = @_;
 			$smsg->{pct} = get_pct($mitem) if $mitem;
-			$l2m->wq_io_do('write_mail', [], $git_dir, $smsg);
+			$l2m->wq_io_do('write_mail', [], $smsg);
 		}
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
