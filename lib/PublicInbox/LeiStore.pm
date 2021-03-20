@@ -261,7 +261,7 @@ sub write_prepare {
 	my ($self, $lei) = @_;
 	unless ($self->{-ipc_req}) {
 		require PublicInbox::LeiXSearch;
-		$self->ipc_lock_init;
+		$self->ipc_lock_init($lei->store_path . '/ipc.lock');
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();

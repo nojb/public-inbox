@@ -83,7 +83,7 @@ sub rel2abs ($$) {
 	File::Spec->rel2abs($p, $pwd);
 }
 
-sub _store_path ($) {
+sub store_path ($) {
 	my ($self) = @_;
 	rel2abs($self, ($self->{env}->{XDG_DATA_HOME} //
 		($self->{env}->{HOME} // '/nonexistent').'/.local/share')
@@ -188,7 +188,7 @@ our %CMD = ( # sorted in order of importance/use:
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
 	 qw(C=s@), pass_through('git config') ],
 'init' => [ '[DIRNAME]', sub {
-	"initialize storage, default: "._store_path($_[0]);
+	"initialize storage, default: ".store_path($_[0]);
 	}, qw(quiet|q C=s@) ],
 'daemon-kill' => [ '[-SIGNAL]', 'signal the lei-daemon',
 	# "-C DIR" conflicts with -CHLD, here, and chdir makes no sense, here
@@ -640,7 +640,7 @@ sub _lei_store ($;$) {
 	$cfg->{-lei_store} //= do {
 		require PublicInbox::LeiStore;
 		my $dir = $cfg->{'leistore.dir'};
-		$dir //= $creat ? _store_path($self) : return;
+		$dir //= $creat ? store_path($self) : return;
 		PublicInbox::LeiStore->new($dir, { creat => $creat });
 	};
 }
@@ -689,7 +689,7 @@ sub lei_init {
 	my ($self, $dir) = @_;
 	my $cfg = _lei_cfg($self, 1);
 	my $cur = $cfg->{'leistore.dir'};
-	$dir //= _store_path($self);
+	$dir //= store_path($self);
 	$dir = rel2abs($self, $dir);
 	my @cur = stat($cur) if defined($cur);
 	$cur = File::Spec->canonpath($cur // $dir);

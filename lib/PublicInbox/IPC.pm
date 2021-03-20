@@ -177,6 +177,7 @@ sub ipc_worker_stop {
 # and writing to the same store
 sub ipc_lock_init {
 	my ($self, $f) = @_;
+	$f // die 'BUG: no filename given';
 	require PublicInbox::Lock;
 	$self->{-ipc_lock} //= bless { lock_path => $f }, 'PublicInbox::Lock'
 }
