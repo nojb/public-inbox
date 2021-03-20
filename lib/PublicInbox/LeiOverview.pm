@@ -176,7 +176,10 @@ sub _json_pretty {
 					$pair =~ s/(null|"),"/$1, "/g;
 					$pair;
 				} @$v) . ']';
-			} else { # references
+			} elsif ($k eq 'kw') { # keywords are short, one-line
+				$v = $json->encode($v);
+				$v =~ s/","/", "/g;
+			} else { # refs, labels, ...
 				$v = '[' . join($sep, map {
 					substr($json->encode([$_]), 1, -1);
 				} @$v) . ']';

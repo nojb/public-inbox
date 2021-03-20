@@ -144,7 +144,7 @@ lei_ok(qw(q -o), "mboxrd:$o", "m:$m", @inc);
 # emulate MUA marking mboxrd message as unread
 open my $fh, '<', $o or BAIL_OUT;
 my $s = do { local $/; <$fh> };
-$s =~ s/^Status: OR\n/Status: O\nX-Status: A\n/sm or
+$s =~ s/^Status: OR\n/Status: O\nX-Status: AF\n/sm or
 	fail "failed to clear R flag in $s";
 open $fh, '>', $o or BAIL_OUT;
 print $fh $s or BAIL_OUT;
@@ -156,7 +156,10 @@ lei_ok(qw(q -o), "mboxrd:$o", "m:$m", @inc);
 open $fh, '<', $o or BAIL_OUT;
 $s = do { local $/; <$fh> };
 like($s, qr/^Status: O\n/ms, 'seen keyword gone in mbox');
-like($s, qr/^X-Status: A\n/ms, 'answered flag set');
+like($s, qr/^X-Status: AF\n/ms, 'answered + flagged set');
 
+lei_ok(qw(q --pretty), "m:$m", @inc);
+like($lei_out, qr/^  "kw": \["answered", "flagged"\],\n/sm,
+	'--pretty JSON output shows kw: on one line');
 }); # test_lei
 done_testing;
