@@ -3,7 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
-use List::Util qw(shuffle max);
+use List::Util qw(shuffle);
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
 require_mods(qw(DBD::SQLite Search::Xapian));
@@ -62,9 +62,6 @@ is(scalar(@msgs), $nr, 'smsgs retrieved for all');
 
 $mset = $lxs->recent(undef, { limit => 1 });
 is($mset->size, 1, 'one result');
-my $max = max(map { $_->{docid} } @msgs);
-is($lxs->smsg_for(($mset->items)[0])->{docid}, $max,
-	'got highest docid');
 
 my @ibxish = $lxs->locals;
 is(scalar(@ibxish), scalar(@ibx) + 1, 'got locals back');

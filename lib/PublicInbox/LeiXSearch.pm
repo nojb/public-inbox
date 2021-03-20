@@ -70,6 +70,8 @@ sub mitem_kw ($$;$) {
 	my ($smsg, $mitem, $flagged) = @_;
 	my $kw = xap_terms('K', $mitem->get_document);
 	$kw->{flagged} = 1 if $flagged;
+	# we keep the empty array here to prevent expensive work in
+	# ->xsmsg_vmd, _unbless_smsg will clobber it iff it's empty
 	$smsg->{kw} = [ sort keys %$kw ];
 }
 
@@ -85,7 +87,6 @@ sub smsg_for {
 	my $smsg = $ibx->over->get_art($num);
 	return if $smsg->{bytes} == 0;
 	mitem_kw($smsg, $mitem) if $ibx->can('msg_keywords');
-	$smsg->{docid} = $docid;
 	$smsg;
 }
 

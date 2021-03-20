@@ -136,7 +136,10 @@ sub ovv_end {
 sub _unbless_smsg {
 	my ($smsg, $mitem) = @_;
 
-	delete @$smsg{qw(lines bytes num tid)};
+	# TODO: make configurable
+	# num/tid are nonsensical with multi-inbox search,
+	# lines/bytes are not generally useful
+	delete @$smsg{qw(num tid lines bytes)};
 	$smsg->{rt} = _iso8601(delete $smsg->{ts}); # JMAP receivedAt
 	$smsg->{dt} = _iso8601(delete $smsg->{ds}); # JMAP UTCDate
 	$smsg->{pct} = get_pct($mitem) if $mitem;
@@ -151,7 +154,8 @@ sub _unbless_smsg {
 		$smsg->{substr($f, 0, 1)} = pairs($v);
 	}
 	$smsg->{'s'} = delete $smsg->{subject};
-	scalar { %$smsg }; # unbless
+	my $kw = delete($smsg->{kw});
+	scalar { %$smsg, ($kw && scalar(@$kw) ? (kw => $kw) : ()) }; # unbless
 }
 
 sub ovv_atexit_child {

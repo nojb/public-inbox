@@ -48,7 +48,7 @@ lei_ok([qw(import --no-kw -F eml -)], undef, $opt,
 lei(qw(q m:v@y));
 $res = json_utf8->decode($lei_out);
 is($res->[1], undef, 'only one result');
-is_deeply($res->[0]->{kw}, [], 'no keywords set');
+is($res->[0]->{kw}, undef, 'no keywords set');
 
 # see t/lei_to_mail.t for "import -F mbox*"
 });
