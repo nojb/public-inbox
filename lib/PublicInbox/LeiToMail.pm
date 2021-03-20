@@ -637,7 +637,7 @@ sub poke_dst {
 	my ($self) = @_;
 	if ($self->{base_type} eq 'maildir') {
 		my $t = time + 1;
-		utime($t, $t, "$self->{dst}/cur");
+		utime($t, $t, $self->{dst} . 'cur');
 	}
 }
 

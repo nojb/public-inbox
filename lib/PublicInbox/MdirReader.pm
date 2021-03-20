@@ -42,7 +42,7 @@ my %c2kw = ('D' => 'draft', F => 'flagged', R => 'answered', S => 'seen');
 sub maildir_each_eml ($$;@) {
 	my ($dir, $cb, @arg) = @_;
 	$dir .= '/' unless substr($dir, -1) eq '/';
-	my $pfx = "$dir/new/";
+	my $pfx = $dir . 'new/';
 	if (opendir(my $dh, $pfx)) {
 		while (defined(my $bn = readdir($dh))) {
 			next if substr($bn, 0, 1) eq '.';
@@ -53,7 +53,7 @@ sub maildir_each_eml ($$;@) {
 			$cb->($f, [], $eml, @arg);
 		}
 	}
-	$pfx = "$dir/cur/";
+	$pfx = $dir . 'cur/';
 	opendir my $dh, $pfx or return;
 	while (defined(my $bn = readdir($dh))) {
 		my $fl = maildir_basename_flags($bn) // next;
