@@ -90,7 +90,7 @@ is($lxs->over, undef, '->over fails');
 	my $mitem = ($mset->items)[0];
 	my $smsg = $lxs->smsg_for($mitem) or BAIL_OUT 'smsg_for broken';
 
-	my $ale = PublicInbox::LeiALE->new("$home/ale");
+	my $ale = PublicInbox::LeiALE::_new("$home/ale");
 	$ale->refresh_externals($lxs);
 	my $exp = [ $smsg->{blob}, 'blob', -s 't/utf8.eml' ];
 	is_deeply([ $ale->git->check($smsg->{blob}) ], $exp, 'ale->git->check');

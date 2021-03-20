@@ -57,10 +57,6 @@ sub lei_q {
 	}
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
 		$lxs->prepare_external($lse);
-	} else {
-		my $tmp = PublicInbox::LeiXSearch->new;
-		$tmp->prepare_external($lse);
-		$self->ale->refresh_externals($tmp);
 	}
 	if (@only) {
 		for my $loc (@only) {

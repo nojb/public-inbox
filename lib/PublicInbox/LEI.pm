@@ -108,8 +108,7 @@ sub ale {
 	my ($self) = @_;
 	$self->{ale} //= do {
 		require PublicInbox::LeiALE;
-		PublicInbox::LeiALE->new(cache_dir($self).
-					'/all_locals_ever.git');
+		$self->_lei_cfg(1)->{ale} //= PublicInbox::LeiALE->new($self);
 	};
 }
 

@@ -139,12 +139,6 @@ sub add_external_finish {
 	my $key = "external.$location.boost";
 	my $cur_boost = $cfg->{$key};
 	return if defined($cur_boost) && $cur_boost == $new_boost; # idempotent
-	if (-d $location) {
-		require PublicInbox::LeiXSearch;
-		my $lxs = PublicInbox::LeiXSearch->new;
-		$lxs->prepare_external($location);
-		$self->ale->refresh_externals($lxs);
-	}
 	$self->lei_config($key, $new_boost);
 }
 

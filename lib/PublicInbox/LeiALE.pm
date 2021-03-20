@@ -11,16 +11,29 @@ use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::Lock);
 use PublicInbox::Git;
 use PublicInbox::Import;
+use PublicInbox::LeiXSearch;
 use Fcntl qw(SEEK_SET);
 
-sub new {
-	my ($cls, $d) = @_;
+sub _new {
+	my ($d) = @_;
 	PublicInbox::Import::init_bare($d, 'ale');
 	bless {
 		git => PublicInbox::Git->new($d),
 		lock_path => "$d/lei_ale.state", # dual-duty lock + state
 		ibxish => [], # Inbox and ExtSearch (and LeiSearch) objects
-	}, $cls;
+	}, __PACKAGE__
+}
+
+sub new {
+	my ($self, $lei) = @_;
+	ref($self) or $self = _new($lei->cache_dir . '/all_locals_ever.git');
+	my $lxs = PublicInbox::LeiXSearch->new;
+	$lxs->prepare_external($lei->_lei_store(1)->search);
+	for my $loc ($lei->externals_each) { # locals only
+		$lxs->prepare_external($loc) if -d $loc;
+	}
+	$self->refresh_externals($lxs);
+	$self;
 }
 
 sub over {} # undef for xoids_for
