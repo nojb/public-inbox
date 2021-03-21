@@ -222,7 +222,7 @@ sub _complete_url_common ($) {
 	# Maybe there's a better way to go about this in
 	# contrib/completion/lei-completion.bash
 	my $re = '';
-	my $cur = pop @$argv;
+	my $cur = pop(@$argv) // '';
 	if (@$argv) {
 		my @x = @$argv;
 		if ($cur eq ':' && @x) {

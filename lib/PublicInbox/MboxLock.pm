@@ -43,13 +43,13 @@ EOF
 		}
 		select(undef, undef, undef, $self->{delay});
 	} while (now < $end);
-	croak "fcntl lock $self->{f}: $!";
+	die "fcntl lock timeout $self->{f}: $!\n";
 }
 
 sub acq_dotlock {
 	my ($self) = @_;
 	my $dot_lock = "$self->{f}.lock";
-	my ($pfx, $base) = ($self->{f} =~ m!(\A.*?/)([^/]+)\z!);
+	my ($pfx, $base) = ($self->{f} =~ m!(\A.*?/)?([^/]+)\z!);
 	$pfx //= '';
 	my $pid = $$;
 	my $end = now + $self->{timeout};
@@ -68,7 +68,7 @@ sub acq_dotlock {
 			croak "open $tmp (for $dot_lock): $!" if !$!{EXIST};
 		}
 	} while (now < $end);
-	croak "dotlock $dot_lock";
+	die "dotlock timeout $dot_lock\n";
 }
 
 sub acq_flock {
@@ -80,7 +80,7 @@ sub acq_flock {
 		return if flock($self->{fh}, $op);
 		select(undef, undef, undef, $self->{delay});
 	} while (now < $end);
-	croak "flock $self->{f}: $!";
+	die "flock timeout $self->{f}: $!\n";
 }
 
 sub acq {

@@ -757,7 +757,7 @@ sub lei__complete {
 	my ($proto, undef, @spec) = @$info;
 	my $cur = pop @argv;
 	my $re = defined($cur) ? qr/\A\Q$cur\E/ : qr/./;
-	if (substr($cur // '-', 0, 1) eq '-') { # --switches
+	if (substr(my $_cur = $cur // '-', 0, 1) eq '-') { # --switches
 		# gross special case since the only git-config options
 		# Consider moving to a table if we need more special cases
 		# we use Getopt::Long for are the ones we reject, so these
@@ -781,7 +781,7 @@ sub lei__complete {
 			}
 			map {
 				my $x = length > 1 ? "--$_" : "-$_";
-				$x eq $cur ? () : $x;
+				$x eq $_cur ? () : $x;
 			} grep(!/_/, split(/\|/, $_, -1)) # help|h
 		} grep { $OPTDESC{"$_\t$cmd"} || $OPTDESC{$_} } @spec);
 	} elsif ($cmd eq 'config' && !@argv && !$CONFIG_KEYS{$cur}) {
@@ -796,13 +796,13 @@ sub lei__complete {
 			my @v = ref($v) ? split(/\|/, $v->[0]) : ();
 			# get rid of ALL CAPS placeholder (e.g "OUT")
 			# (TODO: completion for external paths)
-			shift(@v) if uc($v[0]) eq $v[0];
+			shift(@v) if scalar(@v) && uc($v[0]) eq $v[0];
 			@v;
 		} grep(/\A(?:[\w-]+\|)*$opt\b.*?(?:\t$cmd)?\z/, keys %OPTDESC);
 	}
 	$cmd =~ tr/-/_/;
 	if (my $sub = $self->can("_complete_$cmd")) {
-		puts $self, $sub->($self, @argv, $cur);
+		puts $self, $sub->($self, @argv, $cur ? ($cur) : ());
 	}
 	# TODO: URLs, pathnames, OIDs, MIDs, etc...  See optparse() for
 	# proto parsing.

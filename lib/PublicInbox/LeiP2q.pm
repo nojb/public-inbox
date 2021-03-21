@@ -144,7 +144,7 @@ sub do_p2q { # via wq_do
 			my $end = ($pfx =~ s/([0-9\*]+)\z//) ? $1 : '';
 			my $x = delete($lei->{qterms}->{$pfx}) or next;
 			my $star = $end =~ tr/*//d ? '*' : '';
-			my $min_len = ($end // 0) + 0;
+			my $min_len = ($end || 0) + 0;
 
 			# no wildcards for bool_pfx_external
 			$star = '' if $pfx =~ /\A(dfpre|dfpost|mid)\z/;

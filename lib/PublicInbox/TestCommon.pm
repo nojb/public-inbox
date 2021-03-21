@@ -457,6 +457,15 @@ sub lei (@) {
 	my $res = run_script(['lei', @$cmd], $env, $xopt // $lei_opt);
 	$err_skip and
 		$lei_err = join('', grep(!/$err_skip/, split(/^/m, $lei_err)));
+	if ($lei_err ne '') {
+		if ($lei_err =~ /Use of uninitialized/ ||
+			$lei_err =~ m!\bArgument .*? isn't numeric in !) {
+			fail "lei_err=$lei_err";
+		} else {
+			state $loud = $ENV{TEST_LEI_ERR_LOUD};
+			diag "lei_err=$lei_err" if $loud;
+		}
+	}
 	$res;
 };
 
