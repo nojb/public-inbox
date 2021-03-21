@@ -11,6 +11,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Search PublicInbox::Lock Exporter);
 use PublicInbox::Eml;
+use PublicInbox::Search qw(xap_terms);
 use PublicInbox::InboxWritable;
 use PublicInbox::MID qw(mids_for_index mids);
 use PublicInbox::MsgIter;
@@ -34,6 +35,7 @@ use constant DEBUG => !!$ENV{DEBUG};
 my $xapianlevels = qr/\A(?:full|medium)\z/;
 my $hex = '[a-f0-9]';
 my $OID = $hex .'{40,}';
+my @VMD_MAP = (kw => 'K', label => 'L');
 our $INDEXLEVELS = qr/\A(?:full|medium|basic)\z/;
 
 sub new {
@@ -428,7 +430,15 @@ sub eml2doc ($$$;$) {
 sub add_xapian ($$$$) {
 	my ($self, $eml, $smsg, $mids) = @_;
 	begin_txn_lazy($self);
+	my $merge_vmd = delete $smsg->{-merge_vmd};
 	my $doc = eml2doc($self, $eml, $smsg, $mids);
+	if (my $old = $merge_vmd ? _get_doc($self, $smsg->{num}) : undef) {
+		my @x = @VMD_MAP;
+		while (my ($field, $pfx) = splice(@x, 0, 2)) {
+			my $vals = xap_terms($pfx, $old);
+			$doc->add_boolean_term($pfx.$_) for keys %$vals;
+		}
+	}
 	$self->{xdb}->replace_document($smsg->{num}, $doc);
 }
 
@@ -530,8 +540,6 @@ sub remove_eidx_info {
 	}
 	$self->{xdb}->replace_document($docid, $doc);
 }
-
-my @VMD_MAP = (kw => 'K', label => 'L');
 
 sub set_vmd {
 	my ($self, $docid, $vmd) = @_;

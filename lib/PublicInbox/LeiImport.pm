@@ -10,9 +10,14 @@ use PublicInbox::Eml;
 use PublicInbox::PktOp qw(pkt_do);
 
 sub _import_eml { # MboxReader callback
-	my ($eml, $sto, $set_kw) = @_;
-	$sto->ipc_do('set_eml', $eml, $set_kw ?
-		{ kw => PublicInbox::MboxReader::mbox_keywords($eml) } : ());
+	my ($eml, $lei, $mbox_keywords) = @_;
+	my $vmd;
+	if ($mbox_keywords) {
+		my $kw = $mbox_keywords->($eml);
+		$vmd = { kw => $kw } if scalar(@$kw);
+	}
+	my $xoids = $lei->{ale}->xoids_for($eml);
+	$lei->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
 }
 
 sub import_done_wait { # dwaitpid callback
@@ -41,6 +46,7 @@ sub net_merge_complete { # callback used by LeiAuth
 sub import_start {
 	my ($lei) = @_;
 	my $self = $lei->{imp};
+	$lei->ale;
 	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
 	if (my $net = $lei->{net}) {
 		# $j = $net->net_concurrency($j); TODO
@@ -130,7 +136,8 @@ sub ipc_atfork_child {
 
 sub _import_fh {
 	my ($lei, $fh, $input, $ifmt) = @_;
-	my $set_kw = $lei->{opt}->{kw};
+	my $kw = $lei->{opt}->{kw} ?
+		PublicInbox::MboxReader->can('mbox_keywords') : undef;
 	eval {
 		if ($ifmt eq 'eml') {
 			my $buf = do { local $/; <$fh> } //
@@ -138,11 +145,11 @@ sub _import_fh {
 error reading $input: $!
 
 			my $eml = PublicInbox::Eml->new(\$buf);
-			_import_eml($eml, $lei->{sto}, $set_kw);
+			_import_eml($eml, $lei, $kw);
 		} else { # some mbox (->can already checked in call);
 			my $cb = PublicInbox::MboxReader->can($ifmt) //
 				die "BUG: bad fmt=$ifmt";
-			$cb->(undef, $fh, \&_import_eml, $lei->{sto}, $set_kw);
+			$cb->(undef, $fh, \&_import_eml, $lei, $kw);
 		}
 	};
 	$lei->child_error(1 << 8, "$input: $@") if $@;
@@ -193,7 +200,8 @@ EOM
 sub import_stdin {
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	_import_fh($lei, delete $self->{0}, '<stdin>', $lei->{opt}->{'in-format'});
+	my $in = delete $self->{0};
+	_import_fh($lei, $in, '<stdin>', $lei->{opt}->{'in-format'});
 }
 
 no warnings 'once'; # the following works even when LeiAuth is lazy-loaded

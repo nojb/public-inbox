@@ -413,7 +413,19 @@ sub add {
 		$smsg->{blob} = $self->get_mark(":$blob");
 		$smsg->set_bytes($raw_email, $n);
 		if (my $oidx = delete $smsg->{-oidx}) { # used by LeiStore
-			return if $oidx->blob_exists($smsg->{blob});
+			my @docids = $oidx->blob_exists($smsg->{blob});
+			my @vivify_xvmd;
+			for my $id (@docids) {
+				if (my $cur = $oidx->get_art($id)) {
+					# already imported if bytes > 0
+					return if $cur->{bytes} > 0;
+					push @vivify_xvmd, $id;
+				} else {
+					warn "W: $smsg->{blob} ",
+						"#$id gone (bug?)\n";
+				}
+			}
+			$smsg->{-vivify_xvmd} = \@vivify_xvmd;
 		}
 	}
 	my $ref = $self->{ref};

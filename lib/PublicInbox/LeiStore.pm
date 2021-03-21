@@ -161,7 +161,7 @@ sub remove_eml_vmd {
 }
 
 sub add_eml {
-	my ($self, $eml, $vmd) = @_;
+	my ($self, $eml, $vmd, $xoids) = @_;
 	my $im = $self->importer; # may create new epoch
 	my $eidx = eidx_init($self); # writes ALL.git/objects/info/alternates
 	my $oidx = $eidx->{oidx}; # PublicInbox::Import::add checks this
@@ -169,7 +169,40 @@ sub add_eml {
 	$im->add($eml, undef, $smsg) or return; # duplicate returns undef
 
 	local $self->{current_info} = $smsg->{blob};
-	if (my @docids = _docids_for($self, $eml)) {
+	my $vivify_xvmd = delete($smsg->{-vivify_xvmd}) // []; # exact matches
+	if ($xoids) { # fuzzy matches from externals in ale->xoids_for
+		delete $xoids->{$smsg->{blob}}; # added later
+		if (scalar keys %$xoids) {
+			my %docids = map { $_ => 1 } @$vivify_xvmd;
+			for my $oid (keys %$xoids) {
+				my @id = $oidx->blob_exists($oid);
+				@docids{@id} = @id;
+			}
+			@$vivify_xvmd = sort { $a <=> $b } keys(%docids);
+		}
+	}
+	if (@$vivify_xvmd) {
+		$xoids //= {};
+		$xoids->{$smsg->{blob}} = 1;
+		for my $docid (@$vivify_xvmd) {
+			my $cur = $oidx->get_art($docid);
+			my $idx = $eidx->idx_shard($docid);
+			if (!$cur || $cur->{bytes} == 0) { # really vivifying
+				$smsg->{num} = $docid;
+				$oidx->add_overview($eml, $smsg);
+				$smsg->{-merge_vmd} = 1;
+				$idx->index_eml($eml, $smsg);
+			} else { # lse fuzzy hit off ale
+				$idx->ipc_do('add_eidx_info', $docid, '.', $eml);
+			}
+			for my $oid (keys %$xoids) {
+				$oidx->add_xref3($docid, -1, $oid, '.');
+			}
+			$idx->ipc_do('add_vmd', $docid, $vmd) if $vmd;
+		}
+		$vivify_xvmd;
+	} elsif (my @docids = _docids_for($self, $eml)) {
+		# fuzzy match from within lei/store
 		for my $docid (@docids) {
 			my $idx = $eidx->idx_shard($docid);
 			$oidx->add_xref3($docid, -1, $smsg->{blob}, '.');
@@ -178,20 +211,21 @@ sub add_eml {
 			$idx->ipc_do('add_vmd', $docid, $vmd) if $vmd;
 		}
 		\@docids;
-	} else {
+	} else { # totally new message
 		$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
 		$oidx->add_overview($eml, $smsg);
 		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');
 		my $idx = $eidx->idx_shard($smsg->{num});
 		$idx->index_eml($eml, $smsg);
-		$idx->ipc_do('add_vmd', $smsg->{num}, $vmd ) if $vmd;
+		$idx->ipc_do('add_vmd', $smsg->{num}, $vmd) if $vmd;
 		$smsg;
 	}
 }
 
 sub set_eml {
-	my ($self, $eml, $vmd) = @_;
-	add_eml($self, $eml, $vmd) // set_eml_vmd($self, $eml, $vmd);
+	my ($self, $eml, $vmd, $xoids) = @_;
+	add_eml($self, $eml, $vmd, $xoids) //
+		set_eml_vmd($self, $eml, $vmd);
 }
 
 # set or update keywords for external message, called via ipc_do

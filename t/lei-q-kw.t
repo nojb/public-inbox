@@ -161,5 +161,49 @@ like($s, qr/^Status: O\nX-Status: AF\n/ms,
 lei_ok(qw(q --pretty), "m:$m", @inc);
 like($lei_out, qr/^  "kw": \["answered", "flagged"\],\n/sm,
 	'--pretty JSON output shows kw: on one line');
+
+# ensure import on previously external-only message works
+lei_ok('q', "m:$m");
+is_deeply(json_utf8->decode($lei_out), [ undef ],
+	'to-be-imported message non-existent');
+lei_ok(qw(import -F eml t/x-unknown-alpine.eml));
+is($lei_err, '', 'no errors importing previous external-only message');
+lei_ok('q', "m:$m");
+$res = json_utf8->decode($lei_out);
+is($res->[1], undef, 'got one result');
+is_deeply($res->[0]->{kw}, [ qw(answered flagged) ], 'kw preserved on exact');
+
+# ensure fuzzy match import works, too
+$m = 'multipart@example.com';
+$o = "$ENV{HOME}/fuzz";
+lei_ok('q', '-o', $o, "m:$m", @inc);
+@fn = glob("$o/cur/*");
+scalar(@fn) == 1 or BAIL_OUT "wrote multiple or zero files: ".explain(\@fn);
+rename($fn[0], "$fn[0]S") or BAIL_OUT "rename $!";
+lei_ok('q', '-o', $o, "m:$m");
+is_deeply([glob("$o/cur/*")], [], 'clobbered output results');
+my $eml = eml_load('t/plack-2-txt-bodies.eml');
+$eml->header_set('List-Id', '<list.example.com>');
+my $in = $eml->as_string;
+lei_ok([qw(import -F eml --stdin)], undef, { 0 => \$in, %$lei_opt });
+is($lei_err, '', 'no errors from import');
+lei_ok(qw(q -f mboxrd), "m:$m");
+open $fh, '<', \$lei_out or BAIL_OUT $!;
+my @res;
+PublicInbox::MboxReader->mboxrd($fh, sub { push @res, shift });
+is($res[0]->header('Status'), 'RO', 'seen kw set');
+$res[0]->header_set('Status');
+is_deeply(\@res, [ $eml ], 'imported message matches w/ List-Id');
+
+$eml->header_set('List-Id', '<another.example.com>');
+$in = $eml->as_string;
+lei_ok([qw(import -F eml --stdin)], undef, { 0 => \$in, %$lei_opt });
+is($lei_err, '', 'no errors from 2nd import');
+lei_ok(qw(q -f mboxrd), "m:$m", 'l:another.example.com');
+my @another;
+open $fh, '<', \$lei_out or BAIL_OUT $!;
+PublicInbox::MboxReader->mboxrd($fh, sub { push @another, shift });
+is($another[0]->header('Status'), 'RO', 'seen kw set');
+
 }); # test_lei
 done_testing;

@@ -353,7 +353,7 @@ sub blob_exists {
 	my ($self, $oidhex) = @_;
 	if (wantarray) {
 		my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
-SELECT docid FROM xref3 WHERE oidbin = ?
+SELECT docid FROM xref3 WHERE oidbin = ? ORDER BY docid ASC
 
 		$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
 		$sth->execute;

@@ -63,7 +63,10 @@ sub _cmp_1st { # git->cat_async callback
 	}
 }
 
-sub xoids_for { # returns { OID => docid } mapping for $eml matches
+# returns { OID => num } mapping for $eml matches
+# The `num' hash value only makes sense from LeiSearch itself
+# and is nonsense from the PublicInbox::LeiALE subclass
+sub xoids_for {
 	my ($self, $eml, $min) = @_;
 	my ($chash, $mids) = content_key($eml);
 	my @overs = ($self->over // $self->overs_all);
