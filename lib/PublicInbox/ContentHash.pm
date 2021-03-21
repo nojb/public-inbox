@@ -8,9 +8,9 @@
 # See L<public-inbox-v2-format(5)> manpage for more details.
 package PublicInbox::ContentHash;
 use strict;
-use warnings;
-use base qw/Exporter/;
-our @EXPORT_OK = qw/content_hash content_digest/;
+use v5.10.1;
+use parent qw(Exporter);
+our @EXPORT_OK = qw(content_hash content_digest git_sha);
 use PublicInbox::MID qw(mids references);
 use PublicInbox::MsgIter;
 
@@ -92,6 +92,15 @@ sub content_digest ($) {
 
 sub content_hash ($) {
 	content_digest($_[0])->digest;
+}
+
+sub git_sha ($$) {
+	my ($n, $eml) = @_;
+	my $dig = Digest::SHA->new($n);
+	my $buf = $eml->as_string;
+	$dig->add('blob '.length($buf)."\0");
+	$dig->add($buf);
+	$dig;
 }
 
 1;

@@ -3,7 +3,7 @@
 package PublicInbox::LeiDedupe;
 use strict;
 use v5.10.1;
-use PublicInbox::ContentHash qw(content_hash);
+use PublicInbox::ContentHash qw(content_hash git_sha);
 use Digest::SHA ();
 
 # n.b. mutt sets most of these headers not sure about Bytes
@@ -18,12 +18,7 @@ sub _regen_oid ($) {
 		push @stash, [ $k, \@v ];
 		$eml->header_set($k); # restore below
 	}
-	my $dig = Digest::SHA->new(1); # XXX SHA256 later
-	my $buf = $eml->as_string;
-	$dig->add('blob '.length($buf)."\0");
-	$dig->add($buf);
-	undef $buf;
-
+	my $dig = git_sha(1, $eml);
 	for my $kv (@stash) { # restore stashed headers
 		my ($k, @v) = @$kv;
 		$eml->header_set($k, @v);

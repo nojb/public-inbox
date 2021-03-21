@@ -65,8 +65,9 @@ test_lei({ tmpdir => $tmpdir }, sub {
 		$im->add(eml_load('t/utf8.eml')) or BAIL_OUT '->add';
 	};
 	lei_ok(qw(add-external -q), $ibx->{inboxdir});
-	lei_ok(qw(q -o), "mboxrd:$o", '--only', $url,
+	lei_ok(qw(q -q -o), "mboxrd:$o", '--only', $url,
 		'm:testmessage@example.com');
+	is($lei_err, '', 'no warnings or errors');
 	ok(-s $o, 'got result from remote external');
 	my $exp = eml_load('t/utf8.eml');
 	is_deeply($slurp_emls->($o), [$exp], 'got expected result');

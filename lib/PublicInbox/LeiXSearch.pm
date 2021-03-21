@@ -18,6 +18,7 @@ use PublicInbox::MID qw(mids);
 use PublicInbox::Smsg;
 use PublicInbox::Eml;
 use Fcntl qw(SEEK_SET F_SETFL O_APPEND O_RDWR);
+use PublicInbox::ContentHash qw(git_sha);
 
 sub new {
 	my ($class) = @_;
@@ -207,10 +208,13 @@ sub query_mset { # non-parallel for non-"--threads" users
 
 sub each_remote_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
-	if ($self->{import_sto} && !$lei->{ale}->xoids_for($eml, 1)) {
+	my $xoids = $lei->{ale}->xoids_for($eml, 1);
+	if ($self->{import_sto} && !$xoids) {
 		$self->{import_sto}->ipc_do('add_eml', $eml);
 	}
 	my $smsg = bless {}, 'PublicInbox::Smsg';
+	$smsg->{blob} = $xoids ? (keys(%$xoids))[0]
+				: git_sha(1, $eml)->hexdigest;
 	$smsg->populate($eml);
 	$smsg->parse_references($eml, mids($eml));
 	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
