@@ -77,11 +77,11 @@ sub do_convert { # via wq_do
 	delete $self->{wcb}; # commit
 }
 
-sub call { # the main "lei convert" method
-	my ($cls, $lei, @inputs) = @_;
+sub lei_convert { # the main "lei convert" method
+	my ($lei, @inputs) = @_;
 	my $opt = $lei->{opt};
 	$opt->{kw} //= 1;
-	my $self = $lei->{cnv} = bless {}, $cls;
+	my $self = $lei->{cnv} = bless {}, __PACKAGE__;
 	my $in_fmt = $opt->{'in-format'};
 	my (@f, @d);
 	$opt->{dedupe} //= 'none';

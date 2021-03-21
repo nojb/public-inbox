@@ -174,9 +174,9 @@ sub do_p2q { # via wq_do
 	$lei->out(@q, "\n");
 }
 
-sub call { # the "lei patch-to-query" entry point
-	my ($cls, $lei, $input) = @_;
-	my $self = $lei->{p2q} = bless {}, $cls;
+sub lei_p2q { # the "lei patch-to-query" entry point
+	my ($lei, $input) = @_;
+	my $self = $lei->{p2q} = bless {}, __PACKAGE__;
 	if ($lei->{opt}->{stdin}) {
 		$self->{0} = delete $lei->{0}; # guard from lei_atfork_child
 	} else {

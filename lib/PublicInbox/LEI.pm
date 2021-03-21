@@ -598,7 +598,12 @@ sub dispatch {
 	}
 	my $func = "lei_$cmd";
 	$func =~ tr/-/_/;
-	if (my $cb = __PACKAGE__->can($func)) {
+	my $cb = __PACKAGE__->can($func) // ($CMD{$cmd} ? do {
+		my $mod = "PublicInbox::Lei\u$cmd";
+		($INC{"PublicInbox/Lei\u$cmd.pm"} //
+			eval("require $mod")) ? $mod->can($func) : undef;
+	} : undef);
+	if ($cb) {
 		optparse($self, $cmd, \@argv) or return;
 		if (my $chdir = $self->{opt}->{C}) {
 			for my $d (@$chdir) {
@@ -683,21 +688,6 @@ sub lei_config {
 		"config file switches not supported by `lei config'";
 	_config(@_);
 	x_it($self, $?) if $?;
-}
-
-sub lei_import {
-	require PublicInbox::LeiImport;
-	PublicInbox::LeiImport->call(@_);
-}
-
-sub lei_convert {
-	require PublicInbox::LeiConvert;
-	PublicInbox::LeiConvert->call(@_);
-}
-
-sub lei_p2q {
-	require PublicInbox::LeiP2q;
-	PublicInbox::LeiP2q->call(@_);
 }
 
 sub lei_init {

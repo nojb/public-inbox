@@ -63,13 +63,13 @@ sub import_start {
 	while ($op && $op->{sock}) { $op->event_step }
 }
 
-sub call { # the main "lei import" method
-	my ($cls, $lei, @inputs) = @_;
+sub lei_import { # the main "lei import" method
+	my ($lei, @inputs) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
 	my ($net, @f, @d);
 	$lei->{opt}->{kw} //= 1;
-	my $self = $lei->{imp} = bless { inputs => \@inputs }, $cls;
+	my $self = $lei->{imp} = bless { inputs => \@inputs }, __PACKAGE__;
 	if ($lei->{opt}->{stdin}) {
 		@inputs and return $lei->fail("--stdin and @inputs do not mix");
 		$lei->check_input_format or return;
