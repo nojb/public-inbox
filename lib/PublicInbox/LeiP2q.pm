@@ -182,9 +182,7 @@ sub lei_p2q { # the "lei patch-to-query" entry point
 	} else {
 		$self->{input} = $input;
 	}
-	my $op = $lei->workers_start($self, 'lei patch2query', 1, {
-		'' => [ $lei->{p2q_done} // $lei->can('dclose'), $lei ]
-	});
+	my $op = $lei->workers_start($self, 'lei patch2query', 1);
 	$self->wq_io_do('do_p2q', []);
 	$self->wq_close(1);
 	while ($op && $op->{sock}) { $op->event_step }

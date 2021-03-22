@@ -87,9 +87,7 @@ sub lei_convert { # the main "lei convert" method
 		$lei->fail("output not specified or is not a mail destination");
 	$lei->{opt}->{augment} = 1 unless $ovv->{dst} eq '/dev/stdout';
 	$self->prepare_inputs($lei, \@inputs) or return;
-	my $op = $lei->workers_start($self, 'lei_convert', 1, {
-		'' => [ $lei->can('dclose'), $lei ]
-	});
+	my $op = $lei->workers_start($self, 'lei_convert', 1);
 	$self->wq_io_do('do_convert', []);
 	$self->wq_close(1);
 	while ($op && $op->{sock}) { $op->event_step }
