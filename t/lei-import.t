@@ -29,6 +29,16 @@ lei_ok(qw(q s:boolean -f mboxrd), \'blob accessible after import');
 lei_ok(qw(import -F eml), 't/data/message_embed.eml',
 	\'import single file by path');
 
+lei_ok(qw(q m:testmessage@example.com));
+is($lei_out, "[null]\n", 'no results, yet');
+my $oid = '9bf1002c49eb075df47247b74d69bcd555e23422';
+my $eml = eml_load('t/utf8.eml');
+my $in = 'From x@y Fri Oct  2 00:00:00 1993'."\n".$eml->as_string;
+lei_ok([qw(import -F eml -)], undef, { %$lei_opt, 0 => \$in });
+lei_ok(qw(q m:testmessage@example.com));
+is(json_utf8->decode($lei_out)->[0]->{'blob'}, $oid,
+	'got expected OID w/o From');
+
 my $str = <<'';
 From: a@b
 Message-ID: <x@y>

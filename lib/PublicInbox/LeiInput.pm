@@ -32,6 +32,10 @@ sub input_fh {
 			return $self->{lei}->child_error(1 << 8, <<"");
 error reading $name: $!
 
+		# mutt pipes single RFC822 messages with a "From " line,
+		# but no Content-Length or "From " escaping.
+		# "git format-patch" also generates such files by default.
+		$buf =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 		$self->eml_cb(PublicInbox::Eml->new(\$buf), @args);
 	} else {
 		# prepare_inputs already validated $ifmt
