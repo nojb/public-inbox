@@ -7,10 +7,14 @@ use strict;
 use v5.10.1;
 use parent qw(Exporter PublicInbox::IPC);
 use PublicInbox::Eml;
-
 our %IMAPflags2kw = map {; "\\\u$_" => $_ } qw(seen answered flagged draft);
 
 our @EXPORT = qw(uri_section imap_uri nntp_uri);
+
+sub ndump {
+	require Data::Dumper;
+	Data::Dumper->new(\@_)->Useqq(1)->Terse(1)->Dump;
+}
 
 # returns the git config section name, e.g [imap "imaps://user@example.com"]
 # without the mailbox, so we can share connections between different inboxes
@@ -530,7 +534,7 @@ sub _nntp_fetch_all ($$$) {
 	my $sec = uri_section($uri);
 	my ($nr, $beg, $end) = $nn->group($group);
 	unless (defined($nr)) {
-		chomp(my $msg = $nn->message);
+		my $msg = ndump($nn->message);
 		return "E: GROUP $group <$sec> $msg";
 	}
 
@@ -566,7 +570,7 @@ sub _nntp_fetch_all ($$$) {
 		}
 		my $raw = $nn->article($art);
 		unless (defined($raw)) {
-			my $msg = $nn->message;
+			my $msg = ndump($nn->message);
 			if ($nn->code == 421) { # pseudo response from Net::Cmd
 				$err = "E: $msg";
 				last;
