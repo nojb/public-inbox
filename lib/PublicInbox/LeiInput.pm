@@ -23,6 +23,23 @@ sub check_input_format ($;$) {
 	1;
 }
 
+# import a single file handle of $name
+# Subclass must define ->eml_cb and ->mbox_cb
+sub input_fh {
+	my ($self, $ifmt, $fh, $name, @args) = @_;
+	if ($ifmt eq 'eml') {
+		my $buf = do { local $/; <$fh> } //
+			return $self->{lei}->child_error(1 << 8, <<"");
+error reading $name: $!
+
+		$self->eml_cb(PublicInbox::Eml->new(\$buf), @args);
+	} else {
+		# prepare_inputs already validated $ifmt
+		my $cb = PublicInbox::MboxReader->reads($ifmt) //
+				die "BUG: bad fmt=$ifmt";
+		$cb->(undef, $fh, $self->can('mbox_cb'), $self, @args);
+	}
+}
 
 sub prepare_inputs {
 	my ($self, $lei, $inputs) = @_;

@@ -10,11 +10,16 @@ use PublicInbox::Eml;
 use PublicInbox::LeiStore;
 use PublicInbox::LeiOverview;
 
-sub mbox_cb {
+sub mbox_cb { # MboxReader callback used by PublicInbox::LeiInput::input_fh
 	my ($eml, $self) = @_;
 	my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
 	$eml->header_set($_) for qw(Status X-Status);
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
+}
+
+sub eml_cb { # used by PublicInbox::LeiInput::input_fh
+	my ($self, $eml) = @_;
+	$self->{wcb}->(undef, { kw => [] }, $eml);
 }
 
 sub net_cb { # callback for ->imap_each, ->nntp_each
@@ -27,30 +32,15 @@ sub mdir_cb {
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 
-sub convert_fh ($$$$) {
-	my ($self, $ifmt, $fh, $name) = @_;
-	if ($ifmt eq 'eml') {
-		my $buf = do { local $/; <$fh> } //
-			return $self->{lei}->child_error(1 << 8, <<"");
-error reading $name: $!
-
-		my $eml = PublicInbox::Eml->new(\$buf);
-		$self->{wcb}->(undef, { kw => [] }, $eml);
-	} else {
-		PublicInbox::MboxReader->$ifmt($fh, \&mbox_cb, $self);
-	}
-}
-
 sub do_convert { # via wq_do
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	my $in_fmt = $lei->{opt}->{'in-format'};
-	my $mics;
+	my $ifmt = $lei->{opt}->{'in-format'};
 	if (my $stdin = delete $self->{0}) {
-		convert_fh($self, $in_fmt, $stdin, '<stdin>');
+		$self->input_fh($ifmt, $stdin, '<stdin>');
 	}
 	for my $input (@{$self->{inputs}}) {
-		my $ifmt = lc($in_fmt // '');
+		my $ifmt = lc($ifmt // '');
 		if ($input =~ m!\Aimaps?://!) {
 			$lei->{net}->imap_each($input, \&net_cb, $self);
 			next;
@@ -65,7 +55,7 @@ sub do_convert { # via wq_do
 					($ifmt eq 'eml' ? ['none'] :
 					PublicInbox::MboxLock->defaults);
 			my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
-			convert_fh($self, $ifmt, $mbl->{fh}, $input);
+			$self->input_fh($ifmt, $mbl->{fh}, $input);
 		} elsif (-d _) {
 			PublicInbox::MdirReader::maildir_each_eml($input,
 							\&mdir_cb, $self);

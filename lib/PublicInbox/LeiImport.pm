@@ -9,15 +9,20 @@ use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 use PublicInbox::Eml;
 use PublicInbox::PktOp qw(pkt_do);
 
-sub _import_eml { # MboxReader callback
-	my ($eml, $lei, $mbox_keywords) = @_;
+sub eml_cb { # used by PublicInbox::LeiInput::input_fh
+	my ($self, $eml) = @_;
 	my $vmd;
-	if ($mbox_keywords) {
-		my $kw = $mbox_keywords->($eml);
+	if ($self->{-import_kw}) { # FIXME
+		my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
 		$vmd = { kw => $kw } if scalar(@$kw);
 	}
-	my $xoids = $lei->{ale}->xoids_for($eml);
-	$lei->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
+	my $xoids = $self->{lei}->{ale}->xoids_for($eml);
+	$self->{lei}->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
+}
+
+sub mbox_cb { # MboxReader callback used by PublicInbox::LeiInput::input_fh
+	my ($eml, $self) = @_;
+	eml_cb($self, $eml);
 }
 
 sub import_done_wait { # dwaitpid callback
@@ -46,7 +51,7 @@ sub net_merge_complete { # callback used by LeiAuth
 sub import_start {
 	my ($lei) = @_;
 	my $self = $lei->{imp};
-	$lei->ale;
+	$lei->ale; # initialize for workers to read
 	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
 	if (my $net = $lei->{net}) {
 		# $j = $net->net_concurrency($j); TODO
@@ -67,8 +72,8 @@ sub lei_import { # the main "lei import" method
 	my ($lei, @inputs) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
-	$lei->{opt}->{kw} //= 1;
 	my $self = $lei->{imp} = bless {}, __PACKAGE__;
+	$self->{-import_kw} = $lei->{opt}->{kw} // 1;
 	$self->prepare_inputs($lei, \@inputs) or return;
 	import_start($lei);
 }
@@ -81,27 +86,6 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	undef;
-}
-
-sub _import_fh {
-	my ($lei, $fh, $input, $ifmt) = @_;
-	my $kw = $lei->{opt}->{kw} ?
-		PublicInbox::MboxReader->can('mbox_keywords') : undef;
-	eval {
-		if ($ifmt eq 'eml') {
-			my $buf = do { local $/; <$fh> } //
-				return $lei->child_error(1 << 8, <<"");
-error reading $input: $!
-
-			my $eml = PublicInbox::Eml->new(\$buf);
-			_import_eml($eml, $lei, $kw);
-		} else { # some mbox (->can already checked in call);
-			my $cb = PublicInbox::MboxReader->reads($ifmt) //
-				die "BUG: bad fmt=$ifmt";
-			$cb->(undef, $fh, \&_import_eml, $lei, $kw);
-		}
-	};
-	$lei->child_error(1 << 8, "$input: $@") if $@;
 }
 
 sub _import_maildir { # maildir_each_eml cb
@@ -121,7 +105,7 @@ sub import_path_url {
 	# TODO auto-detect?
 	if ($input =~ m!\Aimaps?://!i) {
 		$lei->{net}->imap_each($input, \&_import_net, $lei->{sto},
-					$lei->{opt}->{kw});
+					$self->{-import_kw});
 		return;
 	} elsif ($input =~ m!\A(?:nntps?|s?news)://!i) {
 		$lei->{net}->nntp_each($input, \&_import_net, $lei->{sto}, 0);
@@ -133,14 +117,14 @@ sub import_path_url {
 		my $m = $lei->{opt}->{'lock'} // ($ifmt eq 'eml' ? ['none'] :
 				PublicInbox::MboxLock->defaults);
 		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
-		_import_fh($lei, $mbl->{fh}, $input, $ifmt);
+		$self->input_fh($ifmt, $mbl->{fh}, $input);
 	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
 		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
 $input appears to a be a maildir, not $ifmt
 EOM
 		PublicInbox::MdirReader::maildir_each_eml($input,
 					\&_import_maildir,
-					$lei->{sto}, $lei->{opt}->{kw});
+					$lei->{sto}, $self->{-import_kw});
 	} else {
 		$lei->fail("$input unsupported (TODO)");
 	}
@@ -150,7 +134,7 @@ sub import_stdin {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	my $in = delete $self->{0};
-	_import_fh($lei, $in, '<stdin>', $lei->{opt}->{'in-format'});
+	$self->input_fh($lei->{opt}->{'in-format'}, $in, '<stdin>');
 }
 
 no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
