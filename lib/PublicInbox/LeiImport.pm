@@ -5,7 +5,7 @@
 package PublicInbox::LeiImport;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::IPC);
+use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 use PublicInbox::Eml;
 use PublicInbox::PktOp qw(pkt_do);
 
@@ -67,60 +67,9 @@ sub lei_import { # the main "lei import" method
 	my ($lei, @inputs) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
-	my ($net, @f, @d);
 	$lei->{opt}->{kw} //= 1;
-	my $self = $lei->{imp} = bless { inputs => \@inputs }, __PACKAGE__;
-	if ($lei->{opt}->{stdin}) {
-		@inputs and return $lei->fail("--stdin and @inputs do not mix");
-		$lei->check_input_format or return;
-		$self->{0} = $lei->{0};
-	}
-
-	my $fmt = $lei->{opt}->{'in-format'};
-	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
-	for my $input (@inputs) {
-		my $input_path = $input;
-		if ($input =~ m!\A(?:imaps?|nntps?|s?news)://!i) {
-			require PublicInbox::NetReader;
-			$net //= PublicInbox::NetReader->new;
-			$net->add_url($input);
-		} elsif ($input_path =~ s/\A([a-z0-9]+)://is) {
-			my $ifmt = lc $1;
-			if (($fmt // $ifmt) ne $ifmt) {
-				return $lei->fail(<<"");
---in-format=$fmt and `$ifmt:' conflict
-
-			}
-			if (-f $input_path) {
-				require PublicInbox::MboxLock;
-				require PublicInbox::MboxReader;
-				PublicInbox::MboxReader->can($ifmt) or return
-					$lei->fail("$ifmt not supported");
-			} elsif (-d _) {
-				require PublicInbox::MdirReader;
-				$ifmt eq 'maildir' or return
-					$lei->fail("$ifmt not supported");
-			} else {
-				return $lei->fail("Unable to handle $input");
-			}
-		} elsif (-f $input) { push @f, $input
-		} elsif (-d _) { push @d, $input
-		} else { return $lei->fail("Unable to handle $input") }
-	}
-	if (@f) { $lei->check_input_format(\@f) or return }
-	if (@d) { # TODO: check for MH vs Maildir, here
-		require PublicInbox::MdirReader;
-	}
-	$self->{inputs} = \@inputs;
-	if ($net) {
-		if (my $err = $net->errors) {
-			return $lei->fail($err);
-		}
-		$net->{quiet} = $lei->{opt}->{quiet};
-		$lei->{net} = $net;
-		require PublicInbox::LeiAuth;
-		$lei->{auth} = PublicInbox::LeiAuth->new;
-	}
+	my $self = $lei->{imp} = bless {}, __PACKAGE__;
+	$self->prepare_inputs($lei, \@inputs) or return;
 	import_start($lei);
 }
 

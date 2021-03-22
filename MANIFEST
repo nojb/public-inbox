@@ -187,6 +187,7 @@ lib/PublicInbox/LeiDedupe.pm
 lib/PublicInbox/LeiExternal.pm
 lib/PublicInbox/LeiHelp.pm
 lib/PublicInbox/LeiImport.pm
+lib/PublicInbox/LeiInput.pm
 lib/PublicInbox/LeiMirror.pm
 lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiP2q.pm
