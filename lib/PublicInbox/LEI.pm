@@ -119,6 +119,8 @@ sub index_opt {
 	batch_size|batch-size=s skip-docdata)
 }
 
+my @c_opt = qw(c=s@ C=s@ quiet|q);
+
 # we generate shell completion + help using %CMD and %OPTDESC,
 # see lei__complete() and PublicInbox::LeiHelp
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
@@ -129,82 +131,80 @@ our %CMD = ( # sorted in order of importance/use:
 	sort|s=s reverse|r offset=i remote! local! external! pretty
 	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g augment|a
 	import-remote! import-before! lock=s@ rsyncable
-	alert=s@ mua=s no-torsocks torsocks=s verbose|v+ quiet|q C=s@),
+	alert=s@ mua=s no-torsocks torsocks=s verbose|v+), @c_opt,
 	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
 
 'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
-	qw(type=s solve! format|f=s dedupe|d=s threads|t remote local! C=s@),
-	pass_through('git show') ],
+	qw(type=s solve! format|f=s dedupe|d=s threads|t remote local!
+	verbose|v+), @c_opt, pass_through('git show') ],
 
 'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
-	qw(boost=i c=s@ mirror=s no-torsocks torsocks=s inbox-version=i),
-	qw(quiet|q verbose|v+ C=s@),
-	index_opt(), PublicInbox::LeiQuery::curl_opt() ],
+	qw(boost=i mirror=s no-torsocks torsocks=s inbox-version=i
+	verbose|v+), @c_opt, index_opt(),
+	PublicInbox::LeiQuery::curl_opt() ],
 'ls-external' => [ '[FILTER]', 'list publicinbox|extindex locations',
-	qw(format|f=s z|0 globoff|g invert-match|v local remote C=s@) ],
+	qw(format|f=s z|0 globoff|g invert-match|v local remote), @c_opt ],
 'forget-external' => [ 'LOCATION...|--prune',
 	'exclude further results from a publicinbox|extindex',
-	qw(prune quiet|q C=s@) ],
+	qw(prune), @c_opt ],
 
 'ls-query' => [ '[FILTER...]', 'list saved search queries',
-		qw(name-only format|f=s C=s@) ],
-'rm-query' => [ 'QUERY_NAME', 'remove a saved search', qw(C=s@) ],
-'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search', qw(C=s@) ],
+		qw(name-only format|f=s), @c_opt ],
+'rm-query' => [ 'QUERY_NAME', 'remove a saved search', @c_opt ],
+'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search', @c_opt ],
 
 'plonk' => [ '--threads|--from=IDENT',
 	'exclude mail matching From: or threads from non-Message-ID searches',
-	qw(stdin| threads|t from|f=s mid=s oid=s C=s@) ],
+	qw(stdin| threads|t from|f=s mid=s oid=s), @c_opt ],
 'mark' => [ 'MESSAGE_FLAGS...',
 	'set/unset keywords on message(s) from stdin',
-	qw(stdin| oid=s exact by-mid|mid:s C=s@) ],
+	qw(stdin| oid=s exact by-mid|mid:s), @c_opt ],
 'forget' => [ '[--stdin|--oid=OID|--by-mid=MID]',
 	"exclude message(s) on stdin from `q' search results",
-	qw(stdin| oid=s exact by-mid|mid:s quiet|q C=s@) ],
+	qw(stdin| oid=s exact by-mid|mid:s), @c_opt ],
 
 'purge-mailsource' => [ 'LOCATION|--all',
 	'remove imported messages from IMAP, Maildirs, and MH',
-	qw(exact! all jobs:i indexed C=s@) ],
+	qw(exact! all jobs:i indexed), @c_opt ],
 
 # code repos are used for `show' to solve blobs from patch mails
 'add-coderepo' => [ 'DIRNAME', 'add or set priority of a git code repo',
-	qw(boost=i C=s@) ],
+	qw(boost=i), @c_opt ],
 'ls-coderepo' => [ '[FILTER_TERMS...]',
-		'list known code repos', qw(format|f=s z C=s@) ],
+		'list known code repos', qw(format|f=s z), @c_opt ],
 'forget-coderepo' => [ 'DIRNAME',
 	'stop using repo to solve blobs from patches',
-	qw(prune C=s@) ],
+	qw(prune), @c_opt ],
 
 'add-watch' => [ 'LOCATION', 'watch for new messages and flag changes',
 	qw(import! kw|keywords|flags! interval=s recursive|r
-	exclude=s include=s C=s@) ],
+	exclude=s include=s), @c_opt ],
 'ls-watch' => [ '[FILTER...]', 'list active watches with numbers and status',
-		qw(format|f=s z C=s@) ],
-'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote C=s@) ],
-'resume-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote C=s@) ],
+		qw(format|f=s z), @c_opt ],
+'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote), @c_opt ],
+'resume-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote), @c_opt ],
 'forget-watch' => [ '{WATCH_NUMBER|--prune}', 'stop and forget a watch',
-	qw(prune C=s@) ],
+	qw(prune), @c_opt ],
 
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	lock=s@ in-format|F=s kw|keywords|flags! C=s@),
-	],
+	lock=s@ in-format|F=s kw|keywords|flags! verbose|v+), @c_opt ],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
-	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s quiet|q
-	lock=s@ kw|keywords|flags! C=s@),
-	],
+	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s
+	lock=s@ kw|keywords|flags!), @c_opt ],
 'p2q' => [ 'FILE|COMMIT_OID|--stdin',
 	"use a patch to generate a query for `lei q --stdin'",
-	qw(stdin| want|w=s@ uri debug) ],
+	qw(stdin| want|w=s@ uri debug), @c_opt ],
 'config' => [ '[...]', sub {
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
-	 qw(C=s@), pass_through('git config') ],
+	 qw(c=s@ C=s@), pass_through('git config') ],
 'init' => [ '[DIRNAME]', sub {
 	"initialize storage, default: ".store_path($_[0]);
-	}, qw(quiet|q C=s@) ],
+	}, @c_opt ],
 'daemon-kill' => [ '[-SIGNAL]', 'signal the lei-daemon',
 	# "-C DIR" conflicts with -CHLD, here, and chdir makes no sense, here
 	opt_dash('signal|s=s', '[0-9]+|(?:[A-Z][A-Z0-9]+)') ],
@@ -216,7 +216,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 'reorder-local-store-and-break-history' => [ '[REFNAME]',
 	'rewrite git history in an attempt to improve compression',
-	qw(gc! C=s@) ],
+	qw(gc!), @c_opt ],
 
 # internal commands are prefixed with '_'
 '_complete' => [ '[...]', 'internal shell completion helper',
@@ -235,6 +235,7 @@ my $ls_format = [ 'OUT|plain|json|null', 'listing output format' ];
 # we use \x{a0} (non-breaking SP) to avoid wrapping in PublicInbox::LeiHelp
 my %OPTDESC = (
 'help|h' => 'show this built-in help',
+'c=s@' => [ 'NAME=VALUE', 'set config option' ],
 'C=s@' => [ 'DIR', 'chdir to specify to directory' ],
 'quiet|q' => 'be quiet',
 'lock=s@' => [ 'METHOD|dotlock|fcntl|flock|none',
@@ -472,7 +473,8 @@ sub lei_atfork_child {
 		unless ($self->{oneshot}) {
 			close($_) for @io;
 		}
-	} else {
+	} else { # worker, Net::NNTP (Net::Cmd) uses STDERR directly
+		open STDERR, '+>&='.fileno($self->{2}) or warn "open $!";
 		delete $self->{0};
 	}
 	delete @$self{qw(cnv)};
@@ -586,14 +588,47 @@ sub optparse ($$$) {
 	$err ? fail($self, "usage: lei $cmd $proto\nE: $err") : 1;
 }
 
+sub _tmp_cfg { # for lei -c <name>=<value> ...
+	my ($self) = @_;
+	my $cfg = _lei_cfg($self, 1);
+	require File::Temp;
+	my $ft = File::Temp->new(TEMPLATE => 'lei_cfg-XXXX', TMPDIR => 1);
+	my $tmp = { '-f' => $ft->filename, -tmp => $ft };
+	$ft->autoflush(1);
+	print $ft <<EOM or return fail($self, "$tmp->{-f}: $!");
+[include]
+	path = $cfg->{-f}
+EOM
+	$tmp = $self->{cfg} = bless { %$cfg, %$tmp }, ref($cfg);
+	for (@{$self->{opt}->{c}}) {
+		/\A([^=\.]+\.[^=]+)(?:=(.*))?\z/ or return fail($self, <<EOM);
+`-c $_' is not of the form -c <name>=<value>'
+EOM
+		my $name = $1;
+		my $value = $2 // 1;
+		_config($self, '--add', $name, $value);
+		if (defined(my $v = $tmp->{$name})) {
+			if (ref($v) eq 'ARRAY') {
+				push @$v, $value;
+			} else {
+				$tmp->{$name} = [ $v, $value ];
+			}
+		} else {
+			$tmp->{$name} = $value;
+		}
+	}
+}
+
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
 	local $current_lei = $self; # for __WARN__
 	dump_and_clear_log("from previous run\n");
 	return _help($self, 'no command given') unless defined($cmd);
-	while ($cmd eq '-C') { # do not support Getopt bundling for this
-		my $d = shift(@argv) // return fail($self, '-C DIRECTORY');
-		push @{$self->{opt}->{C}}, $d;
+	# do not support Getopt bundling for this
+	while ($cmd eq '-C' || $cmd eq '-c') {
+		my $v = shift(@argv) // return fail($self, $cmd eq '-C' ?
+					'-C DIRECTORY' : '-c <name>=<value>');
+		push @{$self->{opt}->{substr($cmd, 1, 1)}}, $v;
 		$cmd = shift(@argv) // return _help($self, 'no command given');
 	}
 	my $func = "lei_$cmd";
@@ -605,6 +640,7 @@ sub dispatch {
 	} : undef);
 	if ($cb) {
 		optparse($self, $cmd, \@argv) or return;
+		$self->{opt}->{c} and (_tmp_cfg($self) // return);
 		if (my $chdir = $self->{opt}->{C}) {
 			for my $d (@$chdir) {
 				next if $d eq ''; # same as git(1)
@@ -623,6 +659,7 @@ sub dispatch {
 
 sub _lei_cfg ($;$) {
 	my ($self, $creat) = @_;
+	return $self->{cfg} if $self->{cfg};
 	my $f = _config_path($self);
 	my @st = stat($f);
 	my $cur_st = @st ? pack('dd', $st[10], $st[7]) : ''; # 10:ctime, 7:size

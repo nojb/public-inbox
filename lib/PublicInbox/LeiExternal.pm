@@ -149,7 +149,7 @@ sub lei_add_external {
 	my $mirror = $opt->{mirror} // do {
 		my @fail;
 		for my $sw ($self->index_opt, $self->curl_opt,
-				qw(c no-torsocks torsocks inbox-version)) {
+				qw(no-torsocks torsocks inbox-version)) {
 			my ($f) = (split(/|/, $sw, 2))[0];
 			next unless defined $opt->{$f};
 			$f = length($f) == 1 ? "-$f" : "--$f";

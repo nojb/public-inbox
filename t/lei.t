@@ -93,6 +93,15 @@ my $test_config = sub {
 			'config set var with -f fails');
 	like($lei_err, qr/not supported/, 'not supported noted');
 	ok(!-f "$home/config/f", 'no file created');
+
+	lei_ok(qw(-c imap.debug config --bool imap.debug));
+	is($lei_out, "true\n", "-c sets w/o value");
+	lei_ok(qw(-c imap.debug=1 config --bool imap.debug));
+	is($lei_out, "true\n", "-c coerces value");
+	lei_ok(qw(-c imap.debug=tr00 config imap.debug));
+	is($lei_out, "tr00\n", "-c string value passed as-is");
+	lei_ok(qw(-c imap.debug=a -c imap.debug=b config --get-all imap.debug));
+	is($lei_out, "a\nb\n", '-c and --get-all work together');
 };
 
 my $test_completion = sub {
