@@ -10,19 +10,19 @@ use PublicInbox::Eml;
 use PublicInbox::PktOp qw(pkt_do);
 
 sub eml_cb { # used by PublicInbox::LeiInput::input_fh
-	my ($self, $eml) = @_;
-	my $vmd;
-	if ($self->{-import_kw}) { # FIXME
-		my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
-		$vmd = { kw => $kw } if scalar(@$kw);
-	}
+	my ($self, $eml, $vmd) = @_;
 	my $xoids = $self->{lei}->{ale}->xoids_for($eml);
 	$self->{lei}->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
 }
 
 sub mbox_cb { # MboxReader callback used by PublicInbox::LeiInput::input_fh
 	my ($eml, $self) = @_;
-	eml_cb($self, $eml);
+	my $vmd;
+	if ($self->{-import_kw}) {
+		my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
+		$vmd = { kw => $kw } if scalar(@$kw);
+	}
+	eml_cb($self, $eml, $vmd);
 }
 
 sub import_done_wait { # dwaitpid callback

@@ -39,26 +39,43 @@ lei_ok(qw(q m:testmessage@example.com));
 is(json_utf8->decode($lei_out)->[0]->{'blob'}, $oid,
 	'got expected OID w/o From');
 
-my $str = <<'';
+my $eml_str = <<'';
 From: a@b
 Message-ID: <x@y>
 Status: RO
 
-my $opt = { %$lei_opt, 0 => \$str };
+my $opt = { %$lei_opt, 0 => \$eml_str };
 lei_ok([qw(import -F eml -)], undef, $opt,
 	\'import single file with keywords from stdin');
 lei_ok(qw(q m:x@y));
 my $res = json_utf8->decode($lei_out);
 is($res->[1], undef, 'only one result');
-is_deeply($res->[0]->{kw}, ['seen'], "message `seen' keyword set");
+is($res->[0]->{'m'}, 'x@y', 'got expected message');
+is($res->[0]->{kw}, undef, 'Status ignored for eml');
+lei_ok(qw(q -f mboxrd m:x@y));
+unlike($lei_out, qr/^Status:/, 'no Status: in imported message');
 
-$str =~ tr/x/v/; # v@y
-lei_ok([qw(import --no-kw -F eml -)], undef, $opt,
+
+$eml->header_set('Message-ID', '<v@y>');
+$eml->header_set('Status', 'RO');
+$in = 'From v@y Fri Oct  2 00:00:00 1993'."\n".$eml->as_string;
+lei_ok([qw(import --no-kw -F mboxrd -)], undef, { %$lei_opt, 0 => \$in },
 	\'import single file with --no-kw from stdin');
 lei(qw(q m:v@y));
 $res = json_utf8->decode($lei_out);
 is($res->[1], undef, 'only one result');
+is($res->[0]->{'m'}, 'v@y', 'got expected message');
 is($res->[0]->{kw}, undef, 'no keywords set');
+
+$eml->header_set('Message-ID', '<k@y>');
+$in = 'From k@y Fri Oct  2 00:00:00 1993'."\n".$eml->as_string;
+lei_ok([qw(import -F mboxrd -)], undef, { %$lei_opt, 0 => \$in },
+	\'import single file with --kw (default) from stdin');
+lei(qw(q m:k@y));
+$res = json_utf8->decode($lei_out);
+is($res->[1], undef, 'only one result');
+is($res->[0]->{'m'}, 'k@y', 'got expected message');
+is_deeply($res->[0]->{kw}, ['seen'], "`seen' keywords set");
 
 # see t/lei_to_mail.t for "import -F mbox*"
 });
