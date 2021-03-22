@@ -133,4 +133,9 @@ sub mboxcl2 {
 
 sub new { bless \(my $x), __PACKAGE__ }
 
+sub reads {
+	my $ifmt = $_[-1];
+	$ifmt =~ /\Ambox(?:rd|cl|cl2|o)\z/ ? __PACKAGE__->can($ifmt) : undef
+}
+
 1;

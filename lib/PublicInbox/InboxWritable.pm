@@ -172,7 +172,7 @@ sub _mbox_eml_cb { # MboxReader->mbox* callback
 sub import_mbox {
 	my ($self, $fh, $variant) = @_;
 	require PublicInbox::MboxReader;
-	my $cb = PublicInbox::MboxReader->can($variant) or
+	my $cb = PublicInbox::MboxReader->reads($variant) or
 		die "$variant not supported\n";
 	my $im = $self->importer(1);
 	$cb->(undef, $fh, \&_mbox_eml_cb, $im, $self->filter);

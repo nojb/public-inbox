@@ -96,7 +96,7 @@ error reading $input: $!
 			my $eml = PublicInbox::Eml->new(\$buf);
 			_import_eml($eml, $lei, $kw);
 		} else { # some mbox (->can already checked in call);
-			my $cb = PublicInbox::MboxReader->can($ifmt) //
+			my $cb = PublicInbox::MboxReader->reads($ifmt) //
 				die "BUG: bad fmt=$ifmt";
 			$cb->(undef, $fh, \&_import_eml, $lei, $kw);
 		}
