@@ -554,11 +554,10 @@ sub _nntp_fetch_all ($$$) {
 		return if $l_art >= $end; # nothing to do
 		$beg = $l_art + 1;
 	}
-	my ($err, $art);
+	my ($err, $art, $last_art, $kw); # kw stays undef, no keywords in NNTP
 	unless ($self->{quiet}) {
 		warn "# $uri fetching ARTICLE $beg..$end\n";
 	}
-	my $last_art;
 	my $n = $self->{max_batch};
 	for ($beg..$end) {
 		last if $self->{quit};
@@ -582,7 +581,7 @@ sub _nntp_fetch_all ($$$) {
 		$raw = join('', @$raw);
 		$raw =~ s/\r\n/\n/sg;
 		my ($eml_cb, @args) = @{$self->{eml_each}};
-		$eml_cb->($uri, $art, [], PublicInbox::Eml->new(\$raw), @args);
+		$eml_cb->($uri, $art, $kw, PublicInbox::Eml->new(\$raw), @args);
 		$last_art = $art;
 	}
 	run_commit_cb($self);
