@@ -597,6 +597,29 @@ sub remove_vmd {
 	$self->{xdb}->replace_document($docid, $doc) if $replace;
 }
 
+sub update_vmd {
+	my ($self, $docid, $vmd_mod) = @_;
+	begin_txn_lazy($self);
+	my $doc = _get_doc($self, $docid) or return;
+	my $updated = 0;
+	my @x = @VMD_MAP;
+	while (my ($field, $pfx) = splice(@x, 0, 2)) {
+		# field: "label" or "kw"
+		for my $val (@{$vmd_mod->{"-$field"} // []}) {
+			eval {
+				$doc->remove_term($pfx . $val);
+				++$updated;
+			};
+		}
+		for my $val (@{$vmd_mod->{"+$field"} // []}) {
+			$doc->add_boolean_term($pfx . $val);
+			++$updated;
+		}
+	}
+	$self->{xdb}->replace_document($docid, $doc) if $updated;
+	$updated;
+}
+
 sub xdb_remove {
 	my ($self, @docids) = @_;
 	$self->begin_txn_lazy;

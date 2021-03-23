@@ -45,7 +45,7 @@ error reading $name: $!
 	}
 }
 
-sub prepare_inputs {
+sub prepare_inputs { # returns undef on error
 	my ($self, $lei, $inputs) = @_;
 	my $in_fmt = $lei->{opt}->{'in-format'};
 	if ($lei->{opt}->{stdin}) {
@@ -101,6 +101,15 @@ sub prepare_inputs {
 		$lei->{net} //= $net;
 	}
 	$self->{inputs} = $inputs;
+}
+
+sub input_only_atfork_child {
+	my ($self) = @_;
+	my $lei = $self->{lei};
+	$lei->lei_atfork_child;
+	PublicInbox::IPC::ipc_atfork_child($self);
+	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
+	undef;
 }
 
 1;

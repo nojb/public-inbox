@@ -228,12 +228,30 @@ sub set_eml {
 		set_eml_vmd($self, $eml, $vmd);
 }
 
+sub update_xvmd {
+	my ($self, $xoids, $vmd_mod) = @_;
+	my $eidx = eidx_init($self);
+	my $oidx = $eidx->{oidx};
+	my %seen;
+	for my $oid (keys %$xoids) {
+		my @docids = $oidx->blob_exists($oid) or next;
+		scalar(@docids) > 1 and
+			warn "W: $oid indexed as multiple docids: @docids\n";
+		for my $docid (@docids) {
+			next if $seen{$docid}++;
+			my $idx = $eidx->idx_shard($docid);
+			$idx->ipc_do('update_vmd', $docid, $vmd_mod);
+		}
+	}
+}
+
 # set or update keywords for external message, called via ipc_do
 sub set_xvmd {
 	my ($self, $xoids, $eml, $vmd) = @_;
 
 	my $eidx = eidx_init($self);
 	my $oidx = $eidx->{oidx};
+	my %seen;
 
 	# see if we can just update existing docs
 	for my $oid (keys %$xoids) {
@@ -241,6 +259,7 @@ sub set_xvmd {
 		scalar(@docids) > 1 and
 			warn "W: $oid indexed as multiple docids: @docids\n";
 		for my $docid (@docids) {
+			next if $seen{$docid}++;
 			my $idx = $eidx->idx_shard($docid);
 			$idx->ipc_do('set_vmd', $docid, $vmd);
 		}

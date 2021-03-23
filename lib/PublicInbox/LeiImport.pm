@@ -78,16 +78,6 @@ sub lei_import { # the main "lei import" method
 	import_start($lei);
 }
 
-sub ipc_atfork_child {
-	my ($self) = @_;
-	my $lei = $self->{lei};
-	delete $lei->{imp}; # drop circular ref
-	$lei->lei_atfork_child;
-	$self->SUPER::ipc_atfork_child;
-	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
-	undef;
-}
-
 sub _import_maildir { # maildir_each_eml cb
 	my ($f, $kw, $eml, $sto, $set_kw) = @_;
 	$sto->ipc_do('set_eml', $eml, $set_kw ? { kw => $kw }: ());
@@ -137,6 +127,9 @@ sub import_stdin {
 	$self->input_fh($lei->{opt}->{'in-format'}, $in, '<stdin>');
 }
 
-no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
+no warnings 'once';
+*ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
+
+# the following works even when LeiAuth is lazy-loaded
 *net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 1;
