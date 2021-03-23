@@ -453,6 +453,7 @@ sub _lei_atfork_child {
 	my ($self, $persist) = @_;
 	# we need to explicitly close things which are on stack
 	if ($persist) {
+		chdir '/' or die "chdir(/): $!";
 		my @io = delete @$self{qw(0 1 2 sock)};
 		unless ($self->{oneshot}) {
 			close($_) for @io;
