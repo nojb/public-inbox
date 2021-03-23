@@ -174,4 +174,47 @@ sub ipc_atfork_child {
 	PublicInbox::OnDestroy->new($$, \&note_missing, $self);
 }
 
+# Workaround bash word-splitting s to ['kw', ':', 'keyword' ...]
+# Maybe there's a better way to go about this in
+# contrib/completion/lei-completion.bash
+sub _complete_mark_common ($) {
+	my ($argv) = @_;
+	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
+	# Maybe there's a better way to go about this in
+	# contrib/completion/lei-completion.bash
+	my $re = '';
+	my $cur = pop(@$argv) // '';
+	if (@$argv) {
+		my @x = @$argv;
+		if ($cur eq ':' && @x) {
+			push @x, $cur;
+			$cur = '';
+		}
+		while (@x > 2 && $x[0] !~ /\A[+\-](?:kw|L)\z/ &&
+					$x[1] ne ':') {
+			shift @x;
+		}
+		if (@x >= 2) { # qw(kw : $KEYWORD) or qw(kw :)
+			$re = join('', @x);
+		} else { # just return everything and hope for the best
+			$re = join('', @$argv);
+		}
+		$re = quotemeta($re);
+	}
+	($cur, $re);
+}
+
+# FIXME: same problems as _complete_forget_external and similar
+sub _complete_mark {
+	my ($self, @argv) = @_;
+	my @all = map { ("+kw:$_", "-kw:$_") } @KW;
+	return @all if !@argv;
+	my ($cur, $re) = _complete_mark_common(\@argv);
+	map {
+		# only return the part specified on the CLI
+		# don't duplicate if already 100% completed
+		/\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ();
+	} grep(/$re\Q$cur/, @all);
+}
+
 1;

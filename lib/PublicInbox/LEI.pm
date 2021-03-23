@@ -604,6 +604,19 @@ EOM
 	}
 }
 
+sub lazy_cb ($$$) {
+	my ($self, $cmd, $pfx) = @_;
+	my $ucmd = $cmd;
+	$ucmd =~ tr/-/_/;
+	my $cb;
+	$cb = $self->can($pfx.$ucmd) and return $cb;
+	my $base = $ucmd;
+	$base =~ s/_([a-z])/\u$1/g;
+	my $pkg = "PublicInbox::Lei\u$base";
+	($INC{"PublicInbox/Lei\u$base.pm"} // eval("require $pkg")) ?
+		$pkg->can($pfx.$ucmd) : undef;
+}
+
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
 	local $current_lei = $self; # for __WARN__
@@ -616,14 +629,7 @@ sub dispatch {
 		push @{$self->{opt}->{substr($cmd, 1, 1)}}, $v;
 		$cmd = shift(@argv) // return _help($self, 'no command given');
 	}
-	my $func = "lei_$cmd";
-	$func =~ tr/-/_/;
-	my $cb = __PACKAGE__->can($func) // ($CMD{$cmd} ? do {
-		my $mod = "PublicInbox::Lei\u$cmd";
-		($INC{"PublicInbox/Lei\u$cmd.pm"} //
-			eval("require $mod")) ? $mod->can($func) : undef;
-	} : undef);
-	if ($cb) {
+	if (my $cb = lazy_cb(__PACKAGE__, $cmd, 'lei_')) {
 		optparse($self, $cmd, \@argv) or return;
 		$self->{opt}->{c} and (_tmp_cfg($self) // return);
 		if (my $chdir = $self->{opt}->{C}) {
@@ -808,9 +814,8 @@ sub lei__complete {
 			@v;
 		} grep(/\A(?:[\w-]+\|)*$opt\b.*?(?:\t$cmd)?\z/, keys %OPTDESC);
 	}
-	$cmd =~ tr/-/_/;
-	if (my $sub = $self->can("_complete_$cmd")) {
-		puts $self, $sub->($self, @argv, $cur ? ($cur) : ());
+	if (my $cb = lazy_cb($self, $cmd, '_complete_')) {
+		puts $self, $cb->($self, @argv, $cur ? ($cur) : ());
 	}
 	# TODO: URLs, pathnames, OIDs, MIDs, etc...  See optparse() for
 	# proto parsing.
