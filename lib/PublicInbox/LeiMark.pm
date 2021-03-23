@@ -105,8 +105,8 @@ sub input_net_cb { # imap_each, nntp_each cb
 sub lei_mark { # the "lei mark" method
 	my ($lei, @argv) = @_;
 	my $sto = $lei->_lei_store(1);
-	my $self = $lei->{mark} = bless { missing => 0 }, __PACKAGE__;
 	$sto->write_prepare($lei);
+	my $self = bless { missing => 0 }, __PACKAGE__;
 	$lei->ale; # refresh and prepare
 	my $vmd_mod = vmd_mod_extract(\@argv);
 	return $lei->fail(join("\n", @{$vmd_mod->{err}})) if $vmd_mod->{err};

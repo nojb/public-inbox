@@ -462,7 +462,6 @@ sub _lei_atfork_child {
 		open STDERR, '+>&='.fileno($self->{2}) or warn "open $!";
 		delete $self->{0};
 	}
-	delete @$self{qw(cnv mark imp)};
 	for (delete @$self{qw(3 old_1 au_done)}) {
 		close($_) if defined($_);
 	}

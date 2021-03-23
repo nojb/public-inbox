@@ -176,13 +176,14 @@ sub do_p2q { # via wq_do
 
 sub lei_p2q { # the "lei patch-to-query" entry point
 	my ($lei, $input) = @_;
-	my $self = $lei->{p2q} = bless {}, __PACKAGE__;
+	my $self = bless {}, __PACKAGE__;
 	if ($lei->{opt}->{stdin}) {
 		$self->{0} = delete $lei->{0}; # guard from _lei_atfork_child
 	} else {
 		$self->{input} = $input;
 	}
-	my $op = $lei->workers_start($self, 'lei patch2query', 1);
+	my $op = $lei->workers_start($self, 'lei_p2q', 1);
+	$lei->{p2q} = $self;
 	$self->wq_io_do('do_p2q', []);
 	$self->wq_close(1);
 	while ($op && $op->{sock}) { $op->event_step }

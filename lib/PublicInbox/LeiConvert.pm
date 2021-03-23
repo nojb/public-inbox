@@ -46,13 +46,14 @@ sub lei_convert { # the main "lei convert" method
 	my ($lei, @inputs) = @_;
 	$lei->{opt}->{kw} //= 1;
 	$lei->{opt}->{dedupe} //= 'none';
-	my $self = $lei->{cnv} = bless {}, __PACKAGE__;
+	my $self = bless {}, __PACKAGE__;
 	my $ovv = PublicInbox::LeiOverview->new($lei, 'out-format');
 	$lei->{l2m} or return
 		$lei->fail("output not specified or is not a mail destination");
 	$lei->{opt}->{augment} = 1 unless $ovv->{dst} eq '/dev/stdout';
 	$self->prepare_inputs($lei, \@inputs) or return;
 	my $op = $lei->workers_start($self, 'lei_convert', 1);
+	$lei->{cnv} = $self;
 	$self->wq_io_do('do_convert', []);
 	$self->wq_close(1);
 	while ($op && $op->{sock}) { $op->event_step }

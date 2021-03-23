@@ -269,7 +269,6 @@ sub do_mirror { # via wq_io_do
 sub start {
 	my ($cls, $lei, $src, $dst) = @_;
 	my $self = bless { lei => $lei, src => $src, dst => $dst }, $cls;
-	$lei->{mrr} = $self;
 	if ($src =~ m!https?://!) {
 		require URI;
 		require PublicInbox::LeiCurl;
@@ -281,6 +280,7 @@ sub start {
 	my $op = $lei->workers_start($self, 'lei_mirror', 1, {
 		'' => [ \&mirror_done, $lei ]
 	});
+	$lei->{mrr} = $self;
 	$self->wq_io_do('do_mirror', []);
 	$self->wq_close(1);
 	while ($op && $op->{sock}) { $op->event_step }

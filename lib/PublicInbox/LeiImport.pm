@@ -58,9 +58,13 @@ sub net_merge_complete { # callback used by LeiAuth
 	$self->wq_close(1);
 }
 
-sub import_start {
-	my ($lei) = @_;
-	my $self = $lei->{imp};
+sub lei_import { # the main "lei import" method
+	my ($lei, @inputs) = @_;
+	my $sto = $lei->_lei_store(1);
+	$sto->write_prepare($lei);
+	my $self = bless {}, __PACKAGE__;
+	$self->{-import_kw} = $lei->{opt}->{kw} // 1;
+	$self->prepare_inputs($lei, \@inputs) or return;
 	$lei->ale; # initialize for workers to read
 	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
 	if (my $net = $lei->{net}) {
@@ -77,16 +81,6 @@ sub import_start {
 	$self->wq_io_do('input_stdin', []) if $self->{0};
 	net_merge_complete($self) unless $lei->{auth};
 	while ($op && $op->{sock}) { $op->event_step }
-}
-
-sub lei_import { # the main "lei import" method
-	my ($lei, @inputs) = @_;
-	my $sto = $lei->_lei_store(1);
-	$sto->write_prepare($lei);
-	my $self = $lei->{imp} = bless {}, __PACKAGE__;
-	$self->{-import_kw} = $lei->{opt}->{kw} // 1;
-	$self->prepare_inputs($lei, \@inputs) or return;
-	import_start($lei);
 }
 
 no warnings 'once';
