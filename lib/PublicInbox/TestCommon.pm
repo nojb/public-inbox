@@ -507,7 +507,7 @@ SKIP: {
 Socket::MsgHdr missing or Inline::C is unconfigured/missing
 EOM
 	$lei_opt = { 1 => \$lei_out, 2 => \$lei_err };
-	my ($daemon_pid, $for_destroy);
+	my ($daemon_pid, $for_destroy, $daemon_xrd);
 	my $tmpdir = $test_opt->{tmpdir};
 	($tmpdir, $for_destroy) = tmpdir unless $tmpdir;
 	SKIP: {
@@ -515,9 +515,9 @@ EOM
 		my $home = "$tmpdir/lei-daemon";
 		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
 		local $ENV{HOME} = $home;
-		my $xrd = "$home/xdg_run";
-		mkdir($xrd, 0700) or BAIL_OUT "mkdir: $!";
-		local $ENV{XDG_RUNTIME_DIR} = $xrd;
+		$daemon_xrd = "$home/xdg_run";
+		mkdir($daemon_xrd, 0700) or BAIL_OUT "mkdir: $!";
+		local $ENV{XDG_RUNTIME_DIR} = $daemon_xrd;
 		$cb->();
 		lei_ok(qw(daemon-pid), \"daemon-pid after $t");
 		chomp($daemon_pid = $lei_out);
@@ -547,6 +547,11 @@ EOM
 			tick;
 		}
 		ok(!kill(0, $daemon_pid), "$t daemon stopped after oneshot");
+		my $f = "$daemon_xrd/lei/errors.log";
+		open my $fh, '<', $f or BAIL_OUT "$f: $!";
+		my @l = <$fh>;
+		is_deeply(\@l, [],
+			"$t daemon XDG_RUNTIME_DIR/lei/errors.log empty");
 	}
 }; # SKIP if missing git 2.6+ || Xapian || SQLite || json
 } # /test_lei
