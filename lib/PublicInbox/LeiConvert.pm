@@ -6,64 +6,39 @@ package PublicInbox::LeiConvert;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
-use PublicInbox::Eml;
-use PublicInbox::LeiStore;
 use PublicInbox::LeiOverview;
 
-sub mbox_cb { # MboxReader callback used by PublicInbox::LeiInput::input_fh
+# /^input_/ subs are used by PublicInbox::LeiInput
+
+sub input_mbox_cb { # MboxReader callback
 	my ($eml, $self) = @_;
 	my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
 	$eml->header_set($_) for qw(Status X-Status);
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 
-sub eml_cb { # used by PublicInbox::LeiInput::input_fh
+sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml) = @_;
-	$self->{wcb}->(undef, { kw => [] }, $eml);
+	$self->{wcb}->(undef, {}, $eml);
 }
 
-sub net_cb { # callback for ->imap_each, ->nntp_each
+sub input_net_cb { # callback for ->imap_each, ->nntp_each
 	my (undef, undef, $kw, $eml, $self) = @_; # @_[0,1]: url + uid ignored
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 
-sub mdir_cb {
-	my ($f, $kw, $eml, $self) = @_;
+sub input_maildir_cb {
+	my (undef, $kw, $eml, $self) = @_; # $_[0] $filename ignored
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 
 sub do_convert { # via wq_do
 	my ($self) = @_;
-	my $lei = $self->{lei};
-	my $ifmt = $lei->{opt}->{'in-format'};
-	if (my $stdin = delete $self->{0}) {
-		$self->input_fh($ifmt, $stdin, '<stdin>');
-	}
+	$self->input_stdin;
 	for my $input (@{$self->{inputs}}) {
-		my $ifmt = lc($ifmt // '');
-		if ($input =~ m!\Aimaps?://!) {
-			$lei->{net}->imap_each($input, \&net_cb, $self);
-			next;
-		} elsif ($input =~ m!\A(?:nntps?|s?news)://!) {
-			$lei->{net}->nntp_each($input, \&net_cb, $self);
-			next;
-		} elsif ($input =~ s!\A([a-z0-9]+):!!i) {
-			$ifmt = lc $1;
-		}
-		if (-f $input) {
-			my $m = $lei->{opt}->{'lock'} //
-					($ifmt eq 'eml' ? ['none'] :
-					PublicInbox::MboxLock->defaults);
-			my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
-			$self->input_fh($ifmt, $mbl->{fh}, $input);
-		} elsif (-d _) {
-			PublicInbox::MdirReader::maildir_each_eml($input,
-							\&mdir_cb, $self);
-		} else {
-			die "BUG: $input unhandled"; # should've failed earlier
-		}
+		$self->input_path_url($input);
 	}
-	delete $lei->{1};
+	delete $self->{lei}->{1};
 	delete $self->{wcb}; # commit
 }
 

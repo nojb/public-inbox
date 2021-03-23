@@ -6,23 +6,33 @@ package PublicInbox::LeiImport;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
-use PublicInbox::Eml;
-use PublicInbox::PktOp qw(pkt_do);
 
-sub eml_cb { # used by PublicInbox::LeiInput::input_fh
+# /^input_/ subs are used by (or override) PublicInbox::LeiInput superclass
+
+sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml, $vmd) = @_;
 	my $xoids = $self->{lei}->{ale}->xoids_for($eml);
 	$self->{lei}->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
 }
 
-sub mbox_cb { # MboxReader callback used by PublicInbox::LeiInput::input_fh
+sub input_mbox_cb { # MboxReader callback
 	my ($eml, $self) = @_;
 	my $vmd;
 	if ($self->{-import_kw}) {
 		my $kw = PublicInbox::MboxReader::mbox_keywords($eml);
 		$vmd = { kw => $kw } if scalar(@$kw);
 	}
-	eml_cb($self, $eml, $vmd);
+	input_eml_cb($self, $eml, $vmd);
+}
+
+sub input_maildir_cb { # maildir_each_eml cb
+	my ($f, $kw, $eml, $self) = @_;
+	input_eml_cb($self, $eml, $self->{-import_kw} ? { kw => $kw } : undef);
+}
+
+sub input_net_cb { # imap_each, nntp_each cb
+	my ($url, $uid, $kw, $eml, $self) = @_;
+	input_eml_cb($self, $eml, $self->{-import_kw} ? { kw => $kw } : undef);
 }
 
 sub import_done_wait { # dwaitpid callback
@@ -43,7 +53,7 @@ sub import_done { # EOF callback for main daemon
 sub net_merge_complete { # callback used by LeiAuth
 	my ($self) = @_;
 	for my $input (@{$self->{inputs}}) {
-		$self->wq_io_do('import_path_url', [], $input);
+		$self->wq_io_do('input_path_url', [], $input);
 	}
 	$self->wq_close(1);
 }
@@ -63,7 +73,8 @@ sub import_start {
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{-wq_nr_workers} = $j // 1; # locked
 	my $op = $lei->workers_start($self, 'lei_import', undef, $ops);
-	$self->wq_io_do('import_stdin', []) if $self->{0};
+	$lei->{imp} = $self;
+	$self->wq_io_do('input_stdin', []) if $self->{0};
 	net_merge_complete($self) unless $lei->{auth};
 	while ($op && $op->{sock}) { $op->event_step }
 }
@@ -76,55 +87,6 @@ sub lei_import { # the main "lei import" method
 	$self->{-import_kw} = $lei->{opt}->{kw} // 1;
 	$self->prepare_inputs($lei, \@inputs) or return;
 	import_start($lei);
-}
-
-sub _import_maildir { # maildir_each_eml cb
-	my ($f, $kw, $eml, $sto, $set_kw) = @_;
-	$sto->ipc_do('set_eml', $eml, $set_kw ? { kw => $kw }: ());
-}
-
-sub _import_net { # imap_each, nntp_each cb
-	my ($url, $uid, $kw, $eml, $sto, $set_kw) = @_;
-	$sto->ipc_do('set_eml', $eml, $set_kw ? { kw => $kw } : ());
-}
-
-sub import_path_url {
-	my ($self, $input) = @_;
-	my $lei = $self->{lei};
-	my $ifmt = lc($lei->{opt}->{'in-format'} // '');
-	# TODO auto-detect?
-	if ($input =~ m!\Aimaps?://!i) {
-		$lei->{net}->imap_each($input, \&_import_net, $lei->{sto},
-					$self->{-import_kw});
-		return;
-	} elsif ($input =~ m!\A(?:nntps?|s?news)://!i) {
-		$lei->{net}->nntp_each($input, \&_import_net, $lei->{sto}, 0);
-		return;
-	} elsif ($input =~ s!\A([a-z0-9]+):!!i) {
-		$ifmt = lc $1;
-	}
-	if (-f $input) {
-		my $m = $lei->{opt}->{'lock'} // ($ifmt eq 'eml' ? ['none'] :
-				PublicInbox::MboxLock->defaults);
-		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
-		$self->input_fh($ifmt, $mbl->{fh}, $input);
-	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
-		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
-$input appears to a be a maildir, not $ifmt
-EOM
-		PublicInbox::MdirReader::maildir_each_eml($input,
-					\&_import_maildir,
-					$lei->{sto}, $self->{-import_kw});
-	} else {
-		$lei->fail("$input unsupported (TODO)");
-	}
-}
-
-sub import_stdin {
-	my ($self) = @_;
-	my $lei = $self->{lei};
-	my $in = delete $self->{0};
-	$self->input_fh($lei->{opt}->{'in-format'}, $in, '<stdin>');
 }
 
 no warnings 'once';

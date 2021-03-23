@@ -6,8 +6,6 @@ package PublicInbox::LeiMark;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
-use PublicInbox::Eml;
-use PublicInbox::PktOp qw(pkt_do);
 
 # JMAP RFC 8621 4.1.1
 my @KW = (qw(seen answered flagged draft), # system
@@ -34,7 +32,6 @@ my %ERR = (
 `$kw' is not one of: `seen', `flagged', `answered', `draft'
 `junk', `notjunk', `phishing' or `forwarded'
 EOM
-
 	}
 );
 
@@ -60,7 +57,7 @@ sub vmd_mod_extract {
 	$vmd_mod;
 }
 
-sub eml_cb { # used by PublicInbox::LeiInput::input_fh
+sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml) = @_;
 	if (my $xoids = $self->{lei}->{ale}->xoids_for($eml)) {
 		$self->{lei}->{sto}->ipc_do('update_xvmd', $xoids,
@@ -70,7 +67,7 @@ sub eml_cb { # used by PublicInbox::LeiInput::input_fh
 	}
 }
 
-sub mbox_cb { eml_cb($_[1], $_[0]) } # used by PublicInbox::LeiInput::input_fh
+sub input_mbox_cb { input_eml_cb($_[1], $_[0]) }
 
 sub mark_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
@@ -90,19 +87,19 @@ sub mark_done { # EOF callback for main daemon
 sub net_merge_complete { # callback used by LeiAuth
 	my ($self) = @_;
 	for my $input (@{$self->{inputs}}) {
-		$self->wq_io_do('mark_path_url', [], $input);
+		$self->wq_io_do('input_path_url', [], $input);
 	}
 	$self->wq_close(1);
 }
 
-sub _mark_maildir { # maildir_each_eml cb
+sub input_maildir_cb { # maildir_each_eml cb
 	my ($f, $kw, $eml, $self) = @_;
-	eml_cb($self, $eml);
+	input_eml_cb($self, $eml);
 }
 
-sub _mark_net { # imap_each, nntp_each cb
+sub input_net_cb { # imap_each, nntp_each cb
 	my ($url, $uid, $kw, $eml, $self) = @_;
-	eml_cb($self, $eml)
+	input_eml_cb($self, $eml);
 }
 
 sub lei_mark { # the "lei mark" method
@@ -120,46 +117,10 @@ sub lei_mark { # the "lei mark" method
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{vmd_mod} = $vmd_mod;
 	my $op = $lei->workers_start($self, 'lei_mark', 1, $ops);
-	$self->wq_io_do('mark_stdin', []) if $self->{0};
+	$lei->{mark} = $self;
+	$self->wq_io_do('input_stdin', []) if $self->{0};
 	net_merge_complete($self) unless $lei->{auth};
 	while ($op && $op->{sock}) { $op->event_step }
-}
-
-sub mark_path_url {
-	my ($self, $input) = @_;
-	my $lei = $self->{lei};
-	my $ifmt = lc($lei->{opt}->{'in-format'} // '');
-	# TODO auto-detect?
-	if ($input =~ m!\Aimaps?://!i) {
-		$lei->{net}->imap_each($input, \&_mark_net, $self);
-		return;
-	} elsif ($input =~ m!\A(?:nntps?|s?news)://!i) {
-		$lei->{net}->nntp_each($input, \&_mark_net, $self);
-		return;
-	} elsif ($input =~ s!\A([a-z0-9]+):!!i) {
-		$ifmt = lc $1;
-	}
-	if (-f $input) {
-		my $m = $lei->{opt}->{'lock'} // ($ifmt eq 'eml' ? ['none'] :
-				PublicInbox::MboxLock->defaults);
-		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
-		$self->input_fh($ifmt, $mbl->{fh}, $input);
-	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
-		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
-$input appears to a be a maildir, not $ifmt
-EOM
-		PublicInbox::MdirReader::maildir_each_eml($input,
-					\&_mark_maildir, $self);
-	} else {
-		$lei->fail("$input unsupported (TODO)");
-	}
-}
-
-sub mark_stdin {
-	my ($self) = @_;
-	my $lei = $self->{lei};
-	my $in = delete $self->{0};
-	$self->input_fh($lei->{opt}->{'in-format'}, $in, '<stdin>');
 }
 
 sub note_missing {

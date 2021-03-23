@@ -24,10 +24,11 @@ sub check_input_format ($;$) {
 }
 
 # import a single file handle of $name
-# Subclass must define ->eml_cb and ->mbox_cb
+# Subclass must define ->input_eml_cb and ->input_mbox_cb
 sub input_fh {
 	my ($self, $ifmt, $fh, $name, @args) = @_;
 	if ($ifmt eq 'eml') {
+		require PublicInbox::Eml;
 		my $buf = do { local $/; <$fh> } //
 			return $self->{lei}->child_error(1 << 8, <<"");
 error reading $name: $!
@@ -36,12 +37,50 @@ error reading $name: $!
 		# but no Content-Length or "From " escaping.
 		# "git format-patch" also generates such files by default.
 		$buf =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
-		$self->eml_cb(PublicInbox::Eml->new(\$buf), @args);
+		$self->input_eml_cb(PublicInbox::Eml->new(\$buf), @args);
 	} else {
 		# prepare_inputs already validated $ifmt
 		my $cb = PublicInbox::MboxReader->reads($ifmt) //
 				die "BUG: bad fmt=$ifmt";
-		$cb->(undef, $fh, $self->can('mbox_cb'), $self, @args);
+		$cb->(undef, $fh, $self->can('input_mbox_cb'), $self, @args);
+	}
+}
+
+sub input_stdin {
+	my ($self) = @_;
+	my $in = delete $self->{0} or return;
+	$self->input_fh($self->{lei}->{opt}->{'in-format'}, $in, '<stdin>');
+}
+
+sub input_path_url {
+	my ($self, $input, @args) = @_;
+	my $lei = $self->{lei};
+	my $ifmt = lc($lei->{opt}->{'in-format'} // '');
+	# TODO auto-detect?
+	if ($input =~ m!\Aimaps?://!i) {
+		$lei->{net}->imap_each($input, $self->can('input_net_cb'),
+					$self, @args);
+		return;
+	} elsif ($input =~ m!\A(?:nntps?|s?news)://!i) {
+		$lei->{net}->nntp_each($input, $self->can('input_net_cb'),
+					$self, @args);
+		return;
+	}
+	$input =~ s!\A([a-z0-9]+):!!i and $ifmt = lc($1);
+	if (-f $input) {
+		my $m = $lei->{opt}->{'lock'} // ($ifmt eq 'eml' ? ['none'] :
+				PublicInbox::MboxLock->defaults);
+		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
+		$self->input_fh($ifmt, $mbl->{fh}, $input, @args);
+	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
+		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
+$input appears to a be a maildir, not $ifmt
+EOM
+		PublicInbox::MdirReader::maildir_each_eml($input,
+					$self->can('input_maildir_cb'),
+					$self, @args);
+	} else {
+		$lei->fail("$input unsupported (TODO)");
 	}
 }
 
