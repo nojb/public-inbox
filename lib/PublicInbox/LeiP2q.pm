@@ -178,7 +178,7 @@ sub lei_p2q { # the "lei patch-to-query" entry point
 	my ($lei, $input) = @_;
 	my $self = $lei->{p2q} = bless {}, __PACKAGE__;
 	if ($lei->{opt}->{stdin}) {
-		$self->{0} = delete $lei->{0}; # guard from lei_atfork_child
+		$self->{0} = delete $lei->{0}; # guard from _lei_atfork_child
 	} else {
 		$self->{input} = $input;
 	}
@@ -191,7 +191,7 @@ sub lei_p2q { # the "lei patch-to-query" entry point
 sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	$lei->lei_atfork_child;
+	$lei->_lei_atfork_child;
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }

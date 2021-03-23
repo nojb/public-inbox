@@ -86,7 +86,7 @@ sub lei_convert { # the main "lei convert" method
 sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	$lei->lei_atfork_child;
+	$lei->_lei_atfork_child;
 	my $l2m = delete $lei->{l2m};
 	if (my $net = $lei->{net}) { # may prompt user once
 		$net->{mics_cached} = $net->imap_common_init($lei);

@@ -106,7 +106,7 @@ sub prepare_inputs { # returns undef on error
 sub input_only_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	$lei->lei_atfork_child;
+	$lei->_lei_atfork_child;
 	PublicInbox::IPC::ipc_atfork_child($self);
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	undef;

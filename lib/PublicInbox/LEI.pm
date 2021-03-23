@@ -449,7 +449,7 @@ sub note_sigpipe { # triggers sigpipe_handler
 	x_it($self, 13);
 }
 
-sub lei_atfork_child {
+sub _lei_atfork_child {
 	my ($self, $persist) = @_;
 	# we need to explicitly close things which are on stack
 	if ($persist) {

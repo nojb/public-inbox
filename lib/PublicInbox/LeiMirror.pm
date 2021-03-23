@@ -288,7 +288,7 @@ sub start {
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	$self->{lei}->lei_atfork_child;
+	$self->{lei}->_lei_atfork_child;
 	$SIG{TERM} = sub { exit(128 + 15) }; # trigger OnDestroy $reap
 	$self->SUPER::ipc_atfork_child;
 }

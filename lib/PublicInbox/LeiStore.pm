@@ -322,7 +322,7 @@ sub done {
 sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	$lei->lei_atfork_child(1) if $lei;
+	$lei->_lei_atfork_child(1) if $lei;
 	$self->SUPER::ipc_atfork_child;
 }
 

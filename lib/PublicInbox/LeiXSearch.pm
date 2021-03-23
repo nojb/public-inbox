@@ -401,7 +401,7 @@ sub incr_start_query { # called whenever an l2m shard starts do_post_auth
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	$self->{lei}->lei_atfork_child;
+	$self->{lei}->_lei_atfork_child;
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
