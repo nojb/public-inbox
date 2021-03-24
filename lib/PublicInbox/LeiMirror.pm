@@ -268,7 +268,7 @@ sub do_mirror { # via wq_io_do
 
 sub start {
 	my ($cls, $lei, $src, $dst) = @_;
-	my $self = bless { lei => $lei, src => $src, dst => $dst }, $cls;
+	my $self = bless { src => $src, dst => $dst }, $cls;
 	if ($src =~ m!https?://!) {
 		require URI;
 		require PublicInbox::LeiCurl;
