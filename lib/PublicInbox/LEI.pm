@@ -981,17 +981,16 @@ sub accept_dispatch { # Listener {post_accept} callback
 		return send($sock, 'timed out waiting to recv FDs', MSG_EOR);
 	# (4096 * 33) >MAX_ARG_STRLEN
 	my @fds = $recv_cmd->($sock, my $buf, 4096 * 33) or return; # EOF
-	if (scalar(@fds) == 4) {
-		for my $i (0..3) {
-			my $fd = shift(@fds);
-			open($self->{$i}, '+<&=', $fd) and next;
-			send($sock, "open(+<&=$fd) (FD=$i): $!", MSG_EOR);
-		}
-	} elsif (!defined($fds[0])) {
+	if (!defined($fds[0])) {
 		warn(my $msg = "recv_cmd failed: $!");
 		return send($sock, $msg, MSG_EOR);
 	} else {
-		return;
+		my $i = 0;
+		for my $fd (@fds) {
+			open($self->{$i++}, '+<&=', $fd) and next;
+			send($sock, "open(+<&=$fd) (FD=$i): $!", MSG_EOR);
+		}
+		return if scalar(@fds) != 4;
 	}
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
