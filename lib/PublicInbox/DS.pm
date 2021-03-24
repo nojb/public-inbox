@@ -35,9 +35,10 @@ use Errno qw(EAGAIN EINVAL);
 use Carp qw(carp croak);
 our @EXPORT_OK = qw(now msg_more dwaitpid add_timer);
 
+my %Stack;
 my $nextq; # queue for next_tick
 my $wait_pids; # list of [ pid, callback, callback_arg ]
-my $later_queue; # list of callbacks to run at some later interval
+my $later_q; # list of callbacks to run at some later interval
 my $EXPMAP; # fd -> idle_time
 our $EXPTIME = 180; # 3 minutes
 my ($later_timer, $reap_armed, $exp_timer);
@@ -66,18 +67,25 @@ Reset all state
 
 =cut
 sub Reset {
-    $in_loop = undef; # first in case DESTROY callbacks use this
-    %DescriptorMap = ();
-    $wait_pids = $later_queue = $reap_armed = undef;
-    $EXPMAP = {};
-    $nextq = $ToClose = $later_timer = $exp_timer = undef;
-    $LoopTimeout = -1;  # no timeout by default
-    @Timers = ();
+	do {
+		$in_loop = undef; # first in case DESTROY callbacks use this
+		%DescriptorMap = ();
+		@Timers = ();
+		$PostLoopCallback = undef;
 
-    $PostLoopCallback = undef;
+		# we may be iterating inside one of these on our stack
+		my @q = delete @Stack{keys %Stack};
+		for my $q (@q) { @$q = () }
+		$EXPMAP = {};
+		$wait_pids = $later_q = $nextq = $ToClose = undef;
+		$_io = undef; # closes real $Epoll FD
+		$Epoll = undef; # may call DSKQXS::DESTROY
+	} while (@Timers || keys(%Stack) || $nextq || $wait_pids ||
+		$later_q || $ToClose || keys(%DescriptorMap) ||
+		$PostLoopCallback);
 
-    $_io = undef; # closes real $Epoll FD
-    $Epoll = undef; # may call DSKQXS::DESTROY
+	$reap_armed = $later_timer = $exp_timer = undef;
+	$LoopTimeout = -1;  # no timeout by default
 }
 
 =head2 C<< CLASS->SetLoopTimeout( $timeout ) >>
@@ -160,17 +168,19 @@ C<PostLoopCallback> below for how to exit the loop.
 sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
 sub next_tick () {
-    my $q = $nextq or return;
-    $nextq = undef;
-    for my $obj (@$q) {
-        # we avoid "ref" on blessed refs to workaround a Perl 5.16.3 leak:
-        # https://rt.perl.org/Public/Bug/Display.html?id=114340
-        if (blessed($obj)) {
-            $obj->event_step;
-        } else {
-            $obj->();
-        }
-    }
+	my $q = $nextq or return;
+	$nextq = undef;
+	$Stack{cur_runq} = $q;
+	for my $obj (@$q) {
+		# avoid "ref" on blessed refs to workaround a Perl 5.16.3 leak:
+		# https://rt.perl.org/Public/Bug/Display.html?id=114340
+		if (blessed($obj)) {
+			$obj->event_step;
+		} else {
+			$obj->();
+		}
+	}
+	delete $Stack{cur_runq};
 }
 
 # runs timers and returns milliseconds for next one, or next event loop
@@ -221,6 +231,7 @@ sub reap_pids {
 	$reap_armed = undef;
 	my $tmp = $wait_pids or return;
 	$wait_pids = undef;
+	$Stack{reap_runq} = $tmp;
 	my $oldset = block_signals();
 	foreach my $ary (@$tmp) {
 		my ($pid, $cb, $arg) = @$ary;
@@ -237,6 +248,7 @@ sub reap_pids {
 		}
 	}
 	sig_setmask($oldset);
+	delete $Stack{reap_runq};
 }
 
 # reentrant SIGCHLD handler (since reap_pids is not reentrant)
@@ -271,7 +283,6 @@ sub EventLoop {
     $Epoll //= _InitPoller();
     local $in_loop = 1;
     my @events;
-    my $obj; # guard stack-not-refcounted w/ Carp + @DB::args
     do {
         my $timeout = RunTimers();
 
@@ -282,7 +293,9 @@ sub EventLoop {
             # that ones in the front triggered unregister-interest actions.  if we
             # can't find the %sock entry, it's because we're no longer interested
             # in that event.
-            $obj = $DescriptorMap{$fd};
+
+	    # guard stack-not-refcounted w/ Carp + @DB::args
+            my $obj = $DescriptorMap{$fd};
             $obj->event_step;
         }
     } while (PostEventLoop());
@@ -646,13 +659,15 @@ sub dwaitpid ($;$$) {
 }
 
 sub _run_later () {
-	my $run = $later_queue or return;
-	$later_timer = $later_queue = undef;
-	$_->() for @$run;
+	my $q = $later_q or return;
+	$later_timer = $later_q = undef;
+	$Stack{later_q} = $q;
+	$_->() for @$q;
+	delete $Stack{later_q};
 }
 
 sub later ($) {
-	push @$later_queue, $_[0]; # autovivifies @$later_queue
+	push @$later_q, $_[0]; # autovivifies @$later_q
 	$later_timer //= add_timer(60, \&_run_later);
 }
 
