@@ -1323,6 +1323,7 @@ sub xapian_only {
 		}
 	}
 	$self->git->cat_async_wait;
+	$self->{ibx}->cleanup;
 	$self->done;
 }
 

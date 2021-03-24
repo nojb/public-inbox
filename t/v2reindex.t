@@ -549,5 +549,13 @@ my $env = { PI_CONFIG => '/dev/null' };
 ok(run_script([qw(-index --reindex --xapian-only), $inboxdir], $env, $rdr),
 	'--xapian-only works');
 is($err, '', 'no errors from --xapian-only');
-
+undef $for_destroy;
+SKIP: {
+	use PublicInbox::Spawn qw(which);
+	skip 'only testing lsof(8) output on Linux', 1 if $^O ne 'linux';
+	my $lsof = which('lsof') or skip 'no lsof in PATH', 1;
+	my $rdr = { 2 => \(my $null_err) };
+	my @d = grep(m!/xap[0-9]+/!, xqx([$lsof, '-p', $$], undef, $rdr));
+	is_deeply(\@d, [], 'no deleted index files') or diag explain(\@d);
+}
 done_testing();
