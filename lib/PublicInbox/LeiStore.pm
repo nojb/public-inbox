@@ -329,11 +329,13 @@ sub ipc_atfork_child {
 sub write_prepare {
 	my ($self, $lei) = @_;
 	unless ($self->{-ipc_req}) {
-		$self->ipc_lock_init($lei->store_path . '/ipc.lock');
+		my $d = $lei->store_path;
+		$self->ipc_lock_init("$d/ipc.lock");
+		substr($d, -length('/lei/store'), 10, '');
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();
-		$self->ipc_worker_spawn('lei_store', $lei->oldset,
+		$self->ipc_worker_spawn("lei/store $d", $lei->oldset,
 					{ lei => $lei });
 	}
 	$lei->{sto} = $self;
