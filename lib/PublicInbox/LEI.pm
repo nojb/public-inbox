@@ -458,6 +458,9 @@ sub _lei_atfork_child {
 		unless ($self->{oneshot}) {
 			close($_) for @io;
 		}
+		if (my $cfg = $self->{cfg}) {
+			delete $cfg->{-lei_store};
+		}
 	} else { # worker, Net::NNTP (Net::Cmd) uses STDERR directly
 		open STDERR, '+>&='.fileno($self->{2}) or warn "open $!";
 		delete $self->{0};
