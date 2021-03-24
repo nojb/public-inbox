@@ -406,11 +406,6 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 }
 
-sub delete_pkt_op { # OnDestroy callback
-	my $unclosed_after_die = delete($_[0])->{pkt_op_p} or return;
-	close $unclosed_after_die;
-}
-
 sub do_query {
 	my ($self, $lei) = @_;
 	my $l2m = $lei->{l2m};
@@ -426,8 +421,7 @@ sub do_query {
 		'incr_start_query' => [ \&incr_start_query, $self, $l2m ],
 	};
 	$lei->{auth}->op_merge($ops, $l2m) if $l2m && $lei->{auth};
-	my $od = PublicInbox::OnDestroy->new($$, \&delete_pkt_op, $lei);
-	($lei->{pkt_op_c}, $lei->{pkt_op_p}) = PublicInbox::PktOp->pair($ops);
+	my $end = $lei->pkt_op_pair($ops);
 	$lei->{1}->autoflush(1);
 	$lei->start_pager if delete $lei->{need_pager};
 	$lei->{ovv}->ovv_begin($lei);
@@ -446,6 +440,7 @@ sub do_query {
 				$lei->oldset, { lei => $lei });
 	my $op = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};
+	@$end = ();
 	$self->{threads} = $lei->{opt}->{threads};
 	if ($l2m) {
 		$l2m->net_merge_complete unless $lei->{auth};
