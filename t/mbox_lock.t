@@ -5,6 +5,7 @@ use strict; use v5.10.1; use PublicInbox::TestCommon;
 use POSIX qw(_exit);
 use PublicInbox::DS qw(now);
 use Errno qw(EAGAIN);
+use PublicInbox::OnDestroy;
 use_ok 'PublicInbox::MboxLock';
 my ($tmpdir, $for_destroy) = tmpdir();
 my $f = "$tmpdir/f";
@@ -15,6 +16,17 @@ ok(!-f "$f.lock", 'dotlock gone');
 $mbl = PublicInbox::MboxLock->acq($f, 1, ['none']);
 ok(!-f "$f.lock", 'no dotlock with none');
 undef $mbl;
+{
+	opendir my $cur, '.' or BAIL_OUT $!;
+	my $od = PublicInbox::OnDestroy->new(sub { chdir $cur });
+	chdir $tmpdir or BAIL_OUT;
+	my $abs = "$tmpdir/rel.lock";
+	my $rel = PublicInbox::MboxLock->acq('rel', 1, ['dotlock']);
+	chdir '/' or BAIL_OUT;
+	ok(-f $abs, 'lock with abs path created');
+	undef $rel;
+	ok(!-f $abs, 'lock gone despite being in the wrong dir');
+}
 
 eval {
 	PublicInbox::MboxLock->acq($f, 1, ['bogus']);

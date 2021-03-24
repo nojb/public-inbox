@@ -60,6 +60,11 @@ sub acq_dotlock {
 			if (link($tmp, $dot_lock)) {
 				unlink($tmp) or die "unlink($tmp): $!";
 				$self->{".lock$pid"} = $dot_lock;
+				if (substr($dot_lock, 0, 1) ne '/') {
+					opendir(my $dh, '.') or
+							die "opendir . $!";
+					$self->{dh} = $dh;
+				}
 				return;
 			}
 			unlink($tmp) or die "unlink($tmp): $!";
@@ -111,10 +116,19 @@ sub acq {
 	$self;
 }
 
+sub _fchdir { chdir($_[0]) } # OnDestroy callback
+
 sub DESTROY {
 	my ($self) = @_;
 	if (my $f = $self->{".lock$$"}) {
+		my $x;
+		if (my $dh = delete $self->{dh}) {
+			opendir my $c, '.' or die "opendir . $!";
+			$x = PublicInbox::OnDestroy->new(\&_fchdir, $c);
+			chdir($dh) or die "chdir (for $f): $!";
+		}
 		unlink($f) or die "unlink($f): $! (lock stolen?)";
+		undef $x;
 	}
 }
 
