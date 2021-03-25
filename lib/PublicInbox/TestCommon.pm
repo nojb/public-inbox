@@ -291,6 +291,7 @@ sub run_script ($;$$) {
 		local $0 = join(' ', @$cmd);
 		my $orig_io = _prepare_redirects($fhref);
 		_run_sub($sub, $key, \@argv);
+		eval { PublicInbox::Inbox::cleanup_task() };
 		_undo_redirects($orig_io);
 		select STDOUT;
 	}
