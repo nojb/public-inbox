@@ -12,8 +12,14 @@ use PublicInbox::Spawn qw(popen_rd spawn);
 sub do_finish_mirror { # dwaitpid callback
 	my ($arg, $pid) = @_;
 	my ($mrr, $lei) = @$arg;
-	if ($? == 0 && unlink("$mrr->{dst}/mirror.done")) {
+	my $f = "$mrr->{dst}/mirror.done";
+	if ($?) {
+		$lei->child_error($?);
+	} elsif (!unlink($f)) {
+		$lei->err("unlink($f): $!");
+	} else {
 		$lei->add_external_finish($mrr->{dst});
+		$lei->qerr("# mirrored $mrr->{src} => $mrr->{dst}");
 	}
 	$lei->dclose;
 }
@@ -262,8 +268,7 @@ sub do_mirror { # via wq_io_do
 		return start_clone_url($self) if $self->{src} =~ m!://!;
 		die "TODO: cloning local directories not supported, yet";
 	};
-	return $lei->fail($@) if $@;
-	$lei->qerr("# mirrored $self->{src} => $self->{dst}");
+	$lei->fail($@) if $@;
 }
 
 sub start {

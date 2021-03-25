@@ -41,6 +41,24 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok(!-d "$t2-fail", 'destination not created on failure');
 	lei_ok('ls-external');
 	unlike($lei_out, qr!\Q$t2-fail\E!, 'not added to ls-external');
+
+	my %phail = (
+		HTTPS => 'https://public-inbox.org/' . 'phail',
+		ONION => 'http://ou63pmih66umazou.onion/' . 'phail,'
+	);
+	for my $t (qw(HTTPS ONION)) {
+	SKIP: {
+		my $k = "TEST_LEI_EXTERNAL_$t";
+		$ENV{$k} or skip "$k unset", 1;
+		my $url = $phail{$t};
+		my $dir = "phail-$t";
+		ok(!lei(qw(add-external -Lmedium --mirror),
+			$url, $dir), '--mirror non-existent v2');
+		is($? >> 8, 22, 'curl 404');
+		ok(!-d $dir, 'directory not created');
+		unlike($lei_err, qr/# mirrored/, 'no success message');
+	} # SKIP
+	} # for
 });
 
 ok($td->kill, 'killed -httpd');
