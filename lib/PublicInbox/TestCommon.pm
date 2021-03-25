@@ -515,22 +515,30 @@ EOM
 	my ($daemon_pid, $for_destroy, $daemon_xrd);
 	my $tmpdir = $test_opt->{tmpdir};
 	($tmpdir, $for_destroy) = tmpdir unless $tmpdir;
+	state $persist_xrd = $ENV{TEST_LEI_DAEMON_PERSIST_DIR};
 	SKIP: {
 		skip 'TEST_LEI_ONESHOT set', 1 if $ENV{TEST_LEI_ONESHOT};
 		my $home = "$tmpdir/lei-daemon";
 		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
 		local $ENV{HOME} = $home;
-		$daemon_xrd = "$home/xdg_run";
-		mkdir($daemon_xrd, 0700) or BAIL_OUT "mkdir: $!";
+		my $persist;
+		if ($persist_xrd && !$test_opt->{daemon_only}) {
+			$persist = $daemon_xrd = $persist_xrd;
+		} else {
+			$daemon_xrd = "$home/xdg_run";
+			mkdir($daemon_xrd, 0700) or BAIL_OUT "mkdir: $!";
+		}
 		local $ENV{XDG_RUNTIME_DIR} = $daemon_xrd;
 		$cb->();
-		lei_ok(qw(daemon-pid), \"daemon-pid after $t");
-		chomp($daemon_pid = $lei_out);
-		if ($daemon_pid) {
+		unless ($persist) {
+			lei_ok(qw(daemon-pid), \"daemon-pid after $t");
+			chomp($daemon_pid = $lei_out);
+			if (!$daemon_pid) {
+				fail("daemon not running after $t");
+				skip 'daemon died unexpectedly', 2;
+			}
 			ok(kill(0, $daemon_pid), "daemon running after $t");
 			lei_ok(qw(daemon-kill), \"daemon-kill after $t");
-		} else {
-			fail("daemon not running after $t");
 		}
 	}; # SKIP for lei_daemon
 	unless ($test_opt->{daemon_only}) {

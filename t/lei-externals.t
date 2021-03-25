@@ -57,6 +57,8 @@ SKIP: {
 		chomp(my $pid_after = $lei_out);
 		is($pid_after, $pid_before, 'pid unchanged') or
 			skip 'daemon died', 1;
+		skip 'not killing persistent lei-daemon', 2 if
+				$ENV{TEST_LEI_DAEMON_PERSIST_DIR};
 		lei_ok 'daemon-kill';
 		my $alive = 1;
 		for (1..100) {
@@ -262,6 +264,8 @@ test_lei(sub {
 	}
 
 	{
+		skip 'TEST_LEI_DAEMON_PERSIST_DIR in use', 1 if
+					$ENV{TEST_LEI_DAEMON_PERSIST_DIR};
 		opendir my $dh, '.' or BAIL_OUT "opendir(.) $!";
 		my $od = PublicInbox::OnDestroy->new($$, sub {
 			chdir $dh or BAIL_OUT "chdir: $!"

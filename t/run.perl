@@ -14,6 +14,7 @@ use strict;
 use v5.10.1;
 use IO::Handle; # ->autoflush
 use PublicInbox::TestCommon;
+use PublicInbox::Spawn;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use Errno qw(EINTR);
 use Fcntl qw(:seek);
@@ -39,6 +40,20 @@ $OLDOUT->autoflush(1);
 $OLDERR->autoflush(1);
 
 key2sub($_) for @tests; # precache
+
+my ($for_destroy, $lei_env, $lei_daemon_pid, $owner_pid);
+if (!$ENV{TEST_LEI_DAEMON_PERSIST_DIR} &&
+		(PublicInbox::Spawn->can('recv_cmd4') ||
+			eval { require Socket::MsgHdr })) {
+	$lei_env = {};
+	($lei_env->{XDG_RUNTIME_DIR}, $for_destroy) = tmpdir;
+	$ENV{TEST_LEI_DAEMON_PERSIST_DIR} = $lei_env->{XDG_RUNTIME_DIR};
+	run_script([qw(lei daemon-pid)], $lei_env, { 1 => \$lei_daemon_pid });
+	chomp $lei_daemon_pid;
+	$lei_daemon_pid =~ /\A[0-9]+\z/ or die "no daemon pid: $lei_daemon_pid";
+	kill(0, $lei_daemon_pid) or die "kill $lei_daemon_pid: $!";
+	$owner_pid = $$;
+}
 
 if ($shuffle) {
 	require List::Util;
@@ -209,3 +224,7 @@ for (my $i = $repeat; $i != 0; $i--) {
 }
 
 print $OLDOUT "1..".($repeat * scalar(@tests))."\n" if $repeat >= 0;
+if ($lei_env && $$ == $owner_pid) {
+	my $opt = {}; # 1 => $OLDOUT, 2 => $OLDERR };
+	run_script([qw(lei daemon-kill)], $lei_env, $opt);
+}
