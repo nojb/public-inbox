@@ -10,7 +10,7 @@ pipe(my ($r, $w)) or BAIL_OUT;
 my ($send, $recv);
 require_ok 'PublicInbox::Spawn';
 my $SOCK_SEQPACKET = eval { Socket::SOCK_SEQPACKET() } // undef;
-use Time::HiRes qw(alarm);
+use Time::HiRes qw(usleep);
 
 my $do_test = sub { SKIP: {
 	my ($type, $flag, $desc) = @_;
@@ -53,13 +53,25 @@ my $do_test = sub { SKIP: {
 		is_deeply(\@fds, [ undef ], "EAGAIN $desc");
 		$s2->blocking(1);
 
-		my $alrm = 0;
-		local $SIG{ALRM} = sub { $alrm++ };
-		alarm(0.001);
-		@fds = $recv->($s2, $buf, length($src) + 1);
-		ok($!{EINTR}, "EINTR set by ($desc)");
-		is_deeply(\@fds, [ undef ], "EINTR $desc");
-		is($alrm, 1, 'SIGALRM hit');
+		if ($ENV{TEST_ALRM}) {
+			my $alrm = 0;
+			local $SIG{ALRM} = sub { $alrm++ };
+			my $tgt = $$;
+			my $pid = fork // xbail "fork: $!";
+			if ($pid == 0) {
+				# need to loop since Perl signals are racy
+				# (the interpreter doesn't self-pipe)
+				while (usleep(1000)) {
+					kill 'ALRM', $tgt;
+				}
+			}
+			@fds = $recv->($s2, $buf, length($src) + 1);
+			ok($!{EINTR}, "EINTR set by ($desc)");
+			kill('KILL', $pid);
+			waitpid($pid, 0);
+			is_deeply(\@fds, [ undef ], "EINTR $desc");
+			ok($alrm, 'SIGALRM hit');
+		}
 
 		close $s1;
 		@fds = $recv->($s2, $buf, length($src) + 1);
