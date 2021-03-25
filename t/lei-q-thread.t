@@ -13,7 +13,8 @@ test_lei(sub {
 
 	lei_ok qw(q -t m:testmessage@example.com);
 	my $res = json_utf8->decode($lei_out);
-	is_deeply($res->[0]->{kw}, [ 'seen' ], 'q -t sets keywords');
+	is_deeply($res->[0]->{kw}, [ 'seen' ], 'q -t sets keywords') or
+		diag explain($res);
 
 	$eml = eml_load('t/utf8.eml');
 	$eml->header_set('References', $eml->header('Message-ID'));
@@ -28,9 +29,9 @@ test_lei(sub {
 	pop @$res;
 	my %m = map { $_->{'m'} => $_ } @$res;
 	is_deeply($m{'testmessage@example.com'}->{kw}, ['seen'],
-		'flag set in direct hit');
-	'TODO' or is_deeply($m{'a-reply@miss'}->{kw}, ['draft'],
-		'flag set in thread hit');
+		'flag set in direct hit') or diag explain($res);
+	is_deeply($m{'a-reply@miss'}->{kw}, ['draft'],
+		'flag set in thread hit') or diag explain($res);
 
 	lei_ok qw(q -t -t m:testmessage@example.com);
 	$res = json_utf8->decode($lei_out);
@@ -38,9 +39,9 @@ test_lei(sub {
 	pop @$res;
 	%m = map { $_->{'m'} => $_ } @$res;
 	is_deeply($m{'testmessage@example.com'}->{kw}, ['flagged', 'seen'],
-		'flagged set in direct hit');
-	'TODO' or is_deeply($m{'testmessage@example.com'}->{kw}, ['draft'],
-		'flagged set in direct hit');
+		'flagged set in direct hit') or diag explain($res);
+	is_deeply($m{'a-reply@miss'}->{kw}, ['draft'],
+		'set in thread hit') or diag explain($res);
 	lei_ok qw(q -tt m:testmessage@example.com --only), "$ro_home/t2";
 	$res = json_utf8->decode($lei_out);
 	is_deeply($res->[0]->{kw}, [ qw(flagged seen) ],
