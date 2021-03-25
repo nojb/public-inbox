@@ -46,10 +46,6 @@ local $ENV{ORIGINAL_RECIPIENT} = 'test@example.com';
 ok(run_script(['-mda'], undef, $rdr), 'mda delivered a message');
 
 $ibx = PublicInbox::Inbox->new($ibx);
-
-if ($V == 1) {
-	ok(run_script([ '-index', "$tmpdir/inbox" ]), 'v1 indexed');
-}
 my $msgs = $ibx->over->recent;
 is(scalar(@$msgs), 1, 'only got one message');
 my $eml = $ibx->smsg_eml($msgs->[0]);

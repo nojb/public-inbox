@@ -42,13 +42,11 @@ EOF
 	my $im = $ibx->importer(0);
 	ok($im->add(eml_load('t/utf8.eml')), "$V added");
 	$im->done;
-	PublicInbox::SearchIdx->new($ibx)->index_sync if $V == 1;
 	$ii->event_step;
 	is(scalar @{$obj->{called}}, 1, 'called on unlock');
 	$pi_cfg->each_inbox(sub { shift->unsubscribe_unlock($ident) });
 	ok($im->add(eml_load('t/data/0001.patch')), "$V added #2");
 	$im->done;
-	PublicInbox::SearchIdx->new($ibx)->index_sync if $V == 1;
 	$ii->event_step;
 	is(scalar @{$obj->{called}}, 1, 'not called when unsubbed');
 	$ii->close;

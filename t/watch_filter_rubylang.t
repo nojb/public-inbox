@@ -30,12 +30,9 @@ for my $v (@v) {
 	my $maildir = "$tmpdir/md-$v";
 	my $spamdir = "$tmpdir/spam-$v";
 	my $addr = "test-$v\@example.com";
-	my @cmd = ('-init', "-$v", $v, $inboxdir,
+	my @cmd = ('-init', '-Lfull', "-$v", $v, $inboxdir,
 		"http://example.com/$v", $addr);
-	ok(run_script(\@cmd), 'public-inbox init OK');
-	if ($v eq 'V1') {
-		ok(run_script(['-index', $inboxdir]), 'v1 indexed');
-	}
+	ok(run_script(\@cmd), 'public-inbox init');
 	PublicInbox::Emergency->new($spamdir);
 
 	for my $i (1..15) {

@@ -253,10 +253,6 @@ Date: Fri, 02 Oct 1993 00:00:00 +0000
 		my $im = $ibx->importer(0);
 		$im->add($for_leafnode);
 		$im->done;
-		if ($version == 1) {
-			ok(run_script(['-index', $ibx->{inboxdir}]),
-				'indexed v1');
-		}
 		my $hdr = $n->head("<$long_hdr>");
 		my $expect = qr/\AMessage-ID: /i . qr/\Q<$long_hdr>\E/;
 		ok(scalar(grep(/$expect/, @$hdr)), 'Message-ID not folded');
