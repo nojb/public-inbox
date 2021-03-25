@@ -11,6 +11,7 @@ use POSIX qw(dup2);
 use IO::Socket::INET;
 use File::Spec;
 our @EXPORT;
+my $lei_loud = $ENV{TEST_LEI_ERR_LOUD};
 BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
@@ -463,21 +464,24 @@ sub lei (@) {
 			$lei_err =~ m!\bArgument .*? isn't numeric in !) {
 			fail "lei_err=$lei_err";
 		} else {
-			state $loud = $ENV{TEST_LEI_ERR_LOUD};
-			diag "lei_err=$lei_err" if $loud;
+			diag "lei_err=$lei_err" if $lei_loud;
 		}
 	}
 	$res;
 };
 
 sub lei_ok (@) {
+	state $PWD = $ENV{PWD} // Cwd::getcwd();
 	my $msg = ref($_[-1]) eq 'SCALAR' ? pop(@_) : undef;
 	my $tmpdir = quotemeta(File::Spec->tmpdir);
 	# filter out anything that looks like a path name for consistent logs
 	my @msg = ref($_[0]) eq 'ARRAY' ? @{$_[0]} : @_;
-	for (@msg) {
-		s!\A([a-z0-9]+://)[^/]+/!$1\$HOST_PORT/! ||
-			s!$tmpdir\b/(?:[^/]+/)?!\$TMPDIR/!;
+	if (!$lei_loud) {
+		for (@msg) {
+			s!\A([a-z0-9]+://)[^/]+/!$1\$HOST_PORT/!;
+			s!$tmpdir\b/(?:[^/]+/)?!\$TMPDIR/!g;
+			s!\Q$PWD\E\b!\$PWD!g;
+		}
 	}
 	ok(lei(@_), "lei @msg". ($msg ? " ($$msg)" : '')) or diag $lei_err;
 }
