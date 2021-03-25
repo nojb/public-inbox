@@ -39,14 +39,14 @@ sub import_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
 	my ($imp, $lei) = @$arg;
 	$lei->child_error($?, 'non-fatal errors during import') if $?;
-	my $sto = delete $lei->{sto};
-	my $wait = $sto->ipc_do('done') if $sto; # PublicInbox::LeiStore::done
+	my $sto = delete $lei->{sto} // return $lei->fail('BUG: {sto} gone');
+	my $wait = $sto->ipc_do('done'); # PublicInbox::LeiStore::done
 	$lei->dclose;
 }
 
 sub import_done { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $imp = delete $lei->{imp} or return;
+	my $imp = delete $lei->{imp} // return $lei->fail('BUG: {imp} gone');
 	$imp->wq_wait_old(\&import_done_wait, $lei);
 }
 

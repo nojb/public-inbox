@@ -21,7 +21,7 @@ lei_ok(qw(import -F eml t/plack-qp.eml));
 my $o = "$ENV{HOME}/dst";
 lei_ok(qw(q -o), "maildir:$o", qw(m:qp@example.com));
 my @fn = glob("$o/cur/*:2,");
-scalar(@fn) == 1 or BAIL_OUT "wrote multiple or zero files: ".explain(\@fn);
+scalar(@fn) == 1 or xbail $lei_err, 'wrote multiple or zero files:', \@fn;
 rename($fn[0], "$fn[0]S") or BAIL_OUT "rename $!";
 
 lei_ok(qw(q -o), "maildir:$o", qw(m:bogus-noresults@example.com));
@@ -124,7 +124,7 @@ lei_ok(qw(q -o), $o, "m:$m", @inc);
 
 # emulate MUA marking a Maildir message as read:
 @fn = glob("$o/cur/*");
-scalar(@fn) == 1 or BAIL_OUT "wrote multiple or zero files: ".explain(\@fn);
+scalar(@fn) == 1 or xbail $lei_err, 'wrote multiple or zero files:', \@fn;
 rename($fn[0], "$fn[0]S") or BAIL_OUT "rename $!";
 
 lei_ok(qw(q -o), $o, 'bogus', \'clobber output dir to import keywords');
@@ -178,7 +178,7 @@ $m = 'multipart@example.com';
 $o = "$ENV{HOME}/fuzz";
 lei_ok('q', '-o', $o, "m:$m", @inc);
 @fn = glob("$o/cur/*");
-scalar(@fn) == 1 or BAIL_OUT "wrote multiple or zero files: ".explain(\@fn);
+scalar(@fn) == 1 or xbail $lei_err, "wrote multiple or zero files", \@fn;
 rename($fn[0], "$fn[0]S") or BAIL_OUT "rename $!";
 lei_ok('q', '-o', $o, "m:$m");
 is_deeply([glob("$o/cur/*")], [], 'clobbered output results');

@@ -17,13 +17,15 @@ BEGIN {
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes create_inbox
 		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt
-		test_httpd);
+		test_httpd xbail);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
 	die $@ if $@;
 	push @EXPORT, @methods;
 }
+
+sub xbail (@) { BAIL_OUT join(' ', map { ref ? (explain($_)) : ($_) } @_) }
 
 sub eml_load ($) {
 	my ($path, $cb) = @_;

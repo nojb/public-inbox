@@ -30,7 +30,7 @@ test_lei(sub {
 	ok(-s $mb, 'wrote mbox result');
 	lei_ok(qw(q m:testmessage@example.com -o), $md);
 	my @fn = glob("$md/cur/*");
-	scalar(@fn) == 1 or BAIL_OUT 'no mail '.explain(\@fn);
+	scalar(@fn) == 1 or xbail $lei_err, 'no mail', \@fn;
 	rename($fn[0], "$fn[0]S") or BAIL_OUT "rename $!";
 	$check_kw->(['flagged'], msg => 'after bad request');
 	lei_ok(qw(mark -F eml t/utf8.eml -kw:flagged));
