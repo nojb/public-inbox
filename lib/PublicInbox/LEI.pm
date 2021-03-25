@@ -705,6 +705,12 @@ sub _lei_cfg ($;$) {
 			File::Spec->canonpath($cfg->{'leistore.dir'})) {
 		$cfg->{-lei_store} = $sto;
 	}
+	if (scalar(keys %PATH2CFG) > 5) {
+		# FIXME: use inotify/EVFILT_VNODE to detect unlinked configs
+		for my $k (keys %PATH2CFG) {
+			delete($PATH2CFG{$k}) unless -f $k
+		}
+	}
 	$self->{cfg} = $PATH2CFG{$f} = $cfg;
 }
 
