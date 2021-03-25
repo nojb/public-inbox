@@ -93,8 +93,7 @@ test_lei(sub {
 				\'added external');
 		is($lei_out.$lei_err, '', 'no output');
 	});
-	ok(-s $config_file && -e $store_dir,
-		'add-external created config + store');
+	ok(-s $config_file, 'add-external created config');
 	my $lcfg = PublicInbox::Config->new($config_file);
 	$cfg->each_inbox(sub {
 		my ($ibx) = @_;

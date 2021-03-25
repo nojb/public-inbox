@@ -144,8 +144,6 @@ sub add_external_finish {
 
 sub lei_add_external {
 	my ($self, $location) = @_;
-	my $sto = $self->_lei_store(1);
-	$sto->write_prepare($self);
 	my $opt = $self->{opt};
 	my $mirror = $opt->{mirror} // do {
 		my @fail;
