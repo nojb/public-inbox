@@ -464,7 +464,6 @@ sub _lei_atfork_child {
 		}
 	} else { # worker, Net::NNTP (Net::Cmd) uses STDERR directly
 		open STDERR, '+>&='.fileno($self->{2}) or warn "open $!";
-		delete $self->{0};
 	}
 	for (delete @$self{qw(3 old_1 au_done)}) {
 		close($_) if defined($_);
@@ -929,19 +928,17 @@ sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 }
 
 my %path_to_fd = ('/dev/stdin' => 0, '/dev/stdout' => 1, '/dev/stderr' => 2);
-$path_to_fd{"/dev/fd/$_"} = $path_to_fd{"/proc/self/fd/$_"} for (0..2);
-sub fopen {
-	my ($self, $mode, $path) = @_;
-	rel2abs($self, $path);
+$path_to_fd{"/dev/fd/$_"} = $_ for (0..2);
+
+# this also normalizes the path
+sub path_to_fd {
+	my ($self, $path) = @_;
+	$path = rel2abs($self, $path);
 	$path =~ tr!/!/!s;
-	if (defined(my $fd = $path_to_fd{$path})) {
-		return $self->{$fd};
-	}
-	if ($path =~ m!\A/(?:dev|proc/self)/fd/[0-9]+\z!) {
-		return fail($self, "cannot open $path from daemon");
-	}
-	open my $fh, $mode, $path or return;
-	$fh;
+	$path_to_fd{$path} // (
+		($path =~ m!\A/(?:dev|proc/self)/fd/[0-9]+\z!) ?
+			fail($self, "cannot open $path from daemon") : -1
+	);
 }
 
 # caller needs to "-t $self->{1}" to check if tty

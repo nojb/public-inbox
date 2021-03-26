@@ -107,8 +107,11 @@ sub do_p2q { # via wq_do
 	my $in = $self->{0};
 	unless ($in) {
 		my $input = $self->{input};
-		if (-e $input) {
-			$in = $lei->fopen('<', $input) or
+		my $devfd = $lei->path_to_fd($input) // return;
+		if ($devfd >= 0) {
+			$in = $lei->{$devfd};
+		} elsif (-e $input) {
+			open($in, '<', $input) or
 				return $lei->fail("open < $input: $!");
 		} else {
 			my @cmd = (qw(git format-patch --stdout -1), $input);

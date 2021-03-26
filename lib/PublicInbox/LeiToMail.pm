@@ -503,10 +503,12 @@ sub _do_augment_imap {
 sub _pre_augment_mbox {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
-	my $out = $lei->{1};
-	if ($dst ne '/dev/stdout') {
+	my $out;
+	my $devfd = $lei->path_to_fd($dst) // die "bad $dst";
+	if ($devfd >= 0) {
+		$out = $lei->{$devfd};
+	} else { # normal-looking path
 		if (-p $dst) {
-			$out = undef;
 			open $out, '>', $dst or die "open($dst): $!";
 		} elsif (-f _ || !-e _) {
 			require PublicInbox::MboxLock;
@@ -514,12 +516,14 @@ sub _pre_augment_mbox {
 					PublicInbox::MboxLock->defaults;
 			$self->{mbl} = PublicInbox::MboxLock->acq($dst, 1, $m);
 			$out = $self->{mbl}->{fh};
+		} else {
+			die "$dst is not a file or FIFO\n";
 		}
 		$lei->{old_1} = $lei->{1}; # keep for spawning MUA
 	}
 	# Perl does SEEK_END even with O_APPEND :<
 	$self->{seekable} = seek($out, 0, SEEK_SET);
-	if (!$self->{seekable} && $! != ESPIPE && $dst ne '/dev/stdout') {
+	if (!$self->{seekable} && $! != ESPIPE && !defined($devfd)) {
 		die "seek($dst): $!\n";
 	}
 	if (!$self->{seekable}) {

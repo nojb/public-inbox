@@ -71,8 +71,9 @@ sub new {
 --$ofmt_key=$fmt and --output=$ofmt conflict
 
 	}
-	$fmt //= 'json' if $dst eq '/dev/stdout';
-	$fmt //= detect_fmt($lei, $dst) or return;
+
+	my $devfd = $lei->path_to_fd($dst) // return;
+	$fmt //= $devfd >= 0 ? 'json' : (detect_fmt($lei, $dst) or return);
 
 	if (index($dst, '://') < 0) { # not a URL, so assume path
 		 $dst = File::Spec->canonpath($dst);
@@ -84,11 +85,11 @@ sub new {
 	if ($fmt =~ /\A($JSONL|(?:concat)?json)\z/) {
 		$json = $self->{json} = ref(PublicInbox::Config->json);
 	}
-	if ($dst eq '/dev/stdout') {
-		my $isatty = $lei->{need_pager} = -t $lei->{1};
+	if ($devfd >= 0) {
+		my $isatty = $lei->{need_pager} = -t $lei->{$devfd};
 		$opt->{pretty} //= $isatty;
 		if (!$isatty && -f _) {
-			my $fl = fcntl($lei->{1}, F_GETFL, 0) //
+			my $fl = fcntl($lei->{$devfd}, F_GETFL, 0) //
 				return $lei->fail("fcntl(stdout): $!");
 			ovv_out_lk_init($self) unless ($fl & O_APPEND);
 		} else {
@@ -101,7 +102,7 @@ sub new {
 		$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
 	} else {
 		# default to the cheapest sort since MUA usually resorts
-		$opt->{'sort'} //= 'docid' if $dst ne '/dev/stdout';
+		$opt->{'sort'} //= 'docid' if $devfd < 0;
 		$lei->{l2m} = eval { PublicInbox::LeiToMail->new($lei) };
 		return $lei->fail($@) if $@;
 		if ($opt->{mua} && $lei->{l2m}->lock_free) {

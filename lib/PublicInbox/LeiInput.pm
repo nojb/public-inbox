@@ -67,7 +67,10 @@ sub input_path_url {
 		return;
 	}
 	$input =~ s!\A([a-z0-9]+):!!i and $ifmt = lc($1);
-	if (-f $input) {
+	my $devfd = $lei->path_to_fd($input) // return;
+	if ($devfd >= 0) {
+		$self->input_fh($ifmt, $lei->{$devfd}, $input, @args);
+	} elsif (-f $input) {
 		my $m = $lei->{opt}->{'lock'} // ($ifmt eq 'eml' ? ['none'] :
 				PublicInbox::MboxLock->defaults);
 		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
@@ -110,21 +113,29 @@ sub prepare_inputs { # returns undef on error
 --in-format=$in_fmt and `$ifmt:' conflict
 
 			}
-			if (-f $input_path) {
+			my $devfd = $lei->path_to_fd($input_path) // return;
+			if ($devfd >= 0 || (-f $input_path || -p _)) {
 				require PublicInbox::MboxLock;
 				require PublicInbox::MboxReader;
 				PublicInbox::MboxReader->reads($ifmt) or return
 					$lei->fail("$ifmt not supported");
-			} elsif (-d _) {
+			} elsif (-d $input_path) {
 				require PublicInbox::MdirReader;
 				$ifmt eq 'maildir' or return
 					$lei->fail("$ifmt not supported");
 			} else {
 				return $lei->fail("Unable to handle $input");
 			}
-		} elsif (-f $input) { push @f, $input }
-		elsif (-d _) { push @d, $input }
-		else { return $lei->fail("Unable to handle $input") }
+		} else {
+			my $devfd = $lei->path_to_fd($input) // return;
+			if ($devfd >= 0 || -f $input || -p _) {
+				push @f, $input
+			} elsif (-d $input) {
+				push @d, $input
+			} else {
+				return $lei->fail("Unable to handle $input")
+			}
+		}
 	}
 	if (@f) { check_input_format($lei, \@f) or return }
 	if (@d) { # TODO: check for MH vs Maildir, here

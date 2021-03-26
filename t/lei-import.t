@@ -69,7 +69,7 @@ is($res->[0]->{kw}, undef, 'no keywords set');
 
 $eml->header_set('Message-ID', '<k@y>');
 $in = 'From k@y Fri Oct  2 00:00:00 1993'."\n".$eml->as_string;
-lei_ok([qw(import -F mboxrd -)], undef, { %$lei_opt, 0 => \$in },
+lei_ok([qw(import -F mboxrd /dev/fd/0)], undef, { %$lei_opt, 0 => \$in },
 	\'import single file with --kw (default) from stdin');
 lei(qw(q m:k@y));
 $res = json_utf8->decode($lei_out);

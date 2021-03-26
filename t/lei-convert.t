@@ -87,7 +87,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $exp = do { local $/; <$fh> };
 	is($out, $exp, 'stdin => stdout');
 
-	lei_ok qw(convert -F eml -o mboxcl2:/dev/stdout t/plack-qp.eml);
+	lei_ok qw(convert -F eml -o mboxcl2:/dev/fd/1 t/plack-qp.eml);
 	open $fh, '<', \$lei_out or BAIL_OUT;
 	@bar = ();
 	PublicInbox::MboxReader->mboxcl2($fh, sub {
