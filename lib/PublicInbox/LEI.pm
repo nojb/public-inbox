@@ -1030,9 +1030,6 @@ sub dclose {
 		}
 	}
 	close(delete $self->{1}) if $self->{1}; # may reap_compress
-	if (my $sto = delete $self->{sto}) {
-		$sto->ipc_do('done');
-	}
 	$self->close if $self->{-event_init_done}; # PublicInbox::DS::close
 }
 

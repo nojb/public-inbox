@@ -319,6 +319,7 @@ sub query_done { # EOF callback for main daemon
 	if (my $lxs = delete $lei->{lxs}) {
 		$lxs->wq_wait_old(\&xsearch_done_wait, $lei);
 	}
+	my $wait = $lei->{sto} ? $lei->{sto}->ipc_do('done') : undef;
 	$lei->{ovv}->ovv_end($lei);
 	if ($l2m) { # close() calls LeiToMail reap_compress
 		if (my $out = delete $lei->{old_1}) {
