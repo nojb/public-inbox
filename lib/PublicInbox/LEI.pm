@@ -701,8 +701,9 @@ sub _lei_cfg ($;$) {
 	bless $cfg, 'PublicInbox::Config';
 	$cfg->{-st} = $cur_st;
 	$cfg->{'-f'} = $f;
-	if ($sto && File::Spec->canonpath($sto_dir) eq
-			File::Spec->canonpath($cfg->{'leistore.dir'})) {
+	if ($sto && File::Spec->canonpath($sto_dir // store_path($self))
+			eq File::Spec->canonpath($cfg->{'leistore.dir'} //
+						store_path($self))) {
 		$cfg->{-lei_store} = $sto;
 	}
 	if (scalar(keys %PATH2CFG) > 5) {
@@ -719,8 +720,8 @@ sub _lei_store ($;$) {
 	my $cfg = _lei_cfg($self, $creat);
 	$cfg->{-lei_store} //= do {
 		require PublicInbox::LeiStore;
-		my $dir = $cfg->{'leistore.dir'};
-		$dir //= $creat ? store_path($self) : return;
+		my $dir = $cfg->{'leistore.dir'} // store_path($self);
+		return unless $creat || -d $dir;
 		PublicInbox::LeiStore->new($dir, { creat => $creat });
 	};
 }
