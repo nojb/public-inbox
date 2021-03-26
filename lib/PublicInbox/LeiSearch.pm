@@ -27,18 +27,25 @@ sub msg_keywords {
 	wantarray ? sort(keys(%$kw)) : $kw;
 }
 
+# lookup keywords+labels for external messages
 sub xsmsg_vmd {
-	my ($self, $smsg) = @_;
+	my ($self, $smsg, $want_label) = @_;
 	return if $smsg->{kw};
 	my $xdb = $self->xdb; # set {nshard};
-	my %kw;
+	my (%kw, %L, $doc, $x);
 	$kw{flagged} = 1 if delete($smsg->{lei_q_tt_flagged});
 	my @num = $self->over->blob_exists($smsg->{blob});
 	for my $num (@num) { # there should only be one...
-		my $kw = xap_terms('K', $xdb, num2docid($self, $num));
-		%kw = (%kw, %$kw);
+		$doc = $xdb->get_document(num2docid($self, $num));
+		$x = xap_terms('K', $doc);
+		%kw = (%kw, %$x);
+		if ($want_label) { # JSON/JMAP only
+			$x = xap_terms('L', $doc);
+			%L = (%L, %$x);
+		}
 	}
 	$smsg->{kw} = [ sort keys %kw ] if scalar(keys(%kw));
+	$smsg->{L} = [ sort keys %L ] if scalar(keys(%L));
 }
 
 # when a message has no Message-IDs at all, this is needed for
@@ -98,6 +105,28 @@ sub kw_changed {
 	my ($num) = values %$xoids;
 	my @cur_kw = msg_keywords($self, $num);
 	join("\0", @$new_kw_sorted) eq join("\0", @cur_kw) ? 0 : 1;
+}
+
+sub all_terms {
+	my ($self, $pfx) = @_;
+	my $xdb = $self->xdb;
+	my $cur = $xdb->allterms_begin($pfx);
+	my $end = $xdb->allterms_end($pfx);
+	my %ret;
+	for (; $cur != $end; $cur++) {
+		my $tn = $cur->get_termname;
+		index($tn, $pfx) == 0 and
+			$ret{substr($tn, length($pfx))} = undef;
+	}
+	wantarray ? (sort keys %ret) : \%ret;
+}
+
+sub qparse_new {
+	my ($self) = @_;
+	my $qp = $self->SUPER::qparse_new; # PublicInbox::Search
+	$qp->add_boolean_prefix('kw', 'K');
+	$qp->add_boolean_prefix('L', 'L');
+	$qp
 }
 
 1;

@@ -35,7 +35,7 @@ use constant DEBUG => !!$ENV{DEBUG};
 my $xapianlevels = qr/\A(?:full|medium)\z/;
 my $hex = '[a-f0-9]';
 my $OID = $hex .'{40,}';
-my @VMD_MAP = (kw => 'K', label => 'L');
+my @VMD_MAP = (kw => 'K', L => 'L');
 our $INDEXLEVELS = qr/\A(?:full|medium|basic)\z/;
 
 sub new {

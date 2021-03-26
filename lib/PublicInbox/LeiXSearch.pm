@@ -69,11 +69,13 @@ sub xdb_shards_flat { @{$_[0]->{shards_flat} // []} }
 
 sub mitem_kw ($$;$) {
 	my ($smsg, $mitem, $flagged) = @_;
-	my $kw = xap_terms('K', $mitem->get_document);
+	my $kw = xap_terms('K', my $doc = $mitem->get_document);
 	$kw->{flagged} = 1 if $flagged;
-	# we keep the empty array here to prevent expensive work in
+	# we keep the empty {kw} array here to prevent expensive work in
 	# ->xsmsg_vmd, _unbless_smsg will clobber it iff it's empty
 	$smsg->{kw} = [ sort keys %$kw ];
+	my $L = xap_terms('L', $doc);
+	$smsg->{L} = [ sort keys %$L ] if scalar(keys %$L);
 }
 
 # like over->get_art
@@ -86,8 +88,10 @@ sub smsg_for {
 	my $num = int(($docid - 1) / $nshard) + 1;
 	my $ibx = $self->{shard2ibx}->[$shard];
 	my $smsg = $ibx->over->get_art($num);
-	return if $smsg->{bytes} == 0;
-	mitem_kw($smsg, $mitem) if $ibx->can('msg_keywords');
+	return if $smsg->{bytes} == 0; # external message
+	if ($ibx->can('msg_keywords')) {
+		mitem_kw($smsg, $mitem);
+	}
 	$smsg;
 }
 
@@ -170,6 +174,7 @@ sub query_thread_mset { # for --threads
 					if ($can_kw) {
 						mitem_kw($smsg, $mitem, $fl);
 					} elsif ($fl) {
+						# call ->xsmsg_vmd, later
 						$smsg->{lei_q_tt_flagged} = 1;
 					}
 				}

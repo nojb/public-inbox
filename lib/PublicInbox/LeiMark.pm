@@ -60,7 +60,7 @@ sub vmd_mod_extract {
 sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml) = @_;
 	if (my $xoids = $self->{lei}->{ale}->xoids_for($eml)) {
-		$self->{lei}->{sto}->ipc_do('update_xvmd', $xoids,
+		$self->{lei}->{sto}->ipc_do('update_xvmd', $xoids, $eml,
 						$self->{vmd_mod});
 	} else {
 		++$self->{missing};
@@ -168,7 +168,9 @@ sub _complete_mark_common ($) {
 # FIXME: same problems as _complete_forget_external and similar
 sub _complete_mark {
 	my ($self, @argv) = @_;
-	my @all = map { ("+kw:$_", "-kw:$_") } @KW;
+	my @L = eval { $self->_lei_store->search->all_terms('L') };
+	my @all = ((map { ("+kw:$_", "-kw:$_") } @KW),
+		(map { ("+L:$_", "-L:$_") } @L));
 	return @all if !@argv;
 	my ($cur, $re) = _complete_mark_common(\@argv);
 	map {

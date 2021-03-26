@@ -227,7 +227,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		sub { # DIY prettiness :P
 			my ($smsg, $mitem) = @_;
 			return if $dedupe->is_smsg_dup($smsg);
-			$lse->xsmsg_vmd($smsg);
+			$lse->xsmsg_vmd($smsg, $smsg->{L} ? undef : 1);
 			$smsg = _unbless_smsg($smsg, $mitem);
 			$buf .= "{\n";
 			$buf .= join(",\n", map {
@@ -251,7 +251,7 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		sub {
 			my ($smsg, $mitem) = @_;
 			return if $dedupe->is_smsg_dup($smsg);
-			$lse->xsmsg_vmd($smsg);
+			$lse->xsmsg_vmd($smsg, $smsg->{L} ? undef : 1);
 			$buf .= $json->encode(_unbless_smsg(@_)) . $ORS;
 			return if length($buf) < 65536;
 			my $lk = $self->lock_for_scope;

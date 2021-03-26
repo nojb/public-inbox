@@ -228,8 +228,30 @@ sub set_eml {
 		set_eml_vmd($self, $eml, $vmd);
 }
 
+sub _external_only ($$$) {
+	my ($self, $xoids, $eml) = @_;
+	my $eidx = $self->{priv_eidx};
+	my $oidx = $eidx->{oidx} // die 'BUG: {oidx} missing';
+	my $smsg = bless { blob => '' }, 'PublicInbox::Smsg';
+	$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
+	# save space for an externals-only message
+	my $hdr = $eml->header_obj;
+	$smsg->populate($hdr); # sets lines == 0
+	$smsg->{bytes} = 0;
+	delete @$smsg{qw(From Subject)};
+	$smsg->{to} = $smsg->{cc} = $smsg->{from} = '';
+	$oidx->add_overview($hdr, $smsg); # subject+references for threading
+	$smsg->{subject} = '';
+	for my $oid (keys %$xoids) {
+		$oidx->add_xref3($smsg->{num}, -1, $oid, '.');
+	}
+	my $idx = $eidx->idx_shard($smsg->{num});
+	$idx->index_eml(PublicInbox::Eml->new("\n\n"), $smsg);
+	($smsg, $idx);
+}
+
 sub update_xvmd {
-	my ($self, $xoids, $vmd_mod) = @_;
+	my ($self, $xoids, $eml, $vmd_mod) = @_;
 	my $eidx = eidx_init($self);
 	my $oidx = $eidx->{oidx};
 	my %seen;
@@ -242,7 +264,25 @@ sub update_xvmd {
 			my $idx = $eidx->idx_shard($docid);
 			$idx->ipc_do('update_vmd', $docid, $vmd_mod);
 		}
+		delete $xoids->{$oid};
 	}
+	return unless scalar(keys(%$xoids));
+
+	# see if it was indexed, but with different OID(s)
+	if (my @docids = _docids_for($self, $eml)) {
+		for my $docid (@docids) {
+			next if $seen{$docid};
+			for my $oid (keys %$xoids) {
+				$oidx->add_xref3($docid, -1, $oid, '.');
+			}
+			my $idx = $eidx->idx_shard($docid);
+			$idx->ipc_do('update_vmd', $docid, $vmd_mod);
+		}
+		return;
+	}
+	# totally unseen
+	my ($smsg, $idx) = _external_only($self, $xoids, $eml);
+	$idx->ipc_do('update_vmd', $smsg->{num}, $vmd_mod);
 }
 
 # set or update keywords for external message, called via ipc_do
@@ -270,6 +310,7 @@ sub set_xvmd {
 	# see if it was indexed, but with different OID(s)
 	if (my @docids = _docids_for($self, $eml)) {
 		for my $docid (@docids) {
+			next if $seen{$docid};
 			for my $oid (keys %$xoids) {
 				$oidx->add_xref3($docid, -1, $oid, '.');
 			}
@@ -279,21 +320,7 @@ sub set_xvmd {
 		return;
 	}
 	# totally unseen
-	my $smsg = bless { blob => '' }, 'PublicInbox::Smsg';
-	$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
-	# save space for an externals-only message
-	my $hdr = $eml->header_obj;
-	$smsg->populate($hdr); # sets lines == 0
-	$smsg->{bytes} = 0;
-	delete @$smsg{qw(From Subject)};
-	$smsg->{to} = $smsg->{cc} = $smsg->{from} = '';
-	$oidx->add_overview($hdr, $smsg); # subject+references for threading
-	$smsg->{subject} = '';
-	for my $oid (keys %$xoids) {
-		$oidx->add_xref3($smsg->{num}, -1, $oid, '.');
-	}
-	my $idx = $eidx->idx_shard($smsg->{num});
-	$idx->index_eml(PublicInbox::Eml->new("\n\n"), $smsg);
+	my ($smsg, $idx) = _external_only($self, $xoids, $eml);
 	$idx->ipc_do('add_vmd', $smsg->{num}, $vmd);
 }
 

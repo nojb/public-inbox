@@ -370,7 +370,7 @@ sub query_approxidate {
 sub mset {
 	my ($self, $query_string, $opts) = @_;
 	$opts ||= {};
-	my $qp = $self->{qp} //= qparse_new($self);
+	my $qp = $self->{qp} //= $self->qparse_new;
 	my $query = $qp->parse_query($query_string, $self->{qp_flags});
 	_do_enquire($self, $query, $opts);
 }
@@ -463,7 +463,7 @@ sub mset_to_smsg {
 sub stemmer { $X{Stem}->new($LANG) }
 
 # read-only
-sub qparse_new ($) {
+sub qparse_new {
 	my ($self) = @_;
 
 	my $xdb = xdb($self);
@@ -516,7 +516,7 @@ EOF
 
 sub help {
 	my ($self) = @_;
-	$self->{qp} //= qparse_new($self); # parse altids
+	$self->{qp} //= $self->qparse_new; # parse altids
 	my @ret = @HELP;
 	if (my $user_pfx = $self->{-user_pfx}) {
 		push @ret, @$user_pfx;
