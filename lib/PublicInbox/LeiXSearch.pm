@@ -156,6 +156,7 @@ sub query_thread_mset { # for --threads
 		$mset = $srch->mset($mo->{qstr}, $mo);
 		mset_progress($lei, $desc, $mset->size,
 				$mset->get_matches_estimated);
+		wait_startq($lei); # wait for keyword updates
 		my $ids = $srch->mset_to_artnums($mset, $mo);
 		my $ctx = { ids => $ids };
 		my $i = 0;
@@ -165,7 +166,6 @@ sub query_thread_mset { # for --threads
 				my $smsg = $over->get_art($n) or next;
 				my $mitem = delete $n2item{$smsg->{num}};
 				next if $smsg->{bytes} == 0;
-				wait_startq($lei); # wait for keyword updates
 				if ($mitem) {
 					if ($can_kw) {
 						mitem_kw($smsg, $mitem, $fl);
@@ -196,9 +196,9 @@ sub query_mset { # non-parallel for non-"--threads" users
 		$mset = $self->mset($mo->{qstr}, $mo);
 		mset_progress($lei, 'xsearch', $mset->size,
 				$mset->size, $mset->get_matches_estimated);
+		wait_startq($lei); # wait for keyword updates
 		for my $mitem ($mset->items) {
 			my $smsg = smsg_for($self, $mitem) or next;
-			wait_startq($lei);
 			$each_smsg->($smsg, $mitem);
 		}
 	} while (_mset_more($mset, $mo));
