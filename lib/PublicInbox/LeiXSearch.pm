@@ -430,6 +430,7 @@ sub do_query {
 	$lei->{1}->autoflush(1);
 	$lei->start_pager if delete $lei->{need_pager};
 	$lei->{ovv}->ovv_begin($lei);
+	die 'BUG: xdb|over open' if $lei->{lse}->{xdb} || $lei->{lse}->{over};
 	if ($l2m) {
 		$l2m->pre_augment($lei);
 		if ($lei->{opt}->{augment} && delete $lei->{early_mua}) {

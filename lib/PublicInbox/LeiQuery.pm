@@ -25,8 +25,7 @@ sub qstr_add { # PublicInbox::InputPipe::consume callback for --stdin
 	my ($self) = @_; # $_[1] = $rbuf
 	if (defined($_[1])) {
 		$_[1] eq '' and return eval {
-			my $lse = delete $self->{lse};
-			$lse->query_approxidate($lse->git,
+			$self->{lse}->query_approxidate($self->{lse}->git,
 						$self->{mset_opt}->{qstr});
 			_start_query($self);
 		};
@@ -50,11 +49,7 @@ sub lei_q {
 	# --local is enabled by default unless --only is used
 	# we'll allow "--only $LOCATION --local"
 	my $sto = $self->_lei_store(1);
-	if (($opt->{'import-remote'} //= 1) |
-			(($opt->{'import-before'} //= \1) ? 1 : 0)) {
-		$sto->write_prepare($self);
-	}
-	my $lse = $sto->search;
+	my $lse = $self->{lse} = $sto->search;
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
 		$lxs->prepare_external($lse);
 	}
@@ -103,6 +98,12 @@ sub lei_q {
 		return $self->fail("`$mj' writer jobs must be >= 1");
 	}
 	PublicInbox::LeiOverview->new($self) or return;
+	if ($self->{l2m} && ($opt->{'import-remote'} //= 1) |
+				# we use \1 (a ref) to distinguish between
+				# user-supplied and default value
+				(($opt->{'import-before'} //= \1) ? 1 : 0)) {
+		$sto->write_prepare($self);
+	}
 	$self->{l2m} and $self->{l2m}->{-wq_nr_workers} = $mj // do {
 		$mj = POSIX::lround($nproc * 3 / 4); # keep some CPU for git
 		$mj <= 0 ? 1 : $mj;
@@ -131,7 +132,6 @@ sub lei_q {
 no query allowed on command-line with --stdin
 
 		require PublicInbox::InputPipe;
-		$self->{lse} = $lse; # for query_approxidate
 		PublicInbox::InputPipe::consume($self->{0}, \&qstr_add, $self);
 		return;
 	}

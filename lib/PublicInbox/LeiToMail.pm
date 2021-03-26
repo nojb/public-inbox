@@ -263,7 +263,7 @@ sub _mbox_write_cb ($$) {
 	my $atomic_append = !defined($ovv->{lock_path});
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe;
-	my $lse = $lei->{sto} ? $lei->{sto}->search : undef;
+	my $lse = $lei->{lse}; # may be undef
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$eml //= PublicInbox::Eml->new($buf);
@@ -352,7 +352,7 @@ sub _maildir_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe if $dedupe;
 	my $dst = $lei->{ovv}->{dst};
-	my $lse = $lei->{sto} ? $lei->{sto}->search : undef;
+	my $lse = $lei->{lse}; # may be undef
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
@@ -373,7 +373,7 @@ sub _imap_write_cb ($$) {
 	my $imap_append = $lei->{net}->can('imap_append');
 	my $mic = $lei->{net}->mic_get($self->{uri});
 	my $folder = $self->{uri}->mailbox;
-	my $lse = $lei->{sto} ? $lei->{sto}->search : undef;
+	my $lse = $lei->{lse}; # may be undef
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # dst may be undef-ed in last run
@@ -449,7 +449,7 @@ sub _pre_augment_maildir {
 sub _do_augment_maildir {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
-	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-before'};
+	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	my ($mod, $shard) = @{$self->{shard_info} // []};
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
@@ -481,7 +481,7 @@ sub _imap_augment_or_delete { # PublicInbox::NetReader::imap_each cb
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
 	my $net = $lei->{net};
-	my $lse = $lei->{sto}->search if $lei->{opt}->{'import-before'};
+	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
@@ -523,9 +523,9 @@ sub _pre_augment_mbox {
 		die "seek($dst): $!\n";
 	}
 	if (!$self->{seekable}) {
-		my $ia = $lei->{opt}->{'import-before'};
+		my $imp_before = $lei->{opt}->{'import-before'};
 		die "--import-before specified but $dst is not seekable\n"
-			if $ia && !ref($ia);
+			if $imp_before && !ref($imp_before);
 		die "--augment specified but $dst is not seekable\n" if
 			$lei->{opt}->{augment};
 	}
@@ -562,7 +562,7 @@ sub _do_augment_mbox {
 		$dedupe->prepare_dedupe if $dedupe;
 	}
 	if ($opt->{'import-before'}) { # the default
-		my $lse = $lei->{sto}->search;
+		my $lse = $lei->{lse};
 		PublicInbox::MboxReader->$fmt($rd, \&_mbox_augment_kw_maybe,
 						$lei, $lse, $opt->{augment});
 		if (!$opt->{augment} and !truncate($out, 0)) {
