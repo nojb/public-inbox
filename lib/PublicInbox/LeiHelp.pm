@@ -97,4 +97,7 @@ EOF
 	undef;
 }
 
+# the "lei help" command
+sub lei_help { $_[0]->_help }
+
 1;

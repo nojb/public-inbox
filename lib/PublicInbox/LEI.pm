@@ -787,8 +787,6 @@ sub lei_daemon_kill {
 	kill($sig, $$) or fail($self, "kill($sig, $$): $!");
 }
 
-sub lei_help { _help($_[0]) }
-
 # Shell completion helper.  Used by lei-completion.bash and hopefully
 # other shells.  Try to do as much here as possible to avoid redundancy
 # and improve maintainability.
