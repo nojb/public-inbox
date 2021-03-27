@@ -35,23 +35,19 @@ sub qstr_add { # PublicInbox::InputPipe::consume callback for --stdin
 	}
 }
 
-# the main "lei q SEARCH_TERMS" method
-sub lei_q {
-	my ($self, @argv) = @_;
+sub lxs_prepare {
+	my ($self) = @_;
 	require PublicInbox::LeiXSearch;
-	require PublicInbox::LeiOverview;
-	require PublicInbox::V2Writable;
-	PublicInbox::Config->json; # preload before forking
-	my $opt = $self->{opt};
 	# prepare any number of LeiXSearch || LeiSearch || Inbox || URL
 	my $lxs = $self->{lxs} = PublicInbox::LeiXSearch->new;
+	my $opt = $self->{opt};
 	my @only = @{$opt->{only} // []};
 	# --local is enabled by default unless --only is used
 	# we'll allow "--only $LOCATION --local"
-	my $sto = $self->_lei_store(1);
-	my $lse = $self->{lse} = $sto->search;
+	my $sto = $self->_lei_store(1); # FIXME: should not create
+	$self->{lse} = $sto->search;
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
-		$lxs->prepare_external($lse);
+		$lxs->prepare_external($self->{lse});
 	}
 	if (@only) {
 		for my $loc (@only) {
@@ -82,10 +78,20 @@ sub lei_q {
 			}
 		}
 	}
-	unless ($lxs->locals || $lxs->remotes) {
-		return $self->fail('no local or remote inboxes to search');
-	}
+	($lxs->locals || $lxs->remotes) ? ($self->{lxs} = $lxs) :
+		$self->fail('no local or remote inboxes to search');
+}
+
+# the main "lei q SEARCH_TERMS" method
+sub lei_q {
+	my ($self, @argv) = @_;
+	require PublicInbox::LeiOverview;
+	require PublicInbox::V2Writable;
+	PublicInbox::Config->json; # preload before forking
+	PublicInbox::LeiOverview->new($self) or return;
+	my $lxs = lxs_prepare($self) or return;
 	$self->ale->refresh_externals($lxs);
+	my $opt = $self->{opt};
 	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
 	if (defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) {
 		return $self->fail("`$xj' search jobs must be >= 1");
@@ -97,12 +103,11 @@ sub lei_q {
 	if (defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) {
 		return $self->fail("`$mj' writer jobs must be >= 1");
 	}
-	PublicInbox::LeiOverview->new($self) or return;
 	if ($self->{l2m} && ($opt->{'import-remote'} //= 1) |
 				# we use \1 (a ref) to distinguish between
 				# user-supplied and default value
 				(($opt->{'import-before'} //= \1) ? 1 : 0)) {
-		$sto->write_prepare($self);
+		$self->_lei_store(1)->write_prepare($self);
 	}
 	$self->{l2m} and $self->{l2m}->{-wq_nr_workers} = $mj // do {
 		$mj = POSIX::lround($nproc * 3 / 4); # keep some CPU for git
@@ -135,7 +140,8 @@ no query allowed on command-line with --stdin
 		PublicInbox::InputPipe::consume($self->{0}, \&qstr_add, $self);
 		return;
 	}
-	$mset_opt{qstr} = $lse->query_argv_to_string($lse->git, \@argv);
+	$mset_opt{qstr} =
+		$self->{lse}->query_argv_to_string($self->{lse}->git, \@argv);
 	_start_query($self);
 }
 
