@@ -28,7 +28,8 @@ sub new {
 	my ($self, $lei) = @_;
 	ref($self) or $self = _new($lei->cache_dir . '/all_locals_ever.git');
 	my $lxs = PublicInbox::LeiXSearch->new;
-	$lxs->prepare_external($lei->_lei_store(1)->search);
+	my $sto = $lei->_lei_store;
+	$lxs->prepare_external($sto->search) if $sto;
 	for my $loc ($lei->externals_each) { # locals only
 		$lxs->prepare_external($loc) if -d $loc;
 	}
