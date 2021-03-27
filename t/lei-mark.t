@@ -78,6 +78,12 @@ test_lei(sub {
 	lei_ok(qw(ls-label));
 	is($lei_out, "nope\nqp\nurgent\n", 'ls-label shows qp');
 
+	lei_ok qw(mark -F eml t/utf8.eml +L:INBOX +L:x); diag $lei_err;
+	lei_ok qw(q m:testmessage@example.com);
+	$check_kw->([qw(answered seen)], L => [qw(INBOX nope urgent x)]);
+	lei_ok(qw(ls-label));
+	is($lei_out, "INBOX\nnope\nqp\nurgent\nx\n", 'ls-label shows qp');
+
 	if (0) { # TODO label+kw search w/ externals
 		lei_ok(qw(q L:qp), "mid:$mid", '--only', "$ro_home/t2");
 	}
