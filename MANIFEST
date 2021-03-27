@@ -181,6 +181,7 @@ lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/LEI.pm
 lib/PublicInbox/LeiALE.pm
 lib/PublicInbox/LeiAuth.pm
+lib/PublicInbox/LeiBlob.pm
 lib/PublicInbox/LeiConvert.pm
 lib/PublicInbox/LeiCurl.pm
 lib/PublicInbox/LeiDedupe.pm

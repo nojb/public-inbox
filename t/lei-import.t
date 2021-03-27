@@ -54,6 +54,8 @@ is($res->[0]->{'m'}, 'x@y', 'got expected message');
 is($res->[0]->{kw}, undef, 'Status ignored for eml');
 lei_ok(qw(q -f mboxrd m:x@y));
 unlike($lei_out, qr/^Status:/, 'no Status: in imported message');
+lei_ok('blob', $res->[0]->{blob});
+is($lei_out, "From: a\@b\nMessage-ID: <x\@y>\n", 'got blob back');
 
 
 $eml->header_set('Message-ID', '<v@y>');

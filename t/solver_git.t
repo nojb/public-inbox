@@ -6,6 +6,7 @@ use v5.10.1;
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
+use Digest::SHA qw(sha1_hex);
 use PublicInbox::Spawn qw(popen_rd);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
 my $git_dir = xqx([qw(git rev-parse --git-dir)], undef, {2 => \(my $null)});
@@ -27,6 +28,18 @@ my $ibx = create_inbox 'v2', version => 2,
 };
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
 my $v1_0_0_tag_short = substr($v1_0_0_tag, 0, 16);
+my $expect = '69df7d565d49fbaaeb0a067910f03dc22cd52bd0';
+
+test_lei({tmpdir => $tmpdir}, sub {
+	lei_ok('blob', '69df7d5', '-I', $ibx->{inboxdir});
+	is(sha1_hex("blob ".length($lei_out)."\0".$lei_out),
+		$expect, 'blob contents output');
+
+	# fallbacks
+	lei_ok('blob', $v1_0_0_tag, '-I', $ibx->{inboxdir});
+	lei_ok('blob', $v1_0_0_tag_short, '-I', $ibx->{inboxdir});
+});
+
 my $git = PublicInbox::Git->new($git_dir);
 $ibx->{-repo_objs} = [ $git ];
 my $res;
@@ -38,7 +51,6 @@ $solver->solve($psgi_env, $log, '69df7d5', {});
 ok($res, 'solved a blob!');
 my $wt_git = $res->[0];
 is(ref($wt_git), 'PublicInbox::Git', 'got a git object for the blob');
-my $expect = '69df7d565d49fbaaeb0a067910f03dc22cd52bd0';
 is($res->[1], $expect, 'resolved blob to unabbreviated identifier');
 is($res->[2], 'blob', 'type specified');
 is($res->[3], 4405, 'size returned');

@@ -120,6 +120,9 @@ sub index_opt {
 }
 
 my @c_opt = qw(c=s@ C=s@ quiet|q);
+my @lxs_opt = (qw(remote! local! external! include|I=s@ exclude=s@ only=s@
+	import-remote!  no-torsocks torsocks=s),
+	PublicInbox::LeiQuery::curl_opt());
 
 # we generate shell completion + help using %CMD and %OPTDESC,
 # see lei__complete() and PublicInbox::LeiHelp
@@ -127,16 +130,15 @@ my @c_opt = qw(c=s@ C=s@ quiet|q);
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms',
 	'stdin|', # /|\z/ must be first for lone dash
+	@lxs_opt,
 	qw(save-as=s output|mfolder|o=s format|f=s dedupe|d=s threads|t+
-	sort|s=s reverse|r offset=i remote! local! external! pretty
-	include|I=s@ exclude=s@ only=s@ jobs|j=s globoff|g augment|a
-	import-remote! import-before! lock=s@ rsyncable
-	alert=s@ mua=s no-torsocks torsocks=s verbose|v+), @c_opt,
-	PublicInbox::LeiQuery::curl_opt(), opt_dash('limit|n=i', '[0-9]+') ],
+	sort|s=s reverse|r offset=i pretty jobs|j=s globoff|g augment|a
+	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+), @c_opt,
+	opt_dash('limit|n=i', '[0-9]+') ],
 
-'show' => [ 'MID|OID', 'show a given object (Message-ID or object ID)',
-	qw(type=s solve! format|f=s dedupe|d=s threads|t remote local!
-	verbose|v+), @c_opt, pass_through('git show') ],
+'blob' => [ 'OID', 'display a git blob object, solving if necessary',
+	qw(git-dir=s@ cwd! verbose|v+ oid-a|A=s path-a|a=s path-b|b=s),
+	@lxs_opt, @c_opt ],
 
 'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
@@ -350,7 +352,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q mark); # internal workers
+my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q mark sol); # internal workers
 
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {
@@ -724,10 +726,6 @@ sub _lei_store ($;$) {
 		return unless $creat || -d $dir;
 		PublicInbox::LeiStore->new($dir, { creat => $creat });
 	};
-}
-
-sub lei_show {
-	my ($self, @argv) = @_;
 }
 
 sub _config {
