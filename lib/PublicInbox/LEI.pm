@@ -136,8 +136,8 @@ our %CMD = ( # sorted in order of importance/use:
 	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+), @c_opt,
 	opt_dash('limit|n=i', '[0-9]+') ],
 
-'blob' => [ 'OID', 'display a git blob object, solving if necessary',
-	qw(git-dir=s@ cwd! verbose|v+ oid-a|A=s path-a|a=s path-b|b=s),
+'blob' => [ 'OID', 'show a git blob, reconstructing from mail if necessary',
+	qw(git-dir=s@ cwd! verbose|v+ mail! oid-a|A=s path-a|a=s path-b|b=s),
 	@lxs_opt, @c_opt ],
 
 'add-external' => [ 'LOCATION',

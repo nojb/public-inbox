@@ -34,6 +34,9 @@ test_lei({tmpdir => $tmpdir}, sub {
 	lei_ok('blob', '69df7d5', '-I', $ibx->{inboxdir});
 	is(sha1_hex("blob ".length($lei_out)."\0".$lei_out),
 		$expect, 'blob contents output');
+	my $prev = $lei_out;
+	lei_ok(qw(blob --no-mail 69df7d5 -I), $ibx->{inboxdir});
+	is($lei_out, $prev, '--no-mail works');
 
 	# fallbacks
 	lei_ok('blob', $v1_0_0_tag, '-I', $ibx->{inboxdir});

@@ -8,7 +8,6 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::DS;
-use PublicInbox::Eml;
 
 sub sol_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
@@ -85,18 +84,22 @@ sub do_solve_blob { # via wq_do
 sub lei_blob {
 	my ($lei, $blob) = @_;
 	$lei->start_pager if -t $lei->{1};
+	my $opt = $lei->{opt};
+	my $has_hints = grep(defined, @$opt{qw(oid-a path-a path-b)});
 
-	# first, see if it's a blob returned by "lei q" JSON output:
-	my $rdr = { 1 => $lei->{1} };
-	open $rdr->{2}, '>', '/dev/null' or die "open: $!";
-	my $cmd = [ 'git', '--git-dir='.$lei->ale->git->{git_dir},
-			'cat-file', 'blob', $blob ];
-	waitpid(spawn($cmd, $lei->{env}, $rdr), 0);
-	return if $? == 0;
+	# first, see if it's a blob returned by "lei q" JSON output:k
+	if ($opt->{mail} // ($has_hints ? 0 : 1)) {
+		my $rdr = { 1 => $lei->{1} };
+		open $rdr->{2}, '>', '/dev/null' or die "open: $!";
+		my $cmd = [ 'git', '--git-dir='.$lei->ale->git->{git_dir},
+				'cat-file', 'blob', $blob ];
+		waitpid(spawn($cmd, $lei->{env}, $rdr), 0);
+		return if $? == 0;
+	}
 
 	# maybe it's a non-email (code) blob from a coderepo
-	my $git_dirs = $lei->{opt}->{'git-dir'} //= [];
-	if ($lei->{opt}->{'cwd'} //= 1) {
+	my $git_dirs = $opt->{'git-dir'} //= [];
+	if ($opt->{'cwd'} // 1) {
 		my $cgd = get_git_dir('.');
 		unshift(@$git_dirs, $cgd) if defined $cgd;
 	}
