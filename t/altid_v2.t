@@ -5,9 +5,9 @@ use strict;
 use v5.10.1;
 use PublicInbox::TestCommon;
 use PublicInbox::Eml;
-use PublicInbox::Msgmap;
 require_git(2.6);
 require_mods(qw(DBD::SQLite Search::Xapian));
+require PublicInbox::Msgmap;
 my $another = 'another-nntp.sqlite3';
 my $altid = [ "serial:gmane:file=$another" ];
 my $ibx = create_inbox 'v2', version => 2, indexlevel => 'medium',

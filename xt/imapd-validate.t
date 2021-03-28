@@ -3,7 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # Expensive test to validate compression and TLS.
 use strict;
-use Test::More;
+use v5.10.1;
 use Symbol qw(gensym);
 use PublicInbox::DS qw(now);
 use POSIX qw(_exit);
@@ -15,7 +15,7 @@ my $BATCH = $ENV{TEST_BATCH} // 100;
 my $REPEAT = $ENV{TEST_REPEAT} // 1;
 diag "TEST_BATCH=$BATCH TEST_REPEAT=$REPEAT";
 
-require_mods(qw(Mail::IMAPClient Email::Address::XS||Mail::Address));
+require_mods(qw(Mail::IMAPClient -imapd));
 my $imap_client = 'Mail::IMAPClient';
 my $can_compress = $imap_client->can('compress');
 if ($can_compress) { # hope this gets fixed upstream, soon

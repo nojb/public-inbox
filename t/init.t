@@ -74,7 +74,7 @@ sub quiet_fail {
 }
 
 SKIP: {
-	require_mods(qw(DBD::SQLite Search::Xapian::WritableDatabase), 2);
+	require_mods(qw(DBD::SQLite Search::Xapian), 2);
 	require_git(2.6, 1) or skip "git 2.6+ required", 2;
 	use_ok 'PublicInbox::Msgmap';
 	local $ENV{PI_DIR} = "$tmpdir/.public-inbox/";

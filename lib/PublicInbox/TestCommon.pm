@@ -107,19 +107,28 @@ sub require_mods {
 	my $maybe = pop @mods if $mods[-1] =~ /\A[0-9]+\z/;
 	my @need;
 	while (my $mod = shift(@mods)) {
+		if ($mod eq 'lei') {
+			require_git(2.6, $maybe ? $maybe : ());
+			push @mods, qw(DBD::SQLite Search::Xapian);
+			$mod = 'json'; # fall-through
+		}
 		if ($mod eq 'json') {
-			$mod = 'Cpanel::JSON::XS||JSON::MaybeXS||'.
-				'JSON||JSON::PP'
+			$mod = 'Cpanel::JSON::XS||JSON::MaybeXS||JSON||JSON::PP'
+		} elsif ($mod eq '-httpd') {
+			push @mods, qw(Plack::Builder Plack::Util);
+			next;
+		} elsif ($mod eq '-imapd') {
+			push @mods, qw(Parse::RecDescent DBD::SQLite
+					Email::Address::XS||Mail::Address);
+			next;
+		} elsif ($mod eq '-nntpd') {
+			push @mods, qw(DBD::SQLite);
+			next;
 		}
 		if ($mod eq 'Search::Xapian') {
 			if (eval { require PublicInbox::Search } &&
 				PublicInbox::Search::load_xapian()) {
 				next;
-			}
-		} elsif ($mod eq 'Search::Xapian::WritableDatabase') {
-			if (eval { require PublicInbox::SearchIdx } &&
-				PublicInbox::SearchIdx::load_xapian_writable()){
-					next;
 			}
 		} elsif (index($mod, '||') >= 0) { # "Foo||Bar"
 			my $ok;

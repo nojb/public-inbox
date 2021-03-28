@@ -2,8 +2,7 @@
 # Copyright (C) 2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
-require_git 2.6;
-require_mods(qw(json DBD::SQLite Search::Xapian));
+require_mods(qw(lei -httpd));
 use PublicInbox::MboxReader;
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $sock = tcp_server;

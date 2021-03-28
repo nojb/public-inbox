@@ -2,11 +2,10 @@
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use Test::More;
+use v5.10.1;
 use Time::Local qw(timegm);
 use PublicInbox::TestCommon;
-require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address
-	Parse::RecDescent));
+require_mods(qw(-imapd));
 use_ok 'PublicInbox::IMAPsearchqp';
 use_ok 'PublicInbox::IMAP';
 

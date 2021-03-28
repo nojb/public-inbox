@@ -4,13 +4,12 @@
 # Idle client memory usage test, particularly after EXAMINE when
 # Message Sequence Numbers are loaded
 use strict;
-use Test::More;
+use v5.10.1;
 use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
 use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::DS;
-require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address
-	Parse::RecDescent));
+require_mods(qw(-imapd));
 my $inboxdir = $ENV{GIANT_INBOX_DIR};
 my $TEST_TLS;
 SKIP: {

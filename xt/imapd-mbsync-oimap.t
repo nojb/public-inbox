@@ -3,11 +3,11 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # ensure mbsync and offlineimap compatibility
 use strict;
-use Test::More;
+use v5.10.1;
 use File::Path qw(mkpath);
 use PublicInbox::TestCommon;
 use PublicInbox::Spawn qw(which spawn);
-require_mods(qw(DBD::SQLite Email::Address::XS||Mail::Address));
+require_mods(qw(-imapd));
 my $inboxdir = $ENV{GIANT_INBOX_DIR};
 (defined($inboxdir) && -d $inboxdir) or
 	plan skip_all => "GIANT_INBOX_DIR not defined for $0";
