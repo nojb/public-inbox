@@ -49,7 +49,7 @@ sub call {
 			length($_) > 1 ? push(@l, "--$_") : push(@s, "-$_");
 		}
 		if (!scalar(@vals)) { # no args 'threads|t'
-		} elsif ($arg_vals =~ s/\A([A-Z_]+)\b//) { # "NAME"
+		} elsif ($arg_vals =~ s/\A([A-Z_=]+)\b//) { # "NAME"
 			$vals[1] = $1;
 		} else {
 			$vals[1] = uc(substr($l[0], 2)); # "--type" => "TYPE"
