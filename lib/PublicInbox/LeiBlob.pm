@@ -19,7 +19,7 @@ sub sol_done_wait { # dwaitpid callback
 
 sub sol_done { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $sol = delete $lei->{sol} or return;
+	my $sol = delete $lei->{sol} // return $lei->dclose; # already failed
 	$sol->wq_wait_old(\&sol_done_wait, $lei);
 }
 
