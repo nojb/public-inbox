@@ -6,7 +6,7 @@ package PublicInbox::LeiBlob;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
-use PublicInbox::Spawn qw(spawn popen_rd);
+use PublicInbox::Spawn qw(spawn popen_rd which);
 use PublicInbox::DS;
 
 sub sol_done_wait { # dwaitpid callback
@@ -66,7 +66,10 @@ sub do_solve_blob { # via wq_do
 	}
 	open my $log, '+>', \(my $log_buf = '') or die "PerlIO::scalar: $!";
 	$lei->{log_buf} = \$log_buf;
-	my $git = $lei->ale->git;
+	my $git = $lei->{ale}->git;
+	my @rmt = map {
+		PublicInbox::LeiRemote->new($lei, $_)
+	} $self->{lxs}->remotes;
 	my $solver = bless {
 		gits => [ map {
 				PublicInbox::Git->new($lei->rel2abs($_))
@@ -74,7 +77,7 @@ sub do_solve_blob { # via wq_do
 		user_cb => \&solver_user_cb,
 		uarg => $self,
 		# -cur_di, -qsp, -msg => temporary fields for Qspawn callbacks
-		inboxes => [ $self->{lxs}->locals ],
+		inboxes => [ $self->{lxs}->locals, @rmt ],
 	}, 'PublicInbox::SolverGit';
 	$lei->{env}->{'psgi.errors'} = $lei->{2}; # ugh...
 	local $PublicInbox::DS::in_loop = 0; # waitpid synchronously
@@ -105,8 +108,15 @@ sub lei_blob {
 	}
 	return $lei->fail('no --git-dir to try') unless @$git_dirs;
 	my $lxs = $lei->lxs_prepare or return;
+	if ($lxs->remotes) {
+		require PublicInbox::LeiRemote;
+		$lei->{curl} //= which('curl') or return
+			$lei->fail('curl needed for', $lxs->remotes);
+		$lei->_lei_store(1)->write_prepare($lei);
+	}
 	require PublicInbox::SolverGit;
 	my $self = bless { lxs => $lxs, oid_b => $blob }, __PACKAGE__;
+	$lei->ale;
 	my ($op_c, $ops) = $lei->workers_start($self, 'lei_solve', 1,
 		{ '' => [ \&sol_done, $lei ] });
 	$lei->{sol} = $self;

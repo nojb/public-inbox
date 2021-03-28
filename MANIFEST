@@ -196,6 +196,7 @@ lib/PublicInbox/LeiMirror.pm
 lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiP2q.pm
 lib/PublicInbox/LeiQuery.pm
+lib/PublicInbox/LeiRemote.pm
 lib/PublicInbox/LeiSearch.pm
 lib/PublicInbox/LeiStore.pm
 lib/PublicInbox/LeiToMail.pm

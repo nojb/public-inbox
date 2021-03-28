@@ -7,7 +7,7 @@ use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
 use Digest::SHA qw(sha1_hex);
-use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::Spawn qw(popen_rd which);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
 my $git_dir = xqx([qw(git rev-parse --git-dir)], undef, {2 => \(my $null)});
 $? == 0 or plan skip_all => "$0 must be run from a git working tree";
@@ -227,8 +227,20 @@ EOF
 		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
 		my $td = start_script($cmd, $env, { 3 => $sock });
 		my ($h, $p) = tcp_host_port($sock);
-		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
+		my $url = "http://$h:$p";
+		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = $url;
 		Plack::Test::ExternalServer::test_psgi(client => $client);
+		skip 'no curl', 1 unless which('curl');
+
+		mkdir "$tmpdir/ext" // xbail "mkdir $!";
+		test_lei({tmpdir => "$tmpdir/ext"}, sub {
+			my $rurl = "$url/$name";
+			lei_ok(qw(blob --no-mail 69df7d5 -I), $rurl);
+			is(sha1_hex("blob ".length($lei_out)."\0".$lei_out),
+				$expect, 'blob contents output');
+			ok(!lei(qw(blob -I), $rurl, $non_existent),
+					'non-existent blob fails');
+		});
 	}
 }
 

@@ -121,7 +121,7 @@ sub index_opt {
 
 my @c_opt = qw(c=s@ C=s@ quiet|q);
 my @lxs_opt = (qw(remote! local! external! include|I=s@ exclude=s@ only=s@
-	import-remote!  no-torsocks torsocks=s),
+	import-remote! no-torsocks torsocks=s),
 	PublicInbox::LeiQuery::curl_opt());
 
 # we generate shell completion + help using %CMD and %OPTDESC,
