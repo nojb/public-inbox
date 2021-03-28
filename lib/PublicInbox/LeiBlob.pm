@@ -103,6 +103,7 @@ sub lei_blob {
 		my $cgd = get_git_dir('.');
 		unshift(@$git_dirs, $cgd) if defined $cgd;
 	}
+	return $lei->fail('no --git-dir to try') unless @$git_dirs;
 	my $lxs = $lei->lxs_prepare or return;
 	require PublicInbox::SolverGit;
 	my $self = bless { lxs => $lxs, oid_b => $blob }, __PACKAGE__;
