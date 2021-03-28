@@ -744,38 +744,6 @@ sub lei_config {
 	x_it($self, $?) if $?;
 }
 
-sub lei_init {
-	my ($self, $dir) = @_;
-	my $cfg = _lei_cfg($self, 1);
-	my $cur = $cfg->{'leistore.dir'};
-	$dir //= store_path($self);
-	$dir = rel2abs($self, $dir);
-	my @cur = stat($cur) if defined($cur);
-	$cur = File::Spec->canonpath($cur // $dir);
-	my @dir = stat($dir);
-	my $exists = "# leistore.dir=$cur already initialized" if @dir;
-	if (@cur) {
-		if ($cur eq $dir) {
-			_lei_store($self, 1)->done;
-			return qerr($self, $exists);
-		}
-
-		# some folks like symlinks and bind mounts :P
-		if (@dir && "@cur[1,0]" eq "@dir[1,0]") {
-			lei_config($self, 'leistore.dir', $dir);
-			_lei_store($self, 1)->done;
-			return qerr($self, "$exists (as $cur)");
-		}
-		return fail($self, <<"");
-E: leistore.dir=$cur already initialized and it is not $dir
-
-	}
-	lei_config($self, 'leistore.dir', $dir);
-	_lei_store($self, 1)->done;
-	$exists //= "# leistore.dir=$dir newly initialized";
-	return qerr($self, $exists);
-}
-
 sub lei_daemon_pid { puts shift, $$ }
 
 sub lei_daemon_kill {
