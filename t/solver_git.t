@@ -29,6 +29,7 @@ my $ibx = create_inbox 'v2', version => 2,
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
 my $v1_0_0_tag_short = substr($v1_0_0_tag, 0, 16);
 my $expect = '69df7d565d49fbaaeb0a067910f03dc22cd52bd0';
+my $non_existent = 'ee5e32211bf62ab6531bdf39b84b6920d0b6775a';
 
 test_lei({tmpdir => $tmpdir}, sub {
 	lei_ok('blob', '69df7d5', '-I', $ibx->{inboxdir});
@@ -37,6 +38,25 @@ test_lei({tmpdir => $tmpdir}, sub {
 	my $prev = $lei_out;
 	lei_ok(qw(blob --no-mail 69df7d5 -I), $ibx->{inboxdir});
 	is($lei_out, $prev, '--no-mail works');
+	ok(!lei(qw(blob -I), $ibx->{inboxdir}, $non_existent),
+			'non-existent blob fails');
+	SKIP: {
+		skip '/.git exists', 1 if -e '/.git';
+		require PublicInbox::OnDestroy;
+		opendir my $dh, '.' or xbail "opendir: $!";
+		my $end = PublicInbox::OnDestroy->new($$, sub {
+			chdir $dh or xbail "chdir: $!";
+		});
+		lei_ok(qw(-C / blob 69df7d5 -I), $ibx->{inboxdir},
+			"--git-dir=$git_dir");
+		is($lei_out, $prev, '--git-dir works');
+
+		ok(!lei(qw(-C / blob --no-cwd 69df7d5 -I), $ibx->{inboxdir}),
+			'--no-cwd works');
+
+		ok(!lei(qw(-C / blob -I), $ibx->{inboxdir}, $non_existent),
+			'non-existent blob fails');
+	}
 
 	# fallbacks
 	lei_ok('blob', $v1_0_0_tag, '-I', $ibx->{inboxdir});
@@ -163,7 +183,6 @@ EOF
 	close $cfgfh or die;
 	my $cfg = PublicInbox::Config->new($cfgpath);
 	my $www = PublicInbox::WWW->new($cfg);
-	my $non_existent = 'ee5e32211bf62ab6531bdf39b84b6920d0b6775a';
 	my $client = sub {
 		my ($cb) = @_;
 		my $mid = '20190401081523.16213-1-BOFH@YHBT.net';
