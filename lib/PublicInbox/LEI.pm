@@ -249,7 +249,12 @@ my %OPTDESC = (
 		"and\xa0'[]'\x{a0}ranges",
 'verbose|v+' => 'be more verbose',
 'external!' => 'do not use externals',
-'solve!' => 'do not attempt to reconstruct blobs from emails',
+'mail!' => 'do not look in mail storage for OID',
+'cwd!' => 'do not look in git repo of current working directory',
+'oid-a|A=s' => 'pre-image OID',
+'path-a|a=s' => 'pre-image pathname associated with OID',
+'path-b|b=s' => 'post-image pathname associated with OID',
+'git-dir=s@' => 'additional git repository to scan',
 'torsocks=s' => ['VAL|auto|no|yes',
 		'whether or not to wrap git and curl commands with torsocks'],
 'no-torsocks' => 'alias for --torsocks=no',
@@ -786,7 +791,7 @@ sub lei__complete {
 			if (s/[:=].+\z//) { # req/optional args, e.g output|o=i
 			} elsif (s/\+\z//) { # verbose|v+
 			} elsif (s/!\z//) {
-				# negation: solve! => no-solve|solve
+				# negation: mail! => no-mail|mail
 				s/([\w\-]+)/$1|no-$1/g
 			}
 			map {
