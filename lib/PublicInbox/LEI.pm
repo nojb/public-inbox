@@ -172,15 +172,6 @@ our %CMD = ( # sorted in order of importance/use:
 	'remove imported messages from IMAP, Maildirs, and MH',
 	qw(exact! all jobs:i indexed), @c_opt ],
 
-# code repos are used for `show' to solve blobs from patch mails
-'add-coderepo' => [ 'DIRNAME', 'add or set priority of a git code repo',
-	qw(boost=i), @c_opt ],
-'ls-coderepo' => [ '[FILTER_TERMS...]',
-		'list known code repos', qw(format|f=s z), @c_opt ],
-'forget-coderepo' => [ 'DIRNAME',
-	'stop using repo to solve blobs from patches',
-	qw(prune), @c_opt ],
-
 'add-watch' => [ 'LOCATION', 'watch for new messages and flag changes',
 	qw(import! kw|keywords|flags! interval=s recursive|r
 	exclude=s include=s), @c_opt ],

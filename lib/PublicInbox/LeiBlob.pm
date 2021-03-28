@@ -2,6 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # "lei blob $OID" command
+# TODO: this doesn't scan submodules, but maybe it should
 package PublicInbox::LeiBlob;
 use strict;
 use v5.10.1;
