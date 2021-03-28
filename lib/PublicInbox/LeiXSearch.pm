@@ -427,7 +427,7 @@ sub do_query {
 		'incr_start_query' => [ \&incr_start_query, $self, $l2m ],
 	};
 	$lei->{auth}->op_merge($ops, $l2m) if $l2m && $lei->{auth};
-	my $end = $lei->pkt_op_pair($ops);
+	my $end = $lei->pkt_op_pair;
 	$lei->{1}->autoflush(1);
 	$lei->start_pager if delete $lei->{need_pager};
 	$lei->{ovv}->ovv_begin($lei);
@@ -445,7 +445,7 @@ sub do_query {
 	}
 	$self->wq_workers_start('lei_xsearch', undef,
 				$lei->oldset, { lei => $lei });
-	my $op = delete $lei->{pkt_op_c};
+	my $op_c = delete $lei->{pkt_op_c};
 	delete $lei->{pkt_op_p};
 	@$end = ();
 	$self->{threads} = $lei->{opt}->{threads};
@@ -455,9 +455,7 @@ sub do_query {
 		start_query($self);
 	}
 	$lei->event_step_init; # wait for shutdowns
-	if ($lei->{oneshot}) {
-		while ($op->{sock}) { $op->event_step }
-	}
+	$op_c->op_wait_event($ops);
 }
 
 sub add_uri {

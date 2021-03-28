@@ -16,21 +16,23 @@ use PublicInbox::IPC qw(ipc_freeze ipc_thaw);
 our @EXPORT_OK = qw(pkt_do);
 
 sub new {
-	my ($cls, $r, $ops) = @_;
-	my $self = bless { sock => $r, ops => $ops }, $cls;
+	my ($cls, $r) = @_;
+	my $self = bless { sock => $r }, $cls;
 	if ($PublicInbox::DS::in_loop) { # iff using DS->EventLoop
 		$r->blocking(0);
 		$self->SUPER::new($r, EPOLLIN|EPOLLET);
+	} else {
+		$self->{blocking} = 1;
 	}
 	$self;
 }
 
 # returns a blessed object as the consumer, and a GLOB/IO for the producer
 sub pair {
-	my ($cls, $ops) = @_;
+	my ($cls) = @_;
 	my ($c, $p);
 	socketpair($c, $p, AF_UNIX, SOCK_SEQPACKET, 0) or die "socketpair: $!";
-	(new($cls, $c, $ops), $p);
+	(new($cls, $c), $p);
 }
 
 sub pkt_do { # for the producer to trigger event_step in consumer
@@ -41,7 +43,7 @@ sub pkt_do { # for the producer to trigger event_step in consumer
 sub close {
 	my ($self) = @_;
 	my $c = $self->{sock} or return;
-	$c->blocking ? delete($self->{sock}) : $self->SUPER::close;
+	$self->{blocking} ? delete($self->{sock}) : $self->SUPER::close;
 }
 
 sub event_step {
@@ -71,6 +73,14 @@ sub event_step {
 		$sub->(@args, @pargs);
 		return $self->close if $msg eq ''; # close on EOF
 	}
+}
+
+# call this when we're ready to wait on events,
+# returns immediately if non-blocking
+sub op_wait_event {
+	my ($self, $ops) = @_;
+	$self->{ops} = $ops;
+	while ($self->{blocking} && $self->{sock}) { event_step($self) }
 }
 
 1;

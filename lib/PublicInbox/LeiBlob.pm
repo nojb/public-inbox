@@ -103,12 +103,12 @@ sub lei_blob {
 	my $lxs = $lei->lxs_prepare or return;
 	require PublicInbox::SolverGit;
 	my $self = bless { lxs => $lxs, oid_b => $blob }, __PACKAGE__;
-	my $op = $lei->workers_start($self, 'lei_solve', 1,
+	my ($op_c, $ops) = $lei->workers_start($self, 'lei_solve', 1,
 		{ '' => [ \&sol_done, $lei ] });
 	$lei->{sol} = $self;
 	$self->wq_io_do('do_solve_blob', []);
 	$self->wq_close(1);
-	while ($op && $op->{sock}) { $op->event_step }
+	$op_c->op_wait_event($ops);
 }
 
 sub ipc_atfork_child {

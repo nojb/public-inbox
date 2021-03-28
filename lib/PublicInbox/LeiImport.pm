@@ -76,11 +76,11 @@ sub lei_import { # the main "lei import" method
 	my $ops = { '' => [ \&import_done, $lei ] };
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{-wq_nr_workers} = $j // 1; # locked
-	my $op = $lei->workers_start($self, 'lei_import', undef, $ops);
+	my ($op_c, undef) = $lei->workers_start($self, 'lei_import', $j, $ops);
 	$lei->{imp} = $self;
 	$self->wq_io_do('input_stdin', []) if $self->{0};
 	net_merge_complete($self) unless $lei->{auth};
-	while ($op && $op->{sock}) { $op->event_step }
+	$op_c->op_wait_event($ops);
 }
 
 no warnings 'once';

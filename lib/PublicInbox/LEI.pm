@@ -494,11 +494,11 @@ sub _delete_pkt_op { # OnDestroy callback to prevent leaks on die
 }
 
 sub pkt_op_pair {
-	my ($self, $ops) = @_;
+	my ($self) = @_;
 	require PublicInbox::OnDestroy;
 	require PublicInbox::PktOp;
 	my $end = PublicInbox::OnDestroy->new($$, \&_delete_pkt_op, $self);
-	@$self{qw(pkt_op_c pkt_op_p)} = PublicInbox::PktOp->pair($ops);
+	@$self{qw(pkt_op_c pkt_op_p)} = PublicInbox::PktOp->pair;
 	$end;
 }
 
@@ -512,14 +512,13 @@ sub workers_start {
 		($ops ? %$ops : ()),
 	};
 	$ops->{''} //= [ \&dclose, $lei ];
-	my $end = $lei->pkt_op_pair($ops);
+	my $end = $lei->pkt_op_pair;
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, { lei => $lei });
 	delete $lei->{pkt_op_p};
-	my $op = delete $lei->{pkt_op_c};
+	my $op_c = delete $lei->{pkt_op_c};
 	@$end = ();
 	$lei->event_step_init;
-	# oneshot needs $op, daemon-mode uses DS->EventLoop to handle $op
-	$lei->{oneshot} ? $op : undef;
+	($op_c, $ops);
 }
 
 sub _help {

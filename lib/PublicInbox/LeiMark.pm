@@ -116,11 +116,11 @@ sub lei_mark { # the "lei mark" method
 	my $ops = { '' => [ \&mark_done, $lei ] };
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{vmd_mod} = $vmd_mod;
-	my $op = $lei->workers_start($self, 'lei_mark', 1, $ops);
+	my ($op_c, undef) = $lei->workers_start($self, 'lei_mark', 1, $ops);
 	$lei->{mark} = $self;
 	$self->wq_io_do('input_stdin', []) if $self->{0};
 	net_merge_complete($self) unless $lei->{auth};
-	while ($op && $op->{sock}) { $op->event_step }
+	$op_c->op_wait_event($ops);
 }
 
 sub note_missing {
