@@ -46,7 +46,7 @@ sub new_file {
 sub tmp_clone {
 	my ($self, $dir) = @_;
 	require File::Temp;
-	my $tmp = "mm_tmp-$$-XXXXXX";
+	my $tmp = "mm_tmp-$$-XXXX";
 	my ($fh, $fn) = File::Temp::tempfile($tmp, EXLOCK => 0, DIR => $dir);
 	PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	$self->{dbh}->sqlite_backup_to_file($fn);

@@ -681,7 +681,7 @@ sub solve ($$$$$) {
 	$self->{todo} = [ { %$hints, oid_b => $oid_want } ];
 	$self->{patches} = []; # [ $di, $di, ... ]
 	$self->{found} = {}; # { abbr => [ ::Git, oid, type, size, $di ] }
-	$self->{tmp} = File::Temp->newdir("solver.$oid_want-XXXXXXXX", TMPDIR => 1);
+	$self->{tmp} = File::Temp->newdir("solver.$oid_want-XXXX", TMPDIR => 1);
 
 	dbg($self, "solving $oid_want ...");
 	if (my $async = $env->{'pi-httpd.async'}) {

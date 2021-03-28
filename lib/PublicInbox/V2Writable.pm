@@ -660,7 +660,7 @@ sub done {
 
 sub write_alternates ($$$) {
 	my ($info_dir, $mode, $out) = @_;
-	my $fh = File::Temp->new(TEMPLATE => 'alt-XXXXXXXX', DIR => $info_dir);
+	my $fh = File::Temp->new(TEMPLATE => 'alt-XXXX', DIR => $info_dir);
 	my $tmp = $fh->filename;
 	print $fh @$out or die "print $tmp: $!\n";
 	chmod($mode, $fh) or die "fchmod $tmp: $!\n";
@@ -772,11 +772,11 @@ sub import_init {
 sub diff ($$$) {
 	my ($mid, $cur, $new) = @_;
 
-	my $ah = File::Temp->new(TEMPLATE => 'email-cur-XXXXXXXX', TMPDIR => 1);
+	my $ah = File::Temp->new(TEMPLATE => 'email-cur-XXXX', TMPDIR => 1);
 	print $ah $cur->as_string or die "print: $!";
 	$ah->flush or die "flush: $!";
 	PublicInbox::Import::drop_unwanted_headers($new);
-	my $bh = File::Temp->new(TEMPLATE => 'email-new-XXXXXXXX', TMPDIR => 1);
+	my $bh = File::Temp->new(TEMPLATE => 'email-new-XXXX', TMPDIR => 1);
 	print $bh $new->as_string or die "print: $!";
 	$bh->flush or die "flush: $!";
 	my $cmd = [ qw(diff -u), $ah->filename, $bh->filename ];

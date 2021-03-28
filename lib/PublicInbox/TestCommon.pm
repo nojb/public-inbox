@@ -40,7 +40,7 @@ sub tmpdir (;$) {
 	unless (defined $base) {
 		($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
 	}
-	my $tmpdir = File::Temp->newdir("pi-$base-$$-XXXXXX", TMPDIR => 1);
+	my $tmpdir = File::Temp->newdir("pi-$base-$$-XXXX", TMPDIR => 1);
 	($tmpdir->dirname, $tmpdir);
 }
 

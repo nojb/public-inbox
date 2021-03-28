@@ -13,7 +13,7 @@ is($x->base_url, 'http://example.com/test/', 'added trailing slash');
 $x = PublicInbox::Inbox->new({});
 
 is($x->base_url, undef, 'undef base_url allowed');
-my $tmpdir = File::Temp->newdir('pi-inbox-XXXXXX', TMPDIR => 1);
+my $tmpdir = File::Temp->newdir('pi-inbox-XXXX', TMPDIR => 1);
 $x->{inboxdir} = $tmpdir->dirname;
 is_deeply($x->cloneurl, [], 'no cloneurls');
 is($x->description, '($INBOX_DIR/description missing)', 'default description');

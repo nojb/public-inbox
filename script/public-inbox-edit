@@ -133,7 +133,7 @@ $mids
 }
 
 my %tmpopt = (
-	TEMPLATE => 'public-inbox-edit-XXXXXX',
+	TEMPLATE => 'public-inbox-edit-XXXX',
 	TMPDIR => 1,
 	SUFFIX => $opt->{raw} ? '.eml' : '.mbox',
 );

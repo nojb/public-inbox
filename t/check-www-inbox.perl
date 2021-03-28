@@ -91,7 +91,7 @@ foreach my $p (1..$nproc) {
 	}
 }
 
-my ($fh, $tmp) = tempfile('www-check-XXXXXXXX',
+my ($fh, $tmp) = tempfile('www-check-XXXX',
 			SUFFIX => '.gdbm', UNLINK => 1, TMPDIR => 1);
 my $gdbm = tie my %seen, 'GDBM_File', $tmp, &GDBM_WRCREAT, 0600;
 defined $gdbm or die "gdbm open failed: $!\n";

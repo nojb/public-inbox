@@ -192,7 +192,7 @@ sub prepare_run {
 		my $dir = dirname($old);
 		same_fs_or_die($dir, $old);
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
-		my $wip = File::Temp->newdir("xapian$v-XXXXXXXX", DIR => $dir);
+		my $wip = File::Temp->newdir("xapian$v-XXXX", DIR => $dir);
 		$tmp->{$old} = $wip;
 		nodatacow_dir($wip->dirname);
 		push @queue, [ $old, $wip ];
@@ -220,8 +220,7 @@ sub prepare_run {
 			$src = [ map { "$old/$_" } @old_shards ];
 		}
 		foreach my $dn (0..$max_shard) {
-			my $tmpl = "$dn-XXXXXXXX";
-			my $wip = File::Temp->newdir($tmpl, DIR => $old);
+			my $wip = File::Temp->newdir("$dn-XXXX", DIR => $old);
 			same_fs_or_die($old, $wip->dirname);
 			my $cur = "$old/$dn";
 			push @queue, [ $src // $cur , $wip ];
@@ -291,7 +290,7 @@ sub cpdb_retryable ($$) {
 }
 
 sub progress_pfx ($) {
-	my ($wip) = @_; # tempdir v2: ([0-9])+-XXXXXXXX
+	my ($wip) = @_; # tempdir v2: ([0-9])+-XXXX
 	my @p = split('/', $wip);
 
 	# return "xap15/0" for v2, or "xapian15" for v1:
@@ -418,7 +417,7 @@ sub cpdb ($$) { # cb_spawn callback
 	if ($opt->{compact}) {
 		my $dir = dirname($new);
 		same_fs_or_die($dir, $new);
-		$ft = File::Temp->newdir("$new.compact-XXXXXX", DIR => $dir);
+		$ft = File::Temp->newdir("$new.compact-XXXX", DIR => $dir);
 		setup_signals();
 		$tmp = $ft->dirname;
 		nodatacow_dir($tmp);

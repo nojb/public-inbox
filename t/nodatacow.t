@@ -15,7 +15,7 @@ SKIP: {
 	skip 'BTRFS_TESTDIR not defined', $nr unless defined $dir;
 	skip 'chattr(1) not installed', $nr unless which('chattr');
 	my $lsattr = which('lsattr') or skip 'lsattr(1) not installed', $nr;
-	my $tmp = File::Temp->newdir('nodatacow-XXXXX', DIR => $dir);
+	my $tmp = File::Temp->newdir('nodatacow-XXXX', DIR => $dir);
 	my $dn = $tmp->dirname;
 
 	my $name = "$dn/pp.f";

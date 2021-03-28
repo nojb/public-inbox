@@ -79,7 +79,7 @@ PublicInbox::Lock::lock_acquire($lock_obj);
 
 # git-config will operate on this (and rename on success):
 require File::Temp;
-my $fh = File::Temp->new(TEMPLATE => 'pi-init-XXXXXXXX', DIR => $dir);
+my $fh = File::Temp->new(TEMPLATE => 'pi-init-XXXX', DIR => $dir);
 
 # Now, we grab another lock to use git-config(1) locking, so it won't
 # wait on the lock, unlike some of our internal flock()-based locks.
