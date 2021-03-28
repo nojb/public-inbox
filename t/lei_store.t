@@ -23,6 +23,7 @@ is($sto->add_eml($eml), undef, 'idempotent');
 $sto->done;
 {
 	my $es = $sto->search;
+	ok($es->can('isrch'), ref($es). ' can ->isrch (for SolverGit)');
 	my $msgs = $es->over->query_xover(0, 1000);
 	is(scalar(@$msgs), 1, 'one message');
 	is($msgs->[0]->{blob}, $smsg->{blob}, 'blob matches');
