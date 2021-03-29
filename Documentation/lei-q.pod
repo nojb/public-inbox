@@ -31,7 +31,7 @@ Read search terms from stdin.
 Destination for results (e.g., C<path/to/Maildir>,
 C<imaps://user@mail.example.com/INBOX.test>, or
 C<mboxcl2:path/to/mbox>).  The prefix may be a supported protocol:
-C<imap://>, C<imaps://>, C<nntp://>, or C<nntps://>.  URLs requiring
+C<imap://> or C<imaps://>.  URLs requiring
 authentication must use L<netrc(5)> and/or L<git-credential(1)> to
 fill in the username and password.
 
