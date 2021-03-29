@@ -17,6 +17,6 @@ is(scalar(@events), 1, 'got one event');
 is($events[0], fileno($w), 'got expected FD');
 close $w;
 epoll_wait($epfd, 100, 0, \@events);
-is(@events, 0, 'epoll_wait timeout');
+is(scalar(@events), 0, 'epoll_wait timeout');
 
 done_testing;
