@@ -48,7 +48,7 @@ non-existing path.
 =for comment
 TODO: Provide description of formats?
 
-Default: -
+Default: C<-> (stdout)
 
 =item -f FORMAT, --format=FORMAT
 
