@@ -287,9 +287,8 @@ L<Plack::App::Cascade(3pm)>
 =item * match=domain
 - Only show inboxes with URLs which belong to the domain of the HTTP request
 
-=for TODO comment
-
-support showing cgit listing
+=for comment
+TODO support showing cgit listing
 
 =back
 
