@@ -1,6 +1,6 @@
 =head1 NAME
 
-lei - local email interface for public-inbox
+lei - local email interface
 
 =head1 SYNOPSIS
 
@@ -8,14 +8,16 @@ lei [OPTIONS] COMMAND
 
 =head1 DESCRIPTION
 
-Unlike the C10K-oriented L<public-inbox-daemon(8)>, lei is designed
-exclusively to handle trusted local clients with read/write access to
-the file system, using as many system resources as the local user has
-access to.  lei supports a local, writable store built on top of
+lei is a command-line tool for importing and searching email,
+regardless of whether it is from a personal mailbox or a public-inbox.
+lei supports a local, writable store built on top of
 L<public-inbox-v2-format(5)> and L<public-inbox-extindex(1)>.
 L<lei-q(1)> provides an interface for querying messages across the lei
 store and read-only local and remote "externals" (inboxes and external
 indices).
+
+Warning: lei is still in its early stages and may destroy mail.
+Be sure to have backups of destinations lei writes to.
 
 Available in public-inbox 1.7.0+.
 
