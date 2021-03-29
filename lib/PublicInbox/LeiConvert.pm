@@ -34,6 +34,7 @@ sub input_maildir_cb {
 
 sub do_convert { # via wq_do
 	my ($self) = @_;
+	$PublicInbox::DS::in_loop = 0; # force synchronous dwaitpid
 	for my $input (@{$self->{inputs}}) {
 		$self->input_path_url($input);
 	}

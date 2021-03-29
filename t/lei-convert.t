@@ -6,6 +6,7 @@ use PublicInbox::MboxReader;
 use PublicInbox::MdirReader;
 use PublicInbox::NetReader;
 use PublicInbox::Eml;
+use IO::Uncompress::Gunzip;
 require_mods(qw(lei -imapd -nntpd Mail::IMAPClient Net::NNTP));
 my ($tmpdir, $for_destroy) = tmpdir;
 my $sock = tcp_server;
@@ -91,13 +92,28 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	@bar = ();
 	PublicInbox::MboxReader->mboxcl2($fh, sub {
 		my $eml = shift;
-		for my $h (qw(Status Content-Length Lines)) {
+		for my $h (qw(Content-Length Lines)) {
 			ok(defined($eml->header_raw($h)),
 				"$h defined for mboxcl2");
 			$eml->header_set($h);
 		}
 		push @bar, $eml;
 	});
-	is_deeply(\@bar, [ eml_load('t/plack-qp.eml') ], 'eml => mboxcl2');
+	my $qp_eml = eml_load('t/plack-qp.eml');
+	$qp_eml->header_set('Status', 'O');
+	is_deeply(\@bar, [ $qp_eml ], 'eml => mboxcl2');
+
+	lei_ok qw(convert t/plack-qp.eml -o), "mboxrd:$d/qp.gz";
+	open $fh, '<', "$d/qp.gz" or xbail $!;
+	ok(-s $fh, 'not empty');
+	$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
+	@bar = ();
+	PublicInbox::MboxReader->mboxrd($fh, sub { push @bar, shift });
+	is_deeply(\@bar, [ $qp_eml ], 'wrote gzipped mboxrd');
+	lei_ok qw(convert -o mboxrd:/dev/stdout), "mboxrd:$d/qp.gz";
+	open $fh, '<', \$lei_out or xbail;
+	@bar = ();
+	PublicInbox::MboxReader->mboxrd($fh, sub { push @bar, shift });
+	is_deeply(\@bar, [ $qp_eml ], 'readed gzipped mboxrd');
 });
 done_testing;

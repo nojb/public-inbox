@@ -138,4 +138,56 @@ sub reads {
 	$ifmt =~ /\Ambox(?:rd|cl|cl2|o)\z/ ? __PACKAGE__->can($ifmt) : undef
 }
 
+# all of these support -c for stdout and -d for decompression,
+# mutt is commonly distributed with hooks for gz, bz2 and xz, at least
+# { foo => '' } means "--foo" is passed to the command-line,
+# otherwise { foo => '--bar' } passes "--bar"
+my %zsfx2cmd = (
+	gz => [ qw(GZIP pigz gzip), { rsyncable => '' } ],
+	bz2 => [ 'bzip2', {} ],
+	xz => [ 'xz', {} ],
+	# don't add new entries here unless MUA support is widely available
+);
+
+sub zsfx ($) {
+	my ($pathname) = @_;
+	my $allow = join('|', keys %zsfx2cmd);
+	$pathname =~ /\.($allow)\z/ ? $1 : undef;
+}
+
+sub zsfx2cmd ($$$) {
+	my ($zsfx, $decompress, $lei) = @_;
+	my $x = $zsfx2cmd{$zsfx} // die "BUG: no support for suffix=.$zsfx";
+	my @info = @$x;
+	my $cmd_opt = pop @info;
+	my @cmd = (undef, $decompress ? qw(-dc) : qw(-c));
+	require PublicInbox::Spawn;
+	for my $exe (@info) {
+		# I think respecting client's ENV{GZIP} is OK, not sure
+		# about ENV overrides for other, less-common compressors
+		if ($exe eq uc($exe)) {
+			$exe = $lei->{env}->{$exe} or next;
+		}
+		$cmd[0] = PublicInbox::Spawn::which($exe) and last;
+	}
+	$cmd[0] // die join(' or ', @info)." missing for .$zsfx";
+	# push @cmd, @{$cmd_opt->{-default}} if $cmd_opt->{-default};
+	for my $bool (qw(rsyncable)) {
+		my $switch = $cmd_opt->{rsyncable} // next;
+		push @cmd, '--'.($switch || $bool);
+	}
+	for my $key (qw(rsyncable)) { # support compression level?
+		my $switch = $cmd_opt->{$key} // next;
+		my $val = $lei->{opt}->{$key} // next;
+		push @cmd, $switch, $val;
+	}
+	\@cmd;
+}
+
+sub zsfxcat ($$$) {
+	my ($in, $zsfx, $lei) = @_;
+	my $cmd = zsfx2cmd($zsfx, 1, $lei);
+	PublicInbox::Spawn::popen_rd($cmd, undef, { 0 => $in, 2 => $lei->{2} });
+}
+
 1;

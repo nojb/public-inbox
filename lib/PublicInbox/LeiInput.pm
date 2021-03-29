@@ -75,6 +75,13 @@ sub input_path_url {
 		my $m = $lei->{opt}->{'lock'} //
 			PublicInbox::MboxLock->defaults;
 		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
+		my $zsfx = PublicInbox::MboxReader::zsfx($input);
+		if ($zsfx) {
+			my $in = delete $mbl->{fh};
+			$mbl->{fh} =
+			     PublicInbox::MboxReader::zsfxcat($in, $zsfx, $lei);
+		}
+		local $PublicInbox::DS::in_loop = 0 if $zsfx; # dwaitpid
 		$self->input_fh($ifmt, $mbl->{fh}, $input, @args);
 	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
 		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';

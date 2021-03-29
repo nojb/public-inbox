@@ -9,7 +9,7 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
 use PublicInbox::Lock;
 use PublicInbox::ProcessPipe;
-use PublicInbox::Spawn qw(which spawn popen_rd);
+use PublicInbox::Spawn qw(spawn);
 use PublicInbox::LeiDedupe;
 use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
@@ -167,56 +167,10 @@ sub reap_compress { # dwaitpid callback
 	$lei->fail("@$cmd failed", $? >> 8);
 }
 
-# all of these support -c for stdout and -d for decompression,
-# mutt is commonly distributed with hooks for gz, bz2 and xz, at least
-# { foo => '' } means "--foo" is passed to the command-line,
-# otherwise { foo => '--bar' } passes "--bar"
-our %zsfx2cmd = (
-	gz => [ qw(GZIP pigz gzip), { rsyncable => '' } ],
-	bz2 => [ 'bzip2', {} ],
-	xz => [ 'xz', {} ],
-	# XXX does anybody care for these?  I prefer zstd on entire FSes,
-	# so it's probably not necessary on a per-file basis
-	# zst => [ 'zstd', { -default => [ qw(-q) ], # it's noisy by default
-	#	rsyncable => '', threads => '-T' } ],
-	# zz => [ 'pigz', { -default => [ '--zlib' ],
-	#	rsyncable => '', threads => '-p' }],
-	# lzo => [ 'lzop', {} ],
-	# lzma => [ 'lzma', {} ],
-);
-
-sub zsfx2cmd ($$$) {
-	my ($zsfx, $decompress, $lei) = @_;
-	my $x = $zsfx2cmd{$zsfx} // die "no support for suffix=.$zsfx";
-	my @info = @$x;
-	my $cmd_opt = pop @info;
-	my @cmd = (undef, $decompress ? qw(-dc) : qw(-c));
-	for my $exe (@info) {
-		# I think respecting client's ENV{GZIP} is OK, not sure
-		# about ENV overrides for other, less-common compressors
-		if ($exe eq uc($exe)) {
-			$exe = $lei->{env}->{$exe} or next;
-		}
-		$cmd[0] = which($exe) and last;
-	}
-	$cmd[0] // die join(' or ', @info)." missing for .$zsfx";
-	# push @cmd, @{$cmd_opt->{-default}} if $cmd_opt->{-default};
-	for my $bool (qw(rsyncable)) {
-		my $switch = $cmd_opt->{rsyncable} // next;
-		push @cmd, '--'.($switch || $bool);
-	}
-	for my $key (qw(rsyncable)) { # support compression level?
-		my $switch = $cmd_opt->{$key} // next;
-		my $val = $lei->{opt}->{$key} // next;
-		push @cmd, $switch, $val;
-	}
-	\@cmd;
-}
-
 sub _post_augment_mbox { # open a compressor process
 	my ($self, $lei) = @_;
 	my $zsfx = $self->{zsfx} or return;
-	my $cmd = zsfx2cmd($zsfx, undef, $lei);
+	my $cmd = PublicInbox::MboxReader::zsfx2cmd($zsfx, undef, $lei);
 	my ($r, $w) = @{delete $lei->{zpipe}};
 	my $rdr = { 0 => $r, 1 => $lei->{1}, 2 => $lei->{2} };
 	my $pid = spawn($cmd, undef, $rdr);
@@ -225,12 +179,6 @@ sub _post_augment_mbox { # open a compressor process
 	$dup->{$_} = $lei->{$_} for qw(2 sock);
 	tie *$pp, 'PublicInbox::ProcessPipe', $pid, $w, \&reap_compress, $dup;
 	$lei->{1} = $pp;
-}
-
-sub decompress_src ($$$) {
-	my ($in, $zsfx, $lei) = @_;
-	my $cmd = zsfx2cmd($zsfx, 1, $lei);
-	popen_rd($cmd, undef, { 0 => $in, 2 => $lei->{2} });
 }
 
 sub dup_src ($) {
@@ -533,8 +481,7 @@ sub _pre_augment_mbox {
 		die "--augment specified but $dst is not seekable\n" if
 			$lei->{opt}->{augment};
 	}
-	state $zsfx_allow = join('|', keys %zsfx2cmd);
-	if (($self->{zsfx}) = ($dst =~ /\.($zsfx_allow)\z/)) {
+	if ($self->{zsfx} = PublicInbox::MboxReader::zsfx($dst)) {
 		pipe(my ($r, $w)) or die "pipe: $!";
 		$lei->{zpipe} = [ $r, $w ];
 		$lei->{ovv}->{lock_path} and
@@ -559,7 +506,8 @@ sub _do_augment_mbox {
 		return;
 	}
 	my $zsfx = $self->{zsfx};
-	my $rd = $zsfx ? decompress_src($out, $zsfx, $lei) : dup_src($out);
+	my $rd = $zsfx ? PublicInbox::MboxReader::zsfxcat($out, $zsfx, $lei)
+			: dup_src($out);
 	my $dedupe;
 	if ($opt->{augment}) {
 		$dedupe = $lei->{dedupe};

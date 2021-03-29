@@ -149,8 +149,8 @@ test_lei(sub {
 	is($res->[1], undef, 'only one result');
 });
 
-for my $zsfx (qw(gz bz2 xz)) { # XXX should we support zst, zz, lzo, lzma?
-	my $zsfx2cmd = PublicInbox::LeiToMail->can('zsfx2cmd');
+my $zsfx2cmd = PublicInbox::MboxReader->can('zsfx2cmd');
+for my $zsfx (qw(gz bz2 xz)) {
 	SKIP: {
 		my $cmd = eval { $zsfx2cmd->($zsfx, 0, $lei) };
 		skip $@, 3 if $@;
