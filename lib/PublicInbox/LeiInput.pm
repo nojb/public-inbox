@@ -46,12 +46,6 @@ error reading $name: $!
 	}
 }
 
-sub input_stdin {
-	my ($self) = @_;
-	my $in = delete $self->{0} or return;
-	$self->input_fh($self->{lei}->{opt}->{'in-format'}, $in, '<stdin>');
-}
-
 sub input_path_url {
 	my ($self, $input, @args) = @_;
 	my $lei = $self->{lei};
@@ -94,7 +88,7 @@ sub prepare_inputs { # returns undef on error
 		@$inputs and return
 			$lei->fail("--stdin and @$inputs do not mix");
 		check_input_format($lei) or return;
-		$self->{0} = $lei->{0};
+		push @$inputs, '/dev/stdin';
 	}
 	my $net = $lei->{net}; # NetWriter may be created by l2m
 	my $fmt = $lei->{opt}->{'in-format'};

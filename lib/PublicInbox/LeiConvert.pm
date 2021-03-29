@@ -34,7 +34,6 @@ sub input_maildir_cb {
 
 sub do_convert { # via wq_do
 	my ($self) = @_;
-	$self->input_stdin;
 	for my $input (@{$self->{inputs}}) {
 		$self->input_path_url($input);
 	}

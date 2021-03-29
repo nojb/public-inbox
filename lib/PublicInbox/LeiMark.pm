@@ -118,7 +118,6 @@ sub lei_mark { # the "lei mark" method
 	$self->{vmd_mod} = $vmd_mod;
 	my ($op_c, undef) = $lei->workers_start($self, 'lei_mark', 1, $ops);
 	$lei->{mark} = $self;
-	$self->wq_io_do('input_stdin', []) if $self->{0};
 	net_merge_complete($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);
 }
