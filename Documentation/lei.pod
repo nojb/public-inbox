@@ -66,8 +66,6 @@ store and configured externals are
 
 =back
 
-TODO: Add lei-show (and perhaps others) once implemented.
-
 Other subcommands include
 
 =over
