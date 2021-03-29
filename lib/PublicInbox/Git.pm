@@ -426,7 +426,7 @@ sub local_nick ($) {
 	my ($self) = @_;
 	my $ret = '???';
 	# don't show full FS path, basename should be OK:
-	if ($self->{git_dir} =~ m!/([^/]+)(?:/\.git)?\z!) {
+	if ($self->{git_dir} =~ m!/([^/]+)(?:/*\.git/*)?\z!) {
 		$ret = "$1.git";
 	}
 	wantarray ? ($ret) : $ret;
