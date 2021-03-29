@@ -84,7 +84,7 @@ Augment output destination instead of clobbering it.
 Return all messages in the same thread as the actual match(es).
 
 Using this twice (C<-tt>) sets the C<flagged> (AKA "important")
-on messages which were actual messages.  This is useful to distinguish
+on messages which were actual matches.  This is useful to distinguish
 messages which were direct hits from messages which were merely part
 of the same thread.
 
