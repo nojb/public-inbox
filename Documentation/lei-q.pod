@@ -28,6 +28,9 @@ Read search terms from stdin.
 
 =item -o MFOLDER, --output=MFOLDER, --mfolder=MFOLDER
 
+Warning: this clobbers and overwrites the output destination unless
+L</-a, --augment> is specified.
+
 Destination for results (e.g., C<path/to/Maildir>,
 C<imaps://user@mail.example.com/INBOX.test>, or
 C<mboxcl2:path/to/mbox>).  The prefix may be a supported protocol:
