@@ -26,8 +26,8 @@ my $check_kw = sub {
 
 test_lei(sub {
 	lei_ok(qw(ls-label)); is($lei_out, '', 'no labels, yet');
-	lei_ok(qw(import -F eml t/utf8.eml));
-	lei_ok(qw(mark -F eml t/utf8.eml +kw:flagged +L:urgent));
+	lei_ok(qw(import t/utf8.eml));
+	lei_ok(qw(mark t/utf8.eml +kw:flagged +L:urgent));
 	$check_kw->(['flagged'], L => ['urgent']);
 	lei_ok(qw(ls-label)); is($lei_out, "urgent\n", 'label found');
 	ok(!lei(qw(mark -F eml t/utf8.eml +kw:seeen)), 'bad kw rejected');

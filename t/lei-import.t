@@ -4,7 +4,7 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 test_lei(sub {
 ok(!lei(qw(import -F bogus), 't/plack-qp.eml'), 'fails with bogus format');
-like($lei_err, qr/\bbogus unrecognized/, 'gave error message');
+like($lei_err, qr/\bis `eml', not --in-format/, 'gave error message');
 
 lei_ok(qw(q s:boolean), \'search miss before import');
 unlike($lei_out, qr/boolean/i, 'no results, yet');

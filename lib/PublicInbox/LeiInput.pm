@@ -14,9 +14,9 @@ sub check_input_format ($;$) {
 		my $err = $files ? "regular file(s):\n@$files" : '--stdin';
 		return $lei->fail("--$opt_key unset for $err");
 	}
+	return 1 if $fmt eq 'eml';
 	require PublicInbox::MboxLock if $files;
 	require PublicInbox::MboxReader;
-	return 1 if $fmt eq 'eml';
 	# XXX: should this handle {gz,bz2,xz}? that's currently in LeiToMail
 	PublicInbox::MboxReader->reads($fmt) or
 		return $lei->fail("--$opt_key=$fmt unrecognized");
@@ -28,7 +28,6 @@ sub check_input_format ($;$) {
 sub input_fh {
 	my ($self, $ifmt, $fh, $name, @args) = @_;
 	if ($ifmt eq 'eml') {
-		require PublicInbox::Eml;
 		my $buf = do { local $/; <$fh> } //
 			return $self->{lei}->child_error(1 << 8, <<"");
 error reading $name: $!
@@ -60,13 +59,21 @@ sub input_path_url {
 					$self, @args);
 		return;
 	}
-	$input =~ s!\A([a-z0-9]+):!!i and $ifmt = lc($1);
+	if ($input =~ s!\A([a-z0-9]+):!!i) {
+		$ifmt = lc($1);
+	} elsif ($input =~ /\.(?:patch|eml)\z/i) {
+		$ifmt = 'eml';
+	}
 	my $devfd = $lei->path_to_fd($input) // return;
 	if ($devfd >= 0) {
 		$self->input_fh($ifmt, $lei->{$devfd}, $input, @args);
-	} elsif (-f $input) {
-		my $m = $lei->{opt}->{'lock'} // ($ifmt eq 'eml' ? ['none'] :
-				PublicInbox::MboxLock->defaults);
+	} elsif (-f $input && $ifmt eq 'eml') {
+		open my $fh, '<', $input or
+					return $lei->fail("open($input): $!");
+		$self->input_fh($ifmt, $fh, $input, @args);
+	} elsif (-f _) {
+		my $m = $lei->{opt}->{'lock'} //
+			PublicInbox::MboxLock->defaults;
 		my $mbl = PublicInbox::MboxLock->acq($input, 0, $m);
 		$self->input_fh($ifmt, $mbl->{fh}, $input, @args);
 	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
@@ -91,7 +98,6 @@ sub prepare_inputs { # returns undef on error
 		push @$inputs, '/dev/stdin';
 	}
 	my $net = $lei->{net}; # NetWriter may be created by l2m
-	my $fmt = $lei->{opt}->{'in-format'};
 	my (@f, @d);
 	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
 	for my $input (@$inputs) {
@@ -120,6 +126,11 @@ sub prepare_inputs { # returns undef on error
 			} else {
 				return $lei->fail("Unable to handle $input");
 			}
+		} elsif ($input =~ /\.(eml|patch)\z/i && -f $input) {
+			lc($in_fmt//'eml') eq 'eml' or return $lei->fail(<<"");
+$input is `eml', not --in-format=$in_fmt
+
+			require PublicInbox::Eml;
 		} else {
 			my $devfd = $lei->path_to_fd($input) // return;
 			if ($devfd >= 0 || -f $input || -p _) {
