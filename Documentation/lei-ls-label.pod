@@ -1,0 +1,43 @@
+=head1 NAME
+
+lei-ls-label - list labels
+
+=head1 SYNOPSIS
+
+lei ls-label [OPTIONS]
+
+=head1 DESCRIPTION
+
+List all known message labels ("mailboxes" in JMAP terminology).
+
+=head1 OPTIONS
+
+=over
+
+=item -z, -0
+
+Use C<\0> (NUL) instead of newline (CR) to delimit lines.
+
+=item -q, --quiet
+
+Suppress feedback messages.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+
+=head1 SEE ALSO
+
+L<lei-add-external(1)>

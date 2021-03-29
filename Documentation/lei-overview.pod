@@ -20,6 +20,17 @@ L<public-inbox-v2-format(5)>.
 
 Import the messages from an mbox into the local storage.
 
+=item $ lei blob 59ec517f9
+
+Show message with the git blob OID of 59ec517f9.  If a message with
+that OID isn't found, check if the current git repository has the
+blob, trying to reconstruct it from a message if needed.
+
+=item $ lei blob 59ec517f9 | lei mark - -F eml +kw:flagged +L:next
+
+Set the "flagged" keyword and "next" label on the message with the
+blob OID of 59ec517f9.
+
 =back
 
 =head1 EXTERNALS
@@ -68,6 +79,16 @@ thread as a matched message.
 
 Write mboxcl2-formatted results to t.mbox and enter mutt to view the
 file by invoking C<mutt -f %f>.
+
+=item $ lei q kw:flagged L:next
+
+Search for all flagged messages that also have a "next" label.
+
+=item $ lei p2q HEAD | lei q --stdin -tt -o mdir
+
+Search for messages that have post-image git blob IDs that match those
+of the current repository's HEAD commit, writing them to the Maildir
+directory "mdir" and flagging the messages that were an exact match.
 
 =back
 

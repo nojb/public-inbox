@@ -1,0 +1,58 @@
+=head1 NAME
+
+lei-mark - set/unset metadata on messages
+
+=head1 SYNOPSIS
+
+lei mark [OPTIONS] FILE [FILE...] METADATA [METADATA...]
+
+lei mark [OPTIONS] (-|--stdin) METADATA [METADATA...]
+
+=head1 DESCRIPTION
+
+Set or unset volatile metadata on messages.  In JMAP terms, "volatile
+metadata" includes "mailboxes" (analogous to a folder or label) and a
+restricted set of "keywords".  This supported keywords are the
+combination of system keywords (seen, answered, flagged, and draft),
+which map to Maildir flags and mbox Status/X-Status headers, as well
+as reserved keywords (forwarded, phishing, junk, and notjunk).
+
+To add a label or keyword, prefix it with "+L:" and "+kw:",
+respectively.  To remove a label or keyword, use "-L:" or "-kw:".  For
+example, "+kw:flagged" would set the "flagged" keyword for the
+specified messages, and "-L:INBOX" would remove the "INBOX" label.
+
+=head1 OPTIONS
+
+=over
+
+=item -F MAIL_FORMAT, --in-format=MAIL_FORMAT
+
+Message input format: C<eml>, C<mboxrd>, C<mboxcl2>, C<mboxcl>, or
+C<mboxo>.
+
+Default: C<eml>
+
+=item -q, --quiet
+
+Suppress feedback messages.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+
+=head1 SEE ALSO
+
+L<lei-add-external(1)>

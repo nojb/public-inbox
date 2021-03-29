@@ -22,6 +22,7 @@ Documentation/flow.txt
 Documentation/hosted.txt
 Documentation/include.mk
 Documentation/lei-add-external.pod
+Documentation/lei-blob.pod
 Documentation/lei-config.pod
 Documentation/lei-daemon-kill.pod
 Documentation/lei-daemon-pid.pod
@@ -29,7 +30,10 @@ Documentation/lei-forget-external.pod
 Documentation/lei-import.pod
 Documentation/lei-init.pod
 Documentation/lei-ls-external.pod
+Documentation/lei-ls-label.pod
+Documentation/lei-mark.pod
 Documentation/lei-overview.pod
+Documentation/lei-p2q.pod
 Documentation/lei-q.pod
 Documentation/lei.pod
 Documentation/marketing.txt

@@ -1,0 +1,79 @@
+=head1 NAME
+
+lei-p2q - use a patch to generate a lei-q query
+
+=head1 SYNOPSIS
+
+lei p2q [OPTIONS] (FILE|COMMIT)
+
+lei p2q [OPTIONS] (--stdin|-)
+
+=head1 DESCRIPTION
+
+Given a patch, create a query that can be fed on stdin to L<lei-q(1)>.
+This is useful for mapping the patch to associated messages of an
+inbox.
+
+The patch can be provided on stdin or as a file.  Alternatively, when
+an argument is given that does not point to an existing file, it is
+taken as a reference to a commit in the current repository, and
+L<git-format-patch(1)> is used to generate the patch.
+
+=head1 OPTIONS
+
+=over
+
+=item -w PREFIX[,PREFIX], --want=PREFIX[,PREFIX]
+
+Search prefixes to use.  C<dfpost> (post-image git blob ID) and C<dfn>
+(file names from the diff) are the most useful.  Other available
+values are C<dfa>, C<dfb>, C<dfctx>, C<dfhh>, and C<dfpre>.
+
+=for comment
+TODO: Put a table of prefixes somewhere and reference that (at least
+here and in lei-q)?
+
+Appending an integer to C<dfpost> or C<dfpre> indicates a minimum ID
+length, and the generated query will be for that value up through the
+default abbreviation length.  For example, if the repository's
+C<core.abbrev> is set to C<auto> and git calculates the default
+abbreviation length as 7, C<dfpost6> will expand a post-image blob ID
+of e7b4b32 (seven characters) into C<dfpost:e7b4b32 OR dfpost:e7b4b3>.
+
+This option may be given multiple times.
+
+Default: C<dfpost7>
+
+=item --stdin
+
+Read patch from stdin.
+
+=item --debug
+
+Dump output that shows the information collected for every prefix.
+This information can be useful for seeing how a patch is processed,
+but the format should not be considered stable.
+
+=item -q, --quiet
+
+Suppress feedback messages.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+
+=head1 SEE ALSO
+
+L<lei-add-external(1)>

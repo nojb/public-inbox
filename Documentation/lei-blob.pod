@@ -1,0 +1,109 @@
+=head1 NAME
+
+lei-blob - display a git blob, reconstructing from mail if necessary
+
+=head1 SYNOPSIS
+
+lei blob [OPTIONS] OID
+
+=head1 DESCRIPTION
+
+Display a git blob.  The blob may correspond to a message from the
+local store, an existing blob in the current repository, or a
+not-yet-created blob in the current repository that can be
+reconstructed from a message.
+
+=head1 OPTIONS
+
+=over
+
+=item --git-dir=DIR
+
+Specify an additional .git/ directory to scan.  This option may be
+given multiple times.
+
+=item --no-cwd
+
+Do not look in the git repository of the current working directory.
+
+=item --no-mail
+
+Do not look in mail storage for C<OID>.  This is implied by
+C<--oid-a>, C<--path-a>, and C<--path-b>.
+
+=item -A OID-A, --oid-a=OID-A
+
+=item -a PATH-A, --path-a=PATH-A
+
+=item -b PATH-B, --path-b=PATH-B
+
+Provide pre-image object ID, pre-image pathname, or post-image
+pathname as a hint for reconstructing C<OID>.
+
+=for comment
+TODO: The below options are shared with lei-q.  Any good approaches to
+not repeating the text?
+
+=item --[no-]remote
+
+Whether to include results requiring network access.  When local
+externals are configured, C<--remote> must be explicitly passed to
+enable reporting of results from remote externals.
+
+=item --no-local
+
+Limit operations to those requiring network access.
+
+=item --no-external
+
+Don't include results from externals.
+
+=item -I LOCATION, --include=LOCATION
+
+Include specified external in search.  This option may be given
+multiple times.
+
+=item --exclude=LOCATION
+
+Exclude specified external from search.  This option may be given
+multiple times.
+
+=item --only=LOCATION
+
+Use only the specified external for search.  This option may be given
+multiple times, in which case the search uses only the specified set.
+
+=item --no-import-remote
+
+Disable the default behavior of memoizing remote messages into the
+local store.
+
+=item -v, --verbose
+
+Provide more feedback on stderr.
+
+=item --torsocks=auto|no|yes, --no-torsocks
+
+Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
+
+Default: C<auto>
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+
+=head1 SEE ALSO
+
+L<lei-add-external(1)>
