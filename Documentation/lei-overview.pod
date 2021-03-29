@@ -14,6 +14,11 @@ Commands will automatically initialize the store behind the scenes if
 needed, but you can call L<lei-init(1)> directly if you want to use a
 store location other than the default C<$XDG_DATA_HOME/lei/store>.
 
+The L<lei-import(1)> command provides the primary interface for
+importing messages into the local storage.  In addition, other
+commands, such as L<lei-q(1)> and L<lei-blob(1)>, use the local store
+to memoize messages from remotes.
+
 =head2 EXAMPLES
 
 =over
