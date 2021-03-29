@@ -50,7 +50,7 @@ sub mset {
 	my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	$self->{smsg} = [];
-	$fh = IO::Uncompress::Gunzip->new($fh);
+	$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
 	PublicInbox::MboxReader->mboxrd($fh, \&_each_mboxrd_eml, $self);
 	my $err = waitpid($pid, 0) == $pid ? undef
 					: "BUG: waitpid($cmd): $!";

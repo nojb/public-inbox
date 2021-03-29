@@ -272,7 +272,7 @@ sub query_remote_mboxrd {
 		$lei->qerr("# $cmd");
 		my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
 		$reap_curl = PublicInbox::OnDestroy->new($sigint_reap, $pid);
-		$fh = IO::Uncompress::Gunzip->new($fh);
+		$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
 		PublicInbox::MboxReader->mboxrd($fh, \&each_remote_eml, $self,
 						$lei, $each_smsg);
 		my $err = waitpid($pid, 0) == $pid ? undef
