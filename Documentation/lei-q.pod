@@ -12,10 +12,12 @@ lei q [OPTIONS] (--stdin|-)
 
 Search for messages across the lei store and externals.
 
+=for comment
 TODO: Give common prefixes, or at least a description/reference.
 
 =head1 OPTIONS
 
+=for comment
 TODO: mention curl options?
 
 =over
@@ -40,6 +42,7 @@ the destination.  C<json> is used for the default destination
 (stdout), and C<maildir> is used for an existing directory or
 non-existing path.
 
+=for comment
 TODO: Provide description of formats?
 
 Default: -
@@ -98,6 +101,7 @@ C<none>.
 
 Default: C<content>
 
+=for comment
 TODO: Provide description of strategies?
 
 =item --[no-]remote

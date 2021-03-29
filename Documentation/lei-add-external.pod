@@ -15,6 +15,7 @@ C<extindex.<name>.topdir> value in ~/.public-inbox/config.
 
 =head1 OPTIONS
 
+=for comment
 TODO: mention curl options?
 
 =over
