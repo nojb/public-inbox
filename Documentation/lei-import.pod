@@ -6,7 +6,7 @@ lei-import - one-time import of messages into local store
 
 lei import [OPTIONS] LOCATION [LOCATION...]
 
-lei import [OPTIONS] --stdin
+lei import [OPTIONS] (--stdin|-)
 
 =head1 DESCRIPTION
 

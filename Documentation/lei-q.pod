@@ -6,7 +6,7 @@ lei-q - search for messages matching terms
 
 lei q [OPTIONS] TERM [TERM...]
 
-lei q [OPTIONS] --stdin
+lei q [OPTIONS] (--stdin|-)
 
 =head1 DESCRIPTION
 
