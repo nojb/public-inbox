@@ -9,8 +9,10 @@ provides some basic examples.
 
 =head1 LEI STORE
 
-L<lei-init(1)> initializes writable local storage based on
-L<public-inbox-v2-format(5)>.
+lei has writable local storage based on L<public-inbox-v2-format(5)>.
+Commands will automatically initialize the store behind the scenes if
+needed, but you can call L<lei-init(1)> directly if you want to use a
+store location other than the default C<$XDG_DATA_HOME/lei/store>.
 
 =head2 EXAMPLES
 
