@@ -82,6 +82,11 @@ doesn't point to stdout, nothing otherwise.
 
 Augment output destination instead of clobbering it.
 
+=item --no-import-before
+
+Do not importing keywords before writing to an existing output
+destination.
+
 =item -t, --threads
 
 Return all messages in the same thread as the actual match(es).

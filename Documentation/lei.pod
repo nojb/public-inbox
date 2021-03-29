@@ -23,6 +23,10 @@ Available in public-inbox 1.7.0+.
 
 =over
 
+=item -c NAME=VALUE
+
+Override configuration C<NAME> to C<VALUE>.
+
 =item -C DIR
 
 Change current working directory to the specified directory before
