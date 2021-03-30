@@ -128,8 +128,8 @@ sub lei_q {
 			die "unrecognized --sort=$sort\n";
 		}
 	}
-	# descending docid order
-	$mset_opt{relevance} //= -2 if $opt->{threads};
+	# descending docid order is cheapest, MUA controls sorting order
+	$mset_opt{relevance} //= -2 if $self->{l2m} || $opt->{threads};
 	$self->{mset_opt} = \%mset_opt;
 
 	if ($opt->{stdin}) {

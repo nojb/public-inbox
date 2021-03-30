@@ -101,8 +101,6 @@ sub new {
 	if ($json) {
 		$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
 	} else {
-		# default to the cheapest sort since MUA usually resorts
-		$opt->{'sort'} //= 'docid' if $devfd < 0;
 		$lei->{l2m} = eval { PublicInbox::LeiToMail->new($lei) };
 		return $lei->fail($@) if $@;
 		if ($opt->{mua} && $lei->{l2m}->lock_free) {
