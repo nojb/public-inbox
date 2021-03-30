@@ -227,24 +227,25 @@ sub _mbox_write_cb ($$) {
 sub update_kw_maybe ($$$$) {
 	my ($lei, $lse, $eml, $kw) = @_;
 	return unless $lse;
-	my $x = $lse->kw_changed($eml, $kw);
+	my $lse_oids = $lse->kw_changed($eml, $kw);
 	my $vmd = { kw => $kw };
-	if ($x) {
+	if ($lse_oids) { # already in lei/store
 		$lei->{sto}->ipc_do('set_eml', $eml, $vmd);
-	} elsif (!defined($x)) {
-		if (my $xoids = $lei->{ale}->xoids_for($eml)) {
-			$lei->{sto}->ipc_do('set_xvmd', $xoids, $eml, $vmd);
-		} else {
-			$lei->{sto}->ipc_do('set_eml', $eml, $vmd);
-		}
+	} elsif (my $xoids = $lei->{ale}->xoids_for($eml)) {
+		# it's in an external, only set kw, here
+		$lei->{sto}->ipc_do('set_xvmd', $xoids, $eml, $vmd);
+	} else { # never-before-seen, import the whole thing
+		# XXX this is critical in protecting against accidental
+		# data loss without --augment
+		$lei->{sto}->ipc_do('set_eml', $eml, $vmd);
 	}
 }
 
 sub _augment_or_unlink { # maildir_each_eml cb
 	my ($f, $kw, $eml, $lei, $lse, $mod, $shard, $unlink) = @_;
 	if ($mod) {
-		# can't get dirent.d_ino w/ pure Perl, so we extract the OID
-		# if it looks like one:
+		# can't get dirent.d_ino w/ pure Perl readdir, so we extract
+		# the OID if it looks like one instead of doing stat(2)
 		my $hex = $f =~ m!\b([a-f0-9]{40,})[^/]*\z! ?
 				$1 : sha256_hex($f);
 		my $recno = hex(substr($hex, 0, 8));
@@ -564,7 +565,7 @@ sub do_post_auth {
 		my $shard = $self->{-wq_worker_nr};
 		if (my $net = $lei->{net}) {
 			$net->{shard_info} = [ $mod, $shard ];
-		} else { # Maildir (MH?)
+		} else { # Maildir
 			$self->{shard_info} = [ $mod, $shard ];
 		}
 		$aug = '+'; # incr_post_augment
@@ -595,7 +596,7 @@ sub ipc_atfork_child {
 }
 
 sub lock_free {
-	$_[0]->{base_type} =~ /\A(?:maildir|mh|imap|jmap)\z/ ? 1 : 0;
+	$_[0]->{base_type} =~ /\A(?:maildir|imap|jmap)\z/ ? 1 : 0;
 }
 
 sub poke_dst {
