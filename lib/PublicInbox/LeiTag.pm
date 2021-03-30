@@ -1,8 +1,8 @@
 # Copyright (C) 2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# handles "lei mark" command
-package PublicInbox::LeiMark;
+# handles "lei tag" command
+package PublicInbox::LeiTag;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
@@ -69,19 +69,19 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 
 sub input_mbox_cb { input_eml_cb($_[1], $_[0]) }
 
-sub mark_done_wait { # dwaitpid callback
+sub tag_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
-	my ($mark, $lei) = @$arg;
-	$lei->child_error($?, 'non-fatal errors during mark') if $?;
+	my ($tag, $lei) = @$arg;
+	$lei->child_error($?, 'non-fatal errors during tag') if $?;
 	my $sto = delete $lei->{sto};
 	my $wait = $sto->ipc_do('done') if $sto; # PublicInbox::LeiStore::done
 	$lei->dclose;
 }
 
-sub mark_done { # EOF callback for main daemon
+sub tag_done { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $mark = delete $lei->{mark} or return;
-	$mark->wq_wait_old(\&mark_done_wait, $lei);
+	my $tag = delete $lei->{tag} or return;
+	$tag->wq_wait_old(\&tag_done_wait, $lei);
 }
 
 sub net_merge_complete { # callback used by LeiAuth
@@ -102,7 +102,7 @@ sub input_net_cb { # imap_each, nntp_each cb
 	input_eml_cb($self, $eml);
 }
 
-sub lei_mark { # the "lei mark" method
+sub lei_tag { # the "lei tag" method
 	my ($lei, @argv) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
@@ -113,11 +113,11 @@ sub lei_mark { # the "lei mark" method
 	$self->prepare_inputs($lei, \@argv) or return;
 	grep(defined, @$vmd_mod{qw(+kw +L -L -kw)}) or
 		return $lei->fail('no keywords or labels specified');
-	my $ops = { '' => [ \&mark_done, $lei ] };
+	my $ops = { '' => [ \&tag_done, $lei ] };
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{vmd_mod} = $vmd_mod;
-	my ($op_c, undef) = $lei->workers_start($self, 'lei_mark', 1, $ops);
-	$lei->{mark} = $self;
+	my ($op_c, undef) = $lei->workers_start($self, 'lei_tag', 1, $ops);
+	$lei->{tag} = $self;
 	net_merge_complete($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);
 }
@@ -165,7 +165,7 @@ sub _complete_mark_common ($) {
 }
 
 # FIXME: same problems as _complete_forget_external and similar
-sub _complete_mark {
+sub _complete_tag {
 	my ($self, @argv) = @_;
 	my @L = eval { $self->_lei_store->search->all_terms('L') };
 	my @all = ((map { ("+kw:$_", "-kw:$_") } @KW),

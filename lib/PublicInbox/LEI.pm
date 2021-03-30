@@ -160,8 +160,8 @@ our %CMD = ( # sorted in order of importance/use:
 'plonk' => [ '--threads|--from=IDENT',
 	'exclude mail matching From: or threads from non-Message-ID searches',
 	qw(stdin| threads|t from|f=s mid=s oid=s), @c_opt ],
-'mark' => [ 'KEYWORDS...',
-	'set/unset keywords on message(s)',
+'tag' => [ 'KEYWORDS...',
+	'set/unset keywords and/or labels on message(s)',
 	qw(stdin| in-format|F=s input|i=s@ oid=s@ mid=s@), @c_opt,
 	pass_through('-kw:foo for delete') ],
 'forget' => [ '[--stdin|--oid=OID|--by-mid=MID]',
@@ -348,7 +348,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q mark sol); # internal workers
+my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q tag sol); # internal workers
 
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {

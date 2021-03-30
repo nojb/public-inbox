@@ -48,7 +48,7 @@ Subcommands for initializing and managing local, writable storage:
 
 =item * L<lei-import(1)>
 
-=item * L<lei-mark(1)>
+=item * L<lei-tag(1)>
 
 =back
 

@@ -33,7 +33,7 @@ Show message with the git blob OID of 59ec517f9.  If a message with
 that OID isn't found, check if the current git repository has the
 blob, trying to reconstruct it from a message if needed.
 
-=item $ lei blob 59ec517f9 | lei mark - -F eml +kw:flagged +L:next
+=item $ lei blob 59ec517f9 | lei tag - -F eml +kw:flagged +L:next
 
 Set the "flagged" keyword and "next" label on the message with the
 blob OID of 59ec517f9.

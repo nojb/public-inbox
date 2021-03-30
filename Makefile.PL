@@ -46,7 +46,7 @@ $v->{-m1} = [ map {
 	qw(
 	lei-add-external lei-blob lei-config lei-daemon-kill lei-daemon-pid
 	lei-forget-external lei-import lei-init lei-ls-external lei-ls-label
-	lei-mark lei-p2q lei-q)];
+	lei-tag lei-p2q lei-q)];
 $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 		public-inbox-v2-format public-inbox-extindex-format) ];
 $v->{-m7} = [ qw(lei-overview public-inbox-overview public-inbox-tuning

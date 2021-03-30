@@ -27,13 +27,13 @@ my $check_kw = sub {
 test_lei(sub {
 	lei_ok(qw(ls-label)); is($lei_out, '', 'no labels, yet');
 	lei_ok(qw(import t/utf8.eml));
-	lei_ok(qw(mark t/utf8.eml +kw:flagged +L:urgent));
+	lei_ok(qw(tag t/utf8.eml +kw:flagged +L:urgent));
 	$check_kw->(['flagged'], L => ['urgent']);
 	lei_ok(qw(ls-label)); is($lei_out, "urgent\n", 'label found');
-	ok(!lei(qw(mark -F eml t/utf8.eml +kw:seeen)), 'bad kw rejected');
+	ok(!lei(qw(tag -F eml t/utf8.eml +kw:seeen)), 'bad kw rejected');
 	like($lei_err, qr/`seeen' is not one of/, 'got helpful error');
-	ok(!lei(qw(mark -F eml t/utf8.eml +k:seen)), 'bad prefix rejected');
-	ok(!lei(qw(mark -F eml t/utf8.eml)), 'no keywords');
+	ok(!lei(qw(tag -F eml t/utf8.eml +k:seen)), 'bad prefix rejected');
+	ok(!lei(qw(tag -F eml t/utf8.eml)), 'no keywords');
 	my $mb = "$ENV{HOME}/mb";
 	my $md = "$ENV{HOME}/md";
 	lei_ok(qw(q m:testmessage@example.com -o), "mboxrd:$mb");
@@ -43,15 +43,15 @@ test_lei(sub {
 	scalar(@fn) == 1 or xbail $lei_err, 'no mail', \@fn;
 	rename($fn[0], "$fn[0]S") or BAIL_OUT "rename $!";
 	$check_kw->(['flagged'], msg => 'after bad request');
-	lei_ok(qw(mark -F eml t/utf8.eml -kw:flagged));
+	lei_ok(qw(tag -F eml t/utf8.eml -kw:flagged));
 	$check_kw->(undef, msg => 'keyword cleared');
-	lei_ok(qw(mark -F mboxrd +kw:seen), $mb);
+	lei_ok(qw(tag -F mboxrd +kw:seen), $mb);
 	$check_kw->(['seen'], msg => 'mbox Status ignored');
-	lei_ok(qw(mark -kw:seen +kw:answered), $md);
+	lei_ok(qw(tag -kw:seen +kw:answered), $md);
 	$check_kw->(['answered'], msg => 'Maildir Status ignored');
 
 	open my $in, '<', 't/utf8.eml' or BAIL_OUT $!;
-	lei_ok([qw(mark -F eml - +kw:seen +L:nope)],
+	lei_ok([qw(tag -F eml - +kw:seen +L:nope)],
 		undef, { %$lei_opt, 0 => $in });
 	$check_kw->(['answered', 'seen'], msg => 'stdin works');
 	lei_ok(qw(q L:urgent));
@@ -62,7 +62,7 @@ test_lei(sub {
 	is_deeply($r2, $res, 'kw: query works, too') or
 		diag explain([$r2, $res]);
 
-	lei_ok(qw(_complete lei mark));
+	lei_ok(qw(_complete lei tag));
 	my %c = map { $_ => 1 } split(/\s+/, $lei_out);
 	ok($c{'+L:urgent'} && $c{'-L:urgent'} &&
 		$c{'+L:nope'} && $c{'-L:nope'}, 'completed with labels');
@@ -70,7 +70,7 @@ test_lei(sub {
 	my $mid = 'qp@example.com';
 	lei_ok qw(q -f mboxrd --only), "$ro_home/t2", "mid:$mid";
 	$in = $lei_out;
-	lei_ok [qw(mark -F mboxrd --stdin +kw:seen +L:qp)],
+	lei_ok [qw(tag -F mboxrd --stdin +kw:seen +L:qp)],
 		undef, { %$lei_opt, 0 => \$in };
 	$check_kw->(['seen'], L => ['qp'], mid => $mid,
 			args => [ '--only', "$ro_home/t2" ],
@@ -78,7 +78,7 @@ test_lei(sub {
 	lei_ok(qw(ls-label));
 	is($lei_out, "nope\nqp\nurgent\n", 'ls-label shows qp');
 
-	lei_ok qw(mark -F eml t/utf8.eml +L:INBOX +L:x); diag $lei_err;
+	lei_ok qw(tag -F eml t/utf8.eml +L:INBOX +L:x); diag $lei_err;
 	lei_ok qw(q m:testmessage@example.com);
 	$check_kw->([qw(answered seen)], L => [qw(INBOX nope urgent x)]);
 	lei_ok(qw(ls-label));

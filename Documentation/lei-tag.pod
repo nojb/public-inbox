@@ -1,12 +1,12 @@
 =head1 NAME
 
-lei-mark - set/unset metadata on messages
+lei-tag - set/unset metadata on messages
 
 =head1 SYNOPSIS
 
-lei mark [OPTIONS] FILE [FILE...] METADATA [METADATA...]
+lei tag [OPTIONS] FILE [FILE...] METADATA [METADATA...]
 
-lei mark [OPTIONS] (-|--stdin) METADATA [METADATA...]
+lei tag [OPTIONS] (-|--stdin) METADATA [METADATA...]
 
 =head1 DESCRIPTION
 
