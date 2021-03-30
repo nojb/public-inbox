@@ -76,7 +76,7 @@ sub lei_import { # the main "lei import" method
 	my $ops = { '' => [ \&import_done, $lei ] };
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{-wq_nr_workers} = $j // 1; # locked
-	my ($op_c, undef) = $lei->workers_start($self, 'lei_import', $j, $ops);
+	(my $op_c, $ops) = $lei->workers_start($self, 'lei_import', $j, $ops);
 	$lei->{imp} = $self;
 	net_merge_complete($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);

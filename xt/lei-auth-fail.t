@@ -9,13 +9,12 @@ require_mods(qw(Mail::IMAPClient));
 my $imap_fail = $ENV{TEST_LEI_IMAP_FAIL_URL} //
 	'imaps://AzureDiamond:Hunter2@public-inbox.org:994/INBOX';
 test_lei(sub {
-	ok(!lei(qw(convert -o mboxrd:/dev/stdout), $imap_fail),
-		'IMAP auth failure on convert');
-	like($lei_err, qr!\bE:.*?imaps://.*?!sm, 'error shown');
-	unlike($lei_err, qr!Hunter2!s, 'password not shown');
-	is($lei_out, '', 'nothing output');
-	ok(!lei(qw(import), $imap_fail), 'IMAP auth failure on import');
-	like($lei_err, qr!\bE:.*?imaps://.*?!sm, 'error shown');
-	unlike($lei_err, qr!Hunter2!s, 'password not shown');
+	for my $pfx ([qw(convert -o mboxrd:/dev/stdout)], ['import'],
+			[qw(tag +L:INBOX)]) {
+		ok(!lei(@$pfx, $imap_fail), "IMAP auth failure on @$pfx");
+		like($lei_err, qr!\bE:.*?imaps://.*?!sm, 'error shown');
+		unlike($lei_err, qr!Hunter2!s, 'password not shown');
+		is($lei_out, '', 'nothing output');
+	}
 });
 done_testing;
