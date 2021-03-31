@@ -90,15 +90,25 @@ sub lei_blob {
 	$lei->start_pager if -t $lei->{1};
 	my $opt = $lei->{opt};
 	my $has_hints = grep(defined, @$opt{qw(oid-a path-a path-b)});
+	my $lxs;
 
 	# first, see if it's a blob returned by "lei q" JSON output:k
 	if ($opt->{mail} // ($has_hints ? 0 : 1)) {
+		if (grep(defined, @$opt{qw(include only)})) {
+			$lxs = $lei->lxs_prepare;
+			$lei->ale->refresh_externals($lxs);
+		}
 		my $rdr = { 1 => $lei->{1} };
-		open $rdr->{2}, '>', '/dev/null' or die "open: $!";
+		if ($opt->{mail}) {
+			$rdr->{2} = $lei->{2};
+		} else {
+			open $rdr->{2}, '>', '/dev/null' or die "open: $!";
+		}
 		my $cmd = [ 'git', '--git-dir='.$lei->ale->git->{git_dir},
 				'cat-file', 'blob', $blob ];
 		waitpid(spawn($cmd, $lei->{env}, $rdr), 0);
 		return if $? == 0;
+		return $lei->child_error($?) if $opt->{mail};
 	}
 
 	# maybe it's a non-email (code) blob from a coderepo
@@ -108,7 +118,10 @@ sub lei_blob {
 		unshift(@$git_dirs, $cgd) if defined $cgd;
 	}
 	return $lei->fail('no --git-dir to try') unless @$git_dirs;
-	my $lxs = $lei->lxs_prepare or return;
+	unless ($lxs) {
+		$lxs = $lei->lxs_prepare or return;
+		$lei->ale->refresh_externals($lxs);
+	}
 	if ($lxs->remotes) {
 		require PublicInbox::LeiRemote;
 		$lei->{curl} //= which('curl') or return
@@ -117,7 +130,6 @@ sub lei_blob {
 	}
 	require PublicInbox::SolverGit;
 	my $self = bless { lxs => $lxs, oid_b => $blob }, __PACKAGE__;
-	$lei->ale;
 	my ($op_c, $ops) = $lei->workers_start($self, 'lei_solve', 1,
 		{ '' => [ \&sol_done, $lei ] });
 	$lei->{sol} = $self;

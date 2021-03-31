@@ -6,7 +6,8 @@ use v5.10.1;
 use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
-use Digest::SHA qw(sha1_hex);
+use PublicInbox::ContentHash qw(git_sha);
+use PublicInbox::Eml;
 use PublicInbox::Spawn qw(popen_rd which);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
 my $git_dir = xqx([qw(git rev-parse --git-dir)], undef, {2 => \(my $null)});
@@ -17,14 +18,15 @@ chomp $git_dir;
 $git_dir = abs_path($git_dir);
 
 use_ok "PublicInbox::$_" for (qw(Inbox V2Writable Git SolverGit WWW));
+my $patch2 = eml_load 't/solve/0002-rename-with-modifications.patch';
+my $patch2_oid = git_sha(1, $patch2)->hexdigest;
 
 my ($tmpdir, $for_destroy) = tmpdir();
 my $ibx = create_inbox 'v2', version => 2,
 			indexlevel => 'medium', sub {
 	my ($im) = @_;
 	$im->add(eml_load 't/solve/0001-simple-mod.patch') or BAIL_OUT;
-	$im->add(eml_load 't/solve/0002-rename-with-modifications.patch') or
-		BAIL_OUT;
+	$im->add($patch2) or BAIL_OUT;
 };
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
 my $v1_0_0_tag_short = substr($v1_0_0_tag, 0, 16);
@@ -32,8 +34,14 @@ my $expect = '69df7d565d49fbaaeb0a067910f03dc22cd52bd0';
 my $non_existent = 'ee5e32211bf62ab6531bdf39b84b6920d0b6775a';
 
 test_lei({tmpdir => $tmpdir}, sub {
+	lei_ok('blob', '--mail', $patch2_oid, '-I', $ibx->{inboxdir},
+		\'--mail works for existing oid');
+	is($lei_out, $patch2->as_string, 'blob matches');
+	ok(!lei('blob', '--mail', '69df7d5', '-I', $ibx->{inboxdir}),
+		"--mail won't run solver");
+
 	lei_ok('blob', '69df7d5', '-I', $ibx->{inboxdir});
-	is(sha1_hex("blob ".length($lei_out)."\0".$lei_out),
+	is(git_sha(1, PublicInbox::Eml->new($lei_out))->hexdigest,
 		$expect, 'blob contents output');
 	my $prev = $lei_out;
 	lei_ok(qw(blob --no-mail 69df7d5 -I), $ibx->{inboxdir});
@@ -236,8 +244,9 @@ EOF
 		test_lei({tmpdir => "$tmpdir/ext"}, sub {
 			my $rurl = "$url/$name";
 			lei_ok(qw(blob --no-mail 69df7d5 -I), $rurl);
-			is(sha1_hex("blob ".length($lei_out)."\0".$lei_out),
-				$expect, 'blob contents output');
+			my $eml = PublicInbox::Eml->new($lei_out);
+			is(git_sha(1, $eml)->hexdigest, $expect,
+				'blob contents output');
 			ok(!lei(qw(blob -I), $rurl, $non_existent),
 					'non-existent blob fails');
 		});
