@@ -73,8 +73,6 @@ sub tag_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
 	my ($tag, $lei) = @$arg;
 	$lei->child_error($?, 'non-fatal errors during tag') if $?;
-	my $sto = delete $lei->{sto};
-	my $wait = $sto->ipc_do('done') if $sto; # PublicInbox::LeiStore::done
 	$lei->dclose;
 }
 
@@ -86,9 +84,7 @@ sub tag_done { # EOF callback for main daemon
 
 sub net_merge_complete { # callback used by LeiAuth
 	my ($self) = @_;
-	for my $input (@{$self->{inputs}}) {
-		$self->wq_io_do('input_path_url', [], $input);
-	}
+	$self->wq_io_do('process_inputs');
 	$self->wq_close(1);
 }
 

@@ -5,6 +5,7 @@
 package PublicInbox::LeiInput;
 use strict;
 use v5.10.1;
+use PublicInbox::DS;
 
 sub check_input_format ($;$) {
 	my ($lei, $files) = @_;
@@ -163,6 +164,14 @@ $input is `eml', not --in-format=$in_fmt
 		$lei->{net} //= $net;
 	}
 	$self->{inputs} = $inputs;
+}
+
+sub process_inputs {
+	my ($self) = @_;
+	for my $input (@{$self->{inputs}}) {
+		$self->input_path_url($input);
+	}
+	my $wait = $self->{lei}->{sto}->ipc_do('done') if $self->{lei}->{sto};
 }
 
 sub input_only_atfork_child {

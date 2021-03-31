@@ -7,6 +7,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 use PublicInbox::LeiOverview;
+use PublicInbox::DS;
 
 # /^input_/ subs are used by PublicInbox::LeiInput
 
@@ -32,12 +33,10 @@ sub input_maildir_cb {
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
 }
 
-sub do_convert { # via wq_do
+sub process_inputs { # via wq_do
 	my ($self) = @_;
-	$PublicInbox::DS::in_loop = 0; # force synchronous dwaitpid
-	for my $input (@{$self->{inputs}}) {
-		$self->input_path_url($input);
-	}
+	local $PublicInbox::DS::in_loop = 0; # force synchronous dwaitpid
+	$self->SUPER::process_inputs;
 	delete $self->{lei}->{1};
 	delete $self->{wcb}; # commit
 }
@@ -55,7 +54,7 @@ sub lei_convert { # the main "lei convert" method
 	$self->prepare_inputs($lei, \@inputs) or return;
 	my ($op_c, $ops) = $lei->workers_start($self, 'lei_convert', 1);
 	$lei->{cnv} = $self;
-	$self->wq_io_do('do_convert', []);
+	$self->wq_io_do('process_inputs', []);
 	$self->wq_close(1);
 	$op_c->op_wait_event($ops);
 }
