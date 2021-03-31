@@ -2,7 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # ref: https://cr.yp.to/proto/maildir.html
-#	httsp://wiki2.dovecot.org/MailboxFormat/Maildir
+#	https://wiki2.dovecot.org/MailboxFormat/Maildir
 package PublicInbox::Watch;
 use strict;
 use v5.10.1;

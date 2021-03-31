@@ -48,7 +48,9 @@ $v->{-m1} = [ map {
 	lei-forget-external lei-import lei-init lei-ls-external lei-ls-label
 	lei-tag lei-p2q lei-q)];
 $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
-		public-inbox-v2-format public-inbox-extindex-format) ];
+		public-inbox-v2-format public-inbox-extindex-format
+		lei-mail-formats
+		) ];
 $v->{-m7} = [ qw(lei-overview public-inbox-overview public-inbox-tuning
 		public-inbox-glossary) ];
 $v->{-m8} = [ qw(public-inbox-daemon) ];

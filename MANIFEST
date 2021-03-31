@@ -31,6 +31,7 @@ Documentation/lei-import.pod
 Documentation/lei-init.pod
 Documentation/lei-ls-external.pod
 Documentation/lei-ls-label.pod
+Documentation/lei-mail-formats.pod
 Documentation/lei-overview.pod
 Documentation/lei-p2q.pod
 Documentation/lei-q.pod
