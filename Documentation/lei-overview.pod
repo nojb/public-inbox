@@ -23,9 +23,9 @@ to memoize messages from remotes.
 
 =over
 
-=item $ lei import mboxrd:t.mbox
+=item $ lei import mboxrd:t.mbox.gz
 
-Import the messages from an mbox into the local storage.
+Import the messages from a gzipped mboxrd into the local storage.
 
 =item $ lei blob 59ec517f9
 
@@ -82,10 +82,11 @@ Search for messages whose subject includes "lei" and "skeleton".
 Do the same, but also report unmatched messages that are in the same
 thread as a matched message.
 
-=item $ lei q -t -o mboxcl2:t.mbox --mua=mutt s:lei s:skeleton
+=item $ lei q -t -o mdir --mua=mutt s:lei s:skeleton
 
-Write mboxcl2-formatted results to t.mbox and enter mutt to view the
-file by invoking C<mutt -f %f>.
+Write results to a Maildir at "mdir".  Mutt will be invoked
+to open mfolder (C<mutt -f %f>) while results are being fetched
+and written.
 
 =item $ lei q kw:flagged L:next
 
