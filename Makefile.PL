@@ -5,6 +5,7 @@ use strict;
 use ExtUtils::MakeMaker;
 open my $m, '<', 'MANIFEST' or die "open(MANIFEST): $!\n";
 chomp(my @manifest = (<$m>));
+push @manifest, 'lib/PublicInbox.pm'; # generated
 my @EXE_FILES = grep(m!^script/!, @manifest);
 my $v = {};
 my $t = {};
@@ -139,7 +140,7 @@ WriteMakefile(
 	NAME => 'PublicInbox', # n.b. camel-case is not our choice
 
 	# XXX drop "PENDING" in .pod before updating this!
-	VERSION => '1.6.1',
+	VERSION => '1.7.0.PENDING',
 
 	AUTHOR => 'Eric Wong <e@80x24.org>',
 	ABSTRACT => 'public-inbox server infrastructure',
@@ -242,12 +243,16 @@ Makefile.PL : MANIFEST
 # prefix + bindir matches git.git Makefile:
 prefix = \$(HOME)
 bindir = \$(prefix)/bin
-symlink-install :
+symlink-install : lib/PublicInbox.pm
 	mkdir -p \$(bindir)
 	lei=\$\$(realpath lei.sh) && cd \$(bindir) && \\
 	for x in \$(EXE_FILES); do \\
 		ln -sf "\$\$lei" \$\$(basename "\$\$x"); \\
 	done
+
+pure_all :: lib/PublicInbox.pm
+lib/PublicInbox.pm : FORCE
+	VERSION=\$(VERSION) \$(PERL) -w ./version-gen.perl
 
 update-copyrights :
 	\@case '\$(GNULIB_PATH)' in '') echo >&2 GNULIB_PATH unset; false;; esac

@@ -21,3 +21,4 @@
 /NEWS.atom
 /NEWS
 *.log
+/lib/PublicInbox.pm

@@ -1,11 +1,12 @@
 # Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
-use PublicInbox::Config;
+use v5.10.1;
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
+use_ok 'PublicInbox';
+ok(defined(eval('$PublicInbox::VERSION')), 'VERSION defined');
+use_ok 'PublicInbox::Config';
 my ($tmpdir, $for_destroy) = tmpdir();
 
 {

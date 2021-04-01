@@ -482,6 +482,7 @@ t/www_listing.t
 t/www_static.t
 t/x-unknown-alpine.eml
 t/xcpdb-reshard.t
+version-gen.perl
 xt/cmp-msgstr.t
 xt/cmp-msgview.t
 xt/create-many-inboxes.t
