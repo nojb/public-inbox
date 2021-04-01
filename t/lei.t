@@ -154,6 +154,7 @@ my $test_fail = sub {
 				"error noted with q $fl");
 		}
 	}
+	lei_ok('sucks', \'yes, but hopefully less every day');
 SKIP: {
 	skip 'no curl', 3 unless which('curl');
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m));
