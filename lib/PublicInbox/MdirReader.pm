@@ -37,7 +37,8 @@ sub maildir_each_file ($$;@) {
 	}
 }
 
-my %c2kw = ('D' => 'draft', F => 'flagged', R => 'answered', S => 'seen');
+my %c2kw = ('D' => 'draft', F => 'flagged', P => 'forwarded',
+	R => 'answered', S => 'seen');
 
 sub maildir_each_eml ($$;@) {
 	my ($dir, $cb, @arg) = @_;

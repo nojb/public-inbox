@@ -27,8 +27,9 @@ $PublicInbox::GitAsyncCat::GCF2C = 0;
 my %kw2char = ( # Maildir characters
 	draft => 'D',
 	flagged => 'F',
+	forwarded => 'P', # passed
 	answered => 'R',
-	seen => 'S'
+	seen => 'S',
 );
 
 my %kw2status = (
