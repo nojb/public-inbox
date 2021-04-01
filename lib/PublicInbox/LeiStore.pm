@@ -131,13 +131,13 @@ sub _docids_for ($$) {
 }
 
 sub set_eml_vmd {
-	my ($self, $eml, $vmd) = @_;
+	my ($self, $eml, $vmd, $docids) = @_;
 	my $eidx = eidx_init($self);
-	my @docids = _docids_for($self, $eml);
-	for my $docid (@docids) {
+	$docids //= [ _docids_for($self, $eml) ];
+	for my $docid (@$docids) {
 		$eidx->idx_shard($docid)->ipc_do('set_vmd', $docid, $vmd);
 	}
-	\@docids;
+	$docids;
 }
 
 sub add_eml_vmd {

@@ -227,10 +227,10 @@ sub _mbox_write_cb ($$) {
 sub update_kw_maybe ($$$$) {
 	my ($lei, $lse, $eml, $kw) = @_;
 	return unless $lse;
-	my $lse_oids = $lse->kw_changed($eml, $kw);
+	my $c = $lse->kw_changed($eml, $kw, my $docids = []);
 	my $vmd = { kw => $kw };
-	if ($lse_oids) { # already in lei/store
-		$lei->{sto}->ipc_do('set_eml', $eml, $vmd);
+	if (scalar @$docids) { # already in lei/store
+		$lei->{sto}->ipc_do('set_eml_vmd', undef, $vmd, $docids) if $c;
 	} elsif (my $xoids = $lei->{ale}->xoids_for($eml)) {
 		# it's in an external, only set kw, here
 		$lei->{sto}->ipc_do('set_xvmd', $xoids, $eml, $vmd);

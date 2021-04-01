@@ -100,10 +100,11 @@ sub xoids_for {
 
 # returns true if $eml is indexed by lei/store and keywords don't match
 sub kw_changed {
-	my ($self, $eml, $new_kw_sorted) = @_;
-	my $xoids = xoids_for($self, $eml, 1) // return;
-	my ($num) = values %$xoids;
-	my @cur_kw = msg_keywords($self, $num);
+	my ($self, $eml, $new_kw_sorted, $docids) = @_;
+	my $xoids = xoids_for($self, $eml) // return;
+	$docids //= [];
+	@$docids = sort { $a <=> $b } values %$xoids;
+	my @cur_kw = msg_keywords($self, $docids->[0]);
 	join("\0", @$new_kw_sorted) eq join("\0", @cur_kw) ? 0 : 1;
 }
 
