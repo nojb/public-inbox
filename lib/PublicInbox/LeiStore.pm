@@ -11,6 +11,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock PublicInbox::IPC);
 use PublicInbox::ExtSearchIdx;
+use PublicInbox::Eml;
 use PublicInbox::Import;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::V2Writable;
@@ -343,6 +344,7 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	$lei->_lei_atfork_child(1) if $lei;
+	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
 
