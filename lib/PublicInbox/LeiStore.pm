@@ -307,19 +307,11 @@ sub set_xvmd {
 	}
 	return unless scalar(keys(%$xoids));
 
-	# see if it was indexed, but with different OID(s)
-	if (my @docids = _docids_for($self, $eml)) {
-		for my $docid (@docids) {
-			next if $seen{$docid};
-			for my $oid (keys %$xoids) {
-				$oidx->add_xref3($docid, -1, $oid, '.');
-			}
-			my $idx = $eidx->idx_shard($docid);
-			$idx->ipc_do('set_vmd', $docid, $vmd);
-		}
-		return;
-	}
-	# totally unseen
+	# n.b. we don't do _docids_for here, we expect the caller
+	# already checked $lse->kw_changed before calling this sub
+
+	return unless (@{$vmd->{kw} // []}) || (@{$vmd->{L} // []});
+	# totally unseen:
 	my ($smsg, $idx) = _external_only($self, $xoids, $eml);
 	$idx->ipc_do('add_vmd', $smsg->{num}, $vmd);
 }
