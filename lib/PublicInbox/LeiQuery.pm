@@ -86,7 +86,6 @@ sub lxs_prepare {
 sub lei_q {
 	my ($self, @argv) = @_;
 	require PublicInbox::LeiOverview;
-	require PublicInbox::V2Writable;
 	PublicInbox::Config->json; # preload before forking
 	PublicInbox::LeiOverview->new($self) or return;
 	my $lxs = lxs_prepare($self) or return;
