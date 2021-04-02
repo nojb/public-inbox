@@ -839,7 +839,13 @@ sub start_mua {
 	if (my $sock = $self->{sock}) { # lei(1) client process runs it
 		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
 	} elsif ($self->{oneshot}) {
-		$self->{"pid.$self.$$"}->{spawn(\@cmd)} = \@cmd;
+		my $pid = fork // die "fork: $!";
+		if ($pid > 0) { # original process
+			exec(@cmd);
+			warn "exec @cmd: $!\n";
+			POSIX::_exit(1);
+		}
+		POSIX::setsid() > 0 or die "setsid: $!";
 	}
 	if ($self->{lxs} && $self->{au_done}) { # kick wait_startq
 		syswrite($self->{au_done}, 'q' x ($self->{lxs}->{jobs} // 0));

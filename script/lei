@@ -14,31 +14,45 @@ my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
 	PublicInbox::Spawn->can('send_cmd4');
 };
 
-my @orig_pid;
+my %pids;
+my $sigchld = sub {
+	my $flags = scalar(@_) ? POSIX::WNOHANG() : 0;
+	for my $pid (keys %pids) {
+		delete($pids{$pid}) if waitpid($pid, $flags) == $pid;
+	}
+};
+my @parent;
 my $exec_cmd = sub {
 	my ($fds, $argc, @argv) = @_;
-	die "BUG: already exec-ed\n" if @orig_pid;
-	@orig_pid = ($$);
-	require POSIX; # WNOHANG
+	my $parent = $$;
+	require POSIX;
 	my @old = (*STDIN{IO}, *STDOUT{IO}, *STDERR{IO});
 	my @rdr;
 	for my $fd (@$fds) {
-		open(my $tmpfh, '+<&=', $fd) or die "open +<&=$fd: $!";
-		push @rdr, shift(@old), $tmpfh;
+		open(my $newfh, '+<&=', $fd) or die "open +<&=$fd: $!";
+		push @rdr, shift(@old), $newfh;
 	}
+	my $do_exec = sub {
+		my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
+		@ENV{keys %env} = values %env;
+		exec(@argv);
+		warn "exec: @argv: $!\n";
+		POSIX::_exit(1);
+	};
+	$SIG{CHLD} = $sigchld;
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
+		while (my ($io, $newfh) = splice(@rdr, 0, 2)) {
+			open $io, '+<&', $newfh or die "open +<&=: $!";
+		}
+		$do_exec->() if scalar(@$fds); # git-credential, pager
+
+		# parent backgrounds on MUA
 		POSIX::setsid() > 0 or die "setsid: $!";
+		@parent = ($parent);
 		return; # continue $recv_cmd in background
 	}
-	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
-	while (my ($old_io, $tmpfh) = splice(@rdr, 0, 2)) {
-		open $old_io, '+<&', $tmpfh or die "open +<&=: $!";
-	}
-	@ENV{keys %env} = values %env;
-	exec(@argv);
-	warn "exec: @argv: $!\n";
-	POSIX::_exit(1);
+	$do_exec->() if !scalar(@$fds); # MUA reuses all FDs
 };
 
 if ($send_cmd && eval {
@@ -95,16 +109,18 @@ Falling back to (slow) one-shot mode
 		if ($buf =~ /\Aexec (.+)\z/) {
 			$exec_cmd->(\@fds, split(/\0/, $1));
 		} elsif ($buf eq '-WINCH') {
-			kill($buf, @orig_pid); # for MUA
+			kill($buf, @parent); # for MUA
 		} elsif ($buf =~ /\Ax_it ([0-9]+)\z/) {
 			$x_it_code = $1 + 0;
 			last;
 		} elsif ($buf =~ /\Achild_error ([0-9]+)\z/) {
 			$x_it_code = $1 + 0;
 		} else {
+			$sigchld->();
 			die $buf;
 		}
 	}
+	$sigchld->();
 	if (my $sig = ($x_it_code & 127)) {
 		kill $sig, $$;
 		sleep(1) while 1;
