@@ -79,6 +79,27 @@ is($res->[1], undef, 'only one result');
 is($res->[0]->{'m'}, 'k@y', 'got expected message');
 is_deeply($res->[0]->{kw}, ['seen'], "`seen' keywords set");
 
+# no From, Sender, or Message-ID
+$eml_str = <<'EOM';
+Subject: draft message with no sender
+References: <y@y>
+
+No use for a name
+EOM
+lei_ok([qw(import -F eml -)], undef, { %$lei_opt, 0 => \$eml_str });
+lei_ok(['q', 's:draft message with no sender']);
+my $draft_a = json_utf8->decode($lei_out);
+ok(!exists $draft_a->[0]->{'m'}, 'no fake mid stored or exposed');
+lei_ok([qw(tag -F eml - +kw:draft)], undef, { %$lei_opt, 0 => \$eml_str });
+lei_ok(['q', 's:draft message with no sender']);
+my $draft_b = json_utf8->decode($lei_out);
+my $kw = delete $draft_b->[0]->{kw};
+is_deeply($kw, ['draft'], 'draft kw set');
+is_deeply($draft_a, $draft_b, 'fake Message-ID lookup') or
+				diag explain($draft_a, $draft_b);
+lei_ok('blob', '--mail', $draft_b->[0]->{blob});
+is($lei_out, $eml_str, 'draft retrieved by blob');
+
 # see t/lei_to_mail.t for "import -F mbox*"
 });
 done_testing;

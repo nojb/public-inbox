@@ -58,7 +58,7 @@ sub content_key ($) {
 			qw(Message-ID X-Alt-Message-ID Resent-Message-ID));
 	unless (@$mids) {
 		$eml->{-lei_fake_mid} = $mids->[0] =
-				PublicInbox::Import::digest2mid($dig, $eml);
+				PublicInbox::Import::digest2mid($dig, $eml, 0);
 	}
 	($chash, $mids);
 }

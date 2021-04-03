@@ -76,7 +76,7 @@ sub parse_references ($$$) {
 	return $refs if scalar(@$refs) == 0;
 
 	# prevent circular references here:
-	my %seen = ( $smsg->{mid} => 1 );
+	my %seen = ( ($smsg->{mid} // '') => 1 );
 	my @keep;
 	foreach my $ref (@$refs) {
 		if (length($ref) > PublicInbox::MID::MAX_MID_SIZE) {

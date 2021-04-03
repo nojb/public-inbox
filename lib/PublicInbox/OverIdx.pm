@@ -264,8 +264,10 @@ sub add_overview {
 	$smsg->{lines} = $eml->body_raw =~ tr!\n!\n!;
 	my $mids = mids_for_index($eml);
 	my $refs = $smsg->parse_references($eml, $mids);
-	$mids->[0] //= $smsg->{mid} //= $eml->{-lei_fake_mid};
-	$smsg->{mid} //= '';
+	$mids->[0] //= do {
+		$smsg->{mid} //= '';
+		$eml->{-lei_fake_mid};
+	};
 	my $subj = $smsg->{subject};
 	my $xpath;
 	if ($subj ne '') {

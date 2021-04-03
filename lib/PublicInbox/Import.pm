@@ -510,8 +510,8 @@ sub atfork_child {
 	}
 }
 
-sub digest2mid ($$) {
-	my ($dig, $hdr) = @_;
+sub digest2mid ($$;$) {
+	my ($dig, $hdr, $fallback_time) = @_;
 	my $b64 = $dig->clone->b64digest;
 	# Make our own URLs nicer:
 	# See "Base 64 Encoding with URL and Filename Safe Alphabet" in RFC4648
@@ -520,7 +520,7 @@ sub digest2mid ($$) {
 	# Add a date prefix to prevent a leading '-' in case that trips
 	# up some tools (e.g. if a Message-ID were a expected as a
 	# command-line arg)
-	my $dt = msg_datestamp($hdr);
+	my $dt = msg_datestamp($hdr, $fallback_time);
 	$dt = POSIX::strftime('%Y%m%d%H%M%S', gmtime($dt));
 	"$dt.$b64" . '@z';
 }
