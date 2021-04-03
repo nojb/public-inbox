@@ -16,8 +16,8 @@ sub do_auth_atfork { # used by IPC WQ workers
 	eval {
 		my $mics = $net->imap_common_init($lei);
 		my $nn = $net->nntp_common_init($lei);
-		pkt_do($lei->{pkt_op_p}, 'net_merge', $net) or
-				die "pkt_do net_merge: $!";
+		pkt_do($lei->{pkt_op_p}, 'net_merge_continue', $net) or
+				die "pkt_do net_merge_continue: $!";
 		$net->{mics_cached} = $mics if $mics;
 		$net->{nn_cached} = $nn if $nn;
 	};
@@ -46,7 +46,7 @@ sub net_merge_continue {
 
 sub op_merge { # prepares PktOp->pair ops
 	my ($self, $ops, $wq) = @_;
-	$ops->{net_merge} = [ \&net_merge_continue, $wq ];
+	$ops->{net_merge_continue} = [ \&net_merge_continue, $wq ];
 	$ops->{net_merge_done1} = [ \&net_merge_done1, $wq ];
 }
 
