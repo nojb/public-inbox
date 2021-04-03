@@ -494,7 +494,8 @@ sub lei_ok (@) {
 			s!\Q$PWD\E\b!\$PWD!g;
 		}
 	}
-	ok(lei(@_), "lei @msg". ($msg ? " ($$msg)" : '')) or diag $lei_err;
+	ok(lei(@_), "lei @msg". ($msg ? " ($$msg)" : '')) or
+		diag "\$?=$? err=$lei_err";
 }
 
 sub json_utf8 () {
