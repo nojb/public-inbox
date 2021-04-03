@@ -232,7 +232,7 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 		if ($now > $next) {
 			$lei->{-next_progress} = $now + 1;
 			my $nr = $lei->{-nr_remote_eml};
-			$lei->err("# $lei->{-current_url} $nr/?");
+			mset_progress($lei, $lei->{-current_url}, $nr, '?');
 		}
 	}
 	$each_smsg->($smsg, undef, $eml);
