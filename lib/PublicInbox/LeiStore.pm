@@ -79,7 +79,10 @@ sub importer {
 		my $old = -e $latest;
 		PublicInbox::Import::init_bare($latest);
 		my $git = PublicInbox::Git->new($latest);
-		$git->qx(qw(config core.sharedRepository 0600)) if !$old;
+		if (!$old) {
+			$git->qx(qw(config core.sharedRepository 0600));
+			$self->done; # force eidx_init on next round
+		}
 		my $packed_bytes = $git->packed_bytes;
 		my $unpacked_bytes = $packed_bytes / $self->packing_factor;
 		if ($unpacked_bytes >= $self->rotate_bytes) {
