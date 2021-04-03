@@ -264,10 +264,11 @@ sub imap_common_init ($;$) {
 	my $mics = {}; # schema://authority => IMAPClient obj
 	for my $uri (@{$self->{imap_order}}) {
 		my $sec = uri_section($uri);
-		$mics->{$sec} //= mic_for($self, "$sec/", $mic_args, $lei);
+		my $mic = $mics->{$sec} //=
+				mic_for($self, "$sec/", $mic_args, $lei) //
+				die "Unable to continue\n";
 		next unless $self->isa('PublicInbox::NetWriter');
 		my $dst = $uri->mailbox // next;
-		my $mic = $mics->{$sec} // die "Unable to continue\n";
 		next if $mic->exists($dst); # already exists
 		$mic->create($dst) or die "CREATE $dst failed <$uri>: $@";
 	}
