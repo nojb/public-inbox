@@ -350,6 +350,11 @@ my %CONFIG_KEYS = (
 
 my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q tag sol); # internal workers
 
+sub _drop_wq {
+	my ($self) = @_;
+	for my $wq (grep(defined, delete(@$self{@WQ_KEYS}))) { $wq->DESTROY }
+}
+
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {
 	my ($self, $code) = @_;
@@ -360,10 +365,7 @@ sub x_it ($$) {
 		send($s, "x_it $code", MSG_EOR);
 	} elsif ($self->{oneshot}) {
 		# don't want to end up using $? from child processes
-		for my $f (@WQ_KEYS) {
-			my $wq = delete $self->{$f} or next;
-			$wq->DESTROY;
-		}
+		_drop_wq($self);
 		# cleanup anything that has tempfiles or open file handles
 		%PATH2CFG = ();
 		delete @$self{qw(ovv dedupe sto cfg)};
@@ -392,11 +394,8 @@ sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 
 sub fail_handler ($;$$) {
 	my ($lei, $code, $io) = @_;
-	for my $f (@WQ_KEYS) {
-		my $wq = delete $lei->{$f} or next;
-		$wq->wq_wait_old(undef, $lei) if $wq->wq_kill_old; # lei-daemon
-	}
 	close($io) if $io; # needed to avoid warnings on SIGPIPE
+	_drop_wq($lei);
 	x_it($lei, $code // (1 << 8));
 }
 
@@ -983,14 +982,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 sub dclose {
 	my ($self) = @_;
 	delete $self->{-progress};
-	for my $f (@WQ_KEYS) {
-		my $wq = delete $self->{$f} or next;
-		if ($wq->wq_kill) {
-			$wq->wq_close(0, undef, $self);
-		} elsif ($wq->wq_kill_old) {
-			$wq->wq_wait_old(undef, $self);
-		}
-	}
+	_drop_wq($self);
 	close(delete $self->{1}) if $self->{1}; # may reap_compress
 	$self->close if $self->{-event_init_done}; # PublicInbox::DS::close
 }
