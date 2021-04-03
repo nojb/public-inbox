@@ -112,7 +112,8 @@ sub lei_tag { # the "lei tag" method
 	my $ops = { '' => [ \&tag_done, $lei ] };
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{vmd_mod} = $vmd_mod;
-	(my $op_c, $ops) = $lei->workers_start($self, 'lei_tag', 1, $ops);
+	my $j = $self->{-wq_nr_workers} = 1; # locked for now
+	(my $op_c, $ops) = $lei->workers_start($self, 'lei_tag', $j, $ops);
 	$lei->{tag} = $self;
 	net_merge_complete($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);
@@ -174,5 +175,8 @@ sub _complete_tag {
 		/\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ();
 	} grep(/$re\Q$cur/, @all);
 }
+
+no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
+*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 
 1;
