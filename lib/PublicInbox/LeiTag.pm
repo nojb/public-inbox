@@ -121,7 +121,8 @@ sub lei_tag { # the "lei tag" method
 
 sub note_missing {
 	my ($self) = @_;
-	$self->{lei}->child_error(1 << 8) if $self->{missing};
+	my $n = $self->{missing} or return;
+	$self->{lei}->child_error(1 << 8, "$n missed messages");
 }
 
 sub ipc_atfork_child {
