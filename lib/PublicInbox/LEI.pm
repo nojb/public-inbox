@@ -849,6 +849,7 @@ sub start_mua {
 	if ($self->{lxs} && $self->{au_done}) { # kick wait_startq
 		syswrite($self->{au_done}, 'q' x ($self->{lxs}->{jobs} // 0));
 	}
+	return unless -t $self->{2}; # XXX how to determine non-TUI MUAs?
 	$self->{opt}->{quiet} = 1;
 	delete $self->{-progress};
 	delete $self->{opt}->{verbose};
