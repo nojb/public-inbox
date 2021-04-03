@@ -3,9 +3,14 @@
 #
 # Local storage (cache/memo) for lei(1), suitable for personal/private
 # mail iff on encrypted device/FS.  Based on v2, but only deduplicates
-# based on git OID.
+# git storage based on git OID (index deduplication is done in ContentHash)
 #
 # for xref3, the following are constant: $eidx_key = '.', $xnum = -1
+#
+# We rely on the synchronous IPC API for this in lei-daemon and
+# multiple lei clients to write to it at once.  This allows the
+# lei/store IPC process to be decoupled from network latency in
+# lei WQ workers.
 package PublicInbox::LeiStore;
 use strict;
 use v5.10.1;
@@ -19,7 +24,10 @@ use PublicInbox::ContentHash qw(content_hash);
 use PublicInbox::MID qw(mids);
 use PublicInbox::LeiSearch;
 use PublicInbox::MDA;
+use PublicInbox::Spawn qw(spawn);
 use List::Util qw(max);
+use File::Temp ();
+use POSIX ();
 
 sub new {
 	my (undef, $dir, $opt) = @_;
@@ -102,18 +110,27 @@ sub search {
 	PublicInbox::LeiSearch->new($_[0]->{priv_eidx}->{topdir});
 }
 
+# follows the stderr file
+sub _tail_err {
+	my ($self) = @_;
+	print { $self->{-err_wr} } readline($self->{-tmp_err});
+}
+
 sub eidx_init {
 	my ($self) = @_;
 	my $eidx = $self->{priv_eidx};
+	my $tl = wantarray && $self->{-err_wr} ?
+			PublicInbox::OnDestroy->new($$, \&_tail_err, $self) :
+			undef;
 	$eidx->idx_init({-private => 1});
-	$eidx;
+	wantarray ? ($eidx, $tl) : $eidx;
 }
 
 sub _docids_for ($$) {
 	my ($self, $eml) = @_;
 	my %docids;
+	my $eidx = $self->{priv_eidx};
 	my ($chash, $mids) = PublicInbox::LeiSearch::content_key($eml);
-	my $eidx = eidx_init($self);
 	my $oidx = $eidx->{oidx};
 	my $im = $self->{im};
 	for my $mid (@$mids) {
@@ -137,7 +154,7 @@ sub _docids_for ($$) {
 
 sub set_eml_vmd {
 	my ($self, $eml, $vmd, $docids) = @_;
-	my $eidx = eidx_init($self);
+	my ($eidx, $tl) = eidx_init($self);
 	$docids //= [ _docids_for($self, $eml) ];
 	for my $docid (@$docids) {
 		$eidx->idx_shard($docid)->ipc_do('set_vmd', $docid, $vmd);
@@ -147,7 +164,7 @@ sub set_eml_vmd {
 
 sub add_eml_vmd {
 	my ($self, $eml, $vmd) = @_;
-	my $eidx = eidx_init($self);
+	my ($eidx, $tl) = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
 		$eidx->idx_shard($docid)->ipc_do('add_vmd', $docid, $vmd);
@@ -157,7 +174,7 @@ sub add_eml_vmd {
 
 sub remove_eml_vmd {
 	my ($self, $eml, $vmd) = @_;
-	my $eidx = eidx_init($self);
+	my ($eidx, $tl) = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
 	for my $docid (@docids) {
 		$eidx->idx_shard($docid)->ipc_do('remove_vmd', $docid, $vmd);
@@ -168,7 +185,7 @@ sub remove_eml_vmd {
 sub add_eml {
 	my ($self, $eml, $vmd, $xoids) = @_;
 	my $im = $self->importer; # may create new epoch
-	my $eidx = eidx_init($self); # writes ALL.git/objects/info/alternates
+	my ($eidx, $tl) = eidx_init($self); # updates/writes alternates file
 	my $oidx = $eidx->{oidx}; # PublicInbox::Import::add checks this
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
 	$im->add($eml, undef, $smsg) or return; # duplicate returns undef
@@ -257,7 +274,7 @@ sub _external_only ($$$) {
 
 sub update_xvmd {
 	my ($self, $xoids, $eml, $vmd_mod) = @_;
-	my $eidx = eidx_init($self);
+	my ($eidx, $tl) = eidx_init($self);
 	my $oidx = $eidx->{oidx};
 	my %seen;
 	for my $oid (keys %$xoids) {
@@ -294,7 +311,7 @@ sub update_xvmd {
 sub set_xvmd {
 	my ($self, $xoids, $eml, $vmd) = @_;
 
-	my $eidx = eidx_init($self);
+	my ($eidx, $tl) = eidx_init($self);
 	my $oidx = $eidx->{oidx};
 	my %seen;
 
@@ -329,6 +346,21 @@ sub checkpoint {
 	$self->{priv_eidx}->checkpoint($wait);
 }
 
+sub xchg_stderr {
+	my ($self) = @_;
+	_tail_err($self) if $self->{-err_wr};
+	my $dir = $self->{priv_eidx}->{topdir};
+	return unless -e $dir;
+	my $old = delete $self->{-tmp_err};
+	my $pfx = POSIX::strftime('%Y%m%d%H%M%S', gmtime(time));
+	my $err = File::Temp->new(TEMPLATE => "$pfx.$$.lei_storeXXXX",
+				SUFFIX => '.err', DIR => $dir);
+	open STDERR, '>>', $err->filename or die "dup2: $!";
+	STDERR->autoflush(1); # shared with shard subprocesses
+	$self->{-tmp_err} = $err; # separate file description for RO access
+	undef;
+}
+
 sub done {
 	my ($self) = @_;
 	my $err = '';
@@ -339,7 +371,8 @@ sub done {
 			warn $err;
 		}
 	}
-	$self->{priv_eidx}->done;
+	$self->{priv_eidx}->done; # V2Writable::done
+	xchg_stderr($self);
 	die $err if $err;
 }
 
@@ -347,6 +380,11 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	$lei->_lei_atfork_child(1) if $lei;
+	xchg_stderr($self);
+	if (my $err = delete($self->{err_pipe})) {
+		close $err->[0];
+		$self->{-err_wr} = $err->[1];
+	}
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
@@ -357,11 +395,20 @@ sub write_prepare {
 		my $d = $lei->store_path;
 		$self->ipc_lock_init("$d/ipc.lock");
 		substr($d, -length('/lei/store'), 10, '');
+		my $err_pipe;
+		unless ($lei->{oneshot}) {
+			pipe(my ($r, $w)) or die "pipe: $!";
+			$err_pipe = [ $r, $w ];
+		}
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();
 		$self->ipc_worker_spawn("lei/store $d", $lei->oldset,
-					{ lei => $lei });
+					{ lei => $lei, err_pipe => $err_pipe });
+		if ($err_pipe) {
+			require PublicInbox::LeiStoreErr;
+			PublicInbox::LeiStoreErr->new($err_pipe->[0], $lei);
+		}
 	}
 	$lei->{sto} = $self;
 }
