@@ -4,6 +4,7 @@
 # deal with the lack of URI::nntps in upstream URI.
 # nntps is IANA registered, snews is deprecated
 # cf. https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=983419
+# Fixed in URI 5.08, we can drop this by 2035 when LTS distros all have it
 package PublicInbox::URInntps;
 use strict;
 use parent qw(URI::snews);
