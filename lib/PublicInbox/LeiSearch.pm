@@ -8,7 +8,7 @@ use v5.10.1;
 use parent qw(PublicInbox::ExtSearch);
 use PublicInbox::Search qw(xap_terms);
 use PublicInbox::ContentHash qw(content_digest content_hash);
-use PublicInbox::MID qw(mids mids_in);
+use PublicInbox::MID qw(mids mids_for_index);
 
 # get combined docid from over.num:
 # (not generic Xapian, only works with our sharding scheme)
@@ -54,8 +54,7 @@ sub content_key ($) {
 	my ($eml) = @_;
 	my $dig = content_digest($eml);
 	my $chash = $dig->clone->digest;
-	my $mids = mids_in($eml,
-			qw(Message-ID X-Alt-Message-ID Resent-Message-ID));
+	my $mids = mids_for_index($eml);
 	unless (@$mids) {
 		$eml->{-lei_fake_mid} = $mids->[0] =
 				PublicInbox::Import::digest2mid($dig, $eml, 0);

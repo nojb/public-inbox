@@ -83,6 +83,7 @@ is_deeply($res->[0]->{kw}, ['seen'], "`seen' keywords set");
 $eml_str = <<'EOM';
 Subject: draft message with no sender
 References: <y@y>
+Resent-Message-ID: <resent-test@example>
 
 No use for a name
 EOM
