@@ -8,11 +8,13 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 
 # JMAP RFC 8621 4.1.1
-my @KW = (qw(seen answered flagged draft), # system
-	qw(forwarded phishing junk notjunk)); # reserved
+# https://www.iana.org/assignments/imap-jmap-keywords/imap-jmap-keywords.xhtml
+my @KW = (qw(seen answered flagged draft), # widely-compatible
+	qw(forwarded phishing junk notjunk)); # rarely supported
 # note: RFC 8621 states "Users may add arbitrary keywords to an Email",
 # but is it good idea?  Stick to the system and reserved ones, for now.
-# The "system" ones map to Maildir flags and mbox Status/X-Status headers.
+# The widely-compatible ones map to IMAP system flags, Maildir flags
+# and mbox Status/X-Status headers.
 my %KW = map { $_ => 1 } @KW;
 my $L_MAX = 244; # Xapian term limit - length('L')
 
