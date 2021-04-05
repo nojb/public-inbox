@@ -7,22 +7,14 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
-use PublicInbox::Lock;
 use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::LeiDedupe;
-use PublicInbox::Git;
-use PublicInbox::GitAsyncCat;
 use PublicInbox::PktOp qw(pkt_do);
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
-use Errno qw(EEXIST ESPIPE ENOENT EPIPE);
 use Digest::SHA qw(sha256_hex);
-
-# struggles with short-lived repos, Gcf2Client makes little sense with lei;
-# but we may use in-process libgit2 in the future.
-$PublicInbox::GitAsyncCat::GCF2C = 0;
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -76,7 +68,7 @@ sub atomic_append { # for on-disk destinations (O_APPEND, or O_EXCL)
 	if (defined(my $w = syswrite($lei->{1} // return, $$buf))) {
 		return if $w == length($$buf);
 		$buf = "short atomic write: $w != ".length($$buf);
-	} elsif ($! == EPIPE) {
+	} elsif ($!{EPIPE}) {
 		return $lei->note_sigpipe(1);
 	} else {
 		$buf = "atomic write: $!";
@@ -275,7 +267,7 @@ sub _buf2maildir {
 	do {
 		$tmp = $dst.'tmp/'.$rand.$common;
 	} while (!($ok = sysopen($fh, $tmp, O_CREAT|O_EXCL|O_WRONLY)) &&
-		$! == EEXIST && ($rand = _rand.','));
+		$!{EEXIST} && ($rand = _rand.','));
 	if ($ok && print $fh $$buf and close($fh)) {
 		# ignore new/ and write only to cur/, otherwise MUAs
 		# with R/W access to the Maildir will end up doing
@@ -285,7 +277,7 @@ sub _buf2maildir {
 		$rand = '';
 		do {
 			$final = $dst.$rand.$common.':2,'.$sfx;
-		} while (!($ok = link($tmp, $final)) && $! == EEXIST &&
+		} while (!($ok = link($tmp, $final)) && $!{EEXIST} &&
 			($rand = _rand.','));
 		die "link($tmp, $final): $!" unless $ok;
 		unlink($tmp) or warn "W: failed to unlink $tmp: $!\n";
@@ -473,7 +465,7 @@ sub _pre_augment_mbox {
 	}
 	# Perl does SEEK_END even with O_APPEND :<
 	$self->{seekable} = seek($out, 0, SEEK_SET);
-	if (!$self->{seekable} && $! != ESPIPE && !defined($devfd)) {
+	if (!$self->{seekable} && !$!{ESPIPE} && !defined($devfd)) {
 		die "seek($dst): $!\n";
 	}
 	if (!$self->{seekable}) {
@@ -610,7 +602,7 @@ sub poke_dst {
 
 sub write_mail { # via ->wq_io_do
 	my ($self, $smsg) = @_;
-	git_async_cat($self->{lei}->{ale}->git, $smsg->{blob}, \&git_to_mail,
+	$self->{lei}->{ale}->git->cat_async($smsg->{blob}, \&git_to_mail,
 				[$self->{wcb}, $smsg]);
 }
 
