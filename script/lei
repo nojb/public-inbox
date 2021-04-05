@@ -52,7 +52,11 @@ my $exec_cmd = sub {
 		@parent = ($parent);
 		return; # continue $recv_cmd in background
 	}
-	$do_exec->() if !scalar(@$fds); # MUA reuses all FDs
+	if (scalar(@$fds)) {
+		$pids{$pid} = undef;
+	} else {
+		$do_exec->(); # MUA reuses all FDs
+	}
 };
 
 if ($send_cmd && eval {
