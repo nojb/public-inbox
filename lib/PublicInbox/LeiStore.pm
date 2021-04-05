@@ -63,8 +63,16 @@ sub git_ident ($) {
 	my $rdr = {};
 	open $rdr->{2}, '>', '/dev/null' or die "open /dev/null: $!";
 	chomp(my $i = $git->qx([qw(var GIT_COMMITTER_IDENT)], undef, $rdr));
-	$i =~ /\A(.+) <([^>]+)> [0-9]+ [-\+]?[0-9]+$/ ? ($1, $2) :
-		('lei user', 'x@example.com')
+	$i =~ /\A(.+) <([^>]+)> [0-9]+ [-\+]?[0-9]+$/ and return ($1, $2);
+	my ($user, undef, undef, undef, undef, undef, $gecos) = getpwuid($<);
+	($user) = (($user // $ENV{USER} // '') =~ /([\w\-\.\+]+)/);
+	$user //= 'lei-user';
+	($gecos) = (($gecos // '') =~ /([\w\-\.\+ \t]+)/);
+	$gecos //= 'lei user';
+	require Sys::Hostname;
+	my ($host) = (Sys::Hostname::hostname() =~ /([\w\-\.]+)/);
+	$host //= 'localhost';
+	($gecos, "$user\@$host")
 }
 
 sub importer {
