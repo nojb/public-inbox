@@ -583,7 +583,8 @@ sub poke_dst {
 }
 
 sub write_mail { # via ->wq_io_do
-	my ($self, $smsg) = @_;
+	my ($self, $smsg, $eml) = @_;
+	return $self->{wcb}->(undef, $smsg, $eml) if $eml;
 	$self->{lei}->{ale}->git->cat_async($smsg->{blob}, \&git_to_mail,
 				[$self->{wcb}, $smsg]);
 }

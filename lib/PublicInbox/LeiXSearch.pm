@@ -153,7 +153,7 @@ sub query_thread_mset { # for --threads
 	return warn("$desc not indexed by Xapian\n") unless ($srch && $over);
 	my $mo = { %{$lei->{mset_opt}} };
 	my $mset;
-	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $ibxish);
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	my $can_kw = !!$ibxish->can('msg_keywords');
 	my $fl = $lei->{opt}->{threads} > 1 ? 1 : undef;
 	do {
@@ -196,7 +196,7 @@ sub query_mset { # non-parallel for non-"--threads" users
 	for my $loc (locals($self)) {
 		attach_external($self, $loc);
 	}
-	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei, $self);
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
 		mset_progress($lei, 'xsearch', $mset->size,

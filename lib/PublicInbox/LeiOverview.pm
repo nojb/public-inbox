@@ -195,7 +195,7 @@ sub _json_pretty {
 }
 
 sub ovv_each_smsg_cb { # runs in wq worker usually
-	my ($self, $lei, $ibxish) = @_;
+	my ($self, $lei) = @_;
 	my ($json, $dedupe);
 	if (my $pkg = $self->{json}) {
 		$json = $pkg->new;
@@ -208,17 +208,11 @@ sub ovv_each_smsg_cb { # runs in wq worker usually
 		$dedupe->prepare_dedupe;
 	}
 	$lei->{ovv_buf} = \(my $buf = '') if !$l2m;
-	if ($l2m && !$ibxish) { # remote https?:// mboxrd
-		my $wcb = $l2m->write_cb($lei);
+	if ($l2m) {
 		sub {
-			my ($smsg, undef, $eml) = @_; # no mitem in $_[1]
-			$wcb->(undef, $smsg, $eml);
-		};
-	} elsif ($l2m && $l2m->{-wq_s1}) {
-		sub {
-			my ($smsg, $mitem) = @_;
+			my ($smsg, $mitem, $eml) = @_;
 			$smsg->{pct} = get_pct($mitem) if $mitem;
-			$l2m->wq_io_do('write_mail', [], $smsg);
+			$l2m->wq_io_do('write_mail', [], $smsg, $eml);
 		}
 	} elsif ($self->{fmt} =~ /\A(concat)?json\z/ && $lei->{opt}->{pretty}) {
 		my $EOR = ($1//'') eq 'concat' ? "\n}" : "\n},";
