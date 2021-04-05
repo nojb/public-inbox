@@ -57,7 +57,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('convert', '-o', "$d/md", "mboxrd:$d/foo.mboxrd");
 	ok(-d "$d/md", 'Maildir created');
 	my @md;
-	PublicInbox::MdirReader::maildir_each_eml("$d/md", sub {
+	PublicInbox::MdirReader->new->maildir_each_eml("$d/md", sub {
 		push @md, $_[2];
 	});
 	is(scalar(@md), scalar(@mboxrd), 'got expected emails in Maildir') or

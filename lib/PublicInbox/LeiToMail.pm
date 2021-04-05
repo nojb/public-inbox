@@ -14,7 +14,6 @@ use PublicInbox::PktOp qw(pkt_do);
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
-use Digest::SHA qw(sha256_hex);
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -234,17 +233,9 @@ sub update_kw_maybe ($$$$) {
 	}
 }
 
-sub _augment_or_unlink { # maildir_each_eml cb
-	my ($f, $kw, $eml, $lei, $lse, $mod, $shard, $unlink) = @_;
-	if ($mod) {
-		# can't get dirent.d_ino w/ pure Perl readdir, so we extract
-		# the OID if it looks like one instead of doing stat(2)
-		my $hex = $f =~ m!\b([a-f0-9]{40,})[^/]*\z! ?
-				$1 : sha256_hex($f);
-		my $recno = hex(substr($hex, 0, 8));
-		return if ($recno % $mod) != $shard;
-		update_kw_maybe($lei, $lse, $eml, $kw);
-	}
+sub _md_update { # maildir_each_eml cb
+	my ($f, $kw, $eml, $lei, $lse, $unlink) = @_;
+	update_kw_maybe($lei, $lse, $eml, $kw);
 	$unlink ? unlink($f) : _augment($eml, $lei);
 }
 
@@ -392,21 +383,19 @@ sub _do_augment_maildir {
 	my ($self, $lei) = @_;
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
-	my ($mod, $shard) = @{$self->{shard_info} // []};
+	my $mdr = PublicInbox::MdirReader->new;
 	if ($lei->{opt}->{augment}) {
 		my $dedupe = $lei->{dedupe};
 		if ($dedupe && $dedupe->prepare_dedupe) {
-			PublicInbox::MdirReader::maildir_each_eml($dst,
-						\&_augment_or_unlink,
-						$lei, $lse, $mod, $shard);
+			$mdr->{shard_info} = $self->{shard_info};
+			$mdr->maildir_each_eml($dst, \&_md_update, $lei, $lse);
 			$dedupe->pause_dedupe;
 		}
 	} elsif ($lse) {
-		PublicInbox::MdirReader::maildir_each_eml($dst,
-					\&_augment_or_unlink,
-					$lei, $lse, $mod, $shard, 1);
+		$mdr->{shard_info} = $self->{shard_info};
+		$mdr->maildir_each_eml($dst, \&_md_update, $lei, $lse, 1);
 	} else {# clobber existing Maildir
-		PublicInbox::MdirReader::maildir_each_file($dst, \&_unlink);
+		$mdr->maildir_each_file($dst, \&_unlink);
 	}
 }
 

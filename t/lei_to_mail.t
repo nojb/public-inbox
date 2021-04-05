@@ -253,7 +253,7 @@ SKIP: { # FIFO support
 }
 
 { # Maildir support
-	my $each_file = PublicInbox::MdirReader->can('maildir_each_file');
+	my $mdr = PublicInbox::MdirReader->new;
 	my $md = "$tmpdir/maildir/";
 	my $wcb = $wcb_get->('maildir', $md);
 	is(ref($wcb), 'CODE', 'got Maildir callback');
@@ -261,7 +261,7 @@ SKIP: { # FIFO support
 	$wcb->(\(my $x = $buf), $b4dc0ffee);
 
 	my @f;
-	$each_file->($md, sub { push @f, shift });
+	$mdr->maildir_each_file($md, sub { push @f, shift });
 	open my $fh, $f[0] or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $buf, 'wrote to Maildir');
 
@@ -270,7 +270,7 @@ SKIP: { # FIFO support
 	$wcb->(\($x = $buf."\nx\n"), $deadcafe);
 
 	my @x = ();
-	$each_file->($md, sub { push @x, shift });
+	$mdr->maildir_each_file($md, sub { push @x, shift });
 	is(scalar(@x), 1, 'wrote one new file');
 	ok(!-f $f[0], 'old file clobbered');
 	open $fh, $x[0] or BAIL_OUT $!;
@@ -281,7 +281,7 @@ SKIP: { # FIFO support
 	$wcb->(\($x = $buf."\ny\n"), $deadcafe);
 	$wcb->(\($x = $buf."\ny\n"), $b4dc0ffee); # skipped by dedupe
 	@f = ();
-	$each_file->($md, sub { push @f, shift });
+	$mdr->maildir_each_file($md, sub { push @f, shift });
 	is(scalar grep(/\A\Q$x[0]\E\z/, @f), 1, 'old file still there');
 	my @new = grep(!/\A\Q$x[0]\E\z/, @f);
 	is(scalar @new, 1, '1 new file written (b4dc0ffee skipped)');

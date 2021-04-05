@@ -88,7 +88,7 @@ sub input_path_url {
 		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
 $input appears to a be a maildir, not $ifmt
 EOM
-		PublicInbox::MdirReader::maildir_each_eml($input,
+		PublicInbox::MdirReader->new->maildir_each_eml($input,
 					$self->can('input_maildir_cb'),
 					$self, @args);
 	} else {

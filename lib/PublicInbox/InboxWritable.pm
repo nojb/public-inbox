@@ -154,8 +154,8 @@ sub import_maildir {
 	my $im = $self->importer(1);
 	my @self = $self->filter($im) ? ($self) : ();
 	require PublicInbox::MdirReader;
-	PublicInbox::MdirReader::maildir_each_file(\&_each_maildir_fn,
-						$im, @self);
+	PublicInbox::MdirReader->new->maildir_each_file(\&_each_maildir_fn,
+							$im, @self);
 	$im->done;
 }
 
