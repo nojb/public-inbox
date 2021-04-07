@@ -25,7 +25,7 @@ sub default_branch () {
 				 { GIT_CONFIG => undef });
 		chomp(my $h = <$r> // '');
 		close $r;
-		$h eq '' ? 'refs/heads/master' : $h;
+		$h eq '' ? 'refs/heads/master' : "refs/heads/$h";
 	}
 }
 
