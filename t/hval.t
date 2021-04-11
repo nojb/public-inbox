@@ -47,6 +47,10 @@ EOF
 
 is($html, $exp, 'only obfuscated relevant addresses');
 
+$exp = 'https://example.net/foo@example.net';
+PublicInbox::Hval::obfuscate_addrs($ibx, my $res = $exp);
+is($res, $exp, 'does not obfuscate URL with Message-ID');
+
 is(PublicInbox::Hval::to_filename('foo bar  '), 'foo-bar',
 	'to_filename has no trailing -');
 

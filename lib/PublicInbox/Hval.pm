@@ -82,15 +82,22 @@ sub obfuscate_addrs ($$;$) {
 	my $repl = $_[2] // '&#8226;';
 	my $re = $ibx->{-no_obfuscate_re}; # regex of domains
 	my $addrs = $ibx->{-no_obfuscate}; # { $address => 1 }
-	$_[1] =~ s/(([\w\.\+=\-]+)\@([\w\-]+\.[\w\.\-]+))/
-		my ($addr, $user, $domain) = ($1, $2, $3);
-		if ($addrs->{$addr} || ((defined $re && $domain =~ $re))) {
-			$addr;
+	$_[1] =~ s#(\S+)\@([\w\-]+\.[\w\.\-]+)#
+		my ($pfx, $domain) = ($1, $2);
+		if (index($pfx, '://') > 0 || $pfx !~ s/([\w\.\+=\-]+)\z//) {
+			"$pfx\@$domain";
 		} else {
-			$domain =~ s!([^\.]+)\.!$1$repl!;
-			$user . '@' . $domain
+			my $user = $1;
+			my $addr = "$user\@$domain";
+			if ($addrs->{$addr} || ((defined($re) &&
+						$domain =~ $re))) {
+				$pfx.$addr;
+			} else {
+				$domain =~ s!([^\.]+)\.!$1$repl!;
+				$pfx . $user . '@' . $domain
+			}
 		}
-		/sge;
+		#sge;
 }
 
 # like format_sanitized_subject in git.git pretty.c with '%f' format string
