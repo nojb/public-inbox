@@ -23,12 +23,18 @@ sub sol_done { # EOF callback for main daemon
 	$sol->wq_wait_old(\&sol_done_wait, $lei);
 }
 
-sub get_git_dir ($) {
-	my ($d) = @_;
+sub get_git_dir ($$) {
+	my ($lei, $d) = @_;
 	return $d if -d "$d/objects" && -d "$d/refs" && -e "$d/HEAD";
 
 	my $cmd = [ qw(git rev-parse --git-dir) ];
-	my ($r, $pid) = popen_rd($cmd, {GIT_DIR => undef}, { '-C' => $d });
+	my $opt = { '-C' => $d };
+	if (defined($lei->{opt}->{cwd})) { # --cwd used, report errors
+		$opt->{2} = $lei->{2};
+	} else { # implicit --cwd, quiet errors
+		open $opt->{2}, '>', '/dev/null' or die "open /dev/null: $!";
+	}
+	my ($r, $pid) = popen_rd($cmd, {GIT_DIR => undef}, $opt);
 	chomp(my $gd = do { local $/; <$r> });
 	waitpid($pid, 0) == $pid or die "BUG: waitpid @$cmd ($!)";
 	$? == 0 ? $gd : undef;
@@ -114,7 +120,7 @@ sub lei_blob {
 	# maybe it's a non-email (code) blob from a coderepo
 	my $git_dirs = $opt->{'git-dir'} //= [];
 	if ($opt->{'cwd'} // 1) {
-		my $cgd = get_git_dir('.');
+		my $cgd = get_git_dir($lei, '.');
 		unshift(@$git_dirs, $cgd) if defined $cgd;
 	}
 	return $lei->fail('no --git-dir to try') unless @$git_dirs;
