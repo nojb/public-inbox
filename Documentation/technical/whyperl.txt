@@ -66,9 +66,11 @@ Good Things
   Perl had fewer breaking changes than Python or Ruby; we
   expect that trend to continue given the inertia of Perl 5.
 
-  Note: this document was written before the Perl 7 announcement.
-  We'll continue to monitor and adapt to the situation around
-  what distros are doing in regard to maintaining compatibility.
+  As of April 2021, the Perl Steering Committee has confirmed
+  Perl 7 will require `use v7.0' and existing code should
+  continue working unchanged:
+  https://nntp.perl.org/group/perl.perl5.porters/259789
+  <CAMvkq_SyTKZD=1=mHXwyzVYYDQb8Go0N0TuE5ZATYe_M4BCm-g@mail.gmail.com>
 
 * Built for text processing
 
