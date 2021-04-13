@@ -41,8 +41,8 @@ sub smsg_hash ($) {
 sub dedupe_oid ($) {
 	my ($skv) = @_;
 	(sub { # may be called in a child process
-		my ($eml, $oid) = @_;
-		$skv->set_maybe(_oidbin($oid) // _regen_oid($eml), '');
+		my ($eml, $oidhex) = @_;
+		$skv->set_maybe(_oidbin($oidhex) // _regen_oid($eml), '');
 	}, sub {
 		my ($smsg) = @_;
 		$skv->set_maybe(_oidbin($smsg->{blob}), '');
@@ -53,9 +53,9 @@ sub dedupe_oid ($) {
 sub dedupe_mid ($) {
 	my ($skv) = @_;
 	(sub { # may be called in a child process
-		my ($eml, $oid) = @_;
-		# TODO: lei will support non-public messages w/o Message-ID
-		my $mid = $eml->header_raw('Message-ID') // _oidbin($oid) //
+		my ($eml, $oidhex) = @_;
+		# lei supports non-public drafts w/o Message-ID
+		my $mid = $eml->header_raw('Message-ID') // _oidbin($oidhex) //
 			content_hash($eml);
 		$skv->set_maybe($mid, '');
 	}, sub {
@@ -71,7 +71,7 @@ sub dedupe_mid ($) {
 sub dedupe_content ($) {
 	my ($skv) = @_;
 	(sub { # may be called in a child process
-		my ($eml) = @_; # oid = $_[1], ignored
+		my ($eml) = @_; # $oidhex = $_[1], ignored
 		$skv->set_maybe(content_hash($eml), '');
 	}, sub {
 		my ($smsg) = @_;
@@ -104,8 +104,8 @@ sub new {
 # returns true on seen messages according to the deduplication strategy,
 # returns false if unseen
 sub is_dup {
-	my ($self, $eml, $oid) = @_;
-	!$self->[1]->($eml, $oid);
+	my ($self, $eml, $smsg) = @_;
+	!$self->[1]->($eml, $smsg ? $smsg->{blob} : undef);
 }
 
 sub is_smsg_dup {

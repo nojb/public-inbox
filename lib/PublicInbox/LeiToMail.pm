@@ -194,7 +194,7 @@ sub _mbox_write_cb ($$) {
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$eml //= PublicInbox::Eml->new($buf);
-		return if $dedupe->is_dup($eml, $smsg->{blob});
+		return if $dedupe->is_dup($eml, $smsg);
 		$lse->xsmsg_vmd($smsg) if $lse;
 		$buf = $eml2mbox->($eml, $smsg);
 		return atomic_append($lei, $buf) if $atomic_append;
@@ -280,7 +280,7 @@ sub _maildir_write_cb ($$) {
 		$lse->xsmsg_vmd($smsg) if $lse;
 		return _buf2maildir($dst, $buf, $smsg) if !$dedupe;
 		$eml //= PublicInbox::Eml->new($$buf); # copy buf
-		return if $dedupe->is_dup($eml, $smsg->{blob});
+		return if $dedupe->is_dup($eml, $smsg);
 		undef $eml;
 		_buf2maildir($dst, $buf, $smsg);
 	}
@@ -299,7 +299,7 @@ sub _imap_write_cb ($$) {
 		$mic // return $lei->fail; # mic may be undef-ed in last run
 		if ($dedupe) {
 			$eml //= PublicInbox::Eml->new($$bref); # copy bref
-			return if $dedupe->is_dup($eml, $smsg->{blob});
+			return if $dedupe->is_dup($eml, $smsg);
 		}
 		$lse->xsmsg_vmd($smsg) if $lse;
 		eval { $imap_append->($mic, $folder, $bref, $smsg, $eml) };

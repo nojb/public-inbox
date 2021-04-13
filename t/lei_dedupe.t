@@ -74,10 +74,13 @@ ok(!$dd->is_dup($different), 'different is_dup with mid dedupe (augment)');
 $different->header_set('Status', 'RO');
 ok($dd->is_dup($different), 'different seen with oid dedupe Status removed');
 
-ok(!$dd->is_dup($eml, '01d'), '1st is_dup with oid dedupe');
-ok($dd->is_dup($different, '01d'), 'different content ignored if oid matches');
-ok($dd->is_dup($eml, '01D'), 'case insensitive oid comparison :P');
-ok(!$dd->is_dup($eml, '01dbad'), 'case insensitive oid comparison :P');
+$smsg = { blob => '01d' };
+ok(!$dd->is_dup($eml, $smsg), '1st is_dup with oid dedupe');
+ok($dd->is_dup($different, $smsg), 'different content ignored if oid matches');
+$smsg->{blob} = uc($smsg->{blob});
+ok($dd->is_dup($eml, $smsg), 'case insensitive oid comparison :P');
+$smsg->{blob} = '01dbad';
+ok(!$dd->is_dup($eml, $smsg), 'case insensitive oid comparison :P');
 
 $smsg->{blob} = 'dead';
 ok(!$dd->is_smsg_dup($smsg), 'smsg dedupe pass');
