@@ -14,11 +14,39 @@ sub prep_ext { # externals_each callback
 
 sub _start_query {
 	my ($self) = @_;
+	PublicInbox::LeiOverview->new($self) or return;
+	my $opt = $self->{opt};
+	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
+	if (defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) {
+		return $self->fail("`$xj' search jobs must be >= 1");
+	}
+	my $lxs = $self->{lxs};
+	$xj ||= $lxs->concurrency($opt); # allow: "--jobs ,$WRITER_ONLY"
+	my $nproc = $lxs->detect_nproc // 1; # don't memoize, schedtool(1) exists
+	$xj = $nproc if $xj > $nproc;
+	$lxs->{-wq_nr_workers} = $xj;
+	if (defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) {
+		return $self->fail("`$mj' writer jobs must be >= 1");
+	}
+	my $l2m = $self->{l2m};
+	if ($l2m && ($opt->{'import-remote'} //= 1) |
+				# we use \1 (a ref) to distinguish between
+				# user-supplied and default value
+				(($opt->{'import-before'} //= \1) ? 1 : 0)) {
+		$self->_lei_store(1)->write_prepare($self);
+	}
+	$l2m and $l2m->{-wq_nr_workers} = $mj // do {
+		$mj = POSIX::lround($nproc * 3 / 4); # keep some CPU for git
+		$mj <= 0 ? 1 : $mj;
+	};
+
+	# descending docid order is cheapest, MUA controls sorting order
+	$self->{mset_opt}->{relevance} //= -2 if $l2m || $opt->{threads};
 	if ($self->{net}) {
 		require PublicInbox::LeiAuth;
 		$self->{auth} = PublicInbox::LeiAuth->new
 	}
-	$self->{lxs}->do_query($self);
+	$lxs->do_query($self);
 }
 
 sub qstr_add { # PublicInbox::InputPipe::consume callback for --stdin
@@ -87,32 +115,9 @@ sub lei_q {
 	my ($self, @argv) = @_;
 	require PublicInbox::LeiOverview;
 	PublicInbox::Config->json; # preload before forking
-	PublicInbox::LeiOverview->new($self) or return;
 	my $lxs = lxs_prepare($self) or return;
 	$self->ale->refresh_externals($lxs);
 	my $opt = $self->{opt};
-	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
-	if (defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) {
-		return $self->fail("`$xj' search jobs must be >= 1");
-	}
-	$xj ||= $lxs->concurrency($opt); # allow: "--jobs ,$WRITER_ONLY"
-	my $nproc = $lxs->detect_nproc // 1; # don't memoize, schedtool(1) exists
-	$xj = $nproc if $xj > $nproc;
-	$lxs->{-wq_nr_workers} = $xj;
-	if (defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) {
-		return $self->fail("`$mj' writer jobs must be >= 1");
-	}
-	if ($self->{l2m} && ($opt->{'import-remote'} //= 1) |
-				# we use \1 (a ref) to distinguish between
-				# user-supplied and default value
-				(($opt->{'import-before'} //= \1) ? 1 : 0)) {
-		$self->_lei_store(1)->write_prepare($self);
-	}
-	$self->{l2m} and $self->{l2m}->{-wq_nr_workers} = $mj // do {
-		$mj = POSIX::lround($nproc * 3 / 4); # keep some CPU for git
-		$mj <= 0 ? 1 : $mj;
-	};
-
 	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
 	$mset_opt{limit} //= 10000;
@@ -127,8 +132,6 @@ sub lei_q {
 			die "unrecognized --sort=$sort\n";
 		}
 	}
-	# descending docid order is cheapest, MUA controls sorting order
-	$mset_opt{relevance} //= -2 if $self->{l2m} || $opt->{threads};
 	$self->{mset_opt} = \%mset_opt;
 
 	if ($opt->{stdin}) {
