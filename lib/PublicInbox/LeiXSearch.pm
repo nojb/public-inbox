@@ -149,22 +149,38 @@ sub query_one_mset { # for --threads and l2m w/o sort
 	local $0 = "$0 query_one_mset";
 	my $lei = $self->{lei};
 	my ($srch, $over) = ($ibxish->search, $ibxish->over);
-	my $desc = $ibxish->{inboxdir} // $ibxish->{topdir};
-	return warn("$desc not indexed by Xapian\n") unless ($srch && $over);
-	my $mo = { %{$lei->{mset_opt}} };
+	my $dir = $ibxish->{inboxdir} // $ibxish->{topdir};
+	return warn("$dir not indexed by Xapian\n") unless ($srch && $over);
+	my $mo = { %{$lei->{mset_opt}} }; # copy
 	my $mset;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	my $can_kw = !!$ibxish->can('msg_keywords');
 	my $threads = $lei->{opt}->{threads} // 0;
 	my $fl = $threads > 1 ? 1 : undef;
+	my $lss = $lei->{dedupe};
+	$lss = undef unless $lss && $lss->can('cfg_set'); # saved search
+	my $maxk = "external.$dir.maxuid";
+	my $stop_at = $lss ? $lss->{-cfg}->{$maxk} : undef;
+	if (defined $stop_at) {
+		die "$maxk=$stop_at has multiple values" if ref $stop_at;
+		my @e;
+		local $SIG{__WARN__} = sub { push @e, @_ };
+		$stop_at += 0;
+		return warn("$maxk=$stop_at: @e") if @e;
+	}
+	my $first_ids;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
-		mset_progress($lei, $desc, $mset->size,
+		mset_progress($lei, $dir, $mset->size,
 				$mset->get_matches_estimated);
 		wait_startq($lei); # wait for keyword updates
 		my $ids = $srch->mset_to_artnums($mset, $mo);
+		@$ids = grep { $_ > $stop_at } @$ids if defined($stop_at);
 		my $i = 0;
 		if ($threads) {
+			# copy $ids if $lss since over->expand_thread
+			# shifts @{$ctx->{ids}}
+			$first_ids = [ @$ids ] if $lss;
 			my $ctx = { ids => $ids };
 			my %n2item = map { ($ids->[$i++], $_) } $mset->items;
 			while ($over->expand_thread($ctx)) {
@@ -183,6 +199,7 @@ sub query_one_mset { # for --threads and l2m w/o sort
 				@{$ctx->{xids}} = ();
 			}
 		} else {
+			$first_ids = $ids;
 			my @items = $mset->items;
 			for my $n (@$ids) {
 				my $mitem = $items[$i++];
@@ -193,6 +210,12 @@ sub query_one_mset { # for --threads and l2m w/o sort
 			}
 		}
 	} while (_mset_more($mset, $mo));
+	if ($lss && scalar(@$first_ids)) {
+		undef $stop_at;
+		my $max = $first_ids->[0];
+		$lss->cfg_set($maxk, $max);
+		undef $lss;
+	}
 	undef $each_smsg; # may commit
 	$lei->{ovv}->ovv_atexit_child($lei);
 }

@@ -201,6 +201,7 @@ lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiP2q.pm
 lib/PublicInbox/LeiQuery.pm
 lib/PublicInbox/LeiRemote.pm
+lib/PublicInbox/LeiSavedSearch.pm
 lib/PublicInbox/LeiSearch.pm
 lib/PublicInbox/LeiStore.pm
 lib/PublicInbox/LeiStoreErr.pm
@@ -393,12 +394,14 @@ t/lei-mirror.t
 t/lei-p2q.t
 t/lei-q-kw.t
 t/lei-q-remote-import.t
+t/lei-q-save.t
 t/lei-q-thread.t
 t/lei-tag.t
 t/lei.t
 t/lei_dedupe.t
 t/lei_external.t
 t/lei_overview.t
+t/lei_saved_search.t
 t/lei_store.t
 t/lei_to_mail.t
 t/lei_xsearch.t

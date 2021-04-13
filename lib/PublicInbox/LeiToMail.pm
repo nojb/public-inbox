@@ -9,7 +9,6 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
 use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(spawn);
-use PublicInbox::LeiDedupe;
 use PublicInbox::PktOp qw(pkt_do);
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
@@ -350,7 +349,11 @@ sub new {
 		die "bad mail --format=$fmt\n";
 	}
 	$self->{dst} = $dst;
-	$lei->{dedupe} = PublicInbox::LeiDedupe->new($lei);
+	my $dd_cls = 'PublicInbox::'.
+		($lei->{opt}->{save} ? 'LeiSavedSearch' : 'LeiDedupe');
+	eval "require $dd_cls";
+	die "$dd_cls: $@" if $@;
+	$lei->{dedupe} = $dd_cls->new($lei);
 	$self;
 }
 
@@ -368,6 +371,7 @@ sub _pre_augment_maildir {
 
 sub _do_augment_maildir {
 	my ($self, $lei) = @_;
+	return if defined($lei->{opt}->{save});
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	my $mdr = PublicInbox::MdirReader->new;
@@ -398,6 +402,7 @@ sub _imap_augment_or_delete { # PublicInbox::NetReader::imap_each cb
 
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
+	return if defined($lei->{opt}->{save});
 	my $net = $lei->{net};
 	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	if ($lei->{opt}->{augment}) {
@@ -468,6 +473,7 @@ sub _do_augment_mbox {
 	my ($self, $lei) = @_;
 	return unless $self->{seekable};
 	my $opt = $lei->{opt};
+	return if defined($opt->{save});
 	my $out = $lei->{1};
 	my ($fmt, $dst) = @{$lei->{ovv}}{qw(fmt dst)};
 	return unless -s $out;
