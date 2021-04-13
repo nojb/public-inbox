@@ -12,7 +12,7 @@ sub prep_ext { # externals_each callback
 	$lxs->prepare_external($loc) unless $exclude->{$loc};
 }
 
-sub _start_query {
+sub _start_query { # used by "lei q" and "lei up"
 	my ($self) = @_;
 	PublicInbox::LeiOverview->new($self) or return;
 	my $opt = $self->{opt};

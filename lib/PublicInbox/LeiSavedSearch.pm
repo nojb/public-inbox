@@ -17,18 +17,12 @@ use PublicInbox::Hval qw(to_filename);
 sub new {
 	my ($cls, $lei, $dir) = @_;
 	my $self = bless { ale => $lei->ale, -cfg => {} }, $cls;
-	if (defined $dir) { # updating existing saved search
+	if (defined $dir) { # updating existing saved search via "lei up"
 		my $f = $self->{'-f'} = "$dir/lei.saved-search";
 		-f $f && -r _ or
 			return $lei->fail("$f non-existent or unreadable");
 		$self->{-cfg} = PublicInbox::Config::git_config_dump($f);
-		my $q = $lei->{mset_opt}->{q_raw} = $self->{-cfg}->{'lei.q'} //
-					return $lei->fail("lei.q unset in $f");
-		my $lse = $lei->{lse} // die 'BUG: {lse} missing';
-		$lei->{mset_opt}->{qstr} = ref($q) ?
-				$lse->query_argv_to_string($lse->git, $q) :
-				$lse->query_approxidate($lse->git, $q);
-	} else { # new saved search
+	} else { # new saved search "lei q --save"
 		my $saved_dir = $lei->store_path . '/../saved-searches/';
 		my (@name) = ($lei->{ovv}->{dst} =~ m{([\w\-\.]+)/*\z});
 		push @name, to_filename($lei->{mset_opt}->{qstr});
@@ -41,6 +35,20 @@ sub new {
 			cfg_set($self, '--add', 'lei.q', $_) for @$q;
 		} else {
 			cfg_set($self, 'lei.q', $q);
+		}
+		my $fmt = $lei->{opt}->{'format'};
+		cfg_set($self, 'lei.q.format', $fmt) if defined $fmt;
+		cfg_set($self, 'lei.q.output', $lei->{opt}->{output});
+		for my $k (qw(only include exclude)) {
+			my $ary = $lei->{opt}->{$k} // next;
+			for my $x (@$ary) {
+				cfg_set($self, '--add', "lei.q.$k", $x);
+			}
+		}
+		for my $k (qw(external local remote import-remote
+				import-before threads)) {
+			my $val = $lei->{opt}->{$k} // next;
+			cfg_set($self, "lei.q.$k", $val);
 		}
 	}
 	bless $self->{-cfg}, 'PublicInbox::Config';

@@ -349,11 +349,13 @@ sub new {
 		die "bad mail --format=$fmt\n";
 	}
 	$self->{dst} = $dst;
-	my $dd_cls = 'PublicInbox::'.
-		($lei->{opt}->{save} ? 'LeiSavedSearch' : 'LeiDedupe');
-	eval "require $dd_cls";
-	die "$dd_cls: $@" if $@;
-	$lei->{dedupe} = $dd_cls->new($lei);
+	$lei->{dedupe} = $lei->{lss} // do {
+		my $dd_cls = 'PublicInbox::'.
+			($lei->{opt}->{save} ? 'LeiSavedSearch' : 'LeiDedupe');
+		eval "require $dd_cls";
+		die "$dd_cls: $@" if $@;
+		$dd_cls->new($lei);
+	};
 	$self;
 }
 

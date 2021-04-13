@@ -208,6 +208,7 @@ lib/PublicInbox/LeiStoreErr.pm
 lib/PublicInbox/LeiSucks.pm
 lib/PublicInbox/LeiTag.pm
 lib/PublicInbox/LeiToMail.pm
+lib/PublicInbox/LeiUp.pm
 lib/PublicInbox/LeiXSearch.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
