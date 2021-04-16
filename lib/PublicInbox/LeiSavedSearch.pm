@@ -13,24 +13,39 @@ use PublicInbox::Spawn qw(run_die);
 use PublicInbox::ContentHash qw(git_sha);
 use Digest::SHA qw(sha256_hex);
 
+sub lss_dir_for ($$) {
+	my ($lei, $dstref) = @_;
+	my @n;
+	if ($$dstref =~ m,\Aimaps?://,i) { # already canonicalized
+		require PublicInbox::URIimap;
+		my $uri = PublicInbox::URIimap->new($$dstref)->canonical;
+		$$dstref = $$uri;
+		@n = ($uri->mailbox);
+	} else { # basename
+		@n = ($$dstref =~ m{([\w\-\.]+)/*\z});
+		$$dstref = $lei->rel2abs($$dstref);
+	}
+	push @n, sha256_hex($$dstref);
+	$lei->share_path . '/saved-searches/' . join('-', @n);
+}
+
 sub new {
 	my ($cls, $lei, $dir) = @_;
-	my $self = bless { ale => $lei->ale, -cfg => {} }, $cls;
+	my $self = bless { ale => $lei->ale }, $cls;
 	if (defined $dir) { # updating existing saved search via "lei up"
-		my $f = $self->{'-f'} = "$dir/lei.saved-search";
-		-f $f && -r _ or
+		my $f = "$dir/lei.saved-search";
+		((-f $f && -r _) || output2lssdir($self, $lei, \$dir, \$f)) or
 			return $lei->fail("$f non-existent or unreadable");
-		$self->{-cfg} = PublicInbox::Config::git_config_dump($f);
+		$self->{-cfg} //= PublicInbox::Config::git_config_dump($f);
+		$self->{'-f'} = $f;
 	} else { # new saved search "lei q --save"
-		my $saved_dir = $lei->share_path . '/saved-searches/';
-		my (@n) = ($lei->{ovv}->{dst} =~ m{([\w\-\.]+)/*\z});
-		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
-		push @n, sha256_hex("$lei->{ovv}->{fmt}\0$lei->{ovv}->{dst}");
-
-		$dir = $saved_dir . join('-', @n);
+		my $dst = $lei->{ovv}->{dst};
+		$dir = lss_dir_for($lei, \$dst);
 		require File::Path;
 		File::Path::make_path($dir); # raises on error
+		$self->{-cfg} = {};
 		$self->{'-f'} = "$dir/lei.saved-search";
+		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
 		if (ref $q) {
 			cfg_set($self, '--add', 'lei.q', $_) for @$q;
 		} else {
@@ -38,7 +53,8 @@ sub new {
 		}
 		my $fmt = $lei->{opt}->{'format'};
 		cfg_set($self, 'lei.q.format', $fmt) if defined $fmt;
-		cfg_set($self, 'lei.q.output', $lei->{opt}->{output});
+		$dst = "$lei->{ovv}->{fmt}:$dst" if $dst !~ m!\Aimaps?://!i;
+		cfg_set($self, 'lei.q.output', $dst);
 		for my $k (qw(only include exclude)) {
 			my $ary = $lei->{opt}->{$k} // next;
 			for my $x (@$ary) {
@@ -127,6 +143,23 @@ sub mm { undef }
 sub altid_map { {} }
 
 sub cloneurl { [] }
+
+# find existing directory containing a `lei.saved-search' file based on
+# $dir_ref which is an output
+sub output2lssdir {
+	my ($self, $lei, $dir_ref, $fn_ref) = @_;
+	my $dst = $$dir_ref; # imap://$MAILBOX, /path/to/maildir, /path/to/mbox
+	my $dir = lss_dir_for($lei, \$dst);
+	my $f = "$dir/lei.saved-search";
+	if (-f $f && -r _) {
+		$self->{-cfg} = PublicInbox::Config::git_config_dump($f);
+		$$dir_ref = $dir;
+		$$fn_ref = $f;
+		return 1;
+	}
+	undef;
+}
+
 no warnings 'once';
 *nntp_url = \&cloneurl;
 *base_url = \&PublicInbox::Inbox::base_url;

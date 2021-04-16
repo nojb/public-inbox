@@ -7,6 +7,8 @@ my $doc1 = eml_load('t/plack-qp.eml');
 $doc1->header_set('Date', PublicInbox::Smsg::date({ds => time - (86400 * 5)}));
 my $doc2 = eml_load('t/utf8.eml');
 $doc2->header_set('Date', PublicInbox::Smsg::date({ds => time - (86400 * 4)}));
+my $doc3 = eml_load('t/msg_iter-order.eml');
+$doc3->header_set('Date', PublicInbox::Smsg::date({ds => time - (86400 * 4)}));
 
 test_lei(sub {
 	my $home = $ENV{HOME};
@@ -38,5 +40,14 @@ test_lei(sub {
 	$cfg = PublicInbox::Config->new("$s[0]/lei.saved-search");
 	is_deeply $cfg->{'lei.q'}, 'd:last.week..',
 		'q --stdin stores relative time';
+	my $size = -s "$home/mbcl2";
+	ok(defined($size) && $size > 0, 'results written');
+	lei_ok([qw(up mbcl2)], undef, { -C => $home, %$lei_opt });
+	is(-s "$home/mbcl2", $size, 'size unchanged on noop up');
+
+	$in = $doc3->as_string;
+	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
+	lei_ok([qw(up mbcl2)], undef, { -C => $home, %$lei_opt });
+	ok(-s "$home/mbcl2" > $size, 'size increased after up');
 });
 done_testing;
