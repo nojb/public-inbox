@@ -143,7 +143,7 @@ no query allowed on command-line with --stdin
 		PublicInbox::InputPipe::consume($self->{0}, \&qstr_add, $self);
 		return;
 	}
-	$mset_opt{q_raw} = \@argv;
+	$mset_opt{q_raw} = [ @argv ]; # copy
 	$mset_opt{qstr} =
 		$self->{lse}->query_argv_to_string($self->{lse}->git, \@argv);
 	_start_query($self);

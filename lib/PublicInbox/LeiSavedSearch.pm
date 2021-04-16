@@ -25,12 +25,13 @@ sub new {
 	} else { # new saved search "lei q --save"
 		my $saved_dir = $lei->store_path . '/../saved-searches/';
 		my (@name) = ($lei->{ovv}->{dst} =~ m{([\w\-\.]+)/*\z});
-		push @name, to_filename($lei->{mset_opt}->{qstr});
+		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
+		my $q_raw_str = ref($q) ? "@$q" : $q;
+		push @name, to_filename($q_raw_str);
 		$dir = $saved_dir . join('-', @name);
 		require File::Path;
 		File::Path::make_path($dir); # raises on error
 		$self->{'-f'} = "$dir/lei.saved-search";
-		my $q = $lei->{mset_opt}->{q_raw};
 		if (ref $q) {
 			cfg_set($self, '--add', 'lei.q', $_) for @$q;
 		} else {
