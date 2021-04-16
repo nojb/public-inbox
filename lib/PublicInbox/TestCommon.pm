@@ -290,6 +290,10 @@ sub run_script ($;$$) {
 		# spawn an independent new process, like real-world use cases:
 		require PublicInbox::Spawn;
 		my $cmd = [ key2script($key), @argv ];
+		if (my $d = $opt->{'-C'}) {
+			$cmd->[0] = File::Spec->rel2abs($cmd->[0]);
+			$spawn_opt->{'-C'} = $d;
+		}
 		my $pid = PublicInbox::Spawn::spawn($cmd, $env, $spawn_opt);
 		if (defined $pid) {
 			my $r = waitpid($pid, 0) // die "waitpid: $!";
@@ -302,8 +306,14 @@ sub run_script ($;$$) {
 		local %SIG = %SIG;
 		local $0 = join(' ', @$cmd);
 		my $orig_io = _prepare_redirects($fhref);
+		my $cwdfh;
+		if (my $d = $opt->{'-C'}) {
+			opendir $cwdfh, '.' or die "opendir .: $!";
+			chdir $d or die "chdir $d: $!";
+		}
 		_run_sub($sub, $key, \@argv);
 		eval { PublicInbox::Inbox::cleanup_task() };
+		die "chdir(restore): $!" if $cwdfh && !chdir($cwdfh);
 		_undo_redirects($orig_io);
 		select STDOUT;
 	}
