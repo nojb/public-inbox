@@ -24,7 +24,6 @@ sub lei_up {
 	}
 	$lei->{opt}->{output} = $lss->{-cfg}->{'lei.q.output'} //
 		return $lei->fail("lei.q.output unset in $lss->{-f}");
-	$lei->{opt}->{'format'} //= $lss->{-cfg}->{'lei.q.format'}; # optional
 
 	my $to_avref = $lss->{-cfg}->can('_array');
 	for my $k (qw(only include exclude)) {

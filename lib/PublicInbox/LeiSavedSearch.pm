@@ -51,8 +51,6 @@ sub new {
 		} else {
 			cfg_set($self, 'lei.q', $q);
 		}
-		my $fmt = $lei->{opt}->{'format'};
-		cfg_set($self, 'lei.q.format', $fmt) if defined $fmt;
 		$dst = "$lei->{ovv}->{fmt}:$dst" if $dst !~ m!\Aimaps?://!i;
 		cfg_set($self, 'lei.q.output', $dst);
 		for my $k (qw(only include exclude)) {
