@@ -561,9 +561,9 @@ SKIP: {
 	is(strftime('%Y-%m-%d', gmtime($1//0)), '2010-10-02', 'rt: end expand');
 	$q = $s->query_argv_to_string($g, [qw(something dt:2010-10-02..)]);
 	like($q, qr/\Asomething dt:20101002\d{6}\.\./, 'dt: expansion');
-	$q = $s->query_argv_to_string($g, [qw(x d:yesterday.. y)]);
-	is($q, strftime('x d:%Y%m%d.. y', gmtime(time - 86400)),
-		'"yesterday" handled');
+	$q = $s->query_argv_to_string($g, [qw(x dt:yesterday.. y)]);
+	my $exp = strftime('%Y%m%d', gmtime(time - 86400));
+	like($q, qr/x dt:$exp[0-9]{6}\.\. y/, '"yesterday" handled');
 	$q = $s->query_argv_to_string($g, [qw(x dt:20101002054123)]);
 	is($q, 'x dt:20101002054123..20101003054123', 'single dt: expanded');
 	$q = $s->query_argv_to_string($g, [qw(x dt:2010-10-02T05:41:23Z)]);
@@ -627,7 +627,13 @@ SKIP: {
 	my $x_days_ago = strftime('%Y%m%d', gmtime(time - (5 * 86400)));
 	$orig = $qs = qq[broken d:5.days.ago..];
 	$s->query_approxidate($g, $qs);
-	is($qs, qq[broken d:$x_days_ago..], 'date.phrase.with.dots');
+	like($qs, qr/\Abroken dt:$x_days_ago[0-9]{6}\.\./,
+		'date.phrase.with.dots');
+
+	$orig = $qs = 'd:20101002..now';
+	$s->query_approxidate($g, $qs);
+	like($qs, qr/\Adt:20101002000000\.\.[0-9]{14}\z/,
+		'approxidate on range-end only');
 
 	$ENV{TEST_EXPENSIVE} or
 		skip 'TEST_EXPENSIVE not set for argv overflow check', 1;

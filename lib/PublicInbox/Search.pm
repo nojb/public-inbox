@@ -275,7 +275,9 @@ sub date_parse_prepare {
 
 	# expand "d:20101002" => "d:20101002..20101003" and like
 	# n.b. git doesn't do YYYYMMDD w/o '-', it needs YYYY-MM-DD
+	# We upgrade "d:" to "dt:" to iff using approxidate
 	if ($pfx eq 'd') {
+		my $fmt = "\0%Y%m%d";
 		if (!defined($r[1])) {
 			if ($r[0] =~ /\A([0-9]{4})([0-9]{2})([0-9]{2})\z/) {
 				push @$to_parse, "$1-$2-$3";
@@ -283,14 +285,27 @@ sub date_parse_prepare {
 				# to parse anyways for "d+" below
 			} else {
 				push @$to_parse, $r[0];
+				if ($r[0] !~ /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/) {
+					$pfx = 'dt';
+					$fmt = "\0%Y%m%d%H%M%S";
+				}
 			}
-			$r[0] = "\0%Y%m%d$#$to_parse\0";
-			$r[1] = "\0%Y%m%d+\0";
+			$r[0] = "$fmt+$#$to_parse\0";
+			$r[1] = "$fmt+\0";
 		} else {
 			for my $x (@r) {
 				next if $x eq '' || $x =~ /\A[0-9]{8}\z/;
 				push @$to_parse, $x;
-				$x = "\0%Y%m%d$#$to_parse\0";
+				if ($x !~ /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/) {
+					$pfx = 'dt';
+				}
+				$x = "$fmt$#$to_parse\0";
+			}
+			if ($pfx eq 'dt') {
+				for (@r) {
+					s/\0%Y%m%d/\0%Y%m%d%H%M%S/;
+					s/\A([0-9]{8})\z/${1}000000/;
+				}
 			}
 		}
 	} elsif ($pfx eq 'dt') {
