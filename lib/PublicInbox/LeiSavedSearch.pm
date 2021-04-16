@@ -23,7 +23,7 @@ sub new {
 			return $lei->fail("$f non-existent or unreadable");
 		$self->{-cfg} = PublicInbox::Config::git_config_dump($f);
 	} else { # new saved search "lei q --save"
-		my $saved_dir = $lei->store_path . '/../saved-searches/';
+		my $saved_dir = $lei->share_path . '/saved-searches/';
 		my (@name) = ($lei->{ovv}->{dst} =~ m{([\w\-\.]+)/*\z});
 		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
 		my $q_raw_str = ref($q) ? "@$q" : $q;

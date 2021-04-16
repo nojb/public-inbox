@@ -83,12 +83,14 @@ sub rel2abs ($$) {
 	File::Spec->rel2abs($p, $pwd);
 }
 
-sub store_path ($) {
+sub share_path ($) { # $HOME/.local/share/lei/$FOO
 	my ($self) = @_;
 	rel2abs($self, ($self->{env}->{XDG_DATA_HOME} //
 		($self->{env}->{HOME} // '/nonexistent').'/.local/share')
-		.'/lei/store');
+		.'/lei');
 }
+
+sub store_path ($) { share_path($_[0]) . '/store' }
 
 sub _config_path ($) {
 	my ($self) = @_;
