@@ -68,18 +68,19 @@ sub rel2abs ($$) {
 	my ($self, $p) = @_;
 	return $p if index($p, '/') == 0; # already absolute
 	my $pwd = $self->{env}->{PWD};
+	my $cwd;
 	if (defined $pwd) {
-		my $cwd = $self->{3} // getcwd() // die "getcwd(PWD=$pwd): $!";
+		my $xcwd = $self->{3} //
+			($cwd = getcwd() // die "getcwd(PWD=$pwd): $!");
 		if (my @st_pwd = stat($pwd)) {
-			my @st_cwd = stat($cwd) or die "stat($cwd): $!";
+			my @st_cwd = stat($xcwd) or die "stat($xcwd): $!";
 			"@st_pwd[1,0]" eq "@st_cwd[1,0]" or
-				$self->{env}->{PWD} = $pwd = $cwd;
+				$self->{env}->{PWD} = $pwd = undef;
 		} else { # PWD was invalid
-			delete $self->{env}->{PWD};
-			undef $pwd;
+			$self->{env}->{PWD} = $pwd = undef;
 		}
 	}
-	$pwd //= $self->{env}->{PWD} = getcwd() // die "getcwd(PWD=$pwd): $!";
+	$pwd //= $self->{env}->{PWD} = $cwd // getcwd() // die "getcwd: $!";
 	File::Spec->rel2abs($p, $pwd);
 }
 
