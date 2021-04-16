@@ -10,9 +10,8 @@ use PublicInbox::OverIdx;
 use PublicInbox::LeiSearch;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(run_die);
-use PublicInbox::ContentHash qw(content_hash git_sha);
-use PublicInbox::Eml;
-use PublicInbox::Hval qw(to_filename);
+use PublicInbox::ContentHash qw(git_sha);
+use Digest::SHA qw(sha256_hex);
 
 sub new {
 	my ($cls, $lei, $dir) = @_;
@@ -24,11 +23,11 @@ sub new {
 		$self->{-cfg} = PublicInbox::Config::git_config_dump($f);
 	} else { # new saved search "lei q --save"
 		my $saved_dir = $lei->share_path . '/saved-searches/';
-		my (@name) = ($lei->{ovv}->{dst} =~ m{([\w\-\.]+)/*\z});
+		my (@n) = ($lei->{ovv}->{dst} =~ m{([\w\-\.]+)/*\z});
 		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
-		my $q_raw_str = ref($q) ? "@$q" : $q;
-		push @name, to_filename($q_raw_str);
-		$dir = $saved_dir . join('-', @name);
+		push @n, sha256_hex("$lei->{ovv}->{fmt}\0$lei->{ovv}->{dst}");
+
+		$dir = $saved_dir . join('-', @n);
 		require File::Path;
 		File::Path::make_path($dir); # raises on error
 		$self->{'-f'} = "$dir/lei.saved-search";
