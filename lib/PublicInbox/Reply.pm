@@ -9,15 +9,9 @@ use URI::Escape qw/uri_escape_utf8/;
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
 use PublicInbox::Address;
 use PublicInbox::MID qw(mid_clean);
+use PublicInbox::Config;
 
-sub squote_maybe ($) {
-	my ($val) = @_;
-	if ($val =~ m{([^\w@\./,\%\+\-])}) {
-		$val =~ s/(['!])/'\\$1'/g; # '!' for csh
-		return "'$val'";
-	}
-	$val;
-}
+*squote_maybe = \&PublicInbox::Config::squote_maybe;
 
 sub add_addrs {
 	my ($to, $cc, @addrs) = @_;

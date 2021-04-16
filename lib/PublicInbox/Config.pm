@@ -559,4 +559,13 @@ sub json {
 	};
 }
 
+sub squote_maybe ($) {
+	my ($val) = @_;
+	if ($val =~ m{([^\w@\./,\%\+\-])}) {
+		$val =~ s/(['!])/'\\$1'/g; # '!' for csh
+		return "'$val'";
+	}
+	$val;
+}
+
 1;

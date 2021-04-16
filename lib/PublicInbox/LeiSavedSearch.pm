@@ -13,6 +13,8 @@ use PublicInbox::Spawn qw(run_die);
 use PublicInbox::ContentHash qw(git_sha);
 use Digest::SHA qw(sha256_hex);
 
+*squote_maybe = \&PublicInbox::Config::squote_maybe;
+
 sub lss_dir_for ($$) {
 	my ($lei, $dstref) = @_;
 	my @n;
@@ -44,7 +46,13 @@ sub new {
 		require File::Path;
 		File::Path::make_path($dir); # raises on error
 		$self->{-cfg} = {};
-		$self->{'-f'} = "$dir/lei.saved-search";
+		my $f = $self->{'-f'} = "$dir/lei.saved-search";
+		open my $fh, '>', $f or return $lei->fail("open $f: $!");
+		my $sq_dst = squote_maybe($dst);
+		print $fh <<EOM or return $lei->fail("print $f: $!");
+; to refresh with new results, run: lei up $sq_dst
+EOM
+		close $fh or return $lei->fail("close $f: $!");
 		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
 		if (ref $q) {
 			cfg_set($self, '--add', 'lei.q', $_) for @$q;
