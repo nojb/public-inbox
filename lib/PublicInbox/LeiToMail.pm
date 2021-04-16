@@ -335,14 +335,16 @@ sub new {
 		$self->{base_type} = 'mbox';
 	} elsif ($fmt =~ /\Aimaps?\z/) { # TODO .onion support
 		require PublicInbox::NetWriter;
+		require PublicInbox::URIimap;
 		my $net = PublicInbox::NetWriter->new;
-		$net->add_url($dst);
 		$net->{quiet} = $lei->{opt}->{quiet};
-		my $err = $net->errors($dst);
+		my $uri = PublicInbox::URIimap->new($dst)->canonical;
+		$net->add_url($uri);
+		my $err = $net->errors;
 		return $lei->fail($err) if $err;
-		require PublicInbox::URIimap; # TODO: URI cast early
-		$self->{uri} = PublicInbox::URIimap->new($dst);
-		$self->{uri}->mailbox or die "No mailbox: $dst";
+		$uri->mailbox or return $lei->fail("No mailbox: $dst");
+		$self->{uri} = $uri;
+		$dst = $lei->{ovv}->{dst} = $$uri; # canonicalized
 		$lei->{net} = $net;
 		$self->{base_type} = 'imap';
 	} else {
