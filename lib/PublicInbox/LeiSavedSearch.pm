@@ -26,18 +26,21 @@ sub lss_dir_for ($$) {
 	} else { # basename
 		@n = ($$dstref =~ m{([\w\-\.]+)/*\z});
 		$$dstref = $lei->rel2abs($$dstref);
+		$$dstref .= '/' if -d $$dstref;
 	}
 	push @n, sha256_hex($$dstref);
 	$lei->share_path . '/saved-searches/' . join('-', @n);
 }
 
 sub new {
-	my ($cls, $lei, $dir) = @_;
+	my ($cls, $lei, $dst) = @_;
 	my $self = bless { ale => $lei->ale }, $cls;
-	if (defined $dir) { # updating existing saved search via "lei up"
-		my $f = "$dir/lei.saved-search";
-		((-f $f && -r _) || output2lssdir($self, $lei, \$dir, \$f)) or
-			return $lei->fail("$f non-existent or unreadable");
+	my $dir;
+	if (defined $dst) { # updating existing saved search via "lei up"
+		my $f;
+		$dir = $dst;
+		output2lssdir($self, $lei, \$dir, \$f) or
+			return $lei->fail("--save was not used with $dst");
 		$self->{-cfg} //= PublicInbox::Config::git_config_dump($f);
 		$self->{'-f'} = $f;
 	} else { # new saved search "lei q --save"

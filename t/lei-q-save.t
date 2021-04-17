@@ -27,7 +27,9 @@ test_lei(sub {
 	# ensure "lei up" works, since it compliments "lei q --save"
 	$in = $doc2->as_string;
 	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
-	lei_ok qw(up -q), $s[0];
+	opendir my $dh, '.' or xbail "opendir .: $!";
+	lei_ok qw(up -q md -C), $home;
+	chdir($dh) or xbail "fchdir . $!";
 	my %after = map { $_ => 1 } glob("$home/md/cur/*");
 	is(delete $after{(keys(%before))[0]}, 1, 'original message kept');
 	is(scalar(keys %after), 1, 'one new message added');
