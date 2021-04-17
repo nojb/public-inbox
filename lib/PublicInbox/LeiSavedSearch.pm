@@ -15,6 +15,14 @@ use Digest::SHA qw(sha256_hex);
 
 *squote_maybe = \&PublicInbox::Config::squote_maybe;
 
+# move this to PublicInbox::Config if other things use it:
+my %cquote = ("\n" => '\\n', "\t" => '\\t', "\b" => '\\b');
+sub cquote_val ($) { # cf. git-config(1)
+	my ($val) = @_;
+	$val =~ s/([\n\t\b])/$cquote{$1}/g;
+	$val;
+}
+
 sub lss_dir_for ($$) {
 	my ($lei, $dstref) = @_;
 	my @n;
@@ -54,29 +62,32 @@ sub new {
 		my $f = $self->{'-f'} = "$dir/lei.saved-search";
 		open my $fh, '>', $f or return $lei->fail("open $f: $!");
 		my $sq_dst = squote_maybe($dst);
-		print $fh <<EOM or return $lei->fail("print $f: $!");
-; to refresh with new results, run: lei up $sq_dst
-EOM
-		close $fh or return $lei->fail("close $f: $!");
 		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
 		if (ref $q) {
-			cfg_set($self, '--add', 'lei.q', $_) for @$q;
+			$q = join("\n", map { "\tq = ".cquote_val($_) } @$q);
 		} else {
-			cfg_set($self, 'lei.q', $q);
+			$q = "\tq = ".cquote_val($q);
 		}
 		$dst = "$lei->{ovv}->{fmt}:$dst" if $dst !~ m!\Aimaps?://!i;
-		cfg_set($self, 'lei.q.output', $dst);
+		print $fh <<EOM;
+; to refresh with new results, run: lei up $sq_dst
+[lei]
+$q
+[lei "q"]
+	output = $dst
+EOM
 		for my $k (qw(only include exclude)) {
 			my $ary = $lei->{opt}->{$k} // next;
 			for my $x (@$ary) {
-				cfg_set($self, '--add', "lei.q.$k", $x);
+				print $fh "\t$k = ".cquote_val($x)."\n";
 			}
 		}
 		for my $k (qw(external local remote import-remote
 				import-before threads)) {
 			my $val = $lei->{opt}->{$k} // next;
-			cfg_set($self, "lei.q.$k", $val);
+			print $fh "\t$k = ".cquote_val($val)."\n";
 		}
+		close($fh) or return $lei->fail("close $f: $!");
 	}
 	bless $self->{-cfg}, 'PublicInbox::Config';
 	$self->{lock_path} = "$self->{-f}.flock";
@@ -86,7 +97,7 @@ EOM
 
 sub description { $_[0]->{qstr} } # for WWW
 
-sub cfg_set {
+sub cfg_set { # called by LeiXSearch
 	my ($self, @args) = @_;
 	my $lk = $self->lock_for_scope; # git-config doesn't wait
 	run_die([qw(git config -f), $self->{'-f'}, @args]);
