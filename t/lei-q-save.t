@@ -29,6 +29,8 @@ test_lei(sub {
 	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
 	opendir my $dh, '.' or xbail "opendir .: $!";
 	lei_ok qw(up -q md -C), $home;
+	lei_ok qw(up -q . -C), "$home/md";
+	lei_ok qw(up -q), "/$home/md";
 	chdir($dh) or xbail "fchdir . $!";
 	my %after = map { $_ => 1 } glob("$home/md/cur/*");
 	is(delete $after{(keys(%before))[0]}, 1, 'original message kept');
@@ -51,5 +53,7 @@ test_lei(sub {
 	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
 	lei_ok([qw(up mbcl2)], undef, { -C => $home, %$lei_opt });
 	ok(-s "$home/mbcl2" > $size, 'size increased after up');
+
+	ok(!lei(qw(up -q), $home), 'up fails w/o --save');
 });
 done_testing;

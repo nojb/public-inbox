@@ -24,9 +24,10 @@ sub lss_dir_for ($$) {
 		$$dstref = $$uri;
 		@n = ($uri->mailbox);
 	} else { # basename
-		@n = ($$dstref =~ m{([\w\-\.]+)/*\z});
 		$$dstref = $lei->rel2abs($$dstref);
 		$$dstref .= '/' if -d $$dstref;
+		$$dstref =~ tr!/!/!s;
+		@n = ($$dstref =~ m{([^/]+)/*\z});
 	}
 	push @n, sha256_hex($$dstref);
 	$lei->share_path . '/saved-searches/' . join('-', @n);
@@ -40,7 +41,8 @@ sub new {
 		my $f;
 		$dir = $dst;
 		output2lssdir($self, $lei, \$dir, \$f) or
-			return $lei->fail("--save was not used with $dst");
+			return $lei->fail("--save was not used with $dst cwd=".
+						$lei->rel2abs('.'));
 		$self->{-cfg} //= PublicInbox::Config::git_config_dump($f);
 		$self->{'-f'} = $f;
 	} else { # new saved search "lei q --save"
