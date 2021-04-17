@@ -33,6 +33,9 @@ my $exec_cmd = sub {
 		push @rdr, shift(@old), $newfh;
 	}
 	my $do_exec = sub {
+		while (my ($io, $newfh) = splice(@rdr, 0, 2)) {
+			open $io, '+<&', $newfh or die "open +<&=: $!";
+		}
 		my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
 		@ENV{keys %env} = values %env;
 		exec(@argv);
@@ -42,20 +45,17 @@ my $exec_cmd = sub {
 	$SIG{CHLD} = $sigchld;
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
-		while (my ($io, $newfh) = splice(@rdr, 0, 2)) {
-			open $io, '+<&', $newfh or die "open +<&=: $!";
-		}
-		$do_exec->() if scalar(@$fds); # git-credential, pager
+		$do_exec->() if $fds->[1]; # git-credential, pager
 
 		# parent backgrounds on MUA
 		POSIX::setsid() > 0 or die "setsid: $!";
 		@parent = ($parent);
 		return; # continue $recv_cmd in background
 	}
-	if (scalar(@$fds)) {
+	if ($fds->[1]) {
 		$pids{$pid} = undef;
 	} else {
-		$do_exec->(); # MUA reuses all FDs
+		$do_exec->(); # MUA reuses stdout
 	}
 };
 

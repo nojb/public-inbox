@@ -840,11 +840,17 @@ sub start_mua {
 		@cmd = map { $_ eq '%f' ? ($replaced = $mfolder) : $_ } @cmd;
 	}
 	push @cmd, $mfolder unless defined($replaced);
-	if (my $sock = $self->{sock}) { # lei(1) client process runs it
-		send($sock, exec_buf(\@cmd, {}), MSG_EOR);
+	if ($self->{sock}) { # lei(1) client process runs it
+		# restore terminal: echo $query | lei q -stdin --mua=...
+		my $io = [];
+		$io->[0] = $self->{1} if $self->{opt}->{stdin} && -t $self->{1};
+		send_exec_cmd($self, $io, \@cmd, {});
 	} elsif ($self->{oneshot}) {
 		my $pid = fork // die "fork: $!";
 		if ($pid > 0) { # original process
+			if ($self->{opt}->{stdin} && -t STDOUT) {
+				open STDIN, '+<&', \*STDOUT or die "dup2: $!";
+			}
 			exec(@cmd);
 			warn "exec @cmd: $!\n";
 			POSIX::_exit(1);
