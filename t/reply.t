@@ -1,8 +1,9 @@
+#!perl -w
 # Copyright (C) 2017-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
 use Test::More;
+use PublicInbox::Config;
 use PublicInbox::Eml;
 use_ok 'PublicInbox::Reply';
 
@@ -15,7 +16,7 @@ my @q = (
 while (@q) {
 	my $input = shift @q;
 	my $expect = shift @q;
-	my $res = PublicInbox::Reply::squote_maybe($input);
+	my $res = PublicInbox::Config::squote_maybe($input);
 	is($res, $expect, "quote $input => $res");
 }
 

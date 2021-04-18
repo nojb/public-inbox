@@ -13,8 +13,6 @@ use PublicInbox::Spawn qw(run_die);
 use PublicInbox::ContentHash qw(git_sha);
 use Digest::SHA qw(sha256_hex);
 
-*squote_maybe = \&PublicInbox::Config::squote_maybe;
-
 # move this to PublicInbox::Config if other things use it:
 my %cquote = ("\n" => '\\n', "\t" => '\\t', "\b" => '\\b');
 sub cquote_val ($) { # cf. git-config(1)
@@ -61,7 +59,7 @@ sub new {
 		$self->{-cfg} = {};
 		my $f = $self->{'-f'} = "$dir/lei.saved-search";
 		open my $fh, '>', $f or return $lei->fail("open $f: $!");
-		my $sq_dst = squote_maybe($dst);
+		my $sq_dst = PublicInbox::Config::squote_maybe($dst);
 		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
 		if (ref $q) {
 			$q = join("\n", map { "\tq = ".cquote_val($_) } @$q);
