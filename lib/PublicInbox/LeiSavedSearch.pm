@@ -21,6 +21,11 @@ sub cquote_val ($) { # cf. git-config(1)
 	$val;
 }
 
+sub ARRAY_FIELDS () { qw(only include exclude) }
+sub BOOL_FIELDS () {
+	qw(external local remote import-remote import-before threads)
+}
+
 sub lss_dir_for ($$) {
 	my ($lei, $dstref) = @_;
 	my @n;
@@ -37,6 +42,31 @@ sub lss_dir_for ($$) {
 	}
 	push @n, sha256_hex($$dstref);
 	$lei->share_path . '/saved-searches/' . join('-', @n);
+}
+
+sub list {
+	my ($lei, $pfx) = @_;
+	my $lss_dir = $lei->share_path.'/saved-searches/';
+	return () unless -d $lss_dir;
+	# TODO: persist the cache?  Use another format?
+	my $f = $lei->cache_dir."/saved-tmp.$$.".time.'.config';
+	open my $fh, '>', $f or die "open $f: $!";
+	print $fh "[include]\n";
+	for my $p (glob("$lss_dir/*/lei.saved-search")) {
+		print $fh "\tpath = ", cquote_val($p), "\n";
+	}
+	close $fh or die "close $f: $!";
+	my $cfg = PublicInbox::Config::git_config_dump($f);
+	unlink($f);
+	bless $cfg, 'PublicInbox::Config';
+	my $out = $cfg->get_all('lei.q.output') or return ();
+	map {;
+		if (s!\A(?:maildir|mh|mbox.+|mmdf):!!i) {
+			-e $_ ? $_ : (); # TODO auto-prune somewhere?
+		} else { # IMAP, maybe JMAP
+			$_;
+		}
+	} @$out
 }
 
 sub new {
@@ -74,16 +104,15 @@ $q
 [lei "q"]
 	output = $dst
 EOM
-		for my $k (qw(only include exclude)) {
+		for my $k (ARRAY_FIELDS) {
 			my $ary = $lei->{opt}->{$k} // next;
 			for my $x (@$ary) {
 				print $fh "\t$k = ".cquote_val($x)."\n";
 			}
 		}
-		for my $k (qw(external local remote import-remote
-				import-before threads)) {
+		for my $k (BOOL_FIELDS) {
 			my $val = $lei->{opt}->{$k} // next;
-			print $fh "\t$k = ".cquote_val($val)."\n";
+			print $fh "\t$k = ".($val ? 1 : 0)."\n";
 		}
 		close($fh) or return $lei->fail("close $f: $!");
 	}

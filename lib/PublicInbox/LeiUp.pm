@@ -42,4 +42,10 @@ sub lei_up {
 	$lei->_start_query;
 }
 
+sub _complete_up {
+	my ($lei, @argv) = @_;
+	my ($cur, $re) = $lei->complete_url_common(\@argv);
+	grep(/\A$re\Q$cur/, PublicInbox::LeiSavedSearch::list($lei));
+}
+
 1;

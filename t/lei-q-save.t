@@ -55,5 +55,17 @@ test_lei(sub {
 	ok(-s "$home/mbcl2" > $size, 'size increased after up');
 
 	ok(!lei(qw(up -q), $home), 'up fails w/o --save');
+
+	lei_ok qw(ls-search); my @d = split(/\n/, $lei_out);
+	lei_ok qw(ls-search -z); my @z = split(/\0/, $lei_out);
+	is_deeply(\@d, \@z, '-z output matches non-z');
+	is_deeply(\@d, [ "$home/mbcl2", "$home/md/" ],
+		'ls-search output alphabetically sorted');
+	lei_ok qw(ls-search -l);
+	my $json = PublicInbox::Config->json->decode($lei_out);
+	ok($json && $json->[0]->{output}, 'JSON has output');
+	lei_ok qw(_complete lei up);
+	like($lei_out, qr!^\Q$home/mbcl2\E$!sm, 'complete got mbcl2 output');
+	like($lei_out, qr!^\Q$home/md/\E$!sm, 'complete got maildir output');
 });
 done_testing;

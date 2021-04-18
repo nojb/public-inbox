@@ -157,8 +157,8 @@ our %CMD = ( # sorted in order of importance/use:
 	'exclude further results from a publicinbox|extindex',
 	qw(prune), @c_opt ],
 
-'ls-query' => [ '[FILTER...]', 'list saved search queries',
-		qw(name-only format|f=s), @c_opt ],
+'ls-search' => [ '[PREFIX]', 'list saved search queries',
+		qw(format|f=s pretty l ascii z|0), @c_opt ],
 'rm-query' => [ 'QUERY_NAME', 'remove a saved search', @c_opt ],
 'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search', @c_opt ],
 
@@ -312,7 +312,9 @@ my %OPTDESC = (
 'jobs|j=i	add-external' => 'set parallelism when indexing after --mirror',
 
 'in-format|F=s' => $stdin_formats,
-'format|f=s	ls-query' => $ls_format,
+'format|f=s	ls-search' => ['OUT|json|jsonl|concatjson',
+			'listing output format' ],
+'l	ls-search' => 'long listing format',
 'format|f=s	ls-external' => $ls_format,
 
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],
@@ -353,7 +355,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q tag sol); # internal workers
+my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q tag sol lsss); # internal workers
 
 sub _drop_wq {
 	my ($self) = @_;

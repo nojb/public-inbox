@@ -215,8 +215,8 @@ sub lei_forget_external {
 	}
 }
 
-sub _complete_url_common ($) {
-	my ($argv) = @_;
+sub complete_url_common {
+	my $argv = $_[-1];
 	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
 	# Maybe there's a better way to go about this in
 	# contrib/completion/lei-completion.bash
@@ -228,7 +228,8 @@ sub _complete_url_common ($) {
 			push @x, $cur;
 			$cur = '';
 		}
-		while (@x > 2 && $x[0] !~ /\Ahttps?\z/ && $x[1] ne ':') {
+		while (@x > 2 && $x[0] !~ /\A(?:http|nntp|imap)s?\z/i &&
+				$x[1] ne ':') {
 			shift @x;
 		}
 		if (@x >= 2) { # qw(https : hostname : 443) or qw(http :)
@@ -245,7 +246,7 @@ sub _complete_url_common ($) {
 sub _complete_forget_external {
 	my ($self, @argv) = @_;
 	my $cfg = $self->_lei_cfg;
-	my ($cur, $re) = _complete_url_common(\@argv);
+	my ($cur, $re) = complete_url_common(\@argv);
 	# FIXME: bash completion off "http:" or "https:" when the last
 	# character is a colon doesn't work properly even if we're
 	# returning "//$HTTP_HOST/$PATH_INFO/", not sure why, could
@@ -261,7 +262,7 @@ sub _complete_forget_external {
 sub _complete_add_external { # for bash, this relies on "compopt -o nospace"
 	my ($self, @argv) = @_;
 	my $cfg = $self->_lei_cfg;
-	my ($cur, $re) = _complete_url_common(\@argv);
+	my ($cur, $re) = complete_url_common(\@argv);
 	require URI;
 	map {
 		my $u = URI->new(substr($_, length('external.')));
