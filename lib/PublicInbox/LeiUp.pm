@@ -14,24 +14,27 @@ sub lei_up {
 	my $lss = PublicInbox::LeiSavedSearch->up($lei, $out) or return;
 	my $mset_opt = $lei->{mset_opt} = { relevance => -2 };
 	$mset_opt->{limit} = $lei->{opt}->{limit} // 10000;
+	my $f = $lss->{'-f'};
 	my $q = $mset_opt->{q_raw} = $lss->{-cfg}->{'lei.q'} //
-				return $lei->fail("lei.q unset in $lss->{-f}");
+				return $lei->fail("lei.q unset in $f");
 	my $lse = $lei->{lse} // die 'BUG: {lse} missing';
 	if (ref($q)) {
 		$mset_opt->{qstr} = $lse->query_argv_to_string($lse->git, $q);
 	} else {
 		$lse->query_approxidate($lse->git, $mset_opt->{qstr} = $q);
 	}
-	$lei->{opt}->{output} = $lss->{-cfg}->{'lei.q.output'} //
-		return $lei->fail("lei.q.output unset in $lss->{-f}");
-
+	my $o = $lei->{opt}->{output} = $lss->{-cfg}->{'lei.q.output'} //
+		return $lei->fail("lei.q.output unset in $f");
+	ref($o) and return $lei->fail("multiple values of lei.q.output in $f");
 	for my $k (qw(only include exclude)) {
 		my $v = $lss->{-cfg}->get_all("lei.q.$k") // next;
 		$lei->{opt}->{$k} = $v;
 	}
 	for my $k (qw(external local remote
 			import-remote import-before threads)) {
-		my $v = $lss->{-cfg}->{"lei.q.$k"} // next;
+		my $c = "lei.q.$k";
+		my $v = $lss->{-cfg}->{$c} // next;
+		ref($v) and return $lei->fail("multiple values of $c in $f");
 		$lei->{opt}->{$k} = $v;
 	}
 	$lei->{lss} = $lss; # for LeiOverview->new
