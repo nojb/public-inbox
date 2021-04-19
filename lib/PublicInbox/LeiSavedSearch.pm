@@ -182,6 +182,7 @@ sub git { $_[0]->{ale}->git }
 sub pause_dedupe {
 	my ($self) = @_;
 	$self->{ale}->git->cleanup;
+	my $lockfh = delete $self->{lockfh}; # from lock_for_scope_fast;
 	my $oidx = delete($self->{oidx}) // return;
 	$oidx->commit_lazy;
 }

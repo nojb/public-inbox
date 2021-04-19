@@ -84,6 +84,7 @@ test_lei(sub {
 	lei_ok([qw(up mbcl2)], undef, { -C => $home, %$lei_opt });
 	ok(-f "$home/mbcl2"  && -s _ == 0, 'up recreates on missing output');
 
+	# no --augment
 	open my $mb, '>', "$home/mbrd" or xbail "open $!";
 	print $mb $pre_existing;
 	close $mb or xbail "close: $!";
@@ -92,8 +93,20 @@ test_lei(sub {
 	open $mb, '<', "$home/mbrd" or xbail "open $!";
 	is_deeply([grep(/pre-existing/, <$mb>)], [],
 		'pre-existing messsage gone w/o augment');
+	close $mb;
 	lei_ok(qw(q m:import-before@example.com));
 	is(json_utf8->decode($lei_out)->[0]->{'s'},
 		'pre-existing', '--save imported before clobbering');
+
+	# --augment
+	open $mb, '>', "$home/mbrd-aug" or xbail "open $!";
+	print $mb $pre_existing;
+	close $mb or xbail "close: $!";
+	lei_ok(qw(q -a --save -o mboxrd:mbrd-aug m:qp@example.com -C), $home);
+	chdir($dh) or xbail "fchdir . $!";
+	open $mb, '<', "$home/mbrd-aug" or xbail "open $!";
+	$mb = do { local $/; <$mb> };
+	like($mb, qr/pre-existing/, 'pre-existing message preserved w/ -a');
+	like($mb, qr/<qp\@example\.com>/, 'new result written w/ -a');
 });
 done_testing;
