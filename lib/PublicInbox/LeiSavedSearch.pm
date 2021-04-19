@@ -65,52 +65,57 @@ sub list {
 	} @$out
 }
 
-sub new {
+sub up { # updating existing saved search via "lei up"
 	my ($cls, $lei, $dst) = @_;
+	my $f;
 	my $self = bless { ale => $lei->ale }, $cls;
-	my $dir;
-	if (defined $dst) { # updating existing saved search via "lei up"
-		my $f;
-		$dir = $dst;
-		output2lssdir($self, $lei, \$dir, \$f) or
-			return $lei->fail("--save was not used with $dst cwd=".
-						$lei->rel2abs('.'));
-		$self->{'-f'} = $f;
-	} else { # new saved search "lei q --save"
-		$dst = $lei->{ovv}->{dst};
-		$dir = lss_dir_for($lei, \$dst);
-		require File::Path;
-		File::Path::make_path($dir); # raises on error
-		$self->{-cfg} = {};
-		my $f = $self->{'-f'} = "$dir/lei.saved-search";
-		open my $fh, '>', $f or return $lei->fail("open $f: $!");
-		my $sq_dst = PublicInbox::Config::squote_maybe($dst);
-		my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
-		if (ref $q) {
-			$q = join("\n", map { "\tq = ".cquote_val($_) } @$q);
-		} else {
-			$q = "\tq = ".cquote_val($q);
-		}
-		$dst = "$lei->{ovv}->{fmt}:$dst" if $dst !~ m!\Aimaps?://!i;
-		print $fh <<EOM;
+	my $dir = $dst;
+	output2lssdir($self, $lei, \$dir, \$f) or
+		return $lei->fail("--save was not used with $dst cwd=".
+					$lei->rel2abs('.'));
+	$self->{-cfg} = PublicInbox::Config->git_config_dump($f);
+	$self->{-ovf} = "$dir/over.sqlite3";
+	$self->{'-f'} = $f;
+	$self->{lock_path} = "$self->{-f}.flock";
+	$self;
+}
+
+sub new { # new saved search "lei q --save"
+	my ($cls, $lei) = @_;
+	my $self = bless { ale => $lei->ale }, $cls;
+	my $dst = $lei->{ovv}->{dst};
+	my $dir = lss_dir_for($lei, \$dst);
+	require File::Path;
+	File::Path::make_path($dir); # raises on error
+	$self->{-cfg} = {};
+	my $f = $self->{'-f'} = "$dir/lei.saved-search";
+	open my $fh, '>', $f or return $lei->fail("open $f: $!");
+	my $sq_dst = PublicInbox::Config::squote_maybe($dst);
+	my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
+	if (ref $q) {
+		$q = join("\n", map { "\tq = ".cquote_val($_) } @$q);
+	} else {
+		$q = "\tq = ".cquote_val($q);
+	}
+	$dst = "$lei->{ovv}->{fmt}:$dst" if $dst !~ m!\Aimaps?://!i;
+	print $fh <<EOM;
 ; to refresh with new results, run: lei up $sq_dst
 [lei]
-$q
+	$q
 [lei "q"]
 	output = $dst
 EOM
-		for my $k (ARRAY_FIELDS) {
-			my $ary = $lei->{opt}->{$k} // next;
-			for my $x (@$ary) {
-				print $fh "\t$k = ".cquote_val($x)."\n";
-			}
+	for my $k (ARRAY_FIELDS) {
+		my $ary = $lei->{opt}->{$k} // next;
+		for my $x (@$ary) {
+			print $fh "\t$k = ".cquote_val($x)."\n";
 		}
-		for my $k (BOOL_FIELDS) {
-			my $val = $lei->{opt}->{$k} // next;
-			print $fh "\t$k = ".($val ? 1 : 0)."\n";
-		}
-		close($fh) or return $lei->fail("close $f: $!");
 	}
+	for my $k (BOOL_FIELDS) {
+		my $val = $lei->{opt}->{$k} // next;
+		print $fh "\t$k = ".($val ? 1 : 0)."\n";
+	}
+	close($fh) or return $lei->fail("close $f: $!");
 	$self->{lock_path} = "$self->{-f}.flock";
 	$self->{-ovf} = "$dir/over.sqlite3";
 	$self;

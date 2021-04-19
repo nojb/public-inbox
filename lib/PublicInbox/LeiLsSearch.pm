@@ -29,7 +29,7 @@ sub do_ls_search_long {
 	my @x = sort(grep(/\A\Q$pfx/, PublicInbox::LeiSavedSearch::list($lei)));
 	while (my $x = shift @x) {
 		$ORS = '' if !scalar(@x);
-		my $lss = PublicInbox::LeiSavedSearch->new($lei, $x) or next;
+		my $lss = PublicInbox::LeiSavedSearch->up($lei, $x) or next;
 		my $cfg = $lss->{-cfg};
 		my $ent = {
 			q => $cfg->get_all('lei.q'),

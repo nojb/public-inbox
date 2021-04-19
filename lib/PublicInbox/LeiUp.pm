@@ -11,7 +11,7 @@ use PublicInbox::LeiOverview;
 sub lei_up {
 	my ($lei, $out) = @_;
 	$lei->{lse} = $lei->_lei_store(1)->search;
-	my $lss = PublicInbox::LeiSavedSearch->new($lei, $out) or return;
+	my $lss = PublicInbox::LeiSavedSearch->up($lei, $out) or return;
 	my $mset_opt = $lei->{mset_opt} = { relevance => -2 };
 	$mset_opt->{limit} = $lei->{opt}->{limit} // 10000;
 	my $q = $mset_opt->{q_raw} = $lss->{-cfg}->{'lei.q'} //
