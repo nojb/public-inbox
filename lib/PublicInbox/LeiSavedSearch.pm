@@ -61,11 +61,8 @@ sub list {
 	bless $cfg, 'PublicInbox::Config';
 	my $out = $cfg->get_all('lei.q.output') or return ();
 	map {;
-		if (s!\A(?:maildir|mh|mbox.+|mmdf):!!i) {
-			-e $_ ? $_ : (); # TODO auto-prune somewhere?
-		} else { # IMAP, maybe JMAP
-			$_;
-		}
+		s!\A(?:maildir|mh|mbox.+|mmdf):!!i;
+		$_;
 	} @$out
 }
 

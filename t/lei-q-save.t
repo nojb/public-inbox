@@ -67,5 +67,12 @@ test_lei(sub {
 	lei_ok qw(_complete lei up);
 	like($lei_out, qr!^\Q$home/mbcl2\E$!sm, 'complete got mbcl2 output');
 	like($lei_out, qr!^\Q$home/md/\E$!sm, 'complete got maildir output');
+
+	unlink("$home/mbcl2") or xbail "unlink $!";
+	lei_ok qw(_complete lei up);
+	like($lei_out, qr!^\Q$home/mbcl2\E$!sm,
+		'mbcl2 output shown despite unlink');
+	lei_ok([qw(up mbcl2)], undef, { -C => $home, %$lei_opt });
+	ok(-f "$home/mbcl2"  && -s _ == 0, 'up recreates on missing output');
 });
 done_testing;
