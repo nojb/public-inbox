@@ -138,8 +138,8 @@ our %CMD = ( # sorted in order of importance/use:
 	sort|s=s reverse|r offset=i pretty jobs|j=s globoff|g augment|a
 	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+), @c_opt,
 	opt_dash('limit|n=i', '[0-9]+') ],
-'up' => [ 'SEARCH_TERMS...', 'update saved search',
-	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+), @c_opt ],
+'up' => [ 'OUTPUT', 'update saved search',
+	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ all), @c_opt ],
 
 'blob' => [ 'OID', 'show a git blob, reconstructing from mail if necessary',
 	qw(git-dir=s@ cwd! verbose|v+ mail! oid-a|A=s path-a|a=s path-b|b=s),
