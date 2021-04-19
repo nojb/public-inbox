@@ -6,15 +6,14 @@ package PublicInbox::LeiUp;
 use strict;
 use v5.10.1;
 use PublicInbox::LeiSavedSearch;
-use PublicInbox::LeiOverview;
+use parent qw(PublicInbox::IPC);
 
-sub lei_up {
+sub up1 ($$) {
 	my ($lei, $out) = @_;
-	$lei->{lse} = $lei->_lei_store(1)->search;
 	my $lss = PublicInbox::LeiSavedSearch->up($lei, $out) or return;
+	my $f = $lss->{'-f'};
 	my $mset_opt = $lei->{mset_opt} = { relevance => -2 };
 	$mset_opt->{limit} = $lei->{opt}->{limit} // 10000;
-	my $f = $lss->{'-f'};
 	my $q = $mset_opt->{q_raw} = $lss->{-cfg}->{'lei.q'} //
 				return $lei->fail("lei.q unset in $f");
 	my $lse = $lei->{lse} // die 'BUG: {lse} missing';
@@ -40,8 +39,58 @@ sub lei_up {
 	$lei->{lss} = $lss; # for LeiOverview->new
 	my $lxs = $lei->lxs_prepare or return;
 	$lei->ale->refresh_externals($lxs);
-	$lei->{opt}->{save} = -1;
 	$lei->_start_query;
+}
+
+sub up1_redispatch {
+	my ($lei, $out, $op_p) = @_;
+	my $l = bless { %$lei }, ref($lei);
+	$l->{opt} = { %{$l->{opt}} };
+	delete $l->{sock};
+	$l->{''} = $op_p; # daemon only
+	eval {
+		$l->qerr("# updating $out");
+		up1($l, $out);
+		$l->qerr("# $out done");
+	};
+	$l->err($@) if $@;
+}
+
+sub lei_up {
+	my ($lei, $out) = @_;
+	$lei->{lse} = $lei->_lei_store(1)->search;
+	my $opt = $lei->{opt};
+	$opt->{save} = -1;
+	if (defined $opt->{all}) {
+		length($opt->{mua}//'') and return
+			$lei->fail('--all and --mua= are incompatible');
+
+		# supporting IMAP outputs is more involved due to
+		# git-credential prompts.  TODO: add this in 1.8
+		$opt->{all} eq 'local' or return
+			$lei->fail('only --all=local works at the moment');
+		my @all = PublicInbox::LeiSavedSearch::list($lei);
+		my @local = grep(!m!\Aimaps?://!i, @all);
+		$lei->_lei_store->write_prepare($lei); # share early
+		if ($lei->{oneshot}) { # synchronous
+			up1_redispatch($lei, $_) for @local;
+		} else {
+			# daemon mode, re-dispatch into our event loop w/o
+			# creating an extra fork-level
+			require PublicInbox::DS;
+			require PublicInbox::PktOp;
+			my ($op_c, $op_p) = PublicInbox::PktOp->pair;
+			for my $o (@local) {
+				PublicInbox::DS::requeue(sub {
+					up1_redispatch($lei, $o, $op_p);
+				});
+			}
+			$lei->event_step_init;
+			$op_c->{ops} = { '' => [$lei->can('dclose'), $lei] };
+		}
+	} else {
+		up1($lei, $out);
+	}
 }
 
 sub _complete_up {

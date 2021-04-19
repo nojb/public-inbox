@@ -14,6 +14,7 @@ sub prep_ext { # externals_each callback
 
 sub _start_query { # used by "lei q" and "lei up"
 	my ($self) = @_;
+	require PublicInbox::LeiOverview;
 	PublicInbox::LeiOverview->new($self) or return;
 	my $opt = $self->{opt};
 	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
@@ -117,7 +118,6 @@ sub lxs_prepare {
 # the main "lei q SEARCH_TERMS" method
 sub lei_q {
 	my ($self, @argv) = @_;
-	require PublicInbox::LeiOverview;
 	PublicInbox::Config->json; # preload before forking
 	my $lxs = lxs_prepare($self) or return;
 	$self->ale->refresh_externals($lxs);

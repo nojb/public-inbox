@@ -108,5 +108,7 @@ test_lei(sub {
 	$mb = do { local $/; <$mb> };
 	like($mb, qr/pre-existing/, 'pre-existing message preserved w/ -a');
 	like($mb, qr/<qp\@example\.com>/, 'new result written w/ -a');
+
+	lei_ok(qw(up --all=local));
 });
 done_testing;
