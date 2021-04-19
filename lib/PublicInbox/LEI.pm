@@ -700,8 +700,7 @@ sub _lei_cfg ($;$) {
 		$cur_st = pack('dd', $st[10], $st[7]);
 		qerr($self, "# $f created") if $self->{cmd} ne 'config';
 	}
-	my $cfg = PublicInbox::Config::git_config_dump($f);
-	bless $cfg, 'PublicInbox::Config';
+	my $cfg = PublicInbox::Config->git_config_dump($f);
 	$cfg->{-st} = $cur_st;
 	$cfg->{'-f'} = $f;
 	if ($sto && File::Spec->canonpath($sto_dir // store_path($self))

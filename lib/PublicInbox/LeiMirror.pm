@@ -110,7 +110,7 @@ sub _try_config {
 	}
 	return $lei->err("# @$cmd failed (non-fatal)") if $cerr;
 	rename($f, $ce) or return $lei->err("link($f, $ce): $! (non-fatal)");
-	my $cfg = PublicInbox::Config::git_config_dump($f);
+	my $cfg = PublicInbox::Config->git_config_dump($f);
 	my $ibx = $self->{ibx} = {};
 	for my $sec (grep(/\Apublicinbox\./, @{$cfg->{-section_order}})) {
 		for (qw(address newsgroup nntpmirror)) {

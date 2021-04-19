@@ -24,11 +24,11 @@ sub new {
 	if (ref($file) eq 'SCALAR') { # used by some tests
 		open my $fh, '<', $file or die;  # PerlIO::scalar
 		$self = config_fh_parse($fh, "\n", '=');
+		bless $self, $class;
 	} else {
-		$self = git_config_dump($file);
+		$self = git_config_dump($class, $file);
 		$self->{'-f'} = $file;
 	}
-	bless $self, $class;
 	# caches
 	$self->{-by_addr} = {};
 	$self->{-by_list_id} = {};
@@ -158,13 +158,13 @@ sub config_fh_parse ($$$) {
 }
 
 sub git_config_dump {
-	my ($file) = @_;
-	return {} unless -e $file;
+	my ($class, $file) = @_;
+	return bless {}, $class unless -e $file;
 	my $cmd = [ qw(git config -z -l --includes), "--file=$file" ];
 	my $fh = popen_rd($cmd);
 	my $rv = config_fh_parse($fh, "\0", "\n");
 	close $fh or die "failed to close (@$cmd) pipe: $?";
-	$rv;
+	bless $rv, $class;
 }
 
 sub valid_foo_name ($;$) {

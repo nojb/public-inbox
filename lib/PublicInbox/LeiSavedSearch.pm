@@ -56,9 +56,8 @@ sub list {
 		print $fh "\tpath = ", cquote_val($p), "\n";
 	}
 	close $fh or die "close $f: $!";
-	my $cfg = PublicInbox::Config::git_config_dump($f);
+	my $cfg = PublicInbox::Config->git_config_dump($f);
 	unlink($f);
-	bless $cfg, 'PublicInbox::Config';
 	my $out = $cfg->get_all('lei.q.output') or return ();
 	map {;
 		s!\A(?:maildir|mh|mbox.+|mmdf):!!i;
@@ -76,7 +75,6 @@ sub new {
 		output2lssdir($self, $lei, \$dir, \$f) or
 			return $lei->fail("--save was not used with $dst cwd=".
 						$lei->rel2abs('.'));
-		$self->{-cfg} //= PublicInbox::Config::git_config_dump($f);
 		$self->{'-f'} = $f;
 	} else { # new saved search "lei q --save"
 		$dst = $lei->{ovv}->{dst};
@@ -113,7 +111,6 @@ EOM
 		}
 		close($fh) or return $lei->fail("close $f: $!");
 	}
-	bless $self->{-cfg}, 'PublicInbox::Config';
 	$self->{lock_path} = "$self->{-f}.flock";
 	$self->{-ovf} = "$dir/over.sqlite3";
 	$self;
@@ -198,7 +195,7 @@ sub output2lssdir {
 	my $dir = lss_dir_for($lei, \$dst);
 	my $f = "$dir/lei.saved-search";
 	if (-f $f && -r _) {
-		$self->{-cfg} = PublicInbox::Config::git_config_dump($f);
+		$self->{-cfg} = PublicInbox::Config->git_config_dump($f);
 		$$dir_ref = $dir;
 		$$fn_ref = $f;
 		return 1;
