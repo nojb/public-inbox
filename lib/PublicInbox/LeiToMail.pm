@@ -375,7 +375,7 @@ sub _pre_augment_maildir {
 
 sub _do_augment_maildir {
 	my ($self, $lei) = @_;
-	return if defined($lei->{opt}->{save});
+	return if ($lei->{opt}->{save} // 0) < 0;
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	my $mdr = PublicInbox::MdirReader->new;
@@ -406,7 +406,7 @@ sub _imap_augment_or_delete { # PublicInbox::NetReader::imap_each cb
 
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
-	return if defined($lei->{opt}->{save});
+	return if ($lei->{opt}->{save} // 0) < 0;
 	my $net = $lei->{net};
 	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	if ($lei->{opt}->{augment}) {
@@ -477,7 +477,7 @@ sub _do_augment_mbox {
 	my ($self, $lei) = @_;
 	return unless $self->{seekable};
 	my $opt = $lei->{opt};
-	return if defined($opt->{save});
+	return if ($opt->{save} // 0) < 0;
 	my $out = $lei->{1};
 	my ($fmt, $dst) = @{$lei->{ovv}}{qw(fmt dst)};
 	return unless -s $out;

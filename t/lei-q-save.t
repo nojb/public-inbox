@@ -10,6 +10,15 @@ $doc2->header_set('Date', PublicInbox::Smsg::date({ds => time - (86400 * 4)}));
 my $doc3 = eml_load('t/msg_iter-order.eml');
 $doc3->header_set('Date', PublicInbox::Smsg::date({ds => time - (86400 * 4)}));
 
+my $pre_existing = <<'EOF';
+From x Mon Sep 17 00:00:00 2001
+Message-ID: <import-before@example.com>
+Subject: pre-existing
+Date: Sat, 02 Oct 2010 00:00:00 +0000
+
+blah
+EOF
+
 test_lei(sub {
 	my $home = $ENV{HOME};
 	my $in = $doc1->as_string;
@@ -74,5 +83,17 @@ test_lei(sub {
 		'mbcl2 output shown despite unlink');
 	lei_ok([qw(up mbcl2)], undef, { -C => $home, %$lei_opt });
 	ok(-f "$home/mbcl2"  && -s _ == 0, 'up recreates on missing output');
+
+	open my $mb, '>', "$home/mbrd" or xbail "open $!";
+	print $mb $pre_existing;
+	close $mb or xbail "close: $!";
+	lei_ok(qw(q --save -o mboxrd:mbrd m:qp@example.com -C), $home);
+	chdir($dh) or xbail "fchdir . $!";
+	open $mb, '<', "$home/mbrd" or xbail "open $!";
+	is_deeply([grep(/pre-existing/, <$mb>)], [],
+		'pre-existing messsage gone w/o augment');
+	lei_ok(qw(q m:import-before@example.com));
+	is(json_utf8->decode($lei_out)->[0]->{'s'},
+		'pre-existing', '--save imported before clobbering');
 });
 done_testing;

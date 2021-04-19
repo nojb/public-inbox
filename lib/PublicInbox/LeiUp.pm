@@ -38,7 +38,7 @@ sub lei_up {
 	$lei->{lss} = $lss; # for LeiOverview->new
 	my $lxs = $lei->lxs_prepare or return;
 	$lei->ale->refresh_externals($lxs);
-	$lei->{opt}->{save} = 1;
+	$lei->{opt}->{save} = -1;
 	$lei->_start_query;
 }
 
