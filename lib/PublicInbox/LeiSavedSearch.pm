@@ -79,7 +79,7 @@ sub new {
 		$self->{-cfg} //= PublicInbox::Config::git_config_dump($f);
 		$self->{'-f'} = $f;
 	} else { # new saved search "lei q --save"
-		my $dst = $lei->{ovv}->{dst};
+		$dst = $lei->{ovv}->{dst};
 		$dir = lss_dir_for($lei, \$dst);
 		require File::Path;
 		File::Path::make_path($dir); # raises on error
