@@ -25,10 +25,9 @@ sub lei_up {
 	$lei->{opt}->{output} = $lss->{-cfg}->{'lei.q.output'} //
 		return $lei->fail("lei.q.output unset in $lss->{-f}");
 
-	my $to_avref = $lss->{-cfg}->can('_array');
 	for my $k (qw(only include exclude)) {
-		my $v = $lss->{-cfg}->{"lei.q.$k"} // next;
-		$lei->{opt}->{$k} = $to_avref->($v);
+		my $v = $lss->{-cfg}->get_all("lei.q.$k") // next;
+		$lei->{opt}->{$k} = $v;
 	}
 	for my $k (qw(external local remote
 			import-remote import-before threads)) {

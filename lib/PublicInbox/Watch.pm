@@ -53,8 +53,7 @@ sub new {
 	# indefinitely...
 	foreach my $pfx (qw(publicinboxwatch publicinboxlearn)) {
 		my $k = "$pfx.watchspam";
-		defined(my $dirs = $cfg->{$k}) or next;
-		$dirs = PublicInbox::Config::_array($dirs);
+		my $dirs = $cfg->get_all($k) // next;
 		for my $dir (@$dirs) {
 			my $uri;
 			if (is_maildir($dir)) {
