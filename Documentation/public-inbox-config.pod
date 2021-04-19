@@ -322,6 +322,22 @@ always contain all git repos used by the inbox at C<$INBOX_URL>
 
 Default: C<match=domain>
 
+=item publicinbox.<name>.obfuscate
+
+Whether to obfuscate email addresses in the L<PublicInbox::WWW> HTML
+interface.
+
+Default: false
+
+=item publicinbox.noObfuscate
+
+A space-delimited list of well-known addresses and domains that should
+not be obfuscated when C<publicinbox.$NAME.obfuscate> is true (e.g.,
+C<public@example.com> and C<@example.com>).  This may be specified
+more than once, in which case the values are merged.
+
+Default: none
+
 =back
 
 =head2 NAMED LIMITER (PSGI)
