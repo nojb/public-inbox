@@ -110,5 +110,16 @@ test_lei(sub {
 	like($mb, qr/<qp\@example\.com>/, 'new result written w/ -a');
 
 	lei_ok(qw(up --all=local));
+
+	ok(!lei(qw(forget-search), "$home/bogus"), 'bogus forget');
+	lei_ok qw(_complete lei forget-search);
+	like($lei_out, qr/mbrd-aug/, 'forget-search completion');
+	lei_ok(qw(forget-search -v), "$home/mbrd-aug");
+	is($lei_out, '', 'no output');
+	like($lei_err, qr/\bmbrd-aug\b/, '-v (verbose) reported unlinks');
+	lei_ok qw(_complete lei forget-search);
+	unlike($lei_out, qr/mbrd-aug/,
+		'forget-search completion cleared after forget');
+	ok(!lei('up', "$home/mbrd-aug"), 'lei up fails after forget');
 });
 done_testing;

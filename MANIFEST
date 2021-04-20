@@ -191,6 +191,7 @@ lib/PublicInbox/LeiConvert.pm
 lib/PublicInbox/LeiCurl.pm
 lib/PublicInbox/LeiDedupe.pm
 lib/PublicInbox/LeiExternal.pm
+lib/PublicInbox/LeiForgetSearch.pm
 lib/PublicInbox/LeiHelp.pm
 lib/PublicInbox/LeiImport.pm
 lib/PublicInbox/LeiInit.pm

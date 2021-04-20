@@ -160,8 +160,8 @@ our %CMD = ( # sorted in order of importance/use:
 
 'ls-search' => [ '[PREFIX]', 'list saved search queries',
 		qw(format|f=s pretty l ascii z|0), @c_opt ],
-'rm-query' => [ 'QUERY_NAME', 'remove a saved search', @c_opt ],
-'mv-query' => [ qw(OLD_NAME NEW_NAME), 'rename a saved search', @c_opt ],
+'forget-search' => [ 'OUTPUT', 'forget a saved search',
+		qw(verbose|v+), @c_opt ],
 
 'plonk' => [ '--threads|--from=IDENT',
 	'exclude mail matching From: or threads from non-Message-ID searches',
