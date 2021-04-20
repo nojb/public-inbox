@@ -398,6 +398,7 @@ t/lei-q-kw.t
 t/lei-q-remote-import.t
 t/lei-q-save.t
 t/lei-q-thread.t
+t/lei-sigpipe.t
 t/lei-tag.t
 t/lei.t
 t/lei_dedupe.t
@@ -501,7 +502,6 @@ xt/httpd-async-stream.t
 xt/imapd-mbsync-oimap.t
 xt/imapd-validate.t
 xt/lei-auth-fail.t
-xt/lei-sigpipe.t
 xt/mem-imapd-tls.t
 xt/mem-msgview.t
 xt/msgtime_cmp.t
