@@ -5,7 +5,6 @@
 package PublicInbox::LeiQuery;
 use strict;
 use v5.10.1;
-use POSIX ();
 
 sub prep_ext { # externals_each callback
 	my ($lxs, $exclude, $loc) = @_;
@@ -23,7 +22,7 @@ sub _start_query { # used by "lei q" and "lei up"
 	}
 	my $lxs = $self->{lxs};
 	$xj ||= $lxs->concurrency($opt); # allow: "--jobs ,$WRITER_ONLY"
-	my $nproc = $lxs->detect_nproc // 1; # don't memoize, schedtool(1) exists
+	my $nproc = $lxs->detect_nproc || 1; # don't memoize, schedtool(1) exists
 	$xj = $nproc if $xj > $nproc;
 	$lxs->{-wq_nr_workers} = $xj;
 	if (defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) {
@@ -37,8 +36,7 @@ sub _start_query { # used by "lei q" and "lei up"
 		$self->_lei_store(1)->write_prepare($self);
 	}
 	$l2m and $l2m->{-wq_nr_workers} = $mj // do {
-		$mj = POSIX::lround($nproc * 3 / 4); # keep some CPU for git
-		$mj <= 0 ? 1 : $mj;
+		$mj = int($nproc * 0.75 + 0.5); # keep some CPU for git
 	};
 
 	# descending docid order is cheapest, MUA controls sorting order
