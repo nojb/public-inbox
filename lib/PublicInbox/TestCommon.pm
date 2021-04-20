@@ -25,7 +25,7 @@ BEGIN {
 	push @EXPORT, @methods;
 }
 
-sub xbail (@) { BAIL_OUT join(' ', map { ref ? (explain($_)) : ($_) } @_) }
+sub xbail (@) { BAIL_OUT join(' ', map { ref() ? (explain($_)) : ($_) } @_) }
 
 sub eml_load ($) {
 	my ($path, $cb) = @_;
