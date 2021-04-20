@@ -190,6 +190,7 @@ lib/PublicInbox/LeiBlob.pm
 lib/PublicInbox/LeiConvert.pm
 lib/PublicInbox/LeiCurl.pm
 lib/PublicInbox/LeiDedupe.pm
+lib/PublicInbox/LeiEditSearch.pm
 lib/PublicInbox/LeiExternal.pm
 lib/PublicInbox/LeiForgetSearch.pm
 lib/PublicInbox/LeiHelp.pm
