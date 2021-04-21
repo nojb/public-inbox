@@ -1211,4 +1211,11 @@ sub DESTROY {
 	$? = $err if $err; # preserve ->fail or ->x_it code
 }
 
+sub wq_done_wait { # dwaitpid callback
+	my ($arg, $pid) = @_;
+	my ($wq, $lei, $e) = @$arg;
+	$? and $lei->child_error($?, $e ? "$e errors during $lei->{cmd}" : ());
+	$lei->dclose;
+}
+
 1;

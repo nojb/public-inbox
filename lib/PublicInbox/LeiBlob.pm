@@ -10,17 +10,10 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Spawn qw(spawn popen_rd which);
 use PublicInbox::DS;
 
-sub sol_done_wait { # dwaitpid callback
-	my ($arg, $pid) = @_;
-	my (undef, $lei) = @$arg;
-	$lei->child_error($?) if $?;
-	$lei->dclose;
-}
-
 sub sol_done { # EOF callback for main daemon
 	my ($lei) = @_;
 	my $sol = delete $lei->{sol} // return $lei->dclose; # already failed
-	$sol->wq_wait_old(\&sol_done_wait, $lei);
+	$sol->wq_wait_old($lei->can('wq_done_wait'), $lei);
 }
 
 sub get_git_dir ($$) {

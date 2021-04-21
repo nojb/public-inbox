@@ -35,17 +35,10 @@ sub input_net_cb { # imap_each, nntp_each cb
 	input_eml_cb($self, $eml, $self->{-import_kw} ? { kw => $kw } : undef);
 }
 
-sub import_done_wait { # dwaitpid callback
-	my ($arg, $pid) = @_;
-	my ($imp, $lei) = @$arg;
-	$lei->child_error($?, 'non-fatal errors during import') if $?;
-	$lei->dclose;
-}
-
 sub import_done { # EOF callback for main daemon
 	my ($lei) = @_;
 	my $imp = delete $lei->{imp} // return $lei->fail('BUG: {imp} gone');
-	$imp->wq_wait_old(\&import_done_wait, $lei);
+	$imp->wq_wait_old($lei->can('wq_done_wait'), $lei, 'non-fatal');
 }
 
 sub net_merge_complete { # callback used by LeiAuth

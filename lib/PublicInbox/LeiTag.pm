@@ -71,17 +71,10 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 
 sub input_mbox_cb { input_eml_cb($_[1], $_[0]) }
 
-sub tag_done_wait { # dwaitpid callback
-	my ($arg, $pid) = @_;
-	my ($tag, $lei) = @$arg;
-	$lei->child_error($?, 'non-fatal errors during tag') if $?;
-	$lei->dclose;
-}
-
 sub tag_done { # EOF callback for main daemon
 	my ($lei) = @_;
 	my $tag = delete $lei->{tag} or return;
-	$tag->wq_wait_old(\&tag_done_wait, $lei);
+	$tag->wq_wait_old($lei->can('wq_done_wait'), $lei, 'non-fatal');
 }
 
 sub net_merge_complete { # callback used by LeiAuth
