@@ -173,17 +173,18 @@ test_lei(sub {
 	is_deeply([@$res{qw(m kw)}], ['testmessage@example.com', ['seen']],
 		'kw set');
 
+	# prepare messages for watch
 	$mic = $nwr->mic_for_folder($folder_uri);
-	for my $kw (qw(Deleted Seen Answered Draft)) {
+	for my $kw (qw(Deleted Seen Answered Draft forwarded)) {
 		my $buf = <<EOM;
 From: x\@example.com
 Message-ID: <$kw\@test.example.com>
 
 EOM
-		$mic->append_string($folder_uri->mailbox, $buf, "\\$kw")
+		my $f = $kw eq 'forwarded' ? '$Forwarded' : "\\$kw";
+		$mic->append_string($folder_uri->mailbox, $buf, $f)
 			or BAIL_OUT "append $kw $@";
 	}
-	# $mic->expunge or BAIL_OUT "expunge: $@";
 	$mic->disconnect;
 
 	my $inboxdir = "$ENV{HOME}/wtest";
@@ -214,6 +215,13 @@ EOM
 		'-watch ignored \\Deleted');
 	ok(!defined($mm->num_for('Draft@test.example.com')),
 		'-watch ignored \\Draft');
+	ok(defined($mm->num_for('forwarded@test.example.com')),
+		'-watch takes forwarded message');
+	undef $w; # done with watch
+	lei_ok qw(import), $$folder_uri;
+	lei_ok qw(q m:forwarded@test.example.com);
+	is_deeply(json_utf8->decode($lei_out)->[0]->{kw}, ['forwarded'],
+		'forwarded kw imported from IMAP');
 });
 
 undef $cleanup; # remove temporary folder

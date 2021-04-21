@@ -205,5 +205,36 @@ open $fh, '<', \$lei_out or BAIL_OUT $!;
 PublicInbox::MboxReader->mboxrd($fh, sub { push @another, shift });
 is($another[0]->header('Status'), 'RO', 'seen kw set');
 
+# forwarded
+{
+	local $ENV{DBG} = 1;
+	$o = "$ENV{HOME}/forwarded";
+	lei_ok(qw(q -o), $o, "m:$m");
+	my @p = glob("$o/cur/*");
+	scalar(@p) == 1 or xbail('multiple when 1 expected', \@p);
+	my $passed = $p[0];
+	$passed =~ s/,S\z/,PS/ or xbail "failed to replace $passed";
+	rename($p[0], $passed) or xbail "rename $!";
+	lei_ok(qw(q -o), $o, 'm:bogus', \'clobber maildir');
+	is_deeply([glob("$o/cur/*")], [], 'old results clobbered');
+	lei_ok(qw(q -o), $o, "m:$m");
+	@p = glob("$o/cur/*");
+	scalar(@p) == 1 or xbail('multiple when 1 expected', \@p);
+	like($p[0], qr/,PS/, 'passed (Forwarded) flag kept');
+	lei_ok(qw(q -o), "mboxrd:$o.mboxrd", "m:$m");
+	open $fh, '<', "$o.mboxrd" or xbail $!;
+	my @res;
+	PublicInbox::MboxReader->mboxrd($fh, sub { push @res, shift });
+	scalar(@res) == 1 or xbail('multiple when 1 expected', \@res);
+	is($res[0]->header('Status'), 'RO', 'seen kw set');
+	is($res[0]->header('X-Status'), undef, 'no X-Status');
+
+	lei_ok(qw(q -o), "mboxrd:$o.mboxrd", 'bogus-for-import-before');
+	lei_ok(qw(q -o), $o, "m:$m");
+	@p = glob("$o/cur/*");
+	scalar(@p) == 1 or xbail('multiple when 1 expected', \@p);
+	like($p[0], qr/,PS/, 'passed (Forwarded) flag still kept');
+}
+
 }); # test_lei
 done_testing;

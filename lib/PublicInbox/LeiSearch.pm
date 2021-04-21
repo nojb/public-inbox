@@ -103,8 +103,16 @@ sub kw_changed {
 	my $xoids = xoids_for($self, $eml) // return;
 	$docids //= [];
 	@$docids = sort { $a <=> $b } values %$xoids;
-	my @cur_kw = msg_keywords($self, $docids->[0]);
-	join("\0", @$new_kw_sorted) eq join("\0", @cur_kw) ? 0 : 1;
+	my $cur_kw = msg_keywords($self, $docids->[0]);
+
+	# RFC 5550 sec 5.9 on the $Forwarded keyword states:
+	# "Once set, the flag SHOULD NOT be cleared"
+	if (exists($cur_kw->{forwarded}) &&
+			!grep(/\Aforwarded\z/, @$new_kw_sorted)) {
+		delete $cur_kw->{forwarded};
+	}
+	$cur_kw = join("\0", sort keys %$cur_kw);
+	join("\0", @$new_kw_sorted) eq $cur_kw ? 0 : 1;
 }
 
 sub all_terms {

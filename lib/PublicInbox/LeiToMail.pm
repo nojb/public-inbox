@@ -38,7 +38,7 @@ sub _mbox_hdr_buf ($$$) {
 		if (my $ent = $kw2status{$k}) {
 			push @{$hdr{$ent->[0]}}, $ent->[1];
 		} else { # X-Label?
-			warn "TODO: keyword `$k' not supported for mbox\n";
+			warn "# keyword `$k' not supported for mbox\n";
 		}
 	}
 	# Messages are always 'O' (non-\Recent in IMAP), it saves

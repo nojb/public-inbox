@@ -8,6 +8,7 @@ use v5.10.1;
 use parent qw(Exporter PublicInbox::IPC);
 use PublicInbox::Eml;
 our %IMAPflags2kw = map {; "\\\u$_" => $_ } qw(seen answered flagged draft);
+$IMAPflags2kw{'$Forwarded'} = 'forwarded';  # RFC 5550
 
 our @EXPORT = qw(uri_section imap_uri nntp_uri);
 
