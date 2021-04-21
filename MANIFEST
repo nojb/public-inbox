@@ -35,8 +35,10 @@ Documentation/lei-mail-formats.pod
 Documentation/lei-overview.pod
 Documentation/lei-p2q.pod
 Documentation/lei-q.pod
+Documentation/lei-store-format.pod
 Documentation/lei-tag.pod
 Documentation/lei.pod
+Documentation/lei_design_notes.txt
 Documentation/marketing.txt
 Documentation/mknews.perl
 Documentation/public-inbox-compact.pod

@@ -1,0 +1,20 @@
+lei design notes
+----------------
+
+Daemon architecture
+-------------------
+
+The use of a persistent daemon works around slow startup time of
+Perl.  This is especially important for built-in support for
+shell completion.  It will eventually support inotify and EVFILT_VNODE
+background monitoring of Maildir keyword changes.
+
+If lei were reimplemented in a language with faster startup
+time, the daemon architecture would likely remain since it also
+lets us easily decouple the local storage from slow IMAP/NNTP
+backends and allow us to serialize writes to git-fast-import,
+SQLite, and Xapian across multiple processes.
+
+The coupling of IMAP and NNTP network latency to local storage
+is a current weakness of public-inbox-watch.  Therefore, -watch
+will likely adopt the daemon architecture of lei in the future.

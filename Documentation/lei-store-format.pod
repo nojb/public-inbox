@@ -1,0 +1,91 @@
+% public-inbox developer manual
+
+=head1 NAME
+
+lei-store-format - lei/store format description
+
+=head1 DESCRIPTION
+
+C<lei/store> is a hybrid store based on L<public-inbox-extindex-format(5)>
+("extindex") combined with L<public-inbox-v2-format(5)> ("v2") for blob
+storage.  While v2 is ideal for archiving a single public mailing list;
+it was never intended for personal mail nor storing multiple
+blobs of the "same" message.
+
+As with extindex, it can index disparate C<List-Id> headers
+belonging to the "same" message with different git blob OIDs.
+Unlike v2 and extindex, C<Message-ID> headers are NOT required;
+allowing unsent draft messages to be stored and indexed.
+
+=head1 DIRECTORY LAYOUT
+
+Blob storage exists in the form of v2-style epochs.  These epochs
+are under the C<local/> directory (instead of C<git/>) to
+prevent them from being accidentally treated as a v2 inbox.
+
+=head2 INDEX OVERVIEW AND DEFINITIONS
+
+  $EPOCH - Integer starting with 0 based on time
+  $SCHEMA_VERSION - DB schema version (for Xapian)
+  $SHARD - Integer starting with 0 based on parallelism
+
+  ~/.local/share/lei/store
+  - ipc.lock                        # lock file for internal lei IPC
+  - local/$EPOCH.git                # normal bare git repositories
+
+Additionally, the following share the same roles they do in extindex:
+
+  - ei.lock                         # lock file to protect global state
+  - ALL.git                         # empty, alternates for local/*.git
+  - ei$SCHEMA_VERSION/$SHARD        # per-shard Xapian DB
+  - ei$SCHEMA_VERSION/over.sqlite3  # overview DB for WWW, IMAP
+  - ei$SCHEMA_VERSION/misc          # misc Xapian DB
+
+=head2 XREF3 DEDUPLICATION
+
+Index deduplication follows extindex, see
+L<public-inbox-extindex-format(5)/XREF3 DEDUPLICATION> for
+more information.
+
+=head2 BLOB DEDUPLICATION
+
+The contents of C<local/*.git> repos is deduplicated by git blob
+object IDs (currently SHA-1).  This allows multiple copies of
+cross-posted and personally Cc-ed messages to be stored with
+different C<Received:>, C<X-Spam-Status:> and similar headers to
+allow troubleshooting.
+
+=head2 VOLATILE METADATA
+
+Keywords and label information (as described in RFC 8621 for JMAP)
+is stored in existing Xapian shards (C<ei$SCHEMA_VERSION/$SHARD>).
+It is possible to search for messages matching labels and
+keywords using C<L:> and C<kw:>, respectively.  As with all data
+stored in Xapian indices, volatile metadata is associated with
+the Xapian document, thus it is shared across different blobs of
+the "same" message.
+
+=head1 IPC
+
+When L<lei(1)> is run in daemon mode, L<flock(2)> is used on
+C<ipc.lock> is used to serialize writes to C<lei/store> across
+multiple internal lei workers while minimizing commits.
+
+=head1 CAVEATS
+
+Reindexing and synchronization is not yet supported.
+
+=head1 THANKS
+
+Thanks to the Linux Foundation for sponsoring the development
+and testing.
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<http://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-v2-format(5)>, L<public-inbox-extindex(5)>
