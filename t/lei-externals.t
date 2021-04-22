@@ -49,7 +49,7 @@ SKIP: {
 		ok(WIFSIGNALED($?), "signaled @$out");
 		is(WTERMSIG($?), SIGPIPE, "got SIGPIPE @$out");
 		seek($err, 0, 0);
-		my @err = grep(!m{mkdir .*sun_path\b}, <$err>);
+		my @err = <$err>;
 		is_deeply(\@err, [], "no errors @$out");
 	}
 	if (-d $ENV{XDG_RUNTIME_DIR} && -w _) {

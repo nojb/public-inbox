@@ -62,6 +62,7 @@ my $exec_cmd = sub {
 if ($send_cmd && eval {
 	my $path = do {
 		my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
+		die \0 if $runtime_dir eq '/dev/null/lei'; # oneshot forced
 		if ($runtime_dir eq '/lei') {
 			require File::Spec;
 			$runtime_dir = File::Spec->tmpdir."/lei-$<";
@@ -131,7 +132,7 @@ Falling back to (slow) one-shot mode
 	}
 	exit($x_it_code >> 8);
 } else { # for systems lacking Socket::MsgHdr or Inline::C
-	warn $@ if $@;
+	warn $@ if $@ && !ref($@);
 	require PublicInbox::LEI;
 	PublicInbox::LEI::oneshot(__PACKAGE__);
 }

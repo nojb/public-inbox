@@ -468,7 +468,7 @@ sub have_xapian_compact () {
 	PublicInbox::Spawn::which($ENV{XAPIAN_COMPACT} || 'xapian-compact');
 }
 
-our ($err_skip, $lei_opt, $lei_out, $lei_err);
+our ($lei_opt, $lei_out, $lei_err);
 # favor lei() or lei_ok() over $lei for new code
 sub lei (@) {
 	my ($cmd, $env, $xopt) = @_;
@@ -478,8 +478,6 @@ sub lei (@) {
 		$cmd = [ grep { defined && !ref } @_ ];
 	}
 	my $res = run_script(['lei', @$cmd], $env, $xopt // $lei_opt);
-	$err_skip and
-		$lei_err = join('', grep(!/$err_skip/, split(/^/m, $lei_err)));
 	if ($lei_err ne '') {
 		if ($lei_err =~ /Use of uninitialized/ ||
 			$lei_err =~ m!\bArgument .*? isn't numeric in !) {
@@ -570,10 +568,7 @@ EOM
 		my $home = "$tmpdir/lei-oneshot";
 		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
 		local $ENV{HOME} = $home;
-		# force sun_path[108] overflow:
-		my $xrd = "$home/1shot-test".('.sun_path' x 108);
-		local $err_skip = qr!\Q$xrd!; # for lei() filtering
-		local $ENV{XDG_RUNTIME_DIR} = $xrd;
+		local $ENV{XDG_RUNTIME_DIR} = '/dev/null';
 		$cb->();
 	}
 	if ($daemon_pid) {
