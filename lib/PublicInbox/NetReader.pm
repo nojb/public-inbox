@@ -373,6 +373,13 @@ sub run_commit_cb ($) {
 	$cb->(@args);
 }
 
+sub _itrk ($$) {
+	my ($self, $uri) = @_;
+	return unless $self->{incremental};
+	# itrk_fn is set by lei
+	PublicInbox::IMAPTracker->new($$uri, $self->{itrk_fn});
+}
+
 sub _imap_fetch_all ($$$) {
 	my ($self, $mic, $uri) = @_;
 	my $sec = uri_section($uri);
@@ -389,8 +396,7 @@ sub _imap_fetch_all ($$$) {
 		return "E: $uri cannot get UIDVALIDITY";
 	$r_uidnext //= $mic->uidnext($mbx) //
 		return "E: $uri cannot get UIDNEXT";
-	my $itrk = $self->{incremental} ?
-			PublicInbox::IMAPTracker->new($$uri) : 0;
+	my $itrk = _itrk($self, $uri);
 	my ($l_uidval, $l_uid) = $itrk ? $itrk->get_last : ();
 	$l_uidval //= $r_uidval; # first time
 	$l_uid //= 0;
@@ -543,8 +549,7 @@ sub _nntp_fetch_all ($$$) {
 	# IMAPTracker is also used for tracking NNTP, UID == article number
 	# LIST.ACTIVE can get the equivalent of UIDVALIDITY, but that's
 	# expensive.  So we assume newsgroups don't change:
-	my $itrk = $self->{incremental} ?
-			PublicInbox::IMAPTracker->new($$uri) : 0;
+	my $itrk = _itrk($self, $uri);
 	my (undef, $l_art) = $itrk ? $itrk->get_last : ();
 
 	# allow users to specify articles to refetch

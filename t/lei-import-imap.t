@@ -24,5 +24,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	for (@$out) { $r{ref($_)}++ }
 	is_deeply(\%r, { 'HASH' => scalar(@$out) }, 'all hashes');
 	lei_ok([qw(tag +kw:seen), "imap://$host_port/t.v2.0"], undef, undef);
+
+	my $f = "$ENV{HOME}/.local/share/lei/store/net_last.sqlite3";
+	ok(-s $f, 'net tracked for redundant imports');
 });
 done_testing;

@@ -32,6 +32,7 @@ prevent them from being accidentally treated as a v2 inbox.
   ~/.local/share/lei/store
   - ipc.lock                        # lock file for internal lei IPC
   - local/$EPOCH.git                # normal bare git repositories
+  - net_last.sqlite3                # import state for IMAP & NNTP
 
 Additionally, the following share the same roles they do in extindex:
 

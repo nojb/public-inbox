@@ -193,7 +193,8 @@ our %CMD = ( # sorted in order of importance/use:
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	lock=s@ in-format|F=s kw|keywords|flags! verbose|v+), @c_opt ],
+	lock=s@ in-format|F=s kw|keywords|flags! verbose|v+
+	incremental!), @c_opt ],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s
@@ -244,6 +245,7 @@ my %OPTDESC = (
 'lock=s@' => [ 'METHOD|dotlock|fcntl|flock|none',
 	'mbox(5) locking method(s) to use (default: fcntl,dotlock)' ],
 
+'incremental!	import' => 'import already seen IMAP and NNTP articles',
 'globoff|g' => "do not match locations using '*?' wildcards ".
 		"and\xa0'[]'\x{a0}ranges",
 'verbose|v+' => 'be more verbose',

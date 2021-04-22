@@ -58,6 +58,11 @@ sub lei_import { # the main "lei import" method
 	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
 	if (my $net = $lei->{net}) {
 		# $j = $net->net_concurrency($j); TODO
+		if ($lei->{opt}->{incremental} // 1) {
+			$net->{incremental} = 1;
+			$net->{itrk_fn} = $lei->store_path .
+						'/net_last.sqlite3';
+		}
 	} else {
 		my $nproc = $self->detect_nproc;
 		$j = $nproc if $j > $nproc;
