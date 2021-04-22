@@ -62,21 +62,27 @@ VALUES (?, ?, ?)
 }
 
 sub new {
-	my ($class, $url) = @_;
+	my ($class, $url, $dbname) = @_;
 
-	# original name for compatibility with old setups:
-	my $dbname = PublicInbox::Config->config_dir() . "/imap.sqlite3";
+	unless (defined($dbname)) {
+		# original name for compatibility with old setups:
+		$dbname = PublicInbox::Config->config_dir() . '/imap.sqlite3';
 
-	# use the new XDG-compliant name for new setups:
-	if (!-f $dbname) {
-		$dbname = ($ENV{XDG_DATA_HOME} //
-			(($ENV{HOME} // '/nonexistent').'/.local/share')) .
-			'/public-inbox/imap.sqlite3';
+		# use the new XDG-compliant name for new setups:
+		if (!-f $dbname) {
+			$dbname = ($ENV{XDG_DATA_HOME} //
+					(($ENV{HOME} // '/nonexistent').
+					 '/.local/share')) .
+				'/public-inbox/imap.sqlite3';
+		}
 	}
 	if (!-f $dbname) {
 		require File::Path;
 		require File::Basename;
+		require PublicInbox::Spawn;
 		File::Path::mkpath(File::Basename::dirname($dbname));
+		open my $fh, '+>>', $dbname or die "failed to open $dbname: $!";
+		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	}
 	my $self = bless { lock_path => "$dbname.lock", url => $url }, $class;
 	$self->lock_acquire;
