@@ -181,7 +181,7 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(exact! all jobs:i indexed), @c_opt ],
 
 'add-watch' => [ 'LOCATION', 'watch for new messages and flag changes',
-	qw(import! kw|keywords|flags! interval=s recursive|r
+	qw(import! kw! interval=s recursive|r
 	exclude=s include=s), @c_opt ],
 'ls-watch' => [ '[FILTER...]', 'list active watches with numbers and status',
 		qw(format|f=s z), @c_opt ],
@@ -193,12 +193,11 @@ our %CMD = ( # sorted in order of importance/use:
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	lock=s@ in-format|F=s kw|keywords|flags! verbose|v+
-	incremental!), @c_opt ],
+	lock=s@ in-format|F=s kw! verbose|v+ incremental!), @c_opt ],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s
-	lock=s@ kw|keywords|flags!), @c_opt ],
+	lock=s@ kw!), @c_opt ],
 'p2q' => [ 'FILE|COMMIT_OID|--stdin',
 	"use a patch to generate a query for `lei q --stdin'",
 	qw(stdin| want|w=s@ uri debug), @c_opt ],
@@ -350,7 +349,7 @@ my %OPTDESC = (
 
 'by-mid|mid:s' => [ 'MID', 'match only by Message-ID, ignoring contents' ],
 
-'kw|keywords|flags!' => 'disable/enable importing flags',
+'kw!' => 'disable/enable importing keywords (aka "flags")',
 
 # xargs, env, use "-0", git(1) uses "-z".  We support z|0 everywhere
 'z|0' => 'use NUL \\0 instead of newline (CR) to delimit lines',

@@ -131,8 +131,7 @@ my $test_completion = sub {
 	}
 	lei_ok(qw(_complete lei import));
 	%out = map { $_ => 1 } split(/\s+/s, $lei_out);
-	for my $sw (qw(--flags --no-flags --no-kw --kw --no-keywords
-			--keywords)) {
+	for my $sw (qw(--no-kw --kw)) {
 		ok($out{$sw}, "$sw offered as `lei import' completion");
 	}
 };

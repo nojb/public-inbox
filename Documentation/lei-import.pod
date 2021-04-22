@@ -40,7 +40,7 @@ C<none>.
 
 Default: fcntl,dotlock
 
-=item --no-kw, --no-keywords, --no-flags
+=item --no-kw
 
 Don't import message keywords (or "flags" in IMAP terminology).
 
