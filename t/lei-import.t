@@ -101,6 +101,16 @@ is_deeply($draft_a, $draft_b, 'fake Message-ID lookup') or
 lei_ok('blob', '--mail', $draft_b->[0]->{blob});
 is($lei_out, $eml_str, 'draft retrieved by blob');
 
+
+$eml_str = "Message-ID: <inbox\@example.com>\nSubject: label-this\n\n";
+lei_ok([qw(import -F eml - +kw:seen +L:inbox)],
+	undef, { %$lei_opt, 0 => \$eml_str });
+lei_ok(qw(q m:inbox@example.com));
+$res = json_utf8->decode($lei_out);
+is_deeply($res->[0]->{kw}, ['seen'], 'keyword set');
+is_deeply($res->[0]->{L}, ['inbox'], 'label set');
+
+
 # see t/lei_to_mail.t for "import -F mbox*"
 });
 done_testing;

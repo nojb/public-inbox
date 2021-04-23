@@ -7,6 +7,38 @@ use strict;
 use v5.10.1;
 use PublicInbox::DS;
 
+# JMAP RFC 8621 4.1.1
+# https://www.iana.org/assignments/imap-jmap-keywords/imap-jmap-keywords.xhtml
+our @KW = (qw(seen answered flagged draft), # widely-compatible
+	qw(forwarded), # IMAP + Maildir
+	qw(phishing junk notjunk)); # rarely supported
+
+# note: RFC 8621 states "Users may add arbitrary keywords to an Email",
+# but is it good idea?  Stick to the system and reserved ones, for now.
+# The widely-compatible ones map to IMAP system flags, Maildir flags
+# and mbox Status/X-Status headers.
+my %KW = map { $_ => 1 } @KW;
+my $L_MAX = 244; # Xapian term limit - length('L')
+
+# RFC 8621, sec 2 (Mailboxes) a "label" for us is a JMAP Mailbox "name"
+# "Servers MAY reject names that violate server policy"
+my %ERR = (
+	L => sub {
+		my ($label) = @_;
+		length($label) >= $L_MAX and
+			return "`$label' too long (must be <= $L_MAX)";
+		$label =~ m{\A[a-z0-9_](?:[a-z0-9_\-\./\@,]*[a-z0-9])?\z}i ?
+			undef : "`$label' is invalid";
+	},
+	kw => sub {
+		my ($kw) = @_;
+		$KW{$kw} ? undef : <<EOM;
+`$kw' is not one of: `seen', `flagged', `answered', `draft'
+`junk', `notjunk', `phishing' or `forwarded'
+EOM
+	}
+);
+
 sub check_input_format ($;$) {
 	my ($lei, $files) = @_;
 	my $opt_key = 'in-format';
@@ -181,6 +213,28 @@ sub input_only_atfork_child {
 	PublicInbox::IPC::ipc_atfork_child($self);
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	undef;
+}
+
+# like Getopt::Long, but for +kw:FOO and -kw:FOO to prepare
+# for update_xvmd -> update_vmd
+sub vmd_mod_extract {
+	my $argv = $_[-1];
+	my $vmd_mod = {};
+	my @new_argv;
+	for my $x (@$argv) {
+		if ($x =~ /\A(\+|\-)(kw|L):(.+)\z/) {
+			my ($op, $pfx, $val) = ($1, $2, $3);
+			if (my $err = $ERR{$pfx}->($val)) {
+				push @{$vmd_mod->{err}}, $err;
+			} else { # set "+kw", "+L", "-L", "-kw"
+				push @{$vmd_mod->{$op.$pfx}}, $val;
+			}
+		} else {
+			push @new_argv, $x;
+		}
+	}
+	@$argv = @new_argv;
+	$vmd_mod;
 }
 
 1;

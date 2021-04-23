@@ -567,16 +567,39 @@ sub set_vmd {
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
+sub apply_vmd_mod ($$) {
+	my ($doc, $vmd_mod) = @_;
+	my $updated = 0;
+	my @x = @VMD_MAP;
+	while (my ($field, $pfx) = splice(@x, 0, 2)) {
+		# field: "label" or "kw"
+		for my $val (@{$vmd_mod->{"-$field"} // []}) {
+			eval {
+				$doc->remove_term($pfx . $val);
+				++$updated;
+			};
+		}
+		for my $val (@{$vmd_mod->{"+$field"} // []}) {
+			$doc->add_boolean_term($pfx . $val);
+			++$updated;
+		}
+	}
+	$updated;
+}
+
 sub add_vmd {
 	my ($self, $docid, $vmd) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid) or return;
 	my @x = @VMD_MAP;
+	my $updated = 0;
 	while (my ($field, $pfx) = splice(@x, 0, 2)) {
 		my $add = $vmd->{$field} // next;
 		$doc->add_boolean_term($pfx . $_) for @$add;
+		$updated += scalar(@$add);
 	}
-	$self->{xdb}->replace_document($docid, $doc);
+	$updated += apply_vmd_mod($doc, $vmd);
+	$self->{xdb}->replace_document($docid, $doc) if $updated;
 }
 
 sub remove_vmd {
@@ -601,21 +624,7 @@ sub update_vmd {
 	my ($self, $docid, $vmd_mod) = @_;
 	begin_txn_lazy($self);
 	my $doc = _get_doc($self, $docid) or return;
-	my $updated = 0;
-	my @x = @VMD_MAP;
-	while (my ($field, $pfx) = splice(@x, 0, 2)) {
-		# field: "label" or "kw"
-		for my $val (@{$vmd_mod->{"-$field"} // []}) {
-			eval {
-				$doc->remove_term($pfx . $val);
-				++$updated;
-			};
-		}
-		for my $val (@{$vmd_mod->{"+$field"} // []}) {
-			$doc->add_boolean_term($pfx . $val);
-			++$updated;
-		}
-	}
+	my $updated = apply_vmd_mod($doc, $vmd_mod);
 	$self->{xdb}->replace_document($docid, $doc) if $updated;
 	$updated;
 }

@@ -12,6 +12,10 @@ use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml, $vmd) = @_;
 	my $xoids = $self->{lei}->{ale}->xoids_for($eml);
+	if (my $all_vmd = $self->{all_vmd}) {
+		$vmd //= {};
+		@$vmd{keys %$all_vmd} = values %$all_vmd;
+	}
 	$self->{lei}->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
 }
 
@@ -53,6 +57,9 @@ sub lei_import { # the main "lei import" method
 	$sto->write_prepare($lei);
 	my $self = bless {}, __PACKAGE__;
 	$self->{-import_kw} = $lei->{opt}->{kw} // 1;
+	my $vmd_mod = $self->vmd_mod_extract(\@inputs);
+	return $lei->fail(join("\n", @{$vmd_mod->{err}})) if $vmd_mod->{err};
+	$self->{all_vmd} = $vmd_mod if scalar keys %$vmd_mod;
 	$self->prepare_inputs($lei, \@inputs) or return;
 	$lei->ale; # initialize for workers to read
 	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
