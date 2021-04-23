@@ -397,17 +397,12 @@ sub _imap_fetch_all ($$$) {
 	$r_uidnext //= $mic->uidnext($mbx) //
 		return "E: $uri cannot get UIDNEXT";
 	my $itrk = _itrk($self, $uri);
-	my ($l_uidval, $l_uid) = $itrk ? $itrk->get_last : ();
-	$l_uidval //= $r_uidval; # first time
+	my $l_uid;
+	$l_uid = $itrk->get_last($r_uidval) if $itrk;
 	$l_uid //= 0;
-	if ($l_uidval != $r_uidval) {
-		return "E: $uri UIDVALIDITY mismatch\n".
-			"E: local=$l_uidval != remote=$r_uidval";
-	}
 	my $r_uid = $r_uidnext - 1;
 	if ($l_uid > $r_uid) {
-		return "E: $uri local UID exceeds remote ($l_uid > $r_uid)\n".
-			"E: $uri strangely, UIDVALIDLITY matches ($l_uidval)\n";
+		return "E: $uri local UID exceeds remote ($l_uid > $r_uid)\n";
 	}
 	return if $l_uid >= $r_uid; # nothing to do
 	$l_uid ||= 1;

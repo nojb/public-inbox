@@ -39,12 +39,20 @@ sub dbh_new ($) {
 	$dbh;
 }
 
-sub get_last ($) {
-	my ($self) = @_;
-	my $sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
+sub get_last ($;$) {
+	my ($self, $validity) = @_;
+	my $sth;
+	if (defined $validity) {
+		$sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
+SELECT uid_validity, uid FROM imap_last WHERE url = ? AND uid_validity = ?
+
+		$sth->execute($self->{url}, $validity);
+	} else {
+		$sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
 SELECT uid_validity, uid FROM imap_last WHERE url = ?
 
-	$sth->execute($self->{url});
+		$sth->execute($self->{url});
+	}
 	$sth->fetchrow_array;
 }
 
