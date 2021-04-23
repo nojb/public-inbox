@@ -371,6 +371,8 @@ sub _pre_augment_maildir {
 		File::Path::mkpath($d);
 		-d $d or die "$d is not a directory";
 	}
+	# for utime, so no opendir
+	open $self->{poke_dh}, '<', "${dst}cur" or die "open ${dst}cur: $!";
 }
 
 sub _do_augment_maildir {
@@ -588,7 +590,7 @@ sub poke_dst {
 	my ($self) = @_;
 	if ($self->{base_type} eq 'maildir') {
 		my $t = time + 1;
-		utime($t, $t, $self->{dst} . 'cur');
+		utime($t, $t, $self->{poke_dh}) or warn "futimes: $!";
 	}
 }
 
