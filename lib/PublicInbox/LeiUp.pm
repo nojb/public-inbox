@@ -25,6 +25,10 @@ sub up1 ($$) {
 	my $o = $lei->{opt}->{output} = $lss->{-cfg}->{'lei.q.output'} //
 		return $lei->fail("lei.q.output unset in $f");
 	ref($o) and return $lei->fail("multiple values of lei.q.output in $f");
+	if (defined(my $dd = $lss->{-cfg}->{'lei.q.dedupe'})) {
+		$lss->translate_dedupe($lei, $dd) or return;
+		$lei->{opt}->{dedupe} = $dd;
+	}
 	for my $k (qw(only include exclude)) {
 		my $v = $lss->{-cfg}->get_all("lei.q.$k") // next;
 		$lei->{opt}->{$k} = $v;

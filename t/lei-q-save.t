@@ -121,5 +121,42 @@ test_lei(sub {
 	unlike($lei_out, qr/mbrd-aug/,
 		'forget-search completion cleared after forget');
 	ok(!lei('up', "$home/mbrd-aug"), 'lei up fails after forget');
+
+	# dedupe=mid
+	my $o = "$home/dd-mid";
+	$in = $doc2->as_string . "\n-------\nappended list sig\n";
+	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
+	lei_ok(qw(q --dedupe=mid --save m:testmessage@example.com -o), $o);
+	my @m = glob("$o/cur/*");
+	is(scalar(@m), 1, '--dedupe=mid w/ --save');
+	$in = $doc2->as_string . "\n-------\nanother list sig\n";
+	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
+	lei_ok 'up', $o;
+	is_deeply([glob("$o/cur/*")], \@m, 'lei up dedupe=mid works');
+
+	for my $dd (qw(content)) {
+		$o = "$home/dd-$dd";
+		lei_ok(qw(q --save m:testmessage@example.com -o), $o,
+				"--dedupe=$dd");
+		@m = glob("$o/cur/*");
+		is(scalar(@m), 3, 'all 3 matches with dedupe='.$dd);
+	}
+
+	# dedupe=oid
+	$o = "$home/dd-oid";
+	my $ibx = create_inbox 'ibx', indexlevel => 'medium',
+			tmpdir => "$home/v1", sub {};
+	lei_ok(qw(q --save --dedupe=oid m:qp@example.com -o), $o,
+		'-I', $ibx->{inboxdir});
+	@m = glob("$o/cur/*");
+	is(scalar(@m), 1, 'got first result');
+
+	my $im = $ibx->importer(0);
+	my $diff = "X-Insignificant-Header: x\n".$doc1->as_string;
+	$im->add(PublicInbox::Eml->new($diff));
+	$im->done;
+	lei_ok('up', $o);
+	@m = glob("$o/cur/*");
+	is(scalar(@m), 2, 'got 2nd result due to different OID');
 });
 done_testing;

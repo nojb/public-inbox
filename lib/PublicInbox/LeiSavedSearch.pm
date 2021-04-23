@@ -11,6 +11,7 @@ use PublicInbox::LeiSearch;
 use PublicInbox::Config;
 use PublicInbox::Spawn qw(run_die);
 use PublicInbox::ContentHash qw(git_sha);
+use PublicInbox::MID qw(mids_for_index);
 use Digest::SHA qw(sha256_hex);
 
 # move this to PublicInbox::Config if other things use it:
@@ -65,6 +66,14 @@ sub list {
 	} @$out
 }
 
+sub translate_dedupe ($$$) {
+	my ($self, $lei, $dd) = @_;
+	$dd //= 'content';
+	return 1 if $dd eq 'content'; # the default
+	return $self->{"-dedupe_$dd"} = 1 if ($dd eq 'oid' || $dd eq 'mid');
+	$lei->fail("--dedupe=$dd unsupported with --save");
+}
+
 sub up { # updating existing saved search via "lei up"
 	my ($cls, $lei, $dst) = @_;
 	my $f;
@@ -89,6 +98,8 @@ sub new { # new saved search "lei q --save"
 	File::Path::make_path($dir); # raises on error
 	$self->{-cfg} = {};
 	my $f = $self->{'-f'} = "$dir/lei.saved-search";
+	my $dd = $lei->{opt}->{dedupe};
+	translate_dedupe($self, $lei, $dd) or return;
 	open my $fh, '>', $f or return $lei->fail("open $f: $!");
 	my $sq_dst = PublicInbox::Config::squote_maybe($dst);
 	my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
@@ -105,6 +116,7 @@ sub new { # new saved search "lei q --save"
 [lei "q"]
 	output = $dst
 EOM
+	print $fh "\tdedupe = $dd\n" if $dd;
 	for my $k (ARRAY_FIELDS) {
 		my $ary = $lei->{opt}->{$k} // next;
 		for my $x (@$ary) {
@@ -134,14 +146,25 @@ sub is_dup {
 	my ($self, $eml, $smsg) = @_;
 	my $oidx = $self->{oidx} // die 'BUG: no {oidx}';
 	my $blob = $smsg ? $smsg->{blob} : undef;
-	return 1 if $blob && $oidx->blob_exists($blob);
 	my $lk = $self->lock_for_scope_fast;
+	return 1 if $blob && $oidx->blob_exists($blob);
+	if ($self->{-dedupe_mid}) {
+		for my $mid (@{mids_for_index($eml)}) {
+			my ($id, $prv);
+			return 1 if $oidx->next_by_mid($mid, \$id, \$prv);
+		}
+	}
 	if (my $xoids = PublicInbox::LeiSearch::xoids_for($self, $eml, 1)) {
 		for my $docid (values %$xoids) {
 			$oidx->add_xref3($docid, -1, $blob, '.');
 		}
 		$oidx->commit_lazy;
-		1;
+		if ($self->{-dedupe_oid}) {
+			$smsg->{blob} //= git_sha(1, $eml)->hexdigest;
+			exists $xoids->{$smsg->{blob}} ? 1 : undef;
+		} else {
+			1;
+		}
 	} else {
 		# n.b. above xoids_for fills out eml->{-lei_fake_mid} if needed
 		unless ($smsg) {
