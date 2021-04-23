@@ -5,13 +5,18 @@ This is for folks who want to setup their own public-inbox instance.
 Clients should use normal git-clone/git-fetch, IMAP or NNTP clients
 if they want to import mail into their personal inboxes.
 
+As of 2021, public-inbox is packaged by several OS distributions,
+listed in alphabetical order: Debian, NixOS, and Void Linux.
+
 public-inbox is developed on Debian GNU/Linux systems and will
 never depend on packages outside of the "main" component of
 the "stable" distribution, currently Debian 10.x ("buster"),
 but older versions of Debian remain supported.
 
 Most packages are available in other GNU/Linux distributions
-and FreeBSD.
+and FreeBSD.  CentOS 7.x users will likely want newer git and
+Xapian packages for better performance and v2 inbox support:
+https://public-inbox.org/meta/20210421151308.yz5hzkgm75klunpe@nitro.local/
 
 TODO: this still needs to be documented better,
 also see the scripts/ and sa_config/ directories in the source tree
@@ -152,12 +157,22 @@ install the system (into /usr/local) with:
         make test    # see HACKING for faster tests for hackers
         make install # root permissions may be needed
 
-When installing Search::Xapian, make sure the underlying Xapian
-installation is not affected by an index corruption bug:
+symlink-install (public-inbox.git and 1.7.0+)
+---------------------------------------------
 
+For users who lack permissions and/or wish to minimize their
+installation footprint, the "symlink-install" target is available in
+public-inbox.git.  The following installs symlinks to $HOME/bin
+pointing to the source tree:
+
+	perl Makefile.PL
+	make symlink-install prefix=$HOME
+
+Other installation notes
+------------------------
+
+Debian 8.x (jessie) users, use Debian 8.5 or later if using Xapian:
         https://bugs.debian.org/808610
-
-For Debian 8.x (jessie), this means using Debian 8.5 or later.
 
 public-inbox will never store unregeneratable data in Xapian
 or any other search database we might use; Xapian corruption
