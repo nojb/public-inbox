@@ -158,5 +158,11 @@ test_lei(sub {
 	lei_ok('up', $o);
 	@m = glob("$o/cur/*");
 	is(scalar(@m), 2, 'got 2nd result due to different OID');
+
+	SKIP: {
+		symlink($o, "$home/ln -s") or
+			skip "symlinks not supported in $home?: $!", 1;
+		lei_ok('up', "$home/ln -s");
+	};
 });
 done_testing;

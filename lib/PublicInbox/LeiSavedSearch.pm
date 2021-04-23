@@ -13,6 +13,7 @@ use PublicInbox::Spawn qw(run_die);
 use PublicInbox::ContentHash qw(git_sha);
 use PublicInbox::MID qw(mids_for_index);
 use Digest::SHA qw(sha256_hex);
+my $LOCAL_PFX = qr!\A(?:maildir|mh|mbox.+|mmdf):!i; # TODO: put in LeiToMail?
 
 # move this to PublicInbox::Config if other things use it:
 my %cquote = ("\n" => '\\n', "\t" => '\\t', "\b" => '\\b');
@@ -27,27 +28,50 @@ sub BOOL_FIELDS () {
 	qw(external local remote import-remote import-before threads)
 }
 
-sub lss_dir_for ($$) {
-	my ($lei, $dstref) = @_;
+sub lss_dir_for ($$;$) {
+	my ($lei, $dstref, $on_fs) = @_;
 	my @n;
 	if ($$dstref =~ m,\Aimaps?://,i) { # already canonicalized
 		require PublicInbox::URIimap;
 		my $uri = PublicInbox::URIimap->new($$dstref)->canonical;
 		$$dstref = $$uri;
 		@n = ($uri->mailbox);
-	} else { # basename
+	} else {
+		# can't use Cwd::abs_path since dirname($$dstref) may not exist
 		$$dstref = $lei->rel2abs($$dstref);
+		# Maildirs have trailing '/' internally
 		$$dstref .= '/' if -d $$dstref;
 		$$dstref =~ tr!/!/!s;
-		@n = ($$dstref =~ m{([^/]+)/*\z});
+		@n = ($$dstref =~ m{([^/]+)/*\z}); # basename
 	}
 	push @n, sha256_hex($$dstref);
-	$lei->share_path . '/saved-searches/' . join('-', @n);
+	my $lss_dir = $lei->share_path . '/saved-searches/';
+	my $d = $lss_dir . join('-', @n);
+
+	# fall-back to looking up by st_ino + st_dev in case we're in
+	# a symlinked or bind-mounted path
+	if ($on_fs && !-d $d && -e $$dstref) {
+		my @cur = stat(_);
+		my $want = pack('dd', @cur[1,0]); # st_ino + st_dev
+		my ($c, $o, @st);
+		for my $g ("$n[0]-*", '*') {
+			my @maybe = glob("$lss_dir$g/lei.saved-search");
+			for my $f (@maybe) {
+				$c = PublicInbox::Config->git_config_dump($f);
+				$o = $c->{'lei.q.output'} // next;
+				$o =~ s!$LOCAL_PFX!! or next;
+				@st = stat($o) or next;
+				next if pack('dd', @st[1,0]) ne $want;
+				$f =~ m!\A(.+?)/[^/]+\z! and return $1;
+			}
+		}
+	}
+	$d;
 }
 
 sub list {
 	my ($lei, $pfx) = @_;
-	my $lss_dir = $lei->share_path.'/saved-searches/';
+	my $lss_dir = $lei->share_path.'/saved-searches';
 	return () unless -d $lss_dir;
 	# TODO: persist the cache?  Use another format?
 	my $f = $lei->cache_dir."/saved-tmp.$$.".time.'.config';
@@ -61,7 +85,7 @@ sub list {
 	unlink($f);
 	my $out = $cfg->get_all('lei.q.output') or return ();
 	map {;
-		s!\A(?:maildir|mh|mbox.+|mmdf):!!i;
+		s!$LOCAL_PFX!!;
 		$_;
 	} @$out
 }
@@ -221,7 +245,7 @@ sub cloneurl { [] }
 sub output2lssdir {
 	my ($self, $lei, $dir_ref, $fn_ref) = @_;
 	my $dst = $$dir_ref; # imap://$MAILBOX, /path/to/maildir, /path/to/mbox
-	my $dir = lss_dir_for($lei, \$dst);
+	my $dir = lss_dir_for($lei, \$dst, 1);
 	my $f = "$dir/lei.saved-search";
 	if (-f $f && -r _) {
 		$self->{-cfg} = PublicInbox::Config->git_config_dump($f);
