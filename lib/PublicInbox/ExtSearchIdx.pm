@@ -336,9 +336,11 @@ sub eidx_gc {
 	$self->idx_init($opt); # acquire lock via V2Writable::_idx_init
 
 	my $dbh = $self->{oidx}->dbh;
+	$dbh->do('PRAGMA case_sensitive_like = ON'); # only place we use LIKE
 	my $x3_doc = $dbh->prepare('SELECT docid FROM xref3 WHERE ibx_id = ?');
 	my $ibx_ck = $dbh->prepare('SELECT ibx_id,eidx_key FROM inboxes');
-	my $lc_i = $dbh->prepare('SELECT key FROM eidx_meta WHERE key LIKE ?');
+	my $lc_i = $dbh->prepare(<<'');
+SELECT key FROM eidx_meta WHERE key LIKE ? ESCAPE ?
 
 	$ibx_ck->execute;
 	while (my ($ibx_id, $eidx_key) = $ibx_ck->fetchrow_array) {
@@ -354,8 +356,8 @@ DELETE FROM inboxes WHERE ibx_id = ?
 
 		# drop last_commit info
 		my $pat = $eidx_key;
-		$pat =~ s/([_%])/\\$1/g;
-		$lc_i->execute("lc-%:$pat//%");
+		$pat =~ s/([_%\\])/\\$1/g;
+		$lc_i->execute("lc-%:$pat//%", '\\');
 		while (my ($key) = $lc_i->fetchrow_array) {
 			next if $key !~ m!\Alc-v[1-9]+:\Q$eidx_key\E//!;
 			warn "I: removing $key\n";
