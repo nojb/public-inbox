@@ -201,6 +201,7 @@ lib/PublicInbox/LeiInit.pm
 lib/PublicInbox/LeiInput.pm
 lib/PublicInbox/LeiLsLabel.pm
 lib/PublicInbox/LeiLsSearch.pm
+lib/PublicInbox/LeiMailSync.pm
 lib/PublicInbox/LeiMirror.pm
 lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiP2q.pm
@@ -407,6 +408,7 @@ t/lei-tag.t
 t/lei.t
 t/lei_dedupe.t
 t/lei_external.t
+t/lei_mail_sync.t
 t/lei_overview.t
 t/lei_saved_search.t
 t/lei_store.t
