@@ -18,3 +18,15 @@ SQLite, and Xapian across multiple processes.
 The coupling of IMAP and NNTP network latency to local storage
 is a current weakness of public-inbox-watch.  Therefore, -watch
 will likely adopt the daemon architecture of lei in the future.
+
+Read/write vs read-only storage
+-------------------------------
+
+public-inboxes are intended to be written and read by different
+Unix users.  Commonly, a single Unix user or group will write to
+a public-inbox, but the inbox will be served by a user with
+read-only permissions (e.g. "www-data" or "nobody").
+
+lei/store is intended to be read and written by a single user,
+thus we can rely on the Write-Ahead-Log journal of SQLite to
+improve performance: <https://sqlite.org/wal.html>
