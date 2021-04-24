@@ -347,7 +347,7 @@ sub errors {
 }
 
 sub _imap_do_msg ($$$$$) {
-	my ($self, $uri, $uid, $raw, $flags) = @_;
+	my ($self, $url, $uid, $raw, $flags) = @_;
 	# our target audience expects LF-only, save storage
 	$$raw =~ s/\r\n/\n/sg;
 	my $kw = [];
@@ -358,12 +358,12 @@ sub _imap_do_msg ($$$$$) {
 		} elsif ($f eq "\\Deleted") { # not in JMAP
 			return;
 		} elsif ($self->{verbose}) {
-			warn "# unknown IMAP flag $f <$uri;uid=$uid>\n";
+			warn "# unknown IMAP flag $f <$url/;UID=$uid>\n";
 		}
 	}
 	@$kw = sort @$kw; # for all UI/UX purposes
 	my ($eml_cb, @args) = @{$self->{eml_each}};
-	$eml_cb->($uri, $uid, $kw, PublicInbox::Eml->new($raw), @args);
+	$eml_cb->($url, $uid, $kw, PublicInbox::Eml->new($raw), @args);
 }
 
 sub run_commit_cb ($) {
@@ -396,6 +396,9 @@ sub _imap_fetch_all ($$$) {
 		return "E: $uri cannot get UIDVALIDITY";
 	$r_uidnext //= $mic->uidnext($mbx) //
 		return "E: $uri cannot get UIDNEXT";
+	my $url = ref($uri)->new($$uri);
+	$url->uidvalidity($r_uidval);
+	$url = $$url;
 	my $itrk = _itrk($self, $uri);
 	my $l_uid;
 	$l_uid = $itrk->get_last($r_uidval) if $itrk;
@@ -455,7 +458,7 @@ sub _imap_fetch_all ($$$) {
 				# messages get deleted, so holes appear
 				my $per_uid = delete $r->{$uid} // next;
 				my $raw = delete($per_uid->{$key}) // next;
-				_imap_do_msg($self, $uri, $uid, \$raw,
+				_imap_do_msg($self, $url, $uid, \$raw,
 						$per_uid->{FLAGS});
 				$last_uid = $uid;
 				last if $self->{quit};

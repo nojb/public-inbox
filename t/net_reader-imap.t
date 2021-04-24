@@ -33,7 +33,9 @@ is(scalar(@w), 0, 'no warnings');
 ok($nr, 'got some emails');
 is($eml{'PublicInbox::Eml'}, $nr, 'got expected Eml objects');
 is(scalar keys %eml, 1, 'only got Eml objects');
-is($urls{$url}, $nr, 'one URL expected number of times');
+is(scalar(grep(/\A\Q$url\E;UIDVALIDITY=\d+\z/, keys %urls)), scalar(keys %urls),
+	'UIDVALIDITY added to URL passed to callback');
+is_deeply([values %urls], [$nr], 'one URL expected number of times');
 is(scalar keys %urls, 1, 'only got one URL');
 is($args{blah}, $nr, 'got arg expected number of times');
 is(scalar keys %args, 1, 'only got one arg');
