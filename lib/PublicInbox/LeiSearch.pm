@@ -137,4 +137,11 @@ sub qparse_new {
 	$qp
 }
 
+sub lms {
+	my ($self) = @_;
+	require PublicInbox::LeiMailSync;
+	my $f = "$self->{topdir}/mail_sync.sqlite3";
+	-f $f ? PublicInbox::LeiMailSync->new($f) : undef;
+}
+
 1;

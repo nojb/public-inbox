@@ -13,7 +13,6 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml, $vmd) = @_;
 	my $xoids = $self->{lei}->{ale}->xoids_for($eml);
 	if (my $all_vmd = $self->{all_vmd}) {
-		$vmd //= {};
 		@$vmd{keys %$all_vmd} = values %$all_vmd;
 	}
 	$self->{lei}->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
@@ -31,11 +30,26 @@ sub input_mbox_cb { # MboxReader callback
 
 sub input_maildir_cb { # maildir_each_eml cb
 	my ($f, $kw, $eml, $self) = @_;
-	input_eml_cb($self, $eml, $self->{-import_kw} ? { kw => $kw } : undef);
+	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
+	if ($self->{-mail_sync}) {
+		if ($f =~ m!\A(.+?)/(?:new|cur)/([^/]+)\z!) { # ugh...
+			$vmd->{sync_info} = [ "maildir:$1", \(my $n = $2) ];
+		} else {
+			warn "E: $f was not from a Maildir?\n";
+		}
+	}
+	input_eml_cb($self, $eml, $vmd);
 }
 
-sub input_net_cb { # imap_each, nntp_each cb
+sub input_imap_cb { # imap_each
 	my ($url, $uid, $kw, $eml, $self) = @_;
+	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
+	$vmd->{sync_info} = [ $url, $uid ] if $self->{-mail_sync};
+	input_eml_cb($self, $eml, $vmd);
+}
+
+sub input_nntp_cb { # nntp_each
+	my ($url, $num, $kw, $eml, $self) = @_;
 	input_eml_cb($self, $eml, $self->{-import_kw} ? { kw => $kw } : undef);
 }
 
@@ -61,6 +75,8 @@ sub lei_import { # the main "lei import" method
 	return $lei->fail(join("\n", @{$vmd_mod->{err}})) if $vmd_mod->{err};
 	$self->{all_vmd} = $vmd_mod if scalar keys %$vmd_mod;
 	$self->prepare_inputs($lei, \@inputs) or return;
+	$self->{-mail_sync} = $lei->{opt}->{sync} // 1;
+
 	$lei->ale; # initialize for workers to read
 	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
 	if (my $net = $lei->{net}) {

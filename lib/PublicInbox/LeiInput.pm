@@ -83,11 +83,13 @@ sub input_path_url {
 	my $ifmt = lc($lei->{opt}->{'in-format'} // '');
 	# TODO auto-detect?
 	if ($input =~ m!\Aimaps?://!i) {
-		$lei->{net}->imap_each($input, $self->can('input_net_cb'),
+		$lei->{net}->imap_each($input, $self->can('input_imap_cb') //
+						$self->can('input_net_cb'),
 					$self, @args);
 		return;
 	} elsif ($input =~ m!\A(?:nntps?|s?news)://!i) {
-		$lei->{net}->nntp_each($input, $self->can('input_net_cb'),
+		$lei->{net}->nntp_each($input, $self->can('input_nntp_cb') //
+						$self->can('input_net_cb'),
 					$self, @args);
 		return;
 	}
@@ -130,11 +132,13 @@ EOM
 sub prepare_inputs { # returns undef on error
 	my ($self, $lei, $inputs) = @_;
 	my $in_fmt = $lei->{opt}->{'in-format'};
+	my $sync = $lei->{opt}->{sync} ? {} : undef; # using LeiMailSync
 	if ($lei->{opt}->{stdin}) {
 		@$inputs and return
 			$lei->fail("--stdin and @$inputs do not mix");
 		check_input_format($lei) or return;
 		push @$inputs, '/dev/stdin';
+		push @{$sync->{no}}, '/dev/stdin' if $sync;
 	}
 	my $net = $lei->{net}; # NetWriter may be created by l2m
 	my (@f, @d);
@@ -145,12 +149,26 @@ sub prepare_inputs { # returns undef on error
 			require PublicInbox::NetReader;
 			$net //= PublicInbox::NetReader->new;
 			$net->add_url($input);
+			if ($sync) {
+				if ($input =~ m!\Aimaps?://!) {
+					push @{$sync->{ok}}, $input;
+				} else {
+					push @{$sync->{no}}, $input;
+				}
+			}
 		} elsif ($input_path =~ s/\A([a-z0-9]+)://is) {
 			my $ifmt = lc $1;
 			if (($in_fmt // $ifmt) ne $ifmt) {
 				return $lei->fail(<<"");
 --in-format=$in_fmt and `$ifmt:' conflict
 
+			}
+			if ($sync) {
+				if ($ifmt =~ /\A(?:maildir|mh)\z/i) {
+					push @{$sync->{ok}}, $input;
+				} else {
+					push @{$sync->{no}}, $input;
+				}
 			}
 			my $devfd = $lei->path_to_fd($input_path) // return;
 			if ($devfd >= 0 || (-f $input_path || -p _)) {
@@ -162,6 +180,7 @@ sub prepare_inputs { # returns undef on error
 				require PublicInbox::MdirReader;
 				$ifmt eq 'maildir' or return
 					$lei->fail("$ifmt not supported");
+				$input = $lei->abs_path($input) if $sync;
 			} else {
 				return $lei->fail("Unable to handle $input");
 			}
@@ -170,12 +189,18 @@ sub prepare_inputs { # returns undef on error
 $input is `eml', not --in-format=$in_fmt
 
 			require PublicInbox::Eml;
+			push @{$sync->{no}}, $input if $sync;
 		} else {
 			my $devfd = $lei->path_to_fd($input) // return;
 			if ($devfd >= 0 || -f $input || -p _) {
-				push @f, $input
+				push @{$sync->{no}}, $input if $sync;
+				push @f, $input;
 			} elsif (-d $input) {
-				push @d, $input
+				if ($sync) {
+					$input = $lei->abs_path($input);
+					push @{$sync->{ok}}, $input;
+				}
+				push @d, $input;
 			} else {
 				return $lei->fail("Unable to handle $input")
 			}
@@ -184,6 +209,14 @@ $input is `eml', not --in-format=$in_fmt
 	if (@f) { check_input_format($lei, \@f) or return }
 	if (@d) { # TODO: check for MH vs Maildir, here
 		require PublicInbox::MdirReader;
+	}
+	if ($sync && $sync->{no}) {
+		return $lei->fail(<<"") if !$sync->{ok};
+--sync specified but no inputs support it
+
+		# non-fatal if some inputs support support sync
+		$lei->err("# --sync will only be used for @{$sync->{ok}}");
+		$lei->err("# --sync is not supported for: @{$sync->{no}}");
 	}
 	if ($net) {
 		if (my $err = $net->errors) {

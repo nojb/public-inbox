@@ -12,12 +12,33 @@ test_lei(sub {
 		BAIL_OUT "symlink $md $!";
 	lei_ok(qw(import), $md, \'import Maildir');
 	my $imp_err = $lei_err;
+
+	my %i;
+	lei_ok('inspect', $md); $i{no_type} = $lei_out;
+	lei_ok('inspect', "maildir:$md"), $i{with_type} = $lei_out;
+	lei_ok(['inspect', $md], undef, { -C => $ENV{HOME}, %$lei_opt });
+	$i{rel_no_type} = $lei_out;
+	lei_ok(['inspect', "maildir:$md"], undef,
+		{ -C => $ENV{HOME}, %$lei_opt });
+	$i{rel_with_type} = $lei_out;
+	my %v = map { $_ => 1 } values %i;
+	is(scalar(keys %v), 1, 'inspect handles relative and absolute paths');
+	my $inspect = json_utf8->decode([ keys %v ]->[0]);
+	is_deeply($inspect, {"maildir:$md" => { 'name.count' => 1 }},
+		'inspect maildir: path had expected output');
+
 	lei_ok(qw(q s:boolean));
 	my $res = json_utf8->decode($lei_out);
 	like($res->[0]->{'s'}, qr/use boolean/, 'got expected result')
 			or diag explain($imp_err, $res);
 	is_deeply($res->[0]->{kw}, ['seen'], 'keyword set');
 	is($res->[1], undef, 'only got one result');
+
+	lei_ok('inspect', "blob:$res->[0]->{blob}");
+	$inspect = json_utf8->decode($lei_out);
+	is(ref(delete $inspect->{"lei/store"}), 'ARRAY', 'lei/store IDs');
+	is_deeply($inspect, { sync => { "maildir:$md" => [ 'x:2,S' ] } },
+		'maildir sync info as expected');
 
 	lei_ok(qw(import), $md, \'import Maildir again');
 	$imp_err = $lei_err;

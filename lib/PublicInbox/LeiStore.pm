@@ -190,13 +190,28 @@ sub remove_eml_vmd {
 	\@docids;
 }
 
+sub set_sync_info ($$$) {
+	my ($self, $oidhex, $sync_info) = @_;
+	($self->{lms} //= do {
+		require PublicInbox::LeiMailSync;
+		my $f = "$self->{priv_eidx}->{topdir}/mail_sync.sqlite3";
+		my $lms = PublicInbox::LeiMailSync->new($f);
+		$lms->lms_begin;
+		$lms;
+	})->set_src($oidhex, @$sync_info);
+}
+
 sub add_eml {
 	my ($self, $eml, $vmd, $xoids) = @_;
 	my $im = $self->importer; # may create new epoch
 	my ($eidx, $tl) = eidx_init($self); # updates/writes alternates file
 	my $oidx = $eidx->{oidx}; # PublicInbox::Import::add checks this
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
-	$im->add($eml, undef, $smsg) or return; # duplicate returns undef
+	my $im_mark = $im->add($eml, undef, $smsg);
+	if ($vmd && $vmd->{sync_info}) {
+		set_sync_info($self, $smsg->{blob}, $vmd->{sync_info});
+	}
+	$im_mark or return; # duplicate blob returns undef
 
 	local $self->{current_info} = $smsg->{blob};
 	my $vivify_xvmd = delete($smsg->{-vivify_xvmd}) // []; # exact matches
@@ -378,6 +393,9 @@ sub done {
 			$err .= "import done: $@\n";
 			warn $err;
 		}
+	}
+	if (my $lms = delete $self->{lms}) {
+		$lms->lms_commit;
 	}
 	$self->{priv_eidx}->done; # V2Writable::done
 	xchg_stderr($self);

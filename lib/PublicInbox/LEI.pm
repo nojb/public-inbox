@@ -64,9 +64,13 @@ sub opt_dash ($$) {
 	($spec, '<>' => $cb, $GLP_PASS) # for Getopt::Long
 }
 
-sub rel2abs ($$) {
+# rel2abs preserves symlinks in parent, unlike abs_path
+sub rel2abs {
 	my ($self, $p) = @_;
-	return $p if index($p, '/') == 0; # already absolute
+	if (index($p, '/') == 0) { # already absolute
+		$p =~ tr!/!/!s; # squeeze redundant slashes
+		return $p;
+	}
 	my $pwd = $self->{env}->{PWD};
 	my $cwd;
 	if (defined $pwd) {
@@ -83,6 +87,9 @@ sub rel2abs ($$) {
 	$pwd //= $self->{env}->{PWD} = $cwd // getcwd() // die "getcwd: $!";
 	File::Spec->rel2abs($p, $pwd);
 }
+
+# abs_path resolves symlinks in parent iff all parents exist
+sub abs_path { Cwd::abs_path($_[1]) // rel2abs(@_) }
 
 sub share_path ($) { # $HOME/.local/share/lei/$FOO
 	my ($self) = @_;
@@ -193,7 +200,7 @@ our %CMD = ( # sorted in order of importance/use:
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	lock=s@ in-format|F=s kw! verbose|v+ incremental!), @c_opt ],
+	lock=s@ in-format|F=s kw! verbose|v+ incremental! sync!), @c_opt ],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s
@@ -205,6 +212,9 @@ our %CMD = ( # sorted in order of importance/use:
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
 	 qw(c=s@ C=s@), pass_through('git config') ],
+'inspect' => [ 'ITEMS...', 'inspect lei/store and/or local external',
+	qw(pretty ascii dir=s), @c_opt ],
+
 'init' => [ '[DIRNAME]', sub {
 	"initialize storage, default: ".store_path($_[0]);
 	}, @c_opt ],
