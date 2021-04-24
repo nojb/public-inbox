@@ -129,9 +129,9 @@ my $orig = do {
 	$raw;
 };
 
-test_lei(sub {
-	ok(lei(qw(import -F), $mbox, $fn), 'imported mbox');
-	ok(lei(qw(q s:x)), 'lei q works') or diag $lei_err;
+test_lei({tmpdir => "$tmpdir/using -F"}, sub {
+	lei_ok(qw(import -F), $mbox, $fn, \'imported mbox');
+	lei_ok(qw(q s:x), \'lei q works') or diag $lei_err;
 	my $res = json_utf8->decode($lei_out);
 	my $x = $res->[0];
 	is($x->{'s'}, 'x', 'subject imported') or diag $lei_out;
@@ -139,7 +139,7 @@ test_lei(sub {
 	is($res->[1], undef, 'only one result');
 });
 
-test_lei(sub {
+test_lei({tmpdir => "$tmpdir/using TYPE: prefix"}, sub {
 	lei_ok('import', "$mbox:$fn", \'imported mbox:/path') or diag $lei_err;
 	lei_ok(qw(q s:x), \'lei q works') or diag $lei_err;
 	my $res = json_utf8->decode($lei_out);

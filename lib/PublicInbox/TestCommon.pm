@@ -517,6 +517,7 @@ SKIP: {
 	require_git(2.6, 1) or skip('git 2.6+ required for lei test', 2);
 	require_mods(qw(json DBD::SQLite Search::Xapian), 2);
 	require PublicInbox::Config;
+	require File::Path;
 	local %ENV = %ENV;
 	delete $ENV{XDG_DATA_HOME};
 	delete $ENV{XDG_CONFIG_HOME};
@@ -534,6 +535,7 @@ EOM
 	$lei_opt = { 1 => \$lei_out, 2 => \$lei_err };
 	my ($daemon_pid, $for_destroy, $daemon_xrd);
 	my $tmpdir = $test_opt->{tmpdir};
+	File::Path::mkpath($tmpdir) if (defined $tmpdir && !-d $tmpdir);
 	($tmpdir, $for_destroy) = tmpdir unless $tmpdir;
 	state $persist_xrd = $ENV{TEST_LEI_DAEMON_PERSIST_DIR};
 	SKIP: {
