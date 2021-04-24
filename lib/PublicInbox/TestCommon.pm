@@ -321,6 +321,7 @@ sub run_script ($;$$) {
 	# slurp the redirects back into user-supplied strings
 	for my $fd (1..2) {
 		my $fh = $fhref->[$fd] or next;
+		next unless -f $fh;
 		seek($fh, 0, SEEK_SET) or die "seek: $!";
 		my $redir = $opt->{$fd};
 		local $/;

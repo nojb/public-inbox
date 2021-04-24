@@ -225,6 +225,6 @@ for (my $i = $repeat; $i != 0; $i--) {
 
 print $OLDOUT "1..".($repeat * scalar(@tests))."\n" if $repeat >= 0;
 if ($lei_env && $$ == $owner_pid) {
-	my $opt = {}; # 1 => $OLDOUT, 2 => $OLDERR };
+	my $opt = { 1 => $OLDOUT, 2 => $OLDERR };
 	run_script([qw(lei daemon-kill)], $lei_env, $opt);
 }
