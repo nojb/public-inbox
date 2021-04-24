@@ -6,7 +6,7 @@ Clients should use normal git-clone/git-fetch, IMAP or NNTP clients
 if they want to import mail into their personal inboxes.
 
 As of 2021, public-inbox is packaged by several OS distributions,
-listed in alphabetical order: Debian, NixOS, and Void Linux.
+listed in alphabetical order: Debian, GNU Guix, NixOS, and Void Linux.
 
 public-inbox is developed on Debian GNU/Linux systems and will
 never depend on packages outside of the "main" component of
