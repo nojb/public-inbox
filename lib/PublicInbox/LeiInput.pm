@@ -50,7 +50,6 @@ sub check_input_format ($;$) {
 	return 1 if $fmt eq 'eml';
 	require PublicInbox::MboxLock if $files;
 	require PublicInbox::MboxReader;
-	# XXX: should this handle {gz,bz2,xz}? that's currently in LeiToMail
 	PublicInbox::MboxReader->reads($fmt) or
 		return $lei->fail("--$opt_key=$fmt unrecognized");
 	1;
