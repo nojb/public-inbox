@@ -6,6 +6,7 @@ package PublicInbox::LeiSavedSearch;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock);
+use PublicInbox::Git;
 use PublicInbox::OverIdx;
 use PublicInbox::LeiSearch;
 use PublicInbox::Config;
@@ -224,11 +225,13 @@ sub prepare_dedupe {
 
 sub over { $_[0]->{oidx} } # for xoids_for
 
-sub git { $_[0]->{ale}->git }
+# don't use ale->git directly since is_dup is called inside
+# ale->git->cat_async callbacks
+sub git { $_[0]->{git} //= PublicInbox::Git->new($_[0]->{ale}->git->{git_dir}) }
 
 sub pause_dedupe {
 	my ($self) = @_;
-	$self->{ale}->git->cleanup;
+	git($self)->cleanup;
 	my $lockfh = delete $self->{lockfh}; # from lock_for_scope_fast;
 	my $oidx = delete($self->{oidx}) // return;
 	$oidx->commit_lazy;
