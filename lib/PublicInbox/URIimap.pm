@@ -5,8 +5,9 @@
 # This depends only on the documented public API of the `URI' dist,
 # not on internal `_'-prefixed subclasses such as `URI::_server'
 #
-# <https://metacpan.org/pod/URI::imap> exists, but it's not in
-# common distros.
+# <https://metacpan.org/pod/URI::imap> exists, but it appears
+# unmaintained, isn't in common distros, nor does it support
+# ';FOO=BAR' parameters such as UIDVALIDITY
 #
 # RFC 2192 also describes ";TYPE=<list_type>"
 package PublicInbox::URIimap;
@@ -56,7 +57,7 @@ sub path {
 	my ($self) = @_;
 	my (undef, undef, $path) = uri_split($$self);
 	$path =~ s!\A/+!!;
-	$path =~ s/;.*\z//; # ;UIDVALIDITY=nz-number
+	$path =~ s![/;].*\z!!; # [;UIDVALIDITY=nz-number]/;UID=nz-number
 	$path eq '' ? undef : $path;
 }
 
@@ -66,7 +67,36 @@ sub mailbox {
 	defined($path) ? uri_unescape($path) : undef;
 }
 
-# TODO: UIDVALIDITY, search, and other params
+sub uidvalidity { # read/write
+	my ($self, $val) = @_;
+	my ($scheme, $auth, $path, $query, $frag) = uri_split($$self);
+	if (defined $val) {
+		if ($path =~ s!;UIDVALIDITY=[^;/]*\b!;UIDVALIDITY=$val!i or
+				$path =~ s!/;!;UIDVALIDITY=$val/;!i) {
+			# s// already changed it
+		} else { # both s// failed, so just append
+			$path .= ";UIDVALIDITY=$val";
+		}
+		$$self = uri_join($scheme, $auth, $path, $query, $frag);
+	}
+	$path =~ s!\A/+!!;
+	$path =~ m!\A[^;/]+;UIDVALIDITY=([1-9][0-9]*)\b!i ? ($1 + 0) : undef;
+}
+
+sub iuid {
+	my ($self, $val) = @_;
+	my ($scheme, $auth, $path, $query, $frag) = uri_split($$self);
+	if (defined $val) {
+		if ($path =~ s!/;UID=[^;/]*\b!/;UID=$val!i) {
+			# s// already changed it
+		} else { # both s// failed, so just append
+			$path .= ";UID=$val";
+		}
+		$$self = uri_join($scheme, $auth, $path, $query);
+	}
+	$path =~ m!\A/[^/;]+(?:;UIDVALIDITY=[^;/]+)?/;UID=([1-9][0-9]*)\b!i ?
+		($1 + 0) : undef;
+}
 
 sub port {
 	my ($self) = @_;

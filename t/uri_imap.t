@@ -54,6 +54,7 @@ is(PublicInbox::URIimap->new('imaps://0:993/')->canonical->as_string,
 $uri = PublicInbox::URIimap->new('imap://NSA:Hunter2@0/INBOX');
 is($uri->user, 'NSA');
 is($uri->password, 'Hunter2');
+is($uri->uidvalidity, undef, 'no UIDVALIDITY');
 
 $uri = PublicInbox::URIimap->new('imap://0/%');
 is($uri->mailbox, '%', "RFC 2192 '%' supported");
@@ -61,6 +62,35 @@ $uri = PublicInbox::URIimap->new('imap://0/%25');
 $uri = PublicInbox::URIimap->new('imap://0/*');
 is($uri->mailbox, '*', "RFC 2192 '*' supported");
 
-# TODO: support UIDVALIDITY and other params
+$uri = PublicInbox::URIimap->new('imap://0/mmm;UIDVALIDITY=1');
+is($uri->mailbox, 'mmm', 'mailbox works with UIDVALIDITY');
+is($uri->uidvalidity, 1, 'single-digit UIDVALIDITY');
+$uri = PublicInbox::URIimap->new('imap://0/mmm;UIDVALIDITY=21');
+is($uri->uidvalidity, 21, 'multi-digit UIDVALIDITY');
+$uri = PublicInbox::URIimap->new('imap://0/mmm;UIDVALIDITY=bogus');
+is($uri->uidvalidity, undef, 'bogus UIDVALIDITY');
+is($uri->uidvalidity(2), 2, 'iuid set');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=2', 'bogus uidvalidity replaced');
+is($uri->uidvalidity(13), 13, 'iuid set');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=13', 'valid uidvalidity replaced');
+
+$uri = PublicInbox::URIimap->new('imap://0/mmm');
+is($uri->uidvalidity(2), 2, 'iuid set');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=2', 'uidvalidity appended');
+is($uri->iuid, undef, 'no iuid');
+
+$uri = PublicInbox::URIimap->new('imap://0/mmm/;uid=8');
+is($uri->mailbox, 'mmm', 'mailbox works with iuid');
+is($uri->iuid, 8, 'iuid extracted');
+is($uri->iuid(9), 9, 'iuid set');
+is($$uri, 'imap://0/mmm/;UID=9', 'correct iuid when stringified');
+is($uri->uidvalidity(1), 1, 'set uidvalidity with iuid');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=1/;UID=9',
+	'uidvalidity added with iuid');
+is($uri->uidvalidity(4), 4, 'set uidvalidity with iuid');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=4/;UID=9',
+	'uidvalidity replaced with iuid');
+is($uri->iuid(3), 3, 'iuid set with uidvalidity');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=4/;UID=3', 'iuid replaced properly');
 
 done_testing;
