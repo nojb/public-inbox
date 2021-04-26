@@ -105,6 +105,7 @@ sub do_p2q { # via wq_do
 	}
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	my $in = $self->{0};
+	my @cmd;
 	unless ($in) {
 		my $input = $self->{input};
 		my $devfd = $lei->path_to_fd($input) // return;
@@ -114,11 +115,13 @@ sub do_p2q { # via wq_do
 			open($in, '<', $input) or
 				return $lei->fail("open < $input: $!");
 		} else {
-			my @cmd = (qw(git format-patch --stdout -1), $input);
+			@cmd = (qw(git format-patch --stdout -1), $input);
 			$in = popen_rd(\@cmd, undef, { 2 => $lei->{2} });
 		}
 	};
-	my $eml = PublicInbox::Eml->new(\(do { local $/; <$in> }));
+	my $str = do { local $/; <$in> };
+	@cmd && !close($in) and return $lei->fail("E: @cmd failed: $?");
+	my $eml = PublicInbox::Eml->new(\$str);
 	$lei->{diff_want} = +{ map { $_ => 1 } @want };
 	$smsg->populate($eml);
 	while (my ($pfx, $fields) = each %pfx2smsg) {

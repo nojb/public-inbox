@@ -6,9 +6,11 @@ require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 
 test_lei(sub {
+	ok(!lei(qw(p2q this-better-cause-format-patch-to-fail)),
+		'p2q fails on bogus arg');
 	lei_ok(qw(p2q -w dfpost t/data/0001.patch));
 	is($lei_out, "dfpost:6e006fd73b1d\n", 'pathname');
-	open my $fh, '+<', 't/data/0001.patch';
+	open my $fh, '+<', 't/data/0001.patch' or xbail "open: $!";
 	lei_ok([qw(p2q -w dfpost -)], undef, { %$lei_opt, 0 => $fh });
 	is($lei_out, "dfpost:6e006fd73b1d\n", '--stdin');
 
