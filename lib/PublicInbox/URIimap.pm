@@ -30,6 +30,9 @@ sub canonical {
 	my ($scheme, $auth, $path, $query, $_frag) = uri_split($$self);
 	$path =~ s!\A/+!/!; # excessive leading slash
 
+	# upper-case uidvalidity= and uid= parameter names
+	$path =~ s/;([^=]+)=([^;]*)/;\U$1\E=$2/g;
+
 	# lowercase the host portion
 	$auth =~ s#\A(.*@)?(.*?)(?::([0-9]+))?\z#
 		my $ret = ($1//'').lc($2);

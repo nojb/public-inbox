@@ -79,7 +79,11 @@ is($uri->uidvalidity(2), 2, 'iuid set');
 is($$uri, 'imap://0/mmm;UIDVALIDITY=2', 'uidvalidity appended');
 is($uri->iuid, undef, 'no iuid');
 
+is(PublicInbox::URIimap->new('imap://0/x;uidvalidity=1')->canonical->as_string,
+	'imap://0/x;UIDVALIDITY=1', 'capitalized UIDVALIDITY');
+
 $uri = PublicInbox::URIimap->new('imap://0/mmm/;uid=8');
+is($uri->canonical->as_string, 'imap://0/mmm/;UID=8', 'canonicalized UID');
 is($uri->mailbox, 'mmm', 'mailbox works with iuid');
 is($uri->iuid, 8, 'iuid extracted');
 is($uri->iuid(9), 9, 'iuid set');
@@ -92,5 +96,9 @@ is($$uri, 'imap://0/mmm;UIDVALIDITY=4/;UID=9',
 	'uidvalidity replaced with iuid');
 is($uri->iuid(3), 3, 'iuid set with uidvalidity');
 is($$uri, 'imap://0/mmm;UIDVALIDITY=4/;UID=3', 'iuid replaced properly');
+
+my $lc = lc($$uri);
+is(PublicInbox::URIimap->new($lc)->canonical->as_string, "$$uri",
+	'canonical uppercased both params');
 
 done_testing;
