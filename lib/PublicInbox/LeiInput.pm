@@ -6,6 +6,7 @@ package PublicInbox::LeiInput;
 use strict;
 use v5.10.1;
 use PublicInbox::DS;
+use PublicInbox::Spawn qw(which popen_rd);
 
 # JMAP RFC 8621 4.1.1
 # https://www.iana.org/assignments/imap-jmap-keywords/imap-jmap-keywords.xhtml
@@ -77,6 +78,32 @@ error reading $name: $!
 	}
 }
 
+# handles mboxrd endpoints described in Documentation/design_notes.txt
+sub handle_http_input ($$@) {
+	my ($self, $url, @args) = @_;
+	my $lei = $self->{lei} or die 'BUG: {lei} missing';
+	my $curl_opt = delete $self->{"-curl-$url"} or
+				die("BUG: $url curl options not prepared");
+	my $uri = pop @$curl_opt;
+	my $curl = PublicInbox::LeiCurl->new($lei, $self->{curl}) or return;
+	push @$curl, '-s', @$curl_opt;
+	my $cmd = $curl->for_uri($lei, $uri);
+	$lei->qerr("# $cmd");
+	my $rdr = { 2 => $lei->{2}, pgid => 0 };
+	my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
+	grep(/\A--compressed\z/, @$curl) or
+		$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
+	eval {
+		PublicInbox::MboxReader->mboxrd($fh,
+						$self->can('input_mbox_cb'),
+						$self, @args);
+	};
+	my $err = $@;
+	waitpid($pid, 0);
+	$? || $err and
+		$lei->child_error($? || 1, "@$cmd failed".$err ? " $err" : '');
+}
+
 sub input_path_url {
 	my ($self, $input, @args) = @_;
 	my $lei = $self->{lei};
@@ -91,6 +118,9 @@ sub input_path_url {
 		$lei->{net}->nntp_each($input, $self->can('input_nntp_cb') //
 						$self->can('input_net_cb'),
 					$self, @args);
+		return;
+	} elsif ($input =~ m!\Ahttps?://!i) {
+		handle_http_input($self, $input, @args);
 		return;
 	}
 	if ($input =~ s!\A([a-z0-9]+):!!i) {
@@ -129,6 +159,50 @@ EOM
 	}
 }
 
+sub bad_http ($$;$) {
+	my ($lei, $url, $alt) = @_;
+	my $x = $alt ? "did you mean <$alt>?" : 'download and import manually';
+	$lei->fail("E: <$url> not recognized, $x");
+}
+
+sub prepare_http_input ($$$) {
+	my ($self, $lei, $url) = @_;
+	require URI;
+	require PublicInbox::MboxReader;
+	require PublicInbox::LeiCurl;
+	require IO::Uncompress::Gunzip;
+	$self->{curl} //= which('curl') or
+				return $lei->fail("curl missing for <$url>");
+	my $uri = URI->new($url);
+	my $path = $uri->path;
+	my %qf = $uri->query_form;
+	my @curl_opt;
+	if ($path =~ m!/(?:t\.mbox\.gz|all\.mbox\.gz)\z!) {
+		# OK
+	} elsif ($path =~ m!/raw\z!) {
+		push @curl_opt, '--compressed';
+	# convert search query to mboxrd request since they require POST
+	# this is only intended for PublicInbox::WWW, and will false-positive
+	# on many other search engines... oh well
+	} elsif (defined $qf{'q'}) {
+		$qf{x} = 'm';
+		$uri->query_form(\%qf);
+		push @curl_opt, '-d', '';
+		$$uri ne $url and $lei->qerr(<<"");
+# <$url> rewritten to <$$uri> with HTTP POST
+
+	# try to provide hints for /$INBOX/$MSGID/T/ and /$INBOX/
+	} elsif ($path =~ s!/[tT]/\z!/t.mbox.gz! ||
+			$path =~ s!/t\.atom\z!/t.mbox.gz! ||
+			$path =~ s!/([^/]+\@[^/]+)/\z!/$1/raw!) {
+		$uri->path($path);
+		return bad_http($lei, $url, $$uri);
+	} else {
+		return bad_http($lei, $url);
+	}
+	$self->{"-curl-$url"} = [ @curl_opt, $uri ]; # for handle_http_input
+}
+
 sub prepare_inputs { # returns undef on error
 	my ($self, $lei, $inputs) = @_;
 	my $in_fmt = $lei->{opt}->{'in-format'};
@@ -156,6 +230,8 @@ sub prepare_inputs { # returns undef on error
 					push @{$sync->{no}}, $input;
 				}
 			}
+		} elsif ($input_path =~ m!\Ahttps?://!i) {
+			prepare_http_input($self, $lei, $input_path) or return;
 		} elsif ($input_path =~ s/\A([a-z0-9]+)://is) {
 			my $ifmt = lc $1;
 			if (($in_fmt // $ifmt) ne $ifmt) {
