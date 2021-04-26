@@ -82,6 +82,8 @@ test_psgi($app, sub {
 	$res = $cb->(GET('http://example.com/test/crlf@example.com/raw'));
 	is($res->code, 200, 'retrieved CRLF raw');
 	like($res->content, qr/\r/, 'CR preserved in raw message');
+	$res = $cb->(GET('http://example.com/test/bogus@example.com/raw'));
+	is($res->code, 404, 'missing /raw is 404');
 });
 
 # redirect with newsgroup

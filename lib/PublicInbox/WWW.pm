@@ -272,7 +272,7 @@ sub get_index {
 sub get_mid_txt {
 	my ($ctx) = @_;
 	require PublicInbox::Mbox;
-	PublicInbox::Mbox::emit_raw($ctx) || r404($ctx);
+	PublicInbox::Mbox::emit_raw($ctx) || r(404);
 }
 
 # /$INBOX/$MESSAGE_ID/                   -> HTML content (short quotes)
