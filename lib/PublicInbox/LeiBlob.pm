@@ -10,7 +10,7 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Spawn qw(spawn popen_rd which);
 use PublicInbox::DS;
 
-sub sol_done { # EOF callback for main daemon
+sub _lei_wq_eof { # EOF callback for main daemon
 	my ($lei) = @_;
 	my $sol = delete $lei->{sol} // return $lei->dclose; # already failed
 	$sol->wq_wait_old($lei->can('wq_done_wait'), $lei);
@@ -157,8 +157,7 @@ EOM
 	}
 	require PublicInbox::SolverGit;
 	my $self = bless { lxs => $lxs, oid_b => $blob }, __PACKAGE__;
-	my ($op_c, $ops) = $lei->workers_start($self, 'lei_solve', 1,
-		{ '' => [ \&sol_done, $lei ] });
+	my ($op_c, $ops) = $lei->workers_start($self, 'lei-blob', 1);
 	$lei->{sol} = $self;
 	$self->wq_io_do('do_solve_blob', []);
 	$self->wq_close(1);

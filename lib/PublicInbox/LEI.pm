@@ -531,7 +531,7 @@ sub workers_start {
 		'child_error' => [ \&child_error, $lei ],
 		($ops ? %$ops : ()),
 	};
-	$ops->{''} //= [ \&dclose, $lei ];
+	$ops->{''} //= [ $wq->can('_lei_wq_eof') || \&dclose, $lei ];
 	my $end = $lei->pkt_op_pair;
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, { lei => $lei });
 	delete $lei->{pkt_op_p};

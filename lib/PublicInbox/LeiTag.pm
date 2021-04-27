@@ -19,9 +19,9 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 
 sub input_mbox_cb { input_eml_cb($_[1], $_[0]) }
 
-sub tag_done { # EOF callback for main daemon
+sub _lei_wq_eof { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $tag = delete $lei->{tag} or return;
+	my $tag = delete $lei->{tag} // return $lei->dclose;
 	$tag->wq_wait_old($lei->can('wq_done_wait'), $lei, 'non-fatal');
 }
 
@@ -52,11 +52,11 @@ sub lei_tag { # the "lei tag" method
 	$self->prepare_inputs($lei, \@argv) or return;
 	grep(defined, @$vmd_mod{qw(+kw +L -L -kw)}) or
 		return $lei->fail('no keywords or labels specified');
-	my $ops = { '' => [ \&tag_done, $lei ] };
+	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{vmd_mod} = $vmd_mod;
 	my $j = $self->{-wq_nr_workers} = 1; # locked for now
-	(my $op_c, $ops) = $lei->workers_start($self, 'lei_tag', $j, $ops);
+	(my $op_c, $ops) = $lei->workers_start($self, 'lei-tag', $j, $ops);
 	$lei->{tag} = $self;
 	net_merge_complete($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);
