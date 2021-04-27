@@ -30,7 +30,7 @@ my $DIFFSTAT_COMMENT =
 my $NULL_TO_BLOB = qr/^(index $OID_NULL\.\.)($OID_BLOB)\b/ms;
 my $BLOB_TO_NULL = qr/^index ($OID_BLOB)(\.\.$OID_NULL)\b/ms;
 my $BLOB_TO_BLOB = qr/^index ($OID_BLOB)\.\.($OID_BLOB)/ms;
-my $EXTRACT_DIFFS = qr/(
+our $EXTRACT_DIFFS = qr/(
 		(?:	# begin header stuff, don't capture filenames, here,
 			# but instead wait for the --- and +++ lines.
 			(?:^diff\x20--git\x20$FN\x20$FN$LF)
@@ -41,7 +41,7 @@ my $EXTRACT_DIFFS = qr/(
 		^index\x20($OID_BLOB)\.\.($OID_BLOB)$ANY*$LF
 		^---\x20($FN)$LF
 		^\+{3}\x20($FN)$LF)/msx;
-my $IS_OID = qr/\A$OID_BLOB\z/s;
+our $IS_OID = qr/\A$OID_BLOB\z/s;
 
 # link to line numbers in blobs
 sub diff_hunk ($$$$) {

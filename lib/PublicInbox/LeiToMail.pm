@@ -309,6 +309,26 @@ sub _imap_write_cb ($$) {
 	}
 }
 
+sub _text_write_cb ($$) {
+	my ($self, $lei) = @_;
+	my $dedupe = $lei->{dedupe};
+	$dedupe->prepare_dedupe if $dedupe;
+	my $lvt = $lei->{lvt};
+	my $ovv = $lei->{ovv};
+	$lei->{1} // die "no stdout ($ovv->{dst})"; # redirected earlier
+	$lei->{1}->autoflush(1);
+	binmode $lei->{1}, ':utf8';
+	my $lse = $lei->{lse}; # may be undef
+	sub { # for git_to_mail
+		my ($bref, $smsg, $eml) = @_;
+		$lse->xsmsg_vmd($smsg) if $lse;
+		$eml //= PublicInbox::Eml->new($bref); # copy bref
+		return if $dedupe && $dedupe->is_dup($eml, $smsg);
+		my $lk = $ovv->lock_for_scope;
+		$lei->out(${$lvt->eml_to_text($smsg, $eml)}, "\n");
+	}
+}
+
 sub write_cb { # returns a callback for git_to_mail
 	my ($self, $lei) = @_;
 	# _mbox_write_cb, _maildir_write_cb or _imap_write_cb
@@ -329,8 +349,6 @@ sub new {
 		$lei->{ovv}->{dst} = $dst .= '/' if substr($dst, -1) ne '/';
 	} elsif (substr($fmt, 0, 4) eq 'mbox') {
 		require PublicInbox::MboxReader;
-		(-d $dst || (-e _ && !-w _)) and die
-			"$dst exists and is not a writable file\n";
 		$self->can("eml2$fmt") or die "bad mbox format: $fmt\n";
 		$self->{base_type} = 'mbox';
 	} elsif ($fmt =~ /\Aimaps?\z/) { # TODO .onion support
@@ -347,8 +365,22 @@ sub new {
 		$dst = $lei->{ovv}->{dst} = $$uri; # canonicalized
 		$lei->{net} = $net;
 		$self->{base_type} = 'imap';
+	} elsif ($fmt eq 'text') {
+		require PublicInbox::LeiViewText;
+		$lei->{lvt} = PublicInbox::LeiViewText->new($lei);
+		$self->{base_type} = 'text';
 	} else {
 		die "bad mail --format=$fmt\n";
+	}
+	if ($self->{base_type} =~ /\A(?:text|mbox)\z/) {
+		(-d $dst || (-e _ && !-w _)) and die
+			"$dst exists and is not a writable file\n";
+	}
+	if ($self->{base_type} eq 'text') {
+		my @err = map {
+			defined($lei->{opt}->{$_}) ? "--$_" : ();
+		} (qw(mua save));
+		die "@err incompatible with $fmt\n" if @err;
 	}
 	$self->{dst} = $dst;
 	$lei->{dedupe} = $lei->{lss} // do {
@@ -427,6 +459,29 @@ sub _do_augment_imap {
 		# clobber existing IMAP folder
 		$net->imap_delete_all($self->{uri});
 	}
+}
+
+sub _pre_augment_text {
+	my ($self, $lei) = @_;
+	my $dst = $lei->{ovv}->{dst};
+	my $out;
+	my $devfd = $lei->path_to_fd($dst) // die "bad $dst";
+	if ($devfd >= 0) {
+		$out = $lei->{$devfd};
+	} else { # normal-looking path
+		if (-p $dst) {
+			open $out, '>', $dst or die "open($dst): $!";
+		} elsif (-f _ || !-e _) {
+			# text allows augment, HTML/Atom won't
+			my $mode = $lei->{opt}->{augment} ? '>>' : '>';
+			open $out, $mode, $dst or die "open($mode, $dst): $!";
+		} else {
+			die "$dst is not a file or FIFO\n";
+		}
+	}
+	$lei->{ovv}->ovv_out_lk_init if !$lei->{ovv}->{lock_path};
+	$lei->{1} = $out;
+	undef;
 }
 
 sub _pre_augment_mbox {
@@ -523,8 +578,8 @@ sub pre_augment { # fast (1 disk seek), runs in same process as post_augment
 sub do_augment { # slow, runs in wq worker
 	my ($self, $lei) = @_;
 	# _do_augment_maildir, _do_augment_mbox, or _do_augment_imap
-	my $m = "_do_augment_$self->{base_type}";
-	$self->$m($lei);
+	my $m = $self->can("_do_augment_$self->{base_type}") or return;
+	$m->($self, $lei);
 }
 
 # fast (spawn compressor or mkdir), runs in same process as pre_augment

@@ -34,7 +34,7 @@ my %escape_sequence = (
 	"\x7f" => '\\x7f', # DEL
 );
 
-my %xhtml_map = (
+our %xhtml_map = (
 	'"' => '&#34;',
 	'&' => '&#38;',
 	"'" => '&#39;',

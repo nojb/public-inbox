@@ -109,7 +109,7 @@ sub lei_lcat {
 	$opt->{sort} //= 'relevance';
 	$mset_opt{relevance} = 1;
 	$lei->{mset_opt} = \%mset_opt;
-	$opt->{'format'} //= 'mboxrd' unless defined($opt->{output});
+	$opt->{'format'} //= 'text' unless defined($opt->{output});
 	if ($lei->{opt}->{stdin}) {
 		return $lei->fail(<<'') if @argv;
 no args allowed on command-line with --stdin
