@@ -52,5 +52,11 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is(ref($x->{'lei/store'}), 'ARRAY', 'lei/store in inspect');
 	is(ref($x->{sync}), 'HASH', 'sync in inspect');
 	is(ref($x->{sync}->{$k[0]}), 'ARRAY', 'UID arrays in inspect');
+
+	my $psgi_attach = 'cfa3622cbeffc9bd6b0fc66c4d60d420ba74f60d';
+	lei_ok('blob', $psgi_attach);
+	like($lei_out, qr!^Content-Type: multipart/mixed;!sm, 'got full blob');
+	lei_ok('blob', "$psgi_attach:2");
+	is($lei_out, "b64\xde\xad\xbe\xef\n", 'got attachment');
 });
 done_testing;

@@ -84,12 +84,25 @@ sub do_solve_blob { # via wq_do
 	$solver->solve($lei->{env}, $log, $self->{oid_b}, $hints);
 }
 
+sub cat_attach_i { # Eml->each_part callback
+	my ($part, $depth, $idx) = @{$_[0]};
+	my $lei = $_[1];
+	my $want = $lei->{-attach_idx} // return;
+	return if $idx ne $want; # [0-9]+(?:\.[0-9]+)+
+	delete $lei->{-attach_idx};
+	$lei->out($part->body);
+}
+
 sub lei_blob {
 	my ($lei, $blob) = @_;
 	$lei->start_pager if -t $lei->{1};
 	my $opt = $lei->{opt};
 	my $has_hints = grep(defined, @$opt{qw(oid-a path-a path-b)});
 	my $lxs;
+	if ($blob =~ s/:([0-9\.]+)\z//) {
+		$lei->{-attach_idx} = $1;
+		$opt->{mail} = 1;
+	}
 
 	# first, see if it's a blob returned by "lei q" JSON output:k
 	if ($opt->{mail} // ($has_hints ? 0 : 1)) {
@@ -97,7 +110,7 @@ sub lei_blob {
 			$lxs = $lei->lxs_prepare;
 			$lei->ale->refresh_externals($lxs);
 		}
-		my $rdr = { 1 => $lei->{1} };
+		my $rdr = {};
 		if ($opt->{mail}) {
 			$rdr->{2} = $lei->{2};
 		} else {
@@ -105,7 +118,22 @@ sub lei_blob {
 		}
 		my $cmd = [ 'git', '--git-dir='.$lei->ale->git->{git_dir},
 				'cat-file', 'blob', $blob ];
-		waitpid(spawn($cmd, $lei->{env}, $rdr), 0);
+		if (defined $lei->{-attach_idx}) {
+			my $fh = popen_rd($cmd, $lei->{env}, $rdr);
+			require PublicInbox::Eml;
+			my $str = do { local $/; <$fh> };
+			if (close $fh) {
+				my $eml = PublicInbox::Eml->new(\$str);
+				$eml->each_part(\&cat_attach_i, $lei, 1);
+				my $idx = delete $lei->{-attach_idx};
+				defined($idx) and return $lei->fail(<<EOM);
+E: attachment $idx not found in $blob
+EOM
+			}
+		} else {
+			$rdr->{1} = $lei->{1};
+			waitpid(spawn($cmd, $lei->{env}, $rdr), 0);
+		}
 		return if $? == 0;
 		return $lei->child_error($?) if $opt->{mail};
 	}
