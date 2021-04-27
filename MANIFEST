@@ -200,6 +200,7 @@ lib/PublicInbox/LeiImport.pm
 lib/PublicInbox/LeiInit.pm
 lib/PublicInbox/LeiInput.pm
 lib/PublicInbox/LeiInspect.pm
+lib/PublicInbox/LeiLcat.pm
 lib/PublicInbox/LeiLsLabel.pm
 lib/PublicInbox/LeiLsSearch.pm
 lib/PublicInbox/LeiLsSync.pm
@@ -400,6 +401,7 @@ t/lei-import-imap.t
 t/lei-import-maildir.t
 t/lei-import-nntp.t
 t/lei-import.t
+t/lei-lcat.t
 t/lei-mirror.t
 t/lei-p2q.t
 t/lei-q-kw.t
@@ -411,6 +413,7 @@ t/lei-tag.t
 t/lei.t
 t/lei_dedupe.t
 t/lei_external.t
+t/lei_lcat.t
 t/lei_mail_sync.t
 t/lei_overview.t
 t/lei_saved_search.t

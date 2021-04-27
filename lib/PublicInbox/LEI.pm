@@ -149,6 +149,14 @@ our %CMD = ( # sorted in order of importance/use:
 'up' => [ 'OUTPUT|--all', 'update saved search',
 	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ all:s), @c_opt ],
 
+'lcat' => [ '--stdin|MSGID_OR_URL..', 'display local copy of message(s)',
+	'stdin|', # /|\z/ must be first for lone dash
+	# some of these options are ridiculous for lcat
+	@lxs_opt, qw(output|mfolder|o=s format|f=s dedupe|d=s threads|t+
+	sort|s=s reverse|r offset=i jobs|j=s globoff|g augment|a
+	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+), @c_opt,
+	opt_dash('limit|n=i', '[0-9]+') ],
+
 'blob' => [ 'OID', 'show a git blob, reconstructing from mail if necessary',
 	qw(git-dir=s@ cwd! verbose|v+ mail! oid-a|A=s path-a|a=s path-b|b=s),
 	@lxs_opt, @c_opt ],
