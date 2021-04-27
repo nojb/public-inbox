@@ -40,6 +40,9 @@ test_lei(sub {
 	is_deeply($inspect, { sync => { "maildir:$md" => [ 'x:2,S' ] } },
 		'maildir sync info as expected');
 
+	lei_ok qw(ls-sync);
+	is($lei_out, "maildir:$md\n", 'ls-sync as expected');
+
 	lei_ok(qw(import), $md, \'import Maildir again');
 	$imp_err = $lei_err;
 	lei_ok(qw(q -d none s:boolean), \'lei q w/o dedupe');

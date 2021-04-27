@@ -22,6 +22,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is_deeply(json_utf8->decode($lei_out), {}, 'no inspect stats, yet');
 
 	lei_ok('import', $url);
+	lei_ok 'ls-sync';
+	like($lei_out, qr!\A\Q$url\E;UIDVALIDITY=\d+\n\z!, 'ls-sync');
 
 	lei_ok('inspect', $url);
 	my $inspect = json_utf8->decode($lei_out);
