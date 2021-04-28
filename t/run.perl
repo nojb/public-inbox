@@ -52,6 +52,13 @@ if (!$ENV{TEST_LEI_DAEMON_PERSIST_DIR} &&
 	chomp $lei_daemon_pid;
 	$lei_daemon_pid =~ /\A[0-9]+\z/ or die "no daemon pid: $lei_daemon_pid";
 	kill(0, $lei_daemon_pid) or die "kill $lei_daemon_pid: $!";
+	if (my $t = $ENV{GNU_TAIL}) {
+		system("$t --pid=$lei_daemon_pid -F " .
+			"$lei_env->{XDG_RUNTIME_DIR}/lei/errors.log >&2 &");
+	}
+	if (my $strace_cmd = $ENV{STRACE_CMD}) {
+		system("$strace_cmd -p $lei_daemon_pid &");
+	}
 	$owner_pid = $$;
 }
 
