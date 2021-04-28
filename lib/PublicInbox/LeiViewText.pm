@@ -69,7 +69,7 @@ sub uncolored { ${$_[0]->{obuf}} .= $_[2] }
 sub new {
 	my ($cls, $lei) = @_;
 	my $self = bless { %{$lei->{opt}}, -colored => \&uncolored }, $cls;
-	return $self unless $self->{color} || -t $lei->{1};
+	return $self unless $self->{color} //= -t $lei->{1};
 	my $cmd = [ qw(git config -z --includes -l) ];
 	my ($r, $pid) = popen_rd($cmd, undef, { 2 => $lei->{2} });
 	my $cfg = PublicInbox::Config::config_fh_parse($r, "\0", "\n");
