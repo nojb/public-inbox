@@ -36,8 +36,11 @@ my %DEFAULT_COLOR = (
 	context => undef,
 );
 
+my $COLOR = qr/(?:bright)?
+		(?:normal|black|red|green|yellow|blue|magenta|cyan|white)/x;
+
 sub my_colored {
-	my ($self, $slot) = @_; # $_[2] = buffer
+	my ($self, $slot, $buf) = @_;
 	my $val = $self->{"color.$slot"} //=
 			$self->{-leicfg}->{"color.$slot"} //
 			$self->{-gitcfg}->{"color.diff.$slot"} //
@@ -45,11 +48,19 @@ sub my_colored {
 			$DEFAULT_COLOR{$slot};
 	$val = $val->[-1] if ref($val) eq 'ARRAY';
 	if (defined $val) {
+		$val = lc $val;
 		# git doesn't use "_", Term::ANSIColor does
-		$val =~ s/\Abright([^_])/bright_$1/i;
-		${$self->{obuf}} .= Term::ANSIColor::colored($_[2], lc $val);
+		$val =~ s/\Abright([^_])/bright_$1/ig;
+
+		# git: "green black" => T::A: "green on_black"
+		$val =~ s/($COLOR)(.+?)($COLOR)/$1$2on_$3/;
+
+		# FIXME: convert git #XXXXXX to T::A-compatible colors
+		# for 256-color terminals
+
+		${$self->{obuf}} .= colored($buf, $val);
 	} else {
-		${$self->{obuf}} .= $_[2];
+		${$self->{obuf}} .= $buf;
 	}
 }
 
