@@ -116,10 +116,10 @@ Falling back to (slow) one-shot mode
 		} elsif ($buf eq '-WINCH') {
 			kill($buf, @parent); # for MUA
 		} elsif ($buf =~ /\Ax_it ([0-9]+)\z/) {
-			$x_it_code = $1 + 0;
+			$x_it_code ||= $1 + 0;
 			last;
 		} elsif ($buf =~ /\Achild_error ([0-9]+)\z/) {
-			$x_it_code = $1 + 0;
+			$x_it_code ||= $1 + 0;
 		} else {
 			$sigchld->();
 			die $buf;

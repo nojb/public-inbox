@@ -73,7 +73,7 @@ sub bg_worker ($$$) {
 	my ($lei, $pfx, $json) = @_;
 	my $self = bless { -wq_nr_workers => 1, json => $json }, __PACKAGE__;
 	my ($op_c, $ops) = $lei->workers_start($self, 'ls-search', 1);
-	$lei->{lsss} = $self;
+	$lei->{wq1} = $self;
 	$self->wq_io_do('do_ls_search_long', [], $pfx);
 	$self->wq_close(1);
 	$op_c->op_wait_event($ops);

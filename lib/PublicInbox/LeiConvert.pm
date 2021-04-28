@@ -53,7 +53,7 @@ sub lei_convert { # the main "lei convert" method
 	$lei->{opt}->{augment} = 1 if $devfd < 0;
 	$self->prepare_inputs($lei, \@inputs) or return;
 	my ($op_c, $ops) = $lei->workers_start($self, 'lei-convert', 1);
-	$lei->{cnv} = $self;
+	$lei->{wq1} = $self;
 	$self->wq_io_do('process_inputs', []);
 	$self->wq_close(1);
 	$op_c->op_wait_event($ops);

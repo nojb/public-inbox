@@ -10,12 +10,6 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Spawn qw(spawn popen_rd which);
 use PublicInbox::DS;
 
-sub _lei_wq_eof { # EOF callback for main daemon
-	my ($lei) = @_;
-	my $sol = delete $lei->{sol} // return $lei->dclose; # already failed
-	$sol->wq_wait_old($lei->can('wq_done_wait'), $lei);
-}
-
 sub get_git_dir ($$) {
 	my ($lei, $d) = @_;
 	return $d if -d "$d/objects" && -d "$d/refs" && -e "$d/HEAD";
@@ -158,7 +152,7 @@ EOM
 	require PublicInbox::SolverGit;
 	my $self = bless { lxs => $lxs, oid_b => $blob }, __PACKAGE__;
 	my ($op_c, $ops) = $lei->workers_start($self, 'lei-blob', 1);
-	$lei->{sol} = $self;
+	$lei->{wq1} = $self;
 	$self->wq_io_do('do_solve_blob', []);
 	$self->wq_close(1);
 	$op_c->op_wait_event($ops);

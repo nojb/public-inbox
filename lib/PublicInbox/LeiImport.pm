@@ -53,12 +53,6 @@ sub input_nntp_cb { # nntp_each
 	input_eml_cb($self, $eml, $self->{-import_kw} ? { kw => $kw } : undef);
 }
 
-sub _lei_wq_eof { # EOF callback for main daemon
-	my ($lei) = @_;
-	my $imp = delete $lei->{imp} // return $lei->fail('BUG: {imp} gone');
-	$imp->wq_wait_old($lei->can('wq_done_wait'), $lei, 'non-fatal');
-}
-
 sub net_merge_complete { # callback used by LeiAuth
 	my ($self) = @_;
 	$self->wq_io_do('process_inputs');
@@ -95,7 +89,8 @@ sub lei_import { # the main "lei import" method
 	$self->{-wq_nr_workers} = $j // 1; # locked
 	$lei->{-eml_noisy} = 1;
 	(my $op_c, $ops) = $lei->workers_start($self, 'lei-import', $j, $ops);
-	$lei->{imp} = $self;
+	$lei->{wq1} = $self;
+	$lei->{-err_type} = 'non-fatal';
 	net_merge_complete($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);
 }

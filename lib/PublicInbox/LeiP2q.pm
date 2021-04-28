@@ -189,7 +189,7 @@ sub lei_p2q { # the "lei patch-to-query" entry point
 		$self->{input} = $input;
 	}
 	my ($op, $ops) = $lei->workers_start($self, 'lei-p2q', 1);
-	$lei->{p2q} = $self;
+	$lei->{wq1} = $self;
 	$self->wq_io_do('do_p2q', []);
 	$self->wq_close(1);
 	$op->op_wait_event($ops);
@@ -199,12 +199,6 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	$self->{lei}->_lei_atfork_child;
 	$self->SUPER::ipc_atfork_child;
-}
-
-sub _lei_wq_eof { # EOF callback for main daemon
-	my ($lei) = @_;
-	my $p2q = delete $lei->{p2q} // return $lei->dclose;
-	$p2q->wq_wait_old($lei->can('wq_done_wait'), $lei);
 }
 
 1;

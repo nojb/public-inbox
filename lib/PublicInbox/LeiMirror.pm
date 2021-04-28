@@ -26,7 +26,7 @@ sub do_finish_mirror { # dwaitpid callback
 
 sub _lei_wq_eof { # EOF callback for main daemon
 	my ($lei) = @_;
-	my $mrr = delete $lei->{mrr} or return;
+	my $mrr = delete $lei->{wq1} or return $lei->fail;
 	$mrr->wq_wait_old(\&do_finish_mirror, $lei);
 }
 
@@ -283,7 +283,7 @@ sub start {
 	require PublicInbox::Admin;
 	require PublicInbox::InboxWritable;
 	my ($op, $ops) = $lei->workers_start($self, 'lei_mirror', 1);
-	$lei->{mrr} = $self;
+	$lei->{wq1} = $self;
 	$self->wq_io_do('do_mirror', []);
 	$self->wq_close(1);
 	$op->op_wait_event($ops);

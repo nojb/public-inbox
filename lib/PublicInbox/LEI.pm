@@ -382,7 +382,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m imp mrr cnv p2q tag sol lsss); # internal workers
+my @WQ_KEYS = qw(lxs l2m wq1); # internal workers
 
 sub _drop_wq {
 	my ($self) = @_;
@@ -542,7 +542,7 @@ sub workers_start {
 		'child_error' => [ \&child_error, $lei ],
 		($ops ? %$ops : ()),
 	};
-	$ops->{''} //= [ $wq->can('_lei_wq_eof') || \&dclose, $lei ];
+	$ops->{''} //= [ $wq->can('_lei_wq_eof') || \&wq_eof, $lei ];
 	my $end = $lei->pkt_op_pair;
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, { lei => $lei });
 	delete $lei->{pkt_op_p};
@@ -1237,9 +1237,17 @@ sub DESTROY {
 
 sub wq_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
-	my ($wq, $lei, $e) = @$arg;
-	$? and $lei->child_error($?, $e ? "$e errors during $lei->{cmd}" : ());
+	my ($wq, $lei) = @$arg;
+	my $err_type = $lei->{-err_type};
+	$? and $lei->child_error($?,
+			$err_type ? "$err_type errors during $lei->{cmd}" : ());
 	$lei->dclose;
+}
+
+sub wq_eof { # EOF callback for main daemon
+	my ($lei) = @_;
+	my $wq1 = delete $lei->{wq1} // return $lei->fail; # already failed
+	$wq1->wq_wait_old(\&wq_done_wait, $lei);
 }
 
 1;
