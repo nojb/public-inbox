@@ -998,7 +998,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 			open($self->{$i++}, '+<&=', $fd) and next;
 			send($sock, "open(+<&=$fd) (FD=$i): $!", MSG_EOR);
 		}
-		return if scalar(@fds) != 4;
+		$i == 4 or return send($sock, 'not enough FDs='.($i-1), MSG_EOR)
 	}
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
