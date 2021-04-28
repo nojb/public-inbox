@@ -487,19 +487,14 @@ sub _lei_atfork_child {
 	# we need to explicitly close things which are on stack
 	if ($persist) {
 		chdir '/' or die "chdir(/): $!";
-		my @io = delete @$self{qw(0 1 2 sock)};
-		unless ($self->{oneshot}) {
-			close($_) for @io;
-		}
+		close($_) for (grep(defined, delete @$self{qw(0 1 2 sock)}));
 		if (my $cfg = $self->{cfg}) {
 			delete $cfg->{-lei_store};
 		}
 	} else { # worker, Net::NNTP (Net::Cmd) uses STDERR directly
 		open STDERR, '+>&='.fileno($self->{2}) or warn "open $!";
 	}
-	for (delete @$self{qw(3 old_1 au_done)}) {
-		close($_) if defined($_);
-	}
+	close($_) for (grep(defined, delete @$self{qw(3 old_1 au_done)}));
 	if (my $op_c = delete $self->{pkt_op_c}) {
 		close(delete $op_c->{sock});
 	}
@@ -1213,13 +1208,8 @@ sub oneshot {
 	local $quit = $exit if $exit;
 	local %PATH2CFG;
 	umask(077) // die("umask(077): $!");
-	my $self = bless {
-		oneshot => 1,
-		0 => *STDIN{GLOB},
-		1 => *STDOUT{GLOB},
-		2 => *STDERR{GLOB},
-		env => \%ENV
-	}, __PACKAGE__;
+	my $self = bless { oneshot => 1, env => \%ENV }, __PACKAGE__;
+	for (0..2) { open($self->{$_}, '+<&=', $_) or die "open fd=$_: $!" }
 	dispatch($self, @ARGV);
 	x_it($self, $self->{child_error}) if $self->{child_error};
 }

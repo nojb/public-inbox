@@ -154,6 +154,7 @@ my $test_fail = sub {
 		}
 	}
 	lei_ok('sucks', \'yes, but hopefully less every day');
+	like($lei_out, qr/loaded features/, 'loaded features shown');
 SKIP: {
 	skip 'no curl', 3 unless which('curl');
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m));
