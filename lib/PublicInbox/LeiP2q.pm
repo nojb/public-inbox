@@ -203,4 +203,10 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 }
 
+sub _lei_wq_eof { # EOF callback for main daemon
+	my ($lei) = @_;
+	my $p2q = delete $lei->{p2q} // return $lei->dclose;
+	$p2q->wq_wait_old($lei->can('wq_done_wait'), $lei);
+}
+
 1;
