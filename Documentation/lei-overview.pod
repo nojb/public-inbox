@@ -82,7 +82,7 @@ Search for messages whose subject includes "lei" and "skeleton".
 Do the same, but also report unmatched messages that are in the same
 thread as a matched message.
 
-=item $ lei q -t -o mdir --mua=mutt s:lei s:skeleton
+=item $ lei q -t -o /tmp/mdir --mua=mutt s:lei s:skeleton
 
 Write results to a Maildir at "mdir".  Mutt will be invoked
 to open mfolder (C<mutt -f %f>) while results are being fetched
@@ -92,7 +92,7 @@ and written.
 
 Search for all flagged messages that also have a "next" label.
 
-=item $ lei p2q HEAD | lei q --stdin -tt -o mdir
+=item $ lei p2q HEAD | lei q --stdin -tt -o /tmp/mdir
 
 Search for messages that have post-image git blob IDs that match those
 of the current repository's HEAD commit, writing them to the Maildir

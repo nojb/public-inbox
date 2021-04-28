@@ -31,9 +31,9 @@ Read search terms from stdin.
 Warning: this clobbers and overwrites the output destination unless
 L</-a, --augment> is specified.
 
-Destination for results (e.g., C<path/to/Maildir>,
+Destination for results (e.g., C</tmp/results-Maildir>,
 C<imaps://user@mail.example.com/INBOX.test>, or
-C<mboxcl2:path/to/mbox>).  The prefix may be a supported protocol:
+C<mboxcl2:/tmp/results-mboxcl2>).  The prefix may be a supported protocol:
 C<imap://> or C<imaps://>.  URLs requiring
 authentication must use L<netrc(5)> and/or L<git-credential(1)> to
 fill in the username and password.
