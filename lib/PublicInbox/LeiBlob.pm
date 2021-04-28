@@ -167,7 +167,6 @@ EOM
 sub ipc_atfork_child {
 	my ($self) = @_;
 	$self->{lei}->_lei_atfork_child;
-	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
 

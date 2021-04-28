@@ -411,7 +411,6 @@ sub ipc_atfork_child {
 		close $err->[0];
 		$self->{-err_wr} = $err->[1];
 	}
-	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
 }
 

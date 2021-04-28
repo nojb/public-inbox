@@ -23,6 +23,7 @@ use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::Lock;
+use PublicInbox::Eml;
 use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
@@ -509,6 +510,8 @@ sub _lei_atfork_child {
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
+	$self->{-eml_noisy} or # only "lei import" sets this atm
+		$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$current_lei = $persist ? undef : $self; # for SIG{__WARN__}
 }
 

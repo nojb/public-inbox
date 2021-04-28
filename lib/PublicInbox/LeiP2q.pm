@@ -197,9 +197,7 @@ sub lei_p2q { # the "lei patch-to-query" entry point
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	my $lei = $self->{lei};
-	$lei->_lei_atfork_child;
-	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
+	$self->{lei}->_lei_atfork_child;
 	$self->SUPER::ipc_atfork_child;
 }
 

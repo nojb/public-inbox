@@ -68,7 +68,6 @@ sub ipc_atfork_child {
 		$net->{mics_cached} = $net->imap_common_init($lei);
 		$net->{nn_cached} = $net->nntp_common_init($lei);
 	}
-	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$l2m->pre_augment($lei);
 	$l2m->do_augment($lei);
 	$l2m->post_augment($lei);
