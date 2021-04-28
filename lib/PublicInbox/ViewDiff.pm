@@ -7,10 +7,9 @@
 # (or reconstruct) blobs.
 
 package PublicInbox::ViewDiff;
-use 5.010_001;
 use strict;
-use warnings;
-use base qw(Exporter);
+use v5.10.1;
+use parent qw(Exporter);
 our @EXPORT_OK = qw(flush_diff);
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::Hval qw(ascii_html to_attr);
@@ -122,8 +121,8 @@ sub diff_header ($$$) {
 	my $dctx = { spfx => $spfx };
 
 	# get rid of leading "a/" or "b/" (or whatever --{src,dst}-prefix are)
-	$pa = (split('/', git_unquote($pa), 2))[1] if $pa ne '/dev/null';
-	$pb = (split('/', git_unquote($pb), 2))[1] if $pb ne '/dev/null';
+	$pa = (split(m'/', git_unquote($pa), 2))[1] if $pa ne '/dev/null';
+	$pb = (split(m'/', git_unquote($pb), 2))[1] if $pb ne '/dev/null';
 	if ($pa eq $pb && $pb ne '/dev/null') {
 		$dctx->{Q} = "?b=".uri_escape_utf8($pb, UNSAFE);
 	} else {
