@@ -12,6 +12,7 @@ use IO::Socket::INET;
 use File::Spec;
 our @EXPORT;
 my $lei_loud = $ENV{TEST_LEI_ERR_LOUD};
+our ($lei_opt, $lei_out, $lei_err, $lei_cwdfh);
 BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
@@ -306,14 +307,16 @@ sub run_script ($;$$) {
 		local %SIG = %SIG;
 		local $0 = join(' ', @$cmd);
 		my $orig_io = _prepare_redirects($fhref);
-		my $cwdfh;
+		my $cwdfh = $lei_cwdfh;
 		if (my $d = $opt->{'-C'}) {
-			opendir $cwdfh, '.' or die "opendir .: $!";
+			unless ($cwdfh) {
+				opendir $cwdfh, '.' or die "opendir .: $!";
+			}
 			chdir $d or die "chdir $d: $!";
 		}
 		_run_sub($sub, $key, \@argv);
 		eval { PublicInbox::Inbox::cleanup_task() };
-		die "chdir(restore): $!" if $cwdfh && !chdir($cwdfh);
+		die "fchdir(restore): $!" if $cwdfh && !chdir($cwdfh);
 		_undo_redirects($orig_io);
 		select STDOUT;
 	}
@@ -469,7 +472,6 @@ sub have_xapian_compact () {
 	PublicInbox::Spawn::which($ENV{XAPIAN_COMPACT} || 'xapian-compact');
 }
 
-our ($lei_opt, $lei_out, $lei_err);
 # favor lei() or lei_ok() over $lei for new code
 sub lei (@) {
 	my ($cmd, $env, $xopt) = @_;
@@ -515,6 +517,8 @@ sub test_lei {
 SKIP: {
 	my ($cb) = pop @_;
 	my $test_opt = shift // {};
+	local $lei_cwdfh;
+	opendir $lei_cwdfh, '.' or xbail "opendir .: $!";
 	require_git(2.6, 1) or skip('git 2.6+ required for lei test', 2);
 	require_mods(qw(json DBD::SQLite Search::Xapian), 2);
 	require PublicInbox::Config;

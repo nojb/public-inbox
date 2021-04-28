@@ -50,11 +50,6 @@ test_lei({tmpdir => $tmpdir}, sub {
 			'non-existent blob fails');
 	SKIP: {
 		skip '/.git exists', 1 if -e '/.git';
-		require PublicInbox::OnDestroy;
-		opendir my $dh, '.' or xbail "opendir: $!";
-		my $end = PublicInbox::OnDestroy->new($$, sub {
-			chdir $dh or xbail "chdir: $!";
-		});
 		lei_ok(qw(-C / blob 69df7d5 -I), $ibx->{inboxdir},
 			"--git-dir=$git_dir");
 		is($lei_out, $prev, '--git-dir works');

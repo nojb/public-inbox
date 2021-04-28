@@ -36,11 +36,9 @@ test_lei(sub {
 	# ensure "lei up" works, since it compliments "lei q --save"
 	$in = $doc2->as_string;
 	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
-	opendir my $dh, '.' or xbail "opendir .: $!";
 	lei_ok qw(up -q md -C), $home;
 	lei_ok qw(up -q . -C), "$home/md";
 	lei_ok qw(up -q), "/$home/md";
-	chdir($dh) or xbail "fchdir . $!";
 	my %after = map { $_ => 1 } glob("$home/md/cur/*");
 	is(delete $after{(keys(%before))[0]}, 1, 'original message kept');
 	is(scalar(keys %after), 1, 'one new message added');
@@ -89,7 +87,6 @@ test_lei(sub {
 	print $mb $pre_existing;
 	close $mb or xbail "close: $!";
 	lei_ok(qw(q --save -o mboxrd:mbrd m:qp@example.com -C), $home);
-	chdir($dh) or xbail "fchdir . $!";
 	open $mb, '<', "$home/mbrd" or xbail "open $!";
 	is_deeply([grep(/pre-existing/, <$mb>)], [],
 		'pre-existing messsage gone w/o augment');
@@ -103,7 +100,6 @@ test_lei(sub {
 	print $mb $pre_existing;
 	close $mb or xbail "close: $!";
 	lei_ok(qw(q -a --save -o mboxrd:mbrd-aug m:qp@example.com -C), $home);
-	chdir($dh) or xbail "fchdir . $!";
 	open $mb, '<', "$home/mbrd-aug" or xbail "open $!";
 	$mb = do { local $/; <$mb> };
 	like($mb, qr/pre-existing/, 'pre-existing message preserved w/ -a');

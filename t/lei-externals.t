@@ -4,7 +4,6 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Spawn qw(which);
-use PublicInbox::OnDestroy;
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE);
@@ -266,10 +265,6 @@ test_lei(sub {
 	{
 		skip 'TEST_LEI_DAEMON_PERSIST_DIR in use', 1 if
 					$ENV{TEST_LEI_DAEMON_PERSIST_DIR};
-		opendir my $dh, '.' or BAIL_OUT "opendir(.) $!";
-		my $od = PublicInbox::OnDestroy->new($$, sub {
-			chdir $dh or BAIL_OUT "chdir: $!"
-		});
 		my @q = qw(q -o mboxcl2:rel.mboxcl2 bye);
 		lei_ok('-C', $home, @q);
 		is(unlink("$home/rel.mboxcl2"), 1, '-C works before q');
