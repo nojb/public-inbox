@@ -25,6 +25,7 @@ my %DEFAULT_COLOR = (
 	quoted => 'blue',
 	hdrdefault => 'cyan',
 	status => 'bright_cyan', # smsg stuff
+	attachment => 'bright_red',
 
 	# git names and defaults, falls back to ~/.gitconfig
 	new => 'green',
@@ -113,20 +114,21 @@ sub hdr_buf ($$) {
 sub attach_note ($$$$;$) {
 	my ($self, $ct, $p, $fn, $err) = @_;
 	my ($part, $depth, $idx) = @$p;
-	my $obuf = $self->{obuf};
 	my $nl = $idx eq '1' ? '' : "\n"; # like join("\n", ...)
-	$$obuf .= <<EOF if $err;
+	my $abuf = $err ? <<EOF : '';
 [-- Warning: decoded text below may be mangled, UTF-8 assumed --]
 EOF
-	my $blob = $self->{-smsg}->{blob} // '';
-	$blob .= ':' if $blob ne '';
-	$$obuf .= "[-- Attachment $blob$idx ";
+	$abuf .= "[-- Attachment #$idx: ";
 	_xs($ct);
 	my $size = length($part->body);
 	my $ts = "Type: $ct, Size: $size bytes";
 	my $d = $part->header('Content-Description') // $fn // '';
 	_xs($d);
-	$$obuf .= $d eq '' ? "$ts --]\n" : "$d --]\n[-- $ts --]\n";
+	$abuf .= $d eq '' ? "$ts --]\n" : "$d --]\n[-- $ts --]\n";
+	if (my $blob = $self->{-smsg}->{blob}) {
+		$abuf .= "[-- lei blob $blob:$idx --]\n";
+	}
+	$self->{-colored}->($self, 'attachment', $abuf);
 	hdr_buf($self, $part) if $part->{is_submsg};
 }
 
