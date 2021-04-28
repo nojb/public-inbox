@@ -19,6 +19,7 @@ use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use Errno qw(EINTR);
 use Fcntl qw(:seek);
 use POSIX qw(_POSIX_PIPE_BUF WNOHANG);
+use File::Temp ();
 my $jobs = 1;
 my $repeat = 1;
 $| = 1;
@@ -38,6 +39,15 @@ open my $OLDOUT, '>&STDOUT' or die "dup STDOUT: $!";
 open my $OLDERR, '>&STDERR' or die "dup STDERR: $!";
 $OLDOUT->autoflush(1);
 $OLDERR->autoflush(1);
+
+my ($run_log, $tmp_rl);
+my $rl = $ENV{TEST_RUN_LOG};
+unless ($rl) {
+	$tmp_rl = File::Temp->new(CLEANUP => 1);
+	$rl = $tmp_rl->filename;
+}
+open $run_log, '+>>', $rl or die "open $rl: $!";
+$run_log->autoflush(1); # one reader, many writers
 
 key2sub($_) for @tests; # precache
 
@@ -120,6 +130,7 @@ END { test_status() if (defined($worker_test) && $worker == $$) }
 
 sub run_test ($) {
 	my ($test) = @_;
+	syswrite($run_log, "$$ $test\n");
 	my $log_fh;
 	if ($log_suffix ne '') {
 		my $log = $test;
@@ -205,7 +216,12 @@ for (my $i = $repeat; $i != 0; $i--) {
 				push @err, "reaped unknown $pid ($?)";
 				next;
 			}
-			push @err, "job[$j] ($?)" if $?;
+			if ($?) {
+				seek($run_log, 0, SEEK_SET);
+				chomp(my @t = grep(/^$pid /, <$run_log>));
+				$t[0] //= "$pid unknown";
+				push @err, "job[$j] ($?) PID=$t[-1]";
+			}
 			# skip_all can exit(0), respawn if needed:
 			if (!$eof) {
 				print $OLDERR "# respawning job[$j]\n";
