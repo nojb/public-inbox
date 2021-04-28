@@ -42,15 +42,11 @@ C<imap://> or C<imaps://>.  URLs requiring
 authentication must use L<netrc(5)> and/or L<git-credential(1)> to
 fill in the username and password.
 
-The prefix can instead specify the format of the output: C<maildir>,
-C<mboxrd>, C<mboxcl2>, C<mboxcl>, C<mboxo>, C<json>, C<jsonl>, or
-C<concatjson>.  When a format isn't specified, it's chosen based on
-the destination.  C<json> is used for the default destination
-(stdout), and C<maildir> is used for an existing directory or
-non-existing path.
+A prefix can specify the format of the output: C<maildir>,
+C<mboxrd>, C<mboxcl2>, C<mboxcl>, C<mboxo>.  For a description of
+mail formats, see L<lei-mail-formats(5)>.
 
-=for comment
-TODO: Provide description of formats?
+C<maildir> is the default for an existing directory or non-existing path.
 
 Default: C<-> (stdout)
 
@@ -58,9 +54,17 @@ Default: C<-> (stdout)
 
 =item -f FORMAT
 
-Format of results.  This option exists as a convenient way to specify
-the format for the default stdout destination.  Using a C<format:>
-prefix with the C<--output> destination is preferred otherwise.
+Format of results to stdout.  This option exists as a convenient
+way to specify the format for the default stdout destination.
+C<text>, C<json>, C<jsonl>, or C<concatjson> are all supported,
+as are the various mbox variants described in L</--output>.
+
+When a format isn't specified, it's chosen based on the
+L</--output> destination or prefix.  C<json> is used for the
+default destination (stdout).
+
+Using a C<format:> prefix with the C<--output> destination is
+preferred when not writing to stdout.
 
 =item --pretty
 
