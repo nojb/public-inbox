@@ -9,10 +9,10 @@ test_lei(sub {
 	ok(!lei(qw(p2q this-better-cause-format-patch-to-fail)),
 		'p2q fails on bogus arg');
 	lei_ok(qw(p2q -w dfpost t/data/0001.patch));
-	is($lei_out, "dfpost:6e006fd73b1d\n", 'pathname');
+	is($lei_out, "dfpost:6e006fd73b1d\n", 'pathname') or diag $lei_err;
 	open my $fh, '+<', 't/data/0001.patch' or xbail "open: $!";
 	lei_ok([qw(p2q -w dfpost -)], undef, { %$lei_opt, 0 => $fh });
-	is($lei_out, "dfpost:6e006fd73b1d\n", '--stdin');
+	is($lei_out, "dfpost:6e006fd73b1d\n", '--stdin') or diag $lei_err;
 
 	lei_ok(qw(p2q --uri t/data/0001.patch -w), 'dfpost,dfn');
 	is($lei_out, "dfpost%3A6e006fd73b1d+".
