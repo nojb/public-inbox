@@ -694,7 +694,7 @@ sub _msg_page_prepare_obuf {
 	for my $v ($eml->header('Date')) {
 		$v = ascii_html($v);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx; # possible :P
-		$rv .= "Date: $v\n";
+		$rv .= qq{Date: $v\t<a\nhref="#r">[thread overview]</a>\n};
 	}
 	if (!$nr) { # first (and only) message, common case
 		$ctx->{-title_html} = join(' - ', @title);
@@ -739,7 +739,8 @@ sub thread_skel ($$$) {
 			$$skel .= SKEL_EXPAND."\n ";
 			$$skel .= ghost_parent('../', $parent) . "\n";
 		} else {
-			$$skel .= '[no followups] '.SKEL_EXPAND."\n";
+			$$skel .= "<a\nid=r>[no followups]</a> ".
+					SKEL_EXPAND."\n";
 		}
 		$ctx->{next_msg} = undef;
 		$ctx->{parent_msg} = $parent;
