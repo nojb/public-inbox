@@ -26,10 +26,14 @@ TODO: mention curl options?
 
 Read search terms from stdin.
 
-=item -o MFOLDER, --output=MFOLDER, --mfolder=MFOLDER
+=item --output=MFOLDER
+
+=item -o MFOLDER
+
+=item --mfolder=MFOLDER
 
 Warning: this clobbers and overwrites the output destination unless
-L</-a, --augment> is specified.
+L</--augment> is specified.
 
 Destination for results (e.g., C</tmp/results-Maildir>,
 C<imaps://user@mail.example.com/INBOX.test>, or
@@ -50,7 +54,9 @@ TODO: Provide description of formats?
 
 Default: C<-> (stdout)
 
-=item -f FORMAT, --format=FORMAT
+=item --format=FORMAT
+
+=item -f FORMAT
 
 Format of results.  This option exists as a convenient way to specify
 the format for the default stdout destination.  Using a C<format:>
@@ -81,7 +87,9 @@ This option may be given multiple times.
 Default: C<:WINCH,:bell> when C<--mua> is specified and C<--output>
 doesn't point to stdout, nothing otherwise.
 
-=item -a, --augment
+=item --augment
+
+=item -a
 
 Augment output destination instead of clobbering it.
 
@@ -90,7 +98,9 @@ Augment output destination instead of clobbering it.
 Do not importing keywords before writing to an existing output
 destination.
 
-=item -t, --threads
+=item --threads
+
+=item -t
 
 Return all messages in the same thread as the actual match(es).
 
@@ -102,7 +112,9 @@ of the same thread.
 TODO: Warning: this flag may become persistent and saved in
 lei/store unless an MUA unflags it!  (Behavior undecided)
 
-=item -d STRATEGY, --dedupe=STRATEGY
+=item --dedupe=STRATEGY
+
+=item -d STRATEGY
 
 Strategy for deduplicating messages: C<content>, C<oid>, C<mid>, or
 C<none>.
@@ -126,7 +138,9 @@ Limit operations to those requiring network access.
 
 Don't include results from externals.
 
-=item -I LOCATION, --include=LOCATION
+=item --include=LOCATION
+
+=item -I LOCATION
 
 Include specified external in search.  This option may be given
 multiple times.
@@ -141,7 +155,9 @@ multiple times.
 Use only the specified external for search.  This option may be given
 multiple times, in which case the search uses only the specified set.
 
-=item -g, --globoff
+=item --globoff
+
+=item -g
 
 Do not match locations using C<*?> wildcards and C<[]> ranges.  This
 option applies to C<--include>, C<--exclude>, and C<--only>.
@@ -158,7 +174,11 @@ C<none>.
 
 Default: fcntl,dotlock
 
-=item -NUMBER, -n NUMBER, --limit=NUMBER
+=item --limit=NUMBER
+
+=item -NUMBER
+
+=item -n NUMBER
 
 Limit the number of matches.
 
@@ -170,26 +190,36 @@ Shift start of search results.
 
 Default: 0
 
-=item -r, --reverse
+=item --reverse
+
+=item -r
 
 Reverse the results.  Note that this applies before C<--limit>.
 
-=item -s KEY, --sort=KEY
+=item --sort=KEY
+
+=item -s KEY
 
 Order the results by KEY.  Valid keys are C<received>, C<relevance>,
 and C<docid>.
 
 Default: C<received>
 
-=item -v, --verbose
+=item --verbose
+
+=item -v
 
 Provide more feedback on stderr.
 
-=item -q, --quiet
+=item --quiet
+
+=item -q
 
 Suppress feedback messages.
 
-=item --torsocks=auto|no|yes, --no-torsocks
+=item --torsocks=auto|no|yes
+
+=item --no-torsocks
 
 Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
 
