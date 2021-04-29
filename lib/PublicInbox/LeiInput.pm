@@ -293,6 +293,7 @@ $input is `eml', not --in-format=$in_fmt
 		$lei->err("# --sync is not supported for: @{$sync->{no}}");
 	}
 	if ($net) {
+		$net->{-can_die} = 1;
 		if (my $err = $net->errors) {
 			return $lei->fail($err);
 		}
@@ -306,10 +307,17 @@ $input is `eml', not --in-format=$in_fmt
 
 sub process_inputs {
 	my ($self) = @_;
+	my $err;
 	for my $input (@{$self->{inputs}}) {
-		$self->input_path_url($input);
+		eval { $self->input_path_url($input) };
+		next unless $@;
+		$err = "$input: $@";
+		last;
 	}
+	# always commit first, even on error partial work is acceptable for
+	# lei <import|tag|convert>
 	my $wait = $self->{lei}->{sto}->ipc_do('done') if $self->{lei}->{sto};
+	$self->{lei}->fail($err) if $err;
 }
 
 sub input_only_atfork_child {

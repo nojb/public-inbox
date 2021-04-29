@@ -24,6 +24,10 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('import', $url);
 	lei_ok 'ls-sync';
 	like($lei_out, qr!\A\Q$url\E;UIDVALIDITY=\d+\n\z!, 'ls-sync');
+	chomp(my $u = $lei_out);
+	lei_ok('import', $u, \'UIDVALIDITY match in URL');
+	$u =~ s/;UIDVALIDITY=(\d+)\s*/;UIDVALIDITY=9$1/s;
+	ok(!lei('import', $u), 'UIDVALIDITY mismatch in URL rejected');
 
 	lei_ok('inspect', $url);
 	my $inspect = json_utf8->decode($lei_out);

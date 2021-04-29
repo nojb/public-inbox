@@ -407,6 +407,11 @@ sub _imap_fetch_all ($$$) {
 		return "E: $orig_uri cannot get UIDVALIDITY";
 	$r_uidnext //= $mic->uidnext($mbx) //
 		return "E: $orig_uri cannot get UIDNEXT";
+	my $expect = $orig_uri->uidvalidity // $r_uidval;
+	return <<EOF if $expect != $r_uidval;
+E: $orig_uri UIDVALIDITY mismatch (got $r_uidval)
+EOF
+
 	my $uri = $orig_uri->clone;
 	my ($itrk, $l_uid, $l_uidval) = _itrk_last($self, $uri, $r_uidval);
 	return <<EOF if $l_uidval != $r_uidval;
@@ -520,6 +525,7 @@ sub imap_each {
 	} else {
 		$err = "E: <$uri> not connected: $!";
 	}
+	die $err if $err && $self->{-can_die};
 	warn $err if $err;
 	$mic;
 }
@@ -620,6 +626,7 @@ sub nntp_each {
 	} else {
 		$err = "E: <$uri> not connected: $!";
 	}
+	die $err if $err && $self->{-can_die};
 	warn $err if $err;
 	$nn;
 }
