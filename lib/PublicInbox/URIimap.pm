@@ -144,4 +144,6 @@ sub scheme {
 
 sub as_string { ${$_[0]} }
 
+sub clone { ref($_[0])->new(as_string($_[0])) }
+
 1;

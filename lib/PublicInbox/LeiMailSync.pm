@@ -143,7 +143,7 @@ sub each_src {
 }
 
 sub location_stats {
-	my ($self, $folder, $cb, @args) = @_;
+	my ($self, $folder) = @_;
 	my $dbh = $self->{dbh} //= dbh_new($self);
 	my $fid;
 	my $ret = {};

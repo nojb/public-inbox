@@ -235,7 +235,7 @@ sub imap_common_init ($;$) {
 	$self->{quiet} = 1 if $lei && $lei->{opt}->{quiet};
 	eval { require PublicInbox::IMAPClient } or
 		die "Mail::IMAPClient is required for IMAP:\n$@\n";
-	eval { require PublicInbox::IMAPTracker } or
+	($lei || eval { require PublicInbox::IMAPTracker }) or
 		die "DBD::SQLite is required for IMAP\n:$@\n";
 	require PublicInbox::URIimap;
 	my $cfg = $self->{pi_cfg} // $lei->_lei_cfg;
@@ -283,7 +283,7 @@ sub nntp_common_init ($;$) {
 	$self->{quiet} = 1 if $lei && $lei->{opt}->{quiet};
 	eval { require Net::NNTP } or
 		die "Net::NNTP is required for NNTP:\n$@\n";
-	eval { require PublicInbox::IMAPTracker } or
+	($lei || eval { require PublicInbox::IMAPTracker }) or
 		die "DBD::SQLite is required for NNTP\n:$@\n";
 	my $cfg = $self->{pi_cfg} // $lei->_lei_cfg;
 	my $nn_args = {}; # scheme://authority => Net::NNTP->new arg
@@ -373,17 +373,28 @@ sub run_commit_cb ($) {
 	$cb->(@args);
 }
 
-sub _itrk ($$) {
-	my ($self, $uri) = @_;
-	return unless $self->{incremental};
-	# itrk_fn is set by lei
-	PublicInbox::IMAPTracker->new($$uri, $self->{itrk_fn});
+sub _itrk_last ($$;$) {
+	my ($self, $uri, $r_uidval) = @_;
+	return (undef, undef, $r_uidval) unless $self->{incremental};
+	my ($itrk, $l_uid, $l_uidval);
+	if (defined(my $lms = $self->{-lms_ro})) { # LeiMailSync or 0
+		$uri->uidvalidity($r_uidval) if defined $r_uidval;
+		my $x;
+		$l_uid = ($lms && ($x = $lms->location_stats($$uri))) ?
+				$x->{'uid.max'} : undef;
+		# itrk remains undef, lei/store worker writes to
+		# mail_sync.sqlite3
+	} else {
+		$itrk = PublicInbox::IMAPTracker->new($$uri);
+		($l_uidval, $l_uid) = $itrk->get_last($$uri);
+	}
+	($itrk, $l_uid, $l_uidval //= $r_uidval);
 }
 
 sub _imap_fetch_all ($$$) {
-	my ($self, $mic, $uri) = @_;
-	my $sec = uri_section($uri);
-	my $mbx = $uri->mailbox;
+	my ($self, $mic, $orig_uri) = @_;
+	my $sec = uri_section($orig_uri);
+	my $mbx = $orig_uri->mailbox;
 	$mic->Clear(1); # trim results history
 	$mic->examine($mbx) or return "E: EXAMINE $mbx ($sec) failed: $!";
 	my ($r_uidval, $r_uidnext);
@@ -393,20 +404,22 @@ sub _imap_fetch_all ($$$) {
 		last if $r_uidval && $r_uidnext;
 	}
 	$r_uidval //= $mic->uidvalidity($mbx) //
-		return "E: $uri cannot get UIDVALIDITY";
+		return "E: $orig_uri cannot get UIDVALIDITY";
 	$r_uidnext //= $mic->uidnext($mbx) //
-		return "E: $uri cannot get UIDNEXT";
-	my $url = ref($uri)->new($$uri);
-	$url->uidvalidity($r_uidval);
-	$url = $$url;
-	my $itrk = _itrk($self, $uri);
-	my $l_uid;
-	$l_uid = $itrk->get_last($r_uidval) if $itrk;
+		return "E: $orig_uri cannot get UIDNEXT";
+	my $uri = $orig_uri->clone;
+	my ($itrk, $l_uid, $l_uidval) = _itrk_last($self, $uri, $r_uidval);
+	return <<EOF if $l_uidval != $r_uidval;
+E: $uri UIDVALIDITY mismatch
+E: local=$l_uidval != remote=$r_uidval
+EOF
+	$uri->uidvalidity($r_uidval);
 	$l_uid //= 0;
 	my $r_uid = $r_uidnext - 1;
-	if ($l_uid > $r_uid) {
-		return "E: $uri local UID exceeds remote ($l_uid > $r_uid)\n";
-	}
+	return <<EOF if $l_uid > $r_uid;
+E: $uri local UID exceeds remote ($l_uid > $r_uid)
+E: $uri strangely, UIDVALIDLITY matches ($l_uidval)
+EOF
 	return if $l_uid >= $r_uid; # nothing to do
 	$l_uid ||= 1;
 	my ($mod, $shard) = @{$self->{shard_info} // []};
@@ -458,7 +471,7 @@ sub _imap_fetch_all ($$$) {
 				# messages get deleted, so holes appear
 				my $per_uid = delete $r->{$uid} // next;
 				my $raw = delete($per_uid->{$key}) // next;
-				_imap_do_msg($self, $url, $uid, \$raw,
+				_imap_do_msg($self, $$uri, $uid, \$raw,
 						$per_uid->{FLAGS});
 				$last_uid = $uid;
 				last if $self->{quit};
@@ -547,8 +560,7 @@ sub _nntp_fetch_all ($$$) {
 	# IMAPTracker is also used for tracking NNTP, UID == article number
 	# LIST.ACTIVE can get the equivalent of UIDVALIDITY, but that's
 	# expensive.  So we assume newsgroups don't change:
-	my $itrk = _itrk($self, $uri);
-	my (undef, $l_art) = $itrk ? $itrk->get_last : ();
+	my ($itrk, $l_art) = _itrk_last($self, $uri);
 
 	# allow users to specify articles to refetch
 	# cf. https://tools.ietf.org/id/draft-gilman-news-url-01.txt

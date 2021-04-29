@@ -110,14 +110,12 @@ sub input_path_url {
 	my $ifmt = lc($lei->{opt}->{'in-format'} // '');
 	# TODO auto-detect?
 	if ($input =~ m!\Aimaps?://!i) {
-		$lei->{net}->imap_each($input, $self->can('input_imap_cb') //
-						$self->can('input_net_cb'),
-					$self, @args);
+		$lei->{net}->imap_each($input, $self->can('input_net_cb'),
+						$self, @args);
 		return;
 	} elsif ($input =~ m!\A(?:nntps?|s?news)://!i) {
-		$lei->{net}->nntp_each($input, $self->can('input_nntp_cb') //
-						$self->can('input_net_cb'),
-					$self, @args);
+		$lei->{net}->nntp_each($input, $self->can('input_net_cb'),
+						$self, @args);
 		return;
 	} elsif ($input =~ m!\Ahttps?://!i) {
 		handle_http_input($self, $input, @args);

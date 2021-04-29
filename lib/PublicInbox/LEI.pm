@@ -211,7 +211,7 @@ our %CMD = ( # sorted in order of importance/use:
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
-	lock=s@ in-format|F=s kw! verbose|v+ incremental! sync!), @c_opt ],
+	lock=s@ in-format|F=s kw! verbose|v+ incremental! mail-sync!), @c_opt ],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s

@@ -41,16 +41,11 @@ sub input_maildir_cb { # maildir_each_eml cb
 	input_eml_cb($self, $eml, $vmd);
 }
 
-sub input_imap_cb { # imap_each
+sub input_net_cb { # imap_each / nntp_each
 	my ($url, $uid, $kw, $eml, $self) = @_;
 	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
 	$vmd->{sync_info} = [ $url, $uid ] if $self->{-mail_sync};
 	input_eml_cb($self, $eml, $vmd);
-}
-
-sub input_nntp_cb { # nntp_each
-	my ($url, $num, $kw, $eml, $self) = @_;
-	input_eml_cb($self, $eml, $self->{-import_kw} ? { kw => $kw } : undef);
 }
 
 sub net_merge_complete { # callback used by LeiAuth
@@ -69,7 +64,7 @@ sub lei_import { # the main "lei import" method
 	return $lei->fail(join("\n", @{$vmd_mod->{err}})) if $vmd_mod->{err};
 	$self->{all_vmd} = $vmd_mod if scalar keys %$vmd_mod;
 	$self->prepare_inputs($lei, \@inputs) or return;
-	$self->{-mail_sync} = $lei->{opt}->{sync} // 1;
+	$self->{-mail_sync} = $lei->{opt}->{'mail-sync'} // 1;
 
 	$lei->ale; # initialize for workers to read
 	my $j = $lei->{opt}->{jobs} // scalar(@{$self->{inputs}}) || 1;
@@ -77,8 +72,7 @@ sub lei_import { # the main "lei import" method
 		# $j = $net->net_concurrency($j); TODO
 		if ($lei->{opt}->{incremental} // 1) {
 			$net->{incremental} = 1;
-			$net->{itrk_fn} = $lei->store_path .
-						'/net_last.sqlite3';
+			$net->{-lms_ro} = $lei->_lei_store->search->lms // 0;
 		}
 	} else {
 		my $nproc = $self->detect_nproc;

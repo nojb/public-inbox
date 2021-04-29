@@ -45,8 +45,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is_deeply(\%r, { 'HASH' => scalar(@$out) }, 'all hashes');
 	lei_ok([qw(tag +kw:seen), $url], undef, undef);
 
-	my $f = "$ENV{HOME}/.local/share/lei/store/net_last.sqlite3";
-	ok(-s $f, 'net tracked for redundant imports');
+	my $f = "$ENV{HOME}/.local/share/lei/store/mail_sync.sqlite3";
+	ok(-s $f, 'mail_sync tracked for redundant imports');
 	lei_ok('inspect', "blob:$out->[5]->{blob}");
 	my $x = json_utf8->decode($lei_out);
 	is(ref($x->{'lei/store'}), 'ARRAY', 'lei/store in inspect');
