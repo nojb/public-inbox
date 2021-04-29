@@ -99,8 +99,8 @@ sub lei_up {
 
 sub _complete_up {
 	my ($lei, @argv) = @_;
-	my ($cur, $re) = $lei->complete_url_common(\@argv);
-	grep(/\A$re\Q$cur/, PublicInbox::LeiSavedSearch::list($lei));
+	my $match_cb = $lei->complete_url_prepare(\@argv);
+	map { $match_cb->($_) } PublicInbox::LeiSavedSearch::list($lei);
 }
 
 1;

@@ -215,7 +215,8 @@ sub lei_forget_external {
 	}
 }
 
-sub complete_url_common {
+# returns an anonymous sub which returns an array of potential results
+sub complete_url_prepare {
 	my $argv = $_[-1];
 	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
 	# Maybe there's a better way to go about this in
@@ -239,37 +240,38 @@ sub complete_url_common {
 		}
 		$re = quotemeta($re);
 	}
-	($cur, $re);
+	my $match_cb = sub {
+		# only return the part specified on the CLI
+		# don't duplicate if already 100% completed
+		$_[0] =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ()
+	};
+	wantarray ? ($re, $cur, $match_cb) : $match_cb;
 }
 
 # shell completion helper called by lei__complete
 sub _complete_forget_external {
 	my ($self, @argv) = @_;
 	my $cfg = $self->_lei_cfg;
-	my ($cur, $re) = complete_url_common(\@argv);
+	my ($cur, $re, $match_cb) = complete_url_prepare(\@argv);
 	# FIXME: bash completion off "http:" or "https:" when the last
 	# character is a colon doesn't work properly even if we're
 	# returning "//$HTTP_HOST/$PATH_INFO/", not sure why, could
 	# be a bash issue.
 	map {
-		my $x = substr($_, length('external.'));
-		# only return the part specified on the CLI
-		# don't duplicate if already 100% completed
-		$x =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ();
+		$match_cb->(substr($_, length('external.')));
 	} grep(/\Aexternal\.$re\Q$cur/, @{$cfg->{-section_order}});
 }
 
 sub _complete_add_external { # for bash, this relies on "compopt -o nospace"
 	my ($self, @argv) = @_;
 	my $cfg = $self->_lei_cfg;
-	my ($cur, $re) = complete_url_common(\@argv);
+	my $match_cb = complete_url_prepare(\@argv);
 	require URI;
 	map {
 		my $u = URI->new(substr($_, length('external.')));
 		my ($base) = ($u->path =~ m!((?:/?.*)?/)[^/]+/?\z!);
 		$u->path($base);
-		$u = $u->as_string;
-		$u =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ();
+		$match_cb->($u->as_string);
 	} grep(m!\Aexternal\.https?://!, @{$cfg->{-section_order}});
 }
 

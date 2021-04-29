@@ -89,6 +89,14 @@ sub lei_import { # the main "lei import" method
 	$op_c->op_wait_event($ops);
 }
 
+sub _complete_import {
+	my ($lei, @argv) = @_;
+	my $sto = $lei->_lei_store or return;
+	my $lms = $sto->search->lms or return;
+	my $match_cb = $lei->complete_url_prepare(\@argv);
+	map { $match_cb->($_) } $lms->folders;
+}
+
 no warnings 'once';
 *ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
 

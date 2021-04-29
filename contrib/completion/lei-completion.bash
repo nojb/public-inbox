@@ -9,6 +9,7 @@ _lei() {
 	*':'* | *'='* | '//'*) compopt -o nospace ;;
 	*) compopt +o nospace ;; # the default
 	esac
+	wordlist="${wordlist//;/\\\\;}" # escape ';' for ';UIDVALIDITY' and such
 	COMPREPLY=($(compgen -W "$wordlist" -- "${COMP_WORDS[COMP_CWORD]}"))
 	return 0
 }
