@@ -7,7 +7,6 @@ use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
 use PublicInbox::ContentHash qw(git_sha);
-use PublicInbox::Eml;
 use PublicInbox::Spawn qw(popen_rd which);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
 my $git_dir = xqx([qw(git rev-parse --git-dir)], undef, {2 => \(my $null)});
@@ -41,8 +40,7 @@ test_lei({tmpdir => $tmpdir}, sub {
 		"--mail won't run solver");
 
 	lei_ok('blob', '69df7d5', '-I', $ibx->{inboxdir});
-	is(git_sha(1, PublicInbox::Eml->new($lei_out))->hexdigest,
-		$expect, 'blob contents output');
+	is(git_sha(1, \$lei_out)->hexdigest, $expect, 'blob contents output');
 	my $prev = $lei_out;
 	lei_ok(qw(blob --no-mail 69df7d5 -I), $ibx->{inboxdir});
 	is($lei_out, $prev, '--no-mail works');
@@ -239,8 +237,7 @@ EOF
 		test_lei({tmpdir => "$tmpdir/ext"}, sub {
 			my $rurl = "$url/$name";
 			lei_ok(qw(blob --no-mail 69df7d5 -I), $rurl);
-			my $eml = PublicInbox::Eml->new($lei_out);
-			is(git_sha(1, $eml)->hexdigest, $expect,
+			is(git_sha(1, \$lei_out)->hexdigest, $expect,
 				'blob contents output');
 			ok(!lei(qw(blob -I), $rurl, $non_existent),
 					'non-existent blob fails');

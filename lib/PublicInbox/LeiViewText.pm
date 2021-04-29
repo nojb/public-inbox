@@ -7,7 +7,6 @@ package PublicInbox::LeiViewText;
 use strict;
 use v5.10.1;
 use PublicInbox::MsgIter qw(msg_part_text);
-use PublicInbox::ContentHash qw(git_sha);
 use PublicInbox::MID qw(references);
 use PublicInbox::View;
 use PublicInbox::Hval;

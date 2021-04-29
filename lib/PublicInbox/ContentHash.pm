@@ -97,9 +97,9 @@ sub content_hash ($) {
 sub git_sha ($$) {
 	my ($n, $eml) = @_;
 	my $dig = Digest::SHA->new($n);
-	my $buf = $eml->as_string;
-	$dig->add('blob '.length($buf)."\0");
-	$dig->add($buf);
+	my $bref = ref($eml) eq 'SCALAR' ? $eml : \($eml->as_string);
+	$dig->add('blob '.length($$bref)."\0");
+	$dig->add($$bref);
 	$dig;
 }
 
