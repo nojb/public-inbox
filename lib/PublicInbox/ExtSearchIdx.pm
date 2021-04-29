@@ -926,7 +926,7 @@ sub update_last_commit { # overrides V2Writable
 
 sub _idx_init { # with_umask callback
 	my ($self, $opt) = @_;
-	PublicInbox::V2Writable::_idx_init($self, $opt);
+	PublicInbox::V2Writable::_idx_init($self, $opt); # acquires ei.lock
 	$self->{midx} = PublicInbox::MiscIdx->new($self);
 }
 

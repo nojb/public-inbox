@@ -88,6 +88,7 @@ sub importer {
 		$self->checkpoint;
 		$max = $self->git_epoch_max + 1;
 	}
+	my (undef, $tl) = eidx_init($self); # acquire lock
 	my $pfx = $self->git_pfx;
 	$max //= $self->git_epoch_max;
 	while (1) {
@@ -97,7 +98,9 @@ sub importer {
 		my $git = PublicInbox::Git->new($latest);
 		if (!$old) {
 			$git->qx(qw(config core.sharedRepository 0600));
-			$self->done; # force eidx_init on next round
+			$self->done; # unlock
+			# re-acquire lock, update alternates for new epoch
+			(undef, $tl) = eidx_init($self);
 		}
 		my $packed_bytes = $git->packed_bytes;
 		my $unpacked_bytes = $packed_bytes / $self->packing_factor;
@@ -130,7 +133,7 @@ sub eidx_init {
 	my $tl = wantarray && $self->{-err_wr} ?
 			PublicInbox::OnDestroy->new($$, \&_tail_err, $self) :
 			undef;
-	$eidx->idx_init({-private => 1});
+	$eidx->idx_init({-private => 1}); # acquires lock
 	wantarray ? ($eidx, $tl) : $eidx;
 }
 
@@ -204,7 +207,7 @@ sub set_sync_info ($$$) {
 sub add_eml {
 	my ($self, $eml, $vmd, $xoids) = @_;
 	my $im = $self->importer; # may create new epoch
-	my ($eidx, $tl) = eidx_init($self); # updates/writes alternates file
+	my ($eidx, $tl) = eidx_init($self);
 	my $oidx = $eidx->{oidx}; # PublicInbox::Import::add checks this
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
 	my $im_mark = $im->add($eml, undef, $smsg);
