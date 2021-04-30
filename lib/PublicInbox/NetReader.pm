@@ -116,7 +116,13 @@ sub try_starttls ($) {
 
 sub nn_new ($$$) {
 	my ($nn_arg, $nntp_opt, $uri) = @_;
-	my $nn = Net::NNTP->new(%$nn_arg) or die "E: <$uri> new: $!\n";
+	my $nn;
+	if (defined $nn_arg->{ProxyAddr}) {
+		eval { $nn = PublicInbox::NetNNTPSocks->new_socks(%$nn_arg) };
+		die "E: <$uri> $@\n" if $@;
+	} else {
+		$nn = Net::NNTP->new(%$nn_arg) or die "E: <$uri> new: $!\n";
+	}
 
 	# default to using STARTTLS if it's available, but allow
 	# it to be disabled for localhost/VPN users
@@ -170,6 +176,10 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 		SSL => $uri->secure, # snews == nntps
 		%$common, # may Debug ....
 	};
+	if ($lei && $lei->{socks5h}) {
+		require PublicInbox::NetNNTPSocks;
+		%$nn_arg = (%$nn_arg, %{$lei->{socks5h}});
+	}
 	my $nn = nn_new($nn_arg, $nntp_opt, $uri);
 	if ($cred) {
 		$cred->fill($lei); # may prompt user here

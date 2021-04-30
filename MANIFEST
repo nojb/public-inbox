@@ -241,6 +241,7 @@ lib/PublicInbox/NDC_PP.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm
+lib/PublicInbox/NetNNTPSocks.pm
 lib/PublicInbox/NetReader.pm
 lib/PublicInbox/NetWriter.pm
 lib/PublicInbox/NewsWWW.pm
@@ -518,6 +519,7 @@ xt/lei-auth-fail.t
 xt/mem-imapd-tls.t
 xt/mem-msgview.t
 xt/msgtime_cmp.t
+xt/net_nntp_socks.t
 xt/net_writer-imap.t
 xt/nntpd-validate.t
 xt/perf-msgview.t
