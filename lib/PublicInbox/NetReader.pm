@@ -27,7 +27,7 @@ sub uri_section ($) {
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 
 # mic_for may prompt the user and store auth info, prepares mic_get
-sub mic_for { # mic = Mail::IMAPClient
+sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	my ($self, $url, $mic_args, $lei) = @_;
 	require PublicInbox::URIimap;
 	my $uri = PublicInbox::URIimap->new($url);
@@ -133,7 +133,7 @@ E: <$uri> STARTTLS requested and failed
 	$nn;
 }
 
-sub nn_for ($$$;$) { # nn = Net::NNTP
+sub nn_for ($$$$) { # nn = Net::NNTP
 	my ($self, $uri, $nn_args, $lei) = @_;
 	my $sec = uri_section($uri);
 	my $nntp_opt = $self->{nntp_opt}->{$sec} //= {};
