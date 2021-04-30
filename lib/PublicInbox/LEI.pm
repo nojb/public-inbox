@@ -500,6 +500,7 @@ sub _lei_atfork_child {
 		}
 	} else { # worker, Net::NNTP (Net::Cmd) uses STDERR directly
 		open STDERR, '+>&='.fileno($self->{2}) or warn "open $!";
+		STDERR->autoflush(1);
 	}
 	close($_) for (grep(defined, delete @$self{qw(3 old_1 au_done)}));
 	if (my $op_c = delete $self->{pkt_op_c}) {
@@ -676,6 +677,7 @@ sub lazy_cb ($$$) {
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
 	local $current_lei = $self; # for __WARN__
+	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	dump_and_clear_log("from previous run\n");
 	return _help($self, 'no command given') unless defined($cmd);
 	# do not support Getopt bundling for this
@@ -1006,7 +1008,6 @@ sub accept_dispatch { # Listener {post_accept} callback
 		}
 		$i == 4 or return send($sock, 'not enough FDs='.($i-1), MSG_EOR)
 	}
-	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	# $ENV_STR = join('', map { "\0$_=$ENV{$_}" } keys %ENV);
 	# $buf = "$argc\0".join("\0", @ARGV).$ENV_STR."\0\0";
 	substr($buf, -2, 2, '') eq "\0\0" or  # s/\0\0\z//
