@@ -55,7 +55,7 @@ sub torsocks { # useful for "git clone" and "git fetch", too
 	$opt->{torsocks} = 'false' if $opt->{'no-torsocks'};
 	my $torsocks = $opt->{torsocks} //= 'auto';
 	if ($torsocks eq 'auto' && substr($uri->host, -6) eq '.onion' &&
-			(($lei->{env}->{LD_PRELOAD}//'') !~ /torsocks/)) {
+		($PublicInbox::Config::LD_PRELOAD//'') !~ m!/libtorsocks\b!) {
 		# "auto" continues anyways if torsocks is missing;
 		# a proxy may be specified via CLI, curlrc,
 		# environment variable, or even firewall rule

@@ -12,6 +12,7 @@ use strict;
 use v5.10.1;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
+our $LD_PRELOAD = $ENV{LD_PRELOAD}; # only valid at startup
 
 sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }
 
