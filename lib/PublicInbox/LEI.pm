@@ -387,7 +387,14 @@ my @WQ_KEYS = qw(lxs l2m wq1); # internal workers
 
 sub _drop_wq {
 	my ($self) = @_;
-	for my $wq (grep(defined, delete(@$self{@WQ_KEYS}))) { $wq->DESTROY }
+	for my $wq (grep(defined, delete(@$self{@WQ_KEYS}))) {
+		if ($wq->wq_kill) {
+			$wq->wq_close(0, undef, $self);
+		} elsif ($wq->wq_kill_old) {
+			$wq->wq_wait_old(undef, $self);
+		}
+		$wq->DESTROY;
+	}
 }
 
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
