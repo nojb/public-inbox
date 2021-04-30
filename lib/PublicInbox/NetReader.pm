@@ -25,6 +25,35 @@ sub uri_section ($) {
 	$uri->scheme . '://' . $uri->authority;
 }
 
+sub socks_args ($) {
+	my ($val) = @_;
+	return if ($val // '') eq '';
+	if ($val =~ m!\Asocks5h:// (?: \[ ([^\]]+) \] | ([^:/]+) )
+					(?::([0-9]+))?/*\z!ix) {
+		my ($h, $p) = ($1 // $2, $3 + 0);
+		$h = '127.0.0.1' if $h eq '0';
+		eval { require IO::Socket::Socks } or die <<EOM;
+IO::Socket::Socks missing for socks5h://$h:$p
+EOM
+		return { ProxyAddr => $h, ProxyPort => $p };
+	}
+	die "$val not understood (only socks5h:// is supported)\n";
+}
+
+sub mic_new ($$$$) {
+	my ($self, $mic_arg, $sec, $uri) = @_;
+	my %socks;
+	my $sa = $self->{imap_opt}->{$sec}->{-proxy_cfg} || $self->{-proxy_cli};
+	if ($sa) {
+		my %opt = %$sa;
+		$opt{ConnectAddr} = delete $mic_arg->{Server};
+		$opt{ConnectPort} = delete $mic_arg->{Port};
+		$socks{Socket} = IO::Socket::Socks->new(%opt) or die
+			"E: <$$uri> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
+	}
+	PublicInbox::IMAPClient->new(%$mic_arg, %socks);
+}
+
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 
 # mic_for may prompt the user and store auth info, prepares mic_get
@@ -40,7 +69,8 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		username => $uri->user,
 		password => $uri->password,
 	}, 'PublicInbox::GitCredential';
-	my $common = $mic_args->{uri_section($uri)} // {};
+	my $sec = uri_section($uri);
+	my $common = $mic_args->{$sec} // {};
 	# IMAPClient and Net::Netrc both mishandles `0', so we pass `127.0.0.1'
 	my $host = $cred->{host};
 	$host = '127.0.0.1' if $host eq '0';
@@ -52,18 +82,8 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		%$common, # may set Starttls, Compress, Debug ....
 	};
 	require PublicInbox::IMAPClient;
-	my %socks;
-	if ($lei && $lei->{socks5h}) {
-		my %opt = %{$lei->{socks5h}};
-		$opt{ConnectAddr} = delete $mic_arg->{Server};
-		$opt{ConnectPort} = delete $mic_arg->{Port};
-		$socks{Socket} = IO::Socket::Socks->new(%opt) or die
-			"E: <$url> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
-		$self->{mic_socks5h} = \%opt;
-	}
-	my $mic = PublicInbox::IMAPClient->new(%$mic_arg, %socks) or
-		die "E: <$url> new: $@\n";
-
+	my $mic = mic_new($self, $mic_arg, $sec, $uri) or
+			die "E: <$url> new: $@\n";
 	# default to using STARTTLS if it's available, but allow
 	# it to be disabled since I usually connect to localhost
 	if (!$mic_arg->{Ssl} && !defined($mic_arg->{Starttls}) &&
@@ -90,7 +110,7 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	my $err;
 	if ($mic->login && $mic->IsAuthenticated) {
 		# success! keep IMAPClient->new arg in case we get disconnected
-		$self->{mic_arg}->{uri_section($uri)} = $mic_arg;
+		$self->{mic_arg}->{$sec} = $mic_arg;
 	} else {
 		$err = "E: <$url> LOGIN: $@\n";
 		if ($cred && defined($cred->{password})) {
@@ -118,6 +138,7 @@ sub nn_new ($$$) {
 	my ($nn_arg, $nntp_opt, $uri) = @_;
 	my $nn;
 	if (defined $nn_arg->{ProxyAddr}) {
+		require PublicInbox::NetNNTPSocks;
 		eval { $nn = PublicInbox::NetNNTPSocks->new_socks(%$nn_arg) };
 		die "E: <$uri> $@\n" if $@;
 	} else {
@@ -176,10 +197,8 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 		SSL => $uri->secure, # snews == nntps
 		%$common, # may Debug ....
 	};
-	if ($lei && $lei->{socks5h}) {
-		require PublicInbox::NetNNTPSocks;
-		%$nn_arg = (%$nn_arg, %{$lei->{socks5h}});
-	}
+	my $sa = $self->{-proxy_cli};
+	%$nn_arg = (%$nn_arg, %$sa) if $sa;
 	my $nn = nn_new($nn_arg, $nntp_opt, $uri);
 	if ($cred) {
 		$cred->fill($lei); # may prompt user here
@@ -268,6 +287,8 @@ sub imap_common_init ($;$) {
 		}
 		my $to = cfg_intvl($cfg, 'imap.timeout', $$uri);
 		$mic_args->{$sec}->{Timeout} = $to if $to;
+		my $sa = socks_args($cfg->urlmatch('imap.Proxy', $$uri));
+		$self->{imap_opt}->{$sec}->{-proxy_cfg} = $sa if $sa;
 		for my $k (qw(pollInterval idleInterval)) {
 			$to = cfg_intvl($cfg, "imap.$k", $$uri) // next;
 			$self->{imap_opt}->{$sec}->{$k} = $to;
@@ -309,12 +330,15 @@ sub nntp_common_init ($;$) {
 	my $nn_args = {}; # scheme://authority => Net::NNTP->new arg
 	for my $uri (@{$self->{nntp_order}}) {
 		my $sec = uri_section($uri);
+		my $args = $nn_args->{$sec} //= {};
 
 		# Debug and Timeout are passed to Net::NNTP->new
 		my $v = cfg_bool($cfg, 'nntp.Debug', $$uri);
-		$nn_args->{$sec}->{Debug} = $v if defined $v;
+		$args->{Debug} = $v if defined $v;
 		my $to = cfg_intvl($cfg, 'nntp.Timeout', $$uri);
-		$nn_args->{$sec}->{Timeout} = $to if $to;
+		$args->{Timeout} = $to if $to;
+		my $sa = socks_args($cfg->urlmatch('nntp.Proxy', $$uri));
+		%$args = (%$args, %$sa) if $sa;
 
 		# Net::NNTP post-connect commands
 		for my $k (qw(starttls compress)) {
@@ -322,7 +346,7 @@ sub nntp_common_init ($;$) {
 			$self->{nntp_opt}->{$sec}->{$k} = $v;
 		}
 
-		# internal option
+		# -watch internal option
 		for my $k (qw(pollInterval)) {
 			$to = cfg_intvl($cfg, "nntp.$k", $$uri) // next;
 			$self->{nntp_opt}->{$sec}->{$k} = $to;
@@ -363,16 +387,8 @@ sub errors {
 		eval { require Net::NNTP } or
 			die "Net::NNTP is required for NNTP:\n$@\n";
 	}
-	if ($lei && (($lei->{opt}->{proxy}//'') =~ m!\Asocks5h://
-				(?: \[ ([^\]]+) \] | ([^:/]+) )
-				(?::([0-9]+))?/?(?:,|\z)!ix)) {
-		my ($h, $p) = ($1 // $2, $3 + 0);
-		$h = '127.0.0.1' if $h eq '0';
-		eval { require IO::Socket::Socks } or die <<EOM;
-IO::Socket::Socks missing for socks5h://$h:$p
-EOM
-		$lei->{socks5h} = { ProxyAddr => $h, ProxyPort => $p };
-	}
+	my $sa = socks_args($lei ? $lei->{opt}->{proxy} : undef);
+	$self->{-proxy_cli} = $sa if $sa;
 	undef;
 }
 
@@ -537,12 +553,7 @@ sub mic_get {
 			$mic_arg->{Authcallback} = $self->can($cb_name);
 		}
 	}
-	my %socks;
-	if (my $s5h = $self->{mic_socks5h}) {
-		$socks{Socket} = IO::Socket::Socks->new(%$s5h) or die
-			"E: <$$uri> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
-	}
-	my $mic = PublicInbox::IMAPClient->new(%$mic_arg, %socks);
+	my $mic = mic_new($self, $mic_arg, $sec, $uri);
 	$cached //= {}; # invalid placeholder if no cache enabled
 	$mic && $mic->IsConnected ? ($cached->{$sec} = $mic) : undef;
 }
