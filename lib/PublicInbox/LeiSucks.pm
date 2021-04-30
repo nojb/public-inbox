@@ -18,7 +18,8 @@ sub lei_sucks {
 	$lei->start_pager if -t $lei->{1};
 	my ($os, undef, $rel, undef, $mac)= POSIX::uname();
 	if ($mac eq 'x86_64' && $Config{ptrsize} == 4) {
-		$mac = $Config{cppsymbols} =~ /\b__ILP32__=1\b/ ? 'x32' : 'i386'
+		$mac .= $Config{cppsymbols} =~ /\b__ILP32__=1\b/ ?
+			',u=x32' : ',u=x86';
 	}
 	eval { require PublicInbox };
 	my $pi_ver = eval('$PublicInbox::VERSION') // '(???)';
