@@ -7,6 +7,7 @@ use strict;
 use v5.10.1;
 use parent qw(Exporter PublicInbox::IPC);
 use PublicInbox::Eml;
+use PublicInbox::Config;
 our %IMAPflags2kw = map {; "\\\u$_" => $_ } qw(seen answered flagged draft);
 $IMAPflags2kw{'$Forwarded'} = 'forwarded';  # RFC 5550
 
@@ -51,7 +52,16 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		%$common, # may set Starttls, Compress, Debug ....
 	};
 	require PublicInbox::IMAPClient;
-	my $mic = PublicInbox::IMAPClient->new(%$mic_arg) or
+	my %socks;
+	if ($lei && $lei->{socks5h}) {
+		my %opt = %{$lei->{socks5h}};
+		$opt{ConnectAddr} = delete $mic_arg->{Server};
+		$opt{ConnectPort} = delete $mic_arg->{Port};
+		$socks{Socket} = IO::Socket::Socks->new(%opt) or die
+			"E: <$url> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
+		$self->{mic_socks5h} = \%opt;
+	}
+	my $mic = PublicInbox::IMAPClient->new(%$mic_arg, %socks) or
 		die "E: <$url> new: $@\n";
 
 	# default to using STARTTLS if it's available, but allow
@@ -331,7 +341,7 @@ sub add_url {
 }
 
 sub errors {
-	my ($self) = @_;
+	my ($self, $lei) = @_;
 	if (my $u = $self->{unsupported_url}) {
 		return "Unsupported URL(s): @$u";
 	}
@@ -342,6 +352,16 @@ sub errors {
 	if ($self->{nntp_order}) {
 		eval { require Net::NNTP } or
 			die "Net::NNTP is required for NNTP:\n$@\n";
+	}
+	if ($lei && (($lei->{opt}->{proxy}//'') =~ m!\Asocks5h://
+				(?: \[ ([^\]]+) \] | ([^:/]+) )
+				(?::([0-9]+))?/?(?:,|\z)!ix)) {
+		my ($h, $p) = ($1 // $2, $3 + 0);
+		$h = '127.0.0.1' if $h eq '0';
+		eval { require IO::Socket::Socks } or die <<EOM;
+IO::Socket::Socks missing for socks5h://$h:$p
+EOM
+		$lei->{socks5h} = { ProxyAddr => $h, ProxyPort => $p };
 	}
 	undef;
 }
@@ -507,7 +527,12 @@ sub mic_get {
 			$mic_arg->{Authcallback} = $self->can($cb_name);
 		}
 	}
-	my $mic = PublicInbox::IMAPClient->new(%$mic_arg);
+	my %socks;
+	if (my $s5h = $self->{mic_socks5h}) {
+		$socks{Socket} = IO::Socket::Socks->new(%$s5h) or die
+			"E: <$$uri> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
+	}
+	my $mic = PublicInbox::IMAPClient->new(%$mic_arg, %socks);
 	$cached //= {}; # invalid placeholder if no cache enabled
 	$mic && $mic->IsConnected ? ($cached->{$sec} = $mic) : undef;
 }

@@ -351,14 +351,14 @@ sub new {
 		require PublicInbox::MboxReader;
 		$self->can("eml2$fmt") or die "bad mbox format: $fmt\n";
 		$self->{base_type} = 'mbox';
-	} elsif ($fmt =~ /\Aimaps?\z/) { # TODO .onion support
+	} elsif ($fmt =~ /\Aimaps?\z/) {
 		require PublicInbox::NetWriter;
 		require PublicInbox::URIimap;
 		my $net = PublicInbox::NetWriter->new;
 		$net->{quiet} = $lei->{opt}->{quiet};
 		my $uri = PublicInbox::URIimap->new($dst)->canonical;
 		$net->add_url($uri);
-		my $err = $net->errors;
+		my $err = $net->errors($lei);
 		return $lei->fail($err) if $err;
 		$uri->mailbox or return $lei->fail("No mailbox: $dst");
 		$self->{uri} = $uri;

@@ -294,7 +294,7 @@ $input is `eml', not --in-format=$in_fmt
 	}
 	if ($net) {
 		$net->{-can_die} = 1;
-		if (my $err = $net->errors) {
+		if (my $err = $net->errors($lei)) {
 			return $lei->fail($err);
 		}
 		$net->{quiet} = $lei->{opt}->{quiet};
