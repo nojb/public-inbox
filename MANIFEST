@@ -516,6 +516,7 @@ xt/httpd-async-stream.t
 xt/imapd-mbsync-oimap.t
 xt/imapd-validate.t
 xt/lei-auth-fail.t
+xt/lei-onion-convert.t
 xt/mem-imapd-tls.t
 xt/mem-msgview.t
 xt/msgtime_cmp.t
