@@ -54,8 +54,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('inspect', "blob:$out->[5]->{blob}");
 	my $x = json_utf8->decode($lei_out);
 	is(ref($x->{'lei/store'}), 'ARRAY', 'lei/store in inspect');
-	is(ref($x->{sync}), 'HASH', 'sync in inspect');
-	is(ref($x->{sync}->{$k[0]}), 'ARRAY', 'UID arrays in inspect');
+	is(ref($x->{'mail-sync'}), 'HASH', 'sync in inspect');
+	is(ref($x->{'mail-sync'}->{$k[0]}), 'ARRAY', 'UID arrays in inspect');
 
 	my $psgi_attach = 'cfa3622cbeffc9bd6b0fc66c4d60d420ba74f60d';
 	lei_ok('blob', $psgi_attach);

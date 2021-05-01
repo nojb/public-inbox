@@ -18,7 +18,7 @@ sub inspect_blob ($$) {
 		$ent->{'lei/store'} = \@docids if @docids;
 		my $lms = $lse->lms;
 		if (my $loc = $lms ? $lms->locations_for($oidhex) : undef) {
-			$ent->{sync} = $loc;
+			$ent->{'mail-sync'} = $loc;
 		}
 	}
 	$ent;

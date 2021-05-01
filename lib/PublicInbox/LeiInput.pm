@@ -204,7 +204,7 @@ sub prepare_http_input ($$$) {
 sub prepare_inputs { # returns undef on error
 	my ($self, $lei, $inputs) = @_;
 	my $in_fmt = $lei->{opt}->{'in-format'};
-	my $sync = $lei->{opt}->{sync} ? {} : undef; # using LeiMailSync
+	my $sync = $lei->{opt}->{'mail-sync'} ? {} : undef; # using LeiMailSync
 	if ($lei->{opt}->{stdin}) {
 		@$inputs and return
 			$lei->fail("--stdin and @$inputs do not mix");
@@ -286,11 +286,11 @@ $input is `eml', not --in-format=$in_fmt
 	}
 	if ($sync && $sync->{no}) {
 		return $lei->fail(<<"") if !$sync->{ok};
---sync specified but no inputs support it
+--mail-sync specified but no inputs support it
 
 		# non-fatal if some inputs support support sync
-		$lei->err("# --sync will only be used for @{$sync->{ok}}");
-		$lei->err("# --sync is not supported for: @{$sync->{no}}");
+		$lei->err("# --mail-sync will only be used for @{$sync->{ok}}");
+		$lei->err("# --mail-sync is not supported for: @{$sync->{no}}");
 	}
 	if ($net) {
 		$net->{-can_die} = 1;

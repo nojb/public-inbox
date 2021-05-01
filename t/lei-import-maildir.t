@@ -37,7 +37,7 @@ test_lei(sub {
 	lei_ok('inspect', "blob:$res->[0]->{blob}");
 	$inspect = json_utf8->decode($lei_out);
 	is(ref(delete $inspect->{"lei/store"}), 'ARRAY', 'lei/store IDs');
-	is_deeply($inspect, { sync => { "maildir:$md" => [ 'x:2,S' ] } },
+	is_deeply($inspect, { 'mail-sync' => { "maildir:$md" => [ 'x:2,S' ] } },
 		'maildir sync info as expected');
 
 	lei_ok qw(ls-mail-sync);
