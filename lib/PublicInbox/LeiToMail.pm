@@ -669,7 +669,7 @@ sub wq_atexit_child {
 }
 
 # called in top-level lei-daemon when LeiAuth is done
-sub net_merge_complete {
+sub net_merge_all_done {
 	my ($self) = @_;
 	$self->wq_broadcast('do_post_auth');
 	$self->wq_close(1);

@@ -48,7 +48,7 @@ sub input_net_cb { # imap_each / nntp_each
 	input_eml_cb($self, $eml, $vmd);
 }
 
-sub net_merge_complete { # callback used by LeiAuth
+sub net_merge_all_done { # callback used by LeiAuth
 	my ($self) = @_;
 	$self->wq_io_do('process_inputs');
 	$self->wq_close(1);
@@ -85,7 +85,7 @@ sub lei_import { # the main "lei import" method
 	(my $op_c, $ops) = $lei->workers_start($self, 'lei-import', $j, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	net_merge_complete($self) unless $lei->{auth};
+	net_merge_all_done($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);
 }
 

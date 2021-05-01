@@ -495,7 +495,7 @@ sub do_query {
 	$self->{opt_threads} = $lei->{opt}->{threads};
 	$self->{opt_sort} = $lei->{opt}->{'sort'};
 	if ($l2m) {
-		$l2m->net_merge_complete unless $lei->{auth};
+		$l2m->net_merge_all_done unless $lei->{auth};
 	} else {
 		start_query($self);
 	}

@@ -27,7 +27,7 @@ sub do_auth_atfork { # used by IPC WQ workers
 sub net_merge_done1 { # bump merge-count in top-level lei-daemon
 	my ($wq) = @_;
 	return if ++$wq->{nr_net_merge_done} != $wq->{-wq_nr_workers};
-	$wq->net_merge_complete; # defined per wq-class (e.g. LeiImport)
+	$wq->net_merge_all_done; # defined per wq-class (e.g. LeiImport)
 }
 
 sub net_merge_all { # called in wq worker via wq_broadcast
