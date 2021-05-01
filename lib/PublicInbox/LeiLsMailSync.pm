@@ -2,12 +2,12 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # front-end for the "lei ls-sync" sub-command
-package PublicInbox::LeiLsSync;
+package PublicInbox::LeiLsMailSync;
 use strict;
 use v5.10.1;
 use PublicInbox::LeiMailSync;
 
-sub lei_ls_sync {
+sub lei_ls_mail_sync {
 	my ($lei, $filter) = @_;
 	my $sto = $lei->_lei_store or return;
 	my $lms = $sto->search->lms or return;
