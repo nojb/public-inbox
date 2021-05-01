@@ -37,8 +37,11 @@ sub process_inputs { # via wq_do
 	my ($self) = @_;
 	local $PublicInbox::DS::in_loop = 0; # force synchronous dwaitpid
 	$self->SUPER::process_inputs;
-	delete $self->{lei}->{1};
+	my $lei = $self->{lei};
+	delete $lei->{1};
 	delete $self->{wcb}; # commit
+	my $nr = delete($lei->{-nr_write}) // 0;
+	$lei->err("# converted $nr messages") if $lei->{opt}->{verbose};
 }
 
 sub lei_convert { # the main "lei convert" method

@@ -259,6 +259,57 @@ sub output2lssdir {
 	undef;
 }
 
+sub edit_begin {
+	my ($self, $lei) = @_;
+	if (ref($self->{-cfg}->{'lei.q.output'})) {
+		delete $self->{-cfg}->{'lei.q.output'}; # invalid
+		$lei->err(<<EOM);
+$self->{-f} has multiple values of lei.q.output
+please remove redundant ones
+EOM
+	}
+	$lei->{-lss_for_edit} = $self;
+}
+
+sub edit_done {
+	my ($self, $lei) = @_;
+	my $cfg = PublicInbox::Config->git_config_dump($self->{'-f'});
+	my $new_out = $cfg->{'lei.q.output'} // '';
+	return $lei->fail(<<EOM) if ref $new_out;
+$self->{-f} has multiple values of lei.q.output
+please edit again
+EOM
+	return $lei->fail(<<EOM) if $new_out eq '';
+$self->{-f} needs lei.q.output
+please edit again
+EOM
+	my $old_out = $self->{-cfg}->{'lei.q.output'} // '';
+	return if $old_out eq $new_out;
+	my $old_path = $old_out;
+	my $new_path = $new_out;
+	s!$LOCAL_PFX!! for ($old_path, $new_path);
+	my $dir_old = lss_dir_for($lei, \$old_path, 1);
+	my $dir_new = lss_dir_for($lei, \$new_path);
+	return if $dir_new eq $dir_old; # no change, likely
+	return $lei->fail(<<EOM) if -e $dir_new;
+lei.q.output changed from `$old_out' to `$new_out'
+However, $dir_new exists
+EOM
+	# start the conversion asynchronously
+	my $old_sq = PublicInbox::Config::squote_maybe($old_out);
+	my $new_sq = PublicInbox::Config::squote_maybe($new_out);
+	$lei->puts("lei.q.output changed from $old_sq to $new_sq");
+	$lei->qerr("# lei convert $old_sq -o $new_sq");
+	my $v = !$lei->{opt}->{quiet};
+	$lei->{opt} = { output => $new_out, verbose => $v };
+	require PublicInbox::LeiConvert;
+	PublicInbox::LeiConvert::lei_convert($lei, $old_out);
+
+	$lei->fail(<<EOM) if -e $dir_old && !rename($dir_old, $dir_new);
+E: rename($dir_old, $dir_new) error: $!
+EOM
+}
+
 no warnings 'once';
 *nntp_url = \&cloneurl;
 *base_url = \&PublicInbox::Inbox::base_url;

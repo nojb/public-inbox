@@ -33,8 +33,15 @@ my $exec_cmd = sub {
 		push @rdr, shift(@old), $newfh;
 	}
 	my $do_exec = sub {
+		my @non_std; # ex. $op_p from lei_edit_search
 		while (my ($io, $newfh) = splice(@rdr, 0, 2)) {
+			my $old_io = !!$io;
 			open $io, '+<&', $newfh or die "open +<&=: $!";
+			push @non_std, $io unless $old_io;
+		}
+		if (@non_std) {
+			require Fcntl;
+			fcntl($_, Fcntl::F_SETFD(), 0) for @non_std;
 		}
 		my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
 		@ENV{keys %env} = values %env;

@@ -13,10 +13,19 @@ sub lei_edit_search {
 	my $lss = PublicInbox::LeiSavedSearch->up($lei, $out) or return;
 	my @cmd = (qw(git config --edit -f), $lss->{'-f'});
 	$lei->qerr("# spawning @cmd");
+	$lss->edit_begin($lei);
 	if ($lei->{oneshot}) {
-		exec(@cmd) or die "exec @cmd: $!\n";
-	} else {
-		$lei->send_exec_cmd([], \@cmd, {});
+		require PublicInbox::Spawn;
+		waitpid(PublicInbox::Spawn::spawn(\@cmd), 0);
+		# non-fatal, editor could fail after successful write
+		$lei->child_error($?) if $?;
+		$lss->edit_done($lei);
+	} else { # run in script/lei foreground
+		require PublicInbox::PktOp;
+		my ($op_c, $op_p) = PublicInbox::PktOp->pair;
+		# $op_p will EOF when $EDITOR is done
+		$op_c->{ops} = { '' => [$lss->can('edit_done'), $lss, $lei] };
+		$lei->send_exec_cmd([ @$lei{qw(0 1 2)}, $op_p ], \@cmd, {});
 	}
 }
 
