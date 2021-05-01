@@ -196,9 +196,13 @@ sub _mbox_write_cb ($$) {
 		return if $dedupe->is_dup($eml, $smsg);
 		$lse->xsmsg_vmd($smsg) if $lse;
 		$buf = $eml2mbox->($eml, $smsg);
-		return atomic_append($lei, $buf) if $atomic_append;
-		my $lk = $ovv->lock_for_scope;
-		$lei->out($$buf);
+		if ($atomic_append) {
+			atomic_append($lei, $buf);
+		} else {
+			my $lk = $ovv->lock_for_scope;
+			$lei->out($$buf);
+		}
+		++$lei->{-nr_write};
 	}
 }
 
@@ -273,15 +277,13 @@ sub _maildir_write_cb ($$) {
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{lse}; # may be undef
 	sub { # for git_to_mail
-		my ($buf, $smsg, $eml) = @_;
+		my ($bref, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
-		$buf //= \($eml->as_string);
+		return if $dedupe && $dedupe->is_dup($eml //
+						PublicInbox::Eml->new($$bref));
 		$lse->xsmsg_vmd($smsg) if $lse;
-		return _buf2maildir($dst, $buf, $smsg) if !$dedupe;
-		$eml //= PublicInbox::Eml->new($$buf); # copy buf
-		return if $dedupe->is_dup($eml, $smsg);
-		undef $eml;
-		_buf2maildir($dst, $buf, $smsg);
+		_buf2maildir($dst, $bref // \($eml->as_string), $smsg);
+		++$lei->{-nr_write};
 	}
 }
 
@@ -296,16 +298,15 @@ sub _imap_write_cb ($$) {
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # mic may be undef-ed in last run
-		if ($dedupe) {
-			$eml //= PublicInbox::Eml->new($$bref); # copy bref
-			return if $dedupe->is_dup($eml, $smsg);
-		}
+		return if $dedupe && $dedupe->is_dup($eml //
+						PublicInbox::Eml->new($$bref));
 		$lse->xsmsg_vmd($smsg) if $lse;
 		eval { $imap_append->($mic, $folder, $bref, $smsg, $eml) };
 		if (my $err = $@) {
 			undef $mic;
 			die $err;
 		}
+		++$lei->{-nr_write};
 	}
 }
 
@@ -659,7 +660,12 @@ sub write_mail { # via ->wq_io_do
 sub wq_atexit_child {
 	my ($self) = @_;
 	delete $self->{wcb};
-	$self->{lei}->{ale}->git->async_wait_all;
+	my $lei = $self->{lei};
+	$lei->{ale}->git->async_wait_all;
+	my $nr = delete($lei->{-nr_write}) or return;
+	return if $lei->{early_mua} || !$lei->{-progress} || !$lei->{pkt_op_p};
+	require PublicInbox::PktOp;
+	PublicInbox::PktOp::pkt_do($lei->{pkt_op_p}, 'l2m_progress', $nr);
 }
 
 # called in top-level lei-daemon when LeiAuth is done

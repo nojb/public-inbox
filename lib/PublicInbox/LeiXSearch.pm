@@ -144,6 +144,11 @@ sub mset_progress {
 	}
 }
 
+sub l2m_progress {
+	my ($lei, $nr) = @_;
+	$lei->{-nr_write} += $nr;
+}
+
 sub query_one_mset { # for --threads and l2m w/o sort
 	my ($self, $ibxish) = @_;
 	local $0 = "$0 query_one_mset";
@@ -354,7 +359,7 @@ sub query_done { # EOF callback for main daemon
 	}
 	my $wait = $lei->{sto} ? $lei->{sto}->ipc_do('done') : undef;
 	$lei->{ovv}->ovv_end($lei);
-	my @out;
+	my (@out, $start_mua);
 	if ($l2m) { # close() calls LeiToMail reap_compress
 		@out = (" in $lei->{ovv}->{dst}");
 		if (my $out = delete $lei->{old_1}) {
@@ -370,11 +375,15 @@ Error closing $lei->{ovv}->{dst}: $!
 			$lei->poke_mua;
 		} else { # mbox users
 			delete $l2m->{mbl}; # drop dotlock
-			$lei->start_mua;
+			$start_mua = 1;
 		}
 	}
-	$lei->{-progress} and
-		$lei->err('# ', $lei->{-mset_total} // 0, " matches", @out);
+	if ($lei->{-progress}) {
+		$lei->qerr('# ', $lei->{-mset_total} // 0, " matches", @out);
+		my $nr = $lei->{-nr_write} // 0;
+		$lei->qerr("# $nr written to $lei->{ovv}->{dst}") if $l2m;
+	}
+	$lei->start_mua if $start_mua;
 	$lei->dclose;
 }
 
@@ -456,6 +465,7 @@ sub do_query {
 		'+' => [ \&incr_post_augment, $lei ],
 		'' => [ \&query_done, $lei ],
 		'mset_progress' => [ \&mset_progress, $lei ],
+		'l2m_progress' => [ \&l2m_progress, $lei ],
 		'x_it' => [ $lei->can('x_it'), $lei ],
 		'child_error' => [ $lei->can('child_error'), $lei ],
 		'incr_start_query' => [ \&incr_start_query, $self, $l2m ],
