@@ -137,7 +137,7 @@ sub new { # new saved search "lei q --save"
 	print $fh <<EOM;
 ; to refresh with new results, run: lei up $sq_dst
 [lei]
-	$q
+$q
 [lei "q"]
 	output = $dst
 EOM
