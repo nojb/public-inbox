@@ -157,8 +157,13 @@ test_lei(sub {
 
 	lei_ok qw(import -F eml), $f, \'import local copy w/o keywords';
 
-	$nwr->imap_set_kw($folder_uri, $uid[0], [ 'seen' ])->expunge
-		or BAIL_OUT "expunge $@";
+	$mic = $nwr->mic_for_folder($folder_uri);
+	# dummy set to ensure second set_kw clobbers
+	$nwr->imap_set_kw($mic, $uid[0], [ qw(seen answered flagged) ]
+			)->expunge or BAIL_OUT "expunge $@";
+	$nwr->imap_set_kw($mic, $uid[0], [ 'seen' ]
+			)->expunge or BAIL_OUT "expunge $@";
+	$mic = undef;
 	@res = ();
 	$nwr->imap_each($folder_uri, $imap_slurp_all, \@res);
 	is_deeply(\@res, [ [ ['seen'], $exp ] ], 'seen flag set') or

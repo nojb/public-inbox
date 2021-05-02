@@ -53,17 +53,15 @@ sub imap_delete_1 {
 	$$delete_mic->delete_message($uid);
 }
 
-sub imap_set_kw {
-	my ($self, $url, $uid, $kw) = @_;
-	my $mic = mic_for_folder($self, my $uri = $url) or return;
-	$mic->set_flag(kw2flags($kw), $uid);
+sub imap_add_kw {
+	my ($self, $mic, $uid, $kw) = @_;
+	$mic->store($uid, '+FLAGS.SILENT', '('.kw2flags($kw).')');
 	$mic; # caller must ->expunge
 }
 
-sub imap_unset_kw {
-	my ($self, $url, $uid, $kw) = @_;
-	my $mic = mic_for_folder($self, my $uri = $url) or return;
-	$mic->unset_flag(kw2flags($kw), $uid);
+sub imap_set_kw {
+	my ($self, $mic, $uid, $kw) = @_;
+	$mic->store($uid, 'FLAGS.SILENT', '('.kw2flags($kw).')');
 	$mic; # caller must ->expunge
 }
 
