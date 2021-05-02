@@ -44,7 +44,7 @@ sub lei_tag { # the "lei tag" method
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{vmd_mod} = $vmd_mod;
 	my $j = $self->{-wq_nr_workers} = 1; # locked for now
-	(my $op_c, $ops) = $lei->workers_start($self, 'lei-tag', $j, $ops);
+	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};

@@ -76,7 +76,7 @@ sub lei_import { # the main "lei import" method
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{-wq_nr_workers} = $j // 1; # locked
 	$lei->{-eml_noisy} = 1;
-	(my $op_c, $ops) = $lei->workers_start($self, 'lei-import', $j, $ops);
+	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};

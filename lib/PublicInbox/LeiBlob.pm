@@ -151,7 +151,7 @@ EOM
 	}
 	require PublicInbox::SolverGit;
 	my $self = bless { lxs => $lxs, oid_b => $blob }, __PACKAGE__;
-	my ($op_c, $ops) = $lei->workers_start($self, 'lei-blob', 1);
+	my ($op_c, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;
 	$self->wq_io_do('do_solve_blob', []);
 	$self->wq_close(1);

@@ -542,7 +542,7 @@ sub pkt_op_pair {
 }
 
 sub workers_start {
-	my ($lei, $wq, $ident, $jobs, $ops) = @_;
+	my ($lei, $wq, $jobs, $ops) = @_;
 	$ops = {
 		'!' => [ \&fail_handler, $lei ],
 		'|' => [ \&sigpipe_handler, $lei ],
@@ -552,6 +552,7 @@ sub workers_start {
 	};
 	$ops->{''} //= [ $wq->can('_lei_wq_eof') || \&wq_eof, $lei ];
 	my $end = $lei->pkt_op_pair;
+	my $ident = $wq->{-wq_ident} // "lei-$lei->{cmd} worker";
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, { lei => $lei });
 	delete $lei->{pkt_op_p};
 	my $op_c = delete $lei->{pkt_op_c};

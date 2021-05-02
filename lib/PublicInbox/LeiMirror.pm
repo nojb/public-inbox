@@ -282,7 +282,7 @@ sub start {
 	require PublicInbox::Inbox;
 	require PublicInbox::Admin;
 	require PublicInbox::InboxWritable;
-	my ($op, $ops) = $lei->workers_start($self, 'lei_mirror', 1);
+	my ($op, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;
 	$self->wq_io_do('do_mirror', []);
 	$self->wq_close(1);
