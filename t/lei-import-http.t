@@ -39,5 +39,10 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	$res = json_utf8->decode($lei_out);
 	is($res->[0]->{'m'}, '20180720072141.GA15957@example',
 			'imported search result') or diag explain($res);
+
+	ok(!lei(qw(import --mail-sync), "$url/x\@example.com/raw"),
+		'--mail-sync fails on HTTP');
+	diag $lei_err;
+
 });
 done_testing;

@@ -229,6 +229,8 @@ sub prepare_inputs { # returns undef on error
 				}
 			}
 		} elsif ($input_path =~ m!\Ahttps?://!i) {
+			# TODO: how would we detect r/w JMAP?
+			push @{$sync->{no}}, $input if $sync;
 			prepare_http_input($self, $lei, $input_path) or return;
 		} elsif ($input_path =~ s/\A([a-z0-9]+)://is) {
 			my $ifmt = lc $1;
