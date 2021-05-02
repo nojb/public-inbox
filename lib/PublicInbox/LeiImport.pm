@@ -48,12 +48,6 @@ sub input_net_cb { # imap_each / nntp_each
 	input_eml_cb($self, $eml, $vmd);
 }
 
-sub net_merge_all_done { # callback used by LeiAuth
-	my ($self) = @_;
-	$self->wq_io_do('process_inputs');
-	$self->wq_close(1);
-}
-
 sub lei_import { # the main "lei import" method
 	my ($lei, @inputs) = @_;
 	my $sto = $lei->_lei_store(1);
@@ -99,6 +93,7 @@ sub _complete_import {
 
 no warnings 'once';
 *ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
+*net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
 # the following works even when LeiAuth is lazy-loaded
 *net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;

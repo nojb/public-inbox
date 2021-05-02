@@ -19,12 +19,6 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 
 sub input_mbox_cb { input_eml_cb($_[1], $_[0]) }
 
-sub net_merge_all_done { # callback used by LeiAuth
-	my ($self) = @_;
-	$self->wq_io_do('process_inputs');
-	$self->wq_close(1);
-}
-
 sub input_maildir_cb { # maildir_each_eml cb
 	my ($f, $kw, $eml, $self) = @_;
 	input_eml_cb($self, $eml);
@@ -117,5 +111,6 @@ sub _complete_tag {
 
 no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
 *net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
+*net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
 1;

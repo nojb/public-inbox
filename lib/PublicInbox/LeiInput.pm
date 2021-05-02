@@ -329,6 +329,13 @@ sub input_only_atfork_child {
 	undef;
 }
 
+# alias this as "net_merge_all_done" to use as an LeiAuth callback
+sub input_only_net_merge_all_done {
+	my ($self) = @_;
+	$self->wq_io_do('process_inputs');
+	$self->wq_close(1);
+}
+
 # like Getopt::Long, but for +kw:FOO and -kw:FOO to prepare
 # for update_xvmd -> update_vmd
 sub vmd_mod_extract {
