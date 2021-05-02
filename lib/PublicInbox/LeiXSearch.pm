@@ -359,9 +359,8 @@ sub query_done { # EOF callback for main daemon
 	}
 	my $wait = $lei->{sto} ? $lei->{sto}->ipc_do('done') : undef;
 	$lei->{ovv}->ovv_end($lei);
-	my (@out, $start_mua);
+	my $start_mua;
 	if ($l2m) { # close() calls LeiToMail reap_compress
-		@out = (" in $lei->{ovv}->{dst}");
 		if (my $out = delete $lei->{old_1}) {
 			if (my $mbout = $lei->{1}) {
 				close($mbout) or return $lei->fail(<<"");
@@ -379,9 +378,11 @@ Error closing $lei->{ovv}->{dst}: $!
 		}
 	}
 	if ($lei->{-progress}) {
-		$lei->qerr('# ', $lei->{-mset_total} // 0, " matches", @out);
+		my $tot = $lei->{-mset_total} // 0;
 		my $nr = $lei->{-nr_write} // 0;
-		$lei->qerr("# $nr written to $lei->{ovv}->{dst}") if $l2m;
+		$lei->qerr($l2m ?
+			"# $nr written to $lei->{ovv}->{dst} ($tot matches)" :
+			"# $tot matches");
 	}
 	$lei->start_mua if $start_mua;
 	$lei->dclose;
