@@ -29,10 +29,9 @@ sub _start_query { # used by "lei q" and "lei up"
 		return $self->fail("`$mj' writer jobs must be >= 1");
 	}
 	my $l2m = $self->{l2m};
-	if ($l2m && ($opt->{'import-remote'} //= 1) |
-				# we use \1 (a ref) to distinguish between
-				# user-supplied and default value
-				(($opt->{'import-before'} //= \1) ? 1 : 0)) {
+	# we use \1 (a ref) to distinguish between default vs. user-supplied
+	if ($l2m && grep { $opt->{$_} //= \1 } (qw(mail-sync import-remote
+							import-before))) {
 		$self->_lei_store(1)->write_prepare($self);
 	}
 	$l2m and $l2m->{-wq_nr_workers} = $mj // do {

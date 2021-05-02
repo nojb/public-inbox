@@ -193,15 +193,15 @@ sub remove_eml_vmd {
 	\@docids;
 }
 
-sub set_sync_info ($$$) {
-	my ($self, $oidhex, $sync_info) = @_;
+sub set_sync_info {
+	my ($self, $oidhex, $folder, $id) = @_;
 	($self->{lms} //= do {
 		require PublicInbox::LeiMailSync;
 		my $f = "$self->{priv_eidx}->{topdir}/mail_sync.sqlite3";
 		my $lms = PublicInbox::LeiMailSync->new($f);
 		$lms->lms_begin;
 		$lms;
-	})->set_src($oidhex, @$sync_info);
+	})->set_src($oidhex, $folder, $id);
 }
 
 sub add_eml {
@@ -212,7 +212,7 @@ sub add_eml {
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
 	my $im_mark = $im->add($eml, undef, $smsg);
 	if ($vmd && $vmd->{sync_info}) {
-		set_sync_info($self, $smsg->{blob}, $vmd->{sync_info});
+		set_sync_info($self, $smsg->{blob}, @{$vmd->{sync_info}});
 	}
 	$im_mark or return; # duplicate blob returns undef
 

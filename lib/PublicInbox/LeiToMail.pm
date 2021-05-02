@@ -242,7 +242,7 @@ sub _buf2maildir {
 	my $kw = $smsg->{kw} // [];
 	my $sfx = join('', sort(map { $kw2char{$_} // () } @$kw));
 	my $rand = ''; # chosen by die roll :P
-	my ($tmp, $fh, $final, $ok);
+	my ($tmp, $fh, $base, $ok);
 	my $common = $smsg->{blob} // _rand;
 	if (defined(my $pct = $smsg->{pct})) { $common .= "=$pct" }
 	do {
@@ -257,11 +257,12 @@ sub _buf2maildir {
 		$dst .= 'cur/';
 		$rand = '';
 		do {
-			$final = $dst.$rand.$common.':2,'.$sfx;
-		} while (!($ok = link($tmp, $final)) && $!{EEXIST} &&
+			$base = $rand.$common.':2,'.$sfx
+		} while (!($ok = link($tmp, $dst.$base)) && $!{EEXIST} &&
 			($rand = _rand.','));
-		die "link($tmp, $final): $!" unless $ok;
+		die "link($tmp, $dst$base): $!" unless $ok;
 		unlink($tmp) or warn "W: failed to unlink $tmp: $!\n";
+		\$base;
 	} else {
 		my $err = "Error writing $smsg->{blob} to $dst: $!\n";
 		$_[0] = undef; # clobber dst
@@ -276,13 +277,16 @@ sub _maildir_write_cb ($$) {
 	$dedupe->prepare_dedupe if $dedupe;
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{lse}; # may be undef
+	my $sto = $lei->{opt}->{'mail-sync'} ? $lei->{sto} : undef;
+	my $out = $sto ? 'maildir:'.$lei->rel2abs($dst) : undef;
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
 		return if $dedupe && $dedupe->is_dup($eml //
 						PublicInbox::Eml->new($$bref));
 		$lse->xsmsg_vmd($smsg) if $lse;
-		_buf2maildir($dst, $bref // \($eml->as_string), $smsg);
+		my $n = _buf2maildir($dst, $bref // \($eml->as_string), $smsg);
+		$sto->ipc_do('set_sync_info', $smsg->{blob}, $out, $n) if $sto;
 		++$lei->{-nr_write};
 	}
 }
@@ -291,21 +295,27 @@ sub _imap_write_cb ($$) {
 	my ($self, $lei) = @_;
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe if $dedupe;
-	my $imap_append = $lei->{net}->can('imap_append');
+	my $append = $lei->{net}->can('imap_append');
 	my $mic = $lei->{net}->mic_get($self->{uri});
 	my $folder = $self->{uri}->mailbox;
 	my $lse = $lei->{lse}; # may be undef
+	my $sto = $lei->{opt}->{'mail-sync'} ? $lei->{sto} : undef;
+	my $out = $lei->{ovv}->{dst};
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # mic may be undef-ed in last run
 		return if $dedupe && $dedupe->is_dup($eml //
 						PublicInbox::Eml->new($$bref));
 		$lse->xsmsg_vmd($smsg) if $lse;
-		eval { $imap_append->($mic, $folder, $bref, $smsg, $eml) };
+		my $uid = eval { $append->($mic, $folder, $bref, $smsg, $eml) };
 		if (my $err = $@) {
 			undef $mic;
 			die $err;
 		}
+		# imap_append returns UID if IMAP server has UIDPLUS extension
+		($sto && $uid =~ /\A[0-9]+\z/) and
+			$sto->ipc_do('set_sync_info',
+					$smsg->{blob}, $out, $uid + 0);
 		++$lei->{-nr_write};
 	}
 }

@@ -145,7 +145,7 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(save output|mfolder|o=s format|f=s dedupe|d=s threads|t+
 	sort|s=s reverse|r offset=i pretty jobs|j=s globoff|g augment|a
 	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+
-	color!), @c_opt, opt_dash('limit|n=i', '[0-9]+') ],
+	color! mail-sync!), @c_opt, opt_dash('limit|n=i', '[0-9]+') ],
 
 'up' => [ 'OUTPUT|--all', 'update saved search',
 	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ all:s), @c_opt ],
