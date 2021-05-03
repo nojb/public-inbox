@@ -91,5 +91,11 @@ EOF
 	lei_ok(qw(q -o mboxrd:/dev/stdout m:never-before-seen@example.com));
 	like($lei_out, qr/seen\@example\.com>\nStatus: RO\n\nwhatever/sm,
 		'--import-before imported totally unseen message');
+
+	lei_ok(qw(q --save z:0.. -o), "$ENV{HOME}/md", '--only', $url);
+	my @f = glob("$ENV{HOME}/md/*/*");
+	lei_ok('up', "$ENV{HOME}/md");
+	is_deeply(\@f, [ glob("$ENV{HOME}/md/*/*") ],
+		'lei up remote dedupe works on maildir');
 });
 done_testing;

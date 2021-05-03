@@ -283,7 +283,8 @@ sub _maildir_write_cb ($$) {
 		my ($bref, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
 		return if $dedupe && $dedupe->is_dup($eml //
-						PublicInbox::Eml->new($$bref));
+						PublicInbox::Eml->new($$bref),
+						$smsg);
 		$lse->xsmsg_vmd($smsg) if $lse;
 		my $n = _buf2maildir($dst, $bref // \($eml->as_string), $smsg);
 		$sto->ipc_do('set_sync_info', $smsg->{blob}, $out, $n) if $sto;
@@ -305,7 +306,8 @@ sub _imap_write_cb ($$) {
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # mic may be undef-ed in last run
 		return if $dedupe && $dedupe->is_dup($eml //
-						PublicInbox::Eml->new($$bref));
+						PublicInbox::Eml->new($$bref),
+						$smsg);
 		$lse->xsmsg_vmd($smsg) if $lse;
 		my $uid = eval { $append->($mic, $folder, $bref, $smsg, $eml) };
 		if (my $err = $@) {

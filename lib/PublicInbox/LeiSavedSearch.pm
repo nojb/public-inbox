@@ -170,23 +170,24 @@ sub cfg_set { # called by LeiXSearch
 sub is_dup {
 	my ($self, $eml, $smsg) = @_;
 	my $oidx = $self->{oidx} // die 'BUG: no {oidx}';
-	my $blob = $smsg ? $smsg->{blob} : undef;
-	my $lk = $self->lock_for_scope_fast;
-	return 1 if $blob && $oidx->blob_exists($blob);
+	my $lk;
 	if ($self->{-dedupe_mid}) {
+		$lk //= $self->lock_for_scope_fast;
 		for my $mid (@{mids_for_index($eml)}) {
 			my ($id, $prv);
 			return 1 if $oidx->next_by_mid($mid, \$id, \$prv);
 		}
 	}
+	my $blob = $smsg ? $smsg->{blob} : git_sha(1, $eml)->hexdigest;
+	$lk //= $self->lock_for_scope_fast;
+	return 1 if $oidx->blob_exists($blob);
 	if (my $xoids = PublicInbox::LeiSearch::xoids_for($self, $eml, 1)) {
 		for my $docid (values %$xoids) {
 			$oidx->add_xref3($docid, -1, $blob, '.');
 		}
 		$oidx->commit_lazy;
 		if ($self->{-dedupe_oid}) {
-			$smsg->{blob} //= git_sha(1, $eml)->hexdigest;
-			exists $xoids->{$smsg->{blob}} ? 1 : undef;
+			exists $xoids->{$blob} ? 1 : undef;
 		} else {
 			1;
 		}
@@ -197,11 +198,11 @@ sub is_dup {
 			$smsg->{bytes} = 0;
 			$smsg->populate($eml);
 		}
+		$smsg->{blob} //= $blob;
 		$oidx->begin_lazy;
 		$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
-		$smsg->{blob} //= git_sha(1, $eml)->hexdigest;
 		$oidx->add_overview($eml, $smsg);
-		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');
+		$oidx->add_xref3($smsg->{num}, -1, $blob, '.');
 		$oidx->commit_lazy;
 		undef;
 	}
