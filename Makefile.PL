@@ -72,7 +72,8 @@ for my $i (@sections) {
 		$t->{"Documentation/$m.html : $txt"} = [ "\$(txt2pre) <$txt" ];
 		$t->{".$m.cols : $m.$i"} = [
 			"\@echo CHECK80 $m.$i;".
-			"COLUMNS=80 \$(MAN) ./$m.$i | \$(check_man)" ];
+			"COLUMNS=80 \$(MAN) ./$m.$i | \$(check_man)",
+			'>$@' ];
 		$t->{".$m.lexgrog: $m.$i"} = [
 			"\@echo LEXGROG $m.$i;" .
 			"\$(LEXGROG) ./$m.$i >\$\@+ && mv \$\@+ \$@" ];

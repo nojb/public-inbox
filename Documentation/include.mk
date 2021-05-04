@@ -52,8 +52,9 @@ install-man: man
 doc_install :: install-man
 
 check :: check-man
-check_man = $(AWK) '{gsub(/\b./,"")}length>80{print;err=1}END{exit(err)}'\
-	>&2 && >$@
+check_man = $(AWK) \
+	'{gsub(/\b./,"")}$$0 !~ /\.onion/&&length>80{print;e=1}END{exit(e)}' \
+	>&2
 
 check-man :: $(check_80)
 
