@@ -270,6 +270,7 @@ my %OPTDESC = (
 'incremental!	import' => 'import already seen IMAP and NNTP articles',
 'globoff|g' => "do not match locations using '*?' wildcards ".
 		"and\xa0'[]'\x{a0}ranges",
+'invert-match|v' => 'select non-matching lines',
 'color!' => 'disable color (for --format=text)',
 'verbose|v+' => 'be more verbose',
 'external!' => 'do not use externals',
