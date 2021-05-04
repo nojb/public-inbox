@@ -171,7 +171,7 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(format|f=s z|0 globoff|g invert-match|v local remote), @c_opt ],
 'ls-label' => [ '', 'list labels', qw(z|0 stats:s), @c_opt ],
 'ls-mail-sync' => [ '', 'list mail sync folders',
-		qw(z|0 z|0 globoff|g invert-match|v local remote), @c_opt ],
+		qw(z|0 globoff|g invert-match|v local remote), @c_opt ],
 'forget-external' => [ 'LOCATION...|--prune',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune), @c_opt ],
