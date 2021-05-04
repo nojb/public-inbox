@@ -137,9 +137,15 @@ sub eml2mboxcl2 {
 
 sub git_to_mail { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
+	my ($write_cb, $smsg) = @$arg;
+	if ($type eq 'missing' && $smsg->{-lms_ro}) {
+		if ($bref = $smsg->{-lms_ro}->local_blob($oid, 1)) {
+			$type = 'blob';
+			$size = length($$bref);
+		}
+	}
 	return warn("W: $oid is $type (!= blob)\n") if $type ne 'blob';
 	return warn("E: $oid is empty\n") unless $size;
-	my ($write_cb, $smsg) = @$arg;
 	die "BUG: expected=$smsg->{blob} got=$oid" if $smsg->{blob} ne $oid;
 	$write_cb->($bref, $smsg);
 }
@@ -644,6 +650,7 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	$lei->_lei_atfork_child;
+	$self->{-lms_ro} = $lei->{lse}->lms if $lei->{lse};
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
@@ -665,6 +672,7 @@ sub poke_dst {
 sub write_mail { # via ->wq_io_do
 	my ($self, $smsg, $eml) = @_;
 	return $self->{wcb}->(undef, $smsg, $eml) if $eml;
+	$smsg->{-lms_ro} = $self->{-lms_ro};
 	$self->{lei}->{ale}->git->cat_async($smsg->{blob}, \&git_to_mail,
 				[$self->{wcb}, $smsg]);
 }

@@ -6,6 +6,7 @@ package PublicInbox::LeiMailSync;
 use strict;
 use v5.10.1;
 use DBI;
+use PublicInbox::ContentHash qw(git_sha);
 
 sub dbh_new {
 	my ($self, $rw) = @_;
@@ -206,6 +207,32 @@ sub folders {
 		$pfx[0] .= '%';
 	}
 	map { $_->[0] } @{$dbh->selectall_arrayref($sql, undef, @pfx)};
+}
+
+sub local_blob {
+	my ($self, $oidhex, $vrfy) = @_;
+	my $dbh = $self->{dbh} //= dbh_new($self);
+	my $b2n = $dbh->prepare(<<'');
+SELECT f.loc,b.name FROM blob2name b
+LEFT JOIN folders f ON b.fid = f.fid
+WHERE b.oidbin = ?
+
+	$b2n->execute(pack('H*', $oidhex));
+	while (my ($d, $n) = $b2n->fetchrow_array) {
+		substr($d, 0, length('maildir:')) = '';
+		my $f = "$d/" . ($n =~ /:2,[a-zA-Z]*\z/ ? "cur/$n" : "new/$n");
+		open my $fh, '<', $f or next;
+		if (-s $fh) {
+			local $/;
+			my $raw = <$fh>;
+			if ($vrfy && git_sha(1, \$raw)->hexdigest ne $oidhex) {
+				warn "$f changed $oidhex\n";
+				next;
+			}
+			return \$raw;
+		}
+	}
+	undef;
 }
 
 1;

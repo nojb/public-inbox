@@ -38,21 +38,20 @@ sub input_maildir_cb { # maildir_each_eml cb
 			warn "E: $f was not from a Maildir?\n";
 		}
 	}
-	input_eml_cb($self, $eml, $vmd);
+	$self->input_eml_cb($eml, $vmd);
 }
 
 sub input_net_cb { # imap_each / nntp_each
 	my ($url, $uid, $kw, $eml, $self) = @_;
 	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
 	$vmd->{sync_info} = [ $url, $uid ] if $self->{-mail_sync};
-	input_eml_cb($self, $eml, $vmd);
+	$self->input_eml_cb($eml, $vmd);
 }
 
-sub lei_import { # the main "lei import" method
-	my ($lei, @inputs) = @_;
+sub do_import_index ($$@) {
+	my ($self, $lei, @inputs) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
-	my $self = bless {}, __PACKAGE__;
 	$self->{-import_kw} = $lei->{opt}->{kw} // 1;
 	my $vmd_mod = $self->vmd_mod_extract(\@inputs);
 	return $lei->fail(join("\n", @{$vmd_mod->{err}})) if $vmd_mod->{err};
@@ -81,6 +80,12 @@ sub lei_import { # the main "lei import" method
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};
 	$op_c->op_wait_event($ops);
+}
+
+sub lei_import { # the main "lei import" method
+	my ($lei, @inputs) = @_;
+	my $self = bless {}, __PACKAGE__;
+	do_import_index($self, $lei, @inputs);
 }
 
 sub _complete_import {

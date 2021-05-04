@@ -87,6 +87,16 @@ sub cat_attach_i { # Eml->each_part callback
 	$lei->out($part->body);
 }
 
+sub extract_attach ($$$) {
+	my ($lei, $blob, $bref) = @_;
+	my $eml = PublicInbox::Eml->new($bref);
+	$eml->each_part(\&cat_attach_i, $lei, 1);
+	my $idx = delete $lei->{-attach_idx};
+	defined($idx) and return $lei->fail(<<EOM);
+E: attachment $idx not found in $blob
+EOM
+}
+
 sub lei_blob {
 	my ($lei, $blob) = @_;
 	$lei->start_pager if -t $lei->{1};
@@ -106,7 +116,7 @@ sub lei_blob {
 		}
 		my $rdr = {};
 		if ($opt->{mail}) {
-			$rdr->{2} = $lei->{2};
+			open $rdr->{2}, '+>', undef or die "open: $!";
 		} else {
 			open $rdr->{2}, '>', '/dev/null' or die "open: $!";
 		}
@@ -115,21 +125,25 @@ sub lei_blob {
 		if (defined $lei->{-attach_idx}) {
 			my $fh = popen_rd($cmd, $lei->{env}, $rdr);
 			require PublicInbox::Eml;
-			my $str = do { local $/; <$fh> };
-			if (close $fh) {
-				my $eml = PublicInbox::Eml->new(\$str);
-				$eml->each_part(\&cat_attach_i, $lei, 1);
-				my $idx = delete $lei->{-attach_idx};
-				defined($idx) and return $lei->fail(<<EOM);
-E: attachment $idx not found in $blob
-EOM
-			}
+			my $buf = do { local $/; <$fh> };
+			return extract_attach($lei, $blob, \$buf) if close($fh);
 		} else {
 			$rdr->{1} = $lei->{1};
 			waitpid(spawn($cmd, $lei->{env}, $rdr), 0);
 		}
-		return if $? == 0;
-		return $lei->child_error($?) if $opt->{mail};
+		my $ce = $?;
+		return if $ce == 0;
+		my $sto = $lei->_lei_store;
+		my $lms = $sto ? $sto->search->lms : undef;
+		if (my $bref = $lms ? $lms->local_blob($blob, 1) : undef) {
+			defined($lei->{-attach_idx}) and
+				return extract_attach($lei, $blob, $bref);
+			return $lei->out($$bref);
+		} elsif ($opt->{mail}) {
+			my $eh = $rdr->{2};
+			seek($eh, 0, 0);
+			return $lei->child_error($ce, do { local $/; <$eh> });
+		} # else: fall through to solver below
 	}
 
 	# maybe it's a non-email (code) blob from a coderepo

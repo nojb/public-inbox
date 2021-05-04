@@ -670,4 +670,22 @@ DELETE FROM eidxq WHERE docid = ?
 
 }
 
+# returns true if we're vivifying a message for lei/store that was
+# previously external-metadata only
+sub vivify_xvmd {
+	my ($self, $smsg) = @_;
+	my @docids = $self->blob_exists($smsg->{blob});
+	my @vivify_xvmd;
+	for my $id (@docids) {
+		if (my $cur = $self->get_art($id)) {
+			# already indexed if bytes > 0
+			return if $cur->{bytes} > 0;
+			push @vivify_xvmd, $id;
+		} else {
+			warn "W: $smsg->{blob} #$id gone (bug?)\n";
+		}
+	}
+	$smsg->{-vivify_xvmd} = \@vivify_xvmd;
+}
+
 1;

@@ -413,19 +413,19 @@ sub add {
 		$smsg->{blob} = $self->get_mark(":$blob");
 		$smsg->set_bytes($raw_email, $n);
 		if (my $oidx = delete $smsg->{-oidx}) { # used by LeiStore
-			my @docids = $oidx->blob_exists($smsg->{blob});
-			my @vivify_xvmd;
-			for my $id (@docids) {
-				if (my $cur = $oidx->get_art($id)) {
-					# already imported if bytes > 0
-					return if $cur->{bytes} > 0;
-					push @vivify_xvmd, $id;
-				} else {
-					warn "W: $smsg->{blob} ",
-						"#$id gone (bug?)\n";
-				}
-			}
-			$smsg->{-vivify_xvmd} = \@vivify_xvmd;
+			my $eidx_git = delete $smsg->{-eidx_git};
+
+			# we need this sharedkv to dedupe blobs added in the
+			# same fast-import transaction
+			my $u = $self->{uniq_skv} //= do {
+				require PublicInbox::SharedKV;
+				my $x = PublicInbox::SharedKV->new;
+				$x->dbh;
+				$x;
+			};
+			return if !$u->set_maybe(pack('H*', $smsg->{blob}), 1);
+			return if (!$oidx->vivify_xvmd($smsg) &&
+					$eidx_git->check($smsg->{blob}));
 		}
 	}
 	my $ref = $self->{ref};

@@ -1,7 +1,7 @@
 # Copyright (C) 2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# parent class for LeiImport, LeiConvert
+# parent class for LeiImport, LeiConvert, LeiIndex
 package PublicInbox::LeiInput;
 use strict;
 use v5.10.1;
@@ -93,11 +93,7 @@ sub handle_http_input ($$@) {
 	my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
 	grep(/\A--compressed\z/, @$curl) or
 		$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
-	eval {
-		PublicInbox::MboxReader->mboxrd($fh,
-						$self->can('input_mbox_cb'),
-						$self, @args);
-	};
+	eval { $self->input_fh('mboxrd', $fh, $url, @args) };
 	my $err = $@;
 	waitpid($pid, 0);
 	$? || $err and
@@ -221,14 +217,8 @@ sub prepare_inputs { # returns undef on error
 			require PublicInbox::NetReader;
 			$net //= PublicInbox::NetReader->new;
 			$net->add_url($input);
-			if ($sync) {
-				if ($input =~ m!\Aimaps?://!) {
-					push @{$sync->{ok}}, $input;
-				} else {
-					push @{$sync->{no}}, $input;
-				}
-			}
-		} elsif ($input_path =~ m!\Ahttps?://!i) {
+			push @{$sync->{ok}}, $input if $sync;
+		} elsif ($input_path =~ m!\Ahttps?://!i) { # mboxrd.gz
 			# TODO: how would we detect r/w JMAP?
 			push @{$sync->{no}}, $input if $sync;
 			prepare_http_input($self, $lei, $input_path) or return;
@@ -239,12 +229,10 @@ sub prepare_inputs { # returns undef on error
 --in-format=$in_fmt and `$ifmt:' conflict
 
 			}
-			if ($sync) {
-				if ($ifmt =~ /\A(?:maildir|mh)\z/i) {
-					push @{$sync->{ok}}, $input;
-				} else {
-					push @{$sync->{no}}, $input;
-				}
+			if ($ifmt =~ /\A(?:maildir|mh)\z/i) {
+				push @{$sync->{ok}}, $input if $sync;
+			} else {
+				push @{$sync->{no}}, $input if $sync;
 			}
 			my $devfd = $lei->path_to_fd($input_path) // return;
 			if ($devfd >= 0 || (-f $input_path || -p _)) {
@@ -260,7 +248,7 @@ sub prepare_inputs { # returns undef on error
 			} else {
 				return $lei->fail("Unable to handle $input");
 			}
-		} elsif ($input =~ /\.(eml|patch)\z/i && -f $input) {
+		} elsif ($input =~ /\.(?:eml|patch)\z/i && -f $input) {
 			lc($in_fmt//'eml') eq 'eml' or return $lei->fail(<<"");
 $input is `eml', not --in-format=$in_fmt
 

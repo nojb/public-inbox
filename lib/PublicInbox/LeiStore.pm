@@ -206,10 +206,11 @@ sub set_sync_info {
 
 sub add_eml {
 	my ($self, $eml, $vmd, $xoids) = @_;
-	my $im = $self->importer; # may create new epoch
+	my $im = $self->{-fake_im} // $self->importer; # may create new epoch
 	my ($eidx, $tl) = eidx_init($self);
 	my $oidx = $eidx->{oidx}; # PublicInbox::Import::add checks this
 	my $smsg = bless { -oidx => $oidx }, 'PublicInbox::Smsg';
+	$smsg->{-eidx_git} = $eidx->git if !$self->{-fake_im};
 	my $im_mark = $im->add($eml, undef, $smsg);
 	if ($vmd && $vmd->{sync_info}) {
 		set_sync_info($self, $smsg->{blob}, @{$vmd->{sync_info}});
@@ -274,6 +275,13 @@ sub set_eml {
 	my ($self, $eml, $vmd, $xoids) = @_;
 	add_eml($self, $eml, $vmd, $xoids) //
 		set_eml_vmd($self, $eml, $vmd);
+}
+
+sub index_eml_only {
+	my ($self, $eml, $vmd, $xoids) = @_;
+	require PublicInbox::FakeImport;
+	local $self->{-fake_im} = PublicInbox::FakeImport->new;
+	set_eml($self, $eml, $vmd, $xoids);
 }
 
 sub _external_only ($$$) {

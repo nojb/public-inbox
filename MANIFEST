@@ -148,6 +148,7 @@ lib/PublicInbox/EmlContentFoo.pm
 lib/PublicInbox/ExtMsg.pm
 lib/PublicInbox/ExtSearch.pm
 lib/PublicInbox/ExtSearchIdx.pm
+lib/PublicInbox/FakeImport.pm
 lib/PublicInbox/FakeInotify.pm
 lib/PublicInbox/Feed.pm
 lib/PublicInbox/Filter/Base.pm
@@ -197,6 +198,7 @@ lib/PublicInbox/LeiExternal.pm
 lib/PublicInbox/LeiForgetSearch.pm
 lib/PublicInbox/LeiHelp.pm
 lib/PublicInbox/LeiImport.pm
+lib/PublicInbox/LeiIndex.pm
 lib/PublicInbox/LeiInit.pm
 lib/PublicInbox/LeiInput.pm
 lib/PublicInbox/LeiInspect.pm
@@ -403,6 +405,7 @@ t/lei-import-imap.t
 t/lei-import-maildir.t
 t/lei-import-nntp.t
 t/lei-import.t
+t/lei-index.t
 t/lei-lcat.t
 t/lei-mirror.t
 t/lei-p2q.t
