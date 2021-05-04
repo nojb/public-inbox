@@ -7,7 +7,7 @@ use URI;
 require_mods 'IO::Socket::Socks';
 use_ok 'PublicInbox::NetNNTPSocks';
 my $url = $ENV{TEST_NNTP_ONION_URL} //
-	'nntp://czquwvybam4bgbro.onion/inbox.comp.mail.public-inbox.meta';
+	'nntp://ie5yzdi7fg72h7s4sdcztq5evakq23rdt33mfyfcddc5u3ndnw24ogqd.onion/inbox.comp.mail.public-inbox.meta';
 my $uri = URI->new($url);
 my $on = PublicInbox::NetNNTPSocks->new_socks(
 	Port => $uri->port,

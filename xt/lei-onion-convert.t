@@ -10,7 +10,8 @@ unless ($test_tor =~ m!\Asocks5h://!i) {
 	diag "using $default (set TEST_TOR=socks5h://ADDR:PORT to override)";
 	$test_tor = $default;
 }
-my $onion = $ENV{TEST_ONION_HOST} //'ou63pmih66umazou.onion';
+my $onion = $ENV{TEST_ONION_HOST} //
+	'7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion';
 my $ng = 'inbox.comp.mail.public-inbox.meta';
 my $nntp_url = $ENV{TEST_NNTP_ONION_URL} // "nntp://$onion/$ng";
 my $imap_url = $ENV{TEST_IMAP_ONION_URL} // "imap://$onion/$ng.0";

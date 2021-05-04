@@ -94,8 +94,8 @@ AGPL source code is available via git:
 
 	git clone https://public-inbox.org/public-inbox.git
 	git clone https://repo.or.cz/public-inbox.git
-	torsocks git clone http://ou63pmih66umazou.onion/public-inbox.git
-	torsocks git clone http://hjrcffqmbrq6wope.onion/public-inbox
+	torsocks git clone http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/public-inbox.git
+	torsocks git clone http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/public-inbox
 
 See below for contact info.
 
@@ -124,14 +124,14 @@ AUTH=ANONYMOUS is supported for IMAP, but any username + password works
 
 And as Tor hidden services:
 
-	http://hjrcffqmbrq6wope.onion/meta/
-	nntp://hjrcffqmbrq6wope.onion/inbox.comp.mail.public-inbox.meta
-	imap://hjrcffqmbrq6wope.onion/inbox.comp.mail.public-inbox.meta.0
+	http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/
+	nntp://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/inbox.comp.mail.public-inbox.meta
+	imap://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/inbox.comp.mail.public-inbox.meta.0
 
 You may also clone all messages via git:
 
 	git clone --mirror https://public-inbox.org/meta/
-	torsocks git clone --mirror http://hjrcffqmbrq6wope.onion/meta/
+	torsocks git clone --mirror http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/
 
 Anti-Spam
 ---------

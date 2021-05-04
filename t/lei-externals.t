@@ -8,9 +8,10 @@ require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE);
 
-my @onions = qw(http://hjrcffqmbrq6wope.onion/meta/
-	http://czquwvybam4bgbro.onion/meta/
-	http://ou63pmih66umazou.onion/meta/);
+my @onions = map { "http://$_.onion/meta/" } qw(
+	4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd
+	ie5yzdi7fg72h7s4sdcztq5evakq23rdt33mfyfcddc5u3ndnw24ogqd
+	7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd);
 
 my $test_external_remote = sub {
 	my ($url, $k) = @_;

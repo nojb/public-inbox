@@ -43,7 +43,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	my %phail = (
 		HTTPS => 'https://public-inbox.org/' . 'phail',
-		ONION => 'http://ou63pmih66umazou.onion/' . 'phail,'
+		ONION => 'http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/' . 'phail,'
 	);
 	for my $t (qw(HTTPS ONION)) {
 	SKIP: {

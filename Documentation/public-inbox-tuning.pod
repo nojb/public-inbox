@@ -156,7 +156,7 @@ Information for *BSDs and non-traditional filesystems especially
 welcome.
 
 Our archives are hosted at L<https://public-inbox.org/meta/>,
-L<http://hjrcffqmbrq6wope.onion/meta/>, and other places
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>, and other places
 
 =head1 COPYRIGHT
 

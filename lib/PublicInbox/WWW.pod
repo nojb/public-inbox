@@ -43,7 +43,7 @@ Used to override the default "~/.public-inbox/config" value.
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
 
 The mail archives are hosted at L<https://public-inbox.org/meta/>
-and L<http://hjrcffqmbrq6wope.onion/meta/>
+and L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
