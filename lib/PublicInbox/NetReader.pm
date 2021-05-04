@@ -628,6 +628,7 @@ sub _nntp_fetch_all ($$$) {
 		warn "# $uri fetching ARTICLE $beg..$end\n";
 	}
 	my $n = $self->{max_batch};
+	my $url = $$uri;
 	for ($beg..$end) {
 		last if $self->{quit};
 		$art = $_;
@@ -650,7 +651,7 @@ sub _nntp_fetch_all ($$$) {
 		$raw = join('', @$raw);
 		$raw =~ s/\r\n/\n/sg;
 		my ($eml_cb, @args) = @{$self->{eml_each}};
-		$eml_cb->($uri, $art, $kw, PublicInbox::Eml->new(\$raw), @args);
+		$eml_cb->($url, $art, $kw, PublicInbox::Eml->new(\$raw), @args);
 		$last_art = $art;
 	}
 	run_commit_cb($self);

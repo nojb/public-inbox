@@ -16,10 +16,9 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok(qw(q z:1..));
 	my $out = json_utf8->decode($lei_out);
 	is_deeply($out, [ undef ], 'nothing imported, yet');
-	lei_ok('import', "nntp://$host_port/t.v2");
-	diag $lei_err;
+	my $url = "nntp://$host_port/t.v2";
+	lei_ok('import', $url);
 	lei_ok(qw(q z:1..));
-	diag $lei_err;
 	$out = json_utf8->decode($lei_out);
 	ok(scalar(@$out) > 1, 'got imported messages');
 	is(pop @$out, undef, 'trailing JSON null element was null');
@@ -29,5 +28,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	my $f = "$ENV{HOME}/.local/share/lei/store/mail_sync.sqlite3";
 	ok(-s $f, 'mail_sync exists tracked for redundant imports');
+	lei_ok 'ls-mail-sync';
+	like($lei_out, qr!\A\Q$url\E\n\z!, 'ls-mail-sync output as-expected');
 });
 done_testing;
