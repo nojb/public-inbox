@@ -12,9 +12,8 @@ sub lei_ls_mail_sync {
 	my $sto = $lei->_lei_store or return;
 	my $lms = $sto->search->lms or return;
 	my $opt = $lei->{opt};
-	my $re;
-	$re = defined($filter) ? qr/\Q$filter\E/ : qr/./ if $opt->{globoff};
-	$re //= $lei->glob2re($filter // '*');
+	my $re = $opt->{globoff} ? undef : $lei->glob2re($filter // '*');
+	$re //= qr/\Q$filter\E/;
 	my @f = $lms->folders;
 	@f = $opt->{'invert-match'} ? grep(!/$re/, @f) : grep(/$re/, @f);
 	if ($opt->{'local'} && !$opt->{remote}) {
