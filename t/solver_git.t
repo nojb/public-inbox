@@ -27,6 +27,11 @@ my $ibx = create_inbox 'v2', version => 2,
 	$im->add(eml_load 't/solve/0001-simple-mod.patch') or BAIL_OUT;
 	$im->add($patch2) or BAIL_OUT;
 };
+my $md = "$tmpdir/md";
+File::Path::mkpath([map { $md.$_ } (qw(/ /cur /new /tmp))]);
+symlink(abs_path('t/solve/0001-simple-mod.patch'), "$md/cur/foo:2,") or
+	xbail "symlink: $!";
+
 my $v1_0_0_tag = 'cb7c42b1e15577ed2215356a2bf925aef59cdd8d';
 my $v1_0_0_tag_short = substr($v1_0_0_tag, 0, 16);
 my $expect = '69df7d565d49fbaaeb0a067910f03dc22cd52bd0';
@@ -68,6 +73,11 @@ test_lei({tmpdir => "$tmpdir/rediff"}, sub {
 	lei_ok(qw(rediff -q -U9 t/solve/0001-simple-mod.patch));
 	like($lei_out, qr!^\Q+++\E b/TODO\n@@ -103,9 \+103,11 @@!sm,
 		'got more context with -U9');
+});
+
+test_lei({tmpdir => "$tmpdir/index-eml-only"}, sub {
+	lei_ok(qw(index), $md);
+	lei_ok(qw(blob 69df7d5)); # hits LeiSearch->smsg_eml -> lms->local_blob
 });
 
 my $git = PublicInbox::Git->new($git_dir);

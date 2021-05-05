@@ -144,4 +144,14 @@ sub lms {
 	-f $f ? PublicInbox::LeiMailSync->new($f) : undef;
 }
 
+# allow SolverGit->resolve_patch to work with "lei index"
+sub smsg_eml {
+	my ($self, $smsg) = @_;
+	PublicInbox::Inbox::smsg_eml($self, $smsg) // do {
+		my $lms = lms($self);
+		my $bref = $lms ? $lms->local_blob($smsg->{blob}, 1) : undef;
+		$bref ? PublicInbox::Eml->new($bref) : undef;
+	};
+}
+
 1;
