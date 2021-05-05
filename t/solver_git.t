@@ -86,6 +86,9 @@ index 15ac20eb..771486c4
 EOM
 	ok(index($lei_out, $exp) >= 0,
 		'preserve mode, regen header + context from -U0 patch');
+	my $e = { GIT_DIR => "$ENV{HOME}/.local/share/lei/store/ALL.git" };
+	my @x = xqx([qw(git cat-file --batch-all-objects --batch-check)], $e);
+	is_deeply(\@x, [], 'no objects stored') or diag explain(\@x);
 });
 
 test_lei({tmpdir => "$tmpdir/index-eml-only"}, sub {

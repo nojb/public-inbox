@@ -70,7 +70,6 @@ EOM
 	my $tb = $ta;
 	$tb =~ tr!A!B!;
 	my $lei = $self->{lei};
-	my $wait = delete($self->{-do_done}) ? $lei->{sto}->ipc_do('done') : 0;
 	while (my ($oid_a, $oid_b, $pa, $pb, $ma, $mb) = splice(@$ctxq, 0, 6)) {
 		my $xa = $blob->{$oid_a} //= solve_1($self, $oid_a,
 							{ path_b => $pa });
@@ -193,8 +192,8 @@ sub extract_oids { # Eml each_part callback
 
 sub input_eml_cb { # callback for all emails
 	my ($self, $eml) = @_;
-	$self->{lei}->{sto}->ipc_do('add_eml', $eml);
-	$self->{-do_done} = 1;
+	$self->{tmp_sto}->add_eml($eml);
+	$self->{tmp_sto}->done;
 	$eml->each_part(\&extract_oids, $self, 1);
 }
 
@@ -239,7 +238,9 @@ sub ipc_atfork_child {
 	binmode $lei->{1}, ':utf8';
 	$self->{blobs} = {}; # oidhex => filename
 	$self->{rdtmp} = File::Temp->newdir('lei-rediff-XXXX', TMPDIR => 1);
-	$self->{rmt} = [ map {
+	$self->{tmp_sto} = PublicInbox::LeiStore->new(
+			"$self->{rdtmp}/tmp.store", { creat => 1 });
+	$self->{rmt} = [ $self->{tmp_sto}->search, map {
 			PublicInbox::LeiRemote->new($lei, $_)
 		} $self->{lxs}->remotes ];
 	$self->{gits} = [ map {
