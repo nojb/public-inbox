@@ -69,6 +69,12 @@ error reading $name: $!
 		# but no Content-Length or "From " escaping.
 		# "git format-patch" also generates such files by default.
 		$buf =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+
+		# a user may feed just a body: git diff | lei rediff -U9
+		if ($self->{-force_eml}) {
+			my $eml = PublicInbox::Eml->new($buf);
+			substr($buf, 0, 0) = "\n\n" if !$eml->{bdy};
+		}
 		$self->input_eml_cb(PublicInbox::Eml->new(\$buf), @args);
 	} else {
 		# prepare_inputs already validated $ifmt

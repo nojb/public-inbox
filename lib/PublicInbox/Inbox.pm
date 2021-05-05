@@ -241,7 +241,7 @@ sub cloneurl {
 
 sub base_url {
 	my ($self, $env) = @_; # env - PSGI env
-	if ($env) {
+	if ($env && $env->{'psgi.url_scheme'}) {
 		my $url = PublicInbox::Git::host_prefix_url($env, '');
 		# for mount in Plack::Builder
 		$url .= '/' if $url !~ m!/\z!;

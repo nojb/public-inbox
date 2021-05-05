@@ -32,7 +32,7 @@ my $v1_0_0_tag_short = substr($v1_0_0_tag, 0, 16);
 my $expect = '69df7d565d49fbaaeb0a067910f03dc22cd52bd0';
 my $non_existent = 'ee5e32211bf62ab6531bdf39b84b6920d0b6775a';
 
-test_lei({tmpdir => $tmpdir}, sub {
+test_lei({tmpdir => "$tmpdir/blob"}, sub {
 	lei_ok('blob', '--mail', $patch2_oid, '-I', $ibx->{inboxdir},
 		\'--mail works for existing oid');
 	is($lei_out, $patch2->as_string, 'blob matches');
@@ -62,6 +62,12 @@ test_lei({tmpdir => $tmpdir}, sub {
 	# fallbacks
 	lei_ok('blob', $v1_0_0_tag, '-I', $ibx->{inboxdir});
 	lei_ok('blob', $v1_0_0_tag_short, '-I', $ibx->{inboxdir});
+});
+
+test_lei({tmpdir => "$tmpdir/rediff"}, sub {
+	lei_ok(qw(rediff -q -U9 t/solve/0001-simple-mod.patch));
+	like($lei_out, qr!^\Q+++\E b/TODO\n@@ -103,9 \+103,11 @@!sm,
+		'got more context with -U9');
 });
 
 my $git = PublicInbox::Git->new($git_dir);

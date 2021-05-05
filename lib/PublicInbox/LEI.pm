@@ -135,6 +135,23 @@ my @lxs_opt = (qw(remote! local! external! include|I=s@ exclude=s@ only=s@
 	import-remote! no-torsocks torsocks=s),
 	PublicInbox::LeiQuery::curl_opt());
 
+# we don't support -C as an alias for --find-copies since it's already
+# used for chdir
+our @diff_opt = qw(unified|U=i output-indicator-new=s output-indicator-old=s
+	output-indicator-context=s indent-heuristic!
+	minimal patience histogram anchored=s@ diff-algorithm=s
+	color-moved=s color-moved-ws=s no-color-moved no-color-moved-ws
+	word-diff:s word-diff-regex=s color-words:s no-renames
+	rename-empty! check ws-error-highlight=s full-index binary
+	abbrev:i break-rewrites|B:s find-renames|M:s find-copies:s
+	find-copies-harder irreversible-delete|D l=i diff-filter=s
+	S=s G=s find-object=s pickaxe-all pickaxe-regex O=s R
+	relative:s text|a ignore-cr-at-eol ignore-space-at-eol
+	ignore-space-change|b ignore-all-space|w ignore-blank-lines
+	inter-hunk-context=i function-context|W exit-code ext-diff
+	no-ext-diff textconv! src-prefix=s dst-prefix=s no-prefix
+	line-prefix=s);
+
 # we generate shell completion + help using %CMD and %OPTDESC,
 # see lei__complete() and PublicInbox::LeiHelp
 # command => [ positional_args, 1-line description, Getopt::Long option spec ]
@@ -161,6 +178,11 @@ our %CMD = ( # sorted in order of importance/use:
 'blob' => [ 'OID', 'show a git blob, reconstructing from mail if necessary',
 	qw(git-dir=s@ cwd! verbose|v+ mail! oid-a|A=s path-a|a=s path-b|b=s),
 	@lxs_opt, @c_opt ],
+
+'rediff' => [ '[--stdin|LOCATION...]',
+		'regenerate a diff with different options',
+	qw(git-dir=s@ cwd! verbose|v+ color:s no-color),
+	@diff_opt, @lxs_opt, @c_opt ],
 
 'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
