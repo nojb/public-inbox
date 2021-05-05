@@ -73,6 +73,19 @@ test_lei({tmpdir => "$tmpdir/rediff"}, sub {
 	lei_ok(qw(rediff -q -U9 t/solve/0001-simple-mod.patch));
 	like($lei_out, qr!^\Q+++\E b/TODO\n@@ -103,9 \+103,11 @@!sm,
 		'got more context with -U9');
+	lei_ok(qw(rediff -q -U9 t/solve/bare.patch));
+	my $exp = <<'EOM';
+diff --git a/script/public-inbox-extindex b/script/public-inbox-extindex
+old mode 100644
+new mode 100755
+index 15ac20eb..771486c4
+--- a/script/public-inbox-extindex
++++ b/script/public-inbox-extindex
+@@ -1,13 +1,12 @@
+ #!perl -w
+EOM
+	ok(index($lei_out, $exp) >= 0,
+		'preserve mode, regen header + context from -U0 patch');
 });
 
 test_lei({tmpdir => "$tmpdir/index-eml-only"}, sub {

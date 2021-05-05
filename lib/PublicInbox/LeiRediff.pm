@@ -16,6 +16,8 @@ use PublicInbox::Import;
 use PublicInbox::LEI;
 use PublicInbox::SolverGit;
 
+my $MODE = '(100644|120000|100755|160000)';
+
 sub rediff_user_cb { # called by solver when done
 	my ($res, $self) = @_;
 	my $lei = $self->{lei};
@@ -69,7 +71,7 @@ EOM
 	$tb =~ tr!A!B!;
 	my $lei = $self->{lei};
 	my $wait = delete($self->{-do_done}) ? $lei->{sto}->ipc_do('done') : 0;
-	while (my ($oid_a, $oid_b, $pa, $pb) = splice(@$ctxq, 0, 4)) {
+	while (my ($oid_a, $oid_b, $pa, $pb, $ma, $mb) = splice(@$ctxq, 0, 6)) {
 		my $xa = $blob->{$oid_a} //= solve_1($self, $oid_a,
 							{ path_b => $pa });
 		my $xb = $blob->{$oid_b} //= solve_1($self, $oid_b, {
@@ -77,8 +79,8 @@ EOM
 						path_a => $pa,
 						path_b => $pb
 					});
-		$ta .= "M 100644 $xa ".git_quote($pa)."\n" if $xa;
-		$tb .= "M 100644 $xb ".git_quote($pb)."\n" if $xb;
+		$ta .= "M $ma $xa ".git_quote($pa)."\n" if $xa;
+		$tb .= "M $mb $xb ".git_quote($pb)."\n" if $xb;
 	}
 	my $rw = $self->{gits}->[-1]; # has all known alternates
 	if (!$rw->{-tmp}) {
@@ -148,6 +150,15 @@ sub extract_oids { # Eml each_part callback
 		if (scalar(@top) >= 4 &&
 				$top[1] =~ $PublicInbox::ViewDiff::IS_OID &&
 				$top[0] =~ $PublicInbox::ViewDiff::IS_OID) {
+			my ($ma, $mb);
+			$x =~ /^old mode $MODE/sm and $ma = $1;
+			$x =~ /^new mode $MODE/sm and $mb = $1;
+			if (!defined($ma) && $x =~
+				/^index [a-z0-9]+\.\.[a-z0-9]+ $MODE/sm) {
+				$ma = $mb = $1;
+			}
+			$ma //= '100644';
+			$mb //= $ma;
 			my ($oid_a, $oid_b, $pa, $pb) = splice(@top, 0, 4);
 			$pa eq '/dev/null' or
 				$pa = (split(m'/', git_unquote($pa), 2))[1];
@@ -155,7 +166,7 @@ sub extract_oids { # Eml each_part callback
 				$pb = (split(m'/', git_unquote($pb), 2))[1];
 			$blobs->{$oid_a} //= undef;
 			$blobs->{$oid_b} //= undef;
-			push @$ctxq, $oid_a, $oid_b, $pa, $pb;
+			push @$ctxq, $oid_a, $oid_b, $pa, $pb, $ma, $mb;
 		} elsif ($ctxq) {
 			my @out;
 			for (split(/^/sm, $x)) {

@@ -480,6 +480,7 @@ t/shared_kv.t
 t/sigfd.t
 t/solve/0001-simple-mod.patch
 t/solve/0002-rename-with-modifications.patch
+t/solve/bare.patch
 t/solver_git.t
 t/spamcheck_spamc.t
 t/spawn.t

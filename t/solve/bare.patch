@@ -1,0 +1,8 @@
+diff --git a/script/public-inbox-extindex b/script/public-inbox-extindex
+old mode 100644
+new mode 100755
+index 15ac20eb..771486c4
+--- a/script/public-inbox-extindex
++++ b/script/public-inbox-extindex
+@@ -4 +3,0 @@
+-# Basic tool to create a Xapian search index for a public-inbox.
