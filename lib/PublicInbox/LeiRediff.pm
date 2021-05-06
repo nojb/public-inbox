@@ -239,7 +239,9 @@ sub ipc_atfork_child {
 	$self->{blobs} = {}; # oidhex => filename
 	$self->{rdtmp} = File::Temp->newdir('lei-rediff-XXXX', TMPDIR => 1);
 	$self->{tmp_sto} = PublicInbox::LeiStore->new(
-			"$self->{rdtmp}/tmp.store", { creat => 1 });
+			"$self->{rdtmp}/tmp.store",
+			{ creat => { nproc => 1 }, indexlevel => 'medium' });
+	$self->{tmp_sto}->{priv_eidx}->{parallel} = 0;
 	$self->{rmt} = [ $self->{tmp_sto}->search, map {
 			PublicInbox::LeiRemote->new($lei, $_)
 		} $self->{lxs}->remotes ];
