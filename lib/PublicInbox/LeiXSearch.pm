@@ -139,7 +139,7 @@ sub mset_progress {
 		pkt_do($lei->{pkt_op_p}, 'mset_progress', @_);
 	} else { # single lei-daemon consumer
 		my ($desc, $mset_size, $mset_total_est) = @_;
-		$lei->{-mset_total} += $mset_size;
+		$lei->{-mset_total} += $mset_size if $mset_total_est ne '?';
 		$lei->qerr("# $desc $mset_size/$mset_total_est");
 	}
 }
@@ -238,7 +238,7 @@ sub query_combined_mset { # non-parallel for non-"--threads" users
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
 		mset_progress($lei, 'xsearch', $mset->size,
-				$mset->size, $mset->get_matches_estimated);
+				$mset->get_matches_estimated);
 		wait_startq($lei); # wait for keyword updates
 		for my $mitem ($mset->items) {
 			my $smsg = smsg_for($self, $mitem) or next;
