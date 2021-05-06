@@ -6,15 +6,14 @@ use POSIX qw(:signal_h);
 use Errno qw(ENOSYS);
 use PublicInbox::Syscall qw(SFD_NONBLOCK);
 require_ok 'PublicInbox::Sigfd';
+use PublicInbox::DS;
 
 SKIP: {
 	if ($^O ne 'linux' && !eval { require IO::KQueue }) {
 		skip 'signalfd requires Linux or IO::KQueue to emulate', 10;
 	}
-	my $new = POSIX::SigSet->new;
-	$new->fillset or die "sigfillset: $!";
-	my $old = POSIX::SigSet->new;
-	sigprocmask(SIG_SETMASK, $new, $old) or die "sigprocmask $!";
+
+	my $old = PublicInbox::DS::block_signals();
 	my $hit = {};
 	my $sig = {};
 	local $SIG{HUP} = sub { $hit->{HUP}->{normal}++ };
@@ -25,7 +24,6 @@ SKIP: {
 	}
 	my $sigfd = PublicInbox::Sigfd->new($sig, 0);
 	if ($sigfd) {
-		require PublicInbox::DS;
 		ok($sigfd, 'Sigfd->new works');
 		kill('HUP', $$) or die "kill $!";
 		kill('INT', $$) or die "kill $!";
