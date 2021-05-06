@@ -44,7 +44,7 @@ sub inspect_sync_folder ($$) {
 			} @maybe;
 		}
 	} elsif ($folder =~ m!\A(maildir|mh):(.+)!i) {
-		my $type = $1;
+		my $type = lc $1;
 		$folders[0] = "$type:".$lei->abs_path($2);
 	} elsif (-d $folder) {
 		$folders[0] = 'maildir:'.$lei->abs_path($folder);

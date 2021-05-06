@@ -72,15 +72,34 @@ CREATE TABLE IF NOT EXISTS blob2name (
 sub _fid_for {
 	my ($self, $folder, $rw) = @_;
 	my $dbh = $self->{dbh};
-	my ($row) = $dbh->selectrow_array(<<'', undef, $folder);
-SELECT fid FROM folders WHERE loc = ? LIMIT 1
+	my $sel = 'SELECT fid FROM folders WHERE loc = ? LIMIT 1';
+	my ($fid) = $dbh->selectrow_array($sel, undef, $folder);
+	return $fid if defined $fid;
 
-	return $row if defined $row;
+	if ($folder =~ s!\A((?:maildir|mh):.*?)/+\z!$1!i) {
+		warn "folder: $folder/ had trailing slash in arg\n";
+		($fid) = $dbh->selectrow_array($sel, undef, $folder);
+		if (defined $fid) {
+			$dbh->do(<<EOM, undef, $folder, $fid) if $rw;
+UPDATE folders SET loc = ? WHERE fid = ?
+EOM
+			return $fid;
+		}
+	# sometimes we stored trailing slash..
+	} elsif ($folder =~ m!\A(?:maildir|mh):!i) {
+		($fid) = $dbh->selectrow_array($sel, undef, "$folder/");
+		if (defined $fid) {
+			$dbh->do(<<EOM, undef, $folder, $fid) if $rw;
+UPDATE folders SET loc = ? WHERE fid = ?
+EOM
+			return $fid;
+		}
+	}
 	return unless $rw;
 
-	($row) = $dbh->selectrow_array('SELECT MAX(fid) FROM folders');
+	($fid) = $dbh->selectrow_array('SELECT MAX(fid) FROM folders');
 
-	my $fid = ($row // 0) + 1;
+	$fid += 1;
 	# in case we're reusing, clobber existing stale refs:
 	$dbh->do('DELETE FROM blob2name WHERE fid = ?', undef, $fid);
 	$dbh->do('DELETE FROM blob2num WHERE fid = ?', undef, $fid);

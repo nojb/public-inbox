@@ -40,8 +40,6 @@ sub lss_dir_for ($$;$) {
 	} else {
 		# can't use Cwd::abs_path since dirname($$dstref) may not exist
 		$$dstref = $lei->rel2abs($$dstref);
-		# Maildirs have trailing '/' internally
-		$$dstref .= '/' if -d $$dstref;
 		$$dstref =~ tr!/!/!s;
 		@n = ($$dstref =~ m{([^/]+)/*\z}); # basename
 	}

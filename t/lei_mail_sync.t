@@ -37,6 +37,18 @@ is_deeply($ro->locations_for('deadbeef'),
 	{ $imap => [ 1 ], $maildir => [ $fname ] },
 	'locations_for w/ maildir + imap');
 
+if ('mess things up pretend old bug') {
+	$lms->lms_begin;
+	$lms->{dbh}->do('UPDATE folders SET loc = ? WHERE loc = ?', undef,
+			"$maildir/", $maildir);
+	ok(delete $lms->{fmap}, 'clear folder map');
+	$lms->lms_commit;
+
+	$lms->lms_begin;
+	ok($lms->set_src('deadbeef', $maildir, \$fname), 'set Maildir once');
+	$lms->lms_commit;
+};
+
 is_deeply([sort($ro->folders)], [$imap, $maildir], 'both folders shown');
 my @res;
 $ro->each_src($maildir, sub {

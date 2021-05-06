@@ -23,13 +23,16 @@ test_lei(sub {
 	my $home = $ENV{HOME};
 	my $in = $doc1->as_string;
 	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
-	lei_ok qw(q -q --save z:0.. d:last.week..), '-o', "$home/md/";
+	lei_ok qw(q -q --save z:0.. d:last.week..), '-o', "MAILDIR:$home/md/";
 	my %before = map { $_ => 1 } glob("$home/md/cur/*");
 	is_deeply(eml_load((keys %before)[0]), $doc1, 'doc1 matches');
+	lei_ok qw(ls-mail-sync);
+	is($lei_out, "maildir:$home/md\n", 'canonicalized mail sync name');
 
 	my @s = glob("$home/.local/share/lei/saved-searches/md-*");
 	is(scalar(@s), 1, 'got one saved search');
 	my $cfg = PublicInbox::Config->new("$s[0]/lei.saved-search");
+	is($cfg->{'lei.q.output'}, "maildir:$home/md", 'canonicalized output');
 	is_deeply($cfg->{'lei.q'}, ['z:0..', 'd:last.week..'],
 		'store relative time, not parsed (absolute) timestamp');
 
@@ -66,14 +69,14 @@ test_lei(sub {
 	lei_ok qw(ls-search); my @d = split(/\n/, $lei_out);
 	lei_ok qw(ls-search -z); my @z = split(/\0/, $lei_out);
 	is_deeply(\@d, \@z, '-z output matches non-z');
-	is_deeply(\@d, [ "$home/mbcl2", "$home/md/" ],
+	is_deeply(\@d, [ "$home/mbcl2", "$home/md" ],
 		'ls-search output alphabetically sorted');
 	lei_ok qw(ls-search -l);
 	my $json = PublicInbox::Config->json->decode($lei_out);
 	ok($json && $json->[0]->{output}, 'JSON has output');
 	lei_ok qw(_complete lei up);
 	like($lei_out, qr!^\Q$home/mbcl2\E$!sm, 'complete got mbcl2 output');
-	like($lei_out, qr!^\Q$home/md/\E$!sm, 'complete got maildir output');
+	like($lei_out, qr!^\Q$home/md\E$!sm, 'complete got maildir output');
 
 	unlink("$home/mbcl2") or xbail "unlink $!";
 	lei_ok qw(_complete lei up);

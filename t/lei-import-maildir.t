@@ -10,12 +10,15 @@ test_lei(sub {
 	}
 	symlink(abs_path('t/data/0001.patch'), "$md/cur/x:2,S") or
 		BAIL_OUT "symlink $md $!";
-	lei_ok(qw(import), $md, \'import Maildir');
+	lei_ok(qw(import), "$md/", \'import Maildir');
 	my $imp_err = $lei_err;
 
 	my %i;
 	lei_ok('inspect', $md); $i{no_type} = $lei_out;
+	lei_ok('inspect', "$md/"); $i{no_type_tslash} = $lei_out;
 	lei_ok('inspect', "maildir:$md"), $i{with_type} = $lei_out;
+	lei_ok('inspect', "maildir:$md/"), $i{with_type_tslash} = $lei_out;
+	lei_ok('inspect', "MAILDIR:$md"), $i{ALLCAPS} = $lei_out;
 	lei_ok(['inspect', $md], undef, { -C => $ENV{HOME}, %$lei_opt });
 	$i{rel_no_type} = $lei_out;
 	lei_ok(['inspect', "maildir:$md"], undef,

@@ -70,6 +70,7 @@ sub rel2abs {
 	my ($self, $p) = @_;
 	if (index($p, '/') == 0) { # already absolute
 		$p =~ tr!/!/!s; # squeeze redundant slashes
+		chop($p) if substr($p, -1, 1) eq '/';
 		return $p;
 	}
 	my $pwd = $self->{env}->{PWD};
