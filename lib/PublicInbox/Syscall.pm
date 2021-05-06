@@ -55,7 +55,7 @@ sub _load_syscall {
     $clean->(); # don't trust modules before us
     my $rv = eval { require 'syscall.ph'; 1 } || eval { require 'sys/syscall.ph'; 1 };
     $clean->(); # don't require modules after us trust us
-    return $rv;
+    $rv;
 }
 
 
@@ -195,21 +195,17 @@ if ($^O eq "linux") {
         *epoll_ctl = \&epoll_ctl_mod4;
     }
 }
-
-elsif ($^O eq "freebsd") {
-    if ($ENV{FREEBSD_SENDFILE}) {
-        # this is still buggy and in development
-    }
-}
+# use Inline::C for *BSD-only or general POSIX stuff.
+# Linux guarantees stable syscall numbering, BSDs only offer a stable libc
 
 ############################################################################
 # epoll functions
 ############################################################################
 
-sub epoll_defined { return $SYS_epoll_create ? 1 : 0; }
+sub epoll_defined { $SYS_epoll_create ? 1 : 0; }
 
 sub epoll_create {
-	syscall($SYS_epoll_create, $no_deprecated ? 0 : ($_[0]||100)+0);
+	syscall($SYS_epoll_create, $no_deprecated ? 0 : 100);
 }
 
 # epoll_ctl wrapper
