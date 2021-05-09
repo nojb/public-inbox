@@ -168,5 +168,7 @@ is(git_quote($s = "Eléanor"), '"El\\303\\251anor"', 'quoted octal');
 is(git_quote($s = "hello\"world"), '"hello\"world"', 'quoted dq');
 is(git_quote($s = "hello\\world"), '"hello\\\\world"', 'quoted backslash');
 is(git_quote($s = "hello\nworld"), '"hello\\nworld"', 'quoted LF');
+is(git_quote($s = "hello\x06world"), '"hello\\006world"', 'quoted \\x06');
+is(git_unquote($s = '"hello\\006world"'), "hello\x06world", 'unquoted \\x06');
 
 done_testing();

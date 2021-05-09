@@ -50,14 +50,13 @@ my %ESC_GIT = map { $GIT_ESC{$_} => $_ } keys %GIT_ESC;
 sub git_unquote ($) {
 	return $_[0] unless ($_[0] =~ /\A"(.*)"\z/);
 	$_[0] = $1;
-	$_[0] =~ s/\\([\\"abfnrtv])/$GIT_ESC{$1}/g;
-	$_[0] =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
+	$_[0] =~ s!\\([\\"abfnrtv]|[0-3][0-7]{2})!$GIT_ESC{$1}//chr(oct($1))!ge;
 	$_[0];
 }
 
 sub git_quote ($) {
 	if ($_[0] =~ s/([\\"\a\b\f\n\r\t\013]|[^[:print:]])/
-		      '\\'.($ESC_GIT{$1}||sprintf("%0o",ord($1)))/egs) {
+		      '\\'.($ESC_GIT{$1}||sprintf("%03o",ord($1)))/egs) {
 		return qq{"$_[0]"};
 	}
 	$_[0];
