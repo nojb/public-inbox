@@ -11,13 +11,7 @@ use PublicInbox::ContentHash qw(git_sha);
 sub dbh_new {
 	my ($self, $rw) = @_;
 	my $f = $self->{filename};
-	my $creat;
-	if (!-f $f && $rw) {
-		require PublicInbox::Spawn;
-		open my $fh, '+>>', $f or die "failed to open $f: $!";
-		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
-		$creat = 1;
-	}
+	my $creat = $rw && !-s $f;
 	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,
 		RaiseError => 1,
