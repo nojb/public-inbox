@@ -28,7 +28,7 @@ use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
 our $quit = \&CORE::exit;
-our ($current_lei, $errors_log, $listener, $oldset);
+our ($current_lei, $errors_log, $listener, $oldset, $dir_idle);
 my ($recv_cmd, $send_cmd);
 my $GLP = Getopt::Long::Parser->new;
 $GLP->configure(qw(gnu_getopt no_ignore_case auto_abbrev));
@@ -539,6 +539,7 @@ sub _lei_atfork_child {
 	}
 	close $listener if $listener;
 	undef $listener;
+	undef $dir_idle;
 	%PATH2CFG = ();
 	undef $errors_log;
 	$quit = \&CORE::exit;
@@ -1114,8 +1115,8 @@ sub dump_and_clear_log {
 sub lazy_start {
 	my ($path, $errno, $narg) = @_;
 	local ($errors_log, $listener);
-	($errors_log) = ($path =~ m!\A(.+?/)[^/]+\z!);
-	$errors_log .= 'errors.log';
+	my ($sock_dir) = ($path =~ m!\A(.+?)/[^/]+\z!);
+	$errors_log = "$sock_dir/errors.log";
 	my $addr = pack_sockaddr_un($path);
 	my $lk = bless { lock_path => $errors_log }, 'PublicInbox::Lock';
 	$lk->lock_acquire;
@@ -1187,9 +1188,13 @@ sub lazy_start {
 	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
 	undef $sig;
 	local $SIG{PIPE} = 'IGNORE';
-	if ($sigfd) { # TODO: use inotify/kqueue to detect unlinked sockets
-		undef $sigfd;
-		PublicInbox::DS->SetLoopTimeout(5000);
+	require PublicInbox::DirIdle;
+	local $dir_idle = PublicInbox::DirIdle->new([$sock_dir], sub {
+		# just rely on wakeup ot hit PostLoopCallback set below
+		_dir_idle_handler(@_) if $_[0]->fullname ne $path;
+	}, 1);
+	if ($sigfd) {
+		undef $sigfd; # unref, already in DS::DescriptorMap
 	} else {
 		# wake up every second to accept signals if we don't
 		# have signalfd or IO::KQueue:

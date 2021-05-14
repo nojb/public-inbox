@@ -5,9 +5,10 @@
 # using IO::KQueue on *BSD systems.
 package PublicInbox::KQNotify;
 use strict;
+use v5.10.1;
 use IO::KQueue;
 use PublicInbox::DSKQXS; # wraps IO::KQueue for fork-safe DESTROY
-use PublicInbox::FakeInotify;
+use PublicInbox::FakeInotify qw(fill_dirlist on_dir_change);
 use Time::HiRes qw(stat);
 
 # NOTE_EXTEND detects rename(2), NOTE_WRITE detects link(2)
@@ -37,8 +38,9 @@ sub watch {
 		EV_ADD | EV_CLEAR, # flags
 		$mask, # fflags
 		0, 0); # data, udata
-	if ($mask == NOTE_WRITE || $mask == MOVED_TO_OR_CREATE) {
+	if ($mask & (MOVED_TO_OR_CREATE | NOTE_DELETE)) {
 		$self->{watch}->{$ident} = $watch;
+		fill_dirlist($self, $path, $fh) if $mask & NOTE_DELETE;
 	} else {
 		die "TODO Not implemented: $mask";
 	}
@@ -68,12 +70,12 @@ sub read {
 		if (!defined($old_ctime)) {
 			push @$events,
 				bless(\$path, 'PublicInbox::FakeInotify::Event')
-		} elsif ($mask & MOVED_TO_OR_CREATE) {
+		} elsif ($mask & (MOVED_TO_OR_CREATE | NOTE_DELETE)) {
 			my @new_st = stat($path) or next;
 			$self->{watch}->{$ident}->[3] = $new_st[10]; # ctime
 			rewinddir($dh);
-			PublicInbox::FakeInotify::on_new_files($events, $dh,
-							$path, $old_ctime);
+			on_dir_change($events, $dh, $path, $old_ctime,
+					$self->{dirlist});
 		}
 	}
 	@$events;
