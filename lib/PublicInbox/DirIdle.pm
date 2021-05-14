@@ -12,17 +12,23 @@ my ($MAIL_IN, $MAIL_GONE, $ino_cls);
 if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
 	$MAIL_IN = Linux::Inotify2::IN_MOVED_TO() |
 		Linux::Inotify2::IN_CREATE();
-	$MAIL_GONE = Linux::Inotify2::IN_DELETE();
+	$MAIL_GONE = Linux::Inotify2::IN_DELETE() |
+			Linux::Inotify2::IN_DELETE_SELF() |
+			Linux::Inotify2::IN_MOVE_SELF();
 	$ino_cls = 'Linux::Inotify2';
 # Perl 5.22+ is needed for fileno(DIRHANDLE) support:
 } elsif ($^V ge v5.22 && eval { require PublicInbox::KQNotify }) {
 	$MAIL_IN = PublicInbox::KQNotify::MOVED_TO_OR_CREATE();
-	$MAIL_GONE = PublicInbox::KQNotify::NOTE_DELETE();
+	$MAIL_GONE = PublicInbox::KQNotify::NOTE_DELETE() |
+		PublicInbox::KQNotify::NOTE_REVOKE() |
+		PublicInbox::KQNotify::NOTE_RENAME();
 	$ino_cls = 'PublicInbox::KQNotify';
 } else {
 	require PublicInbox::FakeInotify;
 	$MAIL_IN = PublicInbox::FakeInotify::MOVED_TO_OR_CREATE();
-	$MAIL_GONE = PublicInbox::FakeInotify::IN_DELETE();
+	$MAIL_GONE = PublicInbox::FakeInotify::IN_DELETE() |
+			PublicInbox::FakeInotify::IN_DELETE_SELF() |
+			PublicInbox::FakeInotify::IN_MOVE_SELF();
 }
 
 sub new {

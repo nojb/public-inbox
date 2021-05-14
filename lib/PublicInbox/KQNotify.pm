@@ -33,14 +33,16 @@ sub watch {
 			'PublicInbox::KQNotify::Watch';
 	}
 	my $ident = fileno($fh);
-	$self->{dskq}->{kq}->EV_SET($ident, # ident
+	$self->{dskq}->{kq}->EV_SET($ident, # ident (fd)
 		EVFILT_VNODE, # filter
 		EV_ADD | EV_CLEAR, # flags
 		$mask, # fflags
 		0, 0); # data, udata
-	if ($mask & (MOVED_TO_OR_CREATE | NOTE_DELETE)) {
+	if ($mask & (MOVED_TO_OR_CREATE|NOTE_DELETE|NOTE_LINK|NOTE_REVOKE)) {
 		$self->{watch}->{$ident} = $watch;
-		fill_dirlist($self, $path, $fh) if $mask & NOTE_DELETE;
+		if ($mask & (NOTE_DELETE|NOTE_LINK|NOTE_REVOKE)) {
+			fill_dirlist($self, $path, $fh)
+		}
 	} else {
 		die "TODO Not implemented: $mask";
 	}
@@ -63,21 +65,37 @@ sub read {
 	my ($self) = @_;
 	my @kevents = $self->{dskq}->{kq}->kevent(0);
 	my $events = [];
+	my @gone;
+	my $watch = $self->{watch};
 	for my $kev (@kevents) {
 		my $ident = $kev->[KQ_IDENT];
 		my $mask = $kev->[KQ_FFLAGS];
-		my ($dh, $path, $old_ctime) = @{$self->{watch}->{$ident}};
+		my ($dh, $path, $old_ctime) = @{$watch->{$ident}};
 		if (!defined($old_ctime)) {
 			push @$events,
 				bless(\$path, 'PublicInbox::FakeInotify::Event')
-		} elsif ($mask & (MOVED_TO_OR_CREATE | NOTE_DELETE)) {
-			my @new_st = stat($path) or next;
-			$self->{watch}->{$ident}->[3] = $new_st[10]; # ctime
+		} elsif ($mask & (MOVED_TO_OR_CREATE|NOTE_DELETE|NOTE_LINK|
+				NOTE_REVOKE|NOTE_RENAME)) {
+			my @new_st = stat($path);
+			if (!@new_st && $!{ENOENT}) {
+				push @$events, bless(\$path,
+						'PublicInbox::FakeInotify::'.
+						'SelfGoneEvent');
+				push @gone, $ident;
+				delete $self->{dirlist}->{$path};
+				next;
+			}
+			if (!@new_st) {
+				warn "unhandled stat($path) error: $!\n";
+				next;
+			}
+			$watch->{$ident}->[3] = $new_st[10]; # ctime
 			rewinddir($dh);
 			on_dir_change($events, $dh, $path, $old_ctime,
 					$self->{dirlist});
 		}
 	}
+	delete @$watch{@gone};
 	@$events;
 }
 

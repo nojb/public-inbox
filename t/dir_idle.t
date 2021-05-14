@@ -6,10 +6,10 @@ use PublicInbox::DS qw(now);
 use File::Path qw(make_path);
 use_ok 'PublicInbox::DirIdle';
 my ($tmpdir, $for_destroy) = tmpdir();
-make_path("$tmpdir/a/b");
+make_path("$tmpdir/a/b", "$tmpdir/c");
 my @x;
 my $cb = sub { push @x, \@_ };
-my $di = PublicInbox::DirIdle->new(["$tmpdir/a"], $cb, 1);
+my $di = PublicInbox::DirIdle->new(["$tmpdir/a", "$tmpdir/c"], $cb, 1);
 PublicInbox::DS->SetLoopTimeout(1000);
 my $end = 3 + now;
 PublicInbox::DS->SetPostLoopCallback(sub { scalar(@x) == 0 && now < $end });
@@ -17,6 +17,27 @@ tick(0.011);
 rmdir("$tmpdir/a/b") or xbail "rmdir $!";
 PublicInbox::DS->EventLoop;
 is(scalar(@x), 1, 'got an event') and
-	is($x[0]->[0]->fullname, "$tmpdir/a/b", 'got expected fullname');
+	is($x[0]->[0]->fullname, "$tmpdir/a/b", 'got expected fullname') and
+	ok($x[0]->[0]->IN_DELETE, 'IN_DELETE set');
+
+tick(0.011);
+rmdir("$tmpdir/a") or xbail "rmdir $!";
+@x = ();
+$end = 3 + now;
+PublicInbox::DS->EventLoop;
+is(scalar(@x), 1, 'got an event') and
+	is($x[0]->[0]->fullname, "$tmpdir/a", 'got expected fullname') and
+	ok($x[0]->[0]->IN_DELETE_SELF, 'IN_DELETE_SELF set');
+
+tick(0.011);
+rename("$tmpdir/c", "$tmpdir/j") or xbail "rmdir $!";
+@x = ();
+$end = 3 + now;
+PublicInbox::DS->EventLoop;
+is(scalar(@x), 1, 'got an event') and
+	is($x[0]->[0]->fullname, "$tmpdir/c", 'got expected fullname') and
+	ok($x[0]->[0]->IN_DELETE_SELF || $x[0]->[0]->IN_MOVE_SELF,
+		'IN_DELETE_SELF set on move');
+
 PublicInbox::DS->Reset;
 done_testing;
