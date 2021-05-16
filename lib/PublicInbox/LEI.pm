@@ -141,7 +141,7 @@ my @lxs_opt = (qw(remote! local! external! include|I=s@ exclude=s@ only=s@
 our @diff_opt = qw(unified|U=i output-indicator-new=s output-indicator-old=s
 	output-indicator-context=s indent-heuristic!
 	minimal patience histogram anchored=s@ diff-algorithm=s
-	color-moved=s color-moved-ws=s no-color-moved no-color-moved-ws
+	color-moved:s color-moved-ws=s no-color-moved no-color-moved-ws
 	word-diff:s word-diff-regex=s color-words:s no-renames
 	rename-empty! check ws-error-highlight=s full-index binary
 	abbrev:i break-rewrites|B:s find-renames|M:s find-copies:s
