@@ -149,7 +149,7 @@ sub input_path_url {
 		$self->input_fh($ifmt, $mbl->{fh}, $input, @args);
 	} elsif (-d _ && (-d "$input/cur" || -d "$input/new")) {
 		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
-$input appears to a be a maildir, not $ifmt
+$input appears to be a maildir, not $ifmt
 EOM
 		PublicInbox::MdirReader->new->maildir_each_eml($input,
 					$self->can('input_maildir_cb'),
