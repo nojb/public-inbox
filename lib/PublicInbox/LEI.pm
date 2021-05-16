@@ -180,8 +180,9 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(git-dir=s@ cwd! verbose|v+ mail! oid-a|A=s path-a|a=s path-b|b=s),
 	@lxs_opt, @c_opt ],
 
-'rediff' => [ '[--stdin|LOCATION...]',
+'rediff' => [ '--stdin|LOCATION...',
 		'regenerate a diff with different options',
+	'stdin|', # /|\z/ must be first for lone dash
 	qw(git-dir=s@ cwd! verbose|v+ color:s no-color),
 	@diff_opt, @lxs_opt, @c_opt ],
 
