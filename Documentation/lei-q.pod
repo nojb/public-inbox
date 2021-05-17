@@ -171,7 +171,7 @@ option applies to C<--include>, C<--exclude>, and C<--only>.
 Disable the default behavior of memoizing remote messages into the
 local store.
 
-=item --lock
+=item --lock=METHOD
 
 L<mbox(5)> locking method(s) to use: C<dotlock>, C<fcntl>, C<flock> or
 C<none>.
