@@ -26,6 +26,10 @@ TODO: mention curl options?
 
 Read search terms from stdin.
 
+=item --save
+
+Save a search for L<lei-up(1)>.
+
 =item --output=MFOLDER
 
 =item -o MFOLDER
@@ -65,6 +69,10 @@ default destination (stdout).
 
 Using a C<format:> prefix with the C<--output> destination is
 preferred when not writing to stdout.
+
+=item --no-color
+
+Disable color (for C<--format=text>).
 
 =item --pretty
 
@@ -228,6 +236,8 @@ Suppress feedback messages.
 Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
 
 Default: C<auto>
+
+=item --proxy=PROTO://HOST[:PORT]
 
 =back
 

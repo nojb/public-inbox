@@ -46,6 +46,22 @@ Default: fcntl,dotlock
 
 Don't import message keywords (or "flags" in IMAP terminology).
 
+=item --no-incremental
+
+Import already seen IMAP and NNTP articles.
+
+=item --torsocks=auto|no|yes
+
+=item --no-torsocks
+
+Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
+
+Default: C<auto>
+
+=item --proxy=PROTO://HOST[:PORT]
+
+Use the specified proxy (e.g., C<socks5h://0:9050>).
+
 =back
 
 =head1 CONTACT
