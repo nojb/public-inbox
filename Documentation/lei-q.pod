@@ -99,7 +99,7 @@ Augment output destination instead of clobbering it.
 
 =item --no-import-before
 
-Do not importing keywords before writing to an existing output
+Do not import keywords before writing to an existing output
 destination.
 
 =item --threads
