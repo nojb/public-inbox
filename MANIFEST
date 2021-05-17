@@ -24,6 +24,7 @@ Documentation/include.mk
 Documentation/lei-add-external.pod
 Documentation/lei-blob.pod
 Documentation/lei-config.pod
+Documentation/lei-convert.pod
 Documentation/lei-daemon-kill.pod
 Documentation/lei-daemon-pid.pod
 Documentation/lei-forget-external.pod

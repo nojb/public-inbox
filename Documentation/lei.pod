@@ -84,6 +84,8 @@ Other subcommands include
 
 =item * L<lei-config(1)>
 
+=item * L<lei-convert(1)>
+
 =item * L<lei-daemon-kill(1)>
 
 =item * L<lei-daemon-pid(1)>
