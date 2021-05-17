@@ -246,5 +246,5 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<lei-add-external(1)>,
+L<lei-add-external(1)>, L<lei-lcat(1)>, L<lei-up(1)>,
 L<Xapian::QueryParser Syntax|https://xapian.org/docs/queryparser.html>

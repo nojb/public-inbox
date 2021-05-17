@@ -1,0 +1,79 @@
+=head1 NAME
+
+lei-lcat - display local copy of messages(s)
+
+=head1 SYNOPSIS
+
+lei lcat [OPTIONS] MSGID_OR_URL [MSGID_OR_URL...]
+
+lei lcat [OPTIONS] (--stdin|-)
+
+=head1 DESCRIPTION
+
+lcat (local cat) is a wrapper around L<lei-q(1)> that displays local
+messages by Message-ID.  It is able to extract Message-IDs from URLs
+as well as from common formats such as C<E<lt>$MSGIDE<gt>> and
+C<id:$MSGID>.  When reading from stdin, input that isn't understood is
+discarded, so the caller doesn't have to bother extracting the
+Message-ID or link from surrounding text (e.g., a "Link: $URL" line).
+
+=head1 OPTIONS
+
+The following options, described in L<lei-q(1)>, are supported.
+
+=over
+
+=item --[no-]remote
+
+=item --no-local
+
+=item --no-external
+
+=item --no-import-remote
+
+=item --torsocks=auto|no|yes, --no-torsocks
+
+=item --proxy=PROTO://HOST[:PORT]
+
+=item -o MFOLDER, --output=MFOLDER
+
+=item -d STRATEGY, --dedupe=STRATEGY
+
+=item -t, --threads
+
+=item -s KEY, --sort=KEY
+
+=item -r, --reverse
+
+=item --offset=NUMBER
+
+=item -g, --globoff
+
+=item -a, --augment
+
+=item --lock=METHOD
+
+=item --alert=COMMAND
+
+=item --mua=COMMAND
+
+=item --no-color
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-q(1)>, L<lei-blob(1)>

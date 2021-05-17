@@ -1,0 +1,48 @@
+=head1 NAME
+
+lei-up - update a saved search
+
+=head1 SYNOPSIS
+
+lei up [OPTIONS] OUTPUT
+
+lei up [OPTIONS] --all=TYPE
+
+=head1 DESCRIPTION
+
+Update the saved search at C<OUTPUT> or all saved searches of C<TYPE>
+(currently C<local> is the only supported value).
+
+=head1 OPTIONS
+
+The following options, described in L<lei-q(1)>, are supported.
+
+=over
+
+=item --lock=METHOD
+
+=item --alert=CMD
+
+=item --mua=CMD
+
+This option is incompatible with C<--all>.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-q(1)>, L<lei-ls-search(1)>, L<lei-edit-search(1)>,
+L<lei-forget-search(1)>

@@ -45,9 +45,11 @@ $v->{-m1} = [ map {
 		}
 	} @EXE_FILES,
 	qw(
-	lei-add-external lei-blob lei-config lei-convert lei-daemon-kill
-	lei-daemon-pid lei-forget-external lei-import lei-init lei-ls-external
-	lei-ls-label lei-p2q lei-q lei-tag)];
+	lei-add-external lei-blob lei-config lei-convert lei-edit-search
+	lei-daemon-kill lei-daemon-pid lei-forget-external lei-forget-search
+	lei-import lei-init lei-lcat lei-ls-external lei-ls-label
+	lei-ls-mail-sync lei-ls-search lei-p2q lei-q lei-rediff lei-tag
+	lei-up)];
 $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 		public-inbox-v2-format public-inbox-extindex-format
 		lei-mail-formats lei-store-format

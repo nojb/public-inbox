@@ -1,0 +1,65 @@
+=head1 NAME
+
+lei-ls-search - list saved search queries
+
+=head1 SYNOPSIS
+
+lei ls-search [OPTIONS] [PREFIX]
+
+=head1 DESCRIPTION
+
+List saved search queries.  If C<PREFIX> is given, restrict the output
+to entries that start with the specified value.
+
+=head1 OPTIONS
+
+=over
+
+=item -f FORMAT
+
+=item --format=FORMAT
+
+Display JSON output rather than default short output that includes
+only the saved search location.  Possible values are C<json>,
+C<jsonl>, or C<concatjson>.
+
+=item --pretty
+
+Pretty print C<json> or C<concatjson> output.  If stdout is opened to
+a tty and used as the C<--output> destination, C<--pretty> is enabled
+by default.
+
+=item -l
+
+Long listing format (shortcut for C<--format=json>).
+
+=item --ascii
+
+Escape non-ASCII characters.
+
+=item -z
+
+=item -0
+
+Use C<\0> (NUL) instead of newline (CR) to delimit lines.  This option
+is incompatible with C<--format>.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-q(1)>, L<lei-up(1)>, L<lei-edit-search(1)>,
+L<lei-forget-search(1)>

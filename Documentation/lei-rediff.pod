@@ -1,0 +1,79 @@
+=head1 NAME
+
+lei-rediff - regenerate a diff with different options
+
+=head1 SYNOPSIS
+
+lei rediff [OPTIONS] LOCATION [LOCATION...]
+
+lei rediff [OPTIONS] (--stdin|-)
+
+=head1 DESCRIPTION
+
+Read a message from C<LOCATION> or stdin and regenerate its diff with
+the specified L<git-diff(1)> options.  This is useful if you want to
+change the display of the original patch (e.g., increasing context,
+coloring moved lines differently, or using an external diff viewer).
+
+=head1 OPTIONS
+
+In addition to many L<git-diff(1)>, the following options are
+supported.
+
+=over
+
+=item --stdin
+
+Read message from stdin.
+
+=item --git-dir=DIR
+
+Specify an additional .git/ directory to scan.  This option may be
+given multiple times.
+
+=item --no-cwd
+
+Do not look in the git repository of the current working directory.
+
+=item -v
+
+=item --verbose
+
+Provide more feedback on stderr.
+
+=back
+
+The options below, described in L<lei-q(1)>, are also supported.
+
+=over
+
+=item --[no-]remote
+
+=item --no-local
+
+=item --no-external
+
+=item --no-import-remote
+
+=item --torsocks=auto|no|yes, --no-torsocks
+
+=item --proxy=PROTO://HOST[:PORT]
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>
+and L<http://hjrcffqmbrq6wope.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-q(1)>, L<lei-blob(1)>, L<lei-p2q(1)>

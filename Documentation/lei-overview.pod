@@ -98,6 +98,18 @@ Search for messages that have post-image git blob IDs that match those
 of the current repository's HEAD commit, writing them to the Maildir
 directory "mdir" and flagging the messages that were an exact match.
 
+=item $ git show -s HEAD | lei lcat -
+
+Display a local message for the public-inbox link contained in a
+commit message.
+
+=item $ lei q -f text m:MID | lei rediff -U5 -
+
+Feed a message containing a diff to L<lei-rediff(1)> to regenerate its
+diff with five context lines.  Unless C<--git-dir> is specified, this
+requires the current working directory to be within the associated
+code repository.
+
 =back
 
 =head1 PERFORMANCE NOTES

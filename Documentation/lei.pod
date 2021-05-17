@@ -72,9 +72,23 @@ store and configured externals are
 
 =item * L<lei-blob(1)>
 
+=item * L<lei-config(1)>
+
+=item * L<lei-edit-search(1)>
+
+=item * L<lei-forget-search(1)>
+
+=item * L<lei-lcat(1)>
+
+=item * L<lei-ls-search(1)>
+
 =item * L<lei-p2q(1)>
 
 =item * L<lei-q(1)>
+
+=item * L<lei-rediff(1)>
+
+=item * L<lei-up(1)>
 
 =back
 
@@ -91,6 +105,8 @@ Other subcommands include
 =item * L<lei-daemon-pid(1)>
 
 =item * L<lei-ls-label(1)>
+
+=item * L<lei-ls-mail-sync(1)>
 
 =back
 
