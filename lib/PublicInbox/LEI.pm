@@ -168,7 +168,7 @@ our %CMD = ( # sorted in order of importance/use:
 'up' => [ 'OUTPUT|--all', 'update saved search',
 	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ all:s), @c_opt ],
 
-'lcat' => [ '--stdin|MSGID_OR_URL..', 'display local copy of message(s)',
+'lcat' => [ '--stdin|MSGID_OR_URL...', 'display local copy of message(s)',
 	'stdin|', # /|\z/ must be first for lone dash
 	# some of these options are ridiculous for lcat
 	@lxs_opt, qw(output|mfolder|o=s format|f=s dedupe|d=s threads|t+
