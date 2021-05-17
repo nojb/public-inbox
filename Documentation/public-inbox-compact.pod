@@ -34,7 +34,11 @@ Compact all inboxes configured in ~/.public-inbox/config.
 This is an alternative to specifying individual inboxes directories
 on the command-line.
 
-=item --blocksize / --no-full / --fuller
+=item --blocksize
+
+=item --no-full
+
+=item --fuller
 
 These options are passed directly to L<xapian-compact(1)>.
 

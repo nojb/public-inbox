@@ -20,7 +20,9 @@ may be specified for inboxes with multiple addresses.
 
 =over
 
-=item -V, --version FORMAT_VERSION
+=item -V FORMAT_VERSION
+
+=item --version FORMAT_VERSION
 
 Specify C<2> here to use the scalable L<public-inbox-v2-format(5)>
 if you have L<DBD::SQLite> installed.
@@ -31,7 +33,9 @@ L<DBD::SQLite>.
 
 Default: C<1>
 
-=item -L, --indexlevel <basic|medium|full>
+=item -L <basic|medium|full>
+
+=item --indexlevel <basic|medium|full>
 
 Controls the indexing level for L<public-inbox-index(1)>
 
@@ -39,7 +43,9 @@ See L<public-inbox-config(5)> for more information.
 
 Default: C<full>
 
-=item --ng, --newsgroup NEWSGROUP
+=item --ng NEWSGROUP
+
+=item --newsgroup NEWSGROUP
 
 The NNTP group name for use with L<public-inbox-nntpd(8)>.  This
 may be any newsgroup name with hierarchies delimited by C<.>.
@@ -70,7 +76,9 @@ Available in public-inbox 1.6.0+.
 
 Default: unset, no NNTP article numbers are skipped
 
-=item -S, --skip-epoch
+=item -S
+
+=item --skip-epoch
 
 For C<-V2> (L<public-inbox-v2-format(5)>) inboxes only, this option
 allows archivists to publish incomplete archives with newer
@@ -81,7 +89,9 @@ Available since public-inbox 1.2.0.
 
 Default: unset, no epochs are skipped
 
-=item -j, --jobs=JOBS
+=item -j JOBS
+
+=item --jobs=JOBS
 
 Control the number of Xapian index shards in a
 C<-V2> (L<public-inbox-v2-format(5)>) inbox.

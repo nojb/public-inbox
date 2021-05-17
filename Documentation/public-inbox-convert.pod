@@ -25,7 +25,9 @@ By default, public-inbox-convert creates a new index in the
 v2 inbox and indexes all existing messages, a lengthy
 operation for large inboxes.
 
-=item -j JOBS, --jobs=JOBS
+=item -j JOBS
+
+=item --jobs=JOBS
 
 Control the number of indexing jobs and Xapian shards of the v2
 inbox.  By default, this is the detected CPU count but capped

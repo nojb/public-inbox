@@ -28,7 +28,9 @@ processes to take advantage of multiple CPUs.
 
 =over
 
-=item -l, --listen ADDRESS
+=item -l ADDRESS
+
+=item --listen ADDRESS
 
 This takes an absolute path to a Unix socket or HOST:PORT
 to listen on.  For example, to listen to TCP connections on
@@ -45,7 +47,9 @@ L<systemd.socket(5)> or similar
 Default: server-dependent unless socket activation is used with
 L<systemd(1)> or similar (see L<systemd.socket(5)>).
 
-=item -1, --stdout PATH
+=item -1
+
+=item --stdout PATH
 
 Specify an appendable path to redirect stdout descriptor (1) to.
 Using this is preferable to setting up the redirect externally
@@ -54,11 +58,15 @@ SIGUSR1 to be handled (see L<SIGNALS/SIGNALS> below).
 
 Default: /dev/null
 
-=item -2, --stderr PATH
+=item -2 PATH
+
+=item --stderr PATH
 
 Like C<--stdout>, but for the stderr descriptor (2).
 
-=item -W, --worker-processes
+=item -W
+
+=item --worker-processes
 
 Set the number of worker processes.
 

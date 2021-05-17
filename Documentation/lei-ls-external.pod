@@ -15,7 +15,9 @@ to matching entries.
 
 =over
 
-=item -g, --globoff
+=item -g
+
+=item --globoff
 
 Do not match C<FILTER> using C<*?> wildcards and C<[]> ranges.
 
@@ -27,7 +29,9 @@ Limit operations to the local filesystem.
 
 Limit operations to those requiring network access.
 
-=item -z, -0
+=item -z
+
+=item -0
 
 Use C<\0> (NUL) instead of newline (CR) to delimit lines.
 

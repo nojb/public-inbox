@@ -34,7 +34,9 @@ normal search functionality.
 
 =over
 
-=item --jobs=JOBS, -j
+=item -j JOBS
+
+=item --jobs=JOBS
 
 Influences the number of Xapian indexing shards in a
 (L<public-inbox-v2-format(5)>) inbox.
@@ -52,7 +54,9 @@ the overview and article number mapping).
 
 Default: the number of existing Xapian shards
 
-=item --compact / -c
+=item -c
+
+=item --compact
 
 Compacts the Xapian DBs after indexing.  This is recommended
 when using C<--reindex> to avoid running out of disk space
@@ -162,7 +166,9 @@ See L<public-inbox-init(1)/--skip-docdata> for description and caveats.
 
 Available in public-inbox 1.6.0+.
 
-=item --update-extindex=EXTINDEX, -E
+=item -E EXTINDEX
+
+=item --update-extindex=EXTINDEX
 
 Update the given external index (L<public-inbox-extindex-format(5)>.
 Either the configured section name (e.g. C<all>) or a directory name

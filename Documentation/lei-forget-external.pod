@@ -16,7 +16,9 @@ future search results.
 
 =over
 
-=item -q, --quiet
+=item -q
+
+=item --quiet
 
 Suppress feedback messages.
 

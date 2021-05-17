@@ -31,15 +31,21 @@ Do not look in the git repository of the current working directory.
 Do not look in mail storage for C<OID>.  This is implied by
 C<--oid-a>, C<--path-a>, and C<--path-b>.
 
-=item -A OID-A, --oid-a=OID-A
+=item -A OID-A
+
+=item --oid-a=OID-A
 
 Provide pre-image object ID as a hint for reconstructing C<OID>.
 
-=item -a PATH-A, --path-a=PATH-A
+=item -a PATH-A
+
+=item --path-a=PATH-A
 
 Provide pre-image pathname as a hint for reconstructing C<OID>.
 
-=item -b PATH-B, --path-b=PATH-B
+=item -b PATH-B
+
+=item --path-b=PATH-B
 
 Provide post-image pathname as a hint for reconstructing C<OID>.
 
@@ -61,7 +67,9 @@ Limit operations to those requiring network access.
 
 Don't include results from externals.
 
-=item -I LOCATION, --include=LOCATION
+=item -I LOCATION
+
+=item --include=LOCATION
 
 Include specified external in search.  This option may be given
 multiple times.
@@ -81,11 +89,15 @@ multiple times, in which case the search uses only the specified set.
 Disable the default behavior of memoizing remote messages into the
 local store.
 
-=item -v, --verbose
+=item -v
+
+=item --verbose
 
 Provide more feedback on stderr.
 
-=item --torsocks=auto|no|yes, --no-torsocks
+=item --torsocks=auto|no|yes
+
+=item --no-torsocks
 
 Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
 

@@ -23,7 +23,9 @@ L<git-format-patch(1)> is used to generate the patch.
 
 =over
 
-=item -w PREFIX[,PREFIX], --want=PREFIX[,PREFIX]
+=item -w PREFIX[,PREFIX]
+
+=item --want=PREFIX[,PREFIX]
 
 Search prefixes to use.  C<dfpost> (post-image git blob ID) and C<dfn>
 (file names from the diff) are the most useful.  Other available
@@ -54,7 +56,9 @@ Dump output that shows the information collected for every prefix.
 This information can be useful for seeing how a patch is processed,
 but the format should not be considered stable.
 
-=item -q, --quiet
+=item -q
+
+=item --quiet
 
 Suppress feedback messages.
 

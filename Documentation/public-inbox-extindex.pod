@@ -23,7 +23,9 @@ along with L<DBD::SQLite> and L<DBI> Perl modules.
 
 =over
 
-=item --jobs=JOBS, -j
+=item -j JOBS
+
+=item --jobs=JOBS
 
 ... TODO, see L<public-inbox-index(5)>
 

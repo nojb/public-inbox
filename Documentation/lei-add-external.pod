@@ -30,11 +30,15 @@ Default: 0
 
 Create C<LOCATION> by mirroring the public-inbox at C<URL>.
 
-=item -v, --verbose
+=item -v
+
+=item --verbose
 
 Provide more feedback on stderr.
 
-=item -q, --quiet
+=item -q
+
+=item --quiet
 
 Suppress feedback messages.
 
@@ -44,7 +48,9 @@ Suppress feedback messages.
 
 =over
 
-=item --torsocks=auto|no|yes, --no-torsocks
+=item --torsocks=auto|no|yes
+
+=item --no-torsocks
 
 Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
 

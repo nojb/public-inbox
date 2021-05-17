@@ -14,11 +14,15 @@ List all known message labels ("mailboxes" in JMAP terminology).
 
 =over
 
-=item -z, -0
+=item -z
+
+=item -0
 
 Use C<\0> (NUL) instead of newline (CR) to delimit lines.
 
-=item -q, --quiet
+=item -q
+
+=item --quiet
 
 Suppress feedback messages.
 

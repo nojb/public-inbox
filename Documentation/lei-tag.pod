@@ -26,14 +26,18 @@ specified messages, and "-L:INBOX" would remove the "INBOX" label.
 
 =over
 
-=item -F MAIL_FORMAT, --in-format=MAIL_FORMAT
+=item -F MAIL_FORMAT
+
+=item --in-format=MAIL_FORMAT
 
 Message input format: C<eml>, C<mboxrd>, C<mboxcl2>, C<mboxcl>, or
 C<mboxo>.
 
 Default: C<eml>
 
-=item -q, --quiet
+=item -q
+
+=item --quiet
 
 Suppress feedback messages.
 
