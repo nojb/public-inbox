@@ -33,12 +33,15 @@ C<--oid-a>, C<--path-a>, and C<--path-b>.
 
 =item -A OID-A, --oid-a=OID-A
 
+Provide pre-image object ID as a hint for reconstructing C<OID>.
+
 =item -a PATH-A, --path-a=PATH-A
+
+Provide pre-image pathname as a hint for reconstructing C<OID>.
 
 =item -b PATH-B, --path-b=PATH-B
 
-Provide pre-image object ID, pre-image pathname, or post-image
-pathname as a hint for reconstructing C<OID>.
+Provide post-image pathname as a hint for reconstructing C<OID>.
 
 =for comment
 TODO: The below options are shared with lei-q.  Any good approaches to
