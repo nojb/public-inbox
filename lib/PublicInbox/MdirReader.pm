@@ -61,7 +61,10 @@ sub maildir_each_eml {
 		while (defined(my $bn = readdir($dh))) {
 			next if substr($bn, 0, 1) eq '.';
 			my @f = split(/:/, $bn, -1);
-			next if scalar(@f) != 1;
+
+			# mbsync and offlineimap both use "2," in "new/"
+			next if ($f[1] // '2,') ne '2,' || defined($f[2]);
+
 			next if defined($mod) && !shard_ok($bn, $mod, $shard);
 			my $f = $pfx.$bn;
 			my $eml = eml_from_path($f) or next;

@@ -27,6 +27,11 @@ my $expect = do {
 	local $/;
 	<$fh>;
 };
+
+# mbsync and offlineimap both put ":2," in "new/" files:
+symlink(File::Spec->rel2abs('t/utf8.eml'), "$tmpdir/md/new/u:2,") or
+	xbail "symlink $!";
+
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $store_path = "$ENV{HOME}/.local/share/lei/store/";
 
@@ -40,13 +45,16 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok(qw(q mid:qp@example.com -f text));
 	like($lei_out, qr/^hi = bye/sm, 'lei2mail fallback');
 
+	lei_ok(qw(q mid:testmessage@example.com -f text));
+	lei_ok(qw(-C / blob --mail 9bf1002c49eb075df47247b74d69bcd555e23422));
+
 	my $all_obj = ['git', "--git-dir=$store_path/ALL.git",
 			qw(cat-file --batch-check --batch-all-objects)];
 	is_deeply([xqx($all_obj)], [], 'no git objects');
 	lei_ok('import', 't/plack-qp.eml');
 	ok(grep(/\A$blob blob /, my @objs = xqx($all_obj)),
 		'imported blob');
-	lei_ok(qw(q z:0.. --dedupe=none));
+	lei_ok(qw(q m:qp@example.com --dedupe=none));
 	my $res_b = json_utf8->decode($lei_out);
 	is_deeply($res_b, $res_a, 'no extra DB entries');
 

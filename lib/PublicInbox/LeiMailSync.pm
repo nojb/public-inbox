@@ -233,9 +233,16 @@ WHERE b.oidbin = ?
 	$b2n->execute(pack('H*', $oidhex));
 	while (my ($d, $n) = $b2n->fetchrow_array) {
 		substr($d, 0, length('maildir:')) = '';
-		my $f = "$d/" . ($n =~ /:2,[a-zA-Z]*\z/ ? "cur/$n" : "new/$n");
-		open my $fh, '<', $f or next;
-		if (-s $fh) {
+		# n.b. both mbsync and offlineimap use ":2," as a suffix
+		# in "new/", despite (from what I understand of reading
+		# <https://cr.yp.to/proto/maildir.html>), the ":2," only
+		# applies to files in "cur/".
+		my @try = $n =~ /:2,[a-zA-Z]+\z/ ? qw(cur new) : qw(new cur);
+		for my $x (@try) {
+			my $f = "$d/$x/$n";
+			open my $fh, '<', $f or next;
+			# some (buggy) Maildir writers are non-atomic:
+			next unless -s $fh;
 			local $/;
 			my $raw = <$fh>;
 			if ($vrfy && git_sha(1, \$raw)->hexdigest ne $oidhex) {
