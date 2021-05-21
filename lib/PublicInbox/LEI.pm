@@ -1151,7 +1151,7 @@ sub lazy_start {
 (Socket::MsgHdr || Inline::C) missing/unconfigured (narg=$narg);
 
 	require PublicInbox::Listener;
-	require PublicInbox::EOFpipe;
+	require PublicInbox::PktOp;
 	(-p STDOUT) or die "E: stdout must be a pipe\n";
 	open(STDIN, '+>>', $errors_log) or die "open($errors_log): $!";
 	STDIN->autoflush(1);
@@ -1165,13 +1165,12 @@ sub lazy_start {
 	my $exit_code;
 	my $pil = PublicInbox::Listener->new($listener, \&accept_dispatch);
 	local $quit = do {
-		pipe(my ($eof_r, $eof_w)) or die "pipe: $!";
-		PublicInbox::EOFpipe->new($eof_r, \&noop, undef);
+		my (undef, $eof_p) = PublicInbox::PktOp->pair;
 		sub {
 			$exit_code //= shift;
 			my $lis = $pil or exit($exit_code);
-			# closing eof_w triggers \&noop wakeup
-			$listener = $eof_w = $pil = $path = undef;
+			# closing eof_p triggers \&noop wakeup
+			$listener = $eof_p = $pil = $path = undef;
 			$lis->close; # DS::close
 			PublicInbox::DS->SetLoopTimeout(1000);
 		};

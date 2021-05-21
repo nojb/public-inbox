@@ -119,7 +119,7 @@ sub ovv_begin {
 	} # TODO HTML/Atom/...
 }
 
-# called once by parent (via PublicInbox::EOFpipe)
+# called once by parent (via PublicInbox::PktOp  '' => query_done)
 sub ovv_end {
 	my ($self, $lei) = @_;
 	if ($self->{fmt} eq 'json') {
