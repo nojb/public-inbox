@@ -58,12 +58,10 @@ sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 
 # mic_for may prompt the user and store auth info, prepares mic_get
 sub mic_for ($$$$) { # mic = Mail::IMAPClient
-	my ($self, $url, $mic_args, $lei) = @_;
-	require PublicInbox::URIimap;
-	my $uri = PublicInbox::URIimap->new($url);
+	my ($self, $uri, $mic_args, $lei) = @_;
 	require PublicInbox::GitCredential;
 	my $cred = bless {
-		url => $url,
+		url => "$uri",
 		protocol => $uri->scheme,
 		host => $uri->host,
 		username => $uri->user,
@@ -83,13 +81,13 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	};
 	require PublicInbox::IMAPClient;
 	my $mic = mic_new($self, $mic_arg, $sec, $uri) or
-			die "E: <$url> new: $@\n";
+			die "E: <$uri> new: $@\n";
 	# default to using STARTTLS if it's available, but allow
 	# it to be disabled since I usually connect to localhost
 	if (!$mic_arg->{Ssl} && !defined($mic_arg->{Starttls}) &&
 			$mic->has_capability('STARTTLS') &&
 			$mic->can('starttls')) {
-		$mic->starttls or die "E: <$url> STARTTLS: $@\n";
+		$mic->starttls or die "E: <$uri> STARTTLS: $@\n";
 	}
 
 	# do we even need credentials?
@@ -111,8 +109,13 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	if ($mic->login && $mic->IsAuthenticated) {
 		# success! keep IMAPClient->new arg in case we get disconnected
 		$self->{mic_arg}->{$sec} = $mic_arg;
+		if ($cred) {
+			$uri->user($cred->{username}) if !defined($uri->user);
+		} elsif ($mic_arg->{Authmechanism} eq 'ANONYMOUS') {
+			$uri->auth('ANONYMOUS') if !defined($uri->auth);
+		}
 	} else {
-		$err = "E: <$url> LOGIN: $@\n";
+		$err = "E: <$uri> LOGIN: $@\n";
 		if ($cred && defined($cred->{password})) {
 			$err =~ s/\Q$cred->{password}\E/*******/g;
 		}
@@ -304,15 +307,16 @@ sub imap_common_init ($;$) {
 	# make sure we can connect and cache the credentials in memory
 	$self->{mic_arg} = {}; # schema://authority => IMAPClient->new args
 	my $mics = {}; # schema://authority => IMAPClient obj
-	for my $uri (@{$self->{imap_order}}) {
-		my $sec = uri_section($uri);
+	for my $orig_uri (@{$self->{imap_order}}) {
+		my $sec = uri_section($orig_uri);
+		my $uri = PublicInbox::URIimap->new("$sec/");
 		my $mic = $mics->{$sec} //=
-				mic_for($self, "$sec/", $mic_args, $lei) //
+				mic_for($self, $uri, $mic_args, $lei) //
 				die "Unable to continue\n";
 		next unless $self->isa('PublicInbox::NetWriter');
-		my $dst = $uri->mailbox // next;
+		my $dst = $orig_uri->mailbox // next;
 		next if $mic->exists($dst); # already exists
-		$mic->create($dst) or die "CREATE $dst failed <$uri>: $@";
+		$mic->create($dst) or die "CREATE $dst failed <$orig_uri>: $@";
 	}
 	$mics;
 }
@@ -419,12 +423,18 @@ sub run_commit_cb ($) {
 	$cb->(@args);
 }
 
-sub _itrk_last ($$;$) {
-	my ($self, $uri, $r_uidval) = @_;
+sub itrk_last ($$;$$) {
+	my ($self, $uri, $r_uidval, $mic) = @_;
 	return (undef, undef, $r_uidval) unless $self->{incremental};
 	my ($itrk, $l_uid, $l_uidval);
 	if (defined(my $lms = $self->{-lms_ro})) { # LeiMailSync or 0
 		$uri->uidvalidity($r_uidval) if defined $r_uidval;
+		if ($mic) {
+			my $auth = $mic->Authmechanism // '';
+			$uri->auth($auth) if $auth eq 'ANONYMOUS';
+			my $user = $mic->User;
+			$uri->user($user) if defined($user);
+		}
 		my $x;
 		$l_uid = ($lms && ($x = $lms->location_stats($$uri))) ?
 				$x->{'uid.max'} : undef;
@@ -459,7 +469,7 @@ E: $orig_uri UIDVALIDITY mismatch (got $r_uidval)
 EOF
 
 	my $uri = $orig_uri->clone;
-	my ($itrk, $l_uid, $l_uidval) = _itrk_last($self, $uri, $r_uidval);
+	my ($itrk, $l_uid, $l_uidval) = itrk_last($self, $uri, $r_uidval, $mic);
 	return <<EOF if $l_uidval != $r_uidval;
 E: $uri UIDVALIDITY mismatch
 E: local=$l_uidval != remote=$r_uidval
@@ -612,7 +622,7 @@ sub _nntp_fetch_all ($$$) {
 	# IMAPTracker is also used for tracking NNTP, UID == article number
 	# LIST.ACTIVE can get the equivalent of UIDVALIDITY, but that's
 	# expensive.  So we assume newsgroups don't change:
-	my ($itrk, $l_art) = _itrk_last($self, $uri);
+	my ($itrk, $l_art) = itrk_last($self, $uri);
 
 	# allow users to specify articles to refetch
 	# cf. https://tools.ietf.org/id/draft-gilman-news-url-01.txt

@@ -23,9 +23,11 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	lei_ok('import', $url);
 	lei_ok 'ls-mail-sync';
-	like($lei_out, qr!\A\Q$url\E;UIDVALIDITY=\d+\n\z!, 'ls-mail-sync');
+	like($lei_out, qr!\Aimap://;AUTH=ANONYMOUS\@\Q$host_port\E
+			/t\.v2\.0;UIDVALIDITY=\d+\n\z!x, 'ls-mail-sync');
 	chomp(my $u = $lei_out);
 	lei_ok('import', $u, \'UIDVALIDITY match in URL');
+	$url = $u;
 	$u =~ s/;UIDVALIDITY=(\d+)\s*/;UIDVALIDITY=9$1/s;
 	ok(!lei('import', $u), 'UIDVALIDITY mismatch in URL rejected');
 
@@ -33,7 +35,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $inspect = json_utf8->decode($lei_out);
 	my @k = keys %$inspect;
 	is(scalar(@k), 1, 'one URL resolved');
-	like($k[0], qr!\A\Q$url\E;UIDVALIDITY=\d+\z!, 'inspect URL matches');
+	is($k[0], $url, 'inspect URL matches');
 	my $stats = $inspect->{$k[0]};
 	is_deeply([ sort keys %$stats ],
 		[ qw(uid.count uid.max uid.min) ], 'keys match');
@@ -55,7 +57,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $x = json_utf8->decode($lei_out);
 	is(ref($x->{'lei/store'}), 'ARRAY', 'lei/store in inspect');
 	is(ref($x->{'mail-sync'}), 'HASH', 'sync in inspect');
-	is(ref($x->{'mail-sync'}->{$k[0]}), 'ARRAY', 'UID arrays in inspect');
+	is(ref($x->{'mail-sync'}->{$k[0]}), 'ARRAY', 'UID arrays in inspect')
+		or diag explain($x);
 
 	my $psgi_attach = 'cfa3622cbeffc9bd6b0fc66c4d60d420ba74f60d';
 	lei_ok('blob', $psgi_attach);
