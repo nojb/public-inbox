@@ -250,7 +250,8 @@ sub prepare_inputs { # returns undef on error
 				require PublicInbox::MdirReader;
 				$ifmt eq 'maildir' or return
 					$lei->fail("$ifmt not supported");
-				$input = $lei->abs_path($input) if $sync;
+				$sync and $input = 'maildir:'.
+						$lei->abs_path($input_path);
 			} else {
 				return $lei->fail("Unable to handle $input");
 			}
