@@ -25,7 +25,6 @@ use v5.10.1;
 use parent qw(Exporter);
 use bytes;
 use POSIX qw(WNOHANG sigprocmask SIG_SETMASK);
-use IO::Handle qw();
 use Fcntl qw(SEEK_SET :DEFAULT O_APPEND);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use Scalar::Util qw(blessed);
@@ -135,7 +134,7 @@ sub add_timer ($$;@) {
 sub set_cloexec ($) {
     my ($fd) = @_;
 
-    $_io = IO::Handle->new_from_fd($fd, 'r+') or return;
+    open($_io, '+<&=', $fd) or return;
     defined(my $fl = fcntl($_io, F_GETFD, 0)) or return;
     fcntl($_io, F_SETFD, $fl | FD_CLOEXEC);
 }

@@ -367,7 +367,7 @@ sub inherit ($) {
 	my $end = $fds + 2; # LISTEN_FDS_START - 1
 	my @rv = ();
 	foreach my $fd (3..$end) {
-		my $s = IO::Handle->new_from_fd($fd, 'r');
+		open(my $s, '<&=', $fd) or warn "fdopen fd=$fd: $!";
 		if (my $k = sockname($s)) {
 			my $prev_was_blocking = $s->blocking(0);
 			warn <<"" if $prev_was_blocking;

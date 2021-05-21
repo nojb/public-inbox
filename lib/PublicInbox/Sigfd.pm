@@ -8,7 +8,6 @@ use strict;
 use parent qw(PublicInbox::DS);
 use PublicInbox::Syscall qw(signalfd EPOLLIN EPOLLET SFD_NONBLOCK);
 use POSIX ();
-use IO::Handle ();
 
 # returns a coderef to unblock signals if neither signalfd or kqueue
 # are available.
@@ -27,7 +26,7 @@ sub new {
 	my $io;
 	my $fd = signalfd(-1, [keys %signo], $flags);
 	if (defined $fd && $fd >= 0) {
-		$io = IO::Handle->new_from_fd($fd, 'r+');
+		open($io, '+<&=', $fd) or die "open: $!";
 	} elsif (eval { require PublicInbox::DSKQXS }) {
 		$io = PublicInbox::DSKQXS->signalfd([keys %signo], $flags);
 	} else {
